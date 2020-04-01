@@ -1,6 +1,6 @@
 //===- SymbolTable.h - MLIR Symbol Table Class ------------------*- C++ -*-===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -46,20 +46,66 @@ public:
   /// Returns the associated operation.
   Operation *getOp() const { return symbolTableOp; }
 
+  /// Return the name of the attribute used for symbol visibility.
+  static StringRef getVisibilityAttrName() { return "sym_visibility"; }
+
   //===--------------------------------------------------------------------===//
   // Symbol Utilities
   //===--------------------------------------------------------------------===//
+
+  /// An enumeration detailing the different visibility types that a symbol may
+  /// have.
+  enum class Visibility {
+    /// The symbol is public and may be referenced anywhere internal or external
+    /// to the visible references in the IR.
+    Public,
+
+    /// The symbol is private and may only be referenced by SymbolRefAttrs local
+    /// to the operations within the current symbol table.
+    Private,
+
+    /// The symbol is visible to the current IR, which may include operations in
+    /// symbol tables above the one that owns the current symbol. `Nested`
+    /// visibility allows for referencing a symbol outside of its current symbol
+    /// table, while retaining the ability to observe all uses.
+    Nested,
+  };
+
+  /// Returns true if the given operation defines a symbol.
+  static bool isSymbol(Operation *op);
+
+  /// Returns the name of the given symbol operation.
+  static StringRef getSymbolName(Operation *symbol);
+  /// Sets the name of the given symbol operation.
+  static void setSymbolName(Operation *symbol, StringRef name);
+
+  /// Returns the visibility of the given symbol operation.
+  static Visibility getSymbolVisibility(Operation *symbol);
+  /// Sets the visibility of the given symbol operation.
+  static void setSymbolVisibility(Operation *symbol, Visibility vis);
+
+  /// Returns the nearest symbol table from a given operation `from`. Returns
+  /// nullptr if no valid parent symbol table could be found.
+  static Operation *getNearestSymbolTable(Operation *from);
 
   /// Returns the operation registered with the given symbol name with the
   /// regions of 'symbolTableOp'. 'symbolTableOp' is required to be an operation
   /// with the 'OpTrait::SymbolTable' trait.
   static Operation *lookupSymbolIn(Operation *op, StringRef symbol);
+  static Operation *lookupSymbolIn(Operation *op, SymbolRefAttr symbol);
+  /// A variant of 'lookupSymbolIn' that returns all of the symbols referenced
+  /// by a given SymbolRefAttr. Returns failure if any of the nested references
+  /// could not be resolved.
+  static LogicalResult lookupSymbolIn(Operation *op, SymbolRefAttr symbol,
+                                      SmallVectorImpl<Operation *> &symbols);
 
   /// Returns the operation registered with the given symbol name within the
   /// closest parent operation of, or including, 'from' with the
   /// 'OpTrait::SymbolTable' trait. Returns nullptr if no valid symbol was
   /// found.
   static Operation *lookupNearestSymbolFrom(Operation *from, StringRef symbol);
+  static Operation *lookupNearestSymbolFrom(Operation *from,
+                                            SymbolRefAttr symbol);
 
   /// This class represents a specific symbol use.
   class SymbolUse {
@@ -96,42 +142,47 @@ public:
 
   /// Get an iterator range for all of the uses, for any symbol, that are nested
   /// within the given operation 'from'. This does not traverse into any nested
-  /// symbol tables, and will also only return uses on 'from' if it does not
-  /// also define a symbol table. This is because we treat the region as the
-  /// boundary of the symbol table, and not the op itself. This function returns
-  /// None if there are any unknown operations that may potentially be symbol
-  /// tables.
+  /// symbol tables. This function returns None if there are any unknown
+  /// operations that may potentially be symbol tables.
   static Optional<UseRange> getSymbolUses(Operation *from);
+  static Optional<UseRange> getSymbolUses(Region *from);
 
   /// Get all of the uses of the given symbol that are nested within the given
-  /// operation 'from'. This does not traverse into any nested symbol tables,
-  /// and will also only return uses on 'from' if it does not also define a
-  /// symbol table. This is because we treat the region as the boundary of the
-  /// symbol table, and not the op itself. This function returns None if there
-  /// are any unknown operations that may potentially be symbol tables.
+  /// operation 'from'. This does not traverse into any nested symbol tables.
+  /// This function returns None if there are any unknown operations that may
+  /// potentially be symbol tables.
   static Optional<UseRange> getSymbolUses(StringRef symbol, Operation *from);
+  static Optional<UseRange> getSymbolUses(Operation *symbol, Operation *from);
+  static Optional<UseRange> getSymbolUses(StringRef symbol, Region *from);
+  static Optional<UseRange> getSymbolUses(Operation *symbol, Region *from);
 
   /// Return if the given symbol is known to have no uses that are nested
   /// within the given operation 'from'. This does not traverse into any nested
-  /// symbol tables, and will also only count uses on 'from' if it does not also
-  /// define a symbol table. This is because we treat the region as the boundary
-  /// of the symbol table, and not the op itself. This function will also return
-  /// false if there are any unknown operations that may potentially be symbol
-  /// tables. This doesn't necessarily mean that there are no uses, we just
-  /// can't conservatively prove it.
+  /// symbol tables. This function will also return false if there are any
+  /// unknown operations that may potentially be symbol tables. This doesn't
+  /// necessarily mean that there are no uses, we just can't conservatively
+  /// prove it.
   static bool symbolKnownUseEmpty(StringRef symbol, Operation *from);
+  static bool symbolKnownUseEmpty(Operation *symbol, Operation *from);
+  static bool symbolKnownUseEmpty(StringRef symbol, Region *from);
+  static bool symbolKnownUseEmpty(Operation *symbol, Region *from);
 
   /// Attempt to replace all uses of the given symbol 'oldSymbol' with the
   /// provided symbol 'newSymbol' that are nested within the given operation
-  /// 'from'. This does not traverse into any nested symbol tables, and will
-  /// also only replace uses on 'from' if it does not also define a symbol
-  /// table. This is because we treat the region as the boundary of the symbol
-  /// table, and not the op itself. If there are any unknown operations that may
-  /// potentially be symbol tables, no uses are replaced and failure is
-  /// returned.
+  /// 'from'. This does not traverse into any nested symbol tables. If there are
+  /// any unknown operations that may potentially be symbol tables, no uses are
+  /// replaced and failure is returned.
   LLVM_NODISCARD static LogicalResult replaceAllSymbolUses(StringRef oldSymbol,
                                                            StringRef newSymbol,
                                                            Operation *from);
+  LLVM_NODISCARD static LogicalResult
+  replaceAllSymbolUses(Operation *oldSymbol, StringRef newSymbolName,
+                       Operation *from);
+  LLVM_NODISCARD static LogicalResult
+  replaceAllSymbolUses(StringRef oldSymbol, StringRef newSymbol, Region *from);
+  LLVM_NODISCARD static LogicalResult
+  replaceAllSymbolUses(Operation *oldSymbol, StringRef newSymbolName,
+                       Region *from);
 
 private:
   Operation *symbolTableOp;
@@ -184,6 +235,8 @@ public:
 template <typename ConcreteType>
 class Symbol : public TraitBase<ConcreteType, Symbol> {
 public:
+  using Visibility = mlir::SymbolTable::Visibility;
+
   static LogicalResult verifyTrait(Operation *op) {
     return impl::verifySymbol(op);
   }
@@ -203,18 +256,28 @@ public:
         StringAttr::get(name, this->getOperation()->getContext()));
   }
 
+  /// Returns the visibility of the current symbol.
+  Visibility getVisibility() {
+    return mlir::SymbolTable::getSymbolVisibility(this->getOperation());
+  }
+
+  /// Sets the visibility of the current symbol.
+  void setVisibility(Visibility vis) {
+    mlir::SymbolTable::setSymbolVisibility(this->getOperation(), vis);
+  }
+
   /// Get all of the uses of the current symbol that are nested within the given
   /// operation 'from'.
   /// Note: See mlir::SymbolTable::getSymbolUses for more details.
   Optional<::mlir::SymbolTable::UseRange> getSymbolUses(Operation *from) {
-    return ::mlir::SymbolTable::getSymbolUses(getName(), from);
+    return ::mlir::SymbolTable::getSymbolUses(this->getOperation(), from);
   }
 
   /// Return if the current symbol is known to have no uses that are nested
   /// within the given operation 'from'.
   /// Note: See mlir::SymbolTable::symbolKnownUseEmpty for more details.
   bool symbolKnownUseEmpty(Operation *from) {
-    return ::mlir::SymbolTable::symbolKnownUseEmpty(getName(), from);
+    return ::mlir::SymbolTable::symbolKnownUseEmpty(this->getOperation(), from);
   }
 
   /// Attempt to replace all uses of the current symbol with the provided symbol
@@ -222,8 +285,8 @@ public:
   /// Note: See mlir::SymbolTable::replaceAllSymbolUses for more details.
   LLVM_NODISCARD LogicalResult replaceAllSymbolUses(StringRef newSymbol,
                                                     Operation *from) {
-    return ::mlir::SymbolTable::replaceAllSymbolUses(getName(), newSymbol,
-                                                     from);
+    return ::mlir::SymbolTable::replaceAllSymbolUses(this->getOperation(),
+                                                     newSymbol, from);
   }
 };
 

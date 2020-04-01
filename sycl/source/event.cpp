@@ -8,18 +8,17 @@
 
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/event_impl.hpp>
 #include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/detail/scheduler/scheduler.hpp>
-#include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/event.hpp>
-
+#include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/stl.hpp>
+#include <detail/event_impl.hpp>
+#include <detail/scheduler/scheduler.hpp>
 
 #include <memory>
 #include <unordered_set>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
 event::event() : impl(std::make_shared<detail::event_impl>()) {}
@@ -85,4 +84,4 @@ event::event(shared_ptr_class<detail::event_impl> event_impl)
 #undef PARAM_TRAITS_SPEC
 
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

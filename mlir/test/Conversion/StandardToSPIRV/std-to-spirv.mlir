@@ -14,75 +14,77 @@ func @add_sub(%arg0 : i32, %arg1 : i32) {
 }
 
 // CHECK-LABEL: @fadd_scalar
-func @fadd_scalar(%arg: f32) -> f32 {
+func @fadd_scalar(%arg: f32) {
   // CHECK: spv.FAdd
   %0 = addf %arg, %arg : f32
-  return %0 : f32
+  return
 }
 
 // CHECK-LABEL: @fdiv_scalar
-func @fdiv_scalar(%arg: f32) -> f32 {
+func @fdiv_scalar(%arg: f32) {
   // CHECK: spv.FDiv
   %0 = divf %arg, %arg : f32
-  return %0 : f32
+  return
 }
 
 // CHECK-LABEL: @fmul_scalar
-func @fmul_scalar(%arg: f32) -> f32 {
+func @fmul_scalar(%arg: f32) {
   // CHECK: spv.FMul
   %0 = mulf %arg, %arg : f32
-  return %0 : f32
+  return
 }
 
 // CHECK-LABEL: @fmul_vector2
-func @fmul_vector2(%arg: vector<2xf32>) -> vector<2xf32> {
+func @fmul_vector2(%arg: vector<2xf32>) {
   // CHECK: spv.FMul
   %0 = mulf %arg, %arg : vector<2xf32>
-  return %0 : vector<2xf32>
+  return
 }
 
 // CHECK-LABEL: @fmul_vector3
-func @fmul_vector3(%arg: vector<3xf32>) -> vector<3xf32> {
+func @fmul_vector3(%arg: vector<3xf32>) {
   // CHECK: spv.FMul
   %0 = mulf %arg, %arg : vector<3xf32>
-  return %0 : vector<3xf32>
+  return
 }
 
 // CHECK-LABEL: @fmul_vector4
-func @fmul_vector4(%arg: vector<4xf32>) -> vector<4xf32> {
+func @fmul_vector4(%arg: vector<4xf32>) {
   // CHECK: spv.FMul
   %0 = mulf %arg, %arg : vector<4xf32>
-  return %0 : vector<4xf32>
+  return
 }
 
 // CHECK-LABEL: @fmul_vector5
-func @fmul_vector5(%arg: vector<5xf32>) -> vector<5xf32> {
-  // Vector length of only 2, 3, and 4 is valid for SPIR-V
+func @fmul_vector5(%arg: vector<5xf32>) {
+  // Vector length of only 2, 3, and 4 is valid for SPIR-V.
   // CHECK: mulf
   %0 = mulf %arg, %arg : vector<5xf32>
-  return %0 : vector<5xf32>
+  return
 }
 
-// CHECK-LABEL: @fmul_tensor
-func @fmul_tensor(%arg: tensor<4xf32>) -> tensor<4xf32> {
-  // For tensors mulf cannot be lowered directly to spv.FMul
-  // CHECK: mulf
-  %0 = mulf %arg, %arg : tensor<4xf32>
-  return %0 : tensor<4xf32>
-}
+// TODO(antiagainst): enable this once we support converting binary ops
+// needing type conversion.
+// XXXXX-LABEL: @fmul_tensor
+//func @fmul_tensor(%arg: tensor<4xf32>) {
+  // For tensors mulf cannot be lowered directly to spv.FMul.
+  // XXXXX: mulf
+  //%0 = mulf %arg, %arg : tensor<4xf32>
+  //return
+//}
 
 // CHECK-LABEL: @frem_scalar
-func @frem_scalar(%arg: f32) -> f32 {
+func @frem_scalar(%arg: f32) {
   // CHECK: spv.FRem
   %0 = remf %arg, %arg : f32
-  return %0 : f32
+  return
 }
 
 // CHECK-LABEL: @fsub_scalar
-func @fsub_scalar(%arg: f32) -> f32 {
+func @fsub_scalar(%arg: f32) {
   // CHECK: spv.FSub
   %0 = subf %arg, %arg : f32
-  return %0 : f32
+  return
 }
 
 // CHECK-LABEL: @div_rem
@@ -220,6 +222,18 @@ func @constant() {
   %3 = constant dense<[2, 3]> : vector<2xi32>
   // CHECK: spv.constant 1 : i32
   %4 = constant 1 : index
+  // CHECK: spv.constant dense<1> : tensor<6xi32> : !spv.array<6 x i32 [4]>
+  %5 = constant dense<1> : tensor<2x3xi32>
+  // CHECK: spv.constant dense<1.000000e+00> : tensor<6xf32> : !spv.array<6 x f32 [4]>
+  %6 = constant dense<1.0> : tensor<2x3xf32>
+  // CHECK: spv.constant dense<{{\[}}1.000000e+00, 2.000000e+00, 3.000000e+00, 4.000000e+00, 5.000000e+00, 6.000000e+00]> : tensor<6xf32> : !spv.array<6 x f32 [4]>
+  %7 = constant dense<[[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]> : tensor<2x3xf32>
+  // CHECK: spv.constant dense<{{\[}}1, 2, 3, 4, 5, 6]> : tensor<6xi32> : !spv.array<6 x i32 [4]>
+  %8 = constant dense<[[1, 2, 3], [4, 5, 6]]> : tensor<2x3xi32>
+  // CHECK: spv.constant dense<{{\[}}1, 2, 3, 4, 5, 6]> : tensor<6xi32> : !spv.array<6 x i32 [4]>
+  %9 =  constant dense<[[1, 2], [3, 4], [5, 6]]> : tensor<3x2xi32>
+  // CHECK: spv.constant dense<{{\[}}1, 2, 3, 4, 5, 6]> : tensor<6xi32> : !spv.array<6 x i32 [4]>
+  %10 =  constant dense<[1, 2, 3, 4, 5, 6]> : tensor<6xi32>
   return
 }
 
@@ -287,5 +301,52 @@ func @select(%arg0 : i32, %arg1 : i32) {
 func @sitofp(%arg0 : i32) {
   // CHECK: spv.ConvertSToF
   %0 = std.sitofp %arg0 : i32 to f32
+  return
+}
+
+//===----------------------------------------------------------------------===//
+// memref type
+//===----------------------------------------------------------------------===//
+
+// CHECK-LABEL: func @memref_type({{%.*}}: memref<3xi1>)
+func @memref_type(%arg0: memref<3xi1>) {
+  return
+}
+
+// CHECK-LABEL: @load_store_zero_rank_float
+// CHECK: [[ARG0:%.*]]: !spv.ptr<!spv.struct<!spv.array<1 x f32 [4]> [0]>, StorageBuffer>,
+// CHECK: [[ARG1:%.*]]: !spv.ptr<!spv.struct<!spv.array<1 x f32 [4]> [0]>, StorageBuffer>)
+func @load_store_zero_rank_float(%arg0: memref<f32>, %arg1: memref<f32>) {
+  //      CHECK: [[ZERO1:%.*]] = spv.constant 0 : i32
+  //      CHECK: spv.AccessChain [[ARG0]][
+  // CHECK-SAME: [[ZERO1]], [[ZERO1]]
+  // CHECK-SAME: ] :
+  //      CHECK: spv.Load "StorageBuffer" %{{.*}} : f32
+  %0 = load %arg0[] : memref<f32>
+  //      CHECK: [[ZERO2:%.*]] = spv.constant 0 : i32
+  //      CHECK: spv.AccessChain [[ARG1]][
+  // CHECK-SAME: [[ZERO2]], [[ZERO2]]
+  // CHECK-SAME: ] :
+  //      CHECK: spv.Store "StorageBuffer" %{{.*}} : f32
+  store %0, %arg1[] : memref<f32>
+  return
+}
+
+// CHECK-LABEL: @load_store_zero_rank_int
+// CHECK: [[ARG0:%.*]]: !spv.ptr<!spv.struct<!spv.array<1 x i32 [4]> [0]>, StorageBuffer>,
+// CHECK: [[ARG1:%.*]]: !spv.ptr<!spv.struct<!spv.array<1 x i32 [4]> [0]>, StorageBuffer>)
+func @load_store_zero_rank_int(%arg0: memref<i32>, %arg1: memref<i32>) {
+  //      CHECK: [[ZERO1:%.*]] = spv.constant 0 : i32
+  //      CHECK: spv.AccessChain [[ARG0]][
+  // CHECK-SAME: [[ZERO1]], [[ZERO1]]
+  // CHECK-SAME: ] :
+  //      CHECK: spv.Load "StorageBuffer" %{{.*}} : i32
+  %0 = load %arg0[] : memref<i32>
+  //      CHECK: [[ZERO2:%.*]] = spv.constant 0 : i32
+  //      CHECK: spv.AccessChain [[ARG1]][
+  // CHECK-SAME: [[ZERO2]], [[ZERO2]]
+  // CHECK-SAME: ] :
+  //      CHECK: spv.Store "StorageBuffer" %{{.*}} : i32
+  store %0, %arg1[] : memref<i32>
   return
 }

@@ -26,6 +26,22 @@
 using namespace llvm;
 using namespace llvm::AMDGPU;
 
+void AMDGPUInstPrinter::printRegName(raw_ostream &OS, unsigned RegNo) const {
+  // FIXME: The current implementation of
+  // AsmParser::parseRegisterOrRegisterNumber in MC implies we either emit this
+  // as an integer or we provide a name which represents a physical register.
+  // For CFI instructions we really want to emit a name for the DWARF register
+  // instead, because there may be multiple DWARF registers corresponding to a
+  // single physical register. One case where this problem manifests is with
+  // wave32/wave64 where using the physical register name is ambiguous: if we
+  // write e.g. `.cfi_undefined v0` we lose information about the wavefront
+  // size which we need to encode the register in the final DWARF. Ideally we
+  // would extend MC to support parsing DWARF register names so we could do
+  // something like `.cfi_undefined dwarf_wave32_v0`. For now we just live with
+  // non-pretty DWARF register names in assembly text.
+  OS << RegNo;
+}
+
 void AMDGPUInstPrinter::printInst(const MCInst *MI, uint64_t Address,
                                   StringRef Annot, const MCSubtargetInfo &STI,
                                   raw_ostream &OS) {
@@ -242,6 +258,11 @@ void AMDGPUInstPrinter::printR128A16(const MCInst *MI, unsigned OpNo,
     printNamedBit(MI, OpNo, O, "a16");
   else
     printNamedBit(MI, OpNo, O, "r128");
+}
+
+void AMDGPUInstPrinter::printGFX10A16(const MCInst *MI, unsigned OpNo,
+                                  const MCSubtargetInfo &STI, raw_ostream &O) {
+  printNamedBit(MI, OpNo, O, "a16");
 }
 
 void AMDGPUInstPrinter::printLWE(const MCInst *MI, unsigned OpNo,

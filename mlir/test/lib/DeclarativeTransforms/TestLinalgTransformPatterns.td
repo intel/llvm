@@ -1,6 +1,6 @@
 //===- TestLinalgTransformPatterns.td - Test patterns --*- tablegen ----*-===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -99,12 +99,25 @@ def : Pattern<(DotOp:$op $_, $_, $_),
 //===----------------------------------------------------------------------===//
 // Linalg to vector contraction patterns.
 //===----------------------------------------------------------------------===//
-def : Pattern<(GenericOp:$op $_, $_, $_, $_, $_, $_, $_, $_),
-             [(VectorizeGenericLinalgOp)],
-             [(Constraint<And<[
-               HasLinalgTransformMarker<"_marked_matmul_">,
-               PreconditionVectorizeGenericLinalgOp
+def : Pattern<(MatmulOp:$op $_, $_, $_),
+              [(VectorizeLinalgOp)],
+              [(Constraint<And<[
+                HasLinalgTransformMarker<"VECTORIZE">,
+                PreconditionVectorizeLinalgOp
                ]>>)]>;
+def : Pattern<(FillOp:$op $_, $_),
+              [(VectorizeLinalgOp)],
+              [(Constraint<And<[
+                HasLinalgTransformMarker<"VECTORIZE">,
+                PreconditionVectorizeLinalgOp
+               ]>>)]>;
+def : Pattern<(GenericOp:$op $_, $_, $_, $_, $_, $_, $_, $_),
+              [(VectorizeLinalgOp)],
+              [(Constraint<And<[
+                HasLinalgTransformMarker<"VECTORIZE">,
+                PreconditionVectorizeLinalgOp
+               ]>>)]>;
+
 
 //===----------------------------------------------------------------------===//
 // Linalg generic permutation patterns.
@@ -135,4 +148,5 @@ def : Pat<(MatmulOp:$op $_, $_, $_),
               HasOperandsOfType<"SubViewOp">,
               HasLinalgTransformMarker<"_promote_views_">]>>
            )]>;
+
 #endif // TEST_LINALG_TRANSFORMS_PATTERNS

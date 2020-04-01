@@ -26,11 +26,6 @@ ContainerSizeEmptyCheck::ContainerSizeEmptyCheck(StringRef Name,
     : ClangTidyCheck(Name, Context) {}
 
 void ContainerSizeEmptyCheck::registerMatchers(MatchFinder *Finder) {
-  // Only register the matchers for C++; the functionality currently does not
-  // provide any benefit to other languages, despite being benign.
-  if (!getLangOpts().CPlusPlus)
-    return;
-
   const auto ValidContainer = qualType(hasUnqualifiedDesugaredType(
       recordType(hasDeclaration(cxxRecordDecl(isSameOrDerivedFrom(
           namedDecl(
@@ -46,7 +41,7 @@ void ContainerSizeEmptyCheck::registerMatchers(MatchFinder *Finder) {
 
   const auto WrongUse = anyOf(
       hasParent(binaryOperator(
-                    matchers::isComparisonOperator(),
+                    isComparisonOperator(),
                     hasEitherOperand(ignoringImpCasts(anyOf(
                         integerLiteral(equals(1)), integerLiteral(equals(0))))))
                     .bind("SizeBinaryOp")),
@@ -90,8 +85,7 @@ void ContainerSizeEmptyCheck::registerMatchers(MatchFinder *Finder) {
             expr(hasType(ValidContainer)).bind("STLObject"));
   Finder->addMatcher(
       cxxOperatorCallExpr(
-          anyOf(hasOverloadedOperatorName("=="),
-                hasOverloadedOperatorName("!=")),
+          hasAnyOverloadedOperatorName("==", "!="),
           anyOf(allOf(hasArgument(0, WrongComparend), hasArgument(1, STLArg)),
                 allOf(hasArgument(0, STLArg), hasArgument(1, WrongComparend))),
           unless(hasAncestor(
@@ -111,9 +105,9 @@ void ContainerSizeEmptyCheck::check(const MatchFinder::MatchResult &Result) {
           ? MemberCall->getImplicitObjectArgument()
           : (Pointee ? Pointee : Result.Nodes.getNodeAs<Expr>("STLObject"));
   FixItHint Hint;
-  std::string ReplacementText =
+  std::string ReplacementText = std::string(
       Lexer::getSourceText(CharSourceRange::getTokenRange(E->getSourceRange()),
-                           *Result.SourceManager, getLangOpts());
+                           *Result.SourceManager, getLangOpts()));
   if (BinCmp && IsBinaryOrTernary(E)) {
     // Not just a DeclRefExpr, so parenthesize to be on the safe side.
     ReplacementText = "(" + ReplacementText + ")";

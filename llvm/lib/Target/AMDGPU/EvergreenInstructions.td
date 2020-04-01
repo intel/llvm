@@ -118,11 +118,12 @@ def LOG_IEEE_eg : LOG_IEEE_Common<0x83>;
 def RECIP_CLAMPED_eg : RECIP_CLAMPED_Common<0x84>;
 def RECIPSQRT_IEEE_eg : RECIPSQRT_IEEE_Common<0x89>;
 def : RsqPat<RECIPSQRT_IEEE_eg, f32>;
+def : SqrtPat<RECIPSQRT_IEEE_eg, RECIP_IEEE_eg>;
+
 def SIN_eg : SIN_Common<0x8D>;
 def COS_eg : COS_Common<0x8E>;
 
 def : POW_Common <LOG_IEEE_eg, EXP_IEEE_eg, MUL>;
-def : EGPat<(fsqrt f32:$src), (MUL $src, (RECIPSQRT_CLAMPED_eg $src))>;
 } // End SubtargetPredicate = isEG
 
 //===----------------------------------------------------------------------===//
@@ -421,6 +422,7 @@ def MULADD_UINT24_eg : R600_3OP <0x10, "MULADD_UINT24",
 def : UMad24Pat<MULADD_UINT24_eg>;
 
 def BIT_ALIGN_INT_eg : R600_3OP <0xC, "BIT_ALIGN_INT", [], VecALU>;
+def : FSHRPattern <BIT_ALIGN_INT_eg>;
 def : ROTRPattern <BIT_ALIGN_INT_eg>;
 def MULADD_eg : MULADD_Common<0x14>;
 def MULADD_IEEE_eg : MULADD_IEEE_Common<0x18>;

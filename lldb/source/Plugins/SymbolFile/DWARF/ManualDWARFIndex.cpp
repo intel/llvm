@@ -1,4 +1,4 @@
-//===-- ManualDWARFIndex.cpp -----------------------------------*- C++ -*-===//
+//===-- ManualDWARFIndex.cpp ----------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -22,22 +22,38 @@ using namespace lldb_private;
 using namespace lldb;
 
 void ManualDWARFIndex::Index() {
-  if (!m_debug_info)
+  if (!m_dwarf)
     return;
 
-  DWARFDebugInfo &debug_info = *m_debug_info;
-  m_debug_info = nullptr;
+  SymbolFileDWARF &main_dwarf = *m_dwarf;
+  m_dwarf = nullptr;
 
   static Timer::Category func_cat(LLVM_PRETTY_FUNCTION);
-  Timer scoped_timer(func_cat, "%p", static_cast<void *>(&debug_info));
+  Timer scoped_timer(func_cat, "%p", static_cast<void *>(&main_dwarf));
+
+  DWARFDebugInfo &main_info = main_dwarf.DebugInfo();
+  SymbolFileDWARFDwo *dwp_dwarf = main_dwarf.GetDwpSymbolFile().get();
+  DWARFDebugInfo *dwp_info = dwp_dwarf ? &dwp_dwarf->DebugInfo() : nullptr;
 
   std::vector<DWARFUnit *> units_to_index;
-  units_to_index.reserve(debug_info.GetNumUnits());
-  for (size_t U = 0; U < debug_info.GetNumUnits(); ++U) {
-    DWARFUnit *unit = debug_info.GetUnitAtIndex(U);
+  units_to_index.reserve(main_info.GetNumUnits() +
+                         (dwp_info ? dwp_info->GetNumUnits() : 0));
+
+  // Process all units in the main file, as well as any type units in the dwp
+  // file. Type units in dwo files are handled when we reach the dwo file in
+  // IndexUnit.
+  for (size_t U = 0; U < main_info.GetNumUnits(); ++U) {
+    DWARFUnit *unit = main_info.GetUnitAtIndex(U);
     if (unit && m_units_to_avoid.count(unit->GetOffset()) == 0)
       units_to_index.push_back(unit);
   }
+  if (dwp_info && dwp_info->ContainsTypeUnits()) {
+    for (size_t U = 0; U < dwp_info->GetNumUnits(); ++U) {
+      if (auto *tu = llvm::dyn_cast<DWARFTypeUnit>(dwp_info->GetUnitAtIndex(U)))
+        units_to_index.push_back(tu);
+    }
+  }
+
   if (units_to_index.empty())
     return;
 
@@ -48,7 +64,7 @@ void ManualDWARFIndex::Index() {
   std::vector<llvm::Optional<DWARFUnit::ScopedExtractDIEs>> clear_cu_dies(
       units_to_index.size());
   auto parser_fn = [&](size_t cu_idx) {
-    IndexUnit(*units_to_index[cu_idx], sets[cu_idx]);
+    IndexUnit(*units_to_index[cu_idx], dwp_dwarf, sets[cu_idx]);
   };
 
   auto extract_fn = [&units_to_index, &clear_cu_dies](size_t cu_idx) {
@@ -87,11 +103,8 @@ void ManualDWARFIndex::Index() {
                      [&]() { finalize_fn(&IndexSet::namespaces); });
 }
 
-void ManualDWARFIndex::IndexUnit(DWARFUnit &unit, IndexSet &set) {
-  assert(
-      !unit.GetSymbolFileDWARF().GetBaseCompileUnit() &&
-      "DWARFUnit associated with .dwo or .dwp should not be indexed directly");
-
+void ManualDWARFIndex::IndexUnit(DWARFUnit &unit, SymbolFileDWARFDwo *dwp,
+                                 IndexSet &set) {
   Log *log = LogChannelDWARF::GetLogIfAll(DWARF_LOG_LOOKUPS);
 
   if (log) {
@@ -100,14 +113,21 @@ void ManualDWARFIndex::IndexUnit(DWARFUnit &unit, IndexSet &set) {
         unit.GetOffset());
   }
 
-  const LanguageType cu_language = unit.GetLanguageType();
+  const LanguageType cu_language = SymbolFileDWARF::GetLanguage(unit);
 
   IndexUnitImpl(unit, cu_language, set);
 
   if (SymbolFileDWARFDwo *dwo_symbol_file = unit.GetDwoSymbolFile()) {
-    DWARFDebugInfo &dwo_info = *dwo_symbol_file->DebugInfo();
-    for (size_t i = 0; i < dwo_info.GetNumUnits(); ++i)
-      IndexUnitImpl(*dwo_info.GetUnitAtIndex(i), cu_language, set);
+    // Type units in a dwp file are indexed separately, so we just need to
+    // process the split unit here. However, if the split unit is in a dwo file,
+    // then we need to process type units here.
+    if (dwo_symbol_file == dwp) {
+      IndexUnitImpl(unit.GetNonSkeletonUnit(), cu_language, set);
+    } else {
+      DWARFDebugInfo &dwo_info = dwo_symbol_file->DebugInfo();
+      for (size_t i = 0; i < dwo_info.GetNumUnits(); ++i)
+        IndexUnitImpl(*dwo_info.GetUnitAtIndex(i), cu_language, set);
+    }
   }
 }
 
@@ -401,14 +421,12 @@ void ManualDWARFIndex::GetFunctions(ConstString name, SymbolFileDWARF &dwarf,
 
   if (name_type_mask & eFunctionNameTypeFull) {
     DIEArray offsets;
-    m_set.function_basenames.Find(name, offsets);
-    m_set.function_methods.Find(name, offsets);
     m_set.function_fullnames.Find(name, offsets);
     for (const DIERef &die_ref: offsets) {
       DWARFDIE die = dwarf.GetDIE(die_ref);
       if (!die)
         continue;
-      if (SymbolFileDWARF::DIEInDeclContext(&parent_decl_ctx, die))
+      if (SymbolFileDWARF::DIEInDeclContext(parent_decl_ctx, die))
         dies.push_back(die);
     }
   }
@@ -419,7 +437,7 @@ void ManualDWARFIndex::GetFunctions(ConstString name, SymbolFileDWARF &dwarf,
       DWARFDIE die = dwarf.GetDIE(die_ref);
       if (!die)
         continue;
-      if (SymbolFileDWARF::DIEInDeclContext(&parent_decl_ctx, die))
+      if (SymbolFileDWARF::DIEInDeclContext(parent_decl_ctx, die))
         dies.push_back(die);
     }
     offsets.clear();

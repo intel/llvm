@@ -8,12 +8,11 @@
 
 #pragma once
 #include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/platform_info.hpp>
 #include <CL/sycl/stl.hpp>
 
 // 4.6.2 Platform class
 #include <utility>
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 // TODO: make code thread-safe
 
@@ -34,7 +33,7 @@ public:
   /// The provided OpenCL platform handle is retained on SYCL platform
   /// construction.
   ///
-  /// @param PlatformId is an OpenCL cl_platform_id instance.
+  /// \param PlatformId is an OpenCL cl_platform_id instance.
   explicit platform(cl_platform_id PlatformId);
 
   /// Constructs a SYCL platform instance using device selector.
@@ -43,7 +42,7 @@ public:
   /// platform instance must be the SYCL device that is produced from the
   /// provided device selector.
   ///
-  /// @param DeviceSelector is an instance of SYCL device_selector.
+  /// \param DeviceSelector is an instance of SYCL device_selector.
   explicit platform(const device_selector &DeviceSelector);
 
   platform(const platform &rhs) = default;
@@ -60,18 +59,18 @@ public:
 
   /// Returns an OpenCL interoperability platform.
   ///
-  /// @return an instance of OpenCL cl_platform_id.
+  /// \return an instance of OpenCL cl_platform_id.
   cl_platform_id get() const;
 
   /// Checks if platform supports specified extension.
   ///
-  /// @param ExtensionName is a string containing extension name.
-  /// @return true if specified extension is supported by this SYCL platform.
+  /// \param ExtensionName is a string containing extension name.
+  /// \return true if specified extension is supported by this SYCL platform.
   bool has_extension(const string_class &ExtensionName) const;
 
   /// Checks if this SYCL platform is a host platform.
   ///
-  /// @return true if this SYCL platform is a host platform.
+  /// \return true if this SYCL platform is a host platform.
   bool is_host() const;
 
   /// Returns all SYCL devices associated with this platform.
@@ -80,8 +79,8 @@ public:
   /// a single SYCL host device. If there are no devices that match given device
   /// type, resulting vector is empty.
   ///
-  /// @param DeviceType is a SYCL device type.
-  /// @return a vector of SYCL devices.
+  /// \param DeviceType is a SYCL device type.
+  /// \return a vector of SYCL devices.
   vector_class<device>
   get_devices(info::device_type DeviceType = info::device_type::all) const;
 
@@ -96,7 +95,7 @@ public:
   ///
   /// The resulting vector always contains a single SYCL host platform instance.
   ///
-  /// @return a vector of all available SYCL platforms.
+  /// \return a vector of all available SYCL platforms.
   static vector_class<platform> get_platforms();
 
 private:
@@ -110,7 +109,7 @@ private:
 
 }; // class platform
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
 template <> struct hash<cl::sycl::platform> {

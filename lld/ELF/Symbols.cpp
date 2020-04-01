@@ -28,7 +28,7 @@ namespace lld {
 static std::string demangle(StringRef symName) {
   if (elf::config->demangle)
     return demangleItanium(symName);
-  return symName;
+  return std::string(symName);
 }
 
 std::string toString(const elf::Symbol &b) { return demangle(b.getName()); }
@@ -99,7 +99,7 @@ static uint64_t getSymVA(const Symbol &sym, int64_t &addend) {
     // MIPS relocatable files can mix regular and microMIPS code.
     // Linker needs to distinguish such code. To do so microMIPS
     // symbols has the `STO_MIPS_MICROMIPS` flag in the `st_other`
-    // field. Unfortunately, the `MIPS::relocateOne()` method has
+    // field. Unfortunately, the `MIPS::relocate()` method has
     // a symbol value only. To pass type of the symbol (regular/microMIPS)
     // to that routine as well as other places where we write
     // a symbol value as-is (.dynamic section, `Elf_Ehdr::e_entry`
@@ -277,8 +277,14 @@ bool Symbol::includeInDynsym() const {
     return false;
   if (computeBinding() == STB_LOCAL)
     return false;
+  if (!isDefined() && !isCommon())
+    // This should unconditionally return true, unfortunately glibc -static-pie
+    // expects undefined weak symbols not to exist in .dynsym, e.g.
+    // __pthread_mutex_lock reference in _dl_add_to_namespace_list,
+    // __pthread_initialize_minimal reference in csu/libc-start.c.
+    return !(config->noDynamicLinker && isUndefWeak());
 
-  return isUndefined() || isShared() || exportDynamic || inDynamicList;
+  return exportDynamic || inDynamicList;
 }
 
 // Print out a log message for --trace-symbol.
@@ -508,7 +514,6 @@ void Symbol::resolveUndefined(const Undefined &other) {
     // reference is weak.
     if (other.binding != STB_WEAK || !referenced)
       binding = other.binding;
-    referenced = true;
   }
 }
 
@@ -681,7 +686,6 @@ void Symbol::resolveShared(const SharedSymbol &other) {
     uint8_t bind = binding;
     replace(other);
     binding = bind;
-    referenced = true;
   }
 }
 

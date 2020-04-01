@@ -1,7 +1,5 @@
 #include <clc/clc.h>
-
-#include "math.h"
-#include "math/clc_fma.h"
+#include <spirv/spirv.h>
 
 #define __CLC_BODY <fma.inc>
 #include <clc/math/gentype.inc>

@@ -83,9 +83,7 @@ define i128 @v_shl_i128_vk(i128 %lhs) {
 ; GCN-LABEL: v_shl_i128_vk:
 ; GCN:       ; %bb.0:
 ; GCN-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GCN-NEXT:    v_lshrrev_b32_e32 v4, 15, v1
-; GCN-NEXT:    v_lshlrev_b32_e32 v5, 17, v2
-; GCN-NEXT:    v_or_b32_e32 v4, v5, v4
+; GCN-NEXT:    v_alignbit_b32 v4, v2, v1, 15
 ; GCN-NEXT:    v_alignbit_b32 v1, v1, v0, 15
 ; GCN-NEXT:    v_alignbit_b32 v3, v3, v2, 15
 ; GCN-NEXT:    v_lshlrev_b32_e32 v0, 17, v0
@@ -113,9 +111,7 @@ define i128 @v_ashr_i128_vk(i128 %lhs) {
 ; GCN:       ; %bb.0:
 ; GCN-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
 ; GCN-NEXT:    v_ashr_i64 v[4:5], v[2:3], 33
-; GCN-NEXT:    v_lshlrev_b32_e32 v0, 31, v2
-; GCN-NEXT:    v_lshrrev_b32_e32 v1, 1, v1
-; GCN-NEXT:    v_or_b32_e32 v0, v1, v0
+; GCN-NEXT:    v_alignbit_b32 v0, v2, v1, 1
 ; GCN-NEXT:    v_alignbit_b32 v1, v3, v2, 1
 ; GCN-NEXT:    v_mov_b32_e32 v2, v4
 ; GCN-NEXT:    v_mov_b32_e32 v3, v5
@@ -509,8 +505,8 @@ define amdgpu_kernel void @s_shl_v2i128ss(<2 x i128> %lhs, <2 x i128> %rhs) {
 ; GCN-NEXT:    v_mov_b32_e32 v10, 16
 ; GCN-NEXT:    v_cndmask_b32_e32 v4, 0, v4, vcc
 ; GCN-NEXT:    v_mov_b32_e32 v11, 0
-; GCN-NEXT:    flat_store_dwordx4 v[8:9], v[0:3]
 ; GCN-NEXT:    flat_store_dwordx4 v[10:11], v[4:7]
+; GCN-NEXT:    flat_store_dwordx4 v[8:9], v[0:3]
 ; GCN-NEXT:    s_endpgm
   %shift = shl <2 x i128> %lhs, %rhs
   store <2 x i128> %shift, <2 x i128> addrspace(1)* null
@@ -579,8 +575,8 @@ define amdgpu_kernel void @s_lshr_v2i128_ss(<2 x i128> %lhs, <2 x i128> %rhs) {
 ; GCN-NEXT:    v_cndmask_b32_e64 v4, v4, v10, s[0:1]
 ; GCN-NEXT:    v_mov_b32_e32 v10, 16
 ; GCN-NEXT:    v_mov_b32_e32 v11, 0
-; GCN-NEXT:    flat_store_dwordx4 v[8:9], v[0:3]
 ; GCN-NEXT:    flat_store_dwordx4 v[10:11], v[4:7]
+; GCN-NEXT:    flat_store_dwordx4 v[8:9], v[0:3]
 ; GCN-NEXT:    s_endpgm
   %shift = lshr <2 x i128> %lhs, %rhs
   store <2 x i128> %shift, <2 x i128> addrspace(1)* null
@@ -653,8 +649,8 @@ define amdgpu_kernel void @s_ashr_v2i128_ss(<2 x i128> %lhs, <2 x i128> %rhs) {
 ; GCN-NEXT:    v_cndmask_b32_e64 v4, v4, v10, s[0:1]
 ; GCN-NEXT:    v_mov_b32_e32 v10, 16
 ; GCN-NEXT:    v_mov_b32_e32 v11, 0
-; GCN-NEXT:    flat_store_dwordx4 v[8:9], v[0:3]
 ; GCN-NEXT:    flat_store_dwordx4 v[10:11], v[4:7]
+; GCN-NEXT:    flat_store_dwordx4 v[8:9], v[0:3]
 ; GCN-NEXT:    s_endpgm
   %shift = ashr <2 x i128> %lhs, %rhs
   store <2 x i128> %shift, <2 x i128> addrspace(1)* null

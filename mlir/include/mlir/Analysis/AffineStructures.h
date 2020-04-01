@@ -1,6 +1,6 @@
 //===- AffineStructures.h - MLIR Affine Structures Class --------*- C++ -*-===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -19,187 +19,15 @@
 
 namespace mlir {
 
-class AffineApplyOp;
-class AffineBound;
 class AffineCondition;
-class AffineMap;
 class AffineForOp;
+class AffineMap;
+class AffineValueMap;
 class IntegerSet;
 class MLIRContext;
 class Value;
-class HyperRectangularSet;
 class MemRefType;
-
-/// A mutable affine map. Its affine expressions are however unique.
-struct MutableAffineMap {
-public:
-  MutableAffineMap() {}
-  MutableAffineMap(AffineMap map);
-
-  ArrayRef<AffineExpr> getResults() const { return results; }
-  AffineExpr getResult(unsigned idx) const { return results[idx]; }
-  void setResult(unsigned idx, AffineExpr result) { results[idx] = result; }
-  unsigned getNumResults() const { return results.size(); }
-  unsigned getNumDims() const { return numDims; }
-  void setNumDims(unsigned d) { numDims = d; }
-  unsigned getNumSymbols() const { return numSymbols; }
-  void setNumSymbols(unsigned d) { numSymbols = d; }
-  MLIRContext *getContext() const { return context; }
-
-  /// Returns true if the idx'th result expression is a multiple of factor.
-  bool isMultipleOf(unsigned idx, int64_t factor) const;
-
-  /// Resets this MutableAffineMap with 'map'.
-  void reset(AffineMap map);
-
-  /// Simplify the (result) expressions in this map using analysis (used by
-  //-simplify-affine-expr pass).
-  void simplify();
-  /// Get the AffineMap corresponding to this MutableAffineMap. Note that an
-  /// AffineMap will be uniqued and stored in context, while a mutable one
-  /// isn't.
-  AffineMap getAffineMap() const;
-
-private:
-  // Same meaning as AffineMap's fields.
-  SmallVector<AffineExpr, 8> results;
-  unsigned numDims;
-  unsigned numSymbols;
-  /// A pointer to the IR's context to store all newly created
-  /// AffineExprStorage's.
-  MLIRContext *context;
-};
-
-/// A mutable integer set. Its affine expressions are however unique.
-struct MutableIntegerSet {
-public:
-  MutableIntegerSet(IntegerSet set, MLIRContext *context);
-
-  /// Create a universal set (no constraints).
-  MutableIntegerSet(unsigned numDims, unsigned numSymbols,
-                    MLIRContext *context);
-
-  unsigned getNumDims() const { return numDims; }
-  unsigned getNumSymbols() const { return numSymbols; }
-  unsigned getNumConstraints() const { return constraints.size(); }
-
-  void clear() {
-    constraints.clear();
-    eqFlags.clear();
-  }
-
-private:
-  unsigned numDims;
-  unsigned numSymbols;
-
-  SmallVector<AffineExpr, 8> constraints;
-  SmallVector<bool, 8> eqFlags;
-};
-
-/// An AffineValueMap is an affine map plus its ML value operands and
-/// results for analysis purposes. The structure is still a tree form that is
-/// same as that of an affine map or an AffineApplyOp. However, its operands,
-/// results, and its map can themselves change  as a result of
-/// substitutions, simplifications, and other analysis.
-// An affine value map can readily be constructed from an AffineApplyOp, or an
-// AffineBound of a AffineForOp. It can be further transformed, substituted
-// into, or simplified. Unlike AffineMap's, AffineValueMap's are created and
-// destroyed during analysis. Only the AffineMap expressions that are pointed by
-// them are unique'd. An affine value map, and the operations on it, maintain
-// the invariant that operands are always positionally aligned with the
-// AffineDimExpr and AffineSymbolExpr in the underlying AffineMap.
-// TODO(bondhugula): Some of these classes could go into separate files.
-class AffineValueMap {
-public:
-  // Creates an empty AffineValueMap (users should call 'reset' to reset map
-  // and operands).
-  AffineValueMap() {}
-  AffineValueMap(AffineMap map, ArrayRef<Value> operands,
-                 ArrayRef<Value> results = llvm::None);
-
-  explicit AffineValueMap(AffineApplyOp applyOp);
-  explicit AffineValueMap(AffineBound bound);
-
-  ~AffineValueMap();
-
-  // Resets this AffineValueMap with 'map', 'operands', and 'results'.
-  void reset(AffineMap map, ArrayRef<Value> operands,
-             ArrayRef<Value> results = llvm::None);
-
-  /// Return the value map that is the difference of value maps 'a' and 'b',
-  /// represented as an affine map and its operands. The output map + operands
-  /// are canonicalized and simplified.
-  static void difference(const AffineValueMap &a, const AffineValueMap &b,
-                         AffineValueMap *res);
-
-  /// Return true if the idx^th result can be proved to be a multiple of
-  /// 'factor', false otherwise.
-  inline bool isMultipleOf(unsigned idx, int64_t factor) const;
-
-  /// Return true if the idx^th result depends on 'value', false otherwise.
-  bool isFunctionOf(unsigned idx, Value value) const;
-
-  /// Return true if the result at 'idx' is a constant, false
-  /// otherwise.
-  bool isConstant(unsigned idx) const;
-
-  /// Return true if this is an identity map.
-  bool isIdentity() const;
-
-  void setResult(unsigned i, AffineExpr e) { map.setResult(i, e); }
-  AffineExpr getResult(unsigned i) { return map.getResult(i); }
-  inline unsigned getNumOperands() const { return operands.size(); }
-  inline unsigned getNumDims() const { return map.getNumDims(); }
-  inline unsigned getNumSymbols() const { return map.getNumSymbols(); }
-  inline unsigned getNumResults() const { return map.getNumResults(); }
-
-  Value getOperand(unsigned i) const;
-  ArrayRef<Value> getOperands() const;
-  AffineMap getAffineMap() const;
-
-private:
-  // A mutable affine map.
-  MutableAffineMap map;
-
-  // TODO: make these trailing objects?
-  /// The SSA operands binding to the dim's and symbols of 'map'.
-  SmallVector<Value, 4> operands;
-  /// The SSA results binding to the results of 'map'.
-  SmallVector<Value, 4> results;
-};
-
-/// An IntegerValueSet is an integer set plus its operands.
-// Both, the integer set being pointed to and the operands can change during
-// analysis, simplification, and transformation.
-class IntegerValueSet {
-  /// Constructs an integer value set from an affine value map.
-  // This will lead to a single equality in 'set'.
-  explicit IntegerValueSet(const AffineValueMap &avm);
-
-  /// Returns true if this integer set is determined to be empty. Emptiness is
-  /// checked by by eliminating identifiers successively (through either
-  /// Gaussian or Fourier-Motzkin) while using the GCD test and a trivial
-  /// invalid constraint check. Returns 'true' if the constraint system is found
-  /// to be empty; false otherwise. This method is exact for rational spaces but
-  /// not integer spaces - thus, if it returns true, the set is provably integer
-  /// empty as well, but if it returns false, it doesn't necessarily mean an
-  /// integer point exists in it. This method also returns false where an
-  /// explosion of constraints is detected - due to the super-exponential
-  /// worse-case complexity of Fourier-Motzkin elimination (rare for realistic
-  /// problem cases but possible for artificial adversarial or improperly
-  // constructed ones), this method returns false conservatively.
-  bool isEmpty() const;
-
-  bool getNumDims() const { return set.getNumDims(); }
-  bool getNumSymbols() const { return set.getNumSymbols(); }
-
-private:
-  // The set pointed to may itself change unlike in IR structures like
-  // 'AffineCondition'.
-  MutableIntegerSet set;
-  /// The SSA operands binding to the dim's and symbols of 'set'.
-  SmallVector<Value, 4> operands;
-};
+struct MutableAffineMap;
 
 /// A flat list of affine equalities and inequalities in the form.
 /// Inequality: c_0*x_0 + c_1*x_1 + .... + c_{n-1}*x_{n-1} >= 0
@@ -268,8 +96,6 @@ public:
       ids.append(idArgs.begin(), idArgs.end());
   }
 
-  explicit FlatAffineConstraints(const HyperRectangularSet &set);
-
   /// Create a flat affine constraint system from an AffineValueMap or a list of
   /// these. The constructed system will only include equalities.
   // TODO(bondhugula)
@@ -278,10 +104,6 @@ public:
 
   /// Creates an affine constraint system from an IntegerSet.
   explicit FlatAffineConstraints(IntegerSet set);
-
-  /// Create an affine constraint system from an IntegerValueSet.
-  // TODO(bondhugula)
-  explicit FlatAffineConstraints(const IntegerValueSet &set);
 
   FlatAffineConstraints(const FlatAffineConstraints &other);
 
@@ -368,8 +190,6 @@ public:
                              getNumCols());
   }
 
-  AffineExpr toAffineExpr(unsigned idx, MLIRContext *context);
-
   /// Adds constraints (lower and upper bounds) for the specified 'affine.for'
   /// operation's Value using IR information stored in its bound maps. The
   /// right identifier is first looked up using forOp's Value. Asserts if the
@@ -387,7 +207,7 @@ public:
   /// operands. If `eq` is true, add a single equality equal to the bound map's
   /// first result expr.
   LogicalResult addLowerOrUpperBound(unsigned pos, AffineMap boundMap,
-                                     ArrayRef<Value> operands, bool eq,
+                                     ValueRange operands, bool eq,
                                      bool lower = true);
 
   /// Computes the lower and upper bounds of the first 'num' dimensional
@@ -494,10 +314,8 @@ public:
   /// Projects out the identifier that is associate with Value .
   void projectOut(Value id);
 
-  void removeId(IdKind idKind, unsigned pos);
+  /// Removes the specified identifier from the system.
   void removeId(unsigned pos);
-
-  void removeDim(unsigned pos);
 
   void removeEquality(unsigned pos);
   void removeInequality(unsigned pos);
@@ -728,7 +546,7 @@ private:
   /// Normalized each constraints by the GCD of its coefficients.
   void normalizeConstraintsByGCD();
 
-  /// Removes identifiers in column range [idStart, idLimit), and copies any
+  /// Removes identifiers in the column range [idStart, idLimit), and copies any
   /// remaining valid data into place, updates member variables, and resizes
   /// arrays as needed.
   void removeIdRange(unsigned idStart, unsigned idLimit);
@@ -771,13 +589,6 @@ private:
   // constraints. This is conservatively set low and can be raised if needed.
   constexpr static unsigned kExplosionFactor = 32;
 };
-
-/// Simplify an affine expression by flattening and some amount of
-/// simple analysis. This has complexity linear in the number of nodes in
-/// 'expr'. Returns the simplified expression, which is the same as the input
-///  expression if it can't be simplified.
-AffineExpr simplifyAffineExpr(AffineExpr expr, unsigned numDims,
-                              unsigned numSymbols);
 
 /// Flattens 'expr' into 'flattenedExpr', which contains the coefficients of the
 /// dimensions, symbols, and additional variables that represent floor divisions

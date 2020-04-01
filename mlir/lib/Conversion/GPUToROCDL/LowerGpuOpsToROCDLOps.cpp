@@ -1,6 +1,6 @@
 //===- LowerGpuOpsToROCDLOps.cpp - MLIR GPU to ROCDL lowering passes ------===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -31,12 +31,11 @@ namespace {
 //
 // This pass only handles device code and is not meant to be run on GPU host
 // code.
-class LowerGpuOpsToROCDLOpsPass : public ModulePass<LowerGpuOpsToROCDLOpsPass> {
+class LowerGpuOpsToROCDLOpsPass
+    : public OperationPass<LowerGpuOpsToROCDLOpsPass, gpu::GPUModuleOp> {
 public:
-  void runOnModule() override {
-    ModuleOp m = getModule();
-    if (!m.getAttrOfType<UnitAttr>(gpu::GPUDialect::getKernelModuleAttrName()))
-      return;
+  void runOnOperation() override {
+    gpu::GPUModuleOp m = getOperation();
 
     OwningRewritePatternList patterns;
     LLVMTypeConverter converter(m.getContext());
@@ -51,14 +50,30 @@ public:
         GPUIndexIntrinsicOpLowering<gpu::GridDimOp, ROCDL::GridDimXOp,
                                     ROCDL::GridDimYOp, ROCDL::GridDimZOp>>(
         converter);
-    patterns.insert<OpToFuncCallLowering<ExpOp>>(converter, "_ocml_exp_f32",
-                                                 "_ocml_exp_f64");
+    patterns.insert<OpToFuncCallLowering<AbsFOp>>(converter, "__ocml_fabs_f32",
+                                                  "__ocml_fabs_f64");
+    patterns.insert<OpToFuncCallLowering<CeilFOp>>(converter, "__ocml_ceil_f32",
+                                                   "__ocml_ceil_f64");
+    patterns.insert<OpToFuncCallLowering<CosOp>>(converter, "__ocml_cos_f32",
+                                                 "__ocml_cos_f64");
+    patterns.insert<OpToFuncCallLowering<ExpOp>>(converter, "__ocml_exp_f32",
+                                                 "__ocml_exp_f64");
+    patterns.insert<OpToFuncCallLowering<LogOp>>(converter, "__ocml_log_f32",
+                                                 "__ocml_log_f64");
+    patterns.insert<OpToFuncCallLowering<Log10Op>>(
+        converter, "__ocml_log10_f32", "__ocml_log10_f64");
+    patterns.insert<OpToFuncCallLowering<Log2Op>>(converter, "__ocml_log2_f32",
+                                                  "__ocml_log2_f64");
+    patterns.insert<OpToFuncCallLowering<TanhOp>>(converter, "__ocml_tanh_f32",
+                                                  "__ocml_tanh_f64");
 
     ConversionTarget target(getContext());
     target.addLegalDialect<LLVM::LLVMDialect, ROCDL::ROCDLDialect>();
-    target.addIllegalOp<LLVM::ExpOp>();
-    target.addDynamicallyLegalOp<FuncOp>(
-        [&](FuncOp op) { return converter.isSignatureLegal(op.getType()); });
+    target.addIllegalOp<LLVM::CosOp, LLVM::ExpOp, LLVM::FAbsOp, LLVM::FCeilOp,
+                        LLVM::LogOp, LLVM::Log10Op, LLVM::Log2Op>();
+    target.addDynamicallyLegalOp<LLVM::CallOp>(
+        gpu::filterIllegalLLVMIntrinsics({"tanh", "tanhf"}, m.getContext()));
+    target.addIllegalOp<FuncOp>();
     if (failed(applyPartialConversion(m, target, patterns, &converter)))
       signalPassFailure();
   }
@@ -66,7 +81,8 @@ public:
 
 } // anonymous namespace
 
-std::unique_ptr<OpPassBase<ModuleOp>> mlir::createLowerGpuOpsToROCDLOpsPass() {
+std::unique_ptr<OpPassBase<gpu::GPUModuleOp>>
+mlir::createLowerGpuOpsToROCDLOpsPass() {
   return std::make_unique<LowerGpuOpsToROCDLOpsPass>();
 }
 

@@ -376,6 +376,7 @@ const static char WGSize[] = "reqd_work_group_size";
 const static char WGSizeHint[] = "work_group_size_hint";
 const static char SubgroupSize[] = "intel_reqd_sub_group_size";
 const static char MaxWGSize[] = "max_work_group_size";
+const static char NoGlobalOffset[] = "no_global_work_offset";
 const static char MaxWGDim[] = "max_global_work_dim";
 const static char NumSIMD[] = "num_simd_work_items";
 } // namespace kSPIR2MD
@@ -482,8 +483,8 @@ public:
     Info.Attr = getArgAttr(Ndx);
     return Info;
   }
-  virtual void init(const std::string &UniqUnmangledName) {
-    UnmangledName = UniqUnmangledName;
+  virtual void init(StringRef UniqUnmangledName) {
+    UnmangledName = UniqUnmangledName.str();
   }
 
 protected:
@@ -602,11 +603,11 @@ bool isSPIRVType(llvm::Type *Ty, StringRef BaseTyName, StringRef *Postfix = 0);
 std::string decorateSPIRVFunction(const std::string &S);
 
 /// Remove prefix/postfix from __spirv_{Name}_
-std::string undecorateSPIRVFunction(const std::string &S);
+StringRef undecorateSPIRVFunction(StringRef S);
 
 /// Check if a function has decorated name as __spirv_{Name}_
 /// and get the original name.
-bool isDecoratedSPIRVFunc(const Function *F, std::string *UndecName = nullptr);
+bool isDecoratedSPIRVFunc(const Function *F, StringRef &UndecName);
 
 /// Get a canonical function name for a SPIR-V op code.
 std::string getSPIRVFuncName(Op OC, StringRef PostFix = "");
@@ -624,8 +625,7 @@ std::string getSPIRVExtFuncName(SPIRVExtInstSetKind Set, unsigned ExtOp,
 ///   otherwise return OpNop.
 /// \param Dec contains decorations decoded from function name if it is
 ///   not nullptr.
-Op getSPIRVFuncOC(const std::string &Name,
-                  SmallVectorImpl<std::string> *Dec = nullptr);
+Op getSPIRVFuncOC(StringRef Name, SmallVectorImpl<std::string> *Dec = nullptr);
 
 /// Get SPIR-V builtin variable enum given the canonical builtin name
 /// Assume \param Name is in format __spirv_BuiltIn{Name}
@@ -636,8 +636,7 @@ bool getSPIRVBuiltin(const std::string &Name, spv::BuiltIn &Builtin);
 /// \param DemangledName demanged name of the OpenCL built-in function
 /// \returns true if Name is the name of the OpenCL built-in function,
 /// false for other functions
-bool oclIsBuiltin(const StringRef &Name, std::string *DemangledName = nullptr,
-                  bool IsCpp = false);
+bool oclIsBuiltin(StringRef Name, StringRef &DemangledName, bool IsCpp = false);
 
 /// Check if a function type is void(void).
 bool isVoidFuncTy(FunctionType *FT);
@@ -897,10 +896,10 @@ bool isValidVectorSize(unsigned I);
 
 enum class ParamType { FLOAT = 0, SIGNED = 1, UNSIGNED = 2, UNKNOWN = 3 };
 
-ParamType lastFuncParamType(const std::string &MangledName);
+ParamType lastFuncParamType(StringRef MangledName);
 
 // Check if the last function parameter is signed
-bool isLastFuncParamSigned(const std::string &MangledName);
+bool isLastFuncParamSigned(StringRef MangledName);
 
 // Check if a mangled function name contains unsigned atomic type
 bool containsUnsignedAtomicType(StringRef Name);
@@ -908,8 +907,7 @@ bool containsUnsignedAtomicType(StringRef Name);
 /// Mangle builtin function name.
 /// \return \param UniqName if \param BtnInfo is null pointer, otherwise
 ///    return IA64 mangled name.
-std::string mangleBuiltin(const std::string &UniqName,
-                          ArrayRef<Type *> ArgTypes,
+std::string mangleBuiltin(StringRef UniqName, ArrayRef<Type *> ArgTypes,
                           BuiltinFuncMangleInfo *BtnInfo);
 
 /// Remove cast from a value.

@@ -1,4 +1,4 @@
-//===-- DWARFIndex.cpp -----------------------------------------*- C++ -*-===//
+//===-- DWARFIndex.cpp ----------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -36,7 +36,7 @@ void DWARFIndex::ProcessFunctionDIE(llvm::StringRef name, DIERef ref,
 
   // Otherwise, we need to also check that the context matches. If it does not
   // match, we do nothing.
-  if (!SymbolFileDWARF::DIEInDeclContext(&parent_decl_ctx, die))
+  if (!SymbolFileDWARF::DIEInDeclContext(parent_decl_ctx, die))
     return;
 
   // In case of a full match, we just insert everything we find.

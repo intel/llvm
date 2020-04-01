@@ -56,6 +56,10 @@ function(get_debugserver_codesign_identity result)
   set(${result} "-" PARENT_SCOPE)
 endfunction()
 
+# debugserver does not depend on intrinsics_gen, or on llvm. Set the common
+# llvm dependencies in the current scope to the empty set.
+set(LLVM_COMMON_DEPENDS)
+
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -stdlib=libc++ -Wl,-sectcreate,__TEXT,__info_plist,${CMAKE_CURRENT_SOURCE_DIR}/../resources/lldb-debugserver-Info.plist")
 
 check_cxx_compiler_flag("-Wno-gnu-zero-variadic-macro-arguments"
@@ -77,6 +81,8 @@ if (CXX_SUPPORTS_NO_EXTENDED_OFFSETOF)
 endif ()
 
 check_library_exists(compression compression_encode_buffer "" HAVE_LIBCOMPRESSION)
+
+find_library(SECURITY_LIBRARY Security)
 
 add_subdirectory(MacOSX)
 
@@ -128,8 +134,17 @@ set(generated_mach_interfaces
   ${CMAKE_CURRENT_BINARY_DIR}/mach_excServer.c
   ${CMAKE_CURRENT_BINARY_DIR}/mach_excUser.c
   )
+
+set(MIG_ARCH_FLAGS "")
+if (DEFINED MIG_ARCHS)
+  foreach(ARCH ${MIG_ARCHS})
+    set(MIG_ARCH_FLAGS "${MIG_ARCH_FLAGS} -arch ${ARCH}")
+  endforeach()
+endif()
+separate_arguments(MIG_ARCH_FLAGS_SEPARTED NATIVE_COMMAND "${MIG_ARCH_FLAGS}")
+
 add_custom_command(OUTPUT ${generated_mach_interfaces}
-  COMMAND mig ${CMAKE_CURRENT_SOURCE_DIR}/MacOSX/dbgnub-mig.defs
+  VERBATIM COMMAND mig ${MIG_ARCH_FLAGS_SEPARTED} -isysroot ${CMAKE_OSX_SYSROOT} ${CMAKE_CURRENT_SOURCE_DIR}/MacOSX/dbgnub-mig.defs
   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/MacOSX/dbgnub-mig.defs
   )
 
@@ -191,6 +206,8 @@ target_link_libraries(lldbDebugserverCommon
                       ${LOCKDOWN_LIBRARY}
                       lldbDebugserverArchSupport
                       lldbDebugserverDarwin_DarwinLog
+                      ${FOUNDATION_LIBRARY}
+                      ${SECURITY_LIBRARY}
                       ${LIBCOMPRESSION})
 if(HAVE_LIBCOMPRESSION)
   set_property(TARGET lldbDebugserverCommon APPEND PROPERTY
@@ -254,6 +271,7 @@ if(IOS)
                       ${FOUNDATION_LIBRARY}
                       lldbDebugserverArchSupport
                       lldbDebugserverDarwin_DarwinLog
+                      ${SECURITY_LIBRARY}
                       ${LIBCOMPRESSION})
   if(HAVE_LIBCOMPRESSION)
     set_property(TARGET lldbDebugserverCommon_NonUI APPEND PROPERTY

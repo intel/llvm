@@ -60,6 +60,7 @@ public:
 #include <exception>
 #include <cstddef>
 #include <cstdint>
+#include <type_traits>
 #ifdef _LIBCPP_NO_EXCEPTIONS
 #include <cstdlib>
 #endif
@@ -318,6 +319,7 @@ class _LIBCPP_EXCEPTION_ABI bad_cast
 {
  public:
   bad_cast() _NOEXCEPT;
+  bad_cast(const bad_cast&) _NOEXCEPT = default;
   virtual ~bad_cast() _NOEXCEPT;
   virtual const char* what() const _NOEXCEPT;
 };

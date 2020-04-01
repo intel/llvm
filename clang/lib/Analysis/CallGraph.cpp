@@ -66,16 +66,16 @@ public:
     return nullptr;
   }
 
-  void addCalledDecl(Decl *D) {
+  void addCalledDecl(Decl *D, Expr *CallExpr) {
     if (G->includeInGraph(D)) {
       CallGraphNode *CalleeNode = G->getOrInsertNode(D);
-      CallerNode->addCallee(CalleeNode);
+      CallerNode->addCallee({CalleeNode, CallExpr});
     }
   }
 
   void VisitCallExpr(CallExpr *CE) {
     if (Decl *D = getDeclFromCall(CE))
-      addCalledDecl(D);
+      addCalledDecl(D, CE);
     VisitChildren(CE);
   }
 
@@ -89,21 +89,21 @@ public:
 
   void VisitCXXNewExpr(CXXNewExpr *E) {
     if (FunctionDecl *FD = E->getOperatorNew())
-      addCalledDecl(FD);
+      addCalledDecl(FD, E);
     VisitChildren(E);
   }
 
   void VisitCXXConstructExpr(CXXConstructExpr *E) {
     CXXConstructorDecl *Ctor = E->getConstructor();
     if (FunctionDecl *Def = Ctor->getDefinition())
-      addCalledDecl(Def);
+      addCalledDecl(Def, E);
     // TODO: resolve issues raised in review with llorg. See
     // https://reviews.llvm.org/D65453?vs=on&id=212351&whitespace=ignore-most#1632207
     const auto *ConstructedType = Ctor->getParent();
     if (ConstructedType->hasUserDeclaredDestructor()) {
       CXXDestructorDecl *Dtor = ConstructedType->getDestructor();
       if (FunctionDecl *Def = Dtor->getDefinition())
-        addCalledDecl(Def);
+        addCalledDecl(Def, E);
     }
     VisitChildren(E);
   }
@@ -130,7 +130,7 @@ public:
       else
         D = IDecl->lookupPrivateClassMethod(Sel);
       if (D) {
-        addCalledDecl(D);
+        addCalledDecl(D, ME);
         NumObjCCallEdges++;
       }
     }
@@ -215,7 +215,7 @@ CallGraphNode *CallGraph::getOrInsertNode(Decl *F) {
   Node = std::make_unique<CallGraphNode>(F);
   // Make Root node a parent of all functions to make sure all are reachable.
   if (F)
-    Root->addCallee(Node.get());
+    Root->addCallee({Node.get(), /*Call=*/nullptr});
   return Node.get();
 }
 
@@ -238,8 +238,8 @@ void CallGraph::print(raw_ostream &OS) const {
     OS << " calls: ";
     for (CallGraphNode::const_iterator CI = N->begin(),
                                        CE = N->end(); CI != CE; ++CI) {
-      assert(*CI != Root && "No one can call the root node.");
-      (*CI)->print(OS);
+      assert(CI->Callee != Root && "No one can call the root node.");
+      CI->Callee->print(OS);
       OS << " ";
     }
     OS << '\n';

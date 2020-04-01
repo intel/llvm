@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLDB_UNITTESTS_UTILITY_HELPERS_TESTUTILITIES_H
-#define LLDB_UNITTESTS_UTILITY_HELPERS_TESTUTILITIES_H
+#ifndef LLDB_UNITTESTS_TESTINGSUPPORT_TESTUTILITIES_H
+#define LLDB_UNITTESTS_TESTINGSUPPORT_TESTUTILITIES_H
 
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/Twine.h"
@@ -43,7 +43,8 @@ public:
   llvm::StringRef name() { return *Name; }
 
 private:
-  TestFile(llvm::StringRef Name, llvm::FileRemover &&Remover) : Name(Name) {
+  TestFile(llvm::StringRef Name, llvm::FileRemover &&Remover)
+      : Name(std::string(Name)) {
     Remover.releaseFile();
   }
   void operator=(const TestFile &) = delete;

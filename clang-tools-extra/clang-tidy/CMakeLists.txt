@@ -51,6 +51,7 @@ add_subdirectory(google)
 add_subdirectory(hicpp)
 add_subdirectory(linuxkernel)
 add_subdirectory(llvm)
+add_subdirectory(llvmlibc)
 add_subdirectory(misc)
 add_subdirectory(modernize)
 if(CLANG_ENABLE_STATIC_ANALYZER)
@@ -75,6 +76,7 @@ set(ALL_CLANG_TIDY_CHECKS
   clangTidyHICPPModule
   clangTidyLinuxKernelModule
   clangTidyLLVMModule
+  clangTidyLLVMLibcModule
   clangTidyMiscModule
   clangTidyModernizeModule
   clangTidyObjCModule
@@ -94,3 +96,19 @@ set(ALL_CLANG_TIDY_CHECKS ${ALL_CLANG_TIDY_CHECKS} PARENT_SCOPE)
 add_subdirectory(plugin)
 add_subdirectory(tool)
 add_subdirectory(utils)
+
+if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY)
+  install(DIRECTORY .
+    DESTINATION include/clang-tidy
+    COMPONENT clang-tidy-headers
+    FILES_MATCHING
+    PATTERN "*.h"
+    )
+  add_custom_target(clang-tidy-headers)
+  set_target_properties(clang-tidy-headers PROPERTIES FOLDER "Misc")
+  if(NOT LLVM_ENABLE_IDE)
+    add_llvm_install_targets(install-clang-tidy-headers
+                             DEPENDS clang-tidy-headers
+                             COMPONENT clang-tidy-headers)
+  endif()
+endif()

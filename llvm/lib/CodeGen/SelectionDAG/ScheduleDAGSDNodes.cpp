@@ -198,10 +198,10 @@ static void RemoveUnusedGlue(SDNode *N, SelectionDAG *DAG) {
 /// outputs to ensure they are scheduled together and in order. This
 /// optimization may benefit some targets by improving cache locality.
 void ScheduleDAGSDNodes::ClusterNeighboringLoads(SDNode *Node) {
-  SDNode *Chain = nullptr;
+  SDValue Chain;
   unsigned NumOps = Node->getNumOperands();
   if (Node->getOperand(NumOps-1).getValueType() == MVT::Other)
-    Chain = Node->getOperand(NumOps-1).getNode();
+    Chain = Node->getOperand(NumOps-1);
   if (!Chain)
     return;
 
@@ -234,6 +234,9 @@ void ScheduleDAGSDNodes::ClusterNeighboringLoads(SDNode *Node) {
   unsigned UseCount = 0;
   for (SDNode::use_iterator I = Chain->use_begin(), E = Chain->use_end();
        I != E && UseCount < 100; ++I, ++UseCount) {
+    if (I.getUse().getResNo() != Chain.getResNo())
+      continue;
+
     SDNode *User = *I;
     if (User == Node || !Visited.insert(User).second)
       continue;
@@ -863,7 +866,8 @@ EmitSchedule(MachineBasicBlock::iterator &InsertPos) {
       MI = &*std::next(Before);
     }
 
-    if (MI->isCall() && DAG->getTarget().Options.EnableDebugEntryValues)
+    if (MI->isCandidateForCallSiteEntry() &&
+        DAG->getTarget().Options.EmitCallSiteInfo)
       MF.addCallArgsForwardingRegs(MI, DAG->getSDCallSiteInfo(Node));
 
     return MI;
@@ -1021,6 +1025,69 @@ EmitSchedule(MachineBasicBlock::iterator &InsertPos) {
 
       LastOrder = Order;
     }
+  }
+
+  // Split after an INLINEASM_BR block with outputs. This allows us to keep the
+  // copy to/from register instructions from being between two terminator
+  // instructions, which causes the machine instruction verifier agita.
+  auto TI = llvm::find_if(*BB, [](const MachineInstr &MI){
+    return MI.getOpcode() == TargetOpcode::INLINEASM_BR;
+  });
+  auto SplicePt = TI != BB->end() ? std::next(TI) : BB->end();
+  if (TI != BB->end() && SplicePt != BB->end() &&
+      TI->getOpcode() == TargetOpcode::INLINEASM_BR &&
+      SplicePt->getOpcode() == TargetOpcode::COPY) {
+    MachineBasicBlock *FallThrough = BB->getFallThrough();
+    if (!FallThrough)
+      for (const MachineOperand &MO : BB->back().operands())
+        if (MO.isMBB()) {
+          FallThrough = MO.getMBB();
+          break;
+        }
+    assert(FallThrough && "Cannot find default dest block for callbr!");
+
+    MachineBasicBlock *CopyBB = MF.CreateMachineBasicBlock(BB->getBasicBlock());
+    MachineFunction::iterator BBI(*BB);
+    MF.insert(++BBI, CopyBB);
+
+    CopyBB->splice(CopyBB->begin(), BB, SplicePt, BB->end());
+    CopyBB->setInlineAsmBrDefaultTarget();
+
+    CopyBB->addSuccessor(FallThrough, BranchProbability::getOne());
+    BB->addSuccessor(CopyBB, BranchProbability::getOne());
+
+    // Mark all physical registers defined in the original block as being live
+    // on entry to the copy block.
+    for (const auto &MI : *CopyBB)
+      for (const MachineOperand &MO : MI.operands())
+        if (MO.isReg()) {
+          Register reg = MO.getReg();
+          if (Register::isPhysicalRegister(reg)) {
+            CopyBB->addLiveIn(reg);
+            break;
+          }
+        }
+
+    // Bit of a hack: The copy block we created here exists only because we want
+    // the CFG to work with the current system. However, the successors to the
+    // block with the INLINEASM_BR instruction expect values to come from *that*
+    // block, not this usurper block. Thus we steal its successors and add them
+    // to the copy so that everyone is happy.
+    for (auto *Succ : BB->successors())
+      if (Succ != CopyBB && !CopyBB->isSuccessor(Succ))
+        CopyBB->addSuccessor(Succ, BranchProbability::getZero());
+
+    for (auto *Succ : CopyBB->successors())
+      if (BB->isSuccessor(Succ))
+        BB->removeSuccessor(Succ);
+
+    CopyBB->normalizeSuccProbs();
+    BB->normalizeSuccProbs();
+
+    BB->transferInlineAsmBrIndirectTargets(CopyBB);
+
+    InsertPos = CopyBB->end();
+    return CopyBB;
   }
 
   InsertPos = Emitter.getInsertPos();

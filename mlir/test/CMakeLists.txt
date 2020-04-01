@@ -1,4 +1,3 @@
-add_subdirectory(Dialect)
 add_subdirectory(EDSC)
 add_subdirectory(mlir-cpu-runner)
 add_subdirectory(SDBM)
@@ -15,6 +14,7 @@ set(MLIR_DIALECT_LINALG_INTEGRATION_TEST_LIB_DIR ${CMAKE_LIBRARY_OUTPUT_DIRECTOR
 # Passed to lit.site.cfg.py.in to set up the path where to find the libraries
 # for the mlir cuda runner tests.
 set(MLIR_CUDA_WRAPPER_LIBRARY_DIR ${CMAKE_LIBRARY_OUTPUT_DIRECTORY})
+set(MLIR_VULKAN_WRAPPER_LIBRARY_DIR ${CMAKE_LIBRARY_OUTPUT_DIRECTORY})
 
 configure_lit_site_cfg(
   ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in
@@ -41,6 +41,7 @@ set(MLIR_TEST_DEPENDS
   cblas
   cblas_interface
   mlir_runner_utils
+  mlir_c_runner_utils
   )
 
 if(LLVM_BUILD_EXAMPLES)
@@ -58,6 +59,12 @@ endif()
 if(MLIR_CUDA_RUNNER_ENABLED)
   list(APPEND MLIR_TEST_DEPENDS
     mlir-cuda-runner
+  )
+endif()
+
+if(MLIR_VULKAN_RUNNER_ENABLED)
+  list(APPEND MLIR_TEST_DEPENDS
+    mlir-vulkan-runner
   )
 endif()
 

@@ -1,6 +1,6 @@
 //===- LinalgTypes.h - Linalg Types ---------------------------------------===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -21,17 +21,7 @@ enum LinalgTypes {
   LAST_USED_LINALG_TYPE = Range,
 };
 
-class LinalgDialect : public Dialect {
-public:
-  explicit LinalgDialect(MLIRContext *context);
-  static StringRef getDialectNamespace() { return "linalg"; }
-
-  /// Parse a type registered to this dialect.
-  Type parseType(DialectAsmParser &parser) const override;
-
-  /// Print a type registered to this dialect.
-  void printType(Type type, DialectAsmPrinter &os) const override;
-};
+#include "mlir/Dialect/Linalg/IR/LinalgOpsDialect.h.inc"
 
 /// A RangeType represents a minimal range abstraction (min, max, step).
 /// It is constructed by calling the linalg.range op with three values index of

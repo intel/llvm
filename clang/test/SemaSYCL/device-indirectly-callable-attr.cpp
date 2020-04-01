@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -verify %s
-// RUN: not %clang_cc1 -fsycl-is-device -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsyntax-only -verify %s
+// RUN: not %clang_cc1 -fsycl -fsycl-is-device -ast-dump %s | FileCheck %s
 // RUN: %clang_cc1 -verify -DNO_SYCL %s
 
 #ifndef NO_SYCL
@@ -19,11 +19,15 @@ namespace {
 }
 
 class A {
-  [[intel::device_indirectly_callable]] // expected-error {{'device_indirectly_callable' attribute cannot be applied to a class member function}}
-  A() {}
+  [[intel::device_indirectly_callable]] A() {}
 
-  [[intel::device_indirectly_callable]] // expected-error {{'device_indirectly_callable' attribute cannot be applied to a class member function}}
-  int func3() {}
+  [[intel::device_indirectly_callable]] int func3() {}
+};
+
+class B {
+  [[intel::device_indirectly_callable]] virtual int foo() {}
+
+  [[intel::device_indirectly_callable]] virtual int bar() = 0;
 };
 
 void helper() {}
@@ -41,7 +45,6 @@ void baz() {}
 #endif // NO_SYCL
 
 // CHECK: FunctionDecl {{.*}} helper
-// CHECK: SYCLDeviceAttr
 //
 // CHECK: FunctionDecl {{.*}} foo
 // CHECK: SYCLDeviceAttr

@@ -1,6 +1,6 @@
 //===-- SPIRVAtomicOps.td - MLIR SPIR-V Atomic Ops ---------*- tablegen -*-===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -25,6 +25,7 @@ class SPV_AtomicUpdateOp<string mnemonic, list<OpTrait> traits = []> :
     SPV_ScopeAttr:$memory_scope,
     SPV_MemorySemanticsAttr:$semantics
   );
+
   let results = (outs
     SPV_Integer:$result
   );
@@ -42,9 +43,19 @@ class SPV_AtomicUpdateWithValueOp<string mnemonic, list<OpTrait> traits = []> :
     SPV_MemorySemanticsAttr:$semantics,
     SPV_Integer:$value
   );
+
   let results = (outs
     SPV_Integer:$result
   );
+
+  let builders = [
+    OpBuilder<
+      [{Builder *builder, OperationState &state, Value pointer,
+        ::mlir::spirv::Scope scope, ::mlir::spirv::MemorySemantics memory,
+        Value value}],
+      [{build(builder, state, value.getType(), pointer, scope, memory, value);}]
+    >
+  ];
 }
 
 // -----

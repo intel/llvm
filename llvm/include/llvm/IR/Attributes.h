@@ -17,7 +17,6 @@
 
 #include "llvm-c/Types.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/FoldingSet.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/iterator_range.h"
@@ -38,6 +37,7 @@ class AttributeImpl;
 class AttributeListImpl;
 class AttributeSetNode;
 template<typename T> struct DenseMapInfo;
+class FoldingSetNodeID;
 class Function;
 class LLVMContext;
 class Type;
@@ -70,9 +70,12 @@ public:
   enum AttrKind {
     // IR-Level Attributes
     None,                  ///< No attributes have been set
-    #define GET_ATTR_ENUM
+    #define GET_ATTR_NAMES
+    #define ATTRIBUTE_ENUM(ENUM_NAME, OTHER) ENUM_NAME,
     #include "llvm/IR/Attributes.inc"
-    EndAttrKinds           ///< Sentinal value useful for loops
+    EndAttrKinds,          ///< Sentinal value useful for loops
+    EmptyKey,              ///< Use as Empty key for DenseMap of AttrKind
+    TombstoneKey,          ///< Use as Tombstone key for DenseMap of AttrKind
   };
 
 private:
@@ -105,6 +108,17 @@ public:
                                         unsigned ElemSizeArg,
                                         const Optional<unsigned> &NumElemsArg);
   static Attribute getWithByValType(LLVMContext &Context, Type *Ty);
+
+  static Attribute::AttrKind getAttrKindFromName(StringRef AttrName);
+
+  static StringRef getNameFromAttrKind(Attribute::AttrKind AttrKind);
+
+  /// Return true if and only if the attribute has an Argument.
+  static bool doesAttrKindHaveArgument(Attribute::AttrKind AttrKind);
+
+  /// Return true if the provided string matches the IR name of an attribute.
+  /// example: "noalias" return true but not "NoAlias"
+  static bool isExistingAttribute(StringRef Name);
 
   //===--------------------------------------------------------------------===//
   // Attribute Accessors
@@ -180,9 +194,7 @@ public:
   /// Less-than operator. Useful for sorting the attributes list.
   bool operator<(Attribute A) const;
 
-  void Profile(FoldingSetNodeID &ID) const {
-    ID.AddPointer(pImpl);
-  }
+  void Profile(FoldingSetNodeID &ID) const;
 
   /// Return a raw pointer that uniquely identifies this attribute.
   void *getRawPointer() const {

@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -triple spir64-unknown-unknown-sycldevice -fsycl-is-device -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
 
 struct A {
   int B[42];
@@ -10,13 +10,14 @@ const char *ret_char() {
 // CHECK: ret i8 addrspace(4)* addrspacecast (i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str, i64 0, i64 0) to i8 addrspace(4)*)
 
 const char *ret_arr() {
-  static char Arr[42];
+  const static char Arr[36] = "Carrots, cabbage, radish, potatoes!";
   return Arr;
 }
-// CHECK: ret i8 addrspace(4)* getelementptr inbounds ([42 x i8], [42 x i8] addrspace(4)* addrspacecast ([42 x i8] addrspace(1)* @{{.*}}ret_arr{{.*}}Arr to [42 x i8] addrspace(4)*), i64 0, i64 0)
+
+// CHECK: ret i8 addrspace(4)* getelementptr inbounds ([36 x i8], [36 x i8] addrspace(4)* addrspacecast ([36 x i8] addrspace(1)* @{{.*}}ret_arr{{.*}}Arr to [36 x i8] addrspace(4)*), i64 0, i64 0)
 
 const char &ret_ref() {
-  static char a = 'A';
+  const static char a = 'A';
   return a;
 }
 // CHECK: ret i8 addrspace(4)* addrspacecast (i8 addrspace(1)* @{{.*}}ret_ref{{.*}} to i8 addrspace(4)*)

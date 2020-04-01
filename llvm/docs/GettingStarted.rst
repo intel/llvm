@@ -39,14 +39,14 @@ This is an example workflow and configuration to get and build the LLVM source:
    * Or, on windows, ``git clone --config core.autocrlf=false
      https://github.com/llvm/llvm-project.git``
 
-#. Configure and build LLVM and Clang:.
+#. Configure and build LLVM and Clang:
 
    * ``cd llvm-project``
    * ``mkdir build``
    * ``cd build``
    * ``cmake -G <generator> [options] ../llvm``
 
-     Some common generators are:
+     Some common build system generators are:
 
      * ``Ninja`` --- for generating `Ninja <https://ninja-build.org>`_
        build files. Most llvm developers use Ninja.
@@ -75,9 +75,11 @@ This is an example workflow and configuration to get and build the LLVM source:
      * ``-DLLVM_ENABLE_ASSERTIONS=On`` --- Compile with assertion checks enabled
        (default is Yes for Debug builds, No for all other build types).
 
-   * Run your build tool of choice!
+   * ``cmake --build . [--target <target>]`` or the build system specified
+     above directly.
 
-     * The default target (i.e. ``ninja`` or ``make``) will build all of LLVM.
+     * The default target (i.e. ``cmake --build .`` or ``make``) will build all of
+       LLVM.
 
      * The ``check-all`` target (i.e. ``ninja check-all``) will run the
        regression tests to ensure everything is in working order.
@@ -85,10 +87,10 @@ This is an example workflow and configuration to get and build the LLVM source:
      * CMake will generate build targets for each tool and library, and most
        LLVM sub-projects generate their own ``check-<project>`` target.
 
-     * Running a serial build will be *slow*.  To improve speed, try running a
-       parallel build. That's done by default in Ninja; for ``make``, use
-       ``make -j NNN`` (NNN is the number of parallel jobs, use e.g. number of
-       CPUs you have.)
+     * Running a serial build will be **slow**.  To improve speed, try running a
+       parallel build. That's done by default in Ninja; for ``make``, use the
+       option ``-j NN``, where ``NN`` is the number of parallel jobs, e.g. the
+       number of available CPUs.
 
    * For more information see `CMake <CMake.html>`__
 
@@ -402,10 +404,7 @@ The files are as follows, with *x.y* marking the version number:
 Checkout LLVM from Git
 ----------------------
 
-You can also checkout the source code for LLVM from Git. While the LLVM
-project's official source-code repository is Subversion, we are in the process
-of migrating to git. We currently recommend that all developers use Git for
-day-to-day development.
+You can also checkout the source code for LLVM from Git.
 
 .. note::
 
@@ -500,6 +499,12 @@ for commit access.
 LLVM currently has a linear-history policy, which means that merge commits are
 not allowed. The `llvm-project` repo on github is configured to reject pushes
 that include merges, so the `git rebase` step above is required.
+
+Bisecting commits
+^^^^^^^^^^^^^^^^^
+
+See `Bisecting LLVM code <GitBisecting.html>`_ for how to use ``git bisect``
+on LLVM.
 
 Reverting a change
 ^^^^^^^^^^^^^^^^^^
@@ -599,7 +604,7 @@ used by people developing LLVM.
 |                         | overridden with ``LLVM_DYLIB_COMPONENTS``. The     |
 |                         | default contains most of LLVM and is defined in    |
 |                         | ``tools/llvm-shlib/CMakelists.txt``. This option is|
-|                         | not avialable on Windows.                          |
+|                         | not available on Windows.                          |
 +-------------------------+----------------------------------------------------+
 | LLVM_OPTIMIZED_TABLEGEN | Builds a release tablegen that gets used during    |
 |                         | the LLVM build. This can dramatically speed up     |

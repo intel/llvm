@@ -1,6 +1,6 @@
 //===- PassStatistics.cpp -------------------------------------------------===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -135,7 +135,7 @@ static void printResultsAsPipeline(raw_ostream &os, OpPassManager &pm) {
     printPass(/*indent=*/0, &pass);
 }
 
-void printStatistics(OpPassManager &pm, PassDisplayMode displayMode) {
+static void printStatistics(OpPassManager &pm, PassDisplayMode displayMode) {
   auto os = llvm::CreateInfoOutputFile();
 
   // Print the stats header.

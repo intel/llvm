@@ -83,13 +83,17 @@ Value::~Value() {
   // reference and something is wrong.  This code is here to print out where
   // the value is still being referenced.
   //
-  if (!use_empty()) {
+  // Note that use_empty() cannot be called here, as it eventually downcasts
+  // 'this' to GlobalValue (derived class of Value), but GlobalValue has already
+  // been destructed, so accessing it is UB.
+  //
+  if (!materialized_use_empty()) {
     dbgs() << "While deleting: " << *VTy << " %" << getName() << "\n";
     for (auto *U : users())
       dbgs() << "Use still stuck around after Def is destroyed:" << *U << "\n";
   }
 #endif
-  assert(use_empty() && "Uses remain when a value is destroyed!");
+  assert(materialized_use_empty() && "Uses remain when a value is destroyed!");
 
   // If this value is named, destroy the name.  This should not be in a symtab
   // at this point.
@@ -135,6 +139,51 @@ bool Value::hasNUses(unsigned N) const {
 
 bool Value::hasNUsesOrMore(unsigned N) const {
   return hasNItemsOrMore(use_begin(), use_end(), N);
+}
+
+static bool isUnDroppableUser(const User *U) { return !U->isDroppable(); }
+
+Use *Value::getSingleUndroppableUse() {
+  Use *Result = nullptr;
+  for (Use &U : uses()) {
+    if (!U.getUser()->isDroppable()) {
+      if (Result)
+        return nullptr;
+      Result = &U;
+    }
+  }
+  return Result;
+}
+
+bool Value::hasNUndroppableUses(unsigned int N) const {
+  return hasNItems(user_begin(), user_end(), N, isUnDroppableUser);
+}
+
+bool Value::hasNUndroppableUsesOrMore(unsigned int N) const {
+  return hasNItemsOrMore(user_begin(), user_end(), N, isUnDroppableUser);
+}
+
+void Value::dropDroppableUses(
+    llvm::function_ref<bool(const Use *)> ShouldDrop) {
+  SmallVector<Use *, 8> ToBeEdited;
+  for (Use &U : uses())
+    if (U.getUser()->isDroppable() && ShouldDrop(&U))
+      ToBeEdited.push_back(&U);
+  for (Use *U : ToBeEdited) {
+    U->removeFromList();
+    if (auto *Assume = dyn_cast<IntrinsicInst>(U->getUser())) {
+      assert(Assume->getIntrinsicID() == Intrinsic::assume);
+      unsigned OpNo = U->getOperandNo();
+      if (OpNo == 0)
+        Assume->setOperand(0, ConstantInt::getTrue(Assume->getContext()));
+      else {
+        Assume->setOperand(OpNo, UndefValue::get(U->get()->getType()));
+        CallInst::BundleOpInfo &BOI = Assume->getBundleOpInfoForOperand(OpNo);
+        BOI.Tag = getContext().pImpl->getOrInsertBundleTag("ignore");
+      }
+    } else
+      llvm_unreachable("unkown droppable use");
+  }
 }
 
 bool Value::isUsedInBasicBlock(const BasicBlock *BB) const {
@@ -617,7 +666,7 @@ uint64_t Value::getPointerDereferenceableBytes(const DataLayout &DL,
     if (DerefBytes == 0 && (A->hasByValAttr() || A->hasStructRetAttr())) {
       Type *PT = cast<PointerType>(A->getType())->getElementType();
       if (PT->isSized())
-        DerefBytes = DL.getTypeStoreSize(PT);
+        DerefBytes = DL.getTypeStoreSize(PT).getKnownMinSize();
     }
     if (DerefBytes == 0) {
       DerefBytes = A->getDereferenceableOrNullBytes();
@@ -658,14 +707,15 @@ uint64_t Value::getPointerDereferenceableBytes(const DataLayout &DL,
     }
   } else if (auto *AI = dyn_cast<AllocaInst>(this)) {
     if (!AI->isArrayAllocation()) {
-      DerefBytes = DL.getTypeStoreSize(AI->getAllocatedType());
+      DerefBytes =
+          DL.getTypeStoreSize(AI->getAllocatedType()).getKnownMinSize();
       CanBeNull = false;
     }
   } else if (auto *GV = dyn_cast<GlobalVariable>(this)) {
     if (GV->getValueType()->isSized() && !GV->hasExternalWeakLinkage()) {
       // TODO: Don't outright reject hasExternalWeakLinkage but set the
       // CanBeNull flag.
-      DerefBytes = DL.getTypeStoreSize(GV->getValueType());
+      DerefBytes = DL.getTypeStoreSize(GV->getValueType()).getFixedSize();
       CanBeNull = false;
     }
   }
@@ -728,6 +778,17 @@ MaybeAlign Value::getPointerAlignment(const DataLayout &DL) const {
     if (MDNode *MD = LI->getMetadata(LLVMContext::MD_align)) {
       ConstantInt *CI = mdconst::extract<ConstantInt>(MD->getOperand(0));
       return MaybeAlign(CI->getLimitedValue());
+    }
+  } else if (auto *CstPtr = dyn_cast<Constant>(this)) {
+    if (auto *CstInt = dyn_cast_or_null<ConstantInt>(ConstantExpr::getPtrToInt(
+            const_cast<Constant *>(CstPtr), DL.getIntPtrType(getType()),
+            /*OnlyIfReduced=*/true))) {
+      size_t TrailingZeros = CstInt->getValue().countTrailingZeros();
+      // While the actual alignment may be large, elsewhere we have
+      // an arbitrary upper alignmet limit, so let's clamp to it.
+      return Align(TrailingZeros < Value::MaxAlignmentExponent
+                       ? uint64_t(1) << TrailingZeros
+                       : Value::MaximumAlignment);
     }
   }
   return llvm::None;

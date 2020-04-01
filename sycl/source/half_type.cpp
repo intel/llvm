@@ -8,10 +8,11 @@
 
 #include <CL/sycl/half_type.hpp>
 // This is included to enable __builtin_expect()
-#include <CL/sycl/detail/platform_util.hpp>
+#include <detail/platform_util.hpp>
+
 #include <cstring>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
@@ -116,7 +117,7 @@ static float half2Float(const uint16_t &Val) {
   return Result;
 }
 
-namespace half_impl {
+namespace host_half_impl {
 
 half::half(const float &RHS) : Buf(float2Half(RHS)) {}
 
@@ -184,4 +185,4 @@ bool operator!=(const half &LHS, const half &RHS) { return !(LHS == RHS); }
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

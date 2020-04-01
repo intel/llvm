@@ -1,6 +1,6 @@
 //===- TestLoopMapping.cpp --- Parametric loop mapping pass ---------------===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -50,7 +50,10 @@ public:
 };
 } // end namespace
 
-static PassRegistration<TestLoopMappingPass>
-    reg("test-mapping-to-processing-elements",
-        "test mapping a single loop on a virtual processor grid",
-        [] { return std::make_unique<TestLoopMappingPass>(); });
+namespace mlir {
+void registerTestLoopMappingPass() {
+  PassRegistration<TestLoopMappingPass>(
+      "test-mapping-to-processing-elements",
+      "test mapping a single loop on a virtual processor grid");
+}
+} // namespace mlir

@@ -64,11 +64,13 @@ macro(extract_test_compiler_information lang file)
   list(GET information 1 id)
   list(GET information 2 version)
   list(GET information 3 openmp_flags)
+  list(GET information 4 has_tsan_flags)
 
   set(OPENMP_TEST_${lang}_COMPILER_PATH ${path})
   set(OPENMP_TEST_${lang}_COMPILER_ID ${id})
   set(OPENMP_TEST_${lang}_COMPILER_VERSION ${version})
   set(OPENMP_TEST_${lang}_COMPILER_OPENMP_FLAGS ${openmp_flags})
+  set(OPENMP_TEST_${lang}_COMPILER_HAS_TSAN_FLAGS ${has_tsan_flags})
 endmacro()
 
 # Function to set variables with information about the test compiler.
@@ -84,6 +86,7 @@ function(set_test_compiler_information dir)
     set(OPENMP_TEST_COMPILER_ID "${OPENMP_TEST_C_COMPILER_ID}" PARENT_SCOPE)
     set(OPENMP_TEST_COMPILER_VERSION "${OPENMP_TEST_C_COMPILER_VERSION}" PARENT_SCOPE)
     set(OPENMP_TEST_COMPILER_OPENMP_FLAGS "${OPENMP_TEST_C_COMPILER_OPENMP_FLAGS}" PARENT_SCOPE)
+    set(OPENMP_TEST_COMPILER_HAS_TSAN_FLAGS "${OPENMP_TEST_C_COMPILER_HAS_TSAN_FLAGS}" PARENT_SCOPE)
 
     # Determine major version.
     string(REGEX MATCH "[0-9]+" major "${OPENMP_TEST_C_COMPILER_VERSION}")
@@ -128,6 +131,11 @@ else()
   else()
     set(OPENMP_TEST_COMPILER_THREAD_FLAGS "${CMAKE_THREAD_LIBS_INIT}")
   endif()
+  if(TARGET tsan)
+    set(OPENMP_TEST_COMPILER_HAS_TSAN_FLAGS 1)
+  else()
+    set(OPENMP_TEST_COMPILER_HAS_TSAN_FLAGS 0)
+  endif()
   # TODO: Implement blockaddress in GlobalISel and remove this flag!
   set(OPENMP_TEST_COMPILER_OPENMP_FLAGS "-fopenmp ${OPENMP_TEST_COMPILER_THREAD_FLAGS} -fno-experimental-isel")
 endif()
@@ -155,9 +163,9 @@ function(add_openmp_testsuite target comment)
     return()
   endif()
 
-  cmake_parse_arguments(ARG "" "" "DEPENDS;ARGS" ${ARGN})
-  # EXCLUDE_FROM_ALL excludes the test ${target} out of check-openmp.
-  if (NOT EXCLUDE_FROM_ALL)
+  cmake_parse_arguments(ARG "EXCLUDE_FROM_CHECK_ALL" "" "DEPENDS;ARGS" ${ARGN})
+  # EXCLUDE_FROM_CHECK_ALL excludes the test ${target} out of check-openmp.
+  if (NOT ARG_EXCLUDE_FROM_CHECK_ALL)
     # Register the testsuites and depends for the check-openmp rule.
     set_property(GLOBAL APPEND PROPERTY OPENMP_LIT_TESTSUITES ${ARG_UNPARSED_ARGUMENTS})
     set_property(GLOBAL APPEND PROPERTY OPENMP_LIT_DEPENDS ${ARG_DEPENDS})
@@ -172,12 +180,22 @@ function(add_openmp_testsuite target comment)
       ${cmake_3_2_USES_TERMINAL}
     )
   else()
-    add_lit_testsuite(${target}
-      ${comment}
-      ${ARG_UNPARSED_ARGUMENTS}
-      DEPENDS clang clang-resource-headers FileCheck ${ARG_DEPENDS}
-      ARGS ${ARG_ARGS}
-    )
+    if (ARG_EXCLUDE_FROM_CHECK_ALL)
+      add_lit_testsuite(${target}
+        ${comment}
+        ${ARG_UNPARSED_ARGUMENTS}
+        EXCLUDE_FROM_CHECK_ALL
+        DEPENDS clang clang-resource-headers FileCheck ${ARG_DEPENDS}
+        ARGS ${ARG_ARGS}
+      )
+    else()
+      add_lit_testsuite(${target}
+        ${comment}
+        ${ARG_UNPARSED_ARGUMENTS}
+        DEPENDS clang clang-resource-headers FileCheck ${ARG_DEPENDS}
+        ARGS ${ARG_ARGS}
+      )
+    endif()
   endif()
 endfunction()
 
@@ -186,6 +204,5 @@ function(construct_check_openmp_target)
   get_property(OPENMP_LIT_DEPENDS GLOBAL PROPERTY OPENMP_LIT_DEPENDS)
 
   # We already added the testsuites themselves, no need to do that again.
-  set(EXCLUDE_FROM_ALL True)
-  add_openmp_testsuite(check-openmp "Running OpenMP tests" ${OPENMP_LIT_TESTSUITES} DEPENDS ${OPENMP_LIT_DEPENDS})
+  add_openmp_testsuite(check-openmp "Running OpenMP tests" ${OPENMP_LIT_TESTSUITES} EXCLUDE_FROM_CHECK_ALL DEPENDS ${OPENMP_LIT_DEPENDS})
 endfunction()

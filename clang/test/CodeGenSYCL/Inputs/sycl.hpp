@@ -23,6 +23,8 @@ public:
 
 template <int dimensions = 1>
 class group {
+public:
+  group() = default; // fake constructor
 };
 
 namespace access {
@@ -239,6 +241,23 @@ template <typename Type>
 struct get_kernel_name_t<auto_name, Type> {
   using name = Type;
 };
+
+namespace experimental {
+template <typename T, typename ID = T>
+class spec_constant {
+public:
+  spec_constant() {}
+  spec_constant(T Cst) {}
+
+  T get() const { // explicit access.
+    return T();   // Dummy implementaion.
+  }
+  operator T() const { // implicit conversion.
+    return get();
+  }
+};
+} // namespace experimental
+
 #define ATTR_SYCL_KERNEL __attribute__((sycl_kernel))
 template <typename KernelName = auto_name, typename KernelType>
 ATTR_SYCL_KERNEL void kernel_single_task(KernelType kernelFunc) {
@@ -249,6 +268,12 @@ template <typename KernelName, typename KernelType, int Dims>
 ATTR_SYCL_KERNEL void
 kernel_parallel_for(KernelType KernelFunc) {
   KernelFunc(id<Dims>());
+}
+
+template <typename KernelName, typename KernelType, int Dims>
+ATTR_SYCL_KERNEL void
+kernel_parallel_for_work_group(KernelType KernelFunc) {
+  KernelFunc(group<Dims>());
 }
 
 class handler {
@@ -263,6 +288,17 @@ public:
 #endif
   }
 
+  template <typename KernelName = auto_name, typename KernelType, int Dims>
+  void parallel_for_work_group(range<Dims> numWorkGroups, range<Dims> WorkGroupSize, KernelType kernelFunc) {
+    using NameT = typename get_kernel_name_t<KernelName, KernelType>::name;
+#ifdef __SYCL_DEVICE_ONLY__
+    kernel_parallel_for_work_group<NameT, KernelType, Dims>(kernelFunc);
+#else
+    group<Dims> G;
+    kernelFunc(G);
+#endif
+  }
+
   template <typename KernelName = auto_name, typename KernelType>
   void single_task(KernelType kernelFunc) {
     using NameT = typename get_kernel_name_t<KernelName, KernelType>::name;
@@ -273,6 +309,21 @@ public:
 #endif
   }
 };
+
+class stream {
+public:
+  stream(unsigned long BufferSize, unsigned long MaxStatementSize,
+         handler &CGH) {}
+
+  void __init() {}
+
+  void __finalize() {}
+};
+
+template <typename T>
+const stream& operator<<(const stream &S, T&&) {
+  return S;
+}
 
 template <typename T, int dimensions = 1,
           typename AllocatorT = int /*fake type as AllocatorT is not used*/>

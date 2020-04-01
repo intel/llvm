@@ -46,8 +46,8 @@ formatDereference(const ast_matchers::MatchFinder::MatchResult &Result,
   if (const auto *Op = dyn_cast<clang::UnaryOperator>(&ExprNode)) {
     if (Op->getOpcode() == UO_AddrOf) {
       // Strip leading '&'.
-      return tooling::fixit::getText(*Op->getSubExpr()->IgnoreParens(),
-                                     *Result.Context);
+      return std::string(tooling::fixit::getText(
+          *Op->getSubExpr()->IgnoreParens(), *Result.Context));
     }
   }
   StringRef Text = tooling::fixit::getText(ExprNode, *Result.Context);
@@ -61,15 +61,59 @@ formatDereference(const ast_matchers::MatchFinder::MatchResult &Result,
   return (llvm::Twine("*") + Text).str();
 }
 
+// Trying to get CallExpr in which CxxConstructExpr is called.
+static const clang::CallExpr *
+tryGetCallExprAncestorForCxxConstructExpr(const Expr *TheExpr,
+                                          ASTContext &Context) {
+  // We skip nodes such as CXXBindTemporaryExpr, MaterializeTemporaryExpr.
+  for (ast_type_traits::DynTypedNode DynParent : Context.getParents(*TheExpr)) {
+    if (const auto *Parent = DynParent.get<Expr>()) {
+      if (const auto *TheCallExpr = dyn_cast<CallExpr>(Parent))
+        return TheCallExpr;
+
+      if (const clang::CallExpr *TheCallExpr =
+              tryGetCallExprAncestorForCxxConstructExpr(Parent, Context))
+        return TheCallExpr;
+    }
+  }
+
+  return nullptr;
+}
+
+// Check that ParamDecl of CallExprDecl has rvalue type.
+static bool checkParamDeclOfAncestorCallExprHasRValueRefType(
+    const Expr *TheCxxConstructExpr, ASTContext &Context) {
+  if (const clang::CallExpr *TheCallExpr =
+          tryGetCallExprAncestorForCxxConstructExpr(TheCxxConstructExpr,
+                                                    Context)) {
+    for (unsigned i = 0; i < TheCallExpr->getNumArgs(); ++i) {
+      const Expr *Arg = TheCallExpr->getArg(i);
+      if (Arg->getSourceRange() == TheCxxConstructExpr->getSourceRange()) {
+        if (const auto *TheCallExprFuncProto =
+                TheCallExpr->getCallee()
+                    ->getType()
+                    ->getPointeeType()
+                    ->getAs<FunctionProtoType>()) {
+          if (TheCallExprFuncProto->getParamType(i)->isRValueReferenceType())
+            return true;
+        }
+      }
+    }
+  }
+
+  return false;
+}
+
+AST_MATCHER(CXXConstructExpr,
+            matchedParamDeclOfAncestorCallExprHasRValueRefType) {
+  return checkParamDeclOfAncestorCallExprHasRValueRefType(
+      &Node, Finder->getASTContext());
+}
+
 } // end namespace
 
 void RedundantStringCStrCheck::registerMatchers(
     ast_matchers::MatchFinder *Finder) {
-  // Only register the matchers for C++; the functionality currently does not
-  // provide any benefit to other languages, despite being benign.
-  if (!getLangOpts().CPlusPlus)
-    return;
-
   // Match expressions of type 'string' or 'string*'.
   const auto StringDecl = type(hasUnqualifiedDesugaredType(recordType(
       hasDeclaration(cxxRecordDecl(hasName("::std::basic_string"))))));
@@ -95,18 +139,18 @@ void RedundantStringCStrCheck::registerMatchers(
           .bind("call");
 
   // Detect redundant 'c_str()' calls through a string constructor.
-  Finder->addMatcher(cxxConstructExpr(StringConstructorExpr,
-                                      hasArgument(0, StringCStrCallExpr)),
-                     this);
+  // If CxxConstructExpr is the part of some CallExpr we need to
+  // check that matched ParamDecl of the ancestor CallExpr is not rvalue.
+  Finder->addMatcher(
+      cxxConstructExpr(
+          StringConstructorExpr, hasArgument(0, StringCStrCallExpr),
+          unless(matchedParamDeclOfAncestorCallExprHasRValueRefType())),
+      this);
 
   // Detect: 's == str.c_str()'  ->  's == str'
   Finder->addMatcher(
       cxxOperatorCallExpr(
-          anyOf(
-              hasOverloadedOperatorName("<"), hasOverloadedOperatorName(">"),
-              hasOverloadedOperatorName(">="), hasOverloadedOperatorName("<="),
-              hasOverloadedOperatorName("!="), hasOverloadedOperatorName("=="),
-              hasOverloadedOperatorName("+")),
+          hasAnyOverloadedOperatorName("<", ">", ">=", "<=", "!=", "==", "+"),
           anyOf(allOf(hasArgument(0, StringExpr),
                       hasArgument(1, StringCStrCallExpr)),
                 allOf(hasArgument(0, StringCStrCallExpr),
@@ -115,11 +159,11 @@ void RedundantStringCStrCheck::registerMatchers(
 
   // Detect: 'dst += str.c_str()'  ->  'dst += str'
   // Detect: 's = str.c_str()'  ->  's = str'
-  Finder->addMatcher(cxxOperatorCallExpr(anyOf(hasOverloadedOperatorName("="),
-                                               hasOverloadedOperatorName("+=")),
-                                         hasArgument(0, StringExpr),
-                                         hasArgument(1, StringCStrCallExpr)),
-                     this);
+  Finder->addMatcher(
+      cxxOperatorCallExpr(hasAnyOverloadedOperatorName("=", "+="),
+                          hasArgument(0, StringExpr),
+                          hasArgument(1, StringCStrCallExpr)),
+      this);
 
   // Detect: 'dst.append(str.c_str())'  ->  'dst.append(str)'
   Finder->addMatcher(

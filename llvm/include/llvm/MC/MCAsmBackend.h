@@ -51,10 +51,10 @@ public:
   virtual bool allowAutoPadding() const { return false; }
 
   /// Give the target a chance to manipulate state related to instruction
-  /// alignment (e.g. padding for optimization) before and after actually
-  /// emitting the instruction.
-  virtual void alignBranchesBegin(MCObjectStreamer &OS, const MCInst &Inst) {}
-  virtual void alignBranchesEnd(MCObjectStreamer &OS, const MCInst &Inst) {}
+  /// alignment (e.g. padding for optimization), instruction relaxablility, etc.
+  /// before and after actually emitting the instruction.
+  virtual void emitInstructionBegin(MCObjectStreamer &OS, const MCInst &Inst) {}
+  virtual void emitInstructionEnd(MCObjectStreamer &OS, const MCInst &Inst) {}
 
   /// lifetime management
   virtual void reset() {}
@@ -106,6 +106,14 @@ public:
                                              const MCAsmLayout &Layout,
                                              MCAlignFragment &AF) {
     return false;
+  }
+
+  virtual bool evaluateTargetFixup(const MCAssembler &Asm,
+                                   const MCAsmLayout &Layout,
+                                   const MCFixup &Fixup, const MCFragment *DF,
+                                   const MCValue &Target, uint64_t &Value,
+                                   bool &WasForced) {
+    llvm_unreachable("Need to implement hook if target has custom fixups");
   }
 
   /// Apply the \p Value for given \p Fixup into the provided data fragment, at

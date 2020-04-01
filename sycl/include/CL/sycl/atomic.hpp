@@ -23,7 +23,7 @@
   static_assert(!std::is_same<T, float>::value,                                \
                 "SYCL atomic function not available for float type")
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
 enum class memory_order : int { relaxed };
@@ -62,18 +62,18 @@ template <> struct GetSpirvMemoryScope<access::address_space::local_space> {
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)
 
 #ifndef __SYCL_DEVICE_ONLY__
 // host implementation of SYCL atomics
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
-// Translate cl::sycl::memory_order or __spv::MemorySemanticsMask
+// Translate cl::sycl::memory_order or __spv::MemorySemanticsMask::Flag
 // into std::memory_order
 // Only relaxed memory semantics are supported currently
 static inline std::memory_order
-getStdMemoryOrder(__spv::MemorySemanticsMask MS) {
+getStdMemoryOrder(__spv::MemorySemanticsMask::Flag MS) {
   return std::memory_order_relaxed;
 }
 static inline std::memory_order getStdMemoryOrder(::cl::sycl::memory_order MS) {
@@ -81,61 +81,61 @@ static inline std::memory_order getStdMemoryOrder(::cl::sycl::memory_order MS) {
 }
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)
 
 // std::atomic version of atomic SPIR-V builtins
 
 template <typename T>
-void __spirv_AtomicStore(std::atomic<T> *Ptr, __spv::Scope S,
-                         __spv::MemorySemanticsMask MS, T V) {
+void __spirv_AtomicStore(std::atomic<T> *Ptr, __spv::Scope::Flag S,
+                         __spv::MemorySemanticsMask::Flag MS, T V) {
   Ptr->store(V, ::cl::sycl::detail::getStdMemoryOrder(MS));
 }
 
 template <typename T>
-T __spirv_AtomicLoad(const std::atomic<T> *Ptr, __spv::Scope S,
-                     __spv::MemorySemanticsMask MS) {
+T __spirv_AtomicLoad(const std::atomic<T> *Ptr, __spv::Scope::Flag S,
+                     __spv::MemorySemanticsMask::Flag MS) {
   return Ptr->load(::cl::sycl::detail::getStdMemoryOrder(MS));
 }
 
 template <typename T>
-T __spirv_AtomicExchange(std::atomic<T> *Ptr, __spv::Scope S,
-                         __spv::MemorySemanticsMask MS, T V) {
+T __spirv_AtomicExchange(std::atomic<T> *Ptr, __spv::Scope::Flag S,
+                         __spv::MemorySemanticsMask::Flag MS, T V) {
   return Ptr->exchange(V, ::cl::sycl::detail::getStdMemoryOrder(MS));
 }
 
 template <typename T>
-extern T __spirv_AtomicIAdd(std::atomic<T> *Ptr, __spv::Scope S,
-                            __spv::MemorySemanticsMask MS, T V) {
+extern T __spirv_AtomicIAdd(std::atomic<T> *Ptr, __spv::Scope::Flag S,
+                            __spv::MemorySemanticsMask::Flag MS, T V) {
   return Ptr->fetch_add(V, ::cl::sycl::detail::getStdMemoryOrder(MS));
 }
 
 template <typename T>
-extern T __spirv_AtomicISub(std::atomic<T> *Ptr, __spv::Scope S,
-                            __spv::MemorySemanticsMask MS, T V) {
+extern T __spirv_AtomicISub(std::atomic<T> *Ptr, __spv::Scope::Flag S,
+                            __spv::MemorySemanticsMask::Flag MS, T V) {
   return Ptr->fetch_sub(V, ::cl::sycl::detail::getStdMemoryOrder(MS));
 }
 
 template <typename T>
-extern T __spirv_AtomicAnd(std::atomic<T> *Ptr, __spv::Scope S,
-                           __spv::MemorySemanticsMask MS, T V) {
+extern T __spirv_AtomicAnd(std::atomic<T> *Ptr, __spv::Scope::Flag S,
+                           __spv::MemorySemanticsMask::Flag MS, T V) {
   return Ptr->fetch_and(V, ::cl::sycl::detail::getStdMemoryOrder(MS));
 }
 
 template <typename T>
-extern T __spirv_AtomicOr(std::atomic<T> *Ptr, __spv::Scope S,
-                          __spv::MemorySemanticsMask MS, T V) {
+extern T __spirv_AtomicOr(std::atomic<T> *Ptr, __spv::Scope::Flag S,
+                          __spv::MemorySemanticsMask::Flag MS, T V) {
   return Ptr->fetch_or(V, ::cl::sycl::detail::getStdMemoryOrder(MS));
 }
 
 template <typename T>
-extern T __spirv_AtomicXor(std::atomic<T> *Ptr, __spv::Scope S,
-                           __spv::MemorySemanticsMask MS, T V) {
+extern T __spirv_AtomicXor(std::atomic<T> *Ptr, __spv::Scope::Flag S,
+                           __spv::MemorySemanticsMask::Flag MS, T V) {
   return Ptr->fetch_xor(V, ::cl::sycl::detail::getStdMemoryOrder(MS));
 }
 
 template <typename T>
-extern T __spirv_AtomicMin(std::atomic<T> *Ptr, __spv::Scope S,
-                           __spv::MemorySemanticsMask MS, T V) {
+extern T __spirv_AtomicMin(std::atomic<T> *Ptr, __spv::Scope::Flag S,
+                           __spv::MemorySemanticsMask::Flag MS, T V) {
   std::memory_order MemoryOrder = ::cl::sycl::detail::getStdMemoryOrder(MS);
   T Val = Ptr->load(MemoryOrder);
   while (V < Val) {
@@ -147,8 +147,8 @@ extern T __spirv_AtomicMin(std::atomic<T> *Ptr, __spv::Scope S,
 }
 
 template <typename T>
-extern T __spirv_AtomicMax(std::atomic<T> *Ptr, __spv::Scope S,
-                           __spv::MemorySemanticsMask MS, T V) {
+extern T __spirv_AtomicMax(std::atomic<T> *Ptr, __spv::Scope::Flag S,
+                           __spv::MemorySemanticsMask::Flag MS, T V) {
   std::memory_order MemoryOrder = ::cl::sycl::detail::getStdMemoryOrder(MS);
   T Val = Ptr->load(MemoryOrder);
   while (V > Val) {
@@ -161,7 +161,7 @@ extern T __spirv_AtomicMax(std::atomic<T> *Ptr, __spv::Scope S,
 
 #endif // !defined(__SYCL_DEVICE_ONLY__)
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
 template <typename T, access::address_space addressSpace =
@@ -212,7 +212,7 @@ public:
     cl_int TmpVal = __spirv_AtomicLoad(
         TmpPtr, SpirvScope, detail::getSPIRVMemorySemanticsMask(Order));
     cl_float ResVal;
-    std::memcpy(&ResVal, &TmpVal, sizeof TmpVal);
+    detail::memcpy(&ResVal, &TmpVal, sizeof(TmpVal));
     return ResVal;
   }
 #else
@@ -369,6 +369,6 @@ T atomic_fetch_max(atomic<T, addressSpace> Object, T Operand,
 }
 
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)
 
 #undef STATIC_ASSERT_NOT_FLOAT

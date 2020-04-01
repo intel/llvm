@@ -1,6 +1,6 @@
 //===- FoldUtils.cpp ---- Fold Utilities ----------------------------------===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -13,7 +13,7 @@
 
 #include "mlir/Transforms/FoldUtils.h"
 
-#include "mlir/Dialect/StandardOps/Ops.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/Operation.h"
@@ -57,7 +57,7 @@ static Operation *materializeConstant(Dialect *dialect, OpBuilder &builder,
   // Ask the dialect to materialize a constant operation for this value.
   if (auto *constOp = dialect->materializeConstant(builder, value, type, loc)) {
     assert(insertPt == builder.getInsertionPoint());
-    assert(matchPattern(constOp, m_Constant(&value)));
+    assert(matchPattern(constOp, m_Constant()));
     return constOp;
   }
 
@@ -97,7 +97,7 @@ LogicalResult OperationFolder::tryToFold(
 
   // Otherwise, replace all of the result values and erase the operation.
   for (unsigned i = 0, e = results.size(); i != e; ++i)
-    op->getResult(i)->replaceAllUsesWith(results[i]);
+    op->getResult(i).replaceAllUsesWith(results[i]);
   op->erase();
   return success();
 }
@@ -120,10 +120,16 @@ void OperationFolder::notifyRemoval(Operation *op) {
   auto &uniquedConstants = foldScopes[getInsertionRegion(interfaces, op)];
 
   // Erase all of the references to this operation.
-  auto type = op->getResult(0)->getType();
+  auto type = op->getResult(0).getType();
   for (auto *dialect : it->second)
     uniquedConstants.erase(std::make_tuple(dialect, constValue, type));
   referencedDialects.erase(it);
+}
+
+/// Clear out any constants cached inside of the folder.
+void OperationFolder::clear() {
+  foldScopes.clear();
+  referencedDialects.clear();
 }
 
 /// Tries to perform folding on the given `op`. If successful, populates
@@ -134,19 +140,18 @@ LogicalResult OperationFolder::tryToFold(
   SmallVector<Attribute, 8> operandConstants;
   SmallVector<OpFoldResult, 8> foldResults;
 
+  // If this is a commutative operation, move constants to be trailing operands.
+  if (op->getNumOperands() >= 2 && op->isCommutative()) {
+    std::stable_partition(
+        op->getOpOperands().begin(), op->getOpOperands().end(),
+        [&](OpOperand &O) { return !matchPattern(O.get(), m_Constant()); });
+  }
+
   // Check to see if any operands to the operation is constant and whether
   // the operation knows how to constant fold itself.
   operandConstants.assign(op->getNumOperands(), Attribute());
   for (unsigned i = 0, e = op->getNumOperands(); i != e; ++i)
     matchPattern(op->getOperand(i), m_Constant(&operandConstants[i]));
-
-  // If this is a commutative binary operation with a constant on the left
-  // side move it to the right side.
-  if (operandConstants.size() == 2 && operandConstants[0] &&
-      !operandConstants[1] && op->isCommutative()) {
-    std::swap(op->getOpOperand(0), op->getOpOperand(1));
-    std::swap(operandConstants[0], operandConstants[1]);
-  }
 
   // Attempt to constant fold the operation.
   if (failed(op->fold(operandConstants, foldResults)))
@@ -182,7 +187,7 @@ LogicalResult OperationFolder::tryToFold(
     Attribute attrRepl = foldResults[i].get<Attribute>();
     if (auto *constOp =
             tryGetOrCreateConstant(uniquedConstants, dialect, builder, attrRepl,
-                                   res->getType(), op->getLoc())) {
+                                   res.getType(), op->getLoc())) {
       results.push_back(constOp->getResult(0));
       continue;
     }

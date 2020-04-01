@@ -240,10 +240,14 @@ public:
   /// Lexed tokens of a file before preprocessing. E.g. for the following input
   ///     #define DECL(name) int name = 10
   ///     DECL(a);
-  /// spelledTokens() returns {"#", "define", "DECL", "(", "name", ")", "eof"}.
-  /// FIXME: we do not yet store tokens of directives, like #include, #define,
-  ///        #pragma, etc.
+  /// spelledTokens() returns
+  ///    {"#", "define", "DECL", "(", "name", ")", "int", "name", "=", "10",
+  ///     "DECL", "(", "a", ")", ";"}
   llvm::ArrayRef<syntax::Token> spelledTokens(FileID FID) const;
+
+  /// Returns the spelled Token starting at Loc, if there are no such tokens
+  /// returns nullptr.
+  const syntax::Token *spelledTokenAt(SourceLocation Loc) const;
 
   /// Get all tokens that expand a macro in \p FID. For the following input
   ///     #define FOO B
@@ -317,9 +321,14 @@ private:
 /// This always returns 0-2 tokens.
 llvm::ArrayRef<syntax::Token>
 spelledTokensTouching(SourceLocation Loc, const syntax::TokenBuffer &Tokens);
+llvm::ArrayRef<syntax::Token>
+spelledTokensTouching(SourceLocation Loc, llvm::ArrayRef<syntax::Token> Tokens);
 
 /// The identifier token that overlaps or touches a spelling location Loc.
 /// If there is none, returns nullptr.
+const syntax::Token *
+spelledIdentifierTouching(SourceLocation Loc,
+                          llvm::ArrayRef<syntax::Token> Tokens);
 const syntax::Token *
 spelledIdentifierTouching(SourceLocation Loc,
                           const syntax::TokenBuffer &Tokens);
@@ -334,6 +343,12 @@ spelledIdentifierTouching(SourceLocation Loc,
 /// The result will *not* have a 'eof' token at the end.
 std::vector<syntax::Token> tokenize(FileID FID, const SourceManager &SM,
                                     const LangOptions &LO);
+/// Similar to one above, instead of whole file tokenizes a part of it. Note
+/// that, the first token might be incomplete if FR.startOffset is not at the
+/// beginning of a token, and the last token returned will start before the
+/// FR.endOffset but might end after it.
+std::vector<syntax::Token>
+tokenize(const FileRange &FR, const SourceManager &SM, const LangOptions &LO);
 
 /// Collects tokens for the main file while running the frontend action. An
 /// instance of this object should be created on

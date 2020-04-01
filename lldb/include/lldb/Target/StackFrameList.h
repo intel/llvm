@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_StackFrameList_h_
-#define liblldb_StackFrameList_h_
+#ifndef LLDB_TARGET_STACKFRAMELIST_H
+#define LLDB_TARGET_STACKFRAMELIST_H
 
 #include <memory>
 #include <mutex>
@@ -94,7 +94,7 @@ protected:
 
   void GetFramesUpTo(uint32_t end_idx);
 
-  void GetOnlyConcreteFramesUpTo(uint32_t end_idx, Unwind *unwinder);
+  void GetOnlyConcreteFramesUpTo(uint32_t end_idx, Unwind &unwinder);
 
   void SynthesizeTailCallFrames(StackFrame &next_frame);
 
@@ -160,4 +160,4 @@ private:
 
 } // namespace lldb_private
 
-#endif // liblldb_StackFrameList_h_
+#endif // LLDB_TARGET_STACKFRAMELIST_H

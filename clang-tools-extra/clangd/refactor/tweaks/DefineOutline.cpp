@@ -16,6 +16,7 @@
 #include "SourceCode.h"
 #include "refactor/Tweak.h"
 #include "clang/AST/ASTTypeTraits.h"
+#include "clang/AST/Attr.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclBase.h"
 #include "clang/AST/DeclCXX.h"
@@ -64,10 +65,11 @@ const FunctionDecl *getSelectedFunction(const SelectionTree::Node *SelNode) {
 llvm::Optional<Path> getSourceFile(llvm::StringRef FileName,
                                    const Tweak::Selection &Sel) {
   if (auto Source = getCorrespondingHeaderOrSource(
-          FileName,
+          std::string(FileName),
           &Sel.AST->getSourceManager().getFileManager().getVirtualFileSystem()))
     return *Source;
-  return getCorrespondingHeaderOrSource(FileName, *Sel.AST, Sel.Index);
+  return getCorrespondingHeaderOrSource(std::string(FileName), *Sel.AST,
+                                        Sel.Index);
 }
 
 // Synthesize a DeclContext for TargetNS from CurContext. TargetNS must be empty
@@ -155,7 +157,7 @@ getFunctionSourceCode(const FunctionDecl *FD, llvm::StringRef TargetNamespace,
         "define outline: couldn't find a context for target");
 
   llvm::Error Errors = llvm::Error::success();
-  tooling::Replacements QualifierInsertions;
+  tooling::Replacements DeclarationCleanups;
 
   // Finds the first unqualified name in function return type and name, then
   // qualifies those to be valid in TargetContext.
@@ -180,7 +182,7 @@ getFunctionSourceCode(const FunctionDecl *FD, llvm::StringRef TargetNamespace,
     const NamedDecl *ND = Ref.Targets.front();
     const std::string Qualifier = getQualification(
         AST, *TargetContext, SM.getLocForStartOfFile(SM.getMainFileID()), ND);
-    if (auto Err = QualifierInsertions.add(
+    if (auto Err = DeclarationCleanups.add(
             tooling::Replacement(SM, Ref.NameLoc, 0, Qualifier)))
       Errors = llvm::joinErrors(std::move(Errors), std::move(Err));
   });
@@ -205,14 +207,72 @@ getFunctionSourceCode(const FunctionDecl *FD, llvm::StringRef TargetNamespace,
       assert(Tok != Tokens.rend());
       DelRange.setBegin(Tok->location());
       if (auto Err =
-              QualifierInsertions.add(tooling::Replacement(SM, DelRange, "")))
+              DeclarationCleanups.add(tooling::Replacement(SM, DelRange, "")))
         Errors = llvm::joinErrors(std::move(Errors), std::move(Err));
+    }
+  }
+
+  auto DelAttr = [&](const Attr *A) {
+    if (!A)
+      return;
+    auto AttrTokens =
+        TokBuf.spelledForExpanded(TokBuf.expandedTokens(A->getRange()));
+    assert(A->getLocation().isValid());
+    if (!AttrTokens || AttrTokens->empty()) {
+      Errors = llvm::joinErrors(
+          std::move(Errors),
+          llvm::createStringError(
+              llvm::inconvertibleErrorCode(),
+              llvm::StringRef("define outline: Can't move out of line as "
+                              "function has a macro `") +
+                  A->getSpelling() + "` specifier."));
+      return;
+    }
+    CharSourceRange DelRange =
+        syntax::Token::range(SM, AttrTokens->front(), AttrTokens->back())
+            .toCharRange(SM);
+    if (auto Err =
+            DeclarationCleanups.add(tooling::Replacement(SM, DelRange, "")))
+      Errors = llvm::joinErrors(std::move(Errors), std::move(Err));
+  };
+
+  DelAttr(FD->getAttr<OverrideAttr>());
+  DelAttr(FD->getAttr<FinalAttr>());
+
+  if (FD->isVirtualAsWritten()) {
+    SourceRange SpecRange{FD->getBeginLoc(), FD->getLocation()};
+    bool HasErrors = true;
+
+    // Clang allows duplicating virtual specifiers so check for multiple
+    // occurances.
+    for (const auto &Tok : TokBuf.expandedTokens(SpecRange)) {
+      if (Tok.kind() != tok::kw_virtual)
+        continue;
+      auto Spelling = TokBuf.spelledForExpanded(llvm::makeArrayRef(Tok));
+      if (!Spelling) {
+        HasErrors = true;
+        break;
+      }
+      HasErrors = false;
+      CharSourceRange DelRange =
+          syntax::Token::range(SM, Spelling->front(), Spelling->back())
+              .toCharRange(SM);
+      if (auto Err =
+              DeclarationCleanups.add(tooling::Replacement(SM, DelRange, "")))
+        Errors = llvm::joinErrors(std::move(Errors), std::move(Err));
+    }
+    if (HasErrors) {
+      Errors = llvm::joinErrors(
+          std::move(Errors),
+          llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                  "define outline: Can't move out of line as "
+                                  "function has a macro `virtual` specifier."));
     }
   }
 
   if (Errors)
     return std::move(Errors);
-  return getFunctionSourceAfterReplacements(FD, QualifierInsertions);
+  return getFunctionSourceAfterReplacements(FD, DeclarationCleanups);
 }
 
 struct InsertionPoint {
@@ -224,10 +284,10 @@ struct InsertionPoint {
 // should also try to follow ordering of declarations. For example, if decls
 // come in order `foo, bar, baz` then this function should return some point
 // between foo and baz for inserting bar.
-llvm::Expected<InsertionPoint>
-getInsertionPoint(llvm::StringRef Contents, llvm::StringRef QualifiedName,
-                  const format::FormatStyle &Style) {
-  auto Region = getEligiblePoints(Contents, QualifiedName, Style);
+llvm::Expected<InsertionPoint> getInsertionPoint(llvm::StringRef Contents,
+                                                 llvm::StringRef QualifiedName,
+                                                 const LangOptions &LangOpts) {
+  auto Region = getEligiblePoints(Contents, QualifiedName, LangOpts);
 
   assert(!Region.EligiblePoints.empty());
   // FIXME: This selection can be made smarter by looking at the definition
@@ -299,7 +359,7 @@ class DefineOutline : public Tweak {
 public:
   const char *id() const override;
 
-  bool hidden() const override { return true; }
+  bool hidden() const override { return false; }
   Intent intent() const override { return Intent::Refactor; }
   std::string title() const override {
     return "Move function body to out-of-line.";
@@ -356,9 +416,10 @@ public:
       return llvm::createStringError(Buffer.getError(),
                                      Buffer.getError().message());
     auto Contents = Buffer->get()->getBuffer();
-    auto InsertionPoint =
-        getInsertionPoint(Contents, Source->getQualifiedNameAsString(),
-                          getFormatStyleForFile(*CCFile, Contents, &FS));
+    auto LangOpts = format::getFormattingLangOpts(
+        getFormatStyleForFile(*CCFile, Contents, &FS));
+    auto InsertionPoint = getInsertionPoint(
+        Contents, Source->getQualifiedNameAsString(), LangOpts);
     if (!InsertionPoint)
       return InsertionPoint.takeError();
 

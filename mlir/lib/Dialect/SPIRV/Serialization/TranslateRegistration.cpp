@@ -1,6 +1,6 @@
 //===- TranslateRegistration.cpp - hooks to mlir-translate ----------------===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -33,8 +33,8 @@ using namespace mlir;
 
 // Deserializes the SPIR-V binary module stored in the file named as
 // `inputFilename` and returns a module containing the SPIR-V module.
-OwningModuleRef deserializeModule(const llvm::MemoryBuffer *input,
-                                  MLIRContext *context) {
+static OwningModuleRef deserializeModule(const llvm::MemoryBuffer *input,
+                                         MLIRContext *context) {
   Builder builder(context);
 
   // Make sure the input stream can be treated as a stream of SPIR-V words
@@ -71,7 +71,7 @@ static TranslateToMLIRRegistration fromBinary(
 // Serialization registration
 //===----------------------------------------------------------------------===//
 
-LogicalResult serializeModule(ModuleOp module, raw_ostream &output) {
+static LogicalResult serializeModule(ModuleOp module, raw_ostream &output) {
   if (!module)
     return failure();
 
@@ -104,8 +104,9 @@ static TranslateFromMLIRRegistration
 // Round-trip registration
 //===----------------------------------------------------------------------===//
 
-LogicalResult roundTripModule(llvm::SourceMgr &sourceMgr, raw_ostream &output,
-                              MLIRContext *context) {
+static LogicalResult roundTripModule(llvm::SourceMgr &sourceMgr,
+                                     raw_ostream &output,
+                                     MLIRContext *context) {
   // Parse an MLIR module from the source manager.
   auto srcModule = OwningModuleRef(parseSourceFile(sourceMgr, context));
   if (!srcModule)

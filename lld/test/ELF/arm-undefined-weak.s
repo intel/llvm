@@ -1,7 +1,7 @@
 // REQUIRES: arm
 // RUN: llvm-mc -arm-add-build-attributes -filetype=obj -triple=armv7a-none-linux-gnueabi %s -o %t
 // RUN: ld.lld --image-base=0x10000000 %t -o %t2
-// RUN: llvm-objdump -triple=armv7a-none-linux-gnueabi --no-show-raw-insn -d %t2 | FileCheck %s
+// RUN: llvm-objdump --triple=armv7a-none-linux-gnueabi --no-show-raw-insn -d %t2 | FileCheck %s
 
 // Check that the ARM ABI rules for undefined weak symbols are applied.
 // Branch instructions are resolved to the next instruction. Undefined
@@ -12,6 +12,7 @@
  .syntax unified
 
  .weak target
+ .type target, %function
 
  .text
  .global _start
@@ -31,7 +32,7 @@ _start:
 
 // CHECK: Disassembly of section .text:
 // CHECK-EMPTY:
-// CHECK-NEXT: 100010b4 _start:
+// CHECK-NEXT: 100010b4 <_start>:
 // CHECK-NEXT: 100010b4: b       #-4
 // CHECK-NEXT: 100010b8: bl      #-4
 // CHECK-NEXT: 100010bc: bl      #-4

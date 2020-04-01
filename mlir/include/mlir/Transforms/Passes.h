@@ -1,6 +1,6 @@
 //===- Passes.h - Pass Entrypoints ------------------------------*- C++ -*-===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -36,14 +36,6 @@ std::unique_ptr<Pass> createCSEPass();
 /// target-independent, n-D super-vector abstraction.
 std::unique_ptr<OpPassBase<FuncOp>>
 createVectorizePass(ArrayRef<int64_t> virtualVectorSize);
-
-/// Creates a pass to allow independent testing of vectorizer functionality with
-/// FileCheck.
-std::unique_ptr<OpPassBase<FuncOp>> createVectorizerTestPass();
-
-/// Creates a pass to lower super-vectors to target-dependent HW vectors.
-std::unique_ptr<OpPassBase<FuncOp>>
-createMaterializeVectorsPass(ArrayRef<int64_t> vectorSize);
 
 /// Creates a loop unrolling pass with the provided parameters.
 /// 'getUnrollFactor' is a function callback for clients to supply a function
@@ -95,12 +87,6 @@ std::unique_ptr<OpPassBase<FuncOp>> createLowerAffinePass();
 std::unique_ptr<OpPassBase<FuncOp>>
 createLoopTilingPass(uint64_t cacheSizeBytes);
 
-/// Creates a pass that performs parametric tiling so that the outermost loops
-/// have the given fixed number of iterations.  Assumes outermost loop nests
-/// are permutable.
-std::unique_ptr<OpPassBase<FuncOp>>
-createSimpleParametricTilingPass(ArrayRef<int64_t> outerLoopSizes);
-
 /// Creates a pass that transforms perfectly nested loops with independent
 /// bounds into a single loop.
 std::unique_ptr<OpPassBase<FuncOp>> createLoopCoalescingPass();
@@ -118,14 +104,19 @@ std::unique_ptr<OpPassBase<FuncOp>> createAffineDataCopyGenerationPass(
 std::unique_ptr<OpPassBase<FuncOp>> createMemRefDataFlowOptPass();
 
 /// Creates a pass to strip debug information from a function.
-std::unique_ptr<OpPassBase<FuncOp>> createStripDebugInfoPass();
+std::unique_ptr<Pass> createStripDebugInfoPass();
 
-/// Creates a pass which tests loop fusion utilities.
-std::unique_ptr<OpPassBase<FuncOp>> createTestLoopFusionPass();
+/// Creates a pass which prints the list of ops and the number of occurences in
+/// the module.
+std::unique_ptr<OpPassBase<ModuleOp>> createPrintOpStatsPass();
 
-/// Creates a pass which inlines calls and callable operations as defined by the
-/// CallGraph.
+/// Creates a pass which inlines calls and callable operations as defined by
+/// the CallGraph.
 std::unique_ptr<Pass> createInlinerPass();
+
+/// Creates a pass which delete symbol operations that are unreachable. This
+/// pass may *only* be scheduled on an operation that defines a SymbolTable.
+std::unique_ptr<Pass> createSymbolDCEPass();
 } // end namespace mlir
 
 #endif // MLIR_TRANSFORMS_PASSES_H

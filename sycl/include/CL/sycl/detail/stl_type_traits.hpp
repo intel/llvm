@@ -12,7 +12,7 @@
 #include <memory>
 #include <type_traits>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
@@ -79,4 +79,4 @@ struct is_output_iterator<T, output_iterator_requirements<T>> {
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

@@ -41,12 +41,12 @@ target triple = "spir-unknown-unknown"
 define spir_kernel void @test_struct(%struct.SomeStruct addrspace(1)* nocapture readonly %in, %struct.SomeStruct addrspace(1)* nocapture %out) #0 !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !3 !kernel_arg_base_type !4 !kernel_arg_type_qual !5 {
   %1 = bitcast %struct.SomeStruct addrspace(1)* %in to i8 addrspace(1)*
   %2 = bitcast %struct.SomeStruct addrspace(1)* %out to i8 addrspace(1)*
-  call void @llvm.memmove.p1i8.p1i8.i32(i8 addrspace(1)* %2, i8 addrspace(1)* %1, i32 128, i32 64, i1 false)
+  call void @llvm.memmove.p1i8.p1i8.i32(i8 addrspace(1)* align 64 %2, i8 addrspace(1)* align 64 %1, i32 128, i1 false)
   ret void
 }
 
 ; Function Attrs: nounwind
-declare void @llvm.memmove.p1i8.p1i8.i32(i8 addrspace(1)* nocapture, i8 addrspace(1)* nocapture readonly, i32, i32, i1) #1
+declare void @llvm.memmove.p1i8.p1i8.i32(i8 addrspace(1)* nocapture, i8 addrspace(1)* nocapture readonly, i32, i1) #1
 
 attributes #0 = { nounwind "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-realign-stack" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { nounwind }

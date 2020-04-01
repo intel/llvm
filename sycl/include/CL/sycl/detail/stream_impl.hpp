@@ -15,7 +15,7 @@
 #include <CL/sycl/ordered_queue.hpp>
 #include <CL/sycl/queue.hpp>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
 namespace detail {
@@ -686,4 +686,4 @@ inline void writeHItem(stream_impl::FlushBufAccessorT &FlushBufs,
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

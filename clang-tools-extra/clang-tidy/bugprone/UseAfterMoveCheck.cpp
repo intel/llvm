@@ -8,6 +8,10 @@
 
 #include "UseAfterMoveCheck.h"
 
+#include "clang/AST/Expr.h"
+#include "clang/AST/ExprCXX.h"
+#include "clang/AST/ExprConcepts.h"
+#include "clang/ASTMatchers/ASTMatchers.h"
 #include "clang/Analysis/CFG.h"
 #include "clang/Lex/Lexer.h"
 
@@ -22,6 +26,23 @@ namespace tidy {
 namespace bugprone {
 
 namespace {
+
+AST_MATCHER(Expr, hasUnevaluatedContext) {
+  if (isa<CXXNoexceptExpr>(Node) || isa<RequiresExpr>(Node))
+    return true;
+  if (const auto *UnaryExpr = dyn_cast<UnaryExprOrTypeTraitExpr>(&Node)) {
+    switch (UnaryExpr->getKind()) {
+    case UETT_SizeOf:
+    case UETT_AlignOf:
+      return true;
+    default:
+      return false;
+    }
+  }
+  if (const auto *TypeIDExpr = dyn_cast<CXXTypeidExpr>(&Node))
+    return !TypeIDExpr->isPotentiallyEvaluated();
+  return false;
+}
 
 /// Contains information about a use-after-move.
 struct UseAfterMove {
@@ -77,7 +98,8 @@ private:
 static StatementMatcher inDecltypeOrTemplateArg() {
   return anyOf(hasAncestor(typeLoc()),
                hasAncestor(declRefExpr(
-                   to(functionDecl(ast_matchers::isTemplateInstantiation())))));
+                   to(functionDecl(ast_matchers::isTemplateInstantiation())))),
+               hasAncestor(expr(hasUnevaluatedContext())));
 }
 
 UseAfterMoveFinder::UseAfterMoveFinder(ASTContext *TheContext)
@@ -254,13 +276,11 @@ void UseAfterMoveFinder::getDeclRefs(
                               .bind("declref");
 
     addDeclRefs(match(findAll(DeclRefMatcher), *S->getStmt(), *Context));
-    addDeclRefs(match(
-        findAll(cxxOperatorCallExpr(anyOf(hasOverloadedOperatorName("*"),
-                                          hasOverloadedOperatorName("->"),
-                                          hasOverloadedOperatorName("[]")),
-                                    hasArgument(0, DeclRefMatcher))
-                    .bind("operator")),
-        *S->getStmt(), *Context));
+    addDeclRefs(match(findAll(cxxOperatorCallExpr(
+                                  hasAnyOverloadedOperatorName("*", "->", "[]"),
+                                  hasArgument(0, DeclRefMatcher))
+                                  .bind("operator")),
+                      *S->getStmt(), *Context));
   }
 }
 
@@ -374,9 +394,6 @@ static void emitDiagnostic(const Expr *MovingCall, const DeclRefExpr *MoveArg,
 }
 
 void UseAfterMoveCheck::registerMatchers(MatchFinder *Finder) {
-  if (!getLangOpts().CPlusPlus11)
-    return;
-
   auto CallMoveMatcher =
       callExpr(callee(functionDecl(hasName("::std::move"))), argumentCountIs(1),
                hasArgument(0, declRefExpr().bind("arg")),

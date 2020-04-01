@@ -68,7 +68,7 @@ public:
 
     // We need to capture an owning-string in the lambda because the lambda
     // is invoked in a deferred manner.
-    std::string LabelStr = Label;
+    std::string LabelStr(Label);
     auto DumpWithIndent = [this, DoAddChild, LabelStr](bool IsLastChild) {
       // Print out the appropriate tree structure and work out the prefix for
       // children of this node. For instance:
@@ -184,6 +184,7 @@ public:
   void dumpBareDeclRef(const Decl *D);
   void dumpName(const NamedDecl *ND);
   void dumpAccessSpecifier(AccessSpecifier AS);
+  void dumpCleanupObject(const ExprWithCleanups::CleanupObject &C);
 
   void dumpDeclRef(const Decl *D, StringRef Label = {});
 

@@ -4,11 +4,13 @@ set(LLVM_LINK_COMPONENTS
   AllTargetsDescs
   AllTargetsInfos
   BitReader
+  CodeGen
   Core
   Linker
   LTO
   MC
   Object
+  Passes
   Support
   Target
   )

@@ -1,4 +1,4 @@
-//===-- CommunicationKDP.cpp ------------------------------------*- C++ -*-===//
+//===-- CommunicationKDP.cpp ----------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -77,11 +77,9 @@ bool CommunicationKDP::SendRequestAndGetReply(
   }
 
   std::lock_guard<std::recursive_mutex> guard(m_sequence_mutex);
-#ifdef LLDB_CONFIGURATION_DEBUG
   // NOTE: this only works for packets that are in native endian byte order
   assert(request_packet.GetSize() ==
          *((const uint16_t *)(request_packet.GetData() + 2)));
-#endif
   lldb::offset_t offset = 1;
   const uint32_t num_retries = 3;
   for (uint32_t i = 0; i < num_retries; ++i) {
@@ -788,7 +786,7 @@ void CommunicationKDP::DumpPacket(Stream &s, const DataExtractor &packet) {
           const uint32_t region_count = packet.GetU32(&offset);
           s.Printf(" (count = %u", region_count);
           for (uint32_t i = 0; i < region_count; ++i) {
-            const addr_t region_addr = packet.GetPointer(&offset);
+            const addr_t region_addr = packet.GetAddress(&offset);
             const uint32_t region_size = packet.GetU32(&offset);
             const uint32_t region_prot = packet.GetU32(&offset);
             s.Printf("\n\tregion[%" PRIu64 "] = { range = [0x%16.16" PRIx64

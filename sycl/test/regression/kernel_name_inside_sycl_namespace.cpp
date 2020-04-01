@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -D__SYCL_DISABLE_NAMESPACE_INLINE__ %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -D__SYCL_DISABLE_NAMESPACE_INLINE__ %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out

@@ -19,6 +19,7 @@
 #include "llvm/ADT/Optional.h"
 #include "llvm/CodeGen/MachineCombinerPattern.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
+#include "llvm/Support/TypeSize.h"
 
 #define GET_INSTRINFO_HEADER
 #include "AArch64GenInstrInfo.inc"
@@ -112,14 +113,19 @@ public:
   /// Hint that pairing the given load or store is unprofitable.
   static void suppressLdStPair(MachineInstr &MI);
 
-  bool getMemOperandWithOffset(const MachineInstr &MI,
-                               const MachineOperand *&BaseOp,
-                               int64_t &Offset,
-                               const TargetRegisterInfo *TRI) const override;
+  bool getMemOperandsWithOffset(
+      const MachineInstr &MI, SmallVectorImpl<const MachineOperand *> &BaseOps,
+      int64_t &Offset, bool &OffsetIsScalable, const TargetRegisterInfo *TRI)
+      const override;
 
+  /// If \p OffsetIsScalable is set to 'true', the offset is scaled by `vscale`.
+  /// This is true for some SVE instructions like ldr/str that have a
+  /// 'reg + imm' addressing mode where the immediate is an index to the
+  /// scalable vector located at 'reg + imm * vscale x #bytes'.
   bool getMemOperandWithOffsetWidth(const MachineInstr &MI,
                                     const MachineOperand *&BaseOp,
-                                    int64_t &Offset, unsigned &Width,
+                                    int64_t &Offset, bool &OffsetIsScalable,
+                                    unsigned &Width,
                                     const TargetRegisterInfo *TRI) const;
 
   /// Return the immediate offset of the base register in a load/store \p LdSt.
@@ -129,11 +135,11 @@ public:
   /// \p Scale, \p Width, \p MinOffset, and \p MaxOffset accordingly.
   ///
   /// For unscaled instructions, \p Scale is set to 1.
-  static bool getMemOpInfo(unsigned Opcode, unsigned &Scale, unsigned &Width,
+  static bool getMemOpInfo(unsigned Opcode, TypeSize &Scale, unsigned &Width,
                            int64_t &MinOffset, int64_t &MaxOffset);
 
-  bool shouldClusterMemOps(const MachineOperand &BaseOp1,
-                           const MachineOperand &BaseOp2,
+  bool shouldClusterMemOps(ArrayRef<const MachineOperand *> BaseOps1,
+                           ArrayRef<const MachineOperand *> BaseOps2,
                            unsigned NumLoads) const override;
 
   void copyPhysRegTuple(MachineBasicBlock &MBB, MachineBasicBlock::iterator I,
@@ -149,13 +155,13 @@ public:
                    bool KillSrc) const override;
 
   void storeRegToStackSlot(MachineBasicBlock &MBB,
-                           MachineBasicBlock::iterator MBBI, unsigned SrcReg,
+                           MachineBasicBlock::iterator MBBI, Register SrcReg,
                            bool isKill, int FrameIndex,
                            const TargetRegisterClass *RC,
                            const TargetRegisterInfo *TRI) const override;
 
   void loadRegFromStackSlot(MachineBasicBlock &MBB,
-                            MachineBasicBlock::iterator MBBI, unsigned DestReg,
+                            MachineBasicBlock::iterator MBBI, Register DestReg,
                             int FrameIndex, const TargetRegisterClass *RC,
                             const TargetRegisterInfo *TRI) const override;
 
@@ -191,7 +197,8 @@ public:
   bool
   reverseBranchCondition(SmallVectorImpl<MachineOperand> &Cond) const override;
   bool canInsertSelect(const MachineBasicBlock &, ArrayRef<MachineOperand> Cond,
-                       unsigned, unsigned, int &, int &, int &) const override;
+                       unsigned, unsigned, unsigned, int &, int &,
+                       int &) const override;
   void insertSelect(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI,
                     const DebugLoc &DL, unsigned DstReg,
                     ArrayRef<MachineOperand> Cond, unsigned TrueReg,
@@ -264,6 +271,8 @@ public:
                      MachineBasicBlock::iterator &It, MachineFunction &MF,
                      const outliner::Candidate &C) const override;
   bool shouldOutlineFromFunctionByDefault(MachineFunction &MF) const override;
+  /// Returns the vector element size (B, H, S or D) of an SVE opcode.
+  uint64_t getElementSizeForOpcode(unsigned Opc) const;
   /// Returns true if the instruction has a shift by immediate that can be
   /// executed in one cycle less.
   static bool isFalkorShiftExtFast(const MachineInstr &MI);
@@ -288,6 +297,8 @@ protected:
   isCopyInstrImpl(const MachineInstr &MI) const override;
 
 private:
+  unsigned getInstBundleLength(const MachineInstr &MI) const;
+
   /// Sets the offsets on outlined instructions in \p MBB which use SP
   /// so that they will be valid post-outlining.
   ///
@@ -374,7 +385,8 @@ static inline bool isIndirectBranchOpcode(int Opc) {
 
 // struct TSFlags {
 #define TSFLAG_ELEMENT_SIZE_TYPE(X)      (X)       // 3-bits
-#define TSFLAG_DESTRUCTIVE_INST_TYPE(X) ((X) << 3) // 1-bit
+#define TSFLAG_DESTRUCTIVE_INST_TYPE(X) ((X) << 3) // 4-bit
+#define TSFLAG_FALSE_LANE_TYPE(X)       ((X) << 7) // 2-bits
 // }
 
 namespace AArch64 {
@@ -389,13 +401,31 @@ enum ElementSizeType {
 };
 
 enum DestructiveInstType {
-  DestructiveInstTypeMask = TSFLAG_DESTRUCTIVE_INST_TYPE(0x1),
-  NotDestructive          = TSFLAG_DESTRUCTIVE_INST_TYPE(0x0),
-  Destructive             = TSFLAG_DESTRUCTIVE_INST_TYPE(0x1),
+  DestructiveInstTypeMask       = TSFLAG_DESTRUCTIVE_INST_TYPE(0xf),
+  NotDestructive                = TSFLAG_DESTRUCTIVE_INST_TYPE(0x0),
+  DestructiveOther              = TSFLAG_DESTRUCTIVE_INST_TYPE(0x1),
+  DestructiveUnary              = TSFLAG_DESTRUCTIVE_INST_TYPE(0x2),
+  DestructiveBinaryImm          = TSFLAG_DESTRUCTIVE_INST_TYPE(0x3),
+  DestructiveBinaryShImmUnpred  = TSFLAG_DESTRUCTIVE_INST_TYPE(0x4),
+  DestructiveBinary             = TSFLAG_DESTRUCTIVE_INST_TYPE(0x5),
+  DestructiveBinaryComm         = TSFLAG_DESTRUCTIVE_INST_TYPE(0x6),
+  DestructiveBinaryCommWithRev  = TSFLAG_DESTRUCTIVE_INST_TYPE(0x7),
+  DestructiveTernaryCommWithRev = TSFLAG_DESTRUCTIVE_INST_TYPE(0x8),
+};
+
+enum FalseLaneType {
+  FalseLanesMask  = TSFLAG_FALSE_LANE_TYPE(0x3),
+  FalseLanesZero  = TSFLAG_FALSE_LANE_TYPE(0x1),
+  FalseLanesUndef = TSFLAG_FALSE_LANE_TYPE(0x2),
 };
 
 #undef TSFLAG_ELEMENT_SIZE_TYPE
 #undef TSFLAG_DESTRUCTIVE_INST_TYPE
+#undef TSFLAG_FALSE_LANE_TYPE
+
+int getSVEPseudoMap(uint16_t Opcode);
+int getSVERevInstr(uint16_t Opcode);
+int getSVEOrigInstr(uint16_t Opcode);
 }
 
 } // end namespace llvm

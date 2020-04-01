@@ -56,6 +56,7 @@
 #include "llvm/Support/Path.h"
 #include "llvm/Support/TarWriter.h"
 #include "llvm/Support/TargetSelect.h"
+#include "llvm/Support/TimeProfiler.h"
 #include "llvm/Support/raw_ostream.h"
 #include <cstdlib>
 #include <utility>
@@ -346,13 +347,13 @@ static void checkOptions() {
       error("-execute-only and -no-rosegment cannot be used together");
   }
 
-  if (config->zRetpolineplt && config->requireCET)
-    error("--require-cet may not be used with -z retpolineplt");
+  if (config->zRetpolineplt && config->zForceIbt)
+    error("-z force-ibt may not be used with -z retpolineplt");
 
   if (config->emachine != EM_AARCH64) {
-    if (config->pacPlt)
+    if (config->zPacPlt)
       error("-z pac-plt only supported on AArch64");
-    if (config->forceBTI)
+    if (config->zForceBti)
       error("-z force-bti only supported on AArch64");
   }
 }
@@ -409,18 +410,18 @@ static GnuStackKind getZGnuStack(opt::InputArgList &args) {
 
 static bool isKnownZFlag(StringRef s) {
   return s == "combreloc" || s == "copyreloc" || s == "defs" ||
-         s == "execstack" || s == "force-bti" || s == "global" ||
-         s == "hazardplt" || s == "ifunc-noplt" || s == "initfirst" ||
-         s == "interpose" || s == "keep-text-section-prefix" || s == "lazy" ||
-         s == "muldefs" || s == "separate-code" ||
-         s == "separate-loadable-segments" || s == "nocombreloc" ||
-         s == "nocopyreloc" || s == "nodefaultlib" || s == "nodelete" ||
-         s == "nodlopen" || s == "noexecstack" || s == "nognustack" ||
-         s == "nokeep-text-section-prefix" || s == "norelro" ||
-         s == "noseparate-code" || s == "notext" || s == "now" ||
-         s == "origin" || s == "pac-plt" || s == "relro" ||
-         s == "retpolineplt" || s == "rodynamic" || s == "text" ||
-         s == "undefs" || s == "wxneeded" ||
+         s == "execstack" || s == "force-bti" || s == "force-ibt" ||
+         s == "global" || s == "hazardplt" || s == "ifunc-noplt" ||
+         s == "initfirst" || s == "interpose" ||
+         s == "keep-text-section-prefix" || s == "lazy" || s == "muldefs" ||
+         s == "separate-code" || s == "separate-loadable-segments" ||
+         s == "nocombreloc" || s == "nocopyreloc" || s == "nodefaultlib" ||
+         s == "nodelete" || s == "nodlopen" || s == "noexecstack" ||
+         s == "nognustack" || s == "nokeep-text-section-prefix" ||
+         s == "norelro" || s == "noseparate-code" || s == "notext" ||
+         s == "now" || s == "origin" || s == "pac-plt" || s == "relro" ||
+         s == "retpolineplt" || s == "rodynamic" || s == "shstk" ||
+         s == "text" || s == "undefs" || s == "wxneeded" ||
          s.startswith("common-page-size=") || s.startswith("max-page-size=") ||
          s.startswith("stack-size=");
 }
@@ -487,37 +488,57 @@ void LinkerDriver::main(ArrayRef<const char *> argsArr) {
   if (args.hasArg(OPT_version))
     return;
 
-  initLLVM();
-  createFiles(args);
-  if (errorCount())
-    return;
+  // Initialize time trace profiler.
+  if (config->timeTraceEnabled)
+    timeTraceProfilerInitialize(config->timeTraceGranularity, config->progName);
 
-  inferMachineType();
-  setConfigs(args);
-  checkOptions();
-  if (errorCount())
-    return;
+  {
+    llvm::TimeTraceScope timeScope("ExecuteLinker");
 
-  // The Target instance handles target-specific stuff, such as applying
-  // relocations or writing a PLT section. It also contains target-dependent
-  // values such as a default image base address.
-  target = getTarget();
+    initLLVM();
+    createFiles(args);
+    if (errorCount())
+      return;
 
-  switch (config->ekind) {
-  case ELF32LEKind:
-    link<ELF32LE>(args);
-    return;
-  case ELF32BEKind:
-    link<ELF32BE>(args);
-    return;
-  case ELF64LEKind:
-    link<ELF64LE>(args);
-    return;
-  case ELF64BEKind:
-    link<ELF64BE>(args);
-    return;
-  default:
-    llvm_unreachable("unknown Config->EKind");
+    inferMachineType();
+    setConfigs(args);
+    checkOptions();
+    if (errorCount())
+      return;
+
+    // The Target instance handles target-specific stuff, such as applying
+    // relocations or writing a PLT section. It also contains target-dependent
+    // values such as a default image base address.
+    target = getTarget();
+
+    switch (config->ekind) {
+    case ELF32LEKind:
+      link<ELF32LE>(args);
+      break;
+    case ELF32BEKind:
+      link<ELF32BE>(args);
+      break;
+    case ELF64LEKind:
+      link<ELF64LE>(args);
+      break;
+    case ELF64BEKind:
+      link<ELF64BE>(args);
+      break;
+    default:
+      llvm_unreachable("unknown Config->EKind");
+    }
+  }
+
+  if (config->timeTraceEnabled) {
+    if (auto E = timeTraceProfilerWrite(args.getLastArgValue(OPT_time_trace_file_eq).str(),
+                                        config->outputFile)) {
+      handleAllErrors(std::move(E), [&](const StringError &SE) {
+        error(SE.getMessage());
+      });
+      return;
+    }
+
+    timeTraceProfilerCleanup();
   }
 }
 
@@ -602,8 +623,13 @@ static DiscardPolicy getDiscard(opt::InputArgList &args) {
 
 static StringRef getDynamicLinker(opt::InputArgList &args) {
   auto *arg = args.getLastArg(OPT_dynamic_linker, OPT_no_dynamic_linker);
-  if (!arg || arg->getOption().getID() == OPT_no_dynamic_linker)
+  if (!arg)
     return "";
+  if (arg->getOption().getID() == OPT_no_dynamic_linker) {
+    // --no-dynamic-linker suppresses undefined weak symbols in .dynsym
+    config->noDynamicLinker = true;
+    return "";
+  }
   return arg->getValue();
 }
 
@@ -874,10 +900,10 @@ static void readConfigs(opt::InputArgList &args) {
       args.hasFlag(OPT_export_dynamic, OPT_no_export_dynamic, false);
   config->filterList = args::getStrings(args, OPT_filter);
   config->fini = args.getLastArgValue(OPT_fini, "_fini");
-  config->fixCortexA53Errata843419 = args.hasArg(OPT_fix_cortex_a53_843419);
-  config->fixCortexA8 = args.hasArg(OPT_fix_cortex_a8);
-  config->forceBTI = hasZOption(args, "force-bti");
-  config->requireCET = args.hasArg(OPT_require_cet);
+  config->fixCortexA53Errata843419 = args.hasArg(OPT_fix_cortex_a53_843419) &&
+                                     !args.hasArg(OPT_relocatable);
+  config->fixCortexA8 =
+      args.hasArg(OPT_fix_cortex_a8) && !args.hasArg(OPT_relocatable);
   config->gcSections = args.hasFlag(OPT_gc_sections, OPT_no_gc_sections, false);
   config->gnuUnique = args.hasFlag(OPT_gnu_unique, OPT_no_gnu_unique, true);
   config->gdbIndex = args.hasFlag(OPT_gdb_index, OPT_no_gdb_index, false);
@@ -893,6 +919,8 @@ static void readConfigs(opt::InputArgList &args) {
   config->ltoDebugPassManager = args.hasArg(OPT_lto_debug_pass_manager);
   config->ltoNewPassManager = args.hasArg(OPT_lto_new_pass_manager);
   config->ltoNewPmPasses = args.getLastArgValue(OPT_lto_newpm_passes);
+  config->ltoWholeProgramVisibility =
+      args.hasArg(OPT_lto_whole_program_visibility);
   config->ltoo = args::getInteger(args, OPT_lto_O, 2);
   config->ltoObjPath = args.getLastArgValue(OPT_lto_obj_path_eq);
   config->ltoPartitions = args::getInteger(args, OPT_lto_partitions, 1);
@@ -915,7 +943,6 @@ static void readConfigs(opt::InputArgList &args) {
   config->optimize = args::getInteger(args, OPT_O, 1);
   config->orphanHandling = getOrphanHandling(args);
   config->outputFile = args.getLastArgValue(OPT_o);
-  config->pacPlt = hasZOption(args, "pac-plt");
   config->pie = args.hasFlag(OPT_pie, OPT_no_pie, false);
   config->printIcfSections =
       args.hasFlag(OPT_print_icf_sections, OPT_no_print_icf_sections, false);
@@ -926,6 +953,8 @@ static void readConfigs(opt::InputArgList &args) {
   config->rpath = getRpath(args);
   config->relocatable = args.hasArg(OPT_relocatable);
   config->saveTemps = args.hasArg(OPT_save_temps);
+  if (args.hasArg(OPT_shuffle_sections))
+    config->shuffleSectionSeed = args::getInteger(args, OPT_shuffle_sections, 0);
   config->searchPaths = args::getStrings(args, OPT_library_path);
   config->sectionStartMap = getSectionStartMap(args);
   config->shared = args.hasArg(OPT_shared);
@@ -950,10 +979,14 @@ static void readConfigs(opt::InputArgList &args) {
       getOldNewOptions(args, OPT_thinlto_object_suffix_replace_eq);
   config->thinLTOPrefixReplace =
       getOldNewOptions(args, OPT_thinlto_prefix_replace_eq);
+  config->timeTraceEnabled = args.hasArg(OPT_time_trace);
+  config->timeTraceGranularity =
+      args::getInteger(args, OPT_time_trace_granularity, 500);
   config->trace = args.hasArg(OPT_trace);
   config->undefined = args::getStrings(args, OPT_undefined);
   config->undefinedVersion =
       args.hasFlag(OPT_undefined_version, OPT_no_undefined_version, true);
+  config->unique = args.hasArg(OPT_unique);
   config->useAndroidRelrTags = args.hasFlag(
       OPT_use_android_relr_tags, OPT_no_use_android_relr_tags, false);
   config->unresolvedSymbols = getUnresolvedSymbolPolicy(args);
@@ -966,6 +999,8 @@ static void readConfigs(opt::InputArgList &args) {
       args.hasFlag(OPT_warn_symbol_ordering, OPT_no_warn_symbol_ordering, true);
   config->zCombreloc = getZFlag(args, "combreloc", "nocombreloc", true);
   config->zCopyreloc = getZFlag(args, "copyreloc", "nocopyreloc", true);
+  config->zForceBti = hasZOption(args, "force-bti");
+  config->zForceIbt = hasZOption(args, "force-ibt");
   config->zGlobal = hasZOption(args, "global");
   config->zGnustack = getZGnuStack(args);
   config->zHazardplt = hasZOption(args, "hazardplt");
@@ -979,10 +1014,12 @@ static void readConfigs(opt::InputArgList &args) {
   config->zNodlopen = hasZOption(args, "nodlopen");
   config->zNow = getZFlag(args, "now", "lazy", false);
   config->zOrigin = hasZOption(args, "origin");
+  config->zPacPlt = hasZOption(args, "pac-plt");
   config->zRelro = getZFlag(args, "relro", "norelro", true);
   config->zRetpolineplt = hasZOption(args, "retpolineplt");
   config->zRodynamic = hasZOption(args, "rodynamic");
   config->zSeparate = getZSeparate(args);
+  config->zShstk = hasZOption(args, "shstk");
   config->zStackSize = args::getZOptionValue(args, OPT_z, "stack-size", 0);
   config->zText = getZFlag(args, "text", "notext", true);
   config->zWxneeded = hasZOption(args, "wxneeded");
@@ -1374,7 +1411,7 @@ static void excludeLibs(opt::InputArgList &args) {
     if (!file->archiveName.empty())
       if (all || libs.count(path::filename(file->archiveName)))
         for (Symbol *sym : file->getSymbols())
-          if (!sym->isLocal() && sym->file == file)
+          if (!sym->isUndefined() && !sym->isLocal() && sym->file == file)
             sym->versionId = VER_NDX_LOCAL;
   };
 
@@ -1594,6 +1631,7 @@ static Symbol *addUndefined(StringRef name) {
 // Because all bitcode files that the program consists of are passed to
 // the compiler at once, it can do a whole-program optimization.
 template <class ELFT> void LinkerDriver::compileBitcodeFiles() {
+  llvm::TimeTraceScope timeScope("LTO");
   // Compile bitcode files and replace bitcode symbols.
   lto.reset(new BitcodeCompiler);
   for (BitcodeFile *file : bitcodeFiles)
@@ -1687,12 +1725,8 @@ static void wrapSymbols(ArrayRef<WrappedSymbol> wrapped) {
 // with CET. We enable the feature only when all object files are compatible
 // with CET.
 //
-// This function returns the merged feature flags. If 0, we cannot enable CET.
 // This is also the case with AARCH64's BTI and PAC which use the similar
 // GNU_PROPERTY_AARCH64_FEATURE_1_AND mechanism.
-//
-// Note that the CET-aware PLT is not implemented yet. We do error
-// check only.
 template <class ELFT> static uint32_t getAndFeatures() {
   if (config->emachine != EM_386 && config->emachine != EM_X86_64 &&
       config->emachine != EM_AARCH64)
@@ -1701,18 +1735,27 @@ template <class ELFT> static uint32_t getAndFeatures() {
   uint32_t ret = -1;
   for (InputFile *f : objectFiles) {
     uint32_t features = cast<ObjFile<ELFT>>(f)->andFeatures;
-    if (config->forceBTI && !(features & GNU_PROPERTY_AARCH64_FEATURE_1_BTI)) {
-      warn(toString(f) + ": -z force-bti: file does not have BTI property");
+    if (config->zForceBti && !(features & GNU_PROPERTY_AARCH64_FEATURE_1_BTI)) {
+      warn(toString(f) + ": -z force-bti: file does not have "
+                         "GNU_PROPERTY_AARCH64_FEATURE_1_BTI property");
       features |= GNU_PROPERTY_AARCH64_FEATURE_1_BTI;
-    } else if (!features && config->requireCET)
-      error(toString(f) + ": --require-cet: file is not compatible with CET");
+    } else if (config->zForceIbt &&
+               !(features & GNU_PROPERTY_X86_FEATURE_1_IBT)) {
+      warn(toString(f) + ": -z force-ibt: file does not have "
+                         "GNU_PROPERTY_X86_FEATURE_1_IBT property");
+      features |= GNU_PROPERTY_X86_FEATURE_1_IBT;
+    }
+    if (config->zPacPlt && !(features & GNU_PROPERTY_AARCH64_FEATURE_1_PAC)) {
+      warn(toString(f) + ": -z pac-plt: file does not have "
+                         "GNU_PROPERTY_AARCH64_FEATURE_1_PAC property");
+      features |= GNU_PROPERTY_AARCH64_FEATURE_1_PAC;
+    }
     ret &= features;
   }
 
-  // Force enable pointer authentication Plt, we don't warn in this case as
-  // this does not require support in the object for correctness.
-  if (config->pacPlt)
-    ret |= GNU_PROPERTY_AARCH64_FEATURE_1_PAC;
+  // Force enable Shadow Stack.
+  if (config->zShstk)
+    ret |= GNU_PROPERTY_X86_FEATURE_1_SHSTK;
 
   return ret;
 }
@@ -1720,6 +1763,7 @@ template <class ELFT> static uint32_t getAndFeatures() {
 // Do actual linking. Note that when this function is called,
 // all linker scripts have already been parsed.
 template <class ELFT> void LinkerDriver::link(opt::InputArgList &args) {
+  llvm::TimeTraceScope timeScope("Link", StringRef("LinkerDriver::Link"));
   // If a -hash-style option was not given, set to a default value,
   // which varies depending on the target.
   if (!args.hasArg(OPT_hash_style)) {
@@ -1759,8 +1803,11 @@ template <class ELFT> void LinkerDriver::link(opt::InputArgList &args) {
   // symbols that we need to the symbol table. This process might
   // add files to the link, via autolinking, these files are always
   // appended to the Files vector.
-  for (size_t i = 0; i < files.size(); ++i)
-    parseFile(files[i]);
+  {
+    llvm::TimeTraceScope timeScope("Parse input files");
+    for (size_t i = 0; i < files.size(); ++i)
+      parseFile(files[i]);
+  }
 
   // Now that we have every file, we can decide if we will need a
   // dynamic symbol table.
@@ -1819,10 +1866,6 @@ template <class ELFT> void LinkerDriver::link(opt::InputArgList &args) {
   // Return if there were name resolution errors.
   if (errorCount())
     return;
-
-  // Now when we read all script files, we want to finalize order of linker
-  // script commands, which can be not yet final because of INSERT commands.
-  script->processInsertCommands();
 
   // We want to declare linker script's symbols early,
   // so that we can version them.
@@ -1897,8 +1940,17 @@ template <class ELFT> void LinkerDriver::link(opt::InputArgList &args) {
 
     // We do not want to emit debug sections if --strip-all
     // or -strip-debug are given.
-    return config->strip != StripPolicy::None &&
-           (s->name.startswith(".debug") || s->name.startswith(".zdebug"));
+    if (config->strip == StripPolicy::None)
+      return false;
+
+    if (isDebugSection(*s))
+      return true;
+    if (auto *isec = dyn_cast<InputSection>(s))
+      if (InputSectionBase *rel = isec->getRelocatedSection())
+        if (isDebugSection(*rel))
+          return true;
+
+    return false;
   });
 
   // Now that the number of partitions is fixed, save a pointer to the main

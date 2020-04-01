@@ -90,9 +90,9 @@ enum NodeType : unsigned {
   BICi,
   ORRi,
 
-  // Vector bit select: similar to ISD::VSELECT but not all bits within an
+  // Vector bitwise select: similar to ISD::VSELECT but not all bits within an
   // element must be identical.
-  BSL,
+  BSP,
 
   // Vector arithmetic negation
   NEG,
@@ -166,7 +166,7 @@ enum NodeType : unsigned {
   // Vector bitwise negation
   NOT,
 
-  // Vector bitwise selection
+  // Vector bitwise insertion
   BIT,
 
   // Compare-and-branch
@@ -212,7 +212,18 @@ enum NodeType : unsigned {
   TBL,
 
   INSR,
+  PTEST,
   PTRUE,
+
+  DUP_PRED,
+  INDEX_VECTOR,
+
+  REINTERPRET_CAST,
+
+  LDNF1,
+  LDNF1S,
+  LDFF1,
+  LDFF1S,
 
   // Unsigned gather loads.
   GLD1,
@@ -231,6 +242,30 @@ enum NodeType : unsigned {
   GLD1S_UXTW_SCALED,
   GLD1S_SXTW_SCALED,
   GLD1S_IMM,
+
+  // Unsigned gather loads.
+  GLDFF1,
+  GLDFF1_SCALED,
+  GLDFF1_UXTW,
+  GLDFF1_SXTW,
+  GLDFF1_UXTW_SCALED,
+  GLDFF1_SXTW_SCALED,
+  GLDFF1_IMM,
+
+  // Signed gather loads.
+  GLDFF1S,
+  GLDFF1S_SCALED,
+  GLDFF1S_UXTW,
+  GLDFF1S_SXTW,
+  GLDFF1S_UXTW_SCALED,
+  GLDFF1S_SXTW_SCALED,
+  GLDFF1S_IMM,
+
+  // Non-temporal gather loads
+  GLDNT1,
+  GLDNT1_INDEX,
+  GLDNT1S,
+
   // Scatter store
   SST1,
   SST1_SCALED,
@@ -239,6 +274,14 @@ enum NodeType : unsigned {
   SST1_UXTW_SCALED,
   SST1_SXTW_SCALED,
   SST1_IMM,
+
+  // Non-temporal scatter store
+  SSTNT1,
+  SSTNT1_INDEX,
+
+  // Strict (exception-raising) floating point comparison
+  STRICT_FCMP = ISD::FIRST_TARGET_STRICTFP_OPCODE,
+  STRICT_FCMPE,
 
   // NEON Load/Store with post-increment base updates
   LD2post = ISD::FIRST_TARGET_MEMORY_OPCODE,
@@ -271,7 +314,8 @@ enum NodeType : unsigned {
   STZ2G,
 
   LDP,
-  STP
+  STP,
+  STNP
 };
 
 } // end namespace AArch64ISD
@@ -375,9 +419,6 @@ public:
   MachineBasicBlock *EmitLoweredCatchRet(MachineInstr &MI,
                                            MachineBasicBlock *BB) const;
 
-  MachineBasicBlock *EmitLoweredCatchPad(MachineInstr &MI,
-                                         MachineBasicBlock *BB) const;
-
   MachineBasicBlock *
   EmitInstrWithCustomInserter(MachineInstr &MI,
                               MachineBasicBlock *MBB) const override;
@@ -417,13 +458,11 @@ public:
 
   bool shouldConsiderGEPOffsetSplit() const override;
 
-  EVT getOptimalMemOpType(uint64_t Size, unsigned DstAlign, unsigned SrcAlign,
-                          bool IsMemset, bool ZeroMemset, bool MemcpyStrSrc,
+  EVT getOptimalMemOpType(const MemOp &Op,
                           const AttributeList &FuncAttributes) const override;
 
-  LLT getOptimalMemOpLLT(uint64_t Size, unsigned DstAlign, unsigned SrcAlign,
-                          bool IsMemset, bool ZeroMemset, bool MemcpyStrSrc,
-                          const AttributeList &FuncAttributes) const override;
+  LLT getOptimalMemOpLLT(const MemOp &Op,
+                         const AttributeList &FuncAttributes) const override;
 
   /// Return true if the addressing mode represented by AM is legal for this
   /// target, for a load/store of the specified type.
@@ -461,6 +500,13 @@ public:
   /// with this index.
   bool isExtractSubvectorCheap(EVT ResVT, EVT SrcVT,
                                unsigned Index) const override;
+
+  bool shouldFormOverflowOp(unsigned Opcode, EVT VT,
+                            bool MathUsed) const override {
+    // Using overflow ops for overflow checks only should beneficial on
+    // AArch64.
+    return TargetLowering::shouldFormOverflowOp(Opcode, VT, true);
+  }
 
   Value *emitLoadLinked(IRBuilder<> &Builder, Value *Addr,
                         AtomicOrdering Ord) const override;
@@ -610,7 +656,8 @@ public:
   unsigned getNumInterleavedAccesses(VectorType *VecTy,
                                      const DataLayout &DL) const;
 
-  MachineMemOperand::Flags getMMOFlags(const Instruction &I) const override;
+  MachineMemOperand::Flags getTargetMMOFlags(
+    const Instruction &I) const override;
 
   bool functionArgumentNeedsConsecutiveRegisters(Type *Ty,
                                                  CallingConv::ID CallConv,
@@ -696,6 +743,8 @@ private:
   SDValue LowerGlobalTLSAddress(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerDarwinGlobalTLSAddress(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerELFGlobalTLSAddress(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerELFTLSLocalExec(const GlobalValue *GV, SDValue ThreadBase,
+                               const SDLoc &DL, SelectionDAG &DAG) const;
   SDValue LowerELFTLSDescCallSeq(SDValue SymAddr, const SDLoc &DL,
                                  SelectionDAG &DAG) const;
   SDValue LowerWindowsGlobalTLSAddress(SDValue Op, SelectionDAG &DAG) const;
@@ -726,6 +775,7 @@ private:
   SDValue LowerBUILD_VECTOR(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerVECTOR_SHUFFLE(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerSPLAT_VECTOR(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerDUPQLane(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerEXTRACT_SUBVECTOR(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerVectorSRA_SRL_SHL(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerShiftLeftParts(SDValue Op, SelectionDAG &DAG) const;
@@ -743,6 +793,7 @@ private:
   SDValue LowerVectorOR(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerCONCAT_VECTORS(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerFSINCOS(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerVSCALE(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerVECREDUCE(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerATOMIC_LOAD_SUB(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerATOMIC_LOAD_AND(SDValue Op, SelectionDAG &DAG) const;
@@ -761,7 +812,7 @@ private:
   unsigned combineRepeatedFPDivisors() const override;
 
   ConstraintType getConstraintType(StringRef Constraint) const override;
-  Register getRegisterByName(const char* RegName, EVT VT,
+  Register getRegisterByName(const char* RegName, LLT VT,
                              const MachineFunction &MF) const override;
 
   /// Examine constraint string and operand type and determine a weight value.

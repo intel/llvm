@@ -259,12 +259,12 @@ Example:
 
 ```mlir
 %size = constant 32 : index
-%tag = alloc() : memref<1 x i32, (d0) -> (d0), 4>
+%tag = alloc() : memref<1 x i32, affine_map<(d0) -> (d0)>, 4>
 %idx = constant 0 : index
 dma_start %src[%i, %j], %dst[%k, %l], %size, %tag[%idx] :
-     memref<40 x 8 x vector<16xf32>, (d0, d1) -> (d0, d1), 0>,
-     memref<2 x 4 x vector<16xf32>, (d0, d1) -> (d0, d1), 2>,
-     memref<1 x i32>, (d0) -> (d0), 4>
+     memref<40 x 8 x vector<16xf32>, affine_map<(d0, d1) -> (d0, d1)>, 0>,
+     memref<2 x 4 x vector<16xf32>, affine_map<(d0, d1) -> (d0, d1)>, 2>,
+     memref<1 x i32>, affine_map<(d0) -> (d0)>, 4>
 ```
 
 ### 'dma_wait' operation
@@ -284,7 +284,7 @@ load/store indices.
 Example:
 
 ```mlir
-dma_wait %tag[%idx], %size : memref<1 x i32, (d0) -> (d0), 4>
+dma_wait %tag[%idx], %size : memref<1 x i32, affine_map<(d0) -> (d0)>, 4>
 ```
 
 ### 'extract_element' operation
@@ -334,12 +334,12 @@ values or the recursively result of such an `affine.apply` operation.
 Example:
 
 ```mlir
-%1 = affine.apply (d0, d1) -> (3*d0) (%i, %j)
-%2 = affine.apply (d0, d1) -> (d1+1) (%i, %j)
+%1 = affine.apply affine_map<(d0, d1) -> (3*d0)> (%i, %j)
+%2 = affine.apply affine_map<(d0, d1) -> (d1+1)> (%i, %j)
 %12 = load %A[%1, %2] : memref<8x?xi32, #layout, memspace0>
 
 // Example of an indirect load (treated as non-affine)
-%3 = affine.apply (d0) -> (2*d0 + 1)(%12)
+%3 = affine.apply affine_map<(d0) -> (2*d0 + 1)>(%12)
 %13 = load %A[%3, %2] : memref<4x?xi32, #layout, memspace0>
 ```
 
@@ -586,6 +586,25 @@ The `negf` operation computes the negation of a given value. It takes one
 operand and returns one result of the same type. This type may be a float
 scalar type, a vector whose element type is float, or a tensor of floats. It
 has no standard attributes.
+
+### 'sqrt' operation
+
+Syntax:
+
+```
+operation ::= ssa-id `=` `sqrt` ssa-use `:` type
+```
+
+Examples:
+
+```mlir
+// Scalar square root value.
+%a = sqrt %b : f64
+// SIMD vector element-wise square root value.
+%f = sqrt %g : vector<4xf32>
+// Tensor element-wise square root value.
+%x = sqrt %y : tensor<4x?xf32>
+```
 
 ### 'tanh' operation
 

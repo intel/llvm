@@ -8,7 +8,6 @@
 #pragma once
 
 #include <CL/sycl/context.hpp>
-#include <CL/sycl/detail/usm_impl.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/exception.hpp>
 #include <CL/sycl/queue.hpp>
@@ -17,8 +16,13 @@
 #include <cstdlib>
 #include <memory>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+
+// Forward declarations.
+void *aligned_alloc(size_t alignment, size_t size, const device &dev,
+                    const context &ctxt, usm::alloc kind);
+void free(void *ptr, const context &ctxt);
 
 template <typename T, usm::alloc AllocKind, size_t Alignment = 0>
 class usm_allocator {
@@ -36,14 +40,19 @@ public:
 
   usm_allocator() = delete;
   usm_allocator(const context &Ctxt, const device &Dev)
-      : mContext(Ctxt), mDevice(Dev) {}
+      : MContext(Ctxt), MDevice(Dev) {}
   usm_allocator(const queue &Q)
-      : mContext(Q.get_context()), mDevice(Q.get_device()) {}
+      : MContext(Q.get_context()), MDevice(Q.get_device()) {}
   usm_allocator(const usm_allocator &Other)
-      : mContext(Other.mContext), mDevice(Other.mDevice) {}
+      : MContext(Other.MContext), MDevice(Other.MDevice) {}
 
-  // Construct an object
-  // Note: AllocKind == alloc::device is not allowed
+  /// Constructs an object on memory pointed by Ptr.
+  ///
+  /// Note: AllocKind == alloc::device is not allowed.
+  ///
+  /// \param Ptr is a pointer to memory that will be used to construct the
+  /// object.
+  /// \param Val is a value to initialize the newly constructed object.
   template <
       usm::alloc AllocT = AllocKind,
       typename std::enable_if<AllocT != usm::alloc::device, int>::type = 0>
@@ -56,11 +65,15 @@ public:
       typename std::enable_if<AllocT == usm::alloc::device, int>::type = 0>
   void construct(pointer Ptr, const_reference Val) {
     throw feature_not_supported(
-        "Device pointers do not support construct on host");
+        "Device pointers do not support construct on host",
+        PI_INVALID_OPERATION);
   }
 
-  // Destroy an object
-  // Note:: AllocKind == alloc::device is not allowed
+  /// Destroys an object.
+  ///
+  /// Note:: AllocKind == alloc::device is not allowed
+  ///
+  /// \param Ptr is a pointer to memory where the object resides.
   template <
       usm::alloc AllocT = AllocKind,
       typename std::enable_if<AllocT != usm::alloc::device, int>::type = 0>
@@ -73,10 +86,13 @@ public:
       typename std::enable_if<AllocT == usm::alloc::device, int>::type = 0>
   void destroy(pointer Ptr) {
     throw feature_not_supported(
-        "Device pointers do not support destroy on host");
+        "Device pointers do not support destroy on host", PI_INVALID_OPERATION);
   }
 
-  // Note:: AllocKind == alloc::device is not allowed
+  /// Note:: AllocKind == alloc::device is not allowed.
+  ///
+  /// \param Val is a reference to object.
+  /// \return an address of the object referenced by Val.
   template <
       usm::alloc AllocT = AllocKind,
       typename std::enable_if<AllocT != usm::alloc::device, int>::type = 0>
@@ -89,7 +105,7 @@ public:
       typename std::enable_if<AllocT == usm::alloc::device, int>::type = 0>
   pointer address(reference Val) const {
     throw feature_not_supported(
-        "Device pointers do not support address on host");
+        "Device pointers do not support address on host", PI_INVALID_OPERATION);
   }
 
   template <
@@ -104,38 +120,30 @@ public:
       typename std::enable_if<AllocT == usm::alloc::device, int>::type = 0>
   const_pointer address(const_reference Val) const {
     throw feature_not_supported(
-        "Device pointers do not support address on host");
+        "Device pointers do not support address on host", PI_INVALID_OPERATION);
   }
 
-  // Allocate memory
-  template <
-      usm::alloc AllocT = AllocKind,
-      typename std::enable_if<AllocT == usm::alloc::host, int>::type = 0>
-  pointer allocate(size_t Size) {
-    auto Result = reinterpret_cast<pointer>(detail::usm::alignedAllocHost(
-        getAlignment(), Size * sizeof(value_type), mContext, AllocKind));
-    if (!Result) {
-      throw memory_allocation_error();
-    }
-    return Result;
-  }
+  /// Allocates memory.
+  ///
+  /// \param NumberOfElements is a count of elements to allocate memory for.
+  pointer allocate(size_t NumberOfElements) {
 
-  template <usm::alloc AllocT = AllocKind,
-            typename std::enable_if<AllocT != usm::alloc::host, int>::type = 0>
-  pointer allocate(size_t Size) {
     auto Result = reinterpret_cast<pointer>(
-        detail::usm::alignedAlloc(getAlignment(), Size * sizeof(value_type),
-                                  mContext, mDevice, AllocKind));
+        aligned_alloc(getAlignment(), NumberOfElements * sizeof(value_type),
+                                 MDevice, MContext, AllocKind));
     if (!Result) {
       throw memory_allocation_error();
     }
     return Result;
   }
 
-  // Deallocate memory
-  void deallocate(pointer Ptr, size_t size) {
+  /// Deallocates memory.
+  ///
+  /// \param Ptr is a pointer to memory being deallocated.
+  /// \param Size is a number of elements previously passed to allocate.
+  void deallocate(pointer Ptr, size_t Size) {
     if (Ptr) {
-      detail::usm::free(Ptr, mContext);
+      free(Ptr, MContext);
     }
   }
 
@@ -151,9 +159,9 @@ private:
     return Alignment;
   }
 
-  const context mContext;
-  const device mDevice;
+  const context MContext;
+  const device MDevice;
 };
 
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

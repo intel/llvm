@@ -1,4 +1,4 @@
-//===-- EmulateInstructionARM64.cpp ------------------------------*- C++-*-===//
+//===-- EmulateInstructionARM64.cpp ---------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -46,6 +46,8 @@
 
 using namespace lldb;
 using namespace lldb_private;
+
+LLDB_PLUGIN_DEFINE_ADV(EmulateInstructionARM64, InstructionARM64)
 
 static bool LLDBTableGetRegisterInfo(uint32_t reg_num, RegisterInfo &reg_info) {
   if (reg_num >= llvm::array_lengthof(g_register_infos_arm64_le))

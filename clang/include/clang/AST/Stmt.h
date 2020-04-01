@@ -14,6 +14,7 @@
 #define LLVM_CLANG_AST_STMT_H
 
 #include "clang/AST/DeclGroup.h"
+#include "clang/AST/DependenceFlags.h"
 #include "clang/AST/StmtIterator.h"
 #include "clang/Basic/CapturedStmt.h"
 #include "clang/Basic/IdentifierTable.h"
@@ -98,14 +99,8 @@ protected:
 
     /// The statement class.
     unsigned sClass : 8;
-
-    /// This bit is set only for the Stmts that are the structured-block of
-    /// OpenMP executable directives. Directives that have a structured block
-    /// are called "non-standalone" directives.
-    /// I.e. those returned by OMPExecutableDirective::getStructuredBlock().
-    unsigned IsOMPStructuredBlock : 1;
   };
-  enum { NumStmtBits = 9 };
+  enum { NumStmtBits = 8 };
 
   class NullStmtBitfields {
     friend class ASTStmtReader;
@@ -315,12 +310,9 @@ protected:
 
     unsigned ValueKind : 2;
     unsigned ObjectKind : 3;
-    unsigned TypeDependent : 1;
-    unsigned ValueDependent : 1;
-    unsigned InstantiationDependent : 1;
-    unsigned ContainsUnexpandedParameterPack : 1;
+    unsigned /*ExprDependence*/ Dependent : ExprDependenceBits;
   };
-  enum { NumExprBits = NumStmtBits + 9 };
+  enum { NumExprBits = NumStmtBits + 5 + ExprDependenceBits };
 
   class ConstantExprBitfields {
     friend class ASTStmtReader;
@@ -347,6 +339,9 @@ protected:
     /// When ResultKind == RSK_APValue. Wether the ASTContext will cleanup the
     /// destructor on the trail-allocated APValue.
     unsigned HasCleanup : 1;
+
+    /// Whether this ConstantExpr was created for immediate invocation.
+    unsigned IsImmediateInvocation : 1;
   };
 
   class PredefinedExprBitfields {
@@ -530,7 +525,7 @@ protected:
 
     /// This is only meaningful for operations on floating point
     /// types and 0 otherwise.
-    unsigned FPFeatures : 3;
+    unsigned FPFeatures : 8;
 
     SourceLocation OpLoc;
   };
@@ -588,6 +583,18 @@ protected:
     unsigned Kind : 2;
   };
 
+  class StmtExprBitfields {
+    friend class ASTStmtReader;
+    friend class StmtExpr;
+
+    unsigned : NumExprBits;
+
+    /// The number of levels of template parameters enclosing this statement
+    /// expression. Used to determine if a statement expression remains
+    /// dependent after instantiation.
+    unsigned TemplateDepth;
+  };
+
   //===--- C++ Expression bitfields classes ---===//
 
   class CXXOperatorCallExprBitfields {
@@ -601,7 +608,7 @@ protected:
     unsigned OperatorKind : 6;
 
     // Only meaningful for floating point types.
-    unsigned FPFeatures : 3;
+    unsigned FPFeatures : 8;
   };
 
   class CXXRewrittenBinaryOperatorBitfields {
@@ -910,6 +917,17 @@ protected:
     SourceLocation NameLoc;
   };
 
+  class RequiresExprBitfields {
+    friend class ASTStmtReader;
+    friend class ASTStmtWriter;
+    friend class RequiresExpr;
+
+    unsigned : NumExprBits;
+
+    unsigned IsSatisfied : 1;
+    SourceLocation RequiresKWLoc;
+  };
+
   //===--- C++ Coroutines TS bitfields classes ---===//
 
   class CoawaitExprBitfields {
@@ -985,6 +1003,9 @@ protected:
     PseudoObjectExprBitfields PseudoObjectExprBits;
     SourceLocExprBitfields SourceLocExprBits;
 
+    // GNU Extensions.
+    StmtExprBitfields StmtExprBits;
+
     // C++ Expressions
     CXXOperatorCallExprBitfields CXXOperatorCallExprBits;
     CXXRewrittenBinaryOperatorBitfields CXXRewrittenBinaryOperatorBits;
@@ -1008,6 +1029,7 @@ protected:
     UnresolvedMemberExprBitfields UnresolvedMemberExprBits;
     CXXNoexceptExprBitfields CXXNoexceptExprBits;
     SubstNonTypeTemplateParmExprBitfields SubstNonTypeTemplateParmExprBits;
+    RequiresExprBitfields RequiresExprBits;
 
     // C++ Coroutines TS expressions
     CoawaitExprBitfields CoawaitBits;
@@ -1090,7 +1112,6 @@ public:
     static_assert(sizeof(*this) % alignof(void *) == 0,
                   "Insufficient alignment!");
     StmtBits.sClass = SC;
-    StmtBits.IsOMPStructuredBlock = false;
     if (StatisticsEnabled) Stmt::addStmtClass(SC);
   }
 
@@ -1099,11 +1120,6 @@ public:
   }
 
   const char *getStmtClassName() const;
-
-  bool isOMPStructuredBlock() const { return StmtBits.IsOMPStructuredBlock; }
-  void setIsOMPStructuredBlock(bool IsOMPStructuredBlock) {
-    StmtBits.IsOMPStructuredBlock = IsOMPStructuredBlock;
-  }
 
   /// SourceLocation tokens are not useful in isolation - they are low level
   /// value objects created/interpreted by SourceManager. We assume AST
@@ -3017,7 +3033,7 @@ public:
   }
 
   IdentifierInfo *getLabelIdentifier(unsigned i) const {
-    return Names[i + NumInputs];
+    return Names[i + NumOutputs + NumInputs];
   }
 
   AddrLabelExpr *getLabelExpr(unsigned i) const;
@@ -3028,11 +3044,11 @@ public:
   using labels_const_range = llvm::iterator_range<const_labels_iterator>;
 
   labels_iterator begin_labels() {
-    return &Exprs[0] + NumInputs;
+    return &Exprs[0] + NumOutputs + NumInputs;
   }
 
   labels_iterator end_labels() {
-    return &Exprs[0] + NumInputs + NumLabels;
+    return &Exprs[0] + NumOutputs + NumInputs + NumLabels;
   }
 
   labels_range labels() {
@@ -3040,11 +3056,11 @@ public:
   }
 
   const_labels_iterator begin_labels() const {
-    return &Exprs[0] + NumInputs;
+    return &Exprs[0] + NumOutputs + NumInputs;
   }
 
   const_labels_iterator end_labels() const {
-    return &Exprs[0] + NumInputs + NumLabels;
+    return &Exprs[0] + NumOutputs + NumInputs + NumLabels;
   }
 
   labels_const_range labels() const {

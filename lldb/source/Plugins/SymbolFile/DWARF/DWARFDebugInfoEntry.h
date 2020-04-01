@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef SymbolFileDWARF_DWARFDebugInfoEntry_h_
-#define SymbolFileDWARF_DWARFDebugInfoEntry_h_
+#ifndef LLDB_SOURCE_PLUGINS_SYMBOLFILE_DWARF_DWARFDEBUGINFOENTRY_H
+#define LLDB_SOURCE_PLUGINS_SYMBOLFILE_DWARF_DWARFDEBUGINFOENTRY_H
 
 #include "SymbolFileDWARF.h"
 #include "llvm/ADT/SmallVector.h"
@@ -49,10 +49,6 @@ public:
 
   bool Extract(const lldb_private::DWARFDataExtractor &data,
                const DWARFUnit *cu, lldb::offset_t *offset_ptr);
-
-  bool LookupAddress(const dw_addr_t address, DWARFUnit *cu,
-                     DWARFDebugInfoEntry **function_die,
-                     DWARFDebugInfoEntry **block_die);
 
   size_t GetAttributes(const DWARFUnit *cu,
                        DWARFAttributes &attrs,
@@ -162,8 +158,7 @@ public:
     return HasChildren() ? this + 1 : nullptr;
   }
 
-  void GetDWARFDeclContext(DWARFUnit *cu,
-                           DWARFDeclContext &dwarf_decl_ctx) const;
+  DWARFDeclContext GetDWARFDeclContext(DWARFUnit *cu) const;
 
   DWARFDIE GetParentDeclContextDIE(DWARFUnit *cu) const;
   DWARFDIE GetParentDeclContextDIE(DWARFUnit *cu,
@@ -173,6 +168,9 @@ public:
   void SetParentIndex(uint32_t idx) { m_parent_idx = idx; }
 
 protected:
+  static DWARFDeclContext
+  GetDWARFDeclContextStatic(const DWARFDebugInfoEntry *die, DWARFUnit *cu);
+
   dw_offset_t m_offset; // Offset within the .debug_info/.debug_types
   uint32_t m_parent_idx; // How many to subtract from "this" to get the parent.
                          // If zero this die has no parent
@@ -187,4 +185,4 @@ protected:
   dw_tag_t m_tag = llvm::dwarf::DW_TAG_null;
 };
 
-#endif // SymbolFileDWARF_DWARFDebugInfoEntry_h_
+#endif // LLDB_SOURCE_PLUGINS_SYMBOLFILE_DWARF_DWARFDEBUGINFOENTRY_H

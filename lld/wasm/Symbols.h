@@ -11,6 +11,7 @@
 
 #include "Config.h"
 #include "lld/Common/LLVM.h"
+#include "llvm/ADT/Optional.h"
 #include "llvm/Object/Archive.h"
 #include "llvm/Object/Wasm.h"
 
@@ -85,8 +86,6 @@ public:
   // Returns the file from which this symbol was created.
   InputFile *getFile() const { return file; }
 
-  uint32_t getFlags() const { return flags; }
-
   InputChunk *getChunk() const;
 
   // Indicates that the section or import for this symbol will be included in
@@ -123,14 +122,12 @@ public:
 
 protected:
   Symbol(StringRef name, Kind k, uint32_t flags, InputFile *f)
-      : name(name), file(f), flags(flags), symbolKind(k),
-        referenced(!config->gcSections), requiresGOT(false),
-        isUsedInRegularObj(false), forceExport(false), canInline(false),
-        traced(false) {}
+      : name(name), file(f), symbolKind(k), referenced(!config->gcSections),
+        requiresGOT(false), isUsedInRegularObj(false), forceExport(false),
+        canInline(false), traced(false), flags(flags) {}
 
   StringRef name;
   InputFile *file;
-  uint32_t flags;
   uint32_t outputSymbolIndex = INVALID_INDEX;
   uint32_t gotIndex = INVALID_INDEX;
   Kind symbolKind;
@@ -159,6 +156,8 @@ public:
 
   // True if this symbol is specified by --trace-symbol option.
   bool traced : 1;
+
+  uint32_t flags;
 };
 
 class FunctionSymbol : public Symbol {
@@ -203,20 +202,21 @@ public:
 
 class UndefinedFunction : public FunctionSymbol {
 public:
-  UndefinedFunction(StringRef name, StringRef importName,
-                    StringRef importModule, uint32_t flags,
+  UndefinedFunction(StringRef name, llvm::Optional<StringRef> importName,
+                    llvm::Optional<StringRef> importModule, uint32_t flags,
                     InputFile *file = nullptr,
                     const WasmSignature *type = nullptr,
                     bool isCalledDirectly = true)
       : FunctionSymbol(name, UndefinedFunctionKind, flags, file, type),
-        importName(importName), importModule(importModule), isCalledDirectly(isCalledDirectly) {}
+        importName(importName), importModule(importModule),
+        isCalledDirectly(isCalledDirectly) {}
 
   static bool classof(const Symbol *s) {
     return s->kind() == UndefinedFunctionKind;
   }
 
-  StringRef importName;
-  StringRef importModule;
+  llvm::Optional<StringRef> importName;
+  llvm::Optional<StringRef> importModule;
   bool isCalledDirectly;
 };
 
@@ -335,8 +335,9 @@ public:
 
 class UndefinedGlobal : public GlobalSymbol {
 public:
-  UndefinedGlobal(StringRef name, StringRef importName, StringRef importModule,
-                  uint32_t flags, InputFile *file = nullptr,
+  UndefinedGlobal(StringRef name, llvm::Optional<StringRef> importName,
+                  llvm::Optional<StringRef> importModule, uint32_t flags,
+                  InputFile *file = nullptr,
                   const WasmGlobalType *type = nullptr)
       : GlobalSymbol(name, UndefinedGlobalKind, flags, file, type),
         importName(importName), importModule(importModule) {}
@@ -345,8 +346,8 @@ public:
     return s->kind() == UndefinedGlobalKind;
   }
 
-  StringRef importName;
-  StringRef importModule;
+  llvm::Optional<StringRef> importName;
+  llvm::Optional<StringRef> importModule;
 };
 
 // Wasm events are features that suspend the current execution and transfer the
@@ -410,6 +411,7 @@ public:
 
   static bool classof(const Symbol *s) { return s->kind() == LazyKind; }
   void fetch();
+  MemoryBufferRef getMemberBuffer();
 
   // Lazy symbols can have a signature because they can replace an
   // UndefinedFunction which which case we need to be able to preserve the
@@ -509,7 +511,7 @@ union SymbolUnion {
 // It is important to keep the size of SymbolUnion small for performance and
 // memory usage reasons. 96 bytes is a soft limit based on the size of
 // UndefinedFunction on a 64-bit system.
-static_assert(sizeof(SymbolUnion) <= 96, "SymbolUnion too large");
+static_assert(sizeof(SymbolUnion) <= 112, "SymbolUnion too large");
 
 void printTraceSymbol(Symbol *sym);
 void printTraceSymbolUndefined(StringRef name, const InputFile* file);

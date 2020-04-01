@@ -10,12 +10,13 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "llvm/MC/MCXCOFFStreamer.h"
 #include "llvm/BinaryFormat/XCOFF.h"
 #include "llvm/MC/MCAsmBackend.h"
 #include "llvm/MC/MCCodeEmitter.h"
+#include "llvm/MC/MCDirectives.h"
 #include "llvm/MC/MCObjectWriter.h"
 #include "llvm/MC/MCSymbolXCOFF.h"
-#include "llvm/MC/MCXCOFFStreamer.h"
 #include "llvm/Support/TargetRegistry.h"
 
 using namespace llvm;
@@ -27,7 +28,7 @@ MCXCOFFStreamer::MCXCOFFStreamer(MCContext &Context,
     : MCObjectStreamer(Context, std::move(MAB), std::move(OW),
                        std::move(Emitter)) {}
 
-bool MCXCOFFStreamer::EmitSymbolAttribute(MCSymbol *Sym,
+bool MCXCOFFStreamer::emitSymbolAttribute(MCSymbol *Sym,
                                           MCSymbolAttr Attribute) {
   auto *Symbol = cast<MCSymbolXCOFF>(Sym);
   getAssembler().registerSymbol(*Symbol);
@@ -37,13 +38,17 @@ bool MCXCOFFStreamer::EmitSymbolAttribute(MCSymbol *Sym,
     Symbol->setStorageClass(XCOFF::C_EXT);
     Symbol->setExternal(true);
     break;
+  case MCSA_LGlobal:
+    Symbol->setStorageClass(XCOFF::C_HIDEXT);
+    Symbol->setExternal(true);
+    break;
   default:
     report_fatal_error("Not implemented yet.");
   }
   return true;
 }
 
-void MCXCOFFStreamer::EmitCommonSymbol(MCSymbol *Symbol, uint64_t Size,
+void MCXCOFFStreamer::emitCommonSymbol(MCSymbol *Symbol, uint64_t Size,
                                        unsigned ByteAlignment) {
   getAssembler().registerSymbol(*Symbol);
   Symbol->setExternal(cast<MCSymbolXCOFF>(Symbol)->getStorageClass() !=
@@ -51,11 +56,11 @@ void MCXCOFFStreamer::EmitCommonSymbol(MCSymbol *Symbol, uint64_t Size,
   Symbol->setCommon(Size, ByteAlignment);
 
   // Emit the alignment and storage for the variable to the section.
-  EmitValueToAlignment(ByteAlignment);
-  EmitZeros(Size);
+  emitValueToAlignment(ByteAlignment);
+  emitZeros(Size);
 }
 
-void MCXCOFFStreamer::EmitZerofill(MCSection *Section, MCSymbol *Symbol,
+void MCXCOFFStreamer::emitZerofill(MCSection *Section, MCSymbol *Symbol,
                                    uint64_t Size, unsigned ByteAlignment,
                                    SMLoc Loc) {
   report_fatal_error("Zero fill not implemented for XCOFF.");
@@ -69,9 +74,15 @@ void MCXCOFFStreamer::EmitInstToData(const MCInst &Inst,
   raw_svector_ostream VecOS(Code);
   Assembler.getEmitter().encodeInstruction(Inst, VecOS, Fixups, STI);
 
-  // TODO: Handle Fixups later
-
+  // Add the fixups and data.
   MCDataFragment *DF = getOrCreateDataFragment(&STI);
+  const size_t ContentsSize = DF->getContents().size();
+  auto &DataFragmentFixups = DF->getFixups();
+  for (auto &Fixup : Fixups) {
+    Fixup.setOffset(Fixup.getOffset() + ContentsSize);
+    DataFragmentFixups.push_back(Fixup);
+  }
+
   DF->setHasInstructions(STI);
   DF->getContents().append(Code.begin(), Code.end());
 }
@@ -88,9 +99,9 @@ MCStreamer *llvm::createXCOFFStreamer(MCContext &Context,
   return S;
 }
 
-void MCXCOFFStreamer::EmitXCOFFLocalCommonSymbol(MCSymbol *LabelSym,
+void MCXCOFFStreamer::emitXCOFFLocalCommonSymbol(MCSymbol *LabelSym,
                                                  uint64_t Size,
                                                  MCSymbol *CsectSym,
                                                  unsigned ByteAlignment) {
-  EmitCommonSymbol(CsectSym, Size, ByteAlignment);
+  emitCommonSymbol(CsectSym, Size, ByteAlignment);
 }

@@ -52,8 +52,10 @@
 
 namespace SPIRV {
 
+template <Op> class SPIRVConstantBase;
+using SPIRVConstant = SPIRVConstantBase<OpConstant>;
+
 class SPIRVBasicBlock;
-class SPIRVConstant;
 class SPIRVEntry;
 class SPIRVFunction;
 class SPIRVInstruction;
@@ -84,6 +86,9 @@ class SPIRVGroupDecorate;
 class SPIRVGroupMemberDecorate;
 class SPIRVGroupDecorateGeneric;
 class SPIRVInstTemplateBase;
+class SPIRVAsmTargetINTEL;
+class SPIRVAsmINTEL;
+class SPIRVAsmCallINTEL;
 
 typedef SPIRVBasicBlock SPIRVLabel;
 struct SPIRVTypeImageDescriptor;
@@ -245,6 +250,7 @@ public:
   addCompositeConstant(SPIRVType *, const std::vector<SPIRVValue *> &) = 0;
   virtual SPIRVValue *addConstant(SPIRVValue *) = 0;
   virtual SPIRVValue *addConstant(SPIRVType *, uint64_t) = 0;
+  virtual SPIRVValue *addSpecConstant(SPIRVType *, uint64_t) = 0;
   virtual SPIRVValue *addDoubleConstant(SPIRVTypeFloat *, double) = 0;
   virtual SPIRVValue *addFloatConstant(SPIRVTypeFloat *, float) = 0;
   virtual SPIRVValue *addIntegerConstant(SPIRVTypeInt *, uint64_t) = 0;
@@ -300,6 +306,12 @@ public:
   virtual SPIRVInstruction *addFunctionPointerINTELInst(SPIRVType *,
                                                         SPIRVFunction *,
                                                         SPIRVBasicBlock *) = 0;
+  virtual SPIRVEntry *getOrAddAsmTargetINTEL(const std::string &) = 0;
+  virtual SPIRVValue *addAsmINTEL(SPIRVTypeFunction *, SPIRVAsmTargetINTEL *,
+                                  const std::string &, const std::string &) = 0;
+  virtual SPIRVInstruction *addAsmCallINTELInst(SPIRVAsmINTEL *,
+                                                const std::vector<SPIRVWord> &,
+                                                SPIRVBasicBlock *) = 0;
   virtual SPIRVInstruction *
   addCompositeConstructInst(SPIRVType *, const std::vector<SPIRVId> &,
                             SPIRVBasicBlock *) = 0;
@@ -447,6 +459,10 @@ public:
 
   virtual bool isGenArgNameMDEnabled() const final {
     return TranslationOpts.isGenArgNameMDEnabled();
+  }
+
+  bool getSpecializationConstant(SPIRVWord SpecId, uint64_t &ConstValue) {
+    return TranslationOpts.getSpecializationConstant(SpecId, ConstValue);
   }
 
   // I/O functions

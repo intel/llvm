@@ -1,6 +1,6 @@
 //===- Identifier.h - MLIR Identifier Class ---------------------*- C++ -*-===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -12,6 +12,7 @@
 #include "mlir/Support/LLVM.h"
 #include "llvm/ADT/DenseMapInfo.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/PointerLikeTypeTraits.h"
 
 namespace mlir {
 class MLIRContext;
@@ -127,7 +128,7 @@ public:
   static inline mlir::Identifier getFromVoidPointer(void *P) {
     return mlir::Identifier::getFromOpaquePointer(P);
   }
-  enum { NumLowBitsAvailable = 2 };
+  static constexpr int NumLowBitsAvailable = 2;
 };
 
 } // end namespace llvm

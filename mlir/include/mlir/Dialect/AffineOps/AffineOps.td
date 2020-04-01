@@ -1,6 +1,6 @@
 //===- AffineOps.td - Affine operation definitions ---------*- tablegen -*-===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -14,17 +14,18 @@
 #define AFFINE_OPS
 
 include "mlir/Dialect/AffineOps/AffineOpsBase.td"
-include "mlir/IR/OpBase.td"
-include "mlir/Transforms/LoopLikeInterface.td"
+include "mlir/Interfaces/LoopLikeInterface.td"
+include "mlir/Interfaces/SideEffects.td"
 
-def Affine_Dialect : Dialect {
+def AffineOps_Dialect : Dialect {
   let name = "affine";
   let cppNamespace = "";
+  let hasConstantMaterializer = 1;
 }
 
 // Base class for Affine dialect ops.
 class Affine_Op<string mnemonic, list<OpTrait> traits = []> :
-    Op<Affine_Dialect, mnemonic, traits> {
+    Op<AffineOps_Dialect, mnemonic, traits> {
   // For every affine op, there needs to be a:
   //   * void print(OpAsmPrinter &p, ${C++ class of Op} op)
   //   * LogicalResult verify(${C++ class of Op} op)
@@ -40,8 +41,62 @@ class Affine_Op<string mnemonic, list<OpTrait> traits = []> :
 def ImplicitAffineTerminator
     : SingleBlockImplicitTerminator<"AffineTerminatorOp">;
 
+def AffineApplyOp : Affine_Op<"apply", [NoSideEffect]> {
+  let summary = "affine apply operation";
+  let description = [{
+    The affine.apply operation applies an affine mapping to a list of SSA
+    values, yielding a single SSA value. The number of dimension and symbol
+    arguments to affine.apply must be equal to the respective number of
+    dimensional and symbolic inputs to the affine mapping; the affine mapping
+    has to be one-dimensional, and so the affine.apply operation always returns
+    one value. The input operands and result must all have ‘index’ type.
+
+    Example:
+
+    ```mlir
+      #map10 = affine_map<(d0, d1) -> (d0 floordiv 8 + d1 floordiv 128)>
+      ...
+      %1 = affine.apply #map10 (%s, %t)
+
+      // Inline example.
+      %2 = affine.apply affine_map<(i)[s0] -> (i+s0)> (%42)[%n]
+    ```
+  }];
+  let arguments = (ins AffineMapAttr:$map, Variadic<Index>:$mapOperands);
+  let results = (outs Index);
+
+  // TODO: The auto-generated builders should check to see if the return type
+  // has a constant builder. That way we wouldn't need to explicitly specify the
+  // result types here.
+  let builders = [
+    OpBuilder<"Builder *builder, OperationState &result, "
+              "AffineMap map, ValueRange mapOperands", [{
+      build(builder, result, builder->getIndexType(), map, mapOperands);
+    }]>
+  ];
+
+  let extraClassDeclaration = [{
+    /// Returns the affine map to be applied by this operation.
+    AffineMap getAffineMap() { return map(); }
+
+    /// Returns the affine value map computed from this operation.
+    AffineValueMap getAffineValueMap();
+
+    /// Returns true if the result of this operation can be used as dimension id.
+    bool isValidDim();
+
+    /// Returns true if the result of this operation is a symbol.
+    bool isValidSymbol();
+
+    operand_range getMapOperands() { return getOperands(); }
+  }];
+
+  let hasCanonicalizer = 1;
+  let hasFolder = 1;
+}
+
 def AffineForOp : Affine_Op<"for",
-    [ImplicitAffineTerminator,
+    [ImplicitAffineTerminator, RecursiveSideEffects,
      DeclareOpInterfaceMethods<LoopLikeOpInterface>]> {
   let summary = "for operation";
   let description = [{
@@ -177,7 +232,8 @@ def AffineForOp : Affine_Op<"for",
   let hasFolder = 1;
 }
 
-def AffineIfOp : Affine_Op<"if", [ImplicitAffineTerminator]> {
+def AffineIfOp : Affine_Op<"if",
+                           [ImplicitAffineTerminator, RecursiveSideEffects]> {
   let summary = "if-then-else operation";
   let description = [{
     The "if" operation represents an if-then-else construct for conditionally
@@ -234,7 +290,32 @@ def AffineIfOp : Affine_Op<"if", [ImplicitAffineTerminator]> {
   let hasFolder = 1;
 }
 
-def AffineMinOp : Affine_Op<"min"> {
+class AffineMinMaxOpBase<string mnemonic, list<OpTrait> traits = []> :
+    Op<AffineOps_Dialect, mnemonic, traits> {
+  let arguments = (ins AffineMapAttr:$map, Variadic<Index>:$operands);
+  let results = (outs Index);
+
+  let builders = [
+    OpBuilder<"Builder *builder, OperationState &result, AffineMap affineMap, "
+              "ValueRange mapOperands",
+    [{
+      build(builder, result, builder->getIndexType(), affineMap, mapOperands);
+    }]>
+  ];
+
+  let extraClassDeclaration = [{
+    static StringRef getMapAttrName() { return "map"; }
+    AffineMap getAffineMap() { return map(); }
+    ValueRange getMapOperands() { return operands(); }
+  }];
+  let verifier = [{ return ::verifyAffineMinMaxOp(*this); }];
+  let printer = [{ return ::printAffineMinMaxOp(p, *this); }];
+  let parser = [{ return ::parseAffineMinMaxOp<$cppClass>(parser, result); }];
+  let hasFolder = 1;
+  let hasCanonicalizer = 1;
+}
+
+def AffineMinOp : AffineMinMaxOpBase<"min", [NoSideEffect]> {
   let summary = "min operation";
   let description = [{
     The "min" operation computes the minimum value result from a multi-result
@@ -244,12 +325,91 @@ def AffineMinOp : Affine_Op<"min"> {
 
        %0 = affine.min (d0) -> (1000, d0 + 512) (%i0) : index
   }];
-  let arguments = (ins AffineMapAttr:$map, Variadic<Index>:$operands);
-  let results = (outs Index);
-  let extraClassDeclaration = [{
-    static StringRef getMapAttrName() { return "map"; }
+}
+
+def AffineMaxOp : AffineMinMaxOpBase<"max", [NoSideEffect]> {
+  let summary = "max operation";
+  let description = [{
+    The "max" operation computes the maximum value result from a multi-result
+    affine map.
+
+    Example:
+
+       %0 = affine.max (d0) -> (1000, d0 + 512) (%i0) : index
   }];
-  let hasFolder = 1;
+}
+
+def AffineParallelOp : Affine_Op<"parallel", [ImplicitAffineTerminator]> {
+  let summary = "multi-index parallel band operation";
+  let description = [{
+    The "affine.parallel" operation represents a hyper-rectangular affine
+    parallel band, defining multiple SSA values for its induction variables. It
+    has one region capturing the parallel band body. The induction variables are
+    represented as arguments of this region. These SSA values always have type
+    index, which is the size of the machine word. The strides, represented by
+    steps, are positive constant integers which defaults to "1" if not present.
+    The lower and upper bounds specify a half-open range: the range includes the
+    lower bound but does not include the upper bound. The body region must
+    contain exactly one block that terminates with "affine.terminator".
+
+    The lower and upper bounds of a parallel operation are represented as an
+    application of an affine mapping to a list of SSA values passed to the map.
+    The same restrictions hold for these SSA values as for all bindings of SSA
+    values to dimensions and symbols.
+
+    Note: Calling AffineParallelOp::build will create the required region and
+    block, and insert the required terminator. Parsing will also create the
+    required region, block, and terminator, even when they are missing from the
+    textual representation.
+
+    Example:
+
+    ```mlir
+      affine.parallel (%i, %j) = (0, 0) to (10, 10) step (1, 1) {
+        ...
+      }
+    ```
+  }];
+
+  let arguments = (ins
+     AffineMapAttr:$lowerBoundsMap,
+     AffineMapAttr:$upperBoundsMap,
+     I64ArrayAttr:$steps,
+     Variadic<Index>:$mapOperands);
+  let regions = (region SizedRegion<1>:$region);
+
+  let builders = [
+    OpBuilder<"Builder* builder, OperationState& result,"
+              "ArrayRef<int64_t> ranges">,
+    OpBuilder<"Builder* builder, OperationState& result, AffineMap lbMap,"
+              "ValueRange lbArgs, AffineMap ubMap, ValueRange ubArgs">,
+    OpBuilder<"Builder* builder, OperationState& result, AffineMap lbMap,"
+              "ValueRange lbArgs, AffineMap ubMap, ValueRange ubArgs,"
+              "ArrayRef<int64_t> steps">
+  ];
+
+  let extraClassDeclaration = [{
+    /// Get the number of dimensions.
+    unsigned getNumDims();
+
+    operand_range getLowerBoundsOperands();
+    operand_range getUpperBoundsOperands();
+
+    AffineValueMap getLowerBoundsValueMap();
+    AffineValueMap getUpperBoundsValueMap();
+    AffineValueMap getRangesValueMap();
+
+    /// Get ranges as constants, may fail in dynamic case.
+    Optional<SmallVector<int64_t, 8>> getConstantRanges();
+    
+    Block *getBody();
+    OpBuilder getBodyBuilder();
+    void setSteps(ArrayRef<int64_t> newSteps);
+
+    static StringRef getLowerBoundsMapAttrName() { return "lowerBoundsMap"; }
+    static StringRef getUpperBoundsMapAttrName() { return "upperBoundsMap"; }
+    static StringRef getStepsAttrName() { return "steps"; }
+  }];
 }
 
 def AffinePrefetchOp : Affine_Op<"prefetch"> {
@@ -296,7 +456,7 @@ def AffinePrefetchOp : Affine_Op<"prefetch"> {
 
   let extraClassDeclaration = [{
     MemRefType getMemRefType() {
-      return memref()->getType().cast<MemRefType>();
+      return memref().getType().cast<MemRefType>();
     }
 
     /// Returns the affine map used to index the memref for this operation.
@@ -328,7 +488,7 @@ def AffinePrefetchOp : Affine_Op<"prefetch"> {
 }
 
 def AffineTerminatorOp :
-    Affine_Op<"terminator", [Terminator]> {
+    Affine_Op<"terminator", [NoSideEffect, Terminator]> {
   let summary = "affine terminator operation";
   let description = [{
     Affine terminator is a special terminator operation for blocks inside affine

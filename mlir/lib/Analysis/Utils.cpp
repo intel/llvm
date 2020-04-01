@@ -1,6 +1,6 @@
 //===- Utils.cpp ---- Misc utilities for analysis -------------------------===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -15,7 +15,8 @@
 
 #include "mlir/Analysis/AffineAnalysis.h"
 #include "mlir/Dialect/AffineOps/AffineOps.h"
-#include "mlir/Dialect/StandardOps/Ops.h"
+#include "mlir/Dialect/AffineOps/AffineValueMap.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
@@ -59,12 +60,12 @@ ComputationSliceState::getAsConstraints(FlatAffineConstraints *cst) {
   // Add loop bound constraints for values which are loop IVs and equality
   // constraints for symbols which are constants.
   for (const auto &value : values) {
-    assert(cst->containsId(*value) && "value expected to be present");
+    assert(cst->containsId(value) && "value expected to be present");
     if (isValidSymbol(value)) {
       // Check if the symbol is a constant.
 
-      if (auto cOp = dyn_cast_or_null<ConstantIndexOp>(value->getDefiningOp()))
-        cst->setIdToConstant(*value, cOp.getValue());
+      if (auto cOp = dyn_cast_or_null<ConstantIndexOp>(value.getDefiningOp()))
+        cst->setIdToConstant(value, cOp.getValue());
     } else if (auto loop = getForInductionVarOwner(value)) {
       if (failed(cst->addAffineForOpDomain(loop)))
         return failure();
@@ -88,13 +89,13 @@ void ComputationSliceState::clearBounds() {
 }
 
 unsigned MemRefRegion::getRank() const {
-  return memref->getType().cast<MemRefType>().getRank();
+  return memref.getType().cast<MemRefType>().getRank();
 }
 
 Optional<int64_t> MemRefRegion::getConstantBoundingSizeAndShape(
     SmallVectorImpl<int64_t> *shape, std::vector<SmallVector<int64_t, 4>> *lbs,
     SmallVectorImpl<int64_t> *lbDivisors) const {
-  auto memRefType = memref->getType().cast<MemRefType>();
+  auto memRefType = memref.getType().cast<MemRefType>();
   unsigned rank = memRefType.getRank();
   if (shape)
     shape->reserve(rank);
@@ -228,9 +229,9 @@ LogicalResult MemRefRegion::compute(Operation *op, unsigned loopDepth,
       auto symbol = operand;
       assert(isValidSymbol(symbol));
       // Check if the symbol is a constant.
-      if (auto *op = symbol->getDefiningOp()) {
+      if (auto *op = symbol.getDefiningOp()) {
         if (auto constOp = dyn_cast<ConstantIndexOp>(op)) {
-          cst.setIdToConstant(*symbol, constOp.getValue());
+          cst.setIdToConstant(symbol, constOp.getValue());
         }
       }
     }
@@ -293,7 +294,7 @@ LogicalResult MemRefRegion::compute(Operation *op, unsigned loopDepth,
   // to guard against potential over-approximation from projection.
   // TODO(andydavis) Support dynamic memref dimensions.
   if (addMemRefDimBounds) {
-    auto memRefType = memref->getType().cast<MemRefType>();
+    auto memRefType = memref.getType().cast<MemRefType>();
     for (unsigned r = 0; r < rank; r++) {
       cst.addConstantLowerBound(r, 0);
       int64_t dimSize = memRefType.getDimSize(r);
@@ -325,7 +326,7 @@ static unsigned getMemRefEltSizeInBytes(MemRefType memRefType) {
 
 // Returns the size of the region.
 Optional<int64_t> MemRefRegion::getRegionSize() {
-  auto memRefType = memref->getType().cast<MemRefType>();
+  auto memRefType = memref.getType().cast<MemRefType>();
 
   auto layoutMaps = memRefType.getAffineMaps();
   if (layoutMaps.size() > 1 ||
@@ -471,8 +472,8 @@ static Operation *getInstAtPosition(ArrayRef<unsigned> positions,
 }
 
 // Adds loop IV bounds to 'cst' for loop IVs not found in 'ivs'.
-LogicalResult addMissingLoopIVBounds(SmallPtrSet<Value, 8> &ivs,
-                                     FlatAffineConstraints *cst) {
+static LogicalResult addMissingLoopIVBounds(SmallPtrSet<Value, 8> &ivs,
+                                            FlatAffineConstraints *cst) {
   for (unsigned i = 0, e = cst->getNumDimIds(); i < e; ++i) {
     auto value = cst->getIdValue(i);
     if (ivs.count(value) == 0) {
@@ -854,7 +855,7 @@ MemRefAccess::MemRefAccess(Operation *loadOrStoreOpInst) {
 }
 
 unsigned MemRefAccess::getRank() const {
-  return memref->getType().cast<MemRefType>().getRank();
+  return memref.getType().cast<MemRefType>().getRank();
 }
 
 bool MemRefAccess::isStore() const { return isa<AffineStoreOp>(opInst); }
@@ -973,11 +974,12 @@ void mlir::getSequentialLoops(AffineForOp forOp,
 bool mlir::isLoopParallel(AffineForOp forOp) {
   // Collect all load and store ops in loop nest rooted at 'forOp'.
   SmallVector<Operation *, 8> loadAndStoreOpInsts;
-  auto walkResult = forOp.walk([&](Operation *opInst) {
+  auto walkResult = forOp.walk([&](Operation *opInst) -> WalkResult {
     if (isa<AffineLoadOp>(opInst) || isa<AffineStoreOp>(opInst))
       loadAndStoreOpInsts.push_back(opInst);
     else if (!isa<AffineForOp>(opInst) && !isa<AffineTerminatorOp>(opInst) &&
-             !isa<AffineIfOp>(opInst) && !opInst->hasNoSideEffect())
+             !isa<AffineIfOp>(opInst) &&
+             !MemoryEffectOpInterface::hasNoEffect(opInst))
       return WalkResult::interrupt();
 
     return WalkResult::advance();

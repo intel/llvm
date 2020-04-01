@@ -1,6 +1,6 @@
 //===- Configuration.h - Configuration object base classes ------*- C++ -*-===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -17,7 +17,7 @@
 
 #include <functional>
 
-#include "mlir/Dialect/QuantOps/QuantTypes.h"
+#include "mlir/Dialect/Quant/QuantTypes.h"
 #include "mlir/IR/Identifier.h"
 #include "mlir/Quantizer/Support/ConstraintAnalysisGraph.h"
 #include "mlir/Quantizer/Support/Metadata.h"

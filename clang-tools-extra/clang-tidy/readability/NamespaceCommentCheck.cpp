@@ -36,10 +36,7 @@ void NamespaceCommentCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
 }
 
 void NamespaceCommentCheck::registerMatchers(MatchFinder *Finder) {
-  // Only register the matchers for C++; the functionality currently does not
-  // provide any benefit to other languages, despite being benign.
-  if (getLangOpts().CPlusPlus)
-    Finder->addMatcher(namespaceDecl().bind("namespace"), this);
+  Finder->addMatcher(namespaceDecl().bind("namespace"), this);
 }
 
 static bool locationsInSameFile(const SourceManager &Sources,
@@ -72,7 +69,7 @@ getNamespaceNameAsWritten(SourceLocation &Loc, const SourceManager &Sources,
       if (T->is(tok::raw_identifier)) {
         StringRef ID = T->getRawIdentifier();
         if (ID != "namespace" && ID != "inline")
-          Result.append(ID);
+          Result.append(std::string(ID));
       } else if (T->is(tok::coloncolon)) {
         Result.append("::");
       } else { // Any other kind of token is unexpected here.

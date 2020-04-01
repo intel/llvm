@@ -238,6 +238,7 @@ defm : SBWriteResPair<WriteFCmp64Y, [SBPort1],  3, [1], 1, 7>;
 defm : SBWriteResPair<WriteFCmp64Z, [SBPort1],  3, [1], 1, 7>; // Unsupported = 1
 
 defm : SBWriteResPair<WriteFCom,    [SBPort1],  3>;
+defm : SBWriteResPair<WriteFComX,   [SBPort1],  3>;
 
 defm : SBWriteResPair<WriteFMul,    [SBPort0],  5, [1], 1, 6>;
 defm : SBWriteResPair<WriteFMulX,   [SBPort0],  5, [1], 1, 6>;
@@ -481,7 +482,7 @@ def : WriteRes<WritePCmpEStrM, [SBPort015]> {
   let ResourceCycles = [8];
 }
 def : WriteRes<WritePCmpEStrMLd, [SBPort015, SBPort23]> {
-  let Latency = 11;
+  let Latency = 17;
   let ResourceCycles = [7, 1];
 }
 
@@ -503,7 +504,7 @@ def : WriteRes<WritePCmpEStrI, [SBPort015]> {
   let ResourceCycles = [8];
 }
 def : WriteRes<WritePCmpEStrILd, [SBPort015, SBPort23]> {
-  let Latency = 4;
+  let Latency = 10;
   let ResourceCycles = [7, 1];
 }
 
@@ -541,7 +542,7 @@ def : WriteRes<WriteAESKeyGen, [SBPort015]> {
   let ResourceCycles = [11];
 }
 def : WriteRes<WriteAESKeyGenLd, [SBPort015, SBPort23]> {
-  let Latency = 8;
+  let Latency = 14;
   let ResourceCycles = [10, 1];
 }
 
@@ -551,7 +552,7 @@ def : WriteRes<WriteCLMul, [SBPort015]> {
   let ResourceCycles = [18];
 }
 def : WriteRes<WriteCLMulLd, [SBPort015, SBPort23]> {
-  let Latency = 14;
+  let Latency = 20;
   let ResourceCycles = [17, 1];
 }
 

@@ -15,6 +15,7 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.exe
 // RUN: %GPU_RUN_PLACEHOLDER %t.exe
 // RUN: %ACC_RUN_PLACEHOLDER %t.exe
+// XFAIL: cuda
 
 #include <CL/sycl.hpp>
 #include <iostream>

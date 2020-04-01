@@ -10,7 +10,7 @@
 #include <CL/sycl/access/access.hpp>
 
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
 template <typename ElementType, access::address_space Space> class multi_ptr;
@@ -31,4 +31,4 @@ using private_ptr =
     multi_ptr<ElementType, access::address_space::private_space>;
 
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

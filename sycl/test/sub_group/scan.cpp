@@ -1,9 +1,11 @@
+//-fsycl-targets=%sycl_triple
 // RUN: %clangxx -fsycl -std=c++14 %s -o %t.out
 // RUN: %clangxx -fsycl -std=c++14 -D SG_GPU %s -o %t_gpu.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t_gpu.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
+// UNSUPPORTED: cuda
 //==--------------- scan.cpp - SYCL sub_group scan test --------*- C++ -*---==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -16,7 +18,8 @@
 #include <CL/sycl.hpp>
 #include <limits>
 
-template <typename T, class BinaryOperation> class sycl_subgr;
+template <typename T, class BinaryOperation>
+class sycl_subgr;
 
 using namespace cl::sycl;
 
@@ -34,14 +37,14 @@ void check_op(queue &Queue, T init, BinaryOperation op, bool skip_init = false,
             intel::sub_group sg = NdItem.get_sub_group();
             if (skip_init) {
               exacc[NdItem.get_global_id(0)] =
-                  sg.exclusive_scan(T(NdItem.get_global_id(0)), op);
+                  exclusive_scan(sg, T(NdItem.get_global_id(0)), op);
               inacc[NdItem.get_global_id(0)] =
-                  sg.inclusive_scan(T(NdItem.get_global_id(0)), op);
+                  inclusive_scan(sg, T(NdItem.get_global_id(0)), op);
             } else {
               exacc[NdItem.get_global_id(0)] =
-                  sg.exclusive_scan(T(NdItem.get_global_id(0)), init, op);
+                  exclusive_scan(sg, T(NdItem.get_global_id(0)), init, op);
               inacc[NdItem.get_global_id(0)] =
-                  sg.inclusive_scan(T(NdItem.get_global_id(0)), op, init);
+                  inclusive_scan(sg, T(NdItem.get_global_id(0)), op, init);
             }
           });
     });
@@ -73,7 +76,8 @@ void check_op(queue &Queue, T init, BinaryOperation op, bool skip_init = false,
   }
 }
 
-template <typename T> void check(queue &Queue, size_t G = 120, size_t L = 60) {
+template <typename T>
+void check(queue &Queue, size_t G = 120, size_t L = 60) {
   // limit data range for half to avoid rounding issues
   if (std::is_same<T, cl::sycl::half>::value) {
     G = 64;

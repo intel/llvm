@@ -477,6 +477,23 @@ unsigned llvm::dwarf::getMacinfo(StringRef MacinfoString) {
       .Default(DW_MACINFO_invalid);
 }
 
+StringRef llvm::dwarf::MacroString(unsigned Encoding) {
+  switch (Encoding) {
+  default:
+    return StringRef();
+#define HANDLE_DW_MACRO(ID, NAME)                                              \
+  case DW_MACRO_##NAME:                                                        \
+    return "DW_MACRO_" #NAME;
+#include "llvm/BinaryFormat/Dwarf.def"
+  }
+}
+
+unsigned llvm::dwarf::getMacro(StringRef MacroString) {
+  return StringSwitch<unsigned>(MacroString)
+#define HANDLE_DW_MACRO(ID, NAME) .Case("DW_MACRO_" #NAME, ID)
+#include "llvm/BinaryFormat/Dwarf.def"
+      .Default(DW_MACINFO_invalid);
+}
 StringRef llvm::dwarf::RangeListEncodingString(unsigned Encoding) {
   switch (Encoding) {
   default:
@@ -757,3 +774,4 @@ constexpr char llvm::dwarf::EnumTraits<Attribute>::Type[];
 constexpr char llvm::dwarf::EnumTraits<Form>::Type[];
 constexpr char llvm::dwarf::EnumTraits<Index>::Type[];
 constexpr char llvm::dwarf::EnumTraits<Tag>::Type[];
+constexpr char llvm::dwarf::EnumTraits<LineNumberOps>::Type[];

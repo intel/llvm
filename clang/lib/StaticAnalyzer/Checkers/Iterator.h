@@ -159,10 +159,16 @@ const IteratorPosition *getIteratorPosition(ProgramStateRef State,
                                             const SVal &Val);
 ProgramStateRef setIteratorPosition(ProgramStateRef State, const SVal &Val,
                                     const IteratorPosition &Pos);
+ProgramStateRef createIteratorPosition(ProgramStateRef State, const SVal &Val,
+                                       const MemRegion *Cont, const Stmt* S,
+                                       const LocationContext *LCtx,
+                                       unsigned blockCount);
 ProgramStateRef advancePosition(ProgramStateRef State,
                                 const SVal &Iter,
                                 OverloadedOperatorKind Op,
                                 const SVal &Distance);
+ProgramStateRef assumeNoOverflow(ProgramStateRef State, SymbolRef Sym,
+                                 long Scale);
 bool compare(ProgramStateRef State, SymbolRef Sym1, SymbolRef Sym2,
              BinaryOperator::Opcode Opc);
 bool compare(ProgramStateRef State, NonLoc NL1, NonLoc NL2,

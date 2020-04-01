@@ -169,7 +169,7 @@ public:
 
     std::string RawTable;
     for (llvm::StringRef S : Sorted) {
-      RawTable.append(S);
+      RawTable.append(std::string(S));
       RawTable.push_back(0);
     }
     if (llvm::zlib::isAvailable()) {
@@ -419,7 +419,7 @@ readCompileCommand(Reader CmdReader, llvm::ArrayRef<llvm::StringRef> Strings) {
 // The current versioning scheme is simple - non-current versions are rejected.
 // If you make a breaking change, bump this version number to invalidate stored
 // data. Later we may want to support some backward compatibility.
-constexpr static uint32_t Version = 12;
+constexpr static uint32_t Version = 13;
 
 llvm::Expected<IndexFileIn> readRIFF(llvm::StringRef Data) {
   auto RIFF = riff::readFile(Data);
@@ -501,7 +501,7 @@ llvm::Expected<IndexFileIn> readRIFF(llvm::StringRef Data) {
     InternedCompileCommand Cmd =
         readCompileCommand(CmdReader, Strings->Strings);
     Result.Cmd.emplace();
-    Result.Cmd->Directory = Cmd.Directory;
+    Result.Cmd->Directory = std::string(Cmd.Directory);
     Result.Cmd->CommandLine.reserve(Cmd.CommandLine.size());
     for (llvm::StringRef C : Cmd.CommandLine)
       Result.Cmd->CommandLine.emplace_back(C);

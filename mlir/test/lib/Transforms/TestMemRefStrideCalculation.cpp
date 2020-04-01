@@ -1,12 +1,12 @@
 //===- TestMemRefStrideCalculation.cpp - Pass to test strides computation--===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/StandardOps/Ops.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/Passes.h"
@@ -25,7 +25,7 @@ struct TestMemRefStrideCalculation
 void TestMemRefStrideCalculation::runOnFunction() {
   llvm::outs() << "Testing: " << getFunction().getName() << "\n";
   getFunction().walk([&](AllocOp allocOp) {
-    auto memrefType = allocOp.getResult()->getType().cast<MemRefType>();
+    auto memrefType = allocOp.getResult().getType().cast<MemRefType>();
     int64_t offset;
     SmallVector<int64_t, 4> strides;
     if (failed(getStridesAndOffset(memrefType, strides, offset))) {
@@ -50,5 +50,9 @@ void TestMemRefStrideCalculation::runOnFunction() {
   llvm::outs().flush();
 }
 
-static PassRegistration<TestMemRefStrideCalculation>
-    pass("test-memref-stride-calculation", "Test operation constant folding");
+namespace mlir {
+void registerTestMemRefStrideCalculation() {
+  PassRegistration<TestMemRefStrideCalculation> pass(
+      "test-memref-stride-calculation", "Test operation constant folding");
+}
+} // namespace mlir

@@ -1,6 +1,6 @@
 //===- LegalizeStandardForSPIRV.cpp - Legalize ops for SPIR-V lowering ----===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -13,7 +13,7 @@
 
 #include "mlir/Conversion/StandardToSPIRV/ConvertStandardToSPIRV.h"
 #include "mlir/Conversion/StandardToSPIRV/ConvertStandardToSPIRVPass.h"
-#include "mlir/Dialect/StandardOps/Ops.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/Pass/Pass.h"
@@ -26,8 +26,8 @@ class LoadOpOfSubViewFolder final : public OpRewritePattern<LoadOp> {
 public:
   using OpRewritePattern<LoadOp>::OpRewritePattern;
 
-  PatternMatchResult matchAndRewrite(LoadOp loadOp,
-                                     PatternRewriter &rewriter) const override;
+  LogicalResult matchAndRewrite(LoadOp loadOp,
+                                PatternRewriter &rewriter) const override;
 };
 
 /// Merges subview operation with store operation.
@@ -35,8 +35,8 @@ class StoreOpOfSubViewFolder final : public OpRewritePattern<StoreOp> {
 public:
   using OpRewritePattern<StoreOp>::OpRewritePattern;
 
-  PatternMatchResult matchAndRewrite(StoreOp storeOp,
-                                     PatternRewriter &rewriter) const override;
+  LogicalResult matchAndRewrite(StoreOp storeOp,
+                                PatternRewriter &rewriter) const override;
 };
 } // namespace
 
@@ -107,44 +107,43 @@ resolveSourceIndices(Location loc, PatternRewriter &rewriter,
 // Folding SubViewOp and LoadOp.
 //===----------------------------------------------------------------------===//
 
-PatternMatchResult
+LogicalResult
 LoadOpOfSubViewFolder::matchAndRewrite(LoadOp loadOp,
                                        PatternRewriter &rewriter) const {
-  auto subViewOp =
-      dyn_cast_or_null<SubViewOp>(loadOp.memref()->getDefiningOp());
+  auto subViewOp = dyn_cast_or_null<SubViewOp>(loadOp.memref().getDefiningOp());
   if (!subViewOp) {
-    return matchFailure();
+    return failure();
   }
   SmallVector<Value, 4> sourceIndices;
   if (failed(resolveSourceIndices(loadOp.getLoc(), rewriter, subViewOp,
                                   loadOp.indices(), sourceIndices)))
-    return matchFailure();
+    return failure();
 
   rewriter.replaceOpWithNewOp<LoadOp>(loadOp, subViewOp.source(),
                                       sourceIndices);
-  return matchSuccess();
+  return success();
 }
 
 //===----------------------------------------------------------------------===//
 // Folding SubViewOp and StoreOp.
 //===----------------------------------------------------------------------===//
 
-PatternMatchResult
+LogicalResult
 StoreOpOfSubViewFolder::matchAndRewrite(StoreOp storeOp,
                                         PatternRewriter &rewriter) const {
   auto subViewOp =
-      dyn_cast_or_null<SubViewOp>(storeOp.memref()->getDefiningOp());
+      dyn_cast_or_null<SubViewOp>(storeOp.memref().getDefiningOp());
   if (!subViewOp) {
-    return matchFailure();
+    return failure();
   }
   SmallVector<Value, 4> sourceIndices;
   if (failed(resolveSourceIndices(storeOp.getLoc(), rewriter, subViewOp,
                                   storeOp.indices(), sourceIndices)))
-    return matchFailure();
+    return failure();
 
   rewriter.replaceOpWithNewOp<StoreOp>(storeOp, storeOp.value(),
                                        subViewOp.source(), sourceIndices);
-  return matchSuccess();
+  return success();
 }
 
 //===----------------------------------------------------------------------===//

@@ -17,6 +17,7 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/Optional.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/ExecutionEngine/JITSymbol.h"
 #include "llvm/Support/Allocator.h"
@@ -487,6 +488,8 @@ public:
 
   /// Set the visibility for this Symbol.
   void setScope(Scope S) {
+    assert((!Name.empty() || S == Scope::Local) &&
+           "Can not set anonymous symbol to non-local scope");
     assert((S == Scope::Default || Base->isDefined() || Base->isAbsolute()) &&
            "Invalid visibility for symbol type");
     this->S = static_cast<uint8_t>(S);
@@ -990,6 +993,11 @@ public:
 
   /// Remove a block.
   void removeBlock(Block &B) {
+    assert(llvm::none_of(B.getSection().symbols(),
+                         [&](const Symbol *Sym) {
+                           return &Sym->getBlock() == &B;
+                         }) &&
+           "Block still has symbols attached");
     B.getSection().removeBlock(B);
     destroyBlock(B);
   }
@@ -1168,7 +1176,7 @@ struct PassConfiguration {
   /// Pre-prune passes.
   ///
   /// These passes are called on the graph after it is built, and before any
-  /// symbols have been pruned.
+  /// symbols have been pruned. Graph nodes still have their original vmaddrs.
   ///
   /// Notable use cases: Marking symbols live or should-discard.
   LinkGraphPassList PrePrunePasses;
@@ -1176,15 +1184,26 @@ struct PassConfiguration {
   /// Post-prune passes.
   ///
   /// These passes are called on the graph after dead stripping, but before
-  /// fixups are applied.
+  /// memory is allocated or nodes assigned their final addresses.
   ///
   /// Notable use cases: Building GOT, stub, and TLV symbols.
   LinkGraphPassList PostPrunePasses;
 
+  /// Pre-fixup passes.
+  ///
+  /// These passes are called on the graph after memory has been allocated,
+  /// content copied into working memory, and nodes have been assigned their
+  /// final addresses.
+  ///
+  /// Notable use cases: Late link-time optimizations like GOT and stub
+  /// elimination.
+  LinkGraphPassList PostAllocationPasses;
+
   /// Post-fixup passes.
   ///
   /// These passes are called on the graph after block contents has been copied
-  /// to working memory, and fixups applied.
+  /// to working memory, and fixups applied. Graph nodes have been updated to
+  /// their final target vmaddrs.
   ///
   /// Notable use cases: Testing and validation.
   LinkGraphPassList PostFixupPasses;

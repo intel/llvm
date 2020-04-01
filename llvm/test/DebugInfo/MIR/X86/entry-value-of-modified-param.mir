@@ -1,4 +1,4 @@
-# RUN: llc -debug-entry-values -run-pass=livedebugvalues -march=x86-64 -o - %s | FileCheck %s
+# RUN: llc -emit-call-site-info -debug-entry-values -run-pass=livedebugvalues -march=x86-64 -o - %s | FileCheck %s
 #
 #extern void fn1 (int, int, int);
 #
@@ -19,7 +19,6 @@
 # CHECK: ![[ARG_A:.*]] = !DILocalVariable(name: "a"
 # CHECK: ![[ARG_B:.*]] = !DILocalVariable(name: "b"
 # CHECK: ![[ARG_C:.*]] = !DILocalVariable(name: "c"
-# CHECK: DBG_VALUE $edi, $noreg, ![[ARG_A]], !DIExpression(DW_OP_LLVM_entry_value, 1)
 # CHECK: DBG_VALUE $edx, $noreg, ![[ARG_C]], !DIExpression(DW_OP_LLVM_entry_value, 1)
 # CHECK: DBG_VALUE $edi, $noreg, ![[ARG_A]], !DIExpression(DW_OP_LLVM_entry_value, 1)
 # CHECK-NOT: DBG_VALUE $esi, $noreg, ![[ARG_B]], !DIExpression(DW_OP_LLVM_entry_value, 1)

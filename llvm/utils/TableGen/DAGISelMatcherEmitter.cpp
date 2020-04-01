@@ -619,7 +619,7 @@ EmitMatcher(const Matcher *N, unsigned Indent, unsigned CurrentIdx,
   }
   case Matcher::EmitStringInteger: {
     const std::string &Val = cast<EmitStringIntegerMatcher>(N)->getValue();
-    // These should always fit into one byte.
+    // These should always fit into 7 bits.
     OS << "OPC_EmitInteger, "
       << getEnumName(cast<EmitStringIntegerMatcher>(N)->getVT()) << ", "
       << Val << ",\n";
@@ -960,7 +960,8 @@ void MatcherTableEmitter::EmitPredicateFunctions(raw_ostream &OS) {
         OS << "// " << NodeXForms[i]->getName();
       OS << '\n';
 
-      std::string ClassName = CGP.getSDNodeInfo(SDNode).getSDClassName();
+      std::string ClassName =
+          std::string(CGP.getSDNodeInfo(SDNode).getSDClassName());
       if (ClassName == "SDNode")
         OS << "    SDNode *N = V.getNode();\n";
       else

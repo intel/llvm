@@ -297,6 +297,9 @@ public:
   /// Should a temporary file be used during compilation.
   unsigned UseTemporary : 1;
 
+  /// When using -emit-module, treat the modulemap as a system module.
+  unsigned IsSystemModule : 1;
+
   CodeCompleteOptions CodeCompleteOpts;
 
   /// Specifies the output format of the AST.
@@ -426,8 +429,14 @@ public:
   /// (in the format produced by -fdump-record-layouts).
   std::string OverrideRecordLayoutsFile;
 
-  /// Auxiliary triple for CUDA compilation.
+  /// Auxiliary triple for CUDA/HIP compilation.
   std::string AuxTriple;
+
+  /// Auxiliary target CPU for CUDA/HIP compilation.
+  Optional<std::string> AuxTargetCPU;
+
+  /// Auxiliary target features for CUDA/HIP compilation.
+  Optional<std::vector<std::string>> AuxTargetFeatures;
 
   /// Filename to write statistics to.
   std::string StatsFile;

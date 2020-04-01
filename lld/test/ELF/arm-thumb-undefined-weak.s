@@ -1,7 +1,7 @@
 // REQUIRES: arm
-// RUN: llvm-mc -filetype=obj -triple=thumbv7a-none-linux-gnueabi %s -o %t
+// RUN: llvm-mc --arm-add-build-attributes -filetype=obj -triple=thumbv7a-none-linux-gnueabi %s -o %t
 // RUN: ld.lld %t -o %t2
-// RUN: llvm-objdump -triple=thumbv7a-none-linux-gnueabi -d %t2 | FileCheck %s
+// RUN: llvm-objdump --triple=thumbv7a-none-linux-gnueabi -d %t2 | FileCheck %s
 
 // Check that the ARM ABI rules for undefined weak symbols are applied.
 // Branch instructions are resolved to the next instruction. Relative
@@ -10,6 +10,7 @@
  .syntax unified
 
  .weak target
+ .type target, %function
 
  .text
  .global _start
@@ -26,7 +27,10 @@ _start:
  movt r0, :upper16:target - .
 // R_ARM_THM_MOVW_PREL_NC
  movw r0, :lower16:target - .
-
+// R_ARM_THM_ALU_PREL_11_0
+ adr r0, target
+// R_ARM_THM_PC12
+ ldr r0, target
 // CHECK: Disassembly of section .text:
 // CHECK-EMPTY:
 // CHECK:         110b4: {{.*}} beq.w   #0 <_start+0x4>
@@ -36,3 +40,5 @@ _start:
 // CHECK-NEXT:    110c0: {{.*}} bl      #0
 // CHECK-NEXT:    110c4: {{.*}} movt    r0, #0
 // CHECK-NEXT:    110c8: {{.*}} movw    r0, #0
+// CHECK-NEXT:    110cc: {{.*}} adr.w   r0, #-4
+// CHECK-NEXT:    110d0: {{.*}} ldr.w   r0, [pc, #-4]

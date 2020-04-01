@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_CommandObjectDisassemble_h_
-#define liblldb_CommandObjectDisassemble_h_
+#ifndef LLDB_SOURCE_COMMANDS_COMMANDOBJECTDISASSEMBLE_H
+#define LLDB_SOURCE_COMMANDS_COMMANDOBJECTDISASSEMBLE_H
 
 #include "lldb/Interpreter/CommandObject.h"
 #include "lldb/Interpreter/Options.h"
@@ -73,9 +73,18 @@ public:
 protected:
   bool DoExecute(Args &command, CommandReturnObject &result) override;
 
+  llvm::Expected<std::vector<AddressRange>> GetRangesForSelectedMode();
+
+  llvm::Expected<std::vector<AddressRange>> GetContainingAddressRanges();
+  llvm::Expected<std::vector<AddressRange>> GetCurrentFunctionRanges();
+  llvm::Expected<std::vector<AddressRange>> GetCurrentLineRanges();
+  llvm::Expected<std::vector<AddressRange>> GetNameRanges();
+  llvm::Expected<std::vector<AddressRange>> GetPCRanges();
+  llvm::Expected<std::vector<AddressRange>> GetStartEndAddressRanges();
+
   CommandOptions m_options;
 };
 
 } // namespace lldb_private
 
-#endif // liblldb_CommandObjectDisassemble_h_
+#endif // LLDB_SOURCE_COMMANDS_COMMANDOBJECTDISASSEMBLE_H

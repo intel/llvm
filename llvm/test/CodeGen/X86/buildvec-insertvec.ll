@@ -23,8 +23,6 @@ define void @foo(<3 x float> %in, <4 x i8>* nocapture %out) nounwind {
 ; SSE41-NEXT:    cvttps2dq %xmm0, %xmm0
 ; SSE41-NEXT:    pextrb $8, %xmm0, %eax
 ; SSE41-NEXT:    pextrb $4, %xmm0, %ecx
-; SSE41-NEXT:    pextrb $0, %xmm0, %edx
-; SSE41-NEXT:    movd %edx, %xmm0
 ; SSE41-NEXT:    pinsrb $1, %ecx, %xmm0
 ; SSE41-NEXT:    pinsrb $2, %eax, %xmm0
 ; SSE41-NEXT:    movl $255, %eax
@@ -304,8 +302,8 @@ define <8 x i16> @test_buildvector_v8i16_partial(i16 %a1, i16 %a3, i16 %a4, i16 
 define <8 x i16> @test_buildvector_v8i16_register_zero(i16 %a0, i16 %a3, i16 %a4, i16 %a5) {
 ; CHECK-LABEL: test_buildvector_v8i16_register_zero:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    pxor %xmm0, %xmm0
-; CHECK-NEXT:    pinsrw $0, %edi, %xmm0
+; CHECK-NEXT:    movzwl %di, %eax
+; CHECK-NEXT:    movd %eax, %xmm0
 ; CHECK-NEXT:    pinsrw $3, %esi, %xmm0
 ; CHECK-NEXT:    pinsrw $4, %edx, %xmm0
 ; CHECK-NEXT:    pinsrw $5, %ecx, %xmm0
@@ -480,8 +478,8 @@ define <16 x i8> @test_buildvector_v16i8_register_zero(i8 %a0, i8 %a4, i8 %a6, i
 ;
 ; SSE41-LABEL: test_buildvector_v16i8_register_zero:
 ; SSE41:       # %bb.0:
-; SSE41-NEXT:    pxor %xmm0, %xmm0
-; SSE41-NEXT:    pinsrb $0, %edi, %xmm0
+; SSE41-NEXT:    movzbl %dil, %eax
+; SSE41-NEXT:    movd %eax, %xmm0
 ; SSE41-NEXT:    pinsrb $4, %esi, %xmm0
 ; SSE41-NEXT:    pinsrb $6, %edx, %xmm0
 ; SSE41-NEXT:    pinsrb $8, %ecx, %xmm0

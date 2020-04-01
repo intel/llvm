@@ -5845,6 +5845,83 @@ TEST_P(ImportAutoFunctions, ReturnWithTypeInSwitch) {
   EXPECT_TRUE(isa<AutoType>(To->getReturnType()));
 }
 
+struct ImportSourceLocations : ASTImporterOptionSpecificTestBase {};
+
+TEST_P(ImportSourceLocations, PreserveFileIDTreeStructure) {
+  // Tests that the FileID tree structure (with the links being the include
+  // chains) is preserved while importing other files (which need to be
+  // added to this structure with fake include locations.
+
+  SourceLocation Location1;
+  {
+    auto Pattern = varDecl(hasName("X"));
+    Decl *FromTU = getTuDecl("int X;", Lang_C, "input0.c");
+    auto *FromD = FirstDeclMatcher<VarDecl>().match(FromTU, Pattern);
+
+    Location1 = Import(FromD, Lang_C)->getLocation();
+  }
+  SourceLocation Location2;
+  {
+    auto Pattern = varDecl(hasName("Y"));
+    Decl *FromTU = getTuDecl("int Y;", Lang_C, "input1.c");
+    auto *FromD = FirstDeclMatcher<VarDecl>().match(FromTU, Pattern);
+
+    Location2 = Import(FromD, Lang_C)->getLocation();
+  }
+
+  SourceManager &ToSM = ToAST->getSourceManager();
+  FileID FileID1 = ToSM.getFileID(Location1);
+  FileID FileID2 = ToSM.getFileID(Location2);
+
+  // Check that the imported files look like as if they were included from the
+  // start of the main file.
+  SourceLocation FileStart = ToSM.getLocForStartOfFile(ToSM.getMainFileID());
+  EXPECT_NE(FileID1, ToSM.getMainFileID());
+  EXPECT_NE(FileID2, ToSM.getMainFileID());
+  EXPECT_EQ(ToSM.getIncludeLoc(FileID1), FileStart);
+  EXPECT_EQ(ToSM.getIncludeLoc(FileID2), FileStart);
+
+  // Let the SourceManager check the order of the locations. The order should
+  // be the order in which the declarations are imported.
+  EXPECT_TRUE(ToSM.isBeforeInTranslationUnit(Location1, Location2));
+  EXPECT_FALSE(ToSM.isBeforeInTranslationUnit(Location2, Location1));
+}
+
+TEST_P(ASTImporterOptionSpecificTestBase, ImportExprOfAlignmentAttr) {
+  // Test if import of these packed and aligned attributes does not trigger an
+  // error situation where source location from 'From' context is referenced in
+  // 'To' context through evaluation of the alignof attribute.
+  // This happens if the 'alignof(A)' expression is not imported correctly.
+  Decl *FromTU = getTuDecl(
+      R"(
+      struct __attribute__((packed)) A { int __attribute__((aligned(8))) X; };
+      struct alignas(alignof(A)) S {};
+      )",
+      Lang_CXX11, "input.cc");
+  auto *FromD = FirstDeclMatcher<CXXRecordDecl>().match(
+      FromTU, cxxRecordDecl(hasName("S"), unless(isImplicit())));
+  ASSERT_TRUE(FromD);
+
+  auto *ToD = Import(FromD, Lang_CXX11);
+  ASSERT_TRUE(ToD);
+
+  auto *FromAttr = FromD->getAttr<AlignedAttr>();
+  auto *ToAttr = ToD->getAttr<AlignedAttr>();
+  EXPECT_EQ(FromAttr->isInherited(), ToAttr->isInherited());
+  EXPECT_EQ(FromAttr->isPackExpansion(), ToAttr->isPackExpansion());
+  EXPECT_EQ(FromAttr->isImplicit(), ToAttr->isImplicit());
+  EXPECT_EQ(FromAttr->getSyntax(), ToAttr->getSyntax());
+  EXPECT_EQ(FromAttr->getSemanticSpelling(), ToAttr->getSemanticSpelling());
+  EXPECT_TRUE(ToAttr->getAlignmentExpr());
+
+  auto *ToA = FirstDeclMatcher<CXXRecordDecl>().match(
+      ToD->getTranslationUnitDecl(),
+      cxxRecordDecl(hasName("A"), unless(isImplicit())));
+  // Ensure that 'struct A' was imported (through reference from attribute of
+  // 'S').
+  EXPECT_TRUE(ToA);
+}
+
 INSTANTIATE_TEST_CASE_P(ParameterizedTests, ASTImporterLookupTableTest,
                         DefaultTestValuesForRunOptions, );
 
@@ -5901,6 +5978,9 @@ INSTANTIATE_TEST_CASE_P(ParameterizedTests, ImportVariables,
                         DefaultTestValuesForRunOptions, );
 
 INSTANTIATE_TEST_CASE_P(ParameterizedTests, LLDBLookupTest,
+                        DefaultTestValuesForRunOptions, );
+
+INSTANTIATE_TEST_CASE_P(ParameterizedTests, ImportSourceLocations,
                         DefaultTestValuesForRunOptions, );
 
 } // end namespace ast_matchers

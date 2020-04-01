@@ -94,6 +94,58 @@ function(add_gen_header target_name)
   )
 endfunction(add_gen_header)
 
+set(SINGLE_OBJECT_TARGET_TYPE "LIBC_SINGLE_OBJECT")
+
+# Function to generate single object file.
+# Usage:
+#     add_object(
+#       <target_name>
+#       SRC <source file to compile>
+#       DEPENDS <list of dependencies>
+#       COMPILE_OPTIONS <optional list of special compile options for this target>
+function(add_object target_name)
+  cmake_parse_arguments(
+    "ADD_OBJECT"
+    "" # No option arguments
+    "SRC" # Single value arguments
+    "COMPILE_OPTIONS;DEPENDS" # Multivalue arguments
+    ${ARGN}
+  )
+
+  if(NOT ADD_OBJECT_SRC)
+    message(FATAL_ERROR "'add_object' rules requires a SRC to be specified.")
+  endif()
+
+  add_library(
+    ${target_name}
+    OBJECT
+    ${ADD_OBJECT_SRC}
+  )
+  target_include_directories(
+    ${target_name}
+    PRIVATE
+      "${LIBC_BUILD_DIR}/include;${LIBC_SOURCE_DIR};${LIBC_BUILD_DIR}"
+  )
+  if(ADD_OBJECT_COMPILE_OPTIONS)
+    target_compile_options(
+      ${target_name}
+      PRIVATE ${ADD_OBJECT_COMPILE_OPTIONS}
+    )
+  endif()
+  if(ADD_OBJECT_DEPENDS)
+    add_dependencies(
+      ${target_name}
+      ${ADD_OBJECT_DEPENDS}
+    )
+  endif()
+  set_target_properties(
+    ${target_name}
+    PROPERTIES
+      "TARGET_TYPE" ${SINGLE_OBJECT_TARGET_TYPE}
+      "OBJECT_FILE" $<TARGET_OBJECTS:${target_name}>
+  )
+endfunction(add_object)
+
 set(ENTRYPOINT_OBJ_TARGET_TYPE "ENTRYPOINT_OBJ")
 
 # A rule for entrypoint object targets.
@@ -101,16 +153,19 @@ set(ENTRYPOINT_OBJ_TARGET_TYPE "ENTRYPOINT_OBJ")
 #     add_entrypoint_object(
 #       <target_name>
 #       [REDIRECTED] # Specified if the entrypoint is redirected.
+#       [NAME] <the C name of the entrypoint if different from target_name>
 #       SRCS <list of .cpp files>
 #       HDRS <list of .h files>
 #       DEPENDS <list of dependencies>
+#       COMPILE_OPTIONS <optional list of special compile options for this target>
+#       SPECIAL_OBJECTS <optional list of special object targets added by the rule `add_object`>
 #     )
 function(add_entrypoint_object target_name)
   cmake_parse_arguments(
     "ADD_ENTRYPOINT_OBJ"
     "REDIRECTED" # Optional argument
-    "" # No single value arguments
-    "SRCS;HDRS;DEPENDS"  # Multi value arguments
+    "NAME" # Single value arguments
+    "SRCS;HDRS;SPECIAL_OBJECTS;DEPENDS;COMPILE_OPTIONS"  # Multi value arguments
     ${ARGN}
   )
   if(NOT ADD_ENTRYPOINT_OBJ_SRCS)
@@ -118,6 +173,11 @@ function(add_entrypoint_object target_name)
   endif()
   if(NOT ADD_ENTRYPOINT_OBJ_HDRS)
     message(FATAL_ERROR "`add_entrypoint_object` rule requires HDRS to be specified.")
+  endif()
+
+  set(entrypoint_name ${target_name})
+  if(ADD_ENTRYPOINT_OBJ_NAME)
+    set(entrypoint_name ${ADD_ENTRYPOINT_OBJ_NAME})
   endif()
 
   add_library(
@@ -149,14 +209,31 @@ function(add_entrypoint_object target_name)
       ${ADD_ENTRYPOINT_OBJ_DEPENDS}
     )
   endif()
+  if(ADD_ENTRYPOINT_OBJ_COMPILE_OPTIONS)
+    target_compile_options(
+      ${target_name}_objects
+      PRIVATE ${ADD_ENTRYPOINT_OBJ_COMPILE_OPTIONS}
+    )
+  endif()
 
   set(object_file_raw "${CMAKE_CURRENT_BINARY_DIR}/${target_name}_raw.o")
   set(object_file "${CMAKE_CURRENT_BINARY_DIR}/${target_name}.o")
 
+  set(input_objects $<TARGET_OBJECTS:${target_name}_objects>)
+  if(ADD_ENTRYPOINT_OBJ_SPECIAL_OBJECTS)
+    foreach(obj_target IN LISTS ADD_ENTRYPOINT_OBJ_SPECIAL_OBJECTS)
+      get_target_property(obj_type ${obj_target} "TARGET_TYPE")
+      if((NOT obj_type) OR (NOT (${obj_type} STREQUAL ${SINGLE_OBJECT_TARGET_TYPE})))
+        message(FATAL_ERROR "Unexpected target type for 'SPECIAL_OBJECT' - should be a target introduced by the `add_object` rule.")
+      endif()
+      list(APPEND input_objects $<TARGET_OBJECTS:${obj_target}>)
+    endforeach(obj_target)
+  endif()
+
   add_custom_command(
     OUTPUT ${object_file_raw}
-    DEPENDS $<TARGET_OBJECTS:${target_name}_objects>
-    COMMAND ${CMAKE_LINKER} -r $<TARGET_OBJECTS:${target_name}_objects> -o ${object_file_raw}
+    DEPENDS ${input_objects}
+    COMMAND ${CMAKE_LINKER} -r ${input_objects} -o ${object_file_raw}
   )
 
   set(alias_attributes "0,function,global")
@@ -168,7 +245,7 @@ function(add_entrypoint_object target_name)
     OUTPUT ${object_file}
     # We llvm-objcopy here as GNU-binutils objcopy does not support the 'hidden' flag.
     DEPENDS ${object_file_raw} ${llvm-objcopy}
-    COMMAND $<TARGET_FILE:llvm-objcopy> --add-symbol "${target_name}=.llvm.libc.entrypoint.${target_name}:${alias_attributes}" ${object_file_raw} ${object_file}
+    COMMAND $<TARGET_FILE:llvm-objcopy> --add-symbol "${entrypoint_name}=.llvm.libc.entrypoint.${entrypoint_name}:${alias_attributes}" ${object_file_raw} ${object_file}
   )
 
   add_custom_target(
@@ -287,7 +364,7 @@ function(add_redirector_library target_name)
   )
 endfunction(add_redirector_library)
 
-# Rule to add a gtest unittest.
+# Rule to add a libc unittest.
 # Usage
 #    add_libc_unittest(
 #      <target name>
@@ -295,17 +372,18 @@ endfunction(add_redirector_library)
 #      SRCS  <list of .cpp files for the test>
 #      HDRS  <list of .h files for the test>
 #      DEPENDS <list of dependencies>
+#      COMPILE_OPTIONS <list of special compile options for this target>
 #    )
 function(add_libc_unittest target_name)
   if(NOT LLVM_INCLUDE_TESTS)
     return()
   endif()
-
+  
   cmake_parse_arguments(
     "LIBC_UNITTEST"
     "" # No optional arguments
     "SUITE" # Single value arguments
-    "SRCS;HDRS;DEPENDS" # Multi-value arguments
+    "SRCS;HDRS;DEPENDS;COMPILE_OPTIONS" # Multi-value arguments
     ${ARGN}
   )
   if(NOT LIBC_UNITTEST_SRCS)
@@ -339,11 +417,16 @@ function(add_libc_unittest target_name)
   target_include_directories(
     ${target_name}
     PRIVATE
-      ${LLVM_MAIN_SRC_DIR}/utils/unittest/googletest/include
-      ${LLVM_MAIN_SRC_DIR}/utils/unittest/googlemock/include
       ${LIBC_SOURCE_DIR}
       ${LIBC_BUILD_DIR}
+      ${LIBC_BUILD_DIR}/include
   )
+  if(LIBC_UNITTEST_COMPILE_OPTIONS)
+    target_compile_options(
+      ${target_name}
+      PRIVATE ${LIBC_UNITTEST_COMPILE_OPTIONS}
+    )
+  endif()
 
   if(library_deps)
     target_link_libraries(${target_name} PRIVATE ${library_deps})
@@ -354,10 +437,9 @@ function(add_libc_unittest target_name)
   add_dependencies(
     ${target_name}
     ${LIBC_UNITTEST_DEPENDS}
-    gtest
   )
 
-  target_link_libraries(${target_name} PRIVATE gtest_main gtest)
+  target_link_libraries(${target_name} PRIVATE LibcUnitTest libc_test_utils)
 
   add_custom_command(
     TARGET ${target_name}
@@ -376,3 +458,112 @@ function(add_libc_testsuite suite_name)
   add_custom_target(${suite_name})
   add_dependencies(check-libc ${suite_name})
 endfunction(add_libc_testsuite)
+
+# Rule to add a fuzzer test.
+# Usage
+#    add_libc_fuzzer(
+#      <target name>
+#      SRCS  <list of .cpp files for the test>
+#      HDRS  <list of .h files for the test>
+#      DEPENDS <list of dependencies>
+#    )
+function(add_libc_fuzzer target_name)
+  cmake_parse_arguments(
+    "LIBC_FUZZER"
+    "" # No optional arguments
+    "" # Single value arguments
+    "SRCS;HDRS;DEPENDS" # Multi-value arguments
+    ${ARGN}
+  )
+  if(NOT LIBC_FUZZER_SRCS)
+    message(FATAL_ERROR "'add_libc_fuzzer' target requires a SRCS list of .cpp files.")
+  endif()
+  if(NOT LIBC_FUZZER_DEPENDS)
+    message(FATAL_ERROR "'add_libc_fuzzer' target requires a DEPENDS list of 'add_entrypoint_object' targets.")
+  endif()
+
+  set(library_deps "")
+  foreach(dep IN LISTS LIBC_FUZZER_DEPENDS)
+    get_target_property(dep_type ${dep} "TARGET_TYPE")
+    if (dep_type)
+      string(COMPARE EQUAL ${dep_type} ${ENTRYPOINT_OBJ_TARGET_TYPE} dep_is_entrypoint)
+      if(dep_is_entrypoint)
+        get_target_property(obj_file ${dep} "OBJECT_FILE_RAW")
+        list(APPEND library_deps ${obj_file})
+        continue()
+      endif()
+    endif()
+    # TODO: Check if the dep is a normal CMake library target. If yes, then add it
+    # to the list of library_deps.
+  endforeach(dep)
+
+  add_executable(
+    ${target_name}
+    EXCLUDE_FROM_ALL
+    ${LIBC_FUZZER_SRCS}
+    ${LIBC_FUZZER_HDRS}
+  )
+  target_include_directories(
+    ${target_name}
+    PRIVATE
+      ${LIBC_SOURCE_DIR}
+      ${LIBC_BUILD_DIR}
+      ${LIBC_BUILD_DIR}/include
+  )
+
+  if(library_deps)
+    target_link_libraries(${target_name} PRIVATE ${library_deps})
+  endif()
+
+  set_target_properties(${target_name} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+
+  add_dependencies(
+    ${target_name}
+    ${LIBC_FUZZER_DEPENDS}
+  )
+  add_dependencies(libc-fuzzer ${target_name})
+endfunction(add_libc_fuzzer)
+
+# Rule to add header only libraries.
+# Usage
+#    add_header_library(
+#      <target name>
+#      HDRS  <list of .h files part of the library>
+#      DEPENDS <list of dependencies>
+#    )
+function(add_header_library target_name)
+  cmake_parse_arguments(
+    "ADD_HEADER"
+    "" # No optional arguments
+    "" # No Single value arguments
+    "HDRS;DEPENDS" # Multi-value arguments
+    ${ARGN}
+  )
+
+  if(NOT ADD_HEADER_HDRS)
+    message(FATAL_ERROR "'add_header_library' target requires a HDRS list of .h files.")
+  endif()
+
+  set(FULL_HDR_PATHS "")
+  # TODO: Remove this foreach block when we can switch to the new
+  # version of the CMake policy CMP0076.
+  foreach(hdr IN LISTS ADD_HEADER_HDRS)
+    list(APPEND FULL_HDR_PATHS ${CMAKE_CURRENT_SOURCE_DIR}/${hdr})
+  endforeach()
+
+  set(interface_target_name "${target_name}_header_library__")
+
+  add_library(${interface_target_name} INTERFACE)
+  target_sources(${interface_target_name} INTERFACE ${FULL_HDR_PATHS})
+  if(ADD_HEADER_DEPENDS)
+    add_dependencies(${interface_target_name} ${ADD_HEADER_DEPENDS})
+  endif()
+
+  add_custom_target(${target_name})
+  add_dependencies(${target_name} ${interface_target_name})
+  set_target_properties(
+    ${target_name}
+    PROPERTIES
+      "TARGET_TYPE" "HDR_LIBRARY"
+  )
+endfunction(add_header_library)

@@ -1,4 +1,4 @@
-//===-- GDBRemoteCommunication.cpp ------------------------------*- C++ -*-===//
+//===-- GDBRemoteCommunication.cpp ----------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -50,7 +50,7 @@
 #include <compression.h>
 #endif
 
-#if LLVM_ENABLE_ZLIB
+#if defined(HAVE_LIBZ)
 #include <zlib.h>
 #endif
 
@@ -125,7 +125,7 @@ GDBRemoteCommunication::SendPacketNoLock(llvm::StringRef payload) {
   packet.Write(payload.data(), payload.size());
   packet.PutChar('#');
   packet.PutHex8(CalculcateChecksum(payload));
-  std::string packet_str = packet.GetString();
+  std::string packet_str = std::string(packet.GetString());
 
   return SendRawPacketNoLock(packet_str);
 }
@@ -582,7 +582,7 @@ bool GDBRemoteCommunication::DecompressPacket() {
   }
 #endif
 
-#if LLVM_ENABLE_ZLIB
+#if defined(HAVE_LIBZ)
   if (decompressed_bytes == 0 && decompressed_bufsize != ULONG_MAX &&
       decompressed_buffer != nullptr &&
       m_compression_type == CompressionType::ZlibDeflate) {
@@ -810,31 +810,9 @@ GDBRemoteCommunication::CheckForPacket(const uint8_t *src, size_t src_len,
                           GDBRemotePacket::ePacketTypeRecv, total_length);
 
       // Copy the packet from m_bytes to packet_str expanding the run-length
-      // encoding in the process. Reserve enough byte for the most common case
-      // (no RLE used)
-      std ::string packet_str;
-      packet_str.reserve(m_bytes.length());
-      for (std::string::const_iterator c = m_bytes.begin() + content_start;
-           c != m_bytes.begin() + content_end; ++c) {
-        if (*c == '*') {
-          // '*' indicates RLE. Next character will give us the repeat count
-          // and previous character is what is to be repeated.
-          char char_to_repeat = packet_str.back();
-          // Number of time the previous character is repeated
-          int repeat_count = *++c + 3 - ' ';
-          // We have the char_to_repeat and repeat_count. Now push it in the
-          // packet.
-          for (int i = 0; i < repeat_count; ++i)
-            packet_str.push_back(char_to_repeat);
-        } else if (*c == 0x7d) {
-          // 0x7d is the escape character.  The next character is to be XOR'd
-          // with 0x20.
-          char escapee = *++c ^ 0x20;
-          packet_str.push_back(escapee);
-        } else {
-          packet_str.push_back(*c);
-        }
-      }
+      // encoding in the process.
+      std ::string packet_str =
+          ExpandRLE(m_bytes.substr(content_start, content_end - content_start));
       packet = StringExtractorGDBRemote(packet_str);
 
       if (m_bytes[0] == '$' || m_bytes[0] == '%') {
@@ -1381,4 +1359,31 @@ void llvm::format_provider<GDBRemoteCommunication::PacketResult>::format(
     Stream << "ErrorNoSequenceLock";
     break;
   }
+}
+
+std::string GDBRemoteCommunication::ExpandRLE(std::string packet) {
+  // Reserve enough byte for the most common case (no RLE used).
+  std::string decoded;
+  decoded.reserve(packet.size());
+  for (std::string::const_iterator c = packet.begin(); c != packet.end(); ++c) {
+    if (*c == '*') {
+      // '*' indicates RLE. Next character will give us the repeat count and
+      // previous character is what is to be repeated.
+      char char_to_repeat = decoded.back();
+      // Number of time the previous character is repeated.
+      int repeat_count = *++c + 3 - ' ';
+      // We have the char_to_repeat and repeat_count. Now push it in the
+      // packet.
+      for (int i = 0; i < repeat_count; ++i)
+        decoded.push_back(char_to_repeat);
+    } else if (*c == 0x7d) {
+      // 0x7d is the escape character.  The next character is to be XOR'd with
+      // 0x20.
+      char escapee = *++c ^ 0x20;
+      decoded.push_back(escapee);
+    } else {
+      decoded.push_back(*c);
+    }
+  }
+  return decoded;
 }

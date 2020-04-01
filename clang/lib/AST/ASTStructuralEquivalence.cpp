@@ -31,10 +31,9 @@
 // }
 // ```
 // Indeed, it has it's queue, which holds pairs of nodes, one from each graph,
-// this is the `DeclsToCheck` and it's pair is in `TentativeEquivalences`.
-// `TentativeEquivalences` also plays the role of the marking (`marked`)
-// functionality above, we use it to check whether we've already seen a pair of
-// nodes.
+// this is the `DeclsToCheck` member. `VisitedDecls` plays the role of the
+// marking (`marked`) functionality above, we use it to check whether we've
+// already seen a pair of nodes.
 //
 // We put in the elements into the queue only in the toplevel decl check
 // function:
@@ -56,11 +55,6 @@
 // working on the same queue. This is wrong and nobody can reason about it's
 // doing. Thus, static implementation functions must not call the **member**
 // functions.
-//
-// So, now `TentativeEquivalences` plays two roles. It is used to store the
-// second half of the decls which we want to compare, plus it plays a role in
-// closing the recursion. On a long term, we could refactor structural
-// equivalency to be more alike to the traditional BFS.
 //
 //===----------------------------------------------------------------------===//
 
@@ -729,11 +723,31 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
       return false;
     break;
 
-  case Type::Auto:
-    if (!IsStructurallyEquivalent(Context, cast<AutoType>(T1)->getDeducedType(),
-                                  cast<AutoType>(T2)->getDeducedType()))
+  case Type::Auto: {
+    auto *Auto1 = cast<AutoType>(T1);
+    auto *Auto2 = cast<AutoType>(T2);
+    if (!IsStructurallyEquivalent(Context, Auto1->getDeducedType(),
+                                  Auto2->getDeducedType()))
       return false;
+    if (Auto1->isConstrained() != Auto2->isConstrained())
+      return false;
+    if (Auto1->isConstrained()) {
+      if (Auto1->getTypeConstraintConcept() !=
+          Auto2->getTypeConstraintConcept())
+        return false;
+      ArrayRef<TemplateArgument> Auto1Args =
+          Auto1->getTypeConstraintArguments();
+      ArrayRef<TemplateArgument> Auto2Args =
+          Auto2->getTypeConstraintArguments();
+      if (Auto1Args.size() != Auto2Args.size())
+        return false;
+      for (unsigned I = 0, N = Auto1Args.size(); I != N; ++I) {
+        if (!IsStructurallyEquivalent(Context, Auto1Args[I], Auto2Args[I]))
+          return false;
+      }
+    }
     break;
+  }
 
   case Type::DeducedTemplateSpecialization: {
     const auto *DT1 = cast<DeducedTemplateSpecializationType>(T1);

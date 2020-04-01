@@ -19,27 +19,44 @@
 // - spv namespace renamed to __spv
 namespace __spv {
 
-enum class Scope : uint32_t {
-  CrossDevice = 0,
-  Device = 1,
-  Workgroup = 2,
-  Subgroup = 3,
-  Invocation = 4,
+struct Scope {
+
+  enum Flag : uint32_t {
+    CrossDevice = 0,
+    Device = 1,
+    Workgroup = 2,
+    Subgroup = 3,
+    Invocation = 4,
+  };
+
+  constexpr Scope(Flag flag) : flag_value(flag) {}
+
+  constexpr operator uint32_t() const { return flag_value; }
+
+  Flag flag_value;
 };
 
+struct MemorySemanticsMask {
 
-enum class MemorySemanticsMask : uint32_t {
-  None = 0x0,
-  Acquire = 0x2,
-  Release = 0x4,
-  AcquireRelease = 0x8,
-  SequentiallyConsistent = 0x10,
-  UniformMemory = 0x40,
-  SubgroupMemory = 0x80,
-  WorkgroupMemory = 0x100,
-  CrossWorkgroupMemory = 0x200,
-  AtomicCounterMemory = 0x400,
-  ImageMemory = 0x800,
+  enum Flag : uint32_t {
+    None = 0x0,
+    Acquire = 0x2,
+    Release = 0x4,
+    AcquireRelease = 0x8,
+    SequentiallyConsistent = 0x10,
+    UniformMemory = 0x40,
+    SubgroupMemory = 0x80,
+    WorkgroupMemory = 0x100,
+    CrossWorkgroupMemory = 0x200,
+    AtomicCounterMemory = 0x400,
+    ImageMemory = 0x800,
+  };
+
+  constexpr MemorySemanticsMask(Flag flag) : flag_value(flag) {}
+
+  constexpr operator uint32_t() const { return flag_value; }
+
+  Flag flag_value;
 };
 
 enum class GroupOperation : uint32_t {
@@ -47,12 +64,6 @@ enum class GroupOperation : uint32_t {
   InclusiveScan = 1,
   ExclusiveScan = 2
 };
-
-inline constexpr MemorySemanticsMask operator|(MemorySemanticsMask a,
-                                               MemorySemanticsMask b) {
-  return static_cast<MemorySemanticsMask>(static_cast<uint32_t>(a) |
-                                          static_cast<uint32_t>(b));
-}
 
 } // namespace __spv
 
@@ -62,6 +73,10 @@ template <typename dataT>
 using RPipeTy = __attribute__((pipe("read_only"))) const dataT;
 template <typename dataT>
 using WPipeTy = __attribute__((pipe("write_only"))) const dataT;
+
+// OpenCL vector types
+template <typename dataT, int dims>
+using __ocl_vec_t = dataT __attribute__((ext_vector_type(dims)));
 
 // Struct representing layout of pipe storage
 struct ConstantPipeStorage {

@@ -1,6 +1,6 @@
 //===- FxpMathOps.td - Fixed point ops  --------------------*- tablegen -*-===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -15,9 +15,10 @@
 #define DIALECT_FXPMATHOPS_FXPMATH_OPS_
 
 include "mlir/IR/OpBase.td"
-include "mlir/Dialect/QuantOps/QuantPredicates.td"
+include "mlir/Dialect/Quant/QuantOpsBase.td"
+include "mlir/Interfaces/SideEffects.td"
 
-def fxpmath_Dialect : Dialect {
+def FxpMathOps_Dialect : Dialect {
   let name = "fxpmath";
 }
 
@@ -77,7 +78,7 @@ def fxpmath_CompareFnAttr : StrEnumAttr<"ComparisonFn",
 //===----------------------------------------------------------------------===//
 
 class fxpmath_Op<string mnemonic, list<OpTrait> traits> :
-    Op<fxpmath_Dialect, mnemonic, traits>;
+    Op<FxpMathOps_Dialect, mnemonic, traits>;
 
 //===----------------------------------------------------------------------===//
 // Fixed-point (fxp) arithmetic ops used by kernels.
@@ -91,10 +92,10 @@ def fxpmath_ClampISOp : fxpmath_Op<"clampis", [NoSideEffect, SameOperandsAndResu
     Element-wise equivalent to:
       r = std::min(clamp_max, std::max(e, clamp_min))
   }];
-  let arguments = (ins IntegerLike:$operand,
+  let arguments = (ins SignlessIntegerLike:$operand,
                        APIntAttr:$clamp_min,
                        APIntAttr:$clamp_max);
-  let results = (outs IntegerLike);
+  let results = (outs SignlessIntegerLike);
 }
 
 def fxpmath_ConvertISOp :
@@ -106,8 +107,8 @@ def fxpmath_ConvertISOp :
     Similar to an element-wise static_cast in C++, from a one signed integer
     element type to another.
   }];
-  let arguments = (ins IntegerLike:$operand);
-  let results = (outs IntegerLike);
+  let arguments = (ins SignlessIntegerLike:$operand);
+  let results = (outs SignlessIntegerLike);
 }
 
 def fxpmath_ConvertISToFOp :
@@ -120,7 +121,7 @@ def fxpmath_ConvertISToFOp :
     element type to a floating point element type, rounding to the nearest
     floating point value.
   }];
-  let arguments = (ins IntegerLike:$operand);
+  let arguments = (ins SignlessIntegerLike:$operand);
   let results = (outs FloatLike);
 }
 
@@ -134,8 +135,8 @@ def fxpmath_VecScalarSaturatingRoundingDoublingHighMulISOp :
     See gemmlowp::SaturatingRoundingDoublingHighMul for a reference
     implementation.
   }];
-  let arguments = (ins IntegerLike:$a, APIntAttr:$b);
-  let results = (outs IntegerLike);
+  let arguments = (ins SignlessIntegerLike:$a, APIntAttr:$b);
+  let results = (outs SignlessIntegerLike);
 }
 
 def fxpmath_RoundingDivideByPotISOp :
@@ -148,8 +149,8 @@ def fxpmath_RoundingDivideByPotISOp :
     Also known as a rounding arithmetic right shift. See
     gemmlowp::RoundingDivideByPOT for a reference implementation.
   }];
-  let arguments = (ins IntegerLike:$operand, APIntAttr:$exponent);
-  let results = (outs IntegerLike:$res);
+  let arguments = (ins SignlessIntegerLike:$operand, APIntAttr:$exponent);
+  let results = (outs SignlessIntegerLike:$res);
   let verifier = [{
     auto verifyExponent = exponent().getSExtValue();
     if (verifyExponent < 0 || verifyExponent > 31) {

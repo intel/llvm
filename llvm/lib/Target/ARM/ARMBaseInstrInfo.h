@@ -105,6 +105,11 @@ protected:
   Optional<DestSourcePair>
   isCopyInstrImpl(const MachineInstr &MI) const override;
 
+  /// Specialization of \ref TargetInstrInfo::describeLoadedValue, used to
+  /// enhance debug entry value descriptions for ARM targets.
+  Optional<ParamLoadedValue> describeLoadedValue(const MachineInstr &MI,
+                                                 Register Reg) const override;
+
 public:
   // Return whether the target has an explicit NOP encoding.
   bool hasNOP() const;
@@ -145,6 +150,11 @@ public:
 
   // Predication support.
   bool isPredicated(const MachineInstr &MI) const override;
+
+  // MIR printer helper function to annotate Operands with a comment.
+  std::string createMIROperandComment(const MachineInstr &MI,
+                                      const MachineOperand &Op,
+                                      unsigned OpIdx) const override;
 
   ARMCC::CondCodes getPredicate(const MachineInstr &MI) const {
     int PIdx = MI.findFirstPredOperandIdx();
@@ -207,13 +217,13 @@ public:
 
   void storeRegToStackSlot(MachineBasicBlock &MBB,
                            MachineBasicBlock::iterator MBBI,
-                           unsigned SrcReg, bool isKill, int FrameIndex,
+                           Register SrcReg, bool isKill, int FrameIndex,
                            const TargetRegisterClass *RC,
                            const TargetRegisterInfo *TRI) const override;
 
   void loadRegFromStackSlot(MachineBasicBlock &MBB,
                             MachineBasicBlock::iterator MBBI,
-                            unsigned DestReg, int FrameIndex,
+                            Register DestReg, int FrameIndex,
                             const TargetRegisterClass *RC,
                             const TargetRegisterInfo *TRI) const override;
 
@@ -491,23 +501,24 @@ bool isUncondBranchOpcode(int Opc) {
 // This table shows the VPT instruction variants, i.e. the different
 // mask field encodings, see also B5.6. Predication/conditional execution in
 // the ArmARM.
-enum VPTMaskValue {
-  T     =  8, // 0b1000
-  TT    =  4, // 0b0100
-  TE    = 12, // 0b1100
-  TTT   =  2, // 0b0010
-  TTE   =  6, // 0b0110
-  TEE   = 10, // 0b1010
-  TET   = 14, // 0b1110
-  TTTT  =  1, // 0b0001
-  TTTE  =  3, // 0b0011
-  TTEE  =  5, // 0b0101
-  TTET  =  7, // 0b0111
-  TEEE  =  9, // 0b1001
-  TEET  = 11, // 0b1011
-  TETT  = 13, // 0b1101
-  TETE  = 15  // 0b1111
-};
+
+
+inline static unsigned getARMVPTBlockMask(unsigned NumInsts) {
+  switch (NumInsts) {
+  case 1:
+    return ARMVCC::T;
+  case 2:
+    return ARMVCC::TT;
+  case 3:
+    return ARMVCC::TTT;
+  case 4:
+    return ARMVCC::TTTT;
+  default:
+    break;
+  };
+  llvm_unreachable("Unexpected number of instruction in a VPT block");
+}
+
 
 static inline bool isVPTOpcode(int Opc) {
   return Opc == ARM::MVE_VPTv16i8 || Opc == ARM::MVE_VPTv16u8 ||
@@ -595,6 +606,18 @@ unsigned VCTPOpcodeToLSTP(unsigned Opcode, bool IsDoLoop) {
   return 0;
 }
 
+static inline unsigned getTailPredVectorWidth(unsigned Opcode) {
+  switch (Opcode) {
+  default:
+    llvm_unreachable("unhandled vctp opcode");
+  case ARM::MVE_VCTP8:  return 16;
+  case ARM::MVE_VCTP16: return 8;
+  case ARM::MVE_VCTP32: return 4;
+  case ARM::MVE_VCTP64: return 2;
+  }
+  return 0;
+}
+
 static inline
 bool isVCTP(MachineInstr *MI) {
   switch (MI->getOpcode()) {
@@ -640,6 +663,17 @@ static inline bool isPopOpcode(int Opc) {
 static inline bool isPushOpcode(int Opc) {
   return Opc == ARM::tPUSH || Opc == ARM::t2STMDB_UPD ||
          Opc == ARM::STMDB_UPD || Opc == ARM::VSTMDDB_UPD;
+}
+
+static inline bool isSubImmOpcode(int Opc) {
+  return Opc == ARM::SUBri ||
+         Opc == ARM::tSUBi3 || Opc == ARM::tSUBi8 ||
+         Opc == ARM::tSUBSi3 || Opc == ARM::tSUBSi8 ||
+         Opc == ARM::t2SUBri || Opc == ARM::t2SUBri12 || Opc == ARM::t2SUBSri;
+}
+
+static inline bool isMovRegOpcode(int Opc) {
+  return Opc == ARM::MOVr || Opc == ARM::tMOVr || Opc == ARM::t2MOVr;
 }
 
 /// isValidCoprocessorNumber - decide whether an explicit coprocessor

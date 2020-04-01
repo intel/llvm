@@ -1,6 +1,6 @@
 //===- DecorateSPIRVCompositeTypeLayoutPass.cpp - Decorate composite type -===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -27,8 +27,8 @@ class SPIRVGlobalVariableOpLayoutInfoDecoration
 public:
   using OpRewritePattern<spirv::GlobalVariableOp>::OpRewritePattern;
 
-  PatternMatchResult matchAndRewrite(spirv::GlobalVariableOp op,
-                                     PatternRewriter &rewriter) const override {
+  LogicalResult matchAndRewrite(spirv::GlobalVariableOp op,
+                                PatternRewriter &rewriter) const override {
     spirv::StructType::LayoutInfo structSize = 0;
     VulkanLayoutUtils::Size structAlignment = 1;
     SmallVector<NamedAttribute, 4> globalVarAttrs;
@@ -50,7 +50,7 @@ public:
 
     rewriter.replaceOpWithNewOp<spirv::GlobalVariableOp>(
         op, TypeAttr::get(decoratedType), globalVarAttrs);
-    return matchSuccess();
+    return success();
   }
 };
 
@@ -59,15 +59,15 @@ class SPIRVAddressOfOpLayoutInfoDecoration
 public:
   using OpRewritePattern<spirv::AddressOfOp>::OpRewritePattern;
 
-  PatternMatchResult matchAndRewrite(spirv::AddressOfOp op,
-                                     PatternRewriter &rewriter) const override {
+  LogicalResult matchAndRewrite(spirv::AddressOfOp op,
+                                PatternRewriter &rewriter) const override {
     auto spirvModule = op.getParentOfType<spirv::ModuleOp>();
     auto varName = op.variable();
     auto varOp = spirvModule.lookupSymbol<spirv::GlobalVariableOp>(varName);
 
     rewriter.replaceOpWithNewOp<spirv::AddressOfOp>(
         op, varOp.type(), rewriter.getSymbolRefAttr(varName));
-    return matchSuccess();
+    return success();
   }
 };
 } // namespace
@@ -100,7 +100,7 @@ void DecorateSPIRVCompositeTypeLayoutPass::runOnModule() {
 
   // Change the type for the direct users.
   target.addDynamicallyLegalOp<spirv::AddressOfOp>([](spirv::AddressOfOp op) {
-    return VulkanLayoutUtils::isLegalType(op.pointer()->getType());
+    return VulkanLayoutUtils::isLegalType(op.pointer().getType());
   });
 
   // TODO: Change the type for the indirect users such as spv.Load, spv.Store,

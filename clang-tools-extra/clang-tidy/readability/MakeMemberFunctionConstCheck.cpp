@@ -8,6 +8,7 @@
 
 #include "MakeMemberFunctionConstCheck.h"
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/ParentMapContext.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 
@@ -57,7 +58,7 @@ public:
   UsageKind Usage = Unused;
 
   template <class T> const T *getParent(const Expr *E) {
-    ASTContext::DynTypedNodeList Parents = Ctxt.getParents(*E);
+    DynTypedNodeList Parents = Ctxt.getParents(*E);
     if (Parents.size() != 1)
       return nullptr;
 
@@ -208,9 +209,6 @@ AST_MATCHER(CXXMethodDecl, usesThisAsConst) {
 }
 
 void MakeMemberFunctionConstCheck::registerMatchers(MatchFinder *Finder) {
-  if (!getLangOpts().CPlusPlus)
-    return;
-
   Finder->addMatcher(
       cxxMethodDecl(
           isDefinition(), isUserProvided(),

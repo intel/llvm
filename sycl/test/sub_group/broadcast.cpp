@@ -1,9 +1,10 @@
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %clangxx -fsycl -D SG_GPU %s -o %t_gpu.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -D SG_GPU %s -o %t_gpu.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t_gpu.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
+// UNSUPPORTED: cuda
 //==--------- broadcast.cpp - SYCL sub_group broadcast test ----*- C++ -*---==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -14,9 +15,11 @@
 
 #include "helper.hpp"
 #include <CL/sycl.hpp>
-template <typename T> class sycl_subgr;
+template <typename T>
+class sycl_subgr;
 using namespace cl::sycl;
-template <typename T> void check(queue &Queue) {
+template <typename T>
+void check(queue &Queue) {
   const int G = 240, L = 60;
   try {
     nd_range<1> NdRange(G, L);
@@ -29,7 +32,7 @@ template <typename T> void check(queue &Queue) {
         intel::sub_group SG = NdItem.get_sub_group();
         /*Broadcast GID of element with SGLID == SGID */
         syclacc[NdItem.get_global_id()] =
-            SG.broadcast<T>(NdItem.get_global_id(0), SG.get_group_id());
+            broadcast(SG, T(NdItem.get_global_id(0)), SG.get_group_id());
         if (NdItem.get_global_id(0) == 0)
           sgsizeacc[0] = SG.get_max_local_range()[0];
       });

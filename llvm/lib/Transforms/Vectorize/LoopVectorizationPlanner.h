@@ -214,6 +214,8 @@ class LoopVectorizationPlanner {
     VPCallbackILV(InnerLoopVectorizer &ILV) : ILV(ILV) {}
 
     Value *getOrCreateVectorValues(Value *V, unsigned Part) override;
+    Value *getOrCreateScalarValue(Value *V,
+                                  const VPIteration &Instance) override;
   };
 
   /// A builder used to construct the current plan.
@@ -277,9 +279,10 @@ private:
 
   /// Build a VPlan using VPRecipes according to the information gather by
   /// Legal. This method is only used for the legacy inner loop vectorizer.
-  VPlanPtr
-  buildVPlanWithVPRecipes(VFRange &Range, SmallPtrSetImpl<Value *> &NeedDef,
-                          SmallPtrSetImpl<Instruction *> &DeadInstructions);
+  VPlanPtr buildVPlanWithVPRecipes(
+      VFRange &Range, SmallPtrSetImpl<Value *> &NeedDef,
+      SmallPtrSetImpl<Instruction *> &DeadInstructions,
+      const DenseMap<Instruction *, Instruction *> &SinkAfter);
 
   /// Build VPlans for power-of-2 VF's between \p MinVF and \p MaxVF inclusive,
   /// according to the information gathered by Legal when it checked if it is

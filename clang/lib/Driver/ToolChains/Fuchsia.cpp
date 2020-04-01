@@ -46,6 +46,9 @@ void fuchsia::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   // handled somewhere else.
   Args.ClaimAllArgs(options::OPT_w);
 
+  CmdArgs.push_back("-z");
+  CmdArgs.push_back("now");
+
   const char *Exec = Args.MakeArgString(ToolChain.GetLinkerPath());
   if (llvm::sys::path::filename(Exec).equals_lower("ld.lld") ||
       llvm::sys::path::stem(Exec).equals_lower("ld.lld")) {
@@ -108,7 +111,7 @@ void fuchsia::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
   if (D.isUsingLTO()) {
     assert(!Inputs.empty() && "Must have at least one input.");
-    AddGoldPlugin(ToolChain, Args, CmdArgs, Output, Inputs[0],
+    addLTOOptions(ToolChain, Args, CmdArgs, Output, Inputs[0],
                   D.getLTOMode() == LTOK_Thin);
   }
 
@@ -171,7 +174,7 @@ Fuchsia::Fuchsia(const Driver &D, const llvm::Triple &Triple,
   if (!D.SysRoot.empty()) {
     SmallString<128> P(D.SysRoot);
     llvm::sys::path::append(P, "lib");
-    getFilePaths().push_back(P.str());
+    getFilePaths().push_back(std::string(P.str()));
   }
 
   auto FilePaths = [&](const Multilib &M) -> std::vector<std::string> {
@@ -180,7 +183,7 @@ Fuchsia::Fuchsia(const Driver &D, const llvm::Triple &Triple,
       if (auto CXXStdlibPath = getCXXStdlibPath()) {
         SmallString<128> P(*CXXStdlibPath);
         llvm::sys::path::append(P, M.gccSuffix());
-        FP.push_back(P.str());
+        FP.push_back(std::string(P.str()));
       }
     }
     return FP;
@@ -286,7 +289,7 @@ void Fuchsia::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
     CIncludeDirs.split(dirs, ":");
     for (StringRef dir : dirs) {
       StringRef Prefix =
-          llvm::sys::path::is_absolute(dir) ? StringRef(D.SysRoot) : "";
+          llvm::sys::path::is_absolute(dir) ? "" : StringRef(D.SysRoot);
       addExternCSystemInclude(DriverArgs, CC1Args, Prefix + dir);
     }
     return;
@@ -337,6 +340,7 @@ SanitizerMask Fuchsia::getSupportedSanitizers() const {
   Res |= SanitizerKind::PointerSubtract;
   Res |= SanitizerKind::Fuzzer;
   Res |= SanitizerKind::FuzzerNoLink;
+  Res |= SanitizerKind::Leak;
   Res |= SanitizerKind::SafeStack;
   Res |= SanitizerKind::Scudo;
   return Res;

@@ -1,9 +1,8 @@
 # Contributing
 
 ## License
-Intel Project for LLVM* technology is licensed under the terms of the
-Apache-2.0 with LLVM-exception license (
-[LICENSE.txt](https://github.com/intel/llvm/blob/intel/llvm/LICENSE.TXT))
+Intel Project for LLVM\* technology is licensed under the terms of the
+Apache-2.0 with LLVM-exception license ([LICENSE.txt](llvm/LICENSE.TXT))
 to ensure our ability to contribute this project to the LLVM project
 under the same license.
 
@@ -63,32 +62,57 @@ Then you just add a line to every git commit message:
 
 Use your real name (sorry, no pseudonyms or anonymous contributions.)
 
-If you set your `user.name` and `user.email` git configs, you can sign your commit automatically with `git commit -s`.
+If you set your `user.name` and `user.email` git configs, you can sign your
+commit automatically with `git commit -s`.
 
 ## Contribution process
 
 ### Development
 
- - Create a personal fork of the project on GitHub.
- - Use **sycl** branch as baseline for your changes.
- - Prepare your patch (follow [LLVM coding standards](https://llvm.org/docs/CodingStandards.html)).
- - Build the project and run all tests (see [GetStartedWithSYCLCompiler.md](https://github.com/intel/llvm/blob/sycl/sycl/doc/GetStartedWithSYCLCompiler.md))
+**NB**: For any changes not related to DPC++, but rather to LLVM in general, it
+is strongly encouraged that you submit the patch to https://llvm.org/ directly.
+See [LLVM contribution guidelines](https://llvm.org/docs/Contributing.html)
+for more information.
+
+- Create a personal fork of the project on GitHub
+  - For the DPC++ Compiler project, use **sycl** branch as baseline for your
+    changes. See [Get Started Guide](sycl/doc/GetStartedGuide.md).
+- Prepare your patch (follow
+  [LLVM coding standards](https://llvm.org/docs/CodingStandards.html)).
+  [clang-format](https://clang.llvm.org/docs/ClangFormat.html) and [clang-tidy](
+  https://clang.llvm.org/extra/clang-tidy/) tools can be integrated into your
+  workflow to ensure formatting and stylistic compliance of your changes.
+- Build the project and run all tests.
+
+### Commit message
+
+- When writing your commit message, please make sure to follow
+  [LLVM developer policies](
+  https://llvm.org/docs/DeveloperPolicy.html#commit-messages) on the subject.
+- For any DPC++-related commit, the `[SYCL]` tag should be present in the
+  commit message title. To a reasonable extent, additional tags can be used
+  to signify the component changed, e.g.: `[PI]`, `[CUDA]`, `[Doc]`.
 
 ### Review and acceptance testing
 
- - Create a pull request for your changes following [Creating a pull request instructions](https://help.github.com/articles/creating-a-pull-request/).
- - When the pull request is created signed-off check is done.
-     - **check_pr** - verifies that the signed-off mark is added to each commit message.
- - Once the pull request is approved by an Intel representative, build and functional testing are started.
-     - **sycl-ubu-x64-pr** - runs all LIT tests on machine with OpenCL runtimes for CPU and GPU.
- - Approval is lost once the PR branch is updated. New approval and checks rerun are required.
- - Once approval is received and all checks pass, the pull request is ready to be merged.
+- Create a pull request for your changes following [Creating a pull request
+instructions](https://help.github.com/articles/creating-a-pull-request/).
+- CI will run a signed-off check as soon as your PR is created - see the
+**check_pr** CI action results.
+- CI will run several build and functional testing checks as soon as the PR is
+approved by an Intel representative.
+  - A new approval is needed if the PR was updated (e.g. during code review).
+- Once the PR is approved and all checks have passed, the pull request is
+ready for merge.
 
 ### Merge
 
-Merge of pull request is done only by project maintainers. There are three options:
- - [Rebase and merge] The preferable choice for PRs containing a single commit.
- - [Squash and merge] Used when there are multiple commits in the PR. 
-   Squashing is done to shorten history and make sure that the project is buildable on any commit.
- - [Create a merge commit] Used for pull down PRs to avoid duplication of
-   LLVM commits.
+Project maintainers merge pull requests using one of the following options:
+- [Rebase and merge] The preferable choice for PRs containing a single commit
+- [Squash and merge] Used when there are multiple commits in the PR
+  - Squashing is done to make sure that the project is buildable on any commit
+- [Create a merge commit] Used for LLVM pull-down PRs to preserve hashes of the
+commits pulled from the LLVM community repository
+
+
+*Other names and brands may be claimed as the property of others.

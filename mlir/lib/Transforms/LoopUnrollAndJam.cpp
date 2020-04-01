@@ -1,6 +1,6 @@
 //===- LoopUnrollAndJam.cpp - Code to perform loop unroll and jam ---------===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -211,7 +211,7 @@ LogicalResult mlir::loopUnrollJamByFactor(AffineForOp forOp,
 
       // If the induction variable is used, create a remapping to the value for
       // this unrolled instance.
-      if (!forOpIV->use_empty()) {
+      if (!forOpIV.use_empty()) {
         // iv' = iv + i, i = 1 to unrollJamFactor-1.
         auto d0 = builder.getAffineDimExpr(0);
         auto bumpMap = AffineMap::get(1, 0, {d0 + i * step});

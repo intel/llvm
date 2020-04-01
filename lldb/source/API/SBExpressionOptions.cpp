@@ -1,5 +1,4 @@
-//===-- SBExpressionOptions.cpp ---------------------------------------------*-
-//C++ -*-===//
+//===-- SBExpressionOptions.cpp -------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -40,7 +39,7 @@ operator=(const SBExpressionOptions &rhs) {
   return LLDB_RECORD_RESULT(*this);
 }
 
-SBExpressionOptions::~SBExpressionOptions() {}
+SBExpressionOptions::~SBExpressionOptions() = default;
 
 bool SBExpressionOptions::GetCoerceResultToId() const {
   LLDB_RECORD_METHOD_CONST_NO_ARGS(bool, SBExpressionOptions,

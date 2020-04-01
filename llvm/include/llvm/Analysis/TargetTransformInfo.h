@@ -342,6 +342,10 @@ public:
   /// branches.
   bool hasBranchDivergence() const;
 
+  /// Return true if the target prefers to use GPU divergence analysis to
+  /// replace the legacy version.
+  bool useGPUDivergenceAnalysis() const;
+
   /// Returns whether V is a source of divergence.
   ///
   /// This function provides the target-dependent information for
@@ -490,6 +494,8 @@ public:
     bool UpperBound;
     /// Allow peeling off loop iterations.
     bool AllowPeeling;
+    /// Allow peeling off loop iterations for loop nests.
+    bool AllowLoopNestsPeeling;
     /// Allow unrolling of all the iterations of the runtime loop remainder.
     bool UnrollRemainder;
     /// Allow unroll and jam. Used to enable unroll and jam for the target.
@@ -960,8 +966,11 @@ public:
   /// \p VariableMask - true when the memory access is predicated with a mask
   ///                   that is not a compile-time constant
   /// \p Alignment - alignment of single element
+  /// \p I - the optional original context instruction, if one exists, e.g. the
+  ///        load/store to transform or the call to the gather/scatter intrinsic
   int getGatherScatterOpCost(unsigned Opcode, Type *DataTy, Value *Ptr,
-                             bool VariableMask, unsigned Alignment) const;
+                             bool VariableMask, unsigned Alignment,
+                             const Instruction *I = nullptr) const;
 
   /// \return The cost of the interleaved memory operation.
   /// \p Opcode is the memory operation code
@@ -1000,16 +1009,22 @@ public:
   /// \returns The cost of Intrinsic instructions. Analyses the real arguments.
   /// Three cases are handled: 1. scalar instruction 2. vector instruction
   /// 3. scalar instruction which is to be vectorized with VF.
+  /// I is the optional original context instruction holding the call to the
+  /// intrinsic
   int getIntrinsicInstrCost(Intrinsic::ID ID, Type *RetTy,
                             ArrayRef<Value *> Args, FastMathFlags FMF,
-                            unsigned VF = 1) const;
+                            unsigned VF = 1,
+                            const Instruction *I = nullptr) const;
 
   /// \returns The cost of Intrinsic instructions. Types analysis only.
   /// If ScalarizationCostPassed is UINT_MAX, the cost of scalarizing the
   /// arguments and the return value will be computed based on types.
-  int getIntrinsicInstrCost(Intrinsic::ID ID, Type *RetTy,
-                            ArrayRef<Type *> Tys, FastMathFlags FMF,
-                            unsigned ScalarizationCostPassed = UINT_MAX) const;
+  /// I is the optional original context instruction holding the call to the
+  /// intrinsic
+  int getIntrinsicInstrCost(Intrinsic::ID ID, Type *RetTy, ArrayRef<Type *> Tys,
+                            FastMathFlags FMF,
+                            unsigned ScalarizationCostPassed = UINT_MAX,
+                            const Instruction *I = nullptr) const;
 
   /// \returns The cost of Call instructions.
   int getCallInstrCost(Function *F, Type *RetTy, ArrayRef<Type *> Tys) const;
@@ -1054,6 +1069,7 @@ public:
 
   /// \returns The type to use in a loop expansion of a memcpy call.
   Type *getMemcpyLoopLoweringType(LLVMContext &Context, Value *Length,
+                                  unsigned SrcAddrSpace, unsigned DestAddrSpace,
                                   unsigned SrcAlign, unsigned DestAlign) const;
 
   /// \param[out] OpsOut The operand types to copy RemainingBytes of memory.
@@ -1065,6 +1081,8 @@ public:
   void getMemcpyLoopResidualLoweringType(SmallVectorImpl<Type *> &OpsOut,
                                          LLVMContext &Context,
                                          unsigned RemainingBytes,
+                                         unsigned SrcAddrSpace,
+                                         unsigned DestAddrSpace,
                                          unsigned SrcAlign,
                                          unsigned DestAlign) const;
 
@@ -1198,6 +1216,7 @@ public:
   virtual int
   getUserCost(const User *U, ArrayRef<const Value *> Operands) = 0;
   virtual bool hasBranchDivergence() = 0;
+  virtual bool useGPUDivergenceAnalysis() = 0;
   virtual bool isSourceOfDivergence(const Value *V) = 0;
   virtual bool isAlwaysUniform(const Value *V) = 0;
   virtual unsigned getFlatAddressSpace() = 0;
@@ -1333,9 +1352,9 @@ public:
   virtual int getMaskedMemoryOpCost(unsigned Opcode, Type *Src,
                                     unsigned Alignment,
                                     unsigned AddressSpace) = 0;
-  virtual int getGatherScatterOpCost(unsigned Opcode, Type *DataTy,
-                                     Value *Ptr, bool VariableMask,
-                                     unsigned Alignment) = 0;
+  virtual int getGatherScatterOpCost(unsigned Opcode, Type *DataTy, Value *Ptr,
+                                     bool VariableMask, unsigned Alignment,
+                                     const Instruction *I = nullptr) = 0;
   virtual int getInterleavedMemoryOpCost(unsigned Opcode, Type *VecTy,
                                          unsigned Factor,
                                          ArrayRef<unsigned> Indices,
@@ -1348,10 +1367,12 @@ public:
   virtual int getMinMaxReductionCost(Type *Ty, Type *CondTy,
                                      bool IsPairwiseForm, bool IsUnsigned) = 0;
   virtual int getIntrinsicInstrCost(Intrinsic::ID ID, Type *RetTy,
-                      ArrayRef<Type *> Tys, FastMathFlags FMF,
-                      unsigned ScalarizationCostPassed) = 0;
+                                    ArrayRef<Type *> Tys, FastMathFlags FMF,
+                                    unsigned ScalarizationCostPassed,
+                                    const Instruction *I) = 0;
   virtual int getIntrinsicInstrCost(Intrinsic::ID ID, Type *RetTy,
-         ArrayRef<Value *> Args, FastMathFlags FMF, unsigned VF) = 0;
+                                    ArrayRef<Value *> Args, FastMathFlags FMF,
+                                    unsigned VF, const Instruction *I) = 0;
   virtual int getCallInstrCost(Function *F, Type *RetTy,
                                ArrayRef<Type *> Tys) = 0;
   virtual unsigned getNumberOfParts(Type *Tp) = 0;
@@ -1364,11 +1385,15 @@ public:
   virtual Value *getOrCreateResultFromMemIntrinsic(IntrinsicInst *Inst,
                                                    Type *ExpectedType) = 0;
   virtual Type *getMemcpyLoopLoweringType(LLVMContext &Context, Value *Length,
+                                          unsigned SrcAddrSpace,
+                                          unsigned DestAddrSpace,
                                           unsigned SrcAlign,
                                           unsigned DestAlign) const = 0;
   virtual void getMemcpyLoopResidualLoweringType(
       SmallVectorImpl<Type *> &OpsOut, LLVMContext &Context,
-      unsigned RemainingBytes, unsigned SrcAlign, unsigned DestAlign) const = 0;
+      unsigned RemainingBytes,
+      unsigned SrcAddrSpace, unsigned DestAddrSpace,
+      unsigned SrcAlign, unsigned DestAlign) const = 0;
   virtual bool areInlineCompatible(const Function *Caller,
                                    const Function *Callee) const = 0;
   virtual bool
@@ -1452,6 +1477,7 @@ public:
     return Impl.getUserCost(U, Operands);
   }
   bool hasBranchDivergence() override { return Impl.hasBranchDivergence(); }
+  bool useGPUDivergenceAnalysis() override { return Impl.useGPUDivergenceAnalysis(); }
   bool isSourceOfDivergence(const Value *V) override {
     return Impl.isSourceOfDivergence(V);
   }
@@ -1751,11 +1777,11 @@ public:
                             unsigned AddressSpace) override {
     return Impl.getMaskedMemoryOpCost(Opcode, Src, Alignment, AddressSpace);
   }
-  int getGatherScatterOpCost(unsigned Opcode, Type *DataTy,
-                             Value *Ptr, bool VariableMask,
-                             unsigned Alignment) override {
+  int getGatherScatterOpCost(unsigned Opcode, Type *DataTy, Value *Ptr,
+                             bool VariableMask, unsigned Alignment,
+                             const Instruction *I = nullptr) override {
     return Impl.getGatherScatterOpCost(Opcode, DataTy, Ptr, VariableMask,
-                                       Alignment);
+                                       Alignment, I);
   }
   int getInterleavedMemoryOpCost(unsigned Opcode, Type *VecTy, unsigned Factor,
                                  ArrayRef<unsigned> Indices, unsigned Alignment,
@@ -1773,15 +1799,18 @@ public:
                              bool IsPairwiseForm, bool IsUnsigned) override {
     return Impl.getMinMaxReductionCost(Ty, CondTy, IsPairwiseForm, IsUnsigned);
    }
-  int getIntrinsicInstrCost(Intrinsic::ID ID, Type *RetTy, ArrayRef<Type *> Tys,
-               FastMathFlags FMF, unsigned ScalarizationCostPassed) override {
-    return Impl.getIntrinsicInstrCost(ID, RetTy, Tys, FMF,
-                                      ScalarizationCostPassed);
-  }
-  int getIntrinsicInstrCost(Intrinsic::ID ID, Type *RetTy,
-       ArrayRef<Value *> Args, FastMathFlags FMF, unsigned VF) override {
-    return Impl.getIntrinsicInstrCost(ID, RetTy, Args, FMF, VF);
-  }
+   int getIntrinsicInstrCost(Intrinsic::ID ID, Type *RetTy,
+                             ArrayRef<Type *> Tys, FastMathFlags FMF,
+                             unsigned ScalarizationCostPassed,
+                             const Instruction *I) override {
+     return Impl.getIntrinsicInstrCost(ID, RetTy, Tys, FMF,
+                                       ScalarizationCostPassed, I);
+   }
+   int getIntrinsicInstrCost(Intrinsic::ID ID, Type *RetTy,
+                             ArrayRef<Value *> Args, FastMathFlags FMF,
+                             unsigned VF, const Instruction *I) override {
+     return Impl.getIntrinsicInstrCost(ID, RetTy, Args, FMF, VF, I);
+   }
   int getCallInstrCost(Function *F, Type *RetTy,
                        ArrayRef<Type *> Tys) override {
     return Impl.getCallInstrCost(F, RetTy, Tys);
@@ -1808,16 +1837,22 @@ public:
     return Impl.getOrCreateResultFromMemIntrinsic(Inst, ExpectedType);
   }
   Type *getMemcpyLoopLoweringType(LLVMContext &Context, Value *Length,
+                                  unsigned SrcAddrSpace, unsigned DestAddrSpace,
                                   unsigned SrcAlign,
                                   unsigned DestAlign) const override {
-    return Impl.getMemcpyLoopLoweringType(Context, Length, SrcAlign, DestAlign);
+    return Impl.getMemcpyLoopLoweringType(Context, Length,
+                                          SrcAddrSpace, DestAddrSpace,
+                                          SrcAlign, DestAlign);
   }
   void getMemcpyLoopResidualLoweringType(SmallVectorImpl<Type *> &OpsOut,
                                          LLVMContext &Context,
                                          unsigned RemainingBytes,
+                                         unsigned SrcAddrSpace,
+                                         unsigned DestAddrSpace,
                                          unsigned SrcAlign,
                                          unsigned DestAlign) const override {
     Impl.getMemcpyLoopResidualLoweringType(OpsOut, Context, RemainingBytes,
+                                           SrcAddrSpace, DestAddrSpace,
                                            SrcAlign, DestAlign);
   }
   bool areInlineCompatible(const Function *Caller,

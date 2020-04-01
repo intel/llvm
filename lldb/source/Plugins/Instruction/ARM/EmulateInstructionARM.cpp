@@ -1,4 +1,4 @@
-//===-- EmulateInstructionARM.cpp -------------------------------*- C++ -*-===//
+//===-- EmulateInstructionARM.cpp -----------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -29,6 +29,8 @@
 
 using namespace lldb;
 using namespace lldb_private;
+
+LLDB_PLUGIN_DEFINE_ADV(EmulateInstructionARM, InstructionARM)
 
 // Convenient macro definitions.
 #define APSR_C Bit32(m_opcode_cpsr, CPSR_C_POS)

@@ -19,7 +19,7 @@
 #include <string>
 #include <vector>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
  template < class T, class Alloc = std::allocator<T> >
@@ -46,6 +46,10 @@ namespace sycl {
 
  using exception_ptr_class = std::exception_ptr;
 
+ template <typename T, typename... ArgsT>
+ unique_ptr_class<T> make_unique_ptr(ArgsT &&... Args) {
+   return unique_ptr_class<T>(new T(std::forward<ArgsT>(Args)...));
+ }
 } // sycl
 } // cl
 

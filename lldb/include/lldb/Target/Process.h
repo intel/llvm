@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_Process_h_
-#define liblldb_Process_h_
+#ifndef LLDB_TARGET_PROCESS_H
+#define LLDB_TARGET_PROCESS_H
 
 #include "lldb/Host/Config.h"
 
@@ -139,7 +139,9 @@ public:
     return (m_plugin_name.empty() ? nullptr : m_plugin_name.c_str());
   }
 
-  void SetProcessPluginName(llvm::StringRef plugin) { m_plugin_name = plugin; }
+  void SetProcessPluginName(llvm::StringRef plugin) {
+    m_plugin_name = std::string(plugin);
+  }
 
   void Clear() {
     ProcessInstanceInfo::Clear();
@@ -1265,7 +1267,7 @@ public:
   ///     LLDB_INVALID_ADDRESS.
   ///
   /// \return
-  ///     A StructureDataSP object which, if non-empty, will contain the
+  ///     A StructuredDataSP object which, if non-empty, will contain the
   ///     information the DynamicLoader needs to get the initial scan of
   ///     solibs resolved.
   virtual lldb_private::StructuredData::ObjectSP
@@ -2864,4 +2866,4 @@ public:
 
 } // namespace lldb_private
 
-#endif // liblldb_Process_h_
+#endif // LLDB_TARGET_PROCESS_H

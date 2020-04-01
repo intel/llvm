@@ -1,6 +1,6 @@
 //===- Token.h - MLIR Token Interface ---------------------------*- C++ -*-===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -73,6 +73,11 @@ public:
 
   /// For an inttype token, return its bitwidth.
   Optional<unsigned> getIntTypeBitwidth() const;
+
+  /// For an inttype token, return its signedness semantics: llvm::None means no
+  /// signedness semantics; true means signed integer type; false means unsigned
+  /// integer type.
+  Optional<bool> getIntTypeSignedness() const;
 
   /// Given a hash_identifier token like #123, try to parse the number out of
   /// the identifier, returning None if it is a named identifier like #x or

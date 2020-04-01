@@ -52,7 +52,6 @@ std::vector<uint64_t> getValidAlignments() {
 
 TEST(AlignmentTest, AlignDefaultCTor) {
   EXPECT_EQ(Align().value(), 1ULL);
-  EXPECT_EQ(Align::None().value(), 1ULL);
 }
 
 TEST(AlignmentTest, MaybeAlignDefaultCTor) {
@@ -124,6 +123,13 @@ TEST(AlignmentTest, AlignTo) {
       EXPECT_EQ(alignAddr(T.forgedAddr(), A.getValue()), T.rounded);
     }
   }
+}
+
+TEST(AlignmentTest, AlignToWithSkew) {
+  EXPECT_EQ(alignTo(5, Align(8), 0), alignTo(5, Align(8)));
+  EXPECT_EQ(alignTo(5, Align(8), 7), 7U);
+  EXPECT_EQ(alignTo(17, Align(8), 1), 17U);
+  EXPECT_EQ(alignTo(~0LL, Align(8), 3), 3U);
 }
 
 TEST(AlignmentTest, Log2) {

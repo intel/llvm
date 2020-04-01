@@ -6,12 +6,14 @@ static_library("Utils") {
     "//llvm/lib/Support",
   ]
   sources = [
+    "AMDGPUEmitPrintf.cpp",
     "ASanStackFrameLayout.cpp",
     "AddDiscriminators.cpp",
     "BasicBlockUtils.cpp",
     "BreakCriticalEdges.cpp",
     "BuildLibCalls.cpp",
     "BypassSlowDivision.cpp",
+    "CallGraphUpdater.cpp",
     "CallPromotionUtils.cpp",
     "CanonicalizeAliases.cpp",
     "CloneFunction.cpp",

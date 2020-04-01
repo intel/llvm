@@ -1,50 +1,50 @@
 // RUN: mlir-opt %s | FileCheck %s
 
-// CHECK-DAG: #map{{[0-9]+}} = (d0, d1, d2, d3, d4)[s0] -> (d0, d1, d2, d4, d3)
-#map0 = (d0, d1, d2, d3, d4)[s0] -> (d0, d1, d2, d4, d3)
+// CHECK-DAG: #map{{[0-9]+}} = affine_map<(d0, d1, d2, d3, d4)[s0] -> (d0, d1, d2, d4, d3)>
+#map0 = affine_map<(d0, d1, d2, d3, d4)[s0] -> (d0, d1, d2, d4, d3)>
 
-// CHECK-DAG: #map{{[0-9]+}} = (d0) -> (d0)
-#map1 = (d0) -> (d0)
+// CHECK-DAG: #map{{[0-9]+}} = affine_map<(d0) -> (d0)>
+#map1 = affine_map<(d0) -> (d0)>
 
-// CHECK-DAG: #map{{[0-9]+}} = (d0, d1, d2) -> (d0, d1, d2)
-#map2 = (d0, d1, d2) -> (d0, d1, d2)
+// CHECK-DAG: #map{{[0-9]+}} = affine_map<(d0, d1, d2) -> (d0, d1, d2)>
+#map2 = affine_map<(d0, d1, d2) -> (d0, d1, d2)>
 
-// CHECK-DAG: #map{{[0-9]+}} = (d0, d1, d2) -> (d1, d0, d2)
-#map3 = (d0, d1, d2) -> (d1, d0, d2)
+// CHECK-DAG: #map{{[0-9]+}} = affine_map<(d0, d1, d2) -> (d1, d0, d2)>
+#map3 = affine_map<(d0, d1, d2) -> (d1, d0, d2)>
 
-// CHECK-DAG: #map{{[0-9]+}} = (d0, d1, d2) -> (d2, d1, d0)
-#map4 = (d0, d1, d2) -> (d2, d1, d0)
+// CHECK-DAG: #map{{[0-9]+}} = affine_map<(d0, d1, d2) -> (d2, d1, d0)>
+#map4 = affine_map<(d0, d1, d2) -> (d2, d1, d0)>
 
-// CHECK-DAG: #map{{[0-9]+}} = ()[s0] -> (0, s0 - 1)
-#inline_map_minmax_loop1 = ()[s0] -> (0, s0 - 1)
+// CHECK-DAG: #map{{[0-9]+}} = affine_map<()[s0] -> (0, s0 - 1)>
+#inline_map_minmax_loop1 = affine_map<()[s0] -> (0, s0 - 1)>
 
-// CHECK-DAG: #map{{[0-9]+}} = ()[s0] -> (100, s0 + 1)
-#inline_map_minmax_loop2 = ()[s0] -> (100, s0 + 1)
+// CHECK-DAG: #map{{[0-9]+}} = affine_map<()[s0] -> (100, s0 + 1)>
+#inline_map_minmax_loop2 = affine_map<()[s0] -> (100, s0 + 1)>
 
-// CHECK-DAG: #map{{[0-9]+}} = (d0, d1)[s0] -> (d0 + d1 + s0)
-#bound_map1 = (i, j)[s] -> (i + j + s)
+// CHECK-DAG: #map{{[0-9]+}} = affine_map<(d0, d1)[s0] -> (d0 + d1 + s0)>
+#bound_map1 = affine_map<(i, j)[s] -> (i + j + s)>
 
-// CHECK-DAG: #map{{[0-9]+}} = (d0, d1) -> (d0 + d1)
-#inline_map_loop_bounds2 = (d0, d1) -> (d0 + d1)
+// CHECK-DAG: #map{{[0-9]+}} = affine_map<(d0, d1) -> (d0 + d1)>
+#inline_map_loop_bounds2 = affine_map<(d0, d1) -> (d0 + d1)>
 
-// CHECK-DAG: #map{{[0-9]+}} = (d0)[s0] -> (d0 + s0, d0 - s0)
-#bound_map2 = (i)[s] -> (i + s, i - s)
+// CHECK-DAG: #map{{[0-9]+}} = affine_map<(d0)[s0] -> (d0 + s0, d0 - s0)>
+#bound_map2 = affine_map<(i)[s] -> (i + s, i - s)>
 
 // All maps appear in arbitrary order before all sets, in arbitrary order.
 // CHECK-NOT: Placeholder
 
-// CHECK-DAG: #set{{[0-9]+}} = (d0)[s0, s1] : (d0 >= 0, -d0 + s0 >= 0, s0 - 5 == 0, -d0 + s1 + 1 >= 0)
-#set0 = (i)[N, M] : (i >= 0, -i + N >= 0, N - 5 == 0, -i + M + 1 >= 0)
+// CHECK-DAG: #set{{[0-9]+}} = affine_set<(d0)[s0, s1] : (d0 >= 0, -d0 + s0 >= 0, s0 - 5 == 0, -d0 + s1 + 1 >= 0)>
+#set0 = affine_set<(i)[N, M] : (i >= 0, -i + N >= 0, N - 5 == 0, -i + M + 1 >= 0)>
 
-// CHECK-DAG: #set{{[0-9]+}} = (d0, d1)[s0] : (d0 >= 0, d1 >= 0)
-#set1 = (d0, d1)[s0] : (d0 >= 0, d1 >= 0)
+// CHECK-DAG: #set{{[0-9]+}} = affine_set<(d0, d1)[s0] : (d0 >= 0, d1 >= 0)>
+#set1 = affine_set<(d0, d1)[s0] : (d0 >= 0, d1 >= 0)>
 
-// CHECK-DAG: #set{{[0-9]+}} = (d0) : (d0 - 1 == 0)
-#set2 = (d0) : (d0 - 1 == 0)
+// CHECK-DAG: #set{{[0-9]+}} = affine_set<(d0) : (d0 - 1 == 0)>
+#set2 = affine_set<(d0) : (d0 - 1 == 0)>
 
-// CHECK-DAG: [[SET_TRUE:#set[0-9]+]] = () : (0 == 0)
+// CHECK-DAG: [[SET_TRUE:#set[0-9]+]] = affine_set<() : (0 == 0)>
 
-// CHECK-DAG: #set{{[0-9]+}} = (d0)[s0] : (d0 - 2 >= 0, -d0 + 4 >= 0)
+// CHECK-DAG: #set{{[0-9]+}} = affine_set<(d0)[s0] : (d0 - 2 >= 0, -d0 + 4 >= 0)>
 
 // CHECK: func @foo(i32, i64) -> f32
 func @foo(i32, i64) -> f32
@@ -60,6 +60,12 @@ func @missingReturn()
 
 // CHECK: func @int_types(i1, i2, i4, i7, i87) -> (i1, index, i19)
 func @int_types(i1, i2, i4, i7, i87) -> (i1, index, i19)
+
+// CHECK: func @sint_types(si2, si4) -> (si7, si1023)
+func @sint_types(si2, si4) -> (si7, si1023)
+
+// CHECK: func @uint_types(ui2, ui4) -> (ui7, ui1023)
+func @uint_types(ui2, ui4) -> (ui7, ui1023)
 
 
 // CHECK: func @vectors(vector<1xf32>, vector<2x4xf32>)
@@ -86,52 +92,62 @@ func @memrefs234(memref<2x4x8xi8, #map2, #map3, #map4, 3>)
 // Test memref inline affine map compositions, minding that identity maps are removed.
 
 // CHECK: func @memrefs3(memref<2x4x8xi8>)
-func @memrefs3(memref<2x4x8xi8, (d0, d1, d2) -> (d0, d1, d2)>)
+func @memrefs3(memref<2x4x8xi8, affine_map<(d0, d1, d2) -> (d0, d1, d2)>>)
 
 // CHECK: func @memrefs33(memref<2x4x8xi8, #map{{[0-9]+}}, 1>)
-func @memrefs33(memref<2x4x8xi8, (d0, d1, d2) -> (d0, d1, d2), (d0, d1, d2) -> (d1, d0, d2), 1>)
+func @memrefs33(memref<2x4x8xi8, affine_map<(d0, d1, d2) -> (d0, d1, d2)>, affine_map<(d0, d1, d2) -> (d1, d0, d2)>, 1>)
 
 // CHECK: func @memrefs_drop_triv_id_inline(memref<2xi8>)
-func @memrefs_drop_triv_id_inline(memref<2xi8, (d0) -> (d0)>)
+func @memrefs_drop_triv_id_inline(memref<2xi8, affine_map<(d0) -> (d0)>>)
 
 // CHECK: func @memrefs_drop_triv_id_inline0(memref<2xi8>)
-func @memrefs_drop_triv_id_inline0(memref<2xi8, (d0) -> (d0), 0>)
+func @memrefs_drop_triv_id_inline0(memref<2xi8, affine_map<(d0) -> (d0)>, 0>)
 
 // CHECK: func @memrefs_drop_triv_id_inline1(memref<2xi8, 1>)
-func @memrefs_drop_triv_id_inline1(memref<2xi8, (d0) -> (d0), 1>)
+func @memrefs_drop_triv_id_inline1(memref<2xi8, affine_map<(d0) -> (d0)>, 1>)
 
 // Identity maps should be dropped from the composition, but not the pair of
 // "interchange" maps that, if composed, would be also an identity.
 // CHECK: func @memrefs_drop_triv_id_composition(memref<2x2xi8, #map{{[0-9]+}}, #map{{[0-9]+}}>)
 func @memrefs_drop_triv_id_composition(memref<2x2xi8,
-                                                (d0, d1) -> (d1, d0),
-                                                (d0, d1) -> (d0, d1),
-                                                (d0, d1) -> (d1, d0),
-                                                (d0, d1) -> (d0, d1),
-                                                (d0, d1) -> (d0, d1)>)
+                                                affine_map<(d0, d1) -> (d1, d0)>,
+                                                affine_map<(d0, d1) -> (d0, d1)>,
+                                                affine_map<(d0, d1) -> (d1, d0)>,
+                                                affine_map<(d0, d1) -> (d0, d1)>,
+                                                affine_map<(d0, d1) -> (d0, d1)>>)
 
 // CHECK: func @memrefs_drop_triv_id_trailing(memref<2x2xi8, #map{{[0-9]+}}>)
-func @memrefs_drop_triv_id_trailing(memref<2x2xi8, (d0, d1) -> (d1, d0),
-                                              (d0, d1) -> (d0, d1)>)
+func @memrefs_drop_triv_id_trailing(memref<2x2xi8, affine_map<(d0, d1) -> (d1, d0)>,
+                                                   affine_map<(d0, d1) -> (d0, d1)>>)
 
 // CHECK: func @memrefs_drop_triv_id_middle(memref<2x2xi8, #map{{[0-9]+}}, #map{{[0-9]+}}>)
 func @memrefs_drop_triv_id_middle(memref<2x2xi8,
-                                         (d0, d1) -> (d0, d1 + 1),
-                                         (d0, d1) -> (d0, d1),
-                                         (d0, d1) -> (d0 + 1, d1)>)
+                                         affine_map<(d0, d1) -> (d0, d1 + 1)>,
+                                         affine_map<(d0, d1) -> (d0, d1)>,
+                                         affine_map<(d0, d1) -> (d0 + 1, d1)>>)
 
 // CHECK: func @memrefs_drop_triv_id_multiple(memref<2xi8>)
-func @memrefs_drop_triv_id_multiple(memref<2xi8, (d0) -> (d0), (d0) -> (d0)>)
+func @memrefs_drop_triv_id_multiple(memref<2xi8, affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>>)
 
 // These maps appeared before, so they must be uniqued and hoisted to the beginning.
 // Identity map should be removed.
 // CHECK: func @memrefs_compose_with_id(memref<2x2xi8, #map{{[0-9]+}}>)
-func @memrefs_compose_with_id(memref<2x2xi8, (d0, d1) -> (d0, d1),
-                                        (d0, d1) -> (d1, d0)>)
+func @memrefs_compose_with_id(memref<2x2xi8, affine_map<(d0, d1) -> (d0, d1)>,
+                                             affine_map<(d0, d1) -> (d1, d0)>>)
 
 
 // CHECK: func @complex_types(complex<i1>) -> complex<f32>
 func @complex_types(complex<i1>) -> complex<f32>
+
+
+// CHECK: func @memref_with_complex_elems(memref<1x?xcomplex<f32>>)
+func @memref_with_complex_elems(memref<1x?xcomplex<f32>>)
+
+// CHECK: func @memref_with_vector_elems(memref<1x?xvector<10xf32>>)
+func @memref_with_vector_elems(memref<1x?xvector<10xf32>>)
+
+// CHECK: func @unranked_memref_with_complex_elems(memref<*xcomplex<f32>>)
+func @unranked_memref_with_complex_elems(memref<*xcomplex<f32>>)
 
 // CHECK: func @functions((memref<1x?x4x?x?xi32, #map0>, memref<8xi8>) -> (), () -> ())
 func @functions((memref<1x?x4x?x?xi32, #map0, 0>, memref<8xi8, #map1, 0>) -> (), ()->())
@@ -259,7 +275,7 @@ func @complex_loops() {
 func @triang_loop(%arg0: index, %arg1: memref<?x?xi32>) {
   %c = constant 0 : i32       // CHECK: %{{.*}} = constant 0 : i32
   affine.for %i0 = 1 to %arg0 {      // CHECK: affine.for %{{.*}} = 1 to %{{.*}} {
-    affine.for %i1 = (d0)[]->(d0)(%i0)[] to %arg0 {  // CHECK:   affine.for %{{.*}} = #map{{[0-9]+}}(%{{.*}}) to %{{.*}} {
+    affine.for %i1 = affine_map<(d0)[]->(d0)>(%i0)[] to %arg0 {  // CHECK:   affine.for %{{.*}} = #map{{[0-9]+}}(%{{.*}}) to %{{.*}} {
       store %c, %arg1[%i0, %i1] : memref<?x?xi32>  // CHECK: store %{{.*}}, %{{.*}}[%{{.*}}, %{{.*}}]
     }          // CHECK:     }
   }            // CHECK:   }
@@ -269,7 +285,7 @@ func @triang_loop(%arg0: index, %arg1: memref<?x?xi32>) {
 // CHECK: func @minmax_loop(%{{.*}}: index, %{{.*}}: index, %{{.*}}: memref<100xf32>) {
 func @minmax_loop(%arg0: index, %arg1: index, %arg2: memref<100xf32>) {
   // CHECK: affine.for %{{.*}} = max #map{{.*}}()[%{{.*}}] to min #map{{.*}}()[%{{.*}}] {
-  affine.for %i0 = max()[s]->(0,s-1)()[%arg0] to min()[s]->(100,s+1)()[%arg1] {
+  affine.for %i0 = max affine_map<()[s]->(0,s-1)>()[%arg0] to min affine_map<()[s]->(100,s+1)>()[%arg1] {
     // CHECK: "foo"(%{{.*}}, %{{.*}}) : (memref<100xf32>, index) -> ()
     "foo"(%arg2, %i0) : (memref<100xf32>, index) -> ()
   }      // CHECK:   }
@@ -283,19 +299,19 @@ func @loop_bounds(%N : index) {
   // CHECK: affine.for %{{.*}} = %{{.*}} to %{{.*}}
   affine.for %i = %s to %N {
     // CHECK: affine.for %{{.*}} = #map{{[0-9]+}}(%{{.*}}) to 0
-    affine.for %j = (d0)[]->(d0)(%i)[] to 0 step 1 {
+    affine.for %j = affine_map<(d0)[]->(d0)>(%i)[] to 0 step 1 {
        // CHECK: %{{.*}} = affine.apply #map{{.*}}(%{{.*}}, %{{.*}})[%{{.*}}]
-       %w1 = affine.apply(d0, d1)[s0] -> (d0+d1) (%i, %j) [%s]
+       %w1 = affine.apply affine_map<(d0, d1)[s0] -> (d0+d1)> (%i, %j) [%s]
        // CHECK: %{{.*}} = affine.apply #map{{.*}}(%{{.*}}, %{{.*}})[%{{.*}}]
-       %w2 = affine.apply(d0, d1)[s0] -> (s0+1) (%i, %j) [%s]
+       %w2 = affine.apply affine_map<(d0, d1)[s0] -> (s0+1)> (%i, %j) [%s]
        // CHECK: affine.for %{{.*}} = #map{{.*}}(%{{.*}}, %{{.*}})[%{{.*}}] to #map{{.*}}(%{{.*}}, %{{.*}})[%{{.*}}] {
-       affine.for %k = #bound_map1 (%w1, %i)[%N] to (i, j)[s] -> (i + j + s) (%w2, %j)[%s] {
+       affine.for %k = #bound_map1 (%w1, %i)[%N] to affine_map<(i, j)[s] -> (i + j + s)> (%w2, %j)[%s] {
           // CHECK: "foo"(%{{.*}}, %{{.*}}, %{{.*}}) : (index, index, index) -> ()
           "foo"(%i, %j, %k) : (index, index, index)->()
           // CHECK: %{{.*}} = constant 30 : index
           %c = constant 30 : index
           // CHECK: %{{.*}} = affine.apply #map{{.*}}(%{{.*}}, %{{.*}})
-          %u = affine.apply (d0, d1)->(d0+d1) (%N, %c)
+          %u = affine.apply affine_map<(d0, d1)->(d0+d1)> (%N, %c)
           // CHECK: affine.for %{{.*}} = max #map{{.*}}(%{{.*}})[%{{.*}}] to min #map{{.*}}(%{{.*}})[%{{.*}}] {
           affine.for %l = max #bound_map2(%i)[%u] to min #bound_map2(%k)[%c] {
             // CHECK: "bar"(%{{.*}}) : (index) -> ()
@@ -317,11 +333,11 @@ func @ifinst(%N: index) {
       %y = "add"(%x, %i) : (i32, index) -> i32 // CHECK: %{{.*}} = "add"(%{{.*}}, %{{.*}}) : (i32, index) -> i32
       %z = "mul"(%y, %y) : (i32, i32) -> i32 // CHECK: %{{.*}} = "mul"(%{{.*}}, %{{.*}}) : (i32, i32) -> i32
     } else { // CHECK } else {
-      affine.if (i)[N] : (i - 2 >= 0, 4 - i >= 0)(%i)[%N]  {      // CHECK  affine.if (#set1(%{{.*}})[%{{.*}}]) {
+      affine.if affine_set<(i)[N] : (i - 2 >= 0, 4 - i >= 0)>(%i)[%N]  {      // CHECK  affine.if (#set1(%{{.*}})[%{{.*}}]) {
         // CHECK: %{{.*}} = constant 1 : index
         %u = constant 1 : index
         // CHECK: %{{.*}} = affine.apply #map{{.*}}(%{{.*}}, %{{.*}})[%{{.*}}]
-        %w = affine.apply (d0,d1)[s0] -> (d0+d1+s0) (%i, %i) [%u]
+        %w = affine.apply affine_map<(d0,d1)[s0] -> (d0+d1+s0)> (%i, %i) [%u]
       } else {            // CHECK     } else {
         %v = constant 3 : i32 // %c3_i32 = constant 3 : i32
       }
@@ -356,7 +372,7 @@ func @attributes() {
   "foo"() {map1 = #map1} : () -> ()
 
   // CHECK: "foo"() {map2 = #map{{[0-9]+}}}
-  "foo"() {map2 = (d0, d1, d2) -> (d0, d1, d2)} : () -> ()
+  "foo"() {map2 = affine_map<(d0, d1, d2) -> (d0, d1, d2)>} : () -> ()
 
   // CHECK: "foo"() {map12 = [#map{{[0-9]+}}, #map{{[0-9]+}}]}
   "foo"() {map12 = [#map1, #map2]} : () -> ()
@@ -365,7 +381,7 @@ func @attributes() {
   "foo"() {set1 = #set1} : () -> ()
 
   // CHECK: "foo"() {set2 = #set{{[0-9]+}}}
-  "foo"() {set2 = (d0, d1, d2) : (d0 >= 0, d1 >= 0, d2 - d1 == 0)} : () -> ()
+  "foo"() {set2 = affine_set<(d0, d1, d2) : (d0 >= 0, d1 >= 0, d2 - d1 == 0)>} : () -> ()
 
   // CHECK: "foo"() {set12 = [#set{{[0-9]+}}, #set{{[0-9]+}}]}
   "foo"() {set12 = [#set1, #set2]} : () -> ()
@@ -423,11 +439,11 @@ func @bbargs() -> (i16, i8) {
 func @verbose_terminators() -> (i1, i17) {
   %0:2 = "foo"() : () -> (i1, i17)
 // CHECK:  br ^bb1(%{{.*}}#0, %{{.*}}#1 : i1, i17)
-  "std.br"()[^bb1(%0#0, %0#1 : i1, i17)] : () -> ()
+  "std.br"(%0#0, %0#1)[^bb1] : (i1, i17) -> ()
 
 ^bb1(%x : i1, %y : i17):
 // CHECK:  cond_br %{{.*}}, ^bb2(%{{.*}} : i17), ^bb3(%{{.*}}, %{{.*}} : i1, i17)
-  "std.cond_br"(%x)[^bb2(%y : i17), ^bb3(%x, %y : i1, i17)] : (i1) -> ()
+  "std.cond_br"(%x, %y, %x, %y) [^bb2, ^bb3] {operand_segment_sizes = dense<[1, 1, 2]>: vector<3xi32>} : (i1, i17, i1, i17) -> ()
 
 ^bb2(%a : i17):
   %true = constant 1 : i1
@@ -565,12 +581,12 @@ func @funcattrwithblock() -> ()
 }
 
 // CHECK-label func @funcsimplemap
-#map_simple0 = ()[] -> (10)
-#map_simple1 = ()[s0] -> (s0)
-#map_non_simple0 = (d0)[] -> (d0)
-#map_non_simple1 = (d0)[s0] -> (d0 + s0)
-#map_non_simple2 = ()[s0, s1] -> (s0 + s1)
-#map_non_simple3 = ()[s0] -> (s0 + 3)
+#map_simple0 = affine_map<()[] -> (10)>
+#map_simple1 = affine_map<()[s0] -> (s0)>
+#map_non_simple0 = affine_map<(d0)[] -> (d0)>
+#map_non_simple1 = affine_map<(d0)[s0] -> (d0 + s0)>
+#map_non_simple2 = affine_map<()[s0, s1] -> (s0 + s1)>
+#map_non_simple3 = affine_map<()[s0] -> (s0 + 3)>
 func @funcsimplemap(%arg0: index, %arg1: index) -> () {
   affine.for %i0 = 0 to #map_simple0()[] {
   // CHECK: affine.for %{{.*}} = 0 to 10 {
@@ -599,6 +615,9 @@ func @splattensorattr() -> () {
 ^bb0:
   // CHECK: "splatBoolTensor"() {bar = dense<false> : tensor<i1>} : () -> ()
   "splatBoolTensor"(){bar = dense<false> : tensor<i1>} : () -> ()
+
+  // CHECK: "splatUIntTensor"() {bar = dense<222> : tensor<2x1x4xui8>} : () -> ()
+  "splatUIntTensor"(){bar = dense<222> : tensor<2x1x4xui8>} : () -> ()
 
   // CHECK: "splatIntTensor"() {bar = dense<5> : tensor<2x1x4xi32>} : () -> ()
   "splatIntTensor"(){bar = dense<5> : tensor<2x1x4xi32>} : () -> ()
@@ -789,7 +808,7 @@ func @type_alias() -> !i32_type_alias {
 // CHECK-LABEL: func @no_integer_set_constraints(
 func @no_integer_set_constraints() {
   // CHECK: affine.if [[SET_TRUE]]() {
-  affine.if () : () () {
+  affine.if affine_set<() : ()> () {
   }
   return
 }
@@ -825,8 +844,8 @@ func @terminator_with_regions() {
 
 // CHECK-LABEL: func @unregistered_term
 func @unregistered_term(%arg0 : i1) -> i1 {
-  // CHECK-NEXT: "unregistered_br"()[^bb1(%{{.*}} : i1)] : () -> ()
-  "unregistered_br"()[^bb1(%arg0 : i1)] : () -> ()
+  // CHECK-NEXT: "unregistered_br"(%{{.*}})[^bb1] : (i1) -> ()
+  "unregistered_br"(%arg0)[^bb1] : (i1) -> ()
 
 ^bb1(%arg1 : i1):
   return %arg1 : i1
@@ -1027,6 +1046,37 @@ func @f64_special_values() {
   // CHECK: constant 0xFFF0000000000000 : f64
   %5 = constant 0xFFF0000000000000 : f64
 
+  // Check that values that can't be represented with the default format, use
+  // hex instead.
+  // CHECK: constant 0xC1CDC00000000000 : f64
+  %6 = constant 0xC1CDC00000000000 : f64
+
+  return
+}
+
+// FIXME: bfloat16 currently uses f64 as a storage format. This test should be
+// changed when that gets fixed.
+// CHECK-LABEL: @bfloat16_special_values
+func @bfloat16_special_values() {
+  // bfloat16 signaling NaNs.
+  // CHECK: constant 0x7FF0000000000001 : bf16
+  %0 = constant 0x7FF0000000000001 : bf16
+  // CHECK: constant 0x7FF8000000000000 : bf16
+  %1 = constant 0x7FF8000000000000 : bf16
+
+  // bfloat16 quiet NaNs.
+  // CHECK: constant 0x7FF0000001000000 : bf16
+  %2 = constant 0x7FF0000001000000 : bf16
+  // CHECK: constant 0xFFF0000001000000 : bf16
+  %3 = constant 0xFFF0000001000000 : bf16
+
+  // bfloat16 positive infinity.
+  // CHECK: constant 0x7FF0000000000000 : bf16
+  %4 = constant 0x7FF0000000000000 : bf16
+  // bfloat16 negative infinity.
+  // CHECK: constant 0xFFF0000000000000 : bf16
+  %5 = constant 0xFFF0000000000000 : bf16
+
   return
 }
 
@@ -1112,6 +1162,10 @@ func @"\"_string_symbol_reference\""() {
   "foo.symbol_reference"() {ref = @"\"_string_symbol_reference\""} : () -> ()
   return
 }
+
+// CHECK-LABEL: func @string_attr_name
+// CHECK-SAME: {"0 . 0", nested = {"0 . 0"}}
+func @string_attr_name() attributes {"0 . 0", nested = {"0 . 0"}}
 
 // CHECK-LABEL: func @nested_reference
 // CHECK: ref = @some_symbol::@some_nested_symbol

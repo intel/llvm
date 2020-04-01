@@ -16,7 +16,7 @@
 namespace s = cl::sycl;
 namespace d = s::detail;
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace __host_std {
 
 s::cl_float Dot(s::cl_float2, s::cl_float2);
@@ -222,4 +222,4 @@ s::cl_float fast_distance(s::cl_float4 p0, s::cl_float4 p1) {
 }
 
 } // namespace __host_std
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

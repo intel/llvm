@@ -61,7 +61,7 @@ void EmitInstrDocs(RecordKeeper &RK, raw_ostream &OS) {
   unsigned VariantCount = Target.getAsmParserVariantCount();
 
   // Page title.
-  std::string Title = Target.getName();
+  std::string Title = std::string(Target.getName());
   Title += " Instructions";
   writeTitle(Title, OS);
   OS << "\n";
@@ -138,6 +138,7 @@ void EmitInstrDocs(RecordKeeper &RK, raw_ostream &OS) {
     FLAG(isConvergent)
     FLAG(hasNoSchedulingInfo)
     FLAG(variadicOpsAreDefs)
+    FLAG(isAuthenticated)
     if (!FlagStrings.empty()) {
       OS << "Flags: ";
       bool IsFirst = true;

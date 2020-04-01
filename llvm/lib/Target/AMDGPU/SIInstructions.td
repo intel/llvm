@@ -24,8 +24,38 @@ include "BUFInstructions.td"
 // EXP Instructions
 //===----------------------------------------------------------------------===//
 
-defm EXP : EXP_m<0, AMDGPUexport>;
-defm EXP_DONE : EXP_m<1, AMDGPUexport_done>;
+defm EXP : EXP_m<0>;
+defm EXP_DONE : EXP_m<1>;
+
+class ExpPattern<ValueType vt, Instruction Inst, int done_val> : GCNPat<
+  (int_amdgcn_exp timm:$tgt, timm:$en,
+                  (vt ExpSrc0:$src0), (vt ExpSrc1:$src1),
+                  (vt ExpSrc2:$src2), (vt ExpSrc3:$src3),
+                  done_val, timm:$vm),
+  (Inst timm:$tgt, ExpSrc0:$src0, ExpSrc1:$src1,
+        ExpSrc2:$src2, ExpSrc3:$src3, timm:$vm, 0, timm:$en)
+>;
+
+class ExpComprPattern<ValueType vt, Instruction Inst, int done_val> : GCNPat<
+  (int_amdgcn_exp_compr timm:$tgt, timm:$en,
+                        (vt ExpSrc0:$src0), (vt ExpSrc1:$src1),
+                        done_val, timm:$vm),
+  (Inst timm:$tgt, ExpSrc0:$src0, ExpSrc1:$src1,
+        (IMPLICIT_DEF), (IMPLICIT_DEF), timm:$vm, 1, timm:$en)
+>;
+
+// FIXME: The generated DAG matcher seems to have strange behavior
+// with a 1-bit literal to match, so use a -1 for checking a true
+// 1-bit value.
+def : ExpPattern<i32, EXP, 0>;
+def : ExpPattern<i32, EXP_DONE, -1>;
+def : ExpPattern<f32, EXP, 0>;
+def : ExpPattern<f32, EXP_DONE, -1>;
+
+def : ExpComprPattern<v2i16, EXP, 0>;
+def : ExpComprPattern<v2i16, EXP_DONE, -1>;
+def : ExpComprPattern<v2f16, EXP, 0>;
+def : ExpComprPattern<v2f16, EXP_DONE, -1>;
 
 //===----------------------------------------------------------------------===//
 // VINTRP Instructions
@@ -76,7 +106,7 @@ defm V_INTERP_MOV_F32 : VINTRP_m <
   (outs VINTRPDst:$vdst),
   (ins InterpSlot:$vsrc, Attr:$attr, AttrChan:$attrchan),
   "v_interp_mov_f32$vdst, $vsrc, $attr$attrchan",
-  [(set f32:$vdst, (int_amdgcn_interp_mov (i32 imm:$vsrc),
+  [(set f32:$vdst, (int_amdgcn_interp_mov (i32 timm:$vsrc),
                    (i32 timm:$attrchan), (i32 timm:$attr), M0))]>;
 
 } // End Uses = [M0, EXEC]
@@ -136,7 +166,8 @@ def WWM : PseudoInstSI <(outs unknown:$vdst), (ins unknown:$src0)>;
 } // End let hasSideEffects = 0, mayLoad = 0, mayStore = 0, Uses = [EXEC]
 
 def ENTER_WWM : SPseudoInstSI <(outs SReg_1:$sdst), (ins i64imm:$src0)> {
-  let Defs = [EXEC];
+  let Uses = [EXEC];
+  let Defs = [EXEC, SCC];
   let hasSideEffects = 0;
   let mayLoad = 0;
   let mayStore = 0;
@@ -199,6 +230,7 @@ class WrapTerminatorInst<SOP_Pseudo base_inst> : SPseudoInstSI<
   let hasSideEffects = base_inst.hasSideEffects;
   let UseNamedOperandTable = base_inst.UseNamedOperandTable;
   let CodeSize = base_inst.CodeSize;
+  let SchedRW = base_inst.SchedRW;
 }
 
 let WaveSizePredicate = isWave64 in {
@@ -413,8 +445,8 @@ def SI_RETURN : SPseudoInstSI <
 
 // Return for returning function calls without output register.
 //
-// This version is only needed so we can fill in the output regiter in
-// the custom inserter.
+// This version is only needed so we can fill in the output register
+// in the custom inserter.
 def SI_CALL_ISEL : SPseudoInstSI <
   (outs), (ins SSrc_b64:$src0, unknown:$callee),
   [(AMDGPUcall i64:$src0, tglobaladdr:$callee)]> {
@@ -425,6 +457,11 @@ def SI_CALL_ISEL : SPseudoInstSI <
   // TODO: Should really base this on the call target
   let isConvergent = 1;
 }
+
+def : GCNPat<
+  (AMDGPUcall i64:$src0, (i64 0)),
+  (SI_CALL_ISEL $src0, (i64 0))
+>;
 
 // Wrapper around s_swappc_b64 with extra $callee parameter to track
 // the called function after regalloc.
@@ -480,6 +517,8 @@ def ADJCALLSTACKDOWN : SPseudoInstSI<
 let Defs = [M0, EXEC, SCC],
   UseNamedOperandTable = 1 in {
 
+// SI_INDIRECT_SRC/DST are only used by legacy SelectionDAG indirect
+// addressing implementation.
 class SI_INDIRECT_SRC<RegisterClass rc> : VPseudoInstSI <
   (outs VGPR_32:$vdst),
   (ins rc:$src, VS_32:$idx, i32imm:$offset)> {
@@ -493,7 +532,6 @@ class SI_INDIRECT_DST<RegisterClass rc> : VPseudoInstSI <
   let usesCustomInserter = 1;
 }
 
-// TODO: We can support indirect SGPR access.
 def SI_INDIRECT_SRC_V1 : SI_INDIRECT_SRC<VGPR_32>;
 def SI_INDIRECT_SRC_V2 : SI_INDIRECT_SRC<VReg_64>;
 def SI_INDIRECT_SRC_V4 : SI_INDIRECT_SRC<VReg_128>;
@@ -507,6 +545,65 @@ def SI_INDIRECT_DST_V8 : SI_INDIRECT_DST<VReg_256>;
 def SI_INDIRECT_DST_V16 : SI_INDIRECT_DST<VReg_512>;
 
 } // End Uses = [EXEC], Defs = [M0, EXEC]
+
+
+// This is a pseudo variant of the v_movreld_b32 (or v_mov_b32
+// expecting to be executed with gpr indexing mode enabled)
+// instruction in which the vector operand appears only twice, once as
+// def and once as use. Using this pseudo avoids problems with the Two
+// Address instructions pass.
+class INDIRECT_REG_WRITE_pseudo<RegisterClass rc,
+                                RegisterOperand val_ty> : PseudoInstSI <
+  (outs rc:$vdst), (ins rc:$vsrc, val_ty:$val, i32imm:$subreg)> {
+  let Constraints = "$vsrc = $vdst";
+  let Uses = [M0];
+}
+
+class V_INDIRECT_REG_WRITE_B32_pseudo<RegisterClass rc> :
+  INDIRECT_REG_WRITE_pseudo<rc, VSrc_b32> {
+  let VALU = 1;
+  let VOP1 = 1;
+  let Uses = [M0, EXEC];
+}
+
+class S_INDIRECT_REG_WRITE_pseudo<RegisterClass rc,
+                                  RegisterOperand val_ty> :
+  INDIRECT_REG_WRITE_pseudo<rc, val_ty> {
+  let SALU = 1;
+  let SOP1 = 1;
+  let Uses = [M0];
+}
+
+class S_INDIRECT_REG_WRITE_B32_pseudo<RegisterClass rc> :
+  S_INDIRECT_REG_WRITE_pseudo<rc, SSrc_b32>;
+class S_INDIRECT_REG_WRITE_B64_pseudo<RegisterClass rc> :
+  S_INDIRECT_REG_WRITE_pseudo<rc, SSrc_b64>;
+
+
+def V_INDIRECT_REG_WRITE_B32_V1 : V_INDIRECT_REG_WRITE_B32_pseudo<VGPR_32>;
+def V_INDIRECT_REG_WRITE_B32_V2 : V_INDIRECT_REG_WRITE_B32_pseudo<VReg_64>;
+def V_INDIRECT_REG_WRITE_B32_V3 : V_INDIRECT_REG_WRITE_B32_pseudo<VReg_96>;
+def V_INDIRECT_REG_WRITE_B32_V4 : V_INDIRECT_REG_WRITE_B32_pseudo<VReg_128>;
+def V_INDIRECT_REG_WRITE_B32_V5 : V_INDIRECT_REG_WRITE_B32_pseudo<VReg_160>;
+def V_INDIRECT_REG_WRITE_B32_V8 : V_INDIRECT_REG_WRITE_B32_pseudo<VReg_256>;
+def V_INDIRECT_REG_WRITE_B32_V16 : V_INDIRECT_REG_WRITE_B32_pseudo<VReg_512>;
+def V_INDIRECT_REG_WRITE_B32_V32 : V_INDIRECT_REG_WRITE_B32_pseudo<VReg_1024>;
+
+def S_INDIRECT_REG_WRITE_B32_V1 : S_INDIRECT_REG_WRITE_B32_pseudo<SReg_32>;
+def S_INDIRECT_REG_WRITE_B32_V2 : S_INDIRECT_REG_WRITE_B32_pseudo<SReg_64>;
+def S_INDIRECT_REG_WRITE_B32_V3 : S_INDIRECT_REG_WRITE_B32_pseudo<SReg_96>;
+def S_INDIRECT_REG_WRITE_B32_V4 : S_INDIRECT_REG_WRITE_B32_pseudo<SReg_128>;
+def S_INDIRECT_REG_WRITE_B32_V5 : S_INDIRECT_REG_WRITE_B32_pseudo<SReg_160>;
+def S_INDIRECT_REG_WRITE_B32_V8 : S_INDIRECT_REG_WRITE_B32_pseudo<SReg_256>;
+def S_INDIRECT_REG_WRITE_B32_V16 : S_INDIRECT_REG_WRITE_B32_pseudo<SReg_512>;
+def S_INDIRECT_REG_WRITE_B32_V32 : S_INDIRECT_REG_WRITE_B32_pseudo<SReg_1024>;
+
+def S_INDIRECT_REG_WRITE_B64_V1 : S_INDIRECT_REG_WRITE_B64_pseudo<SReg_64>;
+def S_INDIRECT_REG_WRITE_B64_V2 : S_INDIRECT_REG_WRITE_B64_pseudo<SReg_128>;
+def S_INDIRECT_REG_WRITE_B64_V4 : S_INDIRECT_REG_WRITE_B64_pseudo<SReg_256>;
+def S_INDIRECT_REG_WRITE_B64_V8 : S_INDIRECT_REG_WRITE_B64_pseudo<SReg_512>;
+def S_INDIRECT_REG_WRITE_B64_V16 : S_INDIRECT_REG_WRITE_B64_pseudo<SReg_1024>;
+
 
 multiclass SI_SPILL_SGPR <RegisterClass sgpr_class> {
   let UseNamedOperandTable = 1, SGPRSpill = 1, Uses = [EXEC] in {
@@ -639,12 +736,6 @@ def : GCNPat<
 >;
 
 def : Pat <
-  // -1.0 as i32 (LowerINTRINSIC_VOID converts all other constants to -1.0)
-  (AMDGPUkill (i32 -1082130432)),
-  (SI_KILL_I1_PSEUDO (i1 0), 0)
->;
-
-def : Pat <
   (int_amdgcn_kill i1:$src),
   (SI_KILL_I1_PSEUDO SCSrc_i1:$src, 0)
 >;
@@ -652,11 +743,6 @@ def : Pat <
 def : Pat <
   (int_amdgcn_kill (i1 (not i1:$src))),
   (SI_KILL_I1_PSEUDO SCSrc_i1:$src, -1)
->;
-
-def : Pat <
-  (AMDGPUkill i32:$src),
-  (SI_KILL_F32_COND_IMM_PSEUDO VSrc_b32:$src, 0, 3) // 3 means SETOGE
 >;
 
 def : Pat <
@@ -767,20 +853,29 @@ def : GCNPat <
 // VOP2 Patterns
 //===----------------------------------------------------------------------===//
 
-multiclass FMADPat <ValueType vt, Instruction inst> {
-  def : GCNPat <
-    (vt (fmad (VOP3NoMods vt:$src0),
-              (VOP3NoMods vt:$src1),
-              (VOP3NoMods vt:$src2))),
+// TODO: Check only no src2 mods?
+class FMADPat <ValueType vt, Instruction inst, SDPatternOperator node>
+  : GCNPat <(vt (node (vt (VOP3NoMods vt:$src0)),
+                      (vt (VOP3NoMods vt:$src1)),
+                      (vt (VOP3NoMods vt:$src2)))),
     (inst SRCMODS.NONE, $src0, SRCMODS.NONE, $src1,
           SRCMODS.NONE, $src2, DSTCLAMP.NONE, DSTOMOD.NONE)
-  >;
+>;
+
+
+// Prefer mac form when there are no modifiers.
+let AddedComplexity = 9 in {
+def : FMADPat <f32, V_MAC_F32_e64, fmad>;
+def : FMADPat <f32, V_MAC_F32_e64, AMDGPUfmad_ftz>;
+
+let SubtargetPredicate = Has16BitInsts in {
+def : FMADPat <f16, V_MAC_F16_e64, fmad>;
+def : FMADPat <f16, V_MAC_F16_e64, AMDGPUfmad_ftz>;
 }
 
-defm : FMADPat <f16, V_MAC_F16_e64>;
-defm : FMADPat <f32, V_MAC_F32_e64>;
+}
 
-class FMADModsPat<Instruction inst, SDPatternOperator mad_opr, ValueType Ty>
+class FMADModsPat<ValueType Ty, Instruction inst, SDPatternOperator mad_opr>
   : GCNPat<
   (Ty (mad_opr (Ty (VOP3Mods Ty:$src0, i32:$src0_mod)),
                (Ty (VOP3Mods Ty:$src1, i32:$src1_mod)),
@@ -789,24 +884,27 @@ class FMADModsPat<Instruction inst, SDPatternOperator mad_opr, ValueType Ty>
   $src2_mod, $src2, DSTCLAMP.NONE, DSTOMOD.NONE)
 >;
 
-// FIXME: This should select to V_MAC_F32
-def : FMADModsPat<V_MAD_F32, AMDGPUfmad_ftz, f32>;
-def : FMADModsPat<V_MAD_F16, AMDGPUfmad_ftz, f16> {
+def : FMADModsPat<f32, V_MAD_F32, AMDGPUfmad_ftz>;
+def : FMADModsPat<f16, V_MAD_F16, AMDGPUfmad_ftz> {
   let SubtargetPredicate = Has16BitInsts;
 }
 
-multiclass SelectPat <ValueType vt> {
-  def : GCNPat <
-    (vt (select i1:$src0, (VOP3Mods_f32 vt:$src1, i32:$src1_mods),
-                          (VOP3Mods_f32 vt:$src2, i32:$src2_mods))),
-    (V_CNDMASK_B32_e64 $src2_mods, $src2, $src1_mods, $src1, $src0)
-  >;
-}
+class VOPSelectModsPat <ValueType vt> : GCNPat <
+  (vt (select i1:$src0, (VOP3Mods vt:$src1, i32:$src1_mods),
+                        (VOP3Mods vt:$src2, i32:$src2_mods))),
+  (V_CNDMASK_B32_e64 FP32InputMods:$src2_mods, VSrc_b32:$src2,
+                     FP32InputMods:$src1_mods, VSrc_b32:$src1, SSrc_i1:$src0)
+>;
 
-defm : SelectPat <i16>;
-defm : SelectPat <i32>;
-defm : SelectPat <f16>;
-defm : SelectPat <f32>;
+class VOPSelectPat <ValueType vt> : GCNPat <
+  (vt (select i1:$src0, vt:$src1, vt:$src2)),
+  (V_CNDMASK_B32_e64 0, VSrc_b32:$src2, 0, VSrc_b32:$src1, SSrc_i1:$src0)
+>;
+
+def : VOPSelectModsPat <i32>;
+def : VOPSelectModsPat <f32>;
+def : VOPSelectPat <f16>;
+def : VOPSelectPat <i16>;
 
 let AddedComplexity = 1 in {
 def : GCNPat <
@@ -1039,6 +1137,8 @@ def : BitConvert <v4f32, v2f64, VReg_128>;
 def : BitConvert <v4i32, v2f64, VReg_128>;
 def : BitConvert <v2i64, v2f64, VReg_128>;
 def : BitConvert <v2f64, v2i64, VReg_128>;
+def : BitConvert <v4f32, v2i64, VReg_128>;
+def : BitConvert <v2i64, v4f32, VReg_128>;
 
 // 160-bit bitcast
 def : BitConvert <v5i32, v5f32, SGPR_160>;
@@ -1389,6 +1489,7 @@ def : UMad24Pat<V_MAD_U32_U24, 1>;
 
 // FIXME: This should only be done for VALU inputs
 defm : BFIPatterns <V_BFI_B32, S_MOV_B32, SReg_64>;
+def : FSHRPattern <V_ALIGNBIT_B32>;
 def : ROTRPattern <V_ALIGNBIT_B32>;
 
 def : GCNPat<(i32 (trunc (srl i64:$src0, (and i32:$src1, (i32 31))))),
@@ -1695,9 +1796,77 @@ def : GCNPat <
 def : GCNPat <
   (i32 (bswap i32:$a)),
   (V_BFI_B32 (S_MOV_B32 (i32 0x00ff00ff)),
-             (V_ALIGNBIT_B32 $a, $a, (i32 24)),
-             (V_ALIGNBIT_B32 $a, $a, (i32 8)))
+             (V_ALIGNBIT_B32 VSrc_b32:$a, VSrc_b32:$a, (i32 24)),
+             (V_ALIGNBIT_B32 VSrc_b32:$a, VSrc_b32:$a, (i32 8)))
 >;
+
+// FIXME: This should have been narrowed to i32 during legalization.
+// This pattern should also be skipped for GlobalISel
+def : GCNPat <
+  (i64 (bswap i64:$a)),
+  (REG_SEQUENCE VReg_64,
+  (V_BFI_B32 (S_MOV_B32 (i32 0x00ff00ff)),
+             (V_ALIGNBIT_B32 (i32 (EXTRACT_SUBREG VReg_64:$a, sub1)),
+                             (i32 (EXTRACT_SUBREG VReg_64:$a, sub1)),
+                             (i32 24)),
+             (V_ALIGNBIT_B32 (i32 (EXTRACT_SUBREG VReg_64:$a, sub1)),
+                             (i32 (EXTRACT_SUBREG VReg_64:$a, sub1)),
+                             (i32 8))),
+  sub0,
+  (V_BFI_B32 (S_MOV_B32 (i32 0x00ff00ff)),
+             (V_ALIGNBIT_B32 (i32 (EXTRACT_SUBREG VReg_64:$a, sub0)),
+                             (i32 (EXTRACT_SUBREG VReg_64:$a, sub0)),
+                             (i32 24)),
+             (V_ALIGNBIT_B32 (i32 (EXTRACT_SUBREG VReg_64:$a, sub0)),
+                             (i32 (EXTRACT_SUBREG VReg_64:$a, sub0)),
+                             (i32 8))),
+  sub1)
+>;
+
+// FIXME: The AddedComplexity should not be needed, but in GlobalISel
+// the BFI pattern ends up taking precedence without it.
+let SubtargetPredicate = isGFX8Plus, AddedComplexity = 1 in {
+// Magic number: 3 | (2 << 8) | (1 << 16) | (0 << 24)
+//
+// My reading of the manual suggests we should be using src0 for the
+// register value, but this is what seems to work.
+def : GCNPat <
+  (i32 (bswap i32:$a)),
+  (V_PERM_B32 (i32 0), VSrc_b32:$a, (S_MOV_B32 (i32 0x00010203)))
+>;
+
+// FIXME: This should have been narrowed to i32 during legalization.
+// This pattern should also be skipped for GlobalISel
+def : GCNPat <
+  (i64 (bswap i64:$a)),
+  (REG_SEQUENCE VReg_64,
+  (V_PERM_B32 (i32 0), (EXTRACT_SUBREG VReg_64:$a, sub1),
+              (S_MOV_B32 (i32 0x00010203))),
+  sub0,
+  (V_PERM_B32 (i32 0), (EXTRACT_SUBREG VReg_64:$a, sub0),
+              (S_MOV_B32 (i32 0x00010203))),
+  sub1)
+>;
+
+// Magic number: 1 | (0 << 8) | (12 << 16) | (12 << 24)
+// The 12s emit 0s.
+def : GCNPat <
+  (i16 (bswap i16:$a)),
+  (V_PERM_B32 (i32 0), VSrc_b32:$a, (S_MOV_B32 (i32 0x0c0c0001)))
+>;
+
+def : GCNPat <
+  (i32 (zext (bswap i16:$a))),
+  (V_PERM_B32 (i32 0), VSrc_b32:$a, (S_MOV_B32 (i32 0x0c0c0001)))
+>;
+
+// Magic number: 1 | (0 << 8) | (3 << 16) | (2 << 24)
+def : GCNPat <
+  (v2i16 (bswap v2i16:$a)),
+  (V_PERM_B32 (i32 0), VSrc_b32:$a, (S_MOV_B32 (i32 0x02030001)))
+>;
+
+}
 
 let OtherPredicates = [NoFP16Denormals] in {
 def : GCNPat<
@@ -1782,15 +1951,6 @@ def : GCNPat <
                   SRCMODS.NONE, $src2, $clamp, $omod)
 >;
 
-// Allow integer inputs
-class ExpPattern<SDPatternOperator node, ValueType vt, Instruction Inst> : GCNPat<
-  (node (i8 timm:$tgt), (i8 timm:$en), vt:$src0, vt:$src1, vt:$src2, vt:$src3, (i1 timm:$compr), (i1 timm:$vm)),
-  (Inst i8:$tgt, vt:$src0, vt:$src1, vt:$src2, vt:$src3, i1:$vm, i1:$compr, i8:$en)
->;
-
-def : ExpPattern<AMDGPUexport, i32, EXP>;
-def : ExpPattern<AMDGPUexport_done, i32, EXP_DONE>;
-
 // COPY is workaround tablegen bug from multiple outputs
 // from S_LSHL_B32's multiple outputs from implicit scc def.
 def : GCNPat <
@@ -1873,19 +2033,20 @@ def : GCNPat <
 >;
 
 def : GCNPat <
-  (i64 (int_amdgcn_mov_dpp i64:$src, timm:$dpp_ctrl, timm:$row_mask, timm:$bank_mask,
-                           timm:$bound_ctrl)),
-  (V_MOV_B64_DPP_PSEUDO $src, $src, (as_i32imm $dpp_ctrl),
-                        (as_i32imm $row_mask), (as_i32imm $bank_mask),
-                        (as_i1imm $bound_ctrl))
+  (i64 (int_amdgcn_mov_dpp i64:$src, timm:$dpp_ctrl, timm:$row_mask,
+                           timm:$bank_mask, timm:$bound_ctrl)),
+  (V_MOV_B64_DPP_PSEUDO VReg_64:$src, VReg_64:$src,
+                        (as_i32timm $dpp_ctrl), (as_i32timm $row_mask),
+                        (as_i32timm $bank_mask),
+                        (as_i1timm $bound_ctrl))
 >;
 
 def : GCNPat <
   (i64 (int_amdgcn_update_dpp i64:$old, i64:$src, timm:$dpp_ctrl, timm:$row_mask,
                               timm:$bank_mask, timm:$bound_ctrl)),
-  (V_MOV_B64_DPP_PSEUDO $old, $src, (as_i32imm $dpp_ctrl),
-                        (as_i32imm $row_mask), (as_i32imm $bank_mask),
-                        (as_i1imm $bound_ctrl))
+  (V_MOV_B64_DPP_PSEUDO VReg_64:$old, VReg_64:$src, (as_i32timm $dpp_ctrl),
+                        (as_i32timm $row_mask), (as_i32timm $bank_mask),
+                        (as_i1timm $bound_ctrl))
 >;
 
 //===----------------------------------------------------------------------===//
@@ -1901,6 +2062,11 @@ let SubtargetPredicate = isGFX6 in {
 //    fract(x) = isnan(x) ? x : min(V_FRACT(x), 0.99999999999999999)
 
 // Convert floor(x) to (x - fract(x))
+
+// Don't bother handling this for GlobalISel, it's handled during
+// lowering.
+//
+// FIXME: DAG should also custom lower this.
 def : GCNPat <
   (f64 (ffloor (f64 (VOP3Mods f64:$x, i32:$mods)))),
   (V_ADD_F64
@@ -2061,13 +2227,156 @@ def G_AMDGPU_FFBH_U32 : AMDGPUGenericInstruction {
   let hasSideEffects = 0;
 }
 
+def G_AMDGPU_RCP_IFLAG : AMDGPUGenericInstruction {
+  let OutOperandList = (outs type0:$dst);
+  let InOperandList = (ins type1:$src);
+  let hasSideEffects = 0;
+}
+
+class BufferLoadGenericInstruction : AMDGPUGenericInstruction {
+  let OutOperandList = (outs type0:$dst);
+  let InOperandList = (ins type1:$rsrc, type2:$vindex, type2:$voffset,
+                           type2:$soffset, untyped_imm_0:$offset,
+                           untyped_imm_0:$cachepolicy, untyped_imm_0:$idxen);
+  let hasSideEffects = 0;
+  let mayLoad = 1;
+}
+
+class TBufferLoadGenericInstruction : AMDGPUGenericInstruction {
+  let OutOperandList = (outs type0:$dst);
+  let InOperandList = (ins type1:$rsrc, type2:$vindex, type2:$voffset,
+                           type2:$soffset, untyped_imm_0:$offset, untyped_imm_0:$format,
+                           untyped_imm_0:$cachepolicy, untyped_imm_0:$idxen);
+  let hasSideEffects = 0;
+  let mayLoad = 1;
+}
+
+def G_AMDGPU_BUFFER_LOAD_UBYTE : BufferLoadGenericInstruction;
+def G_AMDGPU_BUFFER_LOAD_SBYTE : BufferLoadGenericInstruction;
+def G_AMDGPU_BUFFER_LOAD_USHORT : BufferLoadGenericInstruction;
+def G_AMDGPU_BUFFER_LOAD_SSHORT : BufferLoadGenericInstruction;
+def G_AMDGPU_BUFFER_LOAD : BufferLoadGenericInstruction;
+def G_AMDGPU_BUFFER_LOAD_FORMAT : BufferLoadGenericInstruction;
+def G_AMDGPU_BUFFER_LOAD_FORMAT_D16 : BufferLoadGenericInstruction;
+def G_AMDGPU_TBUFFER_LOAD_FORMAT : TBufferLoadGenericInstruction;
+def G_AMDGPU_TBUFFER_LOAD_FORMAT_D16 : TBufferLoadGenericInstruction;
+
+class BufferStoreGenericInstruction : AMDGPUGenericInstruction {
+  let OutOperandList = (outs);
+  let InOperandList = (ins type0:$vdata, type1:$rsrc, type2:$vindex, type2:$voffset,
+                           type2:$soffset, untyped_imm_0:$offset,
+                           untyped_imm_0:$cachepolicy, untyped_imm_0:$idxen);
+  let hasSideEffects = 0;
+  let mayStore = 1;
+}
+
+class TBufferStoreGenericInstruction : AMDGPUGenericInstruction {
+  let OutOperandList = (outs);
+  let InOperandList = (ins type0:$vdata, type1:$rsrc, type2:$vindex, type2:$voffset,
+                           type2:$soffset, untyped_imm_0:$offset,
+                           untyped_imm_0:$format,
+                           untyped_imm_0:$cachepolicy, untyped_imm_0:$idxen);
+  let hasSideEffects = 0;
+  let mayStore = 1;
+}
+
+def G_AMDGPU_BUFFER_STORE : BufferStoreGenericInstruction;
+def G_AMDGPU_BUFFER_STORE_BYTE : BufferStoreGenericInstruction;
+def G_AMDGPU_BUFFER_STORE_SHORT : BufferStoreGenericInstruction;
+def G_AMDGPU_BUFFER_STORE_FORMAT : BufferStoreGenericInstruction;
+def G_AMDGPU_BUFFER_STORE_FORMAT_D16 : BufferStoreGenericInstruction;
+def G_AMDGPU_TBUFFER_STORE_FORMAT : TBufferStoreGenericInstruction;
+def G_AMDGPU_TBUFFER_STORE_FORMAT_D16 : TBufferStoreGenericInstruction;
+
+def G_AMDGPU_FMIN_LEGACY : AMDGPUGenericInstruction {
+  let OutOperandList = (outs type0:$dst);
+  let InOperandList = (ins type0:$src0, type0:$src1);
+  let hasSideEffects = 0;
+}
+
+def G_AMDGPU_FMAX_LEGACY : AMDGPUGenericInstruction {
+  let OutOperandList = (outs type0:$dst);
+  let InOperandList = (ins type0:$src0, type0:$src1);
+  let hasSideEffects = 0;
+}
+
 // Atomic cmpxchg. $cmpval ad $newval are packed in a single vector
 // operand Expects a MachineMemOperand in addition to explicit
 // operands.
 def G_AMDGPU_ATOMIC_CMPXCHG : AMDGPUGenericInstruction {
   let OutOperandList = (outs type0:$oldval);
-  let InOperandList = (ins ptype1:$addr, type0:$cmpval_nnenwval);
+  let InOperandList = (ins ptype1:$addr, type0:$cmpval_newval);
   let hasSideEffects = 0;
   let mayLoad = 1;
+  let mayStore = 1;
+}
+
+let Namespace = "AMDGPU" in {
+def G_AMDGPU_ATOMIC_INC : G_ATOMICRMW_OP;
+def G_AMDGPU_ATOMIC_DEC : G_ATOMICRMW_OP;
+}
+
+class BufferAtomicGenericInstruction : AMDGPUGenericInstruction {
+  let OutOperandList = (outs type0:$dst);
+  let InOperandList = (ins type0:$vdata, type1:$rsrc, type2:$vindex, type2:$voffset,
+                           type2:$soffset, untyped_imm_0:$offset,
+                           untyped_imm_0:$cachepolicy, untyped_imm_0:$idxen);
+  let hasSideEffects = 0;
+  let mayLoad = 1;
+  let mayStore = 1;
+}
+
+def G_AMDGPU_BUFFER_ATOMIC_SWAP : BufferAtomicGenericInstruction;
+def G_AMDGPU_BUFFER_ATOMIC_ADD : BufferAtomicGenericInstruction;
+def G_AMDGPU_BUFFER_ATOMIC_SUB : BufferAtomicGenericInstruction;
+def G_AMDGPU_BUFFER_ATOMIC_SMIN : BufferAtomicGenericInstruction;
+def G_AMDGPU_BUFFER_ATOMIC_UMIN : BufferAtomicGenericInstruction;
+def G_AMDGPU_BUFFER_ATOMIC_SMAX : BufferAtomicGenericInstruction;
+def G_AMDGPU_BUFFER_ATOMIC_UMAX : BufferAtomicGenericInstruction;
+def G_AMDGPU_BUFFER_ATOMIC_AND : BufferAtomicGenericInstruction;
+def G_AMDGPU_BUFFER_ATOMIC_OR : BufferAtomicGenericInstruction;
+def G_AMDGPU_BUFFER_ATOMIC_XOR : BufferAtomicGenericInstruction;
+def G_AMDGPU_BUFFER_ATOMIC_INC : BufferAtomicGenericInstruction;
+def G_AMDGPU_BUFFER_ATOMIC_DEC : BufferAtomicGenericInstruction;
+
+def G_AMDGPU_BUFFER_ATOMIC_CMPSWAP : AMDGPUGenericInstruction {
+  let OutOperandList = (outs type0:$dst);
+  let InOperandList = (ins type0:$vdata, type0:$cmp, type1:$rsrc, type2:$vindex,
+                           type2:$voffset, type2:$soffset, untyped_imm_0:$offset,
+                           untyped_imm_0:$cachepolicy, untyped_imm_0:$idxen);
+  let hasSideEffects = 0;
+  let mayLoad = 1;
+  let mayStore = 1;
+}
+
+// Wrapper around llvm.amdgcn.s.buffer.load. This is mostly needed as
+// a workaround for the intrinsic being defined as readnone, but
+// really needs a memory operand.
+def G_AMDGPU_S_BUFFER_LOAD : AMDGPUGenericInstruction {
+  let OutOperandList = (outs type0:$dst);
+  let InOperandList = (ins type1:$rsrc, type2:$offset, untyped_imm_0:$cachepolicy);
+  let hasSideEffects = 0;
+  let mayLoad = 1;
+  let mayStore = 0;
+}
+
+// This is equivalent to the G_INTRINSIC*, but the operands may have
+// been legalized depending on the subtarget requirements.
+def G_AMDGPU_INTRIN_IMAGE_LOAD : AMDGPUGenericInstruction {
+  let OutOperandList = (outs type0:$dst);
+  let InOperandList = (ins unknown:$intrin, variable_ops);
+  let hasSideEffects = 0;
+  let mayLoad = 1;
+
+  // FIXME: Use separate opcode for atomics.
+  let mayStore = 1;
+}
+
+// This is equivalent to the G_INTRINSIC*, but the operands may have
+// been legalized depending on the subtarget requirements.
+def G_AMDGPU_INTRIN_IMAGE_STORE : AMDGPUGenericInstruction {
+  let OutOperandList = (outs);
+  let InOperandList = (ins unknown:$intrin, variable_ops);
+  let hasSideEffects = 0;
   let mayStore = 1;
 }

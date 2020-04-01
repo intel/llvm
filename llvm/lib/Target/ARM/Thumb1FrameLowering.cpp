@@ -216,6 +216,10 @@ void Thumb1FrameLowering::emitPrologue(MachineFunction &MF,
         break;
       }
       LLVM_FALLTHROUGH;
+    case ARM::R0:
+    case ARM::R1:
+    case ARM::R2:
+    case ARM::R3:
     case ARM::R4:
     case ARM::R5:
     case ARM::R6:
@@ -402,7 +406,7 @@ void Thumb1FrameLowering::emitPrologue(MachineFunction &MF,
   AFI->setDPRCalleeSavedAreaSize(DPRCSSize);
 
   if (RegInfo->needsStackRealignment(MF)) {
-    const unsigned NrBitsToZero = countTrailingZeros(MFI.getMaxAlignment());
+    const unsigned NrBitsToZero = Log2(MFI.getMaxAlign());
     // Emit the following sequence, using R4 as a temporary, since we cannot use
     // SP as a source or destination register for the shifts:
     // mov  r4, sp
@@ -804,11 +808,9 @@ static const unsigned *findNextOrderedReg(const unsigned *CurrentReg,
   return CurrentReg;
 }
 
-bool Thumb1FrameLowering::
-spillCalleeSavedRegisters(MachineBasicBlock &MBB,
-                          MachineBasicBlock::iterator MI,
-                          const std::vector<CalleeSavedInfo> &CSI,
-                          const TargetRegisterInfo *TRI) const {
+bool Thumb1FrameLowering::spillCalleeSavedRegisters(
+    MachineBasicBlock &MBB, MachineBasicBlock::iterator MI,
+    ArrayRef<CalleeSavedInfo> CSI, const TargetRegisterInfo *TRI) const {
   if (CSI.empty())
     return false;
 
@@ -850,7 +852,8 @@ spillCalleeSavedRegisters(MachineBasicBlock &MBB,
   if (!LoRegsToSave.none()) {
     MachineInstrBuilder MIB =
         BuildMI(MBB, MI, DL, TII.get(ARM::tPUSH)).add(predOps(ARMCC::AL));
-    for (unsigned Reg : {ARM::R4, ARM::R5, ARM::R6, ARM::R7, ARM::LR}) {
+    for (unsigned Reg : {ARM::R0, ARM::R1, ARM::R2, ARM::R3, ARM::R4, ARM::R5,
+                         ARM::R6, ARM::R7, ARM::LR}) {
       if (LoRegsToSave[Reg]) {
         bool isKill = !MRI.isLiveIn(Reg);
         if (isKill && !MRI.isReserved(Reg))
@@ -927,11 +930,9 @@ spillCalleeSavedRegisters(MachineBasicBlock &MBB,
   return true;
 }
 
-bool Thumb1FrameLowering::
-restoreCalleeSavedRegisters(MachineBasicBlock &MBB,
-                            MachineBasicBlock::iterator MI,
-                            std::vector<CalleeSavedInfo> &CSI,
-                            const TargetRegisterInfo *TRI) const {
+bool Thumb1FrameLowering::restoreCalleeSavedRegisters(
+    MachineBasicBlock &MBB, MachineBasicBlock::iterator MI,
+    MutableArrayRef<CalleeSavedInfo> CSI, const TargetRegisterInfo *TRI) const {
   if (CSI.empty())
     return false;
 
@@ -960,6 +961,9 @@ restoreCalleeSavedRegisters(MachineBasicBlock &MBB,
       llvm_unreachable("callee-saved register of unexpected class");
     }
 
+    if (Reg == ARM::LR)
+      I.setRestored(false);
+
     // If this is a low register not used as the frame pointer, we may want to
     // use it for restoring the high registers.
     if ((ARM::tGPRRegClass.contains(Reg)) &&
@@ -984,6 +988,9 @@ restoreCalleeSavedRegisters(MachineBasicBlock &MBB,
   static const unsigned AllCopyRegs[] = {ARM::R0, ARM::R1, ARM::R2, ARM::R3,
                                          ARM::R4, ARM::R5, ARM::R6, ARM::R7};
   static const unsigned AllHighRegs[] = {ARM::R8, ARM::R9, ARM::R10, ARM::R11};
+  static const unsigned AllLoRegs[] = {ARM::R0, ARM::R1, ARM::R2,
+                                       ARM::R3, ARM::R4, ARM::R5,
+                                       ARM::R6, ARM::R7, ARM::LR};
 
   const unsigned *AllCopyRegsEnd = std::end(AllCopyRegs);
   const unsigned *AllHighRegsEnd = std::end(AllHighRegs);
@@ -1022,16 +1029,10 @@ restoreCalleeSavedRegisters(MachineBasicBlock &MBB,
       BuildMI(MF, DL, TII.get(ARM::tPOP)).add(predOps(ARMCC::AL));
 
   bool NeedsPop = false;
-  for (unsigned i = CSI.size(); i != 0; --i) {
-    CalleeSavedInfo &Info = CSI[i-1];
-    unsigned Reg = Info.getReg();
-
-    // High registers (excluding lr) have already been dealt with
-    if (!(ARM::tGPRRegClass.contains(Reg) || Reg == ARM::LR))
+  for (unsigned Reg : AllLoRegs) {
+    if (!LoRegsToRestore[Reg])
       continue;
-
     if (Reg == ARM::LR) {
-      Info.setRestored(false);
       if (!MBB.succ_empty() ||
           MI->getOpcode() == ARM::TCRETURNdi ||
           MI->getOpcode() == ARM::TCRETURNri)

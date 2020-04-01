@@ -516,6 +516,16 @@ private:
   }
   bool canCallMismatchedFunctionType() const override { return false; }
 };
+
+class XLCXXABI final : public ItaniumCXXABI {
+public:
+  explicit XLCXXABI(CodeGen::CodeGenModule &CGM)
+      : ItaniumCXXABI(CGM) {}
+
+  void registerGlobalDtor(CodeGenFunction &CGF, const VarDecl &D,
+                          llvm::FunctionCallee dtor,
+                          llvm::Constant *addr) override;
+};
 }
 
 CodeGen::CGCXXABI *CodeGen::CreateItaniumCXXABI(CodeGenModule &CGM) {
@@ -545,6 +555,9 @@ CodeGen::CGCXXABI *CodeGen::CreateItaniumCXXABI(CodeGenModule &CGM) {
 
   case TargetCXXABI::WebAssembly:
     return new WebAssemblyCXXABI(CGM);
+
+  case TargetCXXABI::XL:
+    return new XLCXXABI(CGM);
 
   case TargetCXXABI::GenericItanium:
     if (CGM.getContext().getTargetInfo().getTriple().getArch()
@@ -670,6 +683,10 @@ CGCallee ItaniumCXXABI::EmitLoadOfMemberFunctionPointer(
                             CGM.HasHiddenLTOVisibility(RD);
   bool ShouldEmitVFEInfo = CGM.getCodeGenOpts().VirtualFunctionElimination &&
                            CGM.HasHiddenLTOVisibility(RD);
+  bool ShouldEmitWPDInfo =
+      CGM.getCodeGenOpts().WholeProgramVTables &&
+      // Don't insert type tests if we are forcing public std visibility.
+      !CGM.HasLTOVisibilityPublicStd(RD);
   llvm::Value *VirtualFn = nullptr;
 
   {
@@ -677,8 +694,9 @@ CGCallee ItaniumCXXABI::EmitLoadOfMemberFunctionPointer(
     llvm::Value *TypeId = nullptr;
     llvm::Value *CheckResult = nullptr;
 
-    if (ShouldEmitCFICheck || ShouldEmitVFEInfo) {
-      // If doing CFI or VFE, we will need the metadata node to check against.
+    if (ShouldEmitCFICheck || ShouldEmitVFEInfo || ShouldEmitWPDInfo) {
+      // If doing CFI, VFE or WPD, we will need the metadata node to check
+      // against.
       llvm::Metadata *MD =
           CGM.CreateMetadataIdentifierForVirtualMemPtrType(QualType(MPT, 0));
       TypeId = llvm::MetadataAsValue::get(CGF.getLLVMContext(), MD);
@@ -702,7 +720,7 @@ CGCallee ItaniumCXXABI::EmitLoadOfMemberFunctionPointer(
     } else {
       // When not doing VFE, emit a normal load, as it allows more
       // optimisations than type.checked.load.
-      if (ShouldEmitCFICheck) {
+      if (ShouldEmitCFICheck || ShouldEmitWPDInfo) {
         CheckResult = Builder.CreateCall(
             CGM.getIntrinsic(llvm::Intrinsic::type_test),
             {Builder.CreateBitCast(VFPAddr, CGF.Int8PtrTy), TypeId});
@@ -713,7 +731,8 @@ CGCallee ItaniumCXXABI::EmitLoadOfMemberFunctionPointer(
                                             "memptr.virtualfn");
     }
     assert(VirtualFn && "Virtual fuction pointer not created!");
-    assert((!ShouldEmitCFICheck || !ShouldEmitVFEInfo || CheckResult) &&
+    assert((!ShouldEmitCFICheck || !ShouldEmitVFEInfo || !ShouldEmitWPDInfo ||
+            CheckResult) &&
            "Check result required but not created!");
 
     if (ShouldEmitCFICheck) {
@@ -2545,6 +2564,9 @@ ItaniumCXXABI::getOrCreateThreadLocalWrapper(const VarDecl *VD,
   llvm::Function *Wrapper =
       llvm::Function::Create(FnTy, getThreadLocalWrapperLinkage(VD, CGM),
                              WrapperName.str(), &CGM.getModule());
+
+  if (CGM.supportsCOMDAT() && Wrapper->isWeakForLinker())
+    Wrapper->setComdat(CGM.getModule().getOrInsertComdat(Wrapper->getName()));
 
   CGM.SetLLVMFunctionAttributes(GlobalDecl(), FI, Wrapper);
 
@@ -4397,4 +4419,12 @@ void WebAssemblyCXXABI::emitBeginCatch(CodeGenFunction &CGF,
     CGF.EHStack.pushCleanup<CatchRetScope>(
         NormalCleanup, cast<llvm::CatchPadInst>(CGF.CurrentFuncletPad));
   ItaniumCXXABI::emitBeginCatch(CGF, C);
+}
+
+/// Register a global destructor as best as we know how.
+void XLCXXABI::registerGlobalDtor(CodeGenFunction &CGF, const VarDecl &D,
+                                  llvm::FunctionCallee dtor,
+                                  llvm::Constant *addr) {
+  llvm::report_fatal_error("Static initialization has not been implemented on"
+                           " XL ABI yet.");
 }

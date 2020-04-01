@@ -1,6 +1,6 @@
 //===- AffineMap.cpp - MLIR Affine Map Classes ----------------------------===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -109,6 +109,44 @@ AffineMap AffineMap::getPermutationMap(ArrayRef<unsigned> permutation,
   auto permutationMap = AffineMap::get(*m + 1, 0, affExprs);
   assert(permutationMap.isPermutation() && "Invalid permutation vector");
   return permutationMap;
+}
+
+template <typename AffineExprContainer>
+static void getMaxDimAndSymbol(ArrayRef<AffineExprContainer> exprsList,
+                               int64_t &maxDim, int64_t &maxSym) {
+  for (const auto &exprs : exprsList) {
+    for (auto expr : exprs) {
+      expr.walk([&maxDim, &maxSym](AffineExpr e) {
+        if (auto d = e.dyn_cast<AffineDimExpr>())
+          maxDim = std::max(maxDim, static_cast<int64_t>(d.getPosition()));
+        if (auto s = e.dyn_cast<AffineSymbolExpr>())
+          maxSym = std::max(maxSym, static_cast<int64_t>(s.getPosition()));
+      });
+    }
+  }
+}
+
+template <typename AffineExprContainer>
+static SmallVector<AffineMap, 4>
+inferFromExprList(ArrayRef<AffineExprContainer> exprsList) {
+  int64_t maxDim = -1, maxSym = -1;
+  getMaxDimAndSymbol(exprsList, maxDim, maxSym);
+  SmallVector<AffineMap, 4> maps;
+  maps.reserve(exprsList.size());
+  for (const auto &exprs : exprsList)
+    maps.push_back(AffineMap::get(/*dimCount=*/maxDim + 1,
+                                  /*symbolCount=*/maxSym + 1, exprs));
+  return maps;
+}
+
+SmallVector<AffineMap, 4>
+AffineMap::inferFromExprList(ArrayRef<ArrayRef<AffineExpr>> exprsList) {
+  return ::inferFromExprList(exprsList);
+}
+
+SmallVector<AffineMap, 4>
+AffineMap::inferFromExprList(ArrayRef<SmallVector<AffineExpr, 4>> exprsList) {
+  return ::inferFromExprList(exprsList);
 }
 
 AffineMap AffineMap::getMultiDimIdentityMap(unsigned numDims,
@@ -243,7 +281,8 @@ AffineMap AffineMap::compose(AffineMap map) {
   exprs.reserve(getResults().size());
   for (auto expr : getResults())
     exprs.push_back(expr.compose(newMap));
-  return AffineMap::get(numDims, numSymbols, exprs);
+  return exprs.empty() ? AffineMap::get(numDims, 0, map.getContext())
+                       : AffineMap::get(numDims, numSymbols, exprs);
 }
 
 bool AffineMap::isProjectedPermutation() {
@@ -287,7 +326,7 @@ AffineMap mlir::simplifyAffineMap(AffineMap map) {
 }
 
 AffineMap mlir::inversePermutation(AffineMap map) {
-  if (!map)
+  if (map.isEmpty())
     return map;
   assert(map.getNumSymbols() == 0 && "expected map without symbols");
   SmallVector<AffineExpr, 4> exprs(map.getNumDims());
@@ -313,16 +352,61 @@ AffineMap mlir::inversePermutation(AffineMap map) {
 AffineMap mlir::concatAffineMaps(ArrayRef<AffineMap> maps) {
   unsigned numResults = 0;
   for (auto m : maps)
-    numResults += m ? m.getNumResults() : 0;
+    numResults += m.getNumResults();
   unsigned numDims = 0;
   SmallVector<AffineExpr, 8> results;
   results.reserve(numResults);
   for (auto m : maps) {
-    if (!m)
-      continue;
     assert(m.getNumSymbols() == 0 && "expected map without symbols");
     results.append(m.getResults().begin(), m.getResults().end());
     numDims = std::max(m.getNumDims(), numDims);
   }
-  return numDims == 0 ? AffineMap() : AffineMap::get(numDims, 0, results);
+  return results.empty() ? AffineMap::get(numDims, /*numSymbols=*/0,
+                                          maps.front().getContext())
+                         : AffineMap::get(numDims, /*numSymbols=*/0, results);
+}
+
+//===----------------------------------------------------------------------===//
+// MutableAffineMap.
+//===----------------------------------------------------------------------===//
+
+MutableAffineMap::MutableAffineMap(AffineMap map)
+    : numDims(map.getNumDims()), numSymbols(map.getNumSymbols()),
+      // A map always has at least 1 result by construction
+      context(map.getResult(0).getContext()) {
+  for (auto result : map.getResults())
+    results.push_back(result);
+}
+
+void MutableAffineMap::reset(AffineMap map) {
+  results.clear();
+  numDims = map.getNumDims();
+  numSymbols = map.getNumSymbols();
+  // A map always has at least 1 result by construction
+  context = map.getResult(0).getContext();
+  for (auto result : map.getResults())
+    results.push_back(result);
+}
+
+bool MutableAffineMap::isMultipleOf(unsigned idx, int64_t factor) const {
+  if (results[idx].isMultipleOf(factor))
+    return true;
+
+  // TODO(bondhugula): use simplifyAffineExpr and FlatAffineConstraints to
+  // complete this (for a more powerful analysis).
+  return false;
+}
+
+// Simplifies the result affine expressions of this map. The expressions have to
+// be pure for the simplification implemented.
+void MutableAffineMap::simplify() {
+  // Simplify each of the results if possible.
+  // TODO(ntv): functional-style map
+  for (unsigned i = 0, e = getNumResults(); i < e; i++) {
+    results[i] = simplifyAffineExpr(getResult(i), numDims, numSymbols);
+  }
+}
+
+AffineMap MutableAffineMap::getAffineMap() const {
+  return AffineMap::get(numDims, numSymbols, results);
 }

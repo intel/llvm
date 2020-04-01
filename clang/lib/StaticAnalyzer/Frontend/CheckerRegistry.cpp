@@ -51,11 +51,10 @@ using CheckerNameLT = FullNameLT<CheckerRegistry::CheckerInfo>;
 } // end of anonymous namespace
 
 template <class CheckerOrPackageInfoList>
-static
-    typename std::conditional<std::is_const<CheckerOrPackageInfoList>::value,
-                              typename CheckerOrPackageInfoList::const_iterator,
-                              typename CheckerOrPackageInfoList::iterator>::type
-    binaryFind(CheckerOrPackageInfoList &Collection, StringRef FullName) {
+static std::conditional_t<std::is_const<CheckerOrPackageInfoList>::value,
+                          typename CheckerOrPackageInfoList::const_iterator,
+                          typename CheckerOrPackageInfoList::iterator>
+binaryFind(CheckerOrPackageInfoList &Collection, StringRef FullName) {
 
   using CheckerOrPackage = typename CheckerOrPackageInfoList::value_type;
   using CheckerOrPackageFullNameLT = FullNameLT<CheckerOrPackage>;
@@ -316,7 +315,8 @@ static void insertAndValidate(StringRef FullName,
 
   std::string FullOption = (FullName + ":" + Option.OptionName).str();
 
-  auto It = AnOpts.Config.insert({FullOption, Option.DefaultValStr});
+  auto It =
+      AnOpts.Config.insert({FullOption, std::string(Option.DefaultValStr)});
 
   // Insertation was successful -- CmdLineOption's constructor will validate
   // whether values received from plugins or TableGen files are correct.
@@ -337,7 +337,7 @@ static void insertAndValidate(StringRef FullName,
             << FullOption << "a boolean value";
       }
 
-      It.first->setValue(Option.DefaultValStr);
+      It.first->setValue(std::string(Option.DefaultValStr));
     }
     return;
   }
@@ -351,7 +351,7 @@ static void insertAndValidate(StringRef FullName,
             << FullOption << "an integer value";
       }
 
-      It.first->setValue(Option.DefaultValStr);
+      It.first->setValue(std::string(Option.DefaultValStr));
     }
     return;
   }

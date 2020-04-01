@@ -1,4 +1,4 @@
-//===-- SBDeclaration.cpp ----------------------------------------*- C++-*-===//
+//===-- SBDeclaration.cpp -------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -50,7 +50,7 @@ void SBDeclaration::SetDeclaration(
   ref() = lldb_object_ref;
 }
 
-SBDeclaration::~SBDeclaration() {}
+SBDeclaration::~SBDeclaration() = default;
 
 bool SBDeclaration::IsValid() const {
   LLDB_RECORD_METHOD_CONST_NO_ARGS(bool, SBDeclaration, IsValid);

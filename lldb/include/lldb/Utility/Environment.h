@@ -68,7 +68,8 @@ public:
   }
 
   std::pair<iterator, bool> insert(llvm::StringRef KeyEqValue) {
-    return insert(KeyEqValue.split('='));
+    auto Split = KeyEqValue.split('=');
+    return insert(std::make_pair(Split.first, std::string(Split.second)));
   }
 
   void insert(const_iterator first, const_iterator last);
@@ -92,4 +93,4 @@ template <> struct format_provider<lldb_private::Environment> {
 };
 } // namespace llvm
 
-#endif // #ifndef LLDB_UTILITY_ENVIRONMENT_H
+#endif // LLDB_UTILITY_ENVIRONMENT_H

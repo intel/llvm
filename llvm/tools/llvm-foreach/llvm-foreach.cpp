@@ -170,7 +170,7 @@ int main(int argc, char **argv) {
     if (!OutReplace.empty()) {
       // Create a file for command result. Add file name to output
       // file list if needed.
-      std::string TempFileNameBase = sys::path::stem(OutReplace);
+      std::string TempFileNameBase = std::string(sys::path::stem(OutReplace));
       if (OutDirectory.empty())
         EC = sys::fs::createTemporaryFile(TempFileNameBase, OutFilesExt, Path);
       else {

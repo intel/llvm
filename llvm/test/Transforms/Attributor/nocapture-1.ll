@@ -135,8 +135,10 @@ define void @nc3(void ()* %p) {
 	ret void
 }
 
-declare void @external(i8*) readonly nounwind
-; ATTRIBUTOR: define void @nc4(i8* nocapture readonly %p)
+; The following test is tricky because improvements to AAIsDead can cause the call to be removed.
+; FIXME: readonly and nocapture missing on the pointer.
+declare void @external(i8* readonly) nounwind argmemonly
+; ATTRIBUTOR: define void @nc4(i8* %p)
 define void @nc4(i8* %p) {
 	call void @external(i8* %p)
 	ret void
@@ -322,7 +324,7 @@ declare void @unknown(i8*)
 define void @test_callsite() {
 entry:
 ; We know that 'null' in AS 0 does not alias anything and cannot be captured. Though the latter is not qurried -> derived atm.
-; ATTRIBUTOR: call void @unknown(i8* noalias null)
+; ATTRIBUTOR: call void @unknown(i8* noalias align 536870912 null)
   call void @unknown(i8* null)
   ret void
 }
@@ -340,6 +342,20 @@ define i8* @test_returned2(i8* %A, i8* %B) {
 entry:
   %p = call i8* @unknownpi8pi8(i8* %A, i8* %B) nounwind readonly
   ret i8* %p
+}
+
+declare i8* @maybe_returned_ptr(i8* readonly %ptr) readonly nounwind
+declare i8 @maybe_returned_val(i8* %ptr) readonly nounwind
+declare void @val_use(i8 %ptr) readonly nounwind
+
+; FIXME: Both pointers should be nocapture
+define void @ptr_uses(i8* %ptr, i8* %wptr) {
+; CHECK: define void @ptr_uses(i8* %ptr, i8* nocapture nonnull writeonly dereferenceable(1) %wptr)
+  %call_ptr = call i8* @maybe_returned_ptr(i8* %ptr)
+  %call_val = call i8 @maybe_returned_val(i8* %call_ptr)
+  call void @val_use(i8 %call_val)
+  store i8 0, i8* %wptr
+  ret void
 }
 
 declare i8* @llvm.launder.invariant.group.p0i8(i8*)

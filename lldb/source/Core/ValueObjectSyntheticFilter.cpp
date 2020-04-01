@@ -1,4 +1,4 @@
-//===-- ValueObjectSyntheticFilter.cpp --------------------------*- C++ -*-===//
+//===-- ValueObjectSyntheticFilter.cpp ------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -14,7 +14,6 @@
 #include "lldb/Target/ExecutionContext.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/Logging.h"
-#include "lldb/Utility/SharingPtr.h"
 #include "lldb/Utility/Status.h"
 
 #include "llvm/ADT/STLExtras.h"

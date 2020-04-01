@@ -1,4 +1,4 @@
-; RUN: opt -S -passes=attributor -aa-pipeline='basic-aa' -attributor-disable=false -attributor-max-iterations-verify -attributor-annotate-decl-cs -attributor-max-iterations=3 < %s | FileCheck %s
+; RUN: opt -S -passes=attributor -aa-pipeline='basic-aa' -attributor-disable=false -attributor-max-iterations-verify -attributor-annotate-decl-cs -attributor-max-iterations=7 < %s | FileCheck %s
 
 ; TEST 1 - negative.
 
@@ -38,6 +38,13 @@ define i8* @return_noalias_looks_like_capture(){
   %1 = tail call noalias i8* @malloc(i64 4)
   call void @nocapture(i8* %1)
   ret i8* %1
+}
+
+; CHECK: define noalias i16* @return_noalias_casted()
+define i16* @return_noalias_casted(){
+  %1 = tail call noalias i8* @malloc(i64 4)
+  %c = bitcast i8* %1 to i16*
+  ret i16* %c
 }
 
 declare i8* @alias()
@@ -152,27 +159,40 @@ define i8* @test8(i32* %0) nounwind uwtable {
 
 ; TEST 9
 ; Simple Argument Test
-declare void @use_i8(i8* nocapture) readnone
+declare void @use_i8(i8* nocapture)
 define internal void @test9a(i8* %a, i8* %b) {
 ; CHECK: define internal void @test9a()
+  call void @use_i8(i8* null)
   ret void
 }
 define internal void @test9b(i8* %a, i8* %b) {
-; CHECK: define internal void @test9b(i8* noalias nocapture readnone %a, i8* nocapture readnone %b)
+; FIXME: %b should be noalias
+; CHECK: define internal void @test9b(i8* noalias nocapture %a, i8* nocapture %b)
   call void @use_i8(i8* %a)
   call void @use_i8(i8* %b)
   ret void
 }
+define internal void @test9c(i8* %a, i8* %b, i8* %c) {
+; CHECK: define internal void @test9c(i8* noalias nocapture %a, i8* nocapture %b, i8* nocapture %c)
+  call void @use_i8(i8* %a)
+  call void @use_i8(i8* %b)
+  call void @use_i8(i8* %c)
+  ret void
+}
 define void @test9_helper(i8* %a, i8* %b) {
-; CHECK: define void @test9_helper(i8* nocapture readnone %a, i8* nocapture readnone %b)
+; CHECK: define void @test9_helper(i8* nocapture %a, i8* nocapture %b)
 ; CHECK:  tail call void @test9a()
 ; CHECK:  tail call void @test9a()
-; CHECK:  tail call void @test9b(i8* noalias nocapture readnone %a, i8* nocapture readnone %b)
-; CHECK:  tail call void @test9b(i8* noalias nocapture readnone %b, i8* noalias nocapture readnone %a)
+; CHECK:  tail call void @test9b(i8* noalias nocapture %a, i8* nocapture %b)
+; CHECK:  tail call void @test9b(i8* noalias nocapture %b, i8* noalias nocapture %a)
+; CHECK:  tail call void @test9c(i8* noalias nocapture %a, i8* nocapture %b, i8* nocapture %b)
+; CHECK:  tail call void @test9c(i8* noalias nocapture %b, i8* noalias nocapture %a, i8* noalias nocapture %a)
   tail call void @test9a(i8* noalias %a, i8* %b)
   tail call void @test9a(i8* noalias %b, i8* noalias %a)
   tail call void @test9b(i8* noalias %a, i8* %b)
   tail call void @test9b(i8* noalias %b, i8* noalias %a)
+  tail call void @test9c(i8* noalias %a, i8* %b, i8* %b)
+  tail call void @test9c(i8* noalias %b, i8* noalias %a, i8* noalias %a)
   ret void
 }
 
@@ -282,3 +302,94 @@ define void @test12_4(){
   tail call void @two_args(i8* %A_0, i8* %B_0)
   ret void
 }
+
+; TEST 13
+define void @use_i8_internal(i8* %a) {
+  call void @use_i8(i8* %a)
+  ret void
+}
+
+define void @test13_use_noalias(){
+  %m1 = tail call noalias i8* @malloc(i64 4)
+  %c1 = bitcast i8* %m1 to i16*
+  %c2 = bitcast i16* %c1 to i8*
+; CHECK: call void @use_i8_internal(i8* noalias nocapture %c2)
+  call void @use_i8_internal(i8* %c2)
+  ret void
+}
+
+define void @test13_use_alias(){
+  %m1 = tail call noalias i8* @malloc(i64 4)
+  %c1 = bitcast i8* %m1 to i16*
+  %c2a = bitcast i16* %c1 to i8*
+  %c2b = bitcast i16* %c1 to i8*
+; CHECK: call void @use_i8_internal(i8* nocapture %c2a)
+; CHECK: call void @use_i8_internal(i8* nocapture %c2b)
+  call void @use_i8_internal(i8* %c2a)
+  call void @use_i8_internal(i8* %c2b)
+  ret void
+}
+
+; TEST 14 i2p casts
+define internal i32 @p2i(i32* %arg) {
+  %p2i = ptrtoint i32* %arg to i32
+  ret i32 %p2i
+}
+
+define i32 @i2p(i32* %arg) {
+  %c = call i32 @p2i(i32* %arg)
+  %i2p = inttoptr i32 %c to i8*
+  %bc = bitcast i8* %i2p to i32*
+  %call = call i32 @ret(i32* %bc)
+  ret i32 %call
+}
+define internal i32 @ret(i32* %arg) {
+  %l = load i32, i32* %arg
+  ret i32 %l
+}
+
+; Test to propagate noalias where value is assumed to be no-capture in all the
+; uses possibly executed before this callsite.
+; IR referred from musl/src/strtod.c file
+
+%struct._IO_FILE = type { i32, i8*, i8*, i32 (%struct._IO_FILE*)*, i8*, i8*, i8*, i8*, i32 (%struct._IO_FILE*, i8*, i32)*, i32 (%struct._IO_FILE*, i8*, i32)*, i64 (%struct._IO_FILE*, i64, i32)*, i8*, i32, %struct._IO_FILE*, %struct._IO_FILE*, i32, i32, i32, i16, i8, i8, i32, i32, i8*, i64, i8*, i8*, i8*, [4 x i8], i64, i64, %struct._IO_FILE*, %struct._IO_FILE*, %struct.__locale_struct*, [4 x i8] }
+%struct.__locale_struct = type { [6 x %struct.__locale_map*] }
+%struct.__locale_map = type opaque
+
+; Function Attrs: nounwind optsize
+; CHECK: define internal fastcc double @strtox(i8* noalias %s) unnamed_addr
+define internal fastcc double @strtox(i8* %s, i8** %p, i32 %prec) unnamed_addr {
+entry:
+  %f = alloca %struct._IO_FILE, align 8
+  %0 = bitcast %struct._IO_FILE* %f to i8*
+  call void @llvm.lifetime.start.p0i8(i64 144, i8* nonnull %0)
+  %call = call i32 bitcast (i32 (...)* @sh_fromstring to i32 (%struct._IO_FILE*, i8*)*)(%struct._IO_FILE* nonnull %f, i8* %s)
+  call void @__shlim(%struct._IO_FILE* nonnull %f, i64 0)
+  %call1 = call double @__floatscan(%struct._IO_FILE* nonnull %f, i32 %prec, i32 1)
+  call void @llvm.lifetime.end.p0i8(i64 144, i8* nonnull %0)
+
+  ret double %call1
+}
+
+; Function Attrs: nounwind optsize
+define dso_local double @strtod(i8* noalias %s, i8** noalias %p) {
+entry:
+; CHECK: %call = tail call fastcc double @strtox(i8* noalias %s)
+  %call = tail call fastcc double @strtox(i8* %s, i8** %p, i32 1)
+  ret double %call
+}
+
+; Function Attrs: argmemonly nounwind willreturn
+declare void @llvm.lifetime.start.p0i8(i64 immarg, i8* nocapture)
+
+; Function Attrs: optsize
+declare dso_local i32 @sh_fromstring(...) local_unnamed_addr
+
+; Function Attrs: optsize
+declare dso_local void @__shlim(%struct._IO_FILE*, i64) local_unnamed_addr
+
+; Function Attrs: optsize
+declare dso_local double @__floatscan(%struct._IO_FILE*, i32, i32) local_unnamed_addr
+
+; Function Attrs: argmemonly nounwind willreturn
+declare void @llvm.lifetime.end.p0i8(i64 immarg, i8* nocapture)

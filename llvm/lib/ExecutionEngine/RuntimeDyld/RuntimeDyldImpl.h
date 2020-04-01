@@ -26,6 +26,7 @@
 #include "llvm/Support/Host.h"
 #include "llvm/Support/Mutex.h"
 #include "llvm/Support/SwapByteOrder.h"
+#include <deque>
 #include <map>
 #include <system_error>
 #include <unordered_map>
@@ -74,7 +75,7 @@ class SectionEntry {
 public:
   SectionEntry(StringRef name, uint8_t *address, size_t size,
                size_t allocationSize, uintptr_t objAddress)
-      : Name(name), Address(address), Size(size),
+      : Name(std::string(name)), Address(address), Size(size),
         LoadAddress(reinterpret_cast<uintptr_t>(address)), StubOffset(size),
         AllocationSize(allocationSize), ObjAddress(objAddress) {
     // AllocationSize is used only in asserts, prevent an "unused private field"
@@ -190,13 +191,11 @@ public:
 
 class RelocationValueRef {
 public:
-  unsigned SectionID;
-  uint64_t Offset;
-  int64_t Addend;
-  const char *SymbolName;
+  unsigned SectionID = 0;
+  uint64_t Offset = 0;
+  int64_t Addend = 0;
+  const char *SymbolName = nullptr;
   bool IsStubThumb = false;
-  RelocationValueRef() : SectionID(0), Offset(0), Addend(0),
-                         SymbolName(nullptr) {}
 
   inline bool operator==(const RelocationValueRef &Other) const {
     return SectionID == Other.SectionID && Offset == Other.Offset &&
@@ -251,7 +250,9 @@ protected:
 
   // A list of all sections emitted by the dynamic linker.  These sections are
   // referenced in the code by means of their index in this list - SectionID.
-  typedef SmallVector<SectionEntry, 64> SectionList;
+  // Because references may be kept while the list grows, use a container that
+  // guarantees reference stability.
+  typedef std::deque<SectionEntry> SectionList;
   SectionList Sections;
 
   typedef unsigned SID; // Type for SectionIDs

@@ -7,7 +7,7 @@ In the [previous chapter](Ch-5.md), we introduced the
 many of the `Toy` operations to affine loop nests for optimization. In this
 chapter, we will finally lower to LLVM for code generation.
 
-# Lowering to LLVM
+## Lowering to LLVM
 
 For this lowering, we will again use the dialect conversion framework to perform
 the heavy lifting. However, this time, we will be performing a full conversion
@@ -16,7 +16,7 @@ lowered all but one of the `toy` operations, with the last being `toy.print`.
 Before going over the conversion to LLVM, let's lower the `toy.print` operation.
 We will lower this operation to a non-affine loop nest that invokes `printf` for
 each element. Note that, because the dialect conversion framework supports
-[transitive lowering](Glossary.md#transitive-lowering), we don't need to
+[transitive lowering](../../../getting_started/Glossary.md#transitive-lowering), we don't need to
 directly emit operations in the LLVM dialect. By transitive lowering, we mean
 that the conversion framework may apply multiple patterns to fully legalize an
 operation. In this example, we are generating a structured loop nest instead of
@@ -54,7 +54,7 @@ Now that the lowering for the printf operation has been defined, we can specify
 the components necessary for the lowering. These are largely the same as the
 components defined in the [previous chapter](Ch-5.md).
 
-## Conversion Target
+### Conversion Target
 
 For this conversion, aside from the top-level module, we will be lowering
 everything to the LLVM dialect.
@@ -65,7 +65,7 @@ everything to the LLVM dialect.
   target.addLegalOp<mlir::ModuleOp, mlir::ModuleTerminatorOp>();
 ```
 
-## Type Converter
+### Type Converter
 
 This lowering will also transform the MemRef types which are currently being
 operated on into a representation in LLVM. To perform this conversion, we use a
@@ -79,14 +79,14 @@ enough for our use case.
   LLVMTypeConverter typeConverter(&getContext());
 ```
 
-## Conversion Patterns
+### Conversion Patterns
 
 Now that the conversion target has been defined, we need to provide the patterns
 used for lowering. At this point in the compilation process, we have a
 combination of `toy`, `affine`, and `std` operations. Luckily, the `std` and
 `affine` dialects already provide the set of patterns needed to transform them
 into LLVM dialect. These patterns allow for lowering the IR in multiple stages
-by relying on [transitive lowering](Glossary.md#transitive-lowering).
+by relying on [transitive lowering](../../../getting_started/Glossary.md#transitive-lowering).
 
 ```c++
   mlir::OwningRewritePatternList patterns;
@@ -94,12 +94,12 @@ by relying on [transitive lowering](Glossary.md#transitive-lowering).
   mlir::populateLoopToStdConversionPatterns(patterns, &getContext());
   mlir::populateStdToLLVMConversionPatterns(typeConverter, patterns);
 
-  // The only remaining operation to lower from the `toy` dialect, is the
+  // The only remaining operation, to lower from the `toy` dialect, is the
   // PrintOp.
   patterns.insert<PrintOpLowering>(&getContext());
 ```
 
-## Full Lowering
+### Full Lowering
 
 We want to completely lower to LLVM, so we use a `FullConversion`. This ensures
 that only legal operations will remain after the conversion.
@@ -115,11 +115,11 @@ Looking back at our current working example:
 
 ```mlir
 func @main() {
-  %0 = "toy.constant"() {value = dense<[[1.000000e+00, 2.000000e+00, 3.000000e+00], [4.000000e+00, 5.000000e+00, 6.000000e+00]]> : tensor<2x3xf64>} : () -> tensor<2x3xf64>
-  %2 = "toy.transpose"(%0) : (tensor<2x3xf64>) -> tensor<3x2xf64>
-  %3 = "toy.mul"(%2, %2) : (tensor<3x2xf64>, tensor<3x2xf64>) -> tensor<3x2xf64>
-  "toy.print"(%3) : (tensor<3x2xf64>) -> ()
-  "toy.return"() : () -> ()
+  %0 = toy.constant dense<[[1.000000e+00, 2.000000e+00, 3.000000e+00], [4.000000e+00, 5.000000e+00, 6.000000e+00]]> : tensor<2x3xf64>
+  %2 = toy.transpose(%0 : tensor<2x3xf64>) to tensor<3x2xf64>
+  %3 = toy.mul %2, %2 : tensor<3x2xf64>
+  toy.print %3 : tensor<3x2xf64>
+  toy.return
 }
 ```
 
@@ -169,13 +169,13 @@ llvm.func @main() {
 See [Conversion to the LLVM IR Dialect](../../ConversionToLLVMDialect.md) for
 more in-depth details on lowering to the LLVM dialect.
 
-# CodeGen: Getting Out of MLIR
+## CodeGen: Getting Out of MLIR
 
 At this point we are right at the cusp of code generation. We can generate code
 in the LLVM dialect, so now we just need to export to LLVM IR and setup a JIT to
 run it.
 
-## Emitting LLVM IR
+### Emitting LLVM IR
 
 Now that our module is comprised only of operations in the LLVM dialect, we can
 export to LLVM IR. To do this programmatically, we can invoke the following
@@ -270,12 +270,12 @@ int dumpLLVMIR(mlir::ModuleOp module) {
 }
 ```
 
-## Setting up a JIT
+### Setting up a JIT
 
 Setting up a JIT to run the module containing the LLVM dialect can be done using
 the `mlir::ExecutionEngine` infrastructure. This is a utility wrapper around
 LLVM's JIT that accepts `.mlir` as input. The full code listing for setting up
-the JIT can be found in `Ch6/toy.cpp` in the `runJit()` function:
+the JIT can be found in `Ch6/toyc.cpp` in the `runJit()` function:
 
 ```c++
 int runJit(mlir::ModuleOp module) {

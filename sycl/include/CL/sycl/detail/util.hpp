@@ -12,9 +12,10 @@
 
 #include <CL/sycl/detail/defines.hpp>
 
+#include <cstring>
 #include <mutex>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
@@ -30,8 +31,36 @@ private:
   std::mutex GlobalLock;
 };
 
+// const char* key hash for STL maps
+struct HashCStr {
+  size_t operator()(const char *S) const {
+    constexpr size_t Prime = 31;
+    size_t Res = 0;
+    char Ch = 0;
+
+    for (; (Ch = *S); S++) {
+      Res += Ch + (Prime * Res);
+    }
+    return Res;
+  }
+};
+
+// const char* key comparison for STL maps
+struct CmpCStr {
+  bool operator()(const char *A, const char *B) const {
+    return std::strcmp(A, B) == 0;
+  }
+};
+
+// Interface to iterate via C strings.
+class CStringIterator {
+public:
+  // Get the next string. Returns next string's pointer or nullptr.
+  virtual const char *next() = 0;
+};
+
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)
 
 #endif //__SYCL_DEVICE_ONLY

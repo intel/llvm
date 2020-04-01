@@ -292,6 +292,20 @@ Check for memory leaks. Traces memory managed by new/delete.
    int *p = new int;
  } // warn
 
+.. _cplusplus-PlacementNewChecker:
+
+cplusplus.PlacementNewChecker (C++)
+"""""""""""""""""""""""""""""""""""
+Check if default placement new is provided with pointers to sufficient storage capacity.
+
+.. code-block:: cpp
+
+ #include <new>
+
+ void f() {
+   short s;
+   long *lp = ::new (&s) long; // warn
+ }
 
 .. _cplusplus-SelfAssignment:
 
@@ -425,7 +439,7 @@ optin.cplusplus.UninitializedObject (C++)
 This checker reports uninitialized fields in objects created after a constructor
 call. It doesn't only find direct uninitialized fields, but rather makes a deep
 inspection of the object, analyzing all of it's fields subfields.
-The checker regards inherited fields as direct fields, so one will recieve
+The checker regards inherited fields as direct fields, so one will receive
 warnings for uninitialized inherited data members as well.
 
 .. code-block:: cpp
@@ -511,7 +525,7 @@ This checker has several options which can be set from command line (e.g.
   objects that don't have at least one initialized field. Defaults to false.
 
 * ``NotesAsWarnings``  (boolean). If set to true, the checker will emit a
-  warning for each uninitalized field, as opposed to emitting one warning per
+  warning for each uninitialized field, as opposed to emitting one warning per
   constructor call, and listing the uninitialized fields that belongs to it in
   notes. *Defaults to false*.
 
@@ -1915,6 +1929,38 @@ Warns against using one vs. many plural pattern in code when generating localize
 
 alpha.security
 ^^^^^^^^^^^^^^
+
+
+alpha.security.cert
+^^^^^^^^^^^^^^^^^^^
+
+SEI CERT checkers which tries to find errors based on their `C coding rules<https://wiki.sei.cmu.edu/confluence/display/c/2+Rules>`_.
+
+.. _alpha-security-cert-pos-checkers:
+
+alpha.security.cert.pos
+^^^^^^^^^^^^^^^^^^^^^^^
+
+SEI CERT checkers of POSIX `C coding rules<https://wiki.sei.cmu.edu/confluence/pages/viewpage.action?pageId=87152405>`_.
+
+.. _alpha-security-cert-pos-34c:
+
+alpha.security.cert.pos.34c
+"""""""""""""""""""""""""""
+Finds calls to the ``putenv`` function which pass a pointer to an automatic variable as the argument.
+
+.. code-block:: c
+
+  int func(const char *var) {
+    char env[1024];
+    int retval = snprintf(env, sizeof(env),"TEST=%s", var);
+    if (retval < 0 || (size_t)retval >= sizeof(env)) {
+        /* Handle error */
+    }
+ 
+    return putenv(env); // putenv function should not be called with auto variables
+  }
+  
 .. _alpha-security-ArrayBound:
 
 alpha.security.ArrayBound (C)

@@ -1,6 +1,6 @@
 //===- OpToFuncCallLowering.h - GPU ops lowering to custom calls *- C++ -*-===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -11,7 +11,7 @@
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVM.h"
 #include "mlir/Dialect/GPU/GPUDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
-#include "mlir/Dialect/StandardOps/Ops.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Builders.h"
 
 namespace mlir {
@@ -26,15 +26,15 @@ namespace mlir {
 /// will be transformed into
 ///   llvm.call @__nv_expf(%arg_f32) : (!llvm.float) -> !llvm.float
 template <typename SourceOp>
-struct OpToFuncCallLowering : public LLVMOpLowering {
+struct OpToFuncCallLowering : public ConvertToLLVMPattern {
 public:
   explicit OpToFuncCallLowering(LLVMTypeConverter &lowering_, StringRef f32Func,
                                 StringRef f64Func)
-      : LLVMOpLowering(SourceOp::getOperationName(),
-                       lowering_.getDialect()->getContext(), lowering_),
+      : ConvertToLLVMPattern(SourceOp::getOperationName(),
+                             lowering_.getDialect()->getContext(), lowering_),
         f32Func(f32Func), f64Func(f64Func) {}
 
-  PatternMatchResult
+  LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
     using LLVM::LLVMFuncOp;
@@ -44,18 +44,18 @@ public:
         std::is_base_of<OpTrait::OneResult<SourceOp>, SourceOp>::value,
         "expected single result op");
 
-    LLVMType resultType = lowering.convertType(op->getResult(0)->getType())
+    LLVMType resultType = typeConverter.convertType(op->getResult(0).getType())
                               .template cast<LLVM::LLVMType>();
     LLVMType funcType = getFunctionType(resultType, operands);
     StringRef funcName = getFunctionName(resultType);
     if (funcName.empty())
-      return matchFailure();
+      return failure();
 
     LLVMFuncOp funcOp = appendOrGetFuncOp(funcName, funcType, op);
     auto callOp = rewriter.create<LLVM::CallOp>(
         op->getLoc(), resultType, rewriter.getSymbolRefAttr(funcOp), operands);
     rewriter.replaceOp(op, {callOp.getResult(0)});
-    return matchSuccess();
+    return success();
   }
 
 private:
@@ -64,7 +64,7 @@ private:
     using LLVM::LLVMType;
     SmallVector<LLVMType, 1> operandTypes;
     for (Value operand : operands) {
-      operandTypes.push_back(operand->getType().cast<LLVMType>());
+      operandTypes.push_back(operand.getType().cast<LLVMType>());
     }
     return LLVMType::getFunctionTy(resultType, operandTypes,
                                    /*isVarArg=*/false);
@@ -94,6 +94,24 @@ private:
   const std::string f32Func;
   const std::string f64Func;
 };
+
+namespace gpu {
+/// Returns a predicate to be used with addDynamicallyLegalOp. The predicate
+/// returns false for calls to the provided intrinsics and true otherwise.
+inline std::function<bool(Operation *)>
+filterIllegalLLVMIntrinsics(ArrayRef<StringRef> intrinsics, MLIRContext *ctx) {
+  SmallVector<StringRef, 4> illegalIds(intrinsics.begin(), intrinsics.end());
+  return [illegalIds](Operation *op) -> bool {
+    LLVM::CallOp callOp = dyn_cast<LLVM::CallOp>(op);
+    if (!callOp || !callOp.callee())
+      return true;
+    StringRef callee = callOp.callee().getValue();
+    return !llvm::any_of(illegalIds, [callee](StringRef intrinsic) {
+      return callee.equals(intrinsic);
+    });
+  };
+}
+} // namespace gpu
 
 } // namespace mlir
 

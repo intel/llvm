@@ -59,7 +59,7 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST) {
   }
 
   getActionDefinitionsBuilder(G_IMPLICIT_DEF)
-    .legalFor({p0, s1, s8, s16, s32, s64, v4s32, v2s64})
+    .legalFor({p0, s1, s8, s16, s32, s64, v2s32, v4s32, v2s64})
     .clampScalar(0, s1, s64)
     .widenScalarToNextPow2(0, 8)
     .fewerElementsIf(
@@ -640,13 +640,13 @@ bool AArch64LegalizerInfo::legalizeCustom(MachineInstr &MI,
 }
 
 bool AArch64LegalizerInfo::legalizeIntrinsic(
-    MachineInstr &MI, MachineRegisterInfo &MRI,
-    MachineIRBuilder &MIRBuilder) const {
+    MachineInstr &MI, MachineIRBuilder &MIRBuilder,
+    GISelChangeObserver &Observer) const {
   switch (MI.getIntrinsicID()) {
   case Intrinsic::memcpy:
   case Intrinsic::memset:
   case Intrinsic::memmove:
-    if (createMemLibcall(MIRBuilder, MRI, MI) ==
+    if (createMemLibcall(MIRBuilder, *MIRBuilder.getMRI(), MI) ==
         LegalizerHelper::UnableToLegalize)
       return false;
     MI.eraseFromParent();
@@ -709,12 +709,11 @@ bool AArch64LegalizerInfo::legalizeLoadStore(
   const LLT NewTy = LLT::vector(ValTy.getNumElements(), PtrSize);
   auto &MMO = **MI.memoperands_begin();
   if (MI.getOpcode() == TargetOpcode::G_STORE) {
-    auto Bitcast = MIRBuilder.buildBitcast({NewTy}, {ValReg});
-    MIRBuilder.buildStore(Bitcast.getReg(0), MI.getOperand(1).getReg(), MMO);
+    auto Bitcast = MIRBuilder.buildBitcast(NewTy, ValReg);
+    MIRBuilder.buildStore(Bitcast.getReg(0), MI.getOperand(1), MMO);
   } else {
-    Register NewReg = MRI.createGenericVirtualRegister(NewTy);
-    auto NewLoad = MIRBuilder.buildLoad(NewReg, MI.getOperand(1).getReg(), MMO);
-    MIRBuilder.buildBitcast({ValReg}, {NewLoad});
+    auto NewLoad = MIRBuilder.buildLoad(NewTy, MI.getOperand(1), MMO);
+    MIRBuilder.buildBitcast(ValReg, NewLoad);
   }
   MI.eraseFromParent();
   return true;
@@ -733,21 +732,19 @@ bool AArch64LegalizerInfo::legalizeVaArg(MachineInstr &MI,
   LLT IntPtrTy = LLT::scalar(PtrTy.getSizeInBits());
 
   const unsigned PtrSize = PtrTy.getSizeInBits() / 8;
-  Register List = MRI.createGenericVirtualRegister(PtrTy);
-  MIRBuilder.buildLoad(
-      List, ListPtr,
+  auto List = MIRBuilder.buildLoad(
+      PtrTy, ListPtr,
       *MF.getMachineMemOperand(MachinePointerInfo(), MachineMemOperand::MOLoad,
                                PtrSize, /* Align = */ PtrSize));
 
-  Register DstPtr;
+  MachineInstrBuilder DstPtr;
   if (Align > PtrSize) {
     // Realign the list to the actual required alignment.
     auto AlignMinus1 = MIRBuilder.buildConstant(IntPtrTy, Align - 1);
 
     auto ListTmp = MIRBuilder.buildPtrAdd(PtrTy, List, AlignMinus1.getReg(0));
 
-    DstPtr = MRI.createGenericVirtualRegister(PtrTy);
-    MIRBuilder.buildPtrMask(DstPtr, ListTmp, Log2_64(Align));
+    DstPtr = MIRBuilder.buildPtrMask(PtrTy, ListTmp, Log2_64(Align));
   } else
     DstPtr = List;
 

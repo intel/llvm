@@ -1,6 +1,6 @@
 //===- VectorToLoops.cpp - Conversion from Vector to mix of Loops and Std -===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -13,9 +13,10 @@
 #include <type_traits>
 
 #include "mlir/Conversion/VectorToLoops/ConvertVectorToLoops.h"
-#include "mlir/Dialect/VectorOps/VectorOps.h"
-#include "mlir/EDSC/Builders.h"
-#include "mlir/EDSC/Helpers.h"
+#include "mlir/Dialect/AffineOps/EDSC/Intrinsics.h"
+#include "mlir/Dialect/LoopOps/EDSC/Builders.h"
+#include "mlir/Dialect/StandardOps/EDSC/Intrinsics.h"
+#include "mlir/Dialect/Vector/VectorOps.h"
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/Attributes.h"
@@ -27,17 +28,19 @@
 #include "mlir/IR/Types.h"
 
 using namespace mlir;
+using namespace mlir::edsc;
+using namespace mlir::edsc::intrinsics;
 using vector::TransferReadOp;
 using vector::TransferWriteOp;
 
 /// Analyzes the `transfer` to find an access dimension along the fastest remote
 /// MemRef dimension. If such a dimension with coalescing properties is found,
-/// `pivs` and `vectorView` are swapped so that the invocation of
+/// `pivs` and `vectorBoundsCapture` are swapped so that the invocation of
 /// LoopNestBuilder captures it in the innermost loop.
 template <typename TransferOpTy>
 static void coalesceCopy(TransferOpTy transfer,
-                         SmallVectorImpl<edsc::ValueHandle *> *pivs,
-                         edsc::VectorView *vectorView) {
+                         SmallVectorImpl<ValueHandle *> *pivs,
+                         VectorBoundsCapture *vectorBoundsCapture) {
   // rank of the remote memory access, coalescing behavior occurs on the
   // innermost memory dimension.
   auto remoteRank = transfer.getMemRefType().getRank();
@@ -61,25 +64,22 @@ static void coalesceCopy(TransferOpTy transfer,
   }
   if (coalescedIdx >= 0) {
     std::swap(pivs->back(), (*pivs)[coalescedIdx]);
-    vectorView->swapRanges(pivs->size() - 1, coalescedIdx);
+    vectorBoundsCapture->swapRanges(pivs->size() - 1, coalescedIdx);
   }
 }
 
 /// Emits remote memory accesses that are clipped to the boundaries of the
 /// MemRef.
 template <typename TransferOpTy>
-static SmallVector<edsc::ValueHandle, 8> clip(TransferOpTy transfer,
-                                              edsc::MemRefView &view,
-                                              ArrayRef<edsc::IndexHandle> ivs) {
+static SmallVector<ValueHandle, 8> clip(TransferOpTy transfer,
+                                        MemRefBoundsCapture &bounds,
+                                        ArrayRef<ValueHandle> ivs) {
   using namespace mlir::edsc;
-  using namespace edsc::op;
-  using edsc::intrinsics::select;
 
-  IndexHandle zero(index_t(0)), one(index_t(1));
-  SmallVector<edsc::ValueHandle, 8> memRefAccess(transfer.indices());
-  SmallVector<edsc::ValueHandle, 8> clippedScalarAccessExprs(
-      memRefAccess.size(), edsc::IndexHandle());
-
+  ValueHandle zero(std_constant_index(0)), one(std_constant_index(1));
+  SmallVector<ValueHandle, 8> memRefAccess(transfer.indices());
+  auto clippedScalarAccessExprs =
+      ValueHandle::makeIndexHandles(memRefAccess.size());
   // Indices accessing to remote memory are clipped and their expressions are
   // returned in clippedScalarAccessExprs.
   for (unsigned memRefDim = 0; memRefDim < clippedScalarAccessExprs.size();
@@ -103,19 +103,21 @@ static SmallVector<edsc::ValueHandle, 8> clip(TransferOpTy transfer,
     // We cannot distinguish atm between unrolled dimensions that implement
     // the "always full" tile abstraction and need clipping from the other
     // ones. So we conservatively clip everything.
-    auto N = view.ub(memRefDim);
+    using namespace edsc::op;
+    auto N = bounds.ub(memRefDim);
     auto i = memRefAccess[memRefDim];
     if (loopIndex < 0) {
       auto N_minus_1 = N - one;
-      auto select_1 = select(i < N, i, N_minus_1);
-      clippedScalarAccessExprs[memRefDim] = select(i < zero, zero, select_1);
+      auto select_1 = std_select(i < N, i, N_minus_1);
+      clippedScalarAccessExprs[memRefDim] =
+          std_select(i < zero, zero, select_1);
     } else {
       auto ii = ivs[loopIndex];
       auto i_plus_ii = i + ii;
       auto N_minus_1 = N - one;
-      auto select_1 = select(i_plus_ii < N, i_plus_ii, N_minus_1);
+      auto select_1 = std_select(i_plus_ii < N, i_plus_ii, N_minus_1);
       clippedScalarAccessExprs[memRefDim] =
-          select(i_plus_ii < zero, zero, select_1);
+          std_select(i_plus_ii < zero, zero, select_1);
     }
   }
 
@@ -165,9 +167,9 @@ using vector_type_cast = edsc::intrinsics::ValueBuilder<vector::TypeCastOp>;
 ///
 /// ```mlir-dsc
 ///    auto condMax = i + ii < N;
-///    auto max = select(condMax, i + ii, N - one)
+///    auto max = std_select(condMax, i + ii, N - one)
 ///    auto cond = i + ii < zero;
-///    select(cond, zero, max);
+///    std_select(cond, zero, max);
 /// ```
 ///
 /// In the future, clipping should not be the only way and instead we should
@@ -196,8 +198,8 @@ struct VectorTransferRewriter : public RewritePattern {
   }
 
   /// Performs the rewrite.
-  PatternMatchResult matchAndRewrite(Operation *op,
-                                     PatternRewriter &rewriter) const override;
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const override;
 };
 
 /// Lowers TransferReadOp into a combination of:
@@ -244,47 +246,43 @@ struct VectorTransferRewriter : public RewritePattern {
 
 /// Performs the rewrite.
 template <>
-PatternMatchResult VectorTransferRewriter<TransferReadOp>::matchAndRewrite(
+LogicalResult VectorTransferRewriter<TransferReadOp>::matchAndRewrite(
     Operation *op, PatternRewriter &rewriter) const {
-  using namespace mlir::edsc;
   using namespace mlir::edsc::op;
-  using namespace mlir::edsc::intrinsics;
-  using IndexedValue =
-      TemplatedIndexedValue<intrinsics::std_load, intrinsics::std_store>;
 
   TransferReadOp transfer = cast<TransferReadOp>(op);
 
   // 1. Setup all the captures.
   ScopedContext scope(rewriter, transfer.getLoc());
-  IndexedValue remote(transfer.memref());
-  MemRefView view(transfer.memref());
-  VectorView vectorView(transfer.vector());
-  SmallVector<IndexHandle, 8> ivs = makeIndexHandles(vectorView.rank());
+  StdIndexedValue remote(transfer.memref());
+  MemRefBoundsCapture memRefBoundsCapture(transfer.memref());
+  VectorBoundsCapture vectorBoundsCapture(transfer.vector());
+  auto ivs = ValueHandle::makeIndexHandles(vectorBoundsCapture.rank());
   SmallVector<ValueHandle *, 8> pivs =
-      makeHandlePointers(MutableArrayRef<IndexHandle>(ivs));
-  coalesceCopy(transfer, &pivs, &vectorView);
+      makeHandlePointers(MutableArrayRef<ValueHandle>(ivs));
+  coalesceCopy(transfer, &pivs, &vectorBoundsCapture);
 
-  auto lbs = vectorView.getLbs();
-  auto ubs = vectorView.getUbs();
+  auto lbs = vectorBoundsCapture.getLbs();
+  auto ubs = vectorBoundsCapture.getUbs();
   SmallVector<ValueHandle, 8> steps;
-  steps.reserve(vectorView.getSteps().size());
-  for (auto step : vectorView.getSteps())
-    steps.push_back(constant_index(step));
+  steps.reserve(vectorBoundsCapture.getSteps().size());
+  for (auto step : vectorBoundsCapture.getSteps())
+    steps.push_back(std_constant_index(step));
 
   // 2. Emit alloc-copy-load-dealloc.
-  ValueHandle tmp = alloc(tmpMemRefType(transfer));
-  IndexedValue local(tmp);
+  ValueHandle tmp = std_alloc(tmpMemRefType(transfer));
+  StdIndexedValue local(tmp);
   ValueHandle vec = vector_type_cast(tmp);
   LoopNestBuilder(pivs, lbs, ubs, steps)([&] {
     // Computes clippedScalarAccessExprs in the loop nest scope (ivs exist).
-    local(ivs) = remote(clip(transfer, view, ivs));
+    local(ivs) = remote(clip(transfer, memRefBoundsCapture, ivs));
   });
   ValueHandle vectorValue = std_load(vec);
-  (dealloc(tmp)); // vexing parse
+  (std_dealloc(tmp)); // vexing parse
 
   // 3. Propagate.
   rewriter.replaceOp(op, vectorValue.getValue());
-  return matchSuccess();
+  return success();
 }
 
 /// Lowers TransferWriteOp into a combination of:
@@ -306,47 +304,43 @@ PatternMatchResult VectorTransferRewriter<TransferReadOp>::matchAndRewrite(
 /// TODO(ntv): implement alternatives to clipping.
 /// TODO(ntv): support non-data-parallel operations.
 template <>
-PatternMatchResult VectorTransferRewriter<TransferWriteOp>::matchAndRewrite(
+LogicalResult VectorTransferRewriter<TransferWriteOp>::matchAndRewrite(
     Operation *op, PatternRewriter &rewriter) const {
-  using namespace mlir::edsc;
-  using namespace mlir::edsc::op;
-  using namespace mlir::edsc::intrinsics;
-  using IndexedValue =
-      TemplatedIndexedValue<intrinsics::std_load, intrinsics::std_store>;
+  using namespace edsc::op;
 
   TransferWriteOp transfer = cast<TransferWriteOp>(op);
 
   // 1. Setup all the captures.
   ScopedContext scope(rewriter, transfer.getLoc());
-  IndexedValue remote(transfer.memref());
-  MemRefView view(transfer.memref());
+  StdIndexedValue remote(transfer.memref());
+  MemRefBoundsCapture memRefBoundsCapture(transfer.memref());
   ValueHandle vectorValue(transfer.vector());
-  VectorView vectorView(transfer.vector());
-  SmallVector<IndexHandle, 8> ivs = makeIndexHandles(vectorView.rank());
+  VectorBoundsCapture vectorBoundsCapture(transfer.vector());
+  auto ivs = ValueHandle::makeIndexHandles(vectorBoundsCapture.rank());
   SmallVector<ValueHandle *, 8> pivs =
-      makeHandlePointers(MutableArrayRef<IndexHandle>(ivs));
-  coalesceCopy(transfer, &pivs, &vectorView);
+      makeHandlePointers(MutableArrayRef<ValueHandle>(ivs));
+  coalesceCopy(transfer, &pivs, &vectorBoundsCapture);
 
-  auto lbs = vectorView.getLbs();
-  auto ubs = vectorView.getUbs();
+  auto lbs = vectorBoundsCapture.getLbs();
+  auto ubs = vectorBoundsCapture.getUbs();
   SmallVector<ValueHandle, 8> steps;
-  steps.reserve(vectorView.getSteps().size());
-  for (auto step : vectorView.getSteps())
-    steps.push_back(constant_index(step));
+  steps.reserve(vectorBoundsCapture.getSteps().size());
+  for (auto step : vectorBoundsCapture.getSteps())
+    steps.push_back(std_constant_index(step));
 
   // 2. Emit alloc-store-copy-dealloc.
-  ValueHandle tmp = alloc(tmpMemRefType(transfer));
-  IndexedValue local(tmp);
+  ValueHandle tmp = std_alloc(tmpMemRefType(transfer));
+  StdIndexedValue local(tmp);
   ValueHandle vec = vector_type_cast(tmp);
   std_store(vectorValue, vec);
   LoopNestBuilder(pivs, lbs, ubs, steps)([&] {
     // Computes clippedScalarAccessExprs in the loop nest scope (ivs exist).
-    remote(clip(transfer, view, ivs)) = local(ivs);
+    remote(clip(transfer, memRefBoundsCapture, ivs)) = local(ivs);
   });
-  (dealloc(tmp)); // vexing parse...
+  (std_dealloc(tmp)); // vexing parse...
 
   rewriter.eraseOp(op);
-  return matchSuccess();
+  return success();
 }
 
 } // namespace

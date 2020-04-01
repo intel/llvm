@@ -70,18 +70,18 @@ static void exitWithError(Error E, StringRef Whence = "") {
       instrprof_error instrError = IPE.get();
       StringRef Hint = "";
       if (instrError == instrprof_error::unrecognized_format) {
-        // Hint for common error of forgetting -sample for sample profiles.
-        Hint = "Perhaps you forgot to use the -sample option?";
+        // Hint for common error of forgetting --sample for sample profiles.
+        Hint = "Perhaps you forgot to use the --sample option?";
       }
-      exitWithError(IPE.message(), Whence, Hint);
+      exitWithError(IPE.message(), std::string(Whence), std::string(Hint));
     });
   }
 
-  exitWithError(toString(std::move(E)), Whence);
+  exitWithError(toString(std::move(E)), std::string(Whence));
 }
 
 static void exitWithErrorCode(std::error_code EC, StringRef Whence = "") {
-  exitWithError(EC.message(), Whence);
+  exitWithError(EC.message(), std::string(Whence));
 }
 
 namespace {
@@ -94,7 +94,7 @@ static void warnOrExitGivenError(FailureMode FailMode, std::error_code EC,
   if (FailMode == failIfAnyAreInvalid)
     exitWithErrorCode(EC, Whence);
   else
-    warn(EC.message(), Whence);
+    warn(EC.message(), std::string(Whence));
 }
 
 static void handleMergeWriterError(Error E, StringRef WhenceFile = "",
@@ -307,8 +307,11 @@ static void mergeInstrProfile(const WeightedFileVector &Inputs,
 
   // If NumThreads is not specified, auto-detect a good default.
   if (NumThreads == 0)
-    NumThreads =
-        std::min(hardware_concurrency(), unsigned((Inputs.size() + 1) / 2));
+    NumThreads = std::min(hardware_concurrency().compute_thread_count(),
+                          unsigned((Inputs.size() + 1) / 2));
+  // FIXME: There's a bug here, where setting NumThreads = Inputs.size() fails
+  // the merge_empty_profile.test because the InstrProfWriter.ProfileKind isn't
+  // merged, thus the emitted file ends up with a PF_Unknown kind.
 
   // Initialize the writer contexts.
   SmallVector<std::unique_ptr<WriterContext>, 4> Contexts;
@@ -320,7 +323,7 @@ static void mergeInstrProfile(const WeightedFileVector &Inputs,
     for (const auto &Input : Inputs)
       loadInput(Input, Remapper, Contexts[0].get());
   } else {
-    ThreadPool Pool(NumThreads);
+    ThreadPool Pool(hardware_concurrency(NumThreads));
 
     // Load the inputs in parallel (N/NumThreads serial steps).
     unsigned Ctx = 0;
@@ -401,7 +404,8 @@ remapSamples(const sampleprof::FunctionSamples &Samples,
     for (const auto &Callsite : CallsiteSamples.second) {
       sampleprof::FunctionSamples Remapped =
           remapSamples(Callsite.second, Remapper, Error);
-      MergeResult(Error, Target[Remapped.getName()].merge(Remapped));
+      MergeResult(Error,
+                  Target[std::string(Remapped.getName())].merge(Remapped));
     }
   }
   return Result;
@@ -537,7 +541,7 @@ static WeightedFile parseWeightedFile(const StringRef &WeightedFilename) {
   if (WeightStr.getAsInteger(10, Weight) || Weight < 1)
     exitWithError("Input weight must be a positive integer.");
 
-  return {FileName, Weight};
+  return {std::string(FileName), Weight};
 }
 
 static void addWeightedInput(WeightedFileVector &WNI, const WeightedFile &WF) {
@@ -546,7 +550,7 @@ static void addWeightedInput(WeightedFileVector &WNI, const WeightedFile &WF) {
 
   // If it's STDIN just pass it on.
   if (Filename == "-") {
-    WNI.push_back({Filename, Weight});
+    WNI.push_back({std::string(Filename), Weight});
     return;
   }
 
@@ -557,7 +561,7 @@ static void addWeightedInput(WeightedFileVector &WNI, const WeightedFile &WF) {
                       Filename);
   // If it's a source file, collect it.
   if (llvm::sys::fs::is_regular_file(Status)) {
-    WNI.push_back({Filename, Weight});
+    WNI.push_back({std::string(Filename), Weight});
     return;
   }
 
@@ -589,7 +593,7 @@ static void parseInputFilenamesFile(MemoryBuffer *Buffer,
       continue;
     // If there's no comma, it's an unweighted profile.
     else if (SanitizedEntry.find(',') == StringRef::npos)
-      addWeightedInput(WFV, {SanitizedEntry, 1});
+      addWeightedInput(WFV, {std::string(SanitizedEntry), 1});
     else
       addWeightedInput(WFV, parseWeightedFile(SanitizedEntry));
   }
@@ -658,7 +662,7 @@ static int merge_main(int argc, const char *argv[]) {
 
   WeightedFileVector WeightedInputs;
   for (StringRef Filename : InputFilenames)
-    addWeightedInput(WeightedInputs, {Filename, 1});
+    addWeightedInput(WeightedInputs, {std::string(Filename), 1});
   for (StringRef WeightedFilename : WeightedInputFilenames)
     addWeightedInput(WeightedInputs, parseWeightedFile(WeightedFilename));
 

@@ -11,7 +11,7 @@
 #include <CL/sycl/detail/defines.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
@@ -21,4 +21,4 @@ info::device_type get_forced_type();
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

@@ -1,4 +1,4 @@
-//===-- SBValueList.cpp -----------------------------------------*- C++ -*-===//
+//===-- SBValueList.cpp ---------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -83,7 +83,7 @@ SBValueList::SBValueList(const ValueListImpl *lldb_object_ptr) : m_opaque_up() {
     m_opaque_up.reset(new ValueListImpl(*lldb_object_ptr));
 }
 
-SBValueList::~SBValueList() {}
+SBValueList::~SBValueList() = default;
 
 bool SBValueList::IsValid() const {
   LLDB_RECORD_METHOD_CONST_NO_ARGS(bool, SBValueList, IsValid);

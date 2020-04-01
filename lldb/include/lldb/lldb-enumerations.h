@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLDB_lldb_enumerations_h_
-#define LLDB_lldb_enumerations_h_
+#ifndef LLDB_LLDB_ENUMERATIONS_H
+#define LLDB_LLDB_ENUMERATIONS_H
 
 #include <type_traits>
 
@@ -590,6 +590,7 @@ enum CommandArgumentType {
   eArgTypeWatchType,
   eArgRawInput,
   eArgTypeCommand,
+  eArgTypeColumnNum,
   eArgTypeLastArg // Always keep this entry as the last entry in this
                   // enumeration!!
 };
@@ -692,6 +693,9 @@ enum SectionType {
   eSectionTypeDWARFDebugStrOffsetsDwo,
   eSectionTypeDWARFDebugTypesDwo,
   eSectionTypeDWARFDebugRngListsDwo,
+  eSectionTypeDWARFDebugLocDwo,
+  eSectionTypeDWARFDebugLocListsDwo,
+  eSectionTypeDWARFDebugTuIndex,
 };
 
 FLAGS_ENUM(EmulateInstructionOptions){
@@ -1079,4 +1083,4 @@ enum TypeSummaryCapping {
 };
 } // namespace lldb
 
-#endif // LLDB_lldb_enumerations_h_
+#endif // LLDB_LLDB_ENUMERATIONS_H

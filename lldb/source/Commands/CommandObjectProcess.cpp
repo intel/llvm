@@ -1,4 +1,4 @@
-//===-- CommandObjectProcess.cpp --------------------------------*- C++ -*-===//
+//===-- CommandObjectProcess.cpp ------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -348,11 +348,11 @@ public:
         match_info.SetNameMatchType(NameMatch::StartsWith);
       }
       platform_sp->FindProcesses(match_info, process_infos);
-      const size_t num_matches = process_infos.GetSize();
+      const size_t num_matches = process_infos.size();
       if (num_matches == 0)
         return;
       for (size_t i = 0; i < num_matches; ++i) {
-        request.AddCompletion(process_infos.GetProcessNameAtIndex(i));
+        request.AddCompletion(process_infos[i].GetNameAsStringRef());
       }
     }
 
@@ -759,7 +759,7 @@ public:
 
       switch (short_option) {
       case 'p':
-        plugin_name.assign(option_arg);
+        plugin_name.assign(std::string(option_arg));
         break;
 
       default:
@@ -1034,6 +1034,20 @@ public:
 
   ~CommandObjectProcessSignal() override = default;
 
+  void
+  HandleArgumentCompletion(CompletionRequest &request,
+                           OptionElementVector &opt_element_vector) override {
+    if (!m_exe_ctx.HasProcessScope() || request.GetCursorIndex() != 0)
+      return;
+
+    UnixSignalsSP signals = m_exe_ctx.GetProcessPtr()->GetUnixSignals();
+    int signo = signals->GetFirstSignalNumber();
+    while (signo != LLDB_INVALID_SIGNAL_NUMBER) {
+      request.AddCompletion(signals->GetSignalAsCString(signo), "");
+      signo = signals->GetNextSignalNumber(signo);
+    }
+  }
+
 protected:
   bool DoExecute(Args &command, CommandReturnObject &result) override {
     Process *process = m_exe_ctx.GetProcessPtr();
@@ -1201,6 +1215,8 @@ protected:
 
 // CommandObjectProcessStatus
 #pragma mark CommandObjectProcessStatus
+#define LLDB_OPTIONS_process_status
+#include "CommandOptions.inc"
 
 class CommandObjectProcessStatus : public CommandObjectParsed {
 public:
@@ -1209,13 +1225,57 @@ public:
             interpreter, "process status",
             "Show status and stop location for the current target process.",
             "process status",
-            eCommandRequiresProcess | eCommandTryTargetAPILock) {}
+            eCommandRequiresProcess | eCommandTryTargetAPILock),
+        m_options() {}
 
   ~CommandObjectProcessStatus() override = default;
 
+  Options *GetOptions() override { return &m_options; }
+
+  class CommandOptions : public Options {
+  public:
+    CommandOptions() : Options(), m_verbose(false) {}
+
+    ~CommandOptions() override = default;
+
+    Status SetOptionValue(uint32_t option_idx, llvm::StringRef option_arg,
+                          ExecutionContext *execution_context) override {
+      const int short_option = m_getopt_table[option_idx].val;
+
+      switch (short_option) {
+      case 'v':
+        m_verbose = true;
+        break;
+      default:
+        llvm_unreachable("Unimplemented option");
+      }
+
+      return {};
+    }
+
+    void OptionParsingStarting(ExecutionContext *execution_context) override {
+      m_verbose = false;
+    }
+
+    llvm::ArrayRef<OptionDefinition> GetDefinitions() override {
+      return llvm::makeArrayRef(g_process_status_options);
+    }
+
+    // Instance variables to hold the values for command options.
+    bool m_verbose;
+  };
+
+protected:
   bool DoExecute(Args &command, CommandReturnObject &result) override {
     Stream &strm = result.GetOutputStream();
     result.SetStatus(eReturnStatusSuccessFinishNoResult);
+
+    if (command.GetArgumentCount()) {
+      result.AppendError("'process status' takes no arguments");
+      result.SetStatus(eReturnStatusFailed);
+      return result.Succeeded();
+    }
+
     // No need to check "process" for validity as eCommandRequiresProcess
     // ensures it is valid
     Process *process = m_exe_ctx.GetProcessPtr();
@@ -1227,8 +1287,37 @@ public:
     process->GetStatus(strm);
     process->GetThreadStatus(strm, only_threads_with_stop_reason, start_frame,
                              num_frames, num_frames_with_source, stop_format);
+
+    if (m_options.m_verbose) {
+      PlatformSP platform_sp = process->GetTarget().GetPlatform();
+      if (!platform_sp) {
+        result.AppendError("Couldn'retrieve the target's platform");
+        result.SetStatus(eReturnStatusFailed);
+        return result.Succeeded();
+      }
+
+      auto expected_crash_info =
+          platform_sp->FetchExtendedCrashInformation(*process);
+
+      if (!expected_crash_info) {
+        result.AppendError(llvm::toString(expected_crash_info.takeError()));
+        result.SetStatus(eReturnStatusFailed);
+        return result.Succeeded();
+      }
+
+      StructuredData::DictionarySP crash_info_sp = *expected_crash_info;
+
+      if (crash_info_sp) {
+        strm.PutCString("Extended Crash Information:\n");
+        crash_info_sp->Dump(strm);
+      }
+    }
+
     return result.Succeeded();
   }
+
+private:
+  CommandOptions m_options;
 };
 
 // CommandObjectProcessHandle
@@ -1252,13 +1341,13 @@ public:
 
       switch (short_option) {
       case 's':
-        stop = option_arg;
+        stop = std::string(option_arg);
         break;
       case 'n':
-        notify = option_arg;
+        notify = std::string(option_arg);
         break;
       case 'p':
-        pass = option_arg;
+        pass = std::string(option_arg);
         break;
       default:
         llvm_unreachable("Unimplemented option");

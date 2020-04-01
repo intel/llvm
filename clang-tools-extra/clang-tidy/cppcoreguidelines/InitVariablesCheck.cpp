@@ -29,11 +29,15 @@ InitVariablesCheck::InitVariablesCheck(StringRef Name,
       MathHeader(Options.get("MathHeader", "math.h")) {}
 
 void InitVariablesCheck::registerMatchers(MatchFinder *Finder) {
-  Finder->addMatcher(varDecl(unless(hasInitializer(anything())),
-                             unless(isInstantiated()), isLocalVarDecl(),
-                             unless(isStaticLocal()), isDefinition())
-                         .bind("vardecl"),
-                     this);
+  std::string BadDecl = "badDecl";
+  Finder->addMatcher(
+      varDecl(unless(hasInitializer(anything())), unless(isInstantiated()),
+              isLocalVarDecl(), unless(isStaticLocal()), isDefinition(),
+              optionally(hasParent(declStmt(hasParent(
+                  cxxForRangeStmt(hasLoopVariable(varDecl().bind(BadDecl))))))),
+              unless(equalsBoundNode(BadDecl)))
+          .bind("vardecl"),
+      this);
 }
 
 void InitVariablesCheck::registerPPCallbacks(const SourceManager &SM,
@@ -92,10 +96,8 @@ void InitVariablesCheck::check(const MatchFinder::MatchResult &Result) {
                    MatchedDecl->getName().size()),
                InitializationString);
     if (AddMathInclude) {
-      auto IncludeHint = IncludeInserter->CreateIncludeInsertion(
+      Diagnostic << IncludeInserter->CreateIncludeInsertion(
           Source.getFileID(MatchedDecl->getBeginLoc()), MathHeader, false);
-      if (IncludeHint)
-        Diagnostic << *IncludeHint;
     }
   }
 }

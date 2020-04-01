@@ -13,7 +13,7 @@
 
 #include <unordered_map>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
 enum class addressing_mode : unsigned int;
@@ -59,4 +59,4 @@ public:
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

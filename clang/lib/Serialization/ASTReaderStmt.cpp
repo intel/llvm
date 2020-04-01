@@ -11,7 +11,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "clang/Serialization/ASTRecordReader.h"
 #include "clang/AST/ASTConcept.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/AttrIterator.h"
@@ -22,6 +21,7 @@
 #include "clang/AST/DeclObjC.h"
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/DeclarationName.h"
+#include "clang/AST/DependenceFlags.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/ExprObjC.h"
@@ -49,6 +49,7 @@
 #include "clang/Basic/TypeTraits.h"
 #include "clang/Lex/Token.h"
 #include "clang/Serialization/ASTBitCodes.h"
+#include "clang/Serialization/ASTRecordReader.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
@@ -101,7 +102,7 @@ namespace clang {
 
     /// The number of record fields required for the Stmt class
     /// itself.
-    static const unsigned NumStmtFields = 1;
+    static const unsigned NumStmtFields = 0;
 
     /// The number of record fields required for the Expr class
     /// itself.
@@ -137,7 +138,6 @@ void ASTStmtReader::ReadTemplateKWAndArgsInfo(ASTTemplateKWAndArgsInfo &Args,
 }
 
 void ASTStmtReader::VisitStmt(Stmt *S) {
-  S->setIsOMPStructuredBlock(Record.readInt());
   assert(Record.getIdx() == NumStmtFields && "Incorrect statement field count");
 }
 
@@ -511,10 +511,23 @@ void ASTStmtReader::VisitCapturedStmt(CapturedStmt *S) {
 void ASTStmtReader::VisitExpr(Expr *E) {
   VisitStmt(E);
   E->setType(Record.readType());
-  E->setTypeDependent(Record.readInt());
-  E->setValueDependent(Record.readInt());
-  E->setInstantiationDependent(Record.readInt());
-  E->ExprBits.ContainsUnexpandedParameterPack = Record.readInt();
+
+  // FIXME: write and read all DependentFlags with a single call.
+  bool TypeDependent = Record.readInt();
+  bool ValueDependent = Record.readInt();
+  bool InstantiationDependent = Record.readInt();
+  bool ContainsUnexpandedTemplateParameters = Record.readInt();
+  auto Deps = ExprDependence::None;
+  if (TypeDependent)
+    Deps |= ExprDependence::Type;
+  if (ValueDependent)
+    Deps |= ExprDependence::Value;
+  if (InstantiationDependent)
+    Deps |= ExprDependence::Instantiation;
+  if (ContainsUnexpandedTemplateParameters)
+    Deps |= ExprDependence::UnexpandedPack;
+  E->setDependence(Deps);
+
   E->setValueKind(static_cast<ExprValueKind>(Record.readInt()));
   E->setObjectKind(static_cast<ExprObjectKind>(Record.readInt()));
   assert(Record.getIdx() == NumExprFields &&
@@ -724,29 +737,15 @@ void ASTStmtReader::VisitUnaryExprOrTypeTraitExpr(UnaryExprOrTypeTraitExpr *E) {
   E->setRParenLoc(readSourceLocation());
 }
 
-void ASTStmtReader::VisitConceptSpecializationExpr(
-        ConceptSpecializationExpr *E) {
-  VisitExpr(E);
-  unsigned NumTemplateArgs = Record.readInt();
-  E->NestedNameSpec = Record.readNestedNameSpecifierLoc();
-  E->TemplateKWLoc = Record.readSourceLocation();
-  E->ConceptNameLoc = Record.readSourceLocation();
-  E->FoundDecl = readDeclAs<NamedDecl>();
-  E->NamedConcept = readDeclAs<ConceptDecl>();
-  const ASTTemplateArgumentListInfo *ArgsAsWritten =
-      Record.readASTTemplateArgumentListInfo();
-  llvm::SmallVector<TemplateArgument, 4> Args;
-  for (unsigned I = 0; I < NumTemplateArgs; ++I)
-    Args.push_back(Record.readTemplateArgument());
-  E->setTemplateArguments(ArgsAsWritten, Args);
+static ConstraintSatisfaction
+readConstraintSatisfaction(ASTRecordReader &Record) {
   ConstraintSatisfaction Satisfaction;
   Satisfaction.IsSatisfied = Record.readInt();
   if (!Satisfaction.IsSatisfied) {
     unsigned NumDetailRecords = Record.readInt();
     for (unsigned i = 0; i != NumDetailRecords; ++i) {
       Expr *ConstraintExpr = Record.readExpr();
-      bool IsDiagnostic = Record.readInt();
-      if (IsDiagnostic) {
+      if (/* IsDiagnostic */Record.readInt()) {
         SourceLocation DiagLocation = Record.readSourceLocation();
         std::string DiagMessage = Record.readString();
         Satisfaction.Details.emplace_back(
@@ -757,8 +756,138 @@ void ASTStmtReader::VisitConceptSpecializationExpr(
         Satisfaction.Details.emplace_back(ConstraintExpr, Record.readExpr());
     }
   }
-  E->Satisfaction = ASTConstraintSatisfaction::Create(Record.getContext(),
-                                                      Satisfaction);
+  return Satisfaction;
+}
+
+void ASTStmtReader::VisitConceptSpecializationExpr(
+        ConceptSpecializationExpr *E) {
+  VisitExpr(E);
+  unsigned NumTemplateArgs = Record.readInt();
+  E->NestedNameSpec = Record.readNestedNameSpecifierLoc();
+  E->TemplateKWLoc = Record.readSourceLocation();
+  E->ConceptName = Record.readDeclarationNameInfo();
+  E->NamedConcept = readDeclAs<ConceptDecl>();
+  E->FoundDecl = Record.readDeclAs<NamedDecl>();
+  E->ArgsAsWritten = Record.readASTTemplateArgumentListInfo();
+  llvm::SmallVector<TemplateArgument, 4> Args;
+  for (unsigned I = 0; I < NumTemplateArgs; ++I)
+    Args.push_back(Record.readTemplateArgument());
+  E->setTemplateArguments(Args);
+  E->Satisfaction = E->isValueDependent() ? nullptr :
+      ASTConstraintSatisfaction::Create(Record.getContext(),
+                                        readConstraintSatisfaction(Record));
+}
+
+static concepts::Requirement::SubstitutionDiagnostic *
+readSubstitutionDiagnostic(ASTRecordReader &Record) {
+  std::string SubstitutedEntity = Record.readString();
+  SourceLocation DiagLoc = Record.readSourceLocation();
+  std::string DiagMessage = Record.readString();
+  return new (Record.getContext())
+      concepts::Requirement::SubstitutionDiagnostic{SubstitutedEntity, DiagLoc,
+                                                    DiagMessage};
+}
+
+void ASTStmtReader::VisitRequiresExpr(RequiresExpr *E) {
+  VisitExpr(E);
+  unsigned NumLocalParameters = Record.readInt();
+  unsigned NumRequirements = Record.readInt();
+  E->RequiresExprBits.RequiresKWLoc = Record.readSourceLocation();
+  E->RequiresExprBits.IsSatisfied = Record.readInt();
+  E->Body = Record.readDeclAs<RequiresExprBodyDecl>();
+  llvm::SmallVector<ParmVarDecl *, 4> LocalParameters;
+  for (unsigned i = 0; i < NumLocalParameters; ++i)
+    LocalParameters.push_back(cast<ParmVarDecl>(Record.readDecl()));
+  std::copy(LocalParameters.begin(), LocalParameters.end(),
+            E->getTrailingObjects<ParmVarDecl *>());
+  llvm::SmallVector<concepts::Requirement *, 4> Requirements;
+  for (unsigned i = 0; i < NumRequirements; ++i) {
+    auto RK =
+        static_cast<concepts::Requirement::RequirementKind>(Record.readInt());
+    concepts::Requirement *R = nullptr;
+    switch (RK) {
+      case concepts::Requirement::RK_Type: {
+        auto Status =
+            static_cast<concepts::TypeRequirement::SatisfactionStatus>(
+                Record.readInt());
+        if (Status == concepts::TypeRequirement::SS_SubstitutionFailure)
+          R = new (Record.getContext())
+              concepts::TypeRequirement(readSubstitutionDiagnostic(Record));
+        else
+          R = new (Record.getContext())
+              concepts::TypeRequirement(Record.readTypeSourceInfo());
+      } break;
+      case concepts::Requirement::RK_Simple:
+      case concepts::Requirement::RK_Compound: {
+        auto Status =
+            static_cast<concepts::ExprRequirement::SatisfactionStatus>(
+                Record.readInt());
+        llvm::PointerUnion<concepts::Requirement::SubstitutionDiagnostic *,
+                           Expr *> E;
+        if (Status == concepts::ExprRequirement::SS_ExprSubstitutionFailure) {
+          E = readSubstitutionDiagnostic(Record);
+        } else
+          E = Record.readExpr();
+
+        llvm::Optional<concepts::ExprRequirement::ReturnTypeRequirement> Req;
+        ConceptSpecializationExpr *SubstitutedConstraintExpr = nullptr;
+        SourceLocation NoexceptLoc;
+        if (RK == concepts::Requirement::RK_Simple) {
+          Req.emplace();
+        } else {
+          NoexceptLoc = Record.readSourceLocation();
+          switch (/* returnTypeRequirementKind */Record.readInt()) {
+            case 0:
+              // No return type requirement.
+              Req.emplace();
+              break;
+            case 1: {
+              // type-constraint
+              TemplateParameterList *TPL = Record.readTemplateParameterList();
+              if (Status >=
+                  concepts::ExprRequirement::SS_ConstraintsNotSatisfied)
+                SubstitutedConstraintExpr =
+                    cast<ConceptSpecializationExpr>(Record.readExpr());
+              Req.emplace(TPL);
+            } break;
+            case 2:
+              // Substitution failure
+              Req.emplace(readSubstitutionDiagnostic(Record));
+              break;
+          }
+        }
+        if (Expr *Ex = E.dyn_cast<Expr *>())
+          R = new (Record.getContext()) concepts::ExprRequirement(
+                  Ex, RK == concepts::Requirement::RK_Simple, NoexceptLoc,
+                  std::move(*Req), Status, SubstitutedConstraintExpr);
+        else
+          R = new (Record.getContext()) concepts::ExprRequirement(
+                  E.get<concepts::Requirement::SubstitutionDiagnostic *>(),
+                  RK == concepts::Requirement::RK_Simple, NoexceptLoc,
+                  std::move(*Req));
+      } break;
+      case concepts::Requirement::RK_Nested: {
+        if (/* IsSubstitutionDiagnostic */Record.readInt()) {
+          R = new (Record.getContext()) concepts::NestedRequirement(
+              readSubstitutionDiagnostic(Record));
+          break;
+        }
+        Expr *E = Record.readExpr();
+        if (E->isInstantiationDependent())
+          R = new (Record.getContext()) concepts::NestedRequirement(E);
+        else
+          R = new (Record.getContext())
+              concepts::NestedRequirement(Record.getContext(), E,
+                                          readConstraintSatisfaction(Record));
+      } break;
+    }
+    if (!R)
+      continue;
+    Requirements.push_back(R);
+  }
+  std::copy(Requirements.begin(), Requirements.end(),
+            E->getTrailingObjects<concepts::Requirement *>());
+  E->RBraceLoc = Record.readSourceLocation();
 }
 
 void ASTStmtReader::VisitArraySubscriptExpr(ArraySubscriptExpr *E) {
@@ -1075,6 +1204,7 @@ void ASTStmtReader::VisitStmtExpr(StmtExpr *E) {
   E->setLParenLoc(readSourceLocation());
   E->setRParenLoc(readSourceLocation());
   E->setSubStmt(cast_or_null<CompoundStmt>(Record.readSubStmt()));
+  E->StmtExprBits.TemplateDepth = Record.readInt();
 }
 
 void ASTStmtReader::VisitChooseExpr(ChooseExpr *E) {
@@ -1689,9 +1819,17 @@ void ASTStmtReader::VisitExprWithCleanups(ExprWithCleanups *E) {
 
   unsigned NumObjects = Record.readInt();
   assert(NumObjects == E->getNumObjects());
-  for (unsigned i = 0; i != NumObjects; ++i)
-    E->getTrailingObjects<BlockDecl *>()[i] =
-        readDeclAs<BlockDecl>();
+  for (unsigned i = 0; i != NumObjects; ++i) {
+    unsigned CleanupKind = Record.readInt();
+    ExprWithCleanups::CleanupObject Obj;
+    if (CleanupKind == COK_Block)
+      Obj = readDeclAs<BlockDecl>();
+    else if (CleanupKind == COK_CompoundLiteral)
+      Obj = cast<CompoundLiteralExpr>(Record.readSubExpr());
+    else
+      llvm_unreachable("unexpected cleanup object type");
+    E->getTrailingObjects<ExprWithCleanups::CleanupObject>()[i] = Obj;
+  }
 
   E->ExprWithCleanupsBits.CleanupsHaveSideEffects = Record.readInt();
   E->SubExpr = Record.readSubExpr();
@@ -2228,6 +2366,13 @@ void ASTStmtReader::VisitOMPFlushDirective(OMPFlushDirective *D) {
   VisitOMPExecutableDirective(D);
 }
 
+void ASTStmtReader::VisitOMPDepobjDirective(OMPDepobjDirective *D) {
+  VisitStmt(D);
+  // The NumClauses field was read in ReadStmtFromStream.
+  Record.skipInts(1);
+  VisitOMPExecutableDirective(D);
+}
+
 void ASTStmtReader::VisitOMPOrderedDirective(OMPOrderedDirective *D) {
   VisitStmt(D);
   // The NumClauses field was read in ReadStmtFromStream.
@@ -2312,6 +2457,7 @@ void ASTStmtReader::VisitOMPCancelDirective(OMPCancelDirective *D) {
 
 void ASTStmtReader::VisitOMPTaskLoopDirective(OMPTaskLoopDirective *D) {
   VisitOMPLoopDirective(D);
+  D->setHasCancel(Record.readInt());
 }
 
 void ASTStmtReader::VisitOMPTaskLoopSimdDirective(OMPTaskLoopSimdDirective *D) {
@@ -2321,6 +2467,7 @@ void ASTStmtReader::VisitOMPTaskLoopSimdDirective(OMPTaskLoopSimdDirective *D) {
 void ASTStmtReader::VisitOMPMasterTaskLoopDirective(
     OMPMasterTaskLoopDirective *D) {
   VisitOMPLoopDirective(D);
+  D->setHasCancel(Record.readInt());
 }
 
 void ASTStmtReader::VisitOMPMasterTaskLoopSimdDirective(
@@ -2331,6 +2478,7 @@ void ASTStmtReader::VisitOMPMasterTaskLoopSimdDirective(
 void ASTStmtReader::VisitOMPParallelMasterTaskLoopDirective(
     OMPParallelMasterTaskLoopDirective *D) {
   VisitOMPLoopDirective(D);
+  D->setHasCancel(Record.readInt());
 }
 
 void ASTStmtReader::VisitOMPParallelMasterTaskLoopSimdDirective(
@@ -3056,6 +3204,11 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
           Context, Record[ASTStmtReader::NumStmtFields], Empty);
       break;
 
+    case STMT_OMP_DEPOBJ_DIRECTIVE:
+      S = OMPDepobjDirective::CreateEmpty(
+          Context, Record[ASTStmtReader::NumStmtFields], Empty);
+      break;
+
     case STMT_OMP_ORDERED_DIRECTIVE:
       S = OMPOrderedDirective::CreateEmpty(
           Context, Record[ASTStmtReader::NumStmtFields], Empty);
@@ -3568,11 +3721,18 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
       S = new (Context) DependentCoawaitExpr(Empty);
       break;
 
-    case EXPR_CONCEPT_SPECIALIZATION:
+    case EXPR_CONCEPT_SPECIALIZATION: {
       unsigned numTemplateArgs = Record[ASTStmtReader::NumExprFields];
       S = ConceptSpecializationExpr::Create(Context, Empty, numTemplateArgs);
       break;
-      
+    }
+
+    case EXPR_REQUIRES:
+      unsigned numLocalParameters = Record[ASTStmtReader::NumExprFields];
+      unsigned numRequirement = Record[ASTStmtReader::NumExprFields + 1];
+      S = RequiresExpr::Create(Context, Empty, numLocalParameters,
+                               numRequirement);
+      break;
     }
 
     // We hit a STMT_STOP, so we're done with this expression.

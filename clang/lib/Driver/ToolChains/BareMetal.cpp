@@ -67,7 +67,7 @@ Tool *BareMetal::buildLinker() const {
 std::string BareMetal::getRuntimesDir() const {
   SmallString<128> Dir(getDriver().ResourceDir);
   llvm::sys::path::append(Dir, "lib", "baremetal");
-  return Dir.str();
+  return std::string(Dir.str());
 }
 
 void BareMetal::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
@@ -157,7 +157,7 @@ void BareMetal::AddCXXStdlibLibArgs(const ArgList &Args,
 void BareMetal::AddLinkRuntimeLib(const ArgList &Args,
                                   ArgStringList &CmdArgs) const {
   CmdArgs.push_back(Args.MakeArgString("-lclang_rt.builtins-" +
-                                       getTriple().getArchName() + ".a"));
+                                       getTriple().getArchName()));
 }
 
 void baremetal::Linker::ConstructJob(Compilation &C, const JobAction &JA,

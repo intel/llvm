@@ -61,13 +61,12 @@ static StringRef getOSLibDir(const llvm::Triple &Triple, const ArgList &Args) {
   return Triple.isArch32Bit() ? "lib" : "lib64";
 }
 
-Hurd::Hurd(const Driver &D, const llvm::Triple &Triple,
-           const ArgList &Args)
+Hurd::Hurd(const Driver &D, const llvm::Triple &Triple, const ArgList &Args)
     : Generic_ELF(D, Triple, Args) {
   std::string SysRoot = computeSysRoot();
   path_list &Paths = getFilePaths();
 
-  const std::string OSLibDir = getOSLibDir(Triple, Args);
+  const std::string OSLibDir = std::string(getOSLibDir(Triple, Args));
   const std::string MultiarchTriple = getMultiarchTriple(D, Triple, SysRoot);
 
 #ifdef ENABLE_LINKER_BUILD_ID
@@ -149,7 +148,7 @@ void Hurd::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
     CIncludeDirs.split(Dirs, ":");
     for (StringRef Dir : Dirs) {
       StringRef Prefix =
-          llvm::sys::path::is_absolute(Dir) ? StringRef(SysRoot) : "";
+          llvm::sys::path::is_absolute(Dir) ? "" : StringRef(SysRoot);
       addExternCSystemInclude(DriverArgs, CC1Args, Prefix + Dir);
     }
     return;
@@ -169,4 +168,9 @@ void Hurd::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
   addExternCSystemInclude(DriverArgs, CC1Args, SysRoot + "/include");
 
   addExternCSystemInclude(DriverArgs, CC1Args, SysRoot + "/usr/include");
+}
+
+void Hurd::addExtraOpts(llvm::opt::ArgStringList &CmdArgs) const {
+  for (const auto &Opt : ExtraOpts)
+    CmdArgs.push_back(Opt.c_str());
 }

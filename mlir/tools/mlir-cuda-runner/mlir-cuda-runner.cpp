@@ -1,6 +1,6 @@
-//===- mlir-cpu-runner.cpp - MLIR CPU Execution Driver---------------------===//
+//===- mlir-cuda-runner.cpp - MLIR CUDA Execution Driver-------------------===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -22,12 +22,17 @@
 #include "mlir/Dialect/GPU/Passes.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/NVVMDialect.h"
+#include "mlir/ExecutionEngine/OptUtils.h"
 #include "mlir/IR/Function.h"
 #include "mlir/IR/Module.h"
+#include "mlir/InitAllDialects.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Support/JitRunner.h"
 #include "mlir/Transforms/DialectConversion.h"
+#include "mlir/Transforms/Passes.h"
+#include "llvm/Support/InitLLVM.h"
+#include "llvm/Support/TargetSelect.h"
 
 #include "cuda.h"
 
@@ -105,7 +110,8 @@ static LogicalResult runMLIRPasses(ModuleOp m) {
   applyPassManagerCLOptions(pm);
 
   pm.addPass(createGpuKernelOutliningPass());
-  auto &kernelPm = pm.nest<ModuleOp>();
+  auto &kernelPm = pm.nest<gpu::GPUModuleOp>();
+  kernelPm.addPass(createStripDebugInfoPass());
   kernelPm.addPass(createLowerGpuOpsToNVVMOpsPass());
   kernelPm.addPass(createConvertGPUKernelToCubinPass(&compilePtxToCubin));
   pm.addPass(createLowerToLLVMPass());
@@ -116,5 +122,10 @@ static LogicalResult runMLIRPasses(ModuleOp m) {
 
 int main(int argc, char **argv) {
   registerPassManagerCLOptions();
+  mlir::registerAllDialects();
+  llvm::InitLLVM y(argc, argv);
+  llvm::InitializeNativeTarget();
+  llvm::InitializeNativeTargetAsmPrinter();
+  mlir::initializeLLVMPasses();
   return mlir::JitRunnerMain(argc, argv, &runMLIRPasses);
 }

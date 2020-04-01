@@ -1,4 +1,4 @@
-//===-- Thread.cpp ----------------------------------------------*- C++ -*-===//
+//===-- Thread.cpp --------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,8 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "lldb/Target/Thread.h"
-#include "Plugins/Process/Utility/UnwindLLDB.h"
-#include "Plugins/Process/Utility/UnwindMacOSXFrameBackchain.h"
 #include "lldb/Breakpoint/BreakpointLocation.h"
 #include "lldb/Core/Debugger.h"
 #include "lldb/Core/FormatEntity.h"
@@ -43,7 +41,7 @@
 #include "lldb/Target/ThreadPlanStepThrough.h"
 #include "lldb/Target/ThreadPlanStepUntil.h"
 #include "lldb/Target/ThreadSpec.h"
-#include "lldb/Target/Unwind.h"
+#include "lldb/Target/UnwindLLDB.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/RegularExpression.h"
 #include "lldb/Utility/State.h"
@@ -573,8 +571,67 @@ void Thread::SetState(StateType state) {
   m_state = state;
 }
 
+std::string Thread::GetStopDescription() {
+  StackFrameSP frame_sp = GetStackFrameAtIndex(0);
+
+  if (!frame_sp)
+    return GetStopDescriptionRaw();
+
+  auto recognized_frame_sp = frame_sp->GetRecognizedFrame();
+
+  if (!recognized_frame_sp)
+    return GetStopDescriptionRaw();
+
+  std::string recognized_stop_description =
+      recognized_frame_sp->GetStopDescription();
+
+  if (!recognized_stop_description.empty())
+    return recognized_stop_description;
+
+  return GetStopDescriptionRaw();
+}
+
+std::string Thread::GetStopDescriptionRaw() {
+  StopInfoSP stop_info_sp = GetStopInfo();
+  std::string raw_stop_description;
+  if (stop_info_sp && stop_info_sp->IsValid()) {
+    raw_stop_description = stop_info_sp->GetDescription();
+    assert((!raw_stop_description.empty() ||
+            stop_info_sp->GetStopReason() == eStopReasonNone) &&
+           "StopInfo returned an empty description.");
+  }
+  return raw_stop_description;
+}
+
+void Thread::SelectMostRelevantFrame() {
+  Log *log = lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_THREAD);
+
+  auto frames_list_sp = GetStackFrameList();
+
+  // Only the top frame should be recognized.
+  auto frame_sp = frames_list_sp->GetFrameAtIndex(0);
+
+  auto recognized_frame_sp = frame_sp->GetRecognizedFrame();
+
+  if (!recognized_frame_sp) {
+    LLDB_LOG(log, "Frame #0 not recognized");
+    return;
+  }
+
+  if (StackFrameSP most_relevant_frame_sp =
+          recognized_frame_sp->GetMostRelevantFrame()) {
+    LLDB_LOG(log, "Found most relevant frame at index {0}",
+             most_relevant_frame_sp->GetFrameIndex());
+    SetSelectedFrame(most_relevant_frame_sp.get());
+  } else {
+    LLDB_LOG(log, "No relevant frame!");
+  }
+}
+
 void Thread::WillStop() {
   ThreadPlan *current_plan = GetCurrentPlan();
+
+  SelectMostRelevantFrame();
 
   // FIXME: I may decide to disallow threads with no plans.  In which
   // case this should go to an assert.
@@ -1600,9 +1657,7 @@ StackFrameListSP Thread::GetStackFrameList() {
 void Thread::ClearStackFrames() {
   std::lock_guard<std::recursive_mutex> guard(m_frame_mutex);
 
-  Unwind *unwinder = GetUnwinder();
-  if (unwinder)
-    unwinder->Clear();
+  GetUnwinder().Clear();
 
   // Only store away the old "reference" StackFrameList if we got all its
   // frames:
@@ -1773,7 +1828,7 @@ Status Thread::JumpToLine(const FileSpec &file, uint32_t line,
                 "first location:\n",
                 file.GetFilename().AsCString(), line);
     DumpAddressList(sstr, candidates, target);
-    *warnings = sstr.GetString();
+    *warnings = std::string(sstr.GetString());
   }
 
   if (!reg_ctx->SetPC(dest))
@@ -2041,37 +2096,10 @@ size_t Thread::GetStackFrameStatus(Stream &strm, uint32_t first_frame,
       strm, first_frame, num_frames, show_frame_info, num_frames_with_source);
 }
 
-Unwind *Thread::GetUnwinder() {
-  if (!m_unwinder_up) {
-    const ArchSpec target_arch(CalculateTarget()->GetArchitecture());
-    const llvm::Triple::ArchType machine = target_arch.GetMachine();
-    switch (machine) {
-    case llvm::Triple::x86_64:
-    case llvm::Triple::x86:
-    case llvm::Triple::arm:
-    case llvm::Triple::aarch64:
-    case llvm::Triple::aarch64_32:
-    case llvm::Triple::thumb:
-    case llvm::Triple::mips:
-    case llvm::Triple::mipsel:
-    case llvm::Triple::mips64:
-    case llvm::Triple::mips64el:
-    case llvm::Triple::ppc:
-    case llvm::Triple::ppc64:
-    case llvm::Triple::ppc64le:
-    case llvm::Triple::systemz:
-    case llvm::Triple::hexagon:
-    case llvm::Triple::arc:
-      m_unwinder_up.reset(new UnwindLLDB(*this));
-      break;
-
-    default:
-      if (target_arch.GetTriple().getVendor() == llvm::Triple::Apple)
-        m_unwinder_up.reset(new UnwindMacOSXFrameBackchain(*this));
-      break;
-    }
-  }
-  return m_unwinder_up.get();
+Unwind &Thread::GetUnwinder() {
+  if (!m_unwinder_up)
+    m_unwinder_up.reset(new UnwindLLDB(*this));
+  return *m_unwinder_up;
 }
 
 void Thread::Flush() {

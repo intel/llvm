@@ -54,6 +54,7 @@ namespace format {
   TYPE(InheritanceComma)                                                       \
   TYPE(InlineASMBrace)                                                         \
   TYPE(InlineASMColon)                                                         \
+  TYPE(InlineASMSymbolicNameLSquare)                                           \
   TYPE(JavaAnnotation)                                                         \
   TYPE(JsComputedPropertyName)                                                 \
   TYPE(JsExponentiation)                                                       \
@@ -102,7 +103,11 @@ namespace format {
   TYPE(TypenameMacro)                                                          \
   TYPE(UnaryOperator)                                                          \
   TYPE(CSharpStringLiteral)                                                    \
+  TYPE(CSharpNamedArgumentColon)                                               \
+  TYPE(CSharpNullable)                                                         \
   TYPE(CSharpNullCoalescing)                                                   \
+  TYPE(CSharpNullConditional)                                                  \
+  TYPE(CSharpNullConditionalLSquare)                                           \
   TYPE(Unknown)
 
 enum TokenType {
@@ -504,6 +509,9 @@ struct FormatToken {
   /// Returns \c true if this tokens starts a block-type list, i.e. a
   /// list that should be indented with a block indent.
   bool opensBlockOrBlockTypeList(const FormatStyle &Style) const {
+    // C# Does not indent object initialisers as continuations.
+    if (is(tok::l_brace) && BlockKind == BK_BracedInit && Style.isCSharp())
+      return true;
     if (is(TT_TemplateString) && opensScope())
       return true;
     return is(TT_ArrayInitializerLSquare) || is(TT_ProtoExtensionLSquare) ||
@@ -770,6 +778,7 @@ struct AdditionalKeywords {
     kw_unchecked = &IdentTable.get("unchecked");
     kw_unsafe = &IdentTable.get("unsafe");
     kw_ushort = &IdentTable.get("ushort");
+    kw_when = &IdentTable.get("when");
 
     // Keep this at the end of the constructor to make sure everything here
     // is
@@ -786,7 +795,7 @@ struct AdditionalKeywords {
          kw_fixed, kw_foreach, kw_implicit, kw_in, kw_interface, kw_internal,
          kw_is, kw_lock, kw_null, kw_object, kw_out, kw_override, kw_params,
          kw_readonly, kw_ref, kw_string, kw_stackalloc, kw_sbyte, kw_sealed,
-         kw_uint, kw_ulong, kw_unchecked, kw_unsafe, kw_ushort,
+         kw_uint, kw_ulong, kw_unchecked, kw_unsafe, kw_ushort, kw_when,
          // Keywords from the JavaScript section.
          kw_as, kw_async, kw_await, kw_declare, kw_finally, kw_from,
          kw_function, kw_get, kw_import, kw_is, kw_let, kw_module, kw_readonly,
@@ -890,6 +899,7 @@ struct AdditionalKeywords {
   IdentifierInfo *kw_unchecked;
   IdentifierInfo *kw_unsafe;
   IdentifierInfo *kw_ushort;
+  IdentifierInfo *kw_when;
 
   /// Returns \c true if \p Tok is a true JavaScript identifier, returns
   /// \c false if it is a keyword or a pseudo keyword.

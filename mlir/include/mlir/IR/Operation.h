@@ -1,6 +1,6 @@
 //===- Operation.h - MLIR Operation Class -----------------------*- C++ -*-===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -149,14 +149,14 @@ public:
 
     auto valueIt = values.begin();
     for (unsigned i = 0, e = getNumResults(); i != e; ++i)
-      getResult(i)->replaceAllUsesWith(*(valueIt++));
+      getResult(i).replaceAllUsesWith(*(valueIt++));
   }
 
   /// Replace all uses of results of this operation with results of 'op'.
   void replaceAllUsesWith(Operation *op) {
     assert(getNumResults() == op->getNumResults());
     for (unsigned i = 0, e = getNumResults(); i != e; ++i)
-      getResult(i)->replaceAllUsesWith(op->getResult(i));
+      getResult(i).replaceAllUsesWith(op->getResult(i));
   }
 
   /// Destroys this operation and its subclass data.
@@ -187,6 +187,8 @@ public:
   bool isBeforeInBlock(Operation *other);
 
   void print(raw_ostream &os, OpPrintingFlags flags = llvm::None);
+  void print(raw_ostream &os, AsmState &state,
+             OpPrintingFlags flags = llvm::None);
   void dump();
 
   //===--------------------------------------------------------------------===//
@@ -230,7 +232,7 @@ public:
 
   // Support operand type iteration.
   using operand_type_iterator = operand_range::type_iterator;
-  using operand_type_range = iterator_range<operand_type_iterator>;
+  using operand_type_range = operand_range::type_range;
   operand_type_iterator operand_type_begin() { return operand_begin(); }
   operand_type_iterator operand_type_end() { return operand_end(); }
   operand_type_range getOperandTypes() { return getOperands().getTypes(); }
@@ -258,10 +260,10 @@ public:
 
   /// Support result type iteration.
   using result_type_iterator = result_range::type_iterator;
-  using result_type_range = iterator_range<result_type_iterator>;
-  result_type_iterator result_type_begin() { return result_begin(); }
-  result_type_iterator result_type_end() { return result_end(); }
-  result_type_range getResultTypes() { return getResults().getTypes(); }
+  using result_type_range = result_range::type_range;
+  result_type_iterator result_type_begin() { return getResultTypes().begin(); }
+  result_type_iterator result_type_end() { return getResultTypes().end(); }
+  result_type_range getResultTypes();
 
   //===--------------------------------------------------------------------===//
   // Attributes
@@ -372,7 +374,7 @@ public:
   }
 
   //===--------------------------------------------------------------------===//
-  // Terminators
+  // Successors
   //===--------------------------------------------------------------------===//
 
   MutableArrayRef<BlockOperand> getBlockOperands() {
@@ -385,61 +387,14 @@ public:
   succ_iterator successor_end() { return getSuccessors().end(); }
   SuccessorRange getSuccessors() { return SuccessorRange(this); }
 
-  /// Return the operands of this operation that are *not* successor arguments.
-  operand_range getNonSuccessorOperands();
-
-  operand_range getSuccessorOperands(unsigned index);
-
-  Value getSuccessorOperand(unsigned succIndex, unsigned opIndex) {
-    assert(!isKnownNonTerminator() && "only terminators may have successors");
-    assert(opIndex < getNumSuccessorOperands(succIndex));
-    return getOperand(getSuccessorOperandIndex(succIndex) + opIndex);
-  }
-
   bool hasSuccessors() { return numSuccs != 0; }
   unsigned getNumSuccessors() { return numSuccs; }
-  unsigned getNumSuccessorOperands(unsigned index) {
-    assert(!isKnownNonTerminator() && "only terminators may have successors");
-    assert(index < getNumSuccessors());
-    return getBlockOperands()[index].numSuccessorOperands;
-  }
 
   Block *getSuccessor(unsigned index) {
     assert(index < getNumSuccessors());
     return getBlockOperands()[index].get();
   }
   void setSuccessor(Block *block, unsigned index);
-
-  /// Erase a specific operand from the operand list of the successor at
-  /// 'index'.
-  void eraseSuccessorOperand(unsigned succIndex, unsigned opIndex) {
-    assert(succIndex < getNumSuccessors());
-    assert(opIndex < getNumSuccessorOperands(succIndex));
-    getOperandStorage().eraseOperand(getSuccessorOperandIndex(succIndex) +
-                                     opIndex);
-    --getBlockOperands()[succIndex].numSuccessorOperands;
-  }
-
-  /// Get the index of the first operand of the successor at the provided
-  /// index.
-  unsigned getSuccessorOperandIndex(unsigned index);
-
-  /// Return a pair (successorIndex, successorArgIndex) containing the index
-  /// of the successor that `operandIndex` belongs to and the index of the
-  /// argument to that successor that `operandIndex` refers to.
-  ///
-  /// If `operandIndex` is not a successor operand, None is returned.
-  Optional<std::pair<unsigned, unsigned>>
-  decomposeSuccessorOperandIndex(unsigned operandIndex);
-
-  /// Returns the `BlockArgument` corresponding to operand `operandIndex` in
-  /// some successor, or None if `operandIndex` isn't a successor operand index.
-  Optional<BlockArgument> getSuccessorBlockArgument(unsigned operandIndex) {
-    auto decomposed = decomposeSuccessorOperandIndex(operandIndex);
-    if (!decomposed.hasValue())
-      return None;
-    return getSuccessor(decomposed->first)->getArgument(decomposed->second);
-  }
 
   //===--------------------------------------------------------------------===//
   // Accessors for various properties of operations
@@ -449,13 +404,6 @@ public:
   bool isCommutative() {
     if (auto *absOp = getAbstractOperation())
       return absOp->hasProperty(OperationProperty::Commutative);
-    return false;
-  }
-
-  /// Returns whether the operation has side-effects.
-  bool hasNoSideEffect() {
-    if (auto *absOp = getAbstractOperation())
-      return absOp->hasProperty(OperationProperty::NoSideEffect);
     return false;
   }
 
@@ -501,7 +449,7 @@ public:
                      SmallVectorImpl<OpFoldResult> &results);
 
   /// Returns if the operation was registered with a particular trait, e.g.
-  /// hasTrait<OperandsAreIntegerLike>().
+  /// hasTrait<OperandsAreSignlessIntegerLike>().
   template <template <typename T> class Trait> bool hasTrait() {
     auto *absOp = getAbstractOperation();
     return absOp ? absOp->hasTrait<Trait>() : false;

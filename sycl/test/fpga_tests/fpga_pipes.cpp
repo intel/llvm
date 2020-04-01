@@ -1,7 +1,9 @@
 // RUN: %clangxx -fsycl %s -o %t.out
+//-fsycl-targets=%sycl_triple
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
+// UNSUPPORTED: cuda
 //==------------- fpga_pipes.cpp - SYCL FPGA pipes test --------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

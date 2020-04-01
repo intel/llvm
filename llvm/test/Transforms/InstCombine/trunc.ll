@@ -626,3 +626,19 @@ define <2 x i8> @narrow_sub_vec_constant(<2 x i32> %x) {
   ret <2 x i8> %tr
 }
 
+; If the select is narrowed based on the target's datalayout, we allow more optimizations.
+
+define i16 @PR44545(i32 %t0, i32 %data) {
+; CHECK-LABEL: @PR44545(
+; CHECK-NEXT:    [[ISZERO:%.*]] = icmp eq i32 [[DATA:%.*]], 0
+; CHECK-NEXT:    [[TMP1:%.*]] = trunc i32 [[T0:%.*]] to i16
+; CHECK-NEXT:    [[SUB:%.*]] = select i1 [[ISZERO]], i16 -1, i16 [[TMP1]]
+; CHECK-NEXT:    ret i16 [[SUB]]
+;
+  %t1 = add nuw nsw i32 %t0, 1
+  %iszero = icmp eq i32 %data, 0
+  %ffs = select i1 %iszero, i32 0, i32 %t1
+  %cast = trunc i32 %ffs to i16
+  %sub = add nsw i16 %cast, -1
+  ret i16 %sub
+}

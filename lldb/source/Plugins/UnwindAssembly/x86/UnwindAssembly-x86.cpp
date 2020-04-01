@@ -1,4 +1,4 @@
-//===-- UnwindAssembly-x86.cpp ----------------------------------*- C++ -*-===//
+//===-- UnwindAssembly-x86.cpp --------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -29,6 +29,8 @@
 
 using namespace lldb;
 using namespace lldb_private;
+
+LLDB_PLUGIN_DEFINE_ADV(UnwindAssembly_x86, UnwindAssemblyX86)
 
 //  UnwindAssemblyParser_x86 method definitions
 

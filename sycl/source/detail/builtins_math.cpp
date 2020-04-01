@@ -22,7 +22,7 @@
 namespace s = cl::sycl;
 namespace d = s::detail;
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace __host_std {
 
 namespace {
@@ -871,4 +871,4 @@ s::cl_float half_tan(s::cl_float x) __NOEXC { return std::tan(x); }
 MAKE_1V(half_tan, s::cl_float, s::cl_float)
 
 } // namespace __host_std
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

@@ -1,6 +1,6 @@
 //===- LoopsToGPU.h - Convert loop nests to GPU kernels ---------*- C++ -*-===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -12,6 +12,8 @@
 
 namespace mlir {
 class AffineForOp;
+class MLIRContext;
+class OwningRewritePatternList;
 struct LogicalResult;
 class Value;
 
@@ -71,6 +73,11 @@ LogicalResult convertLoopNestToGPULaunch(loop::ForOp forOp,
 LogicalResult convertLoopToGPULaunch(loop::ForOp forOp,
                                      ArrayRef<Value> numWorkGroups,
                                      ArrayRef<Value> workGroupSizes);
+
+/// Adds the conversion pattern from `loop.parallel` to `gpu.launch` to the
+/// provided pattern list.
+void populateParallelLoopToGPUPatterns(OwningRewritePatternList &patterns,
+                                       MLIRContext *ctx);
 
 } // namespace mlir
 

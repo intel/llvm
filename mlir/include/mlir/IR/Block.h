@@ -1,6 +1,6 @@
 //===- Block.h - MLIR Block Class -------------------------------*- C++ -*-===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -17,6 +17,9 @@
 #include "mlir/IR/Visitors.h"
 
 namespace mlir {
+class TypeRange;
+template <typename ValueRangeT> class ValueTypeRange;
+
 /// `Block` represents an ordered list of `Operation`s.
 class Block : public IRObjectWithUseList<BlockOperand>,
               public llvm::ilist_node_with_parent<Block, Region> {
@@ -67,6 +70,9 @@ public:
 
   BlockArgListType getArguments() { return arguments; }
 
+  /// Return a range containing the types of the arguments for this block.
+  ValueTypeRange<BlockArgListType> getArgumentTypes();
+
   using args_iterator = BlockArgListType::iterator;
   using reverse_args_iterator = BlockArgListType::reverse_iterator;
   args_iterator args_begin() { return getArguments().begin(); }
@@ -85,12 +91,13 @@ public:
   BlockArgument insertArgument(args_iterator it, Type type);
 
   /// Add one argument to the argument list for each type specified in the list.
-  iterator_range<args_iterator> addArguments(ArrayRef<Type> types);
+  iterator_range<args_iterator> addArguments(TypeRange types);
 
-  /// Erase the argument at 'index' and remove it from the argument list. If
-  /// 'updatePredTerms' is set to true, this argument is also removed from the
-  /// terminators of each predecessor to this block.
-  void eraseArgument(unsigned index, bool updatePredTerms = true);
+  /// Add one value to the argument list at the specified position.
+  BlockArgument insertArgument(unsigned index, Type type);
+
+  /// Erase the argument at 'index' and remove it from the argument list.
+  void eraseArgument(unsigned index);
 
   unsigned getNumArguments() { return arguments.size(); }
   BlockArgument getArgument(unsigned i) { return arguments[i]; }
@@ -312,12 +319,14 @@ public:
   }
 
   void print(raw_ostream &os);
+  void print(raw_ostream &os, AsmState &state);
   void dump();
 
   /// Print out the name of the block without printing its body.
   /// NOTE: The printType argument is ignored.  We keep it for compatibility
   /// with LLVM dominator machinery that expects it to exist.
   void printAsOperand(raw_ostream &os, bool printType = true);
+  void printAsOperand(raw_ostream &os, AsmState &state);
 
 private:
   /// Pair of the parent object that owns this block and a bit that signifies if

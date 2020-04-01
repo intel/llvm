@@ -13,7 +13,7 @@
 #include <functional>
 #include <mutex>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
   /// Represents a reference to value with appropriate lock acquired.

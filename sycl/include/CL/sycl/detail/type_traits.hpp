@@ -12,12 +12,17 @@
 #include <CL/sycl/detail/generic_type_lists.hpp>
 #include <CL/sycl/detail/stl_type_traits.hpp>
 #include <CL/sycl/detail/type_list.hpp>
-#include <CL/sycl/half_type.hpp>
 
 #include <type_traits>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+namespace detail {
+namespace half_impl {
+class half;
+}
+} // namespace detail
+using half = detail::half_impl::half;
 
 // Forward declaration
 template <typename ElementType, access::address_space Space> class multi_ptr;
@@ -37,6 +42,16 @@ template <typename T, int N>
 struct vector_size_impl<vec<T, N>> : int_constant<N> {};
 template <typename T>
 struct vector_size : vector_size_impl<remove_cv_t<remove_reference_t<T>>> {};
+
+// 4.10.2.6 Memory layout and alignment
+template <typename T, int N>
+struct vector_alignment_impl
+    : conditional_t<N == 3, int_constant<sizeof(T) * 4>,
+                    int_constant<sizeof(T) * N>> {};
+
+template <typename T, int N>
+struct vector_alignment
+    : vector_alignment_impl<remove_cv_t<remove_reference_t<T>>, N> {};
 
 // vector_element
 template <typename T> struct vector_element_impl;
@@ -157,6 +172,10 @@ template <typename T, int N, template <typename> class S>
 using is_gen_based_on_type_sizeof =
     bool_constant<S<T>::value && (sizeof(vector_element_t<T>) == N)>;
 
+template <typename> struct is_vec : std::false_type {};
+template <typename T, std::size_t N>
+struct is_vec<cl::sycl::vec<T, N>> : std::true_type {};
+
 // is_integral
 template <typename T>
 struct is_integral : std::is_integral<vector_element_t<T>> {};
@@ -175,6 +194,14 @@ struct is_floating_point
 template <typename T>
 struct is_arithmetic
     : bool_constant<is_integral<T>::value || is_floating_point<T>::value> {};
+
+template <typename T>
+struct is_scalar_arithmetic
+    : bool_constant<!is_vec<T>::value && is_arithmetic<T>::value> {};
+
+template <typename T>
+struct is_vector_arithmetic
+    : bool_constant<is_vec<T>::value && is_arithmetic<T>::value> {};
 
 // is_pointer
 template <typename T> struct is_pointer_impl : std::false_type {};
@@ -229,32 +256,6 @@ template <typename T, int N, typename TL> struct make_type_impl<vec<T, N>, TL> {
 template <typename T, typename TL>
 using make_type_t = typename make_type_impl<T, TL>::type;
 
-// nan_types
-template <typename T, typename Enable = void> struct nan_types;
-
-template <typename T>
-struct nan_types<
-    T, enable_if_t<is_contained<T, gtl::unsigned_short_list>::value, T>> {
-  using ret_type = change_base_type_t<T, half>;
-  using arg_type = find_same_size_type_t<gtl::scalar_unsigned_short_list, half>;
-};
-
-template <typename T>
-struct nan_types<
-    T, enable_if_t<is_contained<T, gtl::unsigned_int_list>::value, T>> {
-  using ret_type = change_base_type_t<T, float>;
-  using arg_type = find_same_size_type_t<gtl::scalar_unsigned_int_list, float>;
-};
-
-template <typename T>
-struct nan_types<
-    T,
-    enable_if_t<is_contained<T, gtl::unsigned_long_integer_list>::value, T>> {
-  using ret_type = change_base_type_t<T, double>;
-  using arg_type =
-      find_same_size_type_t<gtl::scalar_unsigned_long_integer_list, double>;
-};
-
 // make_larger_t
 template <typename T, typename Enable = void> struct make_larger_impl;
 template <typename T>
@@ -291,6 +292,16 @@ template <typename T> struct make_larger {
 
 template <typename T> using make_larger_t = typename make_larger<T>::type;
 
+#if defined(RESTRICT_WRITE_ACCESS_TO_CONSTANT_PTR)
+template <access::address_space AS, class DataT>
+using const_if_const_AS =
+    typename std::conditional<AS == access::address_space::constant_space,
+                              const DataT, DataT>::type;
+#else
+template <access::address_space AS, class DataT>
+using const_if_const_AS = DataT;
+#endif
+
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

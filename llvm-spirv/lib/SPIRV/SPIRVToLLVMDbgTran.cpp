@@ -84,7 +84,7 @@ SPIRVExtInst *SPIRVToLLVMDbgTran::getDbgInst(const SPIRVId Id) {
   return nullptr;
 }
 
-StringRef SPIRVToLLVMDbgTran::getString(const SPIRVId Id) {
+const std::string &SPIRVToLLVMDbgTran::getString(const SPIRVId Id) {
   SPIRVString *String = BM->get<SPIRVString>(Id);
   assert(String && "Invalid string");
   return String->getStr();
@@ -113,8 +113,7 @@ SPIRVToLLVMDbgTran::transCompileUnit(const SPIRVExtInst *DebugInst) {
 
   using namespace SPIRVDebug::Operand::CompilationUnit;
   assert(Ops.size() == OperandCount && "Invalid number of operands");
-  M->addModuleFlag(llvm::Module::Warning, "Dwarf Version",
-                   Ops[DWARFVersionIdx]);
+  M->addModuleFlag(llvm::Module::Max, "Dwarf Version", Ops[DWARFVersionIdx]);
   SPIRVExtInst *Source = BM->get<SPIRVExtInst>(Ops[SourceIdx]);
   SPIRVId FileId = Source->getArguments()[SPIRVDebug::Operand::Source::FileIdx];
   std::string File = getString(FileId);
@@ -679,10 +678,10 @@ SPIRVToLLVMDbgTran::transTemplateParameter(const SPIRVExtInst *DebugInst) {
   if (!getDbgInst<SPIRVDebug::DebugInfoNone>(Ops[ValueIdx])) {
     SPIRVValue *Val = BM->get<SPIRVValue>(Ops[ValueIdx]);
     Value *V = SPIRVReader->transValue(Val, nullptr, nullptr);
-    return Builder.createTemplateValueParameter(Context, Name, Ty,
+    return Builder.createTemplateValueParameter(Context, Name, Ty, false,
                                                 cast<Constant>(V));
   }
-  return Builder.createTemplateTypeParameter(Context, Name, Ty);
+  return Builder.createTemplateTypeParameter(Context, Name, Ty, false);
 }
 
 DINode *SPIRVToLLVMDbgTran::transTemplateTemplateParameter(

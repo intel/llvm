@@ -153,7 +153,8 @@ void llvm::FoldSingleEntryPHINodes(BasicBlock *BB,
   }
 }
 
-bool llvm::DeleteDeadPHIs(BasicBlock *BB, const TargetLibraryInfo *TLI) {
+bool llvm::DeleteDeadPHIs(BasicBlock *BB, const TargetLibraryInfo *TLI,
+                          MemorySSAUpdater *MSSAU) {
   // Recursively deleting a PHI may cause multiple PHIs to be deleted
   // or RAUW'd undef, so use an array of WeakTrackingVH for the PHIs to delete.
   SmallVector<WeakTrackingVH, 8> PHIs;
@@ -163,7 +164,7 @@ bool llvm::DeleteDeadPHIs(BasicBlock *BB, const TargetLibraryInfo *TLI) {
   bool Changed = false;
   for (unsigned i = 0, e = PHIs.size(); i != e; ++i)
     if (PHINode *PN = dyn_cast_or_null<PHINode>(PHIs[i].operator Value*()))
-      Changed |= RecursivelyDeleteDeadPHINode(PN, TLI);
+      Changed |= RecursivelyDeleteDeadPHINode(PN, TLI, MSSAU);
 
   return Changed;
 }
@@ -505,7 +506,8 @@ llvm::SplitAllCriticalEdges(Function &F,
   unsigned NumBroken = 0;
   for (BasicBlock &BB : F) {
     Instruction *TI = BB.getTerminator();
-    if (TI->getNumSuccessors() > 1 && !isa<IndirectBrInst>(TI))
+    if (TI->getNumSuccessors() > 1 && !isa<IndirectBrInst>(TI) &&
+        !isa<CallBrInst>(TI))
       for (unsigned i = 0, e = TI->getNumSuccessors(); i != e; ++i)
         if (SplitCriticalEdge(TI, i, Options))
           ++NumBroken;
@@ -900,9 +902,25 @@ ReturnInst *llvm::FoldReturnIntoUncondBranch(ReturnInst *RI, BasicBlock *BB,
       Pred->getInstList().insert(NewRet->getIterator(), NewBC);
       *i = NewBC;
     }
+
+    Instruction *NewEV = nullptr;
+    if (ExtractValueInst *EVI = dyn_cast<ExtractValueInst>(V)) {
+      V = EVI->getOperand(0);
+      NewEV = EVI->clone();
+      if (NewBC) {
+        NewBC->setOperand(0, NewEV);
+        Pred->getInstList().insert(NewBC->getIterator(), NewEV);
+      } else {
+        Pred->getInstList().insert(NewRet->getIterator(), NewEV);
+        *i = NewEV;
+      }
+    }
+
     if (PHINode *PN = dyn_cast<PHINode>(V)) {
       if (PN->getParent() == BB) {
-        if (NewBC)
+        if (NewEV) {
+          NewEV->setOperand(0, PN->getIncomingValueForBlock(Pred));
+        } else if (NewBC)
           NewBC->setOperand(0, PN->getIncomingValueForBlock(Pred));
         else
           *i = PN->getIncomingValueForBlock(Pred);

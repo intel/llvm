@@ -1,4 +1,4 @@
-//===-- SBProcessInfo.cpp ---------------------------------------*- C++ -*-===//
+//===-- SBProcessInfo.cpp -------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -25,7 +25,7 @@ SBProcessInfo::SBProcessInfo(const SBProcessInfo &rhs) : m_opaque_up() {
   m_opaque_up = clone(rhs.m_opaque_up);
 }
 
-SBProcessInfo::~SBProcessInfo() {}
+SBProcessInfo::~SBProcessInfo() = default;
 
 SBProcessInfo &SBProcessInfo::operator=(const SBProcessInfo &rhs) {
   LLDB_RECORD_METHOD(lldb::SBProcessInfo &,

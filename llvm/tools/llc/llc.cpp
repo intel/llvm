@@ -15,7 +15,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
-#include "llvm/CodeGen/CommandFlags.inc"
+#include "llvm/CodeGen/CommandFlags.h"
 #include "llvm/CodeGen/LinkAllAsmWriterComponents.h"
 #include "llvm/CodeGen/LinkAllCodegenComponents.h"
 #include "llvm/CodeGen/MIRParser/MIRParser.h"
@@ -29,9 +29,9 @@
 #include "llvm/IR/DiagnosticPrinter.h"
 #include "llvm/IR/IRPrintingPasses.h"
 #include "llvm/IR/LLVMContext.h"
+#include "llvm/IR/LLVMRemarkStreamer.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
-#include "llvm/IR/RemarkStreamer.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/InitializePasses.h"
@@ -54,6 +54,8 @@
 #include "llvm/Transforms/Utils/Cloning.h"
 #include <memory>
 using namespace llvm;
+
+static codegen::RegisterCodeGenFlags CGF;
 
 // General options for llc.  Other pass-specific options are specified
 // within the corresponding llc passes, and target-specific options
@@ -171,7 +173,7 @@ struct RunPassOption {
     SmallVector<StringRef, 8> PassNames;
     StringRef(Val).split(PassNames, ',', -1, false);
     for (auto PassName : PassNames)
-      RunPassNames->push_back(PassName);
+      RunPassNames->push_back(std::string(PassName));
   }
 };
 }
@@ -196,13 +198,13 @@ static std::unique_ptr<ToolOutputFile> GetOutputStream(const char *TargetName,
       // If InputFilename ends in .bc or .ll, remove it.
       StringRef IFN = InputFilename;
       if (IFN.endswith(".bc") || IFN.endswith(".ll"))
-        OutputFilename = IFN.drop_back(3);
+        OutputFilename = std::string(IFN.drop_back(3));
       else if (IFN.endswith(".mir"))
-        OutputFilename = IFN.drop_back(4);
+        OutputFilename = std::string(IFN.drop_back(4));
       else
-        OutputFilename = IFN;
+        OutputFilename = std::string(IFN);
 
-      switch (FileType) {
+      switch (codegen::getFileType()) {
       case CGFT_AssemblyFile:
         if (TargetName[0] == 'c') {
           if (TargetName[1] == 0)
@@ -229,7 +231,7 @@ static std::unique_ptr<ToolOutputFile> GetOutputStream(const char *TargetName,
 
   // Decide if we need "binary" output.
   bool Binary = false;
-  switch (FileType) {
+  switch (codegen::getFileType()) {
   case CGFT_AssemblyFile:
     break;
   case CGFT_ObjectFile:
@@ -334,9 +336,9 @@ int main(int argc, char **argv) {
   Context.setInlineAsmDiagnosticHandler(InlineAsmDiagHandler, &HasError);
 
   Expected<std::unique_ptr<ToolOutputFile>> RemarksFileOrErr =
-      setupOptimizationRemarks(Context, RemarksFilename, RemarksPasses,
-                               RemarksFormat, RemarksWithHotness,
-                               RemarksHotnessThreshold);
+      setupLLVMOptimizationRemarks(Context, RemarksFilename, RemarksPasses,
+                                   RemarksFormat, RemarksWithHotness,
+                                   RemarksHotnessThreshold);
   if (Error E = RemarksFileOrErr.takeError()) {
     WithColor::error(errs(), argv[0]) << toString(std::move(E)) << '\n';
     return 1;
@@ -395,14 +397,16 @@ static int compileModule(char **argv, LLVMContext &Context) {
   std::unique_ptr<Module> M;
   std::unique_ptr<MIRParser> MIR;
   Triple TheTriple;
-  std::string CPUStr = getCPUStr(), FeaturesStr = getFeaturesStr();
+  std::string CPUStr = codegen::getCPUStr(),
+              FeaturesStr = codegen::getFeaturesStr();
 
   // Set attributes on functions as loaded from MIR from command line arguments.
   auto setMIRFunctionAttributes = [&CPUStr, &FeaturesStr](Function &F) {
-    setFunctionAttributes(CPUStr, FeaturesStr, F);
+    codegen::setFunctionAttributes(CPUStr, FeaturesStr, F);
   };
 
-  bool SkipModule = MCPU == "help" ||
+  auto MAttrs = codegen::getMAttrs();
+  bool SkipModule = codegen::getMCPU() == "help" ||
                     (!MAttrs.empty() && MAttrs.front() == "help");
 
   // If user just wants to list available options, skip module loading
@@ -433,8 +437,8 @@ static int compileModule(char **argv, LLVMContext &Context) {
 
   // Get the target specific parser.
   std::string Error;
-  const Target *TheTarget = TargetRegistry::lookupTarget(MArch, TheTriple,
-                                                         Error);
+  const Target *TheTarget =
+      TargetRegistry::lookupTarget(codegen::getMArch(), TheTriple, Error);
   if (!TheTarget) {
     WithColor::error(errs(), argv[0]) << Error;
     return 1;
@@ -452,7 +456,7 @@ static int compileModule(char **argv, LLVMContext &Context) {
   case '3': OLvl = CodeGenOpt::Aggressive; break;
   }
 
-  TargetOptions Options = InitTargetOptionsFromCodeGenFlags();
+  TargetOptions Options = codegen::InitTargetOptionsFromCodeGenFlags();
   Options.DisableIntegratedAS = NoIntegratedAssembler;
   Options.MCOptions.ShowMCEncoding = ShowMCEncoding;
   Options.MCOptions.MCUseDwarfDirectory = EnableDwarfDirectory;
@@ -461,9 +465,18 @@ static int compileModule(char **argv, LLVMContext &Context) {
   Options.MCOptions.IASSearchPaths = IncludeDirs;
   Options.MCOptions.SplitDwarfFile = SplitDwarfFile;
 
+  // On AIX, setting the relocation model to anything other than PIC is considered
+  // a user error.
+  Optional<Reloc::Model> RM = codegen::getExplicitRelocModel();
+  if (TheTriple.isOSAIX() && RM.hasValue() && *RM != Reloc::PIC_) {
+    WithColor::error(errs(), argv[0])
+        << "invalid relocation model, AIX only supports PIC.\n";
+    return 1;
+  }
+
   std::unique_ptr<TargetMachine> Target(TheTarget->createTargetMachine(
-      TheTriple.getTriple(), CPUStr, FeaturesStr, Options, getRelocModel(),
-      getCodeModel(), OLvl));
+      TheTriple.getTriple(), CPUStr, FeaturesStr, Options, RM,
+      codegen::getExplicitCodeModel(), OLvl));
 
   assert(Target && "Could not allocate target machine!");
 
@@ -474,8 +487,8 @@ static int compileModule(char **argv, LLVMContext &Context) {
     return 0;
 
   assert(M && "Should have exited if we didn't have a module!");
-  if (FloatABIForCalls != FloatABI::Default)
-    Options.FloatABIType = FloatABIForCalls;
+  if (codegen::getFloatABIForCalls() != FloatABI::Default)
+    Options.FloatABIType = codegen::getFloatABIForCalls();
 
   // Figure out where we are going to send the output.
   std::unique_ptr<ToolOutputFile> Out =
@@ -522,10 +535,9 @@ static int compileModule(char **argv, LLVMContext &Context) {
 
   // Override function attributes based on CPUStr, FeaturesStr, and command line
   // flags.
-  setFunctionAttributes(CPUStr, FeaturesStr, *M);
+  codegen::setFunctionAttributes(CPUStr, FeaturesStr, *M);
 
-  if (RelaxAll.getNumOccurrences() > 0 &&
-      FileType != CGFT_ObjectFile)
+  if (mc::getExplicitRelaxAll() && codegen::getFileType() != CGFT_ObjectFile)
     WithColor::warning(errs(), argv[0])
         << ": warning: ignoring -mc-relax-all because filetype != obj";
 
@@ -536,7 +548,7 @@ static int compileModule(char **argv, LLVMContext &Context) {
     // so we can memcmp the contents in CompileTwice mode
     SmallVector<char, 0> Buffer;
     std::unique_ptr<raw_svector_ostream> BOS;
-    if ((FileType != CGFT_AssemblyFile &&
+    if ((codegen::getFileType() != CGFT_AssemblyFile &&
          !Out->os().supportsSeeking()) ||
         CompileTwice) {
       BOS = std::make_unique<raw_svector_ostream>(Buffer);
@@ -575,9 +587,9 @@ static int compileModule(char **argv, LLVMContext &Context) {
       TPC.setInitialized();
       PM.add(createPrintMIRPass(*OS));
       PM.add(createFreeMachineFunctionPass());
-    } else if (Target->addPassesToEmitFile(PM, *OS,
-                                           DwoOut ? &DwoOut->os() : nullptr,
-                                           FileType, NoVerify, MMIWP)) {
+    } else if (Target->addPassesToEmitFile(
+                   PM, *OS, DwoOut ? &DwoOut->os() : nullptr,
+                   codegen::getFileType(), NoVerify, MMIWP)) {
       WithColor::warning(errs(), argv[0])
           << "target does not support generation of this"
           << " file type!\n";

@@ -1,4 +1,4 @@
-//===-- Type.cpp ------------------------------------------------*- C++ -*-===//
+//===-- Type.cpp ----------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -303,7 +303,7 @@ void Type::Dump(Stream *s, bool show_context) {
 
 ConstString Type::GetName() {
   if (!m_name)
-    m_name = GetForwardCompilerType().GetConstTypeName();
+    m_name = GetForwardCompilerType().GetTypeName();
   return m_name;
 }
 
@@ -313,7 +313,7 @@ void Type::DumpValue(ExecutionContext *exe_ctx, Stream *s,
                      const DataExtractor &data, uint32_t data_byte_offset,
                      bool show_types, bool show_summary, bool verbose,
                      lldb::Format format) {
-  if (ResolveClangType(ResolveState::Forward)) {
+  if (ResolveCompilerType(ResolveState::Forward)) {
     if (show_types) {
       s->PutChar('(');
       if (verbose)
@@ -466,7 +466,7 @@ bool Type::WriteToMemory(ExecutionContext *exe_ctx, lldb::addr_t addr,
 
 const Declaration &Type::GetDeclaration() const { return m_decl; }
 
-bool Type::ResolveClangType(ResolveState compiler_type_resolve_state) {
+bool Type::ResolveCompilerType(ResolveState compiler_type_resolve_state) {
   // TODO: This needs to consider the correct type system to use.
   Type *encoding_type = nullptr;
   if (!m_compiler_type.IsValid()) {
@@ -536,7 +536,7 @@ bool Type::ResolveClangType(ResolveState compiler_type_resolve_state) {
         LLDB_LOG_ERROR(
             lldb_private::GetLogIfAnyCategoriesSet(LIBLLDB_LOG_SYMBOLS),
             std::move(err),
-            "Unable to construct void type from ClangASTContext");
+            "Unable to construct void type from TypeSystemClang");
       } else {
         CompilerType void_compiler_type =
             type_system_or_err->GetBasicTypeFromAST(eBasicTypeVoid);
@@ -627,7 +627,7 @@ bool Type::ResolveClangType(ResolveState compiler_type_resolve_state) {
           break;
         }
       }
-      encoding_type->ResolveClangType(encoding_compiler_type_resolve_state);
+      encoding_type->ResolveCompilerType(encoding_compiler_type_resolve_state);
     }
   }
   return m_compiler_type.IsValid();
@@ -642,22 +642,22 @@ uint32_t Type::GetEncodingMask() {
 }
 
 CompilerType Type::GetFullCompilerType() {
-  ResolveClangType(ResolveState::Full);
+  ResolveCompilerType(ResolveState::Full);
   return m_compiler_type;
 }
 
 CompilerType Type::GetLayoutCompilerType() {
-  ResolveClangType(ResolveState::Layout);
+  ResolveCompilerType(ResolveState::Layout);
   return m_compiler_type;
 }
 
 CompilerType Type::GetForwardCompilerType() {
-  ResolveClangType(ResolveState::Forward);
+  ResolveCompilerType(ResolveState::Forward);
   return m_compiler_type;
 }
 
 ConstString Type::GetQualifiedName() {
-  return GetForwardCompilerType().GetConstTypeName();
+  return GetForwardCompilerType().GetTypeName();
 }
 
 bool Type::GetTypeScopeAndBasename(const llvm::StringRef& name,

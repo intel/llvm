@@ -1,6 +1,6 @@
 //===- Dominance.h - Dominator analysis for CFGs ----------------*- C++ -*-===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -69,7 +69,7 @@ public:
 
   /// Return true if operation A dominates operation B.
   bool dominates(Value a, Operation *b) {
-    return (Operation *)a->getDefiningOp() == b || properlyDominates(a, b);
+    return (Operation *)a.getDefiningOp() == b || properlyDominates(a, b);
   }
 
   /// Return true if the specified block A dominates block B.

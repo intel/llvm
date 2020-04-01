@@ -665,6 +665,14 @@ private:
 // Used for PLT entries. It usually has a PLT header for lazy binding. Each PLT
 // entry is associated with a JUMP_SLOT relocation, which may be resolved lazily
 // at runtime.
+//
+// On PowerPC, this section contains lazy symbol resolvers. A branch instruction
+// jumps to a PLT call stub, which will then jump to the target (BIND_NOW) or a
+// lazy symbol resolver.
+//
+// On x86 when IBT is enabled, this section (.plt.sec) contains PLT call stubs.
+// A call instruction jumps to a .plt.sec entry, which will then jump to the
+// target (BIND_NOW) or a .plt entry.
 class PltSection : public SyntheticSection {
 public:
   PltSection();
@@ -673,10 +681,10 @@ public:
   bool isNeeded() const override;
   void addSymbols();
   void addEntry(Symbol &sym);
+  size_t getNumEntries() const { return entries.size(); }
 
   size_t headerSize;
 
-private:
   std::vector<const Symbol *> entries;
 };
 
@@ -694,6 +702,24 @@ public:
   bool isNeeded() const override { return !entries.empty(); }
   void addSymbols();
   void addEntry(Symbol &sym);
+};
+
+class PPC32GlinkSection : public PltSection {
+public:
+  PPC32GlinkSection();
+  void writeTo(uint8_t *buf) override;
+  size_t getSize() const override;
+
+  std::vector<const Symbol *> canonical_plts;
+  static constexpr size_t footerSize = 64;
+};
+
+// This is x86-only.
+class IBTPltSection : public SyntheticSection {
+public:
+  IBTPltSection();
+  void writeTo(uint8_t *Buf) override;
+  size_t getSize() const override;
 };
 
 class GdbIndexSection final : public SyntheticSection {
@@ -1052,6 +1078,10 @@ public:
   InputSection *getTargetInputSection() const;
   bool assignOffsets();
 
+  // When true, round up reported size of section to 4 KiB. See comment
+  // in addThunkSection() for more details.
+  bool roundUpSizeForErrata = false;
+
 private:
   std::vector<Thunk *> thunks;
   size_t size = 0;
@@ -1178,6 +1208,7 @@ struct InStruct {
   PltSection *plt;
   IpltSection *iplt;
   PPC32Got2Section *ppc32Got2;
+  IBTPltSection *ibtPlt;
   RelocationBaseSection *relaPlt;
   RelocationBaseSection *relaIplt;
   StringTableSection *shStrTab;

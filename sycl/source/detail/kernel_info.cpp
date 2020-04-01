@@ -6,17 +6,18 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/kernel_info.hpp>
 #include <CL/sycl/device.hpp>
+#include <detail/kernel_info.hpp>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 template <>
 cl::sycl::range<3>
 get_kernel_work_group_info_host<info::kernel_work_group::global_work_size>(
     const cl::sycl::device &Dev) {
-  throw invalid_object_error("This instance of kernel is a host instance");
+  throw invalid_object_error("This instance of kernel is a host instance",
+                             PI_INVALID_KERNEL);
 }
 
 template <>
@@ -50,4 +51,4 @@ get_kernel_work_group_info_host<info::kernel_work_group::private_mem_size>(
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

@@ -149,6 +149,10 @@ SectionKind TargetLoweringObjectFile::getKindForGlobal(const GlobalObject *GO,
   if (isa<Function>(GO))
     return SectionKind::getText();
 
+  // Basic blocks are classified as text sections.
+  if (isa<BasicBlock>(GO))
+    return SectionKind::getText();
+
   // Global variables require more detailed analysis.
   const auto *GVar = cast<GlobalVariable>(GO);
 
@@ -302,6 +306,18 @@ MCSection *TargetLoweringObjectFile::getSectionForConstant(
   return DataSection;
 }
 
+MCSection *TargetLoweringObjectFile::getSectionForMachineBasicBlock(
+    const Function &F, const MachineBasicBlock &MBB,
+    const TargetMachine &TM) const {
+  return nullptr;
+}
+
+MCSection *TargetLoweringObjectFile::getNamedSectionForMachineBasicBlock(
+    const Function &F, const MachineBasicBlock &MBB, const TargetMachine &TM,
+    const char *Suffix) const {
+  return nullptr;
+}
+
 /// getTTypeGlobalReference - Return an MCExpr to use for a
 /// reference to the specified global variable from exception
 /// handling information.
@@ -327,7 +343,7 @@ getTTypeReference(const MCSymbolRefExpr *Sym, unsigned Encoding,
     // Emit a label to the streamer for the current position.  This gives us
     // .-foo addressing.
     MCSymbol *PCSym = getContext().createTempSymbol();
-    Streamer.EmitLabel(PCSym);
+    Streamer.emitLabel(PCSym);
     const MCExpr *PC = MCSymbolRefExpr::create(PCSym, getContext());
     return MCBinaryExpr::createSub(Sym, PC, getContext());
   }

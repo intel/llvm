@@ -1,6 +1,6 @@
 //===- TestFunctionLike.cpp - Pass to test helpers on FunctionLike --------===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -51,8 +51,12 @@ struct TestFuncSetType : public ModulePass<TestFuncSetType> {
 };
 } // end anonymous namespace
 
-static PassRegistration<TestFuncEraseArg> pass("test-func-erase-arg",
-                                               "Test erasing func args.");
+namespace mlir {
+void registerTestFunc() {
+  PassRegistration<TestFuncEraseArg> pass("test-func-erase-arg",
+                                          "Test erasing func args.");
 
-static PassRegistration<TestFuncSetType> pass2("test-func-set-type",
-                                               "Test FuncOp::setType.");
+  PassRegistration<TestFuncSetType> pass2("test-func-set-type",
+                                          "Test FuncOp::setType.");
+}
+} // namespace mlir

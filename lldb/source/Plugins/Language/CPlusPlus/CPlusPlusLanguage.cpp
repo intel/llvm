@@ -1,4 +1,4 @@
-//===-- CPlusPlusLanguage.cpp -----------------------------------*- C++ -*-===//
+//===-- CPlusPlusLanguage.cpp ---------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -42,6 +42,8 @@
 using namespace lldb;
 using namespace lldb_private;
 using namespace lldb_private::formatters;
+
+LLDB_PLUGIN_DEFINE(CPlusPlusLanguage)
 
 void CPlusPlusLanguage::Initialize() {
   PluginManager::RegisterPlugin(GetPluginNameStatic(), "C++ Language",
@@ -230,7 +232,7 @@ std::string CPlusPlusLanguage::MethodName::GetScopeQualifiedName() {
   if (!m_parsed)
     Parse();
   if (m_context.empty())
-    return m_basename;
+    return std::string(m_basename);
 
   std::string res;
   res += m_context;

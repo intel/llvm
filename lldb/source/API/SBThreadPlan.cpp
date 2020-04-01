@@ -1,4 +1,4 @@
-//===-- SBThreadPlan.cpp ----------------------------------------*- C++ -*-===//
+//===-- SBThreadPlan.cpp --------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -96,7 +96,7 @@ const lldb::SBThreadPlan &SBThreadPlan::operator=(const SBThreadPlan &rhs) {
   return LLDB_RECORD_RESULT(*this);
 }
 // Destructor
-SBThreadPlan::~SBThreadPlan() {}
+SBThreadPlan::~SBThreadPlan() = default;
 
 lldb_private::ThreadPlan *SBThreadPlan::get() { return m_opaque_sp.get(); }
 

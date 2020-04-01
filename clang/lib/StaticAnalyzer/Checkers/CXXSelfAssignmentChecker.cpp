@@ -53,21 +53,21 @@ void CXXSelfAssignmentChecker::checkBeginFunction(CheckerContext &C) const {
 
   ProgramStateRef SelfAssignState = State->bindLoc(Param, ThisVal, LCtx);
   const NoteTag *SelfAssignTag =
-    C.getNoteTag([MD](BugReport &BR) -> std::string {
+    C.getNoteTag([MD](PathSensitiveBugReport &BR) -> std::string {
         SmallString<256> Msg;
         llvm::raw_svector_ostream Out(Msg);
         Out << "Assuming " << MD->getParamDecl(0)->getName() << " == *this";
-        return Out.str();
+        return std::string(Out.str());
       });
   C.addTransition(SelfAssignState, SelfAssignTag);
 
   ProgramStateRef NonSelfAssignState = State->bindLoc(Param, ParamVal, LCtx);
   const NoteTag *NonSelfAssignTag =
-    C.getNoteTag([MD](BugReport &BR) -> std::string {
+    C.getNoteTag([MD](PathSensitiveBugReport &BR) -> std::string {
         SmallString<256> Msg;
         llvm::raw_svector_ostream Out(Msg);
         Out << "Assuming " << MD->getParamDecl(0)->getName() << " != *this";
-        return Out.str();
+        return std::string(Out.str());
       });
   C.addTransition(NonSelfAssignState, NonSelfAssignTag);
 }

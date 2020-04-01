@@ -13,8 +13,11 @@
 
 #include "llvm/Transforms/Utils/InjectTLIMappings.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/Analysis/DemandedBits.h"
+#include "llvm/Analysis/OptimizationRemarkEmitter.h"
 #include "llvm/Analysis/VectorUtils.h"
 #include "llvm/IR/InstIterator.h"
+#include "llvm/IR/IntrinsicInst.h"
 #include "llvm/Transforms/Utils.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
 
@@ -52,16 +55,7 @@ static std::string mangleTLIName(StringRef VectorName, const CallInst &CI,
   for (unsigned I = 0; I < CI.getNumArgOperands(); ++I)
     Out << "v";
   Out << "_" << CI.getCalledFunction()->getName() << "(" << VectorName << ")";
-  return Out.str();
-}
-
-/// A helper function for converting Scalar types to vector types.
-/// If the incoming type is void, we return void. If the VF is 1, we return
-/// the scalar type.
-static Type *ToVectorTy(Type *Scalar, unsigned VF, bool isScalable = false) {
-  if (Scalar->isVoidTy() || VF == 1)
-    return Scalar;
-  return VectorType::get(Scalar, {VF, isScalable});
+  return std::string(Out.str());
 }
 
 /// A helper function that adds the vector function declaration that
@@ -107,7 +101,7 @@ static void addMappingsFromTLI(const TargetLibraryInfo &TLI, CallInst &CI) {
   if (CI.isNoBuiltin() || !CI.getCalledFunction())
     return;
 
-  const std::string ScalarName = CI.getCalledFunction()->getName();
+  const std::string ScalarName = std::string(CI.getCalledFunction()->getName());
   // Nothing to be done if the TLI thinks the function is not
   // vectorizable.
   if (!TLI.isFunctionVectorizable(ScalarName))
@@ -120,7 +114,8 @@ static void addMappingsFromTLI(const TargetLibraryInfo &TLI, CallInst &CI) {
   //  All VFs in the TLI are powers of 2.
   for (unsigned VF = 2, WidestVF = TLI.getWidestVF(ScalarName); VF <= WidestVF;
        VF *= 2) {
-    const std::string TLIName = TLI.getVectorizedFunction(ScalarName, VF);
+    const std::string TLIName =
+        std::string(TLI.getVectorizedFunction(ScalarName, VF));
     if (!TLIName.empty()) {
       std::string MangledName = mangleTLIName(TLIName, CI, VF);
       if (!OriginalSetOfMappings.count(MangledName)) {
@@ -168,6 +163,11 @@ void InjectTLIMappingsLegacy::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.setPreservesCFG();
   AU.addRequired<TargetLibraryInfoWrapperPass>();
   AU.addPreserved<TargetLibraryInfoWrapperPass>();
+  AU.addPreserved<ScalarEvolutionWrapperPass>();
+  AU.addPreserved<AAResultsWrapperPass>();
+  AU.addPreserved<LoopAccessLegacyAnalysis>();
+  AU.addPreserved<DemandedBitsWrapperPass>();
+  AU.addPreserved<OptimizationRemarkEmitterWrapperPass>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -18,11 +18,6 @@ namespace tidy {
 namespace bugprone {
 
 void InaccurateEraseCheck::registerMatchers(MatchFinder *Finder) {
-  // Only register the matchers for C++; the functionality currently does not
-  // provide any benefit to other languages, despite being benign.
-  if (!getLangOpts().CPlusPlus)
-    return;
-
   const auto EndCall =
       callExpr(
           callee(functionDecl(hasAnyName("remove", "remove_if", "unique"))),
@@ -58,9 +53,9 @@ void InaccurateEraseCheck::check(const MatchFinder::MatchResult &Result) {
 
   if (!Loc.isMacroID() && EndExpr) {
     const auto *AlgCall = Result.Nodes.getNodeAs<CallExpr>("alg");
-    std::string ReplacementText = Lexer::getSourceText(
+    std::string ReplacementText = std::string(Lexer::getSourceText(
         CharSourceRange::getTokenRange(EndExpr->getSourceRange()),
-        *Result.SourceManager, getLangOpts());
+        *Result.SourceManager, getLangOpts()));
     const SourceLocation EndLoc = Lexer::getLocForEndOfToken(
         AlgCall->getEndLoc(), 0, *Result.SourceManager, getLangOpts());
     Hint = FixItHint::CreateInsertion(EndLoc, ", " + ReplacementText);

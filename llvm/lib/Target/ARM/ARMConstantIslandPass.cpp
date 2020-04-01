@@ -206,10 +206,6 @@ namespace {
     /// T2JumpTables - Keep track of all the Thumb2 jumptable instructions.
     SmallVector<MachineInstr*, 4> T2JumpTables;
 
-    /// HasFarJump - True if any far jump instruction has been emitted during
-    /// the branch fix up pass.
-    bool HasFarJump;
-
     MachineFunction *MF;
     MachineConstantPool *MCP;
     const ARMBaseInstrInfo *TII;
@@ -270,7 +266,6 @@ namespace {
     bool fixupImmediateBr(ImmBranch &Br);
     bool fixupConditionalBr(ImmBranch &Br);
     bool fixupUnconditionalBr(ImmBranch &Br);
-    bool undoLRSpillRestore();
     bool optimizeThumb2Instructions();
     bool optimizeThumb2Branches();
     bool reorderThumb2JumpTables();
@@ -330,8 +325,8 @@ void ARMConstantIslands::verify() {
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
 /// print block size and offset information - debugging
 LLVM_DUMP_METHOD void ARMConstantIslands::dumpBBs() {
-  BBInfoVector &BBInfo = BBUtils->getBBInfo();
   LLVM_DEBUG({
+    BBInfoVector &BBInfo = BBUtils->getBBInfo();
     for (unsigned J = 0, E = BBInfo.size(); J !=E; ++J) {
       const BasicBlockInfo &BBI = BBInfo[J];
       dbgs() << format("%08x %bb.%u\t", BBI.Offset, J)
@@ -363,7 +358,6 @@ bool ARMConstantIslands::runOnMachineFunction(MachineFunction &mf) {
   isThumb1 = AFI->isThumb1OnlyFunction();
   isThumb2 = AFI->isThumb2Function();
 
-  HasFarJump = false;
   bool GenerateTBB = isThumb2 || (isThumb1 && SynthesizeThumb1TBB);
 
   // Renumber all of the machine basic blocks in the function, guaranteeing that
@@ -455,11 +449,6 @@ bool ARMConstantIslands::runOnMachineFunction(MachineFunction &mf) {
 
   // After a while, this might be made debug-only, but it is not expensive.
   verify();
-
-  // If LR has been forced spilled and no far jump (i.e. BL) has been issued,
-  // undo the spill / restore of LR if possible.
-  if (isThumb && !HasFarJump && AFI->isLRSpilledForFarJump())
-    MadeChange |= undoLRSpillRestore();
 
   // Save the mapping between original and cloned constpool entries.
   for (unsigned i = 0, e = CPEntries.size(); i != e; ++i) {
@@ -1566,7 +1555,7 @@ void ARMConstantIslands::removeDeadCPEMI(MachineInstr *CPEMI) {
     BBInfo[CPEBB->getNumber()].Size = 0;
 
     // This block no longer needs to be aligned.
-    CPEBB->setAlignment(Align::None());
+    CPEBB->setAlignment(Align(1));
   } else {
     // Entries are sorted by descending alignment, so realign from the front.
     CPEBB->setAlignment(getCPEAlign(&*CPEBB->begin()));
@@ -1633,7 +1622,6 @@ ARMConstantIslands::fixupUnconditionalBr(ImmBranch &Br) {
   BBInfoVector &BBInfo = BBUtils->getBBInfo();
   BBInfo[MBB->getNumber()].Size += 2;
   BBUtils->adjustBBOffsetsAfter(MBB);
-  HasFarJump = true;
   ++NumUBrFixed;
 
   LLVM_DEBUG(dbgs() << "  Changed B to long jump " << *MI);
@@ -1733,34 +1721,6 @@ ARMConstantIslands::fixupConditionalBr(ImmBranch &Br) {
   MI->eraseFromParent();
   BBUtils->adjustBBOffsetsAfter(MBB);
   return true;
-}
-
-/// undoLRSpillRestore - Remove Thumb push / pop instructions that only spills
-/// LR / restores LR to pc. FIXME: This is done here because it's only possible
-/// to do this if tBfar is not used.
-bool ARMConstantIslands::undoLRSpillRestore() {
-  bool MadeChange = false;
-  for (unsigned i = 0, e = PushPopMIs.size(); i != e; ++i) {
-    MachineInstr *MI = PushPopMIs[i];
-    // First two operands are predicates.
-    if (MI->getOpcode() == ARM::tPOP_RET &&
-        MI->getOperand(2).getReg() == ARM::PC &&
-        MI->getNumExplicitOperands() == 3) {
-      // Create the new insn and copy the predicate from the old.
-      BuildMI(MI->getParent(), MI->getDebugLoc(), TII->get(ARM::tBX_RET))
-          .add(MI->getOperand(0))
-          .add(MI->getOperand(1));
-      MI->eraseFromParent();
-      MadeChange = true;
-    } else if (MI->getOpcode() == ARM::tPUSH &&
-               MI->getOperand(2).getReg() == ARM::LR &&
-               MI->getNumExplicitOperands() == 3) {
-      // Just remove the push.
-      MI->eraseFromParent();
-      MadeChange = true;
-    }
-  }
-  return MadeChange;
 }
 
 bool ARMConstantIslands::optimizeThumb2Instructions() {

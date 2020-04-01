@@ -22,21 +22,22 @@ Compiling CUDA Code
 Prerequisites
 -------------
 
-CUDA is supported since llvm 3.9. Current release of clang (7.0.0) supports CUDA
-7.0 through 9.2. If you need support for CUDA 10, you will need to use clang
-built from r342924 or newer.
+CUDA is supported since llvm 3.9. Clang currently supports CUDA 7.0 through
+10.1. If clang detects a newer CUDA version, it will issue a warning and will
+attempt to use detected CUDA SDK it as if it were CUDA-10.1.
 
-Before you build CUDA code, you'll need to have installed the appropriate driver
-for your nvidia GPU and the CUDA SDK.  See `NVIDIA's CUDA installation guide
+Before you build CUDA code, you'll need to have installed the CUDA SDK.  See
+`NVIDIA's CUDA installation guide
 <https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html>`_ for
-details.  Note that clang `does not support
+details.  Note that clang `maynot support
 <https://llvm.org/bugs/show_bug.cgi?id=26966>`_ the CUDA toolkit as installed by
-many Linux package managers; you probably need to install CUDA in a single
-directory from NVIDIA's package.
+some Linux package managers. Clang does attempt to deal with specific details of
+CUDA installation on a handful of common Linux distributions, but in general the
+most reliable way to make it work is to install CUDA in a single directory from
+NVIDIA's `.run` package and specify its location via `--cuda-path=...` argument.
 
 CUDA compilation is supported on Linux. Compilation on MacOS and Windows may or
-may not work and currently have no maintainers. Compilation with CUDA-9.x is
-`currently broken on Windows <https://bugs.llvm.org/show_bug.cgi?id=38811>`_.
+may not work and currently have no maintainers.
 
 Invoking clang
 --------------
@@ -512,7 +513,7 @@ LLVM to make it generate good GPU code.  Among these changes are:
 
 * `Memory space inference
   <http://llvm.org/doxygen/NVPTXInferAddressSpaces_8cpp_source.html>`_ --
-  In PTX, we can operate on pointers that are in a paricular "address space"
+  In PTX, we can operate on pointers that are in a particular "address space"
   (global, shared, constant, or local), or we can operate on pointers in the
   "generic" address space, which can point to anything.  Operations in a
   non-generic address space are faster, but pointers in CUDA are not explicitly
@@ -528,7 +529,7 @@ LLVM to make it generate good GPU code.  Among these changes are:
   which fit in 32-bits at runtime. This optimization provides a fast path for
   this common case.
 
-* Aggressive loop unrooling and function inlining -- Loop unrolling and
+* Aggressive loop unrolling and function inlining -- Loop unrolling and
   function inlining need to be more aggressive for GPUs than for CPUs because
   control flow transfer in GPU is more expensive. More aggressive unrolling and
   inlining also promote other optimizations, such as constant propagation and

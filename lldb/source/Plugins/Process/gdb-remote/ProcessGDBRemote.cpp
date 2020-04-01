@@ -1,4 +1,4 @@
-//===-- ProcessGDBRemote.cpp ------------------------------------*- C++ -*-===//
+//===-- ProcessGDBRemote.cpp ----------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -89,6 +89,8 @@
 using namespace lldb;
 using namespace lldb_private;
 using namespace lldb_private::process_gdb_remote;
+
+LLDB_PLUGIN_DEFINE(ProcessGDBRemote)
 
 namespace lldb {
 // Provide a function that can easily dump the packet history if we know a
@@ -359,7 +361,8 @@ bool ProcessGDBRemote::ParsePythonTargetDefinition(
           StructuredData::ObjectSP triple_value =
               host_info_dict->GetValueForKey("triple");
           if (auto triple_string_value = triple_value->GetAsString()) {
-            std::string triple_string = triple_string_value->GetValue();
+            std::string triple_string =
+                std::string(triple_string_value->GetValue());
             ArchSpec host_arch(triple_string.c_str());
             if (!host_arch.IsCompatibleMatch(GetTarget().GetArchitecture())) {
               GetTarget().SetArchitecture(host_arch);
@@ -1023,122 +1026,113 @@ Status ProcessGDBRemote::ConnectToDebugserver(llvm::StringRef connect_url) {
 
 void ProcessGDBRemote::DidLaunchOrAttach(ArchSpec &process_arch) {
   Log *log(ProcessGDBRemoteLog::GetLogIfAllCategoriesSet(GDBR_LOG_PROCESS));
-  LLDB_LOGF(log, "ProcessGDBRemote::%s()", __FUNCTION__);
-  if (GetID() != LLDB_INVALID_PROCESS_ID) {
-    BuildDynamicRegisterInfo(false);
+  BuildDynamicRegisterInfo(false);
 
-    // See if the GDB server supports the qHostInfo information
+  // See if the GDB server supports qHostInfo or qProcessInfo packets. Prefer
+  // qProcessInfo as it will be more specific to our process.
 
-    // See if the GDB server supports the qProcessInfo packet, if so prefer
-    // that over the Host information as it will be more specific to our
-    // process.
+  const ArchSpec &remote_process_arch = m_gdb_comm.GetProcessArchitecture();
+  if (remote_process_arch.IsValid()) {
+    process_arch = remote_process_arch;
+    LLDB_LOG(log, "gdb-remote had process architecture, using {0} {1}",
+             process_arch.GetArchitectureName(),
+             process_arch.GetTriple().getTriple());
+  } else {
+    process_arch = m_gdb_comm.GetHostArchitecture();
+    LLDB_LOG(log,
+             "gdb-remote did not have process architecture, using gdb-remote "
+             "host architecture {0} {1}",
+             process_arch.GetArchitectureName(),
+             process_arch.GetTriple().getTriple());
+  }
 
-    const ArchSpec &remote_process_arch = m_gdb_comm.GetProcessArchitecture();
-    if (remote_process_arch.IsValid()) {
-      process_arch = remote_process_arch;
-      LLDB_LOGF(log,
-                "ProcessGDBRemote::%s gdb-remote had process architecture, "
-                "using %s %s",
-                __FUNCTION__,
-                process_arch.GetArchitectureName()
-                    ? process_arch.GetArchitectureName()
-                    : "<null>",
-                process_arch.GetTriple().getTriple().c_str()
-                    ? process_arch.GetTriple().getTriple().c_str()
-                    : "<null>");
-    } else {
-      process_arch = m_gdb_comm.GetHostArchitecture();
-      LLDB_LOGF(log,
-                "ProcessGDBRemote::%s gdb-remote did not have process "
-                "architecture, using gdb-remote host architecture %s %s",
-                __FUNCTION__,
-                process_arch.GetArchitectureName()
-                    ? process_arch.GetArchitectureName()
-                    : "<null>",
-                process_arch.GetTriple().getTriple().c_str()
-                    ? process_arch.GetTriple().getTriple().c_str()
-                    : "<null>");
-    }
+  if (process_arch.IsValid()) {
+    const ArchSpec &target_arch = GetTarget().GetArchitecture();
+    if (target_arch.IsValid()) {
+      LLDB_LOG(log, "analyzing target arch, currently {0} {1}",
+               target_arch.GetArchitectureName(),
+               target_arch.GetTriple().getTriple());
 
-    if (process_arch.IsValid()) {
-      const ArchSpec &target_arch = GetTarget().GetArchitecture();
-      if (target_arch.IsValid()) {
-        LLDB_LOGF(log,
-                  "ProcessGDBRemote::%s analyzing target arch, currently %s %s",
-                  __FUNCTION__,
-                  target_arch.GetArchitectureName()
-                      ? target_arch.GetArchitectureName()
-                      : "<null>",
-                  target_arch.GetTriple().getTriple().c_str()
-                      ? target_arch.GetTriple().getTriple().c_str()
-                      : "<null>");
+      // If the remote host is ARM and we have apple as the vendor, then
+      // ARM executables and shared libraries can have mixed ARM
+      // architectures.
+      // You can have an armv6 executable, and if the host is armv7, then the
+      // system will load the best possible architecture for all shared
+      // libraries it has, so we really need to take the remote host
+      // architecture as our defacto architecture in this case.
 
-        // If the remote host is ARM and we have apple as the vendor, then
-        // ARM executables and shared libraries can have mixed ARM
-        // architectures.
-        // You can have an armv6 executable, and if the host is armv7, then the
-        // system will load the best possible architecture for all shared
-        // libraries it has, so we really need to take the remote host
-        // architecture as our defacto architecture in this case.
-
-        if ((process_arch.GetMachine() == llvm::Triple::arm ||
-             process_arch.GetMachine() == llvm::Triple::thumb) &&
-            process_arch.GetTriple().getVendor() == llvm::Triple::Apple) {
-          GetTarget().SetArchitecture(process_arch);
-          LLDB_LOGF(log,
-                    "ProcessGDBRemote::%s remote process is ARM/Apple, "
-                    "setting target arch to %s %s",
-                    __FUNCTION__,
-                    process_arch.GetArchitectureName()
-                        ? process_arch.GetArchitectureName()
-                        : "<null>",
-                    process_arch.GetTriple().getTriple().c_str()
-                        ? process_arch.GetTriple().getTriple().c_str()
-                        : "<null>");
-        } else {
-          // Fill in what is missing in the triple
-          const llvm::Triple &remote_triple = process_arch.GetTriple();
-          llvm::Triple new_target_triple = target_arch.GetTriple();
-          if (new_target_triple.getVendorName().size() == 0) {
-            new_target_triple.setVendor(remote_triple.getVendor());
-
-            if (new_target_triple.getOSName().size() == 0) {
-              new_target_triple.setOS(remote_triple.getOS());
-
-              if (new_target_triple.getEnvironmentName().size() == 0)
-                new_target_triple.setEnvironment(
-                    remote_triple.getEnvironment());
-            }
-
-            ArchSpec new_target_arch = target_arch;
-            new_target_arch.SetTriple(new_target_triple);
-            GetTarget().SetArchitecture(new_target_arch);
-          }
-        }
-
-        LLDB_LOGF(log,
-                  "ProcessGDBRemote::%s final target arch after "
-                  "adjustments for remote architecture: %s %s",
-                  __FUNCTION__,
-                  target_arch.GetArchitectureName()
-                      ? target_arch.GetArchitectureName()
-                      : "<null>",
-                  target_arch.GetTriple().getTriple().c_str()
-                      ? target_arch.GetTriple().getTriple().c_str()
-                      : "<null>");
-      } else {
-        // The target doesn't have a valid architecture yet, set it from the
-        // architecture we got from the remote GDB server
+      if ((process_arch.GetMachine() == llvm::Triple::arm ||
+           process_arch.GetMachine() == llvm::Triple::thumb) &&
+          process_arch.GetTriple().getVendor() == llvm::Triple::Apple) {
         GetTarget().SetArchitecture(process_arch);
-      }
-    }
+        LLDB_LOG(log,
+                 "remote process is ARM/Apple, "
+                 "setting target arch to {0} {1}",
+                 process_arch.GetArchitectureName(),
+                 process_arch.GetTriple().getTriple());
+      } else {
+        // Fill in what is missing in the triple
+        const llvm::Triple &remote_triple = process_arch.GetTriple();
+        llvm::Triple new_target_triple = target_arch.GetTriple();
+        if (new_target_triple.getVendorName().size() == 0) {
+          new_target_triple.setVendor(remote_triple.getVendor());
 
-    // Find out which StructuredDataPlugins are supported by the debug monitor.
-    // These plugins transmit data over async $J packets.
-    auto supported_packets_array =
-        m_gdb_comm.GetSupportedStructuredDataPlugins();
-    if (supported_packets_array)
-      MapSupportedStructuredDataPlugins(*supported_packets_array);
+          if (new_target_triple.getOSName().size() == 0) {
+            new_target_triple.setOS(remote_triple.getOS());
+
+            if (new_target_triple.getEnvironmentName().size() == 0)
+              new_target_triple.setEnvironment(remote_triple.getEnvironment());
+          }
+
+          ArchSpec new_target_arch = target_arch;
+          new_target_arch.SetTriple(new_target_triple);
+          GetTarget().SetArchitecture(new_target_arch);
+        }
+      }
+
+      LLDB_LOG(log,
+               "final target arch after adjustments for remote architecture: "
+               "{0} {1}",
+               target_arch.GetArchitectureName(),
+               target_arch.GetTriple().getTriple());
+    } else {
+      // The target doesn't have a valid architecture yet, set it from the
+      // architecture we got from the remote GDB server
+      GetTarget().SetArchitecture(process_arch);
+    }
+  }
+
+  MaybeLoadExecutableModule();
+
+  // Find out which StructuredDataPlugins are supported by the debug monitor.
+  // These plugins transmit data over async $J packets.
+  if (StructuredData::Array *supported_packets =
+          m_gdb_comm.GetSupportedStructuredDataPlugins())
+    MapSupportedStructuredDataPlugins(*supported_packets);
+}
+
+void ProcessGDBRemote::MaybeLoadExecutableModule() {
+  ModuleSP module_sp = GetTarget().GetExecutableModule();
+  if (!module_sp)
+    return;
+
+  llvm::Optional<QOffsets> offsets = m_gdb_comm.GetQOffsets();
+  if (!offsets)
+    return;
+
+  bool is_uniform =
+      size_t(llvm::count(offsets->offsets, offsets->offsets[0])) ==
+      offsets->offsets.size();
+  if (!is_uniform)
+    return; // TODO: Handle non-uniform responses.
+
+  bool changed = false;
+  module_sp->SetLoadAddress(GetTarget(), offsets->offsets[0],
+                            /*value_is_offset=*/true, changed);
+  if (changed) {
+    ModuleList list;
+    list.Append(module_sp);
+    m_process->GetTarget().ModulesDidLoad(list);
   }
 }
 
@@ -1576,7 +1570,8 @@ bool ProcessGDBRemote::UpdateThreadIDList() {
       for (int i = 0; i < nItems; i++) {
         // Get the thread stop info
         StringExtractorGDBRemote &stop_info = m_stop_packet_stack[i];
-        const std::string &stop_info_str = stop_info.GetStringRef();
+        const std::string &stop_info_str =
+            std::string(stop_info.GetStringRef());
 
         m_thread_pcs.clear();
         const size_t thread_pcs_pos = stop_info_str.find(";thread-pcs:");
@@ -2040,14 +2035,14 @@ ProcessGDBRemote::SetThreadStopInfo(StructuredData::Dictionary *thread_dict) {
         });
       }
     } else if (key == g_key_name) {
-      thread_name = object->GetStringValue();
+      thread_name = std::string(object->GetStringValue());
     } else if (key == g_key_qaddr) {
       thread_dispatch_qaddr = object->GetIntegerValue(LLDB_INVALID_ADDRESS);
     } else if (key == g_key_queue_name) {
       queue_vars_valid = true;
-      queue_name = object->GetStringValue();
+      queue_name = std::string(object->GetStringValue());
     } else if (key == g_key_queue_kind) {
-      std::string queue_kind_str = object->GetStringValue();
+      std::string queue_kind_str = std::string(object->GetStringValue());
       if (queue_kind_str == "serial") {
         queue_vars_valid = true;
         queue_kind = eQueueKindSerial;
@@ -2071,9 +2066,9 @@ ProcessGDBRemote::SetThreadStopInfo(StructuredData::Dictionary *thread_dict) {
       else
         associated_with_dispatch_queue = eLazyBoolNo;
     } else if (key == g_key_reason) {
-      reason = object->GetStringValue();
+      reason = std::string(object->GetStringValue());
     } else if (key == g_key_description) {
-      description = object->GetStringValue();
+      description = std::string(object->GetStringValue());
     } else if (key == g_key_registers) {
       StructuredData::Dictionary *registers_dict = object->GetAsDictionary();
 
@@ -2084,7 +2079,8 @@ ProcessGDBRemote::SetThreadStopInfo(StructuredData::Dictionary *thread_dict) {
               const uint32_t reg =
                   StringConvert::ToUInt32(key.GetCString(), UINT32_MAX, 10);
               if (reg != UINT32_MAX)
-                expedited_register_map[reg] = object->GetStringValue();
+                expedited_register_map[reg] =
+                    std::string(object->GetStringValue());
               return true; // Keep iterating through all array items
             });
       }
@@ -2227,7 +2223,7 @@ StateType ProcessGDBRemote::SetThreadStopInfo(StringExtractor &stop_packet) {
         // Now convert the HEX bytes into a string value
         name_extractor.GetHexByteString(thread_name);
       } else if (key.compare("name") == 0) {
-        thread_name = value;
+        thread_name = std::string(value);
       } else if (key.compare("qaddr") == 0) {
         value.getAsInteger(16, thread_dispatch_qaddr);
       } else if (key.compare("dispatch_queue_t") == 0) {
@@ -2248,7 +2244,7 @@ StateType ProcessGDBRemote::SetThreadStopInfo(StringExtractor &stop_packet) {
         if (!value.getAsInteger(0, queue_serial_number))
           queue_vars_valid = true;
       } else if (key.compare("reason") == 0) {
-        reason = value;
+        reason = std::string(value);
       } else if (key.compare("description") == 0) {
         StringExtractor desc_extractor(value);
         // Now convert the HEX bytes into a string value
@@ -2297,7 +2293,7 @@ StateType ProcessGDBRemote::SetThreadStopInfo(StringExtractor &stop_packet) {
         reason = "watchpoint";
         StreamString ostr;
         ostr.Printf("%" PRIu64 " %" PRIu32, wp_addr, wp_index);
-        description = ostr.GetString();
+        description = std::string(ostr.GetString());
       } else if (key.compare("library") == 0) {
         auto error = LoadModules();
         if (error) {
@@ -2308,7 +2304,7 @@ StateType ProcessGDBRemote::SetThreadStopInfo(StringExtractor &stop_packet) {
       } else if (key.size() == 2 && ::isxdigit(key[0]) && ::isxdigit(key[1])) {
         uint32_t reg = UINT32_MAX;
         if (!key.getAsInteger(16, reg))
-          expedited_register_map[reg] = std::move(value);
+          expedited_register_map[reg] = std::string(std::move(value));
       }
     }
 
@@ -2585,7 +2581,7 @@ Status ProcessGDBRemote::DoDestroy() {
                     "to k packet: %s",
                     response.GetStringRef().data());
           exit_string.assign("got unexpected response to k packet: ");
-          exit_string.append(response.GetStringRef());
+          exit_string.append(std::string(response.GetStringRef()));
         }
       } else {
         LLDB_LOGF(log, "ProcessGDBRemote::DoDestroy - failed to send k packet");
@@ -3127,7 +3123,7 @@ Status ProcessGDBRemote::EnableBreakpointSite(BreakpointSite *bp_site) {
     if (m_gdb_comm.SupportsGDBStoppointPacket(eBreakpointSoftware)) {
       if (error_no != UINT8_MAX)
         error.SetErrorStringWithFormat(
-            "error: %d sending the breakpoint request", errno);
+            "error: %d sending the breakpoint request", error_no);
       else
         error.SetErrorString("error sending the breakpoint request");
       return error;
@@ -3648,7 +3644,7 @@ void ProcessGDBRemote::StopAsyncThread() {
 
 bool ProcessGDBRemote::HandleNotifyPacket(StringExtractorGDBRemote &packet) {
   // get the packet at a string
-  const std::string &pkt = packet.GetStringRef();
+  const std::string &pkt = std::string(packet.GetStringRef());
   // skip %stop:
   StringExtractorGDBRemote stop_info(pkt.c_str() + 5);
 
@@ -4030,7 +4026,8 @@ ProcessGDBRemote::GetExtendedInfoForThread(lldb::tid_t tid) {
           response.GetResponseType();
       if (response_type == StringExtractorGDBRemote::eResponse) {
         if (!response.Empty()) {
-          object_sp = StructuredData::ParseJSON(response.GetStringRef());
+          object_sp =
+              StructuredData::ParseJSON(std::string(response.GetStringRef()));
         }
       }
     }
@@ -4102,7 +4099,8 @@ ProcessGDBRemote::GetLoadedDynamicLibrariesInfos_sender(
           response.GetResponseType();
       if (response_type == StringExtractorGDBRemote::eResponse) {
         if (!response.Empty()) {
-          object_sp = StructuredData::ParseJSON(response.GetStringRef());
+          object_sp =
+              StructuredData::ParseJSON(std::string(response.GetStringRef()));
         }
       }
     }
@@ -4135,7 +4133,8 @@ StructuredData::ObjectSP ProcessGDBRemote::GetSharedCacheInfo() {
           response.GetResponseType();
       if (response_type == StringExtractorGDBRemote::eResponse) {
         if (!response.Empty()) {
-          object_sp = StructuredData::ParseJSON(response.GetStringRef());
+          object_sp =
+              StructuredData::ParseJSON(std::string(response.GetStringRef()));
         }
       }
     }
@@ -5069,7 +5068,8 @@ ParseStructuredDataPacket(llvm::StringRef packet) {
   }
 
   // This is an asynchronous JSON packet, destined for a StructuredDataPlugin.
-  StructuredData::ObjectSP json_sp = StructuredData::ParseJSON(packet);
+  StructuredData::ObjectSP json_sp =
+      StructuredData::ParseJSON(std::string(packet));
   if (log) {
     if (json_sp) {
       StreamString json_str;
@@ -5276,7 +5276,7 @@ public:
         result.SetStatus(eReturnStatusSuccessFinishResult);
         Stream &output_strm = result.GetOutputStream();
         output_strm.Printf("  packet: %s\n", packet_cstr);
-        std::string response_str = response.GetStringRef();
+        std::string response_str = std::string(response.GetStringRef());
 
         if (strstr(packet_cstr, "qGetProfileData") != nullptr) {
           response_str = process->HarmonizeThreadIdsForProfileData(response);
@@ -5329,7 +5329,7 @@ public:
           [&output_strm](llvm::StringRef output) { output_strm << output; });
       result.SetStatus(eReturnStatusSuccessFinishResult);
       output_strm.Printf("  packet: %s\n", packet.GetData());
-      const std::string &response_str = response.GetStringRef();
+      const std::string &response_str = std::string(response.GetStringRef());
 
       if (response_str.empty())
         output_strm.PutCString("response: \nerror: UNIMPLEMENTED\n");

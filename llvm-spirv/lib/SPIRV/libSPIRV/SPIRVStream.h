@@ -76,6 +76,8 @@ public:
   bool getWordCountAndOpCode();
   SPIRVEntry *getEntry();
   void validate() const;
+  void ignore(size_t N);
+  void ignoreInstruction();
 
   std::istream &IS;
   SPIRVModule &M;

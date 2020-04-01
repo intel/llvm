@@ -1,6 +1,6 @@
 //===- Operation.cpp - Operation support code -----------------------------===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -111,14 +111,10 @@ Operation *Operation::create(Location location, OperationName name,
                              NamedAttributeList attributes,
                              ArrayRef<Block *> successors, unsigned numRegions,
                              bool resizableOperandList) {
-  unsigned numSuccessors = successors.size();
-
   // We only need to allocate additional memory for a subset of results.
   unsigned numTrailingResults = OpResult::getNumTrailing(resultTypes.size());
-
-  // Input operands are nullptr-separated for each successor, the null operands
-  // aren't actually stored.
-  unsigned numOperands = operands.size() - numSuccessors;
+  unsigned numSuccessors = successors.size();
+  unsigned numOperands = operands.size();
 
   // Compute the byte size for the operation and the operand storage.
   auto byteSize = totalSizeToAlloc<detail::TrailingOpResult, BlockOperand,
@@ -152,56 +148,17 @@ Operation *Operation::create(Location location, OperationName name,
   for (unsigned i = 0; i != numRegions; ++i)
     new (&op->getRegion(i)) Region(op);
 
-  // Initialize the results and operands.
+  // Initialize the operands.
   new (&op->getOperandStorage())
       detail::OperandStorage(numOperands, resizableOperandList);
   auto opOperands = op->getOpOperands();
+  for (unsigned i = 0; i != numOperands; ++i)
+    new (&opOperands[i]) OpOperand(op, operands[i]);
 
-  // Initialize normal operands.
-  unsigned operandIt = 0, operandE = operands.size();
-  unsigned nextOperand = 0;
-  for (; operandIt != operandE; ++operandIt) {
-    // Null operands are used as sentinels between successor operand lists. If
-    // we encounter one here, break and handle the successor operands lists
-    // separately below.
-    if (!operands[operandIt])
-      break;
-    new (&opOperands[nextOperand++]) OpOperand(op, operands[operandIt]);
-  }
-
-  unsigned currentSuccNum = 0;
-  if (operandIt == operandE) {
-    // Verify that the amount of sentinel operands is equivalent to the number
-    // of successors.
-    assert(currentSuccNum == numSuccessors);
-    return op;
-  }
-
-  assert(!op->isKnownNonTerminator() &&
-         "Unexpected nullptr in operand list when creating non-terminator.");
-  auto instBlockOperands = op->getBlockOperands();
-  unsigned *succOperandCount = nullptr;
-
-  for (; operandIt != operandE; ++operandIt) {
-    // If we encounter a sentinel branch to the next operand update the count
-    // variable.
-    if (!operands[operandIt]) {
-      assert(currentSuccNum < numSuccessors);
-
-      new (&instBlockOperands[currentSuccNum])
-          BlockOperand(op, successors[currentSuccNum]);
-      succOperandCount =
-          &instBlockOperands[currentSuccNum].numSuccessorOperands;
-      ++currentSuccNum;
-      continue;
-    }
-    new (&opOperands[nextOperand++]) OpOperand(op, operands[operandIt]);
-    ++(*succOperandCount);
-  }
-
-  // Verify that the amount of sentinel operands is equivalent to the number of
-  // successors.
-  assert(currentSuccNum == numSuccessors);
+  // Initialize the successors.
+  auto blockOperands = op->getBlockOperands();
+  for (unsigned i = 0; i != numSuccessors; ++i)
+    new (&blockOperands[i]) BlockOperand(op, successors[i]);
 
   return op;
 }
@@ -551,52 +508,17 @@ unsigned Operation::getNumResults() {
   return hasSingleResult ? 1 : resultType.cast<TupleType>().size();
 }
 
+auto Operation::getResultTypes() -> result_type_range {
+  if (!resultType)
+    return llvm::None;
+  if (hasSingleResult)
+    return resultType;
+  return resultType.cast<TupleType>().getTypes();
+}
+
 void Operation::setSuccessor(Block *block, unsigned index) {
   assert(index < getNumSuccessors());
   getBlockOperands()[index].set(block);
-}
-
-auto Operation::getNonSuccessorOperands() -> operand_range {
-  return getOperands().take_front(hasSuccessors() ? getSuccessorOperandIndex(0)
-                                                  : getNumOperands());
-}
-
-/// Get the index of the first operand of the successor at the provided
-/// index.
-unsigned Operation::getSuccessorOperandIndex(unsigned index) {
-  assert(!isKnownNonTerminator() && "only terminators may have successors");
-  assert(index < getNumSuccessors());
-
-  // Count the number of operands for each of the successors after, and
-  // including, the one at 'index'. This is based upon the assumption that all
-  // non successor operands are placed at the beginning of the operand list.
-  auto blockOperands = getBlockOperands().drop_front(index);
-  unsigned postSuccessorOpCount =
-      std::accumulate(blockOperands.begin(), blockOperands.end(), 0u,
-                      [](unsigned cur, const BlockOperand &operand) {
-                        return cur + operand.numSuccessorOperands;
-                      });
-  return getNumOperands() - postSuccessorOpCount;
-}
-
-Optional<std::pair<unsigned, unsigned>>
-Operation::decomposeSuccessorOperandIndex(unsigned operandIndex) {
-  assert(!isKnownNonTerminator() && "only terminators may have successors");
-  assert(operandIndex < getNumOperands());
-  unsigned currentOperandIndex = getNumOperands();
-  auto blockOperands = getBlockOperands();
-  for (unsigned i = 0, e = getNumSuccessors(); i < e; i++) {
-    unsigned successorIndex = e - i - 1;
-    currentOperandIndex -= blockOperands[successorIndex].numSuccessorOperands;
-    if (currentOperandIndex <= operandIndex)
-      return std::make_pair(successorIndex, operandIndex - currentOperandIndex);
-  }
-  return None;
-}
-
-auto Operation::getSuccessorOperands(unsigned index) -> operand_range {
-  unsigned succOperandIndex = getSuccessorOperandIndex(index);
-  return getOperands().slice(succOperandIndex, getNumSuccessorOperands(index));
 }
 
 /// Attempt to fold this operation using the Op's registered foldHook.
@@ -637,40 +559,20 @@ Operation *Operation::cloneWithoutRegions(BlockAndValueMapping &mapper) {
   SmallVector<Value, 8> operands;
   SmallVector<Block *, 2> successors;
 
-  operands.reserve(getNumOperands() + getNumSuccessors());
+  // Remap the operands.
+  operands.reserve(getNumOperands());
+  for (auto opValue : getOperands())
+    operands.push_back(mapper.lookupOrDefault(opValue));
 
-  if (getNumSuccessors() == 0) {
-    // Non-branching operations can just add all the operands.
-    for (auto opValue : getOperands())
-      operands.push_back(mapper.lookupOrDefault(opValue));
-  } else {
-    // We add the operands separated by nullptr's for each successor.
-    unsigned firstSuccOperand =
-        getNumSuccessors() ? getSuccessorOperandIndex(0) : getNumOperands();
-    auto opOperands = getOpOperands();
+  // Remap the successors.
+  successors.reserve(getNumSuccessors());
+  for (Block *successor : getSuccessors())
+    successors.push_back(mapper.lookupOrDefault(successor));
 
-    unsigned i = 0;
-    for (; i != firstSuccOperand; ++i)
-      operands.push_back(mapper.lookupOrDefault(opOperands[i].get()));
-
-    successors.reserve(getNumSuccessors());
-    for (unsigned succ = 0, e = getNumSuccessors(); succ != e; ++succ) {
-      successors.push_back(mapper.lookupOrDefault(getSuccessor(succ)));
-
-      // Add sentinel to delineate successor operands.
-      operands.push_back(nullptr);
-
-      // Remap the successors operands.
-      for (auto operand : getSuccessorOperands(succ))
-        operands.push_back(mapper.lookupOrDefault(operand));
-    }
-  }
-
-  SmallVector<Type, 8> resultTypes(getResultTypes());
-  unsigned numRegions = getNumRegions();
-  auto *newOp =
-      Operation::create(getLoc(), getName(), resultTypes, operands, attrs,
-                        successors, numRegions, hasResizableOperandsList());
+  // Create the new operation.
+  auto *newOp = Operation::create(getLoc(), getName(), getResultTypes(),
+                                  operands, attrs, successors, getNumRegions(),
+                                  hasResizableOperandsList());
 
   // Remember the mapping of any results.
   for (unsigned i = 0, e = getNumResults(); i != e; ++i)
@@ -785,10 +687,11 @@ static Type getTensorOrVectorElementType(Type type) {
   return type;
 }
 
-LogicalResult OpTrait::impl::verifyOperandsAreIntegerLike(Operation *op) {
+LogicalResult
+OpTrait::impl::verifyOperandsAreSignlessIntegerLike(Operation *op) {
   for (auto opType : op->getOperandTypes()) {
     auto type = getTensorOrVectorElementType(opType);
-    if (!type.isIntOrIndex())
+    if (!type.isSignlessIntOrIndex())
       return op->emitOpError() << "requires an integer or index type";
   }
   return success();
@@ -809,7 +712,7 @@ LogicalResult OpTrait::impl::verifySameTypeOperands(Operation *op) {
   if (nOperands < 2)
     return success();
 
-  auto type = op->getOperand(0)->getType();
+  auto type = op->getOperand(0).getType();
   for (auto opType : llvm::drop_begin(op->getOperandTypes(), 1))
     if (opType != type)
       return op->emitOpError() << "requires all operands to have the same type";
@@ -847,7 +750,7 @@ LogicalResult OpTrait::impl::verifySameOperandsShape(Operation *op) {
   if (failed(verifyAtLeastNOperands(op, 1)))
     return failure();
 
-  auto type = op->getOperand(0)->getType();
+  auto type = op->getOperand(0).getType();
   for (auto opType : llvm::drop_begin(op->getOperandTypes(), 1)) {
     if (failed(verifyCompatibleShape(opType, type)))
       return op->emitOpError() << "requires the same shape for all operands";
@@ -860,7 +763,7 @@ LogicalResult OpTrait::impl::verifySameOperandsAndResultShape(Operation *op) {
       failed(verifyAtLeastNResults(op, 1)))
     return failure();
 
-  auto type = op->getOperand(0)->getType();
+  auto type = op->getOperand(0).getType();
   for (auto resultType : op->getResultTypes()) {
     if (failed(verifyCompatibleShape(resultType, type)))
       return op->emitOpError()
@@ -917,9 +820,9 @@ LogicalResult OpTrait::impl::verifySameOperandsAndResultType(Operation *op) {
       failed(verifyAtLeastNResults(op, 1)))
     return failure();
 
-  auto type = op->getResult(0)->getType();
+  auto type = op->getResult(0).getType();
   auto elementType = getElementTypeOrSelf(type);
-  for (auto resultType : llvm::drop_begin(op->getResultTypes(), 1)) {
+  for (auto resultType : op->getResultTypes().drop_front(1)) {
     if (getElementTypeOrSelf(resultType) != elementType ||
         failed(verifyCompatibleShape(resultType, type)))
       return op->emitOpError()
@@ -934,23 +837,11 @@ LogicalResult OpTrait::impl::verifySameOperandsAndResultType(Operation *op) {
   return success();
 }
 
-static LogicalResult verifySuccessor(Operation *op, unsigned succNo) {
-  Operation::operand_range operands = op->getSuccessorOperands(succNo);
-  unsigned operandCount = op->getNumSuccessorOperands(succNo);
-  Block *destBB = op->getSuccessor(succNo);
-  if (operandCount != destBB->getNumArguments())
-    return op->emitError() << "branch has " << operandCount
-                           << " operands for successor #" << succNo
-                           << ", but target block has "
-                           << destBB->getNumArguments();
-
-  auto operandIt = operands.begin();
-  for (unsigned i = 0, e = operandCount; i != e; ++i, ++operandIt) {
-    if ((*operandIt)->getType() != destBB->getArgument(i)->getType())
-      return op->emitError() << "type mismatch for bb argument #" << i
-                             << " of successor #" << succNo;
-  }
-
+LogicalResult OpTrait::impl::verifyIsTerminator(Operation *op) {
+  Block *block = op->getBlock();
+  // Verify that the operation is at the end of the respective parent block.
+  if (!block || &block->back() != op)
+    return op->emitOpError("must be the last operation in the parent block");
   return success();
 }
 
@@ -958,26 +849,44 @@ static LogicalResult verifyTerminatorSuccessors(Operation *op) {
   auto *parent = op->getParentRegion();
 
   // Verify that the operands lines up with the BB arguments in the successor.
-  for (unsigned i = 0, e = op->getNumSuccessors(); i != e; ++i) {
-    auto *succ = op->getSuccessor(i);
+  for (Block *succ : op->getSuccessors())
     if (succ->getParent() != parent)
       return op->emitError("reference to block defined in another region");
-    if (failed(verifySuccessor(op, i)))
-      return failure();
+  return success();
+}
+
+LogicalResult OpTrait::impl::verifyZeroSuccessor(Operation *op) {
+  if (op->getNumSuccessors() != 0) {
+    return op->emitOpError("requires 0 successors but found ")
+           << op->getNumSuccessors();
   }
   return success();
 }
 
-LogicalResult OpTrait::impl::verifyIsTerminator(Operation *op) {
-  Block *block = op->getBlock();
-  // Verify that the operation is at the end of the respective parent block.
-  if (!block || &block->back() != op)
-    return op->emitOpError("must be the last operation in the parent block");
-
-  // Verify the state of the successor blocks.
-  if (op->getNumSuccessors() != 0 && failed(verifyTerminatorSuccessors(op)))
-    return failure();
-  return success();
+LogicalResult OpTrait::impl::verifyOneSuccessor(Operation *op) {
+  if (op->getNumSuccessors() != 1) {
+    return op->emitOpError("requires 1 successor but found ")
+           << op->getNumSuccessors();
+  }
+  return verifyTerminatorSuccessors(op);
+}
+LogicalResult OpTrait::impl::verifyNSuccessors(Operation *op,
+                                               unsigned numSuccessors) {
+  if (op->getNumSuccessors() != numSuccessors) {
+    return op->emitOpError("requires ")
+           << numSuccessors << " successors but found "
+           << op->getNumSuccessors();
+  }
+  return verifyTerminatorSuccessors(op);
+}
+LogicalResult OpTrait::impl::verifyAtLeastNSuccessors(Operation *op,
+                                                      unsigned numSuccessors) {
+  if (op->getNumSuccessors() < numSuccessors) {
+    return op->emitOpError("requires at least ")
+           << numSuccessors << " successors but found "
+           << op->getNumSuccessors();
+  }
+  return verifyTerminatorSuccessors(op);
 }
 
 LogicalResult OpTrait::impl::verifyResultsAreBoolLike(Operation *op) {
@@ -999,9 +908,10 @@ LogicalResult OpTrait::impl::verifyResultsAreFloatLike(Operation *op) {
   return success();
 }
 
-LogicalResult OpTrait::impl::verifyResultsAreIntegerLike(Operation *op) {
+LogicalResult
+OpTrait::impl::verifyResultsAreSignlessIntegerLike(Operation *op) {
   for (auto resultType : op->getResultTypes())
-    if (!getTensorOrVectorElementType(resultType).isIntOrIndex())
+    if (!getTensorOrVectorElementType(resultType).isSignlessIntOrIndex())
       return op->emitOpError() << "requires an integer or index type";
   return success();
 }
@@ -1056,9 +966,9 @@ LogicalResult OpTrait::impl::verifyResultSizeAttr(Operation *op,
 
 void impl::buildBinaryOp(Builder *builder, OperationState &result, Value lhs,
                          Value rhs) {
-  assert(lhs->getType() == rhs->getType());
+  assert(lhs.getType() == rhs.getType());
   result.addOperands({lhs, rhs});
-  result.types.push_back(lhs->getType());
+  result.types.push_back(lhs.getType());
 }
 
 ParseResult impl::parseOneResultSameOperandTypeOp(OpAsmParser &parser,
@@ -1077,7 +987,7 @@ void impl::printOneResultOp(Operation *op, OpAsmPrinter &p) {
 
   // If not all the operand and result types are the same, just use the
   // generic assembly form to avoid omitting information in printing.
-  auto resultType = op->getResult(0)->getType();
+  auto resultType = op->getResult(0).getType();
   if (llvm::any_of(op->getOperandTypes(),
                    [&](Type type) { return type != resultType; })) {
     p.printGenericOp(op);
@@ -1113,15 +1023,15 @@ ParseResult impl::parseCastOp(OpAsmParser &parser, OperationState &result) {
 }
 
 void impl::printCastOp(Operation *op, OpAsmPrinter &p) {
-  p << op->getName() << ' ' << *op->getOperand(0);
+  p << op->getName() << ' ' << op->getOperand(0);
   p.printOptionalAttrDict(op->getAttrs());
-  p << " : " << op->getOperand(0)->getType() << " to "
-    << op->getResult(0)->getType();
+  p << " : " << op->getOperand(0).getType() << " to "
+    << op->getResult(0).getType();
 }
 
 Value impl::foldCastOp(Operation *op) {
   // Identity cast
-  if (op->getOperand(0)->getType() == op->getResult(0)->getType())
+  if (op->getOperand(0).getType() == op->getResult(0).getType())
     return op->getOperand(0);
   return nullptr;
 }

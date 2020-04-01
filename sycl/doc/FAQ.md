@@ -2,51 +2,51 @@
 
 **Table of contents**
 
-1. [Developing with SYCL](#developing-with-sycl)
-1. [Using applications built with SYCL](#using-applications-built-with-sycl)
+1. [Developing with DPC++](#developing-with-dpc)
+1. [Using applications built with DPC++](#using-applications-built-with-dpc)
 1. [Common issues](#common-issues)
 1. [Device specific questions and issues](#device-specific-questions-and-issues)
 
 
-## Developing with SYCL
+## Developing with DPC++
 
-### Q: What do I need to start developing with SYCL?
-**A:** To get the full SYCL experience you need a SYCL-capable compiler. Intel
-SYCL compiler provides you with both host and device side compilation. Another
+### Q: What do I need to start developing with DPC++?
+**A:** To get the full DPC++ experience you need oneAPI DPC++ compiler. DPC++
+compiler provides you with both host and device side compilation. Another
 requirement for code offloading to specialized devices is a compatible OpenCL
-runtime. Our [Get Started Guide](GetStartedWithSYCLCompiler.md) will help you
-set up a proper environment. To learn more about using the SYCL compiler, please
-refer to [User Manual](SYCLCompilerUserManual.md). If using a special compiler
+runtime. Our [Get Started Guide](GetStartedGuide.md) will help you
+set up a proper environment. To learn more about using the DPC++ compiler,
+please refer to [Users Manual](UsersManual.md). If using a special compiler
 is not an option for you and/or you would like to experiment without offloading
-code to non-host devices, you can exploit SYCL's host device feature. This gives
-you the ability to use any C++11 compiler. You will need to link your
-application with the SYCL Runtime library and provide a path to the SYCL headers
-directory. Please, refer to your compiler manual to learn about specific build
-options.
+code to non-host devices, you can exploit SYCL's host device feature. This
+gives you the ability to use any C++11 compiler. You will need to link your
+application with the DPC++ Runtime library and provide a path to the SYCL
+headers directory. Please, refer to your compiler manual to learn about
+specific build options.
 
-### Q: How are SYCL compilation phases different from those of a usual C++ compiler? Can I customize this flow for my applications?
+### Q: How are DPC++ compilation phases different from those of a usual C++ compiler? Can I customize this flow for my applications?
 **A:** Due to the fact that both host and device code need to be compiled and
-linked into the final binary, the compilation steps sequence is more complicated
-compared to the usual C++ flow.
+linked into the final binary, the compilation steps sequence is more
+complicated compared to the usual C++ flow.
 
-In general, we encourage our users to rely on the SYCL Compiler for handling all
-of the compilation phases "under the hood". However, thorough understanding of
-the above-described steps may allow you to customize your compilation by invoking
-different phases manually. As an example, you could:
+In general, we encourage our users to rely on the DPC++ Compiler for handling
+all of the compilation phases "under the hood". However, thorough understanding
+of the above-described steps may allow you to customize your compilation by
+invoking different phases manually. As an example, you could:
 1. preprocess your host code with another C++-capable compiler;
-2. turn to the SYCL compiler for generating the integration header and compiling
-the device code for the needed target(s);
+2. turn to the DPC++ compiler for generating the integration header and
+compiling the device code for the needed target(s);
 3. use your preferred host compiler from 1) to compile your preprocessed host
 code and the integration header into a host object file;
 4. link the host object file and the device image(s) into the final executable.
 
-To learn more about the concepts behind this flow, and the SYCL Compiler
+To learn more about the concepts behind this flow, and the DPC++ Compiler
 internals as such, we welcome you to study our
-[SYCL Compiler and Runtime architecture design](SYCLCompilerAndRuntimeDesign.md)
+[DPC++ Compiler and Runtime architecture design](CompilerAndRuntimeDesign.md)
 document.
 
 
-## Using applications built with SYCL
+## Using applications built with DPC++
 
 ### Q: What happens if I run my application on a machine without OpenCL?
 **A:** If you use the default SYCL device selector (or any other selector that
@@ -56,7 +56,7 @@ Otherwise, an exception will be thrown.
 
 ## Common issues
 
-### Q: SYCL application complains about missing libsycl.so (or sycl.dll) library.
+### Q: DPC++ application complains about missing libsycl.so (or sycl.dll) library.
 Linux:
 ```
 $ ./app
@@ -66,15 +66,16 @@ Windows:
 
 ![Error screen](images/missing_sycl_dll.png)
 
-*The code execution cannot proceed because sycl.dll was not found. Reinstalling the program may fix this problem.*
+*The code execution cannot proceed because sycl.dll was not found. Reinstalling
+the program may fix this problem.*
 
-**A:** The SYCL Runtime library is required to run SYCL-enabled applications.
+**A:** The DPC++ Runtime library is required to run DPC++ applications.
 While compiler driver is able to find the library and link against it, your
-operating system may struggle. Make sure that the location of the SYCL Runtime
+operating system may struggle. Make sure that the location of the DPC++ Runtime
 library is listed in the correct environment variable: `LD_LIBRARY_PATH`
 (for Linux) or `LIB` (for Windows).
 
-### Q: SYCL fails to compile device code that uses STD functions.
+### Q: DPC++ Compiler fails to compile device code that uses STD functions.
 Example error message:
 ```
 In file included from example.cpp:1:
@@ -119,10 +120,10 @@ specification.
 
 ## Device specific questions and issues
 
-### Q: What devices are supported by Intel SYCL compiler?
-**A:** By design, SYCL is closely connected to OpenCL, which is used to offload
-code to specialized devices. Intel SYCL compiler currently makes use of SPIR-V,
-a portable intermediate representation format. It is a core feature of
+### Q: What devices are supported by DPC++ compiler?
+**A:** By design, DPC++ and SYCL are closely connected to OpenCL, which is used
+to offload code to specialized devices. DPC++ compiler currently makes use of
+SPIR-V, a portable intermediate representation format. It is a core feature of
 OpenCL 2.1, so any device, capable of OpenCL 2.1, should be supported.
 Otherwise, your OpenCL device must support `cl_khr_il_program` extension.
 
@@ -132,17 +133,17 @@ the offload target for kernel execution. Since the device code is also compiled
 for the host CPU and no JIT is required, you can easily use any classic C++
 debugging tools of your choice for the host device code.
 
-Furthermore, developers can extend capabilities of the SYCL Runtime to
-non-OpenCL devices by writing correspondent plugins. To learn more, please check
-out our [Plugin Interface Guide](SYCLPluginInterface.md).
+Furthermore, developers can extend capabilities of the DPC++ Runtime to
+non-OpenCL devices by writing correspondent plugins. To learn more, please
+check out our [Plugin Interface Guide](PluginInterface.md).
 
-### Q: SYCL applications hang on Intel GPUs while working well on other devices
+### Q: DPC++ applications hang on Intel GPUs while working well on other devices
 **A:** One of the common reasons is Intel GPUs feature called "hang check".
 If your workload runs for more than a certain amount of time, it will be killed
-by hardware. From the application point of view this looks like a hang. To allow
-heavy kernels to be executed, disable hang check. **Please, note that other apps
-on your system may contain bugs, and disabling "hang check" may lead to real
-hangs.**
+by hardware. From the application point of view this looks like a hang. To
+allow heavy kernels to be executed, disable hang check. **Please, note that
+other apps on your system may contain bugs, and disabling "hang check" may lead
+to real hangs.**
 
 You can find out more about hang check and how to disable it on
 [this page](https://software.intel.com/en-us/articles/installation-guide-for-intel-oneapi-toolkits).

@@ -71,9 +71,9 @@ template class llvm::SymbolTableListTraits<GlobalIFunc>;
 //
 
 Module::Module(StringRef MID, LLVMContext &C)
-    : Context(C), Materializer(), ModuleID(MID), SourceFileName(MID), DL("") {
-  ValSymTab = new ValueSymbolTable();
-  NamedMDSymTab = new StringMap<NamedMDNode *>();
+    : Context(C), ValSymTab(std::make_unique<ValueSymbolTable>()),
+      Materializer(), ModuleID(std::string(MID)),
+      SourceFileName(std::string(MID)), DL("") {
   Context.addModule(this);
 }
 
@@ -84,13 +84,11 @@ Module::~Module() {
   FunctionList.clear();
   AliasList.clear();
   IFuncList.clear();
-  NamedMDList.clear();
-  delete ValSymTab;
-  delete static_cast<StringMap<NamedMDNode *> *>(NamedMDSymTab);
 }
 
-std::unique_ptr<RandomNumberGenerator> Module::createRNG(const Pass* P) const {
-  SmallString<32> Salt(P->getPassName());
+std::unique_ptr<RandomNumberGenerator>
+Module::createRNG(const StringRef Name) const {
+  SmallString<32> Salt(Name);
 
   // This RNG is guaranteed to produce the same random stream only
   // when the Module ID and thus the input filename is the same. This
@@ -104,7 +102,8 @@ std::unique_ptr<RandomNumberGenerator> Module::createRNG(const Pass* P) const {
   // store salt metadata from the Module constructor.
   Salt += sys::path::filename(getModuleIdentifier());
 
-  return std::unique_ptr<RandomNumberGenerator>(new RandomNumberGenerator(Salt));
+  return std::unique_ptr<RandomNumberGenerator>(
+      new RandomNumberGenerator(Salt));
 }
 
 /// getNamedValue - Return the first global value in the module with
@@ -250,15 +249,14 @@ GlobalIFunc *Module::getNamedIFunc(StringRef Name) const {
 NamedMDNode *Module::getNamedMetadata(const Twine &Name) const {
   SmallString<256> NameData;
   StringRef NameRef = Name.toStringRef(NameData);
-  return static_cast<StringMap<NamedMDNode*> *>(NamedMDSymTab)->lookup(NameRef);
+  return NamedMDSymTab.lookup(NameRef);
 }
 
 /// getOrInsertNamedMetadata - Return the first named MDNode in the module
 /// with the specified name. This method returns a new NamedMDNode if a
 /// NamedMDNode with the specified name is not found.
 NamedMDNode *Module::getOrInsertNamedMetadata(StringRef Name) {
-  NamedMDNode *&NMD =
-    (*static_cast<StringMap<NamedMDNode *> *>(NamedMDSymTab))[Name];
+  NamedMDNode *&NMD = NamedMDSymTab[Name];
   if (!NMD) {
     NMD = new NamedMDNode(Name);
     NMD->setParent(this);
@@ -270,7 +268,7 @@ NamedMDNode *Module::getOrInsertNamedMetadata(StringRef Name) {
 /// eraseNamedMetadata - Remove the given NamedMDNode from this module and
 /// delete it.
 void Module::eraseNamedMetadata(NamedMDNode *NMD) {
-  static_cast<StringMap<NamedMDNode *> *>(NamedMDSymTab)->erase(NMD->getName());
+  NamedMDSymTab.erase(NMD->getName());
   NamedMDList.erase(NMD->getIterator());
 }
 
@@ -557,6 +555,20 @@ void Module::setProfileSummary(Metadata *M, ProfileSummary::Kind Kind) {
 Metadata *Module::getProfileSummary(bool IsCS) {
   return (IsCS ? getModuleFlag("CSProfileSummary")
                : getModuleFlag("ProfileSummary"));
+}
+
+bool Module::getSemanticInterposition() const {
+  Metadata *MF = getModuleFlag("SemanticInterposition");
+
+  auto *Val = cast_or_null<ConstantAsMetadata>(MF);
+  if (!Val)
+    return false;
+
+  return cast<ConstantInt>(Val->getValue())->getZExtValue();
+}
+
+void Module::setSemanticInterposition(bool SI) {
+  addModuleFlag(ModFlagBehavior::Error, "SemanticInterposition", SI);
 }
 
 void Module::setOwnedMemoryBuffer(std::unique_ptr<MemoryBuffer> MB) {

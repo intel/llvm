@@ -1,7 +1,7 @@
 # RUN: llvm-objdump -d -r %p/../Inputs/trivial-object-test.coff-i386 \
 # RUN:              | FileCheck %s -check-prefix COFF-i386
 
-# COFF-i386: file format COFF-i386
+# COFF-i386: file format coff-i386
 # COFF-i386: Disassembly of section .text:
 # COFF-i386:        0:       83 ec 0c                                        subl    $12, %esp
 # COFF-i386:        3:       c7 44 24 08 00 00 00 00                         movl    $0, 8(%esp)
@@ -18,7 +18,7 @@
 # RUN: llvm-objdump -d -r %p/../Inputs/trivial-object-test.coff-x86-64 \
 # RUN:              | FileCheck %s -check-prefix COFF-x86-64
 
-# COFF-x86-64: file format COFF-x86-64
+# COFF-x86-64: file format coff-x86-64
 # COFF-x86-64: Disassembly of section .text:
 # COFF-x86-64:        0:       48 83 ec 28                                     subq    $40, %rsp
 # COFF-x86-64:        4:       c7 44 24 24 00 00 00 00                         movl    $0, 36(%rsp)
@@ -35,9 +35,9 @@
 # RUN: llvm-objdump -d -r %p/../Inputs/trivial-object-test.macho-i386 \
 # RUN:              | FileCheck %s -check-prefix MACHO-i386
 
-# MACHO-i386: file format Mach-O 32-bit i386
+# MACHO-i386: file format mach-o 32-bit i386
 # MACHO-i386: Disassembly of section __TEXT,__text:
-# MACHO-i386: _main:
+# MACHO-i386: <_main>:
 # MACHO-i386:        0:       83 ec 0c                                        subl    $12, %esp
 # MACHO-i386:        3:       c7 44 24 08 00 00 00 00                         movl    $0, 8(%esp)
 # MACHO-i386:        b:       c7 04 24 24 00 00 00                            movl    $36, (%esp)
@@ -53,9 +53,9 @@
 # RUN: llvm-objdump -d -r %p/../Inputs/trivial-object-test.macho-x86-64 \
 # RUN:              | FileCheck %s -check-prefix MACHO-x86-64
 
-# MACHO-x86-64: file format Mach-O 64-bit x86-64
+# MACHO-x86-64: file format mach-o 64-bit x86-64
 # MACHO-x86-64: Disassembly of section __TEXT,__text:
-# MACHO-x86-64: _main:
+# MACHO-x86-64: <_main>:
 # MACHO-x86-64:        0:       48 83 ec 08                                     subq    $8, %rsp
 # MACHO-x86-64:        4:       c7 44 24 04 00 00 00 00                         movl    $0, 4(%rsp)
 # MACHO-x86-64:        c:       48 8d 3d 00 00 00 00                            leaq    (%rip), %rdi
@@ -69,12 +69,12 @@
 # MACHO-x86-64:       23:       48 83 c4 08                                     addq    $8, %rsp
 # MACHO-x86-64:       27:       c3                                              ret
 
-# RUN: yaml2obj -docnum=1 %s > %t.elf-i386
-# RUN: llvm-objdump -d -r %t.elf-i386 | FileCheck %s -check-prefix ELF-i386
+# RUN: yaml2obj --docnum=1 %s -o %t.elf-i386
+# RUN: llvm-objdump -d -r %t.elf-i386 | FileCheck %s --check-prefix=ELF-i386
 
-# ELF-i386: file format ELF32-i386
+# ELF-i386: file format elf32-i386
 # ELF-i386: Disassembly of section .text:
-# ELF-i386: main:
+# ELF-i386: <main>:
 # ELF-i386:        0:     83 ec 0c                                        subl    $12, %esp
 # ELF-i386:        3:     c7 44 24 08 00 00 00 00                         movl    $0, 8(%esp)
 # ELF-i386:        b:     c7 04 24 00 00 00 00                            movl    $0, (%esp)
@@ -126,8 +126,8 @@ Symbols:
   - Name:    puts
     Binding: STB_GLOBAL
 
-# RUN: yaml2obj -docnum=2 %s > %t.elf-x86-64
-# RUN: llvm-objdump -d -r %t.elf-x86-64 | FileCheck %s -check-prefix ELF-x86-64
+# RUN: yaml2obj --docnum=2 %s -o %t.elf-x86-64
+# RUN: llvm-objdump -d -r %t.elf-x86-64 | FileCheck %s --check-prefix=ELF-x86-64
 
 --- !ELF
 FileHeader:
@@ -170,9 +170,9 @@ Symbols:
   - Name:    puts
     Binding: STB_GLOBAL
 
-# ELF-x86-64: file format ELF64-x86-64
+# ELF-x86-64: file format elf64-x86-64
 # ELF-x86-64: Disassembly of section .text:
-# ELF-x86-64: main:
+# ELF-x86-64: <main>:
 # ELF-x86-64:        0:   48 83 ec 08                                     subq    $8, %rsp
 # ELF-x86-64:        4:   c7 44 24 04 00 00 00 00                         movl    $0, 4(%rsp)
 # ELF-x86-64:        c:   bf 00 00 00 00                                  movl    $0, %edi

@@ -239,6 +239,10 @@ void MCJIT::finalizeLoadedModules() {
   // Resolve any outstanding relocations.
   Dyld.resolveRelocations();
 
+  // Check for Dyld error.
+  if (Dyld.hasError())
+    ErrMsg = Dyld.getErrorString().str();
+
   OwnedModules.markAllLoadedModulesAsFinalized();
 
   // Register EH frame data for any module we own which has been loaded
@@ -609,7 +613,7 @@ GenericValue MCJIT::runFunction(Function *F, ArrayRef<GenericValue> ArgValues) {
 
 void *MCJIT::getPointerToNamedFunction(StringRef Name, bool AbortOnFailure) {
   if (!isSymbolSearchingDisabled()) {
-    if (auto Sym = Resolver.findSymbol(Name)) {
+    if (auto Sym = Resolver.findSymbol(std::string(Name))) {
       if (auto AddrOrErr = Sym.getAddress())
         return reinterpret_cast<void*>(
                  static_cast<uintptr_t>(*AddrOrErr));
@@ -619,7 +623,7 @@ void *MCJIT::getPointerToNamedFunction(StringRef Name, bool AbortOnFailure) {
 
   /// If a LazyFunctionCreator is installed, use it to get/create the function.
   if (LazyFunctionCreator)
-    if (void *RP = LazyFunctionCreator(Name))
+    if (void *RP = LazyFunctionCreator(std::string(Name)))
       return RP;
 
   if (AbortOnFailure) {

@@ -16,7 +16,6 @@
 #include "LiveDebugVariables.h"
 #include "RegAllocBase.h"
 #include "SpillPlacement.h"
-#include "Spiller.h"
 #include "SplitKit.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/BitVector.h"
@@ -53,6 +52,7 @@
 #include "llvm/CodeGen/RegAllocRegistry.h"
 #include "llvm/CodeGen/RegisterClassInfo.h"
 #include "llvm/CodeGen/SlotIndexes.h"
+#include "llvm/CodeGen/Spiller.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
@@ -123,12 +123,6 @@ static cl::opt<bool> EnableDeferredSpilling(
              "allocator might still find a suitable coloring for this "
              "variable because of other evicted variables."),
     cl::init(false));
-
-static cl::opt<unsigned>
-    HugeSizeForSplit("huge-size-for-split", cl::Hidden,
-                     cl::desc("A threshold of live range size which may cause "
-                              "high compile time cost in global splitting."),
-                     cl::init(5000));
 
 // FIXME: Find a good default for this flag and remove the flag.
 static cl::opt<unsigned>
@@ -486,7 +480,6 @@ private:
                     const SmallVirtRegSet&);
   unsigned tryRegionSplit(LiveInterval&, AllocationOrder&,
                           SmallVectorImpl<unsigned>&);
-  unsigned isSplitBenefitWorthCost(LiveInterval &VirtReg);
   /// Calculate cost of region splitting.
   unsigned calculateRegionSplitCost(LiveInterval &VirtReg,
                                     AllocationOrder &Order,
@@ -1815,20 +1808,9 @@ void RAGreedy::splitAroundRegion(LiveRangeEdit &LREdit,
     MF->verify(this, "After splitting live range around region");
 }
 
-// Global split has high compile time cost especially for large live range.
-// Return false for the case here where the potential benefit will never
-// worth the cost.
-unsigned RAGreedy::isSplitBenefitWorthCost(LiveInterval &VirtReg) {
-  MachineInstr *MI = MRI->getUniqueVRegDef(VirtReg.reg);
-  if (MI && TII->isTriviallyReMaterializable(*MI, AA) &&
-      VirtReg.size() > HugeSizeForSplit)
-    return false;
-  return true;
-}
-
 unsigned RAGreedy::tryRegionSplit(LiveInterval &VirtReg, AllocationOrder &Order,
                                   SmallVectorImpl<unsigned> &NewVRegs) {
-  if (!isSplitBenefitWorthCost(VirtReg))
+  if (!TRI->shouldRegionSplitForVirtReg(*MF, VirtReg))
     return 0;
   unsigned NumCands = 0;
   BlockFrequency SpillCost = calcSpillCost();
@@ -3098,7 +3080,7 @@ unsigned RAGreedy::selectOrSplitImpl(LiveInterval &VirtReg,
     unsigned NewVRegSizeBefore = NewVRegs.size();
     unsigned PhysReg = trySplit(VirtReg, Order, NewVRegs, FixedRegisters);
     if (PhysReg || (NewVRegs.size() - NewVRegSizeBefore)) {
-      // If VirtReg got split, the eviction info is no longre relevant.
+      // If VirtReg got split, the eviction info is no longer relevant.
       LastEvicted.clearEvicteeInfo(VirtReg.reg);
       return PhysReg;
     }

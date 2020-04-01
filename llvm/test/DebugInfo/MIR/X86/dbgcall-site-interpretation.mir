@@ -1,4 +1,4 @@
-# RUN: llc -debug-entry-values -start-after=machineverifier -filetype=obj %s -o -| llvm-dwarfdump -| FileCheck %s
+# RUN: llc -emit-call-site-info -debug-entry-values -start-after=machineverifier -filetype=obj %s -o -| llvm-dwarfdump -| FileCheck %s
 #
 # CHECK:        DW_TAG_GNU_call_site
 # CHECK-NEXT:     DW_AT_abstract_origin {{.*}} "foo"
@@ -11,6 +11,10 @@
 # CHECK-NEXT:     DW_TAG_GNU_call_site_parameter
 # CHECK-NEXT:       DW_AT_location      (DW_OP_reg1 RDX)
 # CHECK-NEXT:       DW_AT_GNU_call_site_value   (DW_OP_fbreg +8)
+# CHECK-EMPTY: 
+# CHECK-NEXT:     DW_TAG_GNU_call_site_parameter
+# CHECK-NEXT:       DW_AT_location      (DW_OP_reg4 RSI)
+# CHECK-NEXT:       DW_AT_GNU_call_site_value   (DW_OP_GNU_entry_value(DW_OP_reg4 RSI))
 # CHECK-EMPTY: 
 # CHECK-NEXT:     DW_TAG_GNU_call_site_parameter
 # CHECK-NEXT:       DW_AT_location      (DW_OP_reg5 RDI)

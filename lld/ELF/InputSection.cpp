@@ -307,7 +307,7 @@ std::string InputSectionBase::getLocation(uint64_t offset) {
 
   // File->sourceFile contains STT_FILE symbol that contains a
   // source file name. If it's missing, we use an object file name.
-  std::string srcFile = getFile<ELFT>()->sourceFile;
+  std::string srcFile = std::string(getFile<ELFT>()->sourceFile);
   if (srcFile.empty())
     srcFile = toString(file);
 
@@ -338,7 +338,7 @@ std::string InputSectionBase::getSrcMsg(const Symbol &sym, uint64_t offset) {
 //
 //   path/to/foo.o:(function bar) in archive path/to/bar.a
 std::string InputSectionBase::getObjMsg(uint64_t off) {
-  std::string filename = file->getName();
+  std::string filename = std::string(file->getName());
 
   std::string archive;
   if (!file->archiveName.empty())
@@ -438,12 +438,12 @@ void InputSection::copyRelocations(uint8_t *buf, ArrayRef<RelTy> rels) {
       // hopefully creates a frame that is ignored at runtime. Also, don't warn
       // on .gcc_except_table and debug sections.
       //
-      // See the comment in maybeReportUndefined for PPC64 .toc .
+      // See the comment in maybeReportUndefined for PPC32 .got2 and PPC64 .toc
       auto *d = dyn_cast<Defined>(&sym);
       if (!d) {
-        if (!sec->name.startswith(".debug") &&
-            !sec->name.startswith(".zdebug") && sec->name != ".eh_frame" &&
-            sec->name != ".gcc_except_table" && sec->name != ".toc") {
+        if (!isDebugSection(*sec) && sec->name != ".eh_frame" &&
+            sec->name != ".gcc_except_table" && sec->name != ".got2" &&
+            sec->name != ".toc") {
           uint32_t secIdx = cast<Undefined>(sym).discardedSecIdx;
           Elf_Shdr_Impl<ELFT> sec =
               CHECK(file->getObj().sections(), file)[secIdx];
@@ -465,7 +465,7 @@ void InputSection::copyRelocations(uint8_t *buf, ArrayRef<RelTy> rels) {
       if (!RelTy::IsRela)
         addend = target->getImplicitAddend(bufLoc, type);
 
-      if (config->emachine == EM_MIPS && config->relocatable &&
+      if (config->emachine == EM_MIPS &&
           target->getRelExpr(type, sym, bufLoc) == R_MIPS_GOTREL) {
         // Some MIPS relocations depend on "gp" value. By default,
         // this value has 0x7ff0 offset from a .got section. But
@@ -485,6 +485,14 @@ void InputSection::copyRelocations(uint8_t *buf, ArrayRef<RelTy> rels) {
         p->r_addend = sym.getVA(addend) - section->getOutputSection()->addr;
       else if (config->relocatable && type != target->noneRel)
         sec->relocations.push_back({R_ABS, type, rel.r_offset, addend, &sym});
+    } else if (config->emachine == EM_PPC && type == R_PPC_PLTREL24 &&
+               p->r_addend >= 0x8000) {
+      // Similar to R_MIPS_GPREL{16,32}. If the addend of R_PPC_PLTREL24
+      // indicates that r30 is relative to the input section .got2
+      // (r_addend>=0x8000), after linking, r30 should be relative to the output
+      // section .got2 . To compensate for the shift, adjust r_addend by
+      // ppc32Got2OutSecOff.
+      p->r_addend += sec->file->ppc32Got2OutSecOff;
     }
   }
 }
@@ -518,9 +526,14 @@ static uint32_t getARMUndefinedRelativeWeakVA(RelType type, uint32_t a,
   case R_ARM_MOVW_PREL_NC:
   case R_ARM_MOVT_PREL:
   case R_ARM_REL32:
+  case R_ARM_THM_ALU_PREL_11_0:
   case R_ARM_THM_MOVW_PREL_NC:
   case R_ARM_THM_MOVT_PREL:
+  case R_ARM_THM_PC12:
     return p + a;
+  // p + a is unrepresentable as negative immediates can't be encoded.
+  case R_ARM_THM_PC8:
+    return p;
   }
   llvm_unreachable("ARM pc-relative relocation expected\n");
 }
@@ -732,8 +745,12 @@ static uint64_t getRelocTargetVA(const InputFile *file, RelType type, int64_t a,
                               *hiRel->sym, hiRel->expr);
     return 0;
   }
-  case R_PC: {
+  case R_PC:
+  case R_ARM_PCA: {
     uint64_t dest;
+    if (expr == R_ARM_PCA)
+      // Some PC relative ARM (Thumb) relocations align down the place.
+      p = p & 0xfffffffc;
     if (sym.isUndefWeak()) {
       // On ARM and AArch64 a branch to an undefined weak resolves to the
       // next instruction, otherwise the place.
@@ -858,7 +875,7 @@ void InputSection::relocateNonAlloc(uint8_t *buf, ArrayRef<RelTy> rels) {
       std::string msg = getLocation<ELFT>(offset) +
                         ": has non-ABS relocation " + toString(type) +
                         " against symbol '" + toString(sym) + "'";
-      if (expr != R_PC) {
+      if (expr != R_PC && expr != R_ARM_PCA) {
         error(msg);
         return;
       }
@@ -871,15 +888,16 @@ void InputSection::relocateNonAlloc(uint8_t *buf, ArrayRef<RelTy> rels) {
       // address 0. For bug-compatibilty, we accept them with warnings. We
       // know Steel Bank Common Lisp as of 2018 have this bug.
       warn(msg);
-      target->relocateOne(bufLoc, type,
-                          SignExtend64<bits>(sym.getVA(addend - offset)));
+      target->relocateNoSym(bufLoc, type,
+                            SignExtend64<bits>(sym.getVA(addend - offset)));
       continue;
     }
 
     if (sym.isTls() && !Out::tlsPhdr)
-      target->relocateOne(bufLoc, type, 0);
+      target->relocateNoSym(bufLoc, type, 0);
     else
-      target->relocateOne(bufLoc, type, SignExtend64<bits>(sym.getVA(addend)));
+      target->relocateNoSym(bufLoc, type,
+                            SignExtend64<bits>(sym.getVA(addend)));
   }
 }
 
@@ -896,7 +914,7 @@ static void relocateNonAllocForRelocatable(InputSection *sec, uint8_t *buf) {
     assert(rel.expr == R_ABS);
     uint8_t *bufLoc = buf + rel.offset + sec->outSecOff;
     uint64_t targetVA = SignExtend64(rel.sym->getVA(rel.addend), bits);
-    target->relocateOne(bufLoc, rel.type, targetVA);
+    target->relocate(bufLoc, rel, targetVA);
   }
 }
 
@@ -939,29 +957,29 @@ void InputSectionBase::relocateAlloc(uint8_t *buf, uint8_t *bufEnd) {
     switch (expr) {
     case R_RELAX_GOT_PC:
     case R_RELAX_GOT_PC_NOPIC:
-      target->relaxGot(bufLoc, type, targetVA);
+      target->relaxGot(bufLoc, rel, targetVA);
       break;
     case R_PPC64_RELAX_TOC:
-      if (!tryRelaxPPC64TocIndirection(type, rel, bufLoc))
-        target->relocateOne(bufLoc, type, targetVA);
+      if (!tryRelaxPPC64TocIndirection(rel, bufLoc))
+        target->relocate(bufLoc, rel, targetVA);
       break;
     case R_RELAX_TLS_IE_TO_LE:
-      target->relaxTlsIeToLe(bufLoc, type, targetVA);
+      target->relaxTlsIeToLe(bufLoc, rel, targetVA);
       break;
     case R_RELAX_TLS_LD_TO_LE:
     case R_RELAX_TLS_LD_TO_LE_ABS:
-      target->relaxTlsLdToLe(bufLoc, type, targetVA);
+      target->relaxTlsLdToLe(bufLoc, rel, targetVA);
       break;
     case R_RELAX_TLS_GD_TO_LE:
     case R_RELAX_TLS_GD_TO_LE_NEG:
-      target->relaxTlsGdToLe(bufLoc, type, targetVA);
+      target->relaxTlsGdToLe(bufLoc, rel, targetVA);
       break;
     case R_AARCH64_RELAX_TLS_GD_TO_IE_PAGE_PC:
     case R_RELAX_TLS_GD_TO_IE:
     case R_RELAX_TLS_GD_TO_IE_ABS:
     case R_RELAX_TLS_GD_TO_IE_GOT_OFF:
     case R_RELAX_TLS_GD_TO_IE_GOTPLT:
-      target->relaxTlsGdToIe(bufLoc, type, targetVA);
+      target->relaxTlsGdToIe(bufLoc, rel, targetVA);
       break;
     case R_PPC64_CALL:
       // If this is a call to __tls_get_addr, it may be part of a TLS
@@ -986,10 +1004,10 @@ void InputSectionBase::relocateAlloc(uint8_t *buf, uint8_t *bufEnd) {
         }
         write32(bufLoc + 4, 0xe8410018); // ld %r2, 24(%r1)
       }
-      target->relocateOne(bufLoc, type, targetVA);
+      target->relocate(bufLoc, rel, targetVA);
       break;
     default:
-      target->relocateOne(bufLoc, type, targetVA);
+      target->relocate(bufLoc, rel, targetVA);
       break;
     }
   }

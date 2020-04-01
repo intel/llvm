@@ -1045,6 +1045,43 @@ TEST_F(PatternMatchTest, VectorUndefInt) {
   EXPECT_TRUE(match(ScalarZero, m_Zero()));
   EXPECT_TRUE(match(VectorZero, m_Zero()));
   EXPECT_TRUE(match(VectorZeroUndef, m_Zero()));
+
+  const APInt *C;
+  // Regardless of whether undefs are allowed,
+  // a fully undef constant does not match.
+  EXPECT_FALSE(match(ScalarUndef, m_APInt(C)));
+  EXPECT_FALSE(match(ScalarUndef, m_APIntForbidUndef(C)));
+  EXPECT_FALSE(match(ScalarUndef, m_APIntAllowUndef(C)));
+  EXPECT_FALSE(match(VectorUndef, m_APInt(C)));
+  EXPECT_FALSE(match(VectorUndef, m_APIntForbidUndef(C)));
+  EXPECT_FALSE(match(VectorUndef, m_APIntAllowUndef(C)));
+
+  // We can always match simple constants and simple splats.
+  C = nullptr;
+  EXPECT_TRUE(match(ScalarZero, m_APInt(C)));
+  EXPECT_TRUE(C->isNullValue());
+  C = nullptr;
+  EXPECT_TRUE(match(ScalarZero, m_APIntForbidUndef(C)));
+  EXPECT_TRUE(C->isNullValue());
+  C = nullptr;
+  EXPECT_TRUE(match(ScalarZero, m_APIntAllowUndef(C)));
+  EXPECT_TRUE(C->isNullValue());
+  C = nullptr;
+  EXPECT_TRUE(match(VectorZero, m_APInt(C)));
+  EXPECT_TRUE(C->isNullValue());
+  C = nullptr;
+  EXPECT_TRUE(match(VectorZero, m_APIntForbidUndef(C)));
+  EXPECT_TRUE(C->isNullValue());
+  C = nullptr;
+  EXPECT_TRUE(match(VectorZero, m_APIntAllowUndef(C)));
+  EXPECT_TRUE(C->isNullValue());
+
+  // Whether splats with undef can be matched depends on the matcher.
+  EXPECT_FALSE(match(VectorZeroUndef, m_APInt(C)));
+  EXPECT_FALSE(match(VectorZeroUndef, m_APIntForbidUndef(C)));
+  C = nullptr;
+  EXPECT_TRUE(match(VectorZeroUndef, m_APIntAllowUndef(C)));
+  EXPECT_TRUE(C->isNullValue());
 }
 
 TEST_F(PatternMatchTest, VectorUndefFloat) {
@@ -1054,6 +1091,8 @@ TEST_F(PatternMatchTest, VectorUndefFloat) {
   Constant *VectorUndef = UndefValue::get(VectorTy);
   Constant *ScalarZero = Constant::getNullValue(ScalarTy);
   Constant *VectorZero = Constant::getNullValue(VectorTy);
+  Constant *ScalarPosInf = ConstantFP::getInfinity(ScalarTy, false);
+  Constant *ScalarNegInf = ConstantFP::getInfinity(ScalarTy, true);
 
   SmallVector<Constant *, 4> Elems;
   Elems.push_back(ScalarUndef);
@@ -1061,6 +1100,13 @@ TEST_F(PatternMatchTest, VectorUndefFloat) {
   Elems.push_back(ScalarUndef);
   Elems.push_back(ScalarZero);
   Constant *VectorZeroUndef = ConstantVector::get(Elems);
+
+  SmallVector<Constant *, 4> InfElems;
+  InfElems.push_back(ScalarPosInf);
+  InfElems.push_back(ScalarNegInf);
+  InfElems.push_back(ScalarUndef);
+  InfElems.push_back(ScalarPosInf);
+  Constant *VectorInfUndef = ConstantVector::get(InfElems);
 
   EXPECT_TRUE(match(ScalarUndef, m_Undef()));
   EXPECT_TRUE(match(VectorUndef, m_Undef()));
@@ -1073,6 +1119,50 @@ TEST_F(PatternMatchTest, VectorUndefFloat) {
   EXPECT_TRUE(match(ScalarZero, m_AnyZeroFP()));
   EXPECT_TRUE(match(VectorZero, m_AnyZeroFP()));
   EXPECT_TRUE(match(VectorZeroUndef, m_AnyZeroFP()));
+
+  EXPECT_FALSE(match(ScalarUndef, m_Inf()));
+  EXPECT_FALSE(match(VectorUndef, m_Inf()));
+  EXPECT_FALSE(match(VectorZeroUndef, m_Inf()));
+  EXPECT_TRUE(match(ScalarPosInf, m_Inf()));
+  EXPECT_TRUE(match(ScalarNegInf, m_Inf()));
+  EXPECT_TRUE(match(VectorInfUndef, m_Inf()));
+
+  const APFloat *C;
+  // Regardless of whether undefs are allowed,
+  // a fully undef constant does not match.
+  EXPECT_FALSE(match(ScalarUndef, m_APFloat(C)));
+  EXPECT_FALSE(match(ScalarUndef, m_APFloatForbidUndef(C)));
+  EXPECT_FALSE(match(ScalarUndef, m_APFloatAllowUndef(C)));
+  EXPECT_FALSE(match(VectorUndef, m_APFloat(C)));
+  EXPECT_FALSE(match(VectorUndef, m_APFloatForbidUndef(C)));
+  EXPECT_FALSE(match(VectorUndef, m_APFloatAllowUndef(C)));
+
+  // We can always match simple constants and simple splats.
+  C = nullptr;
+  EXPECT_TRUE(match(ScalarZero, m_APFloat(C)));
+  EXPECT_TRUE(C->isZero());
+  C = nullptr;
+  EXPECT_TRUE(match(ScalarZero, m_APFloatForbidUndef(C)));
+  EXPECT_TRUE(C->isZero());
+  C = nullptr;
+  EXPECT_TRUE(match(ScalarZero, m_APFloatAllowUndef(C)));
+  EXPECT_TRUE(C->isZero());
+  C = nullptr;
+  EXPECT_TRUE(match(VectorZero, m_APFloat(C)));
+  EXPECT_TRUE(C->isZero());
+  C = nullptr;
+  EXPECT_TRUE(match(VectorZero, m_APFloatForbidUndef(C)));
+  EXPECT_TRUE(C->isZero());
+  C = nullptr;
+  EXPECT_TRUE(match(VectorZero, m_APFloatAllowUndef(C)));
+  EXPECT_TRUE(C->isZero());
+
+  // Whether splats with undef can be matched depends on the matcher.
+  EXPECT_FALSE(match(VectorZeroUndef, m_APFloat(C)));
+  EXPECT_FALSE(match(VectorZeroUndef, m_APFloatForbidUndef(C)));
+  C = nullptr;
+  EXPECT_TRUE(match(VectorZeroUndef, m_APFloatAllowUndef(C)));
+  EXPECT_TRUE(C->isZero());
 }
 
 TEST_F(PatternMatchTest, FloatingPointFNeg) {
@@ -1245,8 +1335,8 @@ TYPED_TEST_CASE(MutableConstTest, MutableConstTestTypes);
 TYPED_TEST(MutableConstTest, ICmp) {
   auto &IRB = PatternMatchTest::IRB;
 
-  typedef typename std::tuple_element<0, TypeParam>::type ValueType;
-  typedef typename std::tuple_element<1, TypeParam>::type InstructionType;
+  typedef std::tuple_element_t<0, TypeParam> ValueType;
+  typedef std::tuple_element_t<1, TypeParam> InstructionType;
 
   Value *L = IRB.getInt32(1);
   Value *R = IRB.getInt32(2);

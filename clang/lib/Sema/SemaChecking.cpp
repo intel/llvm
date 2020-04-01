@@ -201,6 +201,87 @@ static bool SemaBuiltinPreserveAI(Sema &S, CallExpr *TheCall) {
   return false;
 }
 
+/// Check that the value argument for __builtin_is_aligned(value, alignment) and
+/// __builtin_aligned_{up,down}(value, alignment) is an integer or a pointer
+/// type (but not a function pointer) and that the alignment is a power-of-two.
+static bool SemaBuiltinAlignment(Sema &S, CallExpr *TheCall, unsigned ID) {
+  if (checkArgCount(S, TheCall, 2))
+    return true;
+
+  clang::Expr *Source = TheCall->getArg(0);
+  bool IsBooleanAlignBuiltin = ID == Builtin::BI__builtin_is_aligned;
+
+  auto IsValidIntegerType = [](QualType Ty) {
+    return Ty->isIntegerType() && !Ty->isEnumeralType() && !Ty->isBooleanType();
+  };
+  QualType SrcTy = Source->getType();
+  // We should also be able to use it with arrays (but not functions!).
+  if (SrcTy->canDecayToPointerType() && SrcTy->isArrayType()) {
+    SrcTy = S.Context.getDecayedType(SrcTy);
+  }
+  if ((!SrcTy->isPointerType() && !IsValidIntegerType(SrcTy)) ||
+      SrcTy->isFunctionPointerType()) {
+    // FIXME: this is not quite the right error message since we don't allow
+    // floating point types, or member pointers.
+    S.Diag(Source->getExprLoc(), diag::err_typecheck_expect_scalar_operand)
+        << SrcTy;
+    return true;
+  }
+
+  clang::Expr *AlignOp = TheCall->getArg(1);
+  if (!IsValidIntegerType(AlignOp->getType())) {
+    S.Diag(AlignOp->getExprLoc(), diag::err_typecheck_expect_int)
+        << AlignOp->getType();
+    return true;
+  }
+  Expr::EvalResult AlignResult;
+  unsigned MaxAlignmentBits = S.Context.getIntWidth(SrcTy) - 1;
+  // We can't check validity of alignment if it is type dependent.
+  if (!AlignOp->isInstantiationDependent() &&
+      AlignOp->EvaluateAsInt(AlignResult, S.Context,
+                             Expr::SE_AllowSideEffects)) {
+    llvm::APSInt AlignValue = AlignResult.Val.getInt();
+    llvm::APSInt MaxValue(
+        llvm::APInt::getOneBitSet(MaxAlignmentBits + 1, MaxAlignmentBits));
+    if (AlignValue < 1) {
+      S.Diag(AlignOp->getExprLoc(), diag::err_alignment_too_small) << 1;
+      return true;
+    }
+    if (llvm::APSInt::compareValues(AlignValue, MaxValue) > 0) {
+      S.Diag(AlignOp->getExprLoc(), diag::err_alignment_too_big)
+          << MaxValue.toString(10);
+      return true;
+    }
+    if (!AlignValue.isPowerOf2()) {
+      S.Diag(AlignOp->getExprLoc(), diag::err_alignment_not_power_of_two);
+      return true;
+    }
+    if (AlignValue == 1) {
+      S.Diag(AlignOp->getExprLoc(), diag::warn_alignment_builtin_useless)
+          << IsBooleanAlignBuiltin;
+    }
+  }
+
+  ExprResult SrcArg = S.PerformCopyInitialization(
+      InitializedEntity::InitializeParameter(S.Context, SrcTy, false),
+      SourceLocation(), Source);
+  if (SrcArg.isInvalid())
+    return true;
+  TheCall->setArg(0, SrcArg.get());
+  ExprResult AlignArg =
+      S.PerformCopyInitialization(InitializedEntity::InitializeParameter(
+                                      S.Context, AlignOp->getType(), false),
+                                  SourceLocation(), AlignOp);
+  if (AlignArg.isInvalid())
+    return true;
+  TheCall->setArg(1, AlignArg.get());
+  // For align_up/align_down, the return type is the same as the (potentially
+  // decayed) argument type including qualifiers. For is_aligned(), the result
+  // is always bool.
+  TheCall->setType(IsBooleanAlignBuiltin ? S.Context.BoolTy : SrcTy);
+  return false;
+}
+
 static bool SemaBuiltinOverflow(Sema &S, CallExpr *TheCall) {
   if (checkArgCount(S, TheCall, 3))
     return true;
@@ -309,13 +390,194 @@ static bool SemaBuiltinCallWithStaticChain(Sema &S, CallExpr *BuiltinCall) {
   return false;
 }
 
+namespace {
+
+class EstimateSizeFormatHandler
+    : public analyze_format_string::FormatStringHandler {
+  size_t Size;
+
+public:
+  EstimateSizeFormatHandler(StringRef Format)
+      : Size(std::min(Format.find(0), Format.size()) +
+             1 /* null byte always written by sprintf */) {}
+
+  bool HandlePrintfSpecifier(const analyze_printf::PrintfSpecifier &FS,
+                             const char *, unsigned SpecifierLen) override {
+
+    const size_t FieldWidth = computeFieldWidth(FS);
+    const size_t Precision = computePrecision(FS);
+
+    // The actual format.
+    switch (FS.getConversionSpecifier().getKind()) {
+    // Just a char.
+    case analyze_format_string::ConversionSpecifier::cArg:
+    case analyze_format_string::ConversionSpecifier::CArg:
+      Size += std::max(FieldWidth, (size_t)1);
+      break;
+    // Just an integer.
+    case analyze_format_string::ConversionSpecifier::dArg:
+    case analyze_format_string::ConversionSpecifier::DArg:
+    case analyze_format_string::ConversionSpecifier::iArg:
+    case analyze_format_string::ConversionSpecifier::oArg:
+    case analyze_format_string::ConversionSpecifier::OArg:
+    case analyze_format_string::ConversionSpecifier::uArg:
+    case analyze_format_string::ConversionSpecifier::UArg:
+    case analyze_format_string::ConversionSpecifier::xArg:
+    case analyze_format_string::ConversionSpecifier::XArg:
+      Size += std::max(FieldWidth, Precision);
+      break;
+
+    // %g style conversion switches between %f or %e style dynamically.
+    // %f always takes less space, so default to it.
+    case analyze_format_string::ConversionSpecifier::gArg:
+    case analyze_format_string::ConversionSpecifier::GArg:
+
+    // Floating point number in the form '[+]ddd.ddd'.
+    case analyze_format_string::ConversionSpecifier::fArg:
+    case analyze_format_string::ConversionSpecifier::FArg:
+      Size += std::max(FieldWidth, 1 /* integer part */ +
+                                       (Precision ? 1 + Precision
+                                                  : 0) /* period + decimal */);
+      break;
+
+    // Floating point number in the form '[-]d.ddde[+-]dd'.
+    case analyze_format_string::ConversionSpecifier::eArg:
+    case analyze_format_string::ConversionSpecifier::EArg:
+      Size +=
+          std::max(FieldWidth,
+                   1 /* integer part */ +
+                       (Precision ? 1 + Precision : 0) /* period + decimal */ +
+                       1 /* e or E letter */ + 2 /* exponent */);
+      break;
+
+    // Floating point number in the form '[-]0xh.hhhhp±dd'.
+    case analyze_format_string::ConversionSpecifier::aArg:
+    case analyze_format_string::ConversionSpecifier::AArg:
+      Size +=
+          std::max(FieldWidth,
+                   2 /* 0x */ + 1 /* integer part */ +
+                       (Precision ? 1 + Precision : 0) /* period + decimal */ +
+                       1 /* p or P letter */ + 1 /* + or - */ + 1 /* value */);
+      break;
+
+    // Just a string.
+    case analyze_format_string::ConversionSpecifier::sArg:
+    case analyze_format_string::ConversionSpecifier::SArg:
+      Size += FieldWidth;
+      break;
+
+    // Just a pointer in the form '0xddd'.
+    case analyze_format_string::ConversionSpecifier::pArg:
+      Size += std::max(FieldWidth, 2 /* leading 0x */ + Precision);
+      break;
+
+    // A plain percent.
+    case analyze_format_string::ConversionSpecifier::PercentArg:
+      Size += 1;
+      break;
+
+    default:
+      break;
+    }
+
+    Size += FS.hasPlusPrefix() || FS.hasSpacePrefix();
+
+    if (FS.hasAlternativeForm()) {
+      switch (FS.getConversionSpecifier().getKind()) {
+      default:
+        break;
+      // Force a leading '0'.
+      case analyze_format_string::ConversionSpecifier::oArg:
+        Size += 1;
+        break;
+      // Force a leading '0x'.
+      case analyze_format_string::ConversionSpecifier::xArg:
+      case analyze_format_string::ConversionSpecifier::XArg:
+        Size += 2;
+        break;
+      // Force a period '.' before decimal, even if precision is 0.
+      case analyze_format_string::ConversionSpecifier::aArg:
+      case analyze_format_string::ConversionSpecifier::AArg:
+      case analyze_format_string::ConversionSpecifier::eArg:
+      case analyze_format_string::ConversionSpecifier::EArg:
+      case analyze_format_string::ConversionSpecifier::fArg:
+      case analyze_format_string::ConversionSpecifier::FArg:
+      case analyze_format_string::ConversionSpecifier::gArg:
+      case analyze_format_string::ConversionSpecifier::GArg:
+        Size += (Precision ? 0 : 1);
+        break;
+      }
+    }
+    assert(SpecifierLen <= Size && "no underflow");
+    Size -= SpecifierLen;
+    return true;
+  }
+
+  size_t getSizeLowerBound() const { return Size; }
+
+private:
+  static size_t computeFieldWidth(const analyze_printf::PrintfSpecifier &FS) {
+    const analyze_format_string::OptionalAmount &FW = FS.getFieldWidth();
+    size_t FieldWidth = 0;
+    if (FW.getHowSpecified() == analyze_format_string::OptionalAmount::Constant)
+      FieldWidth = FW.getConstantAmount();
+    return FieldWidth;
+  }
+
+  static size_t computePrecision(const analyze_printf::PrintfSpecifier &FS) {
+    const analyze_format_string::OptionalAmount &FW = FS.getPrecision();
+    size_t Precision = 0;
+
+    // See man 3 printf for default precision value based on the specifier.
+    switch (FW.getHowSpecified()) {
+    case analyze_format_string::OptionalAmount::NotSpecified:
+      switch (FS.getConversionSpecifier().getKind()) {
+      default:
+        break;
+      case analyze_format_string::ConversionSpecifier::dArg: // %d
+      case analyze_format_string::ConversionSpecifier::DArg: // %D
+      case analyze_format_string::ConversionSpecifier::iArg: // %i
+        Precision = 1;
+        break;
+      case analyze_format_string::ConversionSpecifier::oArg: // %d
+      case analyze_format_string::ConversionSpecifier::OArg: // %D
+      case analyze_format_string::ConversionSpecifier::uArg: // %d
+      case analyze_format_string::ConversionSpecifier::UArg: // %D
+      case analyze_format_string::ConversionSpecifier::xArg: // %d
+      case analyze_format_string::ConversionSpecifier::XArg: // %D
+        Precision = 1;
+        break;
+      case analyze_format_string::ConversionSpecifier::fArg: // %f
+      case analyze_format_string::ConversionSpecifier::FArg: // %F
+      case analyze_format_string::ConversionSpecifier::eArg: // %e
+      case analyze_format_string::ConversionSpecifier::EArg: // %E
+      case analyze_format_string::ConversionSpecifier::gArg: // %g
+      case analyze_format_string::ConversionSpecifier::GArg: // %G
+        Precision = 6;
+        break;
+      case analyze_format_string::ConversionSpecifier::pArg: // %d
+        Precision = 1;
+        break;
+      }
+      break;
+    case analyze_format_string::OptionalAmount::Constant:
+      Precision = FW.getConstantAmount();
+      break;
+    default:
+      break;
+    }
+    return Precision;
+  }
+};
+
+} // namespace
+
 /// Check a call to BuiltinID for buffer overflows. If BuiltinID is a
 /// __builtin_*_chk function, then use the object size argument specified in the
 /// source. Otherwise, infer the object size using __builtin_object_size.
 void Sema::checkFortifiedBuiltinMemoryFunction(FunctionDecl *FD,
                                                CallExpr *TheCall) {
   // FIXME: There are some more useful checks we could be doing here:
-  //  - Analyze the format string of sprintf to see how much of buffer is used.
   //  - Evaluate strlen of strcpy arguments, use as object size.
 
   if (TheCall->isValueDependent() || TheCall->isTypeDependent() ||
@@ -326,12 +588,55 @@ void Sema::checkFortifiedBuiltinMemoryFunction(FunctionDecl *FD,
   if (!BuiltinID)
     return;
 
+  const TargetInfo &TI = getASTContext().getTargetInfo();
+  unsigned SizeTypeWidth = TI.getTypeWidth(TI.getSizeType());
+
   unsigned DiagID = 0;
   bool IsChkVariant = false;
+  Optional<llvm::APSInt> UsedSize;
   unsigned SizeIndex, ObjectIndex;
   switch (BuiltinID) {
   default:
     return;
+  case Builtin::BIsprintf:
+  case Builtin::BI__builtin___sprintf_chk: {
+    size_t FormatIndex = BuiltinID == Builtin::BIsprintf ? 1 : 3;
+    auto *FormatExpr = TheCall->getArg(FormatIndex)->IgnoreParenImpCasts();
+
+    if (auto *Format = dyn_cast<StringLiteral>(FormatExpr)) {
+
+      if (!Format->isAscii() && !Format->isUTF8())
+        return;
+
+      StringRef FormatStrRef = Format->getString();
+      EstimateSizeFormatHandler H(FormatStrRef);
+      const char *FormatBytes = FormatStrRef.data();
+      const ConstantArrayType *T =
+          Context.getAsConstantArrayType(Format->getType());
+      assert(T && "String literal not of constant array type!");
+      size_t TypeSize = T->getSize().getZExtValue();
+
+      // In case there's a null byte somewhere.
+      size_t StrLen =
+          std::min(std::max(TypeSize, size_t(1)) - 1, FormatStrRef.find(0));
+      if (!analyze_format_string::ParsePrintfString(
+              H, FormatBytes, FormatBytes + StrLen, getLangOpts(),
+              Context.getTargetInfo(), false)) {
+        DiagID = diag::warn_fortify_source_format_overflow;
+        UsedSize = llvm::APSInt::getUnsigned(H.getSizeLowerBound())
+                       .extOrTrunc(SizeTypeWidth);
+        if (BuiltinID == Builtin::BI__builtin___sprintf_chk) {
+          IsChkVariant = true;
+          ObjectIndex = 2;
+        } else {
+          IsChkVariant = false;
+          ObjectIndex = 0;
+        }
+        break;
+      }
+    }
+    return;
+  }
   case Builtin::BI__builtin___memcpy_chk:
   case Builtin::BI__builtin___memmove_chk:
   case Builtin::BI__builtin___memset_chk:
@@ -424,19 +729,19 @@ void Sema::checkFortifiedBuiltinMemoryFunction(FunctionDecl *FD,
     if (!ObjArg->tryEvaluateObjectSize(Result, getASTContext(), BOSType))
       return;
     // Get the object size in the target's size_t width.
-    const TargetInfo &TI = getASTContext().getTargetInfo();
-    unsigned SizeTypeWidth = TI.getTypeWidth(TI.getSizeType());
     ObjectSize = llvm::APSInt::getUnsigned(Result).extOrTrunc(SizeTypeWidth);
   }
 
   // Evaluate the number of bytes of the object that this call will use.
-  Expr::EvalResult Result;
-  Expr *UsedSizeArg = TheCall->getArg(SizeIndex);
-  if (!UsedSizeArg->EvaluateAsInt(Result, getASTContext()))
-    return;
-  llvm::APSInt UsedSize = Result.Val.getInt();
+  if (!UsedSize) {
+    Expr::EvalResult Result;
+    Expr *UsedSizeArg = TheCall->getArg(SizeIndex);
+    if (!UsedSizeArg->EvaluateAsInt(Result, getASTContext()))
+      return;
+    UsedSize = Result.Val.getInt().extOrTrunc(SizeTypeWidth);
+  }
 
-  if (UsedSize.ule(ObjectSize))
+  if (UsedSize.getValue().ule(ObjectSize))
     return;
 
   StringRef FunctionName = getASTContext().BuiltinInfo.getName(BuiltinID);
@@ -452,7 +757,7 @@ void Sema::checkFortifiedBuiltinMemoryFunction(FunctionDecl *FD,
   DiagRuntimeBehavior(TheCall->getBeginLoc(), TheCall,
                       PDiag(DiagID)
                           << FunctionName << ObjectSize.toString(/*Radix=*/10)
-                          << UsedSize.toString(/*Radix=*/10));
+                          << UsedSize.getValue().toString(/*Radix=*/10));
 }
 
 static bool SemaBuiltinSEHScopeCheck(Sema &SemaRef, CallExpr *TheCall,
@@ -1071,6 +1376,9 @@ CheckBuiltinTargetSupport(Sema &S, unsigned BuiltinID, CallExpr *TheCall,
   return true;
 }
 
+static void CheckNonNullArgument(Sema &S, const Expr *ArgExpr,
+                                 SourceLocation CallSiteLoc);
+
 ExprResult
 Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
                                CallExpr *TheCall) {
@@ -1340,6 +1648,14 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
   case Builtin::BI__builtin_nontemporal_load:
   case Builtin::BI__builtin_nontemporal_store:
     return SemaBuiltinNontemporalOverloaded(TheCallResult);
+  case Builtin::BI__builtin_memcpy_inline: {
+    // __builtin_memcpy_inline size argument is a constant by definition.
+    if (TheCall->getArg(2)->EvaluateKnownConstInt(Context).isNullValue())
+      break;
+    CheckNonNullArgument(*this, TheCall->getArg(0), TheCall->getExprLoc());
+    CheckNonNullArgument(*this, TheCall->getArg(1), TheCall->getExprLoc());
+    break;
+  }
 #define BUILTIN(ID, TYPE, ATTRS)
 #define ATOMIC_BUILTIN(ID, TYPE, ATTRS) \
   case Builtin::BI##ID: \
@@ -1355,6 +1671,12 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
     break;
   case Builtin::BI__builtin_addressof:
     if (SemaBuiltinAddressof(*this, TheCall))
+      return ExprError();
+    break;
+  case Builtin::BI__builtin_is_aligned:
+  case Builtin::BI__builtin_align_up:
+  case Builtin::BI__builtin_align_down:
+    if (SemaBuiltinAlignment(*this, TheCall, BuiltinID))
       return ExprError();
     break;
   case Builtin::BI__builtin_add_overflow:
@@ -1521,6 +1843,8 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
       return ExprError();
     break;
   case Builtin::BI__builtin_os_log_format:
+    Cleanup.setExprNeedsCleanups(true);
+    LLVM_FALLTHROUGH;
   case Builtin::BI__builtin_os_log_format_buffer_size:
     if (SemaBuiltinOSLogFormat(TheCall))
       return ExprError();
@@ -1544,6 +1868,22 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
     }
     if (CheckIntelFPGAMemBuiltinFunctionCall(TheCall))
       return ExprError();
+    break;
+  case Builtin::BI__builtin_frame_address:
+  case Builtin::BI__builtin_return_address:
+    if (SemaBuiltinConstantArgRange(TheCall, 0, 0, 0xFFFF))
+      return ExprError();
+
+    // -Wframe-address warning if non-zero passed to builtin
+    // return/frame address.
+    Expr::EvalResult Result;
+    if (TheCall->getArg(0)->EvaluateAsInt(Result, getASTContext()) &&
+        Result.Val.getInt() != 0)
+      Diag(TheCall->getBeginLoc(), diag::warn_frame_address)
+          << ((BuiltinID == Builtin::BI__builtin_return_address)
+                  ? "__builtin_return_address"
+                  : "__builtin_frame_address")
+          << TheCall->getSourceRange();
     break;
   }
 
@@ -1750,6 +2090,45 @@ bool Sema::CheckMVEBuiltinFunctionCall(unsigned BuiltinID, CallExpr *TheCall) {
   }
 }
 
+bool Sema::CheckCDEBuiltinFunctionCall(unsigned BuiltinID, CallExpr *TheCall) {
+  bool Err = false;
+  switch (BuiltinID) {
+  default:
+    return false;
+#include "clang/Basic/arm_cde_builtin_sema.inc"
+  }
+
+  if (Err)
+    return true;
+
+  return CheckARMCoprocessorImmediate(TheCall->getArg(0), /*WantCDE*/ true);
+}
+
+bool Sema::CheckARMCoprocessorImmediate(const Expr *CoprocArg, bool WantCDE) {
+  if (isConstantEvaluated())
+    return false;
+
+  // We can't check the value of a dependent argument.
+  if (CoprocArg->isTypeDependent() || CoprocArg->isValueDependent())
+    return false;
+
+  llvm::APSInt CoprocNoAP;
+  bool IsICE = CoprocArg->isIntegerConstantExpr(CoprocNoAP, Context);
+  (void)IsICE;
+  assert(IsICE && "Coprocossor immediate is not a constant expression");
+  int64_t CoprocNo = CoprocNoAP.getExtValue();
+  assert(CoprocNo >= 0 && "Coprocessor immediate must be non-negative");
+
+  uint32_t CDECoprocMask = Context.getTargetInfo().getARMCDECoprocMask();
+  bool IsCDECoproc = CoprocNo <= 7 && (CDECoprocMask & (1 << CoprocNo));
+
+  if (IsCDECoproc != WantCDE)
+    return Diag(CoprocArg->getBeginLoc(), diag::err_arm_invalid_coproc)
+           << (int)CoprocNo << (int)WantCDE << CoprocArg->getSourceRange();
+
+  return false;
+}
+
 bool Sema::CheckARMBuiltinExclusiveCall(unsigned BuiltinID, CallExpr *TheCall,
                                         unsigned MaxWidth) {
   assert((BuiltinID == ARM::BI__builtin_arm_ldrex ||
@@ -1892,6 +2271,8 @@ bool Sema::CheckARMBuiltinFunctionCall(unsigned BuiltinID, CallExpr *TheCall) {
     return true;
   if (CheckMVEBuiltinFunctionCall(BuiltinID, TheCall))
     return true;
+  if (CheckCDEBuiltinFunctionCall(BuiltinID, TheCall))
+    return true;
 
   // For intrinsics which take an immediate value as part of the instruction,
   // range check them here.
@@ -1914,6 +2295,26 @@ bool Sema::CheckARMBuiltinFunctionCall(unsigned BuiltinID, CallExpr *TheCall) {
   case ARM::BI__builtin_arm_isb:
   case ARM::BI__builtin_arm_dbg:
     return SemaBuiltinConstantArgRange(TheCall, 0, 0, 15);
+  case ARM::BI__builtin_arm_cdp:
+  case ARM::BI__builtin_arm_cdp2:
+  case ARM::BI__builtin_arm_mcr:
+  case ARM::BI__builtin_arm_mcr2:
+  case ARM::BI__builtin_arm_mrc:
+  case ARM::BI__builtin_arm_mrc2:
+  case ARM::BI__builtin_arm_mcrr:
+  case ARM::BI__builtin_arm_mcrr2:
+  case ARM::BI__builtin_arm_mrrc:
+  case ARM::BI__builtin_arm_mrrc2:
+  case ARM::BI__builtin_arm_ldc:
+  case ARM::BI__builtin_arm_ldcl:
+  case ARM::BI__builtin_arm_ldc2:
+  case ARM::BI__builtin_arm_ldc2l:
+  case ARM::BI__builtin_arm_stc:
+  case ARM::BI__builtin_arm_stcl:
+  case ARM::BI__builtin_arm_stc2:
+  case ARM::BI__builtin_arm_stc2l:
+    return SemaBuiltinConstantArgRange(TheCall, 0, 0, 15) ||
+           CheckARMCoprocessorImmediate(TheCall->getArg(0), /*WantCDE*/ false);
   }
 }
 
@@ -2014,825 +2415,6 @@ bool Sema::CheckBPFBuiltinFunctionCall(unsigned BuiltinID,
   return false;
 }
 
-bool Sema::CheckHexagonBuiltinCpu(unsigned BuiltinID, CallExpr *TheCall) {
-  struct BuiltinAndString {
-    unsigned BuiltinID;
-    const char *Str;
-  };
-
-  static BuiltinAndString ValidCPU[] = {
-    { Hexagon::BI__builtin_HEXAGON_A6_vcmpbeq_notany, "v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_A6_vminub_RdP, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_F2_dfadd, "v66" },
-    { Hexagon::BI__builtin_HEXAGON_F2_dfsub, "v66" },
-    { Hexagon::BI__builtin_HEXAGON_M2_mnaci, "v66" },
-    { Hexagon::BI__builtin_HEXAGON_M6_vabsdiffb, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_M6_vabsdiffub, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_S2_mask, "v66" },
-    { Hexagon::BI__builtin_HEXAGON_S6_rol_i_p_acc, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_S6_rol_i_p_and, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_S6_rol_i_p_nac, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_S6_rol_i_p_or, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_S6_rol_i_p, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_S6_rol_i_p_xacc, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_S6_rol_i_r_acc, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_S6_rol_i_r_and, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_S6_rol_i_r_nac, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_S6_rol_i_r_or, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_S6_rol_i_r, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_S6_rol_i_r_xacc, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_S6_vsplatrbp, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_S6_vtrunehb_ppp, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_S6_vtrunohb_ppp, "v62,v65,v66" },
-  };
-
-  static BuiltinAndString ValidHVX[] = {
-    { Hexagon::BI__builtin_HEXAGON_V6_hi, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_hi_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_lo, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_lo_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_extractw, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_extractw_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_lvsplatb, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_lvsplatb_128B, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_lvsplath, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_lvsplath_128B, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_lvsplatw, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_lvsplatw_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_pred_and, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_pred_and_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_pred_and_n, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_pred_and_n_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_pred_not, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_pred_not_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_pred_or, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_pred_or_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_pred_or_n, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_pred_or_n_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_pred_scalar2, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_pred_scalar2_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_pred_scalar2v2, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_pred_scalar2v2_128B, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_pred_xor, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_pred_xor_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_shuffeqh, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_shuffeqh_128B, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_shuffeqw, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_shuffeqw_128B, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vabsb, "v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vabsb_128B, "v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vabsb_sat, "v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vabsb_sat_128B, "v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vabsdiffh, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vabsdiffh_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vabsdiffub, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vabsdiffub_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vabsdiffuh, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vabsdiffuh_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vabsdiffw, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vabsdiffw_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vabsh, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vabsh_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vabsh_sat, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vabsh_sat_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vabsw, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vabsw_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vabsw_sat, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vabsw_sat_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vaddb, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vaddb_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vaddb_dv, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vaddb_dv_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vaddbsat, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vaddbsat_128B, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vaddbsat_dv, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vaddbsat_dv_128B, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vaddcarry, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vaddcarry_128B, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vaddcarrysat, "v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vaddcarrysat_128B, "v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vaddclbh, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vaddclbh_128B, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vaddclbw, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vaddclbw_128B, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vaddh, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vaddh_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vaddh_dv, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vaddh_dv_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vaddhsat, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vaddhsat_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vaddhsat_dv, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vaddhsat_dv_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vaddhw, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vaddhw_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vaddhw_acc, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vaddhw_acc_128B, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vaddubh, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vaddubh_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vaddubh_acc, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vaddubh_acc_128B, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vaddubsat, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vaddubsat_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vaddubsat_dv, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vaddubsat_dv_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vaddububb_sat, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vaddububb_sat_128B, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vadduhsat, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vadduhsat_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vadduhsat_dv, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vadduhsat_dv_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vadduhw, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vadduhw_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vadduhw_acc, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vadduhw_acc_128B, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vadduwsat, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vadduwsat_128B, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vadduwsat_dv, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vadduwsat_dv_128B, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vaddw, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vaddw_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vaddw_dv, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vaddw_dv_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vaddwsat, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vaddwsat_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vaddwsat_dv, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vaddwsat_dv_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_valignb, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_valignb_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_valignbi, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_valignbi_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vand, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vand_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vandnqrt, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vandnqrt_128B, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vandnqrt_acc, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vandnqrt_acc_128B, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vandqrt, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vandqrt_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vandqrt_acc, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vandqrt_acc_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vandvnqv, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vandvnqv_128B, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vandvqv, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vandvqv_128B, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vandvrt, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vandvrt_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vandvrt_acc, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vandvrt_acc_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vaslh, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vaslh_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vaslh_acc, "v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vaslh_acc_128B, "v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vaslhv, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vaslhv_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vaslw, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vaslw_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vaslw_acc, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vaslw_acc_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vaslwv, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vaslwv_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vasrh, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vasrh_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vasrh_acc, "v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vasrh_acc_128B, "v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vasrhbrndsat, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vasrhbrndsat_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vasrhbsat, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vasrhbsat_128B, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vasrhubrndsat, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vasrhubrndsat_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vasrhubsat, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vasrhubsat_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vasrhv, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vasrhv_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vasr_into, "v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vasr_into_128B, "v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vasruhubrndsat, "v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vasruhubrndsat_128B, "v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vasruhubsat, "v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vasruhubsat_128B, "v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vasruwuhrndsat, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vasruwuhrndsat_128B, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vasruwuhsat, "v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vasruwuhsat_128B, "v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vasrw, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vasrw_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vasrw_acc, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vasrw_acc_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vasrwh, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vasrwh_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vasrwhrndsat, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vasrwhrndsat_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vasrwhsat, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vasrwhsat_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vasrwuhrndsat, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vasrwuhrndsat_128B, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vasrwuhsat, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vasrwuhsat_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vasrwv, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vasrwv_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vassign, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vassign_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vassignp, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vassignp_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vavgb, "v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vavgb_128B, "v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vavgbrnd, "v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vavgbrnd_128B, "v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vavgh, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vavgh_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vavghrnd, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vavghrnd_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vavgub, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vavgub_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vavgubrnd, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vavgubrnd_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vavguh, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vavguh_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vavguhrnd, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vavguhrnd_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vavguw, "v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vavguw_128B, "v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vavguwrnd, "v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vavguwrnd_128B, "v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vavgw, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vavgw_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vavgwrnd, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vavgwrnd_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vcl0h, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vcl0h_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vcl0w, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vcl0w_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vcombine, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vcombine_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vd0, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vd0_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vdd0, "v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vdd0_128B, "v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vdealb, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vdealb_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vdealb4w, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vdealb4w_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vdealh, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vdealh_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vdealvdd, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vdealvdd_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vdelta, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vdelta_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vdmpybus, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vdmpybus_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vdmpybus_acc, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vdmpybus_acc_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vdmpybus_dv, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vdmpybus_dv_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vdmpybus_dv_acc, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vdmpybus_dv_acc_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vdmpyhb, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vdmpyhb_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vdmpyhb_acc, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vdmpyhb_acc_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vdmpyhb_dv, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vdmpyhb_dv_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vdmpyhb_dv_acc, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vdmpyhb_dv_acc_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vdmpyhisat, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vdmpyhisat_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vdmpyhisat_acc, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vdmpyhisat_acc_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vdmpyhsat, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vdmpyhsat_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vdmpyhsat_acc, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vdmpyhsat_acc_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vdmpyhsuisat, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vdmpyhsuisat_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vdmpyhsuisat_acc, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vdmpyhsuisat_acc_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vdmpyhsusat, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vdmpyhsusat_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vdmpyhsusat_acc, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vdmpyhsusat_acc_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vdmpyhvsat, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vdmpyhvsat_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vdmpyhvsat_acc, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vdmpyhvsat_acc_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vdsaduh, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vdsaduh_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vdsaduh_acc, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vdsaduh_acc_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_veqb, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_veqb_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_veqb_and, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_veqb_and_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_veqb_or, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_veqb_or_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_veqb_xor, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_veqb_xor_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_veqh, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_veqh_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_veqh_and, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_veqh_and_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_veqh_or, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_veqh_or_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_veqh_xor, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_veqh_xor_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_veqw, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_veqw_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_veqw_and, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_veqw_and_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_veqw_or, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_veqw_or_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_veqw_xor, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_veqw_xor_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vgtb, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vgtb_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vgtb_and, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vgtb_and_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vgtb_or, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vgtb_or_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vgtb_xor, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vgtb_xor_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vgth, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vgth_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vgth_and, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vgth_and_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vgth_or, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vgth_or_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vgth_xor, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vgth_xor_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vgtub, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vgtub_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vgtub_and, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vgtub_and_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vgtub_or, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vgtub_or_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vgtub_xor, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vgtub_xor_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vgtuh, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vgtuh_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vgtuh_and, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vgtuh_and_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vgtuh_or, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vgtuh_or_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vgtuh_xor, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vgtuh_xor_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vgtuw, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vgtuw_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vgtuw_and, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vgtuw_and_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vgtuw_or, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vgtuw_or_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vgtuw_xor, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vgtuw_xor_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vgtw, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vgtw_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vgtw_and, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vgtw_and_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vgtw_or, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vgtw_or_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vgtw_xor, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vgtw_xor_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vinsertwr, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vinsertwr_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vlalignb, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vlalignb_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vlalignbi, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vlalignbi_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vlsrb, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vlsrb_128B, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vlsrh, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vlsrh_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vlsrhv, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vlsrhv_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vlsrw, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vlsrw_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vlsrwv, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vlsrwv_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vlut4, "v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vlut4_128B, "v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vlutvvb, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vlutvvb_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vlutvvbi, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vlutvvbi_128B, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vlutvvb_nm, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vlutvvb_nm_128B, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vlutvvb_oracc, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vlutvvb_oracc_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vlutvvb_oracci, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vlutvvb_oracci_128B, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vlutvwh, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vlutvwh_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vlutvwhi, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vlutvwhi_128B, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vlutvwh_nm, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vlutvwh_nm_128B, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vlutvwh_oracc, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vlutvwh_oracc_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vlutvwh_oracci, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vlutvwh_oracci_128B, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmaxb, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmaxb_128B, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmaxh, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmaxh_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmaxub, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmaxub_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmaxuh, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmaxuh_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmaxw, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmaxw_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vminb, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vminb_128B, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vminh, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vminh_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vminub, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vminub_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vminuh, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vminuh_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vminw, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vminw_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpabus, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpabus_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpabus_acc, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpabus_acc_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpabusv, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpabusv_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpabuu, "v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpabuu_128B, "v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpabuu_acc, "v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpabuu_acc_128B, "v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpabuuv, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpabuuv_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpahb, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpahb_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpahb_acc, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpahb_acc_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpahhsat, "v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpahhsat_128B, "v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpauhb, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpauhb_128B, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpauhb_acc, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpauhb_acc_128B, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpauhuhsat, "v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpauhuhsat_128B, "v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpsuhuhsat, "v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpsuhuhsat_128B, "v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpybus, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpybus_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpybus_acc, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpybus_acc_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpybusv, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpybusv_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpybusv_acc, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpybusv_acc_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpybv, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpybv_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpybv_acc, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpybv_acc_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyewuh, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyewuh_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyewuh_64, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyewuh_64_128B, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyh, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyh_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyh_acc, "v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyh_acc_128B, "v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyhsat_acc, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyhsat_acc_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyhsrs, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyhsrs_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyhss, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyhss_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyhus, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyhus_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyhus_acc, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyhus_acc_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyhv, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyhv_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyhv_acc, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyhv_acc_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyhvsrs, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyhvsrs_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyieoh, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyieoh_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyiewh_acc, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyiewh_acc_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyiewuh, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyiewuh_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyiewuh_acc, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyiewuh_acc_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyih, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyih_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyih_acc, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyih_acc_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyihb, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyihb_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyihb_acc, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyihb_acc_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyiowh, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyiowh_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyiwb, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyiwb_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyiwb_acc, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyiwb_acc_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyiwh, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyiwh_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyiwh_acc, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyiwh_acc_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyiwub, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyiwub_128B, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyiwub_acc, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyiwub_acc_128B, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyowh, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyowh_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyowh_64_acc, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyowh_64_acc_128B, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyowh_rnd, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyowh_rnd_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyowh_rnd_sacc, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyowh_rnd_sacc_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyowh_sacc, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyowh_sacc_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyub, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyub_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyub_acc, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyub_acc_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyubv, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyubv_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyubv_acc, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyubv_acc_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyuh, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyuh_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyuh_acc, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyuh_acc_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyuhe, "v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyuhe_128B, "v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyuhe_acc, "v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyuhe_acc_128B, "v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyuhv, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyuhv_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyuhv_acc, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmpyuhv_acc_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmux, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vmux_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vnavgb, "v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vnavgb_128B, "v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vnavgh, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vnavgh_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vnavgub, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vnavgub_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vnavgw, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vnavgw_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vnormamth, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vnormamth_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vnormamtw, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vnormamtw_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vnot, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vnot_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vor, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vor_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vpackeb, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vpackeb_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vpackeh, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vpackeh_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vpackhb_sat, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vpackhb_sat_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vpackhub_sat, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vpackhub_sat_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vpackob, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vpackob_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vpackoh, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vpackoh_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vpackwh_sat, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vpackwh_sat_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vpackwuh_sat, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vpackwuh_sat_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vpopcounth, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vpopcounth_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vprefixqb, "v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vprefixqb_128B, "v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vprefixqh, "v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vprefixqh_128B, "v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vprefixqw, "v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vprefixqw_128B, "v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vrdelta, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vrdelta_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vrmpybub_rtt, "v65" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vrmpybub_rtt_128B, "v65" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vrmpybub_rtt_acc, "v65" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vrmpybub_rtt_acc_128B, "v65" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vrmpybus, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vrmpybus_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vrmpybus_acc, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vrmpybus_acc_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vrmpybusi, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vrmpybusi_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vrmpybusi_acc, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vrmpybusi_acc_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vrmpybusv, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vrmpybusv_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vrmpybusv_acc, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vrmpybusv_acc_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vrmpybv, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vrmpybv_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vrmpybv_acc, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vrmpybv_acc_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vrmpyub, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vrmpyub_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vrmpyub_acc, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vrmpyub_acc_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vrmpyubi, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vrmpyubi_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vrmpyubi_acc, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vrmpyubi_acc_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vrmpyub_rtt, "v65" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vrmpyub_rtt_128B, "v65" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vrmpyub_rtt_acc, "v65" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vrmpyub_rtt_acc_128B, "v65" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vrmpyubv, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vrmpyubv_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vrmpyubv_acc, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vrmpyubv_acc_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vror, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vror_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vrotr, "v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vrotr_128B, "v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vroundhb, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vroundhb_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vroundhub, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vroundhub_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vrounduhub, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vrounduhub_128B, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vrounduwuh, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vrounduwuh_128B, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vroundwh, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vroundwh_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vroundwuh, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vroundwuh_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vrsadubi, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vrsadubi_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vrsadubi_acc, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vrsadubi_acc_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vsatdw, "v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vsatdw_128B, "v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vsathub, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vsathub_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vsatuwuh, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vsatuwuh_128B, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vsatwh, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vsatwh_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vsb, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vsb_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vsh, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vsh_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vshufeh, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vshufeh_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vshuffb, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vshuffb_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vshuffeb, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vshuffeb_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vshuffh, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vshuffh_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vshuffob, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vshuffob_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vshuffvdd, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vshuffvdd_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vshufoeb, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vshufoeb_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vshufoeh, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vshufoeh_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vshufoh, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vshufoh_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vsubb, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vsubb_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vsubb_dv, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vsubb_dv_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vsubbsat, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vsubbsat_128B, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vsubbsat_dv, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vsubbsat_dv_128B, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vsubcarry, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vsubcarry_128B, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vsubh, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vsubh_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vsubh_dv, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vsubh_dv_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vsubhsat, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vsubhsat_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vsubhsat_dv, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vsubhsat_dv_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vsubhw, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vsubhw_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vsububh, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vsububh_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vsububsat, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vsububsat_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vsububsat_dv, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vsububsat_dv_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vsubububb_sat, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vsubububb_sat_128B, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vsubuhsat, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vsubuhsat_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vsubuhsat_dv, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vsubuhsat_dv_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vsubuhw, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vsubuhw_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vsubuwsat, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vsubuwsat_128B, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vsubuwsat_dv, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vsubuwsat_dv_128B, "v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vsubw, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vsubw_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vsubw_dv, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vsubw_dv_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vsubwsat, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vsubwsat_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vsubwsat_dv, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vsubwsat_dv_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vswap, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vswap_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vtmpyb, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vtmpyb_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vtmpyb_acc, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vtmpyb_acc_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vtmpybus, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vtmpybus_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vtmpybus_acc, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vtmpybus_acc_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vtmpyhb, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vtmpyhb_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vtmpyhb_acc, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vtmpyhb_acc_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vunpackb, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vunpackb_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vunpackh, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vunpackh_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vunpackob, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vunpackob_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vunpackoh, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vunpackoh_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vunpackub, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vunpackub_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vunpackuh, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vunpackuh_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vxor, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vxor_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vzb, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vzb_128B, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vzh, "v60,v62,v65,v66" },
-    { Hexagon::BI__builtin_HEXAGON_V6_vzh_128B, "v60,v62,v65,v66" },
-  };
-
-  // Sort the tables on first execution so we can binary search them.
-  auto SortCmp = [](const BuiltinAndString &LHS, const BuiltinAndString &RHS) {
-    return LHS.BuiltinID < RHS.BuiltinID;
-  };
-  static const bool SortOnce =
-      (llvm::sort(ValidCPU, SortCmp),
-       llvm::sort(ValidHVX, SortCmp), true);
-  (void)SortOnce;
-  auto LowerBoundCmp = [](const BuiltinAndString &BI, unsigned BuiltinID) {
-    return BI.BuiltinID < BuiltinID;
-  };
-
-  const TargetInfo &TI = Context.getTargetInfo();
-
-  const BuiltinAndString *FC =
-      llvm::lower_bound(ValidCPU, BuiltinID, LowerBoundCmp);
-  if (FC != std::end(ValidCPU) && FC->BuiltinID == BuiltinID) {
-    const TargetOptions &Opts = TI.getTargetOpts();
-    StringRef CPU = Opts.CPU;
-    if (!CPU.empty()) {
-      assert(CPU.startswith("hexagon") && "Unexpected CPU name");
-      CPU.consume_front("hexagon");
-      SmallVector<StringRef, 3> CPUs;
-      StringRef(FC->Str).split(CPUs, ',');
-      if (llvm::none_of(CPUs, [CPU](StringRef S) { return S == CPU; }))
-        return Diag(TheCall->getBeginLoc(),
-                    diag::err_hexagon_builtin_unsupported_cpu);
-    }
-  }
-
-  const BuiltinAndString *FH =
-      llvm::lower_bound(ValidHVX, BuiltinID, LowerBoundCmp);
-  if (FH != std::end(ValidHVX) && FH->BuiltinID == BuiltinID) {
-    if (!TI.hasFeature("hvx"))
-      return Diag(TheCall->getBeginLoc(),
-                  diag::err_hexagon_builtin_requires_hvx);
-
-    SmallVector<StringRef, 3> HVXs;
-    StringRef(FH->Str).split(HVXs, ',');
-    bool IsValid = llvm::any_of(HVXs,
-                                [&TI] (StringRef V) {
-                                  std::string F = "hvx" + V.str();
-                                  return TI.hasFeature(F);
-                                });
-    if (!IsValid)
-      return Diag(TheCall->getBeginLoc(),
-                  diag::err_hexagon_builtin_unsupported_hvx);
-  }
-
-  return false;
-}
-
 bool Sema::CheckHexagonBuiltinArgument(unsigned BuiltinID, CallExpr *TheCall) {
   struct ArgInfo {
     uint8_t OpNum;
@@ -2849,7 +2431,7 @@ bool Sema::CheckHexagonBuiltinArgument(unsigned BuiltinID, CallExpr *TheCall) {
     { Hexagon::BI__builtin_circ_ldd,                  {{ 3, true,  4,  3 }} },
     { Hexagon::BI__builtin_circ_ldw,                  {{ 3, true,  4,  2 }} },
     { Hexagon::BI__builtin_circ_ldh,                  {{ 3, true,  4,  1 }} },
-    { Hexagon::BI__builtin_circ_lduh,                 {{ 3, true,  4,  0 }} },
+    { Hexagon::BI__builtin_circ_lduh,                 {{ 3, true,  4,  1 }} },
     { Hexagon::BI__builtin_circ_ldb,                  {{ 3, true,  4,  0 }} },
     { Hexagon::BI__builtin_circ_ldub,                 {{ 3, true,  4,  0 }} },
     { Hexagon::BI__builtin_circ_std,                  {{ 3, true,  4,  3 }} },
@@ -3070,8 +2652,7 @@ bool Sema::CheckHexagonBuiltinArgument(unsigned BuiltinID, CallExpr *TheCall) {
 
 bool Sema::CheckHexagonBuiltinFunctionCall(unsigned BuiltinID,
                                            CallExpr *TheCall) {
-  return CheckHexagonBuiltinCpu(BuiltinID, TheCall) ||
-         CheckHexagonBuiltinArgument(BuiltinID, TheCall);
+  return CheckHexagonBuiltinArgument(BuiltinID, TheCall);
 }
 
 bool Sema::CheckMipsBuiltinFunctionCall(unsigned BuiltinID, CallExpr *TheCall) {
@@ -3273,10 +2854,14 @@ bool Sema::CheckMipsBuiltinArgument(unsigned BuiltinID, CallExpr *TheCall) {
   case Mips::BI__builtin_msa_ld_h: i = 1; l = -1024; u = 1022; m = 2; break;
   case Mips::BI__builtin_msa_ld_w: i = 1; l = -2048; u = 2044; m = 4; break;
   case Mips::BI__builtin_msa_ld_d: i = 1; l = -4096; u = 4088; m = 8; break;
+  case Mips::BI__builtin_msa_ldr_d: i = 1; l = -4096; u = 4088; m = 8; break;
+  case Mips::BI__builtin_msa_ldr_w: i = 1; l = -2048; u = 2044; m = 4; break;
   case Mips::BI__builtin_msa_st_b: i = 2; l = -512; u = 511; m = 1; break;
   case Mips::BI__builtin_msa_st_h: i = 2; l = -1024; u = 1022; m = 2; break;
   case Mips::BI__builtin_msa_st_w: i = 2; l = -2048; u = 2044; m = 4; break;
   case Mips::BI__builtin_msa_st_d: i = 2; l = -4096; u = 4088; m = 8; break;
+  case Mips::BI__builtin_msa_str_d: i = 2; l = -4096; u = 4088; m = 8; break;
+  case Mips::BI__builtin_msa_str_w: i = 2; l = -2048; u = 2044; m = 4; break;
   }
 
   if (!m)
@@ -4508,6 +4093,24 @@ void Sema::checkCall(NamedDecl *FDecl, const FunctionProtoType *Proto,
     if (FDecl) {
       for (const auto *I : FDecl->specific_attrs<ArgumentWithTypeTagAttr>())
         CheckArgumentWithTypeTag(I, Args, Loc);
+    }
+  }
+
+  if (FDecl && FDecl->hasAttr<AllocAlignAttr>()) {
+    auto *AA = FDecl->getAttr<AllocAlignAttr>();
+    const Expr *Arg = Args[AA->getParamIndex().getASTIndex()];
+    if (!Arg->isValueDependent()) {
+      Expr::EvalResult Align;
+      if (Arg->EvaluateAsInt(Align, Context)) {
+        const llvm::APSInt &I = Align.Val.getInt();
+        if (!I.isPowerOf2())
+          Diag(Arg->getExprLoc(), diag::warn_alignment_not_power_of_two)
+              << Arg->getSourceRange();
+
+        if (I > Sema::MaximumAlignment)
+          Diag(Arg->getExprLoc(), diag::warn_assume_aligned_too_great)
+              << Arg->getSourceRange() << Sema::MaximumAlignment;
+      }
     }
   }
 
@@ -6237,11 +5840,9 @@ bool Sema::SemaBuiltinAssumeAligned(CallExpr *TheCall) {
       return Diag(TheCall->getBeginLoc(), diag::err_alignment_not_power_of_two)
              << Arg->getSourceRange();
 
-    // Alignment calculations can wrap around if it's greater than 2**29.
-    unsigned MaximumAlignment = 536870912;
-    if (Result > MaximumAlignment)
+    if (Result > Sema::MaximumAlignment)
       Diag(TheCall->getBeginLoc(), diag::warn_assume_aligned_too_great)
-          << Arg->getSourceRange() << MaximumAlignment;
+          << Arg->getSourceRange() << Sema::MaximumAlignment;
   }
 
   if (NumArgs > 2) {
@@ -6456,7 +6057,8 @@ static bool IsShiftedByte(llvm::APSInt Value) {
 /// SemaBuiltinConstantArgShiftedByte - Check if argument ArgNum of TheCall is
 /// a constant expression representing an arbitrary byte value shifted left by
 /// a multiple of 8 bits.
-bool Sema::SemaBuiltinConstantArgShiftedByte(CallExpr *TheCall, int ArgNum) {
+bool Sema::SemaBuiltinConstantArgShiftedByte(CallExpr *TheCall, int ArgNum,
+                                             unsigned ArgBits) {
   llvm::APSInt Result;
 
   // We can't check the value of a dependent argument.
@@ -6467,6 +6069,10 @@ bool Sema::SemaBuiltinConstantArgShiftedByte(CallExpr *TheCall, int ArgNum) {
   // Check constant-ness first.
   if (SemaBuiltinConstantArg(TheCall, ArgNum, Result))
     return true;
+
+  // Truncate to the given size.
+  Result = Result.getLoBits(ArgBits);
+  Result.setIsUnsigned(true);
 
   if (IsShiftedByte(Result))
     return false;
@@ -6481,7 +6087,8 @@ bool Sema::SemaBuiltinConstantArgShiftedByte(CallExpr *TheCall, int ArgNum) {
 /// 0x00FF, 0x01FF, ..., 0xFFFF). This strange range check is needed for some
 /// Arm MVE intrinsics.
 bool Sema::SemaBuiltinConstantArgShiftedByteOrXXFF(CallExpr *TheCall,
-                                                   int ArgNum) {
+                                                   int ArgNum,
+                                                   unsigned ArgBits) {
   llvm::APSInt Result;
 
   // We can't check the value of a dependent argument.
@@ -6492,6 +6099,10 @@ bool Sema::SemaBuiltinConstantArgShiftedByteOrXXFF(CallExpr *TheCall,
   // Check constant-ness first.
   if (SemaBuiltinConstantArg(TheCall, ArgNum, Result))
     return true;
+
+  // Truncate to the given size.
+  Result = Result.getLoBits(ArgBits);
+  Result.setIsUnsigned(true);
 
   // Check to see if it's in either of the required forms.
   if (IsShiftedByte(Result) ||
@@ -12181,7 +11792,16 @@ static void AnalyzeImplicitConversions(Sema &S, Expr *OrigE, SourceLocation CC,
   if (E->isTypeDependent() || E->isValueDependent())
     return;
 
-  if (const auto *UO = dyn_cast<UnaryOperator>(E))
+  Expr *SourceExpr = E;
+  // Examine, but don't traverse into the source expression of an
+  // OpaqueValueExpr, since it may have multiple parents and we don't want to
+  // emit duplicate diagnostics. Its fine to examine the form or attempt to
+  // evaluate it in the context of checking the specific conversion to T though.
+  if (auto *OVE = dyn_cast<OpaqueValueExpr>(E))
+    if (auto *Src = OVE->getSourceExpr())
+      SourceExpr = Src;
+
+  if (const auto *UO = dyn_cast<UnaryOperator>(SourceExpr))
     if (UO->getOpcode() == UO_Not &&
         UO->getSubExpr()->isKnownToHaveBooleanValue())
       S.Diag(UO->getBeginLoc(), diag::warn_bitwise_negation_bool)
@@ -12190,21 +11810,20 @@ static void AnalyzeImplicitConversions(Sema &S, Expr *OrigE, SourceLocation CC,
 
   // For conditional operators, we analyze the arguments as if they
   // were being fed directly into the output.
-  if (isa<ConditionalOperator>(E)) {
-    ConditionalOperator *CO = cast<ConditionalOperator>(E);
+  if (auto *CO = dyn_cast<ConditionalOperator>(SourceExpr)) {
     CheckConditionalOperator(S, CO, CC, T);
     return;
   }
 
   // Check implicit argument conversions for function calls.
-  if (CallExpr *Call = dyn_cast<CallExpr>(E))
+  if (CallExpr *Call = dyn_cast<CallExpr>(SourceExpr))
     CheckImplicitArgumentConversions(S, Call, CC);
 
   // Go ahead and check any implicit conversions we might have skipped.
   // The non-canonical typecheck is just an optimization;
   // CheckImplicitConversion will filter out dead implicit conversions.
-  if (E->getType() != T)
-    CheckImplicitConversion(S, E, T, CC, nullptr, IsListInit);
+  if (SourceExpr->getType() != T)
+    CheckImplicitConversion(S, SourceExpr, T, CC, nullptr, IsListInit);
 
   // Now continue drilling into this expression.
 

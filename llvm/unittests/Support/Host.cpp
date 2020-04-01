@@ -13,6 +13,7 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Program.h"
+#include "llvm/Support/Threading.h"
 
 #include "gtest/gtest.h"
 
@@ -37,7 +38,8 @@ protected:
     // Initially this is only testing detection of the number of
     // physical cores, which is currently only supported/tested for
     // x86_64 Linux and Darwin.
-    return (Host.getArch() == Triple::x86_64 &&
+    return (Host.isOSWindows() && llvm_is_multithreaded()) ||
+           (Host.getArch() == Triple::x86_64 &&
             (Host.isOSDarwin() || Host.getOS() == Triple::Linux));
   }
 
@@ -247,6 +249,19 @@ CPU part	: 0x0a1
   EXPECT_EQ(sys::detail::getHostCPUNameForARM("CPU implementer : 0x48\n"
                                               "CPU part        : 0xd01"),
             "tsv110");
+
+  // Verify A64FX.
+  const std::string A64FXProcCpuInfo = R"(
+processor       : 0
+BogoMIPS        : 200.00
+Features        : fp asimd evtstrm sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm fcma dcpop sve
+CPU implementer : 0x46
+CPU architecture: 8
+CPU variant     : 0x1
+CPU part        : 0x001
+)";
+
+  EXPECT_EQ(sys::detail::getHostCPUNameForARM(A64FXProcCpuInfo), "a64fx");
 }
 
 #if defined(__APPLE__) || defined(_AIX)

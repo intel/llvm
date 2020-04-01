@@ -1,4 +1,4 @@
-//===-- CommandObjectTarget.cpp ---------------------------------*- C++ -*-===//
+//===-- CommandObjectTarget.cpp -------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -1292,7 +1292,7 @@ static void DumpModuleArchitecture(Stream &strm, Module *module,
       module->GetArchitecture().DumpTriple(arch_strm.AsRawOstream());
     else
       arch_strm.PutCString(module->GetArchitecture().GetArchitectureName());
-    std::string arch_str = arch_strm.GetString();
+    std::string arch_str = std::string(arch_strm.GetString());
 
     if (width)
       strm.Printf("%-*s", width, arch_str.c_str());
@@ -1599,8 +1599,9 @@ static size_t LookupFunctionInModule(CommandInterpreter &interpreter,
                             include_inlines, sc_list);
     } else {
       ConstString function_name(name);
-      module->FindFunctions(function_name, nullptr, eFunctionNameTypeAuto,
-                            include_symbols, include_inlines, sc_list);
+      module->FindFunctions(function_name, CompilerDeclContext(),
+                            eFunctionNameTypeAuto, include_symbols,
+                            include_inlines, sc_list);
     }
     num_matches = sc_list.GetSize();
     if (num_matches) {
@@ -3268,7 +3269,7 @@ public:
 
       switch (short_option) {
       case 'a': {
-        m_str = option_arg;
+        m_str = std::string(option_arg);
         m_type = eLookupTypeAddress;
         m_addr = OptionArgParser::ToAddress(execution_context, option_arg,
                                             LLDB_INVALID_ADDRESS, &error);
@@ -3279,7 +3280,7 @@ public:
       }
 
       case 'n':
-        m_str = option_arg;
+        m_str = std::string(option_arg);
         m_type = eLookupTypeFunctionOrSymbol;
         break;
 
@@ -3603,7 +3604,7 @@ public:
         break;
 
       case 's':
-        m_str = option_arg;
+        m_str = std::string(option_arg);
         m_type = eLookupTypeSymbol;
         break;
 
@@ -3626,17 +3627,17 @@ public:
         break;
 
       case 'F':
-        m_str = option_arg;
+        m_str = std::string(option_arg);
         m_type = eLookupTypeFunction;
         break;
 
       case 'n':
-        m_str = option_arg;
+        m_str = std::string(option_arg);
         m_type = eLookupTypeFunctionOrSymbol;
         break;
 
       case 't':
-        m_str = option_arg;
+        m_str = std::string(option_arg);
         m_type = eLookupTypeType;
         break;
 
@@ -3999,19 +4000,20 @@ public:
       : CommandObjectParsed(
             interpreter, "target symbols add",
             "Add a debug symbol file to one of the target's current modules by "
-            "specifying a path to a debug symbols file, or using the options "
-            "to specify a module to download symbols for.",
+            "specifying a path to a debug symbols file or by using the options "
+            "to specify a module.",
             "target symbols add <cmd-options> [<symfile>]",
             eCommandRequiresTarget),
         m_option_group(),
         m_file_option(
             LLDB_OPT_SET_1, false, "shlib", 's',
             CommandCompletions::eModuleCompletion, eArgTypeShlibName,
-            "Fullpath or basename for module to find debug symbols for."),
+            "Locate the debug symbols for the shared library specified by "
+            "name."),
         m_current_frame_option(
             LLDB_OPT_SET_2, false, "frame", 'F',
-            "Locate the debug symbols the currently selected frame.", false,
-            true)
+            "Locate the debug symbols for the currently selected frame.",
+            false, true)
 
   {
     m_option_group.Append(&m_uuid_option_group, LLDB_OPT_SET_ALL,
@@ -4053,12 +4055,10 @@ protected:
         module_spec.GetFileSpec().GetFilename() = symbol_fspec.GetFilename();
     }
 
-    // We now have a module that represents a symbol file that can be used
-    // for a module that might exist in the current target, so we need to
-    // find that module in the target
-    ModuleList matching_module_list;
+    // Now module_spec represents a symbol file for a module that might exist
+    // in the current target.  Let's find possible matches.
+    ModuleList matching_modules;
 
-    size_t num_matches = 0;
     // First extract all module specs from the symbol file
     lldb_private::ModuleSpecList symfile_module_specs;
     if (ObjectFile::GetModuleSpecifications(module_spec.GetSymbolFileSpec(),
@@ -4069,34 +4069,30 @@ protected:
       target_arch_module_spec.GetArchitecture() = target->GetArchitecture();
       if (symfile_module_specs.FindMatchingModuleSpec(target_arch_module_spec,
                                                       symfile_module_spec)) {
-        // See if it has a UUID?
         if (symfile_module_spec.GetUUID().IsValid()) {
           // It has a UUID, look for this UUID in the target modules
           ModuleSpec symfile_uuid_module_spec;
           symfile_uuid_module_spec.GetUUID() = symfile_module_spec.GetUUID();
           target->GetImages().FindModules(symfile_uuid_module_spec,
-                                          matching_module_list);
-          num_matches = matching_module_list.GetSize();
+                                          matching_modules);
         }
       }
 
-      if (num_matches == 0) {
-        // No matches yet, iterate through the module specs to find a UUID
-        // value that we can match up to an image in our target
-        const size_t num_symfile_module_specs =
-            symfile_module_specs.GetSize();
-        for (size_t i = 0; i < num_symfile_module_specs && num_matches == 0;
-              ++i) {
+      if (matching_modules.IsEmpty()) {
+        // No matches yet.  Iterate through the module specs to find a UUID
+        // value that we can match up to an image in our target.
+        const size_t num_symfile_module_specs = symfile_module_specs.GetSize();
+        for (size_t i = 0;
+             i < num_symfile_module_specs && matching_modules.IsEmpty(); ++i) {
           if (symfile_module_specs.GetModuleSpecAtIndex(
                   i, symfile_module_spec)) {
             if (symfile_module_spec.GetUUID().IsValid()) {
-              // It has a UUID, look for this UUID in the target modules
+              // It has a UUID.  Look for this UUID in the target modules.
               ModuleSpec symfile_uuid_module_spec;
               symfile_uuid_module_spec.GetUUID() =
                   symfile_module_spec.GetUUID();
               target->GetImages().FindModules(symfile_uuid_module_spec,
-                                              matching_module_list);
-              num_matches = matching_module_list.GetSize();
+                                              matching_modules);
             }
           }
         }
@@ -4104,13 +4100,11 @@ protected:
     }
 
     // Just try to match up the file by basename if we have no matches at
-    // this point
-    if (num_matches == 0) {
-      target->GetImages().FindModules(module_spec, matching_module_list);
-      num_matches = matching_module_list.GetSize();
-    }
+    // this point.  For example, module foo might have symbols in foo.debug.
+    if (matching_modules.IsEmpty())
+      target->GetImages().FindModules(module_spec, matching_modules);
 
-    while (num_matches == 0) {
+    while (matching_modules.IsEmpty()) {
       ConstString filename_no_extension(
           module_spec.GetFileSpec().GetFileNameStrippingExtension());
       // Empty string returned, let's bail
@@ -4123,17 +4117,20 @@ protected:
 
       // Replace basename with one fewer extension
       module_spec.GetFileSpec().GetFilename() = filename_no_extension;
-      target->GetImages().FindModules(module_spec, matching_module_list);
-      num_matches = matching_module_list.GetSize();
+      target->GetImages().FindModules(module_spec, matching_modules);
     }
 
-    if (num_matches > 1) {
+    if (matching_modules.GetSize() > 1) {
       result.AppendErrorWithFormat("multiple modules match symbol file '%s', "
                                    "use the --uuid option to resolve the "
                                    "ambiguity.\n",
                                    symfile_path);
-    } else if (num_matches == 1) {
-      ModuleSP module_sp(matching_module_list.GetModuleAtIndex(0));
+      result.SetStatus(eReturnStatusFailed);
+      return false;
+    }
+
+    if (matching_modules.GetSize() == 1) {
+      ModuleSP module_sp(matching_modules.GetModuleAtIndex(0));
 
       // The module has not yet created its symbol vendor, we can just give
       // the existing target module the symfile path to use for when it
@@ -4144,7 +4141,6 @@ protected:
           module_sp->GetSymbolFile(true, &result.GetErrorStream());
       if (symbol_file) {
         ObjectFile *object_file = symbol_file->GetObjectFile();
-
         if (object_file && object_file->GetFileSpec() == symbol_fspec) {
           // Provide feedback that the symfile has been successfully added.
           const FileSpec &module_fs = module_sp->GetFileSpec();
@@ -4163,7 +4159,7 @@ protected:
           Status error;
           StreamString feedback_stream;
           module_sp->LoadScriptingResourceInTarget(target, error,
-                                                    &feedback_stream);
+                                                   &feedback_stream);
           if (error.Fail() && error.AsCString())
             result.AppendWarningWithFormat(
                 "unable to load scripting data for module %s - error "
@@ -4173,7 +4169,7 @@ protected:
                     .GetCString(),
                 error.AsCString());
           else if (feedback_stream.GetSize())
-            result.AppendWarningWithFormat("%s", feedback_stream.GetData());
+            result.AppendWarning(feedback_stream.GetData());
 
           flush = true;
           result.SetStatus(eReturnStatusSuccessFinishResult);
@@ -4184,7 +4180,6 @@ protected:
       module_sp->SetSymbolFileFileSpec(FileSpec());
     }
 
-    namespace fs = llvm::sys::fs;
     StreamString ss_symfile_uuid;
     if (module_spec.GetUUID().IsValid()) {
       ss_symfile_uuid << " (";
@@ -4194,7 +4189,7 @@ protected:
     result.AppendErrorWithFormat(
         "symbol file '%s'%s does not match any existing module%s\n",
         symfile_path, ss_symfile_uuid.GetData(),
-        !fs::is_regular_file(symbol_fspec.GetPath())
+        !llvm::sys::fs::is_regular_file(symbol_fspec.GetPath())
             ? "\n       please specify the full path to the symbol file"
             : "");
     result.SetStatus(eReturnStatusFailed);
@@ -4427,7 +4422,7 @@ public:
 
       switch (short_option) {
       case 'c':
-        m_class_name = option_arg;
+        m_class_name = std::string(option_arg);
         m_sym_ctx_specified = true;
         break;
 
@@ -4464,18 +4459,18 @@ public:
         break;
 
       case 'n':
-        m_function_name = option_arg;
+        m_function_name = std::string(option_arg);
         m_func_name_type_mask |= eFunctionNameTypeAuto;
         m_sym_ctx_specified = true;
         break;
 
       case 'f':
-        m_file_name = option_arg;
+        m_file_name = std::string(option_arg);
         m_sym_ctx_specified = true;
         break;
 
       case 's':
-        m_module_name = option_arg;
+        m_module_name = std::string(option_arg);
         m_sym_ctx_specified = true;
         break;
 
@@ -4487,12 +4482,12 @@ public:
         break;
 
       case 'T':
-        m_thread_name = option_arg;
+        m_thread_name = std::string(option_arg);
         m_thread_specified = true;
         break;
 
       case 'q':
-        m_queue_name = option_arg;
+        m_queue_name = std::string(option_arg);
         m_thread_specified = true;
         break;
 
@@ -4505,7 +4500,7 @@ public:
 
       case 'o':
         m_use_one_liner = true;
-        m_one_liner.push_back(option_arg);
+        m_one_liner.push_back(std::string(option_arg));
         break;
 
       default:
@@ -4686,12 +4681,8 @@ protected:
                                      new_hook_sp->GetID());
     } else {
       m_stop_hook_sp = new_hook_sp;
-      m_interpreter.GetLLDBCommandsFromIOHandler(
-          "> ",     // Prompt
-          *this,    // IOHandlerDelegate
-          true,     // Run IOHandler in async mode
-          nullptr); // Baton for the "io_handler" that will be passed back
-                    // into our IOHandlerDelegate functions
+      m_interpreter.GetLLDBCommandsFromIOHandler("> ",   // Prompt
+                                                 *this); // IOHandlerDelegate
     }
     result.SetStatus(eReturnStatusSuccessFinishNoResult);
 

@@ -21,6 +21,7 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/IntrusiveRefCntPtr.h"
+#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/iterator_range.h"
@@ -95,7 +96,7 @@ public:
     FixItHint Hint;
     Hint.RemoveRange =
       CharSourceRange::getCharRange(InsertionLoc, InsertionLoc);
-    Hint.CodeToInsert = Code;
+    Hint.CodeToInsert = std::string(Code);
     Hint.BeforePreviousInsertions = BeforePreviousInsertions;
     return Hint;
   }
@@ -130,7 +131,7 @@ public:
                                      StringRef Code) {
     FixItHint Hint;
     Hint.RemoveRange = RemoveRange;
-    Hint.CodeToInsert = Code;
+    Hint.CodeToInsert = std::string(Code);
     return Hint;
   }
 
@@ -1155,7 +1156,7 @@ public:
     assert(NumArgs < DiagnosticsEngine::MaxArguments &&
            "Too many arguments to diagnostic!");
     DiagObj->DiagArgumentsKind[NumArgs] = DiagnosticsEngine::ak_std_string;
-    DiagObj->DiagArgumentsStr[NumArgs++] = S;
+    DiagObj->DiagArgumentsStr[NumArgs++] = std::string(S);
   }
 
   void AddTaggedVal(intptr_t V, DiagnosticsEngine::ArgumentKind Kind) const {
@@ -1177,7 +1178,7 @@ public:
       DiagObj->DiagFixItHints.push_back(Hint);
   }
 
-  void addFlagValue(StringRef V) const { DiagObj->FlagValue = V; }
+  void addFlagValue(StringRef V) const { DiagObj->FlagValue = std::string(V); }
 };
 
 struct AddFlagValue {
@@ -1217,9 +1218,7 @@ inline const DiagnosticBuilder &operator<<(const DiagnosticBuilder &DB, int I) {
 // We use enable_if here to prevent that this overload is selected for
 // pointers or other arguments that are implicitly convertible to bool.
 template <typename T>
-inline
-typename std::enable_if<std::is_same<T, bool>::value,
-                        const DiagnosticBuilder &>::type
+inline std::enable_if_t<std::is_same<T, bool>::value, const DiagnosticBuilder &>
 operator<<(const DiagnosticBuilder &DB, T I) {
   DB.AddTaggedVal(I, DiagnosticsEngine::ak_sint);
   return DB;
@@ -1249,9 +1248,9 @@ inline const DiagnosticBuilder &operator<<(const DiagnosticBuilder &DB,
 // other arguments that derive from DeclContext (e.g., RecordDecls) will not
 // match.
 template <typename T>
-inline typename std::enable_if<
-    std::is_same<typename std::remove_const<T>::type, DeclContext>::value,
-    const DiagnosticBuilder &>::type
+inline std::enable_if_t<
+    std::is_same<std::remove_const_t<T>, DeclContext>::value,
+    const DiagnosticBuilder &>
 operator<<(const DiagnosticBuilder &DB, T *DC) {
   DB.AddTaggedVal(reinterpret_cast<intptr_t>(DC),
                   DiagnosticsEngine::ak_declcontext);
@@ -1287,6 +1286,29 @@ inline const DiagnosticBuilder &operator<<(const DiagnosticBuilder &DB,
                                            ArrayRef<FixItHint> Hints) {
   for (const FixItHint &Hint : Hints)
     DB.AddFixItHint(Hint);
+  return DB;
+}
+
+inline const DiagnosticBuilder &
+operator<<(const DiagnosticBuilder &DB,
+           const llvm::Optional<SourceRange> &Opt) {
+  if (Opt)
+    DB << *Opt;
+  return DB;
+}
+
+inline const DiagnosticBuilder &
+operator<<(const DiagnosticBuilder &DB,
+           const llvm::Optional<CharSourceRange> &Opt) {
+  if (Opt)
+    DB << *Opt;
+  return DB;
+}
+
+inline const DiagnosticBuilder &
+operator<<(const DiagnosticBuilder &DB, const llvm::Optional<FixItHint> &Opt) {
+  if (Opt)
+    DB << *Opt;
   return DB;
 }
 

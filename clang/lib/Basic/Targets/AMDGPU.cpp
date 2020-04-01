@@ -172,6 +172,7 @@ bool AMDGPUTargetInfo::initFeatureMap(
       Features["dot4-insts"] = true;
       Features["dot5-insts"] = true;
       Features["dot6-insts"] = true;
+      Features["mai-insts"] = true;
       LLVM_FALLTHROUGH;
     case GK_GFX906:
       Features["dl-insts"] = true;
@@ -254,7 +255,8 @@ void AMDGPUTargetInfo::adjustTargetOptions(const CodeGenOptions &CGOpts,
   }
   if (!hasFP32Denormals)
     TargetOpts.Features.push_back(
-      (Twine(hasFastFMAF() && hasFullRateDenormalsF32() && !CGOpts.FlushDenorm
+      (Twine(hasFastFMAF() && hasFullRateDenormalsF32() &&
+             CGOpts.FP32DenormalMode.Output == llvm::DenormalMode::IEEE
              ? '+' : '-') + Twine("fp32-denormals"))
             .str());
   // Always do not flush fp64 or fp16 denorms.

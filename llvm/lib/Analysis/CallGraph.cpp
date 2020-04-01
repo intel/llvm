@@ -57,6 +57,15 @@ CallGraph::~CallGraph() {
 #endif
 }
 
+bool CallGraph::invalidate(Module &, const PreservedAnalyses &PA,
+                           ModuleAnalysisManager::Invalidator &) {
+  // Check whether the analysis, all analyses on functions, or the function's
+  // CFG have been preserved.
+  auto PAC = PA.getChecker<CallGraphAnalysis>();
+  return !(PAC.preserved() || PAC.preservedSet<AllAnalysesOn<Module>>() ||
+           PAC.preservedSet<CFGAnalyses>());
+}
+
 void CallGraph::addToCallGraph(Function *F) {
   CallGraphNode *Node = getOrInsertFunction(F);
 
@@ -64,6 +73,12 @@ void CallGraph::addToCallGraph(Function *F) {
   // could call it.
   if (!F->hasLocalLinkage() || F->hasAddressTaken())
     ExternalCallingNode->addCalledFunction(nullptr, Node);
+
+  populateCallGraphNode(Node);
+}
+
+void CallGraph::populateCallGraphNode(CallGraphNode *Node) {
+  Function *F = Node->getFunction();
 
   // If this function is not defined in this translation unit, it could call
   // anything.

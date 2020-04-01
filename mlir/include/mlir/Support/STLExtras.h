@@ -1,6 +1,6 @@
 //===- STLExtras.h - STL-like extensions that are used by MLIR --*- C++ -*-===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -187,7 +187,8 @@ namespace detail {
 /// drop_front/slice/etc.. Derived range classes must implement the following
 /// static methods:
 ///   * ReferenceT dereference_iterator(const BaseT &base, ptrdiff_t index)
-///     - Derefence an iterator pointing to the base object at the given index.
+///     - Dereference an iterator pointing to the base object at the given
+///       index.
 ///   * BaseT offset_base(const BaseT &base, ptrdiff_t index)
 ///     - Return a new base that is offset from the provide base by 'index'
 ///       elements.
@@ -232,6 +233,12 @@ public:
     return DerivedT::dereference_iterator(base, index);
   }
 
+  /// Compare this range with another.
+  template <typename OtherT> bool operator==(const OtherT &other) {
+    return size() == llvm::size(other) &&
+           std::equal(begin(), end(), other.begin());
+  }
+
   /// Return the size of this range.
   size_t size() const { return count; }
 
@@ -261,6 +268,12 @@ public:
                       : static_cast<const DerivedT &>(*this);
   }
 
+  /// Take the last n elements.
+  DerivedT take_back(size_t n = 1) const {
+    return n < size() ? drop_front(size() - n)
+                      : static_cast<const DerivedT &>(*this);
+  }
+
   /// Allow conversion to SmallVector if necessary.
   /// TODO(riverriddle) Remove this when SmallVector accepts different range
   /// types in its constructor.
@@ -287,7 +300,7 @@ protected:
 /// instead. Derived range classes are expected to implement the following
 /// static method:
 ///   * ReferenceT dereference(const BaseT &base, ptrdiff_t index)
-///     - Derefence an iterator pointing to a parent base at the given index.
+///     - Dereference an iterator pointing to a parent base at the given index.
 template <typename DerivedT, typename BaseT, typename T,
           typename PointerT = T *, typename ReferenceT = T &>
 class indexed_accessor_range
@@ -330,6 +343,26 @@ template <typename ContainerTy> auto make_second_range(ContainerTy &&c) {
       [](decltype((*std::begin(c))) elt) -> decltype((elt.second)) {
         return elt.second;
       });
+}
+
+/// A range class that repeats a specific value for a set number of times.
+template <typename T>
+class RepeatRange
+    : public detail::indexed_accessor_range_base<RepeatRange<T>, T, const T> {
+public:
+  using detail::indexed_accessor_range_base<
+      RepeatRange<T>, T, const T>::indexed_accessor_range_base;
+
+  /// Given that we are repeating a specific value, we can simply return that
+  /// value when offsetting the base or dereferencing the iterator.
+  static T offset_base(const T &val, ptrdiff_t) { return val; }
+  static const T &dereference_iterator(const T &val, ptrdiff_t) { return val; }
+};
+
+/// Make a range that repeats the given value 'n' times.
+template <typename ValueTy>
+RepeatRange<ValueTy> make_repeated_range(const ValueTy &value, size_t n) {
+  return RepeatRange<ValueTy>(value, n);
 }
 
 /// Returns true of the given range only contains a single element.
@@ -375,6 +408,10 @@ struct FunctionTraits<ReturnType (*)(Args...), false> {
   template <size_t i>
   using arg_t = typename std::tuple_element<i, std::tuple<Args...>>::type;
 };
+/// Overload for non-class function type references.
+template <typename ReturnType, typename... Args>
+struct FunctionTraits<ReturnType (&)(Args...), false>
+    : public FunctionTraits<ReturnType (*)(Args...)> {};
 } // end namespace mlir
 
 // Allow tuples to be usable as DenseMap keys.

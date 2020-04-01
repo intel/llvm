@@ -40,8 +40,11 @@
 #define SPIRV_OCLUTIL_H
 
 #include "SPIRVInternal.h"
+#include "llvm/ADT/SmallString.h"
+#include "llvm/ADT/SmallString.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/Support/Path.h"
 
 #include <functional>
@@ -312,7 +315,7 @@ const static char TypePrefix[] = "opencl.intel_sub_group_avc_";
 ///   not empty.
 /// \return instruction index of extended instruction if the OpenCL builtin
 ///   function is translated to an extended instruction, otherwise ~0U.
-unsigned getExtOp(StringRef MangledName, const std::string &DemangledName = "");
+unsigned getExtOp(StringRef MangledName, StringRef DemangledName = "");
 
 /// Get literal arguments of call of atomic_work_item_fence.
 AtomicWorkItemFenceLiterals getAtomicWorkItemFenceLiterals(CallInst *CI);
@@ -592,16 +595,46 @@ template <> inline void SPIRVMap<OclExt::Kind, SPIRVCapabilityKind>::init() {
 template <>
 inline void SPIRVMap<std::string, SPIRVBuiltinVariableKind>::init() {
   add("get_work_dim", BuiltInWorkDim);
+  add("__spirv_GlobalSize_x", BuiltInGlobalSize);
+  add("__spirv_GlobalSize_y", BuiltInGlobalSize);
+  add("__spirv_GlobalSize_z", BuiltInGlobalSize);
   add("get_global_size", BuiltInGlobalSize);
+  add("__spirv_GlobalInvocationId_x", BuiltInGlobalInvocationId);
+  add("__spirv_GlobalInvocationId_y", BuiltInGlobalInvocationId);
+  add("__spirv_GlobalInvocationId_z", BuiltInGlobalInvocationId);
   add("get_global_id", BuiltInGlobalInvocationId);
+  add("__spirv_GlobalOffset_x", BuiltInGlobalOffset);
+  add("__spirv_GlobalOffset_y", BuiltInGlobalOffset);
+  add("__spirv_GlobalOffset_z", BuiltInGlobalOffset);
   add("get_global_offset", BuiltInGlobalOffset);
+  add("__spirv_WorkgroupSize_x", BuiltInWorkgroupSize);
+  add("__spirv_WorkgroupSize_y", BuiltInWorkgroupSize);
+  add("__spirv_WorkgroupSize_z", BuiltInWorkgroupSize);
   add("get_local_size", BuiltInWorkgroupSize);
+  add("__spirv_WorkgroupSize_x", BuiltInWorkgroupSize);
+  add("__spirv_WorkgroupSize_y", BuiltInWorkgroupSize);
+  add("__spirv_WorkgroupSize_z", BuiltInWorkgroupSize);
   add("get_enqueued_local_size", BuiltInEnqueuedWorkgroupSize);
+  add("__spirv_LocalInvocationId_x", BuiltInLocalInvocationId);
+  add("__spirv_LocalInvocationId_y", BuiltInLocalInvocationId);
+  add("__spirv_LocalInvocationId_z", BuiltInLocalInvocationId);
   add("get_local_id", BuiltInLocalInvocationId);
+  add("__spirv_NumWorkgroups_x", BuiltInNumWorkgroups);
+  add("__spirv_NumWorkgroups_y", BuiltInNumWorkgroups);
+  add("__spirv_NumWorkgroups_z", BuiltInNumWorkgroups);
   add("get_num_groups", BuiltInNumWorkgroups);
+  add("__spirv_WorkgroupId_x", BuiltInWorkgroupId);
+  add("__spirv_WorkgroupId_y", BuiltInWorkgroupId);
+  add("__spirv_WorkgroupId_z", BuiltInWorkgroupId);
   add("get_group_id", BuiltInWorkgroupId);
+  add("__spirv_WorkgroupId_x", BuiltInWorkgroupId);
+  add("__spirv_WorkgroupId_y", BuiltInWorkgroupId);
+  add("__spirv_WorkgroupId_z", BuiltInWorkgroupId);
   add("get_global_linear_id", BuiltInGlobalLinearId);
   add("get_local_linear_id", BuiltInLocalInvocationIndex);
+  add("__spirv_LocalInvocationId_x", BuiltInLocalInvocationId);
+  add("__spirv_LocalInvocationId_y", BuiltInLocalInvocationId);
+  add("__spirv_LocalInvocationId_z", BuiltInLocalInvocationId);
   add("get_sub_group_size", BuiltInSubgroupSize);
   add("get_max_sub_group_size", BuiltInSubgroupMaxSize);
   add("get_num_sub_groups", BuiltInNumSubgroups);
@@ -747,6 +780,10 @@ template <> inline void SPIRVMap<std::string, Op, SPIRVInstruction>::init() {
   _SPIRV_OP(intel_sub_group_shuffle_down, SubgroupShuffleDownINTEL)
   _SPIRV_OP(intel_sub_group_shuffle_up, SubgroupShuffleUpINTEL)
   _SPIRV_OP(intel_sub_group_shuffle_xor, SubgroupShuffleXorINTEL)
+  // Intel media_block_io builtins
+  _SPIRV_OP(intel_sub_group_media_block_read, SubgroupImageMediaBlockReadINTEL)
+  _SPIRV_OP(intel_sub_group_media_block_write,
+            SubgroupImageMediaBlockWriteINTEL)
 #undef _SPIRV_OP
 }
 
@@ -948,6 +985,20 @@ template <> inline void SPIRVMap<std::string, Op, OCLOpaqueType>::init() {
   add("opencl.reserve_id_t", OpTypeReserveId);
   add("opencl.queue_t", OpTypeQueue);
   add("opencl.sampler_t", OpTypeSampler);
+}
+
+typedef SPIRVMap<AtomicRMWInst::BinOp, Op> LLVMSPIRVAtomicRmwOpCodeMap;
+template <> inline void LLVMSPIRVAtomicRmwOpCodeMap::init() {
+  add(llvm::AtomicRMWInst::Xchg, OpAtomicExchange);
+  add(llvm::AtomicRMWInst::Add, OpAtomicIAdd);
+  add(llvm::AtomicRMWInst::Sub, OpAtomicISub);
+  add(llvm::AtomicRMWInst::And, OpAtomicAnd);
+  add(llvm::AtomicRMWInst::Or, OpAtomicOr);
+  add(llvm::AtomicRMWInst::Xor, OpAtomicXor);
+  add(llvm::AtomicRMWInst::Max, OpAtomicSMax);
+  add(llvm::AtomicRMWInst::Min, OpAtomicSMin);
+  add(llvm::AtomicRMWInst::UMax, OpAtomicUMax);
+  add(llvm::AtomicRMWInst::UMin, OpAtomicUMin);
 }
 
 } // namespace SPIRV

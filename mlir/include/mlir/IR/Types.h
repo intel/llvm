@@ -1,6 +1,6 @@
 //===- Types.h - MLIR Type Classes ------------------------------*- C++ -*-===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -12,6 +12,7 @@
 #include "mlir/IR/TypeSupport.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMapInfo.h"
+#include "llvm/Support/PointerLikeTypeTraits.h"
 
 namespace mlir {
 class FloatType;
@@ -46,10 +47,8 @@ struct OpaqueTypeStorage;
 ///        current type. Used for isa/dyn_cast casting functionality.
 ///
 ///  * Optional:
-///    - static LogicalResult verifyConstructionInvariants(
-///                                               Optional<Location> loc,
-///                                               MLIRContext *context,
-///                                               Args... args)
+///    - static LogicalResult verifyConstructionInvariants(Location loc,
+///                                                        Args... args)
 ///      * This method is invoked when calling the 'TypeBase::get/getChecked'
 ///        methods to ensure that the arguments passed in are valid to construct
 ///        a type instance with.
@@ -108,7 +107,7 @@ public:
 
   using ImplType = TypeStorage;
 
-  Type() : impl(nullptr) {}
+  constexpr Type() : impl(nullptr) {}
   /* implicit */ Type(const ImplType *impl)
       : impl(const_cast<ImplType *>(impl)) {}
 
@@ -148,16 +147,29 @@ public:
 
   /// Return true if this is an integer type with the specified width.
   bool isInteger(unsigned width);
+  /// Return true if this is a signless integer type (with the specified width).
+  bool isSignlessInteger();
+  bool isSignlessInteger(unsigned width);
+  /// Return true if this is a signed integer type (with the specified width).
+  bool isSignedInteger();
+  bool isSignedInteger(unsigned width);
+  /// Return true if this is an unsigned integer type (with the specified
+  /// width).
+  bool isUnsignedInteger();
+  bool isUnsignedInteger(unsigned width);
 
   /// Return the bit width of an integer or a float type, assert failure on
   /// other types.
   unsigned getIntOrFloatBitWidth();
 
-  /// Return true if this is an integer or index type.
-  bool isIntOrIndex();
-  /// Return true if this is an integer, index, or float type.
-  bool isIntOrIndexOrFloat();
-  /// Return true of this is an integer or a float type.
+  /// Return true if this is a signless integer or index type.
+  bool isSignlessIntOrIndex();
+  /// Return true if this is a signless integer, index, or float type.
+  bool isSignlessIntOrIndexOrFloat();
+  /// Return true of this is a signless integer or a float type.
+  bool isSignlessIntOrFloat();
+
+  /// Return true of this is an integer(of any signedness) or a float type.
   bool isIntOrFloat();
 
   /// Print the current type.
@@ -238,8 +250,7 @@ public:
   StringRef getTypeData() const;
 
   /// Verify the construction of an opaque type.
-  static LogicalResult verifyConstructionInvariants(Optional<Location> loc,
-                                                    MLIRContext *context,
+  static LogicalResult verifyConstructionInvariants(Location loc,
                                                     Identifier dialect,
                                                     StringRef typeData);
 
@@ -293,7 +304,7 @@ public:
   static inline mlir::Type getFromVoidPointer(void *P) {
     return mlir::Type::getFromOpaquePointer(P);
   }
-  enum { NumLowBitsAvailable = 3 };
+  static constexpr int NumLowBitsAvailable = 3;
 };
 
 } // namespace llvm

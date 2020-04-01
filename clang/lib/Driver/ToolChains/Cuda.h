@@ -9,6 +9,7 @@
 #ifndef LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_CUDA_H
 #define LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_CUDA_H
 
+#include "SYCL.h"
 #include "clang/Basic/Cuda.h"
 #include "clang/Driver/Action.h"
 #include "clang/Driver/Multilib.h"
@@ -30,6 +31,8 @@ private:
   const Driver &D;
   bool IsValid = false;
   CudaVersion Version = CudaVersion::UNKNOWN;
+  std::string DetectedVersion;
+  bool DetectedVersionIsNotSupported = false;
   std::string InstallPath;
   std::string BinPath;
   std::string LibPath;
@@ -75,6 +78,10 @@ public:
   std::string getLibDeviceFile(StringRef Gpu) const {
     return LibDeviceMap.lookup(Gpu);
   }
+  void WarnIfUnsupportedVersion();
+
+private:
+  void ParseCudaVersionFile(llvm::StringRef V);
 };
 
 namespace tools {
@@ -125,6 +132,19 @@ class LLVM_LIBRARY_VISIBILITY OpenMPLinker : public Tool {
                      const char *LinkingOutput) const override;
 };
 
+class LLVM_LIBRARY_VISIBILITY SYCLLinker : public Linker {
+public:
+  SYCLLinker(const ToolChain &TC) : Linker(TC) {}
+
+  Tool* GetSYCLToolChainLinker() const {
+    if (!SYCLToolChainLinker)
+      SYCLToolChainLinker.reset(new SYCL::Linker(getToolChain()));
+    return SYCLToolChainLinker.get();
+  }
+private:
+  mutable std::unique_ptr<Tool> SYCLToolChainLinker;
+};
+
 } // end namespace NVPTX
 } // end namespace tools
 
@@ -148,6 +168,11 @@ public:
   void addClangTargetOptions(const llvm::opt::ArgList &DriverArgs,
                              llvm::opt::ArgStringList &CC1Args,
                              Action::OffloadKind DeviceOffloadKind) const override;
+
+  llvm::DenormalMode getDefaultDenormalModeForType(
+      const llvm::opt::ArgList &DriverArgs,
+      Action::OffloadKind DeviceOffloadKind,
+      const llvm::fltSemantics *FPType = nullptr) const override;
 
   // Never try to use the integrated assembler with CUDA; always fork out to
   // ptxas.
@@ -183,6 +208,8 @@ public:
                      const llvm::opt::ArgList &Args) const override;
 
   unsigned GetDefaultDwarfVersion() const override { return 2; }
+
+  Tool *SelectTool(const JobAction &JA) const;
 
   const ToolChain &HostTC;
   CudaInstallationDetector CudaInstallation;

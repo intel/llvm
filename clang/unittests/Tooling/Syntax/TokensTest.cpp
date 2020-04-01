@@ -59,6 +59,7 @@ using ::testing::ElementsAre;
 using ::testing::Field;
 using ::testing::Matcher;
 using ::testing::Not;
+using ::testing::Pointee;
 using ::testing::StartsWith;
 
 namespace {
@@ -153,11 +154,17 @@ public:
     }
   }
 
-  /// Add a new file, run syntax::tokenize() on it and return the results.
+  /// Add a new file, run syntax::tokenize() on the range if any, run it on the
+  /// whole file otherwise and return the results.
   std::vector<syntax::Token> tokenize(llvm::StringRef Text) {
+    llvm::Annotations Annot(Text);
+    auto FID = SourceMgr->createFileID(
+        llvm::MemoryBuffer::getMemBufferCopy(Annot.code()));
     // FIXME: pass proper LangOptions.
+    if (Annot.ranges().empty())
+      return syntax::tokenize(FID, *SourceMgr, LangOptions());
     return syntax::tokenize(
-        SourceMgr->createFileID(llvm::MemoryBuffer::getMemBufferCopy(Text)),
+        syntax::FileRange(FID, Annot.range().Begin, Annot.range().End),
         *SourceMgr, LangOptions());
   }
 
@@ -258,6 +265,20 @@ TEST_F(TokenCollectorTest, RawMode) {
               ElementsAre(Kind(tok::kw_int),
                           AllOf(HasText("a"), Kind(tok::identifier)),
                           Kind(tok::semi)));
+  EXPECT_THAT(tokenize("int [[main() {]]}"),
+              ElementsAre(AllOf(HasText("main"), Kind(tok::identifier)),
+                          Kind(tok::l_paren), Kind(tok::r_paren),
+                          Kind(tok::l_brace)));
+  EXPECT_THAT(tokenize("int [[main() {   ]]}"),
+              ElementsAre(AllOf(HasText("main"), Kind(tok::identifier)),
+                          Kind(tok::l_paren), Kind(tok::r_paren),
+                          Kind(tok::l_brace)));
+  // First token is partially parsed, last token is fully included even though
+  // only a part of it is contained in the range.
+  EXPECT_THAT(tokenize("int m[[ain() {ret]]urn 0;}"),
+              ElementsAre(AllOf(HasText("ain"), Kind(tok::identifier)),
+                          Kind(tok::l_paren), Kind(tok::r_paren),
+                          Kind(tok::l_brace), Kind(tok::kw_return)));
 }
 
 TEST_F(TokenCollectorTest, Basic) {
@@ -343,6 +364,12 @@ TEST_F(TokenCollectorTest, Locations) {
                   AllOf(Kind(tok::equal), RangeIs(Code.range("r3"))),
                   AllOf(Kind(tok::string_literal), RangeIs(Code.range("r4"))),
                   AllOf(Kind(tok::semi), RangeIs(Code.range("r5")))));
+
+  auto StartLoc = SourceMgr->getLocForStartOfFile(SourceMgr->getMainFileID());
+  for (auto &R : Code.ranges()) {
+    EXPECT_THAT(Buffer.spelledTokenAt(StartLoc.getLocWithOffset(R.Begin)),
+                Pointee(RangeIs(R)));
+  }
 }
 
 TEST_F(TokenCollectorTest, MacroDirectives) {

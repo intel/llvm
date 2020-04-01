@@ -1,6 +1,6 @@
 //===- VectorizerTestPass.cpp - VectorizerTestPass Pass Impl --------------===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -14,7 +14,7 @@
 #include "mlir/Analysis/NestedMatcher.h"
 #include "mlir/Analysis/SliceAnalysis.h"
 #include "mlir/Dialect/AffineOps/AffineOps.h"
-#include "mlir/Dialect/VectorOps/Utils.h"
+#include "mlir/Dialect/Vector/VectorUtils.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/StandardTypes.h"
@@ -116,7 +116,7 @@ void VectorizerTestPass::testVectorShapeRatio(llvm::raw_ostream &outs) {
     // As a consequence we write only Ops with a single return type for the
     // purpose of this test. If we need to test more intricate behavior in the
     // future we can always extend.
-    auto superVectorType = opInst->getResult(0)->getType().cast<VectorType>();
+    auto superVectorType = opInst->getResult(0).getType().cast<VectorType>();
     auto ratio = shapeRatio(superVectorType, subVectorType);
     if (!ratio.hasValue()) {
       opInst->emitRemark("NOT MATCHED");
@@ -281,12 +281,9 @@ void VectorizerTestPass::runOnFunction() {
   }
 }
 
-std::unique_ptr<OpPassBase<FuncOp>> mlir::createVectorizerTestPass() {
-  return std::make_unique<VectorizerTestPass>();
+namespace mlir {
+void registerVectorizerTestPass() {
+  PassRegistration<VectorizerTestPass> pass(
+      "affine-vectorizer-test", "Tests vectorizer standalone functionality.");
 }
-
-static PassRegistration<VectorizerTestPass>
-    pass("affine-vectorizer-test",
-         "Tests vectorizer standalone functionality.");
-
-#undef DEBUG_TYPE
+} // namespace mlir

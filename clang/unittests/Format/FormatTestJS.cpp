@@ -358,6 +358,22 @@ TEST_F(FormatTestJS, ReservedWordsMethods) {
       "    x();\n"
       "  }\n"
       "}\n");
+  verifyFormat("class KeywordNamedMethods {\n"
+               "  do() {\n"
+               "  }\n"
+               "  for() {\n"
+               "  }\n"
+               "  while() {\n"
+               "  }\n"
+               "  if() {\n"
+               "  }\n"
+               "  else() {\n"
+               "  }\n"
+               "  try() {\n"
+               "  }\n"
+               "  catch() {\n"
+               "  }\n"
+               "}\n");
 }
 
 TEST_F(FormatTestJS, ReservedWordsParenthesized) {
@@ -443,8 +459,9 @@ TEST_F(FormatTestJS, ContainerLiterals) {
   // Arrow functions in object literals.
   verifyFormat("var x = {\n"
                "  y: (a) => {\n"
+               "    x();\n"
                "    return a;\n"
-               "  }\n"
+               "  },\n"
                "};");
   verifyFormat("var x = {y: (a) => a};");
 
@@ -470,7 +487,8 @@ TEST_F(FormatTestJS, ContainerLiterals) {
 
   // Object literals can leave out labels.
   verifyFormat("f({a}, () => {\n"
-               "  g();  //\n"
+               "  x;\n"
+               "  g();\n"
                "});");
 
   // Keys can be quoted.
@@ -737,6 +755,22 @@ TEST_F(FormatTestJS, AsyncFunctions) {
                "   function a() {\n"
                "  return   1;\n"
                "}  \n");
+  // clang-format must not insert breaks between async and function, otherwise
+  // automatic semicolon insertion may trigger (in particular in a class body).
+  verifyFormat("async function\n"
+               "hello(\n"
+               "    myparamnameiswaytooloooong) {\n"
+               "}",
+               "async function hello(myparamnameiswaytooloooong) {}",
+               getGoogleJSStyleWithColumns(10));
+  verifyFormat("class C {\n"
+               "  async hello(\n"
+               "      myparamnameiswaytooloooong) {\n"
+               "  }\n"
+               "}",
+               "class C {\n"
+               "  async hello(myparamnameiswaytooloooong) {} }",
+               getGoogleJSStyleWithColumns(10));
   verifyFormat("async function* f() {\n"
                "  yield fetch(x);\n"
                "}");
@@ -842,6 +876,45 @@ TEST_F(FormatTestJS, ColumnLayoutForArrayLiterals) {
                "  a, a, a, a, a, a, a, a, a, a, a, a, a, a, a,\n"
                "  a, a, a, a, a, a, a, a, a, a, a, a, a, a, a,\n"
                "]);");
+}
+
+TEST_F(FormatTestJS, TrailingCommaInsertion) {
+  FormatStyle Style = getGoogleStyle(FormatStyle::LK_JavaScript);
+  Style.InsertTrailingCommas = FormatStyle::TCS_Wrapped;
+  // Insert comma in wrapped array.
+  verifyFormat("const x = [\n"
+               "  1,  //\n"
+               "  2,\n"
+               "];",
+               "const x = [\n"
+               "  1,  //\n"
+               "  2];",
+               Style);
+  // Insert comma in newly wrapped array.
+  Style.ColumnLimit = 30;
+  verifyFormat("const x = [\n"
+               "  aaaaaaaaaaaaaaaaaaaaaaaaa,\n"
+               "];",
+               "const x = [aaaaaaaaaaaaaaaaaaaaaaaaa];", Style);
+  // Do not insert trailing commas if they'd exceed the colum limit
+  verifyFormat("const x = [\n"
+               "  aaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
+               "];",
+               "const x = [aaaaaaaaaaaaaaaaaaaaaaaaaaaa];", Style);
+  // Object literals.
+  verifyFormat("const x = {\n"
+               "  a: aaaaaaaaaaaaaaaaa,\n"
+               "};",
+               "const x = {a: aaaaaaaaaaaaaaaaa};", Style);
+  verifyFormat("const x = {\n"
+               "  a: aaaaaaaaaaaaaaaaaaaaaaaaa\n"
+               "};",
+               "const x = {a: aaaaaaaaaaaaaaaaaaaaaaaaa};", Style);
+  // Object literal types.
+  verifyFormat("let x: {\n"
+               "  a: aaaaaaaaaaaaaaaaaaaaa,\n"
+               "};",
+               "let x: {a: aaaaaaaaaaaaaaaaaaaaa};", Style);
 }
 
 TEST_F(FormatTestJS, FunctionLiterals) {
@@ -1080,8 +1153,9 @@ TEST_F(FormatTestJS, MultipleFunctionLiterals) {
 
 TEST_F(FormatTestJS, ArrowFunctions) {
   verifyFormat("var x = (a) => {\n"
+               "  x;\n"
                "  return a;\n"
-               "};");
+               "};\n");
   verifyFormat("var x = (a) => {\n"
                "  function y() {\n"
                "    return 42;\n"
@@ -1089,6 +1163,7 @@ TEST_F(FormatTestJS, ArrowFunctions) {
                "  return a;\n"
                "};");
   verifyFormat("var x = (a: type): {some: type} => {\n"
+               "  y;\n"
                "  return a;\n"
                "};");
   verifyFormat("var x = (a) => a;");
@@ -1115,8 +1190,39 @@ TEST_F(FormatTestJS, ArrowFunctions) {
                "        // break\n"
                "    );");
   verifyFormat("const f = (x: string|null): string|null => {\n"
+               "  y;\n"
                "  return x;\n"
                "}\n");
+}
+
+TEST_F(FormatTestJS, ArrowFunctionStyle) {
+  FormatStyle Style = getGoogleStyle(FormatStyle::LK_JavaScript);
+  Style.AllowShortLambdasOnASingleLine = FormatStyle::SLS_All;
+  verifyFormat("const arr = () => { x; };", Style);
+  verifyFormat("const arrInlineAll = () => {};", Style);
+  Style.AllowShortLambdasOnASingleLine = FormatStyle::SLS_None;
+  verifyFormat("const arr = () => {\n"
+               "  x;\n"
+               "};",
+               Style);
+  verifyFormat("const arrInlineNone = () => {\n"
+               "};",
+               Style);
+  Style.AllowShortLambdasOnASingleLine = FormatStyle::SLS_Empty;
+  verifyFormat("const arr = () => {\n"
+               "  x;\n"
+               "};",
+               Style);
+  verifyFormat("const arrInlineEmpty = () => {};",
+               Style);
+  Style.AllowShortLambdasOnASingleLine = FormatStyle::SLS_Inline;
+  verifyFormat("const arr = () => {\n"
+               "  x;\n"
+               "};",
+               Style);
+  verifyFormat("foo(() => {});",
+               Style);
+  verifyFormat("const arrInlineInline = () => {};", Style);
 }
 
 TEST_F(FormatTestJS, ReturnStatements) {
@@ -1679,10 +1785,12 @@ TEST_F(FormatTestJS, TypeInterfaceLineWrapping) {
 TEST_F(FormatTestJS, RemoveEmptyLinesInArrowFunctions) {
   verifyFormat("x = () => {\n"
                "  foo();\n"
+               "  bar();\n"
                "};\n",
                "x = () => {\n"
                "\n"
                "  foo();\n"
+               "  bar();\n"
                "\n"
                "};\n");
 }
@@ -1759,6 +1867,10 @@ TEST_F(FormatTestJS, Modules) {
                "];");
   verifyFormat("export default [];");
   verifyFormat("export default () => {};");
+  verifyFormat("export default () => {\n"
+               "  x;\n"
+               "  x;\n"
+               "};");
   verifyFormat("export interface Foo {\n"
                "  foo: number;\n"
                "}\n"
@@ -2136,6 +2248,38 @@ TEST_F(FormatTestJS, JSDocAnnotations) {
                    getGoogleJSStyleWithColumns(20)));
 }
 
+TEST_F(FormatTestJS, TslintComments) {
+  // tslint uses pragma comments that must be on their own line.
+  verifyFormat("// Comment that needs wrapping. Comment that needs wrapping. "
+               "Comment that needs\n"
+               "// wrapping. Trailing line.\n"
+               "// tslint:disable-next-line:must-be-on-own-line",
+               "// Comment that needs wrapping. Comment that needs wrapping. "
+               "Comment that needs wrapping.\n"
+               "// Trailing line.\n"
+               "// tslint:disable-next-line:must-be-on-own-line");
+}
+
+TEST_F(FormatTestJS, TscComments) {
+  // As above, @ts-ignore and @ts-check comments must be on their own line.
+  verifyFormat("// Comment that needs wrapping. Comment that needs wrapping. "
+               "Comment that needs\n"
+               "// wrapping. Trailing line.\n"
+               "// @ts-ignore",
+               "// Comment that needs wrapping. Comment that needs wrapping. "
+               "Comment that needs wrapping.\n"
+               "// Trailing line.\n"
+               "// @ts-ignore");
+  verifyFormat("// Comment that needs wrapping. Comment that needs wrapping. "
+               "Comment that needs\n"
+               "// wrapping. Trailing line.\n"
+               "// @ts-check",
+               "// Comment that needs wrapping. Comment that needs wrapping. "
+               "Comment that needs wrapping.\n"
+               "// Trailing line.\n"
+               "// @ts-check");
+}
+
 TEST_F(FormatTestJS, RequoteStringsSingle) {
   verifyFormat("var x = 'foo';", "var x = \"foo\";");
   verifyFormat("var x = 'fo\\'o\\'';", "var x = \"fo'o'\";");
@@ -2230,6 +2374,11 @@ TEST_F(FormatTestJS, NullPropagatingOperator) {
 
 TEST_F(FormatTestJS, NullishCoalescingOperator) {
   verifyFormat("const val = something ?? 'some other default';\n");
+  verifyFormat(
+      "const val = something ?? otherDefault ??\n"
+      "    evenMore ?? evenMore;\n",
+      "const val = something ?? otherDefault ?? evenMore ?? evenMore;\n",
+      getGoogleJSStyleWithColumns(40));
 }
 
 TEST_F(FormatTestJS, Conditional) {

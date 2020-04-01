@@ -1,4 +1,4 @@
-//===-- SymbolFileBreakpad.cpp ----------------------------------*- C++ -*-===//
+//===-- SymbolFileBreakpad.cpp --------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -24,6 +24,8 @@
 using namespace lldb;
 using namespace lldb_private;
 using namespace lldb_private::breakpad;
+
+LLDB_PLUGIN_DEFINE(SymbolFileBreakpad)
 
 char SymbolFileBreakpad::ID;
 
@@ -292,7 +294,7 @@ uint32_t SymbolFileBreakpad::ResolveSymbolContext(
 }
 
 void SymbolFileBreakpad::FindFunctions(
-    ConstString name, const CompilerDeclContext *parent_decl_ctx,
+    ConstString name, const CompilerDeclContext &parent_decl_ctx,
     FunctionNameType name_type_mask, bool include_inlines,
     SymbolContextList &sc_list) {
   // TODO
@@ -305,7 +307,7 @@ void SymbolFileBreakpad::FindFunctions(const RegularExpression &regex,
 }
 
 void SymbolFileBreakpad::FindTypes(
-    ConstString name, const CompilerDeclContext *parent_decl_ctx,
+    ConstString name, const CompilerDeclContext &parent_decl_ctx,
     uint32_t max_matches, llvm::DenseSet<SymbolFile *> &searched_symbol_files,
     TypeMap &types) {}
 
@@ -694,18 +696,18 @@ void SymbolFileBreakpad::ParseLineTableAndSupportFiles(CompileUnit &cu,
          "How did we create compile units without a base address?");
 
   SupportFileMap map;
-  data.line_table_up = std::make_unique<LineTable>(&cu);
-  std::unique_ptr<LineSequence> line_seq_up(
-      data.line_table_up->CreateLineSequenceContainer());
+  std::vector<std::unique_ptr<LineSequence>> sequences;
+  std::unique_ptr<LineSequence> line_seq_up =
+      LineTable::CreateLineSequenceContainer();
   llvm::Optional<addr_t> next_addr;
   auto finish_sequence = [&]() {
-    data.line_table_up->AppendLineEntryToSequence(
+    LineTable::AppendLineEntryToSequence(
         line_seq_up.get(), *next_addr, /*line*/ 0, /*column*/ 0,
         /*file_idx*/ 0, /*is_start_of_statement*/ false,
         /*is_start_of_basic_block*/ false, /*is_prologue_end*/ false,
         /*is_epilogue_begin*/ false, /*is_terminal_entry*/ true);
-    data.line_table_up->InsertSequence(line_seq_up.get());
-    line_seq_up->Clear();
+    sequences.push_back(std::move(line_seq_up));
+    line_seq_up = LineTable::CreateLineSequenceContainer();
   };
 
   LineIterator It(*m_objfile_sp, Record::Func, data.bookmark),
@@ -722,7 +724,7 @@ void SymbolFileBreakpad::ParseLineTableAndSupportFiles(CompileUnit &cu,
       // Discontiguous entries. Finish off the previous sequence and reset.
       finish_sequence();
     }
-    data.line_table_up->AppendLineEntryToSequence(
+    LineTable::AppendLineEntryToSequence(
         line_seq_up.get(), record->Address, record->LineNum, /*column*/ 0,
         map[record->FileNum], /*is_start_of_statement*/ true,
         /*is_start_of_basic_block*/ false, /*is_prologue_end*/ false,
@@ -731,6 +733,7 @@ void SymbolFileBreakpad::ParseLineTableAndSupportFiles(CompileUnit &cu,
   }
   if (next_addr)
     finish_sequence();
+  data.line_table_up = std::make_unique<LineTable>(&cu, std::move(sequences));
   data.support_files = map.translate(cu.GetPrimaryFile(), *m_files);
 }
 

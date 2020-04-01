@@ -2,20 +2,28 @@
 // Small buffer size to trigger fine copies.
 // RUN: mlir-opt %s -affine-data-copy-generate -affine-data-copy-generate-dma=false -affine-data-copy-generate-fast-mem-space=0 -affine-data-copy-generate-fast-mem-capacity=1 | FileCheck --check-prefix=CHECK-SMALL %s
 
+// Test affine data copy with a memref filter. We use a test pass that invokes
+// affine data copy utility on the input loop nest.
+// '-test-affine-data-copy-memref-filter' passes the first memref found in an
+// affine.load op in the innermost loop as a filter.
+// RUN: mlir-opt %s -split-input-file -test-affine-data-copy='memref-filter' | FileCheck %s --check-prefix=FILTER
+// RUN: mlir-opt %s -split-input-file -test-affine-data-copy='for-memref-region' | FileCheck %s --check-prefix=MEMREF_REGION
+
 // -copy-skip-non-stride-loops forces the copies to be placed right inside the
 // tile space loops, avoiding the sensitivity of copy placement depth to memory
 // footprint -- so that one could write a definite test case and not have to
 // update it each time something related to the cost functions change.
 
-#map0 = (d0) -> (d0)
-#map1 = (d0) -> (d0 + 128)
+#map0 = affine_map<(d0) -> (d0)>
+#map1 = affine_map<(d0) -> (d0 + 128)>
 
 // Map used to index the original memref while copying.
-// CHECK-DAG: [[MEM_IDX_MAP:map[0-9]+]] = (d0, d1) -> (d0 + d1)
+// CHECK-DAG: [[MEM_IDX_MAP:map[0-9]+]] = affine_map<(d0, d1) -> (d0 + d1)>
 // Map used to index the buffer while computing.
-// CHECK-DAG: [[BUF_IDX_MAP:map[0-9]+]] = (d0, d1, d2, d3) -> (-d0 + d2, -d1 + d3)
+// CHECK-DAG: [[BUF_IDX_MAP:map[0-9]+]] = affine_map<(d0, d1, d2, d3) -> (-d0 + d2, -d1 + d3)>
 
 // CHECK-LABEL: func @matmul
+// FILTER-LABEL: func @matmul
 func @matmul(%A: memref<4096x4096xf32>, %B: memref<4096x4096xf32>, %C: memref<4096x4096xf32>) -> memref<4096x4096xf32> {
   affine.for %i = 0 to 4096 step 128 {
     affine.for %j = 0 to 4096 step 128 {
@@ -110,11 +118,30 @@ func @matmul(%A: memref<4096x4096xf32>, %B: memref<4096x4096xf32>, %C: memref<40
 // CHECK:   }
 // CHECK: }
 
+// Check that only one memref is copied when memref filter is used.
+
+//      FILTER: affine.for %{{.*}} = 0 to 4096 step 128 {
+//      FILTER:   alloc() : memref<128x4096xf32>
+//  FILTER-NOT:   alloc()
+//      FILTER:   affine.for %{{.*}} = 0 to 128 {
+//      FILTER:     affine.for %{{.*}} = 0 to 4096 {
+//      FILTER:     affine.for %{{.*}} = 0 to 4096 step 128 {
+// FILTER-NEXT:       affine.for %{{.*}} = 0 to 4096 step 128 {
+// FILTER-NEXT:         affine.for %{{.*}} = #map{{.*}}(%{{.*}}) to #map{{.*}}(%{{.*}}) {
+// FILTER-NEXT:           affine.for %{{.*}} = #map{{.*}}(%{{.*}}) to #map{{.*}}(%{{.*}}) {
+// FILTER-NEXT:             affine.for %{{.*}} = #map{{.*}}(%{{.*}}) to #map{{.*}}(%{{.*}}) {
+//      FILTER:   dealloc %1 : memref<128x4096xf32>
+//  FILTER-NOT:   dealloc %1 : memref<128x4096xf32>
+
+// -----
+
 //
 // This test case will lead to single element buffers. These are eventually
 // expected to be turned into registers via alloca and mem2reg.
 //
-// CHECK-SMALL: func @foo
+// CHECK-SMALL-LABEL: func @foo
+// FILTER-LABEL: func @foo
+// MEMREF_REGION-LABEL: func @foo
 func @foo(%arg0: memref<1024x1024xf32>, %arg1: memref<1024x1024xf32>, %arg2: memref<1024x1024xf32>) -> memref<1024x1024xf32> {
   affine.for %i = 0 to 1024 {
     affine.for %j = 0 to 1024 {
@@ -161,3 +188,27 @@ func @foo(%arg0: memref<1024x1024xf32>, %arg1: memref<1024x1024xf32>, %arg2: mem
 // CHECK-SMALL:   }
 // CHECK-SMALL: }
 // CHECK-SMALL: return
+
+// Check that only one memref is copied when memref filter is used.
+
+//      FILTER: alloc() : memref<1024x1024xf32>
+//  FILTER-NOT: alloc()
+//      FILTER: affine.for %{{.*}} = 0 to 1024 {
+//      FILTER:   affine.for %{{.*}} = 0 to 1024 {
+//      FILTER: affine.for %{{.*}} = 0 to 1024 {
+// FILTER-NEXT:   affine.for %{{.*}} = 0 to 1024 {
+// FILTER-NEXT:     affine.for %{{.*}} = 0 to 1024 {
+//      FILTER: dealloc %{{.*}} : memref<1024x1024xf32>
+//  FILTER-NOT: dealloc
+
+// CHeck that only one memref is copied, because for-memref-region is enabled
+// (and the first ever encountered load is analyzed).
+//      MEMREF_REGION: alloc() : memref<1024x1024xf32>
+//  MEMREF_REGION-NOT: alloc()
+//      MEMREF_REGION: affine.for %{{.*}} = 0 to 1024 {
+//      MEMREF_REGION:   affine.for %{{.*}} = 0 to 1024 {
+//      MEMREF_REGION: affine.for %{{.*}} = 0 to 1024 {
+// MEMREF_REGION-NEXT:   affine.for %{{.*}} = 0 to 1024 {
+// MEMREF_REGION-NEXT:     affine.for %{{.*}} = 0 to 1024 {
+//      MEMREF_REGION: dealloc %{{.*}} : memref<1024x1024xf32>
+//  MEMREF_REGION-NOT: dealloc

@@ -1,4 +1,4 @@
-//===-- ScriptInterpreterLua.cpp --------------------------------*- C++ -*-===//
+//===-- ScriptInterpreterLua.cpp ------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -18,6 +18,8 @@
 
 using namespace lldb;
 using namespace lldb_private;
+
+LLDB_PLUGIN_DEFINE(ScriptInterpreterLua)
 
 class IOHandlerLuaInterpreter : public IOHandlerDelegate,
                                 public IOHandlerEditline {
@@ -80,7 +82,19 @@ void ScriptInterpreterLua::ExecuteInterpreterLoop() {
     return;
 
   IOHandlerSP io_handler_sp(new IOHandlerLuaInterpreter(debugger, *this));
-  debugger.PushIOHandler(io_handler_sp);
+  debugger.RunIOHandlerAsync(io_handler_sp);
+}
+
+bool ScriptInterpreterLua::LoadScriptingModule(
+    const char *filename, bool init_session, lldb_private::Status &error,
+    StructuredData::ObjectSP *module_sp) {
+
+  if (llvm::Error e = m_lua->LoadModule(filename)) {
+    error.SetErrorStringWithFormatv("lua failed to import '{0}': {1}\n",
+                                    filename, llvm::toString(std::move(e)));
+    return false;
+  }
+  return true;
 }
 
 void ScriptInterpreterLua::Initialize() {

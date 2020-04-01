@@ -1,6 +1,6 @@
 //===-- SPIRVBitOps.td - MLIR SPIR-V Bit Ops -*- tablegen -*-===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -15,6 +15,7 @@
 #define SPIRV_BIT_OPS
 
 include "mlir/Dialect/SPIRV/SPIRVBase.td"
+include "mlir/Interfaces/SideEffects.td"
 
 class SPV_BitBinaryOp<string mnemonic, list<OpTrait> traits = []> :
       // All the operands type used in bit instructions are SPV_Integer.
@@ -23,7 +24,8 @@ class SPV_BitBinaryOp<string mnemonic, list<OpTrait> traits = []> :
                                [NoSideEffect, SameOperandsAndResultType])>;
 
 class SPV_BitFieldExtractOp<string mnemonic, list<OpTrait> traits = []> :
-      SPV_Op<mnemonic, !listconcat(traits, [NoSideEffect])> {
+      SPV_Op<mnemonic, !listconcat(traits,
+             [NoSideEffect, AllTypesMatch<["base", "result"]>])> {
   let arguments = (ins
     SPV_ScalarOrVectorOf<SPV_Integer>:$base,
     SPV_Integer:$offset,
@@ -34,9 +36,11 @@ class SPV_BitFieldExtractOp<string mnemonic, list<OpTrait> traits = []> :
     SPV_ScalarOrVectorOf<SPV_Integer>:$result
   );
 
-  let parser = [{ return ::parseBitFieldExtractOp(parser, result); }];
-  let printer = [{ ::printBitFieldExtractOp(this->getOperation(), p); }];
-  let verifier = [{ return ::verifyBitFieldExtractOp(this->getOperation()); }];
+  let verifier = [{ return success(); }];
+
+  let assemblyFormat = [{
+    operands attr-dict `:` type($base) `,` type($offset) `,` type($count)
+  }];
 }
 
 class SPV_BitUnaryOp<string mnemonic, list<OpTrait> traits = []> :
@@ -99,7 +103,8 @@ def SPV_BitCountOp : SPV_BitUnaryOp<"BitCount", []> {
 
 // -----
 
-def SPV_BitFieldInsertOp : SPV_Op<"BitFieldInsert", [NoSideEffect]> {
+def SPV_BitFieldInsertOp : SPV_Op<"BitFieldInsert",
+    [NoSideEffect, AllTypesMatch<["base", "insert", "result"]>]> {
   let summary = [{
     Make a copy of an object, with a modified bit field that comes from
     another object.
@@ -163,6 +168,12 @@ def SPV_BitFieldInsertOp : SPV_Op<"BitFieldInsert", [NoSideEffect]> {
   let results = (outs
     SPV_ScalarOrVectorOf<SPV_Integer>:$result
   );
+
+  let verifier = [{ return success(); }];
+
+  let assemblyFormat = [{
+    operands attr-dict `:` type($base) `,` type($offset) `,` type($count)
+  }];
 }
 
 // -----

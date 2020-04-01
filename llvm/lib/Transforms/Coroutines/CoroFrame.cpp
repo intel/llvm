@@ -18,10 +18,11 @@
 
 #include "CoroInternal.h"
 #include "llvm/ADT/BitVector.h"
+#include "llvm/ADT/SmallString.h"
 #include "llvm/Analysis/PtrUseVisitor.h"
-#include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/IR/CFG.h"
+#include "llvm/IR/DIBuilder.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
@@ -29,7 +30,9 @@
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/circular_raw_ostream.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
+#include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Transforms/Utils/PromoteMemToReg.h"
+#include <algorithm>
 
 using namespace llvm;
 
@@ -636,12 +639,12 @@ static Instruction *insertSpills(const SpillInfo &Spills, coro::Shape &Shape) {
   };
 
   // Create a load instruction to reload the spilled value from the coroutine
-  // frame.
-  auto CreateReload = [&](Instruction *InsertBefore) {
+  // frame. Populates the Value pointer reference provided with the frame GEP.
+  auto CreateReload = [&](Instruction *InsertBefore, Value *&G) {
     assert(Index != InvalidFieldIndex && "accessing unassigned field number");
     Builder.SetInsertPoint(InsertBefore);
 
-    auto *G = GetFramePointer(Index, CurrentValue);
+    G = GetFramePointer(Index, CurrentValue);
     G->setName(CurrentValue->getName() + Twine(".reload.addr"));
 
     return isa<AllocaInst>(CurrentValue)
@@ -650,6 +653,7 @@ static Instruction *insertSpills(const SpillInfo &Spills, coro::Shape &Shape) {
                                     CurrentValue->getName() + Twine(".reload"));
   };
 
+  Value *GEP = nullptr, *CurrentGEP = nullptr;
   for (auto const &E : Spills) {
     // If we have not seen the value, generate a spill.
     if (CurrentValue != E.def()) {
@@ -722,7 +726,7 @@ static Instruction *insertSpills(const SpillInfo &Spills, coro::Shape &Shape) {
     // If we have not seen the use block, generate a reload in it.
     if (CurrentBlock != E.userBlock()) {
       CurrentBlock = E.userBlock();
-      CurrentReload = CreateReload(&*CurrentBlock->getFirstInsertionPt());
+      CurrentReload = CreateReload(&*CurrentBlock->getFirstInsertionPt(), GEP);
     }
 
     // If we have a single edge PHINode, remove it and replace it with a reload
@@ -736,6 +740,19 @@ static Instruction *insertSpills(const SpillInfo &Spills, coro::Shape &Shape) {
       continue;
     }
 
+    // If we have not seen this GEP instruction, migrate any dbg.declare from
+    // the alloca to it.
+    if (CurrentGEP != GEP) {
+      CurrentGEP = GEP;
+      TinyPtrVector<DbgDeclareInst *> DIs = FindDbgDeclareUses(CurrentValue);
+      if (!DIs.empty())
+        DIBuilder(*CurrentBlock->getParent()->getParent(),
+                  /*AllowUnresolved*/ false)
+            .insertDeclare(CurrentGEP, DIs.front()->getVariable(),
+                           DIs.front()->getExpression(),
+                           DIs.front()->getDebugLoc(), DIs.front());
+    }
+
     // Replace all uses of CurrentValue in the current instruction with reload.
     E.user()->replaceUsesOfWith(CurrentValue, CurrentReload);
   }
@@ -746,14 +763,21 @@ static Instruction *insertSpills(const SpillInfo &Spills, coro::Shape &Shape) {
     FramePtrBB->splitBasicBlock(FramePtr->getNextNode(), "AllocaSpillBB");      
   SpillBlock->splitBasicBlock(&SpillBlock->front(), "PostSpill");
   Shape.AllocaSpillBlock = SpillBlock;
-  // If we found any allocas, replace all of their remaining uses with Geps.
-  // Note: we cannot do it indiscriminately as some of the uses may not be
-  // dominated by CoroBegin.
+  // If we found any alloca, replace all of their remaining uses with GEP
+  // instructions. Because new dbg.declare have been created for these alloca,
+  // we also delete the original dbg.declare and replace other uses with undef.
+  // Note: We cannot replace the alloca with GEP instructions indiscriminately,
+  // as some of the uses may not be dominated by CoroBegin.
   bool MightNeedToCopy = false;
   Builder.SetInsertPoint(&Shape.AllocaSpillBlock->front());
   SmallVector<Instruction *, 4> UsersToUpdate;
   for (auto &P : Allocas) {
     AllocaInst *const A = P.first;
+
+    for (auto *DI : FindDbgDeclareUses(A))
+      DI->eraseFromParent();
+    replaceDbgUsesWithUndef(A);
+
     UsersToUpdate.clear();
     for (User *U : A->users()) {
       auto *I = cast<Instruction>(U);
@@ -784,7 +808,7 @@ static Instruction *insertSpills(const SpillInfo &Spills, coro::Shape &Shape) {
               "Coroutines cannot handle copying of array allocas yet");
 
         auto *G = GetFramePointer(P.second, A);
-        auto *Value = Builder.CreateLoad(A);
+        auto *Value = Builder.CreateLoad(A->getAllocatedType(), A);
         Builder.CreateStore(Value, G);
       }
     }
@@ -1166,7 +1190,7 @@ static Value *emitGetSwiftErrorValue(IRBuilder<> &Builder, Type *ValueTy,
   auto FnTy = FunctionType::get(ValueTy, {}, false);
   auto Fn = ConstantPointerNull::get(FnTy->getPointerTo());
 
-  auto Call = Builder.CreateCall(Fn, {});
+  auto Call = Builder.CreateCall(FnTy, Fn, {});
   Shape.SwiftErrorOps.push_back(Call);
 
   return Call;
@@ -1182,7 +1206,7 @@ static Value *emitSetSwiftErrorValue(IRBuilder<> &Builder, Value *V,
                                 {V->getType()}, false);
   auto Fn = ConstantPointerNull::get(FnTy->getPointerTo());
 
-  auto Call = Builder.CreateCall(Fn, { V });
+  auto Call = Builder.CreateCall(FnTy, Fn, { V });
   Shape.SwiftErrorOps.push_back(Call);
 
   return Call;
@@ -1323,10 +1347,6 @@ static void eliminateSwiftError(Function &F, coro::Shape &Shape) {
 }
 
 void coro::buildCoroutineFrame(Function &F, Shape &Shape) {
-  // Lower coro.dbg.declare to coro.dbg.value, since we are going to rewrite
-  // access to local variables.
-  LowerDbgDeclare(F);
-
   eliminateSwiftError(F, Shape);
 
   if (Shape.ABI == coro::ABI::Switch &&

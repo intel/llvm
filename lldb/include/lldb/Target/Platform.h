@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_Platform_h_
-#define liblldb_Platform_h_
+#ifndef LLDB_TARGET_PLATFORM_H
+#define LLDB_TARGET_PLATFORM_H
 
 #include <functional>
 #include <map>
@@ -23,6 +23,7 @@
 #include "lldb/Utility/ArchSpec.h"
 #include "lldb/Utility/ConstString.h"
 #include "lldb/Utility/FileSpec.h"
+#include "lldb/Utility/StructuredData.h"
 #include "lldb/Utility/Timeout.h"
 #include "lldb/Utility/UserIDResolver.h"
 #include "lldb/lldb-private-forward.h"
@@ -32,8 +33,8 @@
 namespace lldb_private {
 
 class ProcessInstanceInfo;
-class ProcessInstanceInfoList;
 class ProcessInstanceInfoMatch;
+typedef std::vector<ProcessInstanceInfo> ProcessInstanceInfoList;
 
 class ModuleCache;
 enum MmapFlags { eMmapFlagsPrivate = 1, eMmapFlagsAnon = 2 };
@@ -49,6 +50,9 @@ public:
 
   FileSpec GetModuleCacheDirectory() const;
   bool SetModuleCacheDirectory(const FileSpec &dir_spec);
+
+private:
+  void SetDefaultModuleCacheDirectory(const FileSpec &dir_spec);
 };
 
 typedef std::shared_ptr<PlatformProperties> PlatformPropertiesSP;
@@ -823,6 +827,26 @@ public:
   virtual size_t ConnectToWaitingProcesses(lldb_private::Debugger &debugger,
                                            lldb_private::Status &error);
 
+  /// Gather all of crash informations into a structured data dictionnary.
+  ///
+  /// If the platform have a crashed process with crash information entries,
+  /// gather all the entries into an structured data dictionnary or return a
+  /// nullptr. This dictionnary is generic and extensible, as it contains an
+  /// array for each different type of crash information.
+  ///
+  /// \param[in] process
+  ///     The crashed process.
+  ///
+  /// \return
+  ///     A structured data dictionnary containing at each entry, the crash
+  ///     information type as the entry key and the matching  an array as the
+  ///     entry value. \b nullptr if not implemented or  if the process has no
+  ///     crash information entry. \b error if an error occured.
+  virtual llvm::Expected<StructuredData::DictionarySP>
+  FetchExtendedCrashInformation(lldb_private::Process &process) {
+    return nullptr;
+  }
+
 protected:
   bool m_is_host;
   // Set to true when we are able to actually set the OS version while being
@@ -1046,4 +1070,4 @@ private:
 
 } // namespace lldb_private
 
-#endif // liblldb_Platform_h_
+#endif // LLDB_TARGET_PLATFORM_H

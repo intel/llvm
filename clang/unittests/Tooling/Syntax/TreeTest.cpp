@@ -11,6 +11,7 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/Stmt.h"
 #include "clang/Basic/LLVM.h"
+#include "clang/Basic/TokenKinds.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/CompilerInvocation.h"
 #include "clang/Frontend/FrontendAction.h"
@@ -173,17 +174,21 @@ void foo() {}
 *: TranslationUnit
 |-SimpleDeclaration
 | |-int
-| |-main
-| |-(
-| |-)
+| |-SimpleDeclarator
+| | |-main
+| | `-ParametersAndQualifiers
+| |   |-(
+| |   `-)
 | `-CompoundStatement
 |   |-{
 |   `-}
 `-SimpleDeclaration
   |-void
-  |-foo
-  |-(
-  |-)
+  |-SimpleDeclarator
+  | |-foo
+  | `-ParametersAndQualifiers
+  |   |-(
+  |   `-)
   `-CompoundStatement
     |-{
     `-}
@@ -200,9 +205,11 @@ int main() {
 *: TranslationUnit
 `-SimpleDeclaration
   |-int
-  |-main
-  |-(
-  |-)
+  |-SimpleDeclarator
+  | |-main
+  | `-ParametersAndQualifiers
+  |   |-(
+  |   `-)
   `-CompoundStatement
     |-{
     |-IfStatement
@@ -245,9 +252,11 @@ void test() {
 *: TranslationUnit
 `-SimpleDeclaration
   |-void
-  |-test
-  |-(
-  |-)
+  |-SimpleDeclarator
+  | |-test
+  | `-ParametersAndQualifiers
+  |   |-(
+  |   `-)
   `-CompoundStatement
     |-{
     |-ForStatement
@@ -267,18 +276,21 @@ void test() {
 *: TranslationUnit
 `-SimpleDeclaration
   |-void
-  |-test
-  |-(
-  |-)
+  |-SimpleDeclarator
+  | |-test
+  | `-ParametersAndQualifiers
+  |   |-(
+  |   `-)
   `-CompoundStatement
     |-{
     |-DeclarationStatement
     | |-SimpleDeclaration
     | | |-int
-    | | |-a
-    | | |-=
-    | | `-UnknownExpression
-    | |   `-10
+    | | `-SimpleDeclarator
+    | |   |-a
+    | |   |-=
+    | |   `-UnknownExpression
+    | |     `-10
     | `-;
     `-}
 )txt"},
@@ -286,9 +298,11 @@ void test() {
 *: TranslationUnit
 `-SimpleDeclaration
   |-void
-  |-test
-  |-(
-  |-)
+  |-SimpleDeclarator
+  | |-test
+  | `-ParametersAndQualifiers
+  |   |-(
+  |   `-)
   `-CompoundStatement
     |-{
     |-EmptyStatement
@@ -308,9 +322,11 @@ void test() {
 *: TranslationUnit
 `-SimpleDeclaration
   |-void
-  |-test
-  |-(
-  |-)
+  |-SimpleDeclarator
+  | |-test
+  | `-ParametersAndQualifiers
+  |   |-(
+  |   `-)
   `-CompoundStatement
     |-{
     |-SwitchStatement
@@ -344,9 +360,11 @@ void test() {
 *: TranslationUnit
 `-SimpleDeclaration
   |-void
-  |-test
-  |-(
-  |-)
+  |-SimpleDeclarator
+  | |-test
+  | `-ParametersAndQualifiers
+  |   |-(
+  |   `-)
   `-CompoundStatement
     |-{
     |-WhileStatement
@@ -374,9 +392,11 @@ int test() { return 1; }
 *: TranslationUnit
 `-SimpleDeclaration
   |-int
-  |-test
-  |-(
-  |-)
+  |-SimpleDeclarator
+  | |-test
+  | `-ParametersAndQualifiers
+  |   |-(
+  |   `-)
   `-CompoundStatement
     |-{
     |-ReturnStatement
@@ -397,26 +417,31 @@ void test() {
 *: TranslationUnit
 `-SimpleDeclaration
   |-void
-  |-test
-  |-(
-  |-)
+  |-SimpleDeclarator
+  | |-test
+  | `-ParametersAndQualifiers
+  |   |-(
+  |   `-)
   `-CompoundStatement
     |-{
     |-DeclarationStatement
     | |-SimpleDeclaration
     | | |-int
-    | | |-a
-    | | |-[
-    | | |-UnknownExpression
-    | | | `-3
-    | | `-]
+    | | `-SimpleDeclarator
+    | |   |-a
+    | |   `-ArraySubscript
+    | |     |-[
+    | |     |-UnknownExpression
+    | |     | `-3
+    | |     `-]
     | `-;
     |-RangeBasedForStatement
     | |-for
     | |-(
     | |-SimpleDeclaration
     | | |-int
-    | | |-x
+    | | |-SimpleDeclarator
+    | | | `-x
     | | `-:
     | |-UnknownExpression
     | | `-a
@@ -432,9 +457,11 @@ void test() {
 *: TranslationUnit
 `-SimpleDeclaration
   |-void
-  |-main
-  |-(
-  |-)
+  |-SimpleDeclarator
+  | |-main
+  | `-ParametersAndQualifiers
+  |   |-(
+  |   `-)
   `-CompoundStatement
     |-{
     |-UnknownStatement
@@ -459,9 +486,11 @@ void test() {
 *: TranslationUnit
 `-SimpleDeclaration
   |-void
-  |-test
-  |-(
-  |-)
+  |-SimpleDeclarator
+  | |-test
+  | `-ParametersAndQualifiers
+  |   |-(
+  |   `-)
   `-CompoundStatement
     |-{
     |-ExpressionStatement
@@ -499,10 +528,12 @@ void test() {
 *: TranslationUnit
 `-SimpleDeclaration
   |-int
-  |-*
-  |-a
+  |-SimpleDeclarator
+  | |-*
+  | `-a
   |-,
-  |-b
+  |-SimpleDeclarator
+  | `-b
   `-;
   )txt"},
       {R"cpp(
@@ -513,10 +544,12 @@ void test() {
 `-SimpleDeclaration
   |-typedef
   |-int
-  |-*
-  |-a
+  |-SimpleDeclarator
+  | |-*
+  | `-a
   |-,
-  |-b
+  |-SimpleDeclarator
+  | `-b
   `-;
   )txt"},
       // Multiple declarators inside a statement.
@@ -530,27 +563,33 @@ void foo() {
 *: TranslationUnit
 `-SimpleDeclaration
   |-void
-  |-foo
-  |-(
-  |-)
+  |-SimpleDeclarator
+  | |-foo
+  | `-ParametersAndQualifiers
+  |   |-(
+  |   `-)
   `-CompoundStatement
     |-{
     |-DeclarationStatement
     | |-SimpleDeclaration
     | | |-int
-    | | |-*
-    | | |-a
+    | | |-SimpleDeclarator
+    | | | |-*
+    | | | `-a
     | | |-,
-    | | `-b
+    | | `-SimpleDeclarator
+    | |   `-b
     | `-;
     |-DeclarationStatement
     | |-SimpleDeclaration
     | | |-typedef
     | | |-int
-    | | |-*
-    | | |-ta
+    | | |-SimpleDeclarator
+    | | | |-*
+    | | | `-ta
     | | |-,
-    | | `-tb
+    | | `-SimpleDeclarator
+    | |   `-tb
     | `-;
     `-}
   )txt"},
@@ -616,23 +655,26 @@ struct {} *a1;
 |-SimpleDeclaration
 | |-struct
 | |-Y
-| |-*
-| |-y1
+| |-SimpleDeclarator
+| | |-*
+| | `-y1
 | `-;
 |-SimpleDeclaration
 | |-struct
 | |-Y
 | |-{
 | |-}
-| |-*
-| |-y2
+| |-SimpleDeclarator
+| | |-*
+| | `-y2
 | `-;
 `-SimpleDeclaration
   |-struct
   |-{
   |-}
-  |-*
-  |-a1
+  |-SimpleDeclarator
+  | |-*
+  | `-a1
   `-;
 )txt"},
       {R"cpp(
@@ -665,7 +707,8 @@ using ns::a;
 | |-{
 | |-SimpleDeclaration
 | | |-int
-| | |-a
+| | |-SimpleDeclarator
+| | | `-a
 | | `-;
 | `-}
 `-UsingDeclaration
@@ -765,7 +808,8 @@ extern "C" { int b; int c; }
 | |-"C"
 | `-SimpleDeclaration
 |   |-int
-|   |-a
+|   |-SimpleDeclarator
+|   | `-a
 |   `-;
 `-LinkageSpecificationDeclaration
   |-extern
@@ -773,11 +817,13 @@ extern "C" { int b; int c; }
   |-{
   |-SimpleDeclaration
   | |-int
-  | |-b
+  | |-SimpleDeclarator
+  | | `-b
   | `-;
   |-SimpleDeclaration
   | |-int
-  | |-c
+  | |-SimpleDeclarator
+  | | `-c
   | `-;
   `-}
        )txt"},
@@ -792,9 +838,11 @@ void test() {
 *: TranslationUnit
 `-SimpleDeclaration
   |-void
-  |-test
-  |-(
-  |-)
+  |-SimpleDeclarator
+  | |-test
+  | `-ParametersAndQualifiers
+  |   |-(
+  |   `-)
   `-CompoundStatement
     |-{
     |-IfStatement
@@ -833,9 +881,11 @@ void test() {
 *: TranslationUnit
 `-SimpleDeclaration
   |-void
-  |-test
-  |-(
-  |-)
+  |-SimpleDeclarator
+  | |-test
+  | `-ParametersAndQualifiers
+  |   |-(
+  |   `-)
   `-CompoundStatement
     |-{
     |-CompoundStatement
@@ -854,6 +904,533 @@ void test() {
     | `-}
     `-}
        )txt"},
+      // Array subscripts in declarators.
+      {R"cpp(
+int a[10];
+int b[1][2][3];
+int c[] = {1,2,3};
+void f(int xs[static 10]);
+    )cpp",
+       R"txt(
+*: TranslationUnit
+|-SimpleDeclaration
+| |-int
+| |-SimpleDeclarator
+| | |-a
+| | `-ArraySubscript
+| |   |-[
+| |   |-UnknownExpression
+| |   | `-10
+| |   `-]
+| `-;
+|-SimpleDeclaration
+| |-int
+| |-SimpleDeclarator
+| | |-b
+| | |-ArraySubscript
+| | | |-[
+| | | |-UnknownExpression
+| | | | `-1
+| | | `-]
+| | |-ArraySubscript
+| | | |-[
+| | | |-UnknownExpression
+| | | | `-2
+| | | `-]
+| | `-ArraySubscript
+| |   |-[
+| |   |-UnknownExpression
+| |   | `-3
+| |   `-]
+| `-;
+|-SimpleDeclaration
+| |-int
+| |-SimpleDeclarator
+| | |-c
+| | |-ArraySubscript
+| | | |-[
+| | | `-]
+| | |-=
+| | `-UnknownExpression
+| |   |-{
+| |   |-1
+| |   |-,
+| |   |-2
+| |   |-,
+| |   |-3
+| |   `-}
+| `-;
+`-SimpleDeclaration
+  |-void
+  |-SimpleDeclarator
+  | |-f
+  | `-ParametersAndQualifiers
+  |   |-(
+  |   |-SimpleDeclaration
+  |   | |-int
+  |   | `-SimpleDeclarator
+  |   |   |-xs
+  |   |   `-ArraySubscript
+  |   |     |-[
+  |   |     |-static
+  |   |     |-UnknownExpression
+  |   |     | `-10
+  |   |     `-]
+  |   `-)
+  `-;
+       )txt"},
+      // Parameter lists in declarators.
+      {R"cpp(
+int a() const;
+int b() volatile;
+int c() &;
+int d() &&;
+int foo(int a, int b);
+int foo(
+  const int a,
+  volatile int b,
+  const volatile int c,
+  int* d,
+  int& e,
+  int&& f
+);
+    )cpp",
+       R"txt(
+*: TranslationUnit
+|-SimpleDeclaration
+| |-int
+| |-SimpleDeclarator
+| | |-a
+| | `-ParametersAndQualifiers
+| |   |-(
+| |   |-)
+| |   `-const
+| `-;
+|-SimpleDeclaration
+| |-int
+| |-SimpleDeclarator
+| | |-b
+| | `-ParametersAndQualifiers
+| |   |-(
+| |   |-)
+| |   `-volatile
+| `-;
+|-SimpleDeclaration
+| |-int
+| |-SimpleDeclarator
+| | |-c
+| | `-ParametersAndQualifiers
+| |   |-(
+| |   |-)
+| |   `-&
+| `-;
+|-SimpleDeclaration
+| |-int
+| |-SimpleDeclarator
+| | |-d
+| | `-ParametersAndQualifiers
+| |   |-(
+| |   |-)
+| |   `-&&
+| `-;
+|-SimpleDeclaration
+| |-int
+| |-SimpleDeclarator
+| | |-foo
+| | `-ParametersAndQualifiers
+| |   |-(
+| |   |-SimpleDeclaration
+| |   | |-int
+| |   | `-SimpleDeclarator
+| |   |   `-a
+| |   |-,
+| |   |-SimpleDeclaration
+| |   | |-int
+| |   | `-SimpleDeclarator
+| |   |   `-b
+| |   `-)
+| `-;
+`-SimpleDeclaration
+  |-int
+  |-SimpleDeclarator
+  | |-foo
+  | `-ParametersAndQualifiers
+  |   |-(
+  |   |-SimpleDeclaration
+  |   | |-const
+  |   | |-int
+  |   | `-SimpleDeclarator
+  |   |   `-a
+  |   |-,
+  |   |-SimpleDeclaration
+  |   | |-volatile
+  |   | |-int
+  |   | `-SimpleDeclarator
+  |   |   `-b
+  |   |-,
+  |   |-SimpleDeclaration
+  |   | |-const
+  |   | |-volatile
+  |   | |-int
+  |   | `-SimpleDeclarator
+  |   |   `-c
+  |   |-,
+  |   |-SimpleDeclaration
+  |   | |-int
+  |   | `-SimpleDeclarator
+  |   |   |-*
+  |   |   `-d
+  |   |-,
+  |   |-SimpleDeclaration
+  |   | |-int
+  |   | `-SimpleDeclarator
+  |   |   |-&
+  |   |   `-e
+  |   |-,
+  |   |-SimpleDeclaration
+  |   | |-int
+  |   | `-SimpleDeclarator
+  |   |   |-&&
+  |   |   `-f
+  |   `-)
+  `-;
+       )txt"},
+      // Trailing const qualifier.
+      {R"cpp(
+struct X {
+  int foo() const;
+}
+    )cpp",
+       R"txt(
+*: TranslationUnit
+`-SimpleDeclaration
+  |-struct
+  |-X
+  |-{
+  |-SimpleDeclaration
+  | |-int
+  | |-SimpleDeclarator
+  | | |-foo
+  | | `-ParametersAndQualifiers
+  | |   |-(
+  | |   |-)
+  | |   `-const
+  | `-;
+  `-}
+    )txt"},
+      // Trailing return type in parameter lists.
+      {R"cpp(
+auto foo() -> int;
+    )cpp",
+       R"txt(
+*: TranslationUnit
+`-SimpleDeclaration
+  |-auto
+  |-SimpleDeclarator
+  | |-foo
+  | `-ParametersAndQualifiers
+  |   |-(
+  |   |-)
+  |   `-TrailingReturnType
+  |     |-->
+  |     `-int
+  `-;
+       )txt"},
+      // Exception specification in parameter lists.
+      {R"cpp(
+int a() noexcept;
+int b() noexcept(true);
+int c() throw();
+    )cpp",
+       R"txt(
+*: TranslationUnit
+|-SimpleDeclaration
+| |-int
+| |-SimpleDeclarator
+| | |-a
+| | `-ParametersAndQualifiers
+| |   |-(
+| |   |-)
+| |   `-noexcept
+| `-;
+|-SimpleDeclaration
+| |-int
+| |-SimpleDeclarator
+| | |-b
+| | `-ParametersAndQualifiers
+| |   |-(
+| |   |-)
+| |   |-noexcept
+| |   |-(
+| |   |-UnknownExpression
+| |   | `-true
+| |   `-)
+| `-;
+`-SimpleDeclaration
+  |-int
+  |-SimpleDeclarator
+  | |-c
+  | `-ParametersAndQualifiers
+  |   |-(
+  |   |-)
+  |   |-throw
+  |   |-(
+  |   `-)
+  `-;
+       )txt"},
+      // Declarators in parentheses.
+      {R"cpp(
+int (a);
+int *(b);
+int (*c)(int);
+int *(d)(int);
+    )cpp",
+       R"txt(
+*: TranslationUnit
+|-SimpleDeclaration
+| |-int
+| |-SimpleDeclarator
+| | `-ParenDeclarator
+| |   |-(
+| |   |-a
+| |   `-)
+| `-;
+|-SimpleDeclaration
+| |-int
+| |-SimpleDeclarator
+| | |-*
+| | `-ParenDeclarator
+| |   |-(
+| |   |-b
+| |   `-)
+| `-;
+|-SimpleDeclaration
+| |-int
+| |-SimpleDeclarator
+| | |-ParenDeclarator
+| | | |-(
+| | | |-*
+| | | |-c
+| | | `-)
+| | `-ParametersAndQualifiers
+| |   |-(
+| |   |-SimpleDeclaration
+| |   | `-int
+| |   `-)
+| `-;
+`-SimpleDeclaration
+  |-int
+  |-SimpleDeclarator
+  | |-*
+  | |-ParenDeclarator
+  | | |-(
+  | | |-d
+  | | `-)
+  | `-ParametersAndQualifiers
+  |   |-(
+  |   |-SimpleDeclaration
+  |   | `-int
+  |   `-)
+  `-;
+       )txt"},
+      // CV qualifiers.
+      {R"cpp(
+const int west = -1;
+int const east = 1;
+const int const universal = 0;
+const int const *const *volatile b;
+    )cpp",
+       R"txt(
+*: TranslationUnit
+|-SimpleDeclaration
+| |-const
+| |-int
+| |-SimpleDeclarator
+| | |-west
+| | |-=
+| | `-UnknownExpression
+| |   |--
+| |   `-1
+| `-;
+|-SimpleDeclaration
+| |-int
+| |-const
+| |-SimpleDeclarator
+| | |-east
+| | |-=
+| | `-UnknownExpression
+| |   `-1
+| `-;
+|-SimpleDeclaration
+| |-const
+| |-int
+| |-const
+| |-SimpleDeclarator
+| | |-universal
+| | |-=
+| | `-UnknownExpression
+| |   `-0
+| `-;
+`-SimpleDeclaration
+  |-const
+  |-int
+  |-const
+  |-SimpleDeclarator
+  | |-*
+  | |-const
+  | |-*
+  | |-volatile
+  | `-b
+  `-;
+       )txt"},
+      // Ranges of declarators with trailing return types.
+      {R"cpp(
+auto foo() -> auto(*)(int) -> double*;
+    )cpp",
+       R"txt(
+*: TranslationUnit
+`-SimpleDeclaration
+  |-auto
+  |-SimpleDeclarator
+  | |-foo
+  | `-ParametersAndQualifiers
+  |   |-(
+  |   |-)
+  |   `-TrailingReturnType
+  |     |-->
+  |     |-auto
+  |     `-SimpleDeclarator
+  |       |-ParenDeclarator
+  |       | |-(
+  |       | |-*
+  |       | `-)
+  |       `-ParametersAndQualifiers
+  |         |-(
+  |         |-SimpleDeclaration
+  |         | `-int
+  |         |-)
+  |         `-TrailingReturnType
+  |           |-->
+  |           |-double
+  |           `-SimpleDeclarator
+  |             `-*
+  `-;
+       )txt"},
+      // Member pointers.
+      {R"cpp(
+struct X {};
+int X::* a;
+const int X::* b;
+    )cpp",
+       R"txt(
+*: TranslationUnit
+|-SimpleDeclaration
+| |-struct
+| |-X
+| |-{
+| |-}
+| `-;
+|-SimpleDeclaration
+| |-int
+| |-SimpleDeclarator
+| | |-MemberPointer
+| | | |-X
+| | | |-::
+| | | `-*
+| | `-a
+| `-;
+`-SimpleDeclaration
+  |-const
+  |-int
+  |-SimpleDeclarator
+  | |-MemberPointer
+  | | |-X
+  | | |-::
+  | | `-*
+  | `-b
+  `-;
+       )txt"},
+      // All-in-one tests.
+      {R"cpp(
+void x(char a, short (*b)(int));
+    )cpp",
+       R"txt(
+*: TranslationUnit
+`-SimpleDeclaration
+  |-void
+  |-SimpleDeclarator
+  | |-x
+  | `-ParametersAndQualifiers
+  |   |-(
+  |   |-SimpleDeclaration
+  |   | |-char
+  |   | `-SimpleDeclarator
+  |   |   `-a
+  |   |-,
+  |   |-SimpleDeclaration
+  |   | |-short
+  |   | `-SimpleDeclarator
+  |   |   |-ParenDeclarator
+  |   |   | |-(
+  |   |   | |-*
+  |   |   | |-b
+  |   |   | `-)
+  |   |   `-ParametersAndQualifiers
+  |   |     |-(
+  |   |     |-SimpleDeclaration
+  |   |     | `-int
+  |   |     `-)
+  |   `-)
+  `-;
+       )txt"},
+      {R"cpp(
+void x(char a, short (*b)(int), long (**c)(long long));
+    )cpp",
+       R"txt(
+*: TranslationUnit
+`-SimpleDeclaration
+  |-void
+  |-SimpleDeclarator
+  | |-x
+  | `-ParametersAndQualifiers
+  |   |-(
+  |   |-SimpleDeclaration
+  |   | |-char
+  |   | `-SimpleDeclarator
+  |   |   `-a
+  |   |-,
+  |   |-SimpleDeclaration
+  |   | |-short
+  |   | `-SimpleDeclarator
+  |   |   |-ParenDeclarator
+  |   |   | |-(
+  |   |   | |-*
+  |   |   | |-b
+  |   |   | `-)
+  |   |   `-ParametersAndQualifiers
+  |   |     |-(
+  |   |     |-SimpleDeclaration
+  |   |     | `-int
+  |   |     `-)
+  |   |-,
+  |   |-SimpleDeclaration
+  |   | |-long
+  |   | `-SimpleDeclarator
+  |   |   |-ParenDeclarator
+  |   |   | |-(
+  |   |   | |-*
+  |   |   | |-*
+  |   |   | |-c
+  |   |   | `-)
+  |   |   `-ParametersAndQualifiers
+  |   |     |-(
+  |   |     |-SimpleDeclaration
+  |   |     | |-long
+  |   |     | `-long
+  |   |     `-)
+  |   `-)
+  `-;
+       )txt"},
   };
 
   for (const auto &T : Cases) {
@@ -861,7 +1438,8 @@ void test() {
 
     auto *Root = buildTree(T.first);
     std::string Expected = llvm::StringRef(T.second).trim().str();
-    std::string Actual = llvm::StringRef(Root->dump(*Arena)).trim();
+    std::string Actual =
+        std::string(llvm::StringRef(Root->dump(*Arena)).trim());
     EXPECT_EQ(Expected, Actual) << "the resulting dump is:\n" << Actual;
   }
 }
@@ -894,6 +1472,9 @@ TEST_F(SyntaxTreeTest, Mutations) {
     auto *S = cast<syntax::Statement>(nodeByRange(Input.range(), TU));
     ASSERT_TRUE(S->canModify()) << "cannot remove a statement";
     syntax::removeStatement(*Arena, S);
+    EXPECT_TRUE(S->isDetached());
+    EXPECT_FALSE(S->isOriginal())
+        << "node removed from tree cannot be marked as original";
   };
 
   std::vector<std::pair<std::string /*Input*/, std::string /*Expected*/>>
@@ -904,6 +1485,23 @@ TEST_F(SyntaxTreeTest, Mutations) {
           {"void test() { [[;]] }", "void test() {  }"}};
   for (const auto &C : Cases)
     CheckTransformation(C.first, C.second, RemoveStatement);
+}
+
+TEST_F(SyntaxTreeTest, SynthesizedNodes) {
+  buildTree("");
+
+  auto *C = syntax::createPunctuation(*Arena, tok::comma);
+  ASSERT_NE(C, nullptr);
+  EXPECT_EQ(C->token()->kind(), tok::comma);
+  EXPECT_TRUE(C->canModify());
+  EXPECT_FALSE(C->isOriginal());
+  EXPECT_TRUE(C->isDetached());
+
+  auto *S = syntax::createEmptyStatement(*Arena);
+  ASSERT_NE(S, nullptr);
+  EXPECT_TRUE(S->canModify());
+  EXPECT_FALSE(S->isOriginal());
+  EXPECT_TRUE(S->isDetached());
 }
 
 } // namespace

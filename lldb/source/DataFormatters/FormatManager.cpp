@@ -1,4 +1,4 @@
-//===-- FormatManager.cpp ----------------------------------------*- C++-*-===//
+//===-- FormatManager.cpp -------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -179,7 +179,7 @@ void FormatManager::GetPossibleMatches(
     bool did_strip_ptr, bool did_strip_ref, bool did_strip_typedef,
     bool root_level) {
   compiler_type = compiler_type.GetTypeForFormatters();
-  ConstString type_name(compiler_type.GetConstTypeName());
+  ConstString type_name(compiler_type.GetTypeName());
   if (valobj.GetBitfieldBitSize() > 0) {
     StreamString sstring;
     sstring.Printf("%s:%d", type_name.AsCString(), valobj.GetBitfieldBitSize());
@@ -193,7 +193,7 @@ void FormatManager::GetPossibleMatches(
     entries.push_back(
         {type_name, reason, did_strip_ptr, did_strip_ref, did_strip_typedef});
 
-    ConstString display_type_name(compiler_type.GetDisplayTypeName());
+    ConstString display_type_name(compiler_type.GetTypeName());
     if (display_type_name != type_name)
       entries.push_back({display_type_name, reason, did_strip_ptr,
                          did_strip_ref, did_strip_typedef});
@@ -230,11 +230,33 @@ void FormatManager::GetPossibleMatches(
     if (non_ptr_type.IsTypedefType()) {
       CompilerType deffed_pointed_type =
           non_ptr_type.GetTypedefedType().GetPointerType();
+      const bool stripped_typedef = true;
       GetPossibleMatches(
           valobj, deffed_pointed_type,
           reason | lldb_private::eFormatterChoiceCriterionNavigatedTypedefs,
           use_dynamic, entries, did_strip_ptr, did_strip_ref,
-          true); // this is not exactly the usual meaning of stripping typedefs
+          stripped_typedef); // this is not exactly the usual meaning of
+                             // stripping typedefs
+    }
+  }
+
+  // For arrays with typedef-ed elements, we add a candidate with the typedef
+  // stripped.
+  uint64_t array_size;
+  if (compiler_type.IsArrayType(nullptr, &array_size, nullptr)) {
+    CompilerType element_type = compiler_type.GetArrayElementType();
+    if (element_type.IsTypedefType()) {
+      // Get the stripped element type and compute the stripped array type
+      // from it.
+      CompilerType deffed_array_type =
+          element_type.GetTypedefedType().GetArrayType(array_size);
+      const bool stripped_typedef = true;
+      GetPossibleMatches(
+          valobj, deffed_array_type,
+          reason | lldb_private::eFormatterChoiceCriterionNavigatedTypedefs,
+          use_dynamic, entries, did_strip_ptr, did_strip_ref,
+          stripped_typedef); // this is not exactly the usual meaning of
+                             // stripping typedefs
     }
   }
 

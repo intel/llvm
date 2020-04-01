@@ -2,7 +2,7 @@
 struct A {};
 
 enum Foo { F };
-typedef Foo Bar; // expected-note{{type 'Bar' (aka 'Foo') is declared here}}
+typedef Foo Bar; // expected-note{{type 'Bar' (aka 'Foo') found by destructor name lookup}}
 
 typedef int Integer;
 typedef double Double;
@@ -23,7 +23,7 @@ void f(A* a, Foo *f, int *i, double *d, int ii) {
   a->~A();
   a->A::~A();
   
-  a->~foo(); // expected-error{{identifier 'foo' in object destruction expression does not name a type}}
+  a->~foo(); // expected-error{{undeclared identifier 'foo' in destructor name}}
   
   a->~Bar(); // expected-error{{destructor type 'Bar' (aka 'Foo') in object destruction expression does not match the type 'A' of the object being destroyed}}
   
@@ -33,17 +33,21 @@ void f(A* a, Foo *f, int *i, double *d, int ii) {
   
   g().~Bar(); // expected-error{{non-scalar}}
   
-  f->::~Bar();
+  f->::~Bar(); // expected-error {{not a structure or union}}
+  f->::Bar::~Bar();
   f->N::~Wibble(); // expected-error{{'N' does not refer to a type}} expected-error{{'Wibble' does not refer to a type}}
   
-  f->::~Bar(17, 42); // expected-error{{cannot have any arguments}}
+  f->Bar::~Bar(17, 42); // expected-error{{cannot have any arguments}}
 
   i->~Integer();
   i->Integer::~Integer();
-  i->N::~OtherInteger();
+  i->N::~OtherInteger(); // expected-error{{'N' does not refer to a type name in pseudo-destructor expression; expected the name of type 'int'}}
+                         // expected-error@-1{{'OtherInteger' does not refer to a type name in pseudo-destructor expression; expected the name of type 'int'}}
+  i->N::OtherInteger::~OtherInteger();
   i->N::OtherInteger::~OtherInteger();
   i->N::OtherInteger::~Integer(); // expected-error{{'Integer' does not refer to a type name in pseudo-destructor expression; expected the name of type 'int'}}
-  i->N::~Integer(); // expected-error{{'Integer' does not refer to a type name in pseudo-destructor expression; expected the name of type 'int'}}
+  i->N::~Integer(); // expected-error{{'N' does not refer to a type name in pseudo-destructor expression; expected the name of type 'int'}}
+  i->N::OtherInteger::~Integer(); // expected-error{{'Integer' does not refer to a type name in pseudo-destructor expression; expected the name of type 'int'}}
   i->Integer::~Double(); // expected-error{{the type of object expression ('int') does not match the type being destroyed ('Double' (aka 'double')) in pseudo-destructor expression}}
 
   ii->~Integer(); // expected-error{{member reference type 'int' is not a pointer; did you mean to use '.'?}}
@@ -79,7 +83,7 @@ namespace PR11339 {
   template<class T>
   void destroy(T* p) {
     p->~T(); // ok
-    p->~oops(); // expected-error{{identifier 'oops' in object destruction expression does not name a type}}
+    p->~oops(); // expected-error{{undeclared identifier 'oops' in destructor name}}
   }
 
   template void destroy(int*); // expected-note{{in instantiation of function template specialization}}

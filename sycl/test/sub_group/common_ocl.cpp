@@ -1,10 +1,13 @@
+// REQUIRES: opencl
+
 // RUN: %clang_cc1 -x cl -cl-std=CL2.0 %S/sg.cl -triple spir64-unknown-unknown -emit-llvm-bc -o %T/kernel_ocl.bc -include opencl-c.h
 // RUN: llvm-spirv %T/kernel_ocl.bc -o %T/kernel_ocl.spv
-// RUN: %clangxx -fsycl %s -o %t.out -lOpenCL
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out -L %opencl_libs_dir -lOpenCL
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out %T/kernel_ocl.spv
 // RUN: %GPU_RUN_PLACEHOLDER %t.out %T/kernel_ocl.spv
 // RUN: %ACC_RUN_PLACEHOLDER %t.out %T/kernel_ocl.spv
+// UNSUPPORTED: cuda
 //==--- common_ocl.cpp - basic SG methods in SYCL vs OpenCL  ---*- C++ -*---==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -16,7 +19,9 @@
 #include "helper.hpp"
 #include <CL/sycl.hpp>
 #include <cstring>
+#include <fstream>
 #include <iostream>
+
 using namespace cl::sycl;
 struct Data {
   unsigned int local_id;
@@ -36,7 +41,7 @@ void check(queue &Queue, const int G, const int L, const char *SpvFile) {
     std::ifstream File(SpvFile, std::ios::binary);
     if (!File.is_open()) {
       std::cerr << std::strerror(errno);
-      throw compile_program_error("Cannot open SPIRV file\n");
+      throw compile_program_error("Cannot open SPIRV file\n", PI_INVALID_VALUE);
     }
     File.seekg(0, std::ios::end);
     vector_class<char> Spv(File.tellg());

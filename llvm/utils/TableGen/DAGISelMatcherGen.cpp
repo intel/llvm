@@ -311,7 +311,7 @@ void MatcherGen::EmitOperatorMatchCode(const TreePatternNode *N,
     // The "name" of a non-leaf complex pattern (MY_PAT $op1, $op2) is
     // "MY_PAT:op1:op2". We should already have validated that the uses are
     // consistent.
-    std::string PatternName = N->getOperator()->getName();
+    std::string PatternName = std::string(N->getOperator()->getName());
     for (unsigned i = 0; i < N->getNumChildren(); ++i) {
       PatternName += ":";
       PatternName += N->getChild(i)->getName();
@@ -715,6 +715,18 @@ void MatcherGen::EmitResultLeafAsOperand(const TreePatternNode *N,
 
     // Handle a subregister index. This is used for INSERT_SUBREG etc.
     if (Def->isSubClassOf("SubRegIndex")) {
+      const CodeGenRegBank &RB = CGP.getTargetInfo().getRegBank();
+      // If we have more than 127 subreg indices the encoding can overflow
+      // 7 bit and we cannot use StringInteger.
+      if (RB.getSubRegIndices().size() > 127) {
+        const CodeGenSubRegIndex *I = RB.findSubRegIdx(Def);
+        assert(I && "Cannot find subreg index by name!");
+        if (I->EnumValue > 127) {
+          AddMatcher(new EmitIntegerMatcher(I->EnumValue, MVT::i32));
+          ResultOps.push_back(NextRecordedOperandNo++);
+          return;
+        }
+      }
       std::string Value = getQualifiedName(Def);
       AddMatcher(new EmitStringIntegerMatcher(Value, MVT::i32));
       ResultOps.push_back(NextRecordedOperandNo++);

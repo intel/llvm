@@ -1015,9 +1015,9 @@ StmtResult Parser::ParseCompoundStatementBody(bool isStmtExpr) {
                                 Tok.getLocation(),
                                 "in compound statement ('{}')");
 
-  // Record the state of the FP_CONTRACT pragma, restore on leaving the
+  // Record the state of the FPFeatures, restore on leaving the
   // compound statement.
-  Sema::FPContractStateRAII SaveFPContractState(Actions);
+  Sema::FPFeaturesStateRAII SaveFPContractState(Actions);
 
   InMessageExpressionRAIIObject InMessage(*this, false);
   BalancedDelimiterTracker T(*this, tok::l_brace);
@@ -2519,6 +2519,12 @@ bool Parser::ParseSYCLLoopAttributes(ParsedAttributes &Attrs) {
   if (Attrs.begin()->getKind() != ParsedAttr::AT_SYCLIntelFPGAIVDep &&
       Attrs.begin()->getKind() != ParsedAttr::AT_SYCLIntelFPGAII &&
       Attrs.begin()->getKind() != ParsedAttr::AT_SYCLIntelFPGAMaxConcurrency &&
+      Attrs.begin()->getKind() != ParsedAttr::AT_SYCLIntelFPGALoopCoalesce &&
+      Attrs.begin()->getKind() !=
+          ParsedAttr::AT_SYCLIntelFPGADisableLoopPipelining &&
+      Attrs.begin()->getKind() != ParsedAttr::AT_SYCLIntelFPGAMaxInterleaving &&
+      Attrs.begin()->getKind() !=
+          ParsedAttr::AT_SYCLIntelFPGASpeculatedIterations &&
       Attrs.begin()->getKind() != ParsedAttr::AT_LoopUnrollHint)
     return true;
 

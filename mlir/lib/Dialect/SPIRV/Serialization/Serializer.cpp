@@ -1,6 +1,6 @@
 //===- Serializer.cpp - MLIR SPIR-V Serialization -------------------------===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -13,6 +13,7 @@
 #include "mlir/Dialect/SPIRV/Serialization.h"
 
 #include "mlir/ADT/TypeSwitch.h"
+#include "mlir/Dialect/SPIRV/SPIRVAttributes.h"
 #include "mlir/Dialect/SPIRV/SPIRVBinaryUtils.h"
 #include "mlir/Dialect/SPIRV/SPIRVDialect.h"
 #include "mlir/Dialect/SPIRV/SPIRVOps.h"
@@ -112,8 +113,10 @@ public:
   /// Collects the final SPIR-V `binary`.
   void collect(SmallVectorImpl<uint32_t> &binary);
 
+#ifndef NDEBUG
   /// (For debugging) prints each value and its corresponding result <id>.
   void printValueIDMap(raw_ostream &os);
+#endif
 
 private:
   // Note that there are two main categories of methods in this class:
@@ -177,7 +180,7 @@ private:
   LogicalResult processName(uint32_t resultID, StringRef name);
 
   /// Processes a SPIR-V function op.
-  LogicalResult processFuncOp(FuncOp op);
+  LogicalResult processFuncOp(spirv::FuncOp op);
 
   LogicalResult processVariableOp(spirv::VariableOp op);
 
@@ -488,7 +491,7 @@ void Serializer::collect(SmallVectorImpl<uint32_t> &binary) {
   binary.clear();
   binary.reserve(moduleSize);
 
-  spirv::appendModuleHeader(binary, nextID);
+  spirv::appendModuleHeader(binary, module.vce_triple()->getVersion(), nextID);
   binary.append(capabilities.begin(), capabilities.end());
   binary.append(extensions.begin(), extensions.end());
   binary.append(extendedSets.begin(), extendedSets.end());
@@ -501,22 +504,24 @@ void Serializer::collect(SmallVectorImpl<uint32_t> &binary) {
   binary.append(functions.begin(), functions.end());
 }
 
+#ifndef NDEBUG
 void Serializer::printValueIDMap(raw_ostream &os) {
   os << "\n= Value <id> Map =\n\n";
   for (auto valueIDPair : valueIDMap) {
     Value val = valueIDPair.first;
     os << "  " << val << " "
        << "id = " << valueIDPair.second << ' ';
-    if (auto *op = val->getDefiningOp()) {
+    if (auto *op = val.getDefiningOp()) {
       os << "from op '" << op->getName() << "'";
     } else if (auto arg = val.dyn_cast<BlockArgument>()) {
-      Block *block = arg->getOwner();
+      Block *block = arg.getOwner();
       os << "from argument of block " << block << ' ';
       os << " in op '" << block->getParentOp()->getName() << "'";
     }
     os << '\n';
   }
 }
+#endif
 
 //===----------------------------------------------------------------------===//
 // Module structure
@@ -532,28 +537,16 @@ uint32_t Serializer::getOrCreateFunctionID(StringRef fnName) {
 }
 
 void Serializer::processCapability() {
-  auto caps = module.getAttrOfType<ArrayAttr>("capabilities");
-  if (!caps)
-    return;
-
-  for (auto cap : caps.getValue()) {
-    auto capStr = cap.cast<StringAttr>().getValue();
-    auto capVal = spirv::symbolizeCapability(capStr);
+  for (auto cap : module.vce_triple()->getCapabilities())
     encodeInstructionInto(capabilities, spirv::Opcode::OpCapability,
-                          {static_cast<uint32_t>(*capVal)});
-  }
+                          {static_cast<uint32_t>(cap)});
 }
 
 void Serializer::processExtension() {
-  auto exts = module.getAttrOfType<ArrayAttr>("extensions");
-  if (!exts)
-    return;
-
-  SmallVector<uint32_t, 16> extName;
-  for (auto ext : exts.getValue()) {
-    auto extStr = ext.cast<StringAttr>().getValue();
+  llvm::SmallVector<uint32_t, 16> extName;
+  for (spirv::Extension ext : module.vce_triple()->getExtensions()) {
     extName.clear();
-    spirv::encodeStringLiteralInto(extName, extStr);
+    spirv::encodeStringLiteralInto(extName, spirv::stringifyExtension(ext));
     encodeInstructionInto(extensions, spirv::Opcode::OpExtension, extName);
   }
 }
@@ -678,7 +671,7 @@ Serializer::processMemberDecoration(uint32_t structID, uint32_t memberIndex,
 }
 } // namespace
 
-LogicalResult Serializer::processFuncOp(FuncOp op) {
+LogicalResult Serializer::processFuncOp(spirv::FuncOp op) {
   LLVM_DEBUG(llvm::dbgs() << "-- start function '" << op.getName() << "' --\n");
   assert(functionHeader.empty() && functionBody.empty());
 
@@ -714,7 +707,7 @@ LogicalResult Serializer::processFuncOp(FuncOp op) {
   // Declare the parameters.
   for (auto arg : op.getArguments()) {
     uint32_t argTypeID = 0;
-    if (failed(processType(op.getLoc(), arg->getType(), argTypeID))) {
+    if (failed(processType(op.getLoc(), arg.getType(), argTypeID))) {
       return failure();
     }
     auto argValueID = getNextID();
@@ -928,8 +921,11 @@ Serializer::prepareBasicType(Location loc, Type type, uint32_t resultID,
 
     typeEnum = spirv::Opcode::OpTypeInt;
     operands.push_back(intType.getWidth());
-    // TODO(antiagainst): support unsigned integers
-    operands.push_back(1);
+    // SPIR-V OpTypeInt "Signedness specifies whether there are signed semantics
+    // to preserve or validate.
+    // 0 indicates unsigned, or no signedness semantics
+    // 1 indicates signed semantics."
+    operands.push_back(intType.isSigned() ? 1 : 0);
     return success();
   }
 
@@ -1397,7 +1393,7 @@ LogicalResult Serializer::emitPhiForBlockArguments(Block *block) {
 
     // Get the type <id> and result <id> for this OpPhi instruction.
     uint32_t phiTypeID = 0;
-    if (failed(processType(arg->getLoc(), arg->getType(), phiTypeID)))
+    if (failed(processType(arg.getLoc(), arg.getType(), phiTypeID)))
       return failure();
     uint32_t phiID = getNextID();
 
@@ -1448,13 +1444,13 @@ LogicalResult Serializer::processSelectionOp(spirv::SelectionOp selectionOp) {
   auto mergeID = getBlockID(mergeBlock);
 
   // Emit the selection header block, which dominates all other blocks, first.
-  // We need to emit an OpSelectionMerge instruction before the loop header
+  // We need to emit an OpSelectionMerge instruction before the selection header
   // block's terminator.
   auto emitSelectionMerge = [&]() {
-    // TODO(antiagainst): properly support loop control here
+    // TODO(antiagainst): properly support selection control here
     encodeInstructionInto(
         functionBody, spirv::Opcode::OpSelectionMerge,
-        {mergeID, static_cast<uint32_t>(spirv::LoopControl::None)});
+        {mergeID, static_cast<uint32_t>(spirv::SelectionControl::None)});
   };
   // For structured selection, we cannot have blocks in the selection construct
   // branching to the selection header block. Entering the selection (and
@@ -1638,7 +1634,7 @@ LogicalResult Serializer::processOperation(Operation *opInst) {
         return processBranchConditionalOp(op);
       })
       .Case([&](spirv::ConstantOp op) { return processConstantOp(op); })
-      .Case([&](FuncOp op) { return processFuncOp(op); })
+      .Case([&](spirv::FuncOp op) { return processFuncOp(op); })
       .Case([&](spirv::GlobalVariableOp op) {
         return processGlobalVariableOp(op);
       })
@@ -1764,12 +1760,9 @@ Serializer::processOp<spirv::FunctionCallOp>(spirv::FunctionCallOp op) {
   auto funcName = op.callee();
   uint32_t resTypeID = 0;
 
-  SmallVector<Type, 1> resultTypes(op.getResultTypes());
-  if (failed(processType(op.getLoc(),
-                         (resultTypes.empty() ? getVoidType() : resultTypes[0]),
-                         resTypeID))) {
+  Type resultTy = op.getNumResults() ? *op.result_type_begin() : getVoidType();
+  if (failed(processType(op.getLoc(), resultTy, resTypeID)))
     return failure();
-  }
 
   auto funcID = getOrCreateFunctionID(funcName);
   auto funcCallID = getNextID();
@@ -1781,9 +1774,8 @@ Serializer::processOp<spirv::FunctionCallOp>(spirv::FunctionCallOp op) {
     operands.push_back(valueID);
   }
 
-  if (!resultTypes.empty()) {
+  if (!resultTy.isa<NoneType>())
     valueIDMap[op.getResult(0)] = funcCallID;
-  }
 
   return encodeInstructionInto(functionBody, spirv::Opcode::OpFunctionCall,
                                operands);
@@ -1809,6 +1801,10 @@ LogicalResult Serializer::emitDecoration(uint32_t target,
 
 LogicalResult spirv::serialize(spirv::ModuleOp module,
                                SmallVectorImpl<uint32_t> &binary) {
+  if (!module.vce_triple().hasValue())
+    return module.emitError(
+        "module must have 'vce_triple' attribute to be serializeable");
+
   Serializer serializer(module);
 
   if (failed(serializer.serialize()))

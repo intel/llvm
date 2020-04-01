@@ -67,11 +67,16 @@ static int InitLibrary(DeviceTy& Device) {
   int rc = OFFLOAD_SUCCESS;
 
   Device.PendingGlobalsMtx.lock();
-  TrlTblMtx.lock();
+  TrlTblMtx->lock();
   for (HostEntriesBeginToTransTableTy::iterator
-      ii = HostEntriesBeginToTransTable.begin();
-      ii != HostEntriesBeginToTransTable.end(); ++ii) {
+      ii = HostEntriesBeginToTransTable->begin();
+      ii != HostEntriesBeginToTransTable->end(); ++ii) {
     TranslationTable *TransTable = &ii->second;
+    if (TransTable->HostTable.EntriesBegin ==
+        TransTable->HostTable.EntriesEnd) {
+      // No host entry so no need to proceed
+      continue;
+    }
     if (TransTable->TargetsTable[device_id] != 0) {
       // Library entries have already been processed
       continue;
@@ -139,12 +144,12 @@ static int InitLibrary(DeviceTy& Device) {
             (uintptr_t)CurrHostEntry->addr /*HstPtrBegin*/,
             (uintptr_t)CurrHostEntry->addr + CurrHostEntry->size /*HstPtrEnd*/,
             (uintptr_t)CurrDeviceEntry->addr /*TgtPtrBegin*/,
-            INF_REF_CNT /*RefCount*/));
+            true /*IsRefCountINF*/));
       }
     }
     Device.DataMapMtx.unlock();
   }
-  TrlTblMtx.unlock();
+  TrlTblMtx->unlock();
 
   if (rc != OFFLOAD_SUCCESS) {
     Device.PendingGlobalsMtx.unlock();
@@ -294,14 +299,14 @@ int target_data_begin(DeviceTy &Device, int32_t arg_num,
 
     if (arg_types[i] & OMP_TGT_MAPTYPE_TO) {
       bool copy = false;
-      if (!(RTLs.RequiresFlags & OMP_REQ_UNIFIED_SHARED_MEMORY) ||
+      if (!(RTLs->RequiresFlags & OMP_REQ_UNIFIED_SHARED_MEMORY) ||
           HasCloseModifier) {
         if (IsNew || (arg_types[i] & OMP_TGT_MAPTYPE_ALWAYS)) {
           copy = true;
         } else if (arg_types[i] & OMP_TGT_MAPTYPE_MEMBER_OF) {
           // Copy data only if the "parent" struct has RefCount==1.
           int32_t parent_idx = member_of(arg_types[i]);
-          long parent_rc = Device.getMapEntryRefCnt(args[parent_idx]);
+          uint64_t parent_rc = Device.getMapEntryRefCnt(args[parent_idx]);
           assert(parent_rc > 0 && "parent struct not found");
           if (parent_rc == 1) {
             copy = true;
@@ -396,13 +401,13 @@ int target_data_end(DeviceTy &Device, int32_t arg_num, void **args_base,
       if (arg_types[i] & OMP_TGT_MAPTYPE_FROM) {
         bool Always = arg_types[i] & OMP_TGT_MAPTYPE_ALWAYS;
         bool CopyMember = false;
-        if (!(RTLs.RequiresFlags & OMP_REQ_UNIFIED_SHARED_MEMORY) ||
+        if (!(RTLs->RequiresFlags & OMP_REQ_UNIFIED_SHARED_MEMORY) ||
             HasCloseModifier) {
           if ((arg_types[i] & OMP_TGT_MAPTYPE_MEMBER_OF) &&
               !(arg_types[i] & OMP_TGT_MAPTYPE_PTR_AND_OBJ)) {
             // Copy data only if the "parent" struct has RefCount==1.
             int32_t parent_idx = member_of(arg_types[i]);
-            long parent_rc = Device.getMapEntryRefCnt(args[parent_idx]);
+            uint64_t parent_rc = Device.getMapEntryRefCnt(args[parent_idx]);
             assert(parent_rc > 0 && "parent struct not found");
             if (parent_rc == 1) {
               CopyMember = true;
@@ -411,7 +416,7 @@ int target_data_end(DeviceTy &Device, int32_t arg_num, void **args_base,
         }
 
         if ((DelEntry || Always || CopyMember) &&
-            !(RTLs.RequiresFlags & OMP_REQ_UNIFIED_SHARED_MEMORY &&
+            !(RTLs->RequiresFlags & OMP_REQ_UNIFIED_SHARED_MEMORY &&
               TgtPtrBegin == HstPtrBegin)) {
           DP("Moving %" PRId64 " bytes (tgt:" DPxMOD ") -> (hst:" DPxMOD ")\n",
               data_size, DPxPTR(TgtPtrBegin), DPxPTR(HstPtrBegin));
@@ -494,7 +499,7 @@ int target_data_update(DeviceTy &Device, int32_t arg_num,
       continue;
     }
 
-    if (RTLs.RequiresFlags & OMP_REQ_UNIFIED_SHARED_MEMORY &&
+    if (RTLs->RequiresFlags & OMP_REQ_UNIFIED_SHARED_MEMORY &&
         TgtPtrBegin == HstPtrBegin) {
       DP("hst data:" DPxMOD " unified and shared, becomes a noop\n",
          DPxPTR(HstPtrBegin));
@@ -585,14 +590,14 @@ int target(int64_t device_id, void *host_ptr, int32_t arg_num,
   // Find the table information in the map or look it up in the translation
   // tables.
   TableMap *TM = 0;
-  TblMapMtx.lock();
-  HostPtrToTableMapTy::iterator TableMapIt = HostPtrToTableMap.find(host_ptr);
-  if (TableMapIt == HostPtrToTableMap.end()) {
+  TblMapMtx->lock();
+  HostPtrToTableMapTy::iterator TableMapIt = HostPtrToTableMap->find(host_ptr);
+  if (TableMapIt == HostPtrToTableMap->end()) {
     // We don't have a map. So search all the registered libraries.
-    TrlTblMtx.lock();
+    TrlTblMtx->lock();
     for (HostEntriesBeginToTransTableTy::iterator
-             ii = HostEntriesBeginToTransTable.begin(),
-             ie = HostEntriesBeginToTransTable.end();
+             ii = HostEntriesBeginToTransTable->begin(),
+             ie = HostEntriesBeginToTransTable->end();
          !TM && ii != ie; ++ii) {
       // get the translation table (which contains all the good info).
       TranslationTable *TransTable = &ii->second;
@@ -606,17 +611,17 @@ int target(int64_t device_id, void *host_ptr, int32_t arg_num,
           continue;
         // we got a match, now fill the HostPtrToTableMap so that we
         // may avoid this search next time.
-        TM = &HostPtrToTableMap[host_ptr];
+        TM = &(*HostPtrToTableMap)[host_ptr];
         TM->Table = TransTable;
         TM->Index = i;
         break;
       }
     }
-    TrlTblMtx.unlock();
+    TrlTblMtx->unlock();
   } else {
     TM = &TableMapIt->second;
   }
-  TblMapMtx.unlock();
+  TblMapMtx->unlock();
 
   // No map for this host pointer found!
   if (!TM) {
@@ -626,11 +631,11 @@ int target(int64_t device_id, void *host_ptr, int32_t arg_num,
   }
 
   // get target table.
-  TrlTblMtx.lock();
+  TrlTblMtx->lock();
   assert(TM->Table->TargetsTable.size() > (size_t)device_id &&
          "Not expecting a device ID outside the table's bounds!");
   __tgt_target_table *TargetTable = TM->Table->TargetsTable[device_id];
-  TrlTblMtx.unlock();
+  TrlTblMtx->unlock();
   assert(TargetTable && "Global data has not been mapped\n");
 
   // Move data to device.
@@ -677,7 +682,7 @@ int target(int64_t device_id, void *host_ptr, int32_t arg_num,
              DPxPTR(HstPtrVal));
           continue;
         }
-        if (RTLs.RequiresFlags & OMP_REQ_UNIFIED_SHARED_MEMORY &&
+        if (RTLs->RequiresFlags & OMP_REQ_UNIFIED_SHARED_MEMORY &&
             TgtPtrBegin == HstPtrBegin) {
           DP("Unified memory is active, no need to map lambda captured"
              "variable (" DPxMOD ")\n", DPxPTR(HstPtrVal));
@@ -760,14 +765,14 @@ int target(int64_t device_id, void *host_ptr, int32_t arg_num,
 
   // Pop loop trip count
   uint64_t ltc = 0;
-  TblMapMtx.lock();
+  TblMapMtx->lock();
   auto I = Device.LoopTripCnt.find(__kmpc_global_thread_num(NULL));
   if (I != Device.LoopTripCnt.end()) {
     ltc = I->second;
     Device.LoopTripCnt.erase(I);
     DP("loop trip count is %lu.\n", ltc);
   }
-  TblMapMtx.unlock();
+  TblMapMtx->unlock();
 
   // Launch device execution.
   DP("Launching target execution %s with pointer " DPxMOD " (index=%d).\n",

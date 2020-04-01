@@ -1,4 +1,4 @@
-//===-- ThreadPlanStepRange.cpp ---------------------------------*- C++ -*-===//
+//===-- ThreadPlanStepRange.cpp -------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -264,12 +264,11 @@ InstructionList *ThreadPlanStepRange::GetInstructionsForAddress(
 
       if (!m_instruction_ranges[i]) {
         // Disassemble the address range given:
-        ExecutionContext exe_ctx(m_thread.GetProcess());
         const char *plugin_name = nullptr;
         const char *flavor = nullptr;
         const bool prefer_file_cache = true;
         m_instruction_ranges[i] = Disassembler::DisassembleRange(
-            GetTarget().GetArchitecture(), plugin_name, flavor, exe_ctx,
+            GetTarget().GetArchitecture(), plugin_name, flavor, GetTarget(),
             m_address_ranges[i], prefer_file_cache);
       }
       if (!m_instruction_ranges[i])

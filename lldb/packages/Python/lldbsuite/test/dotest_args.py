@@ -75,14 +75,20 @@ def create_parser():
         '--category',
         metavar='category',
         action='append',
-        dest='categoriesList',
+        dest='categories_list',
         help=textwrap.dedent('''Specify categories of test cases of interest. Can be specified more than once.'''))
     group.add_argument(
         '--skip-category',
         metavar='category',
         action='append',
-        dest='skipCategories',
+        dest='skip_categories',
         help=textwrap.dedent('''Specify categories of test cases to skip. Takes precedence over -G. Can be specified more than once.'''))
+    group.add_argument(
+        '--xfail-category',
+        metavar='category',
+        action='append',
+        dest='xfail_categories',
+        help=textwrap.dedent('''Specify categories of test cases that are expected to fail. Can be specified more than once.'''))
 
     # Configuration options
     group = parser.add_argument_group('Configuration options')
@@ -109,6 +115,14 @@ def create_parser():
         dest='dwarf_version',
         type=int,
         help='Override the DWARF version.')
+    group.add_argument(
+        '--setting',
+        metavar='SETTING=VALUE',
+        dest='settings',
+        type=str,
+        nargs=1,
+        action='append',
+        help='Run "setting set SETTING VALUE" before executing any test.')
     group.add_argument(
         '-s',
         metavar='name',
@@ -158,6 +172,11 @@ def create_parser():
         dest='clang_module_cache_dir',
         metavar='The clang module cache directory used by Clang',
         help='The clang module cache directory used in the Make files by Clang while building tests. Defaults to <test build directory>/module-cache-clang.')
+    group.add_argument(
+        '--lldb-libs-dir',
+        dest='lldb_libs_dir',
+        metavar='path',
+        help='The path to LLDB library directory (containing liblldb)')
 
     # Configuration options
     group = parser.add_argument_group('Remote platform options')

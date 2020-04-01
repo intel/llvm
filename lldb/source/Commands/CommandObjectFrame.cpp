@@ -1,4 +1,4 @@
-//===-- CommandObjectFrame.cpp ----------------------------------*- C++ -*-===//
+//===-- CommandObjectFrame.cpp --------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -172,8 +172,7 @@ protected:
                      Stream &stream) -> bool {
       const ValueObject::GetExpressionPathFormat format = ValueObject::
           GetExpressionPathFormat::eGetExpressionPathFormatHonorPointers;
-      const bool qualify_cxx_base_classes = false;
-      valobj_sp->GetExpressionPath(stream, qualify_cxx_base_classes, format);
+      valobj_sp->GetExpressionPath(stream, format);
       stream.PutCString(" =");
       return true;
     };
@@ -747,7 +746,7 @@ private:
         m_module = std::string(option_arg);
         break;
       case 'n':
-        m_function = std::string(option_arg);
+        m_symbols.push_back(std::string(option_arg));
         break;
       case 'x':
         m_regex = true;
@@ -761,7 +760,7 @@ private:
 
     void OptionParsingStarting(ExecutionContext *execution_context) override {
       m_module = "";
-      m_function = "";
+      m_symbols.clear();
       m_class_name = "";
       m_regex = false;
     }
@@ -773,7 +772,7 @@ private:
     // Instance variables to hold the values for command options.
     std::string m_class_name;
     std::string m_module;
-    std::string m_function;
+    std::vector<std::string> m_symbols;
     bool m_regex;
   };
 
@@ -855,9 +854,18 @@ bool CommandObjectFrameRecognizerAdd::DoExecute(Args &command,
     return false;
   }
 
-  if (m_options.m_function.empty()) {
-    result.AppendErrorWithFormat("%s needs a function name (-n argument).\n",
-                                 m_cmd_name.c_str());
+  if (m_options.m_symbols.empty()) {
+    result.AppendErrorWithFormat(
+        "%s needs at least one symbol name (-n argument).\n",
+        m_cmd_name.c_str());
+    result.SetStatus(eReturnStatusFailed);
+    return false;
+  }
+
+  if (m_options.m_regex && m_options.m_symbols.size() > 1) {
+    result.AppendErrorWithFormat(
+        "%s needs only one symbol regular expression (-n argument).\n",
+        m_cmd_name.c_str());
     result.SetStatus(eReturnStatusFailed);
     return false;
   }
@@ -877,12 +885,13 @@ bool CommandObjectFrameRecognizerAdd::DoExecute(Args &command,
     auto module =
         RegularExpressionSP(new RegularExpression(m_options.m_module));
     auto func =
-        RegularExpressionSP(new RegularExpression(m_options.m_function));
+        RegularExpressionSP(new RegularExpression(m_options.m_symbols.front()));
     StackFrameRecognizerManager::AddRecognizer(recognizer_sp, module, func);
   } else {
     auto module = ConstString(m_options.m_module);
-    auto func = ConstString(m_options.m_function);
-    StackFrameRecognizerManager::AddRecognizer(recognizer_sp, module, func);
+    std::vector<ConstString> symbols(m_options.m_symbols.begin(),
+                                     m_options.m_symbols.end());
+    StackFrameRecognizerManager::AddRecognizer(recognizer_sp, module, symbols);
   }
 #endif
 
@@ -959,14 +968,26 @@ protected:
   bool DoExecute(Args &command, CommandReturnObject &result) override {
     bool any_printed = false;
     StackFrameRecognizerManager::ForEach(
-        [&result, &any_printed](uint32_t recognizer_id, std::string name,
-                                std::string function, std::string symbol,
-                                bool regexp) {
-          if (name == "")
+        [&result, &any_printed](
+            uint32_t recognizer_id, std::string name, std::string module,
+            llvm::ArrayRef<ConstString> symbols, bool regexp) {
+          Stream &stream = result.GetOutputStream();
+
+          if (name.empty())
             name = "(internal)";
-          result.GetOutputStream().Printf(
-              "%d: %s, module %s, function %s%s\n", recognizer_id, name.c_str(),
-              function.c_str(), symbol.c_str(), regexp ? " (regexp)" : "");
+
+          stream << std::to_string(recognizer_id) << ": " << name;
+          if (!module.empty())
+            stream << ", module " << module;
+          if (!symbols.empty())
+            for (auto &symbol : symbols)
+              stream << ", symbol " << symbol;
+          if (regexp)
+            stream << " (regexp)";
+
+          stream.EOL();
+          stream.Flush();
+
           any_printed = true;
         });
 

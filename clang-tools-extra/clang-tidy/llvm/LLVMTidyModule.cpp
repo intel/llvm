@@ -10,6 +10,7 @@
 #include "../ClangTidyModule.h"
 #include "../ClangTidyModuleRegistry.h"
 #include "../readability/NamespaceCommentCheck.h"
+#include "../readability/QualifiedAutoCheck.h"
 #include "HeaderGuardCheck.h"
 #include "IncludeOrderCheck.h"
 #include "PreferIsaOrDynCastInConditionalsCheck.h"
@@ -31,7 +32,15 @@ public:
         "llvm-prefer-isa-or-dyn-cast-in-conditionals");
     CheckFactories.registerCheck<PreferRegisterOverUnsignedCheck>(
         "llvm-prefer-register-over-unsigned");
+    CheckFactories.registerCheck<readability::QualifiedAutoCheck>(
+        "llvm-qualified-auto");
     CheckFactories.registerCheck<TwineLocalCheck>("llvm-twine-local");
+  }
+
+  ClangTidyOptions getModuleOptions() override {
+    ClangTidyOptions Options;
+    Options.CheckOptions["llvm-qualified-auto.AddConstToQualified"] = "0";
+    return Options;
   }
 };
 

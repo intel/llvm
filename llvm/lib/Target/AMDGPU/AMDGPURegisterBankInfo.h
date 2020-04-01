@@ -45,7 +45,8 @@ public:
   const SIRegisterInfo *TRI;
   const SIInstrInfo *TII;
 
-private:
+  bool buildVCopy(MachineIRBuilder &B, Register DstReg, Register SrcReg) const;
+
   bool collectWaterfallOperands(
     SmallSet<Register, 4> &SGPROperandRegs,
     MachineInstr &MI,
@@ -75,6 +76,10 @@ private:
   applyMappingImage(MachineInstr &MI,
                     const AMDGPURegisterBankInfo::OperandsMapper &OpdMapper,
                     MachineRegisterInfo &MRI, int RSrcIdx) const;
+  bool applyMappingSBufferLoad(const OperandsMapper &OpdMapper) const;
+
+  bool applyMappingBFEIntrinsic(const OperandsMapper &OpdMapper,
+                                bool Signed) const;
 
   void lowerScalarMinMax(MachineIRBuilder &B, MachineInstr &MI) const;
 
@@ -89,6 +94,9 @@ private:
 
   /// See RegisterBankInfo::applyMapping.
   void applyMappingImpl(const OperandsMapper &OpdMapper) const override;
+
+  const ValueMapping *getValueMappingForPtr(const MachineRegisterInfo &MRI,
+                                            Register Ptr) const;
 
   const RegisterBankInfo::InstructionMapping &
   getInstrMappingForLoad(const MachineInstr &MI) const;

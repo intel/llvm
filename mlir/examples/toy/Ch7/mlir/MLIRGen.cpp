@@ -1,6 +1,6 @@
 //===- MLIRGen.cpp - MLIR Generation from a Toy AST -----------------------===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -222,6 +222,10 @@ private:
       function.setType(builder.getFunctionType(function.getType().getInputs(),
                                                *returnOp.operand_type_begin()));
     }
+
+    // If this function isn't main, then set the visibility to private.
+    if (funcAST.getProto()->getName() != "main")
+      function.setVisibility(mlir::FuncOp::Visibility::Private);
 
     return function;
   }
@@ -585,11 +589,11 @@ private:
       mlir::Type type = getType(varType, vardecl.loc());
       if (!type)
         return nullptr;
-      if (type != value->getType()) {
+      if (type != value.getType()) {
         emitError(loc(vardecl.loc()))
             << "struct type of initializer is different than the variable "
                "declaration. Got "
-            << value->getType() << ", but expected " << type;
+            << value.getType() << ", but expected " << type;
         return nullptr;
       }
 

@@ -3,20 +3,6 @@ macro(add_host_subdirectory group)
   source_group(${group} FILES ${ARGN})
 endmacro()
 
-# Removes all module flags from the current CMAKE_CXX_FLAGS. Used for
-# the Objective-C++ code in lldb which we don't want to build with modules.
-# Reasons for this are that modules with Objective-C++ would require that
-# all LLVM/Clang modules are Objective-C++ compatible (which they are likely
-# not) and we would have rebuild a second set of modules just for the few
-# Objective-C++ files in lldb (which slows down the build process).
-macro(remove_module_flags)
-  string(REGEX REPLACE "-fmodules-cache-path=[^ ]+" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-  string(REGEX REPLACE "-fmodules-local-submodule-visibility" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-  string(REGEX REPLACE "-fmodules" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-  string(REGEX REPLACE "-gmodules" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-  string(REGEX REPLACE "-fcxx-modules" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-endmacro()
-
 add_host_subdirectory(common
   common/FileAction.cpp
   common/FileCache.cpp
@@ -129,7 +115,7 @@ else()
 
   elseif (CMAKE_SYSTEM_NAME MATCHES "NetBSD")
     add_host_subdirectory(netbsd
-      netbsd/Host.cpp
+      netbsd/HostNetBSD.cpp
       netbsd/HostInfoNetBSD.cpp
       )
 
@@ -161,6 +147,9 @@ endif()
 if (LLDB_ENABLE_LZMA)
   list(APPEND EXTRA_LIBS ${LIBLZMA_LIBRARIES})
 endif()
+if (WIN32)
+  list(APPEND LLDB_SYSTEM_LIBS psapi)
+endif ()
 
 if (LLDB_ENABLE_LIBEDIT)
   list(APPEND LLDB_LIBEDIT_LIBS ${LibEdit_LIBRARIES})

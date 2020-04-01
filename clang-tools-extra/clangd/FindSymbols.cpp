@@ -18,6 +18,7 @@
 #include "clang/Index/IndexDataConsumer.h"
 #include "clang/Index/IndexSymbol.h"
 #include "clang/Index/IndexingAction.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/ScopedPrinter.h"
@@ -39,28 +40,31 @@ struct ScoredSymbolGreater {
 
 } // namespace
 
-llvm::Expected<Location> symbolToLocation(const Symbol &Sym,
-                                          llvm::StringRef HintPath) {
-  // Prefer the definition over e.g. a function declaration in a header
-  auto &CD = Sym.Definition ? Sym.Definition : Sym.CanonicalDeclaration;
-  auto Path = URI::resolve(CD.FileURI, HintPath);
+llvm::Expected<Location> indexToLSPLocation(const SymbolLocation &Loc,
+                                            llvm::StringRef TUPath) {
+  auto Path = URI::resolve(Loc.FileURI, TUPath);
   if (!Path) {
     return llvm::make_error<llvm::StringError>(
-        formatv("Could not resolve path for symbol '{0}': {1}",
-                Sym.Name, llvm::toString(Path.takeError())),
+        llvm::formatv("Could not resolve path for file '{0}': {1}", Loc.FileURI,
+                      llvm::toString(Path.takeError())),
         llvm::inconvertibleErrorCode());
   }
   Location L;
-  // Use HintPath as TUPath since there is no TU associated with this
-  // request.
-  L.uri = URIForFile::canonicalize(*Path, HintPath);
+  L.uri = URIForFile::canonicalize(*Path, TUPath);
   Position Start, End;
-  Start.line = CD.Start.line();
-  Start.character = CD.Start.column();
-  End.line = CD.End.line();
-  End.character = CD.End.column();
+  Start.line = Loc.Start.line();
+  Start.character = Loc.Start.column();
+  End.line = Loc.End.line();
+  End.character = Loc.End.column();
   L.range = {Start, End};
   return L;
+}
+
+llvm::Expected<Location> symbolToLocation(const Symbol &Sym,
+                                          llvm::StringRef TUPath) {
+  // Prefer the definition over e.g. a function declaration in a header
+  return indexToLSPLocation(
+      Sym.Definition ? Sym.Definition : Sym.CanonicalDeclaration, TUPath);
 }
 
 llvm::Expected<std::vector<SymbolInformation>>
@@ -73,14 +77,14 @@ getWorkspaceSymbols(llvm::StringRef Query, int Limit,
   auto Names = splitQualifiedName(Query);
 
   FuzzyFindRequest Req;
-  Req.Query = Names.second;
+  Req.Query = std::string(Names.second);
 
   // FuzzyFind doesn't want leading :: qualifier
   bool IsGlobalQuery = Names.first.consume_front("::");
   // Restrict results to the scope in the query string if present (global or
   // not).
   if (IsGlobalQuery || !Names.first.empty())
-    Req.Scopes = {Names.first};
+    Req.Scopes = {std::string(Names.first)};
   else
     Req.AnyScope = true;
   if (Limit)
@@ -96,11 +100,11 @@ getWorkspaceSymbols(llvm::StringRef Query, int Limit,
     }
 
     SymbolKind SK = indexSymbolKindToSymbolKind(Sym.SymInfo.Kind);
-    std::string Scope = Sym.Scope;
+    std::string Scope = std::string(Sym.Scope);
     llvm::StringRef ScopeRef = Scope;
     ScopeRef.consume_back("::");
     SymbolInformation Info = {(Sym.Name + Sym.TemplateSpecializationArgs).str(),
-                              SK, *Loc, ScopeRef};
+                              SK, *Loc, std::string(ScopeRef)};
 
     SymbolQualitySignals Quality;
     Quality.merge(Sym);
@@ -193,8 +197,11 @@ private:
   enum class VisitKind { No, OnlyDecl, DeclAndChildren };
 
   void traverseDecl(Decl *D, std::vector<DocumentSymbol> &Results) {
-    if (auto *Templ = llvm::dyn_cast<TemplateDecl>(D))
-      D = Templ->getTemplatedDecl();
+    if (auto *Templ = llvm::dyn_cast<TemplateDecl>(D)) {
+      // TemplatedDecl might be null, e.g. concepts.
+      if (auto *TD = Templ->getTemplatedDecl())
+        D = TD;
+    }
     auto *ND = llvm::dyn_cast<NamedDecl>(D);
     if (!ND)
       return;

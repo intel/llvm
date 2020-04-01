@@ -1,6 +1,6 @@
 //===- AttributeTest.cpp - Attribute unit tests ---------------------------===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -135,4 +135,14 @@ TEST(DenseSplatTest, FloatAttrSplat) {
 
   testSplat(floatTy, value);
 }
+
+TEST(DenseSplatTest, BF16Splat) {
+  MLIRContext context;
+  FloatType floatTy = FloatType::getBF16(&context);
+  // Note: We currently use double to represent bfloat16.
+  double value = 10.0;
+
+  testSplat(floatTy, value);
+}
+
 } // end namespace

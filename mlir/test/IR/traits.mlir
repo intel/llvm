@@ -24,7 +24,7 @@ func @failedSameOperandElementType(%t1f: tensor<1xf32>, %t1i: tensor<1xi32>) {
 // -----
 
 func @failedSameOperandAndResultElementType_no_operands() {
-  // expected-error@+1 {{expected 1 or more operands}}
+  // expected-error@+1 {{expected 2 operands, but found 0}}
   "test.same_operand_element_type"() : () -> tensor<1xf32>
 }
 
@@ -204,6 +204,30 @@ func @failedSingleBlockImplicitTerminator_missing_terminator() {
     "test.non_existent_op"() : () -> ()
   }) : () -> ()
 }
+
+// -----
+
+// Test the invariants of operations with the Symbol Trait.
+
+// expected-error@+1 {{requires string attribute 'sym_name'}}
+"test.symbol"() {} : () -> ()
+
+// -----
+
+// expected-error@+1 {{requires visibility attribute 'sym_visibility' to be a string attribute}}
+"test.symbol"() {sym_name = "foo_2", sym_visibility} : () -> ()
+
+// -----
+
+// expected-error@+1 {{visibility expected to be one of ["public", "private", "nested"]}}
+"test.symbol"() {sym_name = "foo_2", sym_visibility = "foo"} : () -> ()
+
+// -----
+
+"test.symbol"() {sym_name = "foo_3", sym_visibility = "nested"} : () -> ()
+"test.symbol"() {sym_name = "foo_4", sym_visibility = "private"} : () -> ()
+"test.symbol"() {sym_name = "foo_5", sym_visibility = "public"} : () -> ()
+"test.symbol"() {sym_name = "foo_6"} : () -> ()
 
 // -----
 

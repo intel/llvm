@@ -1,6 +1,6 @@
 //===- LinalgTransforms.h - Linalg transformations as patterns --*- C++ -*-===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -74,14 +74,18 @@ LogicalResult tileAndFuseLinalgOpAndSetMarker(
 template <typename ConcreteOp>
 LogicalResult linalgOpToLoops(PatternRewriter &rewriter, Operation *op);
 
+/// Emits a loop nest of `loop.parallel` with the proper body for `op`.
+template <typename ConcreteOp>
+LogicalResult linalgOpToParallelLoops(PatternRewriter &rewriter, Operation *op);
+
 /// Emits a loop nest of `affine.for` with the proper body for `op`.
 template <typename ConcreteOp>
 LogicalResult linalgOpToAffineLoops(PatternRewriter &rewriter, Operation *op);
 
 /// Rewrite a linalg.generic into a suitable vector.contraction op.
-LogicalResult vectorizeGenericLinalgOpPrecondition(Operation *op);
-SmallVector<Value, 0> vectorizeGenericLinalgOp(PatternRewriter &rewriter,
-                                               Operation *op);
+LogicalResult vectorizeLinalgOpPrecondition(Operation *op);
+SmallVector<Value, 0> vectorizeLinalgOp(PatternRewriter &rewriter,
+                                        Operation *op);
 
 /// Emits a `generic` or `indexed_generic` operation with the `indexing_maps`
 /// and `iterator_types` permutated according to `permutation`.

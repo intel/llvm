@@ -40,7 +40,7 @@ std::string wasm::Linker::getLinkerPath(const ArgList &Args) const {
     if (!UseLinker.empty()) {
       if (llvm::sys::path::is_absolute(UseLinker) &&
           llvm::sys::fs::can_execute(UseLinker))
-        return UseLinker;
+        return std::string(UseLinker);
 
       // Accept 'lld', and 'ld' as aliases for the default linker
       if (UseLinker != "lld" && UseLinker != "ld")
@@ -283,7 +283,7 @@ void WebAssembly::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
     CIncludeDirs.split(dirs, ":");
     for (StringRef dir : dirs) {
       StringRef Prefix =
-          llvm::sys::path::is_absolute(dir) ? StringRef(D.SysRoot) : "";
+          llvm::sys::path::is_absolute(dir) ? "" : StringRef(D.SysRoot);
       addExternCSystemInclude(DriverArgs, CC1Args, Prefix + dir);
     }
     return;

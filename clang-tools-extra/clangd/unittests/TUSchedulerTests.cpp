@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "Annotations.h"
+#include "Cancellation.h"
 #include "Context.h"
 #include "Diagnostics.h"
 #include "Matchers.h"
@@ -23,6 +24,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include <algorithm>
+#include <chrono>
 #include <utility>
 
 namespace clang {
@@ -39,7 +41,19 @@ using ::testing::Pointee;
 using ::testing::UnorderedElementsAre;
 
 MATCHER_P2(TUState, State, ActionName, "") {
-  return arg.Action.S == State && arg.Action.Name == ActionName;
+  if (arg.Action.S != State) {
+    *result_listener << "state is " << arg.Action.S;
+    return false;
+  }
+  if (arg.Action.Name != ActionName) {
+    *result_listener << "name is " << arg.Action.Name;
+    return false;
+  }
+  return true;
+}
+
+TUScheduler::Options optsForTest() {
+  return TUScheduler::Options(ClangdServer::optsForTest());
 }
 
 class TUSchedulerTests : public ::testing::Test {
@@ -56,8 +70,15 @@ protected:
   void updateWithCallback(TUScheduler &S, PathRef File,
                           llvm::StringRef Contents, WantDiagnostics WD,
                           llvm::unique_function<void()> CB) {
+    updateWithCallback(S, File, getInputs(File, std::string(Contents)), WD,
+                       std::move(CB));
+  }
+
+  void updateWithCallback(TUScheduler &S, PathRef File, ParseInputs Inputs,
+                          WantDiagnostics WD,
+                          llvm::unique_function<void()> CB) {
     WithContextValue Ctx(llvm::make_scope_exit(std::move(CB)));
-    S.update(File, getInputs(File, Contents), WD);
+    S.update(File, Inputs, WD);
   }
 
   static Key<llvm::unique_function<void(PathRef File, std::vector<Diag>)>>
@@ -72,8 +93,8 @@ protected:
         reportDiagnostics(File, AST.getDiagnostics(), Publish);
       }
 
-      void onFailedAST(PathRef File, std::vector<Diag> Diags,
-                       PublishFn Publish) override {
+      void onFailedAST(PathRef File, llvm::StringRef Version,
+                       std::vector<Diag> Diags, PublishFn Publish) override {
         reportDiagnostics(File, Diags, Publish);
       }
 
@@ -112,7 +133,7 @@ protected:
   void updateWithDiags(TUScheduler &S, PathRef File, llvm::StringRef Contents,
                        WantDiagnostics WD,
                        llvm::unique_function<void(std::vector<Diag>)> CB) {
-    return updateWithDiags(S, File, getInputs(File, Contents), WD,
+    return updateWithDiags(S, File, getInputs(File, std::string(Contents)), WD,
                            std::move(CB));
   }
 
@@ -125,10 +146,7 @@ Key<llvm::unique_function<void(PathRef File, std::vector<Diag>)>>
     TUSchedulerTests::DiagsCallbackKey;
 
 TEST_F(TUSchedulerTests, MissingFiles) {
-  TUScheduler S(CDB, getDefaultAsyncThreadsCount(),
-                /*StorePreamblesInMemory=*/true, /*ASTCallbacks=*/nullptr,
-                /*UpdateDebounce=*/std::chrono::steady_clock::duration::zero(),
-                ASTRetentionPolicy());
+  TUScheduler S(CDB, optsForTest());
 
   auto Added = testPath("added.cpp");
   Files[Added] = "x";
@@ -136,9 +154,7 @@ TEST_F(TUSchedulerTests, MissingFiles) {
   auto Missing = testPath("missing.cpp");
   Files[Missing] = "";
 
-  EXPECT_EQ(S.getContents(Added), "");
   S.update(Added, getInputs(Added, "x"), WantDiagnostics::No);
-  EXPECT_EQ(S.getContents(Added), "x");
 
   // Assert each operation for missing file is an error (even if it's
   // available in VFS).
@@ -157,9 +173,7 @@ TEST_F(TUSchedulerTests, MissingFiles) {
                     [&](Expected<InputsAndPreamble> Preamble) {
                       EXPECT_TRUE(bool(Preamble));
                     });
-  EXPECT_EQ(S.getContents(Added), "x");
   S.remove(Added);
-  EXPECT_EQ(S.getContents(Added), "");
 
   // Assert that all operations fail after removing the file.
   S.runWithAST("", Added,
@@ -179,11 +193,7 @@ TEST_F(TUSchedulerTests, WantDiagnostics) {
     // To avoid a racy test, don't allow tasks to actually run on the worker
     // thread until we've scheduled them all.
     Notification Ready;
-    TUScheduler S(
-        CDB, getDefaultAsyncThreadsCount(),
-        /*StorePreamblesInMemory=*/true, captureDiags(),
-        /*UpdateDebounce=*/std::chrono::steady_clock::duration::zero(),
-        ASTRetentionPolicy());
+    TUScheduler S(CDB, optsForTest(), captureDiags());
     auto Path = testPath("foo.cpp");
     updateWithDiags(S, Path, "", WantDiagnostics::Yes,
                     [&](std::vector<Diag>) { Ready.wait(); });
@@ -210,10 +220,9 @@ TEST_F(TUSchedulerTests, WantDiagnostics) {
 TEST_F(TUSchedulerTests, Debounce) {
   std::atomic<int> CallbackCount(0);
   {
-    TUScheduler S(CDB, getDefaultAsyncThreadsCount(),
-                  /*StorePreamblesInMemory=*/true, captureDiags(),
-                  /*UpdateDebounce=*/std::chrono::seconds(1),
-                  ASTRetentionPolicy());
+    auto Opts = optsForTest();
+    Opts.UpdateDebounce = DebouncePolicy::fixed(std::chrono::seconds(1));
+    TUScheduler S(CDB, Opts, captureDiags());
     // FIXME: we could probably use timeouts lower than 1 second here.
     auto Path = testPath("foo.cpp");
     updateWithDiags(S, Path, "auto (debounced)", WantDiagnostics::Auto,
@@ -245,16 +254,14 @@ TEST_F(TUSchedulerTests, PreambleConsistency) {
   std::atomic<int> CallbackCount(0);
   {
     Notification InconsistentReadDone; // Must live longest.
-    TUScheduler S(
-        CDB, getDefaultAsyncThreadsCount(), /*StorePreamblesInMemory=*/true,
-        /*ASTCallbacks=*/nullptr,
-        /*UpdateDebounce=*/std::chrono::steady_clock::duration::zero(),
-        ASTRetentionPolicy());
+    TUScheduler S(CDB, optsForTest());
     auto Path = testPath("foo.cpp");
     // Schedule two updates (A, B) and two preamble reads (stale, consistent).
     // The stale read should see A, and the consistent read should see B.
     // (We recognize the preambles by their included files).
-    updateWithCallback(S, Path, "#include <A>", WantDiagnostics::Yes, [&]() {
+    auto Inputs = getInputs(Path, "#include <A>");
+    Inputs.Version = "A";
+    updateWithCallback(S, Path, Inputs, WantDiagnostics::Yes, [&]() {
       // This callback runs in between the two preamble updates.
 
       // This blocks update B, preventing it from winning the race
@@ -267,12 +274,14 @@ TEST_F(TUSchedulerTests, PreambleConsistency) {
       // If the second read was stale, it would usually see A.
       std::this_thread::sleep_for(std::chrono::milliseconds(100));
     });
-    S.update(Path, getInputs(Path, "#include <B>"), WantDiagnostics::Yes);
+    Inputs.Contents = "#include <B>";
+    Inputs.Version = "B";
+    S.update(Path, Inputs, WantDiagnostics::Yes);
 
     S.runWithPreamble("StaleRead", Path, TUScheduler::Stale,
                       [&](Expected<InputsAndPreamble> Pre) {
                         ASSERT_TRUE(bool(Pre));
-                        assert(bool(Pre));
+                        EXPECT_EQ(Pre->Preamble->Version, "A");
                         EXPECT_THAT(includes(Pre->Preamble),
                                     ElementsAre("<A>"));
                         InconsistentReadDone.notify();
@@ -281,6 +290,7 @@ TEST_F(TUSchedulerTests, PreambleConsistency) {
     S.runWithPreamble("ConsistentRead", Path, TUScheduler::Consistent,
                       [&](Expected<InputsAndPreamble> Pre) {
                         ASSERT_TRUE(bool(Pre));
+                        EXPECT_EQ(Pre->Preamble->Version, "B");
                         EXPECT_THAT(includes(Pre->Preamble),
                                     ElementsAre("<B>"));
                         ++CallbackCount;
@@ -302,11 +312,7 @@ TEST_F(TUSchedulerTests, Cancellation) {
   std::vector<std::string> DiagsSeen, ReadsSeen, ReadsCanceled;
   {
     Notification Proceed; // Ensure we schedule everything.
-    TUScheduler S(
-        CDB, getDefaultAsyncThreadsCount(), /*StorePreamblesInMemory=*/true,
-        /*ASTCallbacks=*/captureDiags(),
-        /*UpdateDebounce=*/std::chrono::steady_clock::duration::zero(),
-        ASTRetentionPolicy());
+    TUScheduler S(CDB, optsForTest(), captureDiags());
     auto Path = testPath("foo.cpp");
     // Helper to schedule a named update and return a function to cancel it.
     auto Update = [&](std::string ID) -> Canceler {
@@ -361,6 +367,87 @@ TEST_F(TUSchedulerTests, Cancellation) {
       << "All reads other than R2B were cancelled";
 }
 
+TEST_F(TUSchedulerTests, InvalidationNoCrash) {
+  auto Path = testPath("foo.cpp");
+  TUScheduler S(CDB, optsForTest(), captureDiags());
+
+  Notification StartedRunning;
+  Notification ScheduledChange;
+  // We expect invalidation logic to not crash by trying to invalidate a running
+  // request.
+  S.update(Path, getInputs(Path, ""), WantDiagnostics::Auto);
+  ASSERT_TRUE(S.blockUntilIdle(timeoutSeconds(10)));
+  S.runWithAST(
+      "invalidatable-but-running", Path,
+      [&](llvm::Expected<InputsAndAST> AST) {
+        StartedRunning.notify();
+        ScheduledChange.wait();
+        ASSERT_TRUE(bool(AST));
+      },
+      TUScheduler::InvalidateOnUpdate);
+  StartedRunning.wait();
+  S.update(Path, getInputs(Path, ""), WantDiagnostics::Auto);
+  ScheduledChange.notify();
+  ASSERT_TRUE(S.blockUntilIdle(timeoutSeconds(10)));
+}
+
+TEST_F(TUSchedulerTests, Invalidation) {
+  auto Path = testPath("foo.cpp");
+  TUScheduler S(CDB, optsForTest(), captureDiags());
+  std::atomic<int> Builds(0), Actions(0);
+
+  Notification Start;
+  updateWithDiags(S, Path, "a", WantDiagnostics::Yes, [&](std::vector<Diag>) {
+    ++Builds;
+    Start.wait();
+  });
+  S.runWithAST(
+      "invalidatable", Path,
+      [&](llvm::Expected<InputsAndAST> AST) {
+        ++Actions;
+        EXPECT_FALSE(bool(AST));
+        llvm::Error E = AST.takeError();
+        EXPECT_TRUE(E.isA<CancelledError>());
+        consumeError(std::move(E));
+      },
+      TUScheduler::InvalidateOnUpdate);
+  S.runWithAST(
+      "not-invalidatable", Path,
+      [&](llvm::Expected<InputsAndAST> AST) {
+        ++Actions;
+        EXPECT_TRUE(bool(AST));
+      },
+      TUScheduler::NoInvalidation);
+  updateWithDiags(S, Path, "b", WantDiagnostics::Auto, [&](std::vector<Diag>) {
+    ++Builds;
+    ADD_FAILURE() << "Shouldn't build, all dependents invalidated";
+  });
+  S.runWithAST(
+      "invalidatable", Path,
+      [&](llvm::Expected<InputsAndAST> AST) {
+        ++Actions;
+        EXPECT_FALSE(bool(AST));
+        llvm::Error E = AST.takeError();
+        EXPECT_TRUE(E.isA<CancelledError>());
+        consumeError(std::move(E));
+      },
+      TUScheduler::InvalidateOnUpdate);
+  updateWithDiags(S, Path, "c", WantDiagnostics::Auto,
+                  [&](std::vector<Diag>) { ++Builds; });
+  S.runWithAST(
+      "invalidatable", Path,
+      [&](llvm::Expected<InputsAndAST> AST) {
+        ++Actions;
+        EXPECT_TRUE(bool(AST)) << "Shouldn't be invalidated, no update follows";
+      },
+      TUScheduler::InvalidateOnUpdate);
+  Start.notify();
+  ASSERT_TRUE(S.blockUntilIdle(timeoutSeconds(10)));
+
+  EXPECT_EQ(2, Builds.load()) << "Middle build should be skipped";
+  EXPECT_EQ(4, Actions.load()) << "All actions should run (some with error)";
+}
+
 TEST_F(TUSchedulerTests, ManyUpdates) {
   const int FilesCount = 3;
   const int UpdatesPerFile = 10;
@@ -372,10 +459,9 @@ TEST_F(TUSchedulerTests, ManyUpdates) {
 
   // Run TUScheduler and collect some stats.
   {
-    TUScheduler S(CDB, getDefaultAsyncThreadsCount(),
-                  /*StorePreamblesInMemory=*/true, captureDiags(),
-                  /*UpdateDebounce=*/std::chrono::milliseconds(50),
-                  ASTRetentionPolicy());
+    auto Opts = optsForTest();
+    Opts.UpdateDebounce = DebouncePolicy::fixed(std::chrono::milliseconds(50));
+    TUScheduler S(CDB, Opts, captureDiags());
 
     std::vector<std::string> Files;
     for (int I = 0; I < FilesCount; ++I) {
@@ -404,6 +490,7 @@ TEST_F(TUSchedulerTests, ManyUpdates) {
         auto Inputs = getInputs(File, Contents.str());
         {
           WithContextValue WithNonce(NonceKey, ++Nonce);
+          Inputs.Version = std::to_string(Nonce);
           updateWithDiags(
               S, File, Inputs, WantDiagnostics::Auto,
               [File, Nonce, &Mut, &TotalUpdates](std::vector<Diag>) {
@@ -425,6 +512,8 @@ TEST_F(TUSchedulerTests, ManyUpdates) {
                 ASSERT_TRUE((bool)AST);
                 EXPECT_EQ(AST->Inputs.FS, Inputs.FS);
                 EXPECT_EQ(AST->Inputs.Contents, Inputs.Contents);
+                EXPECT_EQ(AST->Inputs.Version, Inputs.Version);
+                EXPECT_EQ(AST->AST.version(), Inputs.Version);
 
                 std::lock_guard<std::mutex> Lock(Mut);
                 ++TotalASTReads;
@@ -461,13 +550,10 @@ TEST_F(TUSchedulerTests, ManyUpdates) {
 
 TEST_F(TUSchedulerTests, EvictedAST) {
   std::atomic<int> BuiltASTCounter(0);
-  ASTRetentionPolicy Policy;
-  Policy.MaxRetainedASTs = 2;
-  TUScheduler S(CDB,
-                /*AsyncThreadsCount=*/1, /*StorePreambleInMemory=*/true,
-                /*ASTCallbacks=*/nullptr,
-                /*UpdateDebounce=*/std::chrono::steady_clock::duration::zero(),
-                Policy);
+  auto Opts = optsForTest();
+  Opts.AsyncThreadsCount = 1;
+  Opts.RetentionPolicy.MaxRetainedASTs = 2;
+  TUScheduler S(CDB, Opts);
 
   llvm::StringLiteral SourceContents = R"cpp(
     int* a;
@@ -514,11 +600,7 @@ TEST_F(TUSchedulerTests, EvictedAST) {
 }
 
 TEST_F(TUSchedulerTests, EmptyPreamble) {
-  TUScheduler S(CDB,
-                /*AsyncThreadsCount=*/4, /*StorePreambleInMemory=*/true,
-                /*ASTCallbacks=*/nullptr,
-                /*UpdateDebounce=*/std::chrono::steady_clock::duration::zero(),
-                ASTRetentionPolicy());
+  TUScheduler S(CDB, optsForTest());
 
   auto Foo = testPath("foo.cpp");
   auto Header = testPath("foo.h");
@@ -559,11 +641,7 @@ TEST_F(TUSchedulerTests, EmptyPreamble) {
 TEST_F(TUSchedulerTests, RunWaitsForPreamble) {
   // Testing strategy: we update the file and schedule a few preamble reads at
   // the same time. All reads should get the same non-null preamble.
-  TUScheduler S(CDB,
-                /*AsyncThreadsCount=*/4, /*StorePreambleInMemory=*/true,
-                /*ASTCallbacks=*/nullptr,
-                /*UpdateDebounce=*/std::chrono::steady_clock::duration::zero(),
-                ASTRetentionPolicy());
+  TUScheduler S(CDB, optsForTest());
   auto Foo = testPath("foo.cpp");
   auto NonEmptyPreamble = R"cpp(
     #define FOO 1
@@ -591,11 +669,7 @@ TEST_F(TUSchedulerTests, RunWaitsForPreamble) {
 }
 
 TEST_F(TUSchedulerTests, NoopOnEmptyChanges) {
-  TUScheduler S(CDB,
-                /*AsyncThreadsCount=*/getDefaultAsyncThreadsCount(),
-                /*StorePreambleInMemory=*/true, captureDiags(),
-                /*UpdateDebounce=*/std::chrono::steady_clock::duration::zero(),
-                ASTRetentionPolicy());
+  TUScheduler S(CDB, optsForTest(), captureDiags());
 
   auto Source = testPath("foo.cpp");
   auto Header = testPath("foo.h");
@@ -643,12 +717,55 @@ TEST_F(TUSchedulerTests, NoopOnEmptyChanges) {
   ASSERT_FALSE(DoUpdate(OtherSourceContents));
 }
 
+TEST_F(TUSchedulerTests, ForceRebuild) {
+  TUScheduler S(CDB, optsForTest(), captureDiags());
+
+  auto Source = testPath("foo.cpp");
+  auto Header = testPath("foo.h");
+
+  auto SourceContents = R"cpp(
+      #include "foo.h"
+      int b = a;
+    )cpp";
+
+  ParseInputs Inputs = getInputs(Source, SourceContents);
+
+  // Update the source contents, which should trigger an initial build with
+  // the header file missing.
+  updateWithDiags(S, Source, Inputs, WantDiagnostics::Yes,
+                  [](std::vector<Diag> Diags) {
+    EXPECT_THAT(
+        Diags,
+        ElementsAre(
+            Field(&Diag::Message, "'foo.h' file not found"),
+            Field(&Diag::Message, "use of undeclared identifier 'a'")));
+  });
+
+  // Add the header file. We need to recreate the inputs since we changed a
+  // file from underneath the test FS.
+  Files[Header] = "int a;";
+  Timestamps[Header] = time_t(1);
+  Inputs = getInputs(Source, SourceContents);
+
+  // The addition of the missing header file shouldn't trigger a rebuild since
+  // we don't track missing files.
+  updateWithDiags(S, Source, Inputs, WantDiagnostics::Yes,
+                  [](std::vector<Diag> Diags) {
+    ADD_FAILURE() << "Did not expect diagnostics for missing header update";
+  });
+
+  // Forcing the reload should should cause a rebuild which no longer has any
+  // errors.
+  Inputs.ForceRebuild = true;
+  updateWithDiags(S, Source, Inputs, WantDiagnostics::Yes,
+                  [](std::vector<Diag> Diags) {
+    EXPECT_THAT(Diags, IsEmpty());
+  });
+
+  ASSERT_TRUE(S.blockUntilIdle(timeoutSeconds(10)));
+}
 TEST_F(TUSchedulerTests, NoChangeDiags) {
-  TUScheduler S(CDB,
-                /*AsyncThreadsCount=*/getDefaultAsyncThreadsCount(),
-                /*StorePreambleInMemory=*/true, captureDiags(),
-                /*UpdateDebounce=*/std::chrono::steady_clock::duration::zero(),
-                ASTRetentionPolicy());
+  TUScheduler S(CDB, optsForTest(), captureDiags());
 
   auto FooCpp = testPath("foo.cpp");
   auto Contents = "int a; int b;";
@@ -679,10 +796,7 @@ TEST_F(TUSchedulerTests, NoChangeDiags) {
 }
 
 TEST_F(TUSchedulerTests, Run) {
-  TUScheduler S(CDB, /*AsyncThreadsCount=*/getDefaultAsyncThreadsCount(),
-                /*StorePreambleInMemory=*/true, /*ASTCallbacks=*/nullptr,
-                /*UpdateDebounce=*/std::chrono::steady_clock::duration::zero(),
-                ASTRetentionPolicy());
+  TUScheduler S(CDB, optsForTest());
   std::atomic<int> Counter(0);
   S.run("add 1", [&] { ++Counter; });
   S.run("add 2", [&] { Counter += 2; });
@@ -700,11 +814,8 @@ TEST_F(TUSchedulerTests, Run) {
 }
 
 TEST_F(TUSchedulerTests, TUStatus) {
-  class CaptureTUStatus : public DiagnosticsConsumer {
+  class CaptureTUStatus : public ClangdServer::Callbacks {
   public:
-    void onDiagnosticsReady(PathRef File,
-                            std::vector<Diag> Diagnostics) override {}
-
     void onFileUpdated(PathRef File, const TUStatus &Status) override {
       std::lock_guard<std::mutex> Lock(Mutex);
       AllStatus.push_back(Status);
@@ -721,12 +832,13 @@ TEST_F(TUSchedulerTests, TUStatus) {
   } CaptureTUStatus;
   MockFSProvider FS;
   MockCompilationDatabase CDB;
-  ClangdServer Server(CDB, FS, CaptureTUStatus, ClangdServer::optsForTest());
+  ClangdServer Server(CDB, FS, ClangdServer::optsForTest(), &CaptureTUStatus);
   Annotations Code("int m^ain () {}");
 
   // We schedule the following tasks in the queue:
   //   [Update] [GoToDefinition]
-  Server.addDocument(testPath("foo.cpp"), Code.code(), WantDiagnostics::Yes);
+  Server.addDocument(testPath("foo.cpp"), Code.code(), "1",
+                     WantDiagnostics::Yes);
   Server.locateSymbolAt(testPath("foo.cpp"), Code.point(),
                         [](Expected<std::vector<LocatedSymbol>> Result) {
                           ASSERT_TRUE((bool)Result);
@@ -737,9 +849,9 @@ TEST_F(TUSchedulerTests, TUStatus) {
   EXPECT_THAT(CaptureTUStatus.allStatus(),
               ElementsAre(
                   // Statuses of "Update" action.
-                  TUState(TUAction::RunningAction, "Update"),
-                  TUState(TUAction::BuildingPreamble, "Update"),
-                  TUState(TUAction::BuildingFile, "Update"),
+                  TUState(TUAction::RunningAction, "Update (1)"),
+                  TUState(TUAction::BuildingPreamble, "Update (1)"),
+                  TUState(TUAction::BuildingFile, "Update (1)"),
 
                   // Statuses of "Definitions" action
                   TUState(TUAction::RunningAction, "Definitions"),
@@ -753,14 +865,11 @@ TEST_F(TUSchedulerTests, CommandLineErrors) {
   // (!) 'Ready' must live longer than TUScheduler.
   Notification Ready;
 
-  TUScheduler S(CDB, /*AsyncThreadsCount=*/getDefaultAsyncThreadsCount(),
-                /*StorePreambleInMemory=*/true, /*ASTCallbacks=*/captureDiags(),
-                /*UpdateDebounce=*/std::chrono::steady_clock::duration::zero(),
-                ASTRetentionPolicy());
-
+  TUScheduler S(CDB, optsForTest(), captureDiags());
   std::vector<Diag> Diagnostics;
   updateWithDiags(S, testPath("foo.cpp"), "void test() {}",
-                  WantDiagnostics::Yes, [&](std::vector<Diag> D) {
+                  WantDiagnostics::Yes,
+                  [&](std::vector<Diag> D) {
                     Diagnostics = std::move(D);
                     Ready.notify();
                   });
@@ -781,20 +890,43 @@ TEST_F(TUSchedulerTests, CommandLineWarnings) {
   // (!) 'Ready' must live longer than TUScheduler.
   Notification Ready;
 
-  TUScheduler S(CDB, /*AsyncThreadsCount=*/getDefaultAsyncThreadsCount(),
-                /*StorePreambleInMemory=*/true, /*ASTCallbacks=*/captureDiags(),
-                /*UpdateDebounce=*/std::chrono::steady_clock::duration::zero(),
-                ASTRetentionPolicy());
-
+  TUScheduler S(CDB, optsForTest(), captureDiags());
   std::vector<Diag> Diagnostics;
   updateWithDiags(S, testPath("foo.cpp"), "void test() {}",
-                  WantDiagnostics::Yes, [&](std::vector<Diag> D) {
+                  WantDiagnostics::Yes,
+                  [&](std::vector<Diag> D) {
                     Diagnostics = std::move(D);
                     Ready.notify();
                   });
   Ready.wait();
 
   EXPECT_THAT(Diagnostics, IsEmpty());
+}
+
+TEST(DebouncePolicy, Compute) {
+  namespace c = std::chrono;
+  std::vector<DebouncePolicy::clock::duration> History = {
+      c::seconds(0),
+      c::seconds(5),
+      c::seconds(10),
+      c::seconds(20),
+  };
+  DebouncePolicy Policy;
+  Policy.Min = c::seconds(3);
+  Policy.Max = c::seconds(25);
+  // Call Policy.compute(History) and return seconds as a float.
+  auto Compute = [&](llvm::ArrayRef<DebouncePolicy::clock::duration> History) {
+    using FloatingSeconds = c::duration<float, c::seconds::period>;
+    return static_cast<float>(Policy.compute(History) / FloatingSeconds(1));
+  };
+  EXPECT_NEAR(10, Compute(History), 0.01) << "(upper) median = 10";
+  Policy.RebuildRatio = 1.5;
+  EXPECT_NEAR(15, Compute(History), 0.01) << "median = 10, ratio = 1.5";
+  Policy.RebuildRatio = 3;
+  EXPECT_NEAR(25, Compute(History), 0.01) << "constrained by max";
+  Policy.RebuildRatio = 0;
+  EXPECT_NEAR(3, Compute(History), 0.01) << "constrained by min";
+  EXPECT_NEAR(25, Compute({}), 0.01) << "no history -> max";
 }
 
 } // namespace

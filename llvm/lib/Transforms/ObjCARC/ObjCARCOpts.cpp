@@ -877,23 +877,48 @@ void ObjCARCOpt::OptimizeIndividualCalls(Function &F) {
   optimizeDelayedAutoreleaseRV();
 }
 
+/// This function returns true if the value is inert. An ObjC ARC runtime call
+/// taking an inert operand can be safely deleted.
+static bool isInertARCValue(Value *V, SmallPtrSet<Value *, 1> &VisitedPhis) {
+  V = V->stripPointerCasts();
+
+  if (IsNullOrUndef(V))
+    return true;
+
+  // See if this is a global attribute annotated with an 'objc_arc_inert'.
+  if (auto *GV = dyn_cast<GlobalVariable>(V))
+    if (GV->hasAttribute("objc_arc_inert"))
+      return true;
+
+  if (auto PN = dyn_cast<PHINode>(V)) {
+    // Ignore this phi if it has already been discovered.
+    if (!VisitedPhis.insert(PN).second)
+      return true;
+    // Look through phis's operands.
+    for (Value *Opnd : PN->incoming_values())
+      if (!isInertARCValue(Opnd, VisitedPhis))
+        return false;
+    return true;
+  }
+
+  return false;
+}
+
 void ObjCARCOpt::OptimizeIndividualCallImpl(
     Function &F, DenseMap<BasicBlock *, ColorVector> &BlockColors,
     Instruction *Inst, ARCInstKind Class, const Value *Arg) {
   LLVM_DEBUG(dbgs() << "Visiting: Class: " << Class << "; " << *Inst << "\n");
 
-  // Some of the ARC calls can be deleted if their arguments are global
-  // variables that are inert in ARC.
-  if (IsNoopOnGlobal(Class)) {
-    Value *Opnd = Inst->getOperand(0);
-    if (auto *GV = dyn_cast<GlobalVariable>(Opnd->stripPointerCasts()))
-      if (GV->hasAttribute("objc_arc_inert")) {
-        if (!Inst->getType()->isVoidTy())
-          Inst->replaceAllUsesWith(Opnd);
-        Inst->eraseFromParent();
-        return;
-      }
-  }
+  // We can delete this call if it takes an inert value.
+  SmallPtrSet<Value *, 1> VisitedPhis;
+
+  if (IsNoopOnGlobal(Class))
+    if (isInertARCValue(Inst->getOperand(0), VisitedPhis)) {
+      if (!Inst->getType()->isVoidTy())
+        Inst->replaceAllUsesWith(Inst->getOperand(0));
+      Inst->eraseFromParent();
+      return;
+    }
 
   switch (Class) {
   default:
@@ -1543,6 +1568,15 @@ ObjCARCOpt::VisitTopDown(BasicBlock *BB,
       MyStates.MergePred(I->second);
     }
   }
+
+  // Check that BB and MyStates have the same number of predecessors. This
+  // prevents retain calls that live outside a loop from being moved into the
+  // loop.
+  if (!BB->hasNPredecessors(MyStates.pred_end() - MyStates.pred_begin()))
+    for (auto I = MyStates.top_down_ptr_begin(),
+              E = MyStates.top_down_ptr_end();
+         I != E; ++I)
+      I->second.SetCFGHazardAfflicted(true);
 
   LLVM_DEBUG(dbgs() << "Before:\n"
                     << BBStates[BB] << "\n"
@@ -2310,6 +2344,14 @@ void ObjCARCOpt::OptimizeReturns(Function &F) {
     bool HasSafePathToCall = HasSafePathToPredecessorCall(Arg, Retain,
                                                           DependingInstructions,
                                                           Visited, PA);
+
+    // Don't remove retainRV/autoreleaseRV pairs if the call isn't a tail call.
+    if (HasSafePathToCall &&
+        GetBasicARCInstKind(Retain) == ARCInstKind::RetainRV &&
+        GetBasicARCInstKind(Autorelease) == ARCInstKind::AutoreleaseRV &&
+        !cast<CallInst>(*DependingInstructions.begin())->isTailCall())
+      continue;
+
     DependingInstructions.clear();
     Visited.clear();
 

@@ -101,7 +101,8 @@ int main() {
         submit<KernelFunctor1>(Queue);
         break;
       default:
-        throw feature_not_supported("sub-group size is not supported");
+        throw feature_not_supported("sub-group size is not supported",
+                                    PI_INVALID_OPERATION);
       }
 
       auto Kernel = TheKernel[0];

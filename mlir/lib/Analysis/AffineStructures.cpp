@@ -1,18 +1,19 @@
 //===- AffineStructures.cpp - MLIR Affine Structures Class-----------------===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
-// Structures for affine/polyhedral analysis of MLIR functions.
+// Structures for affine/polyhedral analysis of affine dialect ops.
 //
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Analysis/AffineStructures.h"
 #include "mlir/Dialect/AffineOps/AffineOps.h"
-#include "mlir/Dialect/StandardOps/Ops.h"
+#include "mlir/Dialect/AffineOps/AffineValueMap.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/AffineExprVisitor.h"
 #include "mlir/IR/IntegerSet.h"
 #include "mlir/Support/LLVM.h"
@@ -89,9 +90,8 @@ getFlattenedAffineExprs(ArrayRef<AffineExpr> exprs, unsigned numDims,
   flattenedExprs->assign(flattener.operandExprStack.begin(),
                          flattener.operandExprStack.end());
 
-  if (localVarCst) {
+  if (localVarCst)
     localVarCst->clearAndCopyFrom(flattener.localVarCst);
-  }
 
   return success();
 }
@@ -135,165 +135,6 @@ LogicalResult mlir::getFlattenedAffineExprs(
                                    set.getNumSymbols(), flattenedExprs,
                                    localVarCst);
 }
-
-//===----------------------------------------------------------------------===//
-// MutableAffineMap.
-//===----------------------------------------------------------------------===//
-
-MutableAffineMap::MutableAffineMap(AffineMap map)
-    : numDims(map.getNumDims()), numSymbols(map.getNumSymbols()),
-      // A map always has at least 1 result by construction
-      context(map.getResult(0).getContext()) {
-  for (auto result : map.getResults())
-    results.push_back(result);
-}
-
-void MutableAffineMap::reset(AffineMap map) {
-  results.clear();
-  numDims = map.getNumDims();
-  numSymbols = map.getNumSymbols();
-  // A map always has at least 1 result by construction
-  context = map.getResult(0).getContext();
-  for (auto result : map.getResults())
-    results.push_back(result);
-}
-
-bool MutableAffineMap::isMultipleOf(unsigned idx, int64_t factor) const {
-  if (results[idx].isMultipleOf(factor))
-    return true;
-
-  // TODO(bondhugula): use simplifyAffineExpr and FlatAffineConstraints to
-  // complete this (for a more powerful analysis).
-  return false;
-}
-
-// Simplifies the result affine expressions of this map. The expressions have to
-// be pure for the simplification implemented.
-void MutableAffineMap::simplify() {
-  // Simplify each of the results if possible.
-  // TODO(ntv): functional-style map
-  for (unsigned i = 0, e = getNumResults(); i < e; i++) {
-    results[i] = simplifyAffineExpr(getResult(i), numDims, numSymbols);
-  }
-}
-
-AffineMap MutableAffineMap::getAffineMap() const {
-  return AffineMap::get(numDims, numSymbols, results);
-}
-
-MutableIntegerSet::MutableIntegerSet(IntegerSet set, MLIRContext *context)
-    : numDims(set.getNumDims()), numSymbols(set.getNumSymbols()) {
-  // TODO(bondhugula)
-}
-
-// Universal set.
-MutableIntegerSet::MutableIntegerSet(unsigned numDims, unsigned numSymbols,
-                                     MLIRContext *context)
-    : numDims(numDims), numSymbols(numSymbols) {}
-
-//===----------------------------------------------------------------------===//
-// AffineValueMap.
-//===----------------------------------------------------------------------===//
-
-AffineValueMap::AffineValueMap(AffineMap map, ArrayRef<Value> operands,
-                               ArrayRef<Value> results)
-    : map(map), operands(operands.begin(), operands.end()),
-      results(results.begin(), results.end()) {}
-
-AffineValueMap::AffineValueMap(AffineApplyOp applyOp)
-    : map(applyOp.getAffineMap()),
-      operands(applyOp.operand_begin(), applyOp.operand_end()) {
-  results.push_back(applyOp.getResult());
-}
-
-AffineValueMap::AffineValueMap(AffineBound bound)
-    : map(bound.getMap()),
-      operands(bound.operand_begin(), bound.operand_end()) {}
-
-void AffineValueMap::reset(AffineMap map, ArrayRef<Value> operands,
-                           ArrayRef<Value> results) {
-  this->map.reset(map);
-  this->operands.assign(operands.begin(), operands.end());
-  this->results.assign(results.begin(), results.end());
-}
-
-void AffineValueMap::difference(const AffineValueMap &a,
-                                const AffineValueMap &b, AffineValueMap *res) {
-  assert(a.getNumResults() == b.getNumResults() && "invalid inputs");
-
-  // Fully compose A's map + operands.
-  auto aMap = a.getAffineMap();
-  SmallVector<Value, 4> aOperands(a.getOperands().begin(),
-                                  a.getOperands().end());
-  fullyComposeAffineMapAndOperands(&aMap, &aOperands);
-
-  // Use the affine apply normalizer to get B's map into A's coordinate space.
-  AffineApplyNormalizer normalizer(aMap, aOperands);
-  SmallVector<Value, 4> bOperands(b.getOperands().begin(),
-                                  b.getOperands().end());
-  auto bMap = b.getAffineMap();
-  normalizer.normalize(&bMap, &bOperands);
-
-  assert(std::equal(bOperands.begin(), bOperands.end(),
-                    normalizer.getOperands().begin()) &&
-         "operands are expected to be the same after normalization");
-
-  // Construct the difference expressions.
-  SmallVector<AffineExpr, 4> diffExprs;
-  diffExprs.reserve(a.getNumResults());
-  for (unsigned i = 0, e = bMap.getNumResults(); i < e; ++i)
-    diffExprs.push_back(normalizer.getAffineMap().getResult(i) -
-                        bMap.getResult(i));
-
-  auto diffMap = AffineMap::get(normalizer.getNumDims(),
-                                normalizer.getNumSymbols(), diffExprs);
-  canonicalizeMapAndOperands(&diffMap, &bOperands);
-  diffMap = simplifyAffineMap(diffMap);
-  res->reset(diffMap, bOperands);
-}
-
-// Returns true and sets 'indexOfMatch' if 'valueToMatch' is found in
-// 'valuesToSearch' beginning at 'indexStart'. Returns false otherwise.
-static bool findIndex(Value valueToMatch, ArrayRef<Value> valuesToSearch,
-                      unsigned indexStart, unsigned *indexOfMatch) {
-  unsigned size = valuesToSearch.size();
-  for (unsigned i = indexStart; i < size; ++i) {
-    if (valueToMatch == valuesToSearch[i]) {
-      *indexOfMatch = i;
-      return true;
-    }
-  }
-  return false;
-}
-
-inline bool AffineValueMap::isMultipleOf(unsigned idx, int64_t factor) const {
-  return map.isMultipleOf(idx, factor);
-}
-
-/// This method uses the invariant that operands are always positionally aligned
-/// with the AffineDimExpr in the underlying AffineMap.
-bool AffineValueMap::isFunctionOf(unsigned idx, Value value) const {
-  unsigned index;
-  if (!findIndex(value, operands, /*indexStart=*/0, &index)) {
-    return false;
-  }
-  auto expr = const_cast<AffineValueMap *>(this)->getAffineMap().getResult(idx);
-  // TODO(ntv): this is better implemented on a flattened representation.
-  // At least for now it is conservative.
-  return expr.isFunctionOfDim(index);
-}
-
-Value AffineValueMap::getOperand(unsigned i) const {
-  return static_cast<Value>(operands[i]);
-}
-
-ArrayRef<Value> AffineValueMap::getOperands() const {
-  return ArrayRef<Value>(operands);
-}
-
-AffineMap AffineValueMap::getAffineMap() const { return map.getAffineMap(); }
-
-AffineValueMap::~AffineValueMap() {}
 
 //===----------------------------------------------------------------------===//
 // FlatAffineConstraints.
@@ -430,13 +271,12 @@ void FlatAffineConstraints::addSymbolId(unsigned pos, Value id) {
 /// Adds a dimensional identifier. The added column is initialized to
 /// zero.
 void FlatAffineConstraints::addId(IdKind kind, unsigned pos, Value id) {
-  if (kind == IdKind::Dimension) {
+  if (kind == IdKind::Dimension)
     assert(pos <= getNumDimIds());
-  } else if (kind == IdKind::Symbol) {
+  else if (kind == IdKind::Symbol)
     assert(pos <= getNumSymbolIds());
-  } else {
+  else
     assert(pos <= getNumLocalIds());
-  }
 
   unsigned oldNumReservedCols = numReservedCols;
 
@@ -491,11 +331,10 @@ void FlatAffineConstraints::addId(IdKind kind, unsigned pos, Value id) {
   }
 
   // If an 'id' is provided, insert it; otherwise use None.
-  if (id) {
+  if (id)
     ids.insert(ids.begin() + absolutePos, id);
-  } else {
+  else
     ids.insert(ids.begin() + absolutePos, None);
-  }
   assert(ids.size() == getNumIds());
 }
 
@@ -585,7 +424,7 @@ static void mergeAndAlignIds(unsigned offset, FlatAffineConstraints *A,
     unsigned d = offset;
     for (auto aDimValue : aDimValues) {
       unsigned loc;
-      if (B->findId(*aDimValue, &loc)) {
+      if (B->findId(aDimValue, &loc)) {
         assert(loc >= offset && "A's dim appears in B's aligned range");
         assert(loc < B->getNumDimIds() &&
                "A's dim appears in B's non-dim position");
@@ -608,7 +447,7 @@ static void mergeAndAlignIds(unsigned offset, FlatAffineConstraints *A,
     unsigned s = B->getNumDimIds();
     for (auto aSymValue : aSymValues) {
       unsigned loc;
-      if (B->findId(*aSymValue, &loc)) {
+      if (B->findId(aSymValue, &loc)) {
         assert(loc >= B->getNumDimIds() && loc < B->getNumDimAndSymbolIds() &&
                "A's symbol appears in B's non-symbol position");
         swapId(B, s, loc);
@@ -683,7 +522,7 @@ LogicalResult FlatAffineConstraints::composeMap(const AffineValueMap *vMap) {
     // Dims and symbols.
     for (unsigned i = 0, e = vMap->getNumOperands(); i < e; i++) {
       unsigned loc;
-      bool ret = findId(*vMap->getOperand(i), &loc);
+      bool ret = findId(vMap->getOperand(i), &loc);
       assert(ret && "value map's id can't be found");
       (void)ret;
       // Negate 'eq[r]' since the newly added dimension will be set to this one.
@@ -804,12 +643,12 @@ void FlatAffineConstraints::convertLoopIVSymbolsToDims() {
   }
   // Turn each symbol in 'loopIVs' into a dim identifier.
   for (auto iv : loopIVs) {
-    turnSymbolIntoDim(this, *iv);
+    turnSymbolIntoDim(this, iv);
   }
 }
 
 void FlatAffineConstraints::addInductionVarOrTerminalSymbol(Value id) {
-  if (containsId(*id))
+  if (containsId(id))
     return;
 
   // Caller is expected to fully compose map/operands if necessary.
@@ -826,14 +665,14 @@ void FlatAffineConstraints::addInductionVarOrTerminalSymbol(Value id) {
   // Add top level symbol.
   addSymbolId(getNumSymbolIds(), id);
   // Check if the symbol is a constant.
-  if (auto constOp = dyn_cast_or_null<ConstantIndexOp>(id->getDefiningOp()))
-    setIdToConstant(*id, constOp.getValue());
+  if (auto constOp = dyn_cast_or_null<ConstantIndexOp>(id.getDefiningOp()))
+    setIdToConstant(id, constOp.getValue());
 }
 
 LogicalResult FlatAffineConstraints::addAffineForOpDomain(AffineForOp forOp) {
   unsigned pos;
   // Pre-condition for this method.
-  if (!findId(*forOp.getInductionVar(), &pos)) {
+  if (!findId(forOp.getInductionVar(), &pos)) {
     assert(false && "Value not found");
     return failure();
   }
@@ -867,9 +706,8 @@ LogicalResult FlatAffineConstraints::addAffineForOpDomain(AffineForOp forOp) {
     addConstantLowerBound(pos, forOp.getConstantLowerBound());
   } else {
     // Non-constant lower bound case.
-    SmallVector<Value, 4> lbOperands(forOp.getLowerBoundOperands().begin(),
-                                     forOp.getLowerBoundOperands().end());
-    if (failed(addLowerOrUpperBound(pos, forOp.getLowerBoundMap(), lbOperands,
+    if (failed(addLowerOrUpperBound(pos, forOp.getLowerBoundMap(),
+                                    forOp.getLowerBoundOperands(),
                                     /*eq=*/false, /*lower=*/true)))
       return failure();
   }
@@ -879,9 +717,8 @@ LogicalResult FlatAffineConstraints::addAffineForOpDomain(AffineForOp forOp) {
     return success();
   }
   // Non-constant upper bound case.
-  SmallVector<Value, 4> ubOperands(forOp.getUpperBoundOperands().begin(),
-                                   forOp.getUpperBoundOperands().end());
-  return addLowerOrUpperBound(pos, forOp.getUpperBoundMap(), ubOperands,
+  return addLowerOrUpperBound(pos, forOp.getUpperBoundMap(),
+                              forOp.getUpperBoundOperands(),
                               /*eq=*/false, /*lower=*/false);
 }
 
@@ -1364,7 +1201,7 @@ static bool detectAsMod(const FlatAffineConstraints &cst, unsigned pos,
   return false;
 }
 
-// Gather lower and upper bounds for the pos^th identifier.
+/// Gather all lower and upper bounds of the identifier at `pos`.
 static void getLowerAndUpperBoundIndices(const FlatAffineConstraints &cst,
                                          unsigned pos,
                                          SmallVectorImpl<unsigned> *lbIndices,
@@ -1385,11 +1222,16 @@ static void getLowerAndUpperBoundIndices(const FlatAffineConstraints &cst,
   }
 }
 
-// Check if the pos^th identifier can be expressed as a floordiv of an affine
-// function of other identifiers (where the divisor is a positive constant).
-// For eg: 4q <= i + j <= 4q + 3   <=>   q = (i + j) floordiv 4.
-bool detectAsFloorDiv(const FlatAffineConstraints &cst, unsigned pos,
-                      SmallVectorImpl<AffineExpr> *memo, MLIRContext *context) {
+/// Check if the pos^th identifier can be expressed as a floordiv of an affine
+/// function of other identifiers (where the divisor is a positive constant)
+/// given the initial set of expressions in `exprs`. If it can be, the
+/// corresponding position in `exprs` is set as the detected affine expr. For
+/// eg: 4q <= i + j <= 4q + 3   <=>   q = (i + j) floordiv 4. An equality can
+/// also yield a floordiv: eg.  4q = i + j <=> q = (i + j) floordiv 4. 32q + 28
+/// <= i <= 32q + 31 => q = i floordiv 32.
+static bool detectAsFloorDiv(const FlatAffineConstraints &cst, unsigned pos,
+                             MLIRContext *context,
+                             SmallVectorImpl<AffineExpr> &exprs) {
   assert(pos < cst.getNumIds() && "invalid position");
 
   SmallVector<unsigned, 4> lbIndices, ubIndices;
@@ -1406,10 +1248,12 @@ bool detectAsFloorDiv(const FlatAffineConstraints &cst, unsigned pos,
   unsigned seenDividends = 0;
   for (auto ubPos : ubIndices) {
     for (auto lbPos : lbIndices) {
-      // Check if lower bound's constant term is 'divisor - 1'. The 'divisor'
-      // here is cst.atIneq(lbPos, pos) and we already know that it's positive
-      // (since cst.Ineq(lbPos, ...) is a lower bound expression for 'pos'.
-      if (cst.atIneq(lbPos, cst.getNumCols() - 1) != cst.atIneq(lbPos, pos) - 1)
+      // Check if the lower bound's constant term is divisor - 1. The
+      // 'divisor' here is cst.atIneq(lbPos, pos) and we already know that it's
+      // positive (since cst.Ineq(lbPos, ...) is a lower bound expr for 'pos'.
+      int64_t divisor = cst.atIneq(lbPos, pos);
+      int64_t lbConstTerm = cst.atIneq(lbPos, cst.getNumCols() - 1);
+      if (lbConstTerm != divisor - 1)
         continue;
       // Check if upper bound's constant term is 0.
       if (cst.atIneq(ubPos, cst.getNumCols() - 1) != 0)
@@ -1428,9 +1272,6 @@ bool detectAsFloorDiv(const FlatAffineConstraints &cst, unsigned pos,
       if (c < f)
         continue;
       if (seenDividends >= 1) {
-        // The divisor is the constant term of the lower bound expression.
-        // We already know that cst.atIneq(lbPos, pos) > 0.
-        int64_t divisor = cst.atIneq(lbPos, pos);
         // Construct the dividend expression.
         auto dividendExpr = getAffineConstantExpr(0, context);
         unsigned c, f;
@@ -1440,9 +1281,9 @@ bool detectAsFloorDiv(const FlatAffineConstraints &cst, unsigned pos,
           int64_t ubVal = cst.atIneq(ubPos, c);
           if (ubVal == 0)
             continue;
-          if (!(*memo)[c])
+          if (!exprs[c])
             break;
-          dividendExpr = dividendExpr + ubVal * (*memo)[c];
+          dividendExpr = dividendExpr + ubVal * exprs[c];
         }
         // Expression can't be constructed as it depends on a yet unknown
         // identifier.
@@ -1451,7 +1292,7 @@ bool detectAsFloorDiv(const FlatAffineConstraints &cst, unsigned pos,
         if (c < f)
           continue;
         // Successfully detected the floordiv.
-        (*memo)[pos] = dividendExpr.floorDiv(divisor);
+        exprs[pos] = dividendExpr.floorDiv(divisor);
         return true;
       }
     }
@@ -1547,7 +1388,8 @@ std::pair<AffineMap, AffineMap> FlatAffineConstraints::getLowerAndUpperBound(
     // - 1.
     addCoeffs(ineq, lb);
     std::transform(lb.begin(), lb.end(), lb.begin(), std::negate<int64_t>());
-    auto expr = mlir::toAffineExpr(lb, dimCount, symCount, localExprs, context);
+    auto expr =
+        getAffineExprFromFlatForm(lb, dimCount, symCount, localExprs, context);
     exprs.push_back(expr);
   }
   auto lbMap =
@@ -1560,7 +1402,8 @@ std::pair<AffineMap, AffineMap> FlatAffineConstraints::getLowerAndUpperBound(
     auto ineq = getInequality(idx);
     // Extract the upper bound (in terms of other coeff's + const).
     addCoeffs(ineq, ub);
-    auto expr = mlir::toAffineExpr(ub, dimCount, symCount, localExprs, context);
+    auto expr =
+        getAffineExprFromFlatForm(ub, dimCount, symCount, localExprs, context);
     // Upper bound is exclusive.
     exprs.push_back(expr + 1);
   }
@@ -1628,9 +1471,9 @@ void FlatAffineConstraints::getSliceBounds(unsigned offset, unsigned num,
         }
       }
 
-      // Detect an identifier as floordiv of another identifier w.r.t a
-      // constant.
-      if (detectAsFloorDiv(*this, pos, &memo, context)) {
+      // Detect an identifier as a floordiv of an affine function of other
+      // identifiers (divisor is a positive constant).
+      if (detectAsFloorDiv(*this, pos, context, memo)) {
         changed = true;
         continue;
       }
@@ -1748,8 +1591,8 @@ void FlatAffineConstraints::getSliceBounds(unsigned offset, unsigned num,
 
 LogicalResult
 FlatAffineConstraints::addLowerOrUpperBound(unsigned pos, AffineMap boundMap,
-                                            ArrayRef<Value> boundOperands,
-                                            bool eq, bool lower) {
+                                            ValueRange boundOperands, bool eq,
+                                            bool lower) {
   assert(pos < getNumDimAndSymbolIds() && "invalid position");
   // Equality follows the logic of lower bound except that we add an equality
   // instead of an inequality.
@@ -1780,13 +1623,13 @@ FlatAffineConstraints::addLowerOrUpperBound(unsigned pos, AffineMap boundMap,
     localVarCst.setIdValues(0, localVarCst.getNumDimAndSymbolIds(), operands);
     for (auto operand : operands) {
       unsigned pos;
-      if (findId(*operand, &pos)) {
+      if (findId(operand, &pos)) {
         if (pos >= getNumDimIds() && pos < getNumDimAndSymbolIds()) {
           // If the local var cst has this as a dim, turn it into its symbol.
-          turnDimIntoSymbol(&localVarCst, *operand);
+          turnDimIntoSymbol(&localVarCst, operand);
         } else if (pos < getNumDimIds()) {
           // Or vice versa.
-          turnSymbolIntoDim(&localVarCst, *operand);
+          turnSymbolIntoDim(&localVarCst, operand);
         }
       }
     }
@@ -1800,7 +1643,7 @@ FlatAffineConstraints::addLowerOrUpperBound(unsigned pos, AffineMap boundMap,
   unsigned numOperands = operands.size();
   for (auto operand : operands) {
     unsigned pos;
-    if (!findId(*operand, &pos))
+    if (!findId(operand, &pos))
       assert(0 && "expected to be found");
     positions.push_back(pos);
   }
@@ -1847,7 +1690,7 @@ LogicalResult FlatAffineConstraints::addSliceBounds(ArrayRef<Value> values,
 
   for (unsigned i = 0, e = lbMaps.size(); i < e; ++i) {
     unsigned pos;
-    if (!findId(*values[i], &pos))
+    if (!findId(values[i], &pos))
       continue;
 
     AffineMap lbMap = lbMaps[i];
@@ -2109,7 +1952,7 @@ Optional<int64_t> FlatAffineConstraints::getConstantBoundOnDimSize(
   if (eqRow != -1) {
     // This identifier can only take a single value.
     if (lb) {
-      // Set lb to the symbolic value.
+      // Set lb to that symbolic value.
       lb->resize(getNumSymbolIds() + 1);
       if (ub)
         ub->resize(getNumSymbolIds() + 1);
@@ -2143,9 +1986,10 @@ Optional<int64_t> FlatAffineConstraints::getConstantBoundOnDimSize(
   // Positions of constraints that are lower/upper bounds on the variable.
   SmallVector<unsigned, 4> lbIndices, ubIndices;
 
-  // Gather all symbolic lower bounds and upper bounds of the variable. Since
-  // the canonical form c_1*x_1 + c_2*x_2 + ... + c_0 >= 0, a constraint is a
-  // lower bound for x_i if c_i >= 1, and an upper bound if c_i <= -1.
+  // Gather all symbolic lower bounds and upper bounds of the variable, i.e.,
+  // the bounds can only involve symbolic (and local) identifiers. Since the
+  // canonical form c_1*x_1 + c_2*x_2 + ... + c_0 >= 0, a constraint is a lower
+  // bound for x_i if c_i >= 1, and an upper bound if c_i <= -1.
   for (unsigned r = 0, e = getNumInequalities(); r < e; r++) {
     unsigned c, f;
     for (c = 0, f = getNumDimIds(); c < f; c++) {
@@ -2703,7 +2547,7 @@ void FlatAffineConstraints::projectOut(unsigned pos, unsigned num) {
 
 void FlatAffineConstraints::projectOut(Value id) {
   unsigned pos;
-  bool ret = findId(*id, &pos);
+  bool ret = findId(id, &pos);
   assert(ret);
   (void)ret;
   FourierMotzkinEliminate(pos);

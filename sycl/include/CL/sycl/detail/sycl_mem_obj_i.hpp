@@ -8,11 +8,10 @@
 
 #pragma once
 
-#include <CL/cl.h>
 #include <CL/sycl/detail/pi.hpp>
-#include <memory>
+#include <CL/sycl/stl.hpp>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
 namespace detail {
@@ -21,13 +20,15 @@ class event_impl;
 class context_impl;
 struct MemObjRecord;
 
-using EventImplPtr = std::shared_ptr<detail::event_impl>;
-using ContextImplPtr = std::shared_ptr<detail::context_impl>;
+using EventImplPtr = shared_ptr_class<detail::event_impl>;
+using ContextImplPtr = shared_ptr_class<detail::context_impl>;
 
 // The class serves as an interface in the scheduler for all SYCL memory
 // objects.
 class SYCLMemObjI {
 public:
+  virtual ~SYCLMemObjI() = default;
+
   enum MemObjType { BUFFER, IMAGE };
 
   virtual MemObjType getType() const = 0;
@@ -63,10 +64,13 @@ public:
 protected:
   // Pointer to the record that contains the memory commands. This is managed
   // by the scheduler.
-  std::unique_ptr<MemObjRecord> MRecord;
+  // fixme replace with unique_ptr_class once it is implemented. Standard
+  // unique_ptr requires knowlege of sizeof(MemObjRecord) at compile time
+  // which is unavailable.
+  shared_ptr_class<MemObjRecord> MRecord;
   friend class Scheduler;
 };
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

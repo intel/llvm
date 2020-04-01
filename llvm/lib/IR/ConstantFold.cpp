@@ -47,6 +47,11 @@ static Constant *BitCastConstantVector(Constant *CV, VectorType *DstTy) {
   if (CV->isAllOnesValue()) return Constant::getAllOnesValue(DstTy);
   if (CV->isNullValue()) return Constant::getNullValue(DstTy);
 
+  // Do not iterate on scalable vector. The num of elements is unknown at
+  // compile-time.
+  if (DstTy->isScalable())
+    return nullptr;
+
   // If this cast changes element count then we can't handle it here:
   // doing so requires endianness information.  This should be handled by
   // Analysis/ConstantFolding.cpp
@@ -863,12 +868,12 @@ Constant *llvm::ConstantFoldInsertElementInstruction(Constant *Val,
 Constant *llvm::ConstantFoldShuffleVectorInstruction(Constant *V1,
                                                      Constant *V2,
                                                      Constant *Mask) {
-  unsigned MaskNumElts = Mask->getType()->getVectorNumElements();
+  ElementCount MaskEltCount = Mask->getType()->getVectorElementCount();
   Type *EltTy = V1->getType()->getVectorElementType();
 
   // Undefined shuffle mask -> undefined value.
   if (isa<UndefValue>(Mask))
-    return UndefValue::get(VectorType::get(EltTy, MaskNumElts));
+    return UndefValue::get(VectorType::get(EltTy, MaskEltCount));
 
   // Don't break the bitcode reader hack.
   if (isa<ConstantExpr>(Mask)) return nullptr;
@@ -879,6 +884,7 @@ Constant *llvm::ConstantFoldShuffleVectorInstruction(Constant *V1,
   if (ValTy->isScalable())
     return nullptr;
 
+  unsigned MaskNumElts = MaskEltCount.Min;
   unsigned SrcNumElts = V1->getType()->getVectorNumElements();
 
   // Loop over the shuffle mask, evaluating each element.
@@ -953,10 +959,14 @@ Constant *llvm::ConstantFoldInsertValueInstruction(Constant *Agg,
 Constant *llvm::ConstantFoldUnaryInstruction(unsigned Opcode, Constant *C) {
   assert(Instruction::isUnaryOp(Opcode) && "Non-unary instruction detected");
 
-  // Handle scalar UndefValue. Vectors are always evaluated per element.
-  bool HasScalarUndef = !C->getType()->isVectorTy() && isa<UndefValue>(C);
+  // Handle scalar UndefValue and scalable vector UndefValue. Fixed-length
+  // vectors are always evaluated per element.
+  bool IsScalableVector =
+      C->getType()->isVectorTy() && C->getType()->getVectorIsScalable();
+  bool HasScalarUndefOrScalableVectorUndef =
+      (!C->getType()->isVectorTy() || IsScalableVector) && isa<UndefValue>(C);
 
-  if (HasScalarUndef) {
+  if (HasScalarUndefOrScalableVectorUndef) {
     switch (static_cast<Instruction::UnaryOps>(Opcode)) {
     case Instruction::FNeg:
       return C; // -undef -> undef
@@ -966,7 +976,7 @@ Constant *llvm::ConstantFoldUnaryInstruction(unsigned Opcode, Constant *C) {
   }
 
   // Constant should not be UndefValue, unless these are vector constants.
-  assert(!HasScalarUndef && "Unexpected UndefValue");
+  assert(!HasScalarUndefOrScalableVectorUndef && "Unexpected UndefValue");
   // We only have FP UnaryOps right now.
   assert(!isa<ConstantInt>(C) && "Unexpected Integer UnaryOp");
 
@@ -979,6 +989,11 @@ Constant *llvm::ConstantFoldUnaryInstruction(unsigned Opcode, Constant *C) {
       return ConstantFP::get(C->getContext(), neg(CV));
     }
   } else if (VectorType *VTy = dyn_cast<VectorType>(C->getType())) {
+    // Do not iterate on scalable vector. The number of elements is unknown at
+    // compile-time.
+    if (IsScalableVector)
+      return nullptr;
+
     // Fold each element and create a vector constant from those constants.
     SmallVector<Constant*, 16> Result;
     Type *Ty = IntegerType::get(VTy->getContext(), 32);
@@ -1013,10 +1028,14 @@ Constant *llvm::ConstantFoldBinaryInstruction(unsigned Opcode, Constant *C1,
       return C1;
   }
 
-  // Handle scalar UndefValue. Vectors are always evaluated per element.
-  bool HasScalarUndef = !C1->getType()->isVectorTy() &&
-                        (isa<UndefValue>(C1) || isa<UndefValue>(C2));
-  if (HasScalarUndef) {
+  // Handle scalar UndefValue and scalable vector UndefValue. Fixed-length
+  // vectors are always evaluated per element.
+  bool IsScalableVector =
+      C1->getType()->isVectorTy() && C1->getType()->getVectorIsScalable();
+  bool HasScalarUndefOrScalableVectorUndef =
+      (!C1->getType()->isVectorTy() || IsScalableVector) &&
+      (isa<UndefValue>(C1) || isa<UndefValue>(C2));
+  if (HasScalarUndefOrScalableVectorUndef) {
     switch (static_cast<Instruction::BinaryOps>(Opcode)) {
     case Instruction::Xor:
       if (isa<UndefValue>(C1) && isa<UndefValue>(C2))
@@ -1097,8 +1116,12 @@ Constant *llvm::ConstantFoldBinaryInstruction(unsigned Opcode, Constant *C1,
         return C1;
       // undef << X -> 0
       return Constant::getNullValue(C1->getType());
-    case Instruction::FAdd:
     case Instruction::FSub:
+      // -0.0 - undef --> undef (consistent with "fneg undef")
+      if (match(C1, m_NegZeroFP()) && isa<UndefValue>(C2))
+        return C2;
+      LLVM_FALLTHROUGH;
+    case Instruction::FAdd:
     case Instruction::FMul:
     case Instruction::FDiv:
     case Instruction::FRem:
@@ -1119,7 +1142,7 @@ Constant *llvm::ConstantFoldBinaryInstruction(unsigned Opcode, Constant *C1,
   }
 
   // Neither constant should be UndefValue, unless these are vector constants.
-  assert(!HasScalarUndef && "Unexpected UndefValue");
+  assert((!HasScalarUndefOrScalableVectorUndef) && "Unexpected UndefValue");
 
   // Handle simplifications when the RHS is a constant int.
   if (ConstantInt *CI2 = dyn_cast<ConstantInt>(C2)) {
@@ -1330,6 +1353,11 @@ Constant *llvm::ConstantFoldBinaryInstruction(unsigned Opcode, Constant *C1,
       }
     }
   } else if (VectorType *VTy = dyn_cast<VectorType>(C1->getType())) {
+    // Do not iterate on scalable vector. The number of elements is unknown at
+    // compile-time.
+    if (IsScalableVector)
+      return nullptr;
+
     // Fold each element and create a vector constant from those constants.
     SmallVector<Constant*, 16> Result;
     Type *Ty = IntegerType::get(VTy->getContext(), 32);
@@ -1812,7 +1840,7 @@ Constant *llvm::ConstantFoldCompareInstruction(unsigned short pred,
   Type *ResultTy;
   if (VectorType *VT = dyn_cast<VectorType>(C1->getType()))
     ResultTy = VectorType::get(Type::getInt1Ty(C1->getContext()),
-                               VT->getNumElements());
+                               VT->getElementCount());
   else
     ResultTy = Type::getInt1Ty(C1->getContext());
 
@@ -1943,6 +1971,11 @@ Constant *llvm::ConstantFoldCompareInstruction(unsigned short pred,
                                         R==APFloat::cmpEqual);
     }
   } else if (C1->getType()->isVectorTy()) {
+    // Do not iterate on scalable vector. The number of elements is unknown at
+    // compile-time.
+    if (C1->getType()->getVectorIsScalable())
+      return nullptr;
+
     // If we can constant fold the comparison of each element, constant fold
     // the whole vector comparison.
     SmallVector<Constant*, 4> ResElts;
@@ -2201,8 +2234,7 @@ Constant *llvm::ConstantFoldGetElementPtr(Type *PointeeTy, Constant *C,
   Constant *Idx0 = cast<Constant>(Idxs[0]);
   if (Idxs.size() == 1 && (Idx0->isNullValue() || isa<UndefValue>(Idx0)))
     return GEPTy->isVectorTy() && !C->getType()->isVectorTy()
-               ? ConstantVector::getSplat(
-                     cast<VectorType>(GEPTy)->getNumElements(), C)
+               ? ConstantVector::getSplat(GEPTy->getVectorElementCount(), C)
                : C;
 
   if (C->isNullValue()) {
@@ -2357,10 +2389,11 @@ Constant *llvm::ConstantFoldGetElementPtr(Type *PointeeTy, Constant *C,
   SmallVector<Constant *, 8> NewIdxs;
   Type *Ty = PointeeTy;
   Type *Prev = C->getType();
+  auto GEPIter = gep_type_begin(PointeeTy, Idxs);
   bool Unknown =
       !isa<ConstantInt>(Idxs[0]) && !isa<ConstantDataVector>(Idxs[0]);
   for (unsigned i = 1, e = Idxs.size(); i != e;
-       Prev = Ty, Ty = cast<CompositeType>(Ty)->getTypeAtIndex(Idxs[i]), ++i) {
+       Prev = Ty, Ty = (++GEPIter).getIndexedType(), ++i) {
     if (!isa<ConstantInt>(Idxs[i]) && !isa<ConstantDataVector>(Idxs[i])) {
       // We don't know if it's in range or not.
       Unknown = true;

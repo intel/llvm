@@ -18,6 +18,7 @@
 #include "llvm/ADT/ilist_node.h"
 #include "llvm/ADT/iterator_range.h"
 #include "llvm/ADT/simple_ilist.h"
+#include "llvm/ADT/SparseBitVector.h"
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/CodeGen/MachineInstrBundleIterator.h"
 #include "llvm/IR/DebugLoc.h"
@@ -44,6 +45,19 @@ class StringRef;
 class raw_ostream;
 class TargetRegisterClass;
 class TargetRegisterInfo;
+
+enum MachineBasicBlockSection : unsigned {
+  ///  This is also the order of sections in a function.  Basic blocks that are
+  ///  part of the original function section (entry block) come first, followed
+  ///  by exception handling basic blocks, cold basic blocks and finally basic
+  //   blocks that need unique sections.
+  MBBS_Entry,
+  MBBS_Exception,
+  MBBS_Cold,
+  MBBS_Unique,
+  ///  None implies no sections for any basic block, the default.
+  MBBS_None,
+};
 
 template <> struct ilist_traits<MachineInstr> {
 private:
@@ -129,9 +143,21 @@ private:
   /// Indicate that this basic block is the entry block of a cleanup funclet.
   bool IsCleanupFuncletEntry = false;
 
+  /// Stores the Section type of the basic block with basic block sections.
+  MachineBasicBlockSection SectionType = MBBS_None;
+
+  /// Default target of the callbr of a basic block.
+  bool InlineAsmBrDefaultTarget = false;
+
+  /// List of indirect targets of the callbr of a basic block.
+  SmallPtrSet<const MachineBasicBlock*, 4> InlineAsmBrIndirectTargets;
+
   /// since getSymbol is a relatively heavy-weight operation, the symbol
   /// is only computed once and is cached.
   mutable MCSymbol *CachedMCSymbol = nullptr;
+
+  /// Used during basic block sections to mark the end of a basic block.
+  MCSymbol *EndMCSymbol = nullptr;
 
   // Intrusive list support
   MachineBasicBlock() = default;
@@ -408,6 +434,45 @@ public:
   /// Indicates if this is the entry block of a cleanup funclet.
   void setIsCleanupFuncletEntry(bool V = true) { IsCleanupFuncletEntry = V; }
 
+  /// Returns true if this block begins any section.
+  bool isBeginSection() const;
+
+  /// Returns true if this block ends any section.
+  bool isEndSection() const;
+
+  /// Returns the type of section this basic block belongs to.
+  MachineBasicBlockSection getSectionType() const { return SectionType; }
+
+  /// Indicate that the basic block belongs to a Section Type.
+  void setSectionType(MachineBasicBlockSection V) { SectionType = V; }
+
+  /// Returns true if this is the indirect dest of an INLINEASM_BR.
+  bool isInlineAsmBrIndirectTarget(const MachineBasicBlock *Tgt) const {
+    return InlineAsmBrIndirectTargets.count(Tgt);
+  }
+
+  /// Indicates if this is the indirect dest of an INLINEASM_BR.
+  void addInlineAsmBrIndirectTarget(const MachineBasicBlock *Tgt) {
+    InlineAsmBrIndirectTargets.insert(Tgt);
+  }
+
+  /// Transfers indirect targets to INLINEASM_BR's copy block.
+  void transferInlineAsmBrIndirectTargets(MachineBasicBlock *CopyBB) {
+    for (auto *Target : InlineAsmBrIndirectTargets)
+      CopyBB->addInlineAsmBrIndirectTarget(Target);
+    return InlineAsmBrIndirectTargets.clear();
+  }
+
+  /// Returns true if this is the default dest of an INLINEASM_BR.
+  bool isInlineAsmBrDefaultTarget() const {
+    return InlineAsmBrDefaultTarget;
+  }
+
+  /// Indicates if this is the default deft of an INLINEASM_BR.
+  void setInlineAsmBrDefaultTarget() {
+    InlineAsmBrDefaultTarget = true;
+  }
+
   /// Returns true if it is legal to hoist instructions into this block.
   bool isLegalToHoistInto() const;
 
@@ -418,6 +483,12 @@ public:
   /// the end of the block.
   void moveBefore(MachineBasicBlock *NewAfter);
   void moveAfter(MachineBasicBlock *NewBefore);
+
+  /// Returns true if this and MBB belong to the same section.
+  bool sameSection(const MachineBasicBlock *MBB) const;
+
+  /// Returns the basic block that ends the section which contains this one.
+  const MachineBasicBlock *getSectionEndMBB() const;
 
   /// Update the terminator instructions in block to account for changes to the
   /// layout. If the block previously used a fallthrough, it may now need a
@@ -588,7 +659,9 @@ public:
   ///
   /// This function updates LiveVariables, MachineDominatorTree, and
   /// MachineLoopInfo, as applicable.
-  MachineBasicBlock *SplitCriticalEdge(MachineBasicBlock *Succ, Pass &P);
+  MachineBasicBlock *
+  SplitCriticalEdge(MachineBasicBlock *Succ, Pass &P,
+                    std::vector<SparseBitVector<>> *LiveInSets = nullptr);
 
   /// Check if the edge between this block and the given successor \p
   /// Succ, can be split. If this returns true a subsequent call to
@@ -802,6 +875,12 @@ public:
 
   /// Return the MCSymbol for this basic block.
   MCSymbol *getSymbol() const;
+
+  /// Sets the MCSymbol corresponding to the end of this basic block.
+  void setEndMCSymbol(MCSymbol *Sym) { EndMCSymbol = Sym; }
+
+  /// Returns the MCSymbol corresponding to the end of this basic block.
+  MCSymbol *getEndMCSymbol() const { return EndMCSymbol; }
 
   Optional<uint64_t> getIrrLoopHeaderWeight() const {
     return IrrLoopHeaderWeight;

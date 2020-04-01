@@ -1,6 +1,6 @@
 //===- Dominance.cpp - Dominator analysis for CFGs ------------------------===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -119,7 +119,7 @@ bool DominanceInfo::properlyDominates(Operation *a, Operation *b) {
 
 /// Return true if value A properly dominates operation B.
 bool DominanceInfo::properlyDominates(Value a, Operation *b) {
-  if (auto *aOp = a->getDefiningOp()) {
+  if (auto *aOp = a.getDefiningOp()) {
     // The values defined by an operation do *not* dominate any nested
     // operations.
     if (aOp->getParentRegion() != b->getParentRegion() && aOp->isAncestor(b))
@@ -129,7 +129,7 @@ bool DominanceInfo::properlyDominates(Value a, Operation *b) {
 
   // block arguments properly dominate all operations in their own block, so
   // we use a dominates check here, not a properlyDominates check.
-  return dominates(a.cast<BlockArgument>()->getOwner(), b->getBlock());
+  return dominates(a.cast<BlockArgument>().getOwner(), b->getBlock());
 }
 
 DominanceInfoNode *DominanceInfo::getNode(Block *a) {

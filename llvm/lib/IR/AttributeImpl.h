@@ -134,10 +134,7 @@ class IntAttributeImpl : public EnumAttributeImpl {
 public:
   IntAttributeImpl(Attribute::AttrKind Kind, uint64_t Val)
       : EnumAttributeImpl(IntAttrEntry, Kind), Val(Val) {
-    assert((Kind == Attribute::Alignment || Kind == Attribute::StackAlignment ||
-            Kind == Attribute::Dereferenceable ||
-            Kind == Attribute::DereferenceableOrNull ||
-            Kind == Attribute::AllocSize) &&
+    assert(Attribute::doesAttrKindHaveArgument(Kind) &&
            "Wrong kind for int attribute!");
   }
 
@@ -152,7 +149,8 @@ class StringAttributeImpl : public AttributeImpl {
 
 public:
   StringAttributeImpl(StringRef Kind, StringRef Val = StringRef())
-      : AttributeImpl(StringAttrEntry), Kind(Kind), Val(Val) {}
+      : AttributeImpl(StringAttrEntry), Kind(std::string(Kind)),
+        Val(std::string(Val)) {}
 
   StringRef getStringKind() const { return Kind; }
   StringRef getStringValue() const { return Val; }

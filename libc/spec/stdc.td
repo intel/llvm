@@ -8,6 +8,25 @@ def StdC : StandardSpec<"stdc"> {
   RestrictedPtrType CharRestrictedPtr = RestrictedPtrType<CharType>;
   ConstType ConstCharRestrictedPtr = ConstType<CharRestrictedPtr>;
 
+  NamedType MtxTType = NamedType<"mtx_t">;
+  PtrType MtxTTypePtr = PtrType<MtxTType>;
+  NamedType ThrdStartTType = NamedType<"thrd_start_t">;
+  NamedType ThrdTType = NamedType<"thrd_t">;
+  PtrType ThrdTTypePtr = PtrType<ThrdTType>;
+
+  PtrType IntPtr = PtrType<IntType>;
+
+  HeaderSpec Assert = HeaderSpec<
+      "assert.h",
+      [
+          Macro<"static_assert">,
+          Macro<"assert">,
+      ],
+      [], // Types
+      [], // Enumerations
+      []
+  >;
+
   HeaderSpec String = HeaderSpec<
       "string.h",
       [
@@ -16,6 +35,7 @@ def StdC : StandardSpec<"stdc"> {
       [
           SizeTType,
       ],
+      [], // Enumerations
       [
           FunctionSpec<
               "memcpy",
@@ -143,6 +163,7 @@ def StdC : StandardSpec<"stdc"> {
           NamedType<"float_t">,
           NamedType<"double_t">,
       ],
+      [], // Enumerations
       [
           FunctionSpec<"acos", RetValSpec<DoubleType>, [ArgSpec<DoubleType>]>,
           FunctionSpec<"acosl", RetValSpec<LongDoubleType>, [ArgSpec<LongDoubleType>]>,
@@ -155,6 +176,7 @@ def StdC : StandardSpec<"stdc"> {
       [ // Types
           SizeTType,
       ],
+      [], // Enumerations
       [
           FunctionSpec<
               "snprintf",
@@ -167,6 +189,17 @@ def StdC : StandardSpec<"stdc"> {
       ]
   >;
 
+  HeaderSpec StdLib = HeaderSpec<
+      "stdlib.h",
+      [], // Macros
+      [], // Types
+      [], // Enumerations
+      [
+          FunctionSpec<"abort", RetValSpec<NoReturn>, [ArgSpec<VoidType>]>,
+          FunctionSpec<"_Exit", RetValSpec<NoReturn>, [ArgSpec<IntType>]>,
+      ]
+  >;
+
   HeaderSpec Errno = HeaderSpec<
       "errno.h",
       [
@@ -174,15 +207,101 @@ def StdC : StandardSpec<"stdc"> {
         Macro<"EDOM">,
         Macro<"EILSEQ">,
         Macro<"ERANGE">,
+      ]
+  >;
+
+  HeaderSpec Signal = HeaderSpec<
+      "signal.h",
+      [
+        Macro<"SIG_BLOCK">,
+        Macro<"SIG_UNBLOCK">,
+        Macro<"SIG_SETMASK">,
+
+        Macro<"SIGABRT">,
+        Macro<"SIGFPE">,
+        Macro<"SIGILL">,
+        Macro<"SIGINT">,
+        Macro<"SIGSEGV">,
+        Macro<"SIGTERM">
       ],
-      [], // Types
-      []  // Functions
+      [
+        SizeTType,
+      ],
+      [], // Enumerations
+      [
+        FunctionSpec<"raise", RetValSpec<IntType>, [ArgSpec<IntType>]>,
+      ]
+  >;
+
+  HeaderSpec Threads = HeaderSpec<
+      "threads.h",
+      [], // Macros
+      [
+          MtxTType,
+          ThrdStartTType,
+          ThrdTType,
+      ],
+      [
+          EnumeratedNameValue<"mtx_plain">,
+          EnumeratedNameValue<"mtx_recursive">,
+          EnumeratedNameValue<"mtx_timed">,
+          EnumeratedNameValue<"thrd_timedout">,
+          EnumeratedNameValue<"thrd_success">,
+          EnumeratedNameValue<"thrd_busy">,
+          EnumeratedNameValue<"thrd_error">,
+          EnumeratedNameValue<"thrd_nomem">,
+      ],
+      [
+          FunctionSpec<
+              "mtx_init",
+              RetValSpec<IntType>,
+              [
+                  ArgSpec<MtxTTypePtr>,
+                  ArgSpec<IntType>,
+              ]
+          >,
+          FunctionSpec<
+              "mtx_lock",
+              RetValSpec<IntType>,
+              [
+                  ArgSpec<MtxTTypePtr>,
+              ]
+          >,
+          FunctionSpec<
+              "mtx_unlock",
+              RetValSpec<IntType>,
+              [
+                  ArgSpec<MtxTTypePtr>,
+              ]
+          >,
+          FunctionSpec<
+              "thrd_create",
+              RetValSpec<IntType>,
+              [
+                  ArgSpec<ThrdTTypePtr>,
+                  ArgSpec<ThrdStartTType>,
+                  ArgSpec<VoidPtr>,
+              ]
+          >,
+          FunctionSpec<
+              "thrd_join",
+              RetValSpec<IntType>,
+              [
+                  ArgSpec<ThrdTTypePtr>,
+                  ArgSpec<IntPtr>,
+              ]
+          >
+      ]
   >;
 
   let Headers = [
+    Assert,
     Errno,
     Math,
     String,
     StdIO,
+    StdLib,
+    Signal,
+    Threads,
   ];
 }

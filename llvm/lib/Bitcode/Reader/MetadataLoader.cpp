@@ -1418,7 +1418,7 @@ Error MetadataLoader::MetadataLoaderImpl::parseOneMetadata(
   }
 
   case bitc::METADATA_MODULE: {
-    if (Record.size() != 6)
+    if (Record.size() < 5 || Record.size() > 7)
       return error("Invalid record");
 
     IsDistinct = Record[0];
@@ -1457,7 +1457,7 @@ Error MetadataLoader::MetadataLoaderImpl::parseOneMetadata(
     break;
   }
   case bitc::METADATA_COMPILE_UNIT: {
-    if (Record.size() < 14 || Record.size() > 19)
+    if (Record.size() < 14 || Record.size() > 22)
       return error("Invalid record");
 
     // Ignore Record[0], which indicates whether this compile unit is
@@ -1473,7 +1473,10 @@ Error MetadataLoader::MetadataLoaderImpl::parseOneMetadata(
         Record.size() <= 16 ? true : Record[16],
         Record.size() <= 17 ? false : Record[17],
         Record.size() <= 18 ? 0 : Record[18],
-        Record.size() <= 19 ? 0 : Record[19]);
+        false, // FIXME: https://reviews.llvm.org/rGc51b45e32ef7f35c11891f60871aa9c2c04cd991
+               // Record.size() <= 19 ? 0 : Record[19],
+        Record.size() <= 20 ? nullptr : getMDString(Record[20]),
+        Record.size() <= 21 ? nullptr : getMDString(Record[21]));
 
     MetadataList.assignValue(CU, NextMetadataNo);
     NextMetadataNo++;
@@ -1667,27 +1670,34 @@ Error MetadataLoader::MetadataLoaderImpl::parseOneMetadata(
     break;
   }
   case bitc::METADATA_TEMPLATE_TYPE: {
-    if (Record.size() != 3)
-      return error("Invalid record");
-
-    IsDistinct = Record[0];
-    MetadataList.assignValue(GET_OR_DISTINCT(DITemplateTypeParameter,
-                                             (Context, getMDString(Record[1]),
-                                              getDITypeRefOrNull(Record[2]))),
-                             NextMetadataNo);
-    NextMetadataNo++;
-    break;
-  }
-  case bitc::METADATA_TEMPLATE_VALUE: {
-    if (Record.size() != 5)
+    if (Record.size() < 3 || Record.size() > 4)
       return error("Invalid record");
 
     IsDistinct = Record[0];
     MetadataList.assignValue(
-        GET_OR_DISTINCT(DITemplateValueParameter,
-                        (Context, Record[1], getMDString(Record[2]),
-                         getDITypeRefOrNull(Record[3]),
-                         getMDOrNull(Record[4]))),
+        GET_OR_DISTINCT(DITemplateTypeParameter,
+                        (Context, getMDString(Record[1]),
+                         getDITypeRefOrNull(Record[2]),
+                         (Record.size() == 4) ? getMDOrNull(Record[3])
+                                              : getMDOrNull(false))),
+        NextMetadataNo);
+    NextMetadataNo++;
+    break;
+  }
+  case bitc::METADATA_TEMPLATE_VALUE: {
+    if (Record.size() < 5 || Record.size() > 6)
+      return error("Invalid record");
+
+    IsDistinct = Record[0];
+
+    MetadataList.assignValue(
+        GET_OR_DISTINCT(
+            DITemplateValueParameter,
+            (Context, Record[1], getMDString(Record[2]),
+             getDITypeRefOrNull(Record[3]),
+             (Record.size() == 6) ? getMDOrNull(Record[4]) : getMDOrNull(false),
+             (Record.size() == 6) ? getMDOrNull(Record[5])
+                                  : getMDOrNull(Record[4]))),
         NextMetadataNo);
     NextMetadataNo++;
     break;

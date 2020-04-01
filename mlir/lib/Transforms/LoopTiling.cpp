@@ -1,6 +1,6 @@
 //===- LoopTiling.cpp --- Loop tiling pass ------------------------------*-===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -241,7 +241,7 @@ LogicalResult mlir::tileCodeGen(MutableArrayRef<AffineForOp> band,
   constructTiledIndexSetHyperRect(origLoops, newLoops, tileSizes);
   // In this case, the point loop IVs just replace the original ones.
   for (unsigned i = 0; i < width; i++) {
-    origLoopIVs[i]->replaceAllUsesWith(newLoops[i + width].getInductionVar());
+    origLoopIVs[i].replaceAllUsesWith(newLoops[i + width].getInductionVar());
   }
 
   // Erase the old loop nest.

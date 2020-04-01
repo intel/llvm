@@ -13,6 +13,7 @@
 #include "index/FileIndex.h"
 #include "index/MemIndex.h"
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/Basic/Diagnostic.h"
 #include "clang/Frontend/CompilerInvocation.h"
 #include "clang/Frontend/Utils.h"
 
@@ -66,8 +67,7 @@ ParsedAST TestTU::build() const {
   assert(CI && "Failed to build compilation invocation.");
   auto Preamble =
       buildPreamble(FullFilename, *CI,
-                    /*OldPreamble=*/nullptr,
-                    /*OldCompileCommand=*/Inputs.CompileCommand, Inputs,
+                    /*OldPreamble=*/nullptr, Inputs,
                     /*StoreInMemory=*/true, /*PreambleCallback=*/nullptr);
   auto AST =
       buildAST(FullFilename, std::move(CI), Diags.take(), Inputs, Preamble);
@@ -75,12 +75,28 @@ ParsedAST TestTU::build() const {
     ADD_FAILURE() << "Failed to build code:\n" << Code;
     llvm_unreachable("Failed to build TestTU!");
   }
+  // Check for error diagnostics and report gtest failures (unless expected).
+  // This guards against accidental syntax errors silently subverting tests.
+  // error-ok is awfully primitive - using clang -verify would be nicer.
+  // Ownership and layering makes it pretty hard.
+  if (llvm::none_of(Files, [](const auto &KV) {
+        return llvm::StringRef(KV.second).contains("error-ok");
+      })) {
+    for (const auto &D : AST->getDiagnostics())
+      if (D.Severity >= DiagnosticsEngine::Error) {
+        ADD_FAILURE()
+            << "TestTU failed to build (suppress with /*error-ok*/): \n"
+            << D << "\n\nFor code:\n"
+            << Code;
+        break; // Just report first error for simplicity.
+      }
+  }
   return std::move(*AST);
 }
 
 SymbolSlab TestTU::headerSymbols() const {
   auto AST = build();
-  return std::get<0>(indexHeaderSymbols(AST.getASTContext(),
+  return std::get<0>(indexHeaderSymbols(/*Version=*/"null", AST.getASTContext(),
                                         AST.getPreprocessorPtr(),
                                         AST.getCanonicalIncludes()));
 }
@@ -88,8 +104,8 @@ SymbolSlab TestTU::headerSymbols() const {
 std::unique_ptr<SymbolIndex> TestTU::index() const {
   auto AST = build();
   auto Idx = std::make_unique<FileIndex>(/*UseDex=*/true);
-  Idx->updatePreamble(Filename, AST.getASTContext(), AST.getPreprocessorPtr(),
-                      AST.getCanonicalIncludes());
+  Idx->updatePreamble(Filename, /*Version=*/"null", AST.getASTContext(),
+                      AST.getPreprocessorPtr(), AST.getCanonicalIncludes());
   Idx->updateMain(Filename, AST);
   return std::move(Idx);
 }

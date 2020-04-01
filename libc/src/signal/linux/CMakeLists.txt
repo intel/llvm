@@ -1,0 +1,86 @@
+
+add_entrypoint_object(
+  raise
+  SRCS
+    raise.cpp
+  HDRS
+    signal.h
+    ../raise.h
+  DEPENDS
+    sys_syscall_h
+    linux_syscall_h
+    signal_h
+)
+
+add_object(
+  __restore
+  SRC
+    __restore.cpp
+  COMPILE_OPTIONS
+    -fomit-frame-pointer
+    -O3
+    -Wframe-larger-than=0
+    -Werror
+    -Wno-attributes
+    # asan creates asan.module_ctor which uses stack space, causing warinngs.
+    -fno-sanitize=address
+  DEPENDS
+    linux_syscall_h
+    sys_syscall_h
+)
+
+add_entrypoint_object(
+  sigaction
+  SRCS
+    sigaction.cpp
+  HDRS
+    signal.h
+    ../sigaction.h
+  DEPENDS
+    __restore
+    sys_syscall_h
+    linux_syscall_h
+    signal_h
+  SPECIAL_OBJECTS
+    __restore
+)
+
+add_entrypoint_object(
+  sigprocmask
+  SRCS
+    sigprocmask.cpp
+  HDRS
+    signal.h
+    ../sigprocmask.h
+  DEPENDS
+    sys_syscall_h
+    linux_syscall_h
+    __errno_location
+    signal_h
+)
+
+add_entrypoint_object(
+  sigemptyset
+  SRCS
+    sigemptyset.cpp
+  HDRS
+    signal.h
+    ../sigemptyset.h
+  DEPENDS
+    __errno_location
+    errno_h
+    signal_h
+)
+
+add_entrypoint_object(
+  sigaddset
+  SRCS
+    sigaddset.cpp
+  HDRS
+    signal.h
+    ../sigaddset.h
+  DEPENDS
+    __errno_location
+    errno_h
+    signal_h
+)

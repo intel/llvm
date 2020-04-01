@@ -91,11 +91,22 @@ void EmitNeon2(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
 void EmitNeonSema2(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
 void EmitNeonTest2(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
 
+void EmitSveHeader(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
+void EmitSveBuiltins(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
+void EmitSveBuiltinCG(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
+void EmitSveTypeFlags(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
+
 void EmitMveHeader(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
 void EmitMveBuiltinDef(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
 void EmitMveBuiltinSema(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
 void EmitMveBuiltinCG(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
 void EmitMveBuiltinAliases(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
+
+void EmitCdeHeader(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
+void EmitCdeBuiltinDef(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
+void EmitCdeBuiltinSema(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
+void EmitCdeBuiltinCG(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
+void EmitCdeBuiltinAliases(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
 
 void EmitClangAttrDocs(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
 void EmitClangDiagDocs(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
@@ -103,6 +114,7 @@ void EmitClangOptDocs(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
 
 void EmitClangOpenCLBuiltins(llvm::RecordKeeper &Records,
                              llvm::raw_ostream &OS);
+void EmitClangSPIRVBuiltins(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
 
 void EmitClangDataCollectors(llvm::RecordKeeper &Records,
                              llvm::raw_ostream &OS);

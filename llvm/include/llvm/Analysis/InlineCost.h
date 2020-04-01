@@ -27,6 +27,7 @@ class DataLayout;
 class Function;
 class ProfileSummaryInfo;
 class TargetTransformInfo;
+class TargetLibraryInfo;
 
 namespace InlineConstants {
 // Various thresholds used by inline cost analysis.
@@ -48,7 +49,7 @@ const int ColdccPenalty = 2000;
 /// Do not inline functions which allocate this many bytes on the stack
 /// when the caller is recursive.
 const unsigned TotalAllocaSizeRecursiveCaller = 1024;
-}
+} // namespace InlineConstants
 
 /// Represents the cost of inlining a function.
 ///
@@ -61,16 +62,13 @@ const unsigned TotalAllocaSizeRecursiveCaller = 1024;
 /// directly tested to determine if inlining should occur given the cost and
 /// threshold for this cost metric.
 class InlineCost {
-  enum SentinelValues {
-    AlwaysInlineCost = INT_MIN,
-    NeverInlineCost = INT_MAX
-  };
+  enum SentinelValues { AlwaysInlineCost = INT_MIN, NeverInlineCost = INT_MAX };
 
   /// The estimated cost of inlining this callsite.
-  int Cost;
+  int Cost = 0;
 
   /// The adjusted threshold against which this cost was computed.
-  int Threshold;
+  int Threshold = 0;
 
   /// Must be set for Always and Never instances.
   const char *Reason = nullptr;
@@ -96,9 +94,7 @@ public:
   }
 
   /// Test whether the inline cost is low enough for inlining.
-  explicit operator bool() const {
-    return Cost < Threshold;
-  }
+  explicit operator bool() const { return Cost < Threshold; }
 
   bool isAlways() const { return Cost == AlwaysInlineCost; }
   bool isNever() const { return Cost == NeverInlineCost; }
@@ -131,14 +127,22 @@ public:
 };
 
 /// InlineResult is basically true or false. For false results the message
-/// describes a reason why it is decided not to inline.
-struct InlineResult {
-  const char *message = nullptr;
-  InlineResult(bool result, const char *message = nullptr)
-      : message(result ? nullptr : (message ? message : "cost > threshold")) {}
-  InlineResult(const char *message = nullptr) : message(message) {}
-  operator bool() const { return !message; }
-  operator const char *() const { return message; }
+/// describes a reason.
+class InlineResult {
+  const char *Message = nullptr;
+  InlineResult(const char *Message = nullptr) : Message(Message) {}
+
+public:
+  static InlineResult success() { return {}; }
+  static InlineResult failure(const char *Reason) {
+    return InlineResult(Reason);
+  }
+  bool isSuccess() const { return Message == nullptr; }
+  const char *getFailureReason() const {
+    assert(!isSuccess() &&
+           "getFailureReason should only be called in failure cases");
+    return Message;
+  }
 };
 
 /// Thresholds to tune inline cost analysis. The inline cost analysis decides
@@ -152,7 +156,7 @@ struct InlineResult {
 
 struct InlineParams {
   /// The default threshold to start with for a callee.
-  int DefaultThreshold;
+  int DefaultThreshold = -1;
 
   /// Threshold to use for callees with inline hint.
   Optional<int> HintThreshold;
@@ -216,6 +220,7 @@ InlineCost getInlineCost(
     CallBase &Call, const InlineParams &Params, TargetTransformInfo &CalleeTTI,
     std::function<AssumptionCache &(Function &)> &GetAssumptionCache,
     Optional<function_ref<BlockFrequencyInfo &(Function &)>> GetBFI,
+    function_ref<const TargetLibraryInfo &(Function &)> GetTLI,
     ProfileSummaryInfo *PSI, OptimizationRemarkEmitter *ORE = nullptr);
 
 /// Get an InlineCost with the callee explicitly specified.
@@ -228,10 +233,11 @@ getInlineCost(CallBase &Call, Function *Callee, const InlineParams &Params,
               TargetTransformInfo &CalleeTTI,
               std::function<AssumptionCache &(Function &)> &GetAssumptionCache,
               Optional<function_ref<BlockFrequencyInfo &(Function &)>> GetBFI,
+              function_ref<const TargetLibraryInfo &(Function &)> GetTLI,
               ProfileSummaryInfo *PSI, OptimizationRemarkEmitter *ORE);
 
 /// Minimal filter to detect invalid constructs for inlining.
 InlineResult isInlineViable(Function &Callee);
-}
+} // namespace llvm
 
 #endif

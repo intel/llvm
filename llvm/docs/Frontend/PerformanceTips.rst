@@ -255,11 +255,11 @@ couple specific suggestions:
 
 #. For languages with numerous rarely executed guard conditions (e.g. null
    checks, type checks, range checks) consider adding an extra execution or
-   two of LoopUnswith and LICM to your pass order.  The standard pass order,
+   two of LoopUnswitch and LICM to your pass order.  The standard pass order,
    which is tuned for C and C++ applications, may not be sufficient to remove
    all dischargeable checks from loops.
 
-#. If you language uses range checks, consider using the IRCE pass.  It is not
+#. If your language uses range checks, consider using the IRCE pass.  It is not
    currently part of the standard pass order.
 
 #. A useful sanity check to run is to run your optimized IR back through the

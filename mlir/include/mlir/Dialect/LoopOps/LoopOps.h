@@ -1,6 +1,6 @@
 //===- Ops.h - Loop MLIR Operations -----------------------------*- C++ -*-===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -17,18 +17,15 @@
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/OpDefinition.h"
-#include "mlir/Transforms/LoopLikeInterface.h"
+#include "mlir/Interfaces/LoopLikeInterface.h"
+#include "mlir/Interfaces/SideEffects.h"
 
 namespace mlir {
 namespace loop {
 
 class TerminatorOp;
 
-class LoopOpsDialect : public Dialect {
-public:
-  LoopOpsDialect(MLIRContext *context);
-  static StringRef getDialectNamespace() { return "loop"; }
-};
+#include "mlir/Dialect/LoopOps/LoopOpsDialect.h.inc"
 
 #define GET_OP_CLASSES
 #include "mlir/Dialect/LoopOps/LoopOps.h.inc"
@@ -42,6 +39,10 @@ void ensureLoopTerminator(Region &region, Builder &builder, Location loc);
 /// Returns the loop parent of an induction variable. If the provided value is
 /// not an induction variable, then return nullptr.
 ForOp getForInductionVarOwner(Value val);
+
+/// Returns the parallel loop parent of an induction variable. If the provided
+// value is not an induction variable, then return nullptr.
+ParallelOp getParallelForInductionVarOwner(Value val);
 
 } // end namespace loop
 } // end namespace mlir

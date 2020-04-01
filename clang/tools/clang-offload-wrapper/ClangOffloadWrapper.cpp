@@ -18,19 +18,27 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Triple.h"
+#include "llvm/ADT/Twine.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/PassManager.h"
+#ifndef NDEBUG
+#include "llvm/IR/Verifier.h"
+#endif // NDEBUG
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/ErrorOr.h"
+#include "llvm/Support/Host.h"
 #include "llvm/Support/LineIterator.h"
 #include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/PropertySetIO.h"
 #include "llvm/Support/Signals.h"
+#include "llvm/Support/SimpleTable.h"
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/WithColor.h"
 #include "llvm/Support/raw_ostream.h"
@@ -38,11 +46,21 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <fstream>
 #include <iterator>
 #include <memory>
+#include <string>
 #include <tuple>
 
 using namespace llvm;
+
+// Fields in the binary descriptor which are made available to SYCL runtime
+// by the offload wrapper. Must match across tools -
+// clang/lib/Driver/Driver.cpp, sycl-post-link.cpp, ClangOffloadWrapper.cpp
+static constexpr char COL_CODE[] = "Code";
+static constexpr char COL_SYM[] = "Symbols";
+static constexpr char COL_PROPS[] = "Properties";
+static constexpr char COL_MANIFEST[] = "Manifest";
 
 // Offload models supported by this tool. The support basically means mapping
 // a string representation given at the command line to a value from this
@@ -131,12 +149,19 @@ static cl::list<std::string> Targets("target", cl::ZeroOrMore,
                                      cl::cat(ClangOffloadWrapperCategory),
                                      cl::cat(ClangOffloadWrapperCategory));
 
-/// Sets build options for device binary image.
+/// Sets compile options for device binary image.
 static cl::list<std::string>
-    Options("build-opts", cl::ZeroOrMore,
-            cl::desc("build options passed to the offload runtime"),
-            cl::cat(ClangOffloadWrapperCategory),
-            cl::cat(ClangOffloadWrapperCategory));
+    CompileOptions("compile-opts", cl::ZeroOrMore,
+                   cl::desc("compile options passed to the offload runtime"),
+                   cl::cat(ClangOffloadWrapperCategory),
+                   cl::cat(ClangOffloadWrapperCategory));
+
+/// Sets link options for device binary image.
+static cl::list<std::string>
+    LinkOptions("link-opts", cl::ZeroOrMore,
+                cl::desc("link options passed to the offload runtime"),
+                cl::cat(ClangOffloadWrapperCategory),
+                cl::cat(ClangOffloadWrapperCategory));
 
 /// Sets the name of the file containing offload function entries
 static cl::list<std::string> Entries(
@@ -144,11 +169,19 @@ static cl::list<std::string> Entries(
     cl::desc("File listing all offload function entries, SYCL offload only"),
     cl::value_desc("filename"), cl::cat(ClangOffloadWrapperCategory));
 
+/// Sets the name of the file containing arbitrary properties for current device
+/// binary image
+static cl::list<std::string> Properties(
+    "properties", cl::ZeroOrMore,
+    cl::desc("File listing device binary image properties, SYCL offload only"),
+    cl::value_desc("filename"), cl::cat(ClangOffloadWrapperCategory));
+
 /// Specifies the target triple of the host wrapper.
-static cl::opt<std::string>
-    Target("host", cl::Required,
-           cl::desc("Target triple for the output module"),
-           cl::value_desc("triple"), cl::cat(ClangOffloadWrapperCategory));
+static cl::opt<std::string> Target(
+    "host", cl::Optional,
+    cl::desc("Target triple for the output module. If omitted, the host\n"
+             "triple is used."),
+    cl::value_desc("triple"), cl::cat(ClangOffloadWrapperCategory));
 
 static cl::opt<bool> EmitRegFuncs("emit-reg-funcs", cl::NotHidden,
                                   cl::init(true), cl::Optional,
@@ -158,9 +191,20 @@ static cl::opt<bool> EmitRegFuncs("emit-reg-funcs", cl::NotHidden,
 static cl::opt<std::string> DescriptorName(
     "desc-name", cl::Optional, cl::init("descriptor"),
     cl::desc(
-        "Specifies offload descriptor symbol name: '.<offload kind>.<name>'"
-        ", and makes it globally visible"),
+        "Specifies offload descriptor symbol name: '.<offload kind>.<name>',\n"
+        "and makes it globally visible"),
     cl::value_desc("name"), cl::cat(ClangOffloadWrapperCategory));
+
+/// batch mode - all input files are grouped in file table files
+static cl::opt<bool> BatchMode(
+    "batch", cl::NotHidden, cl::init(false), cl::Optional,
+    cl::desc("All input files are provided as cells in a file table file,\n"
+             "other command-line input files are not allowed.\n"
+             "Example input file table in batch mode:\n"
+             "[Code|Symbols|Properties|Manifest]\n"
+             "a_0.bc|a_0.sym|a_0.props|a_0.mnf\n"
+             "a_1.bin|||"),
+    cl::cat(ClangOffloadWrapperCategory));
 
 static StringRef offloadKindToString(OffloadKind Kind) {
   switch (Kind) {
@@ -214,22 +258,28 @@ public:
   public:
     Image(const llvm::StringRef File_, const llvm::StringRef Manif_,
           const llvm::StringRef Tgt_, BinaryImageFormat Fmt_,
-          const llvm::StringRef Opts_, const llvm::StringRef EntriesFile_)
-        : File(File_), Manif(Manif_), Tgt(Tgt_), Fmt(Fmt_), Opts(Opts_),
-          EntriesFile(EntriesFile_) {}
+          const llvm::StringRef CompileOpts_, const llvm::StringRef LinkOpts_,
+          const llvm::StringRef EntriesFile_, const llvm::StringRef PropsFile_)
+        : File(File_.str()), Manif(Manif_.str()), Tgt(Tgt_.str()), Fmt(Fmt_),
+          CompileOpts(CompileOpts_.str()), LinkOpts(LinkOpts_.str()),
+          EntriesFile(EntriesFile_.str()), PropsFile(PropsFile_.str()) {}
 
     /// Name of the file with actual contents
-    const llvm::StringRef File;
+    const std::string File;
     /// Name of the manifest file
-    const llvm::StringRef Manif;
+    const std::string Manif;
     /// Offload target architecture
-    const llvm::StringRef Tgt;
+    const std::string Tgt;
     /// Format
     const BinaryImageFormat Fmt;
-    /// Build options
-    const llvm::StringRef Opts;
+    /// Compile options
+    const std::string CompileOpts;
+    /// Link options
+    const std::string LinkOpts;
     /// File listing contained entries
-    const llvm::StringRef EntriesFile;
+    const std::string EntriesFile;
+    /// File with properties
+    const std::string PropsFile;
 
     friend raw_ostream &operator<<(raw_ostream &Out, const Image &Img);
   };
@@ -249,6 +299,8 @@ private:
   // specific types should be removed if/when this happens.
   StructType *SyclImageTy = nullptr;
   StructType *SyclDescTy = nullptr;
+  StructType *SyclPropSetTy = nullptr;
+  StructType *SyclPropTy = nullptr;
 
   /// Records all added device binary images per offload kind.
   llvm::DenseMap<OffloadKind, std::unique_ptr<SameKindPack>> Packs;
@@ -258,13 +310,14 @@ private:
 public:
   void addImage(const OffloadKind Kind, llvm::StringRef File,
                 llvm::StringRef Manif, llvm::StringRef Tgt,
-                const BinaryImageFormat Fmt, llvm::StringRef Opts,
-                llvm::StringRef EntriesFile) {
+                const BinaryImageFormat Fmt, llvm::StringRef CompileOpts,
+                llvm::StringRef LinkOpts, llvm::StringRef EntriesFile,
+                llvm::StringRef PropsFile) {
     std::unique_ptr<SameKindPack> &Pack = Packs[Kind];
     if (!Pack)
       Pack.reset(new SameKindPack());
-    Pack->emplace_back(
-        std::make_unique<Image>(File, Manif, Tgt, Fmt, Opts, EntriesFile));
+    Pack->emplace_back(std::make_unique<Image>(
+        File, Manif, Tgt, Fmt, CompileOpts, LinkOpts, EntriesFile, PropsFile));
   }
 
 private:
@@ -276,6 +329,37 @@ private:
       return Type::getInt64Ty(C);
     }
     llvm_unreachable("unsupported pointer type size");
+  }
+
+  SmallVector<Constant *, 2> getSizetConstPair(size_t First, size_t Second) {
+    return SmallVector<Constant *, 2>{ConstantInt::get(getSizeTTy(), First),
+                                      ConstantInt::get(getSizeTTy(), Second)};
+  }
+
+  std::pair<Constant *, Constant *>
+  addStructArrayToModule(ArrayRef<Constant *> ArrayData, Type *ElemTy) {
+
+    auto *PtrTy = ElemTy->getPointerTo();
+
+    if (ArrayData.size() == 0) {
+      auto *NullPtr = Constant::getNullValue(PtrTy);
+      return std::make_pair(NullPtr, NullPtr);
+    }
+    assert(ElemTy == ArrayData[0]->getType() && "elem type mismatch");
+    auto *Arr =
+        ConstantArray::get(ArrayType::get(ElemTy, ArrayData.size()), ArrayData);
+    auto *ArrGlob = new GlobalVariable(M, Arr->getType(), true,
+                                       GlobalVariable::InternalLinkage, Arr,
+                                       "__sycl_offload_prop_sets_arr");
+    if (Verbose)
+      errs() << "  global added: " << ArrGlob->getName() << "\n";
+
+    auto *ArrB = ConstantExpr::getGetElementPtr(
+        ArrGlob->getValueType(), ArrGlob, getSizetConstPair(0u, 0u));
+    auto *ArrE =
+        ConstantExpr::getGetElementPtr(ArrGlob->getValueType(), ArrGlob,
+                                       getSizetConstPair(0, ArrayData.size()));
+    return std::pair<Constant *, Constant *>(ArrB, ArrE);
   }
 
   // struct __tgt_offload_entry {
@@ -331,7 +415,62 @@ private:
     return PointerType::getUnqual(getBinDescTy());
   }
 
-  const uint16_t DeviceImageStructVersion = 1;
+  // DeviceImageStructVersion change log:
+  // -- version 2: updated to PI 1.2 binary image format
+  const uint16_t DeviceImageStructVersion = 2;
+
+  // typedef enum {
+  //   PI_PROPERTY_TYPE_INT32,
+  //   PI_PROPERTY_TYPE_STRING
+  // } pi_property_type;
+  //
+  // struct _pi_device_binary_property_struct {
+  //   char *Name;
+  //   void *ValAddr;
+  //   pi_property_type Type;
+  //   uint64_t ValSize;
+  // };
+
+  StructType *getSyclPropTy() {
+    if (!SyclPropTy) {
+      SyclPropTy = StructType::create(
+          {
+              Type::getInt8PtrTy(C), // Name
+              Type::getInt8PtrTy(C), // ValAddr
+              Type::getInt32Ty(C),   // Type
+              Type::getInt64Ty(C)    // ValSize
+          },
+          "_pi_device_binary_property_struct");
+    }
+    return SyclPropTy;
+  }
+
+  PointerType *getSyclPropPtrTy() {
+    return PointerType::getUnqual(getSyclPropTy());
+  }
+
+  // struct _pi_device_binary_property_set_struct {
+  //   char *Name;
+  //   _pi_device_binary_property_struct* PropertiesBegin;
+  //   _pi_device_binary_property_struct* PropertiesEnd;
+  // };
+
+  StructType *getSyclPropSetTy() {
+    if (!SyclPropSetTy) {
+      SyclPropSetTy = StructType::create(
+          {
+              Type::getInt8PtrTy(C), // Name
+              getSyclPropPtrTy(),    // PropertiesBegin
+              getSyclPropPtrTy()     // PropertiesEnd
+          },
+          "_pi_device_binary_property_set_struct");
+    }
+    return SyclPropSetTy;
+  }
+
+  PointerType *getSyclPropSetPtrTy() {
+    return PointerType::getUnqual(getSyclPropSetTy());
+  }
 
   // SYCL specific image descriptor type.
   //  struct __tgt_device_image {
@@ -347,8 +486,11 @@ private:
   //    /// architecture
   //    const char *DeviceTargetSpec;
   //    /// a null-terminated string; target- and compiler-specific options
-  //    /// which are suggested to use to "build" program at runtime
-  //    const char *BuildOptions;
+  //    /// which are suggested to use to "compile" program at runtime
+  //    const char *CompileOptions;
+  //    /// a null-terminated string; target- and compiler-specific options
+  //    /// which are suggested to use to "link" program at runtime
+  //    const char *LinkOptions;
   //    /// Pointer to the manifest data start
   //    const unsigned char *ManifestStart;
   //    /// Pointer to the manifest data end
@@ -360,8 +502,11 @@ private:
   //    /// the entry table
   //    __tgt_offload_entry *EntriesBegin;
   //    __tgt_offload_entry *EntriesEnd;
+  //    _pi_device_binary_property_set_struct PropertySetBegin;
+  //    _pi_device_binary_property_set_struct PropertySetEnd;
   //  };
   //
+
   StructType *getSyclDeviceImageTy() {
     if (!SyclImageTy) {
       SyclImageTy = StructType::create(
@@ -370,13 +515,16 @@ private:
               Type::getInt8Ty(C),    // OffloadKind
               Type::getInt8Ty(C),    // Format
               Type::getInt8PtrTy(C), // DeviceTargetSpec
-              Type::getInt8PtrTy(C), // BuildOptions
+              Type::getInt8PtrTy(C), // CompileOptions
+              Type::getInt8PtrTy(C), // LinkOptions
               Type::getInt8PtrTy(C), // ManifestStart
               Type::getInt8PtrTy(C), // ManifestEnd
               Type::getInt8PtrTy(C), // ImageStart
               Type::getInt8PtrTy(C), // ImageEnd
               getEntryPtrTy(),       // EntriesBegin
-              getEntryPtrTy()        // EntriesEnd
+              getEntryPtrTy(),       // EntriesEnd
+              getSyclPropSetPtrTy(), // PropertySetBegin
+              getSyclPropSetPtrTy()  // PropertySetEnd
           },
           "__tgt_device_image");
     }
@@ -455,15 +603,10 @@ private:
   addArrayToModule(ArrayRef<char> Buf, const Twine &Name,
                    const Twine &Section = "") {
     auto *Var = addGlobalArrayVariable(Name, Buf, Section);
-    auto *Zero = ConstantInt::get(getSizeTTy(), 0u);
-    Constant *ZeroZero[] = {Zero, Zero};
-    auto *ImageB =
-        ConstantExpr::getGetElementPtr(Var->getValueType(), Var, ZeroZero);
-    auto *Size = ConstantInt::get(getSizeTTy(), Buf.size());
-
-    Constant *ZeroSize[] = {Zero, Size};
-    auto *ImageE =
-        ConstantExpr::getGetElementPtr(Var->getValueType(), Var, ZeroSize);
+    auto *ImageB = ConstantExpr::getGetElementPtr(Var->getValueType(), Var,
+                                                  getSizetConstPair(0u, 0u));
+    auto *ImageE = ConstantExpr::getGetElementPtr(
+        Var->getValueType(), Var, getSizetConstPair(0u, Buf.size()));
     return std::make_pair(ImageB, ImageE);
   }
 
@@ -525,8 +668,6 @@ private:
     auto *Zero = ConstantInt::get(getSizeTTy(), 0u);
     auto *i32Zero = ConstantInt::get(Type::getInt32Ty(C), 0u);
     auto *NullPtr = Constant::getNullValue(Type::getInt8PtrTy(C));
-    Constant *ZeroZero[] = {Zero, Zero};
-    Constant *OneZero[] = {ConstantInt::get(getSizeTTy(), 1u), Zero};
 
     Expected<MemoryBuffer *> MBOrErr = loadFile(EntriesFile);
     if (!MBOrErr)
@@ -550,11 +691,112 @@ private:
     if (Verbose)
       errs() << "  global added: " << Entries->getName() << "\n";
 
-    auto *EntriesB = ConstantExpr::getGetElementPtr(Entries->getValueType(),
-                                                    Entries, ZeroZero);
-    auto *EntriesE = ConstantExpr::getGetElementPtr(Entries->getValueType(),
-                                                    Entries, OneZero);
+    auto *EntriesB = ConstantExpr::getGetElementPtr(
+        Entries->getValueType(), Entries, getSizetConstPair(0u, 0u));
+    auto *EntriesE = ConstantExpr::getGetElementPtr(
+        Entries->getValueType(), Entries,
+        getSizetConstPair(0u, EntriesInits.size()));
     return std::pair<Constant *, Constant *>(EntriesB, EntriesE);
+  }
+
+  Expected<std::pair<Constant *, Constant *>>
+  addSYCLPropertySetToModule(const llvm::util::PropertySet &PropSet) {
+    std::vector<Constant *> PropInits;
+
+    for (const auto &Prop : PropSet) {
+      Constant *PropName = addStringToModule(Prop.first, "prop");
+      Constant *PropValAddr = nullptr;
+      Constant *PropType =
+          ConstantInt::get(Type::getInt32Ty(C), Prop.second.getType());
+      Constant *PropValSize = nullptr;
+
+      switch (Prop.second.getType()) {
+      case llvm::util::PropertyValue::UINT32: {
+        // for known scalar types ValAddr is null, ValSize keeps the value
+        PropValAddr = Constant::getNullValue(Type::getInt8PtrTy(C));
+        PropValSize =
+            ConstantInt::get(Type::getInt64Ty(C), Prop.second.asUint32());
+        break;
+      }
+      default:
+        llvm_unreachable_internal("unsupported property");
+      }
+      PropInits.push_back(ConstantStruct::get(
+          getSyclPropTy(), PropName, PropValAddr, PropType, PropValSize));
+    }
+    return addStructArrayToModule(PropInits, getSyclPropTy());
+  }
+
+  // Given in-memory representaion of a set of property sets, inserts it into
+  // the wrapper object file. In-object representation is given below.
+  //
+  // column is a contiguous area of the wrapper object file;
+  // relative location of columns can be arbitrary
+  //
+  //                             _pi_device_binary_property_struct
+  // _pi_device_binary_property_set_struct   |
+  //                     |                   |
+  //                     v                   v
+  // ...             # ...                # ...
+  // PropSetsBegin--># Name0        +----># Name_00
+  // PropSetsEnd--+  # PropsBegin0--+     # ValAddr_00
+  // ...          |  # PropseEnd0------+  # Type_00
+  //              |  # Name1           |  # ValSize_00
+  //              |  # PropsBegin1---+ |  # ...
+  //              |  # PropseEnd1--+ | |  # Name_0n
+  //              +-># ...         | | |  # ValAddr_0n
+  //                 #             | | |  # Type_0n
+  //                 #             | | |  # ValSize_0n
+  //                 #             | | +-># ...
+  //                 #             | |    # ...
+  //                 #             | +---># Name_10
+  //                 #             |      # ValAddr_10
+  //                 #             |      # Type_10
+  //                 #             |      # ValSize_10
+  //                 #             |      # ...
+  //                 #             |      # Name_1m
+  //                 #             |      # ValAddr_1m
+  //                 #             |      # Type_1m
+  //                 #             |      # ValSize_1m
+  //                 #             +-----># ...
+  //                 #                    #
+  // Returns a pair of pointers to the beginning and end of the property set
+  // array, or a pair of nullptrs in case the properties file wasn't specified.
+  Expected<std::pair<Constant *, Constant *>>
+  tformSYCLPropertySetRegistryFileToIR(StringRef PropRegistryFile) {
+    if (PropRegistryFile.empty()) {
+      auto *NullPtr =
+          Constant::getNullValue(getSyclPropSetTy()->getPointerTo());
+      return std::pair<Constant *, Constant *>(NullPtr, NullPtr);
+    }
+    // load the property registry file
+    Expected<MemoryBuffer *> MBOrErr = loadFile(PropRegistryFile);
+    if (!MBOrErr)
+      return MBOrErr.takeError();
+    MemoryBuffer *MB = *MBOrErr;
+    Expected<std::unique_ptr<llvm::util::PropertySetRegistry>> PropRegistryE =
+        llvm::util::PropertySetRegistry::read(MB);
+    if (!PropRegistryE)
+      return PropRegistryE.takeError();
+    auto &PropRegistry = PropRegistryE.get();
+    std::vector<Constant *> PropSetsInits;
+
+    // transform all property sets to IR and get the middle column image into
+    // the PropSetsInits
+    for (const auto &PropSet : *PropRegistry) {
+      // create content in the rightmost column and get begin/end pointers
+      Expected<std::pair<Constant *, Constant *>> Props =
+          addSYCLPropertySetToModule(PropSet.second);
+      if (!Props)
+        return Props.takeError();
+      // get the next the middle column element
+      auto *Category = addStringToModule(PropSet.first, "SYCL_PropSetName");
+      PropSetsInits.push_back(ConstantStruct::get(
+          getSyclPropSetTy(), Category, Props.get().first, Props.get().second));
+    }
+    // now get content for the leftmost column - create the top-level
+    // PropertySetsBegin/PropertySetsBegin entries and return pointers to them
+    return addStructArrayToModule(PropSetsInits, getSyclPropSetTy());
   }
 
   /// Creates binary descriptor for the given device images. Binary descriptor
@@ -658,8 +900,12 @@ private:
       auto *Ffmt = ConstantInt::get(Type::getInt8Ty(C), Img.Fmt);
       auto *Ftgt = addStringToModule(
           Img.Tgt, Twine(OffloadKindTag) + Twine("target.") + Twine(ImgId));
-      auto *Fopt = addStringToModule(
-          Img.Opts, Twine(OffloadKindTag) + Twine("opts.") + Twine(ImgId));
+      auto *Foptcompile = addStringToModule(
+          Img.CompileOpts,
+          Twine(OffloadKindTag) + Twine("opts.compile.") + Twine(ImgId));
+      auto *Foptlink = addStringToModule(Img.LinkOpts, Twine(OffloadKindTag) +
+                                                           Twine("opts.link.") +
+                                                           Twine(ImgId));
       std::pair<Constant *, Constant *> FMnf;
 
       if (Img.Manif.empty()) {
@@ -674,6 +920,12 @@ private:
             makeArrayRef(Mnf->getBufferStart(), Mnf->getBufferSize()),
             Twine(OffloadKindTag) + Twine(ImgId) + Twine(".manifest"));
       }
+
+      Expected<std::pair<Constant *, Constant *>> PropSets =
+          tformSYCLPropertySetRegistryFileToIR(Img.PropsFile);
+      if (!PropSets)
+        return PropSets.takeError();
+
       if (Img.File.empty())
         return createStringError(errc::invalid_argument,
                                  "image file name missing");
@@ -694,9 +946,10 @@ private:
           return EntriesOrErr.takeError();
         std::pair<Constant *, Constant *> ImageEntriesPtrs = *EntriesOrErr;
         ImagesInits.push_back(ConstantStruct::get(
-            getSyclDeviceImageTy(), Fver, Fknd, Ffmt, Ftgt, Fopt, FMnf.first,
-            FMnf.second, Fbin.first, Fbin.second, ImageEntriesPtrs.first,
-            ImageEntriesPtrs.second));
+            getSyclDeviceImageTy(), Fver, Fknd, Ffmt, Ftgt, Foptcompile,
+            Foptlink, FMnf.first, FMnf.second, Fbin.first, Fbin.second,
+            ImageEntriesPtrs.first, ImageEntriesPtrs.second,
+            PropSets.get().first, PropSets.get().second));
       } else
         ImagesInits.push_back(ConstantStruct::get(
             getDeviceImageTy(), Fbin.first, Fbin.second, EntriesB, EntriesE));
@@ -771,7 +1024,12 @@ private:
     Builder.CreateRetVoid();
 
     // Add this function to constructors.
-    appendToGlobalCtors(M, Func, 0);
+    // Set priority to 1 so that __tgt_register_lib is executed AFTER
+    // __tgt_register_requires (we want to know what requirements have been
+    // asked for before we load a libomptarget plugin so that by the time the
+    // plugin is loaded it can report how many devices there are which can
+    // satisfy these requirements).
+    appendToGlobalCtors(M, Func, /*Priority*/ 1);
   }
 
   void createUnregisterFunction(OffloadKind Kind, GlobalVariable *BinDesc) {
@@ -797,7 +1055,8 @@ private:
     Builder.CreateRetVoid();
 
     // Add this function to global destructors.
-    appendToGlobalDtors(M, Func, 0);
+    // Match priority of __tgt_register_lib
+    appendToGlobalDtors(M, Func, /*Priority*/ 1);
   }
 
 public:
@@ -830,7 +1089,10 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &Out,
   Out << "  manifest = " << (Img.Manif.empty() ? "-" : Img.Manif) << "\n";
   Out << "  format   = " << formatToString(Img.Fmt) << "\n";
   Out << "  target   = " << (Img.Tgt.empty() ? "-" : Img.Tgt) << "\n";
-  Out << "  options  = " << (Img.Opts.empty() ? "-" : Img.Opts) << "\n";
+  Out << "  compile options  = "
+      << (Img.CompileOpts.empty() ? "-" : Img.CompileOpts) << "\n";
+  Out << "  link options     = " << (Img.LinkOpts.empty() ? "-" : Img.LinkOpts)
+      << "\n";
   Out << "}\n";
   return Out;
 }
@@ -990,31 +1252,67 @@ int main(int argc, const char **argv) {
       "runtime for that device. When present, manifest file name should\n"
       "immediately follow the corresponding device image filename on the\n"
       "command line. Options annotating a device binary have effect on all\n"
-      "subsequent input, until redefined. For example:\n"
-      "$clang-offload-wrapper -host x86_64-pc-linux-gnu \\\n"
-      "  -kind=sycl -target=spir64 -format=spirv -build-opts=-g \\\n"
-      "  a.spv a_mf.txt \\\n"
-      "             -target=xxx -format=native -build-opts=\"\"  \\\n"
-      "  b.bin b_mf.txt \\\n"
-      "  -kind=openmp \\\n"
-      "  c.bin\n"
-      "will generate an x86 wrapper object (.bc) enclosing the following\n"
-      "tuples describing a single device binary each ('-' means 'none')\n\n"
-      "offload kind | target | data format | data | manifest | build options:\n"
-      "----------------------------------------------------------------------\n"
-      "    sycl     | spir64 | spirv       | a.spv| a_mf.txt | -g\n"
-      "    sycl     | xxx    | native      | b.bin| b_mf.txt | -\n"
-      "    openmp   | xxx    | native      | c.bin| -        | -\n");
+      "subsequent input, until redefined.\n"
+      "\n"
+      "For example:\n"
+      "  clang-offload-wrapper                   \\\n"
+      "      -host x86_64-pc-linux-gnu           \\\n"
+      "      -kind=sycl                          \\\n"
+      "        -target=spir64                    \\\n"
+      "          -format=spirv                   \\\n"
+      "          -compile-opts=-g                \\\n"
+      "          -link-opts=-cl-denorms-are-zero \\\n"
+      "          -entries=sym.txt                \\\n"
+      "          -properties=props.txt           \\\n"
+      "          a.spv                           \\\n"
+      "          a_mf.txt                        \\\n"
+      "        -target=xxx                       \\\n"
+      "          -format=native                  \\\n"
+      "          -compile-opts=\"\"                \\\n"
+      "          -link-opts=\"\"                   \\\n"
+      "          -entries=\"\"                     \\\n"
+      "          -properties=\"\"                  \\\n"
+      "          b.bin                           \\\n"
+      "          b_mf.txt                        \\\n"
+      "      -kind=openmp                        \\\n"
+      "          c.bin\\n"
+      "\n"
+      "This command generates an x86 wrapper object (.bc) enclosing the\n"
+      "following tuples describing a single device binary each:\n"
+      "\n"
+      "|offload|target|data  |data |manifest|compile|entries|properties|...|\n"
+      "|  kind |      |format|     |        |options|       |          |...|\n"
+      "|-------|------|------|-----|--------|-------|-------|----------|---|\n"
+      "|sycl   |spir64|spirv |a.spv|a_mf.txt|  -g   |sym.txt|props.txt |...|\n"
+      "|sycl   |xxx   |native|b.bin|b_mf.txt|       |       |          |...|\n"
+      "|openmp |xxx   |native|c.bin|        |       |       |          |...|\n"
+      "\n"
+      "|...|    link            |\n"
+      "|...|    options         |\n"
+      "|---|--------------------|\n"
+      "|...|-cl-denorms-are-zero|\n"
+      "|...|                    |\n"
+      "|...|                    |\n");
 
   if (Help) {
     cl::PrintHelpMessage();
     return 0;
   }
-
   auto reportError = [argv](Error E) {
     logAllUnhandledErrors(std::move(E), WithColor::error(errs(), argv[0]));
   };
-
+  if (BatchMode && Inputs.size() != 1) {
+    reportError(
+        createStringError(errc::invalid_argument,
+                          "batch job table file must be the only input file"));
+    return 1;
+  }
+  if (Target.empty()) {
+    Target = sys::getProcessTriple();
+    if (Verbose)
+      errs() << "warning: -" << Target.ArgStr << " option is omitted, using "
+             << "host triple '" << Target << "'\n";
+  }
   if (Triple(Target).getArch() == Triple::UnknownArch) {
     reportError(createStringError(
         errc::invalid_argument, "'" + Target + "': unsupported target triple"));
@@ -1028,45 +1326,73 @@ int main(int argc, const char **argv) {
   OffloadKind Knd = OffloadKind::Unknown;
   llvm::StringRef Tgt = "";
   BinaryImageFormat Fmt = BinaryImageFormat::none;
-  llvm::StringRef Opts = "";
+  llvm::StringRef CompileOpts = "";
+  llvm::StringRef LinkOpts = "";
   llvm::StringRef EntriesFile = "";
-  llvm::SmallVector<llvm::StringRef, 2> CurInputPair;
+  llvm::StringRef PropsFile = "";
+  llvm::SmallVector<llvm::StringRef, 2> CurInputGroup;
 
   ListArgsSequencer<decltype(Inputs), decltype(Kinds), decltype(Formats),
-                    decltype(Targets), decltype(Options), decltype(Entries)>
-      ArgSeq((size_t)argc, Inputs, Kinds, Formats, Targets, Options, Entries);
+                    decltype(Targets), decltype(CompileOptions),
+                    decltype(LinkOptions), decltype(Entries),
+                    decltype(Properties)>
+      ArgSeq((size_t)argc, Inputs, Kinds, Formats, Targets, CompileOptions,
+             LinkOptions, Entries, Properties);
   int ID = -1;
 
   do {
     ID = ArgSeq.next();
 
+    // ID != 0 signal that a new image(s) must be added
     if (ID != 0) {
-      // cur option is not an input - create and image instance using current
-      // state
-      if (CurInputPair.size() > 2) {
+      // create an image instance using current state
+      if (CurInputGroup.size() > 2) {
         reportError(
             createStringError(errc::invalid_argument,
                               "too many inputs for a single binary image, "
                               "<binary file> <manifest file>{opt}expected"));
         return 1;
       }
-      if (CurInputPair.size() != 0) {
-        if (Knd == OffloadKind::Unknown) {
-          reportError(createStringError(errc::invalid_argument,
-                                        "offload model not set"));
-          return 1;
+      if (CurInputGroup.size() != 0) {
+        if (BatchMode) {
+          // transform the batch job (a table of filenames) into a series of
+          // 'Wr.addImage' operations for each record in the table
+          assert(CurInputGroup.size() == 1 && "1 input in batch mode expected");
+          StringRef BatchFile = CurInputGroup[0];
+          Expected<std::unique_ptr<util::SimpleTable>> TPtr =
+              util::SimpleTable::read(BatchFile);
+          if (!TPtr) {
+            reportError(TPtr.takeError());
+            return 1;
+          }
+          const util::SimpleTable &T = *TPtr->get();
+
+          // iterate via records
+          for (const auto &Row : T.rows()) {
+            Wr.addImage(Knd, Row.getCell(COL_CODE),
+                        Row.getCell(COL_MANIFEST, ""), Tgt, Fmt, CompileOpts,
+                        LinkOpts, Row.getCell(COL_SYM, ""),
+                        Row.getCell(COL_PROPS, ""));
+          }
+        } else {
+          if (Knd == OffloadKind::Unknown) {
+            reportError(createStringError(errc::invalid_argument,
+                                          "offload model not set"));
+            return 1;
+          }
+          StringRef File = CurInputGroup[0];
+          StringRef Manif = CurInputGroup.size() > 1 ? CurInputGroup[1] : "";
+          Wr.addImage(Knd, File, Manif, Tgt, Fmt, CompileOpts, LinkOpts,
+                      EntriesFile, PropsFile);
         }
-        StringRef File = CurInputPair[0];
-        StringRef Manif = CurInputPair.size() > 1 ? CurInputPair[1] : "";
-        Wr.addImage(Knd, File, Manif, Tgt, Fmt, Opts, EntriesFile);
-        CurInputPair.clear();
+        CurInputGroup.clear();
       }
     }
     switch (ID) {
     case -1: // Done
       break;
     case 0: // Inputs
-      CurInputPair.push_back(*(ArgSeq.template get<0>()));
+      CurInputGroup.push_back(*(ArgSeq.template get<0>()));
       break;
     case 1: // Kinds
       Knd = *(ArgSeq.template get<1>());
@@ -1077,11 +1403,17 @@ int main(int argc, const char **argv) {
     case 3: // Targets
       Tgt = *(ArgSeq.template get<3>());
       break;
-    case 4: // Options
-      Opts = *(ArgSeq.template get<4>());
+    case 4: // CompileOptions
+      CompileOpts = *(ArgSeq.template get<4>());
       break;
-    case 5: // Entries
-      EntriesFile = *(ArgSeq.template get<5>());
+    case 5: // LinkOptions
+      LinkOpts = *(ArgSeq.template get<5>());
+      break;
+    case 6: // Entries
+      EntriesFile = *(ArgSeq.template get<6>());
+      break;
+    case 7: // Properties
+      PropsFile = *(ArgSeq.template get<7>());
       break;
     default:
       llvm_unreachable("bad option class ID");
@@ -1102,6 +1434,10 @@ int main(int argc, const char **argv) {
     reportError(ModOrErr.takeError());
     return 1;
   }
+
+#ifndef NDEBUG
+  verifyModule(*ModOrErr.get(), &llvm::errs());
+#endif
 
   // And write its bitcode to the file.
   WriteBitcodeToFile(**ModOrErr, Out.os());

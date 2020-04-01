@@ -1,6 +1,6 @@
 //===- RegionUtils.cpp - Region-related transformation utilities ----------===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -11,6 +11,8 @@
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/RegionGraphTraits.h"
 #include "mlir/IR/Value.h"
+#include "mlir/Interfaces/ControlFlowInterfaces.h"
+#include "mlir/Interfaces/SideEffects.h"
 
 #include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/ADT/PostOrderIterator.h"
@@ -20,7 +22,7 @@ using namespace mlir;
 
 void mlir::replaceAllUsesInRegionWith(Value orig, Value replacement,
                                       Region &region) {
-  for (auto &use : llvm::make_early_inc_range(orig->getUses())) {
+  for (auto &use : llvm::make_early_inc_range(orig.getUses())) {
     if (region.isAncestor(use.getOwner()->getParentRegion()))
       use.set(replacement);
   }
@@ -42,7 +44,7 @@ void mlir::visitUsedValuesDefinedAbove(
   region.walk([callback, &properAncestors](Operation *op) {
     for (OpOperand &operand : op->getOpOperands())
       // Callback on values defined in a proper ancestor of region.
-      if (properAncestors.count(operand.get()->getParentRegion()))
+      if (properAncestors.count(operand.get().getParentRegion()))
         callback(&operand);
   });
 }
@@ -172,15 +174,16 @@ static bool isUseSpeciallyKnownDead(OpOperand &use, LiveMap &liveMap) {
   // node, rather than to the terminator op itself, a terminator op can't e.g.
   // "print" the value of a successor operand.
   if (owner->isKnownTerminator()) {
-    if (auto arg = owner->getSuccessorBlockArgument(operandIndex))
-      return !liveMap.wasProvenLive(*arg);
+    if (BranchOpInterface branchInterface = dyn_cast<BranchOpInterface>(owner))
+      if (auto arg = branchInterface.getSuccessorBlockArgument(operandIndex))
+        return !liveMap.wasProvenLive(*arg);
     return false;
   }
   return false;
 }
 
 static void processValue(Value value, LiveMap &liveMap) {
-  bool provedLive = llvm::any_of(value->getUses(), [&](OpOperand &use) {
+  bool provedLive = llvm::any_of(value.getUses(), [&](OpOperand &use) {
     if (isUseSpeciallyKnownDead(use, liveMap))
       return false;
     return liveMap.wasProvenLive(use.getOwner());
@@ -194,12 +197,34 @@ static bool isOpIntrinsicallyLive(Operation *op) {
   if (!op->isKnownNonTerminator())
     return true;
   // If the op has a side effect, we treat it as live.
-  if (!op->hasNoSideEffect())
-    return true;
-  return false;
+  // TODO: Properly handle region side effects.
+  return !MemoryEffectOpInterface::hasNoEffect(op) || op->getNumRegions() != 0;
 }
 
 static void propagateLiveness(Region &region, LiveMap &liveMap);
+
+static void propagateTerminatorLiveness(Operation *op, LiveMap &liveMap) {
+  // Terminators are always live.
+  liveMap.setProvedLive(op);
+
+  // Check to see if we can reason about the successor operands and mutate them.
+  BranchOpInterface branchInterface = dyn_cast<BranchOpInterface>(op);
+  if (!branchInterface || !branchInterface.canEraseSuccessorOperand()) {
+    for (Block *successor : op->getSuccessors())
+      for (BlockArgument arg : successor->getArguments())
+        liveMap.setProvedLive(arg);
+    return;
+  }
+
+  // If we can't reason about the operands to a successor, conservatively mark
+  // all arguments as live.
+  for (unsigned i = 0, e = op->getNumSuccessors(); i != e; ++i) {
+    if (!branchInterface.getSuccessorOperands(i))
+      for (BlockArgument arg : op->getSuccessor(i)->getArguments())
+        liveMap.setProvedLive(arg);
+  }
+}
+
 static void propagateLiveness(Operation *op, LiveMap &liveMap) {
   // All Value's are either a block argument or an op result.
   // We call processValue on those cases.
@@ -207,6 +232,10 @@ static void propagateLiveness(Operation *op, LiveMap &liveMap) {
   // Recurse on any regions the op has.
   for (Region &region : op->getRegions())
     propagateLiveness(region, liveMap);
+
+  // Process terminator operations.
+  if (op->isKnownTerminator())
+    return propagateTerminatorLiveness(op, liveMap);
 
   // Process the op itself.
   if (isOpIntrinsicallyLive(op)) {
@@ -238,6 +267,10 @@ static void propagateLiveness(Region &region, LiveMap &liveMap) {
 
 static void eraseTerminatorSuccessorOperands(Operation *terminator,
                                              LiveMap &liveMap) {
+  BranchOpInterface branchOp = dyn_cast<BranchOpInterface>(terminator);
+  if (!branchOp)
+    return;
+
   for (unsigned succI = 0, succE = terminator->getNumSuccessors();
        succI < succE; succI++) {
     // Iterating successors in reverse is not strictly needed, since we
@@ -245,15 +278,17 @@ static void eraseTerminatorSuccessorOperands(Operation *terminator,
     // since it will promote later operands of the terminator being erased
     // first, reducing the quadratic-ness.
     unsigned succ = succE - succI - 1;
-    for (unsigned argI = 0, argE = terminator->getNumSuccessorOperands(succ);
-         argI < argE; argI++) {
+    Optional<OperandRange> succOperands = branchOp.getSuccessorOperands(succ);
+    if (!succOperands)
+      continue;
+    Block *successor = terminator->getSuccessor(succ);
+
+    for (unsigned argI = 0, argE = succOperands->size(); argI < argE; ++argI) {
       // Iterating args in reverse is needed for correctness, to avoid
       // shifting later args when earlier args are erased.
       unsigned arg = argE - argI - 1;
-      Value value = terminator->getSuccessor(succ)->getArgument(arg);
-      if (!liveMap.wasProvenLive(value)) {
-        terminator->eraseSuccessorOperand(succ, arg);
-      }
+      if (!liveMap.wasProvenLive(successor->getArgument(arg)))
+        branchOp.eraseSuccessorOperand(succ, arg);
     }
   }
 }
@@ -294,7 +329,7 @@ static LogicalResult deleteDeadness(MutableArrayRef<Region> regions,
       // earlier arguments.
       for (unsigned i = 0, e = block.getNumArguments(); i < e; i++)
         if (!liveMap.wasProvenLive(block.getArgument(e - i - 1))) {
-          block.eraseArgument(e - i - 1, /*updatePredTerms=*/false);
+          block.eraseArgument(e - i - 1);
           erasedAnything = true;
         }
     }
@@ -320,8 +355,6 @@ static LogicalResult deleteDeadness(MutableArrayRef<Region> regions,
 // This function returns success if any operations or arguments were deleted,
 // failure otherwise.
 static LogicalResult runRegionDCE(MutableArrayRef<Region> regions) {
-  assert(regions.size() == 1);
-
   LiveMap liveMap;
   do {
     liveMap.resetChanged();

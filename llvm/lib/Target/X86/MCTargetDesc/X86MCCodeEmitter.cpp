@@ -275,7 +275,8 @@ static bool hasSecRelSymbolRef(const MCExpr *Expr) {
 static bool isPCRel32Branch(const MCInst &MI, const MCInstrInfo &MCII) {
   unsigned Opcode = MI.getOpcode();
   const MCInstrDesc &Desc = MCII.get(Opcode);
-  if ((Opcode != X86::CALL64pcrel32 && Opcode != X86::JMP_4) ||
+  if ((Opcode != X86::CALL64pcrel32 && Opcode != X86::JMP_4 &&
+       Opcode != X86::JCC_4) ||
       getImmFixupKind(Desc.TSFlags) != FK_PCRel_4)
     return false;
 
@@ -869,6 +870,7 @@ void X86MCCodeEmitter::emitVEXOpcodePrefix(uint64_t TSFlags, unsigned &CurByte,
   default:
     llvm_unreachable("Unexpected form in emitVEXOpcodePrefix!");
   case X86II::RawFrm:
+  case X86II::PrefixByte:
     break;
   case X86II::MRMDestMem: {
     // MRMDestMem instructions forms:
@@ -1260,30 +1262,8 @@ void X86MCCodeEmitter::emitSegmentOverridePrefix(unsigned &CurByte,
                                                  const MCInst &MI,
                                                  raw_ostream &OS) const {
   // Check for explicit segment override on memory operand.
-  switch (MI.getOperand(SegOperand).getReg()) {
-  default:
-    llvm_unreachable("Unknown segment register!");
-  case 0:
-    break;
-  case X86::CS:
-    emitByte(0x2E, CurByte, OS);
-    break;
-  case X86::SS:
-    emitByte(0x36, CurByte, OS);
-    break;
-  case X86::DS:
-    emitByte(0x3E, CurByte, OS);
-    break;
-  case X86::ES:
-    emitByte(0x26, CurByte, OS);
-    break;
-  case X86::FS:
-    emitByte(0x64, CurByte, OS);
-    break;
-  case X86::GS:
-    emitByte(0x65, CurByte, OS);
-    break;
-  }
+  if (unsigned Reg = MI.getOperand(SegOperand).getReg())
+    emitByte(X86::getSegmentOverridePrefixForReg(Reg), CurByte, OS);
 }
 
 /// Emit all instruction prefixes prior to the opcode.
@@ -1422,6 +1402,7 @@ void X86MCCodeEmitter::encodeInstruction(const MCInst &MI, raw_ostream &OS,
   case X86II::RawFrmDstSrc:
   case X86II::RawFrmSrc:
   case X86II::RawFrmDst:
+  case X86II::PrefixByte:
     emitByte(BaseOpcode, CurByte, OS);
     break;
   case X86II::AddCCFrm: {

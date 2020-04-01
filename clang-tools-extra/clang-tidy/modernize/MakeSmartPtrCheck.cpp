@@ -54,7 +54,7 @@ MakeSmartPtrCheck::MakeSmartPtrCheck(StringRef Name,
       IgnoreMacros(Options.getLocalOrGlobal("IgnoreMacros", true)) {}
 
 void MakeSmartPtrCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
-  Options.store(Opts, "IncludeStyle", IncludeStyle);
+  Options.store(Opts, "IncludeStyle", utils::IncludeSorter::toString(IncludeStyle));
   Options.store(Opts, "MakeSmartPtrFunctionHeader", MakeSmartPtrFunctionHeader);
   Options.store(Opts, "MakeSmartPtrFunction", MakeSmartPtrFunctionName);
   Options.store(Opts, "IgnoreMacros", IgnoreMacros);
@@ -68,21 +68,18 @@ bool MakeSmartPtrCheck::isLanguageVersionSupported(
 void MakeSmartPtrCheck::registerPPCallbacks(const SourceManager &SM,
                                             Preprocessor *PP,
                                             Preprocessor *ModuleExpanderPP) {
-  if (isLanguageVersionSupported(getLangOpts())) {
     Inserter = std::make_unique<utils::IncludeInserter>(SM, getLangOpts(),
                                                          IncludeStyle);
     PP->addPPCallbacks(Inserter->CreatePPCallbacks());
-  }
 }
 
 void MakeSmartPtrCheck::registerMatchers(ast_matchers::MatchFinder *Finder) {
-  if (!isLanguageVersionSupported(getLangOpts()))
-    return;
-
   // Calling make_smart_ptr from within a member function of a type with a
   // private or protected constructor would be ill-formed.
   auto CanCallCtor = unless(has(ignoringImpCasts(
       cxxConstructExpr(hasDeclaration(decl(unless(isPublic())))))));
+
+  auto IsPlacement = hasAnyPlacementArg(anything());
 
   Finder->addMatcher(
       cxxBindTemporaryExpr(has(ignoringParenImpCasts(
@@ -91,7 +88,7 @@ void MakeSmartPtrCheck::registerMatchers(ast_matchers::MatchFinder *Finder) {
               hasArgument(0,
                           cxxNewExpr(hasType(pointsTo(qualType(hasCanonicalType(
                                          equalsBoundNode(PointerType))))),
-                                     CanCallCtor)
+                                     CanCallCtor, unless(IsPlacement))
                               .bind(NewExpression)),
               unless(isInTemplateInstantiation()))
               .bind(ConstructorCall)))),
@@ -101,7 +98,9 @@ void MakeSmartPtrCheck::registerMatchers(ast_matchers::MatchFinder *Finder) {
       cxxMemberCallExpr(
           thisPointerType(getSmartPointerTypeMatcher()),
           callee(cxxMethodDecl(hasName("reset"))),
-          hasArgument(0, cxxNewExpr(CanCallCtor).bind(NewExpression)),
+          hasArgument(
+              0,
+              cxxNewExpr(CanCallCtor, unless(IsPlacement)).bind(NewExpression)),
           unless(isInTemplateInstantiation()))
           .bind(ResetCall),
       this);
@@ -119,8 +118,6 @@ void MakeSmartPtrCheck::check(const MatchFinder::MatchResult &Result) {
   const auto *Type = Result.Nodes.getNodeAs<QualType>(PointerType);
   const auto *New = Result.Nodes.getNodeAs<CXXNewExpr>(NewExpression);
 
-  if (New->getNumPlacementArgs() != 0)
-    return;
   // Skip when this is a new-expression with `auto`, e.g. new auto(1)
   if (New->getType()->getPointeeType()->getContainedAutoType())
     return;
@@ -432,11 +429,9 @@ void MakeSmartPtrCheck::insertHeader(DiagnosticBuilder &Diag, FileID FD) {
   if (MakeSmartPtrFunctionHeader.empty()) {
     return;
   }
-  if (auto IncludeFixit = Inserter->CreateIncludeInsertion(
-          FD, MakeSmartPtrFunctionHeader,
-          /*IsAngled=*/MakeSmartPtrFunctionHeader == StdMemoryHeader)) {
-    Diag << *IncludeFixit;
-  }
+  Diag << Inserter->CreateIncludeInsertion(
+      FD, MakeSmartPtrFunctionHeader,
+      /*IsAngled=*/MakeSmartPtrFunctionHeader == StdMemoryHeader);
 }
 
 } // namespace modernize

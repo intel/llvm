@@ -1,4 +1,4 @@
-//===-- EmulateInstructionMIPS64.cpp -----------------------------*- C++-*-===//
+//===-- EmulateInstructionMIPS64.cpp --------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -39,6 +39,8 @@
 
 using namespace lldb;
 using namespace lldb_private;
+
+LLDB_PLUGIN_DEFINE_ADV(EmulateInstructionMIPS64, InstructionMIPS64)
 
 #define UInt(x) ((uint64_t)x)
 #define integer int64_t
@@ -965,8 +967,8 @@ bool EmulateInstructionMIPS64::EvaluateInstruction(uint32_t evaluate_options) {
   if (m_opcode.GetData(data)) {
     llvm::MCDisassembler::DecodeStatus decode_status;
     llvm::ArrayRef<uint8_t> raw_insn(data.GetDataStart(), data.GetByteSize());
-    decode_status = m_disasm->getInstruction(
-        mc_insn, insn_size, raw_insn, m_addr, llvm::nulls(), llvm::nulls());
+    decode_status = m_disasm->getInstruction(mc_insn, insn_size, raw_insn,
+                                             m_addr, llvm::nulls());
     if (decode_status != llvm::MCDisassembler::Success)
       return false;
   }

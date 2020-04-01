@@ -29,6 +29,7 @@ set_default("compiler_rt_libdir", "@COMPILER_RT_RESOLVED_LIBRARY_OUTPUT_DIR@")
 set_default("emulator", "@COMPILER_RT_EMULATOR@")
 set_default("asan_shadow_scale", "@COMPILER_RT_ASAN_SHADOW_SCALE@")
 set_default("apple_platform", "osx")
+set_default("apple_platform_min_deployment_target_flag", "-mmacosx-version-min")
 set_default("sanitizer_can_use_cxxabi", @SANITIZER_CAN_USE_CXXABI_PYBOOL@)
 set_default("has_lld", @COMPILER_RT_HAS_LLD_PYBOOL@)
 set_default("can_symbolize", @CAN_SYMBOLIZE@)
@@ -50,7 +51,7 @@ if config.enable_per_target_runtime_dir:
 else:
   set_default("target_suffix", "-%s" % config.target_arch)
 
-set_default("have_zlib", "@LLVM_ENABLE_ZLIB@")
+set_default("have_zlib", "@HAVE_LIBZ@")
 set_default("libcxx_used", "@LLVM_LIBCXX_USED@")
 
 # LLVM tools dir can be passed in lit parameters, so try to

@@ -12,7 +12,6 @@
 
 #include "clang/StaticAnalyzer/Frontend/AnalysisConsumer.h"
 #include "ModelInjector.h"
-#include "clang/Analysis/PathDiagnostic.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclObjC.h"
@@ -21,10 +20,12 @@
 #include "clang/Analysis/CFG.h"
 #include "clang/Analysis/CallGraph.h"
 #include "clang/Analysis/CodeInjector.h"
+#include "clang/Analysis/PathDiagnostic.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/CrossTU/CrossTranslationUnit.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Lex/Preprocessor.h"
+#include "clang/Rewrite/Core/Rewriter.h"
 #include "clang/StaticAnalyzer/Checkers/LocalCheckers.h"
 #include "clang/StaticAnalyzer/Core/AnalyzerOptions.h"
 #include "clang/StaticAnalyzer/Core/BugReporter/BugReporter.h"
@@ -33,6 +34,8 @@
 #include "clang/StaticAnalyzer/Core/PathSensitive/AnalysisManager.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/ExprEngine.h"
 #include "clang/StaticAnalyzer/Frontend/CheckerRegistration.h"
+#include "clang/Tooling/Core/Replacement.h"
+#include "clang/Tooling/Tooling.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Support/FileSystem.h"
@@ -46,6 +49,7 @@
 
 using namespace clang;
 using namespace ento;
+using namespace tooling;
 
 #define DEBUG_TYPE "AnalysisConsumer"
 
@@ -68,8 +72,9 @@ void ento::createPlistHTMLDiagnosticConsumer(
     AnalyzerOptions &AnalyzerOpts, PathDiagnosticConsumers &C,
     const std::string &prefix, const Preprocessor &PP,
     const cross_tu::CrossTranslationUnitContext &CTU) {
-  createHTMLDiagnosticConsumer(AnalyzerOpts, C,
-                               llvm::sys::path::parent_path(prefix), PP, CTU);
+  createHTMLDiagnosticConsumer(
+      AnalyzerOpts, C, std::string(llvm::sys::path::parent_path(prefix)), PP,
+      CTU);
   createPlistMultiFileDiagnosticConsumer(AnalyzerOpts, C, prefix, PP, CTU);
 }
 
@@ -83,11 +88,15 @@ void ento::createTextPathDiagnosticConsumer(
 namespace {
 class ClangDiagPathDiagConsumer : public PathDiagnosticConsumer {
   DiagnosticsEngine &Diag;
-  bool IncludePath = false, ShouldEmitAsError = false, FixitsAsRemarks = false;
+  LangOptions LO;
+
+  bool IncludePath = false;
+  bool ShouldEmitAsError = false;
+  bool ApplyFixIts = false;
 
 public:
-  ClangDiagPathDiagConsumer(DiagnosticsEngine &Diag)
-      : Diag(Diag) {}
+  ClangDiagPathDiagConsumer(DiagnosticsEngine &Diag, LangOptions LO)
+      : Diag(Diag), LO(LO) {}
   ~ClangDiagPathDiagConsumer() override {}
   StringRef getName() const override { return "ClangDiags"; }
 
@@ -100,7 +109,7 @@ public:
 
   void enablePaths() { IncludePath = true; }
   void enableWerror() { ShouldEmitAsError = true; }
-  void enableFixitsAsRemarks() { FixitsAsRemarks = true; }
+  void enableApplyFixIts() { ApplyFixIts = true; }
 
   void FlushDiagnosticsImpl(std::vector<const PathDiagnostic *> &Diags,
                             FilesMade *filesMade) override {
@@ -109,30 +118,27 @@ public:
             ? Diag.getCustomDiagID(DiagnosticsEngine::Error, "%0")
             : Diag.getCustomDiagID(DiagnosticsEngine::Warning, "%0");
     unsigned NoteID = Diag.getCustomDiagID(DiagnosticsEngine::Note, "%0");
-    unsigned RemarkID = Diag.getCustomDiagID(DiagnosticsEngine::Remark, "%0");
+    SourceManager &SM = Diag.getSourceManager();
 
-    auto reportPiece =
-        [&](unsigned ID, SourceLocation Loc, StringRef String,
-            ArrayRef<SourceRange> Ranges, ArrayRef<FixItHint> Fixits) {
-          if (!FixitsAsRemarks) {
-            Diag.Report(Loc, ID) << String << Ranges << Fixits;
-          } else {
-            Diag.Report(Loc, ID) << String << Ranges;
-            for (const FixItHint &Hint : Fixits) {
-              SourceManager &SM = Diag.getSourceManager();
-              llvm::SmallString<128> Str;
-              llvm::raw_svector_ostream OS(Str);
-              // FIXME: Add support for InsertFromRange and
-              // BeforePreviousInsertion.
-              assert(!Hint.InsertFromRange.isValid() && "Not implemented yet!");
-              assert(!Hint.BeforePreviousInsertions && "Not implemented yet!");
-              OS << SM.getSpellingColumnNumber(Hint.RemoveRange.getBegin())
-                 << "-" << SM.getSpellingColumnNumber(Hint.RemoveRange.getEnd())
-                 << ": '" << Hint.CodeToInsert << "'";
-              Diag.Report(Loc, RemarkID) << OS.str();
-            }
-          }
-        };
+    Replacements Repls;
+    auto reportPiece = [&](unsigned ID, FullSourceLoc Loc, StringRef String,
+                           ArrayRef<SourceRange> Ranges,
+                           ArrayRef<FixItHint> Fixits) {
+      if (!ApplyFixIts) {
+        Diag.Report(Loc, ID) << String << Ranges << Fixits;
+        return;
+      }
+
+      Diag.Report(Loc, ID) << String << Ranges;
+      for (const FixItHint &Hint : Fixits) {
+        Replacement Repl(SM, Hint.RemoveRange, Hint.CodeToInsert);
+
+        if (llvm::Error Err = Repls.add(Repl)) {
+          llvm::errs() << "Error applying replacement " << Repl.toString()
+                       << ": " << Err << "\n";
+        }
+      }
+    };
 
     for (std::vector<const PathDiagnostic *>::iterator I = Diags.begin(),
          E = Diags.end();
@@ -164,6 +170,16 @@ public:
                     Piece->getString(), Piece->getRanges(), Piece->getFixits());
       }
     }
+
+    if (!ApplyFixIts || Repls.empty())
+      return;
+
+    Rewriter Rewrite(SM, LO);
+    if (!applyAllReplacements(Repls, Rewrite)) {
+      llvm::errs() << "An error occured during applying fix-it.\n";
+    }
+
+    Rewrite.overwriteChangedFiles();
   }
 };
 } // end anonymous namespace
@@ -192,7 +208,7 @@ class AnalysisConsumer : public AnalysisASTConsumer,
 
 public:
   ASTContext *Ctx;
-  const Preprocessor &PP;
+  Preprocessor &PP;
   const std::string OutDir;
   AnalyzerOptionsRef Opts;
   ArrayRef<std::string> Plugins;
@@ -256,14 +272,14 @@ public:
     if (Opts->AnalysisDiagOpt != PD_NONE) {
       // Create the PathDiagnosticConsumer.
       ClangDiagPathDiagConsumer *clangDiags =
-          new ClangDiagPathDiagConsumer(PP.getDiagnostics());
+          new ClangDiagPathDiagConsumer(PP.getDiagnostics(), PP.getLangOpts());
       PathConsumers.push_back(clangDiags);
 
       if (Opts->AnalyzerWerror)
         clangDiags->enableWerror();
 
-      if (Opts->ShouldEmitFixItHintsAsRemarks)
-        clangDiags->enableFixitsAsRemarks();
+      if (Opts->ShouldApplyFixIts)
+        clangDiags->enableApplyFixIts();
 
       if (Opts->AnalysisDiagOpt == PD_TEXT) {
         clangDiags->enablePaths();
@@ -335,8 +351,8 @@ public:
     checkerMgr = createCheckerManager(
         *Ctx, *Opts, Plugins, CheckerRegistrationFns, PP.getDiagnostics());
 
-    Mgr = std::make_unique<AnalysisManager>(*Ctx, PathConsumers, CreateStoreMgr,
-                                            CreateConstraintMgr,
+    Mgr = std::make_unique<AnalysisManager>(*Ctx, PP, PathConsumers,
+                                            CreateStoreMgr, CreateConstraintMgr,
                                             checkerMgr.get(), *Opts, Injector);
   }
 
@@ -502,6 +518,13 @@ static bool shouldSkipFunction(const Decl *D,
                                const SetOfConstDecls &VisitedAsTopLevel) {
   if (VisitedAsTopLevel.count(D))
     return true;
+
+  // Skip analysis of inheriting constructors as top-level functions. These
+  // constructors don't even have a body written down in the code, so even if
+  // we find a bug, we won't be able to display it.
+  if (const auto *CD = dyn_cast<CXXConstructorDecl>(D))
+    if (CD->isInheritingConstructor())
+      return true;
 
   // We want to re-analyse the functions as top level in the following cases:
   // - The 'init' methods should be reanalyzed because

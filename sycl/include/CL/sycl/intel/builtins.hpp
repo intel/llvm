@@ -8,17 +8,15 @@
 
 #pragma once
 
+#include <CL/__spirv/spirv_ops.hpp>
 
 #ifdef __SYCL_DEVICE_ONLY__
 #define CONSTANT_AS __attribute__((opencl_constant))
-// Note: __format string is declared in constant address space to be compatible
-// with OpenCL C
-extern int __spirv_ocl_printf(const CONSTANT_AS char *__format, ...);
 #else
 #define CONSTANT_AS
 #endif
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace intel {
 namespace experimental {
@@ -72,6 +70,6 @@ int printf(const CONSTANT_AS char *__format, Args... args) {
 } // namespace experimental
 } // namespace intel
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)
 
 #undef CONSTANT_AS

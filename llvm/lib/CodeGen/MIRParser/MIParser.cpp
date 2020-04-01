@@ -495,6 +495,7 @@ public:
   bool parseOffset(int64_t &Offset);
   bool parseAlignment(unsigned &Alignment);
   bool parseAddrspace(unsigned &Addrspace);
+  bool parseMBBS(MachineBasicBlockSection &T);
   bool parseOperandsOffset(MachineOperand &Op);
   bool parseIRValue(const Value *&V);
   bool parseMemoryOperandFlag(MachineMemOperand::Flags &Flags);
@@ -544,8 +545,6 @@ private:
 
   const BasicBlock *getIRBlock(unsigned Slot);
   const BasicBlock *getIRBlock(unsigned Slot, const Function &F);
-
-  const Value *getIRValue(unsigned Slot);
 
   /// Get or create an MCSymbol for a given name.
   MCSymbol *getOrCreateMCSymbol(StringRef Name);
@@ -621,6 +620,25 @@ bool MIParser::consumeIfPresent(MIToken::TokenKind TokenKind) {
   return true;
 }
 
+// Parse Machine Basic Block Section Type.
+bool MIParser::parseMBBS(MachineBasicBlockSection &T) {
+  assert(Token.is(MIToken::kw_bbsections));
+  lex();
+  const StringRef &S = Token.stringValue();
+  if (S == "Entry")
+    T = MBBS_Entry;
+  else if (S == "Exception")
+    T = MBBS_Exception;
+  else if (S == "Cold")
+    T = MBBS_Cold;
+  else if (S == "Unique")
+    T = MBBS_Unique;
+  else
+    return error("Unknown Section Type");
+  lex();
+  return false;
+}
+
 bool MIParser::parseBasicBlockDefinition(
     DenseMap<unsigned, MachineBasicBlock *> &MBBSlots) {
   assert(Token.is(MIToken::MachineBasicBlockLabel));
@@ -632,6 +650,7 @@ bool MIParser::parseBasicBlockDefinition(
   lex();
   bool HasAddressTaken = false;
   bool IsLandingPad = false;
+  MachineBasicBlockSection SectionType = MBBS_None;
   unsigned Alignment = 0;
   BasicBlock *BB = nullptr;
   if (consumeIfPresent(MIToken::lparen)) {
@@ -655,6 +674,10 @@ bool MIParser::parseBasicBlockDefinition(
         if (parseIRBlock(BB, MF.getFunction()))
           return true;
         lex();
+        break;
+      case MIToken::kw_bbsections:
+        if (parseMBBS(SectionType))
+          return true;
         break;
       default:
         break;
@@ -685,6 +708,10 @@ bool MIParser::parseBasicBlockDefinition(
   if (HasAddressTaken)
     MBB->setHasAddressTaken();
   MBB->setIsEHPad(IsLandingPad);
+  if (SectionType != MBBS_None) {
+    MBB->setSectionType(SectionType);
+    MF.setBBSectionsType(BasicBlockSection::List);
+  }
   return false;
 }
 
@@ -752,10 +779,10 @@ bool MIParser::parseBasicBlockLiveins(MachineBasicBlock &MBB) {
       if (Token.isNot(MIToken::IntegerLiteral) &&
           Token.isNot(MIToken::HexLiteral))
         return error("expected a lane mask");
-      static_assert(sizeof(LaneBitmask::Type) == sizeof(unsigned),
+      static_assert(sizeof(LaneBitmask::Type) == sizeof(uint64_t),
                     "Use correct get-function for lane mask");
       LaneBitmask::Type V;
-      if (getUnsigned(V))
+      if (getUint64(V))
         return error("invalid lane mask value");
       Mask = LaneBitmask(V);
       lex();
@@ -1185,7 +1212,7 @@ bool MIParser::parseInstruction(unsigned &OpCode, unsigned &Flags) {
          Token.is(MIToken::kw_nuw) ||
          Token.is(MIToken::kw_nsw) ||
          Token.is(MIToken::kw_exact) ||
-         Token.is(MIToken::kw_fpexcept)) {
+         Token.is(MIToken::kw_nofpexcept)) {
     // Mine frame and fast math flags
     if (Token.is(MIToken::kw_frame_setup))
       Flags |= MachineInstr::FrameSetup;
@@ -1211,8 +1238,8 @@ bool MIParser::parseInstruction(unsigned &OpCode, unsigned &Flags) {
       Flags |= MachineInstr::NoSWrap;
     if (Token.is(MIToken::kw_exact))
       Flags |= MachineInstr::IsExact;
-    if (Token.is(MIToken::kw_fpexcept))
-      Flags |= MachineInstr::FPExcept;
+    if (Token.is(MIToken::kw_nofpexcept))
+      Flags |= MachineInstr::NoFPExcept;
 
     lex();
   }
@@ -1736,8 +1763,8 @@ static bool getHexUint(const MIToken &Token, APInt &Result) {
   return false;
 }
 
-bool getUnsigned(const MIToken &Token, unsigned &Result,
-                 ErrorCallbackType ErrCB) {
+static bool getUnsigned(const MIToken &Token, unsigned &Result,
+                        ErrorCallbackType ErrCB) {
   if (Token.hasIntegerValue()) {
     const uint64_t Limit = uint64_t(std::numeric_limits<unsigned>::max()) + 1;
     uint64_t Val64 = Token.integerValue().getLimitedValue(Limit);
@@ -2336,7 +2363,7 @@ bool MIParser::parseIntrinsicOperand(MachineOperand &Dest) {
   if (Token.isNot(MIToken::NamedGlobalValue))
     return error("expected syntax intrinsic(@llvm.whatever)");
 
-  std::string Name = Token.stringValue();
+  std::string Name = std::string(Token.stringValue());
   lex();
 
   if (expectAndConsume(MIToken::rparen))
@@ -2421,23 +2448,13 @@ bool MIParser::parseShuffleMaskOperand(MachineOperand &Dest) {
   if (expectAndConsume(MIToken::lparen))
     return error("expected syntax shufflemask(<integer or undef>, ...)");
 
-  SmallVector<Constant *, 32> ShufMask;
-  LLVMContext &Ctx = MF.getFunction().getContext();
-  Type *I32Ty = Type::getInt32Ty(Ctx);
-
-  bool AllZero = true;
-  bool AllUndef = true;
-
+  SmallVector<int, 32> ShufMask;
   do {
     if (Token.is(MIToken::kw_undef)) {
-      ShufMask.push_back(UndefValue::get(I32Ty));
-      AllZero = false;
+      ShufMask.push_back(-1);
     } else if (Token.is(MIToken::IntegerLiteral)) {
-      AllUndef = false;
       const APSInt &Int = Token.integerValue();
-      if (!Int.isNullValue())
-        AllZero = false;
-      ShufMask.push_back(ConstantInt::get(I32Ty, Int.getExtValue()));
+      ShufMask.push_back(Int.getExtValue());
     } else
       return error("expected integer constant");
 
@@ -2447,13 +2464,8 @@ bool MIParser::parseShuffleMaskOperand(MachineOperand &Dest) {
   if (expectAndConsume(MIToken::rparen))
     return error("shufflemask should be terminated by ')'.");
 
-  if (AllZero || AllUndef) {
-    VectorType *VT = VectorType::get(I32Ty, ShufMask.size());
-    Constant *C = AllZero ? Constant::getNullValue(VT) : UndefValue::get(VT);
-    Dest = MachineOperand::CreateShuffleMask(C);
-  } else
-    Dest = MachineOperand::CreateShuffleMask(ConstantVector::get(ShufMask));
-
+  ArrayRef<int> MaskAlloc = MF.allocateShuffleMask(ShufMask);
+  Dest = MachineOperand::CreateShuffleMask(MaskAlloc);
   return false;
 }
 
@@ -2619,7 +2631,8 @@ bool MIParser::parseMachineOperand(const unsigned OpCode, const unsigned OpIdx,
     } else
       return parseTypedImmediateOperand(Dest);
   case MIToken::dot: {
-    if (const auto *Formatter = MF.getTarget().getMIRFormatter()) {
+    const auto *TII = MF.getSubtarget().getInstrInfo();
+    if (const auto *Formatter = TII->getMIRFormatter()) {
       return parseTargetImmMnemonic(OpCode, OpIdx, Dest, *Formatter);
     }
     LLVM_FALLTHROUGH;
@@ -2879,7 +2892,8 @@ bool MIParser::parseMemoryPseudoSourceValue(const PseudoSourceValue *&PSV) {
     break;
   case MIToken::kw_custom: {
     lex();
-    if (const auto *Formatter = MF.getTarget().getMIRFormatter()) {
+    const auto *TII = MF.getSubtarget().getInstrInfo();
+    if (const auto *Formatter = TII->getMIRFormatter()) {
       if (Formatter->parseCustomPseudoSourceValue(
               Token.stringValue(), MF, PFS, PSV,
               [this](StringRef::iterator Loc, const Twine &Msg) -> bool {
@@ -3152,10 +3166,6 @@ const BasicBlock *MIParser::getIRBlock(unsigned Slot, const Function &F) {
   return getIRBlockFromSlot(Slot, CustomSlots2BasicBlocks);
 }
 
-const Value *MIParser::getIRValue(unsigned Slot) {
-  return PFS.getIRValue(Slot);
-}
-
 MCSymbol *MIParser::getOrCreateMCSymbol(StringRef Name) {
   // FIXME: Currently we can't recognize temporary or local symbols and call all
   // of the appropriate forms to create them. However, this handles basic cases
@@ -3168,7 +3178,7 @@ MCSymbol *MIParser::getOrCreateMCSymbol(StringRef Name) {
 bool MIParser::parseStringConstant(std::string &Result) {
   if (Token.isNot(MIToken::StringConstant))
     return error("expected string constant");
-  Result = Token.stringValue();
+  Result = std::string(Token.stringValue());
   lex();
   return false;
 }

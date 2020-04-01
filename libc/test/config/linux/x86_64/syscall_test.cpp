@@ -6,9 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "src/unistd/syscall.h"
-
-#include "gtest/gtest.h"
+#include "config/linux/syscall.h"
+#include "utils/UnitTest/Test.h"
 
 #include <functional>
 
@@ -36,5 +35,10 @@ TEST(X86_64_SyscallTest, APITest) {
   std::function<long(long, long, long, long, long, long, long)> f6(
       [](long n, long a1, long a2, long a3, long a4, long a5, long a6) {
         return __llvm_libc::syscall(n, a1, a2, a3, a4, a5, a6);
+      });
+
+  std::function<long(long, void *)> notLongType(
+      [](long n, void *a1) {
+        return __llvm_libc::syscall(n, a1);
       });
 }

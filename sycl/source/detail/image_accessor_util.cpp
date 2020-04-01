@@ -9,7 +9,7 @@
 #include <CL/sycl/accessor.hpp>
 #include <CL/sycl/builtins.hpp>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
@@ -189,4 +189,4 @@ cl_float4 getBorderColor(const image_channel_order ImgChannelOrder) {
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

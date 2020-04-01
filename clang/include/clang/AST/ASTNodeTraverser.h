@@ -15,6 +15,7 @@
 #ifndef LLVM_CLANG_AST_ASTNODETRAVERSER_H
 #define LLVM_CLANG_AST_ASTNODETRAVERSER_H
 
+#include "clang/AST/ASTTypeTraits.h"
 #include "clang/AST/AttrVisitor.h"
 #include "clang/AST/CommentVisitor.h"
 #include "clang/AST/DeclVisitor.h"
@@ -65,8 +66,7 @@ class ASTNodeTraverser
   /// not already been loaded.
   bool Deserialize = false;
 
-  ast_type_traits::TraversalKind Traversal =
-      ast_type_traits::TraversalKind::TK_AsIs;
+  TraversalKind Traversal = TraversalKind::TK_AsIs;
 
   NodeDelegateType &getNodeDelegate() {
     return getDerived().doGetNodeDelegate();
@@ -77,7 +77,7 @@ public:
   void setDeserialize(bool D) { Deserialize = D; }
   bool getDeserialize() const { return Deserialize; }
 
-  void SetTraversalKind(ast_type_traits::TraversalKind TK) { Traversal = TK; }
+  void SetTraversalKind(TraversalKind TK) { Traversal = TK; }
 
   void Visit(const Decl *D) {
     getNodeDelegate().AddChild([=] {
@@ -108,12 +108,12 @@ public:
 
       if (auto *E = dyn_cast_or_null<Expr>(S)) {
         switch (Traversal) {
-        case ast_type_traits::TK_AsIs:
+        case TK_AsIs:
           break;
-        case ast_type_traits::TK_IgnoreImplicitCastsAndParentheses:
+        case TK_IgnoreImplicitCastsAndParentheses:
           S = E->IgnoreParenImpCasts();
           break;
-        case ast_type_traits::TK_IgnoreUnlessSpelledInSource:
+        case TK_IgnoreUnlessSpelledInSource:
           S = E->IgnoreUnlessSpelledInSource();
           break;
         }
@@ -131,8 +131,7 @@ public:
       if (isa<DeclStmt>(S) || isa<GenericSelectionExpr>(S))
         return;
 
-      if (isa<LambdaExpr>(S) &&
-          Traversal == ast_type_traits::TK_IgnoreUnlessSpelledInSource)
+      if (isa<LambdaExpr>(S) && Traversal == TK_IgnoreUnlessSpelledInSource)
         return;
 
       for (const Stmt *SubStmt : S->children())
@@ -228,7 +227,7 @@ public:
     });
   }
 
-  void Visit(const ast_type_traits::DynTypedNode &N) {
+  void Visit(const DynTypedNode &N) {
     // FIXME: Improve this with a switch or a visitor pattern.
     if (const auto *D = N.get<Decl>())
       Visit(D);
@@ -537,6 +536,10 @@ public:
   }
 
   void VisitTemplateTypeParmDecl(const TemplateTypeParmDecl *D) {
+    if (const auto *TC = D->getTypeConstraint())
+      if (TC->hasExplicitTemplateArgs())
+        for (const auto &ArgLoc : TC->getTemplateArgsAsWritten()->arguments())
+          dumpTemplateArgumentLoc(ArgLoc);
     if (D->hasDefaultArgument())
       Visit(D->getDefaultArgument(), SourceRange(),
             D->getDefaultArgStorage().getInheritedFrom(),
@@ -544,6 +547,8 @@ public:
   }
 
   void VisitNonTypeTemplateParmDecl(const NonTypeTemplateParmDecl *D) {
+    if (const auto *E = D->getPlaceholderTypeConstraint())
+      Visit(E);
     if (D->hasDefaultArgument())
       Visit(D->getDefaultArgument(), SourceRange(),
             D->getDefaultArgStorage().getInheritedFrom(),
@@ -652,7 +657,7 @@ public:
   }
 
   void VisitLambdaExpr(const LambdaExpr *Node) {
-    if (Traversal == ast_type_traits::TK_IgnoreUnlessSpelledInSource) {
+    if (Traversal == TK_IgnoreUnlessSpelledInSource) {
       for (unsigned I = 0, N = Node->capture_size(); I != N; ++I) {
         const auto *C = Node->capture_begin() + I;
         if (!C->isExplicit())

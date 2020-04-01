@@ -18,6 +18,7 @@
 
 #include "BenchmarkResult.h"
 #include "BenchmarkRunner.h"
+#include "Error.h"
 #include "LlvmState.h"
 #include "SnippetGenerator.h"
 #include "llvm/ADT/Triple.h"
@@ -108,12 +109,32 @@ public:
   virtual unsigned getMaxMemoryAccessSize() const { return 0; }
 
   // Assigns a random operand of the right type to variable Var.
-  // The default implementation only handles generic operand types.
-  // The target is responsible for handling any operand
-  // starting from OPERAND_FIRST_TARGET.
-  virtual void randomizeMCOperand(const Instruction &Instr, const Variable &Var,
-                                  MCOperand &AssignedValue,
-                                  const BitVector &ForbiddenRegs) const;
+  // The target is responsible for handling any operand starting from
+  // OPERAND_FIRST_TARGET.
+  virtual Error randomizeTargetMCOperand(const Instruction &Instr,
+                                         const Variable &Var,
+                                         MCOperand &AssignedValue,
+                                         const BitVector &ForbiddenRegs) const {
+    return make_error<Failure>(
+        "targets with target-specific operands should implement this");
+  }
+
+  // Returns true if this instruction is supported as a back-to-back
+  // instructions.
+  // FIXME: Eventually we should discover this dynamically.
+  virtual bool allowAsBackToBack(const Instruction &Instr) const {
+    return true;
+  }
+
+  // For some instructions, it is interesting to measure how it's performance
+  // characteristics differ depending on it's operands.
+  // This allows us to produce all the interesting variants.
+  virtual std::vector<InstructionTemplate>
+  generateInstructionVariants(const Instruction &Instr,
+                              unsigned MaxConfigsPerOpcode) const {
+    // By default, we're happy with whatever randomizer will give us.
+    return {&Instr};
+  }
 
   // Creates a snippet generator for the given mode.
   std::unique_ptr<SnippetGenerator>
@@ -121,7 +142,7 @@ public:
                          const LLVMState &State,
                          const SnippetGenerator::Options &Opts) const;
   // Creates a benchmark runner for the given mode.
-  std::unique_ptr<BenchmarkRunner>
+  Expected<std::unique_ptr<BenchmarkRunner>>
   createBenchmarkRunner(InstructionBenchmark::ModeE Mode,
                         const LLVMState &State) const;
 
@@ -144,9 +165,9 @@ private:
 
   // Targets can implement their own snippet generators/benchmarks runners by
   // implementing these.
-  std::unique_ptr<SnippetGenerator> virtual createLatencySnippetGenerator(
+  std::unique_ptr<SnippetGenerator> virtual createSerialSnippetGenerator(
       const LLVMState &State, const SnippetGenerator::Options &Opts) const;
-  std::unique_ptr<SnippetGenerator> virtual createUopsSnippetGenerator(
+  std::unique_ptr<SnippetGenerator> virtual createParallelSnippetGenerator(
       const LLVMState &State, const SnippetGenerator::Options &Opts) const;
   std::unique_ptr<BenchmarkRunner> virtual createLatencyBenchmarkRunner(
       const LLVMState &State, InstructionBenchmark::ModeE Mode) const;

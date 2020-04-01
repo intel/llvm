@@ -319,13 +319,14 @@ Linux::Linux(const Driver &D, const llvm::Triple &Triple, const ArgList &Args)
   // to the link paths.
   path_list &Paths = getFilePaths();
 
-  const std::string OSLibDir = getOSLibDir(Triple, Args);
+  const std::string OSLibDir = std::string(getOSLibDir(Triple, Args));
   const std::string MultiarchTriple = getMultiarchTriple(D, Triple, SysRoot);
 
   // Add the multilib suffixed paths where they are available.
   if (GCCInstallation.isValid()) {
     const llvm::Triple &GCCTriple = GCCInstallation.getTriple();
-    const std::string &LibPath = GCCInstallation.getParentLibPath();
+    const std::string &LibPath =
+        std::string(GCCInstallation.getParentLibPath());
 
     // Add toolchain / multilib specific file paths.
     addMultilibsFilePaths(D, Multilibs, SelectedMultilib,
@@ -434,7 +435,8 @@ Linux::Linux(const Driver &D, const llvm::Triple &Triple, const ArgList &Args)
 
     // See comments above on the multilib variant for details of why this is
     // included even from outside the sysroot.
-    const std::string &LibPath = GCCInstallation.getParentLibPath();
+    const std::string &LibPath =
+        std::string(GCCInstallation.getParentLibPath());
     const llvm::Triple &GCCTriple = GCCInstallation.getTriple();
     const Multilib &Multilib = GCCInstallation.getMultilib();
     addPathIfExists(D, LibPath + "/../" + GCCTriple.str() + "/lib" +
@@ -679,7 +681,7 @@ void Linux::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
     CIncludeDirs.split(dirs, ":");
     for (StringRef dir : dirs) {
       StringRef Prefix =
-          llvm::sys::path::is_absolute(dir) ? StringRef(SysRoot) : "";
+          llvm::sys::path::is_absolute(dir) ? "" : StringRef(SysRoot);
       addExternCSystemInclude(DriverArgs, CC1Args, Prefix + dir);
     }
     return;
@@ -997,4 +999,28 @@ void Linux::addProfileRTLibs(const llvm::opt::ArgList &Args,
     CmdArgs.push_back(Args.MakeArgString(
         Twine("-u", llvm::getInstrProfRuntimeHookVarName())));
   ToolChain::addProfileRTLibs(Args, CmdArgs);
+}
+
+llvm::DenormalMode Linux::getDefaultDenormalModeForType(
+  const llvm::opt::ArgList &DriverArgs,
+  Action::OffloadKind DeviceOffloadKind,
+  const llvm::fltSemantics *FPType) const {
+  switch (getTriple().getArch()) {
+  case llvm::Triple::x86:
+  case llvm::Triple::x86_64: {
+    std::string Unused;
+    // DAZ and FTZ are turned on in crtfastmath.o
+    if (!DriverArgs.hasArg(options::OPT_nostdlib, options::OPT_nostartfiles) &&
+        isFastMathRuntimeAvailable(DriverArgs, Unused))
+      return llvm::DenormalMode::getPreserveSign();
+    return llvm::DenormalMode::getIEEE();
+  }
+  default:
+    return llvm::DenormalMode::getIEEE();
+  }
+}
+
+void Linux::addExtraOpts(llvm::opt::ArgStringList &CmdArgs) const {
+  for (const auto &Opt : ExtraOpts)
+    CmdArgs.push_back(Opt.c_str());
 }

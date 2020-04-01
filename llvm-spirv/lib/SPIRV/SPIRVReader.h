@@ -103,6 +103,9 @@ public:
   Instruction *transSGSizeQueryBI(SPIRVInstruction *BI, BasicBlock *BB);
   bool transFPContractMetadata();
   bool transKernelMetadata();
+  Value *transAsmINTEL(SPIRVAsmINTEL *BA);
+  CallInst *transAsmCallINTEL(SPIRVAsmCallINTEL *BI, Function *F,
+                              BasicBlock *BB);
   bool transNonTemporalMetadata(Instruction *I);
   bool transSourceLanguage();
   bool transSourceExtension();
@@ -129,9 +132,8 @@ public:
   ///
   /// These functions are translated to functions with array type argument
   /// first, then post-processed to have pointer arguments.
-  bool
-  postProcessOCLBuiltinWithArrayArguments(Function *F,
-                                          const std::string &DemangledName);
+  bool postProcessOCLBuiltinWithArrayArguments(Function *F,
+                                               StringRef DemangledName);
 
   /// \brief Post-process OpImageSampleExplicitLod.
   ///   sampled_image = __spirv_SampledImage__(image, sampler);
@@ -222,6 +224,7 @@ private:
   // Change this if it is no longer true.
   bool isFuncNoUnwind() const { return true; }
   bool isSPIRVCmpInstTransToLLVMInst(SPIRVInstruction *BI) const;
+  bool isDirectlyTranslatedToOCL(Op OpCode) const;
   bool transOCLBuiltinsFromVariables();
   bool transOCLBuiltinFromVariable(GlobalVariable *GV,
                                    SPIRVBuiltinVariableKind Kind);

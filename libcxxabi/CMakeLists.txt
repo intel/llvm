@@ -21,7 +21,7 @@ if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR OR LIBCXXABI_STANDALONE_B
   project(libcxxabi CXX C)
 
   set(PACKAGE_NAME libcxxabi)
-  set(PACKAGE_VERSION 9.0.0svn)
+  set(PACKAGE_VERSION 11.0.0git)
   set(PACKAGE_STRING "${PACKAGE_NAME} ${PACKAGE_VERSION}")
   set(PACKAGE_BUGREPORT "llvm-bugs@lists.llvm.org")
 
@@ -92,14 +92,6 @@ usual symlinks pointing to that.")
 option(LIBCXXABI_ENABLE_SHARED "Build libc++abi as a shared library." ON)
 option(LIBCXXABI_ENABLE_STATIC "Build libc++abi as a static library." ON)
 
-option(LIBCXXABI_LINK_TESTS_WITH_SHARED_LIBCXXABI
-       "Whether the libc++abi tests should link with the shared libc++abi library"
-       ${LIBCXXABI_ENABLE_SHARED})
-
-option(LIBCXXABI_LINK_TESTS_WITH_SHARED_LIBCXX
-       "Whether the libc++abi tests should link with the shared libc++ library"
-       ${LIBCXX_ENABLE_SHARED})
-
 cmake_dependent_option(LIBCXXABI_INSTALL_STATIC_LIBRARY
   "Install the static libc++abi library." ON
   "LIBCXXABI_ENABLE_STATIC;LIBCXXABI_INSTALL_LIBRARY" OFF)
@@ -121,26 +113,6 @@ option(LIBCXXABI_SILENT_TERMINATE "Set this to make the terminate handler defaul
 
 if (NOT LIBCXXABI_ENABLE_SHARED AND NOT LIBCXXABI_ENABLE_STATIC)
   message(FATAL_ERROR "libc++abi must be built as either a shared or static library.")
-endif()
-
-if(LIBCXXABI_LINK_TESTS_WITH_SHARED_LIBCXXABI AND NOT LIBCXXABI_ENABLE_SHARED)
-  message(FATAL_ERROR "LIBCXXABI_LINK_TESTS_WITH_SHARED_LIBCXXABI being ON requires LIBCXXABI_ENABLE_SHARED to be ON")
-endif()
-
-if(NOT LIBCXXABI_LINK_TESTS_WITH_SHARED_LIBCXXABI AND NOT LIBCXXABI_ENABLE_STATIC)
-  message(FATAL_ERROR "LIBCXXABI_LINK_TESTS_WITH_SHARED_LIBCXXABI being OFF requires LIBCXXABI_ENABLE_STATIC to be ON")
-endif()
-
-if(DEFINED LIBCXX_ENABLE_SHARED 
-   AND LIBCXXABI_LINK_TESTS_WITH_SHARED_LIBCXX
-   AND NOT LIBCXX_ENABLE_SHARED)
-  message(FATAL_ERROR "LIBCXXABI_LINK_TESTS_WITH_SHARED_LIBCXX being ON requires LIBCXX_ENABLE_SHARED to be ON")
-endif()
-
-if(DEFINED LIBCXX_ENABLE_STATIC
-   AND NOT LIBCXXABI_LINK_TESTS_WITH_SHARED_LIBCXX 
-   AND NOT LIBCXX_ENABLE_STATIC)
-  message(FATAL_ERROR "LIBCXXABI_LINK_TESTS_WITH_SHARED_LIBCXX being OFF requires LIBCXX_ENABLE_STATIC to be ON")
 endif()
 
 if (LLVM_EXTERNAL_LIBCXX_SOURCE_DIR)

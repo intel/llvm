@@ -1,4 +1,4 @@
-//===-- DebugNamesDWARFIndex.cpp -------------------------------*- C++ -*-===//
+//===-- DebugNamesDWARFIndex.cpp ------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -19,18 +19,14 @@ using namespace lldb;
 llvm::Expected<std::unique_ptr<DebugNamesDWARFIndex>>
 DebugNamesDWARFIndex::Create(Module &module, DWARFDataExtractor debug_names,
                              DWARFDataExtractor debug_str,
-                             DWARFDebugInfo *debug_info) {
-  if (!debug_info) {
-    return llvm::make_error<llvm::StringError>("debug info null",
-                                               llvm::inconvertibleErrorCode());
-  }
+                             SymbolFileDWARF &dwarf) {
   auto index_up = std::make_unique<DebugNames>(debug_names.GetAsLLVM(),
                                                 debug_str.GetAsLLVM());
   if (llvm::Error E = index_up->extract())
     return std::move(E);
 
   return std::unique_ptr<DebugNamesDWARFIndex>(new DebugNamesDWARFIndex(
-      module, std::move(index_up), debug_names, debug_str, *debug_info));
+      module, std::move(index_up), debug_names, debug_str, dwarf));
 }
 
 llvm::DenseSet<dw_offset_t>
@@ -53,12 +49,7 @@ DebugNamesDWARFIndex::ToDIERef(const DebugNames::Entry &entry) {
   if (!cu)
     return llvm::None;
 
-  // This initializes the DWO symbol file. It's not possible for
-  // GetDwoSymbolFile to call this automatically because of mutual recursion
-  // between this and DWARFDebugInfoEntry::GetAttributeValue.
-  cu->ExtractUnitDIEIfNeeded();
   cu = &cu->GetNonSkeletonUnit();
-
   if (llvm::Optional<uint64_t> die_offset = entry.getDIEUnitOffset())
     return DIERef(cu->GetSymbolFileDWARF().GetDwoNum(),
                   DIERef::Section::DebugInfo, cu->GetOffset() + *die_offset);

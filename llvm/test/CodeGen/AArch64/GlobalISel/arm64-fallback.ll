@@ -1,9 +1,9 @@
-; RUN: not llc -O0 -global-isel -global-isel-abort=1 -verify-machineinstrs %s -o - 2>&1 | FileCheck %s --check-prefix=ERROR
+; RUN: not --crash llc -O0 -global-isel -global-isel-abort=1 -verify-machineinstrs %s -o - 2>&1 | FileCheck %s --check-prefix=ERROR
 ; RUN: llc -O0 -global-isel -global-isel-abort=0 -verify-machineinstrs %s -o - 2>&1 | FileCheck %s --check-prefix=FALLBACK
 ; RUN: llc -O0 -global-isel -global-isel-abort=2 -pass-remarks-missed='gisel*' -verify-machineinstrs %s -o %t.out 2> %t.err
 ; RUN: FileCheck %s --check-prefix=FALLBACK-WITH-REPORT-OUT < %t.out
 ; RUN: FileCheck %s --check-prefix=FALLBACK-WITH-REPORT-ERR < %t.err
-; RUN: not llc -global-isel -mtriple aarch64_be %s -o - 2>&1 | FileCheck %s --check-prefix=BIG-ENDIAN
+; RUN: not --crash llc -global-isel -mtriple aarch64_be %s -o - 2>&1 | FileCheck %s --check-prefix=BIG-ENDIAN
 ; This file checks that the fallback path to selection dag works.
 ; The test is fragile in the sense that it must be updated to expose
 ; something that fails with global-isel.
@@ -85,7 +85,7 @@ define i64 @atomic_ops(i64* %addr) {
 ; Make sure we don't mess up metadata arguments.
 declare void @llvm.write_register.i64(metadata, i64)
 
-; FALLBACK-WITH-REPORT-ERR: remark: <unknown>:0:0: unable to translate instruction: call: ' call void @llvm.write_register.i64(metadata !0, i64 0)' (in function: test_write_register_intrin)
+; FALLBACK-WITH-REPORT-ERR: remark: <unknown>:0:0: unable to legalize instruction: G_WRITE_REGISTER !0, %0:_(s64) (in function: test_write_register_intrin)
 ; FALLBACK-WITH-REPORT-ERR: warning: Instruction selection used fallback path for test_write_register_intrin
 ; FALLBACK-WITH-REPORT-LABEL: test_write_register_intrin:
 define void @test_write_register_intrin() {
@@ -167,16 +167,6 @@ define void @nonpow2_load_narrowing() {
   ret void
 }
 
-; FALLBACK-WITH-REPORT-ERR: remark: <unknown>:0:0: cannot select: %14:gpr64(s64), %15:gpr(s1) = G_UADDE %17:gpr, %17:gpr, %13:gpr (in function: nonpow2_store_narrowing)
-; FALLBACK-WITH-REPORT-ERR: warning: Instruction selection used fallback path for nonpow2_store_narrowing
-; FALLBACK-WITH-REPORT-OUT-LABEL: nonpow2_store_narrowing:
-define void @nonpow2_store_narrowing(i96* %c) {
-  %a = add i128 undef, undef
-  %b = trunc i128 %a to i96
-  store i96 %b, i96* %c
-  ret void
-}
-
 ; Currently can't handle vector lengths that aren't an exact multiple of
 ; natively supported vector lengths. Test that the fall-back works for those.
 ; FALLBACK-WITH-REPORT-ERR-G_IMPLICIT_DEF-LEGALIZABLE: (FIXME: this is what is expected once we can legalize non-pow-of-2 G_IMPLICIT_DEF) remark: <unknown>:0:0: unable to legalize instruction: %1:_(<7 x s64>) = G_ADD %0, %0 (in function: nonpow2_vector_add_fewerelements
@@ -209,3 +199,12 @@ define <4 x i16> @zext_v4s8(<4 x i8> %in) {
   ret <4 x i16> %ext
 }
 
+; FALLBACK-WITH-REPORT-ERR: remark: <unknown>:0:0: cannot select: RET_ReallyLR implicit $x0 (in function: strict_align_feature)
+; FALLBACK-WITH-REPORT-ERR: warning: Instruction selection used fallback path for strict_align_feature
+; FALLBACK-WITH-REPORT-OUT-LABEL: strict_align_feature
+define i64 @strict_align_feature(i64* %p) #0 {
+  %x = load i64, i64* %p, align 1
+  ret i64 %x
+}
+
+attributes #0 = { "target-features"="+strict-align" }

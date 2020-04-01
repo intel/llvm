@@ -1,13 +1,13 @@
 //===-- SPIRVCastOps.td - MLIR SPIR-V Cast Ops -------*- tablegen -*-------===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
 // This file contains cast ops for the SPIR-V dialect. It corresponds
-// to "3.32.11. Convertion Instructions" of the SPIR-V specification.
+// to "3.32.11. Conversion Instructions" of the SPIR-V specification.
 //
 //===----------------------------------------------------------------------===//
 
@@ -15,6 +15,7 @@
 #define SPIRV_CAST_OPS
 
 include "mlir/Dialect/SPIRV/SPIRVBase.td"
+include "mlir/Interfaces/SideEffects.td"
 
 class SPV_CastOp<string mnemonic, Type resultType, Type operandType,
                  list<OpTrait> traits = []> :

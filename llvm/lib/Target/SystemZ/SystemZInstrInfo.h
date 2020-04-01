@@ -155,6 +155,10 @@ enum FusedCompareType {
 namespace SystemZ {
 int getTwoOperandOpcode(uint16_t Opcode);
 int getTargetMemOpcode(uint16_t Opcode);
+
+// Return a version of comparison CC mask CCMask in which the LT and GT
+// actions are swapped.
+unsigned reverseCCMask(unsigned CCMask);
 }
 
 class SystemZInstrInfo : public SystemZGenInstrInfo {
@@ -221,8 +225,9 @@ public:
                         int *BytesAdded = nullptr) const override;
   bool analyzeCompare(const MachineInstr &MI, unsigned &SrcReg,
                       unsigned &SrcReg2, int &Mask, int &Value) const override;
-  bool canInsertSelect(const MachineBasicBlock&, ArrayRef<MachineOperand> Cond,
-                       unsigned, unsigned, int&, int&, int&) const override;
+  bool canInsertSelect(const MachineBasicBlock &, ArrayRef<MachineOperand> Cond,
+                       unsigned, unsigned, unsigned, int &, int &,
+                       int &) const override;
   void insertSelect(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI,
                     const DebugLoc &DL, unsigned DstReg,
                     ArrayRef<MachineOperand> Cond, unsigned TrueReg,
@@ -247,12 +252,12 @@ public:
                    bool KillSrc) const override;
   void storeRegToStackSlot(MachineBasicBlock &MBB,
                            MachineBasicBlock::iterator MBBI,
-                           unsigned SrcReg, bool isKill, int FrameIndex,
+                           Register SrcReg, bool isKill, int FrameIndex,
                            const TargetRegisterClass *RC,
                            const TargetRegisterInfo *TRI) const override;
   void loadRegFromStackSlot(MachineBasicBlock &MBB,
                             MachineBasicBlock::iterator MBBI,
-                            unsigned DestReg, int FrameIdx,
+                            Register DestReg, int FrameIdx,
                             const TargetRegisterClass *RC,
                             const TargetRegisterInfo *TRI) const override;
   MachineInstr *convertToThreeAddress(MachineFunction::iterator &MFI,
@@ -312,6 +317,12 @@ public:
   unsigned getFusedCompare(unsigned Opcode,
                            SystemZII::FusedCompareType Type,
                            const MachineInstr *MI = nullptr) const;
+
+  // Try to find all CC users of the compare instruction (MBBI) and update
+  // all of them to maintain equivalent behavior after swapping the compare
+  // operands. Return false if not all users can be conclusively found and
+  // handled. The compare instruction is *not* changed.
+  bool prepareCompareSwapOperands(MachineBasicBlock::iterator MBBI) const;
 
   // If Opcode is a LOAD opcode for with an associated LOAD AND TRAP
   // operation exists, returh the opcode for the latter, otherwise return 0.

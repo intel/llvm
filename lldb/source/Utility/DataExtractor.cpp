@@ -1,4 +1,4 @@
-//===-- DataExtractor.cpp ---------------------------------------*- C++ -*-===//
+//===-- DataExtractor.cpp -------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -133,7 +133,7 @@ DataExtractor::DataExtractor(const void *data, offset_t length,
       m_end(const_cast<uint8_t *>(static_cast<const uint8_t *>(data)) + length),
       m_byte_order(endian), m_addr_size(addr_size), m_data_sp(),
       m_target_byte_size(target_byte_size) {
-  assert(addr_size == 4 || addr_size == 8);
+  assert(addr_size >= 1 && addr_size <= 8);
 }
 
 // Make a shared pointer reference to the shared data in "data_sp" and set the
@@ -146,7 +146,7 @@ DataExtractor::DataExtractor(const DataBufferSP &data_sp, ByteOrder endian,
     : m_start(nullptr), m_end(nullptr), m_byte_order(endian),
       m_addr_size(addr_size), m_data_sp(),
       m_target_byte_size(target_byte_size) {
-  assert(addr_size == 4 || addr_size == 8);
+  assert(addr_size >= 1 && addr_size <= 8);
   SetData(data_sp);
 }
 
@@ -160,7 +160,7 @@ DataExtractor::DataExtractor(const DataExtractor &data, offset_t offset,
     : m_start(nullptr), m_end(nullptr), m_byte_order(data.m_byte_order),
       m_addr_size(data.m_addr_size), m_data_sp(),
       m_target_byte_size(target_byte_size) {
-  assert(m_addr_size == 4 || m_addr_size == 8);
+  assert(m_addr_size >= 1 && m_addr_size <= 8);
   if (data.ValidOffset(offset)) {
     offset_t bytes_available = data.GetByteSize() - offset;
     if (length > bytes_available)
@@ -173,7 +173,7 @@ DataExtractor::DataExtractor(const DataExtractor &rhs)
     : m_start(rhs.m_start), m_end(rhs.m_end), m_byte_order(rhs.m_byte_order),
       m_addr_size(rhs.m_addr_size), m_data_sp(rhs.m_data_sp),
       m_target_byte_size(rhs.m_target_byte_size) {
-  assert(m_addr_size == 4 || m_addr_size == 8);
+  assert(m_addr_size >= 1 && m_addr_size <= 8);
 }
 
 // Assignment operator
@@ -251,7 +251,7 @@ lldb::offset_t DataExtractor::SetData(const DataExtractor &data,
                                       offset_t data_offset,
                                       offset_t data_length) {
   m_addr_size = data.m_addr_size;
-  assert(m_addr_size == 4 || m_addr_size == 8);
+  assert(m_addr_size >= 1 && m_addr_size <= 8);
   // If "data" contains shared pointer to data, then we can use that
   if (data.m_data_sp) {
     m_byte_order = data.m_byte_order;
@@ -604,20 +604,21 @@ uint64_t DataExtractor::GetMaxU64Bitfield(offset_t *offset_ptr, size_t size,
 int64_t DataExtractor::GetMaxS64Bitfield(offset_t *offset_ptr, size_t size,
                                          uint32_t bitfield_bit_size,
                                          uint32_t bitfield_bit_offset) const {
+  assert(size >= 1 && "GetMaxS64Bitfield size must be >= 1");
+  assert(size <= 8 && "GetMaxS64Bitfield size must be <= 8");
   int64_t sval64 = GetMaxS64(offset_ptr, size);
-  if (bitfield_bit_size > 0) {
-    int32_t lsbcount = bitfield_bit_offset;
-    if (m_byte_order == eByteOrderBig)
-      lsbcount = size * 8 - bitfield_bit_offset - bitfield_bit_size;
-    if (lsbcount > 0)
-      sval64 >>= lsbcount;
-    uint64_t bitfield_mask =
-        ((static_cast<uint64_t>(1)) << bitfield_bit_size) - 1;
-    sval64 &= bitfield_mask;
-    // sign extend if needed
-    if (sval64 & ((static_cast<uint64_t>(1)) << (bitfield_bit_size - 1)))
-      sval64 |= ~bitfield_mask;
-  }
+  if (bitfield_bit_size == 0)
+    return sval64;
+  int32_t lsbcount = bitfield_bit_offset;
+  if (m_byte_order == eByteOrderBig)
+    lsbcount = size * 8 - bitfield_bit_offset - bitfield_bit_size;
+  if (lsbcount > 0)
+    sval64 >>= lsbcount;
+  uint64_t bitfield_mask = llvm::maskTrailingOnes<uint64_t>(bitfield_bit_size);
+  sval64 &= bitfield_mask;
+  // sign extend if needed
+  if (sval64 & ((static_cast<uint64_t>(1)) << (bitfield_bit_size - 1)))
+    sval64 |= ~bitfield_mask;
   return sval64;
 }
 
@@ -679,24 +680,13 @@ long double DataExtractor::GetLongDouble(offset_t *offset_ptr) const {
 //
 // RETURNS the address that was extracted, or zero on failure.
 uint64_t DataExtractor::GetAddress(offset_t *offset_ptr) const {
-  assert(m_addr_size == 4 || m_addr_size == 8);
+  assert(m_addr_size >= 1 && m_addr_size <= 8);
   return GetMaxU64(offset_ptr, m_addr_size);
 }
 
 uint64_t DataExtractor::GetAddress_unchecked(offset_t *offset_ptr) const {
-  assert(m_addr_size == 4 || m_addr_size == 8);
+  assert(m_addr_size >= 1 && m_addr_size <= 8);
   return GetMaxU64_unchecked(offset_ptr, m_addr_size);
-}
-
-// Extract a single pointer from the data and update the offset pointed to by
-// "offset_ptr". The size of the extracted pointer comes from the
-// "this->m_addr_size" member variable and should be set correctly prior to
-// extracting any pointer values.
-//
-// RETURNS the pointer that was extracted, or zero on failure.
-uint64_t DataExtractor::GetPointer(offset_t *offset_ptr) const {
-  assert(m_addr_size == 4 || m_addr_size == 8);
-  return GetMaxU64(offset_ptr, m_addr_size);
 }
 
 size_t DataExtractor::ExtractBytes(offset_t offset, offset_t length,

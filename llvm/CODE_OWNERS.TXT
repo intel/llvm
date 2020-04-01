@@ -62,7 +62,7 @@ D: libc++
 
 N: Peter Collingbourne
 E: peter@pcc.me.uk
-D: llgo, libLTO (lib/LTO/* tools/lto/*), LLVM Bitcode (lib/Bitcode/* include/llvm/Bitcode/*)
+D: libLTO (lib/LTO/* tools/lto/*), LLVM Bitcode (lib/Bitcode/* include/llvm/Bitcode/*)
 
 N: Quentin Colombet
 E: quentin.colombet@gmail.com
@@ -218,10 +218,6 @@ D: SystemZ Backend
 N: Hans Wennborg
 E: hans@chromium.org
 D: Release management (x.y.0 releases)
-
-N: whitequark
-E: whitequark@whitequark.org
-D: C API, OCaml bindings
 
 N: Jake Ehrlich
 E: jakehehrlich@google.com

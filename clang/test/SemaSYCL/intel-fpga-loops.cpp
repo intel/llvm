@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -verify -pedantic %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsyntax-only -verify -pedantic %s
 
 // Test for Intel FPGA loop attributes applied not to a loop
 void foo() {
@@ -16,6 +16,15 @@ void foo() {
   [[intelfpga::ivdep(arr)]] int e[10];
   // expected-error@+1 {{intelfpga loop attributes must be applied to for, while, or do statements}}
   [[intelfpga::ivdep(arr, 2)]] int f[10];
+
+  // expected-error@+1 {{intelfpga loop attributes must be applied to for, while, or do statements}}
+  [[intelfpga::disable_loop_pipelining]] int g[10];
+  // expected-error@+1 {{intelfpga loop attributes must be applied to for, while, or do statements}}
+  [[intelfpga::loop_coalesce(2)]] int h[10];
+  // expected-error@+1 {{intelfpga loop attributes must be applied to for, while, or do statements}}
+  [[intelfpga::max_interleaving(4)]] int i[10];
+  // expected-error@+1 {{intelfpga loop attributes must be applied to for, while, or do statements}}
+  [[intelfpga::speculated_iterations(6)]] int j[10];
 }
 
 // Test for incorrect number of arguments for Intel FPGA loop attributes
@@ -52,11 +61,33 @@ void boo() {
   // expected-error@+1 {{unknown argument to 'ivdep'. Expected integer or array variable}}
   [[intelfpga::ivdep(2, 3.0)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
+
+  // expected-warning@+1 {{'disable_loop_pipelining' attribute takes no more than 0 arguments - attribute ignored}}
+  [[intelfpga::disable_loop_pipelining(0)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+  // expected-warning@+1 {{'loop_coalesce' attribute takes no more than 1 argument - attribute ignored}}
+  [[intelfpga::loop_coalesce(2, 3)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+  // expected-warning@+1 {{'max_interleaving' attribute takes at least 1 argument - attribute ignored}}
+  [[intelfpga::max_interleaving]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+  // expected-warning@+1 {{'max_interleaving' attribute takes no more than 1 argument - attribute ignored}}
+  [[intelfpga::max_interleaving(2, 4)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+  // expected-warning@+1 {{'speculated_iterations' attribute takes at least 1 argument - attribute ignored}}
+  [[intelfpga::speculated_iterations]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+  // expected-warning@+1 {{'speculated_iterations' attribute takes no more than 1 argument - attribute ignored}}
+  [[intelfpga::speculated_iterations(1, 2)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
 }
 
 // Test for incorrect argument value for Intel FPGA loop attributes
 void goo() {
   int a[10];
+  // no diagnostics are expected
+  [[intelfpga::disable_loop_pipelining]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
   // no diagnostics are expected
   [[intelfpga::max_concurrency(0)]]
   for (int i = 0; i != 10; ++i)
@@ -70,9 +101,17 @@ void goo() {
   for (int i = 0; i != 10; ++i)
     a[i] = 0;
   // expected-error@+1 {{'max_concurrency' attribute requires a non-negative integral compile time constant expression}}
-  [[intelfpga::max_concurrency(-1)]]
-  for (int i = 0; i != 10; ++i)
-    a[i] = 0;
+  [[intelfpga::max_concurrency(-1)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+  // expected-error@+1 {{'loop_coalesce' attribute requires a positive integral compile time constant expression}}
+  [[intelfpga::loop_coalesce(0)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+  // expected-error@+1 {{'max_interleaving' attribute requires a non-negative integral compile time constant expression}}
+  [[intelfpga::max_interleaving(-1)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+  // expected-error@+1 {{'speculated_iterations' attribute requires a non-negative integral compile time constant expression}}
+  [[intelfpga::speculated_iterations(-1)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
   // expected-error@+1 {{unknown argument to 'ivdep'. Expected integer or array variable}}
   [[intelfpga::ivdep("test123")]]
   for (int i = 0; i != 10; ++i)
@@ -82,9 +121,17 @@ void goo() {
   for (int i = 0; i != 10; ++i)
     a[i] = 0;
   // expected-error@+1 {{'max_concurrency' attribute requires an integer constant}}
-  [[intelfpga::max_concurrency("test123")]]
-  for (int i = 0; i != 10; ++i)
-    a[i] = 0;
+  [[intelfpga::max_concurrency("test123")]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+  // expected-error@+1 {{'loop_coalesce' attribute requires an integer constant}}
+  [[intelfpga::loop_coalesce("test123")]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+  // expected-error@+1 {{'max_interleaving' attribute requires an integer constant}}
+  [[intelfpga::max_interleaving("test123")]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+  // expected-error@+1 {{'speculated_iterations' attribute requires an integer constant}}
+  [[intelfpga::speculated_iterations("test123")]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
   // expected-error@+1 {{unknown argument to 'ivdep'. Expected integer or array variable}}
   [[intelfpga::ivdep("test123")]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
@@ -135,9 +182,27 @@ void zoo() {
   [[intelfpga::ii(2)]]
   // expected-error@-1 {{duplicate Intel FPGA loop attribute 'ii'}}
   [[intelfpga::max_concurrency(2)]]
-  [[intelfpga::ii(2)]]
-  for (int i = 0; i != 10; ++i)
-    a[i] = 0;
+  [[intelfpga::ii(2)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+  [[intelfpga::disable_loop_pipelining]]
+  // expected-error@-1 {{duplicate Intel FPGA loop attribute 'disable_loop_pipelining'}}
+  [[intelfpga::disable_loop_pipelining]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+  [[intelfpga::loop_coalesce(2)]]
+  // expected-error@-1 {{duplicate Intel FPGA loop attribute 'loop_coalesce'}}
+  [[intelfpga::max_interleaving(1)]]
+  [[intelfpga::loop_coalesce]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+  [[intelfpga::max_interleaving(1)]]
+  // expected-error@-1 {{duplicate Intel FPGA loop attribute 'max_interleaving'}}
+  [[intelfpga::speculated_iterations(1)]]
+  [[intelfpga::max_interleaving(4)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+  [[intelfpga::speculated_iterations(1)]]
+  // expected-error@-1 {{duplicate Intel FPGA loop attribute 'speculated_iterations'}}
+  [[intelfpga::loop_coalesce]]
+  [[intelfpga::speculated_iterations(2)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
 
   [[intelfpga::ivdep]]
   // expected-warning@+2 {{ignoring redundant Intel FPGA loop attribute 'ivdep': safelen INF >= safelen INF}}
@@ -193,6 +258,35 @@ void zoo() {
   [[intelfpga::ivdep(a, 3)]]
   for (int i = 0; i != 10; ++i)
     a[i] = 0;
+}
+
+// Test for Intel FPGA loop attributes compatibility
+void loop_attrs_compatibility() {
+  int a[10];
+  // no diagnostics are expected
+  [[intelfpga::disable_loop_pipelining]]
+  [[intelfpga::loop_coalesce]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+  // expected-error@+1 {{disable_loop_pipelining and max_interleaving attributes are not compatible}}
+  [[intelfpga::disable_loop_pipelining]]
+  [[intelfpga::max_interleaving(0)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+  // expected-error@+1 {{disable_loop_pipelining and speculated_iterations attributes are not compatible}}
+  [[intelfpga::speculated_iterations(0)]]
+  [[intelfpga::disable_loop_pipelining]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+  // expected-error@+1 {{disable_loop_pipelining and max_concurrency attributes are not compatible}}
+  [[intelfpga::disable_loop_pipelining]]
+  [[intelfpga::max_concurrency(0)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+  // expected-error@+1 {{disable_loop_pipelining and ii attributes are not compatible}}
+  [[intelfpga::ii(10)]]
+  [[intelfpga::disable_loop_pipelining]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+  // expected-error@+1 {{disable_loop_pipelining and ivdep attributes are not compatible}}
+  [[intelfpga::disable_loop_pipelining]]
+  [[intelfpga::ivdep]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
 }
 
 template<int A, int B, int C>
@@ -270,6 +364,7 @@ int main() {
     boo();
     goo();
     zoo();
+    loop_attrs_compatibility();
     ivdep_dependent<4, 2, 1>();
     //expected-note@-1 +{{in instantiation of function template specialization}}
     ivdep_dependent<2, 4, -1>();

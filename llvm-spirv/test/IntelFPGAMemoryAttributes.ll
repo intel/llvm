@@ -38,7 +38,7 @@ target triple = "spir64-unknown-linux"
 ; CHECK-LLVM: [[STR2:@[0-9_.]+]] = {{.*}}{register:1}
 ; CHECK-LLVM: [[STR3:@[0-9_.]+]] = {{.*}}{memory:BLOCK_RAM}
 ; CHECK-LLVM: [[STR4:@[0-9_.]+]] = {{.*}}{memory:DEFAULT}{bankwidth:8}
-; CHECK-LLVM: [[STR5:@[0-9_.]+]] = {{.*}}{memory:DEFAULT}{max_private_copies:4}
+; CHECK-LLVM: [[STR5:@[0-9_.]+]] = {{.*}}{memory:DEFAULT}{private_copies:4}
 ; CHECK-LLVM: [[STR6:@[0-9_.]+]] = {{.*}}{memory:DEFAULT}{pump:1}
 ; CHECK-LLVM: [[STR7:@[0-9_.]+]] = {{.*}}{memory:DEFAULT}{pump:2}
 ; CHECK-LLVM: [[STR8:@[0-9_.]+]] = {{.*}}{memory:DEFAULT}{merge:foo:depth}
@@ -51,7 +51,7 @@ target triple = "spir64-unknown-linux"
 @.str.2 = private unnamed_addr constant [13 x i8] c"{register:1}\00", section "llvm.metadata"
 @.str.3 = private unnamed_addr constant [19 x i8] c"{memory:BLOCK_RAM}\00", section "llvm.metadata"
 @.str.4 = private unnamed_addr constant [30 x i8] c"{memory:DEFAULT}{bankwidth:8}\00", section "llvm.metadata"
-@.str.5 = private unnamed_addr constant [39 x i8] c"{memory:DEFAULT}{max_private_copies:4}\00", section "llvm.metadata"
+@.str.5 = private unnamed_addr constant [35 x i8] c"{memory:DEFAULT}{private_copies:4}\00", section "llvm.metadata"
 @.str.6 = private unnamed_addr constant [25 x i8] c"{memory:DEFAULT}{pump:1}\00", section "llvm.metadata"
 @.str.7 = private unnamed_addr constant [25 x i8] c"{memory:DEFAULT}{pump:2}\00", section "llvm.metadata"
 @.str.8 = private unnamed_addr constant [34 x i8] c"{memory:DEFAULT}{merge:foo:depth}\00", section "llvm.metadata"
@@ -124,8 +124,8 @@ entry:
   ; CHECK-LLVM: call void @llvm.var.annotation(i8* [[VAR4:%[a-zA-Z0-9_]+]], i8* getelementptr inbounds ([30 x i8], [30 x i8]* [[STR4]], i32 0, i32 0), i8* undef, i32 undef)
   call void @llvm.var.annotation(i8* %var_four4, i8* getelementptr inbounds ([30 x i8], [30 x i8]* @.str.4, i32 0, i32 0), i8* getelementptr inbounds ([13 x i8], [13 x i8]* @.str.1, i32 0, i32 0), i32 5)
   call void @llvm.lifetime.start.p0i8(i64 1, i8* %var_five) #4
-  ; CHECK-LLVM: call void @llvm.var.annotation(i8* [[VAR5:%[a-zA-Z0-9_]+]], i8* getelementptr inbounds ([39 x i8], [39 x i8]* [[STR5]], i32 0, i32 0), i8* undef, i32 undef)
-  call void @llvm.var.annotation(i8* %var_five, i8* getelementptr inbounds ([39 x i8], [39 x i8]* @.str.5, i32 0, i32 0), i8* getelementptr inbounds ([13 x i8], [13 x i8]* @.str.1, i32 0, i32 0), i32 6)
+  ; CHECK-LLVM: call void @llvm.var.annotation(i8* [[VAR5:%[a-zA-Z0-9_]+]], i8* getelementptr inbounds ([35 x i8], [35 x i8]* [[STR5]], i32 0, i32 0), i8* undef, i32 undef)
+  call void @llvm.var.annotation(i8* %var_five, i8* getelementptr inbounds ([35 x i8], [35 x i8]* @.str.5, i32 0, i32 0), i8* getelementptr inbounds ([13 x i8], [13 x i8]* @.str.1, i32 0, i32 0), i32 6)
   %4 = bitcast i32* %var_six to i8*
   call void @llvm.lifetime.start.p0i8(i64 4, i8* %4) #4
   %var_six6 = bitcast i32* %var_six to i8*

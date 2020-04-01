@@ -141,6 +141,7 @@ inline bool isValid(spv::ExecutionMode V) {
   case ExecutionModeSubgroupSize:
   case ExecutionModeSubgroupsPerWorkgroup:
   case ExecutionModeMaxWorkgroupSizeINTEL:
+  case ExecutionModeNoGlobalOffsetINTEL:
   case ExecutionModeMaxWorkDimINTEL:
   case ExecutionModeNumSIMDWorkitemsINTEL:
     return true;
@@ -892,6 +893,9 @@ inline bool isValid(spv::Op V) {
   case OpSubgroupImageBlockWriteINTEL:
   case OpSubgroupImageMediaBlockReadINTEL:
   case OpSubgroupImageMediaBlockWriteINTEL:
+  case OpAsmTargetINTEL:
+  case OpAsmINTEL:
+  case OpAsmCallINTEL:
   case OpVmeImageINTEL:
   case OpTypeVmeImageINTEL:
   case OpTypeAvcImePayloadINTEL:
@@ -1058,7 +1062,9 @@ inline bool isValidLoopControlMask(SPIRVWord Mask) {
   ValidMask |= LoopControlPartialCountMask;
   ValidMask |= LoopControlDependencyInfiniteMask;
   ValidMask |= LoopControlDependencyLengthMask;
-  ValidMask |= LoopControlExtendedControlsMask;
+  ValidMask |= LoopControlInitiationIntervalINTEL;
+  ValidMask |= LoopControlMaxConcurrencyINTEL;
+  ValidMask |= LoopControlDependencyArrayINTEL;
 
   return (Mask & ~ValidMask) == 0;
 }

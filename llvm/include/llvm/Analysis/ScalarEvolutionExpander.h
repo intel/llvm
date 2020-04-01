@@ -16,14 +16,17 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/Optional.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/Analysis/ScalarEvolutionExpressions.h"
 #include "llvm/Analysis/ScalarEvolutionNormalization.h"
 #include "llvm/Analysis/TargetFolder.h"
+#include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/ValueHandle.h"
+#include "llvm/Support/CommandLine.h"
 
 namespace llvm {
-  class TargetTransformInfo;
+  extern cl::opt<unsigned> SCEVCheapExpansionBudget;
 
   /// Return true if the given expression is safe to expand in the sense that
   /// all materialized values are safe to speculate anywhere their operands are
@@ -171,16 +174,31 @@ namespace llvm {
       ChainedPhis.clear();
     }
 
-    /// Return true for expressions that may incur non-trivial cost to evaluate
-    /// at runtime.
+    /// Return true for expressions that can't be evaluated at runtime
+    /// within given \b Budget.
     ///
-    /// At is an optional parameter which specifies point in code where user is
-    /// going to expand this expression. Sometimes this knowledge can lead to a
-    /// more accurate cost estimation.
-    bool isHighCostExpansion(const SCEV *Expr, Loop *L,
-                             const Instruction *At = nullptr) {
+    /// At is a parameter which specifies point in code where user is going to
+    /// expand this expression. Sometimes this knowledge can lead to
+    /// a less pessimistic cost estimation.
+    bool isHighCostExpansion(const SCEV *Expr, Loop *L, unsigned Budget,
+                             const TargetTransformInfo *TTI,
+                             const Instruction *At) {
+      assert(TTI && "This function requires TTI to be provided.");
+      assert(At && "This function requires At instruction to be provided.");
+      if (!TTI)      // In assert-less builds, avoid crashing
+        return true; // by always claiming to be high-cost.
+      SmallVector<const SCEV *, 8> Worklist;
       SmallPtrSet<const SCEV *, 8> Processed;
-      return isHighCostExpansionHelper(Expr, L, At, Processed);
+      int BudgetRemaining = Budget * TargetTransformInfo::TCC_Basic;
+      Worklist.emplace_back(Expr);
+      while (!Worklist.empty()) {
+        const SCEV *S = Worklist.pop_back_val();
+        if (isHighCostExpansionHelper(S, L, *At, BudgetRemaining, *TTI,
+                                      Processed, Worklist))
+          return true;
+      }
+      assert(BudgetRemaining >= 0 && "Should have returned from inner loop.");
+      return false;
     }
 
     /// This method returns the canonical induction variable of the specified
@@ -323,8 +341,10 @@ namespace llvm {
 
     /// Recursive helper function for isHighCostExpansion.
     bool isHighCostExpansionHelper(const SCEV *S, Loop *L,
-                                   const Instruction *At,
-                                   SmallPtrSetImpl<const SCEV *> &Processed);
+                                   const Instruction &At, int &BudgetRemaining,
+                                   const TargetTransformInfo &TTI,
+                                   SmallPtrSetImpl<const SCEV *> &Processed,
+                                   SmallVectorImpl<const SCEV *> &Worklist);
 
     /// Insert the specified binary operator, doing a small amount of work to
     /// avoid inserting an obviously redundant operation, and hoisting to an

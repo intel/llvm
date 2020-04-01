@@ -6,38 +6,42 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/device_impl.hpp>
-#include <CL/sycl/detail/platform_impl.hpp>
-#include <CL/sycl/detail/platform_info.hpp>
 #include <CL/sycl/device.hpp>
 #include <detail/config.hpp>
+#include <detail/device_impl.hpp>
+#include <detail/platform_impl.hpp>
+#include <detail/platform_info.hpp>
 
 #include <algorithm>
 #include <cstring>
 #include <regex>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
 vector_class<platform> platform_impl::get_platforms() {
   vector_class<platform> Platforms;
+  vector_class<plugin> Plugins = RT::initialize();
 
-  pi_uint32 NumPlatforms = 0;
-  PI_CALL(piPlatformsGet)(0, nullptr, &NumPlatforms);
   info::device_type ForcedType = detail::get_forced_type();
+  for (unsigned int i = 0; i < Plugins.size(); i++) {
 
-  if (NumPlatforms) {
-    vector_class<RT::PiPlatform> PiPlatforms(NumPlatforms);
-    PI_CALL(piPlatformsGet)(NumPlatforms, PiPlatforms.data(), nullptr);
+    pi_uint32 NumPlatforms = 0;
+    Plugins[i].call<PiApiKind::piPlatformsGet>(0, nullptr, &NumPlatforms);
 
-    for (const auto &PiPlatform : PiPlatforms) {
-      platform Platform = detail::createSyclObjFromImpl<platform>(
-          std::make_shared<platform_impl>(PiPlatform));
-      // Skip platforms which do not contain requested device
-      // types
-      if (!Platform.get_devices(ForcedType).empty())
-        Platforms.push_back(Platform);
+    if (NumPlatforms) {
+      vector_class<RT::PiPlatform> PiPlatforms(NumPlatforms);
+      Plugins[i].call<PiApiKind::piPlatformsGet>(NumPlatforms,
+                                                 PiPlatforms.data(), nullptr);
+
+      for (const auto &PiPlatform : PiPlatforms) {
+        platform Platform = detail::createSyclObjFromImpl<platform>(
+            std::make_shared<platform_impl>(PiPlatform, Plugins[i]));
+        // Skip platforms which do not contain requested device types
+        if (!Platform.get_devices(ForcedType).empty())
+          Platforms.push_back(Platform);
+      }
     }
   }
 
@@ -62,7 +66,7 @@ struct DevDescT {
 };
 
 static std::vector<DevDescT> getWhiteListDesc() {
-  const char *str = SYCLConfig<SYCL_DEVICE_WHITE_LIST>::get();
+  const char *str = SYCLConfig<SYCL_DEVICE_ALLOWLIST>::get();
   if (!str)
     return {};
 
@@ -97,13 +101,15 @@ static std::vector<DevDescT> getWhiteListDesc() {
     }
 
     if (':' != *str)
-      throw sycl::runtime_error("Malformed device white list");
+      throw sycl::runtime_error("Malformed device white list",
+                                PI_INVALID_VALUE);
 
     // Skip ':'
     str += 1;
 
     if ('{' != *str || '{' != *(str + 1))
-      throw sycl::runtime_error("Malformed device white list");
+      throw sycl::runtime_error("Malformed device white list",
+                                PI_INVALID_VALUE);
 
     // Skip opening sequence "{{"
     str += 2;
@@ -115,7 +121,8 @@ static std::vector<DevDescT> getWhiteListDesc() {
       ++str;
 
     if ('\0' == *str)
-      throw sycl::runtime_error("Malformed device white list");
+      throw sycl::runtime_error("Malformed device white list",
+                                PI_INVALID_VALUE);
 
     *size = str - *valuePtr;
 
@@ -129,7 +136,8 @@ static std::vector<DevDescT> getWhiteListDesc() {
     if ('|' == *str)
       decDescs.emplace_back();
     else if (',' != *str)
-      throw sycl::runtime_error("Malformed device white list");
+      throw sycl::runtime_error("Malformed device white list",
+                                PI_INVALID_VALUE);
 
     ++str;
   }
@@ -138,27 +146,29 @@ static std::vector<DevDescT> getWhiteListDesc() {
 }
 
 static void filterWhiteList(vector_class<RT::PiDevice> &PiDevices,
-                            RT::PiPlatform PiPlatform) {
+                            RT::PiPlatform PiPlatform,
+                            const plugin &Plugin) {
   const std::vector<DevDescT> WhiteList(getWhiteListDesc());
   if (WhiteList.empty())
     return;
 
   const string_class PlatformName =
       sycl::detail::get_platform_info<string_class, info::platform::name>::get(
-          PiPlatform);
+          PiPlatform, Plugin);
 
   const string_class PlatformVer =
       sycl::detail::get_platform_info<string_class,
-                                      info::platform::version>::get(PiPlatform);
+                                      info::platform::version>::get(PiPlatform,
+                                                                    Plugin);
 
   int InsertIDx = 0;
   for (RT::PiDevice Device : PiDevices) {
     const string_class DeviceName =
         sycl::detail::get_device_info<string_class, info::device::name>::get(
-            Device);
+            Device, Plugin);
 
     const string_class DeviceDriverVer = sycl::detail::get_device_info<
-        string_class, info::device::driver_version>::get(Device);
+        string_class, info::device::driver_version>::get(Device, Plugin);
 
     for (const DevDescT &Desc : WhiteList) {
       if (nullptr != Desc.platformName &&
@@ -205,25 +215,29 @@ platform_impl::get_devices(info::device_type DeviceType) const {
     return Res;
 
   pi_uint32 NumDevices;
-  PI_CALL(piDevicesGet)(MPlatform, pi::cast<RT::PiDeviceType>(DeviceType), 0,
-                        pi::cast<RT::PiDevice *>(nullptr), &NumDevices);
+  const detail::plugin &Plugin = getPlugin();
+  Plugin.call<PiApiKind::piDevicesGet>(
+      MPlatform, pi::cast<RT::PiDeviceType>(DeviceType), 0,
+      pi::cast<RT::PiDevice *>(nullptr), &NumDevices);
 
   if (NumDevices == 0)
     return Res;
 
   vector_class<RT::PiDevice> PiDevices(NumDevices);
   // TODO catch an exception and put it to list of asynchronous exceptions
-  PI_CALL(piDevicesGet)(MPlatform, pi::cast<RT::PiDeviceType>(DeviceType),
-                        NumDevices, PiDevices.data(), nullptr);
+  Plugin.call<PiApiKind::piDevicesGet>(MPlatform,
+                                       pi::cast<RT::PiDeviceType>(DeviceType),
+                                       NumDevices, PiDevices.data(), nullptr);
 
   // Filter out devices that are not present in the white list
-  if (SYCLConfig<SYCL_DEVICE_WHITE_LIST>::get())
-    filterWhiteList(PiDevices, MPlatform);
+  if (SYCLConfig<SYCL_DEVICE_ALLOWLIST>::get())
+    filterWhiteList(PiDevices, MPlatform, this->getPlugin());
 
   std::transform(PiDevices.begin(), PiDevices.end(), std::back_inserter(Res),
-                 [](const RT::PiDevice &PiDevice) -> device {
+                 [this](const RT::PiDevice &PiDevice) -> device {
                    return detail::createSyclObjFromImpl<device>(
-                       std::make_shared<device_impl>(PiDevice));
+                       std::make_shared<device_impl>(
+                           PiDevice, std::make_shared<platform_impl>(*this)));
                  });
 
   return Res;
@@ -235,7 +249,7 @@ bool platform_impl::has_extension(const string_class &ExtensionName) const {
 
   string_class AllExtensionNames =
       get_platform_info<string_class, info::platform::extensions>::get(
-          MPlatform);
+          MPlatform, getPlugin());
   return (AllExtensionNames.find(ExtensionName) != std::string::npos);
 }
 
@@ -247,7 +261,7 @@ platform_impl::get_info() const {
 
   return get_platform_info<
       typename info::param_traits<info::platform, param>::return_type,
-      param>::get(this->getHandleRef());
+      param>::get(this->getHandleRef(), getPlugin());
 }
 
 #define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
@@ -258,4 +272,4 @@ platform_impl::get_info() const {
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

@@ -23,6 +23,7 @@
 #include "llvm/Option/Option.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/Host.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Process.h"
 
@@ -82,7 +83,7 @@ static cl::TokenizerCallback getQuotingStyle(opt::InputArgList &args) {
       return cl::TokenizeWindowsCommandLine;
     return cl::TokenizeGNUCommandLine;
   }
-  if (Triple(sys::getProcessTriple()).getOS() == Triple::Win32)
+  if (Triple(sys::getProcessTriple()).isOSWindows())
     return cl::TokenizeWindowsCommandLine;
   return cl::TokenizeGNUCommandLine;
 }
@@ -160,7 +161,7 @@ void printHelp() {
 static std::string rewritePath(StringRef s) {
   if (fs::exists(s))
     return relativeToRoot(s);
-  return s;
+  return std::string(s);
 }
 
 // Reconstructs command line arguments so that so that you can re-run
@@ -199,7 +200,7 @@ std::string createResponseFile(const opt::InputArgList &args) {
       os << toString(*arg) << "\n";
     }
   }
-  return data.str();
+  return std::string(data.str());
 }
 
 // Find a file by concatenating given paths. If a resulting path
@@ -212,7 +213,7 @@ static Optional<std::string> findFile(StringRef path1, const Twine &path2) {
     path::append(s, path1, path2);
 
   if (fs::exists(s))
-    return s.str().str();
+    return std::string(s);
   return None;
 }
 

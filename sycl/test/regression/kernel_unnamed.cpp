@@ -1,8 +1,13 @@
-// RUN: %clangxx -fsycl %s -o %t.out -fsycl-unnamed-lambda
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out -fsycl-unnamed-lambda
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
+
+// XFAIL: cuda
+// Currently unsupported on cuda due to a lambda name being generated with "->"
+// which the backend can't accept.
+// fatal error: error in backend: Symbol name with unsupported characters
 
 //==-- kernel_unnamed.cpp - SYCL kernel naming variants test ------------==//
 //

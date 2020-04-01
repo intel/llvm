@@ -1,4 +1,4 @@
-//===-- Symtab.cpp ----------------------------------------------*- C++ -*-===//
+//===-- Symtab.cpp --------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -28,7 +28,7 @@ using namespace lldb;
 using namespace lldb_private;
 
 Symtab::Symtab(ObjectFile *objfile)
-    : m_objfile(objfile), m_symbols(), m_file_addr_to_index(),
+    : m_objfile(objfile), m_symbols(), m_file_addr_to_index(*this),
       m_name_to_index(), m_mutex(), m_file_addr_to_index_computed(false),
       m_name_indexes_computed(false) {}
 
@@ -299,7 +299,7 @@ void Symtab::InitNameIndexes() {
 
       // Symbol name strings that didn't match a Mangled::ManglingScheme, are
       // stored in the demangled field.
-      if (ConstString name = mangled.GetDemangledName(symbol->GetLanguage())) {
+      if (ConstString name = mangled.GetDemangledName()) {
         m_name_to_index.Append(name, value);
 
         if (symbol->ContainsLinkerAnnotations()) {
@@ -425,7 +425,7 @@ void Symtab::AppendSymbolNamesToMap(const IndexCollection &indexes,
 
       const Mangled &mangled = symbol->GetMangled();
       if (add_demangled) {
-        if (ConstString name = mangled.GetDemangledName(symbol->GetLanguage()))
+        if (ConstString name = mangled.GetDemangledName())
           name_to_index_map.Append(name, value);
       }
 

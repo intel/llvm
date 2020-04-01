@@ -1,0 +1,54 @@
+add_libc_testsuite(libc_signal_unittests)
+
+add_libc_unittest(
+  raise_test
+  SUITE
+    libc_signal_unittests
+  SRCS
+    raise_test.cpp
+  DEPENDS
+    raise
+    signal_h
+)
+
+add_libc_unittest(
+  sigaction_test
+  SUITE
+    libc_signal_unittests
+  SRCS
+    sigaction_test.cpp
+  DEPENDS
+    sigaction
+    raise
+    signal_h
+    errno_h
+    __errno_location
+    __restore
+)
+
+add_libc_unittest(
+  sigprocmask_test
+  SUITE
+    libc_signal_unittests
+  SRCS
+    sigprocmask_test.cpp
+  DEPENDS
+    raise
+    sigprocmask
+    sigaddset
+    sigemptyset
+    signal_h
+    __errno_location
+)
+
+add_libc_unittest(
+  sigaddset_test
+  SUITE
+    libc_signal_unittests
+  SRCS
+    sigaddset_test.cpp
+  DEPENDS
+    sigaddset
+    signal_h
+    __errno_location
+)

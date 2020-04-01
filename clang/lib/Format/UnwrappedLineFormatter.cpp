@@ -292,6 +292,13 @@ private:
       }
     }
 
+    // Try to merge a CSharp property declaration like `{ get; private set }`.
+    if (Style.isCSharp()) {
+      unsigned CSPA = tryMergeCSharpPropertyAccessor(I, E, Limit);
+      if (CSPA > 0)
+        return CSPA;
+    }
+
     // Try to merge a function block with left brace unwrapped
     if (TheLine->Last->is(TT_FunctionLBrace) &&
         TheLine->First != TheLine->Last) {
@@ -404,7 +411,7 @@ private:
                  ? tryMergeSimpleControlStatement(I, E, Limit)
                  : 0;
     }
-    if (TheLine->First->isOneOf(tok::kw_for, tok::kw_while)) {
+    if (TheLine->First->isOneOf(tok::kw_for, tok::kw_while, tok::kw_do)) {
       return Style.AllowShortLoopsOnASingleLine
                  ? tryMergeSimpleControlStatement(I, E, Limit)
                  : 0;
@@ -419,6 +426,64 @@ private:
       return tryMergeSimplePPDirective(I, E, Limit);
     }
     return 0;
+  }
+
+  // true for lines of the form [access-modifier] {get,set} [;]
+  bool isMergeablePropertyAccessor(const AnnotatedLine *Line) {
+    auto *Tok = Line->First;
+    if (!Tok)
+      return false;
+
+    if (Tok->isOneOf(tok::kw_public, tok::kw_protected, tok::kw_private,
+                     Keywords.kw_internal))
+      Tok = Tok->Next;
+
+    if (!Tok || (Tok->TokenText != "get" && Tok->TokenText != "set"))
+      return false;
+
+    if (!Tok->Next || Tok->Next->is(tok::semi))
+      return true;
+
+    return false;
+  }
+
+  unsigned tryMergeCSharpPropertyAccessor(
+      SmallVectorImpl<AnnotatedLine *>::const_iterator I,
+      SmallVectorImpl<AnnotatedLine *>::const_iterator E, unsigned /*Limit*/) {
+
+    auto CurrentLine = I;
+    // Does line start with `{`
+    if (!(*CurrentLine)->Last || (*CurrentLine)->Last->isNot(TT_FunctionLBrace))
+      return 0;
+    ++CurrentLine;
+
+    unsigned MergedLines = 0;
+    bool HasGetOrSet = false;
+    while (CurrentLine != E) {
+      bool LineIsGetOrSet = isMergeablePropertyAccessor(*CurrentLine);
+      HasGetOrSet = HasGetOrSet || LineIsGetOrSet;
+      if (LineIsGetOrSet) {
+        ++CurrentLine;
+        ++MergedLines;
+        continue;
+      }
+      auto *Tok = (*CurrentLine)->First;
+      if (Tok && Tok->is(tok::r_brace)) {
+        ++CurrentLine;
+        ++MergedLines;
+        // See if the next line is a default value so that we can merge `{ get;
+        // set } = 0`
+        if (CurrentLine != E && (*CurrentLine)->First &&
+            (*CurrentLine)->First->is(tok::equal)) {
+          ++MergedLines;
+        }
+        break;
+      }
+      // Not a '}' or a get/set line so do not merege lines.
+      return 0;
+    }
+
+    return HasGetOrSet ? MergedLines : 0;
   }
 
   unsigned
@@ -449,7 +514,10 @@ private:
       return 0;
     Limit = limitConsideringMacros(I + 1, E, Limit);
     AnnotatedLine &Line = **I;
-    if (Line.Last->isNot(tok::r_paren))
+    if (!Line.First->is(tok::kw_do) && Line.Last->isNot(tok::r_paren))
+      return 0;
+    // Only merge do while if do is the only statement on the line.
+    if (Line.First->is(tok::kw_do) && !Line.Last->is(tok::kw_do))
       return 0;
     if (1 + I[1]->Last->TotalLength > Limit)
       return 0;
@@ -593,9 +661,10 @@ private:
         FormatToken *RecordTok = Line.First;
         // Skip record modifiers.
         while (RecordTok->Next &&
-               RecordTok->isOneOf(tok::kw_typedef, tok::kw_export,
-                                  Keywords.kw_declare, Keywords.kw_abstract,
-                                  tok::kw_default))
+               RecordTok->isOneOf(
+                   tok::kw_typedef, tok::kw_export, Keywords.kw_declare,
+                   Keywords.kw_abstract, tok::kw_default, tok::kw_public,
+                   tok::kw_private, tok::kw_protected, Keywords.kw_internal))
           RecordTok = RecordTok->Next;
         if (RecordTok &&
             RecordTok->isOneOf(tok::kw_class, tok::kw_union, tok::kw_struct,

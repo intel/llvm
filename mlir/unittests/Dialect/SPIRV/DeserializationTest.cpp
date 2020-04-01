@@ -1,6 +1,6 @@
 //===- DeserializationTest.cpp - SPIR-V Deserialization Tests -------------===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -13,6 +13,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/SPIRV/SPIRVBinaryUtils.h"
+#include "mlir/Dialect/SPIRV/SPIRVDialect.h"
 #include "mlir/Dialect/SPIRV/SPIRVOps.h"
 #include "mlir/Dialect/SPIRV/Serialization.h"
 #include "mlir/IR/Diagnostics.h"
@@ -22,6 +23,9 @@
 #include <memory>
 
 using namespace mlir;
+
+// Load the SPIRV dialect
+static DialectRegistration<spirv::SPIRVDialect> SPIRVRegistration;
 
 using ::testing::StrEq;
 
@@ -51,7 +55,7 @@ protected:
     ASSERT_NE(nullptr, diagnostic.get());
 
     // TODO(antiagainst): check error location too.
-    EXPECT_THAT(diagnostic->str(), StrEq(errorMessage));
+    EXPECT_THAT(diagnostic->str(), StrEq(std::string(errorMessage)));
   }
 
   //===--------------------------------------------------------------------===//
@@ -59,7 +63,9 @@ protected:
   //===--------------------------------------------------------------------===//
 
   /// Adds the SPIR-V module header to `binary`.
-  void addHeader() { spirv::appendModuleHeader(binary, /*idBound=*/0); }
+  void addHeader() {
+    spirv::appendModuleHeader(binary, spirv::Version::V_1_0, /*idBound=*/0);
+  }
 
   /// Adds the SPIR-V instruction into `binary`.
   void addInstruction(spirv::Opcode op, ArrayRef<uint32_t> operands) {

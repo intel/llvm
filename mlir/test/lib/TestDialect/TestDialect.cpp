@@ -1,12 +1,13 @@
 //===- TestDialect.cpp - MLIR Dialect for Testing -------------------------===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 #include "TestDialect.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Function.h"
 #include "mlir/IR/Module.h"
 #include "mlir/IR/PatternMatch.h"
@@ -42,7 +43,7 @@ struct TestOpAsmInterface : public OpAsmDialectInterface {
     auto args = block->getArguments();
     auto e = std::min(arrayAttr.size(), args.size());
     for (unsigned i = 0; i < e; ++i) {
-      if (auto strAttr = arrayAttr.getValue()[i].dyn_cast<StringAttr>())
+      if (auto strAttr = arrayAttr[i].dyn_cast<StringAttr>())
         setNameFn(args[i], strAttr.getValue());
     }
   }
@@ -100,7 +101,7 @@ struct TestInlinerInterface : public DialectInlinerInterface {
     // Replace the values directly with the return operands.
     assert(returnOp.getNumOperands() == valuesToRepl.size());
     for (const auto &it : llvm::enumerate(returnOp.getOperands()))
-      valuesToRepl[it.index()]->replaceAllUsesWith(it.value());
+      valuesToRepl[it.index()].replaceAllUsesWith(it.value());
   }
 
   /// Attempt to materialize a conversion for a type mismatch between a call
@@ -112,8 +113,10 @@ struct TestInlinerInterface : public DialectInlinerInterface {
                                        Type resultType,
                                        Location conversionLoc) const final {
     // Only allow conversion for i16/i32 types.
-    if (!(resultType.isInteger(16) || resultType.isInteger(32)) ||
-        !(input->getType().isInteger(16) || input->getType().isInteger(32)))
+    if (!(resultType.isSignlessInteger(16) ||
+          resultType.isSignlessInteger(32)) ||
+        !(input.getType().isSignlessInteger(16) ||
+          input.getType().isSignlessInteger(32)))
       return nullptr;
     return builder.create<TestCastOp>(conversionLoc, resultType, input);
   }
@@ -125,7 +128,7 @@ struct TestInlinerInterface : public DialectInlinerInterface {
 //===----------------------------------------------------------------------===//
 
 TestDialect::TestDialect(MLIRContext *context)
-    : Dialect(getDialectName(), context) {
+    : Dialect(getDialectNamespace(), context) {
   addOperations<
 #define GET_OP_LIST
 #include "TestOps.cpp.inc"
@@ -159,6 +162,17 @@ TestDialect::verifyRegionResultAttribute(Operation *op, unsigned regionIndex,
     return op->emitError() << "invalid to use 'test.invalid_attr'";
   return success();
 }
+
+//===----------------------------------------------------------------------===//
+// TestBranchOp
+//===----------------------------------------------------------------------===//
+
+Optional<OperandRange> TestBranchOp::getSuccessorOperands(unsigned index) {
+  assert(index == 0 && "invalid successor index");
+  return getOperands();
+}
+
+bool TestBranchOp::canEraseSuccessorOperand() { return true; }
 
 //===----------------------------------------------------------------------===//
 // Test IsolatedRegionOp - parse passthrough region arguments.
@@ -269,10 +283,10 @@ struct TestRemoveOpWithInnerOps
     : public OpRewritePattern<TestOpWithRegionPattern> {
   using OpRewritePattern<TestOpWithRegionPattern>::OpRewritePattern;
 
-  PatternMatchResult matchAndRewrite(TestOpWithRegionPattern op,
-                                     PatternRewriter &rewriter) const override {
+  LogicalResult matchAndRewrite(TestOpWithRegionPattern op,
+                                PatternRewriter &rewriter) const override {
     rewriter.eraseOp(op);
-    return matchSuccess();
+    return success();
   }
 };
 } // end anonymous namespace
@@ -295,17 +309,91 @@ LogicalResult TestOpWithVariadicResultsAndFolder::fold(
 }
 
 LogicalResult mlir::OpWithInferTypeInterfaceOp::inferReturnTypes(
-    llvm::Optional<Location> location, ValueRange operands,
+    MLIRContext *, Optional<Location> location, ValueRange operands,
     ArrayRef<NamedAttribute> attributes, RegionRange regions,
-    SmallVectorImpl<Type> &inferedReturnTypes) {
-  if (operands[0]->getType() != operands[1]->getType()) {
+    SmallVectorImpl<Type> &inferredReturnTypes) {
+  if (operands[0].getType() != operands[1].getType()) {
     return emitOptionalError(location, "operand type mismatch ",
-                             operands[0]->getType(), " vs ",
-                             operands[1]->getType());
+                             operands[0].getType(), " vs ",
+                             operands[1].getType());
   }
-  inferedReturnTypes.assign({operands[0]->getType()});
+  inferredReturnTypes.assign({operands[0].getType()});
   return success();
 }
+
+LogicalResult OpWithShapedTypeInferTypeInterfaceOp::inferReturnTypeComponents(
+    MLIRContext *context, Optional<Location> location, ValueRange operands,
+    ArrayRef<NamedAttribute> attributes, RegionRange regions,
+    SmallVectorImpl<ShapedTypeComponents> &inferredReturnShapes) {
+  // Create return type consisting of the last element of the first operand.
+  auto operandType = *operands.getTypes().begin();
+  auto sval = operandType.dyn_cast<ShapedType>();
+  if (!sval) {
+    return emitOptionalError(location, "only shaped type operands allowed");
+  }
+  int64_t dim =
+      sval.hasRank() ? sval.getShape().front() : ShapedType::kDynamicSize;
+  auto type = IntegerType::get(17, context);
+  inferredReturnShapes.push_back(ShapedTypeComponents({dim}, type));
+  return success();
+}
+
+LogicalResult OpWithShapedTypeInferTypeInterfaceOp::reifyReturnTypeShapes(
+    OpBuilder &builder, llvm::SmallVectorImpl<Value> &shapes) {
+  shapes = SmallVector<Value, 1>{
+      builder.createOrFold<mlir::DimOp>(getLoc(), getOperand(0), 0)};
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// Test SideEffect interfaces
+//===----------------------------------------------------------------------===//
+
+namespace {
+/// A test resource for side effects.
+struct TestResource : public SideEffects::Resource::Base<TestResource> {
+  StringRef getName() final { return "<Test>"; }
+};
+} // end anonymous namespace
+
+void SideEffectOp::getEffects(
+    SmallVectorImpl<MemoryEffects::EffectInstance> &effects) {
+  // Check for an effects attribute on the op instance.
+  ArrayAttr effectsAttr = getAttrOfType<ArrayAttr>("effects");
+  if (!effectsAttr)
+    return;
+
+  // If there is one, it is an array of dictionary attributes that hold
+  // information on the effects of this operation.
+  for (Attribute element : effectsAttr) {
+    DictionaryAttr effectElement = element.cast<DictionaryAttr>();
+
+    // Get the specific memory effect.
+    MemoryEffects::Effect *effect =
+        llvm::StringSwitch<MemoryEffects::Effect *>(
+            effectElement.get("effect").cast<StringAttr>().getValue())
+            .Case("allocate", MemoryEffects::Allocate::get())
+            .Case("free", MemoryEffects::Free::get())
+            .Case("read", MemoryEffects::Read::get())
+            .Case("write", MemoryEffects::Write::get());
+
+    // Check for a result to affect.
+    Value value;
+    if (effectElement.get("on_result"))
+      value = getResult();
+
+    // Check for a non-default resource to use.
+    SideEffects::Resource *resource = SideEffects::DefaultResource::get();
+    if (effectElement.get("test_resource"))
+      resource = TestResource::get();
+
+    effects.emplace_back(effect, value, resource);
+  }
+}
+
+//===----------------------------------------------------------------------===//
+// Dialect Registration
+//===----------------------------------------------------------------------===//
 
 // Static initialization for Test dialect registration.
 static mlir::DialectRegistration<mlir::TestDialect> testDialect;

@@ -342,7 +342,7 @@ public:
 };
 
 char LoopPredicationLegacyPass::ID = 0;
-} // end namespace llvm
+} // end namespace
 
 INITIALIZE_PASS_BEGIN(LoopPredicationLegacyPass, "loop-predication",
                       "Loop predication", false, false)
@@ -358,11 +358,13 @@ Pass *llvm::createLoopPredicationPass() {
 PreservedAnalyses LoopPredicationPass::run(Loop &L, LoopAnalysisManager &AM,
                                            LoopStandardAnalysisResults &AR,
                                            LPMUpdater &U) {
-  const auto &FAM =
-      AM.getResult<FunctionAnalysisManagerLoopProxy>(L, AR).getManager();
   Function *F = L.getHeader()->getParent();
-  auto *BPI = FAM.getCachedResult<BranchProbabilityAnalysis>(*F);
-  LoopPredication LP(&AR.AA, &AR.DT, &AR.SE, &AR.LI, BPI);
+  // For the new PM, we also can't use BranchProbabilityInfo as an analysis
+  // pass. Function analyses need to be preserved across loop transformations
+  // but BPI is not preserved, hence a newly built one is needed.
+  BranchProbabilityInfo BPI;
+  BPI.calculate(*F, AR.LI);
+  LoopPredication LP(&AR.AA, &AR.DT, &AR.SE, &AR.LI, &BPI);
   if (!LP.runOnLoop(&L))
     return PreservedAnalyses::all();
 
@@ -1020,17 +1022,6 @@ static const SCEV *getMinAnalyzeableBackedgeTakenCount(ScalarEvolution &SE,
   return SE.getUMinFromMismatchedTypes(ExitCounts);
 }
 
-/// Return true if we can be fairly sure that executing block BB will probably
-/// lead to executing an __llvm_deoptimize.  This is a profitability heuristic,
-/// not a legality constraint.
-static bool isVeryLikelyToDeopt(BasicBlock *BB) {
-  while (BB->getUniqueSuccessor())
-    // Will skip side effects, that's okay
-    BB = BB->getUniqueSuccessor();
-
-  return BB->getTerminatingDeoptimizeCall();
-}
-
 /// This implements an analogous, but entirely distinct transform from the main
 /// loop predication transform.  This one is phrased in terms of using a
 /// widenable branch *outside* the loop to allow us to simplify loop exits in a
@@ -1150,9 +1141,12 @@ bool LoopPredication::predicateLoopExits(Loop *L, SCEVExpander &Rewriter) {
 
     const bool ExitIfTrue = !L->contains(*succ_begin(ExitingBB));
     BasicBlock *ExitBB = BI->getSuccessor(ExitIfTrue ? 0 : 1);
-    if (!isVeryLikelyToDeopt(ExitBB))
-      // Profitability: indicator of rarely/never taken exit
+    if (!ExitBB->getPostdominatingDeoptimizeCall())
       continue;
+
+    /// Here we can be fairly sure that executing this exit will most likely
+    /// lead to executing llvm.experimental.deoptimize.
+    /// This is a profitability heuristic, not a legality constraint.
 
     // If we found a widenable exit condition, do two things:
     // 1) fold the widened exit test into the widenable condition

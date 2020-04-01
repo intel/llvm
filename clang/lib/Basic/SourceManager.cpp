@@ -17,12 +17,12 @@
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManagerInternals.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/None.h"
+#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/ADT/StringSwitch.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/StringSwitch.h"
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/Capacity.h"
 #include "llvm/Support/Compiler.h"
@@ -560,6 +560,70 @@ FileID SourceManager::getNextFileID(FileID FID) const {
 // Methods to create new FileID's and macro expansions.
 //===----------------------------------------------------------------------===//
 
+/// Create a new FileID that represents the specified file
+/// being \#included from the specified IncludePosition.
+///
+/// This translates NULL into standard input.
+FileID SourceManager::createFileID(const FileEntry *SourceFile,
+                                   SourceLocation IncludePos,
+                                   SrcMgr::CharacteristicKind FileCharacter,
+                                   int LoadedID, unsigned LoadedOffset) {
+  assert(SourceFile && "Null source file!");
+  const SrcMgr::ContentCache *IR =
+      getOrCreateContentCache(SourceFile, isSystem(FileCharacter));
+  assert(IR && "getOrCreateContentCache() cannot return NULL");
+  return createFileID(IR, SourceFile->getName(), IncludePos, FileCharacter,
+		      LoadedID, LoadedOffset);
+}
+
+FileID SourceManager::createFileID(FileEntryRef SourceFile,
+                                   SourceLocation IncludePos,
+                                   SrcMgr::CharacteristicKind FileCharacter,
+                                   int LoadedID, unsigned LoadedOffset) {
+  const SrcMgr::ContentCache *IR = getOrCreateContentCache(
+      &SourceFile.getFileEntry(), isSystem(FileCharacter));
+  assert(IR && "getOrCreateContentCache() cannot return NULL");
+  return createFileID(IR, SourceFile.getName(), IncludePos, FileCharacter,
+		      LoadedID, LoadedOffset);
+}
+
+/// Create a new FileID that represents the specified memory buffer.
+///
+/// This does no caching of the buffer and takes ownership of the
+/// MemoryBuffer, so only pass a MemoryBuffer to this once.
+FileID SourceManager::createFileID(std::unique_ptr<llvm::MemoryBuffer> Buffer,
+                                   SrcMgr::CharacteristicKind FileCharacter,
+                                   int LoadedID, unsigned LoadedOffset,
+                                   SourceLocation IncludeLoc) {
+  StringRef Name = Buffer->getBufferIdentifier();
+  return createFileID(
+      createMemBufferContentCache(Buffer.release(), /*DoNotFree*/ false),
+      Name, IncludeLoc, FileCharacter, LoadedID, LoadedOffset);
+}
+
+/// Create a new FileID that represents the specified memory buffer.
+///
+/// This does not take ownership of the MemoryBuffer. The memory buffer must
+/// outlive the SourceManager.
+FileID SourceManager::createFileID(UnownedTag, const llvm::MemoryBuffer *Buffer,
+                                   SrcMgr::CharacteristicKind FileCharacter,
+                                   int LoadedID, unsigned LoadedOffset,
+                                   SourceLocation IncludeLoc) {
+  return createFileID(createMemBufferContentCache(Buffer, /*DoNotFree*/ true),
+		      Buffer->getBufferIdentifier(), IncludeLoc,
+		      FileCharacter, LoadedID, LoadedOffset);
+}
+
+/// Get the FileID for \p SourceFile if it exists. Otherwise, create a
+/// new FileID for the \p SourceFile.
+FileID
+SourceManager::getOrCreateFileID(const FileEntry *SourceFile,
+                                 SrcMgr::CharacteristicKind FileCharacter) {
+  FileID ID = translateFile(SourceFile);
+  return ID.isValid() ? ID : createFileID(SourceFile, SourceLocation(),
+					  FileCharacter);
+}
+
 /// createFileID - Create a new FileID for the specified ContentCache and
 /// include position.  This works regardless of whether the ContentCache
 /// corresponds to a file or some other input source.
@@ -577,13 +641,15 @@ FileID SourceManager::createFileID(const ContentCache *File, StringRef Filename,
     SLocEntryLoaded[Index] = true;
     return FileID::get(LoadedID);
   }
+  unsigned FileSize = File->getSize();
+  if (!(NextLocalOffset + FileSize + 1 > NextLocalOffset &&
+        NextLocalOffset + FileSize + 1 <= CurrentLoadedOffset)) {
+    Diag.Report(IncludePos, diag::err_include_too_large);
+    return FileID();
+  }
   LocalSLocEntryTable.push_back(
       SLocEntry::get(NextLocalOffset,
                      FileInfo::get(IncludePos, File, FileCharacter, Filename)));
-  unsigned FileSize = File->getSize();
-  assert(NextLocalOffset + FileSize + 1 > NextLocalOffset &&
-         NextLocalOffset + FileSize + 1 <= CurrentLoadedOffset &&
-         "Ran out of source locations!");
   // We do a +1 here because we want a SourceLocation that means "the end of the
   // file", e.g. for the "no newline at the end of the file" diagnostic.
   NextLocalOffset += FileSize + 1;
@@ -697,6 +763,18 @@ SourceManager::bypassFileContentsOverride(const FileEntry &File) {
 void SourceManager::setFileIsTransient(const FileEntry *File) {
   const SrcMgr::ContentCache *CC = getOrCreateContentCache(File);
   const_cast<SrcMgr::ContentCache *>(CC)->IsTransient = true;
+}
+
+Optional<FileEntryRef> SourceManager::getFileEntryRefForID(FileID FID) const {
+  bool Invalid = false;
+  const SrcMgr::SLocEntry &Entry = getSLocEntry(FID, &Invalid);
+  if (Invalid || !Entry.isFile())
+    return None;
+
+  const SrcMgr::ContentCache *Content = Entry.getFile().getContentCache();
+  if (!Content || !Content->OrigEntry)
+    return None;
+  return FileEntryRef(Entry.getFile().getName(), *Content->OrigEntry);
 }
 
 StringRef SourceManager::getBufferData(FileID FID, bool *Invalid) const {
@@ -990,6 +1068,13 @@ SourceLocation SourceManager::getImmediateSpellingLoc(SourceLocation Loc) const{
   return Loc.getLocWithOffset(LocInfo.second);
 }
 
+/// Return the filename of the file containing a SourceLocation.
+StringRef SourceManager::getFilename(SourceLocation SpellingLoc) const {
+  if (const FileEntry *F = getFileEntryForID(getFileID(SpellingLoc)))
+    return F->getName();
+  return StringRef();
+}
+
 /// getImmediateExpansionRange - Loc is required to be an expansion location.
 /// Return the start/end of the expansion information.
 CharSourceRange
@@ -1250,23 +1335,18 @@ static void ComputeLineNumbers(DiagnosticsEngine &Diag, ContentCache *FI,
 
   const unsigned char *Buf = (const unsigned char *)Buffer->getBufferStart();
   const unsigned char *End = (const unsigned char *)Buffer->getBufferEnd();
+  const std::size_t BufLen = End - Buf;
   unsigned I = 0;
-  while (true) {
-    // Skip over the contents of the line.
-    while (Buf[I] != '\n' && Buf[I] != '\r' && Buf[I] != '\0')
-      ++I;
-
-    if (Buf[I] == '\n' || Buf[I] == '\r') {
+  while (I < BufLen) {
+    if (Buf[I] == '\n') {
+      LineOffsets.push_back(I + 1);
+    } else if (Buf[I] == '\r') {
       // If this is \r\n, skip both characters.
-      if (Buf[I] == '\r' && Buf[I+1] == '\n')
+      if (I + 1 < BufLen && Buf[I + 1] == '\n')
         ++I;
-      ++I;
-      LineOffsets.push_back(I);
-    } else {
-      // Otherwise, this is a NUL. If end of file, exit.
-      if (Buf+I == End) break;
-      ++I;
+      LineOffsets.push_back(I + 1);
     }
+    ++I;
   }
 
   // Copy the offsets into the FileInfo structure.

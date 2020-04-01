@@ -6,6 +6,8 @@
 // Only CPU supports LLVM IR bitcode as a binary
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 
+// REQUIRES: cpu
+
 //==----- with-llvm-bc.cpp - SYCL kernel with LLVM IR bitcode as binary ----==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

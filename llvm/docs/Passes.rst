@@ -798,17 +798,24 @@ accomplished by creating a new value to hold the initial value of the array
 access for the first iteration, and then creating a new GEP instruction in the
 loop to increment the value by the appropriate amount.
 
+.. _passes-loop-rotate:
+
 ``-loop-rotate``: Rotate Loops
 ------------------------------
 
-A simple loop rotation transformation.
+A simple loop rotation transformation.  A summary of it can be found in
+:ref:`Loop Terminology for Rotated Loops <loop-terminology-loop-rotate>`.
+
+
+.. _passes-loop-simplify:
 
 ``-loop-simplify``: Canonicalize natural loops
 ----------------------------------------------
 
 This pass performs several transformations to transform natural loops into a
 simpler form, which makes subsequent analyses and transformations simpler and
-more effective.
+more effective. A summary of it can be found in
+:ref:`Loop Terminology, Loop Simplify Form <loop-terminology-loop-simplify>`.
 
 Loop pre-header insertion guarantees that there is a single, non-critical entry
 edge from outside of the loop to the loop header.  This simplifies a number of
@@ -1190,6 +1197,8 @@ performing optimizing transformations.
 
 Note that this does not provide full security verification (like Java), but
 instead just tries to ensure that code is well-formed.
+
+.. _passes-view-cfg:
 
 ``-view-cfg``: View CFG of function
 -----------------------------------

@@ -158,7 +158,7 @@ LockFileManager::LockFileManager(StringRef FileName)
   this->FileName = FileName;
   if (std::error_code EC = sys::fs::make_absolute(this->FileName)) {
     std::string S("failed to obtain absolute path for ");
-    S.append(this->FileName.str());
+    S.append(std::string(this->FileName.str()));
     setError(EC, S);
     return;
   }
@@ -177,7 +177,7 @@ LockFileManager::LockFileManager(StringRef FileName)
   if (std::error_code EC = sys::fs::createUniqueFile(
           UniqueLockFileName, UniqueLockFileID, UniqueLockFileName)) {
     std::string S("failed to create unique file ");
-    S.append(UniqueLockFileName.str());
+    S.append(std::string(UniqueLockFileName.str()));
     setError(EC, S);
     return;
   }
@@ -203,7 +203,7 @@ LockFileManager::LockFileManager(StringRef FileName)
       // We failed to write out PID, so report the error, remove the
       // unique lock file, and fail.
       std::string S("failed to write to ");
-      S.append(UniqueLockFileName.str());
+      S.append(std::string(UniqueLockFileName.str()));
       setError(Out.error(), S);
       sys::fs::remove(UniqueLockFileName);
       return;
@@ -249,7 +249,7 @@ LockFileManager::LockFileManager(StringRef FileName)
     // ownership.
     if ((EC = sys::fs::remove(LockFileName))) {
       std::string S("failed to remove lockfile ");
-      S.append(UniqueLockFileName.str());
+      S.append(std::string(UniqueLockFileName.str()));
       setError(EC, S);
       return;
     }
@@ -290,7 +290,8 @@ LockFileManager::~LockFileManager() {
   sys::DontRemoveFileOnSignal(UniqueLockFileName);
 }
 
-LockFileManager::WaitForUnlockResult LockFileManager::waitForUnlock() {
+LockFileManager::WaitForUnlockResult
+LockFileManager::waitForUnlock(const unsigned MaxSeconds) {
   if (getState() != LFS_Shared)
     return Res_Success;
 
@@ -301,9 +302,6 @@ LockFileManager::WaitForUnlockResult LockFileManager::waitForUnlock() {
   Interval.tv_sec = 0;
   Interval.tv_nsec = 1000000;
 #endif
-  // Don't wait more than 40s per iteration. Total timeout for the file
-  // to appear is ~1.5 minutes.
-  const unsigned MaxSeconds = 40;
   do {
     // Sleep for the designated interval, to allow the owning process time to
     // finish up and remove the lock file.

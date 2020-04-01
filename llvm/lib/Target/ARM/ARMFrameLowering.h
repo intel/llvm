@@ -33,13 +33,14 @@ public:
 
   bool spillCalleeSavedRegisters(MachineBasicBlock &MBB,
                                  MachineBasicBlock::iterator MI,
-                                 const std::vector<CalleeSavedInfo> &CSI,
+                                 ArrayRef<CalleeSavedInfo> CSI,
                                  const TargetRegisterInfo *TRI) const override;
 
-  bool restoreCalleeSavedRegisters(MachineBasicBlock &MBB,
-                                  MachineBasicBlock::iterator MI,
-                                  std::vector<CalleeSavedInfo> &CSI,
-                                  const TargetRegisterInfo *TRI) const override;
+  bool
+  restoreCalleeSavedRegisters(MachineBasicBlock &MBB,
+                              MachineBasicBlock::iterator MI,
+                              MutableArrayRef<CalleeSavedInfo> CSI,
+                              const TargetRegisterInfo *TRI) const override;
 
   bool keepFramePointer(const MachineFunction &MF) const override;
 
@@ -55,6 +56,10 @@ public:
 
   void getCalleeSaves(const MachineFunction &MF,
                       BitVector &SavedRegs) const override;
+  void findRegDefsOutsideSaveRestore(MachineFunction &MF,
+                                     BitVector &Regs) const;
+  unsigned spillExtraRegsForIPRA(MachineFunction &MF, BitVector &SavedRegs,
+                                 bool HasFPRegSaves) const;
   void determineCalleeSaves(MachineFunction &MF, BitVector &SavedRegs,
                             RegScavenger *RS) const override;
 
@@ -62,9 +67,8 @@ public:
                                 MachineBasicBlock &MBB) const override;
 
   /// Returns true if the target will correctly handle shrink wrapping.
-  bool enableShrinkWrapping(const MachineFunction &MF) const override {
-    return true;
-  }
+  bool enableShrinkWrapping(const MachineFunction &MF) const override;
+
   bool isProfitableForNoCSROpt(const Function &F) const override {
     // The no-CSR optimisation is bad for code size on ARM, because we can save
     // many registers with a single PUSH/POP pair.
@@ -73,14 +77,13 @@ public:
 
 private:
   void emitPushInst(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI,
-                    const std::vector<CalleeSavedInfo> &CSI, unsigned StmOpc,
-                    unsigned StrOpc, bool NoGap,
-                    bool(*Func)(unsigned, bool), unsigned NumAlignedDPRCS2Regs,
-                    unsigned MIFlags = 0) const;
+                    ArrayRef<CalleeSavedInfo> CSI, unsigned StmOpc,
+                    unsigned StrOpc, bool NoGap, bool (*Func)(unsigned, bool),
+                    unsigned NumAlignedDPRCS2Regs, unsigned MIFlags = 0) const;
   void emitPopInst(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI,
-                   std::vector<CalleeSavedInfo> &CSI, unsigned LdmOpc,
+                   MutableArrayRef<CalleeSavedInfo> CSI, unsigned LdmOpc,
                    unsigned LdrOpc, bool isVarArg, bool NoGap,
-                   bool(*Func)(unsigned, bool),
+                   bool (*Func)(unsigned, bool),
                    unsigned NumAlignedDPRCS2Regs) const;
 
   MachineBasicBlock::iterator

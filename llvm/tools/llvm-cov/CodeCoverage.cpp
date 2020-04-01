@@ -245,7 +245,8 @@ CodeCoverageTool::getSourceFile(StringRef SourceFile) {
     error(EC.message(), SourceFile);
     return EC;
   }
-  LoadedSourceFiles.emplace_back(SourceFile, std::move(Buffer.get()));
+  LoadedSourceFiles.emplace_back(std::string(SourceFile),
+                                 std::move(Buffer.get()));
   return *LoadedSourceFiles.back().second;
 }
 
@@ -413,7 +414,8 @@ void CodeCoverageTool::remapPathNames(const CoverageMapping &Coverage) {
   // Convert input files from local paths to coverage data file paths.
   StringMap<std::string> InvRemappedFilenames;
   for (const auto &RemappedFilename : RemappedFilenames)
-    InvRemappedFilenames[RemappedFilename.getValue()] = RemappedFilename.getKey();
+    InvRemappedFilenames[RemappedFilename.getValue()] =
+        std::string(RemappedFilename.getKey());
 
   for (std::string &Filename : SourceFiles) {
     SmallString<128> NativeFilename;
@@ -510,7 +512,7 @@ void CodeCoverageTool::demangleSymbols(const CoverageMapping &Coverage) {
   for (const auto &Function : Coverage.getCoveredFunctions())
     // On Windows, lines in the demangler's output file end with "\r\n".
     // Splitting by '\n' keeps '\r's, so cut them now.
-    DC.DemangledNames[Function.Name] = Symbols[I++].rtrim();
+    DC.DemangledNames[Function.Name] = std::string(Symbols[I++].rtrim());
 }
 
 void CodeCoverageTool::writeSourceFileView(StringRef SourceFile,
@@ -688,7 +690,8 @@ int CodeCoverageTool::run(Command Cmd, int argc, const char **argv) {
     // PathRemapping.
     auto EquivPair = StringRef(PathRemap).split(',');
     if (!(EquivPair.first.empty() && EquivPair.second.empty()))
-      PathRemapping = EquivPair;
+      PathRemapping = {std::string(EquivPair.first),
+                       std::string(EquivPair.second)};
 
     // If a demangler is supplied, check if it exists and register it.
     if (!DemanglerOpts.empty()) {
@@ -886,7 +889,7 @@ int CodeCoverageTool::doShow(int argc, const char **argv,
     // Get the source files from the function coverage mapping.
     for (StringRef Filename : Coverage->getUniqueSourceFiles()) {
       if (!IgnoreFilenameFilters.matchesFilename(Filename))
-        SourceFiles.push_back(Filename);
+        SourceFiles.push_back(std::string(Filename));
     }
 
   // Create an index out of the source files.
@@ -944,9 +947,7 @@ int CodeCoverageTool::doShow(int argc, const char **argv,
 
   // If NumThreads is not specified, auto-detect a good default.
   if (NumThreads == 0)
-    NumThreads =
-        std::max(1U, std::min(llvm::heavyweight_hardware_concurrency(),
-                              unsigned(SourceFiles.size())));
+    NumThreads = SourceFiles.size();
 
   if (!ViewOpts.hasOutputDirectory() || NumThreads == 1) {
     for (const std::string &SourceFile : SourceFiles)
@@ -954,7 +955,7 @@ int CodeCoverageTool::doShow(int argc, const char **argv,
                           ShowFilenames);
   } else {
     // In -output-dir mode, it's safe to use multiple threads to print files.
-    ThreadPool Pool(NumThreads);
+    ThreadPool Pool(heavyweight_hardware_concurrency(NumThreads));
     for (const std::string &SourceFile : SourceFiles)
       Pool.async(&CodeCoverageTool::writeSourceFileView, this, SourceFile,
                  Coverage.get(), Printer.get(), ShowFilenames);

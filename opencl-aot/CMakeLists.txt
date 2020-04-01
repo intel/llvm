@@ -13,7 +13,7 @@ endif()
 include(ExternalProject)
 
 if (NOT OpenCL_INCLUDE_DIRS)
-    message("OpenCL_INCLUDE_DIRS is missed. Will try to download OpenCL headers from github.com")
+    message("OpenCL_INCLUDE_DIRS is missing. Will try to download OpenCL headers from github.com")
     set(OpenCL_INCLUDE_DIRS "${CMAKE_CURRENT_BINARY_DIR}/OpenCL/inc")
     ExternalProject_Add(opencl-headers
             GIT_REPOSITORY https://github.com/KhronosGroup/OpenCL-Headers.git
@@ -34,7 +34,7 @@ else ()
 endif ()
 
 if (NOT OpenCL_LIBRARIES)
-    message("OpenCL_LIBRARIES is missed. Will try to download OpenCL ICD Loader from github.com")
+    message("OpenCL_LIBRARIES is missing. Will try to download OpenCL ICD Loader from github.com")
     if (MSVC)
         set(OpenCL_LIBRARIES
                 "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_STATIC_LIBRARY_PREFIX}OpenCL${CMAKE_STATIC_LIBRARY_SUFFIX}")
@@ -52,9 +52,9 @@ if (NOT OpenCL_LIBRARIES)
             BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/icd_build"
             CMAKE_ARGS -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
             -DCMAKE_MAKE_PROGRAM=${CMAKE_MAKE_PROGRAM}
-            -DOPENCL_ICD_LOADER_HEADERS_DIR=${CMAKE_CURRENT_BINARY_DIR}/OpenCL/inc
+            -DOPENCL_ICD_LOADER_HEADERS_DIR=${OpenCL_INCLUDE_DIRS}
             -DCMAKE_INSTALL_PREFIX=${CMAKE_CURRENT_BINARY_DIR}
-            -DCMAKE_INSTALL_LIBDIR:PATH=lib
+            -DCMAKE_INSTALL_LIBDIR:PATH=lib${LLVM_LIBDIR_SUFFIX}
             ${OPENCL_ICD_LOADER_WDK}
             STEP_TARGETS configure,build,install
             DEPENDS opencl-headers
@@ -73,7 +73,7 @@ set(LLVM_LINK_COMPONENTS
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/inc
                     ${CMAKE_CURRENT_SOURCE_DIR}/include
         )
-link_directories(${CMAKE_CURRENT_BINARY_DIR}/lib
+link_directories(${CMAKE_CURRENT_BINARY_DIR}/lib${LLVM_LIBDIR_SUFFIX}
                  ${CMAKE_CURRENT_BINARY_DIR}
         )
 file(GLOB TARGET_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/source/*.cpp)

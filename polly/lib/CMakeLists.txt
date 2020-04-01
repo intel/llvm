@@ -24,6 +24,8 @@ endif ()
 # Use an object-library to add the same files to multiple libs without requiring
 # the sources them to be recompiled for each of them.
 add_llvm_pass_plugin(Polly
+  NO_MODULE
+  SUBPROJECT Polly
   Analysis/DependenceInfo.cpp
   Analysis/PolyhedralInfo.cpp
   Analysis/ScopDetection.cpp

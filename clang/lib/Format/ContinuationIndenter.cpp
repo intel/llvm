@@ -329,6 +329,11 @@ bool ContinuationIndenter::canBreak(const LineState &State) {
 bool ContinuationIndenter::mustBreak(const LineState &State) {
   const FormatToken &Current = *State.NextToken;
   const FormatToken &Previous = *Current.Previous;
+  if (Style.BraceWrapping.BeforeLambdaBody && Current.CanBreakBefore &&
+      Current.is(TT_LambdaLBrace)) {
+    auto LambdaBodyLength = getLengthToMatchingParen(Current, State.Stack);
+    return (LambdaBodyLength > getColumnLimit(State));
+  }
   if (Current.MustBreakBefore || Current.is(TT_InlineASMColon))
     return true;
   if (State.Stack.back().BreakBeforeClosingBrace &&
@@ -861,8 +866,10 @@ unsigned ContinuationIndenter::addTokenOnNewLine(LineState &State,
   // Any break on this level means that the parent level has been broken
   // and we need to avoid bin packing there.
   bool NestedBlockSpecialCase =
-      !Style.isCpp() && Current.is(tok::r_brace) && State.Stack.size() > 1 &&
-      State.Stack[State.Stack.size() - 2].NestedBlockInlined;
+      (!Style.isCpp() && Current.is(tok::r_brace) && State.Stack.size() > 1 &&
+       State.Stack[State.Stack.size() - 2].NestedBlockInlined) ||
+      (Style.Language == FormatStyle::LK_ObjC && Current.is(tok::r_brace) &&
+       State.Stack.size() > 1 && !Style.ObjCBreakBeforeNestedBlockParam);
   if (!NestedBlockSpecialCase)
     for (unsigned i = 0, e = State.Stack.size() - 1; i != e; ++i)
       State.Stack[i].BreakBeforeParameter = true;
@@ -1040,6 +1047,9 @@ unsigned ContinuationIndenter::getNewLineColumn(const LineState &State) {
   if (NextNonComment->is(TT_ArraySubscriptLSquare)) {
     if (State.Stack.back().StartOfArraySubscripts != 0)
       return State.Stack.back().StartOfArraySubscripts;
+    else if (Style.isCSharp()) // C# allows `["key"] = value` inside object
+                               // initializers.
+      return State.Stack.back().Indent;
     return ContinuationIndent;
   }
 
@@ -1077,6 +1087,18 @@ unsigned ContinuationIndenter::getNewLineColumn(const LineState &State) {
     // just flushing continuations left.
     return State.Stack.back().Indent + Style.ContinuationIndentWidth;
   return State.Stack.back().Indent;
+}
+
+static bool hasNestedBlockInlined(const FormatToken *Previous,
+                                  const FormatToken &Current,
+                                  const FormatStyle &Style) {
+  if (Previous->isNot(tok::l_paren))
+    return true;
+  if (Previous->ParameterCount > 1)
+    return true;
+
+  // Also a nested block if contains a lambda inside function with 1 parameter
+  return (Style.BraceWrapping.BeforeLambdaBody && Current.is(TT_LambdaLSquare));
 }
 
 unsigned ContinuationIndenter::moveStateToNextToken(LineState &State,
@@ -1181,8 +1203,7 @@ unsigned ContinuationIndenter::moveStateToNextToken(LineState &State,
        Previous->isOneOf(TT_BinaryOperator, TT_ConditionalExpr)) &&
       !Previous->isOneOf(TT_DictLiteral, TT_ObjCMethodExpr)) {
     State.Stack.back().NestedBlockInlined =
-        !Newline &&
-        (Previous->isNot(tok::l_paren) || Previous->ParameterCount > 1);
+        !Newline && hasNestedBlockInlined(Previous, Current, Style);
   }
 
   moveStatePastFakeLParens(State, Newline);
@@ -1380,7 +1401,8 @@ void ContinuationIndenter::moveStatePastScopeOpener(LineState &State,
           (!BinPackInconclusiveFunctions &&
            Current.PackingKind == PPK_Inconclusive)));
 
-    if (Current.is(TT_ObjCMethodExpr) && Current.MatchingParen) {
+    if (Current.is(TT_ObjCMethodExpr) && Current.MatchingParen &&
+        Style.ObjCBreakBeforeNestedBlockParam) {
       if (Style.ColumnLimit) {
         // If this '[' opens an ObjC call, determine whether all parameters fit
         // into one line and put one per line if they don't.
@@ -1418,7 +1440,21 @@ void ContinuationIndenter::moveStatePastScopeOpener(LineState &State,
       ParenState(&Current, NewIndent, LastSpace, AvoidBinPacking, NoLineBreak));
   State.Stack.back().NestedBlockIndent = NestedBlockIndent;
   State.Stack.back().BreakBeforeParameter = BreakBeforeParameter;
-  State.Stack.back().HasMultipleNestedBlocks = Current.BlockParameterCount > 1;
+  State.Stack.back().HasMultipleNestedBlocks = (Current.BlockParameterCount > 1);
+
+  if (Style.BraceWrapping.BeforeLambdaBody &&
+      Current.Next != nullptr && Current.Tok.is(tok::l_paren)) {
+    // Search for any parameter that is a lambda
+    FormatToken const *next = Current.Next;
+    while (next != nullptr) {
+      if (next->is(TT_LambdaLSquare)) {
+        State.Stack.back().HasMultipleNestedBlocks = true;
+        break;
+      }
+      next = next->Next;
+    }
+  }
+
   State.Stack.back().IsInsideObjCArrayLiteral =
       Current.is(TT_ArrayInitializerLSquare) && Current.Previous &&
       Current.Previous->is(tok::at);
@@ -1513,8 +1549,8 @@ unsigned ContinuationIndenter::reformatRawStringLiteral(
   unsigned OldSuffixSize = 2 + OldDelimiter.size();
   // We create a virtual text environment which expects a null-terminated
   // string, so we cannot use StringRef.
-  std::string RawText =
-      Current.TokenText.substr(OldPrefixSize).drop_back(OldSuffixSize);
+  std::string RawText = std::string(
+      Current.TokenText.substr(OldPrefixSize).drop_back(OldSuffixSize));
   if (NewDelimiter != OldDelimiter) {
     // Don't update to the canonical delimiter 'deli' if ')deli"' occurs in the
     // raw string.
@@ -1760,7 +1796,7 @@ ContinuationIndenter::createBreakableToken(const FormatToken &Current,
                                            LineState &State, bool AllowBreak) {
   unsigned StartColumn = State.Column - Current.ColumnWidth;
   if (Current.isStringLiteral()) {
-    // FIXME: String literal breaking is currently disabled for C#,Java and
+    // FIXME: String literal breaking is currently disabled for C#, Java and
     // JavaScript, as it requires strings to be merged using "+" which we
     // don't support.
     if (Style.Language == FormatStyle::LK_Java ||

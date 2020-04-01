@@ -168,7 +168,7 @@ private:
   // 8 banks for SGPRs.
   // Registers already processed and recorded in RegsUsed are excluded.
   // If Bank is not -1 assume Reg:SubReg to belong to that Bank.
-  unsigned getRegBankMask(unsigned Reg, unsigned SubReg, int Bank);
+  uint32_t getRegBankMask(unsigned Reg, unsigned SubReg, int Bank);
 
   // Return number of stalls in the instructions.
   // UsedBanks has bits set for the banks used by all operands.
@@ -292,7 +292,7 @@ unsigned GCNRegBankReassign::getPhysRegBank(unsigned Reg) const {
   return Reg % NUM_SGPR_BANKS + SGPR_BANK_OFFSET;
 }
 
-unsigned GCNRegBankReassign::getRegBankMask(unsigned Reg, unsigned SubReg,
+uint32_t GCNRegBankReassign::getRegBankMask(unsigned Reg, unsigned SubReg,
                                             int Bank) {
   if (Register::isVirtualRegister(Reg)) {
     if (!VRM->isAssignedReg(Reg))
@@ -313,7 +313,7 @@ unsigned GCNRegBankReassign::getRegBankMask(unsigned Reg, unsigned SubReg,
   if (TRI->hasVGPRs(RC)) {
     // VGPRs have 4 banks assigned in a round-robin fashion.
     Reg -= AMDGPU::VGPR0;
-    unsigned Mask = (1 << Size) - 1;
+    uint32_t Mask = maskTrailingOnes<uint32_t>(Size);
     unsigned Used = 0;
     // Bitmask lacks an extract method
     for (unsigned I = 0; I < Size; ++I)
@@ -321,7 +321,7 @@ unsigned GCNRegBankReassign::getRegBankMask(unsigned Reg, unsigned SubReg,
         Used |= 1 << I;
     RegsUsed.set(Reg, Reg + Size);
     Mask &= ~Used;
-    Mask <<= (Bank == -1) ? Reg % NUM_VGPR_BANKS : unsigned(Bank);
+    Mask <<= (Bank == -1) ? Reg % NUM_VGPR_BANKS : uint32_t(Bank);
     return (Mask | (Mask >> NUM_VGPR_BANKS)) & VGPR_BANK_MASK;
   }
 
@@ -372,23 +372,23 @@ unsigned GCNRegBankReassign::analyzeInst(const MachineInstr& MI,
     unsigned ShiftedBank = Bank;
 
     if (Bank != -1 && R == Reg && Op.getSubReg()) {
-      unsigned LM = TRI->getSubRegIndexLaneMask(Op.getSubReg()).getAsInteger();
-      if (!(LM & 1) && (Bank < NUM_VGPR_BANKS)) {
+      unsigned Offset = TRI->getChannelFromSubReg(Op.getSubReg());
+      LaneBitmask LM = TRI->getSubRegIndexLaneMask(Op.getSubReg());
+      if (Offset && Bank < NUM_VGPR_BANKS) {
         // If a register spans all banks we cannot shift it to avoid conflict.
-        if (countPopulation(LM) >= NUM_VGPR_BANKS)
+        if (TRI->getNumCoveredRegs(LM) >= NUM_VGPR_BANKS)
           continue;
-        ShiftedBank = (Bank + countTrailingZeros(LM)) % NUM_VGPR_BANKS;
-      } else if (!(LM & 3) && (Bank >= SGPR_BANK_OFFSET)) {
+        ShiftedBank = (Bank + Offset) % NUM_VGPR_BANKS;
+      } else if (Offset > 1 && Bank >= SGPR_BANK_OFFSET) {
         // If a register spans all banks we cannot shift it to avoid conflict.
-        if (countPopulation(LM) / 2 >= NUM_SGPR_BANKS)
+        if (TRI->getNumCoveredRegs(LM) / 2 >= NUM_SGPR_BANKS)
           continue;
-        ShiftedBank = SGPR_BANK_OFFSET + (Bank - SGPR_BANK_OFFSET +
-                                          (countTrailingZeros(LM) >> 1)) %
-                                             NUM_SGPR_BANKS;
+        ShiftedBank = SGPR_BANK_OFFSET +
+          (Bank - SGPR_BANK_OFFSET + (Offset >> 1)) % NUM_SGPR_BANKS;
       }
     }
 
-    unsigned Mask = getRegBankMask(R, Op.getSubReg(),
+    uint32_t Mask = getRegBankMask(R, Op.getSubReg(),
                                    (Reg == R) ? ShiftedBank : -1);
     StallCycles += countPopulation(UsedBanks & Mask);
     UsedBanks |= Mask;
@@ -496,16 +496,16 @@ unsigned GCNRegBankReassign::getFreeBanks(unsigned Reg,
 
   unsigned FreeBanks = getFreeBanks(Mask, UsedBanks);
 
-  unsigned LM = TRI->getSubRegIndexLaneMask(SubReg).getAsInteger();
-  if (!(LM & 1) && (Mask & VGPR_BANK_MASK)) {
-    unsigned Shift = countTrailingZeros(LM);
+  unsigned Offset = TRI->getChannelFromSubReg(SubReg);
+  if (Offset && (Mask & VGPR_BANK_MASK)) {
+    unsigned Shift = Offset;
     if (Shift >= NUM_VGPR_BANKS)
       return 0;
     unsigned VB = FreeBanks & VGPR_BANK_MASK;
     FreeBanks = ((VB >> Shift) | (VB << (NUM_VGPR_BANKS - Shift))) &
                 VGPR_BANK_MASK;
-  } else if (!(LM & 3) && (Mask & SGPR_BANK_MASK)) {
-    unsigned Shift = countTrailingZeros(LM) >> 1;
+  } else if (Offset > 1 && (Mask & SGPR_BANK_MASK)) {
+    unsigned Shift = Offset >> 1;
     if (Shift >= NUM_SGPR_BANKS)
       return 0;
     unsigned SB = FreeBanks >> SGPR_BANK_OFFSET;

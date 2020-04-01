@@ -10,7 +10,7 @@
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/exception.hpp>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
 const char *exception::what() const noexcept { return MMsg.c_str(); }
@@ -27,4 +27,4 @@ context exception::get_context() const {
 cl_int exception::get_cl_code() const { return MCLErr; }
 
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

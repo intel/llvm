@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef lldb_GDBRemoteRegisterContext_h_
-#define lldb_GDBRemoteRegisterContext_h_
+#ifndef LLDB_SOURCE_PLUGINS_PROCESS_GDB_REMOTE_GDBREMOTEREGISTERCONTEXT_H
+#define LLDB_SOURCE_PLUGINS_PROCESS_GDB_REMOTE_GDBREMOTEREGISTERCONTEXT_H
 
 #include <vector>
 
@@ -88,9 +88,7 @@ protected:
   void SetAllRegisterValid(bool b);
 
   bool GetRegisterIsValid(uint32_t reg) const {
-#if defined(LLDB_CONFIGURATION_DEBUG)
     assert(reg < m_reg_valid.size());
-#endif
     if (reg < m_reg_valid.size())
       return m_reg_valid[reg];
     return false;
@@ -103,9 +101,7 @@ protected:
   }
 
   void SetRegisterIsValid(uint32_t reg, bool valid) {
-#if defined(LLDB_CONFIGURATION_DEBUG)
     assert(reg < m_reg_valid.size());
-#endif
     if (reg < m_reg_valid.size())
       m_reg_valid[reg] = valid;
   }
@@ -130,4 +126,4 @@ private:
 } // namespace process_gdb_remote
 } // namespace lldb_private
 
-#endif // lldb_GDBRemoteRegisterContext_h_
+#endif // LLDB_SOURCE_PLUGINS_PROCESS_GDB_REMOTE_GDBREMOTEREGISTERCONTEXT_H

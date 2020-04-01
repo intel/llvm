@@ -59,9 +59,9 @@ static std::unique_ptr<raw_fd_ostream> openFile(StringRef file) {
 }
 
 static std::string getThinLTOOutputFile(StringRef modulePath) {
-  return lto::getThinLTOOutputFile(modulePath,
-                                   config->thinLTOPrefixReplace.first,
-                                   config->thinLTOPrefixReplace.second);
+  return lto::getThinLTOOutputFile(
+      std::string(modulePath), std::string(config->thinLTOPrefixReplace.first),
+      std::string(config->thinLTOPrefixReplace.second));
 }
 
 static lto::Config createConfig() {
@@ -93,22 +93,30 @@ static lto::Config createConfig() {
   c.MAttrs = getMAttrs();
   c.CGOptLevel = args::getCGOptLevel(config->ltoo);
 
+  c.PTO.LoopVectorization = c.OptLevel > 1;
+  c.PTO.SLPVectorization = c.OptLevel > 1;
+
   // Set up a custom pipeline if we've been asked to.
-  c.OptPipeline = config->ltoNewPmPasses;
-  c.AAPipeline = config->ltoAAPipeline;
+  c.OptPipeline = std::string(config->ltoNewPmPasses);
+  c.AAPipeline = std::string(config->ltoAAPipeline);
 
   // Set up optimization remarks if we've been asked to.
-  c.RemarksFilename = config->optRemarksFilename;
-  c.RemarksPasses = config->optRemarksPasses;
+  c.RemarksFilename = std::string(config->optRemarksFilename);
+  c.RemarksPasses = std::string(config->optRemarksPasses);
   c.RemarksWithHotness = config->optRemarksWithHotness;
-  c.RemarksFormat = config->optRemarksFormat;
+  c.RemarksFormat = std::string(config->optRemarksFormat);
 
-  c.SampleProfile = config->ltoSampleProfile;
+  c.SampleProfile = std::string(config->ltoSampleProfile);
   c.UseNewPM = config->ltoNewPassManager;
   c.DebugPassManager = config->ltoDebugPassManager;
-  c.DwoDir = config->dwoDir;
+  c.DwoDir = std::string(config->dwoDir);
 
-  c.CSIRProfile = config->ltoCSProfileFile;
+  c.HasWholeProgramVisibility = config->ltoWholeProgramVisibility;
+
+  c.TimeTraceEnabled = config->timeTraceEnabled;
+  c.TimeTraceGranularity = config->timeTraceGranularity;
+
+  c.CSIRProfile = std::string(config->ltoCSProfileFile);
   c.RunCSIRInstr = config->ltoCSProfileGenerate;
 
   if (config->emitLLVM) {
@@ -135,7 +143,8 @@ BitcodeCompiler::BitcodeCompiler() {
   if (config->thinLTOIndexOnly) {
     auto onIndexWrite = [&](StringRef s) { thinIndices.erase(s); };
     backend = lto::createWriteIndexesThinBackend(
-        config->thinLTOPrefixReplace.first, config->thinLTOPrefixReplace.second,
+        std::string(config->thinLTOPrefixReplace.first),
+        std::string(config->thinLTOPrefixReplace.second),
         config->thinLTOEmitImportsFiles, indexFile.get(), onIndexWrite);
   } else if (config->thinLTOJobs != -1U) {
     backend = lto::createInProcessThinBackend(config->thinLTOJobs);

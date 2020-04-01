@@ -59,10 +59,11 @@ struct SPIRVInlinerInterface : public DialectInlinerInterface {
   /// 'dest' that is attached to an operation registered to the current dialect.
   bool isLegalToInline(Region *dest, Region *src,
                        BlockAndValueMapping &) const final {
-    // Return true here when inlining into spv.selection and spv.loop
-    // operations.
+    // Return true here when inlining into spv.func, spv.selection, and
+    // spv.loop operations.
     auto op = dest->getParentOp();
-    return isa<spirv::SelectionOp>(op) || isa<spirv::LoopOp>(op);
+    return isa<spirv::FuncOp>(op) || isa<spirv::SelectionOp>(op) ||
+           isa<spirv::LoopOp>(op);
   }
 
   /// Returns true if the given operation 'op', that is registered to this
@@ -104,7 +105,7 @@ struct SPIRVInlinerInterface : public DialectInlinerInterface {
     // Replace the values directly with the return operands.
     assert(valuesToRepl.size() == 1 &&
            "spv.ReturnValue expected to only handle one result");
-    valuesToRepl.front()->replaceAllUsesWith(retValOp.value());
+    valuesToRepl.front().replaceAllUsesWith(retValOp.value());
   }
 };
 } // namespace
@@ -116,6 +117,8 @@ struct SPIRVInlinerInterface : public DialectInlinerInterface {
 SPIRVDialect::SPIRVDialect(MLIRContext *context)
     : Dialect(getDialectNamespace(), context) {
   addTypes<ArrayType, ImageType, PointerType, RuntimeArrayType, StructType>();
+
+  addAttributes<TargetEnvAttr, VerCapExtAttr>();
 
   // Add SPIR-V ops.
   addOperations<
@@ -375,6 +378,7 @@ Optional<uint64_t> parseAndVerify<uint64_t>(SPIRVDialect const &dialect,
   return parseAndVerifyInteger<uint64_t>(dialect, parser);
 }
 
+namespace {
 // Functor object to parse a comma separated list of specs. The function
 // parseAndVerify does the actual parsing and verification of individual
 // elements. This is a functor since parsing the last element of the list
@@ -407,6 +411,7 @@ template <typename ParseType> struct parseCommaSeparatedList<ParseType> {
     return llvm::None;
   }
 };
+} // namespace
 
 // dim ::= `1D` | `2D` | `3D` | `Cube` | <and other SPIR-V Dim specifiers...>
 //
@@ -627,13 +632,206 @@ void SPIRVDialect::printType(Type type, DialectAsmPrinter &os) const {
 }
 
 //===----------------------------------------------------------------------===//
+// Attribute Parsing
+//===----------------------------------------------------------------------===//
+
+/// Parses a comma-separated list of keywords, invokes `processKeyword` on each
+/// of the parsed keyword, and returns failure if any error occurs.
+static ParseResult parseKeywordList(
+    DialectAsmParser &parser,
+    function_ref<LogicalResult(llvm::SMLoc, StringRef)> processKeyword) {
+  if (parser.parseLSquare())
+    return failure();
+
+  // Special case for empty list.
+  if (succeeded(parser.parseOptionalRSquare()))
+    return success();
+
+  // Keep parsing the keyword and an optional comma following it. If the comma
+  // is successfully parsed, then we have more keywords to parse.
+  do {
+    auto loc = parser.getCurrentLocation();
+    StringRef keyword;
+    if (parser.parseKeyword(&keyword) || failed(processKeyword(loc, keyword)))
+      return failure();
+  } while (succeeded(parser.parseOptionalComma()));
+
+  if (parser.parseRSquare())
+    return failure();
+
+  return success();
+}
+
+static Attribute parseVerCapExtAttr(DialectAsmParser &parser) {
+  if (parser.parseLess())
+    return {};
+
+  Builder &builder = parser.getBuilder();
+
+  IntegerAttr versionAttr;
+  {
+    auto loc = parser.getCurrentLocation();
+    StringRef version;
+    if (parser.parseKeyword(&version) || parser.parseComma())
+      return {};
+
+    if (auto versionSymbol = spirv::symbolizeVersion(version)) {
+      versionAttr =
+          builder.getI32IntegerAttr(static_cast<uint32_t>(*versionSymbol));
+    } else {
+      parser.emitError(loc, "unknown version: ") << version;
+      return {};
+    }
+  }
+
+  ArrayAttr capabilitiesAttr;
+  {
+    SmallVector<Attribute, 4> capabilities;
+    llvm::SMLoc errorloc;
+    StringRef errorKeyword;
+
+    auto processCapability = [&](llvm::SMLoc loc, StringRef capability) {
+      if (auto capSymbol = spirv::symbolizeCapability(capability)) {
+        capabilities.push_back(
+            builder.getI32IntegerAttr(static_cast<uint32_t>(*capSymbol)));
+        return success();
+      }
+      return errorloc = loc, errorKeyword = capability, failure();
+    };
+    if (parseKeywordList(parser, processCapability) || parser.parseComma()) {
+      if (!errorKeyword.empty())
+        parser.emitError(errorloc, "unknown capability: ") << errorKeyword;
+      return {};
+    }
+
+    capabilitiesAttr = builder.getArrayAttr(capabilities);
+  }
+
+  ArrayAttr extensionsAttr;
+  {
+    SmallVector<Attribute, 1> extensions;
+    llvm::SMLoc errorloc;
+    StringRef errorKeyword;
+
+    auto processExtension = [&](llvm::SMLoc loc, StringRef extension) {
+      if (spirv::symbolizeExtension(extension)) {
+        extensions.push_back(builder.getStringAttr(extension));
+        return success();
+      }
+      return errorloc = loc, errorKeyword = extension, failure();
+    };
+    if (parseKeywordList(parser, processExtension)) {
+      if (!errorKeyword.empty())
+        parser.emitError(errorloc, "unknown extension: ") << errorKeyword;
+      return {};
+    }
+
+    extensionsAttr = builder.getArrayAttr(extensions);
+  }
+
+  if (parser.parseGreater())
+    return {};
+
+  return spirv::VerCapExtAttr::get(versionAttr, capabilitiesAttr,
+                                   extensionsAttr);
+}
+
+/// Parses a spirv::TargetEnvAttr.
+static Attribute parseTargetEnvAttr(DialectAsmParser &parser) {
+  if (parser.parseLess())
+    return {};
+
+  spirv::VerCapExtAttr tripleAttr;
+  if (parser.parseAttribute(tripleAttr) || parser.parseComma())
+    return {};
+
+  DictionaryAttr limitsAttr;
+  {
+    auto loc = parser.getCurrentLocation();
+    if (parser.parseAttribute(limitsAttr))
+      return {};
+
+    if (!limitsAttr.isa<spirv::ResourceLimitsAttr>()) {
+      parser.emitError(
+          loc,
+          "limits must be a dictionary attribute containing two 32-bit integer "
+          "attributes 'max_compute_workgroup_invocations' and "
+          "'max_compute_workgroup_size'");
+      return {};
+    }
+  }
+
+  if (parser.parseGreater())
+    return {};
+
+  return spirv::TargetEnvAttr::get(tripleAttr, limitsAttr);
+}
+
+Attribute SPIRVDialect::parseAttribute(DialectAsmParser &parser,
+                                       Type type) const {
+  // SPIR-V attributes are dictionaries so they do not have type.
+  if (type) {
+    parser.emitError(parser.getNameLoc(), "unexpected type");
+    return {};
+  }
+
+  // Parse the kind keyword first.
+  StringRef attrKind;
+  if (parser.parseKeyword(&attrKind))
+    return {};
+
+  if (attrKind == spirv::TargetEnvAttr::getKindName())
+    return parseTargetEnvAttr(parser);
+  if (attrKind == spirv::VerCapExtAttr::getKindName())
+    return parseVerCapExtAttr(parser);
+
+  parser.emitError(parser.getNameLoc(), "unknown SPIR-V attriubte kind: ")
+      << attrKind;
+  return {};
+}
+
+//===----------------------------------------------------------------------===//
+// Attribute Printing
+//===----------------------------------------------------------------------===//
+
+static void print(spirv::VerCapExtAttr triple, DialectAsmPrinter &printer) {
+  auto &os = printer.getStream();
+  printer << spirv::VerCapExtAttr::getKindName() << "<"
+          << spirv::stringifyVersion(triple.getVersion()) << ", [";
+  interleaveComma(triple.getCapabilities(), os, [&](spirv::Capability cap) {
+    os << spirv::stringifyCapability(cap);
+  });
+  printer << "], [";
+  interleaveComma(triple.getExtensionsAttr(), os, [&](Attribute attr) {
+    os << attr.cast<StringAttr>().getValue();
+  });
+  printer << "]>";
+}
+
+static void print(spirv::TargetEnvAttr targetEnv, DialectAsmPrinter &printer) {
+  printer << spirv::TargetEnvAttr::getKindName() << "<#spv.";
+  print(targetEnv.getTripleAttr(), printer);
+  printer << ", " << targetEnv.getResourceLimits() << ">";
+}
+
+void SPIRVDialect::printAttribute(Attribute attr,
+                                  DialectAsmPrinter &printer) const {
+  if (auto targetEnv = attr.dyn_cast<TargetEnvAttr>())
+    print(targetEnv, printer);
+  else if (auto vceAttr = attr.dyn_cast<VerCapExtAttr>())
+    print(vceAttr, printer);
+  else
+    llvm_unreachable("unhandled SPIR-V attribute kind");
+}
+
+//===----------------------------------------------------------------------===//
 // Constant
 //===----------------------------------------------------------------------===//
 
 Operation *SPIRVDialect::materializeConstant(OpBuilder &builder,
                                              Attribute value, Type type,
                                              Location loc) {
-  if (!ConstantOp::isBuildableWith(type))
+  if (!spirv::ConstantOp::isBuildableWith(type))
     return nullptr;
 
   return builder.create<spirv::ConstantOp>(loc, type, value);
@@ -648,15 +846,21 @@ LogicalResult SPIRVDialect::verifyOperationAttribute(Operation *op,
   StringRef symbol = attribute.first.strref();
   Attribute attr = attribute.second;
 
-  if (symbol != spirv::getEntryPointABIAttrName())
+  // TODO(antiagainst): figure out a way to generate the description from the
+  // StructAttr definition.
+  if (symbol == spirv::getEntryPointABIAttrName()) {
+    if (!attr.isa<spirv::EntryPointABIAttr>())
+      return op->emitError("'")
+             << symbol
+             << "' attribute must be a dictionary attribute containing one "
+                "32-bit integer elements attribute: 'local_size'";
+  } else if (symbol == spirv::getTargetEnvAttrName()) {
+    if (!attr.isa<spirv::TargetEnvAttr>())
+      return op->emitError("'") << symbol << "' must be a spirv::TargetEnvAttr";
+  } else {
     return op->emitError("found unsupported '")
            << symbol << "' attribute on operation";
-
-  if (!spirv::EntryPointABIAttr::classof(attr))
-    return op->emitError("'")
-           << symbol
-           << "' attribute must be a dictionary attribute containing one "
-              "integer elements attribute: 'local_size'";
+  }
 
   return success();
 }
@@ -673,11 +877,11 @@ verifyRegionAttribute(Location loc, NamedAttribute attribute, bool forArg) {
            << symbol << "' attribute on region "
            << (forArg ? "argument" : "result");
 
-  if (!spirv::InterfaceVarABIAttr::classof(attr))
+  if (!attr.isa<spirv::InterfaceVarABIAttr>())
     return emitError(loc, "'")
            << symbol
            << "' attribute must be a dictionary attribute containing three "
-              "integer attributes: 'descriptor_set', 'binding', and "
+              "32-bit integer attributes: 'descriptor_set', 'binding', and "
               "'storage_class'";
 
   return success();

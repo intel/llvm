@@ -1,6 +1,6 @@
 //===- TestLinalgTransforms.cpp - Test Linalg transformation patterns -----===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -12,7 +12,6 @@
 
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 #include "mlir/Dialect/Linalg/Transforms/LinalgTransforms.h"
-#include "mlir/Dialect/Linalg/Utils/Utils.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
 
@@ -48,6 +47,10 @@ void TestLinalgTransforms::runOnFunction() {
   });
 }
 
-static PassRegistration<TestLinalgTransforms>
-    pass("test-linalg-transform-patterns",
-         "Test Linalg transformation patterns by applying them greedily.");
+namespace mlir {
+void registerTestLinalgTransforms() {
+  PassRegistration<TestLinalgTransforms>(
+      "test-linalg-transform-patterns",
+      "Test Linalg transformation patterns by applying them greedily.");
+}
+} // namespace mlir

@@ -78,10 +78,11 @@ entry:
 define void @test_offset_2() {
 ; CHECK-LABEL: test_offset_2:
 ; CHECK-ARMV5TE:      ldr [[ADDR0:r[0-9]+]]
-; CHECK-ARMV5TE-NEXT: mov [[OFFSET0:r[0-9]+]], #256
-; CHECK-ARMV5TE-NEXT: ldrd [[R0:r[0-9]+]], [[R1:r[0-9]+]], {{\[}}[[ADDR0]], [[OFFSET0]]]
 ; CHECK-ARMV5TE-NEXT: ldr [[ADDR1:r[0-9]+]]
-; CHECK-ARMV5TE-NEXT: strd [[R0]], [[R1]], {{\[}}[[ADDR1]], [[OFFSET0]]]
+; CHECK-ARMV5TE-NEXT: add [[ADDR0]], [[ADDR0]], #256
+; CHECK-ARMV5TE-NEXT: add [[ADDR1]], [[ADDR1]], #256
+; CHECK-ARMV5TE-NEXT: ldrd [[R0:r[0-9]+]], [[R1:r[0-9]+]], {{\[}}[[ADDR0]]]
+; CHECK-ARMV5TE-NEXT: strd [[R0]], [[R1]], {{\[}}[[ADDR1]]]
 ; CHECK-T2:           movw [[ADDR0:r[0-9]+]], :lower16:x
 ; CHECK-T2-NEXT:      movw [[ADDR1:r[0-9]+]], :lower16:y
 ; CHECK-T2-NEXT:      movt [[ADDR0]], :upper16:x
@@ -103,10 +104,11 @@ entry:
 define void @test_offset_3() {
 ; CHECK-LABEL: test_offset_3:
 ; CHECK-ARMV5TE:      ldr [[ADDR0:r[0-9]+]]
-; CHECK-ARMV5TE-NEXT: mov [[OFFSET0:r[0-9]+]], #1020
-; CHECK-ARMV5TE-NEXT: ldrd [[R0:r[0-9]+]], [[R1:r[0-9]+]], {{\[}}[[ADDR0]], [[OFFSET0]]]
 ; CHECK-ARMV5TE-NEXT: ldr [[ADDR1:r[0-9]+]]
-; CHECK-ARMV5TE-NEXT: strd [[R0]], [[R1]], {{\[}}[[ADDR1]], [[OFFSET0]]]
+; CHECK-ARMV5TE-NEXT: add [[ADDR0]], [[ADDR0]], #1020
+; CHECK-ARMV5TE-NEXT: add [[ADDR1]], [[ADDR1]], #1020
+; CHECK-ARMV5TE-NEXT: ldrd [[R0:r[0-9]+]], [[R1:r[0-9]+]], {{\[}}[[ADDR0]]]
+; CHECK-ARMV5TE-NEXT: strd [[R0]], [[R1]], {{\[}}[[ADDR1]]]
 ; CHECK-T2:           movw [[ADDR0:r[0-9]+]], :lower16:x
 ; CHECK-T2-NEXT:      movw [[ADDR1:r[0-9]+]], :lower16:y
 ; CHECK-T2-NEXT:      movt [[ADDR0]], :upper16:x
@@ -128,10 +130,11 @@ entry:
 define void @test_offset_4() {
 ; CHECK-LABEL: test_offset_4:
 ; CHECK-ARMV5TE:      ldr [[ADDR0:r[0-9]+]]
-; CHECK-ARMV5TE-NEXT: mov [[OFFSET0:r[0-9]+]], #1024
-; CHECK-ARMV5TE-NEXT: ldrd [[R0:r[0-9]+]], [[R1:r[0-9]+]], {{\[}}[[ADDR0]], [[OFFSET0]]]
 ; CHECK-ARMV5TE:      ldr [[ADDR1:r[0-9]+]]
-; CHECK-ARMV5TE-NEXT: strd [[R0]], [[R1]], {{\[}}[[ADDR1]], [[OFFSET0]]]
+; CHECK-ARMV5TE-NEXT: add [[ADDR0]], [[ADDR0]], #1024
+; CHECK-ARMV5TE-NEXT: add [[ADDR1]], [[ADDR1]], #1024
+; CHECK-ARMV5TE-NEXT: ldrd [[R0:r[0-9]+]], [[R1:r[0-9]+]], {{\[}}[[ADDR0]]]
+; CHECK-ARMV5TE-NEXT: strd [[R0]], [[R1]], {{\[}}[[ADDR1]]]
 ; CHECK-T2:           movw [[ADDR1:r[0-9]+]], :lower16:y
 ; CHECK-T2-NEXT:      movw [[ADDR0:r[0-9]+]], :lower16:x
 ; CHECK-T2-NEXT:      movt [[ADDR1]], :upper16:y

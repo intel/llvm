@@ -1,6 +1,6 @@
 //===- PassManager.h - Pass Management Interface ----------------*- C++ -*-===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -14,6 +14,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/iterator.h"
 
+#include <functional>
 #include <vector>
 
 namespace llvm {
@@ -137,6 +138,10 @@ public:
 
   /// Disable support for multi-threading within the pass manager.
   void disableMultithreading(bool disable = true);
+
+  /// Return true if the pass manager is configured with multi-threading
+  /// enabled.
+  bool isMultithreadingEnabled();
 
   /// Enable support for the pass manager to generate a reproducer on the event
   /// of a crash or a pass failure. `outputFile` is a .mlir filename used to

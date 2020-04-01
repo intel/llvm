@@ -15,7 +15,6 @@ target triple = "x86_64-unknown-linux-gnu"
 define void @run() {
 ; CHECK-LABEL: define {{[^@]+}}@run()
 ; CHECK-NEXT:  entry:
-; CHECK-NEXT:    [[TMP0:%.*]] = call i64 @CaptureAStruct(%struct.Foo* nofree nonnull readonly align 8 dereferenceable(16) @a)
 ; CHECK-NEXT:    unreachable
 ;
 entry:
@@ -47,18 +46,6 @@ define internal i64 @AccessPaddingOfStruct(%struct.Foo* byval %a) {
 }
 
 define internal i64 @CaptureAStruct(%struct.Foo* byval %a) {
-; CHECK-LABEL: define {{[^@]+}}@CaptureAStruct
-; CHECK-SAME: (%struct.Foo* nofree nonnull byval align 8 dereferenceable(16) [[A:%.*]])
-; CHECK-NEXT:  entry:
-; CHECK-NEXT:    [[A_PTR:%.*]] = alloca %struct.Foo*
-; CHECK-NEXT:    br label [[LOOP:%.*]]
-; CHECK:       loop:
-; CHECK-NEXT:    [[PHI:%.*]] = phi %struct.Foo* [ null, [[ENTRY:%.*]] ], [ [[GEP:%.*]], [[LOOP]] ]
-; CHECK-NEXT:    [[TMP0:%.*]] = phi %struct.Foo* [ [[A]], [[ENTRY]] ], [ [[TMP0]], [[LOOP]] ]
-; CHECK-NEXT:    store %struct.Foo* [[PHI]], %struct.Foo** [[A_PTR]], align 8
-; CHECK-NEXT:    [[GEP]] = getelementptr [[STRUCT_FOO:%.*]], %struct.Foo* [[A]], i64 0
-; CHECK-NEXT:    br label [[LOOP]]
-;
 entry:
   %a_ptr = alloca %struct.Foo*
   br label %loop

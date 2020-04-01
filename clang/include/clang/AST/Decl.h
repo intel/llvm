@@ -1519,8 +1519,8 @@ public:
   /// need not have a usable destructor at all.
   bool isNoDestroy(const ASTContext &) const;
 
-  /// Do we need to emit an exit-time destructor for this variable, and if so,
-  /// what kind?
+  /// Would the destruction of this variable have any effect, and if so, what
+  /// kind?
   QualType::DestructionKind needsDestruction(const ASTContext &Ctx) const;
 
   // Implement isa/cast/dyncast/etc.
@@ -1859,10 +1859,10 @@ private:
   /// FunctionTemplateSpecializationInfo, which contains information about
   /// the template being specialized and the template arguments involved in
   /// that specialization.
-  llvm::PointerUnion4<FunctionTemplateDecl *,
-                      MemberSpecializationInfo *,
-                      FunctionTemplateSpecializationInfo *,
-                      DependentFunctionTemplateSpecializationInfo *>
+  llvm::PointerUnion<FunctionTemplateDecl *,
+                     MemberSpecializationInfo *,
+                     FunctionTemplateSpecializationInfo *,
+                     DependentFunctionTemplateSpecializationInfo *>
     TemplateOrSpecialization;
 
   /// Provides source/type location info for the declaration name embedded in
@@ -2306,8 +2306,16 @@ public:
   ///    allocation function. [...]
   ///
   /// If this function is an aligned allocation/deallocation function, return
-  /// true through IsAligned.
-  bool isReplaceableGlobalAllocationFunction(bool *IsAligned = nullptr) const;
+  /// the parameter number of the requested alignment through AlignmentParam.
+  ///
+  /// If this function is an allocation/deallocation function that takes
+  /// the `std::nothrow_t` tag, return true through IsNothrow,
+  bool isReplaceableGlobalAllocationFunction(
+      Optional<unsigned> *AlignmentParam = nullptr,
+      bool *IsNothrow = nullptr) const;
+
+  /// Determine if this function provides an inline implementation of a builtin.
+  bool isInlineBuiltinDeclaration() const;
 
   /// Determine whether this is a destroying operator delete.
   bool isDestroyingOperatorDelete() const;
@@ -3531,6 +3539,7 @@ class EnumDecl : public TagDecl {
   /// negative enumerators of this enum. (see getNumNegativeBits)
   void setNumNegativeBits(unsigned Num) { EnumDeclBits.NumNegativeBits = Num; }
 
+public:
   /// True if this tag declaration is a scoped enumeration. Only
   /// possible in C++11 mode.
   void setScoped(bool Scoped = true) { EnumDeclBits.IsScoped = Scoped; }
@@ -3547,6 +3556,7 @@ class EnumDecl : public TagDecl {
   /// Microsoft-style enumeration with a fixed underlying type.
   void setFixed(bool Fixed = true) { EnumDeclBits.IsFixed = Fixed; }
 
+private:
   /// True if a valid hash is stored in ODRHash.
   bool hasODRHash() const { return EnumDeclBits.HasODRHash; }
   void setHasODRHash(bool Hash = true) { EnumDeclBits.HasODRHash = Hash; }
@@ -4332,17 +4342,18 @@ class ImportDecl final : public Decl,
   friend class ASTReader;
   friend TrailingObjects;
 
-  /// The imported module, along with a bit that indicates whether
-  /// we have source-location information for each identifier in the module
-  /// name.
-  ///
-  /// When the bit is false, we only have a single source location for the
-  /// end of the import declaration.
-  llvm::PointerIntPair<Module *, 1, bool> ImportedAndComplete;
+  /// The imported module.
+  Module *ImportedModule = nullptr;
 
   /// The next import in the list of imports local to the translation
   /// unit being parsed (not loaded from an AST file).
-  ImportDecl *NextLocalImport = nullptr;
+  ///
+  /// Includes a bit that indicates whether we have source-location information
+  /// for each identifier in the module name.
+  ///
+  /// When the bit is false, we only have a single source location for the
+  /// end of the import declaration.
+  llvm::PointerIntPair<ImportDecl *, 1, bool> NextLocalImportAndComplete;
 
   ImportDecl(DeclContext *DC, SourceLocation StartLoc, Module *Imported,
              ArrayRef<SourceLocation> IdentifierLocs);
@@ -4351,6 +4362,20 @@ class ImportDecl final : public Decl,
              SourceLocation EndLoc);
 
   ImportDecl(EmptyShell Empty) : Decl(Import, Empty) {}
+
+  bool isImportComplete() const { return NextLocalImportAndComplete.getInt(); }
+
+  void setImportComplete(bool C) { NextLocalImportAndComplete.setInt(C); }
+
+  /// The next import in the list of imports local to the translation
+  /// unit being parsed (not loaded from an AST file).
+  ImportDecl *getNextLocalImport() const {
+    return NextLocalImportAndComplete.getPointer();
+  }
+
+  void setNextLocalImport(ImportDecl *Import) {
+    NextLocalImportAndComplete.setPointer(Import);
+  }
 
 public:
   /// Create a new module import declaration.
@@ -4369,7 +4394,7 @@ public:
                                         unsigned NumLocations);
 
   /// Retrieve the module that was imported by the import declaration.
-  Module *getImportedModule() const { return ImportedAndComplete.getPointer(); }
+  Module *getImportedModule() const { return ImportedModule; }
 
   /// Retrieves the locations of each of the identifiers that make up
   /// the complete module name in the import declaration.

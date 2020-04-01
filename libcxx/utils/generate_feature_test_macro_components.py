@@ -542,7 +542,6 @@ feature_test_macros = sorted([ add_version_header(x) for x in [
      "c++2a": int(201806),
    },
    "headers": ["forward_list", "list"],
-   "unimplemented": True,
    },
   {"name": "__cpp_lib_generic_unordered_lookup",
    "values": {
@@ -585,6 +584,12 @@ feature_test_macros = sorted([ add_version_header(x) for x in [
      "c++2a": int(201907),
    },
    "headers": ["bit"],
+   },
+  {"name": "__cpp_lib_to_array",
+   "values": {
+     "c++2a": 201907L,
+   },
+   "headers": ["array"],
    },
 ]], key=lambda tc: tc["name"])
 

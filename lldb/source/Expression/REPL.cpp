@@ -1,4 +1,4 @@
-//===-- REPL.cpp ------------------------------------------------*- C++ -*-===//
+//===-- REPL.cpp ----------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -53,11 +53,11 @@ std::string REPL::GetSourcePath() {
   ConstString file_basename = GetSourceFileBasename();
   FileSpec tmpdir_file_spec = HostInfo::GetProcessTempDir();
   if (tmpdir_file_spec) {
-    tmpdir_file_spec.GetFilename().SetCString(file_basename.AsCString());
+    tmpdir_file_spec.GetFilename() = file_basename;
     m_repl_source_path = tmpdir_file_spec.GetPath();
   } else {
     tmpdir_file_spec = FileSpec("/tmp");
-    tmpdir_file_spec.AppendPathComponent(file_basename.AsCString());
+    tmpdir_file_spec.AppendPathComponent(file_basename.GetStringRef());
   }
 
   return tmpdir_file_spec.GetPath();
@@ -252,7 +252,7 @@ void REPL::IOHandlerInputComplete(IOHandler &io_handler, std::string &code) {
           lldb::IOHandlerSP io_handler_sp(ci.GetIOHandler());
           if (io_handler_sp) {
             io_handler_sp->SetIsDone(false);
-            debugger.PushIOHandler(ci.GetIOHandler());
+            debugger.RunIOHandlerAsync(ci.GetIOHandler());
           }
         }
       }
@@ -283,18 +283,18 @@ void REPL::IOHandlerInputComplete(IOHandler &io_handler, std::string &code) {
 
       PersistentExpressionState *persistent_state =
           m_target.GetPersistentExpressionStateForLanguage(GetLanguage());
+      if (!persistent_state)
+        return;
 
       const size_t var_count_before = persistent_state->GetSize();
 
       const char *expr_prefix = nullptr;
       lldb::ValueObjectSP result_valobj_sp;
       Status error;
-      lldb::ModuleSP jit_module_sp;
       lldb::ExpressionResults execution_results =
           UserExpression::Evaluate(exe_ctx, expr_options, code.c_str(),
                                    expr_prefix, result_valobj_sp, error,
-                                   nullptr, // Fixed Expression
-                                   &jit_module_sp);
+                                   nullptr); // fixed expression
 
       // CommandInterpreter &ci = debugger.GetCommandInterpreter();
 
@@ -368,7 +368,7 @@ void REPL::IOHandlerInputComplete(IOHandler &io_handler, std::string &code) {
               lldb::IOHandlerSP io_handler_sp(ci.GetIOHandler());
               if (io_handler_sp) {
                 io_handler_sp->SetIsDone(false);
-                debugger.PushIOHandler(ci.GetIOHandler());
+                debugger.RunIOHandlerAsync(ci.GetIOHandler());
               }
             }
             break;
@@ -486,14 +486,7 @@ void REPL::IOHandlerComplete(IOHandler &io_handler,
   current_code.append("\n");
   current_code += request.GetRawLine();
 
-  StringList matches;
-  int result = CompleteCode(current_code, matches);
-  if (result == -2) {
-    assert(matches.GetSize() == 1);
-    request.AddCompletion(matches.GetStringAtIndex(0), "",
-                          CompletionMode::RewriteLine);
-  } else
-    request.AddCompletions(matches);
+  CompleteCode(current_code, request);
 }
 
 bool QuitCommandOverrideCallback(void *baton, const char **argv) {
@@ -528,7 +521,7 @@ Status REPL::RunLoop() {
                                                       save_default_line);
   }
 
-  debugger.PushIOHandler(io_handler_sp);
+  debugger.RunIOHandlerAsync(io_handler_sp);
 
   // Check if we are in dedicated REPL mode where LLDB was start with the "--
   // repl" option from the command line. Currently we know this by checking if

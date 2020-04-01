@@ -140,7 +140,8 @@ RetainSummaryManager::getPersistentSummary(const RetainSummary &OldSumm) {
 static bool isSubclass(const Decl *D,
                        StringRef ClassName) {
   using namespace ast_matchers;
-  DeclarationMatcher SubclassM = cxxRecordDecl(isSameOrDerivedFrom(ClassName));
+  DeclarationMatcher SubclassM =
+      cxxRecordDecl(isSameOrDerivedFrom(std::string(ClassName)));
   return !(match(SubclassM, *D, D->getASTContext()).empty());
 }
 
@@ -662,6 +663,7 @@ RetainSummaryManager::getSummary(AnyCall C,
   switch (C.getKind()) {
   case AnyCall::Function:
   case AnyCall::Constructor:
+  case AnyCall::InheritedConstructor:
   case AnyCall::Allocator:
   case AnyCall::Deallocator:
     Summ = getFunctionSummary(cast_or_null<FunctionDecl>(C.getDecl()));

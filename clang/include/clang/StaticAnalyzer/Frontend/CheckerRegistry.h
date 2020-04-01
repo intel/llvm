@@ -11,6 +11,7 @@
 
 #include "clang/Basic/LLVM.h"
 #include "clang/StaticAnalyzer/Core/CheckerManager.h"
+#include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 #include <cstddef>
@@ -204,16 +205,14 @@ public:
 
   using PackageInfoList = llvm::SmallVector<PackageInfo, 0>;
 
-private:
-  template <typename T> static void initializeManager(CheckerManager &mgr) {
+  template <typename T> static void addToCheckerMgr(CheckerManager &mgr) {
     mgr.registerChecker<T>();
   }
 
-  template <typename T> static bool returnTrue(const LangOptions &LO) {
+  static bool returnTrue(const LangOptions &LO) {
     return true;
   }
 
-public:
   /// Adds a checker to the registry. Use this non-templated overload when your
   /// checker requires custom initialization.
   void addChecker(InitializationFunction Fn, ShouldRegisterFunction sfn,
@@ -227,9 +226,8 @@ public:
                   bool IsHidden = false) {
     // Avoid MSVC's Compiler Error C2276:
     // http://msdn.microsoft.com/en-us/library/850cstw1(v=VS.80).aspx
-    addChecker(&CheckerRegistry::initializeManager<T>,
-               &CheckerRegistry::returnTrue<T>, FullName, Desc, DocsUri,
-               IsHidden);
+    addChecker(&CheckerRegistry::addToCheckerMgr<T>,
+               &CheckerRegistry::returnTrue, FullName, Desc, DocsUri, IsHidden);
   }
 
   /// Makes the checker with the full name \p fullName depends on the checker

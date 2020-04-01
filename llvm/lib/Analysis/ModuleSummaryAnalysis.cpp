@@ -83,7 +83,7 @@ cl::opt<std::string> ModuleSummaryDotFile(
 // to know when computing summary for global var, because if global variable
 // references basic block address we can't import it separately from function
 // containing that basic block. For simplicity we currently don't import such
-// global vars at all. When importing function we aren't interested if any 
+// global vars at all. When importing function we aren't interested if any
 // instruction in it takes an address of any basic block, because instruction
 // can only take an address of basic block located in the same function.
 static bool findRefEdges(ModuleSummaryIndex &Index, const User *CurUser,
@@ -599,7 +599,10 @@ static void computeVariableSummary(ModuleSummaryIndex &Index,
   bool CanBeInternalized =
       !V.hasComdat() && !V.hasAppendingLinkage() && !V.isInterposable() &&
       !V.hasAvailableExternallyLinkage() && !V.hasDLLExportStorageClass();
-  GlobalVarSummary::GVarFlags VarFlags(CanBeInternalized, CanBeInternalized);
+  bool Constant = V.isConstant();
+  GlobalVarSummary::GVarFlags VarFlags(CanBeInternalized,
+                                       Constant ? false : CanBeInternalized,
+                                       Constant, V.getVCallVisibility());
   auto GVarSummary = std::make_unique<GlobalVarSummary>(Flags, VarFlags,
                                                          RefEdges.takeVector());
   if (NonRenamableLocal)
@@ -718,7 +721,10 @@ ModuleSummaryIndex llvm::buildModuleSummaryIndex(
           } else {
             std::unique_ptr<GlobalVarSummary> Summary =
                 std::make_unique<GlobalVarSummary>(
-                    GVFlags, GlobalVarSummary::GVarFlags(false, false),
+                    GVFlags,
+                    GlobalVarSummary::GVarFlags(
+                        false, false, cast<GlobalVariable>(GV)->isConstant(),
+                        GlobalObject::VCallVisibilityPublic),
                     ArrayRef<ValueInfo>{});
             Index.addGlobalValueSummary(*GV, std::move(Summary));
           }

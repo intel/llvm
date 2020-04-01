@@ -208,6 +208,10 @@ uptr internal_getpid() {
   return getpid();
 }
 
+int internal_dlinfo(void *handle, int request, void *p) {
+  UNIMPLEMENTED();
+}
+
 int internal_sigaction(int signum, const void *act, void *oldact) {
   return sigaction(signum,
                    (const struct sigaction *)act, (struct sigaction *)oldact);
@@ -677,13 +681,13 @@ uptr GetRSS() {
   return info.resident_size;
 }
 
-void *internal_start_thread(void(*func)(void *arg), void *arg) {
+void *internal_start_thread(void *(*func)(void *arg), void *arg) {
   // Start the thread with signals blocked, otherwise it can steal user signals.
   __sanitizer_sigset_t set, old;
   internal_sigfillset(&set);
   internal_sigprocmask(SIG_SETMASK, &set, &old);
   pthread_t th;
-  pthread_create(&th, 0, (void*(*)(void *arg))func, arg);
+  pthread_create(&th, 0, func, arg);
   internal_sigprocmask(SIG_SETMASK, &old, 0);
   return th;
 }

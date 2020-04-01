@@ -44,7 +44,7 @@ the SPIR-V specification. Those abstractions are easily outside the domain of
 SPIR-V and should be modeled with other proper dialects so they can be shared
 among various compilation paths. Because of the dual purpose of SPIR-V, SPIR-V
 dialect staying at the same semantic level as the SPIR-V specification also
-means we can still have straightforward serailization and deserailization for
+means we can still have straightforward serialization and deserialization for
 the majority of functionalities.
 
 To summarize, the SPIR-V dialect follows the following design principles:
@@ -252,12 +252,18 @@ The SPIR-V dialect reuses standard integer, float, and vector types:
 Specification                        | Dialect
 :----------------------------------: | :-------------------------------:
 `OpTypeBool`                         | `i1`
-`OpTypeInt <bitwidth>`               | `i<bitwidth>`
 `OpTypeFloat <bitwidth>`             | `f<bitwidth>`
 `OpTypeVector <scalar-type> <count>` | `vector<<count> x <scalar-type>>`
 
-Similarly, `mlir::NoneType` can be used for SPIR-V `OpTypeVoid`; builtin
-function types can be used for SPIR-V `OpTypeFunction` types.
+For integer types, the SPIR-V dialect supports all signedness semantics
+(signless, signed, unsigned) in order to ease transformations from higher level
+dialects. However, SPIR-V spec only defines two signedness semantics state: 0
+indicates unsigned, or no signedness semantics, 1 indicates signed semantics. So
+both `iN` and `uiN` are serialized into the same `OpTypeInt N 0`. For
+deserialization, we always treat `OpTypeInt N 0` as `iN`.
+
+`mlir::NoneType` is used for SPIR-V `OpTypeVoid`; builtin function types are
+used for SPIR-V `OpTypeFunction` types.
 
 The SPIR-V dialect and defines the following dialect-specific types:
 
@@ -725,6 +731,73 @@ func @foo() -> () {
 }
 ```
 
+## Target environment
+
+SPIR-V aims to support multiple execution environments as specified by client
+APIs. These execution environments affect the availability of certain SPIR-V
+features. For example, a [Vulkan 1.1][VulkanSpirv] implementation must support
+the 1.0, 1.1, 1.2, and 1.3 versions of SPIR-V and the 1.0 version of the SPIR-V
+extended instructions for GLSL. Further Vulkan extensions may enable more SPIR-V
+instructions.
+
+SPIR-V compilation should also take into consideration of the execution
+environment, so we generate SPIR-V modules valid for the target environment.
+This is conveyed by the `spv.target_env` (`spirv::TargetEnvAttr`) attribute. It
+should be of `#spv.target_env` attribute kind, which is defined as:
+
+```
+spirv-version    ::= `v1.0` | `v1.1` | ...
+spirv-extension  ::= `SPV_KHR_16bit_storage` | `SPV_EXT_physical_storage_buffer` | ...
+spirv-capability ::= `Shader` | `Kernel` | `GroupNonUniform` | ...
+
+spirv-extension-list     ::= `[` (spirv-extension-elements)? `]`
+spirv-extension-elements ::= spirv-extension (`,` spirv-extension)*
+
+spirv-capability-list     ::= `[` (spirv-capability-elements)? `]`
+spirv-capability-elements ::= spirv-capability (`,` spirv-capability)*
+
+spirv-resource-limits ::= dictionary-attribute
+
+spirv-vce-attribute ::= `#` `spv.vce` `<`
+                            spirv-version `,`
+                            spirv-capability-list `,`
+                            spirv-extensions-list `>`
+
+spirv-target-env-attribute ::= `#` `spv.target_env` `<`
+                                  spirv-vce-attribute,
+                                  spirv-resource-limits `>`
+```
+
+The attribute has a few fields:
+
+*   A `#spv.vce` (`spirv::VerCapExtAttr`) attribute:
+    *   The target SPIR-V version.
+    *   A list of SPIR-V extensions for the target.
+    *   A list of SPIR-V capabilities for the target.
+*   A dictionary of target resource limits (see the
+    [Vulkan spec][VulkanResourceLimits] for explanation):
+    *   `max_compute_workgroup_invocations`
+    *   `max_compute_workgroup_size`
+
+For example,
+
+```
+module attributes {
+spv.target_env = #spv.target_env<
+    #spv.vce<v1.3, [Shader, GroupNonUniform], [SPV_KHR_8bit_storage]>,
+    {
+      max_compute_workgroup_invocations = 128 : i32,
+      max_compute_workgroup_size = dense<[128, 128, 64]> : vector<3xi32>
+    }>
+} { ... }
+```
+
+Dialect conversion framework will utilize the information in `spv.target_env` to
+properly filter out patterns and ops not available in the target execution
+environment. When targeting SPIR-V, one needs to create a
+[`SPIRVConversionTarget`](#spirvconversiontarget) by providing such an
+attribute.
+
 ## Shader interface (ABI)
 
 SPIR-V itself is just expressing computation happening on GPU device. SPIR-V
@@ -852,12 +925,22 @@ classes are provided.
 additional rules are imposed by [Vulkan execution environment][VulkanSpirv]. The
 lowering described below implements both these requirements.)
 
+### `SPIRVConversionTarget`
 
-### SPIRVTypeConverter
+The `mlir::spirv::SPIRVConversionTarget` class derives from the
+`mlir::ConversionTarget` class and serves as a utility to define a conversion
+target satisfying a given [`spv.target_env`](#target-environment). It registers
+proper hooks to check the dynamic legality of SPIR-V ops. Users can further
+register other legality constraints into the returned `SPIRVConversionTarget`.
 
-The `mlir::spirv::SPIRVTypeConverter` derives from
-`mlir::TypeConverter` and provides type conversion for standard
-types to SPIR-V types:
+`spirv::lookupTargetEnvOrDefault()` is a handy utility function to query an
+`spv.target_env` attached in the input IR or use the default to construct a
+`SPIRVConversionTarget`.
+
+### `SPIRVTypeConverter`
+
+The `mlir::SPIRVTypeConverter` derives from `mlir::TypeConverter` and provides
+type conversion for standard types to SPIR-V types:
 
 *   [Standard Integer][MlirIntegerType] -> Standard Integer
 *   [Standard Float][MlirFloatType] -> Standard Float
@@ -874,11 +957,11 @@ supported in SPIR-V. Currently the `index` type is converted to `i32`.
 (TODO: Allow for configuring the integer width to use for `index` types in the
 SPIR-V dialect)
 
-### SPIRVOpLowering
+### `SPIRVOpLowering`
 
-`mlir::spirv::SPIRVOpLowering` is a base class that can be used to define the
-patterns used for implementing the lowering. For now this only provides derived
-classes access to an instance of `mlir::spirv::SPIRVTypeLowering` class.
+`mlir::SPIRVOpLowering` is a base class that can be used to define the patterns
+used for implementing the lowering. For now this only provides derived classes
+access to an instance of `mlir::SPIRVTypeLowering` class.
 
 ### Utility functions for lowering
 
@@ -1191,3 +1274,4 @@ dialect.
 [CustomTypeAttrTutorial]: ../DefiningAttributesAndTypes/
 [VulkanSpirv]: https://renderdoc.org/vkspec_chunked/chap40.html#spirvenv
 [VulkanShaderInterface]: https://renderdoc.org/vkspec_chunked/chap14.html#interfaces-resources
+[VulkanResourceLimits]: https://renderdoc.org/vkspec_chunked/chap36.html#limits

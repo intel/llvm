@@ -934,7 +934,7 @@ MDNode *MDNode::getMostGenericFPMath(MDNode *A, MDNode *B) {
 
   APFloat AVal = mdconst::extract<ConstantFP>(A->getOperand(0))->getValueAPF();
   APFloat BVal = mdconst::extract<ConstantFP>(B->getOperand(0))->getValueAPF();
-  if (AVal.compare(BVal) == APFloat::cmpLessThan)
+  if (AVal < BVal)
     return A;
   return B;
 }
@@ -1500,7 +1500,10 @@ void GlobalObject::addTypeMetadata(unsigned Offset, Metadata *TypeID) {
                      TypeID}));
 }
 
-void GlobalObject::addVCallVisibilityMetadata(VCallVisibility Visibility) {
+void GlobalObject::setVCallVisibilityMetadata(VCallVisibility Visibility) {
+  // Remove any existing vcall visibility metadata first in case we are
+  // updating.
+  eraseMetadata(LLVMContext::MD_vcall_visibility);
   addMetadata(LLVMContext::MD_vcall_visibility,
               *MDNode::get(getContext(),
                            {ConstantAsMetadata::get(ConstantInt::get(

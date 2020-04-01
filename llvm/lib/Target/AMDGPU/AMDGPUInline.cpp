@@ -190,9 +190,9 @@ InlineCost AMDGPUInliner::getInlineCost(CallSite CS) {
 
   if (CS.hasFnAttr(Attribute::AlwaysInline)) {
     auto IsViable = isInlineViable(*Callee);
-    if (IsViable)
+    if (IsViable.isSuccess())
       return llvm::InlineCost::getAlways("alwaysinline viable");
-    return llvm::InlineCost::getNever(IsViable.message);
+    return llvm::InlineCost::getNever(IsViable.getFailureReason());
   }
 
   if (isWrapperOnlyCall(CS))
@@ -215,8 +215,8 @@ InlineCost AMDGPUInliner::getInlineCost(CallSite CS) {
   };
 
   auto IC = llvm::getInlineCost(cast<CallBase>(*CS.getInstruction()), Callee,
-                             LocalParams, TTI, GetAssumptionCache, None, PSI,
-                             RemarksEnabled ? &ORE : nullptr);
+                                LocalParams, TTI, GetAssumptionCache, None,
+                                GetTLI, PSI, RemarksEnabled ? &ORE : nullptr);
 
   if (IC && !IC.isAlways() && !Callee->hasFnAttribute(Attribute::InlineHint)) {
     // Single BB does not increase total BB amount, thus subtract 1

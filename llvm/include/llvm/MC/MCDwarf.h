@@ -41,6 +41,11 @@ class raw_ostream;
 class SMLoc;
 class SourceMgr;
 
+namespace mcdwarf {
+// Emit the common part of the DWARF 5 range/locations list tables header.
+MCSymbol *emitListsTableHeaderStart(MCStreamer &S);
+} // namespace mcdwarf
+
 /// Instances of this class represent the name of the dwarf .file directive and
 /// its associated dwarf file number in the MC file. MCDwarfFile's are created
 /// and uniqued by the MCContext class. In Dwarf 4 file numbers start from 1;
@@ -252,8 +257,8 @@ public:
   void setRootFile(StringRef Directory, StringRef FileName,
                    Optional<MD5::MD5Result> Checksum,
                    Optional<StringRef> Source) {
-    CompilationDir = Directory;
-    RootFile.Name = FileName;
+    CompilationDir = std::string(Directory);
+    RootFile.Name = std::string(FileName);
     RootFile.DirIndex = 0;
     RootFile.Checksum = Checksum;
     RootFile.Source = Source;
@@ -325,8 +330,8 @@ public:
 
   void setRootFile(StringRef Directory, StringRef FileName,
                    Optional<MD5::MD5Result> Checksum, Optional<StringRef> Source) {
-    Header.CompilationDir = Directory;
-    Header.RootFile.Name = FileName;
+    Header.CompilationDir = std::string(Directory);
+    Header.RootFile.Name = std::string(FileName);
     Header.RootFile.DirIndex = 0;
     Header.RootFile.Checksum = Checksum;
     Header.RootFile.Source = Source;

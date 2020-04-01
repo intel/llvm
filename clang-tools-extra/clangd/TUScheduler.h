@@ -20,6 +20,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
+#include <chrono>
 
 namespace clang {
 namespace clangd {
@@ -58,6 +59,28 @@ struct ASTRetentionPolicy {
   /// Maximum number of ASTs to be retained in memory when there are no pending
   /// requests for them.
   unsigned MaxRetainedASTs = 3;
+};
+
+/// Clangd may wait after an update to see if another one comes along.
+/// This is so we rebuild once the user stops typing, not when they start.
+/// Debounce may be disabled/interrupted if we must build this version.
+/// The debounce time is responsive to user preferences and rebuild time.
+/// In the future, we could also consider different types of edits.
+struct DebouncePolicy {
+  using clock = std::chrono::steady_clock;
+
+  /// The minimum time that we always debounce for.
+  clock::duration Min = /*zero*/ {};
+  /// The maximum time we may debounce for.
+  clock::duration Max = /*zero*/ {};
+  /// Target debounce, as a fraction of file rebuild time.
+  /// e.g. RebuildRatio = 2, recent builds took 200ms => debounce for 400ms.
+  float RebuildRatio = 1;
+
+  /// Compute the time to debounce based on this policy and recent build times.
+  clock::duration compute(llvm::ArrayRef<clock::duration> History) const;
+  /// A policy that always returns the same duration, useful for tests.
+  static DebouncePolicy fixed(clock::duration);
 };
 
 struct TUAction {
@@ -99,7 +122,8 @@ public:
   /// Called on the AST that was built for emitting the preamble. The built AST
   /// contains only AST nodes from the #include directives at the start of the
   /// file. AST node in the current file should be observed on onMainAST call.
-  virtual void onPreambleAST(PathRef Path, ASTContext &Ctx,
+  virtual void onPreambleAST(PathRef Path, llvm::StringRef Version,
+                             ASTContext &Ctx,
                              std::shared_ptr<clang::Preprocessor> PP,
                              const CanonicalIncludes &) {}
 
@@ -130,8 +154,8 @@ public:
 
   /// Called whenever the AST fails to build. \p Diags will have the diagnostics
   /// that led to failure.
-  virtual void onFailedAST(PathRef Path, std::vector<Diag> Diags,
-                           PublishFn Publish) {}
+  virtual void onFailedAST(PathRef Path, llvm::StringRef Version,
+                           std::vector<Diag> Diags, PublishFn Publish) {}
 
   /// Called whenever the TU status is updated.
   virtual void onFileUpdated(PathRef File, const TUStatus &Status) {}
@@ -143,14 +167,28 @@ public:
 /// and scheduling tasks.
 /// Callbacks are run on a threadpool and it's appropriate to do slow work in
 /// them. Each task has a name, used for tracing (should be UpperCamelCase).
-/// FIXME(sammccall): pull out a scheduler options struct.
 class TUScheduler {
 public:
-  TUScheduler(const GlobalCompilationDatabase &CDB, unsigned AsyncThreadsCount,
-              bool StorePreamblesInMemory,
-              std::unique_ptr<ParsingCallbacks> ASTCallbacks,
-              std::chrono::steady_clock::duration UpdateDebounce,
-              ASTRetentionPolicy RetentionPolicy);
+  struct Options {
+    /// Number of concurrent actions.
+    /// Governs per-file worker threads and threads spawned for other tasks.
+    /// (This does not prevent threads being spawned, but rather blocks them).
+    /// If 0, executes actions synchronously on the calling thread.
+    unsigned AsyncThreadsCount = getDefaultAsyncThreadsCount();
+
+    /// Cache (large) preamble data in RAM rather than temporary files on disk.
+    bool StorePreamblesInMemory = false;
+
+    /// Time to wait after an update to see if another one comes along.
+    /// This tries to ensure we rebuild once the user stops typing.
+    DebouncePolicy UpdateDebounce;
+
+    /// Determines when to keep idle ASTs in memory for future use.
+    ASTRetentionPolicy RetentionPolicy;
+  };
+
+  TUScheduler(const GlobalCompilationDatabase &CDB, const Options &Opts,
+              std::unique_ptr<ParsingCallbacks> ASTCallbacks = nullptr);
   ~TUScheduler();
 
   /// Returns estimated memory usage for each of the currently open files.
@@ -176,15 +214,22 @@ public:
   /// if requested with WantDiags::Auto or WantDiags::Yes.
   void remove(PathRef File);
 
-  /// Returns the current contents of the buffer for File, per last update().
-  /// The returned StringRef may be invalidated by any write to TUScheduler.
-  llvm::StringRef getContents(PathRef File) const;
-
   /// Returns a snapshot of all file buffer contents, per last update().
   llvm::StringMap<std::string> getAllFileContents() const;
 
   /// Schedule an async task with no dependencies.
   void run(llvm::StringRef Name, llvm::unique_function<void()> Action);
+
+  /// Defines how a runWithAST action is implicitly cancelled by other actions.
+  enum ASTActionInvalidation {
+    /// The request will run unless explicitly cancelled.
+    NoInvalidation,
+    /// The request will be implicitly cancelled by a subsequent update().
+    /// (Only if the request was not yet cancelled).
+    /// Useful for requests that are generated by clients, without any explicit
+    /// user action. These can otherwise e.g. force every version to be built.
+    InvalidateOnUpdate,
+  };
 
   /// Schedule an async read of the AST. \p Action will be called when AST is
   /// ready. The AST passed to \p Action refers to the version of \p File
@@ -192,10 +237,11 @@ public:
   /// \p Action is executed.
   /// If an error occurs during processing, it is forwarded to the \p Action
   /// callback.
-  /// If the context is cancelled before the AST is ready, the callback will
-  /// receive a CancelledError.
+  /// If the context is cancelled before the AST is ready, or the invalidation
+  /// policy is triggered, the callback will receive a CancelledError.
   void runWithAST(llvm::StringRef Name, PathRef File,
-                  Callback<InputsAndAST> Action);
+                  Callback<InputsAndAST> Action,
+                  ASTActionInvalidation = NoInvalidation);
 
   /// Controls whether preamble reads wait for the preamble to be up-to-date.
   enum PreambleConsistency {
@@ -258,7 +304,7 @@ private:
   // asynchronously.
   llvm::Optional<AsyncTaskRunner> PreambleTasks;
   llvm::Optional<AsyncTaskRunner> WorkerThreads;
-  std::chrono::steady_clock::duration UpdateDebounce;
+  DebouncePolicy UpdateDebounce;
 };
 
 } // namespace clangd

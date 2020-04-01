@@ -68,17 +68,17 @@ public:
   //   but with dummy operands. Doing so we a) map llvm value to spirv value,
   //   b) get a place for SPIRV debug info intrinsic in SPIRV basic block.
   //   We also remember all debug intrinsics.
-  SPIRVValue *createDebugDeclarePlaceholder(const DbgDeclareInst *DbgDecl,
+  SPIRVValue *createDebugDeclarePlaceholder(const DbgVariableIntrinsic *DbgDecl,
                                             SPIRVBasicBlock *BB);
-  SPIRVValue *createDebugValuePlaceholder(const DbgValueInst *DbgValue,
+  SPIRVValue *createDebugValuePlaceholder(const DbgVariableIntrinsic *DbgValue,
                                           SPIRVBasicBlock *BB);
 
 private:
   // 2. After translation of all regular instructions we deal with debug info.
   //   We iterate over debug intrinsics stored on the first step, get its mapped
   //   SPIRV instruction and tweak the operands.
-  void finalizeDebugDeclare(const DbgDeclareInst *DbgDecl);
-  void finalizeDebugValue(const DbgValueInst *DbgValue);
+  void finalizeDebugDeclare(const DbgVariableIntrinsic *DbgDecl);
+  void finalizeDebugValue(const DbgVariableIntrinsic *DbgValue);
 
   // Emit DebugScope and OpLine instructions
   void transLocationInfo();
@@ -154,8 +154,8 @@ private:
   SPIRVType *VoidT;
   SPIRVEntry *DebugInfoNone;
   SPIRVExtInst *SPIRVCU;
-  std::vector<const DbgDeclareInst *> DbgDeclareIntrinsics;
-  std::vector<const DbgValueInst *> DbgValueIntrinsics;
+  std::vector<const DbgVariableIntrinsic *> DbgDeclareIntrinsics;
+  std::vector<const DbgVariableIntrinsic *> DbgValueIntrinsics;
 }; // class LLVMToSPIRVDbgTran
 
 } // namespace SPIRV

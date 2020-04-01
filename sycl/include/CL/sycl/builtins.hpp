@@ -17,7 +17,7 @@
 // TODO Decide whether to mark functions with this attribute.
 #define __NOEXC /*noexcept*/
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 #ifdef __SYCL_DEVICE_ONLY__
 #define __sycl_std
@@ -25,9 +25,9 @@ namespace sycl {
 namespace __sycl_std = __host_std;
 #endif
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 /* ----------------- 4.13.3 Math functions. ---------------------------------*/
 // genfloat acos (genfloat x)
@@ -851,10 +851,6 @@ detail::enable_if_t<detail::is_ugeninteger<T>::value, T> sub_sat(T x,
   return __sycl_std::__invoke_u_sub_sat<T>(x, y);
 }
 
-// TODO delete when Intel CPU OpenCL runtime will be fixed
-// OpExtInst ... s_upsample -> _Z8upsampleij (now _Z8upsampleii)
-#define __invoke_s_upsample __invoke_u_upsample
-
 // ugeninteger16bit upsample (ugeninteger8bit hi, ugeninteger8bit lo)
 template <typename T>
 detail::enable_if_t<detail::is_ugeninteger8bit<T>::value,
@@ -908,8 +904,6 @@ upsample(T hi, T2 lo) __NOEXC {
   detail::check_vector_size<T, T2>();
   return __sycl_std::__invoke_s_upsample<detail::make_larger_t<T>>(hi, lo);
 }
-
-#undef __invoke_s_upsample
 
 // geninteger popcount (geninteger x)
 template <typename T>
@@ -965,7 +959,7 @@ detail::enable_if_t<detail::is_gencrossfloat<T>::value, T> cross(T p0,
 // half dot (half p0, half p1)
 template <typename T>
 detail::enable_if_t<detail::is_sgenfloat<T>::value, T> dot(T p0, T p1) __NOEXC {
-  return __sycl_std::__invoke_FMul<T>(p0, p1);
+  return p0 * p1;
 }
 
 // float dot (vgengeofloat p0, vgengeofloat p1)
@@ -1546,6 +1540,20 @@ detail::enable_if_t<detail::is_genfloatf<T>::value, T> tan(T x) __NOEXC {
 
 } // namespace half_precision
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)
+
+#ifdef __SYCL_DEVICE_ONLY__
+#ifdef __GLIBC__
+extern "C" {
+extern SYCL_EXTERNAL void __assert_fail(const char *expr, const char *file,
+                                        unsigned int line, const char *func);
+}
+#elif defined(_WIN32)
+extern "C" {
+extern SYCL_EXTERNAL void _wassert(const wchar_t *wexpr, const wchar_t *wfile,
+                                   unsigned line);
+}
+#endif
+#endif // __SYCL_DEVICE_ONLY__
 
 #undef __NOEXC

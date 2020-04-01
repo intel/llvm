@@ -17,6 +17,7 @@
 #ifndef LLVM_CLANG_AST_TYPE_H
 #define LLVM_CLANG_AST_TYPE_H
 
+#include "clang/AST/DependenceFlags.h"
 #include "clang/AST/NestedNameSpecifier.h"
 #include "clang/AST/TemplateName.h"
 #include "clang/Basic/AddressSpaces.h"
@@ -44,8 +45,8 @@
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/PointerLikeTypeTraits.h"
-#include "llvm/Support/type_traits.h"
 #include "llvm/Support/TrailingObjects.h"
+#include "llvm/Support/type_traits.h"
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
@@ -58,6 +59,7 @@ namespace clang {
 
 class ExtQuals;
 class QualType;
+class ConceptDecl;
 class TagDecl;
 class Type;
 
@@ -85,7 +87,7 @@ namespace llvm {
       return static_cast< ::clang::Type*>(P);
     }
 
-    enum { NumLowBitsAvailable = clang::TypeAlignmentInBits };
+    static constexpr int NumLowBitsAvailable = clang::TypeAlignmentInBits;
   };
 
   template<>
@@ -96,7 +98,7 @@ namespace llvm {
       return static_cast< ::clang::ExtQuals*>(P);
     }
 
-    enum { NumLowBitsAvailable = clang::TypeAlignmentInBits };
+    static constexpr int NumLowBitsAvailable = clang::TypeAlignmentInBits;
   };
 
 } // namespace llvm
@@ -1303,7 +1305,7 @@ struct PointerLikeTypeTraits<clang::QualType> {
   }
 
   // Various qualifiers go in low bits.
-  enum { NumLowBitsAvailable = 0 };
+  static constexpr int NumLowBitsAvailable = 0;
 };
 
 } // namespace llvm
@@ -1472,19 +1474,8 @@ private:
     /// TypeClass bitfield - Enum that specifies what subclass this belongs to.
     unsigned TC : 8;
 
-    /// Whether this type is a dependent type (C++ [temp.dep.type]).
-    unsigned Dependent : 1;
-
-    /// Whether this type somehow involves a template parameter, even
-    /// if the resolution of the type does not depend on a template parameter.
-    unsigned InstantiationDependent : 1;
-
-    /// Whether this type is a variably-modified type (C99 6.7.5).
-    unsigned VariablyModified : 1;
-
-    /// Whether this type contains an unexpanded parameter pack
-    /// (for C++11 variadic templates).
-    unsigned ContainsUnexpandedParameterPack : 1;
+    /// Store information on the type dependency.
+    /*TypeDependence*/ unsigned Dependence : TypeDependenceBits;
 
     /// True if the cache (i.e. the bitfields here starting with
     /// 'Cache') is valid.
@@ -1691,6 +1682,15 @@ protected:
     /// Was this placeholder type spelled as 'auto', 'decltype(auto)',
     /// or '__auto_type'?  AutoTypeKeyword value.
     unsigned Keyword : 2;
+
+    /// The number of template arguments in the type-constraints, which is
+    /// expected to be able to hold at least 1024 according to [implimits].
+    /// However as this limit is somewhat easy to hit with template
+    /// metaprogramming we'd prefer to keep it as large as possible.
+    /// At the moment it has been left as a non-bitfield since this type
+    /// safely fits in 64 bits as an unsigned, so there is no reason to
+    /// introduce the performance impact of a bitfield.
+    unsigned NumArgs;
   };
 
   class SubstTemplateTypeParmPackTypeBitfields {
@@ -1831,11 +1831,18 @@ protected:
        bool ContainsUnexpandedParameterPack)
       : ExtQualsTypeCommonBase(this,
                                canon.isNull() ? QualType(this_(), 0) : canon) {
+    auto Deps = TypeDependence::None;
+    if (Dependent)
+      Deps |= TypeDependence::Dependent | TypeDependence::Instantiation;
+    if (InstantiationDependent)
+      Deps |= TypeDependence::Instantiation;
+    if (ContainsUnexpandedParameterPack)
+      Deps |= TypeDependence::UnexpandedPack;
+    if (VariablyModified)
+      Deps |= TypeDependence::VariablyModified;
+
     TypeBits.TC = tc;
-    TypeBits.Dependent = Dependent;
-    TypeBits.InstantiationDependent = Dependent || InstantiationDependent;
-    TypeBits.VariablyModified = VariablyModified;
-    TypeBits.ContainsUnexpandedParameterPack = ContainsUnexpandedParameterPack;
+    TypeBits.Dependence = static_cast<unsigned>(Deps);
     TypeBits.CacheValid = false;
     TypeBits.CachedLocalOrUnnamed = false;
     TypeBits.CachedLinkage = NoLinkage;
@@ -1846,18 +1853,39 @@ protected:
   Type *this_() { return this; }
 
   void setDependent(bool D = true) {
-    TypeBits.Dependent = D;
-    if (D)
-      TypeBits.InstantiationDependent = true;
+    if (!D) {
+      TypeBits.Dependence &= ~static_cast<unsigned>(TypeDependence::Dependent);
+      return;
+    }
+    TypeBits.Dependence |= static_cast<unsigned>(TypeDependence::Dependent |
+                                                 TypeDependence::Instantiation);
   }
 
   void setInstantiationDependent(bool D = true) {
-    TypeBits.InstantiationDependent = D; }
+    if (D)
+      TypeBits.Dependence |=
+          static_cast<unsigned>(TypeDependence::Instantiation);
+    else
+      TypeBits.Dependence &=
+          ~static_cast<unsigned>(TypeDependence::Instantiation);
+  }
 
-  void setVariablyModified(bool VM = true) { TypeBits.VariablyModified = VM; }
+  void setVariablyModified(bool VM = true) {
+    if (VM)
+      TypeBits.Dependence |=
+          static_cast<unsigned>(TypeDependence::VariablyModified);
+    else
+      TypeBits.Dependence &=
+          ~static_cast<unsigned>(TypeDependence::VariablyModified);
+  }
 
   void setContainsUnexpandedParameterPack(bool PP = true) {
-    TypeBits.ContainsUnexpandedParameterPack = PP;
+    if (PP)
+      TypeBits.Dependence |=
+          static_cast<unsigned>(TypeDependence::UnexpandedPack);
+    else
+      TypeBits.Dependence &=
+          ~static_cast<unsigned>(TypeDependence::UnexpandedPack);
   }
 
 public:
@@ -1892,7 +1920,7 @@ public:
   ///
   /// Note that this routine does not specify which
   bool containsUnexpandedParameterPack() const {
-    return TypeBits.ContainsUnexpandedParameterPack;
+    return getDependence() & TypeDependence::UnexpandedPack;
   }
 
   /// Determines if this type would be canonical if it had no further
@@ -1905,6 +1933,15 @@ public:
   /// Users should generally prefer SplitQualType::getSingleStepDesugaredType()
   /// or QualType::getSingleStepDesugaredType(const ASTContext&).
   QualType getLocallyUnqualifiedSingleStepDesugaredType() const;
+
+  /// As an extension, we classify types as one of "sized" or "sizeless";
+  /// every type is one or the other.  Standard types are all sized;
+  /// sizeless types are purely an extension.
+  ///
+  /// Sizeless types contain data with no specified size, alignment,
+  /// or layout.
+  bool isSizelessType() const;
+  bool isSizelessBuiltinType() const;
 
   /// Types are partitioned into 3 broad categories (C99 6.2.5p1):
   /// object types, function types, and incomplete types.
@@ -2143,16 +2180,22 @@ public:
   /// Given that this is a scalar type, classify it.
   ScalarTypeKind getScalarTypeKind() const;
 
+  TypeDependence getDependence() const {
+    return static_cast<TypeDependence>(TypeBits.Dependence);
+  }
+
   /// Whether this type is a dependent type, meaning that its definition
   /// somehow depends on a template parameter (C++ [temp.dep.type]).
-  bool isDependentType() const { return TypeBits.Dependent; }
+  bool isDependentType() const {
+    return getDependence() & TypeDependence::Dependent;
+  }
 
   /// Determine whether this type is an instantiation-dependent type,
   /// meaning that the type involves a template parameter (even if the
   /// definition does not actually depend on the type substituted for that
   /// template parameter).
   bool isInstantiationDependentType() const {
-    return TypeBits.InstantiationDependent;
+    return getDependence() & TypeDependence::Instantiation;
   }
 
   /// Determine whether this type is an undeduced type, meaning that
@@ -2161,7 +2204,9 @@ public:
   bool isUndeducedType() const;
 
   /// Whether this type is a variably-modified type (C99 6.7.5).
-  bool isVariablyModifiedType() const { return TypeBits.VariablyModified; }
+  bool isVariablyModifiedType() const {
+    return getDependence() & TypeDependence::VariablyModified;
+  }
 
   /// Whether this type involves a variable-length array type
   /// with a definite size.
@@ -4822,8 +4867,7 @@ public:
 
 /// Common base class for placeholders for types that get replaced by
 /// placeholder type deduction: C++11 auto, C++14 decltype(auto), C++17 deduced
-/// class template types, and (eventually) constrained type names from the C++
-/// Concepts TS.
+/// class template types, and constrained type names.
 ///
 /// These types are usually a placeholder for a deduced type. However, before
 /// the initializer is attached, or (usually) if the initializer is
@@ -4868,18 +4912,50 @@ public:
   }
 };
 
-/// Represents a C++11 auto or C++14 decltype(auto) type.
-class AutoType : public DeducedType, public llvm::FoldingSetNode {
+/// Represents a C++11 auto or C++14 decltype(auto) type, possibly constrained
+/// by a type-constraint.
+class alignas(8) AutoType : public DeducedType, public llvm::FoldingSetNode {
   friend class ASTContext; // ASTContext creates these
 
+  ConceptDecl *TypeConstraintConcept;
+
   AutoType(QualType DeducedAsType, AutoTypeKeyword Keyword,
-           bool IsDeducedAsDependent, bool IsDeducedAsPack)
-      : DeducedType(Auto, DeducedAsType, IsDeducedAsDependent,
-                    IsDeducedAsDependent, IsDeducedAsPack) {
-    AutoTypeBits.Keyword = (unsigned)Keyword;
+           bool IsDeducedAsDependent, bool IsDeducedAsPack, ConceptDecl *CD,
+           ArrayRef<TemplateArgument> TypeConstraintArgs);
+
+  const TemplateArgument *getArgBuffer() const {
+    return reinterpret_cast<const TemplateArgument*>(this+1);
+  }
+
+  TemplateArgument *getArgBuffer() {
+    return reinterpret_cast<TemplateArgument*>(this+1);
   }
 
 public:
+  /// Retrieve the template arguments.
+  const TemplateArgument *getArgs() const {
+    return getArgBuffer();
+  }
+
+  /// Retrieve the number of template arguments.
+  unsigned getNumArgs() const {
+    return AutoTypeBits.NumArgs;
+  }
+
+  const TemplateArgument &getArg(unsigned Idx) const; // in TemplateBase.h
+
+  ArrayRef<TemplateArgument> getTypeConstraintArguments() const {
+    return {getArgs(), getNumArgs()};
+  }
+
+  ConceptDecl *getTypeConstraintConcept() const {
+    return TypeConstraintConcept;
+  }
+
+  bool isConstrained() const {
+    return TypeConstraintConcept != nullptr;
+  }
+
   bool isDecltypeAuto() const {
     return getKeyword() == AutoTypeKeyword::DecltypeAuto;
   }
@@ -4888,18 +4964,15 @@ public:
     return (AutoTypeKeyword)AutoTypeBits.Keyword;
   }
 
-  void Profile(llvm::FoldingSetNodeID &ID) {
-    Profile(ID, getDeducedType(), getKeyword(), isDependentType(),
-            containsUnexpandedParameterPack());
+  void Profile(llvm::FoldingSetNodeID &ID, const ASTContext &Context) {
+    Profile(ID, Context, getDeducedType(), getKeyword(), isDependentType(),
+            getTypeConstraintConcept(), getTypeConstraintArguments());
   }
 
-  static void Profile(llvm::FoldingSetNodeID &ID, QualType Deduced,
-                      AutoTypeKeyword Keyword, bool IsDependent, bool IsPack) {
-    ID.AddPointer(Deduced.getAsOpaquePtr());
-    ID.AddInteger((unsigned)Keyword);
-    ID.AddBoolean(IsDependent);
-    ID.AddBoolean(IsPack);
-  }
+  static void Profile(llvm::FoldingSetNodeID &ID, const ASTContext &Context,
+                      QualType Deduced, AutoTypeKeyword Keyword,
+                      bool IsDependent, ConceptDecl *CD,
+                      ArrayRef<TemplateArgument> Arguments);
 
   static bool classof(const Type *T) {
     return T->getTypeClass() == Auto;

@@ -177,6 +177,20 @@ ProgramStateRef setIteratorPosition(ProgramStateRef State, const SVal &Val,
   return nullptr;
 }
 
+ProgramStateRef createIteratorPosition(ProgramStateRef State, const SVal &Val,
+                                       const MemRegion *Cont, const Stmt* S,
+                                       const LocationContext *LCtx,
+                                       unsigned blockCount) {
+  auto &StateMgr = State->getStateManager();
+  auto &SymMgr = StateMgr.getSymbolManager();
+  auto &ACtx = StateMgr.getContext();
+
+  auto Sym = SymMgr.conjureSymbol(S, LCtx, ACtx.LongTy, blockCount);
+  State = assumeNoOverflow(State, Sym, 4);
+  return setIteratorPosition(State, Val,
+                             IteratorPosition::getPosition(Cont, Sym));
+}
+
 ProgramStateRef advancePosition(ProgramStateRef State, const SVal &Iter,
                                 OverloadedOperatorKind Op,
                                 const SVal &Distance) {
@@ -186,22 +200,70 @@ ProgramStateRef advancePosition(ProgramStateRef State, const SVal &Iter,
 
   auto &SymMgr = State->getStateManager().getSymbolManager();
   auto &SVB = State->getStateManager().getSValBuilder();
+  auto &BVF = State->getStateManager().getBasicVals();
 
   assert ((Op == OO_Plus || Op == OO_PlusEqual ||
            Op == OO_Minus || Op == OO_MinusEqual) &&
           "Advance operator must be one of +, -, += and -=.");
   auto BinOp = (Op == OO_Plus || Op == OO_PlusEqual) ? BO_Add : BO_Sub;
-  if (const auto IntDist = Distance.getAs<nonloc::ConcreteInt>()) {
-    // For concrete integers we can calculate the new position
-    const auto NewPos =
-      Pos->setTo(SVB.evalBinOp(State, BinOp,
-                               nonloc::SymbolVal(Pos->getOffset()),
-                               *IntDist, SymMgr.getType(Pos->getOffset()))
-                 .getAsSymbol());
-    return setIteratorPosition(State, Iter, NewPos);
+  const auto IntDistOp = Distance.getAs<nonloc::ConcreteInt>();
+  if (!IntDistOp)
+    return nullptr;
+
+  // For concrete integers we can calculate the new position
+  nonloc::ConcreteInt IntDist = *IntDistOp;
+
+  if (IntDist.getValue().isNegative()) {
+    IntDist = nonloc::ConcreteInt(BVF.getValue(-IntDist.getValue()));
+    BinOp = (BinOp == BO_Add) ? BO_Sub : BO_Add;
+  }
+  const auto NewPos =
+    Pos->setTo(SVB.evalBinOp(State, BinOp,
+                             nonloc::SymbolVal(Pos->getOffset()),
+                             IntDist, SymMgr.getType(Pos->getOffset()))
+               .getAsSymbol());
+  return setIteratorPosition(State, Iter, NewPos);
+}
+
+// This function tells the analyzer's engine that symbols produced by our
+// checker, most notably iterator positions, are relatively small.
+// A distance between items in the container should not be very large.
+// By assuming that it is within around 1/8 of the address space,
+// we can help the analyzer perform operations on these symbols
+// without being afraid of integer overflows.
+// FIXME: Should we provide it as an API, so that all checkers could use it?
+ProgramStateRef assumeNoOverflow(ProgramStateRef State, SymbolRef Sym,
+                                 long Scale) {
+  SValBuilder &SVB = State->getStateManager().getSValBuilder();
+  BasicValueFactory &BV = SVB.getBasicValueFactory();
+
+  QualType T = Sym->getType();
+  assert(T->isSignedIntegerOrEnumerationType());
+  APSIntType AT = BV.getAPSIntType(T);
+
+  ProgramStateRef NewState = State;
+
+  llvm::APSInt Max = AT.getMaxValue() / AT.getValue(Scale);
+  SVal IsCappedFromAbove =
+      SVB.evalBinOpNN(State, BO_LE, nonloc::SymbolVal(Sym),
+                      nonloc::ConcreteInt(Max), SVB.getConditionType());
+  if (auto DV = IsCappedFromAbove.getAs<DefinedSVal>()) {
+    NewState = NewState->assume(*DV, true);
+    if (!NewState)
+      return State;
   }
 
-  return nullptr;
+  llvm::APSInt Min = -Max;
+  SVal IsCappedFromBelow =
+      SVB.evalBinOpNN(State, BO_GE, nonloc::SymbolVal(Sym),
+                      nonloc::ConcreteInt(Min), SVB.getConditionType());
+  if (auto DV = IsCappedFromBelow.getAs<DefinedSVal>()) {
+    NewState = NewState->assume(*DV, true);
+    if (!NewState)
+      return State;
+  }
+
+  return NewState;
 }
 
 bool compare(ProgramStateRef State, SymbolRef Sym1, SymbolRef Sym2,

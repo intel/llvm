@@ -57,7 +57,8 @@ NVPTXTargetInfo::NVPTXTargetInfo(const llvm::Triple &Triple,
                      .Default(32);
   }
 
-  TLSSupported = false;
+  // FIXME: Needed for compiling SYCL to PTX.
+  TLSSupported = Triple.getEnvironment() == llvm::Triple::SYCLDevice;
   VLASupported = false;
   AddrSpaceMap = &NVPTXAddrSpaceMap;
   UseAddrSpaceMapMangling = true;

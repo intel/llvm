@@ -1,6 +1,6 @@
 //===- LinalgPatterns.td - Linalg transformation patterns --*- tablegen -*-===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -37,7 +37,7 @@ class AffineMapDomainHasDim<int n> : CPred<[{
 class HasOperandsOfType<string type>: CPred<[{
     llvm::any_of(op.getOperands(),
         [](Value v) {
-          return dyn_cast_or_null<}] # type # [{>(v->getDefiningOp());
+          return dyn_cast_or_null<}] # type # [{>(v.getDefiningOp());
         })
 }]>;
 
@@ -53,7 +53,7 @@ class TileAndFuseLinalgOp<
   "if (failed(tileAndFuseLinalgOpAndSetMarker($_builder, op, {" #
   StrJoinInt<sizes>.result # "}, {" # StrJoinInt<operandIndices>.result # "}," #
       " \"" # value # "\")))" #
-  "  return matchFailure();">;
+  "  return failure();">;
 
 //===----------------------------------------------------------------------===//
 // Linalg tiling patterns.
@@ -70,26 +70,31 @@ class TileLinalgOp<list<int> sizes, string value, list<int> permutation=[]> :
     "if (failed(tileLinalgOpAndSetMarker($_builder, op, {" #
     StrJoinInt<sizes>.result # "}, \"" # value # "\", {" #
     StrJoinInt<permutation>.result # "})))" #
-    "  return matchFailure();">;
+    "  return failure();">;
 
 //===----------------------------------------------------------------------===//
 // Linalg to loop patterns.
 //===----------------------------------------------------------------------===//
 class LinalgOpToLoops<string OpType> : NativeCodeCall<
   "if (failed(linalgOpToLoops<" # OpType # ">($_builder, op))) " #
-  "  return matchFailure();">;
+  "  return failure();">;
+
+class LinalgOpToParallelLoops<string OpType> : NativeCodeCall<
+  "if (failed(linalgOpToParallelLoops<" # OpType # ">($_builder, op))) " #
+  "  return failure();">;
 
 class LinalgOpToAffineLoops<string OpType> : NativeCodeCall<
   "if (failed(linalgOpToAffineLoops<" # OpType # ">($_builder, op))) " #
-  "  return matchFailure();">;
+  "  return failure();">;
 
 //===----------------------------------------------------------------------===//
 // Linalg to vector patterns precondition and DRR.
 //===----------------------------------------------------------------------===//
-def PreconditionVectorizeGenericLinalgOp : CPred<
-  "succeeded(vectorizeGenericLinalgOpPrecondition(op))">;
-def VectorizeGenericLinalgOp : NativeCodeCall<
-  "vectorizeGenericLinalgOp($_builder, op)">;
+def PreconditionVectorizeLinalgOp : CPred<
+  "succeeded(vectorizeLinalgOpPrecondition(op))">;
+def VectorizeLinalgOp : NativeCodeCall<
+  "vectorizeLinalgOp($_builder, op)">;
+
 
 //===----------------------------------------------------------------------===//
 // Linalg generic permutation patterns precondition and DRR.

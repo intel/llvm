@@ -1,6 +1,6 @@
 //===- TokenKinds.def - MLIR Token Description ------------------*- C++ -*-===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -52,7 +52,7 @@ TOK_IDENTIFIER(exclamation_identifier) // !foo
 TOK_LITERAL(floatliteral)               // 2.0
 TOK_LITERAL(integer)                    // 42
 TOK_LITERAL(string)                     // "foo"
-TOK_LITERAL(inttype)                    // i421
+TOK_LITERAL(inttype)                    // i4, si8, ui16
 
 // Punctuation.
 TOK_PUNCTUATION(arrow,            "->")
@@ -82,6 +82,8 @@ TOK_OPERATOR(star,               "*")
 
 // NOTE: Please key these alphabetized to make it easier to find something in
 // this list and to cater to OCD.
+TOK_KEYWORD(affine_map)
+TOK_KEYWORD(affine_set)
 TOK_KEYWORD(attributes)
 TOK_KEYWORD(bf16)
 TOK_KEYWORD(ceildiv)

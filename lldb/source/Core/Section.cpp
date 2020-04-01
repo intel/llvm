@@ -1,4 +1,4 @@
-//===-- Section.cpp ---------------------------------------------*- C++ -*-===//
+//===-- Section.cpp -------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -68,6 +68,8 @@ const char *Section::GetTypeAsCString() const {
     return "dwarf-aranges";
   case eSectionTypeDWARFDebugCuIndex:
     return "dwarf-cu-index";
+  case eSectionTypeDWARFDebugTuIndex:
+    return "dwarf-tu-index";
   case eSectionTypeDWARFDebugFrame:
     return "dwarf-frame";
   case eSectionTypeDWARFDebugInfo:
@@ -80,8 +82,12 @@ const char *Section::GetTypeAsCString() const {
     return "dwarf-line-str";
   case eSectionTypeDWARFDebugLoc:
     return "dwarf-loc";
+  case eSectionTypeDWARFDebugLocDwo:
+    return "dwarf-loc-dwo";
   case eSectionTypeDWARFDebugLocLists:
     return "dwarf-loclists";
+  case eSectionTypeDWARFDebugLocListsDwo:
+    return "dwarf-loclists-dwo";
   case eSectionTypeDWARFDebugMacInfo:
     return "dwarf-macinfo";
   case eSectionTypeDWARFDebugMacro:
@@ -261,11 +267,8 @@ bool Section::ResolveContainedAddress(addr_t offset, Address &so_addr,
   so_addr.SetOffset(offset);
   so_addr.SetSection(const_cast<Section *>(this)->shared_from_this());
 
-#ifdef LLDB_CONFIGURATION_DEBUG
-  // For debug builds, ensure that there are no orphaned (i.e., moduleless)
-  // sections.
+  // Ensure that there are no orphaned (i.e., moduleless) sections.
   assert(GetModule().get());
-#endif
   return true;
 }
 

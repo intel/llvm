@@ -1,6 +1,6 @@
 //===- LoopFusion.cpp - Code to perform loop fusion -----------------------===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -15,7 +15,6 @@
 #include "mlir/Analysis/LoopAnalysis.h"
 #include "mlir/Analysis/Utils.h"
 #include "mlir/Dialect/AffineOps/AffineOps.h"
-#include "mlir/Dialect/StandardOps/Ops.h"
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/Builders.h"
@@ -301,12 +300,12 @@ public:
     Node *node = getNode(id);
     for (auto *storeOpInst : node->stores) {
       auto memref = cast<AffineStoreOp>(storeOpInst).getMemRef();
-      auto *op = memref->getDefiningOp();
+      auto *op = memref.getDefiningOp();
       // Return true if 'memref' is a block argument.
       if (!op)
         return true;
       // Return true if any use of 'memref' escapes the function.
-      for (auto *user : memref->getUsers())
+      for (auto *user : memref.getUsers())
         if (!isMemRefDereferencingOp(*user))
           return true;
     }
@@ -390,7 +389,7 @@ public:
     if (!hasEdge(srcId, dstId, value)) {
       outEdges[srcId].push_back({dstId, value});
       inEdges[dstId].push_back({srcId, value});
-      if (value->getType().isa<MemRefType>())
+      if (value.getType().isa<MemRefType>())
         memrefEdgeCount[value]++;
     }
   }
@@ -399,7 +398,7 @@ public:
   void removeEdge(unsigned srcId, unsigned dstId, Value value) {
     assert(inEdges.count(dstId) > 0);
     assert(outEdges.count(srcId) > 0);
-    if (value->getType().isa<MemRefType>()) {
+    if (value.getType().isa<MemRefType>()) {
       assert(memrefEdgeCount.count(value) > 0);
       memrefEdgeCount[value]--;
     }
@@ -541,7 +540,7 @@ public:
   // on the value of 'createPrivateMemRef'.
   void updateEdges(unsigned srcId, unsigned dstId, Value oldMemRef,
                    bool createPrivateMemRef) {
-    // For each edge in 'inEdges[srcId]': add new edge remaping to 'dstId'.
+    // For each edge in 'inEdges[srcId]': add new edge remapping to 'dstId'.
     if (inEdges.count(srcId) > 0) {
       SmallVector<Edge, 2> oldInEdges = inEdges[srcId];
       for (auto &inEdge : oldInEdges) {
@@ -634,7 +633,7 @@ public:
                          const std::function<void(Edge)> &callback) {
     for (auto &edge : edges) {
       // Skip if 'edge' is not a memref dependence edge.
-      if (!edge.value->getType().isa<MemRefType>())
+      if (!edge.value.getType().isa<MemRefType>())
         continue;
       assert(nodes.count(edge.id) > 0);
       // Skip if 'edge.id' is not a loop nest.
@@ -735,7 +734,7 @@ bool MemRefDependenceGraph::init(FuncOp f) {
       continue;
     auto *opInst = node.op;
     for (auto value : opInst->getResults()) {
-      for (auto *user : value->getUsers()) {
+      for (auto *user : value.getUsers()) {
         SmallVector<AffineForOp, 4> loops;
         getLoopIVs(*user, &loops);
         if (loops.empty())
@@ -896,7 +895,7 @@ static Value createPrivateMemRef(AffineForOp forOp, Operation *srcStoreOpInst,
   OpBuilder top(forInst->getParentOfType<FuncOp>().getBody());
   // Create new memref type based on slice bounds.
   auto oldMemRef = cast<AffineStoreOp>(srcStoreOpInst).getMemRef();
-  auto oldMemRefType = oldMemRef->getType().cast<MemRefType>();
+  auto oldMemRefType = oldMemRef.getType().cast<MemRefType>();
   unsigned rank = oldMemRefType.getRank();
 
   // Compute MemRefRegion for 'srcStoreOpInst' at depth 'dstLoopDepth'.
@@ -1650,7 +1649,7 @@ public:
               visitedMemrefs.insert(newMemRef);
               // Create new node in dependence graph for 'newMemRef' alloc op.
               unsigned newMemRefNodeId =
-                  mdg->addNode(newMemRef->getDefiningOp());
+                  mdg->addNode(newMemRef.getDefiningOp());
               // Add edge from 'newMemRef' node to dstNode.
               mdg->addEdge(newMemRefNodeId, dstId, newMemRef);
             }
@@ -1830,7 +1829,7 @@ public:
     // Search for siblings which load the same memref function argument.
     auto fn = dstNode->op->getParentOfType<FuncOp>();
     for (unsigned i = 0, e = fn.getNumArguments(); i != e; ++i) {
-      for (auto *user : fn.getArgument(i)->getUsers()) {
+      for (auto *user : fn.getArgument(i).getUsers()) {
         if (auto loadOp = dyn_cast<AffineLoadOp>(user)) {
           // Gather loops surrounding 'use'.
           SmallVector<AffineForOp, 4> loops;
@@ -1943,10 +1942,10 @@ public:
         continue;
       auto memref = pair.first;
       // Skip if there exist other uses (return operation or function calls).
-      if (!memref->use_empty())
+      if (!memref.use_empty())
         continue;
       // Use list expected to match the dep graph info.
-      auto *op = memref->getDefiningOp();
+      auto *op = memref.getDefiningOp();
       if (isa_and_nonnull<AllocOp>(op))
         op->erase();
     }

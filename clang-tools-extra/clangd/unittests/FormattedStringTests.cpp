@@ -17,25 +17,96 @@ namespace clangd {
 namespace markup {
 namespace {
 
-TEST(Render, Escaping) {
-  // Check some ASCII punctuation
-  Paragraph P;
-  P.appendText("*!`");
-  EXPECT_EQ(P.asMarkdown(), "\\*\\!\\`");
+std::string escape(llvm::StringRef Text) {
+  return Paragraph().appendText(Text.str()).asMarkdown();
+}
 
+MATCHER_P(escaped, C, "") {
+  return testing::ExplainMatchResult(::testing::HasSubstr(std::string{'\\', C}),
+                                     arg, result_listener);
+}
+
+MATCHER(escapedNone, "") {
+  return testing::ExplainMatchResult(::testing::Not(::testing::HasSubstr("\\")),
+                                     arg, result_listener);
+}
+
+TEST(Render, Escaping) {
   // Check all ASCII punctuation.
-  P = Paragraph();
   std::string Punctuation = R"txt(!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~)txt";
-  // Same text, with each character escaped.
-  std::string EscapedPunctuation;
-  EscapedPunctuation.reserve(2 * Punctuation.size());
-  for (char C : Punctuation)
-    EscapedPunctuation += std::string("\\") + C;
-  P.appendText(Punctuation);
-  EXPECT_EQ(P.asMarkdown(), EscapedPunctuation);
+  std::string EscapedPunc = R"txt(!"#$%&'()\*+,-./:;<=>?@[\\]^\_\`{|}~)txt";
+  EXPECT_EQ(escape(Punctuation), EscapedPunc);
+
+  // Inline code
+  EXPECT_EQ(escape("`foo`"), R"(\`foo\`)");
+  EXPECT_EQ(escape("`foo"), R"(\`foo)");
+  EXPECT_EQ(escape("foo`"), R"(foo\`)");
+  EXPECT_EQ(escape("``foo``"), R"(\`\`foo\`\`)");
+  // Code blocks
+  EXPECT_EQ(escape("```"), R"(\`\`\`)"); // This could also be inline code!
+  EXPECT_EQ(escape("~~~"), R"(\~~~)");
+
+  // Rulers and headings
+  EXPECT_THAT(escape("## Heading"), escaped('#'));
+  EXPECT_THAT(escape("Foo # bar"), escapedNone());
+  EXPECT_EQ(escape("---"), R"(\---)");
+  EXPECT_EQ(escape("-"), R"(\-)");
+  EXPECT_EQ(escape("==="), R"(\===)");
+  EXPECT_EQ(escape("="), R"(\=)");
+  EXPECT_EQ(escape("***"), R"(\*\*\*)"); // \** could start emphasis!
+
+  // HTML tags.
+  EXPECT_THAT(escape("<pre"), escaped('<'));
+  EXPECT_THAT(escape("< pre"), escapedNone());
+  EXPECT_THAT(escape("if a<b then"), escaped('<'));
+  EXPECT_THAT(escape("if a<b then c."), escapedNone());
+  EXPECT_THAT(escape("if a<b then c='foo'."), escaped('<'));
+  EXPECT_THAT(escape("std::vector<T>"), escaped('<'));
+  EXPECT_THAT(escape("std::vector<std::string>"), escaped('<'));
+  EXPECT_THAT(escape("std::map<int, int>"), escapedNone());
+  // Autolinks
+  EXPECT_THAT(escape("Email <foo@bar.com>"), escapedNone());
+  EXPECT_THAT(escape("Website <http://foo.bar>"), escapedNone());
+
+  // Bullet lists.
+  EXPECT_THAT(escape("- foo"), escaped('-'));
+  EXPECT_THAT(escape("* foo"), escaped('*'));
+  EXPECT_THAT(escape("+ foo"), escaped('+'));
+  EXPECT_THAT(escape("+"), escaped('+'));
+  EXPECT_THAT(escape("a + foo"), escapedNone());
+  EXPECT_THAT(escape("a+ foo"), escapedNone());
+  EXPECT_THAT(escape("1. foo"), escaped('.'));
+  EXPECT_THAT(escape("a. foo"), escapedNone());
+
+  // Emphasis.
+  EXPECT_EQ(escape("*foo*"), R"(\*foo\*)");
+  EXPECT_EQ(escape("**foo**"), R"(\*\*foo\*\*)");
+  EXPECT_THAT(escape("*foo"), escaped('*'));
+  EXPECT_THAT(escape("foo *"), escapedNone());
+  EXPECT_THAT(escape("foo * bar"), escapedNone());
+  EXPECT_THAT(escape("foo_bar"), escapedNone());
+  EXPECT_THAT(escape("foo _bar"), escaped('_'));
+  EXPECT_THAT(escape("foo_ bar"), escaped('_'));
+  EXPECT_THAT(escape("foo _ bar"), escapedNone());
+
+  // HTML entities.
+  EXPECT_THAT(escape("fish &chips;"), escaped('&'));
+  EXPECT_THAT(escape("fish & chips;"), escapedNone());
+  EXPECT_THAT(escape("fish &chips"), escapedNone());
+  EXPECT_THAT(escape("foo &#42; bar"), escaped('&'));
+  EXPECT_THAT(escape("foo &#xaf; bar"), escaped('&'));
+  EXPECT_THAT(escape("foo &?; bar"), escapedNone());
+
+  // Links.
+  EXPECT_THAT(escape("[foo](bar)"), escaped(']'));
+  EXPECT_THAT(escape("[foo]: bar"), escaped(']'));
+  // No need to escape these, as the target never exists.
+  EXPECT_THAT(escape("[foo][]"), escapedNone());
+  EXPECT_THAT(escape("[foo][bar]"), escapedNone());
+  EXPECT_THAT(escape("[foo]"), escapedNone());
 
   // In code blocks we don't need to escape ASCII punctuation.
-  P = Paragraph();
+  Paragraph P = Paragraph();
   P.appendCode("* foo !+ bar * baz");
   EXPECT_EQ(P.asMarkdown(), "`* foo !+ bar * baz`");
 
@@ -121,7 +192,7 @@ TEST(Document, Separators) {
   D.addCodeBlock("test");
   D.addParagraph().appendText("bar");
 
-  const char ExpectedMarkdown[] = R"md(foo
+  const char ExpectedMarkdown[] = R"md(foo  
 ```cpp
 test
 ```
@@ -136,13 +207,46 @@ bar)pt";
   EXPECT_EQ(D.asPlainText(), ExpectedText);
 }
 
-TEST(Document, Spacer) {
+TEST(Document, Ruler) {
   Document D;
   D.addParagraph().appendText("foo");
-  D.addSpacer();
+  D.addRuler();
+
+  // Ruler followed by paragraph.
   D.addParagraph().appendText("bar");
-  EXPECT_EQ(D.asMarkdown(), "foo\n\nbar");
+  EXPECT_EQ(D.asMarkdown(), "foo  \n\n---\nbar");
   EXPECT_EQ(D.asPlainText(), "foo\n\nbar");
+
+  D = Document();
+  D.addParagraph().appendText("foo");
+  D.addRuler();
+  D.addCodeBlock("bar");
+  // Ruler followed by a codeblock.
+  EXPECT_EQ(D.asMarkdown(), "foo  \n\n---\n```cpp\nbar\n```");
+  EXPECT_EQ(D.asPlainText(), "foo\n\nbar");
+
+  // Ruler followed by another ruler
+  D = Document();
+  D.addParagraph().appendText("foo");
+  D.addRuler();
+  D.addRuler();
+  EXPECT_EQ(D.asMarkdown(), "foo");
+  EXPECT_EQ(D.asPlainText(), "foo");
+
+  // Multiple rulers between blocks
+  D.addRuler();
+  D.addParagraph().appendText("foo");
+  EXPECT_EQ(D.asMarkdown(), "foo  \n\n---\nfoo");
+  EXPECT_EQ(D.asPlainText(), "foo\n\nfoo");
+}
+
+TEST(Document, Heading) {
+  Document D;
+  D.addHeading(1).appendText("foo");
+  D.addHeading(2).appendText("bar");
+  D.addParagraph().appendText("baz");
+  EXPECT_EQ(D.asMarkdown(), "# foo  \n## bar  \nbaz");
+  EXPECT_EQ(D.asPlainText(), "foo\nbar\nbaz");
 }
 
 TEST(CodeBlock, Render) {
@@ -173,14 +277,10 @@ foo
 foo
 ```)md";
   EXPECT_EQ(D.asMarkdown(), ExpectedMarkdown);
-  // FIXME: we shouldn't have 2 empty lines in between. A solution might be
-  // having a `verticalMargin` method for blocks, and let container insert new
-  // lines according to that before/after blocks.
   ExpectedPlainText =
       R"pt(foo
   bar
   baz
-
 
 foo)pt";
   EXPECT_EQ(D.asPlainText(), ExpectedPlainText);
@@ -194,10 +294,10 @@ TEST(BulletList, Render) {
   EXPECT_EQ(L.asPlainText(), "- foo");
 
   L.addItem().addParagraph().appendText("bar");
-  EXPECT_EQ(L.asMarkdown(), R"md(- foo
-- bar)md");
-  EXPECT_EQ(L.asPlainText(), R"pt(- foo
-- bar)pt");
+  llvm::StringRef Expected = R"md(- foo
+- bar)md";
+  EXPECT_EQ(L.asMarkdown(), Expected);
+  EXPECT_EQ(L.asPlainText(), Expected);
 
   // Nested list, with a single item.
   Document &D = L.addItem();
@@ -215,40 +315,44 @@ TEST(BulletList, Render) {
   Document &DeepDoc = InnerList.addItem();
   DeepDoc.addParagraph().appendText("baz");
   DeepDoc.addParagraph().appendText("baz");
-  EXPECT_EQ(L.asMarkdown(), R"md(- foo
+  StringRef ExpectedMarkdown = R"md(- foo
+- bar
+- foo  
+  baz  
+  - foo  
+    - baz  
+      baz)md";
+  EXPECT_EQ(L.asMarkdown(), ExpectedMarkdown);
+  StringRef ExpectedPlainText = R"pt(- foo
 - bar
 - foo
   baz
   - foo
     - baz
-      baz)md");
-  EXPECT_EQ(L.asPlainText(), R"pt(- foo
-- bar
-- foo
-  baz
-  - foo
-    - baz
-      baz)pt");
+      baz)pt";
+  EXPECT_EQ(L.asPlainText(), ExpectedPlainText);
 
   // Termination
   Inner.addParagraph().appendText("after");
-  EXPECT_EQ(L.asMarkdown(), R"md(- foo
+  ExpectedMarkdown = R"md(- foo
 - bar
-- foo
-  baz
-  - foo
-    - baz
+- foo  
+  baz  
+  - foo  
+    - baz  
       baz
     
-    after)md");
-  EXPECT_EQ(L.asPlainText(), R"pt(- foo
+    after)md";
+  EXPECT_EQ(L.asMarkdown(), ExpectedMarkdown);
+  ExpectedPlainText = R"pt(- foo
 - bar
 - foo
   baz
   - foo
     - baz
       baz
-    after)pt");
+    after)pt";
+  EXPECT_EQ(L.asPlainText(), ExpectedPlainText);
 }
 
 } // namespace

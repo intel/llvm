@@ -1,6 +1,6 @@
 //===- Dialect.cpp - Toy IR Dialect registration in MLIR ------------------===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -15,6 +15,7 @@
 
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/DialectImplementation.h"
+#include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/Transforms/InliningUtils.h"
 
@@ -54,7 +55,7 @@ struct ToyInlinerInterface : public DialectInlinerInterface {
     // Replace the values directly with the return operands.
     assert(returnOp.getNumOperands() == valuesToRepl.size());
     for (const auto &it : llvm::enumerate(returnOp.getOperands()))
-      valuesToRepl[it.index()]->replaceAllUsesWith(it.value());
+      valuesToRepl[it.index()].replaceAllUsesWith(it.value());
   }
 
   /// Attempts to materialize a conversion for a type mismatch between a call
@@ -99,6 +100,54 @@ mlir::Operation *ToyDialect::materializeConstant(mlir::OpBuilder &builder,
 // Toy Operations
 //===----------------------------------------------------------------------===//
 
+/// A generalized parser for binary operations. This parses the different forms
+/// of 'printBinaryOp' below.
+static mlir::ParseResult parseBinaryOp(mlir::OpAsmParser &parser,
+                                       mlir::OperationState &result) {
+  SmallVector<mlir::OpAsmParser::OperandType, 2> operands;
+  llvm::SMLoc operandsLoc = parser.getCurrentLocation();
+  Type type;
+  if (parser.parseOperandList(operands, /*requiredOperandCount=*/2) ||
+      parser.parseOptionalAttrDict(result.attributes) ||
+      parser.parseColonType(type))
+    return mlir::failure();
+
+  // If the type is a function type, it contains the input and result types of
+  // this operation.
+  if (FunctionType funcType = type.dyn_cast<FunctionType>()) {
+    if (parser.resolveOperands(operands, funcType.getInputs(), operandsLoc,
+                               result.operands))
+      return mlir::failure();
+    result.addTypes(funcType.getResults());
+    return mlir::success();
+  }
+
+  // Otherwise, the parsed type is the type of both operands and results.
+  if (parser.resolveOperands(operands, type, result.operands))
+    return mlir::failure();
+  result.addTypes(type);
+  return mlir::success();
+}
+
+/// A generalized printer for binary operations. It prints in two different
+/// forms depending on if all of the types match.
+static void printBinaryOp(mlir::OpAsmPrinter &printer, mlir::Operation *op) {
+  printer << op->getName() << " " << op->getOperands();
+  printer.printOptionalAttrDict(op->getAttrs());
+  printer << " : ";
+
+  // If all of the types are the same, print the type directly.
+  Type resultType = *op->result_type_begin();
+  if (llvm::all_of(op->getOperandTypes(),
+                   [=](Type type) { return type == resultType; })) {
+    printer << resultType;
+    return;
+  }
+
+  // Otherwise, print a functional type.
+  printer.printFunctionalType(op->getOperandTypes(), op->getResultTypes());
+}
+
 //===----------------------------------------------------------------------===//
 // ConstantOp
 
@@ -110,6 +159,32 @@ void ConstantOp::build(mlir::Builder *builder, mlir::OperationState &state,
   auto dataType = RankedTensorType::get({}, builder->getF64Type());
   auto dataAttribute = DenseElementsAttr::get(dataType, value);
   ConstantOp::build(builder, state, dataType, dataAttribute);
+}
+
+/// The 'OpAsmPrinter' class provides a collection of methods for parsing
+/// various punctuation, as well as attributes, operands, types, etc. Each of
+/// these methods returns a `ParseResult`. This class is a wrapper around
+/// `LogicalResult` that can be converted to a boolean `true` value on failure,
+/// or `false` on success. This allows for easily chaining together a set of
+/// parser rules. These rules are used to populate an `mlir::OperationState`
+/// similarly to the `build` methods described above.
+static mlir::ParseResult parseConstantOp(mlir::OpAsmParser &parser,
+                                         mlir::OperationState &result) {
+  mlir::DenseElementsAttr value;
+  if (parser.parseOptionalAttrDict(result.attributes) ||
+      parser.parseAttribute(value, "value", result.attributes))
+    return failure();
+
+  result.addTypes(value.getType());
+  return success();
+}
+
+/// The 'OpAsmPrinter' class is a stream that will allows for formatting
+/// strings, attributes, operands, types, etc.
+static void print(mlir::OpAsmPrinter &printer, ConstantOp op) {
+  printer << "toy.constant ";
+  printer.printOptionalAttrDict(op.getAttrs(), /*elidedAttrs=*/{"value"});
+  printer << op.value();
 }
 
 /// Verify that the given attribute value is valid for the given type.
@@ -171,16 +246,16 @@ static mlir::LogicalResult verifyConstantForType(mlir::Type type,
 /// Verifier for the constant operation. This corresponds to the `::verify(...)`
 /// in the op definition.
 static mlir::LogicalResult verify(ConstantOp op) {
-  return verifyConstantForType(op.getResult()->getType(), op.value(), op);
+  return verifyConstantForType(op.getResult().getType(), op.value(), op);
 }
 
 static mlir::LogicalResult verify(StructConstantOp op) {
-  return verifyConstantForType(op.getResult()->getType(), op.value(), op);
+  return verifyConstantForType(op.getResult().getType(), op.value(), op);
 }
 
 /// Infer the output shape of the ConstantOp, this is required by the shape
 /// inference interface.
-void ConstantOp::inferShapes() { getResult()->setType(value().getType()); }
+void ConstantOp::inferShapes() { getResult().setType(value().getType()); }
 
 //===----------------------------------------------------------------------===//
 // AddOp
@@ -193,14 +268,14 @@ void AddOp::build(mlir::Builder *builder, mlir::OperationState &state,
 
 /// Infer the output shape of the AddOp, this is required by the shape inference
 /// interface.
-void AddOp::inferShapes() { getResult()->setType(getOperand(0)->getType()); }
+void AddOp::inferShapes() { getResult().setType(getOperand(0).getType()); }
 
 //===----------------------------------------------------------------------===//
 // CastOp
 
 /// Infer the output shape of the CastOp, this is required by the shape
 /// inference interface.
-void CastOp::inferShapes() { getResult()->setType(getOperand()->getType()); }
+void CastOp::inferShapes() { getResult().setType(getOperand().getType()); }
 
 //===----------------------------------------------------------------------===//
 // GenericCallOp
@@ -234,7 +309,7 @@ void MulOp::build(mlir::Builder *builder, mlir::OperationState &state,
 
 /// Infer the output shape of the MulOp, this is required by the shape inference
 /// interface.
-void MulOp::inferShapes() { getResult()->setType(getOperand(0)->getType()); }
+void MulOp::inferShapes() { getResult().setType(getOperand(0).getType()); }
 
 //===----------------------------------------------------------------------===//
 // ReturnOp
@@ -280,7 +355,7 @@ static mlir::LogicalResult verify(ReturnOp op) {
 void StructAccessOp::build(mlir::Builder *b, mlir::OperationState &state,
                            mlir::Value input, size_t index) {
   // Extract the result type from the input type.
-  StructType structTy = input->getType().cast<StructType>();
+  StructType structTy = input.getType().cast<StructType>();
   assert(index < structTy.getNumElementTypes());
   mlir::Type resultType = structTy.getElementTypes()[index];
 
@@ -289,12 +364,12 @@ void StructAccessOp::build(mlir::Builder *b, mlir::OperationState &state,
 }
 
 static mlir::LogicalResult verify(StructAccessOp op) {
-  StructType structTy = op.input()->getType().cast<StructType>();
+  StructType structTy = op.input().getType().cast<StructType>();
   size_t index = op.index().getZExtValue();
   if (index >= structTy.getNumElementTypes())
     return op.emitOpError()
            << "index should be within the range of the input struct type";
-  mlir::Type resultType = op.getResult()->getType();
+  mlir::Type resultType = op.getResult().getType();
   if (resultType != structTy.getElementTypes()[index])
     return op.emitOpError() << "must have the same result type as the struct "
                                "element referred to by the index";
@@ -311,13 +386,13 @@ void TransposeOp::build(mlir::Builder *builder, mlir::OperationState &state,
 }
 
 void TransposeOp::inferShapes() {
-  auto arrayTy = getOperand()->getType().cast<RankedTensorType>();
+  auto arrayTy = getOperand().getType().cast<RankedTensorType>();
   SmallVector<int64_t, 2> dims(llvm::reverse(arrayTy.getShape()));
-  getResult()->setType(RankedTensorType::get(dims, arrayTy.getElementType()));
+  getResult().setType(RankedTensorType::get(dims, arrayTy.getElementType()));
 }
 
 static mlir::LogicalResult verify(TransposeOp op) {
-  auto inputType = op.getOperand()->getType().dyn_cast<RankedTensorType>();
+  auto inputType = op.getOperand().getType().dyn_cast<RankedTensorType>();
   auto resultType = op.getType().dyn_cast<RankedTensorType>();
   if (!inputType || !resultType)
     return mlir::success();

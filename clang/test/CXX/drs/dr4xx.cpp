@@ -82,6 +82,9 @@ namespace dr406 { // dr406: yes
   typedef struct {
     static int n; // expected-error {{static data member 'n' not allowed in anonymous struct}}
   } A;
+  typedef union {
+    static int n; // expected-error {{static data member 'n' not allowed in anonymous union}}
+  } B;
 }
 
 namespace dr407 { // dr407: 3.8
@@ -486,14 +489,21 @@ namespace dr433 { // dr433: yes
   S<int> s;
 }
 
-namespace dr434 { // dr434: yes
+namespace dr434 { // dr434: sup 2352
   void f() {
     const int ci = 0;
     int *pi = 0;
-    const int *&rpci = pi; // expected-error {{cannot bind}}
+    const int *&rpci = pi; // expected-error {{incompatible qualifiers}}
+    const int * const &rcpci = pi; // OK
     rpci = &ci;
     *pi = 1;
   }
+
+#if __cplusplus >= 201103L
+  int *pi = 0;
+  const int * const &rcpci = pi;
+  static_assert(&rcpci == &pi, "");
+#endif
 }
 
 // dr435: na

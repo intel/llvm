@@ -77,7 +77,7 @@ class GlobalsAAResult::FunctionInfo {
     static inline AlignedMap *getFromVoidPointer(void *P) {
       return (AlignedMap *)P;
     }
-    enum { NumLowBitsAvailable = 3 };
+    static constexpr int NumLowBitsAvailable = 3;
     static_assert(alignof(AlignedMap) >= (1 << NumLowBitsAvailable),
                   "AlignedMap insufficiently aligned to have enough low bits.");
   };
@@ -534,6 +534,17 @@ void GlobalsAAResult::AnalyzeCallGraph(CallGraph &CG, Module &M) {
           if (!F->isIntrinsic()) {
             KnowNothing = true;
             break;
+          } else if (F->getName().contains("nvvm.barrier") or
+                     F->getName().contains("nvvm.membar")) {
+            // Even if it is an intrinsic, consider that nothing is known for
+            // NVVM barrier itrinsics to prevent illegal optimizations.
+            // This is a workaround for the bug on PTX target: barrier
+            // intrinsics are implemented as llvm intrinsics, as result there
+            // are cases when globals alias analysis can produce a result that
+            // barrier doesn't modify internal global which causes illegal
+            // reordering of memory accesses.
+            KnowNothing = true;
+            break;
           }
         }
         continue;
@@ -808,6 +819,14 @@ bool GlobalsAAResult::isNonEscapingGlobalNoAlias(const GlobalValue *GV,
 
   // If all the inputs to V were definitively no-alias, then V is no-alias.
   return true;
+}
+
+bool GlobalsAAResult::invalidate(Module &, const PreservedAnalyses &PA,
+                                 ModuleAnalysisManager::Invalidator &) {
+  // Check whether the analysis has been explicitly invalidated. Otherwise, it's
+  // stateless and remains preserved.
+  auto PAC = PA.getChecker<GlobalsAA>();
+  return !PAC.preservedWhenStateless();
 }
 
 /// alias - If one of the pointers is to a global that we are tracking, and the

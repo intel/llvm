@@ -1,6 +1,6 @@
 //===- Pass.cpp - Pass infrastructure implementation ----------------------===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -411,7 +411,8 @@ void OpToOpPassAdaptorParallel::runOnOperation() {
   // Create the async executors if they haven't been created, or if the main
   // pipeline has changed.
   if (asyncExecutors.empty() || hasSizeMismatch(asyncExecutors.front(), mgrs))
-    asyncExecutors.assign(llvm::hardware_concurrency(), mgrs);
+    asyncExecutors.assign(llvm::hardware_concurrency().compute_thread_count(),
+                          mgrs);
 
   // Run a prepass over the module to collect the operations to execute over.
   // This ensures that an analysis manager exists for each operation, as well as
@@ -597,11 +598,15 @@ void PassManager::disableMultithreading(bool disable) {
   getImpl().disableThreads = disable;
 }
 
+bool PassManager::isMultithreadingEnabled() {
+  return !getImpl().disableThreads;
+}
+
 /// Enable support for the pass manager to generate a reproducer on the event
 /// of a crash or a pass failure. `outputFile` is a .mlir filename used to write
 /// the generated reproducer.
 void PassManager::enableCrashReproducerGeneration(StringRef outputFile) {
-  crashReproducerFileName = outputFile;
+  crashReproducerFileName = std::string(outputFile);
 }
 
 /// Add the provided instrumentation to the pass manager.

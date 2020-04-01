@@ -71,7 +71,7 @@ Here are some useful links:
    <http://www.sgi.com/tech/stl/stl_introduction.html>`_.
 
 #. `Bjarne Stroustrup's C++ Page
-   <http://www.research.att.com/%7Ebs/C++.html>`_.
+   <http://www.stroustrup.com/C++.html>`_.
 
 #. `Bruce Eckel's Thinking in C++, 2nd ed. Volume 2 Revision 4.0
    (even better, get the book)
@@ -453,8 +453,8 @@ recovery.
    LLVM, there are places where this hasn't been practical to apply. In
    situations where you absolutely must emit a non-programmatic error and
    the ``Error`` model isn't workable you can call ``report_fatal_error``,
-   which will call installed error handlers, print a message, and exit the
-   program.
+   which will call installed error handlers, print a message, and abort the
+   program. The use of `report_fatal_error` in this case is discouraged.
 
 Recoverable errors are modeled using LLVM's ``Error`` scheme. This scheme
 represents errors using function return values, similar to classic C integer
@@ -847,7 +847,7 @@ this, use the named constructor idiom and return an ``Expected<T>``:
   public:
 
     static Expected<Foo> Create(Resource R1, Resource R2) {
-      Error Err;
+      Error Err = Error::success();
       Foo F(R1, R2, Err);
       if (Err)
         return std::move(Err);
@@ -946,7 +946,7 @@ following natural iteration idiom for fallible containers like Archive:
 
 .. code-block:: c++
 
-  Error Err;
+  Error Err = Error::success();
   for (auto &Child : Ar->children(Err)) {
     // Use Child - only enter the loop when it's valid
 
@@ -2341,11 +2341,11 @@ always better.
 
 .. _ds_bit:
 
-Bit storage containers (BitVector, SparseBitVector)
----------------------------------------------------
+Bit storage containers (BitVector, SparseBitVector, CoalescingBitVector)
+------------------------------------------------------------------------
 
-Unlike the other containers, there are only two bit storage containers, and
-choosing when to use each is relatively straightforward.
+There are three bit storage containers, and choosing when to use each is
+relatively straightforward.
 
 One additional option is ``std::vector<bool>``: we discourage its use for two
 reasons 1) the implementation in many common compilers (e.g.  commonly
@@ -2394,6 +2394,22 @@ implementation, setting or testing bits in sorted order (either forwards or
 reverse) is O(1) worst case.  Testing and setting bits within 128 bits (depends
 on size) of the current bit is also O(1).  As a general statement,
 testing/setting bits in a SparseBitVector is O(distance away from last set bit).
+
+.. _dss_coalescingbitvector:
+
+CoalescingBitVector
+^^^^^^^^^^^^^^^^^^^
+
+The CoalescingBitVector container is similar in principle to a SparseBitVector,
+but is optimized to represent large contiguous ranges of set bits compactly. It
+does this by coalescing contiguous ranges of set bits into intervals. Searching
+for a bit in a CoalescingBitVector is O(log(gaps between contiguous ranges)).
+
+CoalescingBitVector is a better choice than BitVector when gaps between ranges
+of set bits are large. It's a better choice than SparseBitVector when find()
+operations must have fast, predictable performance. However, it's not a good
+choice for representing sets which have lots of very short ranges. E.g. the set
+`{2*x : x \in [0, n)}` would be a pathological input.
 
 .. _debugging:
 
@@ -2996,7 +3012,7 @@ proper operation in multithreaded mode.
 
 Note that, on Unix-like platforms, LLVM requires the presence of GCC's atomic
 intrinsics in order to support threaded operation.  If you need a
-multhreading-capable LLVM on a platform without a suitably modern system
+multithreading-capable LLVM on a platform without a suitably modern system
 compiler, consider compiling LLVM and LLVM-GCC in single-threaded mode, and
 using the resultant compiler to build a copy of LLVM with multithreading
 support.
@@ -3307,7 +3323,7 @@ place the ``vptr`` in the first word of the instances.)
 
 .. _polymorphism:
 
-Designing Type Hiercharies and Polymorphic Interfaces
+Designing Type Hierarchies and Polymorphic Interfaces
 -----------------------------------------------------
 
 There are two different design patterns that tend to result in the use of
@@ -3351,7 +3367,7 @@ by Sean Parent in several of his talks and papers:
    describing this technique in more detail.
 #. `Sean Parent's Papers and Presentations
    <http://github.com/sean-parent/sean-parent.github.com/wiki/Papers-and-Presentations>`_
-   - A Github project full of links to slides, video, and sometimes code.
+   - A GitHub project full of links to slides, video, and sometimes code.
 
 When deciding between creating a type hierarchy (with either tagged or virtual
 dispatch) and using templates or concepts-based polymorphism, consider whether
@@ -3400,7 +3416,7 @@ The Core LLVM Class Hierarchy Reference
 
 header source: `Type.h <http://llvm.org/doxygen/Type_8h_source.html>`_
 
-doxygen info: `Type Clases <http://llvm.org/doxygen/classllvm_1_1Type.html>`_
+doxygen info: `Type Classes <http://llvm.org/doxygen/classllvm_1_1Type.html>`_
 
 The Core LLVM classes are the primary means of representing the program being
 inspected or transformed.  The core LLVM classes are defined in header files in

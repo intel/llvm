@@ -1,6 +1,6 @@
 //===- Builders.h - Helpers for constructing MLIR Classes -------*- C++ -*-===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -70,6 +70,7 @@ public:
 
   IntegerType getI1Type();
   IntegerType getIntegerType(unsigned width);
+  IntegerType getIntegerType(unsigned width, bool isSigned);
   FunctionType getFunctionType(ArrayRef<Type> inputs, ArrayRef<Type> results);
   TupleType getTupleType(ArrayRef<Type> elementTypes);
   NoneType getNoneType();
@@ -111,7 +112,12 @@ public:
   IntegerAttr getI32IntegerAttr(int32_t value);
   IntegerAttr getI64IntegerAttr(int64_t value);
 
+  /// Signed and unsigned integer attribute getters.
+  IntegerAttr getSI32IntegerAttr(int32_t value);
+  IntegerAttr getUI32IntegerAttr(uint32_t value);
+
   DenseIntElementsAttr getI32VectorAttr(ArrayRef<int32_t> values);
+  DenseIntElementsAttr getI64VectorAttr(ArrayRef<int64_t> values);
 
   ArrayAttr getAffineMapArrayAttr(ArrayRef<AffineMap> values);
   ArrayAttr getI32ArrayAttr(ArrayRef<int32_t> values);

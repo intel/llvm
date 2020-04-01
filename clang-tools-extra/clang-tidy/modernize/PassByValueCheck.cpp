@@ -46,8 +46,9 @@ AST_MATCHER(CXXRecordDecl, isMoveConstructible) {
 }
 } // namespace
 
-static TypeMatcher constRefType() {
-  return lValueReferenceType(pointee(isConstQualified()));
+static TypeMatcher notTemplateSpecConstRefType() {
+  return lValueReferenceType(
+      pointee(unless(templateSpecializationType()), isConstQualified()));
 }
 
 static TypeMatcher nonConstValueType() {
@@ -130,11 +131,6 @@ void PassByValueCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
 }
 
 void PassByValueCheck::registerMatchers(MatchFinder *Finder) {
-  // Only register the matchers for C++; the functionality currently does not
-  // provide any benefit to other languages, despite being benign.
-  if (!getLangOpts().CPlusPlus)
-    return;
-
   Finder->addMatcher(
       cxxConstructorDecl(
           forEachConstructorInitializer(
@@ -145,16 +141,18 @@ void PassByValueCheck::registerMatchers(MatchFinder *Finder) {
                   // ParenListExpr is generated instead of a CXXConstructExpr,
                   // filtering out templates automatically for us.
                   withInitializer(cxxConstructExpr(
-                      has(ignoringParenImpCasts(declRefExpr(to(
-                          parmVarDecl(
-                              hasType(qualType(
-                                  // Match only const-ref or a non-const value
-                                  // parameters. Rvalues and const-values
-                                  // shouldn't be modified.
-                                  ValuesOnly ? nonConstValueType()
-                                             : anyOf(constRefType(),
-                                                     nonConstValueType()))))
-                              .bind("Param"))))),
+                      has(ignoringParenImpCasts(declRefExpr(
+                          to(parmVarDecl(
+                                 hasType(qualType(
+                                     // Match only const-ref or a non-const
+                                     // value parameters. Rvalues,
+                                     // TemplateSpecializationValues and
+                                     // const-values shouldn't be modified.
+                                     ValuesOnly
+                                         ? nonConstValueType()
+                                         : anyOf(notTemplateSpecConstRefType(),
+                                                 nonConstValueType()))))
+                                 .bind("Param"))))),
                       hasDeclaration(cxxConstructorDecl(
                           isCopyConstructor(), unless(isDeleted()),
                           hasDeclContext(
@@ -167,14 +165,9 @@ void PassByValueCheck::registerMatchers(MatchFinder *Finder) {
 void PassByValueCheck::registerPPCallbacks(const SourceManager &SM,
                                            Preprocessor *PP,
                                            Preprocessor *ModuleExpanderPP) {
-  // Only register the preprocessor callbacks for C++; the functionality
-  // currently does not provide any benefit to other languages, despite being
-  // benign.
-  if (getLangOpts().CPlusPlus) {
     Inserter = std::make_unique<utils::IncludeInserter>(SM, getLangOpts(),
                                                          IncludeStyle);
     PP->addPPCallbacks(Inserter->CreatePPCallbacks());
-  }
 }
 
 void PassByValueCheck::check(const MatchFinder::MatchResult &Result) {

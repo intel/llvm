@@ -25,7 +25,7 @@
 #define LLVM_SUPPORT_PROCESS_H
 
 #include "llvm/ADT/Optional.h"
-#include "llvm/Support/Allocator.h"
+#include "llvm/Support/AllocatorBase.h"
 #include "llvm/Support/Chrono.h"
 #include "llvm/Support/DataTypes.h"
 #include "llvm/Support/Error.h"
@@ -201,6 +201,12 @@ public:
   /// Get the result of a process wide random number generator. The
   /// generator will be automatically seeded in non-deterministic fashion.
   static unsigned GetRandomNumber();
+
+  /// Equivalent to ::exit(), except when running inside a CrashRecoveryContext.
+  /// In that case, the control flow will resume after RunSafely(), like for a
+  /// crash, rather than exiting the current process.
+  LLVM_ATTRIBUTE_NORETURN
+  static void Exit(int RetCode);
 };
 
 }

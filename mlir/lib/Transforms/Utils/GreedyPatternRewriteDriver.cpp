@@ -1,6 +1,6 @@
 //===- GreedyPatternRewriteDriver.cpp - A greedy rewriter -----------------===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -10,9 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/StandardOps/Ops.h"
-#include "mlir/IR/Builders.h"
 #include "mlir/IR/PatternMatch.h"
+#include "mlir/Interfaces/SideEffects.h"
 #include "mlir/Transforms/FoldUtils.h"
 #include "mlir/Transforms/RegionUtils.h"
 #include "llvm/ADT/DenseMap.h"
@@ -99,7 +98,7 @@ protected:
   // before the root is changed.
   void notifyRootReplaced(Operation *op) override {
     for (auto result : op->getResults())
-      for (auto *user : result->getUsers())
+      for (auto *user : result.getUsers())
         addToWorklist(user);
   }
 
@@ -115,9 +114,9 @@ private:
       // TODO(riverriddle) This is based on the fact that zero use operations
       // may be deleted, and that single use values often have more
       // canonicalization opportunities.
-      if (!operand->use_empty() && !operand->hasOneUse())
+      if (!operand.use_empty() && !operand.hasOneUse())
         continue;
-      if (auto *defInst = operand->getDefiningOp())
+      if (auto *defInst = operand.getDefiningOp())
         addToWorklist(defInst);
     }
   }
@@ -162,10 +161,8 @@ bool GreedyPatternRewriteDriver::simplify(MutableArrayRef<Region> regions,
       if (op == nullptr)
         continue;
 
-      // If the operation has no side effects, and no users, then it is
-      // trivially dead - remove it.
-      if (op->hasNoSideEffect() && op->use_empty()) {
-        // Be careful to update bookkeeping.
+      // If the operation is trivially dead - remove it.
+      if (isOpTriviallyDead(op)) {
         notifyOperationRemoved(op);
         op->erase();
         continue;
@@ -181,7 +178,7 @@ bool GreedyPatternRewriteDriver::simplify(MutableArrayRef<Region> regions,
         // Add all the users of the result to the worklist so we make sure
         // to revisit them.
         for (auto result : op->getResults())
-          for (auto *operand : result->getUsers())
+          for (auto *operand : result.getUsers())
             addToWorklist(operand);
 
         notifyOperationRemoved(op);
@@ -203,7 +200,10 @@ bool GreedyPatternRewriteDriver::simplify(MutableArrayRef<Region> regions,
 
     // After applying patterns, make sure that the CFG of each of the regions is
     // kept up to date.
-    changed |= succeeded(simplifyRegions(regions));
+    if (succeeded(simplifyRegions(regions))) {
+      folder.clear();
+      changed = true;
+    }
   } while (changed && ++i < maxIterations);
   // Whether the rewrite converges, i.e. wasn't changed in the last iteration.
   return !changed;

@@ -35,15 +35,21 @@ public:
   void writePltHeader(uint8_t *buf) const override;
   void writePlt(uint8_t *buf, const Symbol &sym,
                 uint64_t pltEntryAddr) const override;
-  void relocateOne(uint8_t *loc, RelType type, uint64_t val) const override;
+  void relocate(uint8_t *loc, const Relocation &rel,
+                uint64_t val) const override;
 
   RelExpr adjustRelaxExpr(RelType type, const uint8_t *data,
                           RelExpr expr) const override;
-  void relaxGot(uint8_t *loc, RelType type, uint64_t val) const override;
-  void relaxTlsGdToIe(uint8_t *loc, RelType type, uint64_t val) const override;
-  void relaxTlsGdToLe(uint8_t *loc, RelType type, uint64_t val) const override;
-  void relaxTlsIeToLe(uint8_t *loc, RelType type, uint64_t val) const override;
-  void relaxTlsLdToLe(uint8_t *loc, RelType type, uint64_t val) const override;
+  void relaxGot(uint8_t *loc, const Relocation &rel,
+                uint64_t val) const override;
+  void relaxTlsGdToIe(uint8_t *loc, const Relocation &rel,
+                      uint64_t val) const override;
+  void relaxTlsGdToLe(uint8_t *loc, const Relocation &rel,
+                      uint64_t val) const override;
+  void relaxTlsIeToLe(uint8_t *loc, const Relocation &rel,
+                      uint64_t val) const override;
+  void relaxTlsLdToLe(uint8_t *loc, const Relocation &rel,
+                      uint64_t val) const override;
   bool adjustPrologueForCrossSplitStack(uint8_t *loc, uint8_t *end,
                                         uint8_t stOther) const override;
 };
@@ -151,7 +157,7 @@ void X86_64::writePltHeader(uint8_t *buf) const {
   };
   memcpy(buf, pltData, sizeof(pltData));
   uint64_t gotPlt = in.gotPlt->getVA();
-  uint64_t plt = in.plt->getVA();
+  uint64_t plt = in.ibtPlt ? in.ibtPlt->getVA() : in.plt->getVA();
   write32le(buf + 2, gotPlt - plt + 2); // GOTPLT+8
   write32le(buf + 8, gotPlt - plt + 4); // GOTPLT+16
 }
@@ -177,8 +183,9 @@ RelType X86_64::getDynRel(RelType type) const {
   return R_X86_64_NONE;
 }
 
-void X86_64::relaxTlsGdToLe(uint8_t *loc, RelType type, uint64_t val) const {
-  if (type == R_X86_64_TLSGD) {
+void X86_64::relaxTlsGdToLe(uint8_t *loc, const Relocation &rel,
+                            uint64_t val) const {
+  if (rel.type == R_X86_64_TLSGD) {
     // Convert
     //   .byte 0x66
     //   leaq x@tlsgd(%rip), %rdi
@@ -201,7 +208,7 @@ void X86_64::relaxTlsGdToLe(uint8_t *loc, RelType type, uint64_t val) const {
     //   lea x@tlsgd(%rip), %rax
     //   call *(%rax)
     // to the following two instructions.
-    assert(type == R_X86_64_GOTPC32_TLSDESC);
+    assert(rel.type == R_X86_64_GOTPC32_TLSDESC);
     if (memcmp(loc - 3, "\x48\x8d\x05", 3)) {
       error(getErrorLocation(loc - 3) + "R_X86_64_GOTPC32_TLSDESC must be used "
                                         "in callq *x@tlsdesc(%rip), %rax");
@@ -217,8 +224,9 @@ void X86_64::relaxTlsGdToLe(uint8_t *loc, RelType type, uint64_t val) const {
   }
 }
 
-void X86_64::relaxTlsGdToIe(uint8_t *loc, RelType type, uint64_t val) const {
-  if (type == R_X86_64_TLSGD) {
+void X86_64::relaxTlsGdToIe(uint8_t *loc, const Relocation &rel,
+                            uint64_t val) const {
+  if (rel.type == R_X86_64_TLSGD) {
     // Convert
     //   .byte 0x66
     //   leaq x@tlsgd(%rip), %rdi
@@ -241,7 +249,7 @@ void X86_64::relaxTlsGdToIe(uint8_t *loc, RelType type, uint64_t val) const {
     //   lea x@tlsgd(%rip), %rax
     //   call *(%rax)
     // to the following two instructions.
-    assert(type == R_X86_64_GOTPC32_TLSDESC);
+    assert(rel.type == R_X86_64_GOTPC32_TLSDESC);
     if (memcmp(loc - 3, "\x48\x8d\x05", 3)) {
       error(getErrorLocation(loc - 3) + "R_X86_64_GOTPC32_TLSDESC must be used "
                                         "in callq *x@tlsdesc(%rip), %rax");
@@ -258,7 +266,8 @@ void X86_64::relaxTlsGdToIe(uint8_t *loc, RelType type, uint64_t val) const {
 
 // In some conditions, R_X86_64_GOTTPOFF relocation can be optimized to
 // R_X86_64_TPOFF32 so that it does not use GOT.
-void X86_64::relaxTlsIeToLe(uint8_t *loc, RelType type, uint64_t val) const {
+void X86_64::relaxTlsIeToLe(uint8_t *loc, const Relocation &,
+                            uint64_t val) const {
   uint8_t *inst = loc - 3;
   uint8_t reg = loc[-1] >> 3;
   uint8_t *regSlot = loc - 1;
@@ -299,12 +308,13 @@ void X86_64::relaxTlsIeToLe(uint8_t *loc, RelType type, uint64_t val) const {
   write32le(loc, val + 4);
 }
 
-void X86_64::relaxTlsLdToLe(uint8_t *loc, RelType type, uint64_t val) const {
-  if (type == R_X86_64_DTPOFF64) {
+void X86_64::relaxTlsLdToLe(uint8_t *loc, const Relocation &rel,
+                            uint64_t val) const {
+  if (rel.type == R_X86_64_DTPOFF64) {
     write64le(loc, val);
     return;
   }
-  if (type == R_X86_64_DTPOFF32) {
+  if (rel.type == R_X86_64_DTPOFF32) {
     write32le(loc, val);
     return;
   }
@@ -347,26 +357,26 @@ void X86_64::relaxTlsLdToLe(uint8_t *loc, RelType type, uint64_t val) const {
         "expected R_X86_64_PLT32 or R_X86_64_GOTPCRELX after R_X86_64_TLSLD");
 }
 
-void X86_64::relocateOne(uint8_t *loc, RelType type, uint64_t val) const {
-  switch (type) {
+void X86_64::relocate(uint8_t *loc, const Relocation &rel, uint64_t val) const {
+  switch (rel.type) {
   case R_X86_64_8:
-    checkIntUInt(loc, val, 8, type);
+    checkIntUInt(loc, val, 8, rel);
     *loc = val;
     break;
   case R_X86_64_PC8:
-    checkInt(loc, val, 8, type);
+    checkInt(loc, val, 8, rel);
     *loc = val;
     break;
   case R_X86_64_16:
-    checkIntUInt(loc, val, 16, type);
+    checkIntUInt(loc, val, 16, rel);
     write16le(loc, val);
     break;
   case R_X86_64_PC16:
-    checkInt(loc, val, 16, type);
+    checkInt(loc, val, 16, rel);
     write16le(loc, val);
     break;
   case R_X86_64_32:
-    checkUInt(loc, val, 32, type);
+    checkUInt(loc, val, 32, rel);
     write32le(loc, val);
     break;
   case R_X86_64_32S:
@@ -384,7 +394,7 @@ void X86_64::relocateOne(uint8_t *loc, RelType type, uint64_t val) const {
   case R_X86_64_TLSLD:
   case R_X86_64_DTPOFF32:
   case R_X86_64_SIZE32:
-    checkInt(loc, val, 32, type);
+    checkInt(loc, val, 32, rel);
     write32le(loc, val);
     break;
   case R_X86_64_64:
@@ -495,7 +505,7 @@ static void relaxGotNoPic(uint8_t *loc, uint64_t val, uint8_t op,
   write32le(loc, val);
 }
 
-void X86_64::relaxGot(uint8_t *loc, RelType type, uint64_t val) const {
+void X86_64::relaxGot(uint8_t *loc, const Relocation &, uint64_t val) const {
   const uint8_t op = loc[-2];
   const uint8_t modRm = loc[-1];
 
@@ -566,6 +576,60 @@ bool X86_64::adjustPrologueForCrossSplitStack(uint8_t *loc, uint8_t *end,
     return true;
   }
   return false;
+}
+
+// If Intel Indirect Branch Tracking is enabled, we have to emit special PLT
+// entries containing endbr64 instructions. A PLT entry will be split into two
+// parts, one in .plt.sec (writePlt), and the other in .plt (writeIBTPlt).
+namespace {
+class IntelIBT : public X86_64 {
+public:
+  IntelIBT();
+  void writeGotPlt(uint8_t *buf, const Symbol &s) const override;
+  void writePlt(uint8_t *buf, const Symbol &sym,
+                uint64_t pltEntryAddr) const override;
+  void writeIBTPlt(uint8_t *buf, size_t numEntries) const override;
+
+  static const unsigned IBTPltHeaderSize = 16;
+};
+} // namespace
+
+IntelIBT::IntelIBT() { pltHeaderSize = 0; }
+
+void IntelIBT::writeGotPlt(uint8_t *buf, const Symbol &s) const {
+  uint64_t va =
+      in.ibtPlt->getVA() + IBTPltHeaderSize + s.pltIndex * pltEntrySize;
+  write64le(buf, va);
+}
+
+void IntelIBT::writePlt(uint8_t *buf, const Symbol &sym,
+                        uint64_t pltEntryAddr) const {
+  const uint8_t Inst[] = {
+      0xf3, 0x0f, 0x1e, 0xfa,       // endbr64
+      0xff, 0x25, 0,    0,    0, 0, // jmpq *got(%rip)
+      0x66, 0x0f, 0x1f, 0x44, 0, 0, // nop
+  };
+  memcpy(buf, Inst, sizeof(Inst));
+  write32le(buf + 6, sym.getGotPltVA() - pltEntryAddr - 10);
+}
+
+void IntelIBT::writeIBTPlt(uint8_t *buf, size_t numEntries) const {
+  writePltHeader(buf);
+  buf += IBTPltHeaderSize;
+
+  const uint8_t inst[] = {
+      0xf3, 0x0f, 0x1e, 0xfa,    // endbr64
+      0x68, 0,    0,    0,    0, // pushq <relocation index>
+      0xe9, 0,    0,    0,    0, // jmpq plt[0]
+      0x66, 0x90,                // nop
+  };
+
+  for (size_t i = 0; i < numEntries; ++i) {
+    memcpy(buf, inst, sizeof(inst));
+    write32le(buf + 5, i);
+    write32le(buf + 10, -pltHeaderSize - sizeof(inst) * i - 30);
+    buf += sizeof(inst);
+  }
 }
 
 // These nonstandard PLT entries are to migtigate Spectre v2 security
@@ -692,6 +756,11 @@ static TargetInfo *getTargetInfo() {
       return &t;
     }
     static Retpoline t;
+    return &t;
+  }
+
+  if (config->andFeatures & GNU_PROPERTY_X86_FEATURE_1_IBT) {
+    static IntelIBT t;
     return &t;
   }
 

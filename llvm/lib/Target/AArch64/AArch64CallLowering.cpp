@@ -62,10 +62,9 @@ struct IncomingArgHandler : public CallLowering::ValueHandler {
     auto &MFI = MIRBuilder.getMF().getFrameInfo();
     int FI = MFI.CreateFixedObject(Size, Offset, true);
     MPO = MachinePointerInfo::getFixedStack(MIRBuilder.getMF(), FI);
-    Register AddrReg = MRI.createGenericVirtualRegister(LLT::pointer(0, 64));
-    MIRBuilder.buildFrameIndex(AddrReg, FI);
+    auto AddrReg = MIRBuilder.buildFrameIndex(LLT::pointer(0, 64), FI);
     StackUsed = std::max(StackUsed, Size + Offset);
-    return AddrReg;
+    return AddrReg.getReg(0);
   }
 
   void assignValueToReg(Register ValVReg, Register PhysReg,
@@ -87,10 +86,11 @@ struct IncomingArgHandler : public CallLowering::ValueHandler {
 
   void assignValueToAddress(Register ValVReg, Register Addr, uint64_t Size,
                             MachinePointerInfo &MPO, CCValAssign &VA) override {
-    // FIXME: Get alignment
-    auto MMO = MIRBuilder.getMF().getMachineMemOperand(
+    MachineFunction &MF = MIRBuilder.getMF();
+    unsigned Align = inferAlignmentFromPtrInfo(MF, MPO);
+    auto MMO = MF.getMachineMemOperand(
         MPO, MachineMemOperand::MOLoad | MachineMemOperand::MOInvariant, Size,
-        1);
+        Align);
     MIRBuilder.buildLoad(ValVReg, Addr, *MMO);
   }
 
@@ -147,23 +147,19 @@ struct OutgoingArgHandler : public CallLowering::ValueHandler {
     if (IsTailCall) {
       Offset += FPDiff;
       int FI = MF.getFrameInfo().CreateFixedObject(Size, Offset, true);
-      Register FIReg = MRI.createGenericVirtualRegister(p0);
-      MIRBuilder.buildFrameIndex(FIReg, FI);
+      auto FIReg = MIRBuilder.buildFrameIndex(p0, FI);
       MPO = MachinePointerInfo::getFixedStack(MF, FI);
-      return FIReg;
+      return FIReg.getReg(0);
     }
 
-    Register SPReg = MRI.createGenericVirtualRegister(p0);
-    MIRBuilder.buildCopy(SPReg, Register(AArch64::SP));
+    auto SPReg = MIRBuilder.buildCopy(p0, Register(AArch64::SP));
 
-    Register OffsetReg = MRI.createGenericVirtualRegister(s64);
-    MIRBuilder.buildConstant(OffsetReg, Offset);
+    auto OffsetReg = MIRBuilder.buildConstant(s64, Offset);
 
-    Register AddrReg = MRI.createGenericVirtualRegister(p0);
-    MIRBuilder.buildPtrAdd(AddrReg, SPReg, OffsetReg);
+    auto AddrReg = MIRBuilder.buildPtrAdd(p0, SPReg, OffsetReg);
 
     MPO = MachinePointerInfo::getStack(MF, Offset);
-    return AddrReg;
+    return AddrReg.getReg(0);
   }
 
   void assignValueToReg(Register ValVReg, Register PhysReg,
@@ -178,11 +174,12 @@ struct OutgoingArgHandler : public CallLowering::ValueHandler {
     if (VA.getLocInfo() == CCValAssign::LocInfo::AExt) {
       Size = VA.getLocVT().getSizeInBits() / 8;
       ValVReg = MIRBuilder.buildAnyExt(LLT::scalar(Size * 8), ValVReg)
-                    ->getOperand(0)
-                    .getReg();
+                    .getReg(0);
     }
-    auto MMO = MIRBuilder.getMF().getMachineMemOperand(
-        MPO, MachineMemOperand::MOStore, Size, 1);
+    MachineFunction &MF = MIRBuilder.getMF();
+    unsigned Align = inferAlignmentFromPtrInfo(MF, MPO);
+    auto MMO = MF.getMachineMemOperand(
+        MPO, MachineMemOperand::MOStore, Size, Align);
     MIRBuilder.buildStore(ValVReg, Addr, *MMO);
   }
 
@@ -322,8 +319,7 @@ bool AArch64CallLowering::lowerReturn(MachineIRBuilder &MIRBuilder,
                 }
                 auto Undef = MIRBuilder.buildUndef({OldLLT});
                 CurVReg =
-                    MIRBuilder.buildMerge({NewLLT}, {CurVReg, Undef.getReg(0)})
-                        .getReg(0);
+                    MIRBuilder.buildMerge({NewLLT}, {CurVReg, Undef}).getReg(0);
               } else {
                 // Just do a vector extend.
                 CurVReg = MIRBuilder.buildInstr(ExtendOp, {NewLLT}, {CurVReg})

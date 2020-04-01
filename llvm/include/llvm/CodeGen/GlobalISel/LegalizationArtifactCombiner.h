@@ -81,7 +81,7 @@ public:
     // Can't use MIPattern because we don't have a specific constant in mind.
     auto *SrcMI = MRI.getVRegDef(SrcReg);
     if (SrcMI->getOpcode() == TargetOpcode::G_CONSTANT) {
-      const LLT &DstTy = MRI.getType(DstReg);
+      const LLT DstTy = MRI.getType(DstReg);
       if (isInstLegal({TargetOpcode::G_CONSTANT, {DstTy}})) {
         auto &CstVal = SrcMI->getOperand(1);
         Builder.buildConstant(
@@ -113,7 +113,8 @@ public:
       LLVM_DEBUG(dbgs() << ".. Combine MI: " << MI;);
       LLT SrcTy = MRI.getType(SrcReg);
       APInt Mask = APInt::getAllOnesValue(SrcTy.getScalarSizeInBits());
-      auto MIBMask = Builder.buildConstant(DstTy, Mask.getZExtValue());
+      auto MIBMask = Builder.buildConstant(
+        DstTy, Mask.zext(DstTy.getScalarSizeInBits()));
       Builder.buildAnd(DstReg, Builder.buildAnyExtOrTrunc(DstTy, TruncSrc),
                        MIBMask);
       markInstAndDefDead(MI, *MRI.getVRegDef(SrcReg), DeadInsts);
@@ -124,7 +125,7 @@ public:
     // Can't use MIPattern because we don't have a specific constant in mind.
     auto *SrcMI = MRI.getVRegDef(SrcReg);
     if (SrcMI->getOpcode() == TargetOpcode::G_CONSTANT) {
-      const LLT &DstTy = MRI.getType(DstReg);
+      const LLT DstTy = MRI.getType(DstReg);
       if (isInstLegal({TargetOpcode::G_CONSTANT, {DstTy}})) {
         auto &CstVal = SrcMI->getOperand(1);
         Builder.buildConstant(
@@ -166,7 +167,8 @@ public:
 
   bool tryCombineTrunc(MachineInstr &MI,
                        SmallVectorImpl<MachineInstr *> &DeadInsts,
-                       SmallVectorImpl<Register> &UpdatedDefs) {
+                       SmallVectorImpl<Register> &UpdatedDefs,
+                       GISelObserverWrapper &Observer) {
     assert(MI.getOpcode() == TargetOpcode::G_TRUNC);
 
     Builder.setInstr(MI);
@@ -177,7 +179,7 @@ public:
     // Can't use MIPattern because we don't have a specific constant in mind.
     auto *SrcMI = MRI.getVRegDef(SrcReg);
     if (SrcMI->getOpcode() == TargetOpcode::G_CONSTANT) {
-      const LLT &DstTy = MRI.getType(DstReg);
+      const LLT DstTy = MRI.getType(DstReg);
       if (isInstLegal({TargetOpcode::G_CONSTANT, {DstTy}})) {
         auto &CstVal = SrcMI->getOperand(1);
         Builder.buildConstant(
@@ -186,6 +188,66 @@ public:
         markInstAndDefDead(MI, *SrcMI, DeadInsts);
         return true;
       }
+    }
+
+    // Try to fold trunc(merge) to directly use the source of the merge.
+    // This gets rid of large, difficult to legalize, merges
+    if (SrcMI->getOpcode() == TargetOpcode::G_MERGE_VALUES) {
+      const Register MergeSrcReg = SrcMI->getOperand(1).getReg();
+      const LLT MergeSrcTy = MRI.getType(MergeSrcReg);
+      const LLT DstTy = MRI.getType(DstReg);
+
+      // We can only fold if the types are scalar
+      const unsigned DstSize = DstTy.getSizeInBits();
+      const unsigned MergeSrcSize = MergeSrcTy.getSizeInBits();
+      if (!DstTy.isScalar() || !MergeSrcTy.isScalar())
+        return false;
+
+      if (DstSize < MergeSrcSize) {
+        // When the merge source is larger than the destination, we can just
+        // truncate the merge source directly
+        if (isInstUnsupported({TargetOpcode::G_TRUNC, {DstTy, MergeSrcTy}}))
+          return false;
+
+        LLVM_DEBUG(dbgs() << "Combining G_TRUNC(G_MERGE_VALUES) to G_TRUNC: "
+                          << MI);
+
+        Builder.buildTrunc(DstReg, MergeSrcReg);
+        UpdatedDefs.push_back(DstReg);
+      } else if (DstSize == MergeSrcSize) {
+        // If the sizes match we can simply try to replace the register
+        LLVM_DEBUG(
+            dbgs() << "Replacing G_TRUNC(G_MERGE_VALUES) with merge input: "
+                   << MI);
+        replaceRegOrBuildCopy(DstReg, MergeSrcReg, MRI, Builder, UpdatedDefs,
+                              Observer);
+      } else if (DstSize % MergeSrcSize == 0) {
+        // If the trunc size is a multiple of the merge source size we can use
+        // a smaller merge instead
+        if (isInstUnsupported(
+                {TargetOpcode::G_MERGE_VALUES, {DstTy, MergeSrcTy}}))
+          return false;
+
+        LLVM_DEBUG(
+            dbgs() << "Combining G_TRUNC(G_MERGE_VALUES) to G_MERGE_VALUES: "
+                   << MI);
+
+        const unsigned NumSrcs = DstSize / MergeSrcSize;
+        assert(NumSrcs < SrcMI->getNumOperands() - 1 &&
+               "trunc(merge) should require less inputs than merge");
+        SmallVector<Register, 2> SrcRegs(NumSrcs);
+        for (unsigned i = 0; i < NumSrcs; ++i)
+          SrcRegs[i] = SrcMI->getOperand(i + 1).getReg();
+
+        Builder.buildMerge(DstReg, SrcRegs);
+        UpdatedDefs.push_back(DstReg);
+      } else {
+        // Unable to combine
+        return false;
+      }
+
+      markInstAndDefDead(MI, *SrcMI, DeadInsts);
+      return true;
     }
 
     return false;
@@ -279,9 +341,36 @@ public:
     }
   }
 
+  /// Try to replace DstReg with SrcReg or build a COPY instruction
+  /// depending on the register constraints.
+  static void replaceRegOrBuildCopy(Register DstReg, Register SrcReg,
+                                    MachineRegisterInfo &MRI,
+                                    MachineIRBuilder &Builder,
+                                    SmallVectorImpl<Register> &UpdatedDefs,
+                                    GISelObserverWrapper &Observer) {
+    if (!llvm::canReplaceReg(DstReg, SrcReg, MRI)) {
+      Builder.buildCopy(DstReg, SrcReg);
+      UpdatedDefs.push_back(DstReg);
+      return;
+    }
+    SmallVector<MachineInstr *, 4> UseMIs;
+    // Get the users and notify the observer before replacing.
+    for (auto &UseMI : MRI.use_instructions(DstReg)) {
+      UseMIs.push_back(&UseMI);
+      Observer.changingInstr(UseMI);
+    }
+    // Replace the registers.
+    MRI.replaceRegWith(DstReg, SrcReg);
+    UpdatedDefs.push_back(SrcReg);
+    // Notify the observer that we changed the instructions.
+    for (auto *UseMI : UseMIs)
+      Observer.changedInstr(*UseMI);
+  }
+
   bool tryCombineMerges(MachineInstr &MI,
                         SmallVectorImpl<MachineInstr *> &DeadInsts,
-                        SmallVectorImpl<Register> &UpdatedDefs) {
+                        SmallVectorImpl<Register> &UpdatedDefs,
+                        GISelObserverWrapper &Observer) {
     assert(MI.getOpcode() == TargetOpcode::G_UNMERGE_VALUES);
 
     unsigned NumDefs = MI.getNumOperands() - 1;
@@ -394,10 +483,12 @@ public:
              "Bitcast and the other kinds of conversions should "
              "have happened earlier");
 
+      Builder.setInstr(MI);
       for (unsigned Idx = 0; Idx < NumDefs; ++Idx) {
-        Register NewDef = MergeI->getOperand(Idx + 1).getReg();
-        MRI.replaceRegWith(MI.getOperand(Idx).getReg(), NewDef);
-        UpdatedDefs.push_back(NewDef);
+        Register DstReg = MI.getOperand(Idx).getReg();
+        Register SrcReg = MergeI->getOperand(Idx + 1).getReg();
+        replaceRegOrBuildCopy(DstReg, SrcReg, MRI, Builder, UpdatedDefs,
+                              Observer);
       }
     }
 
@@ -497,13 +588,13 @@ public:
       Changed = tryCombineSExt(MI, DeadInsts, UpdatedDefs);
       break;
     case TargetOpcode::G_UNMERGE_VALUES:
-      Changed = tryCombineMerges(MI, DeadInsts, UpdatedDefs);
+      Changed = tryCombineMerges(MI, DeadInsts, UpdatedDefs, WrapperObserver);
       break;
     case TargetOpcode::G_EXTRACT:
       Changed = tryCombineExtract(MI, DeadInsts, UpdatedDefs);
       break;
     case TargetOpcode::G_TRUNC:
-      Changed = tryCombineTrunc(MI, DeadInsts, UpdatedDefs);
+      Changed = tryCombineTrunc(MI, DeadInsts, UpdatedDefs, WrapperObserver);
       if (!Changed) {
         // Try to combine truncates away even if they are legal. As all artifact
         // combines at the moment look only "up" the def-use chains, we achieve

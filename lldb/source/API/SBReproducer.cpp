@@ -1,4 +1,4 @@
-//===-- SBReproducer.cpp ----------------------------------------*- C++ -*-===//
+//===-- SBReproducer.cpp --------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -124,6 +124,10 @@ const char *SBReproducer::Capture(const char *path) {
   return nullptr;
 }
 
+const char *SBReproducer::Replay(const char *path) {
+  return SBReproducer::Replay(path, false);
+}
+
 const char *SBReproducer::Replay(const char *path, bool skip_version_check) {
   static std::string error;
   if (auto e = Reproducer::Initialize(ReproducerMode::Replay, FileSpec(path))) {
@@ -169,6 +173,15 @@ bool SBReproducer::Generate() {
   auto &r = Reproducer::Instance();
   if (auto generator = r.GetGenerator()) {
     generator->Keep();
+    return true;
+  }
+  return false;
+}
+
+bool SBReproducer::SetAutoGenerate(bool b) {
+  auto &r = Reproducer::Instance();
+  if (auto generator = r.GetGenerator()) {
+    generator->SetAutoGenerate(b);
     return true;
   }
   return false;

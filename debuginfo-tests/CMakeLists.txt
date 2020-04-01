@@ -2,6 +2,11 @@
 # various types of debug info, and then run those programs under a debugger
 # such as GDB or LLDB to verify the results.
 
+add_llvm_executable(check-gdb-llvm-support
+        llvm-prettyprinters/gdb/llvm-support.cpp
+)
+target_link_libraries(check-gdb-llvm-support PRIVATE LLVMSupport)
+
 set(DEBUGINFO_TESTS_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 set(DEBUGINFO_TESTS_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
 
@@ -10,6 +15,7 @@ set(DEBUGINFO_TEST_DEPS
   FileCheck
   count
   llvm-objdump
+  check-gdb-llvm-support
   not
   )
 

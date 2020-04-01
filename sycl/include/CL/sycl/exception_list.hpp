@@ -15,7 +15,7 @@
 
 #include <cstddef>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
 // Forward declaration
@@ -49,4 +49,4 @@ private:
 using async_handler = function_class<void(cl::sycl::exception_list)>;
 
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

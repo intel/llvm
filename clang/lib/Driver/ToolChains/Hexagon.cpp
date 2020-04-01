@@ -31,7 +31,6 @@ static StringRef getDefaultHvxLength(StringRef Cpu) {
       .Case("v60", "64b")
       .Case("v62", "64b")
       .Case("v65", "64b")
-      .Case("v66", "128b")
       .Default("128b");
 }
 
@@ -48,13 +47,12 @@ static void handleHVXWarnings(const Driver &D, const ArgList &Args) {
 // Handle hvx target features explicitly.
 static void handleHVXTargetFeatures(const Driver &D, const ArgList &Args,
                                     std::vector<StringRef> &Features,
-                                    bool &HasHVX) {
+                                    StringRef Cpu, bool &HasHVX) {
   // Handle HVX warnings.
   handleHVXWarnings(D, Args);
 
   // Add the +hvx* features based on commandline flags.
   StringRef HVXFeature, HVXLength;
-  StringRef Cpu(toolchains::HexagonToolChain::GetTargetCPUVersion(Args));
 
   // Handle -mhvx, -mhvx=, -mno-hvx.
   if (Arg *A = Args.getLastArg(options::OPT_mno_hexagon_hvx,
@@ -108,7 +106,15 @@ void hexagon::getHexagonTargetFeatures(const Driver &D, const ArgList &Args,
   Features.push_back(UseLongCalls ? "+long-calls" : "-long-calls");
 
   bool HasHVX = false;
-  handleHVXTargetFeatures(D, Args, Features, HasHVX);
+  StringRef Cpu(toolchains::HexagonToolChain::GetTargetCPUVersion(Args));
+  // 't' in Cpu denotes tiny-core micro-architecture. For now, the co-processors
+  // have no dependency on micro-architecture.
+  const bool TinyCore = Cpu.contains('t');
+
+  if (TinyCore)
+    Cpu = Cpu.take_front(Cpu.size() - 1);
+
+  handleHVXTargetFeatures(D, Args, Features, Cpu, HasHVX);
 
   if (HexagonToolChain::isAutoHVXEnabled(Args) && !HasHVX)
     D.Diag(diag::warn_drv_vectorize_needs_hvx);
@@ -258,18 +264,39 @@ constructHexagonLinkArgs(Compilation &C, const JobAction &JA,
     UseG0 = G.getValue() == 0;
   }
 
-  //----------------------------------------------------------------------------
-  //
-  //----------------------------------------------------------------------------
   CmdArgs.push_back("-o");
   CmdArgs.push_back(Output.getFilename());
+
+  if (HTC.getTriple().isMusl()) {
+    if (!Args.hasArg(options::OPT_shared, options::OPT_static))
+      CmdArgs.push_back("-dynamic-linker=/lib/ld-musl-hexagon.so.1");
+
+    if (!Args.hasArg(options::OPT_shared, options::OPT_nostartfiles,
+                     options::OPT_nostdlib))
+      CmdArgs.push_back(Args.MakeArgString(D.SysRoot + "/lib/crt1.o"));
+    else if (Args.hasArg(options::OPT_shared) &&
+             !Args.hasArg(options::OPT_nostartfiles, options::OPT_nostdlib))
+      CmdArgs.push_back(Args.MakeArgString(D.SysRoot + "/lib/Scrt1.o"));
+
+    CmdArgs.push_back(Args.MakeArgString(StringRef("-L") + D.SysRoot + "/lib"));
+    Args.AddAllArgs(CmdArgs,
+                    {options::OPT_T_Group, options::OPT_e, options::OPT_s,
+                     options::OPT_t, options::OPT_u_Group});
+    AddLinkerInputs(HTC, Inputs, Args, CmdArgs, JA);
+
+    if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nodefaultlibs)) {
+      CmdArgs.push_back("-lclang_rt.builtins-hexagon");
+      CmdArgs.push_back("-lc");
+    }
+
+    return;
+  }
 
   //----------------------------------------------------------------------------
   // moslib
   //----------------------------------------------------------------------------
   std::vector<std::string> OsLibs;
   bool HasStandalone = false;
-
   for (const Arg *A : Args.filtered(options::OPT_moslib_EQ)) {
     A->claim();
     OsLibs.emplace_back(A->getValue());
@@ -517,6 +544,14 @@ unsigned HexagonToolChain::getOptimizationLevel(
 void HexagonToolChain::addClangTargetOptions(const ArgList &DriverArgs,
                                              ArgStringList &CC1Args,
                                              Action::OffloadKind) const {
+
+  bool UseInitArrayDefault = getTriple().isMusl();
+
+  if (!DriverArgs.hasFlag(options::OPT_fuse_init_array,
+                          options::OPT_fno_use_init_array,
+                          UseInitArrayDefault))
+    CC1Args.push_back("-fno-use-init-array");
+
   if (DriverArgs.hasArg(options::OPT_ffixed_r19)) {
     CC1Args.push_back("-target-feature");
     CC1Args.push_back("+reserved-r19");
@@ -534,6 +569,13 @@ void HexagonToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
     return;
 
   const Driver &D = getDriver();
+  if (!D.SysRoot.empty()) {
+    SmallString<128> P(D.SysRoot);
+    llvm::sys::path::append(P, "include");
+    addExternCSystemInclude(DriverArgs, CC1Args, P.str());
+    return;
+  }
+
   std::string TargetDir = getHexagonTargetDir(D.getInstalledDir(),
                                               D.PrefixDirs);
   addExternCSystemInclude(DriverArgs, CC1Args, TargetDir + "/hexagon/include");

@@ -400,7 +400,7 @@ handy methods on `mlir::Builder`.
 example and decompose the array attribute into two attributes:
 
 ```tablegen
-class getNthAttr<int n> : NativeCodeCall<"$_self.getValue()[" # n # "]">;
+class getNthAttr<int n> : NativeCodeCall<"$_self[" # n # "]">;
 
 def : Pat<(OneAttrOp $attr),
           (TwoAttrOp (getNthAttr<0>:$attr), (getNthAttr<1>:$attr)>;
@@ -618,8 +618,7 @@ results. The third parameter to `Pattern` (and `Pat`) is for this purpose.
 For example, we can write
 
 ```tablegen
-def HasNoUseOf: Constraint<
-    CPred<"$_self->use_begin() == $_self->use_end()">, "has no use">;
+def HasNoUseOf: Constraint<CPred<"$_self.use_empty()">, "has no use">;
 
 def HasSameElementType : Constraint<
     CPred<"$0.cast<ShapedType>().getElementType() == "

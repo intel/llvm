@@ -1,6 +1,6 @@
 //===- ExecutionEngine.h - MLIR Execution engine and utils -----*- C++ -*--===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -26,6 +26,7 @@ namespace llvm {
 template <typename T> class Expected;
 class Module;
 class ExecutionEngine;
+class JITEventListener;
 class MemoryBuffer;
 } // namespace llvm
 
@@ -59,7 +60,7 @@ private:
 /// be used to invoke the JIT-compiled function.
 class ExecutionEngine {
 public:
-  ExecutionEngine(bool enableObjectCache);
+  ExecutionEngine(bool enableObjectCache, bool enableGDBNotificationListener);
 
   /// Creates an execution engine for the given module.  If `transformer` is
   /// provided, it will be called on the LLVM module during JIT-compilation and
@@ -67,12 +68,16 @@ public:
   /// when provided, is used as the optimization level for target code
   /// generation. If `sharedLibPaths` are provided, the underlying
   /// JIT-compilation will open and link the shared libraries for symbol
-  /// resolution. If `objectCache` is provided, JIT compiler will use it to
-  /// store the object generated for the given module.
-  static llvm::Expected<std::unique_ptr<ExecutionEngine>> create(
-      ModuleOp m, std::function<llvm::Error(llvm::Module *)> transformer = {},
-      Optional<llvm::CodeGenOpt::Level> jitCodeGenOptLevel = llvm::None,
-      ArrayRef<StringRef> sharedLibPaths = {}, bool enableObjectCache = false);
+  /// resolution. If `enableObjectCache` is set, the JIT compiler will create
+  /// one to store the object generated for the given module. If enable
+  // `enableGDBNotificationListener` is set, the JIT compiler will notify
+  /// the llvm's global GDB notification listener.
+  static llvm::Expected<std::unique_ptr<ExecutionEngine>>
+  create(ModuleOp m,
+         std::function<llvm::Error(llvm::Module *)> transformer = {},
+         Optional<llvm::CodeGenOpt::Level> jitCodeGenOptLevel = llvm::None,
+         ArrayRef<StringRef> sharedLibPaths = {}, bool enableObjectCache = true,
+         bool enableGDBNotificationListener = true);
 
   /// Looks up a packed-argument function with the given name and returns a
   /// pointer to it.  Propagates errors in case of failure.
@@ -97,15 +102,18 @@ public:
   void dumpToObjectFile(StringRef filename);
 
 private:
-  // Ordering of llvmContext and jit is important for destruction purposes: the
-  // jit must be destroyed before the context.
+  /// Ordering of llvmContext and jit is important for destruction purposes: the
+  /// jit must be destroyed before the context.
   llvm::LLVMContext llvmContext;
 
-  // Underlying LLJIT.
+  /// Underlying LLJIT.
   std::unique_ptr<llvm::orc::LLJIT> jit;
 
-  // Underlying cache.
+  /// Underlying cache.
   std::unique_ptr<SimpleObjectCache> cache;
+
+  /// GDB notification listener.
+  llvm::JITEventListener *gdbListener;
 };
 
 template <typename... Args>

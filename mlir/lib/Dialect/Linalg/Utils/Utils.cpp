@@ -1,6 +1,6 @@
 //===- Utils.cpp - Utilities to support the Linalg dialect ----------------===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -11,122 +11,49 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
+#include "mlir/Dialect/AffineOps/AffineOps.h"
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 #include "mlir/Dialect/Linalg/IR/LinalgTypes.h"
-#include "mlir/Dialect/Linalg/Passes.h"
-#include "mlir/Dialect/Linalg/Utils/Intrinsics.h"
 #include "mlir/Dialect/LoopOps/LoopOps.h"
-#include "mlir/Dialect/StandardOps/Ops.h"
-#include "mlir/EDSC/Helpers.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/AffineMap.h"
+#include "mlir/IR/Matchers.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Support/STLExtras.h"
 #include "mlir/Transforms/FoldUtils.h"
 
 using namespace mlir;
-using namespace mlir::edsc;
-using namespace mlir::edsc::intrinsics;
 using namespace mlir::linalg;
-using namespace mlir::linalg::intrinsics;
 using namespace mlir::loop;
 
-mlir::edsc::LoopRangeBuilder::LoopRangeBuilder(ValueHandle *iv,
-                                               ValueHandle range) {
-  assert(range.getType() && "expected !linalg.range type");
-  assert(range.getValue()->getDefiningOp() &&
-         "need operations to extract range parts");
-  auto rangeOp = cast<RangeOp>(range.getValue()->getDefiningOp());
-  auto lb = rangeOp.min();
-  auto ub = rangeOp.max();
-  auto step = rangeOp.step();
-  auto forOp = OperationHandle::createOp<ForOp>(lb, ub, step);
-  *iv = ValueHandle(forOp.getInductionVar());
-  auto *body = forOp.getBody();
-  enter(body, /*prev=*/1);
+Optional<RegionMatcher::BinaryOpKind>
+RegionMatcher::matchAsScalarBinaryOp(GenericOp op) {
+  auto &region = op.region();
+  if (!has_single_element(region))
+    return llvm::None;
+
+  Block &block = region.front();
+  if (block.getNumArguments() != 2 ||
+      !block.getArgument(0).getType().isSignlessIntOrFloat() ||
+      !block.getArgument(1).getType().isSignlessIntOrFloat())
+    return llvm::None;
+
+  auto &ops = block.getOperations();
+  if (!has_single_element(block.without_terminator()))
+    return llvm::None;
+
+  using mlir::matchers::m_Val;
+  auto a = m_Val(block.getArgument(0));
+  auto b = m_Val(block.getArgument(1));
+
+  auto addPattern = m_Op<linalg::YieldOp>(m_Op<AddIOp>(a, b));
+  if (addPattern.match(&ops.back()))
+    return BinaryOpKind::IAdd;
+
+  return llvm::None;
 }
-
-mlir::edsc::LoopRangeBuilder::LoopRangeBuilder(ValueHandle *iv,
-                                               SubViewOp::Range range) {
-  auto forOp =
-      OperationHandle::createOp<ForOp>(range.offset, range.size, range.stride);
-  *iv = ValueHandle(forOp.getInductionVar());
-  auto *body = forOp.getBody();
-  enter(body, /*prev=*/1);
-}
-
-ValueHandle
-mlir::edsc::LoopRangeBuilder::operator()(std::function<void(void)> fun) {
-  if (fun)
-    fun();
-  exit();
-  return ValueHandle::null();
-}
-
-mlir::edsc::LoopNestRangeBuilder::LoopNestRangeBuilder(
-    ArrayRef<ValueHandle *> ivs, ArrayRef<SubViewOp::Range> ranges) {
-  loops.reserve(ranges.size());
-  for (unsigned i = 0, e = ranges.size(); i < e; ++i) {
-    loops.emplace_back(ivs[i], ranges[i]);
-  }
-  assert(loops.size() == ivs.size() && "Mismatch loops vs ivs size");
-}
-
-mlir::edsc::LoopNestRangeBuilder::LoopNestRangeBuilder(
-    ArrayRef<ValueHandle *> ivs, ArrayRef<ValueHandle> ranges) {
-  loops.reserve(ranges.size());
-  for (unsigned i = 0, e = ranges.size(); i < e; ++i) {
-    loops.emplace_back(ivs[i], ranges[i]);
-  }
-  assert(loops.size() == ivs.size() && "Mismatch loops vs ivs size");
-}
-
-mlir::edsc::LoopNestRangeBuilder::LoopNestRangeBuilder(
-    ArrayRef<ValueHandle *> ivs, ArrayRef<Value> ranges)
-    : LoopNestRangeBuilder(
-          ivs, SmallVector<ValueHandle, 4>(ranges.begin(), ranges.end())) {}
-
-ValueHandle LoopNestRangeBuilder::LoopNestRangeBuilder::operator()(
-    std::function<void(void)> fun) {
-  if (fun)
-    fun();
-  for (auto &lit : reverse(loops)) {
-    lit({});
-  }
-  return ValueHandle::null();
-}
-
-namespace mlir {
-namespace edsc {
-
-template <>
-GenericLoopNestRangeBuilder<
-    loop::ForOp>::GenericLoopNestRangeBuilder(ArrayRef<edsc::ValueHandle *> ivs,
-                                              ArrayRef<Value> ranges) {
-  builder = std::make_unique<LoopNestRangeBuilder>(ivs, ranges);
-}
-
-template <>
-GenericLoopNestRangeBuilder<
-    AffineForOp>::GenericLoopNestRangeBuilder(ArrayRef<ValueHandle *> ivs,
-                                              ArrayRef<Value> ranges) {
-  SmallVector<ValueHandle, 4> lbs;
-  SmallVector<ValueHandle, 4> ubs;
-  SmallVector<int64_t, 4> steps;
-  for (Value range : ranges) {
-    assert(range.getType() && "expected linalg.range type");
-    assert(range.getDefiningOp() && "need operations to extract range parts");
-    RangeOp rangeOp = cast<RangeOp>(range.getDefiningOp());
-    lbs.emplace_back(ValueHandle(rangeOp.min()));
-    ubs.emplace_back(ValueHandle(rangeOp.max()));
-    steps.emplace_back(ValueHandle(rangeOp.step()));
-  }
-  builder = std::make_unique<AffineLoopNestBuilder>(ivs, lbs, ubs, steps);
-}
-
-} // namespace edsc
-} // namespace mlir
 
 static Value emitOrFoldComposedAffineApply(OpBuilder &b, Location loc,
                                            AffineMap map,
@@ -168,9 +95,9 @@ mlir::linalg::getAssumedNonViewOperands(LinalgOp linalgOp) {
   res.reserve(nOperands);
   for (unsigned i = 0; i < nOperands; ++i) {
     res.push_back(op->getOperand(numViews + i));
-    auto t = res.back()->getType();
+    auto t = res.back().getType();
     (void)t;
-    assert((t.isIntOrIndexOrFloat() || t.isa<VectorType>()) &&
+    assert((t.isSignlessIntOrIndexOrFloat() || t.isa<VectorType>()) &&
            "expected scalar or vector type");
   }
   return res;

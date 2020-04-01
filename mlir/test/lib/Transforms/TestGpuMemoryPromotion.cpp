@@ -1,6 +1,6 @@
 //===- TestGPUMemoryPromotionPass.cpp - Test pass for GPU promotion -------===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -35,6 +35,10 @@ class TestGpuMemoryPromotionPass
 };
 } // end namespace
 
-static PassRegistration<TestGpuMemoryPromotionPass> registration(
-    "test-gpu-memory-promotion",
-    "Promotes the annotated arguments of gpu.func to workgroup memory.");
+namespace mlir {
+void registerTestGpuMemoryPromotionPass() {
+  PassRegistration<TestGpuMemoryPromotionPass>(
+      "test-gpu-memory-promotion",
+      "Promotes the annotated arguments of gpu.func to workgroup memory.");
+}
+} // namespace mlir

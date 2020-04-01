@@ -329,7 +329,7 @@ QualType SymbolDerived::getType() const {
 }
 
 QualType SymbolExtent::getType() const {
-  ASTContext &Ctx = R->getMemRegionManager()->getContext();
+  ASTContext &Ctx = R->getMemRegionManager().getContext();
   return Ctx.getSizeType();
 }
 
@@ -540,6 +540,11 @@ bool SymbolReaper::isLive(const VarRegion *VR, bool includeStoreBindings) const{
   if (VarContext == CurrentContext) {
     // If no statement is provided, everything is live.
     if (!Loc)
+      return true;
+
+    // Anonymous parameters of an inheriting constructor are live for the entire
+    // duration of the constructor.
+    if (isa<CXXInheritedCtorInitExpr>(Loc))
       return true;
 
     if (LCtx->getAnalysis<RelaxedLiveVariables>()->isLive(Loc, VR->getDecl()))

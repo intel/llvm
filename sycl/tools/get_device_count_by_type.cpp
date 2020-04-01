@@ -9,24 +9,58 @@
 #include <CL/cl.h>
 #include <CL/cl_ext.h>
 
+#ifdef USE_PI_CUDA
+#include <cuda_driver.h>
+#endif  // USE_PI_CUDA
+
 #include <iostream>
 #include <string>
 #include <vector>
 
 static const std::string help =
 "   Help\n"
-"   Example: ./get_device_count_by_type cpu\n"
+"   Example: ./get_device_count_by_type cpu opencl\n"
 "   Support types: cpu/gpu/accelerator/default/all\n"
+"   Support backends: cuda/opencl \n"
 "   Output format: <number_of_devices>:<additional_Information>";
 
 int main(int argc, char* argv[]) {
-    if (argc <= 1) {
-        std::cout << "0:Please set a device type for find" << std::endl
+    if (argc < 3) {
+        std::cout  
+            << "0:Please set a device type and backend to find" << std::endl
             << help << std::endl;
         return 0;
     }
 
     std::string type = argv[1];
+    std::string backend{argv[2]};
+
+    cl_uint deviceCount = 0;
+
+#ifdef USE_PI_CUDA
+    if (backend == "CUDA") {
+      std::string msg{""};
+
+      int runtime_version = 0;
+
+      cudaError_t err = cuDriverGetVersion(&runtime_version);
+      if (runtime_version < 9020 || err != CUDA_SUCCESS) {
+        std::cout << deviceCount << " :Unsupported CUDA Runtime " << std::endl;
+      }
+
+      if (type == "gpu") {
+        deviceCount = 1;
+        msg = "cuda";
+      } else {
+        msg = "Unsupported device type for CUDA backend";
+        msg += " type: ";
+        msg += type;
+      }
+      std::cout << deviceCount << " : " << msg << std::endl;
+      return 0;
+    }
+#endif  // USE_PI_CUDA
+
     cl_device_type device_type;
     if (type == "cpu") {
         device_type = CL_DEVICE_TYPE_CPU;
@@ -66,7 +100,6 @@ int main(int argc, char* argv[]) {
         return 0;
     }
 
-    cl_uint deviceCount = 0;
     for (cl_uint i = 0; i < platformCount; i++) {
         cl_uint deviceCountPart = 0;
         iRet = clGetDeviceIDs(platforms[i], device_type, 0, nullptr, &deviceCountPart);
@@ -75,6 +108,7 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    std::cout << deviceCount << ":" << std::endl;
+    std::cout << deviceCount << ":" << backend << std::endl;
+
     return 0;
 }

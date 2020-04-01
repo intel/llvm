@@ -1,6 +1,6 @@
 //===- OperationSupport.h ---------------------------------------*- C++ -*-===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -21,6 +21,7 @@
 #include "mlir/IR/Value.h"
 #include "mlir/Support/LogicalResult.h"
 #include "llvm/ADT/PointerUnion.h"
+#include "llvm/Support/PointerLikeTypeTraits.h"
 #include "llvm/Support/TrailingObjects.h"
 #include <memory>
 
@@ -32,14 +33,18 @@ struct OperationState;
 class OpAsmParser;
 class OpAsmParserResult;
 class OpAsmPrinter;
+class OperandRange;
 class OpFoldResult;
 class ParseResult;
 class Pattern;
 class Region;
+class ResultRange;
 class RewritePattern;
+class SuccessorRange;
 class Type;
 class Value;
 class ValueRange;
+template <typename ValueRangeT> class ValueTypeRange;
 
 /// This is an adaptor from a list of values to named operands of OpTy.  In a
 /// generic operation context, e.g., in dialect conversions, an ordered array of
@@ -56,24 +61,22 @@ class OwningRewritePatternList;
 //===----------------------------------------------------------------------===//
 
 enum class OperationProperty {
-  /// This bit is set for an operation if it is a commutative operation: that
-  /// is a binary operator (two inputs) where "a op b" and "b op a" produce the
-  /// same results.
+  /// This bit is set for an operation if it is a commutative
+  /// operation: that is an operator where order of operands does not
+  /// change the result of the operation.  For example, in a binary
+  /// commutative operation, "a op b" and "b op a" produce the same
+  /// results.
   Commutative = 0x1,
-
-  /// This bit is set for operations that have no side effects: that means that
-  /// they do not read or write memory, or access any hidden state.
-  NoSideEffect = 0x2,
 
   /// This bit is set for an operation if it is a terminator: that means
   /// an operation at the end of a block.
-  Terminator = 0x4,
+  Terminator = 0x2,
 
   /// This bit is set for operations that are completely isolated from above.
   /// This is used for operations whose regions are explicit capture only, i.e.
   /// they are never allowed to implicitly reference values defined above the
   /// parent operation.
-  IsolatedFromAbove = 0x8,
+  IsolatedFromAbove = 0x4,
 };
 
 /// This is a "type erased" representation of a registered operation.  This
@@ -90,8 +93,8 @@ public:
   /// This is the dialect that this operation belongs to.
   Dialect &dialect;
 
-  /// Return true if this "op class" can match against the specified operation.
-  bool (&classof)(Operation *op);
+  /// The unique identifier of the derived Op class.
+  ClassID *classID;
 
   /// Use the specified object to parse this ops custom assembly format.
   ParseResult (&parseAssembly)(OpAsmParser &parser, OperationState &result);
@@ -158,15 +161,16 @@ public:
   /// operations they contain.
   template <typename T> static AbstractOperation get(Dialect &dialect) {
     return AbstractOperation(
-        T::getOperationName(), dialect, T::getOperationProperties(), T::classof,
-        T::parseAssembly, T::printAssembly, T::verifyInvariants, T::foldHook,
-        T::getCanonicalizationPatterns, T::getRawInterface, T::hasTrait);
+        T::getOperationName(), dialect, T::getOperationProperties(),
+        ClassID::getID<T>(), T::parseAssembly, T::printAssembly,
+        T::verifyInvariants, T::foldHook, T::getCanonicalizationPatterns,
+        T::getRawInterface, T::hasTrait);
   }
 
 private:
   AbstractOperation(
       StringRef name, Dialect &dialect, OperationProperties opProperties,
-      bool (&classof)(Operation *op),
+      ClassID *classID,
       ParseResult (&parseAssembly)(OpAsmParser &parser, OperationState &result),
       void (&printAssembly)(Operation *op, OpAsmPrinter &p),
       LogicalResult (&verifyInvariants)(Operation *op),
@@ -176,7 +180,7 @@ private:
                                           MLIRContext *context),
       void *(&getRawInterface)(ClassID *interfaceID),
       bool (&hasTrait)(ClassID *traitID))
-      : name(name), dialect(dialect), classof(classof),
+      : name(name), dialect(dialect), classID(classID),
         parseAssembly(parseAssembly), printAssembly(printAssembly),
         verifyInvariants(verifyInvariants), foldHook(foldHook),
         getCanonicalizationPatterns(getCanonicalizationPatterns),
@@ -288,6 +292,11 @@ public:
   void addTypes(ArrayRef<Type> newTypes) {
     types.append(newTypes.begin(), newTypes.end());
   }
+  template <typename RangeT>
+  std::enable_if_t<!std::is_convertible<RangeT, ArrayRef<Type>>::value>
+  addTypes(RangeT &&newTypes) {
+    types.append(newTypes.begin(), newTypes.end());
+  }
 
   /// Add an attribute with the specified name.
   void addAttribute(StringRef name, Attribute attr) {
@@ -304,7 +313,12 @@ public:
     attributes.append(newAttributes.begin(), newAttributes.end());
   }
 
-  void addSuccessor(Block *successor, ValueRange succOperands);
+  /// Add an array of successors.
+  void addSuccessors(ArrayRef<Block *> newSuccessors) {
+    successors.append(newSuccessors.begin(), newSuccessors.end());
+  }
+  void addSuccessors(Block *successor) { successors.push_back(successor); }
+  void addSuccessors(SuccessorRange newSuccessors);
 
   /// Create a region that should be attached to the operation.  These regions
   /// can be filled in immediately without waiting for Operation to be
@@ -533,6 +547,55 @@ private:
 //===----------------------------------------------------------------------===//
 
 //===----------------------------------------------------------------------===//
+// TypeRange
+
+/// This class provides an abstraction over the various different ranges of
+/// value types. In many cases, this prevents the need to explicitly materialize
+/// a SmallVector/std::vector. This class should be used in places that are not
+/// suitable for a more derived type (e.g. ArrayRef) or a template range
+/// parameter.
+class TypeRange
+    : public detail::indexed_accessor_range_base<
+          TypeRange,
+          llvm::PointerUnion<const Value *, const Type *, OpOperand *>, Type,
+          Type, Type> {
+public:
+  using RangeBaseT::RangeBaseT;
+  TypeRange(ArrayRef<Type> types = llvm::None);
+  explicit TypeRange(OperandRange values);
+  explicit TypeRange(ResultRange values);
+  explicit TypeRange(ValueRange values);
+  explicit TypeRange(ArrayRef<Value> values);
+  explicit TypeRange(ArrayRef<BlockArgument> values)
+      : TypeRange(ArrayRef<Value>(values.data(), values.size())) {}
+  template <typename ValueRangeT>
+  TypeRange(ValueTypeRange<ValueRangeT> values)
+      : TypeRange(ValueRangeT(values.begin().getCurrent(),
+                              values.end().getCurrent())) {}
+  template <typename Arg,
+            typename = typename std::enable_if_t<
+                std::is_constructible<ArrayRef<Type>, Arg>::value>>
+  TypeRange(Arg &&arg) : TypeRange(ArrayRef<Type>(std::forward<Arg>(arg))) {}
+  TypeRange(std::initializer_list<Type> types)
+      : TypeRange(ArrayRef<Type>(types)) {}
+
+private:
+  /// The owner of the range is either:
+  /// * A pointer to the first element of an array of values.
+  /// * A pointer to the first element of an array of types.
+  /// * A pointer to the first element of an array of operands.
+  using OwnerT = llvm::PointerUnion<const Value *, const Type *, OpOperand *>;
+
+  /// See `detail::indexed_accessor_range_base` for details.
+  static OwnerT offset_base(OwnerT object, ptrdiff_t index);
+  /// See `detail::indexed_accessor_range_base` for details.
+  static Type dereference_iterator(OwnerT object, ptrdiff_t index);
+
+  /// Allow access to `offset_base` and `dereference_iterator`.
+  friend RangeBaseT;
+};
+
+//===----------------------------------------------------------------------===//
 // ValueTypeRange
 
 /// This class implements iteration on the types of a given range of values.
@@ -552,6 +615,24 @@ public:
       : llvm::mapped_iterator<ValueIteratorT, Type (*)(Value)>(it, &unwrap) {}
 };
 
+/// This class implements iteration on the types of a given range of values.
+template <typename ValueRangeT>
+class ValueTypeRange final
+    : public llvm::iterator_range<
+          ValueTypeIterator<typename ValueRangeT::iterator>> {
+public:
+  using llvm::iterator_range<
+      ValueTypeIterator<typename ValueRangeT::iterator>>::iterator_range;
+  template <typename Container>
+  ValueTypeRange(Container &&c) : ValueTypeRange(c.begin(), c.end()) {}
+};
+
+template <typename RangeT>
+inline bool operator==(ArrayRef<Type> lhs, const ValueTypeRange<RangeT> &rhs) {
+  return lhs.size() == static_cast<size_t>(llvm::size(rhs)) &&
+         std::equal(lhs.begin(), lhs.end(), rhs.begin());
+}
+
 //===----------------------------------------------------------------------===//
 // OperandRange
 
@@ -565,7 +646,13 @@ public:
 
   /// Returns the types of the values within this range.
   using type_iterator = ValueTypeIterator<iterator>;
-  iterator_range<type_iterator> getTypes() const { return {begin(), end()}; }
+  using type_range = ValueTypeRange<OperandRange>;
+  type_range getTypes() const { return {begin(), end()}; }
+  auto getType() const { return getTypes(); }
+
+  /// Return the operand index of the first element of this range. The range
+  /// must not be empty.
+  unsigned getBeginOperandIndex() const;
 
 private:
   /// See `detail::indexed_accessor_range_base` for details.
@@ -594,8 +681,10 @@ public:
   ResultRange(Operation *op);
 
   /// Returns the types of the values within this range.
-  using type_iterator = ValueTypeIterator<iterator>;
-  iterator_range<type_iterator> getTypes() const { return {begin(), end()}; }
+  using type_iterator = ArrayRef<Type>::iterator;
+  using type_range = ArrayRef<Type>;
+  type_range getTypes() const;
+  auto getType() const { return getTypes(); }
 
 private:
   /// See `indexed_accessor_range` for details.
@@ -655,13 +744,17 @@ public:
       : ValueRange(OperandRange(values)) {}
   ValueRange(iterator_range<ResultRange::iterator> values)
       : ValueRange(ResultRange(values)) {}
+  ValueRange(ArrayRef<BlockArgument> values)
+      : ValueRange(ArrayRef<Value>(values.data(), values.size())) {}
   ValueRange(ArrayRef<Value> values = llvm::None);
   ValueRange(OperandRange values);
   ValueRange(ResultRange values);
 
   /// Returns the types of the values within this range.
   using type_iterator = ValueTypeIterator<iterator>;
-  iterator_range<type_iterator> getTypes() const { return {begin(), end()}; }
+  using type_range = ValueTypeRange<ValueRange>;
+  type_range getTypes() const { return {begin(), end()}; }
+  auto getType() const { return getTypes(); }
 
 private:
   using OwnerT = detail::ValueRangeOwner;
@@ -706,10 +799,8 @@ public:
   static inline mlir::OperationName getFromVoidPointer(void *P) {
     return mlir::OperationName::getFromOpaquePointer(P);
   }
-  enum {
-    NumLowBitsAvailable = PointerLikeTypeTraits<
-        mlir::OperationName::RepresentationUnion>::NumLowBitsAvailable
-  };
+  static constexpr int NumLowBitsAvailable = PointerLikeTypeTraits<
+      mlir::OperationName::RepresentationUnion>::NumLowBitsAvailable;
 };
 
 } // end namespace llvm

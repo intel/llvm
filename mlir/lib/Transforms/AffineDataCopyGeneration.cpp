@@ -1,6 +1,6 @@
 //===- AffineDataCopyGeneration.cpp - Explicit memref copying pass ------*-===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -179,7 +179,7 @@ AffineDataCopyGeneration::runOnBlock(Block *block,
     if ((forOp = dyn_cast<AffineForOp>(&*it)) && copyNests.count(forOp) == 0) {
       // Perform the copying up unti this 'for' op first.
       affineDataCopyGenerate(/*begin=*/curBegin, /*end=*/it, copyOptions,
-                             copyNests);
+                             /*filterMemRef=*/llvm::None, copyNests);
 
       // Returns true if the footprint is known to exceed capacity.
       auto exceedsCapacity = [&](AffineForOp forOp) {
@@ -213,7 +213,7 @@ AffineDataCopyGeneration::runOnBlock(Block *block,
         // consumed capacity. The footprint check above guarantees this inner
         // loop's footprint fits.
         affineDataCopyGenerate(/*begin=*/it, /*end=*/std::next(it), copyOptions,
-                               copyNests);
+                               /*filterMemRef=*/llvm::None, copyNests);
       }
       // Get to the next load or store op after 'forOp'.
       curBegin = std::find_if(std::next(it), block->end(), [&](Operation &op) {
@@ -236,7 +236,7 @@ AffineDataCopyGeneration::runOnBlock(Block *block,
     assert(!curBegin->isKnownTerminator() && "can't be a terminator");
     // Exclude the affine terminator - hence, the std::prev.
     affineDataCopyGenerate(/*begin=*/curBegin, /*end=*/std::prev(block->end()),
-                           copyOptions, copyNests);
+                           copyOptions, /*filterMemRef=*/llvm::None, copyNests);
   }
 
   return success();

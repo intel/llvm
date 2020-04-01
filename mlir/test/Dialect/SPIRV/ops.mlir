@@ -227,7 +227,7 @@ func @bit_field_insert_vec(%base: vector<3xi32>, %insert: vector<3xi32>, %offset
 // -----
 
 func @bit_field_insert_invalid_insert_type(%base: vector<3xi32>, %insert: vector<2xi32>, %offset: i32, %count: i16) -> vector<3xi32> {
-  // expected-error @+1 {{expected the same type for the base operand, insert operand, and result, but provided 'vector<3xi32>', 'vector<2xi32>' and 'vector<3xi32>'}}
+  // expected-error @+1 {{all of {base, insert, result} have same type}}
   %0 = "spv.BitFieldInsert" (%base, %insert, %offset, %count) : (vector<3xi32>, vector<2xi32>, i32, i16) -> vector<3xi32>
   spv.ReturnValue %0 : vector<3xi32>
 }
@@ -257,7 +257,7 @@ func @bit_field_u_extract_vec(%base: vector<3xi32>, %offset: i8, %count: i8) -> 
 // -----
 
 func @bit_field_u_extract_invalid_result_type(%base: vector<3xi32>, %offset: i32, %count: i16) -> vector<4xi32> {
-  // expected-error @+1 {{expected the same type for the first operand and result, but provided 'vector<3xi32>' and 'vector<4xi32>'}}
+  // expected-error @+1 {{failed to verify that all of {base, result} have same type}}
   %0 = "spv.BitFieldUExtract" (%base, %offset, %count) : (vector<3xi32>, i32, i16) -> vector<4xi32>
   spv.ReturnValue %0 : vector<4xi32>
 }
@@ -289,7 +289,7 @@ func @control_barrier_0() -> () {
 // -----
 
 func @control_barrier_1() -> () {
-  // expected-error @+1 {{invalid scope attribute specification: "Something"}}
+  // expected-error @+1 {{invalid execution_scope attribute specification: "Something"}}
   spv.ControlBarrier "Something", "Device", "Acquire|UniformMemory"
   return
 }
@@ -416,8 +416,8 @@ func @u_convert_scalar(%arg0 : i32) -> i64 {
 // spv.ExecutionMode
 //===----------------------------------------------------------------------===//
 
-spv.module "Logical" "GLSL450" {
-   func @do_nothing() -> () {
+spv.module Logical GLSL450 {
+   spv.func @do_nothing() -> () "None" {
      spv.Return
    }
    spv.EntryPoint "GLCompute" @do_nothing
@@ -425,8 +425,8 @@ spv.module "Logical" "GLSL450" {
    spv.ExecutionMode @do_nothing "ContractionOff"
 }
 
-spv.module "Logical" "GLSL450" {
-   func @do_nothing() -> () {
+spv.module Logical GLSL450 {
+   spv.func @do_nothing() -> () "None" {
      spv.Return
    }
    spv.EntryPoint "GLCompute" @do_nothing
@@ -436,8 +436,8 @@ spv.module "Logical" "GLSL450" {
 
 // -----
 
-spv.module "Logical" "GLSL450" {
-   func @do_nothing() -> () {
+spv.module Logical GLSL450 {
+   spv.func @do_nothing() -> () "None" {
      spv.Return
    }
    spv.EntryPoint "GLCompute" @do_nothing
@@ -639,10 +639,10 @@ func @aligned_load_incorrect_attributes() -> () {
 
 // -----
 
-spv.module "Logical" "GLSL450" {
+spv.module Logical GLSL450 {
   spv.globalVariable @var0 : !spv.ptr<f32, Input>
   // CHECK_LABEL: @simple_load
-  func @simple_load() -> () {
+  spv.func @simple_load() -> () "None" {
     // CHECK: spv.Load "Input" {{%.*}} : f32
     %0 = spv._address_of @var0 : !spv.ptr<f32, Input>
     %1 = spv.Load "Input" %0 : f32
@@ -752,7 +752,7 @@ func @logicalUnary(%arg0 : i1)
 
 func @logicalUnary(%arg0 : i32)
 {
-  // expected-error @+1 {{'spv.LogicalNot' op operand #0 must be 1-bit integer or vector of 1-bit integer values of length 2/3/4, but got 'i32'}}
+  // expected-error @+1 {{operand #0 must be bool or vector of bool values of length 2/3/4, but got 'i32'}}
   %0 = spv.LogicalNot %arg0 : i32
   return
 }
@@ -856,7 +856,7 @@ func @select_op_vec_condn_vec(%arg0: vector<3xi1>) -> () {
 func @select_op(%arg0: i1) -> () {
   %0 = spv.constant 2 : i32
   %1 = spv.constant 3 : i32
-  // expected-error @+1 {{need exactly two trailing types for select condition and object}}
+  // expected-error @+2 {{expected ','}}
   %2 = spv.Select %arg0, %0, %1 : i1
   return
 }
@@ -886,7 +886,7 @@ func @select_op(%arg1: vector<4xi1>) -> () {
 func @select_op(%arg1: vector<4xi1>) -> () {
   %0 = spv.constant dense<[2.0, 3.0, 4.0]> : vector<3xf32>
   %1 = spv.constant dense<[5, 6, 7]> : vector<3xi32>
-  // expected-error @+1 {{op result type and true value type must be the same}}
+  // expected-error @+1 {{all of {true_value, false_value, result} have same type}}
   %2 = "spv.Select"(%arg1, %0, %1) : (vector<4xi1>, vector<3xf32>, vector<3xi32>) -> vector<3xi32>
   return
 }
@@ -896,7 +896,7 @@ func @select_op(%arg1: vector<4xi1>) -> () {
 func @select_op(%arg1: vector<4xi1>) -> () {
   %0 = spv.constant dense<[2.0, 3.0, 4.0]> : vector<3xf32>
   %1 = spv.constant dense<[5, 6, 7]> : vector<3xi32>
-  // expected-error @+1 {{op result type and false value type must be the same}}
+  // expected-error @+1 {{all of {true_value, false_value, result} have same type}}
   %2 = "spv.Select"(%arg1, %1, %0) : (vector<4xi1>, vector<3xi32>, vector<3xf32>) -> vector<3xi32>
   return
 }
@@ -1057,9 +1057,9 @@ func @aligned_store_incorrect_attributes(%arg0 : f32) -> () {
 
 // -----
 
-spv.module "Logical" "GLSL450" {
+spv.module Logical GLSL450 {
   spv.globalVariable @var0 : !spv.ptr<f32, Input>
-  func @simple_store(%arg0 : f32) -> () {
+  spv.func @simple_store(%arg0 : f32) -> () "None" {
     %0 = spv._address_of @var0 : !spv.ptr<f32, Input>
     // CHECK: spv.Store  "Input" {{%.*}}, {{%.*}} : f32
     spv.Store  "Input" %0, %arg0 : f32
@@ -1130,25 +1130,22 @@ func @variable_init_normal_constant() -> () {
 
 // -----
 
-spv.module "Logical" "GLSL450" {
+spv.module Logical GLSL450 {
   spv.globalVariable @global : !spv.ptr<f32, Workgroup>
-  func @variable_init_global_variable() -> () {
+  spv.func @variable_init_global_variable() -> () "None" {
     %0 = spv._address_of @global : !spv.ptr<f32, Workgroup>
     // CHECK: spv.Variable init({{.*}}) : !spv.ptr<!spv.ptr<f32, Workgroup>, Function>
     %1 = spv.Variable init(%0) : !spv.ptr<!spv.ptr<f32, Workgroup>, Function>
     spv.Return
   }
-} attributes {
-  capability = ["VariablePointers"],
-  extension = ["SPV_KHR_variable_pointers"]
 }
 
 // -----
 
-spv.module "Logical" "GLSL450" {
+spv.module Logical GLSL450 {
   spv.specConstant @sc = 42 : i32
   // CHECK-LABEL: @variable_init_spec_constant
-  func @variable_init_spec_constant() -> () {
+  spv.func @variable_init_spec_constant() -> () "None" {
     %0 = spv._reference_of @sc : i32
     // CHECK: spv.Variable init(%0) : !spv.ptr<i32, Function>
     %1 = spv.Variable init(%0) : !spv.ptr<i32, Function>

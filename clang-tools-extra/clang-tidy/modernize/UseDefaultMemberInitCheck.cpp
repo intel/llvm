@@ -137,7 +137,7 @@ static const Expr *ignoreUnaryPlus(const Expr *E) {
 static const Expr *getInitializer(const Expr *E) {
   auto *InitList = dyn_cast<InitListExpr>(E);
   if (InitList && InitList->getNumInits() == 1)
-    return InitList->getInit(0);
+    return InitList->getInit(0)->IgnoreParenImpCasts();
   return E;
 }
 
@@ -190,18 +190,15 @@ void UseDefaultMemberInitCheck::storeOptions(
 }
 
 void UseDefaultMemberInitCheck::registerMatchers(MatchFinder *Finder) {
-  if (!getLangOpts().CPlusPlus11)
-    return;
-
   auto Init =
       anyOf(stringLiteral(), characterLiteral(), integerLiteral(),
-            unaryOperator(anyOf(hasOperatorName("+"), hasOperatorName("-")),
+            unaryOperator(hasAnyOperatorName("+", "-"),
                           hasUnaryOperand(integerLiteral())),
             floatLiteral(),
-            unaryOperator(anyOf(hasOperatorName("+"), hasOperatorName("-")),
+            unaryOperator(hasAnyOperatorName("+", "-"),
                           hasUnaryOperand(floatLiteral())),
             cxxBoolLiteral(), cxxNullPtrLiteralExpr(), implicitValueInitExpr(),
-            declRefExpr(to(enumConstantDecl())));
+            initListExpr(), declRefExpr(to(enumConstantDecl())));
 
   Finder->addMatcher(
       cxxConstructorDecl(

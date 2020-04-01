@@ -6,12 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/program_impl.hpp>
 #include <CL/sycl/program.hpp>
+#include <detail/program_impl.hpp>
 
 #include <vector>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
 program::program(const context &context)
@@ -30,7 +30,7 @@ program::program(vector_class<program> programList, string_class linkOptions) {
 program::program(const context &context, cl_program clProgram)
     : impl(std::make_shared<detail::program_impl>(
           detail::getSyclObjImpl(context),
-          detail::pi::cast<detail::RT::PiProgram>(clProgram))) {}
+          detail::pi::cast<detail::program_interop_handle_t>(clProgram))) {}
 program::program(std::shared_ptr<detail::program_impl> impl) : impl(impl) {}
 
 cl_program program::get() const { return impl->get(); }
@@ -115,5 +115,11 @@ string_class program::get_build_options() const {
 }
 
 program_state program::get_state() const { return impl->get_state(); }
+
+void program::set_spec_constant_impl(const char *Name, void *Data,
+                                     size_t Size) {
+  impl->set_spec_constant_impl(Name, Data, Size);
+}
+
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

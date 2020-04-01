@@ -56,6 +56,193 @@ TEST_F(GISelMITest, TestKnownBitsCstWithClass) {
   EXPECT_EQ(Res.Zero.getZExtValue(), Res2.Zero.getZExtValue());
 }
 
+// Check that we are able to track bits through PHIs
+// and get the intersections of everything we know on each operand.
+TEST_F(GISelMITest, TestKnownBitsCstPHI) {
+  StringRef MIRString = "  bb.10:\n"
+                        "  %10:_(s8) = G_CONSTANT i8 3\n"
+                        "  %11:_(s1) = G_IMPLICIT_DEF\n"
+                        "  G_BRCOND %11(s1), %bb.11\n"
+                        "  G_BR %bb.12\n"
+                        "\n"
+                        "  bb.11:\n"
+                        "  %12:_(s8) = G_CONSTANT i8 2\n"
+                        "  G_BR %bb.12\n"
+                        "\n"
+                        "  bb.12:\n"
+                        "  %13:_(s8) = PHI %10(s8), %bb.10, %12(s8), %bb.11\n"
+                        "  %14:_(s8) = COPY %13\n";
+  setUp(MIRString);
+  if (!TM)
+    return;
+  Register CopyReg = Copies[Copies.size() - 1];
+  MachineInstr *FinalCopy = MRI->getVRegDef(CopyReg);
+  Register SrcReg = FinalCopy->getOperand(1).getReg();
+  Register DstReg = FinalCopy->getOperand(0).getReg();
+  GISelKnownBits Info(*MF);
+  KnownBits Res = Info.getKnownBits(SrcReg);
+  EXPECT_EQ((uint64_t)2, Res.One.getZExtValue());
+  EXPECT_EQ((uint64_t)0xfc, Res.Zero.getZExtValue());
+
+  KnownBits Res2 = Info.getKnownBits(DstReg);
+  EXPECT_EQ(Res.One.getZExtValue(), Res2.One.getZExtValue());
+  EXPECT_EQ(Res.Zero.getZExtValue(), Res2.Zero.getZExtValue());
+}
+
+// Check that we report we know nothing when we hit a
+// non-generic register.
+// Note: this could be improved though!
+TEST_F(GISelMITest, TestKnownBitsCstPHIToNonGenericReg) {
+  StringRef MIRString = "  bb.10:\n"
+                        "  %10:gpr32 = MOVi32imm 3\n"
+                        "  %11:_(s1) = G_IMPLICIT_DEF\n"
+                        "  G_BRCOND %11(s1), %bb.11\n"
+                        "  G_BR %bb.12\n"
+                        "\n"
+                        "  bb.11:\n"
+                        "  %12:_(s8) = G_CONSTANT i8 2\n"
+                        "  G_BR %bb.12\n"
+                        "\n"
+                        "  bb.12:\n"
+                        "  %13:_(s8) = PHI %10, %bb.10, %12(s8), %bb.11\n"
+                        "  %14:_(s8) = COPY %13\n";
+  setUp(MIRString);
+  if (!TM)
+    return;
+  Register CopyReg = Copies[Copies.size() - 1];
+  MachineInstr *FinalCopy = MRI->getVRegDef(CopyReg);
+  Register SrcReg = FinalCopy->getOperand(1).getReg();
+  Register DstReg = FinalCopy->getOperand(0).getReg();
+  GISelKnownBits Info(*MF);
+  KnownBits Res = Info.getKnownBits(SrcReg);
+  EXPECT_EQ((uint64_t)0, Res.One.getZExtValue());
+  EXPECT_EQ((uint64_t)0, Res.Zero.getZExtValue());
+
+  KnownBits Res2 = Info.getKnownBits(DstReg);
+  EXPECT_EQ(Res.One.getZExtValue(), Res2.One.getZExtValue());
+  EXPECT_EQ(Res.Zero.getZExtValue(), Res2.Zero.getZExtValue());
+}
+
+// Check that we know nothing when at least one value of a PHI
+// comes from something we cannot analysis.
+// This test is not particularly interesting, it is just
+// here to cover the code that stops the analysis of PHIs
+// earlier. In that case, we would not even look at the
+// second incoming value.
+TEST_F(GISelMITest, TestKnownBitsUnknownPHI) {
+  StringRef MIRString =
+      "  bb.10:\n"
+      "  %10:_(s64) = COPY %0\n"
+      "  %11:_(s1) = G_IMPLICIT_DEF\n"
+      "  G_BRCOND %11(s1), %bb.11\n"
+      "  G_BR %bb.12\n"
+      "\n"
+      "  bb.11:\n"
+      "  %12:_(s64) = G_CONSTANT i64 2\n"
+      "  G_BR %bb.12\n"
+      "\n"
+      "  bb.12:\n"
+      "  %13:_(s64) = PHI %10(s64), %bb.10, %12(s64), %bb.11\n"
+      "  %14:_(s64) = COPY %13\n";
+  setUp(MIRString);
+  if (!TM)
+    return;
+  Register CopyReg = Copies[Copies.size() - 1];
+  MachineInstr *FinalCopy = MRI->getVRegDef(CopyReg);
+  Register SrcReg = FinalCopy->getOperand(1).getReg();
+  Register DstReg = FinalCopy->getOperand(0).getReg();
+  GISelKnownBits Info(*MF);
+  KnownBits Res = Info.getKnownBits(SrcReg);
+  EXPECT_EQ((uint64_t)0, Res.One.getZExtValue());
+  EXPECT_EQ((uint64_t)0, Res.Zero.getZExtValue());
+
+  KnownBits Res2 = Info.getKnownBits(DstReg);
+  EXPECT_EQ(Res.One.getZExtValue(), Res2.One.getZExtValue());
+  EXPECT_EQ(Res.Zero.getZExtValue(), Res2.Zero.getZExtValue());
+}
+
+// Check that we manage to process PHIs that loop on themselves.
+// For now, the analysis just stops and assumes it knows nothing,
+// eventually we could teach it how to properly track phis that
+// loop back.
+TEST_F(GISelMITest, TestKnownBitsCstPHIWithLoop) {
+  StringRef MIRString =
+      "  bb.10:\n"
+      "  %10:_(s8) = G_CONSTANT i8 3\n"
+      "  %11:_(s1) = G_IMPLICIT_DEF\n"
+      "  G_BRCOND %11(s1), %bb.11\n"
+      "  G_BR %bb.12\n"
+      "\n"
+      "  bb.11:\n"
+      "  %12:_(s8) = G_CONSTANT i8 2\n"
+      "  G_BR %bb.12\n"
+      "\n"
+      "  bb.12:\n"
+      "  %13:_(s8) = PHI %10(s8), %bb.10, %12(s8), %bb.11, %14(s8), %bb.12\n"
+      "  %14:_(s8) = COPY %13\n"
+      "  G_BR %bb.12\n";
+  setUp(MIRString);
+  if (!TM)
+    return;
+  Register CopyReg = Copies[Copies.size() - 1];
+  MachineInstr *FinalCopy = MRI->getVRegDef(CopyReg);
+  Register SrcReg = FinalCopy->getOperand(1).getReg();
+  Register DstReg = FinalCopy->getOperand(0).getReg();
+  GISelKnownBits Info(*MF);
+  KnownBits Res = Info.getKnownBits(SrcReg);
+  EXPECT_EQ((uint64_t)0, Res.One.getZExtValue());
+  EXPECT_EQ((uint64_t)0, Res.Zero.getZExtValue());
+
+  KnownBits Res2 = Info.getKnownBits(DstReg);
+  EXPECT_EQ(Res.One.getZExtValue(), Res2.One.getZExtValue());
+  EXPECT_EQ(Res.Zero.getZExtValue(), Res2.Zero.getZExtValue());
+}
+
+// Check that we don't try to analysis PHIs progression.
+// Setting a deep enough max depth would allow to effectively simulate
+// what happens in the loop.
+// Thus, with a deep enough depth, we could actually figure out
+// that %14's zero known bits are actually at least what we know
+// for %10, right shifted by one.
+// However, this process is super expensive compile-time wise and
+// we don't want to reach that conclusion while playing with max depth.
+// For now, the analysis just stops and assumes it knows nothing
+// on PHIs, but eventually we could teach it how to properly track
+// phis that loop back without relying on the luck effect of max
+// depth.
+TEST_F(GISelMITest, TestKnownBitsDecreasingCstPHIWithLoop) {
+  StringRef MIRString = "  bb.10:\n"
+                        "  %10:_(s8) = G_CONSTANT i8 5\n"
+                        "  %11:_(s8) = G_CONSTANT i8 1\n"
+                        "\n"
+                        "  bb.12:\n"
+                        "  %13:_(s8) = PHI %10(s8), %bb.10, %14(s8), %bb.12\n"
+                        "  %14:_(s8) = G_LSHR %13, %11\n"
+                        "  %15:_(s8) = COPY %14\n"
+                        "  G_BR %bb.12\n";
+  setUp(MIRString);
+  if (!TM)
+    return;
+  Register CopyReg = Copies[Copies.size() - 1];
+  MachineInstr *FinalCopy = MRI->getVRegDef(CopyReg);
+  Register SrcReg = FinalCopy->getOperand(1).getReg();
+  Register DstReg = FinalCopy->getOperand(0).getReg();
+  GISelKnownBits Info(*MF, /*MaxDepth=*/24);
+  KnownBits Res = Info.getKnownBits(SrcReg);
+  EXPECT_EQ((uint64_t)0, Res.One.getZExtValue());
+  // A single iteration on the PHI (%13) gives:
+  // %10 has known zero of 0xFA
+  // %12 has known zero of 0x80 (we shift right by one so high bit is zero)
+  // Therefore, %14's known zero are 0x80 shifted by one 0xC0.
+  // If we had simulated the loop we could have more zero bits, basically
+  // up to 0xFC (count leading zero of 5, + 1).
+  EXPECT_EQ((uint64_t)0xC0, Res.Zero.getZExtValue());
+
+  KnownBits Res2 = Info.getKnownBits(DstReg);
+  EXPECT_EQ(Res.One.getZExtValue(), Res2.One.getZExtValue());
+  EXPECT_EQ(Res.Zero.getZExtValue(), Res2.Zero.getZExtValue());
+}
+
 TEST_F(GISelMITest, TestKnownBitsPtrToIntViceVersa) {
   StringRef MIRString = "  %3:_(s16) = G_CONSTANT i16 256\n"
                         "  %4:_(p0) = G_INTTOPTR %3\n"

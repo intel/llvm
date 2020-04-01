@@ -25,7 +25,7 @@
 #include <clc/clc.h>
 #include "ep_log.h"
 #include "math.h"
-#include "tables.h"
+#include "../../libspirv/math/tables.h"
 
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
 

@@ -5,13 +5,19 @@ add_llvm_library(LLVMMLIRTableGen
   Dialect.cpp
   Format.cpp
   Operator.cpp
+  OpClass.cpp
   OpInterfaces.cpp
   OpTrait.cpp
   Pattern.cpp
   Predicate.cpp
+  SideEffects.cpp
+  Successor.cpp
   Type.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/TableGen
   )
-target_link_libraries(LLVMMLIRTableGen LLVMSupport LLVMTableGen)
+target_link_libraries(LLVMMLIRTableGen
+  PUBLIC
+  LLVMSupport
+  LLVMTableGen)

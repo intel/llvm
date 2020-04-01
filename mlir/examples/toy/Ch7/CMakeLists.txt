@@ -14,40 +14,33 @@ add_toy_chapter(toyc-ch7
   parser/AST.cpp
   mlir/MLIRGen.cpp
   mlir/Dialect.cpp
-  mlir/DeadFunctionEliminationPass.cpp
   mlir/LowerToAffineLoops.cpp
   mlir/LowerToLLVM.cpp
   mlir/ShapeInferencePass.cpp
   mlir/ToyCombine.cpp
+
+  DEPENDS
+  ToyCh7ShapeInferenceInterfaceIncGen
+  ToyCh7OpsIncGen
+  ToyCh7CombineIncGen
   )
 
-add_dependencies(toyc-ch7 ToyCh7ShapeInferenceInterfaceIncGen)
-add_dependencies(toyc-ch7 ToyCh7OpsIncGen)
-add_dependencies(toyc-ch7 ToyCh7CombineIncGen)
-add_dependencies(toyc-ch7 MLIRCallOpInterfacesIncGen)
 include_directories(include/)
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/include/)
+get_property(dialect_libs GLOBAL PROPERTY MLIR_DIALECT_LIBS)
+get_property(conversion_libs GLOBAL PROPERTY MLIR_CONVERSION_LIBS)
 target_link_libraries(toyc-ch7
   PRIVATE
-    MLIRAffineOps
-    MLIRAffineToStandard
+    ${dialect_libs}
+    ${conversion_libs}
     MLIRAnalysis
+    MLIRCallInterfaces
     MLIRExecutionEngine
     MLIRIR
-    MLIRLLVMIR
-    MLIRLoopToStandard
     MLIRParser
     MLIRPass
-    MLIRStandardOps
-    MLIRStandardToLLVM
+    MLIRSideEffects
     MLIRTargetLLVMIR
     MLIRTransforms
     )
-
-whole_archive_link(toyc-ch7
-  MLIRAffineToStandard
-  MLIRAffineOps
-  MLIRLLVMIR
-  MLIRStandardOps
-  )

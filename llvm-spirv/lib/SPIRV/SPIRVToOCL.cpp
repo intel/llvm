@@ -64,12 +64,12 @@ void SPIRVToOCL::visitCallInst(CallInst &CI) {
     return;
 
   auto MangledName = F->getName();
-  std::string DemangledName;
+  StringRef DemangledName;
   Op OC = OpNop;
-  if (!oclIsBuiltin(MangledName, &DemangledName) ||
+  if (!oclIsBuiltin(MangledName, DemangledName) ||
       (OC = getSPIRVFuncOC(DemangledName)) == OpNop)
     return;
-  LLVM_DEBUG(dbgs() << "DemangledName = " << DemangledName.c_str() << '\n'
+  LLVM_DEBUG(dbgs() << "DemangledName = " << DemangledName.str() << '\n'
                     << "OpCode = " << OC << '\n');
 
   if (OC == OpImageQuerySize || OC == OpImageQuerySizeLod) {
@@ -93,6 +93,10 @@ void SPIRVToOCL::visitCallInst(CallInst &CI) {
   }
   if (isPipeOpCode(OC)) {
     visitCallSPIRVPipeBuiltin(&CI, OC);
+    return;
+  }
+  if (isMediaBlockINTELOpcode(OC)) {
+    visitCallSPIRVImageMediaBlockBuiltin(&CI, OC);
     return;
   }
   if (OCLSPIRVBuiltinMap::rfind(OC))
@@ -319,6 +323,41 @@ void SPIRVToOCL::visitCallSPIRVPipeBuiltin(CallInst *CI, Op OC) {
       &Attrs);
 }
 
+void SPIRVToOCL::visitCallSPIRVImageMediaBlockBuiltin(CallInst *CI, Op OC) {
+  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
+  mutateCallInstOCL(
+      M, CI,
+      [=](CallInst *, std::vector<Value *> &Args) {
+        // Moving the first argument to the end.
+        std::rotate(Args.rbegin(), Args.rend() - 1, Args.rend());
+        Type *RetType = CI->getType();
+        if (OC == OpSubgroupImageMediaBlockWriteINTEL) {
+          assert(Args.size() >= 4 && "Wrong media block write signature");
+          RetType = Args.at(3)->getType(); // texel type
+        }
+        unsigned int BitWidth = RetType->getScalarSizeInBits();
+        std::string FuncPostfix;
+        if (BitWidth == 8)
+          FuncPostfix = "_uc";
+        else if (BitWidth == 16)
+          FuncPostfix = "_us";
+        else if (BitWidth == 32)
+          FuncPostfix = "_ui";
+        else
+          assert(0 && "Unsupported texel type!");
+
+        if (RetType->isVectorTy()) {
+          unsigned int NumEl = RetType->getVectorNumElements();
+          assert((NumEl == 2 || NumEl == 4 || NumEl == 8 || NumEl == 16) &&
+                 "Wrong function type!");
+          FuncPostfix += std::to_string(NumEl);
+        }
+
+        return OCLSPIRVBuiltinMap::rmap(OC) + FuncPostfix;
+      },
+      &Attrs);
+}
+
 void SPIRVToOCL::visitCallSPIRVBuiltin(CallInst *CI, Op OC) {
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   mutateCallInstOCL(
@@ -333,9 +372,9 @@ void SPIRVToOCL::translateMangledAtomicTypeName() {
   for (auto &I : M->functions()) {
     if (!I.hasName())
       continue;
-    std::string MangledName = I.getName();
-    std::string DemangledName;
-    if (!oclIsBuiltin(MangledName, &DemangledName) ||
+    std::string MangledName{I.getName()};
+    StringRef DemangledName;
+    if (!oclIsBuiltin(MangledName, DemangledName) ||
         DemangledName.find(kOCLBuiltinName::AtomPrefix) != 0)
       continue;
     auto Loc = MangledName.find(kOCLBuiltinName::AtomPrefix);

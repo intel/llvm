@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_Debugger_h_
-#define liblldb_Debugger_h_
+#ifndef LLDB_CORE_DEBUGGER_H
+#define LLDB_CORE_DEBUGGER_H
 
 #include <stdint.h>
 
@@ -190,13 +190,15 @@ public:
                                        lldb::StreamFileSP &out,
                                        lldb::StreamFileSP &err);
 
-  void PushIOHandler(const lldb::IOHandlerSP &reader_sp,
-                     bool cancel_top_handler = true);
+  /// Run the given IO handler and return immediately.
+  void RunIOHandlerAsync(const lldb::IOHandlerSP &reader_sp,
+                         bool cancel_top_handler = true);
 
-  bool PopIOHandler(const lldb::IOHandlerSP &reader_sp);
+  /// Run the given IO handler and block until it's complete.
+  void RunIOHandlerSync(const lldb::IOHandlerSP &reader_sp);
 
-  // Synchronously run an input reader until it is done
-  void RunIOHandler(const lldb::IOHandlerSP &reader_sp);
+  ///  Remove the given IO handler if it's currently active.
+  bool RemoveIOHandler(const lldb::IOHandlerSP &reader_sp);
 
   bool IsTopIOHandler(const lldb::IOHandlerSP &reader_sp);
 
@@ -285,6 +287,10 @@ public:
 
   uint32_t GetDisassemblyLineCount() const;
 
+  llvm::StringRef GetStopShowLineMarkerAnsiPrefix() const;
+
+  llvm::StringRef GetStopShowLineMarkerAnsiSuffix() const;
+
   bool GetAutoOneLineSummaries() const;
 
   bool GetAutoIndent() const;
@@ -307,7 +313,7 @@ public:
 
   bool LoadPlugin(const FileSpec &spec, Status &error);
 
-  void ExecuteIOHandlers();
+  void RunIOHandlers();
 
   bool IsForwardingEvents();
 
@@ -338,6 +344,11 @@ protected:
   void StopEventHandlerThread();
 
   static lldb::thread_result_t EventHandlerThread(lldb::thread_arg_t arg);
+
+  void PushIOHandler(const lldb::IOHandlerSP &reader_sp,
+                     bool cancel_top_handler = true);
+
+  bool PopIOHandler(const lldb::IOHandlerSP &reader_sp);
 
   bool HasIOHandlerThread();
 
@@ -402,7 +413,9 @@ protected:
   std::array<lldb::ScriptInterpreterSP, lldb::eScriptLanguageUnknown>
       m_script_interpreters;
 
-  IOHandlerStack m_input_reader_stack;
+  IOHandlerStack m_io_handler_stack;
+  std::recursive_mutex m_io_handler_synchronous_mutex;
+
   llvm::StringMap<std::weak_ptr<llvm::raw_ostream>> m_log_streams;
   std::shared_ptr<llvm::raw_ostream> m_log_callback_stream_sp;
   ConstString m_instance_name;
@@ -431,4 +444,4 @@ private:
 
 } // namespace lldb_private
 
-#endif // liblldb_Debugger_h_
+#endif // LLDB_CORE_DEBUGGER_H

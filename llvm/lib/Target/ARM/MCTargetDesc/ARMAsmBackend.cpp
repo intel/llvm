@@ -55,28 +55,29 @@ Optional<MCFixupKind> ARMAsmBackend::getFixupKind(StringRef Name) const {
 }
 
 const MCFixupKindInfo &ARMAsmBackend::getFixupKindInfo(MCFixupKind Kind) const {
+  unsigned IsPCRelConstant =
+      MCFixupKindInfo::FKF_IsPCRel | MCFixupKindInfo::FKF_Constant;
   const static MCFixupKindInfo InfosLE[ARM::NumTargetFixupKinds] = {
       // This table *must* be in the order that the fixup_* kinds are defined in
       // ARMFixupKinds.h.
       //
       // Name                      Offset (bits) Size (bits)     Flags
-      {"fixup_arm_ldst_pcrel_12", 0, 32, MCFixupKindInfo::FKF_IsPCRel},
+      {"fixup_arm_ldst_pcrel_12", 0, 32, IsPCRelConstant},
       {"fixup_t2_ldst_pcrel_12", 0, 32,
        MCFixupKindInfo::FKF_IsPCRel |
            MCFixupKindInfo::FKF_IsAlignedDownTo32Bits},
-      {"fixup_arm_pcrel_10_unscaled", 0, 32, MCFixupKindInfo::FKF_IsPCRel},
-      {"fixup_arm_pcrel_10", 0, 32, MCFixupKindInfo::FKF_IsPCRel},
+      {"fixup_arm_pcrel_10_unscaled", 0, 32, IsPCRelConstant},
+      {"fixup_arm_pcrel_10", 0, 32, IsPCRelConstant},
       {"fixup_t2_pcrel_10", 0, 32,
        MCFixupKindInfo::FKF_IsPCRel |
            MCFixupKindInfo::FKF_IsAlignedDownTo32Bits},
       {"fixup_arm_pcrel_9", 0, 32, MCFixupKindInfo::FKF_IsPCRel},
       {"fixup_t2_pcrel_9", 0, 32,
-       MCFixupKindInfo::FKF_IsPCRel |
-           MCFixupKindInfo::FKF_IsAlignedDownTo32Bits},
+       IsPCRelConstant | MCFixupKindInfo::FKF_IsAlignedDownTo32Bits},
       {"fixup_thumb_adr_pcrel_10", 0, 8,
        MCFixupKindInfo::FKF_IsPCRel |
            MCFixupKindInfo::FKF_IsAlignedDownTo32Bits},
-      {"fixup_arm_adr_pcrel_12", 0, 32, MCFixupKindInfo::FKF_IsPCRel},
+      {"fixup_arm_adr_pcrel_12", 0, 32, IsPCRelConstant},
       {"fixup_t2_adr_pcrel_12", 0, 32,
        MCFixupKindInfo::FKF_IsPCRel |
            MCFixupKindInfo::FKF_IsAlignedDownTo32Bits},
@@ -111,8 +112,7 @@ const MCFixupKindInfo &ARMAsmBackend::getFixupKindInfo(MCFixupKind Kind) const {
       {"fixup_bfc_target", 0, 32, MCFixupKindInfo::FKF_IsPCRel},
       {"fixup_bfcsel_else_target", 0, 32, 0},
       {"fixup_wls", 0, 32, MCFixupKindInfo::FKF_IsPCRel},
-      {"fixup_le", 0, 32, MCFixupKindInfo::FKF_IsPCRel}
-  };
+      {"fixup_le", 0, 32, MCFixupKindInfo::FKF_IsPCRel}};
   const static MCFixupKindInfo InfosBE[ARM::NumTargetFixupKinds] = {
       // This table *must* be in the order that the fixup_* kinds are defined in
       // ARMFixupKinds.h.
@@ -1277,35 +1277,6 @@ uint32_t ARMAsmBackendDarwin::generateCompactUnwindEncoding(
   return CompactUnwindEncoding | ((FloatRegCount - 1) << 8);
 }
 
-static MachO::CPUSubTypeARM getMachOSubTypeFromArch(StringRef Arch) {
-  ARM::ArchKind AK = ARM::parseArch(Arch);
-  switch (AK) {
-  default:
-    return MachO::CPU_SUBTYPE_ARM_V7;
-  case ARM::ArchKind::ARMV4T:
-    return MachO::CPU_SUBTYPE_ARM_V4T;
-  case ARM::ArchKind::ARMV5T:
-  case ARM::ArchKind::ARMV5TE:
-  case ARM::ArchKind::ARMV5TEJ:
-    return MachO::CPU_SUBTYPE_ARM_V5;
-  case ARM::ArchKind::ARMV6:
-  case ARM::ArchKind::ARMV6K:
-    return MachO::CPU_SUBTYPE_ARM_V6;
-  case ARM::ArchKind::ARMV7A:
-    return MachO::CPU_SUBTYPE_ARM_V7;
-  case ARM::ArchKind::ARMV7S:
-    return MachO::CPU_SUBTYPE_ARM_V7S;
-  case ARM::ArchKind::ARMV7K:
-    return MachO::CPU_SUBTYPE_ARM_V7K;
-  case ARM::ArchKind::ARMV6M:
-    return MachO::CPU_SUBTYPE_ARM_V6M;
-  case ARM::ArchKind::ARMV7M:
-    return MachO::CPU_SUBTYPE_ARM_V7M;
-  case ARM::ArchKind::ARMV7EM:
-    return MachO::CPU_SUBTYPE_ARM_V7EM;
-  }
-}
-
 static MCAsmBackend *createARMAsmBackend(const Target &T,
                                          const MCSubtargetInfo &STI,
                                          const MCRegisterInfo &MRI,
@@ -1315,10 +1286,8 @@ static MCAsmBackend *createARMAsmBackend(const Target &T,
   switch (TheTriple.getObjectFormat()) {
   default:
     llvm_unreachable("unsupported object format");
-  case Triple::MachO: {
-    MachO::CPUSubTypeARM CS = getMachOSubTypeFromArch(TheTriple.getArchName());
-    return new ARMAsmBackendDarwin(T, STI, MRI, CS);
-  }
+  case Triple::MachO:
+    return new ARMAsmBackendDarwin(T, STI, MRI);
   case Triple::COFF:
     assert(TheTriple.isOSWindows() && "non-Windows ARM COFF is not supported");
     return new ARMAsmBackendWinCOFF(T, STI);

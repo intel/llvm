@@ -141,10 +141,12 @@ define double @test_struct({ double, double } %test) {
 ; Constant range for %x is [47, 302)
 ; CHECK-LABEL: @f5
 ; CHECK-NEXT: entry:
-; CHECK-NEXT: %cmp = icmp sgt i32 %x, undef
-; CHECK-NEXT: %res1 = select i1 %cmp, i32 1, i32 2
-; CHECK-NEXT: %res = add i32 %res1, 3
-; CHECK-NEXT: ret i32 %res
+; CHECK-NEXT:   %cmp = icmp sgt i32 %x, undef
+; CHECK-NEXT:   %cmp2 = icmp ne i32 undef, %x
+; CHECK-NEXT:   %res1 = select i1 %cmp, i32 1, i32 2
+; CHECK-NEXT:   %res2 = select i1 %cmp2, i32 3, i32 4
+; CHECK-NEXT:   %res = add i32 %res1, %res2
+; CHECK-NEXT:   ret i32 %res
 define internal i32 @f5(i32 %x) {
 entry:
   %cmp = icmp sgt i32 %x, undef
@@ -195,4 +197,42 @@ define i32 @caller5() {
 entry:
   %call = call i32 @recursive_f(i32 42)
   ret i32 %call
+}
+
+define internal i32 @callee6.1(i32 %i) {
+; CHECK-LABEL: define internal i32 @callee6.1(
+; CHECK-NEXT:    %res = call i32 @callee6.2(i32 %i)
+; CHECK-NEXT:    ret i32 undef
+;
+  %res = call i32 @callee6.2(i32 %i)
+  ret i32 %res
+}
+
+define internal i32 @callee6.2(i32 %i) {
+; CHECK-LABEL: define internal i32 @callee6.2(i32 %i) {
+; CHECK-NEXT:    br label %if.then
+
+; CHECK-LABEL: if.then:
+; CHECK-NEXT:    ret i32 undef
+;
+  %cmp = icmp ne i32 %i, 0
+  br i1 %cmp, label %if.then, label %if.else
+
+if.then:                                          ; preds = %entry
+  ret i32 1
+
+if.else:                                          ; preds = %entry
+  ret i32 2
+}
+
+define i32 @caller6() {
+; CHECK-LABEL: define i32 @caller6() {
+; CHECK-NEXT:    %call.1 = call i32 @callee6.1(i32 30)
+; CHECK-NEXT:    %call.2 = call i32 @callee6.1(i32 43)
+; CHECK-NEXT:    ret i32 2
+;
+  %call.1 = call i32 @callee6.1(i32 30)
+  %call.2 = call i32 @callee6.1(i32 43)
+  %res = add i32 %call.1, %call.2
+  ret i32 %res
 }

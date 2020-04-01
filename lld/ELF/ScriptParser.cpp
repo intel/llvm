@@ -30,6 +30,7 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/ScopedPrinter.h"
 #include <cassert>
 #include <limits>
 #include <vector>
@@ -91,10 +92,13 @@ private:
   OutputSection *readOutputSectionDescription(StringRef outSec);
   std::vector<BaseCommand *> readOverlay();
   std::vector<StringRef> readOutputSectionPhdrs();
+  std::pair<uint64_t, uint64_t> readInputSectionFlags();
   InputSectionDescription *readInputSectionDescription(StringRef tok);
   StringMatcher readFilePatterns();
   std::vector<SectionPattern> readInputSectionsList();
-  InputSectionDescription *readInputSectionRules(StringRef filePattern);
+  InputSectionDescription *readInputSectionRules(StringRef filePattern,
+                                                 uint64_t withFlags,
+                                                 uint64_t withoutFlags);
   unsigned readPhdrType();
   SortSectionPolicy readSortKind();
   SymbolAssignment *readProvideHidden(bool provide, bool hidden);
@@ -104,7 +108,7 @@ private:
   Expr readConstant();
   Expr getPageSize();
 
-  uint64_t readMemoryAssignment(StringRef, StringRef, StringRef);
+  Expr readMemoryAssignment(StringRef, StringRef, StringRef);
   std::pair<uint32_t, uint32_t> readMemoryAttributes();
 
   Expr combine(StringRef op, Expr l, Expr r);
@@ -408,14 +412,14 @@ static std::pair<ELFKind, uint16_t> parseBfdName(StringRef s) {
 void ScriptParser::readOutputFormat() {
   expect("(");
 
-  StringRef name = unquote(next());
-  StringRef s = name;
+  config->bfdname = unquote(next());
+  StringRef s = config->bfdname;
   if (s.consume_back("-freebsd"))
     config->osabi = ELFOSABI_FREEBSD;
 
   std::tie(config->ekind, config->emachine) = parseBfdName(s);
   if (config->emachine == EM_NONE)
-    setError("unknown output format name: " + name);
+    setError("unknown output format name: " + config->bfdname);
   if (s == "elf32-ntradlittlemips" || s == "elf32-ntradbigmips")
     config->mipsN32Abi = true;
 
@@ -519,13 +523,6 @@ std::vector<BaseCommand *> ScriptParser::readOverlay() {
 }
 
 void ScriptParser::readSections() {
-  script->hasSectionsCommand = true;
-
-  // -no-rosegment is used to avoid placing read only non-executable sections in
-  // their own segment. We do the same if SECTIONS command is present in linker
-  // script. See comment for computeFlags().
-  config->singleRoRx = true;
-
   expect("{");
   std::vector<BaseCommand *> v;
   while (!errorCount() && !consume("}")) {
@@ -544,22 +541,29 @@ void ScriptParser::readSections() {
     else
       v.push_back(readOutputSectionDescription(tok));
   }
+  script->sectionCommands.insert(script->sectionCommands.end(), v.begin(),
+                                 v.end());
 
-  if (!atEOF() && consume("INSERT")) {
-    std::vector<BaseCommand *> *dest = nullptr;
-    if (consume("AFTER"))
-      dest = &script->insertAfterCommands[next()];
-    else if (consume("BEFORE"))
-      dest = &script->insertBeforeCommands[next()];
-    else
-      setError("expected AFTER/BEFORE, but got '" + next() + "'");
-    if (dest)
-      dest->insert(dest->end(), v.begin(), v.end());
+  if (atEOF() || !consume("INSERT")) {
+    // --no-rosegment is used to avoid placing read only non-executable sections
+    // in their own segment. We do the same if SECTIONS command is present in
+    // linker script. See comment for computeFlags().
+    // TODO This rule will be dropped in the future.
+    config->singleRoRx = true;
+
+    script->hasSectionsCommand = true;
     return;
   }
 
-  script->sectionCommands.insert(script->sectionCommands.end(), v.begin(),
-                                 v.end());
+  bool isAfter = false;
+  if (consume("AFTER"))
+    isAfter = true;
+  else if (!consume("BEFORE"))
+    setError("expected AFTER/BEFORE, but got '" + next() + "'");
+  StringRef where = next();
+  for (BaseCommand *cmd : v)
+    if (auto *os = dyn_cast<OutputSection>(cmd))
+      script->insertCommands.push_back({os, isAfter, where});
 }
 
 void ScriptParser::readTarget() {
@@ -593,10 +597,11 @@ static int precedence(StringRef op) {
 }
 
 StringMatcher ScriptParser::readFilePatterns() {
-  std::vector<StringRef> v;
+  StringMatcher Matcher;
+
   while (!errorCount() && !consume(")"))
-    v.push_back(next());
-  return StringMatcher(v);
+    Matcher.addPattern(SingleStringMatcher(next()));
+  return Matcher;
 }
 
 SortSectionPolicy ScriptParser::readSortKind() {
@@ -633,12 +638,12 @@ std::vector<SectionPattern> ScriptParser::readInputSectionsList() {
       excludeFilePat = readFilePatterns();
     }
 
-    std::vector<StringRef> v;
+    StringMatcher SectionMatcher;
     while (!errorCount() && peek() != ")" && peek() != "EXCLUDE_FILE")
-      v.push_back(unquote(next()));
+      SectionMatcher.addPattern(unquote(next()));
 
-    if (!v.empty())
-      ret.push_back({std::move(excludeFilePat), StringMatcher(v)});
+    if (!SectionMatcher.empty())
+      ret.push_back({std::move(excludeFilePat), std::move(SectionMatcher)});
     else
       setError("section pattern is expected");
   }
@@ -657,8 +662,10 @@ std::vector<SectionPattern> ScriptParser::readInputSectionsList() {
 //
 // <section-list> is parsed by readInputSectionsList().
 InputSectionDescription *
-ScriptParser::readInputSectionRules(StringRef filePattern) {
-  auto *cmd = make<InputSectionDescription>(filePattern);
+ScriptParser::readInputSectionRules(StringRef filePattern, uint64_t withFlags,
+                                    uint64_t withoutFlags) {
+  auto *cmd =
+      make<InputSectionDescription>(filePattern, withFlags, withoutFlags);
   expect("(");
 
   while (!errorCount() && !consume(")")) {
@@ -694,15 +701,23 @@ InputSectionDescription *
 ScriptParser::readInputSectionDescription(StringRef tok) {
   // Input section wildcard can be surrounded by KEEP.
   // https://sourceware.org/binutils/docs/ld/Input-Section-Keep.html#Input-Section-Keep
+  uint64_t withFlags = 0;
+  uint64_t withoutFlags = 0;
   if (tok == "KEEP") {
     expect("(");
-    StringRef filePattern = next();
-    InputSectionDescription *cmd = readInputSectionRules(filePattern);
+    if (consume("INPUT_SECTION_FLAGS"))
+      std::tie(withFlags, withoutFlags) = readInputSectionFlags();
+    InputSectionDescription *cmd =
+        readInputSectionRules(next(), withFlags, withoutFlags);
     expect(")");
     script->keptSections.push_back(cmd);
     return cmd;
   }
-  return readInputSectionRules(tok);
+  if (tok == "INPUT_SECTION_FLAGS") {
+    std::tie(withFlags, withoutFlags) = readInputSectionFlags();
+    tok = next();
+  }
+  return readInputSectionRules(tok, withFlags, withoutFlags);
 }
 
 void ScriptParser::readSort() {
@@ -781,9 +796,14 @@ OutputSection *ScriptParser::readOverlaySectionDescription() {
       script->createOutputSection(next(), getCurrentLocation());
   cmd->inOverlay = true;
   expect("{");
-  while (!errorCount() && !consume("}"))
-    cmd->sectionCommands.push_back(readInputSectionRules(next()));
-  cmd->phdrs = readOutputSectionPhdrs();
+  while (!errorCount() && !consume("}")) {
+    uint64_t withFlags = 0;
+    uint64_t withoutFlags = 0;
+    if (consume("INPUT_SECTION_FLAGS"))
+      std::tie(withFlags, withoutFlags) = readInputSectionFlags();
+    cmd->sectionCommands.push_back(
+        readInputSectionRules(next(), withFlags, withoutFlags));
+  }
   return cmd;
 }
 
@@ -841,18 +861,21 @@ OutputSection *ScriptParser::readOutputSectionDescription(StringRef outSec) {
       // We have a file name and no input sections description. It is not a
       // commonly used syntax, but still acceptable. In that case, all sections
       // from the file will be included.
+      // FIXME: GNU ld permits INPUT_SECTION_FLAGS to be used here. We do not
+      // handle this case here as it will already have been matched by the
+      // case above.
       auto *isd = make<InputSectionDescription>(tok);
-      isd->sectionPatterns.push_back({{}, StringMatcher({"*"})});
+      isd->sectionPatterns.push_back({{}, StringMatcher("*")});
       cmd->sectionCommands.push_back(isd);
     }
   }
 
   if (consume(">"))
-    cmd->memoryRegionName = next();
+    cmd->memoryRegionName = std::string(next());
 
   if (consume("AT")) {
     expect(">");
-    cmd->lmaRegionName = next();
+    cmd->lmaRegionName = std::string(next());
   }
 
   if (cmd->lmaExpr && !cmd->lmaRegionName.empty())
@@ -1102,6 +1125,63 @@ ByteCommand *ScriptParser::readByteCommand(StringRef tok) {
   return make<ByteCommand>(e, size, commandString);
 }
 
+static llvm::Optional<uint64_t> parseFlag(StringRef tok) {
+  if (llvm::Optional<uint64_t> asInt = parseInt(tok))
+    return asInt;
+#define CASE_ENT(enum) #enum, ELF::enum
+  return StringSwitch<llvm::Optional<uint64_t>>(tok)
+      .Case(CASE_ENT(SHF_WRITE))
+      .Case(CASE_ENT(SHF_ALLOC))
+      .Case(CASE_ENT(SHF_EXECINSTR))
+      .Case(CASE_ENT(SHF_MERGE))
+      .Case(CASE_ENT(SHF_STRINGS))
+      .Case(CASE_ENT(SHF_INFO_LINK))
+      .Case(CASE_ENT(SHF_LINK_ORDER))
+      .Case(CASE_ENT(SHF_OS_NONCONFORMING))
+      .Case(CASE_ENT(SHF_GROUP))
+      .Case(CASE_ENT(SHF_TLS))
+      .Case(CASE_ENT(SHF_COMPRESSED))
+      .Case(CASE_ENT(SHF_EXCLUDE))
+      .Case(CASE_ENT(SHF_ARM_PURECODE))
+      .Default(None);
+#undef CASE_ENT
+}
+
+// Reads the '(' <flags> ')' list of section flags in
+// INPUT_SECTION_FLAGS '(' <flags> ')' in the
+// following form:
+// <flags> ::= <flag>
+//           | <flags> & flag
+// <flag>  ::= Recognized Flag Name, or Integer value of flag.
+// If the first character of <flag> is a ! then this means without flag,
+// otherwise with flag.
+// Example: SHF_EXECINSTR & !SHF_WRITE means with flag SHF_EXECINSTR and
+// without flag SHF_WRITE.
+std::pair<uint64_t, uint64_t> ScriptParser::readInputSectionFlags() {
+   uint64_t withFlags = 0;
+   uint64_t withoutFlags = 0;
+   expect("(");
+   while (!errorCount()) {
+    StringRef tok = unquote(next());
+    bool without = tok.consume_front("!");
+    if (llvm::Optional<uint64_t> flag = parseFlag(tok)) {
+      if (without)
+        withoutFlags |= *flag;
+      else
+        withFlags |= *flag;
+    } else {
+      setError("unrecognised flag: " + tok);
+    }
+    if (consume(")"))
+      break;
+    if (!consume("&")) {
+      next();
+      setError("expected & or )");
+    }
+  }
+  return std::make_pair(withFlags, withoutFlags);
+}
+
 StringRef ScriptParser::readParenLiteral() {
   expect("(");
   bool orig = inExpr;
@@ -1222,7 +1302,7 @@ Expr ScriptParser::readPrimary() {
       setError("memory region not defined: " + name);
       return [] { return 0; };
     }
-    return [=] { return script->memoryRegions[name]->length; };
+    return script->memoryRegions[name]->length;
   }
   if (tok == "LOADADDR") {
     StringRef name = readParenLiteral();
@@ -1249,7 +1329,7 @@ Expr ScriptParser::readPrimary() {
       setError("memory region not defined: " + name);
       return [] { return 0; };
     }
-    return [=] { return script->memoryRegions[name]->origin; };
+    return script->memoryRegions[name]->origin;
   }
   if (tok == "SEGMENT_START") {
     expect("(");
@@ -1374,9 +1454,8 @@ void ScriptParser::readVersionDeclaration(StringRef verStr) {
   // as a parent. This version hierarchy is, probably against your
   // instinct, purely for hint; the runtime doesn't care about it
   // at all. In LLD, we simply ignore it.
-  if (peek() != ";")
-    skip();
-  expect(";");
+  if (next() != ";")
+    expect(";");
 }
 
 static bool hasWildcard(StringRef s) {
@@ -1440,14 +1519,14 @@ std::vector<SymbolVersion> ScriptParser::readVersionExtern() {
   return ret;
 }
 
-uint64_t ScriptParser::readMemoryAssignment(StringRef s1, StringRef s2,
-                                            StringRef s3) {
+Expr ScriptParser::readMemoryAssignment(StringRef s1, StringRef s2,
+                                        StringRef s3) {
   if (!consume(s1) && !consume(s2) && !consume(s3)) {
     setError("expected one of: " + s1 + ", " + s2 + ", or " + s3);
-    return 0;
+    return [] { return 0; };
   }
   expect("=");
-  return readExpr()().getValue();
+  return readExpr();
 }
 
 // Parse the MEMORY command as specified in:
@@ -1471,9 +1550,9 @@ void ScriptParser::readMemory() {
     }
     expect(":");
 
-    uint64_t origin = readMemoryAssignment("ORIGIN", "org", "o");
+    Expr origin = readMemoryAssignment("ORIGIN", "org", "o");
     expect(",");
-    uint64_t length = readMemoryAssignment("LENGTH", "len", "l");
+    Expr length = readMemoryAssignment("LENGTH", "len", "l");
 
     // Add the memory region to the region map.
     MemoryRegion *mr = make<MemoryRegion>(tok, origin, length, flags, negFlags);

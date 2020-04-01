@@ -1642,15 +1642,14 @@ bool Sema::CheckMessageArgumentTypes(
           << Sel << isClassMessage << SourceRange(SelectorLocs.front(),
                                                 SelectorLocs.back());
       // Find the class to which we are sending this message.
-      if (ReceiverType->isObjCObjectPointerType()) {
-        if (ObjCInterfaceDecl *ThisClass =
-            ReceiverType->getAs<ObjCObjectPointerType>()->getInterfaceDecl()) {
+      if (auto *ObjPT = ReceiverType->getAs<ObjCObjectPointerType>()) {
+        if (ObjCInterfaceDecl *ThisClass = ObjPT->getInterfaceDecl()) {
           Diag(ThisClass->getLocation(), diag::note_receiver_class_declared);
           if (!RecRange.isInvalid())
             if (ThisClass->lookupClassMethod(Sel))
-              Diag(RecRange.getBegin(),diag::note_receiver_expr_here)
-                << FixItHint::CreateReplacement(RecRange,
-                                                ThisClass->getNameAsString());
+              Diag(RecRange.getBegin(), diag::note_receiver_expr_here)
+                  << FixItHint::CreateReplacement(RecRange,
+                                                  ThisClass->getNameAsString());
         }
       }
     }
@@ -2399,7 +2398,6 @@ static void checkFoundationAPI(Sema &S, SourceLocation Loc,
     return;
   QualType Ret = ImpliedMethod->getReturnType();
   if (Ret->isRecordType() || Ret->isVectorType() || Ret->isExtVectorType()) {
-    QualType Ret = ImpliedMethod->getReturnType();
     S.Diag(Loc, diag::warn_objc_unsafe_perform_selector)
         << Method->getSelector()
         << (!Ret->isRecordType()
@@ -2571,6 +2569,16 @@ ExprResult Sema::BuildClassMessage(TypeSourceInfo *ReceiverTypeInfo,
       RequireCompleteType(LBracLoc, Method->getReturnType(),
                           diag::err_illegal_message_expr_incomplete_type))
     return ExprError();
+
+  if (Method && Method->isDirectMethod() && SuperLoc.isValid()) {
+    Diag(SuperLoc, diag::err_messaging_super_with_direct_method)
+        << FixItHint::CreateReplacement(
+               SuperLoc, getLangOpts().ObjCAutoRefCount
+                             ? "self"
+                             : Method->getClassInterface()->getName());
+    Diag(Method->getLocation(), diag::note_direct_method_declared_at)
+        << Method->getDeclName();
+  }
 
   // Warn about explicit call of +initialize on its own class. But not on 'super'.
   if (Method && Method->getMethodFamily() == OMF_initialize) {
@@ -2776,9 +2784,7 @@ ExprResult Sema::BuildInstanceMessage(Expr *Receiver,
                 ReceiverType->isIntegerType())) {
       // Implicitly convert integers and pointers to 'id' but emit a warning.
       // But not in ARC.
-      Diag(Loc, diag::warn_bad_receiver_type)
-        << ReceiverType
-        << Receiver->getSourceRange();
+      Diag(Loc, diag::warn_bad_receiver_type) << ReceiverType << RecRange;
       if (ReceiverType->isPointerType()) {
         Receiver = ImpCastExprToType(Receiver, Context.getObjCIdType(),
                                      CK_CPointerToObjCPointerCast).get();
@@ -2929,11 +2935,10 @@ ExprResult Sema::BuildInstanceMessage(Expr *Receiver,
         // definition is found in a module that's not visible.
         const ObjCInterfaceDecl *forwardClass = nullptr;
         if (RequireCompleteType(Loc, OCIType->getPointeeType(),
-              getLangOpts().ObjCAutoRefCount
-                ? diag::err_arc_receiver_forward_instance
-                : diag::warn_receiver_forward_instance,
-                                Receiver? Receiver->getSourceRange()
-                                        : SourceRange(SuperLoc))) {
+                                getLangOpts().ObjCAutoRefCount
+                                    ? diag::err_arc_receiver_forward_instance
+                                    : diag::warn_receiver_forward_instance,
+                                RecRange)) {
           if (getLangOpts().ObjCAutoRefCount)
             return ExprError();
 
@@ -2995,8 +3000,7 @@ ExprResult Sema::BuildInstanceMessage(Expr *Receiver,
           return ExprError();
       } else {
         // Reject other random receiver types (e.g. structs).
-        Diag(Loc, diag::err_bad_receiver_type)
-          << ReceiverType << Receiver->getSourceRange();
+        Diag(Loc, diag::err_bad_receiver_type) << ReceiverType << RecRange;
         return ExprError();
       }
     }
@@ -3014,15 +3018,35 @@ ExprResult Sema::BuildInstanceMessage(Expr *Receiver,
           << Method->getDeclName();
     }
 
-    if (ReceiverType->isObjCClassType() && !isImplicit) {
-      Diag(Receiver->getExprLoc(),
-           diag::err_messaging_class_with_direct_method);
+    // Under ARC, self can't be assigned, and doing a direct call to `self`
+    // when it's a Class is hence safe.  For other cases, we can't trust `self`
+    // is what we think it is, so we reject it.
+    if (ReceiverType->isObjCClassType() && !isImplicit &&
+        !(Receiver->isObjCSelfExpr() && getLangOpts().ObjCAutoRefCount)) {
+      {
+        DiagnosticBuilder Builder =
+            Diag(Receiver->getExprLoc(),
+                 diag::err_messaging_class_with_direct_method);
+        if (Receiver->isObjCSelfExpr()) {
+          Builder.AddFixItHint(FixItHint::CreateReplacement(
+              RecRange, Method->getClassInterface()->getName()));
+        }
+      }
       Diag(Method->getLocation(), diag::note_direct_method_declared_at)
           << Method->getDeclName();
     }
 
     if (SuperLoc.isValid()) {
-      Diag(SuperLoc, diag::err_messaging_super_with_direct_method);
+      {
+        DiagnosticBuilder Builder =
+            Diag(SuperLoc, diag::err_messaging_super_with_direct_method);
+        if (ReceiverType->isObjCClassType()) {
+          Builder.AddFixItHint(FixItHint::CreateReplacement(
+              SuperLoc, Method->getClassInterface()->getName()));
+        } else {
+          Builder.AddFixItHint(FixItHint::CreateReplacement(SuperLoc, "self"));
+        }
+      }
       Diag(Method->getLocation(), diag::note_direct_method_declared_at)
           << Method->getDeclName();
     }

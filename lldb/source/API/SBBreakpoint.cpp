@@ -1,4 +1,4 @@
-//===-- SBBreakpoint.cpp ----------------------------------------*- C++ -*-===//
+//===-- SBBreakpoint.cpp --------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -873,7 +873,7 @@ SBBreakpointList::SBBreakpointList(SBTarget &target)
   LLDB_RECORD_CONSTRUCTOR(SBBreakpointList, (lldb::SBTarget &), target);
 }
 
-SBBreakpointList::~SBBreakpointList() {}
+SBBreakpointList::~SBBreakpointList() = default;
 
 size_t SBBreakpointList::GetSize() const {
   LLDB_RECORD_METHOD_CONST_NO_ARGS(size_t, SBBreakpointList, GetSize);

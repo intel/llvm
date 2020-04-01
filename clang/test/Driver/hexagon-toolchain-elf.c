@@ -134,6 +134,23 @@
 // CHECK029: "-cc1" {{.*}} "-target-cpu" "hexagonv65"
 // CHECK029: {{hexagon-link|ld}}{{.*}}/Inputs/hexagon_tree/Tools/bin/../target/hexagon/lib/v65/crt0
 
+// RUN: %clang -### -target hexagon-unknown-elf \
+// RUN:   -ccc-install-dir %S/Inputs/hexagon_tree/Tools/bin \
+// RUN:   -mcpu=hexagonv67 -fuse-ld=hexagon-link\
+// RUN:   %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK02A %s
+// CHECK02A: "-cc1" {{.*}} "-target-cpu" "hexagonv67"
+// CHECK02A: hexagon-link{{.*}}/Inputs/hexagon_tree/Tools/bin/../target/hexagon/lib/v67/crt0
+
+// RUN: %clang -### -target hexagon-unknown-elf \
+// RUN:   -ccc-install-dir %S/Inputs/hexagon_tree/Tools/bin \
+// RUN:   -mcpu=hexagonv67t \
+// RUN:   -fuse-ld=fake-value-to-ignore-CLANG_DEFAULT_LINKER \
+// RUN:   %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK02B %s
+// CHECK02B: "-cc1" {{.*}} "-target-cpu" "hexagonv67t"
+// CHECK02B: hexagon-link{{.*}}/Inputs/hexagon_tree/Tools/bin/../target/hexagon/lib/v67t/crt0
+
 // -----------------------------------------------------------------------------
 // Test Linker related args
 // -----------------------------------------------------------------------------
@@ -538,11 +555,12 @@
 // CHECK080:      "-Wreturn-type"
 
 // -----------------------------------------------------------------------------
-// Default, not passing -fuse-ld
+// Default, hexagon-link is used
 // -----------------------------------------------------------------------------
 // RUN: %clang -### -target hexagon-unknown-elf \
 // RUN:   -ccc-install-dir %S/Inputs/hexagon_tree/Tools/bin \
 // RUN:   -mcpu=hexagonv60 \
+// RUN:   -fuse-ld=fake-value-to-ignore-CLANG_DEFAULT_LINKER \
 // RUN:   %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK081 %s
 // REQUIRES: hexagon-registered-target
@@ -559,3 +577,100 @@
 // RUN:   | FileCheck -check-prefix=CHECK082 %s
 // CHECK082-NOT:      -march=
 // CHECK082-NOT:      -mcpu=
+// -----------------------------------------------------------------------------
+// Passing --sysroot
+// -----------------------------------------------------------------------------
+// RUN: %clang -### -target hexagon-unknown-elf \
+// RUN:   -ccc-install-dir %S/Inputs/hexagon_tree/Tools/bin \
+// RUN:   -mcpu=hexagonv60 \
+// RUN:   --sysroot=/hexagon \
+// RUN:   %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK083 %s
+// CHECK083:          "-isysroot" "/hexagon"
+// CHECK083:          "-internal-externc-isystem" "/hexagon{{/|\\\\}}include"
+// -----------------------------------------------------------------------------
+// Passing -fno-use-init-array
+// -----------------------------------------------------------------------------
+// RUN: %clang -### -target hexagon-unknown-elf \
+// RUN:   -ccc-install-dir %S/Inputs/hexagon_tree/Tools/bin \
+// RUN:   -mcpu=hexagonv60 \
+// RUN:   %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK084 %s
+// CHECK084:          "-fno-use-init-array"
+// -----------------------------------------------------------------------------
+// Passing --musl
+// -----------------------------------------------------------------------------
+// RUN: %clang -### -target hexagon-unknown-linux-musl \
+// RUN:   -ccc-install-dir %S/Inputs/hexagon_tree/Tools/bin \
+// RUN:   -mcpu=hexagonv60 \
+// RUN:   -fuse-ld=lld \
+// RUN:   --sysroot=/hexagon \
+// RUN:   %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK085 %s
+// CHECK085-NOT:  /hexagon{{/|\\\\}}lib{{/|\\\\}}Scrt1.o
+// CHECK085:      "-dynamic-linker={{/|\\\\}}lib{{/|\\\\}}ld-musl-hexagon.so.1"
+// CHECK085:      "/hexagon{{/|\\\\}}lib{{/|\\\\}}crt1.o"
+// CHECK085:      "-lclang_rt.builtins-hexagon" "-lc"
+// -----------------------------------------------------------------------------
+// Passing --musl --shared
+// -----------------------------------------------------------------------------
+// RUN: %clang -### -target hexagon-unknown-linux-musl \
+// RUN:   -ccc-install-dir %S/Inputs/hexagon_tree/Tools/bin \
+// RUN:   -mcpu=hexagonv60 \
+// RUN:   --sysroot=/hexagon -shared \
+// RUN:   %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK086 %s
+// CHECK086-NOT:    -dynamic-linker={{/|\\\\}}lib{{/|\\\\}}ld-musl-hexagon.so.1
+// CHECK086:        "/hexagon{{/|\\\\}}lib{{/|\\\\}}Scrt1.o"
+// CHECK086:        "-lclang_rt.builtins-hexagon" "-lc"
+// CHECK086-NOT:    /hexagon{{/|\\\\}}lib{{/|\\\\}}crt1.o
+// -----------------------------------------------------------------------------
+// Passing --musl -nostdlib
+// -----------------------------------------------------------------------------
+// RUN: %clang -### -target hexagon-unknown-linux-musl \
+// RUN:   -ccc-install-dir %S/Inputs/hexagon_tree/Tools/bin \
+// RUN:   -mcpu=hexagonv60 \
+// RUN:   --sysroot=/hexagon -nostdlib \
+// RUN:   %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK087 %s
+// CHECK087:       "-dynamic-linker={{/|\\\\}}lib{{/|\\\\}}ld-musl-hexagon.so.1"
+// CHECK087-NOT:   /hexagon{{/|\\\\}}lib{{/|\\\\}}Scrt1.o
+// CHECK087-NOT:   /hexagon{{/|\\\\}}lib{{/|\\\\}}crt1.o
+// CHECK087-NOT:   -lclang_rt.builtins-hexagon
+// CHECK087-NOT:   -lc
+// -----------------------------------------------------------------------------
+// Passing --musl -nostartfiles
+// -----------------------------------------------------------------------------
+// RUN: %clang -### -target hexagon-unknown-linux-musl \
+// RUN:   -ccc-install-dir %S/Inputs/hexagon_tree/Tools/bin \
+// RUN:   -mcpu=hexagonv60 \
+// RUN:   --sysroot=/hexagon -nostartfiles \
+// RUN:   %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK088 %s
+// CHECK088:       "-dynamic-linker={{/|\\\\}}lib{{/|\\\\}}ld-musl-hexagon.so.1"
+// CHECK088-NOT:   /hexagon{{/|\\\\}}lib{{/|\\\\}}Scrt1.o
+// CHECK088-NOT:   /hexagon{{/|\\\\}}lib{{/|\\\\}}crt1.o
+// CHECK088:       "-lclang_rt.builtins-hexagon" "-lc"
+// -----------------------------------------------------------------------------
+// Passing --musl -nodefaultlibs
+// -----------------------------------------------------------------------------
+// RUN: %clang -### -target hexagon-unknown-linux-musl \
+// RUN:   -ccc-install-dir %S/Inputs/hexagon_tree/Tools/bin \
+// RUN:   -mcpu=hexagonv60 \
+// RUN:   --sysroot=/hexagon -nodefaultlibs \
+// RUN:   %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK089 %s
+// CHECK089:       "-dynamic-linker={{/|\\\\}}lib{{/|\\\\}}ld-musl-hexagon.so.1"
+// CHECK089:       "/hexagon{{/|\\\\}}lib{{/|\\\\}}crt1.o"
+// CHECK089-NOT:   -lclang_rt.builtins-hexagon
+// CHECK089-NOT:   -lc
+// -----------------------------------------------------------------------------
+// Not Passing -fno-use-init-array when musl is selected
+// -----------------------------------------------------------------------------
+// RUN: %clang -### -target hexagon-unknown-linux-musl \
+// RUN:   -ccc-install-dir %S/Inputs/hexagon_tree/Tools/bin \
+// RUN:   -mcpu=hexagonv60 \
+// RUN:   %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK090 %s
+// CHECK090-NOT:          -fno-use-init-array
+// -----------------------------------------------------------------------------

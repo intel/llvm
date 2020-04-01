@@ -1,6 +1,6 @@
 //===- cblas.h - Simple Blas subset ---------------------------------------===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -8,7 +8,7 @@
 #ifndef MLIR_CPU_RUNNER_CBLAS_H_
 #define MLIR_CPU_RUNNER_CBLAS_H_
 
-#include "mlir_runner_utils.h"
+#include "mlir/ExecutionEngine/RunnerUtils.h"
 
 #ifdef _WIN32
 #ifndef MLIR_CBLAS_EXPORT
@@ -18,11 +18,11 @@
 #else
 /* We are using this library */
 #define MLIR_CBLAS_EXPORT __declspec(dllimport)
-#endif
-#endif
+#endif // cblas_EXPORTS
+#endif // MLIR_CBLAS_EXPORT
 #else
 #define MLIR_CBLAS_EXPORT
-#endif
+#endif // _WIN32
 
 /// This reproduces a minimal subset of cblas to allow integration testing
 /// without explicitly requiring a dependence on an external library.

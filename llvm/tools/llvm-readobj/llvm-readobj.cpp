@@ -456,8 +456,9 @@ static void dumpObject(const ObjectFile *Obj, ScopedPrinter &Writer,
     Writer.printString("Format", Obj->getFileFormatName());
     Writer.printString("Arch", Triple::getArchTypeName(
                                    (llvm::Triple::ArchType)Obj->getArch()));
-    Writer.printString("AddressSize",
-                       formatv("{0}bit", 8 * Obj->getBytesInAddress()));
+    Writer.printString(
+        "AddressSize",
+        std::string(formatv("{0}bit", 8 * Obj->getBytesInAddress())));
     Dumper->printLoadName();
   }
 
@@ -465,22 +466,22 @@ static void dumpObject(const ObjectFile *Obj, ScopedPrinter &Writer,
     Dumper->printFileHeaders();
   if (opts::SectionHeaders)
     Dumper->printSectionHeaders();
-  if (opts::Relocations)
-    Dumper->printRelocations();
-  if (opts::DynRelocs)
-    Dumper->printDynamicRelocations();
-  if (opts::Symbols || opts::DynamicSymbols)
-    Dumper->printSymbols(opts::Symbols, opts::DynamicSymbols);
   if (opts::HashSymbols)
     Dumper->printHashSymbols();
-  if (opts::UnwindInfo)
-    Dumper->printUnwindInfo();
+  if (opts::ProgramHeaders || opts::SectionMapping == cl::BOU_TRUE)
+    Dumper->printProgramHeaders(opts::ProgramHeaders, opts::SectionMapping);
   if (opts::DynamicTable)
     Dumper->printDynamicTable();
   if (opts::NeededLibraries)
     Dumper->printNeededLibraries();
-  if (opts::ProgramHeaders || opts::SectionMapping == cl::BOU_TRUE)
-    Dumper->printProgramHeaders(opts::ProgramHeaders, opts::SectionMapping);
+  if (opts::Relocations)
+    Dumper->printRelocations();
+  if (opts::DynRelocs)
+    Dumper->printDynamicRelocations();
+  if (opts::UnwindInfo)
+    Dumper->printUnwindInfo();
+  if (opts::Symbols || opts::DynamicSymbols)
+    Dumper->printSymbols(opts::Symbols, opts::DynamicSymbols);
   if (!opts::StringDump.empty())
     Dumper->printSectionsAsString(Obj, opts::StringDump);
   if (!opts::HexDump.empty())

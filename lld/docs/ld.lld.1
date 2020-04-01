@@ -456,6 +456,8 @@ were concatenated in the order they appeared on the command line.
 Set address of section.
 .It Fl -shared , Fl -Bsharable
 Build a shared object.
+.It Fl -shuffle-sections Ns = Ns Ar seed
+Shuffle input sections using the given seed. If 0, use a random seed.
 .It Fl -soname Ns = Ns Ar value , Fl h Ar value
 Set
 .Dv DT_SONAME
@@ -551,6 +553,8 @@ matches the characters within brackets.
 All symbols that match
 a given pattern are handled as if they were given as arguments of
 .Fl -undefined .
+.It Fl -unique
+Creates a separate output section for every orphan input section.
 .It Fl -unresolved-symbols Ns = Ns Ar value
 Determine how to handle unresolved symbols.
 .It Fl -use-android-relr-tags
@@ -604,6 +608,10 @@ segment.
 .Pp
 .It Cm force-bti
 Force enable AArch64 BTI instruction in PLT, warn if Input ELF file does not have GNU_PROPERTY_AARCH64_FEATURE_1_BTI property.
+.Pp
+.It Cm force-ibt
+Force enable Intel Indirect Branch Tracking in PLT, warn if an input ELF file
+does not have GNU_PROPERTY_X86_FEATURE_1_IBT property.
 .Pp
 .It Cm global
 Sets the
@@ -667,7 +675,7 @@ Do not emit the
 segment.
 .Pp
 .It Cm norelro
-Do not indicate that portions of the object shold be mapped read-only
+Do not indicate that portions of the object should be mapped read-only
 after initial relocation processing.
 The object will omit the
 .Dv PT_GNU_RELRO
@@ -718,6 +726,9 @@ Specify whether two adjacent PT_LOAD segments are allowed to overlap in pages.
 allows overlap between two executable segments, or two non-executable segments.
 .Cm separate-loadable-segments
 disallows overlap.
+.Pp
+.It Cm shstk
+x86 only, use shadow stack.
 .Pp
 .It Cm stack-size Ns = Ns Ar size
 Set the main thread's stack size to

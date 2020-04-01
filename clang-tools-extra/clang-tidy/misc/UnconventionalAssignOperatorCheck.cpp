@@ -18,11 +18,6 @@ namespace misc {
 
 void UnconventionalAssignOperatorCheck::registerMatchers(
     ast_matchers::MatchFinder *Finder) {
-  // Only register the matchers for C++; the functionality currently does not
-  // provide any benefit to other languages, despite being benign.
-  if (!getLangOpts().CPlusPlus)
-    return;
-
   const auto HasGoodReturnType = cxxMethodDecl(returns(lValueReferenceType(
       pointee(unless(isConstQualified()),
               anyOf(autoType(), hasDeclaration(equalsBoundNode("class")))))));
@@ -60,7 +55,12 @@ void UnconventionalAssignOperatorCheck::registerMatchers(
       anyOf(unaryOperator(hasOperatorName("*"), hasUnaryOperand(cxxThisExpr())),
             cxxOperatorCallExpr(argumentCountIs(1),
                                 callee(unresolvedLookupExpr()),
-                                hasArgument(0, cxxThisExpr())))))));
+                                hasArgument(0, cxxThisExpr())),
+            cxxOperatorCallExpr(
+                hasOverloadedOperatorName("="),
+                hasArgument(
+                    0, unaryOperator(hasOperatorName("*"),
+                                     hasUnaryOperand(cxxThisExpr())))))))));
   const auto IsGoodAssign = cxxMethodDecl(IsAssign, HasGoodReturnType);
 
   Finder->addMatcher(returnStmt(IsBadReturnStatement, forFunction(IsGoodAssign))

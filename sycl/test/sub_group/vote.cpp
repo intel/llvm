@@ -1,8 +1,9 @@
-// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
+// UNSUPPORTED: cuda
 //==--------------- vote.cpp - SYCL sub_group vote test --*- C++ -*---------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -50,12 +51,12 @@ void check(queue Queue, const int G, const int L, const int D, const int R) {
       cgh.parallel_for<class subgr>(NdRange, [=](nd_item<1> NdItem) {
         intel::sub_group SG = NdItem.get_sub_group();
         /* Set to 1 if any local ID in subgroup devided by D has remainder R */
-        if (SG.any(SG.get_local_id().get(0) % D == R)) {
+        if (any_of(SG, SG.get_local_id().get(0) % D == R)) {
           sganyacc[NdItem.get_global_id()] = 1;
         }
         /* Set to 1 if remainder of division of subgroup local ID by D is less
          * than R for all work items in subgroup */
-        if (SG.all(SG.get_local_id().get(0) % D < R)) {
+        if (all_of(SG, SG.get_local_id().get(0) % D < R)) {
           sgallacc[NdItem.get_global_id()] = 1;
         }
       });

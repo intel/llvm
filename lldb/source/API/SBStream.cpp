@@ -1,4 +1,4 @@
-//===-- SBStream.cpp ----------------------------------------*- C++ -*-===//
+//===-- SBStream.cpp ------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -26,7 +26,7 @@ SBStream::SBStream() : m_opaque_up(new StreamString()), m_is_file(false) {
 SBStream::SBStream(SBStream &&rhs)
     : m_opaque_up(std::move(rhs.m_opaque_up)), m_is_file(rhs.m_is_file) {}
 
-SBStream::~SBStream() {}
+SBStream::~SBStream() = default;
 
 bool SBStream::IsValid() const {
   LLDB_RECORD_METHOD_CONST_NO_ARGS(bool, SBStream, IsValid);
@@ -81,7 +81,8 @@ void SBStream::RedirectToFile(const char *path, bool append) {
     // See if we have any locally backed data. If so, copy it so we can then
     // redirect it to the file so we don't lose the data
     if (!m_is_file)
-      local_data = static_cast<StreamString *>(m_opaque_up.get())->GetString();
+      local_data = std::string(
+          static_cast<StreamString *>(m_opaque_up.get())->GetString());
   }
   auto open_options = File::eOpenOptionWrite | File::eOpenOptionCanCreate;
   if (append)
@@ -129,7 +130,8 @@ void SBStream::RedirectToFile(FileSP file_sp) {
     // See if we have any locally backed data. If so, copy it so we can then
     // redirect it to the file so we don't lose the data
     if (!m_is_file)
-      local_data = static_cast<StreamString *>(m_opaque_up.get())->GetString();
+      local_data = std::string(
+          static_cast<StreamString *>(m_opaque_up.get())->GetString());
   }
 
   m_opaque_up = std::make_unique<StreamFile>(file_sp);
@@ -150,7 +152,8 @@ void SBStream::RedirectToFileDescriptor(int fd, bool transfer_fh_ownership) {
     // See if we have any locally backed data. If so, copy it so we can then
     // redirect it to the file so we don't lose the data
     if (!m_is_file)
-      local_data = static_cast<StreamString *>(m_opaque_up.get())->GetString();
+      local_data = std::string(
+          static_cast<StreamString *>(m_opaque_up.get())->GetString());
   }
 
   m_opaque_up = std::make_unique<StreamFile>(fd, transfer_fh_ownership);

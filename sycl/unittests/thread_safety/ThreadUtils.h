@@ -1,3 +1,5 @@
+#include <detail/scheduler/scheduler.hpp>
+
 #include <thread>
 #include <vector>
 

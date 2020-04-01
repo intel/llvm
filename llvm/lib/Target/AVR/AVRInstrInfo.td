@@ -260,58 +260,58 @@ def LDDSTDPtrReg : Operand<i16>
 //===----------------------------------------------------------------------===//
 
 def HasSRAM       :    Predicate<"Subtarget->hasSRAM()">,
-                         AssemblerPredicate<"FeatureSRAM">;
+                         AssemblerPredicate<(all_of FeatureSRAM)>;
 
 def HasJMPCALL    :    Predicate<"Subtarget->hasJMPCALL()">,
-                         AssemblerPredicate<"FeatureJMPCALL">;
+                         AssemblerPredicate<(all_of FeatureJMPCALL)>;
 
 def HasIJMPCALL   :    Predicate<"Subtarget->hasIJMPCALL()">,
-                         AssemblerPredicate<"FeatureIJMPCALL">;
+                         AssemblerPredicate<(all_of FeatureIJMPCALL)>;
 
 def HasEIJMPCALL  :    Predicate<"Subtarget->hasEIJMPCALL()">,
-                         AssemblerPredicate<"FeatureEIJMPCALL">;
+                         AssemblerPredicate<(all_of FeatureEIJMPCALL)>;
 
 def HasADDSUBIW   :    Predicate<"Subtarget->hasADDSUBIW()">,
-                         AssemblerPredicate<"FeatureADDSUBIW">;
+                         AssemblerPredicate<(all_of FeatureADDSUBIW)>;
 
 def HasSmallStack :    Predicate<"Subtarget->HasSmallStack()">,
-                         AssemblerPredicate<"FeatureSmallStack">;
+                         AssemblerPredicate<(all_of FeatureSmallStack)>;
 
 def HasMOVW       :    Predicate<"Subtarget->hasMOVW()">,
-                         AssemblerPredicate<"FeatureMOVW">;
+                         AssemblerPredicate<(all_of FeatureMOVW)>;
 
 def HasLPM        :    Predicate<"Subtarget->hasLPM()">,
-                         AssemblerPredicate<"FeatureLPM">;
+                         AssemblerPredicate<(all_of FeatureLPM)>;
 
 def HasLPMX       :    Predicate<"Subtarget->hasLPMX()">,
-                         AssemblerPredicate<"FeatureLPMX">;
+                         AssemblerPredicate<(all_of FeatureLPMX)>;
 
 def HasELPM       :    Predicate<"Subtarget->hasELPM()">,
-                         AssemblerPredicate<"FeatureELPM">;
+                         AssemblerPredicate<(all_of FeatureELPM)>;
 
 def HasELPMX      :    Predicate<"Subtarget->hasELPMX()">,
-                         AssemblerPredicate<"FeatureELPMX">;
+                         AssemblerPredicate<(all_of FeatureELPMX)>;
 
 def HasSPM        :    Predicate<"Subtarget->hasSPM()">,
-                         AssemblerPredicate<"FeatureSPM">;
+                         AssemblerPredicate<(all_of FeatureSPM)>;
 
 def HasSPMX       :    Predicate<"Subtarget->hasSPMX()">,
-                         AssemblerPredicate<"FeatureSPMX">;
+                         AssemblerPredicate<(all_of FeatureSPMX)>;
 
 def HasDES        :    Predicate<"Subtarget->hasDES()">,
-                         AssemblerPredicate<"FeatureDES">;
+                         AssemblerPredicate<(all_of FeatureDES)>;
 
 def SupportsRMW   :    Predicate<"Subtarget->supportsRMW()">,
-                         AssemblerPredicate<"FeatureRMW">;
+                         AssemblerPredicate<(all_of FeatureRMW)>;
 
 def SupportsMultiplication : Predicate<"Subtarget->supportsMultiplication()">,
-                               AssemblerPredicate<"FeatureMultiplication">;
+                               AssemblerPredicate<(all_of FeatureMultiplication)>;
 
 def HasBREAK      :    Predicate<"Subtarget->hasBREAK()">,
-                         AssemblerPredicate<"FeatureBREAK">;
+                         AssemblerPredicate<(all_of FeatureBREAK)>;
 
 def HasTinyEncoding : Predicate<"Subtarget->hasTinyEncoding()">,
-                        AssemblerPredicate<"FeatureTinyEncoding">;
+                        AssemblerPredicate<(all_of FeatureTinyEncoding)>;
 
 
 // AVR specific condition code. These correspond to AVR_*_COND in
@@ -555,7 +555,7 @@ Defs = [R1, R0, SREG] in
 
     def MULSRdRr : FMUL2RdRr<0,
                              (outs),
-                             (ins GPR8:$lhs, GPR8:$rhs),
+                             (ins LD8:$lhs, LD8:$rhs),
                              "muls\t$lhs, $rhs",
                              []>,
                    Requires<[SupportsMultiplication]>;
@@ -563,28 +563,28 @@ Defs = [R1, R0, SREG] in
 
   def MULSURdRr : FMUL2RdRr<1,
                             (outs),
-                            (ins GPR8:$lhs, GPR8:$rhs),
+                            (ins LD8lo:$lhs, LD8lo:$rhs),
                             "mulsu\t$lhs, $rhs",
                             []>,
                   Requires<[SupportsMultiplication]>;
 
   def FMUL : FFMULRdRr<0b01,
                        (outs),
-                       (ins GPR8:$lhs, GPR8:$rhs),
+                       (ins LD8lo:$lhs, LD8lo:$rhs),
                        "fmul\t$lhs, $rhs",
                        []>,
              Requires<[SupportsMultiplication]>;
 
   def FMULS : FFMULRdRr<0b10,
                         (outs),
-                        (ins GPR8:$lhs, GPR8:$rhs),
+                        (ins LD8lo:$lhs, LD8lo:$rhs),
                         "fmuls\t$lhs, $rhs",
                         []>,
               Requires<[SupportsMultiplication]>;
 
   def FMULSU : FFMULRdRr<0b11,
                          (outs),
-                         (ins GPR8:$lhs, GPR8:$rhs),
+                         (ins LD8lo:$lhs, LD8lo:$rhs),
                          "fmulsu\t$lhs, $rhs",
                          []>,
                Requires<[SupportsMultiplication]>;
@@ -840,7 +840,7 @@ let isCall = 1 in
 //===----------------------------------------------------------------------===//
 let isTerminator = 1,
 isReturn = 1,
-isBarrier = 1 in 
+isBarrier = 1 in
 {
   def RET : F16<0b1001010100001000,
                 (outs),

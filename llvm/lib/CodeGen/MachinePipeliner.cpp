@@ -693,9 +693,13 @@ void SwingSchedulerDAG::addLoopCarriedDependences(AliasAnalysis *AA) {
           // offset, then mark the dependence as loop carried potentially.
           const MachineOperand *BaseOp1, *BaseOp2;
           int64_t Offset1, Offset2;
-          if (TII->getMemOperandWithOffset(LdMI, BaseOp1, Offset1, TRI) &&
-              TII->getMemOperandWithOffset(MI, BaseOp2, Offset2, TRI)) {
+          bool Offset1IsScalable, Offset2IsScalable;
+          if (TII->getMemOperandWithOffset(LdMI, BaseOp1, Offset1,
+                                           Offset1IsScalable, TRI) &&
+              TII->getMemOperandWithOffset(MI, BaseOp2, Offset2,
+                                           Offset2IsScalable, TRI)) {
             if (BaseOp1->isIdenticalTo(*BaseOp2) &&
+                Offset1IsScalable == Offset2IsScalable &&
                 (int)Offset1 < (int)Offset2) {
               assert(TII->areMemAccessesTriviallyDisjoint(LdMI, MI) &&
                      "What happened to the chain edge?");
@@ -905,7 +909,7 @@ namespace {
 struct FuncUnitSorter {
   const InstrItineraryData *InstrItins;
   const MCSubtargetInfo *STI;
-  DenseMap<unsigned, unsigned> Resources;
+  DenseMap<InstrStage::FuncUnits, unsigned> Resources;
 
   FuncUnitSorter(const TargetSubtargetInfo &TSI)
       : InstrItins(TSI.getInstrItineraryData()), STI(&TSI) {}
@@ -913,14 +917,15 @@ struct FuncUnitSorter {
   // Compute the number of functional unit alternatives needed
   // at each stage, and take the minimum value. We prioritize the
   // instructions by the least number of choices first.
-  unsigned minFuncUnits(const MachineInstr *Inst, unsigned &F) const {
+  unsigned minFuncUnits(const MachineInstr *Inst,
+                        InstrStage::FuncUnits &F) const {
     unsigned SchedClass = Inst->getDesc().getSchedClass();
     unsigned min = UINT_MAX;
     if (InstrItins && !InstrItins->isEmpty()) {
       for (const InstrStage &IS :
            make_range(InstrItins->beginStage(SchedClass),
                       InstrItins->endStage(SchedClass))) {
-        unsigned funcUnits = IS.getUnits();
+        InstrStage::FuncUnits funcUnits = IS.getUnits();
         unsigned numAlternatives = countPopulation(funcUnits);
         if (numAlternatives < min) {
           min = numAlternatives;
@@ -966,7 +971,7 @@ struct FuncUnitSorter {
       for (const InstrStage &IS :
            make_range(InstrItins->beginStage(SchedClass),
                       InstrItins->endStage(SchedClass))) {
-        unsigned FuncUnits = IS.getUnits();
+        InstrStage::FuncUnits FuncUnits = IS.getUnits();
         if (countPopulation(FuncUnits) == 1)
           Resources[FuncUnits]++;
       }
@@ -994,7 +999,7 @@ struct FuncUnitSorter {
 
   /// Return true if IS1 has less priority than IS2.
   bool operator()(const MachineInstr *IS1, const MachineInstr *IS2) const {
-    unsigned F1 = 0, F2 = 0;
+    InstrStage::FuncUnits F1 = 0, F2 = 0;
     unsigned MFUs1 = minFuncUnits(IS1, F1);
     unsigned MFUs2 = minFuncUnits(IS2, F2);
     if (MFUs1 == MFUs2)
@@ -2058,7 +2063,12 @@ bool SwingSchedulerDAG::computeDelta(MachineInstr &MI, unsigned &Delta) {
   const TargetRegisterInfo *TRI = MF.getSubtarget().getRegisterInfo();
   const MachineOperand *BaseOp;
   int64_t Offset;
-  if (!TII->getMemOperandWithOffset(MI, BaseOp, Offset, TRI))
+  bool OffsetIsScalable;
+  if (!TII->getMemOperandWithOffset(MI, BaseOp, Offset, OffsetIsScalable, TRI))
+    return false;
+
+  // FIXME: This algorithm assumes instructions have fixed-size offsets.
+  if (OffsetIsScalable)
     return false;
 
   if (!BaseOp->isReg())
@@ -2236,10 +2246,16 @@ bool SwingSchedulerDAG::isLoopCarriedDep(SUnit *Source, const SDep &Dep,
 
   const MachineOperand *BaseOpS, *BaseOpD;
   int64_t OffsetS, OffsetD;
+  bool OffsetSIsScalable, OffsetDIsScalable;
   const TargetRegisterInfo *TRI = MF.getSubtarget().getRegisterInfo();
-  if (!TII->getMemOperandWithOffset(*SI, BaseOpS, OffsetS, TRI) ||
-      !TII->getMemOperandWithOffset(*DI, BaseOpD, OffsetD, TRI))
+  if (!TII->getMemOperandWithOffset(*SI, BaseOpS, OffsetS, OffsetSIsScalable,
+                                    TRI) ||
+      !TII->getMemOperandWithOffset(*DI, BaseOpD, OffsetD, OffsetDIsScalable,
+                                    TRI))
     return true;
+
+  assert(!OffsetSIsScalable && !OffsetDIsScalable &&
+         "Expected offsets to be byte offsets");
 
   if (!BaseOpS->isIdenticalTo(*BaseOpD))
     return true;

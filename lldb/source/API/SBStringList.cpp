@@ -1,4 +1,4 @@
-//===-- SBStringList.cpp ----------------------------------------*- C++ -*-===//
+//===-- SBStringList.cpp --------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -39,7 +39,7 @@ const SBStringList &SBStringList::operator=(const SBStringList &rhs) {
   return LLDB_RECORD_RESULT(*this);
 }
 
-SBStringList::~SBStringList() {}
+SBStringList::~SBStringList() = default;
 
 const lldb_private::StringList *SBStringList::operator->() const {
   return m_opaque_up.get();

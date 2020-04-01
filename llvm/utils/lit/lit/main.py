@@ -21,10 +21,6 @@ import lit.util
 def main(builtin_params={}):
     opts = lit.cl_arguments.parse_args()
 
-    if opts.show_version:
-        print("lit %s" % lit.__version__)
-        return
-
     params = create_params(builtin_params, opts.user_params)
     is_windows = platform.system() == 'Windows'
 
@@ -44,7 +40,7 @@ def main(builtin_params={}):
 
     discovered_tests = lit.discovery.find_tests_for_inputs(lit_config, opts.test_paths)
     if not discovered_tests:
-        sys.stderr.write('error: did not disover any tests for provided path(s)\n')
+        sys.stderr.write('error: did not discover any tests for provided path(s)\n')
         sys.exit(2)
 
     # Command line overrides configuration for maxIndividualTestTime.

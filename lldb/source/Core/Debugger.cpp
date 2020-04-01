@@ -1,4 +1,4 @@
-//===-- Debugger.cpp --------------------------------------------*- C++ -*-===//
+//===-- Debugger.cpp ------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -134,84 +134,6 @@ static constexpr OptionEnumValueElement g_language_enumerators[] = {
         "Select the lldb default as the default scripting language.",
     },
 };
-
-#define MODULE_WITH_FUNC                                                       \
-  "{ "                                                                         \
-  "${module.file.basename}{`${function.name-with-args}"                        \
-  "{${frame.no-debug}${function.pc-offset}}}}"
-
-#define MODULE_WITH_FUNC_NO_ARGS                                               \
-  "{ "                                                                         \
-  "${module.file.basename}{`${function.name-without-args}"                     \
-  "{${frame.no-debug}${function.pc-offset}}}}"
-
-#define FILE_AND_LINE                                                          \
-  "{ at ${ansi.fg.cyan}${line.file.basename}${ansi.normal}"                    \
-  ":${ansi.fg.yellow}${line.number}${ansi.normal}"                             \
-  "{:${ansi.fg.yellow}${line.column}${ansi.normal}}}"
-
-#define IS_OPTIMIZED "{${function.is-optimized} [opt]}"
-
-#define IS_ARTIFICIAL "{${frame.is-artificial} [artificial]}"
-
-#define DEFAULT_THREAD_FORMAT                                                  \
-  "thread #${thread.index}: tid = ${thread.id%tid}"                            \
-  "{, ${frame.pc}}" MODULE_WITH_FUNC FILE_AND_LINE                             \
-  "{, name = ${ansi.fg.green}'${thread.name}'${ansi.normal}}"                  \
-  "{, queue = ${ansi.fg.green}'${thread.queue}'${ansi.normal}}"                \
-  "{, activity = "                                                             \
-  "${ansi.fg.green}'${thread.info.activity.name}'${ansi.normal}}"              \
-  "{, ${thread.info.trace_messages} messages}"                                 \
-  "{, stop reason = ${ansi.fg.red}${thread.stop-reason}${ansi.normal}}"        \
-  "{\\nReturn value: ${thread.return-value}}"                                  \
-  "{\\nCompleted expression: ${thread.completed-expression}}"                  \
-  "\\n"
-
-#define DEFAULT_THREAD_STOP_FORMAT                                             \
-  "thread #${thread.index}{, name = '${thread.name}'}"                         \
-  "{, queue = ${ansi.fg.green}'${thread.queue}'${ansi.normal}}"                \
-  "{, activity = "                                                             \
-  "${ansi.fg.green}'${thread.info.activity.name}'${ansi.normal}}"              \
-  "{, ${thread.info.trace_messages} messages}"                                 \
-  "{, stop reason = ${ansi.fg.red}${thread.stop-reason}${ansi.normal}}"        \
-  "{\\nReturn value: ${thread.return-value}}"                                  \
-  "{\\nCompleted expression: ${thread.completed-expression}}"                  \
-  "\\n"
-
-#define DEFAULT_FRAME_FORMAT                                                   \
-  "frame #${frame.index}: "                                                    \
-  "${ansi.fg.yellow}${frame.pc}${ansi.normal}" MODULE_WITH_FUNC FILE_AND_LINE  \
-      IS_OPTIMIZED IS_ARTIFICIAL "\\n"
-
-#define DEFAULT_FRAME_FORMAT_NO_ARGS                                           \
-  "frame #${frame.index}: "                                                    \
-  "${ansi.fg.yellow}${frame.pc}${ansi.normal}" MODULE_WITH_FUNC_NO_ARGS        \
-      FILE_AND_LINE IS_OPTIMIZED IS_ARTIFICIAL "\\n"
-
-// Three parts to this disassembly format specification:
-//   1. If this is a new function/symbol (no previous symbol/function), print
-//      dylib`funcname:\n
-//   2. If this is a symbol context change (different from previous
-//   symbol/function), print
-//      dylib`funcname:\n
-//   3. print
-//      address <+offset>:
-#define DEFAULT_DISASSEMBLY_FORMAT                                             \
-  "{${function.initial-function}{${module.file.basename}`}{${function.name-"   \
-  "without-args}}:\\n}{${function.changed}\\n{${module.file.basename}`}{${"    \
-  "function.name-without-args}}:\\n}{${current-pc-arrow} "                     \
-  "}${addr-file-or-load}{ "                                                    \
-  "<${function.concrete-only-addr-offset-no-padding}>}: "
-
-// gdb's disassembly format can be emulated with ${current-pc-arrow}${addr-
-// file-or-load}{ <${function.name-without-args}${function.concrete-only-addr-
-// offset-no-padding}>}:
-
-// lldb's original format for disassembly would look like this format string -
-// {${function.initial-function}{${module.file.basename}`}{${function.name-
-// without-
-// args}}:\n}{${function.changed}\n{${module.file.basename}`}{${function.name-
-// without-args}}:\n}{${current-pc-arrow} }{${addr-file-or-load}}:
 
 static constexpr OptionEnumValueElement s_stop_show_column_values[] = {
     {
@@ -435,6 +357,16 @@ llvm::StringRef Debugger::GetStopShowColumnAnsiPrefix() const {
 
 llvm::StringRef Debugger::GetStopShowColumnAnsiSuffix() const {
   const uint32_t idx = ePropertyStopShowColumnAnsiSuffix;
+  return m_collection_sp->GetPropertyAtIndexAsString(nullptr, idx, "");
+}
+
+llvm::StringRef Debugger::GetStopShowLineMarkerAnsiPrefix() const {
+  const uint32_t idx = ePropertyStopShowLineMarkerAnsiPrefix;
+  return m_collection_sp->GetPropertyAtIndexAsString(nullptr, idx, "");
+}
+
+llvm::StringRef Debugger::GetStopShowLineMarkerAnsiSuffix() const {
+  const uint32_t idx = ePropertyStopShowLineMarkerAnsiSuffix;
   return m_collection_sp->GetPropertyAtIndexAsString(nullptr, idx, "");
 }
 
@@ -708,7 +640,7 @@ Debugger::Debugger(lldb::LogOutputCallback log_callback, void *baton)
       m_source_manager_up(), m_source_file_cache(),
       m_command_interpreter_up(
           std::make_unique<CommandInterpreter>(*this, false)),
-      m_input_reader_stack(), m_instance_name(), m_loaded_plugins(),
+      m_io_handler_stack(), m_instance_name(), m_loaded_plugins(),
       m_event_handler_thread(), m_io_handler_thread(),
       m_sync_broadcaster(nullptr, "lldb.debugger.sync"),
       m_forward_listener_sp(), m_clear_once() {
@@ -870,15 +802,15 @@ ExecutionContext Debugger::GetSelectedExecutionContext() {
 }
 
 void Debugger::DispatchInputInterrupt() {
-  std::lock_guard<std::recursive_mutex> guard(m_input_reader_stack.GetMutex());
-  IOHandlerSP reader_sp(m_input_reader_stack.Top());
+  std::lock_guard<std::recursive_mutex> guard(m_io_handler_stack.GetMutex());
+  IOHandlerSP reader_sp(m_io_handler_stack.Top());
   if (reader_sp)
     reader_sp->Interrupt();
 }
 
 void Debugger::DispatchInputEndOfFile() {
-  std::lock_guard<std::recursive_mutex> guard(m_input_reader_stack.GetMutex());
-  IOHandlerSP reader_sp(m_input_reader_stack.Top());
+  std::lock_guard<std::recursive_mutex> guard(m_io_handler_stack.GetMutex());
+  IOHandlerSP reader_sp(m_io_handler_stack.Top());
   if (reader_sp)
     reader_sp->GotEOF();
 }
@@ -886,81 +818,107 @@ void Debugger::DispatchInputEndOfFile() {
 void Debugger::ClearIOHandlers() {
   // The bottom input reader should be the main debugger input reader.  We do
   // not want to close that one here.
-  std::lock_guard<std::recursive_mutex> guard(m_input_reader_stack.GetMutex());
-  while (m_input_reader_stack.GetSize() > 1) {
-    IOHandlerSP reader_sp(m_input_reader_stack.Top());
+  std::lock_guard<std::recursive_mutex> guard(m_io_handler_stack.GetMutex());
+  while (m_io_handler_stack.GetSize() > 1) {
+    IOHandlerSP reader_sp(m_io_handler_stack.Top());
     if (reader_sp)
       PopIOHandler(reader_sp);
   }
 }
 
-void Debugger::ExecuteIOHandlers() {
+void Debugger::RunIOHandlers() {
+  IOHandlerSP reader_sp = m_io_handler_stack.Top();
   while (true) {
-    IOHandlerSP reader_sp(m_input_reader_stack.Top());
     if (!reader_sp)
       break;
 
     reader_sp->Run();
+    {
+      std::lock_guard<std::recursive_mutex> guard(
+          m_io_handler_synchronous_mutex);
 
-    // Remove all input readers that are done from the top of the stack
-    while (true) {
-      IOHandlerSP top_reader_sp = m_input_reader_stack.Top();
-      if (top_reader_sp && top_reader_sp->GetIsDone())
-        PopIOHandler(top_reader_sp);
-      else
-        break;
+      // Remove all input readers that are done from the top of the stack
+      while (true) {
+        IOHandlerSP top_reader_sp = m_io_handler_stack.Top();
+        if (top_reader_sp && top_reader_sp->GetIsDone())
+          PopIOHandler(top_reader_sp);
+        else
+          break;
+      }
+      reader_sp = m_io_handler_stack.Top();
     }
   }
   ClearIOHandlers();
 }
 
-bool Debugger::IsTopIOHandler(const lldb::IOHandlerSP &reader_sp) {
-  return m_input_reader_stack.IsTop(reader_sp);
-}
+void Debugger::RunIOHandlerSync(const IOHandlerSP &reader_sp) {
+  std::lock_guard<std::recursive_mutex> guard(m_io_handler_synchronous_mutex);
 
-bool Debugger::CheckTopIOHandlerTypes(IOHandler::Type top_type,
-                                      IOHandler::Type second_top_type) {
-  return m_input_reader_stack.CheckTopIOHandlerTypes(top_type, second_top_type);
-}
-
-void Debugger::PrintAsync(const char *s, size_t len, bool is_stdout) {
-  lldb_private::StreamFile &stream =
-      is_stdout ? GetOutputStream() : GetErrorStream();
-  m_input_reader_stack.PrintAsync(&stream, s, len);
-}
-
-ConstString Debugger::GetTopIOHandlerControlSequence(char ch) {
-  return m_input_reader_stack.GetTopIOHandlerControlSequence(ch);
-}
-
-const char *Debugger::GetIOHandlerCommandPrefix() {
-  return m_input_reader_stack.GetTopIOHandlerCommandPrefix();
-}
-
-const char *Debugger::GetIOHandlerHelpPrologue() {
-  return m_input_reader_stack.GetTopIOHandlerHelpPrologue();
-}
-
-void Debugger::RunIOHandler(const IOHandlerSP &reader_sp) {
   PushIOHandler(reader_sp);
-
   IOHandlerSP top_reader_sp = reader_sp;
+
   while (top_reader_sp) {
+    if (!top_reader_sp)
+      break;
+
     top_reader_sp->Run();
 
+    // Don't unwind past the starting point.
     if (top_reader_sp.get() == reader_sp.get()) {
       if (PopIOHandler(reader_sp))
         break;
     }
 
+    // If we pushed new IO handlers, pop them if they're done or restart the
+    // loop to run them if they're not.
     while (true) {
-      top_reader_sp = m_input_reader_stack.Top();
-      if (top_reader_sp && top_reader_sp->GetIsDone())
+      top_reader_sp = m_io_handler_stack.Top();
+      if (top_reader_sp && top_reader_sp->GetIsDone()) {
         PopIOHandler(top_reader_sp);
-      else
+        // Don't unwind past the starting point.
+        if (top_reader_sp.get() == reader_sp.get())
+          return;
+      } else {
         break;
+      }
     }
   }
+}
+
+bool Debugger::IsTopIOHandler(const lldb::IOHandlerSP &reader_sp) {
+  return m_io_handler_stack.IsTop(reader_sp);
+}
+
+bool Debugger::CheckTopIOHandlerTypes(IOHandler::Type top_type,
+                                      IOHandler::Type second_top_type) {
+  return m_io_handler_stack.CheckTopIOHandlerTypes(top_type, second_top_type);
+}
+
+void Debugger::PrintAsync(const char *s, size_t len, bool is_stdout) {
+  lldb_private::StreamFile &stream =
+      is_stdout ? GetOutputStream() : GetErrorStream();
+  m_io_handler_stack.PrintAsync(&stream, s, len);
+}
+
+ConstString Debugger::GetTopIOHandlerControlSequence(char ch) {
+  return m_io_handler_stack.GetTopIOHandlerControlSequence(ch);
+}
+
+const char *Debugger::GetIOHandlerCommandPrefix() {
+  return m_io_handler_stack.GetTopIOHandlerCommandPrefix();
+}
+
+const char *Debugger::GetIOHandlerHelpPrologue() {
+  return m_io_handler_stack.GetTopIOHandlerHelpPrologue();
+}
+
+bool Debugger::RemoveIOHandler(const IOHandlerSP &reader_sp) {
+  return PopIOHandler(reader_sp);
+}
+
+void Debugger::RunIOHandlerAsync(const IOHandlerSP &reader_sp,
+                                 bool cancel_top_handler) {
+  PushIOHandler(reader_sp, cancel_top_handler);
 }
 
 void Debugger::AdoptTopIOHandlerFilesIfInvalid(FileSP &in, StreamFileSP &out,
@@ -970,8 +928,8 @@ void Debugger::AdoptTopIOHandlerFilesIfInvalid(FileSP &in, StreamFileSP &out,
   // input reader's in/out/err streams, or fall back to the debugger file
   // handles, or we fall back onto stdin/stdout/stderr as a last resort.
 
-  std::lock_guard<std::recursive_mutex> guard(m_input_reader_stack.GetMutex());
-  IOHandlerSP top_reader_sp(m_input_reader_stack.Top());
+  std::lock_guard<std::recursive_mutex> guard(m_io_handler_stack.GetMutex());
+  IOHandlerSP top_reader_sp(m_io_handler_stack.Top());
   // If no STDIN has been set, then set it appropriately
   if (!in || !in->IsValid()) {
     if (top_reader_sp)
@@ -1009,17 +967,17 @@ void Debugger::PushIOHandler(const IOHandlerSP &reader_sp,
   if (!reader_sp)
     return;
 
-  std::lock_guard<std::recursive_mutex> guard(m_input_reader_stack.GetMutex());
+  std::lock_guard<std::recursive_mutex> guard(m_io_handler_stack.GetMutex());
 
   // Get the current top input reader...
-  IOHandlerSP top_reader_sp(m_input_reader_stack.Top());
+  IOHandlerSP top_reader_sp(m_io_handler_stack.Top());
 
   // Don't push the same IO handler twice...
   if (reader_sp == top_reader_sp)
     return;
 
   // Push our new input reader
-  m_input_reader_stack.Push(reader_sp);
+  m_io_handler_stack.Push(reader_sp);
   reader_sp->Activate();
 
   // Interrupt the top input reader to it will exit its Run() function and let
@@ -1035,23 +993,23 @@ bool Debugger::PopIOHandler(const IOHandlerSP &pop_reader_sp) {
   if (!pop_reader_sp)
     return false;
 
-  std::lock_guard<std::recursive_mutex> guard(m_input_reader_stack.GetMutex());
+  std::lock_guard<std::recursive_mutex> guard(m_io_handler_stack.GetMutex());
 
   // The reader on the stop of the stack is done, so let the next read on the
   // stack refresh its prompt and if there is one...
-  if (m_input_reader_stack.IsEmpty())
+  if (m_io_handler_stack.IsEmpty())
     return false;
 
-  IOHandlerSP reader_sp(m_input_reader_stack.Top());
+  IOHandlerSP reader_sp(m_io_handler_stack.Top());
 
   if (pop_reader_sp != reader_sp)
     return false;
 
   reader_sp->Deactivate();
   reader_sp->Cancel();
-  m_input_reader_stack.Pop();
+  m_io_handler_stack.Pop();
 
-  reader_sp = m_input_reader_stack.Top();
+  reader_sp = m_io_handler_stack.Top();
   if (reader_sp)
     reader_sp->Activate();
 
@@ -1503,9 +1461,9 @@ bool Debugger::StartEventHandlerThread() {
     listener_sp->StartListeningForEvents(&m_sync_broadcaster,
                                          eBroadcastBitEventThreadIsListening);
 
-    auto thread_name =
+    llvm::StringRef thread_name =
         full_name.GetLength() < llvm::get_max_thread_name_length()
-            ? full_name.AsCString()
+            ? full_name.GetStringRef()
             : "dbg.evt-handler";
 
     // Use larger 8MB stack for this thread
@@ -1542,7 +1500,7 @@ void Debugger::StopEventHandlerThread() {
 
 lldb::thread_result_t Debugger::IOHandlerThread(lldb::thread_arg_t arg) {
   Debugger *debugger = (Debugger *)arg;
-  debugger->ExecuteIOHandlers();
+  debugger->RunIOHandlers();
   debugger->StopEventHandlerThread();
   return {};
 }

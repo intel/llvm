@@ -80,9 +80,9 @@ static void AddImplicitIncludeMacros(MacroBuilder &Builder, StringRef File) {
 static void AddImplicitIncludePCH(MacroBuilder &Builder, Preprocessor &PP,
                                   const PCHContainerReader &PCHContainerRdr,
                                   StringRef ImplicitIncludePCH) {
-  std::string OriginalFile =
-      ASTReader::getOriginalSourceFile(ImplicitIncludePCH, PP.getFileManager(),
-                                       PCHContainerRdr, PP.getDiagnostics());
+  std::string OriginalFile = ASTReader::getOriginalSourceFile(
+      std::string(ImplicitIncludePCH), PP.getFileManager(), PCHContainerRdr,
+      PP.getDiagnostics());
   if (OriginalFile.empty())
     return;
 
@@ -344,13 +344,27 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
                                                const LangOptions &LangOpts,
                                                const FrontendOptions &FEOpts,
                                                MacroBuilder &Builder) {
+  // C++ [cpp.predefined]p1:
+  //   The following macro names shall be defined by the implementation:
+
+  //   -- __STDC__
+  //      [C++] Whether __STDC__ is predefined and if so, what its value is,
+  //      are implementation-defined.
+  // (Removed in C++20.)
   if (!LangOpts.MSVCCompat && !LangOpts.TraditionalCPP)
     Builder.defineMacro("__STDC__");
+  //   -- __STDC_HOSTED__
+  //      The integer literal 1 if the implementation is a hosted
+  //      implementation or the integer literal 0 if it is not.
   if (LangOpts.Freestanding)
     Builder.defineMacro("__STDC_HOSTED__", "0");
   else
     Builder.defineMacro("__STDC_HOSTED__");
 
+  //   -- __STDC_VERSION__
+  //      [C++] Whether __STDC_VERSION__ is predefined and if so, what its
+  //      value is, are implementation-defined.
+  // (Removed in C++20.)
   if (!LangOpts.CPlusPlus) {
     if (LangOpts.C17)
       Builder.defineMacro("__STDC_VERSION__", "201710L");
@@ -361,33 +375,29 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
     else if (!LangOpts.GNUMode && LangOpts.Digraphs)
       Builder.defineMacro("__STDC_VERSION__", "199409L");
   } else {
-    // FIXME: Use correct value for C++20.
+    //   -- __cplusplus
+    //      [C++20] The integer literal 202002L.
     if (LangOpts.CPlusPlus2a)
-      Builder.defineMacro("__cplusplus", "201707L");
-    // C++17 [cpp.predefined]p1:
-    //   The name __cplusplus is defined to the value 201703L when compiling a
-    //   C++ translation unit.
+      Builder.defineMacro("__cplusplus", "202002L");
+    //      [C++17] The integer literal 201703L.
     else if (LangOpts.CPlusPlus17)
       Builder.defineMacro("__cplusplus", "201703L");
-    // C++1y [cpp.predefined]p1:
-    //   The name __cplusplus is defined to the value 201402L when compiling a
-    //   C++ translation unit.
+    //      [C++14] The name __cplusplus is defined to the value 201402L when
+    //      compiling a C++ translation unit.
     else if (LangOpts.CPlusPlus14)
       Builder.defineMacro("__cplusplus", "201402L");
-    // C++11 [cpp.predefined]p1:
-    //   The name __cplusplus is defined to the value 201103L when compiling a
-    //   C++ translation unit.
+    //      [C++11] The name __cplusplus is defined to the value 201103L when
+    //      compiling a C++ translation unit.
     else if (LangOpts.CPlusPlus11)
       Builder.defineMacro("__cplusplus", "201103L");
-    // C++03 [cpp.predefined]p1:
-    //   The name __cplusplus is defined to the value 199711L when compiling a
-    //   C++ translation unit.
+    //      [C++03] The name __cplusplus is defined to the value 199711L when
+    //      compiling a C++ translation unit.
     else
       Builder.defineMacro("__cplusplus", "199711L");
 
-    // C++1z [cpp.predefined]p1:
-    //   An integer literal of type std::size_t whose value is the alignment
-    //   guaranteed by a call to operator new(std::size_t)
+    //   -- __STDCPP_DEFAULT_NEW_ALIGNMENT__
+    //      [C++17] An integer literal of type std::size_t whose value is the
+    //      alignment guaranteed by a call to operator new(std::size_t)
     //
     // We provide this in all language modes, since it seems generally useful.
     Builder.defineMacro("__STDCPP_DEFAULT_NEW_ALIGNMENT__",
@@ -451,15 +461,14 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
       Builder.defineMacro("__FAST_RELAXED_MATH__");
   }
 
-  // SYCL Version is set to a value when building SYCL applications
-  switch (LangOpts.getSYCLVersion()) {
-    case LangOptions::SYCLVersionList::sycl_1_2_1:
+  if (LangOpts.SYCL) {
+    // SYCL Version is set to a value when building SYCL applications
+    if (LangOpts.SYCLVersion == 2017)
       Builder.defineMacro("CL_SYCL_LANGUAGE_VERSION", "121");
-      break;
-    case LangOptions::SYCLVersionList::undefined:
-    default:
-      // This is not a SYCL source, nothing to add
-      break;
+  }
+
+  if (LangOpts.DeclareSPIRVBuiltins) {
+    Builder.defineMacro("__SPIRV_BUILTIN_DECLARATIONS__");
   }
 
   // Not "standard" per se, but available even with the -undef flag.
@@ -560,7 +569,7 @@ static void InitializeCPlusPlusFeatureTestMacros(const LangOptions &LangOpts,
   // C++20 features.
   if (LangOpts.CPlusPlus2a) {
     //Builder.defineMacro("__cpp_aggregate_paren_init", "201902L");
-    //Builder.defineMacro("__cpp_concepts", "201907L");
+    Builder.defineMacro("__cpp_concepts", "201907L");
     Builder.defineMacro("__cpp_conditional_explicit", "201806L");
     //Builder.defineMacro("__cpp_consteval", "201811L");
     Builder.defineMacro("__cpp_constexpr_dynamic_alloc", "201907L");
@@ -576,8 +585,6 @@ static void InitializeCPlusPlusFeatureTestMacros(const LangOptions &LangOpts,
   Builder.defineMacro("__cpp_impl_destroying_delete", "201806L");
 
   // TS features.
-  if (LangOpts.ConceptsTS)
-    Builder.defineMacro("__cpp_experimental_concepts", "1L");
   if (LangOpts.Coroutines)
     Builder.defineMacro("__cpp_coroutines", "201703L");
 }
@@ -1101,6 +1108,10 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
   if (LangOpts.SYCLIsDevice) {
     Builder.defineMacro("__SYCL_DEVICE_ONLY__", "1");
     Builder.defineMacro("SYCL_EXTERNAL", "__attribute__((sycl_device))");
+
+    if (TI.getTriple().isNVPTX()) {
+        Builder.defineMacro("__SYCL_NVPTX__", "1");
+    }
   }
   if (LangOpts.SYCLUnnamedLambda)
     Builder.defineMacro("__SYCL_UNNAMED_LAMBDA__", "1");

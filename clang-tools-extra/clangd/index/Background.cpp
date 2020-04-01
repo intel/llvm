@@ -137,18 +137,21 @@ bool shardIsStale(const LoadedShard &LS, llvm::vfs::FileSystem *FS) {
 BackgroundIndex::BackgroundIndex(
     Context BackgroundContext, const FileSystemProvider &FSProvider,
     const GlobalCompilationDatabase &CDB,
-    BackgroundIndexStorage::Factory IndexStorageFactory, size_t ThreadPoolSize)
-    : SwapIndex(std::make_unique<MemIndex>()), FSProvider(FSProvider),
-      CDB(CDB), BackgroundContext(std::move(BackgroundContext)),
+    BackgroundIndexStorage::Factory IndexStorageFactory, size_t ThreadPoolSize,
+    std::function<void(BackgroundQueue::Stats)> OnProgress)
+    : SwapIndex(std::make_unique<MemIndex>()), FSProvider(FSProvider), CDB(CDB),
+      BackgroundContext(std::move(BackgroundContext)),
       Rebuilder(this, &IndexedSymbols, ThreadPoolSize),
       IndexStorageFactory(std::move(IndexStorageFactory)),
+      Queue(std::move(OnProgress)),
       CommandsChanged(
           CDB.watch([&](const std::vector<std::string> &ChangedFiles) {
             enqueue(ChangedFiles);
           })) {
-  assert(ThreadPoolSize > 0 && "Thread pool size can't be zero.");
+  assert(Rebuilder.TUsBeforeFirstBuild > 0 &&
+         "Thread pool size can't be zero.");
   assert(this->IndexStorageFactory && "Storage factory can not be null!");
-  for (unsigned I = 0; I < ThreadPoolSize; ++I) {
+  for (unsigned I = 0; I < Rebuilder.TUsBeforeFirstBuild; ++I) {
     ThreadPool.runAsync("background-worker-" + llvm::Twine(I + 1), [this] {
       WithContext Ctx(this->BackgroundContext.clone());
       Queue.work([&] { Rebuilder.idle(); });
@@ -200,7 +203,7 @@ BackgroundIndex::indexFileTask(tooling::CompileCommand Cmd) {
       elog("Indexing {0} failed: {1}", FileName, std::move(Error));
   });
   T.QueuePri = IndexFile;
-  T.Tag = filenameWithoutExtension(Cmd.Filename);
+  T.Tag = std::string(filenameWithoutExtension(Cmd.Filename));
   return T;
 }
 

@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_TypeSystem_h_
-#define liblldb_TypeSystem_h_
+#ifndef LLDB_SYMBOL_TYPESYSTEM_H
+#define LLDB_SYMBOL_TYPESYSTEM_H
 
 #include <functional>
 #include <map>
@@ -129,6 +129,11 @@ public:
                                               void *other_opaque_decl_ctx) = 0;
 
   // Tests
+#ifndef NDEBUG
+  /// Verify the integrity of the type to catch CompilerTypes that mix
+  /// and match invalid TypeSystem/Opaque type pairs.
+  virtual bool Verify(lldb::opaque_compiler_type_t type) = 0;
+#endif
 
   virtual bool IsArrayType(lldb::opaque_compiler_type_t type,
                            CompilerType *element_type, uint64_t *size,
@@ -198,6 +203,8 @@ public:
   // Accessors
 
   virtual ConstString GetTypeName(lldb::opaque_compiler_type_t type) = 0;
+
+  virtual ConstString GetDisplayTypeName(lldb::opaque_compiler_type_t type) = 0;
 
   virtual uint32_t
   GetTypeInfo(lldb::opaque_compiler_type_t type,
@@ -380,7 +387,7 @@ public:
                            lldb::offset_t data_offset,
                            size_t data_byte_size) = 0;
 
-  // TODO: Determine if these methods should move to ClangASTContext.
+  // TODO: Determine if these methods should move to TypeSystemClang.
 
   virtual bool IsPointerOrReferenceType(lldb::opaque_compiler_type_t type,
                                         CompilerType *pointee_type) = 0;
@@ -509,4 +516,4 @@ protected:
 
 } // namespace lldb_private
 
-#endif // liblldb_TypeSystem_h_
+#endif // LLDB_SYMBOL_TYPESYSTEM_H

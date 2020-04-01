@@ -216,7 +216,7 @@ void X86InterleavedAccessGroup::decompose(
     Value *NewBasePtr =
         Builder.CreateGEP(VecBaseTy, VecBasePtr, Builder.getInt32(i));
     Instruction *NewLoad =
-        Builder.CreateAlignedLoad(VecBaseTy, NewBasePtr, LI->getAlignment());
+        Builder.CreateAlignedLoad(VecBaseTy, NewBasePtr, LI->getAlign());
     DecomposedVectors.push_back(NewLoad);
   }
 }
@@ -284,7 +284,7 @@ static void genShuffleBland(MVT VT, ArrayRef<uint32_t> Mask,
 static void reorderSubVector(MVT VT, SmallVectorImpl<Value *> &TransposedMatrix,
   ArrayRef<Value *> Vec, ArrayRef<uint32_t> VPShuf,
   unsigned VecElems, unsigned Stride,
-  IRBuilder<> Builder) {
+  IRBuilder<> &Builder) {
 
   if (VecElems == 16) {
     for (unsigned i = 0; i < Stride; i++)
@@ -519,7 +519,7 @@ static void DecodePALIGNRMask(MVT VT, unsigned Imm,
 // Invec[2] - |8|9|10|11|      Vec[2] - |2|5|8|11|
 
 static void concatSubVector(Value **Vec, ArrayRef<Instruction *> InVec,
-                            unsigned VecElems, IRBuilder<> Builder) {
+                            unsigned VecElems, IRBuilder<> &Builder) {
   if (VecElems == 16) {
     for (int i = 0; i < 3; i++)
       Vec[i] = InVec[i];
@@ -793,8 +793,7 @@ bool X86InterleavedAccessGroup::lowerIntoOptimizedSequence() {
 
   //   4. Generate a store instruction for wide-vec.
   StoreInst *SI = cast<StoreInst>(Inst);
-  Builder.CreateAlignedStore(WideVec, SI->getPointerOperand(),
-                             SI->getAlignment());
+  Builder.CreateAlignedStore(WideVec, SI->getPointerOperand(), SI->getAlign());
 
   return true;
 }

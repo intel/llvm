@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_CommandInterpreter_h_
-#define liblldb_CommandInterpreter_h_
+#ifndef LLDB_INTERPRETER_COMMANDINTERPRETER_H
+#define LLDB_INTERPRETER_COMMANDINTERPRETER_H
 
 #include "lldb/Core/Debugger.h"
 #include "lldb/Core/IOHandler.h"
@@ -428,13 +428,14 @@ public:
 
   void RunCommandInterpreter(bool auto_handle_events, bool spawn_thread,
                              CommandInterpreterRunOptions &options);
+
   void GetLLDBCommandsFromIOHandler(const char *prompt,
                                     IOHandlerDelegate &delegate,
-                                    bool asynchronously, void *baton);
+                                    void *baton = nullptr);
 
   void GetPythonCommandsFromIOHandler(const char *prompt,
                                       IOHandlerDelegate &delegate,
-                                      bool asynchronously, void *baton);
+                                      void *baton = nullptr);
 
   const char *GetCommandPrefix();
 
@@ -586,4 +587,4 @@ private:
 
 } // namespace lldb_private
 
-#endif // liblldb_CommandInterpreter_h_
+#endif // LLDB_INTERPRETER_COMMANDINTERPRETER_H

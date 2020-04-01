@@ -203,9 +203,10 @@ struct PartialInlinerImpl {
       function_ref<AssumptionCache *(Function &)> LookupAC,
       std::function<TargetTransformInfo &(Function &)> *GTTI,
       Optional<function_ref<BlockFrequencyInfo &(Function &)>> GBFI,
+      std::function<const TargetLibraryInfo &(Function &)> *GTLI,
       ProfileSummaryInfo *ProfSI)
       : GetAssumptionCache(GetAC), LookupAssumptionCache(LookupAC),
-        GetTTI(GTTI), GetBFI(GBFI), PSI(ProfSI) {}
+        GetTTI(GTTI), GetBFI(GBFI), GetTLI(GTLI), PSI(ProfSI) {}
 
   bool run(Module &M);
   // Main part of the transformation that calls helper functions to find
@@ -274,6 +275,7 @@ private:
   function_ref<AssumptionCache *(Function &)> LookupAssumptionCache;
   std::function<TargetTransformInfo &(Function &)> *GetTTI;
   Optional<function_ref<BlockFrequencyInfo &(Function &)>> GetBFI;
+  std::function<const TargetLibraryInfo &(Function &)> *GetTLI;
   ProfileSummaryInfo *PSI;
 
   // Return the frequency of the OutlininingBB relative to F's entry point.
@@ -355,6 +357,7 @@ struct PartialInlinerLegacyPass : public ModulePass {
     AU.addRequired<AssumptionCacheTracker>();
     AU.addRequired<ProfileSummaryInfoWrapperPass>();
     AU.addRequired<TargetTransformInfoWrapperPass>();
+    AU.addRequired<TargetLibraryInfoWrapperPass>();
   }
 
   bool runOnModule(Module &M) override {
@@ -381,8 +384,13 @@ struct PartialInlinerLegacyPass : public ModulePass {
       return TTIWP->getTTI(F);
     };
 
+    std::function<const TargetLibraryInfo &(Function &)> GetTLI =
+        [this](Function &F) -> TargetLibraryInfo & {
+      return this->getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F);
+    };
+
     return PartialInlinerImpl(&GetAssumptionCache, LookupAssumptionCache,
-                              &GetTTI, NoneType::None, PSI)
+                              &GetTTI, NoneType::None, &GetTLI, PSI)
         .run(M);
   }
 };
@@ -769,7 +777,7 @@ bool PartialInlinerImpl::shouldPartialInline(
   assert(Callee == Cloner.ClonedFunc);
 
   if (SkipCostAnalysis)
-    return isInlineViable(*Callee);
+    return isInlineViable(*Callee).isSuccess();
 
   Function *Caller = CS.getCaller();
   auto &CalleeTTI = (*GetTTI)(*Callee);
@@ -778,8 +786,8 @@ bool PartialInlinerImpl::shouldPartialInline(
           DEBUG_TYPE);
   assert(Call && "invalid callsite for partial inline");
   InlineCost IC = getInlineCost(cast<CallBase>(*Call), getInlineParams(),
-                                CalleeTTI, *GetAssumptionCache, GetBFI, PSI,
-                                RemarksEnabled ? &ORE : nullptr);
+                                CalleeTTI, *GetAssumptionCache, GetBFI, *GetTLI,
+                                PSI, RemarksEnabled ? &ORE : nullptr);
 
   if (IC.isAlways()) {
     ORE.emit([&]() {
@@ -1411,7 +1419,8 @@ bool PartialInlinerImpl::tryPartialInline(FunctionCloner &Cloner) {
     // bail on vararg functions.
     if (!InlineFunction(CS, IFI, nullptr, true,
                         (Cloner.ClonedOI ? Cloner.OutlinedFunctions.back().first
-                                         : nullptr)))
+                                         : nullptr))
+             .isSuccess())
       continue;
 
     CallerORE.emit(OR);
@@ -1492,6 +1501,7 @@ INITIALIZE_PASS_BEGIN(PartialInlinerLegacyPass, "partial-inliner",
 INITIALIZE_PASS_DEPENDENCY(AssumptionCacheTracker)
 INITIALIZE_PASS_DEPENDENCY(ProfileSummaryInfoWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(TargetTransformInfoWrapperPass)
+INITIALIZE_PASS_DEPENDENCY(TargetLibraryInfoWrapperPass)
 INITIALIZE_PASS_END(PartialInlinerLegacyPass, "partial-inliner",
                     "Partial Inliner", false, false)
 
@@ -1522,10 +1532,15 @@ PreservedAnalyses PartialInlinerPass::run(Module &M,
     return FAM.getResult<TargetIRAnalysis>(F);
   };
 
+  std::function<const TargetLibraryInfo &(Function &)> GetTLI =
+      [&FAM](Function &F) -> TargetLibraryInfo & {
+    return FAM.getResult<TargetLibraryAnalysis>(F);
+  };
+
   ProfileSummaryInfo *PSI = &AM.getResult<ProfileSummaryAnalysis>(M);
 
   if (PartialInlinerImpl(&GetAssumptionCache, LookupAssumptionCache, &GetTTI,
-                         {GetBFI}, PSI)
+                         {GetBFI}, &GetTLI, PSI)
           .run(M))
     return PreservedAnalyses::none();
   return PreservedAnalyses::all();

@@ -1,6 +1,6 @@
 //===-- SPIRVStructureOps.td - MLIR SPIR-V Structure Ops ---*- tablegen -*-===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -16,6 +16,10 @@
 #define SPIRV_STRUCTURE_OPS
 
 include "mlir/Dialect/SPIRV/SPIRVBase.td"
+include "mlir/Interfaces/CallInterfaces.td"
+include "mlir/Interfaces/SideEffects.td"
+
+// -----
 
 def SPV_AddressOfOp : SPV_Op<"_address_of", [InFunctionScope, NoSideEffect]> {
   let summary = "Get the address of a global variable.";
@@ -57,9 +61,13 @@ def SPV_AddressOfOp : SPV_Op<"_address_of", [InFunctionScope, NoSideEffect]> {
 
   let builders = [OpBuilder<[{Builder *builder, OperationState &state,
                               spirv::GlobalVariableOp var}]>];
+
+  let assemblyFormat = "$variable attr-dict `:` type($pointer)";
 }
 
-def SPV_ConstantOp : SPV_Op<"constant", [NoSideEffect]> {
+// -----
+
+def SPV_ConstantOp : SPV_Op<"constant", [ConstantLike, NoSideEffect]> {
   let summary = "The op that declares a SPIR-V normal constant";
 
   let description = [{
@@ -123,6 +131,8 @@ def SPV_ConstantOp : SPV_Op<"constant", [NoSideEffect]> {
   let autogenSerialization = 0;
 }
 
+// -----
+
 def SPV_EntryPointOp : SPV_Op<"EntryPoint", [InModuleScope]> {
   let summary = [{
     Declare an entry point, its execution model, and its interface.
@@ -180,10 +190,93 @@ def SPV_EntryPointOp : SPV_Op<"EntryPoint", [InModuleScope]> {
 
   let builders = [OpBuilder<[{Builder *builder, OperationState &state,
                               spirv::ExecutionModel executionModel,
-                              FuncOp function,
+                              spirv::FuncOp function,
                               ArrayRef<Attribute> interfaceVars}]>];
 }
 
+// -----
+
+def SPV_FuncOp : SPV_Op<"func", [
+    DeclareOpInterfaceMethods<CallableOpInterface>,
+    FunctionLike, InModuleScope, IsolatedFromAbove, Symbol
+  ]> {
+  let summary = "Declare or define a function";
+
+  let description = [{
+    This op declares or defines a SPIR-V function using one region, which
+    contains one or more blocks.
+
+    Different from the SPIR-V binary format, this op is not allowed to
+    implicitly capture global values, and all external references must use
+    function arguments or symbol references. This op itself defines a symbol
+    that is unique in the enclosing module op.
+
+    This op itself takes no operands and generates no results. Its region
+    can take zero or more arguments and return zero or one values.
+
+    ### Custom assembly form
+
+    ```
+    spv-function-control ::= "None" | "Inline" | "DontInline" | ...
+    spv-function-op ::= `spv.func` function-signature
+                         spv-function-control region
+    ```
+
+    For example:
+
+    ```
+    spv.func @foo() -> () "None" { ... }
+    spv.func @bar() -> () "Inline|Pure" { ... }
+    ```
+  }];
+
+  let arguments = (ins
+    TypeAttr:$type,
+    StrAttr:$sym_name,
+    SPV_FunctionControlAttr:$function_control
+  );
+
+  let results = (outs);
+
+  let regions = (region AnyRegion:$body);
+
+  let verifier = [{ return success(); }];
+
+  let builders = [OpBuilder<[{
+    Builder *, OperationState &state,
+    StringRef name, FunctionType type,
+    spirv::FunctionControl control = spirv::FunctionControl::None,
+    ArrayRef<NamedAttribute> attrs = {}
+  }]>];
+
+  let hasOpcode = 0;
+
+  let autogenSerialization = 0;
+
+  let extraClassDeclaration = [{
+  private:
+    // This trait needs access to the hooks defined below.
+    friend class OpTrait::FunctionLike<FuncOp>;
+
+    /// Returns the number of arguments. Hook for OpTrait::FunctionLike.
+    unsigned getNumFuncArguments() { return getType().getNumInputs(); }
+
+    /// Returns the number of results. Hook for OpTrait::FunctionLike.
+    unsigned getNumFuncResults() { return getType().getNumResults(); }
+
+    /// Hook for OpTrait::FunctionLike, called after verifying that the 'type'
+    /// attribute is present and checks if it holds a function type. Ensures
+    /// getType, getNumFuncArguments, and getNumFuncResults can be called safely
+    LogicalResult verifyType();
+
+    /// Hook for OpTrait::FunctionLike, called after verifying the function
+    /// type and the presence of the (potentially empty) function body.
+    /// Ensures SPIR-V specific semantics.
+    LogicalResult verifyBody();
+  }];
+}
+
+// -----
 
 def SPV_GlobalVariableOp : SPV_Op<"globalVariable", [InModuleScope, Symbol]> {
   let summary = [{
@@ -236,6 +329,8 @@ def SPV_GlobalVariableOp : SPV_Op<"globalVariable", [InModuleScope, Symbol]> {
     OptionalAttr<FlatSymbolRefAttr>:$initializer
   );
 
+  let results = (outs);
+
   let builders = [
     OpBuilder<"Builder *builder, OperationState &state, "
       "TypeAttr type, ArrayRef<NamedAttribute> namedAttrs", [{
@@ -249,8 +344,6 @@ def SPV_GlobalVariableOp : SPV_Op<"globalVariable", [InModuleScope, Symbol]> {
                 Type type, StringRef name, spirv::BuiltIn builtin}]>
   ];
 
-  let results = (outs);
-
   let hasOpcode = 0;
 
   let autogenSerialization = 0;
@@ -262,10 +355,12 @@ def SPV_GlobalVariableOp : SPV_Op<"globalVariable", [InModuleScope, Symbol]> {
   }];
 }
 
+// -----
+
 def SPV_ModuleOp : SPV_Op<"module",
                           [IsolatedFromAbove,
                            SingleBlockImplicitTerminator<"ModuleEndOp">,
-                           NativeOpTrait<"SymbolTable">]> {
+                           SymbolTable]> {
   let summary = "The top-level op that defines a SPIR-V module";
 
   let description = [{
@@ -287,25 +382,25 @@ def SPV_ModuleOp : SPV_Op<"module",
     ### Custom assembly form
 
     ```
-    addressing-model ::= `"Logical"` | `"Physical32"` | `"Physical64"`
-    memory-model ::= `"Simple"` | `"GLSL450"` | `"OpenCL"` | `"VulkanKHR"`
+    addressing-model ::= `Logical` | `Physical32` | `Physical64` | ...
+    memory-model ::= `Simple` | `GLSL450` | `OpenCL` | `Vulkan` | ...
     spv-module-op ::= `spv.module` addressing-model memory-model
-                      region
+                      (requires  spirv-vce-attribute)?
                       (`attributes` attribute-dict)?
+                      region
     ```
 
     For example:
 
     ```
-    spv.module "Logical" "VulkanKHR" { }
+    spv.module Logical GLSL450  {}
 
-    spv.module "Logical" "VulkanKHR" {
-      func @do_nothing() -> () {
+    spv.module Logical Vulkan
+        requires #spv.vce<v1.0, [Shader], [SPV_KHR_vulkan_memory_model]>
+        attributes { some_additional_attr = ... } {
+      spv.func @do_nothing() -> () {
         spv.Return
       }
-    } attributes {
-      capability = ["Shader"],
-      extension = ["SPV_KHR_16bit_storage"]
     }
     ```
   }];
@@ -313,26 +408,19 @@ def SPV_ModuleOp : SPV_Op<"module",
   let arguments = (ins
     SPV_AddressingModelAttr:$addressing_model,
     SPV_MemoryModelAttr:$memory_model,
-    OptionalAttr<StrArrayAttr>:$capabilities,
-    OptionalAttr<StrArrayAttr>:$extensions,
-    OptionalAttr<StrArrayAttr>:$extended_instruction_sets
+    OptionalAttr<SPV_VerCapExtAttr>:$vce_triple
   );
 
   let results = (outs);
 
   let regions = (region SizedRegion<1>:$body);
 
-  let builders =
-    [OpBuilder<"Builder *, OperationState &state">,
-     OpBuilder<[{Builder *, OperationState &state,
-                 IntegerAttr addressing_model,
-                 IntegerAttr memory_model}]>,
-     OpBuilder<[{Builder *, OperationState &state,
-                 spirv::AddressingModel addressing_model,
-                 spirv::MemoryModel memory_model,
-                 /*optional*/ ArrayRef<spirv::Capability> capabilities = {},
-                 /*optional*/ ArrayRef<spirv::Extension> extensions = {},
-                 /*optional*/ ArrayAttr extended_instruction_sets = nullptr}]>];
+  let builders = [
+    OpBuilder<[{Builder *, OperationState &state}]>,
+    OpBuilder<[{Builder *, OperationState &state,
+                spirv::AddressingModel addressing_model,
+                spirv::MemoryModel memory_model}]>
+  ];
 
   // We need to ensure the block inside the region is properly terminated;
   // the auto-generated builders do not guarantee that.
@@ -343,11 +431,15 @@ def SPV_ModuleOp : SPV_Op<"module",
   let autogenSerialization = 0;
 
   let extraClassDeclaration = [{
+    static StringRef getVCETripleAttrName() { return "vce_triple"; }
+
     Block& getBlock() {
       return this->getOperation()->getRegion(0).front();
     }
   }];
 }
+
+// -----
 
 def SPV_ModuleEndOp : SPV_Op<"_module_end", [InModuleScope, Terminator]> {
   let summary = "The pseudo op that ends a SPIR-V module";
@@ -363,8 +455,7 @@ def SPV_ModuleEndOp : SPV_Op<"_module_end", [InModuleScope, Terminator]> {
 
   let results = (outs);
 
-  let parser = [{ return parseNoIOOp(parser, result); }];
-  let printer = [{ printNoIOOp(getOperation(), p); }];
+  let assemblyFormat = "attr-dict";
 
   let verifier = [{ return success(); }];
 
@@ -372,6 +463,8 @@ def SPV_ModuleEndOp : SPV_Op<"_module_end", [InModuleScope, Terminator]> {
 
   let autogenSerialization = 0;
 }
+
+// -----
 
 def SPV_ReferenceOfOp : SPV_Op<"_reference_of", [NoSideEffect]> {
   let summary = "Reference a specialization constant.";
@@ -409,7 +502,11 @@ def SPV_ReferenceOfOp : SPV_Op<"_reference_of", [NoSideEffect]> {
   let hasOpcode = 0;
 
   let autogenSerialization = 0;
+
+  let assemblyFormat = "$spec_const attr-dict `:` type($reference)";
 }
+
+// -----
 
 def SPV_SpecConstantOp : SPV_Op<"specConstant", [InModuleScope, Symbol]> {
   let summary = "The op that declares a SPIR-V specialization constant";
@@ -457,5 +554,7 @@ def SPV_SpecConstantOp : SPV_Op<"specConstant", [InModuleScope, Symbol]> {
 
   let autogenSerialization = 0;
 }
+
+// -----
 
 #endif // SPIRV_STRUCTURE_OPS

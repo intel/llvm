@@ -17,6 +17,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/iterator_range.h"
+#include <initializer_list>
 #include <string>
 
 namespace llvm {
@@ -76,10 +77,12 @@ public:
     SPIRVTranslatorJobClass,
     SPIRCheckJobClass,
     SYCLPostLinkJobClass,
+    PartialLinkJobClass,
     BackendCompileJobClass,
+    FileTableTformJobClass,
 
     JobClassFirst = PreprocessJobClass,
-    JobClassLast = BackendCompileJobClass
+    JobClassLast = FileTableTformJobClass
   };
 
   // The offloading kind determines if this action is binded to a particular
@@ -613,7 +616,8 @@ private:
 
 public:
   // Offloading unbundling doesn't change the type of output.
-  OffloadUnbundlingJobAction(ActionList &Inputs);
+  OffloadUnbundlingJobAction(Action *Input);
+  OffloadUnbundlingJobAction(ActionList &Inputs, types::ID Type);
 
   /// Register information about a dependent action.
   void registerDependentActionInfo(const ToolChain *TC, StringRef BoundArch,
@@ -677,6 +681,25 @@ public:
   static bool classof(const Action *A) {
     return A->getKind() == SYCLPostLinkJobClass;
   }
+
+  void setRTSetsSpecConstants(bool Val) { RTSetsSpecConsts = Val; }
+
+  bool getRTSetsSpecConstants() const { return RTSetsSpecConsts; }
+
+private:
+  bool RTSetsSpecConsts = true;
+};
+
+class PartialLinkJobAction : public JobAction {
+  void anchor() override;
+
+public:
+  PartialLinkJobAction(Action *Input, types::ID OutputType);
+  PartialLinkJobAction(ActionList &Input, types::ID OutputType);
+
+  static bool classof(const Action *A) {
+    return A->getKind() == PartialLinkJobClass;
+  }
 };
 
 class BackendCompileJobAction : public JobAction {
@@ -689,6 +712,47 @@ public:
   static bool classof(const Action *A) {
     return A->getKind() == BackendCompileJobClass;
   }
+};
+
+// Represents a file table transformation action. The order of inputs to a
+// FileTableTformJobAction at construction time must accord with the tforms
+// added later - some tforms "consume" inputs. For example, "replace column"
+// needs another file to read the replacement column from.
+class FileTableTformJobAction : public JobAction {
+  void anchor() override;
+
+public:
+  struct Tform {
+    enum Kind { EXTRACT, EXTRACT_DROP_TITLE, REPLACE };
+
+    Tform() = default;
+    Tform(Kind K, std::initializer_list<StringRef> Args) : TheKind(K) {
+      for (auto A : Args)
+        TheArgs.emplace_back(A.str());
+    }
+
+    Kind TheKind;
+    SmallVector<std::string, 2> TheArgs;
+  };
+
+  FileTableTformJobAction(Action *Input, types::ID OutputType);
+  FileTableTformJobAction(ActionList &Inputs, types::ID OutputType);
+
+  // Deletes all columns except the one with given name.
+  void addExtractColumnTform(StringRef ColumnName, bool WithColTitle = true);
+
+  // Replaces a column with title <From> in this table with a column with title
+  // <To> from another file table passed as input to this action.
+  void addReplaceColumnTform(StringRef From, StringRef To);
+
+  static bool classof(const Action *A) {
+    return A->getKind() == FileTableTformJobClass;
+  }
+
+  const ArrayRef<Tform> getTforms() const { return Tforms; }
+
+private:
+  SmallVector<Tform, 2> Tforms; // transformation actions requested
 };
 
 } // namespace driver

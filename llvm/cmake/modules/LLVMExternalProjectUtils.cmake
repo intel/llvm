@@ -45,10 +45,18 @@ function(llvm_ExternalProject_Add name source_dir)
     "CMAKE_ARGS;TOOLCHAIN_TOOLS;RUNTIME_LIBRARIES;DEPENDS;EXTRA_TARGETS;PASSTHROUGH_PREFIXES;STRIP_TOOL"
     ${ARGN})
   canonicalize_tool_name(${name} nameCanon)
+
+  foreach(arg ${ARG_CMAKE_ARGS})
+    if(arg MATCHES "^-DCMAKE_SYSTEM_NAME=")
+      string(REGEX REPLACE "^-DCMAKE_SYSTEM_NAME=(.*)$" "\\1" _cmake_system_name "${arg}")
+    endif()
+  endforeach()
+
   if(NOT ARG_TOOLCHAIN_TOOLS)
-    set(ARG_TOOLCHAIN_TOOLS clang lld)
-    if(NOT APPLE AND NOT WIN32)
-      list(APPEND ARG_TOOLCHAIN_TOOLS llvm-ar llvm-lipo llvm-ranlib llvm-nm llvm-objcopy llvm-objdump llvm-strip)
+    set(ARG_TOOLCHAIN_TOOLS clang lld llvm-ar llvm-lipo llvm-ranlib llvm-nm llvm-objdump)
+    if(NOT _cmake_system_name STREQUAL Darwin)
+      # TODO: These tools don't fully support Mach-O format yet.
+      list(APPEND ARG_TOOLCHAIN_TOOLS llvm-objcopy llvm-strip)
     endif()
   endif()
   foreach(tool ${ARG_TOOLCHAIN_TOOLS})
@@ -104,20 +112,16 @@ function(llvm_ExternalProject_Add name source_dir)
     endforeach()
   endforeach()
 
-  foreach(arg ${ARG_CMAKE_ARGS})
-    if(arg MATCHES "^-DCMAKE_SYSTEM_NAME=")
-      string(REGEX REPLACE "^-DCMAKE_SYSTEM_NAME=(.*)$" "\\1" _cmake_system_name "${arg}")
-    endif()
-  endforeach()
-
   if(ARG_USE_TOOLCHAIN AND NOT CMAKE_CROSSCOMPILING)
     if(CLANG_IN_TOOLCHAIN)
       if(_cmake_system_name STREQUAL Windows)
         set(compiler_args -DCMAKE_C_COMPILER=${LLVM_RUNTIME_OUTPUT_INTDIR}/clang-cl${CMAKE_EXECUTABLE_SUFFIX}
-                          -DCMAKE_CXX_COMPILER=${LLVM_RUNTIME_OUTPUT_INTDIR}/clang-cl${CMAKE_EXECUTABLE_SUFFIX})
+                          -DCMAKE_CXX_COMPILER=${LLVM_RUNTIME_OUTPUT_INTDIR}/clang-cl${CMAKE_EXECUTABLE_SUFFIX}
+                          -DCMAKE_ASM_COMPILER=${LLVM_RUNTIME_OUTPUT_INTDIR}/clang-cl${CMAKE_EXECUTABLE_SUFFIX})
       else()
         set(compiler_args -DCMAKE_C_COMPILER=${LLVM_RUNTIME_OUTPUT_INTDIR}/clang${CMAKE_EXECUTABLE_SUFFIX}
-                          -DCMAKE_CXX_COMPILER=${LLVM_RUNTIME_OUTPUT_INTDIR}/clang++${CMAKE_EXECUTABLE_SUFFIX})
+                          -DCMAKE_CXX_COMPILER=${LLVM_RUNTIME_OUTPUT_INTDIR}/clang++${CMAKE_EXECUTABLE_SUFFIX}
+                          -DCMAKE_ASM_COMPILER=${LLVM_RUNTIME_OUTPUT_INTDIR}/clang${CMAKE_EXECUTABLE_SUFFIX})
       endif()
     endif()
     if(lld IN_LIST TOOLCHAIN_TOOLS)

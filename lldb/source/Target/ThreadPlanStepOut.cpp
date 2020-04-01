@@ -1,4 +1,4 @@
-//===-- ThreadPlanStepOut.cpp -----------------------------------*- C++ -*-===//
+//===-- ThreadPlanStepOut.cpp ---------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -130,12 +130,9 @@ ThreadPlanStepOut::ThreadPlanStepOut(
     uint32_t permissions = 0;
     if (!m_thread.GetProcess()->GetLoadAddressPermissions(m_return_addr,
                                                           permissions)) {
-      m_constructor_errors.Printf("Return address (0x%" PRIx64
-                                  ") permissions not found.",
-                                  m_return_addr);
-      LLDB_LOGF(log, "ThreadPlanStepOut(%p): %s", static_cast<void *>(this),
-                m_constructor_errors.GetData());
-      return;
+      LLDB_LOGF(log, "ThreadPlanStepOut(%p): Return address (0x%" PRIx64
+                ") permissions not found.", static_cast<void *>(this),
+                m_return_addr);
     } else if (!(permissions & ePermissionsExecutable)) {
       m_constructor_errors.Printf("Return address (0x%" PRIx64
                                   ") did not point to executable memory.",

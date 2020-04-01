@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.3)
 
-set(LLVM_SPIRV_VERSION 0.2.1.0)
+set (BASE_LLVM_VERSION 11.0.0)
+set(LLVM_SPIRV_VERSION ${BASE_LLVM_VERSION}.0)
 
 option(LLVM_SPIRV_INCLUDE_TESTS
   "Generate build targets for the llvm-spirv lit tests."
@@ -31,7 +32,7 @@ if(LLVM_SPIRV_BUILD_EXTERNAL)
     )
   endif(LLVM_SPIRV_INCLUDE_TESTS)
 
-  find_package(LLVM 10.0.0 REQUIRED
+  find_package(LLVM ${BASE_LLVM_VERSION} REQUIRED
     COMPONENTS
       Analysis
       BitReader

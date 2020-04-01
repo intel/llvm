@@ -11,14 +11,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "clang/StaticAnalyzer/Checkers/BuiltinCheckerRegistration.h"
 #include "InterCheckerAPI.h"
 #include "clang/Basic/CharInfo.h"
+#include "clang/StaticAnalyzer/Checkers/BuiltinCheckerRegistration.h"
 #include "clang/StaticAnalyzer/Core/BugReporter/BugType.h"
 #include "clang/StaticAnalyzer/Core/Checker.h"
 #include "clang/StaticAnalyzer/Core/CheckerManager.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/CallEvent.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/CheckerContext.h"
+#include "clang/StaticAnalyzer/Core/PathSensitive/DynamicSize.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/ProgramStateTrait.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
@@ -327,10 +328,8 @@ ProgramStateRef CStringChecker::CheckLocation(CheckerContext &C,
 
   // Get the size of the array.
   const SubRegion *superReg = cast<SubRegion>(ER->getSuperRegion());
-  SValBuilder &svalBuilder = C.getSValBuilder();
-  SVal Extent =
-    svalBuilder.convertToArrayIndex(superReg->getExtent(svalBuilder));
-  DefinedOrUnknownSVal Size = Extent.castAs<DefinedOrUnknownSVal>();
+  DefinedOrUnknownSVal Size =
+      getDynamicSize(state, superReg, C.getSValBuilder());
 
   // Get the index of the accessed element.
   DefinedOrUnknownSVal Idx = ER->getIndex().castAs<DefinedOrUnknownSVal>();
@@ -935,14 +934,12 @@ bool CStringChecker::IsFirstBufInBound(CheckerContext &C,
 
   // Get the size of the array.
   const SubRegion *superReg = cast<SubRegion>(ER->getSuperRegion());
-  SVal Extent =
-      svalBuilder.convertToArrayIndex(superReg->getExtent(svalBuilder));
-  DefinedOrUnknownSVal ExtentSize = Extent.castAs<DefinedOrUnknownSVal>();
+  DefinedOrUnknownSVal SizeDV = getDynamicSize(state, superReg, svalBuilder);
 
   // Get the index of the accessed element.
   DefinedOrUnknownSVal Idx = ER->getIndex().castAs<DefinedOrUnknownSVal>();
 
-  ProgramStateRef StInBound = state->assumeInBound(Idx, ExtentSize, true);
+  ProgramStateRef StInBound = state->assumeInBound(Idx, SizeDV, true);
 
   return static_cast<bool>(StInBound);
 }
@@ -1006,12 +1003,9 @@ ProgramStateRef CStringChecker::InvalidateBuffer(CheckerContext &C,
 
 bool CStringChecker::SummarizeRegion(raw_ostream &os, ASTContext &Ctx,
                                      const MemRegion *MR) {
-  const TypedValueRegion *TVR = dyn_cast<TypedValueRegion>(MR);
-
   switch (MR->getKind()) {
   case MemRegion::FunctionCodeRegionKind: {
-    const NamedDecl *FD = cast<FunctionCodeRegion>(MR)->getDecl();
-    if (FD)
+    if (const auto *FD = cast<FunctionCodeRegion>(MR)->getDecl())
       os << "the address of the function '" << *FD << '\'';
     else
       os << "the address of a function";
@@ -1025,16 +1019,20 @@ bool CStringChecker::SummarizeRegion(raw_ostream &os, ASTContext &Ctx,
     return true;
   case MemRegion::CXXThisRegionKind:
   case MemRegion::CXXTempObjectRegionKind:
-    os << "a C++ temp object of type " << TVR->getValueType().getAsString();
+    os << "a C++ temp object of type "
+       << cast<TypedValueRegion>(MR)->getValueType().getAsString();
     return true;
   case MemRegion::VarRegionKind:
-    os << "a variable of type" << TVR->getValueType().getAsString();
+    os << "a variable of type"
+       << cast<TypedValueRegion>(MR)->getValueType().getAsString();
     return true;
   case MemRegion::FieldRegionKind:
-    os << "a field of type " << TVR->getValueType().getAsString();
+    os << "a field of type "
+       << cast<TypedValueRegion>(MR)->getValueType().getAsString();
     return true;
   case MemRegion::ObjCIvarRegionKind:
-    os << "an instance variable of type " << TVR->getValueType().getAsString();
+    os << "an instance variable of type "
+       << cast<TypedValueRegion>(MR)->getValueType().getAsString();
     return true;
   default:
     return false;
@@ -1068,13 +1066,12 @@ bool CStringChecker::memsetAux(const Expr *DstBuffer, SVal CharVal,
   // For now we can only handle the case of offset is 0 and concrete char value.
   if (Offset.isValid() && !Offset.hasSymbolicOffset() &&
       Offset.getOffset() == 0) {
-    // Get the base region's extent.
-    auto *SubReg = cast<SubRegion>(BR);
-    DefinedOrUnknownSVal Extent = SubReg->getExtent(svalBuilder);
+    // Get the base region's size.
+    DefinedOrUnknownSVal SizeDV = getDynamicSize(State, BR, svalBuilder);
 
     ProgramStateRef StateWholeReg, StateNotWholeReg;
     std::tie(StateWholeReg, StateNotWholeReg) =
-        State->assume(svalBuilder.evalEQ(State, Extent, *SizeNL));
+        State->assume(svalBuilder.evalEQ(State, SizeDV, *SizeNL));
 
     // With the semantic of 'memset()', we should convert the CharVal to
     // unsigned char.

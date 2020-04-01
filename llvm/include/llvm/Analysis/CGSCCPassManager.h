@@ -418,6 +418,16 @@ LazyCallGraph::SCC &updateCGAndAnalysisManagerForFunctionPass(
     LazyCallGraph &G, LazyCallGraph::SCC &C, LazyCallGraph::Node &N,
     CGSCCAnalysisManager &AM, CGSCCUpdateResult &UR);
 
+/// Helper to update the call graph after running a CGSCC pass.
+///
+/// CGSCC passes can only mutate the call graph in specific ways. This
+/// routine provides a helper that updates the call graph in those ways
+/// including returning whether any changes were made and populating a CG
+/// update result struct for the overall CGSCC walk.
+LazyCallGraph::SCC &updateCGAndAnalysisManagerForCGSCCPass(
+    LazyCallGraph &G, LazyCallGraph::SCC &C, LazyCallGraph::Node &N,
+    CGSCCAnalysisManager &AM, CGSCCUpdateResult &UR);
+
 /// Adaptor that maps from a SCC to its functions.
 ///
 /// Designed to allow composition of a FunctionPass(Manager) and
@@ -484,7 +494,11 @@ public:
       if (!PI.runBeforePass<Function>(Pass, F))
         continue;
 
-      PreservedAnalyses PassPA = Pass.run(F, FAM);
+      PreservedAnalyses PassPA;
+      {
+        TimeTraceScope TimeScope(Pass.name());
+        PassPA = Pass.run(F, FAM);
+      }
 
       PI.runAfterPass<Function>(Pass, F);
 
@@ -860,7 +874,11 @@ ModuleToPostOrderCGSCCPassAdaptor<CGSCCPassT>::run(Module &M,
           if (!PI.runBeforePass<LazyCallGraph::SCC>(Pass, *C))
             continue;
 
-          PreservedAnalyses PassPA = Pass.run(*C, CGAM, CG, UR);
+          PreservedAnalyses PassPA;
+          {
+            TimeTraceScope TimeScope(Pass.name());
+            PassPA = Pass.run(*C, CGAM, CG, UR);
+          }
 
           if (UR.InvalidatedSCCs.count(C))
             PI.runAfterPassInvalidated<LazyCallGraph::SCC>(Pass);

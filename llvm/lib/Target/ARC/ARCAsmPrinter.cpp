@@ -41,12 +41,12 @@ public:
         MCInstLowering(&OutContext, *this) {}
 
   StringRef getPassName() const override { return "ARC Assembly Printer"; }
-  void EmitInstruction(const MachineInstr *MI) override;
+  void emitInstruction(const MachineInstr *MI) override;
 };
 
 } // end anonymous namespace
 
-void ARCAsmPrinter::EmitInstruction(const MachineInstr *MI) {
+void ARCAsmPrinter::emitInstruction(const MachineInstr *MI) {
   SmallString<128> Str;
   raw_svector_ostream O(Str);
 
@@ -62,6 +62,6 @@ void ARCAsmPrinter::EmitInstruction(const MachineInstr *MI) {
 }
 
 // Force static initialization.
-extern "C" void LLVMInitializeARCAsmPrinter() {
+extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeARCAsmPrinter() {
   RegisterAsmPrinter<ARCAsmPrinter> X(getTheARCTarget());
 }

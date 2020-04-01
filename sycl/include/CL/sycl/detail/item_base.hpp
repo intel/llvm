@@ -11,7 +11,7 @@
 #include <CL/sycl/id.hpp>
 #include <CL/sycl/range.hpp>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 template <int dimensions> class id;
 template <int dimensions> class range;
@@ -73,4 +73,4 @@ template <int Dims> struct ItemBase<Dims, false> {
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

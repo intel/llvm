@@ -19,6 +19,8 @@ namespace {
 llvm::json::Object encodeError(llvm::Error E) {
   std::string Message;
   ErrorCode Code = ErrorCode::UnknownErrorCode;
+  // FIXME: encode cancellation errors using RequestCancelled or ContentModified
+  // as appropriate.
   if (llvm::Error Unhandled = llvm::handleErrors(
           std::move(E), [&](const LSPError &L) -> llvm::Error {
             Message = L.Message;
@@ -34,7 +36,8 @@ llvm::json::Object encodeError(llvm::Error E) {
 }
 
 llvm::Error decodeError(const llvm::json::Object &O) {
-  std::string Msg = O.getString("message").getValueOr("Unspecified error");
+  std::string Msg =
+      std::string(O.getString("message").getValueOr("Unspecified error"));
   if (auto Code = O.getInteger("code"))
     return llvm::make_error<LSPError>(std::move(Msg), ErrorCode(*Code));
   return llvm::make_error<llvm::StringError>(std::move(Msg),

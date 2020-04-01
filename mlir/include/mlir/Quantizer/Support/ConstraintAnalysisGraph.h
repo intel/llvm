@@ -1,6 +1,6 @@
 //===- ConstraintAnalysisGraph.h - Graphs type for constraints --*- C++ -*-===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -221,7 +221,7 @@ public:
     return n->getKind() == Kind::Anchor || n->getKind() == Kind::ResultAnchor;
   }
 
-  Operation *getOp() const final { return resultValue->getDefiningOp(); }
+  Operation *getOp() const final { return resultValue.getDefiningOp(); }
   Value getValue() const final { return resultValue; }
 
   void printLabel(raw_ostream &os) const override;
