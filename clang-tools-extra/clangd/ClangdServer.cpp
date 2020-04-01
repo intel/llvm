@@ -654,14 +654,22 @@ void ClangdServer::symbolInfo(PathRef File, Position Pos,
   WorkScheduler.runWithAST("SymbolInfo", File, std::move(Action));
 }
 
-void ClangdServer::semanticRanges(PathRef File, Position Pos,
-                                  Callback<std::vector<Range>> CB) {
-  auto Action =
-      [Pos, CB = std::move(CB)](llvm::Expected<InputsAndAST> InpAST) mutable {
-        if (!InpAST)
-          return CB(InpAST.takeError());
-        CB(clangd::getSemanticRanges(InpAST->AST, Pos));
-      };
+void ClangdServer::semanticRanges(PathRef File,
+                                  const std::vector<Position> &Positions,
+                                  Callback<std::vector<SelectionRange>> CB) {
+  auto Action = [Positions, CB = std::move(CB)](
+                    llvm::Expected<InputsAndAST> InpAST) mutable {
+    if (!InpAST)
+      return CB(InpAST.takeError());
+    std::vector<SelectionRange> Result;
+    for (const auto &Pos : Positions) {
+      if (auto Range = clangd::getSemanticRanges(InpAST->AST, Pos))
+        Result.push_back(std::move(*Range));
+      else
+        return CB(Range.takeError());
+    }
+    CB(std::move(Result));
+  };
   WorkScheduler.runWithAST("SemanticRanges", File, std::move(Action));
 }
 
@@ -674,6 +682,18 @@ void ClangdServer::documentLinks(PathRef File,
         CB(clangd::getDocumentLinks(InpAST->AST));
       };
   WorkScheduler.runWithAST("DocumentLinks", File, std::move(Action),
+                           TUScheduler::InvalidateOnUpdate);
+}
+
+void ClangdServer::semanticHighlights(
+    PathRef File, Callback<std::vector<HighlightingToken>> CB) {
+  auto Action =
+      [CB = std::move(CB)](llvm::Expected<InputsAndAST> InpAST) mutable {
+        if (!InpAST)
+          return CB(InpAST.takeError());
+        CB(clangd::getSemanticHighlightings(InpAST->AST));
+      };
+  WorkScheduler.runWithAST("SemanticHighlights", File, std::move(Action),
                            TUScheduler::InvalidateOnUpdate);
 }
 

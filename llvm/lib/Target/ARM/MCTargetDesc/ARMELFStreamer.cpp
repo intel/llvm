@@ -177,7 +177,8 @@ void ARMTargetAsmStreamer::switchVendor(StringRef Vendor) {}
 void ARMTargetAsmStreamer::emitAttribute(unsigned Attribute, unsigned Value) {
   OS << "\t.eabi_attribute\t" << Attribute << ", " << Twine(Value);
   if (IsVerboseAsm) {
-    StringRef Name = ARMBuildAttrs::AttrTypeAsString(Attribute);
+    StringRef Name =
+        ELFAttrs::attrTypeAsString(Attribute, ARMBuildAttrs::ARMAttributeTags);
     if (!Name.empty())
       OS << "\t@ " << Name;
   }
@@ -193,7 +194,8 @@ void ARMTargetAsmStreamer::emitTextAttribute(unsigned Attribute,
   default:
     OS << "\t.eabi_attribute\t" << Attribute << ", \"" << String << "\"";
     if (IsVerboseAsm) {
-      StringRef Name = ARMBuildAttrs::AttrTypeAsString(Attribute);
+      StringRef Name = ELFAttrs::attrTypeAsString(
+          Attribute, ARMBuildAttrs::ARMAttributeTags);
       if (!Name.empty())
         OS << "\t@ " << Name;
     }
@@ -212,7 +214,9 @@ void ARMTargetAsmStreamer::emitIntTextAttribute(unsigned Attribute,
     if (!StringValue.empty())
       OS << ", \"" << StringValue << "\"";
     if (IsVerboseAsm)
-      OS << "\t@ " << ARMBuildAttrs::AttrTypeAsString(Attribute);
+      OS << "\t@ "
+         << ELFAttrs::attrTypeAsString(Attribute,
+                                       ARMBuildAttrs::ARMAttributeTags);
     break;
   }
   OS << "\n";
@@ -856,6 +860,7 @@ void ARMTargetELFStreamer::emitArchDefaultAttributes() {
   case ARM::ArchKind::ARMV8_3A:
   case ARM::ArchKind::ARMV8_4A:
   case ARM::ArchKind::ARMV8_5A:
+  case ARM::ArchKind::ARMV8_6A:
     setAttributeItem(CPU_arch_profile, ApplicationProfile, false);
     setAttributeItem(ARM_ISA_use, Allowed, false);
     setAttributeItem(THUMB_ISA_use, AllowThumb32, false);

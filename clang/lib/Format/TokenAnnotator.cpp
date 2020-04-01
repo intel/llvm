@@ -1047,7 +1047,7 @@ private:
                        Keywords.kw___has_include_next)) {
         parseHasInclude();
       }
-      if (Tok->is(Keywords.kw_where) && Tok->Next &&
+      if (Style.isCSharp() && Tok->is(Keywords.kw_where) && Tok->Next &&
           Tok->Next->isNot(tok::l_paren)) {
         Tok->Type = TT_CSharpGenericTypeConstraint;
         parseCSharpGenericTypeConstraint();
@@ -1060,15 +1060,20 @@ private:
   }
 
   void parseCSharpGenericTypeConstraint() {
+    int OpenAngleBracketsCount = 0;
     while (CurrentToken) {
       if (CurrentToken->is(tok::less)) {
         // parseAngle is too greedy and will consume the whole line.
         CurrentToken->Type = TT_TemplateOpener;
+        ++OpenAngleBracketsCount;
         next();
       } else if (CurrentToken->is(tok::greater)) {
         CurrentToken->Type = TT_TemplateCloser;
+        --OpenAngleBracketsCount;
         next();
-      } else if (CurrentToken->is(tok::comma)) {
+      } else if (CurrentToken->is(tok::comma) && OpenAngleBracketsCount == 0) {
+        // We allow line breaks after GenericTypeConstraintComma's
+        // so do not flag commas in Generics as GenericTypeConstraintComma's.
         CurrentToken->Type = TT_CSharpGenericTypeConstraintComma;
         next();
       } else if (CurrentToken->is(Keywords.kw_where)) {
@@ -2799,20 +2804,38 @@ bool TokenAnnotator::spaceRequiredBetween(const AnnotatedLine &Line,
                                     tok::l_square));
   if (Right.is(tok::star) && Left.is(tok::l_paren))
     return false;
-  if (Right.isOneOf(tok::star, tok::amp, tok::ampamp) &&
-      (Left.is(tok::identifier) || Left.isSimpleTypeSpecifier()) &&
-      // Space between the type and the * in:
-      //   operator void*()
-      //   operator char*()
-      //   operator /*comment*/ const char*()
-      //   operator volatile /*comment*/ char*()
-      //   operator Foo*()
-      // dependent on PointerAlignment style.
-      Left.Previous &&
-      (Left.Previous->endsSequence(tok::kw_operator) ||
-       Left.Previous->endsSequence(tok::kw_const, tok::kw_operator) ||
-       Left.Previous->endsSequence(tok::kw_volatile, tok::kw_operator)))
-    return (Style.PointerAlignment != FormatStyle::PAS_Left);
+  if (Right.isOneOf(tok::star, tok::amp, tok::ampamp)) {
+    const FormatToken *Previous = &Left;
+    while (Previous && !Previous->is(tok::kw_operator)) {
+      if (Previous->is(tok::identifier) || Previous->isSimpleTypeSpecifier()) {
+        Previous = Previous->getPreviousNonComment();
+        continue;
+      }
+      if (Previous->is(TT_TemplateCloser) && Previous->MatchingParen) {
+        Previous = Previous->MatchingParen->getPreviousNonComment();
+        continue;
+      }
+      if (Previous->is(tok::coloncolon)) {
+        Previous = Previous->getPreviousNonComment();
+        continue;
+      }
+      break;
+    }
+    // Space between the type and the * in:
+    //   operator void*()
+    //   operator char*()
+    //   operator /*comment*/ const char*()
+    //   operator volatile /*comment*/ char*()
+    //   operator Foo*()
+    //   operator C<T>*()
+    //   operator std::Foo*()
+    //   operator C<T>::D<U>*()
+    // dependent on PointerAlignment style.
+    if (Previous && (Previous->endsSequence(tok::kw_operator) ||
+       Previous->endsSequence(tok::kw_const, tok::kw_operator) ||
+       Previous->endsSequence(tok::kw_volatile, tok::kw_operator)))
+      return (Style.PointerAlignment != FormatStyle::PAS_Left);
+  }
   const auto SpaceRequiredForArrayInitializerLSquare =
       [](const FormatToken &LSquareTok, const FormatStyle &Style) {
         return Style.SpacesInContainerLiterals ||

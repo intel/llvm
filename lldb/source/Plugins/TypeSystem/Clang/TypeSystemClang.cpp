@@ -316,6 +316,10 @@ static ClangASTMap &GetASTMap() {
   return *g_map_ptr;
 }
 
+TypePayloadClang::TypePayloadClang(bool is_complete_objc_class) {
+  SetIsCompleteObjCClass(is_complete_objc_class);
+}
+
 char TypeSystemClang::ID;
 
 bool TypeSystemClang::IsOperator(llvm::StringRef name,
@@ -4661,6 +4665,7 @@ lldb::Encoding TypeSystemClang::GetEncoding(lldb::opaque_compiler_type_t type,
     case clang::BuiltinType::Kind::OCLReserveID:
     case clang::BuiltinType::Kind::OCLSampler:
     case clang::BuiltinType::Kind::OMPArraySection:
+    case clang::BuiltinType::Kind::OMPArrayShaping:
     case clang::BuiltinType::Kind::Overload:
     case clang::BuiltinType::Kind::PseudoObject:
     case clang::BuiltinType::Kind::UnknownAny:

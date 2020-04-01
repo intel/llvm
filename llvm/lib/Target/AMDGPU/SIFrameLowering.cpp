@@ -94,7 +94,7 @@ static void buildPrologSpill(LivePhysRegs &LiveRegs, MachineBasicBlock &MBB,
 
   MachineMemOperand *MMO = MF->getMachineMemOperand(
       MachinePointerInfo::getFixedStack(*MF, FI), MachineMemOperand::MOStore, 4,
-      MFI.getObjectAlignment(FI));
+      MFI.getObjectAlign(FI));
 
   if (isUInt<12>(Offset)) {
     BuildMI(MBB, I, DebugLoc(), TII->get(AMDGPU::BUFFER_STORE_DWORD_OFFSET))
@@ -141,7 +141,7 @@ static void buildEpilogReload(LivePhysRegs &LiveRegs, MachineBasicBlock &MBB,
 
   MachineMemOperand *MMO = MF->getMachineMemOperand(
       MachinePointerInfo::getFixedStack(*MF, FI), MachineMemOperand::MOLoad, 4,
-      MFI.getObjectAlignment(FI));
+      MFI.getObjectAlign(FI));
 
   if (isUInt<12>(Offset)) {
     BuildMI(MBB, I, DebugLoc(),
@@ -462,9 +462,9 @@ void SIFrameLowering::emitEntryFunctionScratchRsrcRegSetup(
     const MCInstrDesc &LoadDwordX4 = TII->get(AMDGPU::S_LOAD_DWORDX4_IMM);
     auto MMO = MF.getMachineMemOperand(PtrInfo,
                                        MachineMemOperand::MOLoad |
-                                       MachineMemOperand::MOInvariant |
-                                       MachineMemOperand::MODereferenceable,
-                                       16, 4);
+                                           MachineMemOperand::MOInvariant |
+                                           MachineMemOperand::MODereferenceable,
+                                       16, Align(4));
     unsigned Offset = Fn.getCallingConv() == CallingConv::AMDGPU_CS ? 16 : 0;
     const GCNSubtarget &Subtarget = MF.getSubtarget<GCNSubtarget>();
     unsigned EncodedOffset = AMDGPU::convertSMRDOffsetUnits(Subtarget, Offset);
@@ -499,11 +499,11 @@ void SIFrameLowering::emitEntryFunctionScratchRsrcRegSetup(
         const MCInstrDesc &LoadDwordX2 = TII->get(AMDGPU::S_LOAD_DWORDX2_IMM);
 
         MachinePointerInfo PtrInfo(AMDGPUAS::CONSTANT_ADDRESS);
-        auto MMO = MF.getMachineMemOperand(PtrInfo,
-                                           MachineMemOperand::MOLoad |
-                                           MachineMemOperand::MOInvariant |
-                                           MachineMemOperand::MODereferenceable,
-                                           8, 4);
+        auto MMO = MF.getMachineMemOperand(
+            PtrInfo,
+            MachineMemOperand::MOLoad | MachineMemOperand::MOInvariant |
+                MachineMemOperand::MODereferenceable,
+            8, Align(4));
         BuildMI(MBB, I, DL, LoadDwordX2, Rsrc01)
           .addReg(MFI->getImplicitBufferPtrUserSGPR())
           .addImm(0) // offset
@@ -1013,9 +1013,7 @@ MachineBasicBlock::iterator SIFrameLowering::eliminateCallFramePseudoInstr(
   uint64_t CalleePopAmount = IsDestroy ? I->getOperand(1).getImm() : 0;
 
   if (!hasReservedCallFrame(MF)) {
-    unsigned Align = getStackAlignment();
-
-    Amount = alignTo(Amount, Align);
+    Amount = alignTo(Amount, getStackAlign());
     assert(isUInt<32>(Amount) && "exceeded stack address space size");
     const SIMachineFunctionInfo *MFI = MF.getInfo<SIMachineFunctionInfo>();
     unsigned SPReg = MFI->getStackPtrOffsetReg();

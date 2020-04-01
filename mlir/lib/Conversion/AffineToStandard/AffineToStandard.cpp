@@ -258,7 +258,7 @@ static Value buildMinMaxReductionSeq(Location loc, CmpIPredicate predicate,
   return value;
 }
 
-/// Emit instructions that correspond to computing the maximum value amoung the
+/// Emit instructions that correspond to computing the maximum value among the
 /// values of a (potentially) multi-output affine map applied to `operands`.
 static Value lowerAffineMapMax(OpBuilder &builder, Location loc, AffineMap map,
                                ValueRange operands) {
@@ -267,7 +267,7 @@ static Value lowerAffineMapMax(OpBuilder &builder, Location loc, AffineMap map,
   return nullptr;
 }
 
-/// Emit instructions that correspond to computing the minimum value amoung the
+/// Emit instructions that correspond to computing the minimum value among the
 /// values of a (potentially) multi-output affine map applied to `operands`.
 static Value lowerAffineMapMin(OpBuilder &builder, Location loc, AffineMap map,
                                ValueRange operands) {
@@ -597,4 +597,4 @@ std::unique_ptr<OpPassBase<FuncOp>> mlir::createLowerAffinePass() {
 
 static PassRegistration<LowerAffinePass>
     pass("lower-affine",
-         "Lower If, For, AffineApply operations to primitive equivalents");
+         "Lower affine dialect operations to loop/standard dialect ones");

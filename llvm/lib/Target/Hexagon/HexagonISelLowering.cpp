@@ -729,7 +729,7 @@ HexagonTargetLowering::LowerDYNAMIC_STACKALLOC(SDValue Op,
   auto &HFI = *Subtarget.getFrameLowering();
   // "Zero" means natural stack alignment.
   if (A == 0)
-    A = HFI.getStackAlignment();
+    A = HFI.getStackAlign().value();
 
   LLVM_DEBUG({
     dbgs () << __func__ << " Align: " << A << " Size: ";
@@ -2909,10 +2909,10 @@ HexagonTargetLowering::LowerUnalignedLoad(SDValue Op, SelectionDAG &DAG)
   MachineMemOperand *WideMMO = nullptr;
   if (MachineMemOperand *MMO = LN->getMemOperand()) {
     MachineFunction &MF = DAG.getMachineFunction();
-    WideMMO = MF.getMachineMemOperand(MMO->getPointerInfo(), MMO->getFlags(),
-                    2*LoadLen, LoadLen, MMO->getAAInfo(), MMO->getRanges(),
-                    MMO->getSyncScopeID(), MMO->getOrdering(),
-                    MMO->getFailureOrdering());
+    WideMMO = MF.getMachineMemOperand(
+        MMO->getPointerInfo(), MMO->getFlags(), 2 * LoadLen, Align(LoadLen),
+        MMO->getAAInfo(), MMO->getRanges(), MMO->getSyncScopeID(),
+        MMO->getOrdering(), MMO->getFailureOrdering());
   }
 
   SDValue Load0 = DAG.getLoad(LoadTy, dl, Chain, Base0, WideMMO);

@@ -26,7 +26,6 @@
 #include "mlir/Conversion/StandardToSPIRV/ConvertStandardToSPIRVPass.h"
 #include "mlir/Dialect/Affine/Passes.h"
 #include "mlir/Dialect/FxpMathOps/Passes.h"
-#include "mlir/Dialect/FxpMathOps/Passes.h"
 #include "mlir/Dialect/GPU/Passes.h"
 #include "mlir/Dialect/LLVMIR/Transforms/LegalizeForExport.h"
 #include "mlir/Dialect/Linalg/Passes.h"
@@ -113,6 +112,7 @@ inline void registerAllPasses() {
   LLVM::createLegalizeForExportPass();
 
   // LoopOps
+  createParallelLoopCollapsingPass();
   createParallelLoopFusionPass();
   createParallelLoopSpecializationPass();
   createParallelLoopTilingPass();

@@ -190,6 +190,9 @@ class StdLibraryFunctionsChecker
     ProgramStateRef apply(ProgramStateRef State, const CallEvent &Call,
                           const Summary &Summary) const override {
       SVal V = getArgSVal(Call, getArgNo());
+      if (V.isUndef())
+        return State;
+
       DefinedOrUnknownSVal L = V.castAs<DefinedOrUnknownSVal>();
       if (!L.getAs<Loc>())
         return State;
@@ -939,7 +942,7 @@ void ento::registerStdCLibraryFunctionsChecker(CheckerManager &mgr) {
   mgr.registerChecker<StdLibraryFunctionsChecker>();
 }
 
-bool ento::shouldRegisterStdCLibraryFunctionsChecker(const LangOptions &LO) {
+bool ento::shouldRegisterStdCLibraryFunctionsChecker(const CheckerManager &mgr) {
   return true;
 }
 
@@ -952,6 +955,6 @@ bool ento::shouldRegisterStdCLibraryFunctionsChecker(const LangOptions &LO) {
         mgr.getCurrentCheckerName();                                           \
   }                                                                            \
                                                                                \
-  bool ento::shouldRegister##name(const LangOptions &LO) { return true; }
+  bool ento::shouldRegister##name(const CheckerManager &mgr) { return true; }
 
 REGISTER_CHECKER(StdCLibraryFunctionArgsChecker)

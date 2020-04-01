@@ -212,6 +212,8 @@ protected:
 
   unsigned ARMCDECoprocMask : 8;
 
+  unsigned MaxOpenCLWorkGroupSize;
+
   // TargetInfo Constructor.  Default initializes all fields.
   TargetInfo(const llvm::Triple &T);
 
@@ -273,7 +275,14 @@ public:
     //     void *__overflow_arg_area;
     //     void *__reg_save_area;
     //   } va_list[1];
-    SystemZBuiltinVaList
+    SystemZBuiltinVaList,
+
+    // typedef struct __va_list_tag {
+    //    void *__current_saved_reg_area_pointer;
+    //    void *__saved_reg_area_end_pointer;
+    //    void *__overflow_area_pointer;
+    //} va_list;
+    HexagonBuiltinVaList
   };
 
 protected:
@@ -655,6 +664,8 @@ public:
   /// value is type-specific, but this alignment can be used for most of the
   /// types for the given target.
   unsigned getSimdDefaultAlign() const { return SimdDefaultAlign; }
+
+  unsigned getMaxOpenCLWorkGroupSize() const { return MaxOpenCLWorkGroupSize; }
 
   /// Return the alignment (in bits) of the thrown exception object. This is
   /// only meaningful for targets that allocate C++ exceptions in a system
@@ -1205,6 +1216,10 @@ public:
     llvm_unreachable(
         "cpu_specific Multiversioning not implemented on this target");
   }
+
+  // Get the cache line size of a given cpu. This method switches over
+  // the given cpu and returns "None" if the CPU is not found.
+  virtual Optional<unsigned> getCPUCacheLineSize() const { return None; }
 
   // Returns maximal number of args passed in registers.
   unsigned getRegParmMax() const {

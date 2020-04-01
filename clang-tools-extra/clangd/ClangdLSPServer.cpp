@@ -150,21 +150,6 @@ llvm::Error validateEdits(const DraftStore &DraftMgr, const FileEdits &FE) {
           llvm::to_string(InvalidFileCount - 1) + " others)");
 }
 
-// Converts a list of Ranges to a LinkedList of SelectionRange.
-SelectionRange render(const std::vector<Range> &Ranges) {
-  if (Ranges.empty())
-    return {};
-  SelectionRange Result;
-  Result.range = Ranges[0];
-  auto *Next = &Result.parent;
-  for (const auto &R : llvm::make_range(Ranges.begin() + 1, Ranges.end())) {
-    *Next = std::make_unique<SelectionRange>();
-    Next->get()->range = R;
-    Next = &Next->get()->parent;
-  }
-  return Result;
-}
-
 } // namespace
 
 // MessageHandler dispatches incoming LSP messages.
@@ -473,6 +458,14 @@ void ClangdLSPServer::notify(llvm::StringRef Method, llvm::json::Value Params) {
   Transp.notify(Method, std::move(Params));
 }
 
+static std::vector<llvm::StringRef> semanticTokenTypes() {
+  std::vector<llvm::StringRef> Types;
+  for (unsigned I = 0; I <= static_cast<unsigned>(HighlightingKind::LastKind);
+       ++I)
+    Types.push_back(toSemanticTokenType(static_cast<HighlightingKind>(I)));
+  return Types;
+}
+
 void ClangdLSPServer::onInitialize(const InitializeParams &Params,
                                    Callback<llvm::json::Value> Reply) {
   // Determine character encoding first as it affects constructed ClangdServer.
@@ -583,6 +576,14 @@ void ClangdLSPServer::onInitialize(const InitializeParams &Params,
                  // We do extra checks for '>' and ':' in completion to only
                  // trigger on '->' and '::'.
                  {"triggerCharacters", {".", ">", ":"}},
+             }},
+            {"semanticTokensProvider",
+             llvm::json::Object{
+                 {"documentProvider", true},
+                 {"rangeProvider", false},
+                 {"legend",
+                  llvm::json::Object{{"tokenTypes", semanticTokenTypes()},
+                                     {"tokenModifiers", llvm::json::Array()}}},
              }},
             {"signatureHelpProvider",
              llvm::json::Object{
@@ -1206,24 +1207,13 @@ void ClangdLSPServer::onSymbolInfo(const TextDocumentPositionParams &Params,
 void ClangdLSPServer::onSelectionRange(
     const SelectionRangeParams &Params,
     Callback<std::vector<SelectionRange>> Reply) {
-  if (Params.positions.size() != 1) {
-    elog("{0} positions provided to SelectionRange. Supports exactly one "
-         "position.",
-         Params.positions.size());
-    return Reply(llvm::make_error<LSPError>(
-        "SelectionRange supports exactly one position",
-        ErrorCode::InvalidRequest));
-  }
   Server->semanticRanges(
-      Params.textDocument.uri.file(), Params.positions[0],
+      Params.textDocument.uri.file(), Params.positions,
       [Reply = std::move(Reply)](
-          llvm::Expected<std::vector<Range>> Ranges) mutable {
-        if (!Ranges) {
+          llvm::Expected<std::vector<SelectionRange>> Ranges) mutable {
+        if (!Ranges)
           return Reply(Ranges.takeError());
-        }
-        std::vector<SelectionRange> Result;
-        Result.emplace_back(render(std::move(*Ranges)));
-        return Reply(std::move(Result));
+        return Reply(std::move(*Ranges));
       });
 }
 
@@ -1243,6 +1233,20 @@ void ClangdLSPServer::onDocumentLink(
           return Reply(Links.takeError());
         }
         return Reply(std::move(Links));
+      });
+}
+
+void ClangdLSPServer::onSemanticTokens(const SemanticTokensParams &Params,
+                                       Callback<SemanticTokens> CB) {
+  Server->semanticHighlights(
+      Params.textDocument.uri.file(),
+      [CB(std::move(CB))](
+          llvm::Expected<std::vector<HighlightingToken>> Toks) mutable {
+        if (!Toks)
+          return CB(Toks.takeError());
+        SemanticTokens Result;
+        Result.data = toSemanticTokens(*Toks);
+        CB(std::move(Result));
       });
 }
 
@@ -1293,6 +1297,7 @@ ClangdLSPServer::ClangdLSPServer(
   MsgHandler->bind("typeHierarchy/resolve", &ClangdLSPServer::onResolveTypeHierarchy);
   MsgHandler->bind("textDocument/selectionRange", &ClangdLSPServer::onSelectionRange);
   MsgHandler->bind("textDocument/documentLink", &ClangdLSPServer::onDocumentLink);
+  MsgHandler->bind("textDocument/semanticTokens", &ClangdLSPServer::onSemanticTokens);
   // clang-format on
 }
 

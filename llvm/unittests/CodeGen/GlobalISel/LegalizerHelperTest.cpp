@@ -2578,7 +2578,7 @@ TEST_F(AArch64GISelMITest, BitcastLoad) {
   DefineLegalizerInfo(A, {});
 
   MachineMemOperand *MMO = B.getMF().getMachineMemOperand(
-    MachinePointerInfo(), MachineMemOperand::MOLoad, 4, 4);
+      MachinePointerInfo(), MachineMemOperand::MOLoad, 4, Align(4));
   auto Load = B.buildLoad(V4S8, Ptr, *MMO);
 
   AInfo Info(MF->getSubtarget());
@@ -2611,7 +2611,7 @@ TEST_F(AArch64GISelMITest, BitcastStore) {
   DefineLegalizerInfo(A, {});
 
   MachineMemOperand *MMO = B.getMF().getMachineMemOperand(
-    MachinePointerInfo(), MachineMemOperand::MOStore, 4, 4);
+      MachinePointerInfo(), MachineMemOperand::MOStore, 4, Align(4));
   auto Val = B.buildUndef(V4S8);
   auto Store = B.buildStore(Val, Ptr, *MMO);
 
@@ -2716,6 +2716,32 @@ TEST_F(AArch64GISelMITest, BitcastBitOps) {
   CHECK: [[CAST5:%[0-9]+]]:_(s32) = G_BITCAST [[VAL1]]
   CHECK: [[XOR:%[0-9]+]]:_(s32) = G_XOR [[CAST4]]:_, [[CAST5]]:_
   CHECK: [[CAST_XOR:%[0-9]+]]:_(<4 x s8>) = G_BITCAST [[XOR]]
+  )";
+
+  // Check
+  EXPECT_TRUE(CheckMachineFunction(*MF, CheckStr)) << *MF;
+}
+
+TEST_F(AArch64GISelMITest, CreateLibcall) {
+  setUp();
+  if (!TM)
+    return;
+
+  DefineLegalizerInfo(A, {});
+
+  AInfo Info(MF->getSubtarget());
+  DummyGISelObserver Observer;
+
+  LLVMContext &Ctx = MF->getFunction().getContext();
+  auto *RetTy = Type::getVoidTy(Ctx);
+
+  EXPECT_EQ(LegalizerHelper::LegalizeResult::Legalized,
+            createLibcall(B, "abort", {{}, RetTy}, {}, CallingConv::C));
+
+  auto CheckStr = R"(
+  CHECK: ADJCALLSTACKDOWN 0, 0, implicit-def $sp, implicit $sp
+  CHECK: BL &abort
+  CHECK: ADJCALLSTACKUP 0, 0, implicit-def $sp, implicit $sp
   )";
 
   // Check

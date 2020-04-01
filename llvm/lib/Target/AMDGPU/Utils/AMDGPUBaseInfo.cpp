@@ -268,6 +268,13 @@ unsigned getLocalMemorySize(const MCSubtargetInfo *STI) {
 }
 
 unsigned getEUsPerCU(const MCSubtargetInfo *STI) {
+  // "Per CU" really means "per whatever functional block the waves of a
+  // workgroup must share". For gfx10 in CU mode this is the CU, which contains
+  // two SIMDs.
+  if (isGFX10(*STI) && STI->getFeatureBits().test(FeatureCuMode))
+    return 2;
+  // Pre-gfx10 a CU contains four SIMDs. For gfx10 in WGP mode the WGP contains
+  // two CUs, so a total of four SIMDs.
   return 4;
 }
 
@@ -283,15 +290,6 @@ unsigned getMaxWorkGroupsPerCU(const MCSubtargetInfo *STI,
   return std::min(N, 16u);
 }
 
-unsigned getMaxWavesPerCU(const MCSubtargetInfo *STI) {
-  return getMaxWavesPerEU(STI) * getEUsPerCU(STI);
-}
-
-unsigned getMaxWavesPerCU(const MCSubtargetInfo *STI,
-                          unsigned FlatWorkGroupSize) {
-  return getWavesPerWorkGroup(STI, FlatWorkGroupSize);
-}
-
 unsigned getMinWavesPerEU(const MCSubtargetInfo *STI) {
   return 1;
 }
@@ -303,10 +301,10 @@ unsigned getMaxWavesPerEU(const MCSubtargetInfo *STI) {
   return 20;
 }
 
-unsigned getMaxWavesPerEU(const MCSubtargetInfo *STI,
-                          unsigned FlatWorkGroupSize) {
-  return alignTo(getMaxWavesPerCU(STI, FlatWorkGroupSize),
-                 getEUsPerCU(STI)) / getEUsPerCU(STI);
+unsigned getWavesPerEUForWorkGroup(const MCSubtargetInfo *STI,
+                                   unsigned FlatWorkGroupSize) {
+  return divideCeil(getWavesPerWorkGroup(STI, FlatWorkGroupSize),
+                    getEUsPerCU(STI));
 }
 
 unsigned getMinFlatWorkGroupSize(const MCSubtargetInfo *STI) {
@@ -320,8 +318,7 @@ unsigned getMaxFlatWorkGroupSize(const MCSubtargetInfo *STI) {
 
 unsigned getWavesPerWorkGroup(const MCSubtargetInfo *STI,
                               unsigned FlatWorkGroupSize) {
-  return alignTo(FlatWorkGroupSize, getWavefrontSize(STI)) /
-                 getWavefrontSize(STI);
+  return divideCeil(FlatWorkGroupSize, getWavefrontSize(STI));
 }
 
 unsigned getSGPRAllocGranule(const MCSubtargetInfo *STI) {

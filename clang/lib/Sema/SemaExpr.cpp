@@ -4816,6 +4816,78 @@ ExprResult Sema::ActOnOMPArraySectionExpr(Expr *Base, SourceLocation LBLoc,
                           VK_LValue, OK_Ordinary, ColonLoc, RBLoc);
 }
 
+ExprResult Sema::ActOnOMPArrayShapingExpr(Expr *Base, SourceLocation LParenLoc,
+                                          SourceLocation RParenLoc,
+                                          ArrayRef<Expr *> Dims,
+                                          ArrayRef<SourceRange> Brackets) {
+  if (Base->getType()->isPlaceholderType()) {
+    ExprResult Result = CheckPlaceholderExpr(Base);
+    if (Result.isInvalid())
+      return ExprError();
+    Result = DefaultLvalueConversion(Result.get());
+    if (Result.isInvalid())
+      return ExprError();
+    Base = Result.get();
+  }
+  QualType BaseTy = Base->getType();
+  // Delay analysis of the types/expressions if instantiation/specialization is
+  // required.
+  if (!BaseTy->isPointerType() && Base->isTypeDependent())
+    return OMPArrayShapingExpr::Create(Context, Context.DependentTy, Base,
+                                       LParenLoc, RParenLoc, Dims, Brackets);
+  if (!BaseTy->isPointerType())
+    return ExprError(Diag(Base->getExprLoc(),
+                          diag::err_omp_non_pointer_type_array_shaping_base)
+                     << Base->getSourceRange());
+  SmallVector<Expr *, 4> NewDims;
+  bool ErrorFound = false;
+  for (Expr *Dim : Dims) {
+    if (Dim->getType()->isPlaceholderType()) {
+      ExprResult Result = CheckPlaceholderExpr(Dim);
+      if (Result.isInvalid()) {
+        ErrorFound = true;
+        continue;
+      }
+      Result = DefaultLvalueConversion(Result.get());
+      if (Result.isInvalid()) {
+        ErrorFound = true;
+        continue;
+      }
+      Dim = Result.get();
+    }
+    if (!Dim->isTypeDependent()) {
+      ExprResult Result =
+          PerformOpenMPImplicitIntegerConversion(Dim->getExprLoc(), Dim);
+      if (Result.isInvalid()) {
+        ErrorFound = true;
+        Diag(Dim->getExprLoc(), diag::err_omp_typecheck_shaping_not_integer)
+            << Dim->getSourceRange();
+        continue;
+      }
+      Dim = Result.get();
+      Expr::EvalResult EvResult;
+      if (!Dim->isValueDependent() && Dim->EvaluateAsInt(EvResult, Context)) {
+        // OpenMP 5.0, [2.1.4 Array Shaping]
+        // Each si is an integral type expression that must evaluate to a
+        // positive integer.
+        llvm::APSInt Value = EvResult.Val.getInt();
+        if (!Value.isStrictlyPositive()) {
+          Diag(Dim->getExprLoc(), diag::err_omp_shaping_dimension_not_positive)
+              << Value.toString(/*Radix=*/10, /*Signed=*/true)
+              << Dim->getSourceRange();
+          ErrorFound = true;
+          continue;
+        }
+      }
+    }
+    NewDims.push_back(Dim);
+  }
+  if (ErrorFound)
+    return ExprError();
+  return OMPArrayShapingExpr::Create(Context, Context.OMPArrayShapingTy, Base,
+                                     LParenLoc, RParenLoc, NewDims, Brackets);
+}
+
 ExprResult
 Sema::CreateBuiltinArraySubscriptExpr(Expr *Base, SourceLocation LLoc,
                                       Expr *Idx, SourceLocation RLoc) {
@@ -5576,6 +5648,7 @@ static bool isPlaceholderToRemoveAsArg(QualType type) {
   case BuiltinType::BoundMember:
   case BuiltinType::BuiltinFn:
   case BuiltinType::OMPArraySection:
+  case BuiltinType::OMPArrayShaping:
     return true;
 
   }
@@ -5811,6 +5884,10 @@ ExprResult Sema::ActOnCallExpr(Scope *Scope, Expr *Fn, SourceLocation LParenLoc,
           << ULE->getName();
     }
   }
+
+  if (LangOpts.OpenMP)
+    Call = ActOnOpenMPCall(*this, Call, Scope, LParenLoc, ArgExprs, RParenLoc,
+                           ExecConfig);
 
   return Call;
 }
@@ -9219,7 +9296,13 @@ static bool tryGCCVectorConvertAndSplat(Sema &S, ExprResult *Scalar,
       // Reject cases where the scalar type is not a constant and has a higher
       // Order than the vector element type.
       llvm::APFloat Result(0.0);
-      bool CstScalar = Scalar->get()->EvaluateAsFloat(Result, S.Context);
+
+      // Determine whether this is a constant scalar. In the event that the
+      // value is dependent (and thus cannot be evaluated by the constant
+      // evaluator), skip the evaluation. This will then diagnose once the
+      // expression is instantiated.
+      bool CstScalar = Scalar->get()->isValueDependent() ||
+                       Scalar->get()->EvaluateAsFloat(Result, S.Context);
       int Order = S.Context.getFloatingTypeOrder(VectorEltTy, ScalarTy);
       if (!CstScalar && Order < 0)
         return true;
@@ -16125,9 +16208,6 @@ void Sema::MarkFunctionReferenced(SourceLocation Loc, FunctionDecl *Func,
 
     Func->markUsed(Context);
   }
-
-  if (LangOpts.OpenMP)
-    markOpenMPDeclareVariantFuncsReferenced(Loc, Func, MightBeOdrUse);
 }
 
 /// Directly mark a variable odr-used. Given a choice, prefer to use
@@ -18446,6 +18526,10 @@ ExprResult Sema::CheckPlaceholderExpr(Expr *E) {
     Diag(E->getBeginLoc(), diag::err_omp_array_section_use);
     return ExprError();
 
+  // Expressions of unknown type.
+  case BuiltinType::OMPArrayShaping:
+    return ExprError(Diag(E->getBeginLoc(), diag::err_omp_array_shaping_use));
+
   // Everything else should be impossible.
 #define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix) \
   case BuiltinType::Id:
@@ -18526,8 +18610,8 @@ bool Sema::IsDependentFunctionNameExpr(Expr *E) {
 
 ExprResult Sema::CreateRecoveryExpr(SourceLocation Begin, SourceLocation End,
                                     ArrayRef<Expr *> SubExprs) {
-  // RecoveryExpr is type-dependent to suppress bogus diagnostics and this trick
-  // does not work in C.
+  // FIXME: enable it for C++, RecoveryExpr is type-dependent to suppress
+  // bogus diagnostics and this trick does not work in C.
   // FIXME: use containsErrors() to suppress unwanted diags in C.
   if (!Context.getLangOpts().RecoveryAST)
     return ExprError();

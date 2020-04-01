@@ -916,12 +916,11 @@ void HexagonInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
   DebugLoc DL = MBB.findDebugLoc(I);
   MachineFunction &MF = *MBB.getParent();
   MachineFrameInfo &MFI = MF.getFrameInfo();
-  unsigned SlotAlign = MFI.getObjectAlignment(FI);
   unsigned KillFlag = getKillRegState(isKill);
 
   MachineMemOperand *MMO = MF.getMachineMemOperand(
       MachinePointerInfo::getFixedStack(MF, FI), MachineMemOperand::MOStore,
-      MFI.getObjectSize(FI), SlotAlign);
+      MFI.getObjectSize(FI), MFI.getObjectAlign(FI));
 
   if (Hexagon::IntRegsRegClass.hasSubClassEq(RC)) {
     BuildMI(MBB, I, DL, get(Hexagon::S2_storeri_io))
@@ -963,11 +962,10 @@ void HexagonInstrInfo::loadRegFromStackSlot(
   DebugLoc DL = MBB.findDebugLoc(I);
   MachineFunction &MF = *MBB.getParent();
   MachineFrameInfo &MFI = MF.getFrameInfo();
-  unsigned SlotAlign = MFI.getObjectAlignment(FI);
 
   MachineMemOperand *MMO = MF.getMachineMemOperand(
       MachinePointerInfo::getFixedStack(MF, FI), MachineMemOperand::MOLoad,
-      MFI.getObjectSize(FI), SlotAlign);
+      MFI.getObjectSize(FI), MFI.getObjectAlign(FI));
 
   if (Hexagon::IntRegsRegClass.hasSubClassEq(RC)) {
     BuildMI(MBB, I, DL, get(Hexagon::L2_loadri_io), DestReg)
@@ -1027,10 +1025,9 @@ bool HexagonInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   auto UseAligned = [&] (const MachineInstr &MI, unsigned NeedAlign) {
     if (MI.memoperands().empty())
       return false;
-    return all_of(MI.memoperands(),
-                  [NeedAlign] (const MachineMemOperand *MMO) {
-                    return NeedAlign <= MMO->getAlignment();
-                  });
+    return all_of(MI.memoperands(), [NeedAlign](const MachineMemOperand *MMO) {
+      return MMO->getAlign() >= NeedAlign;
+    });
   };
 
   switch (Opc) {
@@ -1374,7 +1371,8 @@ bool HexagonInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
       static const CrashPseudoSourceValue CrashPSV(*this);
       MachineMemOperand *MMO = MF.getMachineMemOperand(
           MachinePointerInfo(&CrashPSV),
-          MachineMemOperand::MOLoad | MachineMemOperand::MOVolatile, 8, 1);
+          MachineMemOperand::MOLoad | MachineMemOperand::MOVolatile, 8,
+          Align(1));
       BuildMI(MBB, MI, DL, get(Hexagon::PS_loadrdabs), Hexagon::D13)
         .addImm(0xBADC0FEE)  // Misaligned load.
         .addMemOperand(MMO);

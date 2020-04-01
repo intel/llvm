@@ -336,8 +336,8 @@ void Writer::addSections() {
   addSection(out.functionSec);
   addSection(out.tableSec);
   addSection(out.memorySec);
-  addSection(out.globalSec);
   addSection(out.eventSec);
+  addSection(out.globalSec);
   addSection(out.exportSec);
   addSection(out.startSec);
   addSection(out.elemSec);
@@ -520,9 +520,8 @@ void Writer::calculateExports() {
     StringRef name = sym->getName();
     WasmExport export_;
     if (auto *f = dyn_cast<DefinedFunction>(sym)) {
-      StringRef exportName = f->function->getExportName();
-      if (!exportName.empty()) {
-        name = exportName;
+      if (Optional<StringRef> exportName = f->function->getExportName()) {
+        name = *exportName;
       }
       export_ = {name, WASM_EXTERNAL_FUNCTION, f->getFunctionIndex()};
     } else if (auto *g = dyn_cast<DefinedGlobal>(sym)) {
@@ -966,8 +965,8 @@ void Writer::createSyntheticSections() {
   out.functionSec = make<FunctionSection>();
   out.tableSec = make<TableSection>();
   out.memorySec = make<MemorySection>();
-  out.globalSec = make<GlobalSection>();
   out.eventSec = make<EventSection>();
+  out.globalSec = make<GlobalSection>();
   out.exportSec = make<ExportSection>();
   out.startSec = make<StartSection>(segments.size());
   out.elemSec = make<ElemSection>();

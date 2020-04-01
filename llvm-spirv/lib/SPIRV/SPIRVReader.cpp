@@ -1936,9 +1936,9 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
       // Fastpath
       switch (ColNum) {
       case 2: {
-        Value *V1 = Builder.CreateShuffleVector(MCache[0], MCache[1], {0, 2});
+        Value *V1 = Builder.CreateShuffleVector(MCache[0], MCache[1], ArrayRef<int>({0, 2}));
         V = Builder.CreateInsertValue(V, V1, 0);
-        Value *V2 = Builder.CreateShuffleVector(MCache[0], MCache[1], {1, 3});
+        Value *V2 = Builder.CreateShuffleVector(MCache[0], MCache[1], ArrayRef<int>({1, 3}));
         V = Builder.CreateInsertValue(V, V2, 1);
         return mapValue(BV, V);
       }
@@ -1946,10 +1946,10 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
       case 4: {
         for (unsigned Idx = 0; Idx < 4; ++Idx) {
           Value *V1 =
-              Builder.CreateShuffleVector(MCache[0], MCache[1], {Idx, Idx + 4});
+              Builder.CreateShuffleVector(MCache[0], MCache[1], ArrayRef<uint32_t>({Idx, Idx + 4}));
           Value *V2 =
-              Builder.CreateShuffleVector(MCache[2], MCache[3], {Idx, Idx + 4});
-          Value *V3 = Builder.CreateShuffleVector(V1, V2, {0, 1, 2, 3});
+              Builder.CreateShuffleVector(MCache[2], MCache[3], ArrayRef<uint32_t>({Idx, Idx + 4}));
+          Value *V3 = Builder.CreateShuffleVector(V1, V2, ArrayRef<uint32_t>({0, 1, 2, 3}));
           V = Builder.CreateInsertValue(V, V3, Idx);
         }
         return mapValue(BV, V);

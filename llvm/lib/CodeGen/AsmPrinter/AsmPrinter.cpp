@@ -414,7 +414,7 @@ void AsmPrinter::emitLinkage(const GlobalValue *GV, MCSymbol *GVSym) const {
         OutStreamer->emitSymbolAttribute(GVSym, MCSA_WeakDefinition);
       else
         OutStreamer->emitSymbolAttribute(GVSym, MCSA_WeakDefAutoPrivate);
-    } else if (MAI->hasLinkOnceDirective()) {
+    } else if (MAI->avoidWeakIfComdat() && GV->hasComdat()) {
       // .globl _foo
       OutStreamer->emitSymbolAttribute(GVSym, MCSA_Global);
       //NOTE: linkonce is handled by the section the symbol was assigned to.
@@ -1747,8 +1747,8 @@ void AsmPrinter::SetupMachineFunction(MachineFunction &MF) {
                                " initalized first.");
 
     // Get the function entry point symbol.
-    CurrentFnSym =
-        OutContext.getOrCreateSymbol("." + CurrentFnDescSym->getName());
+    CurrentFnSym = OutContext.getOrCreateSymbol(
+        "." + cast<MCSymbolXCOFF>(CurrentFnDescSym)->getUnqualifiedName());
 
     // Set the containing csect.
     MCSectionXCOFF *FnEntryPointSec =

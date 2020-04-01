@@ -222,9 +222,10 @@ public:
   /// \returns Maximum flat work group size supported by the subtarget.
   virtual unsigned getMaxFlatWorkGroupSize() const = 0;
 
-  /// \returns Maximum number of waves per execution unit supported by the
-  /// subtarget and limited by given \p FlatWorkGroupSize.
-  virtual unsigned getMaxWavesPerEU(unsigned FlatWorkGroupSize) const  = 0;
+  /// \returns Number of waves per execution unit required to support the given
+  /// \p FlatWorkGroupSize.
+  virtual unsigned
+  getWavesPerEUForWorkGroup(unsigned FlatWorkGroupSize) const = 0;
 
   /// \returns Minimum number of waves per execution unit supported by the
   /// subtarget.
@@ -912,30 +913,6 @@ public:
   void setScalarizeGlobalBehavior(bool b) { ScalarizeGlobal = b; }
   bool getScalarizeGlobalBehavior() const { return ScalarizeGlobal; }
 
-  /// \returns Number of execution units per compute unit supported by the
-  /// subtarget.
-  unsigned getEUsPerCU() const {
-    return AMDGPU::IsaInfo::getEUsPerCU(this);
-  }
-
-  /// \returns Maximum number of waves per compute unit supported by the
-  /// subtarget without any kind of limitation.
-  unsigned getMaxWavesPerCU() const {
-    return AMDGPU::IsaInfo::getMaxWavesPerCU(this);
-  }
-
-  /// \returns Maximum number of waves per compute unit supported by the
-  /// subtarget and limited by given \p FlatWorkGroupSize.
-  unsigned getMaxWavesPerCU(unsigned FlatWorkGroupSize) const {
-    return AMDGPU::IsaInfo::getMaxWavesPerCU(this, FlatWorkGroupSize);
-  }
-
-  /// \returns Number of waves per work group supported by the subtarget and
-  /// limited by given \p FlatWorkGroupSize.
-  unsigned getWavesPerWorkGroup(unsigned FlatWorkGroupSize) const {
-    return AMDGPU::IsaInfo::getWavesPerWorkGroup(this, FlatWorkGroupSize);
-  }
-
   // static wrappers
   static bool hasHalfRate64Ops(const TargetSubtargetInfo &STI);
 
@@ -1227,10 +1204,11 @@ public:
     return AMDGPU::IsaInfo::getMaxFlatWorkGroupSize(this);
   }
 
-  /// \returns Maximum number of waves per execution unit supported by the
-  /// subtarget and limited by given \p FlatWorkGroupSize.
-  unsigned getMaxWavesPerEU(unsigned FlatWorkGroupSize) const override {
-    return AMDGPU::IsaInfo::getMaxWavesPerEU(this, FlatWorkGroupSize);
+  /// \returns Number of waves per execution unit required to support the given
+  /// \p FlatWorkGroupSize.
+  unsigned
+  getWavesPerEUForWorkGroup(unsigned FlatWorkGroupSize) const override {
+    return AMDGPU::IsaInfo::getWavesPerEUForWorkGroup(this, FlatWorkGroupSize);
   }
 
   /// \returns Minimum number of waves per execution unit supported by the
@@ -1364,10 +1342,11 @@ public:
     return AMDGPU::IsaInfo::getMaxFlatWorkGroupSize(this);
   }
 
-  /// \returns Maximum number of waves per execution unit supported by the
-  /// subtarget and limited by given \p FlatWorkGroupSize.
-  unsigned getMaxWavesPerEU(unsigned FlatWorkGroupSize) const override {
-    return AMDGPU::IsaInfo::getMaxWavesPerEU(this, FlatWorkGroupSize);
+  /// \returns Number of waves per execution unit required to support the given
+  /// \p FlatWorkGroupSize.
+  unsigned
+  getWavesPerEUForWorkGroup(unsigned FlatWorkGroupSize) const override {
+    return AMDGPU::IsaInfo::getWavesPerEUForWorkGroup(this, FlatWorkGroupSize);
   }
 
   /// \returns Minimum number of waves per execution unit supported by the

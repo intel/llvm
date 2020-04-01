@@ -893,7 +893,7 @@ void HexagonFrameLowering::insertAllocframe(MachineBasicBlock &MBB,
   // Create a dummy memory operand to avoid allocframe from being treated as
   // a volatile memory reference.
   auto *MMO = MF.getMachineMemOperand(MachinePointerInfo::getStack(MF, 0),
-                                      MachineMemOperand::MOStore, 4, 4);
+                                      MachineMemOperand::MOStore, 4, Align(4));
 
   DebugLoc dl = MBB.findDebugLoc(InsertPt);
   unsigned SP = HRI.getStackRegister();
@@ -1547,12 +1547,11 @@ void HexagonFrameLowering::processFunctionBeforeFrameFinalized(
           if (auto *FS = dyn_cast_or_null<FixedStackPseudoSourceValue>(PV)) {
             int FI = FS->getFrameIndex();
             if (DealignSlots.count(FI)) {
-              unsigned A = MFI.getObjectAlignment(FI);
-              auto *NewMMO = MF.getMachineMemOperand(MMO->getPointerInfo(),
-                                MMO->getFlags(), MMO->getSize(), A,
-                                MMO->getAAInfo(), MMO->getRanges(),
-                                MMO->getSyncScopeID(), MMO->getOrdering(),
-                                MMO->getFailureOrdering());
+              auto *NewMMO = MF.getMachineMemOperand(
+                  MMO->getPointerInfo(), MMO->getFlags(), MMO->getSize(),
+                  MFI.getObjectAlign(FI), MMO->getAAInfo(), MMO->getRanges(),
+                  MMO->getSyncScopeID(), MMO->getOrdering(),
+                  MMO->getFailureOrdering());
               new_memops.push_back(NewMMO);
               KeepOld = false;
               continue;
@@ -1711,9 +1710,8 @@ bool HexagonFrameLowering::assignCalleeSavedSpillSlots(MachineFunction &MF,
     const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(R);
     unsigned Size = TRI->getSpillSize(*RC);
     int Off = MinOffset - Size;
-    unsigned Align = std::min(TRI->getSpillAlignment(*RC), getStackAlignment());
-    assert(isPowerOf2_32(Align));
-    Off &= -Align;
+    Align Alignment = std::min(TRI->getSpillAlign(*RC), getStackAlign());
+    Off &= -Alignment.value();
     int FI = MFI.CreateFixedSpillStackObject(Size, Off);
     MinOffset = std::min(MinOffset, Off);
     CSI.push_back(CalleeSavedInfo(R, FI));

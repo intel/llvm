@@ -607,6 +607,7 @@ class MVE_VADDV<string iname, string suffix, dag iops, string cstr,
   let Inst{3-1} = Qm{2-0};
   let Inst{0} = 0b0;
   let horizontalReduction = 1;
+  let validForTailPredication = 1;
 }
 
 def ARMVADDVs       : SDNode<"ARMISD::VADDVs", SDTVecReduce>;
@@ -2389,6 +2390,8 @@ let Predicates = [HasMVEInt] in {
             (v8i16 (MVE_VMOVimmi16 nImmSplatI16:$simm))>;
   def : Pat<(v4i32 (ARMvmovImm timm:$simm)),
             (v4i32 (MVE_VMOVimmi32 nImmVMOVI32:$simm))>;
+  def : Pat<(v2i64 (ARMvmovImm timm:$simm)),
+            (v2i64 (MVE_VMOVimmi64 nImmSplatI64:$simm))>;
 
   def : Pat<(v8i16 (ARMvmvnImm timm:$simm)),
             (v8i16 (MVE_VMVNimmi16 nImmSplatI16:$simm))>;
@@ -2513,6 +2516,7 @@ class MVE_VMOVL<string iname, string suffix, bits<2> sz, bit U, bit top,
   let Inst{11-6} = 0b111101;
   let Inst{4} = 0b0;
   let Inst{0} = 0b0;
+  let doubleWidthResult = 1;
 }
 
 multiclass MVE_VMOVL_m<bit top, string chr, MVEVectorVTInfo OutVTI,
@@ -2580,6 +2584,8 @@ class MVE_VSHLL_imm<string iname, string suffix, bit U, bit th,
 
   // For the MVE_VSHLL_patterns multiclass to refer to
   Operand immediateType = immtype;
+
+  let doubleWidthResult = 1;
 }
 
 // The immediate VSHLL instructions accept shift counts from 1 up to
@@ -2623,6 +2629,7 @@ class MVE_VSHLL_by_lane_width<string iname, string suffix, bits<2> size,
   let Inst{11-6} = 0b111000;
   let Inst{4} = 0b0;
   let Inst{0} = 0b1;
+  let doubleWidthResult = 1;
 }
 
 multiclass MVE_VSHLL_lw<string iname, string suffix, bits<2> sz, bit U,
@@ -4101,7 +4108,7 @@ multiclass unpred_vcmpf_z<PatLeaf fc> {
                 (v4i1 (MVE_VCMPf32r (v4f32 MQPR:$v1), ZR, fc))>;
 
   def : Pat<(v8i1 (and (v8i1 VCCR:$p1), (v8i1 (ARMvcmpz (v8f16 MQPR:$v1), fc)))),
-            (v8i1 (MVE_VCMPf32r (v8f16 MQPR:$v1), ZR, fc, ARMVCCThen, VCCR:$p1))>;
+            (v8i1 (MVE_VCMPf16r (v8f16 MQPR:$v1), ZR, fc, ARMVCCThen, VCCR:$p1))>;
   def : Pat<(v4i1 (and (v4i1 VCCR:$p1), (v4i1 (ARMvcmpz (v4f32 MQPR:$v1), fc)))),
             (v4i1 (MVE_VCMPf32r (v4f32 MQPR:$v1), ZR, fc, ARMVCCThen, VCCR:$p1))>;
 }
@@ -4357,6 +4364,7 @@ class MVE_VMULL<string iname, string suffix, bit bit_28, bits<2> bits_21_20,
   let Inst{7} = Qn{3};
   let Inst{0} = 0b0;
   let validForTailPredication = 1;
+  let doubleWidthResult = 1;
 }
 
 multiclass MVE_VMULL_m<MVEVectorVTInfo VTI,
@@ -4731,6 +4739,7 @@ class MVE_VQDMULL<string iname, string suffix, bit size, bit T,
   let Inst{7} = Qn{3};
   let Inst{0} = 0b1;
   let validForTailPredication = 1;
+  let doubleWidthResult = 1;
 }
 
 multiclass MVE_VQDMULL_m<string iname, MVEVectorVTInfo VTI, bit size, bit T,
@@ -4937,6 +4946,7 @@ class MVE_VQDMULL_qr<string iname, string suffix, bit size,
   let Inst{8} = 0b1;
   let Inst{5} = 0b1;
   let validForTailPredication = 1;
+  let doubleWidthResult = 1;
 }
 
 multiclass MVE_VQDMULL_qr_m<string iname, MVEVectorVTInfo VTI, bit size,

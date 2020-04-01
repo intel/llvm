@@ -1144,7 +1144,17 @@ void LinkerDriver::link(ArrayRef<const char *> argsArr) {
     return;
   }
 
-  lld::threadsEnabled = args.hasFlag(OPT_threads, OPT_threads_no, true);
+  // /threads: takes a positive integer and provides the default value for
+  // /opt:lldltojobs=.
+  if (auto *arg = args.getLastArg(OPT_threads)) {
+    StringRef v(arg->getValue());
+    unsigned threads = 0;
+    if (!llvm::to_integer(v, threads, 0) || threads == 0)
+      error(arg->getSpelling() + ": expected a positive integer, but got '" +
+            arg->getValue() + "'");
+    parallel::strategy = hardware_concurrency(threads);
+    config->thinLTOJobs = v.str();
+  }
 
   if (args.hasArg(OPT_show_timing))
     config->showTiming = true;
@@ -1417,9 +1427,9 @@ void LinkerDriver::link(ArrayRef<const char *> argsArr) {
           error("/opt:lldlto: invalid optimization level: " + optLevel);
       } else if (s.startswith("lldltojobs=")) {
         StringRef jobs = s.substr(11);
-        if (jobs.getAsInteger(10, config->thinLTOJobs) ||
-            config->thinLTOJobs == 0)
+        if (!get_threadpool_strategy(jobs))
           error("/opt:lldltojobs: invalid job count: " + jobs);
+        config->thinLTOJobs = jobs.str();
       } else if (s.startswith("lldltopartitions=")) {
         StringRef n = s.substr(17);
         if (n.getAsInteger(10, config->ltoPartitions) ||
