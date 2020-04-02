@@ -12661,7 +12661,7 @@ void Sema::CheckCompleteVariableDeclaration(VarDecl *var) {
   }
 
   if (getLangOpts().SYCLIsDevice)
-    CheckVarDeclOKIfInKernel(var);
+    checkSYCLVarDeclIfInKernel(var);
 
   // In Objective-C, don't allow jumps past the implicit initialization of a
   // local retaining variable.

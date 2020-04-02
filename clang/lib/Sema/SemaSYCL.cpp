@@ -200,7 +200,7 @@ bool Sema::isKnownGoodSYCLDecl(const Decl *D) {
   return false;
 }
 
-bool isArraySizedZero(QualType Ty) {
+bool isZeroSizedArray(QualType Ty) {
   if (const auto *CATy = dyn_cast<ConstantArrayType>(Ty)) {
     const llvm::APInt size = CATy->getSize();
     return size == 0;
@@ -208,12 +208,12 @@ bool isArraySizedZero(QualType Ty) {
   return false;
 }
 
-void Sema::CheckVarDeclOKIfInKernel(VarDecl *var) {
+void Sema::checkSYCLVarDeclIfInKernel(VarDecl *Var) {
   // not all variable types supported in kernel contexts
   // if not we record a deferred diagnostic.
   if (getLangOpts().SYCLIsDevice) {
-    QualType Ty = var->getType();
-    SourceRange Loc = var->getLocation();
+    QualType Ty = Var->getType();
+    SourceRange Loc = Var->getLocation();
 
     // __int128, __int128_t, __uint128_t
     if (Ty->isSpecificBuiltinType(BuiltinType::Int128) ||
@@ -228,7 +228,7 @@ void Sema::CheckVarDeclOKIfInKernel(VarDecl *var) {
           << "__float128";
 
     // zero length arrays
-    if (Ty->isArrayType() && isArraySizedZero(Ty))
+    if (Ty->isArrayType() && isZeroSizedArray(Ty))
       SYCLDiagIfDeviceCode(Loc.getBegin(), diag::err_typecheck_zero_array_size);
 
     // TODO: check type of accessor
