@@ -8978,6 +8978,7 @@ bool AArch64TargetLowering::getTgtMemIntrinsic(IntrinsicInfo &Info,
     Info.align = Align(16);
     Info.flags = MachineMemOperand::MOStore | MachineMemOperand::MOVolatile;
     return true;
+  case Intrinsic::aarch64_sve_ld1:
   case Intrinsic::aarch64_sve_ldnt1: {
     PointerType *PtrTy = cast<PointerType>(I.getArgOperand(1)->getType());
     Info.opc = ISD::INTRINSIC_W_CHAIN;
@@ -8985,9 +8986,12 @@ bool AArch64TargetLowering::getTgtMemIntrinsic(IntrinsicInfo &Info,
     Info.ptrVal = I.getArgOperand(1);
     Info.offset = 0;
     Info.align = MaybeAlign(DL.getABITypeAlignment(PtrTy->getElementType()));
-    Info.flags = MachineMemOperand::MOLoad | MachineMemOperand::MONonTemporal;
+    Info.flags = MachineMemOperand::MOLoad;
+    if (Intrinsic == Intrinsic::aarch64_sve_ldnt1)
+      Info.flags |= MachineMemOperand::MONonTemporal;
     return true;
   }
+  case Intrinsic::aarch64_sve_st1:
   case Intrinsic::aarch64_sve_stnt1: {
     PointerType *PtrTy = cast<PointerType>(I.getArgOperand(2)->getType());
     Info.opc = ISD::INTRINSIC_W_CHAIN;
@@ -8995,7 +8999,9 @@ bool AArch64TargetLowering::getTgtMemIntrinsic(IntrinsicInfo &Info,
     Info.ptrVal = I.getArgOperand(2);
     Info.offset = 0;
     Info.align = MaybeAlign(DL.getABITypeAlignment(PtrTy->getElementType()));
-    Info.flags = MachineMemOperand::MOStore | MachineMemOperand::MONonTemporal;
+    Info.flags = MachineMemOperand::MOStore;
+    if (Intrinsic == Intrinsic::aarch64_sve_stnt1)
+      Info.flags |= MachineMemOperand::MONonTemporal;
     return true;
   }
   default:
@@ -11514,7 +11520,7 @@ static MVT getSVEContainerType(EVT ContentTy) {
   }
 }
 
-static SDValue performLDNT1Combine(SDNode *N, SelectionDAG &DAG) {
+static SDValue performLD1Combine(SDNode *N, SelectionDAG &DAG) {
   SDLoc DL(N);
   EVT VT = N->getValueType(0);
   EVT PtrTy = N->getOperand(3).getValueType();
@@ -11539,7 +11545,7 @@ static SDValue performLDNT1Combine(SDNode *N, SelectionDAG &DAG) {
   return L;
 }
 
-static SDValue performSTNT1Combine(SDNode *N, SelectionDAG &DAG) {
+static SDValue performST1Combine(SDNode *N, SelectionDAG &DAG) {
   SDLoc DL(N);
 
   SDValue Data = N->getOperand(2);
@@ -12995,9 +13001,9 @@ static SDValue legalizeSVEGatherPrefetchOffsVec(SDNode *N, SelectionDAG &DAG) {
   return DAG.getNode(N->getOpcode(), DL, DAG.getVTList(MVT::Other), Ops);
 }
 
-/// Combines a node carrying the intrinsic `aarch64_sve_gather_prf<T>` into a
-/// node that uses `aarch64_sve_gather_prf<T>_scaled_uxtw` when the scalar
-/// offset passed to `aarch64_sve_gather_prf<T>` is not a valid immediate for
+/// Combines a node carrying the intrinsic `aarch64_sve_prf_gather<T>` into a
+/// node that uses `aarch64_sve_prf_gather<T>_scaled_uxtw` when the scalar
+/// offset passed to `aarch64_sve_prf_gather<T>` is not a valid immediate for
 /// the sve gather prefetch instruction with vector plus immediate addressing
 /// mode.
 static SDValue combineSVEPrefetchVecBaseImmOff(SDNode *N, SelectionDAG &DAG,
@@ -13011,8 +13017,8 @@ static SDValue combineSVEPrefetchVecBaseImmOff(SDNode *N, SelectionDAG &DAG,
   // ...otherwise swap the offset base with the offset...
   SmallVector<SDValue, 5> Ops(N->op_begin(), N->op_end());
   std::swap(Ops[ImmPos], Ops[OffsetPos]);
-  // ...and remap the intrinsic `aarch64_sve_gather_prf<T>` to
-  // `aarch64_sve_gather_prf<T>_scaled_uxtw`.
+  // ...and remap the intrinsic `aarch64_sve_prf_gather<T>` to
+  // `aarch64_sve_prf_gather<T>_scaled_uxtw`.
   SDLoc DL(N);
   Ops[1] = DAG.getConstant(NewIID, DL, MVT::i64);
 
@@ -13083,30 +13089,30 @@ SDValue AArch64TargetLowering::PerformDAGCombine(SDNode *N,
   case ISD::INTRINSIC_VOID:
   case ISD::INTRINSIC_W_CHAIN:
     switch (cast<ConstantSDNode>(N->getOperand(1))->getZExtValue()) {
-    case Intrinsic::aarch64_sve_gather_prfb:
+    case Intrinsic::aarch64_sve_prfb_gather:
       return combineSVEPrefetchVecBaseImmOff(
-          N, DAG, Intrinsic::aarch64_sve_gather_prfb_scaled_uxtw,
+          N, DAG, Intrinsic::aarch64_sve_prfb_gather_scaled_uxtw,
           1 /*=ScalarSizeInBytes*/);
-    case Intrinsic::aarch64_sve_gather_prfh:
+    case Intrinsic::aarch64_sve_prfh_gather:
       return combineSVEPrefetchVecBaseImmOff(
-          N, DAG, Intrinsic::aarch64_sve_gather_prfh_scaled_uxtw,
+          N, DAG, Intrinsic::aarch64_sve_prfh_gather_scaled_uxtw,
           2 /*=ScalarSizeInBytes*/);
-    case Intrinsic::aarch64_sve_gather_prfw:
+    case Intrinsic::aarch64_sve_prfw_gather:
       return combineSVEPrefetchVecBaseImmOff(
-          N, DAG, Intrinsic::aarch64_sve_gather_prfw_scaled_uxtw,
+          N, DAG, Intrinsic::aarch64_sve_prfw_gather_scaled_uxtw,
           4 /*=ScalarSizeInBytes*/);
-    case Intrinsic::aarch64_sve_gather_prfd:
+    case Intrinsic::aarch64_sve_prfd_gather:
       return combineSVEPrefetchVecBaseImmOff(
-          N, DAG, Intrinsic::aarch64_sve_gather_prfd_scaled_uxtw,
+          N, DAG, Intrinsic::aarch64_sve_prfd_gather_scaled_uxtw,
           8 /*=ScalarSizeInBytes*/);
-    case Intrinsic::aarch64_sve_gather_prfb_scaled_uxtw:
-    case Intrinsic::aarch64_sve_gather_prfb_scaled_sxtw:
-    case Intrinsic::aarch64_sve_gather_prfh_scaled_uxtw:
-    case Intrinsic::aarch64_sve_gather_prfh_scaled_sxtw:
-    case Intrinsic::aarch64_sve_gather_prfw_scaled_uxtw:
-    case Intrinsic::aarch64_sve_gather_prfw_scaled_sxtw:
-    case Intrinsic::aarch64_sve_gather_prfd_scaled_uxtw:
-    case Intrinsic::aarch64_sve_gather_prfd_scaled_sxtw:
+    case Intrinsic::aarch64_sve_prfb_gather_scaled_uxtw:
+    case Intrinsic::aarch64_sve_prfb_gather_scaled_sxtw:
+    case Intrinsic::aarch64_sve_prfh_gather_scaled_uxtw:
+    case Intrinsic::aarch64_sve_prfh_gather_scaled_sxtw:
+    case Intrinsic::aarch64_sve_prfw_gather_scaled_uxtw:
+    case Intrinsic::aarch64_sve_prfw_gather_scaled_sxtw:
+    case Intrinsic::aarch64_sve_prfd_gather_scaled_uxtw:
+    case Intrinsic::aarch64_sve_prfd_gather_scaled_sxtw:
       return legalizeSVEGatherPrefetchOffsVec(N, DAG);
     case Intrinsic::aarch64_neon_ld2:
     case Intrinsic::aarch64_neon_ld3:
@@ -13130,8 +13136,9 @@ SDValue AArch64TargetLowering::PerformDAGCombine(SDNode *N,
     case Intrinsic::aarch64_neon_st3lane:
     case Intrinsic::aarch64_neon_st4lane:
       return performNEONPostLDSTCombine(N, DCI, DAG);
+    case Intrinsic::aarch64_sve_ld1:
     case Intrinsic::aarch64_sve_ldnt1:
-      return performLDNT1Combine(N, DAG);
+      return performLD1Combine(N, DAG);
     case Intrinsic::aarch64_sve_ldnt1_gather_scalar_offset:
       return performGatherLoadCombine(N, DAG, AArch64ISD::GLDNT1);
     case Intrinsic::aarch64_sve_ldnt1_gather:
@@ -13144,8 +13151,9 @@ SDValue AArch64TargetLowering::PerformDAGCombine(SDNode *N,
       return performLDNF1Combine(N, DAG, AArch64ISD::LDNF1);
     case Intrinsic::aarch64_sve_ldff1:
       return performLDNF1Combine(N, DAG, AArch64ISD::LDFF1);
+    case Intrinsic::aarch64_sve_st1:
     case Intrinsic::aarch64_sve_stnt1:
-      return performSTNT1Combine(N, DAG);
+      return performST1Combine(N, DAG);
     case Intrinsic::aarch64_sve_stnt1_scatter_scalar_offset:
       return performScatterStoreCombine(N, DAG, AArch64ISD::SSTNT1);
     case Intrinsic::aarch64_sve_stnt1_scatter_uxtw:
@@ -13925,4 +13933,17 @@ void AArch64TargetLowering::finalizeLowering(MachineFunction &MF) const {
 // Unlike X86, we let frame lowering assign offsets to all catch objects.
 bool AArch64TargetLowering::needsFixedCatchObjects() const {
   return false;
+}
+
+bool AArch64TargetLowering::shouldLocalize(
+    const MachineInstr &MI, const TargetTransformInfo *TTI) const {
+  if (MI.getOpcode() == TargetOpcode::G_GLOBAL_VALUE) {
+    // On Darwin, TLS global vars get selected into function calls, which
+    // we don't want localized, as they can get moved into the middle of a
+    // another call sequence.
+    const GlobalValue &GV = *MI.getOperand(1).getGlobal();
+    if (GV.isThreadLocal() && Subtarget->isTargetMachO())
+      return false;
+  }
+  return TargetLoweringBase::shouldLocalize(MI, TTI);
 }
