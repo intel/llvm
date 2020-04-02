@@ -273,7 +273,6 @@ int main() {
   __int128_t  acceptable = 30;
   __uint128_t whatever = 50;
 
-
   kernel_single_task<class fake_kernel>([=]() {
     usage(&addInt); // expected-note 5{{called by 'operator()'}}
     a_type *p;
