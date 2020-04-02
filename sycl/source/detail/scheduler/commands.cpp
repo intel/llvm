@@ -694,7 +694,9 @@ void AllocaSubBufCommand::emitInstrumentationData() {
 #endif
 }
 
-cl_int AllocaSubBufCommand::enqueueImp() {
+cl_int AllocaSubBufCommand::enqueueImp() { return CL_SUCCESS; }
+
+void AllocaSubBufCommand::updateMemAllocation() {
   std::vector<EventImplPtr> EventImpls =
       Command::prepareEvents(detail::getSyclObjImpl(MQueue->get_context()));
   RT::PiEvent &Event = MEvent->getHandleRef();
@@ -704,7 +706,6 @@ cl_int AllocaSubBufCommand::enqueueImp() {
       MParentAlloca->getMemAllocation(), MRequirement.MElemSize,
       MRequirement.MOffsetInBytes, MRequirement.MAccessRange,
       std::move(EventImpls), Event);
-  return CL_SUCCESS;
 }
 
 void AllocaSubBufCommand::printDot(std::ostream &Stream) const {

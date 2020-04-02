@@ -264,7 +264,7 @@ public:
 
   SYCLMemObjI *getSYCLMemObj() const { return MRequirement.MSYCLMemObj; }
 
-  void *getMemAllocation() const { return MMemAllocation; }
+  virtual void *getMemAllocation() = 0;
 
   const Requirement *getRequirement() const final { return &MRequirement; }
 
@@ -298,6 +298,7 @@ public:
                 bool InitFromUserData = true,
                 AllocaCommandBase *LinkedAllocaCmd = nullptr);
 
+  void *getMemAllocation() final { return MMemAllocation; }
   void printDot(std::ostream &Stream) const final;
   void emitInstrumentationData();
 
@@ -314,14 +315,26 @@ public:
   AllocaSubBufCommand(QueueImplPtr Queue, Requirement Req,
                       AllocaCommandBase *ParentAlloca);
 
+  void *getMemAllocation() final {
+    // In some cases parent`s memory allocation might change (e.g., after
+    // map/unmap operations). If parent`s memory allocation changes, sub-buffer
+    // memory allocation should be changed as well.
+    if (MParentMemCache != MParentAlloca->getMemAllocation()) {
+      MParentMemCache = MParentAlloca->getMemAllocation();
+      updateMemAllocation();
+    }
+    return MMemAllocation;
+  }
   void printDot(std::ostream &Stream) const final;
   AllocaCommandBase *getParentAlloca() { return MParentAlloca; }
   void emitInstrumentationData();
 
 private:
   cl_int enqueueImp() final;
+  void updateMemAllocation();
 
   AllocaCommandBase *MParentAlloca = nullptr;
+  void *MParentMemCache = nullptr;
 };
 
 class MapMemObject : public Command {
