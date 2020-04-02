@@ -76,7 +76,9 @@ config.substitutions.append( ('%opencl_libs_dir',  config.opencl_libs_dir) )
 config.substitutions.append( ('%sycl_source_dir', config.sycl_source_dir) )
 config.substitutions.append( ('%opencl_include_dir',  config.opencl_include_dir) )
 config.substitutions.append( ('%cuda_toolkit_include',  config.cuda_toolkit_include) )
-config.substitutions.append( ('%sycl_tools_dir',  config.sycl_tools_dir ) )
+config.substitutions.append( ('%sycl_tools_src_dir',  config.sycl_tools_src_dir ) )
+config.substitutions.append( ('%llvm_build_lib_dir',  config.llvm_build_lib_dir ) )
+config.substitutions.append( ('%llvm_build_bin_dir',  config.llvm_build_bin_dir ) )
 
 llvm_config.use_clang()
 

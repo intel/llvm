@@ -1,0 +1,88 @@
+# ABI Policy Guide
+
+## Intro
+
+Application Binary Interface is a contract between binary modules, that defines
+how structures and routines are accessed in machine code. Changing the ABI may
+cause backwards compatibility for user-developed applications, resulting in
+need to rebuild such applications. The goal of this document is to provide
+guidelines of persisting the current ABI and mechanisms of notifying users about
+ABI changes.
+
+All ABI changes can be divided into two large groups: breaking and non-breaking.
+A breaking change means that the new binary is incompatible with the previous
+version (i.e. it can not be used as a drop-in replacement). A non-breaking
+change means that the forward compatibility is broken (i.e. the old library
+can be replaced with newer version, but not vice verse).
+
+The following non-exhaustive list contains changes that are considered to be
+breaking:
+
+1. Changing the size of exported symbol (for example, adding new member field
+   to the exported class).
+1. Removing the exported symbol (that includes both chaning the signature of
+   exported routine and removing it).
+1. Changing the alignment of exported symbol.
+1. Changing the layout of exported symbol (for example, reordering class field
+   members).
+1. Adding or removing base classes.
+
+Adding a new exported symbol is considered to be non-breaking change.
+
+## ABI Versioning Policy
+
+TBD
+
+## `__SYCL_EXPORTED` Macro
+
+The `__SYCL_EXPORTED` provides facilities for fine-rained control over exported
+symbols. Mark symbols that are supposed to be accessible by the user and that
+are implemented in the SYCL Runtime library with this macro. Template
+specializations also must be explicitly marked with `__SYCL_EXPORTED` macro.
+Sybmols not marked `__SYCL_EXPORTED` have internal linkage.
+
+A few examples of when it is necessary to mark symbols with the macro:
+
+* The `device` class:
+  - It is defined as API by the SYCL spec.
+  - It is implemented in `device.cpp` file.
+* The `SYCLMemObjT` class:
+  - It is not defined in the SYCL spec, but it is an implementation detail that
+    is accessible by the user (buffer and image inherit from this class).
+  - It has symbols that are implemented in the Runtime library.
+
+When it is not necessary to mark sybmols with `__SYCL_EXPORTED`:
+* The `buffer` class:
+  - It is defined by the SYCL spec, but it is fully implemented in the headers.
+* The `ProgramManager` class:
+  - It is an implementation detail.
+  - It is not accessed from the header files that are available to users.
+
+## Automated ABI Changes Testing
+
+There is a set of tests to help identifying ABI changes:
+
+* `test/abi/sycl_symbols_*.dump` contains dump of publicly available symbols.
+  If you add a new symbol, it is considered non-breaking change. When the test
+  reports missing symbols, it means you have either changed or remove some of
+  existing API methods. In both cases you need to adjust the dump file. You
+  can do it either manually, or by invoking the following command:
+  ```shell
+  python3 sycl/tools/abi_check.py --mode dump_symbols --output path/to/output.dump path/to/sycl.so(.dll)
+  ```
+* `test/abi/sycl_vtable_*.dump` checks contents of exported vtables. Generally,
+  this means breaking change. Re-generate the library dump with the following
+  command:
+  ```shell
+  python3 sycl/tools/abi_check.py --mode dump_vtable --output path/to/output.dump path/to/sycl.so(.dll)
+  ```
+* `test/abi/layout*` is a group of tests to check the internal layout of some
+  classes. Changing the class layout is a breaking change.
+
+## Breaking ABI
+
+Whenever you need to change the existing ABI, please, follow these steps:
+
+1. Get approval from project maintainers to make a breaking/non-breaking change.
+2. Fix the tests using the aforementioned techniques.
+3. Update the library version according to the policies.

@@ -213,13 +213,11 @@ add_custom_target( sycl-toolchain
           file-table-tform
           llc
           llvm-ar
-          llvm-cxxdump
           llvm-foreach
           llvm-no-spir-kernel
           llvm-spirv
           llvm-link
           llvm-objcopy
-          llvm-readobj
           opt
           sycl-post-link
   COMMENT "Building SYCL compiler toolchain..."

@@ -1,4 +1,4 @@
-# RUN: env LLVM_BIN_PATH=%llvm_build_bins_dir python %sycl_tools_dir/abi_check.py --mode check_symbols --reference %s %llvm_build_libs_dir/libsycl.so
+# RUN: env LLVM_BIN_PATH=%llvm_build_bin_dir python %sycl_tools_src_dir/abi_check.py --mode check_symbols --reference %s %llvm_build_lib_dir/libsycl.so
 _ZN2cl4sycl6detail16AccessorImplHostD1Ev
 _ZN2cl4sycl6detail16AccessorImplHostD2Ev
 _ZN2cl4sycl6detail9Scheduler11getInstanceEv

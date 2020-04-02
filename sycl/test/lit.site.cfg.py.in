@@ -14,7 +14,9 @@ config.target_triple = "@TARGET_TRIPLE@"
 config.host_triple = "@LLVM_HOST_TRIPLE@"
 config.opencl_include_dir = "@OpenCL_INCLUDE_DIR@"
 config.cuda_toolkit_include = "@CUDA_TOOLKIT_INCLUDE@"
-config.sycl_tools_dir = "@SYCL_TOOLS_DIR@"
+config.sycl_tools_src_dir = "@SYCL_TOOLS_SRC_DIR@"
+config.llvm_build_lib_dir = "@LLVM_BUILD_LIBRARY_DIRS@"
+config.llvm_build_bin_dir = "@LLVM_BUILD_BINARY_DIRS@"
 
 config.llvm_enable_projects = "@LLVM_ENABLE_PROJECTS@"
 

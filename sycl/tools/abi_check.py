@@ -43,14 +43,10 @@ def dump_symbols(target_path, output):
 
 
 def compare_results(ref_records, records):
-  missing_records = []
+  missing_records = set(ref_records).difference(set(records))
+  new_records = set(records).difference(set(ref_records))
 
-  for record in ref_records:
-    if record in records:
-      records.remove(record)
-    else:
-      missing_records.append(record)
-  return (missing_records, records)
+  return (missing_records, new_records)
 
 
 def check_symbols(ref_path, target_path):
