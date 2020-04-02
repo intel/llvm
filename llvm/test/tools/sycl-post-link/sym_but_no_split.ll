@@ -2,9 +2,9 @@
 ; table and a symbol file for an input module with two kernels when no code
 ; splitting is requested.
 ;
-; RUN: sycl-post-link -symbols -spec-const=rt -S %s -o %T/files.table
-; RUN: FileCheck %s -input-file=%T/files.table --check-prefixes CHECK-TABLE
-; RUN: FileCheck %s -input-file=%T/files_0.sym --match-full-lines --check-prefixes CHECK-SYM
+; RUN: sycl-post-link -symbols -spec-const=rt -S %s -o %t.files.table
+; RUN: FileCheck %s -input-file=%t.files.table --check-prefixes CHECK-TABLE
+; RUN: FileCheck %s -input-file=%t.files_0.sym --match-full-lines --check-prefixes CHECK-SYM
 
 define dso_local spir_kernel void @KERNEL_AAA() {
 ; CHECK-SYM-NOT: {{[a-zA-Z0-9._@]+}}
