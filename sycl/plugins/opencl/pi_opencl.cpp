@@ -179,24 +179,6 @@ pi_result OCL(piPlatformsGet)(pi_uint32 num_entries, pi_platform *platforms,
   return static_cast<pi_result>(result);
 }
 
-pi_result OCL(piextDeviceConvert)(pi_device *device, void **handle) {
-  // The PI device is the same as OpenCL device handle.
-  assert(device);
-  assert(handle);
-
-  if (*device == nullptr) {
-    // unitialized *device.
-    assert(*handle);
-    *device = cast<pi_device>(*handle);
-  } else {
-    assert(*handle == nullptr);
-    *handle = *device;
-  }
-
-  cl_int result = clRetainDevice(cast<cl_device_id>(*handle));
-  return cast<pi_result>(result);
-}
-
 // Example of a PI interface that does not map exactly to an OpenCL one.
 pi_result OCL(piDevicesGet)(pi_platform platform, pi_device_type device_type,
                             pi_uint32 num_entries, pi_device *devices,
@@ -287,6 +269,14 @@ pi_result OCL(piextDeviceSelectBinary)(pi_device device,
   return PI_INVALID_BINARY;
 }
 
+pi_result OCL(piextDeviceCreateWithNativeHandle)(pi_native_handle nativeHandle,
+                                                 pi_device *piDevice) {
+  assert(piDevice != nullptr);
+  *piDevice = reinterpret_cast<pi_device>(nativeHandle);
+  clRetainDevice(cast<cl_device_id>(*piDevice));
+  return PI_SUCCESS;
+}
+
 pi_result OCL(piQueueCreate)(pi_context context, pi_device device,
                              pi_queue_properties properties, pi_queue *queue) {
   assert(queue && "piQueueCreate failed, queue argument is null");
@@ -327,25 +317,12 @@ pi_result OCL(piQueueCreate)(pi_context context, pi_device device,
   return cast<pi_result>(ret_err);
 }
 
-pi_result OCL(piextProgramConvert)(
-    pi_context context,  ///< [in] the PI context of the program
-    pi_program *program, ///< [in,out] the pointer to PI program
-    void **handle)       ///< [in,out] the pointer to the raw program handle
-{
-  // The PI program is the same as OpenCL program handle.
-  assert(program);
-  assert(handle);
-
-  if (*program == nullptr) {
-    // uninitialized *program.
-    assert(*handle);
-    *program = cast<pi_program>(*handle);
-  } else {
-    assert(*handle == nullptr);
-    *handle = *program;
-  }
-  cl_int result = clRetainProgram(cast<cl_program>(*handle));
-  return cast<pi_result>(result);
+pi_result OCL(piextQueueCreateWithNativeHandle)(pi_native_handle nativeHandle,
+                                                pi_queue *piQueue) {
+  assert(piQueue != nullptr);
+  *piQueue = reinterpret_cast<pi_queue>(nativeHandle);
+  clRetainCommandQueue(cast<cl_command_queue>(*piQueue));
+  return PI_SUCCESS;
 }
 
 pi_result OCL(piProgramCreate)(pi_context context, const void *il,
@@ -424,6 +401,14 @@ pi_result OCL(piProgramCreate)(pi_context context, const void *il,
     err = PI_INVALID_VALUE;
 
   return err;
+}
+
+pi_result OCL(piextProgramCreateWithNativeHandle)(pi_native_handle nativeHandle,
+                                                  pi_program *piProgram) {
+  assert(piProgram != nullptr);
+  *piProgram = reinterpret_cast<pi_program>(nativeHandle);
+  clRetainProgram(cast<cl_program>(*piProgram));
+  return PI_SUCCESS;
 }
 
 pi_result OCL(piSamplerCreate)(pi_context context,
@@ -517,6 +502,14 @@ pi_result OCL(piContextCreate)(const pi_context_properties *properties,
   return ret;
 }
 
+pi_result OCL(piextContextCreateWithNativeHandle)(pi_native_handle nativeHandle,
+                                                  pi_context *piContext) {
+  assert(piContext != nullptr);
+  *piContext = reinterpret_cast<pi_context>(nativeHandle);
+  clRetainContext(cast<cl_context>(*piContext));
+  return PI_SUCCESS;
+}
+
 pi_result OCL(piMemBufferCreate)(pi_context context, pi_mem_flags flags,
                                  size_t size, void *host_ptr, pi_mem *ret_mem) {
   pi_result ret_err = PI_INVALID_OPERATION;
@@ -551,6 +544,14 @@ pi_result OCL(piMemBufferPartition)(pi_mem buffer, pi_mem_flags flags,
                         cast<cl_buffer_create_type>(buffer_create_type),
                         buffer_create_info, cast<cl_int *>(&ret_err)));
   return ret_err;
+}
+
+pi_result OCL(piextMemCreateWithNativeHandle)(pi_native_handle nativeHandle,
+                                              pi_mem *piMem) {
+  assert(piMem != nullptr);
+  *piMem = reinterpret_cast<pi_mem>(nativeHandle);
+  clRetainMemObject(cast<cl_mem>(*piMem));
+  return PI_SUCCESS;
 }
 
 pi_result OCL(piclProgramCreateWithSource)(pi_context context, pi_uint32 count,
@@ -612,6 +613,14 @@ pi_result OCL(piEventCreate)(pi_context context, pi_event *ret_event) {
   *ret_event = cast<pi_event>(
       clCreateUserEvent(cast<cl_context>(context), cast<cl_int *>(&ret_err)));
   return ret_err;
+}
+
+pi_result OCL(piextEventCreateWithNativeHandle)(pi_native_handle nativeHandle,
+                                                pi_event *piEvent) {
+  assert(piEvent != nullptr);
+  *piEvent = reinterpret_cast<pi_event>(nativeHandle);
+  clRetainEvent(cast<cl_event>(*piEvent));
+  return PI_SUCCESS;
 }
 
 pi_result OCL(piEnqueueMemBufferMap)(
@@ -1043,21 +1052,17 @@ static pi_result OCL(piextProgramSetSpecializationConstantImpl)(
   return cast<pi_result>(Res);
 }
 
-/// API to get the native handle of a PI object
+/// Common API for getting the native handle of a PI object
 ///
-/// \param handleType is an identifier representing the type of the handle
-/// \param piObject is the PI object to get the handle of
-/// \param nativeHandle is the native handle of piObject
-pi_result OCL(piGetNativeHandle)(pi_handle_type handleType, void *piObject,
-                                 pi_native_handle *nativeHandle) {
-  switch (handleType) {
-  case pi_handle_type::PI_NATIVE_HANDLE_MEM:
-  case pi_handle_type::PI_NATIVE_HANDLE_QUEUE:
-    *nativeHandle = reinterpret_cast<pi_native_handle>(piObject);
-    return PI_SUCCESS;
-  default:
-    return PI_INVALID_VALUE;
-  }
+/// \param piObj is the pi object to get the native handle of
+/// \param nativeHandle is a pointer to be set to the native handle
+///
+/// PI_SUCCESS
+pi_result OCL(piextGetNativeHandle)(void *piObj,
+                                    pi_native_handle *nativeHandle) {
+  assert(nativeHandle != nullptr);
+  *nativeHandle = reinterpret_cast<pi_native_handle>(piObj);
+  return PI_SUCCESS;
 }
 
 pi_result piPluginInit(pi_plugin *PluginInit) {
@@ -1078,7 +1083,6 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piPlatformsGet, OCL(piPlatformsGet))
   _PI_CL(piPlatformGetInfo, clGetPlatformInfo)
   // Device
-  _PI_CL(piextDeviceConvert, OCL(piextDeviceConvert))
   _PI_CL(piDevicesGet, OCL(piDevicesGet))
   _PI_CL(piDeviceGetInfo, clGetDeviceInfo)
   _PI_CL(piDevicePartition, clCreateSubDevices)
@@ -1086,17 +1090,26 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piDeviceRelease, clReleaseDevice)
   _PI_CL(piextDeviceSelectBinary, OCL(piextDeviceSelectBinary))
   _PI_CL(piextGetDeviceFunctionPointer, OCL(piextGetDeviceFunctionPointer))
+  _PI_CL(piextDeviceGetNativeHandle, OCL(piextGetNativeHandle))
+  _PI_CL(piextDeviceCreateWithNativeHandle,
+         OCL(piextDeviceCreateWithNativeHandle))
   // Context
   _PI_CL(piContextCreate, OCL(piContextCreate))
   _PI_CL(piContextGetInfo, clGetContextInfo)
   _PI_CL(piContextRetain, clRetainContext)
   _PI_CL(piContextRelease, clReleaseContext)
+  _PI_CL(piextContextGetNativeHandle, OCL(piextGetNativeHandle))
+  _PI_CL(piextContextCreateWithNativeHandle,
+         OCL(piextContextCreateWithNativeHandle))
   // Queue
   _PI_CL(piQueueCreate, OCL(piQueueCreate))
   _PI_CL(piQueueGetInfo, clGetCommandQueueInfo)
   _PI_CL(piQueueFinish, clFinish)
   _PI_CL(piQueueRetain, clRetainCommandQueue)
   _PI_CL(piQueueRelease, clReleaseCommandQueue)
+  _PI_CL(piextQueueGetNativeHandle, OCL(piextGetNativeHandle))
+  _PI_CL(piextQueueCreateWithNativeHandle,
+         OCL(piextQueueCreateWithNativeHandle))
   // Memory
   _PI_CL(piMemBufferCreate, OCL(piMemBufferCreate))
   _PI_CL(piMemImageCreate, OCL(piMemImageCreate))
@@ -1105,8 +1118,9 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piMemRetain, clRetainMemObject)
   _PI_CL(piMemRelease, clReleaseMemObject)
   _PI_CL(piMemBufferPartition, OCL(piMemBufferPartition))
+  _PI_CL(piextMemGetNativeHandle, OCL(piextGetNativeHandle))
+  _PI_CL(piextMemCreateWithNativeHandle, OCL(piextMemCreateWithNativeHandle))
   // Program
-  _PI_CL(piextProgramConvert, OCL(piextProgramConvert))
   _PI_CL(piProgramCreate, OCL(piProgramCreate))
   _PI_CL(piclProgramCreateWithSource, OCL(piclProgramCreateWithSource))
   _PI_CL(piclProgramCreateWithBinary, OCL(piclProgramCreateWithBinary))
@@ -1119,7 +1133,9 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piProgramRelease, clReleaseProgram)
   _PI_CL(piextProgramSetSpecializationConstant,
          OCL(piextProgramSetSpecializationConstantImpl))
-
+  _PI_CL(piextProgramGetNativeHandle, OCL(piextGetNativeHandle))
+  _PI_CL(piextProgramCreateWithNativeHandle,
+         OCL(piextProgramCreateWithNativeHandle))
   // Kernel
   _PI_CL(piKernelCreate, OCL(piKernelCreate))
   _PI_CL(piKernelSetArg, clSetKernelArg)
@@ -1139,6 +1155,9 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piEventSetStatus, clSetUserEventStatus)
   _PI_CL(piEventRetain, clRetainEvent)
   _PI_CL(piEventRelease, clReleaseEvent)
+  _PI_CL(piextEventGetNativeHandle, OCL(piextGetNativeHandle))
+  _PI_CL(piextEventCreateWithNativeHandle,
+         OCL(piextEventCreateWithNativeHandle))
   // Sampler
   _PI_CL(piSamplerCreate, OCL(piSamplerCreate))
   _PI_CL(piSamplerGetInfo, clGetSamplerInfo)
@@ -1171,8 +1190,6 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextUSMEnqueuePrefetch, OCL(piextUSMEnqueuePrefetch))
   _PI_CL(piextUSMEnqueueMemAdvise, OCL(piextUSMEnqueueMemAdvise))
   _PI_CL(piextUSMGetMemAllocInfo, OCL(piextUSMGetMemAllocInfo))
-  // Native
-  _PI_CL(piGetNativeHandle, OCL(piGetNativeHandle))
 
   _PI_CL(piextKernelSetArgMemObj, OCL(piextKernelSetArgMemObj))
 

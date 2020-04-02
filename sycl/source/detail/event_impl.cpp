@@ -261,8 +261,7 @@ void HostProfilingInfo::end() { EndTime = getTimestamp(); }
 pi_native_handle event_impl::getNative() const {
   auto Plugin = getPlugin();
   pi_native_handle Handle;
-  Plugin.call<PiApiKind::piGetNativeHandle>(PIHandleType, getHandleRef(),
-                                            &Handle);
+  Plugin.call<PiApiKind::piextEventGetNativeHandle>(getHandleRef(), &Handle);
   return Handle;
 }
 

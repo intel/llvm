@@ -188,8 +188,7 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
 pi_native_handle queue_impl::getNative() const {
   auto Plugin = getPlugin();
   pi_native_handle Handle;
-  Plugin.call<PiApiKind::piGetNativeHandle>(PIHandleType, MCommandQueue,
-                                            &Handle);
+  Plugin.call<PiApiKind::piextQueueGetNativeHandle>(MCommandQueue, &Handle);
   return Handle;
 }
 

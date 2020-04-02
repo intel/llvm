@@ -36,8 +36,6 @@ enum QueueOrder { Ordered, OOO };
 
 class queue_impl {
 public:
-  static constexpr pi_handle_type PIHandleType = PI_NATIVE_HANDLE_QUEUE;
-
   /// Constructs a SYCL queue from a device using an async_handler and
   /// property_list provided.
   ///

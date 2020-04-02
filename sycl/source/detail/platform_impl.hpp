@@ -28,8 +28,6 @@ namespace detail {
 // TODO: implement parameters treatment for host device
 class platform_impl {
 public:
-  static constexpr pi_handle_type PIHandleType = PI_NATIVE_HANDLE_PLATFORM;
-
   /// Constructs platform_impl for a SYCL host platform.
   platform_impl() : MHostPlatform(true) {}
 

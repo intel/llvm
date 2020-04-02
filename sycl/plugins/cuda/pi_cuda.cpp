@@ -705,12 +705,6 @@ pi_result cuda_piPlatformGetInfo(pi_platform platform,
   return {};
 }
 
-/// \TODO Not implemented
-pi_result cuda_piextDeviceConvert(pi_device *device, void **handle) {
-  cl::sycl::detail::pi::die("cuda_piextDeviceConvert not implemented");
-  return {};
-}
-
 /// \param devices List of devices available on the system
 /// \param num_devices Number of elements in the list of devices
 /// Requesting a non-GPU device triggers an error, all PI CUDA devices
@@ -1358,6 +1352,38 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   return {};
 }
 
+/// Gets the native CUDA handle of a PI device object
+///
+/// \param[in] device The PI device to get the native CUDA object of.
+/// \param[out] nativeHandle Set to the native handle of the PI device object.
+///
+/// \return PI_SUCCESS
+pi_result cuda_piextDeviceGetNativeHandle(pi_device device,
+                                          pi_native_handle *nativeHandle) {
+  *nativeHandle = static_cast<pi_native_handle>(device->get());
+  return PI_SUCCESS;
+}
+
+/// Created a PI device object from a CUDA device handle.
+/// TODO: Implement this.
+/// NOTE: Approaches for native object lifetime:
+///        1. Make the created PI object the owner of the native object,
+///           deleting it upon its own destruction.
+///        2. Make a special-case where the PI object does not destroy the
+///           native object.
+///       Both options may make lifetime tracking difficult for the user.
+///
+/// \param[in] nativeHandle The native handle to create PI device object from.
+/// \param[out] device Set to the PI device object created from native handle.
+///
+/// \return TBD
+pi_result cuda_piextDeviceCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                                 pi_device *device) {
+  cl::sycl::detail::pi::die(
+      "Creation of PI device from native handle not implemented");
+  return {};
+}
+
 /* Context APIs */
 
 /// Create a PI CUDA context.
@@ -1491,6 +1517,38 @@ pi_result cuda_piContextRelease(pi_context ctxt) {
     cuCtxPopCurrent(&current);
     return PI_CHECK_ERROR(cuDevicePrimaryCtxRelease(cuDev));
   }
+}
+
+/// Gets the native CUDA handle of a PI context object
+///
+/// \param[in] context The PI context to get the native CUDA object of.
+/// \param[out] nativeHandle Set to the native handle of the PI context object.
+///
+/// \return PI_SUCCESS
+pi_result cuda_piextContextGetNativeHandle(pi_context context,
+                                           pi_native_handle *nativeHandle) {
+  *nativeHandle = reinterpret_cast<pi_native_handle>(context->get());
+  return PI_SUCCESS;
+}
+
+/// Created a PI context object from a CUDA context handle.
+/// TODO: Implement this.
+/// NOTE: Approaches for native object lifetime:
+///        1. Make the created PI object the owner of the native object,
+///           deleting it upon its own destruction.
+///        2. Make a special-case where the PI object does not destroy the
+///           native object.
+///       Both options may make lifetime tracking difficult for the user.
+///
+/// \param[in] nativeHandle The native handle to create PI context object from.
+/// \param[out] context Set to the PI context object created from native handle.
+///
+/// \return TBD
+pi_result cuda_piextContextCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                                  pi_context *context) {
+  cl::sycl::detail::pi::die(
+      "Creation of PI context from native handle not implemented");
+  return {};
 }
 
 /// Creates a PI Memory object using a CUDA memory allocation.
@@ -1675,6 +1733,38 @@ pi_result cuda_piMemGetInfo(pi_mem memObj, cl_mem_info queriedInfo,
   cl::sycl::detail::pi::die("cuda_piMemGetInfo not implemented");
 }
 
+/// Gets the native CUDA handle of a PI mem object
+///
+/// \param[in] mem The PI mem to get the native CUDA object of.
+/// \param[out] nativeHandle Set to the native handle of the PI mem object.
+///
+/// \return PI_SUCCESS
+pi_result cuda_piextMemGetNativeHandle(pi_mem mem,
+                                       pi_native_handle *nativeHandle) {
+  *nativeHandle = static_cast<pi_native_handle>(mem->get());
+  return PI_SUCCESS;
+}
+
+/// Created a PI mem object from a CUDA mem handle.
+/// TODO: Implement this.
+/// NOTE: Approaches for native object lifetime:
+///        1. Make the created PI object the owner of the native object,
+///           deleting it upon its own destruction.
+///        2. Make a special-case where the PI object does not destroy the
+///           native object.
+///       Both options may make lifetime tracking difficult for the user.
+///
+/// \param[in] nativeHandle The native handle to create PI mem object from.
+/// \param[out] mem Set to the PI mem object created from native handle.
+///
+/// \return TBD
+pi_result cuda_piextMemCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                              pi_mem *mem) {
+  cl::sycl::detail::pi::die(
+      "Creation of PI mem from native handle not implemented");
+  return {};
+}
+
 /// Creates a `pi_queue` object on the CUDA backend.
 /// Valid properties
 /// * PI_CUDA_USE_DEFAULT_STREAM -> CU_STREAM_DEFAULT
@@ -1808,6 +1898,38 @@ pi_result cuda_piQueueFinish(pi_queue command_queue) {
   }
 
   return result;
+}
+
+/// Gets the native CUDA handle of a PI queue object
+///
+/// \param[in] queue The PI queue to get the native CUDA object of.
+/// \param[out] nativeHandle Set to the native handle of the PI queue object.
+///
+/// \return PI_SUCCESS
+pi_result cuda_piextQueueGetNativeHandle(pi_queue queue,
+                                         pi_native_handle *nativeHandle) {
+  *nativeHandle = reinterpret_cast<pi_native_handle>(queue->get());
+  return PI_SUCCESS;
+}
+
+/// Created a PI queue object from a CUDA queue handle.
+/// TODO: Implement this.
+/// NOTE: Approaches for native object lifetime:
+///        1. Make the created PI object the owner of the native object,
+///           deleting it upon its own destruction.
+///        2. Make a special-case where the PI object does not destroy the
+///           native object.
+///       Both options may make lifetime tracking difficult for the user.
+///
+/// \param[in] nativeHandle The native handle to create PI queue object from.
+/// \param[out] queue Set to the PI queue object created from native handle.
+///
+/// \return TBD
+pi_result cuda_piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                                pi_queue *queue) {
+  cl::sycl::detail::pi::die(
+      "Creation of PI queue from native handle not implemented");
+  return {};
 }
 
 pi_result cuda_piEnqueueMemBufferWrite(pi_queue command_queue, pi_mem buffer,
@@ -2189,16 +2311,6 @@ pi_result cuda_piProgramBuild(pi_program program, pi_uint32 num_devices,
 }
 
 /// \TODO Not implemented
-pi_result cuda_piextProgramConvert(
-    pi_context context,  ///< [in] the PI context of the program
-    pi_program *program, ///< [in,out] the pointer to PI program
-    void **handle)       ///< [in,out] the pointer to the raw program handle
-{
-  cl::sycl::detail::pi::die("cuda_piextProgramConvert not implemented");
-  return {};
-}
-
-/// \TODO Not implemented
 pi_result cuda_piProgramCreate(pi_context context, const void *il,
                                size_t length, pi_program *res_program) {
   cl::sycl::detail::pi::die("cuda_piProgramCreate not implemented");
@@ -2405,6 +2517,38 @@ pi_result cuda_piProgramRelease(pi_program program) {
   }
 
   return PI_SUCCESS;
+}
+
+/// Gets the native CUDA handle of a PI program object
+///
+/// \param[in] program The PI program to get the native CUDA object of.
+/// \param[out] nativeHandle Set to the native handle of the PI program object.
+///
+/// \return TBD
+pi_result cuda_piextProgramGetNativeHandle(pi_program program,
+                                           pi_native_handle *nativeHandle) {
+  *nativeHandle = reinterpret_cast<pi_native_handle>(program->get());
+  return PI_SUCCESS;
+}
+
+/// Created a PI program object from a CUDA program handle.
+/// TODO: Implement this.
+/// NOTE: Approaches for native object lifetime:
+///        1. Make the created PI object the owner of the native object,
+///           deleting it upon its own destruction.
+///        2. Make a special-case where the PI object does not destroy the
+///           native object.
+///       Both options may make lifetime tracking difficult for the user.
+///
+/// \param[in] nativeHandle The native handle to create PI program object from.
+/// \param[out] program Set to the PI program object created from native handle.
+///
+/// \return TBD
+pi_result cuda_piextProgramCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                                  pi_program *program) {
+  cl::sycl::detail::pi::die(
+      "Creation of PI program from native handle not implemented");
+  return {};
 }
 
 pi_result cuda_piKernelGetInfo(
@@ -2760,6 +2904,41 @@ pi_result cuda_piEnqueueEventsWait(pi_queue command_queue,
   } catch (...) {
     return PI_ERROR_UNKNOWN;
   }
+}
+
+/// Gets the native CUDA handle of a PI event object
+///
+/// \param[in] event The PI event to get the native CUDA object of.
+/// \param[out] nativeHandle Set to the native handle of the PI event object.
+///
+/// \return PI_SUCCESS on success. PI_INVALID_EVENT if given a user event.
+pi_result cuda_piextEventGetNativeHandle(pi_event event,
+                                         pi_native_handle *nativeHandle) {
+  if (event->is_user_event()) {
+    return PI_INVALID_EVENT;
+  }
+  *nativeHandle = reinterpret_cast<pi_native_handle>(event->get());
+  return PI_SUCCESS;
+}
+
+/// Created a PI event object from a CUDA event handle.
+/// TODO: Implement this.
+/// NOTE: Approaches for native object lifetime:
+///        1. Make the created PI object the owner of the native object,
+///           deleting it upon its own destruction.
+///        2. Make a special-case where the PI object does not destroy the
+///           native object.
+///       Both options may make lifetime tracking difficult for the user.
+///
+/// \param[in] nativeHandle The native handle to create PI event object from.
+/// \param[out] event Set to the PI event object created from native handle.
+///
+/// \return TBD
+pi_result cuda_piextEventCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                                pi_event *event) {
+  cl::sycl::detail::pi::die(
+      "Creation of PI event from native handle not implemented");
+  return {};
 }
 
 /// \TODO Not implemented in CUDA, need untie from OpenCL
@@ -3554,46 +3733,6 @@ pi_result cuda_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
   return result;
 }
 
-// Native interop
-
-pi_result cuda_piGetNativeHandle(pi_handle_type handleType, void *piObject,
-                                 pi_native_handle *nativeHandle) {
-  switch (handleType) {
-  case pi_handle_type::PI_NATIVE_HANDLE_CONTEXT: {
-    pi_context context = static_cast<pi_context>(piObject);
-    *nativeHandle = reinterpret_cast<pi_native_handle>(context->get());
-    return PI_SUCCESS;
-  }
-  case pi_handle_type::PI_NATIVE_HANDLE_DEVICE: {
-    pi_device device = static_cast<pi_device>(piObject);
-    *nativeHandle = static_cast<pi_native_handle>(device->get());
-    return PI_SUCCESS;
-  }
-  case pi_handle_type::PI_NATIVE_HANDLE_QUEUE: {
-    pi_queue queue = static_cast<pi_queue>(piObject);
-    *nativeHandle = reinterpret_cast<pi_native_handle>(queue->get());
-    return PI_SUCCESS;
-  }
-  case pi_handle_type::PI_NATIVE_HANDLE_EVENT: {
-    pi_event event = static_cast<pi_event>(piObject);
-    if (event->is_user_event()) {
-      return PI_INVALID_EVENT;
-    }
-    *nativeHandle = reinterpret_cast<pi_native_handle>(event->get());
-    return PI_SUCCESS;
-  }
-  case pi_handle_type::PI_NATIVE_HANDLE_MEM: {
-    pi_mem mem = static_cast<pi_mem>(piObject);
-    *nativeHandle = static_cast<pi_native_handle>(mem->get());
-    return PI_SUCCESS;
-  }
-  default:
-    PI_HANDLE_UNKNOWN_PARAM_NAME(handleType);
-  }
-  cl::sycl::detail::pi::die("Native handle request not implemented");
-  return {};
-}
-
 const char SupportedVersion[] = _PI_H_VERSION_STRING;
 
 pi_result piPluginInit(pi_plugin *PluginInit) {
@@ -3620,7 +3759,6 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piPlatformsGet, cuda_piPlatformsGet)
   _PI_CL(piPlatformGetInfo, cuda_piPlatformGetInfo)
   // Device
-  _PI_CL(piextDeviceConvert, cuda_piextDeviceConvert)
   _PI_CL(piDevicesGet, cuda_piDevicesGet)
   _PI_CL(piDeviceGetInfo, cuda_piDeviceGetInfo)
   _PI_CL(piDevicePartition, cuda_piDevicePartition)
@@ -3628,18 +3766,27 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piDeviceRelease, cuda_piDeviceRelease)
   _PI_CL(piextDeviceSelectBinary, cuda_piextDeviceSelectBinary)
   _PI_CL(piextGetDeviceFunctionPointer, cuda_piextGetDeviceFunctionPointer)
+  _PI_CL(piextDeviceGetNativeHandle, cuda_piextDeviceGetNativeHandle)
+  _PI_CL(piextDeviceCreateWithNativeHandle,
+         cuda_piextDeviceCreateWithNativeHandle)
   // Context
   _PI_CL(piextContextSetExtendedDeleter, cuda_piextContextSetExtendedDeleter)
   _PI_CL(piContextCreate, cuda_piContextCreate)
   _PI_CL(piContextGetInfo, cuda_piContextGetInfo)
   _PI_CL(piContextRetain, cuda_piContextRetain)
   _PI_CL(piContextRelease, cuda_piContextRelease)
+  _PI_CL(piextContextGetNativeHandle, cuda_piextContextGetNativeHandle)
+  _PI_CL(piextContextCreateWithNativeHandle,
+         cuda_piextContextCreateWithNativeHandle)
   // Queue
   _PI_CL(piQueueCreate, cuda_piQueueCreate)
   _PI_CL(piQueueGetInfo, cuda_piQueueGetInfo)
   _PI_CL(piQueueFinish, cuda_piQueueFinish)
   _PI_CL(piQueueRetain, cuda_piQueueRetain)
   _PI_CL(piQueueRelease, cuda_piQueueRelease)
+  _PI_CL(piextQueueGetNativeHandle, cuda_piextQueueGetNativeHandle)
+  _PI_CL(piextQueueCreateWithNativeHandle,
+         cuda_piextQueueCreateWithNativeHandle)
   // Memory
   _PI_CL(piMemBufferCreate, cuda_piMemBufferCreate)
   _PI_CL(piMemImageCreate, cuda_piMemImageCreate)
@@ -3648,8 +3795,9 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piMemRetain, cuda_piMemRetain)
   _PI_CL(piMemRelease, cuda_piMemRelease)
   _PI_CL(piMemBufferPartition, cuda_piMemBufferPartition)
+  _PI_CL(piextMemGetNativeHandle, cuda_piextMemGetNativeHandle)
+  _PI_CL(piextMemCreateWithNativeHandle, cuda_piextMemCreateWithNativeHandle)
   // Program
-  _PI_CL(piextProgramConvert, cuda_piextProgramConvert)
   _PI_CL(piProgramCreate, cuda_piProgramCreate)
   _PI_CL(piclProgramCreateWithSource, cuda_piclProgramCreateWithSource)
   _PI_CL(piclProgramCreateWithBinary, cuda_piclProgramCreateWithBinary)
@@ -3660,6 +3808,8 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piProgramGetBuildInfo, cuda_piProgramGetBuildInfo)
   _PI_CL(piProgramRetain, cuda_piProgramRetain)
   _PI_CL(piProgramRelease, cuda_piProgramRelease)
+  _PI_CL(piextMemGetNativeHandle, cuda_piextMemGetNativeHandle)
+  _PI_CL(piextMemCreateWithNativeHandle, cuda_piextMemCreateWithNativeHandle)
   // Kernel
   _PI_CL(piKernelCreate, cuda_piKernelCreate)
   _PI_CL(piKernelSetArg, cuda_piKernelSetArg)
@@ -3679,6 +3829,9 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piEventSetStatus, cuda_piEventSetStatus)
   _PI_CL(piEventRetain, cuda_piEventRetain)
   _PI_CL(piEventRelease, cuda_piEventRelease)
+  _PI_CL(piextEventGetNativeHandle, cuda_piextEventGetNativeHandle)
+  _PI_CL(piextEventCreateWithNativeHandle,
+         cuda_piextEventCreateWithNativeHandle)
   // Sampler
   _PI_CL(piSamplerCreate, cuda_piSamplerCreate)
   _PI_CL(piSamplerGetInfo, cuda_piSamplerGetInfo)
@@ -3713,8 +3866,6 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextUSMGetMemAllocInfo, cuda_piextUSMGetMemAllocInfo)
 
   _PI_CL(piextKernelSetArgMemObj, cuda_piextKernelSetArgMemObj)
-  // Interop
-  _PI_CL(piGetNativeHandle, cuda_piGetNativeHandle)
 
 #undef _PI_CL
 

@@ -29,8 +29,6 @@ namespace detail {
 using PlatformImplPtr = std::shared_ptr<detail::platform_impl>;
 class context_impl {
 public:
-  static constexpr pi_handle_type PIHandleType = PI_NATIVE_HANDLE_CONTEXT;
-
   /// Constructs a context_impl using a single SYCL devices.
   ///
   /// The constructed context_impl will use the AsyncHandler parameter to

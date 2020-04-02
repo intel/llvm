@@ -30,8 +30,7 @@ device::device() : impl(std::make_shared<detail::device_impl>()) {}
 
 device::device(cl_device_id deviceId)
     : impl(std::make_shared<detail::device_impl>(
-          detail::pi::cast<detail::device_interop_handle_t>(deviceId),
-          *RT::GlobalPlugin)) {}
+          detail::pi::cast<pi_native_handle>(deviceId), *RT::GlobalPlugin)) {}
 
 device::device(const device_selector &deviceSelector) {
   *this = deviceSelector.select_device();

@@ -44,8 +44,6 @@ class __SYCL_EXPORT buffer_impl final : public SYCLMemObjT {
   using typename BaseT::MemObjType;
 
 public:
-  static constexpr pi_handle_type PIHandleType = PI_NATIVE_HANDLE_MEM;
-
   buffer_impl(size_t SizeInBytes, size_t RequiredAlign,
               const property_list &Props,
               unique_ptr_class<SYCLMemObjAllocator> Allocator)

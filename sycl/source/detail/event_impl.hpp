@@ -29,8 +29,6 @@ using QueueImplWPtr = std::weak_ptr<cl::sycl::detail::queue_impl>;
 
 class event_impl {
 public:
-  static constexpr pi_handle_type PIHandleType = PI_NATIVE_HANDLE_EVENT;
-
   /// Constructs a ready SYCL event.
   ///
   /// If the constructed SYCL event is waited on it will complete immediately.
