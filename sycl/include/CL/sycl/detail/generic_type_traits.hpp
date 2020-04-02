@@ -582,11 +582,11 @@ struct RelConverter<
 };
 
 template <typename T> static constexpr T max_v() {
-  return std::numeric_limits<T>::max();
+  return (std::numeric_limits<T>::max)();
 }
 
 template <typename T> static constexpr T min_v() {
-  return std::numeric_limits<T>::min();
+  return (std::numeric_limits<T>::min)();
 }
 
 template <typename T> static constexpr T quiet_NaN() {
