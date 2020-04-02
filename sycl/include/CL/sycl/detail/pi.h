@@ -824,6 +824,12 @@ pi_result piContextRetain(pi_context context);
 
 pi_result piContextRelease(pi_context context);
 
+typedef void (*pi_context_extended_deleter)(void *user_data);
+
+pi_result piextContextSetExtendedDeleter(pi_context context,
+                                         pi_context_extended_deleter func,
+                                         void *user_data);
+
 //
 // Queue
 //
