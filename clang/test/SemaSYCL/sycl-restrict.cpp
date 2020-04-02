@@ -70,10 +70,10 @@ bool isa_B(A *a) {
   Check_VLA_Restriction::restriction(7);
   int *ip = new int; // expected-error 2{{SYCL kernel cannot allocate storage}}
   int i;
-  int *p3 = new (&i) int; // no error on placement new
+  int *p3 = new (&i) int;                                    // no error on placement new
   OverloadedNewDelete *x = new (struct OverloadedNewDelete); // expected-note 2{{called by 'isa_B'}}
   auto y = new struct OverloadedNewDelete[5];
-  (void)typeid(int); // expected-error {{SYCL kernel cannot use rtti}}
+  (void)typeid(int);                // expected-error {{SYCL kernel cannot use rtti}}
   return dynamic_cast<B *>(a) != 0; // expected-error {{SYCL kernel cannot use rtti}}
 }
 
@@ -106,18 +106,18 @@ using myFuncDef = int(int, int);
 #define int128Def __int128
 #define int128tDef __int128_t
 #define intDef int
- 
+
 //typedefs (late )
 typedef const __uint128_t megeType;
 typedef const __float128 trickyFloatType;
 typedef const __int128 tricky128Type;
 
 //templated type (late)
-template<typename T>
-T bar(){ return T(); };
+template <typename T>
+T bar() { return T(); };
 
 //false positive. early incorrectly catches
-template<typename t>
+template <typename t>
 void foo(){};
 
 void eh_ok(void) {
@@ -152,8 +152,9 @@ void usage(myFuncDef functionPtr) {
     b.f(); // expected-error {{SYCL kernel cannot call a virtual function}}
 
   Check_RTTI_Restriction::kernel1<class kernel_name>([]() { // expected-note 3{{called by 'usage'}}
-  Check_RTTI_Restriction::A *a;
-  Check_RTTI_Restriction::isa_B(a); }); // expected-note 6{{called by 'operator()'}}
+    Check_RTTI_Restriction::A *a;
+    Check_RTTI_Restriction::isa_B(a);
+  }); // expected-note 6{{called by 'operator()'}}
 
   // ======= Float128 Not Allowed in Kernel ==========
   // expected-error@+1 {{__float128 is not supported on this target}}
@@ -181,15 +182,15 @@ void usage(myFuncDef functionPtr) {
   intDef MalArrayDef[0];
   // ---- false positive tests. These should not generate any errors.
   foo<int[0]>();
-  std::size_t arrSz = sizeof(int[0]); 
+  std::size_t arrSz = sizeof(int[0]);
 
   // ======= __int128 Not Allowed in Kernel ==========
   // expected-error@+1 {{__int128 is not supported on this target}}
-  __int128   malIntent = 2;
+  __int128 malIntent = 2;
   // expected-error@+1 {{__int128 is not supported on this target}}
   tricky128Type mal128Trick = 2;
   // expected-error@+1 {{__int128 is not supported on this target}}
-  int128Def     malIntDef = 9;
+  int128Def malIntDef = 9;
   // expected-error@+1 {{__int128 is not supported on this target}}
   auto whatInt128 = malIntent;
   // expected-error@+1 {{__int128 is not supported on this target}}
@@ -200,13 +201,13 @@ void usage(myFuncDef functionPtr) {
   decltype(malIntent) malDeclInt = 2;
 
   // expected-error@+1 {{__int128 is not supported on this target}}
-  __int128_t  malInt128 = 2;
+  __int128_t malInt128 = 2;
   // expected-error@+1 {{unsigned __int128 is not supported on this target}}
   __uint128_t malUInt128 = 3;
   // expected-error@+1 {{unsigned __int128 is not supported on this target}}
-  megeType   malTypeDefTrick = 4;
+  megeType malTypeDefTrick = 4;
   // expected-error@+1 {{__int128 is not supported on this target}}
-  int128tDef  malInt2Def = 6;
+  int128tDef malInt2Def = 6;
   // expected-error@+1 {{unsigned __int128 is not supported on this target}}
   auto whatUInt = malUInt128;
   // expected-error@+1 {{__int128 is not supported on this target}}
@@ -220,8 +221,7 @@ void usage(myFuncDef functionPtr) {
   std::size_t i128Sz = sizeof(__int128);
   foo<__int128>();
   std::size_t u128Sz = sizeof(__uint128_t);
-  foo<__int128_t>();                                
-   
+  foo<__int128_t>();
 }
 
 namespace ns {
@@ -244,7 +244,7 @@ int use2(a_type ab, a_type *abp) {
     return 2;
   if (ab.const_stat_member)
     return 1;
-  if (ab.stat_member)  // expected-error {{SYCL kernel cannot use a non-const static data variable}}
+  if (ab.stat_member) // expected-error {{SYCL kernel cannot use a non-const static data variable}}
     return 0;
   if (abp->stat_member) // expected-error {{SYCL kernel cannot use a non-const static data variable}}
     return 0;
@@ -253,7 +253,7 @@ int use2(a_type ab, a_type *abp) {
 
   return another_global; // expected-error {{SYCL kernel cannot use a non-const global variable}}
 
-  return ns::glob + // expected-error {{SYCL kernel cannot use a non-const global variable}}
+  return ns::glob +               // expected-error {{SYCL kernel cannot use a non-const global variable}}
          AnotherNS::moar_globals; // expected-error {{SYCL kernel cannot use a non-const global variable}}
 }
 
@@ -265,7 +265,7 @@ __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
 int main() {
   // Outside Kernel, these should not generate errors.
   a_type ab;
-  
+
   int PassOver[0];
   __float128 okFloat = 40;
   __int128 fineInt = 20;

@@ -42,18 +42,18 @@ int calledFromKernel(int a) {
 #define int128Def __int128
 #define int128tDef __int128_t
 #define intDef int
- 
+
 //typedefs (late )
 typedef const __uint128_t megeType;
 typedef const __float128 trickyFloatType;
 typedef const __int128 tricky128Type;
 
 //templated type (late)
-template<typename T>
-T bar(){ return T(); };
+template <typename T>
+T bar() { return T(); };
 
 //false positive. early incorrectly catches
-template<typename t>
+template <typename t>
 void foo(){};
 
 //  template used to specialize a function that contains a lambda that should
@@ -78,7 +78,7 @@ void setup_sycl_operation(const T VA[]) {
     // expected-error@+1 {{__float128 is not supported on this target}}
     trickyFloatType malFloatTrick = 41;
     // expected-error@+1 {{__float128 is not supported on this target}}
-    floatDef        malFloatDef = 44;
+    floatDef malFloatDef = 44;
     // expected-error@+1 {{__float128 is not supported on this target}}
     auto whatFloat = malFloat;
     // expected-error@+1 {{__float128 is not supported on this target}}
@@ -93,11 +93,11 @@ void setup_sycl_operation(const T VA[]) {
 
     // ======= __int128 Not Allowed in Kernel ==========
     // expected-error@+1 {{__int128 is not supported on this target}}
-    __int128   malIntent = 2;
+    __int128 malIntent = 2;
     // expected-error@+1 {{__int128 is not supported on this target}}
     tricky128Type mal128Trick = 2;
     // expected-error@+1 {{__int128 is not supported on this target}}
-    int128Def     malIntDef = 9;
+    int128Def malIntDef = 9;
     // expected-error@+1 {{__int128 is not supported on this target}}
     auto whatInt128 = malIntent;
     // expected-error@+1 {{__int128 is not supported on this target}}
@@ -108,13 +108,13 @@ void setup_sycl_operation(const T VA[]) {
     decltype(malIntent) malDeclInt = 2;
 
     // expected-error@+1 {{__int128 is not supported on this target}}
-    __int128_t  malInt128 = 2;
+    __int128_t malInt128 = 2;
     // expected-error@+1 {{unsigned __int128 is not supported on this target}}
     __uint128_t malUInt128 = 3;
     // expected-error@+1 {{unsigned __int128 is not supported on this target}}
-    megeType   malTypeDefTrick = 4;
+    megeType malTypeDefTrick = 4;
     // expected-error@+1 {{__int128 is not supported on this target}}
-    int128tDef  malInt2Def = 6;
+    int128tDef malInt2Def = 6;
     // expected-error@+1 {{unsigned __int128 is not supported on this target}}
     auto whatUInt = malUInt128;
     // expected-error@+1 {{__int128 is not supported on this target}}
