@@ -153,6 +153,7 @@ public:
     case DecorationSimpleDualPortINTEL:
     case DecorationMergeINTEL:
     case DecorationBankBitsINTEL:
+    case DecorationForcePow2DepthINTEL:
       return getSet(ExtensionID::SPV_INTEL_fpga_memory_attributes);
     case DecorationReferencedIndirectlyINTEL:
       return getSet(ExtensionID::SPV_INTEL_function_pointers);
@@ -252,6 +253,7 @@ public:
     case DecorationSimpleDualPortINTEL:
     case DecorationMergeINTEL:
     case DecorationBankBitsINTEL:
+    case DecorationForcePow2DepthINTEL:
       return getSet(ExtensionID::SPV_INTEL_fpga_memory_attributes);
     case DecorationIOPipeStorageINTEL:
       return getSet(ExtensionID::SPV_INTEL_io_pipes);

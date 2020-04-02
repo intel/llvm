@@ -74,7 +74,7 @@ using make_index_sequence = __make_integer_seq<integer_sequence, size_t, N>;
 
 template <typename T> struct KernelInfoImpl {
 private:
-  static constexpr auto n = __unique_stable_name(T);
+  static constexpr auto n = __builtin_unique_stable_name(T);
   template <size_t... I>
   static KernelInfoData<n[I]...> impl(index_sequence<I...>) {
     return {};

@@ -101,10 +101,9 @@ def VCC_HI : SIReg<"vcc_hi", 107>;
 def PRIVATE_RSRC_REG : SIReg<"private_rsrc", 0>;
 def FP_REG : SIReg<"fp", 0>;
 def SP_REG : SIReg<"sp", 0>;
-def SCRATCH_WAVE_OFFSET_REG : SIReg<"scratch_wave_offset", 0>;
 
 // Pseudo-register to represent the program-counter DWARF register.
-def PC_REG : SIReg<"pc", 0>, DwarfRegNum<[16]> {
+def PC_REG : SIReg<"pc", 0>, DwarfRegNum<[16, 0]> {
   // There is no physical register corresponding to a "program counter", but
   // we need to encode the concept in debug information in order to represent
   // things like the return value in unwind information.
@@ -118,10 +117,10 @@ def VCC : RegisterWithSubRegs<"vcc", [VCC_LO, VCC_HI]> {
   let HWEncoding = 106;
 }
 
-def EXEC_LO : SIReg<"exec_lo", 126>, DwarfRegNum<[1]>;
+def EXEC_LO : SIReg<"exec_lo", 126>, DwarfRegNum<[1, 1]>;
 def EXEC_HI : SIReg<"exec_hi", 127>;
 
-def EXEC : RegisterWithSubRegs<"exec", [EXEC_LO, EXEC_HI]>, DwarfRegNum<[17]> {
+def EXEC : RegisterWithSubRegs<"exec", [EXEC_LO, EXEC_HI]>, DwarfRegNum<[17, 1]> {
   let Namespace = "AMDGPU";
   let SubRegIndices = [sub0, sub1];
   let HWEncoding = 126;
@@ -212,15 +211,21 @@ def FLAT_SCR : FlatReg<FLAT_SCR_LO, FLAT_SCR_HI, 0>;
 foreach Index = 0-105 in {
   def SGPR#Index :
     SIReg <"s"#Index, Index>,
-    DwarfRegNum<[!if(!le(Index, 63), !add(Index, 32), !add(Index, 1024))]>;
+    DwarfRegNum<[!if(!le(Index, 63), !add(Index, 32), !add(Index, 1024)),
+                 !if(!le(Index, 63), !add(Index, 32), !add(Index, 1024))]>;
 }
 
 // VGPR registers
 foreach Index = 0-255 in {
+  // Set a cost value for vgprs other than the argument registers (v0-v31).
+  // The ratio of index/allocation_granularity is taken as the cost value.
+  // Considered the allocation granularity as 4 here.
+  let CostPerUse=!if(!gt(Index, 31), !srl(Index, 2), 0) in {
   def VGPR#Index :
       SIReg <"v"#Index, Index>,
-      DwarfRegNum<[!add(Index, 2560)]> {
+      DwarfRegNum<[!add(Index, 2560), !add(Index, 1536)]> {
     let HWEncoding{8} = 1;
+  }
   }
 }
 
@@ -228,7 +233,7 @@ foreach Index = 0-255 in {
 foreach Index = 0-255 in {
   def AGPR#Index :
       SIReg <"a"#Index, Index>,
-      DwarfRegNum<[!add(Index, 3072)]> {
+      DwarfRegNum<[!add(Index, 3072), !add(Index, 2048)]> {
     let HWEncoding{8} = 1;
   }
 }
@@ -435,7 +440,7 @@ def AGPR_1024 : SIRegisterTuples<getSubRegs<32>.ret, AGPR_32, 255, 1, 32, "a">;
 //===----------------------------------------------------------------------===//
 
 def Pseudo_SReg_32 : RegisterClass<"AMDGPU", [i32, f32, i16, f16, v2i16, v2f16], 32,
-  (add FP_REG, SP_REG, SCRATCH_WAVE_OFFSET_REG)> {
+  (add FP_REG, SP_REG)> {
   let isAllocatable = 0;
   let CopyCost = -1;
 }
@@ -573,7 +578,7 @@ def SReg_160 : RegisterClass<"AMDGPU", [v5i32, v5f32], 32,
   let AllocationPriority = 16;
 }
 
-def SGPR_256 : RegisterClass<"AMDGPU", [v8i32, v8f32], 32, (add SGPR_256Regs)> {
+def SGPR_256 : RegisterClass<"AMDGPU", [v8i32, v8f32, v4i64], 32, (add SGPR_256Regs)> {
   let AllocationPriority = 17;
 }
 
@@ -581,7 +586,7 @@ def TTMP_256 : RegisterClass<"AMDGPU", [v8i32, v8f32], 32, (add TTMP_256Regs)> {
   let isAllocatable = 0;
 }
 
-def SReg_256 : RegisterClass<"AMDGPU", [v8i32, v8f32], 32,
+def SReg_256 : RegisterClass<"AMDGPU", [v8i32, v8f32, v4i64], 32,
                              (add SGPR_256, TTMP_256)> {
   // Requires 4 s_mov_b64 to copy
   let CopyCost = 4;

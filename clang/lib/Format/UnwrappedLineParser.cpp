@@ -323,6 +323,24 @@ void UnwrappedLineParser::parseFile() {
   addUnwrappedLine();
 }
 
+void UnwrappedLineParser::parseCSharpGenericTypeConstraint() {
+  do {
+    switch (FormatTok->Tok.getKind()) {
+    case tok::l_brace:
+      return;
+    default:
+      if (FormatTok->is(Keywords.kw_where)) {
+        addUnwrappedLine();
+        nextToken();
+        parseCSharpGenericTypeConstraint();
+        break;
+      }
+      nextToken();
+      break;
+    }
+  } while (!eof());
+}
+
 void UnwrappedLineParser::parseCSharpAttribute() {
   int UnpairedSquareBrackets = 1;
   do {
@@ -1344,6 +1362,12 @@ void UnwrappedLineParser::parseStructuralElement() {
       parseTryCatch();
       return;
     case tok::identifier: {
+      if (Style.isCSharp() && FormatTok->is(Keywords.kw_where) &&
+          Line->MustBeDeclaration) {
+        addUnwrappedLine();
+        parseCSharpGenericTypeConstraint();
+        break;
+      }
       if (FormatTok->is(TT_MacroBlockEnd)) {
         addUnwrappedLine();
         return;
@@ -1436,6 +1460,11 @@ void UnwrappedLineParser::parseStructuralElement() {
 
       nextToken();
       if (FormatTok->Tok.is(tok::l_brace)) {
+        // Block kind should probably be set to BK_BracedInit for any language.
+        // C# needs this change to ensure that array initialisers and object
+        // initialisers are indented the same way.
+        if (Style.isCSharp())
+          FormatTok->BlockKind = BK_BracedInit;
         nextToken();
         parseBracedList();
       } else if (Style.Language == FormatStyle::LK_Proto &&
@@ -1628,7 +1657,7 @@ bool UnwrappedLineParser::tryToParseBracedList() {
 bool UnwrappedLineParser::parseBracedList(bool ContinueOnSemicolons,
                                           tok::TokenKind ClosingBraceKind) {
   bool HasError = false;
-
+  
   // FIXME: Once we have an expression parser in the UnwrappedLineParser,
   // replace this by using parseAssigmentExpression() inside.
   do {
