@@ -10,7 +10,7 @@ jobs:
      strategy:
        fail-fast: false
        matrix:
-         config: ["Default", "SharedLibs", "Assertions"]
+         config: ["Default", "SharedLibs", "NoAssertions"]
 
      steps:
      - uses: actions/checkout@v2
