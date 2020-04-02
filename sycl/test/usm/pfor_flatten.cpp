@@ -1,8 +1,8 @@
-// RUN: %clangxx -fsycl -fsycl-unnamed-lambda %s -o %t1.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  -fsycl-unnamed-lambda %s -o %t1.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t1.out
 // RUN: %CPU_RUN_PLACEHOLDER %t1.out
 // RUN: %GPU_RUN_PLACEHOLDER %t1.out
-// XFAIL: cuda
+// UNSUPPORTED: cuda
 
 //==--------------- pfor_flatten.cpp - Kernel Launch Flattening test -------==//
 //

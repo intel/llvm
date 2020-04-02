@@ -4,6 +4,31 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_executable(get_device_count_by_type get_device_count_by_type.cpp)
 add_dependencies(get_device_count_by_type ocl-headers ocl-icd)
+
+if( SYCL_BUILD_PI_CUDA )
+  find_package(CUDA 10.0 REQUIRED)
+
+  add_library(cudadrv SHARED IMPORTED)
+
+  set_target_properties(
+    cudadrv PROPERTIES
+      IMPORTED_LOCATION             ${CUDA_CUDA_LIBRARY}
+      INTERFACE_INCLUDE_DIRECTORIES ${CUDA_INCLUDE_DIRS}
+  )
+
+  target_compile_definitions(get_device_count_by_type
+      PUBLIC $<$<BOOL:${SYCL_BUILD_PI_CUDA}>:USE_PI_CUDA>
+  )
+
+  target_include_directories( get_device_count_by_type
+    PUBLIC
+      ${CUDA_INCLUDE_DIRS}
+  )
+  target_link_libraries(get_device_count_by_type
+    PUBLIC OpenCL-Headers cudadrv
+)
+endif()
+
 target_link_libraries(get_device_count_by_type
     PRIVATE OpenCL::Headers
     PRIVATE ${OpenCL_LIBRARIES}
