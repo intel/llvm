@@ -769,7 +769,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
     }
     return SYCLArg;
   };
-  //hchilama
+
   // Emit an error if c-compilation is forced in -fsycl mode
   if (HasValidSYCLRuntime && C.getInputArgs().hasArg(options::OPT_x))
     for (StringRef XValue : C.getInputArgs().getAllArgValues(options::OPT_x)) {
@@ -4066,13 +4066,6 @@ class OffloadingActionBuilder final {
         SYCLTripleList.push_back(
             C.getDriver().MakeSYCLDeviceTriple(SYCLTargetArch));
       }
-      // Emit an error if c-compilation is forced in -fsycl mode
-      if (HasValidSYCLRuntime && Args.hasArg(options::OPT_x))
-        for (StringRef XValue : Args.getAllArgValues(options::OPT_x)) {
-          if (XValue == "c" || XValue == "c-header")
-            C.getDriver().Diag(clang::diag::err_drv_fsycl_with_c_type)
-                << "-x " << XValue;
-        }
 
       // Set the FPGA output type based on command line (-fsycl-link).
       if (auto * A = C.getInputArgs().getLastArg(options::OPT_fsycl_link_EQ))
