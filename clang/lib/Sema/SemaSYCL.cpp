@@ -28,7 +28,6 @@
 
 #include <array>
 
-
 using namespace clang;
 
 using KernelParamKind = SYCLIntegrationHeader::kernel_param_kind_t;
@@ -237,8 +236,6 @@ void Sema::CheckVarDeclOKIfInKernel(VarDecl *var) {
   }
 }
 
-
-
 class MarkDeviceFunction : public RecursiveASTVisitor<MarkDeviceFunction> {
 public:
   MarkDeviceFunction(Sema &S)
@@ -268,7 +265,6 @@ public:
         if (Method->isVirtual())
           SemaRef.Diag(e->getExprLoc(), diag::err_sycl_restrict)
               << Sema::KernelCallVirtualFunction;
-       
       CheckSYCLType(Callee->getReturnType(), Callee->getSourceRange());
 
       if (auto const *FD = dyn_cast<FunctionDecl>(Callee)) {
@@ -339,7 +335,6 @@ public:
     Decl *D = E->getDecl();
     if (SemaRef.isKnownGoodSYCLDecl(D))
       return true;
-    
     CheckSYCLType(E->getType(), E->getSourceRange());
     return true;
   }
@@ -474,12 +469,10 @@ private:
 
   bool CheckSYCLType(QualType Ty, SourceRange Loc,
                      llvm::DenseSet<QualType> &Visited) {
-    
     if (Ty->isVariableArrayType()) {
       SemaRef.Diag(Loc.getBegin(), diag::err_vla_unsupported);
       return false;
     }
-    
     while (Ty->isAnyPointerType() || Ty->isArrayType())
       Ty = QualType{Ty->getPointeeOrArrayElementType(), 0};
 
