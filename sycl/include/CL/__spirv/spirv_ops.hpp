@@ -27,6 +27,29 @@
     "SPIR-V built-ins are not available. Please set -fdeclare-spirv-builtins flag."
 #endif
 
+template <typename RetT, typename ImageT>
+extern SYCL_EXTERNAL RetT __spirv_ImageQueryFormat(ImageT);
+
+template <typename RetT, typename ImageT>
+extern SYCL_EXTERNAL RetT __spirv_ImageQueryOrder(ImageT);
+
+template <typename RetT, typename ImageT>
+extern SYCL_EXTERNAL RetT __spirv_ImageQuerySize(ImageT);
+
+template <typename ImageT, typename CoordT, typename ValT>
+extern SYCL_EXTERNAL void __spirv_ImageWrite(ImageT, CoordT, ValT);
+
+template <class RetT, typename ImageT, typename TempArgT>
+extern SYCL_EXTERNAL RetT __spirv_ImageRead(ImageT, TempArgT);
+
+template <typename ImageT, typename SampledType>
+extern SYCL_EXTERNAL SampledType __spirv_SampledImage(ImageT, __ocl_sampler_t);
+
+template <typename SampledType, typename TempRetT, typename TempArgT>
+extern SYCL_EXTERNAL TempRetT __spirv_ImageSampleExplicitLod(SampledType,
+                                                             TempArgT, int,
+                                                             float);
+
 #define OpGroupAsyncCopyGlobalToLocal __spirv_GroupAsyncCopy
 #define OpGroupAsyncCopyLocalToGlobal __spirv_GroupAsyncCopy
 
