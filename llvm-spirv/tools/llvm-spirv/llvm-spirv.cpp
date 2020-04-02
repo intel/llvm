@@ -116,16 +116,16 @@ static cl::opt<bool> SPIRVGenKernelArgNameMD(
     cl::desc("Enable generating OpenCL kernel argument name "
              "metadata"));
 
-// TODO: rename this option if we decide to target some representations of
-// SPIR-V instructions in LLVM IR which are not tied to OpenCL ones
-static cl::opt<SPIRV::BIsRepresentation>
-    BIsRepresentation("spirv-ocl-builtins-version",
-                      cl::desc("Specify version of OCL builtins to translate "),
-                      cl::values(clEnumValN(SPIRV::BIsRepresentation::OpenCL12,
-                                            "CL1.2", "OpenCL C 1.2"),
-                                 clEnumValN(SPIRV::BIsRepresentation::OpenCL20,
-                                            "CL2.0", "OpenCL C 2.0")),
-                          cl::init(SPIRV::BIsRepresentation::OpenCL12));
+static cl::opt<SPIRV::BIsRepresentation> BIsRepresentation(
+    "spirv-target-env",
+    cl::desc("Specify a representation of different SPIR-V Instructions which "
+             "is used when translating from SPIR-V to LLVM IR"),
+    cl::values(
+        clEnumValN(SPIRV::BIsRepresentation::OpenCL12, "CL1.2", "OpenCL C 1.2"),
+        clEnumValN(SPIRV::BIsRepresentation::OpenCL20, "CL2.0", "OpenCL C 2.0"),
+        clEnumValN(SPIRV::BIsRepresentation::SPIRVFriendlyIR, "SPV-IR",
+                   "SPIR-V Friendly IR")),
+    cl::init(SPIRV::BIsRepresentation::OpenCL12));
 
 using SPIRV::ExtensionID;
 

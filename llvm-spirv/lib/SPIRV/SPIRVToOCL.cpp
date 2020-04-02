@@ -397,15 +397,19 @@ std::string SPIRVToOCL::getGroupBuiltinPrefix(CallInst *CI) {
 
 } // namespace SPIRV
 
-ModulePass *llvm::createSPIRVToOCL(Module &M,
-                                   SPIRV::BIsRepresentation BIsRepresentation) {
+ModulePass *
+llvm::createSPIRVBIsLoweringPass(Module &M,
+                                 SPIRV::BIsRepresentation BIsRepresentation) {
   switch (BIsRepresentation) {
-    case SPIRV::BIsRepresentation::OpenCL12:
-      return createSPIRVToOCL12();
-    case SPIRV::BIsRepresentation::OpenCL20:
-      return createSPIRVToOCL20();
-    default:
-      assert(false && "Unsupported built-ins representation");
-      return nullptr;
+  case SPIRV::BIsRepresentation::OpenCL12:
+    return createSPIRVToOCL12();
+  case SPIRV::BIsRepresentation::OpenCL20:
+    return createSPIRVToOCL20();
+  case SPIRV::BIsRepresentation::SPIRVFriendlyIR:
+    // nothing to do, already done
+    return nullptr;
+  default:
+    llvm_unreachable("Unsupported built-ins representation");
+    return nullptr;
   }
 }
