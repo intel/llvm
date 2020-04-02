@@ -28,6 +28,7 @@
 
 #include <array>
 
+
 using namespace clang;
 
 using KernelParamKind = SYCLIntegrationHeader::kernel_param_kind_t;
@@ -200,6 +201,44 @@ bool Sema::isKnownGoodSYCLDecl(const Decl *D) {
   return false;
 }
 
+bool isArraySizedZero(QualType Ty) {
+  if (const auto *CATy = dyn_cast<ConstantArrayType>(Ty)) {
+    const llvm::APInt size = CATy->getSize();
+    return size == 0;
+  }
+  return false;
+}
+
+void Sema::CheckVarDeclOKIfInKernel(VarDecl *var) {
+  // not all variable types supported in kernel contexts
+  // if not we record a deferred diagnostic.
+  if (getLangOpts().SYCLIsDevice) {
+    QualType Ty = var->getType();
+    SourceRange Loc = var->getLocation();
+
+    // __int128, __int128_t, __uint128_t
+    if (Ty->isSpecificBuiltinType(BuiltinType::Int128) ||
+        Ty->isSpecificBuiltinType(BuiltinType::UInt128))
+      SYCLDiagIfDeviceCode(Loc.getBegin(), diag::err_type_unsupported)
+          << Ty.getUnqualifiedType().getCanonicalType().getAsString();
+
+    // QuadType __float128
+    if (Ty->isSpecificBuiltinType(BuiltinType::Float128) &&
+        !Context.getTargetInfo().hasFloat128Type())
+      SYCLDiagIfDeviceCode(Loc.getBegin(), diag::err_type_unsupported)
+          << "__float128";
+
+    // zero length arrays
+    if (Ty->isArrayType() && isArraySizedZero(Ty))
+      SYCLDiagIfDeviceCode(Loc.getBegin(), diag::err_typecheck_zero_array_size);
+
+    // TODO: check type of accessor
+    // if(Util::isSyclAccessorType(Ty))
+  }
+}
+
+
+
 class MarkDeviceFunction : public RecursiveASTVisitor<MarkDeviceFunction> {
 public:
   MarkDeviceFunction(Sema &S)
@@ -229,7 +268,7 @@ public:
         if (Method->isVirtual())
           SemaRef.Diag(e->getExprLoc(), diag::err_sycl_restrict)
               << Sema::KernelCallVirtualFunction;
-
+       
       CheckSYCLType(Callee->getReturnType(), Callee->getSourceRange());
 
       if (auto const *FD = dyn_cast<FunctionDecl>(Callee)) {
@@ -300,7 +339,7 @@ public:
     Decl *D = E->getDecl();
     if (SemaRef.isKnownGoodSYCLDecl(D))
       return true;
-
+    
     CheckSYCLType(E->getType(), E->getSourceRange());
     return true;
   }
@@ -435,11 +474,12 @@ private:
 
   bool CheckSYCLType(QualType Ty, SourceRange Loc,
                      llvm::DenseSet<QualType> &Visited) {
+    
     if (Ty->isVariableArrayType()) {
       SemaRef.Diag(Loc.getBegin(), diag::err_vla_unsupported);
       return false;
     }
-
+    
     while (Ty->isAnyPointerType() || Ty->isArrayType())
       Ty = QualType{Ty->getPointeeOrArrayElementType(), 0};
 

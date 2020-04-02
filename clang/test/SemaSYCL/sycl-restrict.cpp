@@ -101,6 +101,25 @@ b_type b;
 
 using myFuncDef = int(int, int);
 
+// defines (early and late)
+#define floatDef   __float128
+#define int128Def  __int128
+#define int128tDef  __int128_t
+#define intDef     int
+ 
+//typedefs (late )
+typedef const __uint128_t megeType;
+typedef const __float128  trickyFloatType;
+typedef const __int128    tricky128Type;
+
+//templated type (late)
+template<typename T> T bar(){ return T(); };
+
+//false positive. early incorrectly catches
+template<typename t> void foo(){};
+
+
+
 void eh_ok(void) {
   __float128 A;
   try {
@@ -136,9 +155,74 @@ void usage(myFuncDef functionPtr) {
   Check_RTTI_Restriction::A *a;
   Check_RTTI_Restriction::isa_B(a); }); // expected-note 6{{called by 'operator()'}}
 
-  __float128 A; // expected-error {{__float128 is not supported on this target}}
 
-  int BadArray[0]; // expected-error {{zero-length arrays are not permitted in C++}}
+  // ======= Float128 Not Allowed in Kernel ==========
+  // expected-error@+1 {{__float128 is not supported on this target}}
+  __float128 malFloat = 40; 
+  // expected-error@+1 {{__float128 is not supported on this target}}
+  trickyFloatType malFloatTrick = 41;
+  // expected-error@+1 {{__float128 is not supported on this target}}
+  floatDef        malFloatDef = 44;
+  // expected-error@+1 {{__float128 is not supported on this target}}
+  auto whatFloat = malFloat;
+  // expected-error@+1 {{__float128 is not supported on this target}}
+  auto malAutoTemp5 = bar<__float128>();
+  // expected-error@+1 {{__float128 is not supported on this target}}       
+  auto malAutoTemp6 = bar<trickyFloatType>();   
+  // expected-error@+1 {{__float128 is not supported on this target}}
+  decltype(malFloat) malDeclFloat = 42;
+  // ---- false positive tests
+  std::size_t someSz = sizeof(__float128);   
+  foo<__float128>();
+
+  // ======= Zero Length Arrays Not Allowed in Kernel ==========
+  // expected-error@+1 {{zero-length arrays are not permitted in C++}}
+  int MalArray[0]; 
+  // expected-error@+1 {{zero-length arrays are not permitted in C++}}
+  intDef MalArrayDef[0];    
+  // ---- false positive tests. These should not generate any errors.
+  foo<int[0]>();    
+  std::size_t arrSz = sizeof(int[0]); 
+
+  // ======= __int128 Not Allowed in Kernel ==========
+  // expected-error@+1 {{__int128 is not supported on this target}}
+  __int128   malIntent = 2; 
+  // expected-error@+1 {{__int128 is not supported on this target}}
+  tricky128Type mal128Trick = 2;
+  // expected-error@+1 {{__int128 is not supported on this target}}
+  int128Def     malIntDef = 9;
+  // expected-error@+1 {{__int128 is not supported on this target}}
+  auto whatInt128 = malIntent;
+  // expected-error@+1 {{__int128 is not supported on this target}}
+  auto malAutoTemp = bar<__int128>();
+  // expected-error@+1 {{__int128 is not supported on this target}}
+  auto malAutoTemp2 = bar<tricky128Type>();
+  // expected-error@+1 {{__int128 is not supported on this target}}
+  decltype(malIntent) malDeclInt = 2;
+
+  // expected-error@+1 {{__int128 is not supported on this target}}
+  __int128_t  malInt128 = 2;
+  // expected-error@+1 {{unsigned __int128 is not supported on this target}}
+  __uint128_t malUInt128 = 3;
+  // expected-error@+1 {{unsigned __int128 is not supported on this target}}                            
+  megeType   malTypeDefTrick = 4; 
+  // expected-error@+1 {{__int128 is not supported on this target}}
+  int128tDef  malInt2Def = 6;
+  // expected-error@+1 {{unsigned __int128 is not supported on this target}}
+  auto whatUInt = malUInt128;
+  // expected-error@+1 {{__int128 is not supported on this target}}
+  auto malAutoTemp3 = bar<__int128_t>();
+  // expected-error@+1 {{unsigned __int128 is not supported on this target}}
+  auto malAutoTemp4 = bar<megeType>();
+  // expected-error@+1 {{__int128 is not supported on this target}}
+  decltype(malInt128) malDeclInt128 = 5;
+
+  // ---- false positive tests These should not generate any errors. 
+  std::size_t i128Sz = sizeof(__int128);                              
+  foo<__int128>();
+  std::size_t u128Sz = sizeof(__uint128_t);
+  foo<__int128_t>();                                
+   
 }
 
 namespace ns {
@@ -180,7 +264,16 @@ __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
 }
 
 int main() {
+  // Outside Kernel, these should not generate errors. 
   a_type ab;
+  
+  int         PassOver[0];  
+  __float128  okFloat = 40; 
+  __int128    fineInt = 20;
+  __int128_t  acceptable = 30;
+  __uint128_t whatever = 50;
+
+
   kernel_single_task<class fake_kernel>([=]() {
     usage(&addInt); // expected-note 5{{called by 'operator()'}}
     a_type *p;
