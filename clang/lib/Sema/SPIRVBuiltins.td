@@ -711,36 +711,36 @@ foreach name = ["GenericPtrMemSemantics"] in {
 
 // 3.32.11. Conversion Instructions
 
-foreach IType = [UChar, UShort, UInt, ULong] in {
+foreach UIType = [UChar, UShort, UInt, ULong] in {
   foreach FType = [Float, Double, Half] in {
-    def : SPVBuiltin<"ConvertFToU_R" # IType.Name, [IType, FType], Attr.Const>;
-    def : SPVBuiltin<"ConvertUToF_R" # FType.Name, [FType, IType], Attr.Const>;
+    def : SPVBuiltin<"ConvertFToU_R" # UIType.Name, [UIType, FType], Attr.Const>;
+    def : SPVBuiltin<"ConvertUToF_R" # FType.Name, [FType, UIType], Attr.Const>;
     foreach rnd = ["", "_rte", "_rtz", "_rtp", "_rtn"] in {
-      def : SPVBuiltin<"ConvertFToU_R" # IType.Name # rnd, [IType, FType], Attr.Const>;
+      def : SPVBuiltin<"ConvertFToU_R" # UIType.Name # rnd, [UIType, FType], Attr.Const>;
     }
     foreach v = [2, 3, 4, 8, 16] in {
-      def : SPVBuiltin<"ConvertFToU_R" # IType.Name # v,
-                       [VectorType<IType, v>, VectorType<FType, v>],
+      def : SPVBuiltin<"ConvertFToU_R" # UIType.Name # v,
+                       [VectorType<UIType, v>, VectorType<FType, v>],
                        Attr.Const>;
       def : SPVBuiltin<"ConvertUToF_R" # FType.Name # v,
-                       [VectorType<FType, v>, VectorType<IType, v>],
+                       [VectorType<FType, v>, VectorType<UIType, v>],
                        Attr.Const>;
     }
   }
 }
 
-foreach IType = [TrueChar, Short, Int, Long] in {
+foreach SIType = [TrueChar, Short, Int, Long] in {
   foreach FType = [Float, Double, Half] in {
-    def : SPVBuiltin<"ConvertSToF_R" # FType.Name, [FType, IType], Attr.Const>;
+    def : SPVBuiltin<"ConvertSToF_R" # FType.Name, [FType, SIType], Attr.Const>;
     foreach rnd = ["", "_rte", "_rtz", "_rtp", "_rtn"] in {
-      def : SPVBuiltin<"ConvertFToS_R" # IType.Name # rnd, [IType, FType], Attr.Const>;
+      def : SPVBuiltin<"ConvertFToS_R" # SIType.Name # rnd, [SIType, FType], Attr.Const>;
     }
     foreach v = [2, 3, 4, 8, 16] in {
-      def : SPVBuiltin<"ConvertFToS_R" # IType.Name # v,
-                       [VectorType<IType, v>, VectorType<FType, v>],
+      def : SPVBuiltin<"ConvertFToS_R" # SIType.Name # v,
+                       [VectorType<SIType, v>, VectorType<FType, v>],
                        Attr.Const>;
       def : SPVBuiltin<"ConvertSToF_R" # FType.Name # v,
-                       [VectorType<FType, v>, VectorType<IType, v>],
+                       [VectorType<FType, v>, VectorType<SIType, v>],
                        Attr.Const>;
     }
   }

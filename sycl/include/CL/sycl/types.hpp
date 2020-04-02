@@ -200,12 +200,6 @@ using is_int_to_int =
                                      std::is_integral<R>::value>;
 
 template <typename T, typename R>
-using is_int_to_from_uint =
-    std::integral_constant<bool, std::is_unsigned<T>::value && 
-                                    std::is_signed<R>::value || 
-                                    std::is_signed<T>::value && std::is_unsigned<R>::value>;
-
-template <typename T, typename R>
 using is_int_to_float =
     std::integral_constant<bool, std::is_integral<T>::value &&
                                      detail::is_floating_point<R>::value>;
@@ -295,33 +289,6 @@ using Rtp = detail::bool_constant<Mode == rounding_mode::rtp>;
 
 template <rounding_mode Mode>
 using Rtn = detail::bool_constant<Mode == rounding_mode::rtn>;
-
-#define __SYCL_INT_GENERATE_CONVERT_IMPL(SPIRVOp, DestType, RoundingMode, RoundingModeCondition) \
-template <typename T, typename R, rounding_mode roundingMode>\
-detail::enable_if_t<is_int_to_from_uint<T, R>::value && \
-                        std::is_same<R, DestType>::value && \
-                        RoundingModeCondition<roundingMode>::value, \
-                      R> \
-convertImpl(T Value) { \
-  using OpenCLT = cl::sycl::detail::ConvertToOpenCLType_t<T>; \
-  OpenCLT OpValue = cl::sycl::detail::convertDataToType<T, OpenCLT>(Value); \
-  return __spirv_Convert##SPIRVOp##_R##DestType##_##RoundingMode(OpValue); \
-} \
-
-#define __SYCL_INT_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE(RoundingMode, RoundingModeCondition) \
-  __SYCL_INT_GENERATE_CONVERT_IMPL(UToS, int, RoundingMode, RoundingModeCondition) \
-  __SYCL_INT_GENERATE_CONVERT_IMPL(UToS, char, RoundingMode, RoundingModeCondition) \
-  __SYCL_INT_GENERATE_CONVERT_IMPL(UToS, short, RoundingMode, RoundingModeCondition) \
-  __SYCL_INT_GENERATE_CONVERT_IMPL(UToS, long, RoundingMode, RoundingModeCondition) \
-  __SYCL_INT_GENERATE_CONVERT_IMPL(SToU, uint, RoundingMode, RoundingModeCondition) \
-  __SYCL_INT_GENERATE_CONVERT_IMPL(SToU, uchar, RoundingMode, RoundingModeCondition) \
-  __SYCL_INT_GENERATE_CONVERT_IMPL(SToU, ushort, RoundingMode, RoundingModeCondition) \
-  __SYCL_INT_GENERATE_CONVERT_IMPL(SToU, ulong, RoundingMode, RoundingModeCondition) \
-
-__SYCL_INT_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE(rte, RteOrAutomatic)
-__SYCL_INT_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE(rtz, Rtz)
-__SYCL_INT_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE(rtp, Rtp)
-__SYCL_INT_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE(rtn, Rtn)
 
 #define __SYCL_GENERATE_CONVERT_IMPL(SPIRVOp, DestType, RoundingMode, RoundingModeCondition) \
 template <typename T, typename R, rounding_mode roundingMode>\
