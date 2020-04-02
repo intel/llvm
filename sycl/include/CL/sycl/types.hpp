@@ -293,38 +293,23 @@ convertImpl(T Value) { \
   return __spirv_Convert##SPIRVOp##_R##DestType##_##RoundingMode(OpValue); \
 } \
 
-__SYCL_GENERATE_CONVERT_IMPL(FToS, int, rte, RteOrAutomatic)
+#define __SYCL_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE(RoundingMode, RoundingModeCondition) \
+  __SYCL_GENERATE_CONVERT_IMPL(FToS, int, RoundingMode, RoundingModeCondition) \
+  __SYCL_GENERATE_CONVERT_IMPL(FToS, char, RoundingMode, RoundingModeCondition) \
+  __SYCL_GENERATE_CONVERT_IMPL(FToS, short, RoundingMode, RoundingModeCondition) \
+  __SYCL_GENERATE_CONVERT_IMPL(FToS, long, RoundingMode, RoundingModeCondition) \
+  __SYCL_GENERATE_CONVERT_IMPL(FToU, uint, RoundingMode, RoundingModeCondition) \
+  __SYCL_GENERATE_CONVERT_IMPL(FToU, uchar, RoundingMode, RoundingModeCondition) \
+  __SYCL_GENERATE_CONVERT_IMPL(FToU, ushort, RoundingMode, RoundingModeCondition) \
+  __SYCL_GENERATE_CONVERT_IMPL(FToU, ulong, RoundingMode, RoundingModeCondition) \
 
-__SYCL_GENERATE_CONVERT_IMPL(FToU, char, rte, RteOrAutomatic)
+__SYCL_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE(rte, RteOrAutomatic)
+__SYCL_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE(rtz, Rtz)
+__SYCL_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE(rtp, Rtp)
+__SYCL_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE(rtn, Rtn)
 
-__SYCL_GENERATE_CONVERT_IMPL(FToU, short, rte, RteOrAutomatic)
 
-__SYCL_GENERATE_CONVERT_IMPL(FToU, long, rte, RteOrAutomatic)
-
-__SYCL_GENERATE_CONVERT_IMPL(FToS, int, rtz, Rtz)
-
-__SYCL_GENERATE_CONVERT_IMPL(FToS, char, rtz, Rtz)
-
-__SYCL_GENERATE_CONVERT_IMPL(FToS, short, rtz, Rtz)
-
-__SYCL_GENERATE_CONVERT_IMPL(FToS, long, rtz, Rtz)
-
-__SYCL_GENERATE_CONVERT_IMPL(FToS, int, rtp, Rtp)
-
-__SYCL_GENERATE_CONVERT_IMPL(FToS, char, rtp, Rtp)
-
-__SYCL_GENERATE_CONVERT_IMPL(FToS, short, rtp, Rtp)
-
-__SYCL_GENERATE_CONVERT_IMPL(FToS, long, rtp, Rtp)
-
-__SYCL_GENERATE_CONVERT_IMPL(FToS, int, rtn, Rtn)
-
-__SYCL_GENERATE_CONVERT_IMPL(FToS, char, rtn, Rtn)
-
-__SYCL_GENERATE_CONVERT_IMPL(FToS, short, rtn, Rtn)
-
-__SYCL_GENERATE_CONVERT_IMPL(FToS, long, rtn, Rtn)
-
+#undef __SYCL_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE
 #undef __SYCL_GENERATE_CONVERT_IMPL
 
 #endif
