@@ -446,14 +446,14 @@ Command *Scheduler::GraphBuilder::addCGUpdateHost(
   return insertMemoryMove(Record, Req, HostQueue);
 }
 
-/// Start searching from list of "leaf" commands for the record and check if the
-/// examining command can be executed in parallel with new one with regard to
-/// the memory object. If can, then continue searching through dependencies of
+/// Start the search for the record from list of "leaf" commands and check if the
+/// examining command can be executed in parallel with the new one with regard to
+/// the memory object. If it can, then continue searching through dependencies of
 /// that command. There are several rules used:
 ///
 /// 1. New and examined commands only read -> can bypass
 /// 2. New and examined commands has non-overlapping requirements -> can bypass
-/// 3. New and examined commands has different contexts -> cannot bypass
+/// 3. New and examined commands have different contexts -> cannot bypass
 std::set<Command *>
 Scheduler::GraphBuilder::findDepsForReq(MemObjRecord *Record, Requirement *Req,
                                         const ContextImplPtr &Context) {

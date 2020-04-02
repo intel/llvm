@@ -51,7 +51,7 @@ struct EnqueueResultT {
       : MResult(Result), MCmd(Cmd), MErrCode(ErrCode) {}
   /// Indicates result of enqueueing.
   ResultT MResult;
-  /// Pointer to the command failed to enqueue.
+  /// Pointer to the command which failed to enqueue.
   Command *MCmd;
   /// Error code which is set when enqueueing fails.
   cl_int MErrCode;
@@ -78,9 +78,9 @@ struct DepDesc {
 };
 
 /// The Command represents some action that needs to be performed on one or
-/// more memory objects. The command has vector of DepDesc objects that
+/// more memory objects. The Command has a vector of DepDesc objects that
 /// represent dependencies of the command. It has vector of pointer to commands
-/// that depend on the command. It has a pointer to \ref queue object. And has
+/// that depend on the command. It has a pointer to \ref queue object and an
 /// event that is associated with the command.
 ///
 /// \ingroup sycl_graph
