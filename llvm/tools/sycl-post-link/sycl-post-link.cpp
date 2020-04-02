@@ -121,23 +121,45 @@ static void writeToFile(std::string Filename, std::string Content) {
   OS.close();
 }
 
+// Describes scope covered by each entry in the module-kernel map populated by
+// the function below.
+enum KernelMapEntryScope {
+  Scope_PerKernel, // one entry per kernel
+  Scope_PerModule, // one entry per module
+  Scope_Global     // single entry in the map for all kernels
+};
+
 // Output parameter ResKernelModuleMap is a map containing groups of kernels
 // with same values of the sycl-module-id attribute.
 // The function fills ResKernelModuleMap using input module M.
 static void collectKernelModuleMap(
     Module &M, std::map<StringRef, std::vector<Function *>> &ResKernelModuleMap,
-    bool OneKernelPerModule) {
-
-  constexpr char ATTR_SYCL_MODULE_ID[] = "sycl-module-id";
+    KernelMapEntryScope EntryScope) {
 
   for (auto &F : M.functions()) {
     if (F.getCallingConv() == CallingConv::SPIR_KERNEL) {
-      if (OneKernelPerModule) {
+      switch (EntryScope) {
+      case Scope_PerKernel:
         ResKernelModuleMap[F.getName()].push_back(&F);
-      } else if (F.hasFnAttribute(ATTR_SYCL_MODULE_ID)) {
+        break;
+      case Scope_PerModule: {
+        constexpr char ATTR_SYCL_MODULE_ID[] = "sycl-module-id";
+
+        if (!F.hasFnAttribute(ATTR_SYCL_MODULE_ID))
+          error("no '" + Twine(ATTR_SYCL_MODULE_ID) +
+                "' attribute in kernel '" + F.getName() +
+                "', per-module split not possible");
         Attribute Id = F.getFnAttribute(ATTR_SYCL_MODULE_ID);
         StringRef Val = Id.getValueAsString();
         ResKernelModuleMap[Val].push_back(&F);
+        break;
+      }
+      case Scope_Global:
+        // the map key is not significant here
+        ResKernelModuleMap["<GLOBAL>"].push_back(&F);
+        break;
+      default:
+        llvm_unreachable("unknown scope");
       }
     }
   }
@@ -375,8 +397,12 @@ int main(int argc, char **argv) {
 
   std::map<StringRef, std::vector<Function *>> GlobalsSet;
 
-  if (DoSplit || DoSymGen)
-    collectKernelModuleMap(*MPtr, GlobalsSet, SplitMode == SPLIT_PER_KERNEL);
+  if (DoSplit || DoSymGen) {
+    KernelMapEntryScope Scope = Scope_Global;
+    if (DoSplit)
+      Scope = SplitMode == SPLIT_PER_KERNEL ? Scope_PerKernel : Scope_PerModule;
+    collectKernelModuleMap(*MPtr, GlobalsSet, Scope);
+  }
 
   std::vector<std::unique_ptr<Module>> ResultModules;
   std::vector<SpecIDMapTy> ResultSpecIDMaps;
