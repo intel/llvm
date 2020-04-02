@@ -165,6 +165,9 @@ protected:
   void waitForEvents(QueueImplPtr Queue, std::vector<EventImplPtr> &RawEvents,
                      RT::PiEvent &Event);
   std::vector<EventImplPtr> prepareEvents(ContextImplPtr Context);
+  void addDepSub(EventImplPtr DepEvent, ContextImplPtr Context);
+
+  virtual ContextImplPtr getContext() const;
 
   // Private interface. Derived classes should implement this method.
   virtual cl_int enqueueImp() = 0;
@@ -365,6 +368,7 @@ public:
   void emitInstrumentationData();
 
 private:
+  ContextImplPtr getContext() const final;
   cl_int enqueueImp() final;
 
   QueueImplPtr MSrcQueue;
@@ -386,6 +390,7 @@ public:
   void emitInstrumentationData();
 
 private:
+  ContextImplPtr getContext() const final;
   cl_int enqueueImp() final;
 
   QueueImplPtr MSrcQueue;

@@ -168,7 +168,6 @@ void EventCompletionClbk(RT::PiEvent, pi_int32, void *data) {
 // Method prepares PI event's from list sycl::event's
 std::vector<EventImplPtr> Command::prepareEvents(ContextImplPtr Context) {
   std::vector<EventImplPtr> Result;
-  std::vector<EventImplPtr> GlueEvents;
   for (EventImplPtr &DepEvent : MDepsEvents) {
     // Async work is not supported for host device.
     if (DepEvent->is_host()) {
@@ -180,34 +179,17 @@ std::vector<EventImplPtr> Command::prepareEvents(ContextImplPtr Context) {
     if (DepEvent->getHandleRef() == nullptr) {
       continue;
     }
+
     ContextImplPtr DepEventContext = DepEvent->getContextImpl();
 
-    // If contexts don't match - connect them using user event
+    // If contexts don't match the events are already connected in addDep
     if (DepEventContext != Context && !Context->is_host()) {
-      EventImplPtr GlueEvent(new detail::event_impl());
-      GlueEvent->setContextImpl(Context);
-      EventImplPtr *GlueEventCopy =
-          new EventImplPtr(GlueEvent); // To increase the reference count by 1.
-
-      RT::PiEvent &GlueEventHandle = GlueEvent->getHandleRef();
-      auto Plugin = Context->getPlugin();
-      auto DepPlugin = DepEventContext->getPlugin();
-      // Add an event on the current context that
-      // is triggered when the DepEvent is complete
-      Plugin.call<PiApiKind::piEventCreate>(Context->getHandleRef(),
-                                            &GlueEventHandle);
-
-      DepPlugin.call<PiApiKind::piEventSetCallback>(
-          DepEvent->getHandleRef(), PI_EVENT_COMPLETE, EventCompletionClbk,
-          /*void *data=*/(GlueEventCopy));
-
-      GlueEvents.push_back(GlueEvent);
-      Result.push_back(std::move(GlueEvent));
       continue;
     }
+
     Result.push_back(DepEvent);
   }
-  MDepsEvents.insert(MDepsEvents.end(), GlueEvents.begin(), GlueEvents.end());
+
   return Result;
 }
 
@@ -403,9 +385,51 @@ void Command::makeTraceEventEpilog() {
 #endif
 }
 
+void Command::addDepSub(EventImplPtr DepEvent, ContextImplPtr Context) {
+  // Async work is not supported for host device.
+  if (DepEvent->is_host()) {
+    // call to waitInternal() is in prepareEvents() as it's called from
+    // enqueue process functions
+    return;
+  }
+
+  if (DepEvent->getHandleRef() == nullptr) {
+    return;
+  }
+
+  ContextImplPtr DepEventContext = DepEvent->getContextImpl();
+  // If contexts don't match - connect them using user event
+  if (DepEventContext != Context && !Context->is_host()) {
+    EventImplPtr GlueEvent(new detail::event_impl());
+    GlueEvent->setContextImpl(Context);
+    EventImplPtr *GlueEventCopy =
+        new EventImplPtr(GlueEvent); // To increase the reference count by 1.
+
+    RT::PiEvent &GlueEventHandle = GlueEvent->getHandleRef();
+    auto Plugin = Context->getPlugin();
+    auto DepPlugin = DepEventContext->getPlugin();
+    // Add an event on the current context that
+    // is triggered when the DepEvent is complete
+    Plugin.call<PiApiKind::piEventCreate>(Context->getHandleRef(),
+                                          &GlueEventHandle);
+
+    DepPlugin.call<PiApiKind::piEventSetCallback>(
+        DepEvent->getHandleRef(), PI_EVENT_COMPLETE, EventCompletionClbk,
+        /*void *data=*/(GlueEventCopy));
+
+    MDepsEvents.push_back(std::move(GlueEvent));
+  }
+}
+
+ContextImplPtr Command::getContext() const {
+  return detail::getSyclObjImpl(MQueue->get_context());
+}
+
 void Command::addDep(DepDesc NewDep) {
-  if (NewDep.MDepCommand)
+  if (NewDep.MDepCommand) {
     MDepsEvents.push_back(NewDep.MDepCommand->getEvent());
+    addDepSub(NewDep.MDepCommand->getEvent(), getContext());
+  }
   MDeps.push_back(NewDep);
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   emitEdgeEventForCommandDependence(
@@ -424,7 +448,8 @@ void Command::addDep(EventImplPtr Event) {
   emitEdgeEventForEventDependence(Cmd, PiEventAddr);
 #endif
 
-  MDepsEvents.push_back(std::move(Event));
+  MDepsEvents.push_back(Event);
+  addDepSub(std::move(Event), getContext());
 }
 
 void Command::emitEnqueuedEventSignal(RT::PiEvent &PiEventAddr) {
@@ -608,8 +633,7 @@ void AllocaCommand::emitInstrumentationData() {
 }
 
 cl_int AllocaCommand::enqueueImp() {
-  std::vector<EventImplPtr> EventImpls =
-      Command::prepareEvents(detail::getSyclObjImpl(MQueue->get_context()));
+  std::vector<EventImplPtr> EventImpls = Command::prepareEvents(getContext());
 
   RT::PiEvent &Event = MEvent->getHandleRef();
 
@@ -686,8 +710,7 @@ void AllocaSubBufCommand::emitInstrumentationData() {
 }
 
 cl_int AllocaSubBufCommand::enqueueImp() {
-  std::vector<EventImplPtr> EventImpls =
-      Command::prepareEvents(detail::getSyclObjImpl(MQueue->get_context()));
+  std::vector<EventImplPtr> EventImpls = Command::prepareEvents(getContext());
   RT::PiEvent &Event = MEvent->getHandleRef();
 
   MMemAllocation = MemoryManager::allocateMemSubBuffer(
@@ -746,8 +769,7 @@ void ReleaseCommand::emitInstrumentationData() {
 }
 
 cl_int ReleaseCommand::enqueueImp() {
-  std::vector<EventImplPtr> EventImpls =
-      Command::prepareEvents(detail::getSyclObjImpl(MQueue->get_context()));
+  std::vector<EventImplPtr> EventImpls = Command::prepareEvents(getContext());
   std::vector<RT::PiEvent> RawEvents = getPiEvents(EventImpls);
   bool SkipRelease = false;
 
@@ -855,8 +877,7 @@ void MapMemObject::emitInstrumentationData() {
 }
 
 cl_int MapMemObject::enqueueImp() {
-  std::vector<EventImplPtr> EventImpls =
-      Command::prepareEvents(detail::getSyclObjImpl(MQueue->get_context()));
+  std::vector<EventImplPtr> EventImpls = Command::prepareEvents(getContext());
   std::vector<RT::PiEvent> RawEvents = getPiEvents(EventImpls);
 
   RT::PiEvent &Event = MEvent->getHandleRef();
@@ -912,8 +933,7 @@ void UnMapMemObject::emitInstrumentationData() {
 }
 
 cl_int UnMapMemObject::enqueueImp() {
-  std::vector<EventImplPtr> EventImpls =
-      Command::prepareEvents(detail::getSyclObjImpl(MQueue->get_context()));
+  std::vector<EventImplPtr> EventImpls = Command::prepareEvents(getContext());
   std::vector<RT::PiEvent> RawEvents = getPiEvents(EventImpls);
 
   RT::PiEvent &Event = MEvent->getHandleRef();
@@ -978,11 +998,15 @@ void MemCpyCommand::emitInstrumentationData() {
 #endif
 }
 
+ContextImplPtr MemCpyCommand::getContext() const {
+  QueueImplPtr Queue = MQueue->is_host() ? MSrcQueue : MQueue;
+  return detail::getSyclObjImpl(Queue->get_context());
+}
+
 cl_int MemCpyCommand::enqueueImp() {
   std::vector<EventImplPtr> EventImpls;
   QueueImplPtr Queue = MQueue->is_host() ? MSrcQueue : MQueue;
-  EventImpls =
-      Command::prepareEvents(detail::getSyclObjImpl(Queue->get_context()));
+  EventImpls = Command::prepareEvents(getContext());
 
   RT::PiEvent &Event = MEvent->getHandleRef();
 
@@ -1046,8 +1070,7 @@ void ExecCGCommand::flushStreams() {
 
 cl_int UpdateHostRequirementCommand::enqueueImp() {
   std::vector<EventImplPtr> EventImpls;
-  EventImpls =
-      Command::prepareEvents(detail::getSyclObjImpl(MQueue->get_context()));
+  EventImpls = Command::prepareEvents(getContext());
   RT::PiEvent &Event = MEvent->getHandleRef();
   Command::waitForEvents(MQueue, EventImpls, Event);
 
@@ -1118,10 +1141,14 @@ void MemCpyCommandHost::emitInstrumentationData() {
 #endif
 }
 
+ContextImplPtr MemCpyCommandHost::getContext() const {
+  QueueImplPtr Queue = MQueue->is_host() ? MSrcQueue : MQueue;
+  return detail::getSyclObjImpl(Queue->get_context());
+}
+
 cl_int MemCpyCommandHost::enqueueImp() {
   QueueImplPtr Queue = MQueue->is_host() ? MSrcQueue : MQueue;
-  std::vector<EventImplPtr> EventImpls =
-      Command::prepareEvents(detail::getSyclObjImpl(Queue->get_context()));
+  std::vector<EventImplPtr> EventImpls = Command::prepareEvents(getContext());
   std::vector<RT::PiEvent> RawEvents = getPiEvents(EventImpls);
 
   RT::PiEvent &Event = MEvent->getHandleRef();
@@ -1506,8 +1533,7 @@ void DispatchHostTask(const std::shared_ptr<HostTaskContext> &Ctx) {
 }
 
 cl_int ExecCGCommand::enqueueImp() {
-  std::vector<EventImplPtr> EventImpls =
-      Command::prepareEvents(detail::getSyclObjImpl(MQueue->get_context()));
+  std::vector<EventImplPtr> EventImpls = Command::prepareEvents(getContext());
 
   auto RawEvents = getPiEvents(EventImpls);
 
@@ -1845,8 +1871,7 @@ void HostTaskCommand::emitInstrumentationData() {
 }
 
 cl_int HostTaskCommand::enqueueImp() {
-  std::vector<EventImplPtr> EventImpls =
-      Command::prepareEvents(detail::getSyclObjImpl(MQueue->get_context()));
+  std::vector<EventImplPtr> EventImpls = Command::prepareEvents(getContext());
 
   auto RawEvents = getPiEvents(EventImpls);
 
