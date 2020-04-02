@@ -10,6 +10,7 @@
 
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/detail/sycl_mem_obj_i.hpp>
+#include <CL/sycl/export.hpp>
 #include <CL/sycl/id.hpp>
 #include <CL/sycl/range.hpp>
 #include <CL/sycl/stl.hpp>
@@ -37,8 +38,7 @@ public:
   range<Dims> MemRange;
 
   bool operator==(const AccessorImplDevice &Rhs) const {
-    return (Offset == Rhs.Offset &&
-            AccessRange == Rhs.AccessRange &&
+    return (Offset == Rhs.Offset && AccessRange == Rhs.AccessRange &&
             MemRange == Rhs.MemRange);
   }
 };
@@ -59,7 +59,7 @@ public:
   }
 };
 
-class AccessorImplHost {
+class SYCL_API AccessorImplHost {
 public:
   AccessorImplHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
                    access::mode AccessMode, detail::SYCLMemObjI *SYCLMemObject,
@@ -129,7 +129,7 @@ protected:
   AccessorImplPtr impl;
 };
 
-class LocalAccessorImplHost {
+class SYCL_API LocalAccessorImplHost {
 public:
   LocalAccessorImplHost(sycl::range<3> Size, int Dims, int ElemSize)
       : MSize(Size), MDims(Dims), MElemSize(ElemSize),
@@ -185,7 +185,7 @@ protected:
 
 using Requirement = AccessorImplHost;
 
-void addHostAccessorAndWait(Requirement *Req);
+void SYCL_API addHostAccessorAndWait(Requirement *Req);
 
 } // namespace detail
 } // namespace sycl

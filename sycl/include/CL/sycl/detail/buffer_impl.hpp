@@ -14,6 +14,7 @@
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/helpers.hpp>
 #include <CL/sycl/detail/sycl_mem_obj_t.hpp>
+#include <CL/sycl/export.hpp>
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/property_list.hpp>
 #include <CL/sycl/stl.hpp>
@@ -38,7 +39,7 @@ using buffer_allocator = detail::sycl_memory_object_allocator;
 
 namespace detail {
 
-class buffer_impl final : public SYCLMemObjT {
+class SYCL_API buffer_impl final : public SYCLMemObjT {
   using BaseT = SYCLMemObjT;
   using typename BaseT::MemObjType;
 
@@ -104,7 +105,7 @@ public:
               std::move(Allocator)) {}
 
   void *allocateMem(ContextImplPtr Context, bool InitFromUserData,
-                   void *HostPtr, RT::PiEvent &OutEventToWait) override;
+                    void *HostPtr, RT::PiEvent &OutEventToWait) override;
 
   MemObjType getType() const override { return MemObjType::BUFFER; }
 

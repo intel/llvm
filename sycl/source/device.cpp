@@ -9,6 +9,7 @@
 #include <CL/sycl/detail/force_device.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/device_selector.hpp>
+#include <CL/sycl/export.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <detail/device_impl.hpp>
 
@@ -78,7 +79,8 @@ template <info::partition_property prop>
 vector_class<device> device::create_sub_devices(size_t ComputeUnits) const {
   return impl->create_sub_devices(ComputeUnits);
 }
-template vector_class<device>
+
+template SYCL_API vector_class<device>
 device::create_sub_devices<info::partition_property::partition_equally>(
     size_t ComputeUnits) const;
 
@@ -87,7 +89,8 @@ vector_class<device>
 device::create_sub_devices(const vector_class<size_t> &Counts) const {
   return impl->create_sub_devices(Counts);
 }
-template vector_class<device>
+
+template SYCL_API vector_class<device>
 device::create_sub_devices<info::partition_property::partition_by_counts>(
     const vector_class<size_t> &Counts) const;
 
@@ -96,7 +99,8 @@ vector_class<device> device::create_sub_devices(
     info::partition_affinity_domain AffinityDomain) const {
   return impl->create_sub_devices(AffinityDomain);
 }
-template vector_class<device> device::create_sub_devices<
+
+template SYCL_API vector_class<device> device::create_sub_devices<
     info::partition_property::partition_by_affinity_domain>(
     info::partition_affinity_domain AffinityDomain) const;
 
@@ -111,7 +115,7 @@ device::get_info() const {
 }
 
 #define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
-  template ret_type device::get_info<info::param_type::param>() const;
+  template SYCL_API ret_type device::get_info<info::param_type::param>() const;
 
 #include <CL/sycl/info/device_traits.def>
 

@@ -20,9 +20,9 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
 // Forward declarations.
-void *aligned_alloc(size_t alignment, size_t size, const device &dev,
-                    const context &ctxt, usm::alloc kind);
-void free(void *ptr, const context &ctxt);
+SYCL_API void *aligned_alloc(size_t alignment, size_t size, const device &dev,
+                             const context &ctxt, usm::alloc kind);
+SYCL_API void free(void *ptr, const context &ctxt);
 
 template <typename T, usm::alloc AllocKind, size_t Alignment = 0>
 class usm_allocator {

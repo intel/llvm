@@ -13,6 +13,7 @@
 #include <CL/sycl/device_selector.hpp>
 #include <CL/sycl/event.hpp>
 #include <CL/sycl/exception_list.hpp>
+#include <CL/sycl/export.hpp>
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/property_list.hpp>
@@ -30,7 +31,7 @@ namespace detail {
 class queue_impl;
 }
 
-class queue {
+class SYCL_API queue {
 public:
   /// Constructs a SYCL queue instance using the device returned by an instance
   /// of default_selector.

@@ -14,6 +14,7 @@
 #include <CL/sycl/detail/host_profiling_info.hpp>
 #include <CL/sycl/detail/kernel_desc.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
+#include <CL/sycl/export.hpp>
 #include <CL/sycl/group.hpp>
 #include <CL/sycl/id.hpp>
 #include <CL/sycl/kernel.hpp>
@@ -55,7 +56,7 @@ public:
 private:
   cl_command_queue MQueue;
   std::vector<ReqToMem> MMemObjs;
-  cl_mem getMemImpl(detail::Requirement* Req) const;
+  SYCL_API cl_mem getMemImpl(detail::Requirement *Req) const;
 };
 
 namespace detail {

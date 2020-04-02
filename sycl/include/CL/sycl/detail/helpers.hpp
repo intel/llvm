@@ -14,6 +14,7 @@
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
+#include <CL/sycl/export.hpp>
 
 #include <memory>
 #include <stdexcept>
@@ -33,7 +34,7 @@ template <int Dims> class h_item;
 enum class memory_order;
 
 namespace detail {
-inline void memcpy(void *Dst, const void *Src, size_t Size) {
+SYCL_API inline void memcpy(void *Dst, const void *Src, size_t Size) {
   char *Destination = reinterpret_cast<char *>(Dst);
   const char *Source = reinterpret_cast<const char *>(Src);
   for (size_t I = 0; I < Size; ++I) {
@@ -44,11 +45,11 @@ inline void memcpy(void *Dst, const void *Src, size_t Size) {
 class context_impl;
 // The function returns list of events that can be passed to OpenCL API as
 // dependency list and waits for others.
-std::vector<RT::PiEvent>
+SYCL_API std::vector<RT::PiEvent>
 getOrWaitEvents(std::vector<cl::sycl::event> DepEvents,
                 std::shared_ptr<cl::sycl::detail::context_impl> Context);
 
-void waitEvents(std::vector<cl::sycl::event> DepEvents);
+SYCL_API void waitEvents(std::vector<cl::sycl::event> DepEvents);
 
 class Builder {
 public:

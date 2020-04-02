@@ -12,6 +12,7 @@
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/sampler_impl.hpp>
+#include <CL/sycl/export.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -39,7 +40,7 @@ template <typename DataT, int Dimensions, access::mode AccessMode,
 class image_accessor;
 }
 
-class sampler {
+class SYCL_API sampler {
 public:
   sampler(coordinate_normalization_mode normalizationMode,
           addressing_mode addressingMode, filtering_mode filteringMode);

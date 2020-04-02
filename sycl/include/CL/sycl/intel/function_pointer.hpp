@@ -9,6 +9,7 @@
 #pragma once
 
 #include <CL/sycl/device.hpp>
+#include <CL/sycl/export.hpp>
 #include <CL/sycl/program.hpp>
 #include <CL/sycl/stl.hpp>
 
@@ -17,8 +18,8 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
-cl_ulong getDeviceFunctionPointerImpl(device &D, program &P,
-                                      const char *FuncName);
+SYCL_API cl_ulong getDeviceFunctionPointerImpl(device &D, program &P,
+                                               const char *FuncName);
 }
 namespace intel {
 
@@ -38,7 +39,8 @@ template <
     class FuncType,
     typename FuncPtrType = typename std::add_pointer<FuncType>::type,
     typename std::enable_if<std::is_function<FuncType>::value, int>::type = 0>
-inline FuncPtrType to_device_func_ptr(device_func_ptr_holder_t FptrHolder) {
+SYCL_API inline FuncPtrType
+to_device_func_ptr(device_func_ptr_holder_t FptrHolder) {
   return reinterpret_cast<FuncPtrType>(FptrHolder);
 }
 
@@ -66,8 +68,9 @@ using enable_if_is_function_pointer_t = typename std::enable_if<
 /// specified program and device. Returned value invalidates whenever program
 /// is released or re-built
 template <class FuncType, enable_if_is_function_pointer_t<FuncType> = 0>
-device_func_ptr_holder_t get_device_func_ptr(FuncType F, const char *FuncName,
-                                             program &P, device &D) {
+SYCL_API device_func_ptr_holder_t get_device_func_ptr(FuncType F,
+                                                      const char *FuncName,
+                                                      program &P, device &D) {
   // TODO: drop function name argument and map host function pointer directly
   // to a device function pointer
   if (D.is_host()) {

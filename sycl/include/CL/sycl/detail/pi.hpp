@@ -16,9 +16,10 @@
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/detail/pi.h>
-#include <sstream>
+#include <CL/sycl/export.hpp>
 
 #include <cassert>
+#include <sstream>
 #include <string>
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -48,9 +49,9 @@ namespace pi {
 #endif
 
 // Report error and no return (keeps compiler happy about no return statements).
-[[noreturn]] void die(const char *Message);
+[[noreturn]] SYCL_API void die(const char *Message);
 
-void assertion(bool Condition, const char *Message = nullptr);
+SYCL_API void assertion(bool Condition, const char *Message = nullptr);
 
 template <typename T>
 void handleUnknownParamName(const char *functionName, T parameter) {

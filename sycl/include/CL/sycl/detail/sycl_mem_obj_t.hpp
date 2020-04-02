@@ -13,6 +13,7 @@
 #include <CL/sycl/detail/sycl_mem_obj_i.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/event.hpp>
+#include <CL/sycl/export.hpp>
 #include <CL/sycl/property_list.hpp>
 #include <CL/sycl/stl.hpp>
 
@@ -36,7 +37,7 @@ class aligned_allocator;
 using sycl_memory_object_allocator = aligned_allocator<char>;
 
 // The class serves as a base for all SYCL memory objects.
-class SYCLMemObjT : public SYCLMemObjI {
+class SYCL_API SYCLMemObjT : public SYCLMemObjI {
 
   // The check for output iterator is commented out as it blocks set_final_data
   // with void * argument to be used.

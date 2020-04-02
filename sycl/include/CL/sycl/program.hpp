@@ -12,6 +12,7 @@
 #include <CL/sycl/detail/kernel_desc.hpp>
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/experimental/spec_constant.hpp>
+#include <CL/sycl/export.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/kernel.hpp>
 #include <CL/sycl/stl.hpp>
@@ -28,7 +29,7 @@ class program_impl;
 
 enum class program_state { none, compiled, linked };
 
-class program {
+class SYCL_API program {
 public:
   program() = delete;
 

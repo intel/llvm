@@ -50,7 +50,8 @@ platform::get_info() const {
 }
 
 #define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
-  template ret_type platform::get_info<info::param_type::param>() const;
+  template SYCL_API ret_type platform::get_info<info::param_type::param>()     \
+      const;
 
 #include <CL/sycl/info/platform_traits.def>
 
