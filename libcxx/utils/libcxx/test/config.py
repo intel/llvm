@@ -822,6 +822,7 @@ class Configuration(object):
                     if cxxabi_library_root:
                         libname = self.make_static_lib_name('c++abi')
                         abs_path = os.path.join(cxxabi_library_root, libname)
+                        self.cxx.link_libcxxabi_flag = abs_path
                         self.cxx.link_flags += [abs_path]
                     else:
                         self.cxx.link_flags += ['-lc++abi']
@@ -1025,6 +1026,7 @@ class Configuration(object):
         sub.append(('%{flags}',         ' '.join(map(pipes.quote, self.cxx.flags))))
         sub.append(('%{compile_flags}', ' '.join(map(pipes.quote, self.cxx.compile_flags))))
         sub.append(('%{link_flags}',    ' '.join(map(pipes.quote, self.cxx.link_flags))))
+        sub.append(('%{link_libcxxabi}', pipes.quote(self.cxx.link_libcxxabi_flag)))
         if self.cxx.isVerifySupported():
             sub.append(('%{verify}', ' '.join(self.cxx.verify_flags)))
         # Add compile and build shortcuts
@@ -1048,7 +1050,6 @@ class Configuration(object):
             exec_args.append('--host {}'.format(self.executor.user_prefix + self.executor.host))
             executor = os.path.join(self.libcxx_src_root, 'utils', 'ssh.py')
         else:
-            exec_args.append('--working_directory "%S"')
             executor = os.path.join(self.libcxx_src_root, 'utils', 'run.py')
         sub.append(('%{exec}', '{} {} {} -- '.format(pipes.quote(sys.executable),
                                                      pipes.quote(executor),

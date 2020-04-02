@@ -3579,9 +3579,9 @@ static void RenderDiagnosticsOptions(const Driver &D, const ArgList &Args,
     CmdArgs.push_back("-fno-diagnostics-fixit-info");
 
   // Enable -fdiagnostics-show-option by default.
-  if (Args.hasFlag(options::OPT_fdiagnostics_show_option,
-                   options::OPT_fno_diagnostics_show_option))
-    CmdArgs.push_back("-fdiagnostics-show-option");
+  if (!Args.hasFlag(options::OPT_fdiagnostics_show_option,
+                    options::OPT_fno_diagnostics_show_option, true))
+    CmdArgs.push_back("-fno-diagnostics-show-option");
 
   if (const Arg *A =
           Args.getLastArg(options::OPT_fdiagnostics_show_category_EQ)) {
@@ -4273,7 +4273,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       StringRef ArgStr =
           Args.hasArg(options::OPT_interface_stub_version_EQ)
               ? Args.getLastArgValue(options::OPT_interface_stub_version_EQ)
-              : "experimental-ifs-v1";
+              : "experimental-ifs-v2";
       CmdArgs.push_back("-emit-interface-stubs");
       CmdArgs.push_back(
           Args.MakeArgString(Twine("-interface-stub-version=") + ArgStr.str()));
@@ -4733,9 +4733,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // Decide whether to use verbose asm. Verbose assembly is the default on
   // toolchains which have the integrated assembler on by default.
   bool IsIntegratedAssemblerDefault = TC.IsIntegratedAssemblerDefault();
-  if (Args.hasFlag(options::OPT_fverbose_asm, options::OPT_fno_verbose_asm,
-                   IsIntegratedAssemblerDefault))
-    CmdArgs.push_back("-masm-verbose");
+  if (!Args.hasFlag(options::OPT_fverbose_asm, options::OPT_fno_verbose_asm,
+                    IsIntegratedAssemblerDefault))
+    CmdArgs.push_back("-fno-verbose-asm");
 
   if (!TC.useIntegratedAs())
     CmdArgs.push_back("-no-integrated-as");
@@ -5220,15 +5220,20 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   }
 
   // Pass -fmessage-length=.
-  CmdArgs.push_back("-fmessage-length");
+  unsigned MessageLength = 0;
   if (Arg *A = Args.getLastArg(options::OPT_fmessage_length_EQ)) {
-    CmdArgs.push_back(A->getValue());
+    StringRef V(A->getValue());
+    if (V.getAsInteger(0, MessageLength))
+      D.Diag(diag::err_drv_invalid_argument_to_option)
+          << V << A->getOption().getName();
   } else {
     // If -fmessage-length=N was not specified, determine whether this is a
     // terminal and, if so, implicitly define -fmessage-length appropriately.
-    unsigned N = llvm::sys::Process::StandardErrColumns();
-    CmdArgs.push_back(Args.MakeArgString(Twine(N)));
+    MessageLength = llvm::sys::Process::StandardErrColumns();
   }
+  if (MessageLength != 0)
+    CmdArgs.push_back(
+        Args.MakeArgString("-fmessage-length=" + Twine(MessageLength)));
 
   // -fvisibility= and -fvisibility-ms-compat are of a piece.
   if (const Arg *A = Args.getLastArg(options::OPT_fvisibility_EQ,
@@ -5701,7 +5706,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   Args.AddLastArg(CmdArgs, options::OPT_fexperimental_new_pass_manager,
                   options::OPT_fno_experimental_new_pass_manager);
 
-  ObjCRuntime Runtime = AddObjCRuntimeArgs(Args, CmdArgs, rewriteKind);
+  ObjCRuntime Runtime = AddObjCRuntimeArgs(Args, Inputs, CmdArgs, rewriteKind);
   RenderObjCOptions(TC, D, RawTriple, Args, Runtime, rewriteKind != RK_None,
                     Input, CmdArgs);
 
@@ -6408,6 +6413,7 @@ Clang::~Clang() {}
 ///
 /// Returns true if the runtime is non-fragile.
 ObjCRuntime Clang::AddObjCRuntimeArgs(const ArgList &args,
+                                      const InputInfoList &inputs,
                                       ArgStringList &cmdArgs,
                                       RewriteKind rewriteKind) const {
   // Look for the controlling runtime option.
@@ -6531,8 +6537,11 @@ ObjCRuntime Clang::AddObjCRuntimeArgs(const ArgList &args,
       runtime = ObjCRuntime(ObjCRuntime::GCC, VersionTuple());
   }
 
-  cmdArgs.push_back(
-      args.MakeArgString("-fobjc-runtime=" + runtime.getAsString()));
+  if (llvm::any_of(inputs, [](const InputInfo &input) {
+        return types::isObjC(input.getType());
+      }))
+    cmdArgs.push_back(
+        args.MakeArgString("-fobjc-runtime=" + runtime.getAsString()));
   return runtime;
 }
 

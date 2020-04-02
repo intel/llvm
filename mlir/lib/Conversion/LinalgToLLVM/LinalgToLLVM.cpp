@@ -524,12 +524,21 @@ populateLinalgToStandardConversionPatterns(OwningRewritePatternList &patterns,
                                            MLIRContext *ctx) {
   // TODO(ntv) ConvOp conversion needs to export a descriptor with relevant
   // attribute values such as kernel striding and dilation.
-  patterns.insert<CopyTransposeConversion, LinalgOpConversion<ConvOp>,
-                  LinalgOpConversion<CopyOp>, LinalgOpConversion<DotOp>,
-                  LinalgOpConversion<FillOp>, LinalgOpConversion<GenericOp>,
-                  LinalgOpConversion<IndexedGenericOp>,
-                  LinalgOpConversion<MatmulOp>, LinalgOpConversion<MatvecOp>>(
-      ctx);
+  // clang-format off
+  patterns.insert<
+      CopyTransposeConversion,
+      LinalgOpConversion<ConvOp>,
+      LinalgOpConversion<PoolingMaxOp>,
+      LinalgOpConversion<PoolingMinOp>,
+      LinalgOpConversion<PoolingSumOp>,
+      LinalgOpConversion<CopyOp>,
+      LinalgOpConversion<DotOp>,
+      LinalgOpConversion<FillOp>,
+      LinalgOpConversion<GenericOp>,
+      LinalgOpConversion<IndexedGenericOp>,
+      LinalgOpConversion<MatmulOp>,
+      LinalgOpConversion<MatvecOp>>(ctx);
+  // clang-format on
 }
 
 } // namespace
@@ -548,6 +557,10 @@ void mlir::populateLinalgToLLVMConversionPatterns(
 
 namespace {
 struct ConvertLinalgToLLVMPass : public ModulePass<ConvertLinalgToLLVMPass> {
+/// Include the generated pass utilities.
+#define GEN_PASS_ConvertLinalgToLLVM
+#include "mlir/Conversion/Passes.h.inc"
+
   void runOnModule() override;
 };
 } // namespace
@@ -578,7 +591,3 @@ void ConvertLinalgToLLVMPass::runOnModule() {
 std::unique_ptr<OpPassBase<ModuleOp>> mlir::createConvertLinalgToLLVMPass() {
   return std::make_unique<ConvertLinalgToLLVMPass>();
 }
-
-static PassRegistration<ConvertLinalgToLLVMPass> pass(
-    "convert-linalg-to-llvm",
-    "Convert the operations from the linalg dialect into the LLVM dialect");
