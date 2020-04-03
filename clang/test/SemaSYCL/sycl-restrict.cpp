@@ -154,7 +154,7 @@ void usage(myFuncDef functionPtr) {
   Check_RTTI_Restriction::kernel1<class kernel_name>([]() { // expected-note 3{{called by 'usage'}}
     Check_RTTI_Restriction::A *a;
     Check_RTTI_Restriction::isa_B(a); // expected-note 6{{called by 'operator()'}}
-  }); 
+  });
 
   // ======= Float128 Not Allowed in Kernel ==========
   // expected-error@+1 {{__float128 is not supported on this target}}
