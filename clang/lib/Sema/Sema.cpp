@@ -1531,8 +1531,6 @@ public:
   }
 
   void checkVar(VarDecl *VD) {
-    if (S.LangOpts.SYCLIsDevice)
-      return;
     assert(VD->isFileVarDecl() &&
            "Should only check file-scope variables");
     if (auto *Init = VD->getInit()) {
