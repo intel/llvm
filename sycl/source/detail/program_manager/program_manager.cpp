@@ -270,7 +270,8 @@ static bool isDeviceBinaryTypeSupported(const context &C,
   }
 
   // OpenCL 2.1 and greater require clCreateProgramWithIL
-  if (pi::useBackend(pi::SYCL_BE_PI_OPENCL) &&
+  pi::Backend CBackend = (detail::getSyclObjImpl(C)->getPlugin()).getBackend();
+  if ((CBackend == pi::SYCL_BE_PI_OPENCL) &&
       C.get_platform().get_info<info::platform::version>() >= "2.1")
     return true;
 

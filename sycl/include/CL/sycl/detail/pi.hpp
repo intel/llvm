@@ -43,6 +43,19 @@ enum class PiApiKind {
 class plugin;
 namespace pi {
 
+// The SYCL_PI_TRACE sets what we will trace.
+// This is a bit-mask of various things we'd want to trace.
+enum TraceLevel {
+  PI_TRACE_BASIC = 0x1,
+  PI_TRACE_CALLS = 0x2,
+  PI_TRACE_ALL = -1
+};
+
+// Return true if we want to trace PI related activities.
+bool trace(TraceLevel level);
+
+const char *traceLabel();
+
 #ifdef SYCL_RT_OS_WINDOWS
 #define OPENCL_PLUGIN_NAME "pi_opencl.dll"
 #define CUDA_PLUGIN_NAME "pi_cuda.dll"
@@ -115,8 +128,8 @@ void *getOsLibraryFuncAddress(void *Library, const std::string &FunctionName);
 // environment variable.
 enum Backend { SYCL_BE_PI_OPENCL, SYCL_BE_PI_CUDA, SYCL_BE_PI_OTHER };
 
-// Check for manually selected BE at run-time.
-bool useBackend(Backend Backend);
+// Get the preferred BE (selected with SYCL_BE).
+Backend getPreferredBE();
 
 // Get a string representing a _pi_platform_info enum
 std::string platformInfoToString(pi_platform_info info);
