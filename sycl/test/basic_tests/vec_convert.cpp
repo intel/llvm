@@ -20,14 +20,11 @@
 
 using namespace cl::sycl;
 
-template <typename T, typename convertT, int roundingMode>
-class kernel_name;
+template <typename T, typename convertT, int roundingMode> class kernel_name;
 
-template <int N>
-struct helper;
+template <int N> struct helper;
 
-template <>
-struct helper<0> {
+template <> struct helper<0> {
   template <typename T, int NumElements>
   static void compare(const vec<T, NumElements> &x,
                       const vec<T, NumElements> &y) {
@@ -37,8 +34,7 @@ struct helper<0> {
   }
 };
 
-template <int N>
-struct helper {
+template <int N> struct helper {
   template <typename T, int NumElements>
   static void compare(const vec<T, NumElements> &x,
                       const vec<T, NumElements> &y) {
@@ -153,6 +149,6 @@ int main() {
   test<float, half, 8, rounding_mode::rtn>(
       float8{+2.3f, +2.5f, +2.7f, -2.3f, -2.5f, -2.7f, 0.f, 0.f},
       half8{+2.3f, +2.5f, +2.7f, -2.3f, -2.5f, -2.7f, 0.f, 0.f});
-
+      
   return 0;
 }
