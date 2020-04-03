@@ -33,10 +33,7 @@ static uint16_t float2Half(const float &Val) {
   if (__builtin_expect(Exp32Diff > 15, 0)) {
     // Infinity and big numbers convert to infinity
     Exp16 = 0x1f;
-  } else if (__builtin_expect(Exp32Diff < -14, 0)) {
-    // subnormals
-    Frac16 = (Frac32 | (1 << 23)) >> (-Exp32Diff - 1);
-  } else {
+  } else if (__builtin_expect(Exp32Diff > -14, 0)) {
     // normal range for half type
     Exp16 = Exp32Diff + 15;
     // convert 23-bit mantissa to 10-bit mantissa.
@@ -45,6 +42,9 @@ static uint16_t float2Half(const float &Val) {
     // data type.
     if (Frac32 >> 12 & 0x01)
       Frac16 += 1;
+  } else if (__builtin_expect(Exp32Diff > -24, 0)) {
+    // subnormals
+    Frac16 = (Frac32 | (uint32_t(1) << 23)) >> (-Exp32Diff - 1);
   }
 
   if (__builtin_expect(Exp32 == 0xff && Frac32 != 0, 0)) {
