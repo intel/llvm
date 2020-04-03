@@ -155,4 +155,19 @@ int main() {
   return 0;
 }
 
-// CHECK:---> xxx
+// launch of GeneratorTask kernel
+// CHECK:---> piKernelCreate(
+// CHECK: GeneratorTask
+// CHECK:---> piEnqueueKernelLaunch(
+// prepare for host task
+// CHECK:---> piEnqueueMemBufferMap(
+// creation of host task self-event
+// CHECK:---> piEventCreate(
+// wait on dependencies of host task
+// CHECK:---> piEventsWait(
+// host task is done, set status of self-event
+// CHECK:---> piEventSetStatus(
+// launch of CopierTask kernel
+// CHECK:---> piKernelCreate(
+// CHECK: CopierTask
+// CHECK:---> piEnqueueKernelLaunch(
