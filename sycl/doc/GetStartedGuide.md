@@ -263,12 +263,13 @@ To verify that built DPC++ toolchain is working correctly, run:
 
 **Linux**
 ```bash
-make -j`nproc` check-all
+python $DPCPP_HOME/llvm/buildbot/check.py
 ```
 
-**Windows (64-bit)**
+**Windows**
+
 ```bat
-ninja check-all
+python %DPCPP_HOME%\llvm\buildbot\check.py
 ```
 
 If no OpenCL GPU/CPU runtimes are available, the corresponding tests are
