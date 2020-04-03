@@ -93,6 +93,11 @@ namespace SPIRV {
 cl::opt<bool> SPIRVMemToReg("spirv-mem2reg", cl::init(false),
                             cl::desc("LLVM/SPIR-V translation enable mem2reg"));
 
+cl::opt<bool> SPIRVAllowUnknownIntrinsics(
+    "spirv-allow-unknown-intrinsics", cl::init(false),
+    cl::desc("Unknown LLVM intrinsics will be translated as external function "
+             "calls in SPIR-V"));
+
 static void foreachKernelArgMD(
     MDNode *MD, SPIRVFunction *BF,
     std::function<void(const std::string &Str, SPIRVFunctionParameter *BA)>
@@ -478,7 +483,7 @@ SPIRVFunction *LLVMToSPIRV::transFunctionDecl(Function *F) {
   if (auto BF = getTranslatedValue(F))
     return static_cast<SPIRVFunction *>(BF);
 
-  if (F->isIntrinsic()) {
+  if (F->isIntrinsic() && !SPIRVAllowUnknownIntrinsics) {
     // We should not translate LLVM intrinsics as a function
     assert(none_of(F->user_begin(), F->user_end(),
                    [this](User *U) { return getTranslatedValue(U); }) &&
@@ -851,6 +856,34 @@ LLVMToSPIRV::getLoopControl(const BranchInst *Branch,
           unsigned SafeLen = IVDep.getSafeLen();
           for (auto &ArrayId : IVDep.getArrayVariables())
             DependencyArrayParameters.emplace_back(ArrayId, SafeLen);
+        } else if (S == "llvm.loop.intel.pipelining.enable") {
+          BM->addExtension(ExtensionID::SPV_INTEL_fpga_loop_controls);
+          BM->addCapability(CapabilityFPGALoopControlsINTEL);
+          size_t I = getMDOperandAsInt(Node, 1);
+          Parameters.push_back(I);
+          LoopControl |= spv::LoopControlPipelineEnableINTEL;
+        } else if (S == "llvm.loop.coalesce.enable") {
+          BM->addExtension(ExtensionID::SPV_INTEL_fpga_loop_controls);
+          BM->addCapability(CapabilityFPGALoopControlsINTEL);
+          LoopControl |= spv::LoopControlLoopCoalesceINTEL;
+        } else if (S == "llvm.loop.coalesce.count") {
+          BM->addExtension(ExtensionID::SPV_INTEL_fpga_loop_controls);
+          BM->addCapability(CapabilityFPGALoopControlsINTEL);
+          size_t I = getMDOperandAsInt(Node, 1);
+          Parameters.push_back(I);
+          LoopControl |= spv::LoopControlLoopCoalesceINTEL;
+        } else if (S == "llvm.loop.max_interleaving.count") {
+          BM->addExtension(ExtensionID::SPV_INTEL_fpga_loop_controls);
+          BM->addCapability(CapabilityFPGALoopControlsINTEL);
+          size_t I = getMDOperandAsInt(Node, 1);
+          Parameters.push_back(I);
+          LoopControl |= spv::LoopControlMaxInterleavingINTEL;
+        } else if (S == "llvm.loop.intel.speculated.iterations.count") {
+          BM->addExtension(ExtensionID::SPV_INTEL_fpga_loop_controls);
+          BM->addCapability(CapabilityFPGALoopControlsINTEL);
+          size_t I = getMDOperandAsInt(Node, 1);
+          Parameters.push_back(I);
+          LoopControl |= spv::LoopControlSpeculatedIterationsINTEL;
         }
       }
     }
@@ -1427,6 +1460,7 @@ tryParseIntelFPGAAnnotationString(StringRef AnnotatedCode) {
                 .Case("max_replicates", DecorationMaxReplicatesINTEL)
                 .Case("bank_bits", DecorationBankBitsINTEL)
                 .Case("merge", DecorationMergeINTEL)
+                .Case("force_pow2_depth", DecorationForcePow2DepthINTEL)
                 .Default(DecorationUserSemantic);
       if (Dec == DecorationUserSemantic)
         Value = AnnotatedCode.substr(From, To + 1);
@@ -1494,6 +1528,7 @@ void addIntelFPGADecorations(
     // DecorationBankwidthINTEL
     // DecorationMaxPrivateCopiesINTEL
     // DecorationMaxReplicatesINTEL
+    // DecorationForcePow2DepthINTEL
     default:
       SPIRVWord Result = 0;
       StringRef(I.second).getAsInteger(10, Result);
@@ -1548,6 +1583,7 @@ void addIntelFPGADecorationsForStructMember(
     // DecorationBankwidthINTEL
     // DecorationMaxPrivateCopiesINTEL
     // DecorationMaxReplicatesINTEL
+    // DecorationForcePow2DepthINTEL
     default:
       SPIRVWord Result = 0;
       StringRef(I.second).getAsInteger(10, Result);
@@ -1589,6 +1625,24 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
     return BM->addExtInst(transType(II->getType()),
                           BM->getExtInstSetId(SPIRVEIS_OpenCL), OpenCLLIB::Sqrt,
                           {transValue(II->getOperand(0), BB)}, BB);
+  }
+  case Intrinsic::fabs: {
+    if (!checkTypeForSPIRVExtendedInstLowering(II, BM))
+      break;
+    SPIRVWord ExtOp = OpenCLLIB::Fabs;
+    SPIRVType *STy = transType(II->getType());
+    std::vector<SPIRVValue *> Ops(1, transValue(II->getArgOperand(0), BB));
+    return BM->addExtInst(STy, BM->getExtInstSetId(SPIRVEIS_OpenCL), ExtOp, Ops,
+                          BB);
+  }
+  case Intrinsic::ceil: {
+    if (!checkTypeForSPIRVExtendedInstLowering(II, BM))
+      break;
+    SPIRVWord ExtOp = OpenCLLIB::Ceil;
+    SPIRVType *STy = transType(II->getType());
+    std::vector<SPIRVValue *> Ops(1, transValue(II->getArgOperand(0), BB));
+    return BM->addExtInst(STy, BM->getExtInstSetId(SPIRVEIS_OpenCL), ExtOp, Ops,
+                          BB);
   }
   case Intrinsic::ctlz:
   case Intrinsic::cttz: {
@@ -1773,11 +1827,18 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
   case Intrinsic::dbg_label:
     return nullptr;
   default:
-    // Other LLVM intrinsics shouldn't get to SPIRV, because they
-    // can't be represented in SPIRV or not implemented yet.
-    BM->getErrorLog().checkError(false, SPIRVEC_InvalidFunctionCall,
-                                 II->getCalledValue()->getName().str(), "",
-                                 __FILE__, __LINE__);
+    if (SPIRVAllowUnknownIntrinsics)
+      return BM->addCallInst(
+          transFunctionDecl(II->getCalledFunction()),
+          transArguments(II, BB,
+                         SPIRVEntry::createUnique(OpFunctionCall).get()),
+          BB);
+    else
+      // Other LLVM intrinsics shouldn't get to SPIRV, because they
+      // can't be represented in SPIRV or aren't implemented yet.
+      BM->getErrorLog().checkError(false, SPIRVEC_InvalidFunctionCall,
+                                   II->getCalledValue()->getName().str(), "",
+                                   __FILE__, __LINE__);
   }
   return nullptr;
 }

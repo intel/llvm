@@ -769,6 +769,15 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
     }
     return SYCLArg;
   };
+
+  // Emit an error if c-compilation is forced in -fsycl mode
+  if (HasValidSYCLRuntime)
+    for (StringRef XValue : C.getInputArgs().getAllArgValues(options::OPT_x)) {
+      if (XValue == "c" || XValue == "c-header")
+        C.getDriver().Diag(clang::diag::err_drv_fsycl_with_c_type)
+            << "-x " << XValue;
+    }
+
   Arg *SYCLTargets = getArgRequiringSYCLRuntime(options::OPT_fsycl_targets_EQ);
   Arg *SYCLLinkTargets =
       getArgRequiringSYCLRuntime(options::OPT_fsycl_link_targets_EQ);
@@ -803,7 +812,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
     Arg *SYCLTargetsValues = SYCLTargets ? SYCLTargets : SYCLLinkTargets;
     if (SYCLTargetsValues) {
       if (SYCLTargetsValues->getNumValues()) {
-        for (const char *Val : SYCLTargetsValues->getValues()) {
+        for (StringRef Val : SYCLTargetsValues->getValues()) {
           llvm::Triple TT(Val);
           if (!isValidSYCLTriple(TT)) {
             Diag(clang::diag::err_drv_invalid_sycl_target) << Val;
@@ -821,7 +830,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
 
           // Store the current triple so that we can check for duplicates in
           // the following iterations.
-          FoundNormalizedTriples[NormalizedName] = NormalizedName;
+          FoundNormalizedTriples[NormalizedName] = Val;
           UniqueSYCLTriplesVec.push_back(TT);
         }
       } else
@@ -857,7 +866,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
 
             // Store the current triple so that we can check for duplicates in
             // the following iterations.
-            FoundNormalizedTriples[NormalizedName] = NormalizedName;
+            FoundNormalizedTriples[NormalizedName] = Val;
             UniqueSYCLTriplesVec.push_back(TT);
           } else {
             // No colon found, do not use the input
