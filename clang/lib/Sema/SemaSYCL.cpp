@@ -202,8 +202,7 @@ bool Sema::isKnownGoodSYCLDecl(const Decl *D) {
 
 bool isZeroSizedArray(QualType Ty) {
   if (const auto *CATy = dyn_cast<ConstantArrayType>(Ty)) {
-    const llvm::APInt size = CATy->getSize();
-    return size == 0;
+    return (CATy->getSize() == 0);
   }
   return false;
 }
@@ -211,29 +210,29 @@ bool isZeroSizedArray(QualType Ty) {
 void Sema::checkSYCLVarDeclIfInKernel(VarDecl *Var) {
   // not all variable types supported in kernel contexts
   // if not we record a deferred diagnostic.
-  if (getLangOpts().SYCLIsDevice) {
-    QualType Ty = Var->getType();
-    SourceRange Loc = Var->getLocation();
+  assert(getLangOpts().SYCLIsDevice &&
+         "Should only be called during SYCL compilation");
+  QualType Ty = Var->getType();
+  SourceRange Loc = Var->getLocation();
 
-    // __int128, __int128_t, __uint128_t
-    if (Ty->isSpecificBuiltinType(BuiltinType::Int128) ||
-        Ty->isSpecificBuiltinType(BuiltinType::UInt128))
-      SYCLDiagIfDeviceCode(Loc.getBegin(), diag::err_type_unsupported)
-          << Ty.getUnqualifiedType().getCanonicalType().getAsString();
+  // __int128, __int128_t, __uint128_t
+  if (Ty->isSpecificBuiltinType(BuiltinType::Int128) ||
+      Ty->isSpecificBuiltinType(BuiltinType::UInt128))
+    SYCLDiagIfDeviceCode(Loc.getBegin(), diag::err_type_unsupported)
+        << Ty.getUnqualifiedType().getCanonicalType().getAsString();
 
-    // QuadType __float128
-    if (Ty->isSpecificBuiltinType(BuiltinType::Float128) &&
-        !Context.getTargetInfo().hasFloat128Type())
-      SYCLDiagIfDeviceCode(Loc.getBegin(), diag::err_type_unsupported)
-          << "__float128";
+  // QuadType __float128
+  if (Ty->isSpecificBuiltinType(BuiltinType::Float128) &&
+      !Context.getTargetInfo().hasFloat128Type())
+    SYCLDiagIfDeviceCode(Loc.getBegin(), diag::err_type_unsupported)
+        << "__float128";
 
-    // zero length arrays
-    if (Ty->isArrayType() && isZeroSizedArray(Ty))
-      SYCLDiagIfDeviceCode(Loc.getBegin(), diag::err_typecheck_zero_array_size);
+  // zero length arrays
+  if (isZeroSizedArray(Ty))
+    SYCLDiagIfDeviceCode(Loc.getBegin(), diag::err_typecheck_zero_array_size);
 
-    // TODO: check type of accessor
-    // if(Util::isSyclAccessorType(Ty))
-  }
+  // TODO: check type of accessor
+  // if(Util::isSyclAccessorType(Ty))
 }
 
 class MarkDeviceFunction : public RecursiveASTVisitor<MarkDeviceFunction> {
