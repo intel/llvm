@@ -1282,6 +1282,8 @@ class SVE_gather_prf_vector_base_scalar_offset
 // Loads
 //
 
+def int_aarch64_sve_ld1   : AdvSIMD_1Vec_PredLoad_Intrinsic;
+
 def int_aarch64_sve_ldnt1 : AdvSIMD_1Vec_PredLoad_Intrinsic;
 def int_aarch64_sve_ldnf1 : AdvSIMD_1Vec_PredLoad_Intrinsic;
 def int_aarch64_sve_ldff1 : AdvSIMD_1Vec_PredLoad_Intrinsic;
@@ -1289,6 +1291,8 @@ def int_aarch64_sve_ldff1 : AdvSIMD_1Vec_PredLoad_Intrinsic;
 //
 // Stores
 //
+
+def int_aarch64_sve_st1   : AdvSIMD_1Vec_PredStore_Intrinsic;
 
 def int_aarch64_sve_stnt1 : AdvSIMD_1Vec_PredStore_Intrinsic;
 
@@ -1302,29 +1306,29 @@ def int_aarch64_sve_prf
 
 // Scalar + 32-bit scaled offset vector, zero extend, packed and
 // unpacked.
-def int_aarch64_sve_gather_prfb_scaled_uxtw : SVE_gather_prf_scalar_base_vector_offset_scaled;
-def int_aarch64_sve_gather_prfh_scaled_uxtw : SVE_gather_prf_scalar_base_vector_offset_scaled;
-def int_aarch64_sve_gather_prfw_scaled_uxtw : SVE_gather_prf_scalar_base_vector_offset_scaled;
-def int_aarch64_sve_gather_prfd_scaled_uxtw : SVE_gather_prf_scalar_base_vector_offset_scaled;
+def int_aarch64_sve_prfb_gather_scaled_uxtw : SVE_gather_prf_scalar_base_vector_offset_scaled;
+def int_aarch64_sve_prfh_gather_scaled_uxtw : SVE_gather_prf_scalar_base_vector_offset_scaled;
+def int_aarch64_sve_prfw_gather_scaled_uxtw : SVE_gather_prf_scalar_base_vector_offset_scaled;
+def int_aarch64_sve_prfd_gather_scaled_uxtw : SVE_gather_prf_scalar_base_vector_offset_scaled;
 
 // Scalar + 32-bit scaled offset vector, sign extend, packed and
 // unpacked.
-def int_aarch64_sve_gather_prfb_scaled_sxtw : SVE_gather_prf_scalar_base_vector_offset_scaled;
-def int_aarch64_sve_gather_prfw_scaled_sxtw : SVE_gather_prf_scalar_base_vector_offset_scaled;
-def int_aarch64_sve_gather_prfh_scaled_sxtw : SVE_gather_prf_scalar_base_vector_offset_scaled;
-def int_aarch64_sve_gather_prfd_scaled_sxtw : SVE_gather_prf_scalar_base_vector_offset_scaled;
+def int_aarch64_sve_prfb_gather_scaled_sxtw : SVE_gather_prf_scalar_base_vector_offset_scaled;
+def int_aarch64_sve_prfw_gather_scaled_sxtw : SVE_gather_prf_scalar_base_vector_offset_scaled;
+def int_aarch64_sve_prfh_gather_scaled_sxtw : SVE_gather_prf_scalar_base_vector_offset_scaled;
+def int_aarch64_sve_prfd_gather_scaled_sxtw : SVE_gather_prf_scalar_base_vector_offset_scaled;
 
 // Scalar + 64-bit scaled offset vector.
-def int_aarch64_sve_gather_prfb_scaled : SVE_gather_prf_scalar_base_vector_offset_scaled;
-def int_aarch64_sve_gather_prfh_scaled : SVE_gather_prf_scalar_base_vector_offset_scaled;
-def int_aarch64_sve_gather_prfw_scaled : SVE_gather_prf_scalar_base_vector_offset_scaled;
-def int_aarch64_sve_gather_prfd_scaled : SVE_gather_prf_scalar_base_vector_offset_scaled;
+def int_aarch64_sve_prfb_gather_scaled : SVE_gather_prf_scalar_base_vector_offset_scaled;
+def int_aarch64_sve_prfh_gather_scaled : SVE_gather_prf_scalar_base_vector_offset_scaled;
+def int_aarch64_sve_prfw_gather_scaled : SVE_gather_prf_scalar_base_vector_offset_scaled;
+def int_aarch64_sve_prfd_gather_scaled : SVE_gather_prf_scalar_base_vector_offset_scaled;
 
 // Vector + scalar.
-def int_aarch64_sve_gather_prfb : SVE_gather_prf_vector_base_scalar_offset;
-def int_aarch64_sve_gather_prfh : SVE_gather_prf_vector_base_scalar_offset;
-def int_aarch64_sve_gather_prfw : SVE_gather_prf_vector_base_scalar_offset;
-def int_aarch64_sve_gather_prfd : SVE_gather_prf_vector_base_scalar_offset;
+def int_aarch64_sve_prfb_gather : SVE_gather_prf_vector_base_scalar_offset;
+def int_aarch64_sve_prfh_gather : SVE_gather_prf_vector_base_scalar_offset;
+def int_aarch64_sve_prfw_gather : SVE_gather_prf_vector_base_scalar_offset;
+def int_aarch64_sve_prfd_gather : SVE_gather_prf_vector_base_scalar_offset;
 
 //
 // Scalar to vector operations

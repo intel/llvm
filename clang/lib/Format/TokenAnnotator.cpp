@@ -1047,11 +1047,40 @@ private:
                        Keywords.kw___has_include_next)) {
         parseHasInclude();
       }
+      if (Tok->is(Keywords.kw_where) && Tok->Next &&
+          Tok->Next->isNot(tok::l_paren)) {
+        Tok->Type = TT_CSharpGenericTypeConstraint;
+        parseCSharpGenericTypeConstraint();
+      }
       break;
     default:
       break;
     }
     return true;
+  }
+
+  void parseCSharpGenericTypeConstraint() {
+    while (CurrentToken) {
+      if (CurrentToken->is(tok::less)) {
+        // parseAngle is too greedy and will consume the whole line.
+        CurrentToken->Type = TT_TemplateOpener;
+        next();
+      } else if (CurrentToken->is(tok::greater)) {
+        CurrentToken->Type = TT_TemplateCloser;
+        next();
+      } else if (CurrentToken->is(tok::comma)) {
+        CurrentToken->Type = TT_CSharpGenericTypeConstraintComma;
+        next();
+      } else if (CurrentToken->is(Keywords.kw_where)) {
+        CurrentToken->Type = TT_CSharpGenericTypeConstraint;
+        next();
+      } else if (CurrentToken->is(tok::colon)) {
+        CurrentToken->Type = TT_CSharpGenericTypeConstraintColon;
+        next();
+      } else {
+        next();
+      }
+    }
   }
 
   void parseIncludeDirective() {
@@ -2986,6 +3015,10 @@ bool TokenAnnotator::spaceRequiredBefore(const AnnotatedLine &Line,
     if (Right.is(TT_CSharpNullConditionalLSquare))
       return false;
 
+    // No space between consecutive commas '[,,]'.
+    if (Left.is(tok::comma) && Right.is(tok::comma))
+      return false;
+
     // Possible space inside `?[ 0 ]`.
     if (Left.is(TT_CSharpNullConditionalLSquare))
       return Style.SpacesInSquareBrackets;
@@ -3299,6 +3332,8 @@ bool TokenAnnotator::mustBreakBefore(const AnnotatedLine &Line,
     if (Right.is(TT_CSharpNamedArgumentColon) ||
         Left.is(TT_CSharpNamedArgumentColon))
       return false;
+    if (Right.is(TT_CSharpGenericTypeConstraint))
+      return true;
   } else if (Style.Language == FormatStyle::LK_JavaScript) {
     // FIXME: This might apply to other languages and token kinds.
     if (Right.is(tok::string_literal) && Left.is(tok::plus) && Left.Previous &&
@@ -3589,6 +3624,9 @@ bool TokenAnnotator::canBreakBefore(const AnnotatedLine &Line,
     if (Left.isOneOf(TT_CSharpNamedArgumentColon, TT_AttributeColon) ||
         Right.isOneOf(TT_CSharpNamedArgumentColon, TT_AttributeColon))
       return false;
+    // Only break after commas for generic type constraints.
+    if (Line.First->is(TT_CSharpGenericTypeConstraint))
+      return Left.is(TT_CSharpGenericTypeConstraintComma);
   } else if (Style.Language == FormatStyle::LK_Java) {
     if (Left.isOneOf(Keywords.kw_throws, Keywords.kw_extends,
                      Keywords.kw_implements))

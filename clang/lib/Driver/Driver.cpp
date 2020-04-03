@@ -803,7 +803,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
     Arg *SYCLTargetsValues = SYCLTargets ? SYCLTargets : SYCLLinkTargets;
     if (SYCLTargetsValues) {
       if (SYCLTargetsValues->getNumValues()) {
-        for (const char *Val : SYCLTargetsValues->getValues()) {
+        for (StringRef Val : SYCLTargetsValues->getValues()) {
           llvm::Triple TT(Val);
           if (!isValidSYCLTriple(TT)) {
             Diag(clang::diag::err_drv_invalid_sycl_target) << Val;
@@ -821,7 +821,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
 
           // Store the current triple so that we can check for duplicates in
           // the following iterations.
-          FoundNormalizedTriples[NormalizedName] = NormalizedName;
+          FoundNormalizedTriples[NormalizedName] = Val;
           UniqueSYCLTriplesVec.push_back(TT);
         }
       } else
@@ -857,7 +857,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
 
             // Store the current triple so that we can check for duplicates in
             // the following iterations.
-            FoundNormalizedTriples[NormalizedName] = NormalizedName;
+            FoundNormalizedTriples[NormalizedName] = Val;
             UniqueSYCLTriplesVec.push_back(TT);
           } else {
             // No colon found, do not use the input

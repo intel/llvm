@@ -117,7 +117,7 @@ private:
   VersionNumber MaxVersion = VersionNumber::MaximumVersion;
   ExtensionsStatusMap ExtStatusMap;
   // SPIR-V to LLVM translation options
-  bool GenKernelArgNameMD;
+  bool GenKernelArgNameMD = false;
   std::unordered_map<uint32_t, uint64_t> ExternalSpecialization;
 };
 

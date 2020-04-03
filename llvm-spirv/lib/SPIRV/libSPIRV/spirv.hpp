@@ -406,6 +406,7 @@ enum Decoration {
   DecorationSimpleDualPortINTEL = 5833,
   DecorationMergeINTEL = 5834,
   DecorationBankBitsINTEL = 5835,
+  DecorationForcePow2DepthINTEL = 5836,
   DecorationIOPipeStorageINTEL = 5944,
   DecorationMax = 0x7fffffff,
 };
@@ -504,6 +505,10 @@ enum LoopControlMask {
     LoopControlInitiationIntervalINTEL = 0x10000,
     LoopControlMaxConcurrencyINTEL = 0x20000,
     LoopControlDependencyArrayINTEL = 0x40000,
+    LoopControlPipelineEnableINTEL = 0x80000,
+    LoopControlLoopCoalesceINTEL = 0x100000,
+    LoopControlMaxInterleavingINTEL = 0x200000,
+    LoopControlSpeculatedIterationsINTEL = 0x400000,
 };
 
 enum FunctionControlShift {

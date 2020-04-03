@@ -786,6 +786,44 @@ void SPIRVToLLVM::setLLVMLoopMetadata(const LoopInstType *LM,
       Metadata.push_back(llvm::MDNode::get(*Context, Parameters));
     }
   }
+  if (LC & LoopControlPipelineEnableINTEL) {
+    Metadata.push_back(llvm::MDNode::get(
+        *Context,
+        getMetadataFromNameAndParameter("llvm.loop.intel.pipelining.enable",
+                                        LoopControlParameters[NumParam++])));
+    assert(NumParam <= LoopControlParameters.size() &&
+           "Missing loop control parameter!");
+  }
+  if (LC & LoopControlLoopCoalesceINTEL) {
+    // If LoopCoalesce has no parameters
+    if (LoopControlParameters.empty()) {
+      Metadata.push_back(llvm::MDNode::get(
+          *Context, getMetadataFromName("llvm.loop.coalesce.enable")));
+    } else {
+      Metadata.push_back(llvm::MDNode::get(
+          *Context,
+          getMetadataFromNameAndParameter("llvm.loop.coalesce.count",
+                                          LoopControlParameters[NumParam++])));
+    }
+    assert(NumParam <= LoopControlParameters.size() &&
+           "Missing loop control parameter!");
+  }
+  if (LC & LoopControlMaxInterleavingINTEL) {
+    Metadata.push_back(llvm::MDNode::get(
+        *Context,
+        getMetadataFromNameAndParameter("llvm.loop.max_interleaving.count",
+                                        LoopControlParameters[NumParam++])));
+    assert(NumParam <= LoopControlParameters.size() &&
+           "Missing loop control parameter!");
+  }
+  if (LC & LoopControlSpeculatedIterationsINTEL) {
+    Metadata.push_back(llvm::MDNode::get(
+        *Context, getMetadataFromNameAndParameter(
+                      "llvm.loop.intel.speculated.iterations.count",
+                      LoopControlParameters[NumParam++])));
+    assert(NumParam <= LoopControlParameters.size() &&
+           "Missing loop control parameter!");
+  }
   llvm::MDNode *Node = llvm::MDNode::get(*Context, Metadata);
 
   // Set the first operand to refer itself
@@ -2956,6 +2994,8 @@ void generateIntelFPGAAnnotation(const SPIRVEntry *E,
       Out << Literals[I] << ",";
     Out << Literals.back() << '}';
   }
+  if (E->hasDecorate(DecorationForcePow2DepthINTEL, 0, &Result))
+    Out << "{force_pow2_depth:" << Result << '}';
   if (E->hasDecorate(DecorationUserSemantic))
     Out << E->getDecorationStringLiteral(DecorationUserSemantic).front();
 }
@@ -3005,6 +3045,9 @@ void generateIntelFPGAAnnotationForStructMember(
       Out << Literals[I] << ",";
     Out << Literals.back() << '}';
   }
+  if (E->hasMemberDecorate(DecorationForcePow2DepthINTEL, 0, MemberNumber,
+                           &Result))
+    Out << "{force_pow2_depth:" << Result << '}';
 
   if (E->hasMemberDecorate(DecorationUserSemantic, 0, MemberNumber))
     Out << E->getMemberDecorationStringLiteral(DecorationUserSemantic,

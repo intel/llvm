@@ -306,11 +306,11 @@ template <> struct numeric_limits<half> {
 
   static constexpr const float_round_style round_style = round_to_nearest;
 
-  static __SYCL_CONSTEXPR_ON_DEVICE const half min() noexcept {
+  static __SYCL_CONSTEXPR_ON_DEVICE const half(min)() noexcept {
     return SYCL_HLF_MIN;
   }
 
-  static __SYCL_CONSTEXPR_ON_DEVICE const half max() noexcept {
+  static __SYCL_CONSTEXPR_ON_DEVICE const half(max)() noexcept {
     return SYCL_HLF_MAX;
   }
 
