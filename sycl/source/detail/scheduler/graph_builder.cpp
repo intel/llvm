@@ -386,60 +386,6 @@ Command *Scheduler::GraphBuilder::addCGUpdateHost(
   return insertMemoryMove(Record, Req, HostQueue);
 }
 
-Command *Scheduler::GraphBuilder::addCGHostTask(
-  std::unique_ptr<detail::CG> CommandGroup, QueueImplPtr HostQueue) {
-  const std::vector<Requirement *> &Reqs = CommandGroup->MRequirements;
-  const std::vector<detail::EventImplPtr> &Events = CommandGroup->MEvents;
-
-  std::unique_ptr<HostTaskCommand> NewCmd(
-      new HostTaskCommand(std::move(CommandGroup), HostQueue));
-  if (!NewCmd)
-    throw runtime_error("Out of host memory", PI_OUT_OF_HOST_MEMORY);
-
-  if (MPrintOptionsArray[BeforeAddCG])
-    printGraphAsDot("before_addCGHostTask");
-
-  for (Requirement *Req : Reqs) {
-    MemObjRecord *Record = getOrInsertMemObjRecord(HostQueue, Req);
-    markModifiedIfWrite(Record, Req);
-
-    AllocaCommandBase *AllocaCmd = getOrCreateAllocaForReq(Record, Req, HostQueue);
-    // If there is alloca command we need to check if the latest memory is in
-    // required context.
-    if (!sameCtx(HostQueue->getContextImplPtr(), Record->MCurContext)) {
-      // Cannot directly copy memory from OpenCL device to OpenCL device -
-      // create two copies: device->host and host->device.
-      if (!HostQueue->is_host() && !Record->MCurContext->is_host())
-        insertMemoryMove(Record, Req,
-                         Scheduler::getInstance().getDefaultHostQueue());
-      insertMemoryMove(Record, Req, HostQueue);
-    }
-    std::set<Command *> Deps =
-        findDepsForReq(Record, Req, HostQueue->getContextImplPtr());
-
-    for (Command *Dep : Deps)
-      NewCmd->addDep(DepDesc{Dep, Req, AllocaCmd});
-  }
-
-  // Set new command as user for dependencies and update leaves.
-  for (DepDesc &Dep : NewCmd->MDeps) {
-    Dep.MDepCommand->addUser(NewCmd.get());
-    const Requirement *Req = Dep.MDepRequirement;
-    MemObjRecord *Record = getMemObjRecord(Req->MSYCLMemObj);
-    updateLeaves({Dep.MDepCommand}, Record, Req->MAccessMode);
-    addNodeToLeaves(Record, NewCmd.get(), Req->MAccessMode);
-  }
-
-  // Register all the events as dependencies
-  for (detail::EventImplPtr e : Events) {
-    NewCmd->addDep(e);
-  }
-
-  if (MPrintOptionsArray[AfterAddCG])
-    printGraphAsDot("after_addCGHostTask");
-  return NewCmd.release();
-}
-
 // The functions finds dependencies for the requirement. It starts searching
 // from list of "leaf" commands for the record and check if the examining
 // command can be executed in parallel with new one with regard to the memory

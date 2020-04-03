@@ -115,8 +115,6 @@ protected:
     Command *addCG(std::unique_ptr<detail::CG> CommandGroup,
                    QueueImplPtr Queue);
 
-    Command *addCGHostTask(std::unique_ptr<detail::CG> CommandGroup,
-                           QueueImplPtr Queue);
     Command *addCGUpdateHost(std::unique_ptr<detail::CG> CommandGroup,
                              QueueImplPtr HostQueue);
 

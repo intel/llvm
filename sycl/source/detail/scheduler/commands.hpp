@@ -435,21 +435,6 @@ private:
   void **MDstPtr = nullptr;
 };
 
-class HostTaskCommand : public Command {
-public:
-  HostTaskCommand(std::unique_ptr<detail::CG> CommandGroup, QueueImplPtr Queue);
-
-  void printDot(std::ostream &Stream) const final;
-  void emitInstrumentationData() final;
-
-private:
-  cl_int enqueueImp() final;
-
-  AllocaCommandBase *getAllocaForReq(Requirement *Req);
-
-  std::unique_ptr<detail::CG> MCommandGroup;
-};
-
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
