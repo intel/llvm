@@ -219,7 +219,7 @@ detail::enable_if_t<std::is_same<T, R>::value, R> convertImpl(T Value) {
   return Value;
 }
 
-#ifndef __SYCL_DEVICE_ONLY__
+
 // Note for float to half conversions, static_cast calls the conversion operator
 // implemented for host that takes care of the precision requirements.
 template <typename T, typename R, rounding_mode roundingMode>
@@ -232,6 +232,7 @@ convertImpl(T Value) {
   return static_cast<R>(Value);
 }
 
+#ifndef __SYCL_DEVICE_ONLY__
 // float to int
 template <typename T, typename R, rounding_mode roundingMode>
 detail::enable_if_t<is_float_to_int<T, R>::value, R> convertImpl(T Value) {
@@ -266,17 +267,6 @@ detail::enable_if_t<is_float_to_int<T, R>::value, R> convertImpl(T Value) {
   };
 }
 #else
-
-template <typename T, typename R, rounding_mode roundingMode>
-detail::enable_if_t<!std::is_same<T, R>::value &&
-                        (is_int_to_int<T, R>::value &&
-                         !(is_int_to_from_uint<T, R>::value) ||
-                         is_int_to_float<T, R>::value ||
-                         is_float_to_float<T, R>::value),
-                    R>
-convertImpl(T Value) {
-  return static_cast<R>(Value);
-}
 
 template <rounding_mode Mode>
 using RteOrAutomatic = detail::bool_constant<Mode == rounding_mode::automatic || Mode == rounding_mode::rte>;
