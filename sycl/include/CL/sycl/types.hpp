@@ -1127,7 +1127,7 @@ private:
 // all compilers supporting deduction guides also support fold expressions
 template <class T, class... U,
           class = detail::enable_if_t<(std::is_same<T, U>::value && ...)>>
-vec(T, U...) -> vec<T, sizeof...(U) + 1>;
+vec(T, U...)->vec<T, sizeof...(U) + 1>;
 #endif
 
 namespace detail {
