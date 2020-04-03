@@ -131,7 +131,7 @@ enum KernelMapEntryScope {
 
 // This function decides how kernels of the input module M will be distributed
 // ("split") into multiple modules based on the command options and IR
-// attributes. The desision is recorded in the output map parameter
+// attributes. The decision is recorded in the output map parameter
 // ResKernelModuleMap which maps some key to a group of kernels. Each such group
 // along with IR it depends on (globals, functions from its call graph,...) will
 // constitute a separate module.
