@@ -28,7 +28,7 @@ int calledFromKernel(int a) {
   // expected-error@+1 {{zero-length arrays are not permitted in C++}}
   int MalArray[0];
 
-  // expected-error@+1 {{__float128 is not supported on this target}}
+  // expected-error@+1 {{'__float128' is not supported on this target}}
   __float128 malFloat = 40;
 
   //expected-error@+1 {{SYCL kernel cannot call a variadic function}}
@@ -73,55 +73,55 @@ void setup_sycl_operation(const T VA[]) {
     std::size_t arrSz = sizeof(int[0]);
 
     // ======= Float128 Not Allowed in Kernel ==========
-    // expected-error@+1 {{__float128 is not supported on this target}}
+    // expected-error@+1 {{'__float128' is not supported on this target}}
     __float128 malFloat = 40;
-    // expected-error@+1 {{__float128 is not supported on this target}}
+    // expected-error@+1 {{'__float128' is not supported on this target}}
     trickyFloatType malFloatTrick = 41;
-    // expected-error@+1 {{__float128 is not supported on this target}}
+    // expected-error@+1 {{'__float128' is not supported on this target}}
     floatDef malFloatDef = 44;
-    // expected-error@+1 {{__float128 is not supported on this target}}
+    // expected-error@+1 {{'__float128' is not supported on this target}}
     auto whatFloat = malFloat;
-    // expected-error@+1 {{__float128 is not supported on this target}}
+    // expected-error@+1 {{'__float128' is not supported on this target}}
     auto malAutoTemp5 = bar<__float128>();
-    // expected-error@+1 {{__float128 is not supported on this target}}
+    // expected-error@+1 {{'__float128' is not supported on this target}}
     auto malAutoTemp6 = bar<trickyFloatType>();
-    // expected-error@+1 {{__float128 is not supported on this target}}
+    // expected-error@+1 {{'__float128' is not supported on this target}}
     decltype(malFloat) malDeclFloat = 42;
     // ---- false positive tests
     std::size_t someSz = sizeof(__float128);
     foo<__float128>();
 
     // ======= __int128 Not Allowed in Kernel ==========
-    // expected-error@+1 {{__int128 is not supported on this target}}
+    // expected-error@+1 {{'__int128' is not supported on this target}}
     __int128 malIntent = 2;
-    // expected-error@+1 {{__int128 is not supported on this target}}
+    // expected-error@+1 {{'__int128' is not supported on this target}}
     tricky128Type mal128Trick = 2;
-    // expected-error@+1 {{__int128 is not supported on this target}}
+    // expected-error@+1 {{'__int128' is not supported on this target}}
     int128Def malIntDef = 9;
-    // expected-error@+1 {{__int128 is not supported on this target}}
+    // expected-error@+1 {{'__int128' is not supported on this target}}
     auto whatInt128 = malIntent;
-    // expected-error@+1 {{__int128 is not supported on this target}}
+    // expected-error@+1 {{'__int128' is not supported on this target}}
     auto malAutoTemp = bar<__int128>();
-    // expected-error@+1 {{__int128 is not supported on this target}}
+    // expected-error@+1 {{'__int128' is not supported on this target}}
     auto malAutoTemp2 = bar<tricky128Type>();
-    // expected-error@+1 {{__int128 is not supported on this target}}
+    // expected-error@+1 {{'__int128' is not supported on this target}}
     decltype(malIntent) malDeclInt = 2;
 
-    // expected-error@+1 {{__int128 is not supported on this target}}
+    // expected-error@+1 {{'__int128' is not supported on this target}}
     __int128_t malInt128 = 2;
-    // expected-error@+1 {{unsigned __int128 is not supported on this target}}
+    // expected-error@+1 {{'unsigned __int128' is not supported on this target}}
     __uint128_t malUInt128 = 3;
-    // expected-error@+1 {{unsigned __int128 is not supported on this target}}
+    // expected-error@+1 {{'unsigned __int128' is not supported on this target}}
     megeType malTypeDefTrick = 4;
-    // expected-error@+1 {{__int128 is not supported on this target}}
+    // expected-error@+1 {{'__int128' is not supported on this target}}
     int128tDef malInt2Def = 6;
-    // expected-error@+1 {{unsigned __int128 is not supported on this target}}
+    // expected-error@+1 {{'unsigned __int128' is not supported on this target}}
     auto whatUInt = malUInt128;
-    // expected-error@+1 {{__int128 is not supported on this target}}
+    // expected-error@+1 {{'__int128' is not supported on this target}}
     auto malAutoTemp3 = bar<__int128_t>();
-    // expected-error@+1 {{unsigned __int128 is not supported on this target}}
+    // expected-error@+1 {{'unsigned __int128' is not supported on this target}}
     auto malAutoTemp4 = bar<megeType>();
-    // expected-error@+1 {{__int128 is not supported on this target}}
+    // expected-error@+1 {{'__int128' is not supported on this target}}
     decltype(malInt128) malDeclInt128 = 5;
 
     // ---- false positive tests These should not generate any errors.
@@ -143,7 +143,7 @@ int main(int argc, char **argv) {
     // expected-error@+1 {{zero-length arrays are not permitted in C++}}
     int BadArray[0];
 
-    // expected-error@+1 {{__float128 is not supported on this target}}
+    // expected-error@+1 {{'__float128' is not supported on this target}}
     __float128 badFloat = 40; // this SHOULD  trigger a diagnostic
 
     //expected-error@+1 {{SYCL kernel cannot call a variadic function}}
