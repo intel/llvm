@@ -376,7 +376,7 @@ public:
     FILL_USM,
     PREFETCH_USM,
     INTEROP_TASK_CODEPLAY,
-    HOST_TASK
+    CODEPLAY_HOST_TASK
   };
 
   CG(CGTYPE Type, vector_class<vector_class<char>> ArgsStorage,

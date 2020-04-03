@@ -150,8 +150,5 @@ bool queue::is_in_order() const {
   return impl->has_property<property::queue::in_order>();
 }
 
-void queue::set_event_cb_and_host_task_thread_pool_size(size_t Threads) {
-  impl->set_event_cb_and_host_task_thread_pool_size(Threads);
-}
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

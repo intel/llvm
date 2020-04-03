@@ -118,9 +118,6 @@ void test() {
 
   S::queue Queue(EH);
 
-  // optional
-  Queue.set_event_cb_and_host_task_thread_pool_size(4);
-
   Context Ctx{{false}, Queue, "", {10}, {10}, {10}, {}, {}};
 
   // 0. setup: thread 1 T1: exec smth; thread 2 T2: waits; init flag F = false

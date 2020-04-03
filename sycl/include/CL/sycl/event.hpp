@@ -113,8 +113,6 @@ public:
   typename info::param_traits<info::event_profiling, param>::return_type
   get_profiling_info() const;
 
-  void when_complete(std::function<void()> Func);
-
 private:
   event(shared_ptr_class<detail::event_impl> EventImpl);
 

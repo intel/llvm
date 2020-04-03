@@ -415,7 +415,7 @@ void Command::addDepSub(EventImplPtr DepEvent, ContextImplPtr Context) {
         std::move(HT), DepEvent->getQueueWPtr().lock(),
         /* Args = */ {}, /* ArgsStorage = */ {}, /* AccStorage = */ {},
         /* SharedPtrStorage = */ {}, /* Requirements = */ {},
-        /* DepEvents = */{DepEvent}, CG::HOST_TASK, /* Payload */ {}));
+        /* DepEvents = */{DepEvent}, CG::CODEPLAY_HOST_TASK, /* Payload */ {}));
 
     Command *GlueCmd = Scheduler::getInstance().MGraphBuilder.addCGHostTask(
       std::move(GlueCG), Scheduler::getInstance().getDefaultHostQueue());
@@ -1297,7 +1297,7 @@ static std::string cgTypeToString(detail::CG::CGTYPE Type) {
   case detail::CG::PREFETCH_USM:
     return "prefetch usm";
     break;
-  case detail::CG::HOST_TASK:
+  case detail::CG::CODEPLAY_HOST_TASK:
     return "host task";
     break;
   default:
@@ -1845,24 +1845,9 @@ void HostTaskCommand::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#AFFF82\", label=\"";
 
   Stream << "ID = " << this << "\\n";
-  Stream << "EXEC HOST TASK ON " << deviceToString(MQueue->get_device()) << "\\n";
-
-  switch (MCommandGroup->getType()) {
-  case detail::CG::KERNEL: {
-    auto KernelCG =
-        reinterpret_cast<detail::CGExecKernel *>(MCommandGroup.get());
-    Stream << "Kernel name: ";
-    if (KernelCG->MSyclKernel && KernelCG->MSyclKernel->isCreatedFromSource())
-      Stream << "created from source";
-    else
-      Stream << demangleKernelName(KernelCG->getKernelName());
-    Stream << "\\n";
-    break;
-  }
-  default:
-    Stream << "CG type: " << cgTypeToString(MCommandGroup->getType()) << "\\n";
-    break;
-  }
+  Stream << "EXEC HOST TASK ON " << deviceToString(MQueue->get_device()) 
+         << "\\n";
+  Stream << "CG type: " << cgTypeToString(MCommandGroup->getType()) << "\\n";
 
   Stream << "\"];" << std::endl;
 
@@ -1907,7 +1892,6 @@ cl_int HostTaskCommand::enqueueImp() {
     Ctx->RequiredEventsPerPlugin[&Plugin].push_back(Event);
   }
 
-
   size_t ArgIdx = 0, ReqIdx = 0;
   while (ArgIdx < HostTask->MArgs.size()) {
     ArgDesc &Arg = HostTask->MArgs[ArgIdx];
@@ -1929,7 +1913,7 @@ cl_int HostTaskCommand::enqueueImp() {
     ++ArgIdx;
   }
 
-  Queue->getHostTaskAndEventCallbackThreadPool().submit([Ctx] () {
+  MQueue->getHostTaskAndEventCallbackThreadPool().submit([Ctx] () {
     DispatchHostTask(Ctx);
   });
 

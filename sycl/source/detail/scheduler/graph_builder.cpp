@@ -649,7 +649,7 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
   const std::vector<Requirement *> &Reqs = CommandGroup->MRequirements;
   const std::vector<detail::EventImplPtr> &Events = CommandGroup->MEvents;
 
-  if (CommandGroup->getType() == CG::CGTYPE::HOST_TASK)
+  if (CommandGroup->getType() == CG::CGTYPE::CODEPLAY_HOST_TASK)
     Queue = Scheduler::getInstance().getDefaultHostQueue();
 
   std::unique_ptr<ExecCGCommand> NewCmd(

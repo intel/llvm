@@ -60,10 +60,6 @@ vector_class<event> event::get_wait_list() {
   return Result;
 }
 
-void event::when_complete(std::function<void ()> Func) {
-  impl->when_complete(impl, std::move(Func));
-}
-
 event::event(shared_ptr_class<detail::event_impl> event_impl)
     : impl(event_impl) {}
 

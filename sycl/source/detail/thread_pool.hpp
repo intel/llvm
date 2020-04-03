@@ -44,9 +44,7 @@ class ThreadPool {
   }
 
 public:
-  ThreadPool(unsigned int ThreadCount = 2 /*std::max(
-                 1L,
-                 static_cast<long>(std::thread::hardware_concurrency()) - 1)*/)
+  ThreadPool(unsigned int ThreadCount = 1)
       : MThreadCount(ThreadCount) {}
 
   ~ThreadPool() { finishAndWait(); }

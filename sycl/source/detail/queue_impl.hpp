@@ -347,15 +347,11 @@ public:
     MExceptions.PushBack(ExceptionPtr);
   }
 
-  void set_event_cb_and_host_task_thread_pool_size(size_t Threads) {
-    MHostTaskAndEventCallbackThreadPoolThreadsCount = Threads;
-  }
-
   ThreadPool &getHostTaskAndEventCallbackThreadPool() {
-    if (!MHostTaskAndEventCallbackThreadPool)
+    if (!MHostTaskThreadPool)
       initHostTaskAndEventCallbackThreadPool();
 
-    return *MHostTaskAndEventCallbackThreadPool;
+    return *MHostTaskThreadPool;
   }
 
 private:
@@ -413,12 +409,10 @@ private:
   // Assume OOO support by default.
   bool MSupportOOO = true;
 
-  size_t MHostTaskAndEventCallbackThreadPoolThreadsCount = 0;
-
   // Thread pool for host task and event callbacks execution.
   // The thread pool is instntiated upon the very first call to
   // getHostTaskAndEventCallbackThreadPool
-  std::unique_ptr<ThreadPool> MHostTaskAndEventCallbackThreadPool;
+  std::unique_ptr<ThreadPool> MHostTaskThreadPool;
 };
 
 } // namespace detail

@@ -187,13 +187,16 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
 }
 
 void queue_impl::initHostTaskAndEventCallbackThreadPool() {
-  if (MHostTaskAndEventCallbackThreadPoolThreadsCount)
-    MHostTaskAndEventCallbackThreadPool.reset(
-          new ThreadPool(MHostTaskAndEventCallbackThreadPoolThreadsCount));
-  else
-    MHostTaskAndEventCallbackThreadPool.reset(new ThreadPool);
+  if (MHostTaskThreadPool)
+    return;
 
-  MHostTaskAndEventCallbackThreadPool->start();
+  int Size = 1;
+
+  if (const char *val = std::getenv("SYCL_QUEUE_THREAD_POOL_SIZE"))
+    Size = std::stoi(val);
+
+  MHostTaskThreadPool.reset(new ThreadPool(Size));
+  MHostTaskThreadPool->start();
 }
 
 } // namespace detail
