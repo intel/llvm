@@ -234,6 +234,8 @@ protected:
   std::mutex MGraphLock;
 
   QueueImplPtr DefaultHostQueue;
+
+  friend class Command;
 };
 
 } // namespace detail

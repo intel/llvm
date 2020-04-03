@@ -148,6 +148,10 @@ public:
   void when_complete(std::shared_ptr<cl::sycl::detail::event_impl> Self,
                      std::function<void()> &&Func);
 
+  QueueImplWPtr getQueueWPtr() const {
+    return MQueue;
+  }
+
 private:
   // When instrumentation is enabled emits trace event for event wait begin and
   // returns the telemetry event generated for the wait

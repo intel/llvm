@@ -156,15 +156,6 @@ getPiEvents(const std::vector<EventImplPtr> &EventImpls) {
   return RetPiEvents;
 }
 
-void EventCompletionClbk(RT::PiEvent, pi_int32, void *data) {
-  // TODO: Handle return values. Store errors to async handler.
-  EventImplPtr *Event = (reinterpret_cast<EventImplPtr *>(data));
-  RT::PiEvent &EventHandle = (*Event)->getHandleRef();
-  const detail::plugin &Plugin = (*Event)->getPlugin();
-  Plugin.call<PiApiKind::piEventSetStatus>(EventHandle, PI_EVENT_COMPLETE);
-  delete (Event);
-}
-
 // Method prepares PI event's from list sycl::event's
 std::vector<EventImplPtr> Command::prepareEvents(ContextImplPtr Context) {
   std::vector<EventImplPtr> Result;
@@ -402,20 +393,38 @@ void Command::addDepSub(EventImplPtr DepEvent, ContextImplPtr Context) {
   if (DepEventContext != Context && !Context->is_host()) {
     EventImplPtr GlueEvent(new detail::event_impl());
     GlueEvent->setContextImpl(Context);
-    EventImplPtr *GlueEventCopy =
-        new EventImplPtr(GlueEvent); // To increase the reference count by 1.
 
     RT::PiEvent &GlueEventHandle = GlueEvent->getHandleRef();
     auto Plugin = Context->getPlugin();
-    auto DepPlugin = DepEventContext->getPlugin();
     // Add an event on the current context that
     // is triggered when the DepEvent is complete
+    // TODO eliminate creation of user-event
     Plugin.call<PiApiKind::piEventCreate>(Context->getHandleRef(),
                                           &GlueEventHandle);
 
-    DepPlugin.call<PiApiKind::piEventSetCallback>(
-        DepEvent->getHandleRef(), PI_EVENT_COMPLETE, EventCompletionClbk,
-        /*void *data=*/(GlueEventCopy));
+    // enqueue GlueCmd
+    std::function<void(void)> Func = [GlueEvent] () {
+      RT::PiEvent &GlueEventHandle = GlueEvent->getHandleRef();
+      const detail::plugin &Plugin = GlueEvent->getPlugin();
+      Plugin.call<PiApiKind::piEventSetStatus>(GlueEventHandle, CL_COMPLETE);
+    };
+
+    std::unique_ptr<detail::HostTask> HT(new detail::HostTask(std::move(Func)));
+
+    std::unique_ptr<detail::CG> GlueCG(new detail::CGHostTask(
+        std::move(HT), DepEvent->getQueueWPtr().lock(),
+        /* Args = */ {}, /* ArgsStorage = */ {}, /* AccStorage = */ {},
+        /* SharedPtrStorage = */ {}, /* Requirements = */ {},
+        /* DepEvents = */{DepEvent}, CG::HOST_TASK, /* Payload */ {}));
+
+    Command *GlueCmd = Scheduler::getInstance().MGraphBuilder.addCGHostTask(
+      std::move(GlueCG), Scheduler::getInstance().getDefaultHostQueue());
+
+    EnqueueResultT Res;
+    bool Enqueued = Scheduler::GraphProcessor::enqueueCommand(GlueCmd, Res);
+    if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
+      throw runtime_error("Enqueue process failed for glue command.",
+                          PI_INVALID_OPERATION);
 
     MDepsEvents.push_back(std::move(GlueEvent));
   }
