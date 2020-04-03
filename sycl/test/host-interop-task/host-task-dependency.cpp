@@ -138,9 +138,14 @@ void test() {
     S::accessor<int, 1, S::access::mode::read,
                 S::access::target::host_buffer> ResultAcc(Ctx.Buf2);
 
+    bool failure = false;
     for (size_t Idx = 0; Idx < ResultAcc.get_count(); ++Idx) {
-      assert(ResultAcc[Idx] == Idx && "Invalid data in result buffer");
+      fprintf(stderr, "Third buffer [%3zu] = %i\n", Idx, ResultAcc[Idx]);
+
+      failure |= (ResultAcc[Idx] != Idx);
     }
+
+    assert(!failure && "Invalid data in result buffer");
   }
 }
 
