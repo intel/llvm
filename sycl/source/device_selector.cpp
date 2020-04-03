@@ -68,9 +68,6 @@ int default_selector::operator()(const device &dev) const {
   if (dev.is_host())
     return 100;
 
-  if (dev.is_accelerator())
-    return 50;
-
   return -1;
 }
 
