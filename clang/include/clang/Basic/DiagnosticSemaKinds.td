@@ -10762,6 +10762,11 @@ def warn_sycl_attibute_function_raw_ptr
               "to a function with a raw pointer "
               "%select{return type|parameter type}1">,
       InGroup<SyclStrict>, DefaultError;
+def warn_sycl_implicit_decl
+    : Warning<"SYCL 1.2.1 specification requires an explicit forward "
+              "declaration for a kernel type name; your program may not "
+              "be portable">,
+      InGroup<SyclStrict>, DefaultIgnore;
 def err_ivdep_duplicate_arg : Error<
   "duplicate argument to 'ivdep'. attribute requires one or both of a safelen "
   "and array">;

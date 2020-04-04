@@ -1413,6 +1413,8 @@ pi_result cuda_piContextCreate(const pi_context_properties *properties,
 
   std::unique_ptr<_pi_context> piContextPtr{nullptr};
   try {
+    CUcontext current = nullptr;
+
     if (property_cuda_primary) {
       // Use the CUDA primary context and assume that we want to use it
       // immediately as we want to forge context switches.
@@ -1424,22 +1426,25 @@ pi_result cuda_piContextCreate(const pi_context_properties *properties,
       errcode_ret = PI_CHECK_ERROR(cuCtxPushCurrent(Ctxt));
     } else {
       // Create a scoped context.
-      CUcontext newContext, current;
+      CUcontext newContext;
       PI_CHECK_ERROR(cuCtxGetCurrent(&current));
       errcode_ret = PI_CHECK_ERROR(
           cuCtxCreate(&newContext, CU_CTX_MAP_HOST, devices[0]->get()));
       piContextPtr = std::unique_ptr<_pi_context>(new _pi_context{
           _pi_context::kind::user_defined, newContext, *devices});
-      // For scoped contexts keep the last active CUDA one on top of the stack
-      // as `cuCtxCreate` replaces it implicitly otherwise.
-      if (current != nullptr) {
-        PI_CHECK_ERROR(cuCtxSetCurrent(current));
-      }
     }
 
     // Use default stream to record base event counter
     PI_CHECK_ERROR(cuEventCreate(&piContextPtr->evBase_, CU_EVENT_DEFAULT));
     PI_CHECK_ERROR(cuEventRecord(piContextPtr->evBase_, 0));
+
+    // For non-primary scoped contexts keep the last active on top of the stack
+    // as `cuCtxCreate` replaces it implicitly otherwise.
+    // Primary contexts are kept on top of the stack, so the previous context
+    // is not queried and therefore not recovered.
+    if (current != nullptr) {
+      PI_CHECK_ERROR(cuCtxSetCurrent(current));
+    }
 
     *retcontext = piContextPtr.release();
   } catch (pi_result err) {

@@ -17,7 +17,6 @@
 #include <detail/kernel_program_cache.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
-#include <detail/usm/usm_dispatch.hpp>
 
 #include <map>
 #include <memory>
@@ -152,7 +151,6 @@ private:
   bool MPluginInterop;
   bool MHostContext;
   bool MUseCUDAPrimaryContext;
-  std::shared_ptr<usm::USMDispatcher> MUSMDispatch;
   std::map<DeviceLibExt, RT::PiProgram> MCachedLibPrograms;
   mutable KernelProgramCache MKernelProgramCache;
 };

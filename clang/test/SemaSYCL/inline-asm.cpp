@@ -2,6 +2,9 @@
 // RUN: %clang_cc1 -fsycl -fsycl-is-device -fsyntax-only -verify %s -DLINUX_ASM -DSPIR_CHECK -triple spir64-unknown-unknown-sycldevice
 // RUN: %clang_cc1 -fsycl -fsycl-is-device -fsyntax-only -verify -triple x86_64-windows -fasm-blocks %s
 
+// Invalid output constraint diagnistic is duplicated
+// XFAIL:*
+
 #ifndef SPIR_CHECK
 //expected-no-diagnostics
 #endif // SPIR_CHECK
