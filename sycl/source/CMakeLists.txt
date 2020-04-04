@@ -105,8 +105,6 @@ set(SYCL_SOURCES
     "detail/scheduler/graph_builder.cpp"
     "detail/spec_constant_impl.cpp"
     "detail/sycl_mem_obj_t.cpp"
-    "detail/usm/clusm.cpp"
-    "detail/usm/usm_dispatch.cpp"
     "detail/usm/usm_impl.cpp"
     "detail/util.cpp"
     "accessor.cpp"

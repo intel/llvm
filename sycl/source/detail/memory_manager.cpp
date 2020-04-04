@@ -10,7 +10,6 @@
 #include <detail/context_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/queue_impl.hpp>
-#include <detail/usm/usm_dispatch.hpp>
 
 #include <algorithm>
 #include <cassert>
