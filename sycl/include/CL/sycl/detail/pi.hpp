@@ -103,10 +103,6 @@ void *loadOsLibrary(const std::string &Library);
 // library, implementation is OS dependent.
 void *getOsLibraryFuncAddress(void *Library, const std::string &FunctionName);
 
-// For selection of SYCL RT back-end, now manually through the "SYCL_BE"
-// environment variable.
-enum Backend { SYCL_BE_PI_OPENCL, SYCL_BE_PI_CUDA, SYCL_BE_PI_OTHER };
-
 // Check for manually selected BE at run-time.
 bool useBackend(Backend Backend);
 

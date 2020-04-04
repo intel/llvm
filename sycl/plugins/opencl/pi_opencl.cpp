@@ -1054,6 +1054,9 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   // PI interface supports higher version or the same version.
   strncpy(PluginInit->PluginVersion, SupportedVersion, 4);
 
+  // Set plugin Type
+  PluginInit->backend = SYCL_BE_PI_OPENCL;
+
 #define _PI_CL(pi_api, ocl_api)                                                \
   (PluginInit->PiFunctionTable).pi_api = (decltype(&::pi_api))(&ocl_api);
 

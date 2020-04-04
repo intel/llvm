@@ -1661,7 +1661,7 @@ cl_int ExecCGCommand::enqueueImp() {
         Requirement *Req = (Requirement *)(Arg.MPtr);
         AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
         RT::PiMem MemArg = (RT::PiMem)AllocaCmd->getMemAllocation();
-        if (RT::useBackend(pi::Backend::SYCL_BE_PI_OPENCL)) {
+        if (Plugin.isBackendType(Backend::SYCL_BE_PI_OPENCL)) {
           Plugin.call<PiApiKind::piKernelSetArg>(Kernel, Arg.MIndex,
                                                  sizeof(RT::PiMem), &MemArg);
         } else {

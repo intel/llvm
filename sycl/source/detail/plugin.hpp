@@ -31,6 +31,10 @@ public:
 
   const RT::PiPlugin &getPiPlugin() const { return MPlugin; }
 
+  bool isBackendType(Backend backend) const {
+    return MPlugin.backend == backend;
+  }
+
   /// Checks return value from PI calls.
   ///
   /// \throw Exception if pi_result is not a PI_SUCCESS.

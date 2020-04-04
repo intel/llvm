@@ -60,6 +60,10 @@ using pi_uint64 = uint64_t;
 using pi_bool = pi_uint32;
 using pi_bitfield = pi_uint64;
 
+// For selection of SYCL RT back-end, now manually through the "SYCL_BE"
+// environment variable.
+enum Backend { SYCL_BE_PI_OPENCL, SYCL_BE_PI_CUDA, SYCL_BE_PI_OTHER };
+
 //
 // NOTE: prefer to map 1:1 to OpenCL so that no translation is needed
 // for PI <-> OpenCL ways. The PI <-> to other BE translation is almost
@@ -1346,6 +1350,8 @@ struct _pi_plugin {
   const char PiVersion[4] = _PI_H_VERSION_STRING;
   // Plugin edits this.
   char PluginVersion[4] = _PI_H_VERSION_STRING;
+  // Plugin type
+  Backend backend;
   char *Targets;
   struct FunctionPointers {
 #define _PI_API(api) decltype(::api) *api;

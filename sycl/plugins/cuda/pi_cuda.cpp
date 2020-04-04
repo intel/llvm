@@ -3564,6 +3564,9 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   // PI interface supports higher version or the same version.
   strncpy(PluginInit->PluginVersion, SupportedVersion, 4);
 
+  // Set plugin Type
+  PluginInit->backend = SYCL_BE_PI_CUDA;
+
   // Set whole function table to zero to make it easier to detect if
   // functions are not set up below.
   std::memset(&(PluginInit->PiFunctionTable), 0,

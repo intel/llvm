@@ -269,8 +269,10 @@ static bool isDeviceBinaryTypeSupported(const context &C,
       return false;
   }
 
+  ContextImplPtr ContextImpl = getSyclObjImpl(C);
+
   // OpenCL 2.1 and greater require clCreateProgramWithIL
-  if (pi::useBackend(pi::SYCL_BE_PI_OPENCL) &&
+  if (ContextImpl->getPlugin().isBackendType(Backend::SYCL_BE_PI_OPENCL) &&
       C.get_platform().get_info<info::platform::version>() >= "2.1")
     return true;
 
