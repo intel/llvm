@@ -4372,6 +4372,9 @@ class OMPDependClause final
   /// Set colon location.
   void setColonLoc(SourceLocation Loc) { ColonLoc = Loc; }
 
+  /// Sets optional dependency modifier.
+  void setModifier(Expr *DepModifier);
+
 public:
   /// Creates clause with a list of variables \a VL.
   ///
@@ -4387,7 +4390,7 @@ public:
   /// clause.
   static OMPDependClause *Create(const ASTContext &C, SourceLocation StartLoc,
                                  SourceLocation LParenLoc,
-                                 SourceLocation EndLoc,
+                                 SourceLocation EndLoc, Expr *DepModifier,
                                  OpenMPDependClauseKind DepKind,
                                  SourceLocation DepLoc, SourceLocation ColonLoc,
                                  ArrayRef<Expr *> VL, unsigned NumLoops);
@@ -4403,6 +4406,12 @@ public:
 
   /// Get dependency type.
   OpenMPDependClauseKind getDependencyKind() const { return DepKind; }
+
+  /// Return optional depend modifier.
+  Expr *getModifier();
+  const Expr *getModifier() const {
+    return const_cast<OMPDependClause *>(this)->getModifier();
+  }
 
   /// Get dependency type location.
   SourceLocation getDependencyLoc() const { return DepLoc; }
@@ -5240,19 +5249,14 @@ class OMPMapClause final : public OMPMappableExprListClause<OMPMapClause>,
     return getUniqueDeclarationsNum() + getTotalComponentListNum();
   }
 
-public:
-  /// Number of allowed map-type-modifiers.
-  static constexpr unsigned NumberOfModifiers =
-      OMPC_MAP_MODIFIER_last - OMPC_MAP_MODIFIER_unknown - 1;
-
 private:
   /// Map-type-modifiers for the 'map' clause.
-  OpenMPMapModifierKind MapTypeModifiers[NumberOfModifiers] = {
+  OpenMPMapModifierKind MapTypeModifiers[NumberOfOMPMapClauseModifiers] = {
       OMPC_MAP_MODIFIER_unknown, OMPC_MAP_MODIFIER_unknown,
       OMPC_MAP_MODIFIER_unknown};
 
   /// Location of map-type-modifiers for the 'map' clause.
-  SourceLocation MapTypeModifiersLoc[NumberOfModifiers];
+  SourceLocation MapTypeModifiersLoc[NumberOfOMPMapClauseModifiers];
 
   /// Map type for the 'map' clause.
   OpenMPMapClauseKind MapType = OMPC_MAP_unknown;
@@ -5321,7 +5325,7 @@ private:
   /// \param I index for map-type-modifier.
   /// \param T map-type-modifier for the clause.
   void setMapTypeModifier(unsigned I, OpenMPMapModifierKind T) {
-    assert(I < NumberOfModifiers &&
+    assert(I < NumberOfOMPMapClauseModifiers &&
            "Unexpected index to store map type modifier, exceeds array size.");
     MapTypeModifiers[I] = T;
   }
@@ -5331,7 +5335,7 @@ private:
   /// \param I index for map-type-modifier location.
   /// \param TLoc map-type-modifier location.
   void setMapTypeModifierLoc(unsigned I, SourceLocation TLoc) {
-    assert(I < NumberOfModifiers &&
+    assert(I < NumberOfOMPMapClauseModifiers &&
            "Index to store map type modifier location exceeds array size.");
     MapTypeModifiersLoc[I] = TLoc;
   }
@@ -5406,7 +5410,7 @@ public:
   ///
   /// \param Cnt index for map-type-modifier.
   OpenMPMapModifierKind getMapTypeModifier(unsigned Cnt) const LLVM_READONLY {
-    assert(Cnt < NumberOfModifiers &&
+    assert(Cnt < NumberOfOMPMapClauseModifiers &&
            "Requested modifier exceeds the total number of modifiers.");
     return MapTypeModifiers[Cnt];
   }
@@ -5416,7 +5420,7 @@ public:
   ///
   /// \param Cnt index for map-type-modifier location.
   SourceLocation getMapTypeModifierLoc(unsigned Cnt) const LLVM_READONLY {
-    assert(Cnt < NumberOfModifiers &&
+    assert(Cnt < NumberOfOMPMapClauseModifiers &&
            "Requested modifier location exceeds total number of modifiers.");
     return MapTypeModifiersLoc[Cnt];
   }
@@ -7135,6 +7139,19 @@ public:
 #include "clang/Basic/OpenMPKinds.def"
 };
 
+struct OMPTraitProperty {
+  llvm::omp::TraitProperty Kind = llvm::omp::TraitProperty::invalid;
+};
+struct OMPTraitSelector {
+  Expr *ScoreOrCondition = nullptr;
+  llvm::omp::TraitSelector Kind = llvm::omp::TraitSelector::invalid;
+  llvm::SmallVector<OMPTraitProperty, 1> Properties;
+};
+struct OMPTraitSet {
+  llvm::omp::TraitSet Kind = llvm::omp::TraitSet::invalid;
+  llvm::SmallVector<OMPTraitSelector, 2> Selectors;
+};
+
 /// Helper data structure representing the traits in a match clause of an
 /// `declare variant` or `metadirective`. The outer level is an ordered
 /// collection of selector sets, each with an associated kind and an ordered
@@ -7149,27 +7166,14 @@ public:
   /// Reconstruct a (partial) OMPTraitInfo object from a mangled name.
   OMPTraitInfo(StringRef MangledName);
 
-  struct OMPTraitProperty {
-    llvm::omp::TraitProperty Kind = llvm::omp::TraitProperty::invalid;
-  };
-  struct OMPTraitSelector {
-    Expr *ScoreOrCondition = nullptr;
-    llvm::omp::TraitSelector Kind = llvm::omp::TraitSelector::invalid;
-    llvm::SmallVector<OMPTraitProperty, 1> Properties;
-  };
-  struct OMPTraitSet {
-    llvm::omp::TraitSet Kind = llvm::omp::TraitSet::invalid;
-    llvm::SmallVector<OMPTraitSelector, 2> Selectors;
-  };
-
   /// The outermost level of selector sets.
   llvm::SmallVector<OMPTraitSet, 2> Sets;
 
   bool anyScoreOrCondition(
       llvm::function_ref<bool(Expr *&, bool /* IsScore */)> Cond) {
-    return llvm::any_of(Sets, [&](OMPTraitInfo::OMPTraitSet &Set) {
+    return llvm::any_of(Sets, [&](OMPTraitSet &Set) {
       return llvm::any_of(
-          Set.Selectors, [&](OMPTraitInfo::OMPTraitSelector &Selector) {
+          Set.Selectors, [&](OMPTraitSelector &Selector) {
             return Cond(Selector.ScoreOrCondition,
                         /* IsScore */ Selector.Kind !=
                             llvm::omp::TraitSelector::user_condition);
