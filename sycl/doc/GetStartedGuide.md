@@ -24,6 +24,7 @@ and a wide range of compute accelerators such as GPU and FPGA.
 * `git` - https://git-scm.com/downloads
 * `cmake` version 3.2 or later - http://www.cmake.org/download/
 * `python` - https://www.python.org/downloads/release/python-2716/
+* `ninja` - https://github.com/ninja-build/ninja/wiki/Pre-built-Ninja-packages
 * C++ compiler
   * Linux: `GCC` version 5.1.0 or later (including libstdc++) -
     https://gcc.gnu.org/install/
@@ -259,13 +260,8 @@ c:\oclcpu_rt_<cpu_version>\install.bat c:\tbb_<tbb_version>\tbb\bin\intel64\vc14
 
 To verify that built DPC++ toolchain is working correctly, run:
 
-**Linux**
+**Linux/Windows (64-bit)**
 ```bash
-make -j`nproc` check-all
-```
-
-**Windows (64-bit)**
-```bat
 ninja check-all
 ```
 
