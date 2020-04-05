@@ -13,7 +13,6 @@
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/generic_type_lists.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
-#include <CL/sycl/export.hpp>
 #include <CL/sycl/half_type.hpp>
 
 #include <limits>
@@ -291,7 +290,7 @@ template <typename T, typename B>
 using convert_data_type = convert_data_type_impl<T, B, T>;
 
 // Try to get pointer_t, otherwise T
-template <typename T> class SYCL_API TryToGetPointerT {
+template <typename T> class TryToGetPointerT {
   static T check(...);
   template <typename A> static typename A::pointer_t check(const A &);
 
@@ -302,7 +301,7 @@ public:
 };
 
 // Try to get element_type, otherwise T
-template <typename T> class SYCL_API TryToGetElementType {
+template <typename T> class TryToGetElementType {
   static T check(...);
   template <typename A> static typename A::element_type check(const A &);
 
@@ -312,7 +311,7 @@ public:
 };
 
 // Try to get vector_t, otherwise T
-template <typename T> class SYCL_API TryToGetVectorT {
+template <typename T> class TryToGetVectorT {
   static T check(...);
   template <typename A> static typename A::vector_t check(const A &);
 
@@ -323,7 +322,7 @@ public:
 
 // Try to get pointer_t (if pointer_t indicates on the type with_remainder
 // vector_t creates a pointer type on vector_t), otherwise T
-template <typename T> class SYCL_API TryToGetPointerVecT {
+template <typename T> class TryToGetPointerVecT {
   static T check(...);
   template <typename A>
   static typename PtrValueType<
@@ -583,11 +582,11 @@ struct RelConverter<
 };
 
 template <typename T> static constexpr T max_v() {
-  return std::numeric_limits<T>::max();
+  return (std::numeric_limits<T>::max)();
 }
 
 template <typename T> static constexpr T min_v() {
-  return std::numeric_limits<T>::min();
+  return (std::numeric_limits<T>::min)();
 }
 
 template <typename T> static constexpr T quiet_NaN() {
@@ -595,11 +594,10 @@ template <typename T> static constexpr T quiet_NaN() {
 }
 
 // is_same_vector_size
-template <int FirstSize, typename... Args>
-class SYCL_API is_same_vector_size_impl;
+template <int FirstSize, typename... Args> class is_same_vector_size_impl;
 
 template <int FirstSize, typename T, typename... Args>
-class SYCL_API is_same_vector_size_impl<FirstSize, T, Args...> {
+class is_same_vector_size_impl<FirstSize, T, Args...> {
   using CurrentT = detail::remove_pointer_t<T>;
   static constexpr int Size = vector_size<CurrentT>::value;
   static constexpr bool IsSizeEqual = (Size == FirstSize);
@@ -610,9 +608,9 @@ public:
 };
 
 template <int FirstSize>
-class SYCL_API is_same_vector_size_impl<FirstSize> : public std::true_type {};
+class is_same_vector_size_impl<FirstSize> : public std::true_type {};
 
-template <typename T, typename... Args> class SYCL_API is_same_vector_size {
+template <typename T, typename... Args> class is_same_vector_size {
   using CurrentT = remove_pointer_t<T>;
   static constexpr int Size = vector_size<CurrentT>::value;
 

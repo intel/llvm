@@ -14,9 +14,9 @@
 #pragma once
 
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/detail/pi.h>
-#include <CL/sycl/export.hpp>
 
 #include <cassert>
 #include <sstream>
@@ -49,9 +49,9 @@ namespace pi {
 #endif
 
 // Report error and no return (keeps compiler happy about no return statements).
-[[noreturn]] SYCL_API void die(const char *Message);
+[[noreturn]] __SYCL_EXPORT void die(const char *Message);
 
-SYCL_API void assertion(bool Condition, const char *Message = nullptr);
+__SYCL_EXPORT void assertion(bool Condition, const char *Message = nullptr);
 
 template <typename T>
 void handleUnknownParamName(const char *functionName, T parameter) {

@@ -10,8 +10,8 @@
 
 #include <CL/cl.h>
 #include <CL/sycl/access/access.hpp>
+#include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/sycl_mem_obj_i.hpp>
-#include <CL/sycl/export.hpp>
 #include <CL/sycl/range.hpp>
 
 #include <memory>
@@ -32,7 +32,7 @@ using ContextImplPtr = std::shared_ptr<detail::context_impl>;
 // The class contains methods that work with memory. All operations with
 // device memory should go through MemoryManager.
 
-class SYCL_API MemoryManager {
+class __SYCL_EXPORT MemoryManager {
 public:
   // The following method releases memory allocation of memory object.
   // Depending on the context it releases memory on host or on device.

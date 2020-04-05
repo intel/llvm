@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/generic_type_traits.hpp>
 #include <CL/sycl/exception.hpp>
 #include <CL/sycl/pointers.hpp>
@@ -15,7 +16,7 @@
 #define __NOEXC /*noexcept*/
 
 #define __MAKE_1V(Fun, Call, N, Ret, Arg1)                                     \
-  SYCL_API Ret##N Fun __NOEXC(Arg1##N x) {                                     \
+  __SYCL_EXPORT Ret##N Fun __NOEXC(Arg1##N x) {                                \
     Ret##N r;                                                                  \
     detail::helper<N - 1>().run_1v(                                            \
         r, [](Arg1 x) { return cl::__host_std::Call(x); }, x);                 \
@@ -23,7 +24,7 @@
   }
 
 #define __MAKE_1V_2V(Fun, Call, N, Ret, Arg1, Arg2)                            \
-  SYCL_API Ret##N Fun __NOEXC(Arg1##N x, Arg2##N y) {                          \
+  __SYCL_EXPORT Ret##N Fun __NOEXC(Arg1##N x, Arg2##N y) {                     \
     Ret##N r;                                                                  \
     detail::helper<N - 1>().run_1v_2v(                                         \
         r, [](Arg1 x, Arg2 y) { return cl::__host_std::Call(x, y); }, x, y);   \
@@ -31,7 +32,7 @@
   }
 
 #define __MAKE_1V_2V_RS(Fun, Call, N, Ret, Arg1, Arg2)                         \
-  SYCL_API Ret Fun __NOEXC(Arg1##N x, Arg2##N y) {                             \
+  __SYCL_EXPORT Ret Fun __NOEXC(Arg1##N x, Arg2##N y) {                        \
     Ret r = Ret();                                                             \
     detail::helper<N - 1>().run_1v_2v_rs(                                      \
         r,                                                                     \
@@ -41,7 +42,7 @@
   }
 
 #define __MAKE_1V_RS(Fun, Call, N, Ret, Arg1)                                  \
-  SYCL_API Ret Fun __NOEXC(Arg1##N x) {                                        \
+  __SYCL_EXPORT Ret Fun __NOEXC(Arg1##N x) {                                   \
     Ret r = Ret();                                                             \
     detail::helper<N - 1>().run_1v_rs(                                         \
         r, [](Ret &r, Arg1 x) { return cl::__host_std::Call(r, x); }, x);      \
@@ -49,7 +50,7 @@
   }
 
 #define __MAKE_1V_2V_3V(Fun, Call, N, Ret, Arg1, Arg2, Arg3)                   \
-  SYCL_API Ret##N Fun __NOEXC(Arg1##N x, Arg2##N y, Arg3##N z) {               \
+  __SYCL_EXPORT Ret##N Fun __NOEXC(Arg1##N x, Arg2##N y, Arg3##N z) {          \
     Ret##N r;                                                                  \
     detail::helper<N - 1>().run_1v_2v_3v(                                      \
         r,                                                                     \
@@ -59,7 +60,7 @@
   }
 
 #define __MAKE_1V_2S_3S(Fun, N, Ret, Arg1, Arg2, Arg3)                         \
-  SYCL_API Ret##N Fun __NOEXC(Arg1##N x, Arg2 y, Arg3 z) {                     \
+  __SYCL_EXPORT Ret##N Fun __NOEXC(Arg1##N x, Arg2 y, Arg3 z) {                \
     Ret##N r;                                                                  \
     detail::helper<N - 1>().run_1v_2s_3s(                                      \
         r,                                                                     \
@@ -69,7 +70,7 @@
   }
 
 #define __MAKE_1V_2S(Fun, N, Ret, Arg1, Arg2)                                  \
-  SYCL_API Ret##N Fun __NOEXC(Arg1##N x, Arg2 y) {                             \
+  __SYCL_EXPORT Ret##N Fun __NOEXC(Arg1##N x, Arg2 y) {                        \
     Ret##N r;                                                                  \
     detail::helper<N - 1>().run_1v_2s(                                         \
         r, [](Arg1 x, Arg2 y) { return cl::__host_std::Fun(x, y); }, x, y);    \
@@ -77,7 +78,7 @@
   }
 
 #define __MAKE_SR_1V_AND(Fun, Call, N, Ret, Arg1)                              \
-  SYCL_API Ret Fun __NOEXC(Arg1##N x) {                                        \
+  __SYCL_EXPORT Ret Fun __NOEXC(Arg1##N x) {                                   \
     Ret r;                                                                     \
     detail::helper<N - 1>().run_1v_sr_and(                                     \
         r, [](Arg1 x) { return cl::__host_std::Call(x); }, x);                 \
@@ -85,7 +86,7 @@
   }
 
 #define __MAKE_SR_1V_OR(Fun, Call, N, Ret, Arg1)                               \
-  SYCL_API Ret Fun __NOEXC(Arg1##N x) {                                        \
+  __SYCL_EXPORT Ret Fun __NOEXC(Arg1##N x) {                                   \
     Ret r;                                                                     \
     detail::helper<N - 1>().run_1v_sr_or(                                      \
         r, [](Arg1 x) { return cl::__host_std::Call(x); }, x);                 \
@@ -93,7 +94,7 @@
   }
 
 #define __MAKE_1V_2P(Fun, N, Ret, Arg1, Arg2)                                  \
-  SYCL_API Ret##N Fun __NOEXC(Arg1##N x, Arg2##N *y) {                         \
+  __SYCL_EXPORT Ret##N Fun __NOEXC(Arg1##N x, Arg2##N *y) {                    \
     Ret##N r;                                                                  \
     detail::helper<N - 1>().run_1v_2p(                                         \
         r, [](Arg1 x, Arg2 *y) { return cl::__host_std::Fun(x, y); }, x, y);   \
@@ -101,7 +102,7 @@
   }
 
 #define __MAKE_1V_2V_3P(Fun, N, Ret, Arg1, Arg2, Arg3)                         \
-  SYCL_API Ret##N Fun __NOEXC(Arg1##N x, Arg2##N y, Arg3##N *z) {              \
+  __SYCL_EXPORT Ret##N Fun __NOEXC(Arg1##N x, Arg2##N y, Arg3##N *z) {         \
     Ret##N r;                                                                  \
     detail::helper<N - 1>().run_1v_2v_3p(                                      \
         r,                                                                     \
@@ -147,7 +148,7 @@
   MAKE_1V_2V_3V_FUNC(FunSc, FunV, Ret, Arg1, Arg2, Arg3)
 
 #define MAKE_SC_3ARG(Fun, Ret, Arg1, Arg2, Arg3)                               \
-  SYCL_API Ret Fun __NOEXC(Arg1 x, Arg2 y, Arg3 z) {                           \
+  __SYCL_EXPORT Ret Fun __NOEXC(Arg1 x, Arg2 y, Arg3 z) {                      \
     return (Ret)__##Fun(x, y, z);                                              \
   }
 
@@ -200,7 +201,7 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace __host_std {
 namespace detail {
 
-template <int N> struct SYCL_API helper {
+template <int N> struct helper {
   template <typename Res, typename Op, typename T1>
   inline void run_1v(Res &r, Op op, T1 x) {
     helper<N - 1>().run_1v(r, op, x);
@@ -278,7 +279,7 @@ template <int N> struct SYCL_API helper {
   }
 };
 
-template <> struct SYCL_API helper<0> {
+template <> struct helper<0> {
   template <typename Res, typename Op, typename T1>
   inline void run_1v(Res &r, Op op, T1 x) {
     r.template swizzle<0>() = op(x.template swizzle<0>());

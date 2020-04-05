@@ -10,11 +10,11 @@
 
 #include <CL/sycl/detail/aligned_allocator.hpp>
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/generic_type_traits.hpp>
 #include <CL/sycl/detail/sycl_mem_obj_t.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/event.hpp>
-#include <CL/sycl/export.hpp>
 #include <CL/sycl/property_list.hpp>
 #include <CL/sycl/range.hpp>
 #include <CL/sycl/stl.hpp>
@@ -38,21 +38,23 @@ namespace detail {
 using image_allocator = aligned_allocator<byte>;
 
 // utility function: Returns the Number of Channels for a given Order.
-SYCL_API uint8_t getImageNumberChannels(image_channel_order Order);
+__SYCL_EXPORT uint8_t getImageNumberChannels(image_channel_order Order);
 
 // utility function: Returns the number of bytes per image element
-SYCL_API uint8_t getImageElementSize(uint8_t NumChannels,
-                                     image_channel_type Type);
+__SYCL_EXPORT uint8_t getImageElementSize(uint8_t NumChannels,
+                                          image_channel_type Type);
 
-SYCL_API RT::PiMemImageChannelOrder
+__SYCL_EXPORT RT::PiMemImageChannelOrder
 convertChannelOrder(image_channel_order Order);
 
-SYCL_API image_channel_order
+__SYCL_EXPORT image_channel_order
 convertChannelOrder(RT::PiMemImageChannelOrder Order);
 
-SYCL_API RT::PiMemImageChannelType convertChannelType(image_channel_type Type);
+__SYCL_EXPORT RT::PiMemImageChannelType
+convertChannelType(image_channel_type Type);
 
-SYCL_API image_channel_type convertChannelType(RT::PiMemImageChannelType Type);
+__SYCL_EXPORT image_channel_type
+convertChannelType(RT::PiMemImageChannelType Type);
 
 // validImageDataT: cl_int4, cl_uint4, cl_float4, cl_half4
 template <typename T>
@@ -63,7 +65,8 @@ template <typename DataT>
 using EnableIfImgAccDataT =
     typename std::enable_if<is_validImageDataT<DataT>::value, DataT>::type;
 
-template <int Dimensions> class SYCL_API image_impl final : public SYCLMemObjT {
+template <int Dimensions>
+class __SYCL_EXPORT image_impl final : public SYCLMemObjT {
   using BaseT = SYCLMemObjT;
   using typename BaseT::MemObjType;
 

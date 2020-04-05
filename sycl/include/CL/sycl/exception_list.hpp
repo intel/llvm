@@ -11,7 +11,7 @@
 // 4.9.2 Exception Class Interface
 
 #include <CL/sycl/detail/defines.hpp>
-#include <CL/sycl/export.hpp>
+#include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/stl.hpp>
 
 #include <cstddef>
@@ -24,7 +24,7 @@ namespace detail {
 class queue_impl;
 }
 
-class SYCL_API exception_list {
+class __SYCL_EXPORT exception_list {
 public:
   using value_type = exception_ptr_class;
   using reference = value_type &;

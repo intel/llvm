@@ -10,11 +10,11 @@
 
 #include <CL/sycl/detail/accessor_impl.hpp>
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/helpers.hpp>
 #include <CL/sycl/detail/host_profiling_info.hpp>
 #include <CL/sycl/detail/kernel_desc.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
-#include <CL/sycl/export.hpp>
 #include <CL/sycl/group.hpp>
 #include <CL/sycl/id.hpp>
 #include <CL/sycl/kernel.hpp>
@@ -56,7 +56,7 @@ public:
 private:
   cl_command_queue MQueue;
   std::vector<ReqToMem> MMemObjs;
-  SYCL_API cl_mem getMemImpl(detail::Requirement *Req) const;
+  __SYCL_EXPORT cl_mem getMemImpl(detail::Requirement *Req) const;
 };
 
 namespace detail {

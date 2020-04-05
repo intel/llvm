@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/export.hpp>
+#include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/kernel.hpp>
 #include <CL/sycl/program.hpp>
 #include <detail/kernel_impl.hpp>
@@ -38,7 +38,8 @@ kernel::get_info() const {
 }
 
 #define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
-  template SYCL_API ret_type kernel::get_info<info::param_type::param>() const;
+  template __SYCL_EXPORT ret_type kernel::get_info<info::param_type::param>()  \
+      const;
 
 #include <CL/sycl/info/kernel_traits.def>
 
@@ -51,7 +52,7 @@ kernel::get_work_group_info(const device &dev) const {
 }
 
 #define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
-  template SYCL_API ret_type                                                   \
+  template __SYCL_EXPORT ret_type                                              \
   kernel::get_work_group_info<info::param_type::param>(const device &) const;
 
 #include <CL/sycl/info/kernel_work_group_traits.def>
@@ -74,10 +75,10 @@ kernel::get_sub_group_info(
 }
 
 #define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
-  template SYCL_API ret_type                                                   \
+  template __SYCL_EXPORT ret_type                                              \
   kernel::get_sub_group_info<info::param_type::param>(const device &) const;
 #define PARAM_TRAITS_SPEC_WITH_INPUT(param_type, param, ret_type, in_type)     \
-  template SYCL_API ret_type                                                   \
+  template __SYCL_EXPORT ret_type                                              \
   kernel::get_sub_group_info<info::param_type::param>(const device &, in_type) \
       const;
 

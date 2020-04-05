@@ -19,19 +19,19 @@ namespace d = s::detail;
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace __host_std {
 
-SYCL_API s::cl_float Dot(s::cl_float2, s::cl_float2);
-SYCL_API s::cl_float Dot(s::cl_float3, s::cl_float3);
-SYCL_API s::cl_float Dot(s::cl_float4, s::cl_float4);
-SYCL_API s::cl_double Dot(s::cl_double2, s::cl_double2);
-SYCL_API s::cl_double Dot(s::cl_double3, s::cl_double3);
-SYCL_API s::cl_double Dot(s::cl_double4, s::cl_double4);
-SYCL_API s::cl_half Dot(s::cl_half2, s::cl_half2);
-SYCL_API s::cl_half Dot(s::cl_half3, s::cl_half3);
-SYCL_API s::cl_half Dot(s::cl_half4, s::cl_half4);
+__SYCL_EXPORT s::cl_float Dot(s::cl_float2, s::cl_float2);
+__SYCL_EXPORT s::cl_float Dot(s::cl_float3, s::cl_float3);
+__SYCL_EXPORT s::cl_float Dot(s::cl_float4, s::cl_float4);
+__SYCL_EXPORT s::cl_double Dot(s::cl_double2, s::cl_double2);
+__SYCL_EXPORT s::cl_double Dot(s::cl_double3, s::cl_double3);
+__SYCL_EXPORT s::cl_double Dot(s::cl_double4, s::cl_double4);
+__SYCL_EXPORT s::cl_half Dot(s::cl_half2, s::cl_half2);
+__SYCL_EXPORT s::cl_half Dot(s::cl_half3, s::cl_half3);
+__SYCL_EXPORT s::cl_half Dot(s::cl_half4, s::cl_half4);
 
-SYCL_API s::cl_int All(s::cl_int2);
-SYCL_API s::cl_int All(s::cl_int3);
-SYCL_API s::cl_int All(s::cl_int4);
+__SYCL_EXPORT s::cl_int All(s::cl_int2);
+__SYCL_EXPORT s::cl_int All(s::cl_int3);
+__SYCL_EXPORT s::cl_int All(s::cl_int4);
 
 namespace {
 
@@ -105,33 +105,33 @@ __fast_normalize(T t) {
 
 // --------------- 4.13.6 Geometric functions. Host implementations ------------
 // cross
-SYCL_API s::cl_float3 cross(s::cl_float3 p0, s::cl_float3 p1) __NOEXC {
+__SYCL_EXPORT s::cl_float3 cross(s::cl_float3 p0, s::cl_float3 p1) __NOEXC {
   return __cross(p0, p1);
 }
-SYCL_API s::cl_float4 cross(s::cl_float4 p0, s::cl_float4 p1) __NOEXC {
+__SYCL_EXPORT s::cl_float4 cross(s::cl_float4 p0, s::cl_float4 p1) __NOEXC {
   return __cross(p0, p1);
 }
-SYCL_API s::cl_double3 cross(s::cl_double3 p0, s::cl_double3 p1) __NOEXC {
+__SYCL_EXPORT s::cl_double3 cross(s::cl_double3 p0, s::cl_double3 p1) __NOEXC {
   return __cross(p0, p1);
 }
-SYCL_API s::cl_double4 cross(s::cl_double4 p0, s::cl_double4 p1) __NOEXC {
+__SYCL_EXPORT s::cl_double4 cross(s::cl_double4 p0, s::cl_double4 p1) __NOEXC {
   return __cross(p0, p1);
 }
-SYCL_API s::cl_half3 cross(s::cl_half3 p0, s::cl_half3 p1) __NOEXC {
+__SYCL_EXPORT s::cl_half3 cross(s::cl_half3 p0, s::cl_half3 p1) __NOEXC {
   return __cross(p0, p1);
 }
-SYCL_API s::cl_half4 cross(s::cl_half4 p0, s::cl_half4 p1) __NOEXC {
+__SYCL_EXPORT s::cl_half4 cross(s::cl_half4 p0, s::cl_half4 p1) __NOEXC {
   return __cross(p0, p1);
 }
 
 // FMul
-SYCL_API s::cl_float FMul(s::cl_float p0, s::cl_float p1) {
+__SYCL_EXPORT s::cl_float FMul(s::cl_float p0, s::cl_float p1) {
   return __FMul(p0, p1);
 }
-SYCL_API s::cl_double FMul(s::cl_double p0, s::cl_double p1) {
+__SYCL_EXPORT s::cl_double FMul(s::cl_double p0, s::cl_double p1) {
   return __FMul(p0, p1);
 }
-SYCL_API s::cl_float FMul(s::cl_half p0, s::cl_half p1) {
+__SYCL_EXPORT s::cl_float FMul(s::cl_half p0, s::cl_half p1) {
   return __FMul(p0, p1);
 }
 
@@ -141,105 +141,119 @@ MAKE_GEO_1V_2V_RS(Dot, __FMul_impl, s::cl_double, s::cl_double, s::cl_double)
 MAKE_GEO_1V_2V_RS(Dot, __FMul_impl, s::cl_half, s::cl_half, s::cl_half)
 
 // length
-SYCL_API s::cl_float length(s::cl_float p) { return __length(p); }
-SYCL_API s::cl_double length(s::cl_double p) { return __length(p); }
-SYCL_API s::cl_half length(s::cl_half p) { return __length(p); }
-SYCL_API s::cl_float length(s::cl_float2 p) { return __length(p); }
-SYCL_API s::cl_float length(s::cl_float3 p) { return __length(p); }
-SYCL_API s::cl_float length(s::cl_float4 p) { return __length(p); }
-SYCL_API s::cl_double length(s::cl_double2 p) { return __length(p); }
-SYCL_API s::cl_double length(s::cl_double3 p) { return __length(p); }
-SYCL_API s::cl_double length(s::cl_double4 p) { return __length(p); }
-SYCL_API s::cl_half length(s::cl_half2 p) { return __length(p); }
-SYCL_API s::cl_half length(s::cl_half3 p) { return __length(p); }
-SYCL_API s::cl_half length(s::cl_half4 p) { return __length(p); }
+__SYCL_EXPORT s::cl_float length(s::cl_float p) { return __length(p); }
+__SYCL_EXPORT s::cl_double length(s::cl_double p) { return __length(p); }
+__SYCL_EXPORT s::cl_half length(s::cl_half p) { return __length(p); }
+__SYCL_EXPORT s::cl_float length(s::cl_float2 p) { return __length(p); }
+__SYCL_EXPORT s::cl_float length(s::cl_float3 p) { return __length(p); }
+__SYCL_EXPORT s::cl_float length(s::cl_float4 p) { return __length(p); }
+__SYCL_EXPORT s::cl_double length(s::cl_double2 p) { return __length(p); }
+__SYCL_EXPORT s::cl_double length(s::cl_double3 p) { return __length(p); }
+__SYCL_EXPORT s::cl_double length(s::cl_double4 p) { return __length(p); }
+__SYCL_EXPORT s::cl_half length(s::cl_half2 p) { return __length(p); }
+__SYCL_EXPORT s::cl_half length(s::cl_half3 p) { return __length(p); }
+__SYCL_EXPORT s::cl_half length(s::cl_half4 p) { return __length(p); }
 
 // distance
-SYCL_API s::cl_float distance(s::cl_float p0, s::cl_float p1) {
+__SYCL_EXPORT s::cl_float distance(s::cl_float p0, s::cl_float p1) {
   return length(p0 - p1);
 }
-SYCL_API s::cl_float distance(s::cl_float2 p0, s::cl_float2 p1) {
+__SYCL_EXPORT s::cl_float distance(s::cl_float2 p0, s::cl_float2 p1) {
   return length(p0 - p1);
 }
-SYCL_API s::cl_float distance(s::cl_float3 p0, s::cl_float3 p1) {
+__SYCL_EXPORT s::cl_float distance(s::cl_float3 p0, s::cl_float3 p1) {
   return length(p0 - p1);
 }
-SYCL_API s::cl_float distance(s::cl_float4 p0, s::cl_float4 p1) {
+__SYCL_EXPORT s::cl_float distance(s::cl_float4 p0, s::cl_float4 p1) {
   return length(p0 - p1);
 }
-SYCL_API s::cl_double distance(s::cl_double p0, s::cl_double p1) {
+__SYCL_EXPORT s::cl_double distance(s::cl_double p0, s::cl_double p1) {
   return length(p0 - p1);
 }
-SYCL_API s::cl_double distance(s::cl_double2 p0, s::cl_double2 p1) {
+__SYCL_EXPORT s::cl_double distance(s::cl_double2 p0, s::cl_double2 p1) {
   return length(p0 - p1);
 }
-SYCL_API s::cl_double distance(s::cl_double3 p0, s::cl_double3 p1) {
+__SYCL_EXPORT s::cl_double distance(s::cl_double3 p0, s::cl_double3 p1) {
   return length(p0 - p1);
 }
-SYCL_API s::cl_double distance(s::cl_double4 p0, s::cl_double4 p1) {
+__SYCL_EXPORT s::cl_double distance(s::cl_double4 p0, s::cl_double4 p1) {
   return length(p0 - p1);
 }
-SYCL_API s::cl_half distance(s::cl_half p0, s::cl_half p1) {
+__SYCL_EXPORT s::cl_half distance(s::cl_half p0, s::cl_half p1) {
   return length(p0 - p1);
 }
-SYCL_API s::cl_half distance(s::cl_half2 p0, s::cl_half2 p1) {
+__SYCL_EXPORT s::cl_half distance(s::cl_half2 p0, s::cl_half2 p1) {
   return length(p0 - p1);
 }
-SYCL_API s::cl_half distance(s::cl_half3 p0, s::cl_half3 p1) {
+__SYCL_EXPORT s::cl_half distance(s::cl_half3 p0, s::cl_half3 p1) {
   return length(p0 - p1);
 }
-SYCL_API s::cl_half distance(s::cl_half4 p0, s::cl_half4 p1) {
+__SYCL_EXPORT s::cl_half distance(s::cl_half4 p0, s::cl_half4 p1) {
   return length(p0 - p1);
 }
 
 // normalize
-SYCL_API s::cl_float normalize(s::cl_float p) { return __normalize(p); }
-SYCL_API s::cl_float2 normalize(s::cl_float2 p) { return __normalize(p); }
-SYCL_API s::cl_float3 normalize(s::cl_float3 p) { return __normalize(p); }
-SYCL_API s::cl_float4 normalize(s::cl_float4 p) { return __normalize(p); }
-SYCL_API s::cl_double normalize(s::cl_double p) { return __normalize(p); }
-SYCL_API s::cl_double2 normalize(s::cl_double2 p) { return __normalize(p); }
-SYCL_API s::cl_double3 normalize(s::cl_double3 p) { return __normalize(p); }
-SYCL_API s::cl_double4 normalize(s::cl_double4 p) { return __normalize(p); }
-SYCL_API s::cl_half normalize(s::cl_half p) { return __normalize(p); }
-SYCL_API s::cl_half2 normalize(s::cl_half2 p) { return __normalize(p); }
-SYCL_API s::cl_half3 normalize(s::cl_half3 p) { return __normalize(p); }
-SYCL_API s::cl_half4 normalize(s::cl_half4 p) { return __normalize(p); }
+__SYCL_EXPORT s::cl_float normalize(s::cl_float p) { return __normalize(p); }
+__SYCL_EXPORT s::cl_float2 normalize(s::cl_float2 p) { return __normalize(p); }
+__SYCL_EXPORT s::cl_float3 normalize(s::cl_float3 p) { return __normalize(p); }
+__SYCL_EXPORT s::cl_float4 normalize(s::cl_float4 p) { return __normalize(p); }
+__SYCL_EXPORT s::cl_double normalize(s::cl_double p) { return __normalize(p); }
+__SYCL_EXPORT s::cl_double2 normalize(s::cl_double2 p) {
+  return __normalize(p);
+}
+__SYCL_EXPORT s::cl_double3 normalize(s::cl_double3 p) {
+  return __normalize(p);
+}
+__SYCL_EXPORT s::cl_double4 normalize(s::cl_double4 p) {
+  return __normalize(p);
+}
+__SYCL_EXPORT s::cl_half normalize(s::cl_half p) { return __normalize(p); }
+__SYCL_EXPORT s::cl_half2 normalize(s::cl_half2 p) { return __normalize(p); }
+__SYCL_EXPORT s::cl_half3 normalize(s::cl_half3 p) { return __normalize(p); }
+__SYCL_EXPORT s::cl_half4 normalize(s::cl_half4 p) { return __normalize(p); }
 
 // fast_length
-SYCL_API s::cl_float fast_length(s::cl_float p) { return __fast_length(p); }
-SYCL_API s::cl_float fast_length(s::cl_float2 p) { return __fast_length(p); }
-SYCL_API s::cl_float fast_length(s::cl_float3 p) { return __fast_length(p); }
-SYCL_API s::cl_float fast_length(s::cl_float4 p) { return __fast_length(p); }
+__SYCL_EXPORT s::cl_float fast_length(s::cl_float p) {
+  return __fast_length(p);
+}
+__SYCL_EXPORT s::cl_float fast_length(s::cl_float2 p) {
+  return __fast_length(p);
+}
+__SYCL_EXPORT s::cl_float fast_length(s::cl_float3 p) {
+  return __fast_length(p);
+}
+__SYCL_EXPORT s::cl_float fast_length(s::cl_float4 p) {
+  return __fast_length(p);
+}
 
 // fast_normalize
-SYCL_API s::cl_float fast_normalize(s::cl_float p) {
+__SYCL_EXPORT s::cl_float fast_normalize(s::cl_float p) {
   if (p == 0.0f)
     return p;
   s::cl_float r = std::sqrt(FMul(p, p));
   return p / r;
 }
-SYCL_API s::cl_float2 fast_normalize(s::cl_float2 p) {
+__SYCL_EXPORT s::cl_float2 fast_normalize(s::cl_float2 p) {
   return __fast_normalize(p);
 }
-SYCL_API s::cl_float3 fast_normalize(s::cl_float3 p) {
+__SYCL_EXPORT s::cl_float3 fast_normalize(s::cl_float3 p) {
   return __fast_normalize(p);
 }
-SYCL_API s::cl_float4 fast_normalize(s::cl_float4 p) {
+__SYCL_EXPORT s::cl_float4 fast_normalize(s::cl_float4 p) {
   return __fast_normalize(p);
 }
 
 // fast_distance
-SYCL_API s::cl_float fast_distance(s::cl_float p0, s::cl_float p1) {
+__SYCL_EXPORT s::cl_float fast_distance(s::cl_float p0, s::cl_float p1) {
   return fast_length(p0 - p1);
 }
-SYCL_API s::cl_float fast_distance(s::cl_float2 p0, s::cl_float2 p1) {
+__SYCL_EXPORT s::cl_float fast_distance(s::cl_float2 p0, s::cl_float2 p1) {
   return fast_length(p0 - p1);
 }
-SYCL_API s::cl_float fast_distance(s::cl_float3 p0, s::cl_float3 p1) {
+__SYCL_EXPORT s::cl_float fast_distance(s::cl_float3 p0, s::cl_float3 p1) {
   return fast_length(p0 - p1);
 }
-SYCL_API s::cl_float fast_distance(s::cl_float4 p0, s::cl_float4 p1) {
+__SYCL_EXPORT s::cl_float fast_distance(s::cl_float4 p0, s::cl_float4 p1) {
   return fast_length(p0 - p1);
 }
 

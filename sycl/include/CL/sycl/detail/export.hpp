@@ -8,7 +8,8 @@
 
 #pragma once
 
-#ifndef SYCL_API
+#ifndef SYCL_DEVICE_ONLY
+#ifndef __SYCL_EXPORT
 #ifdef _WIN32
 
 // MSVC discourages export of classes, that use STL class in API. This
@@ -16,16 +17,22 @@
 #pragma warning(disable : 4251)
 #pragma warning(disable : 4275)
 
+#define DLL_LOCAL
+
 #if __SYCL_BUILD_SYCL_DLL
-#define SYCL_API __declspec(dllexport)
-#define SYCL_API_DEPRECATED(x) __declspec(dllexport, deprecated)
+#define __SYCL_EXPORT __declspec(dllexport)
+#define __SYCL_EXPORT_DEPRECATED(x) __declspec(dllexport, deprecated)
 #else
-#define SYCL_API __declspec(dllimport)
-#define SYCL_API_DEPRECATED(x) __declspec(dllimport, deprecated)
+#define __SYCL_EXPORT __declspec(dllimport)
+#define __SYCL_EXPORT_DEPRECATED(x) __declspec(dllimport, deprecated)
 #endif
 #else
-#define SYCL_API __attribute__((visibility("default")))
-#define SYCL_API_DEPRECATED(x)                                                 \
+
+#define DLL_LOCAL __attribute__((visibility("hidden")))
+
+#define __SYCL_EXPORT __attribute__((visibility("default")))
+#define __SYCL_EXPORT_DEPRECATED(x)                                            \
   __attribute__((visibility("default"), deprecated(x)))
+#endif
 #endif
 #endif

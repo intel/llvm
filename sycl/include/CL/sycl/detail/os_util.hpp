@@ -11,7 +11,7 @@
 #pragma once
 
 #include <CL/sycl/detail/defines.hpp>
-#include <CL/sycl/export.hpp>
+#include <CL/sycl/detail/export.hpp>
 
 #include <cstdint>
 #include <stdlib.h>
@@ -37,12 +37,6 @@
 #error "Unsupported compiler or OS"
 #endif // _WIN32
 
-#if defined(SYCL_RT_OS_WINDOWS)
-#define DLL_LOCAL
-#elif defined(SYCL_RT_OS_POSIX_SUPPORT)
-#define DLL_LOCAL __attribute__((visibility("hidden")))
-#endif
-
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
@@ -52,7 +46,7 @@ namespace detail {
 using OSModuleHandle = intptr_t;
 
 /// Groups the OS-dependent services.
-class SYCL_API OSUtil {
+class __SYCL_EXPORT OSUtil {
 public:
   /// Returns a module enclosing given address or nullptr.
   static OSModuleHandle getOSModuleHandle(const void *VirtAddr);

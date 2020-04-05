@@ -9,11 +9,11 @@
 #pragma once
 
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/detail/spec_constant_impl.hpp>
 #include <CL/sycl/detail/util.hpp>
-#include <CL/sycl/export.hpp>
 #include <CL/sycl/stl.hpp>
 
 #include <map>
@@ -24,12 +24,12 @@
 
 /// Executed as a part of current module's (.exe, .dll) static initialization.
 /// Registers device executable images with the runtime.
-extern "C" SYCL_API void __sycl_register_lib(pi_device_binaries desc);
+extern "C" __SYCL_EXPORT void __sycl_register_lib(pi_device_binaries desc);
 
 /// Executed as a part of current module's (.exe, .dll) static
 /// de-initialization.
 /// Unregisters device executable images with the runtime.
-extern "C" SYCL_API void __sycl_unregister_lib(pi_device_binaries desc);
+extern "C" __SYCL_EXPORT void __sycl_unregister_lib(pi_device_binaries desc);
 
 // +++ }
 

@@ -9,15 +9,15 @@
 #pragma once
 
 #include <CL/sycl/detail/defines.hpp>
-#include <CL/sycl/export.hpp>
+#include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
-SYCL_API bool match_types(const info::device_type &l,
-                          const info::device_type &r);
+__SYCL_EXPORT bool match_types(const info::device_type &l,
+                               const info::device_type &r);
 
 info::device_type get_forced_type();
 

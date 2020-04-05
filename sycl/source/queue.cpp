@@ -128,7 +128,8 @@ queue::get_info() const {
 }
 
 #define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
-  template SYCL_API ret_type queue::get_info<info::param_type::param>() const;
+  template __SYCL_EXPORT ret_type queue::get_info<info::param_type::param>()   \
+      const;
 
 #include <CL/sycl/info/queue_traits.def>
 
@@ -142,9 +143,9 @@ template <typename propertyT> propertyT queue::get_property() const {
   return impl->get_property<propertyT>();
 }
 
-template SYCL_API bool
+template __SYCL_EXPORT bool
 queue::has_property<property::queue::enable_profiling>() const;
-template SYCL_API property::queue::enable_profiling
+template __SYCL_EXPORT property::queue::enable_profiling
 queue::get_property<property::queue::enable_profiling>() const;
 
 bool queue::is_in_order() const {

@@ -9,7 +9,7 @@
 #pragma once
 
 #include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/export.hpp>
+#include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/platform.hpp>
 #include <CL/sycl/stl.hpp>
@@ -24,7 +24,7 @@ class device_selector;
 namespace detail {
 class device_impl;
 }
-class SYCL_API device {
+class __SYCL_EXPORT device {
 public:
   /// Constructs a SYCL device instance as a host device.
   device();
@@ -133,7 +133,7 @@ public:
   /// \return a vector class of sub devices partitioned from this SYCL
   /// device by affinity domain based on the AffinityDomain parameter
   template <info::partition_property prop>
-  SYCL_API vector_class<device>
+  vector_class<device>
   create_sub_devices(info::partition_affinity_domain AffinityDomain) const;
 
   /// Queries this SYCL device for information requested by the template
