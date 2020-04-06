@@ -13,8 +13,17 @@
 #include <CL/sycl/detail/defines.hpp>
 #include <CL/sycl/detail/pi.hpp>
 
+#include <memory>
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+
+namespace detail {
+  class ExecCGCommand;
+  struct HostTaskContext;
+
+  void DispatchHostTask(const std::shared_ptr<HostTaskContext> &);
+}
 
 template <typename DataT, int Dims, access::mode AccMode,
           access::target AccTarget, access::placeholder isPlaceholder>
@@ -31,7 +40,7 @@ public:
   template <typename dataT, int dimensions, access::mode accessmode,
             access::target accessTarget, access::placeholder isPlaceholder>
   typename std::enable_if<accessTarget != access::target::host_buffer, 
-                          pi_mem>::type
+                          cl_mem>::type
   get_native_mem(const accessor<dataT, dimensions, accessmode,
                                 accessTarget, isPlaceholder> &Acc) const {
     auto *AccBase = static_cast<detail::AccessorBaseHost *>(&Acc);
@@ -41,7 +50,7 @@ public:
   template <typename dataT, int dimensions, access::mode accessmode,
             access::target accessTarget, access::placeholder isPlaceholder>
   typename std::enable_if<accessTarget == access::target::host_buffer, 
-                          pi_mem>::type
+                          cl_mem>::type
   get_native_mem(const accessor<dataT, dimensions, accessmode,
                                 accessTarget, isPlaceholder> &Acc) const {
     throw invalid_object_error("Getting memory object out of host accessor is "
@@ -57,7 +66,7 @@ public:
   /// dispatch work, and that other potential OpenCL command queues associated
   /// with the same SYCL command queue are not executing commands while the host
   /// task is executing.
-  pi_queue get_native_queue() const noexcept {
+  cl_command_queue get_native_queue() const noexcept {
     return MQueue;
   }
 
@@ -71,7 +80,7 @@ public:
   /// Returns an underlying OpenCL context associated with the SYCL queue used
   /// to submit the command group, or the fallback queue if this command-group
   /// is re-trying execution on an OpenCL queue.
-  pi_context get_native_context() const noexcept {
+  cl_context get_native_context() const noexcept {
     return MContext;
   }
 
@@ -81,18 +90,24 @@ private:
   template <typename DataT, int Dims, access::mode AccMode,
             access::target AccTarget, access::placeholder isPlaceholder>
   friend class accessor;
+  friend class detail::ExecCGCommand;
+  friend struct detail::HostTaskContext;
+  friend void DispatchHostTask(
+      const std::shared_ptr<detail::HostTaskContext> &);
 
-
-  interop_handle(std::vector<ReqToMem> MemObjs, pi_queue Queue,
-                 cl_device_id DeviceId, pi_context Context)
+public:
+  // TODO set c-tor private
+  interop_handle(std::vector<ReqToMem> MemObjs, cl_command_queue Queue,
+                 cl_device_id DeviceId, cl_context Context)
       : MQueue(Queue), MDeviceId(DeviceId),
         MContext(Context), MMemObjs(std::move(MemObjs)) {}
+private:
 
-  pi_mem getMemImpl(detail::Requirement* Req) const;
+  cl_mem getMemImpl(detail::Requirement* Req) const;
 
-  pi_queue MQueue;
+  cl_command_queue MQueue;
   cl_device_id MDeviceId;
-  pi_context MContext;
+  cl_context MContext;
   std::vector<ReqToMem> MMemObjs;
 };
 

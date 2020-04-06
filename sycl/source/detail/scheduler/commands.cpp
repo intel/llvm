@@ -1547,10 +1547,10 @@ void DispatchHostTask(const std::shared_ptr<HostTaskContext> &Ctx) {
   std::unique_ptr<HostTask> &HT = Ctx->HostTask->MHostTask;
 
   // we're ready to call the user-defined lambda now
-  if (HT->isInterop()) {
-    auto Queue = Ctx->CGHostTask->MQueue->get();
-    auto DeviceId = Ctx->CGHostTask->MQueue->get_device()->get();
-    auto Context = Ctx->CGHostTask->MQueue->get_context()->get();
+  if (HT->isInteropTask()) {
+    auto Queue = Ctx->HostTask->MQueue->get();
+    auto DeviceId = Ctx->HostTask->MQueue->get_device().get();
+    auto Context = Ctx->HostTask->MQueue->get_context().get();
 
     interop_handle IH{Ctx->ReqToMem, Queue, DeviceId, Context};
 
@@ -1897,16 +1897,16 @@ cl_int ExecCGCommand::enqueueImp() {
     std::vector<interop_handle::ReqToMem> &ReqToMem = Ctx->ReqToMem;
     // Extract the Mem Objects for all Requirements, to ensure they are
     // available if a user ask for them inside the interop task scope
-    const auto& HandlerReq = ExecInterop->MRequirements;
+    const auto& HandlerReq = HostTask->MRequirements;
     std::for_each(std::begin(HandlerReq), std::end(HandlerReq),
                   [&](Requirement* Req) {
       AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
       auto MemArg = reinterpret_cast<pi_mem>(AllocaCmd->getMemAllocation());
-      interop_handle::ReqToMem ReqToMem = std::make_pair(Req, MemArg);
-      ReqToMem.emplace_back(ReqToMem);
+      interop_handle::ReqToMem ReqToMemEl = std::make_pair(Req, MemArg);
+      ReqToMem.emplace_back(ReqToMemEl);
     });
 
-    std::sort(std::begin(ReqMemObjs), std::end(ReqMemObjs));
+    std::sort(std::begin(ReqToMem), std::end(ReqToMem));
 
     MQueue->getHostTaskAndEventCallbackThreadPool().submit(
         [Ctx]() { DispatchHostTask(Ctx); });

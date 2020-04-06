@@ -195,7 +195,7 @@ public:
   HostTask(std::function<void()> &&Func) : MHostTask(Func) {}
   HostTask(std::function<void(interop_handle)> &&Func) : MInteropTask(Func) {}
 
-  bool isInteropTask() const { return MInteropTask; }
+  bool isInteropTask() const { return !!MInteropTask; }
 
   void call() { MHostTask(); }
   void call(interop_handle handle) { MInteropTask(handle); }

@@ -77,6 +77,9 @@ struct DepDesc {
   AllocaCommandBase *MAllocaCmd = nullptr;
 };
 
+struct HostTaskContext;
+void DispatchHostTask(const std::shared_ptr<HostTaskContext> &Ctx);
+
 // The Command represents some action that needs to be performed on one or
 // more memory objects. The command has vector of Depdesc objects that
 // represent dependencies of the command. It has vector of pointer to commands
