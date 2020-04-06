@@ -11,13 +11,9 @@
 /// Check that "-Wno-sycl-strict" is set on compiler invocation with "-fsycl"
 /// or "-fsycl-device-only" or both:
 // RUN:   %clang -### -fsycl %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=CHECK-SYCL-NO_STRICT1 %s
-// CHECK-SYCL-NO_STRICT1: "-Wno-sycl-strict"
-
+// RUN:   | FileCheck -check-prefix=CHECK-SYCL-NO_STRICT %s
 // RUN:   %clang -### -fsycl-device-only %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=CHECK-SYCL-NO_STRICT2 %s
-// CHECK-SYCL-NO_STRICT2: "-Wno-sycl-strict"
-
+// RUN:   | FileCheck -check-prefix=CHECK-SYCL-NO_STRICT %s
 // RUN:   %clang -### -fsycl -fsycl-device-only %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=CHECK-SYCL-NO_STRICT3 %s
-// CHECK-SYCL-NO_STRICT3: "-Wno-sycl-strict"
+// RUN:   | FileCheck -check-prefix=CHECK-SYCL-NO_STRICT %s
+// CHECK-SYCL-NO_STRICT: clang{{.*}} "-Wno-sycl-strict"
