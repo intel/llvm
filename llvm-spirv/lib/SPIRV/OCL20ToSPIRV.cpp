@@ -1603,8 +1603,8 @@ static void processSubgroupBlockReadWriteINTEL(CallInst *CI,
                                                OCLBuiltinTransInfo &Info,
                                                const Type *DataTy, Module *M) {
   unsigned VectorNumElements = 1;
-  if (DataTy->isVectorTy())
-    VectorNumElements = DataTy->getVectorNumElements();
+  if (auto *VecTy = dyn_cast<VectorType>(DataTy))
+    VectorNumElements = VecTy->getNumElements();
   unsigned ElementBitSize = DataTy->getScalarSizeInBits();
   Info.Postfix = "_";
   Info.Postfix +=
