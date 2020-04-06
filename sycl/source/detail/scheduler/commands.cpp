@@ -1528,6 +1528,7 @@ struct HostTaskContext {
   // events dependencies
   std::map<const detail::plugin *, std::vector<EventImplPtr>>
       RequiredEventsPerPlugin;
+  std::vector<interop_handle::ReqToMem> ReqToMem;
 
   ContextImplPtr Context;
 
@@ -1543,8 +1544,19 @@ void DispatchHostTask(const std::shared_ptr<HostTaskContext> &Ctx) {
                                                           RawEvents.data());
   }
 
+  std::unique_ptr<HostTask> &HT = Ctx->HostTask->MHostTask;
+
   // we're ready to call the user-defined lambda now
-  Ctx->HostTask->MHostTask->call();
+  if (HT->isInterop()) {
+    auto Queue = Ctx->CGHostTask->MQueue->get();
+    auto DeviceId = Ctx->CGHostTask->MQueue->get_device()->get();
+    auto Context = Ctx->CGHostTask->MQueue->get_context()->get();
+
+    interop_handle IH{Ctx->ReqToMem, Queue, DeviceId, Context};
+
+    HT->call(IH);
+  } else
+    HT->call();
 
   const detail::plugin &Plugin = Ctx->SelfEvent->getPlugin();
   Plugin.call<PiApiKind::piEventSetStatus>(Ctx->SelfEvent->getHandleRef(),
@@ -1881,6 +1893,20 @@ cl_int ExecCGCommand::enqueueImp() {
 
       ++ArgIdx;
     }
+
+    std::vector<interop_handle::ReqToMem> &ReqToMem = Ctx->ReqToMem;
+    // Extract the Mem Objects for all Requirements, to ensure they are
+    // available if a user ask for them inside the interop task scope
+    const auto& HandlerReq = ExecInterop->MRequirements;
+    std::for_each(std::begin(HandlerReq), std::end(HandlerReq),
+                  [&](Requirement* Req) {
+      AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
+      auto MemArg = reinterpret_cast<pi_mem>(AllocaCmd->getMemAllocation());
+      interop_handle::ReqToMem ReqToMem = std::make_pair(Req, MemArg);
+      ReqToMem.emplace_back(ReqToMem);
+    });
+
+    std::sort(std::begin(ReqMemObjs), std::end(ReqMemObjs));
 
     MQueue->getHostTaskAndEventCallbackThreadPool().submit(
         [Ctx]() { DispatchHostTask(Ctx); });
