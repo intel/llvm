@@ -222,7 +222,7 @@ bool handleInvalidWorkItemSize(const device_impl &DeviceImpl,
   Plugin.call<PiApiKind::piDeviceGetInfo>(
       Device, PI_DEVICE_INFO_MAX_WORK_ITEM_SIZES, sizeof(MaxWISize), &MaxWISize,
       nullptr);
-  for (int I = 0; I < NDRDesc.Dims; I++) {
+  for (unsigned I = 0; I < NDRDesc.Dims; I++) {
     if (NDRDesc.LocalSize[I] > MaxWISize[I])
       throw sycl::nd_range_error(
           "Number of work-items in a work-group exceed limit for dimension " +
