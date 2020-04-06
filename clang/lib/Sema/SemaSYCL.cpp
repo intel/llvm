@@ -206,9 +206,9 @@ static bool isZeroSizedArray(QualType Ty) {
   return false;
 }
 
-static Sema::DeviceDiagBuilder emitDeferredDiagnosticAndNote(Sema &S, SourceRange Loc,
-                                                      unsigned DiagID,
-                                                      SourceRange UsedAtLoc) {
+static Sema::DeviceDiagBuilder
+emitDeferredDiagnosticAndNote(Sema &S, SourceRange Loc, unsigned DiagID,
+                              SourceRange UsedAtLoc) {
   Sema::DeviceDiagBuilder builder =
       S.SYCLDiagIfDeviceCode(Loc.getBegin(), DiagID);
   if (UsedAtLoc.isValid())
