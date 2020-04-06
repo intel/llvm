@@ -580,19 +580,10 @@ void VPlanPrinter::dump() {
   OS << "graph [labelloc=t, fontsize=30; label=\"Vectorization Plan";
   if (!Plan.getName().empty())
     OS << "\\n" << DOT::EscapeString(Plan.getName());
-  if (!Plan.Value2VPValue.empty() || Plan.BackedgeTakenCount) {
-    OS << ", where:";
-    if (Plan.BackedgeTakenCount) {
-      OS << "\\n";
-      Plan.BackedgeTakenCount->print(OS, SlotTracker);
-      OS << " := BackedgeTakenCount";
-    }
-    for (auto Entry : Plan.Value2VPValue) {
-      OS << "\\n";
-      Entry.second->print(OS, SlotTracker);
-      OS << DOT::EscapeString(" := ");
-      Entry.first->printAsOperand(OS, false);
-    }
+  if (Plan.BackedgeTakenCount) {
+    OS << ", where:\\n";
+    Plan.BackedgeTakenCount->print(OS, SlotTracker);
+    OS << " := BackedgeTakenCount";
   }
   OS << "\"]\n";
   OS << "node [shape=rect, fontname=Courier, fontsize=30]\n";
@@ -853,7 +844,7 @@ void VPInterleavedAccessInfo::visitBlock(VPBlockBase *Block, Old2NewTy &Old2New,
       auto NewIGIter = Old2New.find(IG);
       if (NewIGIter == Old2New.end())
         Old2New[IG] = new InterleaveGroup<VPInstruction>(
-            IG->getFactor(), IG->isReverse(), Align(IG->getAlignment()));
+            IG->getFactor(), IG->isReverse(), IG->getAlign());
 
       if (Inst == IG->getInsertPos())
         Old2New[IG]->setInsertPos(VPInst);

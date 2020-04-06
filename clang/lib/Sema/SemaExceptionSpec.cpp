@@ -1340,6 +1340,7 @@ CanThrowResult Sema::canThrow(const Stmt *S) {
   case Expr::CXXUnresolvedConstructExprClass:
   case Expr::DependentScopeDeclRefExprClass:
   case Expr::CXXFoldExprClass:
+  case Expr::RecoveryExprClass:
     return CT_Dependent;
 
   case Expr::AsTypeExprClass:
@@ -1439,6 +1440,7 @@ CanThrowResult Sema::canThrow(const Stmt *S) {
   case Stmt::OMPDistributeSimdDirectiveClass:
   case Stmt::OMPFlushDirectiveClass:
   case Stmt::OMPDepobjDirectiveClass:
+  case Stmt::OMPScanDirectiveClass:
   case Stmt::OMPForDirectiveClass:
   case Stmt::OMPForSimdDirectiveClass:
   case Stmt::OMPMasterDirectiveClass:

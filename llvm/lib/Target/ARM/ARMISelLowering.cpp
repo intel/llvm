@@ -1669,6 +1669,10 @@ const char *ARMTargetLowering::getTargetNodeName(unsigned Opcode) const {
   case ARMISD::VADDLVu:       return "ARMISD::VADDLVu";
   case ARMISD::VADDLVAs:      return "ARMISD::VADDLVAs";
   case ARMISD::VADDLVAu:      return "ARMISD::VADDLVAu";
+  case ARMISD::VADDLVps:      return "ARMISD::VADDLVps";
+  case ARMISD::VADDLVpu:      return "ARMISD::VADDLVpu";
+  case ARMISD::VADDLVAps:     return "ARMISD::VADDLVAps";
+  case ARMISD::VADDLVApu:     return "ARMISD::VADDLVApu";
   case ARMISD::VMLAVs:        return "ARMISD::VMLAVs";
   case ARMISD::VMLAVu:        return "ARMISD::VMLAVu";
   case ARMISD::VMLALVs:       return "ARMISD::VMLALVs";
@@ -11816,18 +11820,15 @@ static SDValue PerformADDVecReduce(SDNode *N,
       return SDValue();
 
     SDLoc dl(N);
-    SDValue Lo = DCI.DAG.getNode(ISD::EXTRACT_ELEMENT, dl, MVT::i32, NA,
-                                 DCI.DAG.getConstant(0, dl, MVT::i32));
-    SDValue Hi = DCI.DAG.getNode(ISD::EXTRACT_ELEMENT, dl, MVT::i32, NA,
-                                 DCI.DAG.getConstant(1, dl, MVT::i32));
-    SDValue Red =
-        VecRed->getNumOperands() == 1
-            ? DCI.DAG.getNode(OpcodeA, dl,
-                              DCI.DAG.getVTList({MVT::i32, MVT::i32}), Lo, Hi,
-                              VecRed->getOperand(0))
-            : DCI.DAG.getNode(OpcodeA, dl,
-                              DCI.DAG.getVTList({MVT::i32, MVT::i32}), Lo, Hi,
-                              VecRed->getOperand(0), VecRed->getOperand(1));
+    SmallVector<SDValue, 4> Ops;
+    Ops.push_back(DCI.DAG.getNode(ISD::EXTRACT_ELEMENT, dl, MVT::i32, NA,
+                                  DCI.DAG.getConstant(0, dl, MVT::i32)));
+    Ops.push_back(DCI.DAG.getNode(ISD::EXTRACT_ELEMENT, dl, MVT::i32, NA,
+                                  DCI.DAG.getConstant(1, dl, MVT::i32)));
+    for (unsigned i = 0, e = VecRed.getNumOperands(); i < e; i++)
+      Ops.push_back(VecRed->getOperand(i));
+    SDValue Red = DCI.DAG.getNode(OpcodeA, dl,
+                                  DCI.DAG.getVTList({MVT::i32, MVT::i32}), Ops);
     return DCI.DAG.getNode(ISD::BUILD_PAIR, dl, MVT::i64, Red,
                            SDValue(Red.getNode(), 1));
   };
@@ -11839,6 +11840,14 @@ static SDValue PerformADDVecReduce(SDNode *N,
   if (SDValue M = MakeVecReduce(ARMISD::VADDLVs, ARMISD::VADDLVAs, N1, N0))
     return M;
   if (SDValue M = MakeVecReduce(ARMISD::VADDLVu, ARMISD::VADDLVAu, N1, N0))
+    return M;
+  if (SDValue M = MakeVecReduce(ARMISD::VADDLVps, ARMISD::VADDLVAps, N0, N1))
+    return M;
+  if (SDValue M = MakeVecReduce(ARMISD::VADDLVpu, ARMISD::VADDLVApu, N0, N1))
+    return M;
+  if (SDValue M = MakeVecReduce(ARMISD::VADDLVps, ARMISD::VADDLVAps, N1, N0))
+    return M;
+  if (SDValue M = MakeVecReduce(ARMISD::VADDLVpu, ARMISD::VADDLVApu, N1, N0))
     return M;
   if (SDValue M = MakeVecReduce(ARMISD::VMLALVs, ARMISD::VMLALVAs, N0, N1))
     return M;
@@ -12945,6 +12954,26 @@ static SDValue PerformVMOVhrCombine(SDNode *N, TargetLowering::DAGCombinerInfo &
   return NewCopy;
 }
 
+static SDValue PerformVMOVrhCombine(SDNode *N,
+                                    TargetLowering::DAGCombinerInfo &DCI) {
+  SDValue N0 = N->getOperand(0);
+  EVT VT = N->getValueType(0);
+
+  // fold (VMOVrh (load x)) -> (zextload (i16*)x)
+  if (ISD::isNormalLoad(N0.getNode()) && N0.hasOneUse()) {
+    LoadSDNode *LN0 = cast<LoadSDNode>(N0);
+
+    SDValue Load =
+        DCI.DAG.getExtLoad(ISD::ZEXTLOAD, SDLoc(N), VT, LN0->getChain(),
+                           LN0->getBasePtr(), MVT::i16, LN0->getMemOperand());
+    DCI.DAG.ReplaceAllUsesOfValueWith(SDValue(N, 0), Load.getValue(0));
+    DCI.DAG.ReplaceAllUsesOfValueWith(N0.getValue(1), Load.getValue(1));
+    return Load;
+  }
+
+  return SDValue();
+}
+
 /// hasNormalLoadOperand - Check if any of the operands of a BUILD_VECTOR node
 /// are normal, non-volatile loads.  If so, it is profitable to bitcast an
 /// i64 vector to have f64 elements, since the value can then be loaded
@@ -13705,6 +13734,18 @@ static SDValue PerformVDUPCombine(SDNode *N,
                                   const ARMSubtarget *Subtarget) {
   SelectionDAG &DAG = DCI.DAG;
   SDValue Op = N->getOperand(0);
+  SDLoc dl(N);
+
+  if (Subtarget->hasMVEIntegerOps()) {
+    // Convert VDUP f32 -> VDUP BITCAST i32 under MVE, as we know the value will
+    // need to come from a GPR.
+    if (Op.getValueType() == MVT::f32)
+      return DCI.DAG.getNode(ARMISD::VDUP, dl, N->getValueType(0),
+                             DAG.getNode(ISD::BITCAST, dl, MVT::i32, Op));
+    else if (Op.getValueType() == MVT::f16)
+      return DCI.DAG.getNode(ARMISD::VDUP, dl, N->getValueType(0),
+                             DAG.getNode(ARMISD::VMOVrh, dl, MVT::i32, Op));
+  }
 
   if (!Subtarget->hasNEON())
     return SDValue();
@@ -13851,6 +13892,33 @@ static SDValue PerformSplittingToNarrowingStores(StoreSDNode *St,
   if (NumElements == 0 || FromVT.getVectorNumElements() == NumElements ||
       FromVT.getVectorNumElements() % NumElements != 0)
     return SDValue();
+
+  // Test if the Trunc will be convertable to a VMOVN with a shuffle, and if so
+  // use the VMOVN over splitting the store. We are looking for patterns of:
+  // !rev: 0 N 1 N+1 2 N+2 ...
+  //  rev: N 0 N+1 1 N+2 2 ...
+  auto isVMOVNOriginalMask = [&](ArrayRef<int> M, bool rev) {
+    unsigned NumElts = ToVT.getVectorNumElements();
+    if (NumElts != M.size() || (ToVT != MVT::v8i16 && ToVT != MVT::v16i8))
+      return false;
+
+    unsigned Off0 = rev ? NumElts : 0;
+    unsigned Off1 = rev ? 0 : NumElts;
+
+    for (unsigned i = 0; i < NumElts; i += 2) {
+      if (M[i] >= 0 && M[i] != (int)(Off0 + i / 2))
+        return false;
+      if (M[i + 1] >= 0 && M[i + 1] != (int)(Off1 + i / 2))
+        return false;
+    }
+
+    return true;
+  };
+
+  if (auto *Shuffle = dyn_cast<ShuffleVectorSDNode>(Trunc->getOperand(0)))
+    if (isVMOVNOriginalMask(Shuffle->getMask(), false) ||
+        isVMOVNOriginalMask(Shuffle->getMask(), true))
+      return SDValue();
 
   SDLoc DL(St);
   // Details about the old store
@@ -14343,6 +14411,51 @@ SDValue ARMTargetLowering::PerformIntrinsicCombine(SDNode *N,
     if (SimplifyDemandedBits(N->getOperand(3), DemandedMask, DCI))
       return SDValue();
     break;
+  }
+
+  case Intrinsic::arm_mve_minv:
+  case Intrinsic::arm_mve_maxv:
+  case Intrinsic::arm_mve_minav:
+  case Intrinsic::arm_mve_maxav:
+  case Intrinsic::arm_mve_minv_predicated:
+  case Intrinsic::arm_mve_maxv_predicated:
+  case Intrinsic::arm_mve_minav_predicated:
+  case Intrinsic::arm_mve_maxav_predicated: {
+    // These intrinsics all take an i32 scalar operand which is narrowed to the
+    // size of a single lane of the vector type they take as the other input.
+    unsigned BitWidth = N->getOperand(2)->getValueType(0).getScalarSizeInBits();
+    APInt DemandedMask = APInt::getLowBitsSet(32, BitWidth);
+    if (SimplifyDemandedBits(N->getOperand(1), DemandedMask, DCI))
+      return SDValue();
+    break;
+  }
+
+  case Intrinsic::arm_mve_addv: {
+    // Turn this intrinsic straight into the appropriate ARMISD::VADDV node,
+    // which allow PerformADDVecReduce to turn it into VADDLV when possible.
+    bool Unsigned = cast<ConstantSDNode>(N->getOperand(2))->getZExtValue();
+    unsigned Opc = Unsigned ? ARMISD::VADDVu : ARMISD::VADDVs;
+    return DAG.getNode(Opc, SDLoc(N), N->getVTList(), N->getOperand(1));
+  }
+
+  case Intrinsic::arm_mve_addlv:
+  case Intrinsic::arm_mve_addlv_predicated: {
+    // Same for these, but ARMISD::VADDLV has to be followed by a BUILD_PAIR
+    // which recombines the two outputs into an i64
+    bool Unsigned = cast<ConstantSDNode>(N->getOperand(2))->getZExtValue();
+    unsigned Opc = IntNo == Intrinsic::arm_mve_addlv ?
+                    (Unsigned ? ARMISD::VADDLVu : ARMISD::VADDLVs) :
+                    (Unsigned ? ARMISD::VADDLVpu : ARMISD::VADDLVps);
+
+    SmallVector<SDValue, 4> Ops;
+    for (unsigned i = 1, e = N->getNumOperands(); i < e; i++)
+      if (i != 2)                      // skip the unsigned flag
+        Ops.push_back(N->getOperand(i));
+
+    SDLoc dl(N);
+    SDValue val = DAG.getNode(Opc, dl, {MVT::i32, MVT::i32}, Ops);
+    return DAG.getNode(ISD::BUILD_PAIR, dl, MVT::i64, val.getValue(0),
+                       val.getValue(1));
   }
   }
 
@@ -15052,6 +15165,7 @@ SDValue ARMTargetLowering::PerformDAGCombine(SDNode *N,
   case ARMISD::VMOVRRD: return PerformVMOVRRDCombine(N, DCI, Subtarget);
   case ARMISD::VMOVDRR: return PerformVMOVDRRCombine(N, DCI.DAG);
   case ARMISD::VMOVhr:  return PerformVMOVhrCombine(N, DCI);
+  case ARMISD::VMOVrh:  return PerformVMOVrhCombine(N, DCI);
   case ISD::STORE:      return PerformSTORECombine(N, DCI, Subtarget);
   case ISD::BUILD_VECTOR: return PerformBUILD_VECTORCombine(N, DCI, Subtarget);
   case ISD::INSERT_VECTOR_ELT: return PerformInsertEltCombine(N, DCI);

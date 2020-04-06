@@ -377,6 +377,19 @@ define i1 @add(i32 %x, i32 %y) {
   ret i1 %c
 }
 
+define i1 @addv(<2 x i32> %x, <2 x i32> %y) {
+; CHECK-LABEL: @addv(
+; CHECK-NEXT:    ret i1 false
+;
+  %l = lshr <2 x i32> %x, <i32 1, i32 0>
+  %q = lshr <2 x i32> %y, <i32 1, i32 0>
+  %r = or <2 x i32> %q, <i32 1, i32 0>
+  %s = add <2 x i32> %l, %r
+  %e = extractelement <2 x i32> %s, i32 0
+  %c = icmp eq i32 %e, 0
+  ret i1 %c
+}
+
 define i1 @add2(i8 %x, i8 %y) {
 ; CHECK-LABEL: @add2(
 ; CHECK-NEXT:    ret i1 false
@@ -385,6 +398,18 @@ define i1 @add2(i8 %x, i8 %y) {
   %r = or i8 %y, 129
   %s = add i8 %l, %r
   %c = icmp eq i8 %s, 0
+  ret i1 %c
+}
+
+define i1 @add2v(<2 x i8> %x, <2 x i8> %y) {
+; CHECK-LABEL: @add2v(
+; CHECK-NEXT:    ret i1 false
+;
+  %l = or <2 x i8> %x, <i8 0, i8 128>
+  %r = or <2 x i8> %y, <i8 0, i8 129>
+  %s = add <2 x i8> %l, %r
+  %e = extractelement <2 x i8> %s, i32 1
+  %c = icmp eq i8 %e, 0
   ret i1 %c
 }
 
@@ -443,6 +468,23 @@ define i1 @addpowtwo(i32 %x, i32 %y) {
   %r = shl i32 1, %y
   %s = add i32 %l, %r
   %c = icmp eq i32 %s, 0
+  ret i1 %c
+}
+
+define i1 @addpowtwov(<2 x i32> %x, <2 x i32> %y) {
+; CHECK-LABEL: @addpowtwov(
+; CHECK-NEXT:    [[L:%.*]] = lshr <2 x i32> [[X:%.*]], <i32 1, i32 0>
+; CHECK-NEXT:    [[R:%.*]] = shl <2 x i32> <i32 1, i32 0>, [[Y:%.*]]
+; CHECK-NEXT:    [[S:%.*]] = add <2 x i32> [[L]], [[R]]
+; CHECK-NEXT:    [[E:%.*]] = extractelement <2 x i32> [[S]], i32 0
+; CHECK-NEXT:    [[C:%.*]] = icmp eq i32 [[E]], 0
+; CHECK-NEXT:    ret i1 [[C]]
+;
+  %l = lshr <2 x i32> %x, <i32 1, i32 0>
+  %r = shl <2 x i32> <i32 1, i32 0>, %y
+  %s = add <2 x i32> %l, %r
+  %e = extractelement <2 x i32> %s, i32 0
+  %c = icmp eq i32 %e, 0
   ret i1 %c
 }
 
@@ -698,6 +740,18 @@ define i1 @srem2(i16 %X, i32 %Y) {
   ret i1 %D
 }
 
+define i1 @srem2v(<2 x i16> %X, <2 x i32> %Y) {
+; CHECK-LABEL: @srem2v(
+; CHECK-NEXT:    ret i1 false
+;
+  %A = zext <2 x i16> %X to <2 x i32>
+  %B = add nsw <2 x i32> %A, <i32 1, i32 0>
+  %C = srem <2 x i32> %B, %Y
+  %D = extractelement <2 x i32> %C, i32 0
+  %E = icmp slt i32 %D, 0
+  ret i1 %E
+}
+
 define i1 @srem3(i16 %X, i32 %Y) {
 ; CHECK-LABEL: @srem3(
 ; CHECK-NEXT:    ret i1 false
@@ -708,6 +762,19 @@ define i1 @srem3(i16 %X, i32 %Y) {
   %D = srem i32 %C, %Y
   %E = icmp slt i32 %D, 0
   ret i1 %E
+}
+
+define i1 @srem3v(<2 x i16> %X, <2 x i32> %Y) {
+; CHECK-LABEL: @srem3v(
+; CHECK-NEXT:    ret i1 false
+;
+  %A = zext <2 x i16> %X to <2 x i32>
+  %B = or <2 x i32> <i32 1, i32 2147483648>, %A
+  %C = sub nsw <2 x i32> <i32 0, i32 1>, %B
+  %D = srem <2 x i32> %C, %Y
+  %E = extractelement <2 x i32> %C, i32 1
+  %F = icmp slt i32 %E, 0
+  ret i1 %F
 }
 
 define i1 @udiv2(i32 %Z) {
@@ -795,38 +862,71 @@ define i1 @udiv8(i32 %X, i32 %Y) {
   ret i1 %C
 }
 
+; Square of a non-zero number is non-zero if there is no overflow.
 define i1 @mul1(i32 %X) {
 ; CHECK-LABEL: @mul1(
 ; CHECK-NEXT:    ret i1 false
 ;
-; Square of a non-zero number is non-zero if there is no overflow.
   %Y = or i32 %X, 1
   %M = mul nuw i32 %Y, %Y
   %C = icmp eq i32 %M, 0
   ret i1 %C
 }
 
+define i1 @mul1v(<2 x i32> %X) {
+; CHECK-LABEL: @mul1v(
+; CHECK-NEXT:    ret i1 false
+;
+  %Y = or <2 x i32> %X, <i32 1, i32 0>
+  %M = mul nuw <2 x i32> %Y, %Y
+  %E = extractelement <2 x i32> %M, i32 0
+  %C = icmp eq i32 %E, 0
+  ret i1 %C
+}
+
+; Square of a non-zero number is positive if there is no signed overflow.
 define i1 @mul2(i32 %X) {
 ; CHECK-LABEL: @mul2(
 ; CHECK-NEXT:    ret i1 true
 ;
-; Square of a non-zero number is positive if there is no signed overflow.
   %Y = or i32 %X, 1
   %M = mul nsw i32 %Y, %Y
   %C = icmp sgt i32 %M, 0
   ret i1 %C
 }
 
+define i1 @mul2v(<2 x i32> %X) {
+; CHECK-LABEL: @mul2v(
+; CHECK-NEXT:    ret i1 true
+;
+  %Y = or <2 x i32> %X, <i32 0, i32 1>
+  %M = mul nsw <2 x i32> %Y, %Y
+  %E = extractelement <2 x i32> %M, i32 1
+  %C = icmp sgt i32 %E, 0
+  ret i1 %C
+}
+
+; Product of non-negative numbers is non-negative if there is no signed overflow.
 define i1 @mul3(i32 %X, i32 %Y) {
 ; CHECK-LABEL: @mul3(
 ; CHECK-NEXT:    ret i1 true
 ;
-; Product of non-negative numbers is non-negative if there is no signed overflow.
   %XX = mul nsw i32 %X, %X
   %YY = mul nsw i32 %Y, %Y
   %M = mul nsw i32 %XX, %YY
   %C = icmp sge i32 %M, 0
   ret i1 %C
+}
+
+define <2 x i1> @mul3v(<2 x i32> %X, <2 x i32> %Y) {
+; CHECK-LABEL: @mul3v(
+; CHECK-NEXT:    ret <2 x i1> <i1 true, i1 true>
+;
+  %XX = mul nsw <2 x i32> %X, %X
+  %YY = mul nsw <2 x i32> %Y, %Y
+  %M = mul nsw <2 x i32> %XX, %YY
+  %C = icmp sge <2 x i32> %M, zeroinitializer
+  ret <2 x i1> %C
 }
 
 define <2 x i1> @vectorselect1(<2 x i1> %cond) {
@@ -1258,7 +1358,20 @@ define i1 @icmp_known_bits(i4 %x, i4 %y) {
   %add = add i4 %or1, %or2
   %cmp = icmp eq i4 %add, 0
   ret i1 %cmp
+}
 
+define i1 @icmp_known_bits_vec(<2 x i4> %x, <2 x i4> %y) {
+; CHECK-LABEL: @icmp_known_bits_vec(
+; CHECK-NEXT:    ret i1 false
+;
+  %and1 = and <2 x i4> %y, <i4 -7, i4 -1>
+  %and2 = and <2 x i4> %x, <i4 -7, i4 -1>
+  %or1 = or <2 x i4> %and1, <i4 2, i4 2>
+  %or2 = or <2 x i4> %and2, <i4 2, i4 2>
+  %add = add <2 x i4> %or1, %or2
+  %ext = extractelement <2 x i4> %add,i32 0
+  %cmp = icmp eq i4 %ext, 0
+  ret i1 %cmp
 }
 
 define i1 @icmp_shl_nuw_1(i64 %a) {
