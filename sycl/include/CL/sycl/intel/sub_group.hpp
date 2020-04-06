@@ -178,7 +178,7 @@ struct sub_group {
   template <typename T>
   __SYCL_DEPRECATED__("Use sycl::intel::broadcast instead.")
   EnableIfIsScalarArithmetic<T> broadcast(T x, id<1> local_id) const {
-    return detail::spirv::GroupBroadcast<__spv::Scope::Subgroup>(x, local_id);
+    return detail::spirv::GroupBroadcast<sub_group>(x, local_id);
   }
 
   template <typename T, class BinaryOperation>
