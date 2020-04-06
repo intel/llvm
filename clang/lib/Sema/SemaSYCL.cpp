@@ -220,25 +220,26 @@ static void checkSYCLVarType(Sema &S, QualType Ty, SourceRange Loc,
                              llvm::DenseSet<QualType> Visited,
                              SourceRange UsedAtLoc = SourceRange()) {
   // Not all variable types are supported inside SYCL kernels,
-  // for example, the quad type __float128, will cause the resulting
+  // for example the quad type __float128 will cause the resulting
   // SPIR-V to not link.
-  // Here we check any potentially unsupported decl and issue
-  // a deferred diagnostic, which will be emitted iff the decl
+  // Here we check any potentially unsupported declaration and issue
+  // a deferred diagnostic, which will be emitted iff the declaration
   // is discovered to reside in kernel code.
   // The optional UsedAtLoc param is used when the SYCL usage is at a
   // different location than the variable declaration and we need to
-  // inform the user of both, e.g. struct member usage vs declaration
+  // inform the user of both, e.g. struct member usage vs declaration.
+
+  //--- check types ---
 
   // zero length arrays
   if (isZeroSizedArray(Ty))
     emitDeferredDiagnosticAndNote(S, Loc, diag::err_typecheck_zero_array_size,
                                   UsedAtLoc);
 
-  // sub-reference
+  // Sub-reference array or pointer, then proceed with that type.
   while (Ty->isAnyPointerType() || Ty->isArrayType())
     Ty = QualType{Ty->getPointeeOrArrayElementType(), 0};
 
-  // check types
   // __int128, __int128_t, __uint128_t
   if (Ty->isSpecificBuiltinType(BuiltinType::Int128) ||
       Ty->isSpecificBuiltinType(BuiltinType::UInt128))
