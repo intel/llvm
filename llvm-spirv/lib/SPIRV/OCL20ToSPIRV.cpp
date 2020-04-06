@@ -957,15 +957,22 @@ void OCL20ToSPIRV::visitCallGroupBuiltin(CallInst *CI,
             GroupOp = GroupOp.take_back(2);     // when op is two characters
           assert(!GroupOp.empty() && "Invalid OpenCL group builtin function");
           char OpTyC = 0;
-          auto NeedSign = GroupOp == "max" || GroupOp == "min";
           auto OpTy = F->getReturnType();
           if (OpTy->isFloatingPointTy())
             OpTyC = 'f';
           else if (OpTy->isIntegerTy()) {
+            auto NeedSign = GroupOp == "max" || GroupOp == "min";
             if (!NeedSign)
               OpTyC = 'i';
             else {
-              if (isLastFuncParamSigned(F->getName()))
+              // clustered reduce args are (type, uint)
+              // other operation args are (type)
+              auto mangledName = F->getName();
+              auto mangledTyC =
+                ClusteredOp.empty() ?
+                mangledName.back() :
+                mangledName.take_back(2).front();
+              if (isMangledTypeSigned(mangledTyC))
                 OpTyC = 's';
               else
                 OpTyC = 'u';
@@ -985,15 +992,20 @@ void OCL20ToSPIRV::visitCallGroupBuiltin(CallInst *CI,
   const bool IsAllEqual = DemangledName.find("_all_equal") != std::string::npos;
   const bool IsBallot = DemangledName == "group_ballot";
   const bool IsInverseBallot = DemangledName == "group_inverse_ballot";
+  const bool IsBallotBitExtract = DemangledName == "group_ballot_bit_extract";
   const bool IsLogical = DemangledName.find("_logical") != std::string::npos;
+
+  const bool HasBoolReturnType = IsElect || IsAllOrAny || IsAllEqual ||
+      IsInverseBallot || IsBallotBitExtract || IsLogical;
+  const bool HasBoolArg = (IsAllOrAny && !IsAllEqual) || IsBallot || IsLogical;
 
   auto Consts = getInt32(M, PreOps);
   OCLBuiltinTransInfo Info;
-  if (IsElect || IsAllOrAny || IsAllEqual || IsInverseBallot || IsLogical)
+  if (HasBoolReturnType)
     Info.RetTy = Type::getInt1Ty(*Ctx);
   Info.UniqName = DemangledName;
   Info.PostProc = [=](std::vector<Value *> &Ops) {
-    if ((IsAllOrAny && !IsAllEqual) || IsBallot || IsLogical) {
+    if (HasBoolArg) {
       IRBuilder<> IRB(CI);
       Ops[0] =
           IRB.CreateICmpNE(Ops[0], ConstantInt::get(Type::getInt32Ty(*Ctx), 0));

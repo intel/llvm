@@ -743,6 +743,15 @@ public:
 
   SPIRVWord getRequiredSPIRVVersion() const override {
     switch (Kind) {
+    case CapabilityGroupNonUniform:
+    case CapabilityGroupNonUniformVote:
+    case CapabilityGroupNonUniformArithmetic:
+    case CapabilityGroupNonUniformBallot:
+    case CapabilityGroupNonUniformShuffle:
+    case CapabilityGroupNonUniformShuffleRelative:
+    case CapabilityGroupNonUniformClustered:
+      return static_cast<SPIRVWord>(VersionNumber::SPIRV_1_3);
+
     case CapabilityNamedBarrier:
     case CapabilitySubgroupDispatch:
     case CapabilityPipeStorage:
