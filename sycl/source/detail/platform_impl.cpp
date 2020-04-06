@@ -101,15 +101,13 @@ static std::vector<DevDescT> getAllowListDesc() {
     }
 
     if (':' != *str)
-      throw sycl::runtime_error("Malformed device allowlist",
-                                PI_INVALID_VALUE);
+      throw sycl::runtime_error("Malformed device allowlist", PI_INVALID_VALUE);
 
     // Skip ':'
     str += 1;
 
     if ('{' != *str || '{' != *(str + 1))
-      throw sycl::runtime_error("Malformed device allowlist",
-                                PI_INVALID_VALUE);
+      throw sycl::runtime_error("Malformed device allowlist", PI_INVALID_VALUE);
 
     // Skip opening sequence "{{"
     str += 2;
@@ -121,8 +119,7 @@ static std::vector<DevDescT> getAllowListDesc() {
       ++str;
 
     if ('\0' == *str)
-      throw sycl::runtime_error("Malformed device allowlist",
-                                PI_INVALID_VALUE);
+      throw sycl::runtime_error("Malformed device allowlist", PI_INVALID_VALUE);
 
     *size = str - *valuePtr;
 
@@ -136,8 +133,7 @@ static std::vector<DevDescT> getAllowListDesc() {
     if ('|' == *str)
       decDescs.emplace_back();
     else if (',' != *str)
-      throw sycl::runtime_error("Malformed device allowlist",
-                                PI_INVALID_VALUE);
+      throw sycl::runtime_error("Malformed device allowlist", PI_INVALID_VALUE);
 
     ++str;
   }
@@ -146,8 +142,7 @@ static std::vector<DevDescT> getAllowListDesc() {
 }
 
 static void filterAllowList(vector_class<RT::PiDevice> &PiDevices,
-                            RT::PiPlatform PiPlatform,
-                            const plugin &Plugin) {
+                            RT::PiPlatform PiPlatform, const plugin &Plugin) {
   const std::vector<DevDescT> AllowList(getAllowListDesc());
   if (AllowList.empty())
     return;
