@@ -106,8 +106,7 @@ template <typename Type> struct get_kernel_name_t<detail::auto_name, Type> {
 
 device getDeviceFromHandler(handler &);
 
-template <typename, typename T>
-struct check_fn_signature {
+template <typename, typename T> struct check_fn_signature {
   static_assert(std::integral_constant<T, false>::value,
                 "Second template parameter is required to be of function type");
 };
@@ -116,13 +115,11 @@ template <typename F, typename RetT, typename... Args>
 struct check_fn_signature<F, RetT(Args...)> {
 private:
   template <typename T>
-  static constexpr auto check(T*)
-      -> typename std::is_same<
-          decltype(std::declval<T>().operator()(std::declval<Args>()...)),
-          RetT>::type;
+  static constexpr auto check(T *) -> typename std::is_same<
+      decltype(std::declval<T>().operator()(std::declval<Args>()...)),
+      RetT>::type;
 
-  template <typename>
-  static constexpr std::false_type check(...);
+  template <typename> static constexpr std::false_type check(...);
 
   typedef decltype(check<F>(0)) type;
 
@@ -596,9 +593,8 @@ public:
   }
 
   template <typename FuncT>
-  typename std::enable_if<
-      detail::check_fn_signature<typename std::remove_reference<FuncT>::type,
-                                 void()>::value>::type
+  typename std::enable_if<detail::check_fn_signature<
+      typename std::remove_reference<FuncT>::type, void()>::value>::type
   codeplay_host_task(FuncT &&Func) {
     throwIfActionIsCreated();
 

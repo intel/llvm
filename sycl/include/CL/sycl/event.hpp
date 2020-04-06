@@ -12,8 +12,8 @@
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/stl.hpp>
 
-#include <memory>
 #include <functional>
+#include <memory>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

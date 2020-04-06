@@ -404,7 +404,7 @@ void Command::addDepSub(EventImplPtr DepEvent, ContextImplPtr Context) {
                                           &GlueEventHandle);
 
     // enqueue GlueCmd
-    std::function<void(void)> Func = [GlueEvent] () {
+    std::function<void(void)> Func = [GlueEvent]() {
       RT::PiEvent &GlueEventHandle = GlueEvent->getHandleRef();
       const detail::plugin &Plugin = GlueEvent->getPlugin();
       Plugin.call<PiApiKind::piEventSetStatus>(GlueEventHandle, CL_COMPLETE);
@@ -416,10 +416,11 @@ void Command::addDepSub(EventImplPtr DepEvent, ContextImplPtr Context) {
         std::move(HT), DepEvent->getQueueWPtr().lock(),
         /* Args = */ {}, /* ArgsStorage = */ {}, /* AccStorage = */ {},
         /* SharedPtrStorage = */ {}, /* Requirements = */ {},
-        /* DepEvents = */{DepEvent}, CG::CODEPLAY_HOST_TASK, /* Payload */ {}));
+        /* DepEvents = */ {DepEvent}, CG::CODEPLAY_HOST_TASK,
+        /* Payload */ {}));
 
     Command *GlueCmd = Scheduler::getInstance().MGraphBuilder.addCG(
-      std::move(GlueCG), Scheduler::getInstance().getDefaultHostQueue());
+        std::move(GlueCG), Scheduler::getInstance().getDefaultHostQueue());
 
     EnqueueResultT Res;
     bool Enqueued = Scheduler::GraphProcessor::enqueueCommand(GlueCmd, Res);
@@ -1525,8 +1526,8 @@ struct HostTaskContext {
   CGHostTask *HostTask;
 
   // events dependencies
-  std::map<const detail::plugin *,
-           std::vector<EventImplPtr>> RequiredEventsPerPlugin;
+  std::map<const detail::plugin *, std::vector<EventImplPtr>>
+      RequiredEventsPerPlugin;
 
   ContextImplPtr Context;
 
@@ -1881,9 +1882,8 @@ cl_int ExecCGCommand::enqueueImp() {
       ++ArgIdx;
     }
 
-    MQueue->getHostTaskAndEventCallbackThreadPool().submit([Ctx] () {
-      DispatchHostTask(Ctx);
-    });
+    MQueue->getHostTaskAndEventCallbackThreadPool().submit(
+        [Ctx]() { DispatchHostTask(Ctx); });
 
     return CL_SUCCESS;
   }

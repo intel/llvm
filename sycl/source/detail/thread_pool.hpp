@@ -44,8 +44,7 @@ class ThreadPool {
   }
 
 public:
-  ThreadPool(unsigned int ThreadCount = 1)
-      : MThreadCount(ThreadCount) {}
+  ThreadPool(unsigned int ThreadCount = 1) : MThreadCount(ThreadCount) {}
 
   ~ThreadPool() { finishAndWait(); }
 

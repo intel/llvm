@@ -145,9 +145,7 @@ public:
   /// @return a pointer to HostProfilingInfo instance.
   HostProfilingInfo *getHostProfilingInfo() { return MHostProfilingInfo.get(); }
 
-  QueueImplWPtr getQueueWPtr() const {
-    return MQueue;
-  }
+  QueueImplWPtr getQueueWPtr() const { return MQueue; }
 
 private:
   // When instrumentation is enabled emits trace event for event wait begin and

@@ -190,8 +190,7 @@ class HostTask {
   std::function<void()> MHostTask;
 
 public:
-  HostTask(std::function<void()> &&Func)
-    : MHostTask(Func) {}
+  HostTask(std::function<void()> &&Func) : MHostTask(Func) {}
 
   void call() { MHostTask(); }
 };
@@ -630,12 +629,11 @@ public:
              std::vector<Requirement *> Requirements,
              std::vector<detail::EventImplPtr> Events, CGTYPE Type,
              detail::code_location loc = {})
-    : CG(Type, std::move(ArgsStorage), std::move(AccStorage),
-         std::move(SharedPtrStorage), std::move(Requirements),
-         std::move(Events), std::move(loc)),
-      MHostTask(std::move(HostTask)), MQueue(std::move(Queue)),
-      MArgs(std::move(Args))
-  {}
+      : CG(Type, std::move(ArgsStorage), std::move(AccStorage),
+           std::move(SharedPtrStorage), std::move(Requirements),
+           std::move(Events), std::move(loc)),
+        MHostTask(std::move(HostTask)), MQueue(std::move(Queue)),
+        MArgs(std::move(Args)) {}
 };
 
 } // namespace detail
