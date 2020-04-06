@@ -12455,7 +12455,7 @@ public:
   };
 
   bool isKnownGoodSYCLDecl(const Decl *D);
-  void checkSYCLVarDeclIfInKernel(VarDecl *Var);
+  void checkSYCLDeviceVarDecl(VarDecl *Var);
   void ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc, MangleContext &MC);
   void MarkDevice();
 

@@ -200,13 +200,13 @@ bool Sema::isKnownGoodSYCLDecl(const Decl *D) {
   return false;
 }
 
-bool isZeroSizedArray(QualType Ty) {
+static bool isZeroSizedArray(QualType Ty) {
   if (const auto *CATy = dyn_cast<ConstantArrayType>(Ty))
     return CATy->getSize() == 0;
   return false;
 }
 
-Sema::DeviceDiagBuilder emitDeferredDiagnosticAndNote(Sema &S, SourceRange Loc,
+static Sema::DeviceDiagBuilder emitDeferredDiagnosticAndNote(Sema &S, SourceRange Loc,
                                                       unsigned DiagID,
                                                       SourceRange UsedAtLoc) {
   Sema::DeviceDiagBuilder builder =
@@ -216,13 +216,18 @@ Sema::DeviceDiagBuilder emitDeferredDiagnosticAndNote(Sema &S, SourceRange Loc,
   return builder;
 }
 
-void checkSYCLVarType(Sema &S, QualType Ty, SourceRange Loc,
-                      llvm::DenseSet<QualType> Visited,
-                      SourceRange UsedAtLoc = SourceRange()) {
-  // not all variable types are supported in kernel contexts
-  // for any potentially unsupported types we issue a deferred diagnostic
-  // pass in the UsedAtLoc if a different location is needed to alert user to
-  // usage in SYCL context (example: struct member usage vs. declaration)
+static void checkSYCLVarType(Sema &S, QualType Ty, SourceRange Loc,
+                             llvm::DenseSet<QualType> Visited,
+                             SourceRange UsedAtLoc = SourceRange()) {
+  // Not all variable types are supported inside SYCL kernels,
+  // for example, the quad type __float128, will cause the resulting
+  // SPIR-V to not link.
+  // Here we check any potentially unsupported decl and issue
+  // a deferred diagnostic, which will be emitted iff the decl
+  // is discovered to reside in kernel code.
+  // The optional UsedAtLoc param is used when the SYCL usage is at a
+  // different location than the variable declaration and we need to
+  // inform the user of both, e.g. struct member usage vs declaration
 
   // zero length arrays
   if (isZeroSizedArray(Ty))
@@ -245,9 +250,6 @@ void checkSYCLVarType(Sema &S, QualType Ty, SourceRange Loc,
       !S.Context.getTargetInfo().hasFloat128Type())
     emitDeferredDiagnosticAndNote(S, Loc, diag::err_type_unsupported, UsedAtLoc)
         << S.Context.Float128Ty;
-
-  // TODO: check type of accessor
-  // if(Util::isSyclAccessorType(Ty))
 
   //--- now recurse ---
   // Pointers complicate recursion. Add this type to Visited.
@@ -283,7 +285,7 @@ void checkSYCLVarType(Sema &S, QualType Ty, SourceRange Loc,
   }
 }
 
-void Sema::checkSYCLVarDeclIfInKernel(VarDecl *Var) {
+void Sema::checkSYCLDeviceVarDecl(VarDecl *Var) {
   assert(getLangOpts().SYCLIsDevice &&
          "Should only be called during SYCL compilation");
   QualType Ty = Var->getType();
