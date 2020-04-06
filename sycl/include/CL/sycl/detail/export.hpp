@@ -21,10 +21,10 @@
 
 #if __SYCL_BUILD_SYCL_DLL
 #define __SYCL_EXPORT __declspec(dllexport)
-#define __SYCL_EXPORT_DEPRECATED(x) __declspec(dllexport, deprecated)
+#define __SYCL_EXPORT_DEPRECATED(x) __declspec(dllexport, deprecated(x))
 #else
 #define __SYCL_EXPORT __declspec(dllimport)
-#define __SYCL_EXPORT_DEPRECATED(x) __declspec(dllimport, deprecated)
+#define __SYCL_EXPORT_DEPRECATED(x) __declspec(dllimport, deprecated(x))
 #endif
 #else
 
