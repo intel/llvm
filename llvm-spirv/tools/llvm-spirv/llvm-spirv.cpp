@@ -154,6 +154,10 @@ static cl::opt<std::string> SpecConst(
              "Supported types are: i1, i8, i16, i32, i64, f16, f32, f64.\n"),
     cl::value_desc("id1:type1:value1 id2:type2:value2 ..."));
 
+static cl::opt<bool>
+    SPIRVMemToReg("spirv-mem2reg", cl::init(false),
+                  cl::desc("LLVM/SPIR-V translation enable mem2reg"));
+
 static cl::opt<bool> SpecConstInfo(
     "spec-const-info",
     cl::desc("Display id of constants available for specializaion and their "
@@ -288,7 +292,7 @@ static int convertSPIRV() {
 }
 #endif
 
-static int regularizeLLVM() {
+static int regularizeLLVM(SPIRV::TranslatorOpts &Opts) {
   LLVMContext Context;
 
   std::unique_ptr<MemoryBuffer> MB =
@@ -306,7 +310,7 @@ static int regularizeLLVM() {
   }
 
   std::string Err;
-  if (!regularizeLlvmForSpirv(M.get(), Err)) {
+  if (!regularizeLlvmForSpirv(M.get(), Err, Opts)) {
     errs() << "Fails to save LLVM as SPIR-V: " << Err << '\n';
     return -1;
   }
@@ -513,8 +517,7 @@ int main(int Ac, char **Av) {
   if (0 != Ret)
     return Ret;
 
-  SPIRV::TranslatorOpts Opts(MaxSPIRVVersion, ExtensionsStatus,
-                             SPIRVGenKernelArgNameMD);
+  SPIRV::TranslatorOpts Opts(MaxSPIRVVersion, ExtensionsStatus);
   if (BIsRepresentation.getNumOccurrences() != 0) {
     if (!IsReverse) {
       errs() << "Note: --spirv-ocl-builtins-version option ignored as it only "
@@ -524,6 +527,10 @@ int main(int Ac, char **Av) {
     }
   }
 
+  if (SPIRVMemToReg)
+    Opts.setMemToRegEnabled(SPIRVMemToReg);
+  if (SPIRVGenKernelArgNameMD)
+    Opts.setGenKernelArgNameMDEnabled(SPIRVGenKernelArgNameMD);
   if (IsReverse && !SpecConst.empty()) {
     if (parseSpecConstOpt(SpecConst, Opts))
       return -1;
@@ -555,7 +562,7 @@ int main(int Ac, char **Av) {
     return convertSPIRVToLLVM(Opts);
 
   if (IsRegularization)
-    return regularizeLLVM();
+    return regularizeLLVM(Opts);
 
   if (SpecConstInfo) {
     std::ifstream IFS(InputFile, std::ios::binary);

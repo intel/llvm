@@ -151,6 +151,9 @@ std::unique_ptr<Module> convertSpirvToLLVM(LLVMContext &C,
 /// SPIRV.
 bool regularizeLlvmForSpirv(Module *M, std::string &ErrMsg);
 
+bool regularizeLlvmForSpirv(Module *M, std::string &ErrMsg,
+                            const SPIRV::TranslatorOpts &Opts);
+
 /// \brief Mangle OpenCL builtin function function name.
 void mangleOpenClBuiltin(const std::string &UnmangledName,
                          ArrayRef<Type *> ArgTypes, std::string &MangledName);

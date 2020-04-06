@@ -1,6 +1,6 @@
 ; REQUIRES: object-emission
 ; RUN: llvm-as < %s -o %t.bc
-; RUN: llvm-spirv %t.bc -o %t.spv -spirv-mem2reg=false
+; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 
 ; RUN: llc -O2 -filetype=obj -mtriple=x86_64-unknown-linux-gnu < %t.ll \
