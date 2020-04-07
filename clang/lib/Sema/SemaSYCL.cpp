@@ -220,8 +220,8 @@ static void checkSYCLVarType(Sema &S, QualType Ty, SourceRange Loc,
                              llvm::DenseSet<QualType> Visited,
                              SourceRange UsedAtLoc = SourceRange()) {
   // Not all variable types are supported inside SYCL kernels,
-  // for example the quad type __float128 will cause the resulting
-  // SPIR-V to not link.
+  // for example the quad type __float128 will cause errors in the
+  // SPIR-V translation phase.
   // Here we check any potentially unsupported declaration and issue
   // a deferred diagnostic, which will be emitted iff the declaration
   // is discovered to reside in kernel code.
@@ -258,25 +258,13 @@ static void checkSYCLVarType(Sema &S, QualType Ty, SourceRange Loc,
     return checkSYCLVarType(S, ATy->getModifiedType(), Loc, Visited);
 
   if (const auto *CRD = Ty->getAsCXXRecordDecl()) {
-    // If the class is a forward declaration - skip it, because otherwise we
-    // would query property of class with no definition, which results in
-    // clang crash.
-    if (!CRD->hasDefinition())
-      return;
-
     for (const auto &Field : CRD->fields())
-      checkSYCLVarType(S, Field->getType(), Field->getSourceRange(), Visited,
-                       Loc);
-  } else if (const auto *RD = Ty->getAsRecordDecl()) {
-    for (const auto &Field : RD->fields())
       checkSYCLVarType(S, Field->getType(), Field->getSourceRange(), Visited,
                        Loc);
   } else if (const auto *FPTy = dyn_cast<FunctionProtoType>(Ty)) {
     for (const auto &ParamTy : FPTy->param_types())
       checkSYCLVarType(S, ParamTy, Loc, Visited);
     checkSYCLVarType(S, FPTy->getReturnType(), Loc, Visited);
-  } else if (const auto *FTy = dyn_cast<FunctionType>(Ty)) {
-    checkSYCLVarType(S, FTy->getReturnType(), Loc, Visited);
   }
 }
 

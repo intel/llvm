@@ -153,6 +153,11 @@ struct trickyStruct {
   tricky128Type trickyStructInt;
 };
 
+// function return type and argument both unsupported
+__int128 commitInfraction(__int128 a) {
+  return 0;
+}
+
 void eh_ok(void) {
   __float128 A;
   try {
@@ -271,6 +276,10 @@ void usage(myFuncDef functionPtr) {
   frankenStruct strikesFear; // expected-note 3{{used here}}
   trickyStruct incitesPanic; // expected-note 2{{used here}}
 
+  // ======= Function Prototype Checked  =======
+  // expected-error@+1 2{{'__int128' is not supported on this target}}
+  auto notAllowed = &commitInfraction;
+
   // ---- false positive tests These should not generate any errors.
   std::size_t i128Sz = sizeof(__int128);
   foo<__int128>();
@@ -328,6 +337,7 @@ int main() {
   __uint128_t whatever = 50;
   frankenStruct noProblem;
   trickyStruct noTrouble;
+  auto notACrime = &commitInfraction;
 
   kernel_single_task<class fake_kernel>([=]() {
     usage(&addInt); // expected-note 5{{called by 'operator()'}}
