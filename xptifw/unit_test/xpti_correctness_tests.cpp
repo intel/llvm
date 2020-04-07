@@ -281,6 +281,13 @@ TEST(xptiCorrectnessTest, xptiNotifySubscribersForUserDefinedTracePointTypes) {
   EXPECT_NE(TpID4, TpID1);
 }
 
+TEST(xptiCorrectnessTest, xptiGetUniqueId) {
+  auto Result = xptiGetUniqueId();
+  EXPECT_NE(Result, 0);
+  auto Result1 = xptiGetUniqueId();
+  EXPECT_NE(Result, Result1);
+}
+
 TEST(xptiCorrectnessTest, xptiUserDefinedEventTypes) {
   uint64_t Instance;
   xpti::payload_t p("foo", "foo.cpp", 1, 0, (void *)13);
