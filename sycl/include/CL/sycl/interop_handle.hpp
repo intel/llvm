@@ -43,8 +43,13 @@ public:
                           cl_mem>::type
   get_native_mem(const accessor<dataT, dimensions, accessmode,
                                 accessTarget, isPlaceholder> &Acc) const {
+#ifndef __SYCL_DEVICE_ONLY__
     auto *AccBase = static_cast<detail::AccessorBaseHost *>(&Acc);
     return getMemImpl(detail::getSyclObjImpl(*AccBase).get());
+#else
+    // we believe this won't be ever called on device side
+    return static_cast<cl_mem>(0x0);
+#endif
   }
 
   template <typename dataT, int dimensions, access::mode accessmode,
