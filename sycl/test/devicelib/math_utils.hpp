@@ -18,18 +18,12 @@ bool approx_equal_fp(T x, T y) {
     return (x == y);
 
   // two finite
-  else {
-    T threshold = std::numeric_limits<T>::epsilon() * 100;
-    if (x != 0 && y != 0) {
-      T max_v = std::fmax(std::abs(x), std::abs(y));
-      return std::abs(x - y) < threshold * max_v;
-    } else {
-      if (x != 0)
-        return std::abs(x) < threshold;
-      else
-        return std::abs(y) < threshold;
-    }
+  T threshold = std::numeric_limits<T>::epsilon() * 100;
+  if (x != 0 && y != 0) {
+    T max_v = std::fmax(std::abs(x), std::abs(y));
+    return std::abs(x - y) < threshold * max_v;
   }
+  return x != 0 ? std::abs(x) < threshold : std::abs(y) < threshold;
 }
 
 #endif
