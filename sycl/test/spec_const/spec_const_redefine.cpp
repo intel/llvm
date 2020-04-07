@@ -3,9 +3,9 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
-// TODO the test currently fails as program recompilation based on spec
-//      constants set change is not complete yet.
-// XFAIL: *
+// TODO the test currently fails on non-HOST devices as program recompilation
+//      based on spec constants set change is not complete yet.
+// XFAIL: cpu,gpu,acc,cuda
 //
 //==----------- spec_const_redefine.cpp ------------------------------------==//
 //
