@@ -24,7 +24,7 @@ entry:
 define arm_aapcs_vfpcc <8 x half> @test_vfmaq_n_f16(<8 x half> %a, <8 x half> %b, float %c.coerce) {
 ; CHECK-LABEL: test_vfmaq_n_f16:
 ; CHECK:       @ %bb.0: @ %entry
-; CHECK-NEXT:    vmov r0, s8
+; CHECK-NEXT:    vmov.f16 r0, s8
 ; CHECK-NEXT:    vfma.f16 q0, q1, r0
 ; CHECK-NEXT:    bx lr
 entry:
@@ -53,7 +53,7 @@ entry:
 define arm_aapcs_vfpcc <8 x half> @test_vfmasq_n_f16(<8 x half> %a, <8 x half> %b, float %c.coerce) {
 ; CHECK-LABEL: test_vfmasq_n_f16:
 ; CHECK:       @ %bb.0: @ %entry
-; CHECK-NEXT:    vmov r0, s8
+; CHECK-NEXT:    vmov.f16 r0, s8
 ; CHECK-NEXT:    vfmas.f16 q0, q1, r0
 ; CHECK-NEXT:    bx lr
 entry:
@@ -295,6 +295,38 @@ entry:
   ret <4 x i32> %0
 }
 
+define arm_aapcs_vfpcc <16 x i8> @test_vqdmlashq_n_s8(<16 x i8> %m1, <16 x i8> %m2, i8 signext %add) {
+; CHECK-LABEL: test_vqdmlashq_n_s8:
+; CHECK:       @ %bb.0: @ %entry
+; CHECK-NEXT:    vqdmlash.s8 q0, q1, r0
+; CHECK-NEXT:    bx lr
+entry:
+  %0 = zext i8 %add to i32
+  %1 = tail call <16 x i8> @llvm.arm.mve.vqdmlash.v16i8(<16 x i8> %m1, <16 x i8> %m2, i32 %0)
+  ret <16 x i8> %1
+}
+
+define arm_aapcs_vfpcc <8 x i16> @test_vqdmlashq_n_s16(<8 x i16> %m1, <8 x i16> %m2, i16 signext %add) {
+; CHECK-LABEL: test_vqdmlashq_n_s16:
+; CHECK:       @ %bb.0: @ %entry
+; CHECK-NEXT:    vqdmlash.s16 q0, q1, r0
+; CHECK-NEXT:    bx lr
+entry:
+  %0 = zext i16 %add to i32
+  %1 = tail call <8 x i16> @llvm.arm.mve.vqdmlash.v8i16(<8 x i16> %m1, <8 x i16> %m2, i32 %0)
+  ret <8 x i16> %1
+}
+
+define arm_aapcs_vfpcc <4 x i32> @test_vqdmlashq_n_s32(<4 x i32> %m1, <4 x i32> %m2, i32 %add) {
+; CHECK-LABEL: test_vqdmlashq_n_s32:
+; CHECK:       @ %bb.0: @ %entry
+; CHECK-NEXT:    vqdmlash.s32 q0, q1, r0
+; CHECK-NEXT:    bx lr
+entry:
+  %0 = tail call <4 x i32> @llvm.arm.mve.vqdmlash.v4i32(<4 x i32> %m1, <4 x i32> %m2, i32 %add)
+  ret <4 x i32> %0
+}
+
 define arm_aapcs_vfpcc <16 x i8> @test_vqrdmlahq_n_s8(<16 x i8> %a, <16 x i8> %b, i8 signext %c) {
 ; CHECK-LABEL: test_vqrdmlahq_n_s8:
 ; CHECK:       @ %bb.0: @ %entry
@@ -390,7 +422,7 @@ entry:
 define arm_aapcs_vfpcc <8 x half> @test_vfmaq_m_n_f16(<8 x half> %a, <8 x half> %b, float %c.coerce, i16 zeroext %p) {
 ; CHECK-LABEL: test_vfmaq_m_n_f16:
 ; CHECK:       @ %bb.0: @ %entry
-; CHECK-NEXT:    vmov r1, s8
+; CHECK-NEXT:    vmov.f16 r1, s8
 ; CHECK-NEXT:    vmsr p0, r0
 ; CHECK-NEXT:    vpst
 ; CHECK-NEXT:    vfmat.f16 q0, q1, r1
@@ -410,10 +442,10 @@ entry:
 define arm_aapcs_vfpcc <4 x float> @test_vfmaq_m_n_f32(<4 x float> %a, <4 x float> %b, float %c, i16 zeroext %p) {
 ; CHECK-LABEL: test_vfmaq_m_n_f32:
 ; CHECK:       @ %bb.0: @ %entry
+; CHECK-NEXT:    vmov r1, s8
 ; CHECK-NEXT:    vmsr p0, r0
-; CHECK-NEXT:    vmov r0, s8
 ; CHECK-NEXT:    vpst
-; CHECK-NEXT:    vfmat.f32 q0, q1, r0
+; CHECK-NEXT:    vfmat.f32 q0, q1, r1
 ; CHECK-NEXT:    bx lr
 entry:
   %.splatinsert = insertelement <4 x float> undef, float %c, i32 0
@@ -427,7 +459,7 @@ entry:
 define arm_aapcs_vfpcc <8 x half> @test_vfmasq_m_n_f16(<8 x half> %a, <8 x half> %b, float %c.coerce, i16 zeroext %p) {
 ; CHECK-LABEL: test_vfmasq_m_n_f16:
 ; CHECK:       @ %bb.0: @ %entry
-; CHECK-NEXT:    vmov r1, s8
+; CHECK-NEXT:    vmov.f16 r1, s8
 ; CHECK-NEXT:    vmsr p0, r0
 ; CHECK-NEXT:    vpst
 ; CHECK-NEXT:    vfmast.f16 q0, q1, r1
@@ -447,10 +479,10 @@ entry:
 define arm_aapcs_vfpcc <4 x float> @test_vfmasq_m_n_f32(<4 x float> %a, <4 x float> %b, float %c, i16 zeroext %p) {
 ; CHECK-LABEL: test_vfmasq_m_n_f32:
 ; CHECK:       @ %bb.0: @ %entry
+; CHECK-NEXT:    vmov r1, s8
 ; CHECK-NEXT:    vmsr p0, r0
-; CHECK-NEXT:    vmov r0, s8
 ; CHECK-NEXT:    vpst
-; CHECK-NEXT:    vfmast.f32 q0, q1, r0
+; CHECK-NEXT:    vfmast.f32 q0, q1, r1
 ; CHECK-NEXT:    bx lr
 entry:
   %.splatinsert = insertelement <4 x float> undef, float %c, i32 0
@@ -711,6 +743,50 @@ entry:
   ret <4 x i32> %2
 }
 
+define arm_aapcs_vfpcc <16 x i8> @test_vqdmlashq_m_n_s8(<16 x i8> %m1, <16 x i8> %m2, i8 signext %add, i16 zeroext %p) {
+; CHECK-LABEL: test_vqdmlashq_m_n_s8:
+; CHECK:       @ %bb.0: @ %entry
+; CHECK-NEXT:    vmsr p0, r1
+; CHECK-NEXT:    vpst
+; CHECK-NEXT:    vqdmlasht.s8 q0, q1, r0
+; CHECK-NEXT:    bx lr
+entry:
+  %0 = zext i8 %add to i32
+  %1 = zext i16 %p to i32
+  %2 = tail call <16 x i1> @llvm.arm.mve.pred.i2v.v16i1(i32 %1)
+  %3 = tail call <16 x i8> @llvm.arm.mve.vqdmlash.predicated.v16i8.v16i1(<16 x i8> %m1, <16 x i8> %m2, i32 %0, <16 x i1> %2)
+  ret <16 x i8> %3
+}
+
+define arm_aapcs_vfpcc <8 x i16> @test_vqdmlashq_m_n_s16(<8 x i16> %m1, <8 x i16> %m2, i16 signext %add, i16 zeroext %p) {
+; CHECK-LABEL: test_vqdmlashq_m_n_s16:
+; CHECK:       @ %bb.0: @ %entry
+; CHECK-NEXT:    vmsr p0, r1
+; CHECK-NEXT:    vpst
+; CHECK-NEXT:    vqdmlasht.s16 q0, q1, r0
+; CHECK-NEXT:    bx lr
+entry:
+  %0 = zext i16 %add to i32
+  %1 = zext i16 %p to i32
+  %2 = tail call <8 x i1> @llvm.arm.mve.pred.i2v.v8i1(i32 %1)
+  %3 = tail call <8 x i16> @llvm.arm.mve.vqdmlash.predicated.v8i16.v8i1(<8 x i16> %m1, <8 x i16> %m2, i32 %0, <8 x i1> %2)
+  ret <8 x i16> %3
+}
+
+define arm_aapcs_vfpcc <4 x i32> @test_vqdmlashq_m_n_s32(<4 x i32> %m1, <4 x i32> %m2, i32 %add, i16 zeroext %p) {
+; CHECK-LABEL: test_vqdmlashq_m_n_s32:
+; CHECK:       @ %bb.0: @ %entry
+; CHECK-NEXT:    vmsr p0, r1
+; CHECK-NEXT:    vpst
+; CHECK-NEXT:    vqdmlasht.s32 q0, q1, r0
+; CHECK-NEXT:    bx lr
+entry:
+  %0 = zext i16 %p to i32
+  %1 = tail call <4 x i1> @llvm.arm.mve.pred.i2v.v4i1(i32 %0)
+  %2 = tail call <4 x i32> @llvm.arm.mve.vqdmlash.predicated.v4i32.v4i1(<4 x i32> %m1, <4 x i32> %m2, i32 %add, <4 x i1> %1)
+  ret <4 x i32> %2
+}
+
 define arm_aapcs_vfpcc <16 x i8> @test_vqrdmlahq_m_n_s8(<16 x i8> %a, <16 x i8> %b, i8 signext %c, i16 zeroext %p) {
 ; CHECK-LABEL: test_vqrdmlahq_m_n_s8:
 ; CHECK:       @ %bb.0: @ %entry
@@ -816,6 +892,9 @@ declare <4 x i32> @llvm.arm.mve.vmlas.n.predicated.v4i32.v4i1(<4 x i32>, <4 x i3
 declare <16 x i8> @llvm.arm.mve.vqdmlah.v16i8(<16 x i8>, <16 x i8>, i32)
 declare <8 x i16> @llvm.arm.mve.vqdmlah.v8i16(<8 x i16>, <8 x i16>, i32)
 declare <4 x i32> @llvm.arm.mve.vqdmlah.v4i32(<4 x i32>, <4 x i32>, i32)
+declare <16 x i8> @llvm.arm.mve.vqdmlash.v16i8(<16 x i8>, <16 x i8>, i32)
+declare <8 x i16> @llvm.arm.mve.vqdmlash.v8i16(<8 x i16>, <8 x i16>, i32)
+declare <4 x i32> @llvm.arm.mve.vqdmlash.v4i32(<4 x i32>, <4 x i32>, i32)
 declare <16 x i8> @llvm.arm.mve.vqrdmlah.v16i8(<16 x i8>, <16 x i8>, i32)
 declare <8 x i16> @llvm.arm.mve.vqrdmlah.v8i16(<8 x i16>, <8 x i16>, i32)
 declare <4 x i32> @llvm.arm.mve.vqrdmlah.v4i32(<4 x i32>, <4 x i32>, i32)
@@ -825,6 +904,9 @@ declare <4 x i32> @llvm.arm.mve.vqrdmlash.v4i32(<4 x i32>, <4 x i32>, i32)
 declare <16 x i8> @llvm.arm.mve.vqdmlah.predicated.v16i8.v16i1(<16 x i8>, <16 x i8>, i32, <16 x i1>)
 declare <8 x i16> @llvm.arm.mve.vqdmlah.predicated.v8i16.v8i1(<8 x i16>, <8 x i16>, i32, <8 x i1>)
 declare <4 x i32> @llvm.arm.mve.vqdmlah.predicated.v4i32.v4i1(<4 x i32>, <4 x i32>, i32, <4 x i1>)
+declare <16 x i8> @llvm.arm.mve.vqdmlash.predicated.v16i8.v16i1(<16 x i8>, <16 x i8>, i32, <16 x i1>)
+declare <8 x i16> @llvm.arm.mve.vqdmlash.predicated.v8i16.v8i1(<8 x i16>, <8 x i16>, i32, <8 x i1>)
+declare <4 x i32> @llvm.arm.mve.vqdmlash.predicated.v4i32.v4i1(<4 x i32>, <4 x i32>, i32, <4 x i1>)
 declare <16 x i8> @llvm.arm.mve.vqrdmlah.predicated.v16i8.v16i1(<16 x i8>, <16 x i8>, i32, <16 x i1>)
 declare <8 x i16> @llvm.arm.mve.vqrdmlah.predicated.v8i16.v8i1(<8 x i16>, <8 x i16>, i32, <8 x i1>)
 declare <4 x i32> @llvm.arm.mve.vqrdmlah.predicated.v4i32.v4i1(<4 x i32>, <4 x i32>, i32, <4 x i1>)

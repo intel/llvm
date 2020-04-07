@@ -8,6 +8,7 @@ set(CMAKE_CXX_COMPILER ${clang})
 
 add_sycl_unittest(SchedulerTests
     BlockedCommands.cpp
+    FailedCommands.cpp
     FinishedCmdCleanup.cpp
     LeafLimit.cpp
     MemObjCommandCleanup.cpp

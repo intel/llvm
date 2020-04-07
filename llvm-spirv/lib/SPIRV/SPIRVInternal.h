@@ -57,6 +57,10 @@
 using namespace SPIRV;
 using namespace llvm;
 
+namespace llvm {
+class IntrinsicInst;
+}
+
 namespace SPIRV {
 
 /// The LLVM/SPIR-V translator version used to fill the lower 16 bits of the
@@ -936,6 +940,8 @@ template <> inline void SPIRVMap<std::string, Op, SPIRVOpaqueType>::init() {
 // Check if the module contains llvm.loop.* metadata
 bool hasLoopMetadata(const Module *M);
 
+// check LLVM Intrinsics type(s) for validity
+bool checkTypeForSPIRVExtendedInstLowering(IntrinsicInst *II, SPIRVModule *BM);
 } // namespace SPIRV
 
 #endif // SPIRV_SPIRVINTERNAL_H

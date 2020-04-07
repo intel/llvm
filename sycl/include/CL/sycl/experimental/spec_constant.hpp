@@ -20,7 +20,7 @@
 #include <CL/sycl/detail/sycl_fe_intrins.hpp>
 #include <CL/sycl/exception.hpp>
 
-namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace experimental {
 
@@ -42,7 +42,7 @@ private:
 public:
   T get() const { // explicit access.
 #ifdef __SYCL_DEVICE_ONLY__
-    const char *TName = __unique_stable_name(ID);
+    const char *TName = __builtin_unique_stable_name(ID);
     return __sycl_getSpecConstantValue<T>(TName);
 #else
     return Val;
@@ -56,4 +56,4 @@ public:
 
 } // namespace experimental
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

@@ -410,6 +410,7 @@ inline bool isValid(spv::Decoration V) {
   case DecorationSinglepumpINTEL:
   case DecorationDoublepumpINTEL:
   case DecorationBankBitsINTEL:
+  case DecorationForcePow2DepthINTEL:
   case DecorationReferencedIndirectlyINTEL:
     return true;
   default:
@@ -1065,6 +1066,10 @@ inline bool isValidLoopControlMask(SPIRVWord Mask) {
   ValidMask |= LoopControlInitiationIntervalINTEL;
   ValidMask |= LoopControlMaxConcurrencyINTEL;
   ValidMask |= LoopControlDependencyArrayINTEL;
+  ValidMask |= LoopControlPipelineEnableINTEL;
+  ValidMask |= LoopControlLoopCoalesceINTEL;
+  ValidMask |= LoopControlMaxInterleavingINTEL;
+  ValidMask |= LoopControlSpeculatedIterationsINTEL;
 
   return (Mask & ~ValidMask) == 0;
 }
