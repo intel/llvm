@@ -14,6 +14,7 @@
 #include <CL/sycl/info/info_desc.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
+#include <detail/queue_impl.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -78,9 +79,10 @@ event handler::finalize(const cl::sycl::detail::code_location &Payload) {
     break;
   case detail::CG::CODEPLAY_HOST_TASK:
     CommandGroup.reset(new detail::CGHostTask(
-        std::move(MHostTask), MQueue, std::move(MArgs), std::move(MArgsStorage),
-        std::move(MAccStorage), std::move(MSharedPtrStorage),
-        std::move(MRequirements), std::move(MEvents), MCGType, Payload));
+        std::move(MHostTask), MQueue->getContextImplPtr(),
+        std::move(MArgs), std::move(MArgsStorage), std::move(MAccStorage),
+        std::move(MSharedPtrStorage), std::move(MRequirements),
+        std::move(MEvents), MCGType, Payload));
     break;
   case detail::CG::NONE:
     throw runtime_error("Command group submitted without a kernel or a "

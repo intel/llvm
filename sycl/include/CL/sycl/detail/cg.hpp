@@ -617,11 +617,12 @@ public:
 class CGHostTask : public CG {
 public:
   std::unique_ptr<HostTask> MHostTask;
-  shared_ptr_class<detail::queue_impl> MQueue;
+  // context to create self event with
+  shared_ptr_class<detail::context_impl> MContext;
   vector_class<ArgDesc> MArgs;
 
   CGHostTask(std::unique_ptr<HostTask> HostTask,
-             std::shared_ptr<detail::queue_impl> Queue,
+             std::shared_ptr<detail::context_impl> Context,
              vector_class<ArgDesc> Args,
              std::vector<std::vector<char>> ArgsStorage,
              std::vector<detail::AccessorImplPtr> AccStorage,
@@ -632,7 +633,7 @@ public:
       : CG(Type, std::move(ArgsStorage), std::move(AccStorage),
            std::move(SharedPtrStorage), std::move(Requirements),
            std::move(Events), std::move(loc)),
-        MHostTask(std::move(HostTask)), MQueue(std::move(Queue)),
+        MHostTask(std::move(HostTask)), MContext(Context),
         MArgs(std::move(Args)) {}
 };
 
