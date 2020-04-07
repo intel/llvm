@@ -264,15 +264,13 @@ static void checkSYCLVarType(Sema &S, QualType Ty, SourceRange Loc,
     if (!CRD->hasDefinition())
       return;
 
-    for (const auto &Field : CRD->fields()) {
+    for (const auto &Field : CRD->fields())
       checkSYCLVarType(S, Field->getType(), Field->getSourceRange(), Visited,
                        Loc);
-    }
   } else if (const auto *RD = Ty->getAsRecordDecl()) {
-    for (const auto &Field : RD->fields()) {
+    for (const auto &Field : RD->fields())
       checkSYCLVarType(S, Field->getType(), Field->getSourceRange(), Visited,
                        Loc);
-    }
   } else if (const auto *FPTy = dyn_cast<FunctionProtoType>(Ty)) {
     for (const auto &ParamTy : FPTy->param_types())
       checkSYCLVarType(S, ParamTy, Loc, Visited);
