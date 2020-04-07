@@ -284,34 +284,34 @@ template <rounding_mode Mode>
 using Rtn = detail::bool_constant<Mode == rounding_mode::rtn>;
 
 // Convert a floating-point type to a floating-point type
-#define __SYCL_GENERATE_CONVERT_IMPL_FToF(DestType, RoundingMode,              \
+#define __SYCL_GENERATE_CONVERT_IMPL(DestType, RoundingMode,                   \
                                      RoundingModeCondition)                    \
   template <typename T, typename R, rounding_mode roundingMode>                \
   detail::enable_if_t<is_float_to_float<T, R>::value &&                        \
                           std::is_same<R, DestType>::value &&                  \
-                          RoundingModeCondition<roundingMode>::value,       \                         
+                          RoundingModeCondition<roundingMode>::value,          \                         
                       R>                                                       \
   convertImpl(T Value) {                                                       \
     using OpenCLT = cl::sycl::detail::ConvertToOpenCLType_t<T>;                \
     OpenCLT OpValue = cl::sycl::detail::convertDataToType<T, OpenCLT>(Value);  \
-    return __spirv_FConvert##_R##DestType##_##RoundingMode(OpValue);            \
+    return __spirv_FConvert##_R##DestType##_##RoundingMode(OpValue);           \
   }
 
-#define __SYCL_GENERATE_CONVERT_IMPL_FToF_FOR_ROUNDING_MODE(RoundingMode,           \
+#define __SYCL_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE(RoundingMode,           \
                                                        RoundingModeCondition)      \
-__SYCL_GENERATE_CONVERT_IMPL_FToF(float, RoundingMode, RoundingModeCondition)   \
-__SYCL_GENERATE_CONVERT_IMPL_FToF(half, RoundingMode, RoundingModeCondition)
+__SYCL_GENERATE_CONVERT_IMPL(float, RoundingMode, RoundingModeCondition)   \
+__SYCL_GENERATE_CONVERT_IMPL(half, RoundingMode, RoundingModeCondition)
 
-__SYCL_GENERATE_CONVERT_IMPL_FToF_FOR_ROUNDING_MODE(rte, RteOrAutomatic)
-__SYCL_GENERATE_CONVERT_IMPL_FToF_FOR_ROUNDING_MODE(rtz, Rtz)
-__SYCL_GENERATE_CONVERT_IMPL_FToF_FOR_ROUNDING_MODE(rtp, Rtp)
-__SYCL_GENERATE_CONVERT_IMPL_FToF_FOR_ROUNDING_MODE(rtn, Rtn)
+__SYCL_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE(rte, RteOrAutomatic)
+__SYCL_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE(rtz, Rtz)
+__SYCL_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE(rtp, Rtp)
+__SYCL_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE(rtn, Rtn)
 
-#undef __SYCL_GENERATE_CONVERT_IMPL_FToF_FOR_ROUNDING_MODE
-#undef __SYCL_GENERATE_CONVERT_IMPL_FToF
+#undef __SYCL_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE
+#undef __SYCL_GENERATE_CONVERT_IMPL
 
 // Convert a floating-point type to a integer type
-#define __SYCL_GENERATE_CONVERT_IMPL_FToI(SPIRVOp, DestType, RoundingMode,     \
+#define __SYCL_GENERATE_CONVERT_IMPL(SPIRVOp, DestType, RoundingMode,     \
                                      RoundingModeCondition)                    \
   template <typename T, typename R, rounding_mode roundingMode>                \
   detail::enable_if_t<is_float_to_int<T, R>::value &&                          \
@@ -324,30 +324,30 @@ __SYCL_GENERATE_CONVERT_IMPL_FToF_FOR_ROUNDING_MODE(rtn, Rtn)
     return __spirv_Convert##SPIRVOp##_R##DestType##_##RoundingMode(OpValue);   \
   }
 
-#define __SYCL_GENERATE_CONVERT_IMPL_FToI_FOR_ROUNDING_MODE(RoundingMode,           \
+#define __SYCL_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE(RoundingMode,           \
                                                        RoundingModeCondition)  \
-  __SYCL_GENERATE_CONVERT_IMPL_FToI(FToS, int, RoundingMode, RoundingModeCondition) \
-  __SYCL_GENERATE_CONVERT_IMPL_FToI(FToS, char, RoundingMode,                       \
+  __SYCL_GENERATE_CONVERT_IMPL(FToS, int, RoundingMode, RoundingModeCondition) \
+  __SYCL_GENERATE_CONVERT_IMPL(FToS, char, RoundingMode,                       \
                                RoundingModeCondition)                          \
-  __SYCL_GENERATE_CONVERT_IMPL_FToI(FToS, short, RoundingMode,                      \
+  __SYCL_GENERATE_CONVERT_IMPL(FToS, short, RoundingMode,                      \
                                RoundingModeCondition)                          \
-  __SYCL_GENERATE_CONVERT_IMPL_FToI(FToS, long, RoundingMode,                       \
+  __SYCL_GENERATE_CONVERT_IMPL(FToS, long, RoundingMode,                       \
                                RoundingModeCondition)                          \
-  __SYCL_GENERATE_CONVERT_IMPL_FToI(FToU, uint, RoundingMode,                       \
+  __SYCL_GENERATE_CONVERT_IMPL(FToU, uint, RoundingMode,                       \
                                RoundingModeCondition)                          \
-  __SYCL_GENERATE_CONVERT_IMPL_FToI(FToU, uchar, RoundingMode,                      \
+  __SYCL_GENERATE_CONVERT_IMPL(FToU, uchar, RoundingMode,                      \
                                RoundingModeCondition)                          \
-  __SYCL_GENERATE_CONVERT_IMPL_FToI(FToU, ushort, RoundingMode,                     \
+  __SYCL_GENERATE_CONVERT_IMPL(FToU, ushort, RoundingMode,                     \
                                RoundingModeCondition)                          \
-  __SYCL_GENERATE_CONVERT_IMPL_FToI(FToU, ulong, RoundingMode, RoundingModeCondition)
+  __SYCL_GENERATE_CONVERT_IMPL(FToU, ulong, RoundingMode, RoundingModeCondition)
 
-__SYCL_GENERATE_CONVERT_IMPL_FToI_FOR_ROUNDING_MODE(rte, RteOrAutomatic)
-__SYCL_GENERATE_CONVERT_IMPL_FToI_FOR_ROUNDING_MODE(rtz, Rtz)
-__SYCL_GENERATE_CONVERT_IMPL_FToI_FOR_ROUNDING_MODE(rtp, Rtp)
-__SYCL_GENERATE_CONVERT_IMPL_FToI_FOR_ROUNDING_MODE(rtn, Rtn)
-
-#undef __SYCL_GENERATE_CONVERT_IMPL_FToI_FOR_ROUNDING_MODE
-#undef __SYCL_GENERATE_CONVERT_IMPL_FToI
+__SYCL_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE(rte, RteOrAutomatic)
+__SYCL_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE(rtz, Rtz)
+__SYCL_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE(rtp, Rtp)
+__SYCL_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE(rtn, Rtn)
+ 
+#undef __SYCL_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE
+#undef __SYCL_GENERATE_CONVERT_IMPL
 
 #endif // __SYCL_DEVICE_ONLY__
 
