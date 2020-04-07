@@ -1,18 +1,27 @@
 # XPTI Tracing Framework
 <!-- TOC -->
-- [**XPTI Tracing Framework**](#xpti-tracing-framework)
-  - [**Overview**](#overview)
-  - [**Architecture**](#architecture)
-    - [**The Dispatcher**](#the-dispatcher)
-    - [**The Subscriber**](#the-subscriber)
-  - [**Tracing Framework and Callback APIs**](#tracing-framework-and-callback-apis)
-    - [**Brief API Concepts**](#brief-api-concepts)
-    - [**`xptiInitialize`**](#xptiinitialize)
-    - [**`xptiFinalize`**](#xptifinalize)
-    - [**`xptiTraceEnabled`**](#xptitraceenabled)
-    - [**APIs and Data Structures Exported by the Tracing Framework**](#apis-and-data-structures-exported-by-the-tracing-framework)
-  - [**Performance of the Framework**](#performance-of-the-framework)
-    - [**Modeling and Projection**](#modeling-and-projection)
+- [XPTI Tracing Framework](#xpti-tracing-framework)
+  - [Overview](#overview)
+  - [Architecture](#architecture)
+    - [The Dispatcher](#the-dispatcher)
+    - [The Subscriber](#the-subscriber)
+  - [Tracing Framework and Callback APIs](#tracing-framework-and-callback-apis)
+    - [Brief API Concepts](#brief-api-concepts)
+    - [`xptiInitialize`](#xptiinitialize)
+    - [`xptiFinalize`](#xptifinalize)
+    - [`xptiTraceEnabled`](#xptitraceenabled)
+    - [APIs and Data Structures Exported by the Tracing Framework](#apis-and-data-structures-exported-by-the-tracing-framework)
+    - [Trace Point Event](#trace-point-event)
+      - [Creating the Payload](#creating-the-payload)
+      - [Creating an Event that Represents the Trace Point](#creating-an-event-that-represents-the-trace-point)
+      - [`xptiRegisterUserDefinedTracePoint`](#xptiregisteruserdefinedtracepoint)
+      - [`xptiRegisterUserDefinedEventType`](#xptiregisteruserdefinedeventtype)
+      - [`xptiMakeEvent`](#xptimakeevent)
+      - [Notifying the registered listeners](#notifying-the-registered-listeners)
+      - [`xptiNotifySubscribers`](#xptinotifysubscribers)
+  - [Performance of the Framework](#performance-of-the-framework)
+  - [Modeling and projection](#modeling-and-projection)
+    - [Computing the cost incurred in the framework](#computing-the-cost-incurred-in-the-framework)
 
 ## Overview
 
@@ -379,16 +388,40 @@ information about the trace point. The framework has a list of predefined trace
 point types that may be used to mark various trace points with an appropriate
 type. They are declared in the header file `xpti_data_types.h` and are used to
 describe the creation of a graph, node, edges or the instantiation of a node as
-`task_begin` and `task_end` pair  of trace point notifications.
+`task_begin` and `task_end` pair of trace point notifications.
 These trace points represent the types of actions commonly associated with
 instrumenting a library or application. However, in cases where there is no
 direct mapping from the predefined trace point types to a language structure or
-if they need to describe an action that is orthogonal to code structure such as
+if one needs to describe an action that is orthogonal to code structure such as
 diagnostic information for executing code, the framework allows each
 instrumentation stream to extend the available trace point types with new trace
 point types that map to these unsupported constructs.
 
-The basic pre-defined types may be extended as follows:
+#### `xptiRegisterUserDefinedTracePoint`
+
+This API allows streams to extend the existing trace point types and generate
+new types that map to the action about to be described by this API. The
+description of the API is followed by a code example that shows the use of
+this API.
+
+```cpp
+   uint16_t xptiRegisterUserDefinedTracePoint(
+                  const char *vendor_name,
+                  uint8_t user_defined_tp);
+```
+
+| Argument | Description |
+| -------- | ----------- |
+|`vendor_name` | The name of the tool or vendor implementing the tool that is describing this extension to the trace points. |
+| `user_defined_tp`| The user defined trace point which is of type `uint16_t`. The 8 most significant bits of the 16-bit value encodes the `vendor_name` and 8 least significant bits are used to encode the extensions for this tool. A maximum of **128** new user defined trace points can be created per `vendor_name`. |
+
+The code example of extending the default or pre-defined trace point types is
+shown below. As you can see in the example, the user defined trace point types
+are initialized in the `enum` using the macros `XPTI_TRACE_POINT_BEGIN` and
+`XPTI_TRACE_POINT_END` for the same trace point type `0`. By default, the
+trace point types are designed to define the scope of the action be described.
+This requires 1-bit to represent begin or end, which leaves the remaining
+7-bits to describe 128 unique trace point extensions for a given `tool_name`.
 
 ```cpp
 typedef enum {
@@ -433,12 +466,86 @@ trace point type describes the type of information expected by the
 notification. The trace point type is only used when notifying the subscribers
 of an event with the trace point type acting as a qualifier for the event.
 
-In a similar manner, the `xpti::trace_event_type_t` can also be extended.
-The events that are predefined by the framework fall under `{graph, algorithm,`
-`barrier, scheduler, async, lock, offload_read, offload_write, user_defined}`.
-If a particular library or application needs to extend these event types, the
-framework provides APIs to extend this set to meet the need of the specific
-tracing activity using the `xptiRegisterUserDefinedEventType` API function.
+#### `xptiRegisterUserDefinedEventType`
+
+This API allows streams to extend the existing trace point event types and
+generate new types that map to the semantic description of the trace event
+being created. The description of the API is followed by a code example that
+shows the use of this API.
+
+```cpp
+   uint16_t xptiRegisterUserDefinedTracePoint(
+                  const char *vendor_name,
+                  uint8_t user_defined_event);
+```
+| Argument | Description |
+| -------- | ----------- |
+|`vendor_name` | The name of the tool or vendor implementing the tool that is describing this extension to the event types. |
+| `user_defined_event`| The user defined event which is of type `uint16_t`. The 8 most significant bits of the 16-bit value encodes the `vendor_name` and 8 least significant bits are used to encode the extensions for this tool. A maximum of **128** new user defined event types can be created per `vendor_name`. |
+
+Similar to trace point types, the `xpti::trace_event_type_t` can also be
+extended. The events that are predefined by the framework fall under `{graph,`
+`algorithm, barrier, scheduler, async, lock, offload_read, offload_write,`
+`user_defined}`. Let's take the example of having to extend the event types to include a diagnostic category.
+
+```cpp
+typedef enum {
+  my_diagnostic_A = XPTI_EVENT(0),
+  my_diagnostic_B = XPTI_EVENT(1)
+} event_extension_t;
+...
+uint16_t my_ev1 = xptiRegisterUserDefinedEventType("myTest", my_diagnostic_A)
+...
+uint64_t InstanceNo;
+MyEvent = xptiMakeEvent("application_foo", &Payload,
+                        my_ev1, xpti::trace_activity_type_t::active,
+                        &InstanceNo);
+```
+
+When this information is provided to the callback handlers in subscribers
+through notifications, the handler can decide what it wants to do with the
+extended types. If it is not designed to handle it, it can choose to ignore
+the event. On the other hand, a subscriber that is designed to handle it must
+conform to the specifications defined by the stream that is generating the
+extended type events.
+
+```cpp
+uint8_t tool_vendor_id = XPTI_TOOL_ID(tp1_start);
+uint8_t ev_type = XPTI_EXTRACT_USER_DEFINED_ID(tp1_start);
+
+if(tool_vendor_id == 0) {
+    // Default pre-defined type
+}
+else {
+    // User-defined event type
+    // Here: tp_type will be event_extension_t::my_diagnostic_A
+}
+```
+
+#### `xptiMakeEvent`
+
+The `xptiMakeEvent` combines the payload information with information about the trace point being defined to create an `xpti::trace_event_data_t`.
+
+```cpp
+   xpti::trace_event_data_t *xptiMakeEvent(const char *name,
+                    xpti::payload_t *payload, uint16_t event,
+                    xpti::trace_activity_type_t activity,
+                    uint64_t *instance_no);
+```
+
+| Argument | Description |
+| -------- | ----------- |
+|`name` | Name of the event, which is typically a function or kernel name. |
+| `payload`| The payload that this trace event represents. The payload in `XPTI` represents the source file, function name and line number, if available. If the source information is not available, it may contain a function name and code pointer virtual address or just the virtual address. This allows one to get the payload as meta-data for a given trace point. |
+| `event` | The event type this trace point represents. It could be one of the predefined types or an extended type. |
+| `activity` | Describes the activity type, as in active time or overhead time etc. |
+| `instance_no` | If `xptiMakeEvent` is used each time this code location is visited to create or look up a previously created event, the `instance_no` parameter is incremented to indicate the instance ID of the current visit. |
+
+The created trace event data type is returned. In case the payload information
+is the same, a previously created event is returned. If global `user_data`
+needs to be specified for this trace event that may be used by tools, it can
+be allocated and stored in `xpti::trace_event_data_t` structure under
+`user_data`.
 
 The code sample below shows a sample code snippet that creates such an trace
 point event using a payload and uses the created event to notify all
@@ -447,12 +554,14 @@ subscribers of the event qualified by a trace point type.
 ```cpp
 if ( xptiTraceEnabled() ) {
   // example
+  uint64_t instance_no;
   auto stream_id = xptiRegisterStream("myStream");
   xptiInitialize("myStream", 1, 0, "myStream 1.0");
   xpti::payload_t p("application_graph");
   auto event = xptiMakeEvent( "app", &p,
                    xpti::trace_event_type_t::graph,
-                   xpti::trace_activity_type_t::active);
+                   xpti::trace_activity_type_t::active,
+                   &instance_no);
 }
 ...
 if (event && xptiTraceEnabled()) {
@@ -462,6 +571,7 @@ if (event && xptiTraceEnabled()) {
                         xpti::trace_point_type_t::graph_create,
                         nullptr, // no parent
                         event,
+                        instance_no,
                         nullptr // no user data);
 }
 
@@ -469,11 +579,34 @@ if (event && xptiTraceEnabled()) {
 
 #### Notifying the registered listeners
 
+As discussed in previous sections, creating a trace point is only one part of a trace point definition. The part that actually lets a tool know that such a trace event occurred is through a notification of the aforementioned event. In this section, we will describe the API and its use.
+
+#### `xptiNotifySubscribers`
+
+```cpp
+   xpti::result_t xptiNotifySubscribers(uint8_t stream_id,
+                      uint16_t trace_type,
+                      xpti::trace_event_data_t *parent,
+                      xpti::trace_event_data_t *event,
+                      uint64_t instance,
+                      const void *temporal_user_data);
+```
+
+| Argument | Description |
+| -------- | ----------- |
+|`stream_id` | The stream that this notification belongs to. The stream ID is obtained from `xptiRegisterStream`. |
+| `trace_type`| The trace point type that describes the current notification. It could be one of the pre-defined types or a user-extension. |
+|`parent`| A parent trace event, if present. |
+|`event` | The current trace event for which the notification is being sent out. |
+|`instance` | This value indicates the instance of the current trace event. If this is being used to monitor functions, this value should indicate the call count at that time. |
+| `temporal_user_data` | This is a field that holds per instance user data and is valid for just that value of `instance`|
+
 The code example below shows an example 'C' code that is instrumented with the
 framework API and this will generate traces for the functions in the program.
 However, in this example, we use the helper scoped class provided by the
-framework to emit notifications for `xpti::trace_point_type_t::task_begin` and
-`xpti::trace_point_type_t::task_begin` automatically.
+framework to emit notifications for the begin and end of the scope through
+the  `xpti::trace_point_type_t::task_begin` and
+`xpti::trace_point_type_t::task_end` automatically. In this example, the per instance user data is not sent and the `scoped_notify` defaults that to `nullptr`.
 
 ```cpp
 void function1() {
