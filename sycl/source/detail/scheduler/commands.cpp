@@ -413,10 +413,11 @@ void Command::addDepSub(EventImplPtr DepEvent, ContextImplPtr Context) {
     std::unique_ptr<detail::HostTask> HT(new detail::HostTask(std::move(Func)));
 
     std::unique_ptr<detail::CG> GlueCG(new detail::CGHostTask(
-        std::move(HT), DepEventContext, /* Args = */ {}, /* ArgsStorage = */ {},
-        /* AccStorage = */ {}, /* SharedPtrStorage = */ {},
-        /* Requirements = */ {}, /* DepEvents = */ {DepEvent},
-        CG::CODEPLAY_HOST_TASK, /* Payload */ {}));
+        std::move(HT), DepEvent->getQueueWPtr().lock(), DepEventContext,
+        /* Args = */ {}, /* ArgsStorage = */ {}, /* AccStorage = */ {},
+        /* SharedPtrStorage = */ {}, /* Requirements = */ {},
+        /* DepEvents = */ {DepEvent}, CG::CODEPLAY_HOST_TASK,
+        /* Payload */ {}));
 
     Command *GlueCmd = Scheduler::getInstance().MGraphBuilder.addCG(
         std::move(GlueCG), Scheduler::getInstance().getDefaultHostQueue());
