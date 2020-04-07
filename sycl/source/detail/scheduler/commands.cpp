@@ -413,11 +413,10 @@ void Command::addDepSub(EventImplPtr DepEvent, ContextImplPtr Context) {
     std::unique_ptr<detail::HostTask> HT(new detail::HostTask(std::move(Func)));
 
     std::unique_ptr<detail::CG> GlueCG(new detail::CGHostTask(
-        std::move(HT), DepEvent->getQueueWPtr().lock(),
-        /* Args = */ {}, /* ArgsStorage = */ {}, /* AccStorage = */ {},
-        /* SharedPtrStorage = */ {}, /* Requirements = */ {},
-        /* DepEvents = */ {DepEvent}, CG::CODEPLAY_HOST_TASK,
-        /* Payload */ {}));
+        std::move(HT), DepEventContext, /* Args = */ {}, /* ArgsStorage = */ {},
+        /* AccStorage = */ {}, /* SharedPtrStorage = */ {},
+        /* Requirements = */ {}, /* DepEvents = */ {DepEvent},
+        CG::CODEPLAY_HOST_TASK, /* Payload */ {}));
 
     Command *GlueCmd = Scheduler::getInstance().MGraphBuilder.addCG(
         std::move(GlueCG), Scheduler::getInstance().getDefaultHostQueue());
@@ -1530,6 +1529,7 @@ struct HostTaskContext {
       RequiredEventsPerPlugin;
   std::vector<interop_handle::ReqToMem> ReqToMem;
 
+  // Context with which SelfEvent has to be created
   ContextImplPtr Context;
 
   EventImplPtr SelfEvent;
@@ -1853,19 +1853,18 @@ cl_int ExecCGCommand::enqueueImp() {
   }
   case CG::CGTYPE::CODEPLAY_HOST_TASK: {
     CGHostTask *HostTask = static_cast<CGHostTask *>(MCommandGroup.get());
-    // MQueue is host queue here thus we'll employ the one host task is
-    // submitted to
-    const QueueImplPtr &Queue = HostTask->MQueue;
     std::shared_ptr<HostTaskContext> Ctx{new HostTaskContext{HostTask}};
+
+    Ctx->Context = HostTask->MContext;
 
     // Init self-event
     Ctx->SelfEvent = MEvent;
-    RT::PiContext ContextRef = Queue->getContextImplPtr()->getHandleRef();
+    RT::PiContext ContextRef = Ctx->Context->getHandleRef();
 
-    const detail::plugin &Plugin = Queue->getPlugin();
+    const detail::plugin &Plugin = Ctx->Context->getPlugin();
     Plugin.call<PiApiKind::piEventCreate>(ContextRef, &Event);
 
-    Ctx->SelfEvent->setContextImpl(Queue->getContextImplPtr());
+    Ctx->SelfEvent->setContextImpl(Ctx->Context);
 
     // init dependency events in Ctx
     for (EventImplPtr &Event : EventImpls) {
