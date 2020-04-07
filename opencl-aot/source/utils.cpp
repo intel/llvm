@@ -179,7 +179,7 @@ getOpenCLPlatform(DeviceType Type) {
   std::string PlatformName;
 
   const cl_uint MaxPlatformsCount = 10;
-  std::array<cl_platform_id, MaxPlatformsCount> Platforms{};
+  std::vector<cl_platform_id> Platforms(MaxPlatformsCount);
 
   cl_uint PlatformsCount = 0;
   CLErr =
@@ -190,6 +190,7 @@ getOpenCLPlatform(DeviceType Type) {
         formatCLError("Failed to retrieve OpenCL platform IDs", CLErr), CLErr);
   }
 
+  Platforms.resize(PlatformsCount);
   for (const auto &Platform : Platforms) {
     size_t PlatformNameLength = 0;
     CLErr = clGetPlatformInfo(Platform, CL_PLATFORM_NAME, 0, nullptr,
@@ -220,7 +221,8 @@ getOpenCLPlatform(DeviceType Type) {
     auto Result =
         std::find(SupportedPlatformNames.begin(), SupportedPlatformNames.end(),
                   PlatformNameOnLoopIteration);
-    if (Result != SupportedPlatformNames.end()) {
+    if (Result != SupportedPlatformNames.end() &&                  // name match
+        !clFailed(std::get<2>(getOpenCLDevice(Platform, Type)))) { // type match
       PlatformId = Platform;
       PlatformName = PlatformNameOnLoopIteration;
       break;
@@ -240,6 +242,7 @@ getOpenCLPlatform(DeviceType Type) {
          DeviceTypesToSupportedPlatformNames[Type]) {
       ErrorMessage += "  " + SupportedPlatformName + '\n';
     }
+    CLErr = OPENCL_AOT_DEVICE_ID_IS_EMPTY;
   }
 
   return std::make_tuple(PlatformId, PlatformName, ErrorMessage, CLErr);
