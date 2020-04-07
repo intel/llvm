@@ -694,9 +694,19 @@ void AllocaSubBufCommand::emitInstrumentationData() {
 #endif
 }
 
-cl_int AllocaSubBufCommand::enqueueImp() { return CL_SUCCESS; }
+void *AllocaSubBufCommand::getMemAllocation() const {
+  // In some cases parent`s memory allocation might change (e.g., after
+  // map/unmap operations). If parent`s memory allocation changes, sub-buffer
+  // memory allocation should be changed as well.
+  if (MQueue->is_host()) {
+    return static_cast<void *>(
+        static_cast<char *>(MParentAlloca->getMemAllocation()) +
+        MRequirement.MOffsetInBytes);
+  }
+  return MMemAllocation;
+}
 
-void AllocaSubBufCommand::updateMemAllocation() {
+cl_int AllocaSubBufCommand::enqueueImp() {
   std::vector<EventImplPtr> EventImpls =
       Command::prepareEvents(detail::getSyclObjImpl(MQueue->get_context()));
   RT::PiEvent &Event = MEvent->getHandleRef();
@@ -706,6 +716,7 @@ void AllocaSubBufCommand::updateMemAllocation() {
       MParentAlloca->getMemAllocation(), MRequirement.MElemSize,
       MRequirement.MOffsetInBytes, MRequirement.MAccessRange,
       std::move(EventImpls), Event);
+  return CL_SUCCESS;
 }
 
 void AllocaSubBufCommand::printDot(std::ostream &Stream) const {
