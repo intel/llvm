@@ -9,6 +9,7 @@
 #pragma once
 
 #include <CL/sycl/detail/defines.hpp>
+#include <CL/sycl/detail/export.hpp>
 
 // Suppress a compiler warning about undefined CL_TARGET_OPENCL_VERSION
 // Khronos ICD supports only latest OpenCL version
@@ -84,7 +85,7 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
-const char *stringifyErrorCode(cl_int error);
+__SYCL_EXPORT const char *stringifyErrorCode(cl_int error);
 
 static inline std::string codeToString(cl_int code) {
   return std::string(std::to_string(code) + " (" + stringifyErrorCode(code) +

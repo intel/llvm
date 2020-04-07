@@ -604,8 +604,7 @@ class is_same_vector_size_impl<FirstSize, T, Args...> {
 
 public:
   static constexpr bool value =
-      IsSizeEqual ? is_same_vector_size_impl<FirstSize, Args...>::value
-                   : false;
+      IsSizeEqual ? is_same_vector_size_impl<FirstSize, Args...>::value : false;
 };
 
 template <int FirstSize>

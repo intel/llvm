@@ -1,5 +1,5 @@
 set(LLVM_REQUIRES_EH 1)
-add_sycl_unittest(PiCudaTests
+add_sycl_unittest(PiCudaTests OBJECT
   test_base_objects.cpp
   test_commands.cpp
   test_device.cpp
@@ -13,7 +13,6 @@ add_sycl_unittest(PiCudaTests
 add_dependencies(PiCudaTests sycl)
 
 target_link_libraries(PiCudaTests PRIVATE
-  sycl
   LLVMTestingSupport
   OpenCL-Headers)
 
