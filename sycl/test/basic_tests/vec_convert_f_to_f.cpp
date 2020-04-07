@@ -1,0 +1,105 @@
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: env SYCL_DEVICE_TYPE=HOST %t.out
+
+
+//==------------ vec_convert.cpp - SYCL vec class convert method test ------==//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
+#include <CL/sycl.hpp>
+
+#include <cassert>
+#include <iomanip> 
+
+// TODO uncomment run lines on non-host devices when the rounding modes will
+// be implemented.
+
+using namespace cl::sycl;
+
+template <typename T, typename convertT, int roundingMode> class kernel_name;
+
+template <int N> struct helper;
+
+template <> struct helper<0> {
+  template <typename T, int NumElements>
+  static void compare(const vec<T, NumElements> &x,
+                      const vec<T, NumElements> &y) {
+    const T xs = x.template swizzle<0>();
+    const T ys = y.template swizzle<0>();
+    if (xs != ys) {
+      std::cerr << "sometihng failed " << std::setprecision(30) << xs << " || "<< ys;;
+      exit(1);
+    }
+  }
+};
+
+template <int N> struct helper {
+  template <typename T, int NumElements>
+  static void compare(const vec<T, NumElements> &x,
+                      const vec<T, NumElements> &y) {
+    const T xs = x.template swizzle<N>();
+    const T ys = y.template swizzle<N>();
+    helper<N - 1>::compare(x, y);
+    if (xs != ys) {
+      std::cerr << "sometihng failed " << std::setprecision(30) << xs << " || "<< ys;
+      exit(1);
+    }
+  }
+};
+
+template <typename T, typename convertT, int NumElements,
+          rounding_mode roundingMode>
+void test(const vec<T, NumElements> &ToConvert,
+          const vec<convertT, NumElements> &Expected) {
+  vec<convertT, NumElements> Converted{0};
+  {
+    buffer<vec<convertT, NumElements>, 1> Buffer{&Converted, range<1>{1}};
+    queue Queue;
+    Queue.submit([&](handler &CGH) {
+      accessor<vec<convertT, NumElements>, 1, access::mode::write> Accessor(
+          Buffer, CGH);
+        CGH.single_task<class kernel_name<T, convertT, static_cast<int>(roundingMode)>>([=]() {
+          Accessor[0] = ToConvert.template convert<convertT, roundingMode>();
+        });
+    });
+  }
+  helper<NumElements - 1>::compare(Converted, Expected);
+}
+
+int main() {
+  // automatic
+  test<double, float, 8, rounding_mode::automatic>(
+      double8{1234567890.0, 987654304.0, 100.0, -50.0, 111111.111, 625.625, 50625.0009765625, -2500000.875},
+      float8{1234567936.0f, 987654272.0f, 100.0f, -50.0f, 111111.109375f, 625.625f, 50625.0f, -2500001.0f});
+
+  // rte
+  test<double, float, 8, rounding_mode::rte>(
+      double8{1234567890.0, 987654304.0, 100.0, -50.0, 111111.111, 625.625, 50625.0009765625, -2500000.875},
+      float8{1234567936.0f, 987654272.0f, 100.0f, -50.0f, 111111.109375f, 625.625f, 50625.0f, -2500001.0f});
+
+  // rtp
+  test<double, float, 8, rounding_mode::rtp>(
+      double8{1234567890.0, 987654304.0, 100.0, -50.0, 111111.111, 625.625, 50625.0009765625, -2500000.875},
+      float8{1234567936.0f, 987654336.0f, 100.0f, -50.0f, 111111.1171875f, 625.625f, 50625.00390625f, -2500000.75f});
+
+  // rtn
+  test<double, float, 8, rounding_mode::rtn>(
+      double8{1234567890.0, 987654304.0, 100.0, -50.0, 111111.111, 625.625, 50625.0009765625, -2500000.875},
+      float8{1234567808.0f, 987654272.0f, 100.0f, -50.0f, 111111.109375f, 625.625f, 50625.0f, -2500001.0f});
+  
+  // rtz
+  test<double, float, 8, rounding_mode::rtz>(
+      double8{1234567890.0, 987654304.0, 100.0, -50.0, 111111.111, 625.625, 50625.0009765625, -2500000.875},
+      float8{1234567808.0f, 987654272.0f, 100.0f, -50.0f, 111111.109375f, 625.625f, 50625.0f, -2500000.75f});    
+
+  /*//autamatic
+  test<double, half, 8, rounding_mode::automatic>(
+      double8{1234567890.0, 987654304.0, 100.0, -50.0, 111111.111, 625.625, 50625.0009765625, -2500000.875},
+      half8{1234567936.0f, 987654272.0f, 100.0f, -50.0f, 111111.109375f, 625.625f, 50625.0f, -2500001.0f});*/
+  
+  return 0;
+}
