@@ -257,8 +257,8 @@ static void checkSYCLVarType(Sema &S, QualType Ty, SourceRange Loc,
   if (const auto *ATy = dyn_cast<AttributedType>(Ty))
     return checkSYCLVarType(S, ATy->getModifiedType(), Loc, Visited);
 
-  if (const auto *CRD = Ty->getAsCXXRecordDecl()) {
-    for (const auto &Field : CRD->fields())
+  if (const auto *RD = Ty->getAsRecordDecl()) {
+    for (const auto &Field : RD->fields())
       checkSYCLVarType(S, Field->getType(), Field->getSourceRange(), Visited,
                        Loc);
   } else if (const auto *FPTy = dyn_cast<FunctionProtoType>(Ty)) {
