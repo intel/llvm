@@ -200,6 +200,84 @@ bool Sema::isKnownGoodSYCLDecl(const Decl *D) {
   return false;
 }
 
+static bool isZeroSizedArray(QualType Ty) {
+  if (const auto *CATy = dyn_cast<ConstantArrayType>(Ty))
+    return CATy->getSize() == 0;
+  return false;
+}
+
+static Sema::DeviceDiagBuilder
+emitDeferredDiagnosticAndNote(Sema &S, SourceRange Loc, unsigned DiagID,
+                              SourceRange UsedAtLoc) {
+  Sema::DeviceDiagBuilder builder =
+      S.SYCLDiagIfDeviceCode(Loc.getBegin(), DiagID);
+  if (UsedAtLoc.isValid())
+    S.SYCLDiagIfDeviceCode(UsedAtLoc.getBegin(), diag::note_sycl_used_here);
+  return builder;
+}
+
+static void checkSYCLVarType(Sema &S, QualType Ty, SourceRange Loc,
+                             llvm::DenseSet<QualType> Visited,
+                             SourceRange UsedAtLoc = SourceRange()) {
+  // Not all variable types are supported inside SYCL kernels,
+  // for example the quad type __float128 will cause errors in the
+  // SPIR-V translation phase.
+  // Here we check any potentially unsupported declaration and issue
+  // a deferred diagnostic, which will be emitted iff the declaration
+  // is discovered to reside in kernel code.
+  // The optional UsedAtLoc param is used when the SYCL usage is at a
+  // different location than the variable declaration and we need to
+  // inform the user of both, e.g. struct member usage vs declaration.
+
+  //--- check types ---
+
+  // zero length arrays
+  if (isZeroSizedArray(Ty))
+    emitDeferredDiagnosticAndNote(S, Loc, diag::err_typecheck_zero_array_size,
+                                  UsedAtLoc);
+
+  // Sub-reference array or pointer, then proceed with that type.
+  while (Ty->isAnyPointerType() || Ty->isArrayType())
+    Ty = QualType{Ty->getPointeeOrArrayElementType(), 0};
+
+  // __int128, __int128_t, __uint128_t, __float128
+  if (Ty->isSpecificBuiltinType(BuiltinType::Int128) ||
+      Ty->isSpecificBuiltinType(BuiltinType::UInt128) ||
+      (Ty->isSpecificBuiltinType(BuiltinType::Float128) &&
+       !S.Context.getTargetInfo().hasFloat128Type()))
+    emitDeferredDiagnosticAndNote(S, Loc, diag::err_type_unsupported, UsedAtLoc)
+        << Ty.getUnqualifiedType().getCanonicalType();
+
+  //--- now recurse ---
+  // Pointers complicate recursion. Add this type to Visited.
+  // If already there, bail out.
+  if (!Visited.insert(Ty).second)
+    return;
+
+  if (const auto *ATy = dyn_cast<AttributedType>(Ty))
+    return checkSYCLVarType(S, ATy->getModifiedType(), Loc, Visited);
+
+  if (const auto *RD = Ty->getAsRecordDecl()) {
+    for (const auto &Field : RD->fields())
+      checkSYCLVarType(S, Field->getType(), Field->getSourceRange(), Visited,
+                       Loc);
+  } else if (const auto *FPTy = dyn_cast<FunctionProtoType>(Ty)) {
+    for (const auto &ParamTy : FPTy->param_types())
+      checkSYCLVarType(S, ParamTy, Loc, Visited);
+    checkSYCLVarType(S, FPTy->getReturnType(), Loc, Visited);
+  }
+}
+
+void Sema::checkSYCLDeviceVarDecl(VarDecl *Var) {
+  assert(getLangOpts().SYCLIsDevice &&
+         "Should only be called during SYCL compilation");
+  QualType Ty = Var->getType();
+  SourceRange Loc = Var->getLocation();
+  llvm::DenseSet<QualType> Visited;
+
+  checkSYCLVarType(*this, Ty, Loc, Visited);
+}
+
 class MarkDeviceFunction : public RecursiveASTVisitor<MarkDeviceFunction> {
 public:
   MarkDeviceFunction(Sema &S)

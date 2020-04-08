@@ -70,10 +70,10 @@ bool isa_B(A *a) {
   Check_VLA_Restriction::restriction(7);
   int *ip = new int; // expected-error 2{{SYCL kernel cannot allocate storage}}
   int i;
-  int *p3 = new (&i) int; // no error on placement new
+  int *p3 = new (&i) int;                                    // no error on placement new
   OverloadedNewDelete *x = new (struct OverloadedNewDelete); // expected-note 2{{called by 'isa_B'}}
   auto y = new struct OverloadedNewDelete[5];
-  (void)typeid(int); // expected-error {{SYCL kernel cannot use rtti}}
+  (void)typeid(int);                // expected-error {{SYCL kernel cannot use rtti}}
   return dynamic_cast<B *>(a) != 0; // expected-error {{SYCL kernel cannot use rtti}}
 }
 
@@ -100,6 +100,63 @@ typedef struct A {
 b_type b;
 
 using myFuncDef = int(int, int);
+
+// defines (early and late)
+#define floatDef __float128
+#define int128Def __int128
+#define int128tDef __int128_t
+#define intDef int
+
+//typedefs (late )
+typedef __uint128_t megeType;
+typedef __float128 trickyFloatType;
+typedef __int128 tricky128Type;
+
+//templated return type
+template <typename T>
+T bar() { return T(); };
+
+//variable template
+template <class T>
+constexpr T solutionToEverything = T(42);
+
+//alias template
+template <typename...>
+using floatalias_t = __float128;
+
+//alias template
+template <typename...>
+using int128alias_t = __int128;
+
+//false positive. early incorrectly catches
+template <typename t>
+void foo(){};
+//false positive template alias
+template <typename...>
+using safealias_t = int;
+
+//struct
+struct frankenStruct {
+  // expected-error@+1 {{zero-length arrays are not permitted in C++}}
+  int mosterArr[0];
+  // expected-error@+1 {{'__float128' is not supported on this target}}
+  __float128 scaryQuad;
+  // expected-error@+1 {{'__int128' is not supported on this target}}
+  __int128 frightenInt;
+};
+
+//struct
+struct trickyStruct {
+  // expected-error@+1 {{'__float128' is not supported on this target}}
+  trickyFloatType trickySructQuad;
+  // expected-error@+1 {{'__int128' is not supported on this target}}
+  tricky128Type trickyStructInt;
+};
+
+// function return type and argument both unsupported
+__int128 commitInfraction(__int128 a) {
+  return 0;
+}
 
 void eh_ok(void) {
   __float128 A;
@@ -133,12 +190,102 @@ void usage(myFuncDef functionPtr) {
     b.f(); // expected-error {{SYCL kernel cannot call a virtual function}}
 
   Check_RTTI_Restriction::kernel1<class kernel_name>([]() { // expected-note 3{{called by 'usage'}}
-  Check_RTTI_Restriction::A *a;
-  Check_RTTI_Restriction::isa_B(a); }); // expected-note 6{{called by 'operator()'}}
+    Check_RTTI_Restriction::A *a;
+    Check_RTTI_Restriction::isa_B(a); // expected-note 6{{called by 'operator()'}}
+  });
 
-  __float128 A; // expected-error {{__float128 is not supported on this target}}
+  // ======= Float128 Not Allowed in Kernel ==========
+  // expected-error@+1 {{'__float128' is not supported on this target}}
+  __float128 malFloat = 40;
+  // expected-error@+1 {{'__float128' is not supported on this target}}
+  trickyFloatType malFloatTrick = 41;
+  // expected-error@+1 {{'__float128' is not supported on this target}}
+  floatDef malFloatDef = 44;
+  // expected-error@+1 {{'__float128' is not supported on this target}}
+  auto whatFloat = malFloat;
+  // expected-error@+1 {{'__float128' is not supported on this target}}
+  auto malAutoTemp5 = bar<__float128>();
+  // expected-error@+1 {{'__float128' is not supported on this target}}
+  auto malAutoTemp6 = bar<trickyFloatType>();
+  // expected-error@+1 {{'__float128' is not supported on this target}}
+  decltype(malFloat) malDeclFloat = 42;
+  // expected-error@+1 {{'__float128' is not supported on this target}}
+  auto malFloatTemplateVar = solutionToEverything<__float128>;
+  // expected-error@+1 {{'__float128' is not supported on this target}}
+  auto malTrifectaFloat = solutionToEverything<trickyFloatType>;
+  // expected-error@+1 {{'__float128' is not supported on this target}}
+  floatalias_t<void> aliasedFloat = 42;
+  // ---- false positive tests
+  std::size_t someSz = sizeof(__float128);
+  foo<__float128>();
+  safealias_t<__float128> notAFloat = 3;
 
-  int BadArray[0]; // expected-error {{zero-length arrays are not permitted in C++}}
+  // ======= Zero Length Arrays Not Allowed in Kernel ==========
+  // expected-error@+1 {{zero-length arrays are not permitted in C++}}
+  int MalArray[0];
+  // expected-error@+1 {{zero-length arrays are not permitted in C++}}
+  intDef MalArrayDef[0];
+  // ---- false positive tests. These should not generate any errors.
+  foo<int[0]>();
+  std::size_t arrSz = sizeof(int[0]);
+
+  // ======= __int128 Not Allowed in Kernel ==========
+  // expected-error@+1 {{'__int128' is not supported on this target}}
+  __int128 malIntent = 2;
+  // expected-error@+1 {{'__int128' is not supported on this target}}
+  tricky128Type mal128Trick = 2;
+  // expected-error@+1 {{'__int128' is not supported on this target}}
+  int128Def malIntDef = 9;
+  // expected-error@+1 {{'__int128' is not supported on this target}}
+  auto whatInt128 = malIntent;
+  // expected-error@+1 {{'__int128' is not supported on this target}}
+  auto malAutoTemp = bar<__int128>();
+  // expected-error@+1 {{'__int128' is not supported on this target}}
+  auto malAutoTemp2 = bar<tricky128Type>();
+  // expected-error@+1 {{'__int128' is not supported on this target}}
+  decltype(malIntent) malDeclInt = 2;
+  // expected-error@+1 {{'__int128' is not supported on this target}}
+  auto mal128TemplateVar = solutionToEverything<__int128>;
+  // expected-error@+1 {{'__int128' is not supported on this target}}
+  auto malTrifecta128 = solutionToEverything<tricky128Type>;
+  // expected-error@+1 {{'__int128' is not supported on this target}}
+  int128alias_t<void> aliasedInt128 = 79;
+
+  // expected-error@+1 {{'__int128' is not supported on this target}}
+  __int128_t malInt128 = 2;
+  // expected-error@+1 {{'unsigned __int128' is not supported on this target}}
+  __uint128_t malUInt128 = 3;
+  // expected-error@+1 {{'unsigned __int128' is not supported on this target}}
+  megeType malTypeDefTrick = 4;
+  // expected-error@+1 {{'__int128' is not supported on this target}}
+  int128tDef malInt2Def = 6;
+  // expected-error@+1 {{'unsigned __int128' is not supported on this target}}
+  auto whatUInt = malUInt128;
+  // expected-error@+1 {{'__int128' is not supported on this target}}
+  auto malAutoTemp3 = bar<__int128_t>();
+  // expected-error@+1 {{'unsigned __int128' is not supported on this target}}
+  auto malAutoTemp4 = bar<megeType>();
+  // expected-error@+1 {{'__int128' is not supported on this target}}
+  decltype(malInt128) malDeclInt128 = 5;
+  // expected-error@+1 {{'__int128' is not supported on this target}}
+  auto mal128TIntTemplateVar = solutionToEverything<__int128_t>;
+  // expected-error@+1 {{'unsigned __int128' is not supported on this target}}
+  auto malTrifectaInt128T = solutionToEverything<megeType>;
+
+  // ======= Struct Members Checked  =======
+  frankenStruct strikesFear; // expected-note 3{{used here}}
+  trickyStruct incitesPanic; // expected-note 2{{used here}}
+
+  // ======= Function Prototype Checked  =======
+  // expected-error@+1 2{{'__int128' is not supported on this target}}
+  auto notAllowed = &commitInfraction;
+
+  // ---- false positive tests These should not generate any errors.
+  std::size_t i128Sz = sizeof(__int128);
+  foo<__int128>();
+  std::size_t u128Sz = sizeof(__uint128_t);
+  foo<__int128_t>();
+  safealias_t<__int128> notAnInt128 = 3;
 }
 
 namespace ns {
@@ -161,7 +308,7 @@ int use2(a_type ab, a_type *abp) {
     return 2;
   if (ab.const_stat_member)
     return 1;
-  if (ab.stat_member)  // expected-error {{SYCL kernel cannot use a non-const static data variable}}
+  if (ab.stat_member) // expected-error {{SYCL kernel cannot use a non-const static data variable}}
     return 0;
   if (abp->stat_member) // expected-error {{SYCL kernel cannot use a non-const static data variable}}
     return 0;
@@ -170,7 +317,7 @@ int use2(a_type ab, a_type *abp) {
 
   return another_global; // expected-error {{SYCL kernel cannot use a non-const global variable}}
 
-  return ns::glob + // expected-error {{SYCL kernel cannot use a non-const global variable}}
+  return ns::glob +               // expected-error {{SYCL kernel cannot use a non-const global variable}}
          AnotherNS::moar_globals; // expected-error {{SYCL kernel cannot use a non-const global variable}}
 }
 
@@ -180,7 +327,18 @@ __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
 }
 
 int main() {
+  // Outside Kernel, these should not generate errors.
   a_type ab;
+
+  int PassOver[0];
+  __float128 okFloat = 40;
+  __int128 fineInt = 20;
+  __int128_t acceptable = 30;
+  __uint128_t whatever = 50;
+  frankenStruct noProblem;
+  trickyStruct noTrouble;
+  auto notACrime = &commitInfraction;
+
   kernel_single_task<class fake_kernel>([=]() {
     usage(&addInt); // expected-note 5{{called by 'operator()'}}
     a_type *p;
