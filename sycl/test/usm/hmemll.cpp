@@ -2,6 +2,7 @@
 // RUN: env SYCL_DEVICE_TYPE=HOST %t1.out
 // RUN: %CPU_RUN_PLACEHOLDER %t1.out
 // RUN: %GPU_RUN_PLACEHOLDER %t1.out
+// UNSUPPORTED: cuda
 
 //==------------------- hmemll.cpp - Host Memory Linked List test ----------==//
 //

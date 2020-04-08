@@ -9,6 +9,7 @@
 #pragma once
 
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/stl.hpp>
 
@@ -23,7 +24,7 @@ namespace detail {
 class event_impl;
 }
 
-class event {
+class __SYCL_EXPORT event {
 public:
   /// Constructs a ready SYCL event.
   ///

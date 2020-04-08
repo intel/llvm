@@ -769,6 +769,15 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
     }
     return SYCLArg;
   };
+
+  // Emit an error if c-compilation is forced in -fsycl mode
+  if (HasValidSYCLRuntime)
+    for (StringRef XValue : C.getInputArgs().getAllArgValues(options::OPT_x)) {
+      if (XValue == "c" || XValue == "c-header")
+        C.getDriver().Diag(clang::diag::err_drv_fsycl_with_c_type)
+            << "-x " << XValue;
+    }
+
   Arg *SYCLTargets = getArgRequiringSYCLRuntime(options::OPT_fsycl_targets_EQ);
   Arg *SYCLLinkTargets =
       getArgRequiringSYCLRuntime(options::OPT_fsycl_link_targets_EQ);

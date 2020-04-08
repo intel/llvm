@@ -12,7 +12,6 @@
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/device.hpp>
 #include <detail/queue_impl.hpp>
-#include <detail/usm/usm_dispatch.hpp>
 
 #include <cstring>
 

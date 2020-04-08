@@ -8,6 +8,8 @@
 
 #pragma once
 
+#include <CL/sycl/detail/export.hpp>
+
 // 4.6.1 Device selection class
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -16,7 +18,7 @@ namespace sycl {
 // Forward declarations
 class device;
 
-class device_selector {
+class __SYCL_EXPORT device_selector {
 public:
   virtual ~device_selector() = default;
 
@@ -25,27 +27,27 @@ public:
   virtual int operator()(const device &device) const = 0;
 };
 
-class default_selector : public device_selector {
+class __SYCL_EXPORT default_selector : public device_selector {
 public:
   int operator()(const device &dev) const override;
 };
 
-class gpu_selector : public device_selector {
+class __SYCL_EXPORT gpu_selector : public device_selector {
 public:
   int operator()(const device &dev) const override;
 };
 
-class cpu_selector : public device_selector {
+class __SYCL_EXPORT cpu_selector : public device_selector {
 public:
   int operator()(const device &dev) const override;
 };
 
-class accelerator_selector : public device_selector {
+class __SYCL_EXPORT accelerator_selector : public device_selector {
 public:
   int operator()(const device &dev) const override;
 };
 
-class host_selector : public device_selector {
+class __SYCL_EXPORT host_selector : public device_selector {
 public:
   int operator()(const device &dev) const override;
 };
