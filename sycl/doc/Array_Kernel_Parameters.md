@@ -268,7 +268,8 @@ member of a struct and meets the requirements of the existing code.
 Arrays of accessors are supported in a manner similar to that of a plain
 accessor. For each accessor array element, the four values required to
 call its init function are passed as separate arguments to the kernel.
-Reassembly within the kernel caller is serialized by accessor array element.
+Reassembly within the kernel caller is done by calling the init functions
+of each accessor array element in ascending index value.
 
 <h4>Source code fragment:</h4>
 
@@ -344,10 +345,10 @@ spir_kernel void caller(
 <h3>Fix 3: Accessor Arrays within Structs</h3>
 
 *Individual* accessors within structs were already supported.
-Struct parameters of kernels that are structs are traversed member
+Struct parameters that are structs are traversed member
 by member, recursively, to enumerate member structs that are one of
-the SYCL special types: accessor and sampler. For each special
-struct encountered in the scan, arguments of their init functions
+the SYCL special types: accessor and sampler. The arguments of the
+init functions of each special struct encountered in the traversal 
 are added as separate arguments to the kernel.
 However, *arrays* of accessors within structs were not supported.
 Building on the support for single accessors within structs,
