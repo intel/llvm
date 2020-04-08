@@ -707,7 +707,6 @@ foreach name = ["GenericPtrMemSemantics"] in {
 }
 
 // 3.32.11. Conversion Instructions
-<<<<<<< HEAD
 foreach rnd = ["", "_rte", "_rtn", "_rtp", "_rtz"] in {
   foreach IType = TLUnsignedInts.List in {
     foreach FType = TLFloat.List in {
@@ -725,39 +724,6 @@ foreach rnd = ["", "_rte", "_rtn", "_rtp", "_rtz"] in {
                          [VectorType<FType, v>, VectorType<IType, v>],
                          Attr.Const>;
       }
-=======
-
-foreach IType = TLUnsignedInts.List in {
-  foreach FType = TLFloat.List in {
-    def : SPVBuiltin<"ConvertUToF_R" # FType.Name, [FType, IType], Attr.Const>;
-    foreach rnd = ["", "_rte", "_rtz", "_rtp", "_rtn"] in {
-      def : SPVBuiltin<"ConvertFToU_R" # IType.Name # rnd, [IType, FType], Attr.Const>;
-    }
-    foreach v = [2, 3, 4, 8, 16] in {
-      def : SPVBuiltin<"ConvertFToU_R" # IType.Name # v,
-                       [VectorType<IType, v>, VectorType<FType, v>],
-                       Attr.Const>;
-      def : SPVBuiltin<"ConvertUToF_R" # FType.Name # v,
-                       [VectorType<FType, v>, VectorType<IType, v>],
-                       Attr.Const>;
-    }
-  }
-}
-
-foreach IType = TLSignedInts.List in {
-  foreach FType = TLFloat.List in {
-    def : SPVBuiltin<"ConvertSToF_R" # FType.Name, [FType, IType], Attr.Const>;
-    foreach rnd = ["", "_rte", "_rtz", "_rtp", "_rtn"] in {
-      def : SPVBuiltin<"ConvertFToS_R" # IType.Name # rnd, [IType, FType], Attr.Const>;
-    }
-    foreach v = [2, 3, 4, 8, 16] in {
-      def : SPVBuiltin<"ConvertFToS_R" # IType.Name # v,
-                       [VectorType<IType, v>, VectorType<FType, v>],
-                       Attr.Const>;
-      def : SPVBuiltin<"ConvertSToF_R" # FType.Name # v,
-                       [VectorType<FType, v>, VectorType<IType, v>],
-                       Attr.Const>;
->>>>>>> New test
     }
   }
 
@@ -821,7 +787,7 @@ foreach sat = ["", "_sat"] in {
 
 foreach InType = TLSignedInts.List in {
   foreach OutType = TLUnsignedInts.List in {
-    def : SPVBuiltin<"SatConvertSToU_R" # OutType.Name, [OutType, InType], Attr.Const>;
+    def : SPVBuiltin<"SatConvertSToU_R" # OutType.Name # _sat, [OutType, InType], Attr.Const>;
     foreach v = [2, 3, 4, 8, 16] in {
       def : SPVBuiltin<"SatConvertSToU_R" # OutType.Name # v,
                        [VectorType<OutType, v>, VectorType<InType, v>],
@@ -832,7 +798,7 @@ foreach InType = TLSignedInts.List in {
 
 foreach InType = TLUnsignedInts.List in {
   foreach OutType = TLSignedInts.List in {
-    def : SPVBuiltin<"SatConvertUToS_R" # OutType.Name, [OutType, InType], Attr.Const>;
+    def : SPVBuiltin<"SatConvertUToS_R" # OutType.Name # _sat, [OutType, InType], Attr.Const>;
     foreach v = [2, 3, 4, 8, 16] in {
       def : SPVBuiltin<"SatConvertUToS_R" # OutType.Name # v,
                        [VectorType<OutType, v>, VectorType<InType, v>],
