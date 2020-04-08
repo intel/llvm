@@ -106,6 +106,7 @@ Parser::ParseStatementOrDeclaration(StmtVector &Stmts,
 
   StmtResult Res = ParseStatementOrDeclarationAfterAttributes(
       Stmts, StmtCtx, TrailingElseLoc, Attrs);
+  MaybeDestroyTemplateIds();
 
   assert((Attrs.empty() || Res.isInvalid() || Res.isUsable()) &&
          "attributes on empty statement");

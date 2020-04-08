@@ -23,10 +23,30 @@ class ELFSectionRef;
 class MachOObjectFile;
 class MachOUniversalBinary;
 class RelocationRef;
-class XCOFFObjectFile;
-}
+} // namespace object
 
+namespace objdump {
+
+extern cl::opt<bool> ArchiveHeaders;
 extern cl::opt<bool> Demangle;
+extern cl::opt<bool> Disassemble;
+extern cl::opt<bool> DisassembleAll;
+extern cl::opt<DIDumpType> DwarfDumpType;
+extern cl::list<std::string> FilterSections;
+extern cl::list<std::string> MAttrs;
+extern cl::opt<std::string> MCPU;
+extern cl::opt<bool> NoShowRawInsn;
+extern cl::opt<bool> NoLeadingAddr;
+extern cl::opt<bool> PrintImmHex;
+extern cl::opt<bool> PrivateHeaders;
+extern cl::opt<bool> Relocations;
+extern cl::opt<bool> SectionHeaders;
+extern cl::opt<bool> SectionContents;
+extern cl::opt<bool> SymbolTable;
+extern cl::opt<std::string> TripleName;
+extern cl::opt<bool> UnwindInfo;
+
+} // namespace objdump
 
 typedef std::function<bool(llvm::object::SectionRef const &)> FilterPredicate;
 
@@ -101,9 +121,6 @@ Error getWasmRelocationValueString(const object::WasmObjectFile *Obj,
 Error getMachORelocationValueString(const object::MachOObjectFile *Obj,
                                     const object::RelocationRef &RelRef,
                                     llvm::SmallVectorImpl<char> &Result);
-Error getXCOFFRelocationValueString(const object::XCOFFObjectFile *Obj,
-                                    const object::RelocationRef &RelRef,
-                                    llvm::SmallVectorImpl<char> &Result);
 
 uint64_t getELFSectionLMA(const object::ELFSectionRef& Sec);
 
@@ -133,7 +150,11 @@ void printDynamicRelocations(const object::ObjectFile *O);
 void printSectionHeaders(const object::ObjectFile *O);
 void printSectionContents(const object::ObjectFile *O);
 void printSymbolTable(const object::ObjectFile *O, StringRef ArchiveName,
-                      StringRef ArchitectureName = StringRef());
+                      StringRef ArchitectureName = StringRef(),
+                      bool DumpDynamic = false);
+void printSymbol(const object::ObjectFile *O, const object::SymbolRef &Symbol,
+                 StringRef FileName, StringRef ArchiveName,
+                 StringRef ArchitectureName, bool DumpDynamic);
 LLVM_ATTRIBUTE_NORETURN void reportError(StringRef File, Twine Message);
 LLVM_ATTRIBUTE_NORETURN void reportError(Error E, StringRef FileName,
                                          StringRef ArchiveName = "",

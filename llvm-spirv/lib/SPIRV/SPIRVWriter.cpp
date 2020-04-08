@@ -215,7 +215,8 @@ static bool recursiveType(const StructType *ST, const Type *Ty) {
   SmallPtrSet<const StructType *, 4> Seen;
 
   std::function<bool(const Type *Ty)> Run = [&](const Type *Ty) {
-    if (!(isa<StructType>(Ty) || isa<SequentialType>(Ty)) && !Ty->isPointerTy())
+    if (!(isa<StructType>(Ty) || isa<ArrayType>(Ty) || isa<VectorType>(Ty)) &&
+        !Ty->isPointerTy())
       return false;
 
     if (auto *StructTy = dyn_cast<StructType>(Ty)) {
@@ -394,8 +395,8 @@ SPIRVType *LLVMToSPIRV::transType(Type *T) {
 
     for (unsigned I = 0, E = T->getStructNumElements(); I != E; ++I) {
       auto *ElemTy = ST->getElementType(I);
-      if ((isa<StructType>(ElemTy) || isa<SequentialType>(ElemTy) ||
-           isa<PointerType>(ElemTy)) &&
+      if ((isa<StructType>(ElemTy) || isa<ArrayType>(ElemTy) ||
+           isa<VectorType>(ElemTy) || isa<PointerType>(ElemTy)) &&
           recursiveType(ST, ElemTy))
         ForwardRefs.push_back(I);
       else

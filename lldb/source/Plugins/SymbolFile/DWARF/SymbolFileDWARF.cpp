@@ -664,6 +664,12 @@ lldb::CompUnitSP SymbolFileDWARF::ParseCompileUnit(DWARFCompileUnit &dwarf_cu) {
         const DWARFBaseDIE cu_die =
             dwarf_cu.GetNonSkeletonUnit().GetUnitDIEOnly();
         if (cu_die) {
+          if (const char *sdk =
+                  cu_die.GetAttributeValueAsString(DW_AT_APPLE_sdk, nullptr)) {
+            const char *sysroot =
+                cu_die.GetAttributeValueAsString(DW_AT_LLVM_sysroot, "");
+            module_sp->RegisterXcodeSDK(sdk, sysroot);
+          }
           FileSpec cu_file_spec(cu_die.GetName(), dwarf_cu.GetPathStyle());
           MakeAbsoluteAndRemap(cu_file_spec, dwarf_cu, module_sp);
 
@@ -2407,7 +2413,7 @@ void SymbolFileDWARF::FindTypes(
   // Next search through the reachable Clang modules. This only applies for
   // DWARF objects compiled with -gmodules that haven't been processed by
   // dsymutil.
-  if (num_die_matches < max_matches) {
+  if (types.GetSize() < max_matches) {
     UpdateExternalModuleListIfNeeded();
 
     for (const auto &pair : m_external_type_modules)

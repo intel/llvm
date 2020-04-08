@@ -1816,7 +1816,8 @@ CGDebugInfo::CollectTemplateParams(const TemplateParameterList *TPList,
       if (TPList && CGM.getCodeGenOpts().DwarfVersion >= 5)
         if (auto *templateType =
                 dyn_cast_or_null<NonTypeTemplateParmDecl>(TPList->getParam(i)))
-          if (templateType->hasDefaultArgument())
+          if (templateType->hasDefaultArgument() &&
+              !templateType->getDefaultArgument()->isValueDependent())
             defaultParameter = llvm::APSInt::isSameValue(
                 templateType->getDefaultArgument()->EvaluateKnownConstInt(
                     CGM.getContext()),
@@ -2260,12 +2261,11 @@ static bool shouldOmitDefinition(codegenoptions::DebugInfoKind DebugKind,
   // constructor is emitted. Skip this optimization if the class or any of
   // its methods are marked dllimport.
   if (DebugKind == codegenoptions::DebugInfoConstructor &&
-      !CXXDecl->isLambda() && !isClassOrMethodDLLImport(CXXDecl)) {
-    for (const auto *Ctor : CXXDecl->ctors()) {
+      !CXXDecl->isLambda() && !CXXDecl->hasConstexprNonCopyMoveConstructor() &&
+      !isClassOrMethodDLLImport(CXXDecl))
+    for (const auto *Ctor : CXXDecl->ctors())
       if (Ctor->isUserProvided())
         return true;
-    }
-  }
 
   TemplateSpecializationKind Spec = TSK_Undeclared;
   if (const auto *SD = dyn_cast<ClassTemplateSpecializationDecl>(RD))

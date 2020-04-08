@@ -10279,23 +10279,22 @@ SDValue DAGCombiner::visitZERO_EXTEND(SDNode *N) {
       // that the element size of the sext'd result matches the element size of
       // the compare operands.
       SDLoc DL(N);
-      SDValue VecOnes = DAG.getConstant(1, DL, VT);
       if (VT.getSizeInBits() == N00VT.getSizeInBits()) {
-        // zext(setcc) -> (and (vsetcc), (1, 1, ...) for vectors.
+        // zext(setcc) -> zext_in_reg(vsetcc) for vectors.
         SDValue VSetCC = DAG.getNode(ISD::SETCC, DL, VT, N0.getOperand(0),
                                      N0.getOperand(1), N0.getOperand(2));
-        return DAG.getNode(ISD::AND, DL, VT, VSetCC, VecOnes);
+        return DAG.getZeroExtendInReg(VSetCC, DL, MVT::i1);
       }
 
       // If the desired elements are smaller or larger than the source
       // elements we can use a matching integer vector type and then
-      // truncate/sign extend.
+      // truncate/any extend followed by zext_in_reg.
       EVT MatchingVectorType = N00VT.changeVectorElementTypeToInteger();
       SDValue VsetCC =
           DAG.getNode(ISD::SETCC, DL, MatchingVectorType, N0.getOperand(0),
                       N0.getOperand(1), N0.getOperand(2));
-      return DAG.getNode(ISD::AND, DL, VT, DAG.getSExtOrTrunc(VsetCC, DL, VT),
-                         VecOnes);
+      return DAG.getZeroExtendInReg(DAG.getAnyExtOrTrunc(VsetCC, DL, VT),
+                                    DL, MVT::i1);
     }
 
     // zext(setcc x,y,cc) -> select_cc x, y, 1, 0, cc
@@ -10326,7 +10325,7 @@ SDValue DAGCombiner::visitZERO_EXTEND(SDNode *N) {
     SDLoc DL(N);
 
     // Ensure that the shift amount is wide enough for the shifted value.
-    if (VT.getSizeInBits() >= 256)
+    if (Log2_32_Ceil(VT.getSizeInBits()) > ShAmt.getValueSizeInBits())
       ShAmt = DAG.getNode(ISD::ZERO_EXTEND, DL, MVT::i32, ShAmt);
 
     return DAG.getNode(N0.getOpcode(), DL, VT,
@@ -17605,6 +17604,27 @@ SDValue DAGCombiner::visitEXTRACT_VECTOR_ELT(SDNode *N) {
       Elt = (Idx < (int)NumElts) ? Idx : Idx - (int)NumElts;
       Index = DAG.getConstant(Elt, DL, Index.getValueType());
     }
+  } else if (VecOp.getOpcode() == ISD::CONCAT_VECTORS &&
+             !BCNumEltsChanged && VecVT.getVectorElementType() == ScalarVT) {
+    // extract_vector_elt (concat_vectors v2i16:a, v2i16:b), 0
+    //      -> extract_vector_elt a, 0
+    // extract_vector_elt (concat_vectors v2i16:a, v2i16:b), 1
+    //      -> extract_vector_elt a, 1
+    // extract_vector_elt (concat_vectors v2i16:a, v2i16:b), 2
+    //      -> extract_vector_elt b, 0
+    // extract_vector_elt (concat_vectors v2i16:a, v2i16:b), 3
+    //      -> extract_vector_elt b, 1
+    SDLoc SL(N);
+    EVT ConcatVT = VecOp.getOperand(0).getValueType();
+    unsigned ConcatNumElts = ConcatVT.getVectorNumElements();
+    SDValue NewIdx = DAG.getConstant(Elt % ConcatNumElts, SL,
+                                     Index.getValueType());
+
+    SDValue ConcatOp = VecOp.getOperand(Elt / ConcatNumElts);
+    SDValue Elt = DAG.getNode(ISD::EXTRACT_VECTOR_ELT, SL,
+                              ConcatVT.getVectorElementType(),
+                              ConcatOp, NewIdx);
+    return DAG.getNode(ISD::BITCAST, SL, ScalarVT, Elt);
   }
 
   // Make sure we found a non-volatile load and the extractelement is

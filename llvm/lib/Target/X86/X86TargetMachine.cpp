@@ -83,7 +83,6 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeX86Target() {
   initializeX86SpeculativeLoadHardeningPassPass(PR);
   initializeX86FlagsCopyLoweringPassPass(PR);
   initializeX86CondBrFoldingPassPass(PR);
-  initializeX86LoadValueInjectionLoadHardeningPassPass(PR);
   initializeX86LoadValueInjectionRetHardeningPassPass(PR);
   initializeX86OptimizeLEAPassPass(PR);
   initializeX86PartialReductionPass(PR);
@@ -216,7 +215,7 @@ X86TargetMachine::X86TargetMachine(const Target &T, const Triple &TT,
           getEffectiveRelocModel(TT, JIT, RM),
           getEffectiveX86CodeModel(CM, JIT, TT.getArch() == Triple::x86_64),
           OL),
-      TLOF(createTLOF(getTargetTriple())), IsJIT(JIT) {
+      TLOF(createTLOF(getTargetTriple())) {
   // On PS4, the "return address" of a 'noreturn' call must still be within
   // the calling function, and TrapUnreachable is an easy way to get that.
   if (TT.isPS4() || TT.isOSBinFormatMachO()) {
@@ -495,7 +494,6 @@ void X86PassConfig::addMachineSSAOptimization() {
 
 void X86PassConfig::addPostRegAlloc() {
   addPass(createX86FloatingPointStackifierPass());
-  addPass(createX86LoadValueInjectionLoadHardeningPass());
 }
 
 void X86PassConfig::addPreSched2() { addPass(createX86ExpandPseudoPass()); }
