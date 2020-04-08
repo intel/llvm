@@ -31,7 +31,7 @@ template <> struct helper<0> {
     const T xs = x.template swizzle<0>();
     const T ys = y.template swizzle<0>();
     if (xs != ys) {
-      std::cerr << "sometihng failed " << std::setprecision(30) << xs << " || "<< ys;;
+      std::cerr << "sometihng failed " << std::setprecision(30) << int(xs) << " || "<< int(ys);;
       exit(1);
     }
   }
@@ -75,20 +75,20 @@ int main() {
   test<short, char, 8, rounding_mode::automatic>(
       short8{300, -300, 100, -50, 128, -129, 0, 1},
       char8{127, -128, 100, -50, 127, -128, 0, 1});
-  test<int, short, 8, rounding_mode::automatic>(
+  /*test<int, short, 8, rounding_mode::automatic>(
       int8{100000, -100000, 100, -50, 32768, -32769, 0, 1},
       short8{32767, -32768, 100, -50, 32767, -32768, 0, 1});  
   test<long, int, 8, rounding_mode::automatic>(
       long8{3000000000, -3000000000, 100, -50, 2147483648, -2147483649, 0, 1},
-      int8{2147483647, -2147483648, 100, -50, 2147483647, -2147483648, 0, 1});
+      int8{2147483647, -2147483648, 100, -50, 2147483647, -2147483648, 0, 1});*/
 
-  test<ushort, uchar, 8, rounding_mode::automatic>(
+  /*test<ushort, uchar, 8, rounding_mode::automatic>(
       ushort8{300, 255, 100, 150, 128, 256, 0, 1},
       uchar8{255, 255, 100, 150, 128, 255, 0, 1});
-  /*test<uint, ushort, 8, rounding_mode::automatic>(
-      uint8{100000, -100000, 100, -50, 32768, -32769, 0, 1},
-      ushort8{32767, -32768, 100, -50, 32767, -32768, 0, 1});  
-  test<ulong, uint, 8, rounding_mode::automatic>(
+  test<uint, ushort, 8, rounding_mode::automatic>(
+      uint8{100000, 65535, 100, 150, 32768, 65536, 0, 1},
+      ushort8{65535, 65535, 100, 150, 32768, 65535, 0, 1}); */ 
+  /*test<ulong, uint, 8, rounding_mode::automatic>(
       ulong8{3000000000, -3000000000, 100, -50, 2147483648, -2147483649, 0, 1},
       uint8{2147483647, -2147483648, 100, -50, 2147483647, -2147483648, 0, 1});*/
 

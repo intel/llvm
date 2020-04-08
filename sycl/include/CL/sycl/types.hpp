@@ -342,13 +342,13 @@ __SYCL_GENERATE_CONVERT_IMPL(int)
 
 #define __SYCL_GENERATE_CONVERT_IMPL(DestType)                                \
   template <typename T, typename R, rounding_mode roundingMode>                \
-  detail::enable_if_t<is_sint_to_sint<T, R>::value &&                        \
+  detail::enable_if_t<is_uint_to_uint<T, R>::value &&                        \
                           std::is_same<R, DestType>::value,                   \                                                             
                       R>                                                       \
   convertImpl(T Value) {                                                       \
     using OpenCLT = cl::sycl::detail::ConvertToOpenCLType_t<T>;                \
     OpenCLT OpValue = cl::sycl::detail::convertDataToType<T, OpenCLT>(Value);  \
-    return __spirv_UConvert##_R##DestType(OpValue);           \
+    return __spirv_UConvert##_R##DestType(OpValue);                           \
   }
 
 __SYCL_GENERATE_CONVERT_IMPL(uchar)  
