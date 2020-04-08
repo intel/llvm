@@ -119,6 +119,9 @@ private:
                         Callback<std::vector<SelectionRange>>);
   void onDocumentLink(const DocumentLinkParams &,
                       Callback<std::vector<DocumentLink>>);
+  void onSemanticTokens(const SemanticTokensParams &, Callback<SemanticTokens>);
+  void onSemanticTokensEdits(const SemanticTokensEditsParams &,
+                             Callback<SemanticTokensOrEdits>);
 
   std::vector<Fix> getFixes(StringRef File, const clangd::Diagnostic &D);
 
@@ -161,6 +164,9 @@ private:
   llvm::StringMap<DiagnosticToReplacementMap> FixItsMap;
   std::mutex HighlightingsMutex;
   llvm::StringMap<std::vector<HighlightingToken>> FileToHighlightings;
+  // Last semantic-tokens response, for incremental requests.
+  std::mutex SemanticTokensMutex;
+  llvm::StringMap<SemanticTokens> LastSemanticTokens;
 
   // Most code should not deal with Transport directly.
   // MessageHandler deals with incoming messages, use call() etc for outgoing.

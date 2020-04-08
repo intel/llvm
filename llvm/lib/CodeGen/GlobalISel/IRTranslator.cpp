@@ -242,37 +242,33 @@ int IRTranslator::getOrCreateFrameIndex(const AllocaInst &AI) {
   return FI;
 }
 
-unsigned IRTranslator::getMemOpAlignment(const Instruction &I) {
-  unsigned Alignment = 0;
-  Type *ValTy = nullptr;
+Align IRTranslator::getMemOpAlign(const Instruction &I) {
   if (const StoreInst *SI = dyn_cast<StoreInst>(&I)) {
-    Alignment = SI->getAlignment();
-    ValTy = SI->getValueOperand()->getType();
-  } else if (const LoadInst *LI = dyn_cast<LoadInst>(&I)) {
-    Alignment = LI->getAlignment();
-    ValTy = LI->getType();
-  } else if (const AtomicCmpXchgInst *AI = dyn_cast<AtomicCmpXchgInst>(&I)) {
-    // TODO(PR27168): This instruction has no alignment attribute, but unlike
-    // the default alignment for load/store, the default here is to assume
-    // it has NATURAL alignment, not DataLayout-specified alignment.
-    const DataLayout &DL = AI->getModule()->getDataLayout();
-    Alignment = DL.getTypeStoreSize(AI->getCompareOperand()->getType());
-    ValTy = AI->getCompareOperand()->getType();
-  } else if (const AtomicRMWInst *AI = dyn_cast<AtomicRMWInst>(&I)) {
-    // TODO(PR27168): This instruction has no alignment attribute, but unlike
-    // the default alignment for load/store, the default here is to assume
-    // it has NATURAL alignment, not DataLayout-specified alignment.
-    const DataLayout &DL = AI->getModule()->getDataLayout();
-    Alignment = DL.getTypeStoreSize(AI->getValOperand()->getType());
-    ValTy = AI->getType();
-  } else {
-    OptimizationRemarkMissed R("gisel-irtranslator", "", &I);
-    R << "unable to translate memop: " << ore::NV("Opcode", &I);
-    reportTranslationError(*MF, *TPC, *ORE, R);
-    return 1;
+    Type *ValTy = SI->getValueOperand()->getType();
+    return SI->getAlign().getValueOr(DL->getABITypeAlign(ValTy));
   }
-
-  return Alignment ? Alignment : DL->getABITypeAlignment(ValTy);
+  if (const LoadInst *LI = dyn_cast<LoadInst>(&I)) {
+    Type *ValTy = LI->getType();
+    return LI->getAlign().getValueOr(DL->getABITypeAlign(ValTy));
+  }
+  if (const AtomicCmpXchgInst *AI = dyn_cast<AtomicCmpXchgInst>(&I)) {
+    // TODO(PR27168): This instruction has no alignment attribute, but unlike
+    // the default alignment for load/store, the default here is to assume
+    // it has NATURAL alignment, not DataLayout-specified alignment.
+    const DataLayout &DL = AI->getModule()->getDataLayout();
+    return Align(DL.getTypeStoreSize(AI->getCompareOperand()->getType()));
+  }
+  if (const AtomicRMWInst *AI = dyn_cast<AtomicRMWInst>(&I)) {
+    // TODO(PR27168): This instruction has no alignment attribute, but unlike
+    // the default alignment for load/store, the default here is to assume
+    // it has NATURAL alignment, not DataLayout-specified alignment.
+    const DataLayout &DL = AI->getModule()->getDataLayout();
+    return Align(DL.getTypeStoreSize(AI->getValOperand()->getType()));
+  }
+  OptimizationRemarkMissed R("gisel-irtranslator", "", &I);
+  R << "unable to translate memop: " << ore::NV("Opcode", &I);
+  reportTranslationError(*MF, *TPC, *ORE, R);
+  return Align(1);
 }
 
 MachineBasicBlock &IRTranslator::getMBB(const BasicBlock &BB) {
@@ -887,12 +883,12 @@ bool IRTranslator::translateLoad(const User &U, MachineIRBuilder &MIRBuilder) {
     MIRBuilder.materializePtrAdd(Addr, Base, OffsetTy, Offsets[i] / 8);
 
     MachinePointerInfo Ptr(LI.getPointerOperand(), Offsets[i] / 8);
-    unsigned BaseAlign = getMemOpAlignment(LI);
+    Align BaseAlign = getMemOpAlign(LI);
     AAMDNodes AAMetadata;
     LI.getAAMetadata(AAMetadata);
     auto MMO = MF->getMachineMemOperand(
-        Ptr, Flags, (MRI->getType(Regs[i]).getSizeInBits() + 7) / 8,
-        MinAlign(BaseAlign, Offsets[i] / 8), AAMetadata, Ranges,
+        Ptr, Flags, MRI->getType(Regs[i]).getSizeInBytes(),
+        commonAlignment(BaseAlign, Offsets[i] / 8), AAMetadata, Ranges,
         LI.getSyncScopeID(), LI.getOrdering());
     MIRBuilder.buildLoad(Regs[i], Addr, *MMO);
   }
@@ -929,12 +925,12 @@ bool IRTranslator::translateStore(const User &U, MachineIRBuilder &MIRBuilder) {
     MIRBuilder.materializePtrAdd(Addr, Base, OffsetTy, Offsets[i] / 8);
 
     MachinePointerInfo Ptr(SI.getPointerOperand(), Offsets[i] / 8);
-    unsigned BaseAlign = getMemOpAlignment(SI);
+    Align BaseAlign = getMemOpAlign(SI);
     AAMDNodes AAMetadata;
     SI.getAAMetadata(AAMetadata);
     auto MMO = MF->getMachineMemOperand(
-        Ptr, Flags, (MRI->getType(Vals[i]).getSizeInBits() + 7) / 8,
-        MinAlign(BaseAlign, Offsets[i] / 8), AAMetadata, nullptr,
+        Ptr, Flags, MRI->getType(Vals[i]).getSizeInBytes(),
+        commonAlignment(BaseAlign, Offsets[i] / 8), AAMetadata, nullptr,
         SI.getSyncScopeID(), SI.getOrdering());
     MIRBuilder.buildStore(Vals[i], Addr, *MMO);
   }
@@ -1149,20 +1145,21 @@ bool IRTranslator::translateMemFunc(const CallInst &CI,
   for (auto AI = CI.arg_begin(), AE = CI.arg_end(); std::next(AI) != AE; ++AI)
     ICall.addUse(getOrCreateVReg(**AI));
 
-  unsigned DstAlign = 0, SrcAlign = 0;
+  Align DstAlign;
+  Align SrcAlign;
   unsigned IsVol =
       cast<ConstantInt>(CI.getArgOperand(CI.getNumArgOperands() - 1))
           ->getZExtValue();
 
   if (auto *MCI = dyn_cast<MemCpyInst>(&CI)) {
-    DstAlign = std::max<unsigned>(MCI->getDestAlignment(), 1);
-    SrcAlign = std::max<unsigned>(MCI->getSourceAlignment(), 1);
+    DstAlign = MCI->getDestAlign().valueOrOne();
+    SrcAlign = MCI->getSourceAlign().valueOrOne();
   } else if (auto *MMI = dyn_cast<MemMoveInst>(&CI)) {
-    DstAlign = std::max<unsigned>(MMI->getDestAlignment(), 1);
-    SrcAlign = std::max<unsigned>(MMI->getSourceAlignment(), 1);
+    DstAlign = MMI->getDestAlign().valueOrOne();
+    SrcAlign = MMI->getSourceAlign().valueOrOne();
   } else {
     auto *MSI = cast<MemSetInst>(&CI);
-    DstAlign = std::max<unsigned>(MSI->getDestAlignment(), 1);
+    DstAlign = MSI->getDestAlign().valueOrOne();
   }
 
   // We need to propagate the tail call flag from the IR inst as an argument.
@@ -1200,7 +1197,7 @@ void IRTranslator::getStackGuard(Register DstReg,
                MachineMemOperand::MODereferenceable;
   MachineMemOperand *MemRef =
       MF->getMachineMemOperand(MPInfo, Flags, DL->getPointerSizeInBits() / 8,
-                               DL->getPointerABIAlignment(0).value());
+                               DL->getPointerABIAlignment(0));
   MIB.setMemRefs({MemRef});
 }
 
@@ -1220,8 +1217,12 @@ unsigned IRTranslator::getSimpleIntrinsicOpcode(Intrinsic::ID ID) {
       break;
     case Intrinsic::bswap:
       return TargetOpcode::G_BSWAP;
-  case Intrinsic::bitreverse:
+    case Intrinsic::bitreverse:
       return TargetOpcode::G_BITREVERSE;
+    case Intrinsic::fshl:
+      return TargetOpcode::G_FSHL;
+    case Intrinsic::fshr:
+      return TargetOpcode::G_FSHR;
     case Intrinsic::ceil:
       return TargetOpcode::G_FCEIL;
     case Intrinsic::cos:
@@ -1384,8 +1385,9 @@ bool IRTranslator::translateKnownIntrinsic(const CallInst &CI, Intrinsic::ID ID,
 
     // FIXME: Get alignment
     MIRBuilder.buildInstr(TargetOpcode::G_VASTART, {}, {getOrCreateVReg(*Ptr)})
-        .addMemOperand(MF->getMachineMemOperand(
-            MachinePointerInfo(Ptr), MachineMemOperand::MOStore, ListSize, 1));
+        .addMemOperand(MF->getMachineMemOperand(MachinePointerInfo(Ptr),
+                                                MachineMemOperand::MOStore,
+                                                ListSize, Align(1)));
     return true;
   }
   case Intrinsic::dbg_value: {
@@ -1489,7 +1491,7 @@ bool IRTranslator::translateKnownIntrinsic(const CallInst &CI, Intrinsic::ID ID,
         *MF->getMachineMemOperand(MachinePointerInfo::getFixedStack(*MF, FI),
                                   MachineMemOperand::MOStore |
                                       MachineMemOperand::MOVolatile,
-                                  PtrTy.getSizeInBits() / 8, 8));
+                                  PtrTy.getSizeInBits() / 8, Align(8)));
     return true;
   }
   case Intrinsic::stacksave: {
@@ -1711,14 +1713,12 @@ bool IRTranslator::translateCall(const User &U, MachineIRBuilder &MIRBuilder) {
   TargetLowering::IntrinsicInfo Info;
   // TODO: Add a GlobalISel version of getTgtMemIntrinsic.
   if (TLI.getTgtMemIntrinsic(Info, CI, *MF, ID)) {
-    MaybeAlign Align = Info.align;
-    if (!Align)
-      Align = MaybeAlign(
-          DL->getABITypeAlignment(Info.memVT.getTypeForEVT(F->getContext())));
+    Align Alignment = Info.align.getValueOr(
+        DL->getABITypeAlign(Info.memVT.getTypeForEVT(F->getContext())));
 
     uint64_t Size = Info.memVT.getStoreSize();
-    MIB.addMemOperand(MF->getMachineMemOperand(
-        MachinePointerInfo(Info.ptrVal), Info.flags, Size, Align->value()));
+    MIB.addMemOperand(MF->getMachineMemOperand(MachinePointerInfo(Info.ptrVal),
+                                               Info.flags, Size, Alignment));
   }
 
   return true;
@@ -1858,12 +1858,7 @@ bool IRTranslator::translateAlloca(const User &U,
     return false;
 
   // Now we're in the harder dynamic case.
-  Type *Ty = AI.getAllocatedType();
-  unsigned Align =
-      std::max((unsigned)DL->getPrefTypeAlignment(Ty), AI.getAlignment());
-
   Register NumElts = getOrCreateVReg(*AI.getArraySize());
-
   Type *IntPtrIRTy = DL->getIntPtrType(AI.getType());
   LLT IntPtrTy = getLLTForType(*IntPtrIRTy, *DL);
   if (MRI->getType(NumElts) != IntPtrTy) {
@@ -1872,29 +1867,30 @@ bool IRTranslator::translateAlloca(const User &U,
     NumElts = ExtElts;
   }
 
+  Type *Ty = AI.getAllocatedType();
+
   Register AllocSize = MRI->createGenericVirtualRegister(IntPtrTy);
   Register TySize =
       getOrCreateVReg(*ConstantInt::get(IntPtrIRTy, DL->getTypeAllocSize(Ty)));
   MIRBuilder.buildMul(AllocSize, NumElts, TySize);
 
-  unsigned StackAlign =
-      MF->getSubtarget().getFrameLowering()->getStackAlignment();
-  if (Align <= StackAlign)
-    Align = 0;
-
   // Round the size of the allocation up to the stack alignment size
   // by add SA-1 to the size. This doesn't overflow because we're computing
   // an address inside an alloca.
-  auto SAMinusOne = MIRBuilder.buildConstant(IntPtrTy, StackAlign - 1);
+  Align StackAlign = MF->getSubtarget().getFrameLowering()->getStackAlign();
+  auto SAMinusOne = MIRBuilder.buildConstant(IntPtrTy, StackAlign.value() - 1);
   auto AllocAdd = MIRBuilder.buildAdd(IntPtrTy, AllocSize, SAMinusOne,
                                       MachineInstr::NoUWrap);
   auto AlignCst =
-      MIRBuilder.buildConstant(IntPtrTy, ~(uint64_t)(StackAlign - 1));
+      MIRBuilder.buildConstant(IntPtrTy, ~(uint64_t)(StackAlign.value() - 1));
   auto AlignedAlloc = MIRBuilder.buildAnd(IntPtrTy, AllocAdd, AlignCst);
 
-  MIRBuilder.buildDynStackAlloc(getOrCreateVReg(AI), AlignedAlloc, Align);
+  Align Alignment = max(AI.getAlign(), DL->getPrefTypeAlign(Ty));
+  if (Alignment <= StackAlign)
+    Alignment = Align(1);
+  MIRBuilder.buildDynStackAlloc(getOrCreateVReg(AI), AlignedAlloc, Alignment);
 
-  MF->getFrameInfo().CreateVariableSizedObject(Align ? Align : 1, &AI);
+  MF->getFrameInfo().CreateVariableSizedObject(Alignment, &AI);
   assert(MF->getFrameInfo().hasVarSizedObjects());
   return true;
 }
@@ -1973,8 +1969,11 @@ bool IRTranslator::translateExtractElement(const User &U,
 
 bool IRTranslator::translateShuffleVector(const User &U,
                                           MachineIRBuilder &MIRBuilder) {
-  SmallVector<int, 8> Mask;
-  ShuffleVectorInst::getShuffleMask(cast<Constant>(U.getOperand(2)), Mask);
+  ArrayRef<int> Mask;
+  if (auto *SVI = dyn_cast<ShuffleVectorInst>(&U))
+    Mask = SVI->getShuffleMask();
+  else
+    Mask = cast<ConstantExpr>(U).getShuffleMask();
   ArrayRef<int> MaskAlloc = MF->allocateShuffleMask(Mask);
   MIRBuilder
       .buildInstr(TargetOpcode::G_SHUFFLE_VECTOR, {getOrCreateVReg(U)},
@@ -2022,11 +2021,10 @@ bool IRTranslator::translateAtomicCmpXchg(const User &U,
 
   MIRBuilder.buildAtomicCmpXchgWithSuccess(
       OldValRes, SuccessRes, Addr, Cmp, NewVal,
-      *MF->getMachineMemOperand(MachinePointerInfo(I.getPointerOperand()),
-                                Flags, DL->getTypeStoreSize(ValType),
-                                getMemOpAlignment(I), AAMetadata, nullptr,
-                                I.getSyncScopeID(), I.getSuccessOrdering(),
-                                I.getFailureOrdering()));
+      *MF->getMachineMemOperand(
+          MachinePointerInfo(I.getPointerOperand()), Flags,
+          DL->getTypeStoreSize(ValType), getMemOpAlign(I), AAMetadata, nullptr,
+          I.getSyncScopeID(), I.getSuccessOrdering(), I.getFailureOrdering()));
   return true;
 }
 
@@ -2094,8 +2092,8 @@ bool IRTranslator::translateAtomicRMW(const User &U,
       Opcode, Res, Addr, Val,
       *MF->getMachineMemOperand(MachinePointerInfo(I.getPointerOperand()),
                                 Flags, DL->getTypeStoreSize(ResType),
-                                getMemOpAlignment(I), AAMetadata,
-                                nullptr, I.getSyncScopeID(), I.getOrdering()));
+                                getMemOpAlign(I), AAMetadata, nullptr,
+                                I.getSyncScopeID(), I.getOrdering()));
   return true;
 }
 
@@ -2176,15 +2174,9 @@ bool IRTranslator::translate(const Constant &C, Register Reg) {
     EntryBuilder->buildFConstant(Reg, *CF);
   else if (isa<UndefValue>(C))
     EntryBuilder->buildUndef(Reg);
-  else if (isa<ConstantPointerNull>(C)) {
-    // As we are trying to build a constant val of 0 into a pointer,
-    // insert a cast to make them correct with respect to types.
-    unsigned NullSize = DL->getTypeSizeInBits(C.getType());
-    auto *ZeroTy = Type::getIntNTy(C.getContext(), NullSize);
-    auto *ZeroVal = ConstantInt::get(ZeroTy, 0);
-    Register ZeroReg = getOrCreateVReg(*ZeroVal);
-    EntryBuilder->buildCast(Reg, ZeroReg);
-  } else if (auto GV = dyn_cast<GlobalValue>(&C))
+  else if (isa<ConstantPointerNull>(C))
+    EntryBuilder->buildConstant(Reg, 0);
+  else if (auto GV = dyn_cast<GlobalValue>(&C))
     EntryBuilder->buildGlobalValue(Reg, GV);
   else if (auto CAZ = dyn_cast<ConstantAggregateZero>(&C)) {
     if (!CAZ->getType()->isVectorTy())

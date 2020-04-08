@@ -41,7 +41,6 @@ void VPlanTransforms::VPInstructionsToVPRecipes(
       continue;
 
     VPBasicBlock *VPBB = Base->getEntryBasicBlock();
-    VPRecipeBase *LastRecipe = nullptr;
     // Introduce each ingredient into VPlan.
     for (auto I = VPBB->begin(), E = VPBB->end(); I != E;) {
       VPRecipeBase *Ingredient = &*I++;
@@ -55,10 +54,14 @@ void VPlanTransforms::VPInstructionsToVPRecipes(
 
       VPRecipeBase *NewRecipe = nullptr;
       // Create VPWidenMemoryInstructionRecipe for loads and stores.
-      if (isa<LoadInst>(Inst) || isa<StoreInst>(Inst))
+      if (LoadInst *Load = dyn_cast<LoadInst>(Inst))
         NewRecipe = new VPWidenMemoryInstructionRecipe(
-            *Inst, Plan->getOrAddVPValue(getLoadStorePointerOperand(Inst)),
+            *Load, Plan->getOrAddVPValue(getLoadStorePointerOperand(Inst)),
             nullptr /*Mask*/);
+      else if (StoreInst *Store = dyn_cast<StoreInst>(Inst))
+        NewRecipe = new VPWidenMemoryInstructionRecipe(
+            *Store, Plan->getOrAddVPValue(getLoadStorePointerOperand(Inst)),
+            Plan->getOrAddVPValue(Store->getValueOperand()), nullptr /*Mask*/);
       else if (PHINode *Phi = dyn_cast<PHINode>(Inst)) {
         InductionDescriptor II = Inductions.lookup(Phi);
         if (II.getKind() == InductionDescriptor::IK_IntInduction ||
@@ -68,20 +71,10 @@ void VPlanTransforms::VPInstructionsToVPRecipes(
           NewRecipe = new VPWidenPHIRecipe(Phi);
       } else if (GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(Inst)) {
         NewRecipe = new VPWidenGEPRecipe(GEP, OrigLoop);
-      } else {
-        // If the last recipe is a VPWidenRecipe, add Inst to it instead of
-        // creating a new recipe.
-        if (VPWidenRecipe *WidenRecipe =
-                dyn_cast_or_null<VPWidenRecipe>(LastRecipe)) {
-          WidenRecipe->appendInstruction(Inst);
-          Ingredient->eraseFromParent();
-          continue;
-        }
-        NewRecipe = new VPWidenRecipe(Inst);
-      }
+      } else
+        NewRecipe = new VPWidenRecipe(*Inst);
 
       NewRecipe->insertBefore(Ingredient);
-      LastRecipe = NewRecipe;
       Ingredient->eraseFromParent();
     }
   }

@@ -450,10 +450,8 @@ template <> struct MappingTraits<const InterfaceFile *> {
       if (File->isInstallAPI())
         Flags |= TBDFlags::InstallAPI;
 
-      for (const auto &Iter : File->umbrellas()) {
-        ParentUmbrella = Iter.second;
-        break;
-      }
+      if (!File->umbrellas().empty())
+        ParentUmbrella = File->umbrellas().begin()->second;
 
       std::set<ArchitectureSet> ArchSet;
       for (const auto &Library : File->allowableClients())
@@ -1120,6 +1118,10 @@ TextAPIReader::get(MemoryBufferRef InputBuffer) {
   auto File = std::unique_ptr<InterfaceFile>(
       const_cast<InterfaceFile *>(Files.front()));
 
+  for (auto Iter = std::next(Files.begin()); Iter != Files.end(); ++Iter)
+    File->addDocument(
+        std::shared_ptr<InterfaceFile>(const_cast<InterfaceFile *>(*Iter)));
+
   if (YAMLIn.error())
     return make_error<StringError>(Ctx.ErrorMessage, YAMLIn.error());
 
@@ -1134,6 +1136,9 @@ Error TextAPIWriter::writeToStream(raw_ostream &OS, const InterfaceFile &File) {
 
   std::vector<const InterfaceFile *> Files;
   Files.emplace_back(&File);
+
+  for (auto Document : File.documents())
+    Files.emplace_back(Document.get());
 
   // Stream out yaml.
   YAMLOut << Files;

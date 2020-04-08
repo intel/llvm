@@ -5,14 +5,17 @@ Exception: in single process mode _execute is called directly.
 For efficiency, we copy all data needed to execute all tests into each worker
 and store it in global variables. This reduces the cost of each task.
 """
+import signal
 import time
 import traceback
 
 import lit.Test
 import lit.util
 
+
 _lit_config = None
 _parallelism_semaphores = None
+
 
 def initialize(lit_config, parallelism_semaphores):
     """Copy data shared by all test executions into worker processes"""
@@ -20,6 +23,12 @@ def initialize(lit_config, parallelism_semaphores):
     global _parallelism_semaphores
     _lit_config = lit_config
     _parallelism_semaphores = parallelism_semaphores
+
+    # We use the following strategy for dealing with Ctrl+C/KeyboardInterrupt in
+    # subprocesses created by the multiprocessing.Pool.
+    # https://noswap.com/blog/python-multiprocessing-keyboardinterrupt
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+
 
 def execute(test):
     """Run one test in a multiprocessing.Pool
@@ -30,14 +39,11 @@ def execute(test):
     Arguments and results of this function are pickled, so they should be cheap
     to copy.
     """
-    try:
-        return _execute_in_parallelism_group(test, _lit_config,
-                                             _parallelism_semaphores)
-    except KeyboardInterrupt:
-        # If a worker process gets an interrupt, abort it immediately.
-        lit.util.abort_now()
-    except:
-        traceback.print_exc()
+    result = _execute_in_parallelism_group(test, _lit_config,
+                                           _parallelism_semaphores)
+    test.setResult(result)
+    return test
+
 
 def _execute_in_parallelism_group(test, lit_config, parallelism_semaphores):
     pg = test.config.parallelism_group
@@ -56,41 +62,16 @@ def _execute_in_parallelism_group(test, lit_config, parallelism_semaphores):
 
 
 def _execute(test, lit_config):
-    """Execute one test"""
     start = time.time()
     result = _execute_test_handle_errors(test, lit_config)
-    end = time.time()
-
-    result.elapsed = end - start
-    resolve_result_code(result, test)
-
+    result.elapsed = time.time() - start
     return result
-
-
-# TODO(yln): is this the right place to deal with this?
-# isExpectedToFail() only works after the test has been executed.
-def resolve_result_code(result, test):
-    try:
-        expected_to_fail = test.isExpectedToFail()
-    except ValueError as e:
-        # Syntax error in an XFAIL line.
-        result.code = lit.Test.UNRESOLVED
-        result.output = str(e)
-    else:
-        if expected_to_fail:
-            # pass -> unexpected pass
-            if result.code is lit.Test.PASS:
-                result.code = lit.Test.XPASS
-            # fail -> expected fail
-            if result.code is lit.Test.FAIL:
-                result.code = lit.Test.XFAIL
 
 
 def _execute_test_handle_errors(test, lit_config):
     try:
-        return _adapt_result(test.config.test_format.execute(test, lit_config))
-    except KeyboardInterrupt:
-        raise
+        result = test.config.test_format.execute(test, lit_config)
+        return _adapt_result(result)
     except:
         if lit_config.debug:
             raise

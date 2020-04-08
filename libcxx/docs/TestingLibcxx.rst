@@ -8,9 +8,9 @@ Testing libc++
 Getting Started
 ===============
 
-libc++ uses LIT to configure and run its tests. 
+libc++ uses LIT to configure and run its tests.
 
-The primary way to run the libc++ tests is by using `make check-libcxx`. 
+The primary way to run the libc++ tests is by using `make check-cxx`.
 
 However since libc++ can be used in any number of possible
 configurations it is important to customize the way LIT builds and runs
@@ -208,6 +208,29 @@ Environment Variables
   If ``LIBCXX_COLOR_DIAGNOSTICS`` is defined then the test suite will attempt
   to use color diagnostic outputs from the compiler.
   Also see `color_diagnostics`.
+
+Writing Tests
+-------------
+
+When writing tests for the libc++ test suite, you should follow a few guidelines.
+This will ensure that your tests can run on a wide variety of hardware and under
+a wide variety of configurations. We have several unusual configurations such as
+building the tests on one host but running them on a different host, which add a
+few requirements to the test suite. Here's some stuff you should know:
+
+- All tests are run in a temporary directory that is unique to that test and
+  cleaned up after the test is done.
+- When a test needs data files as inputs, these data files can be saved in the
+  repository (when reasonable) and referrenced by the test as
+  ``// FILE_DEPENDENCIES: <path-to-dependencies>``. Copies of these files or
+  directories will be made available to the test in the temporary directory
+  where it is run.
+- You should never hardcode a path from the build-host in a test, because that
+  path will not necessarily be available on the host where the tests are run.
+- You should try to reduce the runtime dependencies of each test to the minimum.
+  For example, requiring Python to run a test is bad, since Python is not
+  necessarily available on all devices we may want to run the tests on (even
+  though supporting Python is probably trivial for the build-host).
 
 Benchmarks
 ==========

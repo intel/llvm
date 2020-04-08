@@ -42,6 +42,10 @@ struct LLVMTypeConverterCustomization {
   /// Customize the type conversion of function arguments.
   CustomCallback funcArgConverter;
 
+  /// Used to determine the bitwidth of the LLVM integer type that the index
+  /// type gets lowered to. Defaults to deriving the size from the data layout.
+  unsigned indexBitwidth;
+
   /// Initialize customization to default callbacks.
   LLVMTypeConverterCustomization();
 };
@@ -90,6 +94,9 @@ public:
   /// to each of the MLIR types converted with `convertType`.
   Type packFunctionResults(ArrayRef<Type> types);
 
+  /// Returns the MLIR context.
+  MLIRContext &getContext();
+
   /// Returns the LLVM context.
   llvm::LLVMContext &getLLVMContext();
 
@@ -118,6 +125,13 @@ public:
   Operation *materializeConversion(PatternRewriter &rewriter, Type type,
                                    ArrayRef<Value> values,
                                    Location loc) override;
+
+  /// Gets the LLVM representation of the index type. The returned type is an
+  /// integer type with the size confgured for this type converter.
+  LLVM::LLVMType getIndexType();
+
+  /// Gets the bitwidth of the index type when converted to LLVM.
+  unsigned getIndexTypeBitwidth() { return customizations.indexBitwidth; }
 
 protected:
   /// LLVM IR module used to parse/create types.
@@ -177,10 +191,6 @@ private:
 
   // Convert a 1D vector type into an LLVM vector type.
   Type convertVectorType(VectorType type);
-
-  // Get the LLVM representation of the index type based on the bitwidth of the
-  // pointer as defined by the data layout of the module.
-  LLVM::LLVMType getIndexType();
 
   /// Callbacks for customizing the type conversion.
   LLVMTypeConverterCustomization customizations;
@@ -356,6 +366,7 @@ public:
   /// `unpack`.
   static unsigned getNumUnpackedValues() { return 2; }
 };
+
 /// Base class for operation conversions targeting the LLVM IR dialect. Provides
 /// conversion patterns with access to an LLVMTypeConverter.
 class ConvertToLLVMPattern : public ConversionPattern {
@@ -364,9 +375,105 @@ public:
                        LLVMTypeConverter &typeConverter,
                        PatternBenefit benefit = 1);
 
+  /// Returns the LLVM dialect.
+  LLVM::LLVMDialect &getDialect() const;
+
+  /// Returns the LLVM IR context.
+  llvm::LLVMContext &getContext() const;
+
+  /// Returns the LLVM IR module associated with the LLVM dialect.
+  llvm::Module &getModule() const;
+
+  /// Gets the MLIR type wrapping the LLVM integer type whose bit width is
+  /// defined by the used type converter.
+  LLVM::LLVMType getIndexType() const;
+
+  /// Gets the MLIR type wrapping the LLVM void type.
+  LLVM::LLVMType getVoidType() const;
+
+  /// Get the MLIR type wrapping the LLVM i8* type.
+  LLVM::LLVMType getVoidPtrType() const;
+
+  /// Create an LLVM dialect operation defining the given index constant.
+  Value createIndexConstant(ConversionPatternRewriter &builder, Location loc,
+                            uint64_t value) const;
+
 protected:
   /// Reference to the type converter, with potential extensions.
   LLVMTypeConverter &typeConverter;
+};
+
+/// Utility class for operation conversions targeting the LLVM dialect that
+/// match exactly one source operation.
+template <typename OpTy>
+class ConvertOpToLLVMPattern : public ConvertToLLVMPattern {
+public:
+  ConvertOpToLLVMPattern(LLVMTypeConverter &typeConverter,
+                         PatternBenefit benefit = 1)
+      : ConvertToLLVMPattern(OpTy::getOperationName(),
+                             &typeConverter.getContext(), typeConverter,
+                             benefit) {}
+};
+
+namespace LLVM {
+namespace detail {
+/// Replaces the given operaiton "op" with a new operation of type "targetOp"
+/// and given operands.
+LogicalResult oneToOneRewrite(Operation *op, StringRef targetOp,
+                              ValueRange operands,
+                              LLVMTypeConverter &typeConverter,
+                              ConversionPatternRewriter &rewriter);
+
+LogicalResult vectorOneToOneRewrite(Operation *op, StringRef targetOp,
+                                    ValueRange operands,
+                                    LLVMTypeConverter &typeConverter,
+                                    ConversionPatternRewriter &rewriter);
+} // namespace detail
+} // namespace LLVM
+
+/// Generic implementation of one-to-one conversion from "SourceOp" to
+/// "TargetOp" where the latter belongs to the LLVM dialect or an equivalent.
+/// Upholds a convention that multi-result operations get converted into an
+/// operation returning the LLVM IR structure type, in which case individual
+/// values must be extacted from using LLVM::ExtractValueOp before being used.
+template <typename SourceOp, typename TargetOp>
+class OneToOneConvertToLLVMPattern : public ConvertOpToLLVMPattern<SourceOp> {
+public:
+  using ConvertOpToLLVMPattern<SourceOp>::ConvertOpToLLVMPattern;
+  using Super = OneToOneConvertToLLVMPattern<SourceOp, TargetOp>;
+
+  /// Converts the type of the result to an LLVM type, pass operands as is,
+  /// preserve attributes.
+  LogicalResult
+  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    return LLVM::detail::oneToOneRewrite(op, TargetOp::getOperationName(),
+                                         operands, this->typeConverter,
+                                         rewriter);
+  }
+};
+
+/// Basic lowering implementation for rewriting from Ops to LLVM Dialect Ops
+/// with one result. This supports higher-dimensional vector types.
+template <typename SourceOp, typename TargetOp>
+class VectorConvertToLLVMPattern : public ConvertOpToLLVMPattern<SourceOp> {
+public:
+  using ConvertOpToLLVMPattern<SourceOp>::ConvertOpToLLVMPattern;
+  using Super = VectorConvertToLLVMPattern<SourceOp, TargetOp>;
+
+  LogicalResult
+  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    static_assert(
+        std::is_base_of<OpTrait::OneResult<SourceOp>, SourceOp>::value,
+        "expected single result op");
+    static_assert(std::is_base_of<OpTrait::SameOperandsAndResultType<SourceOp>,
+                                  SourceOp>::value,
+                  "expected same operands and result type");
+    return LLVM::detail::vectorOneToOneRewrite(op, TargetOp::getOperationName(),
+                                               operands, this->typeConverter,
+                                               rewriter);
+  }
 };
 
 /// Derived class that automatically populates legalization information for

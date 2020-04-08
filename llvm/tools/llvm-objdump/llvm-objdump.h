@@ -18,13 +18,12 @@ namespace llvm {
 class StringRef;
 
 namespace object {
-class COFFObjectFile;
-class COFFImportFile;
 class ELFObjectFileBase;
 class ELFSectionRef;
 class MachOObjectFile;
 class MachOUniversalBinary;
 class RelocationRef;
+class XCOFFObjectFile;
 }
 
 extern cl::opt<bool> Demangle;
@@ -96,13 +95,13 @@ SectionFilter ToolSectionFilter(llvm::object::ObjectFile const &O,
 Error getELFRelocationValueString(const object::ELFObjectFileBase *Obj,
                                   const object::RelocationRef &Rel,
                                   llvm::SmallVectorImpl<char> &Result);
-Error getCOFFRelocationValueString(const object::COFFObjectFile *Obj,
-                                   const object::RelocationRef &Rel,
-                                   llvm::SmallVectorImpl<char> &Result);
 Error getWasmRelocationValueString(const object::WasmObjectFile *Obj,
                                    const object::RelocationRef &RelRef,
                                    llvm::SmallVectorImpl<char> &Result);
 Error getMachORelocationValueString(const object::MachOObjectFile *Obj,
+                                    const object::RelocationRef &RelRef,
+                                    llvm::SmallVectorImpl<char> &Result);
+Error getXCOFFRelocationValueString(const object::XCOFFObjectFile *Obj,
                                     const object::RelocationRef &RelRef,
                                     llvm::SmallVectorImpl<char> &Result);
 
@@ -111,7 +110,6 @@ uint64_t getELFSectionLMA(const object::ELFSectionRef& Sec);
 bool isRelocAddressLess(object::RelocationRef A, object::RelocationRef B);
 void parseInputMachO(StringRef Filename);
 void parseInputMachO(object::MachOUniversalBinary *UB);
-void printCOFFUnwindInfo(const object::COFFObjectFile *O);
 void printMachOUnwindInfo(const object::MachOObjectFile *O);
 void printMachOExportsTrie(const object::MachOObjectFile *O);
 void printMachORebaseTable(object::MachOObjectFile *O);
@@ -121,9 +119,6 @@ void printMachOWeakBindTable(object::MachOObjectFile *O);
 void printELFFileHeader(const object::ObjectFile *O);
 void printELFDynamicSection(const object::ObjectFile *Obj);
 void printELFSymbolVersionInfo(const object::ObjectFile *Obj);
-void printCOFFFileHeader(const object::ObjectFile *O);
-void printCOFFSymbolTable(const object::COFFImportFile *I);
-void printCOFFSymbolTable(const object::COFFObjectFile *O);
 void printMachOFileHeader(const object::ObjectFile *O);
 void printMachOLoadCommands(const object::ObjectFile *O);
 void printWasmFileHeader(const object::ObjectFile *O);

@@ -6,6 +6,7 @@
 #
 #===----------------------------------------------------------------------===##
 
+import copy
 import locale
 import os
 import platform
@@ -140,7 +141,6 @@ class Configuration(object):
         self.configure_execute_external()
         self.configure_ccache()
         self.configure_compile_flags()
-        self.configure_filesystem_compile_flags()
         self.configure_link_flags()
         self.configure_env()
         self.configure_color_diagnostics()
@@ -150,6 +150,8 @@ class Configuration(object):
         self.configure_coverage()
         self.configure_modules()
         self.configure_coroutines()
+        self.configure_blocks()
+        self.configure_objc_arc()
         self.configure_substitutions()
         self.configure_features()
 
@@ -724,29 +726,6 @@ class Configuration(object):
           self.config.available_features.add('libcpp-abi-unstable')
           self.cxx.compile_flags += ['-D_LIBCPP_ABI_UNSTABLE']
 
-    def configure_filesystem_compile_flags(self):
-        static_env = os.path.join(self.libcxx_src_root, 'test', 'std',
-                                  'input.output', 'filesystems', 'Inputs', 'static_test_env')
-        static_env = os.path.realpath(static_env)
-        assert os.path.isdir(static_env)
-        self.cxx.compile_flags += ['-DLIBCXX_FILESYSTEM_STATIC_TEST_ROOT="%s"' % static_env]
-
-        dynamic_env = os.path.join(self.config.test_exec_root,
-                                   'filesystem', 'Output', 'dynamic_env')
-        dynamic_env = os.path.realpath(dynamic_env)
-        if not os.path.isdir(dynamic_env):
-            os.makedirs(dynamic_env)
-        self.cxx.compile_flags += ['-DLIBCXX_FILESYSTEM_DYNAMIC_TEST_ROOT="%s"' % dynamic_env]
-        self.exec_env['LIBCXX_FILESYSTEM_DYNAMIC_TEST_ROOT'] = ("%s" % dynamic_env)
-
-        dynamic_helper = os.path.join(self.libcxx_src_root, 'test', 'support',
-                                      'filesystem_dynamic_test_helper.py')
-        assert os.path.isfile(dynamic_helper)
-
-        self.cxx.compile_flags += ['-DLIBCXX_FILESYSTEM_DYNAMIC_TEST_HELPER="%s %s"'
-                                   % (sys.executable, dynamic_helper)]
-
-
     def configure_link_flags(self):
         # Configure library path
         self.configure_link_flags_cxx_library_path()
@@ -846,6 +825,7 @@ class Configuration(object):
                     if cxxabi_library_root:
                         libname = self.make_static_lib_name('c++abi')
                         abs_path = os.path.join(cxxabi_library_root, libname)
+                        self.cxx.link_libcxxabi_flag = abs_path
                         self.cxx.link_flags += [abs_path]
                     else:
                         self.cxx.link_flags += ['-lc++abi']
@@ -1010,6 +990,16 @@ class Configuration(object):
             if intMacroValue(macros['__cpp_coroutines']) >= 201703:
                 self.config.available_features.add('fcoroutines-ts')
 
+    def configure_blocks(self):
+        if self.cxx.hasCompileFlag('-fblocks'):
+            self.config.available_features.add('has-fblocks')
+
+    def configure_objc_arc(self):
+        cxx = copy.deepcopy(self.cxx)
+        cxx.source_lang = 'objective-c++'
+        if cxx.hasCompileFlag('-fobjc-arc'):
+            self.config.available_features.add('has-fobjc-arc')
+
     def configure_modules(self):
         modules_flags = ['-fmodules']
         if not self.target_info.is_darwin():
@@ -1039,58 +1029,50 @@ class Configuration(object):
         if self.target_info.is_darwin():
             # Do not pass DYLD_LIBRARY_PATH to the compiler, linker, etc. as
             # these tools are not meant to exercise the just-built libraries.
-            tool_env += 'env DYLD_LIBRARY_PATH="" '
+            tool_env += 'env DYLD_LIBRARY_PATH=""'
 
         sub = self.config.substitutions
-        cxx_path = tool_env + pipes.quote(self.cxx.path)
         # Configure compiler substitutions
-        sub.append(('%cxx', cxx_path))
-        sub.append(('%libcxx_src_root', self.libcxx_src_root))
+        sub.append(('%{cxx}', '{} {}'.format(tool_env, pipes.quote(self.cxx.path))))
+        sub.append(('%{libcxx_src_root}', self.libcxx_src_root))
         # Configure flags substitutions
-        flags_str = ' '.join([pipes.quote(f) for f in self.cxx.flags])
-        compile_flags_str = ' '.join([pipes.quote(f) for f in self.cxx.compile_flags])
-        link_flags_str = ' '.join([pipes.quote(f) for f in self.cxx.link_flags])
-        all_flags = '%s %s %s' % (flags_str, compile_flags_str, link_flags_str)
-        sub.append(('%flags', flags_str))
-        sub.append(('%compile_flags', compile_flags_str))
-        sub.append(('%link_flags', link_flags_str))
-        sub.append(('%all_flags', all_flags))
+        sub.append(('%{flags}',         ' '.join(map(pipes.quote, self.cxx.flags))))
+        sub.append(('%{compile_flags}', ' '.join(map(pipes.quote, self.cxx.compile_flags))))
+        sub.append(('%{link_flags}',    ' '.join(map(pipes.quote, self.cxx.link_flags))))
+        sub.append(('%{link_libcxxabi}', pipes.quote(self.cxx.link_libcxxabi_flag)))
         if self.cxx.isVerifySupported():
-            verify_str = ' ' + ' '.join(self.cxx.verify_flags) + ' '
-            sub.append(('%verify', verify_str))
-        # Add compile and link shortcuts
-        compile_str = (cxx_path + ' -o %t.o %s -c ' + flags_str
-                       + ' ' + compile_flags_str)
-        link_str = (cxx_path + ' -o %t.exe %t.o ' + flags_str + ' '
-                    + link_flags_str)
-        assert type(link_str) is str
-        build_str = cxx_path + ' -o %t.exe %s ' + all_flags
+            sub.append(('%{verify}', ' '.join(self.cxx.verify_flags)))
+        # Add compile and build shortcuts
+        sub.append(('%{compile}', '%{cxx} -o %t.o %s -c %{flags} %{compile_flags}'))
+        sub.append(('%{build}',   '%{cxx} -o %t.exe %s %{flags} %{compile_flags} %{link_flags}'))
         if self.cxx.use_modules:
-            sub.append(('%compile_module', compile_str))
-            sub.append(('%build_module', build_str))
+            sub.append(('%{build_module}', '%{build}'))
         elif self.cxx.modules_flags is not None:
-            modules_str = ' '.join(self.cxx.modules_flags) + ' '
-            sub.append(('%compile_module', compile_str + ' ' + modules_str))
-            sub.append(('%build_module', build_str + ' ' + modules_str))
-        sub.append(('%compile', compile_str))
-        sub.append(('%link', link_str))
-        sub.append(('%build', build_str))
+            sub.append(('%{build_module}', '%{{build}} {}'.format(' '.join(self.cxx.modules_flags))))
+
         # Configure exec prefix substitutions.
         # Configure run env substitution.
         codesign_ident = self.get_lit_conf('llvm_codesign_identity', '')
-        run_py = os.path.join(self.libcxx_src_root, 'utils', 'run.py')
         env_vars = ' '.join('%s=%s' % (k, pipes.quote(v)) for (k, v) in self.exec_env.items())
-        run_str = '%s %s --codesign_identity "%s" --working_directory "%%S" ' \
-                  '--dependencies %%file_dependencies --env %s -- %%t.exe' %  \
-            (pipes.quote(sys.executable), pipes.quote(run_py),
-             codesign_ident, env_vars)
-        sub.append(('%run', run_str))
+        exec_args = [
+            '--codesign_identity "{}"'.format(codesign_ident),
+            '--dependencies %{file_dependencies}',
+            '--env {}'.format(env_vars)
+        ]
+        if isinstance(self.executor, SSHExecutor):
+            exec_args.append('--host {}'.format(self.executor.user_prefix + self.executor.host))
+            executor = os.path.join(self.libcxx_src_root, 'utils', 'ssh.py')
+        else:
+            executor = os.path.join(self.libcxx_src_root, 'utils', 'run.py')
+        sub.append(('%{exec}', '{} {} {} -- '.format(pipes.quote(sys.executable),
+                                                     pipes.quote(executor),
+                                                     ' '.join(exec_args))))
+        sub.append(('%{run}', '%{exec} %t.exe'))
         # Configure not program substitutions
         not_py = os.path.join(self.libcxx_src_root, 'utils', 'not.py')
-        not_str = '%s %s ' % (pipes.quote(sys.executable), pipes.quote(not_py))
-        sub.append(('not ', not_str))
+        sub.append(('%{not}', '{} {}'.format(pipes.quote(sys.executable), pipes.quote(not_py))))
         if self.get_lit_conf('libcxx_gdb'):
-            sub.append(('%libcxx_gdb', self.get_lit_conf('libcxx_gdb')))
+            sub.append(('%{libcxx_gdb}', self.get_lit_conf('libcxx_gdb')))
 
     def can_use_deployment(self):
         # Check if the host is on an Apple platform using clang.

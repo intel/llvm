@@ -23,7 +23,6 @@ add_libc_unittest(
     signal_h
     errno_h
     __errno_location
-    __restore
 )
 
 add_libc_unittest(
@@ -66,4 +65,35 @@ add_libc_unittest(
     raise
     __errno_location
     errno_h
+)
+
+add_libc_unittest(
+  sigfillset_test
+  SUITE
+    libc_signal_unittests
+  SRCS
+    sigfillset_test.cpp
+  DEPENDS
+    sigfillset
+    sigprocmask
+    signal_h
+    raise
+    errno_h
+    __errno_location
+)
+
+add_libc_unittest(
+  sigdelset_test
+  SUITE
+    libc_signal_unittests
+  SRCS
+    sigdelset_test.cpp
+  DEPENDS
+    sigdelset
+    sigfillset
+    sigprocmask
+    signal_h
+    raise
+    errno_h
+    __errno_location
 )

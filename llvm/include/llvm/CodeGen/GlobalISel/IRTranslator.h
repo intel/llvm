@@ -582,7 +582,16 @@ private:
   /// Get the alignment of the given memory operation instruction. This will
   /// either be the explicitly specified value or the ABI-required alignment for
   /// the type being accessed (according to the Module's DataLayout).
-  unsigned getMemOpAlignment(const Instruction &I);
+  LLVM_ATTRIBUTE_DEPRECATED(
+      inline unsigned getMemOpAlignment(const Instruction &I),
+      "Use getMemOpAlign instead") {
+    return getMemOpAlign(I).value();
+  }
+
+  /// Get the alignment of the given memory operation instruction. This will
+  /// either be the explicitly specified value or the ABI-required alignment for
+  /// the type being accessed (according to the Module's DataLayout).
+  Align getMemOpAlign(const Instruction &I);
 
   /// Get the MachineBasicBlock that represents \p BB. Specifically, the block
   /// returned will be the head of the translated block (suitable for branch

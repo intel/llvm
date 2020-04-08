@@ -31,6 +31,10 @@ using namespace mlir::loop;
 namespace {
 
 struct LoopToStandardPass : public OperationPass<LoopToStandardPass> {
+/// Include the generated pass utilities.
+#define GEN_PASS_ConvertLoopToStandard
+#include "mlir/Conversion/Passes.h.inc"
+
   void runOnOperation() override;
 };
 
@@ -301,8 +305,8 @@ ParallelLowering::matchAndRewrite(ParallelOp parallelOp,
       // A loop is constructed with an empty "yield" terminator by default.
       // Replace it with another "yield" that forwards the results of the nested
       // loop to the parent loop. We need to explicitly make sure the new
-      // terminator is the last operation in the block because further transfoms
-      // rely on this.
+      // terminator is the last operation in the block because further
+      // transforms rely on this.
       rewriter.setInsertionPointToEnd(rewriter.getInsertionBlock());
       rewriter.replaceOpWithNewOp<YieldOp>(
           rewriter.getInsertionBlock()->getTerminator(), forOp.getResults());
@@ -364,7 +368,3 @@ void LoopToStandardPass::runOnOperation() {
 std::unique_ptr<Pass> mlir::createLowerToCFGPass() {
   return std::make_unique<LoopToStandardPass>();
 }
-
-static PassRegistration<LoopToStandardPass>
-    pass("convert-loop-to-std", "Convert Loop dialect to Standard dialect, "
-                                "replacing structured control flow with a CFG");

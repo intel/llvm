@@ -253,6 +253,10 @@ ParsedAST::build(llvm::StringRef Version,
   const PrecompiledPreamble *PreamblePCH =
       Preamble ? &Preamble->Preamble : nullptr;
 
+  // Recovery expression currently only works for C++.
+  if (CI->getLangOpts()->CPlusPlus)
+    CI->getLangOpts()->RecoveryAST = Opts.BuildRecoveryAST;
+
   StoreDiags ASTDiags;
   std::string Content = std::string(Buffer->getBuffer());
   std::string Filename =
@@ -310,14 +314,13 @@ ParsedAST::build(llvm::StringRef Version,
           // Check for suppression comment. Skip the check for diagnostics not
           // in the main file, because we don't want that function to query the
           // source buffer for preamble files. For the same reason, we ask
-          // shouldSuppressDiagnostic not to follow macro expansions, since
-          // those might take us into a preamble file as well.
+          // shouldSuppressDiagnostic to avoid I/O.
           bool IsInsideMainFile =
               Info.hasSourceManager() &&
               isInsideMainFile(Info.getLocation(), Info.getSourceManager());
-          if (IsInsideMainFile && tidy::shouldSuppressDiagnostic(
-                                      DiagLevel, Info, *CTContext,
-                                      /* CheckMacroExpansion = */ false)) {
+          if (IsInsideMainFile &&
+              tidy::shouldSuppressDiagnostic(DiagLevel, Info, *CTContext,
+                                             /*AllowIO=*/false)) {
             return DiagnosticsEngine::Ignored;
           }
         }
@@ -548,8 +551,7 @@ buildAST(PathRef FileName, std::unique_ptr<CompilerInvocation> Invocation,
   }
 
   return ParsedAST::build(
-      Inputs.Version, std::make_unique<CompilerInvocation>(*Invocation),
-      CompilerInvocationDiags, Preamble,
+      Inputs.Version, std::move(Invocation), CompilerInvocationDiags, Preamble,
       llvm::MemoryBuffer::getMemBufferCopy(Inputs.Contents, FileName),
       std::move(VFS), Inputs.Index, Inputs.Opts);
 }

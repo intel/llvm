@@ -366,6 +366,8 @@ def err_analyzer_checker_option_unknown : Error<
   "checker '%0' has no option called '%1'">;
 def err_analyzer_checker_option_invalid_input : Error<
   "invalid input for checker option '%0', that expects %1">;
+def err_analyzer_checker_incompatible_analyzer_option : Error<
+  "checker cannot be enabled with analyzer option '%0' == %1">;
 
 def err_drv_invalid_hvx_length : Error<
   "-mhvx-length is not supported without a -mhvx/-mhvx= flag">;
@@ -472,13 +474,13 @@ def note_drv_verify_prefix_spelling : Note<
   "-verify prefixes must start with a letter and contain only alphanumeric"
   " characters, hyphens, and underscores">;
 
-def warn_drv_experimental_isel_incomplete : Warning<
-  "-fexperimental-isel support for the '%0' architecture is incomplete">,
-  InGroup<ExperimentalISel>;
+def warn_drv_global_isel_incomplete : Warning<
+  "-fglobal-isel support for the '%0' architecture is incomplete">,
+  InGroup<GlobalISel>;
 
-def warn_drv_experimental_isel_incomplete_opt : Warning<
-  "-fexperimental-isel support is incomplete for this architecture at the current optimization level">,
-  InGroup<ExperimentalISel>;
+def warn_drv_global_isel_incomplete_opt : Warning<
+  "-fglobal-isel support is incomplete for this architecture at the current optimization level">,
+  InGroup<GlobalISel>;
 
 def warn_drv_moutline_unsupported_opt : Warning<
   "The '%0' architecture does not support -moutline; flag ignored">,

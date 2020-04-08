@@ -14,7 +14,7 @@ add_mlir_library(MLIRQuantizerSupport
 target_link_libraries(MLIRQuantizerSupport
   PUBLIC
   MLIRIR
-  MLIRQuantOps
+  MLIRQuant
   MLIRSupport
   MLIRStandardOps
   LLVMSupport
@@ -34,7 +34,7 @@ target_link_libraries(MLIRQuantizerFxpMathConfig
   PUBLIC
   MLIRIR
   MLIRFxpMathOps
-  MLIRQuantOps
+  MLIRQuant
   MLIRQuantizerSupport
   MLIRStandardOps
   MLIRSupport
@@ -48,13 +48,16 @@ add_mlir_library(MLIRQuantizerTransforms
   Transforms/RemoveInstrumentationPass.cpp
 
   ADDITIONAL_HEADER_DIRS
+
+  DEPENDS
+  MLIRQuantizerPassIncGen
   )
 target_link_libraries(MLIRQuantizerTransforms
   PUBLIC
   MLIRIR
   MLIRQuantizerFxpMathConfig
   MLIRQuantizerSupport
-  MLIRQuantOps
+  MLIRQuant
   MLIRPass
   LLVMSupport
   )

@@ -248,6 +248,10 @@ struct GPUReturnOpLowering : public ConvertToLLVMPattern {
 class LowerGpuOpsToNVVMOpsPass
     : public OperationPass<LowerGpuOpsToNVVMOpsPass, gpu::GPUModuleOp> {
 public:
+/// Include the generated pass utilities.
+#define GEN_PASS_ConvertGpuOpsToNVVMOps
+#include "mlir/Conversion/Passes.h.inc"
+
   void runOnOperation() override {
     gpu::GPUModuleOp m = getOperation();
 
@@ -279,8 +283,6 @@ public:
                         LLVM::LogOp, LLVM::Log10Op, LLVM::Log2Op>();
     target.addIllegalOp<FuncOp>();
     target.addLegalDialect<NVVM::NVVMDialect>();
-    target.addDynamicallyLegalOp<mlir::LLVM::CallOp>(
-        gpu::filterIllegalLLVMIntrinsics({"tanh", "tanhf"}, m.getContext()));
     // TODO(csigg): Remove once we support replacing non-root ops.
     target.addLegalOp<gpu::YieldOp, gpu::GPUModuleOp, gpu::ModuleEndOp>();
     if (failed(applyPartialConversion(m, target, patterns, &converter)))
@@ -326,6 +328,3 @@ std::unique_ptr<OpPassBase<gpu::GPUModuleOp>>
 mlir::createLowerGpuOpsToNVVMOpsPass() {
   return std::make_unique<LowerGpuOpsToNVVMOpsPass>();
 }
-
-static PassRegistration<LowerGpuOpsToNVVMOpsPass>
-    pass("convert-gpu-to-nvvm", "Generate NVVM operations for gpu operations");

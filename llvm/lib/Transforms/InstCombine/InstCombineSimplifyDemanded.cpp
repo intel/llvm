@@ -87,9 +87,10 @@ bool InstCombiner::SimplifyDemandedBits(Instruction *I, unsigned OpNo,
   Value *NewVal = SimplifyDemandedUseBits(U.get(), DemandedMask, Known,
                                           Depth, I);
   if (!NewVal) return false;
-  // Add the old operand back to the worklist.
-  Worklist.addValue(U.get());
-  U = NewVal;
+  if (Instruction* OpInst = dyn_cast<Instruction>(U))
+    salvageDebugInfoOrMarkUndef(*OpInst);
+    
+  replaceUse(U, NewVal);
   return true;
 }
 
@@ -1305,10 +1306,7 @@ Value *InstCombiner::SimplifyDemandedVectorElts(Value *V, APInt DemandedElts,
     auto *II = dyn_cast<IntrinsicInst>(Inst);
     Value *Op = II ? II->getArgOperand(OpNum) : Inst->getOperand(OpNum);
     if (Value *V = SimplifyDemandedVectorElts(Op, Demanded, Undef, Depth + 1)) {
-      if (II)
-        II->setArgOperand(OpNum, V);
-      else
-        Inst->setOperand(OpNum, V);
+      replaceOperand(*Inst, OpNum, V);
       MadeChange = true;
     }
   };
@@ -1389,6 +1387,24 @@ Value *InstCombiner::SimplifyDemandedVectorElts(Value *V, APInt DemandedElts,
            "Expected shuffle operands to have same type");
     unsigned OpWidth =
         Shuffle->getOperand(0)->getType()->getVectorNumElements();
+    // Handle trivial case of a splat. Only check the first element of LHS
+    // operand.
+    if (all_of(Shuffle->getShuffleMask(), [](int Elt) { return Elt == 0; }) &&
+        DemandedElts.isAllOnesValue()) {
+      if (!isa<UndefValue>(I->getOperand(1))) {
+        I->setOperand(1, UndefValue::get(I->getOperand(1)->getType()));
+        MadeChange = true;
+      }
+      APInt LeftDemanded(OpWidth, 1);
+      APInt LHSUndefElts(OpWidth, 0);
+      simplifyAndSetOp(I, 0, LeftDemanded, LHSUndefElts);
+      if (LHSUndefElts[0])
+        UndefElts = EltMask;
+      else
+        UndefElts.clearAllBits();
+      break;
+    }
+
     APInt LeftDemanded(OpWidth, 0), RightDemanded(OpWidth, 0);
     for (unsigned i = 0; i < VWidth; i++) {
       if (DemandedElts[i]) {
@@ -1502,15 +1518,14 @@ Value *InstCombiner::SimplifyDemandedVectorElts(Value *V, APInt DemandedElts,
     }
     if (NewUndefElts) {
       // Add additional discovered undefs.
-      SmallVector<Constant*, 16> Elts;
+      SmallVector<int, 16> Elts;
       for (unsigned i = 0; i < VWidth; ++i) {
         if (UndefElts[i])
-          Elts.push_back(UndefValue::get(Type::getInt32Ty(I->getContext())));
+          Elts.push_back(UndefMaskElem);
         else
-          Elts.push_back(ConstantInt::get(Type::getInt32Ty(I->getContext()),
-                                          Shuffle->getMaskValue(i)));
+          Elts.push_back(Shuffle->getMaskValue(i));
       }
-      I->setOperand(2, ConstantVector::get(Elts));
+      Shuffle->setShuffleMask(Elts);
       MadeChange = true;
     }
     break;

@@ -1540,13 +1540,13 @@ void PPCLinuxAsmPrinter::emitFunctionBodyEnd() {
 }
 
 void PPCAIXAsmPrinter::SetupMachineFunction(MachineFunction &MF) {
-  // Get the function descriptor symbol.
-  CurrentFnDescSym = getSymbol(&MF.getFunction());
-  // Set the alignment and the containing csect.
-  MCSectionXCOFF *FnDescSec = cast<MCSectionXCOFF>(
-      getObjFileLowering().getSectionForFunctionDescriptor(CurrentFnDescSym));
+  // Setup CurrentFnDescSym and its containing csect.
+  MCSectionXCOFF *FnDescSec =
+      cast<MCSectionXCOFF>(getObjFileLowering().getSectionForFunctionDescriptor(
+          &MF.getFunction(), TM));
   FnDescSec->setAlignment(Align(Subtarget->isPPC64() ? 8 : 4));
-  cast<MCSymbolXCOFF>(CurrentFnDescSym)->setContainingCsect(FnDescSec);
+
+  CurrentFnDescSym = FnDescSec->getQualNameSymbol();
 
   return AsmPrinter::SetupMachineFunction(MF);
 }
@@ -1565,16 +1565,12 @@ void PPCAIXAsmPrinter::ValidateGV(const GlobalVariable *GV) {
 
 const MCExpr *PPCAIXAsmPrinter::lowerConstant(const Constant *CV) {
   if (const Function *F = dyn_cast<Function>(CV)) {
-    MCSymbolXCOFF *FSym = cast<MCSymbolXCOFF>(getSymbol(F));
-    if (!FSym->hasContainingCsect()) {
-      MCSectionXCOFF *Csect = cast<MCSectionXCOFF>(
-          F->isDeclaration()
-              ? getObjFileLowering().getSectionForExternalReference(F, TM)
-              : getObjFileLowering().getSectionForFunctionDescriptor(FSym));
-      FSym->setContainingCsect(Csect);
-    }
-    return MCSymbolRefExpr::create(
-        FSym->getContainingCsect()->getQualNameSymbol(), OutContext);
+    MCSectionXCOFF *Csect = cast<MCSectionXCOFF>(
+        F->isDeclaration()
+            ? getObjFileLowering().getSectionForExternalReference(F, TM)
+            : getObjFileLowering().getSectionForFunctionDescriptor(F, TM));
+
+    return MCSymbolRefExpr::create(Csect->getQualNameSymbol(), OutContext);
   }
   return PPCAsmPrinter::lowerConstant(CV);
 }
@@ -1610,7 +1606,6 @@ void PPCAIXAsmPrinter::emitGlobalVariable(const GlobalVariable *GV) {
           : getObjFileLowering().SectionForGlobal(
                 GV, GVKind = getObjFileLowering().getKindForGlobal(GV, TM),
                 TM));
-  GVSym->setContainingCsect(Csect);
 
   // External global variables are already handled.
   if (GV->isDeclaration())
@@ -1653,8 +1648,7 @@ void PPCAIXAsmPrinter::emitFunctionDescriptor() {
   MCSectionSubPair Current = OutStreamer->getCurrentSection();
   // Emit function descriptor.
   OutStreamer->SwitchSection(
-      cast<MCSymbolXCOFF>(CurrentFnDescSym)->getContainingCsect());
-  OutStreamer->emitLabel(CurrentFnDescSym);
+      cast<MCSymbolXCOFF>(CurrentFnDescSym)->getRepresentedCsect());
   // Emit function entry point address.
   OutStreamer->emitValue(MCSymbolRefExpr::create(CurrentFnSym, OutContext),
                          PointerSize);
@@ -1696,7 +1690,6 @@ void PPCAIXAsmPrinter::emitEndOfAsmFile(Module &M) {
     // Setup the csect for the current TC entry.
     MCSectionXCOFF *TCEntry = cast<MCSectionXCOFF>(
         getObjFileLowering().getSectionForTOCEntry(I.first));
-    cast<MCSymbolXCOFF>(I.second)->setContainingCsect(TCEntry);
     OutStreamer->SwitchSection(TCEntry);
 
     OutStreamer->emitLabel(I.second);
@@ -1721,8 +1714,6 @@ PPCAIXAsmPrinter::getMCSymbolForTOCPseudoMO(const MachineOperand &MO) {
     ValidateGV(GV);
   }
 
-  MCSymbolXCOFF *XSym = cast<MCSymbolXCOFF>(getSymbol(GO));
-
   // If the global object is a global variable without initializer or is a
   // declaration of a function, then XSym is an external referenced symbol.
   // Hence we may need to explictly create a MCSectionXCOFF for it so that we
@@ -1740,7 +1731,8 @@ PPCAIXAsmPrinter::getMCSymbolForTOCPseudoMO(const MachineOperand &MO) {
     // If the MO is a function, we want to make sure to refer to the function
     // descriptor csect.
     return cast<MCSectionXCOFF>(
-               getObjFileLowering().getSectionForFunctionDescriptor(XSym))
+               getObjFileLowering().getSectionForFunctionDescriptor(
+                   cast<const Function>(GO), TM))
         ->getQualNameSymbol();
   } else if (GOKind.isCommon() || GOKind.isBSSLocal()) {
     // If the operand is a common then we should refer to the csect symbol.

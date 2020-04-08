@@ -55,46 +55,46 @@ is branched to).  They may have multiple predecessors, phis, etc...
 Key Terminology
 ===============
 
-Header Block - The basic block which dominates all other blocks
+**Header Block** - The basic block which dominates all other blocks
 contained within the loop.  As such, it is the first one executed if
 the loop executes at all.  Note that a block can be the header of
 two separate loops at the same time, but only if one is a sub-loop
 of the other.
 
-Exiting Block - A basic block contained within a given loop which has
+**Exiting Block** - A basic block contained within a given loop which has
 at least one successor outside of the loop and one successor inside the
 loop.  (The latter is a consequence of the block being contained within
 an SCC which is part of the loop.)  That is, it has a successor which
 is an Exit Block.  
 
-Exit Block - A basic block outside of the associated loop which has a
+**Exit Block** - A basic block outside of the associated loop which has a
 predecessor inside the loop.  That is, it has a predecessor which is
 an Exiting Block.
 
-Latch Block - A basic block within the loop whose successors include
+**Latch Block** - A basic block within the loop whose successors include
 the header block of the loop.  Thus, a latch is a source of backedge.
 A loop may have multiple latch blocks.  A latch block may be either
 conditional or unconditional.
 
-Backedge(s) - The edge(s) in the CFG from latch blocks to the header
+**Backedge(s)** - The edge(s) in the CFG from latch blocks to the header
 block.  Note that there can be multiple such edges, and even multiple
 such edges leaving a single latch block.  
 
-Loop Predecessor -  The predecessor blocks of the loop header which
+**Loop Predecessor** -  The predecessor blocks of the loop header which
 are not contained by the loop itself.  These are the only blocks
 through which execution can enter the loop.  When used in the
 singular form implies that there is only one such unique block. 
 
-Preheader Block - A preheader is a (singular) loop predecessor which
+**Preheader Block** - A preheader is a (singular) loop predecessor which
 ends in an unconditional transfer of control to the loop header.  Note
 that not all loops have such blocks.
 
-Backedge Taken Count - The number of times the backedge will execute
+**Backedge Taken Count** - The number of times the backedge will execute
 before some interesting event happens.  Commonly used without
 qualification of the event as a shorthand for when some exiting block
 branches to some exit block. May be zero, or not statically computable.
 
-Iteration Count - The number of times the header will execute before
+**Iteration Count** - The number of times the header will execute before
 some interesting event happens.  Commonly used without qualification to
 refer to the iteration count at which the loop exits.  Will always be
 one greater than the backedge taken count.  *Warning*: Preceding
@@ -161,11 +161,164 @@ When it is successful, the loop has:
   has a predecessor that is outside the loop. This implies
   that all exit blocks are dominated by the loop header.
 
+.. _loop-terminology-lcssa:
 
 Loop Closed SSA (LCSSA)
 =======================
 
-TBD
+A program is in Loop Closed SSA Form if it is in SSA form
+and all values that are defined in a loop are used only inside
+this loop.
+Programs written in LLVM IR are always in SSA form but not necessarily
+in LCSSA. To achieve the latter, single entry PHI nodes are inserted
+at the end of the loops for all values that are live
+across the loop boundary [#lcssa-construction]_.
+In particular, consider the following loop:
+
+.. code-block:: C
+
+    c = ...;
+    for (...) {
+      if (c)
+        X1 = ...
+      else
+        X2 = ...
+      X3 = phi(X1, X2);  // X3 defined
+    }
+
+    ... = X3 + 4;  // X3 used, i.e. live
+                   // outside the loop
+
+In the inner loop, the X3 is defined inside the loop, but used
+outside of it. In Loop Closed SSA form, this would be represented as follows:
+
+.. code-block:: C
+
+    c = ...;
+    for (...) {
+      if (c)
+        X1 = ...
+      else
+        X2 = ...
+      X3 = phi(X1, X2);
+    }
+    X4 = phi(X3);
+
+    ... = X4 + 4;
+
+This is still valid LLVM; the extra phi nodes are purely redundant,
+but all LoopPass'es are required to preserve them.
+This form is ensured by the LCSSA (:ref:`-lcssa <passes-lcssa>`)
+pass and is added automatically by the LoopPassManager when
+scheduling a LoopPass.
+After the loop optimizations are done, these extra phi nodes
+will be deleted by :ref:`-instcombine <passes-instcombine>`.
+
+The major benefit of this transformation is that it makes many other
+loop optimizations simpler.
+
+First of all, a simple observation is that if one needs to see all
+the outside users, they can just iterate over all the (loop closing)
+PHI nodes in the exit blocks (the alternative would be to
+scan the def-use chain [#def-use-chain]_ of all instructions in the loop).
+
+Then, consider for example
+:ref:`-loop-unswitch <passes-loop-unswitch>` ing the loop above.
+Because it is in LCSSA form, we know that any value defined inside of
+the loop will be used either only inside the loop or in a loop closing
+PHI node. In this case, the only loop closing PHI node is X4.
+This means that we can just copy the loop and change the X4
+accordingly, like so:
+
+.. code-block:: C
+
+  for (...) {
+    c = ...;
+    if (c) {
+      for (...) {
+        if (true)
+          X1 = ...
+        else
+          X2 = ...
+        X3 = phi(X1, X2);
+      }
+    } else {
+      for (...) {
+        if (false)
+          X1' = ...
+        else
+          X2' = ...
+        X3' = phi(X1', X2');
+      }
+    }
+    X4 = phi(X3, X3')
+
+Now, all uses of X4 will get the updated value (in general,
+if a loop is in LCSSA form, in any loop transformation,
+we only need to update the loop closing PHI nodes for the changes
+to take effect).  If we did not have Loop Closed SSA form, it means that X3 could
+possibly be used outside the loop. So, we would have to introduce the
+X4 (which is the new X3) and replace all uses of X3 with that.
+However, we should note that because LLVM keeps a def-use chain
+[#def-use-chain]_ for each Value, we wouldn't need
+to perform data-flow analysis to find and replace all the uses
+(there is even a utility function, replaceAllUsesWith(),
+that performs this transformation by iterating the def-use chain).
+
+Another important advantage is that the behavior of all uses
+of an induction variable is the same.  Without this, you need to
+distinguish the case when the variable is used outside of
+the loop it is defined in, for example:
+
+.. code-block:: C
+
+  for (i = 0; i < 100; i++) {
+    for (j = 0; j < 100; j++) {
+      k = i + j;
+      use(k);    // use 1
+    }
+    use(k);      // use 2
+  }
+
+Looking from the outer loop with the normal SSA form, the first use of k
+is not well-behaved, while the second one is an induction variable with
+base 100 and step 1.  Although, in practice, and in the LLVM context,
+such cases can be handled effectively by SCEV. Scalar Evolution
+(:ref:`scalar-evolution <passes-scalar-evolution>`) or SCEV, is a
+(analysis) pass that analyzes and categorizes the evolution of scalar
+expressions in loops.
+
+In general, it's easier to use SCEV in loops that are in LCSSA form.
+The evolution of a scalar (loop-variant) expression that
+SCEV can analyze is, by definition, relative to a loop.
+An expression is represented in LLVM by an
+`llvm::Instruction <https://llvm.org/doxygen/classllvm_1_1Instruction.html>`.
+If the expression is inside two (or more) loops (which can only
+happen if the loops are nested, like in the example above) and you want
+to get an analysis of its evolution (from SCEV),
+you have to also specify relative to what Loop you want it.
+Specifically, you have to use
+`getSCEVAtScope() <https://llvm.org/doxygen/classllvm_1_1ScalarEvolution.html#a21d6ee82eed29080d911dbb548a8bb68>`_.
+
+However, if all loops are in LCSSA form, each expression is actually
+represented by two different llvm::Instructions.  One inside the loop
+and one outside, which is the loop-closing PHI node and represents
+the value of the expression after the last iteration (effectively,
+we break each loop-variant expression into two expressions and so, every
+expression is at most in one loop).  You can now just use
+`getSCEV() <https://llvm.org/doxygen/classllvm_1_1ScalarEvolution.html#a30bd18ac905eacf3601bc6a553a9ff49>`_.
+and which of these two llvm::Instructions you pass to it disambiguates
+the context / scope / relative loop.
+
+.. rubric:: Footnotes
+
+.. [#lcssa-construction] To insert these loop-closing PHI nodes, one has to
+  (re-)compute dominance frontiers (if the loop has multiple exits).
+
+.. [#def-use-chain] A property of SSA is that there exists a def-use chain
+  for each definition, which is a list of all the uses of this definition.
+  LLVM implements this property by keeping a list of all the uses of a Value
+  in an internal data structure.
 
 "More Canonical" Loops
 ======================

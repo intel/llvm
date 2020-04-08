@@ -508,13 +508,14 @@ void request_attach(const llvm::json::Object &request) {
   llvm::json::Object response;
   lldb::SBError error;
   FillResponse(request, response);
+  lldb::SBAttachInfo attach_info;
   auto arguments = request.getObject("arguments");
   const lldb::pid_t pid =
       GetUnsigned(arguments, "pid", LLDB_INVALID_PROCESS_ID);
   if (pid != LLDB_INVALID_PROCESS_ID)
-    g_vsc.attach_info.SetProcessID(pid);
+    attach_info.SetProcessID(pid);
   const auto wait_for = GetBoolean(arguments, "waitFor", false);
-  g_vsc.attach_info.SetWaitForLaunch(wait_for, false /*async*/);
+  attach_info.SetWaitForLaunch(wait_for, false /*async*/);
   g_vsc.init_commands = GetStrings(arguments, "initCommands");
   g_vsc.pre_run_commands = GetStrings(arguments, "preRunCommands");
   g_vsc.stop_commands = GetStrings(arguments, "stopCommands");
@@ -547,20 +548,19 @@ void request_attach(const llvm::json::Object &request) {
   g_vsc.RunPreRunCommands();
 
   if (pid == LLDB_INVALID_PROCESS_ID && wait_for) {
-    char attach_info[256];
-    auto attach_info_len =
-        snprintf(attach_info, sizeof(attach_info),
-                 "Waiting to attach to \"%s\"...",
-                 g_vsc.target.GetExecutable().GetFilename());
-    g_vsc.SendOutput(OutputType::Console, llvm::StringRef(attach_info,
-                                                          attach_info_len));
+    char attach_msg[256];
+    auto attach_msg_len = snprintf(attach_msg, sizeof(attach_msg),
+                                   "Waiting to attach to \"%s\"...",
+                                   g_vsc.target.GetExecutable().GetFilename());
+    g_vsc.SendOutput(OutputType::Console,
+                     llvm::StringRef(attach_msg, attach_msg_len));
   }
   if (attachCommands.empty()) {
     // No "attachCommands", just attach normally.
     // Disable async events so the attach will be successful when we return from
     // the launch call and the launch will happen synchronously
     g_vsc.debugger.SetAsync(false);
-    g_vsc.target.Attach(g_vsc.attach_info, error);
+    g_vsc.target.Attach(attach_info, error);
     // Reenable async events
     g_vsc.debugger.SetAsync(true);
   } else {
@@ -959,7 +959,7 @@ void request_completions(const llvm::json::Object &request) {
   for (size_t i = 0; i < count; i++) {
     std::string match = matches.GetStringAtIndex(i);
     std::string description = descriptions.GetStringAtIndex(i);
-    
+
     llvm::json::Object item;
 
     llvm::StringRef match_ref = match;
@@ -1262,7 +1262,7 @@ void request_initialize(const llvm::json::Object &request) {
   // The debug adapter supports the stepInTargetsRequest.
   body.try_emplace("supportsStepInTargetsRequest", false);
   // We need to improve the current implementation of completions in order to
-  // enable it again. For some context, this is how VSCode works: 
+  // enable it again. For some context, this is how VSCode works:
   // - VSCode sends a completion request whenever chars are added, the user
   //   triggers completion manually via CTRL-space or similar mechanisms, but
   //   not when there's a deletion. Besides, VSCode doesn't let us know which
@@ -1381,26 +1381,26 @@ void request_launch(const llvm::json::Object &request) {
   }
 
   // Instantiate a launch info instance for the target.
-  g_vsc.launch_info = g_vsc.target.GetLaunchInfo();
+  auto launch_info = g_vsc.target.GetLaunchInfo();
 
   // Grab the current working directory if there is one and set it in the
   // launch info.
   const auto cwd = GetString(arguments, "cwd");
   if (!cwd.empty())
-    g_vsc.launch_info.SetWorkingDirectory(cwd.data());
+    launch_info.SetWorkingDirectory(cwd.data());
 
   // Extract any extra arguments and append them to our program arguments for
   // when we launch
   auto args = GetStrings(arguments, "args");
   if (!args.empty())
-    g_vsc.launch_info.SetArguments(MakeArgv(args).data(), true);
+    launch_info.SetArguments(MakeArgv(args).data(), true);
 
   // Pass any environment variables along that the user specified.
   auto envs = GetStrings(arguments, "env");
   if (!envs.empty())
-    g_vsc.launch_info.SetEnvironmentEntries(MakeArgv(envs).data(), true);
+    launch_info.SetEnvironmentEntries(MakeArgv(envs).data(), true);
 
-  auto flags = g_vsc.launch_info.GetLaunchFlags();
+  auto flags = launch_info.GetLaunchFlags();
 
   if (GetBoolean(arguments, "disableASLR", true))
     flags |= lldb::eLaunchFlagDisableASLR;
@@ -1409,9 +1409,9 @@ void request_launch(const llvm::json::Object &request) {
   if (GetBoolean(arguments, "shellExpandArguments", false))
     flags |= lldb::eLaunchFlagShellExpandArguments;
   const bool detatchOnError = GetBoolean(arguments, "detachOnError", false);
-  g_vsc.launch_info.SetDetachOnError(detatchOnError);
-  g_vsc.launch_info.SetLaunchFlags(flags | lldb::eLaunchFlagDebug |
-                                   lldb::eLaunchFlagStopAtEntry);
+  launch_info.SetDetachOnError(detatchOnError);
+  launch_info.SetLaunchFlags(flags | lldb::eLaunchFlagDebug |
+                             lldb::eLaunchFlagStopAtEntry);
 
   // Run any pre run LLDB commands the user specified in the launch.json
   g_vsc.RunPreRunCommands();
@@ -1419,7 +1419,7 @@ void request_launch(const llvm::json::Object &request) {
     // Disable async events so the launch will be successful when we return from
     // the launch call and the launch will happen synchronously
     g_vsc.debugger.SetAsync(false);
-    g_vsc.target.Launch(g_vsc.launch_info, error);
+    g_vsc.target.Launch(launch_info, error);
     g_vsc.debugger.SetAsync(true);
   } else {
     g_vsc.RunLLDBCommands("Running launchCommands:", launchCommands);
@@ -1595,6 +1595,24 @@ void request_scopes(const llvm::json::Object &request) {
   llvm::json::Object body;
   auto arguments = request.getObject("arguments");
   lldb::SBFrame frame = g_vsc.GetLLDBFrame(*arguments);
+  // As the user selects different stack frames in the GUI, a "scopes" request
+  // will be sent to the DAP. This is the only way we know that the user has
+  // selected a frame in a thread. There are no other notifications that are
+  // sent and VS code doesn't allow multiple frames to show variables
+  // concurrently. If we select the thread and frame as the "scopes" requests
+  // are sent, this allows users to type commands in the debugger console
+  // with a backtick character to run lldb commands and these lldb commands
+  // will now have the right context selected as they are run. If the user
+  // types "`bt" into the debugger console and we had another thread selected
+  // in the LLDB library, we would show the wrong thing to the user. If the
+  // users switches threads with a lldb command like "`thread select 14", the
+  // GUI will not update as there are no "event" notification packets that
+  // allow us to change the currently selected thread or frame in the GUI that
+  // I am aware of.
+  if (frame.IsValid()) {
+    frame.GetThread().GetProcess().SetSelectedThread(frame.GetThread());
+    frame.GetThread().SetSelectedFrame(frame.GetFrameID());
+  }
   g_vsc.variables.Clear();
   g_vsc.variables.Append(frame.GetVariables(true,   // arguments
                                             true,   // locals
@@ -1733,70 +1751,45 @@ void request_setBreakpoints(const llvm::json::Object &request) {
   const auto path = GetString(source, "path");
   auto breakpoints = arguments->getArray("breakpoints");
   llvm::json::Array response_breakpoints;
+
   // Decode the source breakpoint infos for this "setBreakpoints" request
   SourceBreakpointMap request_bps;
   for (const auto &bp : *breakpoints) {
     auto bp_obj = bp.getAsObject();
     if (bp_obj) {
       SourceBreakpoint src_bp(*bp_obj);
-      request_bps[src_bp.line] = std::move(src_bp);
+      request_bps[src_bp.line] = src_bp;
+
+      // We check if this breakpoint already exists to update it
+      auto existing_source_bps = g_vsc.source_breakpoints.find(path);
+      if (existing_source_bps != g_vsc.source_breakpoints.end()) {
+        const auto &existing_bp = existing_source_bps->second.find(src_bp.line);
+        if (existing_bp != existing_source_bps->second.end()) {
+          existing_bp->second.UpdateBreakpoint(src_bp);
+          AppendBreakpoint(existing_bp->second.bp, response_breakpoints);
+          continue;
+        }
+      }
+      // At this point the breakpoint is new
+      src_bp.SetBreakpoint(path.data());
+      AppendBreakpoint(src_bp.bp, response_breakpoints);
+      g_vsc.source_breakpoints[path][src_bp.line] = std::move(src_bp);
     }
   }
 
-  // See if we already have breakpoints set for this source file from a
-  // previous "setBreakpoints" request
+  // Delete any breakpoints in this source file that aren't in the
+  // request_bps set. There is no call to remove breakpoints other than
+  // calling this function with a smaller or empty "breakpoints" list.
   auto old_src_bp_pos = g_vsc.source_breakpoints.find(path);
   if (old_src_bp_pos != g_vsc.source_breakpoints.end()) {
-
-    // We have already set breakpoints in this source file and they are giving
-    // use a new list of lines to set breakpoints on. Some breakpoints might
-    // already be set, and some might not. We need to remove any breakpoints
-    // whose lines are not contained in the any breakpoints lines in in the
-    // "breakpoints" array.
-
-    // Delete any breakpoints in this source file that aren't in the
-    // request_bps set. There is no call to remove breakpoints other than
-    // calling this function with a smaller or empty "breakpoints" list.
-    std::vector<uint32_t> remove_lines;
-    for (auto &pair: old_src_bp_pos->second) {
-      auto request_pos = request_bps.find(pair.first);
+    for (auto &old_bp : old_src_bp_pos->second) {
+      auto request_pos = request_bps.find(old_bp.first);
       if (request_pos == request_bps.end()) {
         // This breakpoint no longer exists in this source file, delete it
-        g_vsc.target.BreakpointDelete(pair.second.bp.GetID());
-        remove_lines.push_back(pair.first);
-      } else {
-        pair.second.UpdateBreakpoint(request_pos->second);
-        // Remove this breakpoint from the request breakpoints since we have
-        // handled it here and we don't need to set a new breakpoint below.
-        request_bps.erase(request_pos);
-        // Add this breakpoint info to the response
-        AppendBreakpoint(pair.second.bp, response_breakpoints);
+        g_vsc.target.BreakpointDelete(old_bp.second.bp.GetID());
+        old_src_bp_pos->second.erase(old_bp.first);
       }
     }
-    // Remove any lines from this existing source breakpoint map
-    for (auto line: remove_lines)
-     old_src_bp_pos->second.erase(line);
-
-    // Now add any breakpoint infos left over in request_bps are the
-    // breakpoints that weren't set in this source file yet. We need to update
-    // thread source breakpoint info for the source file in the variable
-    // "old_src_bp_pos->second" so the info for this source file is up to date.
-    for (auto &pair : request_bps) {
-      pair.second.SetBreakpoint(path.data());
-      // Add this breakpoint info to the response
-      AppendBreakpoint(pair.second.bp, response_breakpoints);
-      old_src_bp_pos->second[pair.first] = std::move(pair.second);
-    }
-  } else {
-    // No breakpoints were set for this source file yet. Set all breakpoints
-    // for each line and add them to the response and create an entry in
-    // g_vsc.source_breakpoints for this source file.
-    for (auto &pair : request_bps) {
-      pair.second.SetBreakpoint(path.data());
-      // Add this breakpoint info to the response
-      AppendBreakpoint(pair.second.bp, response_breakpoints);
-    }
-    g_vsc.source_breakpoints[path] = std::move(request_bps);
   }
 
   llvm::json::Object body;

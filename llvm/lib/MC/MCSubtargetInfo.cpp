@@ -185,7 +185,7 @@ static FeatureBitset getFeatures(StringRef CPU, StringRef FS,
     // Check for help
     if (Feature == "+help")
       Help(ProcDesc, ProcFeatures);
-    else if (Feature == "+cpuHelp")
+    else if (Feature == "+cpuhelp")
       cpuHelp(ProcDesc);
     else
       ApplyFeatureFlag(Bits, Feature, ProcFeatures);
@@ -339,6 +339,13 @@ unsigned MCSubtargetInfo::getMaxPrefetchIterationsAhead() const {
   return UINT_MAX;
 }
 
-unsigned MCSubtargetInfo::getMinPrefetchStride() const {
+bool MCSubtargetInfo::enableWritePrefetching() const {
+  return false;
+}
+
+unsigned MCSubtargetInfo::getMinPrefetchStride(unsigned NumMemAccesses,
+                                               unsigned NumStridedMemAccesses,
+                                               unsigned NumPrefetches,
+                                               bool HasCall) const {
   return 1;
 }

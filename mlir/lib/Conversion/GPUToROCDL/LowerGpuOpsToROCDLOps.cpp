@@ -34,6 +34,10 @@ namespace {
 class LowerGpuOpsToROCDLOpsPass
     : public OperationPass<LowerGpuOpsToROCDLOpsPass, gpu::GPUModuleOp> {
 public:
+/// Include the generated pass utilities.
+#define GEN_PASS_ConvertGpuOpsToROCDLOps
+#include "mlir/Conversion/Passes.h.inc"
+
   void runOnOperation() override {
     gpu::GPUModuleOp m = getOperation();
 
@@ -71,8 +75,6 @@ public:
     target.addLegalDialect<LLVM::LLVMDialect, ROCDL::ROCDLDialect>();
     target.addIllegalOp<LLVM::CosOp, LLVM::ExpOp, LLVM::FAbsOp, LLVM::FCeilOp,
                         LLVM::LogOp, LLVM::Log10Op, LLVM::Log2Op>();
-    target.addDynamicallyLegalOp<LLVM::CallOp>(
-        gpu::filterIllegalLLVMIntrinsics({"tanh", "tanhf"}, m.getContext()));
     target.addIllegalOp<FuncOp>();
     if (failed(applyPartialConversion(m, target, patterns, &converter)))
       signalPassFailure();
@@ -86,6 +88,3 @@ mlir::createLowerGpuOpsToROCDLOpsPass() {
   return std::make_unique<LowerGpuOpsToROCDLOpsPass>();
 }
 
-static PassRegistration<LowerGpuOpsToROCDLOpsPass>
-    pass("convert-gpu-to-rocdl",
-         "Generate ROCDL operations for gpu operations");

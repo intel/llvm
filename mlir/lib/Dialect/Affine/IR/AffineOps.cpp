@@ -1383,7 +1383,10 @@ static LogicalResult canonicalizeLoopBounds(AffineForOp forOp) {
   auto prevUbMap = ubMap;
 
   canonicalizeMapAndOperands(&lbMap, &lbOperands);
+  lbMap = removeDuplicateExprs(lbMap);
+
   canonicalizeMapAndOperands(&ubMap, &ubOperands);
+  ubMap = removeDuplicateExprs(ubMap);
 
   // Any canonicalization change always leads to updated map(s).
   if (lbMap == prevLbMap && ubMap == prevUbMap)
@@ -2136,7 +2139,7 @@ LogicalResult AffinePrefetchOp::fold(ArrayRef<Attribute> cstOperands,
 
 void AffineParallelOp::build(Builder *builder, OperationState &result,
                              ArrayRef<int64_t> ranges) {
-  // Default initalize empty maps.
+  // Default initialize empty maps.
   auto lbMap = AffineMap::get(builder->getContext());
   auto ubMap = AffineMap::get(builder->getContext());
   // If there are ranges, set each to [0, N).
