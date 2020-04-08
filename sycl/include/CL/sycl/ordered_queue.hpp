@@ -10,6 +10,7 @@
 
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/defines.hpp>
+#include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/device_selector.hpp>
 #include <CL/sycl/exception_list.hpp>
 #include <CL/sycl/info/info_desc.hpp>
@@ -28,8 +29,8 @@ namespace detail {
 class queue_impl;
 }
 
-class __SYCL_DEPRECATED__("Replaced by in_order queue property") ordered_queue {
-
+class __SYCL_EXPORT_DEPRECATED("Replaced by in_order queue property")
+    ordered_queue {
 public:
   explicit ordered_queue(const property_list &propList = {})
       : ordered_queue(default_selector(), async_handler{}, propList) {}

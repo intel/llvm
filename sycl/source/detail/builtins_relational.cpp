@@ -132,13 +132,13 @@ template <typename T, typename T2> inline T2 __vselect(T2 a, T2 b, T c) {
 
 // ---------- 4.13.7 Relational functions. Host implementations. ---------------
 // FOrdEqual-isequal
-s::cl_int FOrdEqual(s::cl_float x, s::cl_float y) __NOEXC {
+__SYCL_EXPORT s::cl_int FOrdEqual(s::cl_float x, s::cl_float y) __NOEXC {
   return __sFOrdEqual(x, y);
 }
-s::cl_int FOrdEqual(s::cl_double x, s::cl_double y) __NOEXC {
+__SYCL_EXPORT s::cl_int FOrdEqual(s::cl_double x, s::cl_double y) __NOEXC {
   return __sFOrdEqual(x, y);
 }
-s::cl_int FOrdEqual(s::cl_half x, s::cl_half y) __NOEXC {
+__SYCL_EXPORT s::cl_int FOrdEqual(s::cl_half x, s::cl_half y) __NOEXC {
   return __sFOrdEqual(x, y);
 }
 MAKE_1V_2V_FUNC(FOrdEqual, __vFOrdEqual, s::cl_int, s::cl_float, s::cl_float)
@@ -146,13 +146,13 @@ MAKE_1V_2V_FUNC(FOrdEqual, __vFOrdEqual, s::cl_long, s::cl_double, s::cl_double)
 MAKE_1V_2V_FUNC(FOrdEqual, __vFOrdEqual, s::cl_short, s::cl_half, s::cl_half)
 
 // FUnordNotEqual-isnotequal
-s::cl_int FUnordNotEqual(s::cl_float x, s::cl_float y) __NOEXC {
+__SYCL_EXPORT s::cl_int FUnordNotEqual(s::cl_float x, s::cl_float y) __NOEXC {
   return __sFUnordNotEqual(x, y);
 }
-s::cl_int FUnordNotEqual(s::cl_double x, s::cl_double y) __NOEXC {
+__SYCL_EXPORT s::cl_int FUnordNotEqual(s::cl_double x, s::cl_double y) __NOEXC {
   return __sFUnordNotEqual(x, y);
 }
-s::cl_int FUnordNotEqual(s::cl_half x, s::cl_half y) __NOEXC {
+__SYCL_EXPORT s::cl_int FUnordNotEqual(s::cl_half x, s::cl_half y) __NOEXC {
   return __sFUnordNotEqual(x, y);
 }
 MAKE_1V_2V_FUNC(FUnordNotEqual, __vFUnordNotEqual, s::cl_int, s::cl_float,
@@ -163,13 +163,14 @@ MAKE_1V_2V_FUNC(FUnordNotEqual, __vFUnordNotEqual, s::cl_short, s::cl_half,
                 s::cl_half)
 
 // (FOrdGreaterThan)      // isgreater
-s::cl_int FOrdGreaterThan(s::cl_float x, s::cl_float y) __NOEXC {
+__SYCL_EXPORT s::cl_int FOrdGreaterThan(s::cl_float x, s::cl_float y) __NOEXC {
   return __sFOrdGreaterThan(x, y);
 }
-s::cl_int FOrdGreaterThan(s::cl_double x, s::cl_double y) __NOEXC {
+__SYCL_EXPORT s::cl_int FOrdGreaterThan(s::cl_double x,
+                                        s::cl_double y) __NOEXC {
   return __sFOrdGreaterThan(x, y);
 }
-s::cl_int FOrdGreaterThan(s::cl_half x, s::cl_half y) __NOEXC {
+__SYCL_EXPORT s::cl_int FOrdGreaterThan(s::cl_half x, s::cl_half y) __NOEXC {
   return __sFOrdGreaterThan(x, y);
 }
 MAKE_1V_2V_FUNC(FOrdGreaterThan, __vFOrdGreaterThan, s::cl_int, s::cl_float,
@@ -180,13 +181,16 @@ MAKE_1V_2V_FUNC(FOrdGreaterThan, __vFOrdGreaterThan, s::cl_short, s::cl_half,
                 s::cl_half)
 
 // (FOrdGreaterThanEqual) // isgreaterequal
-s::cl_int FOrdGreaterThanEqual(s::cl_float x, s::cl_float y) __NOEXC {
+__SYCL_EXPORT s::cl_int FOrdGreaterThanEqual(s::cl_float x,
+                                             s::cl_float y) __NOEXC {
   return __sFOrdGreaterThanEqual(x, y);
 }
-s::cl_int FOrdGreaterThanEqual(s::cl_double x, s::cl_double y) __NOEXC {
+__SYCL_EXPORT s::cl_int FOrdGreaterThanEqual(s::cl_double x,
+                                             s::cl_double y) __NOEXC {
   return __sFOrdGreaterThanEqual(x, y);
 }
-s::cl_int FOrdGreaterThanEqual(s::cl_half x, s::cl_half y) __NOEXC {
+__SYCL_EXPORT s::cl_int FOrdGreaterThanEqual(s::cl_half x,
+                                             s::cl_half y) __NOEXC {
   return __sFOrdGreaterThanEqual(x, y);
 }
 MAKE_1V_2V_FUNC(FOrdGreaterThanEqual, __vFOrdGreaterThanEqual, s::cl_int,
@@ -197,18 +201,23 @@ MAKE_1V_2V_FUNC(FOrdGreaterThanEqual, __vFOrdGreaterThanEqual, s::cl_short,
                 s::cl_half, s::cl_half)
 
 // (FOrdLessThan)         // isless
-s::cl_int FOrdLessThan(s::cl_float x, s::cl_float y) __NOEXC { return (x < y); }
-s::cl_int FOrdLessThan(s::cl_double x, s::cl_double y) __NOEXC {
+__SYCL_EXPORT s::cl_int FOrdLessThan(s::cl_float x, s::cl_float y) __NOEXC {
   return (x < y);
 }
-s::cl_int __vFOrdLessThan(s::cl_float x, s::cl_float y) __NOEXC {
+__SYCL_EXPORT s::cl_int FOrdLessThan(s::cl_double x, s::cl_double y) __NOEXC {
+  return (x < y);
+}
+__SYCL_EXPORT s::cl_int __vFOrdLessThan(s::cl_float x, s::cl_float y) __NOEXC {
   return -(x < y);
 }
-s::cl_long __vFOrdLessThan(s::cl_double x, s::cl_double y) __NOEXC {
+__SYCL_EXPORT s::cl_long __vFOrdLessThan(s::cl_double x,
+                                         s::cl_double y) __NOEXC {
   return -(x < y);
 }
-s::cl_int FOrdLessThan(s::cl_half x, s::cl_half y) __NOEXC { return (x < y); }
-s::cl_short __vFOrdLessThan(s::cl_half x, s::cl_half y) __NOEXC {
+__SYCL_EXPORT s::cl_int FOrdLessThan(s::cl_half x, s::cl_half y) __NOEXC {
+  return (x < y);
+}
+__SYCL_EXPORT s::cl_short __vFOrdLessThan(s::cl_half x, s::cl_half y) __NOEXC {
   return -(x < y);
 }
 MAKE_1V_2V_FUNC(FOrdLessThan, __vFOrdLessThan, s::cl_int, s::cl_float,
@@ -219,13 +228,15 @@ MAKE_1V_2V_FUNC(FOrdLessThan, __vFOrdLessThan, s::cl_short, s::cl_half,
                 s::cl_half)
 
 // (FOrdLessThanEqual)    // islessequal
-s::cl_int FOrdLessThanEqual(s::cl_float x, s::cl_float y) __NOEXC {
+__SYCL_EXPORT s::cl_int FOrdLessThanEqual(s::cl_float x,
+                                          s::cl_float y) __NOEXC {
   return __sFOrdLessThanEqual(x, y);
 }
-s::cl_int FOrdLessThanEqual(s::cl_double x, s::cl_double y) __NOEXC {
+__SYCL_EXPORT s::cl_int FOrdLessThanEqual(s::cl_double x,
+                                          s::cl_double y) __NOEXC {
   return __sFOrdLessThanEqual(x, y);
 }
-s::cl_int FOrdLessThanEqual(s::cl_half x, s::cl_half y) __NOEXC {
+__SYCL_EXPORT s::cl_int FOrdLessThanEqual(s::cl_half x, s::cl_half y) __NOEXC {
   return __sFOrdLessThanEqual(x, y);
 }
 MAKE_1V_2V_FUNC(FOrdLessThanEqual, __vFOrdLessThanEqual, s::cl_int, s::cl_float,
@@ -236,13 +247,13 @@ MAKE_1V_2V_FUNC(FOrdLessThanEqual, __vFOrdLessThanEqual, s::cl_short,
                 s::cl_half, s::cl_half)
 
 // (LessOrGreater)        // islessgreater
-s::cl_int LessOrGreater(s::cl_float x, s::cl_float y) __NOEXC {
+__SYCL_EXPORT s::cl_int LessOrGreater(s::cl_float x, s::cl_float y) __NOEXC {
   return __sLessOrGreater(x, y);
 }
-s::cl_int LessOrGreater(s::cl_double x, s::cl_double y) __NOEXC {
+__SYCL_EXPORT s::cl_int LessOrGreater(s::cl_double x, s::cl_double y) __NOEXC {
   return __sLessOrGreater(x, y);
 }
-s::cl_int LessOrGreater(s::cl_half x, s::cl_half y) __NOEXC {
+__SYCL_EXPORT s::cl_int LessOrGreater(s::cl_half x, s::cl_half y) __NOEXC {
   return __sLessOrGreater(x, y);
 }
 MAKE_1V_2V_FUNC(LessOrGreater, __vLessOrGreater, s::cl_int, s::cl_float,
@@ -253,18 +264,22 @@ MAKE_1V_2V_FUNC(LessOrGreater, __vLessOrGreater, s::cl_short, s::cl_half,
                 s::cl_half)
 
 // (IsFinite)             // isfinite
-s::cl_int IsFinite(s::cl_float x) __NOEXC { return std::isfinite(x); }
-s::cl_int IsFinite(s::cl_double x) __NOEXC { return std::isfinite(x); }
-s::cl_int __vIsFinite(s::cl_float x) __NOEXC {
+__SYCL_EXPORT s::cl_int IsFinite(s::cl_float x) __NOEXC {
+  return std::isfinite(x);
+}
+__SYCL_EXPORT s::cl_int IsFinite(s::cl_double x) __NOEXC {
+  return std::isfinite(x);
+}
+__SYCL_EXPORT s::cl_int __vIsFinite(s::cl_float x) __NOEXC {
   return -static_cast<s::cl_int>(std::isfinite(x));
 }
-s::cl_long __vIsFinite(s::cl_double x) __NOEXC {
+__SYCL_EXPORT s::cl_long __vIsFinite(s::cl_double x) __NOEXC {
   return -static_cast<s::cl_long>(std::isfinite(x));
 }
-s::cl_int IsFinite(s::cl_half x) __NOEXC {
+__SYCL_EXPORT s::cl_int IsFinite(s::cl_half x) __NOEXC {
   return std::isfinite(d::cast_if_host_half(x));
 }
-s::cl_short __vIsFinite(s::cl_half x) __NOEXC {
+__SYCL_EXPORT s::cl_short __vIsFinite(s::cl_half x) __NOEXC {
   return -static_cast<s::cl_int>(std::isfinite(d::cast_if_host_half(x)));
 }
 MAKE_1V_FUNC(IsFinite, __vIsFinite, s::cl_int, s::cl_float)
@@ -272,18 +287,18 @@ MAKE_1V_FUNC(IsFinite, __vIsFinite, s::cl_long, s::cl_double)
 MAKE_1V_FUNC(IsFinite, __vIsFinite, s::cl_short, s::cl_half)
 
 // (IsInf)                // isinf
-s::cl_int IsInf(s::cl_float x) __NOEXC { return std::isinf(x); }
-s::cl_int IsInf(s::cl_double x) __NOEXC { return std::isinf(x); }
-s::cl_int __vIsInf(s::cl_float x) __NOEXC {
+__SYCL_EXPORT s::cl_int IsInf(s::cl_float x) __NOEXC { return std::isinf(x); }
+__SYCL_EXPORT s::cl_int IsInf(s::cl_double x) __NOEXC { return std::isinf(x); }
+__SYCL_EXPORT s::cl_int __vIsInf(s::cl_float x) __NOEXC {
   return -static_cast<s::cl_int>(std::isinf(x));
 }
-s::cl_long __vIsInf(s::cl_double x) __NOEXC {
+__SYCL_EXPORT s::cl_long __vIsInf(s::cl_double x) __NOEXC {
   return -static_cast<s::cl_long>(std::isinf(x));
 }
-s::cl_int IsInf(s::cl_half x) __NOEXC {
+__SYCL_EXPORT s::cl_int IsInf(s::cl_half x) __NOEXC {
   return std::isinf(d::cast_if_host_half(x));
 }
-s::cl_short __vIsInf(s::cl_half x) __NOEXC {
+__SYCL_EXPORT s::cl_short __vIsInf(s::cl_half x) __NOEXC {
   return -static_cast<s::cl_short>(std::isinf(d::cast_if_host_half(x)));
 }
 MAKE_1V_FUNC(IsInf, __vIsInf, s::cl_int, s::cl_float)
@@ -291,19 +306,19 @@ MAKE_1V_FUNC(IsInf, __vIsInf, s::cl_long, s::cl_double)
 MAKE_1V_FUNC(IsInf, __vIsInf, s::cl_short, s::cl_half)
 
 // (IsNan)                // isnan
-s::cl_int IsNan(s::cl_float x) __NOEXC { return std::isnan(x); }
-s::cl_int IsNan(s::cl_double x) __NOEXC { return std::isnan(x); }
-s::cl_int __vIsNan(s::cl_float x) __NOEXC {
+__SYCL_EXPORT s::cl_int IsNan(s::cl_float x) __NOEXC { return std::isnan(x); }
+__SYCL_EXPORT s::cl_int IsNan(s::cl_double x) __NOEXC { return std::isnan(x); }
+__SYCL_EXPORT s::cl_int __vIsNan(s::cl_float x) __NOEXC {
   return -static_cast<s::cl_int>(std::isnan(x));
 }
-s::cl_long __vIsNan(s::cl_double x) __NOEXC {
+__SYCL_EXPORT s::cl_long __vIsNan(s::cl_double x) __NOEXC {
   return -static_cast<s::cl_long>(std::isnan(x));
 }
 
-s::cl_int IsNan(s::cl_half x) __NOEXC {
+__SYCL_EXPORT s::cl_int IsNan(s::cl_half x) __NOEXC {
   return std::isnan(d::cast_if_host_half(x));
 }
-s::cl_short __vIsNan(s::cl_half x) __NOEXC {
+__SYCL_EXPORT s::cl_short __vIsNan(s::cl_half x) __NOEXC {
   return -static_cast<s::cl_short>(std::isnan(d::cast_if_host_half(x)));
 }
 MAKE_1V_FUNC(IsNan, __vIsNan, s::cl_int, s::cl_float)
@@ -311,18 +326,22 @@ MAKE_1V_FUNC(IsNan, __vIsNan, s::cl_long, s::cl_double)
 MAKE_1V_FUNC(IsNan, __vIsNan, s::cl_short, s::cl_half)
 
 // (IsNormal)             // isnormal
-s::cl_int IsNormal(s::cl_float x) __NOEXC { return std::isnormal(x); }
-s::cl_int IsNormal(s::cl_double x) __NOEXC { return std::isnormal(x); }
-s::cl_int __vIsNormal(s::cl_float x) __NOEXC {
+__SYCL_EXPORT s::cl_int IsNormal(s::cl_float x) __NOEXC {
+  return std::isnormal(x);
+}
+__SYCL_EXPORT s::cl_int IsNormal(s::cl_double x) __NOEXC {
+  return std::isnormal(x);
+}
+__SYCL_EXPORT s::cl_int __vIsNormal(s::cl_float x) __NOEXC {
   return -static_cast<s::cl_int>(std::isnormal(x));
 }
-s::cl_long __vIsNormal(s::cl_double x) __NOEXC {
+__SYCL_EXPORT s::cl_long __vIsNormal(s::cl_double x) __NOEXC {
   return -static_cast<s::cl_long>(std::isnormal(x));
 }
-s::cl_int IsNormal(s::cl_half x) __NOEXC {
+__SYCL_EXPORT s::cl_int IsNormal(s::cl_half x) __NOEXC {
   return std::isnormal(d::cast_if_host_half(x));
 }
-s::cl_short __vIsNormal(s::cl_half x) __NOEXC {
+__SYCL_EXPORT s::cl_short __vIsNormal(s::cl_half x) __NOEXC {
   return -static_cast<s::cl_short>(std::isnormal(d::cast_if_host_half(x)));
 }
 MAKE_1V_FUNC(IsNormal, __vIsNormal, s::cl_int, s::cl_float)
@@ -330,13 +349,13 @@ MAKE_1V_FUNC(IsNormal, __vIsNormal, s::cl_long, s::cl_double)
 MAKE_1V_FUNC(IsNormal, __vIsNormal, s::cl_short, s::cl_half)
 
 // (Ordered)              // isordered
-s::cl_int Ordered(s::cl_float x, s::cl_float y) __NOEXC {
+__SYCL_EXPORT s::cl_int Ordered(s::cl_float x, s::cl_float y) __NOEXC {
   return __vOrdered(x, y);
 }
-s::cl_int Ordered(s::cl_double x, s::cl_double y) __NOEXC {
+__SYCL_EXPORT s::cl_int Ordered(s::cl_double x, s::cl_double y) __NOEXC {
   return __vOrdered(x, y);
 }
-s::cl_int Ordered(s::cl_half x, s::cl_half y) __NOEXC {
+__SYCL_EXPORT s::cl_int Ordered(s::cl_half x, s::cl_half y) __NOEXC {
   return __vOrdered(x, y);
 }
 MAKE_1V_2V_FUNC(Ordered, __vOrdered, s::cl_int, s::cl_float, s::cl_float)
@@ -344,13 +363,13 @@ MAKE_1V_2V_FUNC(Ordered, __vOrdered, s::cl_long, s::cl_double, s::cl_double)
 MAKE_1V_2V_FUNC(Ordered, __vOrdered, s::cl_short, s::cl_half, s::cl_half)
 
 // (Unordered)            // isunordered
-s::cl_int Unordered(s::cl_float x, s::cl_float y) __NOEXC {
+__SYCL_EXPORT s::cl_int Unordered(s::cl_float x, s::cl_float y) __NOEXC {
   return __sUnordered(x, y);
 }
-s::cl_int Unordered(s::cl_double x, s::cl_double y) __NOEXC {
+__SYCL_EXPORT s::cl_int Unordered(s::cl_double x, s::cl_double y) __NOEXC {
   return __sUnordered(x, y);
 }
-s::cl_int Unordered(s::cl_half x, s::cl_half y) __NOEXC {
+__SYCL_EXPORT s::cl_int Unordered(s::cl_half x, s::cl_half y) __NOEXC {
   return __sUnordered(x, y);
 }
 MAKE_1V_2V_FUNC(Unordered, __vUnordered, s::cl_int, s::cl_float, s::cl_float)
@@ -358,18 +377,22 @@ MAKE_1V_2V_FUNC(Unordered, __vUnordered, s::cl_long, s::cl_double, s::cl_double)
 MAKE_1V_2V_FUNC(Unordered, __vUnordered, s::cl_short, s::cl_half, s::cl_half)
 
 // (SignBitSet)           // signbit
-s::cl_int SignBitSet(s::cl_float x) __NOEXC { return std::signbit(x); }
-s::cl_int SignBitSet(s::cl_double x) __NOEXC { return std::signbit(x); }
-s::cl_int __vSignBitSet(s::cl_float x) __NOEXC {
+__SYCL_EXPORT s::cl_int SignBitSet(s::cl_float x) __NOEXC {
+  return std::signbit(x);
+}
+__SYCL_EXPORT s::cl_int SignBitSet(s::cl_double x) __NOEXC {
+  return std::signbit(x);
+}
+__SYCL_EXPORT s::cl_int __vSignBitSet(s::cl_float x) __NOEXC {
   return -static_cast<s::cl_int>(std::signbit(x));
 }
-s::cl_long __vSignBitSet(s::cl_double x) __NOEXC {
+__SYCL_EXPORT s::cl_long __vSignBitSet(s::cl_double x) __NOEXC {
   return -static_cast<s::cl_long>(std::signbit(x));
 }
-s::cl_int SignBitSet(s::cl_half x) __NOEXC {
+__SYCL_EXPORT s::cl_int SignBitSet(s::cl_half x) __NOEXC {
   return std::signbit(d::cast_if_host_half(x));
 }
-s::cl_short __vSignBitSet(s::cl_half x) __NOEXC {
+__SYCL_EXPORT s::cl_short __vSignBitSet(s::cl_half x) __NOEXC {
   return -static_cast<s::cl_short>(std::signbit(d::cast_if_host_half(x)));
 }
 MAKE_1V_FUNC(SignBitSet, __vSignBitSet, s::cl_int, s::cl_float)

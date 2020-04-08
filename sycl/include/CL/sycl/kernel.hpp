@@ -9,6 +9,7 @@
 #pragma once
 
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/stl.hpp>
 
@@ -23,7 +24,7 @@ namespace detail {
 class kernel_impl;
 }
 
-class kernel {
+class __SYCL_EXPORT kernel {
 public:
   /// Constructs a SYCL kernel instance from an OpenCL cl_kernel
   ///

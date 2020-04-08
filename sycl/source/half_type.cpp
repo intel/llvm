@@ -25,49 +25,39 @@ static uint16_t float2Half(const float &Val) {
   const uint32_t Frac32 = Bits & 0x7fffff;
   // Extract the exponent from the float value
   const uint8_t Exp32 = (Bits & 0x7f800000) >> 23;
-  const int8_t Exp32Diff = Exp32 - 127;
+  const int16_t Exp32Diff = Exp32 - 127;
 
-  uint16_t Exp16 = 0;
+  // intialize to 0, covers the case for 0 and small numbers
+  uint16_t Exp16 = 0, Frac16 = 0;
 
-  // convert 23-bit mantissa to 10-bit mantissa.
-  uint16_t Frac16 = Frac32 >> 13;
-  // Round the mantissa as given in OpenCL spec section : 6.1.1.1 The half data
-  // type.
-  if (Frac32 >> 12 & 0x01)
-    Frac16 += 1;
-
-  if (__builtin_expect(Exp32 == 0xff || Exp32Diff > 15, 0)) {
+  if (__builtin_expect(Exp32Diff > 15, 0)) {
+    // Infinity and big numbers convert to infinity
     Exp16 = 0x1f;
-  } else if (__builtin_expect(Exp32 == 0 || Exp32Diff < -14, 0)) {
-    Exp16 = 0;
-  } else {
+  } else if (__builtin_expect(Exp32Diff > -14, 0)) {
+    // normal range for half type
     Exp16 = Exp32Diff + 15;
+    // convert 23-bit mantissa to 10-bit mantissa.
+    Frac16 = Frac32 >> 13;
+    // Round the mantissa as given in OpenCL spec section : 6.1.1.1 The half
+    // data type.
+    if (Frac32 >> 12 & 0x01)
+      Frac16 += 1;
+  } else if (__builtin_expect(Exp32Diff > -24, 0)) {
+    // subnormals
+    Frac16 = (Frac32 | (uint32_t(1) << 23)) >> (-Exp32Diff - 1);
   }
 
-  if (__builtin_expect(Exp32 == 0xff && Frac32 != 0 && Frac16 == 0, 0)) {
-    // corner case 1: NaN
-    // This case happens when FP32 value is NaN whose the fraction part
-    // transformed to FP16 counterpart is truncated to 0. We need to flip the
-    // high bit to 1 to make it distinguished from inf.
+  if (__builtin_expect(Exp32 == 0xff && Frac32 != 0, 0)) {
+    // corner case: FP32 is NaN
+    Exp16 = 0x1F;
     Frac16 = 0x200;
-  } else if (__builtin_expect(Exp32 == 0 || (Exp16 == 0x1f && Exp32 != 0xff),
-                              0)) {
-    // corner case 2: subnormal
-    // All FP32 subnormal values are under the range of FP16 so the fraction
-    // part is set to 0.
-    // corner case 3: overflow
-    Frac16 = 0;
-  } else if (__builtin_expect(Exp16 == 0 && Exp32 != 0, 0)) {
-    // corner case 4: underflow
-    // We use `truncate` mode here.
-    Frac16 = 0x100 | (Frac16 >> 2);
   }
 
   // Compose the final FP16 binary
   uint16_t Ret = 0;
   Ret |= Sign;
   Ret |= Exp16 << 10;
-  Ret += Frac16;// Add the carry bit from operation Frac16 += 1;
+  Ret += Frac16; // Add the carry bit from operation Frac16 += 1;
 
   return Ret;
 }
@@ -181,7 +171,7 @@ bool operator==(const half &LHS, const half &RHS) {
 }
 
 bool operator!=(const half &LHS, const half &RHS) { return !(LHS == RHS); }
-} // namespace half_impl
+} // namespace host_half_impl
 
 } // namespace detail
 } // namespace sycl

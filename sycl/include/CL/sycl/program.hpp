@@ -9,6 +9,7 @@
 #pragma once
 
 #include <CL/sycl/context.hpp>
+#include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/kernel_desc.hpp>
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/experimental/spec_constant.hpp>
@@ -28,7 +29,7 @@ class program_impl;
 
 enum class program_state { none, compiled, linked };
 
-class program {
+class __SYCL_EXPORT program {
 public:
   program() = delete;
 

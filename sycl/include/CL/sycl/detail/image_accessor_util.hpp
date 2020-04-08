@@ -13,6 +13,7 @@
 
 #ifndef __SYCL_DEVICE_ONLY__
 #include <CL/sycl/builtins.hpp>
+#include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/generic_type_traits.hpp>
 #include <CL/sycl/image.hpp>
 #include <CL/sycl/sampler.hpp>
@@ -99,21 +100,25 @@ getImageOffset(const vec<T, 4> &Coords, const id<3> ImgPitch,
 
 // Process cl_float4 Coordinates and return the appropriate Pixel Coordinates to
 // read from based on Addressing Mode for Nearest filter mode.
-cl_int4 getPixelCoordNearestFiltMode(cl_float4, const addressing_mode,
-                                     const range<3>);
+__SYCL_EXPORT cl_int4 getPixelCoordNearestFiltMode(cl_float4,
+                                                   const addressing_mode,
+                                                   const range<3>);
 
 // Process cl_float4 Coordinates and return the appropriate Pixel Coordinates to
 // read from based on Addressing Mode for Linear filter mode.
-cl_int8 getPixelCoordLinearFiltMode(cl_float4, const addressing_mode,
-                                    const range<3>, cl_float4 &);
+__SYCL_EXPORT cl_int8 getPixelCoordLinearFiltMode(cl_float4,
+                                                  const addressing_mode,
+                                                  const range<3>, cl_float4 &);
 
 // Check if PixelCoord are out of range for Sampler with clamp adressing mode.
-bool isOutOfRange(const cl_int4 PixelCoord, const addressing_mode SmplAddrMode,
-                  const range<3> ImgRange);
+__SYCL_EXPORT bool isOutOfRange(const cl_int4 PixelCoord,
+                                const addressing_mode SmplAddrMode,
+                                const range<3> ImgRange);
 
 // Get Border Color for the image_channel_order, the border color values are
 // only used when the sampler has clamp addressing mode.
-cl_float4 getBorderColor(const image_channel_order ImgChannelOrder);
+__SYCL_EXPORT cl_float4
+getBorderColor(const image_channel_order ImgChannelOrder);
 
 // Reads data from a pixel at Ptr location, based on the number of Channels in
 // Order and returns the data.
