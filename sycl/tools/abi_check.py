@@ -39,6 +39,7 @@ def dump_symbols(target_path, output):
     readobj_out = subprocess.check_output([get_llvm_bin_path()+"llvm-readobj",
                                            "-t", target_path])
     symbols = parse_readobj_output(readobj_out)
+    symbols.sort()
     out.write("\n".join(symbols))
 
 
@@ -76,46 +77,11 @@ def check_symbols(ref_path, target_path):
     if not correct_return:
       sys.exit(-1)
 
-def check_vtable(ref_path, target_path):
-  with open(ref_path, "r") as ref:
-    ref_records = []
-    for line in ref:
-      if not line.startswith('#') and line.strip():
-        ref_records.append(line.strip())
-
-    cxxdump_out = subprocess.check_output([get_llvm_bin_path()+"llvm-cxxdump",
-                                           target_path])
-    records = cxxdump_out.decode().strip().split('\n')
-
-    missing_records, new_records = compare_results(ref_records, records)
-
-    correct_return = True
-    if missing_records:
-      correct_return = False
-      print('The following records are missing from the new object file:\n')
-      print("\n".join(missing_records))
-
-    if new_records:
-      correct_return = False
-      print('The following records are new to the object file:\n')
-      print("\n".join(new_records))
-
-    if not correct_return:
-      sys.exit(-1)
-
-
-def dump_vtable(target_path, output):
-  with open(output, "w") as out:
-    cxxdump_out = subprocess.check_output([get_llvm_bin_path()+"llvm-cxxdump",
-                                           target_path])
-    out.write(cxxdump_out.decode())
-
 
 def main():
   parser = argparse.ArgumentParser(description='ABI checker utility.')
   parser.add_argument('--mode', type=str,
-                      choices=['check_symbols', 'dump_symbols',
-                               'check_vtable', 'dump_vtable'],
+                      choices=['check_symbols', 'dump_symbols'],
                       help='ABI checking mode', required=True)
   parser.add_argument('--reference', type=str, help='Reference ABI dump')
   parser.add_argument('--output', type=str, help='Output for dump modes')
@@ -127,10 +93,6 @@ def main():
     check_symbols(args.reference, args.target_library)
   elif args.mode == 'dump_symbols':
     dump_symbols(args.target_library, args.output)
-  elif args.mode == 'check_vtable':
-    check_vtable(args.reference, args.target_library)
-  elif args.mode == 'dump_vtable':
-    dump_vtable(args.target_library, args.output)
 
 
 if __name__ == "__main__":

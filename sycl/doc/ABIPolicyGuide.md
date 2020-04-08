@@ -4,10 +4,10 @@
 
 Application Binary Interface is a contract between binary modules, that defines
 how structures and routines are accessed in machine code. Changing the ABI may
-cause backwards compatibility for user-developed applications, resulting in
-need to rebuild such applications. The goal of this document is to provide
-guidelines of persisting the current ABI and mechanisms of notifying users about
-ABI changes.
+break backwards compatibility with library for user-developed applications,
+resulting in need to rebuild such applications. The goal of this document is to
+provide guidelines of persisting the current ABI and mechanisms of notifying
+users about ABI changes.
 
 All ABI changes can be divided into two large groups: breaking and non-breaking.
 A breaking change means that the new binary is incompatible with the previous
@@ -20,7 +20,7 @@ breaking:
 
 1. Changing the size of exported symbol (for example, adding new member field
    to the exported class).
-1. Removing the exported symbol (that includes both chaning the signature of
+1. Removing the exported symbol (that includes both changing the signature of
    exported routine and removing it).
 1. Changing the alignment of exported symbol.
 1. Changing the layout of exported symbol (for example, reordering class field
@@ -33,13 +33,13 @@ Adding a new exported symbol is considered to be non-breaking change.
 
 TBD
 
-## `__SYCL_EXPORTED` Macro
+## `__SYCL_EXPORT` Macro
 
-The `__SYCL_EXPORTED` provides facilities for fine-rained control over exported
+The `__SYCL_EXPORT` provides facilities for fine-grained control over exported
 symbols. Mark symbols that are supposed to be accessible by the user and that
 are implemented in the SYCL Runtime library with this macro. Template
-specializations also must be explicitly marked with `__SYCL_EXPORTED` macro.
-Sybmols not marked `__SYCL_EXPORTED` have internal linkage.
+specializations also must be explicitly marked with `__SYCL_EXPORT` macro.
+Symbols not marked `__SYCL_EXPORT` have internal linkage.
 
 A few examples of when it is necessary to mark symbols with the macro:
 
@@ -51,7 +51,7 @@ A few examples of when it is necessary to mark symbols with the macro:
     is accessible by the user (buffer and image inherit from this class).
   - It has symbols that are implemented in the Runtime library.
 
-When it is not necessary to mark sybmols with `__SYCL_EXPORTED`:
+When it is not necessary to mark symbols with `__SYCL_EXPORTED`:
 * The `buffer` class:
   - It is defined by the SYCL spec, but it is fully implemented in the headers.
 * The `ProgramManager` class:
@@ -59,6 +59,10 @@ When it is not necessary to mark sybmols with `__SYCL_EXPORTED`:
   - It is not accessed from the header files that are available to users.
 
 ## Automated ABI Changes Testing
+
+> The automated tests deal with the most commonly occurring problems, but they
+> may not catch some corner cases. If you believe your PR breaks ABI, but the
+> test does not indicate that, please, notify the reviewers.
 
 There is a set of tests to help identifying ABI changes:
 
@@ -70,19 +74,17 @@ There is a set of tests to help identifying ABI changes:
   ```shell
   python3 sycl/tools/abi_check.py --mode dump_symbols --output path/to/output.dump path/to/sycl.so(.dll)
   ```
-* `test/abi/sycl_vtable_*.dump` checks contents of exported vtables. Generally,
-  this means breaking change. Re-generate the library dump with the following
-  command:
-  ```shell
-  python3 sycl/tools/abi_check.py --mode dump_vtable --output path/to/output.dump path/to/sycl.so(.dll)
-  ```
-* `test/abi/layout*` is a group of tests to check the internal layout of some
-  classes. Changing the class layout is a breaking change.
+* `test/abi/layout*` and `test/abi/symbol_size*` are a group of tests to check
+  the internal layout of some classes. The layout tests check Clang AST for
+  changes, while symbol_size check `sizeof` for objects. Changing the class
+  layout is a breaking change.
 
 ## Breaking ABI
 
 Whenever you need to change the existing ABI, please, follow these steps:
 
 1. Get approval from project maintainers to make a breaking/non-breaking change.
-2. Fix the tests using the aforementioned techniques.
+2. Fix failing ABI tests in your Pull Request. Use aforementioned techniques to
+   update test files.
 3. Update the library version according to the policies.
+

@@ -1,4 +1,5 @@
 // RUN: %clangxx -fsycl %s -o %t && %t
+
 #include <CL/sycl.hpp>
 #include <cassert>
 
@@ -14,7 +15,8 @@ int main() {
 
   bool HasFailed = false;
 
-#include "layout_linux.def"
+#include "symbol_size_linux.def"
 
   return 0;
 }
+
