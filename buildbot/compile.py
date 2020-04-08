@@ -26,7 +26,7 @@ def do_compile(args):
 
     cmake_cmd = [
         "cmake",
-        "--build", "{}".format(abs_obj_dir),
+        "--build", abs_obj_dir,
         "--",
         "deploy-sycl-toolchain",
         "deploy-opencl-aot",
@@ -63,4 +63,3 @@ if __name__ == "__main__":
     ret = main()
     exit_code = 0 if ret else 1
     sys.exit(exit_code)
-

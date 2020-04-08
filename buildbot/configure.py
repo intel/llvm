@@ -65,7 +65,7 @@ def do_configure(args):
 
     cmake_cmd = [
         "cmake",
-        "-G", "{}".format(args.cmake_gen),
+        "-G", args.cmake_gen,
         "-DCMAKE_BUILD_TYPE={}".format(args.build_type),
         "-DLLVM_ENABLE_ASSERTIONS={}".format(llvm_enable_assertions),
         "-DLLVM_TARGETS_TO_BUILD={}".format(llvm_targets_to_build),

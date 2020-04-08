@@ -25,7 +25,7 @@ def do_check(args):
 
     cmake_cmd = [
         "cmake",
-        "--build", "{}".format(abs_obj_dir),
+        "--build", abs_obj_dir,
         "--",
         args.test_suite,
         "-j", str(cpu_count)]
@@ -64,4 +64,3 @@ if __name__ == "__main__":
     ret = main()
     exit_code = 0 if ret else 1
     sys.exit(exit_code)
-
