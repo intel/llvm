@@ -98,7 +98,7 @@ template <typename T, typename V> struct identity<T, intel::plus<V>> {
 };
 
 template <typename T, typename V> struct identity<T, intel::minimum<V>> {
-  static constexpr T value = std::numeric_limits<T>::max();
+  static constexpr T value = (std::numeric_limits<T>::max)();
 };
 
 template <typename T, typename V> struct identity<T, intel::maximum<V>> {

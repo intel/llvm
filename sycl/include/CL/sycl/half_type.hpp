@@ -9,6 +9,7 @@
 #pragma once
 
 #include <CL/sycl/detail/defines.hpp>
+#include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
 
 #include <array>
@@ -31,7 +32,7 @@ namespace sycl {
 namespace detail {
 namespace host_half_impl {
 
-class half {
+class __SYCL_EXPORT half {
 public:
   half() = default;
   half(const half &) = default;
@@ -306,11 +307,11 @@ template <> struct numeric_limits<half> {
 
   static constexpr const float_round_style round_style = round_to_nearest;
 
-  static __SYCL_CONSTEXPR_ON_DEVICE const half min() noexcept {
+  static __SYCL_CONSTEXPR_ON_DEVICE const half(min)() noexcept {
     return SYCL_HLF_MIN;
   }
 
-  static __SYCL_CONSTEXPR_ON_DEVICE const half max() noexcept {
+  static __SYCL_CONSTEXPR_ON_DEVICE const half(max)() noexcept {
     return SYCL_HLF_MAX;
   }
 

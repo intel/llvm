@@ -9,7 +9,10 @@
 #pragma once
 
 #include <CL/sycl/access/access.hpp>
-#include <CL/sycl/detail/os_util.hpp> // for DLL_LOCAL used in int. header
+#include <CL/sycl/detail/defines.hpp>
+#include <CL/sycl/detail/export.hpp> // for DLL_LOCAL used in int. header
+
+#include <cstddef>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -74,7 +77,7 @@ using make_index_sequence = __make_integer_seq<integer_sequence, size_t, N>;
 
 template <typename T> struct KernelInfoImpl {
 private:
-  static constexpr auto n = __unique_stable_name(T);
+  static constexpr auto n = __builtin_unique_stable_name(T);
   template <size_t... I>
   static KernelInfoData<n[I]...> impl(index_sequence<I...>) {
     return {};

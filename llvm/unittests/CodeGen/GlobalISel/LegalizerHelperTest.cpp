@@ -25,7 +25,7 @@ public:
 
 // Test CTTZ expansion when CTTZ_ZERO_UNDEF is legal or custom,
 // in which case it becomes CTTZ_ZERO_UNDEF with select.
-TEST_F(GISelMITest, LowerBitCountingCTTZ0) {
+TEST_F(AArch64GISelMITest, LowerBitCountingCTTZ0) {
   setUp();
   if (!TM)
     return;
@@ -57,7 +57,7 @@ TEST_F(GISelMITest, LowerBitCountingCTTZ0) {
 }
 
 // CTTZ expansion in terms of CTLZ
-TEST_F(GISelMITest, LowerBitCountingCTTZ1) {
+TEST_F(AArch64GISelMITest, LowerBitCountingCTTZ1) {
   setUp();
   if (!TM)
     return;
@@ -91,7 +91,7 @@ TEST_F(GISelMITest, LowerBitCountingCTTZ1) {
 }
 
 // CTLZ scalar narrowing
-TEST_F(GISelMITest, NarrowScalarCTLZ) {
+TEST_F(AArch64GISelMITest, NarrowScalarCTLZ) {
   setUp();
   if (!TM)
     return;
@@ -126,7 +126,7 @@ TEST_F(GISelMITest, NarrowScalarCTLZ) {
 }
 
 // CTTZ scalar narrowing
-TEST_F(GISelMITest, NarrowScalarCTTZ) {
+TEST_F(AArch64GISelMITest, NarrowScalarCTTZ) {
   setUp();
   if (!TM)
     return;
@@ -161,7 +161,7 @@ TEST_F(GISelMITest, NarrowScalarCTTZ) {
 }
 
 // CTTZ expansion in terms of CTPOP
-TEST_F(GISelMITest, LowerBitCountingCTTZ2) {
+TEST_F(AArch64GISelMITest, LowerBitCountingCTTZ2) {
   setUp();
   if (!TM)
     return;
@@ -192,7 +192,7 @@ TEST_F(GISelMITest, LowerBitCountingCTTZ2) {
 }
 
 // CTPOP widening.
-TEST_F(GISelMITest, WidenBitCountingCTPOP1) {
+TEST_F(AArch64GISelMITest, WidenBitCountingCTPOP1) {
   if (!TM)
     return;
 
@@ -224,7 +224,7 @@ TEST_F(GISelMITest, WidenBitCountingCTPOP1) {
 }
 
 // Test a strange case where the result is wider than the source
-TEST_F(GISelMITest, WidenBitCountingCTPOP2) {
+TEST_F(AArch64GISelMITest, WidenBitCountingCTPOP2) {
   if (!TM)
     return;
 
@@ -257,7 +257,7 @@ TEST_F(GISelMITest, WidenBitCountingCTPOP2) {
 }
 
 // CTTZ_ZERO_UNDEF expansion in terms of CTTZ
-TEST_F(GISelMITest, LowerBitCountingCTTZ3) {
+TEST_F(AArch64GISelMITest, LowerBitCountingCTTZ3) {
   setUp();
   if (!TM)
     return;
@@ -284,7 +284,7 @@ TEST_F(GISelMITest, LowerBitCountingCTTZ3) {
 }
 
 // CTLZ expansion in terms of CTLZ_ZERO_UNDEF
-TEST_F(GISelMITest, LowerBitCountingCTLZ0) {
+TEST_F(AArch64GISelMITest, LowerBitCountingCTLZ0) {
   setUp();
   if (!TM)
     return;
@@ -315,7 +315,7 @@ TEST_F(GISelMITest, LowerBitCountingCTLZ0) {
 }
 
 // CTLZ expansion in terms of CTLZ_ZERO_UNDEF if the latter is a libcall
-TEST_F(GISelMITest, LowerBitCountingCTLZLibcall) {
+TEST_F(AArch64GISelMITest, LowerBitCountingCTLZLibcall) {
   setUp();
   if (!TM)
     return;
@@ -346,7 +346,7 @@ TEST_F(GISelMITest, LowerBitCountingCTLZLibcall) {
 }
 
 // CTLZ expansion
-TEST_F(GISelMITest, LowerBitCountingCTLZ1) {
+TEST_F(AArch64GISelMITest, LowerBitCountingCTLZ1) {
   setUp();
   if (!TM)
     return;
@@ -387,7 +387,7 @@ TEST_F(GISelMITest, LowerBitCountingCTLZ1) {
 }
 
 // CTLZ widening.
-TEST_F(GISelMITest, WidenBitCountingCTLZ) {
+TEST_F(AArch64GISelMITest, WidenBitCountingCTLZ) {
   setUp();
   if (!TM)
     return;
@@ -422,7 +422,7 @@ TEST_F(GISelMITest, WidenBitCountingCTLZ) {
 }
 
 // CTLZ_ZERO_UNDEF widening.
-TEST_F(GISelMITest, WidenBitCountingCTLZZeroUndef) {
+TEST_F(AArch64GISelMITest, WidenBitCountingCTLZZeroUndef) {
   setUp();
   if (!TM)
     return;
@@ -458,7 +458,7 @@ TEST_F(GISelMITest, WidenBitCountingCTLZZeroUndef) {
 }
 
 // CTPOP widening.
-TEST_F(GISelMITest, WidenBitCountingCTPOP) {
+TEST_F(AArch64GISelMITest, WidenBitCountingCTPOP) {
   setUp();
   if (!TM)
     return;
@@ -491,7 +491,7 @@ TEST_F(GISelMITest, WidenBitCountingCTPOP) {
 }
 
 // CTTZ_ZERO_UNDEF widening.
-TEST_F(GISelMITest, WidenBitCountingCTTZ_ZERO_UNDEF) {
+TEST_F(AArch64GISelMITest, WidenBitCountingCTTZ_ZERO_UNDEF) {
   setUp();
   if (!TM)
     return;
@@ -525,7 +525,7 @@ TEST_F(GISelMITest, WidenBitCountingCTTZ_ZERO_UNDEF) {
 }
 
 // CTTZ widening.
-TEST_F(GISelMITest, WidenBitCountingCTTZ) {
+TEST_F(AArch64GISelMITest, WidenBitCountingCTTZ) {
   setUp();
   if (!TM)
     return;
@@ -559,7 +559,7 @@ TEST_F(GISelMITest, WidenBitCountingCTTZ) {
   EXPECT_TRUE(CheckMachineFunction(*MF, CheckStr)) << *MF;
 }
 // UADDO widening.
-TEST_F(GISelMITest, WidenUADDO) {
+TEST_F(AArch64GISelMITest, WidenUADDO) {
   setUp();
   if (!TM)
     return;
@@ -598,7 +598,7 @@ TEST_F(GISelMITest, WidenUADDO) {
 }
 
 // USUBO widening.
-TEST_F(GISelMITest, WidenUSUBO) {
+TEST_F(AArch64GISelMITest, WidenUSUBO) {
   setUp();
   if (!TM)
     return;
@@ -636,7 +636,7 @@ TEST_F(GISelMITest, WidenUSUBO) {
   EXPECT_TRUE(CheckMachineFunction(*MF, CheckStr)) << *MF;
 }
 
-TEST_F(GISelMITest, FewerElementsAnd) {
+TEST_F(AArch64GISelMITest, FewerElementsAnd) {
   if (!TM)
     return;
 
@@ -683,7 +683,7 @@ TEST_F(GISelMITest, FewerElementsAnd) {
   EXPECT_TRUE(CheckMachineFunction(*MF, CheckStr)) << *MF;
 }
 
-TEST_F(GISelMITest, MoreElementsAnd) {
+TEST_F(AArch64GISelMITest, MoreElementsAnd) {
   if (!TM)
     return;
 
@@ -724,7 +724,7 @@ TEST_F(GISelMITest, MoreElementsAnd) {
   EXPECT_TRUE(CheckMachineFunction(*MF, CheckStr)) << *MF;
 }
 
-TEST_F(GISelMITest, FewerElementsPhi) {
+TEST_F(AArch64GISelMITest, FewerElementsPhi) {
   if (!TM)
     return;
 
@@ -819,7 +819,7 @@ TEST_F(GISelMITest, FewerElementsPhi) {
 }
 
 // FNEG expansion in terms of FSUB
-TEST_F(GISelMITest, LowerFNEG) {
+TEST_F(AArch64GISelMITest, LowerFNEG) {
   if (!TM)
     return;
 
@@ -864,7 +864,7 @@ TEST_F(GISelMITest, LowerFNEG) {
   EXPECT_TRUE(CheckMachineFunction(*MF, CheckStr)) << *MF;
 }
 
-TEST_F(GISelMITest, LowerMinMax) {
+TEST_F(AArch64GISelMITest, LowerMinMax) {
   if (!TM)
     return;
 
@@ -942,7 +942,7 @@ TEST_F(GISelMITest, LowerMinMax) {
   EXPECT_TRUE(CheckMachineFunction(*MF, CheckStr)) << *MF;
 }
 
-TEST_F(GISelMITest, WidenScalarBuildVector) {
+TEST_F(AArch64GISelMITest, WidenScalarBuildVector) {
   if (!TM)
     return;
 
@@ -988,7 +988,7 @@ TEST_F(GISelMITest, WidenScalarBuildVector) {
   EXPECT_TRUE(CheckMachineFunction(*MF, CheckStr)) << *MF;
 }
 
-TEST_F(GISelMITest, LowerMergeValues) {
+TEST_F(AArch64GISelMITest, LowerMergeValues) {
   if (!TM)
     return;
 
@@ -1089,7 +1089,7 @@ TEST_F(GISelMITest, LowerMergeValues) {
   EXPECT_TRUE(CheckMachineFunction(*MF, CheckStr)) << *MF;
 }
 
-TEST_F(GISelMITest, WidenScalarMergeValuesPointer) {
+TEST_F(AArch64GISelMITest, WidenScalarMergeValuesPointer) {
   if (!TM)
     return;
 
@@ -1126,7 +1126,7 @@ TEST_F(GISelMITest, WidenScalarMergeValuesPointer) {
   EXPECT_TRUE(CheckMachineFunction(*MF, CheckStr)) << *MF;
 }
 
-TEST_F(GISelMITest, WidenSEXTINREG) {
+TEST_F(AArch64GISelMITest, WidenSEXTINREG) {
   if (!TM)
     return;
 
@@ -1157,7 +1157,7 @@ TEST_F(GISelMITest, WidenSEXTINREG) {
   ASSERT_TRUE(CheckMachineFunction(*MF, CheckStr));
 }
 
-TEST_F(GISelMITest, NarrowSEXTINREG) {
+TEST_F(AArch64GISelMITest, NarrowSEXTINREG) {
   if (!TM)
     return;
 
@@ -1188,7 +1188,7 @@ TEST_F(GISelMITest, NarrowSEXTINREG) {
   ASSERT_TRUE(CheckMachineFunction(*MF, CheckStr));
 }
 
-TEST_F(GISelMITest, NarrowSEXTINREG2) {
+TEST_F(AArch64GISelMITest, NarrowSEXTINREG2) {
   if (!TM)
     return;
 
@@ -1220,7 +1220,7 @@ TEST_F(GISelMITest, NarrowSEXTINREG2) {
   ASSERT_TRUE(CheckMachineFunction(*MF, CheckStr));
 }
 
-TEST_F(GISelMITest, LowerSEXTINREG) {
+TEST_F(AArch64GISelMITest, LowerSEXTINREG) {
   if (!TM)
     return;
 
@@ -1250,7 +1250,7 @@ TEST_F(GISelMITest, LowerSEXTINREG) {
   ASSERT_TRUE(CheckMachineFunction(*MF, CheckStr));
 }
 
-TEST_F(GISelMITest, LibcallFPExt) {
+TEST_F(AArch64GISelMITest, LibcallFPExt) {
   setUp();
   if (!TM)
     return;
@@ -1289,7 +1289,7 @@ TEST_F(GISelMITest, LibcallFPExt) {
   EXPECT_TRUE(CheckMachineFunction(*MF, CheckStr)) << *MF;
 }
 
-TEST_F(GISelMITest, LibcallFPTrunc) {
+TEST_F(AArch64GISelMITest, LibcallFPTrunc) {
   setUp();
   if (!TM)
     return;
@@ -1331,7 +1331,7 @@ TEST_F(GISelMITest, LibcallFPTrunc) {
   EXPECT_TRUE(CheckMachineFunction(*MF, CheckStr)) << *MF;
 }
 
-TEST_F(GISelMITest, LibcallSimple) {
+TEST_F(AArch64GISelMITest, LibcallSimple) {
   setUp();
   if (!TM)
     return;
@@ -1354,7 +1354,7 @@ TEST_F(GISelMITest, LibcallSimple) {
             Helper.libcall(*MIBFADD));
 }
 
-TEST_F(GISelMITest, LibcallSRem) {
+TEST_F(AArch64GISelMITest, LibcallSRem) {
   setUp();
   if (!TM)
     return;
@@ -1411,7 +1411,7 @@ TEST_F(GISelMITest, LibcallSRem) {
   EXPECT_TRUE(CheckMachineFunction(*MF, CheckStr)) << *MF;
 }
 
-TEST_F(GISelMITest, LibcallURem) {
+TEST_F(AArch64GISelMITest, LibcallURem) {
   setUp();
   if (!TM)
     return;
@@ -1468,7 +1468,7 @@ TEST_F(GISelMITest, LibcallURem) {
   EXPECT_TRUE(CheckMachineFunction(*MF, CheckStr)) << *MF;
 }
 
-TEST_F(GISelMITest, LibcallCtlzZeroUndef) {
+TEST_F(AArch64GISelMITest, LibcallCtlzZeroUndef) {
   setUp();
   if (!TM)
     return;
@@ -1521,7 +1521,7 @@ TEST_F(GISelMITest, LibcallCtlzZeroUndef) {
   EXPECT_TRUE(CheckMachineFunction(*MF, CheckStr)) << *MF;
 }
 
-TEST_F(GISelMITest, LibcallFAdd) {
+TEST_F(AArch64GISelMITest, LibcallFAdd) {
   setUp();
   if (!TM)
     return;
@@ -1573,7 +1573,7 @@ TEST_F(GISelMITest, LibcallFAdd) {
   EXPECT_TRUE(CheckMachineFunction(*MF, CheckStr)) << *MF;
 }
 
-TEST_F(GISelMITest, LibcallFSub) {
+TEST_F(AArch64GISelMITest, LibcallFSub) {
   setUp();
   if (!TM)
     return;
@@ -1625,7 +1625,7 @@ TEST_F(GISelMITest, LibcallFSub) {
   EXPECT_TRUE(CheckMachineFunction(*MF, CheckStr)) << *MF;
 }
 
-TEST_F(GISelMITest, LibcallFMul) {
+TEST_F(AArch64GISelMITest, LibcallFMul) {
   setUp();
   if (!TM)
     return;
@@ -1677,7 +1677,7 @@ TEST_F(GISelMITest, LibcallFMul) {
   EXPECT_TRUE(CheckMachineFunction(*MF, CheckStr)) << *MF;
 }
 
-TEST_F(GISelMITest, LibcallFDiv) {
+TEST_F(AArch64GISelMITest, LibcallFDiv) {
   setUp();
   if (!TM)
     return;
@@ -1729,7 +1729,7 @@ TEST_F(GISelMITest, LibcallFDiv) {
   EXPECT_TRUE(CheckMachineFunction(*MF, CheckStr)) << *MF;
 }
 
-TEST_F(GISelMITest, LibcallFExp) {
+TEST_F(AArch64GISelMITest, LibcallFExp) {
   setUp();
   if (!TM)
     return;
@@ -1776,7 +1776,7 @@ TEST_F(GISelMITest, LibcallFExp) {
   EXPECT_TRUE(CheckMachineFunction(*MF, CheckStr)) << *MF;
 }
 
-TEST_F(GISelMITest, LibcallFExp2) {
+TEST_F(AArch64GISelMITest, LibcallFExp2) {
   setUp();
   if (!TM)
     return;
@@ -1823,7 +1823,7 @@ TEST_F(GISelMITest, LibcallFExp2) {
   EXPECT_TRUE(CheckMachineFunction(*MF, CheckStr)) << *MF;
 }
 
-TEST_F(GISelMITest, LibcallFRem) {
+TEST_F(AArch64GISelMITest, LibcallFRem) {
   setUp();
   if (!TM)
     return;
@@ -1870,7 +1870,7 @@ TEST_F(GISelMITest, LibcallFRem) {
   EXPECT_TRUE(CheckMachineFunction(*MF, CheckStr)) << *MF;
 }
 
-TEST_F(GISelMITest, LibcallFPow) {
+TEST_F(AArch64GISelMITest, LibcallFPow) {
   setUp();
   if (!TM)
     return;
@@ -1917,7 +1917,7 @@ TEST_F(GISelMITest, LibcallFPow) {
   EXPECT_TRUE(CheckMachineFunction(*MF, CheckStr)) << *MF;
 }
 
-TEST_F(GISelMITest, LibcallFMa) {
+TEST_F(AArch64GISelMITest, LibcallFMa) {
   setUp();
   if (!TM)
     return;
@@ -1965,7 +1965,7 @@ TEST_F(GISelMITest, LibcallFMa) {
   EXPECT_TRUE(CheckMachineFunction(*MF, CheckStr)) << *MF;
 }
 
-TEST_F(GISelMITest, LibcallFCeil) {
+TEST_F(AArch64GISelMITest, LibcallFCeil) {
   setUp();
   if (!TM)
     return;
@@ -2012,7 +2012,7 @@ TEST_F(GISelMITest, LibcallFCeil) {
   EXPECT_TRUE(CheckMachineFunction(*MF, CheckStr)) << *MF;
 }
 
-TEST_F(GISelMITest, LibcallFFloor) {
+TEST_F(AArch64GISelMITest, LibcallFFloor) {
   setUp();
   if (!TM)
     return;
@@ -2059,7 +2059,7 @@ TEST_F(GISelMITest, LibcallFFloor) {
   EXPECT_TRUE(CheckMachineFunction(*MF, CheckStr)) << *MF;
 }
 
-TEST_F(GISelMITest, LibcallFMinNum) {
+TEST_F(AArch64GISelMITest, LibcallFMinNum) {
   setUp();
   if (!TM)
     return;
@@ -2109,7 +2109,7 @@ TEST_F(GISelMITest, LibcallFMinNum) {
   EXPECT_TRUE(CheckMachineFunction(*MF, CheckStr)) << *MF;
 }
 
-TEST_F(GISelMITest, LibcallFMaxNum) {
+TEST_F(AArch64GISelMITest, LibcallFMaxNum) {
   setUp();
   if (!TM)
     return;
@@ -2159,7 +2159,7 @@ TEST_F(GISelMITest, LibcallFMaxNum) {
   EXPECT_TRUE(CheckMachineFunction(*MF, CheckStr)) << *MF;
 }
 
-TEST_F(GISelMITest, LibcallFSqrt) {
+TEST_F(AArch64GISelMITest, LibcallFSqrt) {
   setUp();
   if (!TM)
     return;
@@ -2206,7 +2206,7 @@ TEST_F(GISelMITest, LibcallFSqrt) {
   EXPECT_TRUE(CheckMachineFunction(*MF, CheckStr)) << *MF;
 }
 
-TEST_F(GISelMITest, LibcallFRint) {
+TEST_F(AArch64GISelMITest, LibcallFRint) {
   setUp();
   if (!TM)
     return;
@@ -2253,7 +2253,7 @@ TEST_F(GISelMITest, LibcallFRint) {
   EXPECT_TRUE(CheckMachineFunction(*MF, CheckStr)) << *MF;
 }
 
-TEST_F(GISelMITest, LibcallFNearbyInt) {
+TEST_F(AArch64GISelMITest, LibcallFNearbyInt) {
   setUp();
   if (!TM)
     return;
@@ -2303,7 +2303,7 @@ TEST_F(GISelMITest, LibcallFNearbyInt) {
   EXPECT_TRUE(CheckMachineFunction(*MF, CheckStr)) << *MF;
 }
 
-TEST_F(GISelMITest, NarrowScalarExtract) {
+TEST_F(AArch64GISelMITest, NarrowScalarExtract) {
   setUp();
   if (!TM)
     return;
@@ -2342,7 +2342,7 @@ TEST_F(GISelMITest, NarrowScalarExtract) {
   EXPECT_TRUE(CheckMachineFunction(*MF, CheckStr)) << *MF;
 }
 
-TEST_F(GISelMITest, LowerInsert) {
+TEST_F(AArch64GISelMITest, LowerInsert) {
   setUp();
   if (!TM)
     return;
@@ -2443,7 +2443,7 @@ TEST_F(GISelMITest, LowerInsert) {
 }
 
 // Test lowering of G_FFLOOR
-TEST_F(GISelMITest, LowerFFloor) {
+TEST_F(AArch64GISelMITest, LowerFFloor) {
   setUp();
   if (!TM)
     return;
@@ -2475,7 +2475,7 @@ TEST_F(GISelMITest, LowerFFloor) {
 }
 
 // Test lowering of G_BSWAP
-TEST_F(GISelMITest, LowerBSWAP) {
+TEST_F(AArch64GISelMITest, LowerBSWAP) {
   setUp();
   if (!TM)
     return;
@@ -2510,6 +2510,212 @@ TEST_F(GISelMITest, LowerBSWAP) {
   CHECK: [[SHR1:%[0-9]+]]:_(<2 x s32>) = G_LSHR [[VEC]]:_, [[SPLAT8]]
   CHECK: [[AND1:%[0-9]+]]:_(<2 x s32>) = G_AND [[SHR1]]:_, [[SPLATMASK]]:_
   CHECK: [[BSWAP:%[0-9]+]]:_(<2 x s32>) = G_OR [[OR1]]:_, [[AND1]]:_
+  )";
+
+  // Check
+  EXPECT_TRUE(CheckMachineFunction(*MF, CheckStr)) << *MF;
+}
+
+// Test widening of G_UNMERGE_VALUES
+TEST_F(AArch64GISelMITest, WidenUnmerge) {
+  setUp();
+  if (!TM)
+    return;
+
+  DefineLegalizerInfo(A, {});
+
+  // Check that widening G_UNMERGE_VALUES to a larger type than the source type
+  // works as expected
+  LLT P0{LLT::pointer(0, 64)};
+  LLT S32{LLT::scalar(32)};
+  LLT S96{LLT::scalar(96)};
+
+  auto IntToPtr = B.buildIntToPtr(P0, Copies[0]);
+  auto UnmergePtr = B.buildUnmerge(S32, IntToPtr);
+  auto UnmergeScalar = B.buildUnmerge(S32, Copies[0]);
+
+  AInfo Info(MF->getSubtarget());
+  DummyGISelObserver Observer;
+  LegalizerHelper Helper(*MF, Info, Observer, B);
+
+  // Perform Legalization
+  EXPECT_EQ(LegalizerHelper::LegalizeResult::Legalized,
+            Helper.widenScalar(*UnmergePtr, 0, S96));
+
+  EXPECT_EQ(LegalizerHelper::LegalizeResult::Legalized,
+            Helper.widenScalar(*UnmergeScalar, 0, S96));
+
+  const auto *CheckStr = R"(
+  CHECK: [[COPY:%[0-9]+]]:_(s64) = COPY
+  CHECK: [[PTR:%[0-9]+]]:_(p0) = G_INTTOPTR [[COPY]]
+  CHECK: [[INT:%[0-9]+]]:_(s64) = G_PTRTOINT [[PTR]]
+  CHECK: [[ANYEXT:%[0-9]+]]:_(s96) = G_ANYEXT [[INT]]
+  CHECK: [[TRUNC:%[0-9]+]]:_(s32) = G_TRUNC [[ANYEXT]]
+  CHECK: [[C:%[0-9]+]]:_(s96) = G_CONSTANT i96 32
+  CHECK: [[LSHR:%[0-9]+]]:_(s96) = G_LSHR [[ANYEXT]]:_, [[C]]
+  CHECK: [[TRUNC:%[0-9]+]]:_(s32) = G_TRUNC [[LSHR]]
+  CHECK: [[ANYEXT:%[0-9]+]]:_(s96) = G_ANYEXT [[COPY]]
+  CHECK: [[TRUNC:%[0-9]+]]:_(s32) = G_TRUNC [[ANYEXT]]
+  CHECK: [[C:%[0-9]+]]:_(s96) = G_CONSTANT i96 32
+  CHECK: [[LSHR:%[0-9]+]]:_(s96) = G_LSHR [[ANYEXT]]:_, [[C]]
+  CHECK: [[TRUNC1:%[0-9]+]]:_(s32) = G_TRUNC [[LSHR]]
+  )";
+
+  // Check
+  EXPECT_TRUE(CheckMachineFunction(*MF, CheckStr)) << *MF;
+}
+
+TEST_F(AArch64GISelMITest, BitcastLoad) {
+  setUp();
+  if (!TM)
+    return;
+
+  LLT P0 = LLT::pointer(0, 64);
+  LLT S32 = LLT::scalar(32);
+  LLT V4S8 = LLT::vector(4, 8);
+  auto Ptr = B.buildUndef(P0);
+
+  DefineLegalizerInfo(A, {});
+
+  MachineMemOperand *MMO = B.getMF().getMachineMemOperand(
+    MachinePointerInfo(), MachineMemOperand::MOLoad, 4, 4);
+  auto Load = B.buildLoad(V4S8, Ptr, *MMO);
+
+  AInfo Info(MF->getSubtarget());
+  DummyGISelObserver Observer;
+  LegalizerHelper Helper(*MF, Info, Observer, B);
+  EXPECT_EQ(LegalizerHelper::LegalizeResult::Legalized,
+            Helper.bitcast(*Load, 0, S32));
+
+  auto CheckStr = R"(
+  CHECK: [[PTR:%[0-9]+]]:_(p0) = G_IMPLICIT_DEF
+  CHECK: [[LOAD:%[0-9]+]]:_(s32) = G_LOAD
+  CHECK: [[CAST:%[0-9]+]]:_(<4 x s8>) = G_BITCAST [[LOAD]]
+
+  )";
+
+  // Check
+  EXPECT_TRUE(CheckMachineFunction(*MF, CheckStr)) << *MF;
+}
+
+TEST_F(AArch64GISelMITest, BitcastStore) {
+  setUp();
+  if (!TM)
+    return;
+
+  LLT P0 = LLT::pointer(0, 64);
+  LLT S32 = LLT::scalar(32);
+  LLT V4S8 = LLT::vector(4, 8);
+  auto Ptr = B.buildUndef(P0);
+
+  DefineLegalizerInfo(A, {});
+
+  MachineMemOperand *MMO = B.getMF().getMachineMemOperand(
+    MachinePointerInfo(), MachineMemOperand::MOStore, 4, 4);
+  auto Val = B.buildUndef(V4S8);
+  auto Store = B.buildStore(Val, Ptr, *MMO);
+
+  AInfo Info(MF->getSubtarget());
+  DummyGISelObserver Observer;
+  LegalizerHelper Helper(*MF, Info, Observer, B);
+  EXPECT_EQ(LegalizerHelper::LegalizeResult::Legalized,
+            Helper.bitcast(*Store, 0, S32));
+
+  auto CheckStr = R"(
+  CHECK: [[VAL:%[0-9]+]]:_(<4 x s8>) = G_IMPLICIT_DEF
+  CHECK: [[CAST:%[0-9]+]]:_(s32) = G_BITCAST [[VAL]]
+  CHECK: G_STORE [[CAST]]
+  )";
+
+  // Check
+  EXPECT_TRUE(CheckMachineFunction(*MF, CheckStr)) << *MF;
+}
+
+TEST_F(AArch64GISelMITest, BitcastSelect) {
+  setUp();
+  if (!TM)
+    return;
+
+  LLT S1 = LLT::scalar(1);
+  LLT S32 = LLT::scalar(32);
+  LLT V4S8 = LLT::vector(4, 8);
+
+  DefineLegalizerInfo(A, {});
+
+  auto Cond = B.buildUndef(S1);
+  auto Val0 = B.buildConstant(V4S8, 123);
+  auto Val1 = B.buildConstant(V4S8, 99);
+
+  auto Select = B.buildSelect(V4S8, Cond, Val0, Val1);
+
+  AInfo Info(MF->getSubtarget());
+  DummyGISelObserver Observer;
+  LegalizerHelper Helper(*MF, Info, Observer, B);
+  EXPECT_EQ(LegalizerHelper::LegalizeResult::Legalized,
+            Helper.bitcast(*Select, 0, S32));
+
+  auto CheckStr = R"(
+  CHECK: [[VAL0:%[0-9]+]]:_(<4 x s8>) = G_BUILD_VECTOR
+  CHECK: [[VAL1:%[0-9]+]]:_(<4 x s8>) = G_BUILD_VECTOR
+  CHECK: [[CAST0:%[0-9]+]]:_(s32) = G_BITCAST [[VAL0]]
+  CHECK: [[CAST1:%[0-9]+]]:_(s32) = G_BITCAST [[VAL1]]
+  CHECK: [[SELECT:%[0-9]+]]:_(s32) = G_SELECT %{{[0-9]+}}:_(s1), [[CAST0]]:_, [[CAST1]]:_
+  CHECK: [[CAST2:%[0-9]+]]:_(<4 x s8>) = G_BITCAST [[SELECT]]
+  )";
+
+  // Check
+  EXPECT_TRUE(CheckMachineFunction(*MF, CheckStr)) << *MF;
+
+  // Doesn't make sense
+  auto VCond = B.buildUndef(LLT::vector(4, 1));
+  auto VSelect = B.buildSelect(V4S8, VCond, Val0, Val1);
+  EXPECT_EQ(LegalizerHelper::LegalizeResult::UnableToLegalize,
+            Helper.bitcast(*VSelect, 0, S32));
+  EXPECT_EQ(LegalizerHelper::LegalizeResult::UnableToLegalize,
+            Helper.bitcast(*VSelect, 1, LLT::scalar(4)));
+}
+
+TEST_F(AArch64GISelMITest, BitcastBitOps) {
+  setUp();
+  if (!TM)
+    return;
+
+  LLT S32 = LLT::scalar(32);
+  LLT V4S8 = LLT::vector(4, 8);
+
+  DefineLegalizerInfo(A, {});
+
+  auto Val0 = B.buildConstant(V4S8, 123);
+  auto Val1 = B.buildConstant(V4S8, 99);
+  auto And = B.buildAnd(V4S8, Val0, Val1);
+  auto Or = B.buildOr(V4S8, Val0, Val1);
+  auto Xor = B.buildXor(V4S8, Val0, Val1);
+
+  AInfo Info(MF->getSubtarget());
+  DummyGISelObserver Observer;
+  LegalizerHelper Helper(*MF, Info, Observer, B);
+  EXPECT_EQ(LegalizerHelper::LegalizeResult::Legalized,
+            Helper.bitcast(*And, 0, S32));
+  EXPECT_EQ(LegalizerHelper::LegalizeResult::Legalized,
+            Helper.bitcast(*Or, 0, S32));
+  EXPECT_EQ(LegalizerHelper::LegalizeResult::Legalized,
+            Helper.bitcast(*Xor, 0, S32));
+
+  auto CheckStr = R"(
+  CHECK: [[VAL0:%[0-9]+]]:_(<4 x s8>) = G_BUILD_VECTOR
+  CHECK: [[VAL1:%[0-9]+]]:_(<4 x s8>) = G_BUILD_VECTOR
+  CHECK: [[CAST0:%[0-9]+]]:_(s32) = G_BITCAST [[VAL0]]
+  CHECK: [[CAST1:%[0-9]+]]:_(s32) = G_BITCAST [[VAL1]]
+  CHECK: [[AND:%[0-9]+]]:_(s32) = G_AND [[CAST0]]:_, [[CAST1]]:_
+  CHECK: [[CAST_AND:%[0-9]+]]:_(<4 x s8>) = G_BITCAST [[AND]]
+  CHECK: [[CAST2:%[0-9]+]]:_(s32) = G_BITCAST [[VAL0]]
+  CHECK: [[CAST3:%[0-9]+]]:_(s32) = G_BITCAST [[VAL1]]
+  CHECK: [[OR:%[0-9]+]]:_(s32) = G_OR [[CAST2]]:_, [[CAST3]]:_
+  CHECK: [[CAST_OR:%[0-9]+]]:_(<4 x s8>) = G_BITCAST [[OR]]
+  CHECK: [[CAST4:%[0-9]+]]:_(s32) = G_BITCAST [[VAL0]]
+  CHECK: [[CAST5:%[0-9]+]]:_(s32) = G_BITCAST [[VAL1]]
+  CHECK: [[XOR:%[0-9]+]]:_(s32) = G_XOR [[CAST4]]:_, [[CAST5]]:_
+  CHECK: [[CAST_XOR:%[0-9]+]]:_(<4 x s8>) = G_BITCAST [[XOR]]
   )";
 
   // Check
