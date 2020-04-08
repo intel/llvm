@@ -7,6 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl/interop_handle.hpp>
+#include <CL/sycl/detail/accessor_impl.hpp>
+
+#include <algorithm>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

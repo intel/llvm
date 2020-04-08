@@ -12,6 +12,7 @@
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/defines.hpp>
 #include <CL/sycl/detail/pi.hpp>
+#include <CL/sycl/detail/accessor_impl.hpp>
 
 #include <memory>
 
@@ -19,6 +20,7 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
 namespace detail {
+  class AccessorBaseHost;
   class ExecCGCommand;
   struct HostTaskContext;
 
@@ -44,7 +46,10 @@ public:
   get_native_mem(const accessor<dataT, dimensions, accessmode,
                                 accessTarget, isPlaceholder> &Acc) const {
 #ifndef __SYCL_DEVICE_ONLY__
-    auto *AccBase = static_cast<detail::AccessorBaseHost *>(&Acc);
+    // employ reinterpret_cast instead of static_cast due to cycle in includes
+    // involving CL/sycl/accessor.hpp
+    auto *AccBase = const_cast<detail::AccessorBaseHost *>(
+        reinterpret_cast<const detail::AccessorBaseHost *>(&Acc));
     return getMemImpl(detail::getSyclObjImpl(*AccBase).get());
 #else
     // we believe this won't be ever called on device side
