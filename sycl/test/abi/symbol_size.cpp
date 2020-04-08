@@ -15,7 +15,28 @@ int main() {
 
   bool HasFailed = false;
 
-#include "symbol_size_linux.def"
+  using accessor_t = accessor<int, 1, access::mode::read, access::target::global_buffer, access::placeholder::true_t>;
+  CHECK_LAYOUT(accessor_t, 32)
+  CHECK_LAYOUT(buffer<int>, 40)
+  CHECK_LAYOUT(context, 16)
+  CHECK_LAYOUT(cpu_selector, 8)
+  CHECK_LAYOUT(device, 16)
+  CHECK_LAYOUT(device_event, 8)
+  CHECK_LAYOUT(device_selector, 8)
+  CHECK_LAYOUT(event, 16)
+  CHECK_LAYOUT(gpu_selector, 8)
+  CHECK_LAYOUT(handler, 472)
+  CHECK_LAYOUT(image<1>, 16)
+  CHECK_LAYOUT(kernel, 16)
+  CHECK_LAYOUT(platform, 16)
+  CHECK_LAYOUT(private_memory<int>, 8)
+  CHECK_LAYOUT(program, 16)
+  CHECK_LAYOUT(range<1>, 8)
+  CHECK_LAYOUT(sampler, 16)
+  CHECK_LAYOUT(stream, 208)
+  CHECK_LAYOUT(queue, 16)
+
+  assert(!HasFailed && "Some symbols changed their sizes!");
 
   return 0;
 }

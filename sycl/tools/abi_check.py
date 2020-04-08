@@ -22,16 +22,20 @@ def match_symbol(sym_binding, sym_type):
 
 
 def parse_readobj_output(output):
-  symbols = re.findall(r"Symbol \{[\n\s\w:\.\-\(\)]*\}",
-                       output.decode().strip())
-  parsed_symbols = []
-  for sym in symbols:
-    sym_binding = re.search(r"(?<=Binding:\s)[\w]+", sym)
-    sym_type = re.search(r"(?<=Type:\s)[\w]+", sym)
-    name = re.search(r"(?<=Name:\s)[\w]+", sym)
-    if match_symbol(sym_binding, sym_type):
-      parsed_symbols.append(name.group())
-  return parsed_symbols
+  if os.name == 'nt':
+    return re.findall(r"(?<=Symbol: )[\w\_\?\@\$]+", output.decode().strip())
+  else:
+    symbols = re.findall(r"Symbol \{[\n\s\w:\.\-\(\)]*\}",
+                         output.decode().strip())
+    print(symbols)
+    parsed_symbols = []
+    for sym in symbols:
+      sym_binding = re.search(r"(?<=Binding:\s)[\w]+", sym)
+      sym_type = re.search(r"(?<=Type:\s)[\w]+", sym)
+      name = re.search(r"(?<=Name:\s)[\w]+", sym)
+      if match_symbol(sym_binding, sym_type):
+        parsed_symbols.append(name.group())
+    return parsed_symbols
 
 
 def dump_symbols(target_path, output):
