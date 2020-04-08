@@ -791,15 +791,12 @@ pi_result cuda_piDevicePartition(
 pi_result cuda_piextDeviceSelectBinary(pi_device device,
                                        pi_device_binary *binaries,
                                        pi_uint32 num_binaries,
-                                       pi_device_binary *selected_binary) {
+                                       pi_uint32 *selected_binary) {
   if (!binaries) {
     cl::sycl::detail::pi::die("No list of device images provided");
   }
   if (num_binaries < 1) {
     cl::sycl::detail::pi::die("No binary images in the list");
-  }
-  if (!selected_binary) {
-    cl::sycl::detail::pi::die("No storage for device binary provided");
   }
 
   // Look for an image for the NVPTX64 target, and return the first one that is
@@ -807,7 +804,7 @@ pi_result cuda_piextDeviceSelectBinary(pi_device device,
   for (pi_uint32 i = 0; i < num_binaries; i++) {
     if (strcmp(binaries[i]->DeviceTargetSpec,
                PI_DEVICE_BINARY_TARGET_NVPTX64) == 0) {
-      *selected_binary = binaries[i];
+      *selected_binary = i;
       return PI_SUCCESS;
     }
   }

@@ -8,9 +8,11 @@
 
 #pragma once
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/exception_list.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/stl.hpp>
+
 #include <type_traits>
 // 4.6.2 Context class
 
@@ -23,7 +25,7 @@ namespace detail {
 class context_impl;
 }
 
-class context {
+class __SYCL_EXPORT context {
 public:
   /// Constructs a SYCL context instance using an instance of default_selector.
   ///

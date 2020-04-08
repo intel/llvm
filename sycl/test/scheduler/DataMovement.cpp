@@ -1,5 +1,9 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -I %sycl_source_dir %s -o %t.out
-// RUN: %t.out
+// RUN: %CPU_RUN_PLACEHOLDER %t.out
+// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// Incorrect event callback processing for host device.
+// XFAIL: cuda
 //
 //==-------------------------- DataMovement.cpp ----------------------------==//
 //

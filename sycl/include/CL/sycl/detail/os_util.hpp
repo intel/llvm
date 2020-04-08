@@ -11,6 +11,7 @@
 #pragma once
 
 #include <CL/sycl/detail/defines.hpp>
+#include <CL/sycl/detail/export.hpp>
 
 #include <cstdint>
 #include <stdlib.h>
@@ -36,26 +37,6 @@
 #error "Unsupported compiler or OS"
 #endif // _WIN32
 
-#if defined(SYCL_RT_OS_WINDOWS)
-
-#define DLL_LOCAL
-// If SYCL headers are included to build SYCL library then the macro is used
-// to set dllexport attribute for global variables/functions/classes.
-// Otherwise, the macro is used used to set dllimport for the same global
-// variables/functions/classes.
-#if defined(__SYCL_BUILD_SYCL_DLL)
-#define __SYCL_EXPORTED __declspec(dllexport)
-#else
-#define __SYCL_EXPORTED __declspec(dllimport)
-#endif
-
-#elif defined(SYCL_RT_OS_POSIX_SUPPORT)
-
-#define DLL_LOCAL __attribute__((visibility("hidden")))
-#define __SYCL_EXPORTED
-
-#endif
-
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
@@ -65,7 +46,7 @@ namespace detail {
 using OSModuleHandle = intptr_t;
 
 /// Groups the OS-dependent services.
-class OSUtil {
+class __SYCL_EXPORT OSUtil {
 public:
   /// Returns a module enclosing given address or nullptr.
   static OSModuleHandle getOSModuleHandle(const void *VirtAddr);
@@ -74,7 +55,7 @@ public:
   static std::string getCurrentDSODir();
 
   /// Returns a directory component of a path.
-  static std::string getDirName(const char* Path);
+  static std::string getDirName(const char *Path);
 
   /// Module handle for the executable module - it is assumed there is always
   /// single one at most.
@@ -85,9 +66,9 @@ public:
   static constexpr OSModuleHandle DummyModuleHandle = -2;
 
 #ifdef SYCL_RT_OS_WINDOWS
-  static constexpr const char* DirSep = "\\";
+  static constexpr const char *DirSep = "\\";
 #else
-  static constexpr const char* DirSep = "/";
+  static constexpr const char *DirSep = "/";
 #endif
 
   /// Returns the amount of RAM available for the operating system.

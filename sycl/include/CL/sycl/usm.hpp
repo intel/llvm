@@ -7,6 +7,7 @@
 // ===--------------------------------------------------------------------=== //
 #pragma once
 
+#include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/usm/usm_allocator.hpp>
 #include <CL/sycl/usm/usm_enums.hpp>
 
@@ -17,43 +18,52 @@ namespace sycl {
 ///
 // Explicit USM
 ///
-void *malloc_device(size_t size, const device &dev, const context &ctxt);
-void *malloc_device(size_t size, const queue &q);
+__SYCL_EXPORT void *malloc_device(size_t size, const device &dev,
+                                  const context &ctxt);
+__SYCL_EXPORT void *malloc_device(size_t size, const queue &q);
 
-void *aligned_alloc_device(size_t alignment, size_t size, const device &dev,
-                           const context &ctxt);
-void *aligned_alloc_device(size_t alignment, size_t size, const queue &q);
+__SYCL_EXPORT void *aligned_alloc_device(size_t alignment, size_t size,
+                                         const device &dev,
+                                         const context &ctxt);
+__SYCL_EXPORT void *aligned_alloc_device(size_t alignment, size_t size,
+                                         const queue &q);
 
-void free(void *ptr, const context &ctxt);
-void free(void *ptr, const queue &q);
+__SYCL_EXPORT void free(void *ptr, const context &ctxt);
+__SYCL_EXPORT void free(void *ptr, const queue &q);
 
 ///
 // Restricted USM
 ///
-void *malloc_host(size_t size, const context &ctxt);
-void *malloc_host(size_t size, const queue &q);
+__SYCL_EXPORT void *malloc_host(size_t size, const context &ctxt);
+__SYCL_EXPORT void *malloc_host(size_t size, const queue &q);
 
-void *malloc_shared(size_t size, const device &dev, const context &ctxt);
-void *malloc_shared(size_t size, const queue &q);
+__SYCL_EXPORT void *malloc_shared(size_t size, const device &dev,
+                                  const context &ctxt);
+__SYCL_EXPORT void *malloc_shared(size_t size, const queue &q);
 
-void *aligned_alloc_host(size_t alignment, size_t size, const context &ctxt);
-void *aligned_alloc_host(size_t alignment, size_t size, const queue &q);
+__SYCL_EXPORT void *aligned_alloc_host(size_t alignment, size_t size,
+                                       const context &ctxt);
+__SYCL_EXPORT void *aligned_alloc_host(size_t alignment, size_t size,
+                                       const queue &q);
 
-void *aligned_alloc_shared(size_t alignment, size_t size, const device &dev,
-                           const context &ctxt);
-void *aligned_alloc_shared(size_t alignment, size_t size, const queue &q);
+__SYCL_EXPORT void *aligned_alloc_shared(size_t alignment, size_t size,
+                                         const device &dev,
+                                         const context &ctxt);
+__SYCL_EXPORT void *aligned_alloc_shared(size_t alignment, size_t size,
+                                         const queue &q);
 
 ///
 // single form
 ///
-void *malloc(size_t size, const device &dev, const context &ctxt,
-             usm::alloc kind);
-void *malloc(size_t size, const queue &q, usm::alloc kind);
+__SYCL_EXPORT void *malloc(size_t size, const device &dev, const context &ctxt,
+                           usm::alloc kind);
+__SYCL_EXPORT void *malloc(size_t size, const queue &q, usm::alloc kind);
 
-void *aligned_alloc(size_t alignment, size_t size, const device &dev,
-                    const context &ctxt, usm::alloc kind);
-void *aligned_alloc(size_t alignment, size_t size, const queue &q,
-                    usm::alloc kind);
+__SYCL_EXPORT void *aligned_alloc(size_t alignment, size_t size,
+                                  const device &dev, const context &ctxt,
+                                  usm::alloc kind);
+__SYCL_EXPORT void *aligned_alloc(size_t alignment, size_t size, const queue &q,
+                                  usm::alloc kind);
 
 ///
 // Template forms
@@ -150,14 +160,14 @@ T *aligned_alloc(size_t Alignment, size_t Count, const queue &Q,
 ///
 /// \param ptr is the USM pointer to query
 /// \param ctxt is the sycl context the ptr was allocated in
-usm::alloc get_pointer_type(const void *ptr, const context &ctxt);
+__SYCL_EXPORT usm::alloc get_pointer_type(const void *ptr, const context &ctxt);
 
 /// Queries the device against which the pointer was allocated
 /// Throws an invalid_object_error if ptr is a host allocation.
 ///
 /// \param ptr is the USM pointer to query
 /// \param ctxt is the sycl context the ptr was allocated in
-device get_pointer_device(const void *ptr, const context &ctxt);
+__SYCL_EXPORT device get_pointer_device(const void *ptr, const context &ctxt);
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
