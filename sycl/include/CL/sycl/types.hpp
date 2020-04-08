@@ -280,6 +280,7 @@ using Rtp = detail::bool_constant<Mode == rounding_mode::rtp>;
 template <rounding_mode Mode>
 using Rtn = detail::bool_constant<Mode == rounding_mode::rtn>;
 
+// Convert floating-point type to integer 
 #define __SYCL_GENERATE_CONVERT_IMPL(SPIRVOp, DestType, RoundingMode,          \
                                      RoundingModeCondition)                    \
   template <typename T, typename R, rounding_mode roundingMode>                \
@@ -318,7 +319,7 @@ __SYCL_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE(rtn, Rtn)
 #undef __SYCL_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE
 #undef __SYCL_GENERATE_CONVERT_IMPL
 
-#endif
+#endif // __SYCL_DEVICE_ONLY__
 
 } // namespace detail
 
