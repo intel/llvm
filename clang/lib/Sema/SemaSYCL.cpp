@@ -1256,16 +1256,6 @@ static void populateIntHeader(SYCLIntegrationHeader &H, const StringRef Name,
   }
 }
 
-// Creates a mangled kernel name for given kernel name type
-static std::string constructKernelName(QualType KernelNameType,
-                                       MangleContext &MC) {
-  SmallString<256> Result;
-  llvm::raw_svector_ostream Out(Result);
-
-  MC.mangleTypeName(KernelNameType, Out);
-  return std::string(Out.str());
-}
-
 static FunctionDecl *
 CreateOpenCLKernelDeclaration(ASTContext &Context, StringRef Name,
                               ArrayRef<ParamDesc> ParamDescs) {
@@ -1307,6 +1297,153 @@ CreateOpenCLKernelDeclaration(ASTContext &Context, StringRef Name,
   return OpenCLKernel;
 }
 
+// The first template argument to the kernel function is used to identify the
+// kernel itself.
+static QualType calculateKernelNameType(ASTContext &Ctx,
+                                        FunctionDecl *KernelCallerFunc) {
+  // TODO: Not sure what the 'fully qualified type's purpose is here, the type
+  // itself should have its full qualified name, so figure out what the purpose
+  // is.
+  const TemplateArgumentList *TAL =
+      KernelCallerFunc->getTemplateSpecializationArgs();
+  return TypeName::getFullyQualifiedType(TAL->get(0).getAsType(), Ctx,
+                                         /*WithGlobalNSPrefix=*/true);
+}
+
+// Gets a name for the kernel caller func, calculated from the first template argument.
+static std::string constructKernelName(Sema &S, FunctionDecl *KernelCallerFunc,
+                                       MangleContext &MC) {
+  QualType KernelNameType =
+      calculateKernelNameType(S.getASTContext(), KernelCallerFunc);
+
+  if (S.getLangOpts().SYCLUnnamedLambda)
+    return PredefinedExpr::ComputeName(
+        S.getASTContext(), PredefinedExpr::UniqueStableNameType, KernelNameType);
+
+  SmallString<256> Result;
+  llvm::raw_svector_ostream Out(Result);
+
+  MC.mangleTypeName(KernelNameType, Out);
+  return std::string(Out.str());
+}
+
+// anonymous namespace so these don't get linkage.
+namespace {
+// A base type that the SYCL OpenCL Kernel construction task uses to implement
+// individual tasks.
+template<typename Derived>
+class SyclKernelFieldHandler {
+protected:
+  Sema &SemaRef;
+  SyclKernelFieldHandler(Sema &S) : SemaRef(S) {}
+
+public:
+  // TODO: Should the default behavior DO anything?  Also, do these need any
+  // more params?
+  void handleSyclAccessorType(const FieldDecl *, QualType){}
+  void handleSyclSamplerType(const FieldDecl *, QualType){}
+  void handleSyclSpecConstantType(const FieldDecl *, QualType){}
+  void handleStructType(const FieldDecl *, QualType){}
+  void handleReferenceType(const FieldDecl *, QualType){}
+  void handlePointerType(const FieldDecl *, QualType){}
+  void handleArrayType(const FieldDecl *, QualType){}
+  void handleScalarType(const FieldDecl *, QualType){}
+};
+
+// A type to check the valididty of all of the argument types.
+class SYCLKernelFieldChecker : public SyclKernelFieldHandler<SYCLKernelFieldChecker> {
+  bool AllArgsValid = true;
+  DiagnosticsEngine &Diag;
+public:
+  SYCLKernelFieldChecker(Sema &S)
+      : SyclKernelFieldHandler(S), Diag(S.getASTContext().getDiagnostics()) {}
+  bool isValid() { return AllArgsValid; }
+
+  void handleSyclReferenceType(const FieldDecl *FD, QualType ArgTy) {
+    AllArgsValid = false;
+    Diag.Report(FD->getLocation(), diag::err_bad_kernel_param_type) << ArgTy;
+  }
+  void handleSyclStructType(const FieldDecl *FD, QualType ArgTy) {
+    if (SemaRef.getASTContext().getLangOpts().SYCLStdLayoutKernelParams &&
+        !ArgTy->isStandardLayoutType()) {
+      AllArgsValid = false;
+      Diag.Report(FD->getLocation(), diag::err_sycl_non_std_layout_type)
+          << ArgTy;
+    } else {
+      CXXRecordDecl *RD = ArgTy->getAsCXXRecordDecl();
+      if (!RD->hasTrivialCopyConstructor()) {
+        AllArgsValid = false;
+        Diag.Report(FD->getLocation(),
+                    diag::err_sycl_non_trivially_copy_ctor_dtor_type)
+            << 0 << ArgTy;
+      } else if (!RD->hasTrivialDestructor()) {
+        AllArgsValid = false;
+        Diag.Report(FD->getLocation(),
+                    diag::err_sycl_non_trivially_copy_ctor_dtor_type)
+            << 1 << ArgTy;
+      }
+    }
+  }
+};
+
+// A type to Create and own the FunctionDecl for the kernel.
+class SYCLKernelHeader : public SyclKernelFieldHandler<SYCLKernelHeader> {
+  SYCLKernelFieldChecker &ArgChecker;
+  FunctionDecl *KernelObj = nullptr;
+
+public:
+  // TODO: More params necessary for the kernel obj header.
+  SYCLKernelHeader(Sema &S, SYCLKernelFieldChecker &ArgChecker)
+      : SyclKernelFieldHandler(S), ArgChecker(ArgChecker) {}
+  ~SYCLKernelHeader() {
+    // TODO: Should 'body' do this?  Does it need to do stuff in its destructor?
+    if (KernelObj && ArgChecker.isValid())
+      SemaRef.addSyclDeviceDecl(KernelObj);
+  }
+};
+
+class SYCLKernelBody : public SyclKernelFieldHandler<SYCLKernelBody> {
+  SYCLKernelHeader &Header;
+
+public:
+  SYCLKernelBody(Sema &S, SYCLKernelHeader &H)
+      : SyclKernelFieldHandler(S), Header(H) {}
+};
+}
+
+template<typename ... Handlers>
+void VisitKernelFields(RecordDecl::field_range Fields, Handlers& ... handlers) {
+
+  // Implements the 'for-each-visitor'  pattern.
+#define KF_FOR_EACH(FUNC)                                                      \
+  (void)std::initializer_list<int>{(handlers.FUNC(Field, ArgTy), 0)...}
+
+  for (const auto &Field : Fields){
+    QualType ArgTy = Field->getType();
+
+    if (Util::isSyclAccessorType(ArgTy))
+      KF_FOR_EACH(handleSyclAccessorType);
+    else if (Util::isSyclSamplerType(ArgTy))
+      KF_FOR_EACH(handleSyclSamplerType);
+    else if (Util::isSyclSpecConstantType(ArgTy))
+      KF_FOR_EACH(handleSyclSpecConstantType);
+    else if (ArgTy->isStructureOrClassType())
+      KF_FOR_EACH(handleStructType);
+    else if (ArgTy->isReferenceType())
+      KF_FOR_EACH(handleReferenceType);
+    else if (ArgTy->isPointerType())
+      KF_FOR_EACH(handlePointerType);
+    else if (ArgTy->isArrayType())
+      KF_FOR_EACH(handleArrayType);
+    else if (ArgTy->isScalarType())
+      KF_FOR_EACH(handleScalarType);
+    else
+      llvm_unreachable("Unsupported kernel parameter type");
+  }
+#undef KF_FOR_EACH
+}
+
+
 // Generates the OpenCL kernel using KernelCallerFunc (kernel caller
 // function) defined is SYCL headers.
 // Generated OpenCL kernel contains the body of the kernel caller function,
@@ -1331,52 +1468,47 @@ CreateOpenCLKernelDeclaration(ASTContext &Context, StringRef Name,
 //
 void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
                                  MangleContext &MC) {
-  CXXRecordDecl *LE = getKernelObjectType(KernelCallerFunc);
-  assert(LE && "invalid kernel caller");
+  // The first argument to the KernelCallerFunc is the lambda object.
+  CXXRecordDecl *KernelLambda = getKernelObjectType(KernelCallerFunc);
+  assert(KernelLambda && "invalid kernel caller");
+  std::string KernelName = constructKernelName(*this, KernelCallerFunc, MC);
 
-  // Build list of kernel arguments
-  llvm::SmallVector<ParamDesc, 16> ParamDescs;
-  if (!buildArgTys(getASTContext(), LE, ParamDescs))
-    return;
+  SYCLKernelFieldChecker checker(*this);
+  SYCLKernelHeader header(*this, checker);
+  SYCLKernelBody body(*this, header);
 
-  // Extract name from kernel caller parameters and mangle it.
-  const TemplateArgumentList *TemplateArgs =
-      KernelCallerFunc->getTemplateSpecializationArgs();
-  assert(TemplateArgs && "No template argument info");
-  QualType KernelNameType = TypeName::getFullyQualifiedType(
-      TemplateArgs->get(0).getAsType(), getASTContext(), true);
+  VisitKernelFields(KernelLambda->fields(), checker, header, body);
 
-  std::string Name;
-  // TODO SYCLIntegrationHeader also computes a unique stable name. It should
-  // probably lose this responsibility and only use the name provided here.
-  if (getLangOpts().SYCLUnnamedLambda)
-    Name = PredefinedExpr::ComputeName(
-        getASTContext(), PredefinedExpr::UniqueStableNameExpr, KernelNameType);
-  else
-    Name = constructKernelName(KernelNameType, MC);
+  /*
+    // Build list of kernel arguments
+    llvm::SmallVector<ParamDesc, 16> ParamDescs;
+    if (!buildArgTys(getASTContext(), LE, ParamDescs))
+      return;
 
-  // TODO Maybe don't emit integration header inside the Sema?
-  populateIntHeader(getSyclIntegrationHeader(), Name, KernelNameType, LE);
+    // TODO Maybe don't emit integration header inside the Sema?
+    populateIntHeader(getSyclIntegrationHeader(), Name, KernelNameType, LE);
 
-  FunctionDecl *OpenCLKernel =
-      CreateOpenCLKernelDeclaration(getASTContext(), Name, ParamDescs);
+    FunctionDecl *OpenCLKernel =
+        CreateOpenCLKernelDeclaration(getASTContext(), Name, ParamDescs);
 
-  ContextRAII FuncContext(*this, OpenCLKernel);
+    ContextRAII FuncContext(*this, OpenCLKernel);
 
-  // Let's copy source location of a functor/lambda to emit nicer diagnostics
-  OpenCLKernel->setLocation(LE->getLocation());
+    // Let's copy source location of a functor/lambda to emit nicer diagnostics
+    OpenCLKernel->setLocation(LE->getLocation());
 
-  // If the source function is implicitly inline, the kernel should be marked
-  // such as well. This allows the kernel to be ODR'd if there are multiple uses
-  // in different translation units.
-  OpenCLKernel->setImplicitlyInline(KernelCallerFunc->isInlined());
+    // If the source function is implicitly inline, the kernel should be marked
+    // such as well. This allows the kernel to be ODR'd if there are multiple
+    uses
+    // in different translation units.
+    OpenCLKernel->setImplicitlyInline(KernelCallerFunc->isInlined());
 
-  ConstructingOpenCLKernel = true;
-  CompoundStmt *OpenCLKernelBody =
-      CreateOpenCLKernelBody(*this, KernelCallerFunc, OpenCLKernel);
-  ConstructingOpenCLKernel = false;
-  OpenCLKernel->setBody(OpenCLKernelBody);
-  addSyclDeviceDecl(OpenCLKernel);
+    ConstructingOpenCLKernel = true;
+    CompoundStmt *OpenCLKernelBody =
+        CreateOpenCLKernelBody(*this, KernelCallerFunc, OpenCLKernel);
+    ConstructingOpenCLKernel = false;
+    OpenCLKernel->setBody(OpenCLKernelBody);
+    addSyclDeviceDecl(OpenCLKernel);
+    */
 }
 
 void Sema::MarkDevice(void) {
