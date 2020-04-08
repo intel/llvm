@@ -1310,15 +1310,17 @@ static QualType calculateKernelNameType(ASTContext &Ctx,
                                          /*WithGlobalNSPrefix=*/true);
 }
 
-// Gets a name for the kernel caller func, calculated from the first template argument.
+// Gets a name for the kernel caller func, calculated from the first template
+// argument.
 static std::string constructKernelName(Sema &S, FunctionDecl *KernelCallerFunc,
                                        MangleContext &MC) {
   QualType KernelNameType =
       calculateKernelNameType(S.getASTContext(), KernelCallerFunc);
 
   if (S.getLangOpts().SYCLUnnamedLambda)
-    return PredefinedExpr::ComputeName(
-        S.getASTContext(), PredefinedExpr::UniqueStableNameType, KernelNameType);
+    return PredefinedExpr::ComputeName(S.getASTContext(),
+                                       PredefinedExpr::UniqueStableNameType,
+                                       KernelNameType);
 
   SmallString<256> Result;
   llvm::raw_svector_ostream Out(Result);
