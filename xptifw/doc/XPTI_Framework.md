@@ -5,6 +5,7 @@
   - [Architecture](#architecture)
     - [The Dispatcher](#the-dispatcher)
     - [The Subscriber](#the-subscriber)
+    - [Using the Reference Dispatcher and Subscriber](#using-the-reference-dispatcher-and-subscriber)
   - [Tracing Framework and Callback APIs](#tracing-framework-and-callback-apis)
     - [Brief API Concepts](#brief-api-concepts)
     - [`xptiInitialize`](#xptiinitialize)
@@ -56,8 +57,10 @@ performance of the framework.
 To enable the build to use TBB for the framework and tests, use the commands as
 shown below:
 
-    cd xptifw
-    cmake -DXPTI_ENABLE_TBB=ON -DXPTI_SOURCE_DIR=$SYCL_HOME/xpti ./
+  ```bash
+  % cd xptifw
+  % cmake -DXPTI_ENABLE_TBB=ON -DXPTI_SOURCE_DIR=$SYCL_HOME/xpti ./
+  ```
 
 > **NOTE:** This document is best viewed with [Markdown Reader](https://chrome.google.com/webstore/detail/markdown-reader/gpoigdifkoadgajcincpilkjmejcaanc)
 > plugin for Chrome or the [Markdown Preview Extension]() for Visual Studio Code.
@@ -231,6 +234,62 @@ combined value of the `unique_id` and `instance_id` should always be unique.
 
 > **NOTE:** The specification for a given event stream **must** be consulted
 > before implementing the callback handlers for various trace types.
+
+### Using the Reference Dispatcher and Subscriber
+
+The XPTI framework package provides a reference implementation of the XPTI
+dispatcher and a sample subscriber that can be used to see what is being emitted
+by any stream generated using XPTI. If you wish to skip the rest of the
+document and inspect the generated stream, you can follow the steps outlined
+below.
+
+1. **Build the XPTI framework dispatcher:** The instructions below show how to
+   build the library with standard containers. If you have access to TBB, you
+   can enable the macro `-DXPTI_USE_TBB` in the cmake command.
+
+    ```bash
+    % cd xptifw
+    % cmake -DXPTI_SOURCE_DIR=$SYCL_HOME/xpti ./
+    % make
+    ```
+
+   The binaries will be built and installed in `lib/Release`. These include the
+   dispatcher, a sample subscriber that prints the contents of the stream, the
+   unit test and a performance characterization application for the framework.
+
+2. **Run an instrumented SYCL application:**
+   To enable the dispatcher and subscriber, set the following environment
+   variables. The commands for enabling the environment variables are provided
+   for Linux environments in the example below:
+
+   ```bash
+   % export XPTI_TRACE_ENABLE=1
+   % export XPTI_FRAMEWORK_DISPATCHER=/path/to/libxptifw.so
+   % export XPTI_SUBSCRIBERS=/path/to/libbasic_collector.so
+   ```
+
+   You can now run a SYCL application that has been linked with a runtime that
+   supports the XPTI instrumentation and inspect the resulting stream.
+
+3. **Running the unit tests:** The unit tests included cover the exported API
+   and incorporate some correctness tests.
+
+   ```bash
+   % <xptifw-dir>/lib/Release/xpti_tests
+   ```
+4. **Understanding the throughput of the framework:** This document discusses
+   the performance of the framework in detail in the sections [Performance of the Framework](#performance-of-the-framework) and  [Modeling and projection](#modeling-and-projection). For details on the command line arguments,
+   please refer to these sections.
+
+   ```bash
+   % <xptifw-dir>/lib/Release/run_test --trace-points 1000 --type performance --overhead 1.5 --num-threads 0,1,2,3 --test-id 1,2 --tp-frequency 50
+   ```
+
+   The above command will run the performance tests in which 1000 trace points
+   are created and each trace point visited twice. The trace point creation and
+   notification costs are measured in single thread and multi-threaded
+   scenarios and the output shows the throughput projection of the framework
+   using the events/sec metric at 1.5% overheads to the application runtime.
 
 ## Tracing Framework and Callback APIs
 
