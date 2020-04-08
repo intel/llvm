@@ -43,14 +43,16 @@ int default_selector::operator()(const device &dev) const {
     const platform platform = dev.get_info<info::device::platform>();
     const std::string platformVersion =
         platform.get_info<info::platform::version>();;
+    const bool HasCudaString =
+        platformVersion.find("CUDA") != std::string::npos;
+    const bool HasOpenCLString =
+        platformVersion.find("OpenCL") != std::string::npos;
     // If using PI_CUDA, don't accept a non-CUDA device
-    if (platformVersion.find("CUDA") == std::string::npos &&
-        backend == "PI_CUDA") {
+    if (HasCudaString && HasOpenCLString && backend == "PI_CUDA") {
       return -1;
     }
     // If using PI_OPENCL, don't accept a non-OpenCL device
-    if (platformVersion.find("OpenCL") == std::string::npos &&
-        backend == "PI_OPENCL") {
+    if (HasCudaString && !HasOpenCLString && backend == "PI_OPENCL") {
       return -1;
     }
   }

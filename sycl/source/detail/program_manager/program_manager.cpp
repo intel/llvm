@@ -84,29 +84,7 @@ static RT::PiProgram createBinaryProgram(const ContextImplPtr Context,
 
   RT::PiProgram Program;
 
-  bool IsCUDA = false;
-
-  // TODO: Implement `piProgramCreateWithBinary` to not require extra logic for
-  //       the CUDA backend.
-#if USE_PI_CUDA
-  // All devices in a context are from the same platform.
-  RT::PiDevice Device = getFirstDevice(Context);
-  RT::PiPlatform Platform = nullptr;
-  Plugin.call<PiApiKind::piDeviceGetInfo>(Device, PI_DEVICE_INFO_PLATFORM, sizeof(Platform),
-                           &Platform, nullptr);
-  size_t PlatformNameSize = 0u;
-  Plugin.call<PiApiKind::piPlatformGetInfo>(Platform, PI_PLATFORM_INFO_NAME, 0u, nullptr,
-                             &PlatformNameSize);
-  std::vector<char> PlatformName(PlatformNameSize, '\0');
-  Plugin.call<PiApiKind::piPlatformGetInfo>(Platform, PI_PLATFORM_INFO_NAME,
-                             PlatformName.size(), PlatformName.data(), nullptr);
-  if (PlatformNameSize > 0u &&
-      std::strncmp(PlatformName.data(), "NVIDIA CUDA", PlatformNameSize) == 0) {
-    IsCUDA = true;
-  }
-#endif // USE_PI_CUDA
-
-  if (IsCUDA) {
+  if (Context->getPlatformImpl()->is_cuda()) {
     // TODO: Reemplace CreateWithSource with CreateWithBinary in CUDA backend
     const char *SignedData = reinterpret_cast<const char *>(Data);
     Plugin.call<PiApiKind::piclProgramCreateWithSource>(Context->getHandleRef(), 1 /*one binary*/, &SignedData,
