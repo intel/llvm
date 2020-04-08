@@ -5,6 +5,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //
+#include "xpti_timers.hpp"
+#include "xpti_trace_framework.h"
+
 #include <chrono>
 #include <iostream>
 #include <map>
@@ -13,9 +16,6 @@
 #include <string>
 #include <thread>
 #include <unordered_map>
-
-#include "xpti_timers.hpp"
-#include "xpti_trace_framework.h"
 
 static uint8_t GStreamID = 0;
 std::mutex GIOMutex;

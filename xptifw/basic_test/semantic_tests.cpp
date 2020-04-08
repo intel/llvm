@@ -9,10 +9,6 @@
 // Tests the correctness of the API by comparing it agains the spec and
 // expected results.
 //--------------------------------------------------------------------------
-#include <atomic>
-#include <chrono>
-#include <random>
-
 #include "tbb/concurrent_vector.h"
 #include "tbb/parallel_for.h"
 #include "tbb/spin_mutex.h"
@@ -21,6 +17,10 @@
 
 #include "cl_processor.hpp"
 #include "xpti_trace_framework.h"
+
+#include <atomic>
+#include <chrono>
+#include <random>
 
 static void tpCallback(uint16_t trace_type, xpti::trace_event_data_t *parent,
                        xpti::trace_event_data_t *event, uint64_t instance,

@@ -281,6 +281,10 @@ below.
    the performance of the framework in detail in the sections [Performance of the Framework](#performance-of-the-framework) and  [Modeling and projection](#modeling-and-projection). For details on the command line arguments,
    please refer to these sections.
 
+   > **NOTE:** These tests rely on the availability of TBB for creating the
+   multi-threaded tests and will not be created if TBB has not been enabled
+   during the build process.
+
    ```bash
    % <xptifw-dir>/lib/Release/run_test --trace-points 1000 --type performance --overhead 1.5 --num-threads 0,1,2,3 --test-id 1,2 --tp-frequency 50
    ```

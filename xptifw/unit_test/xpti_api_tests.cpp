@@ -5,10 +5,9 @@
 //
 #include "xpti_trace_framework.hpp"
 
+#include <gtest/gtest.h>
 #include <iostream>
 #include <set>
-
-#include <gtest/gtest.h>
 
 TEST(xptiApiTest, xptiInitializeBadInput) {
   auto Result = xptiInitialize(nullptr, 0, 0, nullptr);

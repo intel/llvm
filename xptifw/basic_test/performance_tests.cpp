@@ -10,10 +10,6 @@
 // scenarios and computing the average costs and maximum Events/sec that can
 // be serviced by the framework at a given max. overhead constraint.
 //---------------------------------------------------------------------------
-#include <atomic>
-#include <chrono>
-#include <random>
-
 #include "tbb/concurrent_vector.h"
 #include "tbb/parallel_for.h"
 #include "tbb/spin_mutex.h"
@@ -22,6 +18,10 @@
 
 #include "cl_processor.hpp"
 #include "xpti_trace_framework.h"
+
+#include <atomic>
+#include <chrono>
+#include <random>
 
 namespace test {
 void registerCallbacks(uint8_t sid);

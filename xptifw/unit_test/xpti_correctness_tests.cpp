@@ -6,10 +6,9 @@
 #include "xpti_trace_framework.h"
 #include "xpti_trace_framework.hpp"
 
+#include <gtest/gtest.h>
 #include <iostream>
 #include <set>
-
-#include <gtest/gtest.h>
 
 XPTI_CALLBACK_API void tpCallback(uint16_t trace_type,
                                   xpti::trace_event_data_t *parent,
