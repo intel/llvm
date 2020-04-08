@@ -106,7 +106,8 @@ namespace clang {
 
     /// The number of record fields required for the Expr class
     /// itself.
-    static const unsigned NumExprFields = NumStmtFields + 7;
+    static const unsigned NumExprFields =
+        NumStmtFields + ExprDependenceBits + 3;
 
     /// Read and initialize a ExplicitTemplateArgumentList structure.
     void ReadTemplateKWAndArgsInfo(ASTTemplateKWAndArgsInfo &Args,
@@ -517,6 +518,7 @@ void ASTStmtReader::VisitExpr(Expr *E) {
   bool ValueDependent = Record.readInt();
   bool InstantiationDependent = Record.readInt();
   bool ContainsUnexpandedTemplateParameters = Record.readInt();
+  bool ContainsErrors = Record.readInt();
   auto Deps = ExprDependence::None;
   if (TypeDependent)
     Deps |= ExprDependence::Type;
@@ -526,6 +528,8 @@ void ASTStmtReader::VisitExpr(Expr *E) {
     Deps |= ExprDependence::Instantiation;
   if (ContainsUnexpandedTemplateParameters)
     Deps |= ExprDependence::UnexpandedPack;
+  if (ContainsErrors)
+    Deps |= ExprDependence::Error;
   E->setDependence(Deps);
 
   E->setValueKind(static_cast<ExprValueKind>(Record.readInt()));
@@ -2076,6 +2080,19 @@ void ASTStmtReader::VisitTypoExpr(TypoExpr *E) {
   llvm_unreachable("Cannot read TypoExpr nodes");
 }
 
+void ASTStmtReader::VisitRecoveryExpr(RecoveryExpr *E) {
+  VisitExpr(E);
+  unsigned NumArgs = Record.readInt();
+  E->BeginLoc = readSourceLocation();
+  E->EndLoc = readSourceLocation();
+  assert(
+      (NumArgs == std::distance(E->children().begin(), E->children().end())) &&
+      "Wrong NumArgs!");
+  (void)NumArgs;
+  for (Stmt *&Child : E->children())
+    Child = Record.readSubStmt();
+}
+
 //===----------------------------------------------------------------------===//
 // Microsoft Expressions and Statements
 //===----------------------------------------------------------------------===//
@@ -2367,6 +2384,13 @@ void ASTStmtReader::VisitOMPFlushDirective(OMPFlushDirective *D) {
 }
 
 void ASTStmtReader::VisitOMPDepobjDirective(OMPDepobjDirective *D) {
+  VisitStmt(D);
+  // The NumClauses field was read in ReadStmtFromStream.
+  Record.skipInts(1);
+  VisitOMPExecutableDirective(D);
+}
+
+void ASTStmtReader::VisitOMPScanDirective(OMPScanDirective *D) {
   VisitStmt(D);
   // The NumClauses field was read in ReadStmtFromStream.
   Record.skipInts(1);
@@ -2846,6 +2870,11 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
           Context, /*NumArgs=*/Record[ASTStmtReader::NumExprFields], Empty);
       break;
 
+    case EXPR_RECOVERY:
+      S = RecoveryExpr::CreateEmpty(
+          Context, /*NumArgs=*/Record[ASTStmtReader::NumExprFields]);
+      break;
+
     case EXPR_MEMBER:
       S = MemberExpr::CreateEmpty(Context, Record[ASTStmtReader::NumExprFields],
                                   Record[ASTStmtReader::NumExprFields + 1],
@@ -3206,6 +3235,11 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
 
     case STMT_OMP_DEPOBJ_DIRECTIVE:
       S = OMPDepobjDirective::CreateEmpty(
+          Context, Record[ASTStmtReader::NumStmtFields], Empty);
+      break;
+
+    case STMT_OMP_SCAN_DIRECTIVE:
+      S = OMPScanDirective::CreateEmpty(
           Context, Record[ASTStmtReader::NumStmtFields], Empty);
       break;
 

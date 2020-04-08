@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl %s -o %t.out -lOpenCL
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out -lOpenCL
 
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out

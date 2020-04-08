@@ -31,11 +31,3 @@
 #ifndef SYCL_EXTERNAL
 #define SYCL_EXTERNAL
 #endif
-
-#if __cplusplus >= 201402
-#define __SYCL_DEPRECATED__(message) [[deprecated(message)]]
-#elif !defined _MSC_VER
-#define __SYCL_DEPRECATED__(message) __attribute__((deprecated(message)))
-#else
-#define __SYCL_DEPRECATED__(message)
-#endif

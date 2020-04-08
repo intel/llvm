@@ -24,10 +24,6 @@
 #define __SYCL_EXTERN_IT2(Ret, prefix, call, Arg1, Arg2)
 #define __SYCL_EXTERN_IT2_SAME(Ret, prefix, call, Arg)
 #define __SYCL_EXTERN_IT3(Ret, prefix, call, Arg1, Arg2, Arg3)
-#define __SYCL_TPARAMS0(Type)
-#define __SYCL_TPARAMS1(Ret, A1)
-#define __SYCL_TPARAMS2(Ret, A1, A2)
-#define __SYCL_TPARAMS3(Ret, A1, A2, A3)
 #else
 #define __FUNC_PREFIX_OCL
 #define __FUNC_PREFIX_CORE
@@ -39,10 +35,6 @@
   extern Ret __SYCL_PPCAT(prefix, call)(Arg1, Arg2)
 #define __SYCL_EXTERN_IT3(Ret, prefix, call, Arg1, Arg2, Arg3)                 \
   extern Ret __SYCL_PPCAT(prefix, call)(Arg1, Arg2, Arg3)
-#define __SYCL_TPARAMS0(Type)
-#define __SYCL_TPARAMS1(Ret, A1)
-#define __SYCL_TPARAMS2(Ret, A1, A2)
-#define __SYCL_TPARAMS3(Ret, A1, A2, A3)
 #endif
 
 #define __SYCL_PPCAT_NX(A, B) A##B
@@ -55,7 +47,7 @@
     using Arg1 = cl::sycl::detail::ConvertToOpenCLType_t<T1>;                  \
     __SYCL_EXTERN_IT1(Ret, prefix, call, Arg1);                                \
     Arg1 arg1 = cl::sycl::detail::convertDataToType<T1, Arg1>(t1);             \
-    Ret ret = __SYCL_PPCAT(prefix, call) __SYCL_TPARAMS1(Ret, Arg1)(arg1);     \
+    Ret ret = __SYCL_PPCAT(prefix, call)(arg1);                                \
     return cl::sycl::detail::convertDataToType<Ret, R>(ret);                   \
   }
 
@@ -68,8 +60,7 @@
     __SYCL_EXTERN_IT2(Ret, prefix, call, Arg1, Arg2);                          \
     Arg1 arg1 = cl::sycl::detail::convertDataToType<T1, Arg1>(t1);             \
     Arg2 arg2 = cl::sycl::detail::convertDataToType<T2, Arg2>(t2);             \
-    Ret ret = __SYCL_PPCAT(prefix, call)                                       \
-        __SYCL_TPARAMS2(Ret, Arg1, Arg2)(arg1, arg2);                          \
+    Ret ret = __SYCL_PPCAT(prefix, call)(arg1, arg2);                          \
     return cl::sycl::detail::convertDataToType<Ret, R>(ret);                   \
   }
 
@@ -81,8 +72,7 @@
     __SYCL_EXTERN_IT2_SAME(Ret, prefix, call, Arg);                            \
     Arg arg1 = cl::sycl::detail::convertDataToType<T, Arg>(t1);                \
     Arg arg2 = cl::sycl::detail::convertDataToType<T, Arg>(t2);                \
-    Ret ret =                                                                  \
-        __SYCL_PPCAT(prefix, call) __SYCL_TPARAMS1(Ret, Arg)(arg1, arg2);      \
+    Ret ret = __SYCL_PPCAT(prefix, call)(arg1, arg2);                          \
     return cl::sycl::detail::convertDataToType<Ret, R>(ret);                   \
   }
 
@@ -93,7 +83,7 @@
     __SYCL_EXTERN_IT2_SAME(Type, prefix, call, Type);                          \
     Type arg1 = cl::sycl::detail::convertDataToType<T, Type>(v1);              \
     Type arg2 = cl::sycl::detail::convertDataToType<T, Type>(v2);              \
-    Type ret = __SYCL_PPCAT(prefix, call) __SYCL_TPARAMS0(Type)(arg1, arg2);   \
+    Type ret = __SYCL_PPCAT(prefix, call)(arg1, arg2);                         \
     return cl::sycl::detail::convertDataToType<Type, T>(ret);                  \
   }
 
@@ -108,8 +98,7 @@
     Arg1 arg1 = cl::sycl::detail::convertDataToType<T1, Arg1>(t1);             \
     Arg2 arg2 = cl::sycl::detail::convertDataToType<T2, Arg2>(t2);             \
     Arg3 arg3 = cl::sycl::detail::convertDataToType<T3, Arg3>(t3);             \
-    Ret ret = __SYCL_PPCAT(prefix, call)                                       \
-        __SYCL_TPARAMS3(Ret, Arg1, Arg2, Arg3)(arg1, arg2, arg3);              \
+    Ret ret = __SYCL_PPCAT(prefix, call)(arg1, arg2, arg3);                    \
     return cl::sycl::detail::convertDataToType<Ret, R>(ret);                   \
   }
 
@@ -302,10 +291,6 @@ __SYCL_MAKE_CALL_ARG3(select, __FUNC_PREFIX_OCL) // select
 #undef __SYCL_PPCAT
 #undef __FUNC_PREFIX_OCL
 #undef __FUNC_PREFIX_CORE
-#undef __SYCL_TPARAMS0
-#undef __SYCL_TPARAMS1
-#undef __SYCL_TPARAMS2
-#undef __SYCL_TPARAMS3
 #undef __SYCL_EXTERN_IT1
 #undef __SYCL_EXTERN_IT2
 #undef __SYCL_EXTERN_IT2_SAME

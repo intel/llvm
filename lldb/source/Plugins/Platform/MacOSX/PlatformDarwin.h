@@ -25,6 +25,11 @@ public:
 
   ~PlatformDarwin() override;
 
+  lldb_private::Status PutFile(const lldb_private::FileSpec &source,
+                               const lldb_private::FileSpec &destination,
+                               uint32_t uid = UINT32_MAX,
+                               uint32_t gid = UINT32_MAX) override;
+
   // lldb_private::Platform functions
   lldb_private::Status
   ResolveSymbolFile(lldb_private::Target &target,
@@ -100,6 +105,13 @@ public:
   static lldb_private::FileSpec GetXcodeSDK(SDKType type);
   static lldb_private::FileSpec GetXcodeContentsDirectory();
 
+  /// Return the toolchain directroy the current LLDB instance is located in.
+  static lldb_private::FileSpec GetCurrentToolchainDirectory();
+
+  /// Return the command line tools directory the current LLDB instance is
+  /// located in.
+  static lldb_private::FileSpec GetCurrentCommandLineToolsDirectory();
+
 protected:
   struct CrashInfoAnnotations {
     uint64_t version;          // unsigned long
@@ -172,6 +184,8 @@ protected:
       const lldb_private::FileSpecList *module_search_paths_ptr,
       lldb::ModuleSP *old_module_sp_ptr, bool *did_create_ptr);
 
+  static std::string FindComponentInPath(llvm::StringRef path,
+                                         llvm::StringRef component);
   static std::string FindXcodeContentsDirectoryInPath(llvm::StringRef path);
 
   std::string m_developer_directory;

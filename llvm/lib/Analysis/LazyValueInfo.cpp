@@ -596,19 +596,9 @@ static ValueLatticeElement getFromRangeMetadata(Instruction *BBI) {
 }
 
 bool LazyValueInfoImpl::solveBlockValue(Value *Val, BasicBlock *BB) {
-  if (isa<Constant>(Val))
-    return true;
-
-  if (TheCache.hasCachedValueInfo(Val, BB)) {
-    // If we have a cached value, use that.
-    LLVM_DEBUG(dbgs() << "  reuse BB '" << BB->getName() << "' val="
-                      << TheCache.getCachedValueInfo(Val, BB) << '\n');
-
-    // Since we're reusing a cached value, we don't need to update the
-    // OverDefinedCache. The cache will have been properly updated whenever the
-    // cached value was inserted.
-    return true;
-  }
+  assert(!isa<Constant>(Val) && "Value should not be constant");
+  assert(!TheCache.hasCachedValueInfo(Val, BB) &&
+         "Value should not be in cache");
 
   // Hold off inserting this value into the Cache in case we have to return
   // false and come back later.
@@ -1278,11 +1268,11 @@ static ValueLatticeElement getValueFromOverflowCondition(
 
 static ValueLatticeElement
 getValueFromCondition(Value *Val, Value *Cond, bool isTrueDest,
-                      DenseMap<Value*, ValueLatticeElement> &Visited);
+                      SmallDenseMap<Value*, ValueLatticeElement> &Visited);
 
 static ValueLatticeElement
 getValueFromConditionImpl(Value *Val, Value *Cond, bool isTrueDest,
-                          DenseMap<Value*, ValueLatticeElement> &Visited) {
+                          SmallDenseMap<Value*, ValueLatticeElement> &Visited) {
   if (ICmpInst *ICI = dyn_cast<ICmpInst>(Cond))
     return getValueFromICmpCondition(Val, ICI, isTrueDest);
 
@@ -1315,7 +1305,7 @@ getValueFromConditionImpl(Value *Val, Value *Cond, bool isTrueDest,
 
 static ValueLatticeElement
 getValueFromCondition(Value *Val, Value *Cond, bool isTrueDest,
-                      DenseMap<Value*, ValueLatticeElement> &Visited) {
+                      SmallDenseMap<Value*, ValueLatticeElement> &Visited) {
   auto I = Visited.find(Cond);
   if (I != Visited.end())
     return I->second;
@@ -1328,7 +1318,7 @@ getValueFromCondition(Value *Val, Value *Cond, bool isTrueDest,
 ValueLatticeElement getValueFromCondition(Value *Val, Value *Cond,
                                           bool isTrueDest) {
   assert(Cond && "precondition");
-  DenseMap<Value*, ValueLatticeElement> Visited;
+  SmallDenseMap<Value*, ValueLatticeElement> Visited;
   return getValueFromCondition(Val, Cond, isTrueDest, Visited);
 }
 

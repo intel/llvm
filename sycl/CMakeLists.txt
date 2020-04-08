@@ -5,7 +5,6 @@ project(sycl-solution)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 option(SYCL_ENABLE_WERROR "Treat all warnings as errors in SYCL project" OFF)
 
 # enable all warnings by default

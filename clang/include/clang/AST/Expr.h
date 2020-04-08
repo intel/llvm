@@ -130,6 +130,14 @@ protected:
   /// Construct an empty expression.
   explicit Expr(StmtClass SC, EmptyShell) : ValueStmt(SC) { }
 
+  /// Each concrete expr subclass is expected to compute its dependence and call
+  /// this in the constructor.
+  void setDependence(ExprDependence Deps) {
+    ExprBits.Dependent = static_cast<unsigned>(Deps);
+  }
+  friend class ASTImporter; // Sets dependence dircetly.
+  friend class ASTStmtReader; // Sets dependence dircetly.
+
 public:
   QualType getType() const { return TR; }
   void setType(QualType t) {
@@ -147,18 +155,6 @@ public:
 
   ExprDependence getDependence() const {
     return static_cast<ExprDependence>(ExprBits.Dependent);
-  }
-
-  /// Each concrete expr subclass is expected to compute its dependence and call
-  /// this in the constructor.
-  void setDependence(ExprDependence Deps) {
-    ExprBits.Dependent = static_cast<unsigned>(Deps);
-  }
-  void addDependence(ExprDependence Deps) {
-    ExprBits.Dependent |= static_cast<unsigned>(Deps);
-  }
-  void removeDependence(ExprDependence Deps) {
-    ExprBits.Dependent &= ~static_cast<unsigned>(Deps);
   }
 
   /// isValueDependent - Determines whether this expression is
@@ -224,6 +220,12 @@ public:
   /// contain parameter packs.
   bool containsUnexpandedParameterPack() const {
     return static_cast<bool>(getDependence() & ExprDependence::UnexpandedPack);
+  }
+
+  /// Whether this expression contains subexpressions which had errors, e.g. a
+  /// TypoExpr.
+  bool containsErrors() const {
+    return static_cast<bool>(getDependence() & ExprDependence::Error);
   }
 
   /// getExprLoc - Return the preferred location for the arrow when diagnosing
@@ -1053,6 +1055,9 @@ public:
   }
   bool isImmediateInvocation() const {
     return ConstantExprBits.IsImmediateInvocation;
+  }
+  bool hasAPValueResult() const {
+    return ConstantExprBits.APValueKind != APValue::None;
   }
   APValue getAPValueResult() const;
   APValue &getResultAsAPValue() const { return APValueResult(); }
@@ -1888,22 +1893,20 @@ public:
   }
 };
 
-union PredefExprStorage {
-  Stmt *S;
-  Expr *E;
-  TypeSourceInfo *T;
-};
-
 /// [C99 6.4.2.2] - A predefined identifier such as __func__.
 class PredefinedExpr final
     : public Expr,
-      private llvm::TrailingObjects<PredefinedExpr, PredefExprStorage> {
+      private llvm::TrailingObjects<PredefinedExpr, Stmt *, Expr *,
+                                    TypeSourceInfo *> {
   friend class ASTStmtReader;
   friend TrailingObjects;
 
   // PredefinedExpr is optionally followed by a single trailing
   // "Stmt *" for the predefined identifier. It is present if and only if
   // hasFunctionName() is true and is always a "StringLiteral *".
+  // It can also be followed by a Expr* in the case of a
+  // __builtin_unique_stable_name with an expression, or TypeSourceInfo * if
+  // __builtin_unique_stable_name with a type.
 
 public:
   enum IdentKind {
@@ -1937,32 +1940,41 @@ private:
   void setFunctionName(StringLiteral *SL) {
     assert(hasFunctionName() &&
            "This PredefinedExpr has no storage for a function name!");
-    getTrailingObjects<PredefExprStorage>()->S = SL;
+    *getTrailingObjects<Stmt *>() = SL;
   }
 
   void setTypeSourceInfo(TypeSourceInfo *Info) {
     assert(!hasFunctionName() && getIdentKind() == UniqueStableNameType &&
            "TypeSourceInfo only valid for UniqueStableName of a Type");
-    getTrailingObjects<PredefExprStorage>()->T = Info;
+    *getTrailingObjects<TypeSourceInfo *>() = Info;
   }
 
   void setExpr(Expr *E) {
     assert(!hasFunctionName() && getIdentKind() == UniqueStableNameExpr &&
-           "Expr only valid for UniqueStableName of an Expression.");
-    getTrailingObjects<PredefExprStorage>()->E = E;
+           "TypeSourceInfo only valid for UniqueStableName of n Expression.");
+    *getTrailingObjects<Expr *>() = E;
+  }
+
+  size_t numTrailingObjects(OverloadToken<Stmt *>) const {
+    return hasFunctionName();
+  }
+
+  size_t numTrailingObjects(OverloadToken<TypeSourceInfo *>) const {
+    return getIdentKind() == UniqueStableNameType && !hasFunctionName();
+  }
+  size_t numTrailingObjects(OverloadToken<Expr *>) const {
+    return getIdentKind() == UniqueStableNameExpr && !hasFunctionName();
   }
 
 public:
   /// Create a PredefinedExpr.
   static PredefinedExpr *Create(const ASTContext &Ctx, SourceLocation L,
                                 QualType FNTy, IdentKind IK, StringLiteral *SL);
-
   static PredefinedExpr *Create(const ASTContext &Ctx, SourceLocation L,
-                                QualType FnTy, IdentKind IK, StringLiteral *SL,
+                                QualType FNTy, IdentKind IK, StringLiteral *SL,
                                 TypeSourceInfo *Info);
-
   static PredefinedExpr *Create(const ASTContext &Ctx, SourceLocation L,
-                                QualType FnTy, IdentKind IK, StringLiteral *SL,
+                                QualType FNTy, IdentKind IK, StringLiteral *SL,
                                 Expr *E);
 
   /// Create an empty PredefinedExpr.
@@ -1976,47 +1988,45 @@ public:
   SourceLocation getLocation() const { return PredefinedExprBits.Loc; }
   void setLocation(SourceLocation L) { PredefinedExprBits.Loc = L; }
 
+  StringLiteral *getFunctionName() {
+    return hasFunctionName()
+               ? static_cast<StringLiteral *>(*getTrailingObjects<Stmt *>())
+               : nullptr;
+  }
+
+  const StringLiteral *getFunctionName() const {
+    return hasFunctionName()
+               ? static_cast<StringLiteral *>(*getTrailingObjects<Stmt *>())
+               : nullptr;
+  }
+
   TypeSourceInfo *getTypeSourceInfo() {
     assert(!hasFunctionName() && getIdentKind() == UniqueStableNameType &&
            "TypeSourceInfo only valid for UniqueStableName of a Type");
-    return getTrailingObjects<PredefExprStorage>()->T;
+    return *getTrailingObjects<TypeSourceInfo *>();
   }
 
   const TypeSourceInfo *getTypeSourceInfo() const {
     assert(!hasFunctionName() && getIdentKind() == UniqueStableNameType &&
            "TypeSourceInfo only valid for UniqueStableName of a Type");
-    return getTrailingObjects<PredefExprStorage>()->T;
+    return *getTrailingObjects<TypeSourceInfo *>();
   }
 
   Expr *getExpr() {
     assert(!hasFunctionName() && getIdentKind() == UniqueStableNameExpr &&
-           "Expr only valid for UniqueStableName of an Expression.");
-    return getTrailingObjects<PredefExprStorage>()->E;
+           "TypeSourceInfo only valid for UniqueStableName of n Expression.");
+    return *getTrailingObjects<Expr *>();
   }
 
   const Expr *getExpr() const {
     assert(!hasFunctionName() && getIdentKind() == UniqueStableNameExpr &&
-           "Expr only valid for UniqueStableName of an Expression.");
-    return getTrailingObjects<PredefExprStorage>()->E;
-  }
-
-
-  StringLiteral *getFunctionName() {
-    return hasFunctionName() ? static_cast<StringLiteral *>(
-                                   getTrailingObjects<PredefExprStorage>()->S)
-                             : nullptr;
-  }
-
-  const StringLiteral *getFunctionName() const {
-    return hasFunctionName() ? static_cast<StringLiteral *>(
-                                   getTrailingObjects<PredefExprStorage>()->S)
-                             : nullptr;
+           "TypeSourceInfo only valid for UniqueStableName of n Expression.");
+    return *getTrailingObjects<Expr *>();
   }
 
   static StringRef getIdentKindName(IdentKind IK);
   static std::string ComputeName(IdentKind IK, const Decl *CurrentDecl);
-  static std::string ComputeName(ASTContext &Ctx, IdentKind IK,
-                                 const QualType Ty);
+  static std::string ComputeName(ASTContext &Ctx, IdentKind IK, const QualType Ty);
 
   SourceLocation getBeginLoc() const { return getLocation(); }
   SourceLocation getEndLoc() const { return getLocation(); }
@@ -2027,15 +2037,13 @@ public:
 
   // Iterators
   child_range children() {
-    return child_range(&getTrailingObjects<PredefExprStorage>()->S,
-                       &getTrailingObjects<PredefExprStorage>()->S +
-                           hasFunctionName());
+    return child_range(getTrailingObjects<Stmt *>(),
+                       getTrailingObjects<Stmt *>() + hasFunctionName());
   }
 
   const_child_range children() const {
-    return const_child_range(&getTrailingObjects<PredefExprStorage>()->S,
-                             &getTrailingObjects<PredefExprStorage>()->S +
-                                 hasFunctionName());
+    return const_child_range(getTrailingObjects<Stmt *>(),
+                             getTrailingObjects<Stmt *>() + hasFunctionName());
   }
 };
 
@@ -2827,6 +2835,12 @@ public:
   /// Return true if this is a call to __assume() or __builtin_assume() with
   /// a non-value-dependent constant parameter evaluating as false.
   bool isBuiltinAssumeFalse(const ASTContext &Ctx) const;
+
+  /// Used by Sema to implement MSVC-compatible delayed name lookup.
+  /// (Usually Exprs themselves should set dependence).
+  void markDependentForPostponedNameLookup() {
+    setDependence(getDependence() | ExprDependence::TypeValueInstantiation);
+  }
 
   bool isCallToStdMove() const {
     const FunctionDecl *FD = getDirectCallee();
@@ -4439,7 +4453,7 @@ public:
     InitExprs[Init] = expr;
 
     if (expr)
-      addDependence(expr->getDependence());
+      setDependence(getDependence() | expr->getDependence());
   }
 
   /// Reserve space for some number of initializers.
@@ -5942,7 +5956,8 @@ class TypoExpr : public Expr {
 public:
   TypoExpr(QualType T) : Expr(TypoExprClass, T, VK_LValue, OK_Ordinary) {
     assert(T->isDependentType() && "TypoExpr given a non-dependent type");
-    setDependence(ExprDependence::TypeValueInstantiation);
+    setDependence(ExprDependence::TypeValueInstantiation |
+                  ExprDependence::Error);
   }
 
   child_range children() {
@@ -5960,6 +5975,69 @@ public:
   }
 
 };
+
+/// Frontend produces RecoveryExprs on semantic errors that prevent creating
+/// other well-formed expressions. E.g. when type-checking of a binary operator
+/// fails, we cannot produce a BinaryOperator expression. Instead, we can choose
+/// to produce a recovery expression storing left and right operands.
+///
+/// RecoveryExpr does not have any semantic meaning in C++, it is only useful to
+/// preserve expressions in AST that would otherwise be dropped. It captures
+/// subexpressions of some expression that we could not construct and source
+/// range covered by the expression.
+///
+/// For now, RecoveryExpr is type-, value- and instantiation-dependent to take
+/// advantage of existing machinery to deal with dependent code in C++, e.g.
+/// RecoveryExpr is preserved in `decltype(<broken-expr>)` as part of the
+/// `DependentDecltypeType`. In addition to that, clang does not report most
+/// errors on dependent expressions, so we get rid of bogus errors for free.
+/// However, note that unlike other dependent expressions, RecoveryExpr can be
+/// produced in non-template contexts.
+///
+/// One can also reliably suppress all bogus errors on expressions containing
+/// recovery expressions by examining results of Expr::containsErrors().
+class RecoveryExpr final : public Expr,
+                           private llvm::TrailingObjects<RecoveryExpr, Expr *> {
+public:
+  static RecoveryExpr *Create(ASTContext &Ctx, SourceLocation BeginLoc,
+                              SourceLocation EndLoc, ArrayRef<Expr *> SubExprs);
+  static RecoveryExpr *CreateEmpty(ASTContext &Ctx, unsigned NumSubExprs);
+
+  ArrayRef<Expr *> subExpressions() {
+    auto *B = getTrailingObjects<Expr *>();
+    return llvm::makeArrayRef(B, B + NumExprs);
+  }
+
+  ArrayRef<const Expr *> subExpressions() const {
+    return const_cast<RecoveryExpr *>(this)->subExpressions();
+  }
+
+  child_range children() {
+    Stmt **B = reinterpret_cast<Stmt **>(getTrailingObjects<Expr *>());
+    return child_range(B, B + NumExprs);
+  }
+
+  SourceLocation getBeginLoc() const { return BeginLoc; }
+  SourceLocation getEndLoc() const { return EndLoc; }
+
+  static bool classof(const Stmt *T) {
+    return T->getStmtClass() == RecoveryExprClass;
+  }
+
+private:
+  RecoveryExpr(ASTContext &Ctx, SourceLocation BeginLoc, SourceLocation EndLoc,
+               ArrayRef<Expr *> SubExprs);
+  RecoveryExpr(EmptyShell Empty) : Expr(RecoveryExprClass, Empty) {}
+
+  size_t numTrailingObjects(OverloadToken<Stmt *>) const { return NumExprs; }
+
+  SourceLocation BeginLoc, EndLoc;
+  unsigned NumExprs;
+  friend TrailingObjects;
+  friend class ASTStmtReader;
+  friend class ASTStmtWriter;
+};
+
 } // end namespace clang
 
 #endif // LLVM_CLANG_AST_EXPR_H

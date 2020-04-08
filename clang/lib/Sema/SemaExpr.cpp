@@ -691,6 +691,9 @@ ExprResult Sema::DefaultLvalueConversion(Expr *E) {
   if (E->getType().getObjCLifetime() == Qualifiers::OCL_Weak)
     Cleanup.setExprNeedsCleanups(true);
 
+  if (E->getType().isDestructedType() == QualType::DK_nontrivial_c_struct)
+    Cleanup.setExprNeedsCleanups(true);
+
   // C++ [conv.lval]p3:
   //   If T is cv std::nullptr_t, the result is a null pointer constant.
   CastKind CK = T->isNullPtrType() ? CK_NullToPointer : CK_LValueToRValue;
@@ -3388,23 +3391,33 @@ ExprResult Sema::BuildPredefinedExpr(SourceLocation Loc,
   return PredefinedExpr::Create(Context, Loc, ResTy, IK, SL);
 }
 
+static std::pair<QualType, StringLiteral *>
+GetUniqueStableNameInfo(ASTContext &Context, QualType OpType,
+                        SourceLocation OpLoc, PredefinedExpr::IdentKind K) {
+  std::pair<QualType, StringLiteral*> Result{{}, nullptr};
+
+  if (OpType->isDependentType()) {
+      Result.first = Context.DependentTy;
+      return Result;
+  }
+
+  std::string Str = PredefinedExpr::ComputeName(Context, K, OpType);
+  llvm::APInt Length(32, Str.length() + 1);
+  Result.first =
+      Context.adjustStringLiteralBaseType(Context.CharTy.withConst());
+  Result.first = Context.getConstantArrayType(
+      Result.first, Length, nullptr, ArrayType::Normal, /*IndexTypeQuals*/ 0);
+  Result.second = StringLiteral::Create(Context, Str, StringLiteral::Ascii,
+                                        /*Pascal*/ false, Result.first, OpLoc);
+  return Result;
+}
+
 ExprResult Sema::BuildUniqueStableName(SourceLocation OpLoc,
                                        TypeSourceInfo *Operand) {
   QualType ResultTy;
-  StringLiteral *SL = nullptr;
-  if (Operand->getType()->isDependentType()) {
-    ResultTy = Context.DependentTy;
-  } else {
-    std::string Str = PredefinedExpr::ComputeName(
-        Context, PredefinedExpr::UniqueStableNameType, Operand->getType());
-    llvm::APInt Length(32, Str.length() + 1);
-    ResultTy = Context.adjustStringLiteralBaseType(Context.CharTy.withConst());
-    ResultTy = Context.getConstantArrayType(ResultTy, Length, nullptr,
-                                            ArrayType::Normal,
-                                            /*IndexTypeQuals*/ 0);
-    SL = StringLiteral::Create(Context, Str, StringLiteral::Ascii,
-                               /*Pascal*/ false, ResultTy, OpLoc);
-  }
+  StringLiteral *SL;
+  std::tie(ResultTy, SL) = GetUniqueStableNameInfo(
+      Context, Operand->getType(), OpLoc, PredefinedExpr::UniqueStableNameType);
 
   return PredefinedExpr::Create(Context, OpLoc, ResultTy,
                                 PredefinedExpr::UniqueStableNameType, SL,
@@ -3414,20 +3427,9 @@ ExprResult Sema::BuildUniqueStableName(SourceLocation OpLoc,
 ExprResult Sema::BuildUniqueStableName(SourceLocation OpLoc,
                                        Expr *E) {
   QualType ResultTy;
-  StringLiteral *SL = nullptr;
-  if (E->getType()->isDependentType()) {
-    ResultTy = Context.DependentTy;
-  } else {
-    std::string Str = PredefinedExpr::ComputeName(Context,
-        PredefinedExpr::UniqueStableNameExpr, E->getType());
-    llvm::APInt Length(32, Str.length()  + 1);
-    ResultTy = Context.adjustStringLiteralBaseType(Context.CharTy.withConst());
-    ResultTy = Context.getConstantArrayType(ResultTy, Length, nullptr,
-                                            ArrayType::Normal,
-                                            /*IndexTypeQuals*/ 0);
-    SL = StringLiteral::Create(Context, Str, StringLiteral::Ascii,
-                               /*Pascal*/ false, ResultTy, OpLoc);
-  }
+  StringLiteral *SL;
+  std::tie(ResultTy, SL) = GetUniqueStableNameInfo(
+      Context, E->getType(), OpLoc, PredefinedExpr::UniqueStableNameExpr);
 
   return PredefinedExpr::Create(Context, OpLoc, ResultTy,
                                 PredefinedExpr::UniqueStableNameExpr, SL, E);
@@ -3439,8 +3441,10 @@ ExprResult Sema::ActOnUniqueStableNameExpr(SourceLocation OpLoc,
   TypeSourceInfo *TInfo = nullptr;
   QualType T = GetTypeFromParser(Ty, &TInfo);
 
-  if (T.isNull()) return ExprError();
-  if (!TInfo) TInfo = Context.getTrivialTypeSourceInfo(T, OpLoc);
+  if (T.isNull())
+    return ExprError();
+  if (!TInfo)
+    TInfo = Context.getTrivialTypeSourceInfo(T, OpLoc);
 
   return BuildUniqueStableName(OpLoc, TInfo);
 }
@@ -7664,6 +7668,11 @@ QualType Sema::CheckConditionalOperands(ExprResult &Cond, ExprResult &LHS,
       /*IsIntFirstExpr=*/false))
     return LHSTy;
 
+  // Allow ?: operations in which both operands have the same
+  // built-in sizeless type.
+  if (LHSTy->isSizelessBuiltinType() && LHSTy == RHSTy)
+    return LHSTy;
+
   // Emit a better diagnostic if one of the expressions is a null pointer
   // constant and the other is not a pointer type. In this case, the user most
   // likely forgot to take the address of the other expression.
@@ -8107,6 +8116,24 @@ ExprResult Sema::ActOnConditionalOp(SourceLocation QuestionLoc,
       ColonLoc, result, VK, OK);
 }
 
+// Check if we have a conversion between incompatible cmse function pointer
+// types, that is, a conversion between a function pointer with the
+// cmse_nonsecure_call attribute and one without.
+static bool IsInvalidCmseNSCallConversion(Sema &S, QualType FromType,
+                                          QualType ToType) {
+  if (const auto *ToFn =
+          dyn_cast<FunctionType>(S.Context.getCanonicalType(ToType))) {
+    if (const auto *FromFn =
+            dyn_cast<FunctionType>(S.Context.getCanonicalType(FromType))) {
+      FunctionType::ExtInfo ToEInfo = ToFn->getExtInfo();
+      FunctionType::ExtInfo FromEInfo = FromFn->getExtInfo();
+
+      return ToEInfo.getCmseNSCall() != FromEInfo.getCmseNSCall();
+    }
+  }
+  return false;
+}
+
 // checkPointerTypesForAssignment - This is a very tricky routine (despite
 // being closely modeled after the C99 spec:-). The odd characteristic of this
 // routine is it effectively iqnores the qualifiers on the top level pointee.
@@ -8244,6 +8271,8 @@ checkPointerTypesForAssignment(Sema &S, QualType LHSType, QualType RHSType) {
   }
   if (!S.getLangOpts().CPlusPlus &&
       S.IsFunctionConversion(ltrans, rtrans, ltrans))
+    return Sema::IncompatibleFunctionPointer;
+  if (IsInvalidCmseNSCallConversion(S, ltrans, rtrans))
     return Sema::IncompatibleFunctionPointer;
   return ConvTy;
 }
@@ -15247,6 +15276,12 @@ Sema::VerifyIntegerConstantExpression(Expr *E, llvm::APSInt *Result,
     return ExprError();
   }
 
+  ExprResult RValueExpr = DefaultLvalueConversion(E);
+  if (RValueExpr.isInvalid())
+    return ExprError();
+
+  E = RValueExpr.get();
+
   // Circumvent ICE checking in C++11 to avoid evaluating the expression twice
   // in the non-ICE case.
   if (!getLangOpts().CPlusPlus11 && E->isIntegerConstantExpr(Context)) {
@@ -15484,6 +15519,8 @@ static void EvaluateAndDiagnoseImmediateInvocation(
                                            SemaRef.getASTContext(), true);
   if (!Result || !Notes.empty()) {
     Expr *InnerExpr = CE->getSubExpr()->IgnoreImplicit();
+    if (auto *FunctionalCast = dyn_cast<CXXFunctionalCastExpr>(InnerExpr))
+      InnerExpr = FunctionalCast->getSubExpr();
     FunctionDecl *FD = nullptr;
     if (auto *Call = dyn_cast<CallExpr>(InnerExpr))
       FD = cast<FunctionDecl>(Call->getCalleeDecl());
@@ -15554,8 +15591,24 @@ static void RemoveNestedImmediateInvocation(
     }
     bool AlwaysRebuild() { return false; }
     bool ReplacingOriginal() { return true; }
+    bool AllowSkippingCXXConstructExpr() {
+      bool Res = AllowSkippingFirstCXXConstructExpr;
+      AllowSkippingFirstCXXConstructExpr = true;
+      return Res;
+    }
+    bool AllowSkippingFirstCXXConstructExpr = true;
   } Transformer(SemaRef, Rec.ReferenceToConsteval,
                 Rec.ImmediateInvocationCandidates, It);
+
+  /// CXXConstructExpr with a single argument are getting skipped by
+  /// TreeTransform in some situtation because they could be implicit. This
+  /// can only occur for the top-level CXXConstructExpr because it is used
+  /// nowhere in the expression being transformed therefore will not be rebuilt.
+  /// Setting AllowSkippingFirstCXXConstructExpr to false will prevent from
+  /// skipping the first CXXConstructExpr.
+  if (isa<CXXConstructExpr>(It->getPointer()->IgnoreImplicit()))
+    Transformer.AllowSkippingFirstCXXConstructExpr = false;
+
   ExprResult Res = Transformer.TransformExpr(It->getPointer()->getSubExpr());
   assert(Res.isUsable());
   Res = SemaRef.MaybeCreateExprWithCleanups(Res);
@@ -16073,13 +16126,8 @@ void Sema::MarkFunctionReferenced(SourceLocation Loc, FunctionDecl *Func,
     Func->markUsed(Context);
   }
 
-  if (LangOpts.OpenMP) {
+  if (LangOpts.OpenMP)
     markOpenMPDeclareVariantFuncsReferenced(Loc, Func, MightBeOdrUse);
-    if (LangOpts.OpenMPIsDevice)
-      checkOpenMPDeviceFunction(Loc, Func);
-    else
-      checkOpenMPHostFunction(Loc, Func);
-  }
 }
 
 /// Directly mark a variable odr-used. Given a choice, prefer to use
@@ -17508,7 +17556,10 @@ public:
     S.MarkDeclRefReferenced(E);
   }
 
-  void VisitMemberExpr(MemberExpr *E) { S.MarkMemberReferenced(E); }
+  void VisitMemberExpr(MemberExpr *E) {
+    S.MarkMemberReferenced(E);
+    Visit(E->getBase());
+  }
 };
 } // namespace
 
@@ -18471,4 +18522,18 @@ ExprResult Sema::ActOnObjCAvailabilityCheckExpr(
 bool Sema::IsDependentFunctionNameExpr(Expr *E) {
   assert(E->isTypeDependent());
   return isa<UnresolvedLookupExpr>(E);
+}
+
+ExprResult Sema::CreateRecoveryExpr(SourceLocation Begin, SourceLocation End,
+                                    ArrayRef<Expr *> SubExprs) {
+  // RecoveryExpr is type-dependent to suppress bogus diagnostics and this trick
+  // does not work in C.
+  // FIXME: use containsErrors() to suppress unwanted diags in C.
+  if (!Context.getLangOpts().RecoveryAST)
+    return ExprError();
+
+  if (isSFINAEContext())
+    return ExprError();
+
+  return RecoveryExpr::Create(Context, Begin, End, SubExprs);
 }

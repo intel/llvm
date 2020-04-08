@@ -540,6 +540,7 @@ void ASTStmtWriter::VisitExpr(Expr *E) {
   Record.push_back(E->isValueDependent());
   Record.push_back(E->isInstantiationDependent());
   Record.push_back(E->containsUnexpandedParameterPack());
+  Record.push_back(E->containsErrors());
   Record.push_back(E->getValueKind());
   Record.push_back(E->getObjectKind());
 }
@@ -783,6 +784,16 @@ void ASTStmtWriter::VisitCallExpr(CallExpr *E) {
     Record.AddStmt(*Arg);
   Record.push_back(static_cast<unsigned>(E->getADLCallKind()));
   Code = serialization::EXPR_CALL;
+}
+
+void ASTStmtWriter::VisitRecoveryExpr(RecoveryExpr *E) {
+  VisitExpr(E);
+  Record.push_back(std::distance(E->children().begin(), E->children().end()));
+  Record.AddSourceLocation(E->getBeginLoc());
+  Record.AddSourceLocation(E->getEndLoc());
+  for (Stmt *Child : E->children())
+    Record.AddStmt(Child);
+  Code = serialization::EXPR_RECOVERY;
 }
 
 void ASTStmtWriter::VisitMemberExpr(MemberExpr *E) {
@@ -2327,6 +2338,13 @@ void ASTStmtWriter::VisitOMPDepobjDirective(OMPDepobjDirective *D) {
   Record.push_back(D->getNumClauses());
   VisitOMPExecutableDirective(D);
   Code = serialization::STMT_OMP_DEPOBJ_DIRECTIVE;
+}
+
+void ASTStmtWriter::VisitOMPScanDirective(OMPScanDirective *D) {
+  VisitStmt(D);
+  Record.push_back(D->getNumClauses());
+  VisitOMPExecutableDirective(D);
+  Code = serialization::STMT_OMP_SCAN_DIRECTIVE;
 }
 
 void ASTStmtWriter::VisitOMPOrderedDirective(OMPOrderedDirective *D) {

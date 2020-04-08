@@ -6776,8 +6776,13 @@ public:
     return Error(E);
   }
 
-  bool VisitConstantExpr(const ConstantExpr *E)
-    { return StmtVisitorTy::Visit(E->getSubExpr()); }
+  bool VisitConstantExpr(const ConstantExpr *E) {
+    if (E->hasAPValueResult())
+      return DerivedSuccess(E->getAPValueResult(), E);
+
+    return StmtVisitorTy::Visit(E->getSubExpr());
+  }
+
   bool VisitParenExpr(const ParenExpr *E)
     { return StmtVisitorTy::Visit(E->getSubExpr()); }
   bool VisitUnaryExtension(const UnaryOperator *E)
@@ -14184,6 +14189,7 @@ static ICEDiag CheckICE(const Expr* E, const ASTContext &Ctx) {
   case Expr::CXXPseudoDestructorExprClass:
   case Expr::UnresolvedLookupExprClass:
   case Expr::TypoExprClass:
+  case Expr::RecoveryExprClass:
   case Expr::DependentScopeDeclRefExprClass:
   case Expr::CXXConstructExprClass:
   case Expr::CXXInheritedCtorInitExprClass:
