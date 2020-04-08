@@ -1061,13 +1061,6 @@ def CUDADevice : InheritableAttr {
   let Documentation = [Undocumented];
 }
 
-def HIPPinnedShadow : InheritableAttr {
-  let Spellings = [GNU<"hip_pinned_shadow">, Declspec<"__hip_pinned_shadow__">];
-  let Subjects = SubjectList<[Var]>;
-  let LangOpts = [HIP];
-  let Documentation = [HIPPinnedShadowDocs];
-}
-
 def CUDADeviceBuiltin : IgnoredAttr {
   let Spellings = [GNU<"device_builtin">, Declspec<"__device_builtin__">];
   let LangOpts = [CUDA];
