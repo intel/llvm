@@ -73,7 +73,8 @@ context::context(cl_context ClContext, async_handler AsyncHandler) {
 }
 
 #define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
-  template <> ret_type context::get_info<info::param_type::param>() const {    \
+  template <>                                                                  \
+  __SYCL_EXPORT ret_type context::get_info<info::param_type::param>() const {  \
     return impl->get_info<info::param_type::param>();                          \
   }
 

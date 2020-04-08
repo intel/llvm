@@ -11,6 +11,7 @@
 #include <CL/sycl/accessor.hpp>
 #include <CL/sycl/builtins.hpp>
 #include <CL/sycl/detail/array.hpp>
+#include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/device_selector.hpp>
 #include <CL/sycl/ordered_queue.hpp>
 #include <CL/sycl/queue.hpp>
@@ -77,7 +78,7 @@ using EnableIfSwizzleVec =
     typename std::enable_if<IsSwizzleOp<T>::value,
                             typename IsSwizzleOp<T>::Type>::type;
 
-class stream_impl {
+class __SYCL_EXPORT stream_impl {
 public:
   using GlobalBufAccessorT =
       accessor<char, 1, cl::sycl::access::mode::read_write,

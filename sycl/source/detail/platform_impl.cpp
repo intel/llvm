@@ -65,7 +65,7 @@ struct DevDescT {
   int platformVerSize = 0;
 };
 
-static std::vector<DevDescT> getWhiteListDesc() {
+static std::vector<DevDescT> getAllowListDesc() {
   const char *str = SYCLConfig<SYCL_DEVICE_ALLOWLIST>::get();
   if (!str)
     return {};
@@ -101,15 +101,13 @@ static std::vector<DevDescT> getWhiteListDesc() {
     }
 
     if (':' != *str)
-      throw sycl::runtime_error("Malformed device white list",
-                                PI_INVALID_VALUE);
+      throw sycl::runtime_error("Malformed device allowlist", PI_INVALID_VALUE);
 
     // Skip ':'
     str += 1;
 
     if ('{' != *str || '{' != *(str + 1))
-      throw sycl::runtime_error("Malformed device white list",
-                                PI_INVALID_VALUE);
+      throw sycl::runtime_error("Malformed device allowlist", PI_INVALID_VALUE);
 
     // Skip opening sequence "{{"
     str += 2;
@@ -121,8 +119,7 @@ static std::vector<DevDescT> getWhiteListDesc() {
       ++str;
 
     if ('\0' == *str)
-      throw sycl::runtime_error("Malformed device white list",
-                                PI_INVALID_VALUE);
+      throw sycl::runtime_error("Malformed device allowlist", PI_INVALID_VALUE);
 
     *size = str - *valuePtr;
 
@@ -136,8 +133,7 @@ static std::vector<DevDescT> getWhiteListDesc() {
     if ('|' == *str)
       decDescs.emplace_back();
     else if (',' != *str)
-      throw sycl::runtime_error("Malformed device white list",
-                                PI_INVALID_VALUE);
+      throw sycl::runtime_error("Malformed device allowlist", PI_INVALID_VALUE);
 
     ++str;
   }
@@ -145,11 +141,10 @@ static std::vector<DevDescT> getWhiteListDesc() {
   return decDescs;
 }
 
-static void filterWhiteList(vector_class<RT::PiDevice> &PiDevices,
-                            RT::PiPlatform PiPlatform,
-                            const plugin &Plugin) {
-  const std::vector<DevDescT> WhiteList(getWhiteListDesc());
-  if (WhiteList.empty())
+static void filterAllowList(vector_class<RT::PiDevice> &PiDevices,
+                            RT::PiPlatform PiPlatform, const plugin &Plugin) {
+  const std::vector<DevDescT> AllowList(getAllowListDesc());
+  if (AllowList.empty())
     return;
 
   const string_class PlatformName =
@@ -170,7 +165,7 @@ static void filterWhiteList(vector_class<RT::PiDevice> &PiDevices,
     const string_class DeviceDriverVer = sycl::detail::get_device_info<
         string_class, info::device::driver_version>::get(Device, Plugin);
 
-    for (const DevDescT &Desc : WhiteList) {
+    for (const DevDescT &Desc : AllowList) {
       if (nullptr != Desc.platformName &&
           !std::regex_match(PlatformName,
                             std::regex(std::string(Desc.platformName,
@@ -229,9 +224,9 @@ platform_impl::get_devices(info::device_type DeviceType) const {
                                        pi::cast<RT::PiDeviceType>(DeviceType),
                                        NumDevices, PiDevices.data(), nullptr);
 
-  // Filter out devices that are not present in the white list
+  // Filter out devices that are not present in the allowlist
   if (SYCLConfig<SYCL_DEVICE_ALLOWLIST>::get())
-    filterWhiteList(PiDevices, MPlatform, this->getPlugin());
+    filterAllowList(PiDevices, MPlatform, this->getPlugin());
 
   std::transform(PiDevices.begin(), PiDevices.end(), std::back_inserter(Res),
                  [this](const RT::PiDevice &PiDevice) -> device {

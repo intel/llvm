@@ -10,7 +10,7 @@
 #include <CL/cl_ext.h>
 
 #ifdef USE_PI_CUDA
-#include <cuda_driver.h>
+#include <cuda.h>
 #endif  // USE_PI_CUDA
 
 #include <iostream>
@@ -38,12 +38,12 @@ int main(int argc, char* argv[]) {
     cl_uint deviceCount = 0;
 
 #ifdef USE_PI_CUDA
-    if (backend == "CUDA") {
+    if (backend == "PI_CUDA") {
       std::string msg{""};
 
       int runtime_version = 0;
 
-      cudaError_t err = cuDriverGetVersion(&runtime_version);
+      auto err = cuDriverGetVersion(&runtime_version);
       if (runtime_version < 9020 || err != CUDA_SUCCESS) {
         std::cout << deviceCount << " :Unsupported CUDA Runtime " << std::endl;
       }
