@@ -33,12 +33,13 @@
 ///
 /// The SYCL framework defines command group (\ref CG) as an entity that
 /// represents minimal execution block. The command group is submitted to SYCL
-/// queue and consists of a kernel and its requirements. The SYCL queue defines
-/// the device and context using which the kernel should be executed.
+/// queue and consists of a kernel or an explicit memory operation, and their
+/// requirements. The SYCL queue defines the device and context using which the
+/// kernel should be executed.
 ///
-/// There are also command groups that consist of memory requirements and
-/// an explicit memory operation, such as copy, fill, update_host. In this case
-/// it's up to an implementation how to implement these operations.
+/// The commands that contain explicit memory operations include copy, fill,
+/// update_host and other operations. It's up to implementation how to define
+/// these operations.
 ///
 /// The relative order of command groups submission defines the order in which
 /// kernels must be executed if their memory requirements intersect. For
@@ -93,8 +94,8 @@
 ///
 ///   // "Host accessor creation" section
 ///   // Request the latest data of BufferC for the moment
-///   // This is a synchronization point, which means that the DPC++ RT blocks on creation of
-///   // the accessor until requested data is available.
+///   // This is a synchronization point, which means that the DPC++ RT blocks
+///   // on creation of the accessor until requested data is available.
 ///   auto C = BufferC.get_access<read>();
 /// }
 /// \endcode
@@ -102,8 +103,8 @@
 /// In the example above the DPC++ RT does the following:
 ///
 /// 1. **Copy command group**.
-///    The DPC++ RT allocates memory for BufferA and BufferB on CPU then executes
-///   an explicit copy operation on CPU.
+///    The DPC++ RT allocates memory for BufferA and BufferB on CPU then
+///    executes an explicit copy operation on CPU.
 ///
 /// 2. **Multi command group**
 ///    DPC++ RT allocates memory for BufferC and BufferB on GPU and copy
@@ -266,8 +267,8 @@ struct MemObjRecord {
 /// executing the first command group memory allocation must be performed.
 ///
 /// At some point Scheduler enqueues commands to the underlying devices. To do
-/// this, Scheduler performs topological sort to get the order in which commands should
-/// be enqueued. For example, the following graph (D depends on B and C,
+/// this, Scheduler performs topological sort to get the order in which commands
+/// should be enqueued. For example, the following graph (D depends on B and C,
 /// B and C depends on A) will be enqueued in the following order:
 /// \code{.cpp}
 ///   EventA = Enqueue(A, /*Deps=*/{});
@@ -308,8 +309,7 @@ struct MemObjRecord {
 ///
 /// \section sched_impl Implementation details
 ///
-/// The Scheduler is split up into two parts: graph builder and graph
-/// processor.
+/// The Scheduler is split up into two parts: graph builder and graph processor.
 ///
 /// To build dependencies, Scheduler needs to memorize memory objects and
 /// commands that modify them.
@@ -338,9 +338,9 @@ struct MemObjRecord {
 /// 1. errors that happen during command enqueue process
 /// 2. the error that happend during command execution.
 ///
-/// If an error occurs during command enqueue process, the Command::enqueue method
-/// returns the faulty command. Scheduler then reschedules the command and all
-/// dependent commands (if any).
+/// If an error occurs during command enqueue process, the Command::enqueue
+/// method returns the faulty command. Scheduler then reschedules the command
+/// and all dependent commands (if any).
 ///
 /// An error with command processing can happen in underlying runtime, in this
 /// case Scheduler is notified asynchronously (using callback mechanism) what
@@ -378,26 +378,23 @@ public:
 
   /// Removes buffer from the graph.
   ///
-  /// The lifetime of memory object descriptor begins when the first command group
-  /// that uses the memory object is submitted and ends when "removeMemoryObject(...)"
-  /// method is called which means there will be no command group that uses the
-  /// memory object. When removeMemoryObject is called Scheduler will enqueue
-  /// and wait on all release commands associated with the memory object, which
-  /// effectively guarantees that all commands accessing the memory object are
-  /// complete and then the resources allocated for the memory object are freed. Then all the
-  /// commands affecting the memory object are removed.
-  ///
-  /// On destruction Scheduler triggers destruction of all memory object
-  /// descriptors in order to wait on all commands not yet executed and all
-  /// memory it manages.
+  /// The lifetime of memory object descriptor begins when the first command
+  /// group that uses the memory object is submitted and ends when
+  /// "removeMemoryObject(...)" method is called which means there will be no
+  /// command group that uses the memory object. When removeMemoryObject is
+  /// called Scheduler will enqueue and wait on all release commands associated
+  /// with the memory object, which effectively guarantees that all commands
+  /// accessing the memory object are complete and then the resources allocated
+  /// for the memory object are freed. Then all the commands affecting the
+  /// memory object are removed.
   ///
   /// This member function is used by \ref buffer and \ref image.
   ///
   /// \param MemObj is a memory object that points to the buffer being removed.
   void removeMemoryObject(detail::SYCLMemObjI *MemObj);
 
-  /// Removes finished non-leaf non-alloca commands from the subgraph
-  /// (assuming that all its commands have been waited for).
+  /// Removes finished non-leaf non-alloca commands from the subgraph (assuming
+  /// that all its commands have been waited for).
   /// \sa GraphBuilder::cleanupFinishedCommands
   ///
   /// \param FinishedEvent is a cleanup candidate event.
@@ -458,13 +455,12 @@ protected:
     Command *addCGUpdateHost(std::unique_ptr<detail::CG> CommandGroup,
                              QueueImplPtr HostQueue);
 
-    /// Registers a \ref CG "command group" to update memory to the latest
-    /// state.
+    /// Enqueues a command to update memory to the latest state.
     ///
     /// \param Req is a requirement, that describes memory object.
     Command *addCopyBack(Requirement *Req);
 
-    /// Registers a \ref CG "command group" to create a host accessor.
+    /// Enqueues a command to create a host accessor.
     ///
     /// \param Req points to memory being accessed.
     Command *addHostAccessor(Requirement *Req, const bool destructor = false);
@@ -483,8 +479,9 @@ protected:
     /// Reschedules the command passed using Queue provided.
     ///
     /// This can lead to rescheduling of all dependent commands. This can be
-    /// used when the user provides a "secondary" queue to the submit method which may
-    /// be used when the command fails to enqueue/execute in the primary queue.
+    /// used when the user provides a "secondary" queue to the submit method
+    /// which may be used when the command fails to enqueue/execute in the
+    /// primary queue.
     void rescheduleCommand(Command *Cmd, QueueImplPtr Queue);
 
     /// \return a pointer to the corresponding memory object record for the
@@ -516,7 +513,8 @@ protected:
     std::vector<SYCLMemObjI *> MMemObjs;
 
   private:
-    /// Inserts the command required to update the memory object state in the context.
+    /// Inserts the command required to update the memory object state in the
+    /// context.
     ///
     /// Copy/map/unmap operations can be inserted depending on the source and
     /// destination.
@@ -579,26 +577,21 @@ protected:
   /// Member functions of this class do not modify the graph.
   ///
   /// \section sched_enqueue Command enqueueing
-  /// \todo lazy mode is not implemented.
   ///
-  /// The Scheduler can work in two modes of enqueueing commands: eager (default)
-  /// and lazy. In eager mode commands are enqueued whenever they come to the
-  /// Scheduler. In lazy mode they are not enqueued until the content of the buffer
-  /// they are accessing is requested by user.
+  /// Commands are enqueued whenever they come to the Scheduler. Each command
+  /// has enqueue method which takes vector of events that represents
+  /// dependencies and returns event which represents the command.
+  /// GraphProcessor performs topological sort to get the order in which
+  /// commands have to be enqueued. Then it enqueues each command, passing a
+  /// vector of events that this command needs to wait on. If an error happens
+  /// during command enqueue, the whole process is stopped, the faulty command
+  /// is propagated back to the Scheduler.
   ///
-  /// Each command has enqueue method which takes vector of events that
-  /// represents dependencies and returns event which represents the command.
-  /// GraphProcessor performs topological sort to get the order in which commands have to
-  /// be enqueued. Then it enqueues each command, passing a vector of events
-  /// that this command needs to wait on. If an error happens during command
-  /// enqueue, the whole process is stopped, the faulty command is propagated back
-  /// to the Scheduler.
-  ///
-  /// The command with dependencies that belong to a context different from its own
-  /// can't be enqueued directly (limitation of OpenCL runtime).
-  /// Instead, for each dependency, a proxy event is created in the target context
-  /// and linked using OpenCL callback mechanism with original one. For example,
-  /// the following SYCL code:
+  /// The command with dependencies that belong to a context different from its
+  /// own can't be enqueued directly (limitation of OpenCL runtime).
+  /// Instead, for each dependency, a proxy event is created in the target
+  /// context and linked using OpenCL callback mechanism with original one.
+  /// For example, the following SYCL code:
   ///
   /// \code{.cpp}
   ///   // The ContextA and ContextB are different OpenCL contexts

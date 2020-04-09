@@ -49,7 +49,7 @@ struct EnqueueResultT {
   EnqueueResultT(ResultT Result = SyclEnqueueSuccess, Command *Cmd = nullptr,
                  cl_int ErrCode = CL_SUCCESS)
       : MResult(Result), MCmd(Cmd), MErrCode(ErrCode) {}
-  /// Indicates result of enqueueing.
+  /// Indicates the result of enqueueing.
   ResultT MResult;
   /// Pointer to the command which failed to enqueue.
   Command *MCmd;
@@ -77,11 +77,11 @@ struct DepDesc {
   AllocaCommandBase *MAllocaCmd = nullptr;
 };
 
-/// The Command represents some action that needs to be performed on one or
-/// more memory objects. The Command has a vector of DepDesc objects that
-/// represent dependencies of the command. It has a vector of pointers to commands
-/// that depend on the command. It has a pointer to \ref queue object and an
-/// event that is associated with the command.
+/// The Command class represents some action that needs to be performed on one
+/// or more memory objects. The Command has a vector of DepDesc objects that
+/// represent dependencies of the command. It has a vector of pointers to
+/// commands that depend on the command. It has a pointer to a \ref queue object
+/// and an event that is associated with the command.
 ///
 /// \ingroup sycl_graph
 class Command {
@@ -112,8 +112,8 @@ public:
   /// Checks if the command is enqueued, and calls enqueueImp.
   ///
   /// \param EnqueueResult is set to the specific status if enqueue failed.
-  /// \param Blocking if this argument is true, function will wait for command
-  /// to be unblocked before calling enqueueImp.
+  /// \param Blocking if this argument is true, function will wait for the
+  ///        command to be unblocked before calling enqueueImp.
   /// \return true if the command is enqueued.
   bool enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking);
 
@@ -136,23 +136,23 @@ public:
   /// Looks at all the dependencies for the release command and enables
   /// instrumentation to report these dependencies as edges.
   void resolveReleaseDependencies(std::set<Command *> &list);
-  /// Creates an edge event when the dependency is a command
+  /// Creates an edge event when the dependency is a command.
   void emitEdgeEventForCommandDependence(Command *Cmd, void *ObjAddr,
                                          const string_class &Prefix,
                                          bool IsCommand);
-  /// Creates an edge event when the dependency is an event
+  /// Creates an edge event when the dependency is an event.
   void emitEdgeEventForEventDependence(Command *Cmd, RT::PiEvent &EventAddr);
-  /// Creates a signal event with the enqueued kernel event handle
+  /// Creates a signal event with the enqueued kernel event handle.
   void emitEnqueuedEventSignal(RT::PiEvent &PiEventAddr);
   /// Create a trace event of node_create type; this must be guarded by a
-  /// check for xptiTraceEnabled()
-  /// Post Condition: MTraceEvent will be set to the event created
-  /// \param MAddress  The address to use to create the payload
+  /// check for xptiTraceEnabled().
+  /// Post Condition: MTraceEvent will be set to the event created.
+  /// \param MAddress  The address to use to create the payload.
   uint64_t makeTraceEventProlog(void *MAddress);
   /// If prolog has been run, run epilog; this must be guarded by a check for
-  /// xptiTraceEnabled()
+  /// xptiTraceEnabled().
   void makeTraceEventEpilog();
-  /// Emits an event of Type
+  /// Emits an event of Type.
   void emitInstrumentation(uint16_t Type, const char *Txt = nullptr);
 
   // End Methods needed to support SYCL instrumentation
@@ -178,7 +178,7 @@ protected:
   /// Private interface. Derived classes should implement this method.
   virtual cl_int enqueueImp() = 0;
 
-  /// The type of the command
+  /// The type of the command.
   CommandType MType;
   /// Mutex used to protect enqueueing from race conditions
   std::mutex MEnqueueMtx;
@@ -186,16 +186,16 @@ protected:
 public:
   /// Contains list of dependencies(edges)
   std::vector<DepDesc> MDeps;
-  /// Contains list of commands that depend on the command
+  /// Contains list of commands that depend on the command.
   std::unordered_set<Command *> MUsers;
-  /// Indicates whether the command can be blocked from enqueueing
+  /// Indicates whether the command can be blocked from enqueueing.
   bool MIsBlockable = false;
-  /// Counts the number of memory objects this command is a leaf for
+  /// Counts the number of memory objects this command is a leaf for.
   unsigned MLeafCounter = 0;
 
   const char *MBlockReason = "Unknown";
 
-  /// Describes the status of a command
+  /// Describes the status of the command.
   std::atomic<EnqueueResultT::ResultT> MEnqueueStatus;
 
   // All member variable defined here  are needed for the SYCL instrumentation
@@ -203,25 +203,26 @@ public:
   // to ensure we have the same object layout when the macro in the library and
   // SYCL app are not the same.
 
-  /// The event for node_create and task_begin
+  /// The event for node_create and task_begin.
   void *MTraceEvent = nullptr;
-  /// The stream under which the traces are emitted; stream ids are
-  /// positive integers and we set it to an invalid value
+  /// The stream under which the traces are emitted.
+  ///
+  /// Stream ids are positive integers and we set it to an invalid value.
   int32_t MStreamID = -1;
   /// Reserved for storing the object address such as SPIRV or memory object
-  /// address
+  /// address.
   void *MAddress = nullptr;
-  /// Buffer to build the address string
+  /// Buffer to build the address string.
   string_class MAddressString;
-  /// Buffer to build the command node type
+  /// Buffer to build the command node type.
   string_class MCommandNodeType;
-  /// Buffer to build the command end-user understandable name
+  /// Buffer to build the command end-user understandable name.
   string_class MCommandName;
-  /// Flag to indicate if makeTraceEventProlog() has been run
+  /// Flag to indicate if makeTraceEventProlog() has been run.
   bool MTraceEventPrologComplete = false;
-  /// Flag to indicate if this is the first time we are seeing this payload
+  /// Flag to indicate if this is the first time we are seeing this payload.
   bool MFirstInstance = false;
-  /// Instance ID tracked for the command
+  /// Instance ID tracked for the command.
   uint64_t MInstanceID = 0;
 };
 
@@ -242,8 +243,8 @@ private:
   Requirement MRequirement;
 };
 
-/// The release command enqueues release of a memory object instance allocated on Host or
-/// underlying framework.
+/// The release command enqueues release of a memory object instance allocated
+/// on Host or underlying framework.
 class ReleaseCommand : public Command {
 public:
   ReleaseCommand(QueueImplPtr Queue, AllocaCommandBase *AllocaCmd);
@@ -286,7 +287,7 @@ public:
   bool MIsActive = true;
 
   /// Indicates that the command owns memory allocation in case of connected
-  /// alloca command
+  /// alloca command.
   bool MIsLeaderAlloca = true;
 
 protected:
@@ -309,7 +310,7 @@ private:
   cl_int enqueueImp() final;
 
   /// The flag indicates that alloca should try to reuse pointer provided by
-  /// the user during memory object construction
+  /// the user during memory object construction.
   bool MInitFromUserData = false;
 };
 
@@ -329,7 +330,7 @@ private:
   AllocaCommandBase *MParentAlloca = nullptr;
 };
 
-/// The map command enqueues mapping of host memory onto device memory.
+/// The map command enqueues mapping of device memory onto host memory.
 class MapMemObject : public Command {
 public:
   MapMemObject(AllocaCommandBase *SrcAllocaCmd, Requirement Req, void **DstPtr,
