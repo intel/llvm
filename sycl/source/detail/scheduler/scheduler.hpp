@@ -229,8 +229,8 @@ struct MemObjRecord {
 ///    The command represents memory copy operation between two memory
 ///    allocations of a single memory object.
 ///
-/// As a main input Scheduler takes command group and returns an event
-/// representing the command group, so it can be waited on later. When a new
+/// As the main input Scheduler takes a command group and returns an event
+/// representing it, so it can be waited on later. When a new
 /// command group comes, Scheduler adds one or more nodes to the graph
 /// depending on the command groups' requirements. For example, if a new
 /// command group is submitted to the SYCL context which has the latest data
@@ -266,8 +266,8 @@ struct MemObjRecord {
 /// executing the first command group memory allocation must be performed.
 ///
 /// At some point Scheduler enqueues commands to the underlying devices. To do
-/// this Scheduler makes topological sort to get order in which commands are
-/// need to be enqueued. For example, the following graph (D depends on B and C,
+/// this, Scheduler performs topological sort to get the order in which commands should
+/// be enqueued. For example, the following graph (D depends on B and C,
 /// B and C depends on A) will be enqueued in the following order:
 /// \code{.cpp}
 ///   EventA = Enqueue(A, /*Deps=*/{});
@@ -311,8 +311,8 @@ struct MemObjRecord {
 /// The Scheduler is split up into two parts: graph builder and graph
 /// processor.
 ///
-/// To build dependencies Scheduler needs to memorize memory object and
-/// commands that modify it.
+/// To build dependencies, Scheduler needs to memorize memory objects and
+/// commands that modify them.
 ///
 /// To detect that two command groups access the same memory object and create
 /// a dependency between them, Scheduler needs to store information about
@@ -338,8 +338,8 @@ struct MemObjRecord {
 /// 1. errors that happen during command enqueue process
 /// 2. the error that happend during command execution.
 ///
-/// If error occurs during commands enqueue process Command::enqueue method
-/// return faulty command. The Scheduler then reschedules the command and all
+/// If an error occurs during command enqueue process, the Command::enqueue method
+/// returns the faulty command. Scheduler then reschedules the command and all
 /// dependent commands (if any).
 ///
 /// An error with command processing can happen in underlying runtime, in this
@@ -484,7 +484,7 @@ protected:
     ///
     /// This can lead to rescheduling of all dependent commands. This can be
     /// used when the user provides a "secondary" queue to the submit method which may
-    /// be used when command fails to enqueue/execute in primary queue.
+    /// be used when the command fails to enqueue/execute in the primary queue.
     void rescheduleCommand(Command *Cmd, QueueImplPtr Queue);
 
     /// \return a pointer to the corresponding memory object record for the
@@ -588,15 +588,15 @@ protected:
   ///
   /// Each command has enqueue method which takes vector of events that
   /// represents dependencies and returns event which represents the command.
-  /// GraphProcessor makes topological sort to get order in which commands are
-  /// need to be enqueued. Then enqueue each command passing vector of events
+  /// GraphProcessor performs topological sort to get the order in which commands have to
+  /// be enqueued. Then it enqueues each command, passing a vector of events
   /// that this command needs to wait on. If an error happens during command
   /// enqueue, the whole process is stopped, the faulty command is propagated back
   /// to the Scheduler.
   ///
-  /// The command with dependencies that belong to different context from
-  /// command's one can't be enqueued directly(limitation of OpenCL runtime).
-  /// Instead for each dependency a proxy event in the target context is created
+  /// The command with dependencies that belong to a context different from its own
+  /// can't be enqueued directly (limitation of OpenCL runtime).
+  /// Instead, for each dependency, a proxy event is created in the target context
   /// and linked using OpenCL callback mechanism with original one. For example,
   /// the following SYCL code:
   ///
