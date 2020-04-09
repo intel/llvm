@@ -1,0 +1,596 @@
+= SYCL_INTEL_accessor_simplification
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+
+:blank: pass:[ +]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+== Introduction
+IMPORTANT: This specification is a draft.
+
+NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by permission by Khronos.
+
+NOTE: This document is better viewed when rendered as html with asciidoctor.  GitHub does not render image icons.
+
+This document describes an extension that changes the accessor interface within SYCL to make it easier to use and less verbose when writing code.
+
+
+== Name Strings
+
++SYCL_INTEL_accessor_simplification+
+
+== Notice
+
+Copyright (c) 2020 Intel Corporation.  All rights reserved.
+
+== Status
+
+Working Draft
+
+This is a preview extension specification, intended to provide early access to a feature for review and community feedback. When the feature matures, this specification may be released as a formal extension.
+
+Because the interfaces defined by this specification are not final and are subject to change they are not intended to be used by shipping software products.
+
+== Version
+
+Built On: {docdate} +
+Revision: 1
+
+== Contact
+
+Michael Kinsner, Intel (michael 'dot' kinsner 'at' intel 'dot' com)
+
+== Dependencies
+
+This extension is written against the SYCL 1.2.1 specification, revision 6.
+
+== Overview
+
+SYCL has been designed as a library-based programming model, enabling generic code through modern {cpp}.  Minimizing the string length and verbosity of developer-written code has not been a primary design goal of SYCL development to date, but as more people write SYCL code, it is clear that some changes are needed to enable more compact code while preserving readability, self-documentation and maintainability.
+
+This extension modifies the SYCL accessor interface to significantly simplify common programming patterns.  The primary changes are:
+
+1. Addition of tags to accessor constructors, which influence the type.  All uses of tags are for optimization and not correctness, so are not needed in baseline unoptimized code.
+2. Deprecation of `discard_*` access modes as the mechanism for uninitialized buffer accesses, and addition of a runtime "noinit" property in its place.
+3. Deprecation of atomic and host targets from `accessor` in user code.  A new class named host_accessor is added that exhibits host thread blocking behavior on construction.  Atomics will be addressed in another extension due to coupling with other work.
+4. Addition of ability to create an accessor with data type `const T`, to provide a way to signal read only access without the tag type, using common {cpp} style.
+5. Reduction of namespace nesting and name length of accessor-related enums, to simplify code where the template parameters *are* directly used (rare occurrence).
+6. Deprecation of 0-dimensional accessors.  To be solved in another extension in a way that isn't a special case on top of 1, 2, and 3-dimensional buffers.
+
+=== Examples for high level overview of the changes:
+
+Assuming:
+
+[source,c++,NoName,linenums]
+----
+buffer<int> B(range<1>(N));
+----
+
+Also assuming that any accessor constructor or `get_access` statement following,
+which takes a parameter `h`, is called within a command group which takes an
+argument of `sycl::handler &h`.
+
+[source,c++,NoName,linenums]
+----
+// SYCL 1.2.1 (before this extension)
+accessor<int, 1, access::mode::read_write>    A1(B, h);
+accessor<int, 1, access::mode::write>         A2(B, h);
+accessor<int, 1, access::mode::discard_write> A3(B, h);
+
+// With this extension
+accessor A1(B, h);
+accessor A2(B, h, write_only);
+accessor A3(B, h, write_only, noinit);
+----
+
+Equivalent results from buffer getter methods.
+
+[source,c++,NoName,linenums]
+----
+// SYCL 1.2.1 (before this extension)
+auto A1 = B.get_access<access::mode::read_write>(h);
+auto A2 = B.get_access<access::mode::write>(h);
+auto A3 = B.get_access<access::mode::discard_write>(h);
+
+// With this extension
+auto A1 = B.get_access(h);
+auto A2 = B.get_access(h, write_only);
+auto A3 = B.get_access(h, write_only, noinit);
+----
+
+Demonstrating all of the device access modes and also the constant target:
+
+[source,c++,NoName,linenums]
+----
+// SYCL 1.2.1 (before this extension)
+accessor<int, 1, access::mode::read_write>                             A1(B, h);
+accessor<int, 1, access::mode::read>                                   A2(B, h);
+accessor<int, 1, access::mode::write>                                  A3(B, h);
+accessor<int, 1, access::mode::discard_read_write>                     A4(B, h);
+accessor<int, 1, access::mode::discard_write>                          A5(B, h);
+accessor<int, 1, access::mode::read, access::target::constant_buffer>  A6(B, h);
+
+// With this extension
+accessor A1(B, h);
+accessor A2(B, h, read_only);
+accessor A3(B, h, write_only);
+accessor A4(B, h, noinit);
+accessor A5(B, h, write_only, noinit);
+accessor A6(B, h, read_constant);
+----
+
+Host accessor: Provides access to data on the host outside of a command group.
+  Returns when data is ready for use by the host thread:
+
+[source,c++,NoName,linenums]
+----
+// SYCL 1.2.1 (before this extension)
+accessor<int, 1, access::mode::read_write, access::target::host_buffer>  A1(B);
+
+// With this extension
+host_accessor A1(B);
+----
+
+Equivalent read-only accessor styles:
+
+[source,c++,NoName,linenums]
+----
+// SYCL 1.2.1 (before this extension)
+accessor<int, 1, access::mode::read>  A1(B, h);
+
+// With this extension
+// Note that A2 and A3 are equivalent - only the coding style differs
+accessor               A2(B, h, read_only);
+accessor<const int, 1> A3(B, h);
+----
+
+
+
+== Changes not described by this extension, but related and covered elsewhere already:
+
+=== Truncated namespace
+
+The rest of this extension assumes an orthogonal change, that makes classes and other features in the `cl::sycl::` namespace accessible with just `sycl::`.  Whether that is achieved through a namespace alias or other approach is not defined in this extension, but all definitions within this extension are created with respect to the `sycl::` namespace.  Implementation details may require an alternative set of definitions followed by aliases or other mechanisms to achieve the user interface described here.
+
+=== Class template argument deduction (CTAD)
+
+The Intel toolchain supports {cpp}17, as defined in https://spec.oneapi.com/versions/latest/elements/dpcpp/source/index.html[the DP{cpp} specification], which includes class template argument deduction.  {cpp} has defined CTAD to reduce the verbosity of {cpp} universally, and those solutions should be leveraged within SYCL code instead of SYCL defining alternative mechanisms.
+
+Standard CTAD deduction rules in {cpp}17 simplify many common cases in SYCL.  For some use cases where {cpp} default deduction guides don't apply, Intel has published a public specification for some additional guides at:
+
+https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/deduction_guides/SYCL_INTEL_deduction_guides.asciidoc
+
+*For example, a buffer construction is simplified with CTAD from:*
+
+`buffer<int, 2> b(ptr, range<2>(5, 5));`
+
+*To:*
+
+`buffer b(ptr, range(5, 5));`
+
+Implementation to date:
+
+1. https://github.com/intel/llvm/pull/772
+
+2. https://github.com/intel/llvm/pull/773
+
+3. https://github.com/intel/llvm/pull/834
+
+
+== Changes defined by this extension
+
+=== Define terminology at start of the accessor section
+
+Accessor constructors and getters accept optional tag and property objects.  Tag objects must be known at compile time, and are used to deduce the template arguments of the accessor type.  Properties are instead objects which are stored and queried at runtime, and whose types are used to control runtime aspects of the accessor.
+
+=== Add note to start of "Accessor targets" section:
+
+The targets defined in this section are details that are defined to enable a consistent accessor type across SYCL implementations, but are not an interface that should be used in code development.  The accessor tag and properties defined later in this section are the recommended programming interface, because they allow template parameters to be deduced which makes SYCL code simpler.
+
+=== Add note to start of "Accessor modes" section:
+
+The modes defined in this section are details that are defined to enable a consistent accessor type across SYCL implementations, but are not an interface that should be used in code development.  The accessor tag and properties defined later in this section are the recommended programming interface, because they allow template parameters to be deduced which makes SYCL code simpler.
+
+This extension deprecates `access::mode::host_target` in favor of the new `host_accessor` class.
+
+This extension removes (stronger than deprecation) `access::mode::atomic` in favor of a new class defined in an upcoming extension.
+
+=== Define global constant expression tag objects for accessors in a new section named: "Accessor optimization tags"
+
+A tag object may optionally be passed to an accessor constructor or getter method (`buffer::get_access()`) and is used to deduce template parameters of the accessor type.  This in part removes the need to specify earlier template parameters when defining the mode or target within an accessor template parameterization, when ideally all parameters and at least the earlier parameters would be deduced.  Tags enable all parameters to be deduced.
+
+Define new tags within the `sycl` namespace as:
+
+[source,c++,NoName,linenums]
+----
+template <access_mode mode>
+struct mode_tag_t {
+  explicit mode_tag_t() = default;
+};
+
+template <access_mode mode, target trgt>
+struct mode_target_tag_t {
+  explicit mode_target_tag_t() = default;
+};
+
+inline constexpr mode_tag_t<access_mode::read>               read_only{};
+inline constexpr mode_tag_t<access_mode::read_write>         read_write{};
+inline constexpr mode_tag_t<access_mode::write>              write_only{};
+
+// target::constant in SYCL 1.2.1 terminology (OpenCL constant memory)
+inline constexpr mode_target_tag_t<access_mode::read, target::constant_buffer> read_constant{};
+----
+
+=== Add new runtime property to the sycl namespace
+[source,c++,NoName,linenums]
+----
+namespace sycl {
+    class noinit {};
+}
+----
+
+`sycl::noinit` is legal within a `sycl::property_list` passed to an `accessor`
+constructor or getter (`buffer::get_access()`).
+
+=== Modify the definition of accessor to have a default access mode of read_write
+
+==== Change from:
+
+[source,c++,NoName,linenums]
+----
+template <typename DataT, int Dimensions, access::mode AccessMode,
+          access::target AccessTarget = access::target::global_buffer,
+          access::placeholder IsPlaceholder = access::placeholder::false_t>
+class accessor;
+----
+
+==== To:
+
+[source,c++,NoName,linenums]
+----
+template <typename DataT, int Dimensions, access::mode AccessMode = access::mode::read_write,
+          access::target AccessTarget = access::target::global_buffer,
+          access::placeholder IsPlaceholder = access::placeholder::false_t>
+class accessor;
+----
+
+=== Add property_list to existing accessor constructors
+
+Add the following as the final argument of existing `accessor` constructors:
+
+[source,c++,NoName,linenums]
+----
+const property_list &propList = {}
+----
+
+=== Add new accessor constructors that can accept a tag
+[source,c++,NoName,linenums]
+----
+/* Available only when: ((isPlaceholder == access::placeholder::false_t &&
+ accessTarget == access::target::host_buffer) || (isPlaceholder ==
+ access::placeholder::true_t && (accessTarget == access::target::global_buffer
+ || accessTarget == access::target::constant_buffer))) && dimensions > 0 */
+template <typename AllocatorT>
+accessor(buffer<DataT, Dimensions, AllocatorT> &BufferRef, mode_tag_t<AccessMode>,
+         const property_list &propList = {}) : accessor(BufferRef) {}
+
+/* Available only when: ((isPlaceholder == access::placeholder::false_t &&
+ accessTarget == access::target::host_buffer) || (isPlaceholder ==
+ access::placeholder::true_t && (accessTarget == access::target::global_buffer
+ || accessTarget == access::target::constant_buffer))) && dimensions > 0 */
+template <typename AllocatorT>
+accessor(buffer<DataT, Dimensions, AllocatorT> &BufferRef, mode_target_tag_t<AccessMode, AccessTarget>,
+         const property_list &propList = {}) : accessor(BufferRef) {}
+
+/* Available only when: (isPlaceholder == access::placeholder::false_t &&
+(accessTarget == access::target::global_buffer || accessTarget ==
+access::target::constant_buffer)) && dimensions > 0 */
+template <typename AllocatorT>
+accessor(buffer<DataT, Dimensions, AllocatorT> &BufferRef,
+         handler &CommandGroupHandler, mode_tag_t<AccessMode>,
+         const property_list &propList = {}) : accessor(BufferRef, CommandGroupHandler) {}
+
+/* Available only when: (isPlaceholder == access::placeholder::false_t &&
+(accessTarget == access::target::global_buffer || accessTarget ==
+access::target::constant_buffer)) && dimensions > 0 */
+template <typename AllocatorT>
+accessor(buffer<DataT, Dimensions, AllocatorT> &BufferRef,
+         handler &CommandGroupHandler, mode_target_tag_t<AccessMode, AccessTarget>,
+         const property_list &propList = {}) : accessor(BufferRef, CommandGroupHandler) {}
+----
+
+=== Add new section named: "Host accessor"
+The `sycl::host_accessor` type is a specialization of the accessor class, and has the property that constructing it blocks until the host pointer underlying that accessor is safe to use in subsequent host code.  The blocking may include waiting for kernels to execute on devices, or for data to be copied from devices to the host.
+
+[source,c++,NoName,linenums]
+----
+template <typename DataT, int Dimensions, access_mode AccessMode = access_mode::read_write>
+class host_accessor : public accessor<DataT, Dimensions, AccessMode, target::host_buffer, access::placeholder::false_t>
+{
+  public:
+    host_accessor() :
+      accessor<DataT, Dimensions, AccessMode, target::host_buffer, access::placeholder::false_t>() {}
+
+    template< typename AllocatorT > 
+      host_accessor( buffer<DataT,Dimensions,AllocatorT>& buf ) :
+        accessor<DataT, Dimensions, AccessMode, target::host_buffer, access::placeholder::false_t>( buf ) {}
+
+    template< typename AllocatorT > 
+      host_accessor( buffer<DataT,Dimensions,AllocatorT>& buf, mode_tag_t<AccessMode> ) :
+        accessor<DataT, Dimensions, AccessMode, target::host_buffer, access::placeholder::false_t>( buf ) {}
+
+    template< typename AllocatorT > 
+      host_accessor( buffer<DataT,Dimensions,AllocatorT>& buf, range<Dimensions> r ) :
+        accessor<DataT, Dimensions, AccessMode, target::host_buffer, access::placeholder::false_t>( buf, r ) {}
+
+    template< typename AllocatorT > 
+      host_accessor( buffer<DataT,Dimensions,AllocatorT>& buf, range<Dimensions> r, mode_tag_t<AccessMode> ) :
+        accessor<DataT, Dimensions, AccessMode, target::host_buffer, access::placeholder::false_t>( buf, r ) {}
+}
+----
+
+
+=== Add new deduction guides to the accessor definitions:
+
+[source,c++,NoName,linenums]
+----
+template< typename DataT, int Dimensions, typename AllocatorT, typename... Ts >
+accessor(buffer<DataT,Dimensions,AllocatorT>, Ts...) ->
+    accessor<DataT,Dimensions,access::mode::read_write,target::global_buffer, access::placeholder::true_t>;
+
+template< typename DataT, int Dimensions, typename AllocatorT, access_mode AccessMode, typename... Ts >
+accessor(buffer<DataT,Dimensions,AllocatorT>, mode_tag_t<AccessMode>, Ts...) ->
+    accessor<DataT,Dimensions,AccessMode,target::global_buffer, access::placeholder::true_t>;
+
+template< typename DataT, int Dimensions, typename AllocatorT, access_mode AccessMode, target AccessTarget, typename... Ts >
+accessor(buffer<DataT,Dimensions,AllocatorT>, mode_target_tag_t<AccessMode,AccessTarget>, Ts...) ->
+    accessor<DataT,Dimensions,AccessMode,AccessTarget, access::placeholder::true_t>;
+
+template< typename DataT, int Dimensions, typename AllocatorT, typename... Ts >
+accessor(buffer<DataT,Dimensions,AllocatorT>, range<Dimensions>, Ts...) ->
+    accessor<DataT,Dimensions,access::mode::read_write,target::global_buffer, access::placeholder::true_t>;
+
+template< typename DataT, int Dimensions, typename AllocatorT, typename... Ts >
+accessor(buffer<DataT,Dimensions,AllocatorT>, handler, Ts...) ->
+    accessor<DataT,Dimensions,access::mode::read_write,target::global_buffer>;
+
+template< typename DataT, int Dimensions, typename AllocatorT, access_mode AccessMode, typename... Ts >
+accessor(buffer<DataT,Dimensions,AllocatorT>, handler, mode_tag_t<AccessMode>, Ts...) ->
+    accessor<DataT,Dimensions,AccessMode,target::global_buffer, access::placeholder::false_t>;
+
+template< typename DataT, int Dimensions, typename AllocatorT, access_mode AccessMode, target AccessTarget, typename... Ts >
+accessor(buffer<DataT,Dimensions,AllocatorT>, handler, mode_target_tag_t<AccessMode,AccessTarget>, Ts...) ->
+    accessor<DataT,Dimensions,AccessMode,AccessTarget, access::placeholder::false_t>;
+
+template< typename DataT, int Dimensions, typename AllocatorT, typename... Ts >
+accessor(buffer<DataT,Dimensions,AllocatorT>, handler, range<Dimensions>, Ts...) ->
+    accessor<DataT,Dimensions,access::mode::read_write,target::global_buffer>;
+----
+
+=== In the "Buffer accessor" section, change the paragraph:
+
+==== From:
+The data type of a buffer accessor must match that of the SYCL buffer which it is accessing.
+
+==== To:
+The data type of a buffer accessor must either match that of the SYCL buffer which it is accessing, or must be a `const` qualified version of the type of the SYCL buffer which it is accessing.  If the accessor buffer type is `const` qualified while the buffer type is not, then only the default read_write mode (no tag), or the `read_only` or `read_constant` tags may be specified on the accessor.  An accessor with `const` qualified type is equivalent to specifying the `read_only` tag on the accessor.
+
+=== Enum simplifications to reduce length of typing when manually paramterizing accessor types
+
+==== Change enum definitions from:
+[source,c++,NoName,linenums]
+----
+namespace sycl {
+namespace access {
+
+enum class target {
+  global_buffer = 2014,
+  constant_buffer,
+  local,
+  image,
+  host_buffer,
+  host_image,
+  image_array
+};
+
+enum class mode {
+  read = 1024,
+  write,
+  read_write,
+  discard_write,
+  discard_read_write,
+  atomic
+};
+
+enum class fence_space {
+  local_space,
+  global_space,
+  global_and_local
+};
+
+enum class placeholder { false_t, true_t };
+
+enum class address_space : int {
+  private_space = 0,
+  global_space,
+  constant_space,
+  local_space
+};
+
+} // namespace access
+} // namespace sycl
+----
+
+==== To:
+[source,c++,NoName,linenums]
+----
+namespace sycl {
+
+enum class target {
+  global = 2014,
+  constant,
+  local,
+  image,
+  host_buffer,
+  host_image,
+  image_array,
+
+  // Deprecated enum names, for backward compatibility with versions before this extension
+  global_buffer = 2014,
+  constant_buffer
+};
+
+// Backward compatibility namespace nesting
+namespace access {
+  using sycl::target;
+}
+
+namespace access {
+  enum class mode {
+    read = 1024,
+    write,
+    read_write,
+    discard_write,
+    discard_read_write,
+    atomic
+  };
+}
+
+using access_mode = access::mode;
+
+namespace access {
+  enum class placeholder { false_t, true_t };
+}
+
+} // namespace sycl
+----
+
+=== Add text to beginning of accessor section:
+
+There are two broad mechanisms to acquire an accessor in SYCL 1.2.1:
+
+1. Construct directly.  e.g.:
++
+[source,c++,NoName,linenums]
+----
+accessor<int, 1, access::mode::read_write> A{B, h);
+----
++
+2. Acquire from buffer/image class member.  e.g.:
++
+[source,c++,NoName,linenums]
+----
+B.get_access<access::mode::read_write> A(h);
+----
+
+With this extension it is recommended that only direct construction be
+used.  This is because it leads to more concise code, and because it makes clear
+the type of object that is expected (e.g. `accessor` versus `host_accessor`).  With
+this extension, direct construction looks like, for example:
+
+[source,c++,NoName,linenums]
+----
+accessor A(B, h);
+----
+
+==== Add non-normative text to the same section:
+Note: This should probably not be in the spec, but recommending a coding style
+for something so common likely has large impact on the base of SYCL code in the wild.
+
+If getter methods of buffers (`buffer::get_access()` and related forms) are
+used, it is recommended to use `auto` rather than explicitly defining the
+type which will be assigned or initialized.  This makes code simpler, but also
+reduces the changes of defining the incorrect type, or causing implicit
+conversions (for example to a stricter access mode) that aren't intentional.
+
+For example, prefer:
+
+[source,c++,NoName,linenums]
+----
+auto A = B.get_access(B, h, read_only, noinit);
+----
+
+Instead of forms like:
+
+[source,c++,NoName,linenums]
+----
+accessor<int,1,access_mode::read> A = B.get_access(B, h, read_only, noinit);
+----
+
+
+== Issues
+
+. Must deprecate access::mode::atomic.  Wording not yet in this proposal.  An alternate derived accessor class is coming, coupled with other proposals.
++
+--
+*RESOLUTION*: Not resolved
+--
+
+. For host_accessor, need a specialized getter method (e.g. `buffer::get_host_access` or `buffer::get_immediate_access`) or an alternative.
++
+--
+*RESOLUTION*: Not resolved
+--
+
+. `read_only` / `read_write` / `write_only` / `read_constant` / `noinit` are defined in this extension in the root `sycl` namespace to simplify common coding patterns.  Is this acceptable to all?
++
+--
+*RESOLUTION*: Previously had `read` and `write`.  Modified to `read_only` and `write_only` which should be collision-free enough.
+--
+
+. `get_access` methods are not yet defined using the new tags and runtime properties
++
+--
+*RESOLUTION*: Not resolved
+--
+
+. Must define the interaction between backward compatibility `discard_*` access modes and the new `noinit` runtime property.  One is part of the type, while the other is runtime.
++
+--
+*RESOLUTION*: Not resolved
+--
+
+. Must define how to enable extensions that define compile time properties on accessors, which aren't mode or target tags
++
+--
+*RESOLUTION*: Not resolved
+--
+
+. Update image accessors with similar changes after iteration/acceptance of these changes to buffer accessors
++
+--
+*RESOLUTION*: Not resolved
+--
+
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2020-04-09|Michael Kinsner|*Initial working draft*
+|========================================
+
+//************************************************************************
+//Other formatting suggestions:
+//
+//* Use *bold* text for host APIs, or [source] syntax highlighting.
+//* Use +mono+ text for device APIs, or [source] syntax highlighting.
+//* Use +mono+ text for extension names, types, or enum values.
+//* Use _italics_ for parameters.
+//************************************************************************
+
+
