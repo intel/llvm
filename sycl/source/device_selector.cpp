@@ -10,6 +10,7 @@
 #include <CL/sycl/device_selector.hpp>
 #include <CL/sycl/exception.hpp>
 #include <CL/sycl/stl.hpp>
+#include <detail/force_device.hpp>
 // 4.6.1 Device selection class
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -54,11 +55,12 @@ int default_selector::operator()(const device &dev) const {
     }
   }
 
+  // override always wins
+  if (dev.get_info<info::device::device_type>() == detail::get_forced_type())
+    return 1000;
+
   if (dev.is_gpu())
     return 500;
-
-  if (dev.is_accelerator())
-    return 400;
 
   if (dev.is_cpu())
     return 300;

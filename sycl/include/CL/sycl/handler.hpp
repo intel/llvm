@@ -11,6 +11,7 @@
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/cg.hpp>
+#include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/event.hpp>
 #include <CL/sycl/id.hpp>
@@ -19,7 +20,6 @@
 #include <CL/sycl/nd_range.hpp>
 #include <CL/sycl/property_list.hpp>
 #include <CL/sycl/sampler.hpp>
-
 #include <CL/sycl/stl.hpp>
 
 #include <algorithm>
@@ -104,7 +104,7 @@ template <typename Type> struct get_kernel_name_t<detail::auto_name, Type> {
   using name = Type;
 };
 
-device getDeviceFromHandler(handler &);
+__SYCL_EXPORT device getDeviceFromHandler(handler &);
 } // namespace detail
 
 /// 4.8.3 Command group handler class
@@ -134,7 +134,7 @@ device getDeviceFromHandler(handler &);
 /// end. So, handler class contains all fields simultaneously, then during
 /// "finalization" it constructs CG object, that represents specific operation,
 /// passing fields that are required only.
-class handler {
+class __SYCL_EXPORT handler {
 private:
   /// Constructs SYCL handler from queue.
   ///

@@ -24,6 +24,7 @@ and a wide range of compute accelerators such as GPU and FPGA.
 * `git` - https://git-scm.com/downloads
 * `cmake` version 3.2 or later - http://www.cmake.org/download/
 * `python` - https://www.python.org/downloads/release/python-2716/
+* `ninja` - https://github.com/ninja-build/ninja/wiki/Pre-built-Ninja-packages
 * C++ compiler
   * Linux: `GCC` version 5.1.0 or later (including libstdc++) -
     https://gcc.gnu.org/install/
@@ -78,15 +79,15 @@ variables is in these files.
 **Linux**
 
 ```bash
-python $DPCPP_HOME/llvm/buildbot/configure.py -s $DPCPP_HOME/llvm -o $DPCPP_HOME/build -t release
-python $DPCPP_HOME/llvm/buildbot/compile.py -s $DPCPP_HOME/llvm -o $DPCPP_HOME/build
+python $DPCPP_HOME/llvm/buildbot/configure.py
+python $DPCPP_HOME/llvm/buildbot/compile.py
 ```
 
 **Windows**
 
 ```bat
-python %DPCPP_HOME%\llvm\buildbot\configure.py -s %DPCPP_HOME%\llvm -o %DPCPP_HOME%\build -t release
-python %DPCPP_HOME%\llvm\buildbot\compile.py -s %DPCPP_HOME%\llvm -o %DPCPP_HOME%\build
+python %DPCPP_HOME%\llvm\buildbot\configure.py
+python %DPCPP_HOME%\llvm\buildbot\compile.py
 ```
 
 **Options**
@@ -98,6 +99,8 @@ You can use the following flags with `configure.py`:
  * `--cuda` -> use the cuda backend (see [Nvidia CUDA](#build-dpc-toolchain-with-support-for-nvidia-cuda))
  * `--shared-libs` -> Build shared libraries
  * `-t` -> Build type (debug or release)
+ * `-o` -> Path to build directory
+ * `--cmake-gen` -> Set build system type (e.g. `--cmake-gen "Unix Makefiles"`)
 
 Ahead-of-time compilation for the Intel&reg; processors is enabled by default.
 For more, see [opencl-aot documentation](../../opencl-aot/README.md).
@@ -261,12 +264,13 @@ To verify that built DPC++ toolchain is working correctly, run:
 
 **Linux**
 ```bash
-make -j`nproc` check-all
+python $DPCPP_HOME/llvm/buildbot/check.py
 ```
 
-**Windows (64-bit)**
+**Windows**
+
 ```bat
-ninja check-all
+python %DPCPP_HOME%\llvm\buildbot\check.py
 ```
 
 If no OpenCL GPU/CPU runtimes are available, the corresponding tests are

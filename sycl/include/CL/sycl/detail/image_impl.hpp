@@ -10,6 +10,7 @@
 
 #include <CL/sycl/detail/aligned_allocator.hpp>
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/generic_type_traits.hpp>
 #include <CL/sycl/detail/sycl_mem_obj_t.hpp>
 #include <CL/sycl/device.hpp>
@@ -37,18 +38,23 @@ namespace detail {
 using image_allocator = aligned_allocator<byte>;
 
 // utility function: Returns the Number of Channels for a given Order.
-uint8_t getImageNumberChannels(image_channel_order Order);
+__SYCL_EXPORT uint8_t getImageNumberChannels(image_channel_order Order);
 
 // utility function: Returns the number of bytes per image element
-uint8_t getImageElementSize(uint8_t NumChannels, image_channel_type Type);
+__SYCL_EXPORT uint8_t getImageElementSize(uint8_t NumChannels,
+                                          image_channel_type Type);
 
-RT::PiMemImageChannelOrder convertChannelOrder(image_channel_order Order);
+__SYCL_EXPORT RT::PiMemImageChannelOrder
+convertChannelOrder(image_channel_order Order);
 
-image_channel_order convertChannelOrder(RT::PiMemImageChannelOrder Order);
+__SYCL_EXPORT image_channel_order
+convertChannelOrder(RT::PiMemImageChannelOrder Order);
 
-RT::PiMemImageChannelType convertChannelType(image_channel_type Type);
+__SYCL_EXPORT RT::PiMemImageChannelType
+convertChannelType(image_channel_type Type);
 
-image_channel_type convertChannelType(RT::PiMemImageChannelType Type);
+__SYCL_EXPORT image_channel_type
+convertChannelType(RT::PiMemImageChannelType Type);
 
 // validImageDataT: cl_int4, cl_uint4, cl_float4, cl_half4
 template <typename T>
@@ -59,7 +65,8 @@ template <typename DataT>
 using EnableIfImgAccDataT =
     typename std::enable_if<is_validImageDataT<DataT>::value, DataT>::type;
 
-template <int Dimensions> class image_impl final : public SYCLMemObjT {
+template <int Dimensions>
+class __SYCL_EXPORT image_impl final : public SYCLMemObjT {
   using BaseT = SYCLMemObjT;
   using typename BaseT::MemObjType;
 
