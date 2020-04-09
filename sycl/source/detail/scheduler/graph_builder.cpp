@@ -446,10 +446,10 @@ Command *Scheduler::GraphBuilder::addCGUpdateHost(
   return insertMemoryMove(Record, Req, HostQueue);
 }
 
-/// Start the search for the record from list of "leaf" commands and check if the
-/// examined command can be executed in parallel with the new one with regard to
-/// the memory object. If it can, then continue searching through dependencies of
-/// that command. There are several rules used:
+/// Start the search for the record from list of "leaf" commands and check if
+/// the examined command can be executed in parallel with the new one with
+/// regard to the memory object. If it can, then continue searching through
+/// dependencies of that command. There are several rules used:
 ///
 /// 1. New and examined commands only read -> can bypass
 /// 2. New and examined commands has non-overlapping requirements -> can bypass
