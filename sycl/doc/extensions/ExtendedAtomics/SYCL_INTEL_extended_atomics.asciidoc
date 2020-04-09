@@ -59,7 +59,7 @@ This extension is written against the SYCL 1.2.1 specification, Revision 6.
 
 == Overview
 
-The SYCL atomic library (+cl::sycl::atomic+) defined in SYCL 1.2.1 is based on the standard atomic libary (+std::atomic+) but has some differences.  This extension introduces an alternative atomic class (+cl::sycl::intel::atomic_ref+) including additional features from {cpp}20:
+The SYCL atomic library (+cl::sycl::atomic+) defined in SYCL 1.2.1 is based on the standard atomic libary (+std::atomic+) but has some differences.  This extension introduces a new fence function (+cl::sycl::intel::atomic_fence+) and an alternative atomic class (+cl::sycl::intel::atomic_ref+) including additional features from {cpp}20:
 
 - Overloaded operators to reduce the verbosity of using atomics
 - Missing functions (e.g. `is_lock_free()`)
@@ -282,6 +282,18 @@ The additional member functions below are available for atomic references to poi
 
 |===
 
+==== Atomic Fence
+
+The +atomic_fence+ function corresponds to the +std::atomic_thread_fence+ function, and performs a memory fence ordering accesses to any memory space.
+
+The effects of a call to +atomic_fence+ depend on the value of the +order+ parameter:
+
+- `relaxed`: No effect
+- `acquire`: Acquire fence
+- `release`: Release fence
+- `acq_rel`: Both an acquire fence and a release fence
+- `seq_cst`: A sequentially consistent acquire and release fence
+
 ==== Sample  Header
 
 [source,c++]
@@ -489,6 +501,9 @@ class atomic_ref<T*, DefaultOrder, Space> {
   T* operator-=(difference_type) const noexcept;
 
 };
+
+void atomic_fence(memory_order order):
+
 } // namespace intel
 } // namespace sycl
 } // namespace cl
@@ -513,6 +528,7 @@ None.
 |Rev|Date|Author|Changes
 |1|2020-01-30|John Pennycook|*Initial public working draft*
 |2|2020-04-07|John Pennycook|*Rename class, remove accessor usage, adjust memory orders*
+|3|2020-04-09|John Pennycook|*Add atomic_fence*
 |========================================
 
 //************************************************************************
