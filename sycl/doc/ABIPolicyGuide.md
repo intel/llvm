@@ -51,7 +51,7 @@ A few examples of when it is necessary to mark symbols with the macro:
     is accessible by the user (buffer and image inherit from this class).
   - It has symbols that are implemented in the Runtime library.
 
-When it is not necessary to mark symbols with `__SYCL_EXPORTED`:
+When it is not necessary to mark symbols with `__SYCL_EXPORT`:
 * The `buffer` class:
   - It is defined by the SYCL spec, but it is fully implemented in the headers.
 * The `ProgramManager` class:

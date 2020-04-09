@@ -11,12 +11,14 @@ def get_llvm_bin_path():
   return ""
 
 
-def match_symbol(sym_binding, sym_type):
-  if sym_binding is None or sym_type is None:
+def match_symbol(sym_binding, sym_type, sym_section):
+  if sym_binding is None or sym_type is None or sym_section is None:
     return False
   if not sym_type.group() == "Function":
     return False
   if not sym_binding.group() == "Global":
+    return False
+  if not sym_section.group() == ".text":
     return False
   return True
 
@@ -27,13 +29,13 @@ def parse_readobj_output(output):
   else:
     symbols = re.findall(r"Symbol \{[\n\s\w:\.\-\(\)]*\}",
                          output.decode().strip())
-    print(symbols)
     parsed_symbols = []
     for sym in symbols:
       sym_binding = re.search(r"(?<=Binding:\s)[\w]+", sym)
       sym_type = re.search(r"(?<=Type:\s)[\w]+", sym)
+      sym_section = re.search(r"(?<=Section:\s)[\.\w]+", sym)
       name = re.search(r"(?<=Name:\s)[\w]+", sym)
-      if match_symbol(sym_binding, sym_type):
+      if match_symbol(sym_binding, sym_type, sym_section):
         parsed_symbols.append(name.group())
     return parsed_symbols
 
