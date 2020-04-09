@@ -1217,9 +1217,9 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
   if (JA.isOffloading(Action::OFK_Cuda))
     getToolChain().AddCudaIncludeArgs(Args, CmdArgs);
 
-  if (Args.hasArg(options::OPT_fsycl_device_only)) {
+  if (JA.isOffloading(Action::OFK_SYCL) ||
+      Args.hasArg(options::OPT_fsycl_device_only))
     toolchains::SYCLToolChain::AddSYCLIncludeArgs(D, Args, CmdArgs);
-  }
 
   // If we are offloading to a target via OpenMP we need to include the
   // openmp_wrappers folder which contains alternative system headers.
