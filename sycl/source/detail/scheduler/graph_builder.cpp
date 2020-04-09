@@ -27,7 +27,7 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
-/// Checks whether two requirements overlaps or not.
+/// Checks whether two requirements overlap or not.
 ///
 /// This information can be used to prove that executing two kernels that
 /// work on different parts of the memory object in parallel is legal.
@@ -44,7 +44,7 @@ static bool sameCtx(const ContextImplPtr &LHS, const ContextImplPtr &RHS) {
   return LHS == RHS || (LHS->is_host() && RHS->is_host());
 }
 
-/// Checks if current requirement is requirement for sub buffer
+/// Checks if current requirement is requirement for sub buffer.
 static bool IsSuitableSubReq(const Requirement *Req) {
   return Req->MIsSubBuffer;
 }
@@ -447,7 +447,7 @@ Command *Scheduler::GraphBuilder::addCGUpdateHost(
 }
 
 /// Start the search for the record from list of "leaf" commands and check if the
-/// examining command can be executed in parallel with the new one with regard to
+/// examined command can be executed in parallel with the new one with regard to
 /// the memory object. If it can, then continue searching through dependencies of
 /// that command. There are several rules used:
 ///

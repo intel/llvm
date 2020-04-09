@@ -79,7 +79,7 @@ struct DepDesc {
 
 /// The Command represents some action that needs to be performed on one or
 /// more memory objects. The Command has a vector of DepDesc objects that
-/// represent dependencies of the command. It has vector of pointer to commands
+/// represent dependencies of the command. It has a vector of pointers to commands
 /// that depend on the command. It has a pointer to \ref queue object and an
 /// event that is associated with the command.
 ///
@@ -242,7 +242,7 @@ private:
   Requirement MRequirement;
 };
 
-/// The release command enqueues release instance of memory allocated on Host or
+/// The release command enqueues release of a memory object instance allocated on Host or
 /// underlying framework.
 class ReleaseCommand : public Command {
 public:
