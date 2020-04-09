@@ -14,7 +14,7 @@
 
 #include <cassert>
 #include <iomanip> 
-
+#include <iostream>
 // TODO uncomment run lines on non-host devices when the rounding modes will
 // be implemented.
 
@@ -31,7 +31,7 @@ template <> struct helper<0> {
     const T xs = x.template swizzle<0>();
     const T ys = y.template swizzle<0>();
     if (xs != ys) {
-      std::cerr << "sometihng failed " << std::setprecision(30) << int(xs) << " || "<< int(ys);;
+      std::cerr << "sometihng failed " << std::setprecision(30) << xs << " || "<< ys << "\n";
       exit(1);
     }
   }
@@ -45,7 +45,7 @@ template <int N> struct helper {
     const T ys = y.template swizzle<N>();
     helper<N - 1>::compare(x, y);
     if (xs != ys) {
-      std::cerr << "sometihng failed " << std::setprecision(30) << xs << " || "<< ys;
+      std::cerr << "sometihng failed " << std::setprecision(30) << xs << " || "<< ys << "\n";  
       exit(1);
     }
   }
@@ -72,35 +72,34 @@ void test(const vec<T, NumElements> &ToConvert,
 
 int main() {
 
-  /*test<short, char, 8, rounding_mode::automatic>(
+  test<short, char, 8, rounding_mode::automatic>(
       short8{300, -300, 100, -50, 128, -129, 0, 1},
-      char8{127, -128, 100, -50, 127, -128, 0, 1});
+      char8{44, -44, 100, -50, -128, 127, 0, 1});
   test<int, short, 8, rounding_mode::automatic>(
       int8{100000, -100000, 100, -50, 32768, -32769, 0, 1},
-      short8{32767, -32768, 100, -50, 32767, -32768, 0, 1});  
+      short8{-31072, 31072, 100, -50, -32768, 32767, 0, 1});  
   test<long, int, 8, rounding_mode::automatic>(
       long8{3000000000, -3000000000, 100, -50, 2147483648, -2147483649, 0, 1},
-      int8{2147483647, -2147483648, 100, -50, 2147483647, -2147483648, 0, 1});*/
+      int8{-1294967296, 1294967296, 100, -50, -2147483648, 2147483647, 0, 1}); 
 
-  /*test<ushort, uchar, 8, rounding_mode::automatic>(
+  test<ushort, uchar, 8, rounding_mode::automatic>(
       ushort8{300, 255, 100, 150, 128, 256, 0, 1},
-      uchar8{255, 255, 100, 150, 128, 255, 0, 1});
+      uchar8{44, 255, 100, 150, 128, 0, 0, 1});
   test<uint, ushort, 8, rounding_mode::automatic>(
       uint8{100000, 65535, 100, 150, 32768, 65536, 0, 1},
-      ushort8{65535, 65535, 100, 150, 32768, 65535, 0, 1}); 
+      ushort8{34464, 65535, 100, 150, 32768, 0, 0, 1}); 
   test<ulong, uint, 8, rounding_mode::automatic>(
       ulong8{10000000000, 4294967295, 100, 150, 2147483648, 4294967296, 0, 1},
-      uint8{4294967295, 4294967295, 100, 150, 2147483648, 4294967295, 0, 1});  */
+      uint8{1410065408, 4294967295, 100, 150, 2147483648, 0, 0, 1});  
 
   test<int, uint, 8, rounding_mode::automatic>(
       int8{2147483647, -1, 100, 150, -100, -2147483648, 0, 1},
-      uint8{2147483647, 0, 100, 150, 0, 0, 0, 1});
+      uint8{2147483647, 4294967295, 100, 150, 4294967196, 2147483648, 0, 1});
   test<short, uint, 8, rounding_mode::automatic>(
       short8{32767, -1, 100, 150, -100, -32768, 0, 1},
-      uint8{32767, 0, 100, 150, 0, 0, 0, 1}); 
+      uint8{32767, 4294967295, 100, 150, 4294967196, 4294934528, 0, 1}); 
   test<ulong, int, 8, rounding_mode::automatic>(
       ulong8{3000000000, 2147483647, 100, 150, 2147483648, 1000, 0, 1},
-      int8{2147483647, 2147483647, 100, 150, 2147483647, 1000, 0, 1}); 
-
+      int8{-1294967296, 2147483647, 100, 150, -2147483648, 1000, 0, 1}); 
     return 0;
 }

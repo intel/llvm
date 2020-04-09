@@ -212,13 +212,24 @@ using is_uint_to_uint =
                                      std::is_unsigned<R>::value>;            
 
 template <typename T, typename R>
-using is_int_to_from_uint =
+using is_sint_to_from_uint =
     std::integral_constant<bool, std::is_unsigned<T>::value && 
                                     std::is_integral<R>::value &&
                                     !(std::is_unsigned<R>::value) || 
                                     std::is_integral<T>::value &&
                                     !(std::is_unsigned<T>::value) && 
                                     std::is_unsigned<R>::value>;
+
+template <typename T, typename R>
+using is_sint_to_float =
+    std::integral_constant<bool, std::is_integral<T>::value &&
+                                    !(std::is_unsigned<T>::value) &&                                    
+                                     detail::is_floating_point<R>::value>;      
+
+template <typename T, typename R>
+using is_uint_to_float =
+     std::integral_constant<bool, std::is_unsigned<T>::value &&
+                                     detail::is_floating_point<R>::value>;                              
 
 template <typename T, typename R>
 using is_int_to_float =
@@ -314,7 +325,7 @@ using Rtn = detail::bool_constant<Mode == rounding_mode::rtn>;
   convertImpl(T Value) {                                                       \
     using OpenCLT = cl::sycl::detail::ConvertToOpenCLType_t<T>;                \
     OpenCLT OpValue = cl::sycl::detail::convertDataToType<T, OpenCLT>(Value);  \
-    return __spirv_SConvert##_R##DestType##_sat(OpValue);           \
+    return __spirv_SConvert##_R##DestType(OpValue);           \
   }
 
 __SYCL_GENERATE_CONVERT_IMPL(char)  
@@ -334,7 +345,7 @@ __SYCL_GENERATE_CONVERT_IMPL(long)
   convertImpl(T Value) {                                                       \
     using OpenCLT = cl::sycl::detail::ConvertToOpenCLType_t<T>;                \
     OpenCLT OpValue = cl::sycl::detail::convertDataToType<T, OpenCLT>(Value);  \
-    return __spirv_UConvert##_R##DestType##_sat(OpValue);                           \
+    return __spirv_UConvert##_R##DestType(OpValue);                           \
   }
 
 __SYCL_GENERATE_CONVERT_IMPL(uchar)  
@@ -342,27 +353,49 @@ __SYCL_GENERATE_CONVERT_IMPL(ushort)
 __SYCL_GENERATE_CONVERT_IMPL(uint)   
 __SYCL_GENERATE_CONVERT_IMPL(ulong)  
 
+#undef __SYCL_GENERATE_CONVERT_IMPL
+
 //unsigned to (from) signed
-#define __SYCL_INT_GENERATE_CONVERT_IMPL(SPIRVOp, DestType)             \
-template <typename T, typename R, rounding_mode roundingMode>           \
-detail::enable_if_t<is_int_to_from_uint<T, R>::value &&               \
-                        std::is_same<R, DestType>::value,             \
-                      R>                                              \
-convertImpl(T Value) {                                                 \
-  using OpenCLT = cl::sycl::detail::ConvertToOpenCLType_t<T>;           \
-  OpenCLT OpValue = cl::sycl::detail::convertDataToType<T, OpenCLT>(Value); \
-  return __spirv_SatConvert##SPIRVOp##_R##DestType##_sat(OpValue);            \
-} 
+template <typename T, typename R, rounding_mode roundingMode>
+detail::enable_if_t<is_sint_to_from_uint<T, R>::value,
+                    R>
+convertImpl(T Value) {
+  return static_cast<R>(Value);
+}
 
-  __SYCL_INT_GENERATE_CONVERT_IMPL(UToS, int) 
-  __SYCL_INT_GENERATE_CONVERT_IMPL(UToS, char) 
-  __SYCL_INT_GENERATE_CONVERT_IMPL(UToS, short) 
-  __SYCL_INT_GENERATE_CONVERT_IMPL(UToS, long) 
-  __SYCL_INT_GENERATE_CONVERT_IMPL(SToU, uint) 
-  __SYCL_INT_GENERATE_CONVERT_IMPL(SToU, uchar)
-  __SYCL_INT_GENERATE_CONVERT_IMPL(SToU, ushort)
-  __SYCL_INT_GENERATE_CONVERT_IMPL(SToU, ulong) 
+//sint to float
+#define __SYCL_GENERATE_CONVERT_IMPL(SPIRVOp, DestType)                                \
+  template <typename T, typename R, rounding_mode roundingMode>                \
+  detail::enable_if_t<is_sint_to_float<T, R>::value &&                        \
+                          std::is_same<R, DestType>::value,                   \
+                      R>                                                       \
+  convertImpl(T Value) {                                                       \
+    using OpenCLT = cl::sycl::detail::ConvertToOpenCLType_t<T>;                \
+    OpenCLT OpValue = cl::sycl::detail::convertDataToType<T, OpenCLT>(Value);  \
+    return __spirv_Convert##SPIRVOp##_R##DestType(OpValue);                           \
+  }
+   
+__SYCL_GENERATE_CONVERT_IMPL(SToF, half)  
+__SYCL_GENERATE_CONVERT_IMPL(SToF, float)   
+__SYCL_GENERATE_CONVERT_IMPL(SToF, double)   
 
+#undef __SYCL_GENERATE_CONVERT_IMPL
+
+//uint to float
+#define __SYCL_GENERATE_CONVERT_IMPL(SPIRVOp, DestType)                                \
+  template <typename T, typename R, rounding_mode roundingMode>                \
+  detail::enable_if_t<is_uint_to_float<T, R>::value &&                        \
+                          std::is_same<R, DestType>::value,                   \
+                      R>                                                       \
+  convertImpl(T Value) {                                                       \
+    using OpenCLT = cl::sycl::detail::ConvertToOpenCLType_t<T>;                \
+    OpenCLT OpValue = cl::sycl::detail::convertDataToType<T, OpenCLT>(Value);  \
+    return __spirv_Convert##SPIRVOp##_R##DestType(OpValue);                           \
+  }
+
+__SYCL_GENERATE_CONVERT_IMPL(UToF, half)  
+__SYCL_GENERATE_CONVERT_IMPL(UToF, float)   
+__SYCL_GENERATE_CONVERT_IMPL(UToF, double)      
 
 #undef __SYCL_GENERATE_CONVERT_IMPL
 
@@ -395,6 +428,7 @@ __SYCL_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE(rtn, Rtn)
 #undef __SYCL_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE
 #undef __SYCL_GENERATE_CONVERT_IMPL
 
+//float to int
 #define __SYCL_GENERATE_CONVERT_IMPL(SPIRVOp, DestType, RoundingMode,          \
                                      RoundingModeCondition)                    \
   template <typename T, typename R, rounding_mode roundingMode>                \
