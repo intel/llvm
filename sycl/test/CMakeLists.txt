@@ -2,7 +2,6 @@ set(LLVM_TOOLS_DIR "${LLVM_BINARY_DIR}/bin/")
 
 get_target_property(SYCL_BINARY_DIR sycl-toolchain BINARY_DIR)
 
-set(SYCL_INCLUDE "${dst_dir}")
 set(SYCL_INCLUDE "${SYCL_INCLUDE_BUILD_DIR}")
 set(SYCL_TOOLS_SRC_DIR "${PROJECT_SOURCE_DIR}/tools/")
 set(LLVM_BUILD_BINARY_DIRS "${LLVM_BINARY_DIR}/bin/")
