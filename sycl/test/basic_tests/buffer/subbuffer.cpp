@@ -280,7 +280,7 @@ void checkMultipleContexts() {
   {
     sycl::queue queue1;
     sycl::buffer<int, 1> buf(a, sycl::range<1>(N));
-    sycl::buffer<int, 1> subbuf1(buf, sycl::id<1>(0), sycl::range<1>(N / 2));
+    sycl::buffer<int, 1> subbuf1(buf, sycl::id<1>(N / 2), sycl::range<1>(N / 2));
     queue1.submit([&](sycl::handler &cgh) {
       auto bufacc = subbuf1.get_access<sycl::access::mode::read_write>(cgh);
       cgh.parallel_for<class sub_buffer_3>(
