@@ -2,11 +2,10 @@
 // RUN: %clangxx -fsycl -c %s -o %t.o
 // RUN: %clangxx -fsycl %t.o %sycl_libs_dir/libsycl-cmath.o -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
 #include <CL/sycl.hpp>
 #include <iostream>
 #include <math.h>
+#include "math_utils.hpp"
 namespace s = cl::sycl;
 constexpr s::access::mode sycl_read = s::access::mode::read;
 constexpr s::access::mode sycl_write = s::access::mode::write;
@@ -14,9 +13,7 @@ constexpr s::access::mode sycl_write = s::access::mode::write;
 // Dummy function provided by user to override device library
 // version.
 SYCL_EXTERNAL
-extern "C" float sinf(float x) {
-  return x + 100;
-}
+extern "C" float sinf(float x) { return x + 100.f; }
 
 class DeviceTest;
 
@@ -34,13 +31,13 @@ void device_test() {
       cgh.single_task<class DeviceTest>([=]() {
         // Should use the sin function defined by user, device
         // library version should be ignored here
-        res_access_sin[0] = sinf(0);
-        res_access_cos[0] = cosf(0);
+        res_access_sin[0] = sinf(0.f);
+        res_access_cos[0] = cosf(0.f);
       });
     });
   }
 
-  assert(((int)result_sin == 100) && ((int)result_cos == 1));
+  assert(approx_equal_fp(result_sin, 100.f) && approx_equal_fp(result_cos, 1.f));
 }
 
 int main() {
@@ -48,3 +45,4 @@ int main() {
   std::cout << "Pass" << std::endl;
   return 0;
 }
+
