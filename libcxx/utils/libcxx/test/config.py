@@ -1064,14 +1064,12 @@ class Configuration(object):
             exec_args.append('--host {}'.format(self.executor.user_prefix + self.executor.host))
             executor = os.path.join(self.libcxx_src_root, 'utils', 'ssh.py')
         else:
+            exec_args.append('--execdir %t.execdir')
             executor = os.path.join(self.libcxx_src_root, 'utils', 'run.py')
         sub.append(('%{exec}', '{} {} {} -- '.format(pipes.quote(sys.executable),
                                                      pipes.quote(executor),
                                                      ' '.join(exec_args))))
         sub.append(('%{run}', '%{exec} %t.exe'))
-        # Configure not program substitutions
-        not_py = os.path.join(self.libcxx_src_root, 'utils', 'not.py')
-        sub.append(('%{not}', '{} {}'.format(pipes.quote(sys.executable), pipes.quote(not_py))))
         if self.get_lit_conf('libcxx_gdb'):
             sub.append(('%{libcxx_gdb}', self.get_lit_conf('libcxx_gdb')))
 
