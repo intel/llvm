@@ -235,11 +235,11 @@ using is_float_to_float =
     std::integral_constant<bool, detail::is_floating_point<T>::value &&
                                      detail::is_floating_point<R>::value>;
 
+
 template <typename T, typename R, rounding_mode roundingMode>
 detail::enable_if_t<std::is_same<T, R>::value, R> convertImpl(T Value) {
   return Value;
 }
-
 
 
 #ifndef __SYCL_DEVICE_ONLY__
@@ -304,11 +304,12 @@ using Rtp = detail::bool_constant<Mode == rounding_mode::rtp>;
 template <rounding_mode Mode>
 using Rtn = detail::bool_constant<Mode == rounding_mode::rtn>;
 
-
+//signed to signed
 #define __SYCL_GENERATE_CONVERT_IMPL(DestType)                                \
   template <typename T, typename R, rounding_mode roundingMode>                \
-  detail::enable_if_t<is_sint_to_sint<T, R>::value &&                        \
-                          std::is_same<R, DestType>::value,                   \                                                             
+  detail::enable_if_t<!std::is_same<T, R>::value &&                            \
+                          is_sint_to_sint<T, R>::value &&                        \
+                          std::is_same<R, DestType>::value,                   \
                       R>                                                       \
   convertImpl(T Value) {                                                       \
     using OpenCLT = cl::sycl::detail::ConvertToOpenCLType_t<T>;                \
@@ -323,11 +324,12 @@ __SYCL_GENERATE_CONVERT_IMPL(long)
 
 #undef __SYCL_GENERATE_CONVERT_IMPL
 
-// Convert a signed integer type to a signed integer type
+//unsigned to unsigned
 #define __SYCL_GENERATE_CONVERT_IMPL(DestType)                                \
   template <typename T, typename R, rounding_mode roundingMode>                \
-  detail::enable_if_t<is_uint_to_uint<T, R>::value &&                        \
-                          std::is_same<R, DestType>::value,                   \                                                             
+  detail::enable_if_t<!std::is_same<T, R>::value &&                             \
+                          is_uint_to_uint<T, R>::value &&                        \
+                          std::is_same<R, DestType>::value,                   \
                       R>                                                       \
   convertImpl(T Value) {                                                       \
     using OpenCLT = cl::sycl::detail::ConvertToOpenCLType_t<T>;                \
@@ -340,6 +342,7 @@ __SYCL_GENERATE_CONVERT_IMPL(ushort)
 __SYCL_GENERATE_CONVERT_IMPL(uint)   
 __SYCL_GENERATE_CONVERT_IMPL(ulong)  
 
+//unsigned to (from) signed
 #define __SYCL_INT_GENERATE_CONVERT_IMPL(SPIRVOp, DestType)             \
 template <typename T, typename R, rounding_mode roundingMode>           \
 detail::enable_if_t<is_int_to_from_uint<T, R>::value &&               \
@@ -363,12 +366,14 @@ convertImpl(T Value) {                                                 \
 
 #undef __SYCL_GENERATE_CONVERT_IMPL
 
-#define __SYCL_GENERATE_CONVERT_IMPL(DestType, RoundingMode,              \
+//float to float
+#define __SYCL_GENERATE_CONVERT_IMPL(DestType, RoundingMode,                   \
                                      RoundingModeCondition)                    \
   template <typename T, typename R, rounding_mode roundingMode>                \
-  detail::enable_if_t<is_float_to_float<T, R>::value &&                        \
+  detail::enable_if_t<!std::is_same<T, R>::value &&                            \
+                          is_float_to_float<T, R>::value &&                    \
                           std::is_same<R, DestType>::value &&                  \
-                          RoundingModeCondition<roundingMode>::value,          \                         
+                          RoundingModeCondition<roundingMode>::value,          \
                       R>                                                       \
   convertImpl(T Value) {                                                       \
     using OpenCLT = cl::sycl::detail::ConvertToOpenCLType_t<T>;                \
@@ -377,8 +382,9 @@ convertImpl(T Value) {                                                 \
   }
 
 #define __SYCL_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE(RoundingMode,           \
-                                                       RoundingModeCondition)      \
-__SYCL_GENERATE_CONVERT_IMPL(float, RoundingMode, RoundingModeCondition)   \
+                                                       RoundingModeCondition)  \
+__SYCL_GENERATE_CONVERT_IMPL(double, RoundingMode, RoundingModeCondition)       \
+__SYCL_GENERATE_CONVERT_IMPL(float, RoundingMode, RoundingModeCondition)       \
 __SYCL_GENERATE_CONVERT_IMPL(half, RoundingMode, RoundingModeCondition)
 
 __SYCL_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE(rte, RteOrAutomatic)
@@ -389,8 +395,7 @@ __SYCL_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE(rtn, Rtn)
 #undef __SYCL_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE
 #undef __SYCL_GENERATE_CONVERT_IMPL
 
-// Convert a floating-point type to a integer type
-#define __SYCL_GENERATE_CONVERT_IMPL(SPIRVOp, DestType, RoundingMode,     \
+#define __SYCL_GENERATE_CONVERT_IMPL(SPIRVOp, DestType, RoundingMode,          \
                                      RoundingModeCondition)                    \
   template <typename T, typename R, rounding_mode roundingMode>                \
   detail::enable_if_t<is_float_to_int<T, R>::value &&                          \
