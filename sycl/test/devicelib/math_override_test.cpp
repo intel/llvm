@@ -5,6 +5,7 @@
 #include <CL/sycl.hpp>
 #include <iostream>
 #include <math.h>
+
 #include "math_utils.hpp"
 namespace s = cl::sycl;
 constexpr s::access::mode sycl_read = s::access::mode::read;
@@ -45,4 +46,3 @@ int main() {
   std::cout << "Pass" << std::endl;
   return 0;
 }
-
