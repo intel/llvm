@@ -1216,32 +1216,33 @@ static std::string constructKernelName(Sema &S, FunctionDecl *KernelCallerFunc,
 
 // anonymous namespace so these don't get linkage.
 namespace {
+// A visitor function that dispatches to functions as defined in
+// SyclKernelFieldHandler for the purposes of kernel generation.
 template <typename... Handlers>
-static void VisitKernelFields(RecordDecl::field_range Fields,
+static void VisitRecordFields(RecordDecl::field_range Fields,
                               Handlers &... handlers) {
-
 // Implements the 'for-each-visitor'  pattern.
 #define KF_FOR_EACH(FUNC)                                                      \
-  (void)std::initializer_list<int> { (handlers.FUNC(Field, ArgTy), 0)... }
+  (void)std::initializer_list<int> { (handlers.FUNC(Field, FieldTy), 0)... }
 
   for (const auto &Field : Fields) {
-    QualType ArgTy = Field->getType();
+    QualType FieldTy = Field->getType();
 
-    if (Util::isSyclAccessorType(ArgTy))
+    if (Util::isSyclAccessorType(FieldTy))
       KF_FOR_EACH(handleSyclAccessorType);
-    else if (Util::isSyclSamplerType(ArgTy))
+    else if (Util::isSyclSamplerType(FieldTy))
       KF_FOR_EACH(handleSyclSamplerType);
-    else if (Util::isSyclSpecConstantType(ArgTy))
+    else if (Util::isSyclSpecConstantType(FieldTy))
       KF_FOR_EACH(handleSyclSpecConstantType);
-    else if (ArgTy->isStructureOrClassType())
+    else if (FieldTy->isStructureOrClassType())
       KF_FOR_EACH(handleStructType);
-    else if (ArgTy->isReferenceType())
+    else if (FieldTy->isReferenceType())
       KF_FOR_EACH(handleReferenceType);
-    else if (ArgTy->isPointerType())
+    else if (FieldTy->isPointerType())
       KF_FOR_EACH(handlePointerType);
-    else if (ArgTy->isArrayType())
+    else if (FieldTy->isArrayType())
       KF_FOR_EACH(handleArrayType);
-    else if (ArgTy->isScalarType())
+    else if (FieldTy->isScalarType())
       KF_FOR_EACH(handleScalarType);
     else
       KF_FOR_EACH(handleOtherType);
@@ -1331,7 +1332,6 @@ protected:
   llvm::SmallVectorImpl<ParmVarDecl *> &Params;
 
   void addParam(const FieldDecl *FD, QualType ArgTy) {
-    ASTContext &Ctx = SemaRef.getASTContext();
     // TODO: should we split this function up?  These ops NEED to happen in
     // lockstep, so leaning toward leaving htis as just a somewhat long function
     // :/
@@ -1348,15 +1348,7 @@ protected:
 
     Params.push_back(NewParam);
 
-    // Create the new type.
     ArgTys.push_back(ArgTy);
-    FunctionProtoType::ExtProtoInfo Info(CC_OpenCLKernel);
-    QualType FuncType = Ctx.getFunctionType(Ctx.VoidTy, ArgTys, Info);
-
-    // Set type, note until the destructor of the owner of KernelObj is called
-    // (to set the parameters), we cannot access the parameters from KernelObj
-    // without memory problems.
-    KernelObj->setType(FuncType);
   }
 
   // All special SYCL objects must have __init method. We extract types for
@@ -1390,7 +1382,7 @@ public:
 
     // Create descriptors for each accessor field in the class or struct
     const auto *Wrapper = ArgTy->getAsCXXRecordDecl();
-    VisitKernelFields(Wrapper->fields(), *this);
+    VisitRecordFields(Wrapper->fields(), *this);
   }
 };
 
@@ -1413,8 +1405,8 @@ class SyclKernelDeclCreator : public SyclKernelDeclBase {
     FD->addAttr(ArtificialAttr::CreateImplicit(Context));
   }
 
-  static FunctionDecl *initKernelObj(ASTContext &Ctx, StringRef Name,
-                                     SourceLocation Loc, bool IsInline) {
+  static FunctionDecl *createKernelDecl(ASTContext &Ctx, StringRef Name,
+                                        SourceLocation Loc, bool IsInline) {
     // Create this with no prototype, and we can fix this up after we've seen
     // all the params.
     FunctionProtoType::ExtProtoInfo Info(CC_OpenCLKernel);
@@ -1435,11 +1427,15 @@ public:
   SyclKernelDeclCreator(Sema &S, SyclKernelFieldChecker &ArgChecker,
                         StringRef Name, SourceLocation Loc, bool IsInline)
       : SyclKernelDeclBase(
-            S, initKernelObj(S.getASTContext(), Name, Loc, IsInline), ArgTys,
+            S, createKernelDecl(S.getASTContext(), Name, Loc, IsInline), ArgTys,
             Params),
         ArgChecker(ArgChecker), FuncContext(SemaRef, KernelObj) {}
 
   ~SyclKernelDeclCreator() {
+    ASTContext &Ctx = SemaRef.getASTContext();
+    FunctionProtoType::ExtProtoInfo Info(CC_OpenCLKernel);
+    QualType FuncType = Ctx.getFunctionType(Ctx.VoidTy, ArgTys, Info);
+    KernelObj->setType(FuncType);
     KernelObj->setParams(Params);
 
     if (ArgChecker.isValid())
@@ -1474,7 +1470,7 @@ public:
     // Create descriptors for each accessor field in the class or struct
     const auto *Wrapper = ArgTy->getAsCXXRecordDecl();
     SyclKernelDeclBase Recurse(SemaRef, KernelObj, ArgTys, Params);
-    VisitKernelFields(Wrapper->fields(), Recurse);
+    VisitRecordFields(Wrapper->fields(), Recurse);
   }
 
   void setBody(CompoundStmt *KB) { KernelObj->setBody(KB); }
@@ -1500,13 +1496,13 @@ public:
 } // namespace
 
 // Generates the OpenCL kernel using KernelCallerFunc (kernel caller
-// function) defined is Sycl headers.
+// function) defined is SYCL headers.
 // Generated OpenCL kernel contains the body of the kernel caller function,
 // receives OpenCL like parameters and additionally does some manipulation to
 // initialize captured lambda/functor fields with these parameters.
-// Sycl runtime marks kernel caller function with sycl_kernel attribute.
+// SYCL runtime marks kernel caller function with sycl_kernel attribute.
 // To be able to generate OpenCL kernel from KernelCallerFunc we put
-// the following requirements to the function which Sycl runtime can mark with
+// the following requirements to the function which SYCL runtime can mark with
 // sycl_kernel attribute:
 //   - Must be template function with at least two template parameters.
 //     First parameter must represent "unique kernel name"
@@ -1536,7 +1532,7 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
   SyclKernelIntHeaderCreator int_header(*this);
 
   ConstructingOpenCLKernel = true;
-  VisitKernelFields(KernelLambda->fields(), checker, kernel_decl, kernel_body,
+  VisitRecordFields(KernelLambda->fields(), checker, kernel_decl, kernel_body,
                     int_header);
   ConstructingOpenCLKernel = false;
 
