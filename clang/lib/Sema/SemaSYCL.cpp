@@ -1151,9 +1151,17 @@ static void VisitAccessorWrapperFields(RecordDecl::field_range Fields,
     QualType FieldTy = Field->getType();
     if (Util::isSyclAccessorType(FieldTy))
       KF_FOR_EACH(handleSyclAccessorType);
-    else if (FieldTy->isStructureOrClassType())
+    else if (FieldTy->isStructureOrClassType()) {
+      CXXRecordDecl *RD = FieldTy->getAsRecordDecl();
+      RD->forAllBases(
+          [](CXXRecordDecl *Base) {
+            VisitAccessorWrapperFields(Base->fields(), handlers...);
+            return true;
+          },
+          /*AllowShortCircuit*/ false);
       VisitAccessorWrapperFields(FieldTy->getAsRecordDecl()->fields(),
                                  handlers...);
+    }
   }
 }
 // A visitor function that dispatches to functions as defined in
@@ -1172,6 +1180,19 @@ static void VisitRecordFields(RecordDecl::field_range Fields,
       KF_FOR_EACH(handleSyclSpecConstantType);
     else if (FieldTy->isStructureOrClassType()) {
       KF_FOR_EACH(handleStructType);
+
+      CXXRecordDecl *RD = FieldTy->getAsRecordDecl();
+      // Go through the fields of bases as well, the previous implementation
+      // missed these, so I presume this is going to be fixing a bug. This goes
+      // through all the bases in a non-guaranteed way, though it skips VBases
+      // which are otherwise not allowed anyway.
+      RD->forAllBases(
+          [](CXXRecordDecl *Base) {
+            VisitAccessorWrapperFields(Base->fields(), handlers...);
+            return true;
+          },
+          /*AllowShortCircuit*/ false);
+
       VisitAccessorWrapperFields(FieldTy->getAsRecordDecl()->fields(),
                                  handlers...);
     } else if (FieldTy->isReferenceType())
@@ -1190,12 +1211,13 @@ static void VisitRecordFields(RecordDecl::field_range Fields,
 
 // A base type that the SYCL OpenCL Kernel construction task uses to implement
 // individual tasks.
-template <typename Derived> class SyclKernelFieldHandler {
+template <typename Derived> class SyclKernelFieldVisitor {
 protected:
   Sema &SemaRef;
   SyclKernelFieldHandler(Sema &S) : SemaRef(S) {}
 
 public:
+
   // Mark these virutal so that we can use override in the implementer classes,
   // despite virtual dispatch never being used.
   virtual void handleSyclAccessorType(const FieldDecl *, QualType) {}
@@ -1396,38 +1418,47 @@ public:
 class SyclKernelIntHeaderCreator
     : public SyclKernelFieldHandler<SyclKernelIntHeaderCreator> {
   SYCLIntegrationHeader &Header;
-  // Required for calculating the field offsets.
-  const ASTRecordLayout &Layout;
+  const CXXRecordDecl *KernelLambda;
 
-  uint64_t getFieldOffset(const FieldDecl *FD) const {
-    // TODO: FIX THIS FOR THE RECURSE CASE!
-    return Layout.getFieldOffset(FD->getFieldIndex()) / 8;
+  // Keeping track of offsets as we go along is a little awkward, so see if just
+  // calculating each time is worth doing.  Presumably, if the structure depth doesn't
+  // get insane, we shouldn't have a problem.
+  uint64_t getFieldOffsetHelper(const CXXRecordDecl *RD, const FieldDecl *FD) {
+    // TODO!
+    return 0;
   }
 
-  void addParam(const FieldDecl *FD, QualType ArgTy) {
-    // TODO: fieldOffset is WRONG if this is in a wrapper!
+  uint64_t getFieldOffset(const FieldDecl *FD) const {
+    // TODO: Figure out a better way to do this, having to recalculate this
+    // constantly is going to be expensive.
+    // TODO: Figure out how to calc lower down the structs.
+    // uint64_t CurOffset =  SemaRef.getASTContext().getFieldOffset(FD) / 8;
+    return 0;
+  }
+
+  void addParam(const FieldDecl *FD, QualType ArgTy,
+                SYCLIntegrationHeader::kernel_param_kind_t Kind) {
     uint64_t Size =
         SemaRef.getASTContext().getTypeSizeInChars(ArgTy).getQuantity();
-    Header.addParamDesc(SYCLIntegrationHeader::kind_std_layout,
-                        static_cast<unsigned>(Size),
+    Header.addParamDesc(Kind, static_cast<unsigned>(Size),
                         static_cast<unsigned>(getFieldOffset(FD)));
   }
 
 public:
   SyclKernelIntHeaderCreator(Sema &S, SYCLIntegrationHeader &H,
-                             const ASTRecordLayout &LambdaLayout,
+                             const CXXRecordDecl *KernelLambda,
                              SourceLocation KernelLoc, QualType NameType,
                              StringRef Name, StringRef StableName)
-      : SyclKernelFieldHandler(S), Header(H), Layout(LambdaLayout) {
-    Header.startKernel(Name, NameType, StableName, KernelLoc);
+      : SyclKernelFieldHandler(S), Header(H),
+        KernelLambda(KernelLambda) {
+    Header.startKernel(Name, NameType, StableName, KernelLambda->GetLocation());
   }
 
   void handleSyclAccessorType(const FieldDecl *FD, QualType ArgTy) final {
     // TODO: offset stuff is wrong again in the recursion case!?
     const auto *AccTy =
         cast<ClassTemplateSpecializationDecl>(ArgTy->getAsRecordDecl());
-    // TODO: Is this the right assert here? or is it exactly 2?
-    assert(AccTy->getTemplateArgs().size() >= 2 &&
+    assert(AccTy->getTemplateArgs().size() == 2 &&
            "Incorrect template args for Accessor Type");
     int Dims = static_cast<int>(
         AccTy->getTemplateArgs()[1].getAsIntegral().getExtValue());
@@ -1446,15 +1477,14 @@ public:
     const ParmVarDecl *SamplerArg = InitMethod->getParamDecl(0);
     assert(SamplerArg && "sampler __init method must have sampler parameter");
 
-    addParam(FD, SamplerArg->getType());
+    addParam(FD, SamplerArg->getType(), SYCLIntegrationHeader::kind_sampler);
   }
 
   void handleSyclSpecConstantType(const FieldDecl *FD, QualType ArgTy) final {
     const TemplateArgumentList &TemplateArgs =
         cast<ClassTemplateSpecializationDecl>(ArgTy->getAsRecordDecl())
             ->getTemplateInstantiationArgs();
-    // TODO: Is this the right assert here? or is it exactly 2?
-    assert(TemplateArgs.size() >= 2 &&
+    assert(TemplateArgs.size() == 2 &&
            "Incorrect template args for Accessor Type");
     // Get specialization constant ID type, which is the second template
     // argument.
@@ -1469,13 +1499,13 @@ public:
   }
 
   void handlePointerType(const FieldDecl *FD, QualType ArgTy) final {
-    addParam(FD, ArgTy);
+    addParam(FD, ArgTy, SYCLIntegrationHeader::kind_pointer);
   }
   void handleStructType(const FieldDecl *FD, QualType ArgTy) final {
-    addParam(FD, ArgTy);
+    addParam(FD, ArgTy, SYCLIntegrationHeader::kind_std_layout);
   }
   void handleScalarType(const FieldDecl *FD, QualType ArgTy) final {
-    addParam(FD, ArgTy);
+    addParam(FD, ArgTy, SYCLIntegrationHeader::kind_std_layout);
   }
 
 
@@ -1525,7 +1555,7 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
   SyclKernelBodyCreator kernel_body(*this, kernel_decl);
   SyclKernelIntHeaderCreator int_header(
       *this, getSyclIntegrationHeader(),
-      Context.getASTRecordLayout(KernelLambda), KernelLambda->getLocation(),
+      KernelLambda, Context.getASTRecordLayout(KernelLambda), KernelLambda->getLocation(),
       calculateKernelNameType(Context, KernelCallerFunc), CalculatedName,
       StableName);
 
