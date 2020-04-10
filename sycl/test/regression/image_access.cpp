@@ -5,11 +5,8 @@
 // TODO: For now PI checks are skipped for ACC device. To decide if it's good.
 // RUN: env %ACC_RUN_PLACEHOLDER %t.out
 
-// TODO: No CUDA image support
-// XFAIL: cuda
-
-// TODO: No CUDA image support
-// XFAIL: cuda
+// UNSUPPORTED: cuda
+// CUDA cannot support OpenCL spec conform images.
 
 //==-------------- image_access.cpp - SYCL image accessors test  -----------==//
 //

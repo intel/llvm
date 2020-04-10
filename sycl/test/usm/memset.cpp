@@ -1,7 +1,11 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  %s -o %t1.out
+// XFAIL: cuda
+// piextUSM*Alloc functions for CUDA are not behaving as described in
+// https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/USM/USM.adoc
+// https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/USM/cl_intel_unified_shared_memory.asciidoc
+//
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t1.out
 // RUN: %CPU_RUN_PLACEHOLDER %t1.out
 // RUN: %GPU_RUN_PLACEHOLDER %t1.out
-// UNSUPPORTED: cuda
 
 //==---- memset.cpp - USM memset test --------------------------------------==//
 //
@@ -10,7 +14,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-
 #include <CL/sycl.hpp>
 
 using namespace cl::sycl;
