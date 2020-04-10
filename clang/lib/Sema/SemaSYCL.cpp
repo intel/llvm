@@ -1050,10 +1050,6 @@ static std::string constructKernelName(Sema &S, FunctionDecl *KernelCallerFunc,
 
 // anonymous namespace so these don't get linkage.
 namespace {
-// Implements the 'for-each-visitor'  pattern.
-template <typename... Handlers>
-static void VisitAccessorWrapper(CXXRecordDecl *Wrapper,
-                              Handlers &... handlers);
 
 QualType getItemType(const FieldDecl *FD) {
   return FD->getType();
@@ -1062,25 +1058,39 @@ QualType getItemType(const CXXBaseSpecifier &BS) {
   return BS.getType();
 }
 
+// Implements the 'for-each-visitor'  pattern.
+template <typename ParentTy, typename... Handlers>
+static void VisitAccessorWrapper(CXXRecordDecl *Owner, ParentTy &Parent,
+                                 CXXRecordDecl *Wrapper,
+                                 Handlers &... handlers);
+
 template <typename RangeTy, typename... Handlers>
-static void VisitAccessorWrapperHelper(RangeTy Range, Handlers &... handlers) {
+static void VisitAccessorWrapperHelper(CXXRecordDecl *Owner, RangeTy Range,
+                                       Handlers &... handlers) {
   for (const auto &Item : Range) {
     QualType ItemTy = getItemType(Item);
     if (Util::isSyclAccessorType(ItemTy))
       (void)std::initializer_list<int>{
-          (handlers.handleAccessorType(Item, ItemTy), 0)...};
+          (handlers.handleSyclAccessorType(Item, ItemTy), 0)...};
     else if (ItemTy->isStructureOrClassType()) {
-      VisitAccessorWrapper(ItemTy->getAsCXXRecordDecl());
+      VisitAccessorWrapper(Owner, Item, ItemTy->getAsCXXRecordDecl(),
+                           handlers...);
     }
   }
 }
 
-template <typename... Handlers>
-static void VisitAccessorWrapper(CXXRecordDecl *Wrapper,
-                              Handlers &... handlers) {
-
-  VisitAccessorWrapperHelper(Wrapper->bases(), handlers...);
-  VisitAccessorWrapperHelper(Wrapper->fields(), handlers...);
+// poorly named Parent is the 'how we got here', basically just enough info for
+// the offset adjustment to know what to do about the enter-struct info.
+template <typename ParentTy, typename... Handlers>
+static void VisitAccessorWrapper(CXXRecordDecl *Owner, ParentTy &Parent,
+                                 CXXRecordDecl *Wrapper,
+                                 Handlers &... handlers) {
+  (void)std::initializer_list<int>{
+          (handlers.enterStruct(Owner, Parent), 0)...};
+  VisitAccessorWrapperHelper(Wrapper, Wrapper->bases(), handlers...);
+  VisitAccessorWrapperHelper(Wrapper, Wrapper->fields(), handlers...);
+  (void)std::initializer_list<int>{
+          (handlers.leaveStruct(Owner, Parent), 0)...};
 }
 
 // A visitor function that dispatches to functions as defined in
@@ -1103,7 +1113,7 @@ static void VisitRecordFields(RecordDecl::field_range Fields,
     else if (FieldTy->isStructureOrClassType()) {
       KF_FOR_EACH(handleStructType);
       CXXRecordDecl *RD = FieldTy->getAsCXXRecordDecl();
-      VisitAccessorWrapper(RD);
+      VisitAccessorWrapper(nullptr, Field, RD, handlers...);
     } else if (FieldTy->isReferenceType())
       KF_FOR_EACH(handleReferenceType);
     else if (FieldTy->isPointerType())
@@ -1145,6 +1155,17 @@ public:
   virtual void handleScalarType(const FieldDecl *, QualType) {}
   // Most handlers shouldn't be handling this, just the field checker.
   virtual void handleOtherType(const FieldDecl *, QualType) {}
+
+  // The following are only used for keeping track of where we are in the base
+  // class/field graph. Int Headers use this to calculate offset, most others
+  // don't have a need for these.
+
+  virtual void enterStruct(const CXXRecordDecl *, const FieldDecl *) {}
+  virtual void leaveStruct(const CXXRecordDecl *, const FieldDecl *) {}
+  virtual void enterStruct(const CXXRecordDecl *, const CXXBaseSpecifier &) {}
+  virtual void leaveStruct(const CXXRecordDecl *, const CXXBaseSpecifier &) {}
+  //  virtual void enterStruct(const FieldDecl *, CXXRecordDecl *Struct);
+  // virtual void leaveStruct(const FieldDecl *, CXXRecordDecl *Struct);
 };
 
 // A type to check the valididty of all of the argument types.
@@ -1356,18 +1377,6 @@ class SyclKernelIntHeaderCreator
   const CXXRecordDecl *KernelLambda;
   int64_t CurOffset = 0;
 
-  // Keeping track of offsets as we go along is a little awkward, so see if just
-  // calculating each time is worth doing.  Presumably, if the structure depth doesn't
-  // get insane, we shouldn't have a problem with run time.
-  uint64_t getFieldOffset(const CXXRecordDecl *RD, const FieldDecl *FD) {
-    // TODO!
-    return 0;
-  }
-  uint64_t getBaseOffset(const CXXRecordDecl *RD, const FieldDecl *FD) {
-    // TODO!
-    return 0;
-  }
-
   uint64_t getOffset(const CXXRecordDecl *RD) const {
     // TODO: Figure this out! Offset of a base class.
     return 0;
@@ -1375,7 +1384,7 @@ class SyclKernelIntHeaderCreator
   uint64_t getOffset(const FieldDecl *FD) const {
     // TODO: Figure out how to calc lower down the structs, currently only gives
     // the 'base' value.
-    return SemaRef.getASTContext().getFieldOffset(FD) / 8;
+    return CurOffset + SemaRef.getASTContext().getFieldOffset(FD) / 8;
   }
 
   void addParam(const FieldDecl *FD, QualType ArgTy,
@@ -1462,7 +1471,26 @@ public:
     addParam(FD, ArgTy, SYCLIntegrationHeader::kind_std_layout);
   }
 
+  // Keep track of the current struct offset.
+  void enterStruct(const CXXRecordDecl *, const FieldDecl *FD) final {
+    CurOffset += SemaRef.getASTContext().getFieldOffset(FD) / 8;
+  }
 
+  void leaveStruct(const CXXRecordDecl *, const FieldDecl *FD) final {
+    CurOffset -= SemaRef.getASTContext().getFieldOffset(FD) / 8;
+  }
+
+  void enterStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS) final {
+    const ASTRecordLayout &Layout =
+        SemaRef.getASTContext().getASTRecordLayout(RD);
+    CurOffset += Layout.getBaseClassOffset(BS.getType());
+  }
+
+  void leaveStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS) final {
+    const ASTRecordLayout &Layout =
+        SemaRef.getASTContext().getASTRecordLayout(RD);
+    CurOffset -= Layout.getBaseClassOffset(BS.getType());
+    }
 };
 } // namespace
 
