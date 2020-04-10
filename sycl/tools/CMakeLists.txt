@@ -4,6 +4,14 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 # TODO: move each tool in its own sub-directory
 
+add_executable(lspi lspi.cpp)
+add_dependencies(lspi sycl)
+target_include_directories(lspi PRIVATE "${sycl_inc_dir}")
+target_link_libraries(lspi
+    PRIVATE sycl
+    PRIVATE OpenCL::Headers
+    PRIVATE ${OpenCL_LIBRARIES})
+
 add_executable(get_device_count_by_type get_device_count_by_type.cpp)
 add_dependencies(get_device_count_by_type ocl-headers ocl-icd)
 
