@@ -1260,16 +1260,16 @@ protected:
 public:
   // Mark these virutal so that we can use override in the implementer classes,
   // despite virtual dispatch never being used.
-  virtual void handleSyclAccessorType(const FieldDecl *, QualType){}
-  virtual void handleSyclSamplerType(const FieldDecl *, QualType){}
-  virtual void handleSyclSpecConstantType(const FieldDecl *, QualType){}
-  virtual void handleStructType(const FieldDecl *, QualType){}
-  virtual void handleReferenceType(const FieldDecl *, QualType){}
-  virtual void handlePointerType(const FieldDecl *, QualType){}
-  virtual void handleArrayType(const FieldDecl *, QualType){}
-  virtual void handleScalarType(const FieldDecl *, QualType){}
+  virtual void handleSyclAccessorType(const FieldDecl *, QualType) {}
+  virtual void handleSyclSamplerType(const FieldDecl *, QualType) {}
+  virtual void handleSyclSpecConstantType(const FieldDecl *, QualType) {}
+  virtual void handleStructType(const FieldDecl *, QualType) {}
+  virtual void handleReferenceType(const FieldDecl *, QualType) {}
+  virtual void handlePointerType(const FieldDecl *, QualType) {}
+  virtual void handleArrayType(const FieldDecl *, QualType) {}
+  virtual void handleScalarType(const FieldDecl *, QualType) {}
   // Most handlers shouldn't be handling this, just the field checker.
-  virtual void handleOtherType(const FieldDecl *, QualType){}
+  virtual void handleOtherType(const FieldDecl *, QualType) {}
 };
 
 // A type to check the valididty of all of the argument types.
