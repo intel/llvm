@@ -1251,8 +1251,7 @@ static void VisitKernelFields(RecordDecl::field_range Fields,
 
 // A base type that the SYCL OpenCL Kernel construction task uses to implement
 // individual tasks.
-template<typename Derived>
-class SyclKernelFieldHandler {
+template <typename Derived> class SyclKernelFieldHandler {
 protected:
   Sema &SemaRef;
   SyclKernelFieldHandler(Sema &S) : SemaRef(S) {}
@@ -1277,6 +1276,7 @@ class SyclKernelFieldChecker
     : public SyclKernelFieldHandler<SyclKernelFieldChecker> {
   bool IsInvalid = false;
   DiagnosticsEngine &Diag;
+
 public:
   SyclKernelFieldChecker(Sema &S)
       : SyclKernelFieldHandler(S), Diag(S.getASTContext().getDiagnostics()) {}
@@ -1324,12 +1324,11 @@ public:
 // A type that handles the accessor recursion and acts as a base for
 // SyclKernelDeclCreator. It doesn't 'own' anything other than the KernelObj
 // pointer and functionality required to add a param.
-class SyclKernelDeclBase
-    : public SyclKernelFieldHandler<SyclKernelDeclBase> {
+class SyclKernelDeclBase : public SyclKernelFieldHandler<SyclKernelDeclBase> {
 protected:
   FunctionDecl *KernelObj;
   llvm::SmallVectorImpl<QualType> &ArgTys;
-  llvm::SmallVectorImpl<ParmVarDecl*> &Params;
+  llvm::SmallVectorImpl<ParmVarDecl *> &Params;
 
   void addParam(const FieldDecl *FD, QualType ArgTy) {
     ASTContext &Ctx = SemaRef.getASTContext();
@@ -1375,7 +1374,6 @@ protected:
       addParam(FD, Param->getType().getCanonicalType());
   }
 
-
 public:
   SyclKernelDeclBase(Sema &S, FunctionDecl *KernelObj,
                      llvm::SmallVectorImpl<QualType> &ArgTys,
@@ -1397,8 +1395,7 @@ public:
 };
 
 // A type to Create and own the FunctionDecl for the kernel.
-class SyclKernelDeclCreator
-    : public SyclKernelDeclBase {
+class SyclKernelDeclCreator : public SyclKernelDeclBase {
   // TODO: rather than this, should we consider a 'commit' function that
   // finalizes under success only?
   SyclKernelFieldChecker &ArgChecker;
@@ -1406,9 +1403,10 @@ class SyclKernelDeclCreator
   // Yes, the list of Parameters contains this info, but we use it often enough
   // we shouldn't be recreating it constantly.  QualTypes are cheap anyway.
   llvm::SmallVector<QualType, 8> ArgTys;
-  llvm::SmallVector<ParmVarDecl*, 8> Params;
+  llvm::SmallVector<ParmVarDecl *, 8> Params;
 
-  static void setKernelImplicitAttrs(ASTContext &Context, FunctionDecl *FD, StringRef Name) {
+  static void setKernelImplicitAttrs(ASTContext &Context, FunctionDecl *FD,
+                                     StringRef Name) {
     // Set implict attributes.
     FD->addAttr(OpenCLKernelAttr::CreateImplicit(Context));
     FD->addAttr(AsmLabelAttr::CreateImplicit(Context, Name));
@@ -1479,9 +1477,7 @@ public:
     VisitKernelFields(Wrapper->fields(), Recurse);
   }
 
-  void setBody(CompoundStmt *KB) {
-    KernelObj->setBody(KB);
-  }
+  void setBody(CompoundStmt *KB) { KernelObj->setBody(KB); }
 };
 
 class SyclKernelBodyCreator
@@ -1492,20 +1488,16 @@ class SyclKernelBodyCreator
 
 public:
   SyclKernelBodyCreator(Sema &S, SyclKernelDeclCreator &DC)
-      : SyclKernelFieldHandler(S), DeclCreator(DC) {
-      }
-  ~SyclKernelBodyCreator() {
-      DeclCreator.setBody(KernelBody);
-  }
+      : SyclKernelFieldHandler(S), DeclCreator(DC) {}
+  ~SyclKernelBodyCreator() { DeclCreator.setBody(KernelBody); }
 };
 
 class SyclKernelIntHeaderCreator
     : public SyclKernelFieldHandler<SyclKernelIntHeaderCreator> {
-    public:
-      SyclKernelIntHeaderCreator(Sema &S) : SyclKernelFieldHandler(S) {}
+public:
+  SyclKernelIntHeaderCreator(Sema &S) : SyclKernelFieldHandler(S) {}
 };
-}
-
+} // namespace
 
 // Generates the OpenCL kernel using KernelCallerFunc (kernel caller
 // function) defined is Sycl headers.
