@@ -35,7 +35,7 @@ template <> struct helper<0> {
       exit(1);
     }
   }
-};
+};  
 
 template <int N> struct helper {
   template <typename T, int NumElements>
