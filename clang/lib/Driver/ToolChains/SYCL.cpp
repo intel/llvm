@@ -543,6 +543,12 @@ void SYCLToolChain::AddSYCLIncludeArgs(const clang::driver::Driver &Driver,
   CC1Args.push_back(DriverArgs.MakeArgString(P));
 }
 
+void SYCLToolChain::AddDevicelibIncludeArgs(ArgStringList &CC1Args) {
+  // Assume that clang system include path is added elsewhere
+  CC1Args.push_back("-include");
+  CC1Args.push_back("devicelib/__devicelib_assert.h");
+}
+
 void SYCLToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
                                               ArgStringList &CC1Args) const {
   HostTC.AddClangSystemIncludeArgs(DriverArgs, CC1Args);

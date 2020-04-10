@@ -1,5 +1,5 @@
 // REQUIRES: cpu,linux
-// RUN: %clangxx -fsycl %s -o %t.out -I%sycl_include/CL/sycl/devicelib
+// RUN: %clangxx -fsycl %s -o %t.out
 // (see the other RUN lines below; it is a bit complicated)
 //
 // assert() call in device code guarantees nothing: on some devices it behaves

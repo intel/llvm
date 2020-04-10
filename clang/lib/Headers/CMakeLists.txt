@@ -147,6 +147,12 @@ set(openmp_wrapper_files
   openmp_wrappers/new
 )
 
+set(devicelib_wrapper_files
+  devicelib/__devicelib_assert.h
+  devicelib/__devicelib.h
+  devicelib/spirv_vars.h
+)
+
 set(output_dir ${LLVM_LIBRARY_OUTPUT_INTDIR}/clang/${CLANG_VERSION}/include)
 set(out_files)
 set(generated_files)
@@ -175,7 +181,7 @@ endfunction(clang_generate_header)
 
 
 # Copy header files from the source directory to the build directory
-foreach( f ${files} ${cuda_wrapper_files} ${ppc_wrapper_files} ${openmp_wrapper_files})
+foreach( f ${files} ${cuda_wrapper_files} ${ppc_wrapper_files} ${openmp_wrapper_files} ${devicelib_wrapper_files})
   copy_header_to_output_dir(${CMAKE_CURRENT_SOURCE_DIR} ${f})
 endforeach( f )
 
@@ -216,6 +222,11 @@ install(
 install(
   FILES ${openmp_wrapper_files}
   DESTINATION ${header_install_dir}/openmp_wrappers
+  COMPONENT clang-resource-headers)
+
+install(
+  FILES ${devicelib_wrapper_files}
+  DESTINATION ${header_install_dir}/devicelib
   COMPONENT clang-resource-headers)
 
 if (NOT LLVM_ENABLE_IDE)

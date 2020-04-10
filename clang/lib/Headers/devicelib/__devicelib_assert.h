@@ -9,21 +9,14 @@
 #ifndef __DEVICELIB_ASSERT_H__
 #define __DEVICELIB_ASSERT_H__
 
-#include_next "assert.h"
-#include "devicelib.h"
+#include "__devicelib.h"
 
 #ifdef __DEVICELIB_DEVICE_ONLY__
 
 #include <stddef.h>
 #include <stdint.h>
 
-DEVICE_EXTERNAL size_t __spirv_GlobalInvocationId_x();
-DEVICE_EXTERNAL size_t __spirv_GlobalInvocationId_y();
-DEVICE_EXTERNAL size_t __spirv_GlobalInvocationId_z();
-
-DEVICE_EXTERNAL size_t __spirv_LocalInvocationId_x();
-DEVICE_EXTERNAL size_t __spirv_LocalInvocationId_y();
-DEVICE_EXTERNAL size_t __spirv_LocalInvocationId_z();
+#include "spirv_vars.h"
 
 DEVICE_EXTERN_C
 void __devicelib_assert_fail(const char *expr, const char *file, int32_t line,
@@ -32,8 +25,9 @@ void __devicelib_assert_fail(const char *expr, const char *file, int32_t line,
                              uint64_t lid2);
 
 #ifdef __DEVICELIB_GLIBC__
-EXTERN_C inline void __assert_fail(const char *expr, const char *file,
-                                   unsigned int line, const char *func) {
+EXTERN_C inline void
+__assert_fail(const char *expr, const char *file,
+              unsigned int line, const char *func) __THROW __attribute__ ((__noreturn__)) {
   __devicelib_assert_fail(
       expr, file, line, func, __spirv_GlobalInvocationId_x(),
       __spirv_GlobalInvocationId_y(), __spirv_GlobalInvocationId_z(),

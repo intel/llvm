@@ -22,6 +22,10 @@ or, in case of Windows:
    clang++ -fsycl -c main.cpp -o main.obj
    clang++ -fsycl main.obj %SYCL_INSTALL%/lib/libsycl-msvc.o -o a.exe
 
+NOTE: `assert` macro no longer requires to link a device library
+object file. Other functions still require corresponding device
+libraries to be linked.
+
 List of supported functions from C standard library:
   - assert macro          (from <assert.h> or <cassert>)
   - logf, log             (from <math.h> or <cmath>)
@@ -210,6 +214,10 @@ definitions for glibc specific library function, and these definitions
 call the corresponding functions from `__devicelib_*` set of
 functions.
 
+NOTE: a new approach is used for `assert` now, see `Header-based
+wrappers`_ section for details. Other functions still use wrappers as
+object files.
+
 For example, `__assert_fail` from IR above gets transformed into:
 .. code:
     ; Function Attrs: noreturn nounwind
@@ -231,6 +239,30 @@ glibc) has its own wrapper library object:
 
   - libsycl-glibc.o
   - libsycl-msvc.o
+
+Header-based wrappers
+=====================
+
+Wrappers around standard library functions can be provided in header
+files:
+
+.. code:
+   #ifdef __DEVICELIB_GLIBC__
+   extern "C" inline void
+   __assert_fail(const char *expr, const char *file,
+		 unsigned int line, const char *func) {
+     // call __devicelib_assert_fail(...)
+   }
+   #elif defined(__DEVICELIB_MSLIBC__)
+   extern "C" inline void _wassert(const wchar_t *wexpr, const wchar_t *wfile,
+				   unsigned line) {
+     // call __devicelib_assert_fail(...)
+   }
+   #endif
+
+These header files are automatically included by the Clang driver for
+SYCL device compilation (SPIR target).
+
 
 SPIR-V
 ======

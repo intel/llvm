@@ -8,6 +8,9 @@
 // RUN:   | FileCheck -check-prefix=CHECK-SYCL-DEV %s
 // CHECK-SYCL-DEV: "-fsycl-is-device"{{.*}} "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl"
 
+/// Check that devicelib include path is added
+// CHECK-SYCL-DEV: "-include" "devicelib{{[/\\]}}__devicelib_assert.h"
+
 /// Check that "-Wno-sycl-strict" is set on compiler invocation with "-fsycl"
 /// or "-fsycl-device-only" or both:
 // RUN:   %clang -### -fsycl %s 2>&1 \

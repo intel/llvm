@@ -145,6 +145,7 @@ public:
   static void AddSYCLIncludeArgs(const clang::driver::Driver &Driver,
                                  const llvm::opt::ArgList &DriverArgs,
                                  llvm::opt::ArgStringList &CC1Args);
+  static void AddDevicelibIncludeArgs(llvm::opt::ArgStringList &CC1Args);
   void AddClangSystemIncludeArgs(const llvm::opt::ArgList &DriverArgs,
                             llvm::opt::ArgStringList &CC1Args) const override;
   void AddClangCXXStdlibIncludeArgs(

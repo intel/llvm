@@ -3,7 +3,6 @@ if (WIN32)
 else()
   set(binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
 endif()
-set(include_dir "${LLVM_BINARY_DIR}/include/sycl")
 
 set(clang $<TARGET_FILE:clang>)
 
@@ -104,19 +103,6 @@ add_custom_command(OUTPUT ${binary_dir}/libsycl-fallback-cmath-fp64.spv
                    DEPENDS device_math.h device.h clang llvm-spirv
                    VERBATIM)
 
-add_custom_target(libsycldevice-inc)
-add_custom_command(
-  TARGET libsycldevice-inc POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory ${include_dir}/CL/sycl/devicelib
-        COMMAND ${CMAKE_COMMAND} -E copy
-                ${CMAKE_CURRENT_SOURCE_DIR}/include/devicelib.h
-                ${include_dir}/CL/sycl/devicelib
-        COMMAND ${CMAKE_COMMAND} -E copy
-                ${CMAKE_CURRENT_SOURCE_DIR}/include/assert.h
-                ${include_dir}/CL/sycl/devicelib
-        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/include/devicelib.h
-                ${CMAKE_CURRENT_SOURCE_DIR}/include/assert.h)
-
 add_custom_target(libsycldevice-obj DEPENDS
   ${devicelib-obj-complex}
   ${devicelib-obj-complex-fp64}
@@ -130,7 +116,7 @@ add_custom_target(libsycldevice-spv DEPENDS
   ${binary_dir}/libsycl-fallback-cmath.spv
   ${binary_dir}/libsycl-fallback-cmath-fp64.spv
 )
-add_custom_target(libsycldevice DEPENDS libsycldevice-inc libsycldevice-obj libsycldevice-spv)
+add_custom_target(libsycldevice DEPENDS libsycldevice-obj libsycldevice-spv)
 
 # Place device libraries near the libsycl.so library in an install
 # directory as well
@@ -139,11 +125,6 @@ if (WIN32)
 else()
   set(install_dest lib${LLVM_LIBDIR_SUFFIX})
 endif()
-
-install(FILES ${include_dir}/CL/sycl/devicelib/devicelib.h
-              ${include_dir}/CL/sycl/devicelib/assert.h
-        DESTINATION include/sycl/CL/sycl/devicelib
-        COMPONENT libsycldevice)
 
 install(FILES ${binary_dir}/libsycl-fallback-cassert.spv
               ${devicelib-obj-complex}
