@@ -1051,12 +1051,8 @@ static std::string constructKernelName(Sema &S, FunctionDecl *KernelCallerFunc,
 // anonymous namespace so these don't get linkage.
 namespace {
 
-QualType getItemType(const FieldDecl *FD) {
-  return FD->getType();
-}
-QualType getItemType(const CXXBaseSpecifier &BS) {
-  return BS.getType();
-}
+QualType getItemType(const FieldDecl *FD) { return FD->getType(); }
+QualType getItemType(const CXXBaseSpecifier &BS) { return BS.getType(); }
 
 // Implements the 'for-each-visitor'  pattern.
 template <typename ParentTy, typename... Handlers>
@@ -1085,12 +1081,10 @@ template <typename ParentTy, typename... Handlers>
 static void VisitAccessorWrapper(CXXRecordDecl *Owner, ParentTy &Parent,
                                  CXXRecordDecl *Wrapper,
                                  Handlers &... handlers) {
-  (void)std::initializer_list<int>{
-          (handlers.enterStruct(Owner, Parent), 0)...};
+  (void)std::initializer_list<int>{(handlers.enterStruct(Owner, Parent), 0)...};
   VisitAccessorWrapperHelper(Wrapper, Wrapper->bases(), handlers...);
   VisitAccessorWrapperHelper(Wrapper, Wrapper->fields(), handlers...);
-  (void)std::initializer_list<int>{
-          (handlers.leaveStruct(Owner, Parent), 0)...};
+  (void)std::initializer_list<int>{(handlers.leaveStruct(Owner, Parent), 0)...};
 }
 
 // A visitor function that dispatches to functions as defined in
@@ -1262,7 +1256,6 @@ class SyclKernelDeclCreator
     for (const ParmVarDecl *Param : InitMethod->parameters())
       addParam(FD, Param->getType().getCanonicalType());
   }
-
 
   static void setKernelImplicitAttrs(ASTContext &Context, FunctionDecl *FD,
                                      StringRef Name) {
@@ -1483,14 +1476,16 @@ public:
   void enterStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS) final {
     const ASTRecordLayout &Layout =
         SemaRef.getASTContext().getASTRecordLayout(RD);
-    CurOffset += Layout.getBaseClassOffset(BS.getType());
+    CurOffset += Layout.getBaseClassOffset(BS.getType()->getAsCXXRecordDecl())
+                     .getQuantity();
   }
 
   void leaveStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS) final {
     const ASTRecordLayout &Layout =
         SemaRef.getASTContext().getASTRecordLayout(RD);
-    CurOffset -= Layout.getBaseClassOffset(BS.getType());
-    }
+    CurOffset -= Layout.getBaseClassOffset(BS.getType()->getAsCXXRecordDecl())
+                     .getQuantity();
+  }
 };
 } // namespace
 
