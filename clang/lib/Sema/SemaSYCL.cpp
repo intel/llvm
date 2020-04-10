@@ -1332,10 +1332,6 @@ protected:
   llvm::SmallVectorImpl<ParmVarDecl *> &Params;
 
   void addParam(const FieldDecl *FD, QualType ArgTy) {
-    // TODO: should we split this function up?  These ops NEED to happen in
-    // lockstep, so leaning toward leaving htis as just a somewhat long function
-    // :/
-
     // Create a new ParmVarDecl based on the new info.
     ParamDesc newParamDesc = makeParamDesc(FD, ArgTy);
     auto *NewParam = ParmVarDecl::Create(
