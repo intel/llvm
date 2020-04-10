@@ -165,9 +165,11 @@ namespace llvm {
 
     /// CALL - A direct function call.
     /// CALL_NOP is a call with the special NOP which follows 64-bit
+    /// CALL_NOTOC the caller does not use the TOC.
     /// SVR4 calls and 32-bit/64-bit AIX calls.
     CALL,
     CALL_NOP,
+    CALL_NOTOC,
 
     /// CHAIN,FLAG = MTCTR(VAL, CHAIN[, INFLAG]) - Directly corresponds to a
     /// MTCTR instruction.
@@ -425,6 +427,11 @@ namespace llvm {
     /// FP_EXTEND_HALF(VECTOR, IDX) - Custom extend upper (IDX=0) half or
     /// lower (IDX=1) half of v4f32 to v2f64.
     FP_EXTEND_HALF,
+
+    /// MAT_PCREL_ADDR = Materialize a PC Relative address. This can be done
+    /// either through an add like PADDI or through a PC Relative load like
+    /// PLD.
+    MAT_PCREL_ADDR,
 
     /// CHAIN = STBRX CHAIN, GPRC, Ptr, Type - This is a
     /// byte-swapping store instruction.  It byte-swaps the low "Type" bits of
@@ -728,6 +735,10 @@ namespace llvm {
     bool SelectAddressRegRegOnly(SDValue N, SDValue &Base, SDValue &Index,
                                  SelectionDAG &DAG) const;
 
+    /// SelectAddressPCRel - Represent the specified address as pc relative to
+    /// be represented as [pc+imm]
+    bool SelectAddressPCRel(SDValue N, SDValue &Base) const;
+
     Sched::Preference getSchedulingPreference(SDNode *N) const override;
 
     /// LowerOperation - Provide custom lowering hooks for some operations.
@@ -875,7 +886,7 @@ namespace llvm {
       if (VT != MVT::f32 && VT != MVT::f64)
         return false;
 
-      return true; 
+      return true;
     }
 
     // Returns true if the address of the global is stored in TOC entry.
@@ -943,12 +954,12 @@ namespace llvm {
 
     /// If a physical register, this returns the register that receives the
     /// exception address on entry to an EH pad.
-    unsigned
+    Register
     getExceptionPointerRegister(const Constant *PersonalityFn) const override;
 
     /// If a physical register, this returns the register that receives the
     /// exception typeid on entry to a landing pad.
-    unsigned
+    Register
     getExceptionSelectorRegister(const Constant *PersonalityFn) const override;
 
     /// Override to support customized stack guard loading.

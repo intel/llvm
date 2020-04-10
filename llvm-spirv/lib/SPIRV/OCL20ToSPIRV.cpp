@@ -618,7 +618,8 @@ CallInst *OCL20ToSPIRV::visitCallAtomicCmpXchg(CallInst *CI) {
       M, CI,
       [&](CallInst *CI, std::vector<Value *> &Args, Type *&RetTy) {
         Expected = Args[1]; // temporary save second argument.
-        Args[1] = new LoadInst(Args[1], "exp", false, CI);
+        Args[1] = new LoadInst(Args[1]->getType()->getPointerElementType(),
+                               Args[1], "exp", false, CI);
         RetTy = Args[2]->getType();
         assert(Args[0]->getType()->getPointerElementType()->isIntegerTy() &&
                Args[1]->getType()->isIntegerTy() &&
@@ -1244,7 +1245,7 @@ void OCL20ToSPIRV::transWorkItemBuiltinsToVariables() {
     for (auto UI = I.user_begin(), UE = I.user_end(); UI != UE; ++UI) {
       auto CI = dyn_cast<CallInst>(*UI);
       assert(CI && "invalid instruction");
-      Value *NewValue = new LoadInst(BV, "", CI);
+      Value *NewValue = new LoadInst(GVType, BV, "", CI);
       LLVM_DEBUG(dbgs() << "Transform: " << *CI << " => " << *NewValue << '\n');
       if (IsVec) {
         NewValue =

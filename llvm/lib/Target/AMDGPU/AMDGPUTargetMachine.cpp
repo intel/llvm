@@ -1068,8 +1068,7 @@ bool GCNTargetMachine::parseMachineFunctionInfo(
   MFI->initializeBaseYamlFields(YamlMFI);
 
   auto parseRegister = [&](const yaml::StringValue &RegName, Register &RegVal) {
-    // FIXME: Update parseNamedRegsiterReference to take a Register.
-    unsigned TempReg;
+    Register TempReg;
     if (parseNamedRegisterReference(PFS, TempReg, RegName.Value, Error)) {
       SourceRange = RegName.SourceRange;
       return true;
@@ -1120,7 +1119,7 @@ bool GCNTargetMachine::parseMachineFunctionInfo(
       return false;
 
     if (A->IsRegister) {
-      unsigned Reg;
+      Register Reg;
       if (parseNamedRegisterReference(PFS, Reg, A->RegisterName.Value, Error)) {
         SourceRange = A->RegisterName.SourceRange;
         return true;

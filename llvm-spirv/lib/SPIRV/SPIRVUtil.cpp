@@ -1162,7 +1162,7 @@ Value *getScalarOrArray(Value *V, unsigned Size, Instruction *Pos) {
   assert(P->getType()->getPointerElementType()->getArrayNumElements() == Size);
   assert(dyn_cast<ConstantInt>(GEP->getOperand(1))->getZExtValue() == 0);
   assert(dyn_cast<ConstantInt>(GEP->getOperand(2))->getZExtValue() == 0);
-  return new LoadInst(P, "", Pos);
+  return new LoadInst(P->getType()->getPointerElementType(), P, "", Pos);
 }
 
 Constant *getScalarOrVectorConstantInt(Type *T, uint64_t V, bool IsSigned) {

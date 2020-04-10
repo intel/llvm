@@ -1576,11 +1576,12 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
   // Creation of place holder
   if (CreatePlaceHolder) {
+    auto Ty = transType(BV->getType());
     auto GV = new GlobalVariable(
-        *M, transType(BV->getType()), false, GlobalValue::PrivateLinkage,
+        *M, Ty, false, GlobalValue::PrivateLinkage,
         nullptr, std::string(KPlaceholderPrefix) + BV->getName(), 0,
         GlobalVariable::NotThreadLocal, 0);
-    auto LD = new LoadInst(GV, BV->getName(), BB);
+    auto LD = new LoadInst(Ty, GV, BV->getName(), BB);
     PlaceholderMap[BV] = LD;
     return mapValue(BV, LD);
   }
@@ -1671,8 +1672,9 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
   case OpLoad: {
     SPIRVLoad *BL = static_cast<SPIRVLoad *>(BV);
+    auto V = transValue(BL->getSrc(), F, BB);
     LoadInst *LI =
-        new LoadInst(transValue(BL->getSrc(), F, BB), BV->getName(),
+        new LoadInst(V->getType()->getPointerElementType(), V, BV->getName(),
                      BL->SPIRVMemoryAccess::isVolatile(),
                      MaybeAlign(BL->SPIRVMemoryAccess::getAlignment()), BB);
     if (BL->SPIRVMemoryAccess::isNonTemporal())
@@ -2016,10 +2018,11 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
   case OpCopyObject: {
     SPIRVCopyObject *CO = static_cast<SPIRVCopyObject *>(BV);
+    auto Ty = transType(CO->getOperand()->getType());
     AllocaInst *AI =
-        new AllocaInst(transType(CO->getOperand()->getType()), 0, "", BB);
+        new AllocaInst(Ty, 0, "", BB);
     new StoreInst(transValue(CO->getOperand(), F, BB), AI, BB);
-    LoadInst *LI = new LoadInst(AI, "", BB);
+    LoadInst *LI = new LoadInst(Ty, AI, "", BB);
     return mapValue(BV, LI);
   }
 
@@ -2162,9 +2165,10 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
   case OpFunctionPointerCallINTEL: {
     SPIRVFunctionPointerCallINTEL *BC =
         static_cast<SPIRVFunctionPointerCallINTEL *>(BV);
-    auto Call = CallInst::Create(transValue(BC->getCalledValue(), F, BB),
-                                 transValue(BC->getArgumentValues(), F, BB),
-                                 BC->getName(), BB);
+    auto V = transValue(BC->getCalledValue(), F, BB);
+    auto Call = CallInst::Create(
+        cast<FunctionType>(V->getType()->getPointerElementType()), V,
+        transValue(BC->getArgumentValues(), F, BB), BC->getName(), BB);
     // Assuming we are calling a regular device function
     Call->setCallingConv(CallingConv::SPIR_FUNC);
     // Don't set attributes, because at translation time we don't know which
