@@ -137,7 +137,10 @@ The member functions below are common to atomic references for any type +T+:
 |Member Functions|Description
 
 | `atomic_ref(T& ref)`
-| Constructs an instance of +atomic_ref+ which is associated with the reference _ref_.
+| Constructs an instance of +atomic_ref+ which is associated with the object referenced by _ref_.
+
+| `atomic_ref(const atomic_ref& ref)`
+| Constructs an instance of +atomic_ref+ which is associated with the same object as _ref_.
 
 | `bool is_lock_free() const`
 | Return +true+ if the atomic operations provided by this +atomic_ref+ are lock-free.
