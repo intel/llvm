@@ -54,19 +54,15 @@ void test(const vec<T, NumElements> &ToConvert,
   {
     buffer<vec<convertT, NumElements>, 1> Buffer{&Converted, range<1>{1}};
     queue Queue;
-    cl::sycl::device D = Queue.get_device();
-    if (std::is_same<half, convertT>::value &&
-        !D.has_extension("cl_khr_fp16"))
-            return;
     Queue.submit([&](handler &CGH) {
       accessor<vec<convertT, NumElements>, 1, access::mode::write> Accessor(
           Buffer, CGH);
         CGH.single_task<class kernel_name<T, convertT, static_cast<int>(roundingMode)>>([=]() {
           Accessor[0] = ToConvert.template convert<convertT, roundingMode>();
         });
-    });
+    }); 
   }
-  helper<NumElements - 1>::compare(Converted, Expected);
+  helper<NumElements - 1>::compare(Converted, Expected); 
 }
 
 int main() {
@@ -83,12 +79,11 @@ int main() {
   test<float, float, 8, rounding_mode::automatic>(
       float8{+2.3f, +2.5f, +2.7f, -2.3f, -2.5f, -2.7f, 0.f, 0.f},
       float8{+2.3f, +2.5f, +2.7f, -2.3f, -2.5f, -2.7f, 0.f, 0.f});
-  test<float, half, 8, rounding_mode::automatic>(
-      float8{+2.3f, +2.5f, +2.7f, -2.3f, -2.5f, -2.7f, 0.f, 0.f},
-      half8{+2.3f, +2.5f, +2.7f, -2.3f, -2.5f, -2.7f, 0.f, 0.f});
+  test<double, float, 8, rounding_mode::automatic>(
+      double8{+2.3, +2.5, +2.7, -2.3, -2.5, -2.7, 0., 0.},
+      float8{+2.3f, +2.5f, +2.7f, -2.3f, -2.5f, -2.7f, 0.f, 0.f});
 
-
-  /*// rte
+  // rte
   test<int, int, 8, rounding_mode::rte>(
       int8{2, 3, 3, -2, -3, -3, 0, 0},
       int8{2, 3, 3, -2, -3, -3, 0, 0});
@@ -101,9 +96,9 @@ int main() {
   test<float, float, 8, rounding_mode::rte>(
       float8{+2.3f, +2.5f, +2.7f, -2.3f, -2.5f, -2.7f, 0.f, 0.f},
       float8{+2.3f, +2.5f, +2.7f, -2.3f, -2.5f, -2.7f, 0.f, 0.f});
-  test<float, half, 8, rounding_mode::rte>(
-      float8{+2.3f, +2.5f, +2.7f, -2.3f, -2.5f, -2.7f, 0.f, 0.f},
-      half8{+2.3f, +2.5f, +2.7f, -2.3f, -2.5f, -2.7f, 0.f, 0.f});
+  test<double, float, 8, rounding_mode::automatic>(
+      double8{+2.3, +2.5, +2.7, -2.3, -2.5, -2.7, 0., 0.},
+      float8{+2.3f, +2.5f, +2.7f, -2.3f, -2.5f, -2.7f, 0.f, 0.f});
 
   // rtz
   test<int, int, 8, rounding_mode::rtz>(
@@ -118,9 +113,9 @@ int main() {
   test<float, float, 8, rounding_mode::rtz>(
       float8{+2.3f, +2.5f, +2.7f, -2.3f, -2.5f, -2.7f, 0.f, 0.f},
       float8{+2.3f, +2.5f, +2.7f, -2.3f, -2.5f, -2.7f, 0.f, 0.f});
-  test<float, half, 8, rounding_mode::rtz>(
-      float8{+2.3f, +2.5f, +2.7f, -2.3f, -2.5f, -2.7f, 0.f, 0.f},
-      half8{+2.3f, +2.5f, +2.7f, -2.3f, -2.5f, -2.7f, 0.f, 0.f});
+  test<double, float, 8, rounding_mode::automatic>(
+      double8{+2.3, +2.5, +2.7, -2.3, -2.5, -2.7, 0., 0.},
+      float8{+2.3f, +2.5f, +2.7f, -2.3f, -2.5f, -2.7f, 0.f, 0.f});
 
   // rtp
   test<int, int, 8, rounding_mode::rtp>(
@@ -135,9 +130,9 @@ int main() {
   test<float, float, 8, rounding_mode::rtp>(
       float8{+2.3f, +2.5f, +2.7f, -2.3f, -2.5f, -2.7f, 0.f, 0.f},
       float8{+2.3f, +2.5f, +2.7f, -2.3f, -2.5f, -2.7f, 0.f, 0.f});
-  test<float, half, 8, rounding_mode::rtp>(
-      float8{+2.3f, +2.5f, +2.7f, -2.3f, -2.5f, -2.7f, 0.f, 0.f},
-      half8{+2.3f, +2.5f, +2.7f, -2.3f, -2.5f, -2.7f, 0.f, 0.f});
+  test<double, float, 8, rounding_mode::automatic>(
+      double8{+2.3, +2.5, +2.7, -2.3, -2.5, -2.7, 0., 0.},
+      float8{+2.3f, +2.5f, +2.7f, -2.3f, -2.5f, -2.7f, 0.f, 0.f});
 
   // rtn
   test<int, int, 8, rounding_mode::rtn>(
@@ -152,8 +147,8 @@ int main() {
   test<float, float, 8, rounding_mode::rtn>(
       float8{+2.3f, +2.5f, +2.7f, -2.3f, -2.5f, -2.7f, 0.f, 0.f},
       float8{+2.3f, +2.5f, +2.7f, -2.3f, -2.5f, -2.7f, 0.f, 0.f});
-  test<float, half, 8, rounding_mode::rtn>(
-      float8{+2.3f, +2.5f, +2.7f, -2.3f, -2.5f, -2.7f, 0.f, 0.f},
-      half8{+2.3f, +2.5f, +2.7f, -2.3f, -2.5f, -2.7f, 0.f, 0.f}); */
+  test<double, float, 8, rounding_mode::automatic>(
+      double8{+2.3, +2.5, +2.7, -2.3, -2.5, -2.7, 0., 0.},
+      float8{+2.3f, +2.5f, +2.7f, -2.3f, -2.5f, -2.7f, 0.f, 0.f});
   return 0;
 }
