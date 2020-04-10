@@ -1001,106 +1001,21 @@ static ParamDesc makeParamDesc(const FieldDecl *Src, QualType Ty) {
                          Ctx.getTrivialTypeSourceInfo(Ty));
 }
 
+static ParamDesc makeParamDesc(ASTContext &Ctx, const CXXBaseSpecifier &Src,
+                               QualType Ty) {
+  // TODO: There is no name for the base available, but duplicate names are
+  // seemingly already possible, so we'll give them all the same name for now.
+  // This only happens with the accessor types.
+  std::string Name = "_arg__base";
+  return std::make_tuple(Ty, &Ctx.Idents.get(Name),
+                         Ctx.getTrivialTypeSourceInfo(Ty));
+}
+
 /// \return the target of given SYCL accessor type
 static target getAccessTarget(const ClassTemplateSpecializationDecl *AccTy) {
   return static_cast<target>(
       AccTy->getTemplateArgs()[3].getAsIntegral().getExtValue());
 }
-
-/// Adds necessary data describing given kernel to the integration header.
-/// \param H           the integration header object
-/// \param Name        kernel name
-/// \param NameType    type representing kernel name (first template argument
-/// of single_task, parallel_for, etc)
-/// \param KernelObjTy kernel object type
-static void populateIntHeader(SYCLIntegrationHeader &H, const StringRef Name,
-                              QualType NameType, CXXRecordDecl *KernelObjTy) {/*
-  std::function<void(const QualType &, uint64_t Offset)>
-      populateHeaderForWrappedAccessors = [&](const QualType &ArgTy,
-                                              uint64_t Offset) {
-        const auto *Wrapper = ArgTy->getAsCXXRecordDecl();
-        for (const auto *WrapperFld : Wrapper->fields()) {
-          QualType FldType = WrapperFld->getType();
-          if (FldType->isStructureOrClassType()) {
-            ASTContext &WrapperCtx = Wrapper->getASTContext();
-            const ASTRecordLayout &WrapperLayout =
-                WrapperCtx.getASTRecordLayout(Wrapper);
-            // Get offset (in bytes) of the field in wrapper class or struct
-            uint64_t OffsetInWrapper =
-                WrapperLayout.getFieldOffset(WrapperFld->getFieldIndex()) / 8;
-            if (Util::isSyclAccessorType(FldType)) {
-              // This is an accesor - populate the header appropriately
-              populateHeaderForAccessor(FldType, Offset + OffsetInWrapper);
-            } else {
-              // This is an other class or struct - recursively search for an
-              // accessor field
-              populateHeaderForWrappedAccessors(FldType,
-                                                Offset + OffsetInWrapper);
-            }
-          }
-        }
-      };
-
-  for (const auto Fld : KernelObjTy->fields()) {
-    QualType ActualArgType;
-    QualType ArgTy = Fld->getType();
-
-    // Get offset in bytes
-    uint64_t Offset = Layout.getFieldOffset(Fld->getFieldIndex()) / 8;
-
-    if (Util::isSyclAccessorType(ArgTy)) {
-      populateHeaderForAccessor(ArgTy, Offset);
-    } else if (Util::isSyclSamplerType(ArgTy)) {
-      // The parameter is a SYCL sampler object
-      const auto *SamplerTy = ArgTy->getAsCXXRecordDecl();
-      assert(SamplerTy && "sampler must be of a record type");
-
-      CXXMethodDecl *InitMethod = getMethodByName(SamplerTy, InitMethodName);
-      assert(InitMethod && "sampler must have __init method");
-
-      // sampler __init method has only one argument
-      auto *FuncDecl = cast<FunctionDecl>(InitMethod);
-      ParmVarDecl *SamplerArg = FuncDecl->getParamDecl(0);
-      assert(SamplerArg && "sampler __init method must have sampler parameter");
-      uint64_t Sz = Ctx.getTypeSizeInChars(SamplerArg->getType()).getQuantity();
-      H.addParamDesc(SYCLIntegrationHeader::kind_sampler,
-                     static_cast<unsigned>(Sz), static_cast<unsigned>(Offset));
-    } else if (ArgTy->isPointerType()) {
-      uint64_t Sz = Ctx.getTypeSizeInChars(Fld->getType()).getQuantity();
-      H.addParamDesc(SYCLIntegrationHeader::kind_pointer,
-                     static_cast<unsigned>(Sz), static_cast<unsigned>(Offset));
-    } else if (Util::isSyclSpecConstantType(ArgTy)) {
-      // Add specialization constant ID to the header.
-      auto *TmplSpec =
-          cast<ClassTemplateSpecializationDecl>(ArgTy->getAsCXXRecordDecl());
-      const TemplateArgumentList *TemplateArgs =
-          &TmplSpec->getTemplateInstantiationArgs();
-      // Get specialization constant ID type, which is the second template
-      // argument.
-      QualType SpecConstIDTy = TypeName::getFullyQualifiedType(
-                                   TemplateArgs->get(1).getAsType(), Ctx, true)
-                                   .getCanonicalType();
-      const std::string SpecConstName = PredefinedExpr::ComputeName(
-          Ctx, PredefinedExpr::UniqueStableNameExpr, SpecConstIDTy);
-      H.addSpecConstant(SpecConstName, SpecConstIDTy);
-      // Spec constant lambda capture does not become a kernel argument.
-    } else if (ArgTy->isStructureOrClassType() || ArgTy->isScalarType()) {
-      // the parameter is an object of standard layout type or scalar;
-      // the check for standard layout is done elsewhere
-      uint64_t Sz = Ctx.getTypeSizeInChars(Fld->getType()).getQuantity();
-      H.addParamDesc(SYCLIntegrationHeader::kind_std_layout,
-                     static_cast<unsigned>(Sz), static_cast<unsigned>(Offset));
-
-      // check for accessor fields in structure or class and populate the
-      // integration header appropriately
-      if (ArgTy->isStructureOrClassType()) {
-        populateHeaderForWrappedAccessors(ArgTy, Offset);
-      }
-    } else {
-      llvm_unreachable("unsupported kernel parameter type");
-    }
-  }
-*/}
 
 // The first template argument to the kernel function is used to identify the
 // kernel itself.
@@ -1136,39 +1051,46 @@ static std::string constructKernelName(Sema &S, FunctionDecl *KernelCallerFunc,
 // anonymous namespace so these don't get linkage.
 namespace {
 // Implements the 'for-each-visitor'  pattern.
-#define KF_FOR_EACH(FUNC)                                                      \
-  (void)std::initializer_list<int> { (handlers.FUNC(Field, FieldTy), 0)... }
-
 template <typename... Handlers>
-static void VisitAccessorWrapperFields(RecordDecl::field_range Fields,
-                              Handlers &... handlers) {
-  // TODO: Does this need to handle other types to support other things?  I
-  // don't think so, but we'll see.  Also want to see if any consumers need to
-  // handle these 'sub' structs.  If so, we likely need to split the
-  // 'handleStructType'  function into two.  Do we need to do the same with
-  // sampler or spec constant?
-  for (const auto &Field : Fields) {
-    QualType FieldTy = Field->getType();
-    if (Util::isSyclAccessorType(FieldTy))
-      KF_FOR_EACH(handleSyclAccessorType);
-    else if (FieldTy->isStructureOrClassType()) {
-      CXXRecordDecl *RD = FieldTy->getAsRecordDecl();
-      RD->forAllBases(
-          [](CXXRecordDecl *Base) {
-            VisitAccessorWrapperFields(Base->fields(), handlers...);
-            return true;
-          },
-          /*AllowShortCircuit*/ false);
-      VisitAccessorWrapperFields(FieldTy->getAsRecordDecl()->fields(),
-                                 handlers...);
+static void VisitAccessorWrapper(CXXRecordDecl *Wrapper,
+                              Handlers &... handlers);
+
+QualType getItemType(const FieldDecl *FD) {
+  return FD->getType();
+}
+QualType getItemType(const CXXBaseSpecifier &BS) {
+  return BS.getType();
+}
+
+template <typename RangeTy, typename... Handlers>
+static void VisitAccessorWrapperHelper(RangeTy Range, Handlers &... handlers) {
+  for (const auto &Item : Range) {
+    QualType ItemTy = getItemType(Item);
+    if (Util::isSyclAccessorType(ItemTy))
+      (void)std::initializer_list<int>{
+          (handlers.handleAccessorType(Item, ItemTy), 0)...};
+    else if (ItemTy->isStructureOrClassType()) {
+      VisitAccessorWrapper(ItemTy->getAsCXXRecordDecl());
     }
   }
 }
+
+template <typename... Handlers>
+static void VisitAccessorWrapper(CXXRecordDecl *Wrapper,
+                              Handlers &... handlers) {
+
+  VisitAccessorWrapperHelper(Wrapper->bases(), handlers...);
+  VisitAccessorWrapperHelper(Wrapper->fields(), handlers...);
+}
+
 // A visitor function that dispatches to functions as defined in
 // SyclKernelFieldHandler for the purposes of kernel generation.
 template <typename... Handlers>
 static void VisitRecordFields(RecordDecl::field_range Fields,
                               Handlers &... handlers) {
+#define KF_FOR_EACH(FUNC)                                                      \
+  (void)std::initializer_list<int> { (handlers.FUNC(Field, FieldTy), 0)... }
+
   for (const auto &Field : Fields) {
     QualType FieldTy = Field->getType();
 
@@ -1180,21 +1102,8 @@ static void VisitRecordFields(RecordDecl::field_range Fields,
       KF_FOR_EACH(handleSyclSpecConstantType);
     else if (FieldTy->isStructureOrClassType()) {
       KF_FOR_EACH(handleStructType);
-
-      CXXRecordDecl *RD = FieldTy->getAsRecordDecl();
-      // Go through the fields of bases as well, the previous implementation
-      // missed these, so I presume this is going to be fixing a bug. This goes
-      // through all the bases in a non-guaranteed way, though it skips VBases
-      // which are otherwise not allowed anyway.
-      RD->forAllBases(
-          [](CXXRecordDecl *Base) {
-            VisitAccessorWrapperFields(Base->fields(), handlers...);
-            return true;
-          },
-          /*AllowShortCircuit*/ false);
-
-      VisitAccessorWrapperFields(FieldTy->getAsRecordDecl()->fields(),
-                                 handlers...);
+      CXXRecordDecl *RD = FieldTy->getAsCXXRecordDecl();
+      VisitAccessorWrapper(RD);
     } else if (FieldTy->isReferenceType())
       KF_FOR_EACH(handleReferenceType);
     else if (FieldTy->isPointerType())
@@ -1206,20 +1115,26 @@ static void VisitRecordFields(RecordDecl::field_range Fields,
     else
       KF_FOR_EACH(handleOtherType);
   }
-}
 #undef KF_FOR_EACH
+}
 
 // A base type that the SYCL OpenCL Kernel construction task uses to implement
 // individual tasks.
-template <typename Derived> class SyclKernelFieldVisitor {
+template <typename Derived> class SyclKernelFieldHandler {
 protected:
   Sema &SemaRef;
   SyclKernelFieldHandler(Sema &S) : SemaRef(S) {}
 
 public:
-
   // Mark these virutal so that we can use override in the implementer classes,
   // despite virtual dispatch never being used.
+
+  //// TODO: Can these return 'bool' and we can short-circuit the handling? That
+  // way the field checker cna return true/false based on whether the rest
+  // should be still working.
+
+  // Accessor can be a base class or a field decl, so both must be handled.
+  virtual void handleSyclAccessorType(const CXXBaseSpecifier &, QualType) {}
   virtual void handleSyclAccessorType(const FieldDecl *, QualType) {}
   virtual void handleSyclSamplerType(const FieldDecl *, QualType) {}
   virtual void handleSyclSpecConstantType(const FieldDecl *, QualType) {}
@@ -1291,8 +1206,17 @@ class SyclKernelDeclCreator
   Sema::ContextRAII FuncContext;
 
   void addParam(const FieldDecl *FD, QualType ArgTy) {
-    // Create a new ParmVarDecl based on the new info.
     ParamDesc newParamDesc = makeParamDesc(FD, ArgTy);
+    addParam(newParamDesc, ArgTy);
+  }
+
+  void addParam(const CXXBaseSpecifier &BS, QualType ArgTy) {
+    ParamDesc newParamDesc = makeParamDesc(SemaRef.getASTContext(), BS, ArgTy);
+    addParam(newParamDesc, ArgTy);
+  }
+
+  void addParam(ParamDesc newParamDesc, QualType ArgTy) {
+    // Create a new ParmVarDecl based on the new info.
     auto *NewParam = ParmVarDecl::Create(
         SemaRef.getASTContext(), KernelObj, SourceLocation(), SourceLocation(),
         std::get<1>(newParamDesc), std::get<0>(newParamDesc),
@@ -1369,6 +1293,17 @@ public:
       SemaRef.addSyclDeviceDecl(KernelObj);
   }
 
+  void handleSyclAccessorType(const CXXBaseSpecifier &BS,
+                              QualType ArgTy) final {
+    const auto *RecordDecl = ArgTy->getAsCXXRecordDecl();
+    assert(RecordDecl && "The accessor/sampler must be a RecordDecl");
+    CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, InitMethodName);
+    assert(InitMethod && "The accessor/sampler must have the __init method");
+
+    for (const ParmVarDecl *Param : InitMethod->parameters())
+      addParam(BS, Param->getType().getCanonicalType());
+  }
+
   void handleSyclAccessorType(const FieldDecl *FD, QualType ArgTy) final {
     handleSpecialType(FD, ArgTy);
   }
@@ -1419,21 +1354,28 @@ class SyclKernelIntHeaderCreator
     : public SyclKernelFieldHandler<SyclKernelIntHeaderCreator> {
   SYCLIntegrationHeader &Header;
   const CXXRecordDecl *KernelLambda;
+  int64_t CurOffset = 0;
 
   // Keeping track of offsets as we go along is a little awkward, so see if just
   // calculating each time is worth doing.  Presumably, if the structure depth doesn't
-  // get insane, we shouldn't have a problem.
-  uint64_t getFieldOffsetHelper(const CXXRecordDecl *RD, const FieldDecl *FD) {
+  // get insane, we shouldn't have a problem with run time.
+  uint64_t getFieldOffset(const CXXRecordDecl *RD, const FieldDecl *FD) {
+    // TODO!
+    return 0;
+  }
+  uint64_t getBaseOffset(const CXXRecordDecl *RD, const FieldDecl *FD) {
     // TODO!
     return 0;
   }
 
-  uint64_t getFieldOffset(const FieldDecl *FD) const {
-    // TODO: Figure out a better way to do this, having to recalculate this
-    // constantly is going to be expensive.
-    // TODO: Figure out how to calc lower down the structs.
-    // uint64_t CurOffset =  SemaRef.getASTContext().getFieldOffset(FD) / 8;
+  uint64_t getOffset(const CXXRecordDecl *RD) const {
+    // TODO: Figure this out! Offset of a base class.
     return 0;
+  }
+  uint64_t getOffset(const FieldDecl *FD) const {
+    // TODO: Figure out how to calc lower down the structs, currently only gives
+    // the 'base' value.
+    return SemaRef.getASTContext().getFieldOffset(FD) / 8;
   }
 
   void addParam(const FieldDecl *FD, QualType ArgTy,
@@ -1441,30 +1383,42 @@ class SyclKernelIntHeaderCreator
     uint64_t Size =
         SemaRef.getASTContext().getTypeSizeInChars(ArgTy).getQuantity();
     Header.addParamDesc(Kind, static_cast<unsigned>(Size),
-                        static_cast<unsigned>(getFieldOffset(FD)));
+                        static_cast<unsigned>(getOffset(FD)));
   }
 
 public:
   SyclKernelIntHeaderCreator(Sema &S, SYCLIntegrationHeader &H,
                              const CXXRecordDecl *KernelLambda,
-                             SourceLocation KernelLoc, QualType NameType,
-                             StringRef Name, StringRef StableName)
-      : SyclKernelFieldHandler(S), Header(H),
-        KernelLambda(KernelLambda) {
-    Header.startKernel(Name, NameType, StableName, KernelLambda->GetLocation());
+                             QualType NameType, StringRef Name,
+                             StringRef StableName)
+      : SyclKernelFieldHandler(S), Header(H), KernelLambda(KernelLambda) {
+    Header.startKernel(Name, NameType, StableName, KernelLambda->getLocation());
   }
 
-  void handleSyclAccessorType(const FieldDecl *FD, QualType ArgTy) final {
-    // TODO: offset stuff is wrong again in the recursion case!?
+  void handleSyclAccessorType(const CXXBaseSpecifier &BC,
+                              QualType ArgTy) final {
     const auto *AccTy =
         cast<ClassTemplateSpecializationDecl>(ArgTy->getAsRecordDecl());
-    assert(AccTy->getTemplateArgs().size() == 2 &&
+    assert(AccTy->getTemplateArgs().size() >= 2 &&
            "Incorrect template args for Accessor Type");
     int Dims = static_cast<int>(
         AccTy->getTemplateArgs()[1].getAsIntegral().getExtValue());
     int Info = getAccessTarget(AccTy) | (Dims << 11);
     Header.addParamDesc(SYCLIntegrationHeader::kind_accessor, Info,
-                        getFieldOffset(FD));
+                        // TODO: is this the right way?
+                        getOffset(BC.getType()->getAsCXXRecordDecl()));
+  }
+
+  void handleSyclAccessorType(const FieldDecl *FD, QualType ArgTy) final {
+    const auto *AccTy =
+        cast<ClassTemplateSpecializationDecl>(ArgTy->getAsRecordDecl());
+    assert(AccTy->getTemplateArgs().size() >= 2 &&
+           "Incorrect template args for Accessor Type");
+    int Dims = static_cast<int>(
+        AccTy->getTemplateArgs()[1].getAsIntegral().getExtValue());
+    int Info = getAccessTarget(AccTy) | (Dims << 11);
+    Header.addParamDesc(SYCLIntegrationHeader::kind_accessor, Info,
+                        getOffset(FD));
   }
 
   void handleSyclSamplerType(const FieldDecl *FD, QualType ArgTy) final {
@@ -1555,9 +1509,8 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
   SyclKernelBodyCreator kernel_body(*this, kernel_decl);
   SyclKernelIntHeaderCreator int_header(
       *this, getSyclIntegrationHeader(),
-      KernelLambda, Context.getASTRecordLayout(KernelLambda), KernelLambda->getLocation(),
-      calculateKernelNameType(Context, KernelCallerFunc), CalculatedName,
-      StableName);
+      KernelLambda, calculateKernelNameType(Context, KernelCallerFunc),
+      CalculatedName, StableName);
 
   ConstructingOpenCLKernel = true;
   VisitRecordFields(KernelLambda->fields(), checker, kernel_decl, kernel_body,
