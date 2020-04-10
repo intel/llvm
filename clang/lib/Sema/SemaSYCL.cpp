@@ -1531,9 +1531,9 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
                                     KernelCallerFunc->isInlined());
   SyclKernelBodyCreator kernel_body(*this, kernel_decl);
   SyclKernelIntHeaderCreator int_header(
-      *this, getSyclIntegrationHeader(),
-      KernelLambda, calculateKernelNameType(Context, KernelCallerFunc),
-      CalculatedName, StableName);
+      *this, getSyclIntegrationHeader(), KernelLambda,
+      calculateKernelNameType(Context, KernelCallerFunc), CalculatedName,
+      StableName);
 
   ConstructingOpenCLKernel = true;
   VisitRecordFields(KernelLambda->fields(), checker, kernel_decl, kernel_body,
@@ -1541,9 +1541,6 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
   ConstructingOpenCLKernel = false;
 
   /*
-    // TODO Maybe don't emit integration header inside the Sema?
-    ***populateIntHeader(getSyclIntegrationHeader(), Name, KernelNameType, LE);
-
     //ConstructingOpenCLKernel = true;
     ****CompoundStmt *OpenCLKernelBody =
         CreateOpenCLKernelBody(*this, KernelCallerFunc, OpenCLKernel);
