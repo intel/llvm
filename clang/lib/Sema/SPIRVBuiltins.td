@@ -298,7 +298,7 @@ def Long      : IntType<"long",      QualType<"getIntTypeForBitwidth(64, true)",
 def ULong     : UIntType<"ulong",     QualType<"getIntTypeForBitwidth(64, false)">, 64>;
 def Float     : FPType<"float",     QualType<"FloatTy">, 32>;
 def Double    : FPType<"double",    QualType<"DoubleTy">, 64>;
-def Half      : FPType<"half",      QualType<"Float16Ty">, 16>;
+def Half      : FPType<"half",      QualType<"HalfTy">, 16>;
 def Void      : Type<"void",      QualType<"VoidTy">>;
 // FIXME: ensure this is portable...
 def Size      : Type<"size_t",    QualType<"getSizeType()">>;

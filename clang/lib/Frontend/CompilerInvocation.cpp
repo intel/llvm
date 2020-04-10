@@ -2336,6 +2336,10 @@ void CompilerInvocation::setLangDefaults(LangOptions &Opts, InputKind IK,
       }
     }
   }
+  if (Opts.SYCL) {
+    Opts.NativeHalfType = 1;
+    Opts.NativeHalfArgsAndReturns = 1;
+  }
 
   Opts.HIP = IK.getLanguage() == Language::HIP;
   Opts.CUDA = IK.getLanguage() == Language::CUDA || Opts.HIP;

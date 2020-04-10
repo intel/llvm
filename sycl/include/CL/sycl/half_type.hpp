@@ -21,7 +21,7 @@
 
 #ifdef __SYCL_DEVICE_ONLY__
 // `constexpr` could work because the implicit conversion from `float` to
-// `_Float16` can be `constexpr`.
+// `__fp16` can be `constexpr`.
 #define __SYCL_CONSTEXPR_ON_DEVICE constexpr
 #else
 #define __SYCL_CONSTEXPR_ON_DEVICE
@@ -103,8 +103,8 @@ class half;
 // - VecNStorageT - representation of N-element vector of halfs. Follows the
 //   same logic as StorageT
 #ifdef __SYCL_DEVICE_ONLY__
-  using StorageT = _Float16;
-  using BIsRepresentationT = _Float16;
+  using StorageT = __fp16;
+  using BIsRepresentationT = __fp16;
 
   using Vec2StorageT = StorageT __attribute__((ext_vector_type(2)));
   using Vec3StorageT = StorageT __attribute__((ext_vector_type(3)));

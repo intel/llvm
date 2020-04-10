@@ -408,8 +408,8 @@ template <typename T>
 struct select_cl_vector_or_scalar<
     T, typename std::enable_if<is_vgentype<T>::value>::type> {
   using type =
-      // select_cl_scalar_t returns _Float16, so, we try to instantiate vec
-      // class with _Float16 DataType, which is not expected there
+      // select_cl_scalar_t returns __fp16, so, we try to instantiate vec
+      // class with __fp16 DataType, which is not expected there
       // So, leave vector<half, N> as-is
       vec<conditional_t<std::is_same<typename T::element_type, half>::value,
                         typename T::element_type,
