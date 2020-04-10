@@ -6597,9 +6597,8 @@ bool clang::driver::isStaticArchiveFile(const StringRef &FileName) {
   StringRef Ext(llvm::sys::path::extension(FileName).drop_front());
   llvm::file_magic Magic;
   llvm::identify_magic(FileName, Magic);
-  // Only .lib, .a and .lo files are to be considered.
-  return (Ext == "lib" ||
-          ((Ext == "a" || Ext == "lo") && Magic == llvm::file_magic::archive));
+  // Only .lib and archive files are to be considered.
+  return (Ext == "lib" || Magic == llvm::file_magic::archive);
 }
 
 bool clang::driver::willEmitRemarks(const ArgList &Args) {

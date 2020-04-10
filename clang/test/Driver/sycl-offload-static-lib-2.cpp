@@ -15,6 +15,7 @@
 // RUN: llvm-ar cr %t_2.a %t1_bundle.o
 //
 // RUN: touch %t.a
+// RUN: touch %t.o
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -L/dummy/dir %t.a -### %t.o 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=STATIC_LIB -DINPUTA=%t.a -DINPUTO=%t.o
 // STATIC_LIB: ld{{(.exe)?}}" "-r" "-o" "[[INPUTLD:[^ ]+\.o]]" {{.*}} "-L/dummy/dir"{{.*}} "[[INPUTO]]" "[[INPUTA]]"
@@ -23,6 +24,7 @@
 // STATIC_LIB: ld{{.*}} "[[INPUTA]]" "[[INPUTO]]"
 
 // RUN: touch %t.lo
+// RUN: touch %t.o
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -L/dummy/dir %t.lo -### %t.o 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=STATIC_LIB_LO -DINPUTLO=%t.lo -DINPUTO=%t.o
 // STATIC_LIB_LO: ld{{(.exe)?}}" "-r" "-o" "[[INPUTLD:[^ ]+\.o]]" {{.*}} "-L/dummy/dir"{{.*}} "[[INPUTO]]" "[[INPUTLO]]"
