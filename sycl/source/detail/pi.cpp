@@ -55,7 +55,7 @@ namespace pi {
 
 bool XPTIInitDone = false;
 
-void contextSetExtendedDeleter(const cl::sycl::context& context,
+void contextSetExtendedDeleter(const cl::sycl::context &context,
                                pi_context_extended_deleter func,
                                void *user_data) {
   auto impl = getSyclObjImpl(context);
