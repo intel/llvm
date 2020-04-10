@@ -256,10 +256,10 @@ The additional member functions below are available for atomic references to poi
 |===
 | Member Function | Description
 
-| `T* fetch_add(ptrdiff_t operand, memory_order order = default_read_modify_write_order) const`
+| `T* fetch_add(difference_type operand, memory_order order = default_read_modify_write_order) const`
 | Atomically adds _operand_ to the value of the object referenced by this +atomic_ref+ and assigns the result to the value of the referenced object.  Returns the original value of the referenced object.
 
-| `T* operator+=(ptrdiff_t operand) const`
+| `T* operator+=(difference_type operand) const`
 | Equivalent to +fetch_add(operand)+.
 
 | `T* operator++(int) const`
@@ -268,10 +268,10 @@ The additional member functions below are available for atomic references to poi
 | `T* operator++() const`
 | Equivalent to +fetch_add(1) + 1+.
 
-| `T* fetch_sub(ptrdiff_t operand, memory_order order = default_read_modify_write_order) const`
+| `T* fetch_sub(difference_type operand, memory_order order = default_read_modify_write_order) const`
 | Atomically subtracts _operand_ from the value of the object referenced by this +atomic_ref+ and assigns the result to the value of the referenced object.  Returns the original  value of the referenced object.
 
-| `T* operator-=(ptrdiff_t operand) const`
+| `T* operator-=(difference_type operand) const`
 | Equivalent to +fetch_sub(operand)+.
 
 | `T* operator--(int) const`
