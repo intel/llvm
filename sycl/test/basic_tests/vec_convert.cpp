@@ -13,9 +13,8 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl.hpp>
-#include <exception>
+
 #include <cassert>
-#include <typeinfo>
 
 // TODO make the test to pass on cuda
 
@@ -60,9 +59,9 @@ void test(const vec<T, NumElements> &ToConvert,
         CGH.single_task<class kernel_name<T, convertT, static_cast<int>(roundingMode)>>([=]() {
           Accessor[0] = ToConvert.template convert<convertT, roundingMode>();
         });
-    }); 
+    });
   }
-  helper<NumElements - 1>::compare(Converted, Expected); 
+  helper<NumElements - 1>::compare(Converted, Expected);
 }
 
 int main() {

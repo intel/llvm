@@ -1,8 +1,9 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: env SYCL_DEVICE_TYPE=CPU %t.out
-
-
-//==------------ vec_convert.cpp - SYCL vec class convert method test ------==//
+// RUN: env SYCL_DEVICE_TYPE=HOST %t.out
+// RUN: %CPU_RUN_PLACEHOLDER %t.out
+// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %ACC_RUN_PLACEHOLDER %t.out
+//==------------ vec_convert_half.cpp - SYCL vec class convert method test ------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -30,10 +31,7 @@ template <> struct helper<0> {
                       const vec<T, NumElements> &y) {
     const T xs = x.template swizzle<0>();
     const T ys = y.template swizzle<0>();
-    if (xs != ys) {
-      std::cerr << "sometihng failed " << std::setprecision(30) << xs << " || "<< ys << "\n";
-      exit(1);
-    }
+    assert(xs == ys);
   }
 };  
 
@@ -44,10 +42,7 @@ template <int N> struct helper {
     const T xs = x.template swizzle<N>();
     const T ys = y.template swizzle<N>();
     helper<N - 1>::compare(x, y);
-    if (xs != ys) {
-      std::cerr << "sometihng failed " << std::setprecision(30) << xs << " || "<< ys << "\n";  
-      exit(1);
-    }
+    assert(xs == ys);
   }
 };
 
