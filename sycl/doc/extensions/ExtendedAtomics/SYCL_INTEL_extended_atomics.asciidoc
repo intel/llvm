@@ -125,6 +125,8 @@ All devices must support +memory_order_relaxed+, and the host device must suppor
 
 The +cl::sycl::intel::atomic_ref+ class is constructed from a reference, and enables atomic operations to the referenced object.  If any non-atomic access to the referenced object is made during the lifetime of the +cl::sycl::intel::atomic_ref+ class then the behavior is undefined.  No subobject of the object referenced by an +atomic_ref+ shall be concurrently referenced by any other +atomic_ref+ object.
 
+The address space specified by the template argument +Space+ must be +access::address_space::global_space+ or +access::address_space::local_space+.  It is illegal for an +atomic_ref+ to reference an object in +access::address_space::constant_space+ or +access::address_space::private_space+.
+
 The static member +required_alignment+ describes the minimum required alignment in bytes of an object that can be referenced by an +atomic_ref<T>+, which must be at least +alignof(T)+.
 
 The static member +is_always_lock_free+ is true if all atomic operations for type +T+ are always lock-free.  A SYCL implementation is not guaranteed to support atomic operations that are not lock-free.
