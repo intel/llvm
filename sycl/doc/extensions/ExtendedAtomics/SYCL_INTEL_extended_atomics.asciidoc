@@ -343,37 +343,37 @@ class atomic_ref {
   static constexpr memory_order default_write_order = memory_order_traits<DefaultOrder>::write_order;
   static constexpr memory_order default_read_modify_write_order = DefaultOrder;
 
-  bool is_lock_free() const;
+  bool is_lock_free() const noexcept;
 
   explicit atomic_ref(T&);
-  atomic_ref(const atomic_ref&);
+  atomic_ref(const atomic_ref&) noexcept;
   atomic_ref& operator=(const atomic_ref&) = delete;
 
   void store(T operand,
-    memory_order order = default_write_order) const;
+    memory_order order = default_write_order) const noexcept;
 
-  T operator=(T desired) const;
+  T operator=(T desired) const noexcept;
 
-  T load(memory_order order = default_read_order) const;
+  T load(memory_order order = default_read_order) const noexcept;
 
-  operator T() const;
+  operator T() const noexcept;
 
   T exchange(T operand,
-    memory_order order = default_read_modify_write_order) const;
+    memory_order order = default_read_modify_write_order) const noexcept;
 
   bool compare_exchange_weak(T &expected, T desired,
     memory_order success = default_read_modify_write_order,
-    memory_order failure = default_read_order) const;
+    memory_order failure = default_read_order) const noexcept;
 
   bool compare_exchange_weak(T &expected, T desired,
-    memory_order order = default_read_modify_write_order) const;
+    memory_order order = default_read_modify_write_order) const noexcept;
 
   bool compare_exchange_strong(T &expected, T desired,
     memory_order success = default_read_modify_write_order,
-    memory_order failure = default_read_order) const;
+    memory_order failure = default_read_order) const noexcept;
 
   bool compare_exchange_strong(T &expected, T desired,
-    memory_order order = default_read_modify_write_order) const;
+    memory_order order = default_read_modify_write_order) const noexcept;
 };
 
 // Partial specialization for integral types
@@ -423,16 +423,16 @@ class atomic_ref<Floating, DefaultOrder, Space> {
   using difference_type = value_type;
 
   Floating fetch_add(Floating operand,
-    memory_order order = default_read_modify_write_order);
+    memory_order order = default_read_modify_write_order) const noexcept;
 
   Floating fetch_sub(Floating operand,
-    memory_order order = default_read_modify_write_order);
+    memory_order order = default_read_modify_write_order) const noexcept;
 
   Floating fetch_min(Floating operand,
-    memory_order order = default_read_modify_write_order);
+    memory_order order = default_read_modify_write_order) const noexcept;
 
   Floating fetch_max(Floating operand,
-    memory_order order = default_read_modify_write_order);
+    memory_order order = default_read_modify_write_order) const noexcept;
 
   Floating operator++(int) const noexcept;
   Floating operator--(int) const noexcept;
@@ -455,43 +455,43 @@ class atomic_ref<T*, DefaultOrder, Space> {
   static constexpr memory_order default_write_order = memory_order_traits<DefaultOrder>::write_order;
   static constexpr memory_order default_read_modify_write_order = DefaultOrder;
 
-  bool is_lock_free() const;
+  bool is_lock_free() const noexcept;
 
   explicit atomic_ref(T*&);
-  atomic_ref(const atomic_ref&);
+  atomic_ref(const atomic_ref&) noexcept;
   atomic_ref& operator=(const atomic_ref&) = delete;
 
   void store(T* operand,
-    memory_order order = default_write_order) const;
+    memory_order order = default_write_order) const noexcept;
 
-  T* operator=(T* desired) const;
+  T* operator=(T* desired) const noexcept;
 
-  T* load(memory_order order = default_read_order) const;
+  T* load(memory_order order = default_read_order) const noexcept;
 
-  operator T*() const;
+  operator T*() const noexcept;
 
   T* exchange(T* operand,
-    memory_order order = default_read_modify_write_order) const;
+    memory_order order = default_read_modify_write_order) const noexcept;
 
   bool compare_exchange_weak(T* &expected, T* desired,
     memory_order success = default_read_modify_write_order,
-    memory_order failure = default_read_order) const;
+    memory_order failure = default_read_order) const noexcept;
 
   bool compare_exchange_weak(T* &expected, T* desired,
-    memory_order order = default_read_modify_write_order) const;
+    memory_order order = default_read_modify_write_order) const noexcept;
 
   bool compare_exchange_strong(T* &expected, T* desired,
     memory_order success = default_read_modify_write_order,
-    memory_order failure = default_read_order) const;
+    memory_order failure = default_read_order) const noexcept;
 
   bool compare_exchange_strong(T* &expected, T* desired,
-    memory_order order = default_read_modify_write_order) const;
+    memory_order order = default_read_modify_write_order) const noexcept;
 
   T* fetch_add(difference_type,
-    memory_order order = default_read_modify_write_order);
+    memory_order order = default_read_modify_write_order) const noexcept;
 
   T* fetch_sub(difference_type,
-    memory_order order = default_read_modify_write_order);
+    memory_order order = default_read_modify_write_order) const noexcept;
 
   T* operator++(int) const noexcept;
   T* operator--(int) const noexcept;
