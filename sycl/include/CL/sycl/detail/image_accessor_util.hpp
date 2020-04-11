@@ -554,10 +554,10 @@ template <typename ChannelType>
 vec<ChannelType, 4> processFloatDataToPixel(vec<cl_float, 4> WriteData,
                                             float MulFactor) {
   vec<cl_float, 4> Temp = WriteData * MulFactor;
-  vec<cl_int, 4> TempInInt = Temp.template convert<int, rounding_mode::rte>();
+  vec<cl_int, 4> TempInInt = Temp.convert<int, rounding_mode::rte>();
   vec<cl_int, 4> TempInIntSaturated =
       cl::sycl::clamp(TempInInt, min_v<ChannelType>(), max_v<ChannelType>());
-  return TempInIntSaturated.template convert<ChannelType>();
+  return TempInIntSaturated.convert<ChannelType>();
 }
 
 template <typename ChannelType>
