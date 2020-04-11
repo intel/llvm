@@ -148,10 +148,10 @@ if (MSVC)
   foreach(flag_var
       CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
       CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINFO)
-    string(REGEX REPLACE "/MD" "" ${flag_var} "${${flag_var}}")
-    string(REGEX REPLACE "/MT" "" ${flag_var} "${${flag_var}}")
     string(REGEX REPLACE "/MDd" "" ${flag_var} "${${flag_var}}")
     string(REGEX REPLACE "/MTd" "" ${flag_var} "${${flag_var}}")
+    string(REGEX REPLACE "/MD" "" ${flag_var} "${${flag_var}}")
+    string(REGEX REPLACE "/MT" "" ${flag_var} "${${flag_var}}")
   endforeach()
 
   if (SYCL_ENABLE_XPTI_TRACING)
