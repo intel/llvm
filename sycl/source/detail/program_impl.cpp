@@ -384,7 +384,7 @@ RT::PiKernel program_impl::get_pi_kernel(const string_class &KernelName) const {
     const detail::plugin &Plugin = getPlugin();
     RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piKernelCreate>(
         MProgram, KernelName.c_str(), &Kernel);
-    if (Err == PI_RESULT_INVALID_KERNEL_NAME) {
+    if (Err == PI_INVALID_KERNEL_NAME) {
       throw invalid_object_error(
           "This instance of program does not contain the kernel requested",
           Err);

@@ -15,7 +15,7 @@ jobs:
     - name: Install deps
       run: |
         sudo apt-get install -y doxygen graphviz ssh ninja-build
-        sudo pip3 install sphinx recommonmark sphinx_markdown_tables
+        sudo pip3 install 'sphinx==3.0.0' 'recommonmark==0.6.0' 'sphinx_markdown_tables==0.0.12'
     - name: Build Docs
       run: |
         mkdir -p $GITHUB_WORKSPACE/build

@@ -545,7 +545,6 @@ void SYCLToolChain::AddSYCLIncludeArgs(const clang::driver::Driver &Driver,
 
 void SYCLToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
                                               ArgStringList &CC1Args) const {
-  AddSYCLIncludeArgs(getDriver(), DriverArgs, CC1Args);
   HostTC.AddClangSystemIncludeArgs(DriverArgs, CC1Args);
 }
 

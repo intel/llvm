@@ -9,6 +9,7 @@
 #pragma once
 
 #include <CL/sycl/detail/defines.hpp>
+#include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
 
 #include <array>
@@ -31,7 +32,7 @@ namespace sycl {
 namespace detail {
 namespace host_half_impl {
 
-class half {
+class __SYCL_EXPORT half {
 public:
   half() = default;
   half(const half &) = default;

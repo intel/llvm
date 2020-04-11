@@ -1217,9 +1217,9 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
   if (JA.isOffloading(Action::OFK_Cuda))
     getToolChain().AddCudaIncludeArgs(Args, CmdArgs);
 
-  if (Args.hasArg(options::OPT_fsycl_device_only)) {
+  if (JA.isOffloading(Action::OFK_SYCL) ||
+      Args.hasArg(options::OPT_fsycl_device_only))
     toolchains::SYCLToolChain::AddSYCLIncludeArgs(D, Args, CmdArgs);
-  }
 
   // If we are offloading to a target via OpenMP we need to include the
   // openmp_wrappers folder which contains alternative system headers.
@@ -4115,6 +4115,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back(Args.MakeArgString(NormalizedTriple));
   }
 
+  Arg *SYCLStdArg = Args.getLastArg(options::OPT_sycl_std_EQ);
+
   if (UseSYCLTriple) {
     // We want to compile sycl kernels.
     CmdArgs.push_back("-fsycl");
@@ -4147,21 +4149,24 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                      options::OPT_fno_sycl_allow_func_ptr, false)) {
       CmdArgs.push_back("-fsycl-allow-func-ptr");
     }
-  }
 
-    if (IsSYCL) {
-    if (Arg *A = Args.getLastArg(options::OPT_sycl_std_EQ)) {
-      A->render(Args, CmdArgs);
-      CmdArgs.push_back("-fsycl-std-layout-kernel-params");
-    } else {
-      // Ensure the default version in SYCL mode is 1.2.1 (aka 2017)
-      CmdArgs.push_back("-sycl-std=2017");
+    if (!SYCLStdArg) {
       // The user had not pass SYCL version, thus we'll employ no-sycl-strict
       // to allow address-space unqualified pointers in function params/return
       // along with marking the same function with explicit SYCL_EXTERNAL
       CmdArgs.push_back("-Wno-sycl-strict");
     }
+  }
+
+  if (IsSYCL) {
+    if (SYCLStdArg) {
+      SYCLStdArg->render(Args, CmdArgs);
+      CmdArgs.push_back("-fsycl-std-layout-kernel-params");
+    } else {
+      // Ensure the default version in SYCL mode is 1.2.1 (aka 2017)
+      CmdArgs.push_back("-sycl-std=2017");
     }
+  }
 
   if (IsOpenMPDevice) {
     // We have to pass the triple of the host if compiling for an OpenMP device.
