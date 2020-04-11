@@ -655,7 +655,7 @@ template <typename ChannelType>
 vec<ChannelType, 4>
 convertWriteData(const vec<cl_half, 4> WriteData,
                  const image_channel_type ImageChannelType) {
-  vec<cl_float, 4> WriteDataFloat = WriteData.convert<cl_float>(); 
+  vec<cl_float, 4> WriteDataFloat = WriteData.convert<cl_float>();
   switch (ImageChannelType) {
   case image_channel_type::snorm_int8:
     // convert_char_sat_rte(h * 127.0f)
