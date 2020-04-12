@@ -326,8 +326,11 @@ def AllocaOp : AllocLikeOp<"alloca"> {
   let summary = "stack memory allocation operation";
   let description = [{
     The `alloca` operation allocates memory on the stack, to be automatically
-    released when the stack frame is discarded. The amount of memory allocated
-    is specified by its memref and additional operands. For example:
+    released when control transfers back from the region of its closest
+    surrounding operation with an
+    [`AutomaticAllocationScope`](../Traits.md#automaticallocationscope) trait.
+    The amount of memory allocated is specified by its memref and additional
+    operands. For example:
 
     ```mlir
 		%0 = alloca() : memref<8x64xf32>

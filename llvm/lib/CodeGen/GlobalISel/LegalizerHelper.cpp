@@ -2607,7 +2607,7 @@ LegalizerHelper::fewerElementsVectorBasic(MachineInstr &MI, unsigned TypeIdx,
   const Register DstReg = MI.getOperand(0).getReg();
   const unsigned Flags = MI.getFlags();
 
-  assert(NumOps <= 3 && "expected instrution with 1 result and 1-3 sources");
+  assert(NumOps <= 3 && "expected instruction with 1 result and 1-3 sources");
 
   SmallVector<Register, 8> ExtractedRegs[3];
   SmallVector<Register, 8> Parts;
@@ -4678,7 +4678,7 @@ LegalizerHelper::lowerFCopySign(MachineInstr &MI, unsigned TypeIdx, LLT Ty) {
   MachineInstr *Or;
 
   if (Src0Ty == Src1Ty) {
-    auto And1 = MIRBuilder.buildAnd(Src1Ty, Src0, SignBitMask);
+    auto And1 = MIRBuilder.buildAnd(Src1Ty, Src1, SignBitMask);
     Or = MIRBuilder.buildOr(Dst, And0, And1);
   } else if (Src0Size > Src1Size) {
     auto ShiftAmt = MIRBuilder.buildConstant(Src0Ty, Src0Size - Src1Size);
