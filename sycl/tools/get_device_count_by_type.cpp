@@ -1,4 +1,3 @@
-
 //==-- get_device_count_by_type.cpp - Get device count by type -------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -12,7 +11,6 @@
 
 #ifdef USE_PI_CUDA
 #include <cuda.h>
-// #include <cuda_device_runtime_api.h>
 #endif // USE_PI_CUDA
 
 #include <algorithm>
@@ -36,33 +34,23 @@ std::string lowerString(const std::string &str) {
   return result;
 }
 
-const char *deviceTypeToString(cl_device_type deviceType) {
-  const char *str = "unknown";
+static const char *deviceTypeToString(cl_device_type deviceType) {
   switch (deviceType) {
   case CL_DEVICE_TYPE_CPU:
-    str = "cpu";
-    break;
+    return "cpu";
   case CL_DEVICE_TYPE_GPU:
-    str = "gpu";
-    break;
+    return "gpu";
   case CL_DEVICE_TYPE_ACCELERATOR:
-    str = "accelerator";
-    break;
+    return "accelerator";
   case CL_DEVICE_TYPE_CUSTOM:
-    str = "custom";
-    break;
+    return "custom";
   case CL_DEVICE_TYPE_DEFAULT:
-    str = "default";
-    break;
+    return "default";
   case CL_DEVICE_TYPE_ALL:
-    str = "all";
-    break;
-  default:
-    // str already set to express unknown device type.
-    break;
+    return "all";
   }
 
-  return str;
+  return "unknown";
 }
 
 static bool queryOpenCL(cl_device_type deviceType, cl_uint &deviceCount,
@@ -74,13 +62,13 @@ static bool queryOpenCL(cl_device_type deviceType, cl_uint &deviceCount,
   iRet = clGetPlatformIDs(0, nullptr, &platformCount);
   if (iRet != CL_SUCCESS) {
     if (iRet == CL_PLATFORM_NOT_FOUND_KHR) {
-      msg = "ERROR: OpenCL error runtime not found";
-    } else {
-      std::stringstream stream;
-      stream << "ERROR: OpenCL error calling clGetPlatformIDs " << iRet
-             << std::endl;
-      msg = stream.str();
+      msg = "OpenCL error runtime not found";
+      return true;
     }
+    std::stringstream stream;
+    stream << "ERROR: OpenCL error calling clGetPlatformIDs " << iRet
+           << std::endl;
+    msg = stream.str();
     return false;
   }
 
