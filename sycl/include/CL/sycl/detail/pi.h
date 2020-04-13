@@ -788,9 +788,7 @@ pi_result piextDeviceGetNativeHandle(pi_device device,
                                      pi_native_handle *nativeHandle);
 
 /// Creates PI device object from a native handle.
-/// NOTE: If the created PI object shares reference count with the native object
-///       the reference count is increased by one. Otherwise the newly created
-///       PI object has a reference count of 1.
+/// NOTE: The created PI object takes ownership of the native handle.
 ///
 /// \param nativeHandle is the native handle to create PI device from.
 /// \param device is the PI device created from the native handle.
@@ -848,9 +846,7 @@ pi_result piextContextGetNativeHandle(pi_context context,
                                       pi_native_handle *nativeHandle);
 
 /// Creates PI context object from a native handle.
-/// NOTE: If the created PI object shares reference count with the native object
-///       the reference count is increased by one. Otherwise the newly created
-///       PI object has a reference count of 1.
+/// NOTE: The created PI object takes ownership of the native handle.
 ///
 /// \param nativeHandle is the native handle to create PI context from.
 /// \param context is the PI context created from the native handle.
@@ -881,9 +877,7 @@ pi_result piextQueueGetNativeHandle(pi_queue queue,
                                     pi_native_handle *nativeHandle);
 
 /// Creates PI queue object from a native handle.
-/// NOTE: If the created PI object shares reference count with the native object
-///       the reference count is increased by one. Otherwise the newly created
-///       PI object has a reference count of 1.
+/// NOTE: The created PI object takes ownership of the native handle.
 ///
 /// \param nativeHandle is the native handle to create PI queue from.
 /// \param queue is the PI queue created from the native handle.
@@ -925,9 +919,7 @@ pi_result piMemBufferPartition(pi_mem buffer, pi_mem_flags flags,
 pi_result piextMemGetNativeHandle(pi_mem mem, pi_native_handle *nativeHandle);
 
 /// Creates PI mem object from a native handle.
-/// NOTE: If the created PI object shares reference count with the native object
-///       the reference count is increased by one. Otherwise the newly created
-///       PI object has a reference count of 1.
+/// NOTE: The created PI object takes ownership of the native handle.
 ///
 /// \param nativeHandle is the native handle to create PI mem from.
 /// \param mem is the PI mem created from the native handle.
@@ -1004,9 +996,7 @@ pi_result piextProgramGetNativeHandle(pi_program program,
                                       pi_native_handle *nativeHandle);
 
 /// Creates PI program object from a native handle.
-/// NOTE: If the created PI object shares reference count with the native object
-///       the reference count is increased by one. Otherwise the newly created
-///       PI object has a reference count of 1.
+/// NOTE: The created PI object takes ownership of the native handle.
 ///
 /// \param nativeHandle is the native handle to create PI program from.
 /// \param program is the PI program created from the native handle.
@@ -1112,9 +1102,7 @@ pi_result piextEventGetNativeHandle(pi_event event,
                                     pi_native_handle *nativeHandle);
 
 /// Creates PI event object from a native handle.
-/// NOTE: If the created PI object shares reference count with the native object
-///       the reference count is increased by one. Otherwise the newly created
-///       PI object has a reference count of 1.
+/// NOTE: The created PI object takes ownership of the native handle.
 ///
 /// \param nativeHandle is the native handle to create PI event from.
 /// \param event is the PI event created from the native handle.

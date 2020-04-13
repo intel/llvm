@@ -30,7 +30,11 @@ device::device() : impl(std::make_shared<detail::device_impl>()) {}
 
 device::device(cl_device_id deviceId)
     : impl(std::make_shared<detail::device_impl>(
-          detail::pi::cast<pi_native_handle>(deviceId), *RT::GlobalPlugin)) {}
+          detail::pi::cast<pi_native_handle>(deviceId), *RT::GlobalPlugin)) {
+  // The implementation constructor takes ownership of the native handle so we
+  // must retain it in order to adhere to SYCL 1.2.1 spec (Rev6, section 4.3.1.)
+  clRetainDevice(deviceId);
+}
 
 device::device(const device_selector &deviceSelector) {
   *this = deviceSelector.select_device();

@@ -1366,12 +1366,7 @@ pi_result cuda_piextDeviceGetNativeHandle(pi_device device,
 
 /// Created a PI device object from a CUDA device handle.
 /// TODO: Implement this.
-/// NOTE: Approaches for native object lifetime:
-///        1. Make the created PI object the owner of the native object,
-///           deleting it upon its own destruction.
-///        2. Make a special-case where the PI object does not destroy the
-///           native object.
-///       Both options may make lifetime tracking difficult for the user.
+/// NOTE: The created PI object takes ownership of the native handle.
 ///
 /// \param[in] nativeHandle The native handle to create PI device object from.
 /// \param[out] device Set to the PI device object created from native handle.
@@ -1533,12 +1528,7 @@ pi_result cuda_piextContextGetNativeHandle(pi_context context,
 
 /// Created a PI context object from a CUDA context handle.
 /// TODO: Implement this.
-/// NOTE: Approaches for native object lifetime:
-///        1. Make the created PI object the owner of the native object,
-///           deleting it upon its own destruction.
-///        2. Make a special-case where the PI object does not destroy the
-///           native object.
-///       Both options may make lifetime tracking difficult for the user.
+/// NOTE: The created PI object takes ownership of the native handle.
 ///
 /// \param[in] nativeHandle The native handle to create PI context object from.
 /// \param[out] context Set to the PI context object created from native handle.
@@ -1747,12 +1737,7 @@ pi_result cuda_piextMemGetNativeHandle(pi_mem mem,
 
 /// Created a PI mem object from a CUDA mem handle.
 /// TODO: Implement this.
-/// NOTE: Approaches for native object lifetime:
-///        1. Make the created PI object the owner of the native object,
-///           deleting it upon its own destruction.
-///        2. Make a special-case where the PI object does not destroy the
-///           native object.
-///       Both options may make lifetime tracking difficult for the user.
+/// NOTE: The created PI object takes ownership of the native handle.
 ///
 /// \param[in] nativeHandle The native handle to create PI mem object from.
 /// \param[out] mem Set to the PI mem object created from native handle.
@@ -1914,12 +1899,7 @@ pi_result cuda_piextQueueGetNativeHandle(pi_queue queue,
 
 /// Created a PI queue object from a CUDA queue handle.
 /// TODO: Implement this.
-/// NOTE: Approaches for native object lifetime:
-///        1. Make the created PI object the owner of the native object,
-///           deleting it upon its own destruction.
-///        2. Make a special-case where the PI object does not destroy the
-///           native object.
-///       Both options may make lifetime tracking difficult for the user.
+/// NOTE: The created PI object takes ownership of the native handle.
 ///
 /// \param[in] nativeHandle The native handle to create PI queue object from.
 /// \param[out] queue Set to the PI queue object created from native handle.
@@ -2533,12 +2513,7 @@ pi_result cuda_piextProgramGetNativeHandle(pi_program program,
 
 /// Created a PI program object from a CUDA program handle.
 /// TODO: Implement this.
-/// NOTE: Approaches for native object lifetime:
-///        1. Make the created PI object the owner of the native object,
-///           deleting it upon its own destruction.
-///        2. Make a special-case where the PI object does not destroy the
-///           native object.
-///       Both options may make lifetime tracking difficult for the user.
+/// NOTE: The created PI object takes ownership of the native handle.
 ///
 /// \param[in] nativeHandle The native handle to create PI program object from.
 /// \param[out] program Set to the PI program object created from native handle.
@@ -2923,12 +2898,7 @@ pi_result cuda_piextEventGetNativeHandle(pi_event event,
 
 /// Created a PI event object from a CUDA event handle.
 /// TODO: Implement this.
-/// NOTE: Approaches for native object lifetime:
-///        1. Make the created PI object the owner of the native object,
-///           deleting it upon its own destruction.
-///        2. Make a special-case where the PI object does not destroy the
-///           native object.
-///       Both options may make lifetime tracking difficult for the user.
+/// NOTE: The created PI object takes ownership of the native handle.
 ///
 /// \param[in] nativeHandle The native handle to create PI event object from.
 /// \param[out] event Set to the PI event object created from native handle.

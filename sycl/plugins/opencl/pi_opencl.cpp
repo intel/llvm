@@ -273,7 +273,6 @@ pi_result OCL(piextDeviceCreateWithNativeHandle)(pi_native_handle nativeHandle,
                                                  pi_device *piDevice) {
   assert(piDevice != nullptr);
   *piDevice = reinterpret_cast<pi_device>(nativeHandle);
-  clRetainDevice(cast<cl_device_id>(*piDevice));
   return PI_SUCCESS;
 }
 
@@ -321,7 +320,6 @@ pi_result OCL(piextQueueCreateWithNativeHandle)(pi_native_handle nativeHandle,
                                                 pi_queue *piQueue) {
   assert(piQueue != nullptr);
   *piQueue = reinterpret_cast<pi_queue>(nativeHandle);
-  clRetainCommandQueue(cast<cl_command_queue>(*piQueue));
   return PI_SUCCESS;
 }
 
@@ -407,7 +405,6 @@ pi_result OCL(piextProgramCreateWithNativeHandle)(pi_native_handle nativeHandle,
                                                   pi_program *piProgram) {
   assert(piProgram != nullptr);
   *piProgram = reinterpret_cast<pi_program>(nativeHandle);
-  clRetainProgram(cast<cl_program>(*piProgram));
   return PI_SUCCESS;
 }
 
@@ -506,7 +503,6 @@ pi_result OCL(piextContextCreateWithNativeHandle)(pi_native_handle nativeHandle,
                                                   pi_context *piContext) {
   assert(piContext != nullptr);
   *piContext = reinterpret_cast<pi_context>(nativeHandle);
-  clRetainContext(cast<cl_context>(*piContext));
   return PI_SUCCESS;
 }
 
@@ -550,7 +546,6 @@ pi_result OCL(piextMemCreateWithNativeHandle)(pi_native_handle nativeHandle,
                                               pi_mem *piMem) {
   assert(piMem != nullptr);
   *piMem = reinterpret_cast<pi_mem>(nativeHandle);
-  clRetainMemObject(cast<cl_mem>(*piMem));
   return PI_SUCCESS;
 }
 
@@ -619,7 +614,6 @@ pi_result OCL(piextEventCreateWithNativeHandle)(pi_native_handle nativeHandle,
                                                 pi_event *piEvent) {
   assert(piEvent != nullptr);
   *piEvent = reinterpret_cast<pi_event>(nativeHandle);
-  clRetainEvent(cast<cl_event>(*piEvent));
   return PI_SUCCESS;
 }
 
