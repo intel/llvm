@@ -31,6 +31,9 @@ struct trace_event_data_t;
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+
+class context;
+
 namespace detail {
 
 enum class PiApiKind {
@@ -95,6 +98,10 @@ using PiMemImageInfo = ::pi_image_info;
 using PiMemObjectType = ::pi_mem_type;
 using PiMemImageChannelOrder = ::pi_image_channel_order;
 using PiMemImageChannelType = ::pi_image_channel_type;
+
+void contextSetExtendedDeleter(const cl::sycl::context &constext,
+                               pi_context_extended_deleter func,
+                               void *user_data);
 
 // Function to load the shared library
 // Implementation is OS dependent.

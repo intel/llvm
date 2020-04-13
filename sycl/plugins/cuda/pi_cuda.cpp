@@ -777,6 +777,12 @@ pi_result cuda_piContextRetain(pi_context context) {
   return PI_SUCCESS;
 }
 
+pi_result cuda_piextContextSetExtendedDeleter(
+    pi_context context, pi_context_extended_deleter function, void *user_data) {
+  context->set_extended_deleter(function, user_data);
+  return PI_SUCCESS;
+}
+
 /// Not applicable to CUDA, devices cannot be partitioned.
 ///
 pi_result cuda_piDevicePartition(
@@ -1459,7 +1465,7 @@ pi_result cuda_piContextRelease(pi_context ctxt) {
   if (ctxt->decrement_reference_count() > 0) {
     return PI_SUCCESS;
   }
-  ctxt->invoke_callback();
+  ctxt->invoke_extended_deleters();
 
   std::unique_ptr<_pi_context> context{ctxt};
 
@@ -3583,6 +3589,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextDeviceSelectBinary, cuda_piextDeviceSelectBinary)
   _PI_CL(piextGetDeviceFunctionPointer, cuda_piextGetDeviceFunctionPointer)
   // Context
+  _PI_CL(piextContextSetExtendedDeleter, cuda_piextContextSetExtendedDeleter)
   _PI_CL(piContextCreate, cuda_piContextCreate)
   _PI_CL(piContextGetInfo, cuda_piContextGetInfo)
   _PI_CL(piContextRetain, cuda_piContextRetain)
