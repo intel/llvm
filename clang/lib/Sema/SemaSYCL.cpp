@@ -969,6 +969,7 @@ static CompoundStmt *CreateOpenCLKernelBody(Sema &S,
   // need to replace all refs to this kernel oject with refs to our clone
   // declared inside kernel body.
   Stmt *FunctionBody = KernelCallerFunc->getBody();
+
   ParmVarDecl *KernelObjParam = *(KernelCallerFunc->param_begin());
 
   // DeclRefExpr with valid source location but with decl which is not marked
@@ -1068,6 +1069,9 @@ static void VisitAccessorWrapperHelper(CXXRecordDecl *Owner, RangeTy Range,
     if (Util::isSyclAccessorType(ItemTy))
       (void)std::initializer_list<int>{
           (handlers.handleSyclAccessorType(Item, ItemTy), 0)...};
+    else if (Util::isSyclStreamType(ItemTy))
+      (void)std::initializer_list<int>{
+          (handlers.handleSyclStreamType(Item, ItemTy), 0)...};
     else if (ItemTy->isStructureOrClassType()) {
       VisitAccessorWrapper(Owner, Item, ItemTy->getAsCXXRecordDecl(),
                            handlers...);
@@ -1104,6 +1108,8 @@ static void VisitRecordFields(RecordDecl::field_range Fields,
       KF_FOR_EACH(handleSyclSamplerType);
     else if (Util::isSyclSpecConstantType(FieldTy))
       KF_FOR_EACH(handleSyclSpecConstantType);
+    else if (Util::isSyclStreamType(FieldTy))
+      KF_FOR_EACH(handleSyclStreamType);
     else if (FieldTy->isStructureOrClassType()) {
       KF_FOR_EACH(handleStructType);
       CXXRecordDecl *RD = FieldTy->getAsCXXRecordDecl();
@@ -1142,6 +1148,7 @@ public:
   virtual void handleSyclAccessorType(const FieldDecl *, QualType) {}
   virtual void handleSyclSamplerType(const FieldDecl *, QualType) {}
   virtual void handleSyclSpecConstantType(const FieldDecl *, QualType) {}
+  virtual void handleSyclStreamType(const FieldDecl *, QualType) {}
   virtual void handleStructType(const FieldDecl *, QualType) {}
   virtual void handleReferenceType(const FieldDecl *, QualType) {}
   virtual void handlePointerType(const FieldDecl *, QualType) {}
@@ -1350,18 +1357,71 @@ public:
   }
 
   void setBody(CompoundStmt *KB) { KernelDecl->setBody(KB); }
+
+  FunctionDecl *getKernelDecl() { return KernelDecl; }
 };
 
 class SyclKernelBodyCreator
     : public SyclKernelFieldHandler<SyclKernelBodyCreator> {
   SyclKernelDeclCreator &DeclCreator;
-  // TODO: When/Where does this get created?
-  CompoundStmt *KernelBody = nullptr;
+  llvm::SmallVector<Stmt *, 16> BodyStmts;
+  llvm::SmallVector<Stmt *, 16> FinalizeStmts;
+  llvm::SmallVector<Expr *, 16> InitExprs;
+
+  // Using the statements/init expressions that we've created, this generates
+  // the kernel body compound stmt. CompoundStmt needs to know its number of
+  // statements in advance to allocate it, so we cannot do this as we go along.
+  CompountStmt *createKernelBody() {
+    // TODO: Can we hold off on creating KernelObjClone to here?
+
+    Expr *ILE = new (SemaRef.getASTContext())
+        InitListExpr(S.Context, SourceLocation(), InitExprs, SourceLocation());
+    // TODO!!! ILE->setType(QualType(LC->getTypeForDecl(), 0));
+    // KernelObjectClone->setInit(ILE);
+
+    // TODO: More kernel object init with KernelBodyTransform.
+
+    BodyStmts.insert(std::end(BodyStmts), std::begin(FinalizeStmts),
+                     std::begin(FinalizeStmts));
+    return CompoundStmt::Create(SemaRef.getASTContext(), BodyStmts, {}, {});
+  }
+
+  // TODO: not sure what this does yet, name is a placeholder for future use.
+  void doSomethingForParallelForWorkGroup() {
+  }
 
 public:
-  SyclKernelBodyCreator(Sema &S, SyclKernelDeclCreator &DC)
-      : SyclKernelFieldHandler(S), DeclCreator(DC) {}
-  ~SyclKernelBodyCreator() { DeclCreator.setBody(KernelBody); }
+  SyclKernelBodyCreator(Sema &S, SyclKernelDeclCreator &DC, KernelInvocationKind K)
+      : SyclKernelFieldHandler(S), DeclCreator(DC) {
+        // TODO: Something special with the lambda when InvokeParallelForWorkGroup.
+        if (K == InvokeParallelForWorkGroup)
+          do somethingForparalellForWorkGroup();
+      }
+  ~SyclKernelBodyCreator() {
+    CompoundStmt *KernelBody = createKernelBody();
+    DeclCreator.setBody(KernelBody);
+  }
+
+  void handleSyclAccessorType(FieldDecl *FD, QualType Ty) final {
+    // TODO: Creates init sequence and inits special sycl obj
+  }
+
+  void handleSyclSamplerType(FieldDecl *FD, QualType Ty) final {
+    // TODO: Creates init sequence and inits special sycl obj
+  }
+
+  void handleSyclStreamType(FieldDecl *FD, QualType Ty) final {
+    // TODO: Creates init/finalize sequence and inits special sycl obj
+  }
+
+  void handleStructType(FieldDecl *FD, QualType Ty) final {
+    // TODO: a bunch of work doing inits, note this has a little more than
+    // scalar.
+  }
+  void handleScalarType(FieldDecl *FD, QualType Ty) final {
+    // TODO: a bunch of work doing inits.
+  }
+
 };
 
 class SyclKernelIntHeaderCreator
@@ -1529,7 +1589,8 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
   SyclKernelDeclCreator kernel_decl(*this, checker, KernelName,
                                     KernelLambda->getLocation(),
                                     KernelCallerFunc->isInlined());
-  SyclKernelBodyCreator kernel_body(*this, kernel_decl);
+  SyclKernelBodyCreator kernel_body(*this, kernel_decl,
+                                    getKernelInvocationKind(KernelCallerFunc));
   SyclKernelIntHeaderCreator int_header(
       *this, getSyclIntegrationHeader(), KernelLambda,
       calculateKernelNameType(Context, KernelCallerFunc), CalculatedName,
