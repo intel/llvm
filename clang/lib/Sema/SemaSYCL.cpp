@@ -1227,6 +1227,9 @@ class SyclKernelDeclCreator
   llvm::SmallVector<ParmVarDecl *, 8> Params;
   SyclKernelFieldChecker &ArgChecker;
   Sema::ContextRAII FuncContext;
+  // Holds the last handled field's first parameter. This doesn't store an
+  // iterator as push_back invalidates iterators.
+  size_t LastParamIndex = 0;
 
   void addParam(const FieldDecl *FD, QualType ArgTy) {
     ParamDesc newParamDesc = makeParamDesc(FD, ArgTy);
@@ -1248,6 +1251,7 @@ class SyclKernelDeclCreator
     NewParam->setScopeInfo(0, Params.size());
     NewParam->setIsUsed();
 
+    LastParamIndex = Params.size();
     Params.push_back(NewParam);
   }
 
@@ -1261,8 +1265,12 @@ class SyclKernelDeclCreator
     CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, InitMethodName);
     assert(InitMethod && "The accessor/sampler must have the __init method");
 
+    // Don't do -1 here because we count on this to be the first parameter added
+    // (if any).
+    size_t ParamIndex = Params.size();
     for (const ParmVarDecl *Param : InitMethod->parameters())
       addParam(FD, Param->getType().getCanonicalType());
+    LastParamIndex = ParamIndex;
   }
 
   static void setKernelImplicitAttrs(ASTContext &Context, FunctionDecl *FD,
@@ -1322,8 +1330,12 @@ public:
     CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, InitMethodName);
     assert(InitMethod && "The accessor/sampler must have the __init method");
 
+    // Don't do -1 here because we count on this to be the first parameter added
+    // (if any).
+    size_t ParamIndex = Params.size();
     for (const ParmVarDecl *Param : InitMethod->parameters())
       addParam(BS, Param->getType().getCanonicalType());
+    LastParamIndex = ParamIndex;
   }
 
   void handleSyclAccessorType(const FieldDecl *FD, QualType ArgTy) final {
@@ -1360,6 +1372,11 @@ public:
   void setBody(CompoundStmt *KB) { KernelDecl->setBody(KB); }
 
   FunctionDecl *getKernelDecl() { return KernelDecl; }
+
+  llvm::ArrayRef<ParmVarDecl *> getParamVarDeclsForCurrentField() {
+    return ArrayRef<ParmVarDecl *>(std::begin(Params) + LastParamIndex,
+                                   std::end(Params));
+  }
 };
 
 class SyclKernelBodyCreator
