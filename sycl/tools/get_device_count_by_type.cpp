@@ -56,10 +56,9 @@ static const char *deviceTypeToString(cl_device_type deviceType) {
 static bool queryOpenCL(cl_device_type deviceType, cl_uint &deviceCount,
                         std::string &msg) {
   deviceCount = 0u;
-  cl_int iRet = CL_SUCCESS;
-  cl_uint platformCount = 0;
 
-  iRet = clGetPlatformIDs(0, nullptr, &platformCount);
+  cl_uint platformCount = 0;
+  cl_int iRet = clGetPlatformIDs(0, nullptr, &platformCount);
   if (iRet != CL_SUCCESS) {
     if (iRet == CL_PLATFORM_NOT_FOUND_KHR) {
       msg = "OpenCL error runtime not found";
@@ -69,7 +68,7 @@ static bool queryOpenCL(cl_device_type deviceType, cl_uint &deviceCount,
     stream << "ERROR: OpenCL error calling clGetPlatformIDs " << iRet
            << std::endl;
     msg = stream.str();
-    return false;
+    return true;
   }
 
   std::vector<cl_platform_id> platforms(platformCount);
@@ -79,7 +78,7 @@ static bool queryOpenCL(cl_device_type deviceType, cl_uint &deviceCount,
     stream << "ERROR: OpenCL error calling clGetPlatformIDs " << iRet
            << std::endl;
     msg = stream.str();
-    return false;
+    return true;
   }
 
   for (cl_uint i = 0; i < platformCount; i++) {
@@ -88,13 +87,6 @@ static bool queryOpenCL(cl_device_type deviceType, cl_uint &deviceCount,
         clGetDeviceIDs(platforms[i], deviceType, 0, nullptr, &deviceCountPart);
     if (iRet == CL_SUCCESS || iRet == CL_DEVICE_NOT_FOUND) {
       deviceCount += deviceCountPart;
-    } else {
-      deviceCount = 0u;
-      std::stringstream stream;
-      stream << "ERROR: OpenCL error calling clGetDeviceIDs " << iRet
-             << std::endl;
-      msg = stream.str();
-      return false;
     }
   }
 
