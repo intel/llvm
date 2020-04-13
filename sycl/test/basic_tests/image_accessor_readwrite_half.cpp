@@ -3,6 +3,8 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUNx: %CPU_RUN_PLACEHOLDER %t.out // OpenCL CPU backend does not support half datatype reads and writes for 1D images.
 
+// TODO: No CUDA image support
+// XFAIL: cuda
 //==--------------------image_accessor_readwrite_half.cpp -------------------==//
 //==-image_accessor read (without sampler)& write API test for half datatype-==//
 //
@@ -67,8 +69,7 @@ void check_read_data(s::cl_half4 ReadData, s::cl_half4 ExpectedColor) {
   check_read_data(ReadDatafloat, ExpectedColorfloat);
 }
 
-template <typename WriteDataT, s::image_channel_type ImgType,
-          typename PixelDataType>
+template <typename WriteDataT, s::image_channel_type ImgType>
 void write_type_order(char *HostPtr,
                       const s::image_channel_order ImgOrder,
                       WriteDataT Color) {

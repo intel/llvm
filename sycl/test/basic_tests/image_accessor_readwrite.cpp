@@ -2,6 +2,9 @@
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
+
+// TODO: No CUDA image support
+// XFAIL: cuda
 //==--------------------image_accessor_readwrite.cpp ----------------------==//
 //==----------image_accessor read without sampler & write API test---------==//
 //
