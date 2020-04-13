@@ -103,6 +103,7 @@ using myFuncDef = int(int, int);
 
 // defines (early and late)
 #define floatDef __float128
+#define longdoubleDef long double
 #define int128Def __int128
 #define int128tDef __int128_t
 #define intDef int
@@ -111,6 +112,7 @@ using myFuncDef = int(int, int);
 typedef __uint128_t megeType;
 typedef __float128 trickyFloatType;
 typedef __int128 tricky128Type;
+typedef long double trickyLDType;
 
 //templated return type
 template <typename T>
@@ -128,6 +130,10 @@ using floatalias_t = __float128;
 template <typename...>
 using int128alias_t = __int128;
 
+//alias template
+template <typename...>
+using ldalias_t = long double;
+
 //false positive. early incorrectly catches
 template <typename t>
 void foo(){};
@@ -143,6 +149,8 @@ struct frankenStruct {
   __float128 scaryQuad;
   // expected-error@+1 {{'__int128' is not supported on this target}}
   __int128 frightenInt;
+  // expected-error@+1 {{'long double' is not supported on this target}}
+  long double terrorLD;
 };
 
 //struct
@@ -151,6 +159,8 @@ struct trickyStruct {
   trickyFloatType trickySructQuad;
   // expected-error@+1 {{'__int128' is not supported on this target}}
   tricky128Type trickyStructInt;
+  // expected-error@+1 {{'long double' is not supported on this target}}
+  trickyLDType trickyStructLD;
 };
 
 // function return type and argument both unsupported
@@ -220,6 +230,32 @@ void usage(myFuncDef functionPtr) {
   foo<__float128>();
   safealias_t<__float128> notAFloat = 3;
 
+  // ======= long double Not Allowed in Kernel ==========
+  // expected-error@+1 {{'long double' is not supported on this target}}
+  long double malLD = 50;
+  // expected-error@+1 {{'long double' is not supported on this target}}
+  trickyLDType malLDTrick = 51;
+  // expected-error@+1 {{'long double' is not supported on this target}}
+  longdoubleDef malLDDef = 52;
+  // expected-error@+1 {{'long double' is not supported on this target}}
+  auto whatLD = malLD;
+  // expected-error@+1 {{'long double' is not supported on this target}}
+  auto malAutoLD = bar<long double>();
+  // expected-error@+1 {{'long double' is not supported on this target}}
+  auto malAutoLD2 = bar<trickyLDType>();
+  // expected-error@+1 {{'long double' is not supported on this target}}
+  decltype(malLD) malDeclLD = 53;
+  // expected-error@+1 {{'long double' is not supported on this target}}
+  auto malLDTemplateVar = solutionToEverything<long double>;
+  // expected-error@+1 {{'long double' is not supported on this target}}
+  auto malTrifectaLD = solutionToEverything<trickyLDType>;
+  // expected-error@+1 {{'long double' is not supported on this target}}
+  ldalias_t<void> aliasedLongDouble = 54;
+  // ---- false positive tests
+  std::size_t someLDSz = sizeof(long double);
+  foo<long double>();
+  safealias_t<long double> notALD = 55;
+
   // ======= Zero Length Arrays Not Allowed in Kernel ==========
   // expected-error@+1 {{zero-length arrays are not permitted in C++}}
   int MalArray[0];
@@ -273,8 +309,8 @@ void usage(myFuncDef functionPtr) {
   auto malTrifectaInt128T = solutionToEverything<megeType>;
 
   // ======= Struct Members Checked  =======
-  frankenStruct strikesFear; // expected-note 3{{used here}}
-  trickyStruct incitesPanic; // expected-note 2{{used here}}
+  frankenStruct strikesFear; // expected-note 4{{used here}}
+  trickyStruct incitesPanic; // expected-note 3{{used here}}
 
   // ======= Function Prototype Checked  =======
   // expected-error@+1 2{{'__int128' is not supported on this target}}

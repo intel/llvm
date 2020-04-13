@@ -240,9 +240,10 @@ static void checkSYCLVarType(Sema &S, QualType Ty, SourceRange Loc,
   while (Ty->isAnyPointerType() || Ty->isArrayType())
     Ty = QualType{Ty->getPointeeOrArrayElementType(), 0};
 
-  // __int128, __int128_t, __uint128_t, __float128
+  // __int128, __int128_t, __uint128_t, long double, __float128
   if (Ty->isSpecificBuiltinType(BuiltinType::Int128) ||
       Ty->isSpecificBuiltinType(BuiltinType::UInt128) ||
+      Ty->isSpecificBuiltinType(BuiltinType::LongDouble) ||
       (Ty->isSpecificBuiltinType(BuiltinType::Float128) &&
        !S.Context.getTargetInfo().hasFloat128Type()))
     emitDeferredDiagnosticAndNote(S, Loc, diag::err_type_unsupported, UsedAtLoc)
