@@ -236,6 +236,10 @@ static void checkSYCLVarType(Sema &S, QualType Ty, SourceRange Loc,
     emitDeferredDiagnosticAndNote(S, Loc, diag::err_typecheck_zero_array_size,
                                   UsedAtLoc);
 
+  // variable length arrays
+  if (Ty->isVariableArrayType())
+      emitDeferredDiagnosticAndNote(S, Loc, diag::err_vla_unsupported, UsedAtLoc);
+
   // Sub-reference array or pointer, then proceed with that type.
   while (Ty->isAnyPointerType() || Ty->isArrayType())
     Ty = QualType{Ty->getPointeeOrArrayElementType(), 0};
@@ -508,11 +512,16 @@ public:
 private:
   bool CheckSYCLType(QualType Ty, SourceRange Loc) {
     llvm::DenseSet<QualType> visited;
-    return CheckSYCLType(Ty, Loc, visited);
+    return true;
+    //return CheckSYCLType(Ty, Loc, visited);
   }
 
   bool CheckSYCLType(QualType Ty, SourceRange Loc,
                      llvm::DenseSet<QualType> &Visited) {
+
+    return true;
+
+    
     if (Ty->isVariableArrayType()) {
       SemaRef.Diag(Loc.getBegin(), diag::err_vla_unsupported);
       return false;
