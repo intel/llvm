@@ -1215,7 +1215,7 @@ public:
 // A type to Create and own the FunctionDecl for the kernel.
 class SyclKernelDeclCreator
     : public SyclKernelFieldHandler<SyclKernelDeclCreator> {
-  FunctionDecl *KernelObj;
+  FunctionDecl *KernelDecl;
   llvm::SmallVector<ParmVarDecl *, 8> Params;
   SyclKernelFieldChecker &ArgChecker;
   Sema::ContextRAII FuncContext;
@@ -1233,7 +1233,7 @@ class SyclKernelDeclCreator
   void addParam(ParamDesc newParamDesc, QualType ArgTy) {
     // Create a new ParmVarDecl based on the new info.
     auto *NewParam = ParmVarDecl::Create(
-        SemaRef.getASTContext(), KernelObj, SourceLocation(), SourceLocation(),
+        SemaRef.getASTContext(), KernelDecl, SourceLocation(), SourceLocation(),
         std::get<1>(newParamDesc), std::get<0>(newParamDesc),
         std::get<2>(newParamDesc), SC_None, /*DefArg*/ nullptr);
 
@@ -1287,8 +1287,8 @@ public:
   SyclKernelDeclCreator(Sema &S, SyclKernelFieldChecker &ArgChecker,
                         StringRef Name, SourceLocation Loc, bool IsInline)
       : SyclKernelFieldHandler(S),
-        KernelObj(createKernelDecl(S.getASTContext(), Name, Loc, IsInline)),
-        ArgChecker(ArgChecker), FuncContext(SemaRef, KernelObj) {}
+        KernelDecl(createKernelDecl(S.getASTContext(), Name, Loc, IsInline)),
+        ArgChecker(ArgChecker), FuncContext(SemaRef, KernelDecl) {}
 
   ~SyclKernelDeclCreator() {
     ASTContext &Ctx = SemaRef.getASTContext();
@@ -1300,11 +1300,11 @@ public:
                    [](const ParmVarDecl *PVD) { return PVD->getType(); });
 
     QualType FuncType = Ctx.getFunctionType(Ctx.VoidTy, ArgTys, Info);
-    KernelObj->setType(FuncType);
-    KernelObj->setParams(Params);
+    KernelDecl->setType(FuncType);
+    KernelDecl->setParams(Params);
 
     if (ArgChecker.isValid())
-      SemaRef.addSyclDeviceDecl(KernelObj);
+      SemaRef.addSyclDeviceDecl(KernelDecl);
   }
 
   void handleSyclAccessorType(const CXXBaseSpecifier &BS,
@@ -1349,7 +1349,7 @@ public:
     addParam(FD, ArgTy);
   }
 
-  void setBody(CompoundStmt *KB) { KernelObj->setBody(KB); }
+  void setBody(CompoundStmt *KB) { KernelDecl->setBody(KB); }
 };
 
 class SyclKernelBodyCreator
