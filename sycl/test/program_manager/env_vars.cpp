@@ -1,3 +1,6 @@
+// REQUIRES: opencl
+// Env vars are used to pass OpenCL-specific flags to PI compiling/linking.
+//
 // RUN: %clangxx -O0 -fsycl -fsycl-targets=%sycl_triple %s -o %t.out -lsycl
 //
 // Deprecated SYCL_PROGRAM_BUILD_OPTIONS should work as an alias to

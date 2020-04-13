@@ -268,7 +268,7 @@ public:
 
   SYCLMemObjI *getSYCLMemObj() const { return MRequirement.MSYCLMemObj; }
 
-  void *getMemAllocation() const { return MMemAllocation; }
+  virtual void *getMemAllocation() const = 0;
 
   const Requirement *getRequirement() const final { return &MRequirement; }
 
@@ -302,6 +302,7 @@ public:
                 bool InitFromUserData = true,
                 AllocaCommandBase *LinkedAllocaCmd = nullptr);
 
+  void *getMemAllocation() const final { return MMemAllocation; }
   void printDot(std::ostream &Stream) const final;
   void emitInstrumentationData();
 
@@ -318,6 +319,7 @@ public:
   AllocaSubBufCommand(QueueImplPtr Queue, Requirement Req,
                       AllocaCommandBase *ParentAlloca);
 
+  void *getMemAllocation() const final;
   void printDot(std::ostream &Stream) const final;
   AllocaCommandBase *getParentAlloca() { return MParentAlloca; }
   void emitInstrumentationData();
