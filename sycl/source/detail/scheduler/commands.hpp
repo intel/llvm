@@ -172,7 +172,14 @@ protected:
   void waitForEvents(QueueImplPtr Queue, std::vector<EventImplPtr> &RawEvents,
                      RT::PiEvent &Event);
   std::vector<EventImplPtr> prepareEvents(ContextImplPtr Context);
-  void addDepSub(EventImplPtr DepEvent, ContextImplPtr Context);
+
+  /// Perform glueing of events from different contexts
+  /// \param DepEvent event this commands should depend on
+  ///
+  /// Glueing (i.e. connecting) will be performed if and only if DepEvent is
+  /// not from host context and its context doesn't match to context of this
+  /// command. Context of this command is fetched via getContext().
+  void glueEvents(EventImplPtr DepEvent);
 
   virtual ContextImplPtr getContext() const;
 

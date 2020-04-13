@@ -347,7 +347,7 @@ public:
     MExceptions.PushBack(ExceptionPtr);
   }
 
-  ThreadPool &getHostTaskAndEventCallbackThreadPool() {
+  ThreadPool &getThreadPool() {
     if (!MHostTaskThreadPool)
       initHostTaskAndEventCallbackThreadPool();
 

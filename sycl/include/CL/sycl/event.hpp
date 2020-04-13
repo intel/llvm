@@ -13,7 +13,6 @@
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/stl.hpp>
 
-#include <functional>
 #include <memory>
 
 __SYCL_INLINE_NAMESPACE(cl) {

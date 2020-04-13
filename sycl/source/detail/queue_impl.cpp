@@ -192,7 +192,18 @@ void queue_impl::initHostTaskAndEventCallbackThreadPool() {
   int Size = 1;
 
   if (const char *val = std::getenv("SYCL_QUEUE_THREAD_POOL_SIZE"))
-    Size = std::stoi(val);
+    try {
+      Size = std::stoi(val);
+    } catch (const std::exception &e) {
+      throw invalid_parameter_error(
+          "Invalid value for SYCL_QUEUE_THREAD_POOL_SIZE environment variable",
+          PI_INVALID_VALUE);
+    }
+
+  if (Size < 1)
+    throw invalid_parameter_error(
+        "Invalid value for SYCL_QUEUE_THREAD_POOL_SIZE environment variable",
+        PI_INVALID_VALUE);
 
   MHostTaskThreadPool.reset(new ThreadPool(Size));
   MHostTaskThreadPool->start();

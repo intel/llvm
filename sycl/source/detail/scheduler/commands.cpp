@@ -173,7 +173,7 @@ std::vector<EventImplPtr> Command::prepareEvents(ContextImplPtr Context) {
 
     ContextImplPtr DepEventContext = DepEvent->getContextImpl();
 
-    // If contexts don't match the events are already connected in addDep
+    // If contexts don't match the events are already connected
     if (DepEventContext != Context && !Context->is_host()) {
       continue;
     }
@@ -377,7 +377,9 @@ void Command::makeTraceEventEpilog() {
 #endif
 }
 
-void Command::addDepSub(EventImplPtr DepEvent, ContextImplPtr Context) {
+void Command::glueEvents(EventImplPtr DepEvent) {
+  const ContextImplPtr &Context = getContext();
+
   // Async work is not supported for host device.
   if (DepEvent->is_host()) {
     // call to waitInternal() is in prepareEvents() as it's called from
@@ -424,7 +426,7 @@ void Command::addDepSub(EventImplPtr DepEvent, ContextImplPtr Context) {
     EnqueueResultT Res;
     bool Enqueued = Scheduler::GraphProcessor::enqueueCommand(GlueCmd, Res);
     if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
-      throw runtime_error("Enqueue process failed for glue command.",
+      throw runtime_error("Failed to enqueue a sync event between two contexts",
                           PI_INVALID_OPERATION);
 
     MDepsEvents.push_back(std::move(GlueEvent));
@@ -438,7 +440,7 @@ ContextImplPtr Command::getContext() const {
 void Command::addDep(DepDesc NewDep) {
   if (NewDep.MDepCommand) {
     MDepsEvents.push_back(NewDep.MDepCommand->getEvent());
-    addDepSub(NewDep.MDepCommand->getEvent(), getContext());
+    glueEvents(NewDep.MDepCommand->getEvent());
   }
   MDeps.push_back(NewDep);
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -459,7 +461,7 @@ void Command::addDep(EventImplPtr Event) {
 #endif
 
   MDepsEvents.push_back(Event);
-  addDepSub(std::move(Event), getContext());
+  glueEvents(std::move(Event));
 }
 
 void Command::emitEnqueuedEventSignal(RT::PiEvent &PiEventAddr) {
@@ -1533,38 +1535,6 @@ void DispatchNativeKernel(void *Blob) {
   HostTask->MHostKernel->call(HostTask->MNDRDesc, nullptr);
 }
 
-struct HostTaskContext {
-  CGHostTask *HostTask;
-
-  // events dependencies
-  std::map<const detail::plugin *, std::vector<EventImplPtr>>
-      RequiredEventsPerPlugin;
-
-  // Context with which SelfEvent has to be created
-  ContextImplPtr Context;
-
-  EventImplPtr SelfEvent;
-};
-
-void DispatchHostTask(const std::shared_ptr<HostTaskContext> &Ctx) {
-  // wait for dependency events
-  // FIXME introduce a more sophisticated wait mechanism
-  for (auto &PluginWithEvents : Ctx->RequiredEventsPerPlugin) {
-    auto RawEvents = getPiEvents(PluginWithEvents.second);
-    PluginWithEvents.first->call<PiApiKind::piEventsWait>(RawEvents.size(),
-                                                          RawEvents.data());
-  }
-
-  // we're ready to call the user-defined lambda now
-  Ctx->HostTask->MHostTask->call();
-
-  const detail::plugin &Plugin = Ctx->SelfEvent->getPlugin();
-  Plugin.call<PiApiKind::piEventSetStatus>(Ctx->SelfEvent->getHandleRef(),
-                                           CL_COMPLETE);
-
-  // Ctx will be deleted automatically by shared_ptr
-}
-
 cl_int ExecCGCommand::enqueueImp() {
   std::vector<EventImplPtr> EventImpls = Command::prepareEvents(getContext());
 
@@ -1853,24 +1823,6 @@ cl_int ExecCGCommand::enqueueImp() {
   }
   case CG::CGTYPE::CODEPLAY_HOST_TASK: {
     CGHostTask *HostTask = static_cast<CGHostTask *>(MCommandGroup.get());
-    std::shared_ptr<HostTaskContext> Ctx{new HostTaskContext{HostTask}};
-
-    Ctx->Context = HostTask->MContext;
-
-    // Init self-event
-    Ctx->SelfEvent = MEvent;
-    RT::PiContext ContextRef = Ctx->Context->getHandleRef();
-
-    const detail::plugin &Plugin = Ctx->Context->getPlugin();
-    Plugin.call<PiApiKind::piEventCreate>(ContextRef, &Event);
-
-    Ctx->SelfEvent->setContextImpl(Ctx->Context);
-
-    // init dependency events in Ctx
-    for (EventImplPtr &Event : EventImpls) {
-      const detail::plugin &Plugin = Event->getPlugin();
-      Ctx->RequiredEventsPerPlugin[&Plugin].push_back(Event);
-    }
 
     size_t ArgIdx = 0, ReqIdx = 0;
     while (ArgIdx < HostTask->MArgs.size()) {
@@ -1893,8 +1845,47 @@ cl_int ExecCGCommand::enqueueImp() {
       ++ArgIdx;
     }
 
-    MQueue->getHostTaskAndEventCallbackThreadPool().submit(
-        [Ctx]() { DispatchHostTask(Ctx); });
+    {
+    ContextImplPtr HTContext = HostTask->MContext;
+
+    // Init self-event
+    EventImplPtr SelfEvent = MEvent;
+    RT::PiContext ContextRef = HTContext->getHandleRef();
+
+    const detail::plugin &Plugin = HTContext->getPlugin();
+    Plugin.call<PiApiKind::piEventCreate>(ContextRef, &Event);
+
+    SelfEvent->setContextImpl(HTContext);
+
+    // init dependency events in Ctx
+    auto DispatchHostTask = [EventImpls, HostTask, SelfEvent] () {
+      std::map<const detail::plugin *, std::vector<EventImplPtr>>
+          RequiredEventsPerPlugin;
+
+      for (const EventImplPtr &Event : EventImpls) {
+        const detail::plugin &Plugin = Event->getPlugin();
+        RequiredEventsPerPlugin[&Plugin].push_back(Event);
+      }
+
+      // wait for dependency events
+      // FIXME introduce a more sophisticated wait mechanism
+      for (auto &PluginWithEvents : RequiredEventsPerPlugin) {
+        std::vector<RT::PiEvent> RawEvents = getPiEvents(
+            PluginWithEvents.second);
+        PluginWithEvents.first->call<PiApiKind::piEventsWait>(RawEvents.size(),
+                                                              RawEvents.data());
+      }
+
+      // we're ready to call the user-defined lambda now
+      HostTask->MHostTask->call();
+
+      const detail::plugin &Plugin = SelfEvent->getPlugin();
+      Plugin.call<PiApiKind::piEventSetStatus>(SelfEvent->getHandleRef(),
+                                               PI_EVENT_COMPLETE);
+    };
+
+    MQueue->getThreadPool().submit(DispatchHostTask);
+    }
 
     return CL_SUCCESS;
   }
