@@ -1,4 +1,4 @@
-// UNSUPPORTED: cuda
+// XFAIL: cuda
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
@@ -18,6 +18,7 @@
 
 // TODO uncomment run lines on non-host devices when the rounding modes will
 // be implemented.
+// TODO make the test to pass on cuda
 
 using namespace cl::sycl;
 
