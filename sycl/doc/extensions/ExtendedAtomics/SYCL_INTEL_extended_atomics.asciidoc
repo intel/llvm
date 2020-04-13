@@ -141,37 +141,37 @@ The member functions below are common to atomic references for any type +T+:
 | `atomic_ref(T& ref)`
 | Constructs an instance of +atomic_ref+ which is associated with the object referenced by _ref_.
 
-| `atomic_ref(const atomic_ref& ref)`
+| `atomic_ref(const atomic_ref& ref) noexcept`
 | Constructs an instance of +atomic_ref+ which is associated with the same object as _ref_.
 
-| `bool is_lock_free() const`
+| `bool is_lock_free() const noexcept`
 | Return +true+ if the atomic operations provided by this +atomic_ref+ are lock-free.
 
-| `void store(T operand, memory_order order = default_write_order) const`
+| `void store(T operand, memory_order order = default_write_order) const noexcept`
 | Atomically stores _operand_ to the object referenced by this +atomic_ref+.  The memory order of this atomic operation must be +memory_order::relaxed+, +memory_order::release+ or +memory_order::seq_cst+.
 
-| `T operator=(T desired) const`
+| `T operator=(T desired) const noexcept`
 | Equivalent to +store(desired)+.  Returns _desired_.
 
-| `T load(memory_order order = default_read_order) const`
+| `T load(memory_order order = default_read_order) const noexcept`
 | Atomically loads the value of the object referenced by this +atomic_ref+.  The memory order of this atomic operation must be +memory_order::relaxed+, +memory_order::acquire+, or +memory_order::seq_cst+.
 
-| `operator T() const`
+| `operator T() const noexcept`
 | Equivalent to +load()+.
 
-| `T exchange(T operand, memory_order order = default_read_modify_write_order)`
+| `T exchange(T operand, memory_order order = default_read_modify_write_order) const noexcept`
 | Atomically replaces the value of the object referenced by this +atomic_ref+ with _operand_ and returns the original value of the referenced object.
 
-| `bool compare_exchange_weak(T &expected, T desired, memory_order success = default_read_modify_write_order, memory_order failure = default_read_order) const`
+| `bool compare_exchange_weak(T &expected, T desired, memory_order success = default_read_modify_write_order, memory_order failure = default_read_order) const noexcept`
 | Atomically compares the value of the object referenced by this +atomic_ref+ against the value of _expected_. If the values are equal attempts to replace the value of the referenced object with the value of +desired+, otherwise assigns the original value of the referenced object to _expected_. Returns +true+ if the comparison operation and replacement operation were successful. The _failure_ memory order of this atomic operation must be +memory_order::relaxed+, +memory_order::acquire+ or +memory_order::seq_cst+.
 
-| `bool compare_exchange_weak(T &expected, T desired, memory_order order = default_read_modify_write_order) const`
+| `bool compare_exchange_weak(T &expected, T desired, memory_order order = default_read_modify_write_order) const noexcept`
 | Equivalent to +compare_exchange_weak(expected, desired, order, order)+.
 
-| `bool compare_exchange_strong(T &expected, T desired, memory_order success = default_read_modify_write_order, memory_order failure = default_read_order) const`
+| `bool compare_exchange_strong(T &expected, T desired, memory_order success = default_read_modify_write_order, memory_order failure = default_read_order) const noexcept`
 | Atomically compares the value of the object referenced by this +atomic_ref+ against the value of _expected_. If the values are equal replaces the value of the referenced object with the value of +desired+, otherwise assigns the original value of the referenced object to _expected_. Returns +true+ if the comparison operation was successful. The _failure_ memory order of this atomic operation must be +memory_order::relaxed+, +memory_order::acquire+ or +memory_order::seq_cst+.
 
-| `bool compare_exchange_strong(T &expected, T desired, memory_order order = default_read_modify_write_order) const`
+| `bool compare_exchange_strong(T &expected, T desired, memory_order order = default_read_modify_write_order) const noexcept`
 | Equivalent to +compare_exchange_strong(expected, desired, order, order)+.
 
 |===
@@ -181,52 +181,52 @@ The additional member functions below are available for atomic references to int
 |===
 |Member Functions|Description
 
-| `T fetch_add(T operand, memory_order order = default_read_modify_write_order) const`
+| `T fetch_add(T operand, memory_order order = default_read_modify_write_order) const noexcept`
 | Atomically adds _operand_ to the value of the object referenced by this +atomic_ref+ and assigns the result to the value of the referenced object.  Returns the original value of the referenced object.
 
-| `T operator+=(T operand) const`
+| `T operator+=(T operand) const noexcept`
 | Equivalent to +fetch_add(operand)+.
 
-| `T operator++(int) const`
+| `T operator++(int) const noexcept`
 | Equivalent to +fetch_add(1)+.
 
-| `T operator++() const`
+| `T operator++() const noexcept`
 | Equivalent to +fetch_add(1) + 1+.
 
-| `T fetch_sub(T operand, memory_order order = default_read_modify_write_order) const`
+| `T fetch_sub(T operand, memory_order order = default_read_modify_write_order) const noexcept`
 | Atomically subtracts _operand_ from the value of the object referenced by this +atomic_ref+ and assigns the result to the value of the referenced object.  Returns the original  value of the referenced object.
 
-| `T operator-=(T operand) const`
+| `T operator-=(T operand) const noexcept`
 | Equivalent to +fetch_sub(operand)+.
 
-| `T operator--(int) const`
+| `T operator--(int) const noexcept`
 | Equivalent to +fetch_sub(1)+.
 
-| `T operator--() const`
+| `T operator--() const noexcept`
 | Equivalent to +fetch_sub(1) + 1+.
 
-| `T fetch_and(T operand, memory_order order = default_read_modify_write_order) const`
+| `T fetch_and(T operand, memory_order order = default_read_modify_write_order) const noexcept`
 | Atomically performs a bitwise AND between _operand_ and the value of the object referenced by this +atomic_ref+, and assigns the result to the value of the referenced object. Returns the original value of the referenced object.
 
-| `T operator&=(T operand) const`
+| `T operator&=(T operand) const noexcept`
 | Equivalent to +fetch_and(operand)+.
 
-| `T fetch_or(T operand, memory_order order = default_read_modify_write_order) const`
+| `T fetch_or(T operand, memory_order order = default_read_modify_write_order) const noexcept`
 | Atomically performs a bitwise OR between _operand_ and the value of the object referenced by this +atomic_ref+, and assigns the result to the value of the referenced object. Returns the original value of the referenced object.
 
-| `T operator\|=(T operand) const`
+| `T operator\|=(T operand) const noexcept`
 | Equivalent to +fetch_or(operand)+.
 
-| `T fetch_xor(T operand, memory_order order = default_read_modify_write_order) const`
+| `T fetch_xor(T operand, memory_order order = default_read_modify_write_order) const noexcept`
 | Atomically performs a bitwise XOR between the value +operand+ and the value of the object referenced by this +atomic_ref+, and assigns the result to the value of the referenced object. Returns the original value of the referenced object.
 
-| `T operator^=(T operand) const`
+| `T operator^=(T operand) const noexcept`
 | Equivalent to +fetch_xor(operand)+.
 
-| `T fetch_min(T operand, memory_order order = default_read_modify_write_order) const`
+| `T fetch_min(T operand, memory_order order = default_read_modify_write_order) const noexcept`
 | Atomically computes the minimum of _operand_ and the value of the object referenced by this +atomic_ref+, and assigns the result to the value of the referenced object. Returns the original value of the referenced object.
 
-| `T fetch_max(T operand, memory_order order = default_read_modify_write_order) const`
+| `T fetch_max(T operand, memory_order order = default_read_modify_write_order) const noexcept`
 | Atomically computes the maximum of _operand_ and the value of the object referenced by this +atomic_ref+, and assigns the result to the value of the referenced object. Returns the original value of the referenced object.
 
 |===
@@ -236,22 +236,22 @@ The additional member functions below are available for atomic references to flo
 |===
 | Member Function | Description
 
-| `T fetch_add(T operand, memory_order order = default_read_modify_write_order) const`
+| `T fetch_add(T operand, memory_order order = default_read_modify_write_order) const noexcept`
 | Atomically adds _operand_ to the value of the object referenced by this +atomic_ref+ and assigns the result to the value of the referenced object.  Returns the original value of the referenced object.
 
-| `T operator+=(T operand) const`
+| `T operator+=(T operand) const noexcept`
 | Equivalent to +fetch_add(operand)+.
 
-| `T fetch_sub(T operand, memory_order order = default_read_modify_write_order) const`
+| `T fetch_sub(T operand, memory_order order = default_read_modify_write_order) const noexcept`
 | Atomically subtracts _operand_ from the value of the object referenced by this +atomic_ref+ and assigns the result to the value of the referenced object.  Returns the original  value of the referenced object.
 
-| `T operator-=(T operand) const`
+| `T operator-=(T operand) const noexcept`
 | Equivalent to +fetch_sub(operand)+.
 
-| `T fetch_min(T operand, memory_order order = default_read_modify_write_order) const`
+| `T fetch_min(T operand, memory_order order = default_read_modify_write_order) const noexcept`
 | Atomically computes the minimum of _operand_ and the value of the object referenced by this +atomic_ref+, and assigns the result to the value of the referenced object. Returns the original value of the referenced object.
 
-| `T fetch_max(T operand, memory_order order = default_read_modify_write_order) const`
+| `T fetch_max(T operand, memory_order order = default_read_modify_write_order) const noexcept`
 | Atomically computes the maximum of _operand_ and the value of the object referenced by this +atomic_ref+, and assigns the result to the value of the referenced object. Returns the original value of the referenced object.
 
 |===
@@ -261,28 +261,28 @@ The additional member functions below are available for atomic references to poi
 |===
 | Member Function | Description
 
-| `T* fetch_add(difference_type operand, memory_order order = default_read_modify_write_order) const`
+| `T* fetch_add(difference_type operand, memory_order order = default_read_modify_write_order) const noexcept`
 | Atomically adds _operand_ to the value of the object referenced by this +atomic_ref+ and assigns the result to the value of the referenced object.  Returns the original value of the referenced object.
 
-| `T* operator+=(difference_type operand) const`
+| `T* operator+=(difference_type operand) const noexcept`
 | Equivalent to +fetch_add(operand)+.
 
-| `T* operator++(int) const`
+| `T* operator++(int) const noexcept`
 | Equivalent to +fetch_add(1)+.
 
-| `T* operator++() const`
+| `T* operator++() const noexcept`
 | Equivalent to +fetch_add(1) + 1+.
 
-| `T* fetch_sub(difference_type operand, memory_order order = default_read_modify_write_order) const`
+| `T* fetch_sub(difference_type operand, memory_order order = default_read_modify_write_order) const noexcept`
 | Atomically subtracts _operand_ from the value of the object referenced by this +atomic_ref+ and assigns the result to the value of the referenced object.  Returns the original  value of the referenced object.
 
-| `T* operator-=(difference_type operand) const`
+| `T* operator-=(difference_type operand) const noexcept`
 | Equivalent to +fetch_sub(operand)+.
 
-| `T* operator--(int) const`
+| `T* operator--(int) const noexcept`
 | Equivalent to +fetch_sub(1)+.
 
-| `T* operator--() const`
+| `T* operator--() const noexcept`
 | Equivalent to +fetch_sub(1) + 1+.
 
 |===
