@@ -390,22 +390,22 @@ class atomic_ref<Integral, DefaultOrder, Space> {
   using difference_type = value_type;
 
   Integral fetch_add(Integral operand,
-    memory_order order = default_read_modify_write_order);
+    memory_order order = default_read_modify_write_order) const noexcept;
 
   Integral fetch_sub(Integral operand,
-    memory_order order = default_read_modify_write_order);
+    memory_order order = default_read_modify_write_order) const noexcept;
 
   Integral fetch_and(Integral operand,
-    memory_order order = default_read_modify_write_order);
+    memory_order order = default_read_modify_write_order) const noexcept;
 
   Integral fetch_or(Integral operand,
-    memory_order order = default_read_modify_write_order);
+    memory_order order = default_read_modify_write_order) const noexcept;
 
   Integral fetch_min(Integral operand,
-    memory_order order = default_read_modify_write_order);
+    memory_order order = default_read_modify_write_order) const noexcept;
 
   Integral fetch_max(Integral operand,
-    memory_order order = default_read_modify_write_order);
+    memory_order order = default_read_modify_write_order) const noexcept;
 
   Integral operator++(int) const noexcept;
   Integral operator--(int) const noexcept;
