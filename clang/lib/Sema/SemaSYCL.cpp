@@ -1148,6 +1148,7 @@ public:
   virtual void handleSyclAccessorType(const FieldDecl *, QualType) {}
   virtual void handleSyclSamplerType(const FieldDecl *, QualType) {}
   virtual void handleSyclSpecConstantType(const FieldDecl *, QualType) {}
+  virtual void handleSyclStreamType(const CXXBaseSpecifier &, QualType) {}
   virtual void handleSyclStreamType(const FieldDecl *, QualType) {}
   virtual void handleStructType(const FieldDecl *, QualType) {}
   virtual void handleReferenceType(const FieldDecl *, QualType) {}
@@ -1371,11 +1372,11 @@ class SyclKernelBodyCreator
   // Using the statements/init expressions that we've created, this generates
   // the kernel body compound stmt. CompoundStmt needs to know its number of
   // statements in advance to allocate it, so we cannot do this as we go along.
-  CompountStmt *createKernelBody() {
+  CompoundStmt *createKernelBody() {
     // TODO: Can we hold off on creating KernelObjClone to here?
 
-    Expr *ILE = new (SemaRef.getASTContext())
-        InitListExpr(S.Context, SourceLocation(), InitExprs, SourceLocation());
+    Expr *ILE = new (SemaRef.getASTContext()) InitListExpr(
+        SemaRef.getASTContext(), SourceLocation(), InitExprs, SourceLocation());
     // TODO!!! ILE->setType(QualType(LC->getTypeForDecl(), 0));
     // KernelObjectClone->setInit(ILE);
 
@@ -1391,37 +1392,47 @@ class SyclKernelBodyCreator
   }
 
 public:
-  SyclKernelBodyCreator(Sema &S, SyclKernelDeclCreator &DC, KernelInvocationKind K)
+  SyclKernelBodyCreator(Sema &S, SyclKernelDeclCreator &DC,
+                        KernelInvocationKind K)
       : SyclKernelFieldHandler(S), DeclCreator(DC) {
-        // TODO: Something special with the lambda when InvokeParallelForWorkGroup.
-        if (K == InvokeParallelForWorkGroup)
-          do somethingForparalellForWorkGroup();
-      }
+    // TODO: Something special with the lambda when InvokeParallelForWorkGroup.
+    if (K == InvokeParallelForWorkGroup)
+       doSomethingForParallelForWorkGroup();
+  }
   ~SyclKernelBodyCreator() {
     CompoundStmt *KernelBody = createKernelBody();
     DeclCreator.setBody(KernelBody);
   }
 
-  void handleSyclAccessorType(FieldDecl *FD, QualType Ty) final {
+  void handleSyclAccessorType(const FieldDecl *FD, QualType Ty) final {
     // TODO: Creates init sequence and inits special sycl obj
   }
 
-  void handleSyclSamplerType(FieldDecl *FD, QualType Ty) final {
+  void handleSyclAccessorType(const CXXBaseSpecifier &BS, QualType Ty) final {
     // TODO: Creates init sequence and inits special sycl obj
   }
 
-  void handleSyclStreamType(FieldDecl *FD, QualType Ty) final {
+
+  void handleSyclSamplerType(const FieldDecl *FD, QualType Ty) final {
+    // TODO: Creates init sequence and inits special sycl obj
+  }
+
+  void handleSyclStreamType(const FieldDecl *FD, QualType Ty) final {
     // TODO: Creates init/finalize sequence and inits special sycl obj
   }
 
-  void handleStructType(FieldDecl *FD, QualType Ty) final {
+  void handleSyclStreamType(const CXXBaseSpecifier &BS, QualType Ty) final {
+    // TODO: Creates init/finalize sequence and inits special sycl obj
+  }
+
+
+  void handleStructType(const FieldDecl *FD, QualType Ty) final {
     // TODO: a bunch of work doing inits, note this has a little more than
     // scalar.
   }
-  void handleScalarType(FieldDecl *FD, QualType Ty) final {
+  void handleScalarType(const FieldDecl *FD, QualType Ty) final {
     // TODO: a bunch of work doing inits.
   }
-
 };
 
 class SyclKernelIntHeaderCreator
