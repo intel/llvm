@@ -1846,45 +1846,45 @@ cl_int ExecCGCommand::enqueueImp() {
     }
 
     {
-    ContextImplPtr HTContext = HostTask->MContext;
+      ContextImplPtr HTContext = HostTask->MContext;
 
-    // Init self-event
-    EventImplPtr SelfEvent = MEvent;
-    RT::PiContext ContextRef = HTContext->getHandleRef();
+      // Init self-event
+      EventImplPtr SelfEvent = MEvent;
+      RT::PiContext ContextRef = HTContext->getHandleRef();
 
-    const detail::plugin &Plugin = HTContext->getPlugin();
-    Plugin.call<PiApiKind::piEventCreate>(ContextRef, &Event);
+      const detail::plugin &Plugin = HTContext->getPlugin();
+      Plugin.call<PiApiKind::piEventCreate>(ContextRef, &Event);
 
-    SelfEvent->setContextImpl(HTContext);
+      SelfEvent->setContextImpl(HTContext);
 
-    // init dependency events in Ctx
-    auto DispatchHostTask = [EventImpls, HostTask, SelfEvent] () {
-      std::map<const detail::plugin *, std::vector<EventImplPtr>>
-          RequiredEventsPerPlugin;
+      // init dependency events in Ctx
+      auto DispatchHostTask = [EventImpls, HostTask, SelfEvent] () {
+        std::map<const detail::plugin *, std::vector<EventImplPtr>>
+            RequiredEventsPerPlugin;
 
-      for (const EventImplPtr &Event : EventImpls) {
-        const detail::plugin &Plugin = Event->getPlugin();
-        RequiredEventsPerPlugin[&Plugin].push_back(Event);
-      }
+        for (const EventImplPtr &Event : EventImpls) {
+          const detail::plugin &Plugin = Event->getPlugin();
+          RequiredEventsPerPlugin[&Plugin].push_back(Event);
+        }
 
-      // wait for dependency events
-      // FIXME introduce a more sophisticated wait mechanism
-      for (auto &PluginWithEvents : RequiredEventsPerPlugin) {
-        std::vector<RT::PiEvent> RawEvents = getPiEvents(
-            PluginWithEvents.second);
-        PluginWithEvents.first->call<PiApiKind::piEventsWait>(RawEvents.size(),
-                                                              RawEvents.data());
-      }
+        // wait for dependency events
+        // FIXME introduce a more sophisticated wait mechanism
+        for (auto &PluginWithEvents : RequiredEventsPerPlugin) {
+          std::vector<RT::PiEvent> RawEvents = getPiEvents(
+              PluginWithEvents.second);
+          PluginWithEvents.first->call<PiApiKind::piEventsWait>(
+              RawEvents.size(), RawEvents.data());
+        }
 
-      // we're ready to call the user-defined lambda now
-      HostTask->MHostTask->call();
+        // we're ready to call the user-defined lambda now
+        HostTask->MHostTask->call();
 
-      const detail::plugin &Plugin = SelfEvent->getPlugin();
-      Plugin.call<PiApiKind::piEventSetStatus>(SelfEvent->getHandleRef(),
-                                               PI_EVENT_COMPLETE);
-    };
+        const detail::plugin &Plugin = SelfEvent->getPlugin();
+        Plugin.call<PiApiKind::piEventSetStatus>(SelfEvent->getHandleRef(),
+                                                 PI_EVENT_COMPLETE);
+      };
 
-    MQueue->getThreadPool().submit(DispatchHostTask);
+      MQueue->getThreadPool().submit(DispatchHostTask);
     }
 
     return CL_SUCCESS;
