@@ -178,19 +178,23 @@ getOpenCLPlatform(DeviceType Type) {
   cl_int CLErr(CL_SUCCESS);
   std::string PlatformName;
 
-  const cl_uint MaxPlatformsCount = 10;
-  std::vector<cl_platform_id> Platforms(MaxPlatformsCount);
-
   cl_uint PlatformsCount = 0;
-  CLErr =
-      clGetPlatformIDs(MaxPlatformsCount, Platforms.data(), &PlatformsCount);
+  CLErr = clGetPlatformIDs(0, nullptr, &PlatformsCount);
+  if (clFailed(CLErr)) {
+    return std::make_tuple(
+        nullptr, "",
+        formatCLError("Failed to retrieve OpenCL platform count", CLErr),
+        CLErr);
+  }
+
+  std::vector<cl_platform_id> Platforms{PlatformsCount};
+  CLErr = clGetPlatformIDs(PlatformsCount, Platforms.data(), nullptr);
   if (clFailed(CLErr)) {
     return std::make_tuple(
         nullptr, "",
         formatCLError("Failed to retrieve OpenCL platform IDs", CLErr), CLErr);
   }
 
-  Platforms.resize(PlatformsCount);
   for (const auto &Platform : Platforms) {
     size_t PlatformNameLength = 0;
     CLErr = clGetPlatformInfo(Platform, CL_PLATFORM_NAME, 0, nullptr,
