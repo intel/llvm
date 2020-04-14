@@ -60,6 +60,51 @@ vector_class<device> device::get_devices(info::device_type deviceType) {
       }
     }
   }
+
+  // If SYCL_BE is set and there are multiple devices of the same type
+  // supported by different BE, and one of the devices is from SYCL_BE
+  // then only add that (and remove all others). This allows to force
+  // selection of a specific BE for a target, while running on other
+  // targets, unsupported by the SYCL_BE, with other BEs.
+  //
+  if (std::getenv("SYCL_BE")) {
+    vector_class<device> filtered_devices;
+    auto SyclBE = detail::pi::getPreferredBE();
+
+    // On the first pass see which device types are supported with SYCL_BE
+    pi_uint64 TypesSupportedBySyclBE = 0; // bit-set of info::device_type
+    for (const auto &dev : devices) {
+      if (dev.is_host())
+        continue;
+      auto BE = detail::getSyclObjImpl(dev)->getPlugin().getBackend();
+      if (BE == SyclBE) {
+        TypesSupportedBySyclBE |=
+            (pi_uint64)dev.get_info<info::device::device_type>();
+      }
+    }
+    // On the second pass only add devices that are from SYCL_BE or not
+    // supported there.
+    //
+    for (const auto &dev : devices) {
+      if (dev.is_host()) {
+        // TODO: decide if we really want to add the host here.
+        // The cons of doing so is that if SYCL_BE is set but that BE
+        // is unavailable for whatever reason, the execution would silently
+        // proceed to the host while people may think it is running
+        // with the SYCL_BE as they wanted.
+        //
+        filtered_devices.push_back(dev);
+        continue;
+      }
+
+      auto BE = detail::getSyclObjImpl(dev)->getPlugin().getBackend();
+      auto Type = (pi_uint64)dev.get_info<info::device::device_type>();
+      if (BE == SyclBE || (TypesSupportedBySyclBE & Type) == 0) {
+        filtered_devices.push_back(dev);
+      }
+    }
+    return filtered_devices;
+  }
   return devices;
 }
 
