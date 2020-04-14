@@ -66,7 +66,7 @@ using image_allocator = detail::aligned_allocator<byte>;
 /// \sa sycl_api_acc
 /// \sa sampler
 ///
-/// \ingroup sycl_api_mem
+/// \ingroup sycl_api
 template <int Dimensions = 1, typename AllocatorT = cl::sycl::image_allocator>
 class image {
 public:

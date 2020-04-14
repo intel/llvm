@@ -12,13 +12,9 @@
 ///
 /// \ingroup sycl_api
 
-/// \defgroup sycl_api_mem Memory objects
-///
-/// \sa sycl_api_acc
-/// \ingroup sycl_api
-
 /// \defgroup sycl_api_acc Accessors
 /// Specify aquisition and release of buffer and image data structures.
 ///
-/// \sa sycl_api_mem
+/// \sa buffer
+/// \sa image
 /// \ingroup sycl_api

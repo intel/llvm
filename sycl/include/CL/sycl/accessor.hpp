@@ -31,8 +31,8 @@
 ///
 /// Basically there are 3 distinct types of accessors.
 ///
-/// One of them is an accessor to a SYCL buffer object(Buffer accessor) which has
-/// the richest interface. It supports things like accessing only a part of
+/// One of them is an accessor to a SYCL buffer object(Buffer accessor) which
+/// has the richest interface. It supports things like accessing only a part of
 /// buffer, multidimensional access using sycl::id, conversions to various
 /// multi_ptr and atomic classes.
 ///
@@ -65,7 +65,8 @@
 /// digraph G {
 ///    node [shape="box"];
 ///    graph [splines=ortho];
-///    a1 [label = "accessor(1)\nFor targets:\nhost_buffer\nglobal_buffer\nconstant_buffer"];
+///    a1 [label =
+///   "accessor(1)\nFor targets:\nhost_buffer\nglobal_buffer\nconstant_buffer"];
 ///    a2 [label = "accessor(2)\nFor targets:\n host_image"];
 ///    a3 [label = "accessor(3)\nFor targets:\nlocal"];
 ///    a4 [label = "accessor(4)\nFor targets:\nimage"];
@@ -112,7 +113,7 @@
 //  | host_image      |    |  image       |    | image_array |
 //  +-----------------+    +--------------+    +-------------+
 //
-/// \addtogroup sycl_api_acc
+/// \file accessor.hpp
 ///
 /// For host side AccessorBaseHost/LocalAccessorBaseHost contains shared_ptr
 /// which points to AccessorImplHost/LocalAccessorImplHost object.
@@ -121,7 +122,8 @@
 /// \dot
 /// digraph Diagram {
 ///    node [shape="box"];
-///    a1 [label = "accessor(1)\nFor targets:\nhost_buffer\nglobal_buffer\nconstant_buffer"];
+///    a1 [label =
+///   "accessor(1)\nFor targets:\nhost_buffer\nglobal_buffer\nconstant_buffer"];
 ///    a2 [label = "accessor(2)\nFor targets:\nhost_image"];
 ///    a3 [label = "accessor(3)\nFor targets:\nlocal"];
 ///    a4 [label = "accessor(4)\nFor targets:\nimage"];
@@ -166,7 +168,7 @@
 //  | host_image      |    |  image       |    | image_array |
 //  +-----------------+    +--------------+    +-------------+
 //
-/// \addtogroup sycl_api_acc
+/// \file accessor.hpp
 ///
 /// For device side AccessorImplHost/LocalAccessorImplHost are fileds of
 /// accessor(1) and accessor(3).
@@ -176,10 +178,10 @@
 ///
 /// accessor(3) specializes accessor(1) for the local access target.
 ///
-/// image_accessor contains implements interfaces for access targets: host_image,
-/// image and image_array. But there are three distinct specializations of the
-/// accessor(1) (accessor(2), accessor(4), accessor(5)) that are just inherited
-/// from image_accessor.
+/// image_accessor contains implements interfaces for access targets:
+/// host_image, image and image_array. But there are three distinct
+/// specializations of the accessor(1) (accessor(2), accessor(4), accessor(5))
+/// that are just inherited from image_accessor.
 ///
 /// accessor_common contains several helpers common for both accessor(1) and
 /// accessor(3)

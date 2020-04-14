@@ -27,7 +27,7 @@ template <int dimensions> class range;
 ///
 /// \sa sycl_api_acc
 ///
-/// \ingroup sycl_api_mem
+/// \ingroup sycl_api
 template <typename T, int dimensions = 1,
           typename AllocatorT = cl::sycl::buffer_allocator,
           typename = typename std::enable_if<(dimensions > 0) &&
