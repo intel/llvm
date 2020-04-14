@@ -30,7 +30,7 @@ program::program(vector_class<program> programList, string_class linkOptions) {
 program::program(const context &context, cl_program clProgram)
     : impl(std::make_shared<detail::program_impl>(
           detail::getSyclObjImpl(context),
-          detail::pi::cast<detail::RT::PiProgram>(clProgram))) {}
+          detail::pi::cast<detail::program_interop_handle_t>(clProgram))) {}
 program::program(std::shared_ptr<detail::program_impl> impl) : impl(impl) {}
 
 cl_program program::get() const { return impl->get(); }
@@ -86,7 +86,8 @@ program::get_info() const {
 }
 
 #define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
-  template ret_type program::get_info<info::param_type::param>() const;
+  template __SYCL_EXPORT ret_type program::get_info<info::param_type::param>() \
+      const;
 
 #include <CL/sycl/info/program_traits.def>
 
@@ -115,5 +116,11 @@ string_class program::get_build_options() const {
 }
 
 program_state program::get_state() const { return impl->get_state(); }
+
+void program::set_spec_constant_impl(const char *Name, void *Data,
+                                     size_t Size) {
+  impl->set_spec_constant_impl(Name, Data, Size);
+}
+
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

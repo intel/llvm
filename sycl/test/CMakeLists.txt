@@ -1,23 +1,11 @@
-set(LLVM_BUILD_LIBRARY_DIRS "${LLVM_BINARY_DIR}/lib/")
-set(LLVM_BUILD_BINARY_DIRS "${LLVM_BINARY_DIR}/bin/")
 set(LLVM_TOOLS_DIR "${LLVM_BINARY_DIR}/bin/")
-set(CLANG_IN_BUILD "${LLVM_BINARY_DIR}/bin/clang")
-set(CLANGXX_IN_BUILD "${LLVM_BINARY_DIR}/bin/clang++")
-set(CLANGCL_IN_BUILD "${LLVM_BINARY_DIR}/bin/clang-cl")
-
-set(LLVM_DEPLOY_LIBRARY_DIRS "${CMAKE_INSTALL_PREFIX}/lib/")
-set(LLVM_DEPLOY_BINARY_DIRS "${CMAKE_INSTALL_PREFIX}/bin/")
-set(CLANG_IN_DEPLOY "${CMAKE_INSTALL_PREFIX}/bin/clang")
-set(CLANGXX_IN_DEPLOY "${CMAKE_INSTALL_PREFIX}/bin/clang++")
-set(CLANGCL_IN_DEPLOY "${CMAKE_INSTALL_PREFIX}/bin/clang-cl")
 
 get_target_property(SYCL_BINARY_DIR sycl-toolchain BINARY_DIR)
 
-set(SYCL_INCLUDE "${dst_dir}")
-set(SYCL_DEPLOY_INCLUDE "${dst_deploy_dir}")
+set(SYCL_INCLUDE "${SYCL_INCLUDE_BUILD_DIR}")
 
 set(RT_TEST_ARGS ${RT_TEST_ARGS} "-v")
-set(DEPLOY_RT_TEST_ARGS ${DEPLOY_RT_TEST_ARGS} "-v --config-prefix=deploy-lit")
+set(DEPLOY_RT_TEST_ARGS ${DEPLOY_RT_TEST_ARGS} "-v -D SYCL_TOOLS_DIR=${CMAKE_INSTALL_PREFIX}/bin -D SYCL_LIBS_DIR=${CMAKE_INSTALL_PREFIX}/lib${LLVM_LIBDIR_SUFFIX} -D SYCL_INCLUDE=${SYCL_INCLUDE_DEPLOY_DIR}")
 
 configure_lit_site_cfg(
   ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in
@@ -33,13 +21,6 @@ configure_lit_site_cfg(
   ${CMAKE_CURRENT_SOURCE_DIR}/Unit/lit.cfg.py
   )
 
-configure_lit_site_cfg(
-  ${CMAKE_CURRENT_SOURCE_DIR}/deploy-lit.site.cfg.py.in
-  ${CMAKE_CURRENT_BINARY_DIR}/deploy-lit.site.cfg.py
-  MAIN_CONFIG
-  ${CMAKE_CURRENT_SOURCE_DIR}/lit.cfg.py
-  )
-
 list(APPEND SYCL_TEST_DEPS
   sycl-toolchain
   FileCheck
@@ -49,11 +30,8 @@ list(APPEND SYCL_TEST_DEPS
   )
 
 list(APPEND SYCL_DEPLOY_TEST_DEPS
+  ${SYCL_TEST_DEPS}
   deploy-sycl-toolchain
-  FileCheck
-  not
-  get_device_count_by_type
-  llvm-config
   )
 
 add_lit_testsuite(check-sycl "Running the SYCL regression tests"
@@ -62,10 +40,13 @@ add_lit_testsuite(check-sycl "Running the SYCL regression tests"
   PARAMS "SYCL_BE=PI_OPENCL"
   DEPENDS ${SYCL_TEST_DEPS}
   )
+
 add_lit_testsuite(check-sycl-deploy "Running the SYCL regression tests"
   ${CMAKE_CURRENT_BINARY_DIR}
   ARGS ${DEPLOY_RT_TEST_ARGS}
+  PARAMS "SYCL_BE=PI_OPENCL"
   DEPENDS ${SYCL_DEPLOY_TEST_DEPS}
+  EXCLUDE_FROM_CHECK_ALL
   )
 set_target_properties(check-sycl PROPERTIES FOLDER "SYCL tests")
 
@@ -73,10 +54,17 @@ add_lit_testsuites(SYCL ${CMAKE_CURRENT_SOURCE_DIR}
   DEPENDS ${SYCL_TEST_DEPS}
   )
 
+add_lit_testsuites(SYCL-DEPLOY ${CMAKE_CURRENT_SOURCE_DIR}
+  ARGS ${DEPLOY_RT_TEST_ARGS}
+  PARAMS "SYCL_BE=PI_OPENCL"
+  DEPENDS ${SYCL_DEPLOY_TEST_DEPS}
+  EXCLUDE_FROM_CHECK_ALL
+  )
+
 if(SYCL_BUILD_PI_CUDA)
   add_lit_testsuite(check-sycl-cuda "Running the SYCL regression tests for CUDA"
     ${CMAKE_CURRENT_BINARY_DIR}
-    ARGS ${RT_TEST_ARGS} 
+    ARGS ${RT_TEST_ARGS}
     PARAMS "SYCL_BE=PI_CUDA"
     DEPENDS ${SYCL_TEST_DEPS}
   )

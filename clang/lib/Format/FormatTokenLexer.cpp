@@ -76,17 +76,13 @@ void FormatTokenLexer::tryMergePreviousTokens() {
     return;
 
   if (Style.isCSharp()) {
-    if (tryMergeCSharpNamedArgument())
-      return;
-    if (tryMergeCSharpAttributeAndTarget())
-      return;
     if (tryMergeCSharpKeywordVariables())
       return;
     if (tryMergeCSharpStringLiteral())
       return;
     if (tryMergeCSharpDoubleQuestion())
       return;
-    if (tryMergeCSharpNullConditionals())
+    if (tryMergeCSharpNullConditional())
       return;
     if (tryTransformCSharpForEach())
       return;
@@ -182,39 +178,6 @@ bool FormatTokenLexer::tryMergeJSPrivateIdentifier() {
                 Identifier->TokenText.end() - Hash->TokenText.begin());
   Hash->ColumnWidth += Identifier->ColumnWidth;
   Hash->Type = TT_JsPrivateIdentifier;
-  Tokens.erase(Tokens.end() - 1);
-  return true;
-}
-
-// Merge 'argName' and ':' into a single token in `foo(argName: bar)`.
-bool FormatTokenLexer::tryMergeCSharpNamedArgument() {
-  if (Tokens.size() < 2)
-    return false;
-  auto &Colon = *(Tokens.end() - 1);
-  if (!Colon->is(tok::colon))
-    return false;
-
-  auto &Name = *(Tokens.end() - 2);
-  if (!Name->is(tok::identifier))
-    return false;
-    
-  const FormatToken *CommaOrLeftParen = nullptr;
-  for (auto I = Tokens.rbegin() + 2, E = Tokens.rend(); I != E; ++I) {
-    // NB: Because previous pointers are not initialized yet, this cannot use
-    // Token.getPreviousNonComment.
-    if ((*I)->isNot(tok::comment)) {
-      CommaOrLeftParen = *I;
-      break;
-    }
-  }
-
-  if (!CommaOrLeftParen || !CommaOrLeftParen->isOneOf(tok::l_paren, tok::comma))
-    return false;
-
-  Name->TokenText = StringRef(Name->TokenText.begin(),
-                              Colon->TokenText.end() - Name->TokenText.begin());
-  Name->ColumnWidth += Colon->ColumnWidth;
-  Name->Type = TT_CSharpNamedArgument;
   Tokens.erase(Tokens.end() - 1);
   return true;
 }
@@ -319,34 +282,6 @@ const llvm::StringSet<> FormatTokenLexer::CSharpAttributeTargets = {
     "param",    "property", "return", "type",
 };
 
-bool FormatTokenLexer::tryMergeCSharpAttributeAndTarget() {
-  // Treat '[assembly:' and '[field:' as tokens in their own right.
-  if (Tokens.size() < 3)
-    return false;
-
-  auto &SquareBracket = *(Tokens.end() - 3);
-  auto &Target = *(Tokens.end() - 2);
-  auto &Colon = *(Tokens.end() - 1);
-
-  if (!SquareBracket->Tok.is(tok::l_square))
-    return false;
-
-  if (CSharpAttributeTargets.find(Target->TokenText) ==
-      CSharpAttributeTargets.end())
-    return false;
-
-  if (!Colon->Tok.is(tok::colon))
-    return false;
-
-  SquareBracket->TokenText =
-      StringRef(SquareBracket->TokenText.begin(),
-                Colon->TokenText.end() - SquareBracket->TokenText.begin());
-  SquareBracket->ColumnWidth += (Target->ColumnWidth + Colon->ColumnWidth);
-  Tokens.erase(Tokens.end() - 2);
-  Tokens.erase(Tokens.end() - 1);
-  return true;
-}
-
 bool FormatTokenLexer::tryMergeCSharpDoubleQuestion() {
   if (Tokens.size() < 2)
     return false;
@@ -354,12 +289,38 @@ bool FormatTokenLexer::tryMergeCSharpDoubleQuestion() {
   auto &SecondQuestion = *(Tokens.end() - 1);
   if (!FirstQuestion->is(tok::question) || !SecondQuestion->is(tok::question))
     return false;
-  FirstQuestion->Tok.setKind(tok::question);
+  FirstQuestion->Tok.setKind(tok::question); // no '??' in clang tokens.
   FirstQuestion->TokenText = StringRef(FirstQuestion->TokenText.begin(),
                                        SecondQuestion->TokenText.end() -
                                            FirstQuestion->TokenText.begin());
   FirstQuestion->ColumnWidth += SecondQuestion->ColumnWidth;
   FirstQuestion->Type = TT_CSharpNullCoalescing;
+  Tokens.erase(Tokens.end() - 1);
+  return true;
+}
+
+// Merge '?[' and '?.' pairs into single tokens.
+bool FormatTokenLexer::tryMergeCSharpNullConditional() {
+  if (Tokens.size() < 2)
+    return false;
+  auto &Question = *(Tokens.end() - 2);
+  auto &PeriodOrLSquare = *(Tokens.end() - 1);
+  if (!Question->is(tok::question) ||
+      !PeriodOrLSquare->isOneOf(tok::l_square, tok::period))
+    return false;
+  Question->TokenText =
+      StringRef(Question->TokenText.begin(),
+                PeriodOrLSquare->TokenText.end() - Question->TokenText.begin());
+  Question->ColumnWidth += PeriodOrLSquare->ColumnWidth;
+
+  if (PeriodOrLSquare->is(tok::l_square)) {
+    Question->Tok.setKind(tok::question); // no '?[' in clang tokens.
+    Question->Type = TT_CSharpNullConditionalLSquare;
+  } else {
+    Question->Tok.setKind(tok::question); // no '?.' in clang tokens.
+    Question->Type = TT_CSharpNullConditional;
+  }
+
   Tokens.erase(Tokens.end() - 1);
   return true;
 }
@@ -379,23 +340,6 @@ bool FormatTokenLexer::tryMergeCSharpKeywordVariables() {
                             Keyword->TokenText.end() - At->TokenText.begin());
   At->ColumnWidth += Keyword->ColumnWidth;
   At->Type = Keyword->Type;
-  Tokens.erase(Tokens.end() - 1);
-  return true;
-}
-
-// In C# merge the Identifier and the ? together e.g. arg?.
-bool FormatTokenLexer::tryMergeCSharpNullConditionals() {
-  if (Tokens.size() < 2)
-    return false;
-  auto &Identifier = *(Tokens.end() - 2);
-  auto &Question = *(Tokens.end() - 1);
-  if (!Identifier->isOneOf(tok::r_square, tok::identifier) ||
-      !Question->is(tok::question))
-    return false;
-  Identifier->TokenText =
-      StringRef(Identifier->TokenText.begin(),
-                Question->TokenText.end() - Identifier->TokenText.begin());
-  Identifier->ColumnWidth += Question->ColumnWidth;
   Tokens.erase(Tokens.end() - 1);
   return true;
 }
@@ -609,7 +553,7 @@ void FormatTokenLexer::handleCSharpVerbatimAndInterpolatedStrings() {
   size_t LastBreak = LiteralText.rfind('\n');
   if (LastBreak != StringRef::npos) {
     CSharpStringLiteral->IsMultiline = true;
-    unsigned StartColumn = 0; // The template tail spans the entire line.
+    unsigned StartColumn = 0;
     CSharpStringLiteral->LastLineColumnWidth = encoding::columnWidthWithTabs(
         LiteralText.substr(LastBreak + 1, LiteralText.size()), StartColumn,
         Style.TabWidth, Encoding);

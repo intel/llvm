@@ -1,6 +1,6 @@
 // UNSUPPORTED: windows
 // RUN: %clangxx -fsycl -c %s -o %t.o
-// RUN: %clangxx -fsycl %t.o %llvm_build_libs_dir/libsycl-cmath-fp64.o -o %t.out
+// RUN: %clangxx -fsycl %t.o %sycl_libs_dir/libsycl-cmath-fp64.o -o %t.out
 #include <CL/sycl.hpp>
 #include <iostream>
 #include <cmath>

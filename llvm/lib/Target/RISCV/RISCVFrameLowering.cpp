@@ -142,10 +142,10 @@ void RISCVFrameLowering::determineFrameLayout(MachineFunction &MF) const {
   uint64_t FrameSize = MFI.getStackSize();
 
   // Get the alignment.
-  unsigned StackAlign = getStackAlignment();
+  Align StackAlign = getStackAlign();
   if (RI->needsStackRealignment(MF)) {
-    unsigned MaxStackAlign = std::max(StackAlign, MFI.getMaxAlignment());
-    FrameSize += (MaxStackAlign - StackAlign);
+    Align MaxStackAlign = std::max(StackAlign, MFI.getMaxAlign());
+    FrameSize += (MaxStackAlign.value() - StackAlign.value());
     StackAlign = MaxStackAlign;
   }
 
@@ -359,15 +359,15 @@ void RISCVFrameLowering::emitPrologue(MachineFunction &MF,
     // Realign Stack
     const RISCVRegisterInfo *RI = STI.getRegisterInfo();
     if (RI->needsStackRealignment(MF)) {
-      unsigned MaxAlignment = MFI.getMaxAlignment();
+      Align MaxAlignment = MFI.getMaxAlign();
 
       const RISCVInstrInfo *TII = STI.getInstrInfo();
-      if (isInt<12>(-(int)MaxAlignment)) {
+      if (isInt<12>(-(int)MaxAlignment.value())) {
         BuildMI(MBB, MBBI, DL, TII->get(RISCV::ANDI), SPReg)
             .addReg(SPReg)
-            .addImm(-(int)MaxAlignment);
+            .addImm(-(int)MaxAlignment.value());
       } else {
-        unsigned ShiftAmount = countTrailingZeros(MaxAlignment);
+        unsigned ShiftAmount = Log2(MaxAlignment);
         Register VR =
             MF.getRegInfo().createVirtualRegister(&RISCV::GPRRegClass);
         BuildMI(MBB, MBBI, DL, TII->get(RISCV::SRLI), VR)
@@ -631,7 +631,6 @@ RISCVFrameLowering::getFirstSPAdjustAmount(const MachineFunction &MF) const {
   const MachineFrameInfo &MFI = MF.getFrameInfo();
   const std::vector<CalleeSavedInfo> &CSI = MFI.getCalleeSavedInfo();
   uint64_t StackSize = MFI.getStackSize();
-  uint64_t StackAlign = getStackAlignment();
 
   // Disable SplitSPAdjust if save-restore libcall used. The callee saved
   // registers will be pushed by the save-restore libcalls, so we don't have to
@@ -648,7 +647,7 @@ RISCVFrameLowering::getFirstSPAdjustAmount(const MachineFunction &MF) const {
     // load/store instruction and we have to stick with the stack alignment.
     // 2048 is 16-byte alignment. The stack alignment for RV32 and RV64 is 16,
     // for RV32E is 4. So (2048 - StackAlign) will satisfy the stack alignment.
-    return 2048 - StackAlign;
+    return 2048 - getStackAlign().value();
   }
   return 0;
 }
@@ -691,7 +690,7 @@ bool RISCVFrameLowering::spillCalleeSavedRegisters(
 
 bool RISCVFrameLowering::restoreCalleeSavedRegisters(
     MachineBasicBlock &MBB, MachineBasicBlock::iterator MI,
-    std::vector<CalleeSavedInfo> &CSI, const TargetRegisterInfo *TRI) const {
+    MutableArrayRef<CalleeSavedInfo> CSI, const TargetRegisterInfo *TRI) const {
   if (CSI.empty())
     return true;
 

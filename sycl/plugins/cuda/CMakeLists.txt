@@ -4,9 +4,10 @@ message(STATUS "Including the PI API CUDA backend.")
  # we only require the CUDA driver API to be used
  # CUDA_CUDA_LIBRARY variable defines the path to libcuda.so, the CUDA Driver API library.
 
-find_package(CUDA 10.0 REQUIRED)
+find_package(CUDA 10.1 REQUIRED)
 
-add_library(cudadrv SHARED IMPORTED)
+# Make imported library global to use it within the project.
+add_library(cudadrv SHARED IMPORTED GLOBAL)
 
 set_target_properties(
   cudadrv PROPERTIES 
@@ -21,25 +22,30 @@ add_library(pi_cuda SHARED
   "pi_cuda.cpp"
 )
 
+add_dependencies(pi_cuda
+  ocl-headers
+)
+
 add_dependencies(sycl-toolchain pi_cuda)
 
 set_target_properties(pi_cuda PROPERTIES LINKER_LANGUAGE CXX)
 
-target_include_directories(pi_cuda PRIVATE "${sycl_inc_dir}")
-
-target_include_directories(pi_cuda INTERFACE ${CUDA_INCLUDE_DIRS})
+target_include_directories(pi_cuda
+  PRIVATE
+    ${sycl_inc_dir}
+  PUBLIC
+    ${CUDA_INCLUDE_DIRS}
+)
 
 target_link_libraries(pi_cuda PUBLIC OpenCL-Headers cudadrv)
 
-target_link_libraries(sycl INTERFACE pi_cuda)
-
 add_common_options(pi_cuda)
 
-target_compile_definitions(
-  sycl PUBLIC USE_PI_CUDA
-)
-
 install(TARGETS pi_cuda
-  LIBRARY DESTINATION "lib" COMPONENT pi_cuda
+  LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT pi_cuda
   RUNTIME DESTINATION "bin" COMPONENT pi_cuda
 )
+
+# `sycl/source/CMakeLists.txt` adapted when SYCL_BUILD_PI_CUDA is defined:
+# target_link_libraries(sycl PUBLIC pi_cuda)
+# target_compile_definitions(sycl PUBLIC USE_PI_CUDA)

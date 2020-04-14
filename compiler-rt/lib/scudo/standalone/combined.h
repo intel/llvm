@@ -13,7 +13,6 @@
 #include "common.h"
 #include "flags.h"
 #include "flags_parser.h"
-#include "interface.h"
 #include "local_cache.h"
 #include "memtag.h"
 #include "quarantine.h"
@@ -21,6 +20,8 @@
 #include "secondary.h"
 #include "string_utils.h"
 #include "tsd.h"
+
+#include "scudo/interface.h"
 
 #ifdef GWP_ASAN_HOOKS
 #include "gwp_asan/guarded_pool_allocator.h"
@@ -260,8 +261,8 @@ public:
     }
     DCHECK_LE(Size, NeededSize);
 
-    void *Block;
-    uptr ClassId;
+    void *Block = nullptr;
+    uptr ClassId = 0;
     uptr SecondaryBlockEnd;
     if (LIKELY(PrimaryT::canAllocate(NeededSize))) {
       ClassId = SizeClassMap::getClassIdBySize(NeededSize);
@@ -273,20 +274,19 @@ public:
       // is the region being full. In that event, retry once using the
       // immediately larger class (except if the failing class was already the
       // largest). This will waste some memory but will allow the application to
-      // not fail.
-      if (SCUDO_ANDROID) {
-        if (UNLIKELY(!Block)) {
-          if (ClassId < SizeClassMap::LargestClassId)
-            Block = TSD->Cache.allocate(++ClassId);
-        }
+      // not fail. If dealing with the largest class, fallback to the Secondary.
+      if (UNLIKELY(!Block)) {
+        if (ClassId < SizeClassMap::LargestClassId)
+          Block = TSD->Cache.allocate(++ClassId);
+        else
+          ClassId = 0;
       }
       if (UnlockRequired)
         TSD->unlock();
-    } else {
-      ClassId = 0;
+    }
+    if (UNLIKELY(ClassId == 0))
       Block = Secondary.allocate(NeededSize, Alignment, &SecondaryBlockEnd,
                                  ZeroContents);
-    }
 
     if (UNLIKELY(!Block)) {
       if (Options.MayReturnNull)
@@ -449,6 +449,12 @@ public:
   void *reallocate(void *OldPtr, uptr NewSize, uptr Alignment = MinAlignment) {
     initThreadMaybe();
 
+    if (UNLIKELY(NewSize >= MaxAllowedMallocSize)) {
+      if (Options.MayReturnNull)
+        return nullptr;
+      reportAllocationSizeTooBig(NewSize, 0, MaxAllowedMallocSize);
+    }
+
     void *OldTaggedPtr = OldPtr;
     OldPtr = untagPointerMaybe(OldPtr);
 
@@ -502,9 +508,7 @@ public:
     // reasonable delta), we just keep the old block, and update the chunk
     // header to reflect the size change.
     if (reinterpret_cast<uptr>(OldPtr) + NewSize <= BlockEnd) {
-      const uptr Delta =
-          OldSize < NewSize ? NewSize - OldSize : OldSize - NewSize;
-      if (Delta <= SizeClassMap::MaxSize / 2) {
+      if (NewSize > OldSize || (OldSize - NewSize) < getPageSizeCached()) {
         Chunk::UnpackedHeader NewHeader = OldHeader;
         NewHeader.SizeOrUnusedBytes =
             (ClassId ? NewSize

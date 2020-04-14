@@ -9,6 +9,7 @@
 #pragma once
 
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/sycl_mem_obj_allocator.hpp>
 #include <CL/sycl/detail/sycl_mem_obj_i.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
@@ -36,7 +37,7 @@ class aligned_allocator;
 using sycl_memory_object_allocator = aligned_allocator<char>;
 
 // The class serves as a base for all SYCL memory objects.
-class SYCLMemObjT : public SYCLMemObjI {
+class __SYCL_EXPORT SYCLMemObjT : public SYCLMemObjI {
 
   // The check for output iterator is commented out as it blocks set_final_data
   // with void * argument to be used.
@@ -234,9 +235,10 @@ public:
     MHostPtrReadOnly = iterator_to_const_type_t<InputIterator>::value;
     setAlign(RequiredAlign);
     if (useHostPtr())
-      throw invalid_parameter_error(
+      throw runtime_error(
           "Buffer constructor from a pair of iterator values does not support "
-          "use_host_ptr property.");
+          "use_host_ptr property.",
+          PI_INVALID_OPERATION);
 
     setAlign(RequiredAlign);
     MShadowCopy = allocateHostMem();

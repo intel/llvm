@@ -59,7 +59,8 @@ ordered_queue::ordered_queue(cl_command_queue clQueue,
       &reportedProps, nullptr);
   if (reportedProps & CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE)
     throw runtime_error(
-        "Failed to build a sycl ordered queue from a cl OOO queue.");
+        "Failed to build a sycl ordered queue from a cl OOO queue.",
+        PI_INVALID_OPERATION);
 
   impl = std::make_shared<detail::queue_impl>(
       m_CommandQueue, detail::getSyclObjImpl(syclContext), asyncHandler);
@@ -73,10 +74,6 @@ device ordered_queue::get_device() const { return impl->get_device(); }
 
 bool ordered_queue::is_host() const { return impl->is_host(); }
 
-void ordered_queue::wait() { impl->wait(); }
-
-void ordered_queue::wait_and_throw() { impl->wait_and_throw(); }
-
 void ordered_queue::throw_asynchronous() { impl->throw_asynchronous(); }
 
 event ordered_queue::memset(void *ptr, int value, size_t count) {
@@ -87,13 +84,23 @@ event ordered_queue::memcpy(void *dest, const void *src, size_t count) {
   return impl->memcpy(impl, dest, src, count);
 }
 
-event ordered_queue::submit_impl(function_class<void(handler &)> CGH) {
-  return impl->submit(CGH, impl);
+event ordered_queue::submit_impl(function_class<void(handler &)> CGH,
+                                 const detail::code_location &CodeLoc) {
+  return impl->submit(CGH, impl, CodeLoc);
 }
 
 event ordered_queue::submit_impl(function_class<void(handler &)> CGH,
-                                 ordered_queue &secondQueue) {
-  return impl->submit(CGH, impl, secondQueue.impl);
+                                 ordered_queue &secondQueue,
+                                 const detail::code_location &CodeLoc) {
+  return impl->submit(CGH, impl, secondQueue.impl, CodeLoc);
+}
+
+void ordered_queue::wait_proxy(const detail::code_location &CodeLoc) {
+  impl->wait(CodeLoc);
+}
+
+void ordered_queue::wait_and_throw_proxy(const detail::code_location &CodeLoc) {
+  impl->wait_and_throw(CodeLoc);
 }
 
 template <info::queue param>

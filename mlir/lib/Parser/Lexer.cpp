@@ -15,6 +15,8 @@
 #include "mlir/IR/Identifier.h"
 #include "mlir/IR/Location.h"
 #include "mlir/IR/MLIRContext.h"
+#include "llvm/ADT/StringExtras.h"
+#include "llvm/ADT/StringSwitch.h"
 #include "llvm/Support/SourceMgr.h"
 using namespace mlir;
 
@@ -81,8 +83,8 @@ Token Lexer::lexToken() {
       // marker that llvm::MemoryBuffer guarantees will be there.
       if (curPtr - 1 == curBuffer.end())
         return formToken(Token::eof, tokStart);
+      continue;
 
-      LLVM_FALLTHROUGH;
     case ':':
       return formToken(Token::colon, tokStart);
     case ',':

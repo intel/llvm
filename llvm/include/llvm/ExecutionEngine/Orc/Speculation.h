@@ -17,6 +17,7 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ExecutionEngine/Orc/Core.h"
+#include "llvm/ExecutionEngine/Orc/DebugUtils.h"
 #include "llvm/ExecutionEngine/Orc/IRCompileLayer.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/Passes/PassBuilder.h"
@@ -192,11 +193,10 @@ private:
   internToJITSymbols(DenseMap<StringRef, DenseSet<StringRef>> IRNames) {
     assert(!IRNames.empty() && "No IRNames received to Intern?");
     TargetAndLikelies InternedNames;
-    DenseSet<SymbolStringPtr> TargetJITNames;
     for (auto &NamePair : IRNames) {
+      DenseSet<SymbolStringPtr> TargetJITNames;
       for (auto &TargetNames : NamePair.second)
         TargetJITNames.insert(Mangle(TargetNames));
-
       InternedNames[Mangle(NamePair.first)] = std::move(TargetJITNames);
     }
     return InternedNames;

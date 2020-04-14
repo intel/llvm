@@ -24,6 +24,7 @@ add_llvm_unittest(IRTests
   IRBuilderTest.cpp
   InstructionsTest.cpp
   IntrinsicsTest.cpp
+  KnowledgeRetentionTest.cpp
   LegacyPassManagerTest.cpp
   MDBuilderTest.cpp
   ManglerTest.cpp
@@ -40,6 +41,7 @@ add_llvm_unittest(IRTests
   ValueTest.cpp
   VectorTypesTest.cpp
   VerifierTest.cpp
+  VPIntrinsicTest.cpp
   WaymarkTest.cpp
   )
 

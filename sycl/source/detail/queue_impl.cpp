@@ -12,9 +12,13 @@
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/device.hpp>
 #include <detail/queue_impl.hpp>
-#include <detail/usm/usm_dispatch.hpp>
 
 #include <cstring>
+
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+#include "xpti_trace_framework.hpp"
+#include <sstream>
+#endif
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -64,7 +68,8 @@ event queue_impl::memcpy(shared_ptr_class<detail::queue_impl> Impl, void *Dest,
   return ResEvent;
 }
 
-event queue_impl::mem_advise(const void *Ptr, size_t Length, int Advice) {
+event queue_impl::mem_advise(const void *Ptr, size_t Length,
+                             pi_mem_advice Advice) {
   context Context = get_context();
   if (Context.is_host()) {
     return event();
@@ -84,6 +89,100 @@ event queue_impl::mem_advise(const void *Ptr, size_t Length, int Advice) {
 void queue_impl::addEvent(event Event) {
   std::lock_guard<mutex_class> Guard(MMutex);
   MEvents.push_back(std::move(Event));
+}
+
+void *queue_impl::instrumentationProlog(const detail::code_location &CodeLoc,
+                                        string_class &Name, int32_t StreamID,
+                                        uint64_t &IId) {
+  void *TraceEvent = nullptr;
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  xpti::trace_event_data_t *WaitEvent = nullptr;
+  if (!xptiTraceEnabled())
+    return TraceEvent;
+
+  xpti::payload_t Payload;
+  bool HasSourceInfo = false;
+  // We try to create a unique string for the wait() call by combining it with
+  // the queue address
+  xpti::utils::StringHelper NG;
+  Name = NG.nameWithAddress<queue_impl *>("queue.wait", this);
+
+  if (!CodeLoc.fileName()) {
+    // We have source code location information
+    Payload =
+        xpti::payload_t(Name.c_str(), CodeLoc.fileName(), CodeLoc.lineNumber(),
+                        CodeLoc.columnNumber(), (void *)this);
+    HasSourceInfo = true;
+  } else {
+    // We have no location information, so we'll use the address of the queue
+    Payload = xpti::payload_t(Name.c_str(), (void *)this);
+  }
+  // wait() calls could be at different user-code locations; We create a new
+  // event based on the code location info and if this has been seen before, a
+  // previously created event will be returned.
+  uint64_t QWaitInstanceNo = 0;
+  WaitEvent = xptiMakeEvent(Name.c_str(), &Payload, xpti::trace_graph_event,
+                            xpti_at::active, &QWaitInstanceNo);
+  IId = QWaitInstanceNo;
+  if (WaitEvent) {
+    device D = get_device();
+    std::string DevStr;
+    if (D.is_host())
+      DevStr = "HOST";
+    else if (D.is_cpu())
+      DevStr = "CPU";
+    else if (D.is_gpu())
+      DevStr = "GPU";
+    else if (D.is_accelerator())
+      DevStr = "ACCELERATOR";
+    else
+      DevStr = "UNKNOWN";
+    xptiAddMetadata(WaitEvent, "sycl_device", DevStr.c_str());
+    if (HasSourceInfo) {
+      xptiAddMetadata(WaitEvent, "sym_function_name", CodeLoc.functionName());
+      xptiAddMetadata(WaitEvent, "sym_source_file_name", CodeLoc.fileName());
+      xptiAddMetadata(WaitEvent, "sym_line_no",
+                      std::to_string(CodeLoc.lineNumber()).c_str());
+    }
+    xptiNotifySubscribers(StreamID, xpti::trace_wait_begin, nullptr, WaitEvent,
+                          QWaitInstanceNo,
+                          static_cast<const void *>(Name.c_str()));
+    TraceEvent = (void *)WaitEvent;
+  }
+#endif
+  return TraceEvent;
+}
+
+void queue_impl::instrumentationEpilog(void *TelemetryEvent, string_class &Name,
+                                       int32_t StreamID, uint64_t IId) {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (!(xptiTraceEnabled() && TelemetryEvent))
+    return;
+  // Close the wait() scope
+  xpti::trace_event_data_t *TraceEvent =
+      (xpti::trace_event_data_t *)TelemetryEvent;
+  xptiNotifySubscribers(StreamID, xpti::trace_wait_end, nullptr, TraceEvent,
+                        IId, static_cast<const void *>(Name.c_str()));
+#endif
+}
+
+void queue_impl::wait(const detail::code_location &CodeLoc) {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  void *TelemetryEvent = nullptr;
+  uint64_t IId;
+  std::string Name;
+  int32_t StreamID = xptiRegisterStream(SYCL_STREAM_NAME);
+  TelemetryEvent = instrumentationProlog(CodeLoc, Name, StreamID, IId);
+#endif
+
+  std::lock_guard<mutex_class> Guard(MMutex);
+  for (auto &Event : MEvents)
+    Event.wait();
+  MEvents.clear();
+
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  instrumentationEpilog(TelemetryEvent, Name, StreamID, IId);
+#endif
 }
 
 } // namespace detail

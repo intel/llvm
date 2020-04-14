@@ -21,7 +21,9 @@ class queue;
 template <int dimensions> class range;
 
 template <typename T, int dimensions = 1,
-          typename AllocatorT = cl::sycl::buffer_allocator>
+          typename AllocatorT = cl::sycl::buffer_allocator,
+          typename = typename std::enable_if<(dimensions > 0) &&
+                                             (dimensions <= 3)>::type>
 class buffer {
 public:
   using value_type = T;
@@ -180,13 +182,14 @@ public:
         IsSubBuffer(true) {
     if (b.is_sub_buffer())
       throw cl::sycl::invalid_object_error(
-          "Cannot create sub buffer from sub buffer.");
+          "Cannot create sub buffer from sub buffer.", PI_INVALID_VALUE);
     if (isOutOfBounds(baseIndex, subRange, b.Range))
       throw cl::sycl::invalid_object_error(
-          "Requested sub-buffer size exceeds the size of the parent buffer");
+          "Requested sub-buffer size exceeds the size of the parent buffer",
+          PI_INVALID_VALUE);
     if (!isContiguousRegion(baseIndex, subRange, b.Range))
       throw cl::sycl::invalid_object_error(
-          "Requested sub-buffer region is not contiguous");
+          "Requested sub-buffer region is not contiguous", PI_INVALID_VALUE);
   }
 
   template <int N = dimensions, typename = EnableIfOneDimension<N>>
@@ -282,7 +285,8 @@ public:
       throw cl::sycl::invalid_object_error(
           "Total size in bytes represented by the type and range of the "
           "reinterpreted SYCL buffer does not equal the total size in bytes "
-          "represented by the type and range of this SYCL buffer");
+          "represented by the type and range of this SYCL buffer",
+          PI_INVALID_VALUE);
 
     return buffer<ReinterpretT, ReinterpretDim, AllocatorT>(
         impl, reinterpretRange, OffsetInBytes, IsSubBuffer);
@@ -300,9 +304,10 @@ private:
   shared_ptr_class<detail::buffer_impl> impl;
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
-  template <typename A, int dims, typename C> friend class buffer;
-  template <typename DataT, int dims, access::mode mode,
-            access::target target, access::placeholder isPlaceholder>
+  template <typename A, int dims, typename C, typename Enable>
+  friend class buffer;
+  template <typename DataT, int dims, access::mode mode, access::target target,
+            access::placeholder isPlaceholder>
   friend class accessor;
   range<dimensions> Range;
   // Offset field specifies the origin of the sub buffer inside the parent

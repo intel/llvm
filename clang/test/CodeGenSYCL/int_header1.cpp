@@ -76,22 +76,6 @@ struct MyWrapper {
     // translation unit scope
     kernel_single_task<nm1::nm2::KernelName0>([=]() { acc.use(); });
 
-#ifdef LI__
-    // TODO unexpected compilation error when host code + integration header
-    // is compiled LI-- kernel name is an incomplete class forward-declared in
-    // local scope
-    class KernelName2;
-    kernel_single_task<KernelName2>([=]() { acc.use(); });
-#endif
-
-#ifdef LD__
-    // Expected compilation error.
-    // LD--
-    // kernel name is a class defined in local scope
-    class KernelName2a {};
-    kernel_single_task<KernelName2a>([=]() { acc.use(); });
-#endif
-
     // TI--
     // an incomplete class forward-declared in a namespace at
     // translation unit scope
@@ -127,16 +111,6 @@ struct MyWrapper {
     kernel_single_task<nm1::KernelName3<class KernelName5>>(
       [=]() { acc.use(); });
 
-#ifdef TILI
-    // Expected compilation error
-    // TILI
-    // an incomplete template specialization class with incomplete class as
-    // argument forward-declared locally
-    class KernelName6;
-    kernel_single_task<nm1::KernelName3<KernelName6>>(
-      [=]() { acc.use(); });
-#endif
-
     // TDPI
     // a defined template specialization class with incomplete class as
     // argument forward-declared "in-place"
@@ -148,40 +122,6 @@ struct MyWrapper {
     // as argument declared in a namespace at translation unit scope
     kernel_single_task<nm1::KernelName8<nm1::nm2::C>>(
       [=]() { acc.use(); });
-
-#ifdef TDLI
-    // TODO unexpected compilation error when host code + integration header
-    // is compiled TDLI a defined template specialization class with
-    // incomplete class as argument forward-declared locally
-    class KernelName6a;
-    kernel_single_task<nm1::KernelName4<KernelName6a>>(
-      [=]() { acc.use(); });
-#endif
-
-#ifdef TDLD
-    // Expected compilation error
-    // TDLD
-    // a defined template specialization class with a class as argument
-    // defined locally
-    class KernelName9 {};
-    kernel_single_task<nm1::KernelName4<KernelName9>>([=]() { acc.use(); });
-#endif
-
-#ifdef TICD
-    // Expected compilation error
-    // TICD
-    // an incomplete template specialization class with a defined class as
-    // argument declared in the containing class
-    kernel_single_task<nm1::KernelName3<KN100>>([=]() { acc.use(); });
-#endif
-
-#ifdef TICI
-    // Expected compilation error
-    // TICI
-    // an incomplete template specialization class with an incomplete class as
-    // argument declared in the containing class
-    kernel_single_task<nm1::KernelName3<KN101>>([=]() { acc.use(); });
-#endif
 
     // kernel name type is a templated class, both the top-level class and the
     // template argument are declared in the anonymous namespace

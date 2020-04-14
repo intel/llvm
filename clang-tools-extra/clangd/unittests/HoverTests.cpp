@@ -339,7 +339,7 @@ class Foo {})cpp";
          HI.Definition = "~X()";
          HI.Parameters.emplace();
        }},
-      {"class X { operator [[in^t]](); };",
+      {"class X { [[op^erator]] int(); };",
        [](HoverInfo &HI) {
          HI.NamespaceScope = "";
          HI.Name = "operator int";
@@ -347,6 +347,13 @@ class Foo {})cpp";
          HI.Kind = index::SymbolKind::ConversionFunction;
          HI.Definition = "operator int()";
          HI.Parameters.emplace();
+       }},
+      {"class X { operator [[^X]](); };",
+       [](HoverInfo &HI) {
+         HI.NamespaceScope = "";
+         HI.Name = "X";
+         HI.Kind = index::SymbolKind::Class;
+         HI.Definition = "class X {}";
        }},
 
       // auto on lambda
@@ -1876,6 +1883,71 @@ def)",
   }
 }
 
+TEST(Hover, DocCommentLineBreakConversion) {
+  struct Case {
+    llvm::StringRef Documentation;
+    llvm::StringRef ExpectedRenderMarkdown;
+    llvm::StringRef ExpectedRenderPlainText;
+  } Cases[] = {{
+                   " \n foo\nbar",
+                   "foo bar",
+                   "foo bar",
+               },
+               {
+                   "foo\nbar \n  ",
+                   "foo bar",
+                   "foo bar",
+               },
+               {
+                   "foo  \nbar",
+                   "foo bar",
+                   "foo bar",
+               },
+               {
+                   "foo    \nbar",
+                   "foo bar",
+                   "foo bar",
+               },
+               {
+                   "foo\n\n\nbar",
+                   "foo  \nbar",
+                   "foo\nbar",
+               },
+               {
+                   "foo\n\n\n\tbar",
+                   "foo  \nbar",
+                   "foo\nbar",
+               },
+               {
+                   "foo\n\n\n bar",
+                   "foo  \nbar",
+                   "foo\nbar",
+               },
+               {
+                   "foo.\nbar",
+                   "foo.  \nbar",
+                   "foo.\nbar",
+               },
+               {
+                   "foo\n*bar",
+                   "foo  \n\\*bar",
+                   "foo\n*bar",
+               },
+               {
+                   "foo\nbar",
+                   "foo bar",
+                   "foo bar",
+               }};
+
+  for (const auto &C : Cases) {
+    markup::Document Output;
+    parseDocumentation(C.Documentation, Output);
+
+    EXPECT_EQ(Output.asMarkdown(), C.ExpectedRenderMarkdown);
+    EXPECT_EQ(Output.asPlainText(), C.ExpectedRenderPlainText);
+  }
+}
+
 // This is a separate test as headings don't create any differences in plaintext
 // mode.
 TEST(Hover, PresentHeadings) {
@@ -1898,7 +1970,7 @@ TEST(Hover, PresentRulers) {
   llvm::StringRef ExpectedMarkdown = R"md(### variable `foo`  
 
 ---
-Value \= `val`  
+Value = `val`  
 
 ---
 ```cpp

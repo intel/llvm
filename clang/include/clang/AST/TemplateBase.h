@@ -14,6 +14,7 @@
 #ifndef LLVM_CLANG_AST_TEMPLATEBASE_H
 #define LLVM_CLANG_AST_TEMPLATEBASE_H
 
+#include "clang/AST/DependenceFlags.h"
 #include "clang/AST/NestedNameSpecifier.h"
 #include "clang/AST/TemplateName.h"
 #include "clang/AST/Type.h"
@@ -235,6 +236,8 @@ public:
 
   /// Determine whether this template argument has no value.
   bool isNull() const { return getKind() == Null; }
+
+  TemplateArgumentDependence getDependence() const;
 
   /// Whether this template argument is dependent on a template
   /// parameter such that its result can change from one instantiation to
@@ -666,11 +669,13 @@ struct alignas(void *) ASTTemplateKWAndArgsInfo {
   void initializeFrom(SourceLocation TemplateKWLoc,
                       const TemplateArgumentListInfo &List,
                       TemplateArgumentLoc *OutArgArray);
+  // FIXME: The parameter Deps is the result populated by this method, the
+  // caller doesn't need it since it is populated by computeDependence. remove
+  // it.
   void initializeFrom(SourceLocation TemplateKWLoc,
                       const TemplateArgumentListInfo &List,
-                      TemplateArgumentLoc *OutArgArray, bool &Dependent,
-                      bool &InstantiationDependent,
-                      bool &ContainsUnexpandedParameterPack);
+                      TemplateArgumentLoc *OutArgArray,
+                      TemplateArgumentDependence &Deps);
   void initializeFrom(SourceLocation TemplateKWLoc);
 
   void copyInto(const TemplateArgumentLoc *ArgArray,

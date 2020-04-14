@@ -69,6 +69,11 @@ static cl::opt<unsigned> UnrollThresholdIf(
   cl::desc("Unroll threshold increment for AMDGPU for each if statement inside loop"),
   cl::init(150), cl::Hidden);
 
+static cl::opt<bool> UnrollRuntimeLocal(
+  "amdgpu-unroll-runtime-local",
+  cl::desc("Allow runtime unroll for AMDGPU if local memory used in a loop"),
+  cl::init(true), cl::Hidden);
+
 static cl::opt<bool> UseLegacyDA(
   "amdgpu-use-legacy-divergence-analysis",
   cl::desc("Enable legacy divergence analysis for AMDGPU"),
@@ -177,6 +182,9 @@ void AMDGPUTTIImpl::getUnrollingPreferences(Loop *L, ScalarEvolution &SE,
             (!isa<GlobalVariable>(GEP->getPointerOperand()) &&
              !isa<Argument>(GEP->getPointerOperand())))
           continue;
+        LLVM_DEBUG(dbgs() << "Allow unroll runtime for loop:\n"
+                          << *L << " due to LDS use.\n");
+        UP.Runtime = UnrollRuntimeLocal;
       }
 
       // Check if GEP depends on a value defined by this loop itself.
@@ -468,16 +476,29 @@ int GCNTTIImpl::getArithmeticInstrCost(unsigned Opcode, Type *Ty,
                                        Opd1PropInfo, Opd2PropInfo);
 }
 
+// Return true if there's a potential benefit from using v2f16 instructions for
+// an intrinsic, even if it requires nontrivial legalization.
+static bool intrinsicHasPackedVectorBenefit(Intrinsic::ID ID) {
+  switch (ID) {
+  case Intrinsic::fma: // TODO: fmuladd
+  // There's a small benefit to using vector ops in the legalized code.
+  case Intrinsic::round:
+    return true;
+  default:
+    return false;
+  }
+}
+
 template <typename T>
 int GCNTTIImpl::getIntrinsicInstrCost(Intrinsic::ID ID, Type *RetTy,
-                                      ArrayRef<T *> Args,
-                                      FastMathFlags FMF, unsigned VF) {
-  if (ID != Intrinsic::fma)
-    return BaseT::getIntrinsicInstrCost(ID, RetTy, Args, FMF, VF);
+                                      ArrayRef<T *> Args, FastMathFlags FMF,
+                                      unsigned VF, const Instruction *I) {
+  if (!intrinsicHasPackedVectorBenefit(ID))
+    return BaseT::getIntrinsicInstrCost(ID, RetTy, Args, FMF, VF, I);
 
   EVT OrigTy = TLI->getValueType(DL, RetTy);
   if (!OrigTy.isSimple()) {
-    return BaseT::getIntrinsicInstrCost(ID, RetTy, Args, FMF, VF);
+    return BaseT::getIntrinsicInstrCost(ID, RetTy, Args, FMF, VF, I);
   }
 
   // Legalize the type.
@@ -494,21 +515,28 @@ int GCNTTIImpl::getIntrinsicInstrCost(Intrinsic::ID ID, Type *RetTy,
   if (ST->has16BitInsts() && SLT == MVT::f16)
     NElts = (NElts + 1) / 2;
 
-  return LT.first * NElts * (ST->hasFastFMAF32() ? getHalfRateInstrCost()
-                                                 : getQuarterRateInstrCost());
+  // TODO: Get more refined intrinsic costs?
+  unsigned InstRate = getQuarterRateInstrCost();
+  if (ID == Intrinsic::fma) {
+    InstRate = ST->hasFastFMAF32() ? getHalfRateInstrCost()
+                                   : getQuarterRateInstrCost();
+  }
+
+  return LT.first * NElts * InstRate;
 }
 
 int GCNTTIImpl::getIntrinsicInstrCost(Intrinsic::ID ID, Type *RetTy,
-                                      ArrayRef<Value*> Args, FastMathFlags FMF,
-                                      unsigned VF) {
-  return getIntrinsicInstrCost<Value>(ID, RetTy, Args, FMF, VF);
+                                      ArrayRef<Value *> Args, FastMathFlags FMF,
+                                      unsigned VF, const Instruction *I) {
+  return getIntrinsicInstrCost<Value>(ID, RetTy, Args, FMF, VF, I);
 }
 
 int GCNTTIImpl::getIntrinsicInstrCost(Intrinsic::ID ID, Type *RetTy,
                                       ArrayRef<Type *> Tys, FastMathFlags FMF,
-                                      unsigned ScalarizationCostPassed) {
+                                      unsigned ScalarizationCostPassed,
+                                      const Instruction *I) {
   return getIntrinsicInstrCost<Type>(ID, RetTy, Tys, FMF,
-                                     ScalarizationCostPassed);
+                                     ScalarizationCostPassed, I);
 }
 
 unsigned GCNTTIImpl::getCFInstrCost(unsigned Opcode) {
@@ -881,7 +909,7 @@ unsigned GCNTTIImpl::getUserCost(const User *U,
       if (auto *FPMO = dyn_cast<FPMathOperator>(II))
         FMF = FPMO->getFastMathFlags();
       return getIntrinsicInstrCost(II->getIntrinsicID(), II->getType(), Args,
-                                   FMF);
+                                   FMF, 1, II);
     } else {
       return BaseT::getUserCost(U, Operands);
     }

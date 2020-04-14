@@ -10,9 +10,10 @@
 // handing off to back-end for further compilation or emitting SPIRV. The
 // utilities are:
 // - module splitter to split a big input module into smaller ones
-//
+// - specialization constant intrinsic transformation
 //===----------------------------------------------------------------------===//
 
+#include "SpecConstants.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/Bitcode/BitcodeWriterPass.h"
 #include "llvm/IR/IRPrintingPasses.h"
@@ -25,57 +26,89 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/PropertySetIO.h"
+#include "llvm/Support/SimpleTable.h"
 #include "llvm/Support/SystemUtils.h"
+#include "llvm/Support/WithColor.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include <memory>
 
 using namespace llvm;
 
-cl::OptionCategory ExtractCat{"sycl-post-link Options"};
+using string_vector = std::vector<std::string>;
+using SpecIDMapTy = std::map<StringRef, unsigned>;
+
+cl::OptionCategory PostLinkCat{"sycl-post-link options"};
+
+// Column names in the output file table. Must match across tools -
+// clang/lib/Driver/Driver.cpp, sycl-post-link.cpp, ClangOffloadWrapper.cpp
+static constexpr char COL_CODE[] = "Code";
+static constexpr char COL_SYM[] = "Symbols";
+static constexpr char COL_PROPS[] = "Properties";
 
 // InputFilename - The filename to read from.
 static cl::opt<std::string> InputFilename{
     cl::Positional, cl::desc("<input bitcode file>"), cl::init("-"),
     cl::value_desc("filename")};
 
-static cl::opt<std::string> BaseOutputFilename{
-    "o",
-    cl::desc("Specify base output filename. E.g. if base is 'out', then output "
-             "filenames will be saved "
-             "into out_0.bc, out_1.bc, ..., out_0.txt, out_1.txt, ...."),
-    cl::value_desc("filename"), cl::init("-"), cl::cat(ExtractCat)};
+static cl::opt<std::string> OutputDir{
+    "out-dir",
+    cl::desc(
+        "Directory where files listed in the result file table will be output"),
+    cl::value_desc("dirname"), cl::cat(PostLinkCat)};
 
-// Module splitter produces multiple IR files. IR files list is a file list
-// with prodced IR modules files names.
-static cl::opt<std::string> OutputIRFilesList{
-    "ir-files-list", cl::desc("Specify output filename for IR files list"),
-    cl::value_desc("filename"), cl::init(""), cl::cat(ExtractCat)};
-
-// Module splitter produces multiple TXT files. These files contain kernel names
-// list presented in a produced module. TXT files list is a file list
-// with produced TXT files names.
-static cl::opt<std::string> OutputTxtFilesList{
-    "txt-files-list", cl::desc("Specify output filename for txt files list"),
-    cl::value_desc("filename"), cl::init(""), cl::cat(ExtractCat)};
+static cl::opt<std::string> OutputFilename{"o", cl::desc("Output filename"),
+                                           cl::value_desc("filename"),
+                                           cl::init("-"), cl::cat(PostLinkCat)};
 
 static cl::opt<bool> Force{"f", cl::desc("Enable binary output on terminals"),
-                           cl::cat(ExtractCat)};
+                           cl::cat(PostLinkCat)};
+
+static cl::opt<bool> IROutputOnly{
+    "ir-output-only", cl::desc("Output single IR file"), cl::cat(PostLinkCat)};
 
 static cl::opt<bool> OutputAssembly{"S",
                                     cl::desc("Write output as LLVM assembly"),
-                                    cl::Hidden, cl::cat(ExtractCat)};
+                                    cl::Hidden, cl::cat(PostLinkCat)};
 
-static cl::opt<bool> OneKernelPerModule{
-    "one-kernel", cl::desc("Emit a separate module for each kernel"),
-    cl::init(false), cl::cat(ExtractCat)};
+enum IRSplitMode {
+  SPLIT_PER_TU,    // one module per translation unit
+  SPLIT_PER_KERNEL // one module per kernel
+};
+
+static cl::opt<IRSplitMode> SplitMode(
+    "split", cl::desc("split input module"), cl::Optional,
+    cl::init(SPLIT_PER_TU),
+    cl::values(clEnumValN(SPLIT_PER_TU, "source",
+                          "1 output module per source (translation unit)"),
+               clEnumValN(SPLIT_PER_KERNEL, "kernel",
+                          "1 output module per kernel")),
+    cl::cat(PostLinkCat));
+
+static cl::opt<bool> DoSymGen{"symbols",
+                              cl::desc("generate exported symbol files"),
+                              cl::cat(PostLinkCat)};
+
+enum SpecConstMode { SC_USE_RT_VAL, SC_USE_DEFAULT_VAL };
+
+static cl::opt<SpecConstMode> SpecConstLower{
+    "spec-const",
+    cl::desc("lower and generate specialization constants information"),
+    cl::Optional,
+    cl::init(SC_USE_RT_VAL),
+    cl::values(
+        clEnumValN(SC_USE_RT_VAL, "rt", "spec constants are set at runtime"),
+        clEnumValN(SC_USE_DEFAULT_VAL, "default",
+                   "set spec constants to C++ defaults")),
+    cl::cat(PostLinkCat)};
 
 static void error(const Twine &Msg) {
   errs() << "sycl-post-link: " << Msg << '\n';
   exit(1);
 }
 
-static void error(std::error_code EC, const Twine &Prefix) {
+static void checkError(std::error_code EC, const Twine &Prefix) {
   if (EC)
     error(Prefix + ": " + EC.message());
 }
@@ -83,25 +116,56 @@ static void error(std::error_code EC, const Twine &Prefix) {
 static void writeToFile(std::string Filename, std::string Content) {
   std::error_code EC;
   raw_fd_ostream OS{Filename, EC, sys::fs::OpenFlags::OF_None};
-  error(EC, "error opening the file '" + Filename + "'");
+  checkError(EC, "error opening the file '" + Filename + "'");
   OS.write(Content.data(), Content.size());
   OS.close();
 }
 
-// Output parameter ResKernelModuleMap is a map containing groups of kernels
-// with same values of the sycl-module-id attribute.
-// The function fills ResKernelModuleMap using input module M.
+// Describes scope covered by each entry in the module-kernel map populated by
+// the collectKernelModuleMap function.
+enum KernelMapEntryScope {
+  Scope_PerKernel, // one entry per kernel
+  Scope_PerModule, // one entry per module
+  Scope_Global     // single entry in the map for all kernels
+};
+
+// This function decides how kernels of the input module M will be distributed
+// ("split") into multiple modules based on the command options and IR
+// attributes. The decision is recorded in the output map parameter
+// ResKernelModuleMap which maps some key to a group of kernels. Each such group
+// along with IR it depends on (globals, functions from its call graph,...) will
+// constitute a separate module.
 static void collectKernelModuleMap(
-    Module &M,
-    std::map<std::string, std::vector<Function *>> &ResKernelModuleMap) {
+    Module &M, std::map<StringRef, std::vector<Function *>> &ResKernelModuleMap,
+    KernelMapEntryScope EntryScope) {
+
   for (auto &F : M.functions()) {
     if (F.getCallingConv() == CallingConv::SPIR_KERNEL) {
-      if (OneKernelPerModule) {
-        ResKernelModuleMap[std::string(F.getName())].push_back(&F);
-      } else if (F.hasFnAttribute("sycl-module-id")) {
-        auto Id = F.getFnAttribute("sycl-module-id");
-        auto Val = Id.getValueAsString();
-        ResKernelModuleMap[std::string(Val)].push_back(&F);
+      switch (EntryScope) {
+      case Scope_PerKernel:
+        ResKernelModuleMap[F.getName()].push_back(&F);
+        break;
+      case Scope_PerModule: {
+        constexpr char ATTR_SYCL_MODULE_ID[] = "sycl-module-id";
+
+        // TODO It may make sense to group all kernels w/o the attribute into
+        // a separate module rather than issuing an error. Should probably be
+        // controlled by an option.
+        if (!F.hasFnAttribute(ATTR_SYCL_MODULE_ID))
+          error("no '" + Twine(ATTR_SYCL_MODULE_ID) +
+                "' attribute in kernel '" + F.getName() +
+                "', per-module split not possible");
+        Attribute Id = F.getFnAttribute(ATTR_SYCL_MODULE_ID);
+        StringRef Val = Id.getValueAsString();
+        ResKernelModuleMap[Val].push_back(&F);
+        break;
+      }
+      case Scope_Global:
+        // the map key is not significant here
+        ResKernelModuleMap["<GLOBAL>"].push_back(&F);
+        break;
+      default:
+        llvm_unreachable("unknown scope");
       }
     }
   }
@@ -114,8 +178,8 @@ static void collectKernelModuleMap(
 // The function saves names of kernels from one group to a single std::string
 // and stores this string to the ResSymbolsLists vector.
 static void collectSymbolsLists(
-    std::map<std::string, std::vector<Function *>> &KernelModuleMap,
-    std::vector<std::string> &ResSymbolsLists) {
+    std::map<StringRef, std::vector<Function *>> &KernelModuleMap,
+    string_vector &ResSymbolsLists) {
   for (auto &It : KernelModuleMap) {
     std::string SymbolsList;
     for (auto &F : It.second) {
@@ -134,7 +198,7 @@ static void collectSymbolsLists(
 // to the ResModules vector.
 static void
 splitModule(Module &M,
-            std::map<std::string, std::vector<Function *>> &KernelModuleMap,
+            std::map<StringRef, std::vector<Function *>> &KernelModuleMap,
             std::vector<std::unique_ptr<Module>> &ResModules) {
   for (auto &It : KernelModuleMap) {
     // For each group of kernels collect all dependencies.
@@ -186,75 +250,95 @@ splitModule(Module &M,
   }
 }
 
+static std::string makeResultFileName(Twine Ext, int I) {
+  const StringRef Dir0 = OutputDir.getNumOccurrences() > 0
+                             ? OutputDir
+                             : sys::path::parent_path(OutputFilename);
+  const StringRef Sep = sys::path::get_separator();
+  std::string Dir = Dir0.str();
+  if (!Dir0.empty() && !Dir0.endswith(Sep))
+    Dir += Sep.str();
+  return (Dir + Twine(sys::path::stem(OutputFilename)) + "_" +
+          std::to_string(I) + Ext)
+      .str();
+}
+
+static void saveModule(Module &M, StringRef OutFilename) {
+  std::error_code EC;
+  raw_fd_ostream Out{OutFilename, EC, sys::fs::OF_None};
+  checkError(EC, "error opening the file '" + OutFilename + "'");
+
+  // TODO: Use the new PassManager instead?
+  legacy::PassManager PrintModule;
+
+  if (OutputAssembly)
+    PrintModule.add(createPrintModulePass(Out, ""));
+  else if (Force || !CheckBitcodeOutputToConsole(Out, true))
+    PrintModule.add(createBitcodeWriterPass(Out));
+  PrintModule.run(M);
+}
+
 // Saves specified collection of llvm IR modules to files.
 // Saves file list if user specified corresponding filename.
-static void
+static string_vector
 saveResultModules(std::vector<std::unique_ptr<Module>> &ResModules) {
-  std::string IRFilesList;
+  string_vector Res;
+
   for (size_t I = 0; I < ResModules.size(); ++I) {
     std::error_code EC;
-    std::string CurOutFileName = BaseOutputFilename + "_" + std::to_string(I) +
-                                 ((OutputAssembly) ? ".ll" : ".bc");
-
-    raw_fd_ostream Out{CurOutFileName, EC, sys::fs::OF_None};
-    error(EC, "error opening the file '" + CurOutFileName + "'");
-
-    // TODO: Use the new PassManager instead?
-    legacy::PassManager PrintModule;
-
-    if (OutputAssembly)
-      PrintModule.add(createPrintModulePass(Out, ""));
-    else if (Force || !CheckBitcodeOutputToConsole(Out, true))
-      PrintModule.add(createBitcodeWriterPass(Out));
-    PrintModule.run(*ResModules[I].get());
-
-    if (!OutputIRFilesList.empty())
-      IRFilesList =
-          (Twine(IRFilesList) + Twine(CurOutFileName) + Twine("\n")).str();
+    StringRef FileExt = (OutputAssembly) ? ".ll" : ".bc";
+    std::string CurOutFileName = makeResultFileName(FileExt, I);
+    saveModule(*ResModules[I].get(), CurOutFileName);
+    Res.emplace_back(std::move(CurOutFileName));
   }
+  return Res;
+}
 
-  if (!OutputIRFilesList.empty()) {
-    // Just pass input module to next tools if there was nothing to split.
-    if (IRFilesList.empty())
-      IRFilesList = (Twine(InputFilename) + Twine("\n")).str();
-    writeToFile(OutputIRFilesList, IRFilesList);
+static string_vector
+saveSpecConstantIDMaps(const std::vector<SpecIDMapTy> &Maps) {
+  string_vector Res;
+
+  for (size_t I = 0; I < Maps.size(); ++I) {
+    std::string SCFile = makeResultFileName(".prop", I);
+    llvm::util::PropertySetRegistry PropSet;
+    PropSet.add(llvm::util::PropertySetRegistry::SYCL_SPECIALIZATION_CONSTANTS,
+                Maps[I]);
+    std::error_code EC;
+    raw_fd_ostream SCOut(SCFile, EC);
+    PropSet.write(SCOut);
+    Res.emplace_back(std::move(SCFile));
   }
+  return Res;
 }
 
 // Saves specified collection of symbols lists to files.
 // Saves file list if user specified corresponding filename.
-static void saveResultSymbolsLists(std::vector<std::string> &ResSymbolsLists) {
+static string_vector saveResultSymbolsLists(string_vector &ResSymbolsLists) {
+  string_vector Res;
+
   std::string TxtFilesList;
   for (size_t I = 0; I < ResSymbolsLists.size(); ++I) {
-    std::string CurOutFileName =
-        BaseOutputFilename + "_" + std::to_string(I) + ".txt";
+    std::string CurOutFileName = makeResultFileName(".sym", I);
     writeToFile(CurOutFileName, ResSymbolsLists[I]);
-
-    if (!OutputTxtFilesList.empty())
-      TxtFilesList =
-          (Twine(TxtFilesList) + Twine(CurOutFileName) + Twine("\n")).str();
+    Res.emplace_back(std::move(CurOutFileName));
   }
-
-  if (!OutputTxtFilesList.empty()) {
-    if (TxtFilesList.empty()) {
-      // Just create an empty temporary file if there was nothing to split.
-      std::string TempFileNameBase =
-          std::string(sys::path::stem(BaseOutputFilename));
-      SmallString<128> Path;
-      std::error_code EC =
-          sys::fs::createTemporaryFile(TempFileNameBase, "txt", Path);
-      error(EC, "Could not create a file for command output.");
-      TxtFilesList = (Twine(Path) + Twine("\n")).str();
-    }
-    writeToFile(OutputTxtFilesList, TxtFilesList);
-  }
+  return std::move(Res);
 }
+
+#define CHECK_AND_EXIT(E)                                                      \
+  {                                                                            \
+    Error LocE = std::move(E);                                                 \
+    if (LocE) {                                                                \
+      logAllUnhandledErrors(std::move(LocE), WithColor::error(errs()));        \
+      return 1;                                                                \
+    }                                                                          \
+  }
 
 int main(int argc, char **argv) {
   InitLLVM X{argc, argv};
 
   LLVMContext Context;
-  cl::HideUnrelatedOptions(ExtractCat);
+  cl::HideUnrelatedOptions(PostLinkCat);
   cl::ParseCommandLineOptions(
       argc, argv,
       "SYCL post-link device code processing tool.\n"
@@ -264,56 +348,139 @@ int main(int argc, char **argv) {
       "- Module splitter to split a big input module into smaller ones.\n"
       "  Groups kernels using function attribute 'sycl-module-id', i.e.\n"
       "  kernels with the same values of the 'sycl-module-id' attribute will\n"
-      "  be put into the same module. If --one-kernel option is specified,\n"
+      "  be put into the same module. If -split=kernel option is specified,\n"
       "  one module per kernel will be emitted.\n"
-      "  For each produced module a text file\n"
-      "  containing the names of all spir kernels in it is generated.\n"
-      "  Optionally can generate lists produced files.\n"
-      "  Usage:\n"
-      "  sycl-post-link -S linked.ll -ir-files-list=ir.txt \\\n"
-      "  -txt-files-list=files.txt -o out \\\n"
-      "  This command will produce several llvm IR files: out_0.ll, "
-      "  out_1.ll...,\n"
-      "  several text files containing spir kernel names out_0.txt, "
-      "  out_1.txt,...,\n"
-      "  and two filelists in ir.txt and files.txt.\n");
+      "- If -symbols options is also specified, then for each produced module\n"
+      "  a text file containing names of all spir kernels in it is generated.\n"
+      "- Specialization constant intrinsic transformer. Replaces symbolic\n"
+      "  ID-based intrinsics to integer ID-based ones to make them friendly\n"
+      "  for the SPIRV translator\n"
+      "Normally, the tool generates a number of files and \"file table\"\n"
+      "file listing all generated files in a table manner. For example, if\n"
+      "the input file 'example.bc' contains two kernels, then the command\n"
+      "  $ sycl-post-link --split=kernel --symbols --spec-const=rt \\\n"
+      "    -o example.table example.bc\n"
+      "will produce 'example.table' file with the following content:\n"
+      "  [Code|Properties|Symbols]\n"
+      "  example_0.bc|example_0.prop|example_0.sym\n"
+      "  example_1.bc|example_1.prop|example_1.sym\n"
+      "When only specialization constant processing is needed, the tool can\n"
+      "output a single transformed IR file if --ir-output-only is specified:\n"
+      "  $ sycl-post-link --ir-output-only --spec-const=default \\\n"
+      "    -o example_p.bc example.bc\n"
+      "will produce single output file example_p.bc suitable for SPIRV\n"
+      "translation.\n");
 
+  bool DoSplit = SplitMode.getNumOccurrences() > 0;
+  bool DoSpecConst = SpecConstLower.getNumOccurrences() > 0;
+
+  if (!DoSplit && !DoSpecConst && !DoSymGen) {
+    errs() << "no actions specified; try --help for usage info\n";
+    return 1;
+  }
+  if (IROutputOnly && DoSplit) {
+    errs() << "error: -" << SplitMode.ArgStr << " can't be used with -"
+           << IROutputOnly.ArgStr << "\n";
+    return 1;
+  }
+  if (IROutputOnly && DoSymGen) {
+    errs() << "error: -" << DoSymGen.ArgStr << " can't be used with -"
+           << IROutputOnly.ArgStr << "\n";
+    return 1;
+  }
   SMDiagnostic Err;
   std::unique_ptr<Module> M = parseIRFile(InputFilename, Err, Context);
+  // It is OK to use raw pointer here as we control that it does not outlive M
+  // or objects it is moved to
+  Module *MPtr = M.get();
 
-  if (!M.get()) {
+  if (!MPtr) {
     Err.print(argv[0], errs());
     return 1;
   }
+  if (OutputFilename.getNumOccurrences() == 0)
+    OutputFilename = (Twine(sys::path::stem(InputFilename)) + ".files").str();
 
-  std::map<std::string, std::vector<Function *>> GlobalsSet;
+  std::map<StringRef, std::vector<Function *>> GlobalsSet;
 
-  collectKernelModuleMap(*M.get(), GlobalsSet);
+  if (DoSplit || DoSymGen) {
+    KernelMapEntryScope Scope = Scope_Global;
+    if (DoSplit)
+      Scope = SplitMode == SPLIT_PER_KERNEL ? Scope_PerKernel : Scope_PerModule;
+    collectKernelModuleMap(*MPtr, GlobalsSet, Scope);
+  }
 
   std::vector<std::unique_ptr<Module>> ResultModules;
-  std::vector<std::string> ResultSymbolsLists;
+  std::vector<SpecIDMapTy> ResultSpecIDMaps;
+  string_vector ResultSymbolsLists;
 
-  // Default usage model of that the tool is
-  // calling it twice with the same input due clang driver limitations.
-  // It should not bring much extra overhead because
-  // parseIRFile and collectKernelModuleMap functions are small (would be good
-  // to estimate) compared to splitModule and saveResultModules.
-  bool NoLists = OutputIRFilesList.empty() && OutputTxtFilesList.empty();
-  bool PerformSplit = !OutputIRFilesList.empty() || NoLists;
-  bool CollectSymbols = !OutputTxtFilesList.empty() || NoLists;
+  util::SimpleTable Table;
+  bool SpecConstsMet = false;
+  bool SetSpecConstAtRT = DoSpecConst && (SpecConstLower == SC_USE_RT_VAL);
 
-  if (BaseOutputFilename == "-")
-    BaseOutputFilename = "a.out";
-
-  if (PerformSplit) {
-    splitModule(*M.get(), GlobalsSet, ResultModules);
-    saveResultModules(ResultModules);
+  if (DoSpecConst) {
+    // perform the spec constant intrinsics transformation and enumeration on
+    // the whole module
+    ModulePassManager RunSpecConst;
+    ModuleAnalysisManager MAM;
+    SpecConstantsPass SCP(SetSpecConstAtRT);
+    // Register required analysis
+    MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
+    RunSpecConst.addPass(SCP);
+    PreservedAnalyses Res = RunSpecConst.run(*MPtr, MAM);
+    SpecConstsMet = !Res.areAllPreserved();
   }
+  if (IROutputOnly) {
+    // the result is the transformed input LLVMIR file rather than a file table
+    saveModule(*MPtr, OutputFilename);
+    return 0;
+  }
+  if (DoSplit) {
+    splitModule(*MPtr, GlobalsSet, ResultModules);
+    // post-link always produces a code result, even if it is unmodified input
+    if (ResultModules.size() == 0)
+      ResultModules.push_back(std::move(M));
+  } else
+    ResultModules.push_back(std::move(M));
 
-  if (CollectSymbols) {
+  {
+    // reuse input module if there were no spec constants and no splitting
+    string_vector Files = SpecConstsMet || (ResultModules.size() > 1)
+                              ? saveResultModules(ResultModules)
+                              : string_vector{InputFilename};
+    // "Code" column is always output
+    Error Err = Table.addColumn(COL_CODE, Files);
+    CHECK_AND_EXIT(Err);
+  }
+  if (DoSpecConst && SetSpecConstAtRT) {
+    // extract spec constant maps per each module
+    for (auto &MUptr : ResultModules) {
+      ResultSpecIDMaps.emplace_back(SpecIDMapTy());
+      if (SpecConstsMet)
+        SpecConstantsPass::collectSpecConstantMetadata(*MUptr.get(),
+                                                       ResultSpecIDMaps.back());
+    }
+    string_vector Files = saveSpecConstantIDMaps(ResultSpecIDMaps);
+    Error Err = Table.addColumn(COL_PROPS, Files);
+    CHECK_AND_EXIT(Err);
+  }
+  if (DoSymGen) {
+    // extract symbols per each module
     collectSymbolsLists(GlobalsSet, ResultSymbolsLists);
-    saveResultSymbolsLists(ResultSymbolsLists);
+    if (ResultSymbolsLists.empty()) {
+      // push empty symbols list for consistency
+      assert(ResultModules.size() == 1);
+      ResultSymbolsLists.push_back("");
+    }
+    string_vector Files = saveResultSymbolsLists(ResultSymbolsLists);
+    Error Err = Table.addColumn(COL_SYM, Files);
+    CHECK_AND_EXIT(Err);
   }
-
+  {
+    std::error_code EC;
+    raw_fd_ostream Out{OutputFilename, EC, sys::fs::OF_None};
+    checkError(EC, "error opening file '" + OutputFilename + "'");
+    Table.write(Out);
+  }
   return 0;
 }

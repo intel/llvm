@@ -61,6 +61,7 @@ enum ActionType {
   GenClangCommentCommandInfo,
   GenClangCommentCommandList,
   GenClangOpenCLBuiltins,
+  GenClangSPIRVBuiltins,
   GenArmNeon,
   GenArmFP16,
   GenArmNeonSema,
@@ -70,6 +71,15 @@ enum ActionType {
   GenArmMveBuiltinSema,
   GenArmMveBuiltinCG,
   GenArmMveBuiltinAliases,
+  GenArmSveHeader,
+  GenArmSveBuiltins,
+  GenArmSveBuiltinCG,
+  GenArmSveTypeFlags,
+  GenArmCdeHeader,
+  GenArmCdeBuiltinDef,
+  GenArmCdeBuiltinSema,
+  GenArmCdeBuiltinCG,
+  GenArmCdeBuiltinAliases,
   GenAttrDocs,
   GenDiagDocs,
   GenOptDocs,
@@ -174,12 +184,22 @@ cl::opt<ActionType> Action(
                    "documentation comments"),
         clEnumValN(GenClangOpenCLBuiltins, "gen-clang-opencl-builtins",
                    "Generate OpenCL builtin declaration handlers"),
+        clEnumValN(GenClangSPIRVBuiltins, "gen-clang-spirv-builtins",
+                   "Generate SPIR-V builtin declaration handlers"),
         clEnumValN(GenArmNeon, "gen-arm-neon", "Generate arm_neon.h for clang"),
         clEnumValN(GenArmFP16, "gen-arm-fp16", "Generate arm_fp16.h for clang"),
         clEnumValN(GenArmNeonSema, "gen-arm-neon-sema",
                    "Generate ARM NEON sema support for clang"),
         clEnumValN(GenArmNeonTest, "gen-arm-neon-test",
                    "Generate ARM NEON tests for clang"),
+        clEnumValN(GenArmSveHeader, "gen-arm-sve-header",
+                   "Generate arm_sve.h for clang"),
+        clEnumValN(GenArmSveBuiltins, "gen-arm-sve-builtins",
+                   "Generate arm_sve_builtins.inc for clang"),
+        clEnumValN(GenArmSveBuiltinCG, "gen-arm-sve-builtin-codegen",
+                   "Generate arm_sve_builtin_cg_map.inc for clang"),
+        clEnumValN(GenArmSveTypeFlags, "gen-arm-sve-typeflags",
+                   "Generate arm_sve_typeflags.inc for clang"),
         clEnumValN(GenArmMveHeader, "gen-arm-mve-header",
                    "Generate arm_mve.h for clang"),
         clEnumValN(GenArmMveBuiltinDef, "gen-arm-mve-builtin-def",
@@ -190,6 +210,16 @@ cl::opt<ActionType> Action(
                    "Generate ARM MVE builtin code-generator for clang"),
         clEnumValN(GenArmMveBuiltinAliases, "gen-arm-mve-builtin-aliases",
                    "Generate list of valid ARM MVE builtin aliases for clang"),
+        clEnumValN(GenArmCdeHeader, "gen-arm-cde-header",
+                   "Generate arm_cde.h for clang"),
+        clEnumValN(GenArmCdeBuiltinDef, "gen-arm-cde-builtin-def",
+                   "Generate ARM CDE builtin definitions for clang"),
+        clEnumValN(GenArmCdeBuiltinSema, "gen-arm-cde-builtin-sema",
+                   "Generate ARM CDE builtin sema checks for clang"),
+        clEnumValN(GenArmCdeBuiltinCG, "gen-arm-cde-builtin-codegen",
+                   "Generate ARM CDE builtin code-generator for clang"),
+        clEnumValN(GenArmCdeBuiltinAliases, "gen-arm-cde-builtin-aliases",
+                   "Generate list of valid ARM CDE builtin aliases for clang"),
         clEnumValN(GenAttrDocs, "gen-attr-docs",
                    "Generate attribute documentation"),
         clEnumValN(GenDiagDocs, "gen-diag-docs",
@@ -324,6 +354,9 @@ bool ClangTableGenMain(raw_ostream &OS, RecordKeeper &Records) {
   case GenClangOpenCLBuiltins:
     EmitClangOpenCLBuiltins(Records, OS);
     break;
+  case GenClangSPIRVBuiltins:
+    EmitClangSPIRVBuiltins(Records, OS);
+    break;
   case GenArmNeon:
     EmitNeon(Records, OS);
     break;
@@ -350,6 +383,33 @@ bool ClangTableGenMain(raw_ostream &OS, RecordKeeper &Records) {
     break;
   case GenArmMveBuiltinAliases:
     EmitMveBuiltinAliases(Records, OS);
+    break;
+  case GenArmSveHeader:
+    EmitSveHeader(Records, OS);
+    break;
+  case GenArmSveBuiltins:
+    EmitSveBuiltins(Records, OS);
+    break;
+  case GenArmSveBuiltinCG:
+    EmitSveBuiltinCG(Records, OS);
+    break;
+  case GenArmSveTypeFlags:
+    EmitSveTypeFlags(Records, OS);
+    break;
+  case GenArmCdeHeader:
+    EmitCdeHeader(Records, OS);
+    break;
+  case GenArmCdeBuiltinDef:
+    EmitCdeBuiltinDef(Records, OS);
+    break;
+  case GenArmCdeBuiltinSema:
+    EmitCdeBuiltinSema(Records, OS);
+    break;
+  case GenArmCdeBuiltinCG:
+    EmitCdeBuiltinCG(Records, OS);
+    break;
+  case GenArmCdeBuiltinAliases:
+    EmitCdeBuiltinAliases(Records, OS);
     break;
   case GenAttrDocs:
     EmitClangAttrDocs(Records, OS);

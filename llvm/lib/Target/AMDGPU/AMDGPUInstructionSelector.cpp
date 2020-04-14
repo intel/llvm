@@ -323,7 +323,11 @@ bool AMDGPUInstructionSelector::selectG_ADD_SUB(MachineInstr &I) const {
   MachineFunction *MF = BB->getParent();
   Register DstReg = I.getOperand(0).getReg();
   const DebugLoc &DL = I.getDebugLoc();
-  unsigned Size = RBI.getSizeInBits(DstReg, *MRI, TRI);
+  LLT Ty = MRI->getType(DstReg);
+  if (Ty.isVector())
+    return false;
+
+  unsigned Size = Ty.getSizeInBits();
   const RegisterBank *DstRB = RBI.getRegBank(DstReg, *MRI, TRI);
   const bool IsSALU = DstRB->getID() == AMDGPU::SGPRRegBankID;
   const bool Sub = I.getOpcode() == TargetOpcode::G_SUB;
@@ -2526,16 +2530,6 @@ AMDGPUInstructionSelector::selectVOP3Mods_nnan(MachineOperand &Root) const {
 }
 
 InstructionSelector::ComplexRendererFns
-AMDGPUInstructionSelector::selectVOP3OpSelMods0(MachineOperand &Root) const {
-  // FIXME: Handle clamp and op_sel
-  return {{
-      [=](MachineInstrBuilder &MIB) { MIB.addReg(Root.getReg()); },
-      [=](MachineInstrBuilder &MIB) { MIB.addImm(0); }, // src_mods
-      [=](MachineInstrBuilder &MIB) { MIB.addImm(0); }  // clamp
-  }};
-}
-
-InstructionSelector::ComplexRendererFns
 AMDGPUInstructionSelector::selectVOP3OpSelMods(MachineOperand &Root) const {
   // FIXME: Handle op_sel
   return {{
@@ -2694,10 +2688,10 @@ AMDGPUInstructionSelector::selectMUBUFScratchOffen(MachineOperand &Root) const {
                const MachineMemOperand *MMO = *MI->memoperands_begin();
                const MachinePointerInfo &PtrInfo = MMO->getPointerInfo();
 
-               Register SOffsetReg = isStackPtrRelative(PtrInfo)
-                                         ? Info->getStackPtrOffsetReg()
-                                         : Info->getScratchWaveOffsetReg();
-               MIB.addReg(SOffsetReg);
+               if (isStackPtrRelative(PtrInfo))
+                 MIB.addReg(Info->getStackPtrOffsetReg());
+               else
+                 MIB.addImm(0);
              },
              [=](MachineInstrBuilder &MIB) { // offset
                MIB.addImm(Offset & 4095);
@@ -2734,13 +2728,6 @@ AMDGPUInstructionSelector::selectMUBUFScratchOffen(MachineOperand &Root) const {
     }
   }
 
-  // If we don't know this private access is a local stack object, it needs to
-  // be relative to the entry point's scratch wave offset register.
-  // TODO: Should split large offsets that don't fit like above.
-  // TODO: Don't use scratch wave offset just because the offset didn't fit.
-  Register SOffset = FI.hasValue() ? Info->getStackPtrOffsetReg()
-                                   : Info->getScratchWaveOffsetReg();
-
   return {{[=](MachineInstrBuilder &MIB) { // rsrc
              MIB.addReg(Info->getScratchRSrcReg());
            },
@@ -2751,7 +2738,15 @@ AMDGPUInstructionSelector::selectMUBUFScratchOffen(MachineOperand &Root) const {
                MIB.addReg(VAddr);
            },
            [=](MachineInstrBuilder &MIB) { // soffset
-             MIB.addReg(SOffset);
+             // If we don't know this private access is a local stack object, it
+             // needs to be relative to the entry point's scratch wave offset.
+             // TODO: Should split large offsets that don't fit like above.
+             // TODO: Don't use scratch wave offset just because the offset
+             // didn't fit.
+             if (!Info->isEntryFunction() && FI.hasValue())
+               MIB.addReg(Info->getStackPtrOffsetReg());
+             else
+               MIB.addImm(0);
            },
            [=](MachineInstrBuilder &MIB) { // offset
              MIB.addImm(Offset);
@@ -2789,15 +2784,17 @@ AMDGPUInstructionSelector::selectMUBUFScratchOffset(
   const MachineMemOperand *MMO = *MI->memoperands_begin();
   const MachinePointerInfo &PtrInfo = MMO->getPointerInfo();
 
-  Register SOffsetReg = isStackPtrRelative(PtrInfo)
-                            ? Info->getStackPtrOffsetReg()
-                            : Info->getScratchWaveOffsetReg();
   return {{
-      [=](MachineInstrBuilder &MIB) {
+      [=](MachineInstrBuilder &MIB) { // rsrc
         MIB.addReg(Info->getScratchRSrcReg());
-      },                                                         // rsrc
-      [=](MachineInstrBuilder &MIB) { MIB.addReg(SOffsetReg); }, // soffset
-      [=](MachineInstrBuilder &MIB) { MIB.addImm(Offset); }      // offset
+      },
+      [=](MachineInstrBuilder &MIB) { // soffset
+        if (isStackPtrRelative(PtrInfo))
+          MIB.addReg(Info->getStackPtrOffsetReg());
+        else
+          MIB.addImm(0);
+      },
+      [=](MachineInstrBuilder &MIB) { MIB.addImm(Offset); } // offset
   }};
 }
 

@@ -902,7 +902,7 @@ memref<16x32xf32, #identity, memspace0>
 %T = alloc(%M, %N) [%B1, %B2] : memref<?x?xf32, #tiled_dynamic>
 
 // A memref that has a two-element padding at either end. The allocation size
-// will fit 16 * 68 float elements of data.
+// will fit 16 * 64 float elements of data.
 %P = alloc() : memref<16x64xf32, #padded>
 
 // Affine map with symbol 's0' used as offset for the first dimension.
@@ -944,7 +944,7 @@ multidimensional index from one index space to another. For example, the
 following figure shows an index map which maps a 2-dimensional index from a 2x2
 index space to a 3x3 index space, using symbols `S0` and `S1` as offsets.
 
-![Index Map Example](includes/img/index-map.svg)
+![Index Map Example](/includes/img/index-map.svg)
 
 The number of domain dimensions and range dimensions of an index map can be
 different, but must match the number of dimensions of the input and output index
@@ -1156,7 +1156,8 @@ attribute-dict ::= `{` `}`
 attribute-entry ::= dialect-attribute-entry | dependent-attribute-entry
 dialect-attribute-entry ::= dialect-namespace `.` bare-id `=` attribute-value
 dependent-attribute-entry ::= dependent-attribute-name `=` attribute-value
-dependent-attribute-name ::= (letter|[_]) (letter|digit|[_$])*
+dependent-attribute-name ::= ((letter|[_]) (letter|digit|[_$])*)
+                           | string-literal
 ```
 
 Attributes are the mechanism for specifying constant data on operations in

@@ -8,6 +8,7 @@
 
 #include "SIMachineFunctionInfo.h"
 #include "AMDGPUArgumentUsageInfo.h"
+#include "AMDGPUTargetMachine.h"
 #include "AMDGPUSubtarget.h"
 #include "SIRegisterInfo.h"
 #include "MCTargetDesc/AMDGPUMCTargetDesc.h"
@@ -54,6 +55,16 @@ SIMachineFunctionInfo::SIMachineFunctionInfo(const MachineFunction &MF)
 
   Occupancy = ST.computeOccupancy(MF, getLDSSize());
   CallingConv::ID CC = F.getCallingConv();
+  const MachineFrameInfo &FrameInfo = MF.getFrameInfo();
+
+  // FIXME: Should have analysis or something rather than attribute to detect
+  // calls.
+  const bool HasCalls = FrameInfo.hasCalls() || F.hasFnAttribute("amdgpu-calls");
+
+  // Enable all kernel inputs if we have the fixed ABI. Don't bother if we don't
+  // have any calls.
+  const bool UseFixedABI = AMDGPUTargetMachine::EnableFixedFunctionABI &&
+                           (!isEntryFunction() || HasCalls);
 
   if (CC == CallingConv::AMDGPU_KERNEL || CC == CallingConv::SPIR_KERNEL) {
     if (!F.arg_empty())
@@ -68,16 +79,13 @@ SIMachineFunctionInfo::SIMachineFunctionInfo(const MachineFunction &MF)
     // Non-entry functions have no special inputs for now, other registers
     // required for scratch access.
     ScratchRSrcReg = AMDGPU::SGPR0_SGPR1_SGPR2_SGPR3;
-    ScratchWaveOffsetReg = AMDGPU::SGPR33;
 
     // TODO: Pick a high register, and shift down, similar to a kernel.
-    FrameOffsetReg = AMDGPU::SGPR34;
+    FrameOffsetReg = AMDGPU::SGPR33;
     StackPtrOffsetReg = AMDGPU::SGPR32;
 
     ArgInfo.PrivateSegmentBuffer =
       ArgDescriptor::createRegister(ScratchRSrcReg);
-    ArgInfo.PrivateSegmentWaveByteOffset =
-      ArgDescriptor::createRegister(ScratchWaveOffsetReg);
 
     if (F.hasFnAttribute("amdgpu-implicitarg-ptr"))
       ImplicitArgPtr = true;
@@ -89,25 +97,34 @@ SIMachineFunctionInfo::SIMachineFunctionInfo(const MachineFunction &MF)
     }
   }
 
-  if (F.hasFnAttribute("amdgpu-work-group-id-x"))
+  if (UseFixedABI) {
     WorkGroupIDX = true;
-
-  if (F.hasFnAttribute("amdgpu-work-group-id-y"))
     WorkGroupIDY = true;
-
-  if (F.hasFnAttribute("amdgpu-work-group-id-z"))
     WorkGroupIDZ = true;
-
-  if (F.hasFnAttribute("amdgpu-work-item-id-x"))
     WorkItemIDX = true;
-
-  if (F.hasFnAttribute("amdgpu-work-item-id-y"))
     WorkItemIDY = true;
-
-  if (F.hasFnAttribute("amdgpu-work-item-id-z"))
     WorkItemIDZ = true;
+    ImplicitArgPtr = true;
+  } else {
+    if (F.hasFnAttribute("amdgpu-work-group-id-x"))
+      WorkGroupIDX = true;
 
-  const MachineFrameInfo &FrameInfo = MF.getFrameInfo();
+    if (F.hasFnAttribute("amdgpu-work-group-id-y"))
+      WorkGroupIDY = true;
+
+    if (F.hasFnAttribute("amdgpu-work-group-id-z"))
+      WorkGroupIDZ = true;
+
+    if (F.hasFnAttribute("amdgpu-work-item-id-x"))
+      WorkItemIDX = true;
+
+    if (F.hasFnAttribute("amdgpu-work-item-id-y"))
+      WorkItemIDY = true;
+
+    if (F.hasFnAttribute("amdgpu-work-item-id-z"))
+      WorkItemIDZ = true;
+  }
+
   bool HasStackObjects = FrameInfo.hasStackObjects();
 
   if (isEntryFunction()) {
@@ -129,19 +146,27 @@ SIMachineFunctionInfo::SIMachineFunctionInfo(const MachineFunction &MF)
   if (isAmdHsaOrMesa) {
     PrivateSegmentBuffer = true;
 
-    if (F.hasFnAttribute("amdgpu-dispatch-ptr"))
+    if (UseFixedABI) {
       DispatchPtr = true;
-
-    if (F.hasFnAttribute("amdgpu-queue-ptr"))
       QueuePtr = true;
 
-    if (F.hasFnAttribute("amdgpu-dispatch-id"))
+      // FIXME: We don't need this?
       DispatchID = true;
+    } else {
+      if (F.hasFnAttribute("amdgpu-dispatch-ptr"))
+        DispatchPtr = true;
+
+      if (F.hasFnAttribute("amdgpu-queue-ptr"))
+        QueuePtr = true;
+
+      if (F.hasFnAttribute("amdgpu-dispatch-id"))
+        DispatchID = true;
+    }
   } else if (ST.isMesaGfxShader(F)) {
     ImplicitBufferPtr = true;
   }
 
-  if (F.hasFnAttribute("amdgpu-kernarg-segment-ptr"))
+  if (UseFixedABI || F.hasFnAttribute("amdgpu-kernarg-segment-ptr"))
     KernargSegmentPtr = true;
 
   if (ST.hasFlatAddressSpace() && isEntryFunction() && isAmdHsaOrMesa) {
@@ -158,7 +183,7 @@ SIMachineFunctionInfo::SIMachineFunctionInfo(const MachineFunction &MF)
     };
     // TODO: This could be refined a lot. The attribute is a poor way of
     // detecting calls that may require it before argument lowering.
-    if (hasNonSpillStackObjects() || F.hasFnAttribute("amdgpu-flat-scratch"))
+    if (HasCalls || hasNonSpillStackObjects())
       FlatScratchInit = true;
   }
 
@@ -184,7 +209,7 @@ void SIMachineFunctionInfo::limitOccupancy(const MachineFunction &MF) {
                  MF.getFunction()));
 }
 
-unsigned SIMachineFunctionInfo::addPrivateSegmentBuffer(
+Register SIMachineFunctionInfo::addPrivateSegmentBuffer(
   const SIRegisterInfo &TRI) {
   ArgInfo.PrivateSegmentBuffer =
     ArgDescriptor::createRegister(TRI.getMatchingSuperReg(
@@ -193,21 +218,21 @@ unsigned SIMachineFunctionInfo::addPrivateSegmentBuffer(
   return ArgInfo.PrivateSegmentBuffer.getRegister();
 }
 
-unsigned SIMachineFunctionInfo::addDispatchPtr(const SIRegisterInfo &TRI) {
+Register SIMachineFunctionInfo::addDispatchPtr(const SIRegisterInfo &TRI) {
   ArgInfo.DispatchPtr = ArgDescriptor::createRegister(TRI.getMatchingSuperReg(
     getNextUserSGPR(), AMDGPU::sub0, &AMDGPU::SReg_64RegClass));
   NumUserSGPRs += 2;
   return ArgInfo.DispatchPtr.getRegister();
 }
 
-unsigned SIMachineFunctionInfo::addQueuePtr(const SIRegisterInfo &TRI) {
+Register SIMachineFunctionInfo::addQueuePtr(const SIRegisterInfo &TRI) {
   ArgInfo.QueuePtr = ArgDescriptor::createRegister(TRI.getMatchingSuperReg(
     getNextUserSGPR(), AMDGPU::sub0, &AMDGPU::SReg_64RegClass));
   NumUserSGPRs += 2;
   return ArgInfo.QueuePtr.getRegister();
 }
 
-unsigned SIMachineFunctionInfo::addKernargSegmentPtr(const SIRegisterInfo &TRI) {
+Register SIMachineFunctionInfo::addKernargSegmentPtr(const SIRegisterInfo &TRI) {
   ArgInfo.KernargSegmentPtr
     = ArgDescriptor::createRegister(TRI.getMatchingSuperReg(
     getNextUserSGPR(), AMDGPU::sub0, &AMDGPU::SReg_64RegClass));
@@ -215,21 +240,21 @@ unsigned SIMachineFunctionInfo::addKernargSegmentPtr(const SIRegisterInfo &TRI) 
   return ArgInfo.KernargSegmentPtr.getRegister();
 }
 
-unsigned SIMachineFunctionInfo::addDispatchID(const SIRegisterInfo &TRI) {
+Register SIMachineFunctionInfo::addDispatchID(const SIRegisterInfo &TRI) {
   ArgInfo.DispatchID = ArgDescriptor::createRegister(TRI.getMatchingSuperReg(
     getNextUserSGPR(), AMDGPU::sub0, &AMDGPU::SReg_64RegClass));
   NumUserSGPRs += 2;
   return ArgInfo.DispatchID.getRegister();
 }
 
-unsigned SIMachineFunctionInfo::addFlatScratchInit(const SIRegisterInfo &TRI) {
+Register SIMachineFunctionInfo::addFlatScratchInit(const SIRegisterInfo &TRI) {
   ArgInfo.FlatScratchInit = ArgDescriptor::createRegister(TRI.getMatchingSuperReg(
     getNextUserSGPR(), AMDGPU::sub0, &AMDGPU::SReg_64RegClass));
   NumUserSGPRs += 2;
   return ArgInfo.FlatScratchInit.getRegister();
 }
 
-unsigned SIMachineFunctionInfo::addImplicitBufferPtr(const SIRegisterInfo &TRI) {
+Register SIMachineFunctionInfo::addImplicitBufferPtr(const SIRegisterInfo &TRI) {
   ArgInfo.ImplicitBufferPtr = ArgDescriptor::createRegister(TRI.getMatchingSuperReg(
     getNextUserSGPR(), AMDGPU::sub0, &AMDGPU::SReg_64RegClass));
   NumUserSGPRs += 2;
@@ -282,7 +307,7 @@ bool SIMachineFunctionInfo::allocateSGPRSpillToVGPR(MachineFunction &MF,
   // Make sure to handle the case where a wide SGPR spill may span between two
   // VGPRs.
   for (int I = 0; I < NumLanes; ++I, ++NumVGPRSpillLanes) {
-    unsigned LaneVGPR;
+    Register LaneVGPR;
     unsigned VGPRIndex = (NumVGPRSpillLanes % WaveSize);
 
     if (VGPRIndex == 0) {
@@ -414,7 +439,7 @@ MCPhysReg SIMachineFunctionInfo::getNextSystemSGPR() const {
   return AMDGPU::SGPR0 + NumUserSGPRs + NumSystemSGPRs;
 }
 
-static yaml::StringValue regToString(unsigned Reg,
+static yaml::StringValue regToString(Register Reg,
                                      const TargetRegisterInfo &TRI) {
   yaml::StringValue Dest;
   {
@@ -487,7 +512,6 @@ yaml::SIMachineFunctionInfo::SIMachineFunctionInfo(
     WaveLimiter(MFI.needsWaveLimiter()),
     HighBitsOf32BitAddress(MFI.get32BitAddressHighBits()),
     ScratchRSrcReg(regToString(MFI.getScratchRSrcReg(), TRI)),
-    ScratchWaveOffsetReg(regToString(MFI.getScratchWaveOffsetReg(), TRI)),
     FrameOffsetReg(regToString(MFI.getFrameOffsetReg(), TRI)),
     StackPtrOffsetReg(regToString(MFI.getStackPtrOffsetReg(), TRI)),
     ArgInfo(convertArgumentInfo(MFI.getArgInfo(), TRI)),

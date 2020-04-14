@@ -183,6 +183,35 @@ public:
   bool isCoalescableExtInstr(const MachineInstr &MI, unsigned &SrcReg,
                              unsigned &DstReg, unsigned &SubIdx) const override;
 
+  /// Returns true if the instruction has no behavior (specified or otherwise)
+  /// that is based on the value of any of its register operands
+  ///
+  /// Instructions are considered data invariant even if they set EFLAGS.
+  ///
+  /// A classical example of something that is inherently not data invariant is
+  /// an indirect jump -- the destination is loaded into icache based on the
+  /// bits set in the jump destination register.
+  ///
+  /// FIXME: This should become part of our instruction tables.
+  static bool isDataInvariant(MachineInstr &MI);
+
+  /// Returns true if the instruction has no behavior (specified or otherwise)
+  /// that is based on the value loaded from memory or the value of any
+  /// non-address register operands.
+  ///
+  /// For example, if the latency of the instruction is dependent on the
+  /// particular bits set in any of the registers *or* any of the bits loaded
+  /// from memory.
+  ///
+  /// Instructions are considered data invariant even if they set EFLAGS.
+  ///
+  /// A classical example of something that is inherently not data invariant is
+  /// an indirect jump -- the destination is loaded into icache based on the
+  /// bits set in the jump destination register.
+  ///
+  /// FIXME: This should become part of our instruction tables.
+  static bool isDataInvariantLoad(MachineInstr &MI);
+
   unsigned isLoadFromStackSlot(const MachineInstr &MI,
                                int &FrameIndex) const override;
   unsigned isLoadFromStackSlot(const MachineInstr &MI,
@@ -445,7 +474,7 @@ public:
                                       unsigned OpNum,
                                       ArrayRef<MachineOperand> MOs,
                                       MachineBasicBlock::iterator InsertPt,
-                                      unsigned Size, unsigned Alignment,
+                                      unsigned Size, Align Alignment,
                                       bool AllowCommute) const;
 
   bool isHighLatencyDef(int opc) const override;
@@ -565,7 +594,7 @@ private:
                                         unsigned OpNum,
                                         ArrayRef<MachineOperand> MOs,
                                         MachineBasicBlock::iterator InsertPt,
-                                        unsigned Size, unsigned Align) const;
+                                        unsigned Size, Align Alignment) const;
 
   /// isFrameOperand - Return true and the FrameIndex if the specified
   /// operand and follow operands form a reference to the stack frame.

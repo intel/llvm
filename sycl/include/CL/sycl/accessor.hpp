@@ -194,8 +194,8 @@ protected:
   constexpr static bool IsAccessReadWrite =
       AccessMode == access::mode::read_write;
 
-  using RefType = DataT &;
-  using PtrType = DataT *;
+  using RefType = detail::const_if_const_AS<AS, DataT> &;
+  using PtrType = detail::const_if_const_AS<AS, DataT> *;
 
   using AccType =
       accessor<DataT, Dimensions, AccessMode, AccessTarget, IsPlaceholder>;
@@ -336,7 +336,8 @@ private:
   template <info::device param>
   void checkDeviceFeatureSupported(const device &Device) {
     if (!Device.get_info<param>())
-      throw feature_not_supported("Images are not supported by this device.");
+      throw feature_not_supported("Images are not supported by this device.",
+                                  PI_INVALID_OPERATION);
   }
 
 #ifdef __SYCL_DEVICE_ONLY__
@@ -357,8 +358,8 @@ private:
 
   sycl::vec<int, Dimensions> getRangeInternal() const {
     // TODO: Implement for host.
-    throw runtime_error(
-        "image::getRangeInternal() is not implemented for host");
+    throw runtime_error("image::getRangeInternal() is not implemented for host",
+                        PI_INVALID_OPERATION);
     return sycl::vec<int, Dimensions>{1};
   }
 
@@ -681,9 +682,10 @@ class accessor :
   using AccessorSubscript =
       typename AccessorCommonT::template AccessorSubscript<Dims>;
 
-  using RefType = DataT &;
   using ConcreteASPtrType = typename detail::PtrValueType<DataT, AS>::type *;
-  using PtrType = DataT *;
+
+  using RefType = detail::const_if_const_AS<AS, DataT> &;
+  using PtrType = detail::const_if_const_AS<AS, DataT> *;
 
   template <int Dims = Dimensions> size_t getLinearIndex(id<Dims> Id) const {
 
@@ -763,8 +765,7 @@ public:
       : impl(id<AdjustedDim>(), range<1>{1}, BufferRef.get_range()) {
 #else
       : AccessorBaseHost(
-            /*Offset=*/{0, 0, 0},
-            detail::convertToArrayOfN<3, 1>(range<1>{1}),
+            /*Offset=*/{0, 0, 0}, detail::convertToArrayOfN<3, 1>(range<1>{1}),
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()), AccessMode,
             detail::getSyclObjImpl(BufferRef).get(), AdjustedDim, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
@@ -773,18 +774,19 @@ public:
 #endif
   }
 
-  template <int Dims = Dimensions, typename AllocatorT>
-  accessor(buffer<DataT, 1, AllocatorT> &BufferRef,
-           detail::enable_if_t<Dims == 0 &&
-                               (!IsPlaceH && (IsGlobalBuf || IsConstantBuf)),
-                               handler> &CommandGroupHandler)
+  template <int Dims = Dimensions, typename AllocatorT,
+	   typename = typename detail::enable_if_t<
+		   (Dims == 0) && 
+                    (!IsPlaceH && (IsGlobalBuf || IsConstantBuf))>
+		    			>
+  accessor(buffer<DataT,1,AllocatorT> &BufferRef,
+		  handler &CommandGroupHandler)
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(id<AdjustedDim>(), range<1>{1}, BufferRef.get_range()) {
   }
 #else
       : AccessorBaseHost(
-            /*Offset=*/{0, 0, 0},
-            detail::convertToArrayOfN<3, 1>(range<1>{1}),
+            /*Offset=*/{0, 0, 0}, detail::convertToArrayOfN<3, 1>(range<1>{1}),
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()), AccessMode,
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
@@ -793,11 +795,11 @@ public:
 #endif
 
   template <int Dims = Dimensions, typename AllocatorT,
-            typename detail::enable_if_t<
-                (Dims > 0) && ((!IsPlaceH && IsHostBuf) ||
-                               (IsPlaceH && (IsGlobalBuf || IsConstantBuf)))>
-                * = nullptr>
-  accessor(buffer<DataT, Dimensions, AllocatorT> &BufferRef)
+            typename = detail::enable_if_t<(Dims > 0) && (Dims == Dimensions) &&
+                                           ((!IsPlaceH && IsHostBuf) ||
+                                            (IsPlaceH &&
+                                             (IsGlobalBuf || IsConstantBuf)))>>
+  accessor(buffer<DataT, Dims, AllocatorT> &BufferRef)
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(id<Dimensions>(), BufferRef.get_range(), BufferRef.get_range()) {
   }
@@ -814,9 +816,10 @@ public:
 #endif
 
   template <int Dims = Dimensions, typename AllocatorT,
-            typename = detail::enable_if_t<
-                (Dims > 0) && (!IsPlaceH && (IsGlobalBuf || IsConstantBuf))>>
-  accessor(buffer<DataT, Dimensions, AllocatorT> &BufferRef,
+            typename = detail::enable_if_t<(Dims > 0) && (Dims == Dimensions) &&
+                                           (!IsPlaceH &&
+                                            (IsGlobalBuf || IsConstantBuf))>>
+  accessor(buffer<DataT, Dims, AllocatorT> &BufferRef,
            handler &CommandGroupHandler)
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(id<AdjustedDim>(), BufferRef.get_range(), BufferRef.get_range()) {
@@ -833,10 +836,11 @@ public:
 #endif
 
   template <int Dims = Dimensions, typename AllocatorT,
-            typename = detail::enable_if_t<
-                (Dims > 0) && ((!IsPlaceH && IsHostBuf) ||
-                               (IsPlaceH && (IsGlobalBuf || IsConstantBuf)))>>
-  accessor(buffer<DataT, Dimensions, AllocatorT> &BufferRef,
+            typename = detail::enable_if_t<(Dims > 0) && (Dims == Dimensions) &&
+                                           ((!IsPlaceH && IsHostBuf) ||
+                                            (IsPlaceH &&
+                                             (IsGlobalBuf || IsConstantBuf)))>>
+  accessor(buffer<DataT, Dims, AllocatorT> &BufferRef,
            range<Dimensions> AccessRange, id<Dimensions> AccessOffset = {})
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(AccessOffset, AccessRange, BufferRef.get_range()) {
@@ -854,9 +858,10 @@ public:
 #endif
 
   template <int Dims = Dimensions, typename AllocatorT,
-            typename = detail::enable_if_t<
-                (Dims > 0) && (!IsPlaceH && (IsGlobalBuf || IsConstantBuf))>>
-  accessor(buffer<DataT, Dimensions, AllocatorT> &BufferRef,
+            typename = detail::enable_if_t<(Dims > 0) && (Dims == Dimensions) &&
+                                           (!IsPlaceH &&
+                                            (IsGlobalBuf || IsConstantBuf))>>
+  accessor(buffer<DataT, Dims, AllocatorT> &BufferRef,
            handler &CommandGroupHandler, range<Dimensions> AccessRange,
            id<Dimensions> AccessOffset = {})
 #ifdef __SYCL_DEVICE_ONLY__
@@ -932,17 +937,17 @@ public:
   }
 
   template <int Dims = Dimensions>
-  operator typename std::enable_if<Dims == 0 &&
-                                       AccessMode == access::mode::atomic,
-                                   atomic<DataT, AS>>::type() const {
+  operator typename detail::enable_if_t<
+      Dims == 0 && AccessMode == access::mode::atomic, atomic<DataT, AS>>()
+      const {
     const size_t LinearIndex = getLinearIndex(id<AdjustedDim>());
     return atomic<DataT, AS>(
         multi_ptr<DataT, AS>(getQualifiedPtr() + LinearIndex));
   }
 
   template <int Dims = Dimensions>
-  typename std::enable_if<(Dims > 0) && AccessMode == access::mode::atomic,
-                          atomic<DataT, AS>>::type
+  typename detail::enable_if_t<(Dims > 0) && AccessMode == access::mode::atomic,
+                               atomic<DataT, AS>>
   operator[](id<Dimensions> Index) const {
     const size_t LinearIndex = getLinearIndex(Index);
     return atomic<DataT, AS>(
@@ -951,7 +956,7 @@ public:
 
   template <int Dims = Dimensions>
   typename detail::enable_if_t<Dims == 1 && AccessMode == access::mode::atomic,
-                               atomic<DataT, AS>>::type
+                               atomic<DataT, AS>>
   operator[](size_t Index) const {
     const size_t LinearIndex = getLinearIndex(id<AdjustedDim>(Index));
     return atomic<DataT, AS>(
@@ -1015,9 +1020,10 @@ class accessor<DataT, Dimensions, AccessMode, access::target::local,
   using AccessorSubscript =
       typename AccessorCommonT::template AccessorSubscript<Dims>;
 
-  using RefType = DataT &;
   using ConcreteASPtrType = typename detail::PtrValueType<DataT, AS>::type *;
-  using PtrType = DataT *;
+
+  using RefType = detail::const_if_const_AS<AS, DataT> &;
+  using PtrType = detail::const_if_const_AS<AS, DataT> *;
 
 #ifdef __SYCL_DEVICE_ONLY__
   detail::LocalAccessorBaseDevice<AdjustedDim> impl;

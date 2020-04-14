@@ -201,6 +201,20 @@ def DOp : NS_Op<"d_op", []> {
 // DEF: odsState.addAttribute("str_attr", (*odsBuilder).getStringAttr(str_attr));
 // DEF: odsState.addAttribute("dv_str_attr", (*odsBuilder).getStringAttr(dv_str_attr));
 
+// Test derived type attr.
+// ---
+def DerivedTypeAttrOp : NS_Op<"derived_type_attr_op", []> {
+  let results = (outs AnyTensor:$output);
+  DerivedTypeAttr element_dtype = DerivedTypeAttr<"return output().getType();">;
+}
+
+// DECL: class DerivedTypeAttrOp : public Op
+// DECL-SAME: DerivedAttributeOpInterface::Trait
+// DECL: static bool isDerivedAttribute
+// DEF: bool DerivedTypeAttrOp::isDerivedAttribute(StringRef name) {
+// DEF:   if (name == "element_dtype") return true;
+// DEF:   return false;
+// DEF: }
 
 // Test that only default valued attributes at the end of the arguments
 // list get default values in the builder signature

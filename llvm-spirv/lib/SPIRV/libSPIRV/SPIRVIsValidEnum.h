@@ -410,6 +410,7 @@ inline bool isValid(spv::Decoration V) {
   case DecorationSinglepumpINTEL:
   case DecorationDoublepumpINTEL:
   case DecorationBankBitsINTEL:
+  case DecorationForcePow2DepthINTEL:
   case DecorationReferencedIndirectlyINTEL:
     return true;
   default:
@@ -893,6 +894,9 @@ inline bool isValid(spv::Op V) {
   case OpSubgroupImageBlockWriteINTEL:
   case OpSubgroupImageMediaBlockReadINTEL:
   case OpSubgroupImageMediaBlockWriteINTEL:
+  case OpAsmTargetINTEL:
+  case OpAsmINTEL:
+  case OpAsmCallINTEL:
   case OpVmeImageINTEL:
   case OpTypeVmeImageINTEL:
   case OpTypeAvcImePayloadINTEL:
@@ -1059,9 +1063,13 @@ inline bool isValidLoopControlMask(SPIRVWord Mask) {
   ValidMask |= LoopControlPartialCountMask;
   ValidMask |= LoopControlDependencyInfiniteMask;
   ValidMask |= LoopControlDependencyLengthMask;
-  ValidMask |= InitiationIntervalINTEL;
-  ValidMask |= MaxConcurrencyINTEL;
-  ValidMask |= DependencyArrayINTEL;
+  ValidMask |= LoopControlInitiationIntervalINTEL;
+  ValidMask |= LoopControlMaxConcurrencyINTEL;
+  ValidMask |= LoopControlDependencyArrayINTEL;
+  ValidMask |= LoopControlPipelineEnableINTEL;
+  ValidMask |= LoopControlLoopCoalesceINTEL;
+  ValidMask |= LoopControlMaxInterleavingINTEL;
+  ValidMask |= LoopControlSpeculatedIterationsINTEL;
 
   return (Mask & ~ValidMask) == 0;
 }

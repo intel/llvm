@@ -55,14 +55,6 @@ using llvm::dbgs;
 /// More advanced use cases, analyses as well as profitability heuristics are
 /// left for future work.
 
-static llvm::cl::OptionCategory clOptionsCategory(DEBUG_TYPE " options");
-static llvm::cl::list<unsigned> clTileSizes(
-    "linalg-fusion-tile-sizes",
-    llvm::cl::desc(
-        "Tile sizes by which to tile linalg operations during linalg fusion"),
-    llvm::cl::ZeroOrMore, llvm::cl::MiscFlags::CommaSeparated,
-    llvm::cl::cat(clOptionsCategory));
-
 // Return a cloned version of `op` that operates on `loopRanges`, assumed to be
 // a subset of the original loop ranges of `op`.
 // This is achieved by applying the `loopToOperandRangesMaps` permutation maps
@@ -70,7 +62,7 @@ static llvm::cl::list<unsigned> clTileSizes(
 static LinalgOp cloneWithLoopRanges(OpBuilder &b, Location loc, LinalgOp op,
                                     ArrayRef<SubViewOp::Range> loopRanges) {
   assert(op.hasBufferSemantics() && "expected linalg op with buffer semantics");
-  auto maps = loopToOperandRangesMaps(op);
+  auto maps = op.indexing_maps();
   SmallVector<Value, 8> clonedViews;
   clonedViews.reserve(op.getNumInputsAndOutputs());
   // Iterate over the inputs and outputs in order.
@@ -78,7 +70,7 @@ static LinalgOp cloneWithLoopRanges(OpBuilder &b, Location loc, LinalgOp op,
   SmallVector<Value, 8> ios(op.getInputsAndOutputBuffers());
   for (auto en : llvm::enumerate(ios)) {
     unsigned idx = en.index();
-    auto map = maps[idx];
+    auto map = maps[idx].cast<AffineMapAttr>().getValue();
     LLVM_DEBUG(dbgs() << "map: " << map << "\n");
     Value view = en.value();
     SmallVector<SubViewOp::Range, 4> viewRanges(map.getNumResults());
@@ -122,13 +114,13 @@ struct ViewDimension {
 // the first one.
 static ViewDimension getViewDefiningLoopRange(LinalgOp op, unsigned loopDepth) {
   assert(op.hasBufferSemantics() && "expected linalg op with buffer semantics");
-  auto maps = loopToOperandRangesMaps(op);
+  auto maps = op.indexing_maps();
   // Iterate over the inputs and outputs in order.
   // Extract the subranges from the linearized ranges.
   SmallVector<Value, 8> ios(op.getInputsAndOutputBuffers());
   for (auto en : llvm::enumerate(ios)) {
     unsigned idx = en.index();
-    auto map = maps[idx];
+    auto map = maps[idx].cast<AffineMapAttr>().getValue();
     LLVM_DEBUG(dbgs() << "getViewDefiningLoopRange I/O idx: " << idx << "\n");
     LLVM_DEBUG(dbgs() << "getViewDefiningLoopRange map: " << map << "\n");
     Value view = en.value();
@@ -152,6 +144,18 @@ static LinalgOp fuse(Value producedView, LinalgOp producer, LinalgOp consumer,
          "expected linalg op with buffer semantics");
   assert(consumer.hasBufferSemantics() &&
          "expected linalg op with buffer semantics");
+
+  if (auto convOp = dyn_cast<linalg::ConvOp>(producer.getOperation())) {
+    // TODO(ntv): add a level of indirection to linalg.generic.
+    if (convOp.padding())
+      llvm_unreachable("Unexpected conv with padding");
+  }
+  if (auto convOp = dyn_cast<linalg::ConvOp>(consumer.getOperation())) {
+    // TODO(ntv): add a level of indirection to linalg.generic.
+    if (convOp.padding())
+      llvm_unreachable("Unexpected conv with padding");
+  }
+
   auto subView = dyn_cast_or_null<SubViewOp>(
       consumer.getInput(consumerIdx).getDefiningOp());
   auto slice =
@@ -164,7 +168,9 @@ static LinalgOp fuse(Value producedView, LinalgOp producer, LinalgOp consumer,
   //   we can always identify a data dimension with a (at least one) loop
   //   dimension.
   AffineMap producerMap =
-      loopToOperandRangesMaps(producer)[producer.getNumInputs() + producerIdx];
+      producer.indexing_maps()[producer.getNumInputs() + producerIdx]
+          .cast<AffineMapAttr>()
+          .getValue();
   LLVM_DEBUG(dbgs() << "Producer Idx: " << producerIdx
                     << ", producer map: " << producerMap << "\n");
 
@@ -191,11 +197,9 @@ static LinalgOp fuse(Value producedView, LinalgOp producer, LinalgOp consumer,
                  << "existing LoopRange: " << loopRanges[i] << "\n");
     else {
       auto viewDim = getViewDefiningLoopRange(producer, i);
-      loopRanges[i] = SubViewOp::Range{
-          folded_std_constant_index(folder, 0),
-          std_dim(viewDim.view, viewDim.dimension),
-          folded_std_constant_index(folder, 1)
-      };
+      loopRanges[i] = SubViewOp::Range{folded_std_constant_index(folder, 0),
+                                       std_dim(viewDim.view, viewDim.dimension),
+                                       folded_std_constant_index(folder, 1)};
       LLVM_DEBUG(llvm::dbgs() << "new LoopRange: " << loopRanges[i] << "\n");
     }
   }
@@ -522,10 +526,10 @@ namespace {
 struct FuseGenericTensorOps : public OpRewritePattern<GenericOp> {
   using OpRewritePattern<GenericOp>::OpRewritePattern;
 
-  PatternMatchResult matchAndRewrite(GenericOp op,
-                                     PatternRewriter &rewriter) const override {
+  LogicalResult matchAndRewrite(GenericOp op,
+                                PatternRewriter &rewriter) const override {
     if (!op.hasTensorSemantics())
-      return matchFailure();
+      return failure();
 
     // Find the first operand that is defined by another generic op on tensors.
     for (auto operand : llvm::enumerate(op.getOperation()->getOperands())) {
@@ -539,9 +543,9 @@ struct FuseGenericTensorOps : public OpRewritePattern<GenericOp> {
       if (!fusedOp)
         continue;
       rewriter.replaceOp(op, fusedOp.getValue().getOperation()->getResults());
-      return matchSuccess();
+      return success();
     }
-    return matchFailure();
+    return failure();
   }
 };
 

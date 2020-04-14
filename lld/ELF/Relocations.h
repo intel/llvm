@@ -80,6 +80,7 @@ enum RelExpr {
   R_AARCH64_PAGE_PC,
   R_AARCH64_RELAX_TLS_GD_TO_IE_PAGE_PC,
   R_AARCH64_TLSDESC_PAGE,
+  R_ARM_PCA,
   R_ARM_SBREL,
   R_MIPS_GOTREL,
   R_MIPS_GOT_GP,
@@ -113,6 +114,9 @@ struct Relocation {
 template <class ELFT> void scanRelocations(InputSectionBase &);
 
 template <class ELFT> void reportUndefinedSymbols();
+
+void hexagonTLSSymbolUpdate(ArrayRef<OutputSection *> outputSections);
+bool hexagonNeedsTLSSymbol(ArrayRef<OutputSection *> outputSections);
 
 class ThunkSection;
 class Thunk;

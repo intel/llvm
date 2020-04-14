@@ -153,7 +153,7 @@ func @block_arg_no_type() {
 
 func @block_arg_no_close_paren() {
 ^bb42:
-  br ^bb2( // expected-error@+1 {{expected ')' to close argument list}}
+  br ^bb2( // expected-error@+1 {{expected ':'}}
   return
 }
 
@@ -535,7 +535,7 @@ func @undefined_function() {
 
 func @bound_symbol_mismatch(%N : index) {
   affine.for %i = #map1(%N) to 100 {
-  // expected-error@-1 {{symbol operand count and integer set symbol count must match}}
+  // expected-error@-1 {{symbol operand count and affine map symbol count must match}}
   }
   return
 }
@@ -546,7 +546,7 @@ func @bound_symbol_mismatch(%N : index) {
 
 func @bound_dim_mismatch(%N : index) {
   affine.for %i = #map1(%N, %N)[%N] to 100 {
-  // expected-error@-1 {{dim operand count and integer set dim count must match}}
+  // expected-error@-1 {{dim operand count and affine map dim count must match}}
   }
   return
 }

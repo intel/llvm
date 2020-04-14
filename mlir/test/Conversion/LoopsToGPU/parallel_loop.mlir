@@ -1,9 +1,9 @@
-// RUN: mlir-opt -convert-parallel-loops-to-gpu -split-input-file %s | FileCheck %s -dump-input-on-failure
+// RUN: mlir-opt -convert-parallel-loops-to-gpu -split-input-file -verify-diagnostics %s | FileCheck %s -dump-input-on-failure
 
 // 2-d parallel loop mapped to block.y and block.x
 
 func @parallel_loop_bidy_bidx(%arg0 : index, %arg1 : index, %arg2 : index,
-                              %arg3 : index, %arg4 : index, 
+                              %arg3 : index, %arg4 : index,
                               %buf : memref<?x?xf32>,
                               %res : memref<?x?xf32>) {
   %step = constant 2 : index
@@ -15,7 +15,7 @@ func @parallel_loop_bidy_bidx(%arg0 : index, %arg1 : index, %arg2 : index,
   return
 }
 
-// CHECK:       #[[MAP0:.*]] = affine_map<()[s0, s1, s2] -> (s0 - s1 ceildiv s2)>
+// CHECK:       #[[MAP0:.*]] = affine_map<()[s0, s1, s2] -> ((s0 - s1) ceildiv s2)>
 // CHECK:       #[[MAP1:.*]] = affine_map<(d0)[s0, s1] -> (d0 * s0 + s1)>
 
 // CHECK:       module {
@@ -66,7 +66,7 @@ func @parallel_loop_tiled(%arg0 : index, %arg1 : index, %arg2 : index,
   return
 }
 
-// CHECK:       #[[MAP0:.*]] = affine_map<()[s0, s1, s2] -> (s0 - s1 ceildiv s2)>
+// CHECK:       #[[MAP0:.*]] = affine_map<()[s0, s1, s2] -> ((s0 - s1) ceildiv s2)>
 // CHECK:       #[[MAP1:.*]] = affine_map<(d0)[s0, s1] -> (d0 * s0 + s1)>
 
 // CHECK:       module {
@@ -115,7 +115,7 @@ func @parallel_loop_bidy_seq(%arg0 : index, %arg1 : index, %arg2 : index,
   return
 }
 
-// CHECK:       #[[MAP0:.*]] = affine_map<()[s0, s1, s2] -> (s0 - s1 ceildiv s2)>
+// CHECK:       #[[MAP0:.*]] = affine_map<()[s0, s1, s2] -> ((s0 - s1) ceildiv s2)>
 // CHECK:       #[[MAP1:.*]] = affine_map<(d0)[s0, s1] -> (d0 * s0 + s1)>
 
 // CHECK:       module {
@@ -166,7 +166,7 @@ func @parallel_loop_tiled_seq(%arg0 : index, %arg1 : index, %arg2 : index,
   return
 }
 
-// CHECK:       #[[MAP0:.*]] = affine_map<()[s0, s1, s2] -> (s0 - s1 ceildiv s2)>
+// CHECK:       #[[MAP0:.*]] = affine_map<()[s0, s1, s2] -> ((s0 - s1) ceildiv s2)>
 // CHECK:       #[[MAP1:.*]] = affine_map<(d0)[s0, s1] -> (d0 * s0 + s1)>
 
 // CHECK:       module {
@@ -241,7 +241,7 @@ module {
 }
 
 // CHECK:       #[[MAP0:.*]] = affine_map<(d0, d1)[s0, s1] -> (d0 * s1 + s0 + d1)>
-// CHECK:       #[[MAP1:.*]] = affine_map<()[s0, s1, s2] -> (s0 - s1 ceildiv s2)>
+// CHECK:       #[[MAP1:.*]] = affine_map<()[s0, s1, s2] -> ((s0 - s1) ceildiv s2)>
 // CHECK:       #[[MAP2:.*]] = affine_map<(d0)[s0, s1] -> (d0 * s0 + s1)>
 // CHECK:       #[[MAP3:.*]] = affine_map<(d0)[s0] -> (2, -d0 + s0)>
 // CHECK:       #[[MAP4:.*]] = affine_map<(d0)[s0] -> (3, -d0 + s0)>
@@ -270,17 +270,17 @@ module {
 // CHECK:             [[VAL_31:%.*]] = affine.min #[[MAP3]]([[VAL_28]]){{\[}}[[VAL_30]]]
 // CHECK:             [[VAL_32:%.*]] = dim [[VAL_0]], 1 : memref<?x?xf32, #[[MAP0]]>
 // CHECK:             [[VAL_33:%.*]] = affine.min #[[MAP4]]([[VAL_29]]){{\[}}[[VAL_32]]]
-// CHECK:             [[VAL_34:%.*]] = std.subview [[VAL_0]]{{\[}}[[VAL_28]], [[VAL_29]]]{{\[}}[[VAL_31]], [[VAL_33]]]{{\[}}[[VAL_3]], [[VAL_3]]] : memref<?x?xf32, #[[MAP0]]> to memref<?x?xf32, #[[MAP5]]>
+// CHECK:             [[VAL_34:%.*]] = subview [[VAL_0]]{{\[}}[[VAL_28]], [[VAL_29]]] {{\[}}[[VAL_31]], [[VAL_33]]] {{\[}}[[VAL_3]], [[VAL_3]]] : memref<?x?xf32, #[[MAP0]]> to memref<?x?xf32, #[[MAP5]]>
 // CHECK:             [[VAL_35:%.*]] = dim [[VAL_1]], 0 : memref<?x?xf32, #[[MAP0]]>
 // CHECK:             [[VAL_36:%.*]] = affine.min #[[MAP3]]([[VAL_28]]){{\[}}[[VAL_35]]]
 // CHECK:             [[VAL_37:%.*]] = dim [[VAL_1]], 1 : memref<?x?xf32, #[[MAP0]]>
 // CHECK:             [[VAL_38:%.*]] = affine.min #[[MAP4]]([[VAL_29]]){{\[}}[[VAL_37]]]
-// CHECK:             [[VAL_39:%.*]] = std.subview [[VAL_1]]{{\[}}[[VAL_28]], [[VAL_29]]]{{\[}}[[VAL_36]], [[VAL_38]]]{{\[}}[[VAL_3]], [[VAL_3]]] : memref<?x?xf32, #[[MAP0]]> to memref<?x?xf32, #[[MAP5]]>
+// CHECK:             [[VAL_39:%.*]] = subview [[VAL_1]]{{\[}}[[VAL_28]], [[VAL_29]]] {{\[}}[[VAL_36]], [[VAL_38]]] {{\[}}[[VAL_3]], [[VAL_3]]] : memref<?x?xf32, #[[MAP0]]> to memref<?x?xf32, #[[MAP5]]>
 // CHECK:             [[VAL_40:%.*]] = dim [[VAL_2]], 0 : memref<?x?xf32, #[[MAP0]]>
 // CHECK:             [[VAL_41:%.*]] = affine.min #[[MAP3]]([[VAL_28]]){{\[}}[[VAL_40]]]
 // CHECK:             [[VAL_42:%.*]] = dim [[VAL_2]], 1 : memref<?x?xf32, #[[MAP0]]>
 // CHECK:             [[VAL_43:%.*]] = affine.min #[[MAP4]]([[VAL_29]]){{\[}}[[VAL_42]]]
-// CHECK:             [[VAL_44:%.*]] = std.subview [[VAL_2]]{{\[}}[[VAL_28]], [[VAL_29]]]{{\[}}[[VAL_41]], [[VAL_43]]]{{\[}}[[VAL_3]], [[VAL_3]]] : memref<?x?xf32, #[[MAP0]]> to memref<?x?xf32, #[[MAP5]]>
+// CHECK:             [[VAL_44:%.*]] = subview [[VAL_2]]{{\[}}[[VAL_28]], [[VAL_29]]] {{\[}}[[VAL_41]], [[VAL_43]]] {{\[}}[[VAL_3]], [[VAL_3]]] : memref<?x?xf32, #[[MAP0]]> to memref<?x?xf32, #[[MAP5]]>
 // CHECK:             [[VAL_45:%.*]] = affine.apply #[[MAP2]]([[VAL_22]]){{\[}}[[VAL_3]], [[VAL_4]]]
 // CHECK:             [[VAL_46:%.*]] = cmpi "slt", [[VAL_45]], [[VAL_31]] : index
 // CHECK:             loop.if [[VAL_46]] {
@@ -299,3 +299,55 @@ module {
 // CHECK:           return
 // CHECK:         }
 // CHECK:       }
+
+// -----
+
+// Mapping to the same processor twice.
+
+func @parallel_double_map(%arg0 : index, %arg1 : index, %arg2 : index,
+                          %arg3 : index,
+                          %buf : memref<?x?xf32>,
+                          %res : memref<?x?xf32>) {
+  %four = constant 4 : index
+  // expected-error@+2 {{cannot redefine the bound for processor 1}}
+  // expected-error@+1 {{failed to legalize operation 'loop.parallel'}}
+  loop.parallel (%i0, %i1) = (%arg0, %arg1) to (%arg2, %arg3)
+                                          step (%four, %four)  {
+  } { mapping = [
+      {processor = 1, map = affine_map<(d0) -> (d0)>, bound = affine_map<(d0) -> (d0)>},
+      {processor = 1, map = affine_map<(d0) -> (d0)>, bound = affine_map<(d0) -> (d0)>}
+    ] }
+  return
+}
+
+// -----
+
+// Loop with loop-variant upper bound.
+
+func @parallel_loop_loop_variant_bound(%arg0 : index, %arg1 : index, %arg2 : index,
+                                       %arg3 : index,
+                                       %buf : memref<?x?xf32>,
+                                       %res : memref<?x?xf32>) {
+  %zero = constant 0 : index
+  %one = constant 1 : index
+  %four = constant 4 : index
+  // expected-error@+1 {{failed to legalize operation 'loop.parallel'}}
+  loop.parallel (%i0, %i1) = (%arg0, %arg1) to (%arg2, %arg3)
+                                          step (%four, %four)  {
+    // expected-error@+1 {{cannot derive loop-invariant upper bound}}
+    loop.parallel (%si0, %si1) = (%zero, %zero) to (%i0, %i1)
+                                            step (%one, %one)  {
+      %idx0 = addi %i0, %si0 : index
+      %idx1 = addi %i1, %si1 : index
+      %val = load %buf[%idx0, %idx1] : memref<?x?xf32>
+      store %val, %res[%idx1, %idx0] : memref<?x?xf32>
+    } { mapping = [
+        {processor = 4, map = affine_map<(d0) -> (d0)>, bound = affine_map<(d0) -> (d0)>},
+        {processor = 6, map = affine_map<(d0) -> (d0)>, bound = affine_map<(d0) -> (d0)>}
+      ] }
+  } { mapping = [
+      {processor = 1, map = affine_map<(d0) -> (d0)>, bound = affine_map<(d0) -> (d0)>},
+      {processor = 6, map = affine_map<(d0) -> (d0)>, bound = affine_map<(d0) -> (d0)>}
+    ] }
+  return
+}

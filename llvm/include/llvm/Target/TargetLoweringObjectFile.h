@@ -24,6 +24,7 @@
 namespace llvm {
 
 class GlobalValue;
+class MachineBasicBlock;
 class MachineModuleInfo;
 class Mangler;
 class MCContext;
@@ -36,8 +37,6 @@ class MCValue;
 class TargetMachine;
 
 class TargetLoweringObjectFile : public MCObjectFileInfo {
-  MCContext *Ctx = nullptr;
-
   /// Name-mangler for global names.
   Mangler *Mang = nullptr;
 
@@ -66,7 +65,6 @@ public:
   operator=(const TargetLoweringObjectFile &) = delete;
   virtual ~TargetLoweringObjectFile();
 
-  MCContext &getContext() const { return *Ctx; }
   Mangler &getMangler() const { return *Mang; }
 
   /// This method must be called before any actual lowering is done.  This
@@ -89,6 +87,15 @@ public:
                                            SectionKind Kind,
                                            const Constant *C,
                                            unsigned &Align) const;
+
+  virtual MCSection *
+  getSectionForMachineBasicBlock(const Function &F,
+                                 const MachineBasicBlock &MBB,
+                                 const TargetMachine &TM) const;
+
+  virtual MCSection *getNamedSectionForMachineBasicBlock(
+      const Function &F, const MachineBasicBlock &MBB, const TargetMachine &TM,
+      const char *Suffix) const;
 
   /// Classify the specified global variable into a set of target independent
   /// categories embodied in SectionKind.

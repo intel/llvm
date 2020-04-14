@@ -85,10 +85,6 @@ namespace llvm {
     /// VSFRC that is sign-extended from ByteWidth to a 64-byte integer.
     VEXTS,
 
-    /// SExtVElems, takes an input vector of a smaller type and sign
-    /// extends to an output vector of a larger type.
-    SExtVElems,
-
     /// Reciprocal estimate instructions (unary FP ops).
     FRE,
     FRSQRTE,
@@ -910,6 +906,14 @@ namespace llvm {
     /// expanded to fmul + fadd.
     bool isFMAFasterThanFMulAndFAdd(const MachineFunction &MF,
                                     EVT VT) const override;
+
+    bool isFMAFasterThanFMulAndFAdd(const Function &F, Type *Ty) const override;
+
+    /// isProfitableToHoist - Check if it is profitable to hoist instruction
+    /// \p I to its dominator block.
+    /// For example, it is not profitable if \p I and it's only user can form a
+    /// FMA instruction, because Powerpc prefers FMADD.
+    bool isProfitableToHoist(Instruction *I) const override;
 
     const MCPhysReg *getScratchRegisters(CallingConv::ID CC) const override;
 

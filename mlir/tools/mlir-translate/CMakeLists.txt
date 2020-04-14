@@ -1,9 +1,11 @@
+get_property(dialect_libs GLOBAL PROPERTY MLIR_DIALECT_LIBS)
 set(LIBS
-  MLIRAllDialects
+  ${dialect_libs}
   MLIRParser
   MLIRPass
   MLIRSPIRV
   MLIRSPIRVSerialization
+  MLIRTargetAVX512
   MLIRTargetLLVMIR
   MLIRTargetNVVMIR
   MLIRTargetROCDLIR
@@ -12,6 +14,7 @@ set(LIBS
 )
 set(FULL_LIBS
   MLIRSPIRVSerialization
+  MLIRTargetAVX512
   MLIRTargetLLVMIR
   MLIRTargetNVVMIR
   MLIRTargetROCDLIR

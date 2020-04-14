@@ -182,6 +182,9 @@ struct Configuration {
   llvm::StringMap<int> order;
 
   // Used for /lldmap.
+  std::string lldmapFile;
+
+  // Used for /map.
   std::string mapFile;
 
   // Used for /thinlto-index-only:
@@ -211,6 +214,7 @@ struct Configuration {
   uint32_t functionPadMin = 0;
   bool dynamicBase = true;
   bool allowBind = true;
+  bool cetCompat = false;
   bool nxCompat = true;
   bool allowIsolation = true;
   bool terminalServerAware = true;

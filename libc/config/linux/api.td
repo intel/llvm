@@ -18,6 +18,35 @@ def OffT : TypeDecl<"off_t"> {
   }];
 }
 
+def AssertMacro : MacroDef<"assert"> {
+  let Defn = [{
+    #undef assert
+
+    #ifdef NDEBUG
+    #define assert(e) (void)0
+    #else
+
+    #ifdef __cplusplus
+    extern "C"
+    #endif
+    _Noreturn void __assert_fail(const char *, const char *, unsigned, const char *);
+
+    #define assert(e)  \
+      ((e) ? (void)0 : __assert_fail(#e, __FILE__, __LINE__, __PRETTY_FUNCTION__))
+
+    #endif
+  }];
+}
+
+def StaticAssertMacro : MacroDef<"static_assert"> {
+  let Defn = [{
+    #ifndef __cplusplus
+    #undef static_assert
+    #define static_assert _Static_assert
+    #endif
+  }];
+}
+
 def NullMacro : MacroDef<"NULL"> {
   let Defn = [{
     #define __need_NULL
@@ -27,15 +56,68 @@ def NullMacro : MacroDef<"NULL"> {
 
 def ErrnoMacro : MacroDef<"errno"> {
   let Defn = [{
+    #ifdef __cplusplus
+    extern "C"
+    #endif
     int *__errno_location();
     #define errno (*__errno_location())
   }];
 }
 
+def AssertAPI : PublicAPI<"assert.h"> {
+  let Macros = [
+    AssertMacro,
+    StaticAssertMacro,
+  ];
+}
+
+def MathErrHandlingMacro : MacroDef<"math_errhandling"> {
+  let Defn = [{
+    #ifndef math_errhandling
+    #ifdef __FAST_MATH__
+    #define math_errhandling 0
+    #elif defined __NO_MATH_ERRNO__
+    #define math_errhandling (MATH_ERREXCEPT)
+    #else
+    #define math_errhandling (MATH_ERRNO | MATH_ERREXCEPT)
+    #endif
+    #endif // math_errhandling not defined
+  }];
+}
+
+def IsFiniteMacro : MacroDef<"isfinite"> {
+  let Defn = [{
+    #define isfinite(x) __builtin_isfinite(x)
+  }];
+}
+
+def IsInfMacro : MacroDef<"isinf"> {
+  let Defn = [{
+    #define isinf(x) __builtin_isinf(x)
+  }];
+}
+
+def IsNanMacro : MacroDef<"isnan"> {
+  let Defn = [{
+    #define isnan(x) __builtin_isnan(x)
+  }];
+}
+
 def MathAPI : PublicAPI<"math.h"> {
+  let Macros = [
+    SimpleMacroDef<"MATH_ERRNO", "1">,
+    SimpleMacroDef<"MATH_ERREXCEPT", "2">,
+    MathErrHandlingMacro,
+
+    SimpleMacroDef<"INFINITY", "__builtin_inff()">,
+    SimpleMacroDef<"NAN", "__builtin_nanf(\"\")">,
+
+    IsFiniteMacro,
+    IsInfMacro,
+    IsNanMacro,
+  ];
   let Functions = [
-   "acos",
-   "acosl",
+   "round",
   ];
 }
 
@@ -81,6 +163,13 @@ def StdIOAPI : PublicAPI<"stdio.h"> {
 
   let Functions = [
     "snprintf",
+  ];
+}
+
+def StdlibAPI : PublicAPI<"stdlib.h"> {
+  let Functions = [
+    "_Exit",
+    "abort",
   ];
 }
 
@@ -134,12 +223,77 @@ def SysMManAPI : PublicAPI<"sys/mman.h"> {
   ];
 }
 
+def StructSigactionDefn : TypeDecl<"struct sigaction"> {
+  let Decl = [{
+    struct __sigaction {
+      union {
+        void (*sa_handler)(int);
+        void (*sa_action)(int, siginfo_t *, void *);
+      };
+      sigset_t sa_mask;
+      int sa_flags;
+      void (*sa_restorer)(void);
+    };
+  }];
+}
+
+def SighandlerTDefn : TypeDecl<"__sighandler_t"> {
+  let Decl = [{
+    typedef void(*__sighandler_t)(int);
+  }];
+}
+
 def SignalAPI : PublicAPI<"signal.h"> {
   let TypeDeclarations = [
-    SizeT, // This is needed by <linux/signal.h>.
+    StructSigactionDefn,
+    SighandlerTDefn,
   ];
 
   let Functions = [
     "raise",
+    "sigaction",
+    "sigprocmask",
+    "sigemptyset",
+    "sigaddset",
+    "signal",
+  ];
+}
+
+def MtxT : TypeDecl<"mtx_t"> {
+  let Decl = [{
+    typedef struct {
+      unsigned char __internal_data[4];
+      int __mtx_type;
+    } mtx_t;
+  }];
+}
+
+def ThreadStartT : TypeDecl<"thrd_start_t"> {
+  let Decl = "typedef int (*thrd_start_t)(void *);";
+}
+
+def ThreadsAPI : PublicAPI<"threads.h"> {
+  let TypeDeclarations = [
+    MtxT,
+    ThreadStartT,
+  ];
+
+  let Enumerations = [
+    "mtx_plain",
+    "mtx_recursive",
+    "mtx_timed",
+    "thrd_timedout",
+    "thrd_success",
+    "thrd_busy",
+    "thrd_error",
+    "thrd_nomem",
+  ];
+
+  let Functions = [
+    "mtx_init",
+    "mtx_lock",
+    "mtx_unlock",
+    "thrd_create",
+    "thrd_join",
   ];
 }

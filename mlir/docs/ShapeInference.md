@@ -43,7 +43,7 @@ exceptional case.
 Shape inference is currently tested alongside type inference by
 `TestReturnTypeDriver` in the test dialect. This driver performs two checks:
 
-1.  Verification that the return types specified matches the infered types. This
+1.  Verification that the return types specified matches the inferred types. This
     explicit check will be removed and made part of Op verification instead.
 2.  Test the creation of Ops without specifying the return type explicitly in
     function `testCreateFunctions` by creating new binary Ops (Op classes
@@ -291,5 +291,5 @@ function, the reference implementation of the operation will be used to derive
 the shape function. The reference implementation is general and can support the
 arbitrary computations needed to specify output shapes.
 
-[InferTypeOpInterface]: https://github.com/llvm/llvm-project/tree/master/mlir/include/mlir/Analysis/InferTypeOpInterface.td
+[InferTypeOpInterface]: https://github.com/llvm/llvm-project/tree/master/mlir/include/mlir/Interfaces/InferTypeOpInterface.td
 [ShapedType]: https://github.com/llvm/llvm-project/tree/master/mlir/include/mlir/IR/StandardTypes.h

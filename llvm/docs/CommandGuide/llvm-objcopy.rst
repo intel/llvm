@@ -221,10 +221,6 @@ multiple file formats.
 
  Display the version of the :program:`llvm-objcopy` executable.
 
-.. option:: @<FILE>
-
- Read command-line options and commands from response file `<FILE>`.
-
 .. option:: --wildcard, -w
 
   Allow wildcard syntax for symbol-related flags. On by default for
@@ -248,6 +244,10 @@ multiple file formats.
 
   The order of wildcards does not matter. For example, ``-w -N '*' -N '!x'`` is
   the same as ``-w -N '!x' -N '*'``.
+
+.. option:: @<FILE>
+
+ Read command-line options and commands from response file `<FILE>`.
 
 ELF-SPECIFIC OPTIONS
 --------------------
@@ -545,7 +545,7 @@ Otherwise, it exits with code 0.
 BUGS
 ----
 
-To report bugs, please visit <http://llvm.org/bugs/>.
+To report bugs, please visit <https://bugs.llvm.org/>.
 
 There is a known issue with :option:`--input-target` and :option:`--target`
 causing only ``binary`` and ``ihex`` formats to have any effect. Other values

@@ -16,7 +16,7 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/Bitcode/BitcodeReader.h"
-#include "llvm/CodeGen/CommandFlags.inc"
+#include "llvm/CodeGen/CommandFlags.h"
 #include "llvm/CodeGen/LinkAllCodegenComponents.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/ExecutionEngine/GenericValue.h"
@@ -30,6 +30,7 @@
 #include "llvm/ExecutionEngine/Orc/LLJIT.h"
 #include "llvm/ExecutionEngine/Orc/MachOPlatform.h"
 #include "llvm/ExecutionEngine/Orc/OrcRemoteTargetClient.h"
+#include "llvm/ExecutionEngine/Orc/RTDyldObjectLinkingLayer.h"
 #include "llvm/ExecutionEngine/OrcMCJITReplacement.h"
 #include "llvm/ExecutionEngine/SectionMemoryManager.h"
 #include "llvm/IR/IRBuilder.h"
@@ -68,6 +69,8 @@
 #endif
 
 using namespace llvm;
+
+static codegen::RegisterCodeGenFlags CGF;
 
 #define DEBUG_TYPE "lli"
 
@@ -435,13 +438,13 @@ int main(int argc, char **argv, char * const *envp) {
 
   std::string ErrorMsg;
   EngineBuilder builder(std::move(Owner));
-  builder.setMArch(MArch);
-  builder.setMCPU(getCPUStr());
-  builder.setMAttrs(getFeatureList());
-  if (RelocModel.getNumOccurrences())
-    builder.setRelocationModel(RelocModel);
-  if (CMModel.getNumOccurrences())
-    builder.setCodeModel(CMModel);
+  builder.setMArch(codegen::getMArch());
+  builder.setMCPU(codegen::getCPUStr());
+  builder.setMAttrs(codegen::getFeatureList());
+  if (auto RM = codegen::getExplicitRelocModel())
+    builder.setRelocationModel(RM.getValue());
+  if (auto CM = codegen::getExplicitCodeModel())
+    builder.setCodeModel(CM.getValue());
   builder.setErrorStr(&ErrorMsg);
   builder.setEngineKind(ForceInterpreter
                         ? EngineKind::Interpreter
@@ -473,9 +476,9 @@ int main(int argc, char **argv, char * const *envp) {
 
   builder.setOptLevel(getOptLevel());
 
-  TargetOptions Options = InitTargetOptionsFromCodeGenFlags();
-  if (FloatABIForCalls != FloatABI::Default)
-    Options.FloatABIType = FloatABIForCalls;
+  TargetOptions Options = codegen::InitTargetOptionsFromCodeGenFlags();
+  if (codegen::getFloatABIForCalls() != FloatABI::Default)
+    Options.FloatABIType = codegen::getFloatABIForCalls();
 
   builder.setTargetOptions(Options);
 
@@ -827,18 +830,15 @@ int runOrcLazyJIT(const char *ProgName) {
   if (DL)
     Builder.setDataLayout(DL);
 
-  if (!MArch.empty())
-    Builder.getJITTargetMachineBuilder()->getTargetTriple().setArchName(MArch);
+  if (!codegen::getMArch().empty())
+    Builder.getJITTargetMachineBuilder()->getTargetTriple().setArchName(
+        codegen::getMArch());
 
   Builder.getJITTargetMachineBuilder()
-      ->setCPU(getCPUStr())
-      .addFeatures(getFeatureList())
-      .setRelocationModel(RelocModel.getNumOccurrences()
-                              ? Optional<Reloc::Model>(RelocModel)
-                              : None)
-      .setCodeModel(CMModel.getNumOccurrences()
-                        ? Optional<CodeModel::Model>(CMModel)
-                        : None);
+      ->setCPU(codegen::getCPUStr())
+      .addFeatures(codegen::getFeatureList())
+      .setRelocationModel(codegen::getExplicitRelocModel())
+      .setCodeModel(codegen::getExplicitCodeModel());
 
   Builder.setLazyCompileFailureAddr(
       pointerToJITTargetAddress(exitOnLazyCallThroughFailure));
@@ -891,6 +891,11 @@ int runOrcLazyJIT(const char *ProgName) {
   }
 
   auto J = ExitOnErr(Builder.create());
+
+  if (TT->isOSBinFormatELF())
+    static_cast<llvm::orc::RTDyldObjectLinkingLayer &>(J->getObjLinkingLayer())
+        .registerJITEventListener(
+            *JITEventListener::createGDBRegistrationListener());
 
   if (PerModuleLazy)
     J->setPartitionFunction(orc::CompileOnDemandLayer::compileWholeModule);

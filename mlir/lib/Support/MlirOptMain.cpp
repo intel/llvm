@@ -12,7 +12,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Support/MlirOptMain.h"
-#include "mlir/Analysis/Passes.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/Location.h"
@@ -59,6 +58,7 @@ static LogicalResult performActions(raw_ostream &os, bool verifyDiagnostics,
 
   // Print the output.
   module->print(os);
+  os << '\n';
   return success();
 }
 

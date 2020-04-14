@@ -38,6 +38,7 @@
 //===----------------------------------------------------------------------===//
 #include "SPIRVReader.h"
 #include "OCLUtil.h"
+#include "SPIRVAsm.h"
 #include "SPIRVBasicBlock.h"
 #include "SPIRVExtInst.h"
 #include "SPIRVFunction.h"
@@ -57,6 +58,7 @@
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/LegacyPassManager.h"
@@ -685,7 +687,7 @@ void SPIRVToLLVM::setLLVMLoopMetadata(const LoopInstType *LM,
     assert(NumParam <= LoopControlParameters.size() &&
            "Missing loop control parameter!");
   }
-  if (LC & InitiationIntervalINTEL) {
+  if (LC & LoopControlInitiationIntervalINTEL) {
     Metadata.push_back(llvm::MDNode::get(
         *Context, getMetadataFromNameAndParameter(
                       "llvm.loop.ii.count", LoopControlParameters[NumParam])));
@@ -693,7 +695,7 @@ void SPIRVToLLVM::setLLVMLoopMetadata(const LoopInstType *LM,
     assert(NumParam <= LoopControlParameters.size() &&
            "Missing loop control parameter!");
   }
-  if (LC & MaxConcurrencyINTEL) {
+  if (LC & LoopControlMaxConcurrencyINTEL) {
     Metadata.push_back(llvm::MDNode::get(
         *Context,
         getMetadataFromNameAndParameter("llvm.loop.max_concurrency.count",
@@ -702,7 +704,7 @@ void SPIRVToLLVM::setLLVMLoopMetadata(const LoopInstType *LM,
     assert(NumParam <= LoopControlParameters.size() &&
            "Missing loop control parameter!");
   }
-  if (LC & DependencyArrayINTEL) {
+  if (LC & LoopControlDependencyArrayINTEL) {
     // Collect array variable <-> safelen information
     std::map<Value *, unsigned> ArraySflnMap;
     unsigned NumOperandPairs = LoopControlParameters[NumParam];
@@ -783,6 +785,44 @@ void SPIRVToLLVM::setLLVMLoopMetadata(const LoopInstType *LM,
         Parameters.push_back(SafelenMDOp);
       Metadata.push_back(llvm::MDNode::get(*Context, Parameters));
     }
+  }
+  if (LC & LoopControlPipelineEnableINTEL) {
+    Metadata.push_back(llvm::MDNode::get(
+        *Context,
+        getMetadataFromNameAndParameter("llvm.loop.intel.pipelining.enable",
+                                        LoopControlParameters[NumParam++])));
+    assert(NumParam <= LoopControlParameters.size() &&
+           "Missing loop control parameter!");
+  }
+  if (LC & LoopControlLoopCoalesceINTEL) {
+    // If LoopCoalesce has no parameters
+    if (LoopControlParameters.empty()) {
+      Metadata.push_back(llvm::MDNode::get(
+          *Context, getMetadataFromName("llvm.loop.coalesce.enable")));
+    } else {
+      Metadata.push_back(llvm::MDNode::get(
+          *Context,
+          getMetadataFromNameAndParameter("llvm.loop.coalesce.count",
+                                          LoopControlParameters[NumParam++])));
+    }
+    assert(NumParam <= LoopControlParameters.size() &&
+           "Missing loop control parameter!");
+  }
+  if (LC & LoopControlMaxInterleavingINTEL) {
+    Metadata.push_back(llvm::MDNode::get(
+        *Context,
+        getMetadataFromNameAndParameter("llvm.loop.max_interleaving.count",
+                                        LoopControlParameters[NumParam++])));
+    assert(NumParam <= LoopControlParameters.size() &&
+           "Missing loop control parameter!");
+  }
+  if (LC & LoopControlSpeculatedIterationsINTEL) {
+    Metadata.push_back(llvm::MDNode::get(
+        *Context, getMetadataFromNameAndParameter(
+                      "llvm.loop.intel.speculated.iterations.count",
+                      LoopControlParameters[NumParam++])));
+    assert(NumParam <= LoopControlParameters.size() &&
+           "Missing loop control parameter!");
   }
   llvm::MDNode *Node = llvm::MDNode::get(*Context, Metadata);
 
@@ -1235,19 +1275,19 @@ SPIRVToLLVM::expandOCLBuiltinWithScalarArg(CallInst *CI,
     return mutateCallInstOCL(
         M, CI,
         [=](CallInst *, std::vector<Value *> &Args) {
-          unsigned VecSize =
-              CI->getOperand(1)->getType()->getVectorNumElements();
+          auto VecElemCount =
+              CI->getOperand(1)->getType()->getVectorElementCount();
           Value *NewVec = nullptr;
           if (auto CA = dyn_cast<Constant>(Args[0]))
-            NewVec = ConstantVector::getSplat(VecSize, CA);
+            NewVec = ConstantVector::getSplat(VecElemCount, CA);
           else {
             NewVec = ConstantVector::getSplat(
-                VecSize, Constant::getNullValue(Args[0]->getType()));
+                VecElemCount, Constant::getNullValue(Args[0]->getType()));
             NewVec = InsertElementInst::Create(NewVec, Args[0], getInt32(M, 0),
                                                "", CI);
             NewVec = new ShuffleVectorInst(
                 NewVec, NewVec,
-                ConstantVector::getSplat(VecSize, getInt32(M, 0)), "", CI);
+                ConstantVector::getSplat(VecElemCount, getInt32(M, 0)), "", CI);
           }
           NewVec->takeName(Args[0]);
           Args[0] = NewVec;
@@ -1515,6 +1555,9 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
   case OpFunction:
     return mapValue(BV, transFunction(static_cast<SPIRVFunction *>(BV)));
+
+  case OpAsmINTEL:
+    return mapValue(BV, transAsmINTEL(static_cast<SPIRVAsmINTEL *>(BV)));
 
   case OpLabel:
     return mapValue(BV, BasicBlock::Create(*Context, BV->getName(), F));
@@ -2112,6 +2155,10 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     return mapValue(BV, Call);
   }
 
+  case OpAsmCallINTEL:
+    return mapValue(
+        BV, transAsmCallINTEL(static_cast<SPIRVAsmCallINTEL *>(BV), F, BB));
+
   case OpFunctionPointerCallINTEL: {
     SPIRVFunctionPointerCallINTEL *BC =
         static_cast<SPIRVFunctionPointerCallINTEL *>(BV);
@@ -2194,8 +2241,8 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
   case OpFNegate: {
     SPIRVUnary *BC = static_cast<SPIRVUnary *>(BV);
-    auto Neg = BinaryOperator::CreateFNeg(transValue(BC->getOperand(0), F, BB),
-                                          BV->getName(), BB);
+    auto Neg = UnaryOperator::CreateFNeg(transValue(BC->getOperand(0), F, BB),
+                                         BV->getName(), BB);
     applyFPFastMathModeDecorations(BV, Neg);
     return mapValue(BV, Neg);
   }
@@ -2378,6 +2425,24 @@ Function *SPIRVToLLVM::transFunction(SPIRVFunction *BF) {
   transLLVMLoopMetadata(F);
 
   return F;
+}
+
+Value *SPIRVToLLVM::transAsmINTEL(SPIRVAsmINTEL *BA) {
+  assert(BA);
+  bool HasSideEffect = BA->hasDecorate(DecorationSideEffectsINTEL);
+  return InlineAsm::get(
+      cast<FunctionType>(transType(BA->getFunctionType())),
+      BA->getInstructions(), BA->getConstraints(), HasSideEffect,
+      /* IsAlignStack */ false, InlineAsm::AsmDialect::AD_ATT);
+}
+
+CallInst *SPIRVToLLVM::transAsmCallINTEL(SPIRVAsmCallINTEL *BI, Function *F,
+                                         BasicBlock *BB) {
+  assert(BI);
+  auto *IA = cast<InlineAsm>(transValue(BI->getAsm(), F, BB));
+  auto Args = transValue(BM->getValues(BI->getArguments()), F, BB);
+  return CallInst::Create(cast<FunctionType>(IA->getFunctionType()), IA, Args,
+                          BI->getName(), BB);
 }
 
 /// LLVM convert builtin functions is translated to two instructions:
@@ -2929,6 +2994,8 @@ void generateIntelFPGAAnnotation(const SPIRVEntry *E,
       Out << Literals[I] << ",";
     Out << Literals.back() << '}';
   }
+  if (E->hasDecorate(DecorationForcePow2DepthINTEL, 0, &Result))
+    Out << "{force_pow2_depth:" << Result << '}';
   if (E->hasDecorate(DecorationUserSemantic))
     Out << E->getDecorationStringLiteral(DecorationUserSemantic).front();
 }
@@ -2978,6 +3045,9 @@ void generateIntelFPGAAnnotationForStructMember(
       Out << Literals[I] << ",";
     Out << Literals.back() << '}';
   }
+  if (E->hasMemberDecorate(DecorationForcePow2DepthINTEL, 0, MemberNumber,
+                           &Result))
+    Out << "{force_pow2_depth:" << Result << '}';
 
   if (E->hasMemberDecorate(DecorationUserSemantic, 0, MemberNumber))
     Out << E->getMemberDecorationStringLiteral(DecorationUserSemantic,
@@ -3046,8 +3116,17 @@ void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
     SmallString<256> AnnotStr;
     generateIntelFPGAAnnotation(BV, AnnotStr);
 
-    if (AnnotStr.empty())
+    if (AnnotStr.empty()) {
+      // Check if IO pipe decoration is applied to the global
+      SPIRVWord ID;
+      if (BV->hasDecorate(DecorationIOPipeStorageINTEL, 0, &ID)) {
+        auto Literals = BV->getDecorationLiterals(DecorationIOPipeStorageINTEL);
+        assert(Literals.size() == 1 &&
+               "IO PipeStorage decoration shall have 1 extra operand");
+        GV->setMetadata("io_pipe_id", getMDNodeStringIntVec(Context, Literals));
+      }
       return;
+    }
 
     Constant *StrConstant =
         ConstantDataArray::getString(*Context, StringRef(AnnotStr));

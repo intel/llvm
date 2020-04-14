@@ -704,27 +704,32 @@ public:
     std::pair<unsigned, MVT> SrcLT = TLI->getTypeLegalizationCost(DL, Src);
     std::pair<unsigned, MVT> DstLT = TLI->getTypeLegalizationCost(DL, Dst);
 
-    // Check for NOOP conversions.
-    if (SrcLT.first == DstLT.first &&
-        SrcLT.second.getSizeInBits() == DstLT.second.getSizeInBits()) {
+    unsigned SrcSize = SrcLT.second.getSizeInBits();
+    unsigned DstSize = DstLT.second.getSizeInBits();
 
-      // Bitcast between types that are legalized to the same type are free.
-      if (Opcode == Instruction::BitCast || Opcode == Instruction::Trunc)
+    switch (Opcode) {
+    default:
+      break;
+    case Instruction::Trunc:
+      // Check for NOOP conversions.
+      if (TLI->isTruncateFree(SrcLT.second, DstLT.second))
         return 0;
+      LLVM_FALLTHROUGH;
+    case Instruction::BitCast:
+      // Bitcast between types that are legalized to the same type are free.
+      if (SrcLT.first == DstLT.first && SrcSize == DstSize)
+        return 0;
+      break;
+    case Instruction::ZExt:
+      if (TLI->isZExtFree(SrcLT.second, DstLT.second))
+        return 0;
+      break;
+    case Instruction::AddrSpaceCast:
+      if (TLI->isFreeAddrSpaceCast(Src->getPointerAddressSpace(),
+                                   Dst->getPointerAddressSpace()))
+        return 0;
+      break;
     }
-
-    if (Opcode == Instruction::Trunc &&
-        TLI->isTruncateFree(SrcLT.second, DstLT.second))
-      return 0;
-
-    if (Opcode == Instruction::ZExt &&
-        TLI->isZExtFree(SrcLT.second, DstLT.second))
-      return 0;
-
-    if (Opcode == Instruction::AddrSpaceCast &&
-        TLI->isFreeAddrSpaceCast(Src->getPointerAddressSpace(),
-                                 Dst->getPointerAddressSpace()))
-      return 0;
 
     // If this is a zext/sext of a load, return 0 if the corresponding
     // extending load exists on target.
@@ -1072,7 +1077,8 @@ public:
   /// Get intrinsic cost based on arguments.
   unsigned getIntrinsicInstrCost(Intrinsic::ID IID, Type *RetTy,
                                  ArrayRef<Value *> Args, FastMathFlags FMF,
-                                 unsigned VF = 1) {
+                                 unsigned VF = 1,
+                                 const Instruction *I = nullptr) {
     unsigned RetVF = (RetTy->isVectorTy() ? RetTy->getVectorNumElements() : 1);
     assert((RetVF == 1 || VF == 1) && "VF > 1 and RetVF is a vector type");
     auto *ConcreteTTI = static_cast<T *>(this);
@@ -1109,16 +1115,17 @@ public:
       Value *Mask = Args[3];
       bool VarMask = !isa<Constant>(Mask);
       unsigned Alignment = cast<ConstantInt>(Args[2])->getZExtValue();
-      return ConcreteTTI->getGatherScatterOpCost(
-          Instruction::Store, Args[0]->getType(), Args[1], VarMask, Alignment);
+      return ConcreteTTI->getGatherScatterOpCost(Instruction::Store,
+                                                 Args[0]->getType(), Args[1],
+                                                 VarMask, Alignment, I);
     }
     case Intrinsic::masked_gather: {
       assert(VF == 1 && "Can't vectorize types here.");
       Value *Mask = Args[2];
       bool VarMask = !isa<Constant>(Mask);
       unsigned Alignment = cast<ConstantInt>(Args[1])->getZExtValue();
-      return ConcreteTTI->getGatherScatterOpCost(Instruction::Load, RetTy,
-                                                 Args[0], VarMask, Alignment);
+      return ConcreteTTI->getGatherScatterOpCost(
+          Instruction::Load, RetTy, Args[0], VarMask, Alignment, I);
     }
     case Intrinsic::experimental_vector_reduce_add:
     case Intrinsic::experimental_vector_reduce_mul:
@@ -1180,7 +1187,8 @@ public:
   /// based on types.
   unsigned getIntrinsicInstrCost(
       Intrinsic::ID IID, Type *RetTy, ArrayRef<Type *> Tys, FastMathFlags FMF,
-      unsigned ScalarizationCostPassed = std::numeric_limits<unsigned>::max()) {
+      unsigned ScalarizationCostPassed = std::numeric_limits<unsigned>::max(),
+      const Instruction *I = nullptr) {
     auto *ConcreteTTI = static_cast<T *>(this);
 
     SmallVector<unsigned, 2> ISDs;

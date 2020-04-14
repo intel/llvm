@@ -95,6 +95,10 @@ static cl::opt<bool> UseDwarfRangesBaseAddressSpecifier(
     "use-dwarf-ranges-base-address-specifier", cl::Hidden,
     cl::desc("Use base address specifiers in debug_ranges"), cl::init(false));
 
+static cl::opt<bool> EmitDwarfDebugEntryValues(
+    "emit-debug-entry-values", cl::Hidden,
+    cl::desc("Emit the debug entry values"), cl::init(false));
+
 static cl::opt<bool> GenerateARangeSection("generate-arange-section",
                                            cl::Hidden,
                                            cl::desc("Generate dwarf aranges"),
@@ -419,6 +423,12 @@ DwarfDebug::DwarfDebug(AsmPrinter *A, Module *M)
   // a monolithic string offsets table without any header.
   UseSegmentedStringOffsetsTable = DwarfVersion >= 5;
 
+  // Emit call-site-param debug info for GDB and LLDB, if the target supports
+  // the debug entry values feature. It can also be enabled explicitly.
+  EmitDebugEntryValues = (Asm->TM.Options.ShouldEmitDebugEntryValues() &&
+                          (tuneForGDB() || tuneForLLDB())) ||
+                         EmitDwarfDebugEntryValues;
+
   Asm->OutStreamer->getContext().setDwarfVersion(DwarfVersion);
 }
 
@@ -548,6 +558,87 @@ DIE &DwarfDebug::constructSubprogramDefinitionDIE(const DISubprogram *SP) {
   return *CU.getOrCreateSubprogramDIE(SP);
 }
 
+/// Represents a parameter whose call site value can be described by applying a
+/// debug expression to a register in the forwarded register worklist.
+struct FwdRegParamInfo {
+  /// The described parameter register.
+  unsigned ParamReg;
+
+  /// Debug expression that has been built up when walking through the
+  /// instruction chain that produces the parameter's value.
+  const DIExpression *Expr;
+};
+
+/// Register worklist for finding call site values.
+using FwdRegWorklist = MapVector<unsigned, SmallVector<FwdRegParamInfo, 2>>;
+
+/// Append the expression \p Addition to \p Original and return the result.
+static const DIExpression *combineDIExpressions(const DIExpression *Original,
+                                                const DIExpression *Addition) {
+  std::vector<uint64_t> Elts = Addition->getElements().vec();
+  // Avoid multiple DW_OP_stack_values.
+  if (Original->isImplicit() && Addition->isImplicit())
+    erase_if(Elts, [](uint64_t Op) { return Op == dwarf::DW_OP_stack_value; });
+  const DIExpression *CombinedExpr =
+      (Elts.size() > 0) ? DIExpression::append(Original, Elts) : Original;
+  return CombinedExpr;
+}
+
+/// Emit call site parameter entries that are described by the given value and
+/// debug expression.
+template <typename ValT>
+static void finishCallSiteParams(ValT Val, const DIExpression *Expr,
+                                 ArrayRef<FwdRegParamInfo> DescribedParams,
+                                 ParamSet &Params) {
+  for (auto Param : DescribedParams) {
+    bool ShouldCombineExpressions = Expr && Param.Expr->getNumElements() > 0;
+
+    // TODO: Entry value operations can currently not be combined with any
+    // other expressions, so we can't emit call site entries in those cases.
+    if (ShouldCombineExpressions && Expr->isEntryValue())
+      continue;
+
+    // If a parameter's call site value is produced by a chain of
+    // instructions we may have already created an expression for the
+    // parameter when walking through the instructions. Append that to the
+    // base expression.
+    const DIExpression *CombinedExpr =
+        ShouldCombineExpressions ? combineDIExpressions(Expr, Param.Expr)
+                                 : Expr;
+    assert((!CombinedExpr || CombinedExpr->isValid()) &&
+           "Combined debug expression is invalid");
+
+    DbgValueLoc DbgLocVal(CombinedExpr, Val);
+    DbgCallSiteParam CSParm(Param.ParamReg, DbgLocVal);
+    Params.push_back(CSParm);
+    ++NumCSParams;
+  }
+}
+
+/// Add \p Reg to the worklist, if it's not already present, and mark that the
+/// given parameter registers' values can (potentially) be described using
+/// that register and an debug expression.
+static void addToFwdRegWorklist(FwdRegWorklist &Worklist, unsigned Reg,
+                                const DIExpression *Expr,
+                                ArrayRef<FwdRegParamInfo> ParamsToAdd) {
+  auto I = Worklist.insert({Reg, {}});
+  auto &ParamsForFwdReg = I.first->second;
+  for (auto Param : ParamsToAdd) {
+    assert(none_of(ParamsForFwdReg,
+                   [Param](const FwdRegParamInfo &D) {
+                     return D.ParamReg == Param.ParamReg;
+                   }) &&
+           "Same parameter described twice by forwarding reg");
+
+    // If a parameter's call site value is produced by a chain of
+    // instructions we may have already created an expression for the
+    // parameter when walking through the instructions. Append that to the
+    // new expression.
+    const DIExpression *CombinedExpr = combineDIExpressions(Expr, Param.Expr);
+    ParamsForFwdReg.push_back({Param.ParamReg, CombinedExpr});
+  }
+}
+
 /// Try to interpret values loaded into registers that forward parameters
 /// for \p CallMI. Store parameters with interpreted value into \p Params.
 static void collectCallSiteParameters(const MachineInstr *CallMI,
@@ -567,11 +658,6 @@ static void collectCallSiteParameters(const MachineInstr *CallMI,
 
   // Skip the call instruction.
   auto I = std::next(CallMI->getReverseIterator());
-
-  // Register worklist. Each register has an associated list of parameter
-  // registers whose call site values potentially can be described using that
-  // register.
-  using FwdRegWorklist = MapVector<unsigned, SmallVector<unsigned, 2>>;
 
   FwdRegWorklist ForwardedRegWorklist;
 
@@ -596,10 +682,14 @@ static void collectCallSiteParameters(const MachineInstr *CallMI,
   // instruction has been handled.
   FwdRegWorklist NewWorklistItems;
 
+  const DIExpression *EmptyExpr =
+      DIExpression::get(MF->getFunction().getContext(), {});
+
   // Add all the forwarding registers into the ForwardedRegWorklist.
   for (auto ArgReg : CallFwdRegsInfo->second) {
     bool InsertedReg =
-        ForwardedRegWorklist.insert({ArgReg.Reg, {ArgReg.Reg}}).second;
+        ForwardedRegWorklist.insert({ArgReg.Reg, {{ArgReg.Reg, EmptyExpr}}})
+            .second;
     assert(InsertedReg && "Single register used to forward two arguments?");
     (void)InsertedReg;
   }
@@ -631,28 +721,6 @@ static void collectCallSiteParameters(const MachineInstr *CallMI,
     }
   };
 
-  auto finishCallSiteParams = [&](DbgValueLoc DbgLocVal,
-                                  ArrayRef<unsigned> ParamRegs) {
-    for (auto FwdReg : ParamRegs) {
-      DbgCallSiteParam CSParm(FwdReg, DbgLocVal);
-      Params.push_back(CSParm);
-      ++NumCSParams;
-    }
-  };
-
-  // Add Reg to the worklist, if it's not already present, and mark that the
-  // given parameter registers' values can (potentially) be described using
-  // that register.
-  auto addToWorklist = [](FwdRegWorklist &Worklist, unsigned Reg,
-                          ArrayRef<unsigned> ParamRegs) {
-    auto I = Worklist.insert({Reg, {}});
-    for (auto ParamReg : ParamRegs) {
-      assert(!is_contained(I.first->second, ParamReg) &&
-             "Same parameter described twice by forwarding reg");
-      I.first->second.push_back(ParamReg);
-    }
-  };
-
   // Search for a loading value in forwarding registers.
   for (; I != MBB->rend(); ++I) {
     // Skip bundle headers.
@@ -678,36 +746,26 @@ static void collectCallSiteParameters(const MachineInstr *CallMI,
       if (auto ParamValue = TII->describeLoadedValue(*I, ParamFwdReg)) {
         if (ParamValue->first.isImm()) {
           int64_t Val = ParamValue->first.getImm();
-          DbgValueLoc DbgLocVal(ParamValue->second, Val);
-          finishCallSiteParams(DbgLocVal, ForwardedRegWorklist[ParamFwdReg]);
+          finishCallSiteParams(Val, ParamValue->second,
+                               ForwardedRegWorklist[ParamFwdReg], Params);
         } else if (ParamValue->first.isReg()) {
           Register RegLoc = ParamValue->first.getReg();
-          // TODO: For now, there is no use of describing the value loaded into the
-          //       register that is also the source registers (e.g. $r0 = add $r0, x).
-          if (ParamFwdReg == RegLoc)
-            continue;
-
           unsigned SP = TLI->getStackPointerRegisterToSaveRestore();
           Register FP = TRI->getFrameRegister(*MF);
           bool IsSPorFP = (RegLoc == SP) || (RegLoc == FP);
           if (TRI->isCalleeSavedPhysReg(RegLoc, *MF) || IsSPorFP) {
-            DbgValueLoc DbgLocVal(ParamValue->second,
-                                  MachineLocation(RegLoc,
-                                                  /*IsIndirect=*/IsSPorFP));
-            finishCallSiteParams(DbgLocVal, ForwardedRegWorklist[ParamFwdReg]);
-          // TODO: Add support for entry value plus an expression.
-          } else if (ShouldTryEmitEntryVals &&
-                     ParamValue->second->getNumElements() == 0) {
-            assert(RegLoc != ParamFwdReg &&
-                   "Can't handle a register that is described by itself");
+            MachineLocation MLoc(RegLoc, /*IsIndirect=*/IsSPorFP);
+            finishCallSiteParams(MLoc, ParamValue->second,
+                                 ForwardedRegWorklist[ParamFwdReg], Params);
+          } else {
             // ParamFwdReg was described by the non-callee saved register
             // RegLoc. Mark that the call site values for the parameters are
             // dependent on that register instead of ParamFwdReg. Since RegLoc
             // may be a register that will be handled in this iteration, we
             // postpone adding the items to the worklist, and instead keep them
             // in a temporary container.
-            addToWorklist(NewWorklistItems, RegLoc,
-                          ForwardedRegWorklist[ParamFwdReg]);
+            addToFwdRegWorklist(NewWorklistItems, RegLoc, ParamValue->second,
+                                ForwardedRegWorklist[ParamFwdReg]);
           }
         }
       }
@@ -720,7 +778,8 @@ static void collectCallSiteParameters(const MachineInstr *CallMI,
     // Now that we are done handling this instruction, add items from the
     // temporary worklist to the real one.
     for (auto New : NewWorklistItems)
-      addToWorklist(ForwardedRegWorklist, New.first, New.second);
+      addToFwdRegWorklist(ForwardedRegWorklist, New.first, EmptyExpr,
+                          New.second);
     NewWorklistItems.clear();
   }
 
@@ -730,8 +789,8 @@ static void collectCallSiteParameters(const MachineInstr *CallMI,
     DIExpression *EntryExpr = DIExpression::get(
         MF->getFunction().getContext(), {dwarf::DW_OP_LLVM_entry_value, 1});
     for (auto RegEntry : ForwardedRegWorklist) {
-      DbgValueLoc DbgLocVal(EntryExpr, MachineLocation(RegEntry.first));
-      finishCallSiteParams(DbgLocVal, RegEntry.second);
+      MachineLocation MLoc(RegEntry.first);
+      finishCallSiteParams(MLoc, EntryExpr, RegEntry.second, Params);
     }
   }
 }
@@ -819,16 +878,21 @@ void DwarfDebug::constructCallSiteEntryDIEs(const DISubprogram &SP,
       const MachineInstr *TopLevelCallMI =
           MI.isInsideBundle() ? &*getBundleStart(MI.getIterator()) : &MI;
 
-      // For tail calls, no return PC information is needed.
-      // For regular calls (and tail calls in GDB tuning), the return PC
-      // is needed to disambiguate paths in the call graph which could lead to
-      // some target function.
+      // For non-tail calls, the return PC is needed to disambiguate paths in
+      // the call graph which could lead to some target function. For tail
+      // calls, no return PC information is needed, unless tuning for GDB in
+      // DWARF4 mode in which case we fake a return PC for compatibility.
       const MCSymbol *PCAddr =
-          (IsTail && !tuneForGDB())
-              ? nullptr
-              : const_cast<MCSymbol *>(getLabelAfterInsn(TopLevelCallMI));
+          (!IsTail || CU.useGNUAnalogForDwarf5Feature())
+              ? const_cast<MCSymbol *>(getLabelAfterInsn(TopLevelCallMI))
+              : nullptr;
 
-      assert((IsTail || PCAddr) && "Call without return PC information");
+      // For tail calls, it's necessary to record the address of the branch
+      // instruction so that the debugger can show where the tail call occurred.
+      const MCSymbol *CallAddr =
+          IsTail ? getLabelBeforeInsn(TopLevelCallMI) : nullptr;
+
+      assert((IsTail || PCAddr) && "Non-tail call without return PC");
 
       LLVM_DEBUG(dbgs() << "CallSiteEntry: " << MF.getName() << " -> "
                         << (CalleeDecl ? CalleeDecl->getName()
@@ -837,12 +901,11 @@ void DwarfDebug::constructCallSiteEntryDIEs(const DISubprogram &SP,
                                                        ->getName(CallReg)))
                         << (IsTail ? " [IsTail]" : "") << "\n");
 
-      DIE &CallSiteDIE = CU.constructCallSiteEntryDIE(ScopeDIE, CalleeDIE,
-                                                      IsTail, PCAddr, CallReg);
+      DIE &CallSiteDIE = CU.constructCallSiteEntryDIE(
+          ScopeDIE, CalleeDIE, IsTail, PCAddr, CallAddr, CallReg);
 
-      // GDB and LLDB support call site parameter debug info.
-      if (Asm->TM.Options.EnableDebugEntryValues &&
-          (tuneForGDB() || tuneForLLDB())) {
+      // Optionally emit call-site-param debug info.
+      if (emitDebugEntryValues()) {
         ParamSet Params;
         // Try to interpret values of call site parameters.
         collectCallSiteParameters(&MI, Params);
@@ -878,6 +941,9 @@ void DwarfDebug::finishUnitAttributes(const DICompileUnit *DIUnit,
   StringRef SysRoot = DIUnit->getSysRoot();
   if (!SysRoot.empty())
     NewCU.addString(Die, dwarf::DW_AT_LLVM_sysroot, SysRoot);
+  StringRef SDK = DIUnit->getSDK();
+  if (!SDK.empty())
+    NewCU.addString(Die, dwarf::DW_AT_APPLE_sdk, SDK);
 
   // Add DW_str_offsets_base to the unit DIE, except for split units.
   if (useSegmentedStringOffsetsTable() && !useSplitDwarf())
@@ -1725,11 +1791,32 @@ void DwarfDebug::collectEntityInfo(DwarfCompileUnit &TheCU,
 
 // Process beginning of an instruction.
 void DwarfDebug::beginInstruction(const MachineInstr *MI) {
+  const MachineFunction &MF = *MI->getMF();
+  const auto *SP = MF.getFunction().getSubprogram();
+  bool NoDebug =
+      !SP || SP->getUnit()->getEmissionKind() == DICompileUnit::NoDebug;
+
+  // When describing calls, we need a label for the call instruction.
+  // TODO: Add support for targets with delay slots.
+  if (!NoDebug && SP->areAllCallsDescribed() &&
+      MI->isCandidateForCallSiteEntry(MachineInstr::AnyInBundle) &&
+      !MI->hasDelaySlot()) {
+    const TargetInstrInfo *TII = MF.getSubtarget().getInstrInfo();
+    bool IsTail = TII->isTailCall(*MI);
+    // For tail calls, we need the address of the branch instruction for
+    // DW_AT_call_pc.
+    if (IsTail)
+      requestLabelBeforeInsn(MI);
+    // For non-tail calls, we need the return address for the call for
+    // DW_AT_call_return_pc. Under GDB tuning, this information is needed for
+    // tail calls as well.
+    requestLabelAfterInsn(MI);
+  }
+
   DebugHandlerBase::beginInstruction(MI);
   assert(CurMI);
 
-  const auto *SP = MI->getMF()->getFunction().getSubprogram();
-  if (!SP || SP->getUnit()->getEmissionKind() == DICompileUnit::NoDebug)
+  if (NoDebug)
     return;
 
   // Check if source location changes, but ignore DBG_VALUE and CFI locations.
@@ -1742,11 +1829,6 @@ void DwarfDebug::beginInstruction(const MachineInstr *MI) {
   // the last line number actually emitted, to see if it was line 0.
   unsigned LastAsmLine =
       Asm->OutStreamer->getContext().getCurrentDwarfLoc().getLine();
-
-  // Request a label after the call in order to emit AT_return_pc information
-  // in call site entries. TODO: Add support for targets with delay slots.
-  if (SP->areAllCallsDescribed() && MI->isCall() && !MI->hasDelaySlot())
-    requestLabelAfterInsn(MI);
 
   if (DL == PrevInstLoc) {
     // If we have an ongoing unspecified location, nothing to do here.
@@ -2357,33 +2439,12 @@ void DwarfDebug::emitDebugLocEntryLocation(const DebugLocStream::Entry &Entry,
   emitDebugLocEntry(Streamer, Entry, CU);
 }
 
-// Emit the common part of the DWARF 5 range/locations list tables header.
-static void emitListsTableHeaderStart(AsmPrinter *Asm,
-                                      MCSymbol *TableStart,
-                                      MCSymbol *TableEnd) {
-  // Build the table header, which starts with the length field.
-  Asm->OutStreamer->AddComment("Length");
-  Asm->emitLabelDifference(TableEnd, TableStart, 4);
-  Asm->OutStreamer->emitLabel(TableStart);
-  // Version number (DWARF v5 and later).
-  Asm->OutStreamer->AddComment("Version");
-  Asm->emitInt16(Asm->OutStreamer->getContext().getDwarfVersion());
-  // Address size.
-  Asm->OutStreamer->AddComment("Address size");
-  Asm->emitInt8(Asm->MAI->getCodePointerSize());
-  // Segment selector size.
-  Asm->OutStreamer->AddComment("Segment selector size");
-  Asm->emitInt8(0);
-}
-
 // Emit the header of a DWARF 5 range list table list table. Returns the symbol
 // that designates the end of the table for the caller to emit when the table is
 // complete.
 static MCSymbol *emitRnglistsTableHeader(AsmPrinter *Asm,
                                          const DwarfFile &Holder) {
-  MCSymbol *TableStart = Asm->createTempSymbol("debug_rnglist_table_start");
-  MCSymbol *TableEnd = Asm->createTempSymbol("debug_rnglist_table_end");
-  emitListsTableHeaderStart(Asm, TableStart, TableEnd);
+  MCSymbol *TableEnd = mcdwarf::emitListsTableHeaderStart(*Asm->OutStreamer);
 
   Asm->OutStreamer->AddComment("Offset entry count");
   Asm->emitInt32(Holder.getRangeLists().size());
@@ -2400,9 +2461,7 @@ static MCSymbol *emitRnglistsTableHeader(AsmPrinter *Asm,
 // complete.
 static MCSymbol *emitLoclistsTableHeader(AsmPrinter *Asm,
                                          const DwarfDebug &DD) {
-  MCSymbol *TableStart = Asm->createTempSymbol("debug_loclist_table_start");
-  MCSymbol *TableEnd = Asm->createTempSymbol("debug_loclist_table_end");
-  emitListsTableHeaderStart(Asm, TableStart, TableEnd);
+  MCSymbol *TableEnd = mcdwarf::emitListsTableHeaderStart(*Asm->OutStreamer);
 
   const auto &DebugLocs = DD.getDebugLocs();
 

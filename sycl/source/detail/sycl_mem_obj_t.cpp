@@ -29,17 +29,19 @@ SYCLMemObjT::SYCLMemObjT(cl_mem MemObject, const context &SyclContext,
   if (MInteropContext->is_host())
     throw cl::sycl::invalid_parameter_error(
         "Creation of interoperability memory object using host context is "
-        "not allowed");
+        "not allowed",
+        PI_INVALID_CONTEXT);
 
   RT::PiMem Mem = pi::cast<RT::PiMem>(MInteropMemObject);
   RT::PiContext Context = nullptr;
   const plugin &Plugin = getPlugin();
   Plugin.call<PiApiKind::piMemGetInfo>(Mem, CL_MEM_CONTEXT, sizeof(Context),
-                                         &Context, nullptr);
+                                       &Context, nullptr);
 
   if (MInteropContext->getHandleRef() != Context)
     throw cl::sycl::invalid_parameter_error(
-        "Input context must be the same as the context of cl_mem");
+        "Input context must be the same as the context of cl_mem",
+        PI_INVALID_CONTEXT);
   Plugin.call<PiApiKind::piMemRetain>(Mem);
 }
 

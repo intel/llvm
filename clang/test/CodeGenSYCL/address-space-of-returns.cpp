@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -triple spir64-unknown-unknown-sycldevice -fsycl-is-device -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
 
 struct A {
   int B[42];
@@ -26,7 +26,7 @@ A ret_agg() {
   A a;
   return a;
 }
-// CHECK: define spir_func void @{{.*}}ret_agg{{.*}}(%struct.{{.*}}.A addrspace(4)* noalias sret %agg.result)
+// CHECK: define spir_func void @{{.*}}ret_agg{{.*}}(%struct.{{.*}}.A addrspace(4)* {{.*}} %agg.result)
 
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {

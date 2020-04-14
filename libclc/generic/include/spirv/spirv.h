@@ -235,6 +235,8 @@
 #include <spirv/atomic/atomic_sub.h>
 #include <spirv/atomic/atomic_xchg.h>
 #include <spirv/atomic/atomic_xor.h>
+#include <spirv/atomic/atomic_load.h>
+#include <spirv/atomic/atomic_store.h>
 
 /* cl_khr extension atomics are omitted from __spirv */
 

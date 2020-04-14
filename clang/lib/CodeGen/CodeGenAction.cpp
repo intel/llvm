@@ -10,7 +10,6 @@
 #include "CodeGenModule.h"
 #include "CoverageMappingGen.h"
 #include "MacroPPCallbacks.h"
-#include "SYCLLowerIR/LowerWGScope.h"
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/DeclCXX.h"
@@ -39,6 +38,7 @@
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/Linker/Linker.h"
 #include "llvm/Pass.h"
+#include "llvm/SYCLLowerIR/LowerWGScope.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/TimeProfiler.h"
@@ -335,7 +335,7 @@ namespace clang {
       if (LangOpts.SYCLIsDevice) {
         PrettyStackTraceString CrashInfo("Pre-linking SYCL passes");
         legacy::PassManager PreLinkingSyclPasses;
-        PreLinkingSyclPasses.add(createSYCLLowerWGScopePass());
+        PreLinkingSyclPasses.add(llvm::createSYCLLowerWGScopePass());
         PreLinkingSyclPasses.run(*getModule());
       }
 

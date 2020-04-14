@@ -49,12 +49,45 @@ extern cl::opt<bool> EnableVPlanNativePath;
 #define DEBUG_TYPE "vplan"
 
 raw_ostream &llvm::operator<<(raw_ostream &OS, const VPValue &V) {
-  if (const VPInstruction *Instr = dyn_cast<VPInstruction>(&V))
-    Instr->print(OS);
-  else
-    V.printAsOperand(OS);
+  const VPInstruction *Instr = dyn_cast<VPInstruction>(&V);
+  VPSlotTracker SlotTracker(
+      (Instr && Instr->getParent()) ? Instr->getParent()->getPlan() : nullptr);
+  V.print(OS, SlotTracker);
   return OS;
 }
+
+void VPValue::print(raw_ostream &OS, VPSlotTracker &SlotTracker) const {
+  if (const VPInstruction *Instr = dyn_cast<VPInstruction>(this))
+    Instr->print(OS, SlotTracker);
+  else
+    printAsOperand(OS, SlotTracker);
+}
+
+// Get the top-most entry block of \p Start. This is the entry block of the
+// containing VPlan. This function is templated to support both const and non-const blocks
+template <typename T> static T *getPlanEntry(T *Start) {
+  T *Next = Start;
+  T *Current = Start;
+  while ((Next = Next->getParent()))
+    Current = Next;
+
+  SmallSetVector<T *, 8> WorkList;
+  WorkList.insert(Current);
+
+  for (unsigned i = 0; i < WorkList.size(); i++) {
+    T *Current = WorkList[i];
+    if (Current->getNumPredecessors() == 0)
+      return Current;
+    auto &Predecessors = Current->getPredecessors();
+    WorkList.insert(Predecessors.begin(), Predecessors.end());
+  }
+
+  llvm_unreachable("VPlan without any entry node without predecessors");
+}
+
+VPlan *VPBlockBase::getPlan() { return getPlanEntry(this)->Plan; }
+
+const VPlan *VPBlockBase::getPlan() const { return getPlanEntry(this)->Plan; }
 
 /// \return the VPBasicBlock that is the entry of Block, possibly indirectly.
 const VPBasicBlock *VPBlockBase::getEntryBasicBlock() const {
@@ -69,6 +102,12 @@ VPBasicBlock *VPBlockBase::getEntryBasicBlock() {
   while (VPRegionBlock *Region = dyn_cast<VPRegionBlock>(Block))
     Block = Region->getEntry();
   return cast<VPBasicBlock>(Block);
+}
+
+void VPBlockBase::setPlan(VPlan *ParentPlan) {
+  assert(ParentPlan->getEntry() == this &&
+         "Can only set plan on its entry block.");
+  Plan = ParentPlan;
 }
 
 /// \return the VPBasicBlock that is the exit of Block, possibly indirectly.
@@ -352,15 +391,23 @@ void VPInstruction::execute(VPTransformState &State) {
     generateInstruction(State, Part);
 }
 
-void VPInstruction::print(raw_ostream &O, const Twine &Indent) const {
+void VPInstruction::print(raw_ostream &O, const Twine &Indent,
+                          VPSlotTracker &SlotTracker) const {
   O << " +\n" << Indent << "\"EMIT ";
-  print(O);
+  print(O, SlotTracker);
   O << "\\l\"";
 }
 
 void VPInstruction::print(raw_ostream &O) const {
-  printAsOperand(O);
-  O << " = ";
+  VPSlotTracker SlotTracker(getParent()->getPlan());
+  print(O, SlotTracker);
+}
+
+void VPInstruction::print(raw_ostream &O, VPSlotTracker &SlotTracker) const {
+  if (hasResult()) {
+    printAsOperand(O, SlotTracker);
+    O << " = ";
+  }
 
   switch (getOpcode()) {
   case VPInstruction::Not:
@@ -381,7 +428,7 @@ void VPInstruction::print(raw_ostream &O) const {
 
   for (const VPValue *Operand : operands()) {
     O << " ";
-    Operand->printAsOperand(O);
+    Operand->printAsOperand(O, SlotTracker);
   }
 }
 
@@ -533,15 +580,10 @@ void VPlanPrinter::dump() {
   OS << "graph [labelloc=t, fontsize=30; label=\"Vectorization Plan";
   if (!Plan.getName().empty())
     OS << "\\n" << DOT::EscapeString(Plan.getName());
-  if (!Plan.Value2VPValue.empty() || Plan.BackedgeTakenCount) {
-    OS << ", where:";
-    if (Plan.BackedgeTakenCount)
-      OS << "\\n" << *Plan.BackedgeTakenCount << " := BackedgeTakenCount";
-    for (auto Entry : Plan.Value2VPValue) {
-      OS << "\\n" << *Entry.second;
-      OS << DOT::EscapeString(" := ");
-      Entry.first->printAsOperand(OS, false);
-    }
+  if (Plan.BackedgeTakenCount) {
+    OS << ", where:\\n";
+    Plan.BackedgeTakenCount->print(OS, SlotTracker);
+    OS << " := BackedgeTakenCount";
   }
   OS << "\"]\n";
   OS << "node [shape=rect, fontname=Courier, fontsize=30]\n";
@@ -605,25 +647,25 @@ void VPlanPrinter::dumpBasicBlock(const VPBasicBlock *BasicBlock) {
   if (Pred) {
     OS << " +\n" << Indent << " \"BlockPredicate: ";
     if (const VPInstruction *PredI = dyn_cast<VPInstruction>(Pred)) {
-      PredI->printAsOperand(OS);
+      PredI->printAsOperand(OS, SlotTracker);
       OS << " (" << DOT::EscapeString(PredI->getParent()->getName())
          << ")\\l\"";
     } else
-      Pred->printAsOperand(OS);
+      Pred->printAsOperand(OS, SlotTracker);
   }
 
   for (const VPRecipeBase &Recipe : *BasicBlock)
-    Recipe.print(OS, Indent);
+    Recipe.print(OS, Indent, SlotTracker);
 
   // Dump the condition bit.
   const VPValue *CBV = BasicBlock->getCondBit();
   if (CBV) {
     OS << " +\n" << Indent << " \"CondBit: ";
     if (const VPInstruction *CBI = dyn_cast<VPInstruction>(CBV)) {
-      CBI->printAsOperand(OS);
+      CBI->printAsOperand(OS, SlotTracker);
       OS << " (" << DOT::EscapeString(CBI->getParent()->getName()) << ")\\l\"";
     } else {
-      CBV->printAsOperand(OS);
+      CBV->printAsOperand(OS, SlotTracker);
       OS << "\"";
     }
   }
@@ -670,14 +712,15 @@ void VPlanPrinter::printAsIngredient(raw_ostream &O, Value *V) {
   O << DOT::EscapeString(IngredientString);
 }
 
-void VPWidenRecipe::print(raw_ostream &O, const Twine &Indent) const {
+void VPWidenRecipe::print(raw_ostream &O, const Twine &Indent,
+                          VPSlotTracker &SlotTracker) const {
   O << " +\n" << Indent << "\"WIDEN\\l\"";
   for (auto &Instr : make_range(Begin, End))
     O << " +\n" << Indent << "\"  " << VPlanIngredient(&Instr) << "\\l\"";
 }
 
-void VPWidenIntOrFpInductionRecipe::print(raw_ostream &O,
-                                          const Twine &Indent) const {
+void VPWidenIntOrFpInductionRecipe::print(raw_ostream &O, const Twine &Indent,
+                                          VPSlotTracker &SlotTracker) const {
   O << " +\n" << Indent << "\"WIDEN-INDUCTION";
   if (Trunc) {
     O << "\\l\"";
@@ -687,7 +730,8 @@ void VPWidenIntOrFpInductionRecipe::print(raw_ostream &O,
     O << " " << VPlanIngredient(IV) << "\\l\"";
 }
 
-void VPWidenGEPRecipe::print(raw_ostream &O, const Twine &Indent) const {
+void VPWidenGEPRecipe::print(raw_ostream &O, const Twine &Indent,
+                             VPSlotTracker &SlotTracker) const {
   O << " +\n" << Indent << "\"WIDEN-GEP ";
   O << (IsPtrLoopInvariant ? "Inv" : "Var");
   size_t IndicesNumber = IsIndexLoopInvariant.size();
@@ -697,11 +741,13 @@ void VPWidenGEPRecipe::print(raw_ostream &O, const Twine &Indent) const {
   O << " +\n" << Indent << "\"  "  << VPlanIngredient(GEP) << "\\l\"";
 }
 
-void VPWidenPHIRecipe::print(raw_ostream &O, const Twine &Indent) const {
+void VPWidenPHIRecipe::print(raw_ostream &O, const Twine &Indent,
+                             VPSlotTracker &SlotTracker) const {
   O << " +\n" << Indent << "\"WIDEN-PHI " << VPlanIngredient(Phi) << "\\l\"";
 }
 
-void VPBlendRecipe::print(raw_ostream &O, const Twine &Indent) const {
+void VPBlendRecipe::print(raw_ostream &O, const Twine &Indent,
+                          VPSlotTracker &SlotTracker) const {
   O << " +\n" << Indent << "\"BLEND ";
   Phi->printAsOperand(O, false);
   O << " =";
@@ -715,13 +761,14 @@ void VPBlendRecipe::print(raw_ostream &O, const Twine &Indent) const {
       O << " ";
       Phi->getIncomingValue(I)->printAsOperand(O, false);
       O << "/";
-      User->getOperand(I)->printAsOperand(O);
+      User->getOperand(I)->printAsOperand(O, SlotTracker);
     }
   }
   O << "\\l\"";
 }
 
-void VPReplicateRecipe::print(raw_ostream &O, const Twine &Indent) const {
+void VPReplicateRecipe::print(raw_ostream &O, const Twine &Indent,
+                              VPSlotTracker &SlotTracker) const {
   O << " +\n"
     << Indent << "\"" << (IsUniform ? "CLONE " : "REPLICATE ")
     << VPlanIngredient(Ingredient);
@@ -730,21 +777,22 @@ void VPReplicateRecipe::print(raw_ostream &O, const Twine &Indent) const {
   O << "\\l\"";
 }
 
-void VPPredInstPHIRecipe::print(raw_ostream &O, const Twine &Indent) const {
+void VPPredInstPHIRecipe::print(raw_ostream &O, const Twine &Indent,
+                                VPSlotTracker &SlotTracker) const {
   O << " +\n"
     << Indent << "\"PHI-PREDICATED-INSTRUCTION " << VPlanIngredient(PredInst)
     << "\\l\"";
 }
 
-void VPWidenMemoryInstructionRecipe::print(raw_ostream &O,
-                                           const Twine &Indent) const {
+void VPWidenMemoryInstructionRecipe::print(raw_ostream &O, const Twine &Indent,
+                                           VPSlotTracker &SlotTracker) const {
   O << " +\n" << Indent << "\"WIDEN " << VPlanIngredient(&Instr);
   O << ", ";
-  getAddr()->printAsOperand(O);
+  getAddr()->printAsOperand(O, SlotTracker);
   VPValue *Mask = getMask();
   if (Mask) {
     O << ", ";
-    Mask->printAsOperand(O);
+    Mask->printAsOperand(O, SlotTracker);
   }
   O << "\\l\"";
 }
@@ -756,6 +804,21 @@ void VPValue::replaceAllUsesWith(VPValue *New) {
     for (unsigned I = 0, E = User->getNumOperands(); I < E; ++I)
       if (User->getOperand(I) == this)
         User->setOperand(I, New);
+}
+
+void VPValue::printAsOperand(raw_ostream &OS, VPSlotTracker &Tracker) const {
+  if (const Value *UV = getUnderlyingValue()) {
+    OS << "ir<";
+    UV->printAsOperand(OS, false);
+    OS << ">";
+    return;
+  }
+
+  unsigned Slot = Tracker.getSlot(this);
+  if (Slot == unsigned(-1))
+    OS << "<badref>";
+  else
+    OS << "vp<%" << Tracker.getSlot(this) << ">";
 }
 
 void VPInterleavedAccessInfo::visitRegion(VPRegionBlock *Region,
@@ -781,7 +844,7 @@ void VPInterleavedAccessInfo::visitBlock(VPBlockBase *Block, Old2NewTy &Old2New,
       auto NewIGIter = Old2New.find(IG);
       if (NewIGIter == Old2New.end())
         Old2New[IG] = new InterleaveGroup<VPInstruction>(
-            IG->getFactor(), IG->isReverse(), Align(IG->getAlignment()));
+            IG->getFactor(), IG->isReverse(), IG->getAlign());
 
       if (Inst == IG->getInsertPos())
         Old2New[IG]->setInsertPos(VPInst);
@@ -802,4 +865,56 @@ VPInterleavedAccessInfo::VPInterleavedAccessInfo(VPlan &Plan,
                                                  InterleavedAccessInfo &IAI) {
   Old2NewTy Old2New;
   visitRegion(cast<VPRegionBlock>(Plan.getEntry()), Old2New, IAI);
+}
+
+void VPSlotTracker::assignSlot(const VPValue *V) {
+  assert(Slots.find(V) == Slots.end() && "VPValue already has a slot!");
+  const Value *UV = V->getUnderlyingValue();
+  if (UV)
+    return;
+  const auto *VPI = dyn_cast<VPInstruction>(V);
+  if (VPI && !VPI->hasResult())
+    return;
+
+  Slots[V] = NextSlot++;
+}
+
+void VPSlotTracker::assignSlots(const VPBlockBase *VPBB) {
+  if (auto *Region = dyn_cast<VPRegionBlock>(VPBB))
+    assignSlots(Region);
+  else
+    assignSlots(cast<VPBasicBlock>(VPBB));
+}
+
+void VPSlotTracker::assignSlots(const VPRegionBlock *Region) {
+  ReversePostOrderTraversal<const VPBlockBase *> RPOT(Region->getEntry());
+  for (const VPBlockBase *Block : RPOT)
+    assignSlots(Block);
+}
+
+void VPSlotTracker::assignSlots(const VPBasicBlock *VPBB) {
+  for (const VPRecipeBase &Recipe : *VPBB) {
+    if (const auto *VPI = dyn_cast<VPInstruction>(&Recipe))
+      assignSlot(VPI);
+  }
+}
+
+void VPSlotTracker::assignSlots(const VPlan &Plan) {
+
+  for (const VPValue *V : Plan.VPExternalDefs)
+    assignSlot(V);
+
+  for (auto &E : Plan.Value2VPValue)
+    if (!isa<VPInstruction>(E.second))
+      assignSlot(E.second);
+
+  for (const VPValue *V : Plan.VPCBVs)
+    assignSlot(V);
+
+  if (Plan.BackedgeTakenCount)
+    assignSlot(Plan.BackedgeTakenCount);
+
+  ReversePostOrderTraversal<const VPBlockBase *> RPOT(Plan.getEntry());
+  for (const VPBlockBase *Block : RPOT)
+    assignSlots(Block);
 }

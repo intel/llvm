@@ -17,7 +17,6 @@
 #include "llvm/ADT/GraphTraits.h"
 #include "llvm/ADT/iterator.h"
 #include "llvm/ADT/iterator_range.h"
-#include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/CFG.h"
 #include "llvm/Support/CFGUpdate.h"
 #include "llvm/Support/type_traits.h"
@@ -39,7 +38,7 @@
 // templated / parametrized on using succ_iterator/pred_iterator and false/true
 // for the InverseEdge.
 
-// CFGViewSuccessors and CFGViewPredecessors, both can be parametrized to
+// CFGViewChildren and CFGViewPredecessors, both can be parametrized to
 // consider the graph inverted or not (i.e. InverseGraph). Successors
 // implicitly has InverseEdge = false and Predecessors implicitly has
 // InverseEdge = true (see calls to GraphDiff methods in there). The GraphTraits
@@ -49,17 +48,17 @@
 // - GraphDiff<BasicBlock *> is equivalent to InverseGraph = false
 // - GraphDiff<Inverse<BasicBlock *>> is equivalent to InverseGraph = true
 // - second pair item is BasicBlock *, then InverseEdge = false (so it inherits
-// from CFGViewSuccessors).
+// from CFGViewChildren).
 // - second pair item is Inverse<BasicBlock *>, then InverseEdge = true (so it
 // inherits from CFGViewPredecessors).
 
 // The 4 GraphTraits are as follows:
 // 1. std::pair<const GraphDiff<BasicBlock *> *, BasicBlock *>> :
-//        CFGViewSuccessors<false>
+//        CFGViewChildren<false>
 // Regular CFG, children means successors, InverseGraph = false,
 // InverseEdge = false.
 // 2. std::pair<const GraphDiff<Inverse<BasicBlock *>> *, BasicBlock *>> :
-//        CFGViewSuccessors<true>
+//        CFGViewChildren<true>
 // Reverse the graph, get successors but reverse-apply updates,
 // InverseGraph = true, InverseEdge = false.
 // 3. std::pair<const GraphDiff<BasicBlock *> *, Inverse<BasicBlock *>>> :
@@ -83,7 +82,7 @@ template <typename NodePtr, bool InverseGraph = false> class GraphDiff {
   UpdateMapType SuccDelete;
   UpdateMapType PredInsert;
   UpdateMapType PredDelete;
-  // Using a singleton empty vector for all BasicBlock requests with no
+  // Using a singleton empty vector for all node requests with no
   // children.
   SmallVector<NodePtr, 1> Empty;
 
@@ -155,130 +154,56 @@ public:
 #endif
 };
 
-template <bool InverseGraph = false> struct CFGViewSuccessors {
-  using DataRef = const GraphDiff<BasicBlock *, InverseGraph> *;
-  using NodeRef = std::pair<DataRef, BasicBlock *>;
+template <typename GraphT, bool InverseGraph = false, bool InverseEdge = false,
+          typename GT = GraphTraits<GraphT>>
+struct CFGViewChildren {
+  using DataRef = const GraphDiff<typename GT::NodeRef, InverseGraph> *;
+  using NodeRef = std::pair<DataRef, typename GT::NodeRef>;
 
-  using ExistingChildIterator =
-      WrappedPairNodeDataIterator<succ_iterator, NodeRef, DataRef>;
-  struct DeletedEdgesFilter {
-    BasicBlock *BB;
-    DeletedEdgesFilter(BasicBlock *BB) : BB(BB){};
-    bool operator()(NodeRef N) const {
-      return !N.first->ignoreChild(BB, N.second, false);
-    }
-  };
-  using FilterExistingChildrenIterator =
-      filter_iterator<ExistingChildIterator, DeletedEdgesFilter>;
-
-  using vec_iterator = SmallVectorImpl<BasicBlock *>::const_iterator;
-  using AddNewChildrenIterator =
-      WrappedPairNodeDataIterator<vec_iterator, NodeRef, DataRef>;
-  using ChildIteratorType =
-      concat_iterator<NodeRef, FilterExistingChildrenIterator,
-                      AddNewChildrenIterator>;
-
-  static ChildIteratorType child_begin(NodeRef N) {
-    auto InsertVec = N.first->getAddedChildren(N.second, false);
-    // filter iterator init:
-    auto firstit = make_filter_range(
-        make_range<ExistingChildIterator>({succ_begin(N.second), N.first},
-                                          {succ_end(N.second), N.first}),
-        DeletedEdgesFilter(N.second));
-    // new inserts iterator init:
-    auto secondit = make_range<AddNewChildrenIterator>(
-        {InsertVec.begin(), N.first}, {InsertVec.end(), N.first});
-
-    return concat_iterator<NodeRef, FilterExistingChildrenIterator,
-                           AddNewChildrenIterator>(firstit, secondit);
+  template<typename Range>
+  static auto makeChildRange(Range &&R, DataRef DR) {
+    using Iter = WrappedPairNodeDataIterator<decltype(std::forward<Range>(R).begin()), NodeRef, DataRef>;
+    return make_range(Iter(R.begin(), DR), Iter(R.end(), DR));
   }
 
-  static ChildIteratorType child_end(NodeRef N) {
-    auto InsertVec = N.first->getAddedChildren(N.second, false);
-    // filter iterator init:
-    auto firstit = make_filter_range(
-        make_range<ExistingChildIterator>({succ_end(N.second), N.first},
-                                          {succ_end(N.second), N.first}),
-        DeletedEdgesFilter(N.second));
-    // new inserts iterator init:
-    auto secondit = make_range<AddNewChildrenIterator>(
-        {InsertVec.end(), N.first}, {InsertVec.end(), N.first});
+  static auto children(NodeRef N) {
 
-    return concat_iterator<NodeRef, FilterExistingChildrenIterator,
-                           AddNewChildrenIterator>(firstit, secondit);
+    // filter iterator init:
+    auto R = make_range(GT::child_begin(N.second), GT::child_end(N.second));
+    // This lambda is copied into the iterators and persists to callers, ensure
+    // captures are by value or otherwise have sufficient lifetime.
+    auto First = make_filter_range(makeChildRange(R, N.first), [N](NodeRef C) {
+      return !C.first->ignoreChild(N.second, C.second, InverseEdge);
+    });
+
+    // new inserts iterator init:
+    auto InsertVec = N.first->getAddedChildren(N.second, InverseEdge);
+    auto Second = makeChildRange(InsertVec, N.first);
+
+    auto CR = concat<NodeRef>(First, Second);
+    // concat_range contains references to other ranges, returning it would
+    // leave those references dangling - the iterators contain
+    // other iterators by value so they're safe to return.
+    return make_range(CR.begin(), CR.end());
   }
+
+  static auto child_begin(NodeRef N) {
+    return children(N).begin();
+  }
+
+  static auto child_end(NodeRef N) {
+    return children(N).end();
+  }
+
+  using ChildIteratorType = decltype(child_end(std::declval<NodeRef>()));
 };
 
-template <bool InverseGraph = false> struct CFGViewPredecessors {
-  using DataRef = const GraphDiff<BasicBlock *, InverseGraph> *;
-  using NodeRef = std::pair<DataRef, BasicBlock *>;
-
-  using ExistingChildIterator =
-      WrappedPairNodeDataIterator<pred_iterator, NodeRef, DataRef>;
-  struct DeletedEdgesFilter {
-    BasicBlock *BB;
-    DeletedEdgesFilter(BasicBlock *BB) : BB(BB){};
-    bool operator()(NodeRef N) const {
-      return !N.first->ignoreChild(BB, N.second, true);
-    }
-  };
-  using FilterExistingChildrenIterator =
-      filter_iterator<ExistingChildIterator, DeletedEdgesFilter>;
-
-  using vec_iterator = SmallVectorImpl<BasicBlock *>::const_iterator;
-  using AddNewChildrenIterator =
-      WrappedPairNodeDataIterator<vec_iterator, NodeRef, DataRef>;
-  using ChildIteratorType =
-      concat_iterator<NodeRef, FilterExistingChildrenIterator,
-                      AddNewChildrenIterator>;
-
-  static ChildIteratorType child_begin(NodeRef N) {
-    auto InsertVec = N.first->getAddedChildren(N.second, true);
-    // filter iterator init:
-    auto firstit = make_filter_range(
-        make_range<ExistingChildIterator>({pred_begin(N.second), N.first},
-                                          {pred_end(N.second), N.first}),
-        DeletedEdgesFilter(N.second));
-    // new inserts iterator init:
-    auto secondit = make_range<AddNewChildrenIterator>(
-        {InsertVec.begin(), N.first}, {InsertVec.end(), N.first});
-
-    return concat_iterator<NodeRef, FilterExistingChildrenIterator,
-                           AddNewChildrenIterator>(firstit, secondit);
-  }
-
-  static ChildIteratorType child_end(NodeRef N) {
-    auto InsertVec = N.first->getAddedChildren(N.second, true);
-    // filter iterator init:
-    auto firstit = make_filter_range(
-        make_range<ExistingChildIterator>({pred_end(N.second), N.first},
-                                          {pred_end(N.second), N.first}),
-        DeletedEdgesFilter(N.second));
-    // new inserts iterator init:
-    auto secondit = make_range<AddNewChildrenIterator>(
-        {InsertVec.end(), N.first}, {InsertVec.end(), N.first});
-
-    return concat_iterator<NodeRef, FilterExistingChildrenIterator,
-                           AddNewChildrenIterator>(firstit, secondit);
-  }
-};
-
-template <>
-struct GraphTraits<
-    std::pair<const GraphDiff<BasicBlock *, false> *, BasicBlock *>>
-    : CFGViewSuccessors<false> {};
-template <>
-struct GraphTraits<
-    std::pair<const GraphDiff<BasicBlock *, true> *, BasicBlock *>>
-    : CFGViewSuccessors<true> {};
-template <>
-struct GraphTraits<
-    std::pair<const GraphDiff<BasicBlock *, false> *, Inverse<BasicBlock *>>>
-    : CFGViewPredecessors<false> {};
-template <>
-struct GraphTraits<
-    std::pair<const GraphDiff<BasicBlock *, true> *, Inverse<BasicBlock *>>>
-    : CFGViewPredecessors<true> {};
+template <typename T, bool B>
+struct GraphTraits<std::pair<const GraphDiff<T, B> *, T>>
+    : CFGViewChildren<T, B> {};
+template <typename T, bool B>
+struct GraphTraits<std::pair<const GraphDiff<T, B> *, Inverse<T>>>
+    : CFGViewChildren<Inverse<T>, B, true> {};
 } // end namespace llvm
 
 #endif // LLVM_IR_CFGDIFF_H

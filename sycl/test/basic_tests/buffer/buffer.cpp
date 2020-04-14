@@ -1,4 +1,6 @@
-// RUN: %clangxx %s -o %t1.out -lsycl
+// REQUIRES: opencl
+
+// RUN: %clangxx %s -o %t1.out -lsycl -I %sycl_include
 // RUN: env SYCL_DEVICE_TYPE=HOST %t1.out
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t2.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t2.out
@@ -434,13 +436,9 @@ int main() {
             range<1>{3}, [=](id<1> index) { B[index] = 20; });
       });
     }
-    // Data is copied back in the desctruction of the buffer created from
-    // pair of non-const iterators
-    for (int i = 0; i < 2; i++)
-      assert(data1[i] == -1);
-    for (int i = 2; i < 5; i++)
-      assert(data1[i] == 20);
-    for (int i = 5; i < 10; i++)
+    // Data is not copied back in the destruction of the buffer created
+    // from a pair of non-const iterators
+    for (int i = 0; i < 10; i++)
       assert(data1[i] == -1);
   }
 

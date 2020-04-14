@@ -59,6 +59,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Intrinsics.h"
+#include "llvm/IR/KnowledgeRetention.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/MDBuilder.h"
 #include "llvm/IR/Metadata.h"
@@ -75,6 +76,7 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/KnownBits.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/ValueMapper.h"
 #include <algorithm>
 #include <cassert>
@@ -410,7 +412,8 @@ bool llvm::wouldInstructionBeTriviallyDead(Instruction *I,
     // true are operationally no-ops.  In the future we can consider more
     // sophisticated tradeoffs for guards considering potential for check
     // widening, but for now we keep things simple.
-    if (II->getIntrinsicID() == Intrinsic::assume ||
+    if ((II->getIntrinsicID() == Intrinsic::assume &&
+         isAssumeWithEmptyBundle(*II)) ||
         II->getIntrinsicID() == Intrinsic::experimental_guard) {
       if (ConstantInt *Cond = dyn_cast<ConstantInt>(II->getArgOperand(0)))
         return !Cond->isZero();
@@ -1230,24 +1233,6 @@ unsigned llvm::getOrEnforceKnownAlignment(Value *V, unsigned PrefAlign,
 ///  Dbg Intrinsic utilities
 ///
 
-/// See if there is a dbg.value intrinsic for DIVar before I.
-static bool LdStHasDebugValue(DILocalVariable *DIVar, DIExpression *DIExpr,
-                              Instruction *I) {
-  // Since we can't guarantee that the original dbg.declare instrinsic
-  // is removed by LowerDbgDeclare(), we need to make sure that we are
-  // not inserting the same dbg.value intrinsic over and over.
-  BasicBlock::InstListType::iterator PrevI(I);
-  if (PrevI != I->getParent()->getInstList().begin()) {
-    --PrevI;
-    if (DbgValueInst *DVI = dyn_cast<DbgValueInst>(PrevI))
-      if (DVI->getValue() == I->getOperand(0) &&
-          DVI->getVariable() == DIVar &&
-          DVI->getExpression() == DIExpr)
-        return true;
-  }
-  return false;
-}
-
 /// See if there is a dbg.value intrinsic for DIVar for the PHI node.
 static bool PhiHasDebugValue(DILocalVariable *DIVar,
                              DIExpression *DIExpr,
@@ -1324,13 +1309,11 @@ void llvm::ConvertDebugDeclareToDebugValue(DbgVariableIntrinsic *DII,
     // know which part) we insert an dbg.value instrinsic to indicate that we
     // know nothing about the variable's content.
     DV = UndefValue::get(DV->getType());
-    if (!LdStHasDebugValue(DIVar, DIExpr, SI))
-      Builder.insertDbgValueIntrinsic(DV, DIVar, DIExpr, NewLoc, SI);
+    Builder.insertDbgValueIntrinsic(DV, DIVar, DIExpr, NewLoc, SI);
     return;
   }
 
-  if (!LdStHasDebugValue(DIVar, DIExpr, SI))
-    Builder.insertDbgValueIntrinsic(DV, DIVar, DIExpr, NewLoc, SI);
+  Builder.insertDbgValueIntrinsic(DV, DIVar, DIExpr, NewLoc, SI);
 }
 
 /// Inserts a llvm.dbg.value intrinsic before a load of an alloca'd value
@@ -1340,9 +1323,6 @@ void llvm::ConvertDebugDeclareToDebugValue(DbgVariableIntrinsic *DII,
   auto *DIVar = DII->getVariable();
   auto *DIExpr = DII->getExpression();
   assert(DIVar && "Missing variable");
-
-  if (LdStHasDebugValue(DIVar, DIExpr, LI))
-    return;
 
   if (!valueCoversEntireFragment(LI->getType(), DII)) {
     // FIXME: If only referring to a part of the variable described by the
@@ -1410,6 +1390,7 @@ static bool isStructure(AllocaInst *AI) {
 /// LowerDbgDeclare - Lowers llvm.dbg.declare intrinsics into appropriate set
 /// of llvm.dbg.value intrinsics.
 bool llvm::LowerDbgDeclare(Function &F) {
+  bool Changed = false;
   DIBuilder DIB(*F.getParent(), /*AllowUnresolved*/ false);
   SmallVector<DbgDeclareInst *, 4> Dbgs;
   for (auto &FI : F)
@@ -1418,7 +1399,7 @@ bool llvm::LowerDbgDeclare(Function &F) {
         Dbgs.push_back(DDI);
 
   if (Dbgs.empty())
-    return false;
+    return Changed;
 
   for (auto &I : Dbgs) {
     DbgDeclareInst *DDI = I;
@@ -1471,8 +1452,14 @@ bool llvm::LowerDbgDeclare(Function &F) {
       }
     }
     DDI->eraseFromParent();
+    Changed = true;
   }
-  return true;
+
+  if (Changed)
+  for (BasicBlock &BB : F)
+    RemoveRedundantDbgInstrs(&BB);
+
+  return Changed;
 }
 
 /// Propagate dbg.value intrinsics through the newly inserted PHIs.
@@ -1540,6 +1527,14 @@ TinyPtrVector<DbgVariableIntrinsic *> llvm::FindDbgAddrUses(Value *V) {
   }
 
   return Declares;
+}
+
+TinyPtrVector<DbgDeclareInst *> llvm::FindDbgDeclareUses(Value *V) {
+  TinyPtrVector<DbgDeclareInst *> DDIs;
+  for (DbgVariableIntrinsic *DVI : FindDbgAddrUses(V))
+    if (auto *DDI = dyn_cast<DbgDeclareInst>(DVI))
+      DDIs.push_back(DDI);
+  return DDIs;
 }
 
 void llvm::findDbgValues(SmallVectorImpl<DbgValueInst *> &DbgValues, Value *V) {
@@ -2940,21 +2935,39 @@ bool llvm::canReplaceOperandWithVariable(const Instruction *I, unsigned OpIdx) {
   default:
     return true;
   case Instruction::Call:
-  case Instruction::Invoke:
+  case Instruction::Invoke: {
+    ImmutableCallSite CS(I);
+
     // Can't handle inline asm. Skip it.
-    if (isa<InlineAsm>(ImmutableCallSite(I).getCalledValue()))
-      return false;
-    // Many arithmetic intrinsics have no issue taking a
-    // variable, however it's hard to distingish these from
-    // specials such as @llvm.frameaddress that require a constant.
-    if (isa<IntrinsicInst>(I))
+    if (CS.isInlineAsm())
       return false;
 
     // Constant bundle operands may need to retain their constant-ness for
     // correctness.
-    if (ImmutableCallSite(I).isBundleOperand(OpIdx))
+    if (CS.isBundleOperand(OpIdx))
       return false;
-    return true;
+
+    if (OpIdx < CS.getNumArgOperands()) {
+      // Some variadic intrinsics require constants in the variadic arguments,
+      // which currently aren't markable as immarg.
+      if (CS.isIntrinsic() && OpIdx >= CS.getFunctionType()->getNumParams()) {
+        // This is known to be OK for stackmap.
+        return CS.getIntrinsicID() == Intrinsic::experimental_stackmap;
+      }
+
+      // gcroot is a special case, since it requires a constant argument which
+      // isn't also required to be a simple ConstantInt.
+      if (CS.getIntrinsicID() == Intrinsic::gcroot)
+        return false;
+
+      // Some intrinsic operands are required to be immediates.
+      return !CS.paramHasAttr(OpIdx, Attribute::ImmArg);
+    }
+
+    // It is never allowed to replace the call argument to an intrinsic, but it
+    // may be possible for a call.
+    return !CS.isIntrinsic();
+  }
   case Instruction::ShuffleVector:
     // Shufflevector masks are constant.
     return OpIdx != 2;

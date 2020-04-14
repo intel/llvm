@@ -418,7 +418,7 @@ class Configuration(object):
         # Configure the availability feature. Availability is only enabled
         # with libc++, because other standard libraries do not provide
         # availability markup.
-        if self.use_deployment and self.cxx_stdlib_under_test == 'libc++' and self.use_system_cxx_lib:
+        if self.use_deployment and self.cxx_stdlib_under_test == 'libc++':
             self.config.available_features.add('availability')
             self.add_deployment_feature('availability')
 
@@ -452,10 +452,6 @@ class Configuration(object):
 
         if self.cxx.hasCompileFlag('-faligned-allocation'):
             self.config.available_features.add('-faligned-allocation')
-        else:
-            # FIXME remove this once more than just clang-4.0 support
-            # C++17 aligned allocation.
-            self.config.available_features.add('no-aligned-allocation')
 
         if self.cxx.hasCompileFlag('-fdelayed-template-parsing'):
             self.config.available_features.add('fdelayed-template-parsing')
@@ -602,7 +598,7 @@ class Configuration(object):
 
         # FIXME(EricWF): variant_size.pass.cpp requires a slightly larger
         # template depth with older Clang versions.
-        self.cxx.addFlagIfSupported('-ftemplate-depth=270')
+        self.cxx.addCompileFlagIfSupported('-ftemplate-depth=270')
 
     def configure_compile_flags_header_includes(self):
         support_path = os.path.join(self.libcxx_src_root, 'test', 'support')
@@ -1043,7 +1039,7 @@ class Configuration(object):
         if self.target_info.is_darwin():
             # Do not pass DYLD_LIBRARY_PATH to the compiler, linker, etc. as
             # these tools are not meant to exercise the just-built libraries.
-            tool_env += 'DYLD_LIBRARY_PATH="" '
+            tool_env += 'env DYLD_LIBRARY_PATH="" '
 
         sub = self.config.substitutions
         cxx_path = tool_env + pipes.quote(self.cxx.path)
@@ -1083,8 +1079,11 @@ class Configuration(object):
         # Configure run env substitution.
         codesign_ident = self.get_lit_conf('llvm_codesign_identity', '')
         run_py = os.path.join(self.libcxx_src_root, 'utils', 'run.py')
-        run_str = '%s %s "%s" %%t.exe' % (pipes.quote(sys.executable), \
-                                          pipes.quote(run_py), codesign_ident)
+        env_vars = ' '.join('%s=%s' % (k, pipes.quote(v)) for (k, v) in self.exec_env.items())
+        run_str = '%s %s --codesign_identity "%s" --working_directory "%%S" ' \
+                  '--dependencies %%file_dependencies --env %s -- %%t.exe' %  \
+            (pipes.quote(sys.executable), pipes.quote(run_py),
+             codesign_ident, env_vars)
         sub.append(('%run', run_str))
         # Configure not program substitutions
         not_py = os.path.join(self.libcxx_src_root, 'utils', 'not.py')
@@ -1200,7 +1199,7 @@ class Configuration(object):
                 self.config.available_features.add('dylib-has-no-filesystem')
                 self.lit_config.note("the deployment target does not support <filesystem>")
         else:
-            self.cxx.flags += ['-D_LIBCPP_DISABLE_AVAILABILITY']
+            self.cxx.compile_flags += ['-D_LIBCPP_DISABLE_AVAILABILITY']
 
     def configure_env(self):
         self.target_info.configure_env(self.exec_env)

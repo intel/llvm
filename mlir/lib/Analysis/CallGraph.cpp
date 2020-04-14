@@ -11,20 +11,14 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Analysis/CallGraph.h"
-#include "mlir/Analysis/CallInterfaces.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/SymbolTable.h"
+#include "mlir/Interfaces/CallInterfaces.h"
 #include "llvm/ADT/PointerUnion.h"
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/Support/raw_ostream.h"
 
 using namespace mlir;
-
-//===----------------------------------------------------------------------===//
-// CallInterfaces
-//===----------------------------------------------------------------------===//
-
-#include "mlir/Analysis/CallInterfaces.cpp.inc"
 
 //===----------------------------------------------------------------------===//
 // CallGraphNode
@@ -147,6 +141,23 @@ CallGraphNode *CallGraph::resolveCallable(CallOpInterface call) const {
 
   // If we don't have a valid direct region, this is an external call.
   return getExternalNode();
+}
+
+/// Erase the given node from the callgraph.
+void CallGraph::eraseNode(CallGraphNode *node) {
+  // Erase any children of this node first.
+  if (node->hasChildren()) {
+    for (const CallGraphNode::Edge &edge : llvm::make_early_inc_range(*node))
+      if (edge.isChild())
+        eraseNode(edge.getTarget());
+  }
+  // Erase any edges to this node from any other nodes.
+  for (auto &it : nodes) {
+    it.second->edges.remove_if([node](const CallGraphNode::Edge &edge) {
+      return edge.getTarget() == node;
+    });
+  }
+  nodes.erase(node->getCallableRegion());
 }
 
 //===----------------------------------------------------------------------===//

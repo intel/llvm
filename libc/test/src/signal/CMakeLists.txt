@@ -10,3 +10,60 @@ add_libc_unittest(
     raise
     signal_h
 )
+
+add_libc_unittest(
+  sigaction_test
+  SUITE
+    libc_signal_unittests
+  SRCS
+    sigaction_test.cpp
+  DEPENDS
+    sigaction
+    raise
+    signal_h
+    errno_h
+    __errno_location
+    __restore
+)
+
+add_libc_unittest(
+  sigprocmask_test
+  SUITE
+    libc_signal_unittests
+  SRCS
+    sigprocmask_test.cpp
+  DEPENDS
+    raise
+    sigprocmask
+    sigaddset
+    sigemptyset
+    signal_h
+    __errno_location
+)
+
+add_libc_unittest(
+  sigaddset_test
+  SUITE
+    libc_signal_unittests
+  SRCS
+    sigaddset_test.cpp
+  DEPENDS
+    sigaddset
+    signal_h
+    __errno_location
+)
+
+add_libc_unittest(
+  signal_test
+  SUITE
+    libc_signal_unittests
+  SRCS
+    signal_test.cpp
+  DEPENDS
+    signal
+    signal_h
+    sigaction
+    raise
+    __errno_location
+    errno_h
+)

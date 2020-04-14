@@ -39,6 +39,8 @@ public:
     uint64_t NumPtrs = 0;
   };
 
+  using RawPointerSectionList = std::vector<SectionExtent>;
+
   void setObjCImageInfoAddr(JITTargetAddress ObjCImageInfoAddr) {
     this->ObjCImageInfoAddr = ObjCImageInfoAddr;
   }
@@ -47,22 +49,31 @@ public:
     ModInitSections.push_back(std::move(ModInit));
   }
 
+  const RawPointerSectionList &getModInitsSections() const {
+    return ModInitSections;
+  }
+
   void addObjCSelRefsSection(SectionExtent ObjCSelRefs) {
     ObjCSelRefsSections.push_back(std::move(ObjCSelRefs));
+  }
+
+  const RawPointerSectionList &getObjCSelRefsSections() const {
+    return ObjCSelRefsSections;
   }
 
   void addObjCClassListSection(SectionExtent ObjCClassList) {
     ObjCClassListSections.push_back(std::move(ObjCClassList));
   }
 
+  const RawPointerSectionList &getObjCClassListSections() const {
+    return ObjCClassListSections;
+  }
+
   void runModInits() const;
   void registerObjCSelectors() const;
   Error registerObjCClasses() const;
 
-  void dump() const;
-
 private:
-  using RawPointerSectionList = std::vector<SectionExtent>;
 
   JITTargetAddress ObjCImageInfoAddr;
   RawPointerSectionList ModInitSections;
@@ -132,12 +143,15 @@ private:
                         MachOJITDylibInitializers::SectionExtent ObjCSelRefs,
                         MachOJITDylibInitializers::SectionExtent ObjCClassList);
 
-  std::mutex PlatformMutex;
   ExecutionSession &ES;
   ObjectLinkingLayer &ObjLinkingLayer;
   std::unique_ptr<MemoryBuffer> StandardSymbolsObject;
 
   DenseMap<JITDylib *, SymbolLookupSet> RegisteredInitSymbols;
+
+  // InitSeqs gets its own mutex to avoid locking the whole session when
+  // aggregating data from the jitlink.
+  std::mutex InitSeqsMutex;
   DenseMap<JITDylib *, MachOJITDylibInitializers> InitSeqs;
 };
 

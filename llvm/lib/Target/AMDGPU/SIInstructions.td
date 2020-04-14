@@ -230,6 +230,7 @@ class WrapTerminatorInst<SOP_Pseudo base_inst> : SPseudoInstSI<
   let hasSideEffects = base_inst.hasSideEffects;
   let UseNamedOperandTable = base_inst.UseNamedOperandTable;
   let CodeSize = base_inst.CodeSize;
+  let SchedRW = base_inst.SchedRW;
 }
 
 let WaveSizePredicate = isWave64 in {
@@ -444,8 +445,8 @@ def SI_RETURN : SPseudoInstSI <
 
 // Return for returning function calls without output register.
 //
-// This version is only needed so we can fill in the output regiter in
-// the custom inserter.
+// This version is only needed so we can fill in the output register
+// in the custom inserter.
 def SI_CALL_ISEL : SPseudoInstSI <
   (outs), (ins SSrc_b64:$src0, unknown:$callee),
   [(AMDGPUcall i64:$src0, tglobaladdr:$callee)]> {
@@ -456,6 +457,11 @@ def SI_CALL_ISEL : SPseudoInstSI <
   // TODO: Should really base this on the call target
   let isConvergent = 1;
 }
+
+def : GCNPat<
+  (AMDGPUcall i64:$src0, (i64 0)),
+  (SI_CALL_ISEL $src0, (i64 0))
+>;
 
 // Wrapper around s_swappc_b64 with extra $callee parameter to track
 // the called function after regalloc.
@@ -847,20 +853,29 @@ def : GCNPat <
 // VOP2 Patterns
 //===----------------------------------------------------------------------===//
 
-multiclass FMADPat <ValueType vt, Instruction inst> {
-  def : GCNPat <
-    (vt (fmad (VOP3NoMods vt:$src0),
-              (VOP3NoMods vt:$src1),
-              (VOP3NoMods vt:$src2))),
+// TODO: Check only no src2 mods?
+class FMADPat <ValueType vt, Instruction inst, SDPatternOperator node>
+  : GCNPat <(vt (node (vt (VOP3NoMods vt:$src0)),
+                      (vt (VOP3NoMods vt:$src1)),
+                      (vt (VOP3NoMods vt:$src2)))),
     (inst SRCMODS.NONE, $src0, SRCMODS.NONE, $src1,
           SRCMODS.NONE, $src2, DSTCLAMP.NONE, DSTOMOD.NONE)
-  >;
+>;
+
+
+// Prefer mac form when there are no modifiers.
+let AddedComplexity = 9 in {
+def : FMADPat <f32, V_MAC_F32_e64, fmad>;
+def : FMADPat <f32, V_MAC_F32_e64, AMDGPUfmad_ftz>;
+
+let SubtargetPredicate = Has16BitInsts in {
+def : FMADPat <f16, V_MAC_F16_e64, fmad>;
+def : FMADPat <f16, V_MAC_F16_e64, AMDGPUfmad_ftz>;
 }
 
-defm : FMADPat <f16, V_MAC_F16_e64>;
-defm : FMADPat <f32, V_MAC_F32_e64>;
+}
 
-class FMADModsPat<Instruction inst, SDPatternOperator mad_opr, ValueType Ty>
+class FMADModsPat<ValueType Ty, Instruction inst, SDPatternOperator mad_opr>
   : GCNPat<
   (Ty (mad_opr (Ty (VOP3Mods Ty:$src0, i32:$src0_mod)),
                (Ty (VOP3Mods Ty:$src1, i32:$src1_mod)),
@@ -869,9 +884,8 @@ class FMADModsPat<Instruction inst, SDPatternOperator mad_opr, ValueType Ty>
   $src2_mod, $src2, DSTCLAMP.NONE, DSTOMOD.NONE)
 >;
 
-// FIXME: This should select to V_MAC_F32
-def : FMADModsPat<V_MAD_F32, AMDGPUfmad_ftz, f32>;
-def : FMADModsPat<V_MAD_F16, AMDGPUfmad_ftz, f16> {
+def : FMADModsPat<f32, V_MAD_F32, AMDGPUfmad_ftz>;
+def : FMADModsPat<f16, V_MAD_F16, AMDGPUfmad_ftz> {
   let SubtargetPredicate = Has16BitInsts;
 }
 
@@ -2343,4 +2357,25 @@ def G_AMDGPU_S_BUFFER_LOAD : AMDGPUGenericInstruction {
   let hasSideEffects = 0;
   let mayLoad = 1;
   let mayStore = 0;
+}
+
+// This is equivalent to the G_INTRINSIC*, but the operands may have
+// been legalized depending on the subtarget requirements.
+def G_AMDGPU_INTRIN_IMAGE_LOAD : AMDGPUGenericInstruction {
+  let OutOperandList = (outs type0:$dst);
+  let InOperandList = (ins unknown:$intrin, variable_ops);
+  let hasSideEffects = 0;
+  let mayLoad = 1;
+
+  // FIXME: Use separate opcode for atomics.
+  let mayStore = 1;
+}
+
+// This is equivalent to the G_INTRINSIC*, but the operands may have
+// been legalized depending on the subtarget requirements.
+def G_AMDGPU_INTRIN_IMAGE_STORE : AMDGPUGenericInstruction {
+  let OutOperandList = (outs);
+  let InOperandList = (ins unknown:$intrin, variable_ops);
+  let hasSideEffects = 0;
+  let mayStore = 1;
 }

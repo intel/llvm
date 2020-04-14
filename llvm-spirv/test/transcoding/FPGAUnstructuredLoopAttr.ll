@@ -1,11 +1,13 @@
 ; RUN: llvm-as < %s > %t.bc
-; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_unstructured_loop_controls -o - -spirv-text | FileCheck %s --check-prefix=CHECK-SPIRV
+; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_unstructured_loop_controls --spirv-ext=+SPV_INTEL_fpga_loop_controls -o - -spirv-text | FileCheck %s --check-prefix=CHECK-SPIRV
 
-; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_unstructured_loop_controls -o %t.spv
+; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_unstructured_loop_controls --spirv-ext=+SPV_INTEL_fpga_loop_controls -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; CHECK-SPIRV: 2 Capability UnstructuredLoopControlsINTEL
+; CHECK-SPIRV: 2 Capability FPGALoopControlsINTEL
+; CHECK-SPIRV: 9 Extension "SPV_INTEL_fpga_loop_controls"
 ; CHECK-SPIRV: 11 Extension "SPV_INTEL_unstructured_loop_controls"
 ; CHECK-SPIRV: 4 EntryPoint 6 [[FOO:[0-9]+]] "foo"
 ; CHECK-SPIRV: 4 EntryPoint 6 [[BOO:[0-9]+]] "boo"
@@ -19,7 +21,7 @@
 ; CHECK-SPIRV: 2 Branch [[FOR]]
 ; CHECK-SPIRV: 2 Label [[FOR]]
 ; Per SPIR-V spec extension INTEL/SPV_INTEL_fpga_loop_controls,
-; MaxConcurrencyINTEL = 0x20000 (131072)
+; LoopControlMaxConcurrencyINTEL = 0x20000 (131072)
 ; CHECK-SPIRV: 3 LoopControlINTEL 131072 2
 ; CHECK-SPIRV-NEXT: 2 Branch [[FOR]]
 
@@ -28,7 +30,7 @@
 ; CHECK-SPIRV: 2 Branch [[WHILE]]
 ; CHECK-SPIRV: 2 Label [[WHILE]]
 ; Per SPIR-V spec extension INTEL/SPV_INTEL_fpga_loop_controls,
-; InitiationIntervalINTEL = 0x10000 (65536)
+; LoopControlInitiationIntervalINTEL = 0x10000 (65536)
 ; CHECK-SPIRV: 3 LoopControlINTEL 65536 2
 ; CHECK-SPIRV-NEXT: 2 Branch [[WHILE]]
 

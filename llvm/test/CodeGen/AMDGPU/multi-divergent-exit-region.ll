@@ -719,6 +719,46 @@ bb5:                                              ; preds = %bb3
   unreachable
 }
 
+; Test that there is an extra export inserted after the normal export,
+; if the normal export is inside a uniformly reached block and there is
+; an infinite loop in the pixel shader.
+
+; IR-LABEL: @uniformly_reached_export
+; IR-NEXT: .entry:
+; IR: br i1 [[CND:%.*]], label %[[EXP:.*]], label %[[FLOW:.*]]
+
+; IR: [[FLOW]]:
+; IR-NEXT: phi
+; IR-NEXT: br i1 [[CND2:%.*]], label %[[LOOP:.*]], label %UnifiedReturnBlock
+
+; IR: [[LOOP]]:
+; IR-NEXT: br i1 false, label %[[FLOW1:.*]], label %[[LOOP]]
+
+; IR: [[EXP]]:
+; IR-NEXT: call void @llvm.amdgcn.exp.compr.v2f16(i32 immarg 0, i32 immarg 15, <2 x half> <half 0xH3C00, half 0xH0000>, <2 x half> <half 0xH0000, half 0xH3C00>, i1 immarg false, i1 immarg true)
+; IR-NEXT: br label %[[FLOW]]
+
+; IR: [[FLOW1]]:
+; IR-NEXT: br label %UnifiedReturnBlock
+
+; IR: UnifiedReturnBlock:
+; IR-NEXT: call void @llvm.amdgcn.exp.f32(i32 9, i32 0, float undef, float undef, float undef, float undef, i1 true, i1 true)
+; IR-NEXT: ret void
+
+define amdgpu_ps void @uniformly_reached_export(float inreg %tmp25) {
+.entry:
+  %tmp26 = fcmp olt float %tmp25, 0.000000e+00
+  br i1 %tmp26, label %loop, label %bb27
+
+loop:                                               ; preds = %loop, %.entry
+  br label %loop
+
+bb27:                                             ; preds = %.entry
+  call void @llvm.amdgcn.exp.compr.v2f16(i32 immarg 0, i32 immarg 15, <2 x half> <half 0xH3C00, half 0xH0000>, <2 x half> <half 0xH0000, half 0xH3C00>, i1 immarg true, i1 immarg true)
+  ret void
+}
+
+declare void @llvm.amdgcn.exp.compr.v2f16(i32 immarg, i32 immarg, <2 x half>, <2 x half>, i1 immarg, i1 immarg) #0
 declare i32 @llvm.amdgcn.workitem.id.x() #1
 
 attributes #0 = { nounwind }

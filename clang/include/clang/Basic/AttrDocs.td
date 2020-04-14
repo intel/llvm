@@ -1935,6 +1935,26 @@ pointer address bits to bank on.
   }];
 }
 
+def IntelFPGAForcePow2DepthAttrDocs : Documentation {
+  let Category = DocCatVariable;
+  let Heading = "force_pow2_depth (IntelFPGA)";
+  let Content = [{
+This attribute may be attached to a variable or struct member declaration and
+provides explicit control over the geometry of memory blocks used in a given
+memory system.
+
+In the presence of this attribute, the compiler:
+
+1. Will automatically size the memory depth to the next largest power of 2 if
+force_pow2_depth is set to 1, and will prefer width-stitching of RAM blocks
+over depth-stitching.
+
+2. Will not size the memory to the next largest power of 2 if force_pow2_depth
+is set to 0, and will prefer depth-stitching over width-stitching if RAM usage
+can be lowered.
+  }];
+}
+
 def SYCLIntelKernelArgsRestrictDocs : Documentation {
   let Category = DocCatVariable;
   let Heading = "kernel_args_restrict";
@@ -1980,6 +2000,36 @@ Applies to a device function/lambda function. Indicates the number of work
 items that should be processed in parallel. Valid values are positive integers.
 If ``intelfpga::num_simd_work_items`` is applied to a function called from a
 device kernel, the attribute is ignored and it is not propagated to a kernel.
+  }];
+}
+
+def ReqdWorkGroupSizeAttrDocs : Documentation {
+  let Category = DocCatFunction;
+  let Heading = "reqd_work_group_size";
+  let Content = [{
+This attribute is documented by both OpenCL and SYCL standards
+and allows to specify exact *local_work_size* which must be used as
+argument to **clEnqueueNDRangeKernel** (in OpenCL) or to
+**parallel_for** in SYCL. This allows the compiler to optimize the
+generated code appropriately for the kernel to which attribute is applied.
+
+While semantic of this attribute is the same between OpenCL and SYCL,
+spelling is a bit different: 
+
+SYCL 1.2.1 describes ``[[cl::reqd_work_group_size(X, Y, Z)]]`` spelling: this
+attribute is legal on device functions and is propagated down to any caller of 
+those device functions, such that the kernel attributes are the sum of all 
+attributes of all device functions called in this kernel.
+See section 6.7 Attributes for more details.
+
+As Intel extension, ``[[intel::reqd_work_group_size(X, Y, Z)]]`` spelling is allowed
+which features optional arguments `Y` and `Z`, those simplifies its usage if
+only 1- or 2-dimensional ND-range is assumed by a programmer. These arguments
+defaults to ``1``.
+
+In OpenCL C, this attribute is available in GNU spelling
+(``__attribute__((reqd_work_group_size(X, Y, Z)))``), see section
+6.7.2 Optional Attribute Qualifiers of OpenCL 1.2 specification for details.
   }];
 }
 
@@ -2033,6 +2083,20 @@ write only. Expected to be used only in SYCL headers.
   }];
 }
 
+def SYCLIntelPipeIOAttrDocs : Documentation {
+  let Category = DocCatVariable;
+  let Heading = "IO pipe ID";
+  let Content = [{
+Add I/O attribute to SYCL pipe declaration to declare a special I/O pipe to
+interface with input or output features of an FPGA. These features might include
+network interfaces, PCIe, cameras, or other data capture or processing devices
+or protocols.
+
+The io_pipe_id(id) attribute specifies the I/O feature of an accelerator board
+with which a pipe interfaces. The id argument is the name of the I/O interface.
+  }];
+}
+
 def SYCLIntelFPGAIVDepAttrDocs : Documentation {
   let Category = DocCatVariable;
   let Heading = "ivdep";
@@ -2076,6 +2140,53 @@ be applied multiple times to the same loop.
   }];
 }
 
+def SYCLIntelFPGALoopCoalesceAttrDocs : Documentation {
+  let Category = DocCatVariable;
+  let Heading = "loop_coalesce";
+  let Content = [{
+This attribute applies to a loop. Indicates that the loop nest should be
+coalesced into a single loop without affecting functionality. Parameter N is
+optional. If specified, it shall be a positive integer, and indicates how many
+of the nested loop levels should be coalesced.
+  }];
+}
+
+def SYCLIntelFPGADisableLoopPipeliningAttrDocs : Documentation {
+  let Category = DocCatVariable;
+  let Heading = "disable_loop_pipelining";
+  let Content = [{
+This attribute applies to a loop. Disables pipelining of the loop data path,
+causing the loop to be executed serially. Cannot be used on the same loop in
+conjunction with max_interleaving, speculated_iterations, max_concurrency, ii
+or ivdep.
+  }];
+}
+
+def SYCLIntelFPGAMaxInterleavingAttrDocs : Documentation {
+  let Category = DocCatVariable;
+  let Heading = "max_interleaving";
+  let Content = [{
+This attribute applies to a loop. Places a maximum limit N on the number of
+interleaved invocations of an inner loop by an outer loop (note, this does not
+mean that this attribute can only be applied to inner loops in user code - outer
+loops in user code may still be contained in an implicit loop due to NDRange).
+Parameter N is mandatory, and shall be non-negative integer. Cannot be
+used on the same loop in conjunction with disable_loop_pipelining.
+  }];
+}
+
+def SYCLIntelFPGASpeculatedIterationsAttrDocs : Documentation {
+  let Category = DocCatVariable;
+  let Heading = "speculated_iterations";
+  let Content = [{
+This attribute applies to a loop. Specifies the number of concurrent speculated
+iterations that will be in flight for a loop invocation (i.e. the exit
+condition for these iterations will not have been evaluated yet).
+Parameter N is mandatory, and may either be 0, or a positive integer. Cannot be
+used on the same loop in conjunction with disable_loop_pipelining.
+  }];
+}
+
 def SYCLDeviceIndirectlyCallableDocs : Documentation {
   let Category = DocCatFunction;
   let Heading = "intel::device_indirectly_callable";
@@ -2083,8 +2194,8 @@ def SYCLDeviceIndirectlyCallableDocs : Documentation {
 This attribute can only be applied to functions and indicates that the
 function must be treated as a device function and must be emitted even if it has
 no direct uses from other SYCL device functions. However, it cannot be applied
-to functions marked as 'static', functions declared within an anonymous
-namespace or class member functions.
+to functions marked as 'static' and functions declared within an anonymous
+namespace.
 
 It also means that function should be available externally and
 cannot be optimized out due to reachability analysis or by any other
@@ -3701,8 +3812,8 @@ def OMPDeclareVariantDocs : Documentation {
   let Heading = "#pragma omp declare variant";
   let Content = [{
 The `declare variant` directive declares a specialized variant of a base
- function and specifies the context in which that specialized variant is used.
- The declare variant directive is a declarative directive.
+function and specifies the context in which that specialized variant is used.
+The declare variant directive is a declarative directive.
 The syntax of the `declare variant` construct is as follows:
 
   .. code-block:: none
@@ -3719,7 +3830,7 @@ where clause is one of the following:
     match(context-selector-specification)
 
 and where `variant-func-id` is the name of a function variant that is either a
- base language identifier or, for C++, a template-id.
+base language identifier or, for C++, a template-id.
 
   }];
 }
@@ -4404,8 +4515,8 @@ ways:
   including calling the ``+initialize`` method if present.
 
 - The implicit ``_cmd`` parameter containing the method's selector is still defined.
- In order to minimize code-size costs, the implementation will not emit a reference
- to the selector if the parameter is unused within the method.
+  In order to minimize code-size costs, the implementation will not emit a reference
+  to the selector if the parameter is unused within the method.
 
 Symbols for direct method implementations are implicitly given hidden
 visibility, meaning that they can only be called within the same linkage unit.
@@ -4686,6 +4797,29 @@ it rather documents the programmer's intent.
   }];
 }
 
+def LoaderUninitializedDocs : Documentation {
+  let Category = DocCatVariable;
+  let Content = [{
+The ``loader_uninitialized`` attribute can be placed on global variables to
+indicate that the variable does not need to be zero initialized by the loader.
+On most targets, zero-initialization does not incur any additional cost.
+For example, most general purpose operating systems deliberately ensure
+that all memory is properly initialized in order to avoid leaking privileged
+information from the kernel or other programs. However, some targets
+do not make this guarantee, and on these targets, avoiding an unnecessary
+zero-initialization can have a significant impact on load times and/or code
+size.
+
+A declaration with this attribute is a non-tentative definition just as if it
+provided an initializer. Variables with this attribute are considered to be
+uninitialized in the same sense as a local variable, and the programs must
+write to them before reading from them. If the variable's type is a C++ class
+type with a non-trivial default constructor, or an array thereof, this attribute
+only suppresses the static zero-initialization of the variable, not the dynamic
+initialization provided by executing the default constructor.
+  }];
+}
+
 def CallbackDocs : Documentation {
   let Category = DocCatFunction;
   let Content = [{
@@ -4938,7 +5072,7 @@ def LifetimeOwnerDocs : Documentation {
 The attribute ``[[gsl::Owner(T)]]`` applies to structs and classes that own an
 object of type ``T``:
 
-.. code-block:: c++
+.. code::
 
   class [[gsl::Owner(int)]] IntOwner {
   private:
@@ -4964,7 +5098,7 @@ def LifetimePointerDocs : Documentation {
 The attribute ``[[gsl::Pointer(T)]]`` applies to structs and classes that behave
 like pointers to an object of type ``T``:
 
-.. code-block:: c++
+.. code::
 
   class [[gsl::Pointer(int)]] IntPointer {
   private:
@@ -4997,11 +5131,11 @@ When the Owner's lifetime ends, it will consider the Pointer to be dangling.
 }];
 }
 
-def ArmMveAliasDocs : Documentation {
+def ArmBuiltinAliasDocs : Documentation {
   let Category = DocCatFunction;
   let Content = [{
-This attribute is used in the implementation of the ACLE intrinsics
-for the Arm MVE instruction set. It allows the intrinsic functions to
+This attribute is used in the implementation of the ACLE intrinsics.
+It allows the intrinsic functions to
 be declared using the names defined in ACLE, and still be recognized
 as clang builtins equivalent to the underlying name. For example,
 ``arm_mve.h`` declares the function ``vaddq_u32`` with
@@ -5012,8 +5146,8 @@ recognized as that clang builtin, and in the latter case, the choice
 of which builtin to identify the function as can be deferred until
 after overload resolution.
 
-This attribute can only be used to set up the aliases for the MVE
-intrinsic functions; it is intended for use only inside ``arm_mve.h``,
+This attribute can only be used to set up the aliases for certain Arm
+intrinsic functions; it is intended for use only inside ``arm_*.h``
 and is not a general mechanism for declaring arbitrary aliases for
 clang builtin functions.
   }];
@@ -5023,7 +5157,7 @@ def NoBuiltinDocs : Documentation {
   let Category = DocCatFunction;
   let Content = [{
 .. Note:: This attribute is not yet fully implemented, it is validated but has
-no effect on the generated code.
+          no effect on the generated code.
 
 The ``__attribute__((no_builtin))`` is similar to the ``-fno-builtin`` flag
 except it is specific to the body of a function. The attribute may also be
@@ -5157,4 +5291,29 @@ other than overloading.
   int32x4_t result = function();
 
     }];
+}
+
+def ArmCmseNSCallDocs : Documentation {
+  let Category = DocCatType;
+  let Content = [{
+This attribute declares a non-secure function type.  When compiling for secure
+state, a call to such a function would switch from secure to non-secure state.
+All non-secure function calls must happen only through a function pointer, and
+a non-secure function type should only be used as a base type of a pointer.
+See `ARMv8-M Security Extensions: Requirements on Development
+Tools - Engineering Specification Documentation
+<https://developer.arm.com/docs/ecm0359818/latest/>`_ for more information.
+  }];
+}
+
+def ArmCmseNSEntryDocs : Documentation {
+  let Category = DocCatFunction;
+  let Content = [{
+This attribute declares a function that can be called from non-secure state, or
+from secure state. Entering from and returning to non-secure state would switch
+to and from secure state, respectively, and prevent flow of information
+to non-secure state, except via return values. See `ARMv8-M Security Extensions:
+Requirements on Development Tools - Engineering Specification Documentation
+<https://developer.arm.com/docs/ecm0359818/latest/>`_ for more information.
+  }];
 }

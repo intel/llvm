@@ -6,11 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/force_device.hpp>
+#include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/device_selector.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <detail/device_impl.hpp>
+#include <detail/force_device.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -19,7 +20,8 @@ void force_type(info::device_type &t, const info::device_type &ft) {
   if (t == info::device_type::all) {
     t = ft;
   } else if (ft != info::device_type::all && t != ft) {
-    throw cl::sycl::invalid_parameter_error("No device of forced type.");
+    throw cl::sycl::invalid_parameter_error("No device of forced type.",
+                                            PI_INVALID_OPERATION);
   }
 }
 } // namespace detail
@@ -28,7 +30,7 @@ device::device() : impl(std::make_shared<detail::device_impl>()) {}
 
 device::device(cl_device_id deviceId)
     : impl(std::make_shared<detail::device_impl>(
-          detail::pi::cast<detail::RT::PiDevice>(deviceId),
+          detail::pi::cast<detail::device_interop_handle_t>(deviceId),
           *RT::GlobalPlugin)) {}
 
 device::device(const device_selector &deviceSelector) {
@@ -37,13 +39,15 @@ device::device(const device_selector &deviceSelector) {
 
 vector_class<device> device::get_devices(info::device_type deviceType) {
   vector_class<device> devices;
+  // Host device availability should not depend on the forced type
+  const bool includeHost =
+      detail::match_types(deviceType, info::device_type::host);
   info::device_type forced_type = detail::get_forced_type();
   // Exclude devices which do not match requested device type
   if (detail::match_types(deviceType, forced_type)) {
     detail::force_type(deviceType, forced_type);
     for (const auto &plt : platform::get_platforms()) {
-      // Host device must always be available.
-      if (plt.is_host()) {
+      if (includeHost && plt.is_host()) {
         vector_class<device> host_device(
             plt.get_devices(info::device_type::host));
         if (!host_device.empty())
@@ -75,7 +79,8 @@ template <info::partition_property prop>
 vector_class<device> device::create_sub_devices(size_t ComputeUnits) const {
   return impl->create_sub_devices(ComputeUnits);
 }
-template vector_class<device>
+
+template __SYCL_EXPORT vector_class<device>
 device::create_sub_devices<info::partition_property::partition_equally>(
     size_t ComputeUnits) const;
 
@@ -84,7 +89,8 @@ vector_class<device>
 device::create_sub_devices(const vector_class<size_t> &Counts) const {
   return impl->create_sub_devices(Counts);
 }
-template vector_class<device>
+
+template __SYCL_EXPORT vector_class<device>
 device::create_sub_devices<info::partition_property::partition_by_counts>(
     const vector_class<size_t> &Counts) const;
 
@@ -93,7 +99,8 @@ vector_class<device> device::create_sub_devices(
     info::partition_affinity_domain AffinityDomain) const {
   return impl->create_sub_devices(AffinityDomain);
 }
-template vector_class<device> device::create_sub_devices<
+
+template __SYCL_EXPORT vector_class<device> device::create_sub_devices<
     info::partition_property::partition_by_affinity_domain>(
     info::partition_affinity_domain AffinityDomain) const;
 
@@ -108,7 +115,8 @@ device::get_info() const {
 }
 
 #define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
-  template ret_type device::get_info<info::param_type::param>() const;
+  template __SYCL_EXPORT ret_type device::get_info<info::param_type::param>()  \
+      const;
 
 #include <CL/sycl/info/device_traits.def>
 

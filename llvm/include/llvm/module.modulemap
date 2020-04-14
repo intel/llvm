@@ -29,7 +29,6 @@ module LLVM_Backend {
     exclude header "CodeGen/LinkAllCodegenComponents.h"
 
     // These are intended for (repeated) textual inclusion.
-    textual header "CodeGen/CommandFlags.inc"
     textual header "CodeGen/DIEValue.def"
   }
 }
@@ -47,6 +46,11 @@ module LLVM_Bitcode {
  module * { export * }
 }
 
+module LLVM_Bitstream {
+ requires cplusplus
+ umbrella "Bitstream"
+ module * { export * }
+}
 
 module LLVM_BinaryFormat {
     requires cplusplus
@@ -251,6 +255,7 @@ module LLVM_intrinsic_gen {
   module Analysis_PostDominators { header "Analysis/PostDominators.h" export * }
   module Analysis_DomTreeUpdater { header "Analysis/DomTreeUpdater.h" export * }
   module IR_IRBuilder { header "IR/IRBuilder.h" export * }
+  module IR_MatrixBuilder { header "IR/MatrixBuilder.h" export * }
   module IR_PassManager { header "IR/PassManager.h" export * }
   module IR_PassManagerImpl { header "IR/PassManagerImpl.h" export * }
   module IR_PredIteratorCache { header "IR/PredIteratorCache.h" export * }
@@ -267,6 +272,7 @@ module LLVM_intrinsic_gen {
   module IR_PatternMatch { header "IR/PatternMatch.h" export * }
   module IR_SafepointIRVerifier { header "IR/SafepointIRVerifier.h" export * }
   module IR_Statepoint { header "IR/Statepoint.h" export * }
+  module IR_KnowledgeRetention { header "IR/KnowledgeRetention.h" export * }
 
   export *
 }
@@ -284,6 +290,7 @@ module LLVM_IR {
   textual header "IR/Metadata.def"
   textual header "IR/FixedMetadataKinds.def"
   textual header "IR/Value.def"
+  textual header "IR/VPIntrinsics.def"
   textual header "IR/RuntimeLibcalls.def"
 }
 
@@ -310,8 +317,6 @@ module LLVM_MC {
 
   umbrella "MC"
   module * { export * }
-
-  textual header "MC/MCTargetOptionsCommandFlags.inc"
 }
 
 // Used by llvm-tblgen
@@ -382,6 +387,9 @@ module LLVM_Utils {
 
     umbrella "Support"
     module * { export * }
+    
+    // Exclude this; it should only be used on Windows.
+    exclude header "Support/Windows/WindowsSupport.h"
 
     // Exclude these; they are fundamentally non-modular.
     exclude header "Support/PluginLoader.h"

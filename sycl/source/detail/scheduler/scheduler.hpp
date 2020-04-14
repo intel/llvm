@@ -50,6 +50,10 @@ struct MemObjRecord {
   // The context which has the latest state of the memory object.
   ContextImplPtr MCurContext;
 
+  // The mode this object can be accessed with from the host context.
+  // Valid only if the current context is host.
+  access::mode MHostAccess = access::mode::read_write;
+
   // The flag indicates that the content of the memory object was/will be
   // modified. Used while deciding if copy back needed.
   bool MMemModified = false;
@@ -79,7 +83,7 @@ public:
 
   // Removes finished non-leaf non-alloca commands from the subgraph (assuming
   // that all its commands have been waited for).
-  void cleanupFinishedCommands(Command *FinishedCmd);
+  void cleanupFinishedCommands(EventImplPtr FinishedEvent);
 
   // Creates nodes in the graph, that update Req with the pointer to the host
   // memory which contains the latest data of the memory object. New
@@ -170,6 +174,11 @@ protected:
     // and destination.
     Command *insertMemoryMove(MemObjRecord *Record, Requirement *Req,
                               const QueueImplPtr &Queue);
+
+    // Inserts commands required to remap the memory object to its current host
+    // context so that the required access mode becomes valid.
+    Command *remapMemoryObject(MemObjRecord *Record, Requirement *Req,
+                               AllocaCommandBase *HostAllocaCmd);
 
     UpdateHostRequirementCommand *
     insertUpdateHostReqCmd(MemObjRecord *Record, Requirement *Req,

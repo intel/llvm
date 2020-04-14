@@ -1,7 +1,7 @@
 // REQUIRES: aarch64
 // RUN: llvm-mc -filetype=obj -triple=aarch64-windows %s -o %t.obj
 // RUN: lld-link -entry:main -subsystem:console %t.obj -out:%t.exe -verbose 2>&1 | FileCheck -check-prefix=VERBOSE %s
-// RUN: llvm-objdump -d %t.exe | FileCheck -check-prefix=DISASM %s
+// RUN: llvm-objdump -d %t.exe | FileCheck --check-prefix=DISASM %s
 
 // VERBOSE: Added 2 thunks with margin {{.*}} in 1 passes
 
@@ -26,7 +26,7 @@ func1:
 func2:
     ret
 
-// DISASM: 0000000140001000 .text:
+// DISASM: 0000000140001000 <.text>:
 // DISASM: 140001000:      40 00 00 36     tbz     w0, #0, #8 <.text+0x8>
 // DISASM: 140001004:      c0 03 5f d6     ret
 // DISASM: 140001008:      50 00 00 90     adrp    x16, #32768

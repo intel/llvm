@@ -114,6 +114,7 @@ struct MIToken {
     kw_liveout,
     kw_address_taken,
     kw_landing_pad,
+    kw_ehfunclet_entry,
     kw_liveins,
     kw_successors,
     kw_floatpred,
@@ -122,6 +123,7 @@ struct MIToken {
     kw_pre_instr_symbol,
     kw_post_instr_symbol,
     kw_heap_alloc_marker,
+    kw_bbsections,
     kw_unknown_size,
 
     // Named metadata keywords

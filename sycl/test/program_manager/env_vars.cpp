@@ -1,4 +1,7 @@
-// RUN: %clangxx -O0 -fsycl %s -o %t.out -lsycl
+// REQUIRES: opencl
+// Env vars are used to pass OpenCL-specific flags to PI compiling/linking.
+//
+// RUN: %clangxx -O0 -fsycl -fsycl-targets=%sycl_triple %s -o %t.out -lsycl
 //
 // Deprecated SYCL_PROGRAM_BUILD_OPTIONS should work as an alias to
 // SYCL_PROGRAM_COMPILE_OPTIONS:
@@ -15,7 +18,6 @@
 //
 // RUN: %CPU_RUN_PLACEHOLDER SYCL_PROGRAM_COMPILE_OPTIONS="-enable-link-options -cl-denorms-are-zero" SHOULD_CRASH=1 %t.out
 // RUN: %CPU_RUN_PLACEHOLDER SYCL_PROGRAM_LINK_OPTIONS="-g" SHOULD_CRASH=1 %t.out
-
 
 #include <CL/sycl.hpp>
 #include <cassert>

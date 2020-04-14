@@ -56,6 +56,7 @@
 //===----------------------------------------------------------------------===//
 #include "llvm/CodeGen/MachineOutliner.h"
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/CodeGen/MachineFunction.h"
@@ -95,6 +96,13 @@ static cl::opt<bool> EnableLinkOnceODROutlining(
     "enable-linkonceodr-outlining", cl::Hidden,
     cl::desc("Enable the machine outliner on linkonceodr functions"),
     cl::init(false));
+
+// Set the number of times to repeatedly apply outlining.
+// Defaults to 1, but more repetitions can save additional size.
+static cl::opt<unsigned>
+    NumRepeat("machine-outline-runs", cl::Hidden,
+              cl::desc("The number of times to apply machine outlining"),
+              cl::init(1));
 
 namespace {
 
@@ -841,6 +849,9 @@ struct MachineOutliner : public ModulePass {
   /// linkonceodr linkage.
   bool OutlineFromLinkOnceODRs = false;
 
+  /// The current repeat number of machine outlining.
+  unsigned OutlineRepeatedNum = 0;
+
   /// Set to true if the outliner should run on all functions in the module
   /// considered safe for outlining.
   /// Set to true by default for compatibility with llc's -run-pass option.
@@ -899,8 +910,11 @@ struct MachineOutliner : public ModulePass {
                                           InstructionMapper &Mapper,
                                           unsigned Name);
 
-  /// Calls 'doOutline()'.
+  /// Calls runOnceOnModule NumRepeat times
   bool runOnModule(Module &M) override;
+
+  /// Calls 'doOutline()'.
+  bool runOnceOnModule(Module &M, unsigned Iter);
 
   /// Construct a suffix tree on the instructions in \p M and outline repeated
   /// strings from that tree.
@@ -1098,7 +1112,13 @@ MachineFunction *MachineOutliner::createOutlinedFunction(
   // Create the function name. This should be unique.
   // FIXME: We should have a better naming scheme. This should be stable,
   // regardless of changes to the outliner's cost model/traversal order.
-  std::string FunctionName = ("OUTLINED_FUNCTION_" + Twine(Name)).str();
+  std::string FunctionName;
+  if (OutlineRepeatedNum > 0)
+    FunctionName = ("OUTLINED_FUNCTION_" + Twine(OutlineRepeatedNum + 1) + "_" +
+                    Twine(Name))
+                       .str();
+  else
+    FunctionName = ("OUTLINED_FUNCTION_" + Twine(Name)).str();
 
   // Create the function using an IR-level function.
   LLVMContext &C = M.getContext();
@@ -1245,31 +1265,53 @@ bool MachineOutliner::outline(Module &M,
       // make sure that the ranges we yank things out of aren't wrong.
       if (MBB.getParent()->getProperties().hasProperty(
               MachineFunctionProperties::Property::TracksLiveness)) {
-        // Helper lambda for adding implicit def operands to the call
+        // The following code is to add implicit def operands to the call
         // instruction. It also updates call site information for moved
         // code.
-        auto CopyDefsAndUpdateCalls = [&CallInst](MachineInstr &MI) {
-          for (MachineOperand &MOP : MI.operands()) {
-            // Skip over anything that isn't a register.
-            if (!MOP.isReg())
-              continue;
-
-            // If it's a def, add it to the call instruction.
-            if (MOP.isDef())
-              CallInst->addOperand(MachineOperand::CreateReg(
-                  MOP.getReg(), true, /* isDef = true */
-                  true /* isImp = true */));
-          }
-          if (MI.isCandidateForCallSiteEntry())
-            MI.getMF()->eraseCallSiteInfo(&MI);
-        };
+        SmallSet<Register, 2> UseRegs, DefRegs;
         // Copy over the defs in the outlined range.
         // First inst in outlined range <-- Anything that's defined in this
         // ...                           .. range has to be added as an
         // implicit Last inst in outlined range  <-- def to the call
         // instruction. Also remove call site information for outlined block
-        // of code.
-        std::for_each(CallInst, std::next(EndIt), CopyDefsAndUpdateCalls);
+        // of code. The exposed uses need to be copied in the outlined range.
+        for (MachineBasicBlock::reverse_iterator Iter = EndIt.getReverse(),
+             Last = std::next(CallInst.getReverse());
+             Iter != Last; Iter++) {
+          MachineInstr *MI = &*Iter;
+          for (MachineOperand &MOP : MI->operands()) {
+            // Skip over anything that isn't a register.
+            if (!MOP.isReg())
+              continue;
+
+            if (MOP.isDef()) {
+              // Introduce DefRegs set to skip the redundant register.
+              DefRegs.insert(MOP.getReg());
+              if (UseRegs.count(MOP.getReg()))
+                // Since the regiester is modeled as defined,
+                // it is not necessary to be put in use register set.
+                UseRegs.erase(MOP.getReg());
+            } else if (!MOP.isUndef()) {
+              // Any register which is not undefined should
+              // be put in the use register set.
+              UseRegs.insert(MOP.getReg());
+            }
+          }
+          if (MI->isCandidateForCallSiteEntry())
+            MI->getMF()->eraseCallSiteInfo(MI);
+        }
+
+        for (const Register &I : DefRegs)
+           // If it's a def, add it to the call instruction.
+          CallInst->addOperand(MachineOperand::CreateReg(
+                  I, true, /* isDef = true */
+                  true /* isImp = true */));
+
+        for (const Register &I : UseRegs)
+          // If it's a exposed use, add it to the call instruction.
+          CallInst->addOperand(
+              MachineOperand::CreateReg(I, false, /* isDef = false */
+                                        true /* isImp = true */));
       }
 
       // Erase from the point after where the call was inserted up to, and
@@ -1415,11 +1457,13 @@ void MachineOutliner::emitInstrCountChangedRemark(
   }
 }
 
-bool MachineOutliner::runOnModule(Module &M) {
+bool MachineOutliner::runOnceOnModule(Module &M, unsigned Iter) {
   // Check if there's anything in the module. If it's empty, then there's
   // nothing to outline.
   if (M.empty())
     return false;
+
+  OutlineRepeatedNum = Iter;
 
   // Number to append to the current outlined function.
   unsigned OutlinedFunctionNum = 0;
@@ -1483,4 +1527,24 @@ bool MachineOutliner::doOutline(Module &M, unsigned &OutlinedFunctionNum) {
     emitInstrCountChangedRemark(M, MMI, FunctionToInstrCount);
 
   return OutlinedSomething;
+}
+
+// Apply machine outlining for NumRepeat times.
+bool MachineOutliner::runOnModule(Module &M) {
+  if (NumRepeat < 1)
+    report_fatal_error("Expect NumRepeat for machine outlining "
+                       "to be greater than or equal to 1!\n");
+
+  bool Changed = false;
+  for (unsigned I = 0; I < NumRepeat; I++) {
+    if (!runOnceOnModule(M, I)) {
+      LLVM_DEBUG(dbgs() << "Stopped outlining at iteration " << I
+                        << " because no changes were found.\n";);
+      return Changed;
+    }
+    Changed = true;
+  }
+  LLVM_DEBUG(dbgs() << "Stopped outlining because iteration is "
+                       "equal to " << NumRepeat << "\n";);
+  return Changed;
 }

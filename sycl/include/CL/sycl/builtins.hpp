@@ -530,7 +530,7 @@ detail::enable_if_t<detail::is_genfloat<T>::value, T> abs(T x) __NOEXC {
 
 // genfloat max (genfloat x, genfloat y)
 template <typename T>
-detail::enable_if_t<detail::is_genfloat<T>::value, T> max(T x, T y) __NOEXC {
+detail::enable_if_t<detail::is_genfloat<T>::value, T>(max)(T x, T y) __NOEXC {
   return __sycl_std::__invoke_fmax_common<T>(x, y);
 }
 
@@ -538,14 +538,14 @@ detail::enable_if_t<detail::is_genfloat<T>::value, T> max(T x, T y) __NOEXC {
 // genfloatd max (genfloatd x, double y)
 // genfloath max (genfloath x, half y)
 template <typename T>
-detail::enable_if_t<detail::is_vgenfloat<T>::value, T>
-max(T x, typename T::element_type y) __NOEXC {
+detail::enable_if_t<detail::is_vgenfloat<T>::value, T>(max)(
+    T x, typename T::element_type y) __NOEXC {
   return __sycl_std::__invoke_fmax_common<T>(x, T(y));
 }
 
 // genfloat min (genfloat x, genfloat y)
 template <typename T>
-detail::enable_if_t<detail::is_genfloat<T>::value, T> min(T x, T y) __NOEXC {
+detail::enable_if_t<detail::is_genfloat<T>::value, T>(min)(T x, T y) __NOEXC {
   return __sycl_std::__invoke_fmin_common<T>(x, y);
 }
 
@@ -553,8 +553,8 @@ detail::enable_if_t<detail::is_genfloat<T>::value, T> min(T x, T y) __NOEXC {
 // genfloatd min (genfloatd x, double y)
 // genfloath min (genfloath x, half y)
 template <typename T>
-detail::enable_if_t<detail::is_vgenfloat<T>::value, T>
-min(T x, typename T::element_type y) __NOEXC {
+detail::enable_if_t<detail::is_vgenfloat<T>::value, T>(min)(
+    T x, typename T::element_type y) __NOEXC {
   return __sycl_std::__invoke_fmin_common<T>(x, T(y));
 }
 
@@ -766,53 +766,57 @@ detail::enable_if_t<detail::is_ugeninteger<T>::value, T> mad_sat(T a, T b,
 
 // igeninteger max (igeninteger x, igeninteger y)
 template <typename T>
-detail::enable_if_t<detail::is_igeninteger<T>::value, T> max(T x, T y) __NOEXC {
+detail::enable_if_t<detail::is_igeninteger<T>::value, T>(max)(T x,
+                                                              T y) __NOEXC {
   return __sycl_std::__invoke_s_max<T>(x, y);
 }
 
 // ugeninteger max (ugeninteger x, ugeninteger y)
 template <typename T>
-detail::enable_if_t<detail::is_ugeninteger<T>::value, T> max(T x, T y) __NOEXC {
+detail::enable_if_t<detail::is_ugeninteger<T>::value, T>(max)(T x,
+                                                              T y) __NOEXC {
   return __sycl_std::__invoke_u_max<T>(x, y);
 }
 
 // igeninteger max (vigeninteger x, sigeninteger y)
 template <typename T>
-detail::enable_if_t<detail::is_vigeninteger<T>::value, T>
-max(T x, typename T::element_type y) __NOEXC {
+detail::enable_if_t<detail::is_vigeninteger<T>::value, T>(max)(
+    T x, typename T::element_type y) __NOEXC {
   return __sycl_std::__invoke_s_max<T>(x, T(y));
 }
 
 // vugeninteger max (vugeninteger x, sugeninteger y)
 template <typename T>
-detail::enable_if_t<detail::is_vugeninteger<T>::value, T>
-max(T x, typename T::element_type y) __NOEXC {
+detail::enable_if_t<detail::is_vugeninteger<T>::value, T>(max)(
+    T x, typename T::element_type y) __NOEXC {
   return __sycl_std::__invoke_u_max<T>(x, T(y));
 }
 
 // igeninteger min (igeninteger x, igeninteger y)
 template <typename T>
-detail::enable_if_t<detail::is_igeninteger<T>::value, T> min(T x, T y) __NOEXC {
+detail::enable_if_t<detail::is_igeninteger<T>::value, T>(min)(T x,
+                                                              T y) __NOEXC {
   return __sycl_std::__invoke_s_min<T>(x, y);
 }
 
 // ugeninteger min (ugeninteger x, ugeninteger y)
 template <typename T>
-detail::enable_if_t<detail::is_ugeninteger<T>::value, T> min(T x, T y) __NOEXC {
+detail::enable_if_t<detail::is_ugeninteger<T>::value, T>(min)(T x,
+                                                              T y) __NOEXC {
   return __sycl_std::__invoke_u_min<T>(x, y);
 }
 
 // vigeninteger min (vigeninteger x, sigeninteger y)
 template <typename T>
-detail::enable_if_t<detail::is_vigeninteger<T>::value, T>
-min(T x, typename T::element_type y) __NOEXC {
+detail::enable_if_t<detail::is_vigeninteger<T>::value, T>(min)(
+    T x, typename T::element_type y) __NOEXC {
   return __sycl_std::__invoke_s_min<T>(x, T(y));
 }
 
 // vugeninteger min (vugeninteger x, sugeninteger y)
 template <typename T>
-detail::enable_if_t<detail::is_vugeninteger<T>::value, T>
-min(T x, typename T::element_type y) __NOEXC {
+detail::enable_if_t<detail::is_vugeninteger<T>::value, T>(min)(
+    T x, typename T::element_type y) __NOEXC {
   return __sycl_std::__invoke_u_min<T>(x, T(y));
 }
 
@@ -959,7 +963,7 @@ detail::enable_if_t<detail::is_gencrossfloat<T>::value, T> cross(T p0,
 // half dot (half p0, half p1)
 template <typename T>
 detail::enable_if_t<detail::is_sgenfloat<T>::value, T> dot(T p0, T p1) __NOEXC {
-  return __sycl_std::__invoke_FMul<T>(p0, p1);
+  return p0 * p1;
 }
 
 // float dot (vgengeofloat p0, vgengeofloat p1)
@@ -1541,5 +1545,19 @@ detail::enable_if_t<detail::is_genfloatf<T>::value, T> tan(T x) __NOEXC {
 } // namespace half_precision
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
+
+#ifdef __SYCL_DEVICE_ONLY__
+#ifdef __GLIBC__
+extern "C" {
+extern SYCL_EXTERNAL void __assert_fail(const char *expr, const char *file,
+                                        unsigned int line, const char *func);
+}
+#elif defined(_WIN32)
+extern "C" {
+extern SYCL_EXTERNAL void _wassert(const wchar_t *wexpr, const wchar_t *wfile,
+                                   unsigned line);
+}
+#endif
+#endif // __SYCL_DEVICE_ONLY__
 
 #undef __NOEXC

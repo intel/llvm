@@ -51,6 +51,13 @@ enum OpenMPScheduleClauseModifier {
   OMPC_SCHEDULE_MODIFIER_last
 };
 
+/// OpenMP modifiers for 'device' clause.
+enum OpenMPDeviceClauseModifier {
+#define OPENMP_DEVICE_MODIFIER(Name) OMPC_DEVICE_##Name,
+#include "clang/Basic/OpenMPKinds.def"
+  OMPC_DEVICE_unknown,
+};
+
 /// OpenMP attributes for 'depend' clause.
 enum OpenMPDependClauseKind {
 #define OPENMP_DEPEND_KIND(Name) \
@@ -159,6 +166,13 @@ struct OpenMPScheduleTy final {
   OpenMPScheduleClauseKind Schedule = OMPC_SCHEDULE_unknown;
   OpenMPScheduleClauseModifier M1 = OMPC_SCHEDULE_MODIFIER_unknown;
   OpenMPScheduleClauseModifier M2 = OMPC_SCHEDULE_MODIFIER_unknown;
+};
+
+/// OpenMP modifiers for 'reduction' clause.
+enum OpenMPReductionClauseModifier {
+#define OPENMP_REDUCTION_MODIFIER(Name) OMPC_REDUCTION_##Name,
+#include "clang/Basic/OpenMPKinds.def"
+  OMPC_REDUCTION_unknown,
 };
 
 OpenMPClauseKind getOpenMPClauseKind(llvm::StringRef Str);

@@ -334,7 +334,7 @@ void MIRPrinter::convert(ModuleSlotTracker &MST,
   YamlMFI.HasPatchPoint = MFI.hasPatchPoint();
   YamlMFI.StackSize = MFI.getStackSize();
   YamlMFI.OffsetAdjustment = MFI.getOffsetAdjustment();
-  YamlMFI.MaxAlignment = MFI.getMaxAlignment();
+  YamlMFI.MaxAlignment = MFI.getMaxAlign().value();
   YamlMFI.AdjustsStack = MFI.adjustsStack();
   YamlMFI.HasCalls = MFI.hasCalls();
   YamlMFI.MaxCallFrameSize = MFI.isMaxCallFrameSizeComputed()
@@ -630,9 +630,35 @@ void MIPrinter::print(const MachineBasicBlock &MBB) {
     OS << "landing-pad";
     HasAttributes = true;
   }
+  if (MBB.isEHFuncletEntry()) {
+    OS << (HasAttributes ? ", " : " (");
+    OS << "ehfunclet-entry";
+    HasAttributes = true;
+  }
   if (MBB.getAlignment() != Align(1)) {
     OS << (HasAttributes ? ", " : " (");
     OS << "align " << MBB.getAlignment().value();
+    HasAttributes = true;
+  }
+  if (MBB.getSectionType() != MBBS_None) {
+    OS << (HasAttributes ? ", " : " (");
+    OS << "bbsections ";
+    switch (MBB.getSectionType()) {
+    case MBBS_Entry:
+      OS << "Entry";
+      break;
+    case MBBS_Exception:
+      OS << "Exception";
+      break;
+    case MBBS_Cold:
+      OS << "Cold";
+      break;
+    case MBBS_Unique:
+      OS << "Unique";
+      break;
+    default:
+      llvm_unreachable("No such section type");
+    }
     HasAttributes = true;
   }
   if (HasAttributes)

@@ -6,9 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/force_device.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/stl.hpp>
+#include <detail/force_device.hpp>
 
 #include <algorithm>
 #include <cstdlib>
@@ -39,7 +39,8 @@ info::device_type get_forced_type() {
       return info::device_type::host;
     }
     throw cl::sycl::runtime_error("SYCL_DEVICE_TYPE is not recognized.  Must "
-                                  "be GPU, CPU, ACC or HOST.");
+                                  "be GPU, CPU, ACC or HOST.",
+                                  PI_INVALID_VALUE);
   }
   return info::device_type::all;
 }

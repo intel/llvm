@@ -7,8 +7,12 @@
 //===----------------------------------------------------------------------===//
 
 // TODO: Stop manually mangling this name. Need C++ namespaces to get the exact mangling.
-#define __CLC_DECLARE_ATOMIC(ADDRSPACE, ADDRSPACE_MANGLED, TYPE, TYPE_MANGLED, NAME, NAME_LEN) \
-	_CLC_DECL TYPE _Z##NAME_LEN##NAME##PU3##ADDRSPACE_MANGLED##TYPE_MANGLED##N5__spv5ScopeENS1_19MemorySemanticsMaskE##TYPE_MANGLED (volatile ADDRSPACE TYPE *, enum Scope, enum MemorySemanticsMask, TYPE);
+#define __CLC_DECLARE_ATOMIC(ADDRSPACE, ADDRSPACE_MANGLED, TYPE, TYPE_MANGLED,                                                    \
+                             NAME, NAME_LEN)                                                                                      \
+  _CLC_DECL TYPE                                                                                                                  \
+      _Z##NAME_LEN##NAME##PU3##ADDRSPACE_MANGLED##TYPE_MANGLED##N5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagE##TYPE_MANGLED( \
+          volatile ADDRSPACE TYPE *, enum Scope, enum MemorySemanticsMask,                                                        \
+          TYPE);
 
 #define __CLC_DECLARE_ATOMIC_ADDRSPACE(TYPE, TYPE_MANGLED, NAME, NAME_LEN) \
 	__CLC_DECLARE_ATOMIC(global, AS1, TYPE, TYPE_MANGLED, NAME, NAME_LEN) \
@@ -28,6 +32,8 @@ __CLC_DECLARE_ATOMIC_ADDRSPACE(ulong, m, __SPIRV_FUNCTION_U, __SPIRV_FUNCTION_U_
 #ifdef cl_khr_int64_base_atomics
 __CLC_DECLARE_ATOMIC_ADDRSPACE(long, l, __SPIRV_FUNCTION_S, __SPIRV_FUNCTION_S_LEN)
 __CLC_DECLARE_ATOMIC_ADDRSPACE(ulong, m, __SPIRV_FUNCTION_U, __SPIRV_FUNCTION_U_LEN)
+__CLC_DECLARE_ATOMIC_ADDRSPACE(long, x, __SPIRV_FUNCTION_S, __SPIRV_FUNCTION_S_LEN)
+__CLC_DECLARE_ATOMIC_ADDRSPACE(ulong, y, __SPIRV_FUNCTION_U, __SPIRV_FUNCTION_U_LEN)
 #endif
 #endif
 

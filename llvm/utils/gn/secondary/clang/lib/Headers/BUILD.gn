@@ -15,6 +15,13 @@ clang_tablegen("arm_fp16") {
   output_name = "arm_fp16.h"
 }
 
+# Generate arm_sve.h
+clang_tablegen("arm_sve") {
+  args = [ "-gen-arm-sve-header" ]
+  td_file = "//clang/include/clang/Basic/arm_sve.td"
+  output_name = "arm_sve.h"
+}
+
 # Generate arm_mve.h
 clang_tablegen("arm_mve") {
   args = [ "-gen-arm-mve-header" ]
@@ -22,15 +29,26 @@ clang_tablegen("arm_mve") {
   output_name = "arm_mve.h"
 }
 
+# Generate arm_cde.h
+clang_tablegen("arm_cde") {
+  args = [ "-gen-arm-cde-header" ]
+  td_file = "//clang/include/clang/Basic/arm_cde.td"
+  output_name = "arm_cde.h"
+}
+
 copy("arm_headers") {
   visibility = [ ":Headers" ]
   deps = [
+    ":arm_cde",
     ":arm_fp16",
     ":arm_mve",
     ":arm_neon",
+    ":arm_sve",
   ]
-  sources = get_target_outputs(":arm_neon") + get_target_outputs(":arm_fp16") +
-            get_target_outputs(":arm_mve")
+  sources = []
+  foreach (dep, deps) {
+    sources += get_target_outputs(dep)
+  }
   outputs = [ "$clang_resource_dir/include/{{source_file_part}}" ]
 }
 

@@ -308,5 +308,214 @@ entry:
   ret void
 }
 
+declare void @use0() willreturn nounwind
+declare void @use1(i8*) willreturn nounwind
+declare void @use2(i8*, i8*) willreturn nounwind
+declare void @use3(i8*, i8*, i8*) willreturn nounwind
+; simple path test
+; if(..)
+;   fun2(dereferenceable(8) %a, dereferenceable(8) %b)
+; else
+;   fun2(dereferenceable(4) %a, %b)
+; We can say that %a is dereferenceable(4) but %b is not.
+define void @simple-path(i8* %a, i8 * %b, i8 %c) {
+; ATTRIBUTOR: define void @simple-path(i8* nonnull dereferenceable(4) %a, i8* %b, i8 %c)
+  %cmp = icmp eq i8 %c, 0
+  br i1 %cmp, label %if.then, label %if.else
+if.then:
+  tail call void @use2(i8* dereferenceable(8) %a, i8* dereferenceable(8) %b)
+  ret void
+if.else:
+  tail call void @use2(i8* dereferenceable(4) %a, i8* %b)
+  ret void
+}
+; More complex test
+; {
+; fun1(dereferenceable(4) %a)
+; if(..)
+;    ... (willreturn & nounwind)
+;    fun1(dereferenceable(12) %a)
+; else
+;    ... (willreturn & nounwind)
+;    fun1(dereferenceable(16) %a)
+; fun1(dereferenceable(8) %a)
+; }
+; %a is dereferenceable(12)
+
+define void @complex-path(i8* %a, i8* %b, i8 %c) {
+; ATTRIBUTOR: define void @complex-path(i8* nonnull dereferenceable(12) %a, i8* nocapture nofree readnone %b, i8 %c)
+  %cmp = icmp eq i8 %c, 0
+  tail call void @use1(i8* dereferenceable(4) %a)
+  br i1 %cmp, label %cont.then, label %cont.else
+cont.then:
+  tail call void @use1(i8* dereferenceable(12) %a)
+  br label %cont2
+cont.else:
+  tail call void @use1(i8* dereferenceable(16) %a)
+  br label %cont2
+cont2:
+  tail call void @use1(i8* dereferenceable(8) %a)
+  ret void
+}
+
+;  void rec-branch-1(int a, int b, int c, int *ptr) {
+;    if (a) {
+;      if (b)
+;        *ptr = 1;
+;      else
+;        *ptr = 2;
+;    } else {
+;      if (c)
+;        *ptr = 3;
+;      else
+;        *ptr = 4;
+;    }
+;  }
+;
+; FIXME: %ptr should be dereferenceable(4)
+; ATTRIBUTOR: define dso_local void @rec-branch-1(i32 %a, i32 %b, i32 %c, i32* nocapture nofree writeonly %ptr)
+define dso_local void @rec-branch-1(i32 %a, i32 %b, i32 %c, i32* %ptr) {
+entry:
+  %tobool = icmp eq i32 %a, 0
+  br i1 %tobool, label %if.else3, label %if.then
+
+if.then:                                          ; preds = %entry
+  %tobool1 = icmp eq i32 %b, 0
+  br i1 %tobool1, label %if.else, label %if.then2
+
+if.then2:                                         ; preds = %if.then
+  store i32 1, i32* %ptr, align 4
+  br label %if.end8
+
+if.else:                                          ; preds = %if.then
+  store i32 2, i32* %ptr, align 4
+  br label %if.end8
+
+if.else3:                                         ; preds = %entry
+  %tobool4 = icmp eq i32 %c, 0
+  br i1 %tobool4, label %if.else6, label %if.then5
+
+if.then5:                                         ; preds = %if.else3
+  store i32 3, i32* %ptr, align 4
+  br label %if.end8
+
+if.else6:                                         ; preds = %if.else3
+  store i32 4, i32* %ptr, align 4
+  br label %if.end8
+
+if.end8:                                          ; preds = %if.then5, %if.else6, %if.then2, %if.else
+  ret void
+}
+
+;  void rec-branch-2(int a, int b, int c, int *ptr) {
+;    if (a) {
+;      if (b)
+;        *ptr = 1;
+;      else
+;        *ptr = 2;
+;    } else {
+;      if (c)
+;        *ptr = 3;
+;      else
+;        rec-branch-2(1, 1, 1, ptr);
+;    }
+;  }
+; FIXME: %ptr should be dereferenceable(4)
+; ATTRIBUTOR: define dso_local void @rec-branch-2(i32 %a, i32 %b, i32 %c, i32* nocapture nofree writeonly %ptr)
+define dso_local void @rec-branch-2(i32 %a, i32 %b, i32 %c, i32* %ptr) {
+entry:
+  %tobool = icmp eq i32 %a, 0
+  br i1 %tobool, label %if.else3, label %if.then
+
+if.then:                                          ; preds = %entry
+  %tobool1 = icmp eq i32 %b, 0
+  br i1 %tobool1, label %if.else, label %if.then2
+
+if.then2:                                         ; preds = %if.then
+  store i32 1, i32* %ptr, align 4
+  br label %if.end8
+
+if.else:                                          ; preds = %if.then
+  store i32 2, i32* %ptr, align 4
+  br label %if.end8
+
+if.else3:                                         ; preds = %entry
+  %tobool4 = icmp eq i32 %c, 0
+  br i1 %tobool4, label %if.else6, label %if.then5
+
+if.then5:                                         ; preds = %if.else3
+  store i32 3, i32* %ptr, align 4
+  br label %if.end8
+
+if.else6:                                         ; preds = %if.else3
+  tail call void @rec-branch-2(i32 1, i32 1, i32 1, i32* %ptr)
+  br label %if.end8
+
+if.end8:                                          ; preds = %if.then5, %if.else6, %if.then2, %if.else
+  ret void
+}
+
+declare void @unknown()
+define void @nonnull_assume_pos(i8* %arg1, i8* %arg2, i8* %arg3, i8* %arg4) {
+; ATTRIBUTOR-LABEL: define {{[^@]+}}@nonnull_assume_pos
+; ATTRIBUTOR-SAME: (i8* nocapture nofree nonnull readnone dereferenceable(101) [[ARG1:%.*]], i8* nocapture nofree readnone dereferenceable_or_null(31) [[ARG2:%.*]], i8* nocapture nofree nonnull readnone [[ARG3:%.*]], i8* nocapture nofree readnone dereferenceable_or_null(42) [[ARG4:%.*]])
+; ATTRIBUTOR-NEXT:    call void @llvm.assume(i1 true) #6 [ "nonnull"(i8* undef), "dereferenceable"(i8* undef, i64 1), "dereferenceable"(i8* undef, i64 2), "dereferenceable"(i8* undef, i64 101), "dereferenceable_or_null"(i8* undef, i64 31), "dereferenceable_or_null"(i8* undef, i64 42) ]
+; ATTRIBUTOR-NEXT:    call void @unknown()
+; ATTRIBUTOR-NEXT:    ret void
+;
+  call void @llvm.assume(i1 true) [ "nonnull"(i8* %arg3), "dereferenceable"(i8* %arg1, i64 1), "dereferenceable"(i8* %arg1, i64 2), "dereferenceable"(i8* %arg1, i64 101), "dereferenceable_or_null"(i8* %arg2, i64 31), "dereferenceable_or_null"(i8* %arg4, i64 42)]
+  call void @unknown()
+  ret void
+}
+define void @nonnull_assume_neg(i8* %arg1, i8* %arg2, i8* %arg3) {
+; ATTRIBUTOR-LABEL: define {{[^@]+}}@nonnull_assume_neg
+; ATTRIBUTOR-SAME: (i8* nocapture nofree readnone [[ARG1:%.*]], i8* nocapture nofree readnone [[ARG2:%.*]], i8* nocapture nofree readnone [[ARG3:%.*]])
+; ATTRIBUTOR-NEXT:    call void @unknown()
+; ATTRIBUTOR-NEXT:    call void @llvm.assume(i1 true) [ "dereferenceable"(i8* undef, i64 101), "dereferenceable"(i8* undef, i64 -2), "dereferenceable_or_null"(i8* undef, i64 31) ]
+; ATTRIBUTOR-NEXT:    ret void
+;
+  call void @unknown()
+  call void @llvm.assume(i1 true) ["dereferenceable"(i8* %arg1, i64 101), "dereferenceable"(i8* %arg2, i64 -2), "dereferenceable_or_null"(i8* %arg3, i64 31)]
+  ret void
+}
+define void @nonnull_assume_call(i8* %arg1, i8* %arg2, i8* %arg3, i8* %arg4) {
+; ATTRIBUTOR-LABEL: define {{[^@]+}}@nonnull_assume_call
+; ATTRIBUTOR-SAME: (i8* [[ARG1:%.*]], i8* [[ARG2:%.*]], i8* [[ARG3:%.*]], i8* [[ARG4:%.*]])
+; ATTRIBUTOR-NEXT:    call void @unknown()
+; ATTRIBUTOR-NEXT:    [[P:%.*]] = call nonnull dereferenceable(101) i32* @unkown_ptr()
+; ATTRIBUTOR-NEXT:    call void @unknown_use32(i32* nonnull dereferenceable(101) [[P]])
+; ATTRIBUTOR-NEXT:    call void @unknown_use8(i8* nonnull dereferenceable(42) [[ARG4]])
+; ATTRIBUTOR-NEXT:    call void @unknown_use8(i8* nonnull [[ARG3]])
+; ATTRIBUTOR-NEXT:    call void @unknown_use8(i8* nonnull dereferenceable(31) [[ARG2]])
+; ATTRIBUTOR-NEXT:    call void @unknown_use8(i8* nonnull dereferenceable(2) [[ARG1]])
+; ATTRIBUTOR-NEXT:    call void @llvm.assume(i1 true) [ "nonnull"(i8* [[ARG3]]), "dereferenceable"(i8* [[ARG1]], i64 1), "dereferenceable"(i8* [[ARG1]], i64 2), "dereferenceable"(i32* [[P]], i64 101), "dereferenceable_or_null"(i8* [[ARG2]], i64 31), "dereferenceable_or_null"(i8* [[ARG4]], i64 42) ]
+; ATTRIBUTOR-NEXT:    call void @unknown_use8(i8* nonnull dereferenceable(2) [[ARG1]])
+; ATTRIBUTOR-NEXT:    call void @unknown_use8(i8* nonnull dereferenceable(31) [[ARG2]])
+; ATTRIBUTOR-NEXT:    call void @unknown_use8(i8* nonnull [[ARG3]])
+; ATTRIBUTOR-NEXT:    call void @unknown_use8(i8* nonnull dereferenceable(42) [[ARG4]])
+; ATTRIBUTOR-NEXT:    call void @unknown_use32(i32* nonnull dereferenceable(101) [[P]])
+; ATTRIBUTOR-NEXT:    call void @unknown()
+; ATTRIBUTOR-NEXT:    ret void
+;
+  call void @unknown()
+  %p = call i32* @unkown_ptr()
+  call void @unknown_use32(i32* %p)
+  call void @unknown_use8(i8* %arg4)
+  call void @unknown_use8(i8* %arg3)
+  call void @unknown_use8(i8* %arg2)
+  call void @unknown_use8(i8* %arg1)
+  call void @llvm.assume(i1 true) [ "nonnull"(i8* %arg3), "dereferenceable"(i8* %arg1, i64 1), "dereferenceable"(i8* %arg1, i64 2), "dereferenceable"(i32* %p, i64 101), "dereferenceable_or_null"(i8* %arg2, i64 31), "dereferenceable_or_null"(i8* %arg4, i64 42)]
+  call void @unknown_use8(i8* %arg1)
+  call void @unknown_use8(i8* %arg2)
+  call void @unknown_use8(i8* %arg3)
+  call void @unknown_use8(i8* %arg4)
+  call void @unknown_use32(i32* %p)
+  call void @unknown()
+  ret void
+}
+declare void @unknown_use8(i8*) willreturn nounwind
+declare void @unknown_use32(i32*) willreturn nounwind
+declare void @llvm.assume(i1)
+
 !0 = !{i64 10, i64 100}
 

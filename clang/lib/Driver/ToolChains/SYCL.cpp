@@ -208,6 +208,7 @@ void SYCL::fpga::BackendCompiler::ConstructJob(Compilation &C,
          "Unsupported target");
 
   InputInfoList ForeachInputs;
+  InputInfoList FPGADepFiles;
   ArgStringList CmdArgs{"-o",  Output.getFilename()};
   for (const auto &II : Inputs) {
     std::string Filename(II.getFilename());
@@ -217,6 +218,8 @@ void SYCL::fpga::BackendCompiler::ConstructJob(Compilation &C,
       // Add any FPGA library lists.  These come in as special tempfile lists.
       CmdArgs.push_back(Args.MakeArgString(Twine("-library-list=") +
           Filename));
+    else if (II.getType() == types::TY_FPGA_Dependencies)
+      FPGADepFiles.push_back(II);
     else
       CmdArgs.push_back(C.getArgs().MakeArgString(Filename));
   }
@@ -229,22 +232,37 @@ void SYCL::fpga::BackendCompiler::ConstructJob(Compilation &C,
       ForeachExt = "aocr";
     }
 
-
-  InputInfoList FPGADepFiles;
+  StringRef createdReportName;
   for (auto *A : Args) {
-    // Any input file is assumed to have a dependency file associated
-    if (A->getOption().getKind() == Option::InputClass) {
-      SmallString<128> FN(A->getSpelling());
-      StringRef Ext(llvm::sys::path::extension(FN));
-      if (!Ext.empty()) {
-        types::ID Ty = getToolChain().LookupTypeForExtension(Ext.drop_front());
-        if (Ty == types::TY_INVALID)
-          continue;
-        if (types::isSrcFile(Ty) || Ty == types::TY_Object) {
-          llvm::sys::path::replace_extension(FN, "d");
-          FPGADepFiles.push_back(InputInfo(types::TY_Dependencies,
-              Args.MakeArgString(FN), Args.MakeArgString(FN)));
-        }
+    // Any input file is assumed to have a dependency file associated and
+    // the report folder can also be named based on the first input.
+    if (A->getOption().getKind() != Option::InputClass)
+      continue;
+    SmallString<128> ArgName(A->getSpelling());
+    StringRef Ext(llvm::sys::path::extension(ArgName));
+    if (Ext.empty())
+      continue;
+    types::ID Ty = getToolChain().LookupTypeForExtension(Ext.drop_front());
+    if (Ty == types::TY_INVALID)
+      continue;
+    if (types::isSrcFile(Ty) || Ty == types::TY_Object) {
+      // Dependency files and the project report are created in CWD, so strip
+      // off any directory information if provided with the input file.
+      // TODO - Use temporary files for dependency file creation and
+      // usage with -fintelfpga.
+      ArgName = llvm::sys::path::filename(ArgName);
+      if (types::isSrcFile(Ty)) {
+        SmallString<128> DepName(ArgName);
+        llvm::sys::path::replace_extension(DepName, "d");
+        FPGADepFiles.push_back(InputInfo(types::TY_Dependencies,
+                                         Args.MakeArgString(DepName),
+                                         Args.MakeArgString(DepName)));
+      }
+      if (createdReportName.empty()) {
+        // Project report should be saved into CWD, so strip off any
+        // directory information if provided with the input file.
+        llvm::sys::path::replace_extension(ArgName, "prj");
+        createdReportName = Args.MakeArgString(ArgName);
       }
     }
   }
@@ -269,21 +287,10 @@ void SYCL::fpga::BackendCompiler::ConstructJob(Compilation &C,
     const char * FolderName = Args.MakeArgString(FN);
     ReportOptArg += FolderName;
   } else {
-    // Output directory is based off of the first object name
-    for (Arg * Cur : Args) {
-      SmallString<128> AN = Cur->getSpelling();
-      StringRef Ext(llvm::sys::path::extension(AN));
-      if (!Ext.empty()) {
-        types::ID Ty = getToolChain().LookupTypeForExtension(Ext.drop_front());
-        if (Ty == types::TY_INVALID)
-          continue;
-        if (types::isSrcFile(Ty) || Ty == types::TY_Object) {
-          llvm::sys::path::replace_extension(AN, "prj");
-          ReportOptArg += Args.MakeArgString(AN);
-          break;
-        }
-      }
-    }
+    // Output directory is based off of the first object name as captured
+    // above.
+    if (!createdReportName.empty())
+      ReportOptArg += createdReportName;
   }
   if (!ReportOptArg.empty())
     CmdArgs.push_back(C.getArgs().MakeArgString(
@@ -364,6 +371,7 @@ void SYCL::x86_64::BackendCompiler::ConstructJob(Compilation &C,
   // Add -Xsycl-target* options.
   const toolchains::SYCLToolChain &TC =
       static_cast<const toolchains::SYCLToolChain &>(getToolChain());
+
   TC.TranslateBackendTargetArgs(Args, CmdArgs);
   TC.TranslateLinkerTargetArgs(Args, CmdArgs);
   SmallString<128> ExecPath(getToolChain().GetProgramPath("opencl-aot"));
@@ -522,6 +530,17 @@ void SYCLToolChain::addClangWarningOptions(ArgStringList &CC1Args) const {
 ToolChain::CXXStdlibType
 SYCLToolChain::GetCXXStdlibType(const ArgList &Args) const {
   return HostTC.GetCXXStdlibType(Args);
+}
+
+void SYCLToolChain::AddSYCLIncludeArgs(const clang::driver::Driver &Driver,
+                                       const ArgList &DriverArgs,
+                                       ArgStringList &CC1Args) {
+  SmallString<128> P(Driver.getInstalledDir());
+  llvm::sys::path::append(P, "..");
+  llvm::sys::path::append(P, "include");
+  llvm::sys::path::append(P, "sycl");
+  CC1Args.push_back("-internal-isystem");
+  CC1Args.push_back(DriverArgs.MakeArgString(P));
 }
 
 void SYCLToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,

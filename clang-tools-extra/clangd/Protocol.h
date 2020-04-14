@@ -124,6 +124,22 @@ struct TextDocumentIdentifier {
 llvm::json::Value toJSON(const TextDocumentIdentifier &);
 bool fromJSON(const llvm::json::Value &, TextDocumentIdentifier &);
 
+struct VersionedTextDocumentIdentifier : public TextDocumentIdentifier {
+  /// The version number of this document. If a versioned text document
+  /// identifier is sent from the server to the client and the file is not open
+  /// in the editor (the server has not received an open notification before)
+  /// the server can send `null` to indicate that the version is known and the
+  /// content on disk is the master (as speced with document content ownership).
+  ///
+  /// The version number of a document will increase after each change,
+  /// including undo/redo. The number doesn't need to be consecutive.
+  ///
+  /// clangd extension: versions are optional, and synthesized if missing.
+  llvm::Optional<std::int64_t> version;
+};
+llvm::json::Value toJSON(const VersionedTextDocumentIdentifier &);
+bool fromJSON(const llvm::json::Value &, VersionedTextDocumentIdentifier &);
+
 struct Position {
   /// Line position in a document (zero-based).
   int line = 0;
@@ -223,7 +239,10 @@ struct TextDocumentItem {
   std::string languageId;
 
   /// The version number of this document (it will strictly increase after each
-  int version = 0;
+  /// change, including undo/redo.
+  ///
+  /// clangd extension: versions are optional, and synthesized if missing.
+  llvm::Optional<int64_t> version;
 
   /// The content of the opened text document.
   std::string text;
@@ -239,6 +258,7 @@ bool fromJSON(const llvm::json::Value &E, TraceLevel &Out);
 
 struct NoParams {};
 inline bool fromJSON(const llvm::json::Value &, NoParams &) { return true; }
+using InitializedParams = NoParams;
 using ShutdownParams = NoParams;
 using ExitParams = NoParams;
 
@@ -413,9 +433,11 @@ struct ClientCapabilities {
   /// textDocument.codeAction.codeActionLiteralSupport.
   bool CodeActionStructure = false;
 
-  /// Client supports semantic highlighting.
+  /// Client supports Theia semantic highlighting extension.
+  /// https://github.com/microsoft/vscode-languageserver-node/pull/367
   /// textDocument.semanticHighlightingCapabilities.semanticHighlighting
-  bool SemanticHighlighting = false;
+  /// FIXME: drop this support once clients support LSP 3.16 Semantic Tokens.
+  bool TheiaSemanticHighlighting = false;
 
   /// Supported encodings for LSP character offsets. (clangd extension).
   llvm::Optional<std::vector<OffsetEncoding>> offsetEncoding;
@@ -642,7 +664,7 @@ struct DidChangeTextDocumentParams {
   /// The document that did change. The version number points
   /// to the version after all provided content changes have
   /// been applied.
-  TextDocumentIdentifier textDocument;
+  VersionedTextDocumentIdentifier textDocument;
 
   /// The actual content changes.
   std::vector<TextDocumentContentChangeEvent> contentChanges;
@@ -790,6 +812,16 @@ struct LSPDiagnosticCompare {
 };
 bool fromJSON(const llvm::json::Value &, Diagnostic &);
 llvm::raw_ostream &operator<<(llvm::raw_ostream &, const Diagnostic &);
+
+struct PublishDiagnosticsParams {
+  /// The URI for which diagnostic information is reported.
+  URIForFile uri;
+  /// An array of diagnostic information items.
+  std::vector<Diagnostic> diagnostics;
+  /// The version number of the document the diagnostics are published for.
+  llvm::Optional<int64_t> version;
+};
+llvm::json::Value toJSON(const PublishDiagnosticsParams &);
 
 struct CodeActionContext {
   /// An array of diagnostics.
@@ -1312,7 +1344,7 @@ llvm::json::Value toJSON(const FileStatus &FStatus);
 
 /// Represents a semantic highlighting information that has to be applied on a
 /// specific line of the text document.
-struct SemanticHighlightingInformation {
+struct TheiaSemanticHighlightingInformation {
   /// The line these highlightings belong to.
   int Line = 0;
   /// The base64 encoded string of highlighting tokens.
@@ -1323,18 +1355,19 @@ struct SemanticHighlightingInformation {
   /// clients should combine line style and token style if possible.
   bool IsInactive = false;
 };
-bool operator==(const SemanticHighlightingInformation &Lhs,
-                const SemanticHighlightingInformation &Rhs);
-llvm::json::Value toJSON(const SemanticHighlightingInformation &Highlighting);
+bool operator==(const TheiaSemanticHighlightingInformation &Lhs,
+                const TheiaSemanticHighlightingInformation &Rhs);
+llvm::json::Value
+toJSON(const TheiaSemanticHighlightingInformation &Highlighting);
 
 /// Parameters for the semantic highlighting (server-side) push notification.
-struct SemanticHighlightingParams {
+struct TheiaSemanticHighlightingParams {
   /// The textdocument these highlightings belong to.
-  TextDocumentIdentifier TextDocument;
+  VersionedTextDocumentIdentifier TextDocument;
   /// The lines of highlightings that should be sent.
-  std::vector<SemanticHighlightingInformation> Lines;
+  std::vector<TheiaSemanticHighlightingInformation> Lines;
 };
-llvm::json::Value toJSON(const SemanticHighlightingParams &Highlighting);
+llvm::json::Value toJSON(const TheiaSemanticHighlightingParams &Highlighting);
 
 struct SelectionRangeParams {
   /// The text document.

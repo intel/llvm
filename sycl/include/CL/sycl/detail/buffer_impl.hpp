@@ -12,6 +12,7 @@
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/helpers.hpp>
 #include <CL/sycl/detail/sycl_mem_obj_t.hpp>
 #include <CL/sycl/handler.hpp>
@@ -30,14 +31,15 @@ namespace sycl {
 template <typename DataT, int Dimensions, access::mode AccessMode,
           access::target AccessTarget, access::placeholder IsPlaceholder>
 class accessor;
-template <typename T, int Dimensions, typename AllocatorT> class buffer;
+template <typename T, int Dimensions, typename AllocatorT, typename Enable>
+class buffer;
 class handler;
 
 using buffer_allocator = detail::sycl_memory_object_allocator;
 
 namespace detail {
 
-class buffer_impl final : public SYCLMemObjT {
+class __SYCL_EXPORT buffer_impl final : public SYCLMemObjT {
   using BaseT = SYCLMemObjT;
   using typename BaseT::MemObjType;
 
@@ -80,12 +82,6 @@ public:
               unique_ptr_class<SYCLMemObjAllocator> Allocator)
       : BaseT(SizeInBytes, Props, std::move(Allocator)) {
     BaseT::handleHostData(First, Last, RequiredAlign);
-    // TODO: There is contradiction in the spec, in one place it says
-    // the data is not copied back at all if the buffer is construted
-    // using this c'tor, another section says that the data will be
-    // copied back if iterators passed are not const ( 4.7.2.3 Buffer
-    // Synchronization Rules and this constructor description)
-    BaseT::set_final_data(First);
   }
 
   template <typename T>
@@ -109,11 +105,16 @@ public:
               std::move(Allocator)) {}
 
   void *allocateMem(ContextImplPtr Context, bool InitFromUserData,
-                   void *HostPtr, RT::PiEvent &OutEventToWait) override;
+                    void *HostPtr, RT::PiEvent &OutEventToWait) override;
 
   MemObjType getType() const override { return MemObjType::BUFFER; }
 
-  ~buffer_impl() { BaseT::updateHostMemory(); }
+  ~buffer_impl() {
+    try {
+      BaseT::updateHostMemory();
+    } catch (...) {
+    }
+  }
 };
 
 } // namespace detail

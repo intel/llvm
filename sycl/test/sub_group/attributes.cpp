@@ -1,4 +1,7 @@
-// RUN: %clangxx -fsycl %s -o %t.out
+// UNSUPPORTED: cuda
+// CUDA compilation and runtime do not yet support sub-groups.
+//
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUNx: %GPU_RUN_PLACEHOLDER %t.out
@@ -101,7 +104,8 @@ int main() {
         submit<KernelFunctor1>(Queue);
         break;
       default:
-        throw feature_not_supported("sub-group size is not supported");
+        throw feature_not_supported("sub-group size is not supported",
+                                    PI_INVALID_OPERATION);
       }
 
       auto Kernel = TheKernel[0];

@@ -1137,7 +1137,7 @@ llvm.func @bar(!llvm<"i8*">) -> !llvm<"i8*">
 llvm.func @__gxx_personality_v0(...) -> !llvm.i32
 
 // CHECK-LABEL: @invokeLandingpad
-llvm.func @invokeLandingpad() -> !llvm.i32 {
+llvm.func @invokeLandingpad() -> !llvm.i32 attributes { personality = @__gxx_personality_v0 } {
 // CHECK: %[[a1:[0-9]+]] = alloca i8
   %0 = llvm.mlir.constant(0 : i32) : !llvm.i32
   %1 = llvm.mlir.constant("\01") : !llvm<"[1 x i8]">
@@ -1170,4 +1170,34 @@ llvm.func @invokeLandingpad() -> !llvm.i32 {
 // CHECK-NEXT:          to label %[[normal]] unwind label %[[unwind]]
 ^bb3:	// pred: ^bb1
   %8 = llvm.invoke @bar(%6) to ^bb2 unwind ^bb1 : (!llvm<"i8*">) -> !llvm<"i8*">
+}
+
+// CHECK-LABEL: @callFreezeOp
+llvm.func @callFreezeOp(%x : !llvm.i32) {
+  // CHECK: freeze i32 %{{[0-9]+}}
+  %0 = llvm.freeze %x : !llvm.i32
+  %1 = llvm.mlir.undef : !llvm.i32
+  // CHECK: freeze i32 undef
+  %2 = llvm.freeze %1 : !llvm.i32
+  llvm.return
+}
+
+// CHECK-LABEL: @boolConstArg
+llvm.func @boolConstArg() -> !llvm.i1 {
+  // CHECK: ret i1 false
+  %0 = llvm.mlir.constant(true) : !llvm.i1
+  %1 = llvm.mlir.constant(false) : !llvm.i1
+  %2 = llvm.and %0, %1 : !llvm.i1
+  llvm.return %2 : !llvm.i1
+}
+
+// CHECK-LABEL: @callFenceInst
+llvm.func @callFenceInst() {
+  // CHECK: fence syncscope("agent") release
+  llvm.fence syncscope("agent") release
+  // CHECK: fence release
+  llvm.fence release
+  // CHECK: fence release
+  llvm.fence syncscope("") release
+  llvm.return
 }

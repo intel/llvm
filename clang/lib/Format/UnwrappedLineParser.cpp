@@ -323,13 +323,40 @@ void UnwrappedLineParser::parseFile() {
   addUnwrappedLine();
 }
 
+void UnwrappedLineParser::parseCSharpGenericTypeConstraint() {
+  do {
+    switch (FormatTok->Tok.getKind()) {
+    case tok::l_brace:
+      return;
+    default:
+      if (FormatTok->is(Keywords.kw_where)) {
+        addUnwrappedLine();
+        nextToken();
+        parseCSharpGenericTypeConstraint();
+        break;
+      }
+      nextToken();
+      break;
+    }
+  } while (!eof());
+}
+
 void UnwrappedLineParser::parseCSharpAttribute() {
+  int UnpairedSquareBrackets = 1;
   do {
     switch (FormatTok->Tok.getKind()) {
     case tok::r_square:
       nextToken();
-      addUnwrappedLine();
-      return;
+      --UnpairedSquareBrackets;
+      if (UnpairedSquareBrackets == 0) {
+        addUnwrappedLine();
+        return;
+      }
+      break;
+    case tok::l_square:
+      ++UnpairedSquareBrackets;
+      nextToken();
+      break;
     default:
       nextToken();
       break;
@@ -1335,6 +1362,12 @@ void UnwrappedLineParser::parseStructuralElement() {
       parseTryCatch();
       return;
     case tok::identifier: {
+      if (Style.isCSharp() && FormatTok->is(Keywords.kw_where) &&
+          Line->MustBeDeclaration) {
+        addUnwrappedLine();
+        parseCSharpGenericTypeConstraint();
+        break;
+      }
       if (FormatTok->is(TT_MacroBlockEnd)) {
         addUnwrappedLine();
         return;
@@ -1427,6 +1460,11 @@ void UnwrappedLineParser::parseStructuralElement() {
 
       nextToken();
       if (FormatTok->Tok.is(tok::l_brace)) {
+        // Block kind should probably be set to BK_BracedInit for any language.
+        // C# needs this change to ensure that array initialisers and object
+        // initialisers are indented the same way.
+        if (Style.isCSharp())
+          FormatTok->BlockKind = BK_BracedInit;
         nextToken();
         parseBracedList();
       } else if (Style.Language == FormatStyle::LK_Proto &&
@@ -1619,10 +1657,21 @@ bool UnwrappedLineParser::tryToParseBracedList() {
 bool UnwrappedLineParser::parseBracedList(bool ContinueOnSemicolons,
                                           tok::TokenKind ClosingBraceKind) {
   bool HasError = false;
-
+  
   // FIXME: Once we have an expression parser in the UnwrappedLineParser,
   // replace this by using parseAssigmentExpression() inside.
   do {
+    if (Style.isCSharp()) {
+      if (FormatTok->is(TT_JsFatArrow)) {
+        nextToken();
+        // Fat arrows can be followed by simple expressions or by child blocks
+        // in curly braces.
+        if (FormatTok->is(tok::l_brace)) {
+          parseChildBlock();
+          continue;
+        }
+      }
+    }
     if (Style.Language == FormatStyle::LK_JavaScript) {
       if (FormatTok->is(Keywords.kw_function) ||
           FormatTok->startsSequence(Keywords.kw_async, Keywords.kw_function)) {
@@ -1657,7 +1706,10 @@ bool UnwrappedLineParser::parseBracedList(bool ContinueOnSemicolons,
       }
       break;
     case tok::l_square:
-      tryToParseLambda();
+      if (Style.isCSharp())
+        parseSquare();
+      else
+        tryToParseLambda();
       break;
     case tok::l_paren:
       parseParens();
@@ -1946,7 +1998,7 @@ void UnwrappedLineParser::parseNamespace() {
                      DeclarationScopeStack.size() > 1);
     parseBlock(/*MustBeDeclaration=*/true, AddLevel);
     // Munch the semicolon after a namespace. This is more common than one would
-    // think. Puttin the semicolon into its own line is very ugly.
+    // think. Putting the semicolon into its own line is very ugly.
     if (FormatTok->Tok.is(tok::semi))
       nextToken();
     addUnwrappedLine();
@@ -1957,6 +2009,19 @@ void UnwrappedLineParser::parseNamespace() {
 void UnwrappedLineParser::parseNew() {
   assert(FormatTok->is(tok::kw_new) && "'new' expected");
   nextToken();
+
+  if (Style.isCSharp()) {
+    do {
+      if (FormatTok->is(tok::l_brace))
+        parseBracedList();
+
+      if (FormatTok->isOneOf(tok::semi, tok::comma))
+        return;
+
+      nextToken();
+    } while (!eof());
+  }
+
   if (Style.Language != FormatStyle::LK_Java)
     return;
 

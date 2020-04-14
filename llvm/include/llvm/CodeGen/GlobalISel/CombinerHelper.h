@@ -190,6 +190,36 @@ public:
   bool applyCombineShiftToUnmerge(MachineInstr &MI, const unsigned &ShiftVal);
   bool tryCombineShiftToUnmerge(MachineInstr &MI, unsigned TargetShiftAmount);
 
+  /// Return true if any explicit use operand on \p MI is defined by a
+  /// G_IMPLICIT_DEF.
+  bool matchAnyExplicitUseIsUndef(MachineInstr &MI);
+
+  /// Return true if all register explicit use operands on \p MI are defined by
+  /// a G_IMPLICIT_DEF.
+  bool matchAllExplicitUsesAreUndef(MachineInstr &MI);
+
+  /// Return true if a G_SHUFFLE_VECTOR instruction \p MI has an undef mask.
+  bool matchUndefShuffleVectorMask(MachineInstr &MI);
+
+  /// Replace an instruction with a G_FCONSTANT with value \p C.
+  bool replaceInstWithFConstant(MachineInstr &MI, double C);
+
+  /// Replace an instruction with a G_CONSTANT with value \p C.
+  bool replaceInstWithConstant(MachineInstr &MI, int64_t C);
+
+  /// Replace an instruction with a G_IMPLICIT_DEF.
+  bool replaceInstWithUndef(MachineInstr &MI);
+
+  /// Delete \p MI and replace all of its uses with its \p OpIdx-th operand.
+  bool replaceSingleDefInstWithOperand(MachineInstr &MI, unsigned OpIdx);
+
+  /// Return true if \p MOP1 and \p MOP2 are register operands are defined by
+  /// equivalent instructions.
+  bool matchEqualDefs(const MachineOperand &MOP1, const MachineOperand &MOP2);
+
+  /// Optimize (cond ? x : x) -> x
+  bool matchSelectSameVal(MachineInstr &MI);
+
   /// Try to transform \p MI by using all of the above
   /// combine functions. Returns true if changed.
   bool tryCombine(MachineInstr &MI);

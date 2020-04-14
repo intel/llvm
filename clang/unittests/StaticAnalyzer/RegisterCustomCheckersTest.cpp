@@ -6,11 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "CheckerRegistration.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/StaticAnalyzer/Core/BugReporter/BugReporter.h"
 #include "clang/StaticAnalyzer/Core/BugReporter/BugType.h"
 #include "clang/StaticAnalyzer/Core/Checker.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/AnalysisManager.h"
+#include "clang/StaticAnalyzer/Core/PathSensitive/CheckerContext.h"
 #include "clang/StaticAnalyzer/Frontend/AnalysisConsumer.h"
 #include "clang/StaticAnalyzer/Frontend/CheckerRegistry.h"
 #include "clang/Tooling/Tooling.h"
@@ -20,53 +22,10 @@ namespace clang {
 namespace ento {
 namespace {
 
-template <typename CheckerT>
-class TestAction : public ASTFrontendAction {
-  class DiagConsumer : public PathDiagnosticConsumer {
-    llvm::raw_ostream &Output;
-
-  public:
-    DiagConsumer(llvm::raw_ostream &Output) : Output(Output) {}
-    void FlushDiagnosticsImpl(std::vector<const PathDiagnostic *> &Diags,
-                              FilesMade *filesMade) override {
-      for (const auto *PD : Diags)
-        Output << PD->getCheckerName() << ":" << PD->getShortDescription();
-    }
-
-    StringRef getName() const override { return "Test"; }
-  };
-
-  llvm::raw_ostream &DiagsOutput;
-
-public:
-  TestAction(llvm::raw_ostream &DiagsOutput) : DiagsOutput(DiagsOutput) {}
-
-  std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &Compiler,
-                                                 StringRef File) override {
-    std::unique_ptr<AnalysisASTConsumer> AnalysisConsumer =
-        CreateAnalysisConsumer(Compiler);
-    AnalysisConsumer->AddDiagnosticConsumer(new DiagConsumer(DiagsOutput));
-    Compiler.getAnalyzerOpts()->CheckersAndPackages = {
-        {"custom.CustomChecker", true}};
-    AnalysisConsumer->AddCheckerRegistrationFn([](CheckerRegistry &Registry) {
-      Registry.addChecker<CheckerT>("custom.CustomChecker", "Description", "");
-    });
-    return std::move(AnalysisConsumer);
-  }
-};
-
-template <typename CheckerT>
-bool runCheckerOnCode(const std::string &Code, std::string &Diags) {
-  llvm::raw_string_ostream OS(Diags);
-  return tooling::runToolOnCode(std::make_unique<TestAction<CheckerT>>(OS),
-                                Code);
-}
-template <typename CheckerT>
-bool runCheckerOnCode(const std::string &Code) {
-  std::string Diags;
-  return runCheckerOnCode<CheckerT>(Code, Diags);
-}
-
+//===----------------------------------------------------------------------===//
+// Just a minimal test for how checker registration works with statically
+// linked, non TableGen generated checkers.
+//===----------------------------------------------------------------------===//
 
 class CustomChecker : public Checker<check::ASTCodeBody> {
 public:
@@ -78,11 +37,24 @@ public:
   }
 };
 
+void addCustomChecker(AnalysisASTConsumer &AnalysisConsumer,
+                      AnalyzerOptions &AnOpts) {
+  AnOpts.CheckersAndPackages = {{"custom.CustomChecker", true}};
+  AnalysisConsumer.AddCheckerRegistrationFn([](CheckerRegistry &Registry) {
+    Registry.addChecker<CustomChecker>("custom.CustomChecker", "Description",
+                                       "");
+  });
+}
+
 TEST(RegisterCustomCheckers, RegisterChecker) {
   std::string Diags;
-  EXPECT_TRUE(runCheckerOnCode<CustomChecker>("void f() {;}", Diags));
-  EXPECT_EQ(Diags, "custom.CustomChecker:Custom diagnostic description");
+  EXPECT_TRUE(runCheckerOnCode<addCustomChecker>("void f() {;}", Diags));
+  EXPECT_EQ(Diags, "custom.CustomChecker:Custom diagnostic description\n");
 }
+
+//===----------------------------------------------------------------------===//
+// Pretty much the same.
+//===----------------------------------------------------------------------===//
 
 class LocIncDecChecker : public Checker<check::Location> {
 public:
@@ -95,11 +67,80 @@ public:
   }
 };
 
-TEST(RegisterCustomCheckers, CheckLocationIncDec) {
-  EXPECT_TRUE(
-      runCheckerOnCode<LocIncDecChecker>("void f() { int *p; (*p)++; }"));
+void addLocIncDecChecker(AnalysisASTConsumer &AnalysisConsumer,
+                         AnalyzerOptions &AnOpts) {
+  AnOpts.CheckersAndPackages = {{"test.LocIncDecChecker", true}};
+  AnalysisConsumer.AddCheckerRegistrationFn([](CheckerRegistry &Registry) {
+    Registry.addChecker<CustomChecker>("test.LocIncDecChecker", "Description",
+                                       "");
+  });
 }
 
+TEST(RegisterCustomCheckers, CheckLocationIncDec) {
+  EXPECT_TRUE(
+      runCheckerOnCode<addLocIncDecChecker>("void f() { int *p; (*p)++; }"));
 }
+
+//===----------------------------------------------------------------------===//
+// Unsatisfied checker dependency
+//===----------------------------------------------------------------------===//
+
+class PrerequisiteChecker : public Checker<check::ASTCodeBody> {
+public:
+  void checkASTCodeBody(const Decl *D, AnalysisManager &Mgr,
+                        BugReporter &BR) const {
+    BR.EmitBasicReport(D, this, "Prerequisite", categories::LogicError,
+                       "This is the prerequisite checker",
+                       PathDiagnosticLocation(D, Mgr.getSourceManager()), {});
+  }
+};
+
+void registerPrerequisiteChecker(CheckerManager &mgr) {
+  mgr.registerChecker<PrerequisiteChecker>();
 }
+
+bool shouldRegisterPrerequisiteChecker(const LangOptions &LO) {
+  return false;
 }
+
+class DependentChecker : public Checker<check::ASTCodeBody> {
+public:
+  void checkASTCodeBody(const Decl *D, AnalysisManager &Mgr,
+                        BugReporter &BR) const {
+    BR.EmitBasicReport(D, this, "Dependent", categories::LogicError,
+                       "This is the Dependent Checker",
+                       PathDiagnosticLocation(D, Mgr.getSourceManager()), {});
+  }
+};
+
+void registerDependentChecker(CheckerManager &mgr) {
+  mgr.registerChecker<DependentChecker>();
+}
+
+bool shouldRegisterDependentChecker(const LangOptions &LO) {
+  return true;
+}
+
+void addDependentChecker(AnalysisASTConsumer &AnalysisConsumer,
+                         AnalyzerOptions &AnOpts) {
+  AnOpts.CheckersAndPackages = {{"custom.Dependent", true}};
+  AnalysisConsumer.AddCheckerRegistrationFn([](CheckerRegistry &Registry) {
+     Registry.addChecker(registerPrerequisiteChecker,
+                         shouldRegisterPrerequisiteChecker,
+                         "custom.Prerequisite", "Description", "", false);
+     Registry.addChecker(registerDependentChecker,
+                         shouldRegisterDependentChecker,
+                         "custom.Dependent", "Description", "", false);
+     Registry.addDependency("custom.Dependent", "custom.Prerequisite");
+    });
+}
+
+TEST(RegisterDependentCheckers, RegisterChecker) {
+  std::string Diags;
+  EXPECT_TRUE(runCheckerOnCode<addDependentChecker>("void f() {;}", Diags));
+  EXPECT_EQ(Diags, "");
+}
+
+} // namespace
+} // namespace ento
+} // namespace clang

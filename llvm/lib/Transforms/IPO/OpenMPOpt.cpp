@@ -44,7 +44,7 @@ STATISTIC(NumOpenMPRuntimeFunctionsIdentified,
 STATISTIC(NumOpenMPRuntimeFunctionUsesIdentified,
           "Number of OpenMP runtime function uses identified");
 
-#if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
+#if !defined(NDEBUG)
 static constexpr auto TAG = "[" DEBUG_TYPE "]";
 #endif
 
@@ -79,7 +79,7 @@ struct OpenMPOpt {
     SmallVector<Type *, 8> ArgumentTypes;
 
     /// The declaration if available.
-    Function *Declaration;
+    Function *Declaration = nullptr;
 
     /// Uses of this runtime function per function containing the use.
     DenseMap<Function *, SmallPtrSet<Use *, 16>> UsesMap;
@@ -119,7 +119,7 @@ struct OpenMPOpt {
   }
 
 private:
-  /// Try to delete parallel regions if possible
+  /// Try to delete parallel regions if possible.
   bool deleteParallelRegions() {
     const unsigned CallbackCalleeOperand = 2;
 
@@ -201,6 +201,49 @@ private:
     return Changed;
   }
 
+  static Value *combinedIdentStruct(Value *Ident0, Value *Ident1,
+                                    bool GlobalOnly) {
+    // TODO: Figure out how to actually combine multiple debug locations. For
+    //       now we just keep the first we find.
+    if (Ident0)
+      return Ident0;
+    if (!GlobalOnly || isa<GlobalValue>(Ident1))
+      return Ident1;
+    return nullptr;
+  }
+
+  /// Return an `struct ident_t*` value that represents the ones used in the
+  /// calls of \p RFI inside of \p F. If \p GlobalOnly is true, we will not
+  /// return a local `struct ident_t*`. For now, if we cannot find a suitable
+  /// return value we create one from scratch. We also do not yet combine
+  /// information, e.g., the source locations, see combinedIdentStruct.
+  Value *getCombinedIdentFromCallUsesIn(RuntimeFunctionInfo &RFI, Function &F,
+                                        bool GlobalOnly) {
+    Value *Ident = nullptr;
+    auto CombineIdentStruct = [&](Use &U, Function &Caller) {
+      CallInst *CI = getCallIfRegularCall(U, &RFI);
+      if (!CI || &F != &Caller)
+        return false;
+      Ident = combinedIdentStruct(Ident, CI->getArgOperand(0),
+                                  /* GlobalOnly */ true);
+      return false;
+    };
+    RFI.foreachUse(CombineIdentStruct);
+
+    if (!Ident) {
+      // The IRBuilder uses the insertion block to get to the module, this is
+      // unfortunate but we work around it for now.
+      if (!OMPBuilder.getInsertionPoint().getBlock())
+        OMPBuilder.updateToLocation(OpenMPIRBuilder::InsertPointTy(
+            &F.getEntryBlock(), F.getEntryBlock().begin()));
+      // Create a fallback location if non was found.
+      // TODO: Use the debug locations of the calls instead.
+      Constant *Loc = OMPBuilder.getOrCreateDefaultSrcLocStr();
+      Ident = OMPBuilder.getOrCreateIdent(Loc);
+    }
+    return Ident;
+  }
+
   /// Try to eliminiate calls of \p RFI in \p F by reusing an existing one or
   /// \p ReplVal if given.
   bool deduplicateRuntimeCalls(Function &F, RuntimeFunctionInfo &RFI,
@@ -216,15 +259,43 @@ private:
     assert((!ReplVal || (isa<Argument>(ReplVal) &&
                          cast<Argument>(ReplVal)->getParent() == &F)) &&
            "Unexpected replacement value!");
+
+    // TODO: Use dominance to find a good position instead.
+    auto CanBeMoved = [](CallBase &CB) {
+      unsigned NumArgs = CB.getNumArgOperands();
+      if (NumArgs == 0)
+        return true;
+      if (CB.getArgOperand(0)->getType() != IdentPtr)
+        return false;
+      for (unsigned u = 1; u < NumArgs; ++u)
+        if (isa<Instruction>(CB.getArgOperand(u)))
+          return false;
+      return true;
+    };
+
     if (!ReplVal) {
       for (Use *U : Uses)
         if (CallInst *CI = getCallIfRegularCall(*U, &RFI)) {
+          if (!CanBeMoved(*CI))
+            continue;
           CI->moveBefore(&*F.getEntryBlock().getFirstInsertionPt());
           ReplVal = CI;
           break;
         }
       if (!ReplVal)
         return false;
+    }
+
+    // If we use a call as a replacement value we need to make sure the ident is
+    // valid at the new location. For now we just pick a global one, either
+    // existing and used by one of the calls, or created from scratch.
+    if (CallBase *CI = dyn_cast<CallBase>(ReplVal)) {
+      if (CI->getNumArgOperands() > 0 &&
+          CI->getArgOperand(0)->getType() == IdentPtr) {
+        Value *Ident = getCombinedIdentFromCallUsesIn(RFI, F,
+                                                      /* GlobalOnly */ true);
+        CI->setArgOperand(0, Ident);
+      }
     }
 
     bool Changed = false;
@@ -314,6 +385,32 @@ private:
     return nullptr;
   }
 
+  /// Returns true if the function declaration \p F matches the runtime
+  /// function types, that is, return type \p RTFRetType, and argument types
+  /// \p RTFArgTypes.
+  static bool declMatchesRTFTypes(Function *F, Type *RTFRetType,
+                                  SmallVector<Type *, 8> &RTFArgTypes) {
+    // TODO: We should output information to the user (under debug output
+    //       and via remarks).
+
+    if (!F)
+      return false;
+    if (F->getReturnType() != RTFRetType)
+      return false;
+    if (F->arg_size() != RTFArgTypes.size())
+      return false;
+
+    auto RTFTyIt = RTFArgTypes.begin();
+    for (Argument &Arg : F->args()) {
+      if (Arg.getType() != *RTFTyIt)
+        return false;
+
+      ++RTFTyIt;
+    }
+
+    return true;
+  }
+
   /// Helper to initialize all runtime function information for those defined in
   /// OpenMPKinds.def.
   void initializeRuntimeFunctions() {
@@ -344,26 +441,29 @@ private:
 
 #define OMP_RTL(_Enum, _Name, _IsVarArg, _ReturnType, ...)                     \
   {                                                                            \
-    auto &RFI = RFIs[_Enum];                                                   \
-    RFI.Kind = _Enum;                                                          \
-    RFI.Name = _Name;                                                          \
-    RFI.IsVarArg = _IsVarArg;                                                  \
-    RFI.ReturnType = _ReturnType;                                              \
-    RFI.ArgumentTypes = SmallVector<Type *, 8>({__VA_ARGS__});                 \
-    RFI.Declaration = M.getFunction(_Name);                                    \
-    unsigned NumUses = CollectUses(RFI);                                       \
-    (void)NumUses;                                                             \
-    LLVM_DEBUG({                                                               \
-      dbgs() << TAG << RFI.Name << (RFI.Declaration ? "" : " not")             \
-             << " found\n";                                                    \
-      if (RFI.Declaration)                                                     \
-        dbgs() << TAG << "-> got " << NumUses << " uses in "                   \
-               << RFI.UsesMap.size() << " different functions.\n";             \
-    });                                                                        \
+    SmallVector<Type *, 8> ArgsTypes({__VA_ARGS__});                           \
+    Function *F = M.getFunction(_Name);                                        \
+    if (declMatchesRTFTypes(F, _ReturnType , ArgsTypes)) {                     \
+      auto &RFI = RFIs[_Enum];                                                 \
+      RFI.Kind = _Enum;                                                        \
+      RFI.Name = _Name;                                                        \
+      RFI.IsVarArg = _IsVarArg;                                                \
+      RFI.ReturnType = _ReturnType;                                            \
+      RFI.ArgumentTypes = std::move(ArgsTypes);                                \
+      RFI.Declaration = F;                                                     \
+      unsigned NumUses = CollectUses(RFI);                                     \
+      (void)NumUses;                                                           \
+      LLVM_DEBUG({                                                             \
+        dbgs() << TAG << RFI.Name << (RFI.Declaration ? "" : " not")           \
+              << " found\n";                                                   \
+        if (RFI.Declaration)                                                   \
+          dbgs() << TAG << "-> got " << NumUses << " uses in "                 \
+                << RFI.UsesMap.size() << " different functions.\n";            \
+      });                                                                      \
+    }                                                                          \
   }
 #include "llvm/Frontend/OpenMP/OMPKinds.def"
 
-    // TODO: We should validate the declaration agains the types we expect.
     // TODO: We should attach the attributes defined in OMPKinds.def.
   }
 

@@ -112,7 +112,7 @@ G
 **GEP**
     ``GetElementPtr``. An LLVM IR instruction that is used to get the address
     of a subelement of an aggregate data structure. It is documented in detail
-    `here <http://llvm.org/docs/GetElementPtr.html>`_.
+    `here <https://llvm.org/docs/GetElementPtr.html>`_.
 
 **GVN**
     Global Value Numbering. GVN is a pass that partitions values computed by a
@@ -229,6 +229,10 @@ R
     Rearranging associative expressions to promote better redundancy elimination
     and other optimization.  For example, changing ``(A+B-A)`` into ``(B+A-A)``,
     permitting it to be optimized into ``(B+0)`` then ``(B)``.
+
+**RFC**
+  Request for Comment. An email sent to a project mailing list in order to
+  solicit feedback on a proposed change.
 
 .. _roots:
 .. _stack roots:

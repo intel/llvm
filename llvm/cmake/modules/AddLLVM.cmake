@@ -607,7 +607,7 @@ function(llvm_add_library name)
   endif()
 
   if(ARG_STATIC)
-    set(libtype INTERFACE)
+    set(libtype PUBLIC)
   else()
     # We can use PRIVATE since SO knows its dependent libs.
     set(libtype PRIVATE)
@@ -1026,6 +1026,13 @@ function(export_executable_symbols target)
       set_property(TARGET ${target} APPEND_STRING PROPERTY
         LINK_FLAGS " -rdynamic")
     endif()
+  endif()
+endfunction()
+
+# Export symbols if LLVM plugins are enabled.
+function(export_executable_symbols_for_plugins target)
+  if(LLVM_ENABLE_PLUGINS)
+    export_executable_symbols(${target})
   endif()
 endfunction()
 

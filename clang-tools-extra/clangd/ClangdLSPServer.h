@@ -21,6 +21,7 @@
 #include "clang/Tooling/Core/Replacement.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringSet.h"
+#include "llvm/Support/JSON.h"
 #include <memory>
 
 namespace clang {
@@ -42,6 +43,7 @@ public:
   // FIXME: Clean up signature around CDBs.
   ClangdLSPServer(Transport &Transp, const FileSystemProvider &FSProvider,
                   const clangd::CodeCompleteOptions &CCOpts,
+                  const clangd::RenameOptions &RenameOpts,
                   llvm::Optional<Path> CompileCommandsDir, bool UseDirBasedCDB,
                   llvm::Optional<OffsetEncoding> ForcedOffsetEncoding,
                   const ClangdServer::Options &Opts);
@@ -56,16 +58,18 @@ public:
 
 private:
   // Implement ClangdServer::Callbacks.
-  void onDiagnosticsReady(PathRef File, std::vector<Diag> Diagnostics) override;
+  void onDiagnosticsReady(PathRef File, llvm::StringRef Version,
+                          std::vector<Diag> Diagnostics) override;
   void onFileUpdated(PathRef File, const TUStatus &Status) override;
   void
-  onHighlightingsReady(PathRef File,
+  onHighlightingsReady(PathRef File, llvm::StringRef Version,
                        std::vector<HighlightingToken> Highlightings) override;
   void onBackgroundIndexProgress(const BackgroundQueue::Stats &Stats) override;
 
   // LSP methods. Notifications have signature void(const Params&).
   // Calls have signature void(const Params&, Callback<Response>).
   void onInitialize(const InitializeParams &, Callback<llvm::json::Value>);
+  void onInitialized(const InitializedParams &);
   void onShutdown(const ShutdownParams &, Callback<std::nullptr_t>);
   void onSync(const NoParams &, Callback<std::nullptr_t>);
   void onDocumentDidOpen(const DidOpenTextDocumentParams &);
@@ -131,11 +135,11 @@ private:
   void applyConfiguration(const ConfigurationSettings &Settings);
 
   /// Sends a "publishSemanticHighlighting" notification to the LSP client.
-  void publishSemanticHighlighting(SemanticHighlightingParams Params);
+  void
+  publishTheiaSemanticHighlighting(const TheiaSemanticHighlightingParams &);
 
   /// Sends a "publishDiagnostics" notification to the LSP client.
-  void publishDiagnostics(const URIForFile &File,
-                          std::vector<clangd::Diagnostic> Diagnostics);
+  void publishDiagnostics(const PublishDiagnosticsParams &);
 
   /// Since initialization of CDBs and ClangdServer is done lazily, the
   /// following context captures the one used while creating ClangdLSPServer and
@@ -197,6 +201,8 @@ private:
   const FileSystemProvider &FSProvider;
   /// Options used for code completion
   clangd::CodeCompleteOptions CCOpts;
+  /// Options used for rename.
+  clangd::RenameOptions RenameOpts;
   /// Options used for diagnostics.
   ClangdDiagnosticOptions DiagOpts;
   /// The supported kinds of the client.

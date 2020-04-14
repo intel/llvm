@@ -207,12 +207,16 @@ class VectorType;
       VMULLu,       // ...unsigned
 
       // MVE reductions
-      VADDVs,
-      VADDVu,
-      VADDLVs,
-      VADDLVu,
-      VADDLVAs,
-      VADDLVAu,
+      VADDVs,       // sign- or zero-extend the elements of a vector to i32,
+      VADDVu,       //   add them all together, and return an i32 of their sum
+      VADDLVs,      // sign- or zero-extend elements to i64 and sum, returning
+      VADDLVu,      //   the low and high 32-bit halves of the sum
+      VADDLVAs,     // same as VADDLV[su] but also add an input accumulator
+      VADDLVAu,     //   provided as low and high halves
+      VADDLVps,     // same as VADDLVs but with a v4i1 predicate mask
+      VADDLVpu,     // same as VADDLVu but with a v4i1 predicate mask
+      VADDLVAps,    // same as VADDLVps but with a v4i1 predicate mask
+      VADDLVApu,    // same as VADDLVpu but with a v4i1 predicate mask
       VMLAVs,
       VMLAVu,
       VMLALVs,
@@ -295,7 +299,11 @@ class VectorType;
       VST4_UPD,
       VST2LN_UPD,
       VST3LN_UPD,
-      VST4LN_UPD
+      VST4LN_UPD,
+
+      // Load/Store of dual registers
+      LDRD,
+      STRD
     };
 
   } // end namespace ARMISD
@@ -348,7 +356,15 @@ class VectorType;
     SDValue PerformCMOVCombine(SDNode *N, SelectionDAG &DAG) const;
     SDValue PerformBRCONDCombine(SDNode *N, SelectionDAG &DAG) const;
     SDValue PerformCMOVToBFICombine(SDNode *N, SelectionDAG &DAG) const;
+    SDValue PerformIntrinsicCombine(SDNode *N, DAGCombinerInfo &DCI) const;
     SDValue PerformDAGCombine(SDNode *N, DAGCombinerInfo &DCI) const override;
+
+    bool SimplifyDemandedBitsForTargetNode(SDValue Op,
+                                           const APInt &OriginalDemandedBits,
+                                           const APInt &OriginalDemandedElts,
+                                           KnownBits &Known,
+                                           TargetLoweringOpt &TLO,
+                                           unsigned Depth) const override;
 
     bool isDesirableToTransformToIntegerOp(unsigned Opc, EVT VT) const override;
 
@@ -752,6 +768,8 @@ class VectorType;
     SDValue LowerFSETCC(SDValue Op, SelectionDAG &DAG) const;
     void lowerABS(SDNode *N, SmallVectorImpl<SDValue> &Results,
                   SelectionDAG &DAG) const;
+    void LowerLOAD(SDNode *N, SmallVectorImpl<SDValue> &Results,
+                   SelectionDAG &DAG) const;
 
     Register getRegisterByName(const char* RegName, LLT VT,
                                const MachineFunction &MF) const override;

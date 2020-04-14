@@ -21,6 +21,7 @@ set(LIBC_TARGET_MACHINE ${CMAKE_SYSTEM_PROCESSOR})
 
 include(CMakeParseArguments)
 include(LLVMLibCRules)
+include(LLVMLibCCheckCpuFeatures)
 
 add_subdirectory(src)
 add_subdirectory(config)
@@ -31,5 +32,7 @@ add_subdirectory(utils)
 # and libraries potentially draw from the components present in all
 # of the other directories.
 add_subdirectory(lib)
-add_subdirectory(test)
-add_subdirectory(fuzzing)
+if(LLVM_INCLUDE_TESTS)
+  add_subdirectory(test)
+  add_subdirectory(fuzzing)
+endif()

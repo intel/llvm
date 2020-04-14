@@ -19,10 +19,18 @@ add_header(
     llvm_libc_common_h
 )
 
-add_header(
+add_gen_header(
   math_h
-  HDR
-    math.h
+  DEF_FILE math.h.def
+  GEN_HDR math.h
+  DEPENDS
+    llvm_libc_common_h
+)
+
+add_gen_header(
+  assert_h
+  DEF_FILE assert.h.def
+  GEN_HDR assert.h
   DEPENDS
     llvm_libc_common_h
 )
@@ -33,6 +41,18 @@ add_gen_header(
   GEN_HDR string.h
   DEPENDS
     llvm_libc_common_h
+)
+
+add_gen_header(
+  threads_h
+  DEF_FILE threads.h.def
+  GEN_HDR threads.h
+  PARAMS
+    platform_threads=../config/${LIBC_TARGET_OS}/threads.h.in
+  DEPENDS
+    llvm_libc_common_h
+  DATA_FILES
+    ../config/${LIBC_TARGET_OS}/threads.h.in
 )
 
 add_gen_header(
@@ -53,6 +73,14 @@ add_gen_header(
   GEN_HDR signal.h
   DATA_FILES
     ../config/${LIBC_TARGET_OS}/signal.h.in
+)
+
+add_gen_header(
+  stdlib_h
+  DEF_FILE stdlib.h.def
+  GEN_HDR stdlib.h
+  DEPENDS
+    llvm_libc_common_h
 )
 
 # TODO: Not all platforms will have a include/sys directory. Add the sys

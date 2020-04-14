@@ -461,15 +461,14 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
       Builder.defineMacro("__FAST_RELAXED_MATH__");
   }
 
-  // SYCL Version is set to a value when building SYCL applications
-  switch (LangOpts.getSYCLVersion()) {
-    case LangOptions::SYCLVersionList::sycl_1_2_1:
+  if (LangOpts.SYCL) {
+    // SYCL Version is set to a value when building SYCL applications
+    if (LangOpts.SYCLVersion == 2017)
       Builder.defineMacro("CL_SYCL_LANGUAGE_VERSION", "121");
-      break;
-    case LangOptions::SYCLVersionList::undefined:
-    default:
-      // This is not a SYCL source, nothing to add
-      break;
+  }
+
+  if (LangOpts.DeclareSPIRVBuiltins) {
+    Builder.defineMacro("__SPIRV_BUILTIN_DECLARATIONS__");
   }
 
   // Not "standard" per se, but available even with the -undef flag.

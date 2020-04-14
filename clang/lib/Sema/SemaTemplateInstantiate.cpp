@@ -9,7 +9,6 @@
 //
 //===----------------------------------------------------------------------===/
 
-#include "clang/Sema/SemaInternal.h"
 #include "TreeTransform.h"
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/ASTContext.h"
@@ -21,13 +20,15 @@
 #include "clang/AST/TypeVisitor.h"
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/Stack.h"
+#include "clang/Basic/TargetInfo.h"
 #include "clang/Sema/DeclSpec.h"
 #include "clang/Sema/Initialization.h"
 #include "clang/Sema/Lookup.h"
+#include "clang/Sema/SemaConcept.h"
+#include "clang/Sema/SemaInternal.h"
 #include "clang/Sema/Template.h"
 #include "clang/Sema/TemplateDeduction.h"
 #include "clang/Sema/TemplateInstCallback.h"
-#include "clang/Sema/SemaConcept.h"
 #include "llvm/Support/TimeProfiler.h"
 
 using namespace clang;
@@ -922,6 +923,10 @@ namespace {
       this->Entity = Entity;
     }
 
+    unsigned TransformTemplateDepth(unsigned Depth) {
+      return TemplateArgs.getNewDepth(Depth);
+    }
+
     bool TryExpandParameterPacks(SourceLocation EllipsisLoc,
                                  SourceRange PatternRange,
                                  ArrayRef<UnexpandedParameterPack> Unexpanded,
@@ -1058,6 +1063,14 @@ namespace {
         const SYCLIntelFPGAMaxConcurrencyAttr *MC);
     const LoopUnrollHintAttr *
     TransformLoopUnrollHintAttr(const LoopUnrollHintAttr *LU);
+    const SYCLIntelFPGALoopCoalesceAttr *TransformSYCLIntelFPGALoopCoalesceAttr(
+        const SYCLIntelFPGALoopCoalesceAttr *LC);
+    const SYCLIntelFPGAMaxInterleavingAttr *
+    TransformSYCLIntelFPGAMaxInterleavingAttr(
+        const SYCLIntelFPGAMaxInterleavingAttr *MI);
+    const SYCLIntelFPGASpeculatedIterationsAttr *
+    TransformSYCLIntelFPGASpeculatedIterationsAttr(
+        const SYCLIntelFPGASpeculatedIterationsAttr *SI);
 
     ExprResult TransformPredefinedExpr(PredefinedExpr *E);
     ExprResult TransformDeclRefExpr(DeclRefExpr *E);
@@ -1389,34 +1402,46 @@ TemplateName TemplateInstantiator::TransformTemplateName(
                                           AllowInjectedClassName);
 }
 
+static ExprResult TransformUniqueStableName(TemplateInstantiator &TI,
+                                            PredefinedExpr *E) {
+  if (E->getIdentKind() == PredefinedExpr::UniqueStableNameType) {
+    TypeSourceInfo *Info =
+        TI.getDerived().TransformType(E->getTypeSourceInfo());
+
+    if (!Info)
+      return ExprError();
+
+    if (!TI.getDerived().AlwaysRebuild() && Info == E->getTypeSourceInfo())
+      return E;
+
+    return TI.getSema().BuildUniqueStableName(E->getLocation(), Info);
+  }
+
+  if (E->getIdentKind() == PredefinedExpr::UniqueStableNameExpr) {
+    EnterExpressionEvaluationContext Unevaluated(
+        TI.getSema(), Sema::ExpressionEvaluationContext::Unevaluated);
+    ExprResult SubExpr = TI.getDerived().TransformExpr(E->getExpr());
+
+    if (SubExpr.isInvalid())
+      return ExprError();
+
+    if (!TI.getDerived().AlwaysRebuild() && SubExpr.get() == E->getExpr())
+      return E;
+
+    return TI.getSema().BuildUniqueStableName(E->getLocation(), SubExpr.get());
+  }
+
+  llvm_unreachable("Only valid for UniqueStableNameType/Expr");
+}
+
 ExprResult
 TemplateInstantiator::TransformPredefinedExpr(PredefinedExpr *E) {
   if (!E->isTypeDependent())
     return E;
 
-  if (E->getIdentKind() == PredefinedExpr::UniqueStableNameExpr) {
-    EnterExpressionEvaluationContext Unevaluated(
-        SemaRef, Sema::ExpressionEvaluationContext::Unevaluated);
-
-    ExprResult SubExpr = getDerived().TransformExpr(E->getExpr());
-    if (SubExpr.isInvalid())
-      return ExprError();
-
-    if (!getDerived().AlwaysRebuild() && SubExpr.get() == E->getExpr())
-      return E;
-
-    return getSema().BuildUniqueStableName(E->getLocation(), SubExpr.get());
-  }
-
-  if (E->getIdentKind() == PredefinedExpr::UniqueStableNameType) {
-    TypeSourceInfo *Info = getDerived().TransformType(E->getTypeSourceInfo());
-    if (!Info)
-      return ExprError();
-
-    if (!getDerived().AlwaysRebuild() && Info == E->getTypeSourceInfo())
-      return E;
-    return getSema().BuildUniqueStableName(E->getLocation(), Info);
-  }
+  if (E->getIdentKind() == PredefinedExpr::UniqueStableNameType ||
+      E->getIdentKind() == PredefinedExpr::UniqueStableNameExpr)
+    return TransformUniqueStableName(*this, E);
 
   return getSema().BuildPredefinedExpr(E->getLocation(), E->getIdentKind());
 }
@@ -1522,6 +1547,31 @@ TemplateInstantiator::TransformSYCLIntelFPGAMaxConcurrencyAttr(
       getDerived().TransformExpr(MC->getNThreadsExpr()).get();
   return getSema().BuildSYCLIntelFPGALoopAttr<SYCLIntelFPGAMaxConcurrencyAttr>(
       *MC, TransformedExpr);
+}
+
+const SYCLIntelFPGALoopCoalesceAttr *
+TemplateInstantiator::TransformSYCLIntelFPGALoopCoalesceAttr(
+    const SYCLIntelFPGALoopCoalesceAttr *LC) {
+  Expr *TransformedExpr = getDerived().TransformExpr(LC->getNExpr()).get();
+  return getSema().BuildSYCLIntelFPGALoopAttr<SYCLIntelFPGALoopCoalesceAttr>(
+      *LC, TransformedExpr);
+}
+
+const SYCLIntelFPGAMaxInterleavingAttr *
+TemplateInstantiator::TransformSYCLIntelFPGAMaxInterleavingAttr(
+    const SYCLIntelFPGAMaxInterleavingAttr *MI) {
+  Expr *TransformedExpr = getDerived().TransformExpr(MI->getNExpr()).get();
+  return getSema().BuildSYCLIntelFPGALoopAttr<SYCLIntelFPGAMaxInterleavingAttr>(
+      *MI, TransformedExpr);
+}
+
+const SYCLIntelFPGASpeculatedIterationsAttr *
+TemplateInstantiator::TransformSYCLIntelFPGASpeculatedIterationsAttr(
+    const SYCLIntelFPGASpeculatedIterationsAttr *SI) {
+  Expr *TransformedExpr = getDerived().TransformExpr(SI->getNExpr()).get();
+  return getSema()
+      .BuildSYCLIntelFPGALoopAttr<SYCLIntelFPGASpeculatedIterationsAttr>(
+          *SI, TransformedExpr);
 }
 
 const LoopUnrollHintAttr *TemplateInstantiator::TransformLoopUnrollHintAttr(
@@ -2233,7 +2283,7 @@ namespace {
     // The deduced type itself.
     TemplateTypeParmDecl *VisitTemplateTypeParmType(
         const TemplateTypeParmType *T) {
-      if (!T->getDecl()->isImplicit())
+      if (!T->getDecl() || !T->getDecl()->isImplicit())
         return nullptr;
       return T->getDecl();
     }

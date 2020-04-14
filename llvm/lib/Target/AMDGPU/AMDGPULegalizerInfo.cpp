@@ -24,6 +24,7 @@
 #include "AMDGPUGlobalISelUtils.h"
 #include "AMDGPUTargetMachine.h"
 #include "SIMachineFunctionInfo.h"
+#include "llvm/ADT/ScopeExit.h"
 #include "llvm/CodeGen/GlobalISel/LegalizerHelper.h"
 #include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
 #include "llvm/CodeGen/GlobalISel/MIPatternMatch.h"
@@ -170,6 +171,16 @@ static LegalityPredicate elementTypeIs(unsigned TypeIdx, LLT Type) {
   };
 }
 
+static LegalityPredicate elementTypeIsLegal(unsigned TypeIdx) {
+  return [=](const LegalityQuery &Query) {
+    const LLT QueryTy = Query.Types[TypeIdx];
+    if (!QueryTy.isVector())
+      return false;
+    const LLT EltTy = QueryTy.getElementType();
+    return EltTy == LLT::scalar(16) || EltTy.getSizeInBits() >= 32;
+  };
+}
+
 static LegalityPredicate isWideScalarTruncStore(unsigned TypeIdx) {
   return [=](const LegalityQuery &Query) {
     const LLT Ty = Query.Types[TypeIdx];
@@ -207,6 +218,7 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
   const LLT S64 = LLT::scalar(64);
   const LLT S128 = LLT::scalar(128);
   const LLT S256 = LLT::scalar(256);
+  const LLT S512 = LLT::scalar(512);
   const LLT S1024 = LLT::scalar(1024);
 
   const LLT V2S16 = LLT::vector(2, 16);
@@ -484,7 +496,15 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
   FMad.scalarize(0)
       .lower();
 
+  // TODO: Do we need to clamp maximum bitwidth?
   getActionDefinitionsBuilder(G_TRUNC)
+    .legalIf(isScalar(0))
+    .legalFor({{V2S16, V2S32}})
+    .clampMaxNumElements(0, S16, 2)
+    // Avoid scalarizing in cases that should be truly illegal. In unresolvable
+    // situations (like an invalid implicit use), we don't want to infinite loop
+    // in the legalizer.
+    .fewerElementsIf(elementTypeIsLegal(0), LegalizeMutations::scalarize(0))
     .alwaysLegal();
 
   getActionDefinitionsBuilder({G_SEXT, G_ZEXT, G_ANYEXT})
@@ -1187,10 +1207,10 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
     unsigned LitTyIdx = Op == G_MERGE_VALUES ? 1 : 0;
 
     auto notValidElt = [=](const LegalityQuery &Query, unsigned TypeIdx) {
-      const LLT &Ty = Query.Types[TypeIdx];
+      const LLT Ty = Query.Types[TypeIdx];
       if (Ty.isVector()) {
         const LLT &EltTy = Ty.getElementType();
-        if (EltTy.getSizeInBits() < 8 || EltTy.getSizeInBits() > 64)
+        if (EltTy.getSizeInBits() < 8 || EltTy.getSizeInBits() > 512)
           return true;
         if (!isPowerOf2_32(EltTy.getSizeInBits()))
           return true;
@@ -1212,14 +1232,14 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
       // Clamp the little scalar to s8-s256 and make it a power of 2. It's not
       // worth considering the multiples of 64 since 2*192 and 2*384 are not
       // valid.
-      .clampScalar(LitTyIdx, S32, S256)
+      .clampScalar(LitTyIdx, S32, S512)
       .widenScalarToNextPow2(LitTyIdx, /*Min*/ 32)
       // Break up vectors with weird elements into scalars
       .fewerElementsIf(
-        [=](const LegalityQuery &Query) { return notValidElt(Query, 0); },
+        [=](const LegalityQuery &Query) { return notValidElt(Query, LitTyIdx); },
         scalarize(0))
       .fewerElementsIf(
-        [=](const LegalityQuery &Query) { return notValidElt(Query, 1); },
+        [=](const LegalityQuery &Query) { return notValidElt(Query, BigTyIdx); },
         scalarize(1))
       .clampScalar(BigTyIdx, S32, S1024);
 
@@ -1949,8 +1969,19 @@ bool AMDGPULegalizerInfo::legalizeGlobalValue(
     if (!MFI->isEntryFunction()) {
       const Function &Fn = MF.getFunction();
       DiagnosticInfoUnsupported BadLDSDecl(
-        Fn, "local memory global used by non-kernel function", MI.getDebugLoc());
+        Fn, "local memory global used by non-kernel function", MI.getDebugLoc(),
+        DS_Warning);
       Fn.getContext().diagnose(BadLDSDecl);
+
+      // We currently don't have a way to correctly allocate LDS objects that
+      // aren't directly associated with a kernel. We do force inlining of
+      // functions that use local objects. However, if these dead functions are
+      // not eliminated, we don't want a compile time error. Just emit a warning
+      // and a trap, since there should be no callable path here.
+      B.buildIntrinsic(Intrinsic::trap, ArrayRef<Register>(), true);
+      B.buildUndef(DstReg);
+      MI.eraseFromParent();
+      return true;
     }
 
     // TODO: We could emit code to handle the initialization somewhere.
@@ -2255,15 +2286,64 @@ static MachineInstr *verifyCFIntrinsic(MachineInstr &MI,
   return &UseMI;
 }
 
-Register AMDGPULegalizerInfo::getLiveInRegister(MachineRegisterInfo &MRI,
-                                                Register Reg, LLT Ty) const {
-  Register LiveIn = MRI.getLiveInVirtReg(Reg);
-  if (LiveIn)
+Register AMDGPULegalizerInfo::insertLiveInCopy(MachineIRBuilder &B,
+                                               MachineRegisterInfo &MRI,
+                                               Register LiveIn,
+                                               Register PhyReg) const {
+  assert(PhyReg.isPhysical() && "Physical register expected");
+
+  // Insert the live-in copy, if required, by defining destination virtual
+  // register.
+  // FIXME: It seems EmitLiveInCopies isn't called anywhere?
+  if (!MRI.getVRegDef(LiveIn)) {
+    // FIXME: Should have scoped insert pt
+    MachineBasicBlock &OrigInsBB = B.getMBB();
+    auto OrigInsPt = B.getInsertPt();
+
+    MachineBasicBlock &EntryMBB = B.getMF().front();
+    EntryMBB.addLiveIn(PhyReg);
+    B.setInsertPt(EntryMBB, EntryMBB.begin());
+    B.buildCopy(LiveIn, PhyReg);
+
+    B.setInsertPt(OrigInsBB, OrigInsPt);
+  }
+
+  return LiveIn;
+}
+
+Register AMDGPULegalizerInfo::getLiveInRegister(MachineIRBuilder &B,
+                                                MachineRegisterInfo &MRI,
+                                                Register PhyReg, LLT Ty,
+                                                bool InsertLiveInCopy) const {
+  assert(PhyReg.isPhysical() && "Physical register expected");
+
+  // Get or create virtual live-in regester
+  Register LiveIn = MRI.getLiveInVirtReg(PhyReg);
+  if (!LiveIn) {
+    LiveIn = MRI.createGenericVirtualRegister(Ty);
+    MRI.addLiveIn(PhyReg, LiveIn);
+  }
+
+  // When the actual true copy required is from virtual register to physical
+  // register (to be inserted later), live-in copy insertion from physical
+  // to register virtual register is not required
+  if (!InsertLiveInCopy)
     return LiveIn;
 
-  Register NewReg = MRI.createGenericVirtualRegister(Ty);
-  MRI.addLiveIn(Reg, NewReg);
-  return NewReg;
+  return insertLiveInCopy(B, MRI, LiveIn, PhyReg);
+}
+
+const ArgDescriptor *AMDGPULegalizerInfo::getArgDescriptor(
+    MachineIRBuilder &B, AMDGPUFunctionArgInfo::PreloadedValue ArgType) const {
+  const SIMachineFunctionInfo *MFI = B.getMF().getInfo<SIMachineFunctionInfo>();
+  const ArgDescriptor *Arg;
+  const TargetRegisterClass *RC;
+  std::tie(Arg, RC) = MFI->getPreloadedValue(ArgType);
+  if (!Arg) {
+    LLVM_DEBUG(dbgs() << "Required arg register missing\n");
+    return nullptr;
+  }
+  return Arg;
 }
 
 bool AMDGPULegalizerInfo::loadInputValue(Register DstReg, MachineIRBuilder &B,
@@ -2271,12 +2351,14 @@ bool AMDGPULegalizerInfo::loadInputValue(Register DstReg, MachineIRBuilder &B,
   if (!Arg->isRegister() || !Arg->getRegister().isValid())
     return false; // TODO: Handle these
 
-  assert(Arg->getRegister().isPhysical());
+  Register SrcReg = Arg->getRegister();
+  assert(SrcReg.isPhysical() && "Physical register expected");
+  assert(DstReg.isVirtual() && "Virtual register expected");
 
   MachineRegisterInfo &MRI = *B.getMRI();
 
   LLT Ty = MRI.getType(DstReg);
-  Register LiveIn = getLiveInRegister(MRI, Arg->getRegister(), Ty);
+  Register LiveIn = getLiveInRegister(B, MRI, SrcReg, Ty);
 
   if (Arg->isMasked()) {
     // TODO: Should we try to emit this once in the entry block?
@@ -2292,50 +2374,27 @@ bool AMDGPULegalizerInfo::loadInputValue(Register DstReg, MachineIRBuilder &B,
     }
 
     B.buildAnd(DstReg, AndMaskSrc, B.buildConstant(S32, Mask >> Shift));
-  } else
+  } else {
     B.buildCopy(DstReg, LiveIn);
-
-  // Insert the argument copy if it doens't already exist.
-  // FIXME: It seems EmitLiveInCopies isn't called anywhere?
-  if (!MRI.getVRegDef(LiveIn)) {
-    // FIXME: Should have scoped insert pt
-    MachineBasicBlock &OrigInsBB = B.getMBB();
-    auto OrigInsPt = B.getInsertPt();
-
-    MachineBasicBlock &EntryMBB = B.getMF().front();
-    EntryMBB.addLiveIn(Arg->getRegister());
-    B.setInsertPt(EntryMBB, EntryMBB.begin());
-    B.buildCopy(LiveIn, Arg->getRegister());
-
-    B.setInsertPt(OrigInsBB, OrigInsPt);
   }
 
   return true;
 }
 
 bool AMDGPULegalizerInfo::legalizePreloadedArgIntrin(
-  MachineInstr &MI,
-  MachineRegisterInfo &MRI,
-  MachineIRBuilder &B,
-  AMDGPUFunctionArgInfo::PreloadedValue ArgType) const {
+    MachineInstr &MI, MachineRegisterInfo &MRI, MachineIRBuilder &B,
+    AMDGPUFunctionArgInfo::PreloadedValue ArgType) const {
   B.setInstr(MI);
 
-  const SIMachineFunctionInfo *MFI = B.getMF().getInfo<SIMachineFunctionInfo>();
-
-  const ArgDescriptor *Arg;
-  const TargetRegisterClass *RC;
-  std::tie(Arg, RC) = MFI->getPreloadedValue(ArgType);
-  if (!Arg) {
-    LLVM_DEBUG(dbgs() << "Required arg register missing\n");
+  const ArgDescriptor *Arg = getArgDescriptor(B, ArgType);
+  if (!Arg)
     return false;
-  }
 
-  if (loadInputValue(MI.getOperand(0).getReg(), B, Arg)) {
-    MI.eraseFromParent();
-    return true;
-  }
+  if (!loadInputValue(MI.getOperand(0).getReg(), B, Arg))
+    return false;
 
-  return false;
+  MI.eraseFromParent();
+  return true;
 }
 
 bool AMDGPULegalizerInfo::legalizeFDIV(MachineInstr &MI,
@@ -3315,96 +3374,213 @@ bool AMDGPULegalizerInfo::legalizeBufferAtomic(MachineInstr &MI,
   return true;
 }
 
-// Produce a vector of s16 elements from s32 pieces.
-static void truncToS16Vector(MachineIRBuilder &B, Register DstReg,
-                             ArrayRef<Register> UnmergeParts) {
+/// Turn a set of s16 typed registers in \p A16AddrRegs into a dword sized
+/// vector with s16 typed elements.
+static void packImageA16AddressToDwords(MachineIRBuilder &B, MachineInstr &MI,
+                                        SmallVectorImpl<Register> &PackedAddrs,
+                                        int AddrIdx, int DimIdx, int NumVAddrs,
+                                        int NumGradients) {
   const LLT S16 = LLT::scalar(16);
-
-  SmallVector<Register, 4> RemergeParts(UnmergeParts.size());
-  for (int I = 0, E = UnmergeParts.size(); I != E; ++I)
-    RemergeParts[I] = B.buildTrunc(S16, UnmergeParts[I]).getReg(0);
-
-  B.buildBuildVector(DstReg, RemergeParts);
-}
-
-/// Convert a set of s32 registers to a result vector with s16 elements.
-static void bitcastToS16Vector(MachineIRBuilder &B, Register DstReg,
-                               ArrayRef<Register> UnmergeParts) {
-  MachineRegisterInfo &MRI = *B.getMRI();
   const LLT V2S16 = LLT::vector(2, 16);
-  LLT TargetTy = MRI.getType(DstReg);
-  int NumElts = UnmergeParts.size();
 
-  if (NumElts == 1) {
-    assert(TargetTy == V2S16);
-    B.buildBitcast(DstReg, UnmergeParts[0]);
-    return;
+  for (int I = AddrIdx; I < AddrIdx + NumVAddrs; ++I) {
+    Register AddrReg = MI.getOperand(I).getReg();
+
+    if (I < DimIdx) {
+      AddrReg = B.buildBitcast(V2S16, AddrReg).getReg(0);
+      PackedAddrs.push_back(AddrReg);
+    } else {
+      // Dz/dh, dz/dv and the last odd coord are packed with undef. Also, in 1D,
+      // derivatives dx/dh and dx/dv are packed with undef.
+      if (((I + 1) >= (AddrIdx + NumVAddrs)) ||
+          ((NumGradients / 2) % 2 == 1 &&
+           (I == DimIdx + (NumGradients / 2) - 1 ||
+            I == DimIdx + NumGradients - 1))) {
+        PackedAddrs.push_back(
+            B.buildBuildVector(V2S16, {AddrReg, B.buildUndef(S16).getReg(0)})
+                .getReg(0));
+      } else {
+        PackedAddrs.push_back(
+            B.buildBuildVector(V2S16, {AddrReg, MI.getOperand(I + 1).getReg()})
+                .getReg(0));
+        ++I;
+      }
+    }
   }
-
-  SmallVector<Register, 4> RemergeParts(NumElts);
-  for (int I = 0; I != NumElts; ++I)
-    RemergeParts[I] = B.buildBitcast(V2S16, UnmergeParts[I]).getReg(0);
-
-  if (TargetTy.getSizeInBits() == 32u * NumElts) {
-    B.buildConcatVectors(DstReg, RemergeParts);
-    return;
-  }
-
-  const LLT V3S16 = LLT::vector(3, 16);
-  const LLT V6S16 = LLT::vector(6, 16);
-
-  // Widen to v6s16 and unpack v3 parts.
-  assert(TargetTy == V3S16);
-
-  RemergeParts.push_back(B.buildUndef(V2S16).getReg(0));
-  auto Concat = B.buildConcatVectors(V6S16, RemergeParts);
-  B.buildUnmerge({DstReg, MRI.createGenericVirtualRegister(V3S16)}, Concat);
 }
 
-// FIXME: Just vector trunc should be sufficent, but legalization currently
-// broken.
-static void repackUnpackedD16Load(MachineIRBuilder &B, Register DstReg,
-                                  Register WideDstReg) {
-  const LLT S32 = LLT::scalar(32);
-  const LLT S16 = LLT::scalar(16);
+/// Convert from separate vaddr components to a single vector address register,
+/// and replace the remaining operands with $noreg.
+static void convertImageAddrToPacked(MachineIRBuilder &B, MachineInstr &MI,
+                                     int DimIdx, int NumVAddrs) {
+  SmallVector<Register, 8> AddrRegs(NumVAddrs);
+  for (int I = 0; I != NumVAddrs; ++I) {
+    AddrRegs[I] = MI.getOperand(DimIdx + I).getReg();
+    assert(B.getMRI()->getType(AddrRegs[I]) == LLT::scalar(32));
+  }
 
-  auto Unmerge = B.buildUnmerge(S32, WideDstReg);
-
-  int NumOps = Unmerge->getNumOperands() - 1;
-  SmallVector<Register, 4> RemergeParts(NumOps);
-  for (int I = 0; I != NumOps; ++I)
-    RemergeParts[I] = B.buildTrunc(S16, Unmerge.getReg(I)).getReg(0);
-
-  B.buildBuildVector(DstReg, RemergeParts);
+  auto VAddr = B.buildBuildVector(LLT::vector(NumVAddrs, 32), AddrRegs);
+  MI.getOperand(DimIdx).setReg(VAddr.getReg(0));
+  for (int I = 1; I != NumVAddrs; ++I)
+    MI.getOperand(DimIdx + I).setReg(AMDGPU::NoRegister);
 }
 
+/// Return number of address arguments, and the number of gradients
+static std::pair<int, int>
+getImageNumVAddr(const AMDGPU::ImageDimIntrinsicInfo *ImageDimIntr,
+                 const AMDGPU::MIMGBaseOpcodeInfo *BaseOpcode) {
+  const AMDGPU::MIMGDimInfo *DimInfo
+    = AMDGPU::getMIMGDimInfo(ImageDimIntr->Dim);
+
+  int NumGradients = BaseOpcode->Gradients ? DimInfo->NumGradients : 0;
+  int NumCoords = BaseOpcode->Coordinates ? DimInfo->NumCoords : 0;
+  int NumLCM = BaseOpcode->LodOrClampOrMip ? 1 : 0;
+  int NumVAddr = BaseOpcode->NumExtraArgs + NumGradients + NumCoords + NumLCM;
+  return {NumVAddr, NumGradients};
+}
+
+static int getDMaskIdx(const AMDGPU::MIMGBaseOpcodeInfo *BaseOpcode,
+                       int NumDefs) {
+  assert(!BaseOpcode->Atomic);
+  return NumDefs + 1 + (BaseOpcode->Store ? 1 : 0);
+}
+
+/// Return first address operand index in an image intrinsic.
+static int getImageVAddrIdxBegin(const AMDGPU::MIMGBaseOpcodeInfo *BaseOpcode,
+                                 int NumDefs) {
+  if (BaseOpcode->Atomic)
+    return NumDefs + 1 + (BaseOpcode->AtomicX2 ? 2 : 1);
+  return getDMaskIdx(BaseOpcode, NumDefs) + 1;
+}
+
+/// Rewrite image intrinsics to use register layouts expected by the subtarget.
+///
+/// Depending on the subtarget, load/store with 16-bit element data need to be
+/// rewritten to use the low half of 32-bit registers, or directly use a packed
+/// layout. 16-bit addresses should also sometimes be packed into 32-bit
+/// registers.
+///
+/// We don't want to directly select image instructions just yet, but also want
+/// to exposes all register repacking to the legalizer/combiners. We also don't
+/// want a selected instrution entering RegBankSelect. In order to avoid
+/// defining a multitude of intermediate image instructions, directly hack on
+/// the intrinsic's arguments. In cases like a16 addreses, this requires padding
+/// now unnecessary arguments with $noreg.
 bool AMDGPULegalizerInfo::legalizeImageIntrinsic(
     MachineInstr &MI, MachineIRBuilder &B,
     GISelChangeObserver &Observer,
     const AMDGPU::ImageDimIntrinsicInfo *ImageDimIntr) const {
-  bool IsTFE = MI.getNumExplicitDefs() == 2;
+  B.setInstr(MI);
 
+  const int NumDefs = MI.getNumExplicitDefs();
+  bool IsTFE = NumDefs == 2;
   // We are only processing the operands of d16 image operations on subtargets
   // that use the unpacked register layout, or need to repack the TFE result.
 
-  // TODO: Need to handle a16 images too
   // TODO: Do we need to guard against already legalized intrinsics?
-  if (!IsTFE && !ST.hasUnpackedD16VMem())
-    return true;
-
   const AMDGPU::MIMGBaseOpcodeInfo *BaseOpcode =
     AMDGPU::getMIMGBaseOpcodeInfo(ImageDimIntr->BaseOpcode);
-
-  if (BaseOpcode->Atomic) // No d16 atomics, or TFE.
-    return true;
-
-  B.setInstr(MI);
 
   MachineRegisterInfo *MRI = B.getMRI();
   const LLT S32 = LLT::scalar(32);
   const LLT S16 = LLT::scalar(16);
+  const LLT V2S16 = LLT::vector(2, 16);
+
+  // Index of first address argument
+  const int AddrIdx = getImageVAddrIdxBegin(BaseOpcode, NumDefs);
+
+  // Check for 16 bit addresses and pack if true.
+  int DimIdx = AddrIdx + BaseOpcode->NumExtraArgs;
+  LLT AddrTy = MRI->getType(MI.getOperand(DimIdx).getReg());
+  const bool IsA16 = AddrTy == S16;
+
+  int NumVAddrs, NumGradients;
+  std::tie(NumVAddrs, NumGradients) = getImageNumVAddr(ImageDimIntr, BaseOpcode);
+  const int DMaskIdx = BaseOpcode->Atomic ? -1 :
+    getDMaskIdx(BaseOpcode, NumDefs);
+  unsigned DMask = 0;
+
+  int DMaskLanes = 0;
+  if (!BaseOpcode->Atomic) {
+    DMask = MI.getOperand(DMaskIdx).getImm();
+    if (BaseOpcode->Gather4) {
+      DMaskLanes = 4;
+    } else if (DMask != 0) {
+      DMaskLanes = countPopulation(DMask);
+    } else if (!IsTFE && !BaseOpcode->Store) {
+      // If dmask is 0, this is a no-op load. This can be eliminated.
+      B.buildUndef(MI.getOperand(0));
+      MI.eraseFromParent();
+      return true;
+    }
+  }
+
+  Observer.changingInstr(MI);
+  auto ChangedInstr = make_scope_exit([&] { Observer.changedInstr(MI); });
+
+  unsigned NewOpcode = NumDefs == 0 ?
+    AMDGPU::G_AMDGPU_INTRIN_IMAGE_STORE : AMDGPU::G_AMDGPU_INTRIN_IMAGE_LOAD;
+
+  // Track that we legalized this
+  MI.setDesc(B.getTII().get(NewOpcode));
+
+  // Expecting to get an error flag since TFC is on - and dmask is 0 Force
+  // dmask to be at least 1 otherwise the instruction will fail
+  if (IsTFE && DMask == 0) {
+    DMask = 0x1;
+    DMaskLanes = 1;
+    MI.getOperand(DMaskIdx).setImm(DMask);
+  }
+
+  // If the register allocator cannot place the address registers contiguously
+  // without introducing moves, then using the non-sequential address encoding
+  // is always preferable, since it saves VALU instructions and is usually a
+  // wash in terms of code size or even better.
+  //
+  // However, we currently have no way of hinting to the register allocator
+  // that MIMG addresses should be placed contiguously when it is possible to
+  // do so, so force non-NSA for the common 2-address case as a heuristic.
+  //
+  // SIShrinkInstructions will convert NSA encodings to non-NSA after register
+  // allocation when possible.
+  const bool UseNSA = NumVAddrs >= 3 &&
+                      ST.hasFeature(AMDGPU::FeatureNSAEncoding);
+
+  // Rewrite the addressing register layout before doing anything else.
+  if (IsA16) {
+    // FIXME: this feature is missing from gfx10. When that is fixed, this check
+    // should be introduced.
+    if (!ST.hasR128A16() && !ST.hasGFX10A16())
+      return false;
+
+    if (NumVAddrs > 1) {
+      SmallVector<Register, 4> PackedRegs;
+      packImageA16AddressToDwords(B, MI, PackedRegs, AddrIdx, DimIdx, NumVAddrs,
+                                  NumGradients);
+
+      if (!UseNSA && PackedRegs.size() > 1) {
+        LLT PackedAddrTy = LLT::vector(2 * PackedRegs.size(), 16);
+        auto Concat = B.buildConcatVectors(PackedAddrTy, PackedRegs);
+        PackedRegs[0] = Concat.getReg(0);
+        PackedRegs.resize(1);
+      }
+
+      const int NumPacked = PackedRegs.size();
+      for (int I = 0; I != NumVAddrs; ++I) {
+        assert(MI.getOperand(AddrIdx + I).getReg() != AMDGPU::NoRegister);
+
+        if (I < NumPacked)
+          MI.getOperand(AddrIdx + I).setReg(PackedRegs[I]);
+        else
+          MI.getOperand(AddrIdx + I).setReg(AMDGPU::NoRegister);
+      }
+    }
+  } else if (!UseNSA && NumVAddrs > 1) {
+    convertImageAddrToPacked(B, MI, AddrIdx, NumVAddrs);
+  }
 
   if (BaseOpcode->Store) { // No TFE for stores?
+    // TODO: Handle dmask trim
     Register VData = MI.getOperand(1).getReg();
     LLT Ty = MRI->getType(VData);
     if (!Ty.isVector() || Ty.getElementType() != S16)
@@ -3412,9 +3588,11 @@ bool AMDGPULegalizerInfo::legalizeImageIntrinsic(
 
     B.setInstr(MI);
 
-    Observer.changingInstr(MI);
-    MI.getOperand(1).setReg(handleD16VData(B, *MRI, VData));
-    Observer.changedInstr(MI);
+    Register RepackedReg = handleD16VData(B, *MRI, VData);
+    if (RepackedReg != VData) {
+      MI.getOperand(1).setReg(RepackedReg);
+    }
+
     return true;
   }
 
@@ -3422,96 +3600,162 @@ bool AMDGPULegalizerInfo::legalizeImageIntrinsic(
   LLT Ty = MRI->getType(DstReg);
   const LLT EltTy = Ty.getScalarType();
   const bool IsD16 = Ty.getScalarType() == S16;
-  const unsigned NumElts = Ty.isVector() ? Ty.getNumElements() : 1;
+  const int NumElts = Ty.isVector() ? Ty.getNumElements() : 1;
+
+  // Confirm that the return type is large enough for the dmask specified
+  if (NumElts < DMaskLanes)
+    return false;
+
+  if (NumElts > 4 || DMaskLanes > 4)
+    return false;
+
+  const unsigned AdjustedNumElts = DMaskLanes == 0 ? 1 : DMaskLanes;
+  const LLT AdjustedTy = Ty.changeNumElements(AdjustedNumElts);
+
+  // The raw dword aligned data component of the load. The only legal cases
+  // where this matters should be when using the packed D16 format, for
+  // s16 -> <2 x s16>, and <3 x s16> -> <4 x s16>,
+  LLT RoundedTy;
+
+  // S32 vector to to cover all data, plus TFE result element.
+  LLT TFETy;
+
+  // Register type to use for each loaded component. Will be S32 or V2S16.
+  LLT RegTy;
+
+  if (IsD16 && ST.hasUnpackedD16VMem()) {
+    RoundedTy = LLT::scalarOrVector(AdjustedNumElts, 32);
+    TFETy = LLT::vector(AdjustedNumElts + 1, 32);
+    RegTy = S32;
+  } else {
+    unsigned EltSize = EltTy.getSizeInBits();
+    unsigned RoundedElts = (AdjustedTy.getSizeInBits() + 31) / 32;
+    unsigned RoundedSize = 32 * RoundedElts;
+    RoundedTy = LLT::scalarOrVector(RoundedSize / EltSize, EltSize);
+    TFETy = LLT::vector(RoundedSize / 32 + 1, S32);
+    RegTy = !IsTFE && EltSize == 16 ? V2S16 : S32;
+  }
+
+  // The return type does not need adjustment.
+  // TODO: Should we change s16 case to s32 or <2 x s16>?
+  if (!IsTFE && (RoundedTy == Ty || !Ty.isVector()))
+    return true;
+
+  Register Dst1Reg;
+
+  // Insert after the instruction.
+  B.setInsertPt(*MI.getParent(), ++MI.getIterator());
+
+  // TODO: For TFE with d16, if we used a TFE type that was a multiple of <2 x
+  // s16> instead of s32, we would only need 1 bitcast instead of multiple.
+  const LLT LoadResultTy = IsTFE ? TFETy : RoundedTy;
+  const int ResultNumRegs = LoadResultTy.getSizeInBits() / 32;
+
+  Register NewResultReg = MRI->createGenericVirtualRegister(LoadResultTy);
+
+  MI.getOperand(0).setReg(NewResultReg);
+
+  // In the IR, TFE is supposed to be used with a 2 element struct return
+  // type. The intruction really returns these two values in one contiguous
+  // register, with one additional dword beyond the loaded data. Rewrite the
+  // return type to use a single register result.
 
   if (IsTFE) {
-    // In the IR, TFE is supposed to be used with a 2 element struct return
-    // type. The intruction really returns these two values in one contiguous
-    // register, with one additional dword beyond the loaded data. Rewrite the
-    // return type to use a single register result.
-    Register Dst1Reg = MI.getOperand(1).getReg();
+    Dst1Reg = MI.getOperand(1).getReg();
     if (MRI->getType(Dst1Reg) != S32)
       return false;
 
     // TODO: Make sure the TFE operand bit is set.
-
-    // The raw dword aligned data component of the load. The only legal cases
-    // where this matters should be when using the packed D16 format, for
-    // s16 -> <2 x s16>, and <3 x s16> -> <4 x s16>,
-    LLT RoundedTy;
-    LLT TFETy;
-
-    if (IsD16 && ST.hasUnpackedD16VMem()) {
-      RoundedTy = LLT::scalarOrVector(NumElts, 32);
-      TFETy = LLT::vector(NumElts + 1, 32);
-    } else {
-      unsigned EltSize = Ty.getScalarSizeInBits();
-      unsigned RoundedElts = (Ty.getSizeInBits() + 31) / 32;
-      unsigned RoundedSize = 32 * RoundedElts;
-      RoundedTy = LLT::scalarOrVector(RoundedSize / EltSize, EltSize);
-      TFETy = LLT::vector(RoundedSize / 32 + 1, S32);
-    }
-
-    Register TFEReg = MRI->createGenericVirtualRegister(TFETy);
-    Observer.changingInstr(MI);
-
-    MI.getOperand(0).setReg(TFEReg);
     MI.RemoveOperand(1);
 
-    Observer.changedInstr(MI);
-
-    // Insert after the instruction.
-    B.setInsertPt(*MI.getParent(), ++MI.getIterator());
-
-    // Now figure out how to copy the new result register back into the old
-    // result.
-
-    SmallVector<Register, 5> UnmergeResults(TFETy.getNumElements(), Dst1Reg);
-    int NumDataElts = TFETy.getNumElements() - 1;
-
-    if (!Ty.isVector()) {
-      // Simplest case is a trivial unmerge (plus a truncate for d16).
-      UnmergeResults[0] = Ty == S32 ?
-        DstReg : MRI->createGenericVirtualRegister(S32);
-
-      B.buildUnmerge(UnmergeResults, TFEReg);
-      if (Ty != S32)
-        B.buildTrunc(DstReg, UnmergeResults[0]);
+    // Handle the easy case that requires no repack instructions.
+    if (Ty == S32) {
+      B.buildUnmerge({DstReg, Dst1Reg}, NewResultReg);
       return true;
     }
+  }
 
+  // Now figure out how to copy the new result register back into the old
+  // result.
+  SmallVector<Register, 5> ResultRegs(ResultNumRegs, Dst1Reg);
+
+  const int NumDataRegs = IsTFE ? ResultNumRegs - 1  : ResultNumRegs;
+
+  if (ResultNumRegs == 1) {
+    assert(!IsTFE);
+    ResultRegs[0] = NewResultReg;
+  } else {
     // We have to repack into a new vector of some kind.
-    for (int I = 0; I != NumDataElts; ++I)
-      UnmergeResults[I] = MRI->createGenericVirtualRegister(S32);
-    B.buildUnmerge(UnmergeResults, TFEReg);
+    for (int I = 0; I != NumDataRegs; ++I)
+      ResultRegs[I] = MRI->createGenericVirtualRegister(RegTy);
+    B.buildUnmerge(ResultRegs, NewResultReg);
 
-    // Drop the final TFE element.
-    ArrayRef<Register> DataPart(UnmergeResults.data(), NumDataElts);
+    // Drop the final TFE element to get the data part. The TFE result is
+    // directly written to the right place already.
+    if (IsTFE)
+      ResultRegs.resize(NumDataRegs);
+  }
 
-    if (EltTy == S32)
-      B.buildBuildVector(DstReg, DataPart);
-    else if (ST.hasUnpackedD16VMem())
-      truncToS16Vector(B, DstReg, DataPart);
-    else
-      bitcastToS16Vector(B, DstReg, DataPart);
-
+  // For an s16 scalar result, we form an s32 result with a truncate regardless
+  // of packed vs. unpacked.
+  if (IsD16 && !Ty.isVector()) {
+    B.buildTrunc(DstReg, ResultRegs[0]);
     return true;
   }
 
-  // Must be an image load.
-  if (!Ty.isVector() || Ty.getElementType() != S16)
+  // Avoid a build/concat_vector of 1 entry.
+  if (Ty == V2S16 && NumDataRegs == 1 && !ST.hasUnpackedD16VMem()) {
+    B.buildBitcast(DstReg, ResultRegs[0]);
     return true;
+  }
 
-  B.setInsertPt(*MI.getParent(), ++MI.getIterator());
+  assert(Ty.isVector());
 
-  LLT WidenedTy = Ty.changeElementType(S32);
-  Register WideDstReg = MRI->createGenericVirtualRegister(WidenedTy);
+  if (IsD16) {
+    // For packed D16 results with TFE enabled, all the data components are
+    // S32. Cast back to the expected type.
+    //
+    // TODO: We don't really need to use load s32 elements. We would only need one
+    // cast for the TFE result if a multiple of v2s16 was used.
+    if (RegTy != V2S16 && !ST.hasUnpackedD16VMem()) {
+      for (Register &Reg : ResultRegs)
+        Reg = B.buildBitcast(V2S16, Reg).getReg(0);
+    } else if (ST.hasUnpackedD16VMem()) {
+      for (Register &Reg : ResultRegs)
+        Reg = B.buildTrunc(S16, Reg).getReg(0);
+    }
+  }
 
-  Observer.changingInstr(MI);
-  MI.getOperand(0).setReg(WideDstReg);
-  Observer.changedInstr(MI);
+  auto padWithUndef = [&](LLT Ty, int NumElts) {
+    if (NumElts == 0)
+      return;
+    Register Undef = B.buildUndef(Ty).getReg(0);
+    for (int I = 0; I != NumElts; ++I)
+      ResultRegs.push_back(Undef);
+  };
 
-  repackUnpackedD16Load(B, DstReg, WideDstReg);
+  // Pad out any elements eliminated due to the dmask.
+  LLT ResTy = MRI->getType(ResultRegs[0]);
+  if (!ResTy.isVector()) {
+    padWithUndef(ResTy, NumElts - ResultRegs.size());
+    B.buildBuildVector(DstReg, ResultRegs);
+    return true;
+  }
+
+  assert(!ST.hasUnpackedD16VMem() && ResTy == V2S16);
+  const int RegsToCover = (Ty.getSizeInBits() + 31) / 32;
+
+  // Deal with the one annoying legal case.
+  const LLT V3S16 = LLT::vector(3, 16);
+  if (Ty == V3S16) {
+    padWithUndef(ResTy, RegsToCover - ResultRegs.size() + 1);
+    auto Concat = B.buildConcatVectors(LLT::vector(6, 16), ResultRegs);
+    B.buildUnmerge({DstReg, MRI->createGenericVirtualRegister(V3S16)}, Concat);
+    return true;
+  }
+
+  padWithUndef(ResTy, RegsToCover - ResultRegs.size());
+  B.buildConcatVectors(DstReg, ResultRegs);
   return true;
 }
 
@@ -3555,6 +3799,61 @@ bool AMDGPULegalizerInfo::legalizeSBufferLoad(
   }
 
   Observer.changedInstr(MI);
+  return true;
+}
+
+bool AMDGPULegalizerInfo::legalizeTrapIntrinsic(MachineInstr &MI,
+                                                MachineRegisterInfo &MRI,
+                                                MachineIRBuilder &B) const {
+  B.setInstr(MI);
+
+  // Is non-HSA path or trap-handler disabled? then, insert s_endpgm instruction
+  if (ST.getTrapHandlerAbi() != GCNSubtarget::TrapHandlerAbiHsa ||
+      !ST.isTrapHandlerEnabled()) {
+    B.buildInstr(AMDGPU::S_ENDPGM).addImm(0);
+  } else {
+    // Pass queue pointer to trap handler as input, and insert trap instruction
+    // Reference: https://llvm.org/docs/AMDGPUUsage.html#trap-handler-abi
+    const ArgDescriptor *Arg =
+        getArgDescriptor(B, AMDGPUFunctionArgInfo::QUEUE_PTR);
+    if (!Arg)
+      return false;
+    MachineRegisterInfo &MRI = *B.getMRI();
+    Register SGPR01(AMDGPU::SGPR0_SGPR1);
+    Register LiveIn = getLiveInRegister(
+        B, MRI, SGPR01, LLT::pointer(AMDGPUAS::CONSTANT_ADDRESS, 64),
+        /*InsertLiveInCopy=*/false);
+    if (!loadInputValue(LiveIn, B, Arg))
+      return false;
+    B.buildCopy(SGPR01, LiveIn);
+    B.buildInstr(AMDGPU::S_TRAP)
+        .addImm(GCNSubtarget::TrapIDLLVMTrap)
+        .addReg(SGPR01, RegState::Implicit);
+  }
+
+  MI.eraseFromParent();
+  return true;
+}
+
+bool AMDGPULegalizerInfo::legalizeDebugTrapIntrinsic(
+    MachineInstr &MI, MachineRegisterInfo &MRI, MachineIRBuilder &B) const {
+  B.setInstr(MI);
+
+  // Is non-HSA path or trap-handler disabled? then, report a warning
+  // accordingly
+  if (ST.getTrapHandlerAbi() != GCNSubtarget::TrapHandlerAbiHsa ||
+      !ST.isTrapHandlerEnabled()) {
+    DiagnosticInfoUnsupported NoTrap(B.getMF().getFunction(),
+                                     "debugtrap handler not supported",
+                                     MI.getDebugLoc(), DS_Warning);
+    LLVMContext &Ctx = B.getMF().getFunction().getContext();
+    Ctx.diagnose(NoTrap);
+  } else {
+    // Insert debug-trap instruction
+    B.buildInstr(AMDGPU::S_TRAP).addImm(GCNSubtarget::TrapIDLLVMDebugTrap);
+  }
+
+  MI.eraseFromParent();
   return true;
 }
 
@@ -3635,6 +3934,14 @@ bool AMDGPULegalizerInfo::legalizeIntrinsic(MachineInstr &MI,
     return false;
   }
   case Intrinsic::amdgcn_kernarg_segment_ptr:
+    if (!AMDGPU::isKernel(B.getMF().getFunction().getCallingConv())) {
+      B.setInstr(MI);
+      // This only makes sense to call in a kernel, so just lower to null.
+      B.buildConstant(MI.getOperand(0).getReg(), 0);
+      MI.eraseFromParent();
+      return true;
+    }
+
     return legalizePreloadedArgIntrin(
       MI, MRI, B, AMDGPUFunctionArgInfo::KERNARG_SEGMENT_PTR);
   case Intrinsic::amdgcn_implicitarg_ptr:
@@ -3732,6 +4039,10 @@ bool AMDGPULegalizerInfo::legalizeIntrinsic(MachineInstr &MI,
     return legalizeAtomicIncDec(MI, B, true);
   case Intrinsic::amdgcn_atomic_dec:
     return legalizeAtomicIncDec(MI, B, false);
+  case Intrinsic::trap:
+    return legalizeTrapIntrinsic(MI, MRI, B);
+  case Intrinsic::debugtrap:
+    return legalizeDebugTrapIntrinsic(MI, MRI, B);
   default: {
     if (const AMDGPU::ImageDimIntrinsicInfo *ImageDimIntr =
             AMDGPU::getImageDimIntrinsicInfo(IntrID))

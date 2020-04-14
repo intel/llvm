@@ -332,6 +332,19 @@ struct get_device_info<bool, info::device::kernel_kernel_pipe_support> {
   }
 };
 
+// Specialization for max_work_item_sizes.
+// Due to the flipping of work group dimensions before kernel launch, the max
+// sizes should also be reversed.
+template <> struct get_device_info<id<3>, info::device::max_work_item_sizes> {
+  static id<3> get(RT::PiDevice dev, const plugin &Plugin) {
+    size_t result[3];
+    Plugin.call<PiApiKind::piDeviceGetInfo>(
+        dev, pi::cast<RT::PiDeviceInfo>(info::device::max_work_item_sizes),
+        sizeof(result), &result, nullptr);
+    return id<3>(result[2], result[1], result[0]);
+  }
+};
+
 // SYCL host device information
 
 // Default template is disabled, all possible instantiations are

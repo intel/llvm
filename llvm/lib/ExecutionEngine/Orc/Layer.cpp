@@ -8,6 +8,7 @@
 
 #include "llvm/ExecutionEngine/Orc/Layer.h"
 
+#include "llvm/ExecutionEngine/Orc/DebugUtils.h"
 #include "llvm/ExecutionEngine/Orc/ExecutionUtils.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/Object/MachO.h"
@@ -200,8 +201,8 @@ void BasicObjectLayerMaterializationUnit::materialize(
 
 void BasicObjectLayerMaterializationUnit::discard(const JITDylib &JD,
                                                   const SymbolStringPtr &Name) {
-  // FIXME: Support object file level discard. This could be done by building a
-  //        filter to pass to the object layer along with the object itself.
+  // This is a no-op for object files: Having removed 'Name' from SymbolFlags
+  // the symbol will be dead-stripped by the JIT linker.
 }
 
 } // End namespace orc.

@@ -1,9 +1,15 @@
-file(GLOB globbed *.c *.cpp)
-add_llvm_library(MLIRShape
-  ${globbed}
+add_mlir_dialect_library(MLIRShape
+  IR/Shape.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/Shape
+
+  DEPENDS
+  MLIRShapeOpsIncGen
   )
-add_dependencies(MLIRShape MLIRShapeOpsIncGen LLVMSupport)
-target_link_libraries(MLIRShape LLVMSupport)
+target_link_libraries(MLIRShape
+  PUBLIC
+  MLIRIR
+  MLIRSideEffects
+  LLVMSupport
+  )

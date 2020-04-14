@@ -141,7 +141,7 @@ DICompileUnit *DIBuilder::createCompileUnit(
     DICompileUnit::DebugEmissionKind Kind, uint64_t DWOId,
     bool SplitDebugInlining, bool DebugInfoForProfiling,
     DICompileUnit::DebugNameTableKind NameTableKind, bool RangesBaseAddress,
-    StringRef SysRoot) {
+    StringRef SysRoot, StringRef SDK) {
 
   assert(((Lang <= dwarf::DW_LANG_Fortran08 && Lang >= dwarf::DW_LANG_C89) ||
           (Lang <= dwarf::DW_LANG_hi_user && Lang >= dwarf::DW_LANG_lo_user)) &&
@@ -152,7 +152,7 @@ DICompileUnit *DIBuilder::createCompileUnit(
       VMContext, Lang, File, Producer, isOptimized, Flags, RunTimeVer,
       SplitName, Kind, nullptr, nullptr, nullptr, nullptr, nullptr, DWOId,
       SplitDebugInlining, DebugInfoForProfiling, NameTableKind,
-      RangesBaseAddress, SysRoot);
+      RangesBaseAddress, SysRoot, SDK);
 
   // Create a named metadata so that it is easier to find cu in a module.
   NamedMDNode *NMD = M.getOrInsertNamedMetadata("llvm.dbg.cu");
@@ -406,25 +406,26 @@ DIBuilder::createObjCProperty(StringRef Name, DIFile *File, unsigned LineNumber,
 
 DITemplateTypeParameter *
 DIBuilder::createTemplateTypeParameter(DIScope *Context, StringRef Name,
-                                       DIType *Ty) {
+                                       DIType *Ty, bool isDefault) {
   assert((!Context || isa<DICompileUnit>(Context)) && "Expected compile unit");
-  return DITemplateTypeParameter::get(VMContext, Name, Ty);
+  return DITemplateTypeParameter::get(VMContext, Name, Ty, isDefault);
 }
 
 static DITemplateValueParameter *
 createTemplateValueParameterHelper(LLVMContext &VMContext, unsigned Tag,
                                    DIScope *Context, StringRef Name, DIType *Ty,
-                                   Metadata *MD) {
+                                   bool IsDefault, Metadata *MD) {
   assert((!Context || isa<DICompileUnit>(Context)) && "Expected compile unit");
-  return DITemplateValueParameter::get(VMContext, Tag, Name, Ty, MD);
+  return DITemplateValueParameter::get(VMContext, Tag, Name, Ty, IsDefault, MD);
 }
 
 DITemplateValueParameter *
 DIBuilder::createTemplateValueParameter(DIScope *Context, StringRef Name,
-                                        DIType *Ty, Constant *Val) {
+                                        DIType *Ty, bool isDefault,
+                                        Constant *Val) {
   return createTemplateValueParameterHelper(
       VMContext, dwarf::DW_TAG_template_value_parameter, Context, Name, Ty,
-      getConstantOrNull(Val));
+      isDefault, getConstantOrNull(Val));
 }
 
 DITemplateValueParameter *
@@ -432,7 +433,7 @@ DIBuilder::createTemplateTemplateParameter(DIScope *Context, StringRef Name,
                                            DIType *Ty, StringRef Val) {
   return createTemplateValueParameterHelper(
       VMContext, dwarf::DW_TAG_GNU_template_template_param, Context, Name, Ty,
-      MDString::get(VMContext, Val));
+      false, MDString::get(VMContext, Val));
 }
 
 DITemplateValueParameter *
@@ -440,7 +441,7 @@ DIBuilder::createTemplateParameterPack(DIScope *Context, StringRef Name,
                                        DIType *Ty, DINodeArray Val) {
   return createTemplateValueParameterHelper(
       VMContext, dwarf::DW_TAG_GNU_template_parameter_pack, Context, Name, Ty,
-      Val.get());
+      false, Val.get());
 }
 
 DICompositeType *DIBuilder::createClassType(
@@ -830,9 +831,10 @@ DINamespace *DIBuilder::createNameSpace(DIScope *Scope, StringRef Name,
 
 DIModule *DIBuilder::createModule(DIScope *Scope, StringRef Name,
                                   StringRef ConfigurationMacros,
-                                  StringRef IncludePath) {
+                                  StringRef IncludePath,
+                                  StringRef APINotesFile) {
   return DIModule::get(VMContext, getNonCompileUnitScope(Scope), Name,
-                       ConfigurationMacros, IncludePath);
+                       ConfigurationMacros, IncludePath, APINotesFile);
 }
 
 DILexicalBlockFile *DIBuilder::createLexicalBlockFile(DIScope *Scope,

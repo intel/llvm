@@ -12,6 +12,8 @@ atomic/atomic_or.cl
 atomic/atomic_sub.cl
 atomic/atomic_xchg.cl
 atomic/atomic_xor.cl
+atomic/atomic_load.cl
+atomic/atomic_store.cl
 common/degrees.cl
 common/mix.cl
 common/radians.cl
@@ -53,6 +55,7 @@ math/floor.cl
 math/fma.cl
 math/fmax.cl
 math/fmin.cl
+math/fmod.cl
 math/fract.cl
 math/ldexp.cl
 math/log.cl

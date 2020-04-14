@@ -1,10 +1,10 @@
-; RUN: llc -verify-machineinstrs -filetype=obj -o - -mtriple=x86_64-apple-macosx < %s | llvm-objdump -triple x86_64-apple-macosx -disassemble - | FileCheck %s
+; RUN: llc -verify-machineinstrs -filetype=obj -o - -mtriple=x86_64-apple-macosx < %s | llvm-objdump --triple=x86_64-apple-macosx -d - | FileCheck %s
 ; RUN: llc -verify-machineinstrs -mtriple=x86_64-apple-macosx < %s | FileCheck %s --check-prefix=CHECK-ALIGN
 
 declare void @callee(i64*)
 
 define void @f0() "patchable-function"="prologue-short-redirect" {
-; CHECK-LABEL: _f0:
+; CHECK-LABEL: _f0{{>?}}:
 ; CHECK-NEXT:  66 90 	nop
 
 ; CHECK-ALIGN: 	.p2align	4, 0x90
@@ -45,7 +45,7 @@ define void @f3() "patchable-function"="prologue-short-redirect" optsize {
 ; This testcase happens to produce a KILL instruction at the beginning of the
 ; first basic block. In this case the 2nd instruction should be turned into a
 ; patchable one.
-; CHECK-LABEL: f4:
+; CHECK-LABEL: f4{{>?}}:
 ; CHECK-NEXT: 8b 0c 37  movl  (%rdi,%rsi), %ecx
 define i32 @f4(i8* %arg1, i64 %arg2, i32 %arg3) "patchable-function"="prologue-short-redirect" {
 bb:

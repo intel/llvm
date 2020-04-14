@@ -142,7 +142,66 @@ def mul_to_shl : GICombineRule<
          [{ return Helper.matchCombineMulToShl(*${mi}, ${matchinfo}); }]),
   (apply [{ Helper.applyCombineMulToShl(*${mi}, ${matchinfo}); }])>;
 
+// [us]itofp(undef) = 0, because the result value is bounded.
+def undef_to_fp_zero : GICombineRule<
+  (defs root:$root),
+  (match (wip_match_opcode G_UITOFP, G_SITOFP):$root,
+         [{ return Helper.matchAnyExplicitUseIsUndef(*${root}); }]),
+  (apply [{ Helper.replaceInstWithFConstant(*${root}, 0.0); }])>;
+
+def undef_to_int_zero: GICombineRule<
+  (defs root:$root),
+  (match (wip_match_opcode G_AND, G_MUL):$root,
+         [{ return Helper.matchAnyExplicitUseIsUndef(*${root}); }]),
+  (apply [{ Helper.replaceInstWithConstant(*${root}, 0); }])>;
+
+def undef_to_negative_one: GICombineRule<
+  (defs root:$root),
+  (match (wip_match_opcode G_OR):$root,
+         [{ return Helper.matchAnyExplicitUseIsUndef(*${root}); }]),
+  (apply [{ Helper.replaceInstWithConstant(*${root}, -1); }])>;
+
+// Instructions where if any source operand is undef, the instruction can be
+// replaced with undef.
+def propagate_undef_any_op: GICombineRule<
+  (defs root:$root),
+  (match (wip_match_opcode G_ADD, G_FPTOSI, G_FPTOUI, G_SUB, G_XOR):$root,
+         [{ return Helper.matchAnyExplicitUseIsUndef(*${root}); }]),
+  (apply [{ Helper.replaceInstWithUndef(*${root}); }])>;
+
+// Instructions where if all source operands are undef, the instruction can be
+// replaced with undef.
+def propagate_undef_all_ops: GICombineRule<
+  (defs root:$root),
+  (match (wip_match_opcode G_SHUFFLE_VECTOR):$root,
+          [{ return Helper.matchAllExplicitUsesAreUndef(*${root}); }]),
+  (apply [{ Helper.replaceInstWithUndef(*${root}); }])>;
+
+// Replace a G_SHUFFLE_VECTOR with an undef mask with a G_IMPLICIT_DEF.
+def propagate_undef_shuffle_mask: GICombineRule<
+  (defs root:$root),
+  (match (wip_match_opcode G_SHUFFLE_VECTOR):$root,
+         [{ return Helper.matchUndefShuffleVectorMask(*${root}); }]),
+  (apply [{ Helper.replaceInstWithUndef(*${root}); }])>;
+
+// Fold (cond ? x : x) -> x
+def select_same_val: GICombineRule<
+  (defs root:$root),
+  (match (wip_match_opcode G_SELECT):$root,
+    [{ return Helper.matchSelectSameVal(*${root}); }]),
+  (apply [{ return Helper.replaceSingleDefInstWithOperand(*${root}, 2); }])
+>;
+
+// FIXME: These should use the custom predicate feature once it lands.
+def undef_combines : GICombineGroup<[undef_to_fp_zero, undef_to_int_zero,
+                                     undef_to_negative_one,
+                                     propagate_undef_any_op,
+                                     propagate_undef_all_ops,
+                                     propagate_undef_shuffle_mask]>;
+
+def identity_combines : GICombineGroup<[select_same_val]>;
+
 def trivial_combines : GICombineGroup<[copy_prop, mul_to_shl]>;
 def all_combines : GICombineGroup<[trivial_combines, ptr_add_immed_chain,
-    combines_for_extload, combine_indexed_load_store]>;
-
+    combines_for_extload, combine_indexed_load_store, undef_combines,
+    identity_combines]>;

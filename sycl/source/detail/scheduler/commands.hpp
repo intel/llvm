@@ -9,7 +9,9 @@
 #pragma once
 
 #include <atomic>
+#include <cstdint>
 #include <memory>
+#include <set>
 #include <unordered_set>
 #include <vector>
 
@@ -38,8 +40,13 @@ enum BlockingT { NON_BLOCKING = 0, BLOCKING };
 
 // The struct represents the result of command enqueueing
 struct EnqueueResultT {
-  enum ResultT { SUCCESS, BLOCKED, FAILED };
-  EnqueueResultT(ResultT Result = SUCCESS, Command *Cmd = nullptr,
+  enum ResultT {
+    SyclEnqueueReady,
+    SyclEnqueueSuccess,
+    SyclEnqueueBlocked,
+    SyclEnqueueFailed
+  };
+  EnqueueResultT(ResultT Result = SyclEnqueueSuccess, Command *Cmd = nullptr,
                  cl_int ErrCode = CL_SUCCESS)
       : MResult(Result), MCmd(Cmd), MErrCode(ErrCode) {}
   // Indicates result of enqueueing
@@ -91,13 +98,9 @@ public:
 
   Command(CommandType Type, QueueImplPtr Queue);
 
-  void addDep(DepDesc NewDep) {
-    if (NewDep.MDepCommand)
-      MDepsEvents.push_back(NewDep.MDepCommand->getEvent());
-    MDeps.push_back(NewDep);
-  }
+  void addDep(DepDesc NewDep);
 
-  void addDep(EventImplPtr Event) { MDepsEvents.push_back(std::move(Event)); }
+  void addDep(EventImplPtr Event);
 
   void addUser(Command *NewUser) { MUsers.insert(NewUser); }
 
@@ -112,11 +115,44 @@ public:
 
   bool isFinished();
 
-  bool isEnqueued() const { return MEnqueued; }
+  bool isSuccessfullyEnqueued() const {
+    return MEnqueueStatus == EnqueueResultT::SyclEnqueueSuccess;
+  }
 
   std::shared_ptr<queue_impl> getQueue() const { return MQueue; }
 
   std::shared_ptr<event_impl> getEvent() const { return MEvent; }
+
+  // Methods needed to support SYCL instrumentation
+  //
+  // Proxy method which calls emitInstrumentationData.
+  void emitInstrumentationDataProxy();
+  // Instrumentation method which emits telemetry data.
+  virtual void emitInstrumentationData() = 0;
+  // This function looks at all the dependencies for
+  // the release command and enables instrumentation
+  // to report these dependencies as edges
+  void resolveReleaseDependencies(std::set<Command *> &list);
+  // Creates an edge event when the dependency is a command
+  void emitEdgeEventForCommandDependence(Command *Cmd, void *ObjAddr,
+                                         const string_class &Prefix,
+                                         bool IsCommand);
+  // Creates an edge event when the dependency is an event
+  void emitEdgeEventForEventDependence(Command *Cmd, RT::PiEvent &EventAddr);
+  // Creates a signal event with the enqueued kernel event handle
+  void emitEnqueuedEventSignal(RT::PiEvent &PiEventAddr);
+  /// Create a trace event of node_create type; this must be guarded by a
+  /// check for xptiTraceEnabled()
+  /// Post Condition: MTraceEvent will be set to the event created
+  /// @param MAddress  The address to use to create the payload
+  uint64_t makeTraceEventProlog(void *MAddress);
+  // If prolog has been run, run epilog; this must be guarded by a check for
+  // xptiTraceEnabled()
+  void makeTraceEventEpilog();
+  // Emits an event of Type
+  void emitInstrumentation(uint16_t Type, const char *Txt = nullptr);
+  //
+  // End Methods needed to support SYCL instrumentation
 
   virtual void printDot(std::ostream &Stream) const = 0;
 
@@ -141,8 +177,6 @@ protected:
 
   // The type of the command
   CommandType MType;
-  // Indicates whether the command is enqueued or not
-  std::atomic<bool> MEnqueued;
   // Mutex used to protect enqueueing from race conditions
   std::mutex MEnqueueMtx;
 
@@ -153,24 +187,51 @@ public:
   std::unordered_set<Command *> MUsers;
   // Indicates whether the command can be blocked from enqueueing
   bool MIsBlockable = false;
-  // Indicates whether the command is blocked from enqueueing
-  std::atomic<bool> MCanEnqueue;
   // Counts the number of memory objects this command is a leaf for
   unsigned MLeafCounter = 0;
 
   const char *MBlockReason = "Unknown";
+
+  // Describes the status of a command
+  std::atomic<EnqueueResultT::ResultT> MEnqueueStatus;
+
+  // All member variable defined here  are needed for the SYCL instrumentation
+  // layer. Do not guard these variables below with XPTI_ENABLE_INSTRUMENTATION
+  // to ensure we have the same object layout when the macro in the library and
+  // SYCL app are not the same.
+  //
+  // The event for node_create and task_begin
+  void *MTraceEvent = nullptr;
+  // The stream under which the traces are emitted; stream ids are
+  // positive integers and we set it to an invalid value
+  int32_t MStreamID = -1;
+  // Reserved for storing the object address such as SPIRV or memory object
+  // address
+  void *MAddress = nullptr;
+  // Buffer to build the address string
+  string_class MAddressString;
+  // Buffer to build the command node type
+  string_class MCommandNodeType;
+  // Buffer to build the command end-user understandable name
+  string_class MCommandName;
+  // Flag to indicate if makeTraceEventProlog() has been run
+  bool MTraceEventPrologComplete = false;
+  // Flag to indicate if this is the first time we are seeing this payload
+  bool MFirstInstance = false;
+  // Instance ID tracked for the command
+  uint64_t MInstanceID = 0;
 };
 
 // The command does nothing during enqueue. The task can be used to implement
 // lock in the graph, or to merge several nodes into one.
 class EmptyCommand : public Command {
 public:
-  EmptyCommand(QueueImplPtr Queue, Requirement Req)
-      : Command(CommandType::EMPTY_TASK, std::move(Queue)),
-        MRequirement(std::move(Req)) {}
+  EmptyCommand(QueueImplPtr Queue, Requirement Req);
 
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MRequirement; }
+
+  void emitInstrumentationData();
 
 private:
   cl_int enqueueImp() final { return CL_SUCCESS; }
@@ -182,11 +243,10 @@ private:
 // underlying framework.
 class ReleaseCommand : public Command {
 public:
-  ReleaseCommand(QueueImplPtr Queue, AllocaCommandBase *AllocaCmd)
-      : Command(CommandType::RELEASE, std::move(Queue)), MAllocaCmd(AllocaCmd) {
-  }
+  ReleaseCommand(QueueImplPtr Queue, AllocaCommandBase *AllocaCmd);
 
   void printDot(std::ostream &Stream) const final;
+  void emitInstrumentationData();
 
 private:
   cl_int enqueueImp() final;
@@ -198,20 +258,17 @@ private:
 class AllocaCommandBase : public Command {
 public:
   AllocaCommandBase(CommandType Type, QueueImplPtr Queue, Requirement Req,
-                    AllocaCommandBase *LinkedAllocaCmd)
-      : Command(Type, Queue), MLinkedAllocaCmd(LinkedAllocaCmd),
-        MIsLeaderAlloca(nullptr == LinkedAllocaCmd), MReleaseCmd(Queue, this),
-        MRequirement(std::move(Req)) {
-    MRequirement.MAccessMode = access::mode::read_write;
-  }
+                    AllocaCommandBase *LinkedAllocaCmd);
 
   ReleaseCommand *getReleaseCmd() { return &MReleaseCmd; }
 
   SYCLMemObjI *getSYCLMemObj() const { return MRequirement.MSYCLMemObj; }
 
-  void *getMemAllocation() const { return MMemAllocation; }
+  virtual void *getMemAllocation() const = 0;
 
   const Requirement *getRequirement() const final { return &MRequirement; }
+
+  void emitInstrumentationData();
 
   void *MMemAllocation = nullptr;
 
@@ -229,8 +286,8 @@ public:
   bool MIsLeaderAlloca = true;
 
 protected:
-  ReleaseCommand MReleaseCmd;
   Requirement MRequirement;
+  ReleaseCommand MReleaseCmd;
 };
 
 // The command enqueues allocation of instance of memory object on Host or
@@ -239,14 +296,11 @@ class AllocaCommand : public AllocaCommandBase {
 public:
   AllocaCommand(QueueImplPtr Queue, Requirement Req,
                 bool InitFromUserData = true,
-                AllocaCommandBase *LinkedAllocaCmd = nullptr)
-      : AllocaCommandBase(CommandType::ALLOCA, std::move(Queue), std::move(Req),
-                          LinkedAllocaCmd),
-        MInitFromUserData(InitFromUserData) {
-    addDep(DepDesc(nullptr, getRequirement(), this));
-  }
+                AllocaCommandBase *LinkedAllocaCmd = nullptr);
 
+  void *getMemAllocation() const final { return MMemAllocation; }
   void printDot(std::ostream &Stream) const final;
+  void emitInstrumentationData();
 
 private:
   cl_int enqueueImp() final;
@@ -259,16 +313,12 @@ private:
 class AllocaSubBufCommand : public AllocaCommandBase {
 public:
   AllocaSubBufCommand(QueueImplPtr Queue, Requirement Req,
-                      AllocaCommandBase *ParentAlloca)
-      : AllocaCommandBase(CommandType::ALLOCA_SUB_BUF, std::move(Queue),
-                          std::move(Req),
-                          /*LinkedAllocaCmd*/ nullptr),
-        MParentAlloca(ParentAlloca) {
-    addDep(DepDesc(MParentAlloca, getRequirement(), MParentAlloca));
-  }
+                      AllocaCommandBase *ParentAlloca);
 
+  void *getMemAllocation() const final;
   void printDot(std::ostream &Stream) const final;
   AllocaCommandBase *getParentAlloca() { return MParentAlloca; }
+  void emitInstrumentationData();
 
 private:
   cl_int enqueueImp() final;
@@ -279,10 +329,11 @@ private:
 class MapMemObject : public Command {
 public:
   MapMemObject(AllocaCommandBase *SrcAllocaCmd, Requirement Req, void **DstPtr,
-               QueueImplPtr Queue);
+               QueueImplPtr Queue, access::mode MapMode);
 
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MSrcReq; }
+  void emitInstrumentationData();
 
 private:
   cl_int enqueueImp() final;
@@ -290,6 +341,7 @@ private:
   AllocaCommandBase *MSrcAllocaCmd = nullptr;
   Requirement MSrcReq;
   void **MDstPtr = nullptr;
+  access::mode MMapMode;
 };
 
 class UnMapMemObject : public Command {
@@ -299,6 +351,7 @@ public:
 
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MDstReq; }
+  void emitInstrumentationData();
 
 private:
   cl_int enqueueImp() final;
@@ -317,6 +370,7 @@ public:
 
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MDstReq; }
+  void emitInstrumentationData();
 
 private:
   cl_int enqueueImp() final;
@@ -337,6 +391,7 @@ public:
 
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MDstReq; }
+  void emitInstrumentationData();
 
 private:
   cl_int enqueueImp() final;
@@ -351,13 +406,12 @@ private:
 // The command enqueues execution of kernel or explicit memory operation.
 class ExecCGCommand : public Command {
 public:
-  ExecCGCommand(std::unique_ptr<detail::CG> CommandGroup, QueueImplPtr Queue)
-      : Command(CommandType::RUN_CG, std::move(Queue)),
-        MCommandGroup(std::move(CommandGroup)) {}
+  ExecCGCommand(std::unique_ptr<detail::CG> CommandGroup, QueueImplPtr Queue);
 
   void flushStreams();
 
   void printDot(std::ostream &Stream) const final;
+  void emitInstrumentationData();
 
 private:
   cl_int enqueueImp() final;
@@ -370,12 +424,11 @@ private:
 class UpdateHostRequirementCommand : public Command {
 public:
   UpdateHostRequirementCommand(QueueImplPtr Queue, Requirement Req,
-                               AllocaCommandBase *SrcAllocaCmd, void **DstPtr)
-      : Command(CommandType::UPDATE_REQUIREMENT, std::move(Queue)),
-        MSrcAllocaCmd(SrcAllocaCmd), MDstReq(std::move(Req)), MDstPtr(DstPtr) {}
+                               AllocaCommandBase *SrcAllocaCmd, void **DstPtr);
 
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MDstReq; }
+  void emitInstrumentationData();
 
 private:
   cl_int enqueueImp() final;

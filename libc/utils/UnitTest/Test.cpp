@@ -232,10 +232,38 @@ bool Test::testStrNe(RunContext &Ctx, const char *LHS, const char *RHS,
                         llvm::StringRef(RHS), LHSStr, RHSStr, File, Line);
 }
 
+bool Test::testMatch(RunContext &Ctx, bool MatchResult, MatcherBase &Matcher,
+                     const char *LHSStr, const char *RHSStr, const char *File,
+                     unsigned long Line) {
+  if (MatchResult)
+    return true;
+
+  Ctx.markFail();
+  llvm::outs() << File << ":" << Line << ": FAILURE\n"
+               << "Failed to match " << LHSStr << " against " << RHSStr
+               << ".\n";
+  testutils::StreamWrapper OutsWrapper = testutils::outs();
+  Matcher.explainError(OutsWrapper);
+  return false;
+}
+
 bool Test::testProcessKilled(RunContext &Ctx, testutils::FunctionCaller *Func,
                              int Signal, const char *LHSStr, const char *RHSStr,
                              const char *File, unsigned long Line) {
-  testutils::ProcessStatus Result = testutils::invokeInSubprocess(Func);
+  testutils::ProcessStatus Result = testutils::invokeInSubprocess(Func, 500);
+
+  if (const char *error = Result.getError()) {
+    Ctx.markFail();
+    llvm::outs() << File << ":" << Line << ": FAILURE\n" << error << '\n';
+    return false;
+  }
+
+  if (Result.timedOut()) {
+    Ctx.markFail();
+    llvm::outs() << File << ":" << Line << ": FAILURE\n"
+                 << "Process timed out after " << 500 << " milliseconds.\n";
+    return false;
+  }
 
   if (Result.exitedNormally()) {
     Ctx.markFail();
@@ -266,7 +294,20 @@ bool Test::testProcessExits(RunContext &Ctx, testutils::FunctionCaller *Func,
                             int ExitCode, const char *LHSStr,
                             const char *RHSStr, const char *File,
                             unsigned long Line) {
-  testutils::ProcessStatus Result = testutils::invokeInSubprocess(Func);
+  testutils::ProcessStatus Result = testutils::invokeInSubprocess(Func, 500);
+
+  if (const char *error = Result.getError()) {
+    Ctx.markFail();
+    llvm::outs() << File << ":" << Line << ": FAILURE\n" << error << '\n';
+    return false;
+  }
+
+  if (Result.timedOut()) {
+    Ctx.markFail();
+    llvm::outs() << File << ":" << Line << ": FAILURE\n"
+                 << "Process timed out after " << 500 << " milliseconds.\n";
+    return false;
+  }
 
   if (!Result.exitedNormally()) {
     Ctx.markFail();

@@ -27,7 +27,7 @@
 #include "llvm/MC/MCObjectWriter.h"
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCStreamer.h"
-#include "llvm/MC/MCTargetOptionsCommandFlags.inc"
+#include "llvm/MC/MCTargetOptionsCommandFlags.h"
 #include "llvm/Object/Decompressor.h"
 #include "llvm/Object/ObjectFile.h"
 #include "llvm/Support/DataExtractor.h"
@@ -45,6 +45,8 @@
 
 using namespace llvm;
 using namespace llvm::object;
+
+static mc::RegisterMCTargetOptionsFlags MCTargetOptionsFlags;
 
 cl::OptionCategory DwpCategory("Specific Options");
 static cl::list<std::string> InputFiles(cl::Positional, cl::ZeroOrMore,
@@ -477,7 +479,7 @@ static Error
 buildDuplicateError(const std::pair<uint64_t, UnitIndexEntry> &PrevE,
                     const CompileUnitIdentifiers &ID, StringRef DWPName) {
   return make_error<DWPError>(
-      std::string("Duplicate DWO ID (") + utohexstr(PrevE.first) + ") in " +
+      std::string("duplicate DWO ID (") + utohexstr(PrevE.first) + ") in " +
       buildDWODescription(PrevE.second.Name, PrevE.second.DWPName,
                           PrevE.second.DWOName) +
       " and " + buildDWODescription(ID.Name, DWPName, ID.DWOName));
@@ -594,7 +596,7 @@ static Error write(MCStreamer &Out, ArrayRef<std::string> Inputs) {
     DWARFUnitIndex CUIndex(DW_SECT_INFO);
     DataExtractor CUIndexData(CurCUIndexSection, Obj.isLittleEndian(), 0);
     if (!CUIndex.parse(CUIndexData))
-      return make_error<DWPError>("Failed to parse cu_index");
+      return make_error<DWPError>("failed to parse cu_index");
 
     for (const DWARFUnitIndex::Entry &E : CUIndex.getRows()) {
       auto *I = E.getOffsets();
@@ -629,7 +631,7 @@ static Error write(MCStreamer &Out, ArrayRef<std::string> Inputs) {
       DWARFUnitIndex TUIndex(DW_SECT_TYPES);
       DataExtractor TUIndexData(CurTUIndexSection, Obj.isLittleEndian(), 0);
       if (!TUIndex.parse(TUIndexData))
-        return make_error<DWPError>("Failed to parse tu_index");
+        return make_error<DWPError>("failed to parse tu_index");
       addAllTypesFromDWP(Out, TypeIndexEntries, TUIndex, TypesSection,
                          CurTypesSection.front(), CurEntry,
                          ContributionOffsets[DW_SECT_TYPES - DW_SECT_INFO]);
@@ -686,7 +688,7 @@ int main(int argc, char **argv) {
   if (!MRI)
     return error(Twine("no register info for target ") + TripleName, Context);
 
-  MCTargetOptions MCOptions = InitMCTargetOptionsFromFlags();
+  MCTargetOptions MCOptions = llvm::mc::InitMCTargetOptionsFromFlags();
   std::unique_ptr<MCAsmInfo> MAI(
       TheTarget->createMCAsmInfo(*MRI, TripleName, MCOptions));
   if (!MAI)

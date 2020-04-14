@@ -9,24 +9,25 @@
 #pragma once
 
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/export.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
 /// Profiling info for the host execution.
-class HostProfilingInfo {
+class __SYCL_EXPORT HostProfilingInfo {
   cl_ulong StartTime = 0;
   cl_ulong EndTime = 0;
 
 public:
   /// Returns event's start time.
   ///
-  /// @return event's start time in nanoseconds.
+  /// \return event's start time in nanoseconds.
   cl_ulong getStartTime() const { return StartTime; }
   /// Returns event's end time.
   ///
-  /// @return event's end time in nanoseconds.
+  /// \return event's end time in nanoseconds.
   cl_ulong getEndTime() const { return EndTime; }
 
   /// Measures event's start time.

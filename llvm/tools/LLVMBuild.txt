@@ -18,6 +18,7 @@
 subdirectories =
  bugpoint
  dsymutil
+ file-table-tform
  llc
  lli
  llvm-ar

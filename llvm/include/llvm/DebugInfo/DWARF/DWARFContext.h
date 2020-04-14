@@ -47,11 +47,6 @@ class MCRegisterInfo;
 class MemoryBuffer;
 class raw_ostream;
 
-/// Used as a return value for a error callback passed to DWARF context.
-/// Callback should return Halt if client application wants to stop
-/// object parsing, or should return Continue otherwise.
-enum class ErrorPolicy { Halt, Continue };
-
 /// DWARFContext
 /// This data structure is the top level entity that deals with dwarf debug
 /// information parsing. The actual data is supplied through DWARFObj.
@@ -91,7 +86,8 @@ class DWARFContext : public DIContext {
 
   std::unique_ptr<MCRegisterInfo> RegInfo;
 
-  std::function<void(Error)> RecoverableErrorHandler = defaultErrorHandler;
+  std::function<void(Error)> RecoverableErrorHandler =
+      WithColor::defaultErrorHandler;
   std::function<void(Error)> WarningHandler = WithColor::defaultWarningHandler;
 
   /// Read compile units from the debug_info section (if necessary)
@@ -110,7 +106,11 @@ class DWARFContext : public DIContext {
 
 public:
   DWARFContext(std::unique_ptr<const DWARFObject> DObj,
-               std::string DWPName = "");
+               std::string DWPName = "",
+               std::function<void(Error)> RecoverableErrorHandler =
+                   WithColor::defaultErrorHandler,
+               std::function<void(Error)> WarningHandler =
+                   WithColor::defaultWarningHandler);
   ~DWARFContext();
 
   DWARFContext(DWARFContext &) = delete;
@@ -352,18 +352,21 @@ public:
 
   function_ref<void(Error)> getWarningHandler() { return WarningHandler; }
 
-  /// Function used to handle default error reporting policy. Prints a error
-  /// message and returns Continue, so DWARF context ignores the error.
-  static ErrorPolicy defaultErrorHandler(Error E);
-
   static std::unique_ptr<DWARFContext>
   create(const object::ObjectFile &Obj, const LoadedObjectInfo *L = nullptr,
-         function_ref<ErrorPolicy(Error)> HandleError = defaultErrorHandler,
-         std::string DWPName = "");
+         std::string DWPName = "",
+         std::function<void(Error)> RecoverableErrorHandler =
+             WithColor::defaultErrorHandler,
+         std::function<void(Error)> WarningHandler =
+             WithColor::defaultWarningHandler);
 
   static std::unique_ptr<DWARFContext>
   create(const StringMap<std::unique_ptr<MemoryBuffer>> &Sections,
-         uint8_t AddrSize, bool isLittleEndian = sys::IsLittleEndianHost);
+         uint8_t AddrSize, bool isLittleEndian = sys::IsLittleEndianHost,
+         std::function<void(Error)> RecoverableErrorHandler =
+             WithColor::defaultErrorHandler,
+         std::function<void(Error)> WarningHandler =
+             WithColor::defaultWarningHandler);
 
   /// Loads register info for the architecture of the provided object file.
   /// Improves readability of dumped DWARF expressions. Requires the caller to

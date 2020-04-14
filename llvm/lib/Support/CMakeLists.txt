@@ -1,7 +1,7 @@
-if(LLVM_ENABLE_ZLIB)
-  set(system_libs ${ZLIB_LIBRARY})
+set(system_libs)
+if ( LLVM_ENABLE_ZLIB AND HAVE_LIBZ )
+  set(system_libs ${system_libs} ${ZLIB_LIBRARIES})
 endif()
-
 if( MSVC OR MINGW )
   # libuuid required for FOLDERID_Profile usage in lib/Support/Windows/Path.inc.
   # advapi32 required for CryptAcquireContextW in lib/Support/Windows/Path.inc.
@@ -115,16 +115,19 @@ add_llvm_component_library(LLVMSupport
   MemoryBuffer.cpp
   MD5.cpp
   NativeFormatting.cpp
+  OptimalLayout.cpp
   Optional.cpp
   Parallel.cpp
   PluginLoader.cpp
   PrettyStackTrace.cpp
+  PropertySetIO.cpp
   RandomNumberGenerator.cpp
   Regex.cpp
   ScaledNumber.cpp
   ScopedPrinter.cpp
   SHA1.cpp
   Signposts.cpp
+  SimpleTable.cpp
   SmallPtrSet.cpp
   SmallVector.cpp
   SourceMgr.cpp

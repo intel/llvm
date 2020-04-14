@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/AffineOps/EDSC/Intrinsics.h"
+#include "mlir/Dialect/Affine/EDSC/Intrinsics.h"
 #include "mlir/Dialect/Linalg/EDSC/Intrinsics.h"
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 #include "mlir/Dialect/Linalg/IR/LinalgTypes.h"
@@ -42,12 +42,6 @@ using folded_affine_min = folded::ValueBuilder<AffineMinOp>;
 using folded_linalg_range = folded::ValueBuilder<linalg::RangeOp>;
 
 #define DEBUG_TYPE "linalg-promotion"
-
-static llvm::cl::OptionCategory clOptionsCategory(DEBUG_TYPE " options");
-static llvm::cl::opt<bool> clPromoteDynamic(
-    "test-linalg-promote-dynamic",
-    llvm::cl::desc("Test generation of dynamic promoted buffers"),
-    llvm::cl::cat(clOptionsCategory), llvm::cl::init(false));
 
 static Value allocBuffer(Type elementType, Value size, bool dynamicBuffers) {
   auto *ctx = size.getContext();
@@ -160,6 +154,12 @@ LinalgOp mlir::linalg::promoteSubViewOperands(OpBuilder &b, LinalgOp op,
                                               OperationFolder *folder) {
   assert(op.hasBufferSemantics() && "expected linalg op with buffer semantics");
 
+  if (auto convOp = dyn_cast<linalg::ConvOp>(op.getOperation())) {
+    // TODO(ntv): add a level of indirection to linalg.generic.
+    if (convOp.padding())
+      llvm_unreachable("Unexpected conv with padding");
+  }
+
   // 1. Promote the specified views and use them in the new op.
   ScopedContext scope(b, op.getLoc());
   auto promotedBufferAndViews = promoteSubViews(
@@ -232,13 +232,19 @@ static void promoteSubViews(FuncOp f, bool dynamicBuffers) {
 namespace {
 struct LinalgPromotionPass : public FunctionPass<LinalgPromotionPass> {
   LinalgPromotionPass() = default;
-  LinalgPromotionPass(bool dynamicBuffers) : dynamicBuffers(dynamicBuffers) {}
+  LinalgPromotionPass(const LinalgPromotionPass &) {}
+  LinalgPromotionPass(bool dynamicBuffers) {
+    this->dynamicBuffers = dynamicBuffers;
+  }
 
   void runOnFunction() override {
     promoteSubViews(getFunction(), dynamicBuffers);
   }
 
-  bool dynamicBuffers;
+  Option<bool> dynamicBuffers{
+      *this, "test-promote-dynamic",
+      llvm::cl::desc("Test generation of dynamic promoted buffers"),
+      llvm::cl::init(false)};
 };
 } // namespace
 
@@ -248,6 +254,4 @@ mlir::createLinalgPromotionPass(bool dynamicBuffers) {
 }
 
 static PassRegistration<LinalgPromotionPass>
-    pass("linalg-promote-subviews", "promote subview ops to local buffers", [] {
-      return std::make_unique<LinalgPromotionPass>(clPromoteDynamic);
-    });
+    pass("linalg-promote-subviews", "promote subview ops to local buffers");

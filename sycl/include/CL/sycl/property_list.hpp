@@ -84,14 +84,16 @@ public:
 
   ~PropertyHolder() {
     if (m_Initialized) {
-      (*(T *)m_Mem).~T();
+      T *MemPtr = reinterpret_cast<T *>(m_Mem);
+      MemPtr->~T();
     }
   }
 
   PropertyHolder &operator=(const PropertyHolder &Other) {
     if (this != &Other) {
       if (m_Initialized) {
-        (*(T *)m_Mem).~T();
+        T *MemPtr = reinterpret_cast<T *>(m_Mem);
+        MemPtr->~T();
         m_Initialized = false;
       }
 
@@ -110,7 +112,8 @@ public:
 
   const T &getProp() const {
     assert(true == m_Initialized && "Property was not set!");
-    return *(const T *)m_Mem;
+    const T *MemPtr = reinterpret_cast<const T *>(m_Mem);
+    return *MemPtr;
   }
   bool isInitialized() const { return m_Initialized; }
 

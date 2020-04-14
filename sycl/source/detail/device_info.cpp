@@ -35,7 +35,8 @@ device get_device_info<device, info::device::parent_device>::get(
       sizeof(result), &result, nullptr);
   if (result == nullptr)
     throw invalid_object_error(
-        "No parent for device because it is not a subdevice");
+        "No parent for device because it is not a subdevice",
+        PI_INVALID_DEVICE);
 
   return createSyclObjFromImpl<device>(
       std::make_shared<device_impl>(result, Plugin));
@@ -439,7 +440,8 @@ bool get_device_info_host<info::device::preferred_interop_user_sync>() {
 template <> device get_device_info_host<info::device::parent_device>() {
   // TODO: implement host device partitioning
   throw runtime_error(
-      "Partitioning to subdevices of the host device is not implemented yet");
+      "Partitioning to subdevices of the host device is not implemented yet",
+      PI_INVALID_DEVICE);
 }
 
 template <>
@@ -482,20 +484,23 @@ template <> cl_uint get_device_info_host<info::device::reference_count>() {
 
 template <> cl_uint get_device_info_host<info::device::max_num_sub_groups>() {
   // TODO update once subgroups are enabled
-  throw runtime_error("Sub-group feature is not supported on HOST device.");
+  throw runtime_error("Sub-group feature is not supported on HOST device.",
+                      PI_INVALID_DEVICE);
 }
 
 template <> vector_class<size_t>
 get_device_info_host<info::device::sub_group_sizes>() {
   // TODO update once subgroups are enabled
-  throw runtime_error("Sub-group feature is not supported on HOST device.");
+  throw runtime_error("Sub-group feature is not supported on HOST device.",
+                      PI_INVALID_DEVICE);
 }
 
 template <>
 bool get_device_info_host<
     info::device::sub_group_independent_forward_progress>() {
   // TODO update once subgroups are enabled
-  throw runtime_error("Sub-group feature is not supported on HOST device.");
+  throw runtime_error("Sub-group feature is not supported on HOST device.",
+                      PI_INVALID_DEVICE);
 }
 
 template <>

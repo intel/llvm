@@ -1483,6 +1483,85 @@ bool CombinerHelper::tryCombineShiftToUnmerge(MachineInstr &MI,
   return false;
 }
 
+bool CombinerHelper::matchAnyExplicitUseIsUndef(MachineInstr &MI) {
+  return any_of(MI.explicit_uses(), [this](const MachineOperand &MO) {
+    return MO.isReg() &&
+           getOpcodeDef(TargetOpcode::G_IMPLICIT_DEF, MO.getReg(), MRI);
+  });
+}
+
+bool CombinerHelper::matchAllExplicitUsesAreUndef(MachineInstr &MI) {
+  return all_of(MI.explicit_uses(), [this](const MachineOperand &MO) {
+    return !MO.isReg() ||
+           getOpcodeDef(TargetOpcode::G_IMPLICIT_DEF, MO.getReg(), MRI);
+  });
+}
+
+bool CombinerHelper::matchUndefShuffleVectorMask(MachineInstr &MI) {
+  assert(MI.getOpcode() == TargetOpcode::G_SHUFFLE_VECTOR);
+  ArrayRef<int> Mask = MI.getOperand(3).getShuffleMask();
+  return all_of(Mask, [](int Elt) { return Elt < 0; });
+}
+
+bool CombinerHelper::matchEqualDefs(const MachineOperand &MOP1,
+                                    const MachineOperand &MOP2) {
+  if (!MOP1.isReg() || !MOP2.isReg())
+    return false;
+  MachineInstr *I1 = getDefIgnoringCopies(MOP1.getReg(), MRI);
+  if (!I1)
+    return false;
+  MachineInstr *I2 = getDefIgnoringCopies(MOP2.getReg(), MRI);
+  if (!I2)
+    return false;
+
+  // On the off-chance that there's some target instruction feeding into the
+  // select, let's use produceSameValue instead of isIdenticalTo.
+  return Builder.getTII().produceSameValue(*I1, *I2, &MRI);
+}
+
+bool CombinerHelper::replaceSingleDefInstWithOperand(MachineInstr &MI,
+                                                     unsigned OpIdx) {
+  assert(MI.getNumExplicitDefs() == 1 && "Expected one explicit def?");
+  Register OldReg = MI.getOperand(0).getReg();
+  Register Replacement = MI.getOperand(OpIdx).getReg();
+  assert(canReplaceReg(OldReg, Replacement, MRI) && "Cannot replace register?");
+  MI.eraseFromParent();
+  replaceRegWith(MRI, OldReg, Replacement);
+  return true;
+}
+
+bool CombinerHelper::matchSelectSameVal(MachineInstr &MI) {
+  assert(MI.getOpcode() == TargetOpcode::G_SELECT);
+  // Match (cond ? x : x)
+  return matchEqualDefs(MI.getOperand(2), MI.getOperand(3)) &&
+         canReplaceReg(MI.getOperand(0).getReg(), MI.getOperand(2).getReg(),
+                       MRI);
+}
+
+bool CombinerHelper::replaceInstWithFConstant(MachineInstr &MI, double C) {
+  assert(MI.getNumDefs() == 1 && "Expected only one def?");
+  Builder.setInstr(MI);
+  Builder.buildFConstant(MI.getOperand(0), C);
+  MI.eraseFromParent();
+  return true;
+}
+
+bool CombinerHelper::replaceInstWithConstant(MachineInstr &MI, int64_t C) {
+  assert(MI.getNumDefs() == 1 && "Expected only one def?");
+  Builder.setInstr(MI);
+  Builder.buildConstant(MI.getOperand(0), C);
+  MI.eraseFromParent();
+  return true;
+}
+
+bool CombinerHelper::replaceInstWithUndef(MachineInstr &MI) {
+  assert(MI.getNumDefs() == 1 && "Expected only one def?");
+  Builder.setInstr(MI);
+  Builder.buildUndef(MI.getOperand(0));
+  MI.eraseFromParent();
+  return true;
+}
+
 bool CombinerHelper::tryCombine(MachineInstr &MI) {
   if (tryCombineCopy(MI))
     return true;

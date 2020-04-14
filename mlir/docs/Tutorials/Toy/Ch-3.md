@@ -25,7 +25,7 @@ use of DRR requires that the operations be defined using ODS, as described in
 ## Optimize Transpose using C++ style pattern-match and rewrite
 
 Let's start with a simple pattern and try to eliminate a sequence of two
-transpose that cancel out: `transpose(transpose(X)) -> X`. Here is the
+transposes that cancel out: `transpose(transpose(X)) -> X`. Here is the
 corresponding Toy example:
 
 ```toy
@@ -70,7 +70,7 @@ void double_transpose(int A[N][M]) {
 }
 ```
 
-For a simple C++ approach to rewrite involving matching a tree-like pattern in
+For a simple C++ approach to rewrite, involving matching a tree-like pattern in
 the IR and replacing it with a different set of operations, we can plug into the
 MLIR `Canonicalizer` pass by implementing a `RewritePattern`:
 
@@ -86,20 +86,21 @@ struct SimplifyRedundantTranspose : public mlir::OpRewritePattern<TransposeOp> {
   /// This method is attempting to match a pattern and rewrite it. The rewriter
   /// argument is the orchestrator of the sequence of rewrites. It is expected
   /// to interact with it to perform any changes to the IR from here.
-  mlir::PatternMatchResult
+  mlir::LogicalResult
   matchAndRewrite(TransposeOp op,
                   mlir::PatternRewriter &rewriter) const override {
     // Look through the input of the current transpose.
     mlir::Value transposeInput = op.getOperand();
     TransposeOp transposeInputOp =
         llvm::dyn_cast_or_null<TransposeOp>(transposeInput.getDefiningOp());
-    // If the input is defined by another Transpose, bingo!
-    if (!transposeInputOp)
-      return matchFailure();
 
-    // Use the rewriter to perform the replacement
+    // Input defined by another transpose? If not, no match.
+    if (!transposeInputOp)
+      return failure();
+
+    // Otherwise, we have a redundant transpose. Use the rewriter.
     rewriter.replaceOp(op, {transposeInputOp.getOperand()}, {transposeInputOp});
-    return matchSuccess();
+    return success();
   }
 };
 ```

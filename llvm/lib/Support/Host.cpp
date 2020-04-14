@@ -11,9 +11,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Support/Host.h"
-#include "llvm/Support/TargetParser.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/ADT/Triple.h"
@@ -21,6 +21,7 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/TargetParser.h"
 #include "llvm/Support/raw_ostream.h"
 #include <assert.h>
 #include <string.h>
@@ -192,6 +193,7 @@ StringRef sys::detail::getHostCPUNameForARM(StringRef ProcCpuinfoContent) {
             .Case("0xc20", "cortex-m0")
             .Case("0xc23", "cortex-m3")
             .Case("0xc24", "cortex-m4")
+            .Case("0xd22", "cortex-m55")
             .Case("0xd02", "cortex-a34")
             .Case("0xd04", "cortex-a35")
             .Case("0xd03", "cortex-a53")
@@ -213,6 +215,16 @@ StringRef sys::detail::getHostCPUNameForARM(StringRef ProcCpuinfoContent) {
           .Case("0x0af", "thunderx2t99")
           .Case("0xa1", "thunderxt88")
           .Case("0x0a1", "thunderxt88")
+          .Default("generic");
+      }
+    }
+  }
+
+  if (Implementer == "0x46") { // Fujitsu Ltd.
+    for (unsigned I = 0, E = Lines.size(); I != E; ++I) {
+      if (Lines[I].startswith("CPU part")) {
+        return StringSwitch<const char *>(Lines[I].substr(8).ltrim("\t :"))
+          .Case("0x001", "a64fx")
           .Default("generic");
       }
     }

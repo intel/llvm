@@ -57,6 +57,10 @@ Improvements to Clang's diagnostics
 Non-comprehensive list of changes in this release
 -------------------------------------------------
 
+- For the ARM target, C-language intrinsics are now provided for the full Arm
+  v8.1-M MVE instruction set. ``<arm_mve.h>`` supports the complete API defined
+  in the Arm C Language Extensions.
+
 
 New Compiler Flags
 ------------------
@@ -84,6 +88,20 @@ future versions of Clang.
 Modified Compiler Flags
 -----------------------
 
+- -fno-common has been enabled as the default for all targets.  Therefore, C
+  code that uses tentative definitions as definitions of a variable in multiple
+  translation units will trigger multiple-definition linker errors.  Generally,
+  this occurs when the use of the ``extern`` keyword is neglected in the declaration
+  of a variable in a header file. In some cases, no specific translation unit
+  provides a definition of the variable. The previous behavior can be restored by
+  specifying ``-fcommon``.
+- -Wasm-ignored-qualifier (ex. `asm const ("")`) has been removed and replaced
+  with an error (this matches a recent change in GCC-9).
+- -Wasm-file-asm-volatile (ex. `asm volatile ("")` at global scope) has been
+  removed and replaced with an error (this matches GCC's behavior).
+- Duplicate qualifiers on asm statements (ex. `asm volatile volatile ("")`) no
+  longer produces a warning via -Wduplicate-decl-specifier, but now an error
+  (this matches GCC's behavior).
 
 New Pragmas in Clang
 --------------------
@@ -101,12 +119,13 @@ Windows Support
 C Language Changes in Clang
 ---------------------------
 
+- The default C language standard used when `-std=` is not specified has been
+  upgraded from gnu11 to gnu17.
+
+- Clang now supports the GNU C extension `asm inline`; it won't do anything
+  *yet*, but it will be parsed.
+
 - ...
-
-C11 Feature Support
-^^^^^^^^^^^^^^^^^^^
-
-...
 
 C++ Language Changes in Clang
 -----------------------------
@@ -289,7 +308,7 @@ Additional Information
 
 A wide variety of additional information is available on the `Clang web
 page <https://clang.llvm.org/>`_. The web page contains versions of the
-API documentation which are up-to-date with the Subversion version of
+API documentation which are up-to-date with the Git version of
 the source code. You can access versions of these documents specific to
 this release by going into the "``clang/docs/``" directory in the Clang
 tree.

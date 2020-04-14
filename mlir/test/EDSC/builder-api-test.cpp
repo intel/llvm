@@ -8,11 +8,11 @@
 
 // RUN: mlir-edsc-builder-api-test | FileCheck %s -dump-input-on-failure
 
-#include "mlir/Dialect/AffineOps/EDSC/Intrinsics.h"
+#include "mlir/Dialect/Affine/EDSC/Intrinsics.h"
 #include "mlir/Dialect/Linalg/EDSC/Intrinsics.h"
 #include "mlir/Dialect/LoopOps/EDSC/Builders.h"
 #include "mlir/Dialect/StandardOps/EDSC/Intrinsics.h"
-#include "mlir/Dialect/VectorOps/EDSC/Intrinsics.h"
+#include "mlir/Dialect/Vector/EDSC/Intrinsics.h"
 #include "mlir/EDSC/Builders.h"
 #include "mlir/EDSC/Intrinsics.h"
 #include "mlir/IR/AffineExpr.h"
@@ -38,11 +38,11 @@ using namespace mlir::edsc::intrinsics;
 
 static MLIRContext &globalContext() {
   static bool init_once = []() {
-    registerDialect<AffineOpsDialect>();
+    registerDialect<AffineDialect>();
     registerDialect<linalg::LinalgDialect>();
     registerDialect<loop::LoopOpsDialect>();
     registerDialect<StandardOpsDialect>();
-    registerDialect<vector::VectorOpsDialect>();
+    registerDialect<vector::VectorDialect>();
     return true;
   }();
   (void)init_once;
@@ -476,6 +476,44 @@ TEST_FUNC(zero_and_std_sign_extendi_op_i1_to_i8) {
   //      CHECK:     %[[SRC2:.*]] = affine.load
   //      CHECK:     sexti %[[SRC2]] : i1 to i8
   // clang-format on
+  f.print(llvm::outs());
+  f.erase();
+}
+
+TEST_FUNC(operator_or) {
+  auto i1Type = IntegerType::get(/*width=*/1, &globalContext());
+  auto f = makeFunction("operator_or", {}, {i1Type, i1Type});
+
+  OpBuilder builder(f.getBody());
+  ScopedContext scope(builder, f.getLoc());
+
+  using op::operator||;
+  ValueHandle lhs(f.getArgument(0));
+  ValueHandle rhs(f.getArgument(1));
+  lhs || rhs;
+
+  // CHECK-LABEL: @operator_or
+  //       CHECK: [[ARG0:%.*]]: i1, [[ARG1:%.*]]: i1
+  //       CHECK: or [[ARG0]], [[ARG1]]
+  f.print(llvm::outs());
+  f.erase();
+}
+
+TEST_FUNC(operator_and) {
+  auto i1Type = IntegerType::get(/*width=*/1, &globalContext());
+  auto f = makeFunction("operator_and", {}, {i1Type, i1Type});
+
+  OpBuilder builder(f.getBody());
+  ScopedContext scope(builder, f.getLoc());
+
+  using op::operator&&;
+  ValueHandle lhs(f.getArgument(0));
+  ValueHandle rhs(f.getArgument(1));
+  lhs &&rhs;
+
+  // CHECK-LABEL: @operator_and
+  //       CHECK: [[ARG0:%.*]]: i1, [[ARG1:%.*]]: i1
+  //       CHECK: and [[ARG0]], [[ARG1]]
   f.print(llvm::outs());
   f.erase();
 }

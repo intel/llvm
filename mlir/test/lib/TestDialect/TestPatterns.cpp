@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "TestDialect.h"
+#include "mlir/Conversion/StandardToStandard/StandardToStandard.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
@@ -55,9 +56,9 @@ struct TestPatternDriver : public FunctionPass<TestPatternDriver> {
 //===----------------------------------------------------------------------===//
 
 namespace {
-// Generate ops for each instance where the type can be successfully infered.
+// Generate ops for each instance where the type can be successfully inferred.
 template <typename OpTy>
-static void invokeCreateWithInferedReturnType(Operation *op) {
+static void invokeCreateWithInferredReturnType(Operation *op) {
   auto *context = op->getContext();
   auto fop = op->getParentOfType<FuncOp>();
   auto location = UnknownLoc::get(context);
@@ -69,10 +70,10 @@ static void invokeCreateWithInferedReturnType(Operation *op) {
   for (int i = 0, e = fop.getNumArguments(); i < e; ++i) {
     for (int j = 0; j < e; ++j) {
       std::array<Value, 2> values = {{fop.getArgument(i), fop.getArgument(j)}};
-      SmallVector<Type, 2> inferedReturnTypes;
+      SmallVector<Type, 2> inferredReturnTypes;
       if (succeeded(OpTy::inferReturnTypes(context, llvm::None, values,
                                            op->getAttrs(), op->getRegions(),
-                                           inferedReturnTypes))) {
+                                           inferredReturnTypes))) {
         OperationState state(location, OpTy::getOperationName());
         // TODO(jpienaar): Expand to regions.
         OpTy::build(&b, state, values, op->getAttrs());
@@ -80,6 +81,19 @@ static void invokeCreateWithInferedReturnType(Operation *op) {
       }
     }
   }
+}
+
+static void reifyReturnShape(Operation *op) {
+  OpBuilder b(op);
+
+  // Use permutations of 2 args as operands.
+  auto shapedOp = cast<OpWithShapedTypeInferTypeInterfaceOp>(op);
+  SmallVector<Value, 2> shapes;
+  if (failed(shapedOp.reifyReturnTypeShapes(b, shapes)))
+    return;
+  for (auto it : llvm::enumerate(shapes))
+    op->emitRemark() << "value " << it.index() << ": "
+                     << it.value().getDefiningOp();
 }
 
 struct TestReturnTypeDriver : public FunctionPass<TestReturnTypeDriver> {
@@ -94,11 +108,21 @@ struct TestReturnTypeDriver : public FunctionPass<TestReturnTypeDriver> {
         // Test create method of each of the Op classes below. The resultant
         // output would be in reverse order underneath `op` from which
         // the attributes and regions are used.
-        invokeCreateWithInferedReturnType<OpWithInferTypeInterfaceOp>(op);
-        invokeCreateWithInferedReturnType<OpWithShapedTypeInferTypeInterfaceOp>(
-            op);
+        invokeCreateWithInferredReturnType<OpWithInferTypeInterfaceOp>(op);
+        invokeCreateWithInferredReturnType<
+            OpWithShapedTypeInferTypeInterfaceOp>(op);
       };
       return;
+    }
+    if (getFunction().getName() == "testReifyFunctions") {
+      std::vector<Operation *> ops;
+      // Collect ops to avoid triggering on inserted ops.
+      for (auto &op : getFunction().getBody().front())
+        if (isa<OpWithShapedTypeInferTypeInterfaceOp>(op))
+          ops.push_back(&op);
+      // Generate test patterns for each, but skip terminator.
+      for (auto *op : ops)
+        reifyReturnShape(op);
     }
   }
 };
@@ -118,7 +142,7 @@ struct TestRegionRewriteBlockMovement : public ConversionPattern {
   TestRegionRewriteBlockMovement(MLIRContext *ctx)
       : ConversionPattern("test.region", 1, ctx) {}
 
-  PatternMatchResult
+  LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const final {
     // Inline this region into the parent region.
@@ -132,7 +156,7 @@ struct TestRegionRewriteBlockMovement : public ConversionPattern {
 
     // Drop this operation.
     rewriter.eraseOp(op);
-    return matchSuccess();
+    return success();
   }
 };
 /// This pattern is a simple pattern that generates a region containing an
@@ -141,8 +165,8 @@ struct TestRegionRewriteUndo : public RewritePattern {
   TestRegionRewriteUndo(MLIRContext *ctx)
       : RewritePattern("test.region_builder", 1, ctx) {}
 
-  PatternMatchResult matchAndRewrite(Operation *op,
-                                     PatternRewriter &rewriter) const final {
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const final {
     // Create the region operation with an entry block containing arguments.
     OperationState newRegion(op->getLoc(), "test.region");
     newRegion.addRegion();
@@ -156,7 +180,7 @@ struct TestRegionRewriteUndo : public RewritePattern {
 
     // Drop this operation.
     rewriter.eraseOp(op);
-    return matchSuccess();
+    return success();
   }
 };
 
@@ -168,7 +192,7 @@ struct TestDropOpSignatureConversion : public ConversionPattern {
   TestDropOpSignatureConversion(MLIRContext *ctx, TypeConverter &converter)
       : ConversionPattern("test.drop_region_op", 1, ctx), converter(converter) {
   }
-  PatternMatchResult
+  LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
     Region &region = op->getRegion(0);
@@ -179,12 +203,12 @@ struct TestDropOpSignatureConversion : public ConversionPattern {
     for (unsigned i = 0, e = entry->getNumArguments(); i != e; ++i)
       if (failed(converter.convertSignatureArg(
               i, entry->getArgument(i).getType(), result)))
-        return matchFailure();
+        return failure();
 
     // Convert the region signature and just drop the operation.
     rewriter.applySignatureConversion(&region, result);
     rewriter.eraseOp(op);
-    return matchSuccess();
+    return success();
   }
 
   /// The type converter to use when rewriting the signature.
@@ -194,35 +218,35 @@ struct TestDropOpSignatureConversion : public ConversionPattern {
 struct TestPassthroughInvalidOp : public ConversionPattern {
   TestPassthroughInvalidOp(MLIRContext *ctx)
       : ConversionPattern("test.invalid", 1, ctx) {}
-  PatternMatchResult
+  LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const final {
     rewriter.replaceOpWithNewOp<TestValidOp>(op, llvm::None, operands,
                                              llvm::None);
-    return matchSuccess();
+    return success();
   }
 };
 /// This pattern handles the case of a split return value.
 struct TestSplitReturnType : public ConversionPattern {
   TestSplitReturnType(MLIRContext *ctx)
       : ConversionPattern("test.return", 1, ctx) {}
-  PatternMatchResult
+  LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const final {
     // Check for a return of F32.
     if (op->getNumOperands() != 1 || !op->getOperand(0).getType().isF32())
-      return matchFailure();
+      return failure();
 
     // Check if the first operation is a cast operation, if it is we use the
     // results directly.
     auto *defOp = operands[0].getDefiningOp();
     if (auto packerOp = llvm::dyn_cast_or_null<TestCastOp>(defOp)) {
       rewriter.replaceOpWithNewOp<TestReturnOp>(op, packerOp.getOperands());
-      return matchSuccess();
+      return success();
     }
 
     // Otherwise, fail to match.
-    return matchFailure();
+    return failure();
   }
 };
 
@@ -231,52 +255,52 @@ struct TestSplitReturnType : public ConversionPattern {
 struct TestChangeProducerTypeI32ToF32 : public ConversionPattern {
   TestChangeProducerTypeI32ToF32(MLIRContext *ctx)
       : ConversionPattern("test.type_producer", 1, ctx) {}
-  PatternMatchResult
+  LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const final {
     // If the type is I32, change the type to F32.
     if (!Type(*op->result_type_begin()).isSignlessInteger(32))
-      return matchFailure();
+      return failure();
     rewriter.replaceOpWithNewOp<TestTypeProducerOp>(op, rewriter.getF32Type());
-    return matchSuccess();
+    return success();
   }
 };
 struct TestChangeProducerTypeF32ToF64 : public ConversionPattern {
   TestChangeProducerTypeF32ToF64(MLIRContext *ctx)
       : ConversionPattern("test.type_producer", 1, ctx) {}
-  PatternMatchResult
+  LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const final {
     // If the type is F32, change the type to F64.
     if (!Type(*op->result_type_begin()).isF32())
-      return matchFailure();
+      return rewriter.notifyMatchFailure(op, "expected single f32 operand");
     rewriter.replaceOpWithNewOp<TestTypeProducerOp>(op, rewriter.getF64Type());
-    return matchSuccess();
+    return success();
   }
 };
 struct TestChangeProducerTypeF32ToInvalid : public ConversionPattern {
   TestChangeProducerTypeF32ToInvalid(MLIRContext *ctx)
       : ConversionPattern("test.type_producer", 10, ctx) {}
-  PatternMatchResult
+  LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const final {
     // Always convert to B16, even though it is not a legal type. This tests
     // that values are unmapped correctly.
     rewriter.replaceOpWithNewOp<TestTypeProducerOp>(op, rewriter.getBF16Type());
-    return matchSuccess();
+    return success();
   }
 };
 struct TestUpdateConsumerType : public ConversionPattern {
   TestUpdateConsumerType(MLIRContext *ctx)
       : ConversionPattern("test.type_consumer", 1, ctx) {}
-  PatternMatchResult
+  LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const final {
     // Verify that the incoming operand has been successfully remapped to F64.
     if (!operands[0].getType().isF64())
-      return matchFailure();
+      return failure();
     rewriter.replaceOpWithNewOp<TestTypeConsumerOp>(op, operands[0]);
-    return matchSuccess();
+    return success();
   }
 };
 
@@ -289,15 +313,15 @@ struct TestNonRootReplacement : public RewritePattern {
   TestNonRootReplacement(MLIRContext *ctx)
       : RewritePattern("test.replace_non_root", 1, ctx) {}
 
-  PatternMatchResult matchAndRewrite(Operation *op,
-                                     PatternRewriter &rewriter) const final {
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const final {
     auto resultType = *op->result_type_begin();
     auto illegalOp = rewriter.create<ILLegalOpF>(op->getLoc(), resultType);
     auto legalOp = rewriter.create<LegalOpB>(op->getLoc(), resultType);
 
     rewriter.replaceOp(illegalOp, {legalOp});
     rewriter.replaceOp(op, {illegalOp});
-    return matchSuccess();
+    return success();
   }
 };
 } // namespace
@@ -357,6 +381,8 @@ struct TestLegalizePatternDriver
                 TestNonRootReplacement>(&getContext());
     patterns.insert<TestDropOpSignatureConversion>(&getContext(), converter);
     mlir::populateFuncOpTypeConversionPattern(patterns, &getContext(),
+                                              converter);
+    mlir::populateCallOpTypeConversionPattern(patterns, &getContext(),
                                               converter);
 
     // Define the conversion target used for the test.
@@ -452,7 +478,7 @@ struct OneVResOneVOperandOp1Converter
     : public OpConversionPattern<OneVResOneVOperandOp1> {
   using OpConversionPattern<OneVResOneVOperandOp1>::OpConversionPattern;
 
-  PatternMatchResult
+  LogicalResult
   matchAndRewrite(OneVResOneVOperandOp1 op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
     auto origOps = op.getOperands();
@@ -467,7 +493,7 @@ struct OneVResOneVOperandOp1Converter
 
     rewriter.replaceOpWithNewOp<OneVResOneVOperandOp1>(op, op.getResultTypes(),
                                                        remappedOperands);
-    return matchSuccess();
+    return success();
   }
 };
 

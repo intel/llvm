@@ -66,21 +66,18 @@ entry:
 ; CHECK-NEXT: .byte   104
 ; CHECK-NEXT: .byte   0
 
-; CHECKOBJ:     00000010 .rodata.str2.2:
+; CHECKOBJ:     00000010 <.rodata.str2.2>:
 ; CHECKOBJ-NEXT:       10: 01 08 01 10
 ; CHECKOBJ-NEXT:       14: 00 d5 00 00    {{.*}}{{[[:space:]] *}}
-; CHECKOBJ-NEXT: 00000018 .rodata.str4.4:
+; CHECKOBJ-NEXT: 00000018 <.rodata.str4.4>:
 ; CHECKOBJ-NEXT:       18: 00 00 01 d0
 ; CHECKOBJ-NEXT:       1c: 00 00 01 d8
 ; CHECKOBJ-NEXT:       20: 00 00 01 9d
 ; CHECKOBJ-NEXT:       24: 00 00 00 00    {{.*}}{{[[:space:]] *}}
-; CHECKOBJ-NEXT: 00000028 .rodata.str1.1:
+; CHECKOBJ-NEXT: 00000028 <.rodata.str1.1>:
 ; CHECKOBJ-NEXT:       28: 68 65 6c 6c
 ; CHECKOBJ-NEXT:       2c: 6f 20 77 6f
 ; CHECKOBJ-NEXT:       30: 72 6c 64 21
-; CHECKOBJ-NEXT:       34: 0a 00 61 62    {{.*}}{{[[:space:]] *}}
-; CHECKOBJ-NEXT: 00000036 .L.str:
-; CHECKOBJ-NEXT:       36: 61 62 63 64
-; CHECKOBJ-NEXT:       3a: 65 66 67 68
-; CHECKOBJ-NEXT:       3e: 00
-; CHECKOBJ-NEXT:       3f: 00
+; CHECKOBJ-NEXT:       34: 0a 00 61 62
+; CHECKOBJ-NEXT:       38: 63 64 65 66
+; CHECKOBJ-NEXT:       3c: 67 68 00 00

@@ -88,9 +88,6 @@ device queue::get_device() const { return impl->get_device(); }
 
 bool queue::is_host() const { return impl->is_host(); }
 
-void queue::wait() { impl->wait(); }
-
-void queue::wait_and_throw() { impl->wait_and_throw(); }
 
 void queue::throw_asynchronous() { impl->throw_asynchronous(); }
 
@@ -102,17 +99,26 @@ event queue::memcpy(void *dest, const void *src, size_t count) {
   return impl->memcpy(impl, dest, src, count);
 }
 
-event queue::mem_advise(const void *ptr, size_t length, int advice) {
+event queue::mem_advise(const void *ptr, size_t length, pi_mem_advice advice) {
   return impl->mem_advise(ptr, length, advice);
 }
 
-event queue::submit_impl(function_class<void(handler &)> CGH) {
-  return impl->submit(CGH, impl);
+event queue::submit_impl(function_class<void(handler &)> CGH,
+                         const detail::code_location &CodeLoc) {
+  return impl->submit(CGH, impl, CodeLoc);
 }
 
-event queue::submit_impl(function_class<void(handler &)> CGH,
-                         queue secondQueue) {
-  return impl->submit(CGH, impl, secondQueue.impl);
+event queue::submit_impl(function_class<void(handler &)> CGH, queue secondQueue,
+                         const detail::code_location &CodeLoc) {
+  return impl->submit(CGH, impl, secondQueue.impl, CodeLoc);
+}
+
+void queue::wait_proxy(const detail::code_location &CodeLoc) {
+  impl->wait(CodeLoc);
+}
+
+void queue::wait_and_throw_proxy(const detail::code_location &CodeLoc) {
+  impl->wait_and_throw(CodeLoc);
 }
 
 template <info::queue param>
@@ -122,7 +128,8 @@ queue::get_info() const {
 }
 
 #define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
-  template ret_type queue::get_info<info::param_type::param>() const;
+  template __SYCL_EXPORT ret_type queue::get_info<info::param_type::param>()   \
+      const;
 
 #include <CL/sycl/info/queue_traits.def>
 
@@ -136,8 +143,9 @@ template <typename propertyT> propertyT queue::get_property() const {
   return impl->get_property<propertyT>();
 }
 
-template bool queue::has_property<property::queue::enable_profiling>() const;
-template property::queue::enable_profiling
+template __SYCL_EXPORT bool
+queue::has_property<property::queue::enable_profiling>() const;
+template __SYCL_EXPORT property::queue::enable_profiling
 queue::get_property<property::queue::enable_profiling>() const;
 
 bool queue::is_in_order() const {

@@ -178,6 +178,11 @@ namespace ISD {
     /// UNDEF - An undefined node.
     UNDEF,
 
+    // FREEZE - FREEZE(VAL) returns an arbitrary value if VAL is UNDEF (or
+    // is evaluated to UNDEF), or returns VAL otherwise. Note that each
+    // read of UNDEF can yield different value, but FREEZE(UNDEF) cannot.
+    FREEZE,
+
     /// EXTRACT_ELEMENT - This is used to get the lower or upper (determined by
     /// a Constant, which is required to be operand #1) half of the integer or
     /// float value specified as operand #0.  This is only for use before
@@ -609,6 +614,7 @@ namespace ISD {
     ///  1 Round to nearest
     ///  2 Round to +inf
     ///  3 Round to -inf
+    /// Result is rounding mode and chain. Input is a chain.
     FLT_ROUNDS_,
 
     /// X = FP_EXTEND(Y) - Extend a smaller FP type into a larger FP type.

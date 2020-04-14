@@ -6158,6 +6158,14 @@ AArch64InstrInfo::getOutliningType(MachineBasicBlock::iterator &MIT,
   if (FuncInfo->getLOHRelated().count(&MI))
     return outliner::InstrType::Illegal;
 
+  // We can only outline these if we will tail call the outlined function, or
+  // fix up the CFI offsets. For the sake of safety, don't outline CFI
+  // instructions.
+  //
+  // FIXME: If the proper fixups are implemented, this should be possible.
+  if (MI.isCFIInstruction())
+    return outliner::InstrType::Illegal;
+
   // Don't allow debug values to impact outlining type.
   if (MI.isDebugInstr() || MI.isIndirectDebugValue())
     return outliner::InstrType::Invisible;
@@ -6599,7 +6607,8 @@ Optional<RegImmPair> AArch64InstrInfo::isAddImmediate(const MachineInstr &MI,
 
   // TODO: Handle cases where Reg is a super- or sub-register of the
   // destination register.
-  if (Reg != MI.getOperand(0).getReg())
+  const MachineOperand &Op0 = MI.getOperand(0);
+  if (!Op0.isReg() || Reg != Op0.getReg())
     return None;
 
   switch (MI.getOpcode()) {

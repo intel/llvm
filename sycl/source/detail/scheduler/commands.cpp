@@ -24,6 +24,7 @@
 #include <detail/scheduler/commands.hpp>
 #include <detail/scheduler/scheduler.hpp>
 
+#include <cassert>
 #include <string>
 #include <vector>
 
@@ -33,9 +34,17 @@
 #include <memory>
 #endif
 
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+#include "xpti_trace_framework.hpp"
+#endif
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+// Global graph for the application
+extern xpti::trace_event_data_t *GSYCLGraphEvent;
+#endif
 
 #ifdef __GNUG__
 struct DemangleHandle {
@@ -82,6 +91,63 @@ static std::string accessModeToString(access::mode Mode) {
   }
 }
 
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+// Using the command group type to create node types for the asynchronous task
+// graph modeling
+static std::string commandToNodeType(Command::CommandType Type) {
+  switch (Type) {
+  case Command::CommandType::RUN_CG:
+    return "command_group_node";
+  case Command::CommandType::COPY_MEMORY:
+    return "memory_transfer_node";
+  case Command::CommandType::ALLOCA:
+    return "memory_allocation_node";
+  case Command::CommandType::ALLOCA_SUB_BUF:
+    return "sub_buffer_creation_node";
+  case Command::CommandType::RELEASE:
+    return "memory_deallocation_node";
+  case Command::CommandType::MAP_MEM_OBJ:
+    return "memory_transfer_node";
+  case Command::CommandType::UNMAP_MEM_OBJ:
+    return "memory_transfer_node";
+  case Command::CommandType::UPDATE_REQUIREMENT:
+    return "host_acc_create_buffer_lock_node";
+  case Command::CommandType::EMPTY_TASK:
+    return "host_acc_destroy_buffer_release_node";
+  default:
+    return "unknown_node";
+  }
+}
+
+// Using the names being generated and the string are subject to change to
+// something more meaningful to end-users as this will be visible in analysis
+// tools that subscribe to this data
+static std::string commandToName(Command::CommandType Type) {
+  switch (Type) {
+  case Command::CommandType::RUN_CG:
+    return "Command Group Action";
+  case Command::CommandType::COPY_MEMORY:
+    return "Memory Transfer (Copy)";
+  case Command::CommandType::ALLOCA:
+    return "Memory Allocation";
+  case Command::CommandType::ALLOCA_SUB_BUF:
+    return "Sub Buffer Creation";
+  case Command::CommandType::RELEASE:
+    return "Memory Deallocation";
+  case Command::CommandType::MAP_MEM_OBJ:
+    return "Memory Transfer (Map)";
+  case Command::CommandType::UNMAP_MEM_OBJ:
+    return "Memory Transfer (Unmap)";
+  case Command::CommandType::UPDATE_REQUIREMENT:
+    return "Host Accessor Creation/Buffer Lock";
+  case Command::CommandType::EMPTY_TASK:
+    return "Host Accessor Destruction/Buffer Lock Release";
+  default:
+    return "Unknown Action";
+  }
+}
+#endif
+
 static std::vector<RT::PiEvent>
 getPiEvents(const std::vector<EventImplPtr> &EventImpls) {
   std::vector<RT::PiEvent> RetPiEvents;
@@ -95,7 +161,7 @@ void EventCompletionClbk(RT::PiEvent, pi_int32, void *data) {
   EventImplPtr *Event = (reinterpret_cast<EventImplPtr *>(data));
   RT::PiEvent &EventHandle = (*Event)->getHandleRef();
   const detail::plugin &Plugin = (*Event)->getPlugin();
-  Plugin.call<PiApiKind::piEventSetStatus>(EventHandle, CL_COMPLETE);
+  Plugin.call<PiApiKind::piEventSetStatus>(EventHandle, PI_EVENT_COMPLETE);
   delete (Event);
 }
 
@@ -103,37 +169,42 @@ void EventCompletionClbk(RT::PiEvent, pi_int32, void *data) {
 std::vector<EventImplPtr> Command::prepareEvents(ContextImplPtr Context) {
   std::vector<EventImplPtr> Result;
   std::vector<EventImplPtr> GlueEvents;
-  for (EventImplPtr &Event : MDepsEvents) {
+  for (EventImplPtr &DepEvent : MDepsEvents) {
     // Async work is not supported for host device.
-    if (Event->is_host()) {
-      Event->waitInternal();
+    if (DepEvent->is_host()) {
+      DepEvent->waitInternal();
       continue;
     }
     // The event handle can be null in case of, for example, alloca command,
     // which is currently synchrounious, so don't generate OpenCL event.
-    if (Event->getHandleRef() == nullptr) {
+    if (DepEvent->getHandleRef() == nullptr) {
       continue;
     }
-    ContextImplPtr EventContext = Event->getContextImpl();
-    const detail::plugin &Plugin = Event->getPlugin();
-    // If contexts don't match - connect them using user event
-    if (EventContext != Context && !Context->is_host()) {
+    ContextImplPtr DepEventContext = DepEvent->getContextImpl();
 
+    // If contexts don't match - connect them using user event
+    if (DepEventContext != Context && !Context->is_host()) {
       EventImplPtr GlueEvent(new detail::event_impl());
       GlueEvent->setContextImpl(Context);
-      RT::PiEvent &GlueEventHandle = GlueEvent->getHandleRef();
-      Plugin.call<PiApiKind::piEventCreate>(Context->getHandleRef(),
-                                            &GlueEventHandle);
       EventImplPtr *GlueEventCopy =
           new EventImplPtr(GlueEvent); // To increase the reference count by 1.
-      Plugin.call<PiApiKind::piEventSetCallback>(
-          Event->getHandleRef(), CL_COMPLETE, EventCompletionClbk,
+
+      RT::PiEvent &GlueEventHandle = GlueEvent->getHandleRef();
+      auto Plugin = Context->getPlugin();
+      auto DepPlugin = DepEventContext->getPlugin();
+      // Add an event on the current context that
+      // is triggered when the DepEvent is complete
+      Plugin.call<PiApiKind::piEventCreate>(Context->getHandleRef(),
+                                            &GlueEventHandle);
+
+      DepPlugin.call<PiApiKind::piEventSetCallback>(
+          DepEvent->getHandleRef(), PI_EVENT_COMPLETE, EventCompletionClbk,
           /*void *data=*/(GlueEventCopy));
       GlueEvents.push_back(GlueEvent);
       Result.push_back(std::move(GlueEvent));
       continue;
     }
-    Result.push_back(Event);
+    Result.push_back(DepEvent);
   }
   MDepsEvents.insert(MDepsEvents.end(), GlueEvents.begin(), GlueEvents.end());
   return Result;
@@ -157,22 +228,238 @@ void Command::waitForEvents(QueueImplPtr Queue,
 }
 
 Command::Command(CommandType Type, QueueImplPtr Queue)
-    : MQueue(std::move(Queue)), MType(Type), MEnqueued(false) {
+    : MQueue(std::move(Queue)), MType(Type) {
   MEvent.reset(new detail::event_impl(MQueue));
   MEvent->setCommand(this);
   MEvent->setContextImpl(detail::getSyclObjImpl(MQueue->get_context()));
+  MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
+
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (!xptiTraceEnabled())
+    return;
+  // Obtain the stream ID so all commands can emit traces to that stream
+  MStreamID = xptiRegisterStream(SYCL_STREAM_NAME);
+#endif
+}
+
+void Command::emitInstrumentationDataProxy() {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  emitInstrumentationData();
+#endif
+}
+
+/// Method takes in void * for the address as adding a template function to
+/// the command group object maybe undesirable.
+/// @param Cmd The command object of the source of the edge
+/// @param ObjAddr The address that defines the edge dependency; it is the event
+/// address when the edge is for an event and a memory object address if it is
+/// due to an accessor
+/// @param Prefix Contains "event" if the dependency is an edge and contains the
+/// access mode to the buffer if it is due to an accessor
+/// @param IsCommand True if the dependency has a command object as the source,
+/// false otherwise
+void Command::emitEdgeEventForCommandDependence(Command *Cmd, void *ObjAddr,
+                                                const string_class &Prefix,
+                                                bool IsCommand) {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  // Bail early if either the source or the target node for the given dependency
+  // is undefined or NULL
+  if (!(xptiTraceEnabled() && MTraceEvent && Cmd && Cmd->MTraceEvent))
+    return;
+  // If all the information we need for creating an edge event is available,
+  // then go ahead with creating it; if not, bail early!
+  xpti::utils::StringHelper SH;
+  std::string AddressStr = SH.addressAsString<void *>(ObjAddr);
+  std::string TypeString = SH.nameWithAddressString(Prefix, AddressStr);
+  // Create an edge with the dependent buffer address for which a command
+  // object has been created as one of the properties of the edge
+  xpti::payload_t Payload(TypeString.c_str(), MAddress);
+  uint64_t EdgeInstanceNo;
+  xpti_td *EdgeEvent =
+      xptiMakeEvent(TypeString.c_str(), &Payload, xpti::trace_graph_event,
+                    xpti_at::active, &EdgeInstanceNo);
+  if (EdgeEvent) {
+    xpti_td *SrcEvent = static_cast<xpti_td *>(Cmd->MTraceEvent);
+    xpti_td *TgtEvent = static_cast<xpti_td *>(MTraceEvent);
+    EdgeEvent->source_id = SrcEvent->unique_id;
+    EdgeEvent->target_id = TgtEvent->unique_id;
+    if (IsCommand) {
+      xptiAddMetadata(EdgeEvent, "access_mode", TypeString.c_str());
+      xptiAddMetadata(EdgeEvent, "memory_object", AddressStr.c_str());
+    } else {
+      xptiAddMetadata(EdgeEvent, "event", TypeString.c_str());
+    }
+    xptiNotifySubscribers(MStreamID, xpti::trace_edge_create,
+                          detail::GSYCLGraphEvent, EdgeEvent, EdgeInstanceNo,
+                          nullptr);
+  }
+  // General comment - None of these are serious errors as the instrumentation
+  // layer MUST be tolerant of errors. If we need to let the end user know, we
+  // throw exceptions in the future
+#endif
+}
+
+/// Creates an edge when the dependency is due to an event.
+/// @param Cmd The command object of the source of the edge
+/// @param PiEventAddr The address that defines the edge dependency, which in
+/// this case is an event
+void Command::emitEdgeEventForEventDependence(Command *Cmd,
+                                              RT::PiEvent &PiEventAddr) {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  // If we have failed to create an event to represent the Command, then we
+  // cannot emit an edge event. Bail early!
+  if (!(xptiTraceEnabled() && MTraceEvent))
+    return;
+
+  if (Cmd && Cmd->MTraceEvent) {
+    // If the event is associated with a command, we use this command's trace
+    // event as the source of edge, hence modeling the control flow
+    emitEdgeEventForCommandDependence(Cmd, (void *)PiEventAddr, "Event", false);
+    return;
+  }
+  if (PiEventAddr) {
+    xpti::utils::StringHelper SH;
+    std::string AddressStr = SH.addressAsString<RT::PiEvent>(PiEventAddr);
+    // This is the case when it is a OCL event enqueued by the user or another
+    // event is registered by the runtime as a dependency The dependency on
+    // this occasion is an OCL event; so we build a virtual node in the graph
+    // with the event as the metadata for the node
+    std::string NodeName = SH.nameWithAddressString("virtual_node", AddressStr);
+    // Node name is "virtual_node[<event_addr>]"
+    xpti::payload_t VNPayload(NodeName.c_str(), MAddress);
+    uint64_t VNodeInstanceNo;
+    xpti_td *NodeEvent =
+        xptiMakeEvent(NodeName.c_str(), &VNPayload, xpti::trace_graph_event,
+                      xpti_at::active, &VNodeInstanceNo);
+    // Emit the virtual node first
+    xptiAddMetadata(NodeEvent, "kernel_name", NodeName.c_str());
+    xptiNotifySubscribers(MStreamID, xpti::trace_node_create,
+                          detail::GSYCLGraphEvent, NodeEvent, VNodeInstanceNo,
+                          nullptr);
+    // Create a new event for the edge
+    std::string EdgeName = SH.nameWithAddressString("Event", AddressStr);
+    xpti::payload_t EdgePayload(EdgeName.c_str(), MAddress);
+    uint64_t EdgeInstanceNo;
+    xpti_td *EdgeEvent =
+        xptiMakeEvent(EdgeName.c_str(), &EdgePayload, xpti::trace_graph_event,
+                      xpti_at::active, &EdgeInstanceNo);
+    if (EdgeEvent && NodeEvent) {
+      // Source node represents the event and this event needs to be completed
+      // before target node can execute
+      xpti_td *TgtEvent = static_cast<xpti_td *>(MTraceEvent);
+      EdgeEvent->source_id = NodeEvent->unique_id;
+      EdgeEvent->target_id = TgtEvent->unique_id;
+      xptiAddMetadata(EdgeEvent, "event", EdgeName.c_str());
+      xptiNotifySubscribers(MStreamID, xpti::trace_edge_create,
+                            detail::GSYCLGraphEvent, EdgeEvent, EdgeInstanceNo,
+                            nullptr);
+    }
+    return;
+  }
+#endif
+}
+
+uint64_t Command::makeTraceEventProlog(void *MAddress) {
+  uint64_t CommandInstanceNo = 0;
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (!xptiTraceEnabled())
+    return CommandInstanceNo;
+
+  MTraceEventPrologComplete = true;
+  // Setup the member variables with information needed for event notification
+  MCommandNodeType = commandToNodeType(MType);
+  MCommandName = commandToName(MType);
+  xpti::utils::StringHelper SH;
+  MAddressString = SH.addressAsString<void *>(MAddress);
+  std::string CommandString =
+      SH.nameWithAddressString(MCommandName, MAddressString);
+
+  xpti::payload_t p(CommandString.c_str(), MAddress);
+  xpti_td *CmdTraceEvent =
+      xptiMakeEvent(CommandString.c_str(), &p, xpti::trace_graph_event,
+                    xpti_at::active, &CommandInstanceNo);
+  MInstanceID = CommandInstanceNo;
+  if (CmdTraceEvent) {
+    MTraceEvent = (void *)CmdTraceEvent;
+    // If we are seeing this event again, then the instance ID will be greater
+    // than 1; in this case, we must skip sending a notification to create a
+    // node as this node has already been created. We return this value so the
+    // epilog method can be called selectively.
+    MFirstInstance = (CommandInstanceNo == 1);
+  }
+#endif
+  return CommandInstanceNo;
+}
+
+void Command::makeTraceEventEpilog() {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (!(xptiTraceEnabled() && MTraceEvent))
+    return;
+  assert(MTraceEventPrologComplete);
+  xptiNotifySubscribers(MStreamID, xpti::trace_node_create,
+                        detail::GSYCLGraphEvent,
+                        static_cast<xpti_td *>(MTraceEvent), MInstanceID,
+                        static_cast<const void *>(MCommandNodeType.c_str()));
+#endif
+}
+
+void Command::addDep(DepDesc NewDep) {
+  if (NewDep.MDepCommand)
+    MDepsEvents.push_back(NewDep.MDepCommand->getEvent());
+  MDeps.push_back(NewDep);
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  emitEdgeEventForCommandDependence(
+      NewDep.MDepCommand, (void *)NewDep.MDepRequirement->MSYCLMemObj,
+      accessModeToString(NewDep.MDepRequirement->MAccessMode), true);
+#endif
+}
+
+void Command::addDep(EventImplPtr Event) {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  // We need this for just the instrumentation, so guarding it will prevent
+  // unused variable warnings when instrumentation is turned off
+  Command *Cmd = (Command *)Event->getCommand();
+  RT::PiEvent &PiEventAddr = Event->getHandleRef();
+  // Now make an edge for the dependent event
+  emitEdgeEventForEventDependence(Cmd, PiEventAddr);
+#endif
+
+  MDepsEvents.push_back(std::move(Event));
+}
+
+void Command::emitEnqueuedEventSignal(RT::PiEvent &PiEventAddr) {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (!(xptiTraceEnabled() && MTraceEvent && PiEventAddr))
+    return;
+  // Asynchronous call, so send a signal with the event information as
+  // user_data
+  xptiNotifySubscribers(MStreamID, xpti::trace_signal, detail::GSYCLGraphEvent,
+                        static_cast<xpti_td *>(MTraceEvent), MInstanceID,
+                        (void *)PiEventAddr);
+#endif
+}
+
+void Command::emitInstrumentation(uint16_t Type, const char *Txt) {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (!(xptiTraceEnabled() && MTraceEvent))
+    return;
+  // Trace event notifier that emits a Type event
+  xptiNotifySubscribers(MStreamID, Type, detail::GSYCLGraphEvent,
+                        static_cast<xpti_td *>(MTraceEvent), MInstanceID,
+                        static_cast<const void *>(Txt));
+#endif
 }
 
 bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking) {
   // Exit if already enqueued
-  if (MEnqueued)
+  if (MEnqueueStatus == EnqueueResultT::SyclEnqueueSuccess)
     return true;
 
   // If the command is blocked from enqueueing
-  if (MIsBlockable && !MCanEnqueue) {
+  if (MIsBlockable && MEnqueueStatus == EnqueueResultT::SyclEnqueueBlocked) {
     // Exit if enqueue type is not blocking
     if (!Blocking) {
-      EnqueueResult = EnqueueResultT(EnqueueResultT::BLOCKED, this);
+      EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, this);
       return false;
     }
     static bool ThrowOnBlock = getenv("SYCL_THROW_ON_BLOCK") != nullptr;
@@ -182,27 +469,151 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking) {
               std::string(MBlockReason),
           PI_INVALID_OPERATION);
 
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+    // Scoped trace event notifier that emits a barrier begin and barrier end
+    // event, which models the barrier while enqueuing along with the blocked
+    // reason, as determined by the scheduler
+    std::string Info = "enqueue.barrier[";
+    Info += std::string(MBlockReason) + "]";
+    emitInstrumentation(xpti::trace_barrier_begin, Info.c_str());
+#endif
+
     // Wait if blocking
-    while (!MCanEnqueue)
+    while (MEnqueueStatus == EnqueueResultT::SyclEnqueueBlocked)
       ;
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+    emitInstrumentation(xpti::trace_barrier_end, Info.c_str());
+#endif
   }
 
   std::lock_guard<std::mutex> Lock(MEnqueueMtx);
 
   // Exit if the command is already enqueued
-  if (MEnqueued)
+  if (MEnqueueStatus == EnqueueResultT::SyclEnqueueSuccess)
     return true;
 
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  emitInstrumentation(xpti::trace_task_begin, nullptr);
+#endif
+
+  if (MEnqueueStatus == EnqueueResultT::SyclEnqueueFailed) {
+    EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueFailed, this);
+    return false;
+  }
+
+  // Command status set to "failed" beforehand, so this command
+  // has already been marked as "failed" if enqueueImp throws an exception.
+  // This will avoid execution of the same failed command twice.
+  MEnqueueStatus = EnqueueResultT::SyclEnqueueFailed;
   cl_int Res = enqueueImp();
 
   if (CL_SUCCESS != Res)
-    EnqueueResult = EnqueueResultT(EnqueueResultT::FAILED, this, Res);
+    EnqueueResult =
+        EnqueueResultT(EnqueueResultT::SyclEnqueueFailed, this, Res);
   else
     // Consider the command is successfully enqueued if return code is
     // CL_SUCCESS
-    MEnqueued = true;
+    MEnqueueStatus = EnqueueResultT::SyclEnqueueSuccess;
 
-  return static_cast<bool>(MEnqueued);
+  // Emit this correlation signal before the task end
+  emitEnqueuedEventSignal(MEvent->getHandleRef());
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  emitInstrumentation(xpti::trace_task_end, nullptr);
+#endif
+  return MEnqueueStatus == EnqueueResultT::SyclEnqueueSuccess;
+}
+
+void Command::resolveReleaseDependencies(std::set<Command *> &DepList) {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  assert(MType == CommandType::RELEASE && "Expected release command");
+  if (!MTraceEvent)
+    return;
+  // The current command is the target node for all dependencies as the source
+  // nodes have to be completed first before the current node can begin to
+  // execute; these edges model control flow
+  xpti_td *TgtTraceEvent = static_cast<xpti_td *>(MTraceEvent);
+  // We have all the Commands that must be completed before the release command
+  // can be enqueued; here we'll find the command that is an Alloca with the
+  // same SYCLMemObject address and create a dependency line (edge) between them
+  // in our sematic modeling
+  for (auto &Item : DepList) {
+    if (Item->MTraceEvent && Item->MAddress == MAddress) {
+      xpti::utils::StringHelper SH;
+      std::string AddressStr = SH.addressAsString<void *>(MAddress);
+      std::string TypeString =
+          "Edge:" + SH.nameWithAddressString(commandToName(MType), AddressStr);
+
+      // Create an edge with the dependent buffer address being one of the
+      // properties of the edge
+      xpti::payload_t p(TypeString.c_str(), MAddress);
+      uint64_t EdgeInstanceNo;
+      xpti_td *EdgeEvent =
+          xptiMakeEvent(TypeString.c_str(), &p, xpti::trace_graph_event,
+                        xpti_at::active, &EdgeInstanceNo);
+      if (EdgeEvent) {
+        xpti_td *SrcTraceEvent = static_cast<xpti_td *>(Item->MTraceEvent);
+        EdgeEvent->target_id = TgtTraceEvent->unique_id;
+        EdgeEvent->source_id = SrcTraceEvent->unique_id;
+        xptiAddMetadata(EdgeEvent, "memory_object", AddressStr.c_str());
+        xptiNotifySubscribers(MStreamID, xpti::trace_edge_create,
+                              detail::GSYCLGraphEvent, EdgeEvent,
+                              EdgeInstanceNo, nullptr);
+      }
+    }
+  }
+#endif
+}
+
+AllocaCommandBase::AllocaCommandBase(CommandType Type, QueueImplPtr Queue,
+                                     Requirement Req,
+                                     AllocaCommandBase *LinkedAllocaCmd)
+    : Command(Type, Queue), MLinkedAllocaCmd(LinkedAllocaCmd),
+      MIsLeaderAlloca(nullptr == LinkedAllocaCmd), MRequirement(std::move(Req)),
+      MReleaseCmd(Queue, this) {
+  MRequirement.MAccessMode = access::mode::read_write;
+  emitInstrumentationDataProxy();
+}
+
+void AllocaCommandBase::emitInstrumentationData() {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (!xptiTraceEnabled())
+    return;
+  // Create a payload with the command name and an event using this payload to
+  // emit a node_create
+  MAddress = MRequirement.MSYCLMemObj;
+  makeTraceEventProlog(MAddress);
+  // Set the relevant meta data properties for this command
+  if (MTraceEvent && MFirstInstance) {
+    xpti_td *TE = static_cast<xpti_td *>(MTraceEvent);
+    xptiAddMetadata(TE, "sycl_device",
+                    deviceToString(MQueue->get_device()).c_str());
+    xptiAddMetadata(TE, "memory_object", MAddressString.c_str());
+  }
+#endif
+}
+
+AllocaCommand::AllocaCommand(QueueImplPtr Queue, Requirement Req,
+                             bool InitFromUserData,
+                             AllocaCommandBase *LinkedAllocaCmd)
+    : AllocaCommandBase(CommandType::ALLOCA, std::move(Queue), std::move(Req),
+                        LinkedAllocaCmd),
+      MInitFromUserData(InitFromUserData) {
+  // Node event must be created before the dependent edge is added to this node,
+  // so this call must be before the addDep() call.
+  emitInstrumentationDataProxy();
+  addDep(DepDesc(nullptr, getRequirement(), this));
+}
+
+void AllocaCommand::emitInstrumentationData() {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (!xptiTraceEnabled())
+    return;
+
+  // Only if it is the first event, we emit a node create event
+  if (MFirstInstance) {
+    makeTraceEventEpilog();
+  }
+#endif
 }
 
 cl_int AllocaCommand::enqueueImp() {
@@ -250,6 +661,51 @@ void AllocaCommand::printDot(std::ostream &Stream) const {
   }
 }
 
+AllocaSubBufCommand::AllocaSubBufCommand(QueueImplPtr Queue, Requirement Req,
+                                         AllocaCommandBase *ParentAlloca)
+    : AllocaCommandBase(CommandType::ALLOCA_SUB_BUF, std::move(Queue),
+                        std::move(Req),
+                        /*LinkedAllocaCmd*/ nullptr),
+      MParentAlloca(ParentAlloca) {
+  // Node event must be created before the dependent edge
+  // is added to this node, so this call must be before
+  // the addDep() call.
+  emitInstrumentationDataProxy();
+  addDep(DepDesc(MParentAlloca, getRequirement(), MParentAlloca));
+}
+
+void AllocaSubBufCommand::emitInstrumentationData() {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (!xptiTraceEnabled())
+    return;
+
+  // Only if it is the first event, we emit a node create event and any meta
+  // data that is available for the command
+  if (MFirstInstance) {
+    xpti_td *TE = static_cast<xpti_td *>(MTraceEvent);
+    xptiAddMetadata(TE, "offset",
+                    std::to_string(this->MRequirement.MOffsetInBytes).c_str());
+    std::string range = std::to_string(this->MRequirement.MAccessRange[0]) +
+                        "-" +
+                        std::to_string(this->MRequirement.MAccessRange[1]);
+    xptiAddMetadata(TE, "access_range", range.c_str());
+    makeTraceEventEpilog();
+  }
+#endif
+}
+
+void *AllocaSubBufCommand::getMemAllocation() const {
+  // In some cases parent`s memory allocation might change (e.g., after
+  // map/unmap operations). If parent`s memory allocation changes, sub-buffer
+  // memory allocation should be changed as well.
+  if (MQueue->is_host()) {
+    return static_cast<void *>(
+        static_cast<char *>(MParentAlloca->getMemAllocation()) +
+        MRequirement.MOffsetInBytes);
+  }
+  return MMemAllocation;
+}
+
 cl_int AllocaSubBufCommand::enqueueImp() {
   std::vector<EventImplPtr> EventImpls =
       Command::prepareEvents(detail::getSyclObjImpl(MQueue->get_context()));
@@ -283,6 +739,31 @@ void AllocaSubBufCommand::printDot(std::ostream &Stream) const {
            << "MemObj: " << Dep.MDepRequirement->MSYCLMemObj << " \" ]"
            << std::endl;
   }
+}
+
+ReleaseCommand::ReleaseCommand(QueueImplPtr Queue, AllocaCommandBase *AllocaCmd)
+    : Command(CommandType::RELEASE, std::move(Queue)), MAllocaCmd(AllocaCmd) {
+  emitInstrumentationDataProxy();
+}
+
+void ReleaseCommand::emitInstrumentationData() {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (!xptiTraceEnabled())
+    return;
+  // Create a payload with the command name and an event using this payload to
+  // emit a node_create
+  MAddress = MAllocaCmd->getSYCLMemObj();
+  makeTraceEventProlog(MAddress);
+
+  if (MFirstInstance) {
+    xpti_td *TE = static_cast<xpti_td *>(MTraceEvent);
+    xptiAddMetadata(TE, "sycl_device",
+                    deviceToString(MQueue->get_device()).c_str());
+    xptiAddMetadata(TE, "allocation_type",
+                    commandToName(MAllocaCmd->getType()).c_str());
+    makeTraceEventEpilog();
+  }
+#endif
 }
 
 cl_int ReleaseCommand::enqueueImp() {
@@ -369,9 +850,32 @@ void ReleaseCommand::printDot(std::ostream &Stream) const {
 }
 
 MapMemObject::MapMemObject(AllocaCommandBase *SrcAllocaCmd, Requirement Req,
-                           void **DstPtr, QueueImplPtr Queue)
+                           void **DstPtr, QueueImplPtr Queue,
+                           access::mode MapMode)
     : Command(CommandType::MAP_MEM_OBJ, std::move(Queue)),
-      MSrcAllocaCmd(SrcAllocaCmd), MSrcReq(std::move(Req)), MDstPtr(DstPtr) {}
+      MSrcAllocaCmd(SrcAllocaCmd), MSrcReq(std::move(Req)), MDstPtr(DstPtr),
+      MMapMode(MapMode) {
+  emitInstrumentationDataProxy();
+}
+
+void MapMemObject::emitInstrumentationData() {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (!xptiTraceEnabled())
+    return;
+  // Create a payload with the command name and an event using this payload to
+  // emit a node_create
+  MAddress = MSrcAllocaCmd->getSYCLMemObj();
+  makeTraceEventProlog(MAddress);
+
+  if (MFirstInstance) {
+    xpti_td *TE = static_cast<xpti_td *>(MTraceEvent);
+    xptiAddMetadata(TE, "sycl_device",
+                    deviceToString(MQueue->get_device()).c_str());
+    xptiAddMetadata(TE, "memory_object", MAddressString.c_str());
+    makeTraceEventEpilog();
+  }
+#endif
+}
 
 cl_int MapMemObject::enqueueImp() {
   std::vector<EventImplPtr> EventImpls =
@@ -381,9 +885,8 @@ cl_int MapMemObject::enqueueImp() {
   RT::PiEvent &Event = MEvent->getHandleRef();
   *MDstPtr = MemoryManager::map(
       MSrcAllocaCmd->getSYCLMemObj(), MSrcAllocaCmd->getMemAllocation(), MQueue,
-      MSrcReq.MAccessMode, MSrcReq.MDims, MSrcReq.MMemoryRange,
-      MSrcReq.MAccessRange, MSrcReq.MOffset, MSrcReq.MElemSize,
-      std::move(RawEvents), Event);
+      MMapMode, MSrcReq.MDims, MSrcReq.MMemoryRange, MSrcReq.MAccessRange,
+      MSrcReq.MOffset, MSrcReq.MElemSize, std::move(RawEvents), Event);
   return CL_SUCCESS;
 }
 
@@ -407,7 +910,28 @@ void MapMemObject::printDot(std::ostream &Stream) const {
 UnMapMemObject::UnMapMemObject(AllocaCommandBase *DstAllocaCmd, Requirement Req,
                                void **SrcPtr, QueueImplPtr Queue)
     : Command(CommandType::UNMAP_MEM_OBJ, std::move(Queue)),
-      MDstAllocaCmd(DstAllocaCmd), MDstReq(std::move(Req)), MSrcPtr(SrcPtr) {}
+      MDstAllocaCmd(DstAllocaCmd), MDstReq(std::move(Req)), MSrcPtr(SrcPtr) {
+  emitInstrumentationDataProxy();
+}
+
+void UnMapMemObject::emitInstrumentationData() {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (!xptiTraceEnabled())
+    return;
+  // Create a payload with the command name and an event using this payload to
+  // emit a node_create
+  MAddress = MDstAllocaCmd->getSYCLMemObj();
+  makeTraceEventProlog(MAddress);
+
+  if (MFirstInstance) {
+    xpti_td *TE = static_cast<xpti_td *>(MTraceEvent);
+    xptiAddMetadata(TE, "sycl_device",
+                    deviceToString(MQueue->get_device()).c_str());
+    xptiAddMetadata(TE, "memory_object", MAddressString.c_str());
+    makeTraceEventEpilog();
+  }
+#endif
+}
 
 cl_int UnMapMemObject::enqueueImp() {
   std::vector<EventImplPtr> EventImpls =
@@ -449,6 +973,31 @@ MemCpyCommand::MemCpyCommand(Requirement SrcReq,
       MDstAllocaCmd(DstAllocaCmd) {
   if (!MSrcQueue->is_host())
     MEvent->setContextImpl(detail::getSyclObjImpl(MSrcQueue->get_context()));
+
+  emitInstrumentationDataProxy();
+}
+
+void MemCpyCommand::emitInstrumentationData() {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (!xptiTraceEnabled())
+    return;
+  // Create a payload with the command name and an event using this payload to
+  // emit a node_create
+  MAddress = MSrcAllocaCmd->getSYCLMemObj();
+  makeTraceEventProlog(MAddress);
+
+  if (MFirstInstance) {
+    xpti_td *CmdTraceEvent = static_cast<xpti_td *>(MTraceEvent);
+    xptiAddMetadata(CmdTraceEvent, "sycl_device",
+                    deviceToString(MQueue->get_device()).c_str());
+    xptiAddMetadata(CmdTraceEvent, "memory_object", MAddressString.c_str());
+    std::string From = deviceToString(MSrcQueue->get_device());
+    std::string To = deviceToString(MQueue->get_device());
+    xptiAddMetadata(CmdTraceEvent, "copy_from", From.c_str());
+    xptiAddMetadata(CmdTraceEvent, "copy_to", To.c_str());
+    makeTraceEventEpilog();
+  }
+#endif
 }
 
 cl_int MemCpyCommand::enqueueImp() {
@@ -506,7 +1055,7 @@ AllocaCommandBase *ExecCGCommand::getAllocaForReq(Requirement *Req) {
     if (Dep.MDepRequirement == Req)
       return Dep.MAllocaCmd;
   }
-  throw runtime_error("Alloca for command not found");
+  throw runtime_error("Alloca for command not found", PI_INVALID_OPERATION);
 }
 
 void ExecCGCommand::flushStreams() {
@@ -534,7 +1083,7 @@ cl_int UpdateHostRequirementCommand::enqueueImp() {
 void UpdateHostRequirementCommand::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#f1337f\", label=\"";
 
-  Stream << "ID = " << this << "\n";
+  Stream << "ID = " << this << "\\n";
   Stream << "UPDATE REQ ON " << deviceToString(MQueue->get_device()) << "\\n";
   bool IsReqOnBuffer =
       MDstReq.MSYCLMemObj->getType() == SYCLMemObjI::MemObjType::BUFFER;
@@ -564,6 +1113,31 @@ MemCpyCommandHost::MemCpyCommandHost(Requirement SrcReq,
       MSrcAllocaCmd(SrcAllocaCmd), MDstReq(std::move(DstReq)), MDstPtr(DstPtr) {
   if (!MSrcQueue->is_host())
     MEvent->setContextImpl(detail::getSyclObjImpl(MSrcQueue->get_context()));
+
+  emitInstrumentationDataProxy();
+}
+
+void MemCpyCommandHost::emitInstrumentationData() {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (!xptiTraceEnabled())
+    return;
+  // Create a payload with the command name and an event using this payload to
+  // emit a node_create
+  MAddress = MSrcAllocaCmd->getSYCLMemObj();
+  makeTraceEventProlog(MAddress);
+
+  if (MFirstInstance) {
+    xpti_td *CmdTraceEvent = static_cast<xpti_td *>(MTraceEvent);
+    xptiAddMetadata(CmdTraceEvent, "sycl_device",
+                    deviceToString(MQueue->get_device()).c_str());
+    xptiAddMetadata(CmdTraceEvent, "memory_object", MAddressString.c_str());
+    std::string From = deviceToString(MSrcQueue->get_device());
+    std::string To = deviceToString(MQueue->get_device());
+    xptiAddMetadata(CmdTraceEvent, "copy_from", From.c_str());
+    xptiAddMetadata(CmdTraceEvent, "copy_to", To.c_str());
+    makeTraceEventEpilog();
+  }
+#endif
 }
 
 cl_int MemCpyCommandHost::enqueueImp() {
@@ -589,6 +1163,32 @@ cl_int MemCpyCommandHost::enqueueImp() {
       MDstReq.MMemoryRange, MDstReq.MAccessRange, MDstReq.MOffset,
       MDstReq.MElemSize, std::move(RawEvents), Event);
   return CL_SUCCESS;
+}
+
+EmptyCommand::EmptyCommand(QueueImplPtr Queue, Requirement Req)
+    : Command(CommandType::EMPTY_TASK, std::move(Queue)),
+      MRequirement(std::move(Req)) {
+
+  emitInstrumentationDataProxy();
+}
+
+void EmptyCommand::emitInstrumentationData() {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (!xptiTraceEnabled())
+    return;
+  // Create a payload with the command name and an event using this payload to
+  // emit a node_create
+  MAddress = MRequirement.MSYCLMemObj;
+  makeTraceEventProlog(MAddress);
+
+  if (MFirstInstance) {
+    xpti_td *CmdTraceEvent = static_cast<xpti_td *>(MTraceEvent);
+    xptiAddMetadata(CmdTraceEvent, "sycl_device",
+                    deviceToString(MQueue->get_device()).c_str());
+    xptiAddMetadata(CmdTraceEvent, "memory_object", MAddressString.c_str());
+    makeTraceEventEpilog();
+  }
+#endif
 }
 
 void EmptyCommand::printDot(std::ostream &Stream) const {
@@ -626,6 +1226,166 @@ void MemCpyCommandHost::printDot(std::ostream &Stream) const {
   }
 }
 
+UpdateHostRequirementCommand::UpdateHostRequirementCommand(
+    QueueImplPtr Queue, Requirement Req, AllocaCommandBase *SrcAllocaCmd,
+    void **DstPtr)
+    : Command(CommandType::UPDATE_REQUIREMENT, std::move(Queue)),
+      MSrcAllocaCmd(SrcAllocaCmd), MDstReq(std::move(Req)), MDstPtr(DstPtr) {
+
+  emitInstrumentationDataProxy();
+}
+
+void UpdateHostRequirementCommand::emitInstrumentationData() {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (!xptiTraceEnabled())
+    return;
+  // Create a payload with the command name and an event using this payload to
+  // emit a node_create
+  MAddress = MSrcAllocaCmd->getSYCLMemObj();
+  makeTraceEventProlog(MAddress);
+
+  if (MFirstInstance) {
+    xpti_td *CmdTraceEvent = static_cast<xpti_td *>(MTraceEvent);
+    xptiAddMetadata(CmdTraceEvent, "sycl_device",
+                    deviceToString(MQueue->get_device()).c_str());
+    xptiAddMetadata(CmdTraceEvent, "memory_object", MAddressString.c_str());
+    makeTraceEventEpilog();
+  }
+#endif
+}
+
+static std::string cgTypeToString(detail::CG::CGTYPE Type) {
+  switch (Type) {
+  case detail::CG::KERNEL:
+    return "Kernel";
+    break;
+  case detail::CG::UPDATE_HOST:
+    return "update_host";
+    break;
+  case detail::CG::FILL:
+    return "fill";
+    break;
+  case detail::CG::COPY_ACC_TO_ACC:
+    return "copy acc to acc";
+    break;
+  case detail::CG::COPY_ACC_TO_PTR:
+    return "copy acc to ptr";
+    break;
+  case detail::CG::COPY_PTR_TO_ACC:
+    return "copy ptr to acc";
+    break;
+  case detail::CG::COPY_USM:
+    return "copy usm";
+    break;
+  case detail::CG::FILL_USM:
+    return "fill usm";
+    break;
+  case detail::CG::PREFETCH_USM:
+    return "prefetch usm";
+    break;
+  default:
+    return "unknown";
+    break;
+  }
+}
+
+ExecCGCommand::ExecCGCommand(std::unique_ptr<detail::CG> CommandGroup,
+                             QueueImplPtr Queue)
+    : Command(CommandType::RUN_CG, std::move(Queue)),
+      MCommandGroup(std::move(CommandGroup)) {
+
+  emitInstrumentationDataProxy();
+}
+
+void ExecCGCommand::emitInstrumentationData() {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (!xptiTraceEnabled())
+    return;
+  // Create a payload with the command name and an event using this payload to
+  // emit a node_create
+  bool HasSourceInfo = false;
+  std::string KernelName, FromSource;
+  switch (MCommandGroup->getType()) {
+  case detail::CG::KERNEL: {
+    auto KernelCG =
+        reinterpret_cast<detail::CGExecKernel *>(MCommandGroup.get());
+
+    if (KernelCG->MSyclKernel && KernelCG->MSyclKernel->isCreatedFromSource()) {
+      FromSource = "true";
+      pi_kernel KernelHandle = KernelCG->MSyclKernel->getHandleRef();
+      MAddress = KernelHandle;
+      KernelName = MCommandGroup->MFunctionName;
+    } else {
+      FromSource = "false";
+      KernelName = demangleKernelName(KernelCG->getKernelName());
+    }
+  } break;
+  default:
+    KernelName = cgTypeToString(MCommandGroup->getType());
+    break;
+  }
+  std::string CommandType = commandToNodeType(MType);
+  //  Get source file, line number information from the CommandGroup object
+  //  and create payload using name, address, and source info
+  //
+  //  On Windows, since the support for builtin functions is not available in
+  //  MSVC, the MFileName, MLine will be set to nullptr and "0" respectively.
+  //  Handle this condition explicitly here.
+  xpti::payload_t Payload;
+  if (!MCommandGroup->MFileName.empty()) {
+    // File name has a valid string
+    Payload =
+        xpti::payload_t(KernelName.c_str(), MCommandGroup->MFileName.c_str(),
+                        MCommandGroup->MLine, MCommandGroup->MColumn, MAddress);
+    HasSourceInfo = true;
+  } else if (MAddress) {
+    // We have a valid function name and an address
+    Payload = xpti::payload_t(KernelName.c_str(), MAddress);
+  } else {
+    // In any case, we will have a valid function name and we'll use that to
+    // create the hash
+    Payload = xpti::payload_t(KernelName.c_str());
+  }
+
+  uint64_t CGKernelInstanceNo;
+  // Create event using the payload
+  xpti_td *CmdTraceEvent =
+      xptiMakeEvent("ExecCG", &Payload, xpti::trace_graph_event,
+                    xpti::trace_activity_type_t::active, &CGKernelInstanceNo);
+
+  if (CmdTraceEvent) {
+    MInstanceID = CGKernelInstanceNo;
+    MTraceEvent = (void *)CmdTraceEvent;
+    // If we are seeing this event again, then the instance ID will be greater
+    // than 1; in this case, we will skip sending a notification to create a
+    // node as this node has already been created.
+    if (CGKernelInstanceNo > 1)
+      return;
+
+    xptiAddMetadata(CmdTraceEvent, "sycl_device",
+                    deviceToString(MQueue->get_device()).c_str());
+    if (!KernelName.empty()) {
+      xptiAddMetadata(CmdTraceEvent, "kernel_name", KernelName.c_str());
+    }
+    if (!FromSource.empty()) {
+      xptiAddMetadata(CmdTraceEvent, "from_source", FromSource.c_str());
+    }
+    if (HasSourceInfo) {
+      xptiAddMetadata(CmdTraceEvent, "sym_function_name", KernelName.c_str());
+      xptiAddMetadata(CmdTraceEvent, "sym_source_file_name",
+                      MCommandGroup->MFileName.c_str());
+      xptiAddMetadata(CmdTraceEvent, "sym_line_no",
+                      std::to_string(MCommandGroup->MLine).c_str());
+    }
+
+    xptiNotifySubscribers(MStreamID, xpti::trace_node_create,
+                          detail::GSYCLGraphEvent, CmdTraceEvent,
+                          CGKernelInstanceNo,
+                          static_cast<const void *>(CommandType.c_str()));
+  }
+#endif
+}
+
 void ExecCGCommand::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#AFFF82\", label=\"";
 
@@ -634,7 +1394,7 @@ void ExecCGCommand::printDot(std::ostream &Stream) const {
 
   switch (MCommandGroup->getType()) {
   case detail::CG::KERNEL: {
-    auto *KernelCG =
+    auto KernelCG =
         reinterpret_cast<detail::CGExecKernel *>(MCommandGroup.get());
     Stream << "Kernel name: ";
     if (KernelCG->MSyclKernel && KernelCG->MSyclKernel->isCreatedFromSource())
@@ -644,32 +1404,8 @@ void ExecCGCommand::printDot(std::ostream &Stream) const {
     Stream << "\\n";
     break;
   }
-  case detail::CG::UPDATE_HOST:
-    Stream << "CG type: update_host\\n";
-    break;
-  case detail::CG::FILL:
-    Stream << "CG type: fill\\n";
-    break;
-  case detail::CG::COPY_ACC_TO_ACC:
-    Stream << "CG type: copy acc to acc\\n";
-    break;
-  case detail::CG::COPY_ACC_TO_PTR:
-    Stream << "CG type: copy acc to ptr\\n";
-    break;
-  case detail::CG::COPY_PTR_TO_ACC:
-    Stream << "CG type: copy ptr to acc\\n";
-    break;
-  case detail::CG::COPY_USM:
-    Stream << "CG type: copy usm\\n";
-    break;
-  case detail::CG::FILL_USM:
-    Stream << "CG type: fill usm\\n";
-    break;
-  case detail::CG::PREFETCH_USM:
-    Stream << "CG type: prefetch usm\\n";
-    break;
   default:
-    Stream << "CG type: unknown\\n";
+    Stream << "CG type: " << cgTypeToString(MCommandGroup->getType()) << "\\n";
     break;
   }
 
@@ -709,14 +1445,19 @@ static void adjustNDRangePerKernel(NDRDescT &NDR, RT::PiKernel Kernel,
 
   if (WGSize[0] == 0) {
     // kernel does not request specific workgroup shape - set one
-    // TODO maximum work group size as the local size might not be the best
-    //      choice for CPU or FPGA devices
+    id<3> MaxWGSizes =
+        get_device_info<id<3>, cl::sycl::info::device::max_work_item_sizes>::
+            get(DeviceImpl.getHandleRef(), DeviceImpl.getPlugin());
+
     size_t WGSize1D = get_kernel_work_group_info<
         size_t, cl::sycl::info::kernel_work_group::work_group_size>::
         get(Kernel, DeviceImpl.getHandleRef(), DeviceImpl.getPlugin());
-    assert(WGSize1D != 0);
-    // TODO implement better default for 2D/3D case:
-    WGSize = {WGSize1D, 1, 1};
+
+    assert(MaxWGSizes[2] != 0);
+
+    // Set default work-group size in the Z-direction to either the max
+    // number of work-items or the maximum work-group size in the Z-direction.
+    WGSize = {1, 1, min(WGSize1D, MaxWGSizes[2])};
   }
   NDR.set(NDR.Dims, nd_range<3>(NDR.NumWorkGroups * WGSize, WGSize));
 }
@@ -764,7 +1505,8 @@ cl_int ExecCGCommand::enqueueImp() {
 
   case CG::CGTYPE::UPDATE_HOST: {
     assert(!"Update host should be handled by the Scheduler.");
-    throw runtime_error("Update host should be handled by the Scheduler.");
+    throw runtime_error("Update host should be handled by the Scheduler.",
+                        PI_INVALID_OPERATION);
   }
   case CG::CGTYPE::COPY_ACC_TO_PTR: {
     CGCopy *Copy = (CGCopy *)MCommandGroup.get();
@@ -930,16 +1672,14 @@ cl_int ExecCGCommand::enqueueImp() {
       case kernel_param_kind_t::kind_accessor: {
         Requirement *Req = (Requirement *)(Arg.MPtr);
         AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
-#if USE_PI_CUDA
-        pi_mem MemArg = (pi_mem)AllocaCmd->getMemAllocation();
-        Plugin.call<PiApiKind::piextKernelSetArgMemObj>(Kernel, Arg.MIndex, &MemArg);
-#else
-        cl_mem MemArg = (cl_mem)AllocaCmd->getMemAllocation();
-        Plugin.call<PiApiKind::piKernelSetArg>(Kernel, Arg.MIndex,
-                                               sizeof(cl_mem), &MemArg);
-        Plugin.call<PiApiKind::piKernelSetArg>(Kernel, Arg.MIndex,
-                                               sizeof(cl_mem), &MemArg);
-#endif
+        RT::PiMem MemArg = (RT::PiMem)AllocaCmd->getMemAllocation();
+        if (RT::useBackend(pi::Backend::SYCL_BE_PI_OPENCL)) {
+          Plugin.call<PiApiKind::piKernelSetArg>(Kernel, Arg.MIndex,
+                                                 sizeof(RT::PiMem), &MemArg);
+        } else {
+          Plugin.call<PiApiKind::piextKernelSetArgMemObj>(Kernel, Arg.MIndex,
+                                                          &MemArg);
+        }
         break;
       }
       case kernel_param_kind_t::kind_std_layout: {
@@ -1009,7 +1749,7 @@ cl_int ExecCGCommand::enqueueImp() {
     CGPrefetchUSM *Prefetch = (CGPrefetchUSM *)MCommandGroup.get();
     MemoryManager::prefetch_usm(Prefetch->getDst(), MQueue,
                                 Prefetch->getLength(), std::move(RawEvents),
-                                Event); 
+                                Event);
     return CL_SUCCESS;
   }
   case CG::CGTYPE::INTEROP_TASK_CODEPLAY: {
@@ -1042,7 +1782,7 @@ cl_int ExecCGCommand::enqueueImp() {
   }
   case CG::CGTYPE::NONE:
   default:
-    throw runtime_error("CG type not implemented.");
+    throw runtime_error("CG type not implemented.", PI_INVALID_OPERATION);
   }
 }
 

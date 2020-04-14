@@ -23,7 +23,9 @@ namespace clangd {
 
 // Calls addDocument and then blockUntilIdleForTest.
 void runAddDocument(ClangdServer &Server, PathRef File, StringRef Contents,
-                    WantDiagnostics WantDiags = WantDiagnostics::Auto);
+                    StringRef Version = "null",
+                    WantDiagnostics WantDiags = WantDiagnostics::Auto,
+                    bool ForceRebuild = false);
 
 llvm::Expected<CodeCompleteResult>
 runCodeComplete(ClangdServer &Server, PathRef File, Position Pos,
@@ -39,7 +41,8 @@ llvm::Expected<std::vector<DocumentHighlight>>
 runFindDocumentHighlights(ClangdServer &Server, PathRef File, Position Pos);
 
 llvm::Expected<FileEdits> runRename(ClangdServer &Server, PathRef File,
-                                    Position Pos, StringRef NewName);
+                                    Position Pos, StringRef NewName,
+                                    const clangd::RenameOptions &RenameOpts);
 
 std::string runDumpAST(ClangdServer &Server, PathRef File);
 

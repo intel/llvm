@@ -13,36 +13,17 @@
 #include "llvm/DWARFLinker/DWARFLinkerCompileUnit.h"
 #include "llvm/DebugInfo/DWARF/DWARFContext.h"
 #include "llvm/MC/MCTargetOptions.h"
-#include "llvm/MC/MCTargetOptionsCommandFlags.inc"
+#include "llvm/MC/MCTargetOptionsCommandFlags.h"
 #include "llvm/Support/LEB128.h"
 #include "llvm/Support/TargetRegistry.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
 
 namespace llvm {
+
+static mc::RegisterMCTargetOptionsFlags MOF;
+
 namespace dsymutil {
-
-/// Retrieve the section named \a SecName in \a Obj.
-///
-/// To accommodate for platform discrepancies, the name passed should be
-/// (for example) 'debug_info' to match either '__debug_info' or '.debug_info'.
-/// This function will strip the initial platform-specific characters.
-static Optional<object::SectionRef>
-getSectionByName(const object::ObjectFile &Obj, StringRef SecName) {
-  for (const object::SectionRef &Section : Obj.sections()) {
-    StringRef SectionName;
-    if (Expected<StringRef> NameOrErr = Section.getName())
-      SectionName = *NameOrErr;
-    else
-      consumeError(NameOrErr.takeError());
-
-    SectionName = SectionName.substr(SectionName.find_first_not_of("._"));
-    if (SectionName != SecName)
-      continue;
-    return Section;
-  }
-  return None;
-}
 
 bool DwarfStreamer::init(Triple TheTriple) {
   std::string ErrorStr;
@@ -61,7 +42,7 @@ bool DwarfStreamer::init(Triple TheTriple) {
   if (!MRI)
     return error(Twine("no register info for target ") + TripleName, Context);
 
-  MCTargetOptions MCOptions = InitMCTargetOptionsFromFlags();
+  MCTargetOptions MCOptions = mc::InitMCTargetOptionsFromFlags();
   MAI.reset(TheTarget->createMCAsmInfo(*MRI, TripleName, MCOptions));
   if (!MAI)
     return error("no asm info for target " + TripleName, Context);
@@ -194,8 +175,7 @@ void DwarfStreamer::emitDIE(DIE &Die) {
 }
 
 /// Emit contents of section SecName From Obj.
-void DwarfStreamer::emitSectionContents(const object::ObjectFile &Obj,
-                                        StringRef SecName) {
+void DwarfStreamer::emitSectionContents(StringRef SecData, StringRef SecName) {
   MCSection *Section =
       StringSwitch<MCSection *>(SecName)
           .Case("debug_line", MC->getObjectFileInfo()->getDwarfLineSection())
@@ -210,12 +190,7 @@ void DwarfStreamer::emitSectionContents(const object::ObjectFile &Obj,
   if (Section) {
     MS->SwitchSection(Section);
 
-    if (auto Sec = getSectionByName(Obj, SecName)) {
-      if (Expected<StringRef> E = Sec->getContents())
-        MS->emitBytes(*E);
-      else
-        consumeError(E.takeError());
-    }
+    MS->emitBytes(SecData);
   }
 }
 
@@ -719,25 +694,6 @@ void DwarfStreamer::translateLineTable(DataExtractor Data, uint64_t Offset) {
 
   Asm->OutStreamer->emitLabel(EndLabel);
   Offset = UnitEnd;
-}
-
-void DwarfStreamer::copyInvariantDebugSection(const object::ObjectFile &Obj) {
-  if (!Options.Translator) {
-    MS->SwitchSection(MC->getObjectFileInfo()->getDwarfLineSection());
-    emitSectionContents(Obj, "debug_line");
-  }
-
-  MS->SwitchSection(MC->getObjectFileInfo()->getDwarfLocSection());
-  emitSectionContents(Obj, "debug_loc");
-
-  MS->SwitchSection(MC->getObjectFileInfo()->getDwarfRangesSection());
-  emitSectionContents(Obj, "debug_ranges");
-
-  MS->SwitchSection(MC->getObjectFileInfo()->getDwarfFrameSection());
-  emitSectionContents(Obj, "debug_frame");
-
-  MS->SwitchSection(MC->getObjectFileInfo()->getDwarfARangesSection());
-  emitSectionContents(Obj, "debug_aranges");
 }
 
 /// Emit the pubnames or pubtypes section contribution for \p

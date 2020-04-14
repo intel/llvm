@@ -392,7 +392,7 @@ public:
 /// use operands.
 class ConstantAggregate : public Constant {
 protected:
-  ConstantAggregate(CompositeType *T, ValueTy VT, ArrayRef<Constant *> V);
+  ConstantAggregate(Type *T, ValueTy VT, ArrayRef<Constant *> V);
 
 public:
   /// Transparently provide more efficient getOperand methods.
@@ -517,7 +517,7 @@ private:
 
 public:
   /// Return a ConstantVector with the specified constant in each element.
-  static Constant *getSplat(unsigned NumElts, Constant *Elt);
+  static Constant *getSplat(ElementCount EC, Constant *Elt);
 
   /// Specialize the getType() method to always return a VectorType,
   /// which reduces the amount of casting needed in parts of the compiler.
