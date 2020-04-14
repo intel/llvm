@@ -8,6 +8,9 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
+// Unsupported: cuda
+//  The test fails sporadically on cuda.
+
 //==---------- buffer_dev_to_dev.cpp - SYCL buffer basic test --------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
