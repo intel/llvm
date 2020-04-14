@@ -58,7 +58,7 @@ using byte = unsigned char;
 
 using image_allocator = detail::aligned_allocator<byte>;
 
-/// The image class defines a shared image data.
+/// Defines a shared image data.
 ///
 /// Images can be 1-, 2-, and 3-dimensional. They have to be accessed using the
 /// accessor class.

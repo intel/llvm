@@ -28,6 +28,12 @@ namespace detail {
 class queue_impl;
 }
 
+/// Represents an in-order SYCL queue.
+///
+/// \deprecated Replaced by in_order queue property.
+/// \sa queue
+///
+/// \ingroup sycl_api
 class __SYCL_DEPRECATED__("Replaced by in_order queue property") ordered_queue {
 
 public:

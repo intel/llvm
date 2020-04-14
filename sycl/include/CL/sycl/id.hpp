@@ -18,6 +18,10 @@ namespace sycl {
 template <int dimensions> class range;
 template <int dimensions, bool with_offset> class item;
 
+/// A vector of dimensions that is used to represent an id into a global or
+/// local range.
+///
+/// \ingroup sycl_api
 template <int dimensions = 1> class id : public detail::array<dimensions> {
 private:
   using base = detail::array<dimensions>;

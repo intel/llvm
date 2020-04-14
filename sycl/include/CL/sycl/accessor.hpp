@@ -25,8 +25,6 @@
 
 /// \file accessor.hpp
 /// The file contains implementations of accessor class.
-
-/// \addtogroup sycl_api_acc
 ///
 /// Objects of accessor class define a requirement to access some SYCL memory
 /// object or local memory of the device.
@@ -825,7 +823,7 @@ public:
 
   template <int Dims = Dimensions, typename AllocatorT,
 	   typename = typename detail::enable_if_t<
-		   (Dims == 0) && 
+		   (Dims == 0) &&
                     (!IsPlaceH && (IsGlobalBuf || IsConstantBuf))>
 		    			>
   accessor(buffer<DataT,1,AllocatorT> &BufferRef,

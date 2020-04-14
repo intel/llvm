@@ -20,8 +20,7 @@ class handler;
 class queue;
 template <int dimensions> class range;
 
-/// The buffer class defines a shared array that can be used by kernels in
-/// queues.
+/// Defines a shared array that can be used by kernels in queues.
 ///
 /// Buffers can be 1-, 2-, and 3-dimensional. They have to be accessed using
 /// accessor classes.

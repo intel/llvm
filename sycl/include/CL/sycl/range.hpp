@@ -15,6 +15,11 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 template <int dimensions> class id;
+
+/// Defines the iteration domain of either a single work-group in a parallel
+/// dispatch, or the overall dimensions of the dispatch.
+///
+/// \ingroup sycl_api
 template <int dimensions = 1> class range : public detail::array<dimensions> {
   static_assert(dimensions >= 1 && dimensions <= 3,
                 "range can only be 1, 2, or 3 dimensional.");

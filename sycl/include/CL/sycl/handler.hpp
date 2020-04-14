@@ -135,10 +135,11 @@ device getDeviceFromHandler(handler &);
 /// "finalization" it constructs CG object, that represents specific operation,
 /// passing fields that are required only.
 ///
-/// \sa sycl_api_exec
 /// \sa queue
+/// \sa program
+/// \sa kernel
 ///
-/// \ingroup sycl_api_exec
+/// \ingroup sycl_api
 class handler {
 private:
   /// Constructs SYCL handler from queue.

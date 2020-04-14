@@ -22,6 +22,10 @@ template <typename dataT, int dimensions, access::mode accessMode,
           access::target accessTarget, access::placeholder isPlaceholder>
 class accessor;
 
+/// Provides constructors for address space qualified and non address space
+/// qualified pointers to allow interoperability between plain C++ and OpenCL C.
+///
+/// \ingroup sycl_api
 template <typename ElementType, access::address_space Space> class multi_ptr {
 public:
   using element_type =

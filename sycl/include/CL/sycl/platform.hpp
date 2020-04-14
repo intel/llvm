@@ -23,10 +23,9 @@ namespace detail {
 class platform_impl;
 }
 
-/// The platform class encapsulates a SYCL platform on which kernels may be
-/// executed.
+/// Encapsulates a SYCL platform on which kernels may be executed.
 ///
-/// \ingroup sycl_api_devices
+/// \ingroup sycl_api
 class platform {
 public:
   /// Constructs a SYCL platform as a host platform.

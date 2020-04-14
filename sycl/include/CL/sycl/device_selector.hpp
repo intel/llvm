@@ -21,7 +21,7 @@ class device;
 ///
 /// \sa device
 ///
-/// \ingroup sycl_api_devices
+/// \ingroup sycl_api_dev_sel
 class device_selector {
 public:
   virtual ~device_selector() = default;
@@ -40,7 +40,7 @@ public:
 ///
 /// \sa device
 ///
-/// \ingroup sycl_api_devices
+/// \ingroup sycl_api_dev_sel
 class default_selector : public device_selector {
 public:
   int operator()(const device &dev) const override;
@@ -50,7 +50,7 @@ public:
 ///
 /// \sa device
 ///
-/// \ingroup sycl_api_devices
+/// \ingroup sycl_api_dev_sel
 class gpu_selector : public device_selector {
 public:
   int operator()(const device &dev) const override;
@@ -60,7 +60,7 @@ public:
 ///
 /// \sa device
 ///
-/// \ingroup sycl_api_devices
+/// \ingroup sycl_api_dev_sel
 class cpu_selector : public device_selector {
 public:
   int operator()(const device &dev) const override;
@@ -70,7 +70,7 @@ public:
 ///
 /// \sa device
 ///
-/// \ingroup sycl_api_devices
+/// \ingroup sycl_api_dev_sel
 class accelerator_selector : public device_selector {
 public:
   int operator()(const device &dev) const override;
@@ -80,7 +80,7 @@ public:
 ///
 /// \sa device
 ///
-/// \ingroup sycl_api_devices
+/// \ingroup sycl_api_dev_sel
 class host_selector : public device_selector {
 public:
   int operator()(const device &dev) const override;

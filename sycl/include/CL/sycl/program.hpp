@@ -28,13 +28,12 @@ class program_impl;
 
 enum class program_state { none, compiled, linked };
 
-/// The program class provides an abstraction of a SYCL program.
+/// Provides an abstraction of a SYCL program.
 ///
-/// \sa sycl_api_exec
 /// \sa kernel
 /// \sa queue
 ///
-/// \ingroup sycl_api_exec
+/// \ingroup sycl_api
 class program {
 public:
   program() = delete;

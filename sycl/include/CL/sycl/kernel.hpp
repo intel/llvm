@@ -23,13 +23,13 @@ namespace detail {
 class kernel_impl;
 }
 
-/// The kernel class provides an abstraction of a SYCL kernel.
+/// Provides an abstraction of a SYCL kernel.
 ///
 /// \sa sycl_api_exec
 /// \sa program
 /// \sa queue
 ///
-/// \ingroup sycl_api_exec
+/// \ingroup sycl_api
 class kernel {
 public:
   /// Constructs a SYCL kernel instance from an OpenCL cl_kernel

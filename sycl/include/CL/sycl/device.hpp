@@ -26,7 +26,7 @@ class device_impl;
 /// The SYCL device class encapsulates a single SYCL device on which kernels
 /// may be executed.
 ///
-/// \ingroup sycl_api_devices
+/// \ingroup sycl_api
 class device {
 public:
   /// Constructs a SYCL device instance as a host device.
