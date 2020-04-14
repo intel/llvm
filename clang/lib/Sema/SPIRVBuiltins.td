@@ -728,7 +728,7 @@ foreach IType = [UChar, UShort, UInt, ULong] in {
   }
 }
 
-foreach IType = [TrueChar, Short, Int, Long] in {
+foreach IType = [Char, Short, Int, Long] in {
   foreach FType = [Float, Double, Half] in {
     def : SPVBuiltin<"ConvertSToF_R" # FType.Name, [FType, IType], Attr.Const>;
     foreach rnd = ["", "_rte", "_rtz", "_rtp", "_rtn"] in {
