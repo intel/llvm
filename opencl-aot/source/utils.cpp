@@ -187,7 +187,7 @@ getOpenCLPlatform(DeviceType Type) {
         CLErr);
   }
 
-  std::vector<cl_platform_id> Platforms{PlatformsCount};
+  std::vector<cl_platform_id> Platforms(PlatformsCount);
   CLErr = clGetPlatformIDs(PlatformsCount, Platforms.data(), nullptr);
   if (clFailed(CLErr)) {
     return std::make_tuple(
