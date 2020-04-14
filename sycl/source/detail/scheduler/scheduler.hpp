@@ -21,7 +21,7 @@
 
 /// \defgroup sycl_graph DPC++ Execution Graph
 ///
-/// DPC++, unlike OpenCL, provides a programming model in which the user doesn't
+/// SYCL, unlike OpenCL, provides a programming model in which the user doesn't
 /// need to manage dependencies between kernels and memory explicitly. The DPC++
 /// Runtime must ensure correct execution with respect to the order commands are
 /// submitted.
@@ -60,11 +60,11 @@
 ///
 /// \code{.cpp}
 /// {
-///   // Creating DPC++ CPU and GPU queues
+///   // Creating SYCL CPU and GPU queues
 ///   cl::sycl::queue CPU_Queue = ...;
 ///   cl::sycl::queue GPU_Queue = ...;
 ///
-///   // Creating 3 DPC++ buffers
+///   // Creating 3 SYCL buffers
 ///   auto BufferA = ...; // Buffer is initialized with host memory.
 ///   auto BufferB = ...;
 ///   auto BufferC = ...;
@@ -369,9 +369,7 @@ public:
   /// Waits for the event.
   ///
   /// This operation is blocking. For eager execution mode this method invokes
-  /// corresponding function of device API. In lazy execution mode the method
-  /// may enqueue the command, associated with the event, and its dependency
-  /// before calling device API.
+  /// corresponding function of device API.
   ///
   /// \param Event is a pointer to event to wait on.
   void waitForEvent(EventImplPtr Event);
