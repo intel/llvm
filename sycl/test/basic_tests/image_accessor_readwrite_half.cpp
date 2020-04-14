@@ -1,7 +1,7 @@
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
+// RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUNx: %CPU_RUN_PLACEHOLDER %t.out // OpenCL CPU backend does not support half datatype reads and writes for 1D images.
 
 // TODO: No CUDA image support
 // XFAIL: cuda
@@ -152,6 +152,14 @@ void check_half4(char *HostPtr) {
 };
 
 int main() {
+  // Checking if default selected device supports half datatype.
+  // Same device will be selected in the write/read functions.
+  s::device Dev{s::default_selector()};
+  if (!Dev.is_host() && !Dev.has_extension("cl_khr_fp16")) {
+    std::cout << "This device doesn't support the extension cl_khr_fp16"
+              << std::endl;
+    return 0;
+  }
   // Checking only for dimension=1.
   // create image:
   char HostPtr[100];

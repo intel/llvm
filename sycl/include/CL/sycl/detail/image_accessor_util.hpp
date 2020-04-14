@@ -465,8 +465,8 @@ void convertReadData(const vec<ChannelType, 4> PixelData,
         "image_channel_type of the image.",
         PI_INVALID_VALUE);
   case image_channel_type::fp16:
-    RetDataFloat = PixelData.template convert<cl_float>();
-    break;
+    RetData = PixelData.template convert<cl_half>();
+    return;
   case image_channel_type::fp32:
     throw cl::sycl::invalid_parameter_error(
         "Datatype to read - cl_half4 is incompatible with the "
@@ -639,17 +639,6 @@ convertWriteData(const vec<cl_float, 4> WriteData,
     break;
   }
 }
-
-/*
-template <typename ChannelType>
-vec<ChannelType, 4> processHalfDataToPixel(vec<cl_half, 4> WriteData,
-                                            float MulFactor) {
-  vec<cl_half, 4> Temp = WriteData * MulFactor;
-  vec<cl_int, 4> TempInInt = Temp.convert<int, rounding_mode::rte>();
-  vec<cl_int, 4> TempInIntSaturated =
-      cl::sycl::clamp(TempInInt, min_v<ChannelType>(), max_v<ChannelType>());
-  return TempInIntSaturated.convert<ChannelType>();
-}*/
 
 template <typename ChannelType>
 vec<ChannelType, 4>
