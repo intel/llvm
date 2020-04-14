@@ -1385,17 +1385,22 @@ class SyclKernelBodyCreator
   llvm::SmallVector<Stmt *, 16> BodyStmts;
   llvm::SmallVector<Stmt *, 16> FinalizeStmts;
   llvm::SmallVector<Expr *, 16> InitExprs;
+  VarDecl *KernelObjClone;
+  InitializedEntity VarEntity;
+  DeclRefExpr *KernelObjCloneRef;
+  CXXRecordDecl *KernelObj;
+  Expr *CurBase;
+  llvm::SmallVector<Expr *, 16> Bases;
 
   // Using the statements/init expressions that we've created, this generates
   // the kernel body compound stmt. CompoundStmt needs to know its number of
   // statements in advance to allocate it, so we cannot do this as we go along.
   CompoundStmt *createKernelBody() {
-    // TODO: Can we hold off on creating KernelObjClone to here?
 
     Expr *ILE = new (SemaRef.getASTContext()) InitListExpr(
         SemaRef.getASTContext(), SourceLocation(), InitExprs, SourceLocation());
-    // TODO!!! ILE->setType(QualType(LC->getTypeForDecl(), 0));
-    // KernelObjectClone->setInit(ILE);
+    ILE->setType(QualType(KernelObj->getTypeForDecl(), 0));
+    KernelObjClone->setInit(ILE);
 
     // TODO: More kernel object init with KernelBodyTransform.
 
@@ -1408,13 +1413,80 @@ class SyclKernelBodyCreator
   void doSomethingForParallelForWorkGroup() {
   }
 
+  MemberExpr *BuildMemberExpr(Expr *Base, ValueDecl *Member) {
+    DeclAccessPair MemberDAP = DeclAccessPair::make(Member, AS_none);
+    MemberExpr *Result = SemaRef.BuildMemberExpr(
+        Base, /*IsArrow */ false, SourceLocation(), NestedNameSpecifierLoc(),
+        SourceLocation(), Member, MemberDAP,
+        /*HadMultipleCandidates*/ false,
+        DeclarationNameInfo(Member->getDeclName(), SourceLocation()),
+        Member->getType(), VK_LValue, OK_Ordinary);
+    return Result;
+  }
+
+  void createSpecialMethodCall(const CXXRecordDecl *SpecialClass, Expr *Base,
+          const std::string &MethodName, FieldDecl *Field) {
+        CXXMethodDecl *Method = getMethodByName(SpecialClass, MethodName);
+        assert(Method &&
+               "The accessor/sampler/stream must have the __init method. Stream"
+               " must also have __finalize method");
+        unsigned NumParams = Method->getNumParams();
+        llvm::SmallVector<Expr *, 4> ParamDREs(NumParams);
+        llvm::ArrayRef<ParmVarDecl *> KernelParameters =
+            DeclCreator.getParamVarDeclsForCurrentField();
+        for (size_t I = 0; I < NumParams; ++I) {
+          QualType ParamType = KernelParameters[I]->getOriginalType();
+          ParamDREs[I] = SemaRef.BuildDeclRefExpr(KernelParameters[I], ParamType,
+                                            VK_LValue, SourceLocation());
+        }
+
+        MemberExpr *SpecialObjME = BuildMemberExpr(Base, Field);
+
+        MemberExpr *MethodME = BuildMemberExpr(SpecialObjME, Method);
+
+        QualType ResultTy = Method->getReturnType();
+        ExprValueKind VK = Expr::getValueKindForType(ResultTy);
+        ResultTy = ResultTy.getNonLValueExprType(SemaRef.Context);
+        llvm::SmallVector<Expr *, 4> ParamStmts;
+        const auto *Proto = cast<FunctionProtoType>(Method->getType());
+        SemaRef.GatherArgumentsForCall(SourceLocation(), Method, Proto, 0,
+                                 ParamDREs, ParamStmts);
+        // [kernel_obj or wrapper object].accessor.__init(_ValueType*,
+        // range<int>, range<int>, id<int>)
+        CXXMemberCallExpr *Call =
+            CXXMemberCallExpr::Create(SemaRef.Context, MethodME, ParamStmts,
+                                      ResultTy, VK, SourceLocation());
+       BodyStmts.push_back(Call);
+
+  }
+
 public:
   SyclKernelBodyCreator(Sema &S, SyclKernelDeclCreator &DC,
-                        KernelInvocationKind K)
-      : SyclKernelFieldHandler(S), DeclCreator(DC) {
+                        KernelInvocationKind K, CXXRecordDecl *KernelObj)
+      : SyclKernelFieldHandler(S), DeclCreator(DC),
+        VarEntity(InitializedEntity::InitializeVariable(KernelObjClone)),
+        KernelObj(KernelObj) {
     // TODO: Something special with the lambda when InvokeParallelForWorkGroup.
     if (K == InvokeParallelForWorkGroup)
        doSomethingForParallelForWorkGroup();
+
+    // TODO get rid of kernel obj clone
+    TypeSourceInfo *TSInfo =
+        KernelObj->isLambda() ? KernelObj->getLambdaTypeInfo() : nullptr;
+    KernelObjClone = VarDecl::Create(
+        SemaRef.Context, DeclCreator.getKernelDecl(), SourceLocation(),
+        SourceLocation(), KernelObj->getIdentifier(),
+        QualType(KernelObj->getTypeForDecl(), 0), TSInfo, SC_None);
+    Stmt *DS = new (S.Context) DeclStmt(DeclGroupRef(KernelObjClone),
+                                        SourceLocation(), SourceLocation());
+    BodyStmts.push_back(DS);
+    KernelObjCloneRef = DeclRefExpr::Create(
+        S.Context, NestedNameSpecifierLoc(), SourceLocation(), KernelObjClone,
+        false, DeclarationNameInfo(), QualType(KernelObj->getTypeForDecl(), 0),
+        VK_LValue);
+    VarEntity = InitializedEntity::InitializeVariable(KernelObjClone);
+    CurBase = KernelObjCloneRef;
+    Bases.push_back(CurBase);
   }
   ~SyclKernelBodyCreator() {
     CompoundStmt *KernelBody = createKernelBody();
@@ -1423,6 +1495,19 @@ public:
 
   void handleSyclAccessorType(const FieldDecl *FD, QualType Ty) final {
     // TODO: Creates init sequence and inits special sycl obj
+    const auto *AccDecl = Ty->getAsCXXRecordDecl();
+    // TODO : we don't need all this init stuff if remove kernel obj clone
+    InitializedEntity Entity = InitializedEntity::InitializeMember(
+        const_cast<FieldDecl *>(FD), &VarEntity);
+    // Initialize with the default constructor.
+    InitializationKind InitKind =
+        InitializationKind::CreateDefault(SourceLocation());
+    InitializationSequence InitSeq(SemaRef, Entity, InitKind, None);
+    ExprResult MemberInit = InitSeq.Perform(SemaRef, Entity, InitKind, None);
+    InitExprs.push_back(MemberInit.get());
+    // TODO don't do const-cast
+    createSpecialMethodCall(AccDecl, CurBase, InitMethodName,
+                            const_cast<FieldDecl *>(FD));
   }
 
   void handleSyclAccessorType(const CXXBaseSpecifier &BS, QualType Ty) final {
@@ -1442,13 +1527,46 @@ public:
     // TODO: Creates init/finalize sequence and inits special sycl obj
   }
 
+  void CreateExprForStructOrScalar(FieldDecl *FD) {
+    ParmVarDecl *KernelParameter =
+        DeclCreator.getParamVarDeclsForCurrentField()[0];
+    InitializedEntity Entity =
+        InitializedEntity::InitializeMember(FD, &VarEntity);
+    QualType ParamType = KernelParameter->getOriginalType();
+    Expr *DRE = SemaRef.BuildDeclRefExpr(KernelParameter, ParamType, VK_LValue,
+                                         SourceLocation());
+    InitializationKind InitKind =
+        InitializationKind::CreateCopy(SourceLocation(), SourceLocation());
+    InitializationSequence InitSeq(SemaRef, Entity, InitKind, DRE);
+
+    ExprResult MemberInit = InitSeq.Perform(SemaRef, Entity, InitKind, DRE);
+    InitExprs.push_back(MemberInit.get());
+  }
 
   void handleStructType(const FieldDecl *FD, QualType Ty) final {
-    // TODO: a bunch of work doing inits, note this has a little more than
-    // scalar.
+    CreateExprForStructOrScalar(const_cast<FieldDecl *>(FD));
   }
+
   void handleScalarType(const FieldDecl *FD, QualType Ty) final {
-    // TODO: a bunch of work doing inits.
+    CreateExprForStructOrScalar(const_cast<FieldDecl *>(FD));
+  }
+
+  void enterStruct(const CXXRecordDecl *, const FieldDecl *FD) final {
+    CurBase = BuildMemberExpr(CurBase, const_cast<FieldDecl *>(FD));
+    Bases.push_back(CurBase);
+  }
+
+  void leaveStruct(const CXXRecordDecl *, const FieldDecl *FD) final {
+    CurBase = Bases.back();
+    Bases.pop_back();
+  }
+
+  void enterStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS) final {
+    // TODO : do something here?
+  }
+
+  void leaveStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS) final {
+    // TODO : do something here?
   }
 };
 
@@ -1618,7 +1736,8 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
                                     KernelLambda->getLocation(),
                                     KernelCallerFunc->isInlined());
   SyclKernelBodyCreator kernel_body(*this, kernel_decl,
-                                    getKernelInvocationKind(KernelCallerFunc));
+                                    getKernelInvocationKind(KernelCallerFunc),
+                                    KernelLambda);
   SyclKernelIntHeaderCreator int_header(
       *this, getSyclIntegrationHeader(), KernelLambda,
       calculateKernelNameType(Context, KernelCallerFunc), CalculatedName,
