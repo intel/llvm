@@ -9,6 +9,7 @@
 #pragma once
 
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/stl.hpp>
 
@@ -26,7 +27,7 @@ class event_impl;
 /// kernels and signaling barriers.
 ///
 /// \ingroup sycl_api
-class event {
+class __SYCL_EXPORT event {
 public:
   /// Constructs a ready SYCL event.
   ///

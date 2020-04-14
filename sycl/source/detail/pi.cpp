@@ -11,6 +11,8 @@
 ///
 /// \ingroup sycl_pi
 
+#include "context_impl.hpp"
+#include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <detail/plugin.hpp>
@@ -52,6 +54,16 @@ constexpr const char *GVerStr = "sycl 1.0";
 namespace pi {
 
 bool XPTIInitDone = false;
+
+void contextSetExtendedDeleter(const cl::sycl::context &context,
+                               pi_context_extended_deleter func,
+                               void *user_data) {
+  auto impl = getSyclObjImpl(context);
+  auto contextHandle = reinterpret_cast<pi_context>(impl->getHandleRef());
+  auto plugin = impl->getPlugin();
+  plugin.call_nocheck<PiApiKind::piextContextSetExtendedDeleter>(
+      contextHandle, func, user_data);
+}
 
 std::string platformInfoToString(pi_platform_info info) {
   switch (info) {
@@ -217,9 +229,13 @@ vector_class<plugin> initialize() {
   PiPlugin PluginInformation; // TODO: include.
   for (unsigned int I = 0; I < PluginNames.size(); I++) {
     void *Library = loadPlugin(PluginNames[I]);
-    if (!Library && EnableTrace) {
-      std::cerr << "Check if plugin is present. Failed to load plugin: "
-                << PluginNames[I] << std::endl;
+
+    if (!Library) {
+      if (EnableTrace) {
+        std::cerr << "Check if plugin is present. Failed to load plugin: "
+                  << PluginNames[I] << std::endl;
+      }
+      continue;
     }
 
     if (!bindPlugin(Library, &PluginInformation) && EnableTrace) {

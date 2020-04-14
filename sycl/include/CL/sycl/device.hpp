@@ -9,9 +9,11 @@
 #pragma once
 
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/platform.hpp>
 #include <CL/sycl/stl.hpp>
+
 #include <memory>
 #include <utility>
 
@@ -27,7 +29,7 @@ class device_impl;
 /// may be executed.
 ///
 /// \ingroup sycl_api
-class device {
+class __SYCL_EXPORT device {
 public:
   /// Constructs a SYCL device instance as a host device.
   device();

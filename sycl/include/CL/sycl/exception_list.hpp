@@ -11,6 +11,7 @@
 // 4.9.2 Exception Class Interface
 
 #include <CL/sycl/detail/defines.hpp>
+#include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/stl.hpp>
 
 #include <cstddef>
@@ -26,7 +27,7 @@ class queue_impl;
 /// A list of asynchronous exceptions.
 ///
 /// \ingroup sycl_api
-class exception_list {
+class __SYCL_EXPORT exception_list {
 public:
   using value_type = exception_ptr_class;
   using reference = value_type &;

@@ -1,3 +1,6 @@
+// UNSUPPORTED: cuda
+// CUDA does not support SPIR-V.
+
 //-fsycl-targets=%sycl_triple
 // RUN: %clangxx -fsycl-device-only -fno-sycl-use-bitcode -Xclang -fsycl-int-header=%t.h -c %s -o %t.spv -I %sycl_include -Xclang -verify-ignore-unexpected=note,warning -Wno-sycl-strict
 // RUN: %clangxx -include %t.h -g %s -o %t.out -lsycl -I %sycl_include -Xclang -verify-ignore-unexpected=note,warning
@@ -5,9 +8,6 @@
 // CHECK: Passed
 
 // TODO: InvalidTargetTriple: Expects spir-unknown-unknown or spir64-unknown-unknown. Actual target triple is x86_64-unknown-linux-gnu
-
-// XFAIL: cuda
-// Currently unsupported on cuda as this test specifically tests a SPV path.
 
 #include <CL/sycl.hpp>
 #include <iostream>

@@ -9,13 +9,14 @@
 #pragma once
 
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/export.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
 /// Profiling info for the host execution.
-class HostProfilingInfo {
+class __SYCL_EXPORT HostProfilingInfo {
   cl_ulong StartTime = 0;
   cl_ulong EndTime = 0;
 

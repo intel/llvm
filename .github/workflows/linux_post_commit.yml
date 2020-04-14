@@ -10,7 +10,7 @@ jobs:
      strategy:
        fail-fast: false
        matrix:
-         config: ["Default", "SharedLibs", "Assertions"]
+         config: ["Default", "SharedLibs", "NoAssertions"]
 
      steps:
      - uses: actions/checkout@v2
@@ -28,14 +28,14 @@ jobs:
              SharedLibs)
                  export ARGS="--shared-libs"
                  ;;
-             Assertiosn)
-                 export ARGS="--assertions"
+             NoAssertions)
+                 export ARGS="--no-assertions"
                  ;;
          esac
          mkdir -p $GITHUB_WORKSPACE/build
          cd $GITHUB_WORKSPACE/build
          python3 $GITHUB_WORKSPACE/src/buildbot/configure.py -w $GITHUB_WORKSPACE \
-         -s $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t Release --no-ocl $ARGS
+         -s $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t Release $ARGS
      - name: Compile
        run: |
          python3 $GITHUB_WORKSPACE/src/buildbot/compile.py -w  $GITHUB_WORKSPACE \

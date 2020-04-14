@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/stream_impl.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -93,7 +94,7 @@ inline __width_manipulator__ setw(int Width) {
 /// vector and SYCL types to the console.
 ///
 /// \ingroup sycl_api
-class stream {
+class __SYCL_EXPORT stream {
 public:
   stream(size_t BufferSize, size_t MaxStatementSize, handler &CGH);
 

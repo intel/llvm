@@ -11,6 +11,7 @@
 #include <CL/__spirv/spirv_types.hpp>
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/sampler_impl.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -44,7 +45,7 @@ class image_accessor;
 /// \sa sycl_api_acc
 ///
 /// \ingroup sycl_api
-class sampler {
+class __SYCL_EXPORT sampler {
 public:
   sampler(coordinate_normalization_mode normalizationMode,
           addressing_mode addressingMode, filtering_mode filteringMode);

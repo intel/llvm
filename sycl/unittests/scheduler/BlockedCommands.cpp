@@ -41,8 +41,8 @@ public:
 TEST_F(SchedulerTest, BlockedCommands) {
   MockCommand MockCmd(detail::getSyclObjImpl(MQueue));
 
+  MockCmd.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueBlocked;
   MockCmd.MIsBlockable = true;
-  MockCmd.MCanEnqueue = false;
   MockCmd.MRetVal = CL_DEVICE_PARTITION_EQUALLY;
 
   detail::EnqueueResultT Res;
@@ -52,7 +52,7 @@ TEST_F(SchedulerTest, BlockedCommands) {
   ASSERT_EQ(detail::EnqueueResultT::SyclEnqueueBlocked, Res.MResult)
       << "Result of enqueueing blocked command should be BLOCKED\n";
 
-  MockCmd.MCanEnqueue = true;
+  MockCmd.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
   Res.MResult = detail::EnqueueResultT::SyclEnqueueSuccess;
   MockCmd.MRetVal = CL_DEVICE_PARTITION_EQUALLY;
 
@@ -65,6 +65,7 @@ TEST_F(SchedulerTest, BlockedCommands) {
   ASSERT_EQ(&MockCmd, Res.MCmd) << "Expected different failed command.\n";
 
   Res = detail::EnqueueResultT{};
+  MockCmd.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
   MockCmd.MRetVal = CL_SUCCESS;
   Enqueued = TestScheduler::enqueueCommand(&MockCmd, Res, detail::BLOCKING);
   ASSERT_TRUE(Enqueued &&

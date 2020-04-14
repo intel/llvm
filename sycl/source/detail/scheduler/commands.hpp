@@ -40,7 +40,12 @@ enum BlockingT { NON_BLOCKING = 0, BLOCKING };
 
 // The struct represents the result of command enqueueing
 struct EnqueueResultT {
-  enum ResultT { SyclEnqueueSuccess, SyclEnqueueBlocked, SyclEnqueueFailed };
+  enum ResultT {
+    SyclEnqueueReady,
+    SyclEnqueueSuccess,
+    SyclEnqueueBlocked,
+    SyclEnqueueFailed
+  };
   EnqueueResultT(ResultT Result = SyclEnqueueSuccess, Command *Cmd = nullptr,
                  cl_int ErrCode = CL_SUCCESS)
       : MResult(Result), MCmd(Cmd), MErrCode(ErrCode) {}
@@ -110,7 +115,9 @@ public:
 
   bool isFinished();
 
-  bool isEnqueued() const { return MEnqueued; }
+  bool isSuccessfullyEnqueued() const {
+    return MEnqueueStatus == EnqueueResultT::SyclEnqueueSuccess;
+  }
 
   std::shared_ptr<queue_impl> getQueue() const { return MQueue; }
 
@@ -170,8 +177,6 @@ protected:
 
   // The type of the command
   CommandType MType;
-  // Indicates whether the command is enqueued or not
-  std::atomic<bool> MEnqueued;
   // Mutex used to protect enqueueing from race conditions
   std::mutex MEnqueueMtx;
 
@@ -182,12 +187,13 @@ public:
   std::unordered_set<Command *> MUsers;
   // Indicates whether the command can be blocked from enqueueing
   bool MIsBlockable = false;
-  // Indicates whether the command is blocked from enqueueing
-  std::atomic<bool> MCanEnqueue;
   // Counts the number of memory objects this command is a leaf for
   unsigned MLeafCounter = 0;
 
   const char *MBlockReason = "Unknown";
+
+  // Describes the status of a command
+  std::atomic<EnqueueResultT::ResultT> MEnqueueStatus;
 
   // All member variable defined here  are needed for the SYCL instrumentation
   // layer. Do not guard these variables below with XPTI_ENABLE_INSTRUMENTATION
@@ -258,7 +264,7 @@ public:
 
   SYCLMemObjI *getSYCLMemObj() const { return MRequirement.MSYCLMemObj; }
 
-  void *getMemAllocation() const { return MMemAllocation; }
+  virtual void *getMemAllocation() const = 0;
 
   const Requirement *getRequirement() const final { return &MRequirement; }
 
@@ -292,6 +298,7 @@ public:
                 bool InitFromUserData = true,
                 AllocaCommandBase *LinkedAllocaCmd = nullptr);
 
+  void *getMemAllocation() const final { return MMemAllocation; }
   void printDot(std::ostream &Stream) const final;
   void emitInstrumentationData();
 
@@ -308,6 +315,7 @@ public:
   AllocaSubBufCommand(QueueImplPtr Queue, Requirement Req,
                       AllocaCommandBase *ParentAlloca);
 
+  void *getMemAllocation() const final;
   void printDot(std::ostream &Stream) const final;
   AllocaCommandBase *getParentAlloca() { return MParentAlloca; }
   void emitInstrumentationData();
@@ -321,7 +329,7 @@ private:
 class MapMemObject : public Command {
 public:
   MapMemObject(AllocaCommandBase *SrcAllocaCmd, Requirement Req, void **DstPtr,
-               QueueImplPtr Queue);
+               QueueImplPtr Queue, access::mode MapMode);
 
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MSrcReq; }
@@ -333,6 +341,7 @@ private:
   AllocaCommandBase *MSrcAllocaCmd = nullptr;
   Requirement MSrcReq;
   void **MDstPtr = nullptr;
+  access::mode MMapMode;
 };
 
 class UnMapMemObject : public Command {

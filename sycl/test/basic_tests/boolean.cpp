@@ -3,8 +3,6 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
-// XFAIL: cuda
-// TODO: investigate incorrect results on cuda backend
 #include <CL/sycl.hpp>
 
 #include <cassert>

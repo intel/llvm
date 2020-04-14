@@ -8,6 +8,7 @@
 
 #pragma once
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/stl.hpp>
 
 // 4.6.2 Platform class
@@ -26,7 +27,7 @@ class platform_impl;
 /// Encapsulates a SYCL platform on which kernels may be executed.
 ///
 /// \ingroup sycl_api
-class platform {
+class __SYCL_EXPORT platform {
 public:
   /// Constructs a SYCL platform as a host platform.
   platform();

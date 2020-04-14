@@ -777,6 +777,12 @@ pi_result cuda_piContextRetain(pi_context context) {
   return PI_SUCCESS;
 }
 
+pi_result cuda_piextContextSetExtendedDeleter(
+    pi_context context, pi_context_extended_deleter function, void *user_data) {
+  context->set_extended_deleter(function, user_data);
+  return PI_SUCCESS;
+}
+
 /// Not applicable to CUDA, devices cannot be partitioned.
 ///
 pi_result cuda_piDevicePartition(
@@ -791,15 +797,12 @@ pi_result cuda_piDevicePartition(
 pi_result cuda_piextDeviceSelectBinary(pi_device device,
                                        pi_device_binary *binaries,
                                        pi_uint32 num_binaries,
-                                       pi_device_binary *selected_binary) {
+                                       pi_uint32 *selected_binary) {
   if (!binaries) {
     cl::sycl::detail::pi::die("No list of device images provided");
   }
   if (num_binaries < 1) {
     cl::sycl::detail::pi::die("No binary images in the list");
-  }
-  if (!selected_binary) {
-    cl::sycl::detail::pi::die("No storage for device binary provided");
   }
 
   // Look for an image for the NVPTX64 target, and return the first one that is
@@ -807,7 +810,7 @@ pi_result cuda_piextDeviceSelectBinary(pi_device device,
   for (pi_uint32 i = 0; i < num_binaries; i++) {
     if (strcmp(binaries[i]->DeviceTargetSpec,
                PI_DEVICE_BINARY_TARGET_NVPTX64) == 0) {
-      *selected_binary = binaries[i];
+      *selected_binary = i;
       return PI_SUCCESS;
     }
   }
@@ -1413,6 +1416,8 @@ pi_result cuda_piContextCreate(const pi_context_properties *properties,
 
   std::unique_ptr<_pi_context> piContextPtr{nullptr};
   try {
+    CUcontext current = nullptr;
+
     if (property_cuda_primary) {
       // Use the CUDA primary context and assume that we want to use it
       // immediately as we want to forge context switches.
@@ -1424,22 +1429,25 @@ pi_result cuda_piContextCreate(const pi_context_properties *properties,
       errcode_ret = PI_CHECK_ERROR(cuCtxPushCurrent(Ctxt));
     } else {
       // Create a scoped context.
-      CUcontext newContext, current;
+      CUcontext newContext;
       PI_CHECK_ERROR(cuCtxGetCurrent(&current));
       errcode_ret = PI_CHECK_ERROR(
           cuCtxCreate(&newContext, CU_CTX_MAP_HOST, devices[0]->get()));
       piContextPtr = std::unique_ptr<_pi_context>(new _pi_context{
           _pi_context::kind::user_defined, newContext, *devices});
-      // For scoped contexts keep the last active CUDA one on top of the stack
-      // as `cuCtxCreate` replaces it implicitly otherwise.
-      if (current != nullptr) {
-        PI_CHECK_ERROR(cuCtxSetCurrent(current));
-      }
     }
 
     // Use default stream to record base event counter
     PI_CHECK_ERROR(cuEventCreate(&piContextPtr->evBase_, CU_EVENT_DEFAULT));
     PI_CHECK_ERROR(cuEventRecord(piContextPtr->evBase_, 0));
+
+    // For non-primary scoped contexts keep the last active on top of the stack
+    // as `cuCtxCreate` replaces it implicitly otherwise.
+    // Primary contexts are kept on top of the stack, so the previous context
+    // is not queried and therefore not recovered.
+    if (current != nullptr) {
+      PI_CHECK_ERROR(cuCtxSetCurrent(current));
+    }
 
     *retcontext = piContextPtr.release();
   } catch (pi_result err) {
@@ -1457,7 +1465,7 @@ pi_result cuda_piContextRelease(pi_context ctxt) {
   if (ctxt->decrement_reference_count() > 0) {
     return PI_SUCCESS;
   }
-  ctxt->invoke_callback();
+  ctxt->invoke_extended_deleters();
 
   std::unique_ptr<_pi_context> context{ctxt};
 
@@ -3581,6 +3589,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextDeviceSelectBinary, cuda_piextDeviceSelectBinary)
   _PI_CL(piextGetDeviceFunctionPointer, cuda_piextGetDeviceFunctionPointer)
   // Context
+  _PI_CL(piextContextSetExtendedDeleter, cuda_piextContextSetExtendedDeleter)
   _PI_CL(piContextCreate, cuda_piContextCreate)
   _PI_CL(piContextGetInfo, cuda_piContextGetInfo)
   _PI_CL(piContextRetain, cuda_piContextRetain)

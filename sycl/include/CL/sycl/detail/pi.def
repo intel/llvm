@@ -31,6 +31,7 @@ _PI_API(piContextCreate)
 _PI_API(piContextGetInfo)
 _PI_API(piContextRetain)
 _PI_API(piContextRelease)
+_PI_API(piextContextSetExtendedDeleter)
 // Queue
 _PI_API(piQueueCreate)
 _PI_API(piQueueGetInfo)

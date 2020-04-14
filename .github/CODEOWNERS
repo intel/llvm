@@ -1,19 +1,19 @@
-clang/ @erichkeane, @Fznamznon
+* @bader
+
+clang/ @erichkeane @Fznamznon
 
 clang/**/Driver @mdtoguchi @AGindinson
 
-llvm-spirv/ @AlexeySotkin, @AlexeySachkov
+llvm-spirv/ @AlexeySotkin @AlexeySachkov
 
-opencl-aot/ @dm-vodopyanov, @AlexeySachkov, @romanovvlad
+opencl-aot/ @dm-vodopyanov @AlexeySachkov @romanovvlad
 
-libdevice/ @asavonic, @vzakhari
+libdevice/ @asavonic @vzakhari
 
-sycl/doc/extensions/ @mkinsner, @jbrodman
+sycl/ @romanovvlad @bader
 
-sycl/doc/ @pvchupin, @kbobrovs
+sycl/doc/ @pvchupin @kbobrovs
 
-sycl/ @romanovvlad, @bader
+sycl/doc/extensions/ @mkinsner @jbrodman
 
-xpti/ @tovinkere, @andykaylor
-
-* @bader
+xpti/ @tovinkere @andykaylor

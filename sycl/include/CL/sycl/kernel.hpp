@@ -9,6 +9,7 @@
 #pragma once
 
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/stl.hpp>
 
@@ -30,7 +31,7 @@ class kernel_impl;
 /// \sa queue
 ///
 /// \ingroup sycl_api
-class kernel {
+class __SYCL_EXPORT kernel {
 public:
   /// Constructs a SYCL kernel instance from an OpenCL cl_kernel
   ///

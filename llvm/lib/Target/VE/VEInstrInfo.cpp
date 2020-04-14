@@ -36,12 +36,11 @@ using namespace llvm;
 void VEInstrInfo::anchor() {}
 
 VEInstrInfo::VEInstrInfo(VESubtarget &ST)
-    : VEGenInstrInfo(VE::ADJCALLSTACKDOWN, VE::ADJCALLSTACKUP), RI(),
-      Subtarget(ST) {}
+    : VEGenInstrInfo(VE::ADJCALLSTACKDOWN, VE::ADJCALLSTACKUP), RI() {}
 
 static bool IsIntegerCC(unsigned CC) { return (CC < VECC::CC_AF); }
 
-static VECC::CondCodes GetOppositeBranchCondition(VECC::CondCodes CC) {
+static VECC::CondCode GetOppositeBranchCondition(VECC::CondCode CC) {
   switch(CC) {
   case VECC::CC_IG:     return VECC::CC_ILE;
   case VECC::CC_IL:     return VECC::CC_IGE;
@@ -269,7 +268,7 @@ unsigned VEInstrInfo::removeBranch(MachineBasicBlock &MBB,
 
 bool VEInstrInfo::reverseBranchCondition(
     SmallVectorImpl<MachineOperand> &Cond) const {
-  VECC::CondCodes CC = static_cast<VECC::CondCodes>(Cond[0].getImm());
+  VECC::CondCode CC = static_cast<VECC::CondCode>(Cond[0].getImm());
   Cond[0].setImm(GetOppositeBranchCondition(CC));
   return false;
 }

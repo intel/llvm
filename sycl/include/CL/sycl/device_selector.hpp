@@ -8,6 +8,8 @@
 
 #pragma once
 
+#include <CL/sycl/detail/export.hpp>
+
 // 4.6.1 Device selection class
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -22,7 +24,7 @@ class device;
 /// \sa device
 ///
 /// \ingroup sycl_api_dev_sel
-class device_selector {
+class __SYCL_EXPORT device_selector {
 public:
   virtual ~device_selector() = default;
 
@@ -41,7 +43,8 @@ public:
 /// \sa device
 ///
 /// \ingroup sycl_api_dev_sel
-class default_selector : public device_selector {
+class __SYCL_EXPORT default_selector : public device_selector {
+>>>>>>> origin/sycl
 public:
   int operator()(const device &dev) const override;
 };
@@ -51,7 +54,7 @@ public:
 /// \sa device
 ///
 /// \ingroup sycl_api_dev_sel
-class gpu_selector : public device_selector {
+class __SYCL_EXPORT gpu_selector : public device_selector {
 public:
   int operator()(const device &dev) const override;
 };
@@ -61,7 +64,7 @@ public:
 /// \sa device
 ///
 /// \ingroup sycl_api_dev_sel
-class cpu_selector : public device_selector {
+class __SYCL_EXPORT cpu_selector : public device_selector {
 public:
   int operator()(const device &dev) const override;
 };
@@ -71,7 +74,7 @@ public:
 /// \sa device
 ///
 /// \ingroup sycl_api_dev_sel
-class accelerator_selector : public device_selector {
+class __SYCL_EXPORT accelerator_selector : public device_selector {
 public:
   int operator()(const device &dev) const override;
 };
@@ -81,7 +84,7 @@ public:
 /// \sa device
 ///
 /// \ingroup sycl_api_dev_sel
-class host_selector : public device_selector {
+class __SYCL_EXPORT host_selector : public device_selector {
 public:
   int operator()(const device &dev) const override;
 };

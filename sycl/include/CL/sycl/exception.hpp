@@ -11,6 +11,7 @@
 // 4.9.2 Exception Class Interface
 
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/pi.h>
 #include <CL/sycl/stl.hpp>
 
@@ -25,7 +26,7 @@ class context;
 // Derive from std::exception so uncaught exceptions are printed in c++ default
 // exception handler.
 /// \ingroup sycl_api
-class exception: public std::exception {
+class __SYCL_EXPORT exception : public std::exception {
 public:
   exception() = default;
 

@@ -5,7 +5,6 @@ project(sycl-solution)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 option(SYCL_ENABLE_WERROR "Treat all warnings as errors in SYCL project" OFF)
 
 # enable all warnings by default
@@ -221,6 +220,13 @@ add_custom_target( sycl-toolchain
           sycl-post-link
   COMMENT "Building SYCL compiler toolchain..."
 )
+
+# Check if opencl-aot tool is enabled.
+list(FIND LLVM_ENABLE_PROJECTS opencl-aot OPENCL_AOT_FOUND)
+if(NOT OPENCL_AOT_FOUND EQUAL -1)
+  add_dependencies(sycl-toolchain opencl-aot)
+  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS opencl-aot)
+endif()
 
 if (SYCL_ENABLE_XPTI_TRACING)
   add_dependencies( sycl-toolchain xpti)

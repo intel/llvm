@@ -69,7 +69,7 @@ using pi_bitfield = pi_uint64;
 //
 typedef enum {
   PI_SUCCESS = CL_SUCCESS,
-  PI_RESULT_INVALID_KERNEL_NAME = CL_INVALID_KERNEL_NAME,
+  PI_INVALID_KERNEL_NAME = CL_INVALID_KERNEL_NAME,
   PI_INVALID_OPERATION = CL_INVALID_OPERATION,
   PI_INVALID_KERNEL = CL_INVALID_KERNEL,
   PI_INVALID_QUEUE_PROPERTIES = CL_INVALID_QUEUE_PROPERTIES,
@@ -91,6 +91,11 @@ typedef enum {
   PI_COMPILER_NOT_AVAILABLE = CL_COMPILER_NOT_AVAILABLE,
   PI_PROFILING_INFO_NOT_AVAILABLE = CL_PROFILING_INFO_NOT_AVAILABLE,
   PI_DEVICE_NOT_FOUND = CL_DEVICE_NOT_FOUND,
+  PI_INVALID_WORK_ITEM_SIZE = CL_INVALID_WORK_ITEM_SIZE,
+  PI_INVALID_KERNEL_ARGS = CL_INVALID_KERNEL_ARGS,
+  PI_INVALID_IMAGE_SIZE = CL_INVALID_IMAGE_SIZE,
+  PI_IMAGE_FORMAT_NOT_SUPPORTED = CL_IMAGE_FORMAT_NOT_SUPPORTED,
+  PI_MEM_OBJECT_ALLOCATION_FAILURE = CL_MEM_OBJECT_ALLOCATION_FAILURE,
   PI_ERROR_UNKNOWN = -999
 } _pi_result;
 
@@ -106,7 +111,7 @@ typedef enum {
   PI_PLATFORM_INFO_NAME = CL_PLATFORM_NAME,
   PI_PLATFORM_INFO_PROFILE = CL_PLATFORM_PROFILE,
   PI_PLATFORM_INFO_VENDOR = CL_PLATFORM_VENDOR,
-  PI_PLATFORM_INFO_VERSION = CL_PLATFORM_VERSION,
+  PI_PLATFORM_INFO_VERSION = CL_PLATFORM_VERSION
 } _pi_platform_info;
 
 typedef enum {
@@ -823,6 +828,12 @@ pi_result piContextGetInfo(pi_context context, pi_context_info param_name,
 pi_result piContextRetain(pi_context context);
 
 pi_result piContextRelease(pi_context context);
+
+typedef void (*pi_context_extended_deleter)(void *user_data);
+
+pi_result piextContextSetExtendedDeleter(pi_context context,
+                                         pi_context_extended_deleter func,
+                                         void *user_data);
 
 //
 // Queue
