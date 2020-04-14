@@ -1389,7 +1389,6 @@ class SyclKernelBodyCreator
   InitializedEntity VarEntity;
   DeclRefExpr *KernelObjCloneRef;
   CXXRecordDecl *KernelObj;
-  Expr *CurBase;
   llvm::SmallVector<Expr *, 16> Bases;
 
   // Using the statements/init expressions that we've created, this generates
@@ -1410,8 +1409,7 @@ class SyclKernelBodyCreator
   }
 
   // TODO: not sure what this does yet, name is a placeholder for future use.
-  void doSomethingForParallelForWorkGroup() {
-  }
+  void doSomethingForParallelForWorkGroup() {}
 
   MemberExpr *BuildMemberExpr(Expr *Base, ValueDecl *Member) {
     DeclAccessPair MemberDAP = DeclAccessPair::make(Member, AS_none);
@@ -1424,40 +1422,55 @@ class SyclKernelBodyCreator
     return Result;
   }
 
+  void CreateExprForStructOrScalar(FieldDecl *FD) {
+    ParmVarDecl *KernelParameter =
+        DeclCreator.getParamVarDeclsForCurrentField()[0];
+    InitializedEntity Entity =
+        InitializedEntity::InitializeMember(FD, &VarEntity);
+    QualType ParamType = KernelParameter->getOriginalType();
+    Expr *DRE = SemaRef.BuildDeclRefExpr(KernelParameter, ParamType, VK_LValue,
+                                         SourceLocation());
+    InitializationKind InitKind =
+        InitializationKind::CreateCopy(SourceLocation(), SourceLocation());
+    InitializationSequence InitSeq(SemaRef, Entity, InitKind, DRE);
+
+    ExprResult MemberInit = InitSeq.Perform(SemaRef, Entity, InitKind, DRE);
+    InitExprs.push_back(MemberInit.get());
+  }
+
   void createSpecialMethodCall(const CXXRecordDecl *SpecialClass, Expr *Base,
-          const std::string &MethodName, FieldDecl *Field) {
-        CXXMethodDecl *Method = getMethodByName(SpecialClass, MethodName);
-        assert(Method &&
-               "The accessor/sampler/stream must have the __init method. Stream"
-               " must also have __finalize method");
-        unsigned NumParams = Method->getNumParams();
-        llvm::SmallVector<Expr *, 4> ParamDREs(NumParams);
-        llvm::ArrayRef<ParmVarDecl *> KernelParameters =
-            DeclCreator.getParamVarDeclsForCurrentField();
-        for (size_t I = 0; I < NumParams; ++I) {
-          QualType ParamType = KernelParameters[I]->getOriginalType();
-          ParamDREs[I] = SemaRef.BuildDeclRefExpr(KernelParameters[I], ParamType,
-                                            VK_LValue, SourceLocation());
-        }
+                               const std::string &MethodName,
+                               FieldDecl *Field) {
+    CXXMethodDecl *Method = getMethodByName(SpecialClass, MethodName);
+    assert(Method &&
+           "The accessor/sampler/stream must have the __init method. Stream"
+           " must also have __finalize method");
+    unsigned NumParams = Method->getNumParams();
+    llvm::SmallVector<Expr *, 4> ParamDREs(NumParams);
+    llvm::ArrayRef<ParmVarDecl *> KernelParameters =
+        DeclCreator.getParamVarDeclsForCurrentField();
+    for (size_t I = 0; I < NumParams; ++I) {
+      QualType ParamType = KernelParameters[I]->getOriginalType();
+      ParamDREs[I] = SemaRef.BuildDeclRefExpr(KernelParameters[I], ParamType,
+                                              VK_LValue, SourceLocation());
+    }
 
-        MemberExpr *SpecialObjME = BuildMemberExpr(Base, Field);
+    MemberExpr *SpecialObjME = BuildMemberExpr(Base, Field);
 
-        MemberExpr *MethodME = BuildMemberExpr(SpecialObjME, Method);
+    MemberExpr *MethodME = BuildMemberExpr(SpecialObjME, Method);
 
-        QualType ResultTy = Method->getReturnType();
-        ExprValueKind VK = Expr::getValueKindForType(ResultTy);
-        ResultTy = ResultTy.getNonLValueExprType(SemaRef.Context);
-        llvm::SmallVector<Expr *, 4> ParamStmts;
-        const auto *Proto = cast<FunctionProtoType>(Method->getType());
-        SemaRef.GatherArgumentsForCall(SourceLocation(), Method, Proto, 0,
-                                 ParamDREs, ParamStmts);
-        // [kernel_obj or wrapper object].accessor.__init(_ValueType*,
-        // range<int>, range<int>, id<int>)
-        CXXMemberCallExpr *Call =
-            CXXMemberCallExpr::Create(SemaRef.Context, MethodME, ParamStmts,
-                                      ResultTy, VK, SourceLocation());
-       BodyStmts.push_back(Call);
-
+    QualType ResultTy = Method->getReturnType();
+    ExprValueKind VK = Expr::getValueKindForType(ResultTy);
+    ResultTy = ResultTy.getNonLValueExprType(SemaRef.Context);
+    llvm::SmallVector<Expr *, 4> ParamStmts;
+    const auto *Proto = cast<FunctionProtoType>(Method->getType());
+    SemaRef.GatherArgumentsForCall(SourceLocation(), Method, Proto, 0,
+                                   ParamDREs, ParamStmts);
+    // [kernel_obj or wrapper object].accessor.__init(_ValueType*,
+    // range<int>, range<int>, id<int>)
+    CXXMemberCallExpr *Call = CXXMemberCallExpr::Create(
+        SemaRef.Context, MethodME, ParamStmts, ResultTy, VK, SourceLocation());
+    BodyStmts.push_back(Call);
   }
 
 public:
@@ -1468,7 +1481,7 @@ public:
         KernelObj(KernelObj) {
     // TODO: Something special with the lambda when InvokeParallelForWorkGroup.
     if (K == InvokeParallelForWorkGroup)
-       doSomethingForParallelForWorkGroup();
+      doSomethingForParallelForWorkGroup();
 
     // TODO get rid of kernel obj clone
     TypeSourceInfo *TSInfo =
@@ -1485,8 +1498,7 @@ public:
         false, DeclarationNameInfo(), QualType(KernelObj->getTypeForDecl(), 0),
         VK_LValue);
     VarEntity = InitializedEntity::InitializeVariable(KernelObjClone);
-    CurBase = KernelObjCloneRef;
-    Bases.push_back(CurBase);
+    Bases.push_back(KernelObjCloneRef);
   }
   ~SyclKernelBodyCreator() {
     CompoundStmt *KernelBody = createKernelBody();
@@ -1506,14 +1518,13 @@ public:
     ExprResult MemberInit = InitSeq.Perform(SemaRef, Entity, InitKind, None);
     InitExprs.push_back(MemberInit.get());
     // TODO don't do const-cast
-    createSpecialMethodCall(AccDecl, CurBase, InitMethodName,
+    createSpecialMethodCall(AccDecl, Bases.back(), InitMethodName,
                             const_cast<FieldDecl *>(FD));
   }
 
   void handleSyclAccessorType(const CXXBaseSpecifier &BS, QualType Ty) final {
     // TODO: Creates init sequence and inits special sycl obj
   }
-
 
   void handleSyclSamplerType(const FieldDecl *FD, QualType Ty) final {
     // TODO: Creates init sequence and inits special sycl obj
@@ -1527,22 +1538,6 @@ public:
     // TODO: Creates init/finalize sequence and inits special sycl obj
   }
 
-  void CreateExprForStructOrScalar(FieldDecl *FD) {
-    ParmVarDecl *KernelParameter =
-        DeclCreator.getParamVarDeclsForCurrentField()[0];
-    InitializedEntity Entity =
-        InitializedEntity::InitializeMember(FD, &VarEntity);
-    QualType ParamType = KernelParameter->getOriginalType();
-    Expr *DRE = SemaRef.BuildDeclRefExpr(KernelParameter, ParamType, VK_LValue,
-                                         SourceLocation());
-    InitializationKind InitKind =
-        InitializationKind::CreateCopy(SourceLocation(), SourceLocation());
-    InitializationSequence InitSeq(SemaRef, Entity, InitKind, DRE);
-
-    ExprResult MemberInit = InitSeq.Perform(SemaRef, Entity, InitKind, DRE);
-    InitExprs.push_back(MemberInit.get());
-  }
-
   void handleStructType(const FieldDecl *FD, QualType Ty) final {
     CreateExprForStructOrScalar(const_cast<FieldDecl *>(FD));
   }
@@ -1552,12 +1547,10 @@ public:
   }
 
   void enterStruct(const CXXRecordDecl *, const FieldDecl *FD) final {
-    CurBase = BuildMemberExpr(CurBase, const_cast<FieldDecl *>(FD));
-    Bases.push_back(CurBase);
+    Bases.push_back(BuildMemberExpr(Bases.back(), const_cast<FieldDecl *>(FD)));
   }
 
   void leaveStruct(const CXXRecordDecl *, const FieldDecl *FD) final {
-    CurBase = Bases.back();
     Bases.pop_back();
   }
 
