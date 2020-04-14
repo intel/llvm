@@ -38,7 +38,7 @@ void no_restriction(int p) {
 void restriction(int p) {
   // This particular violation is nested under two kernels with intermediate function calls.
   // e.g. main -> 1stkernel -> usage -> 2ndkernel -> isa_B -> restriction -> !!
-  // Because the error is in two different kernels, we are given helpful notes for the origination of the error, twice. 
+  // Because the error is in two different kernels, we are given helpful notes for the origination of the error, twice.
   // expected-note@#call_usage {{called by 'operator()'}}
   // expected-note@#call_kernelFunc {{called by 'kernel_single_task<fake_kernel, (lambda at}}
   // expected-note@#call_isa_B 2{{called by 'operator()'}}
@@ -77,7 +77,7 @@ bool isa_B(A *a) {
     return false;
 
   Check_VLA_Restriction::restriction(7); //#call_vla
-  int *ip = new int; // expected-error 2{{SYCL kernel cannot allocate storage}}
+  int *ip = new int;                     // expected-error 2{{SYCL kernel cannot allocate storage}}
   int i;
   int *p3 = new (&i) int;                                    // no error on placement new
   OverloadedNewDelete *x = new (struct OverloadedNewDelete); // expected-note 2{{called by 'isa_B'}}
