@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/info/info_desc.hpp>
@@ -165,9 +166,20 @@ public:
   static vector_class<device>
   get_devices(info::device_type deviceType = info::device_type::all);
 
+  /// Gets the native handle of the SYCL device.
+  ///
+  /// \return a native handle, the type of which defined by the backend.
+  template <backend BackendName>
+  auto get_native() const -> typename interop<BackendName, device>::type {
+    return static_cast<typename interop<BackendName, device>::type>(
+        getNative());
+  }
+
 private:
   shared_ptr_class<detail::device_impl> impl;
   device(shared_ptr_class<detail::device_impl> impl) : impl(impl) {}
+
+  pi_native_handle getNative() const;
 
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);

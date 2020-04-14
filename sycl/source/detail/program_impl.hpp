@@ -31,11 +31,6 @@ namespace detail {
 
 using ContextImplPtr = std::shared_ptr<detail::context_impl>;
 
-// TODO: SYCL BE generalization will change this to something better.
-// For now this saves us from unwanted implicit casts.
-struct _program_interop_handle_t;
-using program_interop_handle_t = _program_interop_handle_t *;
-
 class program_impl {
 public:
   program_impl() = delete;
@@ -89,7 +84,7 @@ public:
   /// \param Context is a pointer to SYCL context impl.
   /// \param InteropProgram is an instance of plugin interface interoperability
   /// program.
-  program_impl(ContextImplPtr Context, program_interop_handle_t InteropProgram);
+  program_impl(ContextImplPtr Context, pi_native_handle InteropProgram);
 
   /// Constructs a program instance from plugin interface interoperability
   /// kernel.
@@ -305,7 +300,7 @@ public:
 
 private:
   // Deligating Constructor used in Implementation.
-  program_impl(ContextImplPtr Context, program_interop_handle_t InteropProgram,
+  program_impl(ContextImplPtr Context, pi_native_handle InteropProgram,
                RT::PiProgram Program);
   /// Checks feature support for specific devices.
   ///
