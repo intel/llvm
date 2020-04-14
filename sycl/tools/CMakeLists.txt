@@ -5,45 +5,29 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 add_executable(get_device_count_by_type get_device_count_by_type.cpp)
 add_dependencies(get_device_count_by_type ocl-headers ocl-icd)
 
-if( SYCL_BUILD_PI_CUDA )
-  find_package(CUDA 10.1 REQUIRED)
-
-  add_library(cudadrv SHARED IMPORTED)
-
-  set_target_properties(
-    cudadrv PROPERTIES
-      IMPORTED_LOCATION             ${CUDA_CUDA_LIBRARY}
-      INTERFACE_INCLUDE_DIRECTORIES ${CUDA_INCLUDE_DIRS}
-  )
-
-  target_compile_definitions(get_device_count_by_type
-      PUBLIC $<$<BOOL:${SYCL_BUILD_PI_CUDA}>:USE_PI_CUDA>
-  )
-
-  target_include_directories( get_device_count_by_type
-    PUBLIC
-      ${CUDA_INCLUDE_DIRS}
-  )
-  target_link_libraries(get_device_count_by_type
-    PUBLIC OpenCL-Headers cudadrv
-)
-endif()
-
 target_link_libraries(get_device_count_by_type
-    PRIVATE OpenCL::Headers
-    PRIVATE ${OpenCL_LIBRARIES}
+  PRIVATE
+    OpenCL::Headers
+    ${OpenCL_LIBRARIES}
+    $<$<BOOL:${SYCL_BUILD_PI_CUDA}>:cudadrv>
+)
+target_compile_definitions(get_device_count_by_type
+  PRIVATE
+    $<$<BOOL:${SYCL_BUILD_PI_CUDA}>:USE_PI_CUDA>
 )
 
 add_executable(sycl-check sycl-check.cpp)
 add_dependencies(sycl-check sycl)
 target_include_directories(sycl-check PRIVATE "${sycl_inc_dir}")
 target_link_libraries(sycl-check
-    PRIVATE sycl
-    PRIVATE OpenCL::Headers
-    PRIVATE ${OpenCL_LIBRARIES})
+  PRIVATE
+    sycl
+    OpenCL::Headers
+    ${OpenCL_LIBRARIES})
 
 #Minimum supported version of Intel's OCL GPU and CPU devices
 target_compile_definitions(sycl-check
-     PRIVATE  MIN_INTEL_OCL_GPU_VERSION=\"18.47.11882\"
-     PRIVATE  MIN_INTEL_OCL_CPU_VERSION=\"18.1.0.0901\",\"7.6.0.1202\"
+  PRIVATE
+    MIN_INTEL_OCL_GPU_VERSION=\"18.47.11882\"
+    MIN_INTEL_OCL_CPU_VERSION=\"18.1.0.0901\",\"7.6.0.1202\"
 )
