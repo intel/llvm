@@ -15,6 +15,7 @@
 
 #include <algorithm>
 #include <fstream>
+#include <list>
 #include <memory>
 #include <mutex>
 
@@ -42,16 +43,8 @@ program_impl::program_impl(
 
   // Sort the programs to avoid deadlocks due to locking multiple mutexes &
   // verify that all programs are unique.
-  std::sort(ProgramList.begin(), ProgramList.end(),
-            [](const shared_ptr_class<program_impl> &A,
-               const shared_ptr_class<program_impl> &B) {
-              return A.get() < B.get();
-            });
-  auto It = std::unique(ProgramList.begin(), ProgramList.end(),
-                        [](const shared_ptr_class<program_impl> &A,
-                           const shared_ptr_class<program_impl> &B) {
-                          return A.get() == B.get();
-                        });
+  std::sort(ProgramList.begin(), ProgramList.end());
+  auto It = std::unique(ProgramList.begin(), ProgramList.end());
   if (It != ProgramList.end()) {
     throw runtime_error("Attempting to link a program with itself",
                         PI_INVALID_PROGRAM);
@@ -64,9 +57,9 @@ program_impl::program_impl(
     DevicesSorted = sort_devices_by_cl_device_id(MDevices);
   }
   check_device_feature_support<info::device::is_linker_available>(MDevices);
-  vector_class<unique_ptr_class<std::lock_guard<std::mutex>>> Locks;
+  std::list<std::lock_guard<std::mutex>> Locks;
   for (const auto &Prg : ProgramList) {
-    Locks.emplace_back(new std::lock_guard<std::mutex>(Prg->MMutex));
+    Locks.emplace_back(Prg->MMutex);
     Prg->throw_if_state_is_not(program_state::compiled);
     if (Prg->MContext != MContext) {
       throw invalid_object_error(
