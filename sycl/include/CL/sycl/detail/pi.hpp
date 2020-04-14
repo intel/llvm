@@ -155,6 +155,29 @@ template <> inline void print<>(PiPlatform val) {
   std::cout << "pi_platform : " << val << std::endl;
 }
 
+template <> inline void print<>(PiEvent val) {
+  std::cout << "pi_event : " << val << std::endl;
+}
+
+template <> inline void print<>(PiMem val) {
+  std::cout << "pi_mem : " << val << std::endl;
+}
+
+template <> inline void print<>(PiEvent *val) {
+  std::cout << "pi_event * : " << val;
+  if (val) {
+    std::cout << "[ " << *val << " ... ]";
+  }
+  std::cout << std::endl;
+}
+
+template <> inline void print<>(const PiEvent *val) {
+  std::cout << "const pi_event * : " << val;
+  if (val) {
+    std::cout << "[ " << *val << " ... ]";
+  }
+  std::cout << std::endl;
+}
 template <> inline void print<>(PiResult val) {
   std::cout << "pi_result : ";
   if (val == PI_SUCCESS)
@@ -169,11 +192,56 @@ template <> inline void print<>(std::nullptr_t val) { print<void *>(val); }
 inline void printArgs(void) {}
 template <typename Arg0, typename... Args>
 void printArgs(Arg0 arg0, Args... args) {
-  std::cout << "       ";
+  std::cout << "\t";
   print(arg0);
   pi::printArgs(std::forward<Args>(args)...);
 }
 
+template <typename T> struct printOut {
+  printOut(T val) {}
+}; // Do nothing
+
+template <> struct printOut<PiEvent *> {
+  printOut(PiEvent *val) {
+    std::cout << "\t[out]pi_event * : " << val;
+    if (val) {
+      std::cout << "[ " << *val << " ... ]";
+    }
+    std::cout << std::endl;
+  }
+};
+
+template <> struct printOut<PiMem *> {
+  printOut(PiMem *val) {
+    std::cout << "\t[out]pi_mem * : " << val;
+    if (val) {
+      std::cout << "[ " << *val << " ... ]";
+    }
+    std::cout << std::endl;
+  }
+};
+
+template <> struct printOut<void *> {
+  printOut(void *val) { std::cout << "\t[out]void * : " << val << std::endl; }
+};
+
+template <typename T> struct printOut<T **> {
+  printOut(T **val) {
+    std::cout << "\t[out]<unknown> ** : " << val;
+    if (val) {
+      std::cout << "[ " << *val << " ... ]";
+    }
+    std::cout << std::endl;
+  }
+};
+
+inline void printOuts(void) {}
+template <typename Arg0, typename... Args>
+void printOuts(Arg0 arg0, Args... args) {
+  using T = decltype(arg0);
+  printOut<T> a(arg0);
+  printOuts(std::forward<Args>(args)...);
+}
 // C++ wrapper over the _pi_device_binary_property_struct structure.
 class DeviceBinaryProperty {
 public:

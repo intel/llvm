@@ -61,6 +61,8 @@ public:
     if (MPiEnableTrace) {
       std::cout << ") ---> ";
       RT::printArgs(R);
+      RT::printOuts(Args...);
+      std::cout << std::endl;
     }
     return R;
   }
