@@ -167,11 +167,16 @@ public:
 protected:
   EventImplPtr MEvent;
   QueueImplPtr MQueue;
-  std::vector<EventImplPtr> MDepsEvents;
+
+  /// Dependency events prepared for waiting by backend.
+  /// See processDepEvent for details.
+  std::vector<EventImplPtr> MPreparedDepsEvents;
+  std::vector<EventImplPtr> MPreparedHostDepsEvents;
 
   void waitForEvents(QueueImplPtr Queue, std::vector<EventImplPtr> &RawEvents,
                      RT::PiEvent &Event);
-  std::vector<EventImplPtr> prepareEvents(ContextImplPtr Context);
+
+  void waitForPreparedHostEvents() const;
 
   /// Perform glueing of events from different contexts
   /// \param DepEvent event this commands should depend on
@@ -179,7 +184,11 @@ protected:
   /// Glueing (i.e. connecting) will be performed if and only if DepEvent is
   /// not from host context and its context doesn't match to context of this
   /// command. Context of this command is fetched via getContext().
-  void glueEvents(EventImplPtr DepEvent);
+  void processDepEvent(EventImplPtr DepEvent);
+
+  static EventImplPtr connectDepEvent(EventImplPtr DepEvent,
+                                      const ContextImplPtr &DepEventContext,
+                                      const ContextImplPtr &Context);
 
   virtual ContextImplPtr getContext() const;
 

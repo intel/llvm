@@ -156,32 +156,9 @@ getPiEvents(const std::vector<EventImplPtr> &EventImpls) {
   return RetPiEvents;
 }
 
-// Method prepares PI event's from list sycl::event's
-std::vector<EventImplPtr> Command::prepareEvents(ContextImplPtr Context) {
-  std::vector<EventImplPtr> Result;
-  for (EventImplPtr &DepEvent : MDepsEvents) {
-    // Async work is not supported for host device.
-    if (DepEvent->is_host()) {
-      DepEvent->waitInternal();
-      continue;
-    }
-    // The event handle can be null in case of, for example, alloca command,
-    // which is currently synchrounious, so don't generate OpenCL event.
-    if (DepEvent->getHandleRef() == nullptr) {
-      continue;
-    }
-
-    ContextImplPtr DepEventContext = DepEvent->getContextImpl();
-
-    // If contexts don't match the events are already connected
-    if (DepEventContext != Context && !Context->is_host()) {
-      continue;
-    }
-
-    Result.push_back(DepEvent);
-  }
-
-  return Result;
+void Command::waitForPreparedHostEvents() const {
+  for (const EventImplPtr &HostEvent : MPreparedHostDepsEvents)
+    HostEvent->waitInternal();
 }
 
 void Command::waitForEvents(QueueImplPtr Queue,
@@ -377,13 +354,56 @@ void Command::makeTraceEventEpilog() {
 #endif
 }
 
-void Command::glueEvents(EventImplPtr DepEvent) {
+// static
+EventImplPtr Command::connectDepEvent(EventImplPtr DepEvent,
+                                      const ContextImplPtr &DepEventContext,
+                                      const ContextImplPtr &Context) {
+  EventImplPtr GlueEvent(new detail::event_impl());
+  GlueEvent->setContextImpl(Context);
+
+  RT::PiEvent &GlueEventHandle = GlueEvent->getHandleRef();
+  auto Plugin = Context->getPlugin();
+  // Add an event on the current context that
+  // is triggered when the DepEvent is complete
+  // TODO eliminate creation of user-event
+  Plugin.call<PiApiKind::piEventCreate>(Context->getHandleRef(),
+                                        &GlueEventHandle);
+
+  // enqueue GlueCmd
+  std::function<void(void)> Func = [GlueEvent]() {
+    RT::PiEvent &GlueEventHandle = GlueEvent->getHandleRef();
+    const detail::plugin &Plugin = GlueEvent->getPlugin();
+    Plugin.call<PiApiKind::piEventSetStatus>(GlueEventHandle, CL_COMPLETE);
+  };
+
+  std::unique_ptr<detail::HostTask> HT(new detail::HostTask(std::move(Func)));
+
+  std::unique_ptr<detail::CG> GlueCG(new detail::CGHostTask(
+      std::move(HT), DepEventContext, /* Args = */ {}, /* ArgsStorage = */ {},
+      /* AccStorage = */ {}, /* SharedPtrStorage = */ {},
+      /* Requirements = */ {}, /* DepEvents = */ {DepEvent},
+      CG::CODEPLAY_HOST_TASK, /* Payload */ {}));
+
+  Command *GlueCmd = Scheduler::getInstance().MGraphBuilder.addCG(
+      std::move(GlueCG), Scheduler::getInstance().getDefaultHostQueue());
+
+  EnqueueResultT Res;
+  bool Enqueued = Scheduler::GraphProcessor::enqueueCommand(GlueCmd, Res);
+  if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
+    throw runtime_error("Failed to enqueue a sync event between two contexts",
+                        PI_INVALID_OPERATION);
+
+  return GlueEvent;
+}
+
+void Command::processDepEvent(EventImplPtr DepEvent) {
   const ContextImplPtr &Context = getContext();
 
   // Async work is not supported for host device.
   if (DepEvent->is_host()) {
-    // call to waitInternal() is in prepareEvents() as it's called from
-    // enqueue process functions
+    // call to waitInternal() is in waitForPreparedHostEvents() as it's called
+    // from enqueue process functions
+    MPreparedHostDepsEvents.push_back(DepEvent);
     return;
   }
 
@@ -394,43 +414,12 @@ void Command::glueEvents(EventImplPtr DepEvent) {
   ContextImplPtr DepEventContext = DepEvent->getContextImpl();
   // If contexts don't match - connect them using user event
   if (DepEventContext != Context && !Context->is_host()) {
-    EventImplPtr GlueEvent(new detail::event_impl());
-    GlueEvent->setContextImpl(Context);
+    EventImplPtr GlueEvent = connectDepEvent(DepEvent, DepEventContext,
+                                             Context);
 
-    RT::PiEvent &GlueEventHandle = GlueEvent->getHandleRef();
-    auto Plugin = Context->getPlugin();
-    // Add an event on the current context that
-    // is triggered when the DepEvent is complete
-    // TODO eliminate creation of user-event
-    Plugin.call<PiApiKind::piEventCreate>(Context->getHandleRef(),
-                                          &GlueEventHandle);
-
-    // enqueue GlueCmd
-    std::function<void(void)> Func = [GlueEvent]() {
-      RT::PiEvent &GlueEventHandle = GlueEvent->getHandleRef();
-      const detail::plugin &Plugin = GlueEvent->getPlugin();
-      Plugin.call<PiApiKind::piEventSetStatus>(GlueEventHandle, CL_COMPLETE);
-    };
-
-    std::unique_ptr<detail::HostTask> HT(new detail::HostTask(std::move(Func)));
-
-    std::unique_ptr<detail::CG> GlueCG(new detail::CGHostTask(
-        std::move(HT), DepEventContext, /* Args = */ {}, /* ArgsStorage = */ {},
-        /* AccStorage = */ {}, /* SharedPtrStorage = */ {},
-        /* Requirements = */ {}, /* DepEvents = */ {DepEvent},
-        CG::CODEPLAY_HOST_TASK, /* Payload */ {}));
-
-    Command *GlueCmd = Scheduler::getInstance().MGraphBuilder.addCG(
-        std::move(GlueCG), Scheduler::getInstance().getDefaultHostQueue());
-
-    EnqueueResultT Res;
-    bool Enqueued = Scheduler::GraphProcessor::enqueueCommand(GlueCmd, Res);
-    if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
-      throw runtime_error("Failed to enqueue a sync event between two contexts",
-                          PI_INVALID_OPERATION);
-
-    MDepsEvents.push_back(std::move(GlueEvent));
-  }
+    MPreparedDepsEvents.push_back(std::move(GlueEvent));
+  } else
+    MPreparedDepsEvents.push_back(std::move(DepEvent));
 }
 
 ContextImplPtr Command::getContext() const {
@@ -439,8 +428,7 @@ ContextImplPtr Command::getContext() const {
 
 void Command::addDep(DepDesc NewDep) {
   if (NewDep.MDepCommand) {
-    MDepsEvents.push_back(NewDep.MDepCommand->getEvent());
-    glueEvents(NewDep.MDepCommand->getEvent());
+    processDepEvent(NewDep.MDepCommand->getEvent());
   }
   MDeps.push_back(NewDep);
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -460,8 +448,7 @@ void Command::addDep(EventImplPtr Event) {
   emitEdgeEventForEventDependence(Cmd, PiEventAddr);
 #endif
 
-  MDepsEvents.push_back(Event);
-  glueEvents(std::move(Event));
+  processDepEvent(std::move(Event));
 }
 
 void Command::emitEnqueuedEventSignal(RT::PiEvent &PiEventAddr) {
@@ -654,7 +641,8 @@ void AllocaCommand::emitInstrumentationData() {
 }
 
 cl_int AllocaCommand::enqueueImp() {
-  std::vector<EventImplPtr> EventImpls = Command::prepareEvents(getContext());
+  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  waitForPreparedHostEvents();
 
   RT::PiEvent &Event = MEvent->getHandleRef();
 
@@ -743,7 +731,8 @@ void *AllocaSubBufCommand::getMemAllocation() const {
 }
 
 cl_int AllocaSubBufCommand::enqueueImp() {
-  std::vector<EventImplPtr> EventImpls = Command::prepareEvents(getContext());
+  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  waitForPreparedHostEvents();
   RT::PiEvent &Event = MEvent->getHandleRef();
 
   MMemAllocation = MemoryManager::allocateMemSubBuffer(
@@ -802,7 +791,8 @@ void ReleaseCommand::emitInstrumentationData() {
 }
 
 cl_int ReleaseCommand::enqueueImp() {
-  std::vector<EventImplPtr> EventImpls = Command::prepareEvents(getContext());
+  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  waitForPreparedHostEvents();
   std::vector<RT::PiEvent> RawEvents = getPiEvents(EventImpls);
   bool SkipRelease = false;
 
@@ -912,7 +902,8 @@ void MapMemObject::emitInstrumentationData() {
 }
 
 cl_int MapMemObject::enqueueImp() {
-  std::vector<EventImplPtr> EventImpls = Command::prepareEvents(getContext());
+  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  waitForPreparedHostEvents();
   std::vector<RT::PiEvent> RawEvents = getPiEvents(EventImpls);
 
   RT::PiEvent &Event = MEvent->getHandleRef();
@@ -967,7 +958,8 @@ void UnMapMemObject::emitInstrumentationData() {
 }
 
 cl_int UnMapMemObject::enqueueImp() {
-  std::vector<EventImplPtr> EventImpls = Command::prepareEvents(getContext());
+  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  waitForPreparedHostEvents();
   std::vector<RT::PiEvent> RawEvents = getPiEvents(EventImpls);
 
   RT::PiEvent &Event = MEvent->getHandleRef();
@@ -1033,14 +1025,14 @@ void MemCpyCommand::emitInstrumentationData() {
 }
 
 ContextImplPtr MemCpyCommand::getContext() const {
-  QueueImplPtr Queue = MQueue->is_host() ? MSrcQueue : MQueue;
+  const QueueImplPtr &Queue = MQueue->is_host() ? MSrcQueue : MQueue;
   return detail::getSyclObjImpl(Queue->get_context());
 }
 
 cl_int MemCpyCommand::enqueueImp() {
-  std::vector<EventImplPtr> EventImpls;
   QueueImplPtr Queue = MQueue->is_host() ? MSrcQueue : MQueue;
-  EventImpls = Command::prepareEvents(getContext());
+  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  waitForPreparedHostEvents();
 
   RT::PiEvent &Event = MEvent->getHandleRef();
 
@@ -1103,8 +1095,8 @@ void ExecCGCommand::flushStreams() {
 }
 
 cl_int UpdateHostRequirementCommand::enqueueImp() {
-  std::vector<EventImplPtr> EventImpls;
-  EventImpls = Command::prepareEvents(getContext());
+  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  waitForPreparedHostEvents();
   RT::PiEvent &Event = MEvent->getHandleRef();
   Command::waitForEvents(MQueue, EventImpls, Event);
 
@@ -1176,13 +1168,14 @@ void MemCpyCommandHost::emitInstrumentationData() {
 }
 
 ContextImplPtr MemCpyCommandHost::getContext() const {
-  QueueImplPtr Queue = MQueue->is_host() ? MSrcQueue : MQueue;
+  const QueueImplPtr &Queue = MQueue->is_host() ? MSrcQueue : MQueue;
   return detail::getSyclObjImpl(Queue->get_context());
 }
 
 cl_int MemCpyCommandHost::enqueueImp() {
   QueueImplPtr Queue = MQueue->is_host() ? MSrcQueue : MQueue;
-  std::vector<EventImplPtr> EventImpls = Command::prepareEvents(getContext());
+  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  waitForPreparedHostEvents();
   std::vector<RT::PiEvent> RawEvents = getPiEvents(EventImpls);
 
   RT::PiEvent &Event = MEvent->getHandleRef();
@@ -1536,7 +1529,8 @@ void DispatchNativeKernel(void *Blob) {
 }
 
 cl_int ExecCGCommand::enqueueImp() {
-  std::vector<EventImplPtr> EventImpls = Command::prepareEvents(getContext());
+  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  waitForPreparedHostEvents();
 
   auto RawEvents = getPiEvents(EventImpls);
 
