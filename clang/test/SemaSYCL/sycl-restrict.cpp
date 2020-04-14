@@ -36,6 +36,15 @@ void no_restriction(int p) {
   int index[p + 2];
 }
 void restriction(int p) {
+  // This particular violation is nested under two kernels with intermediate function calls.
+  // e.g. main -> 1stkernel -> usage -> 2ndkernel -> isa_B -> restriction -> !!
+  // Because the error is in two different kernels, we are given helpful notes for the origination of the error, twice. 
+  // expected-note@#call_usage {{called by 'operator()'}}
+  // expected-note@#call_kernelFunc {{called by 'kernel_single_task<fake_kernel, (lambda at}}
+  // expected-note@#call_isa_B 2{{called by 'operator()'}}
+  // expected-note@#call_rtti_kernel {{called by 'usage'}}
+  // expected-note@#rtti_kernel 2{{called by 'kernel1<kernel_name, (lambda at }}
+  // expected-note@#call_vla 2{{called by 'isa_B'}}
   int index[p + 2]; // expected-error 2{{variable length arrays are not supported for the current target}}
 }
 } // namespace Check_VLA_Restriction
@@ -67,7 +76,7 @@ bool isa_B(A *a) {
   if (f1 == f2) // expected-note 2{{called by 'isa_B'}}
     return false;
 
-  Check_VLA_Restriction::restriction(7); // expected-note 2{{called by 'isa_B'}}
+  Check_VLA_Restriction::restriction(7); //#call_vla
   int *ip = new int; // expected-error 2{{SYCL kernel cannot allocate storage}}
   int i;
   int *p3 = new (&i) int;                                    // no error on placement new
@@ -79,7 +88,7 @@ bool isa_B(A *a) {
 
 template <typename N, typename L>
 __attribute__((sycl_kernel)) void kernel1(L l) {
-  l(); // expected-note 8{{called by 'kernel1<kernel_name, (lambda at }}
+  l(); //#rtti_kernel  // expected-note 6{{called by 'kernel1<kernel_name, (lambda at }}
 }
 } // namespace Check_RTTI_Restriction
 
@@ -189,9 +198,9 @@ void usage(myFuncDef functionPtr) {
     // expected-error@+1 {{SYCL kernel cannot use a non-const global variable}}
     b.f(); // expected-error {{SYCL kernel cannot call a virtual function}}
 
-  Check_RTTI_Restriction::kernel1<class kernel_name>([]() { // expected-note 4{{called by 'usage'}}
+  Check_RTTI_Restriction::kernel1<class kernel_name>([]() { //#call_rtti_kernel // expected-note 3{{called by 'usage'}}
     Check_RTTI_Restriction::A *a;
-    Check_RTTI_Restriction::isa_B(a); // expected-note 8{{called by 'operator()'}}
+    Check_RTTI_Restriction::isa_B(a); //#call_isa_B  // expected-note 6{{called by 'operator()'}}
   });
 
   // ======= Float128 Not Allowed in Kernel ==========
@@ -323,7 +332,7 @@ int use2(a_type ab, a_type *abp) {
 
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
-  kernelFunc(); // expected-note 8{{called by 'kernel_single_task<fake_kernel, (lambda at}}
+  kernelFunc(); //#call_kernelFunc // expected-note 7{{called by 'kernel_single_task<fake_kernel, (lambda at}}
 }
 
 int main() {
@@ -340,7 +349,7 @@ int main() {
   auto notACrime = &commitInfraction;
 
   kernel_single_task<class fake_kernel>([=]() {
-    usage(&addInt); // expected-note 6{{called by 'operator()'}}
+    usage(&addInt); //#call_usage // expected-note 5{{called by 'operator()'}}
     a_type *p;
     use2(ab, p); // expected-note 2{{called by 'operator()'}}
   });
