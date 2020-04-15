@@ -369,29 +369,27 @@ EventImplPtr Command::connectDepEvent(EventImplPtr DepEvent,
   Plugin.call<PiApiKind::piEventCreate>(Context->getHandleRef(),
                                         &GlueEventHandle);
 
-  // TODO Use internal API here
-  // TODO return event, createb by host-task enqueue process
-
-  // enqueue GlueCmd
-  std::function<void(void)> Func = [GlueEvent]() {
+  // construct Host Task type command manually and make it depend on DepEvent
+  std::function<void(void)> CFunc = [GlueEvent]() {
     RT::PiEvent &GlueEventHandle = GlueEvent->getHandleRef();
     const detail::plugin &Plugin = GlueEvent->getPlugin();
     Plugin.call<PiApiKind::piEventSetStatus>(GlueEventHandle, CL_COMPLETE);
   };
 
-  std::unique_ptr<detail::HostTask> HT(new detail::HostTask(std::move(Func)));
+  std::unique_ptr<detail::HostTask> HT(new detail::HostTask(std::move(CFunc)));
 
-  std::unique_ptr<detail::CG> GlueCG(new detail::CGHostTask(
+  std::unique_ptr<detail::CG> ConnectCG(new detail::CGHostTask(
       std::move(HT), DepEventContext, /* Args = */ {}, /* ArgsStorage = */ {},
       /* AccStorage = */ {}, /* SharedPtrStorage = */ {},
       /* Requirements = */ {}, /* DepEvents = */ {DepEvent},
       CG::CODEPLAY_HOST_TASK, /* Payload */ {}));
+  ExecCGCommand *ConnectCmd = new ExecCGCommand(
+      std::move(ConnectCG), Scheduler::getInstance().getDefaultHostQueue());
 
-  Command *GlueCmd = Scheduler::getInstance().MGraphBuilder.addCG(
-      std::move(GlueCG), Scheduler::getInstance().getDefaultHostQueue());
+  ConnectCmd->addDep(DepEvent);
 
   EnqueueResultT Res;
-  bool Enqueued = Scheduler::GraphProcessor::enqueueCommand(GlueCmd, Res);
+  bool Enqueued = Scheduler::GraphProcessor::enqueueCommand(ConnectCmd, Res);
   if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
     throw runtime_error("Failed to enqueue a sync event between two contexts",
                         PI_INVALID_OPERATION);
@@ -1904,7 +1902,7 @@ cl_int ExecCGCommand::enqueueImp() {
       EventImplPtr SelfEvent = MEvent;
       RT::PiContext ContextRef = HTContext->getHandleRef();
 
-      // You can't create event for host-queue/host-context
+      // FIXME You can't create event for host-queue/host-context
       const detail::plugin &Plugin = HTContext->getPlugin();
       Plugin.call<PiApiKind::piEventCreate>(ContextRef, &Event);
 
