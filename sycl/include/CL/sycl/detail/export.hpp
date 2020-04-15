@@ -26,7 +26,7 @@
 #define __SYCL_EXPORT __declspec(dllimport)
 #define __SYCL_EXPORT_DEPRECATED(x) __declspec(dllimport, deprecated(x))
 #endif //__SYCL_BUILD_SYCL_DLL
-#else // _WIN32
+#else  // _WIN32
 
 #define DLL_LOCAL __attribute__((visibility("hidden")))
 
