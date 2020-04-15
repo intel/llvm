@@ -181,6 +181,10 @@ EventImplPtr Scheduler::addHostAccessor(Requirement *Req,
 
 void Scheduler::releaseHostAccessor(Requirement *Req) {
   Req->MBlockedCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
+  unblockSingleReq(Req);
+}
+
+void Scheduler::unblockSingleReq(Requirement * Req) {
   MemObjRecord* Record = Req->MSYCLMemObj->MRecord.get();
   auto EnqueueLeaves = [](CircularBuffer<Command *> &Leaves) {
     for (Command *Cmd : Leaves) {
@@ -192,6 +196,27 @@ void Scheduler::releaseHostAccessor(Requirement *Req) {
   };
   EnqueueLeaves(Record->MReadLeaves);
   EnqueueLeaves(Record->MWriteLeaves);
+}
+
+void Scheduler::unblockRequirements(const std::vector<Requirement *> &Reqs) {
+  // fetch unique blocked cmds
+  std::unordered_map<Command *, std::vector<Requirement *>> BlockedCmds;
+
+  for (Requirement *Req : Reqs)
+    BlockedCmds[Req->MBlockedCmd].push_back(Req);
+
+  for (const auto &It : BlockedCmds) {
+    if (!It.first)
+      continue;
+
+    Command *BlockedCmd = It.first;
+    const std::vector<Requirement *> &SubReqs = It.second;
+
+    BlockedCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
+
+    for (Requirement *Req : SubReqs)
+      unblockSingleReq(Req);
+  }
 }
 
 Scheduler::Scheduler() {

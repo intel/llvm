@@ -247,16 +247,17 @@ public:
 class EmptyCommand : public Command {
 public:
   EmptyCommand(QueueImplPtr Queue, Requirement Req);
+  EmptyCommand(QueueImplPtr Queue);
 
   void printDot(std::ostream &Stream) const final;
-  const Requirement *getRequirement() const final { return &MRequirement; }
+  const Requirement *getRequirement() const final { return MRequirement.get(); }
 
   void emitInstrumentationData();
 
 private:
   cl_int enqueueImp() final { return CL_SUCCESS; }
 
-  Requirement MRequirement;
+  std::unique_ptr<Requirement> MRequirement;
 };
 
 // The command enqueues release instance of memory allocated on Host or

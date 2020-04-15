@@ -650,6 +650,7 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
                                QueueImplPtr Queue) {
   const std::vector<Requirement *> &Reqs = CommandGroup->MRequirements;
   const std::vector<detail::EventImplPtr> &Events = CommandGroup->MEvents;
+  const CG::CGTYPE CGType = CommandGroup->getType();
 
   if (CommandGroup->getType() == CG::CGTYPE::CODEPLAY_HOST_TASK)
     Queue = Scheduler::getInstance().getDefaultHostQueue();
@@ -661,6 +662,17 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
 
   if (MPrintOptionsArray[BeforeAddCG])
     printGraphAsDot("before_addCG");
+
+  EmptyCommand *EmptyCmd = nullptr;
+
+  if (CGType == CG::CGTYPE::CODEPLAY_HOST_TASK) {
+      EmptyCmd = new EmptyCommand(
+          Scheduler::getInstance().getDefaultHostQueue());
+
+    EmptyCmd->MIsBlockable = true;
+    EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueBlocked;
+    EmptyCmd->MBlockReason = "Blocked by host task";
+  }
 
   for (Requirement *Req : Reqs) {
     MemObjRecord *Record = getOrInsertMemObjRecord(Queue, Req);
@@ -688,18 +700,32 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
 
     for (Command *Dep : Deps)
       NewCmd->addDep(DepDesc{Dep, Req, AllocaCmd});
+
+    if (CGType == CG::CGTYPE::CODEPLAY_HOST_TASK) {
+      EmptyCmd->addDep(DepDesc{NewCmd.get(), Req, AllocaCmd});
+
+      Req->MBlockedCmd = EmptyCmd;
+    }
+  }
+
+  if (CGType == CG::CGTYPE::CODEPLAY_HOST_TASK) {
+    NewCmd->addUser(EmptyCmd);
   }
 
   // Set new command as user for dependencies and update leaves.
   // Node dependencies can be modified further when adding the node to leaves,
   // iterate over their copy.
+  // FIXME employ a reference here to eliminate copying of a vector
   std::vector<DepDesc> Deps = NewCmd->MDeps;
   for (DepDesc &Dep : Deps) {
     Dep.MDepCommand->addUser(NewCmd.get());
     const Requirement *Req = Dep.MDepRequirement;
     MemObjRecord *Record = getMemObjRecord(Req->MSYCLMemObj);
     updateLeaves({Dep.MDepCommand}, Record, Req->MAccessMode);
-    addNodeToLeaves(Record, NewCmd.get(), Req->MAccessMode);
+    if (CGType == CG::CGTYPE::CODEPLAY_HOST_TASK)
+      addNodeToLeaves(Record, EmptyCmd, Req->MAccessMode);
+    else
+      addNodeToLeaves(Record, NewCmd.get(), Req->MAccessMode);
   }
 
   // Register all the events as dependencies
@@ -709,6 +735,7 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
 
   if (MPrintOptionsArray[AfterAddCG])
     printGraphAsDot("after_addCG");
+
   return NewCmd.release();
 }
 

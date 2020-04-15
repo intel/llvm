@@ -369,6 +369,9 @@ EventImplPtr Command::connectDepEvent(EventImplPtr DepEvent,
   Plugin.call<PiApiKind::piEventCreate>(Context->getHandleRef(),
                                         &GlueEventHandle);
 
+  // TODO Use internal API here
+  // TODO return event, createb by host-task enqueue process
+
   // enqueue GlueCmd
   std::function<void(void)> Func = [GlueEvent]() {
     RT::PiEvent &GlueEventHandle = GlueEvent->getHandleRef();
@@ -1199,8 +1202,13 @@ cl_int MemCpyCommandHost::enqueueImp() {
 
 EmptyCommand::EmptyCommand(QueueImplPtr Queue, Requirement Req)
     : Command(CommandType::EMPTY_TASK, std::move(Queue)),
-      MRequirement(std::move(Req)) {
+      MRequirement(new Requirement(std::move(Req))) {
 
+  emitInstrumentationDataProxy();
+}
+
+EmptyCommand::EmptyCommand(QueueImplPtr Queue)
+    :Command(CommandType::EMPTY_TASK, std::move(Queue)) {
   emitInstrumentationDataProxy();
 }
 
@@ -1846,13 +1854,16 @@ cl_int ExecCGCommand::enqueueImp() {
       EventImplPtr SelfEvent = MEvent;
       RT::PiContext ContextRef = HTContext->getHandleRef();
 
+      // You can't create event for host-queue/host-context
       const detail::plugin &Plugin = HTContext->getPlugin();
       Plugin.call<PiApiKind::piEventCreate>(ContextRef, &Event);
 
       SelfEvent->setContextImpl(HTContext);
 
+      std::vector<DepDesc> Deps = MDeps;
+
       // init dependency events in Ctx
-      auto DispatchHostTask = [EventImpls, HostTask, SelfEvent] () {
+      auto DispatchHostTask = [EventImpls, HostTask, Deps, SelfEvent] () mutable {
         std::map<const detail::plugin *, std::vector<EventImplPtr>>
             RequiredEventsPerPlugin;
 
@@ -1876,9 +1887,20 @@ cl_int ExecCGCommand::enqueueImp() {
         const detail::plugin &Plugin = SelfEvent->getPlugin();
         Plugin.call<PiApiKind::piEventSetStatus>(SelfEvent->getHandleRef(),
                                                  PI_EVENT_COMPLETE);
+
+        // perform release (unblock) of empty command
+        std::vector<Requirement *> Reqs;
+        Reqs.resize(Deps.size());
+
+        std::transform(Deps.begin(), Deps.end(), Reqs.begin(),
+                       [](const DepDesc &Dep) {
+                         return const_cast<Requirement *>(Dep.MDepRequirement);
+                       });
+
+        Scheduler::getInstance().unblockRequirements(Reqs);
       };
 
-      MQueue->getThreadPool().submit(DispatchHostTask);
+      MQueue->getThreadPool().submit(std::move(DispatchHostTask));
     }
 
     return CL_SUCCESS;

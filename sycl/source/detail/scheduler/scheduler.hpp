@@ -95,6 +95,9 @@ public:
   // Unblocks operations with the memory object.
   void releaseHostAccessor(Requirement *Req);
 
+  // Unblocks operations with memory objects
+  void unblockRequirements(const std::vector<Requirement *> &Reqs);
+
   // Returns an instance of the scheduler object.
   static Scheduler &getInstance();
 
@@ -106,6 +109,8 @@ public:
 protected:
   Scheduler();
   static Scheduler instance;
+
+  void unblockSingleReq(Requirement *Req);
 
   // The graph builder provides interfaces that can change already existing
   // graph (e.g. add/remove edges/nodes).
