@@ -1144,25 +1144,78 @@ public:
   // should be still working.
 
   // Accessor can be a base class or a field decl, so both must be handled.
-  virtual void handleSyclAccessorType(const CXXBaseSpecifier &, QualType) {}
-  virtual void handleSyclAccessorType(const FieldDecl *, QualType) {}
-  virtual void handleSyclSamplerType(const FieldDecl *, QualType) {}
-  virtual void handleSyclSpecConstantType(const FieldDecl *, QualType) {}
-  virtual void handleSyclStreamType(const CXXBaseSpecifier &, QualType) {}
-  virtual void handleSyclStreamType(const FieldDecl *, QualType) {}
-  virtual void handleStructType(const FieldDecl *, QualType) {}
-  virtual void handleReferenceType(const FieldDecl *, QualType) {}
-  virtual void handlePointerType(const FieldDecl *, QualType) {}
-  virtual void handleArrayType(const FieldDecl *, QualType) {}
-  virtual void handleScalarType(const FieldDecl *, QualType) {}
+  virtual void handleSyclAccessorType(CXXBaseSpecifier &, QualType) {}
+  virtual void handleSyclAccessorType(FieldDecl *, QualType) {}
+  virtual void handleSyclSamplerType(FieldDecl *, QualType) {}
+  virtual void handleSyclSpecConstantType(FieldDecl *, QualType) {}
+  virtual void handleSyclStreamType(CXXBaseSpecifier &, QualType) {}
+  virtual void handleSyclStreamType(FieldDecl *, QualType) {}
+  virtual void handleStructType(FieldDecl *, QualType) {}
+  virtual void handleReferenceType(FieldDecl *, QualType) {}
+  virtual void handlePointerType(FieldDecl *, QualType) {}
+  virtual void handleArrayType(FieldDecl *, QualType) {}
+  virtual void handleScalarType(FieldDecl *, QualType) {}
   // Most handlers shouldn't be handling this, just the field checker.
-  virtual void handleOtherType(const FieldDecl *, QualType) {}
+  virtual void handleOtherType(FieldDecl *, QualType) {}
+
+  // TODO: fix warnings from derived classes
+  virtual void handleSyclAccessorType(const CXXBaseSpecifier &BS, QualType Ty) {
+    static_cast<Derived *>(this)->handleSyclAccessorType(
+        const_cast<CXXBaseSpecifier &>(BS), Ty);
+  }
+  virtual void handleSyclAccessorType(const FieldDecl *FD, QualType Ty) {
+    static_cast<Derived *>(this)->handleSyclAccessorType(
+        const_cast<FieldDecl *>(FD), Ty);
+  }
+  virtual void handleSyclStreamType(const CXXBaseSpecifier &BS, QualType Ty) {
+    static_cast<Derived *>(this)->handleSyclStreamType(
+        const_cast<CXXBaseSpecifier &>(BS), Ty);
+  }
+  virtual void handleSyclStreamType(const FieldDecl *FD, QualType Ty) {
+    static_cast<Derived *>(this)->handleSyclStreamType(
+        const_cast<FieldDecl *>(FD), Ty);
+  }
+  virtual void handleSyclSamplerType(const FieldDecl *FD, QualType Ty) {
+    static_cast<Derived *>(this)->handleSyclSamplerType(
+        const_cast<FieldDecl *>(FD), Ty);
+  }
+  virtual void handleSyclSpecConstantType(const FieldDecl *FD, QualType Ty) {
+    static_cast<Derived *>(this)->handleSyclSpecConstantType(
+        const_cast<FieldDecl *>(FD), Ty);
+  }
+  virtual void handleStructType(const FieldDecl *FD, QualType Ty) {
+    static_cast<Derived *>(this)->handleStructType(
+        const_cast<FieldDecl *>(FD), Ty);
+  }
+  virtual void handleReferenceType(const FieldDecl *FD, QualType Ty) {
+    static_cast<Derived *>(this)->handleReferenceType(
+        const_cast<FieldDecl *>(FD), Ty);
+  }
+  virtual void handlePointerType(const FieldDecl *FD, QualType Ty) {
+    static_cast<Derived *>(this)->handlePointerType(
+        const_cast<FieldDecl *>(FD), Ty);
+  }
+  virtual void handleArrayType(const FieldDecl *FD, QualType Ty) {
+    static_cast<Derived *>(this)->handleArrayType(
+        const_cast<FieldDecl *>(FD), Ty);
+  }
+  virtual void handleScalarType(const FieldDecl *FD, QualType Ty) {
+    static_cast<Derived *>(this)->handleScalarType(
+        const_cast<FieldDecl *>(FD), Ty);
+  }
+  virtual void handleOtherType(const FieldDecl *FD, QualType Ty) {
+    static_cast<Derived *>(this)->handleOtherType(
+        const_cast<FieldDecl *>(FD), Ty);
+  }
 
   // The following are only used for keeping track of where we are in the base
   // class/field graph. Int Headers use this to calculate offset, most others
   // don't have a need for these.
+  virtual void enterStruct(const CXXRecordDecl *, FieldDecl *) {}
 
-  virtual void enterStruct(const CXXRecordDecl *, const FieldDecl *) {}
+  virtual void enterStruct(const CXXRecordDecl *RD, const FieldDecl *FD) {
+    static_cast<Derived *>(this)->enterStruct(RD, const_cast<FieldDecl *>(FD));
+  }
   virtual void leaveStruct(const CXXRecordDecl *, const FieldDecl *) {}
   virtual void enterStruct(const CXXRecordDecl *, const CXXBaseSpecifier &) {}
   virtual void leaveStruct(const CXXRecordDecl *, const CXXBaseSpecifier &) {}
@@ -1521,13 +1574,13 @@ public:
     DeclCreator.setBody(KernelBody);
   }
 
-  void handleSyclAccessorType(const FieldDecl *FD, QualType Ty) final {
+  void handleSyclAccessorType(FieldDecl *FD, QualType Ty) final {
     const auto *AccDecl = Ty->getAsCXXRecordDecl();
     // TODO : we don't need all this init stuff if remove kernel obj clone
     // Perform initialization only if it is field of kernel object
     if (Bases.size() == 1) {
-      InitializedEntity Entity = InitializedEntity::InitializeMember(
-          const_cast<FieldDecl *>(FD), &VarEntity);
+      InitializedEntity Entity =
+          InitializedEntity::InitializeMember(FD, &VarEntity);
       // Initialize with the default constructor.
       InitializationKind InitKind =
           InitializationKind::CreateDefault(SourceLocation());
@@ -1536,8 +1589,7 @@ public:
       InitExprs.push_back(MemberInit.get());
     }
     // TODO don't do const-cast
-    createSpecialMethodCall(AccDecl, Bases.back(), InitMethodName,
-                            const_cast<FieldDecl *>(FD));
+    createSpecialMethodCall(AccDecl, Bases.back(), InitMethodName, FD);
   }
 
   void handleSyclAccessorType(const CXXBaseSpecifier &BS, QualType Ty) final {
@@ -1556,16 +1608,16 @@ public:
     // TODO: Creates init/finalize sequence and inits special sycl obj
   }
 
-  void handleStructType(const FieldDecl *FD, QualType Ty) final {
-    createExprForStructOrScalar(const_cast<FieldDecl *>(FD));
+  void handleStructType(FieldDecl *FD, QualType Ty) final {
+    createExprForStructOrScalar(FD);
   }
 
-  void handleScalarType(const FieldDecl *FD, QualType Ty) final {
-    createExprForStructOrScalar(const_cast<FieldDecl *>(FD));
+  void handleScalarType(FieldDecl *FD, QualType Ty) final {
+    createExprForStructOrScalar(FD);
   }
 
-  void enterStruct(const CXXRecordDecl *, const FieldDecl *FD) final {
-    Bases.push_back(BuildMemberExpr(Bases.back(), const_cast<FieldDecl *>(FD)));
+  void enterStruct(const CXXRecordDecl *, FieldDecl *FD) final {
+    Bases.push_back(BuildMemberExpr(Bases.back(), FD));
   }
 
   void leaveStruct(const CXXRecordDecl *, const FieldDecl *FD) final {
