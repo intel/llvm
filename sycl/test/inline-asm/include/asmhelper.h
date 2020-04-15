@@ -99,6 +99,9 @@ bool isInlineASMSupported(sycl::device Device) {
 /// \returns false if test wasn't launched (i.e.was skipped) and true otherwise
 template <typename F>
 bool launchInlineASMTest(F &f, bool requires_particular_sg_size = true) {
+#if !defined(INLINE_ASM)
+  return true; // any device is capable to launch reference versions of tests
+#endif
   cl::sycl::queue deviceQueue(cl::sycl::gpu_selector{});
   cl::sycl::device device = deviceQueue.get_device();
 
