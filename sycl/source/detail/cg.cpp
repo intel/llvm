@@ -6,7 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "CL/sycl/detail/cg.hpp"
+#include <CL/sycl/detail/cg.hpp>
+#include <CL/sycl/detail/defines.hpp>
 #include <CL/sycl/detail/memory_manager.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <detail/queue_impl.hpp>
@@ -18,7 +19,7 @@
 #include <type_traits>
 #include <vector>
 
-namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
 pi_native_handle interop_handler::GetNativeQueue() const {
@@ -41,4 +42,4 @@ pi_native_handle interop_handler::GetNativeMem(detail::Requirement *Req) const {
 }
 
 }  // sycl
-}  // cl
+} // __SYCL_INLINE_NAMESPACE(cl)
