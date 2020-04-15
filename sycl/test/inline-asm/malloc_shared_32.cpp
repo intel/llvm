@@ -2,19 +2,21 @@
 // REQUIRES: gpu,linux
 // RUN: %clangxx -fsycl %s -DINLINE_ASM -o %t.out
 // RUN: %t.out
+// RUN: %clangxx -fsycl %s -o %t.ref.out
+// RUN: %t.ref.out
 
-#include "include/asmcheck.h"
+#include "include/asmhelper.h"
 #include <CL/sycl.hpp>
 #include <iostream>
-#define N 1000
-using namespace cl::sycl;
-int main() {
-  int *a;
-  int *b;
-  int *c;
-  queue q;
 
-  sycl::device Device = q.get_device();
+constexpr size_t problem_size = 32;
+
+class kernel_name;
+
+int main() {
+  cl::sycl::queue q;
+
+  cl::sycl::device Device = q.get_device();
 
   if (!isInlineASMSupported(Device) || !Device.has_extension("cl_intel_required_subgroup_size")) {
     std::cout << "Skipping test\n";
@@ -22,18 +24,19 @@ int main() {
   }
 
   auto ctx = q.get_context();
-  a = (int *)malloc_shared(sizeof(int) * N, q.get_device(), ctx);
-  b = (int *)malloc_shared(sizeof(int) * N, q.get_device(), ctx);
-  c = (int *)malloc_shared(sizeof(int) * N, q.get_device(), ctx);
-  for (int i = 0; i < N; i++) {
+  int *a = (int *)malloc_shared(sizeof(int) * problem_size, q.get_device(), ctx);
+  int *b = (int *)malloc_shared(sizeof(int) * problem_size, q.get_device(), ctx);
+  int *c = (int *)malloc_shared(sizeof(int) * problem_size, q.get_device(), ctx);
+  for (int i = 0; i < problem_size; i++) {
     b[i] = -10;
     a[i] = i;
     c[i] = i;
   }
-  q.submit([&](handler &cgh) {
-     cgh.parallel_for<class kernel>(
-         range<1>(N),
-         [=](id<1> idx)
+
+  q.submit([&](cl::sycl::handler &cgh) {
+     cgh.parallel_for<kernel_name>(
+         cl::sycl::range<1>(problem_size),
+         [=](cl::sycl::id<1> idx)
              [[cl::intel_reqd_sub_group_size(32)]] {
                int i = idx[0];
 #if defined(INLINE_ASM) && defined(__SYCL_DEVICE_ONLY__)
@@ -64,7 +67,7 @@ int main() {
    }).wait();
 
   bool currect = true;
-  for (int i = 0; i < N; i++) {
+  for (int i = 0; i < problem_size; i++) {
     if (b[i] != a[i] * b[i]) {
       currect = false;
       std::cerr << "error in a[" << i << "]="
@@ -72,13 +75,15 @@ int main() {
       break;
     }
   }
+
   if (!currect) {
     std::cerr << "Error" << std::endl;
     cl::sycl::free(a, ctx);
     cl::sycl::free(b, ctx);
     cl::sycl::free(c, ctx);
-    return -1;
+    return 1;
   }
+
   std::cerr << "Pass" << std::endl;
   cl::sycl::free(a, ctx);
   cl::sycl::free(b, ctx);

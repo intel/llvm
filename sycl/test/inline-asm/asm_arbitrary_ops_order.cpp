@@ -2,97 +2,58 @@
 // REQUIRES: gpu,linux
 // RUN: %clangxx -fsycl %s -DINLINE_ASM -o %t.out
 // RUN: %t.out
+// RUN: %clangxx -fsycl %s -o %t.ref.out
+// RUN: %t.ref.out
 
-#include "include/asmcheck.h"
+#include "include/asmhelper.h"
 #include <CL/sycl.hpp>
 #include <iostream>
 #include <vector>
 
-constexpr auto sycl_read = cl::sycl::access::mode::read;
-constexpr auto sycl_write = cl::sycl::access::mode::write;
+using dataType = cl::sycl::cl_int;
 
-constexpr int LIST_SIZE = 1024;
-using arr_t = std::vector<cl::sycl::cl_int>;
+template <typename T = dataType>
+struct KernelFunctor : WithInputBuffers<T, 3>, WithOutputBuffer<T> {
+  KernelFunctor(const std::vector<T> &input1, const std::vector<T> &input2, const std::vector<T> &input3) : WithInputBuffers<T, 3>(input1, input2, input3), WithOutputBuffer<T>(input1.size()) {}
 
-// class is used for kernel name
-template <typename T>
-class vector_mad;
+  void operator()(cl::sycl::handler &cgh) {
+    auto A = this->getInputBuffer(0).template get_access<cl::sycl::access::mode::read>(cgh);
+    auto B = this->getInputBuffer(1).template get_access<cl::sycl::access::mode::read>(cgh);
+    auto C = this->getInputBuffer(2).template get_access<cl::sycl::access::mode::read>(cgh);
+    auto D = this->getOutputBuffer().template get_access<cl::sycl::access::mode::write>(cgh);
 
-class ocl_ctx_t {
-  cl::sycl::queue deviceQueue;
-
-public:
-  ocl_ctx_t(const cl::sycl::device_selector &sel) : deviceQueue(sel) {}
-
-  template <typename T>
-  void process_buffers(T const *pa, T const *pb, const T *pc, T *pd, size_t sz);
+    cgh.parallel_for<KernelFunctor<T>>(
+        cl::sycl::range<1>{this->getOutputBufferSize()}, [=](cl::sycl::id<1> wiID) [[cl::intel_reqd_sub_group_size(8)]] {
+#if defined(INLINE_ASM) && defined(__SYCL_DEVICE_ONLY__)
+          asm("mad (M1, 8) %0(0, 0)<1> %3(0, 0)<1;1,0> %1(0, 0)<1;1,0> %2(0, 0)<1;1,0>"
+              : "=rw"(D[wiID])
+              : "rw"(B[wiID]), "rw"(C[wiID]), "rw"(A[wiID]));
+#else
+          D[wiID] = A[wiID] * B[wiID] + C[wiID];
+#endif
+        });
+  }
 };
 
 int main() {
-  arr_t A(LIST_SIZE), B(LIST_SIZE), C(LIST_SIZE), D(LIST_SIZE);
-
-  try {
-    cl::sycl::gpu_selector gpsel;
-    ocl_ctx_t ct{gpsel};
-
-    cl::sycl::queue deviceQueue(gpsel);
-    sycl::device Device = deviceQueue.get_device();
-
-    if (!isInlineASMSupported(Device) || !Device.has_extension("cl_intel_required_subgroup_size")) {
-      std::cout << "Skipping test\n";
-      return 0;
-    }
-
-    for (int i = 0; i < LIST_SIZE; i++) {
-      A[i] = i;
-      B[i] = i;
-      C[i] = LIST_SIZE - i * i;
-    }
-
-    ct.process_buffers(A.data(), B.data(), C.data(), D.data(), LIST_SIZE);
-
-    for (int i = 0; i < LIST_SIZE; ++i)
-      if (D[i] != A[i] * B[i] + C[i]) {
-        std::cerr << "At index: " << i << ". ";
-        std::cerr << D[i] << " != " << A[i] * B[i] + C[i] << "\n";
-        abort();
-      }
-
-    std::cout << "Everything is correct" << std::endl;
-  } catch (cl::sycl::exception const &err) {
-    std::cerr << "ERROR: " << err.what() << ":\n";
-    return -1;
+  std::vector<dataType> inputA(DEFAULT_PROBLEM_SIZE), inputB(DEFAULT_PROBLEM_SIZE), inputC(DEFAULT_PROBLEM_SIZE);
+  for (int i = 0; i < DEFAULT_PROBLEM_SIZE; i++) {
+    inputA[i] = i;
+    inputB[i] = i;
+    inputC[i] = DEFAULT_PROBLEM_SIZE - i * i;
   }
-}
 
-template <typename T>
-void ocl_ctx_t::process_buffers(T const *pa, T const *pb, const T *pc, T *pd,
-                                size_t sz) {
-  cl::sycl::range<1> numOfItems{sz};
-  cl::sycl::buffer<T, 1> bufferA(pa, numOfItems);
-  cl::sycl::buffer<T, 1> bufferB(pb, numOfItems);
-  cl::sycl::buffer<T, 1> bufferC(pc, numOfItems);
-  cl::sycl::buffer<T, 1> bufferD(pd, numOfItems);
+  KernelFunctor<> f(inputA, inputB, inputC);
+  if (!launchInlineASMTest(f))
+    return 0;
 
-  bufferA.set_final_data(nullptr);
-  bufferB.set_final_data(nullptr);
-  bufferC.set_final_data(nullptr);
-
-  deviceQueue.submit([&](cl::sycl::handler &cgh) {
-    auto A = bufferA.template get_access<sycl_read>(cgh);
-    auto B = bufferB.template get_access<sycl_read>(cgh);
-    auto C = bufferC.template get_access<sycl_read>(cgh);
-    auto D = bufferD.template get_access<sycl_write>(cgh);
-
-    auto kern = [ A, B, C, D ](cl::sycl::id<1> wiID) [[cl::intel_reqd_sub_group_size(8)]] {
-#if defined(INLINE_ASM) && defined(__SYCL_DEVICE_ONLY__)
-      asm("mad (M1, 8) %0(0, 0)<1> %3(0, 0)<1;1,0> %1(0, 0)<1;1,0> %2(0, 0)<1;1,0>"
-          : "=rw"(D[wiID])
-          : "rw"(B[wiID]), "rw"(C[wiID]), "rw"(A[wiID]));
-#else
-      D[wiID] = A[wiID] * B[wiID] + C[wiID];
-#endif
-    };
-    cgh.parallel_for<class vector_mad<T>>(numOfItems, kern);
-  });
+  auto &D = f.getOutputBufferData();
+  for (int i = 0; i < DEFAULT_PROBLEM_SIZE; ++i) {
+    if (D[i] != inputA[i] * inputB[i] + inputC[i]) {
+      std::cerr << "At index: " << i << ". ";
+      std::cerr << D[i] << " != " << inputA[i] * inputB[i] + inputC[i] << "\n";
+      return 1;
+    }
+  }
+  return 0;
 }

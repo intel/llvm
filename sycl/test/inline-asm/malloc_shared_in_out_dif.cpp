@@ -3,17 +3,18 @@
 // RUN: %clangxx -fsycl %s -DINLINE_ASM -o %t.out
 // RUN: %t.out
 
-#include "include/asmcheck.h"
+#include "include/asmhelper.h"
 #include <CL/sycl.hpp>
 #include <iostream>
-#define N 100
-using namespace cl::sycl;
-int main() {
-  int *a;
-  int *b;
-  queue q;
 
-  sycl::device Device = q.get_device();
+constexpr size_t problem_size = 100;
+
+class kernel_name;
+
+int main() {
+  cl::sycl::queue q;
+
+  cl::sycl::device Device = q.get_device();
 
   if (!isInlineASMSupported(Device) || !Device.has_extension("cl_intel_required_subgroup_size")) {
     std::cout << "Skipping test\n";
@@ -21,15 +22,16 @@ int main() {
   }
 
   auto ctx = q.get_context();
-  a = (int *)malloc_shared(sizeof(int) * N, q.get_device(), ctx);
-  b = (int *)malloc_shared(sizeof(int) * N, q.get_device(), ctx);
-  for (int i = 0; i < N; i++) {
+  int *a = (int *)malloc_shared(sizeof(int) * problem_size, q.get_device(), ctx);
+  int *b = (int *)malloc_shared(sizeof(int) * problem_size, q.get_device(), ctx);
+  for (int i = 0; i < problem_size; i++) {
     b[i] = -1;
     a[i] = i;
   }
-  q.submit([&](handler &cgh) {
-     cgh.parallel_for<class kernel>(
-         range<1>(N), [=](id<1> idx) [[cl::intel_reqd_sub_group_size(16)]] {
+
+  q.submit([&](cl::sycl::handler &cgh) {
+     cgh.parallel_for<kernel_name>(
+         cl::sycl::range<1>(problem_size), [=](cl::sycl::id<1> idx) [[cl::intel_reqd_sub_group_size(16)]] {
            int i = idx[0];
            volatile int tmp = a[i];
            tmp += 1;
@@ -44,7 +46,7 @@ int main() {
    }).wait();
 
   bool currect = true;
-  for (int i = 0; i < N; i++) {
+  for (int i = 0; i < problem_size; i++) {
     if (b[i] != a[i]) {
       currect = false;
       std::cerr << "error in a[" << i << "]="
@@ -52,12 +54,14 @@ int main() {
       break;
     }
   }
+
   if (!currect) {
     std::cerr << "Error" << std::endl;
     cl::sycl::free(a, ctx);
     cl::sycl::free(b, ctx);
-    return -1;
+    return 1;
   }
+
   std::cerr << "Pass" << std::endl;
   cl::sycl::free(a, ctx);
   cl::sycl::free(b, ctx);
