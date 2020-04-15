@@ -337,8 +337,7 @@ private:
     return outOfBounds;
   }
 
-  bool isContiguousRegion(const id<1> &offset, const range<1> &newRange,
-                          const range<1> &parentRange) {
+  bool isContiguousRegion(const id<1> &, const range<1> &, const range<1> &) {
     // 1D sub buffer always has contiguous region
     return true;
   }

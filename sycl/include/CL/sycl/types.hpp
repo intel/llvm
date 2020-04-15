@@ -117,8 +117,8 @@ using rel_t = typename std::conditional<
 template <typename T> class GetOp {
 public:
   using DataT = T;
-  DataT getValue(size_t Index) const { return 0; }
-  DataT operator()(DataT LHS, DataT Rhs) { return 0; }
+  DataT getValue(size_t) const { return 0; }
+  DataT operator()(DataT, DataT) { return 0; }
 };
 
 // Special type for working SwizzleOp with scalars, stores a scalar and gives
@@ -128,7 +128,7 @@ template <typename T> class GetScalarOp {
 public:
   using DataT = T;
   GetScalarOp(DataT Data) : m_Data(Data) {}
-  DataT getValue(size_t Index) const { return m_Data; }
+  DataT getValue(size_t) const { return m_Data; }
 
 private:
   DataT m_Data;
@@ -1216,13 +1216,13 @@ private:
 
   template <int Num = NumElements,
             typename = typename std::enable_if<1 == Num>::type>
-  void setValue(int Index, const DataT &Value, float) {
+  void setValue(int, const DataT &Value, float) {
     m_Data = Value;
   }
 
   template <int Num = NumElements,
             typename = typename std::enable_if<1 == Num>::type>
-  DataT getValue(int Index, float) const {
+  DataT getValue(int, float) const {
     return m_Data;
   }
 

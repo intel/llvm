@@ -242,9 +242,7 @@ private:
                                      });
   }
 
-  template <typename T, typename... Args> bool checkAnyImpl(T Value) {
-    return false;
-  }
+  template <typename T, typename... Args> bool checkAnyImpl(T) { return false; }
 
   template <typename ValT, typename VarT, typename... Args>
   bool checkAnyImpl(ValT Value, VarT Variant, Args... Arguments) {

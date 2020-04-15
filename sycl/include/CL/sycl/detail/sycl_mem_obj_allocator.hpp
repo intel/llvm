@@ -74,7 +74,7 @@ protected:
 
 private:
   template <typename T = AllocatorT>
-  EnableIfNonDefaultAllocator<T> setAlignImpl(std::size_t RequiredAlign) {
+  EnableIfNonDefaultAllocator<T> setAlignImpl(std::size_t) {
     // Do nothing in case of user's allocator.
   }
 

@@ -177,7 +177,7 @@ class reducer<T, BinaryOperation,
               enable_if_t<IsKnownIdentityOp<T, BinaryOperation>::value>> {
 public:
   reducer() : MValue(getIdentity()) {}
-  reducer(const T &Identity) : MValue(getIdentity()) {}
+  reducer(const T &) : MValue(getIdentity()) {}
 
   void combine(const T &Partial) {
     BinaryOperation BOp;
@@ -594,7 +594,7 @@ struct get_reduction_aux_2nd_kernel_name_t {
 template <typename KernelName, typename KernelType, int Dims, class Reduction>
 enable_if_t<Reduction::has_fast_reduce && Reduction::has_fast_atomics>
 reduCGFunc(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
-           Reduction &Redu, typename Reduction::rw_accessor_type &Out) {
+           Reduction &, typename Reduction::rw_accessor_type &Out) {
 
   size_t NWorkItems = Range.get_global_range().size();
   size_t WGSize = Range.get_local_range().size();
@@ -1095,7 +1095,7 @@ template <typename T, class BinaryOperation, int Dims, access::mode AccMode,
           access::placeholder IsPH>
 detail::reduction_impl<T, BinaryOperation, Dims, false, AccMode, IsPH>
 reduction(accessor<T, Dims, AccMode, access::target::global_buffer, IsPH> &Acc,
-          const T &Identity, BinaryOperation Combiner) {
+          const T &Identity, BinaryOperation) {
   // The Combiner argument was needed only to define the BinaryOperation param.
   return detail::reduction_impl<T, BinaryOperation, Dims, false, AccMode, IsPH>(
       Acc, Identity);
@@ -1112,7 +1112,7 @@ detail::enable_if_t<
     detail::IsKnownIdentityOp<T, BinaryOperation>::value,
     detail::reduction_impl<T, BinaryOperation, Dims, false, AccMode, IsPH>>
 reduction(accessor<T, Dims, AccMode, access::target::global_buffer, IsPH> &Acc,
-          BinaryOperation Combiner) {
+          BinaryOperation) {
   // The Combiner argument was needed only to define the BinaryOperation param.
   return detail::reduction_impl<T, BinaryOperation, Dims, false, AccMode, IsPH>(
       Acc);
