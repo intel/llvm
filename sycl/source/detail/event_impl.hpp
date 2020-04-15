@@ -147,6 +147,11 @@ public:
 
   QueueImplWPtr getQueueWPtr() const { return MQueue; }
 
+  /// Gets the native handle of the SYCL event.
+  ///
+  /// \return a native handle.
+  pi_native_handle getNative() const;
+
 private:
   // When instrumentation is enabled emits trace event for event wait begin and
   // returns the telemetry event generated for the wait

@@ -209,6 +209,13 @@ void queue_impl::initHostTaskAndEventCallbackThreadPool() {
   MHostTaskThreadPool->start();
 }
 
+pi_native_handle queue_impl::getNative() const {
+  auto Plugin = getPlugin();
+  pi_native_handle Handle;
+  Plugin.call<PiApiKind::piextQueueGetNativeHandle>(MCommandQueue, &Handle);
+  return Handle;
+}
+
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

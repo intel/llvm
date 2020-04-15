@@ -83,21 +83,21 @@ program_impl::program_impl(
 }
 
 program_impl::program_impl(ContextImplPtr Context,
-                           program_interop_handle_t InteropProgram)
+                           pi_native_handle InteropProgram)
     : program_impl(Context, InteropProgram, nullptr) {}
 
 program_impl::program_impl(ContextImplPtr Context,
-                           program_interop_handle_t InteropProgram,
+                           pi_native_handle InteropProgram,
                            RT::PiProgram Program)
     : MProgram(Program), MContext(Context), MLinkable(true) {
 
   const detail::plugin &Plugin = getPlugin();
   if (MProgram == nullptr) {
-    assert(InteropProgram != nullptr &&
-           "No InteropProgram/PiProgram defined with piextProgramConvert");
+    assert(InteropProgram &&
+           "No InteropProgram/PiProgram defined with piextProgramFromNative");
     // Translate the raw program handle into PI program.
-    Plugin.call<PiApiKind::piextProgramConvert>(
-        Context->getHandleRef(), &MProgram, (void **)&InteropProgram);
+    Plugin.call<PiApiKind::piextProgramCreateWithNativeHandle>(InteropProgram,
+                                                               &MProgram);
   } else
     Plugin.call<PiApiKind::piProgramRetain>(Program);
 
@@ -158,7 +158,7 @@ program_impl::program_impl(ContextImplPtr Context,
 }
 
 program_impl::program_impl(ContextImplPtr Context, RT::PiKernel Kernel)
-    : program_impl(Context, nullptr,
+    : program_impl(Context, reinterpret_cast<pi_native_handle>(nullptr),
                    ProgramManager::getInstance().getPiProgramFromPiKernel(
                        Kernel, Context)) {}
 
