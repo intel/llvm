@@ -8,7 +8,7 @@
 
 #pragma once
 
-#ifndef SYCL_DEVICE_ONLY
+#ifndef __SYCL_DEVICE_ONLY__
 #ifndef __SYCL_EXPORT
 #ifdef _WIN32
 
