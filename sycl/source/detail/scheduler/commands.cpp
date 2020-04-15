@@ -1536,6 +1536,56 @@ void DispatchNativeKernel(void *Blob) {
   HostTask->MHostKernel->call(HostTask->MNDRDesc, nullptr);
 }
 
+class DispatchHostTask {
+  std::vector<EventImplPtr> MDepEvents;
+  CGHostTask *MHostTask;
+  std::vector<DepDesc> MDeps;
+  EventImplPtr MSelfEvent;
+
+public:
+  DispatchHostTask(std::vector<EventImplPtr> DepEvents, CGHostTask *HostTask,
+                   std::vector<DepDesc> Deps, EventImplPtr SelfEvent)
+      : MDepEvents(std::move(DepEvents)), MHostTask{HostTask},
+        MDeps(std::move(Deps)), MSelfEvent(std::move(SelfEvent)) {}
+
+  void operator()() const {
+    std::map<const detail::plugin *, std::vector<EventImplPtr>>
+        RequiredEventsPerPlugin;
+
+    for (const EventImplPtr &Event : MDepEvents) {
+      const detail::plugin &Plugin = Event->getPlugin();
+      RequiredEventsPerPlugin[&Plugin].push_back(Event);
+    }
+
+    // wait for dependency events
+    // FIXME introduce a more sophisticated wait mechanism
+    for (auto &PluginWithEvents : RequiredEventsPerPlugin) {
+      std::vector<RT::PiEvent> RawEvents = getPiEvents(
+          PluginWithEvents.second);
+      PluginWithEvents.first->call<PiApiKind::piEventsWait>(
+          RawEvents.size(), RawEvents.data());
+    }
+
+    // we're ready to call the user-defined lambda now
+    MHostTask->MHostTask->call();
+
+    const detail::plugin &Plugin = MSelfEvent->getPlugin();
+    Plugin.call<PiApiKind::piEventSetStatus>(MSelfEvent->getHandleRef(),
+                                             PI_EVENT_COMPLETE);
+
+    // perform release (unblock) of empty command
+    std::vector<Requirement *> Reqs;
+    Reqs.resize(MDeps.size());
+
+    std::transform(MDeps.begin(), MDeps.end(), Reqs.begin(),
+                   [](const DepDesc &Dep) {
+                     return const_cast<Requirement *>(Dep.MDepRequirement);
+                   });
+
+    Scheduler::getInstance().unblockRequirements(Reqs);
+  }
+};
+
 cl_int ExecCGCommand::enqueueImp() {
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   waitForPreparedHostEvents();
@@ -1860,47 +1910,8 @@ cl_int ExecCGCommand::enqueueImp() {
 
       SelfEvent->setContextImpl(HTContext);
 
-      std::vector<DepDesc> Deps = MDeps;
-
-      // init dependency events in Ctx
-      auto DispatchHostTask = [EventImpls, HostTask, Deps, SelfEvent] () mutable {
-        std::map<const detail::plugin *, std::vector<EventImplPtr>>
-            RequiredEventsPerPlugin;
-
-        for (const EventImplPtr &Event : EventImpls) {
-          const detail::plugin &Plugin = Event->getPlugin();
-          RequiredEventsPerPlugin[&Plugin].push_back(Event);
-        }
-
-        // wait for dependency events
-        // FIXME introduce a more sophisticated wait mechanism
-        for (auto &PluginWithEvents : RequiredEventsPerPlugin) {
-          std::vector<RT::PiEvent> RawEvents = getPiEvents(
-              PluginWithEvents.second);
-          PluginWithEvents.first->call<PiApiKind::piEventsWait>(
-              RawEvents.size(), RawEvents.data());
-        }
-
-        // we're ready to call the user-defined lambda now
-        HostTask->MHostTask->call();
-
-        const detail::plugin &Plugin = SelfEvent->getPlugin();
-        Plugin.call<PiApiKind::piEventSetStatus>(SelfEvent->getHandleRef(),
-                                                 PI_EVENT_COMPLETE);
-
-        // perform release (unblock) of empty command
-        std::vector<Requirement *> Reqs;
-        Reqs.resize(Deps.size());
-
-        std::transform(Deps.begin(), Deps.end(), Reqs.begin(),
-                       [](const DepDesc &Dep) {
-                         return const_cast<Requirement *>(Dep.MDepRequirement);
-                       });
-
-        Scheduler::getInstance().unblockRequirements(Reqs);
-      };
-
-      MQueue->getThreadPool().submit(std::move(DispatchHostTask));
+      MQueue->getThreadPool().submit<DispatchHostTask>(std::move(
+          DispatchHostTask(EventImpls, HostTask, MDeps, SelfEvent)));
     }
 
     return CL_SUCCESS;

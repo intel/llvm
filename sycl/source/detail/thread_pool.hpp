@@ -67,6 +67,16 @@ public:
         Thread.join();
   }
 
+  template<typename T>
+  void submit(T &&Func) {
+    {
+      std::lock_guard<std::mutex> Lock(MJobQueueMutex);
+      MJobQueue.emplace(std::move([Func]() { Func(); }));
+    }
+
+    MDoSmthOrStop.notify_one();
+  }
+
   void submit(std::function<void()> &&Func) {
     {
       std::lock_guard<std::mutex> Lock(MJobQueueMutex);
