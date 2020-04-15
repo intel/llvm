@@ -3,8 +3,6 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
-// TODO: No CUDA image support
-// XFAIL: cuda
 //==--------------------image_accessor_readwrite_half.cpp -------------------==//
 //==-image_accessor read (without sampler)& write API test for half datatype-==//
 //
