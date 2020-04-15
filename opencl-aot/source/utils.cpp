@@ -246,7 +246,7 @@ getOpenCLPlatform(DeviceType Type) {
          DeviceTypesToSupportedPlatformNames[Type]) {
       ErrorMessage += "  " + SupportedPlatformName + '\n';
     }
-    CLErr = OPENCL_AOT_DEVICE_ID_IS_EMPTY;
+    CLErr = OPENCL_AOT_PLATFORM_NOT_FOUND;
   }
 
   return std::make_tuple(PlatformId, PlatformName, ErrorMessage, CLErr);
