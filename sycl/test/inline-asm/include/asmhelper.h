@@ -99,14 +99,15 @@ bool isInlineASMSupported(sycl::device Device) {
 /// \returns false if test wasn't launched (i.e.was skipped) and true otherwise
 template <typename F>
 bool launchInlineASMTest(F &f, bool requires_particular_sg_size = true) {
+  cl::sycl::queue deviceQueue(cl::sycl::gpu_selector{});
+  cl::sycl::device device = deviceQueue.get_device();
+
 #if !defined(INLINE_ASM)
- if (!isInlineASMSupported(device)) {
+  if (!isInlineASMSupported(device)) {
     std::cout << "Skipping test\n";
     return false;
   }
 #endif
-  cl::sycl::queue deviceQueue(cl::sycl::gpu_selector{});
-  cl::sycl::device device = deviceQueue.get_device();
 
   if (requires_particular_sg_size && !device.has_extension("cl_intel_required_subgroup_size")) {
     std::cout << "Skipping test\n";
