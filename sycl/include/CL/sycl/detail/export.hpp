@@ -38,5 +38,6 @@
 #else
 #ifndef __SYCL_EXPORT
 #define __SYCL_EXPORT
+#define __SYCL_EXPORT_DEPRECATED(x)
 #endif
 #endif // __SYCL_DEVICE_ONLY__
