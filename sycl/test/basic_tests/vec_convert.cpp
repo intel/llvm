@@ -16,8 +16,6 @@
 
 #include <cassert>
 
-// TODO uncomment run lines on non-host devices when the rounding modes will
-// be implemented.
 // TODO make the test to pass on cuda
 
 using namespace cl::sycl;
@@ -151,5 +149,6 @@ int main() {
   test<float, half, 8, rounding_mode::rtn>(
       float8{+2.3f, +2.5f, +2.7f, -2.3f, -2.5f, -2.7f, 0.f, 0.f},
       half8{+2.3f, +2.5f, +2.7f, -2.3f, -2.5f, -2.7f, 0.f, 0.f});
+
   return 0;
 }
