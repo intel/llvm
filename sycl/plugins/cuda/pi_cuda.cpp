@@ -12,6 +12,7 @@
 /// \ingroup sycl_pi_cuda
 
 #include <CL/sycl/detail/cuda_definitions.hpp>
+#include <CL/sycl/detail/defines.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <pi_cuda.hpp>
 
@@ -229,7 +230,7 @@ int getAttribute(pi_device device, CUdevice_attribute attribute) {
 } // anonymous namespace
 
 /// ------ Error handling, matching OpenCL plugin semantics.
-namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 namespace pi {
@@ -251,7 +252,7 @@ void assertion(bool Condition, const char *Message) {
 } // namespace pi
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)
 
 //--------------
 // PI object implementation

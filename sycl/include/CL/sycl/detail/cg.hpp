@@ -78,8 +78,7 @@ private:
   template <backend BackendName, typename DataT, int Dims,
             access::mode AccessMode, access::target AccessTarget,
             access::placeholder IsPlaceholder>
-  __SYCL_EXPORT auto
-  getMemImpl(detail::Requirement *Req) const -> typename interop<
+  auto getMemImpl(detail::Requirement *Req) const -> typename interop<
       BackendName,
       accessor<DataT, Dims, AccessMode, AccessTarget, IsPlaceholder>>::type {
     return (typename interop<BackendName,

@@ -8,7 +8,9 @@
 
 #pragma once
 
-namespace cl {
+#include <CL/sycl/detail/defines.hpp>
+
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
 enum class backend { host, opencl, cuda };
@@ -16,4 +18,4 @@ enum class backend { host, opencl, cuda };
 template <backend name, typename SYCLObjectT> struct interop;
 
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

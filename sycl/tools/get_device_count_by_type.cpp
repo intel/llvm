@@ -193,7 +193,7 @@ int main(int argc, char *argv[]) {
   } else if (backend == "cuda" || backend == "pi_cuda") {
     querySuccess = queryCUDA(deviceType, deviceCount, msg);
   } else {
-    msg + "ERROR: Unknown backend " + backend + "\n" + help + "\n";
+    msg = "ERROR: Unknown backend " + backend + "\n" + help + "\n";
   }
 
   std::cout << deviceCount << ":" << msg << std::endl;
