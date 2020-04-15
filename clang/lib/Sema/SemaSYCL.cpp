@@ -1387,9 +1387,9 @@ class SyclKernelBodyCreator
   llvm::SmallVector<Expr *, 16> InitExprs;
   VarDecl *KernelObjClone;
   InitializedEntity VarEntity;
-  DeclRefExpr *KernelObjCloneRef;
   CXXRecordDecl *KernelObj;
   llvm::SmallVector<Expr *, 16> Bases;
+  FunctionDecl *KernelCallerFunc;
 
   // Using the statements/init expressions that we've created, this generates
   // the kernel body compound stmt. CompoundStmt needs to know its number of
@@ -1400,8 +1400,22 @@ class SyclKernelBodyCreator
         SemaRef.getASTContext(), SourceLocation(), InitExprs, SourceLocation());
     ILE->setType(QualType(KernelObj->getTypeForDecl(), 0));
     KernelObjClone->setInit(ILE);
+    Stmt *FunctionBody = KernelCallerFunc->getBody();
 
-    // TODO: More kernel object init with KernelBodyTransform.
+    ParmVarDecl *KernelObjParam = *(KernelCallerFunc->param_begin());
+
+    // DeclRefExpr with valid source location but with decl which is not marked
+    // as used is invalid.
+    KernelObjClone->setIsUsed();
+    std::pair<DeclaratorDecl *, DeclaratorDecl *> MappingPair;
+    MappingPair.first = KernelObjParam;
+    MappingPair.second = KernelObjClone;
+
+    // Function scope might be empty, so we do push
+    SemaRef.PushFunctionScope();
+    KernelBodyTransform KBT(MappingPair, SemaRef);
+    Stmt *NewBody = KBT.TransformStmt(FunctionBody).get();
+    BodyStmts.push_back(NewBody);
 
     BodyStmts.insert(std::end(BodyStmts), std::begin(FinalizeStmts),
                      std::begin(FinalizeStmts));
@@ -1422,7 +1436,7 @@ class SyclKernelBodyCreator
     return Result;
   }
 
-  void CreateExprForStructOrScalar(FieldDecl *FD) {
+  void createExprForStructOrScalar(FieldDecl *FD) {
     ParmVarDecl *KernelParameter =
         DeclCreator.getParamVarDeclsForCurrentField()[0];
     InitializedEntity Entity =
@@ -1475,10 +1489,11 @@ class SyclKernelBodyCreator
 
 public:
   SyclKernelBodyCreator(Sema &S, SyclKernelDeclCreator &DC,
-                        KernelInvocationKind K, CXXRecordDecl *KernelObj)
+                        KernelInvocationKind K, CXXRecordDecl *KernelObj,
+                        FunctionDecl *KernelCallerFunc)
       : SyclKernelFieldHandler(S), DeclCreator(DC),
         VarEntity(InitializedEntity::InitializeVariable(KernelObjClone)),
-        KernelObj(KernelObj) {
+        KernelObj(KernelObj), KernelCallerFunc(KernelCallerFunc) {
     // TODO: Something special with the lambda when InvokeParallelForWorkGroup.
     if (K == InvokeParallelForWorkGroup)
       doSomethingForParallelForWorkGroup();
@@ -1493,30 +1508,33 @@ public:
     Stmt *DS = new (S.Context) DeclStmt(DeclGroupRef(KernelObjClone),
                                         SourceLocation(), SourceLocation());
     BodyStmts.push_back(DS);
-    KernelObjCloneRef = DeclRefExpr::Create(
+    DeclRefExpr *KernelObjCloneRef = DeclRefExpr::Create(
         S.Context, NestedNameSpecifierLoc(), SourceLocation(), KernelObjClone,
         false, DeclarationNameInfo(), QualType(KernelObj->getTypeForDecl(), 0),
         VK_LValue);
     VarEntity = InitializedEntity::InitializeVariable(KernelObjClone);
     Bases.push_back(KernelObjCloneRef);
   }
+
   ~SyclKernelBodyCreator() {
     CompoundStmt *KernelBody = createKernelBody();
     DeclCreator.setBody(KernelBody);
   }
 
   void handleSyclAccessorType(const FieldDecl *FD, QualType Ty) final {
-    // TODO: Creates init sequence and inits special sycl obj
     const auto *AccDecl = Ty->getAsCXXRecordDecl();
     // TODO : we don't need all this init stuff if remove kernel obj clone
-    InitializedEntity Entity = InitializedEntity::InitializeMember(
-        const_cast<FieldDecl *>(FD), &VarEntity);
-    // Initialize with the default constructor.
-    InitializationKind InitKind =
-        InitializationKind::CreateDefault(SourceLocation());
-    InitializationSequence InitSeq(SemaRef, Entity, InitKind, None);
-    ExprResult MemberInit = InitSeq.Perform(SemaRef, Entity, InitKind, None);
-    InitExprs.push_back(MemberInit.get());
+    // Perform initialization only if it is field of kernel object
+    if (Bases.size() == 1) {
+      InitializedEntity Entity = InitializedEntity::InitializeMember(
+          const_cast<FieldDecl *>(FD), &VarEntity);
+      // Initialize with the default constructor.
+      InitializationKind InitKind =
+          InitializationKind::CreateDefault(SourceLocation());
+      InitializationSequence InitSeq(SemaRef, Entity, InitKind, None);
+      ExprResult MemberInit = InitSeq.Perform(SemaRef, Entity, InitKind, None);
+      InitExprs.push_back(MemberInit.get());
+    }
     // TODO don't do const-cast
     createSpecialMethodCall(AccDecl, Bases.back(), InitMethodName,
                             const_cast<FieldDecl *>(FD));
@@ -1539,11 +1557,11 @@ public:
   }
 
   void handleStructType(const FieldDecl *FD, QualType Ty) final {
-    CreateExprForStructOrScalar(const_cast<FieldDecl *>(FD));
+    createExprForStructOrScalar(const_cast<FieldDecl *>(FD));
   }
 
   void handleScalarType(const FieldDecl *FD, QualType Ty) final {
-    CreateExprForStructOrScalar(const_cast<FieldDecl *>(FD));
+    createExprForStructOrScalar(const_cast<FieldDecl *>(FD));
   }
 
   void enterStruct(const CXXRecordDecl *, const FieldDecl *FD) final {
@@ -1730,7 +1748,7 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
                                     KernelCallerFunc->isInlined());
   SyclKernelBodyCreator kernel_body(*this, kernel_decl,
                                     getKernelInvocationKind(KernelCallerFunc),
-                                    KernelLambda);
+                                    KernelLambda, KernelCallerFunc);
   SyclKernelIntHeaderCreator int_header(
       *this, getSyclIntegrationHeader(), KernelLambda,
       calculateKernelNameType(Context, KernelCallerFunc), CalculatedName,
