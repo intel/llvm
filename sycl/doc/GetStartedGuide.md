@@ -79,15 +79,15 @@ variables is in these files.
 **Linux**
 
 ```bash
-python $DPCPP_HOME/llvm/buildbot/configure.py -s $DPCPP_HOME/llvm -o $DPCPP_HOME/build -t release
-python $DPCPP_HOME/llvm/buildbot/compile.py -s $DPCPP_HOME/llvm -o $DPCPP_HOME/build
+python $DPCPP_HOME/llvm/buildbot/configure.py
+python $DPCPP_HOME/llvm/buildbot/compile.py
 ```
 
 **Windows**
 
 ```bat
-python %DPCPP_HOME%\llvm\buildbot\configure.py -s %DPCPP_HOME%\llvm -o %DPCPP_HOME%\build -t release
-python %DPCPP_HOME%\llvm\buildbot\compile.py -s %DPCPP_HOME%\llvm -o %DPCPP_HOME%\build
+python %DPCPP_HOME%\llvm\buildbot\configure.py
+python %DPCPP_HOME%\llvm\buildbot\compile.py
 ```
 
 **Options**
@@ -99,6 +99,8 @@ You can use the following flags with `configure.py`:
  * `--cuda` -> use the cuda backend (see [Nvidia CUDA](#build-dpc-toolchain-with-support-for-nvidia-cuda))
  * `--shared-libs` -> Build shared libraries
  * `-t` -> Build type (debug or release)
+ * `-o` -> Path to build directory
+ * `--cmake-gen` -> Set build system type (e.g. `--cmake-gen "Unix Makefiles"`)
 
 Ahead-of-time compilation for the Intel&reg; processors is enabled by default.
 For more, see [opencl-aot documentation](../../opencl-aot/README.md).
@@ -260,9 +262,15 @@ c:\oclcpu_rt_<cpu_version>\install.bat c:\tbb_<tbb_version>\tbb\bin\intel64\vc14
 
 To verify that built DPC++ toolchain is working correctly, run:
 
-**Linux/Windows (64-bit)**
+**Linux**
 ```bash
-ninja check-all
+python $DPCPP_HOME/llvm/buildbot/check.py
+```
+
+**Windows**
+
+```bat
+python %DPCPP_HOME%\llvm\buildbot\check.py
 ```
 
 If no OpenCL GPU/CPU runtimes are available, the corresponding tests are

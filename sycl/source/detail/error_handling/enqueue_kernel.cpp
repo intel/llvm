@@ -211,6 +211,28 @@ bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
       "PI backend failed. PI backend returns: " + codeToString(Error), Error);
 }
 
+bool handleInvalidWorkItemSize(const device_impl &DeviceImpl,
+                               const NDRDescT &NDRDesc) {
+
+  const plugin &Plugin = DeviceImpl.getPlugin();
+  RT::PiDevice Device = DeviceImpl.getHandleRef();
+
+  size_t MaxWISize[] = {0, 0, 0};
+
+  Plugin.call<PiApiKind::piDeviceGetInfo>(
+      Device, PI_DEVICE_INFO_MAX_WORK_ITEM_SIZES, sizeof(MaxWISize), &MaxWISize,
+      nullptr);
+  for (unsigned I = 0; I < NDRDesc.Dims; I++) {
+    if (NDRDesc.LocalSize[I] > MaxWISize[I])
+      throw sycl::nd_range_error(
+          "Number of work-items in a work-group exceed limit for dimension " +
+              std::to_string(I) + " : " + std::to_string(NDRDesc.LocalSize[I]) +
+              " > " + std::to_string(MaxWISize[I]),
+          PI_INVALID_WORK_ITEM_SIZE);
+  }
+  return 0;
+}
+
 bool handleError(pi_result Error, const device_impl &DeviceImpl,
                  pi_kernel Kernel, const NDRDescT &NDRDesc) {
   assert(Error != PI_SUCCESS &&
@@ -218,7 +240,48 @@ bool handleError(pi_result Error, const device_impl &DeviceImpl,
   switch (Error) {
   case PI_INVALID_WORK_GROUP_SIZE:
     return handleInvalidWorkGroupSize(DeviceImpl, Kernel, NDRDesc);
-  // TODO: Handle other error codes
+
+  case PI_INVALID_KERNEL_ARGS:
+    throw sycl::nd_range_error(
+        "The kernel argument values have not been specified "
+        " OR "
+        "a kernel argument declared to be a pointer to a type.",
+        PI_INVALID_KERNEL_ARGS);
+
+  case PI_INVALID_WORK_ITEM_SIZE:
+    return handleInvalidWorkItemSize(DeviceImpl, NDRDesc);
+
+  case PI_IMAGE_FORMAT_NOT_SUPPORTED:
+    throw sycl::nd_range_error(
+        "image object is specified as an argument value"
+        " and the image format is not supported by device associated"
+        " with queue",
+        PI_IMAGE_FORMAT_NOT_SUPPORTED);
+
+  case PI_MISALIGNED_SUB_BUFFER_OFFSET:
+    throw sycl::nd_range_error(
+        "a sub-buffer object is specified as the value for an argument "
+        " that is a buffer object and the offset specified "
+        "when the sub-buffer object is created is not aligned "
+        "to CL_DEVICE_MEM_BASE_ADDR_ALIGN value for device associated"
+        " with queue",
+        PI_MISALIGNED_SUB_BUFFER_OFFSET);
+
+  case PI_MEM_OBJECT_ALLOCATION_FAILURE:
+    throw sycl::nd_range_error(
+        "failure to allocate memory for data store associated with image"
+        " or buffer objects specified as arguments to kernel",
+        PI_MEM_OBJECT_ALLOCATION_FAILURE);
+
+  case PI_INVALID_IMAGE_SIZE:
+    throw sycl::nd_range_error(
+        "image object is specified as an argument value and the image "
+        "dimensions (image width, height, specified or compute row and/or "
+        "slice pitch) are not supported by device associated with queue",
+        PI_INVALID_IMAGE_SIZE);
+
+    // TODO: Handle other error codes
+
   default:
     throw runtime_error(
         "OpenCL API failed. OpenCL API returns: " + codeToString(Error), Error);

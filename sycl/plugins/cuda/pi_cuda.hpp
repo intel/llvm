@@ -121,6 +121,14 @@ public:
 ///  See proposal for details.
 ///
 struct _pi_context {
+
+  struct deleter_data {
+    pi_context_extended_deleter function;
+    void *user_data;
+
+    void operator()() { function(user_data); }
+  };
+
   using native_type = CUcontext;
 
   enum class kind { primary, user_defined } kind_;
@@ -138,20 +146,17 @@ struct _pi_context {
 
   ~_pi_context() { cuda_piDeviceRelease(deviceId_); }
 
-  void invoke_callback()
-  {
+  void invoke_extended_deleters() {
     std::lock_guard<std::mutex> guard(mutex_);
-    for(const auto& callback : destruction_callbacks_)
-    {
-      callback();
+    for (auto &deleter : extended_deleters_) {
+      deleter();
     }
   }
 
-  template<typename Func>
-  void register_callback(Func&& callback)
-  {
+  void set_extended_deleter(pi_context_extended_deleter function,
+                            void *user_data) {
     std::lock_guard<std::mutex> guard(mutex_);
-    destruction_callbacks_.emplace_back(std::forward<Func>(callback));
+    extended_deleters_.emplace_back(deleter_data{function, user_data});
   }
 
   pi_device get_device() const noexcept { return deviceId_; }
@@ -168,7 +173,7 @@ struct _pi_context {
 
 private:
   std::mutex mutex_;
-  std::vector<std::function<void(void)>> destruction_callbacks_;
+  std::vector<deleter_data> extended_deleters_;
 };
 
 /// PI Mem mapping to a CUDA memory allocation
@@ -284,7 +289,7 @@ struct _pi_queue {
     cuda_piDeviceRelease(device_);
   }
 
-  native_type get() const { return stream_; };
+  native_type get() const noexcept { return stream_; };
 
   _pi_context *get_context() const { return context_; };
 
@@ -512,7 +517,7 @@ struct _pi_program {
 
   pi_context get_context() const { return context_; };
 
-  native_type get() const { return module_; };
+  native_type get() const noexcept { return module_; };
 
   pi_uint32 increment_reference_count() noexcept { return ++refCount_; }
 

@@ -346,6 +346,11 @@ public:
     MExceptions.PushBack(ExceptionPtr);
   }
 
+  /// Gets the native handle of the SYCL queue.
+  ///
+  /// \return a native handle.
+  pi_native_handle getNative() const;
+
 private:
   /// Performs command group submission to the queue.
   ///

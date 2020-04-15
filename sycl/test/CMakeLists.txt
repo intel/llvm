@@ -59,6 +59,13 @@ add_lit_testsuites(SYCL ${CMAKE_CURRENT_SOURCE_DIR}
   DEPENDS ${SYCL_TEST_DEPS}
   )
 
+add_lit_testsuites(SYCL-DEPLOY ${CMAKE_CURRENT_SOURCE_DIR}
+  ARGS ${DEPLOY_RT_TEST_ARGS}
+  PARAMS "SYCL_BE=PI_OPENCL"
+  DEPENDS ${SYCL_DEPLOY_TEST_DEPS}
+  EXCLUDE_FROM_CHECK_ALL
+  )
+
 if(SYCL_BUILD_PI_CUDA)
   add_lit_testsuite(check-sycl-cuda "Running the SYCL regression tests for CUDA"
     ${CMAKE_CURRENT_BINARY_DIR}

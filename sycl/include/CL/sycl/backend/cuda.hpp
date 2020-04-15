@@ -1,3 +1,4 @@
+
 //==---------------- cuda.hpp - SYCL CUDA backend --------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -6,29 +7,45 @@
 //
 //===----------------------------------------------------------------------===//
 
+#pragma once
+
+#include <CL/sycl/accessor.hpp>
+#include <CL/sycl/backend_types.hpp>
+#include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/defines.hpp>
+#include <CL/sycl/device.hpp>
+#include <CL/sycl/event.hpp>
+#include <CL/sycl/queue.hpp>
+
+typedef int CUdevice;
+typedef struct CUctx_st *CUcontext;
+typedef struct CUstream_st *CUstream;
+typedef struct CUevent_st *CUevent;
+
+// As defined in the CUDA 10.1 header file. This requires CUDA version > 3.2
+#if defined(_WIN64) || defined(__LP64__)
+typedef unsigned long long CUdeviceptr;
+#else
+typedef unsigned int CUdeviceptr;
+#endif
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace backend {
-namespace cuda {
 
-// CUDA backend specific options
-// TODO: Use values that won't overlap with others
+template <> struct interop<backend::cuda, device> { using type = CUdevice; };
 
-// Mem Object info: Retrieve the raw CUDA pointer from a cl_mem
-#define PI_CUDA_RAW_POINTER (0xFF01)
-// Context creation: Use a primary CUDA context instead of a custom one by
-//                   providing a property value of PI_TRUE for the following
-//                   property ID.
-#define PI_CONTEXT_PROPERTIES_CUDA_PRIMARY (0xFF02)
+template <> struct interop<backend::cuda, context> { using type = CUcontext; };
 
-// PI Command Queue using Default stream
-#define PI_CUDA_USE_DEFAULT_STREAM (0xFF03)
-// PI Command queue will sync with default stream
-#define PI_CUDA_SYNC_WITH_DEFAULT (0xFF04)
+template <> struct interop<backend::cuda, queue> { using type = CUstream; };
 
-} // namespace cuda
-} // namespace backend
+template <> struct interop<backend::cuda, event> { using type = CUevent; };
+
+template <typename DataT, int Dimensions, access::mode AccessMode>
+struct interop<backend::cuda, accessor<DataT, Dimensions, AccessMode,
+                                       access::target::global_buffer,
+                                       access::placeholder::false_t>> {
+  using type = CUdeviceptr;
+};
+
 } // namespace sycl
 } // namespace cl

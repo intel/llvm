@@ -533,6 +533,7 @@ AllocaCommandBase *Scheduler::GraphBuilder::findAllocaForReq(
     bool Res = sameCtx(AllocaCmd->getQueue()->getContextImplPtr(), Context);
     if (IsSuitableSubReq(Req)) {
       const Requirement *TmpReq = AllocaCmd->getRequirement();
+      Res &= AllocaCmd->getType() == Command::CommandType::ALLOCA_SUB_BUF;
       Res &= TmpReq->MOffsetInBytes == Req->MOffsetInBytes;
       Res &= TmpReq->MSYCLMemObj->getSize() == Req->MSYCLMemObj->getSize();
     }
