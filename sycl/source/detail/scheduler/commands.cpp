@@ -694,6 +694,18 @@ void AllocaSubBufCommand::emitInstrumentationData() {
 #endif
 }
 
+void *AllocaSubBufCommand::getMemAllocation() const {
+  // In some cases parent`s memory allocation might change (e.g., after
+  // map/unmap operations). If parent`s memory allocation changes, sub-buffer
+  // memory allocation should be changed as well.
+  if (MQueue->is_host()) {
+    return static_cast<void *>(
+        static_cast<char *>(MParentAlloca->getMemAllocation()) +
+        MRequirement.MOffsetInBytes);
+  }
+  return MMemAllocation;
+}
+
 cl_int AllocaSubBufCommand::enqueueImp() {
   std::vector<EventImplPtr> EventImpls =
       Command::prepareEvents(detail::getSyclObjImpl(MQueue->get_context()));
@@ -1760,12 +1772,13 @@ cl_int ExecCGCommand::enqueueImp() {
       ReqMemObjs.emplace_back(ReqToMem);
     });
 
-    auto interop_queue = MQueue->get();
     std::sort(std::begin(ReqMemObjs), std::end(ReqMemObjs));
-    interop_handler InteropHandler(std::move(ReqMemObjs), interop_queue);
+    interop_handler InteropHandler(std::move(ReqMemObjs), MQueue);
     ExecInterop->MInteropTask->call(InteropHandler);
-    Plugin.call<PiApiKind::piEnqueueEventsWait>(MQueue->getHandleRef(), 0, nullptr, &Event);
-    Plugin.call<PiApiKind::piQueueRelease>(reinterpret_cast<pi_queue>(interop_queue));
+    Plugin.call<PiApiKind::piEnqueueEventsWait>(MQueue->getHandleRef(), 0,
+                                                nullptr, &Event);
+    Plugin.call<PiApiKind::piQueueRelease>(
+        reinterpret_cast<pi_queue>(MQueue->get()));
     return CL_SUCCESS;
   }
   case CG::CGTYPE::NONE:

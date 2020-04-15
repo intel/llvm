@@ -85,5 +85,7 @@ event::event(shared_ptr_class<detail::event_impl> event_impl)
 
 #undef PARAM_TRAITS_SPEC
 
+pi_native_handle event::getNative() const { return impl->getNative(); }
+
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
