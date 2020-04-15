@@ -666,8 +666,8 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
   EmptyCommand *EmptyCmd = nullptr;
 
   if (CGType == CG::CGTYPE::CODEPLAY_HOST_TASK) {
-      EmptyCmd = new EmptyCommand(
-          Scheduler::getInstance().getDefaultHostQueue());
+    EmptyCmd = new EmptyCommand(
+        Scheduler::getInstance().getDefaultHostQueue());
 
     EmptyCmd->MIsBlockable = true;
     EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueBlocked;
