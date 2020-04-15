@@ -172,14 +172,6 @@ public:
   CallInst *expandOCLBuiltinWithScalarArg(CallInst *CI,
                                           const std::string &FuncName);
 
-  /// \brief Post-process OpGroupAll and OpGroupAny instructions translation.
-  /// i1 func (<n x i1> arg)
-  /// =>
-  /// i32 func (<n x i32> arg)
-  /// \return transformed call instruction.
-  Instruction *postProcessGroupAllAny(CallInst *CI,
-                                      const std::string &DemangledName);
-
   typedef DenseMap<SPIRVType *, Type *> SPIRVToLLVMTypeMap;
   typedef DenseMap<SPIRVValue *, Value *> SPIRVToLLVMValueMap;
   typedef DenseMap<SPIRVValue *, Value *> SPIRVBlockToLLVMStructMap;

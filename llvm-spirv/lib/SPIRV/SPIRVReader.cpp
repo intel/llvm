@@ -248,11 +248,13 @@ bool SPIRVToLLVM::transOCLBuiltinFromVariable(GlobalVariable *GV,
   std::string FuncName = SPIRSPIRVBuiltinVariableMap::rmap(Kind);
   std::string MangledName;
   Type *ReturnTy = GV->getType()->getPointerElementType();
-  bool IsVec = ReturnTy->isVectorTy();
-  if (IsVec)
+  bool HasIndexArg =
+      ReturnTy->isVectorTy() &&
+      !(BuiltInSubgroupEqMask <= Kind && Kind <= BuiltInSubgroupLtMask);
+  if (HasIndexArg)
     ReturnTy = cast<VectorType>(ReturnTy)->getElementType();
   std::vector<Type *> ArgTy;
-  if (IsVec)
+  if (HasIndexArg)
     ArgTy.push_back(Type::getInt32Ty(*Context));
   mangleOpenClBuiltin(FuncName, ArgTy, MangledName);
   Function *Func = M->getFunction(MangledName);
@@ -273,7 +275,7 @@ bool SPIRVToLLVM::transOCLBuiltinFromVariable(GlobalVariable *GV,
     } else {
       LD = cast<LoadInst>(*UI);
     }
-    if (!IsVec) {
+    if (!HasIndexArg) {
       Uses.push_back(LD);
       Deletes.push_back(LD);
       if (ASCast)
@@ -576,19 +578,18 @@ bool SPIRVToLLVM::isSPIRVCmpInstTransToLLVMInst(SPIRVInstruction *BI) const {
 }
 
 bool SPIRVToLLVM::isDirectlyTranslatedToOCL(Op OpCode) const {
-  // Not every spirv opcode which is placed in OCLSPIRVBuiltinMap is
-  // translated directly to OCL builtin. Some of them are translated
-  // to LLVM representation without any modifications (SPIRV format of
-  // instruction is represented in LLVM) and then its translated to
-  // clang-consistent format in SPIRVToOCL pass.
   if (isSubgroupAvcINTELInstructionOpCode(OpCode) ||
       isIntelSubgroupOpCode(OpCode))
     return true;
   if (OCLSPIRVBuiltinMap::rfind(OpCode, nullptr)) {
-    // everything except atomics, groups, pipes and media_block_io_intel is
-    // directly translated
+    // Not every spirv opcode which is placed in OCLSPIRVBuiltinMap is
+    // translated directly to OCL builtin. Some of them are translated
+    // to LLVM representation without any modifications (SPIRV format of
+    // instruction is represented in LLVM) and then its translated to
+    // clang-consistent format in SPIRVToOCL pass.
     return !(isAtomicOpCode(OpCode) || isGroupOpCode(OpCode) ||
-             isPipeOpCode(OpCode) || isMediaBlockINTELOpcode(OpCode));
+             isGroupNonUniformOpcode(OpCode) || isPipeOpCode(OpCode) ||
+             isMediaBlockINTELOpcode(OpCode));
   }
   return false;
 }
@@ -1212,27 +1213,6 @@ CallInst *SPIRVToLLVM::postProcessOCLBuildNDRange(SPIRVInstruction *BI,
   CI->setArgOperand(1, GWS);
   CI->setArgOperand(2, LWS);
   return CI;
-}
-
-Instruction *
-SPIRVToLLVM::postProcessGroupAllAny(CallInst *CI,
-                                    const std::string &DemangledName) {
-  assert(CI->getCalledFunction() && "Unexpected indirect call");
-  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
-  return mutateCallInstSPIRV(
-      M, CI,
-      [=](CallInst *, std::vector<Value *> &Args, llvm::Type *&RetTy) {
-        Type *Int32Ty = Type::getInt32Ty(*Context);
-        RetTy = Int32Ty;
-        Args[1] = CastInst::CreateZExtOrBitCast(Args[1], Int32Ty, "", CI);
-        return DemangledName;
-      },
-      [=](CallInst *NewCI) -> Instruction * {
-        Type *RetTy = Type::getInt1Ty(*Context);
-        return CastInst::CreateTruncOrBitCast(NewCI, RetTy, "",
-                                              NewCI->getNextNode());
-      },
-      &Attrs);
 }
 
 Type *SPIRVToLLVM::mapType(SPIRVType *BT, Type *T) {
@@ -2609,8 +2589,6 @@ SPIRVToLLVM::transOCLBuiltinPostproc(SPIRVInstruction *BI, CallInst *CI,
         CI, getInt32(M, OCLImageChannelOrderOffset), "", BB);
   if (OC == OpBuildNDRange)
     return postProcessOCLBuildNDRange(BI, CI, DemangledName);
-  if (OC == OpGroupAll || OC == OpGroupAny)
-    return postProcessGroupAllAny(CI, DemangledName);
   if (SPIRVEnableStepExpansion &&
       (DemangledName == "smoothstep" || DemangledName == "step"))
     return expandOCLBuiltinWithScalarArg(CI, DemangledName);
