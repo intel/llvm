@@ -9,7 +9,7 @@
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
 // Unsupported: cuda
-//  The test fails sporadically on cuda.
+//  The test fails sporadically on cuda. See https://github.com/intel/llvm/issues/1508 for more details.
 
 //==---------- buffer_dev_to_dev.cpp - SYCL buffer basic test --------------==//
 //
