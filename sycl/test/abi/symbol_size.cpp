@@ -5,11 +5,11 @@
 
 using namespace cl::sycl;
 
-#define CHECK_LAYOUT(class_name, size)                                         \
-  if (sizeof(class_name) != size) {                                            \
-    std::cout << "Size of class " << #class_name << " has changed. Was: "      \
-      << #size << ". Now: " << sizeof(class_name) << std::endl;                \
-    HasChanged = true;                                                         \
+#define CHECK_LAYOUT(class_name, size)                                    \
+  if (sizeof(class_name) != size) {                                       \
+    std::cout << "Size of class " << #class_name << " has changed. Was: " \
+              << #size << ". Now: " << sizeof(class_name) << std::endl;   \
+    HasChanged = true;                                                    \
   }
 
 int main() {
@@ -17,7 +17,7 @@ int main() {
   bool HasChanged = false;
 
   using accessor_t = accessor<int, 1, access::mode::read,
-        access::target::global_buffer, access::placeholder::true_t>;
+                              access::target::global_buffer, access::placeholder::true_t>;
   CHECK_LAYOUT(accessor_t, 32)
   CHECK_LAYOUT(buffer<int>, 40)
   CHECK_LAYOUT(context, 16)
@@ -42,4 +42,3 @@ int main() {
 
   return 0;
 }
-
