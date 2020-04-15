@@ -112,11 +112,6 @@ class Configuration(object):
             return check_value(val, env_var)
         return check_value(conf_val, name)
 
-    def get_modules_enabled(self):
-        return self.get_lit_bool('enable_modules',
-                                default=False,
-                                env_var='LIBCXX_ENABLE_MODULES')
-
     def make_static_lib_name(self, name):
         """Return the full filename for the specified library name"""
         if self.target_info.is_windows():
@@ -192,20 +187,12 @@ class Configuration(object):
         if te:
             self.lit_config.note("Using executor: %r" % exec_str)
             if self.lit_config.useValgrind:
-                # We have no way of knowing where in the chain the
-                # ValgrindExecutor is supposed to go. It is likely
-                # that the user wants it at the end, but we have no
-                # way of getting at that easily.
-                self.lit_config.fatal("Cannot infer how to create a Valgrind "
-                                      " executor.")
+                self.lit_config.fatal("The libc++ test suite can't run under Valgrind with a custom executor")
         else:
             te = LocalExecutor()
-            if self.lit_config.useValgrind:
-                te = ValgrindExecutor(self.lit_config.valgrindArgs, te)
 
         te.target_info = self.target_info
         self.target_info.executor = te
-
         self.executor = te
 
     def configure_target_info(self):
@@ -381,12 +368,6 @@ class Configuration(object):
             self.cxx.use_ccache = True
             self.lit_config.note('enabling ccache')
 
-    def add_deployment_feature(self, feature):
-        (arch, name, version) = self.config.deployment
-        self.config.available_features.add('%s=%s-%s' % (feature, arch, name))
-        self.config.available_features.add('%s=%s' % (feature, name))
-        self.config.available_features.add('%s=%s%s' % (feature, name, version))
-
     def configure_features(self):
         additional_features = self.get_lit_conf('additional_features')
         if additional_features:
@@ -401,27 +382,22 @@ class Configuration(object):
         # XFAIL markers for tests that are known to fail with versions of
         # libc++ as were shipped with a particular triple.
         if self.use_system_cxx_lib:
-            self.config.available_features.add('with_system_cxx_lib')
-            self.config.available_features.add(
-                'with_system_cxx_lib=%s' % self.config.target_triple)
-
-            # Add subcomponents individually.
-            target_components = self.config.target_triple.split('-')
-            for component in target_components:
-                self.config.available_features.add(
-                    'with_system_cxx_lib=%s' % component)
+            self.config.available_features.add('with_system_cxx_lib=%s' % self.config.target_triple)
 
             # Add available features for more generic versions of the target
             # triple attached to  with_system_cxx_lib.
             if self.use_deployment:
-                self.add_deployment_feature('with_system_cxx_lib')
+                (_, name, version) = self.config.deployment
+                self.config.available_features.add('with_system_cxx_lib=%s' % name)
+                self.config.available_features.add('with_system_cxx_lib=%s%s' % (name, version))
 
         # Configure the availability feature. Availability is only enabled
         # with libc++, because other standard libraries do not provide
         # availability markup.
         if self.use_deployment and self.cxx_stdlib_under_test == 'libc++':
-            self.config.available_features.add('availability')
-            self.add_deployment_feature('availability')
+            (_, name, version) = self.config.deployment
+            self.config.available_features.add('availability=%s' % name)
+            self.config.available_features.add('availability=%s%s' % (name, version))
 
         # Insert the platform name into the available features as a lower case.
         self.config.available_features.add(target_platform)
@@ -993,7 +969,8 @@ class Configuration(object):
         if not self.target_info.is_darwin():
             modules_flags += ['-Xclang', '-fmodules-local-submodule-visibility']
         supports_modules = self.cxx.hasCompileFlag(modules_flags)
-        enable_modules = self.get_modules_enabled()
+        enable_modules = self.get_lit_bool('enable_modules', default=False,
+                                                             env_var='LIBCXX_ENABLE_MODULES')
         if enable_modules and not supports_modules:
             self.lit_config.fatal(
                 '-fmodules is enabled but not supported by the compiler')
