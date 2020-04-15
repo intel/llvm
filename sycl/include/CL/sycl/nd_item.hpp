@@ -161,8 +161,8 @@ protected:
       : globalItem(GL), localItem(L), Group(GR) {}
 
 private:
-  item<dimensions, false> localItem;
   item<dimensions, true> globalItem;
+  item<dimensions, false> localItem;
   group<dimensions> Group;
 };
 } // namespace sycl
