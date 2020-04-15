@@ -13,7 +13,7 @@ All ABI changes can be divided into two large groups: breaking and non-breaking.
 A breaking change means that the new binary is incompatible with the previous
 version (i.e. it can not be used as a drop-in replacement). A non-breaking
 change means that the forward compatibility is broken (i.e. the old library
-can be replaced with newer version, but not vice verse).
+can be replaced with newer version, but not vice versa).
 
 The following non-exhaustive list contains changes that are considered to be
 breaking:
