@@ -3,6 +3,7 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
+// UNSUPPORTED: cuda
 //==--------------------image_accessor_readwrite_half.cpp -------------------==//
 //==-image_accessor read (without sampler)& write API test for half datatype-==//
 //
