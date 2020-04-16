@@ -102,7 +102,7 @@ bool launchInlineASMTest(F &f, bool requires_particular_sg_size = true) {
   cl::sycl::queue deviceQueue(cl::sycl::gpu_selector{});
   cl::sycl::device device = deviceQueue.get_device();
 
-#if !defined(INLINE_ASM)
+#if defined(INLINE_ASM)
   if (!isInlineASMSupported(device)) {
     std::cout << "Skipping test\n";
     return false;
