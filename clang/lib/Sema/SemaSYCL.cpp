@@ -1110,9 +1110,9 @@ static void VisitRecordFields(RecordDecl::field_range Fields,
       KF_FOR_EACH(handleSyclSpecConstantType);
     else if (Util::isSyclStreamType(FieldTy)) {
       // Stream actually wraps accessors, so do recursion
-      KF_FOR_EACH(handleSyclStreamType);
       CXXRecordDecl *RD = FieldTy->getAsCXXRecordDecl();
       VisitAccessorWrapper(nullptr, Field, RD, handlers...);
+      KF_FOR_EACH(handleSyclStreamType);
     } else if (FieldTy->isStructureOrClassType()) {
       KF_FOR_EACH(handleStructType);
       CXXRecordDecl *RD = FieldTy->getAsCXXRecordDecl();
