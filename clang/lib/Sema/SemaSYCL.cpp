@@ -1455,6 +1455,12 @@ class SyclKernelBodyCreator
     QualType ParamType = KernelParameter->getOriginalType();
     Expr *DRE = SemaRef.BuildDeclRefExpr(KernelParameter, ParamType, VK_LValue,
                                          SourceLocation());
+    if (FD->getType()->isPointerType() &&
+        FD->getType()->getPointeeType().getAddressSpace() !=
+            ParamType->getPointeeType().getAddressSpace())
+      DRE = ImplicitCastExpr::Create(SemaRef.Context, FD->getType(),
+                                     CK_AddressSpaceConversion, DRE, nullptr,
+                                     VK_RValue);
     InitializationKind InitKind =
         InitializationKind::CreateCopy(SourceLocation(), SourceLocation());
     InitializationSequence InitSeq(SemaRef, Entity, InitKind, DRE);
@@ -1583,6 +1589,10 @@ public:
 
   void handleSyclStreamType(const CXXBaseSpecifier &BS, QualType Ty) final {
     // TODO: Creates init/finalize sequence and inits special sycl obj
+  }
+
+  void handlePointerType(const FieldDecl *FD, QualType ArgTy) final {
+    createExprForStructOrScalar(const_cast<FieldDecl *>(FD));
   }
 
   void handleStructType(const FieldDecl *FD, QualType Ty) final {
