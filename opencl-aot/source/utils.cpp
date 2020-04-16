@@ -195,6 +195,7 @@ getOpenCLPlatform(DeviceType Type) {
         formatCLError("Failed to retrieve OpenCL platform IDs", CLErr), CLErr);
   }
 
+  std::string ErrorMessage;
   for (const auto &Platform : Platforms) {
     size_t PlatformNameLength = 0;
     CLErr = clGetPlatformInfo(Platform, CL_PLATFORM_NAME, 0, nullptr,
@@ -225,28 +226,31 @@ getOpenCLPlatform(DeviceType Type) {
     auto Result =
         std::find(SupportedPlatformNames.begin(), SupportedPlatformNames.end(),
                   PlatformNameOnLoopIteration);
-    if (Result != SupportedPlatformNames.end() &&                  // name match
-        !clFailed(std::get<2>(getOpenCLDevice(Platform, Type)))) { // type match
-      PlatformId = Platform;
-      PlatformName = PlatformNameOnLoopIteration;
-      break;
+    if (Result != SupportedPlatformNames.end()) {
+      tie(std::ignore, ErrorMessage, CLErr) = getOpenCLDevice(Platform, Type);
+      if (!clFailed(CLErr)) {
+        PlatformId = Platform;
+        PlatformName = PlatformNameOnLoopIteration;
+        break;
+      }
     }
   }
 
-  std::string ErrorMessage;
-  if (PlatformId == nullptr) {
-    ErrorMessage += "OpenCL platform ID is empty\n";
-  }
-  if (PlatformName.empty()) {
-    ErrorMessage += "OpenCL platform name is empty\n";
-  }
-  if (!ErrorMessage.empty()) {
-    ErrorMessage += "Failed to find any of these OpenCL platforms:\n";
-    for (const auto &SupportedPlatformName :
-         DeviceTypesToSupportedPlatformNames[Type]) {
-      ErrorMessage += "  " + SupportedPlatformName + '\n';
+  if (!clFailed(CLErr)) {
+    if (PlatformId == nullptr) {
+      ErrorMessage += "OpenCL platform ID is empty\n";
     }
-    CLErr = OPENCL_AOT_PLATFORM_NOT_FOUND;
+    if (PlatformName.empty()) {
+      ErrorMessage += "OpenCL platform name is empty\n";
+    }
+    if (!ErrorMessage.empty()) {
+      ErrorMessage += "Failed to find any of these OpenCL platforms:\n";
+      for (const auto &SupportedPlatformName :
+           DeviceTypesToSupportedPlatformNames[Type]) {
+        ErrorMessage += "  " + SupportedPlatformName + '\n';
+      }
+      CLErr = OPENCL_AOT_PLATFORM_NOT_FOUND;
+    }
   }
 
   return std::make_tuple(PlatformId, PlatformName, ErrorMessage, CLErr);
