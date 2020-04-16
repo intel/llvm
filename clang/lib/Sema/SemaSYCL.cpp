@@ -1069,12 +1069,12 @@ static void VisitAccessorWrapperHelper(CXXRecordDecl *Owner, RangeTy Range,
     if (Util::isSyclAccessorType(ItemTy))
       (void)std::initializer_list<int>{
           (handlers.handleSyclAccessorType(Item, ItemTy), 0)...};
-    else if (Util::isSyclStreamType(ItemTy))
-      (void)std::initializer_list<int>{
-          (handlers.handleSyclStreamType(Item, ItemTy), 0)...};
     else if (ItemTy->isStructureOrClassType()) {
       VisitAccessorWrapper(Owner, Item, ItemTy->getAsCXXRecordDecl(),
                            handlers...);
+      if (Util::isSyclStreamType(ItemTy))
+        (void)std::initializer_list<int>{
+            (handlers.handleSyclStreamType(Item, ItemTy), 0)...};
     }
   }
 }
@@ -1108,9 +1108,12 @@ static void VisitRecordFields(RecordDecl::field_range Fields,
       KF_FOR_EACH(handleSyclSamplerType);
     else if (Util::isSyclSpecConstantType(FieldTy))
       KF_FOR_EACH(handleSyclSpecConstantType);
-    else if (Util::isSyclStreamType(FieldTy))
+    else if (Util::isSyclStreamType(FieldTy)) {
+      // Stream actually wraps accessors, so do recursion
       KF_FOR_EACH(handleSyclStreamType);
-    else if (FieldTy->isStructureOrClassType()) {
+      CXXRecordDecl *RD = FieldTy->getAsCXXRecordDecl();
+      VisitAccessorWrapper(nullptr, Field, RD, handlers...);
+    } else if (FieldTy->isStructureOrClassType()) {
       KF_FOR_EACH(handleStructType);
       CXXRecordDecl *RD = FieldTy->getAsCXXRecordDecl();
       VisitAccessorWrapper(nullptr, Field, RD, handlers...);
@@ -1369,6 +1372,14 @@ public:
     addParam(FD, ArgTy);
   }
 
+  void handleSyclStreamType(const FieldDecl *FD, QualType ArgTy) final {
+    addParam(FD, ArgTy);
+  }
+
+  void handleSyclStreamType(const CXXBaseSpecifier &, QualType ArgTy) final {
+    // TODO do something
+  }
+
   void setBody(CompoundStmt *KB) { KernelDecl->setBody(KB); }
 
   FunctionDecl *getKernelDecl() { return KernelDecl; }
@@ -1417,8 +1428,8 @@ class SyclKernelBodyCreator
     Stmt *NewBody = KBT.TransformStmt(FunctionBody).get();
     BodyStmts.push_back(NewBody);
 
-    BodyStmts.insert(std::end(BodyStmts), std::begin(FinalizeStmts),
-                     std::begin(FinalizeStmts));
+    BodyStmts.insert(BodyStmts.end(), FinalizeStmts.begin(),
+                     FinalizeStmts.end());
     return CompoundStmt::Create(SemaRef.getASTContext(), BodyStmts, {}, {});
   }
 
@@ -1470,7 +1481,6 @@ class SyclKernelBodyCreator
     }
 
     MemberExpr *SpecialObjME = BuildMemberExpr(Base, Field);
-
     MemberExpr *MethodME = BuildMemberExpr(SpecialObjME, Method);
 
     QualType ResultTy = Method->getReturnType();
@@ -1484,7 +1494,39 @@ class SyclKernelBodyCreator
     // range<int>, range<int>, id<int>)
     CXXMemberCallExpr *Call = CXXMemberCallExpr::Create(
         SemaRef.Context, MethodME, ParamStmts, ResultTy, VK, SourceLocation());
-    BodyStmts.push_back(Call);
+    if (MethodName == FinalizeMethodName)
+      FinalizeStmts.push_back(Call);
+    else
+      BodyStmts.push_back(Call);
+  }
+
+  // TODO get rid of kernel obj clone
+  static VarDecl *createKernelObjClone(ASTContext &Ctx, DeclContext *DC,
+                                       CXXRecordDecl *KernelObj) {
+    TypeSourceInfo *TSInfo =
+        KernelObj->isLambda() ? KernelObj->getLambdaTypeInfo() : nullptr;
+    VarDecl *VD = VarDecl::Create(
+        Ctx, DC, SourceLocation(), SourceLocation(), KernelObj->getIdentifier(),
+        QualType(KernelObj->getTypeForDecl(), 0), TSInfo, SC_None);
+
+    return VD;
+  }
+
+  void handleSpecialType(FieldDecl *FD, QualType Ty) {
+    const auto *RecordDecl = Ty->getAsCXXRecordDecl();
+    // TODO : we don't need all this init stuff if remove kernel obj clone
+    // Perform initialization only if it is field of kernel object
+    if (Bases.size() == 1) {
+      InitializedEntity Entity =
+          InitializedEntity::InitializeMember(FD, &VarEntity);
+      // Initialize with the default constructor.
+      InitializationKind InitKind =
+          InitializationKind::CreateDefault(SourceLocation());
+      InitializationSequence InitSeq(SemaRef, Entity, InitKind, None);
+      ExprResult MemberInit = InitSeq.Perform(SemaRef, Entity, InitKind, None);
+      InitExprs.push_back(MemberInit.get());
+    }
+    createSpecialMethodCall(RecordDecl, Bases.back(), InitMethodName, FD);
   }
 
 public:
@@ -1492,19 +1534,14 @@ public:
                         KernelInvocationKind K, CXXRecordDecl *KernelObj,
                         FunctionDecl *KernelCallerFunc)
       : SyclKernelFieldHandler(S), DeclCreator(DC),
+        KernelObjClone(createKernelObjClone(S.getASTContext(),
+                                            DC.getKernelDecl(), KernelObj)),
         VarEntity(InitializedEntity::InitializeVariable(KernelObjClone)),
         KernelObj(KernelObj), KernelCallerFunc(KernelCallerFunc) {
     // TODO: Something special with the lambda when InvokeParallelForWorkGroup.
     if (K == InvokeParallelForWorkGroup)
       doSomethingForParallelForWorkGroup();
 
-    // TODO get rid of kernel obj clone
-    TypeSourceInfo *TSInfo =
-        KernelObj->isLambda() ? KernelObj->getLambdaTypeInfo() : nullptr;
-    KernelObjClone = VarDecl::Create(
-        SemaRef.Context, DeclCreator.getKernelDecl(), SourceLocation(),
-        SourceLocation(), KernelObj->getIdentifier(),
-        QualType(KernelObj->getTypeForDecl(), 0), TSInfo, SC_None);
     Stmt *DS = new (S.Context) DeclStmt(DeclGroupRef(KernelObjClone),
                                         SourceLocation(), SourceLocation());
     BodyStmts.push_back(DS);
@@ -1512,7 +1549,6 @@ public:
         S.Context, NestedNameSpecifierLoc(), SourceLocation(), KernelObjClone,
         false, DeclarationNameInfo(), QualType(KernelObj->getTypeForDecl(), 0),
         VK_LValue);
-    VarEntity = InitializedEntity::InitializeVariable(KernelObjClone);
     Bases.push_back(KernelObjCloneRef);
   }
 
@@ -1522,22 +1558,7 @@ public:
   }
 
   void handleSyclAccessorType(const FieldDecl *FD, QualType Ty) final {
-    const auto *AccDecl = Ty->getAsCXXRecordDecl();
-    // TODO : we don't need all this init stuff if remove kernel obj clone
-    // Perform initialization only if it is field of kernel object
-    if (Bases.size() == 1) {
-      InitializedEntity Entity = InitializedEntity::InitializeMember(
-          const_cast<FieldDecl *>(FD), &VarEntity);
-      // Initialize with the default constructor.
-      InitializationKind InitKind =
-          InitializationKind::CreateDefault(SourceLocation());
-      InitializationSequence InitSeq(SemaRef, Entity, InitKind, None);
-      ExprResult MemberInit = InitSeq.Perform(SemaRef, Entity, InitKind, None);
-      InitExprs.push_back(MemberInit.get());
-    }
-    // TODO don't do const-cast
-    createSpecialMethodCall(AccDecl, Bases.back(), InitMethodName,
-                            const_cast<FieldDecl *>(FD));
+    handleSpecialType(const_cast<FieldDecl *>(FD), Ty);
   }
 
   void handleSyclAccessorType(const CXXBaseSpecifier &BS, QualType Ty) final {
@@ -1545,11 +1566,19 @@ public:
   }
 
   void handleSyclSamplerType(const FieldDecl *FD, QualType Ty) final {
-    // TODO: Creates init sequence and inits special sycl obj
+    handleSpecialType(const_cast<FieldDecl *>(FD), Ty);
   }
 
   void handleSyclStreamType(const FieldDecl *FD, QualType Ty) final {
-    // TODO: Creates init/finalize sequence and inits special sycl obj
+    const auto *StreamDecl = Ty->getAsCXXRecordDecl();
+    // Hmm okay, we created "stream" kernel argument and did copy initialization
+    // but why?
+    // We also don't have SEMA tests for stream, only pretty small CodeGen test
+    createExprForStructOrScalar(const_cast<FieldDecl *>(FD));
+    createSpecialMethodCall(StreamDecl, Bases.back(), InitMethodName,
+                            const_cast<FieldDecl *>(FD));
+    createSpecialMethodCall(StreamDecl, Bases.back(), FinalizeMethodName,
+                            const_cast<FieldDecl *>(FD));
   }
 
   void handleSyclStreamType(const CXXBaseSpecifier &BS, QualType Ty) final {
@@ -1679,6 +1708,13 @@ public:
   }
   void handleScalarType(const FieldDecl *FD, QualType ArgTy) final {
     addParam(FD, ArgTy, SYCLIntegrationHeader::kind_std_layout);
+  }
+
+  void handleSyclStreamType(const FieldDecl *FD, QualType ArgTy) final {
+    addParam(FD, ArgTy, SYCLIntegrationHeader::kind_std_layout);
+  }
+  void handleSyclStreamType(const CXXBaseSpecifier &BC, QualType ArgTy) final {
+    // TODO implement
   }
 
   // Keep track of the current struct offset.
