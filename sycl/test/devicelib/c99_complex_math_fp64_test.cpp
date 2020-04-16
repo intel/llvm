@@ -9,8 +9,8 @@
 #define CMPLX(r, i) ((double __complex__){ (double)r, (double)i })
 #endif
 
-bool is_about_C99_CMPLX(double __complex__ x, double __complex__ y) {
-  return is_about_FP(creal(x), creal(y)) && is_about_FP(cimag(x), cimag(y));
+bool approx_equal_c99_cmplx(double __complex__ x, double __complex__ y) {
+  return approx_equal_fp(creal(x), creal(y)) && approx_equal_fp(cimag(x), cimag(y));
 }
 
 namespace s = cl::sycl;
@@ -44,7 +44,7 @@ void device_c99_complex_times(s::queue &deviceQueue) {
   }
 
   for (size_t idx = 0; idx < 4; ++idx) {
-    assert(is_about_C99_CMPLX(buf_out2[idx], ref_results2[idx]));
+    assert(approx_equal_c99_cmplx(buf_out2[idx], ref_results2[idx]));
   }
 }
 
@@ -81,7 +81,7 @@ void device_c99_complex_divides(s::queue &deviceQueue) {
   }
 
   for (size_t idx = 0; idx < 8; ++idx) {
-    assert(is_about_C99_CMPLX(buf_out2[idx], ref_results2[idx]));
+    assert(approx_equal_c99_cmplx(buf_out2[idx], ref_results2[idx]));
   }
 }
 
@@ -107,7 +107,7 @@ void device_c99_complex_sqrt(s::queue &deviceQueue) {
   }
 
   for (size_t idx = 0; idx < 4; ++idx) {
-    assert(is_about_C99_CMPLX(buf_out2[idx], ref_results2[idx]));
+    assert(approx_equal_c99_cmplx(buf_out2[idx], ref_results2[idx]));
   }
 }
 
@@ -132,7 +132,7 @@ void device_c99_complex_abs(s::queue &deviceQueue) {
   }
 
   for (size_t idx = 0; idx < 4; ++idx) {
-    assert(is_about_FP(buf_out2[idx], ref_results2[idx]));
+    assert(approx_equal_fp(buf_out2[idx], ref_results2[idx]));
   }
 }
 
@@ -158,7 +158,7 @@ void device_c99_complex_exp(s::queue &deviceQueue) {
   }
 
   for (size_t idx = 0; idx < 4; ++idx) {
-    assert(is_about_C99_CMPLX(buf_out2[idx], ref_results2[idx]));
+    assert(approx_equal_c99_cmplx(buf_out2[idx], ref_results2[idx]));
   }
 }
 
@@ -184,7 +184,7 @@ void device_c99_complex_log(s::queue &deviceQueue) {
   }
 
   for (size_t idx = 0; idx < 4; ++idx) {
-    assert(is_about_C99_CMPLX(buf_out2[idx], ref_results2[idx]));
+    assert(approx_equal_c99_cmplx(buf_out2[idx], ref_results2[idx]));
   }
 }
 
@@ -208,7 +208,7 @@ void device_c99_complex_sin(s::queue &deviceQueue) {
   }
 
   for (size_t idx = 0; idx < 2; ++idx) {
-    assert(is_about_C99_CMPLX(buf_out2[idx], ref_results2[idx]));
+    assert(approx_equal_c99_cmplx(buf_out2[idx], ref_results2[idx]));
   }
 }
 
@@ -232,7 +232,7 @@ void device_c99_complex_cos(s::queue &deviceQueue) {
   }
 
   for (size_t idx = 0; idx < 2; ++idx) {
-    assert(is_about_C99_CMPLX(buf_out2[idx], ref_results2[idx]));
+    assert(approx_equal_c99_cmplx(buf_out2[idx], ref_results2[idx]));
   }
 }
 

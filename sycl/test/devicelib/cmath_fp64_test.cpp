@@ -5,8 +5,8 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 #include <CL/sycl.hpp>
+#include <cmath>
 #include <iostream>
-#include <math.h>
 #include "math_utils.hpp"
 
 namespace s = cl::sycl;
@@ -23,22 +23,23 @@ double ref[TEST_NUM] = {
 
 double refIptr = 1;
 
-void device_math_test(s::queue &deviceQueue) {
+template <class T>
+void device_cmath_test(s::queue &deviceQueue) {
   s::range<1> numOfItems{TEST_NUM};
-  double result[TEST_NUM] = {-1};
+  T result[TEST_NUM] = {-1};
 
   // Variable exponent is an integer value to store the exponent in frexp function
   int exponent = -1;
 
   // Variable iptr stores the integral part of float point in modf function
-  double iptr = -1;
+  T iptr = -1;
 
   // Variable quo stores the sign and some bits of x/y in remquo function
   int quo = -1;
   {
-    s::buffer<double, 1> buffer1(result, numOfItems);
+    s::buffer<T, 1> buffer1(result, numOfItems);
     s::buffer<int, 1> buffer2(&exponent, s::range<1>{1});
-    s::buffer<double, 1> buffer3(&iptr, s::range<1>{1});
+    s::buffer<T, 1> buffer3(&iptr, s::range<1>{1});
     s::buffer<int, 1> buffer4(&quo, s::range<1>{1});
     deviceQueue.submit([&](cl::sycl::handler &cgh) {
       auto res_access = buffer1.template get_access<sycl_write>(cgh);
@@ -46,7 +47,7 @@ void device_math_test(s::queue &deviceQueue) {
       auto iptr_access = buffer3.template get_access<sycl_write>(cgh);
       auto quo_access = buffer4.template get_access<sycl_write>(cgh);
       cgh.single_task<class DeviceMathTest>([=]() {
-	int i = 0;
+        int i = 0;
         res_access[i++] = std::cos(0.0);
         res_access[i++] = std::sin(0.0);
         res_access[i++] = std::log(1.0);
@@ -83,7 +84,7 @@ void device_math_test(s::queue &deviceQueue) {
         res_access[i++] = std::logb(1.0);
         res_access[i++] = std::remainder(0.5, 1.0);
         res_access[i++] = std::remquo(0.5, 1.0, &quo_access[0]);
-        double a = NAN;
+        T a = NAN;
         res_access[i++] = std::tgamma(a);
         res_access[i++] = std::lgamma(a);
       });
@@ -108,7 +109,7 @@ void device_math_test(s::queue &deviceQueue) {
 int main() {
   s::queue deviceQueue;
   if (deviceQueue.get_device().has_extension("cl_khr_fp64")) {
-    device_math_test(deviceQueue);
+    device_cmath_test<double>(deviceQueue);
     std::cout << "Pass" << std::endl;
   }
   return 0;

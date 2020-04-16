@@ -236,13 +236,18 @@ static void checkSYCLVarType(Sema &S, QualType Ty, SourceRange Loc,
     emitDeferredDiagnosticAndNote(S, Loc, diag::err_typecheck_zero_array_size,
                                   UsedAtLoc);
 
+  // variable length arrays
+  if (Ty->isVariableArrayType())
+    emitDeferredDiagnosticAndNote(S, Loc, diag::err_vla_unsupported, UsedAtLoc);
+
   // Sub-reference array or pointer, then proceed with that type.
   while (Ty->isAnyPointerType() || Ty->isArrayType())
     Ty = QualType{Ty->getPointeeOrArrayElementType(), 0};
 
-  // __int128, __int128_t, __uint128_t, __float128
+  // __int128, __int128_t, __uint128_t, long double, __float128
   if (Ty->isSpecificBuiltinType(BuiltinType::Int128) ||
       Ty->isSpecificBuiltinType(BuiltinType::UInt128) ||
+      Ty->isSpecificBuiltinType(BuiltinType::LongDouble) ||
       (Ty->isSpecificBuiltinType(BuiltinType::Float128) &&
        !S.Context.getTargetInfo().hasFloat128Type()))
     emitDeferredDiagnosticAndNote(S, Loc, diag::err_type_unsupported, UsedAtLoc)
@@ -284,9 +289,6 @@ public:
       : RecursiveASTVisitor<MarkDeviceFunction>(), SemaRef(S) {}
 
   bool VisitCallExpr(CallExpr *e) {
-    for (const auto &Arg : e->arguments())
-      CheckSYCLType(Arg->getType(), Arg->getSourceRange());
-
     if (FunctionDecl *Callee = e->getDirectCallee()) {
       Callee = Callee->getCanonicalDecl();
       assert(Callee && "Device function canonical decl must be available");
@@ -307,8 +309,6 @@ public:
         if (Method->isVirtual())
           SemaRef.Diag(e->getExprLoc(), diag::err_sycl_restrict)
               << Sema::KernelCallVirtualFunction;
-
-      CheckSYCLType(Callee->getReturnType(), Callee->getSourceRange());
 
       if (auto const *FD = dyn_cast<FunctionDecl>(Callee)) {
         // FIXME: We need check all target specified attributes for error if
@@ -338,12 +338,6 @@ public:
     return true;
   }
 
-  bool VisitCXXConstructExpr(CXXConstructExpr *E) {
-    for (const auto &Arg : E->arguments())
-      CheckSYCLType(Arg->getType(), Arg->getSourceRange());
-    return true;
-  }
-
   bool VisitCXXTypeidExpr(CXXTypeidExpr *E) {
     SemaRef.Diag(E->getExprLoc(), diag::err_sycl_restrict) << Sema::KernelRTTI;
     return true;
@@ -351,35 +345,6 @@ public:
 
   bool VisitCXXDynamicCastExpr(const CXXDynamicCastExpr *E) {
     SemaRef.Diag(E->getExprLoc(), diag::err_sycl_restrict) << Sema::KernelRTTI;
-    return true;
-  }
-
-  bool VisitTypedefNameDecl(TypedefNameDecl *TD) {
-    CheckSYCLType(TD->getUnderlyingType(), TD->getLocation());
-    return true;
-  }
-
-  bool VisitRecordDecl(RecordDecl *RD) {
-    CheckSYCLType(QualType{RD->getTypeForDecl(), 0}, RD->getLocation());
-    return true;
-  }
-
-  bool VisitParmVarDecl(VarDecl *VD) {
-    CheckSYCLType(VD->getType(), VD->getLocation());
-    return true;
-  }
-
-  bool VisitVarDecl(VarDecl *VD) {
-    CheckSYCLType(VD->getType(), VD->getLocation());
-    return true;
-  }
-
-  bool VisitDeclRefExpr(DeclRefExpr *E) {
-    Decl *D = E->getDecl();
-    if (SemaRef.isKnownGoodSYCLDecl(D))
-      return true;
-
-    CheckSYCLType(E->getType(), E->getSourceRange());
     return true;
   }
 
@@ -506,64 +471,6 @@ public:
   }
 
 private:
-  bool CheckSYCLType(QualType Ty, SourceRange Loc) {
-    llvm::DenseSet<QualType> visited;
-    return CheckSYCLType(Ty, Loc, visited);
-  }
-
-  bool CheckSYCLType(QualType Ty, SourceRange Loc,
-                     llvm::DenseSet<QualType> &Visited) {
-    if (Ty->isVariableArrayType()) {
-      SemaRef.Diag(Loc.getBegin(), diag::err_vla_unsupported);
-      return false;
-    }
-
-    while (Ty->isAnyPointerType() || Ty->isArrayType())
-      Ty = QualType{Ty->getPointeeOrArrayElementType(), 0};
-
-    // Pointers complicate recursion. Add this type to Visited.
-    // If already there, bail out.
-    if (!Visited.insert(Ty).second)
-      return true;
-
-    if (const auto *ATy = dyn_cast<AttributedType>(Ty))
-      return CheckSYCLType(ATy->getModifiedType(), Loc, Visited);
-
-    if (const auto *CRD = Ty->getAsCXXRecordDecl()) {
-      // If the class is a forward declaration - skip it, because otherwise we
-      // would query property of class with no definition, which results in
-      // clang crash.
-      if (!CRD->hasDefinition())
-        return true;
-
-      for (const auto &Field : CRD->fields()) {
-        if (!CheckSYCLType(Field->getType(), Field->getSourceRange(),
-                           Visited)) {
-          if (SemaRef.getLangOpts().SYCLIsDevice)
-            SemaRef.Diag(Loc.getBegin(), diag::note_sycl_used_here);
-          return false;
-        }
-      }
-    } else if (const auto *RD = Ty->getAsRecordDecl()) {
-      for (const auto &Field : RD->fields()) {
-        if (!CheckSYCLType(Field->getType(), Field->getSourceRange(),
-                           Visited)) {
-          if (SemaRef.getLangOpts().SYCLIsDevice)
-            SemaRef.Diag(Loc.getBegin(), diag::note_sycl_used_here);
-          return false;
-        }
-      }
-    } else if (const auto *FPTy = dyn_cast<FunctionProtoType>(Ty)) {
-      for (const auto &ParamTy : FPTy->param_types())
-        if (!CheckSYCLType(ParamTy, Loc, Visited))
-          return false;
-      return CheckSYCLType(FPTy->getReturnType(), Loc, Visited);
-    } else if (const auto *FTy = dyn_cast<FunctionType>(Ty)) {
-      return CheckSYCLType(FTy->getReturnType(), Loc, Visited);
-    }
-    return true;
-  }
-
   Sema &SemaRef;
 };
 

@@ -36,7 +36,16 @@ void no_restriction(int p) {
   int index[p + 2];
 }
 void restriction(int p) {
-  int index[p + 2]; // expected-error {{variable length arrays are not supported for the current target}}
+  // This particular violation is nested under two kernels with intermediate function calls.
+  // e.g. main -> 1stkernel -> usage -> 2ndkernel -> isa_B -> restriction -> !!
+  // Because the error is in two different kernels, we are given helpful notes for the origination of the error, twice.
+  // expected-note@#call_usage {{called by 'operator()'}}
+  // expected-note@#call_kernelFunc {{called by 'kernel_single_task<fake_kernel, (lambda at}}
+  // expected-note@#call_isa_B 2{{called by 'operator()'}}
+  // expected-note@#call_rtti_kernel {{called by 'usage'}}
+  // expected-note@#rtti_kernel 2{{called by 'kernel1<kernel_name, (lambda at }}
+  // expected-note@#call_vla 2{{called by 'isa_B'}}
+  int index[p + 2]; // expected-error 2{{variable length arrays are not supported for the current target}}
 }
 } // namespace Check_VLA_Restriction
 
@@ -67,8 +76,8 @@ bool isa_B(A *a) {
   if (f1 == f2) // expected-note 2{{called by 'isa_B'}}
     return false;
 
-  Check_VLA_Restriction::restriction(7);
-  int *ip = new int; // expected-error 2{{SYCL kernel cannot allocate storage}}
+  Check_VLA_Restriction::restriction(7); //#call_vla
+  int *ip = new int;                     // expected-error 2{{SYCL kernel cannot allocate storage}}
   int i;
   int *p3 = new (&i) int;                                    // no error on placement new
   OverloadedNewDelete *x = new (struct OverloadedNewDelete); // expected-note 2{{called by 'isa_B'}}
@@ -79,7 +88,7 @@ bool isa_B(A *a) {
 
 template <typename N, typename L>
 __attribute__((sycl_kernel)) void kernel1(L l) {
-  l(); // expected-note 6{{called by 'kernel1<kernel_name, (lambda at }}
+  l(); //#rtti_kernel  // expected-note 6{{called by 'kernel1<kernel_name, (lambda at }}
 }
 } // namespace Check_RTTI_Restriction
 
@@ -103,6 +112,7 @@ using myFuncDef = int(int, int);
 
 // defines (early and late)
 #define floatDef __float128
+#define longdoubleDef long double
 #define int128Def __int128
 #define int128tDef __int128_t
 #define intDef int
@@ -111,6 +121,7 @@ using myFuncDef = int(int, int);
 typedef __uint128_t megeType;
 typedef __float128 trickyFloatType;
 typedef __int128 tricky128Type;
+typedef long double trickyLDType;
 
 //templated return type
 template <typename T>
@@ -128,6 +139,10 @@ using floatalias_t = __float128;
 template <typename...>
 using int128alias_t = __int128;
 
+//alias template
+template <typename...>
+using ldalias_t = long double;
+
 //false positive. early incorrectly catches
 template <typename t>
 void foo(){};
@@ -143,6 +158,8 @@ struct frankenStruct {
   __float128 scaryQuad;
   // expected-error@+1 {{'__int128' is not supported on this target}}
   __int128 frightenInt;
+  // expected-error@+1 {{'long double' is not supported on this target}}
+  long double terrorLD;
 };
 
 //struct
@@ -151,6 +168,8 @@ struct trickyStruct {
   trickyFloatType trickySructQuad;
   // expected-error@+1 {{'__int128' is not supported on this target}}
   tricky128Type trickyStructInt;
+  // expected-error@+1 {{'long double' is not supported on this target}}
+  trickyLDType trickyStructLD;
 };
 
 // function return type and argument both unsupported
@@ -189,9 +208,9 @@ void usage(myFuncDef functionPtr) {
     // expected-error@+1 {{SYCL kernel cannot use a non-const global variable}}
     b.f(); // expected-error {{SYCL kernel cannot call a virtual function}}
 
-  Check_RTTI_Restriction::kernel1<class kernel_name>([]() { // expected-note 3{{called by 'usage'}}
+  Check_RTTI_Restriction::kernel1<class kernel_name>([]() { //#call_rtti_kernel // expected-note 3{{called by 'usage'}}
     Check_RTTI_Restriction::A *a;
-    Check_RTTI_Restriction::isa_B(a); // expected-note 6{{called by 'operator()'}}
+    Check_RTTI_Restriction::isa_B(a); //#call_isa_B  // expected-note 6{{called by 'operator()'}}
   });
 
   // ======= Float128 Not Allowed in Kernel ==========
@@ -219,6 +238,32 @@ void usage(myFuncDef functionPtr) {
   std::size_t someSz = sizeof(__float128);
   foo<__float128>();
   safealias_t<__float128> notAFloat = 3;
+
+  // ======= long double Not Allowed in Kernel ==========
+  // expected-error@+1 {{'long double' is not supported on this target}}
+  long double malLD = 50;
+  // expected-error@+1 {{'long double' is not supported on this target}}
+  trickyLDType malLDTrick = 51;
+  // expected-error@+1 {{'long double' is not supported on this target}}
+  longdoubleDef malLDDef = 52;
+  // expected-error@+1 {{'long double' is not supported on this target}}
+  auto whatLD = malLD;
+  // expected-error@+1 {{'long double' is not supported on this target}}
+  auto malAutoLD = bar<long double>();
+  // expected-error@+1 {{'long double' is not supported on this target}}
+  auto malAutoLD2 = bar<trickyLDType>();
+  // expected-error@+1 {{'long double' is not supported on this target}}
+  decltype(malLD) malDeclLD = 53;
+  // expected-error@+1 {{'long double' is not supported on this target}}
+  auto malLDTemplateVar = solutionToEverything<long double>;
+  // expected-error@+1 {{'long double' is not supported on this target}}
+  auto malTrifectaLD = solutionToEverything<trickyLDType>;
+  // expected-error@+1 {{'long double' is not supported on this target}}
+  ldalias_t<void> aliasedLongDouble = 54;
+  // ---- false positive tests
+  std::size_t someLDSz = sizeof(long double);
+  foo<long double>();
+  safealias_t<long double> notALD = 55;
 
   // ======= Zero Length Arrays Not Allowed in Kernel ==========
   // expected-error@+1 {{zero-length arrays are not permitted in C++}}
@@ -273,8 +318,8 @@ void usage(myFuncDef functionPtr) {
   auto malTrifectaInt128T = solutionToEverything<megeType>;
 
   // ======= Struct Members Checked  =======
-  frankenStruct strikesFear; // expected-note 3{{used here}}
-  trickyStruct incitesPanic; // expected-note 2{{used here}}
+  frankenStruct strikesFear; // expected-note 4{{used here}}
+  trickyStruct incitesPanic; // expected-note 3{{used here}}
 
   // ======= Function Prototype Checked  =======
   // expected-error@+1 2{{'__int128' is not supported on this target}}
@@ -323,7 +368,7 @@ int use2(a_type ab, a_type *abp) {
 
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
-  kernelFunc(); // expected-note 7{{called by 'kernel_single_task<fake_kernel, (lambda at}}
+  kernelFunc(); //#call_kernelFunc // expected-note 7{{called by 'kernel_single_task<fake_kernel, (lambda at}}
 }
 
 int main() {
@@ -340,7 +385,7 @@ int main() {
   auto notACrime = &commitInfraction;
 
   kernel_single_task<class fake_kernel>([=]() {
-    usage(&addInt); // expected-note 5{{called by 'operator()'}}
+    usage(&addInt); //#call_usage // expected-note 5{{called by 'operator()'}}
     a_type *p;
     use2(ab, p); // expected-note 2{{called by 'operator()'}}
   });
