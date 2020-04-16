@@ -8,7 +8,7 @@ constexpr const size_t DEFAULT_PROBLEM_SIZE = 16;
 template <typename T>
 struct WithOutputBuffer {
   WithOutputBuffer(size_t size) {
-    _output_buffer_data.resize(size, 0);
+    _output_buffer_data.resize(size);
     _output_buffer = new cl::sycl::buffer<T>(_output_buffer_data.data(), _output_buffer_data.size());
   }
 
