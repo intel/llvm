@@ -75,7 +75,6 @@ sycl/source/half_type.cpp @AlexeySachkov
 sycl/include/CL/sycl/swizzles.def @turinevgeny
 sycl/include/CL/sycl/types.hpp @turinevgeny
 
-sycl/ReleaseNotes.md @pvchupin
 
 sycl/doc/ @pvchupin @kbobrovs
 
