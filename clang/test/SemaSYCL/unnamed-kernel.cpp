@@ -1,15 +1,21 @@
 // RUN: %clang_cc1 -I %S/Inputs -fsycl -fsycl-is-device -fsycl-int-header=%t.h -fsyntax-only -verify %s
 // RUN: %clang_cc1 -I %S/Inputs -fsycl -fsycl-is-device -fsycl-int-header=%t.h -fsycl-unnamed-lambda -fsyntax-only -verify %s
-#include <sycl.hpp>
 
 #ifdef __SYCL_UNNAMED_LAMBDA__
 // expected-no-diagnostics
 #endif
 
+#include <sycl.hpp>
+
 namespace namespace1 {
 template <typename T>
 class KernelName;
 }
+
+namespace std {
+typedef struct {
+} max_align_t;
+} // namespace std
 
 struct MyWrapper {
 private:
@@ -41,7 +47,7 @@ public:
 
 #ifndef __SYCL_UNNAMED_LAMBDA__
     // expected-error@+4 {{kernel needs to have a globally-visible name}}
-    // expected-note@16 {{InvalidKernelName0 declared here}}
+    // expected-note@21 {{InvalidKernelName0 declared here}}
 #endif
     q.submit([&](cl::sycl::handler &h) {
       h.single_task<InvalidKernelName0>([] {});
@@ -49,7 +55,7 @@ public:
 
 #ifndef __SYCL_UNNAMED_LAMBDA__
     // expected-error@+4 {{kernel needs to have a globally-visible name}}
-    // expected-note@17 {{InvalidKernelName3 declared here}}
+    // expected-note@22 {{InvalidKernelName3 declared here}}
 #endif
     q.submit([&](cl::sycl::handler &h) {
       h.single_task<namespace1::KernelName<InvalidKernelName3>>([] {});
@@ -60,10 +66,17 @@ public:
       h.single_task<ValidAlias>([] {});
     });
 
+#ifndef __SYCL_UNNAMED_LAMBDA__
+    // expected-error@+3 {{kernel name is missing}}
+#endif
+    q.submit([&](cl::sycl::handler &h) {
+      h.single_task<std::max_align_t>([] {});
+    });
+
     using InvalidAlias = InvalidKernelName4;
 #ifndef __SYCL_UNNAMED_LAMBDA__
     // expected-error@+4 {{kernel needs to have a globally-visible name}}
-    // expected-note@18 {{InvalidKernelName4 declared here}}
+    // expected-note@23 {{InvalidKernelName4 declared here}}
 #endif
     q.submit([&](cl::sycl::handler &h) {
       h.single_task<InvalidAlias>([] {});
@@ -72,7 +85,7 @@ public:
     using InvalidAlias1 = InvalidKernelName5;
 #ifndef __SYCL_UNNAMED_LAMBDA__
     // expected-error@+4 {{kernel needs to have a globally-visible name}}
-    // expected-note@19 {{InvalidKernelName5 declared here}}
+    // expected-note@24 {{InvalidKernelName5 declared here}}
 #endif
     q.submit([&](cl::sycl::handler &h) {
       h.single_task<namespace1::KernelName<InvalidAlias1>>([] {});
