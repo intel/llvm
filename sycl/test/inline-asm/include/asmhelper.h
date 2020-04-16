@@ -1,6 +1,7 @@
 #include <CL/sycl.hpp>
 
 #include <iostream>
+#include <memory>
 #include <vector>
 
 constexpr const size_t DEFAULT_PROBLEM_SIZE = 16;
@@ -9,20 +10,17 @@ template <typename T>
 struct WithOutputBuffer {
   WithOutputBuffer(size_t size) {
     _output_buffer_data.resize(size);
-    _output_buffer = new cl::sycl::buffer<T>(_output_buffer_data.data(), _output_buffer_data.size());
+    _output_buffer.reset(new cl::sycl::buffer<T>(_output_buffer_data.data(), _output_buffer_data.size()));
   }
 
   WithOutputBuffer(const std::vector<T> &data) {
     _output_buffer_data = data;
-    _output_buffer = new cl::sycl::buffer<T>(_output_buffer_data.data(), _output_buffer_data.size());
+    _output_buffer.reset(new cl::sycl::buffer<T>(_output_buffer_data.data(), _output_buffer_data.size()));
   }
 
-  ~WithOutputBuffer() {
-    if (_output_buffer)
-      delete _output_buffer;
-  }
-
-  const std::vector<T> &getOutputBufferData() const {
+  const std::vector<T> &getOutputBufferData() {
+    // We cannoe access the data until the buffer is still alive
+    _output_buffer.reset();
     return _output_buffer_data;
   }
 
@@ -35,7 +33,10 @@ protected:
     return *_output_buffer;
   }
 
-  cl::sycl::buffer<T> *_output_buffer = nullptr;
+  // Functor is being passed by-copy into cl::sycl::queue::submit and destroyed
+  // one more time in there. We need to make sure that buffer is only released
+  // once.
+  std::shared_ptr<cl::sycl::buffer<T>> _output_buffer = nullptr;
   std::vector<T> _output_buffer_data;
 };
 
@@ -48,26 +49,19 @@ struct WithInputBuffers {
     constructorHelper<0>(inputs...);
   }
 
-  ~WithInputBuffers() {
-    for (size_t i = 0; i < N; ++i) {
-      if (_input_buffers[i])
-        delete _input_buffers[i];
-    }
-  }
-
   cl::sycl::buffer<T> &getInputBuffer(size_t i = 0) {
     return *_input_buffers[i];
   }
 
 protected:
-  cl::sycl::buffer<T> *_input_buffers[N] = {nullptr};
+  std::shared_ptr<cl::sycl::buffer<T>> _input_buffers[N] = {nullptr};
   std::vector<T> _input_buffers_data[N];
 
 private:
   template <int Index, typename... Args>
   void constructorHelper(const std::vector<T> &data, Args... rest) {
     _input_buffers_data[Index] = data;
-    _input_buffers[Index] = new cl::sycl::buffer<T>(_input_buffers_data[Index].data(), _input_buffers_data[Index].size());
+    _input_buffers[Index].reset(new cl::sycl::buffer<T>(_input_buffers_data[Index].data(), _input_buffers_data[Index].size()));
     constructorHelper<Index + 1>(rest...);
   }
 
@@ -99,22 +93,26 @@ bool isInlineASMSupported(sycl::device Device) {
 /// \returns false if test wasn't launched (i.e.was skipped) and true otherwise
 template <typename F>
 bool launchInlineASMTest(F &f, bool requires_particular_sg_size = true) {
-  cl::sycl::queue deviceQueue(cl::sycl::gpu_selector{});
-  cl::sycl::device device = deviceQueue.get_device();
+  try {
+    cl::sycl::queue deviceQueue(cl::sycl::gpu_selector{});
+    cl::sycl::device device = deviceQueue.get_device();
 
 #if defined(INLINE_ASM)
-  if (!isInlineASMSupported(device)) {
-    std::cout << "Skipping test\n";
-    return false;
-  }
+    if (!isInlineASMSupported(device)) {
+      std::cout << "Skipping test\n";
+      return false;
+    }
 #endif
 
-  if (requires_particular_sg_size && !device.has_extension("cl_intel_required_subgroup_size")) {
-    std::cout << "Skipping test\n";
-    return false;
-  }
+    if (requires_particular_sg_size && !device.has_extension("cl_intel_required_subgroup_size")) {
+      std::cout << "Skipping test\n";
+      return false;
+    }
 
-  deviceQueue.submit(f).wait();
+    deviceQueue.submit(f).wait();
+  } catch (cl::sycl::exception &e) {
+    std::cerr << "Caught exception: " << e.what() << std::endl;
+  }
   return true;
 }
 
