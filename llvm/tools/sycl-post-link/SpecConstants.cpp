@@ -40,19 +40,18 @@ static void AssertRelease(bool Cond, const char *Msg) {
 
 StringRef getStringLiteralArg(const CallInst *CI, unsigned ArgNo,
                               SmallVectorImpl<Instruction *> &DelInsts,
-                              GlobalVariable *&DelGlob) {
+                              GlobalVariable *&SymGlob) {
   Value *V = CI->getArgOperand(ArgNo)->stripPointerCasts();
 
   if (auto *L = dyn_cast<LoadInst>(V)) {
     // Must be a
     // vvvvvvvvvvvvvvvvvvvv
-    // @.str = private unnamed_addr constant[18 x i8]
-    //   c"_ZTS11MyBoolConst\00", align 1
+    // @.str = private unnamed_addr constant[10 x i8] c"SpecConst\00", align 1
     // ...
     // %TName = alloca i8 addrspace(4)*, align 8
     // ...
     // store i8 addrspace(4)* addrspacecast(
-    //    i8* getelementptr inbounds([18 x i8], [18 x i8] * @.str, i32 0, i32 0)
+    //    i8* getelementptr inbounds([10 x i8], [10 x i8] * @.str, i32 0, i32 0)
     //    to i8 addrspace(4)*), i8 addrspace(4)** %TName, align 8, !tbaa !10
     // %1 = load i8 addrspace(4)*, i8 addrspace(4)** %TName, align 8, !tbaa !10
     // %call = call spir_func zeroext
@@ -96,7 +95,7 @@ StringRef getStringLiteralArg(const CallInst *CI, unsigned ArgNo,
     V = Store->getValueOperand()->stripPointerCasts();
   }
   const Constant *Init = cast<GlobalVariable>(V)->getInitializer();
-  DelGlob = cast<GlobalVariable>(V);
+  SymGlob = cast<GlobalVariable>(V);
   StringRef Res = cast<ConstantDataArray>(Init)->getAsString();
   if (Res.size() > 0 && Res[Res.size() - 1] == '\0')
     Res = Res.substr(0, Res.size() - 1);
@@ -214,8 +213,8 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
       // code can't use this intrinsic directly.
       SmallVector<Instruction *, 3> DelInsts;
       DelInsts.push_back(CI);
-      GlobalVariable *DelGlob = nullptr;
-      StringRef SymID = getStringLiteralArg(CI, 0, DelInsts, DelGlob);
+      GlobalVariable *SymGlob = nullptr;
+      StringRef SymID = getStringLiteralArg(CI, 0, DelInsts, SymGlob);
       Type *SCTy = CI->getType();
 
       if (SetValAtRT) {
@@ -262,9 +261,8 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
         I->removeFromParent();
         I->deleteValue();
       }
-      DelGlob->replaceAllUsesWith(ConstantPointerNull::get(DelGlob->getType()));
-      DelGlob->removeFromParent();
-      DelGlob->deleteValue();
+      // Don't delete SymGlob here, as it may be referenced from multiple
+      // functions if __sycl_getSpecConstantValue is inlined.
     }
   }
   return IRModified ? PreservedAnalyses::none() : PreservedAnalyses::all();
