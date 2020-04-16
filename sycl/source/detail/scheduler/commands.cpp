@@ -388,6 +388,20 @@ EventImplPtr Command::connectDepEvent(EventImplPtr DepEvent,
 
   ConnectCmd->addDep(DepEvent);
 
+  if (Command *DepCmd = reinterpret_cast<Command *>(DepEvent->getCommand())) {
+    (void)DepCmd;
+    EmptyCommand *EmptyCmd = new EmptyCommand(
+        Scheduler::getInstance().getDefaultHostQueue());
+
+    EmptyCmd->MIsBlockable = true;
+    EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueBlocked;
+    EmptyCmd->MBlockReason = "Blocked by host task";
+
+    DepCmd->addUser(ConnectCmd);
+    EmptyCmd->addDep(ConnectCmd->MEvent);
+    ConnectCmd->addUser(EmptyCmd);
+  }
+
   EnqueueResultT Res;
   bool Enqueued = Scheduler::GraphProcessor::enqueueCommand(ConnectCmd, Res);
   if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
