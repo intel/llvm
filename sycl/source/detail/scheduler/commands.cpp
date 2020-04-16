@@ -1216,6 +1216,9 @@ void EmptyCommand::emitInstrumentationData() {
     return;
   // Create a payload with the command name and an event using this payload to
   // emit a node_create
+  if (!MRequirement.get())
+    return;
+
   MAddress = MRequirement.MSYCLMemObj;
   makeTraceEventProlog(MAddress);
 
