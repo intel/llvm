@@ -1557,13 +1557,7 @@ class DispatchHostTask {
   std::vector<DepDesc> MDeps;
   EventImplPtr MSelfEvent;
 
-public:
-  DispatchHostTask(std::vector<EventImplPtr> DepEvents, CGHostTask *HostTask,
-                   std::vector<DepDesc> Deps, EventImplPtr SelfEvent)
-      : MDepEvents(std::move(DepEvents)), MHostTask{HostTask},
-        MDeps(std::move(Deps)), MSelfEvent(std::move(SelfEvent)) {}
-
-  void operator()() const {
+  void waitForEvents() const {
     std::map<const detail::plugin *, std::vector<EventImplPtr>>
         RequiredEventsPerPlugin;
 
@@ -1580,15 +1574,9 @@ public:
       PluginWithEvents.first->call<PiApiKind::piEventsWait>(
           RawEvents.size(), RawEvents.data());
     }
+  }
 
-    // we're ready to call the user-defined lambda now
-    MHostTask->MHostTask->call();
-
-    const detail::plugin &Plugin = MSelfEvent->getPlugin();
-    Plugin.call<PiApiKind::piEventSetStatus>(MSelfEvent->getHandleRef(),
-                                             PI_EVENT_COMPLETE);
-
-    // perform release (unblock) of empty command
+  void unblockBlockedDeps() const {
     std::vector<Requirement *> Reqs;
     Reqs.resize(MDeps.size());
 
@@ -1598,6 +1586,26 @@ public:
                    });
 
     Scheduler::getInstance().unblockRequirements(Reqs);
+  }
+
+public:
+  DispatchHostTask(std::vector<EventImplPtr> DepEvents, CGHostTask *HostTask,
+                   std::vector<DepDesc> Deps, EventImplPtr SelfEvent)
+      : MDepEvents(std::move(DepEvents)), MHostTask{HostTask},
+        MDeps(std::move(Deps)), MSelfEvent(std::move(SelfEvent)) {}
+
+  void operator()() const {
+    waitForEvents();
+
+    // we're ready to call the user-defined lambda now
+    MHostTask->MHostTask->call();
+
+    // update self-event status
+    const detail::plugin &Plugin = MSelfEvent->getPlugin();
+    Plugin.call<PiApiKind::piEventSetStatus>(MSelfEvent->getHandleRef(),
+                                             PI_EVENT_COMPLETE);
+
+    unblockBlockedDeps();
   }
 };
 
