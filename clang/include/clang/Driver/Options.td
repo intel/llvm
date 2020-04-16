@@ -502,8 +502,8 @@ def Xsycl_linker : Separate<["-"], "Xsycl-target-linker">,
 def Xsycl_linker_EQ : JoinedAndSeparate<["-"], "Xsycl-target-linker=">,
   HelpText<"Pass <arg> to the SYCL based target linker identified by <triple>.">,
   MetaVarName<"<triple> <arg>">, Flags<[CoreOption]>;
-def Xs : Joined<["-"], "Xs">, HelpText<"Pass <arg> to the offline compiler.">, MetaVarName<"<arg">, Flags<[CoreOption]>;
-def Xs_separate : Separate<["-"], "Xs">, HelpText<"Pass <arg> to the offline compiler.">, MetaVarName<"<arg">, Flags<[CoreOption]>;
+def Xs : Joined<["-"], "Xs">, HelpText<"Pass <arg> to the offline compiler, adding the option specifier '-' to the <arg>.">, MetaVarName<"<arg>">, Flags<[CoreOption]>;
+def Xs_separate : Separate<["-"], "Xs">, HelpText<"Pass <arg> to the offline compiler.">, MetaVarName<"<arg>">, Flags<[CoreOption]>;
 def z : Separate<["-"], "z">, Flags<[LinkerInput, RenderAsInput]>,
   HelpText<"Pass -z <arg> to the linker">, MetaVarName<"<arg>">,
   Group<Link_Group>;
