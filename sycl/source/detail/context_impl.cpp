@@ -6,7 +6,6 @@
 //
 // ===--------------------------------------------------------------------=== //
 
-#include <CL/sycl/detail/clusm.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/cuda_definitions.hpp>
 #include <CL/sycl/detail/pi.hpp>
