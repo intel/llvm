@@ -54,7 +54,6 @@ function(add_sycl_unittest test_dirname link_variant)
     )
 endfunction()
 
-add_subdirectory(helpers)
 add_subdirectory(misc)
 add_subdirectory(pi)
 add_subdirectory(thread_safety)

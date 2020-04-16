@@ -11,8 +11,6 @@
 
 #include <detail/queue_impl.hpp>
 
-class PiMockTest : public ::testing::Test {};
-
 using namespace cl::sycl;
 
 pi_result
@@ -30,6 +28,10 @@ pi_result piKernelCreateRedefine(pi_program program, const char *kernel_name,
 
 TEST(PiMockTest, ConstructFromQueue) {
   queue NormalQ;
+  if (NormalQ.is_host()) {
+    std::cerr << "Not run due to host-only environment\n";
+    return;
+  }
   queue MockQ;
   unittest::PiMock Mock(MockQ);
 
@@ -46,8 +48,12 @@ TEST(PiMockTest, ConstructFromQueue) {
 }
 
 TEST(PiMockTest, ConstructFromPlatform) {
-  platform NormalPlatform(cpu_selector{});
-  platform MockPlatform(cpu_selector{});
+  platform NormalPlatform;
+  if (NormalPlatform.is_host()) {
+    std::cerr << "Not run due to host-only environment\n";
+    return;
+  }
+  platform MockPlatform;
   unittest::PiMock Mock(MockPlatform);
 
   const auto &NormalPiPlugin =
@@ -63,7 +69,12 @@ TEST(PiMockTest, ConstructFromPlatform) {
 }
 
 TEST(PiMockTest, RedefineAPI) {
-  unittest::PiMock Mock(cl::sycl::cpu_selector{});
+  cl::sycl::default_selector Selector{};
+  if (Selector.select_device().is_host()) {
+    std::cerr << "Not run due to host-only environment\n";
+    return;
+  }
+  unittest::PiMock Mock(Selector);
   const auto &MockPiPlugin =
       detail::getSyclObjImpl(Mock.getPlatform())->getPlugin().getPiPlugin();
   const auto &Table = MockPiPlugin.PiFunctionTable;

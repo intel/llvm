@@ -42,8 +42,8 @@ namespace RT = detail::pi;
 /// Overwrites the input PiPlugin's PiFunctionTable entry for the given PI API
 /// with a given function pointer.
 ///
-/// \param MPlugin is a pointer to the PiPlugin instance that will be modified
-/// \param FuncPtr is a pointer to the function that will override the original
+/// \param MPlugin is a pointer to the PiPlugin instance that will be modified.
+/// \param FuncPtr is a pointer to the function that will override the original.
 ///        function table entry
 #define _PI_API(api)                                                           \
   template <detail::PiApiKind PiApiOffset>                                     \
@@ -54,6 +54,7 @@ namespace RT = detail::pi;
     MPlugin->PiFunctionTable.api = FuncPtr;                                    \
   }
 #include <CL/sycl/detail/pi.def>
+#undef _PI_API
 
 /// The PiMock class wraps an instance of a SYCL platform class,
 /// and manages all mock redefinitions for the underlying plugin.
@@ -96,10 +97,9 @@ public:
   /// Constructs PiMock from a queue.
   ///
   /// \param Queue is a reference to a SYCL queue to which
-  ///        the mock redefinitions will apply
+  ///        the mock redefinitions will apply.
   explicit PiMock(cl::sycl::queue &Queue)
-      : PiMock(std::make_shared<cl::sycl::platform>(
-            Queue.get_device().get_platform())) {}
+      : PiMock(Queue.get_device().get_platform()) {}
 
   /// Constructs PiMock from a reference to a SYCL platform instance.
   ///
@@ -108,24 +108,11 @@ public:
   /// within the given context. A separate platform instance will be
   /// held by the PiMock instance.
   ///
-  /// \param OriginalPlatform is a reference to a SYCL platform
-  explicit PiMock(cl::sycl::platform &OriginalPlatform)
-      : PiMock(std::make_shared<cl::sycl::platform>(OriginalPlatform)) {}
-
-  /// Constructs PiMock from a pointer to a SYCL platform instance.
-  ///
-  /// A new plugin will be stored into the platform instance, which
-  /// will no longer share the plugin with other platform instances
-  /// within the given context.
-  ///
-  /// \param OriginalPlatformPtr is a pointer to a SYCL platform
-  explicit PiMock(std::shared_ptr<cl::sycl::platform> OriginalPlatformPtr) {
-    assert(!OriginalPlatformPtr->is_host() &&
-           "PI mock isn't supported for host");
-    // Grab a handle for the platform resource
-    MPlatform = std::move(OriginalPlatformPtr);
+  /// \param OriginalPlatform is a reference to a SYCL platform.
+  explicit PiMock(const cl::sycl::platform &OriginalPlatform) {
+    assert(!OriginalPlatform.is_host() && "PI mock isn't supported for host");
     // Extract impl and plugin handles
-    auto ImplPtr = detail::getSyclObjImpl(*MPlatform);
+    auto ImplPtr = detail::getSyclObjImpl(OriginalPlatform);
     const RT::PiPlugin &OriginalPiPlugin = ImplPtr->getPlugin().getPiPlugin();
     // Copy the PiPlugin, thus untying our to-be mock platform from other
     // platforms within the context. Reset our platform to use the new plugin.
@@ -134,16 +121,18 @@ public:
     // Extract the new PiPlugin instance by a non-const pointer,
     // explicitly allowing modification
     PiPluginMockPtr = &const_cast<RT::PiPlugin &>(NewPluginPtr->getPiPlugin());
+    // Save a copy of the platform resource
+    MPlatform = OriginalPlatform;
   }
 
   /// Constructs PiMock from a device_selector, provided that
   /// a non-host device can and will be selected.
   ///
-  /// \param DevSelector is a reference to a device_selector instance
-  explicit PiMock(const cl::sycl::device_selector &DevSelector) {
-    MPlatform = std::make_shared<cl::sycl::platform>(DevSelector);
-    assert(!MPlatform->is_host() && "PI mock isn't supported for host");
-    auto ImplPtr = detail::getSyclObjImpl(*MPlatform);
+  /// \param DevSelector is a reference to a device_selector instance.
+  explicit PiMock(const cl::sycl::device_selector &DevSelector)
+      : MPlatform{DevSelector} {
+    assert(!MPlatform.is_host() && "PI mock isn't supported for host");
+    auto ImplPtr = detail::getSyclObjImpl(MPlatform);
     const RT::PiPlugin &PiPluginRef = ImplPtr->getPlugin().getPiPlugin();
     // Extract the PiPlugin instance by a non-const pointer,
     // explicitly allowing modification
@@ -159,8 +148,8 @@ public:
 
   /// Returns a handle to the SYCL platform instance.
   ///
-  /// \return A reference to the SYCL platform
-  cl::sycl::platform &getPlatform() { return *MPlatform; }
+  /// \return A reference to the SYCL platform.
+  cl::sycl::platform &getPlatform() { return MPlatform; }
 
   template <detail::PiApiKind PiApiOffset>
   using FuncPtrT = typename RT::PiFuncInfo<PiApiOffset>::FuncPtrT;
@@ -189,7 +178,7 @@ public:
   /// arguments.
   ///
   /// \param Replacement is a mock callable assignable to a function
-  ///        pointer (function pointer/captureless lambda)
+  ///        pointer (function pointer/captureless lambda).
   template <detail::PiApiKind PiApiOffset, typename FunctorT>
   void redefine(const FunctorT &Replacement) {
     // TODO: Check for matching signatures/assignability
@@ -197,7 +186,7 @@ public:
   }
 
 private:
-  std::shared_ptr<cl::sycl::platform> MPlatform;
+  cl::sycl::platform MPlatform;
   // Extracted at initialization for convenience purposes. The resource
   // itself is owned by the platform instance.
   RT::PiPlugin *PiPluginMockPtr;
