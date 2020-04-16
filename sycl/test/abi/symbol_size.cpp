@@ -1,7 +1,7 @@
 // RUN: %clangxx -fsycl %s -o %t
 
 // Changing symbol size is a breaking change. If it happens, refer to the ABI
-// Policy Guide for further insrtuctions on breaking ABI.
+// Policy Guide for further instructions on breaking ABI.
 
 #include <CL/sycl/accessor.hpp>
 #include <CL/sycl/buffer.hpp>
