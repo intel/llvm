@@ -80,16 +80,29 @@ Compilation::getArgsForToolChain(const ToolChain *TC, StringRef BoundArch,
           *TranslatedArgs, SameTripleAsHost, AllocatedArgs, DeviceOffloadKind);
     }
 
+    DerivedArgList *NewDAL = nullptr;
     if (!OffloadArgs) {
+      NewDAL = TC->TranslateXarchArgs(*TranslatedArgs, BoundArch,
+                                      DeviceOffloadKind, &AllocatedArgs);
+    } else {
+      NewDAL = TC->TranslateXarchArgs(*OffloadArgs, BoundArch, DeviceOffloadKind,
+                                      &AllocatedArgs);
+      if (!NewDAL)
+        NewDAL = OffloadArgs;
+      else
+        delete OffloadArgs;
+    }
+
+    if (!NewDAL) {
       Entry = TC->TranslateArgs(*TranslatedArgs, BoundArch, DeviceOffloadKind);
       if (!Entry)
         Entry = TranslatedArgs;
     } else {
-      Entry = TC->TranslateArgs(*OffloadArgs, BoundArch, DeviceOffloadKind);
+      Entry = TC->TranslateArgs(*NewDAL, BoundArch, DeviceOffloadKind);
       if (!Entry)
-        Entry = OffloadArgs;
+        Entry = NewDAL;
       else
-        delete OffloadArgs;
+        delete NewDAL;
     }
 
     // Add allocated arguments to the final DAL.

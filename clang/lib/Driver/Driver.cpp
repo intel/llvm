@@ -41,11 +41,11 @@
 #include "ToolChains/PPCLinux.h"
 #include "ToolChains/PS4CPU.h"
 #include "ToolChains/RISCVToolchain.h"
+#include "ToolChains/SYCL.h"
 #include "ToolChains/Solaris.h"
 #include "ToolChains/TCE.h"
 #include "ToolChains/WebAssembly.h"
 #include "ToolChains/XCore.h"
-#include "ToolChains/SYCL.h"
 #include "clang/Basic/Version.h"
 #include "clang/Config/config.h"
 #include "clang/Driver/Action.h"
@@ -62,6 +62,7 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/StringSwitch.h"
+#include "llvm/BinaryFormat/Magic.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/Option/Arg.h"
 #include "llvm/Option/ArgList.h"
@@ -769,6 +770,15 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
     }
     return SYCLArg;
   };
+
+  // Emit an error if c-compilation is forced in -fsycl mode
+  if (HasValidSYCLRuntime)
+    for (StringRef XValue : C.getInputArgs().getAllArgValues(options::OPT_x)) {
+      if (XValue == "c" || XValue == "c-header")
+        C.getDriver().Diag(clang::diag::err_drv_fsycl_with_c_type)
+            << "-x " << XValue;
+    }
+
   Arg *SYCLTargets = getArgRequiringSYCLRuntime(options::OPT_fsycl_targets_EQ);
   Arg *SYCLLinkTargets =
       getArgRequiringSYCLRuntime(options::OPT_fsycl_link_targets_EQ);
@@ -6585,8 +6595,10 @@ bool clang::driver::isStaticArchiveFile(const StringRef &FileName) {
     // Any file with no extension should not be considered an Archive.
     return false;
   StringRef Ext(llvm::sys::path::extension(FileName).drop_front());
-  // Only .lib and .a files are to be considered.
-  return (Ext == "lib" || Ext == "a");
+  llvm::file_magic Magic;
+  llvm::identify_magic(FileName, Magic);
+  // Only .lib and archive files are to be considered.
+  return (Ext == "lib" || Magic == llvm::file_magic::archive);
 }
 
 bool clang::driver::willEmitRemarks(const ArgList &Args) {

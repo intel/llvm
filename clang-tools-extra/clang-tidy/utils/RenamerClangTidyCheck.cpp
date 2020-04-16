@@ -203,14 +203,15 @@ void RenamerClangTidyCheck::check(const MatchFinder::MatchResult &Result) {
   }
 
   if (const auto *Loc = Result.Nodes.getNodeAs<TypeLoc>("typeLoc")) {
+    UnqualTypeLoc Unqual = Loc->getUnqualifiedLoc();
     NamedDecl *Decl = nullptr;
-    if (const auto &Ref = Loc->getAs<TagTypeLoc>())
+    if (const auto &Ref = Unqual.getAs<TagTypeLoc>())
       Decl = Ref.getDecl();
-    else if (const auto &Ref = Loc->getAs<InjectedClassNameTypeLoc>())
+    else if (const auto &Ref = Unqual.getAs<InjectedClassNameTypeLoc>())
       Decl = Ref.getDecl();
-    else if (const auto &Ref = Loc->getAs<UnresolvedUsingTypeLoc>())
+    else if (const auto &Ref = Unqual.getAs<UnresolvedUsingTypeLoc>())
       Decl = Ref.getDecl();
-    else if (const auto &Ref = Loc->getAs<TemplateTypeParmTypeLoc>())
+    else if (const auto &Ref = Unqual.getAs<TemplateTypeParmTypeLoc>())
       Decl = Ref.getDecl();
     // further TypeLocs handled below
 
@@ -272,6 +273,11 @@ void RenamerClangTidyCheck::check(const MatchFinder::MatchResult &Result) {
   }
 
   if (const auto *Decl = Result.Nodes.getNodeAs<NamedDecl>("decl")) {
+    // Fix using namespace declarations.
+    if (const auto *UsingNS = dyn_cast<UsingDirectiveDecl>(Decl))
+      addUsage(NamingCheckFailures, UsingNS->getNominatedNamespaceAsWritten(),
+               UsingNS->getIdentLocation());
+
     if (!Decl->getIdentifier() || Decl->getName().empty() || Decl->isImplicit())
       return;
 

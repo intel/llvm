@@ -17,7 +17,6 @@
 #include <detail/kernel_program_cache.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
-#include <detail/usm/usm_dispatch.hpp>
 
 #include <map>
 #include <memory>
@@ -144,6 +143,11 @@ public:
   /// Returns true if and only if context contains the given device.
   bool hasDevice(shared_ptr_class<detail::device_impl> Device) const;
 
+  /// Gets the native handle of the SYCL context.
+  ///
+  /// \return a native handle.
+  pi_native_handle getNative() const;
+
 private:
   async_handler MAsyncHandler;
   vector_class<device> MDevices;
@@ -152,7 +156,6 @@ private:
   bool MPluginInterop;
   bool MHostContext;
   bool MUseCUDAPrimaryContext;
-  std::shared_ptr<usm::USMDispatcher> MUSMDispatch;
   std::map<DeviceLibExt, RT::PiProgram> MCachedLibPrograms;
   mutable KernelProgramCache MKernelProgramCache;
 };

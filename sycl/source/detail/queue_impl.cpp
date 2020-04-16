@@ -12,7 +12,6 @@
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/device.hpp>
 #include <detail/queue_impl.hpp>
-#include <detail/usm/usm_dispatch.hpp>
 
 #include <cstring>
 
@@ -184,6 +183,13 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   instrumentationEpilog(TelemetryEvent, Name, StreamID, IId);
 #endif
+}
+
+pi_native_handle queue_impl::getNative() const {
+  auto Plugin = getPlugin();
+  pi_native_handle Handle;
+  Plugin.call<PiApiKind::piextQueueGetNativeHandle>(MCommandQueue, &Handle);
+  return Handle;
 }
 
 } // namespace detail

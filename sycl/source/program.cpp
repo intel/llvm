@@ -30,7 +30,11 @@ program::program(vector_class<program> programList, string_class linkOptions) {
 program::program(const context &context, cl_program clProgram)
     : impl(std::make_shared<detail::program_impl>(
           detail::getSyclObjImpl(context),
-          detail::pi::cast<detail::program_interop_handle_t>(clProgram))) {}
+          detail::pi::cast<pi_native_handle>(clProgram))) {
+  // The implementation constructor takes ownership of the native handle so we
+  // must retain it in order to adhere to SYCL 1.2.1 spec (Rev6, section 4.3.1.)
+  clRetainProgram(clProgram);
+}
 program::program(std::shared_ptr<detail::program_impl> impl) : impl(impl) {}
 
 cl_program program::get() const { return impl->get(); }
@@ -86,7 +90,8 @@ program::get_info() const {
 }
 
 #define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
-  template ret_type program::get_info<info::param_type::param>() const;
+  template __SYCL_EXPORT ret_type program::get_info<info::param_type::param>() \
+      const;
 
 #include <CL/sycl/info/program_traits.def>
 

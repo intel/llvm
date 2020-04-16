@@ -145,6 +145,11 @@ public:
   /// @return a pointer to HostProfilingInfo instance.
   HostProfilingInfo *getHostProfilingInfo() { return MHostProfilingInfo.get(); }
 
+  /// Gets the native handle of the SYCL event.
+  ///
+  /// \return a native handle.
+  pi_native_handle getNative() const;
+
 private:
   // When instrumentation is enabled emits trace event for event wait begin and
   // returns the telemetry event generated for the wait

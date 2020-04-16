@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/AffineOps/EDSC/Intrinsics.h"
+#include "mlir/Dialect/Affine/EDSC/Intrinsics.h"
 #include "mlir/Dialect/Linalg/EDSC/Intrinsics.h"
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 #include "mlir/Dialect/Linalg/IR/LinalgTypes.h"
@@ -33,6 +33,7 @@ using namespace mlir::linalg;
 
 using edsc::op::operator+;
 using edsc::op::operator==;
+using mlir::edsc::intrinsics::detail::ValueHandleArray;
 
 static SmallVector<ValueHandle, 8>
 makeCanonicalAffineApplies(OpBuilder &b, Location loc, AffineMap map,
@@ -79,6 +80,30 @@ SmallVector<Value, 4> emitLoopRanges(OpBuilder &b, Location loc, AffineMap map,
         linalg_range(std_constant_index(0), sizes[idx], std_constant_index(1)));
   }
   return res;
+}
+
+template <typename OpType>
+static void inlineRegionAndEmitStdStore(OpType op,
+                                        ArrayRef<Value> indexedValues,
+                                        ArrayRef<ValueHandleArray> indexing,
+                                        ArrayRef<Value> outputBuffers) {
+  auto &b = ScopedContext::getBuilder();
+  auto &block = op.region().front();
+  BlockAndValueMapping map;
+  map.map(block.getArguments(), indexedValues);
+  for (auto &op : block.without_terminator()) {
+    assert(op.getNumRegions() == 0 && "expected a non-nested region");
+    auto *newOp = b.clone(op, map);
+    map.map(op.getResults(), newOp->getResults());
+  }
+
+  Operation &terminator = block.back();
+  assert(isa<YieldOp>(terminator) &&
+         "expected an yield op in the end of the region");
+  for (unsigned i = 0, e = terminator.getNumOperands(); i < e; ++i) {
+    std_store(map.lookup(terminator.getOperand(i)), outputBuffers[i],
+              indexing[i]);
+  }
 }
 
 namespace {
@@ -185,9 +210,9 @@ public:
     if (!convOp.padding())
       return im(imIdx);
 
+    auto *context = ScopedContext::getContext();
     ValueHandle zeroIndex = std_constant_index(0);
-    SmallVector<ValueHandle, 8> conds = {
-        std_constant_int(/*value=*/1, /*width=*/1)};
+    SmallVector<ValueHandle, 8> conds;
     SmallVector<ValueHandle, 8> clampedImIdx;
     for (auto iter : llvm::enumerate(imIdx)) {
       int idx = iter.index();
@@ -201,13 +226,16 @@ public:
       using edsc::op::operator<;
       using edsc::op::operator>=;
       using edsc::op::operator||;
-      conds.push_back(conds.back() || (dim < zeroIndex));
-      ValueHandle bound = std_dim(convOp.input(), idx);
-      conds.push_back(conds.back() || (dim >= bound));
+      ValueHandle leftOutOfBound = dim < zeroIndex;
+      if (conds.empty())
+        conds.push_back(leftOutOfBound);
+      else
+        conds.push_back(conds.back() || leftOutOfBound);
+      ValueHandle rightBound = std_dim(convOp.input(), idx);
+      conds.push_back(conds.back() || (dim >= rightBound));
 
       // When padding is involed, the indices will only be shifted to negative,
       // so having a max op is enough.
-      auto *context = ScopedContext::getContext();
       auto maxMap = AffineMap::get(/*dimCount=*/1, 0,
                                    {getAffineDimExpr(/*position=*/0, context),
                                     getAffineConstantExpr(0, context)});
@@ -219,7 +247,8 @@ public:
     Type type = convOp.input().getType().cast<MemRefType>().getElementType();
     ValueHandle zero = std_constant(type, b.getZeroAttr(type));
     ValueHandle readInput = im(clampedImIdx);
-    return std_select(conds.back(), zero, readInput);
+    return conds.empty() ? readInput
+                         : std_select(conds.back(), zero, readInput);
   }
 
   static void emitScalarImplementation(ArrayRef<Value> allIvs, ConvOp convOp) {
@@ -296,6 +325,8 @@ public:
     }
 
     // 1.b. Emit std_load from output views.
+    // TODO(mravishankar): Avoid the loads if the corresponding argument of the
+    // region has no uses.
     for (unsigned i = 0; i < nOutputs; ++i) {
       Value output = genericOp.getOutputBuffer(i);
       ValueHandleArray indexing(makeCanonicalAffineApplies(
@@ -320,24 +351,16 @@ public:
     }
     // TODO(ntv): When a region inliner exists, use it.
     // 2. Inline region, currently only works for a single basic block.
-    BlockAndValueMapping map;
-    auto &block = genericOp.region().front();
-    map.map(block.getArguments(), indexedValues);
-    for (auto &op : block.without_terminator()) {
-      assert(op.getNumRegions() == 0);
-      auto *newOp = b.clone(op, map);
-      map.map(op.getResults(), newOp->getResults());
-    }
-
     // 3. Emit std_store.
-    auto *yieldOp = cast<YieldOp>(block.back()).getOperation();
-    assert(yieldOp->getNumOperands() == nOutputs);
+    SmallVector<ValueHandleArray, 8> indexing;
+    SmallVector<Value, 8> outputBuffers;
     for (unsigned i = 0; i < nOutputs; ++i) {
-      ValueHandleArray indexing(makeCanonicalAffineApplies(
+      indexing.emplace_back(makeCanonicalAffineApplies(
           b, loc, genericOp.getOutputIndexingMap(i), allIvs));
-      std_store(map.lookup(yieldOp->getOperand(i)),
-                genericOp.getOutputBuffer(i), indexing);
+      outputBuffers.push_back(genericOp.getOutputBuffer(i));
     }
+    inlineRegionAndEmitStdStore(genericOp, indexedValues, indexing,
+                                outputBuffers);
   }
 };
 
@@ -393,25 +416,17 @@ public:
     // 1.a. Emit std_load from input views.
     for (unsigned i = 0; i < nInputs; ++i) {
       Value input = indexedGenericOp.getInput(i);
-      if (input.getType().cast<ShapedType>().getRank()) {
-        ValueHandleArray indexing(makeCanonicalAffineApplies(
-            b, loc, indexedGenericOp.getInputIndexingMap(i), allIvs));
-        indexedValues[nLoops + i] = std_load(input, indexing);
-      } else {
-        indexedValues[nLoops + i] = std_load(input);
-      }
+      ValueHandleArray indexing(makeCanonicalAffineApplies(
+          b, loc, indexedGenericOp.getInputIndexingMap(i), allIvs));
+      indexedValues[nLoops + i] = std_load(input, indexing);
     }
 
     // 1.b. Emit std_load from output views.
     for (unsigned i = 0; i < nOutputs; ++i) {
       Value output = indexedGenericOp.getOutputBuffer(i);
-      if (output.getType().cast<ShapedType>().getRank()) {
-        ValueHandleArray indexing(makeCanonicalAffineApplies(
-            b, loc, indexedGenericOp.getOutputIndexingMap(i), allIvs));
-        indexedValues[nLoops + nInputs + i] = std_load(output, indexing);
-      } else {
-        indexedValues[nLoops + nInputs + i] = std_load(output);
-      }
+      ValueHandleArray indexing(makeCanonicalAffineApplies(
+          b, loc, indexedGenericOp.getOutputIndexingMap(i), allIvs));
+      indexedValues[nLoops + nInputs + i] = std_load(output, indexing);
     }
 
     if (auto funcOp = indexedGenericOp.getFunction()) {
@@ -422,40 +437,24 @@ public:
       // 3. Emit std_store.
       for (unsigned i = 0; i < nOutputs; ++i) {
         Value output = indexedGenericOp.getOutputBuffer(i);
-        if (output.getType().cast<ShapedType>().getRank()) {
-          ValueHandleArray indexing(makeCanonicalAffineApplies(
-              b, loc, indexedGenericOp.getOutputIndexingMap(i), allIvs));
-          std_store(callOp->getResult(i), output, indexing);
-        } else {
-          std_store(callOp->getResult(i), output);
-        }
+        ValueHandleArray indexing(makeCanonicalAffineApplies(
+            b, loc, indexedGenericOp.getOutputIndexingMap(i), allIvs));
+        std_store(callOp->getResult(i), output, indexing);
       }
       return;
     }
     // TODO(ntv): When a region inliner exists, use it.
     // 2. Inline region, currently only works for a single basic block.
-    BlockAndValueMapping map;
-    auto &block = indexedGenericOp.region().front();
-    map.map(block.getArguments(), indexedValues);
-    for (auto &op : block.without_terminator()) {
-      assert(op.getNumRegions() == 0);
-      auto *newOp = b.clone(op, map);
-      map.map(op.getResults(), newOp->getResults());
-    }
-
     // 3. Emit std_store.
-    auto *yieldOp = cast<YieldOp>(block.back()).getOperation();
-    assert(yieldOp->getNumOperands() == nOutputs);
+    SmallVector<ValueHandleArray, 8> indexing;
+    SmallVector<Value, 8> outputBuffers;
     for (unsigned i = 0; i < nOutputs; ++i) {
-      Value output = indexedGenericOp.getOutputBuffer(i);
-      if (output.getType().cast<ShapedType>().getRank()) {
-        ValueHandleArray indexing(makeCanonicalAffineApplies(
-            b, loc, indexedGenericOp.getOutputIndexingMap(i), allIvs));
-        std_store(map.lookup(yieldOp->getOperand(i)), output, indexing);
-      } else {
-        std_store(map.lookup(yieldOp->getOperand(i)), output);
-      }
+      indexing.emplace_back(makeCanonicalAffineApplies(
+          b, loc, indexedGenericOp.getOutputIndexingMap(i), allIvs));
+      outputBuffers.push_back(indexedGenericOp.getOutputBuffer(i));
     }
+    inlineRegionAndEmitStdStore(indexedGenericOp, indexedValues, indexing,
+                                outputBuffers);
   }
 };
 

@@ -73,7 +73,8 @@ context::context(cl_context ClContext, async_handler AsyncHandler) {
 }
 
 #define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
-  template <> ret_type context::get_info<info::param_type::param>() const {    \
+  template <>                                                                  \
+  __SYCL_EXPORT ret_type context::get_info<info::param_type::param>() const {  \
     return impl->get_info<info::param_type::param>();                          \
   }
 
@@ -94,6 +95,8 @@ vector_class<device> context::get_devices() const {
 }
 
 context::context(shared_ptr_class<detail::context_impl> Impl) : impl(Impl) {}
+
+pi_native_handle context::getNative() const { return impl->getNative(); }
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

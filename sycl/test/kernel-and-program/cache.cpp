@@ -1,4 +1,6 @@
 // REQUIRES: opencl
+// TODO rewrite as unit test
+// XFAIL: *
 
 // RUN: %clangxx -fsycl -I %sycl_source_dir %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out

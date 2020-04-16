@@ -200,15 +200,95 @@ bool Sema::isKnownGoodSYCLDecl(const Decl *D) {
   return false;
 }
 
+static bool isZeroSizedArray(QualType Ty) {
+  if (const auto *CATy = dyn_cast<ConstantArrayType>(Ty))
+    return CATy->getSize() == 0;
+  return false;
+}
+
+static Sema::DeviceDiagBuilder
+emitDeferredDiagnosticAndNote(Sema &S, SourceRange Loc, unsigned DiagID,
+                              SourceRange UsedAtLoc) {
+  Sema::DeviceDiagBuilder builder =
+      S.SYCLDiagIfDeviceCode(Loc.getBegin(), DiagID);
+  if (UsedAtLoc.isValid())
+    S.SYCLDiagIfDeviceCode(UsedAtLoc.getBegin(), diag::note_sycl_used_here);
+  return builder;
+}
+
+static void checkSYCLVarType(Sema &S, QualType Ty, SourceRange Loc,
+                             llvm::DenseSet<QualType> Visited,
+                             SourceRange UsedAtLoc = SourceRange()) {
+  // Not all variable types are supported inside SYCL kernels,
+  // for example the quad type __float128 will cause errors in the
+  // SPIR-V translation phase.
+  // Here we check any potentially unsupported declaration and issue
+  // a deferred diagnostic, which will be emitted iff the declaration
+  // is discovered to reside in kernel code.
+  // The optional UsedAtLoc param is used when the SYCL usage is at a
+  // different location than the variable declaration and we need to
+  // inform the user of both, e.g. struct member usage vs declaration.
+
+  //--- check types ---
+
+  // zero length arrays
+  if (isZeroSizedArray(Ty))
+    emitDeferredDiagnosticAndNote(S, Loc, diag::err_typecheck_zero_array_size,
+                                  UsedAtLoc);
+
+  // variable length arrays
+  if (Ty->isVariableArrayType())
+    emitDeferredDiagnosticAndNote(S, Loc, diag::err_vla_unsupported, UsedAtLoc);
+
+  // Sub-reference array or pointer, then proceed with that type.
+  while (Ty->isAnyPointerType() || Ty->isArrayType())
+    Ty = QualType{Ty->getPointeeOrArrayElementType(), 0};
+
+  // __int128, __int128_t, __uint128_t, long double, __float128
+  if (Ty->isSpecificBuiltinType(BuiltinType::Int128) ||
+      Ty->isSpecificBuiltinType(BuiltinType::UInt128) ||
+      Ty->isSpecificBuiltinType(BuiltinType::LongDouble) ||
+      (Ty->isSpecificBuiltinType(BuiltinType::Float128) &&
+       !S.Context.getTargetInfo().hasFloat128Type()))
+    emitDeferredDiagnosticAndNote(S, Loc, diag::err_type_unsupported, UsedAtLoc)
+        << Ty.getUnqualifiedType().getCanonicalType();
+
+  //--- now recurse ---
+  // Pointers complicate recursion. Add this type to Visited.
+  // If already there, bail out.
+  if (!Visited.insert(Ty).second)
+    return;
+
+  if (const auto *ATy = dyn_cast<AttributedType>(Ty))
+    return checkSYCLVarType(S, ATy->getModifiedType(), Loc, Visited);
+
+  if (const auto *RD = Ty->getAsRecordDecl()) {
+    for (const auto &Field : RD->fields())
+      checkSYCLVarType(S, Field->getType(), Field->getSourceRange(), Visited,
+                       Loc);
+  } else if (const auto *FPTy = dyn_cast<FunctionProtoType>(Ty)) {
+    for (const auto &ParamTy : FPTy->param_types())
+      checkSYCLVarType(S, ParamTy, Loc, Visited);
+    checkSYCLVarType(S, FPTy->getReturnType(), Loc, Visited);
+  }
+}
+
+void Sema::checkSYCLDeviceVarDecl(VarDecl *Var) {
+  assert(getLangOpts().SYCLIsDevice &&
+         "Should only be called during SYCL compilation");
+  QualType Ty = Var->getType();
+  SourceRange Loc = Var->getLocation();
+  llvm::DenseSet<QualType> Visited;
+
+  checkSYCLVarType(*this, Ty, Loc, Visited);
+}
+
 class MarkDeviceFunction : public RecursiveASTVisitor<MarkDeviceFunction> {
 public:
   MarkDeviceFunction(Sema &S)
       : RecursiveASTVisitor<MarkDeviceFunction>(), SemaRef(S) {}
 
   bool VisitCallExpr(CallExpr *e) {
-    for (const auto &Arg : e->arguments())
-      CheckSYCLType(Arg->getType(), Arg->getSourceRange());
-
     if (FunctionDecl *Callee = e->getDirectCallee()) {
       Callee = Callee->getCanonicalDecl();
       assert(Callee && "Device function canonical decl must be available");
@@ -229,8 +309,6 @@ public:
         if (Method->isVirtual())
           SemaRef.Diag(e->getExprLoc(), diag::err_sycl_restrict)
               << Sema::KernelCallVirtualFunction;
-
-      CheckSYCLType(Callee->getReturnType(), Callee->getSourceRange());
 
       if (auto const *FD = dyn_cast<FunctionDecl>(Callee)) {
         // FIXME: We need check all target specified attributes for error if
@@ -260,12 +338,6 @@ public:
     return true;
   }
 
-  bool VisitCXXConstructExpr(CXXConstructExpr *E) {
-    for (const auto &Arg : E->arguments())
-      CheckSYCLType(Arg->getType(), Arg->getSourceRange());
-    return true;
-  }
-
   bool VisitCXXTypeidExpr(CXXTypeidExpr *E) {
     SemaRef.Diag(E->getExprLoc(), diag::err_sycl_restrict) << Sema::KernelRTTI;
     return true;
@@ -273,35 +345,6 @@ public:
 
   bool VisitCXXDynamicCastExpr(const CXXDynamicCastExpr *E) {
     SemaRef.Diag(E->getExprLoc(), diag::err_sycl_restrict) << Sema::KernelRTTI;
-    return true;
-  }
-
-  bool VisitTypedefNameDecl(TypedefNameDecl *TD) {
-    CheckSYCLType(TD->getUnderlyingType(), TD->getLocation());
-    return true;
-  }
-
-  bool VisitRecordDecl(RecordDecl *RD) {
-    CheckSYCLType(QualType{RD->getTypeForDecl(), 0}, RD->getLocation());
-    return true;
-  }
-
-  bool VisitParmVarDecl(VarDecl *VD) {
-    CheckSYCLType(VD->getType(), VD->getLocation());
-    return true;
-  }
-
-  bool VisitVarDecl(VarDecl *VD) {
-    CheckSYCLType(VD->getType(), VD->getLocation());
-    return true;
-  }
-
-  bool VisitDeclRefExpr(DeclRefExpr *E) {
-    Decl *D = E->getDecl();
-    if (SemaRef.isKnownGoodSYCLDecl(D))
-      return true;
-
-    CheckSYCLType(E->getType(), E->getSourceRange());
     return true;
   }
 
@@ -428,64 +471,6 @@ public:
   }
 
 private:
-  bool CheckSYCLType(QualType Ty, SourceRange Loc) {
-    llvm::DenseSet<QualType> visited;
-    return CheckSYCLType(Ty, Loc, visited);
-  }
-
-  bool CheckSYCLType(QualType Ty, SourceRange Loc,
-                     llvm::DenseSet<QualType> &Visited) {
-    if (Ty->isVariableArrayType()) {
-      SemaRef.Diag(Loc.getBegin(), diag::err_vla_unsupported);
-      return false;
-    }
-
-    while (Ty->isAnyPointerType() || Ty->isArrayType())
-      Ty = QualType{Ty->getPointeeOrArrayElementType(), 0};
-
-    // Pointers complicate recursion. Add this type to Visited.
-    // If already there, bail out.
-    if (!Visited.insert(Ty).second)
-      return true;
-
-    if (const auto *ATy = dyn_cast<AttributedType>(Ty))
-      return CheckSYCLType(ATy->getModifiedType(), Loc, Visited);
-
-    if (const auto *CRD = Ty->getAsCXXRecordDecl()) {
-      // If the class is a forward declaration - skip it, because otherwise we
-      // would query property of class with no definition, which results in
-      // clang crash.
-      if (!CRD->hasDefinition())
-        return true;
-
-      for (const auto &Field : CRD->fields()) {
-        if (!CheckSYCLType(Field->getType(), Field->getSourceRange(),
-                           Visited)) {
-          if (SemaRef.getLangOpts().SYCLIsDevice)
-            SemaRef.Diag(Loc.getBegin(), diag::note_sycl_used_here);
-          return false;
-        }
-      }
-    } else if (const auto *RD = Ty->getAsRecordDecl()) {
-      for (const auto &Field : RD->fields()) {
-        if (!CheckSYCLType(Field->getType(), Field->getSourceRange(),
-                           Visited)) {
-          if (SemaRef.getLangOpts().SYCLIsDevice)
-            SemaRef.Diag(Loc.getBegin(), diag::note_sycl_used_here);
-          return false;
-        }
-      }
-    } else if (const auto *FPTy = dyn_cast<FunctionProtoType>(Ty)) {
-      for (const auto &ParamTy : FPTy->param_types())
-        if (!CheckSYCLType(ParamTy, Loc, Visited))
-          return false;
-      return CheckSYCLType(FPTy->getReturnType(), Loc, Visited);
-    } else if (const auto *FTy = dyn_cast<FunctionType>(Ty)) {
-      return CheckSYCLType(FTy->getReturnType(), Loc, Visited);
-    }
-    return true;
-  }
-
   Sema &SemaRef;
 };
 
@@ -1220,7 +1205,6 @@ CreateOpenCLKernelDeclaration(ASTContext &Context, StringRef Name,
   }
   OpenCLKernel->setParams(Params);
 
-  OpenCLKernel->addAttr(SYCLDeviceAttr::CreateImplicit(Context));
   OpenCLKernel->addAttr(OpenCLKernelAttr::CreateImplicit(Context));
   OpenCLKernel->addAttr(AsmLabelAttr::CreateImplicit(Context, Name));
   OpenCLKernel->addAttr(ArtificialAttr::CreateImplicit(Context));
@@ -1413,18 +1397,6 @@ bool Sema::checkSYCLDeviceFunction(SourceLocation Loc, FunctionDecl *Callee) {
   if (!Caller)
     return true;
 
-  bool CallerKnownEmitted =
-      getEmissionStatus(Caller) == FunctionEmissionStatus::Emitted;
-
-  // If the caller is known-emitted, mark the callee as known-emitted.
-  // Otherwise, mark the call in our call graph so we can traverse it later.
-  if (CallerKnownEmitted)
-    markKnownEmitted(*this, Caller, Callee, Loc, [](Sema &S, FunctionDecl *FD) {
-      return S.getEmissionStatus(FD) == Sema::FunctionEmissionStatus::Emitted;
-    });
-  else
-    DeviceCallGraph[Caller].insert({Callee, Loc});
-
   DeviceDiagBuilder::Kind DiagKind = DeviceDiagBuilder::K_Nop;
 
   // TODO Set DiagKind to K_Immediate/K_Deferred to emit diagnostics for Callee
@@ -1439,9 +1411,9 @@ bool Sema::checkSYCLDeviceFunction(SourceLocation Loc, FunctionDecl *Callee) {
          DiagKind != DeviceDiagBuilder::K_ImmediateWithCallStack;
 }
 
-static void emitCallToUndefinedFnDiag(Sema &SemaRef, const FunctionDecl *Callee,
-                                      const FunctionDecl *Caller,
-                                      const SourceLocation &Loc) {
+void Sema::finalizeSYCLDelayedAnalysis(const FunctionDecl *Caller,
+                                       const FunctionDecl *Callee,
+                                       SourceLocation Loc) {
   // Somehow an unspecialized template appears to be in callgraph or list of
   // device functions. We don't want to emit diagnostic here.
   if (Callee->getTemplatedKind() == FunctionDecl::TK_FunctionTemplate)
@@ -1451,9 +1423,7 @@ static void emitCallToUndefinedFnDiag(Sema &SemaRef, const FunctionDecl *Callee,
 
   for (const Decl *Redecl : Callee->redecls()) {
     if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(Redecl)) {
-      if ((FD->hasAttr<SYCLDeviceAttr>() &&
-           !FD->getAttr<SYCLDeviceAttr>()->isImplicit()) ||
-          FD->hasAttr<SYCLKernelAttr>()) {
+      if (FD->hasAttr<SYCLDeviceAttr>() || FD->hasAttr<SYCLKernelAttr>()) {
         RedeclHasAttr = true;
         break;
       }
@@ -1464,26 +1434,10 @@ static void emitCallToUndefinedFnDiag(Sema &SemaRef, const FunctionDecl *Callee,
   bool NotDefinedNoAttr = !Callee->isDefined() && !RedeclHasAttr;
 
   if (NotDefinedNoAttr && !Callee->getBuiltinID()) {
-    SemaRef.Diag(Loc, diag::err_sycl_restrict)
+    Diag(Loc, diag::err_sycl_restrict)
         << Sema::KernelCallUndefinedFunction;
-    SemaRef.Diag(Callee->getLocation(), diag::note_previous_decl) << Callee;
-    SemaRef.Diag(Caller->getLocation(), diag::note_called_by) << Caller;
-  }
-}
-
-void Sema::finalizeSYCLDelayedAnalysis() {
-  assert(getLangOpts().SYCLIsDevice &&
-         "Should only be called during SYCL compilation");
-
-  llvm::DenseSet<const FunctionDecl *> Checked;
-
-  for (const auto &EmittedWithLoc : DeviceKnownEmittedFns) {
-    const FunctionDecl *Caller = EmittedWithLoc.getSecond().FD;
-    const SourceLocation &Loc = EmittedWithLoc.getSecond().Loc;
-    const FunctionDecl *Callee = EmittedWithLoc.getFirst();
-
-    if (Checked.insert(Callee).second)
-      emitCallToUndefinedFnDiag(*this, Callee, Caller, Loc);
+    Diag(Callee->getLocation(), diag::note_previous_decl) << Callee;
+    Diag(Caller->getLocation(), diag::note_called_by) << Caller;
   }
 }
 
@@ -1534,7 +1488,7 @@ void SYCLIntegrationHeader::emitFwdDecl(raw_ostream &O, const Decl *D,
                                 ? cast<ClassTemplateDecl>(D)->getTemplatedDecl()
                                 : dyn_cast<TagDecl>(D);
 
-        if (TD && TD->isCompleteDefinition() && !UnnamedLambdaSupport) {
+        if (TD && !UnnamedLambdaSupport) {
           // defined class constituting the kernel name is not globally
           // accessible - contradicts the spec
           const bool KernelNameIsMissing = TD->getName().empty();
@@ -1543,8 +1497,12 @@ void SYCLIntegrationHeader::emitFwdDecl(raw_ostream &O, const Decl *D,
                 << /* kernel name is missing */ 0;
             // Don't emit note if kernel name was completely omitted
           } else {
-            Diag.Report(KernelLocation, diag::err_sycl_kernel_incorrectly_named)
-                << /* kernel name is not globally-visible */ 1;
+            if (TD->isCompleteDefinition())
+              Diag.Report(KernelLocation,
+                          diag::err_sycl_kernel_incorrectly_named)
+                  << /* kernel name is not globally-visible */ 1;
+            else
+              Diag.Report(KernelLocation, diag::warn_sycl_implicit_decl);
             Diag.Report(D->getSourceRange().getBegin(),
                         diag::note_previous_decl)
                 << TD->getName();

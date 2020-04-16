@@ -4,16 +4,21 @@ import subprocess
 import sys
 import platform
 
-# TODO:
-# 1. Make all required options optional
-# 2. Create obj_dir from the script if it doesn't exist
-
 def do_configure(args):
     ret = False
 
-    # Get absolute paths
-    abs_src_dir = os.path.abspath(args.src_dir)
-    abs_obj_dir = os.path.abspath(args.obj_dir)
+    # Get absolute path to source directory
+    if args.src_dir:
+      abs_src_dir = os.path.abspath(args.src_dir)
+    else:
+      abs_src_dir = os.path.abspath(os.path.join(__file__, "../.."))
+    # Get absolute path to build directory
+    if args.obj_dir:
+      abs_obj_dir = os.path.abspath(args.obj_dir)
+    else:
+      abs_obj_dir = os.path.join(abs_src_dir, "build")
+    if not os.path.isdir(abs_obj_dir):
+      os.makedirs(abs_obj_dir)
 
     llvm_dir = os.path.join(abs_src_dir, "llvm")
     sycl_dir = os.path.join(abs_src_dir, "sycl")
@@ -26,6 +31,7 @@ def do_configure(args):
     llvm_enable_projects = 'clang;llvm-spirv;sycl;opencl-aot;xpti;libdevice'
     libclc_targets_to_build = ''
     sycl_build_pi_cuda = 'OFF'
+    sycl_werror = 'ON'
     llvm_enable_assertions = 'ON'
     llvm_enable_doxygen = 'OFF'
     llvm_enable_sphinx = 'OFF'
@@ -42,8 +48,11 @@ def do_configure(args):
         libclc_targets_to_build = 'nvptx64--;nvptx64--nvidiacl'
         sycl_build_pi_cuda = 'ON'
 
-    if args.assertions:
-        llvm_enable_assertions = 'ON'
+    if args.no_werror:
+        sycl_werror = 'OFF'
+
+    if args.no_assertions:
+        llvm_enable_assertions = 'OFF'
 
     if args.docs:
         llvm_enable_doxygen = 'ON'
@@ -56,7 +65,7 @@ def do_configure(args):
 
     cmake_cmd = [
         "cmake",
-        "-G", "Ninja",
+        "-G", args.cmake_gen,
         "-DCMAKE_BUILD_TYPE={}".format(args.build_type),
         "-DLLVM_ENABLE_ASSERTIONS={}".format(llvm_enable_assertions),
         "-DLLVM_TARGETS_TO_BUILD={}".format(llvm_targets_to_build),
@@ -69,7 +78,7 @@ def do_configure(args):
         "-DLIBCLC_TARGETS_TO_BUILD={}".format(libclc_targets_to_build),
         "-DSYCL_BUILD_PI_CUDA={}".format(sycl_build_pi_cuda),
         "-DLLVM_BUILD_TOOLS=ON",
-        "-DSYCL_ENABLE_WERROR=ON",
+        "-DSYCL_ENABLE_WERROR={}".format(sycl_werror),
         "-DCMAKE_INSTALL_PREFIX={}".format(install_dir),
         "-DSYCL_INCLUDE_TESTS=ON", # Explicitly include all kinds of SYCL tests.
         "-DLLVM_ENABLE_DOXYGEN={}".format(llvm_enable_doxygen),
@@ -78,7 +87,7 @@ def do_configure(args):
         "-DSYCL_ENABLE_XPTI_TRACING=ON" # Explicitly turn on XPTI tracing
     ]
 
-    if not args.no_ocl:
+    if args.system_ocl:
       cmake_cmd.extend([
             "-DOpenCL_INCLUDE_DIR={}".format(ocl_header_dir),
             "-DOpenCL_LIBRARY={}".format(icd_loader_lib)])
@@ -113,16 +122,18 @@ def main():
     parser.add_argument("-r", "--pr-number", metavar="PR_NUM", help="pull request number")
     parser.add_argument("-w", "--builder-dir", metavar="BUILDER_DIR",
                         help="builder directory, which is the directory contains source and build directories")
-    parser.add_argument("-s", "--src-dir", metavar="SRC_DIR", required=True, help="source directory")
-    parser.add_argument("-o", "--obj-dir", metavar="OBJ_DIR", required=True, help="build directory")
+    parser.add_argument("-s", "--src-dir", metavar="SRC_DIR", help="source directory (autodetected by default)")
+    parser.add_argument("-o", "--obj-dir", metavar="OBJ_DIR", help="build directory. (<src>/build by default)")
     parser.add_argument("-t", "--build-type",
-                        metavar="BUILD_TYPE", required=True, help="build type, debug or release")
+                        metavar="BUILD_TYPE", default="Release", help="build type: Debug, Release")
     parser.add_argument("--cuda", action='store_true', help="switch from OpenCL to CUDA")
-    parser.add_argument("--assertions", action='store_true', help="build with assertions")
+    parser.add_argument("--no-assertions", action='store_true', help="build without assertions")
     parser.add_argument("--docs", action='store_true', help="build Doxygen documentation")
-    parser.add_argument("--no-ocl", action='store_true', help="download OpenCL deps via CMake")
+    parser.add_argument("--system-ocl", action='store_true', help="use OpenCL deps from system (no download)")
+    parser.add_argument("--no-werror", action='store_true', help="Don't treat warnings as errors")
     parser.add_argument("--shared-libs", action='store_true', help="Build shared libraries")
     parser.add_argument("--cmake-opt", action='append', help="Additional CMake option not configured via script parameters")
+    parser.add_argument("--cmake-gen", default="Ninja", help="CMake generator")
 
     args = parser.parse_args()
 

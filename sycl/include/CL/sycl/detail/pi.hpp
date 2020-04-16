@@ -14,11 +14,12 @@
 #pragma once
 
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/detail/pi.h>
-#include <sstream>
 
 #include <cassert>
+#include <sstream>
 #include <string>
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -30,6 +31,9 @@ struct trace_event_data_t;
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+
+class context;
+
 namespace detail {
 
 enum class PiApiKind {
@@ -48,9 +52,9 @@ namespace pi {
 #endif
 
 // Report error and no return (keeps compiler happy about no return statements).
-[[noreturn]] void die(const char *Message);
+[[noreturn]] __SYCL_EXPORT void die(const char *Message);
 
-void assertion(bool Condition, const char *Message = nullptr);
+__SYCL_EXPORT void assertion(bool Condition, const char *Message = nullptr);
 
 template <typename T>
 void handleUnknownParamName(const char *functionName, T parameter) {
@@ -94,6 +98,10 @@ using PiMemImageInfo = ::pi_image_info;
 using PiMemObjectType = ::pi_mem_type;
 using PiMemImageChannelOrder = ::pi_image_channel_order;
 using PiMemImageChannelType = ::pi_image_channel_type;
+
+void contextSetExtendedDeleter(const cl::sycl::context &constext,
+                               pi_context_extended_deleter func,
+                               void *user_data);
 
 // Function to load the shared library
 // Implementation is OS dependent.
@@ -303,12 +311,12 @@ template <class To, class From> inline To cast(From value) {
 
 // These conversions should use PI interop API.
 template <> inline pi::PiProgram cast(cl_program interop) {
-  RT::assertion(false, "pi::cast -> use piextProgramConvert");
+  RT::assertion(false, "pi::cast -> use piextProgramFromNative");
   return {};
 }
 
 template <> inline pi::PiDevice cast(cl_device_id interop) {
-  RT::assertion(false, "pi::cast -> use piextDeviceConvert");
+  RT::assertion(false, "pi::cast -> use piextDeviceFromNative");
   return {};
 }
 } // namespace pi

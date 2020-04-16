@@ -30,6 +30,6 @@ template <typename T> T fpga_reg(const T &t) {
 // Currently clang does not support nested namespace for attributes
 namespace intelfpga {
 template <typename T> T fpga_reg(const T &t) {
-	return cl::sycl::intel::fpga_reg(t);
-}	
+  return cl::sycl::intel::fpga_reg(t);
+}
 }

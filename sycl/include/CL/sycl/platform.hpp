@@ -8,6 +8,7 @@
 
 #pragma once
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/stl.hpp>
 
 // 4.6.2 Platform class
@@ -23,7 +24,7 @@ namespace detail {
 class platform_impl;
 }
 
-class platform {
+class __SYCL_EXPORT platform {
 public:
   /// Constructs a SYCL platform as a host platform.
   platform();

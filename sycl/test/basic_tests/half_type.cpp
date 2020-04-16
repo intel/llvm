@@ -245,6 +245,10 @@ int main() {
   // subnormal
   assert(bitwise_comparison_fp16(9.8E-45, 0));
   assert(bitwise_comparison_fp16(-9.8E-45, 32768));
+  uint32_t subnormal_in_16 = 0x38200000;
+  // verify 0.000038146972 converts to 0.0000382
+  assert(
+      bitwise_comparison_fp16(reinterpret_cast<float &>(subnormal_in_16), 0x0280));
   // overflow
   assert(bitwise_comparison_fp16(half(55504) * 3, 31744));
   assert(bitwise_comparison_fp16(half(-55504) * 3, 64512));

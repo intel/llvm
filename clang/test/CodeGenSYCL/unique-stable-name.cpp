@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -triple spir64-unknown-unknown-sycldevice -fsycl -fsycl-is-device -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
 // CHECK: @[[INT:[^\w]+]] = private unnamed_addr constant [[INT_SIZE:\[[0-9]+ x i8\]]] c"_ZTSi\00"
 // CHECK: @[[LAMBDA_X:[^\w]+]] = private unnamed_addr constant [[LAMBDA_X_SIZE:\[[0-9]+ x i8\]]] c"_ZTSZZ4mainENKUlvE42->5clEvEUlvE46->16\00"
 // CHECK: @[[MACRO_X:[^\w]+]] = private unnamed_addr constant [[MACRO_SIZE:\[[0-9]+ x i8\]]] c"_ZTSZZ4mainENKUlvE42->5clEvEUlvE52->7~28->18\00"
@@ -12,7 +12,7 @@ extern "C" void printf(const char *) {}
 
 template <typename T>
 void template_param() {
-  printf(__unique_stable_name(T));
+  printf(__builtin_unique_stable_name(T));
 }
 
 template <typename T>
@@ -21,31 +21,31 @@ T getT() { return T{}; }
 template <typename T>
 void lambda_in_dependent_function() {
   auto y = [] {};
-  printf(__unique_stable_name(y));
+  printf(__builtin_unique_stable_name(y));
 }
 
 #define DEF_IN_MACRO()                                  \
   auto MACRO_X = []() {};auto MACRO_Y = []() {};        \
-  printf(__unique_stable_name(MACRO_X));                \
-  printf(__unique_stable_name(MACRO_Y));
+  printf(__builtin_unique_stable_name(MACRO_X));        \
+  printf(__builtin_unique_stable_name(MACRO_Y));
 
 #define MACRO_CALLS_MACRO()                             \
   {DEF_IN_MACRO();}{DEF_IN_MACRO();}
 
 template <typename KernelName, typename KernelType>
-__attribute__((sycl_kernel)) void kernel_single_task(KernelType kernelFunc) {
+[[clang::sycl_kernel]] void kernel_single_task(KernelType kernelFunc) {
   kernelFunc();
 }
 
 int main() {
   kernel_single_task<class kernel>(
     []() {
-      printf(__unique_stable_name(int));
+      printf(__builtin_unique_stable_name(int));
       // CHECK: call spir_func void @printf(i8 addrspace(4)* addrspacecast (i8* getelementptr inbounds ([[INT_SIZE]], [[INT_SIZE]]* @[[INT]]
 
       auto x = [](){};
-      printf(__unique_stable_name(x));
-      printf(__unique_stable_name(decltype(x)));
+      printf(__builtin_unique_stable_name(x));
+      printf(__builtin_unique_stable_name(decltype(x)));
       // CHECK: call spir_func void @printf(i8 addrspace(4)* addrspacecast (i8* getelementptr inbounds ([[LAMBDA_X_SIZE]], [[LAMBDA_X_SIZE]]* @[[LAMBDA_X]]
       // CHECK: call spir_func void @printf(i8 addrspace(4)* addrspacecast (i8* getelementptr inbounds ([[LAMBDA_X_SIZE]], [[LAMBDA_X_SIZE]]* @[[LAMBDA_X]]
 
