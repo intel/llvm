@@ -723,34 +723,6 @@ static CompoundStmt *CreateOpenCLKernelBody(Sema &S,
   CXXRecordDecl *LC = getKernelObjectType(KernelCallerFunc);
   assert(LC && "Kernel object must be available");
 
-  if (getKernelInvocationKind(KernelCallerFunc) == InvokeParallelForWorkGroup) {
-    CXXRecordDecl *LambdaObjTy =
-        KernelCallerFunc->getParamDecl(0)->getType()->getAsCXXRecordDecl();
-    assert(LambdaObjTy &&
-           "unexpected kernel_parallel_for_work_group parameter type");
-    FindPFWGLambdaFnVisitor V(LambdaObjTy);
-    V.TraverseStmt(KernelCallerFunc->getBody());
-    CXXMethodDecl *WGLambdaFn = V.getLambdaFn();
-    assert(WGLambdaFn && "PFWG lambda not found");
-    // Mark the function that it "works" in a work group scope:
-    // NOTE: In case of parallel_for_work_item the marker call itself is marked
-    //       with work item scope attribute, here  the '()' operator of the
-    //       object passed as parameter is marked. This is an optimization -
-    //       there are a lot of locals created at parallel_for_work_group scope
-    //       before calling the lambda - it is more efficient to have all of
-    //       them in the private address space rather then sharing via the local
-    //       AS. See parallel_for_work_group implementation in the SYCL headers.
-    if (!WGLambdaFn->hasAttr<SYCLScopeAttr>()) {
-      WGLambdaFn->addAttr(SYCLScopeAttr::CreateImplicit(
-          S.getASTContext(), SYCLScopeAttr::Level::WorkGroup));
-      // Search and mark parallel_for_work_item calls:
-      MarkWIScopeFnVisitor MarkWIScope(S.getASTContext());
-      MarkWIScope.TraverseDecl(WGLambdaFn);
-      // Now mark local variables declared in the PFWG lambda with work group
-      // scope attribute
-      addScopeAttrToLocalVars(*WGLambdaFn);
-    }
-  }
 
   TypeSourceInfo *TSInfo = LC->isLambda() ? LC->getLambdaTypeInfo() : nullptr;
 
@@ -1433,8 +1405,35 @@ class SyclKernelBodyCreator
     return CompoundStmt::Create(SemaRef.getASTContext(), BodyStmts, {}, {});
   }
 
-  // TODO: not sure what this does yet, name is a placeholder for future use.
-  void doSomethingForParallelForWorkGroup() {}
+  void markParallelWorkItemCalls() {
+    if (getKernelInvocationKind(KernelCallerFunc) ==
+        InvokeParallelForWorkGroup) {
+      FindPFWGLambdaFnVisitor V(KernelObj);
+      V.TraverseStmt(KernelCallerFunc->getBody());
+      CXXMethodDecl *WGLambdaFn = V.getLambdaFn();
+      assert(WGLambdaFn && "PFWG lambda not found");
+      // Mark the function that it "works" in a work group scope:
+      // NOTE: In case of parallel_for_work_item the marker call itself is
+      // marked
+      //       with work item scope attribute, here  the '()' operator of the
+      //       object passed as parameter is marked. This is an optimization -
+      //       there are a lot of locals created at parallel_for_work_group
+      //       scope before calling the lambda - it is more efficient to have
+      //       all of them in the private address space rather then sharing via
+      //       the local AS. See parallel_for_work_group implementation in the
+      //       SYCL headers.
+      if (!WGLambdaFn->hasAttr<SYCLScopeAttr>()) {
+        WGLambdaFn->addAttr(SYCLScopeAttr::CreateImplicit(
+            SemaRef.getASTContext(), SYCLScopeAttr::Level::WorkGroup));
+        // Search and mark parallel_for_work_item calls:
+        MarkWIScopeFnVisitor MarkWIScope(SemaRef.getASTContext());
+        MarkWIScope.TraverseDecl(WGLambdaFn);
+        // Now mark local variables declared in the PFWG lambda with work group
+        // scope attribute
+        addScopeAttrToLocalVars(*WGLambdaFn);
+      }
+    }
+  }
 
   MemberExpr *BuildMemberExpr(Expr *Base, ValueDecl *Member) {
     DeclAccessPair MemberDAP = DeclAccessPair::make(Member, AS_none);
@@ -1537,7 +1536,7 @@ class SyclKernelBodyCreator
 
 public:
   SyclKernelBodyCreator(Sema &S, SyclKernelDeclCreator &DC,
-                        KernelInvocationKind K, CXXRecordDecl *KernelObj,
+                        CXXRecordDecl *KernelObj,
                         FunctionDecl *KernelCallerFunc)
       : SyclKernelFieldHandler(S), DeclCreator(DC),
         KernelObjClone(createKernelObjClone(S.getASTContext(),
@@ -1545,8 +1544,7 @@ public:
         VarEntity(InitializedEntity::InitializeVariable(KernelObjClone)),
         KernelObj(KernelObj), KernelCallerFunc(KernelCallerFunc) {
     // TODO: Something special with the lambda when InvokeParallelForWorkGroup.
-    if (K == InvokeParallelForWorkGroup)
-      doSomethingForParallelForWorkGroup();
+    markParallelWorkItemCalls();
 
     Stmt *DS = new (S.Context) DeclStmt(DeclGroupRef(KernelObjClone),
                                         SourceLocation(), SourceLocation());
@@ -1792,9 +1790,8 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
   SyclKernelDeclCreator kernel_decl(*this, checker, KernelName,
                                     KernelLambda->getLocation(),
                                     KernelCallerFunc->isInlined());
-  SyclKernelBodyCreator kernel_body(*this, kernel_decl,
-                                    getKernelInvocationKind(KernelCallerFunc),
-                                    KernelLambda, KernelCallerFunc);
+  SyclKernelBodyCreator kernel_body(*this, kernel_decl, KernelLambda,
+                                    KernelCallerFunc);
   SyclKernelIntHeaderCreator int_header(
       *this, getSyclIntegrationHeader(), KernelLambda,
       calculateKernelNameType(Context, KernelCallerFunc), CalculatedName,
