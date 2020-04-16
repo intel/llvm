@@ -1794,7 +1794,7 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
                                     KernelCallerFunc);
   SyclKernelIntHeaderCreator int_header(
       *this, getSyclIntegrationHeader(), KernelLambda,
-      calculateKernelNameType(Context, KernelCallerFunc), CalculatedName,
+      calculateKernelNameType(Context, KernelCallerFunc), KernelName,
       StableName);
 
   ConstructingOpenCLKernel = true;
