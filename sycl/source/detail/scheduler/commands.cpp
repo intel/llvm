@@ -389,7 +389,6 @@ EventImplPtr Command::connectDepEvent(EventImplPtr DepEvent,
   ConnectCmd->addDep(DepEvent);
 
   if (Command *DepCmd = reinterpret_cast<Command *>(DepEvent->getCommand())) {
-    (void)DepCmd;
     EmptyCommand *EmptyCmd = new EmptyCommand(
         Scheduler::getInstance().getDefaultHostQueue());
 
