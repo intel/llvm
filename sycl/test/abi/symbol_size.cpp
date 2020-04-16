@@ -1,44 +1,62 @@
-// RUN: %clangxx -fsycl %s -o %t && %t
+// RUN: %clangxx -fsycl %s -o %t
 
-#include <CL/sycl.hpp>
-#include <cassert>
+// Changing symbol size is a breaking change. If it happens, refer to the ABI
+// Policy Guide for further insrtuctions on breaking ABI.
+
+#include <CL/sycl/accessor.hpp>
+#include <CL/sycl/buffer.hpp>
+#include <CL/sycl/device.hpp>
+#include <CL/sycl/device_event.hpp>
+#include <CL/sycl/device_selector.hpp>
+#include <CL/sycl/event.hpp>
+#include <CL/sycl/handler.hpp>
+#include <CL/sycl/image.hpp>
+#include <CL/sycl/kernel.hpp>
+#include <CL/sycl/multi_ptr.hpp>
+#include <CL/sycl/platform.hpp>
+#include <CL/sycl/program.hpp>
+#include <CL/sycl/queue.hpp>
+#include <CL/sycl/sampler.hpp>
+#include <CL/sycl/stream.hpp>
 
 using namespace cl::sycl;
 
-#define CHECK_LAYOUT(class_name, size)                                    \
-  if (sizeof(class_name) != size) {                                       \
-    std::cout << "Size of class " << #class_name << " has changed. Was: " \
-              << #size << ". Now: " << sizeof(class_name) << std::endl;   \
-    HasChanged = true;                                                    \
-  }
+template <int newSize, int oldSize>
+void check_size() {
+  static_assert(newSize == oldSize, "Symbol size has changed.");
+}
+
+template <typename T, size_t oldSize>
+void check_size() {
+  check_size<sizeof(T), oldSize>();
+}
 
 int main() {
-
-  bool HasChanged = false;
-
   using accessor_t = accessor<int, 1, access::mode::read,
                               access::target::global_buffer, access::placeholder::true_t>;
-  CHECK_LAYOUT(accessor_t, 32)
-  CHECK_LAYOUT(buffer<int>, 40)
-  CHECK_LAYOUT(context, 16)
-  CHECK_LAYOUT(cpu_selector, 8)
-  CHECK_LAYOUT(device, 16)
-  CHECK_LAYOUT(device_event, 8)
-  CHECK_LAYOUT(device_selector, 8)
-  CHECK_LAYOUT(event, 16)
-  CHECK_LAYOUT(gpu_selector, 8)
-  CHECK_LAYOUT(handler, 472)
-  CHECK_LAYOUT(image<1>, 16)
-  CHECK_LAYOUT(kernel, 16)
-  CHECK_LAYOUT(platform, 16)
-  CHECK_LAYOUT(private_memory<int>, 8)
-  CHECK_LAYOUT(program, 16)
-  CHECK_LAYOUT(range<1>, 8)
-  CHECK_LAYOUT(sampler, 16)
-  CHECK_LAYOUT(stream, 208)
-  CHECK_LAYOUT(queue, 16)
-
-  assert(!HasChanged && "Some symbols changed their sizes!");
+  check_size<accessor_t, 32>();
+  check_size<buffer<int>, 40>();
+  check_size<context, 16>();
+  check_size<cpu_selector, 8>();
+  check_size<device, 16>();
+  check_size<device_event, 8>();
+  check_size<device_selector, 8>();
+  check_size<event, 16>();
+  check_size<gpu_selector, 8>();
+  check_size<handler, 472>();
+  check_size<image<1>, 16>();
+  check_size<kernel, 16>();
+  check_size<platform, 16>();
+#ifdef __SYCL_DEVICE_ONLY__
+  check_size<private_memory<int, 1>, 4>();
+#else
+  check_size<private_memory<int, 1>, 8>();
+#endif
+  check_size<program, 16>();
+  check_size<range<1>, 8>();
+  check_size<sampler, 16>();
+  check_size<stream, 208>();
+  check_size<queue, 16>();
 
   return 0;
 }

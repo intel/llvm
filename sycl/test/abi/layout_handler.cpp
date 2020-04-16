@@ -1,7 +1,7 @@
 // RUN: %clangxx -fsycl -c -fno-color-diagnostics -Xclang -ast-dump %s | FileCheck %s
 // REQUIRES: linux
 
-#include <CL/sycl.hpp>
+#include <CL/sycl/handler.hpp>
 
 // The order of field declarations and their types are important.
 
