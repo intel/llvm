@@ -1153,15 +1153,12 @@ static SPIR::RefParamType transTypeDesc(Type *Ty,
 Value *getScalarOrArray(Value *V, unsigned Size, Instruction *Pos) {
   if (!V->getType()->isPointerTy())
     return V;
-  assert((isa<ConstantExpr>(V) || isa<GetElementPtrInst>(V)) &&
-         "unexpected value type");
-  auto GEP = cast<User>(V);
+  auto GEP = cast<GEPOperator>(V);
   assert(GEP->getNumOperands() == 3 && "must be a GEP from an array");
-  auto P = GEP->getOperand(0);
-  assert(P->getType()->getPointerElementType()->getArrayNumElements() == Size);
+  assert(GEP->getSourceElementType()->getArrayNumElements() == Size);
   assert(dyn_cast<ConstantInt>(GEP->getOperand(1))->getZExtValue() == 0);
   assert(dyn_cast<ConstantInt>(GEP->getOperand(2))->getZExtValue() == 0);
-  return new LoadInst(P->getType()->getPointerElementType(), P, "", Pos);
+  return new LoadInst(GEP->getSourceElementType(), GEP->getOperand(0), "", Pos);
 }
 
 Constant *getScalarOrVectorConstantInt(Type *T, uint64_t V, bool IsSigned) {
