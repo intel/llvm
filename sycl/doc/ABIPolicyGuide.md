@@ -6,7 +6,7 @@ Application Binary Interface is a contract between binary modules, that defines
 how structures and routines are accessed in machine code. Changing the ABI may
 break backwards compatibility with library for user-developed applications,
 resulting in need to rebuild such applications. The goal of this document is to
-provide guidelines of persisting the current ABI and mechanisms of notifying
+provide guidelines for maintaining the current ABI and mechanisms of notifying
 users about ABI changes.
 
 All ABI changes can be divided into two large groups: breaking and non-breaking.
@@ -87,4 +87,3 @@ Whenever you need to change the existing ABI, please, follow these steps:
 2. Fix failing ABI tests in your Pull Request. Use aforementioned techniques to
    update test files.
 3. Update the library version according to the policies.
-
