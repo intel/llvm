@@ -23,7 +23,7 @@ class plugin {
 public:
   plugin() = delete;
 
-  plugin(RT::PiPlugin Plugin) : MPlugin(Plugin) {
+  explicit plugin(RT::PiPlugin Plugin) : MPlugin(Plugin) {
     MPiEnableTrace = (std::getenv("SYCL_PI_TRACE") != nullptr);
   }
 
@@ -79,6 +79,17 @@ private:
   bool MPiEnableTrace;
 
 }; // class plugin
+
+/// Two plugins are the same if their string is the same.
+/// There is no need to check the actual string, just the pointer, since
+/// there is only one instance of the PiPlugin struct per backend.
+///
+/// \ingroup sycl_pi
+///
+inline bool operator==(const plugin &lhs, const plugin &rhs) {
+  return (lhs.getPiPlugin().PluginVersion == rhs.getPiPlugin().PluginVersion);
+}
+
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
