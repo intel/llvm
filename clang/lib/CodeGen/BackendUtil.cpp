@@ -599,19 +599,38 @@ void EmitAssemblyHelper::CreatePasses(legacy::PassManager &MPM,
          CodeGenOpts.PrepareForThinLTO));
   }
 
-  PMBuilder.OptLevel = CodeGenOpts.OptimizationLevel;
-  PMBuilder.SizeLevel = CodeGenOpts.OptimizeSize;
-  PMBuilder.SLPVectorize = CodeGenOpts.VectorizeSLP;
-  PMBuilder.LoopVectorize = CodeGenOpts.VectorizeLoop;
+  if (LangOpts.SYCLIsDevice) {
+    PMBuilder.OptLevel = 1;
+    PMBuilder.SizeLevel = 2;
+    PMBuilder.SLPVectorize = false;
+    PMBuilder.LoopVectorize = false;
+    PMBuilder.DivergentTarget = true;
+    PMBuilder.DisableGVNLoadPRE = true;
+    PMBuilder.ForgetAllSCEVInLoopUnroll = true;
 
-  PMBuilder.DisableUnrollLoops = !CodeGenOpts.UnrollLoops;
-  // Loop interleaving in the loop vectorizer has historically been set to be
-  // enabled when loop unrolling is enabled.
-  PMBuilder.LoopsInterleaved = CodeGenOpts.UnrollLoops;
-  PMBuilder.MergeFunctions = CodeGenOpts.MergeFunctions;
-  PMBuilder.PrepareForThinLTO = CodeGenOpts.PrepareForThinLTO;
-  PMBuilder.PrepareForLTO = CodeGenOpts.PrepareForLTO;
-  PMBuilder.RerollLoops = CodeGenOpts.RerollLoops;
+    PMBuilder.DisableUnrollLoops = true;
+    // Loop interleaving in the loop vectorizer has historically been set to be
+    // enabled when loop unrolling is enabled.
+    PMBuilder.LoopsInterleaved = false;
+    PMBuilder.MergeFunctions = false;
+    PMBuilder.PrepareForThinLTO = false;
+    PMBuilder.PrepareForLTO = false;
+    PMBuilder.RerollLoops = false;
+  } else {
+    PMBuilder.OptLevel = CodeGenOpts.OptimizationLevel;
+    PMBuilder.SizeLevel = CodeGenOpts.OptimizeSize;
+    PMBuilder.SLPVectorize = CodeGenOpts.VectorizeSLP;
+    PMBuilder.LoopVectorize = CodeGenOpts.VectorizeLoop;
+
+    PMBuilder.DisableUnrollLoops = !CodeGenOpts.UnrollLoops;
+    // Loop interleaving in the loop vectorizer has historically been set to be
+    // enabled when loop unrolling is enabled.
+    PMBuilder.LoopsInterleaved = CodeGenOpts.UnrollLoops;
+    PMBuilder.MergeFunctions = CodeGenOpts.MergeFunctions;
+    PMBuilder.PrepareForThinLTO = CodeGenOpts.PrepareForThinLTO;
+    PMBuilder.PrepareForLTO = CodeGenOpts.PrepareForLTO;
+    PMBuilder.RerollLoops = CodeGenOpts.RerollLoops;
+  }
 
   MPM.add(new TargetLibraryInfoWrapperPass(*TLII));
 
@@ -865,14 +884,16 @@ void EmitAssemblyHelper::EmitAssembly(BackendAction Action,
 
   std::unique_ptr<llvm::ToolOutputFile> ThinLinkOS, DwoOS;
 
+  // Clean-up SYCL device code if LLVM passes are disabled
+  if (LangOpts.SYCLIsDevice && CodeGenOpts.DisableLLVMPasses) {
+    PerModulePasses.add(createDeadCodeEliminationPass());
+  }
+
   switch (Action) {
   case Backend_EmitNothing:
     break;
 
   case Backend_EmitBC:
-    if (LangOpts.SYCLIsDevice) {
-      PerModulePasses.add(createDeadCodeEliminationPass());
-    }
     if (CodeGenOpts.PrepareForThinLTO && !CodeGenOpts.DisableLLVMPasses) {
       if (!CodeGenOpts.ThinLinkBitcodeFile.empty()) {
         ThinLinkOS = openOutputFile(CodeGenOpts.ThinLinkBitcodeFile);
@@ -1346,9 +1367,6 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
     break;
 
   case Backend_EmitBC:
-    if (LangOpts.SYCLIsDevice) {
-      CodeGenPasses.add(createDeadCodeEliminationPass());
-    }
     if (CodeGenOpts.PrepareForThinLTO && !CodeGenOpts.DisableLLVMPasses) {
       if (!CodeGenOpts.ThinLinkBitcodeFile.empty()) {
         ThinLinkOS = openOutputFile(CodeGenOpts.ThinLinkBitcodeFile);
