@@ -17,6 +17,7 @@
 #include <memory>
 #include <mutex>
 #include <set>
+#include <unordered_set>
 #include <vector>
 
 /// \defgroup sycl_graph DPC++ Execution Graph
@@ -417,7 +418,8 @@ public:
   void releaseHostAccessor(Requirement *Req);
 
   // Unblocks operations with memory objects
-  void unblockRequirements(const std::vector<Requirement *> &Reqs);
+  void unblockRequirements(const std::vector<Requirement *> &Reqs,
+                           Command::BlockReason Reason);
 
   /// \return an instance of the scheduler object.
   static Scheduler &getInstance();
@@ -432,6 +434,8 @@ protected:
   static Scheduler instance;
 
   void unblockSingleReq(Requirement *Req);
+  void bulkUnblockReqs(Command * const BlockedCmd,
+                       const std::unordered_set<Requirement *> &Reqs);
 
   /// Graph builder class.
   ///

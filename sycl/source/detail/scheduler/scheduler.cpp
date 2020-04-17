@@ -166,6 +166,8 @@ void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
 
 EventImplPtr Scheduler::addHostAccessor(Requirement *Req,
                                         const bool destructor) {
+  fprintf(stderr, "Gonna add host accessor for req %p\n",
+          (void *)Req);
   std::lock_guard<std::mutex> lock(MGraphLock);
 
   Command *NewCmd = MGraphBuilder.addHostAccessor(Req, destructor);
@@ -180,8 +182,23 @@ EventImplPtr Scheduler::addHostAccessor(Requirement *Req,
 }
 
 void Scheduler::releaseHostAccessor(Requirement *Req) {
-  Req->MBlockedCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
-  unblockSingleReq(Req);
+  Command *const BlockedCmd = Req->findBlockedCommand(
+      [](const Command * const Cmd) {
+        return Cmd->MBlockReason == Command::BlockReason::HostAccessor;
+      });
+
+//  assert(BlockedCmd && "Can't find appropriate command to unblock");
+
+  if (!BlockedCmd)
+    return;
+
+  BlockedCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
+
+  fprintf(stderr, "release host accessor. Req %p, Blocked cmd %p, reason: %s\n",
+          (void *)Req, (void *)BlockedCmd, BlockedCmd->getBlockReason());
+
+  if (Req->removeBlockedCommand(BlockedCmd))
+    unblockSingleReq(Req);
 }
 
 void Scheduler::unblockSingleReq(Requirement * Req) {
@@ -198,24 +215,68 @@ void Scheduler::unblockSingleReq(Requirement * Req) {
   EnqueueLeaves(Record->MWriteLeaves);
 }
 
-void Scheduler::unblockRequirements(const std::vector<Requirement *> &Reqs) {
-  // fetch unique blocked cmds
-  std::unordered_map<Command *, std::vector<Requirement *>> BlockedCmds;
+void Scheduler::bulkUnblockReqs(Command * const BlockedCmd, 
+                                const std::unordered_set<Requirement *> &Reqs) {
+  bool BlockedCmdEnqueued = false;
 
-  for (Requirement *Req : Reqs)
-    BlockedCmds[Req->MBlockedCmd].push_back(Req);
+  auto EnqueueLeaves = [BlockedCmd, &BlockedCmdEnqueued](CircularBuffer<Command *> &Leaves) {
+    for (Command *Cmd : Leaves) {
+      if (BlockedCmd == Cmd && BlockedCmdEnqueued)
+        continue;
+
+      BlockedCmdEnqueued |= BlockedCmd == Cmd;
+
+      EnqueueResultT Res;
+      bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res);
+      if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
+        throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
+    }
+  };
+
+  for (Requirement *Req : Reqs) {
+    fprintf(stderr, "  Req %p in bulk. Cmd = %p, reason = %s\n", 
+            (void *)Req, (void *)BlockedCmd, BlockedCmd->getBlockReason());
+
+    if (Req->removeBlockedCommand(BlockedCmd)) {
+      MemObjRecord* Record = Req->MSYCLMemObj->MRecord.get();
+      EnqueueLeaves(Record->MReadLeaves);
+      EnqueueLeaves(Record->MWriteLeaves);
+    }
+  }
+}
+
+void Scheduler::unblockRequirements(const std::vector<Requirement *> &Reqs,
+                                    Command::BlockReason Reason) {
+  // fetch unique blocked cmds
+  std::unordered_map<Command *, std::unordered_set<Requirement *>> BlockedCmds;
+
+  std::function<bool(const Command * const)> CheckCmd = 
+      [Reason](const Command * const Cmd) {
+        return Cmd->MBlockReason == Reason;
+      };
+
+  for (Requirement *Req : Reqs) {
+    Command *BlockedCmd = Req->findBlockedCommand(CheckCmd);
+
+//    assert(BlockedCmd && 
+//        "Can't find appropriate command to unblock multiple requirements");
+
+    BlockedCmds[BlockedCmd].insert(Req);
+  }
 
   for (const auto &It : BlockedCmds) {
     if (!It.first)
       continue;
 
     Command *BlockedCmd = It.first;
-    const std::vector<Requirement *> &SubReqs = It.second;
+    const std::unordered_set<Requirement *> &SubReqs = It.second;
 
     BlockedCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
 
-    for (Requirement *Req : SubReqs)
-      unblockSingleReq(Req);
+    fprintf(stderr, "Bulk unblock reqs. Blocked cmd reason: %s\n",
+            BlockedCmd->getBlockReason());
+
+    bulkUnblockReqs(BlockedCmd, SubReqs);
   }
 }
 

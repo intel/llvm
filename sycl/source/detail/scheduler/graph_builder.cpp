@@ -396,6 +396,7 @@ Command *Scheduler::GraphBuilder::addCopyBack(Requirement *Req) {
 Command *Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
                                                   const bool destructor) {
 
+  fprintf(stderr, "Gonna add host accessor for req %p\n", (void *)Req);
   const QueueImplPtr &HostQueue = getInstance().getDefaultHostQueue();
 
   MemObjRecord *Record = getOrInsertMemObjRecord(HostQueue, Req);
@@ -423,12 +424,18 @@ Command *Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
 
   EmptyCmd->MIsBlockable = true;
   EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueBlocked;
-  EmptyCmd->MBlockReason = "A Buffer is locked by the host accessor";
+  EmptyCmd->MBlockReason = Command::BlockReason::HostAccessor;
+//  EmptyCmd->MBlockReason = "A Buffer is locked by the host accessor";
 
   updateLeaves({UpdateHostAccCmd}, Record, Req->MAccessMode);
   addNodeToLeaves(Record, EmptyCmd, Req->MAccessMode);
 
-  Req->MBlockedCmd = EmptyCmd;
+//  assert(!Req->MBlockedCmd && "Already blocked!");
+//  Req->MBlockedCmd = EmptyCmd;
+
+  fprintf(stderr, "Blocking Req %p by cmd %p for %s\n",
+          (void *)Req, (void *)EmptyCmd, EmptyCmd->getBlockReason());
+  Req->addBlockedCommand(EmptyCmd);
 
   if (MPrintOptionsArray[AfterAddHostAcc])
     printGraphAsDot("after_addHostAccessor");
@@ -614,6 +621,17 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
         } else {
           LinkedAllocaCmd->MIsActive = false;
           Record->MCurContext = Queue->getContextImplPtr();
+
+#if 0
+          std::set<Command *> Deps =
+              findDepsForReq(Record, Req, Queue->getContextImplPtr());
+          for (Command *Dep : Deps) {
+            AllocaCmd->addDep(DepDesc{Dep, Req, AllocaCmd});
+            Dep->addUser(AllocaCmd);
+          }
+          updateLeaves(Deps, Record, Req->MAccessMode);
+          addNodeToLeaves(Record, AllocaCmd, Req->MAccessMode);
+#endif
         }
       }
     }
@@ -666,7 +684,8 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
 
     EmptyCmd->MIsBlockable = true;
     EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueBlocked;
-    EmptyCmd->MBlockReason = "Blocked by host task";
+    EmptyCmd->MBlockReason = Command::BlockReason::HostTask;
+    //EmptyCmd->MBlockReason = "Blocked by host task";
   }
 
   for (Requirement *Req : Reqs) {
@@ -699,7 +718,11 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
     if (CGType == CG::CGTYPE::CODEPLAY_HOST_TASK) {
       EmptyCmd->addDep(DepDesc{NewCmd.get(), Req, AllocaCmd});
 
-      Req->MBlockedCmd = EmptyCmd;
+//      assert(!Req->MBlockedCmd && "Already blocked 2!");
+//      Req->MBlockedCmd = EmptyCmd;
+      fprintf(stderr, "Blocking Req %p by cmd %p for %s\n",
+              (void *)Req, (void *)EmptyCmd, EmptyCmd->getBlockReason());
+      Req->addBlockedCommand(EmptyCmd);
     }
   }
 
@@ -717,6 +740,7 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
     const Requirement *Req = Dep.MDepRequirement;
     MemObjRecord *Record = getMemObjRecord(Req->MSYCLMemObj);
     updateLeaves({Dep.MDepCommand}, Record, Req->MAccessMode);
+
     if (CGType == CG::CGTYPE::CODEPLAY_HOST_TASK)
       addNodeToLeaves(Record, EmptyCmd, Req->MAccessMode);
     else

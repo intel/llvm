@@ -167,6 +167,8 @@ public:
 
   virtual ~Command() = default;
 
+  const char *getBlockReason() const;
+
 protected:
   EventImplPtr MEvent;
   QueueImplPtr MQueue;
@@ -183,15 +185,26 @@ protected:
 
   /// Perform glueing of events from different contexts
   /// \param DepEvent event this commands should depend on
+  /// \param Dep optional DepDesc to perform connection of events properly
   ///
   /// Glueing (i.e. connecting) will be performed if and only if DepEvent is
   /// not from host context and its context doesn't match to context of this
   /// command. Context of this command is fetched via getContext().
-  void processDepEvent(EventImplPtr DepEvent);
+  ///
+  /// Optionality of Dep is set by Dep.MDepCommand not equal to nullptr.
+  void processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep);
 
-  static EventImplPtr connectDepEvent(EventImplPtr DepEvent,
+  /// Perform connection of events in multiple contexts
+  /// \param DepEvent event to depend on
+  /// \param DepEventContext context of DepEvent
+  /// \param Context context of command which wants to depend on DepEvent
+  /// \param Dep optional DepDesc to perform connection properly
+  ///
+  /// Optionality of Dep is set by Dep.MDepCommand not equal to nullptr.
+  void connectDepEvent(EventImplPtr DepEvent,
                                       const ContextImplPtr &DepEventContext,
-                                      const ContextImplPtr &Context);
+                                      const ContextImplPtr &Context,
+                                      const DepDesc &Dep);
 
   virtual ContextImplPtr getContext() const;
 
@@ -213,7 +226,12 @@ public:
   /// Counts the number of memory objects this command is a leaf for.
   unsigned MLeafCounter = 0;
 
-  const char *MBlockReason = "Unknown";
+  enum class BlockReason : int {
+    HostAccessor = 0,
+    HostTask
+  };
+
+  BlockReason MBlockReason;
 
   /// Describes the status of the command.
   std::atomic<EnqueueResultT::ResultT> MEnqueueStatus;
@@ -453,6 +471,8 @@ private:
   AllocaCommandBase *getAllocaForReq(Requirement *Req);
 
   std::unique_ptr<detail::CG> MCommandGroup;
+
+  friend class Command;
 };
 
 class UpdateHostRequirementCommand : public Command {

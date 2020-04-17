@@ -41,6 +41,7 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
+
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 // Global graph for the application
 extern xpti::trace_event_data_t *GSYCLGraphEvent;
@@ -155,6 +156,70 @@ getPiEvents(const std::vector<EventImplPtr> &EventImpls) {
     RetPiEvents.push_back(EventImpl->getHandleRef());
   return RetPiEvents;
 }
+
+class DispatchHostTask {
+  std::vector<EventImplPtr> MDepEvents;
+  CGHostTask *MHostTask;
+  std::vector<DepDesc> MDeps;
+  EventImplPtr MSelfEvent;
+
+  void waitForEvents() const {
+    std::map<const detail::plugin *, std::vector<EventImplPtr>>
+        RequiredEventsPerPlugin;
+
+    for (const EventImplPtr &Event : MDepEvents) {
+      const detail::plugin &Plugin = Event->getPlugin();
+      RequiredEventsPerPlugin[&Plugin].push_back(Event);
+    }
+
+    // wait for dependency events
+    // FIXME introduce a more sophisticated wait mechanism
+    for (auto &PluginWithEvents : RequiredEventsPerPlugin) {
+      std::vector<RT::PiEvent> RawEvents = getPiEvents(
+          PluginWithEvents.second);
+      PluginWithEvents.first->call<PiApiKind::piEventsWait>(
+          RawEvents.size(), RawEvents.data());
+    }
+  }
+
+public:
+  DispatchHostTask(std::vector<EventImplPtr> DepEvents, CGHostTask *HostTask,
+                   std::vector<DepDesc> Deps, EventImplPtr SelfEvent)
+      : MDepEvents(std::move(DepEvents)), MHostTask{HostTask},
+        MDeps(std::move(Deps)), MSelfEvent(std::move(SelfEvent)) {}
+
+  void operator()() const {
+    waitForEvents();
+
+    // we're ready to call the user-defined lambda now
+    MHostTask->MHostTask->call();
+
+    // update self-event status
+    if (MSelfEvent->is_host()) {
+      // TODO
+      fprintf(stderr, "Gonna enqueue smth here\n");
+    } else {
+      const detail::plugin &Plugin = MSelfEvent->getPlugin();
+      Plugin.call<PiApiKind::piEventSetStatus>(MSelfEvent->getHandleRef(),
+                                               PI_EVENT_COMPLETE);
+    }
+
+    unblockBlockedDeps(MDeps);
+  }
+
+  static void unblockBlockedDeps(const std::vector<DepDesc> &Deps) {
+    std::vector<Requirement *> Reqs;
+    Reqs.resize(Deps.size());
+
+    std::transform(Deps.begin(), Deps.end(), Reqs.begin(),
+                   [](const DepDesc &Dep) {
+                     return const_cast<Requirement *>(Dep.MDepRequirement);
+                   });
+
+    Scheduler::getInstance().unblockRequirements(
+        Reqs, Command::BlockReason::HostTask);
+  }
+};
 
 void Command::waitForPreparedHostEvents() const {
   for (const EventImplPtr &HostEvent : MPreparedHostDepsEvents)
@@ -355,38 +420,45 @@ void Command::makeTraceEventEpilog() {
 }
 
 // static
-EventImplPtr Command::connectDepEvent(EventImplPtr DepEvent,
+/*EventImplPtr*/ void Command::connectDepEvent(EventImplPtr DepEvent,
                                       const ContextImplPtr &DepEventContext,
-                                      const ContextImplPtr &Context) {
-  EventImplPtr GlueEvent(new detail::event_impl());
-  GlueEvent->setContextImpl(Context);
+                                      const ContextImplPtr &Context,
+                                      const DepDesc &Dep) {
+//  EventImplPtr GlueEvent(new detail::event_impl());
+//  GlueEvent->setContextImpl(Context);
 
-  RT::PiEvent &GlueEventHandle = GlueEvent->getHandleRef();
-  auto Plugin = Context->getPlugin();
+//  RT::PiEvent &GlueEventHandle = GlueEvent->getHandleRef();
+//  auto Plugin = Context->getPlugin();
   // Add an event on the current context that
   // is triggered when the DepEvent is complete
   // TODO eliminate creation of user-event
-  Plugin.call<PiApiKind::piEventCreate>(Context->getHandleRef(),
-                                        &GlueEventHandle);
+//  Plugin.call<PiApiKind::piEventCreate>(Context->getHandleRef(),
+//                                        &GlueEventHandle);
 
   // construct Host Task type command manually and make it depend on DepEvent
-  std::function<void(void)> CFunc = [GlueEvent]() {
-    RT::PiEvent &GlueEventHandle = GlueEvent->getHandleRef();
-    const detail::plugin &Plugin = GlueEvent->getPlugin();
-    Plugin.call<PiApiKind::piEventSetStatus>(GlueEventHandle, CL_COMPLETE);
-  };
+  ExecCGCommand *ConnectCmd = nullptr;
 
-  std::unique_ptr<detail::HostTask> HT(new detail::HostTask(std::move(CFunc)));
+  {
+    // Temporary function. Will be replaced depending on circumstances.
+#if 0
+    std::function<void(void)> Func = [GlueEvent]() {
+      RT::PiEvent &GlueEventHandle = GlueEvent->getHandleRef();
+      const detail::plugin &Plugin = GlueEvent->getPlugin();
+      Plugin.call<PiApiKind::piEventSetStatus>(GlueEventHandle, CL_COMPLETE);
+    };
+#else
+    std::function<void(void)> Func = []() {};
+#endif
 
-  std::unique_ptr<detail::CG> ConnectCG(new detail::CGHostTask(
-      std::move(HT), DepEventContext, /* Args = */ {}, /* ArgsStorage = */ {},
-      /* AccStorage = */ {}, /* SharedPtrStorage = */ {},
-      /* Requirements = */ {}, /* DepEvents = */ {DepEvent},
-      CG::CODEPLAY_HOST_TASK, /* Payload */ {}));
-  ExecCGCommand *ConnectCmd = new ExecCGCommand(
-      std::move(ConnectCG), Scheduler::getInstance().getDefaultHostQueue());
-
-  ConnectCmd->addDep(DepEvent);
+    std::unique_ptr<detail::HostTask> HT(new detail::HostTask(std::move(Func)));
+    std::unique_ptr<detail::CG> ConnectCG(new detail::CGHostTask(
+        std::move(HT), DepEventContext, /* Args = */ {}, /* ArgsStorage = */ {},
+        /* AccStorage = */ {}, /* SharedPtrStorage = */ {},
+        /* Requirements = */ {}, /* DepEvents = */ {DepEvent},
+        CG::CODEPLAY_HOST_TASK, /* Payload */ {}));
+    ConnectCmd = new ExecCGCommand(std::move(ConnectCG),
+        Scheduler::getInstance().getDefaultHostQueue());
+  }
 
   if (Command *DepCmd = reinterpret_cast<Command *>(DepEvent->getCommand())) {
     EmptyCommand *EmptyCmd = new EmptyCommand(
@@ -394,12 +466,60 @@ EventImplPtr Command::connectDepEvent(EventImplPtr DepEvent,
 
     EmptyCmd->MIsBlockable = true;
     EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueBlocked;
-    EmptyCmd->MBlockReason = "Blocked by host task";
+    EmptyCmd->MBlockReason = BlockReason::HostTask;
+    //EmptyCmd->MBlockReason = "Blocked by host task for dependency";
 
     DepCmd->addUser(ConnectCmd);
-    EmptyCmd->addDep(ConnectCmd->MEvent);
+
+    if (Dep.MDepRequirement) {
+      // We can't set Dep as dependency for connect cmd 'cause Dep's command is
+      // from different context. Thus we'll employ a hack here.
+
+#if 1
+      {
+        DepDesc ConnectCmdDep = Dep;
+        ConnectCmdDep.MDepCommand = this;
+        //ConnectCmd->addDep(ConnectCmdDep);
+        std::function<void(void)> Func = [ConnectCmdDep]() {
+          std::vector<DepDesc> Deps;
+          Deps.push_back(ConnectCmdDep);
+          DispatchHostTask::unblockBlockedDeps(Deps);
+        };
+
+        auto *CG = static_cast<detail::CGHostTask *>(
+            ConnectCmd->MCommandGroup.get());
+
+        CG->MHostTask.reset(new detail::HostTask(std::move(Func)));
+      }
+#endif
+
+      {
+        DepDesc EmptyCmdDep = Dep;
+        EmptyCmdDep.MDepCommand = ConnectCmd;
+        EmptyCmd->addDep(EmptyCmdDep);
+      }
+
+      {
+        const Requirement *Req = Dep.MDepRequirement;
+        //assert(!Req->MBlockedCmd && "Already blocked 3!");
+        //const_cast<Requirement *>(Req)->MBlockedCmd = EmptyCmd;
+        fprintf(stderr, "Blocking Req %p by cmd %p for %s\n",
+                (const void *)Req, (void *)EmptyCmd, EmptyCmd->getBlockReason());
+        const_cast<Requirement *>(Req)->addBlockedCommand(EmptyCmd);
+        Scheduler::GraphBuilder &GB = Scheduler::getInstance().MGraphBuilder;
+        MemObjRecord *Record = GB.getMemObjRecord(Req->MSYCLMemObj);
+        Dep.MDepCommand->addUser(ConnectCmd);
+        GB.updateLeaves({Dep.MDepCommand}, Record, Req->MAccessMode);
+        GB.addNodeToLeaves(Record, EmptyCmd, Req->MAccessMode);
+      }
+    } else {
+      ConnectCmd->addDep(DepEvent);
+      EmptyCmd->addDep(ConnectCmd->MEvent);
+    }
+
     ConnectCmd->addUser(EmptyCmd);
-  }
+  } else
+    ConnectCmd->addDep(DepEvent);
 
   EnqueueResultT Res;
   bool Enqueued = Scheduler::GraphProcessor::enqueueCommand(ConnectCmd, Res);
@@ -407,10 +527,12 @@ EventImplPtr Command::connectDepEvent(EventImplPtr DepEvent,
     throw runtime_error("Failed to enqueue a sync event between two contexts",
                         PI_INVALID_OPERATION);
 
-  return GlueEvent;
+  MPreparedHostDepsEvents.push_back(ConnectCmd->getEvent());
+
+//  return GlueEvent;
 }
 
-void Command::processDepEvent(EventImplPtr DepEvent) {
+void Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep) {
   const ContextImplPtr &Context = getContext();
 
   // Async work is not supported for host device.
@@ -428,10 +550,10 @@ void Command::processDepEvent(EventImplPtr DepEvent) {
   ContextImplPtr DepEventContext = DepEvent->getContextImpl();
   // If contexts don't match - connect them using user event
   if (DepEventContext != Context && !Context->is_host()) {
-    EventImplPtr GlueEvent = connectDepEvent(DepEvent, DepEventContext,
-                                             Context);
+    /*EventImplPtr GlueEvent = */connectDepEvent(DepEvent, DepEventContext,
+                                             Context, Dep);
 
-    MPreparedDepsEvents.push_back(std::move(GlueEvent));
+//    MPreparedDepsEvents.push_back(std::move(GlueEvent));
   } else
     MPreparedDepsEvents.push_back(std::move(DepEvent));
 }
@@ -442,7 +564,7 @@ ContextImplPtr Command::getContext() const {
 
 void Command::addDep(DepDesc NewDep) {
   if (NewDep.MDepCommand) {
-    processDepEvent(NewDep.MDepCommand->getEvent());
+    processDepEvent(NewDep.MDepCommand->getEvent(), NewDep);
   }
   MDeps.push_back(NewDep);
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -462,7 +584,7 @@ void Command::addDep(EventImplPtr Event) {
   emitEdgeEventForEventDependence(Cmd, PiEventAddr);
 #endif
 
-  processDepEvent(std::move(Event));
+  processDepEvent(std::move(Event), DepDesc{nullptr, nullptr, nullptr});
 }
 
 void Command::emitEnqueuedEventSignal(RT::PiEvent &PiEventAddr) {
@@ -504,7 +626,7 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking) {
     if (ThrowOnBlock)
       throw sycl::runtime_error(
           std::string("Waiting for blocked command. Block reason: ") +
-              std::string(MBlockReason),
+              std::string(getBlockReason()),
           PI_INVALID_OPERATION);
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -512,7 +634,7 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking) {
     // event, which models the barrier while enqueuing along with the blocked
     // reason, as determined by the scheduler
     std::string Info = "enqueue.barrier[";
-    Info += std::string(MBlockReason) + "]";
+    Info += std::string(getBlockReason()) + "]";
     emitInstrumentation(xpti::trace_barrier_begin, Info.c_str());
 #endif
 
@@ -600,6 +722,17 @@ void Command::resolveReleaseDependencies(std::set<Command *> &DepList) {
     }
   }
 #endif
+}
+
+const char *Command::getBlockReason() const {
+  switch (MBlockReason) {
+    case BlockReason::HostAccessor:
+      return "A Buffer is locked by the host accessor";
+    case BlockReason::HostTask:
+      return "Blocked by host task";
+  }
+
+  return "Unknown block reason";
 }
 
 AllocaCommandBase::AllocaCommandBase(CommandType Type, QueueImplPtr Queue,
@@ -1550,64 +1683,6 @@ void DispatchNativeKernel(void *Blob) {
   HostTask->MHostKernel->call(HostTask->MNDRDesc, nullptr);
 }
 
-class DispatchHostTask {
-  std::vector<EventImplPtr> MDepEvents;
-  CGHostTask *MHostTask;
-  std::vector<DepDesc> MDeps;
-  EventImplPtr MSelfEvent;
-
-  void waitForEvents() const {
-    std::map<const detail::plugin *, std::vector<EventImplPtr>>
-        RequiredEventsPerPlugin;
-
-    for (const EventImplPtr &Event : MDepEvents) {
-      const detail::plugin &Plugin = Event->getPlugin();
-      RequiredEventsPerPlugin[&Plugin].push_back(Event);
-    }
-
-    // wait for dependency events
-    // FIXME introduce a more sophisticated wait mechanism
-    for (auto &PluginWithEvents : RequiredEventsPerPlugin) {
-      std::vector<RT::PiEvent> RawEvents = getPiEvents(
-          PluginWithEvents.second);
-      PluginWithEvents.first->call<PiApiKind::piEventsWait>(
-          RawEvents.size(), RawEvents.data());
-    }
-  }
-
-  void unblockBlockedDeps() const {
-    std::vector<Requirement *> Reqs;
-    Reqs.resize(MDeps.size());
-
-    std::transform(MDeps.begin(), MDeps.end(), Reqs.begin(),
-                   [](const DepDesc &Dep) {
-                     return const_cast<Requirement *>(Dep.MDepRequirement);
-                   });
-
-    Scheduler::getInstance().unblockRequirements(Reqs);
-  }
-
-public:
-  DispatchHostTask(std::vector<EventImplPtr> DepEvents, CGHostTask *HostTask,
-                   std::vector<DepDesc> Deps, EventImplPtr SelfEvent)
-      : MDepEvents(std::move(DepEvents)), MHostTask{HostTask},
-        MDeps(std::move(Deps)), MSelfEvent(std::move(SelfEvent)) {}
-
-  void operator()() const {
-    waitForEvents();
-
-    // we're ready to call the user-defined lambda now
-    MHostTask->MHostTask->call();
-
-    // update self-event status
-    const detail::plugin &Plugin = MSelfEvent->getPlugin();
-    Plugin.call<PiApiKind::piEventSetStatus>(MSelfEvent->getHandleRef(),
-                                             PI_EVENT_COMPLETE);
-
-    unblockBlockedDeps();
-  }
-};
-
 cl_int ExecCGCommand::enqueueImp() {
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   waitForPreparedHostEvents();
@@ -1925,13 +2000,13 @@ cl_int ExecCGCommand::enqueueImp() {
 
       // Init self-event
       EventImplPtr SelfEvent = MEvent;
-      RT::PiContext ContextRef = HTContext->getHandleRef();
+//      RT::PiContext ContextRef = HTContext->getHandleRef();
 
       // FIXME You can't create event for host-queue/host-context
-      const detail::plugin &Plugin = HTContext->getPlugin();
-      Plugin.call<PiApiKind::piEventCreate>(ContextRef, &Event);
+//      const detail::plugin &Plugin = HTContext->getPlugin();
+//      Plugin.call<PiApiKind::piEventCreate>(ContextRef, &Event);
 
-      SelfEvent->setContextImpl(HTContext);
+//      SelfEvent->setContextImpl(HTContext);
 
       MQueue->getThreadPool().submit<DispatchHostTask>(std::move(
           DispatchHostTask(EventImpls, HostTask, MDeps, SelfEvent)));
