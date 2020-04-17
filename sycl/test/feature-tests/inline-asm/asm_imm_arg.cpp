@@ -45,9 +45,9 @@ int main() {
 
   auto &B = f.getOutputBufferData();
   for (int i = 0; i < DEFAULT_PROBLEM_SIZE; ++i) {
-    if (B[i] != input[i] * CONST_ARGUMENT) {
+    if (B[i] != input[i] + CONST_ARGUMENT) {
       std::cerr << "At index: " << i << ". ";
-      std::cerr << B[i] << " != " << input[i] * CONST_ARGUMENT << "\n";
+      std::cerr << B[i] << " != " << input[i] + CONST_ARGUMENT << "\n";
       return 1;
     }
   }

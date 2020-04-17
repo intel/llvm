@@ -40,7 +40,7 @@ int main() {
   if (!launchInlineASMTest(f))
     return 0;
 
-  if (verify_all_the_same(f.getOutputBufferData(), 47))
+  if (verify_all_the_same(f.getOutputBufferData(), 0))
     return 0;
 
   return 1;
