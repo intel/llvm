@@ -32,7 +32,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file implements regularization of LLVM moduel for SPIR-V.
+// This file implements regularization of LLVM module for SPIR-V.
 //
 //===----------------------------------------------------------------------===//
 #define DEBUG_TYPE "spv-lower-const-expr"
