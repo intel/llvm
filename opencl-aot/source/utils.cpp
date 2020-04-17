@@ -236,7 +236,17 @@ getOpenCLPlatform(DeviceType Type) {
     }
   }
 
-  if (!clFailed(CLErr)) {
+  std::string SupportedPlatforms;
+  for (const auto &Platform : DeviceTypesToSupportedPlatformNames[Type]) {
+    SupportedPlatforms += "  " + Platform + '\n';
+  }
+  if (clFailed(CLErr)) {
+    std::map<DeviceType, std::string> DeviceTypeToDeviceTypeName{
+        {cpu, "CPU"}, {gpu, "GPU"}, {fpga_fast_emu, "accelerator"}};
+    ErrorMessage += "Failed to find OpenCL " +
+                    DeviceTypeToDeviceTypeName[Type] +
+                    " device in these OpenCL platforms:\n" + SupportedPlatforms;
+  } else {
     if (PlatformId == nullptr) {
       ErrorMessage += "OpenCL platform ID is empty\n";
     }
@@ -244,11 +254,8 @@ getOpenCLPlatform(DeviceType Type) {
       ErrorMessage += "OpenCL platform name is empty\n";
     }
     if (!ErrorMessage.empty()) {
-      ErrorMessage += "Failed to find any of these OpenCL platforms:\n";
-      for (const auto &SupportedPlatformName :
-           DeviceTypesToSupportedPlatformNames[Type]) {
-        ErrorMessage += "  " + SupportedPlatformName + '\n';
-      }
+      ErrorMessage += "Failed to find any of these OpenCL platforms:\n" +
+                      SupportedPlatforms;
       CLErr = OPENCL_AOT_PLATFORM_NOT_FOUND;
     }
   }
