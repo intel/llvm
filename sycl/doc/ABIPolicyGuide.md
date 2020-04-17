@@ -83,7 +83,8 @@ There is a set of tests to help identifying ABI changes:
 
 Whenever you need to change the existing ABI, please, follow these steps:
 
-1. Get approval from project maintainers to make a breaking/non-breaking change.
+1. Adjust you PR description to reflect (non-)breaking ABI changes. Make sure
+   it is clear, why breaking ABI is necessary.
 2. Fix failing ABI tests in your Pull Request. Use aforementioned techniques to
    update test files.
 3. Update the library version according to the policies.
