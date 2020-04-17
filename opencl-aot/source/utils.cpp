@@ -242,7 +242,7 @@ getOpenCLPlatform(DeviceType Type) {
   }
   if (clFailed(CLErr)) {
     std::map<DeviceType, std::string> DeviceTypeToDeviceTypeName{
-        {cpu, "CPU"}, {gpu, "GPU"}, {fpga_fast_emu, "accelerator"}};
+        {cpu, "CPU"}, {gpu, "GPU"}, {fpga_fast_emu, "FPGA Fast Emu"}};
     ErrorMessage += "Failed to find OpenCL " +
                     DeviceTypeToDeviceTypeName[Type] +
                     " device in these OpenCL platforms:\n" + SupportedPlatforms;
