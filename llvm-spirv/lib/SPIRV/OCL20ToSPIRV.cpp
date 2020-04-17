@@ -942,9 +942,9 @@ void OCL20ToSPIRV::visitCallGroupBuiltin(CallInst *CI,
             .StartsWith("ballot", "group_ballot_bit_count_")
             .StartsWith("non_uniform", kSPIRVName::GroupNonUniformPrefix)
             .Default(kSPIRVName::GroupPrefix);
+          // clustered functions are handled with non uniform group opcodes
           StringRef ClusteredOp =
-            FuncName.contains("clustered_") ?
-            "clustered_" : "";
+              FuncName.contains("clustered_") ? "non_uniform_" : "";
           StringRef LogicalOp =
             FuncName.contains("logical_") ?
             "logical_" : "";
