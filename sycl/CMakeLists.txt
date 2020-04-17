@@ -221,6 +221,13 @@ add_custom_target( sycl-toolchain
   COMMENT "Building SYCL compiler toolchain..."
 )
 
+# Check if opencl-aot tool is enabled.
+list(FIND LLVM_ENABLE_PROJECTS opencl-aot OPENCL_AOT_FOUND)
+if(NOT OPENCL_AOT_FOUND EQUAL -1)
+  add_dependencies(sycl-toolchain opencl-aot)
+  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS opencl-aot)
+endif()
+
 if (SYCL_ENABLE_XPTI_TRACING)
   add_dependencies( sycl-toolchain xpti)
   if (MSVC)
@@ -228,14 +235,9 @@ if (SYCL_ENABLE_XPTI_TRACING)
   endif()
 endif()
 
-if (NOT DEFINED LLVM_INCLUDE_TESTS)
-  set(LLVM_INCLUDE_TESTS ON)
-endif()
-
 option(SYCL_INCLUDE_TESTS
   "Generate build targets for the SYCL unit tests."
   ${LLVM_INCLUDE_TESTS})
-
 
 # Plugin Library
 add_subdirectory( plugins )
@@ -274,7 +276,6 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      libsycldevice
 )
 
-
 if(SYCL_BUILD_PI_CUDA)
   # Ensure that libclc is enabled.
   list(FIND LLVM_ENABLE_PROJECTS libclc LIBCLC_FOUND)
@@ -286,7 +287,6 @@ if(SYCL_BUILD_PI_CUDA)
   add_dependencies(sycl-toolchain libspirv-builtins pi_cuda)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libspirv-builtins pi_cuda)
 endif()
-
 
 # Use it as fake dependency in order to force another command(s) to execute.
 add_custom_command(OUTPUT __force_it

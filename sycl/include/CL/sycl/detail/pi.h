@@ -59,6 +59,7 @@ using pi_uint32 = uint32_t;
 using pi_uint64 = uint64_t;
 using pi_bool = pi_uint32;
 using pi_bitfield = pi_uint64;
+using pi_native_handle = uintptr_t;
 
 //
 // NOTE: prefer to map 1:1 to OpenCL so that no translation is needed
@@ -762,19 +763,6 @@ pi_result piPlatformGetInfo(pi_platform platform, pi_platform_info param_name,
                             size_t param_value_size, void *param_value,
                             size_t *param_value_size_ret);
 
-//
-// Device
-//
-///
-/// Create PI device from the given raw device handle (if the "device"
-/// points to null), or, vice versa, extract the raw device handle into
-/// the "handle" (if it was pointing to a null) from the given PI device.
-/// NOTE: The instance of the PI device created is retained.
-///
-pi_result piextDeviceConvert(
-    pi_device *device, ///< [in,out] the pointer to PI device
-    void **handle);    ///< [in,out] the pointer to the raw device handle
-
 pi_result piDevicesGet(pi_platform platform, pi_device_type device_type,
                        pi_uint32 num_entries, pi_device *devices,
                        pi_uint32 *num_devices);
@@ -791,6 +779,21 @@ pi_result piDevicePartition(pi_device device,
                             const pi_device_partition_property *properties,
                             pi_uint32 num_devices, pi_device *out_devices,
                             pi_uint32 *out_num_devices);
+
+/// Gets the native handle of a PI device object.
+///
+/// \param device is the PI device to get the native handle of.
+/// \param nativeHandle is the native handle of device.
+pi_result piextDeviceGetNativeHandle(pi_device device,
+                                     pi_native_handle *nativeHandle);
+
+/// Creates PI device object from a native handle.
+/// NOTE: The created PI object takes ownership of the native handle.
+///
+/// \param nativeHandle is the native handle to create PI device from.
+/// \param device is the PI device created from the native handle.
+pi_result piextDeviceCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                            pi_device *device);
 
 /// Selects the most appropriate device binary based on runtime information
 /// and the IR characteristics.
@@ -829,6 +832,27 @@ pi_result piContextRetain(pi_context context);
 
 pi_result piContextRelease(pi_context context);
 
+typedef void (*pi_context_extended_deleter)(void *user_data);
+
+pi_result piextContextSetExtendedDeleter(pi_context context,
+                                         pi_context_extended_deleter func,
+                                         void *user_data);
+
+/// Gets the native handle of a PI context object.
+///
+/// \param context is the PI context to get the native handle of.
+/// \param nativeHandle is the native handle of context.
+pi_result piextContextGetNativeHandle(pi_context context,
+                                      pi_native_handle *nativeHandle);
+
+/// Creates PI context object from a native handle.
+/// NOTE: The created PI object takes ownership of the native handle.
+///
+/// \param nativeHandle is the native handle to create PI context from.
+/// \param context is the PI context created from the native handle.
+pi_result piextContextCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                             pi_context *context);
+
 //
 // Queue
 //
@@ -844,6 +868,21 @@ pi_result piQueueRetain(pi_queue command_queue);
 pi_result piQueueRelease(pi_queue command_queue);
 
 pi_result piQueueFinish(pi_queue command_queue);
+
+/// Gets the native handle of a PI queue object.
+///
+/// \param queue is the PI queue to get the native handle of.
+/// \param nativeHandle is the native handle of queue.
+pi_result piextQueueGetNativeHandle(pi_queue queue,
+                                    pi_native_handle *nativeHandle);
+
+/// Creates PI queue object from a native handle.
+/// NOTE: The created PI object takes ownership of the native handle.
+///
+/// \param nativeHandle is the native handle to create PI queue from.
+/// \param queue is the PI queue created from the native handle.
+pi_result piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                           pi_queue *queue);
 
 //
 // Memory
@@ -872,19 +911,24 @@ pi_result piMemRelease(pi_mem mem);
 pi_result piMemBufferPartition(pi_mem buffer, pi_mem_flags flags,
                                pi_buffer_create_type buffer_create_type,
                                void *buffer_create_info, pi_mem *ret_mem);
+
+/// Gets the native handle of a PI mem object.
+///
+/// \param mem is the PI mem to get the native handle of.
+/// \param nativeHandle is the native handle of mem.
+pi_result piextMemGetNativeHandle(pi_mem mem, pi_native_handle *nativeHandle);
+
+/// Creates PI mem object from a native handle.
+/// NOTE: The created PI object takes ownership of the native handle.
+///
+/// \param nativeHandle is the native handle to create PI mem from.
+/// \param mem is the PI mem created from the native handle.
+pi_result piextMemCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                         pi_mem *mem);
+
 //
 // Program
 //
-///
-/// Create PI program from the given raw program handle (if the "program"
-/// points to null), or, vice versa, extract the raw program handle into
-/// the "handle" (if it was pointing to a null) from the given PI program.
-/// NOTE: The instance of the PI program created is retained.
-///
-pi_result piextProgramConvert(
-    pi_context context,  ///< [in] the PI context of the program
-    pi_program *program, ///< [in,out] the pointer to PI program
-    void **handle);      ///< [in,out] the pointer to the raw program handle
 
 pi_result piProgramCreate(pi_context context, const void *il, size_t length,
                           pi_program *res_program);
@@ -943,6 +987,21 @@ pi_result piextProgramSetSpecializationConstant(pi_program prog,
                                                 pi_uint32 spec_id,
                                                 size_t spec_size,
                                                 const void *spec_value);
+
+/// Gets the native handle of a PI program object.
+///
+/// \param program is the PI program to get the native handle of.
+/// \param nativeHandle is the native handle of program.
+pi_result piextProgramGetNativeHandle(pi_program program,
+                                      pi_native_handle *nativeHandle);
+
+/// Creates PI program object from a native handle.
+/// NOTE: The created PI object takes ownership of the native handle.
+///
+/// \param nativeHandle is the native handle to create PI program from.
+/// \param program is the PI program created from the native handle.
+pi_result piextProgramCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                             pi_program *program);
 
 //
 // Kernel
@@ -1034,6 +1093,21 @@ pi_result piEventSetStatus(pi_event event, pi_int32 execution_status);
 pi_result piEventRetain(pi_event event);
 
 pi_result piEventRelease(pi_event event);
+
+/// Gets the native handle of a PI event object.
+///
+/// \param event is the PI event to get the native handle of.
+/// \param nativeHandle is the native handle of event.
+pi_result piextEventGetNativeHandle(pi_event event,
+                                    pi_native_handle *nativeHandle);
+
+/// Creates PI event object from a native handle.
+/// NOTE: The created PI object takes ownership of the native handle.
+///
+/// \param nativeHandle is the native handle to create PI event from.
+/// \param event is the PI event created from the native handle.
+pi_result piextEventCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                           pi_event *event);
 
 //
 // Sampler

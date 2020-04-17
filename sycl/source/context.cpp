@@ -96,5 +96,7 @@ vector_class<device> context::get_devices() const {
 
 context::context(shared_ptr_class<detail::context_impl> Impl) : impl(Impl) {}
 
+pi_native_handle context::getNative() const { return impl->getNative(); }
+
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

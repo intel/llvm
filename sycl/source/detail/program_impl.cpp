@@ -15,7 +15,9 @@
 
 #include <algorithm>
 #include <fstream>
+#include <list>
 #include <memory>
+#include <mutex>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -38,6 +40,16 @@ program_impl::program_impl(
     throw runtime_error("Non-empty vector of programs expected",
                         PI_INVALID_VALUE);
   }
+
+  // Sort the programs to avoid deadlocks due to locking multiple mutexes &
+  // verify that all programs are unique.
+  std::sort(ProgramList.begin(), ProgramList.end());
+  auto It = std::unique(ProgramList.begin(), ProgramList.end());
+  if (It != ProgramList.end()) {
+    throw runtime_error("Attempting to link a program with itself",
+                        PI_INVALID_PROGRAM);
+  }
+
   MContext = ProgramList[0]->MContext;
   MDevices = ProgramList[0]->MDevices;
   vector_class<device> DevicesSorted;
@@ -45,7 +57,9 @@ program_impl::program_impl(
     DevicesSorted = sort_devices_by_cl_device_id(MDevices);
   }
   check_device_feature_support<info::device::is_linker_available>(MDevices);
+  std::list<std::lock_guard<std::mutex>> Locks;
   for (const auto &Prg : ProgramList) {
+    Locks.emplace_back(Prg->MMutex);
     Prg->throw_if_state_is_not(program_state::compiled);
     if (Prg->MContext != MContext) {
       throw invalid_object_error(
@@ -83,21 +97,21 @@ program_impl::program_impl(
 }
 
 program_impl::program_impl(ContextImplPtr Context,
-                           program_interop_handle_t InteropProgram)
+                           pi_native_handle InteropProgram)
     : program_impl(Context, InteropProgram, nullptr) {}
 
 program_impl::program_impl(ContextImplPtr Context,
-                           program_interop_handle_t InteropProgram,
+                           pi_native_handle InteropProgram,
                            RT::PiProgram Program)
     : MProgram(Program), MContext(Context), MLinkable(true) {
 
   const detail::plugin &Plugin = getPlugin();
   if (MProgram == nullptr) {
-    assert(InteropProgram != nullptr &&
-           "No InteropProgram/PiProgram defined with piextProgramConvert");
+    assert(InteropProgram &&
+           "No InteropProgram/PiProgram defined with piextProgramFromNative");
     // Translate the raw program handle into PI program.
-    Plugin.call<PiApiKind::piextProgramConvert>(
-        Context->getHandleRef(), &MProgram, (void **)&InteropProgram);
+    Plugin.call<PiApiKind::piextProgramCreateWithNativeHandle>(InteropProgram,
+                                                               &MProgram);
   } else
     Plugin.call<PiApiKind::piProgramRetain>(Program);
 
@@ -158,7 +172,7 @@ program_impl::program_impl(ContextImplPtr Context,
 }
 
 program_impl::program_impl(ContextImplPtr Context, RT::PiKernel Kernel)
-    : program_impl(Context, nullptr,
+    : program_impl(Context, reinterpret_cast<pi_native_handle>(nullptr),
                    ProgramManager::getInstance().getPiProgramFromPiKernel(
                        Kernel, Context)) {}
 
@@ -184,6 +198,7 @@ cl_program program_impl::get() const {
 void program_impl::compile_with_kernel_name(string_class KernelName,
                                             string_class CompileOptions,
                                             OSModuleHandle M) {
+  std::lock_guard<std::mutex> Lock(MMutex);
   throw_if_state_is_not(program_state::none);
   MProgramModuleHandle = M;
   if (!is_host()) {
@@ -195,6 +210,7 @@ void program_impl::compile_with_kernel_name(string_class KernelName,
 
 void program_impl::compile_with_source(string_class KernelSource,
                                        string_class CompileOptions) {
+  std::lock_guard<std::mutex> Lock(MMutex);
   throw_if_state_is_not(program_state::none);
   // TODO should it throw if it's host?
   if (!is_host()) {
@@ -207,6 +223,7 @@ void program_impl::compile_with_source(string_class KernelSource,
 void program_impl::build_with_kernel_name(string_class KernelName,
                                           string_class BuildOptions,
                                           OSModuleHandle Module) {
+  std::lock_guard<std::mutex> Lock(MMutex);
   throw_if_state_is_not(program_state::none);
   MProgramModuleHandle = Module;
   if (!is_host()) {
@@ -227,6 +244,7 @@ void program_impl::build_with_kernel_name(string_class KernelName,
 
 void program_impl::build_with_source(string_class KernelSource,
                                      string_class BuildOptions) {
+  std::lock_guard<std::mutex> Lock(MMutex);
   throw_if_state_is_not(program_state::none);
   // TODO should it throw if it's host?
   if (!is_host()) {
@@ -237,6 +255,7 @@ void program_impl::build_with_source(string_class KernelSource,
 }
 
 void program_impl::link(string_class LinkOptions) {
+  std::lock_guard<std::mutex> Lock(MMutex);
   throw_if_state_is_not(program_state::compiled);
   if (!is_host()) {
     check_device_feature_support<info::device::is_linker_available>(MDevices);
