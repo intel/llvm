@@ -21,7 +21,6 @@
 #include "mlir/IR/TypeUtilities.h"
 #include "mlir/IR/Value.h"
 #include "mlir/Support/MathExtras.h"
-#include "mlir/Support/STLExtras.h"
 #include "mlir/Transforms/InliningUtils.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Support/FormatVariadic.h"
@@ -499,7 +498,7 @@ struct SimplifyBrToBlockWithSinglePred : public OpRewritePattern<BranchOp> {
     // Check that the successor block has a single predecessor.
     Block *succ = op.getDest();
     Block *opParent = op.getOperation()->getBlock();
-    if (succ == opParent || !has_single_element(succ->getPredecessors()))
+    if (succ == opParent || !llvm::hasSingleElement(succ->getPredecessors()))
       return failure();
 
     // Merge the successor into the current block and erase the branch.

@@ -1627,6 +1627,8 @@ bool AMDGPUInstructionSelector::selectG_TRUNC(MachineInstr &I) const {
     = TRI.getRegClassForSizeOnBank(SrcSize, *SrcRB, *MRI);
   const TargetRegisterClass *DstRC
     = TRI.getRegClassForSizeOnBank(DstSize, *DstRB, *MRI);
+  if (!SrcRC || !DstRC)
+    return false;
 
   if (!RBI.constrainGenericRegister(SrcReg, *SrcRC, *MRI) ||
       !RBI.constrainGenericRegister(DstReg, *DstRC, *MRI)) {
@@ -1965,6 +1967,48 @@ bool AMDGPUInstructionSelector::selectG_FNEG(MachineInstr &MI) const {
     .addImm(AMDGPU::sub0)
     .addReg(OpReg)
     .addImm(AMDGPU::sub1);
+  MI.eraseFromParent();
+  return true;
+}
+
+// FIXME: This is a workaround for the same tablegen problems as G_FNEG
+bool AMDGPUInstructionSelector::selectG_FABS(MachineInstr &MI) const {
+  Register Dst = MI.getOperand(0).getReg();
+  const RegisterBank *DstRB = RBI.getRegBank(Dst, *MRI, TRI);
+  if (DstRB->getID() != AMDGPU::SGPRRegBankID ||
+      MRI->getType(Dst) != LLT::scalar(64))
+    return false;
+
+  Register Src = MI.getOperand(1).getReg();
+  MachineBasicBlock *BB = MI.getParent();
+  const DebugLoc &DL = MI.getDebugLoc();
+  Register LoReg = MRI->createVirtualRegister(&AMDGPU::SReg_32RegClass);
+  Register HiReg = MRI->createVirtualRegister(&AMDGPU::SReg_32RegClass);
+  Register ConstReg = MRI->createVirtualRegister(&AMDGPU::SReg_32RegClass);
+  Register OpReg = MRI->createVirtualRegister(&AMDGPU::SReg_32RegClass);
+
+  if (!RBI.constrainGenericRegister(Src, AMDGPU::SReg_64RegClass, *MRI) ||
+      !RBI.constrainGenericRegister(Dst, AMDGPU::SReg_64RegClass, *MRI))
+    return false;
+
+  BuildMI(*BB, &MI, DL, TII.get(AMDGPU::COPY), LoReg)
+    .addReg(Src, 0, AMDGPU::sub0);
+  BuildMI(*BB, &MI, DL, TII.get(AMDGPU::COPY), HiReg)
+    .addReg(Src, 0, AMDGPU::sub1);
+  BuildMI(*BB, &MI, DL, TII.get(AMDGPU::S_MOV_B32), ConstReg)
+    .addImm(0x7fffffff);
+
+  // Clear sign bit.
+  // TODO: Should this used S_BITSET0_*?
+  BuildMI(*BB, &MI, DL, TII.get(AMDGPU::S_AND_B32), OpReg)
+    .addReg(HiReg)
+    .addReg(ConstReg);
+  BuildMI(*BB, &MI, DL, TII.get(AMDGPU::REG_SEQUENCE), Dst)
+    .addReg(LoReg)
+    .addImm(AMDGPU::sub0)
+    .addReg(OpReg)
+    .addImm(AMDGPU::sub1);
+
   MI.eraseFromParent();
   return true;
 }
@@ -2609,6 +2653,10 @@ bool AMDGPUInstructionSelector::select(MachineInstr &I) {
     if (selectImpl(I, *CoverageInfo))
       return true;
     return selectG_FNEG(I);
+  case TargetOpcode::G_FABS:
+    if (selectImpl(I, *CoverageInfo))
+      return true;
+    return selectG_FABS(I);
   case TargetOpcode::G_EXTRACT:
     return selectG_EXTRACT(I);
   case TargetOpcode::G_MERGE_VALUES:

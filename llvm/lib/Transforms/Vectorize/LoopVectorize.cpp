@@ -1598,9 +1598,8 @@ struct LoopVectorize : public FunctionPass {
 
   explicit LoopVectorize(bool InterleaveOnlyWhenForced = false,
                          bool VectorizeOnlyWhenForced = false)
-      : FunctionPass(ID) {
-    Impl.InterleaveOnlyWhenForced = InterleaveOnlyWhenForced;
-    Impl.VectorizeOnlyWhenForced = VectorizeOnlyWhenForced;
+      : FunctionPass(ID),
+        Impl({InterleaveOnlyWhenForced, VectorizeOnlyWhenForced}) {
     initializeLoopVectorizePass(*PassRegistry::getPassRegistry());
   }
 
@@ -2129,13 +2128,12 @@ void InnerLoopVectorizer::packScalarIntoVectorValue(
 
 Value *InnerLoopVectorizer::reverseVector(Value *Vec) {
   assert(Vec->getType()->isVectorTy() && "Invalid type");
-  SmallVector<Constant *, 8> ShuffleMask;
+  SmallVector<int, 8> ShuffleMask;
   for (unsigned i = 0; i < VF; ++i)
-    ShuffleMask.push_back(Builder.getInt32(VF - i - 1));
+    ShuffleMask.push_back(VF - i - 1);
 
   return Builder.CreateShuffleVector(Vec, UndefValue::get(Vec->getType()),
-                                     ConstantVector::get(ShuffleMask),
-                                     "reverse");
+                                     ShuffleMask, "reverse");
 }
 
 // Return whether we allow using masked interleave-groups (for dealing with
@@ -3629,10 +3627,10 @@ void InnerLoopVectorizer::fixFirstOrderRecurrence(PHINode *Phi) {
 
   // We will construct a vector for the recurrence by combining the values for
   // the current and previous iterations. This is the required shuffle mask.
-  SmallVector<Constant *, 8> ShuffleMask(VF);
-  ShuffleMask[0] = Builder.getInt32(VF - 1);
+  SmallVector<int, 8> ShuffleMask(VF);
+  ShuffleMask[0] = VF - 1;
   for (unsigned I = 1; I < VF; ++I)
-    ShuffleMask[I] = Builder.getInt32(I + VF - 1);
+    ShuffleMask[I] = I + VF - 1;
 
   // The vector from which to take the initial value for the current iteration
   // (actual or unrolled). Initially, this is the vector phi node.
@@ -3642,10 +3640,9 @@ void InnerLoopVectorizer::fixFirstOrderRecurrence(PHINode *Phi) {
   for (unsigned Part = 0; Part < UF; ++Part) {
     Value *PreviousPart = getOrCreateVectorValue(Previous, Part);
     Value *PhiPart = VectorLoopValueMap.getVectorValue(Phi, Part);
-    auto *Shuffle =
-        VF > 1 ? Builder.CreateShuffleVector(Incoming, PreviousPart,
-                                             ConstantVector::get(ShuffleMask))
-               : Incoming;
+    auto *Shuffle = VF > 1 ? Builder.CreateShuffleVector(Incoming, PreviousPart,
+                                                         ShuffleMask)
+                           : Incoming;
     PhiPart->replaceAllUsesWith(Shuffle);
     cast<Instruction>(PhiPart)->eraseFromParent();
     VectorLoopValueMap.resetVectorValue(Phi, Part, Shuffle);
@@ -6932,22 +6929,24 @@ VPRecipeBuilder::tryToWidenCall(Instruction *I, VFRange &Range, VPlan &Plan) {
   return new VPWidenCallRecipe(*CI, VPValues);
 }
 
-VPWidenSelectRecipe *VPRecipeBuilder::tryToWidenSelect(Instruction *I,
-                                                       VFRange &Range) {
+bool VPRecipeBuilder::shouldWiden(Instruction *I, VFRange &Range) const {
+  assert(!isa<BranchInst>(I) && !isa<PHINode>(I) && !isa<LoadInst>(I) &&
+         !isa<StoreInst>(I) && "Instruction should have been handled earlier");
+  // Instruction should be widened, unless it is scalar after vectorization,
+  // scalarization is profitable or it is predicated.
+  auto WillScalarize = [this, I](unsigned VF) -> bool {
+    return CM.isScalarAfterVectorization(I, VF) ||
+           CM.isProfitableToScalarize(I, VF) ||
+           CM.isScalarWithPredication(I, VF);
+  };
+  return !LoopVectorizationPlanner::getDecisionAndClampRange(WillScalarize,
+                                                             Range);
+}
+
+VPWidenSelectRecipe *VPRecipeBuilder::tryToWidenSelect(Instruction *I) {
   auto *SI = dyn_cast<SelectInst>(I);
   if (!SI)
     return nullptr;
-
-  // SI should be widened, unless it is scalar after vectorization,
-  // scalarization is profitable or it is predicated.
-  auto willWiden = [this, SI](unsigned VF) -> bool {
-    return !CM.isScalarAfterVectorization(SI, VF) &&
-           !CM.isProfitableToScalarize(SI, VF) &&
-           !CM.isScalarWithPredication(SI, VF);
-  };
-  if (!LoopVectorizationPlanner::getDecisionAndClampRange(willWiden, Range))
-    return nullptr;
-
   auto *SE = PSE.getSE();
   bool InvariantCond =
       SE->isLoopInvariant(PSE.getSCEV(SI->getOperand(0)), OrigLoop);
@@ -6955,20 +6954,13 @@ VPWidenSelectRecipe *VPRecipeBuilder::tryToWidenSelect(Instruction *I,
   return new VPWidenSelectRecipe(*SI, InvariantCond);
 }
 
-VPWidenRecipe *VPRecipeBuilder::tryToWiden(Instruction *I, VFRange &Range) {
-  bool IsPredicated = LoopVectorizationPlanner::getDecisionAndClampRange(
-      [&](unsigned VF) { return CM.isScalarWithPredication(I, VF); }, Range);
-
-  if (IsPredicated)
-    return nullptr;
-
+VPWidenRecipe *VPRecipeBuilder::tryToWiden(Instruction *I, VPlan &Plan) {
   auto IsVectorizableOpcode = [](unsigned Opcode) {
     switch (Opcode) {
     case Instruction::Add:
     case Instruction::And:
     case Instruction::AShr:
     case Instruction::BitCast:
-    case Instruction::Br:
     case Instruction::FAdd:
     case Instruction::FCmp:
     case Instruction::FDiv:
@@ -6982,11 +6974,9 @@ VPWidenRecipe *VPRecipeBuilder::tryToWiden(Instruction *I, VFRange &Range) {
     case Instruction::FSub:
     case Instruction::ICmp:
     case Instruction::IntToPtr:
-    case Instruction::Load:
     case Instruction::LShr:
     case Instruction::Mul:
     case Instruction::Or:
-    case Instruction::PHI:
     case Instruction::PtrToInt:
     case Instruction::SDiv:
     case Instruction::Select:
@@ -6994,7 +6984,6 @@ VPWidenRecipe *VPRecipeBuilder::tryToWiden(Instruction *I, VFRange &Range) {
     case Instruction::Shl:
     case Instruction::SIToFP:
     case Instruction::SRem:
-    case Instruction::Store:
     case Instruction::Sub:
     case Instruction::Trunc:
     case Instruction::UDiv:
@@ -7008,22 +6997,6 @@ VPWidenRecipe *VPRecipeBuilder::tryToWiden(Instruction *I, VFRange &Range) {
   };
 
   if (!IsVectorizableOpcode(I->getOpcode()))
-    return nullptr;
-
-  auto willWiden = [&](unsigned VF) -> bool {
-    if (!isa<PHINode>(I) && (CM.isScalarAfterVectorization(I, VF) ||
-                             CM.isProfitableToScalarize(I, VF)))
-      return false;
-    if (isa<LoadInst>(I) || isa<StoreInst>(I)) {
-      assert(CM.getWideningDecision(I, VF) ==
-                 LoopVectorizationCostModel::CM_Scalarize &&
-             "Memory widening decisions should have been taken care by now");
-      return false;
-    }
-    return true;
-  };
-
-  if (!LoopVectorizationPlanner::getDecisionAndClampRange(willWiden, Range))
     return nullptr;
 
   // Success: widen this instruction.
@@ -7106,7 +7079,6 @@ bool VPRecipeBuilder::tryToCreateRecipe(Instruction *Instr, VFRange &Range,
   // operations, inductions and Phi nodes.
   if ((Recipe = tryToWidenCall(Instr, Range, *Plan)) ||
       (Recipe = tryToWidenMemory(Instr, Range, Plan)) ||
-      (Recipe = tryToWidenSelect(Instr, Range)) ||
       (Recipe = tryToOptimizeInduction(Instr, Range)) ||
       (Recipe = tryToBlend(Instr, Plan)) ||
       (isa<PHINode>(Instr) &&
@@ -7116,24 +7088,19 @@ bool VPRecipeBuilder::tryToCreateRecipe(Instruction *Instr, VFRange &Range,
     return true;
   }
 
-  // Handle GEP widening.
-  if (GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(Instr)) {
-    auto Scalarize = [&](unsigned VF) {
-      return CM.isScalarWithPredication(Instr, VF) ||
-             CM.isScalarAfterVectorization(Instr, VF) ||
-             CM.isProfitableToScalarize(Instr, VF);
-    };
-    if (LoopVectorizationPlanner::getDecisionAndClampRange(Scalarize, Range))
-      return false;
-    VPWidenGEPRecipe *Recipe = new VPWidenGEPRecipe(GEP, OrigLoop);
-    setRecipe(Instr, Recipe);
-    VPBB->appendRecipe(Recipe);
-    return true;
-  }
+  // Calls and memory instructions are widened by the specialized recipes above,
+  // or scalarized.
+  if (isa<CallInst>(Instr) || isa<LoadInst>(Instr) || isa<StoreInst>(Instr))
+    return false;
 
-  // Check if Instr is to be widened by a general VPWidenRecipe, after
-  // having first checked for specific widening recipes.
-  if ((Recipe = tryToWiden(Instr, Range))) {
+  if (!shouldWiden(Instr, Range))
+    return false;
+
+  if ((Recipe = tryToWidenSelect(Instr)) ||
+      (isa<GetElementPtrInst>(Instr) &&
+       (Recipe =
+            new VPWidenGEPRecipe(cast<GetElementPtrInst>(Instr), OrigLoop))) ||
+      (Recipe = tryToWiden(Instr, *Plan))) {
     setRecipe(Instr, Recipe);
     VPBB->appendRecipe(Recipe);
     return true;
@@ -7464,8 +7431,11 @@ void VPBlendRecipe::execute(VPTransformState &State) {
 
   // Generate a sequence of selects of the form:
   // SELECT(Mask3, In3,
-  //      SELECT(Mask2, In2,
-  //                   ( ...)))
+  //        SELECT(Mask2, In2,
+  //               SELECT(Mask1, In1,
+  //                      In0)))
+  // Note that Mask0 is never used: lanes for which no path reaches this phi and
+  // are essentially undef are taken from In0.
   InnerLoopVectorizer::VectorParts Entry(State.UF);
   for (unsigned In = 0; In < NumIncoming; ++In) {
     for (unsigned Part = 0; Part < State.UF; ++Part) {
@@ -7671,6 +7641,12 @@ static bool processLoopInVPlanNativePath(
   LLVM_DEBUG(verifyFunction(*L->getHeader()->getParent()));
   return true;
 }
+
+LoopVectorizePass::LoopVectorizePass(LoopVectorizeOptions Opts)
+    : InterleaveOnlyWhenForced(Opts.InterleaveOnlyWhenForced ||
+                               !EnableLoopInterleaving),
+      VectorizeOnlyWhenForced(Opts.VectorizeOnlyWhenForced ||
+                              !EnableLoopVectorization) {}
 
 bool LoopVectorizePass::processLoop(Loop *L) {
   assert((EnableVPlanNativePath || L->empty()) &&

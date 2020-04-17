@@ -913,6 +913,11 @@ FixedPointLiteral *FixedPointLiteral::CreateFromRawInt(const ASTContext &C,
   return new (C) FixedPointLiteral(C, V, type, l, Scale);
 }
 
+FixedPointLiteral *FixedPointLiteral::Create(const ASTContext &C,
+                                             EmptyShell Empty) {
+  return new (C) FixedPointLiteral(Empty);
+}
+
 std::string FixedPointLiteral::getValueAsString(unsigned Radix) const {
   // Currently the longest decimal number that can be printed is the max for an
   // unsigned long _Accum: 4294967295.99999999976716935634613037109375
@@ -4340,6 +4345,48 @@ ParenListExpr *ParenListExpr::CreateEmpty(const ASTContext &Ctx,
   void *Mem =
       Ctx.Allocate(totalSizeToAlloc<Stmt *>(NumExprs), alignof(ParenListExpr));
   return new (Mem) ParenListExpr(EmptyShell(), NumExprs);
+}
+
+BinaryOperator *BinaryOperator::CreateEmpty(const ASTContext &C,
+                                            bool HasFPFeatures) {
+  unsigned Extra = sizeOfTrailingObjects(HasFPFeatures);
+  void *Mem =
+      C.Allocate(sizeof(BinaryOperator) + Extra, alignof(BinaryOperator));
+  return new (Mem) BinaryOperator(EmptyShell());
+}
+
+BinaryOperator *BinaryOperator::Create(const ASTContext &C, Expr *lhs,
+                                       Expr *rhs, Opcode opc, QualType ResTy,
+                                       ExprValueKind VK, ExprObjectKind OK,
+                                       SourceLocation opLoc,
+                                       FPOptions FPFeatures) {
+  bool HasFPFeatures = FPFeatures.requiresTrailingStorage(C);
+  unsigned Extra = sizeOfTrailingObjects(HasFPFeatures);
+  void *Mem =
+      C.Allocate(sizeof(BinaryOperator) + Extra, alignof(BinaryOperator));
+  return new (Mem)
+      BinaryOperator(C, lhs, rhs, opc, ResTy, VK, OK, opLoc, FPFeatures);
+}
+
+CompoundAssignOperator *
+CompoundAssignOperator::CreateEmpty(const ASTContext &C, bool HasFPFeatures) {
+  unsigned Extra = sizeOfTrailingObjects(HasFPFeatures);
+  void *Mem = C.Allocate(sizeof(CompoundAssignOperator) + Extra,
+                         alignof(CompoundAssignOperator));
+  return new (Mem) CompoundAssignOperator(C, EmptyShell(), HasFPFeatures);
+}
+
+CompoundAssignOperator *CompoundAssignOperator::Create(
+    const ASTContext &C, Expr *lhs, Expr *rhs, Opcode opc, QualType ResTy,
+    ExprValueKind VK, ExprObjectKind OK, SourceLocation opLoc,
+    FPOptions FPFeatures, QualType CompLHSType, QualType CompResultType) {
+  bool HasFPFeatures = FPFeatures.requiresTrailingStorage(C);
+  unsigned Extra = sizeOfTrailingObjects(HasFPFeatures);
+  void *Mem = C.Allocate(sizeof(CompoundAssignOperator) + Extra,
+                         alignof(CompoundAssignOperator));
+  return new (Mem)
+      CompoundAssignOperator(C, lhs, rhs, opc, ResTy, VK, OK, opLoc, FPFeatures,
+                             CompLHSType, CompResultType);
 }
 
 const OpaqueValueExpr *OpaqueValueExpr::findInCopyConstruct(const Expr *e) {

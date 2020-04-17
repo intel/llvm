@@ -22,7 +22,6 @@
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/Support/LLVM.h"
-#include "mlir/Support/STLExtras.h"
 
 #include "llvm/ADT/StringSet.h"
 #include "llvm/Support/MathExtras.h"
@@ -524,8 +523,10 @@ getSymbolLessAffineMaps(ArrayRef<ArrayRef<AffineExpr>> reassociation) {
          "Expected symbol-less expressions");
   SmallVector<AffineMap, 4> maps;
   maps.reserve(reassociation.size());
-  for (auto exprs : reassociation)
-    maps.push_back(AffineMap::get(maxDim + 1, 0, exprs));
+  for (auto exprs : reassociation) {
+    assert(exprs.size() != 0);
+    maps.push_back(AffineMap::get(maxDim + 1, 0, exprs, exprs[0].getContext()));
+  }
   return maps;
 }
 
@@ -1056,7 +1057,7 @@ static void appendMangledType(llvm::raw_string_ostream &ss, Type t) {
     appendMangledType(ss, memref.getElementType());
   } else if (auto vec = t.dyn_cast<VectorType>()) {
     ss << "vector";
-    interleave(
+    llvm::interleave(
         vec.getShape(), [&](int64_t i) { ss << i; }, [&]() { ss << "x"; });
     appendMangledType(ss, vec.getElementType());
   } else if (t.isSignlessIntOrIndexOrFloat()) {
@@ -1074,7 +1075,7 @@ std::string mlir::linalg::generateLibraryCallName(Operation *op) {
   llvm::raw_string_ostream ss(name);
   ss << "_";
   auto types = op->getOperandTypes();
-  interleave(
+  llvm::interleave(
       types.begin(), types.end(), [&](Type t) { appendMangledType(ss, t); },
       [&]() { ss << "_"; });
   return ss.str();
