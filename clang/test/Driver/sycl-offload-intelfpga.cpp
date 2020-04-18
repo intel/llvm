@@ -126,9 +126,12 @@
 // RUN:  clang-offload-wrapper -o %t-aocx.bc -host=x86_64-unknown-linux-gnu -kind=sycl -target=fpga_aocx-intel-unknown-sycldevice %t.aocx
 // RUN:  llc -filetype=obj -o %t-aocx.o %t-aocx.bc
 // RUN:  llvm-ar crv %t_aocx.a %t.o %t-aocx.o
+// RUN:  clang-offload-wrapper -o %t-aocx_cl.bc -host=x86_64-unknown-linux-gnu -kind=sycl -target=fpga_aocx-intel-unknown-sycldevice-coff %t.aocx
+// RUN:  llc -filetype=obj -o %t-aocx_cl.o %t-aocx_cl.bc
+// RUN:  llvm-ar crv %t_aocx_cl.a %t.o %t-aocx_cl.o
 // RUN:  %clangxx -target x86_64-unknown-linux-gnu -fsycl -fintelfpga %t_aocx.a -ccc-print-phases 2>&1 \
 // RUN:  | FileCheck -check-prefixes=CHK-FPGA-AOCX-PHASES %s
-// RUN:  %clang_cl -fsycl -fintelfpga %t_aocx.a -ccc-print-phases 2>&1 \
+// RUN:  %clang_cl -fsycl -fintelfpga %t_aocx_cl.a -ccc-print-phases 2>&1 \
 // RUN:  | FileCheck -check-prefixes=CHK-FPGA-AOCX-PHASES %s
 // CHK-FPGA-AOCX-PHASES: 0: input, "{{.*}}", fpga_aocx, (host-sycl)
 // CHK-FPGA-AOCX-PHASES: 1: linker, {0}, image, (host-sycl)
@@ -138,9 +141,9 @@
 
 // RUN:  %clangxx -target x86_64-unknown-linux-gnu -fsycl -fintelfpga %t_aocx.a -### 2>&1 \
 // RUN:  | FileCheck -check-prefixes=CHK-FPGA-AOCX,CHK-FPGA-AOCX-LIN %s
-// RUN:  %clang_cl -fsycl -fintelfpga %t_aocx.a -### 2>&1 \
+// RUN:  %clang_cl -fsycl -fintelfpga %t_aocx_cl.a -### 2>&1 \
 // RUN:  | FileCheck -check-prefixes=CHK-FPGA-AOCX,CHK-FPGA-AOCX-WIN %s
-// CHK-FPGA-AOCX: clang-offload-bundler{{.*}} "-type=ao" "-targets=sycl-fpga_aocx-intel-unknown-sycldevice" "-inputs=[[LIBINPUT:.+\.a]]" "-outputs=[[BUNDLEOUT:.+\.aocx]]" "-unbundle"
+// CHK-FPGA-AOCX: clang-offload-bundler{{.*}} "-type=ao" "-targets=sycl-fpga_aocx-intel-unknown-sycldevice{{(-coff)?}}" "-inputs=[[LIBINPUT:.+\.a]]" "-outputs=[[BUNDLEOUT:.+\.aocx]]" "-unbundle"
 // CHK-FPGA-AOCX: clang-offload-wrapper{{.*}} "-o=[[WRAPOUT:.+\.bc]]" {{.*}} "-target=spir64_fpga" "-kind=sycl" "[[BUNDLEOUT]]"
 // CHK-FPGA-AOCX-LIN: llc{{.*}} "-filetype=obj" "-o" "[[LLCOUT:.+\.o]]" "[[WRAPOUT]]"
 // CHK-FPGA-AOCX-WIN: llc{{.*}} "-filetype=obj" "-o" "[[LLCOUT2:.+\.obj]]" "[[WRAPOUT]]"
@@ -150,9 +153,9 @@
 /// AOCX with source
 // RUN:  %clangxx -target x86_64-unknown-linux-gnu -fsycl -fintelfpga %s %t_aocx.a -### 2>&1 \
 // RUN:  | FileCheck -check-prefixes=CHK-FPGA-AOCX-SRC,CHK-FPGA-AOCX-SRC-LIN %s
-// RUN:  %clang_cl -fsycl -fintelfpga %s %t_aocx.a -### 2>&1 \
+// RUN:  %clang_cl -fsycl -fintelfpga %s %t_aocx_cl.a -### 2>&1 \
 // RUN:  | FileCheck -check-prefixes=CHK-FPGA-AOCX-SRC,CHK-FPGA-AOCX-SRC-WIN %s
-// CHK-FPGA-AOCX-SRC: clang-offload-bundler{{.*}} "-type=ao" "-targets=sycl-fpga_aocx-intel-unknown-sycldevice" "-inputs=[[LIBINPUT:.+\.a]]" "-outputs=[[BUNDLEOUT:.+\.aocx]]" "-unbundle"
+// CHK-FPGA-AOCX-SRC: clang-offload-bundler{{.*}} "-type=ao" "-targets=sycl-fpga_aocx-intel-unknown-sycldevice{{(-coff)?}}" "-inputs=[[LIBINPUT:.+\.a]]" "-outputs=[[BUNDLEOUT:.+\.aocx]]" "-unbundle"
 // CHK-FPGA-AOCX-SRC: clang-offload-wrapper{{.*}} "-o=[[WRAPOUT:.+\.bc]]" {{.*}} "-target=spir64_fpga" "-kind=sycl" "[[BUNDLEOUT]]"
 // CHK-FPGA-AOCX-SRC: llc{{.*}} "-filetype=obj" "-o" "[[LLCOUT:.+\.(o|obj)]]" "[[WRAPOUT]]"
 // CHK-FPGA-AOCX-SRC: clang{{.*}} "-cc1" {{.*}} "-fsycl-is-device" {{.*}} "-o" "[[DEVICEBC:.+\.bc]]"
@@ -168,9 +171,9 @@
 // RUN: touch %t.o
 // RUN:  %clangxx -target x86_64-unknown-linux-gnu -fsycl -fintelfpga %t.o %t_aocx.a -### 2>&1 \
 // RUN:  | FileCheck -check-prefixes=CHK-FPGA-AOCX-OBJ,CHK-FPGA-AOCX-OBJ-LIN %s
-// RUN:  %clang_cl -fsycl -fintelfpga %t.o %t_aocx.a -### 2>&1 \
+// RUN:  %clang_cl -fsycl -fintelfpga %t.o %t_aocx_cl.a -### 2>&1 \
 // RUN:  | FileCheck -check-prefixes=CHK-FPGA-AOCX-OBJ,CHK-FPGA-AOCX-OBJ-WIN %s
-// CHK-FPGA-AOCX-OBJ: clang-offload-bundler{{.*}} "-type=ao" "-targets=sycl-fpga_aocx-intel-unknown-sycldevice" "-inputs=[[LIBINPUT:.+\.a]]" "-outputs=[[BUNDLEOUT:.+\.aocx]]" "-unbundle"
+// CHK-FPGA-AOCX-OBJ: clang-offload-bundler{{.*}} "-type=ao" "-targets=sycl-fpga_aocx-intel-unknown-sycldevice{{(-coff)?}}" "-inputs=[[LIBINPUT:.+\.a]]" "-outputs=[[BUNDLEOUT:.+\.aocx]]" "-unbundle"
 // CHK-FPGA-AOCX-OBJ: clang-offload-wrapper{{.*}} "-o=[[WRAPOUT:.+\.bc]]" {{.*}} "-target=spir64_fpga" "-kind=sycl" "[[BUNDLEOUT]]"
 // CHK-FPGA-AOCX-OBJ: llc{{.*}} "-filetype=obj" "-o" "[[LLCOUT:.+\.(o|obj)]]" "[[WRAPOUT]]"
 // CHK-FPGA-AOCX-OBJ: clang-offload-bundler{{.*}} "-type=o" {{.*}} "-outputs=[[HOSTOBJ:.+\.(o|obj)]],[[DEVICEOBJ:.+\.(o|obj)]]" "-unbundle"
@@ -332,8 +335,10 @@
 // RUN:  %clang_cl -fsycl -c -o %t2_cl.o %t2.c
 // RUN:  clang-offload-wrapper -o %t-aoco.bc -host=x86_64-unknown-linux-gnu -kind=sycl -target=fpga_aoco-intel-unknown-sycldevice %t.aoco
 // RUN:  llc -filetype=obj -o %t-aoco.o %t-aoco.bc
+// RUN:  clang-offload-wrapper -o %t-aoco_cl.bc -host=x86_64-unknown-linux-gnu -kind=sycl -target=fpga_aoco-intel-unknown-sycldevice-coff %t.aoco
+// RUN:  llc -filetype=obj -o %t-aoco_cl.o %t-aoco_cl.bc
 // RUN:  llvm-ar crv %t_aoco.a %t.o %t2.o %t-aoco.o
-// RUN:  llvm-ar crv %t_aoco_cl.a %t.o %t2_cl.o %t-aoco.o
+// RUN:  llvm-ar crv %t_aoco_cl.a %t.o %t2_cl.o %t-aoco_cl.o
 // RUN:  %clangxx -target x86_64-unknown-linux-gnu -fsycl -fintelfpga -foffload-static-lib=%t_aoco.a %s -### -ccc-print-phases 2>&1 \
 // RUN:  | FileCheck -check-prefix=CHK-FPGA-AOCO-PHASES %s
 // CHK-FPGA-AOCO-PHASES: 0: input, "[[INPUTA:.+\.a]]", object, (host-sycl)
