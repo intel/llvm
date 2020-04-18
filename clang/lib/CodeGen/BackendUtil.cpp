@@ -599,6 +599,19 @@ void EmitAssemblyHelper::CreatePasses(legacy::PassManager &MPM,
          CodeGenOpts.PrepareForThinLTO));
   }
 
+  // FIXME: This code is a workaround for a number of problems with optimized
+  // SYCL code for SPIR target. This change trying to balance between doing too
+  // little and too much optimizations. Current approach is to disable as much
+  // as possible just to keep the compiler functional. Eventually we can
+  // consider allowing -On option to configure optimization set for the FE
+  // device compiler as well, but before that we must fix all the functional and
+  // performance issues caused by LLVM transformantions.
+  // E.g. LLVM optimizations make use of llvm intrinsics, instructions, data
+  // types, etc., which are not supported by the SPIR-V translator (current
+  // "back-end" for SYCL device compiler).
+  // NOTE: We use "normal" inliner (i.e. from O2/O3), but limit the rest of
+  // optimization pipeline. Inliner is a must for enabling size reduction
+  // optimizations.
   if (LangOpts.SYCLIsDevice) {
     PMBuilder.OptLevel = 1;
     PMBuilder.SizeLevel = 2;
