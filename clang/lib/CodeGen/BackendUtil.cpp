@@ -600,10 +600,10 @@ void EmitAssemblyHelper::CreatePasses(legacy::PassManager &MPM,
   }
 
   // FIXME: This code is a workaround for a number of problems with optimized
-  // SYCL code for SPIR target. This change trying to balance between doing too
-  // little and too much optimizations. Current approach is to disable as much
-  // as possible just to keep the compiler functional. Eventually we can
-  // consider allowing -On option to configure optimization set for the FE
+  // SYCL code for the SPIR target. This change trying to balance between doing
+  // too few and too many optimizations. The current approach is to disable as
+  // much as possible just to keep the compiler functional. Eventually we can
+  // consider allowing -On option to configure the optimization set for the FE
   // device compiler as well, but before that we must fix all the functional and
   // performance issues caused by LLVM transformantions.
   // E.g. LLVM optimizations make use of llvm intrinsics, instructions, data
