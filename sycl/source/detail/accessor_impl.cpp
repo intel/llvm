@@ -19,8 +19,8 @@ namespace detail {
 AccessorImplHost::~AccessorImplHost() {
   try {
     size_t Count = countBlockedCommand([](const Command *const Cmd) {
-        return Cmd->MBlockReason == Command::BlockReason::HostAccessor;
-      });
+      return Cmd->MBlockReason == Command::BlockReason::HostAccessor;
+    });
 
     if (Count)
       detail::Scheduler::getInstance().releaseHostAccessor(this);
