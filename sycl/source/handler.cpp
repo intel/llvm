@@ -79,7 +79,7 @@ event handler::finalize(const cl::sycl::detail::code_location &Payload) {
     break;
   case detail::CG::CODEPLAY_HOST_TASK:
     CommandGroup.reset(new detail::CGHostTask(
-        std::move(MHostTask), MQueue->getContextImplPtr(), std::move(MArgs),
+        std::move(MHostTask), /*MQueue,*/ std::move(MArgs),
         std::move(MArgsStorage), std::move(MAccStorage),
         std::move(MSharedPtrStorage), std::move(MRequirements),
         std::move(MEvents), MCGType, Payload));

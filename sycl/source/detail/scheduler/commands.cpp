@@ -419,40 +419,20 @@ void Command::makeTraceEventEpilog() {
 #endif
 }
 
-// static
-/*EventImplPtr*/ void Command::connectDepEvent(EventImplPtr DepEvent,
-                                      const ContextImplPtr &DepEventContext,
-                                      const ContextImplPtr &Context,
-                                      const DepDesc &Dep) {
-//  EventImplPtr GlueEvent(new detail::event_impl());
-//  GlueEvent->setContextImpl(Context);
-
-//  RT::PiEvent &GlueEventHandle = GlueEvent->getHandleRef();
-//  auto Plugin = Context->getPlugin();
-  // Add an event on the current context that
-  // is triggered when the DepEvent is complete
-  // TODO eliminate creation of user-event
-//  Plugin.call<PiApiKind::piEventCreate>(Context->getHandleRef(),
-//                                        &GlueEventHandle);
-
+void Command::connectDepEvent(EventImplPtr DepEvent,
+                              const ContextImplPtr &DepEventContext,
+                              const ContextImplPtr &Context,
+                              const DepDesc &Dep) {
   // construct Host Task type command manually and make it depend on DepEvent
   ExecCGCommand *ConnectCmd = nullptr;
 
   {
     // Temporary function. Will be replaced depending on circumstances.
-#if 0
-    std::function<void(void)> Func = [GlueEvent]() {
-      RT::PiEvent &GlueEventHandle = GlueEvent->getHandleRef();
-      const detail::plugin &Plugin = GlueEvent->getPlugin();
-      Plugin.call<PiApiKind::piEventSetStatus>(GlueEventHandle, CL_COMPLETE);
-    };
-#else
     std::function<void(void)> Func = []() {};
-#endif
 
     std::unique_ptr<detail::HostTask> HT(new detail::HostTask(std::move(Func)));
     std::unique_ptr<detail::CG> ConnectCG(new detail::CGHostTask(
-        std::move(HT), DepEventContext, /* Args = */ {}, /* ArgsStorage = */ {},
+        std::move(HT), /* Args = */ {}, /* ArgsStorage = */ {},
         /* AccStorage = */ {}, /* SharedPtrStorage = */ {},
         /* Requirements = */ {}, /* DepEvents = */ {DepEvent},
         CG::CODEPLAY_HOST_TASK, /* Payload */ {}));
@@ -523,8 +503,6 @@ void Command::makeTraceEventEpilog() {
                         PI_INVALID_OPERATION);
 
   MPreparedHostDepsEvents.push_back(ConnectCmd->getEvent());
-
-//  return GlueEvent;
 }
 
 void Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep) {
@@ -1990,22 +1968,8 @@ cl_int ExecCGCommand::enqueueImp() {
       ++ArgIdx;
     }
 
-    {
-      ContextImplPtr HTContext = HostTask->MContext;
-
-      // Init self-event
-      EventImplPtr SelfEvent = MEvent;
-//      RT::PiContext ContextRef = HTContext->getHandleRef();
-
-      // FIXME You can't create event for host-queue/host-context
-//      const detail::plugin &Plugin = HTContext->getPlugin();
-//      Plugin.call<PiApiKind::piEventCreate>(ContextRef, &Event);
-
-//      SelfEvent->setContextImpl(HTContext);
-
-      MQueue->getThreadPool().submit<DispatchHostTask>(std::move(
-          DispatchHostTask(EventImpls, HostTask, MDeps, SelfEvent)));
-    }
+    MQueue->getThreadPool().submit<DispatchHostTask>(std::move(
+        DispatchHostTask(EventImpls, HostTask, MDeps, MEvent)));
 
     return CL_SUCCESS;
   }

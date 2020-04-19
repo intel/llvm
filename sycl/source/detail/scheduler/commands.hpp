@@ -202,9 +202,9 @@ protected:
   ///
   /// Optionality of Dep is set by Dep.MDepCommand not equal to nullptr.
   void connectDepEvent(EventImplPtr DepEvent,
-                                      const ContextImplPtr &DepEventContext,
-                                      const ContextImplPtr &Context,
-                                      const DepDesc &Dep);
+                       const ContextImplPtr &DepEventContext,
+                       const ContextImplPtr &Context,
+                       const DepDesc &Dep);
 
   virtual ContextImplPtr getContext() const;
 
