@@ -99,13 +99,12 @@ public:
 
   void *MData = nullptr;
 
-  Command *MBlockedCmd = nullptr;
-
 protected:
   using CheckCmdFn = std::function<bool(const Command * const)>;
   void addBlockedCommand(Command *BlockedCmd);
   Command *findBlockedCommand(const CheckCmdFn &Check);
   bool removeBlockedCommand(Command *BlockedCmd);
+  size_t countBlockedCommand(const CheckCmdFn &Check);
 
   friend class Command;
   friend class Scheduler;

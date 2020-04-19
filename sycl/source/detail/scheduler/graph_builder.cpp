@@ -396,7 +396,6 @@ Command *Scheduler::GraphBuilder::addCopyBack(Requirement *Req) {
 Command *Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
                                                   const bool destructor) {
 
-  fprintf(stderr, "Gonna add host accessor for req %p\n", (void *)Req);
   const QueueImplPtr &HostQueue = getInstance().getDefaultHostQueue();
 
   MemObjRecord *Record = getOrInsertMemObjRecord(HostQueue, Req);
@@ -425,16 +424,10 @@ Command *Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
   EmptyCmd->MIsBlockable = true;
   EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueBlocked;
   EmptyCmd->MBlockReason = Command::BlockReason::HostAccessor;
-//  EmptyCmd->MBlockReason = "A Buffer is locked by the host accessor";
 
   updateLeaves({UpdateHostAccCmd}, Record, Req->MAccessMode);
   addNodeToLeaves(Record, EmptyCmd, Req->MAccessMode);
 
-//  assert(!Req->MBlockedCmd && "Already blocked!");
-//  Req->MBlockedCmd = EmptyCmd;
-
-  fprintf(stderr, "Blocking Req %p by cmd %p for %s\n",
-          (void *)Req, (void *)EmptyCmd, EmptyCmd->getBlockReason());
   Req->addBlockedCommand(EmptyCmd);
 
   if (MPrintOptionsArray[AfterAddHostAcc])
@@ -685,7 +678,6 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
     EmptyCmd->MIsBlockable = true;
     EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueBlocked;
     EmptyCmd->MBlockReason = Command::BlockReason::HostTask;
-    //EmptyCmd->MBlockReason = "Blocked by host task";
   }
 
   for (Requirement *Req : Reqs) {
@@ -718,10 +710,6 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
     if (CGType == CG::CGTYPE::CODEPLAY_HOST_TASK) {
       EmptyCmd->addDep(DepDesc{NewCmd.get(), Req, AllocaCmd});
 
-//      assert(!Req->MBlockedCmd && "Already blocked 2!");
-//      Req->MBlockedCmd = EmptyCmd;
-      fprintf(stderr, "Blocking Req %p by cmd %p for %s\n",
-              (void *)Req, (void *)EmptyCmd, EmptyCmd->getBlockReason());
       Req->addBlockedCommand(EmptyCmd);
     }
   }

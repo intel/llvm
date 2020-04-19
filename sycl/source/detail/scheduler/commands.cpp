@@ -467,7 +467,6 @@ void Command::makeTraceEventEpilog() {
     EmptyCmd->MIsBlockable = true;
     EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueBlocked;
     EmptyCmd->MBlockReason = BlockReason::HostTask;
-    //EmptyCmd->MBlockReason = "Blocked by host task for dependency";
 
     DepCmd->addUser(ConnectCmd);
 
@@ -501,11 +500,9 @@ void Command::makeTraceEventEpilog() {
 
       {
         const Requirement *Req = Dep.MDepRequirement;
-        //assert(!Req->MBlockedCmd && "Already blocked 3!");
-        //const_cast<Requirement *>(Req)->MBlockedCmd = EmptyCmd;
-        fprintf(stderr, "Blocking Req %p by cmd %p for %s\n",
-                (const void *)Req, (void *)EmptyCmd, EmptyCmd->getBlockReason());
+
         const_cast<Requirement *>(Req)->addBlockedCommand(EmptyCmd);
+
         Scheduler::GraphBuilder &GB = Scheduler::getInstance().MGraphBuilder;
         MemObjRecord *Record = GB.getMemObjRecord(Req->MSYCLMemObj);
         Dep.MDepCommand->addUser(ConnectCmd);

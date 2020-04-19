@@ -166,8 +166,6 @@ void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
 
 EventImplPtr Scheduler::addHostAccessor(Requirement *Req,
                                         const bool destructor) {
-  fprintf(stderr, "Gonna add host accessor for req %p\n",
-          (void *)Req);
   std::lock_guard<std::mutex> lock(MGraphLock);
 
   Command *NewCmd = MGraphBuilder.addHostAccessor(Req, destructor);
@@ -187,15 +185,12 @@ void Scheduler::releaseHostAccessor(Requirement *Req) {
         return Cmd->MBlockReason == Command::BlockReason::HostAccessor;
       });
 
-//  assert(BlockedCmd && "Can't find appropriate command to unblock");
+  assert(BlockedCmd && "Can't find appropriate command to unblock");
 
   if (!BlockedCmd)
     return;
 
   BlockedCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
-
-  fprintf(stderr, "release host accessor. Req %p, Blocked cmd %p, reason: %s\n",
-          (void *)Req, (void *)BlockedCmd, BlockedCmd->getBlockReason());
 
   if (Req->removeBlockedCommand(BlockedCmd))
     unblockSingleReq(Req);
@@ -215,7 +210,7 @@ void Scheduler::unblockSingleReq(Requirement * Req) {
   EnqueueLeaves(Record->MWriteLeaves);
 }
 
-void Scheduler::bulkUnblockReqs(Command * const BlockedCmd, 
+void Scheduler::bulkUnblockReqs(Command * const BlockedCmd,
                                 const std::unordered_set<Requirement *> &Reqs) {
   bool BlockedCmdEnqueued = false;
 
@@ -234,9 +229,6 @@ void Scheduler::bulkUnblockReqs(Command * const BlockedCmd,
   };
 
   for (Requirement *Req : Reqs) {
-    fprintf(stderr, "  Req %p in bulk. Cmd = %p, reason = %s\n", 
-            (void *)Req, (void *)BlockedCmd, BlockedCmd->getBlockReason());
-
     if (Req->removeBlockedCommand(BlockedCmd)) {
       MemObjRecord* Record = Req->MSYCLMemObj->MRecord.get();
       EnqueueLeaves(Record->MReadLeaves);
@@ -250,7 +242,7 @@ void Scheduler::unblockRequirements(const std::vector<Requirement *> &Reqs,
   // fetch unique blocked cmds
   std::unordered_map<Command *, std::unordered_set<Requirement *>> BlockedCmds;
 
-  std::function<bool(const Command * const)> CheckCmd = 
+  std::function<bool(const Command * const)> CheckCmd =
       [Reason](const Command * const Cmd) {
         return Cmd->MBlockReason == Reason;
       };
@@ -258,8 +250,8 @@ void Scheduler::unblockRequirements(const std::vector<Requirement *> &Reqs,
   for (Requirement *Req : Reqs) {
     Command *BlockedCmd = Req->findBlockedCommand(CheckCmd);
 
-//    assert(BlockedCmd && 
-//        "Can't find appropriate command to unblock multiple requirements");
+    assert(BlockedCmd &&
+           "Can't find appropriate command to unblock multiple requirements");
 
     BlockedCmds[BlockedCmd].insert(Req);
   }
@@ -272,9 +264,6 @@ void Scheduler::unblockRequirements(const std::vector<Requirement *> &Reqs,
     const std::unordered_set<Requirement *> &SubReqs = It.second;
 
     BlockedCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
-
-    fprintf(stderr, "Bulk unblock reqs. Blocked cmd reason: %s\n",
-            BlockedCmd->getBlockReason());
 
     bulkUnblockReqs(BlockedCmd, SubReqs);
   }

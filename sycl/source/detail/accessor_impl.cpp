@@ -18,23 +18,12 @@ namespace detail {
 
 AccessorImplHost::~AccessorImplHost() {
   try {
-    bool BlockedCmdNotEmpty = false;
+    size_t Count = countBlockedCommand(
+      [](const Command * const Cmd) {
+        return Cmd->MBlockReason == Command::BlockReason::HostAccessor;
+      });
 
-    {
-      std::lock_guard<std::mutex> Lock(MBlockedCmdsMutex);
-      BlockedCmdNotEmpty = !!MBlockedCmds.size();
-
-      fprintf(stderr, "Gonna release host accessor %p, %i, %zu\n",
-              (void *)this,
-              (int)BlockedCmdNotEmpty, MBlockedCmds.size());
-
-      for (Command *Cmd : MBlockedCmds)
-        fprintf(stderr, "    Blocked: %p, type: %i, reason %s\n",
-                (void *)Cmd,
-                (int)Cmd->getType(), Cmd->getBlockReason());
-    }
-
-    if (BlockedCmdNotEmpty)
+    if (Count)
       detail::Scheduler::getInstance().releaseHostAccessor(this);
   } catch (...) {
   }
@@ -42,8 +31,19 @@ AccessorImplHost::~AccessorImplHost() {
 
 void AccessorImplHost::addBlockedCommand(Command *BlockedCmd) {
   std::lock_guard<std::mutex> Lock(MBlockedCmdsMutex);
-
   MBlockedCmds.insert(BlockedCmd);
+}
+
+size_t AccessorImplHost::countBlockedCommand(const CheckCmdFn &Check) {
+  std::lock_guard<std::mutex> Lock(MBlockedCmdsMutex);
+
+  size_t Count = 0;
+
+  for (const Command *Cmd : MBlockedCmds)
+    if (Check(Cmd))
+      ++Count;
+
+  return Count;
 }
 
 Command *
