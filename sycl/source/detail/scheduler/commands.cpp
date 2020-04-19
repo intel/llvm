@@ -474,7 +474,6 @@ void Command::makeTraceEventEpilog() {
       // We can't set Dep as dependency for connect cmd 'cause Dep's command is
       // from different context. Thus we'll employ a hack here.
 
-#if 1
       {
         DepDesc ConnectCmdDep = Dep;
         ConnectCmdDep.MDepCommand = this;
@@ -490,7 +489,6 @@ void Command::makeTraceEventEpilog() {
 
         CG->MHostTask.reset(new detail::HostTask(std::move(Func)));
       }
-#endif
 
       {
         DepDesc EmptyCmdDep = Dep;
