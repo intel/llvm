@@ -145,8 +145,6 @@ public:
   /// @return a pointer to HostProfilingInfo instance.
   HostProfilingInfo *getHostProfilingInfo() { return MHostProfilingInfo.get(); }
 
-  QueueImplWPtr getQueueWPtr() const { return MQueue; }
-
   /// Gets the native handle of the SYCL event.
   ///
   /// \return a native handle.

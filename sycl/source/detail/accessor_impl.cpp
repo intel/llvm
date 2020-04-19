@@ -37,13 +37,7 @@ void AccessorImplHost::addBlockedCommand(Command *BlockedCmd) {
 size_t AccessorImplHost::countBlockedCommand(const CheckCmdFn &Check) {
   std::lock_guard<std::mutex> Lock(MBlockedCmdsMutex);
 
-  size_t Count = 0;
-
-  for (const Command *Cmd : MBlockedCmds)
-    if (Check(Cmd))
-      ++Count;
-
-  return Count;
+  return std::count_if(MBlockedCmds.begin(), MBlockedCmds.end(), Check);
 }
 
 Command *
