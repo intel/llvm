@@ -614,17 +614,6 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
         } else {
           LinkedAllocaCmd->MIsActive = false;
           Record->MCurContext = Queue->getContextImplPtr();
-
-#if 0
-          std::set<Command *> Deps =
-              findDepsForReq(Record, Req, Queue->getContextImplPtr());
-          for (Command *Dep : Deps) {
-            AllocaCmd->addDep(DepDesc{Dep, Req, AllocaCmd});
-            Dep->addUser(AllocaCmd);
-          }
-          updateLeaves(Deps, Record, Req->MAccessMode);
-          addNodeToLeaves(Record, AllocaCmd, Req->MAccessMode);
-#endif
         }
       }
     }
