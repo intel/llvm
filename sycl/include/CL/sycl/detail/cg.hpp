@@ -646,8 +646,7 @@ public:
   std::unique_ptr<HostTask> MHostTask;
   vector_class<ArgDesc> MArgs;
 
-  CGHostTask(std::unique_ptr<HostTask> HostTask,
-             vector_class<ArgDesc> Args,
+  CGHostTask(std::unique_ptr<HostTask> HostTask, vector_class<ArgDesc> Args,
              std::vector<std::vector<char>> ArgsStorage,
              std::vector<detail::AccessorImplPtr> AccStorage,
              std::vector<std::shared_ptr<const void>> SharedPtrStorage,
@@ -657,8 +656,7 @@ public:
       : CG(Type, std::move(ArgsStorage), std::move(AccStorage),
            std::move(SharedPtrStorage), std::move(Requirements),
            std::move(Events), std::move(loc)),
-        MHostTask(std::move(HostTask)),
-        MArgs(std::move(Args)) {}
+        MHostTask(std::move(HostTask)), MArgs(std::move(Args)) {}
 };
 
 } // namespace detail

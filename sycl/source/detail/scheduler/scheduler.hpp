@@ -434,7 +434,7 @@ protected:
   static Scheduler instance;
 
   void unblockSingleReq(Requirement *Req);
-  void bulkUnblockReqs(Command * const BlockedCmd,
+  void bulkUnblockReqs(Command *const BlockedCmd,
                        const std::unordered_set<Requirement *> &Reqs);
 
   /// Graph builder class.

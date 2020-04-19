@@ -180,8 +180,8 @@ EventImplPtr Scheduler::addHostAccessor(Requirement *Req,
 }
 
 void Scheduler::releaseHostAccessor(Requirement *Req) {
-  Command *const BlockedCmd = Req->findBlockedCommand(
-      [](const Command * const Cmd) {
+  Command *const BlockedCmd = 
+      Req->findBlockedCommand([](const Command * const Cmd) {
         return Cmd->MBlockReason == Command::BlockReason::HostAccessor;
       });
 
@@ -196,7 +196,7 @@ void Scheduler::releaseHostAccessor(Requirement *Req) {
     unblockSingleReq(Req);
 }
 
-void Scheduler::unblockSingleReq(Requirement * Req) {
+void Scheduler::unblockSingleReq(Requirement *Req) {
   MemObjRecord* Record = Req->MSYCLMemObj->MRecord.get();
   auto EnqueueLeaves = [](CircularBuffer<Command *> &Leaves) {
     for (Command *Cmd : Leaves) {
@@ -210,11 +210,12 @@ void Scheduler::unblockSingleReq(Requirement * Req) {
   EnqueueLeaves(Record->MWriteLeaves);
 }
 
-void Scheduler::bulkUnblockReqs(Command * const BlockedCmd,
+void Scheduler::bulkUnblockReqs(Command *const BlockedCmd,
                                 const std::unordered_set<Requirement *> &Reqs) {
   bool BlockedCmdEnqueued = false;
 
-  auto EnqueueLeaves = [BlockedCmd, &BlockedCmdEnqueued](CircularBuffer<Command *> &Leaves) {
+  auto EnqueueLeaves = [BlockedCmd, &BlockedCmdEnqueued](
+                           CircularBuffer<Command *> &Leaves) {
     for (Command *Cmd : Leaves) {
       if (BlockedCmd == Cmd && BlockedCmdEnqueued)
         continue;
@@ -230,7 +231,7 @@ void Scheduler::bulkUnblockReqs(Command * const BlockedCmd,
 
   for (Requirement *Req : Reqs) {
     if (Req->removeBlockedCommand(BlockedCmd)) {
-      MemObjRecord* Record = Req->MSYCLMemObj->MRecord.get();
+      MemObjRecord *Record = Req->MSYCLMemObj->MRecord.get();
       EnqueueLeaves(Record->MReadLeaves);
       EnqueueLeaves(Record->MWriteLeaves);
     }
@@ -242,8 +243,8 @@ void Scheduler::unblockRequirements(const std::vector<Requirement *> &Reqs,
   // fetch unique blocked cmds
   std::unordered_map<Command *, std::unordered_set<Requirement *>> BlockedCmds;
 
-  std::function<bool(const Command * const)> CheckCmd =
-      [Reason](const Command * const Cmd) {
+  std::function<bool(const Command *const)> CheckCmd =
+      [Reason](const Command *const Cmd) {
         return Cmd->MBlockReason == Reason;
       };
 

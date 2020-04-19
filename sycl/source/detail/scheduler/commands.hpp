@@ -203,8 +203,7 @@ protected:
   /// Optionality of Dep is set by Dep.MDepCommand not equal to nullptr.
   void connectDepEvent(EventImplPtr DepEvent,
                        const ContextImplPtr &DepEventContext,
-                       const ContextImplPtr &Context,
-                       const DepDesc &Dep);
+                       const ContextImplPtr &Context, const DepDesc &Dep);
 
   virtual ContextImplPtr getContext() const;
 
@@ -226,10 +225,7 @@ public:
   /// Counts the number of memory objects this command is a leaf for.
   unsigned MLeafCounter = 0;
 
-  enum class BlockReason : int {
-    HostAccessor = 0,
-    HostTask
-  };
+  enum class BlockReason : int { HostAccessor = 0, HostTask };
 
   BlockReason MBlockReason;
 

@@ -175,10 +175,9 @@ class DispatchHostTask {
     // wait for dependency events
     // FIXME introduce a more sophisticated wait mechanism
     for (auto &PluginWithEvents : RequiredEventsPerPlugin) {
-      std::vector<RT::PiEvent> RawEvents = getPiEvents(
-          PluginWithEvents.second);
-      PluginWithEvents.first->call<PiApiKind::piEventsWait>(
-          RawEvents.size(), RawEvents.data());
+      std::vector<RT::PiEvent> RawEvents = getPiEvents(PluginWithEvents.second);
+      PluginWithEvents.first->call<PiApiKind::piEventsWait>(RawEvents.size(),
+                                                            RawEvents.data());
     }
   }
 
@@ -436,13 +435,13 @@ void Command::connectDepEvent(EventImplPtr DepEvent,
         /* AccStorage = */ {}, /* SharedPtrStorage = */ {},
         /* Requirements = */ {}, /* DepEvents = */ {DepEvent},
         CG::CODEPLAY_HOST_TASK, /* Payload */ {}));
-    ConnectCmd = new ExecCGCommand(std::move(ConnectCG),
-        Scheduler::getInstance().getDefaultHostQueue());
+    ConnectCmd = new ExecCGCommand(
+        std::move(ConnectCG), Scheduler::getInstance().getDefaultHostQueue());
   }
 
   if (Command *DepCmd = reinterpret_cast<Command *>(DepEvent->getCommand())) {
-    EmptyCommand *EmptyCmd = new EmptyCommand(
-        Scheduler::getInstance().getDefaultHostQueue());
+    EmptyCommand *EmptyCmd =
+        new EmptyCommand(Scheduler::getInstance().getDefaultHostQueue());
 
     EmptyCmd->MIsBlockable = true;
     EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueBlocked;
@@ -457,15 +456,14 @@ void Command::connectDepEvent(EventImplPtr DepEvent,
       {
         DepDesc ConnectCmdDep = Dep;
         ConnectCmdDep.MDepCommand = this;
-        //ConnectCmd->addDep(ConnectCmdDep);
         std::function<void(void)> Func = [ConnectCmdDep]() {
           std::vector<DepDesc> Deps;
           Deps.push_back(ConnectCmdDep);
           DispatchHostTask::unblockBlockedDeps(Deps);
         };
 
-        auto *CG = static_cast<detail::CGHostTask *>(
-            ConnectCmd->MCommandGroup.get());
+        auto *CG =
+            static_cast<detail::CGHostTask *>(ConnectCmd->MCommandGroup.get());
 
         CG->MHostTask.reset(new detail::HostTask(std::move(Func)));
       }
@@ -522,12 +520,9 @@ void Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep) {
 
   ContextImplPtr DepEventContext = DepEvent->getContextImpl();
   // If contexts don't match - connect them using user event
-  if (DepEventContext != Context && !Context->is_host()) {
-    /*EventImplPtr GlueEvent = */connectDepEvent(DepEvent, DepEventContext,
-                                             Context, Dep);
-
-//    MPreparedDepsEvents.push_back(std::move(GlueEvent));
-  } else
+  if (DepEventContext != Context && !Context->is_host())
+    connectDepEvent(DepEvent, DepEventContext, Context, Dep);
+  else
     MPreparedDepsEvents.push_back(std::move(DepEvent));
 }
 
@@ -699,10 +694,10 @@ void Command::resolveReleaseDependencies(std::set<Command *> &DepList) {
 
 const char *Command::getBlockReason() const {
   switch (MBlockReason) {
-    case BlockReason::HostAccessor:
-      return "A Buffer is locked by the host accessor";
-    case BlockReason::HostTask:
-      return "Blocked by host task";
+  case BlockReason::HostAccessor:
+    return "A Buffer is locked by the host accessor";
+  case BlockReason::HostTask:
+    return "Blocked by host task";
   }
 
   return "Unknown block reason";
@@ -1325,7 +1320,7 @@ EmptyCommand::EmptyCommand(QueueImplPtr Queue, Requirement Req)
 }
 
 EmptyCommand::EmptyCommand(QueueImplPtr Queue)
-    :Command(CommandType::EMPTY_TASK, std::move(Queue)) {
+    : Command(CommandType::EMPTY_TASK, std::move(Queue)) {
   emitInstrumentationDataProxy();
 }
 
@@ -1968,8 +1963,8 @@ cl_int ExecCGCommand::enqueueImp() {
       ++ArgIdx;
     }
 
-    MQueue->getThreadPool().submit<DispatchHostTask>(std::move(
-        DispatchHostTask(EventImpls, HostTask, MDeps, MEvent)));
+    MQueue->getThreadPool().submit<DispatchHostTask>(
+        std::move(DispatchHostTask(EventImpls, HostTask, MDeps, MEvent)));
 
     return CL_SUCCESS;
   }

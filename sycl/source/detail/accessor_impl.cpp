@@ -18,8 +18,7 @@ namespace detail {
 
 AccessorImplHost::~AccessorImplHost() {
   try {
-    size_t Count = countBlockedCommand(
-      [](const Command * const Cmd) {
+    size_t Count = countBlockedCommand([](const Command *const Cmd) {
         return Cmd->MBlockReason == Command::BlockReason::HostAccessor;
       });
 
@@ -40,8 +39,7 @@ size_t AccessorImplHost::countBlockedCommand(const CheckCmdFn &Check) {
   return std::count_if(MBlockedCmds.begin(), MBlockedCmds.end(), Check);
 }
 
-Command *
-AccessorImplHost::findBlockedCommand(const CheckCmdFn &Check) {
+Command *AccessorImplHost::findBlockedCommand(const CheckCmdFn &Check) {
   std::lock_guard<std::mutex> Lock(MBlockedCmdsMutex);
 
   auto FoundIt = std::find_if(MBlockedCmds.begin(), MBlockedCmds.end(), Check);
@@ -65,4 +63,3 @@ void addHostAccessorAndWait(Requirement *Req) {
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
-

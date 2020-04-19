@@ -100,7 +100,7 @@ public:
   void *MData = nullptr;
 
 protected:
-  using CheckCmdFn = std::function<bool(const Command * const)>;
+  using CheckCmdFn = std::function<bool(const Command *const)>;
   void addBlockedCommand(Command *BlockedCmd);
   Command *findBlockedCommand(const CheckCmdFn &Check);
   bool removeBlockedCommand(Command *BlockedCmd);
