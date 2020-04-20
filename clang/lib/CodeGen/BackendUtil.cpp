@@ -612,7 +612,7 @@ void EmitAssemblyHelper::CreatePasses(legacy::PassManager &MPM,
   // NOTE: We use "normal" inliner (i.e. from O2/O3), but limit the rest of
   // optimization pipeline. Inliner is a must for enabling size reduction
   // optimizations.
-  if (LangOpts.SYCLIsDevice) {
+  if (LangOpts.SYCLIsDevice && TargetTriple.isSPIR()) {
     PMBuilder.OptLevel = 1;
     PMBuilder.SizeLevel = 2;
     PMBuilder.SLPVectorize = false;
