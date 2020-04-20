@@ -86,24 +86,26 @@ template <typename... Ts>
 class fourth_kernel;
 
 namespace accessor_in_base {
-  struct other_base{int i;};
-  struct base {
-    int i, j;
-    cl::sycl::accessor<char, 1, cl::sycl::access::mode::read> acc;
-  };
-
-  struct base2 : other_base,
-                 cl::sycl::accessor<char, 1, cl::sycl::access::mode::read> {
-    int i;
-    cl::sycl::accessor<char, 1, cl::sycl::access::mode::read> acc;
-  };
-
-  struct captured : base, base2 {
-    cl::sycl::accessor<char, 1, cl::sycl::access::mode::read> acc;
-    void use() const{}
-  };
-
+struct other_base {
+  int i;
 };
+struct base {
+  int i, j;
+  cl::sycl::accessor<char, 1, cl::sycl::access::mode::read> acc;
+};
+
+struct base2 : other_base,
+               cl::sycl::accessor<char, 1, cl::sycl::access::mode::read> {
+  int i;
+  cl::sycl::accessor<char, 1, cl::sycl::access::mode::read> acc;
+};
+
+struct captured : base, base2 {
+  cl::sycl::accessor<char, 1, cl::sycl::access::mode::read> acc;
+  void use() const {}
+};
+
+}; // namespace accessor_in_base
 
 int main() {
 
@@ -149,8 +151,8 @@ int main() {
       }
   });
 
-  // FIXME: We cannot use the member-capture because non-integration headers
-  // don't handle these types right.
+  // FIXME: We cannot use the member-capture because all the handlers except the
+  // integration header handler in SemaSYCL don't handle base types right.
   accessor_in_base::captured c;
   kernel_single_task<class accessor_in_base>([c]() {
   });

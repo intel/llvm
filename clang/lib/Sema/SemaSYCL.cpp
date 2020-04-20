@@ -1061,14 +1061,13 @@ class SyclKernelBodyCreator
       assert(WGLambdaFn && "PFWG lambda not found");
       // Mark the function that it "works" in a work group scope:
       // NOTE: In case of parallel_for_work_item the marker call itself is
-      // marked
-      //       with work item scope attribute, here  the '()' operator of the
-      //       object passed as parameter is marked. This is an optimization -
-      //       there are a lot of locals created at parallel_for_work_group
-      //       scope before calling the lambda - it is more efficient to have
-      //       all of them in the private address space rather then sharing via
-      //       the local AS. See parallel_for_work_group implementation in the
-      //       SYCL headers.
+      // marked with work item scope attribute, here  the '()' operator of the
+      // object passed as parameter is marked. This is an optimization -
+      // there are a lot of locals created at parallel_for_work_group
+      // scope before calling the lambda - it is more efficient to have
+      // all of them in the private address space rather then sharing via
+      // the local AS. See parallel_for_work_group implementation in the
+      // SYCL headers.
       if (!WGLambdaFn->hasAttr<SYCLScopeAttr>()) {
         WGLambdaFn->addAttr(SYCLScopeAttr::CreateImplicit(
             SemaRef.getASTContext(), SYCLScopeAttr::Level::WorkGroup));
@@ -1268,7 +1267,6 @@ class SyclKernelIntHeaderCreator
   int64_t CurOffset = 0;
 
   uint64_t getOffset(const CXXRecordDecl *RD) const {
-    // TODO: Figure this out! Offset of a base class.
     assert(CurOffset &&
            "Cannot have a base class without setting the active struct");
     const ASTRecordLayout &Layout =
@@ -1372,12 +1370,12 @@ public:
   }
 
   // Keep track of the current struct offset.
-  void enterStruct(const CXXRecordDecl * RD, FieldDecl *FD) final {
+  void enterStruct(const CXXRecordDecl *RD, FieldDecl *FD) final {
     CurStruct = FD->getType()->getAsCXXRecordDecl();
     CurOffset += SemaRef.getASTContext().getFieldOffset(FD) / 8;
   }
 
-  void leaveStruct(const CXXRecordDecl * RD, FieldDecl *FD) final {
+  void leaveStruct(const CXXRecordDecl *RD, FieldDecl *FD) final {
     CurStruct = RD;
     CurOffset -= SemaRef.getASTContext().getFieldOffset(FD) / 8;
   }
