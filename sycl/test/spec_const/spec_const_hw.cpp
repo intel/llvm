@@ -5,7 +5,8 @@
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 // TODO: re-enable after CI drivers are updated to newer which support spec
 // constants:
-// XFAIL: acc,cpu,cuda,gen
+// XFAIL: linux
+// UNSUPPORTED: cuda
 //
 //==----------- spec_const_hw.cpp ------------------------------------------==//
 //
