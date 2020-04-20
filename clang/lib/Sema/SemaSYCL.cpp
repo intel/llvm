@@ -656,20 +656,20 @@ static QualType calculateKernelNameType(ASTContext &Ctx,
 
 // Gets a name for the kernel caller func, calculated from the first template
 // argument.
-static std::string constructKernelName(Sema &S, FunctionDecl *KernelCallerFunc,
-                                       MangleContext &MC, bool StableName) {
+static std::pair<std::string, std::string>
+constructKernelName(Sema &S, FunctionDecl *KernelCallerFunc, MangleContext &MC) {
   QualType KernelNameType =
       calculateKernelNameType(S.getASTContext(), KernelCallerFunc);
 
-  if (StableName)
-    return PredefinedExpr::ComputeName(S.getASTContext(),
-                                       PredefinedExpr::UniqueStableNameType,
-                                       KernelNameType);
   SmallString<256> Result;
   llvm::raw_svector_ostream Out(Result);
 
   MC.mangleTypeName(KernelNameType, Out);
-  return std::string(Out.str());
+
+  return {std::string(Out.str()),
+          PredefinedExpr::ComputeName(S.getASTContext(),
+                                      PredefinedExpr::UniqueStableNameType,
+                                      KernelNameType)};
 }
 
 // anonymous namespace so these don't get linkage.
@@ -1427,10 +1427,9 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
   assert(KernelLambda && "invalid kernel caller");
 
   // Calculate both names, since Integration headers need both.
-  std::string CalculatedName =
-      constructKernelName(*this, KernelCallerFunc, MC, /*StableName*/ false);
-  std::string StableName =
-      constructKernelName(*this, KernelCallerFunc, MC, /*StableName*/ true);
+  std::string CalculatedName, StableName;
+  std::tie(CalculatedName, StableName) =
+      constructKernelName(*this, KernelCallerFunc, MC);
   StringRef KernelName(getLangOpts().SYCLUnnamedLambda ? StableName
                                                        : CalculatedName);
 
