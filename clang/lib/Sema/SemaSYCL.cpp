@@ -1263,11 +1263,17 @@ class SyclKernelIntHeaderCreator
     : public SyclKernelFieldHandler<SyclKernelIntHeaderCreator> {
   SYCLIntegrationHeader &Header;
   const CXXRecordDecl *KernelLambda;
+  // Necessary to figure out the offset of the base class.
+  const CXXRecordDecl *CurStruct = nullptr;
   int64_t CurOffset = 0;
 
   uint64_t getOffset(const CXXRecordDecl *RD) const {
     // TODO: Figure this out! Offset of a base class.
-    return 0;
+    assert(CurOffset &&
+           "Cannot have a base class without setting the active struct");
+    const ASTRecordLayout &Layout =
+        SemaRef.getASTContext().getASTRecordLayout(CurStruct);
+    return CurOffset + Layout.getBaseClassOffset(RD).getQuantity();
   }
   uint64_t getOffset(const FieldDecl *FD) const {
     return CurOffset + SemaRef.getASTContext().getFieldOffset(FD) / 8;
@@ -1366,15 +1372,18 @@ public:
   }
 
   // Keep track of the current struct offset.
-  void enterStruct(const CXXRecordDecl *, FieldDecl *FD) final {
+  void enterStruct(const CXXRecordDecl * RD, FieldDecl *FD) final {
+    CurStruct = FD->getType()->getAsCXXRecordDecl();
     CurOffset += SemaRef.getASTContext().getFieldOffset(FD) / 8;
   }
 
-  void leaveStruct(const CXXRecordDecl *, FieldDecl *FD) final {
+  void leaveStruct(const CXXRecordDecl * RD, FieldDecl *FD) final {
+    CurStruct = RD;
     CurOffset -= SemaRef.getASTContext().getFieldOffset(FD) / 8;
   }
 
   void enterStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS) final {
+    CurStruct = BS.getType()->getAsCXXRecordDecl();
     const ASTRecordLayout &Layout =
         SemaRef.getASTContext().getASTRecordLayout(RD);
     CurOffset += Layout.getBaseClassOffset(BS.getType()->getAsCXXRecordDecl())
@@ -1382,6 +1391,7 @@ public:
   }
 
   void leaveStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS) final {
+    CurStruct = RD;
     const ASTRecordLayout &Layout =
         SemaRef.getASTContext().getASTRecordLayout(RD);
     CurOffset -= Layout.getBaseClassOffset(BS.getType()->getAsCXXRecordDecl())
