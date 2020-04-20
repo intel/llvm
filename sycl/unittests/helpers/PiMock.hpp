@@ -112,7 +112,8 @@ public:
   explicit PiMock(const cl::sycl::platform &OriginalPlatform) {
     assert(!OriginalPlatform.is_host() && "PI mock isn't supported for host");
     // Extract impl and plugin handles
-    auto ImplPtr = detail::getSyclObjImpl(OriginalPlatform);
+    std::shared_ptr<detail::platform_impl> ImplPtr =
+        detail::getSyclObjImpl(OriginalPlatform);
     const RT::PiPlugin &OriginalPiPlugin = ImplPtr->getPlugin().getPiPlugin();
     // Copy the PiPlugin, thus untying our to-be mock platform from other
     // platforms within the context. Reset our platform to use the new plugin.
@@ -120,7 +121,8 @@ public:
     ImplPtr->setPlugin(NewPluginPtr);
     // Extract the new PiPlugin instance by a non-const pointer,
     // explicitly allowing modification
-    PiPluginMockPtr = &const_cast<RT::PiPlugin &>(NewPluginPtr->getPiPlugin());
+    auto &PiPluginRef = const_cast<RT::PiPlugin &>(NewPluginPtr->getPiPlugin());
+    MPiPluginMockPtr = &PiPluginRef;
     // Save a copy of the platform resource
     MPlatform = OriginalPlatform;
   }
@@ -130,14 +132,7 @@ public:
   ///
   /// \param DevSelector is a reference to a device_selector instance.
   explicit PiMock(const cl::sycl::device_selector &DevSelector)
-      : MPlatform{DevSelector} {
-    assert(!MPlatform.is_host() && "PI mock isn't supported for host");
-    auto ImplPtr = detail::getSyclObjImpl(MPlatform);
-    const RT::PiPlugin &PiPluginRef = ImplPtr->getPlugin().getPiPlugin();
-    // Extract the PiPlugin instance by a non-const pointer,
-    // explicitly allowing modification
-    PiPluginMockPtr = &const_cast<RT::PiPlugin &>(PiPluginRef);
-  }
+      : PiMock(cl::sycl::platform{DevSelector}) {}
 
   /// Explicit construction from a host_selector is forbidden.
   PiMock(const cl::sycl::host_selector &HostSelector) = delete;
@@ -160,18 +155,19 @@ public:
   /// function object.
   ///
   /// \param Replacement is a mock std::function instance to be
-  ///        called instead of the given PI API. It is imperative
-  ///        that this function be not constructed from a lambda.
+  ///        called instead of the given PI API. This function must
+  ///        not have been constructed from a lambda.
   template <detail::PiApiKind PiApiOffset>
   void redefine(const std::function<SignatureT<PiApiOffset>> &Replacement) {
     // TODO: Find a way to store FPointer first so that real PI functions can
     // be called alongside the mock ones. Something like:
     // `enum class MockPIPolicy { InsteadOf, Before, After};`
     // may need to be introduced.
-    auto *FuncPtr = Replacement.template target<FuncPtrT<PiApiOffset>>();
+    FuncPtrT<PiApiOffset> FuncPtr =
+        *Replacement.template target<FuncPtrT<PiApiOffset>>();
     assert(FuncPtr &&
            "Function target is empty, try passing a lambda directly");
-    setFuncPtr<PiApiOffset>(PiPluginMockPtr, *FuncPtr);
+    setFuncPtr<PiApiOffset>(MPiPluginMockPtr, *FuncPtr);
   }
 
   /// A `redefine` overload for function pointer/captureless lambda
@@ -182,14 +178,14 @@ public:
   template <detail::PiApiKind PiApiOffset, typename FunctorT>
   void redefine(const FunctorT &Replacement) {
     // TODO: Check for matching signatures/assignability
-    setFuncPtr<PiApiOffset>(PiPluginMockPtr, Replacement);
+    setFuncPtr<PiApiOffset>(MPiPluginMockPtr, Replacement);
   }
 
 private:
   cl::sycl::platform MPlatform;
   // Extracted at initialization for convenience purposes. The resource
   // itself is owned by the platform instance.
-  RT::PiPlugin *PiPluginMockPtr;
+  RT::PiPlugin *MPiPluginMockPtr;
 };
 
 } // namespace unittest
