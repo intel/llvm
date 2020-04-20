@@ -195,8 +195,21 @@ public:
 
     // update self-event status
     if (MSelfEvent->is_host()) {
+      fprintf(stderr, "Gonna enqueue smth here for cmd %p\n",
+              (void *)MSelfEvent->getCommand());
       // TODO
-      fprintf(stderr, "Gonna enqueue smth here\n");
+
+      Command *ThisCmd = reinterpret_cast<Command *>(MSelfEvent->getCommand());
+
+      assert(ThisCmd && "No command found for host-task self event");
+
+      for (Command *UserCmd : ThisCmd->MUsers) {
+        EnqueueResultT Res;
+        bool Enqueued = Scheduler::GraphProcessor::enqueueCommand(UserCmd, Res);
+        if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
+          throw runtime_error("Failed to enqueue a dependant command",
+                              PI_INVALID_OPERATION);
+      }
     } else {
       const detail::plugin &Plugin = MSelfEvent->getPlugin();
       Plugin.call<PiApiKind::piEventSetStatus>(MSelfEvent->getHandleRef(),
