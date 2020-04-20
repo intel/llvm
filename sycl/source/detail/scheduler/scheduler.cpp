@@ -180,7 +180,7 @@ EventImplPtr Scheduler::addHostAccessor(Requirement *Req,
 }
 
 void Scheduler::releaseHostAccessor(Requirement *Req) {
-  Command *const BlockedCmd = 
+  Command *const BlockedCmd =
       Req->findBlockedCommand([](const Command *const Cmd) {
         return Cmd->MBlockReason == Command::BlockReason::HostAccessor;
       });
