@@ -8,7 +8,6 @@
 
 // Verify that a sample compilation succeeds with -save-temps
 // RUN: %clangxx -fsycl -save-temps %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
 
 #include <CL/sycl.hpp>
 
@@ -21,3 +20,6 @@ int main() {
   });
   return 0;
 }
+
+// TODO: Address a Windows-specific issue with integration header filenames
+// XFAIL: system-windows

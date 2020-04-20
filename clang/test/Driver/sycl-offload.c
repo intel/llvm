@@ -749,14 +749,17 @@
 // RUN: %clang -fsycl -target x86_64-unknown-linux-gnu -save-temps %s -### 2>&1
 // RUN: %clang -fsycl -fsycl-targets=spir64-unknown-unknown-sycldevice -target x86_64-unknown-linux-gnu -save-temps %s -### 2>&1
 // RUN: %clangxx -fsycl -fsycl-targets=spir64-unknown-unknown-sycldevice -target x86_64-unknown-linux-gnu -save-temps %s -### 2>&1 \
-// RUN: | FileCheck %s --check-prefix=CHK-FSYCL-SAVE-TEMPS
+// RUN: | FileCheck %s --check-prefixes=CHK-FSYCL-SAVE-TEMPS,CHK-FSYCL-SAVE-TEMPS-CONFL
 // CHK-FSYCL-SAVE-TEMPS: clang{{.*}} "-fsycl-is-device"{{.*}} "-o" "[[DEVICE_BASE_NAME:[a-z0-9-]+]].ii"
 // CHK-FSYCL-SAVE-TEMPS: clang{{.*}} "-fsycl-is-device"{{.*}} "-o" "[[DEVICE_BASE_NAME]].bc"{{.*}} "[[DEVICE_BASE_NAME]].ii"
 // CHK-FSYCL-SAVE-TEMPS: llvm-link{{.*}} "[[DEVICE_BASE_NAME]].bc"{{.*}} "-o" "[[LINKED_DEVICE_BC:.*\.bc]]"
+// CHK-FSYCL-SAVE-TEMPS-CONFL-NOT: "[[DEVICE_BASE_NAME]].bc"{{.*}} "[[DEVICE_BASE_NAME]].bc"
 // CHK-FSYCL-SAVE-TEMPS: sycl-post-link{{.*}} "-o" "[[DEVICE_BASE_NAME]].table" "[[LINKED_DEVICE_BC]]"
 // CHK-FSYCL-SAVE-TEMPS: file-table-tform{{.*}} "-o" "[[DEVICE_BASE_NAME]].txt" "[[DEVICE_BASE_NAME]].table"
 // CHK-FSYCL-SAVE-TEMPS: llvm-foreach{{.*}}llvm-spirv{{.*}} "-o" "[[SPIRV_FILE_LIST:.*\.txt]]" {{.*}}"[[DEVICE_BASE_NAME]].txt"
+// CHK-FSYCL-SAVE-TEMPS-CONFL-NOT: "-o" "[[DEVICE_BASE_NAME]].txt" {{.*}}"[[DEVICE_BASE_NAME]].txt"
 // CHK-FSYCL-SAVE-TEMPS: file-table-tform{{.*}} "-o" "[[PRE_WRAPPER_TABLE:.*\.table]]" "[[DEVICE_BASE_NAME]].table" "[[SPIRV_FILE_LIST]]"
+// CHK-FSYCL-SAVE-TEMPS-CONFL-NOT: "-o" "[[DEVICE_BASE_NAME]].table"{{.*}} "[[DEVICE_BASE_NAME]].table"
 // CHK-FSYCL-SAVE-TEMPS: clang-offload-wrapper{{.*}} "-o=[[WRAPPER_TEMPFILE_NAME:[a-z0-9_/-]+]].bc"{{.*}} "-batch" "[[PRE_WRAPPER_TABLE]]"
 // CHK-FSYCL-SAVE-TEMPS: llc{{.*}} "-o" "[[DEVICE_OBJ_NAME:.*\.o]]"{{.*}} "[[WRAPPER_TEMPFILE_NAME]].bc"
 // CHK-FSYCL-SAVE-TEMPS: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[DEVICE_BASE_NAME]].h"{{.*}} "[[DEVICE_BASE_NAME]].ii"
