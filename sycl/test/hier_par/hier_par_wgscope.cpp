@@ -18,6 +18,9 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
+// Application built with -O0 crashes on OpenCL CPU (2020.10.4.0.15)
+// XFAIL: system-windows && cpu && opencl
+
 // This test checks correctness of hierarchical kernel execution when there is
 // code and data in the work group scope.
 
