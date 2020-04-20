@@ -767,10 +767,6 @@ public:
   // Mark these virutal so that we can use override in the implementer classes,
   // despite virtual dispatch never being used.
 
-  //// TODO: Can these return 'bool' and we can short-circuit the handling? That
-  // way the field checker cna return true/false based on whether the rest
-  // should be still working.
-
   // Accessor can be a base class or a field decl, so both must be handled.
   virtual void handleSyclAccessorType(const CXXBaseSpecifier &, QualType) {}
   virtual void handleSyclAccessorType(FieldDecl *, QualType) {}
@@ -1045,7 +1041,7 @@ class SyclKernelBodyCreator
     std::pair<DeclaratorDecl *, DeclaratorDecl *> MappingPair =
         std::make_pair(KernelObjParam, KernelObjClone);
 
-    // Function scope might be empty, so we do push.
+    // Push the Kernel function scope to ensure the scope isn't empty
     SemaRef.PushFunctionScope();
     KernelBodyTransform KBT(MappingPair, SemaRef);
     Stmt *NewBody = KBT.TransformStmt(FunctionBody).get();
@@ -1259,13 +1255,8 @@ public:
     MemberExprBases.pop_back();
   }
 
-  void enterStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS) final {
-    // TODO : Implement
-  }
-
-  void leaveStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS) final {
-    // TODO : Implement
-  }
+  using SyclKernelFieldHandler::enterStruct;
+  using SyclKernelFieldHandler::leaveStruct;
 };
 
 class SyclKernelIntHeaderCreator
