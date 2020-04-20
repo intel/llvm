@@ -514,7 +514,7 @@ class CUDASelector : public cl::sycl::device_selector {
 
 ## C++ standard
 
-- Minimal supported C++ standard is C++11 on Linux and C++14 on Windows.
+- Minimal supported C++ standard is C++14 on Linux and Windows.
 
 ## Known Issues and Limitations
 
