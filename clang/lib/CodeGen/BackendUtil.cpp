@@ -898,9 +898,8 @@ void EmitAssemblyHelper::EmitAssembly(BackendAction Action,
   std::unique_ptr<llvm::ToolOutputFile> ThinLinkOS, DwoOS;
 
   // Clean-up SYCL device code if LLVM passes are disabled
-  if (LangOpts.SYCLIsDevice && CodeGenOpts.DisableLLVMPasses) {
+  if (LangOpts.SYCLIsDevice && CodeGenOpts.DisableLLVMPasses)
     PerModulePasses.add(createDeadCodeEliminationPass());
-  }
 
   switch (Action) {
   case Backend_EmitNothing:
