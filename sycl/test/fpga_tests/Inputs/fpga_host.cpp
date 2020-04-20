@@ -18,5 +18,6 @@ int main(void) {
 
   double result;
   foo(result, q, 3);
-  std::cout << "Result: " << result << "\n";
+  assert(result == 5);
+  return 0;
 }
