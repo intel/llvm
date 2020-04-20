@@ -79,21 +79,21 @@ int main(){
       half4{12344.0f, 100.0, -50.0, 11112});
 
   //rte
-  test<half, double, 8, rounding_mode::automatic>(
+  test<double, half, 4, rounding_mode::rte>(
       double4{12345.0, 100.0, -50.0, 11111.111},
       half4{12344.0f, 100.0, -50.0, 11112});
   //rtp
-  test<half, double, 8, rounding_mode::automatic>(
+  test<double, half, 4, rounding_mode::rtp>(
       double4{12345.0, 100.0, -50.0, 11111.111},
       half4{12352.0f, 100.0, -50.0, 11112});
 
   //rtn
-  test<half, double, 8, rounding_mode::automatic>(
+  test<double, half, 4, rounding_mode::rtn>(
       double4{12345.0, 100.0, -50.0, 11111.111},
       half4{12344.0f, 100.0, -50.0, 11104});
 
   //rtz
-  test<half, double, 8, rounding_mode::automatic>(
+  test<double, half, 4, rounding_mode::rtz>(
       double4{12345.0, 100.0, -50.0, 11111.111},
       half4{12344.0f, 100.0, -50.0, 11104});
 
