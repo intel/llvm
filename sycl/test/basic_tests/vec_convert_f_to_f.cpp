@@ -16,9 +16,6 @@
 #include <cassert>
 #include <iomanip> 
 
-// TODO uncomment run lines on non-host devices when the rounding modes will
-// be implemented.
-
 using namespace cl::sycl;
 
 template <typename T, typename convertT, int roundingMode> class kernel_name;
@@ -31,10 +28,7 @@ template <> struct helper<0> {
                       const vec<T, NumElements> &y) {
     const T xs = x.template swizzle<0>();
     const T ys = y.template swizzle<0>();
-    if (xs != ys) {
-      std::cerr << "sometihng failed " << std::setprecision(30) << xs << " || "<< ys;;
-      exit(1);
-    }
+    assert(xs == ys);
   }
 };
 
@@ -45,10 +39,7 @@ template <int N> struct helper {
     const T xs = x.template swizzle<N>();
     const T ys = y.template swizzle<N>();
     helper<N - 1>::compare(x, y);
-    if (xs != ys) {
-      std::cerr << "sometihng failed " << std::setprecision(30) << xs << " || "<< ys;
-      exit(1);
-    }
+    assert(xs == ys);
   }
 };
 

@@ -14,10 +14,6 @@
 #include <CL/sycl.hpp>
 
 #include <cassert>
-#include <iomanip> 
-#include <iostream>
-// TODO uncomment run lines on non-host devices when the rounding modes will
-// be implemented.
 
 using namespace cl::sycl;
 
@@ -31,7 +27,10 @@ template <> struct helper<0> {
                       const vec<T, NumElements> &y) {
     const T xs = x.template swizzle<0>();
     const T ys = y.template swizzle<0>();
-    assert(xs == ys);
+    if (xs != ys) {
+      std::cerr << "sometihng failed " << std::setprecision(30) << xs << " || "<< ys;;
+      exit(1);
+    }
   }
 };  
 
@@ -42,7 +41,10 @@ template <int N> struct helper {
     const T xs = x.template swizzle<N>();
     const T ys = y.template swizzle<N>();
     helper<N - 1>::compare(x, y);
-    assert(xs == ys);
+    if (xs != ys) {
+      std::cerr << "sometihng failed " << std::setprecision(30) << xs << " || "<< ys;;
+      exit(1);
+    }
   }
 };
 
@@ -73,9 +75,28 @@ void test(const vec<T, NumElements> &ToConvert,
 int main(){
   //automatic
   test<double, half, 8, rounding_mode::automatic>(
+      double8{1234567890.0, 987654304.0, 100.0, -50.0, 111111.111, 625.625, 50625.0009765625, -2500000.875},
+      half8{1234567890.0, 987654304.0, 100.0, -50.0, 111111.111, 625.625, 50625.0009765625, -2500000.875});
+  /*test<float, half, 8, rounding_mode::automatic>(
       double8{+2.3, +2.5, +2.7, -2.3, -2.5, -2.7, 0., 0.},
       half8{+2.3f, +2.5f, +2.7f, -2.3f, -2.5f, -2.7f, 0.f, 0.f});
-  /*test<half, double, 8, rounding_mode::automatic>(
+
+  //rte
+  test<half, double, 8, rounding_mode::automatic>(
       double8{+2.3, +2.5, +2.7, -2.3, -2.5, -2.7, 0., 0.},
-      half8{+2.3f, +2.5f, +2.7f, -2.3f, -2.5f, -2.7f, 0.f, 0.f}); */
+      half8{+2.3f, +2.5f, +2.7f, -2.3f, -2.5f, -2.7f, 0.f, 0.f}); 
+  //rtz
+  test<half, double, 8, rounding_mode::automatic>(
+      double8{+2.3, +2.5, +2.7, -2.3, -2.5, -2.7, 0., 0.},
+      half8{+2.3f, +2.5f, +2.7f, -2.3f, -2.5f, -2.7f, 0.f, 0.f}); 
+
+  //rtp
+  test<half, double, 8, rounding_mode::automatic>(
+      double8{+2.3, +2.5, +2.7, -2.3, -2.5, -2.7, 0., 0.},
+      half8{+2.3f, +2.5f, +2.7f, -2.3f, -2.5f, -2.7f, 0.f, 0.f}); 
+
+  //rtn
+  test<half, double, 8, rounding_mode::automatic>(
+      double8{+2.3, +2.5, +2.7, -2.3, -2.5, -2.7, 0., 0.},
+      half8{+2.3f, +2.5f, +2.7f, -2.3f, -2.5f, -2.7f, 0.f, 0.f});    */
 }

@@ -325,7 +325,7 @@ def TLAll           : TypeList<[Char,  UChar, Short,  UShort, Int,  UInt, Long, 
 def TLAllUnsigned   : TypeList<[UChar, UChar, UShort, UShort, UInt, UInt, ULong, ULong, UInt,  ULong,  UShort]>;
 def TLFloat         : TypeList<[Float, Double, Half]>;
 // FIXME: handle properly char (signed or unsigned depending on host)
-def TLSignedInts    : TypeList<[TrueChar, Short, Int, Long]>;
+def TLSignedInts    : TypeList<[Char, Short, Int, Long]>;
 def TLUnsignedInts  : TypeList<[UChar, UShort, UInt, ULong]>;
 
 // Signed to Unsigned conversion

@@ -14,10 +14,6 @@
 #include <CL/sycl.hpp>
 
 #include <cassert>
-#include <iomanip> 
-#include <iostream>
-// TODO uncomment run lines on non-host devices when the rounding modes will
-// be implemented.
 
 using namespace cl::sycl;
 
