@@ -332,8 +332,6 @@ class Configuration(object):
             self.use_clang_verify = self.cxx.isVerifySupported()
             self.lit_config.note(
                 "inferred use_clang_verify as: %r" % self.use_clang_verify)
-        if self.use_clang_verify:
-                self.config.available_features.add('verify-support')
 
     def configure_use_thread_safety(self):
         '''If set, run clang with -verify on failing tests.'''
@@ -357,8 +355,6 @@ class Configuration(object):
                 self.config.available_features.add(f.strip())
         self.target_info.add_locale_features(self.config.available_features)
 
-        target_platform = self.target_info.platform()
-
         # Write an "available feature" that combines the triple when
         # use_system_cxx_lib is enabled. This is so that we can easily write
         # XFAIL markers for tests that are known to fail with versions of
@@ -381,8 +377,8 @@ class Configuration(object):
             self.config.available_features.add('availability=%s' % name)
             self.config.available_features.add('availability=%s%s' % (name, version))
 
-        # Insert the platform name into the available features as a lower case.
-        self.config.available_features.add(target_platform)
+        # Insert the platform name and version into the available features.
+        self.target_info.add_platform_features(self.config.available_features)
 
         # Simulator testing can take a really long time for some of these tests
         # so add a feature check so we can REQUIRES: long_tests in them
@@ -631,22 +627,22 @@ class Configuration(object):
                 define += '=%s' % (feature_macros[m])
             self.cxx.modules_flags += [define]
         self.cxx.compile_flags += ['-Wno-macro-redefined']
-        # Transform each macro name into the feature name used in the tests.
+        # Transform the following macro names from __config_site into features
+        # that can be used in the tests.
         # Ex. _LIBCPP_HAS_NO_THREADS -> libcpp-has-no-threads
-        for m in feature_macros:
-            if m == '_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS' or \
-               m == '_LIBCPP_HIDE_FROM_ABI_PER_TU_BY_DEFAULT':
-                continue
-            if m == '_LIBCPP_ABI_VERSION':
-                self.config.available_features.add('libcpp-abi-version-v%s'
-                    % feature_macros[m])
-                continue
-            if m == '_LIBCPP_NO_VCRUNTIME':
-                self.config.available_features.add('libcpp-no-vcruntime')
-                continue
-            assert m.startswith('_LIBCPP_HAS_') or m.startswith('_LIBCPP_ABI_')
-            m = m.lower()[1:].replace('_', '-')
-            self.config.available_features.add(m)
+        translate = {
+            '_LIBCPP_HAS_NO_GLOBAL_FILESYSTEM_NAMESPACE',
+            '_LIBCPP_HAS_NO_MONOTONIC_CLOCK',
+            '_LIBCPP_HAS_NO_STDIN',
+            '_LIBCPP_HAS_NO_STDOUT',
+            '_LIBCPP_HAS_NO_THREAD_UNSAFE_C_FUNCTIONS',
+            '_LIBCPP_HAS_NO_THREADS',
+            '_LIBCPP_HAS_THREAD_API_EXTERNAL',
+            '_LIBCPP_HAS_THREAD_API_PTHREAD',
+            '_LIBCPP_NO_VCRUNTIME'
+        }
+        for m in translate.intersection(feature_macros.keys()):
+            self.config.available_features.add(m.lower()[1:].replace('_', '-'))
         return feature_macros
 
 
@@ -660,7 +656,7 @@ class Configuration(object):
     def configure_compile_flags_rtti(self):
         enable_rtti = self.get_lit_bool('enable_rtti', True)
         if not enable_rtti:
-            self.config.available_features.add('libcpp-no-rtti')
+            self.config.available_features.add('-fno-rtti')
             self.cxx.compile_flags += ['-fno-rtti', '-D_LIBCPP_NO_RTTI']
 
     def configure_compile_flags_abi_version(self):
@@ -988,9 +984,6 @@ class Configuration(object):
         sub.append(('%{compile_flags}', ' '.join(map(pipes.quote, self.cxx.compile_flags))))
         sub.append(('%{link_flags}',    ' '.join(map(pipes.quote, self.cxx.link_flags))))
         sub.append(('%{link_libcxxabi}', pipes.quote(self.cxx.link_libcxxabi_flag)))
-        if self.cxx.isVerifySupported():
-            sub.append(('%{verify}', ' '.join(self.cxx.verify_flags)))
-        sub.append(('%{build}',   '%{cxx} -o %t.exe %s %{flags} %{compile_flags} %{link_flags}'))
 
         # Configure exec prefix substitutions.
         # Configure run env substitution.
@@ -1010,7 +1003,6 @@ class Configuration(object):
         sub.append(('%{exec}', '{} {} {} -- '.format(pipes.quote(sys.executable),
                                                      pipes.quote(executor),
                                                      ' '.join(exec_args))))
-        sub.append(('%{run}', '%{exec} %t.exe'))
         if self.get_lit_conf('libcxx_gdb'):
             sub.append(('%{libcxx_gdb}', self.get_lit_conf('libcxx_gdb')))
 

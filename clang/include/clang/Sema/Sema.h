@@ -532,7 +532,7 @@ public:
   typedef OpaquePtr<QualType> TypeTy;
 
   OpenCLOptions OpenCLFeatures;
-  FPOptions FPFeatures;
+  FPOptions CurFPFeatures;
 
   const LangOptions &LangOpts;
   Preprocessor &PP;
@@ -1494,8 +1494,8 @@ public:
   /// statements.
   class FPFeaturesStateRAII {
   public:
-    FPFeaturesStateRAII(Sema &S) : S(S), OldFPFeaturesState(S.FPFeatures) {}
-    ~FPFeaturesStateRAII() { S.FPFeatures = OldFPFeaturesState; }
+    FPFeaturesStateRAII(Sema &S) : S(S), OldFPFeaturesState(S.CurFPFeatures) {}
+    ~FPFeaturesStateRAII() { S.CurFPFeatures = OldFPFeaturesState; }
 
   private:
     Sema& S;
@@ -1518,7 +1518,7 @@ public:
 
   const LangOptions &getLangOpts() const { return LangOpts; }
   OpenCLOptions &getOpenCLOptions() { return OpenCLFeatures; }
-  FPOptions     &getFPOptions() { return FPFeatures; }
+  FPOptions     &getCurFPFeatures() { return CurFPFeatures; }
 
   DiagnosticsEngine &getDiagnostics() const { return Diags; }
   SourceManager &getSourceManager() const { return SourceMgr; }
@@ -1829,6 +1829,7 @@ public:
                          SourceLocation Loc);
   QualType BuildWritePipeType(QualType T,
                          SourceLocation Loc);
+  QualType BuildExtIntType(bool IsUnsigned, Expr *BitWidth, SourceLocation Loc);
 
   TypeSourceInfo *GetTypeForDeclarator(Declarator &D, Scope *S);
   TypeSourceInfo *GetTypeForDeclaratorCast(Declarator &D, QualType FromTy);

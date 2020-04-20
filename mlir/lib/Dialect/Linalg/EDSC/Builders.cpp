@@ -8,6 +8,7 @@
 
 #include "mlir/IR/Builders.h"
 #include "mlir/Dialect/Affine/EDSC/Intrinsics.h"
+#include "mlir/Dialect/Linalg/EDSC/Builders.h"
 #include "mlir/Dialect/Linalg/EDSC/Intrinsics.h"
 #include "mlir/Dialect/LoopOps/EDSC/Builders.h"
 #include "mlir/Dialect/StandardOps/EDSC/Intrinsics.h"
@@ -177,7 +178,6 @@ Operation *mlir::edsc::makeGenericLinalgOp(
               builder.getAffineMapArrayAttr(maps),
               builder.getStrArrayAttr(iteratorStrTypes),
               StringAttr() /*doc*/,
-              FlatSymbolRefAttr() /*fun*/,
               StringAttr() /*library_call*/
               /* TODO: other attributes in op */
               )

@@ -845,6 +845,16 @@ def BoolAttr : Attr<CPred<"$_self.isa<BoolAttr>()">, "bool attribute"> {
   let constBuilderCall = "$_builder.getBoolAttr($0)";
 }
 
+// Index attribute.
+def IndexAttr :
+    TypedAttrBase<
+      Index, "IntegerAttr",
+      And<[CPred<"$_self.isa<IntegerAttr>()">,
+           CPred<"$_self.cast<IntegerAttr>().getType().isa<IndexType>()">]>,
+      "index attribute"> {
+  let returnType = [{ APInt }];
+}
+
 // Base class for any integer (regardless of signedness semantics) attributes
 // of fixed width.
 class AnyIntegerAttrBase<AnyI attrValType, string descr> :
@@ -1642,6 +1652,10 @@ class HasParent<string op>
 // attribute content is used.
 def FirstAttrDerivedResultType :
   GenInternalOpTrait<"FirstAttrDerivedResultType">;
+
+// Op has a resizable operand list. Auto-generated build and parse functions
+// should construct it as such.
+def ResizableOperandList : GenInternalOpTrait<"ResizableOperandList">;
 
 // TODO(antiagainst): Turn the following into normal traits and generate
 // verification for them.

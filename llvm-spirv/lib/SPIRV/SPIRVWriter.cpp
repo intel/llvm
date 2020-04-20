@@ -346,9 +346,9 @@ SPIRVType *LLVMToSPIRV::transType(Type *T) {
     }
   }
 
-  if (T->isVectorTy())
-    return mapType(T, BM->addVectorType(transType(T->getVectorElementType()),
-                                        T->getVectorNumElements()));
+  if (auto *VecTy = dyn_cast<VectorType>(T))
+    return mapType(T, BM->addVectorType(transType(VecTy->getElementType()),
+                                        VecTy->getNumElements()));
 
   if (T->isArrayTy()) {
     // SPIR-V 1.3 s3.32.6: Length is the number of elements in the array.
@@ -2457,7 +2457,8 @@ LLVMToSPIRV::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
       Type *BoolTy = IntegerType::getInt1Ty(M->getContext());
       auto IsVector = ResultTy->isVectorTy();
       if (IsVector)
-        BoolTy = VectorType::get(BoolTy, ResultTy->getVectorNumElements());
+        BoolTy = VectorType::get(BoolTy,
+                                 cast<VectorType>(ResultTy)->getNumElements());
       auto BBT = transType(BoolTy);
       SPIRVInstruction *Res;
       if (isCmpOpCode(OC)) {

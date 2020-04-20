@@ -1,5 +1,6 @@
 include "config/public_api.td"
 
+include "spec/gnu_ext.td"
 include "spec/linux.td"
 include "spec/posix.td"
 include "spec/stdc.td"
@@ -8,6 +9,13 @@ def SizeT : TypeDecl<"size_t"> {
   let Decl = [{
     #define __need_size_t
     #include <stddef.h>
+  }];
+}
+
+def SSizeT : TypeDecl<"ssize_t"> {
+  let Decl = [{
+    #define __need_ssize_t
+    #include <__posix-types.h>
   }];
 }
 
@@ -123,7 +131,10 @@ def MathAPI : PublicAPI<"math.h"> {
     IsNanMacro,
   ];
   let Functions = [
+   "cosf",
    "round",
+   "sincosf",
+   "sinf",
   ];
 }
 
@@ -302,5 +313,16 @@ def ThreadsAPI : PublicAPI<"threads.h"> {
     "mtx_unlock",
     "thrd_create",
     "thrd_join",
+  ];
+}
+
+def UniStdAPI : PublicAPI<"unistd.h"> {
+  let TypeDeclarations = [
+    SSizeT,
+    SizeT,
+  ];
+
+  let Functions = [
+    "write",
   ];
 }

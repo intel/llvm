@@ -217,23 +217,6 @@ struct IRPosition {
     return IRPosition(const_cast<CallBase &>(CB), Kind(ArgNo));
   }
 
-  /// Create a position describing the function scope of \p ICS.
-  static const IRPosition callsite_function(ImmutableCallSite ICS) {
-    return IRPosition::callsite_function(cast<CallBase>(*ICS.getInstruction()));
-  }
-
-  /// Create a position describing the returned value of \p ICS.
-  static const IRPosition callsite_returned(ImmutableCallSite ICS) {
-    return IRPosition::callsite_returned(cast<CallBase>(*ICS.getInstruction()));
-  }
-
-  /// Create a position describing the argument of \p ICS at position \p ArgNo.
-  static const IRPosition callsite_argument(ImmutableCallSite ICS,
-                                            unsigned ArgNo) {
-    return IRPosition::callsite_argument(cast<CallBase>(*ICS.getInstruction()),
-                                         ArgNo);
-  }
-
   /// Create a position describing the argument of \p ACS at position \p ArgNo.
   static const IRPosition callsite_argument(AbstractCallSite ACS,
                                             unsigned ArgNo) {
@@ -418,9 +401,9 @@ struct IRPosition {
       return;
 
     AttributeList AttrList;
-    CallSite CS = CallSite(&getAnchorValue());
-    if (CS)
-      AttrList = CS.getAttributes();
+    auto *CB = dyn_cast<CallBase>(&getAnchorValue());
+    if (CB)
+      AttrList = CB->getAttributes();
     else
       AttrList = getAssociatedFunction()->getAttributes();
 
@@ -428,8 +411,8 @@ struct IRPosition {
     for (Attribute::AttrKind AK : AKs)
       AttrList = AttrList.removeAttribute(Ctx, getAttrIdx(), AK);
 
-    if (CS)
-      CS.setAttributes(AttrList);
+    if (CB)
+      CB->setAttributes(AttrList);
     else
       getAssociatedFunction()->setAttributes(AttrList);
   }
@@ -875,11 +858,14 @@ struct Attributor {
   }
 
   /// Helper function to replace all uses of \p V with \p NV. Return true if
-  /// there is any change.
-  bool changeValueAfterManifest(Value &V, Value &NV) {
+  /// there is any change. The flag \p ChangeDroppable indicates if dropppable
+  /// uses should be changed too.
+  bool changeValueAfterManifest(Value &V, Value &NV,
+                                bool ChangeDroppable = true) {
     bool Changed = false;
     for (auto &U : V.uses())
-      Changed |= changeUseAfterManifest(U, NV);
+      if (ChangeDroppable || !U.getUser()->isDroppable())
+        Changed |= changeUseAfterManifest(U, NV);
 
     return Changed;
   }
@@ -1192,9 +1178,11 @@ private:
 
     // Lookup the abstract attribute of type AAType. If found, return it after
     // registering a dependence of QueryingAA on the one returned attribute.
-    const auto &KindToAbstractAttributeMap = AAMap.lookup(IRP);
+    auto KindToAbstractAttributeMapIt = AAMap.find(IRP);
+    if ( KindToAbstractAttributeMapIt == AAMap.end())
+      return nullptr;
     if (AAType *AA = static_cast<AAType *>(
-            KindToAbstractAttributeMap.lookup(&AAType::ID))) {
+            KindToAbstractAttributeMapIt->second.lookup(&AAType::ID))) {
       // Do not register a dependence on an attribute with an invalid state.
       if (TrackDependence && AA->getState().isValidState())
         recordDependence(*AA, const_cast<AbstractAttribute &>(*QueryingAA),

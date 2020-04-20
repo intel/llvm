@@ -68,7 +68,6 @@ add_llvm_unittest(SupportTests
   SimpleTableTest.cpp
   SourceMgrTest.cpp
   SpecialCaseListTest.cpp
-  StringPool.cpp
   SwapByteOrderTest.cpp
   SymbolRemappingReaderTest.cpp
   TarWriterTest.cpp

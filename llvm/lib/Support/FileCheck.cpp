@@ -1069,16 +1069,13 @@ FileCheckDiag::FileCheckDiag(const SourceMgr &SM,
                              const Check::FileCheckType &CheckTy,
                              SMLoc CheckLoc, MatchType MatchTy,
                              SMRange InputRange)
-    : CheckTy(CheckTy), MatchTy(MatchTy) {
+    : CheckTy(CheckTy), CheckLoc(CheckLoc), MatchTy(MatchTy) {
   auto Start = SM.getLineAndColumn(InputRange.Start);
   auto End = SM.getLineAndColumn(InputRange.End);
   InputStartLine = Start.first;
   InputStartCol = Start.second;
   InputEndLine = End.first;
   InputEndCol = End.second;
-  Start = SM.getLineAndColumn(CheckLoc);
-  CheckLine = Start.first;
-  CheckCol = Start.second;
 }
 
 static bool IsPartOfWord(char c) {
@@ -1269,8 +1266,12 @@ FileCheck::FileCheck(FileCheckRequest Req)
 
 FileCheck::~FileCheck() = default;
 
-bool FileCheck::readCheckFile(SourceMgr &SM, StringRef Buffer,
-                              Regex &PrefixRE) {
+bool FileCheck::readCheckFile(
+    SourceMgr &SM, StringRef Buffer, Regex &PrefixRE,
+    std::pair<unsigned, unsigned> *ImpPatBufferIDRange) {
+  if (ImpPatBufferIDRange)
+    ImpPatBufferIDRange->first = ImpPatBufferIDRange->second = 0;
+
   Error DefineError =
       PatternContext->defineCmdlineVariables(Req.GlobalDefines, SM);
   if (DefineError) {
@@ -1291,7 +1292,17 @@ bool FileCheck::readCheckFile(SourceMgr &SM, StringRef Buffer,
 
     StringRef PatternInBuffer =
         CmdLine->getBuffer().substr(Prefix.size(), PatternString.size());
-    SM.AddNewSourceBuffer(std::move(CmdLine), SMLoc());
+    unsigned BufferID = SM.AddNewSourceBuffer(std::move(CmdLine), SMLoc());
+    if (ImpPatBufferIDRange) {
+      if (ImpPatBufferIDRange->first == ImpPatBufferIDRange->second) {
+        ImpPatBufferIDRange->first = BufferID;
+        ImpPatBufferIDRange->second = BufferID + 1;
+      } else {
+        assert(BufferID == ImpPatBufferIDRange->second &&
+               "expected consecutive source buffer IDs");
+        ++ImpPatBufferIDRange->second;
+      }
+    }
 
     ImplicitNegativeChecks.push_back(
         Pattern(Check::CheckNot, PatternContext.get()));
@@ -1305,6 +1316,7 @@ bool FileCheck::readCheckFile(SourceMgr &SM, StringRef Buffer,
   // found.
   unsigned LineNumber = 1;
 
+  bool FoundUsedPrefix = false;
   while (1) {
     Check::FileCheckType CheckTy;
 
@@ -1315,6 +1327,8 @@ bool FileCheck::readCheckFile(SourceMgr &SM, StringRef Buffer,
         FindFirstMatchingPrefix(PrefixRE, Buffer, LineNumber, CheckTy);
     if (UsedPrefix.empty())
       break;
+    FoundUsedPrefix = true;
+
     assert(UsedPrefix.data() == Buffer.data() &&
            "Failed to move Buffer's start forward, or pointed prefix outside "
            "of the buffer!");
@@ -1398,16 +1412,10 @@ bool FileCheck::readCheckFile(SourceMgr &SM, StringRef Buffer,
     DagNotMatches = ImplicitNegativeChecks;
   }
 
-  // Add an EOF pattern for any trailing --implicit-check-not/CHECK-DAG/-NOTs,
-  // and use the first prefix as a filler for the error message.
-  if (!DagNotMatches.empty()) {
-    CheckStrings->emplace_back(
-        Pattern(Check::CheckEOF, PatternContext.get(), LineNumber + 1),
-        *Req.CheckPrefixes.begin(), SMLoc::getFromPointer(Buffer.data()));
-    std::swap(DagNotMatches, CheckStrings->back().DagNotStrings);
-  }
-
-  if (CheckStrings->empty()) {
+  // When there are no used prefixes we report an error except in the case that
+  // no prefix is specified explicitly but -implicit-check-not is specified.
+  if (!FoundUsedPrefix &&
+      (ImplicitNegativeChecks.empty() || !Req.IsDefaultCheckPrefix)) {
     errs() << "error: no check strings found with prefix"
            << (Req.CheckPrefixes.size() > 1 ? "es " : " ");
     auto I = Req.CheckPrefixes.begin();
@@ -1421,6 +1429,15 @@ bool FileCheck::readCheckFile(SourceMgr &SM, StringRef Buffer,
 
     errs() << '\n';
     return true;
+  }
+
+  // Add an EOF pattern for any trailing --implicit-check-not/CHECK-DAG/-NOTs,
+  // and use the first prefix as a filler for the error message.
+  if (!DagNotMatches.empty()) {
+    CheckStrings->emplace_back(
+        Pattern(Check::CheckEOF, PatternContext.get(), LineNumber + 1),
+        *Req.CheckPrefixes.begin(), SMLoc::getFromPointer(Buffer.data()));
+    std::swap(DagNotMatches, CheckStrings->back().DagNotStrings);
   }
 
   return false;
@@ -1888,8 +1905,10 @@ bool FileCheck::ValidateCheckPrefixes() {
 Regex FileCheck::buildCheckPrefixRegex() {
   // I don't think there's a way to specify an initial value for cl::list,
   // so if nothing was specified, add the default
-  if (Req.CheckPrefixes.empty())
+  if (Req.CheckPrefixes.empty()) {
     Req.CheckPrefixes.push_back("CHECK");
+    Req.IsDefaultCheckPrefix = true;
+  }
 
   // We already validated the contents of CheckPrefixes so just concatenate
   // them as alternatives.
