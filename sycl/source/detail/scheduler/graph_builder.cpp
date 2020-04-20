@@ -811,6 +811,8 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
 void Scheduler::GraphBuilder::cleanupFinishedCommands(Command *FinishedCmd) {
   std::queue<Command *> CmdsToVisit({FinishedCmd});
   std::set<Command *> Visited;
+  // FIXME a more sophisticated solution instead of this hack
+  std::set<Command *> Deleted;
 
   // Traverse the graph using BFS
   while (!CmdsToVisit.empty()) {
@@ -834,6 +836,10 @@ void Scheduler::GraphBuilder::cleanupFinishedCommands(Command *FinishedCmd) {
       continue;
 
     for (Command *UserCmd : Cmd->MUsers) {
+      // Prevent invalid read.
+      // FIXME remove this hack.
+      if (Deleted.count(UserCmd))
+        continue;
       for (DepDesc &Dep : UserCmd->MDeps) {
         // Link the users of the command to the alloca command(s) instead
         if (Dep.MDepCommand == Cmd) {
@@ -849,6 +855,8 @@ void Scheduler::GraphBuilder::cleanupFinishedCommands(Command *FinishedCmd) {
     }
     Cmd->getEvent()->setCommand(nullptr);
     delete Cmd;
+
+    Deleted.insert(Cmd);
   }
 }
 
