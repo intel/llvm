@@ -12,7 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl.hpp>
-
+#include <iomanip> 
 #include <cassert>
 
 using namespace cl::sycl;
@@ -74,29 +74,28 @@ void test(const vec<T, NumElements> &ToConvert,
 
 int main(){
   //automatic
-  test<double, half, 8, rounding_mode::automatic>(
-      double8{1234567890.0, 987654304.0, 100.0, -50.0, 111111.111, 625.625, 50625.0009765625, -2500000.875},
-      half8{1234567890.0, 987654304.0, 100.0, -50.0, 111111.111, 625.625, 50625.0009765625, -2500000.875});
-  /*test<float, half, 8, rounding_mode::automatic>(
-      double8{+2.3, +2.5, +2.7, -2.3, -2.5, -2.7, 0., 0.},
-      half8{+2.3f, +2.5f, +2.7f, -2.3f, -2.5f, -2.7f, 0.f, 0.f});
+  test<double, half, 4, rounding_mode::automatic>(
+      double4{12345.0, 100.0, -50.0, 11111.111},
+      half4{12344.0f, 100.0, -50.0, 11112});
 
   //rte
   test<half, double, 8, rounding_mode::automatic>(
-      double8{+2.3, +2.5, +2.7, -2.3, -2.5, -2.7, 0., 0.},
-      half8{+2.3f, +2.5f, +2.7f, -2.3f, -2.5f, -2.7f, 0.f, 0.f}); 
-  //rtz
-  test<half, double, 8, rounding_mode::automatic>(
-      double8{+2.3, +2.5, +2.7, -2.3, -2.5, -2.7, 0., 0.},
-      half8{+2.3f, +2.5f, +2.7f, -2.3f, -2.5f, -2.7f, 0.f, 0.f}); 
-
+      double4{12345.0, 100.0, -50.0, 11111.111},
+      half4{12344.0f, 100.0, -50.0, 11112});
   //rtp
   test<half, double, 8, rounding_mode::automatic>(
-      double8{+2.3, +2.5, +2.7, -2.3, -2.5, -2.7, 0., 0.},
-      half8{+2.3f, +2.5f, +2.7f, -2.3f, -2.5f, -2.7f, 0.f, 0.f}); 
+      double4{12345.0, 100.0, -50.0, 11111.111},
+      half4{12352.0f, 100.0, -50.0, 11112});
 
   //rtn
   test<half, double, 8, rounding_mode::automatic>(
-      double8{+2.3, +2.5, +2.7, -2.3, -2.5, -2.7, 0., 0.},
-      half8{+2.3f, +2.5f, +2.7f, -2.3f, -2.5f, -2.7f, 0.f, 0.f});    */
+      double4{12345.0, 100.0, -50.0, 11111.111},
+      half4{12344.0f, 100.0, -50.0, 11104});
+
+  //rtz
+  test<half, double, 8, rounding_mode::automatic>(
+      double4{12345.0, 100.0, -50.0, 11111.111},
+      half4{12344.0f, 100.0, -50.0, 11104});
+
+  return 0;
 }
