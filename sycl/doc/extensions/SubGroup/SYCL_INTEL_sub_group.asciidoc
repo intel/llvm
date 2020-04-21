@@ -218,6 +218,26 @@ A sub-group barrier synchronizes all work-items in a sub-group, and orders memor
 |Execute a sub-group barrier with an optional memory fence specified by _accessSpace_.
 |===
 
+==== Shuffles
+
+The shuffle sub-group functions perform arbitrary communication between pairs of work-items in a sub-group.  Common patterns -- such as shifting all values in a sub-group by a fixed number of work-items -- are exposed as specialized shuffles that may be accelerated in hardware.
+
+|===
+|Member Functions|Description
+
+|+template <typename T> T shuffle(T x, id<1> local_id) const+
+|Exchange values of _x_ between work-items in the sub-group in an arbitrary pattern.  Returns the value of _x_ from the work-item with the specified id.  The value of _local_id_ must be between 0 and the sub-group size.
+
+|+template <typename T> T shuffle_down(T x, uint32_t delta) const+
+|Exchange values of _x_ between work-items in the sub-group via a shift.  Returns the value of _x_ from the work-item whose id is _delta_ larger than the calling work-item. The value returned when the result of id + _delta_ is greater than or equal to the sub-group size is undefined.
+
+|+template <typename T> T shuffle_up(T x, uint32_t delta) const+
+|Exchange values of _x_ between work-items in the sub-group via a shift.  Returns the value of _x_ from the work-item whose id is _delta_ smaller than the calling work-item. The value of returned when the result of id - _delta_ is less than zero is undefined.
+
+|+template <typename T> T shuffle_xor(T x, id<1> mask) const+
+|Exchange pairs of values of _x_ between work-items in the sub-group.  Returns the value of _x_ from the work-item whose id is equal to the exclusive-or of the calling work-item's id and _mask_. _mask_ must be a compile-time constant value that is the same for all work-items in the sub-group.
+|===
+
 ==== Sample Header
 
 [source, c++]
@@ -243,6 +263,18 @@ struct sub_group {
 
   void barrier(access::fence_space accessSpace = access::fence_space::global_and_local) const;
 
+  template <typename T>
+  T shuffle(T x, id<1> local_id) const;
+
+  template <typename T>
+  T shuffle_down(T x, uint32_t delta) const;
+
+  template <typename T>
+  T shuffle_up(T x, uint32_t delta) const;
+
+  template <typename T>
+  T shuffle_xor(T x, id<1> mask) const;
+
 };
 } // intel
 } // sycl
@@ -256,6 +288,13 @@ struct sub_group {
 --
 *RESOLVED*:
 Yes, this is required by OpenCL devices.  Devices that do not require the work-group size can ignore the parameter.
+--
+
+. Should sub-group "shuffles" be member functions?
++
+--
+*RESOLVED*:
+Yes, the four shuffles in this extension are a defining feature of sub-groups.  Higher-level algorithms (such as those in the +SubGroupAlgorithms+ proposal) may build on them, the same way as higher-level algorithms using work-groups build on work-group local memory.
 --
 
 //. asd
@@ -275,6 +314,7 @@ Yes, this is required by OpenCL devices.  Devices that do not require the work-g
 |2|2020-03-16|John Pennycook|*Separate class definition from algorithms*
 |3|2020-04-21|John Pennycook|*Update max_sub_group_size query*
 |4|2020-04-21|John Pennycook|*Restore missing barrier function*
+|5|2020-04-21|John Pennycook|*Restore sub-group shuffles as member functions*
 |========================================
 
 //************************************************************************
