@@ -236,6 +236,7 @@ public:
 
   enum class BlockReason : int { HostAccessor = 0, HostTask };
 
+  // Only have reasonable value while MIsBlockable is true
   BlockReason MBlockReason;
 
   /// Describes the status of the command.

@@ -18,9 +18,20 @@ namespace detail {
 
 AccessorImplHost::~AccessorImplHost() {
   try {
-    size_t Count = countBlockedCommand([](const Command *const Cmd) {
-      return Cmd->MBlockReason == Command::BlockReason::HostAccessor;
+    std::set<const Command *> BlockedCmds;
+    size_t Count = countBlockedCommand([&BlockedCmds](const Command *const Cmd) {
+      if (Cmd->MBlockReason == Command::BlockReason::HostAccessor) {
+        BlockedCmds.insert(Cmd);
+        return true;
+      }
+
+      return false;
     });
+
+    for (const Command *Cmd : BlockedCmds)
+      if (EventImplPtr Event = Cmd->getEvent())
+        if (Event->is_host())
+          Event->setComplete();
 
     if (Count)
       detail::Scheduler::getInstance().releaseHostAccessor(this);
