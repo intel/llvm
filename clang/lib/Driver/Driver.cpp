@@ -2534,12 +2534,18 @@ static bool runBundler(const SmallVectorImpl<StringRef> &BundlerArgs,
 
 bool hasFPGABinary(Compilation &C, std::string Object, types::ID Type) {
   assert(types::isFPGA(Type) && "unexpected Type for FPGA binary check");
+  // Do not do the check if the file doesn't exist
+  if (!llvm::sys::fs::exists(Object))
+    return false;
+
   // Temporary names for the output.
   llvm::Triple TT;
   TT.setArchName(types::getTypeName(Type));
   TT.setVendorName("intel");
   TT.setOS(llvm::Triple::UnknownOS);
   TT.setEnvironment(llvm::Triple::SYCLDevice);
+  if (C.getDriver().IsCLMode())
+    TT.setObjectFormat(llvm::Triple::COFF);
 
   // Checking uses -check-section option with the input file, no output
   // file and the target triple being looked for.
@@ -4793,6 +4799,10 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
     // At this point, we will process the archives for FPGA AOCO and individual
     // archive unbundling for Windows.
     if (!isStaticArchiveFile(LA))
+      continue;
+    // FPGA AOCX files are archives, but we do not want to unbundle them here
+    // as they have already been unbundled and processed for linking.
+    if (hasFPGABinary(C, LA.str(), types::TY_FPGA_AOCX))
       continue;
     // In MSVC environment offload-static-libs are handled slightly different
     // because of missing support for partial linking in the linker. We add an
