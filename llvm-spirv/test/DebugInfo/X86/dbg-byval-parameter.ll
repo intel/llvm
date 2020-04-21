@@ -4,6 +4,9 @@
 
 ; RUN: llc -mtriple=%triple -march=x86 -asm-verbose < %t.ll | grep DW_TAG_formal_parameter
 
+target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
+target triple = "spir64-unknown-unknown"
+
 
 %struct.Pt = type { double, double }
 %struct.Rect = type { %struct.Pt, %struct.Pt }
@@ -53,5 +56,3 @@ declare void @llvm.dbg.declare(metadata, metadata, metadata) nounwind readnone
 !19 = !DIFile(filename: "b2.c", directory: "/tmp/")
 !20 = !{}
 !21 = !{i32 1, !"Debug Info Version", i32 3}
-target triple = "spir64-unknown-unknown"
-target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
