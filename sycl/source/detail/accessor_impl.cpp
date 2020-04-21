@@ -30,6 +30,7 @@ AccessorImplHost::~AccessorImplHost() {
 
 void AccessorImplHost::addBlockedCommand(Command *BlockedCmd) {
   std::lock_guard<std::mutex> Lock(MBlockedCmdsMutex);
+
   MBlockedCmds.insert(BlockedCmd);
 }
 

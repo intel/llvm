@@ -193,12 +193,10 @@ public:
     // we're ready to call the user-defined lambda now
     MHostTask->MHostTask->call();
 
+    unblockBlockedDeps(MDeps);
+
     // update self-event status
     if (MSelfEvent->is_host()) {
-      fprintf(stderr, "Gonna enqueue smth here for cmd %p\n",
-              (void *)MSelfEvent->getCommand());
-      // TODO
-
       Command *ThisCmd = reinterpret_cast<Command *>(MSelfEvent->getCommand());
 
       assert(ThisCmd && "No command found for host-task self event");
@@ -215,8 +213,6 @@ public:
       Plugin.call<PiApiKind::piEventSetStatus>(MSelfEvent->getHandleRef(),
                                                PI_EVENT_COMPLETE);
     }
-
-    unblockBlockedDeps(MDeps);
   }
 
   static void unblockBlockedDeps(const std::vector<DepDesc> &Deps) {
@@ -431,6 +427,66 @@ void Command::makeTraceEventEpilog() {
 #endif
 }
 
+void Command::addConnectCmdWithReq(const ContextImplPtr &DepEventContext,
+                                   ExecCGCommand *const ConnectCmd,
+                                   EmptyCommand *const EmptyCmd,
+                                   const DepDesc &Dep) {
+  Requirement *Req = const_cast<Requirement *>(Dep.MDepRequirement);
+
+  Req->addBlockedCommand(EmptyCmd);
+
+  // We can't set Dep as dependency for connect cmd 'cause Dep's command is
+  // from different context. Thus we'll employ a hack here.
+  if (false) {
+    DepDesc ConnectCmdDep = Dep;
+    ConnectCmdDep.MDepCommand = this;
+    std::function<void(void)> Func = [ConnectCmdDep]() {
+      std::vector<DepDesc> Deps;
+      Deps.push_back(ConnectCmdDep);
+      DispatchHostTask::unblockBlockedDeps(Deps);
+    };
+
+    auto *CG =
+        static_cast<detail::CGHostTask *>(ConnectCmd->MCommandGroup.get());
+
+    CG->MHostTask.reset(new detail::HostTask(std::move(Func)));
+  }
+
+  {
+    Scheduler::GraphBuilder &GB = Scheduler::getInstance().MGraphBuilder;
+
+    MemObjRecord *Record = GB.getMemObjRecord(Req->MSYCLMemObj);
+    Dep.MDepCommand->addUser(ConnectCmd);
+
+    AllocaCommandBase *AllocaCmd =
+        GB.findAllocaForReq(Record, Req, DepEventContext);
+    assert(AllocaCmd && "There must be alloca for requirement!");
+
+    std::set<Command *> Deps =
+        GB.findDepsForReq(Record, Req, DepEventContext);
+    assert(Deps.size() && "There must be some deps");
+
+    for (Command *ReqDepCmd : Deps) {
+      ConnectCmd->addDep(DepDesc{ReqDepCmd, Req, AllocaCmd});
+      ReqDepCmd->addUser(ConnectCmd);
+    }
+
+    GB.updateLeaves(Deps, Record, Req->MAccessMode);
+    GB.addNodeToLeaves(Record, ConnectCmd, Req->MAccessMode);
+
+    {
+      DepDesc EmptyCmdDep = Dep;
+      EmptyCmdDep.MDepCommand = ConnectCmd;
+
+      EmptyCmd->addDep(EmptyCmdDep);
+      ConnectCmd->addUser(EmptyCmd);
+    }
+
+    GB.updateLeaves({ConnectCmd}, Record, Req->MAccessMode);
+    GB.addNodeToLeaves(Record, EmptyCmd, Req->MAccessMode);
+  }
+}
+
 void Command::connectDepEvent(EventImplPtr DepEvent,
                               const ContextImplPtr &DepEventContext,
                               const ContextImplPtr &Context,
@@ -452,6 +508,9 @@ void Command::connectDepEvent(EventImplPtr DepEvent,
         std::move(ConnectCG), Scheduler::getInstance().getDefaultHostQueue());
   }
 
+  if (!ConnectCmd)
+    throw runtime_error("Out of host memory", PI_OUT_OF_HOST_MEMORY);
+
   if (Command *DepCmd = reinterpret_cast<Command *>(DepEvent->getCommand())) {
     EmptyCommand *EmptyCmd =
         new EmptyCommand(Scheduler::getInstance().getDefaultHostQueue());
@@ -463,48 +522,13 @@ void Command::connectDepEvent(EventImplPtr DepEvent,
     DepCmd->addUser(ConnectCmd);
 
     if (Dep.MDepRequirement) {
-      // We can't set Dep as dependency for connect cmd 'cause Dep's command is
-      // from different context. Thus we'll employ a hack here.
-
-      {
-        DepDesc ConnectCmdDep = Dep;
-        ConnectCmdDep.MDepCommand = this;
-        std::function<void(void)> Func = [ConnectCmdDep]() {
-          std::vector<DepDesc> Deps;
-          Deps.push_back(ConnectCmdDep);
-          DispatchHostTask::unblockBlockedDeps(Deps);
-        };
-
-        auto *CG =
-            static_cast<detail::CGHostTask *>(ConnectCmd->MCommandGroup.get());
-
-        CG->MHostTask.reset(new detail::HostTask(std::move(Func)));
-      }
-
-      {
-        DepDesc EmptyCmdDep = Dep;
-        EmptyCmdDep.MDepCommand = ConnectCmd;
-        EmptyCmd->addDep(EmptyCmdDep);
-      }
-
-      {
-        const Requirement *Req = Dep.MDepRequirement;
-
-        const_cast<Requirement *>(Req)->addBlockedCommand(EmptyCmd);
-
-        Scheduler::GraphBuilder &GB = Scheduler::getInstance().MGraphBuilder;
-        MemObjRecord *Record = GB.getMemObjRecord(Req->MSYCLMemObj);
-        Dep.MDepCommand->addUser(ConnectCmd);
-        GB.updateLeaves({Dep.MDepCommand}, Record, Req->MAccessMode);
-        GB.addNodeToLeaves(Record, EmptyCmd, Req->MAccessMode);
-      }
-    } else {
+      addConnectCmdWithReq(DepEventContext, ConnectCmd, EmptyCmd, Dep);
+    } else /* if (!Dep.MDepRequirement) */ {
       ConnectCmd->addDep(DepEvent);
       EmptyCmd->addDep(ConnectCmd->MEvent);
+      ConnectCmd->addUser(EmptyCmd);
     }
-
-    ConnectCmd->addUser(EmptyCmd);
-  } else
+  } else // if (!DepEvent->getCommand())
     ConnectCmd->addDep(DepEvent);
 
   EnqueueResultT Res;

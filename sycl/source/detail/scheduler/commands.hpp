@@ -35,6 +35,8 @@ class Command;
 class AllocaCommand;
 class AllocaCommandBase;
 class ReleaseCommand;
+class ExecCGCommand;
+class EmptyCommand;
 
 enum BlockingT { NON_BLOCKING = 0, BLOCKING };
 
@@ -204,6 +206,13 @@ protected:
   void connectDepEvent(EventImplPtr DepEvent,
                        const ContextImplPtr &DepEventContext,
                        const ContextImplPtr &Context, const DepDesc &Dep);
+  /// Helper for connectDepEvent
+  /// \param ConnectCmd connection cmd to properly add
+  /// \param Dep DepDesc with non-null MDepRequirmeent
+  void addConnectCmdWithReq(const ContextImplPtr &DepEventContext,
+                            ExecCGCommand *const ConnectCmd,
+                            EmptyCommand *const EmptyCmd,
+                            const DepDesc &Dep);
 
   virtual ContextImplPtr getContext() const;
 

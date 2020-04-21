@@ -417,6 +417,7 @@ Command *Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
 
   // Need empty command to be blocked until host accessor is destructed
   EmptyCommand *EmptyCmd = new EmptyCommand(HostQueue, *Req);
+
   EmptyCmd->addDep(
       DepDesc{UpdateHostAccCmd, EmptyCmd->getRequirement(), HostAllocaCmd});
   UpdateHostAccCmd->addUser(EmptyCmd);
@@ -614,6 +615,15 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
         } else {
           LinkedAllocaCmd->MIsActive = false;
           Record->MCurContext = Queue->getContextImplPtr();
+
+          std::set<Command *> Deps =
+              findDepsForReq(Record, Req, Queue->getContextImplPtr());
+          for (Command *Dep : Deps) {
+            AllocaCmd->addDep(DepDesc{Dep, Req, LinkedAllocaCmd});
+            Dep->addUser(AllocaCmd);
+          }
+          updateLeaves(Deps, Record, Req->MAccessMode);
+          addNodeToLeaves(Record, AllocaCmd, Req->MAccessMode);
         }
       }
     }
@@ -659,7 +669,6 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
 
   if (CGType == CG::CGTYPE::CODEPLAY_HOST_TASK) {
     EmptyCmd = new EmptyCommand(Scheduler::getInstance().getDefaultHostQueue());
-
     EmptyCmd->MIsBlockable = true;
     EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueBlocked;
     EmptyCmd->MBlockReason = Command::BlockReason::HostTask;
@@ -713,11 +722,12 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
     const Requirement *Req = Dep.MDepRequirement;
     MemObjRecord *Record = getMemObjRecord(Req->MSYCLMemObj);
     updateLeaves({Dep.MDepCommand}, Record, Req->MAccessMode);
+    addNodeToLeaves(Record, NewCmd.get(), Req->MAccessMode);
 
-    if (CGType == CG::CGTYPE::CODEPLAY_HOST_TASK)
+    if (CGType == CG::CGTYPE::CODEPLAY_HOST_TASK) {
+      updateLeaves({NewCmd.get()}, Record, Req->MAccessMode);
       addNodeToLeaves(Record, EmptyCmd, Req->MAccessMode);
-    else
-      addNodeToLeaves(Record, NewCmd.get(), Req->MAccessMode);
+    }
   }
 
   // Register all the events as dependencies
@@ -840,6 +850,7 @@ void Scheduler::GraphBuilder::cleanupFinishedCommands(Command *FinishedCmd) {
       // FIXME remove this hack.
       if (Deleted.count(UserCmd))
         continue;
+
       for (DepDesc &Dep : UserCmd->MDeps) {
         // Link the users of the command to the alloca command(s) instead
         if (Dep.MDepCommand == Cmd) {
@@ -854,9 +865,10 @@ void Scheduler::GraphBuilder::cleanupFinishedCommands(Command *FinishedCmd) {
       DepCmd->MUsers.erase(Cmd);
     }
     Cmd->getEvent()->setCommand(nullptr);
+
     delete Cmd;
 
-    Deleted.insert(Cmd);
+    //Deleted.insert(Cmd);
   }
 }
 

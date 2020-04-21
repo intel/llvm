@@ -546,12 +546,17 @@ protected:
     std::set<Command *> findDepsForReq(MemObjRecord *Record, Requirement *Req,
                                        const ContextImplPtr &Context);
 
+  protected:
     /// Finds a command dependency corresponding to the record.
     DepDesc findDepForRecord(Command *Cmd, MemObjRecord *Record);
 
     /// Searches for suitable alloca in memory record.
     AllocaCommandBase *findAllocaForReq(MemObjRecord *Record, Requirement *Req,
                                         const ContextImplPtr &Context);
+
+    friend class Command;
+
+  private:
 
     /// Searches for suitable alloca in memory record.
     ///
