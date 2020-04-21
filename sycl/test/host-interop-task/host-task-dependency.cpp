@@ -192,12 +192,8 @@ int main() {
 // CHECK:---> piEnqueueKernelLaunch(
 // prepare for host task
 // CHECK:---> piEnqueueMemBufferMap(
-// creation of host task self-event
-// CHECK:---> piEventCreate(
 // wait on dependencies of host task
 // CHECK:---> piEventsWait(
-// host task is done, set status of self-event
-// CHECK:---> piEventSetStatus(
 // launch of CopierTask kernel
 // CHECK:---> piKernelCreate(
 // CHECK: CopierTask
