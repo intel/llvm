@@ -15,7 +15,6 @@ conformance test suite.
 
 import argparse
 import os
-import pipes
 import posixpath
 import subprocess
 import sys
@@ -102,7 +101,7 @@ def main():
         remoteCommands += [
             'cd {}'.format(tmp),
             'export {}'.format(' '.join(args.env)),
-            ' '.join(pipes.quote(x) for x in commandLine)
+            subprocess.list2cmdline(commandLine)
         ]
 
         # Finally, SSH to the remote host and execute all the commands.

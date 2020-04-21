@@ -746,11 +746,6 @@ void SCCPSolver::visitPHINode(PHINode &PN) {
 void SCCPSolver::visitReturnInst(ReturnInst &I) {
   if (I.getNumOperands() == 0) return;  // ret void
 
-  // ResolvedUndefsIn might mark I as overdefined. Bail out, even if we would
-  // discover a concrete value later.
-  if (isOverdefined(ValueState[&I]))
-    return (void)markOverdefined(&I);
-
   Function *F = I.getParent()->getParent();
   Value *ResultOp = I.getOperand(0);
 
@@ -1065,11 +1060,6 @@ void SCCPSolver::visitStoreInst(StoreInst &SI) {
 
   if (TrackedGlobals.empty() || !isa<GlobalVariable>(SI.getOperand(1)))
     return;
-
-  // ResolvedUndefsIn might mark I as overdefined. Bail out, even if we would
-  // discover a concrete value later.
-  if (isOverdefined(ValueState[&SI]))
-    return (void)markOverdefined(&SI);
 
   GlobalVariable *GV = cast<GlobalVariable>(SI.getOperand(1));
   auto I = TrackedGlobals.find(GV);
