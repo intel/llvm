@@ -121,8 +121,7 @@ public:
     ImplPtr->setPlugin(NewPluginPtr);
     // Extract the new PiPlugin instance by a non-const pointer,
     // explicitly allowing modification
-    auto &PiPluginRef = const_cast<RT::PiPlugin &>(NewPluginPtr->getPiPlugin());
-    MPiPluginMockPtr = &PiPluginRef;
+    MPiPluginMockPtr = &NewPluginPtr->getPiPlugin();
     // Save a copy of the platform resource
     MPlatform = OriginalPlatform;
   }
