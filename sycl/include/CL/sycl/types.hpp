@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 // Implements vec and __swizzled_vec__ classes.
-
+#include <typeinfo>
 #pragma once
 
 // Define __NO_EXT_VECTOR_TYPE_ON_HOST__ to avoid using ext_vector_type
@@ -316,16 +316,21 @@ template <rounding_mode Mode>
 using Rtn = detail::bool_constant<Mode == rounding_mode::rtn>;
 
 //signed to signed
-#define __SYCL_GENERATE_CONVERT_IMPL(DestType)                                \
+#define __SYCL_GENERATE_CONVERT_IMPL(DestType)                                 \
   template <typename T, typename R, rounding_mode roundingMode>                \
   detail::enable_if_t<!std::is_same<T, R>::value &&                            \
-                          is_sint_to_sint<T, R>::value &&                        \
-                          std::is_same<R, DestType>::value,                   \
+                          is_sint_to_sint<T, R>::value &&                      \
+                          std::is_same<R, DestType>::value,                    \
                       R>                                                       \
   convertImpl(T Value) {                                                       \
     using OpenCLT = cl::sycl::detail::ConvertToOpenCLType_t<T>;                \
-    OpenCLT OpValue = cl::sycl::detail::convertDataToType<T, OpenCLT>(Value);  \
-    return __spirv_SConvert##_R##DestType(OpValue);           \
+    if (std::is_same<OpenCLT, R>::value)                                       \
+      return Value;                                                            \
+    else                                                                       \
+    {                                                                          \
+      OpenCLT OpValue = cl::sycl::detail::convertDataToType<T, OpenCLT>(Value);\
+      return __spirv_SConvert##_R##DestType(OpValue);                          \
+    }                                                                          \
   }
 
 __SYCL_GENERATE_CONVERT_IMPL(char)  
@@ -336,16 +341,21 @@ __SYCL_GENERATE_CONVERT_IMPL(long)
 #undef __SYCL_GENERATE_CONVERT_IMPL
 
 //unsigned to unsigned
-#define __SYCL_GENERATE_CONVERT_IMPL(DestType)                                \
+#define __SYCL_GENERATE_CONVERT_IMPL(DestType)                                 \
   template <typename T, typename R, rounding_mode roundingMode>                \
-  detail::enable_if_t<!std::is_same<T, R>::value &&                             \
-                          is_uint_to_uint<T, R>::value &&                        \
-                          std::is_same<R, DestType>::value,                   \
+  detail::enable_if_t<!std::is_same<T, R>::value &&                            \
+                          is_uint_to_uint<T, R>::value &&                      \
+                          std::is_same<R, DestType>::value,                    \
                       R>                                                       \
   convertImpl(T Value) {                                                       \
     using OpenCLT = cl::sycl::detail::ConvertToOpenCLType_t<T>;                \
-    OpenCLT OpValue = cl::sycl::detail::convertDataToType<T, OpenCLT>(Value);  \
-    return __spirv_UConvert##_R##DestType(OpValue);                           \
+    if (std::is_same<OpenCLT, R>::value)                                       \
+      return Value;                                                            \
+    else                                                                       \
+    {                                                                          \
+      OpenCLT OpValue = cl::sycl::detail::convertDataToType<T, OpenCLT>(Value);\
+      return __spirv_UConvert##_R##DestType(OpValue);                          \
+    }                                                                          \
   }
 
 __SYCL_GENERATE_CONVERT_IMPL(uchar)  
@@ -364,15 +374,15 @@ convertImpl(T Value) {
 }
 
 //sint to float
-#define __SYCL_GENERATE_CONVERT_IMPL(SPIRVOp, DestType)                                \
+#define __SYCL_GENERATE_CONVERT_IMPL(SPIRVOp, DestType)                        \
   template <typename T, typename R, rounding_mode roundingMode>                \
-  detail::enable_if_t<is_sint_to_float<T, R>::value &&                        \
-                          std::is_same<R, DestType>::value,                   \
+  detail::enable_if_t<is_sint_to_float<T, R>::value &&                         \
+                          std::is_same<R, DestType>::value,                    \
                       R>                                                       \
   convertImpl(T Value) {                                                       \
     using OpenCLT = cl::sycl::detail::ConvertToOpenCLType_t<T>;                \
     OpenCLT OpValue = cl::sycl::detail::convertDataToType<T, OpenCLT>(Value);  \
-    return __spirv_Convert##SPIRVOp##_R##DestType(OpValue);                           \
+    return __spirv_Convert##SPIRVOp##_R##DestType(OpValue);                    \
   }
    
 __SYCL_GENERATE_CONVERT_IMPL(SToF, half)  
@@ -382,15 +392,15 @@ __SYCL_GENERATE_CONVERT_IMPL(SToF, double)
 #undef __SYCL_GENERATE_CONVERT_IMPL
 
 //uint to float
-#define __SYCL_GENERATE_CONVERT_IMPL(SPIRVOp, DestType)                                \
+#define __SYCL_GENERATE_CONVERT_IMPL(SPIRVOp, DestType)                        \
   template <typename T, typename R, rounding_mode roundingMode>                \
-  detail::enable_if_t<is_uint_to_float<T, R>::value &&                        \
-                          std::is_same<R, DestType>::value,                   \
+  detail::enable_if_t<is_uint_to_float<T, R>::value &&                         \
+                          std::is_same<R, DestType>::value,                    \
                       R>                                                       \
   convertImpl(T Value) {                                                       \
     using OpenCLT = cl::sycl::detail::ConvertToOpenCLType_t<T>;                \
     OpenCLT OpValue = cl::sycl::detail::convertDataToType<T, OpenCLT>(Value);  \
-    return __spirv_Convert##SPIRVOp##_R##DestType(OpValue);                           \
+    return __spirv_Convert##SPIRVOp##_R##DestType(OpValue);                    \
   }
 
 __SYCL_GENERATE_CONVERT_IMPL(UToF, half)  
@@ -410,13 +420,18 @@ __SYCL_GENERATE_CONVERT_IMPL(UToF, double)
                       R>                                                       \
   convertImpl(T Value) {                                                       \
     using OpenCLT = cl::sycl::detail::ConvertToOpenCLType_t<T>;                \
-    OpenCLT OpValue = cl::sycl::detail::convertDataToType<T, OpenCLT>(Value);  \
-    return __spirv_FConvert##_R##DestType##_##RoundingMode(OpValue);           \
+    if (std::is_same<OpenCLT, R>::value)                                       \
+      return Value;                                                            \
+    else                                                                       \
+    {                                                                          \
+      OpenCLT OpValue = cl::sycl::detail::convertDataToType<T, OpenCLT>(Value);\
+      return __spirv_FConvert##_R##DestType##_##RoundingMode(OpValue);         \
+    }                                                                          \
   }
 
 #define __SYCL_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE(RoundingMode,           \
                                                        RoundingModeCondition)  \
-__SYCL_GENERATE_CONVERT_IMPL(double, RoundingMode, RoundingModeCondition)       \
+__SYCL_GENERATE_CONVERT_IMPL(double, RoundingMode, RoundingModeCondition)      \
 __SYCL_GENERATE_CONVERT_IMPL(float, RoundingMode, RoundingModeCondition)       \
 __SYCL_GENERATE_CONVERT_IMPL(half, RoundingMode, RoundingModeCondition)
 
