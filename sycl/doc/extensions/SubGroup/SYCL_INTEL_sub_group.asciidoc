@@ -118,26 +118,32 @@ An additional query for sub-group information is added to the +kernel+ class:
 
 |+template <info::kernel_sub_group param>typename info::param_traits<info::kernel_sub_group, param>::return_type get_sub_group_info(const device &dev) const+
 |Query information from the sub-group from a kernel using the +info::kernel_sub_group+ descriptor for a specific device.
+|+template <info::kernel_sub_group param>typename info::param_traits<info::kernel_sub_group, param>::return_type get_sub_group_info(const device &dev, typename info::param_traits<info::kernel_sub_group, param>::input_type value) const+
+|Query information from the sub-group from a kernel using the +info::kernel_sub_group+ descriptor for a specific device and input parameter.  The expected value of the input parameter depends on the information being queried.
 |===
 
 The kernel descriptors below are added as part of a new +info::kernel_sub_group+ enumeration class:
 
 |===
-|Kernel Descriptors|Return Type|Description
+|Kernel Descriptors|Input Type|Return Type|Description
 
 |+info::kernel_sub_group::max_num_sub_groups+
+|N/A
 |+uint32_t+
 |Returns the maximum number of sub-groups for this kernel.
 
 |+info::kernel_sub_group::compile_num_sub_groups+
+|N/A
 |+uint32_t+
 |Returns the number of sub-groups specified by the kernel, or 0 (if not specified).
 
 |+info::kernel_sub_group::max_sub_group_size+
+|+range<D>+
 |+uint32_t+
-|Returns the maximum sub-group size for this kernel.
+|Returns the maximum sub-group size for this kernel launched with the specified work-group size.
 
 |+info::kernel_sub_group::compile_sub_group_size+
+|N/A
 |+uint32_t+
 |Returns the required sub-group size specified by the kernel, or 0 (if not specified).
 |===
@@ -230,7 +236,12 @@ struct sub_group {
 
 == Issues
 
-None.
+. Should sub-group query results for specific kernels depend on work-group size?
++
+--
+*RESOLVED*:
+Yes, this is required by OpenCL devices.  Devices that do not require the work-group size can ignore the parameter.
+--
 
 //. asd
 //+
@@ -247,6 +258,7 @@ None.
 |Rev|Date|Author|Changes
 |1|2019-04-19|John Pennycook|*Initial public working draft*
 |2|2020-03-16|John Pennycook|*Separate class definition from algorithms*
+|3|2020-04-21|John Pennycook|*Update max_sub_group_size query*
 |========================================
 
 //************************************************************************
