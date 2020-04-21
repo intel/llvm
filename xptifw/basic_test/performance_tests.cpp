@@ -542,14 +542,9 @@ void TestPerformance::runInstrumentationTestsThreads(
 void TestPerformance::runInstrumentationTests() {
   test::utils::TableModel Model;
 
-  test::utils::titles_t Columns{"Threads",
-                                "TP LU+Notify(ns)",
-                                "TP Create(ns)",
-                                "Ev/s,cb=10",
-                                "Ev/s,cb=100",
-                                "Ev/s,cb=500",
-                                "Ev/s,cb=1000",
-                                "Ev/s,cb=2000"};
+  test::utils::titles_t Columns{
+      "Threads",     "TP LU+Notify(ns)", "TP Create(ns)", "Ev/s,cb=10",
+      "Ev/s,cb=100", "Ev/s,cb=500",      "Ev/s,cb=1000",  "Ev/s,cb=2000"};
   std::cout << std::setw(Columns.size() * 15 / 2) << "Framework Tests\n";
   Model.setHeaders(Columns);
   uint8_t sid = xptiRegisterStream("xpti");
