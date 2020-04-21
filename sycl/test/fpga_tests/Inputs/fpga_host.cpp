@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "CL/sycl.hpp"
-#include <iostream>
+#include <cassert>
 
 using namespace cl::sycl;
 

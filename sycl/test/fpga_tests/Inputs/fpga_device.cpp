@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "CL/sycl.hpp"
-#include <iostream>
 
 using namespace cl::sycl;
 
