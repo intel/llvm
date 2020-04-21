@@ -43,6 +43,7 @@ class interop_handler {
   template <typename DataT, int Dims, access::mode AccMode,
             access::target AccTarget, access::placeholder isPlaceholder>
   friend class accessor;
+
 public:
   using QueueImplPtr = std::shared_ptr<detail::queue_impl>;
   using ReqToMem = std::pair<detail::Requirement*, pi_mem>;
@@ -306,8 +307,7 @@ public:
   template <class ArgT = KernelArgType>
   typename std::enable_if<std::is_same<ArgT, nd_item<Dims>>::value>::type
   runOnHost(const NDRDescT &NDRDesc) {
-    sycl::range<Dims> GroupSize(
-        InitializedVal<Dims, range>::template get<0>());
+    sycl::range<Dims> GroupSize(InitializedVal<Dims, range>::template get<0>());
     for (int I = 0; I < Dims; ++I) {
       if (NDRDesc.LocalSize[I] == 0 ||
           NDRDesc.GlobalSize[I] % NDRDesc.LocalSize[I] != 0)
@@ -316,8 +316,7 @@ public:
       GroupSize[I] = NDRDesc.GlobalSize[I] / NDRDesc.LocalSize[I];
     }
 
-    sycl::range<Dims> LocalSize(
-        InitializedVal<Dims, range>::template get<0>());
+    sycl::range<Dims> LocalSize(InitializedVal<Dims, range>::template get<0>());
     sycl::range<Dims> GlobalSize(
         InitializedVal<Dims, range>::template get<0>());
     sycl::id<Dims> GlobalOffset;
@@ -358,10 +357,9 @@ public:
       NGroups[I] = NDRDesc.GlobalSize[I] / NDRDesc.LocalSize[I];
     }
 
-    sycl::range<Dims> LocalSize(
-      InitializedVal<Dims, range>::template get<0>());
+    sycl::range<Dims> LocalSize(InitializedVal<Dims, range>::template get<0>());
     sycl::range<Dims> GlobalSize(
-      InitializedVal<Dims, range>::template get<0>());
+        InitializedVal<Dims, range>::template get<0>());
     for (int I = 0; I < Dims; ++I) {
       LocalSize[I] = NDRDesc.LocalSize[I];
       GlobalSize[I] = NDRDesc.GlobalSize[I];
@@ -377,10 +375,10 @@ public:
 };
 
 class stream_impl;
-// The base class for all types of command groups.
+/// Base class for all types of command groups.
 class CG {
 public:
-  // Type of the command group.
+  /// Type of the command group.
   enum CGTYPE {
     NONE,
     KERNEL,
@@ -424,20 +422,20 @@ public:
 
 private:
   CGTYPE MType;
-  // The following storages needed to ensure that arguments won't die while
+  // The following storages are needed to ensure that arguments won't die while
   // we are using them.
-  // Storage for standard layout arguments.
+  /// Storage for standard layout arguments.
   vector_class<vector_class<char>> MArgsStorage;
-  // Storage for accessors.
+  /// Storage for accessors.
   vector_class<detail::AccessorImplPtr> MAccStorage;
-  // Storage for shared_ptrs.
+  /// Storage for shared_ptrs.
   vector_class<shared_ptr_class<const void>> MSharedPtrStorage;
 
 public:
-  // List of requirements that specify which memory is needed for the command
-  // group to be executed.
+  /// List of requirements that specify which memory is needed for the command
+  /// group to be executed.
   vector_class<Requirement *> MRequirements;
-  // List of events that order the execution of this CG
+  /// List of events that order the execution of this CG
   vector_class<detail::EventImplPtr> MEvents;
   // Member variables to capture the user code-location
   // information from Q.submit(), Q.parallel_for() etc
@@ -447,9 +445,10 @@ public:
   int32_t MLine, MColumn;
 };
 
-// The class which represents "execute kernel" command group.
+/// "Execute kernel" command group class.
 class CGExecKernel : public CG {
 public:
+  /// Stores ND-range description.
   NDRDescT MNDRDesc;
   unique_ptr_class<HostKernelBase> MHostKernel;
   shared_ptr_class<detail::kernel_impl> MSyclKernel;
@@ -487,7 +486,7 @@ public:
   }
 };
 
-// The class which represents "copy" command group.
+/// "Copy memory" command group class.
 class CGCopy : public CG {
   void *MSrc;
   void *MDst;
@@ -508,7 +507,7 @@ public:
   void *getDst() { return MDst; }
 };
 
-// The class which represents "fill" command group.
+/// "Fill memory" command group class.
 class CGFill : public CG {
 public:
   vector_class<char> MPattern;
@@ -528,7 +527,7 @@ public:
   Requirement *getReqToFill() { return MPtr; }
 };
 
-// The class which represents "update host" command group.
+/// "Update host" command group class.
 class CGUpdateHost : public CG {
   Requirement *MPtr;
 
@@ -547,7 +546,7 @@ public:
   Requirement *getReqToUpdate() { return MPtr; }
 };
 
-// The class which represents "copy" command group for USM pointers.
+/// "Copy USM" command group class.
 class CGCopyUSM : public CG {
   void *MSrc;
   void *MDst;
@@ -571,7 +570,7 @@ public:
   size_t getLength() { return MLength; }
 };
 
-// The class which represents "fill" command group for USM pointers.
+/// "Fill USM" command group class.
 class CGFillUSM : public CG {
   vector_class<char> MPattern;
   void *MDst;
@@ -594,7 +593,7 @@ public:
   int getFill() { return MPattern[0]; }
 };
 
-// The class which represents "prefetch" command group for USM pointers.
+/// "Prefetch USM" command group class.
 class CGPrefetchUSM : public CG {
   void *MDst;
   size_t MLength;
