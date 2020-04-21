@@ -658,7 +658,8 @@ static QualType calculateKernelNameType(ASTContext &Ctx,
 // Gets a name for the OpenCL kernel function, calculated from the first
 // template argument of the kernel caller function.
 static std::pair<std::string, std::string>
-constructKernelName(Sema &S, FunctionDecl *KernelCallerFunc, MangleContext &MC) {
+constructKernelName(Sema &S, FunctionDecl *KernelCallerFunc,
+                    MangleContext &MC) {
   QualType KernelNameType =
       calculateKernelNameType(S.getASTContext(), KernelCallerFunc);
 
