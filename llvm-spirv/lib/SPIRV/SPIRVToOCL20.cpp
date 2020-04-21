@@ -306,7 +306,9 @@ Instruction *SPIRVToOCL20::visitCallSPIRVAtomicCmpExchg(CallInst *CI, Op OC) {
         // returning it has to be loaded from the memory where 'expected'
         // value is stored. This memory must contain the needed value after a
         // call to OCL built-in is completed.
-        return new LoadInst(CI->getArgOperand(1), "original", PInsertBefore);
+        return new LoadInst(
+            CI->getArgOperand(1)->getType()->getPointerElementType(),
+            CI->getArgOperand(1), "original", PInsertBefore);
       },
       &Attrs);
 }

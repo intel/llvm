@@ -90,6 +90,7 @@
 #include "clang/StaticAnalyzer/Core/PathSensitive/ExplodedGraph.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/ProgramState.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/SymExpr.h"
+#include "llvm/ADT/StringExtras.h"
 
 using namespace clang;
 using namespace ento;
@@ -565,7 +566,7 @@ void ento::registerFuchsiaHandleChecker(CheckerManager &mgr) {
   mgr.registerChecker<FuchsiaHandleChecker>();
 }
 
-bool ento::shouldRegisterFuchsiaHandleChecker(const LangOptions &LO) {
+bool ento::shouldRegisterFuchsiaHandleChecker(const CheckerManager &mgr) {
   return true;
 }
 

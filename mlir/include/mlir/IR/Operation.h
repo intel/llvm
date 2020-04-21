@@ -126,6 +126,16 @@ public:
     return OpTy();
   }
 
+  /// Returns the closest surrounding parent operation with trait `Trait`.
+  template <template <typename T> class Trait>
+  Operation *getParentWithTrait() {
+    Operation *op = this;
+    while ((op = op->getParentOp()))
+      if (op->hasTrait<Trait>())
+        return op;
+    return nullptr;
+  }
+
   /// Return true if this operation is a proper ancestor of the `other`
   /// operation.
   bool isProperAncestor(Operation *other);
@@ -432,9 +442,9 @@ public:
     return getTerminatorStatus() == TerminatorStatus::NonTerminator;
   }
 
-  /// Returns if the operation is known to be completely isolated from enclosing
-  /// regions, i.e. no internal regions reference values defined above this
-  /// operation.
+  /// Returns true if the operation is known to be completely isolated from
+  /// enclosing regions, i.e., no internal regions reference values defined
+  /// above this operation.
   bool isKnownIsolatedFromAbove() {
     if (auto *absOp = getAbstractOperation())
       return absOp->hasProperty(OperationProperty::IsolatedFromAbove);
@@ -605,7 +615,7 @@ private:
 };
 
 inline raw_ostream &operator<<(raw_ostream &os, Operation &op) {
-  op.print(os);
+  op.print(os, OpPrintingFlags().useLocalScope());
   return os;
 }
 

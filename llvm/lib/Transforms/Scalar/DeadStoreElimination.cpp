@@ -63,6 +63,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils/Local.h"
+#include "llvm/Transforms/Utils/AssumeBundleBuilder.h"
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
@@ -143,7 +144,8 @@ deleteDeadInstruction(Instruction *I, BasicBlock::iterator *BBI,
     ++NumFastOther;
 
     // Try to preserve debug information attached to the dead instruction.
-    salvageDebugInfo(*DeadInst);
+    salvageDebugInfoOrMarkUndef(*DeadInst);
+    salvageKnowledge(DeadInst);
 
     // This instruction is dead, zap it, in stages.  Start by removing it from
     // MemDep, which needs to know the operands and needs it to be in the
@@ -1482,9 +1484,12 @@ struct DSEState {
   SmallVector<MemoryDef *, 64> MemDefs;
   // Any that should be skipped as they are already deleted
   SmallPtrSet<MemoryAccess *, 4> SkipStores;
-  // Keep track of all of the objects that are invisible to the caller until the
-  // function returns.
-  SmallPtrSet<const Value *, 16> InvisibleToCaller;
+  // Keep track of all of the objects that are invisible to the caller before
+  // the function returns.
+  SmallPtrSet<const Value *, 16> InvisibleToCallerBeforeRet;
+  // Keep track of all of the objects that are invisible to the caller after
+  // the function returns.
+  SmallPtrSet<const Value *, 16> InvisibleToCallerAfterRet;
   // Keep track of blocks with throwing instructions not modeled in MemorySSA.
   SmallPtrSet<BasicBlock *, 16> ThrowingBlocks;
   // Post-order numbers for each basic block. Used to figure out if memory
@@ -1509,21 +1514,34 @@ struct DSEState {
     for (BasicBlock *BB : post_order(&F)) {
       State.PostOrderNumbers[BB] = PO++;
       for (Instruction &I : *BB) {
-        if (I.mayThrow() && !MSSA.getMemoryAccess(&I))
+        MemoryAccess *MA = MSSA.getMemoryAccess(&I);
+        if (I.mayThrow() && !MA)
           State.ThrowingBlocks.insert(I.getParent());
 
-        auto *MD = dyn_cast_or_null<MemoryDef>(MSSA.getMemoryAccess(&I));
+        auto *MD = dyn_cast_or_null<MemoryDef>(MA);
         if (MD && State.MemDefs.size() < MemorySSADefsPerBlockLimit &&
             hasAnalyzableMemoryWrite(&I, TLI) && isRemovable(&I))
           State.MemDefs.push_back(MD);
 
-        // Track alloca and alloca-like objects. Here we care about objects not
-        // visible to the caller during function execution. Alloca objects are
-        // invalid in the caller, for alloca-like objects we ensure that they
-        // are not captured throughout the function.
-        if (isa<AllocaInst>(&I) ||
-            (isAllocLikeFn(&I, &TLI) && !PointerMayBeCaptured(&I, false, true)))
-          State.InvisibleToCaller.insert(&I);
+        // Track whether alloca and alloca-like objects are visible in the
+        // caller before and after the function returns. Alloca objects are
+        // invalid in the caller, so they are neither visible before or after
+        // the function returns.
+        if (isa<AllocaInst>(&I)) {
+          State.InvisibleToCallerBeforeRet.insert(&I);
+          State.InvisibleToCallerAfterRet.insert(&I);
+        }
+
+        // For alloca-like objects we need to check if they are captured before
+        // the function returns and if the return might capture the object.
+        if (isAllocLikeFn(&I, &TLI)) {
+          bool CapturesBeforeRet = PointerMayBeCaptured(&I, false, true);
+          if (!CapturesBeforeRet) {
+            State.InvisibleToCallerBeforeRet.insert(&I);
+            if (!PointerMayBeCaptured(&I, true, false))
+              State.InvisibleToCallerAfterRet.insert(&I);
+          }
+        }
       }
     }
 
@@ -1531,7 +1549,7 @@ struct DSEState {
     // dead at the end of the function.
     for (Argument &AI : F.args())
       if (AI.hasByValOrInAllocaAttr())
-        State.InvisibleToCaller.insert(&AI);
+        State.InvisibleToCallerBeforeRet.insert(&AI);
     return State;
   }
 
@@ -1574,12 +1592,13 @@ struct DSEState {
 
     ModRefInfo MR = AA.getModRefInfo(UseInst, DefLoc);
     // If necessary, perform additional analysis.
-    if (isModSet(MR))
+    if (isModSet(MR) && isa<CallBase>(UseInst))
       MR = AA.callCapturesBefore(UseInst, DefLoc, &DT);
 
     Optional<MemoryLocation> UseLoc = getLocForWriteEx(UseInst);
     return isModSet(MR) && isMustSet(MR) &&
-           UseLoc->Size.getValue() >= DefLoc.Size.getValue();
+           (UseLoc->Size.hasValue() && DefLoc.Size.hasValue() &&
+            UseLoc->Size.getValue() >= DefLoc.Size.getValue());
   }
 
   /// Returns true if \p Use may read from \p DefLoc.
@@ -1599,14 +1618,15 @@ struct DSEState {
   }
 
   // Find a MemoryDef writing to \p DefLoc and dominating \p Current, with no
-  // read access in between or return None otherwise. The returned value may not
-  // (completely) overwrite \p DefLoc. Currently we bail out when we encounter
-  // an aliasing MemoryUse (read).
-  Optional<MemoryAccess *> getDomMemoryDef(MemoryDef *KillingDef,
-                                           MemoryAccess *Current,
-                                           MemoryLocation DefLoc,
-                                           bool DefVisibleToCaller,
-                                           int &ScanLimit) const {
+  // read access between them or on any other path to a function exit block if
+  // \p DefLoc is not accessible after the function returns. If there is no such
+  // MemoryDef, return None. The returned value may not (completely) overwrite
+  // \p DefLoc. Currently we bail out when we encounter an aliasing MemoryUse
+  // (read).
+  Optional<MemoryAccess *>
+  getDomMemoryDef(MemoryDef *KillingDef, MemoryAccess *Current,
+                  MemoryLocation DefLoc, bool DefVisibleToCallerBeforeRet,
+                  bool DefVisibleToCallerAfterRet, int &ScanLimit) const {
     MemoryAccess *DomAccess;
     bool StepAgain;
     LLVM_DEBUG(dbgs() << "  trying to get dominating access for " << *Current
@@ -1632,12 +1652,13 @@ struct DSEState {
       if (isa<MemoryPhi>(DomAccess))
         break;
 
-      // Check if we can skip DomDef for DSE. We also require the KillingDef
-      // execute whenever DomDef executes and use post-dominance to ensure that.
-
+      // Check if we can skip DomDef for DSE. For accesses to objects that are
+      // accessible after the function returns, KillingDef must execute whenever
+      // DomDef executes and use post-dominance to ensure that.
       MemoryDef *DomDef = dyn_cast<MemoryDef>(DomAccess);
-      if ((DomDef && canSkipDef(DomDef, DefVisibleToCaller)) ||
-          !PDT.dominates(KillingDef->getBlock(), DomDef->getBlock())) {
+      if ((DomDef && canSkipDef(DomDef, DefVisibleToCallerBeforeRet)) ||
+          (DefVisibleToCallerAfterRet &&
+           !PDT.dominates(KillingDef->getBlock(), DomDef->getBlock()))) {
         StepAgain = true;
         Current = DomDef->getDefiningAccess();
       }
@@ -1727,6 +1748,7 @@ struct DSEState {
 
       // Try to preserve debug information attached to the dead instruction.
       salvageDebugInfo(*DeadInst);
+      salvageKnowledge(DeadInst);
 
       // Remove the Instruction from MSSA.
       if (MemoryAccess *MA = MSSA.getMemoryAccess(DeadInst)) {
@@ -1759,7 +1781,7 @@ struct DSEState {
     // First see if we can ignore it by using the fact that SI is an
     // alloca/alloca like object that is not visible to the caller during
     // execution of the function.
-    if (SILocUnd && InvisibleToCaller.count(SILocUnd))
+    if (SILocUnd && InvisibleToCallerBeforeRet.count(SILocUnd))
       return false;
 
     if (SI->getParent() == NI->getParent())
@@ -1777,7 +1799,7 @@ struct DSEState {
                     MemoryLocation &NILoc) const {
     // If NI may throw it acts as a barrier, unless we are to an alloca/alloca
     // like object that does not escape.
-    if (NI->mayThrow() && !InvisibleToCaller.count(SILocUnd))
+    if (NI->mayThrow() && !InvisibleToCallerBeforeRet.count(SILocUnd))
       return true;
 
     if (NI->isAtomic()) {
@@ -1818,10 +1840,15 @@ bool eliminateDeadStoresMemorySSA(Function &F, AliasAnalysis &AA,
     const Value *SILocUnd = GetUnderlyingObject(SILoc.Ptr, DL);
     Instruction *DefObj =
         const_cast<Instruction *>(dyn_cast<Instruction>(SILocUnd));
-    bool DefVisibleToCaller = !State.InvisibleToCaller.count(SILocUnd);
-    if (DefObj && ((isAllocLikeFn(DefObj, &TLI) &&
-                    !PointerMayBeCapturedBefore(DefObj, false, true, SI, &DT))))
-      DefVisibleToCaller = false;
+    bool DefVisibleToCallerBeforeRet =
+        !State.InvisibleToCallerBeforeRet.count(SILocUnd);
+    bool DefVisibleToCallerAfterRet =
+        !State.InvisibleToCallerAfterRet.count(SILocUnd);
+    if (DefObj && isAllocLikeFn(DefObj, &TLI)) {
+      if (DefVisibleToCallerBeforeRet)
+        DefVisibleToCallerBeforeRet =
+            PointerMayBeCapturedBefore(DefObj, false, true, SI, &DT);
+    }
 
     MemoryAccess *Current = KillingDef;
     LLVM_DEBUG(dbgs() << "Trying to eliminate MemoryDefs killed by "
@@ -1839,7 +1866,8 @@ bool eliminateDeadStoresMemorySSA(Function &F, AliasAnalysis &AA,
         continue;
 
       Optional<MemoryAccess *> Next = State.getDomMemoryDef(
-          KillingDef, Current, SILoc, DefVisibleToCaller, ScanLimit);
+          KillingDef, Current, SILoc, DefVisibleToCallerBeforeRet,
+          DefVisibleToCallerAfterRet, ScanLimit);
 
       if (!Next) {
         LLVM_DEBUG(dbgs() << "  finished walk\n");

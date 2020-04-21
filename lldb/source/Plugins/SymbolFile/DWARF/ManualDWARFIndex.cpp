@@ -185,12 +185,6 @@ void ManualDWARFIndex::IndexUnitImpl(DWARFUnit &unit,
             is_declaration = form_value.Unsigned() != 0;
           break;
 
-        //                case DW_AT_artificial:
-        //                    if (attributes.ExtractFormValueAtIndex(i,
-        //                    form_value))
-        //                        is_artificial = form_value.Unsigned() != 0;
-        //                    break;
-
         case DW_AT_MIPS_linkage_name:
         case DW_AT_linkage_name:
           if (attributes.ExtractFormValueAtIndex(i, form_value))
@@ -210,49 +204,8 @@ void ManualDWARFIndex::IndexUnitImpl(DWARFUnit &unit,
         case DW_AT_location:
         case DW_AT_const_value:
           has_location_or_const_value = true;
-          if (tag == DW_TAG_variable) {
-            const DWARFDebugInfoEntry *parent_die = die.GetParent();
-            while (parent_die != nullptr) {
-              switch (parent_die->Tag()) {
-              case DW_TAG_subprogram:
-              case DW_TAG_lexical_block:
-              case DW_TAG_inlined_subroutine:
-                // Even if this is a function level static, we don't add it. We
-                // could theoretically add these if we wanted to by
-                // introspecting into the DW_AT_location and seeing if the
-                // location describes a hard coded address, but we don't want
-                // the performance penalty of that right now.
-                is_global_or_static_variable = false;
-                // if (attributes.ExtractFormValueAtIndex(dwarf, i,
-                //                                        form_value)) {
-                //   // If we have valid block data, then we have location
-                //   // expression bytesthat are fixed (not a location list).
-                //   const uint8_t *block_data = form_value.BlockData();
-                //   if (block_data) {
-                //     uint32_t block_length = form_value.Unsigned();
-                //     if (block_length == 1 +
-                //     attributes.UnitAtIndex(i)->GetAddressByteSize()) {
-                //       if (block_data[0] == DW_OP_addr)
-                //         add_die = true;
-                //     }
-                //   }
-                // }
-                parent_die = nullptr; // Terminate the while loop.
-                break;
+          is_global_or_static_variable = die.IsGlobalOrStaticScopeVariable();
 
-              case DW_TAG_compile_unit:
-              case DW_TAG_partial_unit:
-                is_global_or_static_variable = true;
-                parent_die = nullptr; // Terminate the while loop.
-                break;
-
-              default:
-                parent_die =
-                    parent_die->GetParent(); // Keep going in the while loop.
-                break;
-              }
-            }
-          }
           break;
 
         case DW_AT_specification:
@@ -367,108 +320,116 @@ void ManualDWARFIndex::IndexUnitImpl(DWARFUnit &unit,
   }
 }
 
-void ManualDWARFIndex::GetGlobalVariables(ConstString basename, DIEArray &offsets) {
+void ManualDWARFIndex::GetGlobalVariables(
+    ConstString basename, llvm::function_ref<bool(DIERef ref)> callback) {
   Index();
-  m_set.globals.Find(basename, offsets);
+  m_set.globals.Find(basename, callback);
 }
 
-void ManualDWARFIndex::GetGlobalVariables(const RegularExpression &regex,
-                                          DIEArray &offsets) {
+void ManualDWARFIndex::GetGlobalVariables(
+    const RegularExpression &regex,
+    llvm::function_ref<bool(DIERef ref)> callback) {
   Index();
-  m_set.globals.Find(regex, offsets);
+  m_set.globals.Find(regex, callback);
 }
 
-void ManualDWARFIndex::GetGlobalVariables(const DWARFUnit &unit,
-                                          DIEArray &offsets) {
+void ManualDWARFIndex::GetGlobalVariables(
+    const DWARFUnit &unit, llvm::function_ref<bool(DIERef ref)> callback) {
   Index();
-  m_set.globals.FindAllEntriesForUnit(unit, offsets);
+  m_set.globals.FindAllEntriesForUnit(unit, callback);
 }
 
-void ManualDWARFIndex::GetObjCMethods(ConstString class_name,
-                                      DIEArray &offsets) {
+void ManualDWARFIndex::GetObjCMethods(
+    ConstString class_name, llvm::function_ref<bool(DIERef ref)> callback) {
   Index();
-  m_set.objc_class_selectors.Find(class_name, offsets);
+  m_set.objc_class_selectors.Find(class_name, callback);
 }
 
-void ManualDWARFIndex::GetCompleteObjCClass(ConstString class_name,
-                                            bool must_be_implementation,
-                                            DIEArray &offsets) {
+void ManualDWARFIndex::GetCompleteObjCClass(
+    ConstString class_name, bool must_be_implementation,
+    llvm::function_ref<bool(DIERef ref)> callback) {
   Index();
-  m_set.types.Find(class_name, offsets);
+  m_set.types.Find(class_name, callback);
 }
 
-void ManualDWARFIndex::GetTypes(ConstString name, DIEArray &offsets) {
+void ManualDWARFIndex::GetTypes(ConstString name,
+                                llvm::function_ref<bool(DIERef ref)> callback) {
   Index();
-  m_set.types.Find(name, offsets);
+  m_set.types.Find(name, callback);
 }
 
 void ManualDWARFIndex::GetTypes(const DWARFDeclContext &context,
-                                DIEArray &offsets) {
+                                llvm::function_ref<bool(DIERef ref)> callback) {
   Index();
-  m_set.types.Find(ConstString(context[0].name), offsets);
+  m_set.types.Find(ConstString(context[0].name), callback);
 }
 
-void ManualDWARFIndex::GetNamespaces(ConstString name, DIEArray &offsets) {
+void ManualDWARFIndex::GetNamespaces(
+    ConstString name, llvm::function_ref<bool(DIERef ref)> callback) {
   Index();
-  m_set.namespaces.Find(name, offsets);
+  m_set.namespaces.Find(name, callback);
 }
 
-void ManualDWARFIndex::GetFunctions(ConstString name, SymbolFileDWARF &dwarf,
-                                    const CompilerDeclContext &parent_decl_ctx,
-                                    uint32_t name_type_mask,
-                                    std::vector<DWARFDIE> &dies) {
+void ManualDWARFIndex::GetFunctions(
+    ConstString name, SymbolFileDWARF &dwarf,
+    const CompilerDeclContext &parent_decl_ctx, uint32_t name_type_mask,
+    llvm::function_ref<bool(DWARFDIE die)> callback) {
   Index();
 
   if (name_type_mask & eFunctionNameTypeFull) {
-    DIEArray offsets;
-    m_set.function_fullnames.Find(name, offsets);
-    for (const DIERef &die_ref: offsets) {
-      DWARFDIE die = dwarf.GetDIE(die_ref);
-      if (!die)
-        continue;
-      if (SymbolFileDWARF::DIEInDeclContext(parent_decl_ctx, die))
-        dies.push_back(die);
-    }
+    if (!m_set.function_fullnames.Find(name, [&](DIERef die_ref) {
+          DWARFDIE die = dwarf.GetDIE(die_ref);
+          if (!die)
+            return true;
+          if (!SymbolFileDWARF::DIEInDeclContext(parent_decl_ctx, die))
+            return true;
+          return callback(die);
+        }))
+      return;
   }
   if (name_type_mask & eFunctionNameTypeBase) {
-    DIEArray offsets;
-    m_set.function_basenames.Find(name, offsets);
-    for (const DIERef &die_ref: offsets) {
-      DWARFDIE die = dwarf.GetDIE(die_ref);
-      if (!die)
-        continue;
-      if (SymbolFileDWARF::DIEInDeclContext(parent_decl_ctx, die))
-        dies.push_back(die);
-    }
-    offsets.clear();
+    if (!m_set.function_basenames.Find(name, [&](DIERef die_ref) {
+          DWARFDIE die = dwarf.GetDIE(die_ref);
+          if (!die)
+            return true;
+          if (!SymbolFileDWARF::DIEInDeclContext(parent_decl_ctx, die))
+            return true;
+          return callback(die);
+        }))
+      return;
   }
 
   if (name_type_mask & eFunctionNameTypeMethod && !parent_decl_ctx.IsValid()) {
-    DIEArray offsets;
-    m_set.function_methods.Find(name, offsets);
-    for (const DIERef &die_ref: offsets) {
-      if (DWARFDIE die = dwarf.GetDIE(die_ref))
-        dies.push_back(die);
-    }
+    if (!m_set.function_methods.Find(name, [&](DIERef die_ref) {
+          DWARFDIE die = dwarf.GetDIE(die_ref);
+          if (!die)
+            return true;
+          return callback(die);
+        }))
+      return;
   }
 
   if (name_type_mask & eFunctionNameTypeSelector &&
       !parent_decl_ctx.IsValid()) {
-    DIEArray offsets;
-    m_set.function_selectors.Find(name, offsets);
-    for (const DIERef &die_ref: offsets) {
-      if (DWARFDIE die = dwarf.GetDIE(die_ref))
-        dies.push_back(die);
-    }
+    if (!m_set.function_selectors.Find(name, [&](DIERef die_ref) {
+          DWARFDIE die = dwarf.GetDIE(die_ref);
+          if (!die)
+            return true;
+          return callback(die);
+        }))
+      return;
   }
 }
 
-void ManualDWARFIndex::GetFunctions(const RegularExpression &regex,
-                                    DIEArray &offsets) {
+void ManualDWARFIndex::GetFunctions(
+    const RegularExpression &regex,
+    llvm::function_ref<bool(DIERef ref)> callback) {
   Index();
 
-  m_set.function_basenames.Find(regex, offsets);
-  m_set.function_fullnames.Find(regex, offsets);
+  if (!m_set.function_basenames.Find(regex, callback))
+    return;
+  if (!m_set.function_fullnames.Find(regex, callback))
+    return;
 }
 
 void ManualDWARFIndex::Dump(Stream &s) {

@@ -190,6 +190,9 @@ class StdLibraryFunctionsChecker
     ProgramStateRef apply(ProgramStateRef State, const CallEvent &Call,
                           const Summary &Summary) const override {
       SVal V = getArgSVal(Call, getArgNo());
+      if (V.isUndef())
+        return State;
+
       DefinedOrUnknownSVal L = V.castAs<DefinedOrUnknownSVal>();
       if (!L.getAs<Loc>())
         return State;
@@ -265,7 +268,7 @@ class StdLibraryFunctionsChecker
 
     /// Try our best to figure out if the call expression is the call of
     /// *the* library function to which this specification applies.
-    bool matchesCall(const CallExpr *CE) const;
+    bool matchesCall(const FunctionDecl *FD) const;
   };
 
   // The same function (as in, function identifier) may have different
@@ -303,13 +306,16 @@ public:
   void checkPostCall(const CallEvent &Call, CheckerContext &C) const;
   bool evalCall(const CallEvent &Call, CheckerContext &C) const;
 
-  enum CheckKind { CK_StdCLibraryFunctionArgsChecker, CK_NumCheckKinds };
+  enum CheckKind {
+    CK_StdCLibraryFunctionArgsChecker,
+    CK_StdCLibraryFunctionsTesterChecker,
+    CK_NumCheckKinds
+  };
   DefaultBool ChecksEnabled[CK_NumCheckKinds];
   CheckerNameRef CheckNames[CK_NumCheckKinds];
 
 private:
   Optional<Summary> findFunctionSummary(const FunctionDecl *FD,
-                                        const CallExpr *CE,
                                         CheckerContext &C) const;
   Optional<Summary> findFunctionSummary(const CallEvent &Call,
                                         CheckerContext &C) const;
@@ -452,23 +458,26 @@ void StdLibraryFunctionsChecker::checkPreCall(const CallEvent &Call,
   const Summary &Summary = *FoundSummary;
   ProgramStateRef State = C.getState();
 
+  ProgramStateRef NewState = State;
   for (const ValueConstraintPtr& VC : Summary.ArgConstraints) {
-    ProgramStateRef SuccessSt = VC->apply(State, Call, Summary);
-    ProgramStateRef FailureSt = VC->negate()->apply(State, Call, Summary);
+    ProgramStateRef SuccessSt = VC->apply(NewState, Call, Summary);
+    ProgramStateRef FailureSt = VC->negate()->apply(NewState, Call, Summary);
     // The argument constraint is not satisfied.
     if (FailureSt && !SuccessSt) {
-      if (ExplodedNode *N = C.generateErrorNode(State))
+      if (ExplodedNode *N = C.generateErrorNode(NewState))
         reportBug(Call, N, C);
       break;
     } else {
-      // Apply the constraint even if we cannot reason about the argument. This
-      // means both SuccessSt and FailureSt can be true. If we weren't applying
-      // the constraint that would mean that symbolic execution continues on a
-      // code whose behaviour is undefined.
+      // We will apply the constraint even if we cannot reason about the
+      // argument. This means both SuccessSt and FailureSt can be true. If we
+      // weren't applying the constraint that would mean that symbolic
+      // execution continues on a code whose behaviour is undefined.
       assert(SuccessSt);
-      C.addTransition(SuccessSt);
+      NewState = SuccessSt;
     }
   }
+  if (NewState && NewState != State)
+    C.addTransition(NewState);
 }
 
 void StdLibraryFunctionsChecker::checkPostCall(const CallEvent &Call,
@@ -522,13 +531,13 @@ bool StdLibraryFunctionsChecker::evalCall(const CallEvent &Call,
 }
 
 bool StdLibraryFunctionsChecker::Summary::matchesCall(
-    const CallExpr *CE) const {
+    const FunctionDecl *FD) const {
   // Check number of arguments:
-  if (CE->getNumArgs() != ArgTys.size())
+  if (FD->param_size() != ArgTys.size())
     return false;
 
   // Check return type if relevant:
-  if (!RetTy.isNull() && RetTy != CE->getType().getCanonicalType())
+  if (!RetTy.isNull() && RetTy != FD->getReturnType().getCanonicalType())
     return false;
 
   // Check argument types when relevant:
@@ -540,8 +549,7 @@ bool StdLibraryFunctionsChecker::Summary::matchesCall(
 
     assertTypeSuitableForSummary(FormalT);
 
-    QualType ActualT = StdLibraryFunctionsChecker::getArgType(CE, I);
-    assert(ActualT.isCanonical());
+    QualType ActualT = FD->getParamDecl(I)->getType().getCanonicalType();
     if (ActualT != FormalT)
       return false;
   }
@@ -551,12 +559,7 @@ bool StdLibraryFunctionsChecker::Summary::matchesCall(
 
 Optional<StdLibraryFunctionsChecker::Summary>
 StdLibraryFunctionsChecker::findFunctionSummary(const FunctionDecl *FD,
-                                                const CallExpr *CE,
                                                 CheckerContext &C) const {
-  // Note: we cannot always obtain FD from CE
-  // (eg. virtual call, or call by pointer).
-  assert(CE);
-
   if (!FD)
     return None;
 
@@ -580,7 +583,7 @@ StdLibraryFunctionsChecker::findFunctionSummary(const FunctionDecl *FD,
   // return values.
   const Summaries &SpecVariants = FSMI->second;
   for (const Summary &Spec : SpecVariants)
-    if (Spec.matchesCall(CE))
+    if (Spec.matchesCall(FD))
       return Spec;
 
   return None;
@@ -592,10 +595,7 @@ StdLibraryFunctionsChecker::findFunctionSummary(const CallEvent &Call,
   const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(Call.getDecl());
   if (!FD)
     return None;
-  const CallExpr *CE = dyn_cast_or_null<CallExpr>(Call.getOriginExpr());
-  if (!CE)
-    return None;
-  return findFunctionSummary(FD, CE, C);
+  return findFunctionSummary(FD, C);
 }
 
 void StdLibraryFunctionsChecker::initFunctionSummaries(
@@ -620,9 +620,15 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
   const QualType LongTy = ACtx.LongTy;
   const QualType LongLongTy = ACtx.LongLongTy;
   const QualType SizeTy = ACtx.getSizeType();
-  const QualType VoidPtrTy = ACtx.VoidPtrTy; // void *T
+  const QualType VoidPtrTy = ACtx.VoidPtrTy; // void *
+  const QualType VoidPtrRestrictTy =
+      ACtx.getRestrictType(VoidPtrTy); // void *restrict
   const QualType ConstVoidPtrTy =
-      ACtx.getPointerType(ACtx.VoidTy.withConst()); // const void *T
+      ACtx.getPointerType(ACtx.VoidTy.withConst()); // const void *
+  const QualType ConstCharPtrTy =
+      ACtx.getPointerType(ACtx.CharTy.withConst()); // const char *
+  const QualType ConstVoidPtrRestrictTy =
+      ACtx.getRestrictType(ConstVoidPtrTy); // const void *restrict
 
   const RangeInt IntMax = BVF.getMaxValue(IntTy).getLimitedValue();
   const RangeInt LongMax = BVF.getMaxValue(LongTy).getLimitedValue();
@@ -711,7 +717,7 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
                ReturnValueCondition(WithinRange, Range(-1, Max))});
   };
   auto Fread = [&]() {
-    return Summary(ArgTypes{VoidPtrTy, Irrelevant, SizeTy, Irrelevant},
+    return Summary(ArgTypes{VoidPtrRestrictTy, Irrelevant, SizeTy, Irrelevant},
                    RetType{SizeTy}, NoEvalCall)
         .Case({
             ReturnValueCondition(LessThanOrEq, ArgNo(2)),
@@ -719,8 +725,9 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
         .ArgConstraint(NotNull(ArgNo(0)));
   };
   auto Fwrite = [&]() {
-    return Summary(ArgTypes{ConstVoidPtrTy, Irrelevant, SizeTy, Irrelevant},
-                   RetType{SizeTy}, NoEvalCall)
+    return Summary(
+               ArgTypes{ConstVoidPtrRestrictTy, Irrelevant, SizeTy, Irrelevant},
+               RetType{SizeTy}, NoEvalCall)
         .Case({
             ReturnValueCondition(LessThanOrEq, ArgNo(2)),
         })
@@ -933,13 +940,45 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
       {"getdelim", Summaries{Getline(IntTy, IntMax), Getline(LongTy, LongMax),
                              Getline(LongLongTy, LongLongMax)}},
   };
+
+  // Functions for testing.
+  if (ChecksEnabled[CK_StdCLibraryFunctionsTesterChecker]) {
+    llvm::StringMap<Summaries> TestFunctionSummaryMap = {
+        {"__two_constrained_args",
+         Summaries{
+             Summary(ArgTypes{IntTy, IntTy}, RetType{IntTy}, EvalCallAsPure)
+                 .ArgConstraint(
+                     ArgumentCondition(0U, WithinRange, SingleValue(1)))
+                 .ArgConstraint(
+                     ArgumentCondition(1U, WithinRange, SingleValue(1)))}},
+        {"__arg_constrained_twice",
+         Summaries{Summary(ArgTypes{IntTy}, RetType{IntTy}, EvalCallAsPure)
+                       .ArgConstraint(
+                           ArgumentCondition(0U, OutOfRange, SingleValue(1)))
+                       .ArgConstraint(
+                           ArgumentCondition(0U, OutOfRange, SingleValue(2)))}},
+        {"__defaultparam", Summaries{Summary(ArgTypes{Irrelevant, IntTy},
+                                             RetType{IntTy}, EvalCallAsPure)
+                                         .ArgConstraint(NotNull(ArgNo(0)))}},
+        {"__variadic", Summaries{Summary(ArgTypes{VoidPtrTy, ConstCharPtrTy},
+                                         RetType{IntTy}, EvalCallAsPure)
+                                     .ArgConstraint(NotNull(ArgNo(0)))
+                                     .ArgConstraint(NotNull(ArgNo(1)))}}};
+    for (auto &E : TestFunctionSummaryMap) {
+      auto InsertRes =
+          FunctionSummaryMap.insert({std::string(E.getKey()), E.getValue()});
+      assert(InsertRes.second &&
+             "Test functions must not clash with modeled functions");
+      (void)InsertRes;
+    }
+  }
 }
 
 void ento::registerStdCLibraryFunctionsChecker(CheckerManager &mgr) {
   mgr.registerChecker<StdLibraryFunctionsChecker>();
 }
 
-bool ento::shouldRegisterStdCLibraryFunctionsChecker(const LangOptions &LO) {
+bool ento::shouldRegisterStdCLibraryFunctionsChecker(const CheckerManager &mgr) {
   return true;
 }
 
@@ -952,6 +991,7 @@ bool ento::shouldRegisterStdCLibraryFunctionsChecker(const LangOptions &LO) {
         mgr.getCurrentCheckerName();                                           \
   }                                                                            \
                                                                                \
-  bool ento::shouldRegister##name(const LangOptions &LO) { return true; }
+  bool ento::shouldRegister##name(const CheckerManager &mgr) { return true; }
 
 REGISTER_CHECKER(StdCLibraryFunctionArgsChecker)
+REGISTER_CHECKER(StdCLibraryFunctionsTesterChecker)

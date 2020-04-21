@@ -880,7 +880,7 @@ llvm::getOrderedReduction(IRBuilderBase &Builder, Value *Acc, Value *Src,
                           unsigned Op,
                           RecurrenceDescriptor::MinMaxRecurrenceKind MinMaxKind,
                           ArrayRef<Value *> RedOps) {
-  unsigned VF = Src->getType()->getVectorNumElements();
+  unsigned VF = cast<VectorType>(Src->getType())->getNumElements();
 
   // Extract and apply reduction ops in ascending order:
   // e.g. ((((Acc + Scl[0]) + Scl[1]) + Scl[2]) + ) ... + Scl[VF-1]
@@ -910,26 +910,24 @@ Value *
 llvm::getShuffleReduction(IRBuilderBase &Builder, Value *Src, unsigned Op,
                           RecurrenceDescriptor::MinMaxRecurrenceKind MinMaxKind,
                           ArrayRef<Value *> RedOps) {
-  unsigned VF = Src->getType()->getVectorNumElements();
+  unsigned VF = cast<VectorType>(Src->getType())->getNumElements();
   // VF is a power of 2 so we can emit the reduction using log2(VF) shuffles
   // and vector ops, reducing the set of values being computed by half each
   // round.
   assert(isPowerOf2_32(VF) &&
          "Reduction emission only supported for pow2 vectors!");
   Value *TmpVec = Src;
-  SmallVector<Constant *, 32> ShuffleMask(VF, nullptr);
+  SmallVector<int, 32> ShuffleMask(VF);
   for (unsigned i = VF; i != 1; i >>= 1) {
     // Move the upper half of the vector to the lower half.
     for (unsigned j = 0; j != i / 2; ++j)
-      ShuffleMask[j] = Builder.getInt32(i / 2 + j);
+      ShuffleMask[j] = i / 2 + j;
 
     // Fill the rest of the mask with undef.
-    std::fill(&ShuffleMask[i / 2], ShuffleMask.end(),
-              UndefValue::get(Builder.getInt32Ty()));
+    std::fill(&ShuffleMask[i / 2], ShuffleMask.end(), -1);
 
     Value *Shuf = Builder.CreateShuffleVector(
-        TmpVec, UndefValue::get(TmpVec->getType()),
-        ConstantVector::get(ShuffleMask), "rdx.shuf");
+        TmpVec, UndefValue::get(TmpVec->getType()), ShuffleMask, "rdx.shuf");
 
     if (Op != Instruction::ICmp && Op != Instruction::FCmp) {
       // The builder propagates its fast-math-flags setting.
@@ -958,7 +956,7 @@ Value *llvm::createSimpleTargetReduction(
     IRBuilderBase &Builder, const TargetTransformInfo *TTI, unsigned Opcode,
     Value *Src, TargetTransformInfo::ReductionFlags Flags,
     ArrayRef<Value *> RedOps) {
-  assert(isa<VectorType>(Src->getType()) && "Type must be a vector");
+  auto *SrcVTy = cast<VectorType>(Src->getType());
 
   std::function<Value *()> BuildFunc;
   using RD = RecurrenceDescriptor;
@@ -983,13 +981,13 @@ Value *llvm::createSimpleTargetReduction(
   case Instruction::FAdd:
     BuildFunc = [&]() {
       auto Rdx = Builder.CreateFAddReduce(
-          Constant::getNullValue(Src->getType()->getVectorElementType()), Src);
+          Constant::getNullValue(SrcVTy->getElementType()), Src);
       return Rdx;
     };
     break;
   case Instruction::FMul:
     BuildFunc = [&]() {
-      Type *Ty = Src->getType()->getVectorElementType();
+      Type *Ty = SrcVTy->getElementType();
       auto Rdx = Builder.CreateFMulReduce(ConstantFP::get(Ty, 1.0), Src);
       return Rdx;
     };
@@ -1359,16 +1357,15 @@ int llvm::rewriteLoopExitValues(Loop *L, LoopInfo *LI, TargetLibraryInfo *TLI,
 
         // Computing the value outside of the loop brings no benefit if it is
         // definitely used inside the loop in a way which can not be optimized
-        // away. Avoid doing so unless either we know we have a value
-        // which computes the ExitValue already, or it is cheap to do so.
-        // TODO: This should be merged into SCEV expander to leverage
-        // its knowledge of existing expressions.
-        bool HighCost = Rewriter.isHighCostExpansion(
-            ExitValue, L, SCEVCheapExpansionBudget, TTI, Inst);
-        if (ReplaceExitValue != AlwaysRepl && HighCost &&
-            hasHardUserWithinLoop(L, Inst))
+        // away. Avoid doing so unless we know we have a value which computes
+        // the ExitValue already. TODO: This should be merged into SCEV
+        // expander to leverage its knowledge of existing expressions.
+        if (ReplaceExitValue != AlwaysRepl && !isa<SCEVConstant>(ExitValue) &&
+            !isa<SCEVUnknown>(ExitValue) && hasHardUserWithinLoop(L, Inst))
           continue;
 
+        bool HighCost = Rewriter.isHighCostExpansion(
+            ExitValue, L, SCEVCheapExpansionBudget, TTI, Inst);
         Value *ExitVal = Rewriter.expandCodeFor(ExitValue, PN->getType(), Inst);
 
         LLVM_DEBUG(dbgs() << "rewriteLoopExitValues: AfterLoopVal = "

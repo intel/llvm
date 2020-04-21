@@ -1414,7 +1414,7 @@ void Module::SetSymbolFileFileSpec(const FileSpec &file) {
         if (FileSystem::Instance().IsDirectory(file)) {
           std::string new_path(file.GetPath());
           std::string old_path(obj_file->GetFileSpec().GetPath());
-          if (old_path.find(new_path) == 0) {
+          if (llvm::StringRef(old_path).startswith(new_path)) {
             // We specified the same bundle as the symbol file that we already
             // have
             return;
@@ -1594,6 +1594,24 @@ bool Module::RemapSourceFile(llvm::StringRef path,
                              std::string &new_path) const {
   std::lock_guard<std::recursive_mutex> guard(m_mutex);
   return m_source_mappings.RemapPath(path, new_path);
+}
+
+void Module::RegisterXcodeSDK(llvm::StringRef sdk_name, llvm::StringRef sysroot) {
+  XcodeSDK sdk(sdk_name.str());
+  if (m_xcode_sdk == sdk)
+    return;
+  m_xcode_sdk.Merge(sdk);
+  PlatformSP module_platform =
+      Platform::GetPlatformForArchitecture(GetArchitecture(), nullptr);
+  ConstString sdk_path(module_platform->GetSDKPath(sdk));
+  if (!sdk_path)
+    return;
+  // If merged SDK changed for a previously registered source path, update it.
+  // This could happend with -fdebug-prefix-map, otherwise it's unlikely.
+  ConstString sysroot_cs(sysroot);
+  if (!m_source_mappings.Replace(sysroot_cs, sdk_path, true))
+    // In the general case, however, append it to the list.
+    m_source_mappings.Append(sysroot_cs, sdk_path, false);
 }
 
 bool Module::MergeArchitecture(const ArchSpec &arch_spec) {

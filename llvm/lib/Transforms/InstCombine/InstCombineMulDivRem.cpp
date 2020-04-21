@@ -72,7 +72,7 @@ static Value *simplifyValueKnownNonZero(Value *V, InstCombiner &IC,
     // We know that this is an exact/nuw shift and that the input is a
     // non-zero context as well.
     if (Value *V2 = simplifyValueKnownNonZero(I->getOperand(0), IC, CxtI)) {
-      I->setOperand(0, V2);
+      IC.replaceOperand(*I, 0, V2);
       MadeChange = true;
     }
 
@@ -108,7 +108,8 @@ static Constant *getLogBase2(Type *Ty, Constant *C) {
     return nullptr;
 
   SmallVector<Constant *, 4> Elts;
-  for (unsigned I = 0, E = Ty->getVectorNumElements(); I != E; ++I) {
+  for (unsigned I = 0, E = cast<VectorType>(Ty)->getNumElements(); I != E;
+       ++I) {
     Constant *Elt = C->getAggregateElement(I);
     if (!Elt)
       return nullptr;
@@ -591,7 +592,7 @@ bool InstCombiner::simplifyDivRemOfSelectWithZeroOp(BinaryOperator &I) {
     return false;
 
   // Change the div/rem to use 'Y' instead of the select.
-  I.setOperand(1, SI->getOperand(NonNullOperand));
+  replaceOperand(I, 1, SI->getOperand(NonNullOperand));
 
   // Okay, we know we replace the operand of the div/rem with 'Y' with no
   // problem.  However, the select, or the condition of the select may have
@@ -619,11 +620,11 @@ bool InstCombiner::simplifyDivRemOfSelectWithZeroOp(BinaryOperator &I) {
     for (Instruction::op_iterator I = BBI->op_begin(), E = BBI->op_end();
          I != E; ++I) {
       if (*I == SI) {
-        *I = SI->getOperand(NonNullOperand);
+        replaceUse(*I, SI->getOperand(NonNullOperand));
         Worklist.push(&*BBI);
       } else if (*I == SelectCond) {
-        *I = NonNullOperand == 1 ? ConstantInt::getTrue(CondTy)
-                                 : ConstantInt::getFalse(CondTy);
+        replaceUse(*I, NonNullOperand == 1 ? ConstantInt::getTrue(CondTy)
+                                           : ConstantInt::getFalse(CondTy));
         Worklist.push(&*BBI);
       }
     }
@@ -682,10 +683,8 @@ Instruction *InstCombiner::commonIDivTransforms(BinaryOperator &I) {
   Type *Ty = I.getType();
 
   // The RHS is known non-zero.
-  if (Value *V = simplifyValueKnownNonZero(I.getOperand(1), *this, I)) {
-    I.setOperand(1, V);
-    return &I;
-  }
+  if (Value *V = simplifyValueKnownNonZero(I.getOperand(1), *this, I))
+    return replaceOperand(I, 1, V);
 
   // Handle cases involving: [su]div X, (select Cond, Y, Z)
   // This does not apply for fdiv.
@@ -799,8 +798,8 @@ Instruction *InstCombiner::commonIDivTransforms(BinaryOperator &I) {
     bool HasNSW = cast<OverflowingBinaryOperator>(Op1)->hasNoSignedWrap();
     bool HasNUW = cast<OverflowingBinaryOperator>(Op1)->hasNoUnsignedWrap();
     if ((IsSigned && HasNSW) || (!IsSigned && HasNUW)) {
-      I.setOperand(0, ConstantInt::get(Ty, 1));
-      I.setOperand(1, Y);
+      replaceOperand(I, 0, ConstantInt::get(Ty, 1));
+      replaceOperand(I, 1, Y);
       return &I;
     }
   }
@@ -1276,8 +1275,8 @@ Instruction *InstCombiner::visitFDiv(BinaryOperator &I) {
   // -X / -Y -> X / Y
   Value *X, *Y;
   if (match(Op0, m_FNeg(m_Value(X))) && match(Op1, m_FNeg(m_Value(Y)))) {
-    I.setOperand(0, X);
-    I.setOperand(1, Y);
+    replaceOperand(I, 0, X);
+    replaceOperand(I, 1, Y);
     return &I;
   }
 
@@ -1286,8 +1285,8 @@ Instruction *InstCombiner::visitFDiv(BinaryOperator &I) {
   // We can ignore the possibility that X is infinity because INF/INF is NaN.
   if (I.hasNoNaNs() && I.hasAllowReassoc() &&
       match(Op1, m_c_FMul(m_Specific(Op0), m_Value(Y)))) {
-    I.setOperand(0, ConstantFP::get(I.getType(), 1.0));
-    I.setOperand(1, Y);
+    replaceOperand(I, 0, ConstantFP::get(I.getType(), 1.0));
+    replaceOperand(I, 1, Y);
     return &I;
   }
 
@@ -1313,10 +1312,8 @@ Instruction *InstCombiner::commonIRemTransforms(BinaryOperator &I) {
   Value *Op0 = I.getOperand(0), *Op1 = I.getOperand(1);
 
   // The RHS is known non-zero.
-  if (Value *V = simplifyValueKnownNonZero(I.getOperand(1), *this, I)) {
-    I.setOperand(1, V);
-    return &I;
-  }
+  if (Value *V = simplifyValueKnownNonZero(I.getOperand(1), *this, I))
+    return replaceOperand(I, 1, V);
 
   // Handle cases involving: rem X, (select Cond, Y, Z)
   if (simplifyDivRemOfSelectWithZeroOp(I))
@@ -1437,7 +1434,7 @@ Instruction *InstCombiner::visitSRem(BinaryOperator &I) {
   // If it's a constant vector, flip any negative values positive.
   if (isa<ConstantVector>(Op1) || isa<ConstantDataVector>(Op1)) {
     Constant *C = cast<Constant>(Op1);
-    unsigned VWidth = C->getType()->getVectorNumElements();
+    unsigned VWidth = cast<VectorType>(C->getType())->getNumElements();
 
     bool hasNegative = false;
     bool hasMissing = false;

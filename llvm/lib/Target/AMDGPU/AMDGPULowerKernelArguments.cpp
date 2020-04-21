@@ -152,7 +152,7 @@ bool AMDGPULowerKernelArguments::runOnFunction(Function &F) {
     }
 
     if (IsV3 && Size >= 32) {
-      V4Ty = VectorType::get(VT->getVectorElementType(), 4);
+      V4Ty = VectorType::get(VT->getElementType(), 4);
       // Use the hack that clang uses to avoid SelectionDAG ruining v3 loads
       AdjustedArgTy = V4Ty;
     }
@@ -210,7 +210,7 @@ bool AMDGPULowerKernelArguments::runOnFunction(Function &F) {
       Arg.replaceAllUsesWith(NewVal);
     } else if (IsV3) {
       Value *Shuf = Builder.CreateShuffleVector(Load, UndefValue::get(V4Ty),
-                                                {0, 1, 2},
+                                                ArrayRef<int>{0, 1, 2},
                                                 Arg.getName() + ".load");
       Arg.replaceAllUsesWith(Shuf);
     } else {

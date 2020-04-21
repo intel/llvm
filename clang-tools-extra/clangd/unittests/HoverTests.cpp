@@ -66,7 +66,7 @@ TEST(Hover, Structured) {
       {R"cpp(
           namespace ns1 { namespace ns2 {
             struct Foo {
-              int [[b^ar]];
+              char [[b^ar]];
             };
           }}
           )cpp",
@@ -75,8 +75,10 @@ TEST(Hover, Structured) {
          HI.LocalScope = "Foo::";
          HI.Name = "bar";
          HI.Kind = index::SymbolKind::Field;
-         HI.Definition = "int bar";
-         HI.Type = "int";
+         HI.Definition = "char bar";
+         HI.Type = "char";
+         HI.Offset = 0;
+         HI.Size = 1;
        }},
       // Local to class method.
       {R"cpp(
@@ -100,7 +102,7 @@ TEST(Hover, Structured) {
       {R"cpp(
           namespace ns1 { namespace {
             struct {
-              int [[b^ar]];
+              char [[b^ar]];
             } T;
           }}
           )cpp",
@@ -109,8 +111,21 @@ TEST(Hover, Structured) {
          HI.LocalScope = "(anonymous struct)::";
          HI.Name = "bar";
          HI.Kind = index::SymbolKind::Field;
-         HI.Definition = "int bar";
-         HI.Type = "int";
+         HI.Definition = "char bar";
+         HI.Type = "char";
+         HI.Offset = 0;
+         HI.Size = 1;
+       }},
+      // Struct definition shows size.
+      {R"cpp(
+          struct [[^X]]{};
+          )cpp",
+       [](HoverInfo &HI) {
+         HI.NamespaceScope = "";
+         HI.Name = "X";
+         HI.Kind = index::SymbolKind::Struct;
+         HI.Definition = "struct X {}";
+         HI.Size = 1;
        }},
       // Variable with template type
       {R"cpp(
@@ -616,6 +631,58 @@ class Foo {})cpp";
          HI.LocalScope = "foo::";
          HI.Type = "int";
        }},
+
+      {// Getter
+       R"cpp(
+          struct X { int Y; float [[^y]]() { return Y; } };
+          )cpp",
+       [](HoverInfo &HI) {
+         HI.Name = "y";
+         HI.Kind = index::SymbolKind::InstanceMethod;
+         HI.NamespaceScope = "";
+         HI.Definition = "float y()";
+         HI.LocalScope = "X::";
+         HI.Documentation = "Trivial accessor for `Y`.";
+         HI.Type = "float ()";
+         HI.ReturnType = "float";
+         HI.Parameters.emplace();
+       }},
+      {// Setter
+       R"cpp(
+          struct X { int Y; void [[^setY]](float v) { Y = v; } };
+          )cpp",
+       [](HoverInfo &HI) {
+         HI.Name = "setY";
+         HI.Kind = index::SymbolKind::InstanceMethod;
+         HI.NamespaceScope = "";
+         HI.Definition = "void setY(float v)";
+         HI.LocalScope = "X::";
+         HI.Documentation = "Trivial setter for `Y`.";
+         HI.Type = "void (float)";
+         HI.ReturnType = "void";
+         HI.Parameters.emplace();
+         HI.Parameters->emplace_back();
+         HI.Parameters->back().Type = "float";
+         HI.Parameters->back().Name = "v";
+       }},
+      {// Setter (builder)
+       R"cpp(
+          struct X { int Y; X& [[^setY]](float v) { Y = v; return *this; } };
+          )cpp",
+       [](HoverInfo &HI) {
+         HI.Name = "setY";
+         HI.Kind = index::SymbolKind::InstanceMethod;
+         HI.NamespaceScope = "";
+         HI.Definition = "X &setY(float v)";
+         HI.LocalScope = "X::";
+         HI.Documentation = "Trivial setter for `Y`.";
+         HI.Type = "struct X &(float)";
+         HI.ReturnType = "struct X &";
+         HI.Parameters.emplace();
+         HI.Parameters->emplace_back();
+         HI.Parameters->back().Type = "float";
+         HI.Parameters->back().Name = "v";
+       }},
   };
   for (const auto &Case : Cases) {
     SCOPED_TRACE(Case.Code);
@@ -646,6 +713,8 @@ class Foo {})cpp";
     EXPECT_EQ(H->TemplateParameters, Expected.TemplateParameters);
     EXPECT_EQ(H->SymRange, Expected.SymRange);
     EXPECT_EQ(H->Value, Expected.Value);
+    EXPECT_EQ(H->Size, Expected.Size);
+    EXPECT_EQ(H->Offset, Expected.Offset);
   }
 }
 
@@ -1567,7 +1636,7 @@ TEST(Hover, All) {
             HI.Kind = index::SymbolKind::Variable;
             HI.NamespaceScope = "";
             HI.Name = "foo";
-            HI.Type = "cls<cls<cls<int> > >";
+            HI.Type = "cls<cls<cls<int>>>";
             HI.Value = "{}";
           }},
       {
@@ -1579,7 +1648,7 @@ TEST(Hover, All) {
             HI.Definition = "template <> struct cls<cls<cls<int>>> {}";
             HI.Kind = index::SymbolKind::Struct;
             HI.NamespaceScope = "";
-            HI.Name = "cls<cls<cls<int> > >";
+            HI.Name = "cls<cls<cls<int>>>";
             HI.Documentation = "type of nested templates.";
           }},
       {
@@ -1810,6 +1879,7 @@ TEST(Hover, Present) {
       {
           [](HoverInfo &HI) {
             HI.Kind = index::SymbolKind::Class;
+            HI.Size = 10;
             HI.TemplateParameters = {
                 {std::string("typename"), std::string("T"), llvm::None},
                 {std::string("typename"), std::string("C"),
@@ -1823,6 +1893,7 @@ TEST(Hover, Present) {
           },
           R"(class foo
 
+Size: 10 bytes
 documentation
 
 template <typename T, typename C = bool> class Foo {})",
@@ -1859,19 +1930,23 @@ ret_type foo(params) {})",
       },
       {
           [](HoverInfo &HI) {
-            HI.Kind = index::SymbolKind::Variable;
-            HI.LocalScope = "test::bar::";
+            HI.Kind = index::SymbolKind::Field;
+            HI.LocalScope = "test::Bar::";
             HI.Value = "value";
             HI.Name = "foo";
             HI.Type = "type";
             HI.Definition = "def";
+            HI.Size = 4;
+            HI.Offset = 12;
           },
-          R"(variable foo
+          R"(field foo
 
 Type: type
 Value = value
+Offset: 12 bytes
+Size: 4 bytes
 
-// In test::bar
+// In test::Bar
 def)",
       },
   };
@@ -1925,6 +2000,11 @@ TEST(Hover, DocCommentLineBreakConversion) {
                },
                {
                    "foo.\nbar",
+                   "foo.  \nbar",
+                   "foo.\nbar",
+               },
+               {
+                   "foo. \nbar",
                    "foo.  \nbar",
                    "foo.\nbar",
                },

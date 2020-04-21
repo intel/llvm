@@ -70,7 +70,7 @@ SingleWorkgroupReduction::matchAsPerformingReduction(
   if (!genericOp.hasBufferSemantics())
     return llvm::None;
 
-  // Make sure this is reudction with one input and one output.
+  // Make sure this is reduction with one input and one output.
   if (genericOp.args_in().getZExtValue() != 1 ||
       genericOp.args_out().getZExtValue() != 1)
     return llvm::None;
@@ -99,11 +99,11 @@ SingleWorkgroupReduction::matchAsPerformingReduction(
       genericOp.indexing_maps().getValue()[1].cast<AffineMapAttr>();
   // The indexing map for the input should be `(i) -> (i)`.
   if (inputMap.getValue() !=
-      AffineMap::get(1, 0, {getAffineDimExpr(0, op->getContext())}))
+      AffineMap::get(1, 0, getAffineDimExpr(0, op->getContext())))
     return llvm::None;
   // The indexing map for the input should be `(i) -> (0)`.
   if (outputMap.getValue() !=
-      AffineMap::get(1, 0, {getAffineConstantExpr(0, op->getContext())}))
+      AffineMap::get(1, 0, getAffineConstantExpr(0, op->getContext())))
     return llvm::None;
 
   return linalg::RegionMatcher::matchAsScalarBinaryOp(genericOp);
@@ -155,7 +155,7 @@ LogicalResult SingleWorkgroupReduction::matchAndRewrite(
     groupOperation = rewriter.create<spirv::spvOp>(                            \
         loc, originalInputType.getElementType(), spirv::Scope::Subgroup,       \
         spirv::GroupOperation::Reduce, inputElement,                           \
-        /*cluster_size=*/ArrayRef<Value>());                                   \
+        /*cluster_size=*/nullptr);                                             \
   } break
   switch (*binaryOpKind) {
     CREATE_GROUP_NON_UNIFORM_BIN_OP(IAdd, GroupNonUniformIAddOp);

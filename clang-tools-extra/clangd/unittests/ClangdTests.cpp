@@ -38,6 +38,7 @@ namespace clangd {
 
 namespace {
 
+using ::testing::AllOf;
 using ::testing::ElementsAre;
 using ::testing::Field;
 using ::testing::Gt;
@@ -496,7 +497,13 @@ int hello;
   EXPECT_THAT(*Locations, ElementsAre(DeclAt(FooCpp, FooSource.range("two"))));
 }
 
-TEST_F(ClangdVFSTest, MemoryUsage) {
+MATCHER_P4(Stats, Name, UsesMemory, PreambleBuilds, ASTBuilds, "") {
+  return arg.first() == Name && (arg.second.UsedBytes != 0) == UsesMemory &&
+         std::tie(arg.second.PreambleBuilds, ASTBuilds) ==
+             std::tie(PreambleBuilds, ASTBuilds);
+}
+
+TEST_F(ClangdVFSTest, FileStats) {
   MockFSProvider FS;
   ErrorCheckingCallbacks DiagConsumer;
   MockCompilationDatabase CDB;
@@ -513,22 +520,23 @@ struct Something {
   FS.Files[FooCpp] = "";
   FS.Files[BarCpp] = "";
 
-  EXPECT_THAT(Server.getUsedBytesPerFile(), IsEmpty());
+  EXPECT_THAT(Server.fileStats(), IsEmpty());
 
   Server.addDocument(FooCpp, SourceContents);
   Server.addDocument(BarCpp, SourceContents);
   ASSERT_TRUE(Server.blockUntilIdleForTest());
 
-  EXPECT_THAT(Server.getUsedBytesPerFile(),
-              UnorderedElementsAre(Pair(FooCpp, Gt(0u)), Pair(BarCpp, Gt(0u))));
+  EXPECT_THAT(Server.fileStats(),
+              UnorderedElementsAre(Stats(FooCpp, true, 1, 1),
+                                   Stats(BarCpp, true, 1, 1)));
 
   Server.removeDocument(FooCpp);
   ASSERT_TRUE(Server.blockUntilIdleForTest());
-  EXPECT_THAT(Server.getUsedBytesPerFile(), ElementsAre(Pair(BarCpp, Gt(0u))));
+  EXPECT_THAT(Server.fileStats(), ElementsAre(Stats(BarCpp, true, 1, 1)));
 
   Server.removeDocument(BarCpp);
   ASSERT_TRUE(Server.blockUntilIdleForTest());
-  EXPECT_THAT(Server.getUsedBytesPerFile(), IsEmpty());
+  EXPECT_THAT(Server.fileStats(), IsEmpty());
 }
 
 TEST_F(ClangdVFSTest, InvalidCompileCommand) {
@@ -552,15 +560,13 @@ TEST_F(ClangdVFSTest, InvalidCompileCommand) {
   EXPECT_ERROR(runFindDocumentHighlights(Server, FooCpp, Position()));
   EXPECT_ERROR(runRename(Server, FooCpp, Position(), "new_name",
                          clangd::RenameOptions()));
+  EXPECT_ERROR(runSignatureHelp(Server, FooCpp, Position()));
   // Identifier-based fallback completion.
   EXPECT_THAT(cantFail(runCodeComplete(Server, FooCpp, Position(),
                                        clangd::CodeCompleteOptions()))
                   .Completions,
               ElementsAre(Field(&CodeCompletion::Name, "int"),
                           Field(&CodeCompletion::Name, "main")));
-  auto SigHelp = runSignatureHelp(Server, FooCpp, Position());
-  ASSERT_TRUE(bool(SigHelp)) << "signatureHelp returned an error";
-  EXPECT_THAT(SigHelp->signatures, IsEmpty());
 }
 
 class ClangdThreadingTest : public ClangdVFSTest {};

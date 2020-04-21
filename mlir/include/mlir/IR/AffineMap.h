@@ -49,8 +49,15 @@ public:
   static AffineMap get(unsigned dimCount, unsigned symbolCount,
                        MLIRContext *context);
 
+  /// Returns an affine map with `dimCount` dimensions and `symbolCount` mapping
+  /// to a single output dimension
   static AffineMap get(unsigned dimCount, unsigned symbolCount,
-                       ArrayRef<AffineExpr> results);
+                       AffineExpr result);
+
+  /// Returns an affine map with `dimCount` dimensions and `symbolCount` mapping
+  /// to the given results.
+  static AffineMap get(unsigned dimCount, unsigned symbolCount,
+                       ArrayRef<AffineExpr> results, MLIRContext *context);
 
   /// Returns a single constant result affine map.
   static AffineMap getConstantMap(int64_t val, MLIRContext *context);
@@ -208,14 +215,18 @@ private:
   MLIRContext *context;
 };
 
-/// Simplify an affine map by simplifying its underlying AffineExpr results.
+/// Simplifies an affine map by simplifying its underlying AffineExpr results.
 AffineMap simplifyAffineMap(AffineMap map);
+
+/// Returns a map with the same dimension and symbol count as `map`, but whose
+/// results are the unique affine expressions of `map`.
+AffineMap removeDuplicateExprs(AffineMap map);
 
 /// Returns a map of codomain to domain dimensions such that the first codomain
 /// dimension for a particular domain dimension is selected.
-/// Returns an empty map if the input map is empty or if `map` is not invertible
-/// (i.e. `map` does not contain a subset that is a permutation of full domain
-/// rank).
+/// Returns an empty map if the input map is empty.
+/// Returns null map (not empty map) if `map` is not invertible (i.e. `map` does
+/// not contain a subset that is a permutation of full domain rank).
 ///
 /// Prerequisites:
 ///   1. `map` has no symbols.

@@ -960,7 +960,7 @@ Status ProcessGDBRemote::ConnectToDebugserver(llvm::StringRef connect_url) {
       uint32_t retry_count = 0;
       while (!m_gdb_comm.IsConnected()) {
         if (conn_up->Connect(connect_url, &error) == eConnectionStatusSuccess) {
-          m_gdb_comm.SetConnection(conn_up.release());
+          m_gdb_comm.SetConnection(std::move(conn_up));
           break;
         } else if (error.WasInterrupted()) {
           // If we were interrupted, don't keep retrying.
@@ -3482,7 +3482,8 @@ Status ProcessGDBRemote::LaunchAndConnectToDebugserver(
       // Our process spawned correctly, we can now set our connection to use
       // our end of the socket pair
       cleanup_our.release();
-      m_gdb_comm.SetConnection(new ConnectionFileDescriptor(our_socket, true));
+      m_gdb_comm.SetConnection(
+          std::make_unique<ConnectionFileDescriptor>(our_socket, true));
 #endif
       StartAsyncThread();
     }
@@ -3790,7 +3791,7 @@ thread_result_t ProcessGDBRemote::AsyncThread(void *arg) {
               } // switch(stop_state)
             }   // else // if in All-stop-mode
           }     // if (continue_packet)
-        }       // case eBroadcastBitAysncContinue
+        }       // case eBroadcastBitAsyncContinue
         break;
 
         case eBroadcastBitAsyncThreadShouldExit:
@@ -4418,7 +4419,7 @@ bool ParseRegisters(XMLNode feature_node, GdbServerTargetInfo &target_info,
         });
 
         if (!gdb_type.empty() && !(encoding_set || format_set)) {
-          if (gdb_type.find("int") == 0) {
+          if (llvm::StringRef(gdb_type).startswith("int")) {
             reg_info.format = eFormatHex;
             reg_info.encoding = eEncodingUint;
           } else if (gdb_type == "data_ptr" || gdb_type == "code_ptr") {
@@ -4681,7 +4682,7 @@ llvm::Expected<LoadedModuleInfoList> ProcessGDBRemote::GetLoadedModuleList() {
                   // value.
                   module.set_base_is_offset(true);
                 } else if (name == "l_ld") {
-                  // the memory address of the libraries PT_DYAMIC section.
+                  // the memory address of the libraries PT_DYNAMIC section.
                   module.set_dynamic(StringConvert::ToUInt64(
                       value.data(), LLDB_INVALID_ADDRESS, 0));
                 }

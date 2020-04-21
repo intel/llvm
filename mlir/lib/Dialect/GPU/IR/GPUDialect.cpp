@@ -44,7 +44,7 @@ GPUDialect::GPUDialect(MLIRContext *context)
 LogicalResult GPUDialect::verifyOperationAttribute(Operation *op,
                                                    NamedAttribute attr) {
   if (!attr.second.isa<UnitAttr>() ||
-      !attr.first.is(getContainerModuleAttrName()))
+      attr.first != getContainerModuleAttrName())
     return success();
 
   auto module = dyn_cast<ModuleOp>(op);
@@ -90,7 +90,7 @@ LogicalResult GPUDialect::verifyOperationAttribute(Operation *op,
 
     // TODO(ntv,zinenko,herhut): if the kernel function has been converted to
     // the LLVM dialect but the caller hasn't (which happens during the
-    // separate compilation), do not check type correspondance as it would
+    // separate compilation), do not check type correspondence as it would
     // require the verifier to be aware of the LLVM type conversion.
     if (kernelLLVMFunction)
       return success();
@@ -610,8 +610,8 @@ static void printAttributions(OpAsmPrinter &p, StringRef keyword,
     return;
 
   p << ' ' << keyword << '(';
-  interleaveComma(values, p,
-                  [&p](BlockArgument v) { p << v << " : " << v.getType(); });
+  llvm::interleaveComma(
+      values, p, [&p](BlockArgument v) { p << v << " : " << v.getType(); });
   p << ')';
 }
 

@@ -43,7 +43,6 @@
 #include "llvm/IR/Argument.h"
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/BasicBlock.h"
-#include "llvm/IR/CallSite.h"
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DataLayout.h"
@@ -369,6 +368,7 @@ class TypePromotionTransaction;
     bool optimizeInst(Instruction *I, bool &ModifiedDT);
     bool optimizeMemoryInst(Instruction *MemoryInst, Value *Addr,
                             Type *AccessTy, unsigned AddrSpace);
+    bool optimizeGatherScatterInst(Instruction *MemoryInst, Value *Ptr);
     bool optimizeInlineAsmInst(CallInst *CS);
     bool optimizeCallInst(CallInst *CI, bool &ModifiedDT);
     bool optimizeExt(Instruction *&I);
@@ -494,6 +494,9 @@ bool CodeGenPrepare::runOnFunction(Function &F) {
       MadeChange |= mergeSExts(F);
     if (!LargeOffsetGEPMap.empty())
       MadeChange |= splitLargeGEPOffsets();
+
+    if (MadeChange)
+      eliminateFallThrough(F);
 
     // Really free removed instructions during promotion.
     for (Instruction *I : RemovedInsts)
@@ -1964,6 +1967,11 @@ bool CodeGenPrepare::optimizeCallInst(CallInst *CI, bool &ModifiedDT) {
   if (II) {
     switch (II->getIntrinsicID()) {
     default: break;
+    case Intrinsic::assume: {
+      II->eraseFromParent();
+      return true;
+    }
+
     case Intrinsic::experimental_widenable_condition: {
       // Give up on future widening oppurtunties so that we can fold away dead
       // paths and merge blocks before going into block-local instruction
@@ -2034,7 +2042,12 @@ bool CodeGenPrepare::optimizeCallInst(CallInst *CI, bool &ModifiedDT) {
         II->eraseFromParent();
         return true;
       }
+      break;
     }
+    case Intrinsic::masked_gather:
+      return optimizeGatherScatterInst(II, II->getArgOperand(0));
+    case Intrinsic::masked_scatter:
+      return optimizeGatherScatterInst(II, II->getArgOperand(1));
     }
 
     SmallVector<Value *, 2> PtrOps;
@@ -4534,8 +4547,7 @@ static bool IsOperandAMemoryOperand(CallInst *CI, InlineAsm *IA, Value *OpVal,
                                     const TargetRegisterInfo &TRI) {
   const Function *F = CI->getFunction();
   TargetLowering::AsmOperandInfoVector TargetConstraints =
-      TLI.ParseConstraints(F->getParent()->getDataLayout(), &TRI,
-                            ImmutableCallSite(CI));
+      TLI.ParseConstraints(F->getParent()->getDataLayout(), &TRI, *CI);
 
   for (unsigned i = 0, e = TargetConstraints.size(); i != e; ++i) {
     TargetLowering::AsmOperandInfo &OpInfo = TargetConstraints[i];
@@ -5176,6 +5188,119 @@ bool CodeGenPrepare::optimizeMemoryInst(Instruction *MemoryInst, Value *Addr,
   return true;
 }
 
+/// Rewrite GEP input to gather/scatter to enable SelectionDAGBuilder to find
+/// a uniform base to use for ISD::MGATHER/MSCATTER. SelectionDAGBuilder can
+/// only handle a 2 operand GEP in the same basic block or a splat constant
+/// vector. The 2 operands to the GEP must have a scalar pointer and a vector
+/// index.
+///
+/// If the existing GEP has a vector base pointer that is splat, we can look
+/// through the splat to find the scalar pointer. If we can't find a scalar
+/// pointer there's nothing we can do.
+///
+/// If we have a GEP with more than 2 indices where the middle indices are all
+/// zeroes, we can replace it with 2 GEPs where the second has 2 operands.
+///
+/// If the final index isn't a vector or is a splat, we can emit a scalar GEP
+/// followed by a GEP with an all zeroes vector index. This will enable
+/// SelectionDAGBuilder to use a the scalar GEP as the uniform base and have a
+/// zero index.
+bool CodeGenPrepare::optimizeGatherScatterInst(Instruction *MemoryInst,
+                                               Value *Ptr) {
+  const GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(Ptr);
+  if (!GEP || !GEP->hasIndices())
+    return false;
+
+  // If the GEP and the gather/scatter aren't in the same BB, don't optimize.
+  // FIXME: We should support this by sinking the GEP.
+  if (MemoryInst->getParent() != GEP->getParent())
+    return false;
+
+  SmallVector<Value *, 2> Ops(GEP->op_begin(), GEP->op_end());
+
+  bool RewriteGEP = false;
+
+  if (Ops[0]->getType()->isVectorTy()) {
+    Ops[0] = const_cast<Value *>(getSplatValue(Ops[0]));
+    if (!Ops[0])
+      return false;
+    RewriteGEP = true;
+  }
+
+  unsigned FinalIndex = Ops.size() - 1;
+
+  // Ensure all but the last index is 0.
+  // FIXME: This isn't strictly required. All that's required is that they are
+  // all scalars or splats.
+  for (unsigned i = 1; i < FinalIndex; ++i) {
+    auto *C = dyn_cast<Constant>(Ops[i]);
+    if (!C)
+      return false;
+    if (isa<VectorType>(C->getType()))
+      C = C->getSplatValue();
+    auto *CI = dyn_cast_or_null<ConstantInt>(C);
+    if (!CI || !CI->isZero())
+      return false;
+    // Scalarize the index if needed.
+    Ops[i] = CI;
+  }
+
+  // Try to scalarize the final index.
+  if (Ops[FinalIndex]->getType()->isVectorTy()) {
+    if (Value *V = const_cast<Value *>(getSplatValue(Ops[FinalIndex]))) {
+      auto *C = dyn_cast<ConstantInt>(V);
+      // Don't scalarize all zeros vector.
+      if (!C || !C->isZero()) {
+        Ops[FinalIndex] = V;
+        RewriteGEP = true;
+      }
+    }
+  }
+
+  // If we made any changes or the we have extra operands, we need to generate
+  // new instructions.
+  if (!RewriteGEP && Ops.size() == 2)
+    return false;
+
+  unsigned NumElts = cast<VectorType>(Ptr->getType())->getNumElements();
+
+  IRBuilder<> Builder(MemoryInst);
+
+  Type *ScalarIndexTy = DL->getIndexType(Ops[0]->getType()->getScalarType());
+
+  Value *NewAddr;
+
+  // If the final index isn't a vector, emit a scalar GEP containing all ops
+  // and a vector GEP with all zeroes final index.
+  if (!Ops[FinalIndex]->getType()->isVectorTy()) {
+    NewAddr = Builder.CreateGEP(Ops[0], makeArrayRef(Ops).drop_front());
+    Type *IndexTy = VectorType::get(ScalarIndexTy, NumElts);
+    NewAddr = Builder.CreateGEP(NewAddr, Constant::getNullValue(IndexTy));
+  } else {
+    Value *Base = Ops[0];
+    Value *Index = Ops[FinalIndex];
+
+    // Create a scalar GEP if there are more than 2 operands.
+    if (Ops.size() != 2) {
+      // Replace the last index with 0.
+      Ops[FinalIndex] = Constant::getNullValue(ScalarIndexTy);
+      Base = Builder.CreateGEP(Base, makeArrayRef(Ops).drop_front());
+    }
+
+    // Now create the GEP with scalar pointer and vector index.
+    NewAddr = Builder.CreateGEP(Base, Index);
+  }
+
+  MemoryInst->replaceUsesOfWith(Ptr, NewAddr);
+
+  // If we have no uses, recursively delete the value and all dead instructions
+  // using it.
+  if (Ptr->use_empty())
+    RecursivelyDeleteTriviallyDeadInstructions(Ptr, TLInfo);
+
+  return true;
+}
+
 /// If there are any memory operands, use OptimizeMemoryInst to sink their
 /// address computing into the block when possible / profitable.
 bool CodeGenPrepare::optimizeInlineAsmInst(CallInst *CS) {
@@ -5184,7 +5309,7 @@ bool CodeGenPrepare::optimizeInlineAsmInst(CallInst *CS) {
   const TargetRegisterInfo *TRI =
       TM->getSubtargetImpl(*CS->getFunction())->getRegisterInfo();
   TargetLowering::AsmOperandInfoVector TargetConstraints =
-      TLI->ParseConstraints(*DL, TRI, CS);
+      TLI->ParseConstraints(*DL, TRI, *CS);
   unsigned ArgNo = 0;
   for (unsigned i = 0, e = TargetConstraints.size(); i != e; ++i) {
     TargetLowering::AsmOperandInfo &OpInfo = TargetConstraints[i];
@@ -6249,7 +6374,7 @@ bool CodeGenPrepare::optimizeSelectInst(SelectInst *SI) {
 }
 
 static bool isBroadcastShuffle(ShuffleVectorInst *SVI) {
-  SmallVector<int, 16> Mask(SVI->getShuffleMask());
+  ArrayRef<int> Mask(SVI->getShuffleMask());
   int SplatElem = -1;
   for (unsigned i = 0; i < Mask.size(); ++i) {
     if (SplatElem != -1 && Mask[i] != -1 && Mask[i] != SplatElem)
@@ -6299,7 +6424,7 @@ bool CodeGenPrepare::optimizeShuffleVectorInst(ShuffleVectorInst *SVI) {
       assert(InsertPt != UserBB->end());
       InsertedShuffle =
           new ShuffleVectorInst(SVI->getOperand(0), SVI->getOperand(1),
-                                SVI->getOperand(2), "", &*InsertPt);
+                                SVI->getShuffleMask(), "", &*InsertPt);
       InsertedShuffle->setDebugLoc(SVI->getDebugLoc());
     }
 
@@ -6569,7 +6694,7 @@ class VectorPromoteHelper {
         UseSplat = true;
     }
 
-    ElementCount EC = getTransitionType()->getVectorElementCount();
+    ElementCount EC = cast<VectorType>(getTransitionType())->getElementCount();
     if (UseSplat)
       return ConstantVector::getSplat(EC, Val);
 
@@ -6832,7 +6957,7 @@ static bool splitMergedValStore(StoreInst &SI, const DataLayout &DL,
   // whereas scalable vectors would have to be shifted by
   // <2log(vscale) + number of bits> in order to store the
   // low/high parts. Bailing out for now.
-  if (StoreType->isVectorTy() && StoreType->getVectorIsScalable())
+  if (StoreType->isVectorTy() && cast<VectorType>(StoreType)->isScalable())
     return false;
 
   if (!DL.typeSizeEqualsStoreSize(StoreType) ||

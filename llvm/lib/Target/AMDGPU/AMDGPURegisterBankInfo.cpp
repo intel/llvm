@@ -444,15 +444,15 @@ static bool isScalarLoadLegal(const MachineInstr &MI) {
                        AS == AMDGPUAS::CONSTANT_ADDRESS_32BIT;
 
   // There are no extending SMRD/SMEM loads, and they require 4-byte alignment.
-  return MMO->getSize() >= 4 && MMO->getAlignment() >= 4 &&
-    // Can't do a scalar atomic load.
-    !MMO->isAtomic() &&
-    // Don't use scalar loads for volatile accesses to non-constant address
-    // spaces.
-    (IsConst || !MMO->isVolatile()) &&
-    // Memory must be known constant, or not written before this load.
-    (IsConst || MMO->isInvariant() || memOpHasNoClobbered(MMO)) &&
-    AMDGPUInstrInfo::isUniformMMO(MMO);
+  return MMO->getSize() >= 4 && MMO->getAlign() >= Align(4) &&
+         // Can't do a scalar atomic load.
+         !MMO->isAtomic() &&
+         // Don't use scalar loads for volatile accesses to non-constant address
+         // spaces.
+         (IsConst || !MMO->isVolatile()) &&
+         // Memory must be known constant, or not written before this load.
+         (IsConst || MMO->isInvariant() || memOpHasNoClobbered(MMO)) &&
+         AMDGPUInstrInfo::isUniformMMO(MMO);
 }
 
 RegisterBankInfo::InstructionMappings
@@ -1317,12 +1317,6 @@ static unsigned setBufferOffsets(MachineIRBuilder &B,
   return 0;
 }
 
-static LLT divideLLT(LLT Ty, int Factor) {
-  if (Ty.isVector())
-    return LLT::vector(Ty.getNumElements() / Factor, Ty.getElementType());
-  return LLT::scalar(Ty.getSizeInBits() / Factor);
-}
-
 bool AMDGPURegisterBankInfo::applyMappingSBufferLoad(
   const OperandsMapper &OpdMapper) const {
   MachineInstr &MI = OpdMapper.getMI();
@@ -1347,12 +1341,12 @@ bool AMDGPURegisterBankInfo::applyMappingSBufferLoad(
   int NumLoads = 1;
   if (LoadSize == 256 || LoadSize == 512) {
     NumLoads = LoadSize / 128;
-    Ty = divideLLT(Ty, NumLoads);
+    Ty = Ty.divide(NumLoads);
   }
 
   // Use the alignment to ensure that the required offsets will fit into the
   // immediate offsets.
-  const unsigned Align = NumLoads > 1 ? 16 * NumLoads : 1;
+  const unsigned Alignment = NumLoads > 1 ? 16 * NumLoads : 1;
 
   MachineIRBuilder B(MI);
   MachineFunction &MF = B.getMF();
@@ -1362,12 +1356,12 @@ bool AMDGPURegisterBankInfo::applyMappingSBufferLoad(
   int64_t ImmOffset = 0;
 
   unsigned MMOOffset = setBufferOffsets(B, *this, MI.getOperand(2).getReg(),
-                                        VOffset, SOffset, ImmOffset, Align);
+                                        VOffset, SOffset, ImmOffset, Alignment);
 
   // TODO: 96-bit loads were widened to 128-bit results. Shrink the result if we
   // can, but we neeed to track an MMO for that.
   const unsigned MemSize = (Ty.getSizeInBits() + 7) / 8;
-  const unsigned MemAlign = 4; // FIXME: ABI type alignment?
+  const Align MemAlign(4); // FIXME: ABI type alignment?
   MachineMemOperand *BaseMMO = MF.getMachineMemOperand(
     MachinePointerInfo(),
     MachineMemOperand::MOLoad | MachineMemOperand::MODereferenceable |
@@ -2074,11 +2068,16 @@ void AMDGPURegisterBankInfo::applyMappingImpl(
   }
   case AMDGPU::G_ADD:
   case AMDGPU::G_SUB:
-  case AMDGPU::G_MUL: {
+  case AMDGPU::G_MUL:
+  case AMDGPU::G_SHL:
+  case AMDGPU::G_LSHR:
+  case AMDGPU::G_ASHR: {
     Register DstReg = MI.getOperand(0).getReg();
     LLT DstTy = MRI.getType(DstReg);
-    const LLT S32 = LLT::scalar(32);
-    if (DstTy == S32)
+
+    // 16-bit operations are VALU only, but can be promoted to 32-bit SALU.
+    // Packed 16-bit operations need to be scalarized and promoted.
+    if (DstTy != LLT::scalar(16) && DstTy != LLT::vector(2, 16))
       break;
 
     const RegisterBank *DstBank =
@@ -2086,9 +2085,7 @@ void AMDGPURegisterBankInfo::applyMappingImpl(
     if (DstBank == &AMDGPU::VGPRRegBank)
       break;
 
-    // 16-bit operations are VALU only, but can be promoted to 32-bit SALU.
-    // Packed 16-bit operations need to be scalarized and promoted.
-
+    const LLT S32 = LLT::scalar(32);
     MachineFunction *MF = MI.getParent()->getParent();
     MachineIRBuilder B(MI);
     ApplyRegBankMapping ApplySALU(*this, MRI, &AMDGPU::SGPRRegBank);
@@ -2113,6 +2110,13 @@ void AMDGPURegisterBankInfo::applyMappingImpl(
 
       if (Helper.widenScalar(MI, 0, S32) != LegalizerHelper::Legalized)
         llvm_unreachable("widen scalar should have succeeded");
+
+      // FIXME: s16 shift amounts should be lgeal.
+      if (Opc == AMDGPU::G_SHL || Opc == AMDGPU::G_LSHR ||
+          Opc == AMDGPU::G_ASHR) {
+        if (Helper.widenScalar(MI, 1, S32) != LegalizerHelper::Legalized)
+          llvm_unreachable("widen scalar should have succeeded");
+      }
     }
 
     return;
@@ -2920,6 +2924,10 @@ AMDGPURegisterBankInfo::getImageMapping(const MachineRegisterInfo &MRI,
       continue;
 
     Register OpReg = MI.getOperand(I).getReg();
+    // We replace some dead address operands with $noreg
+    if (!OpReg)
+      continue;
+
     unsigned Size = getSizeInBits(OpReg, MRI, *TRI);
 
     // FIXME: Probably need a new intrinsic register bank searchable table to
@@ -3284,10 +3292,15 @@ AMDGPURegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
   case AMDGPU::G_FCANONICALIZE:
   case AMDGPU::G_INTRINSIC_TRUNC:
   case AMDGPU::G_BSWAP: // TODO: Somehow expand for scalar?
+  case AMDGPU::G_FSHR: // TODO: Expand for scalar
   case AMDGPU::G_AMDGPU_FFBH_U32:
   case AMDGPU::G_AMDGPU_FMIN_LEGACY:
   case AMDGPU::G_AMDGPU_FMAX_LEGACY:
   case AMDGPU::G_AMDGPU_RCP_IFLAG:
+  case AMDGPU::G_AMDGPU_CVT_F32_UBYTE0:
+  case AMDGPU::G_AMDGPU_CVT_F32_UBYTE1:
+  case AMDGPU::G_AMDGPU_CVT_F32_UBYTE2:
+  case AMDGPU::G_AMDGPU_CVT_F32_UBYTE3:
     return getDefaultMappingVOP(MI);
   case AMDGPU::G_UMULH:
   case AMDGPU::G_SMULH: {

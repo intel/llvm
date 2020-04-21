@@ -292,6 +292,36 @@ static void dumpRnglistsSection(
   }
 }
 
+std::unique_ptr<DWARFDebugMacro>
+DWARFContext::parseMacroOrMacinfo(MacroSecType SectionType) {
+  auto Macro = std::make_unique<DWARFDebugMacro>();
+  auto ParseAndDump = [&](DWARFDataExtractor &Data, bool IsMacro) {
+    if (Error Err = Macro->parse(getStringExtractor(), Data, IsMacro)) {
+      RecoverableErrorHandler(std::move(Err));
+      Macro = nullptr;
+    }
+  };
+  switch (SectionType) {
+  case MacinfoSection: {
+    DWARFDataExtractor Data(DObj->getMacinfoSection(), isLittleEndian(), 0);
+    ParseAndDump(Data, /*IsMacro=*/false);
+    break;
+  }
+  case MacinfoDwoSection: {
+    DWARFDataExtractor Data(DObj->getMacinfoDWOSection(), isLittleEndian(), 0);
+    ParseAndDump(Data, /*IsMacro=*/false);
+    break;
+  }
+  case MacroSection: {
+    DWARFDataExtractor Data(*DObj, DObj->getMacroSection(), isLittleEndian(),
+                            0);
+    ParseAndDump(Data, /*IsMacro=*/true);
+    break;
+  }
+  }
+  return Macro;
+}
+
 static void dumpLoclistsSection(raw_ostream &OS, DIDumpOptions DumpOpts,
                                 DWARFDataExtractor Data,
                                 const MCRegisterInfo *MRI,
@@ -444,14 +474,22 @@ void DWARFContext::dump(
                                    DObj->getEHFrameSection().Data))
     getEHFrame()->dump(OS, getRegisterInfo(), *Off);
 
+  if (shouldDump(Explicit, ".debug_macro", DIDT_ID_DebugMacro,
+                 DObj->getMacroSection().Data)) {
+    if (auto Macro = getDebugMacro())
+      Macro->dump(OS);
+  }
+
   if (shouldDump(Explicit, ".debug_macinfo", DIDT_ID_DebugMacro,
                  DObj->getMacinfoSection())) {
-    getDebugMacinfo()->dump(OS);
+    if (auto Macinfo = getDebugMacinfo())
+      Macinfo->dump(OS);
   }
 
   if (shouldDump(Explicit, ".debug_macinfo.dwo", DIDT_ID_DebugMacro,
                  DObj->getMacinfoDWOSection())) {
-    getDebugMacinfoDWO()->dump(OS);
+    if (auto MacinfoDWO = getDebugMacinfoDWO())
+      MacinfoDWO->dump(OS);
   }
 
   if (shouldDump(Explicit, ".debug_aranges", DIDT_ID_DebugAranges,
@@ -725,7 +763,7 @@ const DWARFUnitIndex &DWARFContext::getTUIndex() {
 
   DataExtractor TUIndexData(DObj->getTUIndexSection(), isLittleEndian(), 0);
 
-  TUIndex = std::make_unique<DWARFUnitIndex>(DW_SECT_TYPES);
+  TUIndex = std::make_unique<DWARFUnitIndex>(DW_SECT_EXT_TYPES);
   TUIndex->parse(TUIndexData);
   return *TUIndex;
 }
@@ -815,25 +853,22 @@ const DWARFDebugFrame *DWARFContext::getEHFrame() {
   return DebugFrame.get();
 }
 
-const DWARFDebugMacro *DWARFContext::getDebugMacinfoDWO() {
-  if (MacinfoDWO)
-    return MacinfoDWO.get();
-
-  DataExtractor MacinfoDWOData(DObj->getMacinfoDWOSection(), isLittleEndian(),
-                               0);
-  MacinfoDWO.reset(new DWARFDebugMacro());
-  MacinfoDWO->parse(MacinfoDWOData);
-  return MacinfoDWO.get();
+const DWARFDebugMacro *DWARFContext::getDebugMacro() {
+  if (!Macro)
+    Macro = parseMacroOrMacinfo(MacroSection);
+  return Macro.get();
 }
 
 const DWARFDebugMacro *DWARFContext::getDebugMacinfo() {
-  if (Macinfo)
-    return Macinfo.get();
-
-  DataExtractor MacinfoData(DObj->getMacinfoSection(), isLittleEndian(), 0);
-  Macinfo.reset(new DWARFDebugMacro());
-  Macinfo->parse(MacinfoData);
+  if (!Macinfo)
+    Macinfo = parseMacroOrMacinfo(MacinfoSection);
   return Macinfo.get();
+}
+
+const DWARFDebugMacro *DWARFContext::getDebugMacinfoDWO() {
+  if (!MacinfoDWO)
+    MacinfoDWO = parseMacroOrMacinfo(MacinfoDwoSection);
+  return MacinfoDWO.get();
 }
 
 template <typename T>
@@ -924,7 +959,7 @@ void DWARFContext::parseNormalUnits() {
   });
   NormalUnits.finishedInfoUnits();
   DObj->forEachTypesSections([&](const DWARFSection &S) {
-    NormalUnits.addUnitsForSection(*this, S, DW_SECT_TYPES);
+    NormalUnits.addUnitsForSection(*this, S, DW_SECT_EXT_TYPES);
   });
 }
 
@@ -936,7 +971,7 @@ void DWARFContext::parseDWOUnits(bool Lazy) {
   });
   DWOUnits.finishedInfoUnits();
   DObj->forEachTypesDWOSections([&](const DWARFSection &S) {
-    DWOUnits.addUnitsForDWOSection(*this, S, DW_SECT_TYPES, Lazy);
+    DWOUnits.addUnitsForDWOSection(*this, S, DW_SECT_EXT_TYPES, Lazy);
   });
 }
 
@@ -1476,6 +1511,7 @@ class DWARFObjInMemory final : public DWARFObject {
   DWARFSectionMap PubtypesSection;
   DWARFSectionMap GnuPubnamesSection;
   DWARFSectionMap GnuPubtypesSection;
+  DWARFSectionMap MacroSection;
 
   DWARFSectionMap *mapNameToDWARFSection(StringRef Name) {
     return StringSwitch<DWARFSectionMap *>(Name)
@@ -1503,6 +1539,7 @@ class DWARFObjInMemory final : public DWARFObject {
         .Case("apple_namespaces", &AppleNamespacesSection)
         .Case("apple_namespac", &AppleNamespacesSection)
         .Case("apple_objc", &AppleObjCSection)
+        .Case("debug_macro", &MacroSection)
         .Default(nullptr);
   }
 
@@ -1583,7 +1620,7 @@ public:
     }
   }
   DWARFObjInMemory(const object::ObjectFile &Obj, const LoadedObjectInfo *L,
-                   function_ref<void(Error)> HandleError)
+                   function_ref<void(Error)> HandleError, function_ref<void(Error)> HandleWarning )
       : IsLittleEndian(Obj.isLittleEndian()),
         AddressSize(Obj.getBytesInAddress()), FileName(Obj.getFileName()),
         Obj(&Obj) {
@@ -1760,7 +1797,8 @@ public:
         } else {
           SmallString<32> Type;
           Reloc.getTypeName(Type);
-          HandleError(
+          // FIXME: Support more relocations & change this to an error
+          HandleWarning(
               createError("failed to compute relocation: " + Type + ", ",
                           errorCodeToError(object_error::parse_failed)));
         }
@@ -1847,6 +1885,7 @@ public:
   const DWARFSection &getRnglistsSection() const override {
     return RnglistsSection;
   }
+  const DWARFSection &getMacroSection() const override { return MacroSection; }
   StringRef getMacinfoSection() const override { return MacinfoSection; }
   StringRef getMacinfoDWOSection() const override { return MacinfoDWOSection; }
   const DWARFSection &getPubnamesSection() const override { return PubnamesSection; }
@@ -1894,7 +1933,7 @@ DWARFContext::create(const object::ObjectFile &Obj, const LoadedObjectInfo *L,
                      std::function<void(Error)> RecoverableErrorHandler,
                      std::function<void(Error)> WarningHandler) {
   auto DObj =
-      std::make_unique<DWARFObjInMemory>(Obj, L, RecoverableErrorHandler);
+      std::make_unique<DWARFObjInMemory>(Obj, L, RecoverableErrorHandler, WarningHandler);
   return std::make_unique<DWARFContext>(std::move(DObj), std::move(DWPName),
                                         RecoverableErrorHandler,
                                         WarningHandler);
@@ -1931,14 +1970,9 @@ Error DWARFContext::loadRegisterInfo(const object::ObjectFile &Obj) {
 uint8_t DWARFContext::getCUAddrSize() {
   // In theory, different compile units may have different address byte
   // sizes, but for simplicity we just use the address byte size of the
-  // last compile unit. In practice the address size field is repeated across
+  // first compile unit. In practice the address size field is repeated across
   // various DWARF headers (at least in version 5) to make it easier to dump
   // them independently, not to enable varying the address size.
-  uint8_t Addr = 0;
-  for (const auto &CU : compile_units()) {
-    Addr = CU->getAddressByteSize();
-    break;
-  }
-  return Addr;
+  unit_iterator_range CUs = compile_units();
+  return CUs.empty() ? 0 : (*CUs.begin())->getAddressByteSize();
 }
-

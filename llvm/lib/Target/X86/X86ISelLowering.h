@@ -1179,12 +1179,12 @@ namespace llvm {
 
     /// If a physical register, this returns the register that receives the
     /// exception address on entry to an EH pad.
-    unsigned
+    Register
     getExceptionPointerRegister(const Constant *PersonalityFn) const override;
 
     /// If a physical register, this returns the register that receives the
     /// exception typeid on entry to a landing pad.
-    unsigned
+    Register
     getExceptionSelectorRegister(const Constant *PersonalityFn) const override;
 
     virtual bool needsFixedCatchObjects() const override;
@@ -1215,7 +1215,7 @@ namespace llvm {
     std::pair<SDValue, SDValue> BuildFILD(EVT DstVT, EVT SrcVT, const SDLoc &DL,
                                           SDValue Chain, SDValue Pointer,
                                           MachinePointerInfo PtrInfo,
-                                          unsigned Align,
+                                          Align Alignment,
                                           SelectionDAG &DAG) const;
 
     bool isNoopAddrSpaceCast(unsigned SrcAS, unsigned DestAS) const override;
@@ -1359,7 +1359,6 @@ namespace llvm {
     SDValue LowerFP_TO_INT(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerLRINT_LLRINT(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerSETCC(SDValue Op, SelectionDAG &DAG) const;
-    SDValue LowerSTRICT_FSETCC(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerSETCCCARRY(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerSELECT(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerBRCOND(SDValue Op, SelectionDAG &DAG) const;
@@ -1457,9 +1456,6 @@ namespace llvm {
     MachineBasicBlock *EmitLoweredSelect(MachineInstr &I,
                                          MachineBasicBlock *BB) const;
 
-    MachineBasicBlock *EmitLoweredAtomicFP(MachineInstr &I,
-                                           MachineBasicBlock *BB) const;
-
     MachineBasicBlock *EmitLoweredCatchRet(MachineInstr &MI,
                                            MachineBasicBlock *BB) const;
 
@@ -1475,8 +1471,8 @@ namespace llvm {
     MachineBasicBlock *EmitLoweredTLSCall(MachineInstr &MI,
                                           MachineBasicBlock *BB) const;
 
-    MachineBasicBlock *EmitLoweredRetpoline(MachineInstr &MI,
-                                            MachineBasicBlock *BB) const;
+    MachineBasicBlock *EmitLoweredIndirectThunk(MachineInstr &MI,
+                                                MachineBasicBlock *BB) const;
 
     MachineBasicBlock *emitEHSjLjSetJmp(MachineInstr &MI,
                                         MachineBasicBlock *MBB) const;
@@ -1489,9 +1485,6 @@ namespace llvm {
 
     MachineBasicBlock *emitLongJmpShadowStackFix(MachineInstr &MI,
                                                  MachineBasicBlock *MBB) const;
-
-    MachineBasicBlock *emitFMA3Instr(MachineInstr &MI,
-                                     MachineBasicBlock *MBB) const;
 
     MachineBasicBlock *EmitSjLjDispatchBlock(MachineInstr &MI,
                                              MachineBasicBlock *MBB) const;
@@ -1565,35 +1558,14 @@ namespace llvm {
   };
 
   /// Generate unpacklo/unpackhi shuffle mask.
-  template <typename T = int>
-  void createUnpackShuffleMask(MVT VT, SmallVectorImpl<T> &Mask, bool Lo,
-                               bool Unary) {
-    assert(Mask.empty() && "Expected an empty shuffle mask vector");
-    int NumElts = VT.getVectorNumElements();
-    int NumEltsInLane = 128 / VT.getScalarSizeInBits();
-    for (int i = 0; i < NumElts; ++i) {
-      unsigned LaneStart = (i / NumEltsInLane) * NumEltsInLane;
-      int Pos = (i % NumEltsInLane) / 2 + LaneStart;
-      Pos += (Unary ? 0 : NumElts * (i % 2));
-      Pos += (Lo ? 0 : NumEltsInLane / 2);
-      Mask.push_back(Pos);
-    }
-  }
+  void createUnpackShuffleMask(MVT VT, SmallVectorImpl<int> &Mask, bool Lo,
+                               bool Unary);
 
   /// Similar to unpacklo/unpackhi, but without the 128-bit lane limitation
   /// imposed by AVX and specific to the unary pattern. Example:
   /// v8iX Lo --> <0, 0, 1, 1, 2, 2, 3, 3>
   /// v8iX Hi --> <4, 4, 5, 5, 6, 6, 7, 7>
-  template <typename T = int>
-  void createSplat2ShuffleMask(MVT VT, SmallVectorImpl<T> &Mask, bool Lo) {
-    assert(Mask.empty() && "Expected an empty shuffle mask vector");
-    int NumElts = VT.getVectorNumElements();
-    for (int i = 0; i < NumElts; ++i) {
-      int Pos = i / 2;
-      Pos += (Lo ? 0 : NumElts / 2);
-      Mask.push_back(Pos);
-    }
-  }
+  void createSplat2ShuffleMask(MVT VT, SmallVectorImpl<int> &Mask, bool Lo);
 
 } // end namespace llvm
 

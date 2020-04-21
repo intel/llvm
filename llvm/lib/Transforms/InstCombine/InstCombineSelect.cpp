@@ -301,10 +301,11 @@ Instruction *InstCombiner::foldSelectOpOp(SelectInst &SI, Instruction *TI,
 
     // The select condition may be a vector. We may only change the operand
     // type if the vector width remains the same (and matches the condition).
-    if (CondTy->isVectorTy()) {
+    if (auto *CondVTy = dyn_cast<VectorType>(CondTy)) {
       if (!FIOpndTy->isVectorTy())
         return nullptr;
-      if (CondTy->getVectorNumElements() != FIOpndTy->getVectorNumElements())
+      if (CondVTy->getNumElements() !=
+          cast<VectorType>(FIOpndTy)->getNumElements())
         return nullptr;
 
       // TODO: If the backend knew how to deal with casts better, we could
@@ -1036,7 +1037,7 @@ canonicalizeMinMaxWithConstant(SelectInst &Sel, ICmpInst &Cmp,
 /// Canonicalize all these variants to 1 pattern.
 /// This makes CSE more likely.
 static Instruction *canonicalizeAbsNabs(SelectInst &Sel, ICmpInst &Cmp,
-                                        InstCombiner::BuilderTy &Builder) {
+                                        InstCombiner &IC) {
   if (!Cmp.hasOneUse() || !isa<Constant>(Cmp.getOperand(1)))
     return nullptr;
 
@@ -1085,12 +1086,14 @@ static Instruction *canonicalizeAbsNabs(SelectInst &Sel, ICmpInst &Cmp,
   // Create the canonical RHS: RHS = sub (0, LHS).
   if (!RHSCanonicalized) {
     assert(RHS->hasOneUse() && "RHS use number is not right");
-    RHS = Builder.CreateNeg(LHS);
+    RHS = IC.Builder.CreateNeg(LHS);
     if (TVal == LHS) {
-      Sel.setFalseValue(RHS);
+      // Replace false value.
+      IC.replaceOperand(Sel, 2, RHS);
       FVal = RHS;
     } else {
-      Sel.setTrueValue(RHS);
+      // Replace true value.
+      IC.replaceOperand(Sel, 1, RHS);
       TVal = RHS;
     }
   }
@@ -1398,7 +1401,7 @@ Instruction *InstCombiner::foldSelectInstWithICmp(SelectInst &SI,
   if (Instruction *NewSel = canonicalizeMinMaxWithConstant(SI, *ICI, *this))
     return NewSel;
 
-  if (Instruction *NewAbs = canonicalizeAbsNabs(SI, *ICI, Builder))
+  if (Instruction *NewAbs = canonicalizeAbsNabs(SI, *ICI, *this))
     return NewAbs;
 
   if (Instruction *NewAbs = canonicalizeClampLike(SI, *ICI, Builder))
@@ -1933,10 +1936,9 @@ static Instruction *canonicalizeSelectToShuffle(SelectInst &SI) {
   if (!CondVal->getType()->isVectorTy() || !match(CondVal, m_Constant(CondC)))
     return nullptr;
 
-  unsigned NumElts = CondVal->getType()->getVectorNumElements();
-  SmallVector<Constant *, 16> Mask;
+  unsigned NumElts = cast<VectorType>(CondVal->getType())->getNumElements();
+  SmallVector<int, 16> Mask;
   Mask.reserve(NumElts);
-  Type *Int32Ty = Type::getInt32Ty(CondVal->getContext());
   for (unsigned i = 0; i != NumElts; ++i) {
     Constant *Elt = CondC->getAggregateElement(i);
     if (!Elt)
@@ -1944,10 +1946,10 @@ static Instruction *canonicalizeSelectToShuffle(SelectInst &SI) {
 
     if (Elt->isOneValue()) {
       // If the select condition element is true, choose from the 1st vector.
-      Mask.push_back(ConstantInt::get(Int32Ty, i));
+      Mask.push_back(i);
     } else if (Elt->isNullValue()) {
       // If the select condition element is false, choose from the 2nd vector.
-      Mask.push_back(ConstantInt::get(Int32Ty, i + NumElts));
+      Mask.push_back(i + NumElts);
     } else if (isa<UndefValue>(Elt)) {
       // Undef in a select condition (choose one of the operands) does not mean
       // the same thing as undef in a shuffle mask (any value is acceptable), so
@@ -1959,8 +1961,7 @@ static Instruction *canonicalizeSelectToShuffle(SelectInst &SI) {
     }
   }
 
-  return new ShuffleVectorInst(SI.getTrueValue(), SI.getFalseValue(),
-                               ConstantVector::get(Mask));
+  return new ShuffleVectorInst(SI.getTrueValue(), SI.getFalseValue(), Mask);
 }
 
 /// If we have a select of vectors with a scalar condition, try to convert that
@@ -1969,8 +1970,8 @@ static Instruction *canonicalizeSelectToShuffle(SelectInst &SI) {
 /// is likely better for vector codegen.
 static Instruction *canonicalizeScalarSelectOfVecs(
     SelectInst &Sel, InstCombiner &IC) {
-  Type *Ty = Sel.getType();
-  if (!Ty->isVectorTy())
+  auto *Ty = dyn_cast<VectorType>(Sel.getType());
+  if (!Ty)
     return nullptr;
 
   // We can replace a single-use extract with constant index.
@@ -1981,7 +1982,7 @@ static Instruction *canonicalizeScalarSelectOfVecs(
   // select (extelt V, Index), T, F --> select (splat V, Index), T, F
   // Splatting the extracted condition reduces code (we could directly create a
   // splat shuffle of the source vector to eliminate the intermediate step).
-  unsigned NumElts = Ty->getVectorNumElements();
+  unsigned NumElts = Ty->getNumElements();
   return IC.replaceOperand(Sel, 0, IC.Builder.CreateVectorSplat(NumElts, Cond));
 }
 
@@ -2055,7 +2056,7 @@ static Instruction *foldSelectCmpBitcasts(SelectInst &Sel,
 ///   %1 = extractvalue { i64, i1 } %0, 0
 ///   ret i64 %1
 ///
-static Instruction *foldSelectCmpXchg(SelectInst &SI) {
+static Value *foldSelectCmpXchg(SelectInst &SI) {
   // A helper that determines if V is an extractvalue instruction whose
   // aggregate operand is a cmpxchg instruction and whose single index is equal
   // to I. If such conditions are true, the helper returns the cmpxchg
@@ -2087,19 +2088,15 @@ static Instruction *foldSelectCmpXchg(SelectInst &SI) {
   // value of the same cmpxchg used by the condition, and the false value is the
   // cmpxchg instruction's compare operand.
   if (auto *X = isExtractFromCmpXchg(SI.getTrueValue(), 0))
-    if (X == CmpXchg && X->getCompareOperand() == SI.getFalseValue()) {
-      SI.setTrueValue(SI.getFalseValue());
-      return &SI;
-    }
+    if (X == CmpXchg && X->getCompareOperand() == SI.getFalseValue())
+      return SI.getFalseValue();
 
   // Check the false value case: The false value of the select is the returned
   // value of the same cmpxchg used by the condition, and the true value is the
   // cmpxchg instruction's compare operand.
   if (auto *X = isExtractFromCmpXchg(SI.getFalseValue(), 0))
-    if (X == CmpXchg && X->getCompareOperand() == SI.getTrueValue()) {
-      SI.setTrueValue(SI.getFalseValue());
-      return &SI;
-    }
+    if (X == CmpXchg && X->getCompareOperand() == SI.getTrueValue())
+      return SI.getFalseValue();
 
   return nullptr;
 }
@@ -2698,8 +2695,8 @@ Instruction *InstCombiner::visitSelectInst(SelectInst &SI) {
       // paths for the values (this helps GetUnderlyingObjects() for example).
       if (TrueSI->getFalseValue() == FalseVal && TrueSI->hasOneUse()) {
         Value *And = Builder.CreateAnd(CondVal, TrueSI->getCondition());
-        SI.setOperand(0, And);
-        SI.setOperand(1, TrueSI->getTrueValue());
+        replaceOperand(SI, 0, And);
+        replaceOperand(SI, 1, TrueSI->getTrueValue());
         return &SI;
       }
     }
@@ -2715,8 +2712,8 @@ Instruction *InstCombiner::visitSelectInst(SelectInst &SI) {
       // select(C0, a, select(C1, a, b)) -> select(C0|C1, a, b)
       if (FalseSI->getTrueValue() == TrueVal && FalseSI->hasOneUse()) {
         Value *Or = Builder.CreateOr(CondVal, FalseSI->getCondition());
-        SI.setOperand(0, Or);
-        SI.setOperand(2, FalseSI->getFalseValue());
+        replaceOperand(SI, 0, Or);
+        replaceOperand(SI, 2, FalseSI->getFalseValue());
         return &SI;
       }
     }
@@ -2743,14 +2740,14 @@ Instruction *InstCombiner::visitSelectInst(SelectInst &SI) {
       canMergeSelectThroughBinop(TrueBO)) {
     if (auto *TrueBOSI = dyn_cast<SelectInst>(TrueBO->getOperand(0))) {
       if (TrueBOSI->getCondition() == CondVal) {
-        TrueBO->setOperand(0, TrueBOSI->getTrueValue());
+        replaceOperand(*TrueBO, 0, TrueBOSI->getTrueValue());
         Worklist.push(TrueBO);
         return &SI;
       }
     }
     if (auto *TrueBOSI = dyn_cast<SelectInst>(TrueBO->getOperand(1))) {
       if (TrueBOSI->getCondition() == CondVal) {
-        TrueBO->setOperand(1, TrueBOSI->getTrueValue());
+        replaceOperand(*TrueBO, 1, TrueBOSI->getTrueValue());
         Worklist.push(TrueBO);
         return &SI;
       }
@@ -2763,14 +2760,14 @@ Instruction *InstCombiner::visitSelectInst(SelectInst &SI) {
       canMergeSelectThroughBinop(FalseBO)) {
     if (auto *FalseBOSI = dyn_cast<SelectInst>(FalseBO->getOperand(0))) {
       if (FalseBOSI->getCondition() == CondVal) {
-        FalseBO->setOperand(0, FalseBOSI->getFalseValue());
+        replaceOperand(*FalseBO, 0, FalseBOSI->getFalseValue());
         Worklist.push(FalseBO);
         return &SI;
       }
     }
     if (auto *FalseBOSI = dyn_cast<SelectInst>(FalseBO->getOperand(1))) {
       if (FalseBOSI->getCondition() == CondVal) {
-        FalseBO->setOperand(1, FalseBOSI->getFalseValue());
+        replaceOperand(*FalseBO, 1, FalseBOSI->getFalseValue());
         Worklist.push(FalseBO);
         return &SI;
       }
@@ -2814,8 +2811,8 @@ Instruction *InstCombiner::visitSelectInst(SelectInst &SI) {
     return BitCastSel;
 
   // Simplify selects that test the returned flag of cmpxchg instructions.
-  if (Instruction *Select = foldSelectCmpXchg(SI))
-    return Select;
+  if (Value *V = foldSelectCmpXchg(SI))
+    return replaceInstUsesWith(SI, V);
 
   if (Instruction *Select = foldSelectBinOpIdentity(SI, TLI, *this))
     return Select;

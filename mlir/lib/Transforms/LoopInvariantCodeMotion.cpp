@@ -10,13 +10,13 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "PassDetail.h"
 #include "mlir/Transforms/Passes.h"
 
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Function.h"
 #include "mlir/Interfaces/LoopLikeInterface.h"
 #include "mlir/Interfaces/SideEffects.h"
-#include "mlir/Pass/Pass.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
@@ -27,8 +27,8 @@ using namespace mlir;
 
 namespace {
 /// Loop invariant code motion (LICM) pass.
-struct LoopInvariantCodeMotion : public OperationPass<LoopInvariantCodeMotion> {
-public:
+struct LoopInvariantCodeMotion
+    : public LoopInvariantCodeMotionBase<LoopInvariantCodeMotion> {
   void runOnOperation() override;
 };
 } // end anonymous namespace
@@ -121,7 +121,3 @@ void LoopInvariantCodeMotion::runOnOperation() {
 std::unique_ptr<Pass> mlir::createLoopInvariantCodeMotionPass() {
   return std::make_unique<LoopInvariantCodeMotion>();
 }
-
-static PassRegistration<LoopInvariantCodeMotion>
-    pass("loop-invariant-code-motion",
-         "Hoist loop invariant instructions outside of the loop");

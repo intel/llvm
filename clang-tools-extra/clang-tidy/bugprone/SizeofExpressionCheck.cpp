@@ -60,12 +60,12 @@ CharUnits getSizeOfType(const ASTContext &Ctx, const Type *Ty) {
 SizeofExpressionCheck::SizeofExpressionCheck(StringRef Name,
                                              ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context),
-      WarnOnSizeOfConstant(Options.get("WarnOnSizeOfConstant", 1) != 0),
+      WarnOnSizeOfConstant(Options.get("WarnOnSizeOfConstant", true)),
       WarnOnSizeOfIntegerExpression(
-          Options.get("WarnOnSizeOfIntegerExpression", 0) != 0),
-      WarnOnSizeOfThis(Options.get("WarnOnSizeOfThis", 1) != 0),
+          Options.get("WarnOnSizeOfIntegerExpression", false)),
+      WarnOnSizeOfThis(Options.get("WarnOnSizeOfThis", true)),
       WarnOnSizeOfCompareToConstant(
-          Options.get("WarnOnSizeOfCompareToConstant", 1) != 0) {}
+          Options.get("WarnOnSizeOfCompareToConstant", true)) {}
 
 void SizeofExpressionCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
   Options.store(Opts, "WarnOnSizeOfConstant", WarnOnSizeOfConstant);
@@ -220,7 +220,7 @@ void SizeofExpressionCheck::registerMatchers(MatchFinder *Finder) {
           .bind("sizeof-sizeof-expr"),
       this);
 
-  // Detect sizeof in pointer aritmetic like: N * sizeof(S) == P1 - P2 or
+  // Detect sizeof in pointer arithmetic like: N * sizeof(S) == P1 - P2 or
   // (P1 - P2) / sizeof(S) where P1 and P2 are pointers to type S.
   const auto PtrDiffExpr = binaryOperator(
       hasOperatorName("-"),

@@ -594,8 +594,7 @@ define i32 @test_urem(i32 %arg1, i32 %arg2) {
 }
 
 ; CHECK-LABEL: name: test_constant_null
-; CHECK: [[ZERO:%[0-9]+]]:_(s64) = G_CONSTANT i64 0
-; CHECK: [[NULL:%[0-9]+]]:_(p0) = G_INTTOPTR [[ZERO]]
+; CHECK: [[NULL:%[0-9]+]]:_(p0) = G_CONSTANT i64 0
 ; CHECK: $x0 = COPY [[NULL]]
 define i8* @test_constant_null() {
   ret i8* null
@@ -1393,6 +1392,30 @@ define i32 @test_bitreverse_intrinsic(i32 %a) {
 ; CHECK: [[RES:%[0-9]+]]:_(s32) = G_BITREVERSE [[A]]
 ; CHECK: $w0 = COPY [[RES]]
   %res = call i32 @llvm.bitreverse.i32(i32 %a)
+  ret i32 %res
+}
+
+declare i32 @llvm.fshl.i32(i32, i32, i32)
+define i32 @test_fshl_intrinsic(i32 %a, i32 %b, i32 %c) {
+; CHECK-LABEL: name: test_fshl_intrinsic
+; CHECK: [[A:%[0-9]+]]:_(s32) = COPY $w0
+; CHECK: [[B:%[0-9]+]]:_(s32) = COPY $w1
+; CHECK: [[C:%[0-9]+]]:_(s32) = COPY $w2
+; CHECK: [[RES:%[0-9]+]]:_(s32) = G_FSHL [[A]], [[B]], [[C]]
+; CHECK: $w0 = COPY [[RES]]
+  %res = call i32 @llvm.fshl.i32(i32 %a, i32 %b, i32 %c)
+  ret i32 %res
+}
+
+declare i32 @llvm.fshr.i32(i32, i32, i32)
+define i32 @test_fshr_intrinsic(i32 %a, i32 %b, i32 %c) {
+; CHECK-LABEL: name: test_fshr_intrinsic
+; CHECK: [[A:%[0-9]+]]:_(s32) = COPY $w0
+; CHECK: [[B:%[0-9]+]]:_(s32) = COPY $w1
+; CHECK: [[C:%[0-9]+]]:_(s32) = COPY $w2
+; CHECK: [[RES:%[0-9]+]]:_(s32) = G_FSHR [[A]], [[B]], [[C]]
+; CHECK: $w0 = COPY [[RES]]
+  %res = call i32 @llvm.fshr.i32(i32 %a, i32 %b, i32 %c)
   ret i32 %res
 }
 
@@ -2335,6 +2358,34 @@ define i64 @test_readcyclecounter() {
   ; CHECK-NEXT: RET_ReallyLR implicit $x0
   %res = call i64 @llvm.readcyclecounter()
   ret i64 %res
+}
+
+define i64 @test_freeze(i64 %a) {
+  ; CHECK-LABEL: name:            test_freeze
+  ; CHECK: [[COPY:%[0-9]+]]:_(s64) = COPY $x0
+  ; CHECK-NEXT: [[RES:%[0-9]+]]:_(s64) = G_FREEZE [[COPY]]
+  ; CHECK-NEXT: $x0 = COPY [[RES]]
+  ; CHECK-NEXT: RET_ReallyLR implicit $x0
+  %res = freeze i64 %a
+  ret i64 %res
+}
+
+define {i8, i32} @test_freeze_struct({ i8, i32 }* %addr) {
+  ; CHECK-LABEL: name:            test_freeze_struct
+  ; CHECK: [[COPY:%[0-9]+]]:_(p0) = COPY $x0
+  ; CHECK-NEXT: [[LOAD:%[0-9]+]]:_(s8) = G_LOAD [[COPY]](p0)
+  ; CHECK-NEXT: [[C:%[0-9]+]]:_(s64) = G_CONSTANT i64 4
+  ; CHECK-NEXT: [[PTR_ADD:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C]]
+  ; CHECK-NEXT: [[LOAD1:%[0-9]+]]:_(s32) = G_LOAD [[PTR_ADD]](p0)
+  ; CHECK-NEXT: [[FREEZE:%[0-9]+]]:_(s8) = G_FREEZE [[LOAD]]
+  ; CHECK-NEXT: [[FREEZE1:%[0-9]+]]:_(s32) = G_FREEZE [[LOAD1]]
+  ; CHECK-NEXT: [[ANYEXT:%[0-9]+]]:_(s32) = G_ANYEXT [[FREEZE]]
+  ; CHECK-NEXT: $w0 = COPY [[ANYEXT]]
+  ; CHECK-NEXT: $w1 = COPY [[FREEZE1]]
+  ; CHECK-NEXT: RET_ReallyLR implicit $w0, implicit $w1
+  %load = load { i8, i32 }, { i8, i32 }* %addr
+  %res = freeze {i8, i32} %load
+  ret {i8, i32} %res
 }
 
 !0 = !{ i64 0, i64 2 }

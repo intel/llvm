@@ -3,8 +3,13 @@ add_mlir_conversion_library(MLIRLinalgToLLVM
 
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Conversion/LinalgToLLVM
+
+  DEPENDS
+  MLIRConversionPassIncGen
 )
-set(LIBS
+
+target_link_libraries(MLIRLinalgToLLVM
+  PUBLIC
   MLIRAffineToStandard
   MLIREDSC
   MLIRIR
@@ -17,8 +22,3 @@ set(LIBS
   LLVMCore
   LLVMSupport
   )
-
-add_dependencies(MLIRLinalgToLLVM ${LIBS})
-target_link_libraries(MLIRLinalgToLLVM
-  PUBLIC
-  ${LIBS})

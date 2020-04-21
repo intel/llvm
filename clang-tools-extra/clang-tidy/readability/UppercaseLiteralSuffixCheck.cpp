@@ -183,7 +183,7 @@ UppercaseLiteralSuffixCheck::UppercaseLiteralSuffixCheck(
     : ClangTidyCheck(Name, Context),
       NewSuffixes(
           utils::options::parseStringList(Options.get("NewSuffixes", ""))),
-      IgnoreMacros(Options.getLocalOrGlobal("IgnoreMacros", 1) != 0) {}
+      IgnoreMacros(Options.getLocalOrGlobal("IgnoreMacros", true)) {}
 
 void UppercaseLiteralSuffixCheck::storeOptions(
     ClangTidyOptions::OptionMap &Opts) {
@@ -193,7 +193,7 @@ void UppercaseLiteralSuffixCheck::storeOptions(
 }
 
 void UppercaseLiteralSuffixCheck::registerMatchers(MatchFinder *Finder) {
-  // Sadly, we can't check whether the literal has sufix or not.
+  // Sadly, we can't check whether the literal has suffix or not.
   // E.g. i32 suffix still results in 'BuiltinType::Kind::Int'.
   // And such an info is not stored in the *Literal itself.
   Finder->addMatcher(

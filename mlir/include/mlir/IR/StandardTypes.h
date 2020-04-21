@@ -128,7 +128,7 @@ public:
   /// Return the signedness semantics of this integer type.
   SignednessSemantics getSignedness() const;
 
-  /// Return true if this is a singless integer type.
+  /// Return true if this is a signless integer type.
   bool isSignless() const { return getSignedness() == Signless; }
   /// Return true if this is a signed integer type.
   bool isSigned() const { return getSignedness() == Signed; }
@@ -252,7 +252,11 @@ public:
 
   /// If this is ranked type, return the size of the specified dimension.
   /// Otherwise, abort.
-  int64_t getDimSize(int64_t i) const;
+  int64_t getDimSize(unsigned idx) const;
+
+  /// Returns true if this dimension has a dynamic size (for ranked types);
+  /// aborts for unranked types.
+  bool isDynamicDim(unsigned idx) const;
 
   /// Returns the position of the dynamic dimension relative to just the dynamic
   /// dimensions, given its `index` within the shape.
@@ -276,7 +280,9 @@ public:
   }
 
   /// Whether the given dimension size indicates a dynamic dimension.
-  static constexpr bool isDynamic(int64_t dSize) { return dSize < 0; }
+  static constexpr bool isDynamic(int64_t dSize) {
+    return dSize == kDynamicSize;
+  }
   static constexpr bool isDynamicStrideOrOffset(int64_t dStrideOrOffset) {
     return dStrideOrOffset == kDynamicStrideOrOffset;
   }
@@ -330,7 +336,7 @@ public:
     // element type within that dialect.
     return type.isa<ComplexType>() || type.isa<FloatType>() ||
            type.isa<IntegerType>() || type.isa<OpaqueType>() ||
-           type.isa<VectorType>() ||
+           type.isa<VectorType>() || type.isa<IndexType>() ||
            (type.getKind() > Type::Kind::LAST_STANDARD_TYPE);
   }
 

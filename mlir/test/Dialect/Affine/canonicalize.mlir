@@ -1,4 +1,4 @@
-// RUN: mlir-opt %s -split-input-file -pass-pipeline='func(canonicalize)' | FileCheck %s
+// RUN: mlir-opt -allow-unregistered-dialect %s -split-input-file -pass-pipeline='func(canonicalize)' | FileCheck %s
 
 // Affine maps for test case: compose_affine_maps_1dto2d_no_symbols
 // CHECK-DAG: [[MAP0:#map[0-9]+]] = affine_map<(d0) -> (d0 - 1)>
@@ -593,4 +593,16 @@ func @rep(%arg0 : index, %arg1 : index) -> index {
   // CHECK: affine.min #[[MAP]]()[%[[ARG1]], %[[ARG0]]]
   %1 = affine.min #map2(%0)[%arg1]
   return %1 : index
+}
+
+// -----
+// CHECK-DAG: #[[lb:.*]] = affine_map<()[s0] -> (s0)>
+// CHECK-DAG: #[[ub:.*]] = affine_map<()[s0] -> (s0 + 2)>
+
+func @drop_duplicate_bounds(%N : index) {
+  // affine.for %i = max #lb(%arg0) to min #ub(%arg0)
+  affine.for %i = max affine_map<(d0) -> (d0, d0)>(%N) to min affine_map<(d0) -> (d0 + 2, d0 + 2)>(%N) {
+    "foo"() : () -> ()
+  }
+  return
 }

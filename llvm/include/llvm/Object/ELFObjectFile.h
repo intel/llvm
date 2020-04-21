@@ -28,8 +28,8 @@
 #include "llvm/Object/ObjectFile.h"
 #include "llvm/Object/SymbolicFile.h"
 #include "llvm/Support/ARMAttributeParser.h"
-#include "llvm/Support/ARMBuildAttributes.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/ELFAttributes.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -64,7 +64,7 @@ protected:
   virtual uint64_t getSectionOffset(DataRefImpl Sec) const = 0;
 
   virtual Expected<int64_t> getRelocationAddend(DataRefImpl Rel) const = 0;
-  virtual Error getBuildAttributes(ARMAttributeParser &Attributes) const = 0;
+  virtual Error getBuildAttributes(ELFAttributeParser &Attributes) const = 0;
 
 public:
   using elf_symbol_iterator_range = iterator_range<elf_symbol_iterator>;
@@ -285,6 +285,7 @@ protected:
   bool isSectionVirtual(DataRefImpl Sec) const override;
   bool isBerkeleyText(DataRefImpl Sec) const override;
   bool isBerkeleyData(DataRefImpl Sec) const override;
+  bool isDebugSection(StringRef SectionName) const override;
   relocation_iterator section_rel_begin(DataRefImpl Sec) const override;
   relocation_iterator section_rel_end(DataRefImpl Sec) const override;
   std::vector<SectionRef> dynamic_relocation_sections() const override;
@@ -365,19 +366,20 @@ protected:
         (Visibility == ELF::STV_DEFAULT || Visibility == ELF::STV_PROTECTED));
   }
 
-  Error getBuildAttributes(ARMAttributeParser &Attributes) const override {
+  Error getBuildAttributes(ELFAttributeParser &Attributes) const override {
     auto SectionsOrErr = EF.sections();
     if (!SectionsOrErr)
       return SectionsOrErr.takeError();
 
     for (const Elf_Shdr &Sec : *SectionsOrErr) {
-      if (Sec.sh_type == ELF::SHT_ARM_ATTRIBUTES) {
+      if (Sec.sh_type == ELF::SHT_ARM_ATTRIBUTES ||
+          Sec.sh_type == ELF::SHT_RISCV_ATTRIBUTES) {
         auto ErrorOrContents = EF.getSectionContents(&Sec);
         if (!ErrorOrContents)
           return ErrorOrContents.takeError();
 
         auto Contents = ErrorOrContents.get();
-        if (Contents[0] != ARMBuildAttrs::Format_Version || Contents.size() == 1)
+        if (Contents[0] != ELFAttrs::Format_Version || Contents.size() == 1)
           return Error::success();
 
         if (Error E = Attributes.parse(Contents, ELFT::TargetEndianness))
@@ -813,6 +815,12 @@ bool ELFObjectFile<ELFT>::isBerkeleyData(DataRefImpl Sec) const {
 }
 
 template <class ELFT>
+bool ELFObjectFile<ELFT>::isDebugSection(StringRef SectionName) const {
+  return SectionName.startswith(".debug") ||
+         SectionName.startswith(".zdebug") || SectionName == ".gdb_index";
+}
+
+template <class ELFT>
 relocation_iterator
 ELFObjectFile<ELFT>::section_rel_begin(DataRefImpl Sec) const {
   DataRefImpl RelData;
@@ -1019,8 +1027,12 @@ basic_symbol_iterator ELFObjectFile<ELFT>::symbol_end() const {
 
 template <class ELFT>
 elf_symbol_iterator ELFObjectFile<ELFT>::dynamic_symbol_begin() const {
-  DataRefImpl Sym = toDRI(DotDynSymSec, 0);
-  return symbol_iterator(SymbolRef(Sym, this));
+  if (!DotDynSymSec || DotDynSymSec->sh_size < sizeof(Elf_Sym))
+    // Ignore errors here where the dynsym is empty or sh_size less than the
+    // size of one symbol. These should be handled elsewhere.
+    return symbol_iterator(SymbolRef(toDRI(DotDynSymSec, 0), this));
+  // Skip 0-index NULL symbol.
+  return symbol_iterator(SymbolRef(toDRI(DotDynSymSec, 1), this));
 }
 
 template <class ELFT>

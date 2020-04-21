@@ -198,17 +198,16 @@ void SPIRVToOCL::visitCallSPRIVImageQuerySize(CallInst *CI) {
     if (CI->getType()->getScalarType() != Int32Ty) {
       GetImageSize = CastInst::CreateIntegerCast(
           GetImageSize,
-          VectorType::get(CI->getType()->getScalarType(),
-                          GetImageSize->getType()->getVectorNumElements()),
+          VectorType::get(
+              CI->getType()->getScalarType(),
+              cast<VectorType>(GetImageSize->getType())->getNumElements()),
           false, CI->getName(), CI);
     }
   }
 
   if (ImgArray || ImgDim == 3) {
-    assert(
-        CI->getType()->isVectorTy() &&
-        "OpImageQuerySize[Lod] must return vector for arrayed and 3d images");
-    const unsigned ImgQuerySizeRetEls = CI->getType()->getVectorNumElements();
+    auto *VecTy = cast<VectorType>(CI->getType());
+    const unsigned ImgQuerySizeRetEls = VecTy->getNumElements();
 
     if (ImgDim == 1) {
       // get_image_width returns scalar result while OpImageQuerySize
@@ -216,8 +215,8 @@ void SPIRVToOCL::visitCallSPRIVImageQuerySize(CallInst *CI) {
       assert(ImgQuerySizeRetEls == 2 &&
              "OpImageQuerySize[Lod] must return <2 x iN> vector type");
       GetImageSize = InsertElementInst::Create(
-          UndefValue::get(CI->getType()), GetImageSize,
-          ConstantInt::get(Int32Ty, 0), CI->getName(), CI);
+          UndefValue::get(VecTy), GetImageSize, ConstantInt::get(Int32Ty, 0),
+          CI->getName(), CI);
     } else {
       // get_image_dim and OpImageQuerySize returns different vector
       // types for arrayed and 3d images.
@@ -235,6 +234,7 @@ void SPIRVToOCL::visitCallSPRIVImageQuerySize(CallInst *CI) {
   if (ImgArray) {
     assert((ImgDim == 1 || ImgDim == 2) && "invalid image array type");
     // Insert get_image_array_size to the last position of the resulting vector.
+    auto *VecTy = cast<VectorType>(CI->getType());
     Type *SizeTy =
         Type::getIntNTy(*Ctx, M->getDataLayout().getPointerSizeInBits(0));
     Instruction *GetImageArraySize = addCallInst(
@@ -242,15 +242,14 @@ void SPIRVToOCL::visitCallSPRIVImageQuerySize(CallInst *CI) {
         &Attributes, CI, &Mangle, CI->getName(), false);
     // The width of integer type returning by OpImageQuerySize[Lod] may
     // differ from size_t which is returned by get_image_array_size
-    if (GetImageArraySize->getType() != CI->getType()->getScalarType()) {
+    if (GetImageArraySize->getType() != VecTy->getElementType()) {
       GetImageArraySize = CastInst::CreateIntegerCast(
-          GetImageArraySize, CI->getType()->getScalarType(), false,
-          CI->getName(), CI);
+          GetImageArraySize, VecTy->getElementType(), false, CI->getName(), CI);
     }
     GetImageSize = InsertElementInst::Create(
         GetImageSize, GetImageArraySize,
-        ConstantInt::get(Int32Ty, CI->getType()->getVectorNumElements() - 1),
-        CI->getName(), CI);
+        ConstantInt::get(Int32Ty, VecTy->getNumElements() - 1), CI->getName(),
+        CI);
   }
 
   assert(GetImageSize && "must not be null");
@@ -346,8 +345,8 @@ void SPIRVToOCL::visitCallSPIRVImageMediaBlockBuiltin(CallInst *CI, Op OC) {
         else
           assert(0 && "Unsupported texel type!");
 
-        if (RetType->isVectorTy()) {
-          unsigned int NumEl = RetType->getVectorNumElements();
+        if (auto *VecTy = dyn_cast<VectorType>(RetType)) {
+          unsigned int NumEl = VecTy->getNumElements();
           assert((NumEl == 2 || NumEl == 4 || NumEl == 8 || NumEl == 16) &&
                  "Wrong function type!");
           FuncPostfix += std::to_string(NumEl);

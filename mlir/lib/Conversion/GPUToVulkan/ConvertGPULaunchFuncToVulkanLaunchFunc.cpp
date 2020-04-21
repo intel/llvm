@@ -13,6 +13,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "../PassDetail.h"
 #include "mlir/Conversion/GPUToVulkan/ConvertGPUToVulkanPass.h"
 #include "mlir/Dialect/GPU/GPUDialect.h"
 #include "mlir/Dialect/SPIRV/SPIRVOps.h"
@@ -23,7 +24,6 @@
 #include "mlir/IR/Function.h"
 #include "mlir/IR/Module.h"
 #include "mlir/IR/StandardTypes.h"
-#include "mlir/Pass/Pass.h"
 
 using namespace mlir;
 
@@ -38,9 +38,10 @@ namespace {
 /// function and attaching binary data and entry point name as an attributes to
 /// created vulkan launch call op.
 class ConvertGpuLaunchFuncToVulkanLaunchFunc
-    : public ModulePass<ConvertGpuLaunchFuncToVulkanLaunchFunc> {
+    : public ConvertGpuLaunchFuncToVulkanLaunchFuncBase<
+          ConvertGpuLaunchFuncToVulkanLaunchFunc> {
 public:
-  void runOnModule() override;
+  void runOnOperation() override;
 
 private:
   /// Creates a SPIR-V binary shader from the given `module` using
@@ -48,14 +49,15 @@ private:
   LogicalResult createBinaryShader(ModuleOp module,
                                    std::vector<char> &binaryShader);
 
-  /// Converts the given `luanchOp` to vulkan launch call.
+  /// Converts the given `launchOp` to vulkan launch call.
   void convertGpuLaunchFunc(gpu::LaunchFuncOp launchOp);
 
   /// Checks where the given type is supported by Vulkan runtime.
   bool isSupportedType(Type type) {
     // TODO(denis0x0D): Handle other types.
     if (auto memRefType = type.dyn_cast_or_null<MemRefType>())
-      return memRefType.hasRank() && memRefType.getRank() == 1;
+      return memRefType.hasRank() &&
+             (memRefType.getRank() >= 1 && memRefType.getRank() <= 3);
     return false;
   }
 
@@ -63,14 +65,13 @@ private:
   /// operand is unsupported by Vulkan runtime.
   LogicalResult declareVulkanLaunchFunc(Location loc,
                                         gpu::LaunchFuncOp launchOp);
-
 };
 
 } // anonymous namespace
 
-void ConvertGpuLaunchFuncToVulkanLaunchFunc::runOnModule() {
+void ConvertGpuLaunchFuncToVulkanLaunchFunc::runOnOperation() {
   bool done = false;
-  getModule().walk([this, &done](gpu::LaunchFuncOp op) {
+  getOperation().walk([this, &done](gpu::LaunchFuncOp op) {
     if (done) {
       op.emitError("should only contain one 'gpu::LaunchFuncOp' op");
       return signalPassFailure();
@@ -81,24 +82,25 @@ void ConvertGpuLaunchFuncToVulkanLaunchFunc::runOnModule() {
 
   // Erase `gpu::GPUModuleOp` and `spirv::Module` operations.
   for (auto gpuModule :
-       llvm::make_early_inc_range(getModule().getOps<gpu::GPUModuleOp>()))
+       llvm::make_early_inc_range(getOperation().getOps<gpu::GPUModuleOp>()))
     gpuModule.erase();
 
   for (auto spirvModule :
-       llvm::make_early_inc_range(getModule().getOps<spirv::ModuleOp>()))
+       llvm::make_early_inc_range(getOperation().getOps<spirv::ModuleOp>()))
     spirvModule.erase();
 }
 
 LogicalResult ConvertGpuLaunchFuncToVulkanLaunchFunc::declareVulkanLaunchFunc(
     Location loc, gpu::LaunchFuncOp launchOp) {
-  OpBuilder builder(getModule().getBody()->getTerminator());
+  OpBuilder builder(getOperation().getBody()->getTerminator());
   // TODO: Workgroup size is written into the kernel. So to properly modelling
   // vulkan launch, we cannot have the local workgroup size configuration here.
   SmallVector<Type, 8> vulkanLaunchTypes{launchOp.getOperandTypes()};
 
   // Check that all operands have supported types except those for the launch
   // configuration.
-  for (auto type : llvm::drop_begin(vulkanLaunchTypes, 6)) {
+  for (auto type :
+       llvm::drop_begin(vulkanLaunchTypes, gpu::LaunchOp::kNumConfigOperands)) {
     if (!isSupportedType(type))
       return launchOp.emitError() << type << " is unsupported to run on Vulkan";
   }
@@ -132,7 +134,7 @@ LogicalResult ConvertGpuLaunchFuncToVulkanLaunchFunc::createBinaryShader(
 
 void ConvertGpuLaunchFuncToVulkanLaunchFunc::convertGpuLaunchFunc(
     gpu::LaunchFuncOp launchOp) {
-  ModuleOp module = getModule();
+  ModuleOp module = getOperation();
   OpBuilder builder(launchOp);
   Location loc = launchOp.getLoc();
 
@@ -163,11 +165,7 @@ void ConvertGpuLaunchFuncToVulkanLaunchFunc::convertGpuLaunchFunc(
   launchOp.erase();
 }
 
-std::unique_ptr<mlir::OpPassBase<mlir::ModuleOp>>
+std::unique_ptr<mlir::OperationPass<mlir::ModuleOp>>
 mlir::createConvertGpuLaunchFuncToVulkanLaunchFuncPass() {
   return std::make_unique<ConvertGpuLaunchFuncToVulkanLaunchFunc>();
 }
-
-static PassRegistration<ConvertGpuLaunchFuncToVulkanLaunchFunc>
-    pass("convert-gpu-launch-to-vulkan-launch",
-         "Convert gpu.launch_func to vulkanLaunch external call");

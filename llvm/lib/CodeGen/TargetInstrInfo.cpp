@@ -408,7 +408,7 @@ bool TargetInstrInfo::getStackSlotRange(const TargetRegisterClass *RC,
 
 void TargetInstrInfo::reMaterialize(MachineBasicBlock &MBB,
                                     MachineBasicBlock::iterator I,
-                                    unsigned DestReg, unsigned SubIdx,
+                                    Register DestReg, unsigned SubIdx,
                                     const MachineInstr &Orig,
                                     const TargetRegisterInfo &TRI) const {
   MachineInstr *MI = MBB.getParent()->CloneMachineInstr(&Orig);
@@ -591,9 +591,9 @@ MachineInstr *TargetInstrInfo::foldMemoryOperand(MachineInstr &MI,
             NewMI->mayLoad()) &&
            "Folded a use to a non-load!");
     assert(MFI.getObjectOffset(FI) != -1);
-    MachineMemOperand *MMO = MF.getMachineMemOperand(
-        MachinePointerInfo::getFixedStack(MF, FI), Flags, MemSize,
-        MFI.getObjectAlignment(FI));
+    MachineMemOperand *MMO =
+        MF.getMachineMemOperand(MachinePointerInfo::getFixedStack(MF, FI),
+                                Flags, MemSize, MFI.getObjectAlign(FI));
     NewMI->addMemOperand(MF, MMO);
 
     return NewMI;
@@ -1320,6 +1320,62 @@ bool TargetInstrInfo::getInsertSubregInputs(
   InsertedReg.SubReg = MOInsertedReg.getSubReg();
   InsertedReg.SubIdx = (unsigned)MOSubIdx.getImm();
   return true;
+}
+
+// Returns a MIRPrinter comment for this machine operand.
+std::string TargetInstrInfo::createMIROperandComment(
+    const MachineInstr &MI, const MachineOperand &Op, unsigned OpIdx,
+    const TargetRegisterInfo *TRI) const {
+
+  if (!MI.isInlineAsm())
+    return "";
+
+  std::string Flags;
+  raw_string_ostream OS(Flags);
+
+  if (OpIdx == InlineAsm::MIOp_ExtraInfo) {
+    // Print HasSideEffects, MayLoad, MayStore, IsAlignStack
+    unsigned ExtraInfo = Op.getImm();
+    bool First = true;
+    for (StringRef Info : InlineAsm::getExtraInfoNames(ExtraInfo)) {
+      if (!First)
+        OS << " ";
+      First = false;
+      OS << Info;
+    }
+
+    return OS.str();
+  }
+
+  int FlagIdx = MI.findInlineAsmFlagIdx(OpIdx);
+  if (FlagIdx < 0 || (unsigned)FlagIdx != OpIdx)
+    return "";
+
+  assert(Op.isImm() && "Expected flag operand to be an immediate");
+  // Pretty print the inline asm operand descriptor.
+  unsigned Flag = Op.getImm();
+  unsigned Kind = InlineAsm::getKind(Flag);
+  OS << InlineAsm::getKindName(Kind);
+
+  unsigned RCID = 0;
+  if (!InlineAsm::isImmKind(Flag) && !InlineAsm::isMemKind(Flag) &&
+      InlineAsm::hasRegClassConstraint(Flag, RCID)) {
+    if (TRI) {
+      OS << ':' << TRI->getRegClassName(TRI->getRegClass(RCID));
+    } else
+      OS << ":RC" << RCID;
+  }
+
+  if (InlineAsm::isMemKind(Flag)) {
+    unsigned MCID = InlineAsm::getMemoryConstraintID(Flag);
+    OS << ":" << InlineAsm::getMemConstraintName(MCID);
+  }
+
+  unsigned TiedTo = 0;
+  if (InlineAsm::isUseOperandTiedToDef(Flag, TiedTo))
+    OS << " tiedto:$" << TiedTo;
+
+  return OS.str();
 }
 
 TargetInstrInfo::PipelinerLoopInfo::~PipelinerLoopInfo() {}

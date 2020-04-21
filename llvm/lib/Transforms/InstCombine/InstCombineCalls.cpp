@@ -22,6 +22,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/Twine.h"
+#include "llvm/Analysis/AssumeBundleQueries.h"
 #include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/Analysis/InstructionSimplify.h"
 #include "llvm/Analysis/Loads.h"
@@ -48,7 +49,6 @@
 #include "llvm/IR/IntrinsicsNVPTX.h"
 #include "llvm/IR/IntrinsicsAMDGPU.h"
 #include "llvm/IR/IntrinsicsPowerPC.h"
-#include "llvm/IR/KnowledgeRetention.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/PatternMatch.h"
@@ -416,7 +416,7 @@ static Value *simplifyX86immShift(const IntrinsicInst &II,
         Amt, DemandedUpper, II.getModule()->getDataLayout());
     if (KnownLowerBits.getMaxValue().ult(BitWidth) &&
         (DemandedUpper.isNullValue() || KnownUpperBits.isZero())) {
-      SmallVector<uint32_t, 16> ZeroSplat(VWidth, 0);
+      SmallVector<int, 16> ZeroSplat(VWidth, 0);
       Amt = Builder.CreateShuffleVector(Amt, Amt, ZeroSplat);
       return (LogicalShift ? (ShiftLeft ? Builder.CreateShl(Vec, Amt)
                                         : Builder.CreateLShr(Vec, Amt))
@@ -523,7 +523,7 @@ static Value *simplifyX86varShift(const IntrinsicInst &II,
   auto Vec = II.getArgOperand(0);
   auto Amt = II.getArgOperand(1);
   auto VT = cast<VectorType>(II.getType());
-  auto SVT = VT->getVectorElementType();
+  auto SVT = VT->getElementType();
   int NumElts = VT->getNumElements();
   int BitWidth = SVT->getIntegerBitWidth();
 
@@ -620,10 +620,10 @@ static Value *simplifyX86pack(IntrinsicInst &II,
   if (isa<UndefValue>(Arg0) && isa<UndefValue>(Arg1))
     return UndefValue::get(ResTy);
 
-  Type *ArgTy = Arg0->getType();
+  auto *ArgTy = cast<VectorType>(Arg0->getType());
   unsigned NumLanes = ResTy->getPrimitiveSizeInBits() / 128;
-  unsigned NumSrcElts = ArgTy->getVectorNumElements();
-  assert(ResTy->getVectorNumElements() == (2 * NumSrcElts) &&
+  unsigned NumSrcElts = ArgTy->getNumElements();
+  assert(cast<VectorType>(ResTy)->getNumElements() == (2 * NumSrcElts) &&
          "Unexpected packing types");
 
   unsigned NumSrcEltsPerLane = NumSrcElts / NumLanes;
@@ -663,7 +663,7 @@ static Value *simplifyX86pack(IntrinsicInst &II,
   Arg1 = Builder.CreateSelect(Builder.CreateICmpSGT(Arg1, MaxC), MaxC, Arg1);
 
   // Shuffle clamped args together at the lane level.
-  SmallVector<unsigned, 32> PackMask;
+  SmallVector<int, 32> PackMask;
   for (unsigned Lane = 0; Lane != NumLanes; ++Lane) {
     for (unsigned Elt = 0; Elt != NumSrcEltsPerLane; ++Elt)
       PackMask.push_back(Elt + (Lane * NumSrcEltsPerLane));
@@ -680,14 +680,14 @@ static Value *simplifyX86movmsk(const IntrinsicInst &II,
                                 InstCombiner::BuilderTy &Builder) {
   Value *Arg = II.getArgOperand(0);
   Type *ResTy = II.getType();
-  Type *ArgTy = Arg->getType();
 
   // movmsk(undef) -> zero as we must ensure the upper bits are zero.
   if (isa<UndefValue>(Arg))
     return Constant::getNullValue(ResTy);
 
+  auto *ArgTy = dyn_cast<VectorType>(Arg->getType());
   // We can't easily peek through x86_mmx types.
-  if (!ArgTy->isVectorTy())
+  if (!ArgTy)
     return nullptr;
 
   // Expand MOVMSK to compare/bitcast/zext:
@@ -695,8 +695,8 @@ static Value *simplifyX86movmsk(const IntrinsicInst &II,
   // %cmp = icmp slt <16 x i8> %x, zeroinitializer
   // %int = bitcast <16 x i1> %cmp to i16
   // %res = zext i16 %int to i32
-  unsigned NumElts = ArgTy->getVectorNumElements();
-  Type *IntegerVecTy = VectorType::getInteger(cast<VectorType>(ArgTy));
+  unsigned NumElts = ArgTy->getNumElements();
+  Type *IntegerVecTy = VectorType::getInteger(ArgTy);
   Type *IntegerTy = Builder.getIntNTy(NumElts);
 
   Value *Res = Builder.CreateBitCast(Arg, IntegerVecTy);
@@ -760,7 +760,7 @@ static Value *simplifyX86insertps(const IntrinsicInst &II,
     return ZeroVector;
 
   // Initialize by passing all of the first source bits through.
-  uint32_t ShuffleMask[4] = { 0, 1, 2, 3 };
+  int ShuffleMask[4] = {0, 1, 2, 3};
 
   // We may replace the second operand with the zero vector.
   Value *V1 = II.getArgOperand(1);
@@ -840,22 +840,19 @@ static Value *simplifyX86extrq(IntrinsicInst &II, Value *Op0,
       Index /= 8;
 
       Type *IntTy8 = Type::getInt8Ty(II.getContext());
-      Type *IntTy32 = Type::getInt32Ty(II.getContext());
       VectorType *ShufTy = VectorType::get(IntTy8, 16);
 
-      SmallVector<Constant *, 16> ShuffleMask;
+      SmallVector<int, 16> ShuffleMask;
       for (int i = 0; i != (int)Length; ++i)
-        ShuffleMask.push_back(
-            Constant::getIntegerValue(IntTy32, APInt(32, i + Index)));
+        ShuffleMask.push_back(i + Index);
       for (int i = Length; i != 8; ++i)
-        ShuffleMask.push_back(
-            Constant::getIntegerValue(IntTy32, APInt(32, i + 16)));
+        ShuffleMask.push_back(i + 16);
       for (int i = 8; i != 16; ++i)
-        ShuffleMask.push_back(UndefValue::get(IntTy32));
+        ShuffleMask.push_back(-1);
 
       Value *SV = Builder.CreateShuffleVector(
           Builder.CreateBitCast(Op0, ShufTy),
-          ConstantAggregateZero::get(ShufTy), ConstantVector::get(ShuffleMask));
+          ConstantAggregateZero::get(ShufTy), ShuffleMask);
       return Builder.CreateBitCast(SV, II.getType());
     }
 
@@ -920,23 +917,21 @@ static Value *simplifyX86insertq(IntrinsicInst &II, Value *Op0, Value *Op1,
     Index /= 8;
 
     Type *IntTy8 = Type::getInt8Ty(II.getContext());
-    Type *IntTy32 = Type::getInt32Ty(II.getContext());
     VectorType *ShufTy = VectorType::get(IntTy8, 16);
 
-    SmallVector<Constant *, 16> ShuffleMask;
+    SmallVector<int, 16> ShuffleMask;
     for (int i = 0; i != (int)Index; ++i)
-      ShuffleMask.push_back(Constant::getIntegerValue(IntTy32, APInt(32, i)));
+      ShuffleMask.push_back(i);
     for (int i = 0; i != (int)Length; ++i)
-      ShuffleMask.push_back(
-          Constant::getIntegerValue(IntTy32, APInt(32, i + 16)));
+      ShuffleMask.push_back(i + 16);
     for (int i = Index + Length; i != 8; ++i)
-      ShuffleMask.push_back(Constant::getIntegerValue(IntTy32, APInt(32, i)));
+      ShuffleMask.push_back(i);
     for (int i = 8; i != 16; ++i)
-      ShuffleMask.push_back(UndefValue::get(IntTy32));
+      ShuffleMask.push_back(-1);
 
     Value *SV = Builder.CreateShuffleVector(Builder.CreateBitCast(Op0, ShufTy),
                                             Builder.CreateBitCast(Op1, ShufTy),
-                                            ConstantVector::get(ShuffleMask));
+                                            ShuffleMask);
     return Builder.CreateBitCast(SV, II.getType());
   }
 
@@ -988,13 +983,12 @@ static Value *simplifyX86pshufb(const IntrinsicInst &II,
     return nullptr;
 
   auto *VecTy = cast<VectorType>(II.getType());
-  auto *MaskEltTy = Type::getInt32Ty(II.getContext());
   unsigned NumElts = VecTy->getNumElements();
   assert((NumElts == 16 || NumElts == 32 || NumElts == 64) &&
          "Unexpected number of elements in shuffle mask!");
 
   // Construct a shuffle mask from constant integers or UNDEFs.
-  Constant *Indexes[64] = {nullptr};
+  int Indexes[64];
 
   // Each byte in the shuffle control mask forms an index to permute the
   // corresponding byte in the destination operand.
@@ -1004,7 +998,7 @@ static Value *simplifyX86pshufb(const IntrinsicInst &II,
       return nullptr;
 
     if (isa<UndefValue>(COp)) {
-      Indexes[I] = UndefValue::get(MaskEltTy);
+      Indexes[I] = -1;
       continue;
     }
 
@@ -1018,13 +1012,12 @@ static Value *simplifyX86pshufb(const IntrinsicInst &II,
     // The value of each index for the high 128-bit lane is the least
     // significant 4 bits of the respective shuffle control byte.
     Index = ((Index < 0) ? NumElts : Index & 0x0F) + (I & 0xF0);
-    Indexes[I] = ConstantInt::get(MaskEltTy, Index);
+    Indexes[I] = Index;
   }
 
-  auto ShuffleMask = ConstantVector::get(makeArrayRef(Indexes, NumElts));
   auto V1 = II.getArgOperand(0);
   auto V2 = Constant::getNullValue(VecTy);
-  return Builder.CreateShuffleVector(V1, V2, ShuffleMask);
+  return Builder.CreateShuffleVector(V1, V2, makeArrayRef(Indexes, NumElts));
 }
 
 /// Attempt to convert vpermilvar* to shufflevector if the mask is constant.
@@ -1035,14 +1028,13 @@ static Value *simplifyX86vpermilvar(const IntrinsicInst &II,
     return nullptr;
 
   auto *VecTy = cast<VectorType>(II.getType());
-  auto *MaskEltTy = Type::getInt32Ty(II.getContext());
-  unsigned NumElts = VecTy->getVectorNumElements();
+  unsigned NumElts = VecTy->getNumElements();
   bool IsPD = VecTy->getScalarType()->isDoubleTy();
   unsigned NumLaneElts = IsPD ? 2 : 4;
   assert(NumElts == 16 || NumElts == 8 || NumElts == 4 || NumElts == 2);
 
   // Construct a shuffle mask from constant integers or UNDEFs.
-  Constant *Indexes[16] = {nullptr};
+  int Indexes[16];
 
   // The intrinsics only read one or two bits, clear the rest.
   for (unsigned I = 0; I < NumElts; ++I) {
@@ -1051,7 +1043,7 @@ static Value *simplifyX86vpermilvar(const IntrinsicInst &II,
       return nullptr;
 
     if (isa<UndefValue>(COp)) {
-      Indexes[I] = UndefValue::get(MaskEltTy);
+      Indexes[I] = -1;
       continue;
     }
 
@@ -1068,13 +1060,12 @@ static Value *simplifyX86vpermilvar(const IntrinsicInst &II,
     // shuffle, we have to make that explicit.
     Index += APInt(32, (I / NumLaneElts) * NumLaneElts);
 
-    Indexes[I] = ConstantInt::get(MaskEltTy, Index);
+    Indexes[I] = Index.getZExtValue();
   }
 
-  auto ShuffleMask = ConstantVector::get(makeArrayRef(Indexes, NumElts));
   auto V1 = II.getArgOperand(0);
   auto V2 = UndefValue::get(V1->getType());
-  return Builder.CreateShuffleVector(V1, V2, ShuffleMask);
+  return Builder.CreateShuffleVector(V1, V2, makeArrayRef(Indexes, NumElts));
 }
 
 /// Attempt to convert vpermd/vpermps to shufflevector if the mask is constant.
@@ -1085,13 +1076,12 @@ static Value *simplifyX86vpermv(const IntrinsicInst &II,
     return nullptr;
 
   auto *VecTy = cast<VectorType>(II.getType());
-  auto *MaskEltTy = Type::getInt32Ty(II.getContext());
   unsigned Size = VecTy->getNumElements();
   assert((Size == 4 || Size == 8 || Size == 16 || Size == 32 || Size == 64) &&
          "Unexpected shuffle mask size");
 
   // Construct a shuffle mask from constant integers or UNDEFs.
-  Constant *Indexes[64] = {nullptr};
+  int Indexes[64];
 
   for (unsigned I = 0; I < Size; ++I) {
     Constant *COp = V->getAggregateElement(I);
@@ -1099,19 +1089,18 @@ static Value *simplifyX86vpermv(const IntrinsicInst &II,
       return nullptr;
 
     if (isa<UndefValue>(COp)) {
-      Indexes[I] = UndefValue::get(MaskEltTy);
+      Indexes[I] = -1;
       continue;
     }
 
     uint32_t Index = cast<ConstantInt>(COp)->getZExtValue();
     Index &= Size - 1;
-    Indexes[I] = ConstantInt::get(MaskEltTy, Index);
+    Indexes[I] = Index;
   }
 
-  auto ShuffleMask = ConstantVector::get(makeArrayRef(Indexes, Size));
   auto V1 = II.getArgOperand(0);
   auto V2 = UndefValue::get(VecTy);
-  return Builder.CreateShuffleVector(V1, V2, ShuffleMask);
+  return Builder.CreateShuffleVector(V1, V2, makeArrayRef(Indexes, Size));
 }
 
 // TODO, Obvious Missing Transforms:
@@ -1164,10 +1153,8 @@ Instruction *InstCombiner::simplifyMaskedStore(IntrinsicInst &II) {
   APInt DemandedElts = possiblyDemandedEltsInMask(ConstMask);
   APInt UndefElts(DemandedElts.getBitWidth(), 0);
   if (Value *V = SimplifyDemandedVectorElts(II.getOperand(0),
-                                            DemandedElts, UndefElts)) {
-    II.setOperand(0, V);
-    return &II;
-  }
+                                            DemandedElts, UndefElts))
+    return replaceOperand(II, 0, V);
 
   return nullptr;
 }
@@ -1202,15 +1189,11 @@ Instruction *InstCombiner::simplifyMaskedScatter(IntrinsicInst &II) {
   APInt DemandedElts = possiblyDemandedEltsInMask(ConstMask);
   APInt UndefElts(DemandedElts.getBitWidth(), 0);
   if (Value *V = SimplifyDemandedVectorElts(II.getOperand(0),
-                                            DemandedElts, UndefElts)) {
-    II.setOperand(0, V);
-    return &II;
-  }
+                                            DemandedElts, UndefElts))
+    return replaceOperand(II, 0, V);
   if (Value *V = SimplifyDemandedVectorElts(II.getOperand(1),
-                                            DemandedElts, UndefElts)) {
-    II.setOperand(1, V);
-    return &II;
-  }
+                                            DemandedElts, UndefElts))
+    return replaceOperand(II, 1, V);
 
   return nullptr;
 }
@@ -1493,7 +1476,7 @@ static Value *simplifyNeonTbl1(const IntrinsicInst &II,
   if (!VecTy->getElementType()->isIntegerTy(8) || NumElts != 8)
     return nullptr;
 
-  uint32_t Indexes[8];
+  int Indexes[8];
 
   for (unsigned I = 0; I < NumElts; ++I) {
     Constant *COp = C->getAggregateElement(I);
@@ -1504,15 +1487,13 @@ static Value *simplifyNeonTbl1(const IntrinsicInst &II,
     Indexes[I] = cast<ConstantInt>(COp)->getLimitedValue();
 
     // Make sure the mask indices are in range.
-    if (Indexes[I] >= NumElts)
+    if ((unsigned)Indexes[I] >= NumElts)
       return nullptr;
   }
 
-  auto *ShuffleMask = ConstantDataVector::get(II.getContext(),
-                                              makeArrayRef(Indexes));
   auto *V1 = II.getArgOperand(0);
   auto *V2 = Constant::getNullValue(V1->getType());
-  return Builder.CreateShuffleVector(V1, V2, ShuffleMask);
+  return Builder.CreateShuffleVector(V1, V2, makeArrayRef(Indexes));
 }
 
 /// Convert a vector load intrinsic into a simple llvm load instruction.
@@ -1961,8 +1942,8 @@ Instruction *InstCombiner::visitCallInst(CallInst &CI) {
   }
 
   // For vector result intrinsics, use the generic demanded vector support.
-  if (II->getType()->isVectorTy()) {
-    auto VWidth = II->getType()->getVectorNumElements();
+  if (auto *IIVTy = dyn_cast<VectorType>(II->getType())) {
+    auto VWidth = IIVTy->getNumElements();
     APInt UndefElts(VWidth, 0);
     APInt AllOnesEltMask(APInt::getAllOnesValue(VWidth));
     if (Value *V = SimplifyDemandedVectorElts(II, AllOnesEltMask, UndefElts)) {
@@ -2322,6 +2303,22 @@ Instruction *InstCombiner::visitCallInst(CallInst &CI) {
       }
     }
 
+    Value *ExtSrc0;
+    Value *ExtSrc1;
+
+    // minnum (fpext x), (fpext y) -> minnum x, y
+    // maxnum (fpext x), (fpext y) -> maxnum x, y
+    if (match(II->getArgOperand(0), m_OneUse(m_FPExt(m_Value(ExtSrc0)))) &&
+        match(II->getArgOperand(1), m_OneUse(m_FPExt(m_Value(ExtSrc1)))) &&
+        ExtSrc0->getType() == ExtSrc1->getType()) {
+      Function *F = Intrinsic::getDeclaration(
+          II->getModule(), II->getIntrinsicID(), {ExtSrc0->getType()});
+      CallInst *NewCall = Builder.CreateCall(F, { ExtSrc0, ExtSrc1 });
+      NewCall->copyFastMathFlags(II);
+      NewCall->takeName(II);
+      return new FPExtInst(NewCall, II->getType());
+    }
+
     break;
   }
   case Intrinsic::fmuladd: {
@@ -2495,8 +2492,9 @@ Instruction *InstCombiner::visitCallInst(CallInst &CI) {
     // Turn PPC QPX qvlfs -> load if the pointer is known aligned.
     if (getOrEnforceKnownAlignment(II->getArgOperand(0), 16, DL, II, &AC,
                                    &DT) >= 16) {
-      Type *VTy = VectorType::get(Builder.getFloatTy(),
-                                  II->getType()->getVectorNumElements());
+      Type *VTy =
+          VectorType::get(Builder.getFloatTy(),
+                          cast<VectorType>(II->getType())->getElementCount());
       Value *Ptr = Builder.CreateBitCast(II->getArgOperand(0),
                                          PointerType::getUnqual(VTy));
       Value *Load = Builder.CreateLoad(VTy, Ptr);
@@ -2516,8 +2514,9 @@ Instruction *InstCombiner::visitCallInst(CallInst &CI) {
     // Turn PPC QPX qvstfs -> store if the pointer is known aligned.
     if (getOrEnforceKnownAlignment(II->getArgOperand(1), 16, DL, II, &AC,
                                    &DT) >= 16) {
-      Type *VTy = VectorType::get(Builder.getFloatTy(),
-          II->getArgOperand(0)->getType()->getVectorNumElements());
+      Type *VTy = VectorType::get(
+          Builder.getFloatTy(),
+          cast<VectorType>(II->getArgOperand(0)->getType())->getElementCount());
       Value *TOp = Builder.CreateFPTrunc(II->getArgOperand(0), VTy);
       Type *OpPtrTy = PointerType::getUnqual(VTy);
       Value *Ptr = Builder.CreateBitCast(II->getArgOperand(1), OpPtrTy);
@@ -2666,11 +2665,9 @@ Instruction *InstCombiner::visitCallInst(CallInst &CI) {
     // These intrinsics only demand the 0th element of their input vectors. If
     // we can simplify the input based on that, do so now.
     Value *Arg = II->getArgOperand(0);
-    unsigned VWidth = Arg->getType()->getVectorNumElements();
-    if (Value *V = SimplifyDemandedVectorEltsLow(Arg, VWidth, 1)) {
-      II->setArgOperand(0, V);
-      return II;
-    }
+    unsigned VWidth = cast<VectorType>(Arg->getType())->getNumElements();
+    if (Value *V = SimplifyDemandedVectorEltsLow(Arg, VWidth, 1))
+      return replaceOperand(*II, 0, V);
     break;
   }
 
@@ -2718,13 +2715,13 @@ Instruction *InstCombiner::visitCallInst(CallInst &CI) {
     bool MadeChange = false;
     Value *Arg0 = II->getArgOperand(0);
     Value *Arg1 = II->getArgOperand(1);
-    unsigned VWidth = Arg0->getType()->getVectorNumElements();
+    unsigned VWidth = cast<VectorType>(Arg0->getType())->getNumElements();
     if (Value *V = SimplifyDemandedVectorEltsLow(Arg0, VWidth, 1)) {
-      II->setArgOperand(0, V);
+      replaceOperand(*II, 0, V);
       MadeChange = true;
     }
     if (Value *V = SimplifyDemandedVectorEltsLow(Arg1, VWidth, 1)) {
-      II->setArgOperand(1, V);
+      replaceOperand(*II, 1, V);
       MadeChange = true;
     }
     if (MadeChange)
@@ -2936,12 +2933,10 @@ Instruction *InstCombiner::visitCallInst(CallInst &CI) {
     Value *Arg1 = II->getArgOperand(1);
     assert(Arg1->getType()->getPrimitiveSizeInBits() == 128 &&
            "Unexpected packed shift size");
-    unsigned VWidth = Arg1->getType()->getVectorNumElements();
+    unsigned VWidth = cast<VectorType>(Arg1->getType())->getNumElements();
 
-    if (Value *V = SimplifyDemandedVectorEltsLow(Arg1, VWidth, VWidth / 2)) {
-      II->setArgOperand(1, V);
-      return II;
-    }
+    if (Value *V = SimplifyDemandedVectorEltsLow(Arg1, VWidth, VWidth / 2))
+      return replaceOperand(*II, 1, V);
     break;
   }
 
@@ -3005,14 +3000,14 @@ Instruction *InstCombiner::visitCallInst(CallInst &CI) {
       bool MadeChange = false;
       Value *Arg0 = II->getArgOperand(0);
       Value *Arg1 = II->getArgOperand(1);
-      unsigned VWidth = Arg0->getType()->getVectorNumElements();
+      unsigned VWidth = cast<VectorType>(Arg0->getType())->getNumElements();
 
       APInt UndefElts1(VWidth, 0);
       APInt DemandedElts1 = APInt::getSplat(VWidth,
                                             APInt(2, (Imm & 0x01) ? 2 : 1));
       if (Value *V = SimplifyDemandedVectorElts(Arg0, DemandedElts1,
                                                 UndefElts1)) {
-        II->setArgOperand(0, V);
+        replaceOperand(*II, 0, V);
         MadeChange = true;
       }
 
@@ -3021,7 +3016,7 @@ Instruction *InstCombiner::visitCallInst(CallInst &CI) {
                                             APInt(2, (Imm & 0x10) ? 2 : 1));
       if (Value *V = SimplifyDemandedVectorElts(Arg1, DemandedElts2,
                                                 UndefElts2)) {
-        II->setArgOperand(1, V);
+        replaceOperand(*II, 1, V);
         MadeChange = true;
       }
 
@@ -3045,8 +3040,8 @@ Instruction *InstCombiner::visitCallInst(CallInst &CI) {
   case Intrinsic::x86_sse4a_extrq: {
     Value *Op0 = II->getArgOperand(0);
     Value *Op1 = II->getArgOperand(1);
-    unsigned VWidth0 = Op0->getType()->getVectorNumElements();
-    unsigned VWidth1 = Op1->getType()->getVectorNumElements();
+    unsigned VWidth0 = cast<VectorType>(Op0->getType())->getNumElements();
+    unsigned VWidth1 = cast<VectorType>(Op1->getType())->getNumElements();
     assert(Op0->getType()->getPrimitiveSizeInBits() == 128 &&
            Op1->getType()->getPrimitiveSizeInBits() == 128 && VWidth0 == 2 &&
            VWidth1 == 16 && "Unexpected operand sizes");
@@ -3068,11 +3063,11 @@ Instruction *InstCombiner::visitCallInst(CallInst &CI) {
     // operands and the lowest 16-bits of the second.
     bool MadeChange = false;
     if (Value *V = SimplifyDemandedVectorEltsLow(Op0, VWidth0, 1)) {
-      II->setArgOperand(0, V);
+      replaceOperand(*II, 0, V);
       MadeChange = true;
     }
     if (Value *V = SimplifyDemandedVectorEltsLow(Op1, VWidth1, 2)) {
-      II->setArgOperand(1, V);
+      replaceOperand(*II, 1, V);
       MadeChange = true;
     }
     if (MadeChange)
@@ -3084,7 +3079,7 @@ Instruction *InstCombiner::visitCallInst(CallInst &CI) {
     // EXTRQI: Extract Length bits starting from Index. Zero pad the remaining
     // bits of the lower 64-bits. The upper 64-bits are undefined.
     Value *Op0 = II->getArgOperand(0);
-    unsigned VWidth = Op0->getType()->getVectorNumElements();
+    unsigned VWidth = cast<VectorType>(Op0->getType())->getNumElements();
     assert(Op0->getType()->getPrimitiveSizeInBits() == 128 && VWidth == 2 &&
            "Unexpected operand size");
 
@@ -3098,20 +3093,18 @@ Instruction *InstCombiner::visitCallInst(CallInst &CI) {
 
     // EXTRQI only uses the lowest 64-bits of the first 128-bit vector
     // operand.
-    if (Value *V = SimplifyDemandedVectorEltsLow(Op0, VWidth, 1)) {
-      II->setArgOperand(0, V);
-      return II;
-    }
+    if (Value *V = SimplifyDemandedVectorEltsLow(Op0, VWidth, 1))
+      return replaceOperand(*II, 0, V);
     break;
   }
 
   case Intrinsic::x86_sse4a_insertq: {
     Value *Op0 = II->getArgOperand(0);
     Value *Op1 = II->getArgOperand(1);
-    unsigned VWidth = Op0->getType()->getVectorNumElements();
+    unsigned VWidth = cast<VectorType>(Op0->getType())->getNumElements();
     assert(Op0->getType()->getPrimitiveSizeInBits() == 128 &&
            Op1->getType()->getPrimitiveSizeInBits() == 128 && VWidth == 2 &&
-           Op1->getType()->getVectorNumElements() == 2 &&
+           cast<VectorType>(Op1->getType())->getNumElements() == 2 &&
            "Unexpected operand size");
 
     // See if we're dealing with constant values.
@@ -3131,10 +3124,8 @@ Instruction *InstCombiner::visitCallInst(CallInst &CI) {
 
     // INSERTQ only uses the lowest 64-bits of the first 128-bit vector
     // operand.
-    if (Value *V = SimplifyDemandedVectorEltsLow(Op0, VWidth, 1)) {
-      II->setArgOperand(0, V);
-      return II;
-    }
+    if (Value *V = SimplifyDemandedVectorEltsLow(Op0, VWidth, 1))
+      return replaceOperand(*II, 0, V);
     break;
   }
 
@@ -3144,8 +3135,8 @@ Instruction *InstCombiner::visitCallInst(CallInst &CI) {
     // undefined.
     Value *Op0 = II->getArgOperand(0);
     Value *Op1 = II->getArgOperand(1);
-    unsigned VWidth0 = Op0->getType()->getVectorNumElements();
-    unsigned VWidth1 = Op1->getType()->getVectorNumElements();
+    unsigned VWidth0 = cast<VectorType>(Op0->getType())->getNumElements();
+    unsigned VWidth1 = cast<VectorType>(Op1->getType())->getNumElements();
     assert(Op0->getType()->getPrimitiveSizeInBits() == 128 &&
            Op1->getType()->getPrimitiveSizeInBits() == 128 && VWidth0 == 2 &&
            VWidth1 == 2 && "Unexpected operand sizes");
@@ -3166,11 +3157,11 @@ Instruction *InstCombiner::visitCallInst(CallInst &CI) {
     // operands.
     bool MadeChange = false;
     if (Value *V = SimplifyDemandedVectorEltsLow(Op0, VWidth0, 1)) {
-      II->setArgOperand(0, V);
+      replaceOperand(*II, 0, V);
       MadeChange = true;
     }
     if (Value *V = SimplifyDemandedVectorEltsLow(Op1, VWidth1, 1)) {
-      II->setArgOperand(1, V);
+      replaceOperand(*II, 1, V);
       MadeChange = true;
     }
     if (MadeChange)
@@ -3212,8 +3203,10 @@ Instruction *InstCombiner::visitCallInst(CallInst &CI) {
              II->getType()->getPrimitiveSizeInBits() &&
              "Not expecting mask and operands with different sizes");
 
-      unsigned NumMaskElts = Mask->getType()->getVectorNumElements();
-      unsigned NumOperandElts = II->getType()->getVectorNumElements();
+      unsigned NumMaskElts =
+          cast<VectorType>(Mask->getType())->getNumElements();
+      unsigned NumOperandElts =
+          cast<VectorType>(II->getType())->getNumElements();
       if (NumMaskElts == NumOperandElts)
         return SelectInst::Create(BoolVec, Op1, Op0);
 
@@ -3304,7 +3297,7 @@ Instruction *InstCombiner::visitCallInst(CallInst &CI) {
     // the permutation mask with respect to 31 and reverse the order of
     // V1 and V2.
     if (Constant *Mask = dyn_cast<Constant>(II->getArgOperand(2))) {
-      assert(Mask->getType()->getVectorNumElements() == 16 &&
+      assert(cast<VectorType>(Mask->getType())->getNumElements() == 16 &&
              "Bad type for intrinsic!");
 
       // Check that all of the elements are integer constants or undefs.
@@ -3462,7 +3455,8 @@ Instruction *InstCombiner::visitCallInst(CallInst &CI) {
       if (auto *CI = dyn_cast<ConstantInt>(XorMask)) {
         if (CI->getValue().trunc(16).isAllOnesValue()) {
           auto TrueVector = Builder.CreateVectorSplat(
-              II->getType()->getVectorNumElements(), Builder.getTrue());
+              cast<VectorType>(II->getType())->getNumElements(),
+              Builder.getTrue());
           return BinaryOperator::Create(Instruction::Xor, ArgArg, TrueVector);
         }
       }
@@ -3969,6 +3963,35 @@ Instruction *InstCombiner::visitCallInst(CallInst &CI) {
 
     break;
   }
+  case Intrinsic::amdgcn_ballot: {
+    if (auto *Src = dyn_cast<ConstantInt>(II->getArgOperand(0))) {
+      if (Src->isZero()) {
+        // amdgcn.ballot(i1 0) is zero.
+        return replaceInstUsesWith(*II, Constant::getNullValue(II->getType()));
+      }
+
+      if (Src->isOne()) {
+        // amdgcn.ballot(i1 1) is exec.
+        const char *RegName = "exec";
+        if (II->getType()->isIntegerTy(32))
+          RegName = "exec_lo";
+        else if (!II->getType()->isIntegerTy(64))
+          break;
+
+        Function *NewF = Intrinsic::getDeclaration(
+            II->getModule(), Intrinsic::read_register, II->getType());
+        Metadata *MDArgs[] = {MDString::get(II->getContext(), RegName)};
+        MDNode *MD = MDNode::get(II->getContext(), MDArgs);
+        Value *Args[] = {MetadataAsValue::get(II->getContext(), MD)};
+        CallInst *NewCall = Builder.CreateCall(NewF, Args);
+        NewCall->addAttribute(AttributeList::FunctionIndex,
+                              Attribute::Convergent);
+        NewCall->takeName(II);
+        return replaceInstUsesWith(*II, NewCall);
+      }
+    }
+    break;
+  }
   case Intrinsic::amdgcn_wqm_vote: {
     // wqm_vote is identity when the argument is constant.
     if (!isa<Constant>(II->getArgOperand(0)))
@@ -4193,7 +4216,7 @@ Instruction *InstCombiner::visitCallInst(CallInst &CI) {
       return replaceOperand(*II, 2,
           ConstantInt::get(OpIntTy, GCR.getBasePtrIndex()));
     }
-    
+
     // Translate facts known about a pointer before relocating into
     // facts about the relocate value, while being careful to
     // preserve relocation semantics.
@@ -4426,7 +4449,8 @@ static void annotateAnyAllocSite(CallBase &Call, const TargetLibraryInfo *TLI) {
   ConstantInt *Op0C = dyn_cast<ConstantInt>(Call.getOperand(0));
   ConstantInt *Op1C =
       (NumArgs == 1) ? nullptr : dyn_cast<ConstantInt>(Call.getOperand(1));
-  // Bail out if the allocation size is zero.
+  // Bail out if the allocation size is zero (or an invalid alignment of zero
+  // with aligned_alloc).
   if ((Op0C && Op0C->isNullValue()) || (Op1C && Op1C->isNullValue()))
     return;
 
@@ -4439,6 +4463,18 @@ static void annotateAnyAllocSite(CallBase &Call, const TargetLibraryInfo *TLI) {
       Call.addAttribute(AttributeList::ReturnIndex,
                         Attribute::getWithDereferenceableOrNullBytes(
                             Call.getContext(), Op0C->getZExtValue()));
+  } else if (isAlignedAllocLikeFn(&Call, TLI) && Op1C) {
+    Call.addAttribute(AttributeList::ReturnIndex,
+                      Attribute::getWithDereferenceableOrNullBytes(
+                          Call.getContext(), Op1C->getZExtValue()));
+    // Add alignment attribute if alignment is a power of two constant.
+    if (Op0C) {
+      uint64_t AlignmentVal = Op0C->getZExtValue();
+      if (llvm::isPowerOf2_64(AlignmentVal))
+        Call.addAttribute(AttributeList::ReturnIndex,
+                          Attribute::getWithAlignment(Call.getContext(),
+                                                      Align(AlignmentVal)));
+    }
   } else if (isReallocLikeFn(&Call, TLI) && Op1C) {
     Call.addAttribute(AttributeList::ReturnIndex,
                       Attribute::getWithDereferenceableOrNullBytes(
@@ -4573,7 +4609,7 @@ Instruction *InstCombiner::visitCallBase(CallBase &Call) {
          I != E; ++I, ++ix) {
       CastInst *CI = dyn_cast<CastInst>(*I);
       if (CI && isSafeToEliminateVarargsCast(Call, DL, CI, ix)) {
-        *I = CI->getOperand(0);
+        replaceUse(*I, CI->getOperand(0));
 
         // Update the byval type to match the argument type.
         if (Call.isByValArgument(ix)) {
@@ -4605,8 +4641,13 @@ Instruction *InstCombiner::visitCallBase(CallBase &Call) {
   }
 
   if (!Call.use_empty() && !Call.isMustTailCall())
-    if (Value *ReturnedArg = Call.getReturnedArgOperand())
-      return replaceInstUsesWith(Call, ReturnedArg);
+    if (Value *ReturnedArg = Call.getReturnedArgOperand()) {
+      Type *CallTy = Call.getType();
+      Type *RetArgTy = ReturnedArg->getType();
+      if (RetArgTy->canLosslesslyBitCastTo(CallTy))
+        return replaceInstUsesWith(
+            Call, Builder.CreateBitOrPointerCast(ReturnedArg, CallTy));
+    }
 
   if (isAllocLikeFn(&Call, &TLI))
     return visitAllocSite(Call);

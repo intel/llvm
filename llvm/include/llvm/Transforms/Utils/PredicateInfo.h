@@ -87,9 +87,6 @@ namespace llvm {
 
 class DominatorTree;
 class Function;
-class Instruction;
-class MemoryAccess;
-class LLVMContext;
 class raw_ostream;
 
 enum PredicateType { PT_Branch, PT_Assume, PT_Switch };
@@ -200,11 +197,8 @@ class PredicateInfo {
 private:
   // Used to store information about each value we might rename.
   struct ValueInfo {
-    // Information about each possible copy. During processing, this is each
-    // inserted info. After processing, we move the uninserted ones to the
-    // uninserted vector.
+    // Information about each possible copy.
     SmallVector<PredicateBase *, 4> Infos;
-    SmallVector<PredicateBase *, 4> UninsertedInfos;
   };
   // This owns the all the predicate infos in the function, placed or not.
   iplist<PredicateBase> AllInfos;

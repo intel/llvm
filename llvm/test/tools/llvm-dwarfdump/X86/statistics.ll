@@ -44,11 +44,15 @@
 ; Because of the dbg.value in the middle of the function, the pc range coverage
 ; must be below 100%.
 ; CHECK-NOT: "scope bytes covered":0
-; CHECK-NOT "scope bytes covered":[[BYTES]]
+; CHECK-NOT: "scope bytes covered":[[BYTES]]
 ; CHECK: "scope bytes covered":
 ; CHECK: "total function size":[[FUNCSIZE:[0-9]+]]
 ; CHECK: "total inlined function size":[[INLINESIZE:[0-9]+]]
-
+; CHECK: "size of __debug_info":380
+; CHECK: "size of __debug_loc":35
+; CHECK: "size of __debug_abbrev":303
+; CHECK: "size of __debug_line":117
+; CHECK: "size of __debug_str":204
 
 ; ModuleID = '/tmp/quality.cpp'
 source_filename = "/tmp/quality.cpp"

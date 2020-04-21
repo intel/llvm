@@ -12,6 +12,7 @@
 #include "llvm/AsmParser/Parser.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/InstIterator.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/PassManager.h"
@@ -1607,6 +1608,10 @@ TEST_F(CGSCCPassManagerTest, TestUpdateCGAndAnalysisManagerForPasses8) {
         while (FnF->getEntryBlock().size() > 1)
           FnF->getEntryBlock().front().moveBefore(RI);
         ASSERT_NE(FnF, nullptr);
+
+        // Create an unsused constant that is referencing the old (=replaced)
+        // function.
+        ConstantExpr::getBitCast(FnF, Type::getInt8PtrTy(FnF->getContext()));
 
         // Use the CallGraphUpdater to update the call graph.
         CallGraphUpdater CGU;

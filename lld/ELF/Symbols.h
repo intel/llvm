@@ -17,10 +17,12 @@
 #include "InputSection.h"
 #include "lld/Common/LLVM.h"
 #include "lld/Common/Strings.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/Object/Archive.h"
 #include "llvm/Object/ELF.h"
 
 namespace lld {
+// Returns a string representation for a symbol for diagnostics.
 std::string toString(const elf::Symbol &);
 
 // There are two different ways to convert an Archive::Symbol to a string:
@@ -555,6 +557,11 @@ void Symbol::replace(const Symbol &newSym) {
 
 void maybeWarnUnorderableSymbol(const Symbol *sym);
 bool computeIsPreemptible(const Symbol &sym);
+void reportBackrefs();
+
+// A mapping from a symbol to an InputFile referencing it backward. Used by
+// --warn-backrefs.
+extern llvm::DenseMap<const Symbol *, const InputFile *> backwardReferences;
 
 } // namespace elf
 } // namespace lld

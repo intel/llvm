@@ -133,7 +133,7 @@ public:
       TLI(ST->getTargetLowering()),
       CommonTTI(TM, F),
       IsGraphicsShader(AMDGPU::isShader(F.getCallingConv())),
-      HasFP32Denormals(ST->hasFP32Denormals(F)) { }
+      HasFP32Denormals(AMDGPU::SIModeRegisterDefaults(F).allFP32Denormals()) {}
 
   bool hasBranchDivergence() { return true; }
   bool useGPUDivergenceAnalysis() const;
@@ -167,7 +167,17 @@ public:
   bool isLegalToVectorizeStoreChain(unsigned ChainSizeInBytes,
                                     unsigned Alignment,
                                     unsigned AddrSpace) const;
+  Type *getMemcpyLoopLoweringType(LLVMContext &Context, Value *Length,
+                                  unsigned SrcAddrSpace, unsigned DestAddrSpace,
+                                  unsigned SrcAlign, unsigned DestAlign) const;
 
+  void getMemcpyLoopResidualLoweringType(SmallVectorImpl<Type *> &OpsOut,
+                                         LLVMContext &Context,
+                                         unsigned RemainingBytes,
+                                         unsigned SrcAddrSpace,
+                                         unsigned DestAddrSpace,
+                                         unsigned SrcAlign,
+                                         unsigned DestAlign) const;
   unsigned getMaxInterleaveFactor(unsigned VF);
 
   bool getTgtMemIntrinsic(IntrinsicInst *Inst, MemIntrinsicInfo &Info) const;

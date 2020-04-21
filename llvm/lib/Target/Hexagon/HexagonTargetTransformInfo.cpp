@@ -60,8 +60,8 @@ bool HexagonTTIImpl::isTypeForHVX(Type *VecTy) const {
 }
 
 unsigned HexagonTTIImpl::getTypeNumElements(Type *Ty) const {
-  if (Ty->isVectorTy())
-    return Ty->getVectorNumElements();
+  if (auto *VTy = dyn_cast<VectorType>(Ty))
+    return VTy->getNumElements();
   assert((Ty->isIntegerTy() || Ty->isFloatingPointTy()) &&
          "Expecting scalar type");
   return 1;
@@ -165,7 +165,7 @@ unsigned HexagonTTIImpl::getMemoryOpCost(unsigned Opcode, Type *Src,
 
   if (Src->isVectorTy()) {
     VectorType *VecTy = cast<VectorType>(Src);
-    unsigned VecWidth = VecTy->getBitWidth();
+    unsigned VecWidth = VecTy->getPrimitiveSizeInBits().getFixedSize();
     if (useHVX() && isTypeForHVX(VecTy)) {
       unsigned RegWidth = getRegisterBitWidth(true);
       assert(RegWidth && "Non-zero vector register width expected");

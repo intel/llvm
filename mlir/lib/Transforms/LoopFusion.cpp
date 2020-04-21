@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "PassDetail.h"
 #include "mlir/Analysis/AffineAnalysis.h"
 #include "mlir/Analysis/AffineStructures.h"
 #include "mlir/Analysis/LoopAnalysis.h"
@@ -18,7 +19,6 @@
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/LoopFusionUtils.h"
 #include "mlir/Transforms/LoopUtils.h"
 #include "mlir/Transforms/Passes.h"
@@ -37,38 +37,7 @@ using llvm::SetVector;
 
 using namespace mlir;
 
-static llvm::cl::OptionCategory clOptionsCategory(DEBUG_TYPE " options");
-
-/// Disables fusion profitability check and fuses if valid. Ignore any
-/// additional (redundant) computation tolerance threshold
-/// that would have prevented fusion.
-static llvm::cl::opt<bool>
-    clMaximalLoopFusion("fusion-maximal",
-                        llvm::cl::desc("Enables maximal loop fusion"),
-                        llvm::cl::cat(clOptionsCategory));
-
-/// A threshold in percent of additional computation allowed when fusing.
-static llvm::cl::opt<double> clFusionAddlComputeTolerance(
-    "fusion-compute-tolerance",
-    llvm::cl::desc("Fractional increase in additional "
-                   "computation tolerated while fusing"),
-    llvm::cl::cat(clOptionsCategory));
-
-static llvm::cl::opt<unsigned> clFusionFastMemorySpace(
-    "fusion-fast-mem-space",
-    llvm::cl::desc("Faster memory space number to promote fusion buffers to"),
-    llvm::cl::cat(clOptionsCategory));
-
-// A local buffer of size less than or equal to this size is automatically
-// promoted to fast memory after producer-consumer fusion.
-static llvm::cl::opt<unsigned long long> clFusionLocalBufThreshold(
-    "fusion-local-buf-threshold",
-    llvm::cl::desc("Threshold size (KiB) for promoting local buffers to fast "
-                   "memory space"),
-    llvm::cl::cat(clOptionsCategory));
-
 namespace {
-
 /// Loop fusion pass. This pass currently supports a greedy fusion policy,
 /// which fuses loop nests with single-writer/single-reader memref dependences
 /// with the goal of improving locality.
@@ -78,30 +47,21 @@ namespace {
 // TODO(andydavis) Extend this pass to check for fusion preventing dependences,
 // and add support for more general loop fusion algorithms.
 
-struct LoopFusion : public FunctionPass<LoopFusion> {
-  LoopFusion(unsigned fastMemorySpace = 0, uint64_t localBufSizeThreshold = 0,
-             bool maximalFusion = false)
-      : localBufSizeThreshold(localBufSizeThreshold),
-        fastMemorySpace(fastMemorySpace), maximalFusion(maximalFusion) {}
+struct LoopFusion : public AffineLoopFusionBase<LoopFusion> {
+  LoopFusion() = default;
+  LoopFusion(unsigned fastMemorySpace, uint64_t localBufSizeThresholdBytes,
+             bool maximalFusion) {
+    this->fastMemorySpace = fastMemorySpace;
+    this->localBufSizeThreshold = localBufSizeThresholdBytes / 1024;
+    this->maximalFusion = maximalFusion;
+  }
 
   void runOnFunction() override;
-
-  // Any local buffers smaller than this size (in bytes) will be created in
-  // `fastMemorySpace` if provided.
-  uint64_t localBufSizeThreshold;
-  Optional<unsigned> fastMemorySpace = None;
-  // If true, ignore any additional (redundant) computation tolerance threshold
-  // that would have prevented fusion.
-  bool maximalFusion;
-
-  // The amount of additional computation that is tolerated while fusing
-  // pair-wise as a fraction of the total computation.
-  constexpr static double kComputeToleranceThreshold = 0.30f;
 };
 
 } // end anonymous namespace
 
-std::unique_ptr<OpPassBase<FuncOp>>
+std::unique_ptr<OperationPass<FuncOp>>
 mlir::createLoopFusionPass(unsigned fastMemorySpace,
                            uint64_t localBufSizeThreshold, bool maximalFusion) {
   return std::make_unique<LoopFusion>(fastMemorySpace, localBufSizeThreshold,
@@ -982,7 +942,8 @@ static Value createPrivateMemRef(AffineForOp forOp, Operation *srcStoreOpInst,
   }
   auto indexRemap = zeroOffsetCount == rank
                         ? AffineMap()
-                        : AffineMap::get(outerIVs.size() + rank, 0, remapExprs);
+                        : AffineMap::get(outerIVs.size() + rank, 0, remapExprs,
+                                         forOp.getContext());
   // Replace all users of 'oldMemRef' with 'newMemRef'.
   LogicalResult res =
       replaceAllMemRefUsesWith(oldMemRef, newMemRef, {}, indexRemap,
@@ -1099,7 +1060,8 @@ static bool isFusionProfitable(Operation *srcOpInst, Operation *srcStoreOpInst,
                                ArrayRef<Operation *> dstLoadOpInsts,
                                ArrayRef<Operation *> dstStoreOpInsts,
                                ComputationSliceState *sliceState,
-                               unsigned *dstLoopDepth, bool maximalFusion) {
+                               unsigned *dstLoopDepth, bool maximalFusion,
+                               double computeToleranceThreshold) {
   LLVM_DEBUG({
     llvm::dbgs() << "Checking whether fusion is profitable between:\n";
     llvm::dbgs() << " " << *srcOpInst << " and \n";
@@ -1247,11 +1209,6 @@ static bool isFusionProfitable(Operation *srcOpInst, Operation *srcStoreOpInst,
           << "\n";
       llvm::dbgs() << msg.str();
     });
-
-    double computeToleranceThreshold =
-        clFusionAddlComputeTolerance.getNumOccurrences() > 0
-            ? clFusionAddlComputeTolerance
-            : LoopFusion::kComputeToleranceThreshold;
 
     // TODO(b/123247369): This is a placeholder cost model.
     // Among all choices that add an acceptable amount of redundant computation
@@ -1427,13 +1384,18 @@ public:
   // If true, ignore any additional (redundant) computation tolerance threshold
   // that would have prevented fusion.
   bool maximalFusion;
+  // The amount of additional computation that is tolerated while fusing
+  // pair-wise as a fraction of the total computation.
+  double computeToleranceThreshold;
 
   using Node = MemRefDependenceGraph::Node;
 
   GreedyFusion(MemRefDependenceGraph *mdg, unsigned localBufSizeThreshold,
-               Optional<unsigned> fastMemorySpace, bool maximalFusion)
+               Optional<unsigned> fastMemorySpace, bool maximalFusion,
+               double computeToleranceThreshold)
       : mdg(mdg), localBufSizeThreshold(localBufSizeThreshold),
-        fastMemorySpace(fastMemorySpace), maximalFusion(maximalFusion) {}
+        fastMemorySpace(fastMemorySpace), maximalFusion(maximalFusion),
+        computeToleranceThreshold(computeToleranceThreshold) {}
 
   // Initializes 'worklist' with nodes from 'mdg'
   void init() {
@@ -1531,7 +1493,7 @@ public:
                 srcStoreOp = nullptr;
                 break;
               }
-              unsigned loopDepth = getNestingDepth(*storeOp);
+              unsigned loopDepth = getNestingDepth(storeOp);
               if (loopDepth > maxLoopDepth) {
                 maxLoopDepth = loopDepth;
                 srcStoreOp = storeOp;
@@ -1609,7 +1571,8 @@ public:
           // Check if fusion would be profitable.
           if (!isFusionProfitable(srcStoreOp, srcStoreOp, dstLoadOpInsts,
                                   dstStoreOpInsts, &sliceState,
-                                  &bestDstLoopDepth, maximalFusion))
+                                  &bestDstLoopDepth, maximalFusion,
+                                  computeToleranceThreshold))
             continue;
 
           // Fuse computation slice of 'srcLoopNest' into 'dstLoopNest'.
@@ -1770,7 +1733,7 @@ public:
       // Check if fusion would be profitable.
       if (!isFusionProfitable(sibLoadOpInst, sibStoreOpInst, dstLoadOpInsts,
                               dstStoreOpInsts, &sliceState, &bestDstLoopDepth,
-                              maximalFusion))
+                              maximalFusion, computeToleranceThreshold))
         continue;
 
       // Fuse computation slice of 'sibLoopNest' into 'dstLoopNest'.
@@ -1955,24 +1918,15 @@ public:
 } // end anonymous namespace
 
 void LoopFusion::runOnFunction() {
-  // Override if a command line argument was provided.
-  if (clFusionFastMemorySpace.getNumOccurrences() > 0) {
-    fastMemorySpace = clFusionFastMemorySpace.getValue();
-  }
-
-  // Override if a command line argument was provided.
-  if (clFusionLocalBufThreshold.getNumOccurrences() > 0) {
-    localBufSizeThreshold = clFusionLocalBufThreshold * 1024;
-  }
-
-  if (clMaximalLoopFusion.getNumOccurrences() > 0)
-    maximalFusion = clMaximalLoopFusion;
-
   MemRefDependenceGraph g;
-  if (g.init(getFunction()))
-    GreedyFusion(&g, localBufSizeThreshold, fastMemorySpace, maximalFusion)
-        .run();
-}
+  if (!g.init(getFunction()))
+    return;
 
-static PassRegistration<LoopFusion> pass("affine-loop-fusion",
-                                         "Fuse loop nests");
+  Optional<unsigned> fastMemorySpaceOpt;
+  if (fastMemorySpace.hasValue())
+    fastMemorySpaceOpt = fastMemorySpace;
+  unsigned localBufSizeThresholdBytes = localBufSizeThreshold * 1024;
+  GreedyFusion fusion(&g, localBufSizeThresholdBytes, fastMemorySpaceOpt,
+                      maximalFusion, computeToleranceThreshold);
+  fusion.run();
+}

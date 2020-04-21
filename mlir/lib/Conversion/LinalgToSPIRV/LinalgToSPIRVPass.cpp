@@ -7,23 +7,23 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Conversion/LinalgToSPIRV/LinalgToSPIRVPass.h"
+#include "../PassDetail.h"
 #include "mlir/Conversion/LinalgToSPIRV/LinalgToSPIRV.h"
 #include "mlir/Dialect/SPIRV/SPIRVDialect.h"
 #include "mlir/Dialect/SPIRV/SPIRVLowering.h"
-#include "mlir/Pass/Pass.h"
 
 using namespace mlir;
 
 namespace {
 /// A pass converting MLIR Linalg ops into SPIR-V ops.
-class LinalgToSPIRVPass : public ModulePass<LinalgToSPIRVPass> {
-  void runOnModule() override;
+class LinalgToSPIRVPass : public ConvertLinalgToSPIRVBase<LinalgToSPIRVPass> {
+  void runOnOperation() override;
 };
 } // namespace
 
-void LinalgToSPIRVPass::runOnModule() {
+void LinalgToSPIRVPass::runOnOperation() {
   MLIRContext *context = &getContext();
-  ModuleOp module = getModule();
+  ModuleOp module = getOperation();
 
   auto targetAttr = spirv::lookupTargetEnvOrDefault(module);
   std::unique_ptr<ConversionTarget> target =
@@ -43,9 +43,6 @@ void LinalgToSPIRVPass::runOnModule() {
     return signalPassFailure();
 }
 
-std::unique_ptr<OpPassBase<ModuleOp>> mlir::createLinalgToSPIRVPass() {
+std::unique_ptr<OperationPass<ModuleOp>> mlir::createLinalgToSPIRVPass() {
   return std::make_unique<LinalgToSPIRVPass>();
 }
-
-static PassRegistration<LinalgToSPIRVPass>
-    pass("convert-linalg-to-spirv", "Convert Linalg ops to SPIR-V ops");

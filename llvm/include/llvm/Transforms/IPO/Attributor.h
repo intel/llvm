@@ -101,17 +101,20 @@
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/Analysis/AliasAnalysis.h"
+#include "llvm/Analysis/AssumeBundleQueries.h"
+#include "llvm/Analysis/CFG.h"
 #include "llvm/Analysis/CGSCCPassManager.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Analysis/InlineCost.h"
 #include "llvm/Analysis/LazyCallGraph.h"
 #include "llvm/Analysis/MustExecute.h"
+#include "llvm/Analysis/PostDominators.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/IR/CallSite.h"
 #include "llvm/IR/ConstantRange.h"
-#include "llvm/IR/KnowledgeRetention.h"
 #include "llvm/IR/PassManager.h"
+#include "llvm/Support/Allocator.h"
 #include "llvm/Transforms/Utils/CallGraphUpdater.h"
 
 namespace llvm {
@@ -212,23 +215,6 @@ struct IRPosition {
   static const IRPosition callsite_argument(const CallBase &CB,
                                             unsigned ArgNo) {
     return IRPosition(const_cast<CallBase &>(CB), Kind(ArgNo));
-  }
-
-  /// Create a position describing the function scope of \p ICS.
-  static const IRPosition callsite_function(ImmutableCallSite ICS) {
-    return IRPosition::callsite_function(cast<CallBase>(*ICS.getInstruction()));
-  }
-
-  /// Create a position describing the returned value of \p ICS.
-  static const IRPosition callsite_returned(ImmutableCallSite ICS) {
-    return IRPosition::callsite_returned(cast<CallBase>(*ICS.getInstruction()));
-  }
-
-  /// Create a position describing the argument of \p ICS at position \p ArgNo.
-  static const IRPosition callsite_argument(ImmutableCallSite ICS,
-                                            unsigned ArgNo) {
-    return IRPosition::callsite_argument(cast<CallBase>(*ICS.getInstruction()),
-                                         ArgNo);
   }
 
   /// Create a position describing the argument of \p ACS at position \p ArgNo.
@@ -415,9 +401,9 @@ struct IRPosition {
       return;
 
     AttributeList AttrList;
-    CallSite CS = CallSite(&getAnchorValue());
-    if (CS)
-      AttrList = CS.getAttributes();
+    auto *CB = dyn_cast<CallBase>(&getAnchorValue());
+    if (CB)
+      AttrList = CB->getAttributes();
     else
       AttrList = getAssociatedFunction()->getAttributes();
 
@@ -425,8 +411,8 @@ struct IRPosition {
     for (Attribute::AttrKind AK : AKs)
       AttrList = AttrList.removeAttribute(Ctx, getAttrIdx(), AK);
 
-    if (CS)
-      CS.setAttributes(AttrList);
+    if (CB)
+      CB->setAttributes(AttrList);
     else
       getAssociatedFunction()->setAttributes(AttrList);
   }
@@ -565,9 +551,24 @@ struct InformationCache {
   InformationCache(const Module &M, AnalysisGetter &AG,
                    SetVector<Function *> *CGSCC)
       : DL(M.getDataLayout()),
-        Explorer(/* ExploreInterBlock */ true, /* ExploreCFGForward */ true,
-                 /* ExploreCFGBackward */ true),
+        Explorer(
+            /* ExploreInterBlock */ true, /* ExploreCFGForward */ true,
+            /* ExploreCFGBackward */ true,
+            /* LIGetter */
+            [&](const Function &F) { return AG.getAnalysis<LoopAnalysis>(F); },
+            /* DTGetter */
+            [&](const Function &F) {
+              return AG.getAnalysis<DominatorTreeAnalysis>(F);
+            },
+            /* PDTGetter */
+            [&](const Function &F) {
+              return AG.getAnalysis<PostDominatorTreeAnalysis>(F);
+            }),
         AG(AG), CGSCC(CGSCC) {}
+
+  ~InformationCache() {
+    DeleteContainerSeconds(FuncInfoMap);
+  }
 
   /// A map type from opcodes to instructions with this opcode.
   using OpcodeInstMapTy = DenseMap<unsigned, SmallVector<Instruction *, 32>>;
@@ -575,15 +576,15 @@ struct InformationCache {
   /// Return the map that relates "interesting" opcodes with all instructions
   /// with that opcode in \p F.
   OpcodeInstMapTy &getOpcodeInstMapForFunction(const Function &F) {
-    return FuncInstOpcodeMap[&F];
+    return getFunctionInfo(F).OpcodeInstMap;
   }
 
   /// A vector type to hold instructions.
-  using InstructionVectorTy = std::vector<Instruction *>;
+  using InstructionVectorTy = SmallVector<Instruction *, 4>;
 
   /// Return the instructions in \p F that may read or write memory.
   InstructionVectorTy &getReadOrWriteInstsForFunction(const Function &F) {
-    return FuncRWInstsMap[&F];
+    return getFunctionInfo(F).RWInsts;
   }
 
   /// Return MustBeExecutedContextExplorer
@@ -599,6 +600,13 @@ struct InformationCache {
   /// Return AliasAnalysis Result for function \p F.
   AAResults *getAAResultsForFunction(const Function &F) {
     return AG.getAnalysis<AAManager>(F);
+  }
+
+  /// Return true if \p Arg is involved in a must-tail call, thus the argument
+  /// of the caller or callee.
+  bool isInvolvedInMustTailCall(const Argument &Arg) {
+    FunctionInfo &FI = getFunctionInfo(*Arg.getParent());
+    return FI.CalledViaMustTail || FI.ContainsMustTailCall;
   }
 
   /// Return the analysis result from a pass \p AP for function \p F.
@@ -621,18 +629,40 @@ struct InformationCache {
   const RetainedKnowledgeMap &getKnowledgeMap() const { return KnowledgeMap; }
 
 private:
-  /// A map type from functions to opcode to instruction maps.
-  using FuncInstOpcodeMapTy = DenseMap<const Function *, OpcodeInstMapTy>;
+  struct FunctionInfo {
+    /// A nested map that remembers all instructions in a function with a
+    /// certain instruction opcode (Instruction::getOpcode()).
+    OpcodeInstMapTy OpcodeInstMap;
 
-  /// A map type from functions to their read or write instructions.
-  using FuncRWInstsMapTy = DenseMap<const Function *, InstructionVectorTy>;
+    /// A map from functions to their instructions that may read or write
+    /// memory.
+    InstructionVectorTy RWInsts;
 
-  /// A nested map that remembers all instructions in a function with a certain
-  /// instruction opcode (Instruction::getOpcode()).
-  FuncInstOpcodeMapTy FuncInstOpcodeMap;
+    /// Function is called by a `musttail` call.
+    bool CalledViaMustTail;
 
-  /// A map from functions to their instructions that may read or write memory.
-  FuncRWInstsMapTy FuncRWInstsMap;
+    /// Function contains a `musttail` call.
+    bool ContainsMustTailCall;
+  };
+
+  /// A map type from functions to informatio about it.
+  DenseMap<const Function *, FunctionInfo *> FuncInfoMap;
+
+  /// Return information about the function \p F, potentially by creating it.
+  FunctionInfo &getFunctionInfo(const Function &F) {
+    FunctionInfo *&FI = FuncInfoMap[&F];
+    if (!FI) {
+      FI = new FunctionInfo();
+      initializeInformationCache(F, *FI);
+    }
+    return *FI;
+  }
+
+  /// Initialize the function information cache \p FI for the function \p F.
+  ///
+  /// This method needs to be called for all function that might be looked at
+  /// through the information cache interface *prior* to looking at them.
+  void initializeInformationCache(const Function &F, FunctionInfo &FI);
 
   /// The datalayout used in the module.
   const DataLayout &DL;
@@ -700,11 +730,7 @@ struct Attributor {
       : Functions(Functions), InfoCache(InfoCache), CGUpdater(CGUpdater),
         DepRecomputeInterval(DepRecomputeInterval), Whitelist(Whitelist) {}
 
-  ~Attributor() {
-    DeleteContainerPointers(AllAbstractAttributes);
-    for (auto &It : ArgumentReplacementMap)
-      DeleteContainerPointers(It.second);
-  }
+  ~Attributor();
 
   /// Run the analyses until a fixpoint is reached or enforced (timeout).
   ///
@@ -799,12 +825,6 @@ struct Attributor {
   /// various places.
   void identifyDefaultAbstractAttributes(Function &F);
 
-  /// Initialize the information cache for queries regarding function \p F.
-  ///
-  /// This method needs to be called for all function that might be looked at
-  /// through the information cache interface *prior* to looking at them.
-  void initializeInformationCache(Function &F);
-
   /// Determine whether the function \p F is IPO amendable
   ///
   /// If a function is exactly defined or it has alwaysinline attribute
@@ -838,11 +858,14 @@ struct Attributor {
   }
 
   /// Helper function to replace all uses of \p V with \p NV. Return true if
-  /// there is any change.
-  bool changeValueAfterManifest(Value &V, Value &NV) {
+  /// there is any change. The flag \p ChangeDroppable indicates if dropppable
+  /// uses should be changed too.
+  bool changeValueAfterManifest(Value &V, Value &NV,
+                                bool ChangeDroppable = true) {
     bool Changed = false;
     for (auto &U : V.uses())
-      Changed |= changeUseAfterManifest(U, NV);
+      if (ChangeDroppable || !U.getUser()->isDroppable())
+        Changed |= changeUseAfterManifest(U, NV);
 
     return Changed;
   }
@@ -870,6 +893,12 @@ struct Attributor {
 
   /// Record that \p F is deleted after information was manifested.
   void deleteAfterManifest(Function &F) { ToBeDeletedFunctions.insert(&F); }
+
+  /// If \p V is assumed to be a constant, return it, if it is unclear yet,
+  /// return None, otherwise return `nullptr`.
+  Optional<Constant *> getAssumedConstant(const Value &V,
+                                          const AbstractAttribute &AA,
+                                          bool &UsedAssumedInformation);
 
   /// Return true if \p AA (or its context instruction) is assumed dead.
   ///
@@ -1070,6 +1099,9 @@ struct Attributor {
   /// Return the data layout associated with the anchor scope.
   const DataLayout &getDataLayout() const { return InfoCache.DL; }
 
+  /// The allocator used to allocate memory, e.g. for `AbstractAttribute`s.
+  BumpPtrAllocator Allocator;
+
 private:
   /// Check \p Pred on all call sites of \p Fn.
   ///
@@ -1146,9 +1178,11 @@ private:
 
     // Lookup the abstract attribute of type AAType. If found, return it after
     // registering a dependence of QueryingAA on the one returned attribute.
-    const auto &KindToAbstractAttributeMap = AAMap.lookup(IRP);
+    auto KindToAbstractAttributeMapIt = AAMap.find(IRP);
+    if ( KindToAbstractAttributeMapIt == AAMap.end())
+      return nullptr;
     if (AAType *AA = static_cast<AAType *>(
-            KindToAbstractAttributeMap.lookup(&AAType::ID))) {
+            KindToAbstractAttributeMapIt->second.lookup(&AAType::ID))) {
       // Do not register a dependence on an attribute with an invalid state.
       if (TrackDependence && AA->getState().isValidState())
         recordDependence(*AA, const_cast<AbstractAttribute &>(*QueryingAA),
@@ -1175,7 +1209,7 @@ private:
   /// the inner level.
   ///{
   using KindToAbstractAttributeMap =
-      DenseMap<const char *, AbstractAttribute *>;
+      SmallDenseMap<const char *, AbstractAttribute *, /*InlineBuckets=*/32>;
   DenseMap<IRPosition, KindToAbstractAttributeMap> AAMap;
   ///}
 
@@ -1890,7 +1924,10 @@ raw_ostream &operator<<(raw_ostream &OS, const AbstractState &State);
 template <typename base_ty, base_ty BestState, base_ty WorstState>
 raw_ostream &
 operator<<(raw_ostream &OS,
-           const IntegerStateBase<base_ty, BestState, WorstState> &State);
+           const IntegerStateBase<base_ty, BestState, WorstState> &S) {
+  return OS << "(" << S.getKnown() << "-" << S.getAssumed() << ")"
+            << static_cast<const AbstractState &>(S);
+}
 raw_ostream &operator<<(raw_ostream &OS, const IntegerRangeState &State);
 ///}
 
@@ -2081,14 +2118,14 @@ struct AAReachability : public StateWrapper<BooleanState, AbstractAttribute>,
   /// determines (and caches) reachability.
   bool isAssumedReachable(const Instruction *From,
                           const Instruction *To) const {
-    return true;
+    return isPotentiallyReachable(From, To);
   }
 
   /// Returns true if 'From' instruction is known to reach, 'To' instruction.
   /// Users should provide two positions they are interested in, and the class
   /// determines (and caches) reachability.
   bool isKnownReachable(const Instruction *From, const Instruction *To) const {
-    return true;
+    return isPotentiallyReachable(From, To);
   }
 
   /// Return an IR position, see struct IRPosition.
@@ -2206,6 +2243,11 @@ public:
 
   /// Create an abstract attribute view for the position \p IRP.
   static AAIsDead &createForPosition(const IRPosition &IRP, Attributor &A);
+
+  /// Determine if \p F might catch asynchronous exceptions.
+  static bool mayCatchAsynchronousExceptions(const Function &F) {
+    return F.hasPersonalityFn() && !canSimplifyInvokeNoUnwind(&F);
+  }
 
   /// Unique ID (due to the unique address)
   static const char ID;

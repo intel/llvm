@@ -11,7 +11,6 @@
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/Optional.h"
-#include "llvm/ADT/StringRef.h"
 #include "llvm/MC/MCDirectives.h"
 #include "llvm/MC/MCFixup.h"
 #include "llvm/MC/MCFragment.h"
@@ -24,15 +23,14 @@ class MCAsmLayout;
 class MCAssembler;
 class MCCFIInstruction;
 struct MCFixupKindInfo;
-class MCFragment;
 class MCInst;
 class MCObjectStreamer;
 class MCObjectTargetWriter;
 class MCObjectWriter;
-class MCRelaxableFragment;
 class MCSubtargetInfo;
 class MCValue;
 class raw_pwrite_stream;
+class StringRef;
 
 /// Generic interface to target specific assembler backends.
 class MCAsmBackend {
@@ -49,6 +47,10 @@ public:
   /// Return true if this target might automatically pad instructions and thus
   /// need to emit padding enable/disable directives around sensative code.
   virtual bool allowAutoPadding() const { return false; }
+  /// Return true if this target allows an unrelaxable instruction to be
+  /// emitted into RelaxableFragment and then we can increase its size in a
+  /// tricky way for optimization.
+  virtual bool allowEnhancedRelaxation() const { return false; }
 
   /// Give the target a chance to manipulate state related to instruction
   /// alignment (e.g. padding for optimization), instruction relaxablility, etc.

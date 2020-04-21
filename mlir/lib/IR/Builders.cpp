@@ -14,7 +14,6 @@
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/Module.h"
 #include "mlir/IR/StandardTypes.h"
-#include "mlir/Support/Functional.h"
 #include "llvm/Support/raw_ostream.h"
 using namespace mlir;
 
@@ -91,6 +90,10 @@ BoolAttr Builder::getBoolAttr(bool value) {
 
 DictionaryAttr Builder::getDictionaryAttr(ArrayRef<NamedAttribute> value) {
   return DictionaryAttr::get(value, context);
+}
+
+IntegerAttr Builder::getIndexAttr(int64_t value) {
+  return IntegerAttr::get(getIndexType(), APInt(64, value));
 }
 
 IntegerAttr Builder::getI64IntegerAttr(int64_t value) {
@@ -200,47 +203,46 @@ Builder::getSymbolRefAttr(StringRef value,
 }
 
 ArrayAttr Builder::getI32ArrayAttr(ArrayRef<int32_t> values) {
-  auto attrs = functional::map(
-      [this](int32_t v) -> Attribute { return getI32IntegerAttr(v); }, values);
+  auto attrs = llvm::to_vector<8>(llvm::map_range(
+      values, [this](int32_t v) -> Attribute { return getI32IntegerAttr(v); }));
   return getArrayAttr(attrs);
 }
 
 ArrayAttr Builder::getI64ArrayAttr(ArrayRef<int64_t> values) {
-  auto attrs = functional::map(
-      [this](int64_t v) -> Attribute { return getI64IntegerAttr(v); }, values);
+  auto attrs = llvm::to_vector<8>(llvm::map_range(
+      values, [this](int64_t v) -> Attribute { return getI64IntegerAttr(v); }));
   return getArrayAttr(attrs);
 }
 
 ArrayAttr Builder::getIndexArrayAttr(ArrayRef<int64_t> values) {
-  auto attrs = functional::map(
-      [this](int64_t v) -> Attribute {
+  auto attrs = llvm::to_vector<8>(
+      llvm::map_range(values, [this](int64_t v) -> Attribute {
         return getIntegerAttr(IndexType::get(getContext()), v);
-      },
-      values);
+      }));
   return getArrayAttr(attrs);
 }
 
 ArrayAttr Builder::getF32ArrayAttr(ArrayRef<float> values) {
-  auto attrs = functional::map(
-      [this](float v) -> Attribute { return getF32FloatAttr(v); }, values);
+  auto attrs = llvm::to_vector<8>(llvm::map_range(
+      values, [this](float v) -> Attribute { return getF32FloatAttr(v); }));
   return getArrayAttr(attrs);
 }
 
 ArrayAttr Builder::getF64ArrayAttr(ArrayRef<double> values) {
-  auto attrs = functional::map(
-      [this](double v) -> Attribute { return getF64FloatAttr(v); }, values);
+  auto attrs = llvm::to_vector<8>(llvm::map_range(
+      values, [this](double v) -> Attribute { return getF64FloatAttr(v); }));
   return getArrayAttr(attrs);
 }
 
 ArrayAttr Builder::getStrArrayAttr(ArrayRef<StringRef> values) {
-  auto attrs = functional::map(
-      [this](StringRef v) -> Attribute { return getStringAttr(v); }, values);
+  auto attrs = llvm::to_vector<8>(llvm::map_range(
+      values, [this](StringRef v) -> Attribute { return getStringAttr(v); }));
   return getArrayAttr(attrs);
 }
 
 ArrayAttr Builder::getAffineMapArrayAttr(ArrayRef<AffineMap> values) {
-  auto attrs = functional::map(
-      [](AffineMap v) -> Attribute { return AffineMapAttr::get(v); }, values);
+  auto attrs = llvm::to_vector<8>(llvm::map_range(
+      values, [](AffineMap v) -> Attribute { return AffineMapAttr::get(v); }));
   return getArrayAttr(attrs);
 }
 
@@ -291,12 +293,11 @@ AffineMap Builder::getEmptyAffineMap() { return AffineMap::get(context); }
 
 AffineMap Builder::getConstantAffineMap(int64_t val) {
   return AffineMap::get(/*dimCount=*/0, /*symbolCount=*/0,
-                        {getAffineConstantExpr(val)});
+                        getAffineConstantExpr(val));
 }
 
 AffineMap Builder::getDimIdentityMap() {
-  return AffineMap::get(/*dimCount=*/1, /*symbolCount=*/0,
-                        {getAffineDimExpr(0)});
+  return AffineMap::get(/*dimCount=*/1, /*symbolCount=*/0, getAffineDimExpr(0));
 }
 
 AffineMap Builder::getMultiDimIdentityMap(unsigned rank) {
@@ -304,18 +305,19 @@ AffineMap Builder::getMultiDimIdentityMap(unsigned rank) {
   dimExprs.reserve(rank);
   for (unsigned i = 0; i < rank; ++i)
     dimExprs.push_back(getAffineDimExpr(i));
-  return AffineMap::get(/*dimCount=*/rank, /*symbolCount=*/0, dimExprs);
+  return AffineMap::get(/*dimCount=*/rank, /*symbolCount=*/0, dimExprs,
+                        context);
 }
 
 AffineMap Builder::getSymbolIdentityMap() {
   return AffineMap::get(/*dimCount=*/0, /*symbolCount=*/1,
-                        {getAffineSymbolExpr(0)});
+                        getAffineSymbolExpr(0));
 }
 
 AffineMap Builder::getSingleDimShiftAffineMap(int64_t shift) {
   // expr = d0 + shift.
   auto expr = getAffineDimExpr(0) + shift;
-  return AffineMap::get(/*dimCount=*/1, /*symbolCount=*/0, {expr});
+  return AffineMap::get(/*dimCount=*/1, /*symbolCount=*/0, expr);
 }
 
 AffineMap Builder::getShiftedAffineMap(AffineMap map, int64_t shift) {
@@ -323,7 +325,8 @@ AffineMap Builder::getShiftedAffineMap(AffineMap map, int64_t shift) {
   shiftedResults.reserve(map.getNumResults());
   for (auto resultExpr : map.getResults())
     shiftedResults.push_back(resultExpr + shift);
-  return AffineMap::get(map.getNumDims(), map.getNumSymbols(), shiftedResults);
+  return AffineMap::get(map.getNumDims(), map.getNumSymbols(), shiftedResults,
+                        context);
 }
 
 //===----------------------------------------------------------------------===//
@@ -339,24 +342,28 @@ Operation *OpBuilder::insert(Operation *op) {
   return op;
 }
 
-/// Add new block and set the insertion point to the end of it. The block is
-/// inserted at the provided insertion point of 'parent'.
-Block *OpBuilder::createBlock(Region *parent, Region::iterator insertPt) {
+/// Add new block with 'argTypes' arguments and set the insertion point to the
+/// end of it. The block is inserted at the provided insertion point of
+/// 'parent'.
+Block *OpBuilder::createBlock(Region *parent, Region::iterator insertPt,
+                              TypeRange argTypes) {
   assert(parent && "expected valid parent region");
   if (insertPt == Region::iterator())
     insertPt = parent->end();
 
   Block *b = new Block();
+  b->addArguments(argTypes);
   parent->getBlocks().insert(insertPt, b);
   setInsertionPointToEnd(b);
   return b;
 }
 
-/// Add new block and set the insertion point to the end of it.  The block is
-/// placed before 'insertBefore'.
-Block *OpBuilder::createBlock(Block *insertBefore) {
+/// Add new block with 'argTypes' arguments and set the insertion point to the
+/// end of it.  The block is placed before 'insertBefore'.
+Block *OpBuilder::createBlock(Block *insertBefore, TypeRange argTypes) {
   assert(insertBefore && "expected valid insertion block");
-  return createBlock(insertBefore->getParent(), Region::iterator(insertBefore));
+  return createBlock(insertBefore->getParent(), Region::iterator(insertBefore),
+                     argTypes);
 }
 
 /// Create an operation given the fields represented as an OperationState.

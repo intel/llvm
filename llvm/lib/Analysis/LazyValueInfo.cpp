@@ -121,11 +121,13 @@ static ValueLatticeElement intersect(const ValueLatticeElement &A,
 
   // Intersect two constant ranges
   ConstantRange Range =
-    A.getConstantRange().intersectWith(B.getConstantRange());
+      A.getConstantRange().intersectWith(B.getConstantRange());
   // Note: An empty range is implicitly converted to overdefined internally.
   // TODO: We could instead use Undefined here since we've proven a conflict
   // and thus know this path must be unreachable.
-  return ValueLatticeElement::getRange(std::move(Range));
+  return ValueLatticeElement::getRange(
+      std::move(Range), /*MayIncludeUndef=*/A.isConstantRangeIncludingUndef() |
+                            B.isConstantRangeIncludingUndef());
 }
 
 //===----------------------------------------------------------------------===//
@@ -209,28 +211,21 @@ namespace {
       return ODI->second.count(V);
     }
 
-    bool hasCachedValueInfo(Value *V, BasicBlock *BB) const {
-      if (isOverdefined(V, BB))
+    bool getCachedValueInfo(ValueLatticeElement &BBLV, Value *V,
+                            BasicBlock *BB) const {
+      if (isOverdefined(V, BB)) {
+        BBLV = ValueLatticeElement::getOverdefined();
         return true;
+      }
 
       auto I = ValueCache.find_as(V);
       if (I == ValueCache.end())
         return false;
-
-      return I->second->BlockVals.count(BB);
-    }
-
-    ValueLatticeElement getCachedValueInfo(Value *V, BasicBlock *BB) const {
-      if (isOverdefined(V, BB))
-        return ValueLatticeElement::getOverdefined();
-
-      auto I = ValueCache.find_as(V);
-      if (I == ValueCache.end())
-        return ValueLatticeElement();
       auto BBI = I->second->BlockVals.find(BB);
       if (BBI == I->second->BlockVals.end())
-        return ValueLatticeElement();
-      return BBI->second;
+        return false;
+      BBLV = BBI->second;
+      return true;
     }
 
     /// clear - Empty the cache.
@@ -407,10 +402,9 @@ namespace {
     DominatorTree *DT;    ///< An optional DT pointer.
     DominatorTree *DisabledDT; ///< Stores DT if it's disabled.
 
-  ValueLatticeElement getBlockValue(Value *Val, BasicBlock *BB);
+  bool getBlockValue(ValueLatticeElement &Result, Value *Val, BasicBlock *BB);
   bool getEdgeValue(Value *V, BasicBlock *F, BasicBlock *T,
                     ValueLatticeElement &Result, Instruction *CxtI = nullptr);
-  bool hasBlockValue(Value *Val, BasicBlock *BB);
 
   // These methods process one work item and may add more. A false value
   // returned means that the work item was not completely processed and must
@@ -545,12 +539,14 @@ void LazyValueInfoImpl::solve() {
     if (solveBlockValue(e.second, e.first)) {
       // The work item was completely processed.
       assert(BlockValueStack.back() == e && "Nothing should have been pushed!");
-      assert(TheCache.hasCachedValueInfo(e.second, e.first) &&
+#ifndef NDEBUG
+      ValueLatticeElement BBLV;
+      assert(TheCache.getCachedValueInfo(BBLV, e.second, e.first) &&
              "Result should be in cache!");
-
       LLVM_DEBUG(
           dbgs() << "POP " << *e.second << " in " << e.first->getName() << " = "
-                 << TheCache.getCachedValueInfo(e.second, e.first) << "\n");
+                 << BBLV << "\n");
+#endif
 
       BlockValueStack.pop_back();
       BlockValueSet.erase(e);
@@ -561,21 +557,25 @@ void LazyValueInfoImpl::solve() {
   }
 }
 
-bool LazyValueInfoImpl::hasBlockValue(Value *Val, BasicBlock *BB) {
+bool LazyValueInfoImpl::getBlockValue(ValueLatticeElement &BBLV,
+                                      Value *Val, BasicBlock *BB) {
   // If already a constant, there is nothing to compute.
-  if (isa<Constant>(Val))
+  if (Constant *VC = dyn_cast<Constant>(Val)) {
+    BBLV = ValueLatticeElement::get(VC);
+    return true;
+  }
+
+  if (TheCache.getCachedValueInfo(BBLV, Val, BB))
     return true;
 
-  return TheCache.hasCachedValueInfo(Val, BB);
-}
+  // We have hit a cycle, assume overdefined.
+  if (!pushBlockValue({ BB, Val })) {
+    BBLV = ValueLatticeElement::getOverdefined();
+    return true;
+  }
 
-ValueLatticeElement LazyValueInfoImpl::getBlockValue(Value *Val,
-                                                     BasicBlock *BB) {
-  // If already a constant, there is nothing to compute.
-  if (Constant *VC = dyn_cast<Constant>(Val))
-    return ValueLatticeElement::get(VC);
-
-  return TheCache.getCachedValueInfo(Val, BB);
+  // Yet to be resolved.
+  return false;
 }
 
 static ValueLatticeElement getFromRangeMetadata(Instruction *BBI) {
@@ -596,9 +596,12 @@ static ValueLatticeElement getFromRangeMetadata(Instruction *BBI) {
 }
 
 bool LazyValueInfoImpl::solveBlockValue(Value *Val, BasicBlock *BB) {
+#ifndef NDEBUG
+  ValueLatticeElement BBLV;
   assert(!isa<Constant>(Val) && "Value should not be constant");
-  assert(!TheCache.hasCachedValueInfo(Val, BB) &&
+  assert(!TheCache.getCachedValueInfo(BBLV, Val, BB) &&
          "Value should not be in cache");
+#endif
 
   // Hold off inserting this value into the Cache in case we have to return
   // false and come back later.
@@ -745,7 +748,7 @@ bool LazyValueInfoImpl::solveBlockValueNonLocal(ValueLatticeElement &BBLV,
       // Explore that input, then return here
       return false;
 
-    Result.mergeIn(EdgeResult, DL);
+    Result.mergeIn(EdgeResult);
 
     // If we hit overdefined, exit early.  The BlockVals entry is already set
     // to overdefined.
@@ -789,7 +792,7 @@ bool LazyValueInfoImpl::solveBlockValuePHINode(ValueLatticeElement &BBLV,
       // Explore that input, then return here
       return false;
 
-    Result.mergeIn(EdgeResult, DL);
+    Result.mergeIn(EdgeResult);
 
     // If we hit overdefined, exit early.  The BlockVals entry is already set
     // to overdefined.
@@ -849,13 +852,10 @@ bool LazyValueInfoImpl::solveBlockValueSelect(ValueLatticeElement &BBLV,
                                               SelectInst *SI, BasicBlock *BB) {
 
   // Recurse on our inputs if needed
-  if (!hasBlockValue(SI->getTrueValue(), BB)) {
-    if (pushBlockValue(std::make_pair(BB, SI->getTrueValue())))
-      return false;
-    BBLV = ValueLatticeElement::getOverdefined();
-    return true;
-  }
-  ValueLatticeElement TrueVal = getBlockValue(SI->getTrueValue(), BB);
+  ValueLatticeElement TrueVal;
+  if (!getBlockValue(TrueVal, SI->getTrueValue(), BB))
+    return false;
+
   // If we hit overdefined, don't ask more queries.  We want to avoid poisoning
   // extra slots in the table if we can.
   if (TrueVal.isOverdefined()) {
@@ -863,13 +863,10 @@ bool LazyValueInfoImpl::solveBlockValueSelect(ValueLatticeElement &BBLV,
     return true;
   }
 
-  if (!hasBlockValue(SI->getFalseValue(), BB)) {
-    if (pushBlockValue(std::make_pair(BB, SI->getFalseValue())))
-      return false;
-    BBLV = ValueLatticeElement::getOverdefined();
-    return true;
-  }
-  ValueLatticeElement FalseVal = getBlockValue(SI->getFalseValue(), BB);
+  ValueLatticeElement FalseVal;
+  if (!getBlockValue(FalseVal, SI->getFalseValue(), BB))
+    return false;
+
   // If we hit overdefined, don't ask more queries.  We want to avoid poisoning
   // extra slots in the table if we can.
   if (FalseVal.isOverdefined()) {
@@ -901,17 +898,21 @@ bool LazyValueInfoImpl::solveBlockValueSelect(ValueLatticeElement &BBLV,
           return TrueCR.umax(FalseCR);
         };
       }();
-      BBLV = ValueLatticeElement::getRange(ResultCR);
+      BBLV = ValueLatticeElement::getRange(
+          ResultCR, TrueVal.isConstantRangeIncludingUndef() |
+                        FalseVal.isConstantRangeIncludingUndef());
       return true;
     }
 
     if (SPR.Flavor == SPF_ABS) {
       if (LHS == SI->getTrueValue()) {
-        BBLV = ValueLatticeElement::getRange(TrueCR.abs());
+        BBLV = ValueLatticeElement::getRange(
+            TrueCR.abs(), TrueVal.isConstantRangeIncludingUndef());
         return true;
       }
       if (LHS == SI->getFalseValue()) {
-        BBLV = ValueLatticeElement::getRange(FalseCR.abs());
+        BBLV = ValueLatticeElement::getRange(
+            FalseCR.abs(), FalseVal.isConstantRangeIncludingUndef());
         return true;
       }
     }
@@ -919,11 +920,13 @@ bool LazyValueInfoImpl::solveBlockValueSelect(ValueLatticeElement &BBLV,
     if (SPR.Flavor == SPF_NABS) {
       ConstantRange Zero(APInt::getNullValue(TrueCR.getBitWidth()));
       if (LHS == SI->getTrueValue()) {
-        BBLV = ValueLatticeElement::getRange(Zero.sub(TrueCR.abs()));
+        BBLV = ValueLatticeElement::getRange(
+            Zero.sub(TrueCR.abs()), FalseVal.isConstantRangeIncludingUndef());
         return true;
       }
       if (LHS == SI->getFalseValue()) {
-        BBLV = ValueLatticeElement::getRange(Zero.sub(FalseCR.abs()));
+        BBLV = ValueLatticeElement::getRange(
+            Zero.sub(FalseCR.abs()), FalseVal.isConstantRangeIncludingUndef());
         return true;
       }
     }
@@ -981,8 +984,8 @@ bool LazyValueInfoImpl::solveBlockValueSelect(ValueLatticeElement &BBLV,
   }
 
   ValueLatticeElement Result;  // Start Undefined.
-  Result.mergeIn(TrueVal, DL);
-  Result.mergeIn(FalseVal, DL);
+  Result.mergeIn(TrueVal);
+  Result.mergeIn(FalseVal);
   BBLV = Result;
   return true;
 }
@@ -990,20 +993,17 @@ bool LazyValueInfoImpl::solveBlockValueSelect(ValueLatticeElement &BBLV,
 Optional<ConstantRange> LazyValueInfoImpl::getRangeForOperand(unsigned Op,
                                                               Instruction *I,
                                                               BasicBlock *BB) {
-  if (!hasBlockValue(I->getOperand(Op), BB))
-    if (pushBlockValue(std::make_pair(BB, I->getOperand(Op))))
-      return None;
+  ValueLatticeElement Val;
+  if (!getBlockValue(Val, I->getOperand(Op), BB))
+    return None;
+
+  intersectAssumeOrGuardBlockValueConstantRange(I->getOperand(Op), Val, I);
+  if (Val.isConstantRange())
+    return Val.getConstantRange();
 
   const unsigned OperandBitWidth =
     DL.getTypeSizeInBits(I->getOperand(Op)->getType());
-  ConstantRange Range = ConstantRange::getFull(OperandBitWidth);
-  if (hasBlockValue(I->getOperand(Op), BB)) {
-    ValueLatticeElement Val = getBlockValue(I->getOperand(Op), BB);
-    intersectAssumeOrGuardBlockValueConstantRange(I->getOperand(Op), Val, I);
-    if (Val.isConstantRange())
-      Range = Val.getConstantRange();
-  }
-  return Range;
+  return ConstantRange::getFull(OperandBitWidth);
 }
 
 bool LazyValueInfoImpl::solveBlockValueCast(ValueLatticeElement &BBLV,
@@ -1164,16 +1164,8 @@ bool LazyValueInfoImpl::solveBlockValueExtractValue(
   // based on replaced with.overflow intrinsics.
   if (Value *V = SimplifyExtractValueInst(
           EVI->getAggregateOperand(), EVI->getIndices(),
-          EVI->getModule()->getDataLayout())) {
-    if (!hasBlockValue(V, BB)) {
-      if (pushBlockValue({ BB, V }))
-        return false;
-      BBLV = ValueLatticeElement::getOverdefined();
-      return true;
-    }
-    BBLV = getBlockValue(V, BB);
-    return true;
-  }
+          EVI->getModule()->getDataLayout()))
+    return getBlockValue(BBLV, V, BB);
 
   LLVM_DEBUG(dbgs() << " compute BB '" << BB->getName()
                     << "' - overdefined (unknown extractvalue).\n");
@@ -1516,16 +1508,11 @@ bool LazyValueInfoImpl::getEdgeValue(Value *Val, BasicBlock *BBFrom,
     return true;
   }
 
-  if (!hasBlockValue(Val, BBFrom)) {
-    if (pushBlockValue(std::make_pair(BBFrom, Val)))
-      return false;
-    // No new information.
-    Result = LocalResult;
-    return true;
-  }
+  ValueLatticeElement InBlock;
+  if (!getBlockValue(InBlock, Val, BBFrom))
+    return false;
 
   // Try to intersect ranges of the BB and the constraint on the edge.
-  ValueLatticeElement InBlock = getBlockValue(Val, BBFrom);
   intersectAssumeOrGuardBlockValueConstantRange(Val, InBlock,
                                                 BBFrom->getTerminator());
   // We can use the context instruction (generically the ultimate instruction
@@ -1548,11 +1535,13 @@ ValueLatticeElement LazyValueInfoImpl::getValueInBlock(Value *V, BasicBlock *BB,
                     << BB->getName() << "'\n");
 
   assert(BlockValueStack.empty() && BlockValueSet.empty());
-  if (!hasBlockValue(V, BB)) {
-    pushBlockValue(std::make_pair(BB, V));
+  ValueLatticeElement Result;
+  if (!getBlockValue(Result, V, BB)) {
     solve();
+    bool ValueAvailable = getBlockValue(Result, V, BB);
+    (void) ValueAvailable;
+    assert(ValueAvailable && "Value not available after solving");
   }
-  ValueLatticeElement Result = getBlockValue(V, BB);
   intersectAssumeOrGuardBlockValueConstantRange(V, Result, CxtI);
 
   LLVM_DEBUG(dbgs() << "  Result = " << Result << "\n");
@@ -1706,7 +1695,8 @@ Constant *LazyValueInfo::getConstant(Value *V, BasicBlock *BB,
 }
 
 ConstantRange LazyValueInfo::getConstantRange(Value *V, BasicBlock *BB,
-                                              Instruction *CxtI) {
+                                              Instruction *CxtI,
+                                              bool UndefAllowed) {
   assert(V->getType()->isIntegerTy());
   unsigned Width = V->getType()->getIntegerBitWidth();
   const DataLayout &DL = BB->getModule()->getDataLayout();
@@ -1714,8 +1704,8 @@ ConstantRange LazyValueInfo::getConstantRange(Value *V, BasicBlock *BB,
       getImpl(PImpl, AC, &DL, DT).getValueInBlock(V, BB, CxtI);
   if (Result.isUnknown())
     return ConstantRange::getEmpty(Width);
-  if (Result.isConstantRange())
-    return Result.getConstantRange();
+  if (Result.isConstantRange(UndefAllowed))
+    return Result.getConstantRange(UndefAllowed);
   // We represent ConstantInt constants as constant ranges but other kinds
   // of integer constants, i.e. ConstantExpr will be tagged as constants
   assert(!(Result.isConstant() && isa<ConstantInt>(Result.getConstant())) &&

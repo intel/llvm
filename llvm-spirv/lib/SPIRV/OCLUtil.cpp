@@ -271,7 +271,7 @@ unsigned encodeVecTypeHint(Type *Ty) {
   }
   if (VectorType *VecTy = dyn_cast<VectorType>(Ty)) {
     Type *EleTy = VecTy->getElementType();
-    unsigned Size = VecTy->getVectorNumElements();
+    unsigned Size = VecTy->getNumElements();
     return Size << 16 | encodeVecTypeHint(EleTy);
   }
   llvm_unreachable("invalid type");

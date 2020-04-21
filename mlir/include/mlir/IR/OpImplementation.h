@@ -113,11 +113,11 @@ public:
   void printArrowTypeList(TypeRange &&types) {
     auto &os = getStream() << " -> ";
 
-    bool wrapped = !has_single_element(types) ||
+    bool wrapped = !llvm::hasSingleElement(types) ||
                    (*types.begin()).template isa<FunctionType>();
     if (wrapped)
       os << '(';
-    interleaveComma(types, *this);
+    llvm::interleaveComma(types, *this);
     if (wrapped)
       os << ')';
   }
@@ -131,7 +131,7 @@ public:
   void printFunctionalType(InputRangeT &&inputs, ResultRangeT &&results) {
     auto &os = getStream();
     os << "(";
-    interleaveComma(inputs, *this);
+    llvm::interleaveComma(inputs, *this);
     os << ")";
     printArrowTypeList(results);
   }
@@ -199,11 +199,11 @@ inline OpAsmPrinter &operator<<(OpAsmPrinter &p, Block *value) {
 template <typename ValueRangeT>
 inline OpAsmPrinter &operator<<(OpAsmPrinter &p,
                                 const ValueTypeRange<ValueRangeT> &types) {
-  interleaveComma(types, p);
+  llvm::interleaveComma(types, p);
   return p;
 }
 inline OpAsmPrinter &operator<<(OpAsmPrinter &p, ArrayRef<Type> types) {
-  interleaveComma(types, p);
+  llvm::interleaveComma(types, p);
   return p;
 }
 
@@ -452,6 +452,9 @@ public:
   /// Parse a single operand.
   virtual ParseResult parseOperand(OperandType &result) = 0;
 
+  /// Parse a single operand if present.
+  virtual OptionalParseResult parseOptionalOperand(OperandType &result) = 0;
+
   /// These are the supported delimiters around operand lists and region
   /// argument lists, used by parseOperandList and parseRegionArgumentList.
   enum class Delimiter {
@@ -617,6 +620,9 @@ public:
 
   /// Parse a type.
   virtual ParseResult parseType(Type &result) = 0;
+
+  /// Parse an optional type.
+  virtual OptionalParseResult parseOptionalType(Type &result) = 0;
 
   /// Parse a type of a specific type.
   template <typename TypeT>

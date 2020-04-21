@@ -21,10 +21,8 @@
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/TypeUtilities.h"
-#include "mlir/Support/Functional.h"
 #include "mlir/Support/LLVM.h"
 #include "mlir/Support/MathExtras.h"
-#include "mlir/Support/STLExtras.h"
 #include "llvm/ADT/StringSet.h"
 #include <numeric>
 
@@ -893,12 +891,10 @@ static LogicalResult isSumOfIntegerArrayAttrConfinedToShape(
 
 static ArrayAttr makeI64ArrayAttr(ArrayRef<int64_t> values,
                                   MLIRContext *context) {
-  auto attrs = functional::map(
-      [context](int64_t v) -> Attribute {
-        return IntegerAttr::get(IntegerType::get(64, context), APInt(64, v));
-      },
-      values);
-  return ArrayAttr::get(attrs, context);
+  auto attrs = llvm::map_range(values, [context](int64_t v) -> Attribute {
+    return IntegerAttr::get(IntegerType::get(64, context), APInt(64, v));
+  });
+  return ArrayAttr::get(llvm::to_vector<8>(attrs), context);
 }
 
 static LogicalResult verify(InsertStridedSliceOp op) {
@@ -1013,7 +1009,7 @@ static LogicalResult verify(ReshapeOp op) {
     return op.emitError("invalid output shape for vector type ")
            << outputVectorType;
 
-  // Verify that the 'fixedVectorSizes' match a input/output vector shape
+  // Verify that the 'fixedVectorSizes' match an input/output vector shape
   // suffix.
   unsigned inputVectorRank = inputVectorType.getRank();
   for (unsigned i = 0; i < numFixedVectorSizes; ++i) {
@@ -1515,7 +1511,7 @@ static void print(OpAsmPrinter &p, TupleOp op) {
   p.printOperands(op.getOperands());
   p.printOptionalAttrDict(op.getAttrs());
   p << " : ";
-  interleaveComma(op.getOperation()->getOperandTypes(), p);
+  llvm::interleaveComma(op.getOperation()->getOperandTypes(), p);
 }
 
 static LogicalResult verify(TupleOp op) { return success(); }
@@ -1523,6 +1519,23 @@ static LogicalResult verify(TupleOp op) { return success(); }
 //===----------------------------------------------------------------------===//
 // TransposeOp
 //===----------------------------------------------------------------------===//
+
+// Eliminates transpose operations, which produce values identical to their
+// input values. This happens when the dimensions of the input vector remain in
+// their original order after the transpose operation.
+OpFoldResult TransposeOp::fold(ArrayRef<Attribute> operands) {
+  SmallVector<int64_t, 4> transp;
+  getTransp(transp);
+
+  // Check if the permutation of the dimensions contains sequential values:
+  // {0, 1, 2, ...}.
+  for (int64_t i = 0, e = transp.size(); i < e; i++) {
+    if (transp[i] != i)
+      return {};
+  }
+
+  return vector();
+}
 
 static LogicalResult verify(TransposeOp op) {
   VectorType vectorType = op.getVectorType();
@@ -1547,6 +1560,59 @@ static LogicalResult verify(TransposeOp op) {
       return op.emitOpError("dimension size mismatch at: ") << i;
   }
   return success();
+}
+
+namespace {
+
+// Rewrites two back-to-back TransposeOp operations into a single TransposeOp.
+class TransposeFolder final : public OpRewritePattern<TransposeOp> {
+public:
+  using OpRewritePattern<TransposeOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(TransposeOp transposeOp,
+                                PatternRewriter &rewriter) const override {
+    // Wrapper around TransposeOp::getTransp() for cleaner code.
+    auto getPermutation = [](TransposeOp transpose) {
+      SmallVector<int64_t, 4> permutation;
+      transpose.getTransp(permutation);
+      return permutation;
+    };
+
+    // Composes two permutations: result[i] = permutation1[permutation2[i]].
+    auto composePermutations = [](ArrayRef<int64_t> permutation1,
+                                  ArrayRef<int64_t> permutation2) {
+      SmallVector<int64_t, 4> result;
+      for (auto index : permutation2)
+        result.push_back(permutation1[index]);
+      return result;
+    };
+
+    // Return if the input of 'transposeOp' is not defined by another transpose.
+    TransposeOp parentTransposeOp =
+        dyn_cast_or_null<TransposeOp>(transposeOp.vector().getDefiningOp());
+    if (!parentTransposeOp)
+      return failure();
+
+    SmallVector<int64_t, 4> permutation = composePermutations(
+        getPermutation(parentTransposeOp), getPermutation(transposeOp));
+    // Replace 'transposeOp' with a new transpose operation.
+    rewriter.replaceOpWithNewOp<TransposeOp>(
+        transposeOp, transposeOp.getResult().getType(),
+        parentTransposeOp.vector(),
+        vector::getVectorSubscriptAttr(rewriter, permutation));
+    return success();
+  }
+};
+
+} // end anonymous namespace
+
+void TransposeOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                              MLIRContext *context) {
+  results.insert<TransposeFolder>(context);
+}
+
+void TransposeOp::getTransp(SmallVectorImpl<int64_t> &results) {
+  populateFromInt64AttrArray(transp(), results);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1683,7 +1749,8 @@ void CreateMaskOp::getCanonicalizationPatterns(
 
 void mlir::vector::populateVectorToVectorCanonicalizationPatterns(
     OwningRewritePatternList &patterns, MLIRContext *context) {
-  patterns.insert<CreateMaskFolder, StridedSliceConstantMaskFolder>(context);
+  patterns.insert<CreateMaskFolder, StridedSliceConstantMaskFolder,
+                  TransposeFolder>(context);
 }
 
 namespace mlir {

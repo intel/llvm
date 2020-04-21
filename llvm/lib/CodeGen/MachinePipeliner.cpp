@@ -259,6 +259,9 @@ bool MachinePipeliner::scheduleLoop(MachineLoop &L) {
 }
 
 void MachinePipeliner::setPragmaPipelineOptions(MachineLoop &L) {
+  // Reset the pragma for the next loop in iteration.
+  disabledByPragma = false;
+
   MachineBasicBlock *LBLK = L.getTopBlock();
 
   if (LBLK == nullptr)
@@ -806,7 +809,7 @@ void SwingSchedulerDAG::updatePhiDependences() {
           if (!MI->isPHI()) {
             SDep Dep(SU, SDep::Data, Reg);
             Dep.setLatency(0);
-            ST.adjustSchedDependency(SU, &I, Dep);
+            ST.adjustSchedDependency(SU, 0, &I, MI->getOperandNo(MOI), Dep);
             I.addPred(Dep);
           } else {
             HasPhiUse = Reg;

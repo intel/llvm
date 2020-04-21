@@ -132,13 +132,11 @@ void MCStreamer::emitIntValue(uint64_t Value, unsigned Size) {
   assert(1 <= Size && Size <= 8 && "Invalid size");
   assert((isUIntN(8 * Size, Value) || isIntN(8 * Size, Value)) &&
          "Invalid size");
-  char buf[8];
-  const bool isLittleEndian = Context.getAsmInfo()->isLittleEndian();
-  for (unsigned i = 0; i != Size; ++i) {
-    unsigned index = isLittleEndian ? i : (Size - i - 1);
-    buf[i] = uint8_t(Value >> (index * 8));
-  }
-  emitBytes(StringRef(buf, Size));
+  const bool IsLittleEndian = Context.getAsmInfo()->isLittleEndian();
+  uint64_t Swapped = support::endian::byte_swap(
+      Value, IsLittleEndian ? support::little : support::big);
+  unsigned Index = IsLittleEndian ? 0 : 8 - Size;
+  emitBytes(StringRef(reinterpret_cast<char *>(&Swapped) + Index, Size));
 }
 
 /// EmitULEB128IntValue - Special case of EmitULEB128Value that avoids the
@@ -781,10 +779,9 @@ static MCSection *getWinCFISection(MCContext &Context, unsigned *NextWinCFIID,
     // GCC does, which is to make plain comdat selectany section named like
     // ".[px]data$_Z3foov".
     if (!Context.getAsmInfo()->hasCOFFAssociativeComdats()) {
-      std::string SectionName =
-          (MainCFISecCOFF->getSectionName() + "$" +
-           TextSecCOFF->getSectionName().split('$').second)
-              .str();
+      std::string SectionName = (MainCFISecCOFF->getName() + "$" +
+                                 TextSecCOFF->getName().split('$').second)
+                                    .str();
       return Context.getCOFFSection(
           SectionName,
           MainCFISecCOFF->getCharacteristics() | COFF::IMAGE_SCN_LNK_COMDAT,

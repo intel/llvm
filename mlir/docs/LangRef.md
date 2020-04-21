@@ -1,4 +1,4 @@
-# MLIR Specification
+# MLIR Language Reference
 
 MLIR (Multi-Level IR) is a compiler intermediate representation with
 similarities to traditional three-address SSA representations (like
@@ -1275,7 +1275,7 @@ Syntax:
 affine-map-attribute ::= `affine_map` `<` affine-map `>`
 ```
 
-An affine-map attribute is an attribute that represents a affine-map object.
+An affine-map attribute is an attribute that represents an affine-map object.
 
 #### Array Attribute
 

@@ -92,7 +92,7 @@ New checks
 
   Finds ``cnd_wait``, ``cnd_timedwait``, ``wait``, ``wait_for``, or
   ``wait_until`` function calls when the function is not invoked from a loop
-  that checks whether a condition predicate holds or the function has a 
+  that checks whether a condition predicate holds or the function has a
   condition parameter.
 
 - New :doc:`bugprone-reserved-identifier
@@ -113,6 +113,11 @@ New checks
   Flags use of the `C` standard library functions ``memset``, ``memcpy`` and
   ``memcmp`` and similar derivatives on non-trivial types.
 
+- New :doc:`llvmlibc-implementation-in-namespace
+  <clang-tidy/checks/llvmlibc-implementation-in-namespace>` check.
+
+  Checks all llvm-libc implementation is within the correct namespace.
+
 - New :doc:`llvmlibc-restrict-system-libc-headers
   <clang-tidy/checks/llvmlibc-restrict-system-libc-headers>` check.
 
@@ -128,6 +133,12 @@ New checks
   <clang-tidy/checks/misc-no-recursion>` check.
 
   Finds recursive functions and diagnoses them.
+
+- New :doc:`objc-nsinvocation-argument-lifetime
+  <clang-tidy/checks/objc-nsinvocation-argument-lifetime>` check.
+
+  Finds calls to ``NSInvocation`` methods under ARC that don't have proper
+  argument object lifetimes.
 
 New check aliases
 ^^^^^^^^^^^^^^^^^
@@ -156,7 +167,7 @@ Changes in existing checks
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 - Improved :doc:`readability-qualified-auto
-  <clang-tidy/checks/readability-qualified-auto>` check now supports a 
+  <clang-tidy/checks/readability-qualified-auto>` check now supports a
   `AddConstToQualified` to enable adding ``const`` qualifiers to variables
   typed with ``auto *`` and ``auto &``.
 

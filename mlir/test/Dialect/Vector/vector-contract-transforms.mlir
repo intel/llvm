@@ -257,11 +257,11 @@ func @full_contract2(%arg0: vector<2x3xf32>,
 // CHECK-SAME: %[[B:.*1]]: vector<3xf32>
 // CHECK:      %[[C0:.*]] = constant dense<0.000000e+00> : vector<2x3xf32>
 // CHECK:      %[[T0:.*]] = vector.extract %[[A]][0] : vector<2xf32>
-// CHECK:      %[[T1:.*]] = vector.broadcast %[[T0]] : f32 to vector<3xf32>
+// CHECK:      %[[T1:.*]] = splat %[[T0]] : vector<3xf32>
 // CHECK:      %[[T2:.*]] = mulf %[[T1]], %[[B]] : vector<3xf32>
 // CHECK:      %[[T3:.*]] = vector.insert %[[T2]], %[[C0]] [0] : vector<3xf32> into vector<2x3xf32>
 // CHECK:      %[[T4:.*]] = vector.extract %[[A]][1] : vector<2xf32>
-// CHECK:      %[[T5:.*]] = vector.broadcast %[[T4]] : f32 to vector<3xf32>
+// CHECK:      %[[T5:.*]] = splat %[[T4]] : vector<3xf32>
 // CHECK:      %[[T6:.*]] = mulf %[[T5]], %[[B]] : vector<3xf32>
 // CHECK:      %[[T7:.*]] = vector.insert %[[T6]], %[[T3]] [1] : vector<3xf32> into vector<2x3xf32>
 // CHECK:      return %[[T7]] : vector<2x3xf32>
@@ -278,12 +278,12 @@ func @outerproduct_noacc(%arg0: vector<2xf32>,
 // CHECK-SAME: %[[C:.*2]]: vector<2x3xf32>
 // CHECK:      %[[C0:.*]] = constant dense<0.000000e+00> : vector<2x3xf32>
 // CHECK:      %[[T0:.*]] = vector.extract %[[A]][0] : vector<2xf32>
-// CHECK:      %[[T1:.*]] = vector.broadcast %[[T0]] : f32 to vector<3xf32>
+// CHECK:      %[[T1:.*]] = splat %[[T0]] : vector<3xf32>
 // CHECK:      %[[T2:.*]] = vector.extract %[[C]][0] : vector<2x3xf32>
 // CHECK:      %[[T3:.*]] = vector.fma %[[T1]], %[[B]], %[[T2]] : vector<3xf32>
 // CHECK:      %[[T4:.*]] = vector.insert %[[T3]], %[[C0]] [0] : vector<3xf32> into vector<2x3xf32>
 // CHECK:      %[[T5:.*]] = vector.extract %[[A]][1] : vector<2xf32>
-// CHECK:      %[[T6:.*]] = vector.broadcast %[[T5]] : f32 to vector<3xf32>
+// CHECK:      %[[T6:.*]] = splat %[[T5]] : vector<3xf32>
 // CHECK:      %[[T7:.*]] = vector.extract %[[C]][1] : vector<2x3xf32>
 // CHECK:      %[[T8:.*]] = vector.fma %[[T6]], %[[B]], %[[T7]] : vector<3xf32>
 // CHECK:      %[[T9:.*]] = vector.insert %[[T8]], %[[T4]] [1] : vector<3xf32> into vector<2x3xf32>
@@ -357,46 +357,205 @@ func @shape_casts(%a: vector<2x2xf32>) -> (vector<4xf32>, vector<2x2xf32>) {
   return %r0, %1 : vector<4xf32>, vector<2x2xf32>
 }
 
-// MATRIX-LABEL: func @column_major_matmul
-// MATRIX-SAME: %[[A:[a-zA-Z0-9]*]]: vector<4x3xf32>,
-// MATRIX-SAME: %[[B:[a-zA-Z0-9]*]]: vector<2x4xf32>,
-// MATRIX-SAME: %[[C:[a-zA-Z0-9]*]]: vector<3x2xf32>
-//      MATRIX:  %[[vcst:.*]] = constant dense<0.000000e+00> : vector<12xf32>
-//      MATRIX:  %[[vcst_0:.*]] = constant dense<0.000000e+00> : vector<8xf32>
-//      MATRIX:  %[[vcst_1:.*]] = constant dense<0.000000e+00> : vector<3x2xf32>
-//      MATRIX:  %[[a0:.*]] = vector.extract %[[A]][0] : vector<4x3xf32>
-//      MATRIX:  %[[a1:.*]] = vector.insert_strided_slice %[[a0]], %[[vcst]] {offsets = [0], strides = [1]} : vector<3xf32> into vector<12xf32>
-//      MATRIX:  %[[a2:.*]] = vector.extract %[[A]][1] : vector<4x3xf32>
-//      MATRIX:  %[[a3:.*]] = vector.insert_strided_slice %[[a2]], %[[a1]] {offsets = [3], strides = [1]} : vector<3xf32> into vector<12xf32>
-//      MATRIX:  %[[a4:.*]] = vector.extract %[[A]][2] : vector<4x3xf32>
-//      MATRIX:  %[[a5:.*]] = vector.insert_strided_slice %[[a4]], %[[a3]] {offsets = [6], strides = [1]} : vector<3xf32> into vector<12xf32>
-//      MATRIX:  %[[a6:.*]] = vector.extract %[[A]][3] : vector<4x3xf32>
-//      MATRIX:  %[[a7:.*]] = vector.insert_strided_slice %[[a6]], %[[a5]] {offsets = [9], strides = [1]} : vector<3xf32> into vector<12xf32>
-//      MATRIX:  %[[b8:.*]] = vector.extract %[[B]][0] : vector<2x4xf32>
-//      MATRIX:  %[[b9:.*]] = vector.insert_strided_slice %[[b8]], %[[vcst_0]] {offsets = [0], strides = [1]} : vector<4xf32> into vector<8xf32>
-//      MATRIX:  %[[b10:.*]] = vector.extract %[[B]][1] : vector<2x4xf32>
-//      MATRIX:  %[[b11:.*]] = vector.insert_strided_slice %[[b10]], %[[b9]] {offsets = [4], strides = [1]} : vector<4xf32> into vector<8xf32>
-//      MATRIX:  %[[mm12:.*]] = vector.matrix_multiply %[[a7]], %[[b11]] {lhs_columns = 3 : i32, lhs_rows = 4 : i32, rhs_columns = 4 : i32} : (vector<12xf32>, vector<8xf32>) -> vector<12xf32>
-//      MATRIX:  %[[mm13:.*]] = vector.strided_slice %[[mm12]] {offsets = [0], sizes = [2], strides = [1]} : vector<12xf32> to vector<2xf32>
-//      MATRIX:  %[[mm14:.*]] = vector.insert %[[mm13]], %[[vcst_1]] [0] : vector<2xf32> into vector<3x2xf32>
-//      MATRIX:  %[[mm15:.*]] = vector.strided_slice %[[mm12]] {offsets = [2], sizes = [2], strides = [1]} : vector<12xf32> to vector<2xf32>
-//      MATRIX:  %[[mm16:.*]] = vector.insert %[[mm15]], %[[mm14]] [1] : vector<2xf32> into vector<3x2xf32>
-//      MATRIX:  %[[mm17:.*]] = vector.strided_slice %[[mm12]] {offsets = [4], sizes = [2], strides = [1]} : vector<12xf32> to vector<2xf32>
-//      MATRIX:  %[[mm18:.*]] = vector.insert %[[mm17]], %[[mm16]] [2] : vector<2xf32> into vector<3x2xf32>
-//      MATRIX:  %[[mm19:.*]] = addf %[[C]], %[[mm18]] : vector<3x2xf32>
-#column_major_matmat_accesses = [
-  affine_map<(i, j, k) -> (k, j)>,
-  affine_map<(i, j, k) -> (i, k)>,
-  affine_map<(i, j, k) -> (j, i)>
-]
-#column_major_matmat_trait = {
-  indexing_maps = #column_major_matmat_accesses,
-  iterator_types = ["parallel", "parallel", "reduction"]
+// MATRIX-LABEL: func @matmul
+// MATRIX-SAME: %[[A:[a-zA-Z0-9]*]]: vector<2x4xf32>,
+// MATRIX-SAME: %[[B:[a-zA-Z0-9]*]]: vector<4x3xf32>,
+// MATRIX-SAME: %[[C:[a-zA-Z0-9]*]]: vector<2x3xf32>
+//      MATRIX:  %[[vcst:.*]] = constant dense<0.000000e+00> : vector<8xf32>
+//      MATRIX:  %[[vcst_0:.*]] = constant dense<0.000000e+00> : vector<12xf32>
+//      MATRIX:  %[[vcst_1:.*]] = constant dense<0.000000e+00> : vector<2x3xf32>
+//      MATRIX:  %[[a0:.*]] = vector.extract %[[A]][0] : vector<2x4xf32>
+//      MATRIX:  %[[a1:.*]] = vector.insert_strided_slice %[[a0]], %[[vcst]] {offsets = [0], strides = [1]} : vector<4xf32> into vector<8xf32>
+//      MATRIX:  %[[a2:.*]] = vector.extract %[[A]][1] : vector<2x4xf32>
+//      MATRIX:  %[[a3:.*]] = vector.insert_strided_slice %[[a2]], %[[a1]] {offsets = [4], strides = [1]} : vector<4xf32> into vector<8xf32>
+//      MATRIX:  %[[b0:.*]] = vector.extract %[[B]][0] : vector<4x3xf32>
+//      MATRIX:  %[[b1:.*]] = vector.insert_strided_slice %[[b0]], %[[vcst_0]] {offsets = [0], strides = [1]} : vector<3xf32> into vector<12xf32>
+//      MATRIX:  %[[b2:.*]] = vector.extract %[[B]][1] : vector<4x3xf32>
+//      MATRIX:  %[[b3:.*]] = vector.insert_strided_slice %[[b2]], %[[b1]] {offsets = [3], strides = [1]} : vector<3xf32> into vector<12xf32>
+//      MATRIX:  %[[b4:.*]] = vector.extract %[[B]][2] : vector<4x3xf32>
+//      MATRIX:  %[[b5:.*]] = vector.insert_strided_slice %[[b4]], %[[b3]] {offsets = [6], strides = [1]} : vector<3xf32> into vector<12xf32>
+//      MATRIX:  %[[b6:.*]] = vector.extract %[[B]][3] : vector<4x3xf32>
+//      MATRIX:  %[[b7:.*]] = vector.insert_strided_slice %[[b6]], %[[b5]] {offsets = [9], strides = [1]} : vector<3xf32> into vector<12xf32>
+//      MATRIX:  %[[mm1:.*]] = vector.matrix_multiply %[[a3]], %[[b7]] {lhs_columns = 4 : i32, lhs_rows = 2 : i32, rhs_columns = 3 : i32} : (vector<8xf32>, vector<12xf32>) -> vector<6xf32>
+//      MATRIX:  %[[mm2:.*]] = vector.strided_slice %[[mm1]] {offsets = [0], sizes = [3], strides = [1]} : vector<6xf32> to vector<3xf32>
+//      MATRIX:  %[[mm3:.*]] = vector.insert %[[mm2]], %[[vcst_1]] [0] : vector<3xf32> into vector<2x3xf32>
+//      MATRIX:  %[[mm4:.*]] = vector.strided_slice %[[mm1]] {offsets = [3], sizes = [3], strides = [1]} : vector<6xf32> to vector<3xf32>
+//      MATRIX:  %[[mm5:.*]] = vector.insert %[[mm4]], %[[mm3]] [1] : vector<3xf32> into vector<2x3xf32>
+//      MATRIX:  %[[mm6:.*]] = addf %[[C]], %[[mm5]] : vector<2x3xf32>
+func @matmul(%arg0: vector<2x4xf32>,
+                          %arg1: vector<4x3xf32>,
+                          %arg2: vector<2x3xf32>) -> vector<2x3xf32> {
+  %0 = vector.contract #matmat_trait %arg0, %arg1, %arg2
+    : vector<2x4xf32>, vector<4x3xf32> into vector<2x3xf32>
+  return %0 : vector<2x3xf32>
 }
-func @column_major_matmul(%arg0: vector<4x3xf32>,
-                          %arg1: vector<2x4xf32>,
-                          %arg2: vector<3x2xf32>) -> vector<3x2xf32> {
-  %0 = vector.contract #column_major_matmat_trait %arg0, %arg1, %arg2
-    : vector<4x3xf32>, vector<2x4xf32> into vector<3x2xf32>
+
+// CHECK-LABEL: func @broadcast_vec1d_from_scalar
+// CHECK-SAME: %[[A:.*0]]: f32
+// CHECK:      %[[T0:.*]] = splat %[[A]] : vector<2xf32>
+// CHECK:      return %[[T0]] : vector<2xf32>
+
+func @broadcast_vec1d_from_scalar(%arg0: f32) -> vector<2xf32> {
+  %0 = vector.broadcast %arg0 : f32 to vector<2xf32>
+  return %0 : vector<2xf32>
+}
+
+// CHECK-LABEL: func @broadcast_vec2d_from_scalar
+// CHECK-SAME: %[[A:.*0]]: f32
+// CHECK:      %[[T0:.*]] = splat %[[A]] : vector<2x3xf32>
+// CHECK:      return %[[T0]] : vector<2x3xf32>
+
+func @broadcast_vec2d_from_scalar(%arg0: f32) -> vector<2x3xf32> {
+  %0 = vector.broadcast %arg0 : f32 to vector<2x3xf32>
+  return %0 : vector<2x3xf32>
+}
+
+// CHECK-LABEL: func @broadcast_vec3d_from_scalar
+// CHECK-SAME: %[[A:.*0]]: f32
+// CHECK:      %[[T0:.*]] = splat %[[A]] : vector<2x3x4xf32>
+// CHECK:      return %[[T0]] : vector<2x3x4xf32>
+
+func @broadcast_vec3d_from_scalar(%arg0: f32) -> vector<2x3x4xf32> {
+  %0 = vector.broadcast %arg0 : f32 to vector<2x3x4xf32>
+  return %0 : vector<2x3x4xf32>
+}
+
+// CHECK-LABEL: func @broadcast_vec1d_from_vec1d
+// CHECK-SAME: %[[A:.*0]]: vector<2xf32>
+// CHECK:      return %[[A]] : vector<2xf32>
+
+func @broadcast_vec1d_from_vec1d(%arg0: vector<2xf32>) -> vector<2xf32> {
+  %0 = vector.broadcast %arg0 : vector<2xf32> to vector<2xf32>
+  return %0 : vector<2xf32>
+}
+
+// CHECK-LABEL: func @broadcast_vec2d_from_vec1d
+// CHECK-SAME: %[[A:.*0]]: vector<2xf32>
+// CHECK:      %[[C0:.*]] = constant dense<0.000000e+00> : vector<3x2xf32>
+// CHECK:      %[[T0:.*]] = vector.insert %[[A]], %[[C0]] [0] : vector<2xf32> into vector<3x2xf32>
+// CHECK:      %[[T1:.*]] = vector.insert %[[A]], %[[T0]] [1] : vector<2xf32> into vector<3x2xf32>
+// CHECK:      %[[T2:.*]] = vector.insert %[[A]], %[[T1]] [2] : vector<2xf32> into vector<3x2xf32>
+// CHECK:      return %[[T2]] : vector<3x2xf32>
+
+func @broadcast_vec2d_from_vec1d(%arg0: vector<2xf32>) -> vector<3x2xf32> {
+  %0 = vector.broadcast %arg0 : vector<2xf32> to vector<3x2xf32>
   return %0 : vector<3x2xf32>
+}
+
+// CHECK-LABEL: func @broadcast_vec3d_from_vec1d
+// CHECK-SAME: %[[A:.*0]]: vector<2xf32>
+// CHECK:      %[[C0:.*]] = constant dense<0.000000e+00> : vector<3x2xf32>
+// CHECK:      %[[C1:.*]] = constant dense<0.000000e+00> : vector<4x3x2xf32>
+// CHECK:      %[[T0:.*]] = vector.insert %[[A]], %[[C0]] [0] : vector<2xf32> into vector<3x2xf32>
+// CHECK:      %[[T1:.*]] = vector.insert %[[A]], %[[T0]] [1] : vector<2xf32> into vector<3x2xf32>
+// CHECK:      %[[T2:.*]] = vector.insert %[[A]], %[[T1]] [2] : vector<2xf32> into vector<3x2xf32>
+// CHECK:      %[[T3:.*]] = vector.insert %[[T2]], %[[C1]] [0] : vector<3x2xf32> into vector<4x3x2xf32>
+// CHECK:      %[[T4:.*]] = vector.insert %[[T2]], %[[T3]] [1] : vector<3x2xf32> into vector<4x3x2xf32>
+// CHECK:      %[[T5:.*]] = vector.insert %[[T2]], %[[T4]] [2] : vector<3x2xf32> into vector<4x3x2xf32>
+// CHECK:      %[[T6:.*]] = vector.insert %[[T2]], %[[T5]] [3] : vector<3x2xf32> into vector<4x3x2xf32>
+// CHECK:       return %[[T6]] : vector<4x3x2xf32>
+
+func @broadcast_vec3d_from_vec1d(%arg0: vector<2xf32>) -> vector<4x3x2xf32> {
+  %0 = vector.broadcast %arg0 : vector<2xf32> to vector<4x3x2xf32>
+  return %0 : vector<4x3x2xf32>
+}
+
+// CHECK-LABEL: func @broadcast_vec3d_from_vec2d
+// CHECK-SAME: %[[A:.*0]]: vector<3x2xf32>
+// CHECK:      %[[C0:.*]] = constant dense<0.000000e+00> : vector<4x3x2xf32>
+// CHECK:      %[[T0:.*]] = vector.insert %[[A]], %[[C0]] [0] : vector<3x2xf32> into vector<4x3x2xf32>
+// CHECK:      %[[T1:.*]] = vector.insert %[[A]], %[[T0]] [1] : vector<3x2xf32> into vector<4x3x2xf32>
+// CHECK:      %[[T2:.*]] = vector.insert %[[A]], %[[T1]] [2] : vector<3x2xf32> into vector<4x3x2xf32>
+// CHECK:      %[[T3:.*]] = vector.insert %[[A]], %[[T2]] [3] : vector<3x2xf32> into vector<4x3x2xf32>
+// CHECK:      return %[[T3]] : vector<4x3x2xf32>
+
+func @broadcast_vec3d_from_vec2d(%arg0: vector<3x2xf32>) -> vector<4x3x2xf32> {
+  %0 = vector.broadcast %arg0 : vector<3x2xf32> to vector<4x3x2xf32>
+  return %0 : vector<4x3x2xf32>
+}
+
+// CHECK-LABEL: func @broadcast_stretch
+// CHECK-SAME: %[[A:.*0]]: vector<1xf32>
+// CHECK:      %[[T0:.*]] = vector.extract %[[A]][0] : vector<1xf32>
+// CHECK:      %[[T1:.*]] = splat %[[T0]] : vector<4xf32>
+// CHECK:      return %[[T1]] : vector<4xf32>
+
+func @broadcast_stretch(%arg0: vector<1xf32>) -> vector<4xf32> {
+  %0 = vector.broadcast %arg0 : vector<1xf32> to vector<4xf32>
+  return %0 : vector<4xf32>
+}
+
+// CHECK-LABEL: func @broadcast_stretch_at_start
+// CHECK-SAME: %[[A:.*0]]: vector<1x4xf32>
+// CHECK:      %[[C0:.*]] = constant dense<0.000000e+00> : vector<3x4xf32>
+// CHECK:      %[[T0:.*]] = vector.extract %[[A]][0] : vector<1x4xf32>
+// CHECK:      %[[T1:.*]] = vector.insert %[[T0]], %[[C0]] [0] : vector<4xf32> into vector<3x4xf32>
+// CHECK:      %[[T2:.*]] = vector.insert %[[T0]], %[[T1]] [1] : vector<4xf32> into vector<3x4xf32>
+// CHECK:      %[[T3:.*]] = vector.insert %[[T0]], %[[T2]] [2] : vector<4xf32> into vector<3x4xf32>
+// CHECK:      return %[[T3]] : vector<3x4xf32>
+
+func @broadcast_stretch_at_start(%arg0: vector<1x4xf32>) -> vector<3x4xf32> {
+  %0 = vector.broadcast %arg0 : vector<1x4xf32> to vector<3x4xf32>
+  return %0 : vector<3x4xf32>
+}
+
+// CHECK-LABEL: func @broadcast_stretch_at_end
+// CHECK-SAME: %[[A:.*0]]: vector<4x1xf32>
+// CHECK:      %[[C:.*]] = constant dense<0.000000e+00> : vector<4x3xf32>
+// CHECK:      %[[T0:.*]] = vector.extract %[[A]][0] : vector<4x1xf32>
+// CHECK:      %[[T1:.*]] = vector.extract %[[T0]][0] : vector<1xf32>
+// CHECK:      %[[T2:.*]] = splat %[[T1]] : vector<3xf32>
+// CHECK:      %[[T3:.*]] = vector.insert %[[T2]], %[[C0]] [0] : vector<3xf32> into vector<4x3xf32>
+// CHECK:      %[[T4:.*]] = vector.extract %[[A]][1] : vector<4x1xf32>
+// CHECK:      %[[T5:.*]] = vector.extract %[[T4]][0] : vector<1xf32>
+// CHECK:      %[[T6:.*]] = splat %[[T5]] : vector<3xf32>
+// CHECK:      %[[T7:.*]] = vector.insert %[[T6]], %[[T3]] [1] : vector<3xf32> into vector<4x3xf32>
+// CHECK:      %[[T8:.*]] = vector.extract %[[A]][2] : vector<4x1xf32>
+// CHECK:      %[[T9:.*]] = vector.extract %[[T8]][0] : vector<1xf32>
+// CHECK:      %[[T10:.*]] = splat %[[T9]] : vector<3xf32>
+// CHECK:      %[[T11:.*]] = vector.insert %[[T10]], %[[T7]] [2] : vector<3xf32> into vector<4x3xf32>
+// CHECK:      %[[T12:.*]] = vector.extract %[[A]][3] : vector<4x1xf32>
+// CHECK:      %[[T13:.*]] = vector.extract %[[T12]][0] : vector<1xf32>
+// CHECK:      %[[T14:.*]] = splat %[[T13]] : vector<3xf32>
+// CHECK:      %[[T15:.*]] = vector.insert %[[T14]], %[[T11]] [3] : vector<3xf32> into vector<4x3xf32>
+// CHECK:      return %[[T15]] : vector<4x3xf32>
+
+func @broadcast_stretch_at_end(%arg0: vector<4x1xf32>) -> vector<4x3xf32> {
+  %0 = vector.broadcast %arg0 : vector<4x1xf32> to vector<4x3xf32>
+  return %0 : vector<4x3xf32>
+}
+
+// CHECK-LABEL: func @broadcast_stretch_in_middle
+// CHECK-SAME: %[[A:.*0]]: vector<4x1x2xf32>
+// CHECK:      %[[C0:.*]] = constant dense<0.000000e+00> : vector<4x3x2xf32>
+// CHECK:      %[[C1:.*]] = constant dense<0.000000e+00> : vector<3x2xf32>
+// CHECK:      %[[T0:.*]] = vector.extract %[[A]][0] : vector<4x1x2xf32>
+// CHECK:      %[[T1:.*]] = vector.extract %[[T0]][0] : vector<1x2xf32>
+// CHECK:      %[[T2:.*]] = vector.insert %[[T1]], %[[C1]] [0] : vector<2xf32> into vector<3x2xf32>
+// CHECK:      %[[T3:.*]] = vector.insert %[[T1]], %[[T2]] [1] : vector<2xf32> into vector<3x2xf32>
+// CHECK:      %[[T4:.*]] = vector.insert %[[T1]], %[[T3]] [2] : vector<2xf32> into vector<3x2xf32>
+// CHECK:      %[[T5:.*]] = vector.insert %[[T4]], %[[C0]] [0] : vector<3x2xf32> into vector<4x3x2xf32>
+// CHECK:      %[[T6:.*]] = vector.extract %[[A]][1] : vector<4x1x2xf32>
+// CHECK:      %[[T7:.*]] = vector.extract %[[T6]][0] : vector<1x2xf32>
+// CHECK:      %[[T8:.*]] = vector.insert %[[T7]], %[[C1]] [0] : vector<2xf32> into vector<3x2xf32>
+// CHECK:      %[[T9:.*]] = vector.insert %[[T7]], %[[T8]] [1] : vector<2xf32> into vector<3x2xf32>
+// CHECK:      %[[T10:.*]] = vector.insert %[[T7]], %[[T9]] [2] : vector<2xf32> into vector<3x2xf32>
+// CHECK:      %[[T11:.*]] = vector.insert %[[T10]], %[[T5]] [1] : vector<3x2xf32> into vector<4x3x2xf32>
+// CHECK:      %[[T12:.*]] = vector.extract %[[A]][2] : vector<4x1x2xf32>
+// CHECK:      %[[T13:.*]] = vector.extract %[[T12]][0] : vector<1x2xf32>
+// CHECK:      %[[T14:.*]] = vector.insert %[[T13]], %[[C1]] [0] : vector<2xf32> into vector<3x2xf32>
+// CHECK:      %[[T15:.*]] = vector.insert %[[T13]], %[[T14]] [1] : vector<2xf32> into vector<3x2xf32>
+// CHECK:      %[[T16:.*]] = vector.insert %[[T13]], %[[T15]] [2] : vector<2xf32> into vector<3x2xf32>
+// CHECK:      %[[T17:.*]] = vector.insert %[[T16]], %[[T11]] [2] : vector<3x2xf32> into vector<4x3x2xf32>
+// CHECK:      %[[T18:.*]] = vector.extract %[[A]][3] : vector<4x1x2xf32>
+// CHECK:      %[[T19:.*]] = vector.extract %[[T18]][0] : vector<1x2xf32>
+// CHECK:      %[[T20:.*]] = vector.insert %[[T19]], %[[C1]] [0] : vector<2xf32> into vector<3x2xf32>
+// CHECK:      %[[T21:.*]] = vector.insert %[[T19]], %[[T20]] [1] : vector<2xf32> into vector<3x2xf32>
+// CHECK:      %[[T22:.*]] = vector.insert %[[T19]], %[[T21]] [2] : vector<2xf32> into vector<3x2xf32>
+// CHECK:      %[[T23:.*]] = vector.insert %[[T22]], %[[T17]] [3] : vector<3x2xf32> into vector<4x3x2xf32>
+// CHECK:      return %[[T23]] : vector<4x3x2xf32>
+
+func @broadcast_stretch_in_middle(%arg0: vector<4x1x2xf32>) -> vector<4x3x2xf32> {
+  %0 = vector.broadcast %arg0 : vector<4x1x2xf32> to vector<4x3x2xf32>
+  return %0 : vector<4x3x2xf32>
 }

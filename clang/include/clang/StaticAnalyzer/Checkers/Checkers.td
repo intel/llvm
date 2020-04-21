@@ -299,7 +299,7 @@ def StdCLibraryFunctionArgsChecker : Checker<"StdCLibraryFunctionArgs">,
   HelpText<"Check constraints of arguments of C standard library functions, "
            "such as whether the parameter of isalpha is in the range [0, 255] "
            "or is EOF.">,
-  Dependencies<[StdCLibraryFunctionsChecker]>,
+  Dependencies<[StdCLibraryFunctionsChecker, CallAndMessageChecker]>,
   Documentation<NotDocumented>;
 
 def TrustNonnullChecker : Checker<"TrustNonnull">,
@@ -1276,6 +1276,30 @@ def AnalysisOrderChecker : Checker<"AnalysisOrder">,
                   Released,
                   Hide>,
     CmdLineOption<Boolean,
+                  "PreStmtCXXDeleteExpr",
+                  "",
+                  "false",
+                  Released,
+                  Hide>,
+    CmdLineOption<Boolean,
+                  "PostStmtCXXDeleteExpr",
+                  "",
+                  "false",
+                  Released,
+                  Hide>,
+    CmdLineOption<Boolean,
+                  "PreStmtCXXConstructExpr",
+                  "",
+                  "false",
+                  Released,
+                  Hide>,
+    CmdLineOption<Boolean,
+                  "PostStmtCXXConstructExpr",
+                  "",
+                  "false",
+                  Released,
+                  Hide>,
+    CmdLineOption<Boolean,
                   "PreStmtOffsetOfExpr",
                   "",
                   "false",
@@ -1301,6 +1325,12 @@ def AnalysisOrderChecker : Checker<"AnalysisOrder">,
                   Hide>,
     CmdLineOption<Boolean,
                   "EndFunction",
+                  "",
+                  "false",
+                  Released,
+                  Hide>,
+    CmdLineOption<Boolean,
+                  "EndAnalysis",
                   "",
                   "false",
                   Released,
@@ -1400,6 +1430,11 @@ def TaintTesterChecker : Checker<"TaintTest">,
   HelpText<"Mark tainted symbols as such.">,
   Documentation<NotDocumented>;
 
+def StreamTesterChecker : Checker<"StreamTester">,
+  HelpText<"Add test functions to StreamChecker for test and debugging purposes.">,
+  Dependencies<[StreamChecker]>,
+  Documentation<NotDocumented>;
+
 def ExprInspectionChecker : Checker<"ExprInspection">,
   HelpText<"Check the analyzer's understanding of expressions">,
   Documentation<NotDocumented>;
@@ -1420,6 +1455,12 @@ def DebugContainerModeling : Checker<"DebugContainerModeling">,
 def DebugIteratorModeling : Checker<"DebugIteratorModeling">,
   HelpText<"Check the analyzer's understanding of C++ iterators">,
   Dependencies<[DebugContainerModeling, IteratorModeling]>,
+  Documentation<NotDocumented>;
+
+def StdCLibraryFunctionsTesterChecker : Checker<"StdCLibraryFunctionsTester">,
+  HelpText<"Add test functions to the summary map, so testing of individual "
+           "summary constituents becomes possible.">,
+  Dependencies<[StdCLibraryFunctionsChecker]>,
   Documentation<NotDocumented>;
 
 } // end "debug"

@@ -46,11 +46,11 @@ if(DEFINED LIBCXXABI_ENABLE_STATIC
   message(FATAL_ERROR "LIBCXX_LINK_TESTS_WITH_SHARED_LIBCXXABI being OFF requires LIBCXXABI_ENABLE_STATIC to be ON")
 endif()
 
-if(LIBCXX_LINK_TESTS_WITH_SHARED_LIBCXX AND NOT LIBCXX_ENABLE_SHARED)
+if(LIBCXX_INCLUDE_TESTS AND LIBCXX_LINK_TESTS_WITH_SHARED_LIBCXX AND NOT LIBCXX_ENABLE_SHARED)
   message(FATAL_ERROR "LIBCXX_LINK_TESTS_WITH_SHARED_LIBCXX being ON requires LIBCXX_ENABLE_SHARED to be ON")
 endif()
 
-if(NOT LIBCXX_LINK_TESTS_WITH_SHARED_LIBCXX AND NOT LIBCXX_ENABLE_STATIC)
+if(LIBCXX_INCLUDE_TESTS AND NOT LIBCXX_LINK_TESTS_WITH_SHARED_LIBCXX AND NOT LIBCXX_ENABLE_STATIC)
   message(FATAL_ERROR "LIBCXX_LINK_TESTS_WITH_SHARED_LIBCXX being OFF requires LIBCXX_ENABLE_STATIC to be ON")
 endif()
 
@@ -109,12 +109,14 @@ if (LIBCXX_INCLUDE_TESTS)
     ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.in
     ${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg)
 
+  add_custom_target(check-cxx-deps
+    DEPENDS cxx ${LIBCXX_TEST_DEPS}
+    COMMENT "Builds dependencies required to run the test suite.")
+
   add_lit_testsuite(check-cxx
     "Running libcxx tests"
     ${CMAKE_CURRENT_BINARY_DIR}
-    DEPENDS cxx ${LIBCXX_TEST_DEPS})
-
-  add_custom_target(check-libcxx DEPENDS check-cxx)
+    DEPENDS check-cxx-deps)
 endif()
 
 if (LIBCXX_GENERATE_COVERAGE)
@@ -140,15 +142,6 @@ if (LIBCXX_CONFIGURE_IDE)
   add_executable(libcxx_test_objects EXCLUDE_FROM_ALL
           ${LIBCXX_TESTS} ${LIBCXX_TEST_HEADERS} ${LIBCXX_HEADERS})
   add_dependencies(libcxx_test_objects cxx)
-
-  set(STATIC_ROOT ${LIBCXX_SOURCE_DIR}/test/std/input.output/filesystems/Inputs/static_test_env)
-  add_definitions(-DLIBCXX_FILESYSTEM_STATIC_TEST_ROOT="${STATIC_ROOT}")
-
-  set(DYNAMIC_ROOT ${LIBCXX_BINARY_DIR}/test/filesystem/Output/dynamic_env)
-  add_definitions(-DLIBCXX_FILESYSTEM_DYNAMIC_TEST_ROOT="${DYNAMIC_ROOT}")
-
-  set(DYNAMIC_HELPER "python ${LIBCXX_SOURCE_DIR}/test/support/filesystem_dynamic_test_helper.py ")
-  add_definitions(-DLIBCXX_FILESYSTEM_DYNAMIC_TEST_HELPER="${DYNAMIC_HELPER}")
 
   split_list(LIBCXX_COMPILE_FLAGS)
   split_list(LIBCXX_LINK_FLAGS)

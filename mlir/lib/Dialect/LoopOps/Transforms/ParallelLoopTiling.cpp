@@ -10,12 +10,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "PassDetail.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/LoopOps/LoopOps.h"
 #include "mlir/Dialect/LoopOps/Passes.h"
 #include "mlir/Dialect/LoopOps/Transforms.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
-#include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/RegionUtils.h"
 #include "llvm/Support/CommandLine.h"
 
@@ -66,7 +66,8 @@ void mlir::loop::tileParallelLoop(ParallelOp op, ArrayRef<int64_t> tileSizes) {
       /*dimCount=*/3, /*symbolCount=*/0,
       {getAffineDimExpr(/*position=*/0, b.getContext()),
        getAffineDimExpr(/*position=*/1, b.getContext()) -
-           getAffineDimExpr(/*position=*/2, b.getContext())});
+           getAffineDimExpr(/*position=*/2, b.getContext())},
+      b.getContext());
 
   // Create the inner loop with adjusted bounds.
   SmallVector<Value, 2> newBounds;
@@ -101,9 +102,9 @@ static bool getInnermostNestedLoops(Block *block,
 }
 
 namespace {
-struct ParallelLoopTiling : public FunctionPass<ParallelLoopTiling> {
+struct ParallelLoopTiling
+    : public LoopParallelLoopTilingBase<ParallelLoopTiling> {
   ParallelLoopTiling() = default;
-  ParallelLoopTiling(const ParallelLoopTiling &) {} // tileSize is non-copyable.
   explicit ParallelLoopTiling(ArrayRef<int64_t> tileSizes) {
     this->tileSizes = tileSizes;
   }
@@ -117,11 +118,6 @@ struct ParallelLoopTiling : public FunctionPass<ParallelLoopTiling> {
       tileParallelLoop(pLoop, tileSizes);
     }
   }
-
-  ListOption<int64_t> tileSizes{
-      *this, "parallel-loop-tile-sizes",
-      llvm::cl::desc("factors to tile parallel loops by"), llvm::cl::ZeroOrMore,
-      llvm::cl::MiscFlags::CommaSeparated};
 };
 } // namespace
 
@@ -129,6 +125,3 @@ std::unique_ptr<Pass>
 mlir::createParallelLoopTilingPass(ArrayRef<int64_t> tileSizes) {
   return std::make_unique<ParallelLoopTiling>(tileSizes);
 }
-
-static PassRegistration<ParallelLoopTiling> pass("parallel-loop-tiling",
-                                                 "Tile parallel loops.");

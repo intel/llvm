@@ -38,7 +38,7 @@ SymbolFileDWARFDwo::SymbolFileDWARFDwo(SymbolFileDWARF &base_symbol_file,
 DWARFCompileUnit *SymbolFileDWARFDwo::GetDWOCompileUnitForHash(uint64_t hash) {
   if (const llvm::DWARFUnitIndex &index = m_context.GetAsLLVM().getCUIndex()) {
     if (const llvm::DWARFUnitIndex::Entry *entry = index.getFromHash(hash)) {
-      if (auto *unit_contrib = entry->getOffset())
+      if (auto *unit_contrib = entry->getContribution())
         return llvm::dyn_cast_or_null<DWARFCompileUnit>(
             DebugInfo().GetUnitAtOffset(DIERef::Section::DebugInfo,
                                         unit_contrib->Offset));
@@ -95,10 +95,10 @@ SymbolFileDWARFDwo::GetForwardDeclClangTypeToDie() {
   return GetBaseSymbolFile().GetForwardDeclClangTypeToDie();
 }
 
-size_t SymbolFileDWARFDwo::GetObjCMethodDIEOffsets(
-    lldb_private::ConstString class_name, DIEArray &method_die_offsets) {
-  return GetBaseSymbolFile().GetObjCMethodDIEOffsets(class_name,
-                                                     method_die_offsets);
+void SymbolFileDWARFDwo::GetObjCMethods(
+    lldb_private::ConstString class_name,
+    llvm::function_ref<bool(DIERef ref)> callback) {
+  GetBaseSymbolFile().GetObjCMethods(class_name, callback);
 }
 
 UniqueDWARFASTTypeMap &SymbolFileDWARFDwo::GetUniqueDWARFASTTypeMap() {

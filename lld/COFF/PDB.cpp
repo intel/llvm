@@ -100,6 +100,9 @@ public:
   /// Add natvis files specified on the command line.
   void addNatvisFiles();
 
+  /// Add named streams specified on the command line.
+  void addNamedStreams();
+
   /// Link CodeView from each object file in the symbol table into the PDB.
   void addObjectsToPDB();
 
@@ -1385,6 +1388,8 @@ void PDBLinker::printStats() {
       TypeIndex typeIndex;
       uint64_t totalInputSize() const { return uint64_t(dupCount) * typeSize; }
       bool operator<(const TypeSizeInfo &rhs) const {
+        if (totalInputSize() == rhs.totalInputSize())
+          return typeIndex < rhs.typeIndex;
         return totalInputSize() < rhs.totalInputSize();
       }
     };
@@ -1432,6 +1437,19 @@ void PDBLinker::addNatvisFiles() {
       continue;
     }
     builder.addInjectedSource(file, std::move(*dataOrErr));
+  }
+}
+
+void PDBLinker::addNamedStreams() {
+  for (const auto &streamFile : config->namedStreams) {
+    const StringRef stream = streamFile.getKey(), file = streamFile.getValue();
+    ErrorOr<std::unique_ptr<MemoryBuffer>> dataOrErr =
+        MemoryBuffer::getFile(file);
+    if (!dataOrErr) {
+      warn("Cannot open input file: " + file);
+      continue;
+    }
+    exitOnErr(builder.addNamedStream(stream, (*dataOrErr)->getBuffer()));
   }
 }
 
@@ -1690,6 +1708,7 @@ void lld::coff::createPDB(SymbolTable *symtab,
   pdb.addImportFilesToPDB(outputSections);
   pdb.addSections(outputSections, sectionTable);
   pdb.addNatvisFiles();
+  pdb.addNamedStreams();
 
   ScopedTimer t2(diskCommitTimer);
   codeview::GUID guid;

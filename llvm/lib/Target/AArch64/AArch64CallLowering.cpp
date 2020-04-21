@@ -87,10 +87,9 @@ struct IncomingArgHandler : public CallLowering::ValueHandler {
   void assignValueToAddress(Register ValVReg, Register Addr, uint64_t Size,
                             MachinePointerInfo &MPO, CCValAssign &VA) override {
     MachineFunction &MF = MIRBuilder.getMF();
-    unsigned Align = inferAlignmentFromPtrInfo(MF, MPO);
     auto MMO = MF.getMachineMemOperand(
         MPO, MachineMemOperand::MOLoad | MachineMemOperand::MOInvariant, Size,
-        Align);
+        inferAlignFromPtrInfo(MF, MPO));
     MIRBuilder.buildLoad(ValVReg, Addr, *MMO);
   }
 
@@ -134,7 +133,7 @@ struct OutgoingArgHandler : public CallLowering::ValueHandler {
                      int FPDiff = 0)
       : ValueHandler(MIRBuilder, MRI, AssignFn), MIB(MIB),
         AssignFnVarArg(AssignFnVarArg), IsTailCall(IsTailCall), FPDiff(FPDiff),
-        StackSize(0) {}
+        StackSize(0), SPReg(0) {}
 
   bool isIncomingArgumentHandler() const override { return false; }
 
@@ -152,7 +151,8 @@ struct OutgoingArgHandler : public CallLowering::ValueHandler {
       return FIReg.getReg(0);
     }
 
-    auto SPReg = MIRBuilder.buildCopy(p0, Register(AArch64::SP));
+    if (!SPReg)
+      SPReg = MIRBuilder.buildCopy(p0, Register(AArch64::SP)).getReg(0);
 
     auto OffsetReg = MIRBuilder.buildConstant(s64, Offset);
 
@@ -177,9 +177,8 @@ struct OutgoingArgHandler : public CallLowering::ValueHandler {
                     .getReg(0);
     }
     MachineFunction &MF = MIRBuilder.getMF();
-    unsigned Align = inferAlignmentFromPtrInfo(MF, MPO);
-    auto MMO = MF.getMachineMemOperand(
-        MPO, MachineMemOperand::MOStore, Size, Align);
+    auto MMO = MF.getMachineMemOperand(MPO, MachineMemOperand::MOStore, Size,
+                                       inferAlignFromPtrInfo(MF, MPO));
     MIRBuilder.buildStore(ValVReg, Addr, *MMO);
   }
 
@@ -206,6 +205,9 @@ struct OutgoingArgHandler : public CallLowering::ValueHandler {
   /// callee's. Unused elsewhere.
   int FPDiff;
   uint64_t StackSize;
+
+  // Cache the SP register vreg if we need it more than once in this call site.
+  Register SPReg;
 };
 } // namespace
 
@@ -420,7 +422,7 @@ bool AArch64CallLowering::lowerFormalArguments(
   SmallVector<ArgInfo, 8> SplitArgs;
   unsigned i = 0;
   for (auto &Arg : F.args()) {
-    if (DL.getTypeStoreSize(Arg.getType()) == 0)
+    if (DL.getTypeStoreSize(Arg.getType()).isZero())
       continue;
 
     ArgInfo OrigArg{VRegs[i], Arg.getType()};

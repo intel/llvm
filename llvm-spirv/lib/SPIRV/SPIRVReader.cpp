@@ -1276,7 +1276,7 @@ SPIRVToLLVM::expandOCLBuiltinWithScalarArg(CallInst *CI,
         M, CI,
         [=](CallInst *, std::vector<Value *> &Args) {
           auto VecElemCount =
-              CI->getOperand(1)->getType()->getVectorElementCount();
+              cast<VectorType>(CI->getOperand(1)->getType())->getElementCount();
           Value *NewVec = nullptr;
           if (auto CA = dyn_cast<Constant>(Args[0]))
             NewVec = ConstantVector::getSplat(VecElemCount, CA);
@@ -1576,11 +1576,12 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
   // Creation of place holder
   if (CreatePlaceHolder) {
+    auto Ty = transType(BV->getType());
     auto GV = new GlobalVariable(
-        *M, transType(BV->getType()), false, GlobalValue::PrivateLinkage,
+        *M, Ty, false, GlobalValue::PrivateLinkage,
         nullptr, std::string(KPlaceholderPrefix) + BV->getName(), 0,
         GlobalVariable::NotThreadLocal, 0);
-    auto LD = new LoadInst(GV, BV->getName(), BB);
+    auto LD = new LoadInst(Ty, GV, BV->getName(), BB);
     PlaceholderMap[BV] = LD;
     return mapValue(BV, LD);
   }
@@ -1671,8 +1672,9 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
   case OpLoad: {
     SPIRVLoad *BL = static_cast<SPIRVLoad *>(BV);
+    auto V = transValue(BL->getSrc(), F, BB);
     LoadInst *LI =
-        new LoadInst(transValue(BL->getSrc(), F, BB), BV->getName(),
+        new LoadInst(V->getType()->getPointerElementType(), V, BV->getName(),
                      BL->SPIRVMemoryAccess::isVolatile(),
                      MaybeAlign(BL->SPIRVMemoryAccess::getAlignment()), BB);
     if (BL->SPIRVMemoryAccess::isNonTemporal())
@@ -1767,8 +1769,8 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     IRBuilder<> Builder(BB);
     auto Scalar = transValue(VTS->getScalar(), F, BB);
     auto Vector = transValue(VTS->getVector(), F, BB);
-    assert(Vector->getType()->isVectorTy() && "Invalid type");
-    unsigned VecSize = Vector->getType()->getVectorNumElements();
+    auto *VecTy = cast<VectorType>(Vector->getType());
+    unsigned VecSize = VecTy->getNumElements();
     auto NewVec = Builder.CreateVectorSplat(VecSize, Scalar, Scalar->getName());
     NewVec->takeName(Scalar);
     auto Scale = Builder.CreateFMul(Vector, NewVec, "scale");
@@ -1795,10 +1797,10 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
     unsigned M = Mat->getType()->getArrayNumElements();
 
-    VectorType *VTy =
-        VectorType::get(Vec->getType()->getVectorElementType(), M);
+    auto *VecTy = cast<VectorType>(Vec->getType());
+    VectorType *VTy = VectorType::get(VecTy->getElementType(), M);
     auto ETy = VTy->getElementType();
-    unsigned N = Vec->getType()->getVectorNumElements();
+    unsigned N = VecTy->getNumElements();
     Value *V = Builder.CreateVectorSplat(M, ConstantFP::get(ETy, 0.0));
 
     for (unsigned Idx = 0; Idx != N; ++Idx) {
@@ -1824,7 +1826,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     auto Matrix = transValue(MTS->getMatrix(), F, BB);
     uint64_t ColNum = Matrix->getType()->getArrayNumElements();
     auto ColType = cast<ArrayType>(Matrix->getType())->getElementType();
-    auto VecSize = ColType->getVectorNumElements();
+    auto VecSize = cast<VectorType>(ColType)->getNumElements();
     auto NewVec = Builder.CreateVectorSplat(VecSize, Scalar, Scalar->getName());
     NewVec->takeName(Scalar);
 
@@ -1863,7 +1865,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     unsigned M = Mat->getType()->getArrayNumElements();
     VectorType *VTy =
         cast<VectorType>(cast<ArrayType>(Mat->getType())->getElementType());
-    unsigned N = VTy->getVectorNumElements();
+    unsigned N = VTy->getNumElements();
     auto ETy = VTy->getElementType();
     Value *V = Builder.CreateVectorSplat(N, ConstantFP::get(ETy, 0.0));
 
@@ -1920,8 +1922,8 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
         cast<VectorType>(cast<ArrayType>(M1->getType())->getElementType());
     VectorType *V2Ty =
         cast<VectorType>(cast<ArrayType>(M2->getType())->getElementType());
-    unsigned R1 = V1Ty->getVectorNumElements();
-    unsigned R2 = V2Ty->getVectorNumElements();
+    unsigned R1 = V1Ty->getNumElements();
+    unsigned R2 = V2Ty->getNumElements();
     auto ETy = V1Ty->getElementType();
 
     (void)C1;
@@ -1959,7 +1961,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     unsigned ColNum = Matrix->getType()->getArrayNumElements();
     VectorType *ColTy =
         cast<VectorType>(cast<ArrayType>(Matrix->getType())->getElementType());
-    unsigned RowNum = ColTy->getVectorNumElements();
+    unsigned RowNum = ColTy->getNumElements();
 
     auto VTy = VectorType::get(ColTy->getElementType(), ColNum);
     auto ResultTy = ArrayType::get(VTy, RowNum);
@@ -1974,9 +1976,9 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
       // Fastpath
       switch (ColNum) {
       case 2: {
-        Value *V1 = Builder.CreateShuffleVector(MCache[0], MCache[1], {0, 2});
+        Value *V1 = Builder.CreateShuffleVector(MCache[0], MCache[1], ArrayRef<int>({0, 2}));
         V = Builder.CreateInsertValue(V, V1, 0);
-        Value *V2 = Builder.CreateShuffleVector(MCache[0], MCache[1], {1, 3});
+        Value *V2 = Builder.CreateShuffleVector(MCache[0], MCache[1], ArrayRef<int>({1, 3}));
         V = Builder.CreateInsertValue(V, V2, 1);
         return mapValue(BV, V);
       }
@@ -1984,10 +1986,10 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
       case 4: {
         for (unsigned Idx = 0; Idx < 4; ++Idx) {
           Value *V1 =
-              Builder.CreateShuffleVector(MCache[0], MCache[1], {Idx, Idx + 4});
+              Builder.CreateShuffleVector(MCache[0], MCache[1], ArrayRef<uint32_t>({Idx, Idx + 4}));
           Value *V2 =
-              Builder.CreateShuffleVector(MCache[2], MCache[3], {Idx, Idx + 4});
-          Value *V3 = Builder.CreateShuffleVector(V1, V2, {0, 1, 2, 3});
+              Builder.CreateShuffleVector(MCache[2], MCache[3], ArrayRef<uint32_t>({Idx, Idx + 4}));
+          Value *V3 = Builder.CreateShuffleVector(V1, V2, ArrayRef<uint32_t>({0, 1, 2, 3}));
           V = Builder.CreateInsertValue(V, V3, Idx);
         }
         return mapValue(BV, V);
@@ -2016,10 +2018,11 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
   case OpCopyObject: {
     SPIRVCopyObject *CO = static_cast<SPIRVCopyObject *>(BV);
+    auto Ty = transType(CO->getOperand()->getType());
     AllocaInst *AI =
-        new AllocaInst(transType(CO->getOperand()->getType()), 0, "", BB);
+        new AllocaInst(Ty, 0, "", BB);
     new StoreInst(transValue(CO->getOperand(), F, BB), AI, BB);
-    LoadInst *LI = new LoadInst(AI, "", BB);
+    LoadInst *LI = new LoadInst(Ty, AI, "", BB);
     return mapValue(BV, LI);
   }
 
@@ -2162,9 +2165,10 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
   case OpFunctionPointerCallINTEL: {
     SPIRVFunctionPointerCallINTEL *BC =
         static_cast<SPIRVFunctionPointerCallINTEL *>(BV);
-    auto Call = CallInst::Create(transValue(BC->getCalledValue(), F, BB),
-                                 transValue(BC->getArgumentValues(), F, BB),
-                                 BC->getName(), BB);
+    auto V = transValue(BC->getCalledValue(), F, BB);
+    auto Call = CallInst::Create(
+        cast<FunctionType>(V->getType()->getPointerElementType()), V,
+        transValue(BC->getArgumentValues(), F, BB), BC->getName(), BB);
     // Assuming we are calling a regular device function
     Call->setCallingConv(CallingConv::SPIR_FUNC);
     // Don't set attributes, because at translation time we don't know which
@@ -3617,7 +3621,8 @@ Instruction *SPIRVToLLVM::transOCLAllAny(SPIRVInstruction *I, BasicBlock *BB) {
                Type *Int32Ty = Type::getInt32Ty(*Context);
                auto OldArg = CI->getOperand(0);
                auto NewArgTy = VectorType::get(
-                   Int32Ty, OldArg->getType()->getVectorNumElements());
+                   Int32Ty,
+                   cast<VectorType>(OldArg->getType())->getNumElements());
                auto NewArg =
                    CastInst::CreateSExtOrBitCast(OldArg, NewArgTy, "", CI);
                Args[0] = NewArg;
@@ -3651,17 +3656,17 @@ Instruction *SPIRVToLLVM::transOCLRelational(SPIRVInstruction *I,
                          ->getElementType()
                          ->isHalfTy())
                    IntTy = Type::getInt16Ty(*Context);
-                 RetTy = VectorType::get(IntTy,
-                                         CI->getType()->getVectorNumElements());
+                 RetTy = VectorType::get(
+                     IntTy, cast<VectorType>(CI->getType())->getNumElements());
                }
                return CI->getCalledFunction()->getName().str();
              },
              [=](CallInst *NewCI) -> Instruction * {
                Type *RetTy = Type::getInt1Ty(*Context);
                if (NewCI->getType()->isVectorTy())
-                 RetTy =
-                     VectorType::get(Type::getInt1Ty(*Context),
-                                     NewCI->getType()->getVectorNumElements());
+                 RetTy = VectorType::get(
+                     Type::getInt1Ty(*Context),
+                     cast<VectorType>(NewCI->getType())->getNumElements());
                return CastInst::CreateTruncOrBitCast(NewCI, RetTy, "",
                                                      NewCI->getNextNode());
              },

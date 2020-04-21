@@ -7,8 +7,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-// RUN: %build
-// RUN: %run
+// FILE_DEPENDENCIES: %t.exe
+
+// RUN: %{build}
+// RUN: %{run}
 
 int main(int, char**)
 {

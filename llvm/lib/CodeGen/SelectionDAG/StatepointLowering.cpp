@@ -18,6 +18,7 @@
 #include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/CodeGen/FunctionLoweringInfo.h"
@@ -60,6 +61,10 @@ STATISTIC(NumSlotsAllocatedForStatepoints,
 STATISTIC(NumOfStatepoints, "Number of statepoint nodes encountered");
 STATISTIC(StatepointMaxSlotsRequired,
           "Maximum number of stack slots required for a singe statepoint");
+
+cl::opt<bool> UseRegistersForDeoptValues(
+    "use-registers-for-deopt-values", cl::Hidden, cl::init(false),
+    cl::desc("Allow using registers for non pointer deopt args"));
 
 static void pushStackMapConstant(SmallVectorImpl<SDValue>& Ops,
                                  SelectionDAGBuilder &Builder, uint64_t Value) {
@@ -314,9 +319,9 @@ static MachineMemOperand* getMachineMemOperand(MachineFunction &MF,
   auto MMOFlags = MachineMemOperand::MOStore |
     MachineMemOperand::MOLoad | MachineMemOperand::MOVolatile;
   auto &MFI = MF.getFrameInfo();
-  return MF.getMachineMemOperand(PtrInfo, MMOFlags, 
+  return MF.getMachineMemOperand(PtrInfo, MMOFlags,
                                  MFI.getObjectSize(FI.getIndex()),
-                                 MFI.getObjectAlignment(FI.getIndex()));
+                                 MFI.getObjectAlign(FI.getIndex()));
 }
 
 /// Spill a value incoming to the statepoint. It might be either part of
@@ -354,10 +359,9 @@ spillIncomingStatepointValue(SDValue Incoming, SDValue Chain,
     // slots with preferred alignments larger than frame alignment..
     auto &MF = Builder.DAG.getMachineFunction();
     auto PtrInfo = MachinePointerInfo::getFixedStack(MF, Index);
-    auto *StoreMMO =
-      MF.getMachineMemOperand(PtrInfo, MachineMemOperand::MOStore, 
-                              MFI.getObjectSize(Index),
-                              MFI.getObjectAlignment(Index));
+    auto *StoreMMO = MF.getMachineMemOperand(
+        PtrInfo, MachineMemOperand::MOStore, MFI.getObjectSize(Index),
+        MFI.getObjectAlign(Index));
     Chain = Builder.DAG.getStore(Chain, Builder.getCurSDLoc(), Incoming, Loc,
                                  StoreMMO);
 
@@ -373,10 +377,11 @@ spillIncomingStatepointValue(SDValue Incoming, SDValue Chain,
 /// Lower a single value incoming to a statepoint node.  This value can be
 /// either a deopt value or a gc value, the handling is the same.  We special
 /// case constants and allocas, then fall back to spilling if required.
-static void lowerIncomingStatepointValue(SDValue Incoming, bool LiveInOnly,
-                                         SmallVectorImpl<SDValue> &Ops,
-                                         SmallVectorImpl<MachineMemOperand*> &MemRefs,
-                                         SelectionDAGBuilder &Builder) {
+static void
+lowerIncomingStatepointValue(SDValue Incoming, bool RequireSpillSlot,
+                             SmallVectorImpl<SDValue> &Ops,
+                             SmallVectorImpl<MachineMemOperand *> &MemRefs,
+                             SelectionDAGBuilder &Builder) {
   // Note: We know all of these spills are independent, but don't bother to
   // exploit that chain wise.  DAGCombine will happily do so as needed, so
   // doing it here would be a small compile time win at most.
@@ -402,14 +407,15 @@ static void lowerIncomingStatepointValue(SDValue Incoming, bool LiveInOnly,
     auto &MF = Builder.DAG.getMachineFunction();
     auto *MMO = getMachineMemOperand(MF, *FI);
     MemRefs.push_back(MMO);
-    
-  } else if (LiveInOnly) {
+
+  } else if (!RequireSpillSlot) {
     // If this value is live in (not live-on-return, or live-through), we can
     // treat it the same way patchpoint treats it's "live in" values.  We'll
     // end up folding some of these into stack references, but they'll be
     // handled by the register allocator.  Note that we do not have the notion
     // of a late use so these values might be placed in registers which are
-    // clobbered by the call.  This is fine for live-in.
+    // clobbered by the call.  This is fine for live-in. For live-through
+    // fix-up pass should be executed to force spilling of such registers.
     Ops.push_back(Incoming);
   } else {
     // Otherwise, locate a spill slot and explicitly spill it so it
@@ -483,8 +489,18 @@ lowerStatepointMetaArgs(SmallVectorImpl<SDValue> &Ops,
   const bool LiveInDeopt =
     SI.StatepointFlags & (uint64_t)StatepointFlags::DeoptLiveIn;
 
-  auto isGCValue =[&](const Value *V) {
-    return is_contained(SI.Ptrs, V) || is_contained(SI.Bases, V);
+  auto isGCValue = [&](const Value *V) {
+    auto *Ty = V->getType();
+    if (!Ty->isPtrOrPtrVectorTy())
+      return false;
+    if (auto *GFI = Builder.GFI)
+      if (auto IsManaged = GFI->getStrategy().isGCManagedPointer(Ty))
+        return *IsManaged;
+    return true; // conservative
+  };
+
+  auto requireSpillSlot = [&](const Value *V) {
+    return !(LiveInDeopt || UseRegistersForDeoptValues) || isGCValue(V);
   };
 
   // Before we actually start lowering (and allocating spill slots for values),
@@ -493,7 +509,7 @@ lowerStatepointMetaArgs(SmallVectorImpl<SDValue> &Ops,
   // doesn't change semantics at all.  It is important for performance that we
   // reserve slots for both deopt and gc values before lowering either.
   for (const Value *V : SI.DeoptState) {
-    if (!LiveInDeopt || isGCValue(V))
+    if (requireSpillSlot(V))
       reservePreviousStackSlotForValue(V, Builder);
   }
   for (unsigned i = 0; i < SI.Bases.size(); ++i) {
@@ -520,8 +536,8 @@ lowerStatepointMetaArgs(SmallVectorImpl<SDValue> &Ops,
     }
     if (!Incoming.getNode())
       Incoming = Builder.getValue(V);
-    const bool LiveInValue = LiveInDeopt && !isGCValue(V);
-    lowerIncomingStatepointValue(Incoming, LiveInValue, Ops, MemRefs, Builder);
+    lowerIncomingStatepointValue(Incoming, requireSpillSlot(V), Ops, MemRefs,
+                                 Builder);
   }
 
   // Finally, go ahead and lower all the gc arguments.  There's no prefixed
@@ -531,12 +547,14 @@ lowerStatepointMetaArgs(SmallVectorImpl<SDValue> &Ops,
   // (base[0], ptr[0], base[1], ptr[1], ...)
   for (unsigned i = 0; i < SI.Bases.size(); ++i) {
     const Value *Base = SI.Bases[i];
-    lowerIncomingStatepointValue(Builder.getValue(Base), /*LiveInOnly*/ false,
-                                 Ops, MemRefs, Builder);
+    lowerIncomingStatepointValue(Builder.getValue(Base),
+                                 /*RequireSpillSlot*/ true, Ops, MemRefs,
+                                 Builder);
 
     const Value *Ptr = SI.Ptrs[i];
-    lowerIncomingStatepointValue(Builder.getValue(Ptr), /*LiveInOnly*/ false,
-                                 Ops, MemRefs, Builder);
+    lowerIncomingStatepointValue(Builder.getValue(Ptr),
+                                 /*RequireSpillSlot*/ true, Ops, MemRefs,
+                                 Builder);
   }
 
   // If there are any explicit spill slots passed to the statepoint, record
@@ -799,22 +817,17 @@ SelectionDAGBuilder::LowerStatepoint(ImmutableStatepoint ISP,
 #endif
 
   SDValue ActualCallee;
+  SDValue Callee = getValue(ISP.getCalledValue());
 
   if (ISP.getNumPatchBytes() > 0) {
     // If we've been asked to emit a nop sequence instead of a call instruction
     // for this statepoint then don't lower the call target, but use a constant
-    // `null` instead.  Not lowering the call target lets statepoint clients get
-    // away without providing a physical address for the symbolic call target at
-    // link time.
-
-    const auto &TLI = DAG.getTargetLoweringInfo();
-    const auto &DL = DAG.getDataLayout();
-
-    unsigned AS = ISP.getCalledValue()->getType()->getPointerAddressSpace();
-    ActualCallee =
-        DAG.getTargetConstant(0, getCurSDLoc(), TLI.getPointerTy(DL, AS));
+    // `undef` instead.  Not lowering the call target lets statepoint clients
+    // get away without providing a physical address for the symbolic call
+    // target at link time.
+    ActualCallee = DAG.getUNDEF(Callee.getValueType());
   } else {
-    ActualCallee = getValue(ISP.getCalledValue());
+    ActualCallee = Callee;
   }
 
   StatepointLoweringInfo SI(DAG);
@@ -849,8 +862,8 @@ SelectionDAGBuilder::LowerStatepoint(ImmutableStatepoint ISP,
 
   SI.GCArgs = ArrayRef<const Use>(ISP.gc_args_begin(), ISP.gc_args_end());
   SI.StatepointInstr = ISP.getInstruction();
-  SI.GCTransitionArgs =
-      ArrayRef<const Use>(ISP.gc_args_begin(), ISP.gc_args_end());
+  SI.GCTransitionArgs = ArrayRef<const Use>(ISP.gc_transition_args_begin(),
+                                            ISP.gc_transition_args_end());
   SI.ID = ISP.getID();
   SI.DeoptState = ArrayRef<const Use>(ISP.deopt_begin(), ISP.deopt_end());
   SI.StatepointFlags = ISP.getFlags();
@@ -1002,10 +1015,9 @@ void SelectionDAGBuilder::visitGCRelocate(const GCRelocateInst &Relocate) {
   auto &MF = DAG.getMachineFunction();
   auto &MFI = MF.getFrameInfo();
   auto PtrInfo = MachinePointerInfo::getFixedStack(MF, Index);
-  auto *LoadMMO =
-    MF.getMachineMemOperand(PtrInfo, MachineMemOperand::MOLoad, 
-                            MFI.getObjectSize(Index),
-                            MFI.getObjectAlignment(Index));
+  auto *LoadMMO = MF.getMachineMemOperand(PtrInfo, MachineMemOperand::MOLoad,
+                                          MFI.getObjectSize(Index),
+                                          MFI.getObjectAlign(Index));
 
   auto LoadVT = DAG.getTargetLoweringInfo().getValueType(DAG.getDataLayout(),
                                                          Relocate.getType());

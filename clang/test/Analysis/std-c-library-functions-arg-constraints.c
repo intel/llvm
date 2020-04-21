@@ -3,6 +3,7 @@
 // RUN:   -analyzer-checker=core \
 // RUN:   -analyzer-checker=apiModeling.StdCLibraryFunctions \
 // RUN:   -analyzer-checker=apiModeling.StdCLibraryFunctionArgs \
+// RUN:   -analyzer-checker=debug.StdCLibraryFunctionsTester \
 // RUN:   -analyzer-checker=debug.ExprInspection \
 // RUN:   -triple x86_64-unknown-linux-gnu \
 // RUN:   -verify=report
@@ -12,6 +13,7 @@
 // RUN:   -analyzer-checker=core \
 // RUN:   -analyzer-checker=apiModeling.StdCLibraryFunctions \
 // RUN:   -analyzer-checker=apiModeling.StdCLibraryFunctionArgs \
+// RUN:   -analyzer-checker=debug.StdCLibraryFunctionsTester \
 // RUN:   -analyzer-checker=debug.ExprInspection \
 // RUN:   -triple x86_64-unknown-linux-gnu \
 // RUN:   -analyzer-output=text \
@@ -62,7 +64,7 @@ void test_alnum_symbolic2(int x) {
 
 typedef struct FILE FILE;
 typedef typeof(sizeof(int)) size_t;
-size_t fread(void *, size_t, size_t, FILE *);
+size_t fread(void *restrict, size_t, size_t, FILE *);
 void test_notnull_concrete(FILE *fp) {
   fread(0, sizeof(int), 10, fp); // \
   // report-warning{{Function argument constraint is not satisfied}} \
@@ -84,4 +86,39 @@ void test_notnull_symbolic2(FILE *fp, int *buf) {
     // report-warning{{Function argument constraint is not satisfied}} \
     // bugpath-warning{{Function argument constraint is not satisfied}} \
     // bugpath-note{{Function argument constraint is not satisfied}}
+}
+
+int __two_constrained_args(int, int);
+void test_constraints_on_multiple_args(int x, int y) {
+  // State split should not happen here. I.e. x == 1 should not be evaluated
+  // FALSE.
+  __two_constrained_args(x, y);
+  clang_analyzer_eval(x == 1); // \
+  // report-warning{{TRUE}} \
+  // bugpath-warning{{TRUE}} \
+  // bugpath-note{{TRUE}}
+  clang_analyzer_eval(y == 1); // \
+  // report-warning{{TRUE}} \
+  // bugpath-warning{{TRUE}} \
+  // bugpath-note{{TRUE}}
+}
+
+int __arg_constrained_twice(int);
+void test_multiple_constraints_on_same_arg(int x) {
+  __arg_constrained_twice(x);
+  // Check that both constraints are applied and only one branch is there.
+  clang_analyzer_eval(x < 1 || x > 2); // \
+  // report-warning{{TRUE}} \
+  // bugpath-warning{{TRUE}} \
+  // bugpath-note{{TRUE}} \
+  // bugpath-note{{Assuming 'x' is < 1}} \
+  // bugpath-note{{Left side of '||' is true}}
+}
+
+int __variadic(void *stream, const char *format, ...);
+void test_arg_constraint_on_variadic_fun() {
+  __variadic(0, "%d%d", 1, 2); // \
+  // report-warning{{Function argument constraint is not satisfied}} \
+  // bugpath-warning{{Function argument constraint is not satisfied}} \
+  // bugpath-note{{Function argument constraint is not satisfied}}
 }

@@ -17,8 +17,8 @@
 #include "mlir/Dialect/SPIRV/Serialization.h"
 #include "mlir/IR/Module.h"
 #include "mlir/Support/LogicalResult.h"
-#include "mlir/Support/StringExtras.h"
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/ToolOutputFile.h"
 
 #include <vulkan/vulkan.h>
@@ -57,7 +57,7 @@ struct NumWorkGroups {
 struct DescriptorSetInfo {
   /// Index of a descriptor set in descriptor sets.
   DescriptorSetIndex descriptorSet{0};
-  /// Number of desriptors in a set.
+  /// Number of descriptors in a set.
   uint32_t descriptorSize{0};
   /// Type of a descriptor set.
   VkDescriptorType descriptorType{VK_DESCRIPTOR_TYPE_MAX_ENUM};
@@ -91,7 +91,7 @@ inline void emitVulkanError(const llvm::Twine &message, VkResult error) {
 /// SPIR-V shader, number of work groups and entry point. After the creation of
 /// VulkanRuntime, special methods must be called in the following
 /// sequence: initRuntime(), run(), updateHostMemoryBuffers(), destroy();
-/// each method in the sequence returns succes or failure depends on the Vulkan
+/// each method in the sequence returns success or failure depends on the Vulkan
 /// result code.
 class VulkanRuntime {
 public:
