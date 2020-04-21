@@ -1,3 +1,8 @@
+#!/usr/bin/env python
+#
+# Compare symbols that are exported from the binary against a known snapshot.
+# Return an error if there are new or missing symbols in the library.
+#
 import argparse
 import os
 import subprocess
@@ -56,6 +61,8 @@ def compare_results(ref_records, records):
   return (missing_records, new_records)
 
 
+# Dumps symbols from from binary at target_path and compares with a snapshot
+# stored at ref_path. Reports new and absent symbols (if there are any).
 def check_symbols(ref_path, target_path):
   with open(ref_path, "r") as ref:
     ref_symbols = []

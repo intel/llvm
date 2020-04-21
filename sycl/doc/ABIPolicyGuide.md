@@ -4,10 +4,11 @@
 
 Application Binary Interface is a contract between binary modules, that defines
 how structures and routines are accessed in machine code. Changing the ABI may
-break backwards compatibility with library for user-developed applications,
-resulting in need to rebuild such applications. The goal of this document is to
-provide guidelines for maintaining the current ABI and mechanisms of notifying
-users about ABI changes.
+break backwards compatibility of user application with the DPC++ runtime library
+for user-developed applications, resulting in need to rebuild such applications.
+The goal of this document is to provide guidelines for maintaining the current
+ABI of the DPC++ runtime library and mechanisms of notifying users about ABI
+changes.
 
 All ABI changes can be divided into two large groups: breaking and non-breaking.
 A breaking change means that the new binary is incompatible with the previous
