@@ -161,7 +161,9 @@ To provide access to the +sub_group+ class, a new member function is added to th
 |Return the sub-group to which the work-item belongs.
 |===
 
-The member functions of the sub-group class provide a mechanism for a developer to query properties of a sub-group and a work-item's position in it.
+==== Core Member Functions
+
+The core member functions of the sub-group class provide a mechanism for a developer to query properties of a sub-group and a work-item's position in it.
 
 |===
 |Member Functions|Description
@@ -205,6 +207,17 @@ parallel_for<class kernel>(..., [&](nd_item item)
 });
 ----
 
+==== Synchronization Functions
+
+A sub-group barrier synchronizes all work-items in a sub-group, and orders memory operations to the specified address space(s).
+
+|===
+|Member Functions|Description
+
+|+void barrier(access::fence_space accessSpace = access::fence_space::global_and_local) const+
+|Execute a sub-group barrier with an optional memory fence specified by _accessSpace_.
+|===
+
 ==== Sample Header
 
 [source, c++]
@@ -227,6 +240,8 @@ struct sub_group {
   id_type get_group_id() const;
   linear_id_type get_group_linear_id() const;
   range_type get_group_range() const;
+
+  void barrier(access::fence_space accessSpace = access::fence_space::global_and_local) const;
 
 };
 } // intel
@@ -259,6 +274,7 @@ Yes, this is required by OpenCL devices.  Devices that do not require the work-g
 |1|2019-04-19|John Pennycook|*Initial public working draft*
 |2|2020-03-16|John Pennycook|*Separate class definition from algorithms*
 |3|2020-04-21|John Pennycook|*Update max_sub_group_size query*
+|4|2020-04-21|John Pennycook|*Restore missing barrier function*
 |========================================
 
 //************************************************************************
