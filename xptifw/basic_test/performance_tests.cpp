@@ -413,7 +413,7 @@ void TestPerformance::runDataStructureTests() {
                                 "TP FW-Cached", "TP Local",   "Notify"};
   std::cout << std::setw(Columns.size() * 15 / 2)
             << "Data Structure Tests [FW=framework, Lu=lookup, "
-               "TP=Tracepoint, Time=TimeInNS\n";
+               "TP=Tracepoint, Time=ns\n";
   Model.setHeaders(Columns);
 
   uint8_t sid = xptiRegisterStream("xpti");
@@ -543,8 +543,8 @@ void TestPerformance::runInstrumentationTests() {
   test::utils::TableModel Model;
 
   test::utils::titles_t Columns{"Threads",
-                                "TP LU+Notify(TimeInNS)",
-                                "TP Create(TimeInNS)",
+                                "TP LU+Notify(ns)",
+                                "TP Create(ns)",
                                 "Ev/s,cb=10",
                                 "Ev/s,cb=100",
                                 "Ev/s,cb=500",
