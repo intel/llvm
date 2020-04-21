@@ -15,6 +15,7 @@
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/pi.hpp>
+#include <detail/config.hpp>
 #include <detail/plugin.hpp>
 
 #include <bitset>
@@ -141,80 +142,21 @@ std::string memFlagsToString(pi_mem_flags Flags) {
   return Sstream.str();
 }
 
-// A singleton class to aid that PI configuration parameters
-// are processed only once, like reading a string from environment
-// and converting it into a typed object.
-//
-template <typename T, const char *E> class Config {
-  static Config *m_Instance;
-  T m_Data;
-  Config();
-
-public:
-  static T get() {
-    if (!m_Instance) {
-      m_Instance = new Config();
-    }
-    return m_Instance->m_Data;
-  }
-};
-
-template <typename T, const char *E>
-Config<T, E> *Config<T, E>::m_Instance = nullptr;
-
-// Lists valid configuration environment variables.
-static constexpr char SYCL_BE[] = "SYCL_BE";
-static constexpr char SYCL_INTEROP_BE[] = "SYCL_INTEROP_BE";
-static constexpr char SYCL_PI_TRACE[] = "SYCL_PI_TRACE";
-
-// SYCL_PI_TRACE gives the mask of enabled tracing components (0 default)
-template <> Config<int, SYCL_PI_TRACE>::Config() {
-  const char *Env = std::getenv(SYCL_PI_TRACE);
-  m_Data = (Env ? std::atoi(Env) : 0);
-}
-
-static Backend getBE(const char *EnvVar) {
-  const char *BE = std::getenv(EnvVar);
-  const std::map<std::string, Backend> SyclBeMap{
-      {"PI_OTHER", SYCL_BE_PI_OTHER},
-      {"PI_CUDA", SYCL_BE_PI_CUDA},
-      {"PI_OPENCL", SYCL_BE_PI_OPENCL}};
-  if (BE) {
-    auto It = SyclBeMap.find(BE);
-    if (It == SyclBeMap.end())
-      pi::die("Invalid backend. "
-              "Valid values are PI_OPENCL/PI_CUDA");
-    return It->second;
-  }
-  // Default backend
-  return SYCL_BE_PI_OPENCL;
-}
-
-template <> Config<Backend, SYCL_BE>::Config() { m_Data = getBE(SYCL_BE); }
-
-// SYCL_INTEROP_BE is a way to specify the interoperability plugin.
-template <> Config<Backend, SYCL_INTEROP_BE>::Config() {
-  m_Data = getBE(SYCL_INTEROP_BE);
-}
-
-// Helper interface to not expose "pi::Config" outside of pi.cpp
-Backend getPreferredBE() { return Config<Backend, SYCL_BE>::get(); }
-
 // GlobalPlugin is a global Plugin used with Interoperability constructors that
 // use OpenCL objects to construct SYCL class objects.
 std::shared_ptr<plugin> GlobalPlugin;
 
 // Find the plugin at the appropriate location and return the location.
-bool findPlugins(vector_class<std::pair<std::string, Backend>> &PluginNames) {
+bool findPlugins(vector_class<std::pair<std::string, backend>> &PluginNames) {
   // TODO: Based on final design discussions, change the location where the
   // plugin must be searched; how to identify the plugins etc. Currently the
   // search is done for libpi_opencl.so/pi_opencl.dll file in LD_LIBRARY_PATH
   // env only.
   //
-  PluginNames.push_back(std::make_pair<std::string, Backend>(
-      OPENCL_PLUGIN_NAME, SYCL_BE_PI_OPENCL));
+  PluginNames.push_back(std::make_pair<std::string, backend>(OPENCL_PLUGIN_NAME,
+                                                             backend::opencl));
   PluginNames.push_back(
-      std::make_pair<std::string, Backend>(CUDA_PLUGIN_NAME, SYCL_BE_PI_CUDA));
+      std::make_pair<std::string, backend>(CUDA_PLUGIN_NAME, backend::cuda));
   return true;
 }
 
@@ -249,12 +191,12 @@ bool bindPlugin(void *Library, PiPlugin *PluginInformation) {
 }
 
 bool trace(TraceLevel Level) {
-  auto TraceLevelMask = Config<int, SYCL_PI_TRACE>::get();
+  auto TraceLevelMask = SYCLConfig<SYCL_PI_TRACE>::get();
   return (TraceLevelMask & Level) == Level;
 }
 
 const char *traceLabel() {
-  auto TraceLevelMask = Config<int, SYCL_PI_TRACE>::get();
+  int TraceLevelMask = SYCLConfig<SYCL_PI_TRACE>::get();
   switch (TraceLevelMask) {
   case PI_TRACE_BASIC:
     return "SYCL_PI_TRACE[PI_TRACE_BASIC]: ";
@@ -271,7 +213,7 @@ const char *traceLabel() {
 // Initializes all available Plugins.
 vector_class<plugin> initialize() {
   vector_class<plugin> Plugins;
-  vector_class<std::pair<std::string, Backend>> PluginNames;
+  vector_class<std::pair<std::string, backend>> PluginNames;
   findPlugins(PluginNames);
 
   if (PluginNames.empty() && trace(PI_TRACE_ALL))
@@ -297,12 +239,16 @@ vector_class<plugin> initialize() {
       }
       continue;
     }
-    // Set the Global Plugin based on SYCL_INTEROP_BE.
-    // Rework this when it will be explicit in the code which BE is used in the
-    // interoperability methods.
-    if (Config<Backend, SYCL_INTEROP_BE>::get() == PluginNames[I].second) {
+    if (SYCLConfig<SYCL_BE>::get() == backend::opencl &&
+        PluginNames[I].first.find("opencl") != std::string::npos) {
+      // Use the OpenCL plugin as the GlobalPlugin
       GlobalPlugin =
-          std::make_shared<plugin>(PluginInformation, PluginNames[I].second);
+          std::make_shared<plugin>(PluginInformation, backend::opencl);
+    }
+    if (SYCLConfig<SYCL_BE>::get() == backend::cuda &&
+        PluginNames[I].first.find("cuda") != std::string::npos) {
+      // Use the CUDA plugin as the GlobalPlugin
+      GlobalPlugin = std::make_shared<plugin>(PluginInformation, backend::cuda);
     }
     Plugins.emplace_back(plugin(PluginInformation, PluginNames[I].second));
     if (trace(TraceLevel::PI_TRACE_BASIC))

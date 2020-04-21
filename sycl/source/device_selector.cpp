@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/device_selector.hpp>
 #include <CL/sycl/exception.hpp>
@@ -17,15 +18,14 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
-// Utility function to check if device is of the preferred SYCL_BE.
+// Utility function to check if device is of the preferred backend.
+// Currently preference is given to the opencl backend.
 static bool isDeviceOfPreferredSyclBe(const device &Device) {
   if (Device.is_host())
     return false;
 
-  detail::pi::Backend PreferredBE = detail::pi::getPreferredBE();
-  detail::pi::Backend DeviceBE =
-      detail::getSyclObjImpl(Device)->getPlugin().getBackend();
-  return PreferredBE == DeviceBE ? true : false;
+  return detail::getSyclObjImpl(Device)->getPlugin().getBackend() ==
+         backend::opencl;
 }
 
 device device_selector::select_device() const {

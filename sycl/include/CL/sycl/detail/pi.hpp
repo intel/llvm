@@ -13,6 +13,7 @@
 
 #pragma once
 
+#include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/os_util.hpp>
@@ -123,13 +124,6 @@ void *loadOsLibrary(const std::string &Library);
 // Function to get Address of a symbol defined in the shared
 // library, implementation is OS dependent.
 void *getOsLibraryFuncAddress(void *Library, const std::string &FunctionName);
-
-// For selection of SYCL RT back-end, now manually through the "SYCL_BE"
-// environment variable.
-enum Backend { SYCL_BE_PI_OPENCL, SYCL_BE_PI_CUDA, SYCL_BE_PI_OTHER };
-
-// Get the preferred BE (selected with SYCL_BE).
-Backend getPreferredBE();
 
 // Get a string representing a _pi_platform_info enum
 std::string platformInfoToString(pi_platform_info info);

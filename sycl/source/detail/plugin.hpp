@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
+#include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/stl.hpp>
@@ -23,7 +24,7 @@ class plugin {
 public:
   plugin() = delete;
 
-  plugin(RT::PiPlugin Plugin, RT::Backend UseBackend)
+  plugin(RT::PiPlugin Plugin, backend UseBackend)
       : MPlugin(Plugin), MBackend(UseBackend) {}
 
   ~plugin() = default;
@@ -73,11 +74,11 @@ public:
     checkPiResult(Err);
   }
 
-  RT::Backend getBackend(void) const { return MBackend; }
+  backend getBackend(void) const { return MBackend; }
 
 private:
   RT::PiPlugin MPlugin;
-  const RT::Backend MBackend;
+  const backend MBackend;
 }; // class plugin
 } // namespace detail
 } // namespace sycl
