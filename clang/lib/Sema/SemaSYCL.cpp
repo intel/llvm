@@ -644,18 +644,19 @@ static target getAccessTarget(const ClassTemplateSpecializationDecl *AccTy) {
       AccTy->getTemplateArgs()[3].getAsIntegral().getExtValue());
 }
 
-// The first template argument to the kernel function is used to identify the
-// kernel itself.
+// The first template argument to the kernel caller function is used to identify
+// the kernel itself.
 static QualType calculateKernelNameType(ASTContext &Ctx,
                                         FunctionDecl *KernelCallerFunc) {
   const TemplateArgumentList *TAL =
       KernelCallerFunc->getTemplateSpecializationArgs();
+  assert(TAL && "No template argument info");
   return TypeName::getFullyQualifiedType(TAL->get(0).getAsType(), Ctx,
                                          /*WithGlobalNSPrefix=*/true);
 }
 
-// Gets a name for the kernel caller func, calculated from the first template
-// argument.
+// Gets a name for the OpenCL kernel function, calculated from the first
+// template argument of the kernel caller function.
 static std::pair<std::string, std::string>
 constructKernelName(Sema &S, FunctionDecl *KernelCallerFunc, MangleContext &MC) {
   QualType KernelNameType =
@@ -996,7 +997,7 @@ public:
   }
 
   void handleSyclStreamType(const CXXBaseSpecifier &, QualType FieldTy) final {
-    // FIXME SYCL stream should be usable usable as a base type
+    // FIXME SYCL stream should be usable as a base type
     // See https://github.com/intel/llvm/issues/1552
   }
 
@@ -1212,7 +1213,7 @@ public:
   }
 
   void handleSyclAccessorType(const CXXBaseSpecifier &BS, QualType Ty) final {
-    // FIXME SYCL accessor should be usable usable as a base type
+    // FIXME SYCL accessor should be usable as a base type
     // See https://github.com/intel/llvm/issues/28.
   }
 
@@ -1230,7 +1231,7 @@ public:
   }
 
   void handleSyclStreamType(const CXXBaseSpecifier &BS, QualType Ty) final {
-    // FIXME SYCL stream should be usable usable as a base type
+    // FIXME SYCL stream should be usable as a base type
     // See https://github.com/intel/llvm/issues/1552
   }
 
@@ -1365,7 +1366,7 @@ public:
   }
   void handleSyclStreamType(const CXXBaseSpecifier &BC,
                             QualType FieldTy) final {
-    // FIXME SYCL stream should be usable usable as a base type
+    // FIXME SYCL stream should be usable as a base type
     // See https://github.com/intel/llvm/issues/1552
   }
 
