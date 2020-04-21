@@ -88,6 +88,8 @@
 ; DISABLED: llvm-spirv -r %t.spv -o %t.rev.bc
 ; DISABLED: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
+; CHECK-SPIRV-DAG: {{[0-9]*}} Capability GroupNonUniformShuffleRelative
+
 ; CHECK-SPIRV-DAG: TypeInt   [[char:[0-9]+]]   8  0
 ; CHECK-SPIRV-DAG: TypeInt   [[short:[0-9]+]]  16 0
 ; CHECK-SPIRV-DAG: TypeInt   [[int:[0-9]+]]    32 0

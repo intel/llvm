@@ -317,6 +317,8 @@
 ; DISABLED: llvm-spirv -r %t.spv -o %t.rev.bc
 ; DISABLED: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
+; CHECK-SPIRV-DAG: {{[0-9]*}} Capability GroupNonUniformArithmetic
+
 ; CHECK-SPIRV-DAG: TypeBool  [[bool:[0-9]+]]
 ; CHECK-SPIRV-DAG: TypeInt   [[char:[0-9]+]]   8  0
 ; CHECK-SPIRV-DAG: TypeInt   [[short:[0-9]+]]  16 0

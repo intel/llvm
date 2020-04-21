@@ -75,6 +75,9 @@ source_filename = "sub_group_non_uniform_vote.cl"
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir64"
 
+; CHECK-SPIRV-DAG: {{[0-9]*}} Capability GroupNonUniform
+; CHECK-SPIRV-DAG: {{[0-9]*}} Capability GroupNonUniformVote
+
 ; CHECK-SPIRV-DAG: TypeBool  [[bool:[0-9]+]]
 ; CHECK-SPIRV-DAG: TypeInt   [[char:[0-9]+]]   8  0
 ; CHECK-SPIRV-DAG: TypeInt   [[short:[0-9]+]]  16 0
