@@ -27,10 +27,28 @@ void Thread1Fn(Context &Ctx) {
   {
     S::accessor<int, 1, S::access::mode::write,
                 S::access::target::host_buffer>
-        Acc(Ctx.Buf2);
+        Acc(Ctx.Buf1);
 
     for (size_t Idx = 0; Idx < Acc.get_count(); ++Idx)
       Acc[Idx] = -1;
+  }
+
+  {
+    S::accessor<int, 1, S::access::mode::write,
+                S::access::target::host_buffer>
+        Acc(Ctx.Buf2);
+
+    for (size_t Idx = 0; Idx < Acc.get_count(); ++Idx)
+      Acc[Idx] = -2;
+  }
+
+  {
+    S::accessor<int, 1, S::access::mode::write,
+                S::access::target::host_buffer>
+        Acc(Ctx.Buf3);
+
+    for (size_t Idx = 0; Idx < Acc.get_count(); ++Idx)
+      Acc[Idx] = -2;
   }
 
   // 1. submit task writing to buffer 1
@@ -99,8 +117,16 @@ void Thread1Fn(Context &Ctx) {
                 S::access::target::host_buffer>
         Acc(Ctx.Buf3);
 
-    for (size_t Idx = 0; Idx < Acc.get_count(); ++Idx)
-      assert(Acc[Idx] == Idx && "Invalid data in third buffer");
+    bool Failure = false;
+
+    for (size_t Idx = 0; Idx < Acc.get_count(); ++Idx) {
+      fprintf(stderr, "Third buffer [%3zu] = %i\n", Idx, Acc[Idx]);
+
+      Failure |= (Acc[Idx] != Idx);
+      //assert(Acc[Idx] == Idx && "Invalid data in third buffer");
+    }
+
+    assert(!Failure && "Invalid data in third buffer");
   }
 }
 
@@ -143,14 +169,14 @@ void test() {
                 S::access::target::host_buffer>
         ResultAcc(Ctx.Buf2);
 
-    bool failure = false;
+    bool Failure = false;
     for (size_t Idx = 0; Idx < ResultAcc.get_count(); ++Idx) {
-      fprintf(stderr, "Third buffer [%3zu] = %i\n", Idx, ResultAcc[Idx]);
+      fprintf(stderr, "Second buffer [%3zu] = %i\n", Idx, ResultAcc[Idx]);
 
-      failure |= (ResultAcc[Idx] != Idx);
+      Failure |= (ResultAcc[Idx] != Idx);
     }
 
-    assert(!failure && "Invalid data in result buffer");
+    assert(!Failure && "Invalid data in result buffer");
   }
 }
 
