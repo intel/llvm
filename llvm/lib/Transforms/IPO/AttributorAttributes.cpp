@@ -18,6 +18,7 @@
 #include "llvm/Analysis/CaptureTracking.h"
 #include "llvm/Analysis/LazyValueInfo.h"
 #include "llvm/Analysis/MemoryBuiltins.h"
+#include "llvm/Analysis/ScalarEvolution.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/IntrinsicInst.h"
@@ -401,8 +402,8 @@ template <typename AAType, typename Base, typename StateType,
           template <typename...> class F, template <typename...> class G>
 struct AAComposeTwoGenericDeduction
     : public F<AAType, G<AAType, Base, StateType>, StateType> {
-  AAComposeTwoGenericDeduction(const IRPosition &IRP)
-      : F<AAType, G<AAType, Base, StateType>, StateType>(IRP) {}
+  AAComposeTwoGenericDeduction(const IRPosition &IRP, Attributor &A)
+      : F<AAType, G<AAType, Base, StateType>, StateType>(IRP, A) {}
 
   void initialize(Attributor &A) override {
     F<AAType, G<AAType, Base, StateType>, StateType>::initialize(A);
@@ -422,7 +423,8 @@ struct AAComposeTwoGenericDeduction
 template <typename AAType, typename Base,
           typename StateType = typename Base::StateType>
 struct AAReturnedFromReturnedValues : public Base {
-  AAReturnedFromReturnedValues(const IRPosition &IRP) : Base(IRP) {}
+  AAReturnedFromReturnedValues(const IRPosition &IRP, Attributor &A)
+      : Base(IRP, A) {}
 
   /// See AbstractAttribute::updateImpl(...).
   ChangeStatus updateImpl(Attributor &A) override {
@@ -485,7 +487,8 @@ static void clampCallSiteArgumentStates(Attributor &A, const AAType &QueryingAA,
 template <typename AAType, typename Base,
           typename StateType = typename AAType::StateType>
 struct AAArgumentFromCallSiteArguments : public Base {
-  AAArgumentFromCallSiteArguments(const IRPosition &IRP) : Base(IRP) {}
+  AAArgumentFromCallSiteArguments(const IRPosition &IRP, Attributor &A)
+      : Base(IRP, A) {}
 
   /// See AbstractAttribute::updateImpl(...).
   ChangeStatus updateImpl(Attributor &A) override {
@@ -501,7 +504,8 @@ struct AAArgumentFromCallSiteArguments : public Base {
 template <typename AAType, typename Base,
           typename StateType = typename Base::StateType>
 struct AACallSiteReturnedFromReturned : public Base {
-  AACallSiteReturnedFromReturned(const IRPosition &IRP) : Base(IRP) {}
+  AACallSiteReturnedFromReturned(const IRPosition &IRP, Attributor &A)
+      : Base(IRP, A) {}
 
   /// See AbstractAttribute::updateImpl(...).
   ChangeStatus updateImpl(Attributor &A) override {
@@ -534,7 +538,8 @@ struct AACallSiteReturnedFromReturned : public Base {
 template <typename AAType, typename Base,
           typename StateType = typename AAType::StateType>
 struct AAFromMustBeExecutedContext : public Base {
-  AAFromMustBeExecutedContext(const IRPosition &IRP) : Base(IRP) {}
+  AAFromMustBeExecutedContext(const IRPosition &IRP, Attributor &A)
+      : Base(IRP, A) {}
 
   void initialize(Attributor &A) override {
     Base::initialize(A);
@@ -671,7 +676,7 @@ using AACallSiteReturnedFromReturnedAndMustBeExecutedContext =
 /// -----------------------NoUnwind Function Attribute--------------------------
 
 struct AANoUnwindImpl : AANoUnwind {
-  AANoUnwindImpl(const IRPosition &IRP) : AANoUnwind(IRP) {}
+  AANoUnwindImpl(const IRPosition &IRP, Attributor &A) : AANoUnwind(IRP, A) {}
 
   const std::string getAsStr() const override {
     return getAssumed() ? "nounwind" : "may-unwind";
@@ -704,7 +709,8 @@ struct AANoUnwindImpl : AANoUnwind {
 };
 
 struct AANoUnwindFunction final : public AANoUnwindImpl {
-  AANoUnwindFunction(const IRPosition &IRP) : AANoUnwindImpl(IRP) {}
+  AANoUnwindFunction(const IRPosition &IRP, Attributor &A)
+      : AANoUnwindImpl(IRP, A) {}
 
   /// See AbstractAttribute::trackStatistics()
   void trackStatistics() const override { STATS_DECLTRACK_FN_ATTR(nounwind) }
@@ -712,7 +718,8 @@ struct AANoUnwindFunction final : public AANoUnwindImpl {
 
 /// NoUnwind attribute deduction for a call sites.
 struct AANoUnwindCallSite final : AANoUnwindImpl {
-  AANoUnwindCallSite(const IRPosition &IRP) : AANoUnwindImpl(IRP) {}
+  AANoUnwindCallSite(const IRPosition &IRP, Attributor &A)
+      : AANoUnwindImpl(IRP, A) {}
 
   /// See AbstractAttribute::initialize(...).
   void initialize(Attributor &A) override {
@@ -768,7 +775,8 @@ class AAReturnedValuesImpl : public AAReturnedValues, public AbstractState {
   ///}
 
 public:
-  AAReturnedValuesImpl(const IRPosition &IRP) : AAReturnedValues(IRP) {}
+  AAReturnedValuesImpl(const IRPosition &IRP, Attributor &A)
+      : AAReturnedValues(IRP, A) {}
 
   /// See AbstractAttribute::initialize(...).
   void initialize(Attributor &A) override {
@@ -792,8 +800,9 @@ public:
     for (Argument &Arg : F->args()) {
       if (Arg.hasReturnedAttr()) {
         auto &ReturnInstSet = ReturnedValues[&Arg];
-        for (Instruction *RI : OpcodeInstMap[Instruction::Ret])
-          ReturnInstSet.insert(cast<ReturnInst>(RI));
+        if (auto *Insts = OpcodeInstMap.lookup(Instruction::Ret))
+          for (Instruction *RI : *Insts)
+            ReturnInstSet.insert(cast<ReturnInst>(RI));
 
         indicateOptimisticFixpoint();
         return;
@@ -1147,7 +1156,8 @@ ChangeStatus AAReturnedValuesImpl::updateImpl(Attributor &A) {
 }
 
 struct AAReturnedValuesFunction final : public AAReturnedValuesImpl {
-  AAReturnedValuesFunction(const IRPosition &IRP) : AAReturnedValuesImpl(IRP) {}
+  AAReturnedValuesFunction(const IRPosition &IRP, Attributor &A)
+      : AAReturnedValuesImpl(IRP, A) {}
 
   /// See AbstractAttribute::trackStatistics()
   void trackStatistics() const override { STATS_DECLTRACK_ARG_ATTR(returned) }
@@ -1155,7 +1165,8 @@ struct AAReturnedValuesFunction final : public AAReturnedValuesImpl {
 
 /// Returned values information for a call sites.
 struct AAReturnedValuesCallSite final : AAReturnedValuesImpl {
-  AAReturnedValuesCallSite(const IRPosition &IRP) : AAReturnedValuesImpl(IRP) {}
+  AAReturnedValuesCallSite(const IRPosition &IRP, Attributor &A)
+      : AAReturnedValuesImpl(IRP, A) {}
 
   /// See AbstractAttribute::initialize(...).
   void initialize(Attributor &A) override {
@@ -1179,7 +1190,7 @@ struct AAReturnedValuesCallSite final : AAReturnedValuesImpl {
 /// ------------------------ NoSync Function Attribute -------------------------
 
 struct AANoSyncImpl : AANoSync {
-  AANoSyncImpl(const IRPosition &IRP) : AANoSync(IRP) {}
+  AANoSyncImpl(const IRPosition &IRP, Attributor &A) : AANoSync(IRP, A) {}
 
   const std::string getAsStr() const override {
     return getAssumed() ? "nosync" : "may-sync";
@@ -1333,7 +1344,8 @@ ChangeStatus AANoSyncImpl::updateImpl(Attributor &A) {
 }
 
 struct AANoSyncFunction final : public AANoSyncImpl {
-  AANoSyncFunction(const IRPosition &IRP) : AANoSyncImpl(IRP) {}
+  AANoSyncFunction(const IRPosition &IRP, Attributor &A)
+      : AANoSyncImpl(IRP, A) {}
 
   /// See AbstractAttribute::trackStatistics()
   void trackStatistics() const override { STATS_DECLTRACK_FN_ATTR(nosync) }
@@ -1341,7 +1353,8 @@ struct AANoSyncFunction final : public AANoSyncImpl {
 
 /// NoSync attribute deduction for a call sites.
 struct AANoSyncCallSite final : AANoSyncImpl {
-  AANoSyncCallSite(const IRPosition &IRP) : AANoSyncImpl(IRP) {}
+  AANoSyncCallSite(const IRPosition &IRP, Attributor &A)
+      : AANoSyncImpl(IRP, A) {}
 
   /// See AbstractAttribute::initialize(...).
   void initialize(Attributor &A) override {
@@ -1371,7 +1384,7 @@ struct AANoSyncCallSite final : AANoSyncImpl {
 /// ------------------------ No-Free Attributes ----------------------------
 
 struct AANoFreeImpl : public AANoFree {
-  AANoFreeImpl(const IRPosition &IRP) : AANoFree(IRP) {}
+  AANoFreeImpl(const IRPosition &IRP, Attributor &A) : AANoFree(IRP, A) {}
 
   /// See AbstractAttribute::updateImpl(...).
   ChangeStatus updateImpl(Attributor &A) override {
@@ -1397,7 +1410,8 @@ struct AANoFreeImpl : public AANoFree {
 };
 
 struct AANoFreeFunction final : public AANoFreeImpl {
-  AANoFreeFunction(const IRPosition &IRP) : AANoFreeImpl(IRP) {}
+  AANoFreeFunction(const IRPosition &IRP, Attributor &A)
+      : AANoFreeImpl(IRP, A) {}
 
   /// See AbstractAttribute::trackStatistics()
   void trackStatistics() const override { STATS_DECLTRACK_FN_ATTR(nofree) }
@@ -1405,7 +1419,8 @@ struct AANoFreeFunction final : public AANoFreeImpl {
 
 /// NoFree attribute deduction for a call sites.
 struct AANoFreeCallSite final : AANoFreeImpl {
-  AANoFreeCallSite(const IRPosition &IRP) : AANoFreeImpl(IRP) {}
+  AANoFreeCallSite(const IRPosition &IRP, Attributor &A)
+      : AANoFreeImpl(IRP, A) {}
 
   /// See AbstractAttribute::initialize(...).
   void initialize(Attributor &A) override {
@@ -1434,7 +1449,8 @@ struct AANoFreeCallSite final : AANoFreeImpl {
 
 /// NoFree attribute for floating values.
 struct AANoFreeFloating : AANoFreeImpl {
-  AANoFreeFloating(const IRPosition &IRP) : AANoFreeImpl(IRP) {}
+  AANoFreeFloating(const IRPosition &IRP, Attributor &A)
+      : AANoFreeImpl(IRP, A) {}
 
   /// See AbstractAttribute::trackStatistics()
   void trackStatistics() const override{STATS_DECLTRACK_FLOATING_ATTR(nofree)}
@@ -1483,7 +1499,8 @@ struct AANoFreeFloating : AANoFreeImpl {
 
 /// NoFree attribute for a call site argument.
 struct AANoFreeArgument final : AANoFreeFloating {
-  AANoFreeArgument(const IRPosition &IRP) : AANoFreeFloating(IRP) {}
+  AANoFreeArgument(const IRPosition &IRP, Attributor &A)
+      : AANoFreeFloating(IRP, A) {}
 
   /// See AbstractAttribute::trackStatistics()
   void trackStatistics() const override { STATS_DECLTRACK_ARG_ATTR(nofree) }
@@ -1491,7 +1508,8 @@ struct AANoFreeArgument final : AANoFreeFloating {
 
 /// NoFree attribute for call site arguments.
 struct AANoFreeCallSiteArgument final : AANoFreeFloating {
-  AANoFreeCallSiteArgument(const IRPosition &IRP) : AANoFreeFloating(IRP) {}
+  AANoFreeCallSiteArgument(const IRPosition &IRP, Attributor &A)
+      : AANoFreeFloating(IRP, A) {}
 
   /// See AbstractAttribute::updateImpl(...).
   ChangeStatus updateImpl(Attributor &A) override {
@@ -1514,7 +1532,8 @@ struct AANoFreeCallSiteArgument final : AANoFreeFloating {
 
 /// NoFree attribute for function return value.
 struct AANoFreeReturned final : AANoFreeFloating {
-  AANoFreeReturned(const IRPosition &IRP) : AANoFreeFloating(IRP) {
+  AANoFreeReturned(const IRPosition &IRP, Attributor &A)
+      : AANoFreeFloating(IRP, A) {
     llvm_unreachable("NoFree is not applicable to function returns!");
   }
 
@@ -1534,7 +1553,8 @@ struct AANoFreeReturned final : AANoFreeFloating {
 
 /// NoFree attribute deduction for a call site return value.
 struct AANoFreeCallSiteReturned final : AANoFreeFloating {
-  AANoFreeCallSiteReturned(const IRPosition &IRP) : AANoFreeFloating(IRP) {}
+  AANoFreeCallSiteReturned(const IRPosition &IRP, Attributor &A)
+      : AANoFreeFloating(IRP, A) {}
 
   ChangeStatus manifest(Attributor &A) override {
     return ChangeStatus::UNCHANGED;
@@ -1618,8 +1638,8 @@ static int64_t getKnownNonNullAndDerefBytesForUse(
 }
 
 struct AANonNullImpl : AANonNull {
-  AANonNullImpl(const IRPosition &IRP)
-      : AANonNull(IRP),
+  AANonNullImpl(const IRPosition &IRP, Attributor &A)
+      : AANonNull(IRP, A),
         NullIsDefined(NullPointerIsDefined(
             getAnchorScope(),
             getAssociatedValue().getType()->getPointerAddressSpace())) {}
@@ -1661,7 +1681,7 @@ struct AANonNullImpl : AANonNull {
 struct AANonNullFloating
     : AAFromMustBeExecutedContext<AANonNull, AANonNullImpl> {
   using Base = AAFromMustBeExecutedContext<AANonNull, AANonNullImpl>;
-  AANonNullFloating(const IRPosition &IRP) : Base(IRP) {}
+  AANonNullFloating(const IRPosition &IRP, Attributor &A) : Base(IRP, A) {}
 
   /// See AbstractAttribute::updateImpl(...).
   ChangeStatus updateImpl(Attributor &A) override {
@@ -1716,8 +1736,8 @@ struct AANonNullFloating
 /// NonNull attribute for function return value.
 struct AANonNullReturned final
     : AAReturnedFromReturnedValues<AANonNull, AANonNullImpl> {
-  AANonNullReturned(const IRPosition &IRP)
-      : AAReturnedFromReturnedValues<AANonNull, AANonNullImpl>(IRP) {}
+  AANonNullReturned(const IRPosition &IRP, Attributor &A)
+      : AAReturnedFromReturnedValues<AANonNull, AANonNullImpl>(IRP, A) {}
 
   /// See AbstractAttribute::trackStatistics()
   void trackStatistics() const override { STATS_DECLTRACK_FNRET_ATTR(nonnull) }
@@ -1727,17 +1747,18 @@ struct AANonNullReturned final
 struct AANonNullArgument final
     : AAArgumentFromCallSiteArgumentsAndMustBeExecutedContext<AANonNull,
                                                               AANonNullImpl> {
-  AANonNullArgument(const IRPosition &IRP)
+  AANonNullArgument(const IRPosition &IRP, Attributor &A)
       : AAArgumentFromCallSiteArgumentsAndMustBeExecutedContext<AANonNull,
                                                                 AANonNullImpl>(
-            IRP) {}
+            IRP, A) {}
 
   /// See AbstractAttribute::trackStatistics()
   void trackStatistics() const override { STATS_DECLTRACK_ARG_ATTR(nonnull) }
 };
 
 struct AANonNullCallSiteArgument final : AANonNullFloating {
-  AANonNullCallSiteArgument(const IRPosition &IRP) : AANonNullFloating(IRP) {}
+  AANonNullCallSiteArgument(const IRPosition &IRP, Attributor &A)
+      : AANonNullFloating(IRP, A) {}
 
   /// See AbstractAttribute::trackStatistics()
   void trackStatistics() const override { STATS_DECLTRACK_CSARG_ATTR(nonnull) }
@@ -1747,10 +1768,10 @@ struct AANonNullCallSiteArgument final : AANonNullFloating {
 struct AANonNullCallSiteReturned final
     : AACallSiteReturnedFromReturnedAndMustBeExecutedContext<AANonNull,
                                                              AANonNullImpl> {
-  AANonNullCallSiteReturned(const IRPosition &IRP)
+  AANonNullCallSiteReturned(const IRPosition &IRP, Attributor &A)
       : AACallSiteReturnedFromReturnedAndMustBeExecutedContext<AANonNull,
                                                                AANonNullImpl>(
-            IRP) {}
+            IRP, A) {}
 
   /// See AbstractAttribute::trackStatistics()
   void trackStatistics() const override { STATS_DECLTRACK_CSRET_ATTR(nonnull) }
@@ -1759,7 +1780,7 @@ struct AANonNullCallSiteReturned final
 /// ------------------------ No-Recurse Attributes ----------------------------
 
 struct AANoRecurseImpl : public AANoRecurse {
-  AANoRecurseImpl(const IRPosition &IRP) : AANoRecurse(IRP) {}
+  AANoRecurseImpl(const IRPosition &IRP, Attributor &A) : AANoRecurse(IRP, A) {}
 
   /// See AbstractAttribute::getAsStr()
   const std::string getAsStr() const override {
@@ -1768,7 +1789,8 @@ struct AANoRecurseImpl : public AANoRecurse {
 };
 
 struct AANoRecurseFunction final : AANoRecurseImpl {
-  AANoRecurseFunction(const IRPosition &IRP) : AANoRecurseImpl(IRP) {}
+  AANoRecurseFunction(const IRPosition &IRP, Attributor &A)
+      : AANoRecurseImpl(IRP, A) {}
 
   /// See AbstractAttribute::initialize(...).
   void initialize(Attributor &A) override {
@@ -1828,7 +1850,8 @@ struct AANoRecurseFunction final : AANoRecurseImpl {
 
 /// NoRecurse attribute deduction for a call sites.
 struct AANoRecurseCallSite final : AANoRecurseImpl {
-  AANoRecurseCallSite(const IRPosition &IRP) : AANoRecurseImpl(IRP) {}
+  AANoRecurseCallSite(const IRPosition &IRP, Attributor &A)
+      : AANoRecurseImpl(IRP, A) {}
 
   /// See AbstractAttribute::initialize(...).
   void initialize(Attributor &A) override {
@@ -1859,7 +1882,8 @@ struct AANoRecurseCallSite final : AANoRecurseImpl {
 /// -------------------- Undefined-Behavior Attributes ------------------------
 
 struct AAUndefinedBehaviorImpl : public AAUndefinedBehavior {
-  AAUndefinedBehaviorImpl(const IRPosition &IRP) : AAUndefinedBehavior(IRP) {}
+  AAUndefinedBehaviorImpl(const IRPosition &IRP, Attributor &A)
+      : AAUndefinedBehavior(IRP, A) {}
 
   /// See AbstractAttribute::updateImpl(...).
   // through a pointer (i.e. also branches etc.)
@@ -2054,8 +2078,8 @@ private:
 };
 
 struct AAUndefinedBehaviorFunction final : AAUndefinedBehaviorImpl {
-  AAUndefinedBehaviorFunction(const IRPosition &IRP)
-      : AAUndefinedBehaviorImpl(IRP) {}
+  AAUndefinedBehaviorFunction(const IRPosition &IRP, Attributor &A)
+      : AAUndefinedBehaviorImpl(IRP, A) {}
 
   /// See AbstractAttribute::trackStatistics()
   void trackStatistics() const override {
@@ -2099,7 +2123,8 @@ static bool mayContainUnboundedCycle(Function &F, Attributor &A) {
 }
 
 struct AAWillReturnImpl : public AAWillReturn {
-  AAWillReturnImpl(const IRPosition &IRP) : AAWillReturn(IRP) {}
+  AAWillReturnImpl(const IRPosition &IRP, Attributor &A)
+      : AAWillReturn(IRP, A) {}
 
   /// See AbstractAttribute::initialize(...).
   void initialize(Attributor &A) override {
@@ -2136,7 +2161,8 @@ struct AAWillReturnImpl : public AAWillReturn {
 };
 
 struct AAWillReturnFunction final : AAWillReturnImpl {
-  AAWillReturnFunction(const IRPosition &IRP) : AAWillReturnImpl(IRP) {}
+  AAWillReturnFunction(const IRPosition &IRP, Attributor &A)
+      : AAWillReturnImpl(IRP, A) {}
 
   /// See AbstractAttribute::trackStatistics()
   void trackStatistics() const override { STATS_DECLTRACK_FN_ATTR(willreturn) }
@@ -2144,7 +2170,8 @@ struct AAWillReturnFunction final : AAWillReturnImpl {
 
 /// WillReturn attribute deduction for a call sites.
 struct AAWillReturnCallSite final : AAWillReturnImpl {
-  AAWillReturnCallSite(const IRPosition &IRP) : AAWillReturnImpl(IRP) {}
+  AAWillReturnCallSite(const IRPosition &IRP, Attributor &A)
+      : AAWillReturnImpl(IRP, A) {}
 
   /// See AbstractAttribute::initialize(...).
   void initialize(Attributor &A) override {
@@ -2175,7 +2202,8 @@ struct AAWillReturnCallSite final : AAWillReturnImpl {
 /// -------------------AAReachability Attribute--------------------------
 
 struct AAReachabilityImpl : AAReachability {
-  AAReachabilityImpl(const IRPosition &IRP) : AAReachability(IRP) {}
+  AAReachabilityImpl(const IRPosition &IRP, Attributor &A)
+      : AAReachability(IRP, A) {}
 
   const std::string getAsStr() const override {
     // TODO: Return the number of reachable queries.
@@ -2192,7 +2220,8 @@ struct AAReachabilityImpl : AAReachability {
 };
 
 struct AAReachabilityFunction final : public AAReachabilityImpl {
-  AAReachabilityFunction(const IRPosition &IRP) : AAReachabilityImpl(IRP) {}
+  AAReachabilityFunction(const IRPosition &IRP, Attributor &A)
+      : AAReachabilityImpl(IRP, A) {}
 
   /// See AbstractAttribute::trackStatistics()
   void trackStatistics() const override { STATS_DECLTRACK_FN_ATTR(reachable); }
@@ -2201,7 +2230,7 @@ struct AAReachabilityFunction final : public AAReachabilityImpl {
 /// ------------------------ NoAlias Argument Attribute ------------------------
 
 struct AANoAliasImpl : AANoAlias {
-  AANoAliasImpl(const IRPosition &IRP) : AANoAlias(IRP) {
+  AANoAliasImpl(const IRPosition &IRP, Attributor &A) : AANoAlias(IRP, A) {
     assert(getAssociatedType()->isPointerTy() &&
            "Noalias is a pointer attribute");
   }
@@ -2213,7 +2242,8 @@ struct AANoAliasImpl : AANoAlias {
 
 /// NoAlias attribute for a floating value.
 struct AANoAliasFloating final : AANoAliasImpl {
-  AANoAliasFloating(const IRPosition &IRP) : AANoAliasImpl(IRP) {}
+  AANoAliasFloating(const IRPosition &IRP, Attributor &A)
+      : AANoAliasImpl(IRP, A) {}
 
   /// See AbstractAttribute::initialize(...).
   void initialize(Attributor &A) override {
@@ -2264,7 +2294,7 @@ struct AANoAliasFloating final : AANoAliasImpl {
 struct AANoAliasArgument final
     : AAArgumentFromCallSiteArguments<AANoAlias, AANoAliasImpl> {
   using Base = AAArgumentFromCallSiteArguments<AANoAlias, AANoAliasImpl>;
-  AANoAliasArgument(const IRPosition &IRP) : Base(IRP) {}
+  AANoAliasArgument(const IRPosition &IRP, Attributor &A) : Base(IRP, A) {}
 
   /// See AbstractAttribute::initialize(...).
   void initialize(Attributor &A) override {
@@ -2315,7 +2345,8 @@ struct AANoAliasArgument final
 };
 
 struct AANoAliasCallSiteArgument final : AANoAliasImpl {
-  AANoAliasCallSiteArgument(const IRPosition &IRP) : AANoAliasImpl(IRP) {}
+  AANoAliasCallSiteArgument(const IRPosition &IRP, Attributor &A)
+      : AANoAliasImpl(IRP, A) {}
 
   /// See AbstractAttribute::initialize(...).
   void initialize(Attributor &A) override {
@@ -2498,7 +2529,8 @@ struct AANoAliasCallSiteArgument final : AANoAliasImpl {
 
 /// NoAlias attribute for function return value.
 struct AANoAliasReturned final : AANoAliasImpl {
-  AANoAliasReturned(const IRPosition &IRP) : AANoAliasImpl(IRP) {}
+  AANoAliasReturned(const IRPosition &IRP, Attributor &A)
+      : AANoAliasImpl(IRP, A) {}
 
   /// See AbstractAttribute::updateImpl(...).
   virtual ChangeStatus updateImpl(Attributor &A) override {
@@ -2534,7 +2566,8 @@ struct AANoAliasReturned final : AANoAliasImpl {
 
 /// NoAlias attribute deduction for a call site return value.
 struct AANoAliasCallSiteReturned final : AANoAliasImpl {
-  AANoAliasCallSiteReturned(const IRPosition &IRP) : AANoAliasImpl(IRP) {}
+  AANoAliasCallSiteReturned(const IRPosition &IRP, Attributor &A)
+      : AANoAliasImpl(IRP, A) {}
 
   /// See AbstractAttribute::initialize(...).
   void initialize(Attributor &A) override {
@@ -2564,7 +2597,7 @@ struct AANoAliasCallSiteReturned final : AANoAliasImpl {
 /// -------------------AAIsDead Function Attribute-----------------------
 
 struct AAIsDeadValueImpl : public AAIsDead {
-  AAIsDeadValueImpl(const IRPosition &IRP) : AAIsDead(IRP) {}
+  AAIsDeadValueImpl(const IRPosition &IRP, Attributor &A) : AAIsDead(IRP, A) {}
 
   /// See AAIsDead::isAssumedDead().
   bool isAssumedDead() const override { return getAssumed(); }
@@ -2626,7 +2659,8 @@ struct AAIsDeadValueImpl : public AAIsDead {
 };
 
 struct AAIsDeadFloating : public AAIsDeadValueImpl {
-  AAIsDeadFloating(const IRPosition &IRP) : AAIsDeadValueImpl(IRP) {}
+  AAIsDeadFloating(const IRPosition &IRP, Attributor &A)
+      : AAIsDeadValueImpl(IRP, A) {}
 
   /// See AbstractAttribute::initialize(...).
   void initialize(Attributor &A) override {
@@ -2688,7 +2722,8 @@ struct AAIsDeadFloating : public AAIsDeadValueImpl {
 };
 
 struct AAIsDeadArgument : public AAIsDeadFloating {
-  AAIsDeadArgument(const IRPosition &IRP) : AAIsDeadFloating(IRP) {}
+  AAIsDeadArgument(const IRPosition &IRP, Attributor &A)
+      : AAIsDeadFloating(IRP, A) {}
 
   /// See AbstractAttribute::initialize(...).
   void initialize(Attributor &A) override {
@@ -2716,7 +2751,8 @@ struct AAIsDeadArgument : public AAIsDeadFloating {
 };
 
 struct AAIsDeadCallSiteArgument : public AAIsDeadValueImpl {
-  AAIsDeadCallSiteArgument(const IRPosition &IRP) : AAIsDeadValueImpl(IRP) {}
+  AAIsDeadCallSiteArgument(const IRPosition &IRP, Attributor &A)
+      : AAIsDeadValueImpl(IRP, A) {}
 
   /// See AbstractAttribute::initialize(...).
   void initialize(Attributor &A) override {
@@ -2756,8 +2792,8 @@ struct AAIsDeadCallSiteArgument : public AAIsDeadValueImpl {
 };
 
 struct AAIsDeadCallSiteReturned : public AAIsDeadFloating {
-  AAIsDeadCallSiteReturned(const IRPosition &IRP)
-      : AAIsDeadFloating(IRP), IsAssumedSideEffectFree(true) {}
+  AAIsDeadCallSiteReturned(const IRPosition &IRP, Attributor &A)
+      : AAIsDeadFloating(IRP, A), IsAssumedSideEffectFree(true) {}
 
   /// See AAIsDead::isAssumedDead().
   bool isAssumedDead() const override {
@@ -2808,7 +2844,8 @@ private:
 };
 
 struct AAIsDeadReturned : public AAIsDeadValueImpl {
-  AAIsDeadReturned(const IRPosition &IRP) : AAIsDeadValueImpl(IRP) {}
+  AAIsDeadReturned(const IRPosition &IRP, Attributor &A)
+      : AAIsDeadValueImpl(IRP, A) {}
 
   /// See AbstractAttribute::updateImpl(...).
   ChangeStatus updateImpl(Attributor &A) override {
@@ -2850,7 +2887,7 @@ struct AAIsDeadReturned : public AAIsDeadValueImpl {
 };
 
 struct AAIsDeadFunction : public AAIsDead {
-  AAIsDeadFunction(const IRPosition &IRP) : AAIsDead(IRP) {}
+  AAIsDeadFunction(const IRPosition &IRP, Attributor &A) : AAIsDead(IRP, A) {}
 
   /// See AbstractAttribute::initialize(...).
   void initialize(Attributor &A) override {
@@ -3184,7 +3221,8 @@ ChangeStatus AAIsDeadFunction::updateImpl(Attributor &A) {
 
 /// Liveness information for a call sites.
 struct AAIsDeadCallSite final : AAIsDeadFunction {
-  AAIsDeadCallSite(const IRPosition &IRP) : AAIsDeadFunction(IRP) {}
+  AAIsDeadCallSite(const IRPosition &IRP, Attributor &A)
+      : AAIsDeadFunction(IRP, A) {}
 
   /// See AbstractAttribute::initialize(...).
   void initialize(Attributor &A) override {
@@ -3217,7 +3255,8 @@ ChangeStatus clampStateAndIndicateChange<DerefState>(DerefState &S,
 }
 
 struct AADereferenceableImpl : AADereferenceable {
-  AADereferenceableImpl(const IRPosition &IRP) : AADereferenceable(IRP) {}
+  AADereferenceableImpl(const IRPosition &IRP, Attributor &A)
+      : AADereferenceable(IRP, A) {}
   using StateType = DerefState;
 
   void initialize(Attributor &A) override {
@@ -3315,7 +3354,8 @@ struct AADereferenceableFloating
     : AAFromMustBeExecutedContext<AADereferenceable, AADereferenceableImpl> {
   using Base =
       AAFromMustBeExecutedContext<AADereferenceable, AADereferenceableImpl>;
-  AADereferenceableFloating(const IRPosition &IRP) : Base(IRP) {}
+  AADereferenceableFloating(const IRPosition &IRP, Attributor &A)
+      : Base(IRP, A) {}
 
   /// See AbstractAttribute::updateImpl(...).
   ChangeStatus updateImpl(Attributor &A) override {
@@ -3394,9 +3434,9 @@ struct AADereferenceableFloating
 /// Dereferenceable attribute for a return value.
 struct AADereferenceableReturned final
     : AAReturnedFromReturnedValues<AADereferenceable, AADereferenceableImpl> {
-  AADereferenceableReturned(const IRPosition &IRP)
+  AADereferenceableReturned(const IRPosition &IRP, Attributor &A)
       : AAReturnedFromReturnedValues<AADereferenceable, AADereferenceableImpl>(
-            IRP) {}
+            IRP, A) {}
 
   /// See AbstractAttribute::trackStatistics()
   void trackStatistics() const override {
@@ -3410,7 +3450,8 @@ struct AADereferenceableArgument final
           AADereferenceable, AADereferenceableImpl> {
   using Base = AAArgumentFromCallSiteArgumentsAndMustBeExecutedContext<
       AADereferenceable, AADereferenceableImpl>;
-  AADereferenceableArgument(const IRPosition &IRP) : Base(IRP) {}
+  AADereferenceableArgument(const IRPosition &IRP, Attributor &A)
+      : Base(IRP, A) {}
 
   /// See AbstractAttribute::trackStatistics()
   void trackStatistics() const override {
@@ -3420,8 +3461,8 @@ struct AADereferenceableArgument final
 
 /// Dereferenceable attribute for a call site argument.
 struct AADereferenceableCallSiteArgument final : AADereferenceableFloating {
-  AADereferenceableCallSiteArgument(const IRPosition &IRP)
-      : AADereferenceableFloating(IRP) {}
+  AADereferenceableCallSiteArgument(const IRPosition &IRP, Attributor &A)
+      : AADereferenceableFloating(IRP, A) {}
 
   /// See AbstractAttribute::trackStatistics()
   void trackStatistics() const override {
@@ -3435,7 +3476,8 @@ struct AADereferenceableCallSiteReturned final
           AADereferenceable, AADereferenceableImpl> {
   using Base = AACallSiteReturnedFromReturnedAndMustBeExecutedContext<
       AADereferenceable, AADereferenceableImpl>;
-  AADereferenceableCallSiteReturned(const IRPosition &IRP) : Base(IRP) {}
+  AADereferenceableCallSiteReturned(const IRPosition &IRP, Attributor &A)
+      : Base(IRP, A) {}
 
   /// See AbstractAttribute::trackStatistics()
   void trackStatistics() const override {
@@ -3528,7 +3570,7 @@ static unsigned getKnownAlignForUse(Attributor &A,
 }
 
 struct AAAlignImpl : AAAlign {
-  AAAlignImpl(const IRPosition &IRP) : AAAlign(IRP) {}
+  AAAlignImpl(const IRPosition &IRP, Attributor &A) : AAAlign(IRP, A) {}
 
   /// See AbstractAttribute::initialize(...).
   void initialize(Attributor &A) override {
@@ -3613,7 +3655,7 @@ struct AAAlignImpl : AAAlign {
 /// Align attribute for a floating value.
 struct AAAlignFloating : AAFromMustBeExecutedContext<AAAlign, AAAlignImpl> {
   using Base = AAFromMustBeExecutedContext<AAAlign, AAAlignImpl>;
-  AAAlignFloating(const IRPosition &IRP) : Base(IRP) {}
+  AAAlignFloating(const IRPosition &IRP, Attributor &A) : Base(IRP, A) {}
 
   /// See AbstractAttribute::updateImpl(...).
   ChangeStatus updateImpl(Attributor &A) override {
@@ -3655,8 +3697,8 @@ struct AAAlignFloating : AAFromMustBeExecutedContext<AAAlign, AAAlignImpl> {
 /// Align attribute for function return value.
 struct AAAlignReturned final
     : AAReturnedFromReturnedValues<AAAlign, AAAlignImpl> {
-  AAAlignReturned(const IRPosition &IRP)
-      : AAReturnedFromReturnedValues<AAAlign, AAAlignImpl>(IRP) {}
+  AAAlignReturned(const IRPosition &IRP, Attributor &A)
+      : AAReturnedFromReturnedValues<AAAlign, AAAlignImpl>(IRP, A) {}
 
   /// See AbstractAttribute::trackStatistics()
   void trackStatistics() const override { STATS_DECLTRACK_FNRET_ATTR(aligned) }
@@ -3669,7 +3711,7 @@ struct AAAlignArgument final
   using Base =
       AAArgumentFromCallSiteArgumentsAndMustBeExecutedContext<AAAlign,
                                                               AAAlignImpl>;
-  AAAlignArgument(const IRPosition &IRP) : Base(IRP) {}
+  AAAlignArgument(const IRPosition &IRP, Attributor &A) : Base(IRP, A) {}
 
   /// See AbstractAttribute::manifest(...).
   ChangeStatus manifest(Attributor &A) override {
@@ -3686,7 +3728,8 @@ struct AAAlignArgument final
 };
 
 struct AAAlignCallSiteArgument final : AAAlignFloating {
-  AAAlignCallSiteArgument(const IRPosition &IRP) : AAAlignFloating(IRP) {}
+  AAAlignCallSiteArgument(const IRPosition &IRP, Attributor &A)
+      : AAAlignFloating(IRP, A) {}
 
   /// See AbstractAttribute::manifest(...).
   ChangeStatus manifest(Attributor &A) override {
@@ -3728,7 +3771,8 @@ struct AAAlignCallSiteReturned final
   using Base =
       AACallSiteReturnedFromReturnedAndMustBeExecutedContext<AAAlign,
                                                              AAAlignImpl>;
-  AAAlignCallSiteReturned(const IRPosition &IRP) : Base(IRP) {}
+  AAAlignCallSiteReturned(const IRPosition &IRP, Attributor &A)
+      : Base(IRP, A) {}
 
   /// See AbstractAttribute::initialize(...).
   void initialize(Attributor &A) override {
@@ -3744,7 +3788,7 @@ struct AAAlignCallSiteReturned final
 
 /// ------------------ Function No-Return Attribute ----------------------------
 struct AANoReturnImpl : public AANoReturn {
-  AANoReturnImpl(const IRPosition &IRP) : AANoReturn(IRP) {}
+  AANoReturnImpl(const IRPosition &IRP, Attributor &A) : AANoReturn(IRP, A) {}
 
   /// See AbstractAttribute::initialize(...).
   void initialize(Attributor &A) override {
@@ -3770,7 +3814,8 @@ struct AANoReturnImpl : public AANoReturn {
 };
 
 struct AANoReturnFunction final : AANoReturnImpl {
-  AANoReturnFunction(const IRPosition &IRP) : AANoReturnImpl(IRP) {}
+  AANoReturnFunction(const IRPosition &IRP, Attributor &A)
+      : AANoReturnImpl(IRP, A) {}
 
   /// See AbstractAttribute::trackStatistics()
   void trackStatistics() const override { STATS_DECLTRACK_FN_ATTR(noreturn) }
@@ -3778,7 +3823,8 @@ struct AANoReturnFunction final : AANoReturnImpl {
 
 /// NoReturn attribute deduction for a call sites.
 struct AANoReturnCallSite final : AANoReturnImpl {
-  AANoReturnCallSite(const IRPosition &IRP) : AANoReturnImpl(IRP) {}
+  AANoReturnCallSite(const IRPosition &IRP, Attributor &A)
+      : AANoReturnImpl(IRP, A) {}
 
   /// See AbstractAttribute::updateImpl(...).
   ChangeStatus updateImpl(Attributor &A) override {
@@ -3802,7 +3848,7 @@ struct AANoReturnCallSite final : AANoReturnImpl {
 
 /// A class to hold the state of for no-capture attributes.
 struct AANoCaptureImpl : public AANoCapture {
-  AANoCaptureImpl(const IRPosition &IRP) : AANoCapture(IRP) {}
+  AANoCaptureImpl(const IRPosition &IRP, Attributor &A) : AANoCapture(IRP, A) {}
 
   /// See AbstractAttribute::initialize(...).
   void initialize(Attributor &A) override {
@@ -4144,7 +4190,8 @@ ChangeStatus AANoCaptureImpl::updateImpl(Attributor &A) {
 
 /// NoCapture attribute for function arguments.
 struct AANoCaptureArgument final : AANoCaptureImpl {
-  AANoCaptureArgument(const IRPosition &IRP) : AANoCaptureImpl(IRP) {}
+  AANoCaptureArgument(const IRPosition &IRP, Attributor &A)
+      : AANoCaptureImpl(IRP, A) {}
 
   /// See AbstractAttribute::trackStatistics()
   void trackStatistics() const override { STATS_DECLTRACK_ARG_ATTR(nocapture) }
@@ -4152,7 +4199,8 @@ struct AANoCaptureArgument final : AANoCaptureImpl {
 
 /// NoCapture attribute for call site arguments.
 struct AANoCaptureCallSiteArgument final : AANoCaptureImpl {
-  AANoCaptureCallSiteArgument(const IRPosition &IRP) : AANoCaptureImpl(IRP) {}
+  AANoCaptureCallSiteArgument(const IRPosition &IRP, Attributor &A)
+      : AANoCaptureImpl(IRP, A) {}
 
   /// See AbstractAttribute::initialize(...).
   void initialize(Attributor &A) override {
@@ -4184,7 +4232,8 @@ struct AANoCaptureCallSiteArgument final : AANoCaptureImpl {
 
 /// NoCapture attribute for floating values.
 struct AANoCaptureFloating final : AANoCaptureImpl {
-  AANoCaptureFloating(const IRPosition &IRP) : AANoCaptureImpl(IRP) {}
+  AANoCaptureFloating(const IRPosition &IRP, Attributor &A)
+      : AANoCaptureImpl(IRP, A) {}
 
   /// See AbstractAttribute::trackStatistics()
   void trackStatistics() const override {
@@ -4194,7 +4243,8 @@ struct AANoCaptureFloating final : AANoCaptureImpl {
 
 /// NoCapture attribute for function return value.
 struct AANoCaptureReturned final : AANoCaptureImpl {
-  AANoCaptureReturned(const IRPosition &IRP) : AANoCaptureImpl(IRP) {
+  AANoCaptureReturned(const IRPosition &IRP, Attributor &A)
+      : AANoCaptureImpl(IRP, A) {
     llvm_unreachable("NoCapture is not applicable to function returns!");
   }
 
@@ -4214,7 +4264,8 @@ struct AANoCaptureReturned final : AANoCaptureImpl {
 
 /// NoCapture attribute deduction for a call site return value.
 struct AANoCaptureCallSiteReturned final : AANoCaptureImpl {
-  AANoCaptureCallSiteReturned(const IRPosition &IRP) : AANoCaptureImpl(IRP) {}
+  AANoCaptureCallSiteReturned(const IRPosition &IRP, Attributor &A)
+      : AANoCaptureImpl(IRP, A) {}
 
   /// See AbstractAttribute::trackStatistics()
   void trackStatistics() const override {
@@ -4224,7 +4275,8 @@ struct AANoCaptureCallSiteReturned final : AANoCaptureImpl {
 
 /// ------------------ Value Simplify Attribute ----------------------------
 struct AAValueSimplifyImpl : AAValueSimplify {
-  AAValueSimplifyImpl(const IRPosition &IRP) : AAValueSimplify(IRP) {}
+  AAValueSimplifyImpl(const IRPosition &IRP, Attributor &A)
+      : AAValueSimplify(IRP, A) {}
 
   /// See AbstractAttribute::initialize(...).
   void initialize(Attributor &A) override {
@@ -4350,7 +4402,8 @@ protected:
 };
 
 struct AAValueSimplifyArgument final : AAValueSimplifyImpl {
-  AAValueSimplifyArgument(const IRPosition &IRP) : AAValueSimplifyImpl(IRP) {}
+  AAValueSimplifyArgument(const IRPosition &IRP, Attributor &A)
+      : AAValueSimplifyImpl(IRP, A) {}
 
   void initialize(Attributor &A) override {
     AAValueSimplifyImpl::initialize(A);
@@ -4425,7 +4478,8 @@ struct AAValueSimplifyArgument final : AAValueSimplifyImpl {
 };
 
 struct AAValueSimplifyReturned : AAValueSimplifyImpl {
-  AAValueSimplifyReturned(const IRPosition &IRP) : AAValueSimplifyImpl(IRP) {}
+  AAValueSimplifyReturned(const IRPosition &IRP, Attributor &A)
+      : AAValueSimplifyImpl(IRP, A) {}
 
   /// See AbstractAttribute::updateImpl(...).
   ChangeStatus updateImpl(Attributor &A) override {
@@ -4486,7 +4540,8 @@ struct AAValueSimplifyReturned : AAValueSimplifyImpl {
 };
 
 struct AAValueSimplifyFloating : AAValueSimplifyImpl {
-  AAValueSimplifyFloating(const IRPosition &IRP) : AAValueSimplifyImpl(IRP) {}
+  AAValueSimplifyFloating(const IRPosition &IRP, Attributor &A)
+      : AAValueSimplifyImpl(IRP, A) {}
 
   /// See AbstractAttribute::initialize(...).
   void initialize(Attributor &A) override {
@@ -4537,7 +4592,8 @@ struct AAValueSimplifyFloating : AAValueSimplifyImpl {
 };
 
 struct AAValueSimplifyFunction : AAValueSimplifyImpl {
-  AAValueSimplifyFunction(const IRPosition &IRP) : AAValueSimplifyImpl(IRP) {}
+  AAValueSimplifyFunction(const IRPosition &IRP, Attributor &A)
+      : AAValueSimplifyImpl(IRP, A) {}
 
   /// See AbstractAttribute::initialize(...).
   void initialize(Attributor &A) override {
@@ -4556,8 +4612,8 @@ struct AAValueSimplifyFunction : AAValueSimplifyImpl {
 };
 
 struct AAValueSimplifyCallSite : AAValueSimplifyFunction {
-  AAValueSimplifyCallSite(const IRPosition &IRP)
-      : AAValueSimplifyFunction(IRP) {}
+  AAValueSimplifyCallSite(const IRPosition &IRP, Attributor &A)
+      : AAValueSimplifyFunction(IRP, A) {}
   /// See AbstractAttribute::trackStatistics()
   void trackStatistics() const override {
     STATS_DECLTRACK_CS_ATTR(value_simplify)
@@ -4565,8 +4621,8 @@ struct AAValueSimplifyCallSite : AAValueSimplifyFunction {
 };
 
 struct AAValueSimplifyCallSiteReturned : AAValueSimplifyReturned {
-  AAValueSimplifyCallSiteReturned(const IRPosition &IRP)
-      : AAValueSimplifyReturned(IRP) {}
+  AAValueSimplifyCallSiteReturned(const IRPosition &IRP, Attributor &A)
+      : AAValueSimplifyReturned(IRP, A) {}
 
   /// See AbstractAttribute::manifest(...).
   ChangeStatus manifest(Attributor &A) override {
@@ -4578,8 +4634,8 @@ struct AAValueSimplifyCallSiteReturned : AAValueSimplifyReturned {
   }
 };
 struct AAValueSimplifyCallSiteArgument : AAValueSimplifyFloating {
-  AAValueSimplifyCallSiteArgument(const IRPosition &IRP)
-      : AAValueSimplifyFloating(IRP) {}
+  AAValueSimplifyCallSiteArgument(const IRPosition &IRP, Attributor &A)
+      : AAValueSimplifyFloating(IRP, A) {}
 
   void trackStatistics() const override {
     STATS_DECLTRACK_CSARG_ATTR(value_simplify)
@@ -4588,7 +4644,8 @@ struct AAValueSimplifyCallSiteArgument : AAValueSimplifyFloating {
 
 /// ----------------------- Heap-To-Stack Conversion ---------------------------
 struct AAHeapToStackImpl : public AAHeapToStack {
-  AAHeapToStackImpl(const IRPosition &IRP) : AAHeapToStack(IRP) {}
+  AAHeapToStackImpl(const IRPosition &IRP, Attributor &A)
+      : AAHeapToStack(IRP, A) {}
 
   const std::string getAsStr() const override {
     return "[H2S] Mallocs: " + std::to_string(MallocCalls.size());
@@ -4817,7 +4874,8 @@ ChangeStatus AAHeapToStackImpl::updateImpl(Attributor &A) {
 }
 
 struct AAHeapToStackFunction final : public AAHeapToStackImpl {
-  AAHeapToStackFunction(const IRPosition &IRP) : AAHeapToStackImpl(IRP) {}
+  AAHeapToStackFunction(const IRPosition &IRP, Attributor &A)
+      : AAHeapToStackImpl(IRP, A) {}
 
   /// See AbstractAttribute::trackStatistics().
   void trackStatistics() const override {
@@ -4832,8 +4890,8 @@ struct AAHeapToStackFunction final : public AAHeapToStackImpl {
 
 /// ----------------------- Privatizable Pointers ------------------------------
 struct AAPrivatizablePtrImpl : public AAPrivatizablePtr {
-  AAPrivatizablePtrImpl(const IRPosition &IRP)
-      : AAPrivatizablePtr(IRP), PrivatizableType(llvm::None) {}
+  AAPrivatizablePtrImpl(const IRPosition &IRP, Attributor &A)
+      : AAPrivatizablePtr(IRP, A), PrivatizableType(llvm::None) {}
 
   ChangeStatus indicatePessimisticFixpoint() override {
     AAPrivatizablePtr::indicatePessimisticFixpoint();
@@ -4872,8 +4930,8 @@ protected:
 // TODO: Do this for call site arguments (probably also other values) as well.
 
 struct AAPrivatizablePtrArgument final : public AAPrivatizablePtrImpl {
-  AAPrivatizablePtrArgument(const IRPosition &IRP)
-      : AAPrivatizablePtrImpl(IRP) {}
+  AAPrivatizablePtrArgument(const IRPosition &IRP, Attributor &A)
+      : AAPrivatizablePtrImpl(IRP, A) {}
 
   /// See AAPrivatizablePtrImpl::identifyPrivatizableType(...)
   Optional<Type *> identifyPrivatizableType(Attributor &A) override {
@@ -5275,8 +5333,8 @@ struct AAPrivatizablePtrArgument final : public AAPrivatizablePtrImpl {
 };
 
 struct AAPrivatizablePtrFloating : public AAPrivatizablePtrImpl {
-  AAPrivatizablePtrFloating(const IRPosition &IRP)
-      : AAPrivatizablePtrImpl(IRP) {}
+  AAPrivatizablePtrFloating(const IRPosition &IRP, Attributor &A)
+      : AAPrivatizablePtrImpl(IRP, A) {}
 
   /// See AbstractAttribute::initialize(...).
   virtual void initialize(Attributor &A) override {
@@ -5323,8 +5381,8 @@ struct AAPrivatizablePtrFloating : public AAPrivatizablePtrImpl {
 
 struct AAPrivatizablePtrCallSiteArgument final
     : public AAPrivatizablePtrFloating {
-  AAPrivatizablePtrCallSiteArgument(const IRPosition &IRP)
-      : AAPrivatizablePtrFloating(IRP) {}
+  AAPrivatizablePtrCallSiteArgument(const IRPosition &IRP, Attributor &A)
+      : AAPrivatizablePtrFloating(IRP, A) {}
 
   /// See AbstractAttribute::initialize(...).
   void initialize(Attributor &A) override {
@@ -5370,8 +5428,8 @@ struct AAPrivatizablePtrCallSiteArgument final
 
 struct AAPrivatizablePtrCallSiteReturned final
     : public AAPrivatizablePtrFloating {
-  AAPrivatizablePtrCallSiteReturned(const IRPosition &IRP)
-      : AAPrivatizablePtrFloating(IRP) {}
+  AAPrivatizablePtrCallSiteReturned(const IRPosition &IRP, Attributor &A)
+      : AAPrivatizablePtrFloating(IRP, A) {}
 
   /// See AbstractAttribute::initialize(...).
   void initialize(Attributor &A) override {
@@ -5386,8 +5444,8 @@ struct AAPrivatizablePtrCallSiteReturned final
 };
 
 struct AAPrivatizablePtrReturned final : public AAPrivatizablePtrFloating {
-  AAPrivatizablePtrReturned(const IRPosition &IRP)
-      : AAPrivatizablePtrFloating(IRP) {}
+  AAPrivatizablePtrReturned(const IRPosition &IRP, Attributor &A)
+      : AAPrivatizablePtrFloating(IRP, A) {}
 
   /// See AbstractAttribute::initialize(...).
   void initialize(Attributor &A) override {
@@ -5405,7 +5463,8 @@ struct AAPrivatizablePtrReturned final : public AAPrivatizablePtrFloating {
 /// Includes read-none, read-only, and write-only.
 /// ----------------------------------------------------------------------------
 struct AAMemoryBehaviorImpl : public AAMemoryBehavior {
-  AAMemoryBehaviorImpl(const IRPosition &IRP) : AAMemoryBehavior(IRP) {}
+  AAMemoryBehaviorImpl(const IRPosition &IRP, Attributor &A)
+      : AAMemoryBehavior(IRP, A) {}
 
   /// See AbstractAttribute::initialize(...).
   void initialize(Attributor &A) override {
@@ -5500,7 +5559,8 @@ const Attribute::AttrKind AAMemoryBehaviorImpl::AttrKinds[] = {
 
 /// Memory behavior attribute for a floating value.
 struct AAMemoryBehaviorFloating : AAMemoryBehaviorImpl {
-  AAMemoryBehaviorFloating(const IRPosition &IRP) : AAMemoryBehaviorImpl(IRP) {}
+  AAMemoryBehaviorFloating(const IRPosition &IRP, Attributor &A)
+      : AAMemoryBehaviorImpl(IRP, A) {}
 
   /// See AbstractAttribute::initialize(...).
   void initialize(Attributor &A) override {
@@ -5539,8 +5599,8 @@ protected:
 
 /// Memory behavior attribute for function argument.
 struct AAMemoryBehaviorArgument : AAMemoryBehaviorFloating {
-  AAMemoryBehaviorArgument(const IRPosition &IRP)
-      : AAMemoryBehaviorFloating(IRP) {}
+  AAMemoryBehaviorArgument(const IRPosition &IRP, Attributor &A)
+      : AAMemoryBehaviorFloating(IRP, A) {}
 
   /// See AbstractAttribute::initialize(...).
   void initialize(Attributor &A) override {
@@ -5591,8 +5651,8 @@ struct AAMemoryBehaviorArgument : AAMemoryBehaviorFloating {
 };
 
 struct AAMemoryBehaviorCallSiteArgument final : AAMemoryBehaviorArgument {
-  AAMemoryBehaviorCallSiteArgument(const IRPosition &IRP)
-      : AAMemoryBehaviorArgument(IRP) {}
+  AAMemoryBehaviorCallSiteArgument(const IRPosition &IRP, Attributor &A)
+      : AAMemoryBehaviorArgument(IRP, A) {}
 
   /// See AbstractAttribute::initialize(...).
   void initialize(Attributor &A) override {
@@ -5634,8 +5694,8 @@ struct AAMemoryBehaviorCallSiteArgument final : AAMemoryBehaviorArgument {
 
 /// Memory behavior attribute for a call site return position.
 struct AAMemoryBehaviorCallSiteReturned final : AAMemoryBehaviorFloating {
-  AAMemoryBehaviorCallSiteReturned(const IRPosition &IRP)
-      : AAMemoryBehaviorFloating(IRP) {}
+  AAMemoryBehaviorCallSiteReturned(const IRPosition &IRP, Attributor &A)
+      : AAMemoryBehaviorFloating(IRP, A) {}
 
   /// See AbstractAttribute::manifest(...).
   ChangeStatus manifest(Attributor &A) override {
@@ -5649,7 +5709,8 @@ struct AAMemoryBehaviorCallSiteReturned final : AAMemoryBehaviorFloating {
 
 /// An AA to represent the memory behavior function attributes.
 struct AAMemoryBehaviorFunction final : public AAMemoryBehaviorImpl {
-  AAMemoryBehaviorFunction(const IRPosition &IRP) : AAMemoryBehaviorImpl(IRP) {}
+  AAMemoryBehaviorFunction(const IRPosition &IRP, Attributor &A)
+      : AAMemoryBehaviorImpl(IRP, A) {}
 
   /// See AbstractAttribute::updateImpl(Attributor &A).
   virtual ChangeStatus updateImpl(Attributor &A) override;
@@ -5678,7 +5739,8 @@ struct AAMemoryBehaviorFunction final : public AAMemoryBehaviorImpl {
 
 /// AAMemoryBehavior attribute for call sites.
 struct AAMemoryBehaviorCallSite final : AAMemoryBehaviorImpl {
-  AAMemoryBehaviorCallSite(const IRPosition &IRP) : AAMemoryBehaviorImpl(IRP) {}
+  AAMemoryBehaviorCallSite(const IRPosition &IRP, Attributor &A)
+      : AAMemoryBehaviorImpl(IRP, A) {}
 
   /// See AbstractAttribute::initialize(...).
   void initialize(Attributor &A) override {
@@ -5945,7 +6007,15 @@ std::string AAMemoryLocation::getMemoryLocationsAsStr(
 
 struct AAMemoryLocationImpl : public AAMemoryLocation {
 
-  AAMemoryLocationImpl(const IRPosition &IRP) : AAMemoryLocation(IRP) {}
+  AAMemoryLocationImpl(const IRPosition &IRP, Attributor &A)
+      : AAMemoryLocation(IRP, A), Allocator(A.Allocator) {}
+
+  ~AAMemoryLocationImpl() {
+    // The AccessSets are allocated via a BumpPtrAllocator, we call
+    // the destructor manually.
+    for (auto &It : AccessKind2Accesses)
+      It.getSecond()->~AccessSet();
+  }
 
   /// See AbstractAttribute::initialize(...).
   void initialize(Attributor &A) override {
@@ -6038,11 +6108,10 @@ struct AAMemoryLocationImpl : public AAMemoryLocation {
       if (CurMLK & RequestedMLK)
         continue;
 
-      const auto &Accesses = AccessKindAccessesMap.lookup(CurMLK);
-      for (const AccessInfo &AI : Accesses) {
-        if (!Pred(AI.I, AI.Ptr, AI.Kind, CurMLK))
-          return false;
-      }
+      if (const AccessSet *Accesses = AccessKind2Accesses.lookup(CurMLK))
+        for (const AccessInfo &AI : *Accesses)
+          if (!Pred(AI.I, AI.Ptr, AI.Kind, CurMLK))
+            return false;
     }
 
     return true;
@@ -6058,8 +6127,7 @@ struct AAMemoryLocationImpl : public AAMemoryLocation {
     Instruction *I = dyn_cast<Instruction>(&getAssociatedValue());
     for (MemoryLocationsKind CurMLK = 1; CurMLK < NO_LOCATIONS; CurMLK *= 2)
       if (!(CurMLK & KnownMLK))
-        updateStateAndAccessesMap(getState(), AccessKindAccessesMap, CurMLK, I,
-                                  nullptr, Changed);
+        updateStateAndAccessesMap(getState(), CurMLK, I, nullptr, Changed);
     return AAMemoryLocation::indicatePessimisticFixpoint();
   }
 
@@ -6093,21 +6161,19 @@ protected:
 
   /// Mapping from *single* memory location kinds, e.g., LOCAL_MEM with the
   /// value of NO_LOCAL_MEM, to the accesses encountered for this memory kind.
-  using AccessKindAccessesMapTy =
-      DenseMap<unsigned, SmallSet<AccessInfo, 8, AccessInfo>>;
-  AccessKindAccessesMapTy AccessKindAccessesMap;
+  using AccessSet = SmallSet<AccessInfo, 8, AccessInfo>;
+  using AccessKind2AccessSetTy = DenseMap<unsigned, AccessSet *>;
+  AccessKind2AccessSetTy AccessKind2Accesses;
 
   /// Return the kind(s) of location that may be accessed by \p V.
   AAMemoryLocation::MemoryLocationsKind
   categorizeAccessedLocations(Attributor &A, Instruction &I, bool &Changed);
 
-  /// Update the state \p State and the AccessKindAccessesMap given that \p I is
+  /// Update the state \p State and the AccessKind2Accesses given that \p I is
   /// an access to a \p MLK memory location with the access pointer \p Ptr.
-  static void updateStateAndAccessesMap(AAMemoryLocation::StateType &State,
-                                        AccessKindAccessesMapTy &AccessMap,
-                                        MemoryLocationsKind MLK,
-                                        const Instruction *I, const Value *Ptr,
-                                        bool &Changed) {
+  void updateStateAndAccessesMap(AAMemoryLocation::StateType &State,
+                                 MemoryLocationsKind MLK, const Instruction *I,
+                                 const Value *Ptr, bool &Changed) {
     // TODO: The kind should be determined at the call sites based on the
     // information we have there.
     AccessKind Kind = READ_WRITE;
@@ -6117,7 +6183,10 @@ protected:
     }
 
     assert(isPowerOf2_32(MLK) && "Expected a single location set!");
-    Changed |= AccessMap[MLK].insert(AccessInfo{I, Ptr, Kind}).second;
+    auto *&Accesses = AccessKind2Accesses[MLK];
+    if (!Accesses)
+      Accesses = new (Allocator) AccessSet();
+    Changed |= Accesses->insert(AccessInfo{I, Ptr, Kind}).second;
     State.removeAssumedBits(MLK);
   }
 
@@ -6125,6 +6194,9 @@ protected:
   /// arguments, and update the state and access map accordingly.
   void categorizePtrValue(Attributor &A, const Instruction &I, const Value &Ptr,
                           AAMemoryLocation::StateType &State, bool &Changed);
+
+  /// Used to allocate access sets.
+  BumpPtrAllocator &Allocator;
 
   /// The set of IR attributes AAMemoryLocation deals with.
   static const Attribute::AttrKind AttrKinds[4];
@@ -6158,39 +6230,32 @@ void AAMemoryLocationImpl::categorizePtrValue(
       return true;
     if (auto *Arg = dyn_cast<Argument>(&V)) {
       if (Arg->hasByValAttr())
-        updateStateAndAccessesMap(T, AccessKindAccessesMap, NO_LOCAL_MEM, &I,
-                                  &V, Changed);
+        updateStateAndAccessesMap(T, NO_LOCAL_MEM, &I, &V, Changed);
       else
-        updateStateAndAccessesMap(T, AccessKindAccessesMap, NO_ARGUMENT_MEM, &I,
-                                  &V, Changed);
+        updateStateAndAccessesMap(T, NO_ARGUMENT_MEM, &I, &V, Changed);
       return true;
     }
     if (auto *GV = dyn_cast<GlobalValue>(&V)) {
       if (GV->hasLocalLinkage())
-        updateStateAndAccessesMap(T, AccessKindAccessesMap,
-                                  NO_GLOBAL_INTERNAL_MEM, &I, &V, Changed);
+        updateStateAndAccessesMap(T, NO_GLOBAL_INTERNAL_MEM, &I, &V, Changed);
       else
-        updateStateAndAccessesMap(T, AccessKindAccessesMap,
-                                  NO_GLOBAL_EXTERNAL_MEM, &I, &V, Changed);
+        updateStateAndAccessesMap(T, NO_GLOBAL_EXTERNAL_MEM, &I, &V, Changed);
       return true;
     }
     if (isa<AllocaInst>(V)) {
-      updateStateAndAccessesMap(T, AccessKindAccessesMap, NO_LOCAL_MEM, &I, &V,
-                                Changed);
+      updateStateAndAccessesMap(T, NO_LOCAL_MEM, &I, &V, Changed);
       return true;
     }
     if (const auto *CB = dyn_cast<CallBase>(&V)) {
       const auto &NoAliasAA =
           A.getAAFor<AANoAlias>(*this, IRPosition::callsite_returned(*CB));
       if (NoAliasAA.isAssumedNoAlias()) {
-        updateStateAndAccessesMap(T, AccessKindAccessesMap, NO_MALLOCED_MEM, &I,
-                                  &V, Changed);
+        updateStateAndAccessesMap(T, NO_MALLOCED_MEM, &I, &V, Changed);
         return true;
       }
     }
 
-    updateStateAndAccessesMap(T, AccessKindAccessesMap, NO_UNKOWN_MEM, &I, &V,
-                              Changed);
+    updateStateAndAccessesMap(T, NO_UNKOWN_MEM, &I, &V, Changed);
     LLVM_DEBUG(dbgs() << "[AAMemoryLocation] Ptr value cannot be categorized: "
                       << V << " -> " << getMemoryLocationsAsStr(T.getAssumed())
                       << "\n");
@@ -6202,8 +6267,7 @@ void AAMemoryLocationImpl::categorizePtrValue(
           /* MaxValues */ 32, StripGEPCB)) {
     LLVM_DEBUG(
         dbgs() << "[AAMemoryLocation] Pointer locations not categorized\n");
-    updateStateAndAccessesMap(State, AccessKindAccessesMap, NO_UNKOWN_MEM, &I,
-                              nullptr, Changed);
+    updateStateAndAccessesMap(State, NO_UNKOWN_MEM, &I, nullptr, Changed);
   } else {
     LLVM_DEBUG(
         dbgs()
@@ -6233,8 +6297,8 @@ AAMemoryLocationImpl::categorizeAccessedLocations(Attributor &A, Instruction &I,
       return NO_LOCATIONS;
 
     if (CBMemLocationAA.isAssumedInaccessibleMemOnly()) {
-      updateStateAndAccessesMap(AccessedLocs, AccessKindAccessesMap,
-                                NO_INACCESSIBLE_MEM, &I, nullptr, Changed);
+      updateStateAndAccessesMap(AccessedLocs, NO_INACCESSIBLE_MEM, &I, nullptr,
+                                Changed);
       return AccessedLocs.getAssumed();
     }
 
@@ -6248,8 +6312,7 @@ AAMemoryLocationImpl::categorizeAccessedLocations(Attributor &A, Instruction &I,
     for (MemoryLocationsKind CurMLK = 1; CurMLK < NO_LOCATIONS; CurMLK *= 2) {
       if (CBAssumedNotAccessedLocsNoArgMem & CurMLK)
         continue;
-      updateStateAndAccessesMap(AccessedLocs, AccessKindAccessesMap, CurMLK, &I,
-                                nullptr, Changed);
+      updateStateAndAccessesMap(AccessedLocs, CurMLK, &I, nullptr, Changed);
     }
 
     // Now handle global memory if it might be accessed. This is slightly tricky
@@ -6258,8 +6321,7 @@ AAMemoryLocationImpl::categorizeAccessedLocations(Attributor &A, Instruction &I,
     if (HasGlobalAccesses) {
       auto AccessPred = [&](const Instruction *, const Value *Ptr,
                             AccessKind Kind, MemoryLocationsKind MLK) {
-        updateStateAndAccessesMap(AccessedLocs, AccessKindAccessesMap, MLK, &I,
-                                  Ptr, Changed);
+        updateStateAndAccessesMap(AccessedLocs, MLK, &I, Ptr, Changed);
         return true;
       };
       if (!CBMemLocationAA.checkForAllAccessesToMemoryKind(
@@ -6313,14 +6375,14 @@ AAMemoryLocationImpl::categorizeAccessedLocations(Attributor &A, Instruction &I,
 
   LLVM_DEBUG(dbgs() << "[AAMemoryLocation] Failed to categorize instruction: "
                     << I << "\n");
-  updateStateAndAccessesMap(AccessedLocs, AccessKindAccessesMap, NO_UNKOWN_MEM,
-                            &I, nullptr, Changed);
+  updateStateAndAccessesMap(AccessedLocs, NO_UNKOWN_MEM, &I, nullptr, Changed);
   return AccessedLocs.getAssumed();
 }
 
 /// An AA to represent the memory behavior function attributes.
 struct AAMemoryLocationFunction final : public AAMemoryLocationImpl {
-  AAMemoryLocationFunction(const IRPosition &IRP) : AAMemoryLocationImpl(IRP) {}
+  AAMemoryLocationFunction(const IRPosition &IRP, Attributor &A)
+      : AAMemoryLocationImpl(IRP, A) {}
 
   /// See AbstractAttribute::updateImpl(Attributor &A).
   virtual ChangeStatus updateImpl(Attributor &A) override {
@@ -6370,7 +6432,8 @@ struct AAMemoryLocationFunction final : public AAMemoryLocationImpl {
 
 /// AAMemoryLocation attribute for call sites.
 struct AAMemoryLocationCallSite final : AAMemoryLocationImpl {
-  AAMemoryLocationCallSite(const IRPosition &IRP) : AAMemoryLocationImpl(IRP) {}
+  AAMemoryLocationCallSite(const IRPosition &IRP, Attributor &A)
+      : AAMemoryLocationImpl(IRP, A) {}
 
   /// See AbstractAttribute::initialize(...).
   void initialize(Attributor &A) override {
@@ -6392,8 +6455,7 @@ struct AAMemoryLocationCallSite final : AAMemoryLocationImpl {
     bool Changed = false;
     auto AccessPred = [&](const Instruction *I, const Value *Ptr,
                           AccessKind Kind, MemoryLocationsKind MLK) {
-      updateStateAndAccessesMap(getState(), AccessKindAccessesMap, MLK, I, Ptr,
-                                Changed);
+      updateStateAndAccessesMap(getState(), MLK, I, Ptr, Changed);
       return true;
     };
     if (!FnAA.checkForAllAccessesToMemoryKind(AccessPred, ALL_LOCATIONS))
@@ -6412,7 +6474,8 @@ struct AAMemoryLocationCallSite final : AAMemoryLocationImpl {
 
 struct AAValueConstantRangeImpl : AAValueConstantRange {
   using StateType = IntegerRangeState;
-  AAValueConstantRangeImpl(const IRPosition &IRP) : AAValueConstantRange(IRP) {}
+  AAValueConstantRangeImpl(const IRPosition &IRP, Attributor &A)
+      : AAValueConstantRange(IRP, A) {}
 
   /// See AbstractAttribute::getAsStr().
   const std::string getAsStr() const override {
@@ -6601,7 +6664,8 @@ struct AAValueConstantRangeArgument final
           AAValueConstantRange, AAValueConstantRangeImpl, IntegerRangeState> {
   using Base = AAArgumentFromCallSiteArguments<
       AAValueConstantRange, AAValueConstantRangeImpl, IntegerRangeState>;
-  AAValueConstantRangeArgument(const IRPosition &IRP) : Base(IRP) {}
+  AAValueConstantRangeArgument(const IRPosition &IRP, Attributor &A)
+      : Base(IRP, A) {}
 
   /// See AbstractAttribute::initialize(..).
   void initialize(Attributor &A) override {
@@ -6623,7 +6687,8 @@ struct AAValueConstantRangeReturned
                                    AAValueConstantRangeImpl> {
   using Base = AAReturnedFromReturnedValues<AAValueConstantRange,
                                             AAValueConstantRangeImpl>;
-  AAValueConstantRangeReturned(const IRPosition &IRP) : Base(IRP) {}
+  AAValueConstantRangeReturned(const IRPosition &IRP, Attributor &A)
+      : Base(IRP, A) {}
 
   /// See AbstractAttribute::initialize(...).
   void initialize(Attributor &A) override {}
@@ -6635,8 +6700,8 @@ struct AAValueConstantRangeReturned
 };
 
 struct AAValueConstantRangeFloating : AAValueConstantRangeImpl {
-  AAValueConstantRangeFloating(const IRPosition &IRP)
-      : AAValueConstantRangeImpl(IRP) {}
+  AAValueConstantRangeFloating(const IRPosition &IRP, Attributor &A)
+      : AAValueConstantRangeImpl(IRP, A) {}
 
   /// See AbstractAttribute::initialize(...).
   void initialize(Attributor &A) override {
@@ -6845,8 +6910,8 @@ struct AAValueConstantRangeFloating : AAValueConstantRangeImpl {
 };
 
 struct AAValueConstantRangeFunction : AAValueConstantRangeImpl {
-  AAValueConstantRangeFunction(const IRPosition &IRP)
-      : AAValueConstantRangeImpl(IRP) {}
+  AAValueConstantRangeFunction(const IRPosition &IRP, Attributor &A)
+      : AAValueConstantRangeImpl(IRP, A) {}
 
   /// See AbstractAttribute::initialize(...).
   ChangeStatus updateImpl(Attributor &A) override {
@@ -6859,8 +6924,8 @@ struct AAValueConstantRangeFunction : AAValueConstantRangeImpl {
 };
 
 struct AAValueConstantRangeCallSite : AAValueConstantRangeFunction {
-  AAValueConstantRangeCallSite(const IRPosition &IRP)
-      : AAValueConstantRangeFunction(IRP) {}
+  AAValueConstantRangeCallSite(const IRPosition &IRP, Attributor &A)
+      : AAValueConstantRangeFunction(IRP, A) {}
 
   /// See AbstractAttribute::trackStatistics()
   void trackStatistics() const override { STATS_DECLTRACK_CS_ATTR(value_range) }
@@ -6869,9 +6934,9 @@ struct AAValueConstantRangeCallSite : AAValueConstantRangeFunction {
 struct AAValueConstantRangeCallSiteReturned
     : AACallSiteReturnedFromReturned<AAValueConstantRange,
                                      AAValueConstantRangeImpl> {
-  AAValueConstantRangeCallSiteReturned(const IRPosition &IRP)
+  AAValueConstantRangeCallSiteReturned(const IRPosition &IRP, Attributor &A)
       : AACallSiteReturnedFromReturned<AAValueConstantRange,
-                                       AAValueConstantRangeImpl>(IRP) {}
+                                       AAValueConstantRangeImpl>(IRP, A) {}
 
   /// See AbstractAttribute::initialize(...).
   void initialize(Attributor &A) override {
@@ -6889,8 +6954,8 @@ struct AAValueConstantRangeCallSiteReturned
   }
 };
 struct AAValueConstantRangeCallSiteArgument : AAValueConstantRangeFloating {
-  AAValueConstantRangeCallSiteArgument(const IRPosition &IRP)
-      : AAValueConstantRangeFloating(IRP) {}
+  AAValueConstantRangeCallSiteArgument(const IRPosition &IRP, Attributor &A)
+      : AAValueConstantRangeFloating(IRP, A) {}
 
   /// See AbstractAttribute::trackStatistics()
   void trackStatistics() const override {
@@ -6929,7 +6994,7 @@ const char AAValueConstantRange::ID = 0;
 
 #define SWITCH_PK_CREATE(CLASS, IRP, PK, SUFFIX)                               \
   case IRPosition::PK:                                                         \
-    AA = new (A.Allocator) CLASS##SUFFIX(IRP);                                 \
+    AA = new (A.Allocator) CLASS##SUFFIX(IRP, A);                              \
     break;
 
 #define CREATE_FUNCTION_ABSTRACT_ATTRIBUTE_FOR_POSITION(CLASS)                 \

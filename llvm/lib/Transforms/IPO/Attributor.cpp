@@ -487,6 +487,16 @@ Attributor::~Attributor() {
   for (AbstractAttribute *AA : AllAbstractAttributes)
     AA->~AbstractAttribute();
 
+  // The Kind2AAMap objects are allocated via a BumpPtrAllocator, we call
+  // the destructor manually.
+  for (auto &It : AAMap)
+    It.getSecond()->~Kind2AAMapTy();
+
+  // The QueryMapValueTy objects are allocated via a BumpPtrAllocator, we call
+  // the destructor manually.
+  for (auto &It : QueryMap)
+    It.getSecond()->~QueryMapValueTy();
+
   for (auto &It : ArgumentReplacementMap)
     DeleteContainerPointers(It.second);
 }
@@ -822,7 +832,12 @@ static bool checkForAllInstructionsImpl(
     const AAIsDead *LivenessAA, const ArrayRef<unsigned> &Opcodes,
     bool CheckBBLivenessOnly = false) {
   for (unsigned Opcode : Opcodes) {
-    for (Instruction *I : OpcodeInstMap[Opcode]) {
+    // Check if we have instructions with this opcode at all first.
+    auto *Insts = OpcodeInstMap.lookup(Opcode);
+    if (!Insts)
+      continue;
+
+    for (Instruction *I : *Insts) {
       // Skip dead instructions.
       if (A && A->isAssumedDead(IRPosition::value(*I), QueryingAA, LivenessAA,
                                 CheckBBLivenessOnly))
@@ -913,12 +928,17 @@ ChangeStatus Attributor::run() {
     // to run updates.
     for (unsigned u = 0; u < InvalidAAs.size(); ++u) {
       AbstractAttribute *InvalidAA = InvalidAAs[u];
-      auto &QuerriedAAs = QueryMap[InvalidAA];
+
+      // Check the dependences to fast track invalidation.
+      auto *QuerriedAAs = QueryMap.lookup(InvalidAA);
+      if (!QuerriedAAs)
+        continue;
+
       LLVM_DEBUG(dbgs() << "[Attributor] InvalidAA: " << *InvalidAA << " has "
-                        << QuerriedAAs.RequiredAAs.size() << "/"
-                        << QuerriedAAs.OptionalAAs.size()
+                        << QuerriedAAs->RequiredAAs.size() << "/"
+                        << QuerriedAAs->OptionalAAs.size()
                         << " required/optional dependences\n");
-      for (AbstractAttribute *DepOnInvalidAA : QuerriedAAs.RequiredAAs) {
+      for (AbstractAttribute *DepOnInvalidAA : QuerriedAAs->RequiredAAs) {
         AbstractState &DOIAAState = DepOnInvalidAA->getState();
         DOIAAState.indicatePessimisticFixpoint();
         ++NumAttributesFixedDueToRequiredDependences;
@@ -929,8 +949,8 @@ ChangeStatus Attributor::run() {
           ChangedAAs.push_back(DepOnInvalidAA);
       }
       if (!RecomputeDependences)
-        Worklist.insert(QuerriedAAs.OptionalAAs.begin(),
-                        QuerriedAAs.OptionalAAs.end());
+        Worklist.insert(QuerriedAAs->OptionalAAs.begin(),
+                        QuerriedAAs->OptionalAAs.end());
     }
 
     // If dependences (=QueryMap) are recomputed we have to look at all abstract
@@ -938,7 +958,11 @@ ChangeStatus Attributor::run() {
     if (RecomputeDependences) {
       LLVM_DEBUG(
           dbgs() << "[Attributor] Run all AAs to recompute dependences\n");
-      QueryMap.clear();
+      // The query map entries are reused (1) because it is likely a future
+      // iteration has similar dependences and (2) the QueryMapValueTy is
+      // allocated via a BumpPtrAllocator and cannot be reused otherwise.
+      for (auto &It : QueryMap)
+        It.getSecond()->clear();
       ChangedAAs.clear();
       Worklist.insert(AllAbstractAttributes.begin(),
                       AllAbstractAttributes.end());
@@ -947,11 +971,12 @@ ChangeStatus Attributor::run() {
     // Add all abstract attributes that are potentially dependent on one that
     // changed to the work list.
     for (AbstractAttribute *ChangedAA : ChangedAAs) {
-      auto &QuerriedAAs = QueryMap[ChangedAA];
-      Worklist.insert(QuerriedAAs.OptionalAAs.begin(),
-                      QuerriedAAs.OptionalAAs.end());
-      Worklist.insert(QuerriedAAs.RequiredAAs.begin(),
-                      QuerriedAAs.RequiredAAs.end());
+      if (auto *QuerriedAAs = QueryMap.lookup(ChangedAA)) {
+        Worklist.insert(QuerriedAAs->OptionalAAs.begin(),
+                        QuerriedAAs->OptionalAAs.end());
+        Worklist.insert(QuerriedAAs->RequiredAAs.begin(),
+                        QuerriedAAs->RequiredAAs.end());
+      }
     }
 
     LLVM_DEBUG(dbgs() << "[Attributor] #Iteration: " << IterationCounter
@@ -1020,11 +1045,12 @@ ChangeStatus Attributor::run() {
       NumAttributesTimedOut++;
     }
 
-    auto &QuerriedAAs = QueryMap[ChangedAA];
-    ChangedAAs.append(QuerriedAAs.OptionalAAs.begin(),
-                      QuerriedAAs.OptionalAAs.end());
-    ChangedAAs.append(QuerriedAAs.RequiredAAs.begin(),
-                      QuerriedAAs.RequiredAAs.end());
+    if (auto *QuerriedAAs = QueryMap.lookup(ChangedAA)) {
+      ChangedAAs.append(QuerriedAAs->OptionalAAs.begin(),
+                        QuerriedAAs->OptionalAAs.end());
+      ChangedAAs.append(QuerriedAAs->RequiredAAs.begin(),
+                        QuerriedAAs->RequiredAAs.end());
+    }
   }
 
   LLVM_DEBUG({
@@ -1648,8 +1674,12 @@ void InformationCache::initializeInformationCache(const Function &CF,
       // The alignment of a pointer is interesting for stores.
       IsInterestingOpcode = true;
     }
-    if (IsInterestingOpcode)
-      FI.OpcodeInstMap[I.getOpcode()].push_back(&I);
+    if (IsInterestingOpcode) {
+      auto *&Insts = FI.OpcodeInstMap[I.getOpcode()];
+      if (!Insts)
+        Insts = new (Allocator) InstructionVectorTy();
+      Insts->push_back(&I);
+    }
     if (I.mayReadOrWriteMemory())
       FI.RWInsts.push_back(&I);
   }
@@ -1659,18 +1689,27 @@ void InformationCache::initializeInformationCache(const Function &CF,
     InlineableFunctions.insert(&F);
 }
 
+InformationCache::FunctionInfo::~FunctionInfo() {
+  // The instruction vectors are allocated using a BumpPtrAllocator, we need to
+  // manually destroy them.
+  for (auto &It : OpcodeInstMap)
+    It.getSecond()->~InstructionVectorTy();
+}
+
 void Attributor::recordDependence(const AbstractAttribute &FromAA,
                                   const AbstractAttribute &ToAA,
                                   DepClassTy DepClass) {
   if (FromAA.getState().isAtFixpoint())
     return;
 
+  QueryMapValueTy *&DepAAs = QueryMap[&FromAA];
+  if (!DepAAs)
+    DepAAs = new (Allocator) QueryMapValueTy();
+
   if (DepClass == DepClassTy::REQUIRED)
-    QueryMap[&FromAA].RequiredAAs.insert(
-        const_cast<AbstractAttribute *>(&ToAA));
+    DepAAs->RequiredAAs.insert(const_cast<AbstractAttribute *>(&ToAA));
   else
-    QueryMap[&FromAA].OptionalAAs.insert(
-        const_cast<AbstractAttribute *>(&ToAA));
+    DepAAs->OptionalAAs.insert(const_cast<AbstractAttribute *>(&ToAA));
   QueriedNonFixAA = true;
 }
 
@@ -2010,7 +2049,8 @@ PreservedAnalyses AttributorPass::run(Module &M, ModuleAnalysisManager &AM) {
     Functions.insert(&F);
 
   CallGraphUpdater CGUpdater;
-  InformationCache InfoCache(M, AG, /* CGSCC */ nullptr);
+  BumpPtrAllocator Allocator;
+  InformationCache InfoCache(M, AG, Allocator, /* CGSCC */ nullptr);
   if (runAttributorOnFunctions(InfoCache, Functions, AG, CGUpdater)) {
     // FIXME: Think about passes we will preserve and add them here.
     return PreservedAnalyses::none();
@@ -2036,7 +2076,8 @@ PreservedAnalyses AttributorCGSCCPass::run(LazyCallGraph::SCC &C,
   Module &M = *Functions.back()->getParent();
   CallGraphUpdater CGUpdater;
   CGUpdater.initialize(CG, C, AM, UR);
-  InformationCache InfoCache(M, AG, /* CGSCC */ &Functions);
+  BumpPtrAllocator Allocator;
+  InformationCache InfoCache(M, AG, Allocator, /* CGSCC */ &Functions);
   if (runAttributorOnFunctions(InfoCache, Functions, AG, CGUpdater)) {
     // FIXME: Think about passes we will preserve and add them here.
     return PreservedAnalyses::none();
@@ -2063,7 +2104,8 @@ struct AttributorLegacyPass : public ModulePass {
       Functions.insert(&F);
 
     CallGraphUpdater CGUpdater;
-    InformationCache InfoCache(M, AG, /* CGSCC */ nullptr);
+    BumpPtrAllocator Allocator;
+    InformationCache InfoCache(M, AG, Allocator, /* CGSCC */ nullptr);
     return runAttributorOnFunctions(InfoCache, Functions, AG, CGUpdater);
   }
 
@@ -2098,7 +2140,8 @@ struct AttributorCGSCCLegacyPass : public CallGraphSCCPass {
     CallGraph &CG = const_cast<CallGraph &>(SCC.getCallGraph());
     CGUpdater.initialize(CG, SCC);
     Module &M = *Functions.back()->getParent();
-    InformationCache InfoCache(M, AG, /* CGSCC */ &Functions);
+    BumpPtrAllocator Allocator;
+    InformationCache InfoCache(M, AG, Allocator, /* CGSCC */ &Functions);
     return runAttributorOnFunctions(InfoCache, Functions, AG, CGUpdater);
   }
 

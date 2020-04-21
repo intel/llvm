@@ -99,6 +99,11 @@ STATISTIC(NumTailCalls, "Number of tail calls");
 STATISTIC(NumShiftInserts, "Number of vector shift inserts");
 STATISTIC(NumOptimizedImms, "Number of times immediates were optimized");
 
+static cl::opt<bool>
+EnableAArch64SlrGeneration("aarch64-shift-insert-generation", cl::Hidden,
+                           cl::desc("Allow AArch64 SLI/SRI formation"),
+                           cl::init(false));
+
 // FIXME: The necessary dtprel relocations don't seem to be supported
 // well in the GNU bfd and gold linkers at the moment. Therefore, by
 // default, for now, fall back to GeneralDynamic code generation.
@@ -1318,8 +1323,6 @@ const char *AArch64TargetLowering::getTargetNodeName(unsigned Opcode) const {
   case AArch64ISD::VSHL:              return "AArch64ISD::VSHL";
   case AArch64ISD::VLSHR:             return "AArch64ISD::VLSHR";
   case AArch64ISD::VASHR:             return "AArch64ISD::VASHR";
-  case AArch64ISD::VSLI:              return "AArch64ISD::VSLI";
-  case AArch64ISD::VSRI:              return "AArch64ISD::VSRI";
   case AArch64ISD::CMEQ:              return "AArch64ISD::CMEQ";
   case AArch64ISD::CMGE:              return "AArch64ISD::CMGE";
   case AArch64ISD::CMGT:              return "AArch64ISD::CMGT";
@@ -1415,6 +1418,8 @@ const char *AArch64TargetLowering::getTargetNodeName(unsigned Opcode) const {
   case AArch64ISD::INSR:              return "AArch64ISD::INSR";
   case AArch64ISD::PTEST:             return "AArch64ISD::PTEST";
   case AArch64ISD::PTRUE:             return "AArch64ISD::PTRUE";
+  case AArch64ISD::LD1:               return "AArch64ISD::LD1";
+  case AArch64ISD::LD1S:              return "AArch64ISD::LD1S";
   case AArch64ISD::LDNF1:             return "AArch64ISD::LDNF1";
   case AArch64ISD::LDNF1S:            return "AArch64ISD::LDNF1S";
   case AArch64ISD::LDFF1:             return "AArch64ISD::LDFF1";
@@ -1453,6 +1458,8 @@ const char *AArch64TargetLowering::getTargetNodeName(unsigned Opcode) const {
   case AArch64ISD::GLDNT1:            return "AArch64ISD::GLDNT1";
   case AArch64ISD::GLDNT1_INDEX:      return "AArch64ISD::GLDNT1_INDEX";
   case AArch64ISD::GLDNT1S:           return "AArch64ISD::GLDNT1S";
+
+  case AArch64ISD::ST1:               return "AArch64ISD::ST1";
 
   case AArch64ISD::SST1:              return "AArch64ISD::SST1";
   case AArch64ISD::SST1_SCALED:       return "AArch64ISD::SST1_SCALED";
@@ -3141,21 +3148,6 @@ SDValue AArch64TargetLowering::LowerINTRINSIC_WO_CHAIN(SDValue Op,
       report_fatal_error(
           "llvm.eh.recoverfp must take a function as the first argument");
     return IncomingFPOp;
-  }
-
-  case Intrinsic::aarch64_neon_vsri:
-  case Intrinsic::aarch64_neon_vsli: {
-    EVT Ty = Op.getValueType();
-
-    if (!Ty.isVector())
-      report_fatal_error("Unexpected type for aarch64_neon_vsli");
-
-    assert(Op.getConstantOperandVal(3) <= Ty.getScalarSizeInBits());
-
-    bool IsShiftRight = IntNo == Intrinsic::aarch64_neon_vsri;
-    unsigned Opcode = IsShiftRight ? AArch64ISD::VSRI : AArch64ISD::VSLI;
-    return DAG.getNode(Opcode, dl, Ty, Op.getOperand(1), Op.getOperand(2),
-                       Op.getOperand(3));
   }
   }
 }
@@ -7905,9 +7897,8 @@ static unsigned getIntrinsicID(const SDNode *N) {
 
 // Attempt to form a vector S[LR]I from (or (and X, BvecC1), (lsl Y, C2)),
 // to (SLI X, Y, C2), where X and Y have matching vector types, BvecC1 is a
-// BUILD_VECTORs with constant element C1, C2 is a constant, and:
-//   - for the SLI case: C1 == Ones(ElemSizeInBits) >> (ElemSizeInBits - C2)
-//   - for the SRI case: C1 == Ones(ElemSizeInBits) << (ElemSizeInBits - C2)
+// BUILD_VECTORs with constant element C1, C2 is a constant, and C1 == ~C2.
+// Also, logical shift right -> sri, with the same structure.
 static SDValue tryLowerToSLI(SDNode *N, SelectionDAG &DAG) {
   EVT VT = N->getValueType(0);
 
@@ -7940,27 +7931,25 @@ static SDValue tryLowerToSLI(SDNode *N, SelectionDAG &DAG) {
   if (!isAllConstantBuildVector(And.getOperand(1), C1))
     return SDValue();
 
-  // Is C1 == Ones(ElemSizeInBits) << (ElemSizeInBits - C2) or
-  // C1 == Ones(ElemSizeInBits) >> (ElemSizeInBits - C2), taking into account
-  // how much one can shift elements of a particular size?
+  // Is C1 == ~C2, taking into account how much one can shift elements of a
+  // particular size?
   uint64_t C2 = C2node->getZExtValue();
   unsigned ElemSizeInBits = VT.getScalarSizeInBits();
   if (C2 > ElemSizeInBits)
     return SDValue();
   unsigned ElemMask = (1 << ElemSizeInBits) - 1;
-  if (IsShiftRight) {
-    if ((C1 & ElemMask) != ((ElemMask << (ElemSizeInBits - C2)) & ElemMask))
-      return SDValue();
-  } else {
-    if ((C1 & ElemMask) != ((ElemMask >> (ElemSizeInBits - C2)) & ElemMask))
-      return SDValue();
-  }
+  if ((C1 & ElemMask) != (~C2 & ElemMask))
+    return SDValue();
 
   SDValue X = And.getOperand(0);
   SDValue Y = Shift.getOperand(0);
 
-  unsigned Inst = IsShiftRight ? AArch64ISD::VSRI : AArch64ISD::VSLI;
-  SDValue ResultSLI = DAG.getNode(Inst, DL, VT, X, Y, Shift.getOperand(1));
+  unsigned Intrin =
+      IsShiftRight ? Intrinsic::aarch64_neon_vsri : Intrinsic::aarch64_neon_vsli;
+  SDValue ResultSLI =
+      DAG.getNode(ISD::INTRINSIC_WO_CHAIN, DL, VT,
+                  DAG.getConstant(Intrin, DL, MVT::i32), X, Y,
+                  Shift.getOperand(1));
 
   LLVM_DEBUG(dbgs() << "aarch64-lower: transformed: \n");
   LLVM_DEBUG(N->dump(&DAG));
@@ -7974,8 +7963,10 @@ static SDValue tryLowerToSLI(SDNode *N, SelectionDAG &DAG) {
 SDValue AArch64TargetLowering::LowerVectorOR(SDValue Op,
                                              SelectionDAG &DAG) const {
   // Attempt to form a vector S[LR]I from (or (and X, C1), (lsl Y, C2))
-  if (SDValue Res = tryLowerToSLI(Op.getNode(), DAG))
-    return Res;
+  if (EnableAArch64SlrGeneration) {
+    if (SDValue Res = tryLowerToSLI(Op.getNode(), DAG))
+      return Res;
+  }
 
   EVT VT = Op.getValueType();
 
@@ -9041,7 +9032,6 @@ bool AArch64TargetLowering::getTgtMemIntrinsic(IntrinsicInfo &Info,
     Info.align = Align(16);
     Info.flags = MachineMemOperand::MOStore | MachineMemOperand::MOVolatile;
     return true;
-  case Intrinsic::aarch64_sve_ld1:
   case Intrinsic::aarch64_sve_ldnt1: {
     PointerType *PtrTy = cast<PointerType>(I.getArgOperand(1)->getType());
     Info.opc = ISD::INTRINSIC_W_CHAIN;
@@ -9054,7 +9044,6 @@ bool AArch64TargetLowering::getTgtMemIntrinsic(IntrinsicInfo &Info,
       Info.flags |= MachineMemOperand::MONonTemporal;
     return true;
   }
-  case Intrinsic::aarch64_sve_st1:
   case Intrinsic::aarch64_sve_stnt1: {
     PointerType *PtrTy = cast<PointerType>(I.getArgOperand(2)->getType());
     Info.opc = ISD::INTRINSIC_W_CHAIN;
@@ -10515,6 +10504,7 @@ static SDValue performSVEAndCombine(SDNode *N,
   // SVE load instructions perform an implicit zero-extend, which makes them
   // perfect candidates for combining.
   switch (Src->getOpcode()) {
+  case AArch64ISD::LD1:
   case AArch64ISD::LDNF1:
   case AArch64ISD::LDFF1:
     MemVT = cast<VTSDNode>(Src->getOperand(3))->getVT();
@@ -11581,7 +11571,33 @@ static MVT getSVEContainerType(EVT ContentTy) {
   }
 }
 
-static SDValue performLD1Combine(SDNode *N, SelectionDAG &DAG) {
+static SDValue performLD1Combine(SDNode *N, SelectionDAG &DAG, unsigned Opc) {
+  SDLoc DL(N);
+  EVT VT = N->getValueType(0);
+
+  if (VT.getSizeInBits().getKnownMinSize() > AArch64::SVEBitsPerBlock)
+    return SDValue();
+
+  EVT ContainerVT = VT;
+  if (ContainerVT.isInteger())
+    ContainerVT = getSVEContainerType(ContainerVT);
+
+  SDVTList VTs = DAG.getVTList(ContainerVT, MVT::Other);
+  SDValue Ops[] = { N->getOperand(0), // Chain
+                    N->getOperand(2), // Pg
+                    N->getOperand(3), // Base
+                    DAG.getValueType(VT) };
+
+  SDValue Load = DAG.getNode(Opc, DL, VTs, Ops);
+  SDValue LoadChain = SDValue(Load.getNode(), 1);
+
+  if (ContainerVT.isInteger() && (VT != ContainerVT))
+    Load = DAG.getNode(ISD::TRUNCATE, DL, VT, Load.getValue(0));
+
+  return DAG.getMergeValues({ Load, LoadChain }, DL);
+}
+
+static SDValue performLDNT1Combine(SDNode *N, SelectionDAG &DAG) {
   SDLoc DL(N);
   EVT VT = N->getValueType(0);
   EVT PtrTy = N->getOperand(3).getValueType();
@@ -11608,6 +11624,32 @@ static SDValue performLD1Combine(SDNode *N, SelectionDAG &DAG) {
 
 static SDValue performST1Combine(SDNode *N, SelectionDAG &DAG) {
   SDLoc DL(N);
+  SDValue Data = N->getOperand(2);
+  EVT DataVT = Data.getValueType();
+  EVT HwSrcVt = getSVEContainerType(DataVT);
+  SDValue InputVT = DAG.getValueType(DataVT);
+
+  if (DataVT.isFloatingPoint())
+    InputVT = DAG.getValueType(HwSrcVt);
+
+  SDValue SrcNew;
+  if (Data.getValueType().isFloatingPoint())
+    SrcNew = DAG.getNode(ISD::BITCAST, DL, HwSrcVt, Data);
+  else
+    SrcNew = DAG.getNode(ISD::ANY_EXTEND, DL, HwSrcVt, Data);
+
+  SDValue Ops[] = { N->getOperand(0), // Chain
+                    SrcNew,
+                    N->getOperand(4), // Base
+                    N->getOperand(3), // Pg
+                    InputVT
+                  };
+
+  return DAG.getNode(AArch64ISD::ST1, DL, N->getValueType(0), Ops);
+}
+
+static SDValue performSTNT1Combine(SDNode *N, SelectionDAG &DAG) {
+  SDLoc DL(N);
 
   SDValue Data = N->getOperand(2);
   EVT DataVT = Data.getValueType();
@@ -11621,32 +11663,6 @@ static SDValue performST1Combine(SDNode *N, SelectionDAG &DAG) {
                             DAG.getUNDEF(PtrTy), MINode->getOperand(3),
                             MINode->getMemoryVT(), MINode->getMemOperand(),
                             ISD::UNINDEXED, false, false);
-}
-
-static SDValue performLDNF1Combine(SDNode *N, SelectionDAG &DAG, unsigned Opc) {
-  SDLoc DL(N);
-  EVT VT = N->getValueType(0);
-
-  if (VT.getSizeInBits().getKnownMinSize() > AArch64::SVEBitsPerBlock)
-    return SDValue();
-
-  EVT ContainerVT = VT;
-  if (ContainerVT.isInteger())
-    ContainerVT = getSVEContainerType(ContainerVT);
-
-  SDVTList VTs = DAG.getVTList(ContainerVT, MVT::Other);
-  SDValue Ops[] = { N->getOperand(0), // Chain
-                    N->getOperand(2), // Pg
-                    N->getOperand(3), // Base
-                    DAG.getValueType(VT) };
-
-  SDValue Load = DAG.getNode(Opc, DL, VTs, Ops);
-  SDValue LoadChain = SDValue(Load.getNode(), 1);
-
-  if (ContainerVT.isInteger() && (VT != ContainerVT))
-    Load = DAG.getNode(ISD::TRUNCATE, DL, VT, Load.getValue(0));
-
-  return DAG.getMergeValues({ Load, LoadChain }, DL);
 }
 
 /// Replace a splat of zeros to a vector store by scalar stores of WZR/XZR.  The
@@ -12963,6 +12979,10 @@ performSignExtendInRegCombine(SDNode *N, TargetLowering::DAGCombinerInfo &DCI,
   unsigned NewOpc;
   unsigned MemVTOpNum = 4;
   switch (Opc) {
+  case AArch64ISD::LD1:
+    NewOpc = AArch64ISD::LD1S;
+    MemVTOpNum = 3;
+    break;
   case AArch64ISD::LDNF1:
     NewOpc = AArch64ISD::LDNF1S;
     MemVTOpNum = 3;
@@ -13189,9 +13209,8 @@ SDValue AArch64TargetLowering::PerformDAGCombine(SDNode *N,
     case Intrinsic::aarch64_neon_st3lane:
     case Intrinsic::aarch64_neon_st4lane:
       return performNEONPostLDSTCombine(N, DCI, DAG);
-    case Intrinsic::aarch64_sve_ld1:
     case Intrinsic::aarch64_sve_ldnt1:
-      return performLD1Combine(N, DAG);
+      return performLDNT1Combine(N, DAG);
     case Intrinsic::aarch64_sve_ldnt1_gather_scalar_offset:
       return performGatherLoadCombine(N, DAG, AArch64ISD::GLDNT1);
     case Intrinsic::aarch64_sve_ldnt1_gather:
@@ -13200,13 +13219,16 @@ SDValue AArch64TargetLowering::PerformDAGCombine(SDNode *N,
       return performGatherLoadCombine(N, DAG, AArch64ISD::GLDNT1_INDEX);
     case Intrinsic::aarch64_sve_ldnt1_gather_uxtw:
       return performGatherLoadCombine(N, DAG, AArch64ISD::GLDNT1);
+    case Intrinsic::aarch64_sve_ld1:
+      return performLD1Combine(N, DAG, AArch64ISD::LD1);
     case Intrinsic::aarch64_sve_ldnf1:
-      return performLDNF1Combine(N, DAG, AArch64ISD::LDNF1);
+      return performLD1Combine(N, DAG, AArch64ISD::LDNF1);
     case Intrinsic::aarch64_sve_ldff1:
-      return performLDNF1Combine(N, DAG, AArch64ISD::LDFF1);
+      return performLD1Combine(N, DAG, AArch64ISD::LDFF1);
     case Intrinsic::aarch64_sve_st1:
-    case Intrinsic::aarch64_sve_stnt1:
       return performST1Combine(N, DAG);
+    case Intrinsic::aarch64_sve_stnt1:
+      return performSTNT1Combine(N, DAG);
     case Intrinsic::aarch64_sve_stnt1_scatter_scalar_offset:
       return performScatterStoreCombine(N, DAG, AArch64ISD::SSTNT1);
     case Intrinsic::aarch64_sve_stnt1_scatter_uxtw:

@@ -7597,6 +7597,18 @@ Value *CodeGenFunction::EmitSVEMaskedStore(const CallExpr *E,
   return Builder.CreateCall(F, {Val, Predicate, BasePtr});
 }
 
+static void InsertExplicitZeroOperand(CGBuilderTy &Builder, llvm::Type *Ty,
+                                      SmallVectorImpl<Value *> &Ops) {
+  auto *SplatZero = Constant::getNullValue(Ty);
+  Ops.insert(Ops.begin(), SplatZero);
+}
+
+static void InsertExplicitUndefOperand(CGBuilderTy &Builder, llvm::Type *Ty,
+                                       SmallVectorImpl<Value *> &Ops) {
+  auto *SplatUndef = UndefValue::get(Ty);
+  Ops.insert(Ops.begin(), SplatUndef);
+}
+
 Value *CodeGenFunction::EmitAArch64SVEBuiltinExpr(unsigned BuiltinID,
                                                   const CallExpr *E) {
   // Find out if any arguments are required to be integer constant expressions.
@@ -7635,6 +7647,29 @@ Value *CodeGenFunction::EmitAArch64SVEBuiltinExpr(unsigned BuiltinID,
     return EmitSVEMaskedStore(E, Ops, Builtin->LLVMIntrinsic);
   else if (Builtin->LLVMIntrinsic != 0) {
     llvm::Type* OverloadedTy = getSVEType(TypeFlags);
+
+    if (TypeFlags.getMergeType() == SVETypeFlags::MergeZeroExp)
+      InsertExplicitZeroOperand(Builder, Ty, Ops);
+
+    if (TypeFlags.getMergeType() == SVETypeFlags::MergeAnyExp)
+      InsertExplicitUndefOperand(Builder, Ty, Ops);
+
+    // Predicates must match the main datatype.
+    for (unsigned i = 0, e = Ops.size(); i != e; ++i) {
+      if (auto PredTy = dyn_cast<llvm::VectorType>(Ops[i]->getType()))
+        if (PredTy->getScalarType()->isIntegerTy(1)) {
+          auto NewPredTy = cast<llvm::VectorType>(OverloadedTy);
+          Ops[i] = EmitSVEPredicateCast(Ops[i], NewPredTy);
+        }
+    }
+
+    // Predicated intrinsics with _z suffix need a select w/ zeroinitializer.
+    if (TypeFlags.getMergeType() == SVETypeFlags::MergeZero) {
+      llvm::Type *OpndTy = Ops[1]->getType();
+      auto *SplatZero = Constant::getNullValue(OpndTy);
+      Function *Sel = CGM.getIntrinsic(Intrinsic::aarch64_sve_sel, OpndTy);
+      Ops[1] = Builder.CreateCall(Sel, {Ops[0], Ops[1], SplatZero});
+    }
 
     Function *F = CGM.getIntrinsic(Builtin->LLVMIntrinsic, OverloadedTy);
     Value *Call = Builder.CreateCall(F, Ops);

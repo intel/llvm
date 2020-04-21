@@ -146,13 +146,6 @@ TargetTransformInfo &TargetTransformInfo::operator=(TargetTransformInfo &&RHS) {
   return *this;
 }
 
-int TargetTransformInfo::getOperationCost(unsigned Opcode, Type *Ty,
-                                          Type *OpTy) const {
-  int Cost = TTIImpl->getOperationCost(Opcode, Ty, OpTy);
-  assert(Cost >= 0 && "TTI should not produce negative costs!");
-  return Cost;
-}
-
 unsigned TargetTransformInfo::getInliningThresholdMultiplier() const {
   return TTIImpl->getInliningThresholdMultiplier();
 }
@@ -599,8 +592,8 @@ int TargetTransformInfo::getArithmeticInstrCost(
   return Cost;
 }
 
-int TargetTransformInfo::getShuffleCost(ShuffleKind Kind, Type *Ty, int Index,
-                                        Type *SubTp) const {
+int TargetTransformInfo::getShuffleCost(ShuffleKind Kind, VectorType *Ty,
+                                        int Index, VectorType *SubTp) const {
   int Cost = TTIImpl->getShuffleCost(Kind, Ty, Index, SubTp);
   assert(Cost >= 0 && "TTI should not produce negative costs!");
   return Cost;
@@ -732,14 +725,16 @@ int TargetTransformInfo::getMemcpyCost(const Instruction *I) const {
   return Cost;
 }
 
-int TargetTransformInfo::getArithmeticReductionCost(unsigned Opcode, Type *Ty,
+int TargetTransformInfo::getArithmeticReductionCost(unsigned Opcode,
+                                                    VectorType *Ty,
                                                     bool IsPairwiseForm) const {
   int Cost = TTIImpl->getArithmeticReductionCost(Opcode, Ty, IsPairwiseForm);
   assert(Cost >= 0 && "TTI should not produce negative costs!");
   return Cost;
 }
 
-int TargetTransformInfo::getMinMaxReductionCost(Type *Ty, Type *CondTy,
+int TargetTransformInfo::getMinMaxReductionCost(VectorType *Ty,
+                                                VectorType *CondTy,
                                                 bool IsPairwiseForm,
                                                 bool IsUnsigned) const {
   int Cost =
@@ -1011,7 +1006,8 @@ static ReductionKind matchPairwiseReductionAtLevel(Instruction *I,
 }
 
 static ReductionKind matchPairwiseReduction(const ExtractElementInst *ReduxRoot,
-                                            unsigned &Opcode, Type *&Ty) {
+                                            unsigned &Opcode,
+                                            VectorType *&Ty) {
   if (!EnableReduxCost)
     return RK_None;
 
@@ -1076,7 +1072,7 @@ getShuffleAndOtherOprd(Value *L, Value *R) {
 
 static ReductionKind
 matchVectorSplittingReduction(const ExtractElementInst *ReduxRoot,
-                              unsigned &Opcode, Type *&Ty) {
+                              unsigned &Opcode, VectorType *&Ty) {
   if (!EnableReduxCost)
     return RK_None;
 
@@ -1249,7 +1245,7 @@ int TargetTransformInfo::getInstructionThroughput(const Instruction *I) const {
     // Try to match a reduction sequence (series of shufflevector and vector
     // adds followed by a extractelement).
     unsigned ReduxOpCode;
-    Type *ReduxType;
+    VectorType *ReduxType;
 
     switch (matchVectorSplittingReduction(EEI, ReduxOpCode, ReduxType)) {
     case RK_Arithmetic:
@@ -1257,11 +1253,11 @@ int TargetTransformInfo::getInstructionThroughput(const Instruction *I) const {
                                         /*IsPairwiseForm=*/false);
     case RK_MinMax:
       return getMinMaxReductionCost(
-          ReduxType, CmpInst::makeCmpResultType(ReduxType),
+          ReduxType, cast<VectorType>(CmpInst::makeCmpResultType(ReduxType)),
           /*IsPairwiseForm=*/false, /*IsUnsigned=*/false);
     case RK_UnsignedMinMax:
       return getMinMaxReductionCost(
-          ReduxType, CmpInst::makeCmpResultType(ReduxType),
+          ReduxType, cast<VectorType>(CmpInst::makeCmpResultType(ReduxType)),
           /*IsPairwiseForm=*/false, /*IsUnsigned=*/true);
     case RK_None:
       break;
@@ -1273,11 +1269,11 @@ int TargetTransformInfo::getInstructionThroughput(const Instruction *I) const {
                                         /*IsPairwiseForm=*/true);
     case RK_MinMax:
       return getMinMaxReductionCost(
-          ReduxType, CmpInst::makeCmpResultType(ReduxType),
+          ReduxType, cast<VectorType>(CmpInst::makeCmpResultType(ReduxType)),
           /*IsPairwiseForm=*/true, /*IsUnsigned=*/false);
     case RK_UnsignedMinMax:
       return getMinMaxReductionCost(
-          ReduxType, CmpInst::makeCmpResultType(ReduxType),
+          ReduxType, cast<VectorType>(CmpInst::makeCmpResultType(ReduxType)),
           /*IsPairwiseForm=*/true, /*IsUnsigned=*/true);
     case RK_None:
       break;
@@ -1298,8 +1294,8 @@ int TargetTransformInfo::getInstructionThroughput(const Instruction *I) const {
     return 0; // Model all ExtractValue nodes as free.
   case Instruction::ShuffleVector: {
     const ShuffleVectorInst *Shuffle = cast<ShuffleVectorInst>(I);
-    Type *Ty = Shuffle->getType();
-    Type *SrcTy = Shuffle->getOperand(0)->getType();
+    auto *Ty = cast<VectorType>(Shuffle->getType());
+    auto *SrcTy = cast<VectorType>(Shuffle->getOperand(0)->getType());
 
     // TODO: Identify and add costs for insert subvector, etc.
     int SubIndex;
