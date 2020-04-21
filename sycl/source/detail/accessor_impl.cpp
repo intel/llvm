@@ -19,14 +19,15 @@ namespace detail {
 AccessorImplHost::~AccessorImplHost() {
   try {
     std::set<const Command *> BlockedCmds;
-    size_t Count = countBlockedCommand([&BlockedCmds](const Command *const Cmd) {
-      if (Cmd->MBlockReason == Command::BlockReason::HostAccessor) {
-        BlockedCmds.insert(Cmd);
-        return true;
-      }
+    size_t Count =
+        countBlockedCommand([&BlockedCmds](const Command *const Cmd) {
+          if (Cmd->MBlockReason == Command::BlockReason::HostAccessor) {
+            BlockedCmds.insert(Cmd);
+            return true;
+          }
 
-      return false;
-    });
+          return false;
+        });
 
     for (const Command *Cmd : BlockedCmds)
       if (EventImplPtr Event = Cmd->getEvent())

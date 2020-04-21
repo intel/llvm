@@ -216,8 +216,8 @@ public:
                    std::vector<EventImplPtr> DepHostEvents,
                    CGHostTask *HostTask, std::vector<DepDesc> Deps,
                    EventImplPtr SelfEvent)
-      : MDepEvents(std::move(DepEvents)), MDepHostEvents(DepHostEvents),
-        MHostTask{HostTask},
+      : MDepEvents(std::move(DepEvents)),
+        MDepHostEvents(DepHostEvents), MHostTask{HostTask},
         MDeps(std::move(Deps)), MSelfEvent(std::move(SelfEvent)) {}
 
   void operator()() const {
@@ -483,8 +483,7 @@ void Command::addConnectCmdWithReq(const ContextImplPtr &DepEventContext,
         GB.findAllocaForReq(Record, Req, DepEventContext);
     assert(AllocaCmd && "There must be alloca for requirement!");
 
-    std::set<Command *> Deps =
-        GB.findDepsForReq(Record, Req, DepEventContext);
+    std::set<Command *> Deps = GB.findDepsForReq(Record, Req, DepEventContext);
     assert(Deps.size() && "There must be some deps");
 
     for (Command *ReqDepCmd : Deps) {
@@ -2101,9 +2100,8 @@ cl_int ExecCGCommand::enqueueImp() {
       ++ArgIdx;
     }
 
-    MQueue->getThreadPool().submit<DispatchHostTask>(
-        std::move(DispatchHostTask(EventImpls, MPreparedHostDepsEvents,
-                                   HostTask, MDeps, MEvent)));
+    MQueue->getThreadPool().submit<DispatchHostTask>(std::move(DispatchHostTask(
+        EventImpls, MPreparedHostDepsEvents, HostTask, MDeps, MEvent)));
 
     return CL_SUCCESS;
   }

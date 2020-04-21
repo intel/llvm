@@ -211,8 +211,7 @@ protected:
   /// \param Dep DepDesc with non-null MDepRequirmeent
   void addConnectCmdWithReq(const ContextImplPtr &DepEventContext,
                             ExecCGCommand *const ConnectCmd,
-                            EmptyCommand *const EmptyCmd,
-                            const DepDesc &Dep);
+                            EmptyCommand *const EmptyCmd, const DepDesc &Dep);
 
   virtual ContextImplPtr getContext() const;
 

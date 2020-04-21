@@ -557,7 +557,6 @@ protected:
     friend class Command;
 
   private:
-
     /// Searches for suitable alloca in memory record.
     ///
     /// If none found, creates new one.
