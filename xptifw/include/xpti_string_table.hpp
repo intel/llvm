@@ -7,12 +7,11 @@
 #include "xpti_data_types.h"
 
 #include <atomic>
-#include <iostream>
 #include <mutex>
 #include <unordered_map>
 
 #ifdef XPTI_STATISTICS
-#include <stdio.h>
+#include <cstdio>
 #endif
 
 #ifdef XPTI_USE_TBB

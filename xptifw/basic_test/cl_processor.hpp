@@ -33,8 +33,8 @@ using titles_t = std::vector<std::string>;
 
 class ScopedTimer {
 public:
-  typedef std::chrono::time_point<std::chrono::high_resolution_clock>
-      time_unit_t;
+  using time_unit_t =
+      std::chrono::time_point<std::chrono::high_resolution_clock>;
   ScopedTimer(uint64_t &ns, double &ratio, size_t count = 1)
       : MDuration{ns}, MAverage{ratio}, MInstances{count} {
     MBefore = std::chrono::high_resolution_clock::now();
@@ -60,7 +60,6 @@ public:
   CommandLineOption()
       : MRequired(false), MType(OptionType::String),
         MHelp("No help available.") {}
-  ~CommandLineOption() {}
 
   CommandLineOption &setRequired(bool yesOrNo) {
     MRequired = yesOrNo;
@@ -93,16 +92,14 @@ private:
 
 class CommandLineParser {
 public:
-  typedef std::unordered_map<std::string, CommandLineOption>
-      CommandLineOptions_t;
-  typedef std::unordered_map<std::string, std::string> key_value_t;
+  using CommandLineOptions_t =
+      std::unordered_map<std::string, CommandLineOption>;
+  using key_value_t = std::unordered_map<std::string, std::string>;
 
   CommandLineParser() {
     MReservedKey = "--help";
     MReservedKeyAbbr = "-h";
   }
-
-  ~CommandLineParser() {}
 
   void parse(int argc, char **argv) {
     MCommandLineOptions.resize(argc);

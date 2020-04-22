@@ -8,16 +8,13 @@
 #include "xpti_string_table.hpp"
 
 #include <cassert>
+#include <cstdio>
 #include <map>
 #include <mutex>
 #include <sstream>
 #include <string>
 #include <unordered_map>
 #include <vector>
-
-#ifdef XPTI_STATISTICS
-#include <stdio.h>
-#endif
 
 #ifdef XPTI_USE_TBB
 #include <tbb/concurrent_hash_map.h>
@@ -104,7 +101,6 @@ public:
 #endif
       // This plugin has already been loaded, so let's return previously
       // recorded handle
-      printf("Plugin (%s) has already been loaded..\n", Path);
       plugin_data_t &Data = MNameLUT[Path];
       assert(Data.valid && "Lookup is invalid!");
       if (Data.valid)
@@ -384,10 +380,12 @@ public:
   // performed.
   //
   void printStatistics() {
+#ifdef XPTI_STATISTICS
     printf("Tracepoint inserts : [%lu] \n", MInsertions.load());
     printf("Tracepoint lookups : [%lu]\n", MRetrievals.load());
     printf("Tracepoint Hashmap :\n");
     MPayloadLUT.printStatistics();
+#endif
   }
 
 private:
@@ -646,8 +644,6 @@ public:
   using stream_cb_t = std::unordered_map<uint16_t, cb_t>;
   using statistics_t = std::unordered_map<uint16_t, uint64_t>;
 #endif
-  Notifications() = default;
-  ~Notifications() = default;
 
   xpti::result_t registerCallback(uint8_t StreamID, uint16_t TraceType,
                                   xpti::tracepoint_callback_api_t cbFunc) {
@@ -898,7 +894,6 @@ public:
     MTraceEnabled =
         (g_helper.checkTraceEnv() && MSubscribers.hasValidSubscribers());
   }
-  ~Framework() = default;
 
   void clear() {
     MUniversalIDs = {1};

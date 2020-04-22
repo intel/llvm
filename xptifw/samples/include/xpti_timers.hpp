@@ -15,10 +15,7 @@
 namespace xpti {
 class ThreadID {
 public:
-  typedef std::unordered_map<std::string, int> thread_lut_t;
-
-  ThreadID() : m_tid(0) {}
-  ~ThreadID() {}
+  using thread_lut_t = std::unordered_map<std::string, int>;
 
   inline uint32_t enumID(std::thread::id &curr) {
     std::stringstream s;
@@ -45,13 +42,13 @@ public:
   }
 
 private:
-  std::atomic<uint32_t> m_tid;
+  std::atomic<uint32_t> m_tid = {0};
   thread_lut_t m_thread_lookup;
 };
 
 namespace timer {
 #include <cstdint>
-typedef uint64_t tick_t;
+using tick_t = uint64_t;
 #if defined(_WIN32) || defined(_WIN64)
 #include "windows.h"
 inline xpti::timer::tick_t rdtsc() {

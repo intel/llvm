@@ -9,10 +9,10 @@
 #include "xpti_trace_framework.h"
 
 #include <chrono>
+#include <cstdio>
 #include <iostream>
 #include <map>
 #include <mutex>
-#include <stdio.h>
 #include <string>
 #include <thread>
 #include <unordered_map>

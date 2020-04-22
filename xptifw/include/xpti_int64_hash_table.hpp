@@ -11,7 +11,7 @@
 #include <unordered_map>
 
 #ifdef XPTI_STATISTICS
-#include <stdio.h>
+#include <cstdio>
 #endif
 
 #ifdef XPTI_USE_TBB
