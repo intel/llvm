@@ -12,8 +12,8 @@
 #include <CL/sycl/detail/defines.hpp>
 #include <CL/sycl/detail/pi.hpp>
 
+#include <algorithm>
 #include <cstdlib>
-#include <map>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -97,7 +97,7 @@ template <ConfigID Config> class SYCLConfig {
 
 public:
   static const char *get() {
-    const char *ValStr = BaseT::getRawValue();
+    static const char *ValStr = BaseT::getRawValue();
     return ValStr;
   }
 };
@@ -108,29 +108,30 @@ template <> class SYCLConfig<SYCL_BE> {
 public:
   static backend *get() {
     static bool Initialized = false;
-    static bool IsSet = false;
-    static backend Backend = backend::opencl;
+    static backend *BackendPtr = nullptr;
 
     // Configuration parameters are processed only once, like reading a string
     // from environment and converting it into a typed object.
     if (Initialized)
-      return IsSet ? &Backend : nullptr;
+      return BackendPtr;
 
     const char *ValStr = BaseT::getRawValue();
-    const std::map<std::string, backend> SyclBeMap{
-        {"PI_OPENCL", backend::opencl}, {"PI_CUDA", backend::cuda}};
+    const std::array<std::pair<std::string, backend>, 2> SyclBeMap = {
+        {{"PI_OPENCL", backend::opencl}, {"PI_CUDA", backend::cuda}}};
     if (ValStr) {
-      auto It = SyclBeMap.find(ValStr);
+      auto It = std::find_if(
+          std::begin(SyclBeMap), std::end(SyclBeMap),
+          [&ValStr](const std::pair<std::string, backend> &element) {
+            return element.first == ValStr;
+          });
       if (It == SyclBeMap.end())
         pi::die("Invalid backend. "
                 "Valid values are PI_OPENCL/PI_CUDA");
-      Backend = It->second;
-      Initialized = true;
-      IsSet = true;
-      return &Backend;
+      static backend Backend = It->second;
+      BackendPtr = &Backend;
     }
     Initialized = true;
-    return nullptr;
+    return BackendPtr;
   }
 };
 
@@ -140,6 +141,8 @@ template <> class SYCLConfig<SYCL_PI_TRACE> {
 public:
   static int get() {
     static bool Initialized = false;
+    // We don't use TraceLevel enum here because user can provide any bitmask
+    // which can correspond to several enum values.
     static int Level = 0; // No tracing by default
 
     // Configuration parameters are processed only once, like reading a string
