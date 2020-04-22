@@ -736,7 +736,7 @@ template <> inline void SPIRVMap<std::string, Op, SPIRVInstruction>::init() {
   _SPIRV_OP(max, SMax)
   _SPIRV_OP(and, And)
   _SPIRV_OP(or, Or)
-  _SPIRV_OP (xor, Xor)
+  _SPIRV_OP(xor, Xor)
 #undef _SPIRV_OP
 #define _SPIRV_OP(x, y) add("atomic_" #x, Op##y);
   // CL 2.0 atomic builtins

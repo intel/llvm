@@ -938,23 +938,23 @@ void OCL20ToSPIRV::visitCallGroupBuiltin(CallInst *CI,
           if (!FuncName.startswith(S))
             return true; // continue
           PreOps.push_back(G);
-          StringRef Op = StringSwitch<StringRef>(FuncName)
-            .StartsWith("ballot", "group_ballot_bit_count_")
-            .StartsWith("non_uniform", kSPIRVName::GroupNonUniformPrefix)
-            .Default(kSPIRVName::GroupPrefix);
+          StringRef Op =
+              StringSwitch<StringRef>(FuncName)
+                  .StartsWith("ballot", "group_ballot_bit_count_")
+                  .StartsWith("non_uniform", kSPIRVName::GroupNonUniformPrefix)
+                  .Default(kSPIRVName::GroupPrefix);
           // clustered functions are handled with non uniform group opcodes
           StringRef ClusteredOp =
               FuncName.contains("clustered_") ? "non_uniform_" : "";
-          StringRef LogicalOp =
-            FuncName.contains("logical_") ?
-            "logical_" : "";
+          StringRef LogicalOp = FuncName.contains("logical_") ? "logical_" : "";
           StringRef GroupOp = StringSwitch<StringRef>(FuncName)
-            .Case("ballot_bit_count", "add")
-            .Case("ballot_inclusive_scan", "add")
-            .Case("ballot_exclusive_scan", "add")
-            .Default(FuncName.take_back(3));    // assumes op is three characters
+                                  .Case("ballot_bit_count", "add")
+                                  .Case("ballot_inclusive_scan", "add")
+                                  .Case("ballot_exclusive_scan", "add")
+                                  .Default(FuncName.take_back(
+                                      3)); // assumes op is three characters
           if (GroupOp.startswith("_"))
-            GroupOp = GroupOp.take_back(2);     // when op is two characters
+            GroupOp = GroupOp.take_back(2); // when op is two characters
           assert(!GroupOp.empty() && "Invalid OpenCL group builtin function");
           char OpTyC = 0;
           auto OpTy = F->getReturnType();
@@ -968,10 +968,9 @@ void OCL20ToSPIRV::visitCallGroupBuiltin(CallInst *CI,
               // clustered reduce args are (type, uint)
               // other operation args are (type)
               auto mangledName = F->getName();
-              auto mangledTyC =
-                ClusteredOp.empty() ?
-                mangledName.back() :
-                mangledName.take_back(2).front();
+              auto mangledTyC = ClusteredOp.empty()
+                                    ? mangledName.back()
+                                    : mangledName.take_back(2).front();
               if (isMangledTypeSigned(mangledTyC))
                 OpTyC = 's';
               else
@@ -981,7 +980,7 @@ void OCL20ToSPIRV::visitCallGroupBuiltin(CallInst *CI,
             llvm_unreachable("Invalid OpenCL group builtin argument type");
 
           DemangledName = Op.str() + ClusteredOp.str() + LogicalOp.str() +
-            OpTyC + GroupOp.str();
+                          OpTyC + GroupOp.str();
           return false; // break out of loop
         });
   }
@@ -996,7 +995,8 @@ void OCL20ToSPIRV::visitCallGroupBuiltin(CallInst *CI,
   const bool IsLogical = DemangledName.find("_logical") != std::string::npos;
 
   const bool HasBoolReturnType = IsElect || IsAllOrAny || IsAllEqual ||
-      IsInverseBallot || IsBallotBitExtract || IsLogical;
+                                 IsInverseBallot || IsBallotBitExtract ||
+                                 IsLogical;
   const bool HasBoolArg = (IsAllOrAny && !IsAllEqual) || IsBallot || IsLogical;
 
   auto Consts = getInt32(M, PreOps);
