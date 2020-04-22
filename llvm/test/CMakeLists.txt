@@ -39,6 +39,7 @@ set(LLVM_TEST_DEPENDS
           UnitTests
           bugpoint
           count
+          file-table-tform
           llc
           lli
           lli-child-target

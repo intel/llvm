@@ -26,7 +26,8 @@ config.test_format = lit.formats.ShTest()
 # suffixes: A list of file extensions to treat as test files.
 config.suffixes = ['.c', '.cpp'] #add .spv. Currently not clear what to do with those
 
-config.excludes = ['Inputs']
+# feature tests are considered not so lightweight, so, they are excluded by default
+config.excludes = ['Inputs', 'feature-tests']
 
 # test_source_root: The root path where tests are located.
 config.test_source_root = os.path.dirname(__file__)

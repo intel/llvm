@@ -99,9 +99,9 @@ using PiMemObjectType = ::pi_mem_type;
 using PiMemImageChannelOrder = ::pi_image_channel_order;
 using PiMemImageChannelType = ::pi_image_channel_type;
 
-void contextSetExtendedDeleter(const cl::sycl::context &constext,
-                               pi_context_extended_deleter func,
-                               void *user_data);
+__SYCL_EXPORT void contextSetExtendedDeleter(const cl::sycl::context &constext,
+                                             pi_context_extended_deleter func,
+                                             void *user_data);
 
 // Function to load the shared library
 // Implementation is OS dependent.

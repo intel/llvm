@@ -64,6 +64,14 @@ add_lit_testsuites(SYCL-DEPLOY ${CMAKE_CURRENT_SOURCE_DIR}
   EXCLUDE_FROM_CHECK_ALL
   )
 
+add_lit_target(check-sycl-inline-asm
+  "Running lit suite ${CMAKE_CURRENT_SOURCE_DIR}/feature-tests/inline-asm"
+  "feature-tests/inline-asm"
+  ARGS ${RT_TEST_ARGS}
+  PARAMS "SYCL_BE=PI_OPENCL"
+  DEPENDS ${SYCL_TEST_DEPS}
+  )
+
 if(SYCL_BUILD_PI_CUDA)
   add_lit_testsuite(check-sycl-cuda "Running the SYCL regression tests for CUDA"
     ${CMAKE_CURRENT_BINARY_DIR}
