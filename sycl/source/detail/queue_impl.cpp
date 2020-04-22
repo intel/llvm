@@ -193,7 +193,7 @@ void queue_impl::initHostTaskAndEventCallbackThreadPool() {
   if (const char *val = std::getenv("SYCL_QUEUE_THREAD_POOL_SIZE"))
     try {
       Size = std::stoi(val);
-    } catch (const std::exception &e) {
+    } catch (...) {
       throw invalid_parameter_error(
           "Invalid value for SYCL_QUEUE_THREAD_POOL_SIZE environment variable",
           PI_INVALID_VALUE);
