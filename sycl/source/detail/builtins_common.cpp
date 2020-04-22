@@ -34,9 +34,7 @@ template <typename T> inline T __degrees(T radians) {
   return (180 / M_PI) * radians;
 }
 
-template <typename T> inline T __mix(T x, T y, T a) {
-  return x + (y - x) * a;
-}
+template <typename T> inline T __mix(T x, T y, T a) { return x + (y - x) * a; }
 
 template <typename T> inline T __radians(T degrees) {
   return (M_PI / 180) * degrees;
@@ -46,8 +44,7 @@ template <typename T> inline T __step(T edge, T x) {
   return (x < edge) ? 0.0 : 1.0;
 }
 
-template <typename T>
-inline T __smoothstep(T edge0, T edge1, T x) {
+template <typename T> inline T __smoothstep(T edge0, T edge1, T x) {
   T t;
   T v = (x - edge0) / (edge1 - edge0);
   t = __fclamp(v, T(0), T(1));
