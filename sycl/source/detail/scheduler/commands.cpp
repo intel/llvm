@@ -188,7 +188,7 @@ class DispatchHostTask {
   }
 
   // Lookup for empty command amongst users of this cmd
-  static EmptyCommand *findMyEmptyCommand(Command *ThisCmd) {
+  static EmptyCommand *findUserEmptyCommand(Command *ThisCmd) {
 #ifndef NDEBUG
     EmptyCommand *Result = nullptr;
 #endif
@@ -208,6 +208,8 @@ class DispatchHostTask {
 
 #ifndef NDEBUG
     return Result;
+#else
+    return nullptr;
 #endif
   }
 
@@ -226,12 +228,11 @@ public:
     // we're ready to call the user-defined lambda now
     MHostTask->MHostTask->call();
 
+    Command *ThisCmd = reinterpret_cast<Command *>(MSelfEvent->getCommand());
+    assert(ThisCmd && "No command found for host-task self event");
+
     // update self-event status
     if (MSelfEvent->is_host()) {
-      Command *ThisCmd = reinterpret_cast<Command *>(MSelfEvent->getCommand());
-
-      assert(ThisCmd && "No command found for host-task self event");
-
       for (Command *UserCmd : ThisCmd->MUsers) {
         EnqueueResultT Res;
         bool Enqueued = Scheduler::GraphProcessor::enqueueCommand(UserCmd, Res);
@@ -241,14 +242,17 @@ public:
       }
 
       MSelfEvent->setComplete();
-
-      EmptyCommand *MyEmptyCmd = findMyEmptyCommand(ThisCmd);
-      MyEmptyCmd->getEvent()->setComplete();
     } else {
       const detail::plugin &Plugin = MSelfEvent->getPlugin();
       Plugin.call<PiApiKind::piEventSetStatus>(MSelfEvent->getHandleRef(),
                                                PI_EVENT_COMPLETE);
     }
+
+    EmptyCommand *EmptyCmd = findUserEmptyCommand(ThisCmd);
+    assert(EmptyCmd && "No empty command found");
+
+    if (EmptyCmd->getEvent()->is_host())
+      EmptyCmd->getEvent()->setComplete();
 
     unblockBlockedDeps(MDeps);
   }
