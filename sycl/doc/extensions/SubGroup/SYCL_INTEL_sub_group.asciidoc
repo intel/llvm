@@ -51,7 +51,7 @@ John Pennycook, Intel (john 'dot' pennycook 'at' intel 'dot' com)
 
 == Dependencies
 
-This extension is written against the SYCL 1.2.1 specification, Revision 6.
+This extension is written against the SYCL 1.2.1 specification, Revision 6 and the SYCL_INTEL_device_specific_kernel_queries extension.
 
 == Overview
 
@@ -111,38 +111,36 @@ The device descriptors below are added to the +info::device+ enumeration class:
 |Returns a vector_class of +size_t+ containing the set of sub-group sizes supported by the device.
 |===
 
-An additional query for sub-group information is added to the +kernel+ class:
+An additional query is added to the +kernel+ class, enabling an input value to be passed to `get_info`:
 
 |===
 |Member Functions|Description
 
-|+template <info::kernel_sub_group param>typename info::param_traits<info::kernel_sub_group, param>::return_type get_sub_group_info(const device &dev) const+
-|Query information from the sub-group from a kernel using the +info::kernel_sub_group+ descriptor for a specific device.
-|+template <info::kernel_sub_group param>typename info::param_traits<info::kernel_sub_group, param>::return_type get_sub_group_info(const device &dev, typename info::param_traits<info::kernel_sub_group, param>::input_type value) const+
-|Query information from the sub-group from a kernel using the +info::kernel_sub_group+ descriptor for a specific device and input parameter.  The expected value of the input parameter depends on the information being queried.
+|+template <info::kernel_device_specific param>typename info::param_traits<info::kernel_device_specific, param>::return_type get_info(const device &dev, typename info::param_traits<info::kernel_device_specific, param>::input_type value) const+
+|Query information from a kernel using the +info::kernel_device_specific+ descriptor for a specific device and input parameter.  The expected value of the input parameter depends on the information being queried.
 |===
 
-The kernel descriptors below are added as part of a new +info::kernel_sub_group+ enumeration class:
+The kernel descriptors below are added to the +info::kernel_device_specific+ enumeration class:
 
 |===
 |Kernel Descriptors|Input Type|Return Type|Description
 
-|+info::kernel_sub_group::max_num_sub_groups+
+|+info::kernel_device_specific::max_num_sub_groups+
 |N/A
 |+uint32_t+
 |Returns the maximum number of sub-groups for this kernel.
 
-|+info::kernel_sub_group::compile_num_sub_groups+
+|+info::kernel_device_specific::compile_num_sub_groups+
 |N/A
 |+uint32_t+
 |Returns the number of sub-groups specified by the kernel, or 0 (if not specified).
 
-|+info::kernel_sub_group::max_sub_group_size+
+|+info::kernel_device_specific::max_sub_group_size+
 |+range<D>+
 |+uint32_t+
 |Returns the maximum sub-group size for this kernel launched with the specified work-group size.
 
-|+info::kernel_sub_group::compile_sub_group_size+
+|+info::kernel_device_specific::compile_sub_group_size+
 |N/A
 |+uint32_t+
 |Returns the required sub-group size specified by the kernel, or 0 (if not specified).
@@ -315,6 +313,7 @@ Yes, the four shuffles in this extension are a defining feature of sub-groups.  
 |3|2020-04-21|John Pennycook|*Update max_sub_group_size query*
 |4|2020-04-21|John Pennycook|*Restore missing barrier function*
 |5|2020-04-21|John Pennycook|*Restore sub-group shuffles as member functions*
+|6|2020-04-22|John Pennycook|*Align with SYCL_INTEL_device_specific_kernel_queries*
 |========================================
 
 //************************************************************************
