@@ -48,7 +48,7 @@ void Thread1Fn(Context &Ctx) {
         Acc(Ctx.Buf3);
 
     for (size_t Idx = 0; Idx < Acc.get_count(); ++Idx)
-      Acc[Idx] = -2;
+      Acc[Idx] = -3;
   }
 
   // 1. submit task writing to buffer 1
