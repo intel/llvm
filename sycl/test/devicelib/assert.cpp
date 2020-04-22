@@ -1,5 +1,4 @@
 // REQUIRES: cpu,linux
-// RUN: %clangxx %s -DPARENT_PROCESS -o %t.parent.bin
 // RUN: %clangxx -fsycl -c %s -o %t.o
 // RUN: %clangxx -fsycl %t.o %sycl_libs_dir/libsycl-glibc.o -o %t.out
 // (see the other RUN lines below; it is a bit complicated)
@@ -76,12 +75,12 @@
 //
 // Overall this sounds stable enough. What could possibly go wrong?
 //
-// RUN: env SYCL_PI_TRACE=1 SHOULD_CRASH=1 CL_CONFIG_USE_VECTORIZER=False SYCL_DEVICE_TYPE=CPU EXPECTED_SIGNAL=SIGABRT SKIP_IF_NO_EXT=1 %t.parent.bin %t.out 2>%t.stderr.native >%t.stdout.native
+// RUN: env SYCL_PI_TRACE=1 SHOULD_CRASH=1 CL_CONFIG_USE_VECTORIZER=False SYCL_DEVICE_TYPE=CPU EXPECTED_SIGNAL=SIGABRT SKIP_IF_NO_EXT=1 %t.out 2>%t.stderr.native >%t.stdout.native
 // RUN: FileCheck %s --input-file %t.stdout.native --check-prefixes=CHECK-NATIVE || FileCheck %s --input-file %t.stderr.native --check-prefix CHECK-NOTSUPPORTED
 // RUN: FileCheck %s --input-file %t.stderr.native --check-prefixes=CHECK-MESSAGE || FileCheck %s --input-file %t.stderr.native --check-prefix CHECK-NOTSUPPORTED
 //
-// RUN: env SYCL_PI_TRACE=1 SYCL_DEVICELIB_INHIBIT_NATIVE=cl_intel_devicelib_assert CL_CONFIG_USE_VECTORIZER=False SYCL_DEVICE_TYPE=CPU EXPECTED_SIGNAL=SIGSEGV %t.parent.bin %t.out >%t.stdout.pi.fallback
-// RUN: env SHOULD_CRASH=1 SYCL_DEVICELIB_INHIBIT_NATIVE=cl_intel_devicelib_assert CL_CONFIG_USE_VECTORIZER=False SYCL_DEVICE_TYPE=CPU EXPECTED_SIGNAL=SIGSEGV %t.parent.bin %t.out >%t.stdout.msg.fallback
+// RUN: env SYCL_PI_TRACE=1 SYCL_DEVICELIB_INHIBIT_NATIVE=cl_intel_devicelib_assert CL_CONFIG_USE_VECTORIZER=False SYCL_DEVICE_TYPE=CPU EXPECTED_SIGNAL=SIGSEGV %t.out >%t.stdout.pi.fallback
+// RUN: env SHOULD_CRASH=1 SYCL_DEVICELIB_INHIBIT_NATIVE=cl_intel_devicelib_assert CL_CONFIG_USE_VECTORIZER=False SYCL_DEVICE_TYPE=CPU EXPECTED_SIGNAL=SIGSEGV %t.out >%t.stdout.msg.fallback
 // RUN: FileCheck %s --input-file %t.stdout.pi.fallback --check-prefixes=CHECK-FALLBACK
 // RUN: FileCheck %s --input-file %t.stdout.msg.fallback --check-prefixes=CHECK-MESSAGE
 //
@@ -100,94 +99,20 @@
 // Note that the work-item that hits the assert first may vary, since the order
 // of execution is undefined. We catch only the first one (whatever id it is).
 
-#ifndef PARENT_PROCESS
 #include <CL/sycl.hpp>
-#endif
-
 #include <array>
 #include <assert.h>
 #include <stdlib.h>
-
-#ifdef PARENT_PROCESS
-#include <string.h>
-#endif
-
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
-const int EXIT_SKIP_TEST = 42;
-
-#ifdef PARENT_PROCESS
-int main(int argc, char *argv[]) {
-  assert(argc > 1);
-
-  char **ChildArgv = new char *;
-  ChildArgv[0] = argv[1];
-
-  int Child = fork();
-
-  if (Child < 0) {
-    perror("Fork failed");
-    return 1;
-  }
-
-  if (!Child) {
-    int ExecFailed = execve(argv[1], ChildArgv, environ);
-
-    if (ExecFailed) {
-      perror("Execve failed");
-      return 1;
-    }
-
-    assert(false && "Unreachanble reached");
-  }
-
-  int status = 0;
-  waitpid(Child, &status, 0);
-  if (WIFEXITED(status) && WEXITSTATUS(status) == EXIT_SKIP_TEST) {
-    return 0;
-  }
-  if (getenv("SHOULD_CRASH")) {
-    if (!WIFSIGNALED(status)) {
-      fprintf(stderr, "error: process did not terminate by a signal\n");
-      return 1;
-    }
-  } else {
-    if (WIFSIGNALED(status)) {
-      fprintf(stderr, "error: process should not terminate\n");
-      return 1;
-    }
-    // We should not check anything if the child finished successful and this
-    // was expected.
-    return 0;
-  }
-  int sig = WTERMSIG(status);
-  int expected = 0;
-  if (const char *env = getenv("EXPECTED_SIGNAL")) {
-    if (0 == strcmp(env, "SIGABRT")) {
-      expected = SIGABRT;
-    } else if (0 == strcmp(env, "SIGSEGV")) {
-      expected = SIGSEGV;
-    }
-    if (!expected) {
-      fprintf(stderr, "EXPECTED_SIGNAL should be set to either \"SIGABRT\", "
-                      "or \"SIGSEGV\"!\n");
-      return 1;
-    }
-  }
-  if (sig != expected) {
-    fprintf(stderr, "error: expected signal %d, got %d\n", expected, sig);
-    return 1;
-  }
-
-  return 0;
-}
-#else
 using namespace cl::sycl;
 
 constexpr auto sycl_read = cl::sycl::access::mode::read;
 constexpr auto sycl_write = cl::sycl::access::mode::write;
+
+const int EXIT_SKIP_TEST = 42;
 
 template <typename T, size_t N>
 void simple_vadd(const std::array<T, N> &VA, const std::array<T, N> &VB,
@@ -239,6 +164,48 @@ void simple_vadd(const std::array<T, N> &VA, const std::array<T, N> &VB,
 }
 
 int main() {
+  int child = fork();
+  if (child) {
+    int status = 0;
+    waitpid(child, &status, 0);
+    if (WIFEXITED(status) && WEXITSTATUS(status) == EXIT_SKIP_TEST) {
+      return 0;
+    }
+    if (getenv("SHOULD_CRASH")) {
+      if (!WIFSIGNALED(status)) {
+        fprintf(stderr, "error: process did not terminate by a signal\n");
+        return 1;
+      }
+    } else {
+      if (WIFSIGNALED(status)) {
+        fprintf(stderr, "error: process should not terminate\n");
+        return 1;
+      }
+      // We should not check anything if the child finished successful and this
+      // was expected.
+      return 0;
+    }
+    int sig = WTERMSIG(status);
+    int expected = 0;
+    if (const char *env = getenv("EXPECTED_SIGNAL")) {
+      if (0 == strcmp(env, "SIGABRT")) {
+        expected = SIGABRT;
+      } else if (0 == strcmp(env, "SIGSEGV")) {
+        expected = SIGSEGV;
+      }
+      if (!expected) {
+        fprintf(stderr, "EXPECTED_SIGNAL should be set to either \"SIGABRT\", "
+                        "or \"SIGSEGV\"!\n");
+        return 1;
+      }
+    }
+    if (sig != expected) {
+      fprintf(stderr, "error: expected signal %d, got %d\n", expected, sig);
+      return 1;
+    }
+    return 0;
+  }
+
   // Turn the bufferization off to not loose the assert message if it is written
   // to stdout.
   if (setvbuf(stdout, NULL, _IONBF, 0)) {
@@ -251,7 +218,4 @@ int main() {
   std::array<int, 3> C = {0, 0, 0};
 
   simple_vadd(A, B, C);
-
-  return 0;
 }
-#endif // PARENT_PROCESS
