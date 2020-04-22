@@ -1,6 +1,6 @@
 // RUN: %clangxx -fsycl %s -o %t.out %threads_lib
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: env SYCL_PI_TRACE=1 %CPU_RUN_PLACEHOLDER %t.out 2>&1 %CPU_CHECK_PLACEHOLDER
+// RUN: %CPU_RUN_PLACEHOLDER SYCL_PI_TRACE=1 %t.out 2>&1 %CPU_CHECK_PLACEHOLDER
 
 #include <atomic>
 #include <condition_variable>
@@ -192,9 +192,10 @@ int main() {
 // CHECK:---> piEnqueueKernelLaunch(
 // prepare for host task
 // CHECK:---> piEnqueueMemBufferMap(
-// wait on dependencies of host task
-// CHECK:---> piEventsWait(
 // launch of CopierTask kernel
 // CHECK:---> piKernelCreate(
 // CHECK: CopierTask
 // CHECK:---> piEnqueueKernelLaunch(
+// TODO need to check for piEventsWait as "wait on dependencies of host task".
+// At the same time this piEventsWait may occur anywhere after
+// piEnqueueMemBufferMap ("prepare for host task").
