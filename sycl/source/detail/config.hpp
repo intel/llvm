@@ -13,7 +13,9 @@
 #include <CL/sycl/detail/pi.hpp>
 
 #include <algorithm>
+#include <array>
 #include <cstdlib>
+#include <utility>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
