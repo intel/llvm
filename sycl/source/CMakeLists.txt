@@ -74,6 +74,10 @@ function(add_sycl_rt_library LIB_NAME)
 
   add_common_options(${LIB_NAME})
 
+  set_target_properties(${LIB_NAME} PROPERTIES
+                        VERSION ${SYCL_VERSION_STRING}
+                        SOVERSION ${SYCL_MAJOR_VERSION})
+
 endfunction(add_sycl_rt_library)
 
 set(SYCL_SOURCES
