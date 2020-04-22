@@ -318,50 +318,78 @@ using Rtn = detail::bool_constant<Mode == rounding_mode::rtn>;
 //signed to signed
 #define __SYCL_GENERATE_CONVERT_IMPL(DestType)                                 \
   template <typename T, typename R, rounding_mode roundingMode>                \
-  detail::enable_if_t<!std::is_same<T, R>::value &&                            \
-                          is_sint_to_sint<T, R>::value &&                      \
-                          std::is_same<R, DestType>::value,                    \
-                      R>                                                       \
+  detail::enable_if_t<                                                         \
+      !std::is_same<T, R>::value && is_sint_to_sint<T, R>::value &&            \
+          std::is_same<R, DestType>::value &&                                  \
+          std::is_same<cl::sycl::detail::ConvertToOpenCLType_t<T>, R>::value,  \
+      R>                                                                       \
   convertImpl(T Value) {                                                       \
-    using OpenCLT = cl::sycl::detail::ConvertToOpenCLType_t<T>;                \
-    if (std::is_same<OpenCLT, R>::value)                                       \
-      return Value;                                                            \
-    else                                                                       \
-    {                                                                          \
-      OpenCLT OpValue = cl::sycl::detail::convertDataToType<T, OpenCLT>(Value);\
-      return __spirv_SConvert##_R##DestType(OpValue);                          \
-    }                                                                          \
+    return static_cast<R>(Value);                                              \
   }
 
 __SYCL_GENERATE_CONVERT_IMPL(char)  
 __SYCL_GENERATE_CONVERT_IMPL(short)   
 __SYCL_GENERATE_CONVERT_IMPL(int)    
-__SYCL_GENERATE_CONVERT_IMPL(long)  
+__SYCL_GENERATE_CONVERT_IMPL(long)
+
+#undef __SYCL_GENERATE_CONVERT_IMPL
+
+#define __SYCL_GENERATE_CONVERT_IMPL(DestType)                                 \
+  template <typename T, typename R, rounding_mode roundingMode>                \
+  detail::enable_if_t<                                                         \
+      !std::is_same<T, R>::value && is_sint_to_sint<T, R>::value &&            \
+          std::is_same<R, DestType>::value &&                                  \
+          !std::is_same<cl::sycl::detail::ConvertToOpenCLType_t<T>, R>::value, \
+      R>                                                                       \
+  convertImpl(T Value) {                                                       \
+    using OpenCLT = cl::sycl::detail::ConvertToOpenCLType_t<T>;                \
+    OpenCLT OpValue = cl::sycl::detail::convertDataToType<T, OpenCLT>(Value);  \
+    return __spirv_SConvert##_R##DestType(OpValue);                            \
+  }
+
+__SYCL_GENERATE_CONVERT_IMPL(char)  
+__SYCL_GENERATE_CONVERT_IMPL(short)   
+__SYCL_GENERATE_CONVERT_IMPL(int)    
+__SYCL_GENERATE_CONVERT_IMPL(long)
 
 #undef __SYCL_GENERATE_CONVERT_IMPL
 
 //unsigned to unsigned
 #define __SYCL_GENERATE_CONVERT_IMPL(DestType)                                 \
   template <typename T, typename R, rounding_mode roundingMode>                \
-  detail::enable_if_t<!std::is_same<T, R>::value &&                            \
-                          is_uint_to_uint<T, R>::value &&                      \
-                          std::is_same<R, DestType>::value,                    \
-                      R>                                                       \
+  detail::enable_if_t<                                                         \
+      !std::is_same<T, R>::value && is_uint_to_uint<T, R>::value &&            \
+          std::is_same<R, DestType>::value &&                                  \
+          std::is_same<cl::sycl::detail::ConvertToOpenCLType_t<T>, R>::value,  \
+      R>                                                                       \
+  convertImpl(T Value) {                                                       \
+    return static_cast<R>(Value);                                              \
+  }
+
+  __SYCL_GENERATE_CONVERT_IMPL(uchar)  
+__SYCL_GENERATE_CONVERT_IMPL(ushort)   
+__SYCL_GENERATE_CONVERT_IMPL(uint)   
+__SYCL_GENERATE_CONVERT_IMPL(ulong)
+
+#undef __SYCL_GENERATE_CONVERT_IMPL
+
+#define __SYCL_GENERATE_CONVERT_IMPL(DestType)                                 \
+  template <typename T, typename R, rounding_mode roundingMode>                \
+  detail::enable_if_t<                                                         \
+      !std::is_same<T, R>::value && is_uint_to_uint<T, R>::value &&            \
+          std::is_same<R, DestType>::value &&                                  \
+          !std::is_same<cl::sycl::detail::ConvertToOpenCLType_t<T>, R>::value, \
+      R>                                                                       \
   convertImpl(T Value) {                                                       \
     using OpenCLT = cl::sycl::detail::ConvertToOpenCLType_t<T>;                \
-    if (std::is_same<OpenCLT, R>::value)                                       \
-      return Value;                                                            \
-    else                                                                       \
-    {                                                                          \
-      OpenCLT OpValue = cl::sycl::detail::convertDataToType<T, OpenCLT>(Value);\
-      return __spirv_UConvert##_R##DestType(OpValue);                          \
-    }                                                                          \
+    OpenCLT OpValue = cl::sycl::detail::convertDataToType<T, OpenCLT>(Value);  \
+    return __spirv_UConvert##_R##DestType(OpValue);                            \
   }
 
 __SYCL_GENERATE_CONVERT_IMPL(uchar)  
 __SYCL_GENERATE_CONVERT_IMPL(ushort)   
 __SYCL_GENERATE_CONVERT_IMPL(uint)   
-__SYCL_GENERATE_CONVERT_IMPL(ulong)  
+__SYCL_GENERATE_CONVERT_IMPL(ulong)
 
 #undef __SYCL_GENERATE_CONVERT_IMPL
 
