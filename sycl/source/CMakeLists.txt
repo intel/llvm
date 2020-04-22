@@ -54,9 +54,9 @@ function(add_sycl_rt_library LIB_NAME)
   endif()
 
   target_include_directories(
-      ${LIB_OBJ_NAME} 
-      PRIVATE 
-        ${CMAKE_CURRENT_SOURCE_DIR} 
+      ${LIB_OBJ_NAME}
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
         "${sycl_inc_dir}"
         ${OpenCL_INCLUDE_DIRS}
   )
@@ -95,7 +95,6 @@ set(SYCL_SOURCES
     "detail/config.cpp"
     "detail/context_impl.cpp"
     "detail/device_impl.cpp"
-    "detail/device_info.cpp"
     "detail/error_handling/enqueue_kernel.cpp"
     "detail/event_impl.cpp"
     "detail/force_device.cpp"
@@ -103,11 +102,9 @@ set(SYCL_SOURCES
     "detail/image_accessor_util.cpp"
     "detail/image_impl.cpp"
     "detail/kernel_impl.cpp"
-    "detail/kernel_info.cpp"
     "detail/kernel_program_cache.cpp"
     "detail/memory_manager.cpp"
     "detail/platform_impl.cpp"
-    "detail/platform_info.cpp"
     "detail/program_impl.cpp"
     "detail/program_manager/program_manager.cpp"
     "detail/queue_impl.cpp"
@@ -153,10 +150,10 @@ if (MSVC)
   foreach(flag_var
       CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
       CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINFO)
-    string(REGEX REPLACE "/MD" "" ${flag_var} "${${flag_var}}")
-    string(REGEX REPLACE "/MT" "" ${flag_var} "${${flag_var}}")
     string(REGEX REPLACE "/MDd" "" ${flag_var} "${${flag_var}}")
     string(REGEX REPLACE "/MTd" "" ${flag_var} "${${flag_var}}")
+    string(REGEX REPLACE "/MD" "" ${flag_var} "${${flag_var}}")
+    string(REGEX REPLACE "/MT" "" ${flag_var} "${${flag_var}}")
   endforeach()
 
   if (SYCL_ENABLE_XPTI_TRACING)

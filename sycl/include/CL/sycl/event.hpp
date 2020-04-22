@@ -8,12 +8,12 @@
 
 #pragma once
 
+#include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/stl.hpp>
 
-#include <functional>
 #include <memory>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -114,8 +114,18 @@ public:
   typename info::param_traits<info::event_profiling, param>::return_type
   get_profiling_info() const;
 
+  /// Gets the native handle of the SYCL event.
+  ///
+  /// \return a native handle, the type of which defined by the backend.
+  template <backend BackendName>
+  auto get_native() const -> typename interop<BackendName, event>::type {
+    return static_cast<typename interop<BackendName, event>::type>(getNative());
+  }
+
 private:
   event(shared_ptr_class<detail::event_impl> EventImpl);
+
+  pi_native_handle getNative() const;
 
   shared_ptr_class<detail::event_impl> impl;
 

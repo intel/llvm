@@ -927,7 +927,7 @@ ProgramManager::getKernelSetId(OSModuleHandle M,
     return ModuleKSIdIt->second;
 
   throw runtime_error("No kernel named " + KernelName + " was found",
-                      PI_RESULT_INVALID_KERNEL_NAME);
+                      PI_INVALID_KERNEL_NAME);
 }
 
 void ProgramManager::dumpImage(const RTDeviceBinaryImage &Img,

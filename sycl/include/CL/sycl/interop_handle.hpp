@@ -22,9 +22,7 @@ namespace sycl {
 namespace detail {
   class AccessorBaseHost;
   class ExecCGCommand;
-  struct HostTaskContext;
-
-  void DispatchHostTask(const std::shared_ptr<HostTaskContext> &);
+  class DispatchHostTask;
 }
 
 template <typename DataT, int Dims, access::mode AccMode,
@@ -101,9 +99,7 @@ private:
             access::target AccTarget, access::placeholder isPlaceholder>
   friend class accessor;
   friend class detail::ExecCGCommand;
-  friend struct detail::HostTaskContext;
-  friend void DispatchHostTask(
-      const std::shared_ptr<detail::HostTaskContext> &);
+  friend class detail::DispatchHostTask;
 
 public:
   // TODO set c-tor private
@@ -111,8 +107,8 @@ public:
                  cl_device_id DeviceId, cl_context Context)
       : MQueue(Queue), MDeviceId(DeviceId),
         MContext(Context), MMemObjs(std::move(MemObjs)) {}
-private:
 
+private:
   cl_mem getMemImpl(detail::Requirement* Req) const;
 
   cl_command_queue MQueue;

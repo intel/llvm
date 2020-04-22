@@ -14,6 +14,7 @@
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/stl.hpp>
 
+#include <atomic>
 #include <cassert>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -32,7 +33,7 @@ public:
   /// Constructs a ready SYCL event.
   ///
   /// If the constructed SYCL event is waited on it will complete immediately.
-  event_impl() = default;
+  event_impl();
   /// Constructs an event instance from a plug-in event handle.
   ///
   /// The SyclContext must match the plug-in context associated with the
@@ -145,7 +146,10 @@ public:
   /// @return a pointer to HostProfilingInfo instance.
   HostProfilingInfo *getHostProfilingInfo() { return MHostProfilingInfo.get(); }
 
-  QueueImplWPtr getQueueWPtr() const { return MQueue; }
+  /// Gets the native handle of the SYCL event.
+  ///
+  /// \return a native handle.
+  pi_native_handle getNative() const;
 
 private:
   // When instrumentation is enabled emits trace event for event wait begin and
@@ -163,6 +167,12 @@ private:
   bool MHostEvent = true;
   std::unique_ptr<HostProfilingInfo> MHostProfilingInfo;
   void *MCommand = nullptr;
+
+  enum HostEventState : int { HES_NotReady = 0, HES_Ready };
+
+  // State of host event. Employed only for host events.
+  // Used values are listed in HostEventState enum.
+  std::atomic<int> MState;
 };
 
 } // namespace detail

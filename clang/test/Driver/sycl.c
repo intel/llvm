@@ -5,21 +5,27 @@
 // RUN: %clang -### -fsycl -sycl-std=2017 %s 2>&1 | FileCheck %s --check-prefix=ENABLED
 // RUN: %clang -### -fsycl -sycl-std=sycl-1.2.1 %s 2>&1 | FileCheck %s --check-prefix=ENABLED
 // RUN: %clang -### -fno-sycl -fsycl %s 2>&1 | FileCheck %s --check-prefix=ENABLED
-// RUN: %clang -### -sycl-std=2017 %s 2>&1 | FileCheck %s --check-prefix=DISABLED
+// RUN: %clang -### -sycl-std=2017 %s 2>&1 | FileCheck %s --check-prefix=NOT_ENABLED
 // RUN: %clangxx -### -fsycl %s 2>&1 | FileCheck %s --check-prefix=ENABLED
 // RUN: %clangxx -### -fno-sycl %s 2>&1 | FileCheck %s --check-prefix=DISABLED
 // RUN: %clangxx -### -fsycl -fno-sycl %s 2>&1 | FileCheck %s --check-prefix=DISABLED
-// RUN: %clangxx -### %s 2>&1 | FileCheck %s --check-prefix=DISABLED
+// RUN: %clangxx -### %s 2>&1 | FileCheck %s --check-prefix=NOT_ENABLED
+// RUN: %clangxx -### -sycl-std=some-std %s 2>&1 | FileCheck %s --check-prefix=NOT_ENABLED
 // RUN: %clang_cl -### -fsycl -sycl-std=2017 -- %s 2>&1 | FileCheck %s --check-prefix=ENABLED
 // RUN: %clang_cl -### -fsycl -- %s 2>&1 | FileCheck %s --check-prefix=ENABLED
-// RUN: %clang_cl -### -- %s 2>&1 | FileCheck %s --check-prefix=DISABLED
+// RUN: %clang_cl -### -- %s 2>&1 | FileCheck %s --check-prefix=NOT_ENABLED
+// RUN: %clang_cl -### -sycl-std=some-std -- %s 2>&1 | FileCheck %s --check-prefix=NOT_ENABLED
 
 // ENABLED: "-cc1"{{.*}} "-fsycl-is-device"
 // ENABLED-SAME: "-sycl-std={{[-.sycl0-9]+}}"
 // ENABLED-SAME: "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl"
 
+// NOT_ENABLED-NOT: "-fsycl-is-device"
+// NOT_ENABLED-NOT: "-fsycl-std-layout-kernel-params"
+
 // DISABLED-NOT: "-fsycl-is-device"
-// DISABLED-NOT: "-sycl-std="
+// DISABLED-NOT: "-sycl-std={{.*}}"
+// DISABLED-NOT: "-fsycl-std-layout-kernel-params"
 
 // RUN: %clang -### -fsycl-device-only -c %s 2>&1 | FileCheck %s --check-prefix=DEFAULT
 // RUN: %clang -### -fsycl-device-only %s 2>&1 | FileCheck %s --check-prefix=DEFAULT
@@ -42,6 +48,11 @@
 // TARGET: "-triple" "spir64-unknown-linux-sycldevice"{{.*}} "-fsycl-is-device"{{.*}} "-emit-llvm-bc"
 // COMBINED: "-triple" "spir64-unknown-{{.*}}-sycldevice"{{.*}} "-fsycl-is-device"{{.*}} "-emit-llvm-bc"
 // TEXTUAL: "-triple" "spir64-unknown-{{.*}}-sycldevice{{.*}}" "-fsycl-is-device"{{.*}} "-emit-llvm"
+
+/// Verify that the sycl header directory is before /usr/include
+// RUN: %clangxx -### -fsycl-device-only %s 2>&1 | FileCheck %s --check-prefix=HEADER_ORDER
+// RUN: %clangxx -### -fsycl %s 2>&1 | FileCheck %s --check-prefix=HEADER_ORDER
+// HEADER_ORDER-NOT: clang{{.*}} "/usr/include"{{.*}} "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}
 
 /// Verify -fsycl-device-only phases
 // RUN: %clang -### -ccc-print-phases -fsycl-device-only %s 2>&1 | FileCheck %s --check-prefix=DEFAULT-PHASES

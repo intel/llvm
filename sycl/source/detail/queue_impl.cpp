@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl/context.hpp>
-#include <CL/sycl/detail/clusm.hpp>
 #include <CL/sycl/detail/memory_manager.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/device.hpp>
@@ -192,10 +191,28 @@ void queue_impl::initHostTaskAndEventCallbackThreadPool() {
   int Size = 1;
 
   if (const char *val = std::getenv("SYCL_QUEUE_THREAD_POOL_SIZE"))
-    Size = std::stoi(val);
+    try {
+      Size = std::stoi(val);
+    } catch (...) {
+      throw invalid_parameter_error(
+          "Invalid value for SYCL_QUEUE_THREAD_POOL_SIZE environment variable",
+          PI_INVALID_VALUE);
+    }
+
+  if (Size < 1)
+    throw invalid_parameter_error(
+        "Invalid value for SYCL_QUEUE_THREAD_POOL_SIZE environment variable",
+        PI_INVALID_VALUE);
 
   MHostTaskThreadPool.reset(new ThreadPool(Size));
   MHostTaskThreadPool->start();
+}
+
+pi_native_handle queue_impl::getNative() const {
+  auto Plugin = getPlugin();
+  pi_native_handle Handle;
+  Plugin.call<PiApiKind::piextQueueGetNativeHandle>(MCommandQueue, &Handle);
+  return Handle;
 }
 
 } // namespace detail

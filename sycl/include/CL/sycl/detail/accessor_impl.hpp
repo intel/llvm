@@ -15,11 +15,15 @@
 #include <CL/sycl/range.hpp>
 #include <CL/sycl/stl.hpp>
 
+#include <mutex>
+#include <unordered_set>
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
 class Command;
+class Scheduler;
 
 // The class describes a requirement to access a SYCL memory object such as
 // sycl::buffer and sycl::image. For example, each accessor used in a kernel,
@@ -95,7 +99,20 @@ public:
 
   void *MData = nullptr;
 
-  Command *MBlockedCmd = nullptr;
+protected:
+  using CheckCmdFn = std::function<bool(const Command *const)>;
+
+  void addBlockedCommand(Command *BlockedCmd);
+  Command *findBlockedCommand(const CheckCmdFn &Check);
+  bool removeBlockedCommand(Command *BlockedCmd);
+  size_t countBlockedCommand(const CheckCmdFn &Check);
+
+  friend class Command;
+  friend class Scheduler;
+
+private:
+  std::mutex MBlockedCmdsMutex;
+  std::unordered_set<Command *> MBlockedCmds;
 };
 
 using AccessorImplPtr = shared_ptr_class<AccessorImplHost>;

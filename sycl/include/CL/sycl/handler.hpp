@@ -122,7 +122,7 @@ private:
 
   template <typename> static constexpr std::false_type check(...);
 
-  typedef decltype(check<F>(0)) type;
+  using type = decltype(check<F>(0));
 
 public:
   static constexpr bool value = type::value;
@@ -596,7 +596,7 @@ public:
   template <typename FuncT>
   typename std::enable_if<detail::check_fn_signature<
       typename std::remove_reference<FuncT>::type, void()>::value>::type
-  codeplay_host_task(FuncT &&Func) {
+  codeplay_host_task(FuncT Func) {
     throwIfActionIsCreated();
 
     MNDRDesc.set(range<1>(1));

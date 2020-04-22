@@ -217,7 +217,7 @@ template <typename Group> bool none_of(Group g, bool pred) {
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
 #ifdef __SYCL_DEVICE_ONLY__
-  return detail::spirv::GroupAll<Group>(not pred);
+  return detail::spirv::GroupAll<Group>(!pred);
 #else
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
@@ -239,7 +239,7 @@ EnableIfIsPointer<Ptr, bool> none_of(Group g, Ptr first, Ptr last,
   static_assert(detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
-  return not any_of(g, first, last, pred);
+  return !any_of(g, first, last, pred);
 #else
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);

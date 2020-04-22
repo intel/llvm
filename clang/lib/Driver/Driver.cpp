@@ -41,11 +41,11 @@
 #include "ToolChains/PPCLinux.h"
 #include "ToolChains/PS4CPU.h"
 #include "ToolChains/RISCVToolchain.h"
+#include "ToolChains/SYCL.h"
 #include "ToolChains/Solaris.h"
 #include "ToolChains/TCE.h"
 #include "ToolChains/WebAssembly.h"
 #include "ToolChains/XCore.h"
-#include "ToolChains/SYCL.h"
 #include "clang/Basic/Version.h"
 #include "clang/Config/config.h"
 #include "clang/Driver/Action.h"
@@ -62,6 +62,7 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/StringSwitch.h"
+#include "llvm/BinaryFormat/Magic.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/Option/Arg.h"
 #include "llvm/Option/ArgList.h"
@@ -2533,12 +2534,18 @@ static bool runBundler(const SmallVectorImpl<StringRef> &BundlerArgs,
 
 bool hasFPGABinary(Compilation &C, std::string Object, types::ID Type) {
   assert(types::isFPGA(Type) && "unexpected Type for FPGA binary check");
+  // Do not do the check if the file doesn't exist
+  if (!llvm::sys::fs::exists(Object))
+    return false;
+
   // Temporary names for the output.
   llvm::Triple TT;
   TT.setArchName(types::getTypeName(Type));
   TT.setVendorName("intel");
   TT.setOS(llvm::Triple::UnknownOS);
   TT.setEnvironment(llvm::Triple::SYCLDevice);
+  if (C.getDriver().IsCLMode())
+    TT.setObjectFormat(llvm::Triple::COFF);
 
   // Checking uses -check-section option with the input file, no output
   // file and the target triple being looked for.
@@ -4793,6 +4800,10 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
     // archive unbundling for Windows.
     if (!isStaticArchiveFile(LA))
       continue;
+    // FPGA AOCX files are archives, but we do not want to unbundle them here
+    // as they have already been unbundled and processed for linking.
+    if (hasFPGABinary(C, LA.str(), types::TY_FPGA_AOCX))
+      continue;
     // In MSVC environment offload-static-libs are handled slightly different
     // because of missing support for partial linking in the linker. We add an
     // unbundling action for each static archive which produces list files with
@@ -6070,21 +6081,38 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
     NamedOutput = C.getArgs().MakeArgString(TempPath.c_str());
   }
 
-  // If we're saving temps and the temp file conflicts with the input file,
-  // then avoid overwriting input file.
-  if (!AtTopLevel && isSaveTempsEnabled() && NamedOutput == BaseName) {
-    bool SameFile = false;
-    SmallString<256> Result;
-    llvm::sys::fs::current_path(Result);
-    llvm::sys::path::append(Result, BaseName);
-    llvm::sys::fs::equivalent(BaseInput, Result.c_str(), SameFile);
-    // Must share the same path to conflict.
-    if (SameFile) {
-      StringRef Name = llvm::sys::path::filename(BaseInput);
-      std::pair<StringRef, StringRef> Split = Name.split('.');
-      std::string TmpName = GetTemporaryPath(
+  if (isSaveTempsEnabled()) {
+    // If we're saving temps and the temp file conflicts with any
+    // input/resulting file, then avoid overwriting.
+    if (!AtTopLevel) {
+      bool SameFile = false;
+      SmallString<256> Result;
+      llvm::sys::fs::current_path(Result);
+      llvm::sys::path::append(Result, BaseName);
+      llvm::sys::fs::equivalent(BaseInput, Result.c_str(), SameFile);
+      // Must share the same path to conflict.
+      if (SameFile) {
+        StringRef Name = llvm::sys::path::filename(BaseInput);
+        std::pair<StringRef, StringRef> Split = Name.split('.');
+        std::string TmpName = GetTemporaryPath(
+            Split.first, types::getTypeTempSuffix(JA.getType(), IsCLMode()));
+        return C.addTempFile(C.getArgs().MakeArgString(TmpName));
+      }
+    }
+
+    const auto &ResultFiles = C.getResultFiles();
+    const auto CollidingFilenameIt =
+        llvm::find_if(ResultFiles, [NamedOutput](const auto &It) {
+          return StringRef(NamedOutput).equals(It.second);
+        });
+    if (CollidingFilenameIt != ResultFiles.end()) {
+      // Upon any collision, a unique hash will be appended to the filename,
+      // similar to what is done for temporary files in the regular flow.
+      StringRef CollidingName(CollidingFilenameIt->second);
+      std::pair<StringRef, StringRef> Split = CollidingName.split('.');
+      std::string UniqueName = GetUniquePath(
           Split.first, types::getTypeTempSuffix(JA.getType(), IsCLMode()));
-      return C.addTempFile(C.getArgs().MakeArgString(TmpName));
+      return C.addResultFile(C.getArgs().MakeArgString(UniqueName), &JA);
     }
   }
 
@@ -6206,6 +6234,18 @@ std::string Driver::GetProgramPath(StringRef Name, const ToolChain &TC) const {
 std::string Driver::GetTemporaryPath(StringRef Prefix, StringRef Suffix) const {
   SmallString<128> Path;
   std::error_code EC = llvm::sys::fs::createTemporaryFile(Prefix, Suffix, Path);
+  if (EC) {
+    Diag(clang::diag::err_unable_to_make_temp) << EC.message();
+    return "";
+  }
+
+  return std::string(Path.str());
+}
+
+std::string Driver::GetUniquePath(StringRef BaseName, StringRef Ext) const {
+  SmallString<128> Path;
+  std::error_code EC = llvm::sys::fs::createUniqueFile(
+      Twine(BaseName) + Twine("-%%%%%%.") + Ext, Path);
   if (EC) {
     Diag(clang::diag::err_unable_to_make_temp) << EC.message();
     return "";
@@ -6594,8 +6634,10 @@ bool clang::driver::isStaticArchiveFile(const StringRef &FileName) {
     // Any file with no extension should not be considered an Archive.
     return false;
   StringRef Ext(llvm::sys::path::extension(FileName).drop_front());
-  // Only .lib and .a files are to be considered.
-  return (Ext == "lib" || Ext == "a");
+  llvm::file_magic Magic;
+  llvm::identify_magic(FileName, Magic);
+  // Only .lib and archive files are to be considered.
+  return (Ext == "lib" || Magic == llvm::file_magic::archive);
 }
 
 bool clang::driver::willEmitRemarks(const ArgList &Args) {

@@ -347,12 +347,17 @@ public:
     MExceptions.PushBack(ExceptionPtr);
   }
 
-  ThreadPool &getHostTaskAndEventCallbackThreadPool() {
+  ThreadPool &getThreadPool() {
     if (!MHostTaskThreadPool)
       initHostTaskAndEventCallbackThreadPool();
 
     return *MHostTaskThreadPool;
   }
+
+  /// Gets the native handle of the SYCL queue.
+  ///
+  /// \return a native handle.
+  pi_native_handle getNative() const;
 
 private:
   /// Performs command group submission to the queue.
@@ -410,7 +415,7 @@ private:
   bool MSupportOOO = true;
 
   // Thread pool for host task and event callbacks execution.
-  // The thread pool is instntiated upon the very first call to
+  // The thread pool is instantiated upon the very first call to
   // getHostTaskAndEventCallbackThreadPool
   std::unique_ptr<ThreadPool> MHostTaskThreadPool;
 };

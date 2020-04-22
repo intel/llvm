@@ -32,6 +32,7 @@ master_doc = 'contents'
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
+    'recommonmark',
     'sphinx_markdown_tables'
 ]
 

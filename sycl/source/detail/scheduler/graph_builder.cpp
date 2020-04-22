@@ -27,9 +27,10 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
-// The function checks whether two requirements overlaps or not. This
-// information can be used to prove that executing two kernels that
-// work on different parts of the memory object in parallel is legal.
+/// Checks whether two requirements overlap or not.
+///
+/// This information can be used to prove that executing two kernels that
+/// work on different parts of the memory object in parallel is legal.
 static bool doOverlap(const Requirement *LHS, const Requirement *RHS) {
   return (LHS->MOffsetInBytes + LHS->MAccessRange.size() * LHS->MElemSize >=
           RHS->MOffsetInBytes) ||
@@ -43,12 +44,12 @@ static bool sameCtx(const ContextImplPtr &LHS, const ContextImplPtr &RHS) {
   return LHS == RHS || (LHS->is_host() && RHS->is_host());
 }
 
-// The function checks if current requirement is requirement for sub buffer
+/// Checks if current requirement is requirement for sub buffer.
 static bool IsSuitableSubReq(const Requirement *Req) {
   return Req->MIsSubBuffer;
 }
 
-// Checks if the required access mode is allowed under the current one
+/// Checks if the required access mode is allowed under the current one.
 static bool isAccessModeAllowed(access::mode Required, access::mode Current) {
   switch (Current) {
   case access::mode::read:
@@ -104,7 +105,6 @@ static void printDotRecursive(std::fstream &Stream,
 
 void Scheduler::GraphBuilder::printGraphAsDot(const char *ModeName) {
   static size_t Counter = 0;
-
   std::string ModeNameStr(ModeName);
   std::string FileName =
       "graph_" + std::to_string(Counter) + ModeNameStr + ".dot";
@@ -123,13 +123,10 @@ void Scheduler::GraphBuilder::printGraphAsDot(const char *ModeName) {
   Stream << "}" << std::endl;
 }
 
-// Returns record for the memory objects passed, nullptr if doesn't exist.
 MemObjRecord *Scheduler::GraphBuilder::getMemObjRecord(SYCLMemObjI *MemObject) {
   return MemObject->MRecord.get();
 }
 
-// Returns record for the memory object requirement refers to, if doesn't
-// exist, creates new one.
 MemObjRecord *
 Scheduler::GraphBuilder::getOrInsertMemObjRecord(const QueueImplPtr &Queue,
                                                  Requirement *Req) {
@@ -147,7 +144,6 @@ Scheduler::GraphBuilder::getOrInsertMemObjRecord(const QueueImplPtr &Queue,
   return MemObject->MRecord.get();
 }
 
-// Helper function which removes all values in Cmds from Leaves
 void Scheduler::GraphBuilder::updateLeaves(const std::set<Command *> &Cmds,
                                            MemObjRecord *Record,
                                            access::mode AccessMode) {
@@ -398,7 +394,7 @@ Command *Scheduler::GraphBuilder::addCopyBack(Requirement *Req) {
 // The function implements SYCL host accessor logic: host accessor
 // should provide access to the buffer in user space.
 Command *Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
-                                                const bool destructor) {
+                                                  const bool destructor) {
 
   const QueueImplPtr &HostQueue = getInstance().getDefaultHostQueue();
 
@@ -421,18 +417,19 @@ Command *Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
 
   // Need empty command to be blocked until host accessor is destructed
   EmptyCommand *EmptyCmd = new EmptyCommand(HostQueue, *Req);
+
   EmptyCmd->addDep(
       DepDesc{UpdateHostAccCmd, EmptyCmd->getRequirement(), HostAllocaCmd});
   UpdateHostAccCmd->addUser(EmptyCmd);
 
   EmptyCmd->MIsBlockable = true;
   EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueBlocked;
-  EmptyCmd->MBlockReason = "A Buffer is locked by the host accessor";
+  EmptyCmd->MBlockReason = Command::BlockReason::HostAccessor;
 
   updateLeaves({UpdateHostAccCmd}, Record, Req->MAccessMode);
   addNodeToLeaves(Record, EmptyCmd, Req->MAccessMode);
 
-  Req->MBlockedCmd = EmptyCmd;
+  Req->addBlockedCommand(EmptyCmd);
 
   if (MPrintOptionsArray[AfterAddHostAcc])
     printGraphAsDot("after_addHostAccessor");
@@ -450,15 +447,14 @@ Command *Scheduler::GraphBuilder::addCGUpdateHost(
   return insertMemoryMove(Record, Req, HostQueue);
 }
 
-// The functions finds dependencies for the requirement. It starts searching
-// from list of "leaf" commands for the record and check if the examining
-// command can be executed in parallel with new one with regard to the memory
-// object. If can, then continue searching through dependencies of that
-// command. There are several rules used:
-//
-// 1. New and examined commands only read -> can bypass
-// 2. New and examined commands has non-overlapping requirements -> can bypass
-// 3. New and examined commands has different contexts -> cannot bypass
+/// Start the search for the record from list of "leaf" commands and check if
+/// the examined command can be executed in parallel with the new one with
+/// regard to the memory object. If it can, then continue searching through
+/// dependencies of that command. There are several rules used:
+///
+/// 1. New and examined commands only read -> can bypass
+/// 2. New and examined commands has non-overlapping requirements -> can bypass
+/// 3. New and examined commands have different contexts -> cannot bypass
 std::set<Command *>
 Scheduler::GraphBuilder::findDepsForReq(MemObjRecord *Record, Requirement *Req,
                                         const ContextImplPtr &Context) {
@@ -533,6 +529,7 @@ AllocaCommandBase *Scheduler::GraphBuilder::findAllocaForReq(
     bool Res = sameCtx(AllocaCmd->getQueue()->getContextImplPtr(), Context);
     if (IsSuitableSubReq(Req)) {
       const Requirement *TmpReq = AllocaCmd->getRequirement();
+      Res &= AllocaCmd->getType() == Command::CommandType::ALLOCA_SUB_BUF;
       Res &= TmpReq->MOffsetInBytes == Req->MOffsetInBytes;
       Res &= TmpReq->MSYCLMemObj->getSize() == Req->MSYCLMemObj->getSize();
     }
@@ -606,8 +603,8 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
 
         // To ensure that the leader allocation is removed first
         AllocaCmd->getReleaseCmd()->addDep(
-            DepDesc(LinkedAllocaCmd->getReleaseCmd(), AllocaCmd->getRequirement(),
-                    LinkedAllocaCmd));
+            DepDesc(LinkedAllocaCmd->getReleaseCmd(),
+                    AllocaCmd->getRequirement(), LinkedAllocaCmd));
 
         // Device allocation takes ownership of the host ptr during
         // construction, host allocation doesn't. So, device allocation should
@@ -622,7 +619,7 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
           std::set<Command *> Deps =
               findDepsForReq(Record, Req, Queue->getContextImplPtr());
           for (Command *Dep : Deps) {
-            AllocaCmd->addDep(DepDesc{Dep, Req, AllocaCmd});
+            AllocaCmd->addDep(DepDesc{Dep, Req, LinkedAllocaCmd});
             Dep->addUser(AllocaCmd);
           }
           updateLeaves(Deps, Record, Req->MAccessMode);
@@ -658,9 +655,7 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
                                QueueImplPtr Queue) {
   const std::vector<Requirement *> &Reqs = CommandGroup->MRequirements;
   const std::vector<detail::EventImplPtr> &Events = CommandGroup->MEvents;
-
-  if (CommandGroup->getType() == CG::CGTYPE::CODEPLAY_HOST_TASK)
-    Queue = Scheduler::getInstance().getDefaultHostQueue();
+  const CG::CGTYPE CGType = CommandGroup->getType();
 
   std::unique_ptr<ExecCGCommand> NewCmd(
       new ExecCGCommand(std::move(CommandGroup), Queue));
@@ -669,6 +664,15 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
 
   if (MPrintOptionsArray[BeforeAddCG])
     printGraphAsDot("before_addCG");
+
+  EmptyCommand *EmptyCmd = nullptr;
+
+  if (CGType == CG::CGTYPE::CODEPLAY_HOST_TASK) {
+    EmptyCmd = new EmptyCommand(Scheduler::getInstance().getDefaultHostQueue());
+    EmptyCmd->MIsBlockable = true;
+    EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueBlocked;
+    EmptyCmd->MBlockReason = Command::BlockReason::HostTask;
+  }
 
   for (Requirement *Req : Reqs) {
     MemObjRecord *Record = getOrInsertMemObjRecord(Queue, Req);
@@ -696,11 +700,22 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
 
     for (Command *Dep : Deps)
       NewCmd->addDep(DepDesc{Dep, Req, AllocaCmd});
+
+    if (CGType == CG::CGTYPE::CODEPLAY_HOST_TASK) {
+      EmptyCmd->addDep(DepDesc{NewCmd.get(), Req, AllocaCmd});
+
+      Req->addBlockedCommand(EmptyCmd);
+    }
+  }
+
+  if (CGType == CG::CGTYPE::CODEPLAY_HOST_TASK) {
+    NewCmd->addUser(EmptyCmd);
   }
 
   // Set new command as user for dependencies and update leaves.
   // Node dependencies can be modified further when adding the node to leaves,
   // iterate over their copy.
+  // FIXME employ a reference here to eliminate copying of a vector
   std::vector<DepDesc> Deps = NewCmd->MDeps;
   for (DepDesc &Dep : Deps) {
     Dep.MDepCommand->addUser(NewCmd.get());
@@ -708,6 +723,11 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
     MemObjRecord *Record = getMemObjRecord(Req->MSYCLMemObj);
     updateLeaves({Dep.MDepCommand}, Record, Req->MAccessMode);
     addNodeToLeaves(Record, NewCmd.get(), Req->MAccessMode);
+
+    if (CGType == CG::CGTYPE::CODEPLAY_HOST_TASK) {
+      updateLeaves({NewCmd.get()}, Record, Req->MAccessMode);
+      addNodeToLeaves(Record, EmptyCmd, Req->MAccessMode);
+    }
   }
 
   // Register all the events as dependencies
@@ -717,6 +737,7 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
 
   if (MPrintOptionsArray[AfterAddCG])
     printGraphAsDot("after_addCG");
+
   return NewCmd.release();
 }
 
@@ -837,6 +858,7 @@ void Scheduler::GraphBuilder::cleanupFinishedCommands(Command *FinishedCmd) {
       DepCmd->MUsers.erase(Cmd);
     }
     Cmd->getEvent()->setCommand(nullptr);
+
     delete Cmd;
   }
 }

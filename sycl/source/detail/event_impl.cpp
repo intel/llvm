@@ -52,9 +52,28 @@ event_impl::~event_impl() {
 void event_impl::waitInternal() const {
   if (!MHostEvent) {
     getPlugin().call<PiApiKind::piEventsWait>(1, &MEvent);
+    return;
   }
   // Waiting of host events is NOP so far as all operations on host device
   // are blocking.
+
+  while (MState != HES_Ready)
+    ;
+}
+
+void event_impl::setComplete() {
+  assert(MHostEvent && "setComplete is only allowed for host events");
+
+#ifndef NDEBUG
+  int Expected = HES_NotReady;
+  int Desired = HES_Ready;
+
+  bool Succeeded = MState.compare_exchange_strong(Expected, Desired);
+
+  assert(Succeeded && "Unexpected state of event");
+#else
+  MState.store(static_cast<int>(HES_Ready));
+#endif
 }
 
 const RT::PiEvent &event_impl::getHandleRef() const { return MEvent; }
@@ -70,9 +89,11 @@ void event_impl::setContextImpl(const ContextImplPtr &Context) {
   MContext = Context;
 }
 
+event_impl::event_impl() : MState(HES_Ready) {}
+
 event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
     : MEvent(Event), MContext(detail::getSyclObjImpl(SyclContext)),
-      MOpenCLInterop(true), MHostEvent(false) {
+      MOpenCLInterop(true), MHostEvent(false), MState(HES_Ready) {
 
   if (MContext->is_host()) {
     throw cl::sycl::invalid_parameter_error(
@@ -96,12 +117,16 @@ event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
 }
 
 event_impl::event_impl(QueueImplPtr Queue) : MQueue(Queue) {
-  if (Queue->is_host() &&
-      Queue->has_property<property::queue::enable_profiling>()) {
-    MHostProfilingInfo.reset(new HostProfilingInfo());
-    if (!MHostProfilingInfo)
-      throw runtime_error("Out of host memory", PI_OUT_OF_HOST_MEMORY);
-  }
+  if (Queue->is_host()) {
+    MState.store(HES_NotReady);
+
+    if (Queue->has_property<property::queue::enable_profiling>()) {
+      MHostProfilingInfo.reset(new HostProfilingInfo());
+      if (!MHostProfilingInfo)
+        throw runtime_error("Out of host memory", PI_OUT_OF_HOST_MEMORY);
+    }
+  } else
+    MState.store(HES_Ready);
 }
 
 void *event_impl::instrumentationProlog(string_class &Name, int32_t StreamID,
@@ -257,6 +282,13 @@ static uint64_t getTimestamp() {
 void HostProfilingInfo::start() { StartTime = getTimestamp(); }
 
 void HostProfilingInfo::end() { EndTime = getTimestamp(); }
+
+pi_native_handle event_impl::getNative() const {
+  auto Plugin = getPlugin();
+  pi_native_handle Handle;
+  Plugin.call<PiApiKind::piextEventGetNativeHandle>(getHandleRef(), &Handle);
+  return Handle;
+}
 
 } // namespace detail
 } // namespace sycl

@@ -1,6 +1,6 @@
 // RUN: %clangxx -fsycl %s -o %t.out %threads_lib
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: env SYCL_PI_TRACE=1 %CPU_RUN_PLACEHOLDER %t.out 2>&1 %CPU_CHECK_PLACEHOLDER
+// RUN: %CPU_RUN_PLACEHOLDER SYCL_PI_TRACE=1 %t.out 2>&1 %CPU_CHECK_PLACEHOLDER
 
 #include <atomic>
 #include <condition_variable>
@@ -27,10 +27,28 @@ void Thread1Fn(Context &Ctx) {
   {
     S::accessor<int, 1, S::access::mode::write,
                 S::access::target::host_buffer>
-        Acc(Ctx.Buf2);
+        Acc(Ctx.Buf1);
 
     for (size_t Idx = 0; Idx < Acc.get_count(); ++Idx)
       Acc[Idx] = -1;
+  }
+
+  {
+    S::accessor<int, 1, S::access::mode::write,
+                S::access::target::host_buffer>
+        Acc(Ctx.Buf2);
+
+    for (size_t Idx = 0; Idx < Acc.get_count(); ++Idx)
+      Acc[Idx] = -2;
+  }
+
+  {
+    S::accessor<int, 1, S::access::mode::write,
+                S::access::target::host_buffer>
+        Acc(Ctx.Buf3);
+
+    for (size_t Idx = 0; Idx < Acc.get_count(); ++Idx)
+      Acc[Idx] = -2;
   }
 
   // 1. submit task writing to buffer 1
@@ -99,8 +117,16 @@ void Thread1Fn(Context &Ctx) {
                 S::access::target::host_buffer>
         Acc(Ctx.Buf3);
 
-    for (size_t Idx = 0; Idx < Acc.get_count(); ++Idx)
-      assert(Acc[Idx] == Idx && "Invalid data in third buffer");
+    bool Failure = false;
+
+    for (size_t Idx = 0; Idx < Acc.get_count(); ++Idx) {
+      fprintf(stderr, "Third buffer [%3zu] = %i\n", Idx, Acc[Idx]);
+
+      Failure |= (Acc[Idx] != Idx);
+      //assert(Acc[Idx] == Idx && "Invalid data in third buffer");
+    }
+
+    assert(!Failure && "Invalid data in third buffer");
   }
 }
 
@@ -143,14 +169,14 @@ void test() {
                 S::access::target::host_buffer>
         ResultAcc(Ctx.Buf2);
 
-    bool failure = false;
+    bool Failure = false;
     for (size_t Idx = 0; Idx < ResultAcc.get_count(); ++Idx) {
-      fprintf(stderr, "Third buffer [%3zu] = %i\n", Idx, ResultAcc[Idx]);
+      fprintf(stderr, "Second buffer [%3zu] = %i\n", Idx, ResultAcc[Idx]);
 
-      failure |= (ResultAcc[Idx] != Idx);
+      Failure |= (ResultAcc[Idx] != Idx);
     }
 
-    assert(!failure && "Invalid data in result buffer");
+    assert(!Failure && "Invalid data in result buffer");
   }
 }
 
@@ -166,13 +192,10 @@ int main() {
 // CHECK:---> piEnqueueKernelLaunch(
 // prepare for host task
 // CHECK:---> piEnqueueMemBufferMap(
-// creation of host task self-event
-// CHECK:---> piEventCreate(
-// wait on dependencies of host task
-// CHECK:---> piEventsWait(
-// host task is done, set status of self-event
-// CHECK:---> piEventSetStatus(
 // launch of CopierTask kernel
 // CHECK:---> piKernelCreate(
 // CHECK: CopierTask
 // CHECK:---> piEnqueueKernelLaunch(
+// TODO need to check for piEventsWait as "wait on dependencies of host task".
+// At the same time this piEventsWait may occur anywhere after
+// piEnqueueMemBufferMap ("prepare for host task").
