@@ -53,12 +53,12 @@ vector_class<device> device::get_devices(info::device_type deviceType) {
     for (const auto &plt : platform::get_platforms()) {
       // If SYCL_BE is set then skip platforms which doesn't have specified
       // backend.
-      if (std::getenv("SYCL_BE")) {
-        if (plt.is_host() ||
-            detail::getSyclObjImpl(plt)->getPlugin().getBackend() !=
-                detail::SYCLConfig<detail::SYCL_BE>::get())
+      backend *ForcedBackend = detail::SYCLConfig<detail::SYCL_BE>::get();
+      if (ForcedBackend)
+        if (!plt.is_host() &&
+            (detail::getSyclObjImpl(plt)->getPlugin().getBackend() !=
+             *ForcedBackend))
           continue;
-      }
       if (includeHost && plt.is_host()) {
         vector_class<device> host_device(
             plt.get_devices(info::device_type::host));

@@ -38,12 +38,12 @@ device device_selector::select_device() const {
       string_class PlatformVersion = dev.get_info<info::device::platform>()
                                          .get_info<info::platform::version>();
       string_class DeviceName = dev.get_info<info::device::name>();
-      std::cout << detail::pi::traceLabel()
+      std::cout << "SYCL_PI_TRACE[all]: "
                 << "select_device(): -> score = " << score << std::endl
-                << detail::pi::traceLabel() << "  platform: " << PlatformVersion
-                << std::endl
-                << detail::pi::traceLabel() << "  device: " << DeviceName
-                << std::endl;
+                << "SYCL_PI_TRACE[all]: "
+                << "  platform: " << PlatformVersion << std::endl
+                << "SYCL_PI_TRACE[all]: "
+                << "  device: " << DeviceName << std::endl;
     }
 
     // SYCL spec says: "If more than one device receives the high score then
@@ -63,11 +63,12 @@ device device_selector::select_device() const {
       string_class PlatformVersion = res->get_info<info::device::platform>()
                                          .get_info<info::platform::version>();
       string_class DeviceName = res->get_info<info::device::name>();
-      std::cout << detail::pi::traceLabel() << "Selected device ->" << std::endl
-                << detail::pi::traceLabel() << "  platform: " << PlatformVersion
-                << std::endl
-                << detail::pi::traceLabel() << "  device: " << DeviceName
-                << std::endl;
+      std::cout << "SYCL_PI_TRACE[all]: "
+                << "Selected device ->" << std::endl
+                << "SYCL_PI_TRACE[all]: "
+                << "  platform: " << PlatformVersion << std::endl
+                << "SYCL_PI_TRACE[all]: "
+                << "  device: " << DeviceName << std::endl;
     }
     return *res;
   }

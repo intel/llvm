@@ -55,8 +55,6 @@ enum TraceLevel {
 // Return true if we want to trace PI related activities.
 bool trace(TraceLevel level);
 
-const char *traceLabel();
-
 #ifdef SYCL_RT_OS_WINDOWS
 #define OPENCL_PLUGIN_NAME "pi_opencl.dll"
 #define CUDA_PLUGIN_NAME "pi_cuda.dll"

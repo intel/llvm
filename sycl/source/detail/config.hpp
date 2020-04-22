@@ -106,14 +106,15 @@ template <> class SYCLConfig<SYCL_BE> {
   using BaseT = SYCLConfigBase<SYCL_BE>;
 
 public:
-  static backend get() {
+  static backend *get() {
     static bool Initialized = false;
+    static bool IsSet = false;
     static backend Backend = backend::opencl;
 
     // Configuration parameters are processed only once, like reading a string
     // from environment and converting it into a typed object.
     if (Initialized)
-      return Backend;
+      return IsSet ? &Backend : nullptr;
 
     const char *ValStr = BaseT::getRawValue();
     const std::map<std::string, backend> SyclBeMap{
@@ -124,9 +125,12 @@ public:
         pi::die("Invalid backend. "
                 "Valid values are PI_OPENCL/PI_CUDA");
       Backend = It->second;
+      Initialized = true;
+      IsSet = true;
+      return &Backend;
     }
     Initialized = true;
-    return Backend;
+    return nullptr;
   }
 };
 

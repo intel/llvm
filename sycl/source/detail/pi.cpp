@@ -195,21 +195,6 @@ bool trace(TraceLevel Level) {
   return (TraceLevelMask & Level) == Level;
 }
 
-const char *traceLabel() {
-  int TraceLevelMask = SYCLConfig<SYCL_PI_TRACE>::get();
-  switch (TraceLevelMask) {
-  case PI_TRACE_BASIC:
-    return "SYCL_PI_TRACE[PI_TRACE_BASIC]: ";
-  case PI_TRACE_CALLS:
-    return "SYCL_PI_TRACE[PI_TRACE_CALLS]: ";
-  case PI_TRACE_ALL:
-    return "SYCL_PI_TRACE[PI_TRACE_ALL]: ";
-  default:
-    assert("Unsupported trace level");
-  }
-  return nullptr;
-}
-
 // Initializes all available Plugins.
 vector_class<plugin> initialize() {
   vector_class<plugin> Plugins;
@@ -217,7 +202,8 @@ vector_class<plugin> initialize() {
   findPlugins(PluginNames);
 
   if (PluginNames.empty() && trace(PI_TRACE_ALL))
-    std::cerr << traceLabel() << "No Plugins Found." << std::endl;
+    std::cerr << "SYCL_PI_TRACE[all]: "
+              << "No Plugins Found." << std::endl;
 
   PiPlugin PluginInformation;
   for (unsigned int I = 0; I < PluginNames.size(); I++) {
@@ -225,7 +211,8 @@ vector_class<plugin> initialize() {
 
     if (!Library) {
       if (trace(PI_TRACE_ALL)) {
-        std::cerr << traceLabel() << "Check if plugin is present. "
+        std::cerr << "SYCL_PI_TRACE[all]: "
+                  << "Check if plugin is present. "
                   << "Failed to load plugin: " << PluginNames[I].first
                   << std::endl;
       }
@@ -234,25 +221,27 @@ vector_class<plugin> initialize() {
 
     if (!bindPlugin(Library, &PluginInformation)) {
       if (trace(PI_TRACE_ALL)) {
-        std::cerr << traceLabel() << "Failed to bind PI APIs to the plugin: "
+        std::cerr << "SYCL_PI_TRACE[all]: "
+                  << "Failed to bind PI APIs to the plugin: "
                   << PluginNames[I].first << std::endl;
       }
       continue;
     }
-    if (SYCLConfig<SYCL_BE>::get() == backend::opencl &&
-        PluginNames[I].first.find("opencl") != std::string::npos) {
+    backend *BE = SYCLConfig<SYCL_BE>::get();
+    if (!BE || (*BE == backend::opencl &&
+                PluginNames[I].first.find("opencl") != std::string::npos)) {
       // Use the OpenCL plugin as the GlobalPlugin
       GlobalPlugin =
           std::make_shared<plugin>(PluginInformation, backend::opencl);
-    }
-    if (SYCLConfig<SYCL_BE>::get() == backend::cuda &&
-        PluginNames[I].first.find("cuda") != std::string::npos) {
+    } else if (*BE == backend::cuda &&
+               PluginNames[I].first.find("cuda") != std::string::npos) {
       // Use the CUDA plugin as the GlobalPlugin
       GlobalPlugin = std::make_shared<plugin>(PluginInformation, backend::cuda);
     }
     Plugins.emplace_back(plugin(PluginInformation, PluginNames[I].second));
     if (trace(TraceLevel::PI_TRACE_BASIC))
-      std::cerr << traceLabel() << "Plugin found and successfully loaded: "
+      std::cerr << "SYCL_PI_TRACE[basic]: "
+                << "Plugin found and successfully loaded: "
                 << PluginNames[I].first << std::endl;
   }
 
