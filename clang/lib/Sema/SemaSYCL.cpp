@@ -628,6 +628,15 @@ static ParamDesc makeParamDesc(const FieldDecl *Src, QualType Ty) {
                          Ctx.getTrivialTypeSourceInfo(Ty));
 }
 
+// Creates a parameter descriptor for kernel object
+static ParamDesc makeParamDesc(const CXXRecordDecl *Src, QualType Ty) {
+  ASTContext &Ctx = Src->getASTContext();
+  // Should the name of parameter be fixed as _arg_kernel_object?
+  std::string Name = (Twine("_arg_") + Src->getName()).str();
+  return std::make_tuple(Ty, &Ctx.Idents.get(Name),
+                         Ctx.getTrivialTypeSourceInfo(Ty));
+}
+
 static ParamDesc makeParamDesc(ASTContext &Ctx, const CXXBaseSpecifier &Src,
                                QualType Ty) {
   // TODO: There is no name for the base available, but duplicate names are
@@ -721,12 +730,17 @@ static void VisitAccessorWrapper(CXXRecordDecl *Owner, ParentTy &Parent,
 // A visitor function that dispatches to functions as defined in
 // SyclKernelFieldHandler for the purposes of kernel generation.
 template <typename... Handlers>
-static void VisitRecordFields(RecordDecl::field_range Fields,
+static void VisitRecordFields(CXXRecordDecl *KernelObject,
                               Handlers &... handlers) {
+
+  QualType KernelType = QualType(KernelObject->getTypeForDecl(), 0);
+  (void)std::initializer_list<int>{
+      (handlers.handleKernelObject(KernelObject, KernelType), 0)...};
+
 #define KF_FOR_EACH(FUNC)                                                      \
   (void)std::initializer_list<int> { (handlers.FUNC(Field, FieldTy), 0)... }
 
-  for (const auto &Field : Fields) {
+  for (const auto &Field : KernelObject->fields()) {
     QualType FieldTy = Field->getType();
 
     if (Util::isSyclAccessorType(FieldTy))
@@ -781,6 +795,7 @@ public:
   virtual void handlePointerType(FieldDecl *, QualType) {}
   virtual void handleArrayType(FieldDecl *, QualType) {}
   virtual void handleScalarType(FieldDecl *, QualType) {}
+  virtual void handleKernelObject(CXXRecordDecl *, QualType) {}
   // Most handlers shouldn't be handling this, just the field checker.
   virtual void handleOtherType(FieldDecl *, QualType) {}
 
@@ -830,6 +845,10 @@ public:
             << 1 << FieldTy;
     }
   }
+  void handleKernelObject(CXXRecordDecl *KernelObject,
+                          QualType KernelType) final {
+    // Do we need any diagnostics for Kernel Object?
+  }
 
   // We should be able to handle this, so we made it part of the visitor, but
   // this is 'to be implemented'.
@@ -858,6 +877,11 @@ class SyclKernelDeclCreator
   void addParam(const FieldDecl *FD, QualType FieldTy) {
     ParamDesc newParamDesc = makeParamDesc(FD, FieldTy);
     addParam(newParamDesc, FieldTy);
+  }
+
+  void addParam(const CXXRecordDecl *KernelObject, QualType KernelType) {
+    ParamDesc newParamDesc = makeParamDesc(KernelObject, KernelType);
+    addParam(newParamDesc, KernelType);
   }
 
   void addParam(const CXXBaseSpecifier &BS, QualType FieldTy) {
@@ -1000,6 +1024,11 @@ public:
   void handleSyclStreamType(const CXXBaseSpecifier &, QualType FieldTy) final {
     // FIXME SYCL stream should be usable as a base type
     // See https://github.com/intel/llvm/issues/1552
+  }
+
+  void handleKernelObject(CXXRecordDecl *KernelObject,
+                          QualType KernelType) final {
+    addParam(KernelObject, KernelType);
   }
 
   void setBody(CompoundStmt *KB) { KernelDecl->setBody(KB); }
@@ -1376,6 +1405,14 @@ public:
     CurStruct = FD->getType()->getAsCXXRecordDecl();
     CurOffset += SemaRef.getASTContext().getFieldOffset(FD) / 8;
   }
+  void handleKernelObject(CXXRecordDecl *KernelObject,
+                          QualType KernelType) final {
+    uint64_t Size =
+        SemaRef.getASTContext().getTypeSizeInChars(KernelType).getQuantity();
+    // Offset for kernel object is 0
+    Header.addParamDesc(SYCLIntegrationHeader::kind_std_layout,
+                        static_cast<unsigned>(Size), 0);
+  }
 
   void leaveStruct(const CXXRecordDecl *RD, FieldDecl *FD) final {
     CurStruct = RD;
@@ -1447,7 +1484,7 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
       StableName);
 
   ConstructingOpenCLKernel = true;
-  VisitRecordFields(KernelLambda->fields(), checker, kernel_decl, kernel_body,
+  VisitRecordFields(KernelLambda, checker, kernel_decl, kernel_body,
                     int_header);
   ConstructingOpenCLKernel = false;
 }
