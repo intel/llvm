@@ -280,7 +280,7 @@ public:
       accessor<T, Dims, AccMode, access::target::global_buffer, IsPlaceholder>;
   static constexpr access::mode accessor_mode = AccMode;
   static constexpr int accessor_dim = Dims;
-  static constexpr int buffer_dim = std::max(Dims, 1);
+  static constexpr int buffer_dim = (Dims == 0) ? 1 : Dims;
 
   // Only scalar (i.e. 0-dim and 1-dim with 1 element) reductions supported now.
   // TODO: suport (Dims > 1) and placeholder accessors/reductions.
