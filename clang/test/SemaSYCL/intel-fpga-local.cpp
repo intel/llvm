@@ -551,7 +551,7 @@ void attr_on_func_arg([[intelfpga::private_copies(8)]] int pc) {}
 
 //expected-error@+1{{attribute only applies to constant variables, local variables, static variables, slave memory arguments, and non-static data members}}
 [[intelfpga::force_pow2_depth(0)]]
-__attribute__((opencl_constant)) unsigned int ocl_const_force_p2d[64] = {1, 2, 3};
+__attribute__((opencl_global)) unsigned int ocl_glob_force_p2d[64] = {1, 2, 3};
 
 //expected-no-error@+1
 void force_p2d_attr_on_func_arg([[intelfpga::force_pow2_depth(0)]] int pc) {}
