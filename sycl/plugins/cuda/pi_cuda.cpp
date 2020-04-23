@@ -3396,9 +3396,19 @@ pi_result cuda_piEnqueueMemUnmap(pi_queue command_queue, pi_mem memobj,
 pi_result cuda_piextUSMHostAlloc(void **result_ptr, pi_context context,
                                  pi_usm_mem_properties *properties, size_t size,
                                  pi_uint32 alignment) {
+  // from empirical testing with CUDA 10.2 on a Tesla K40
+  static constexpr pi_uint32 max_alignment = 0x200;
+
+  // enforce a valid pointer to the allocated memory
   assert(result_ptr != nullptr);
+  // check the the context is valid
   assert(context != nullptr);
+  // check that the property list is empty
   assert(properties == nullptr);
+  // check that the alignment is not larger than max_alignment, and is either 0
+  // or a power of 2
+  assert(alignment <= max_alignment && (alignment & (alignment - 1)) == 0);
+
   pi_result result = PI_SUCCESS;
   try {
     ScopedContext active(context);
@@ -3406,7 +3416,9 @@ pi_result cuda_piextUSMHostAlloc(void **result_ptr, pi_context context,
   } catch (pi_result error) {
     result = error;
   }
-  assert(reinterpret_cast<std::uintptr_t>(*result_ptr) % alignment == 0);
+  // check that the result is suitable aligned
+  assert((alignment == 0) ||
+         (reinterpret_cast<std::uintptr_t>(*result_ptr) % alignment == 0));
   return result;
 }
 
@@ -3416,10 +3428,21 @@ pi_result cuda_piextUSMDeviceAlloc(void **result_ptr, pi_context context,
                                    pi_device device,
                                    pi_usm_mem_properties *properties,
                                    size_t size, pi_uint32 alignment) {
+  // from empirical testing with CUDA 10.2 on a Tesla K40
+  static constexpr pi_uint32 max_alignment = 0x200;
+
+  // enforce a valid pointer to the allocated memory
   assert(result_ptr != nullptr);
+  // check the the context is valid
   assert(context != nullptr);
+  // check that the device is valid
   assert(device != nullptr);
+  // check that the property list is empty
   assert(properties == nullptr);
+  // check that the alignment is not larger than max_alignment, and is either 0
+  // or a power of 2
+  assert(alignment <= max_alignment && (alignment & (alignment - 1)) == 0);
+
   pi_result result = PI_SUCCESS;
   try {
     ScopedContext active(context);
@@ -3427,7 +3450,9 @@ pi_result cuda_piextUSMDeviceAlloc(void **result_ptr, pi_context context,
   } catch (pi_result error) {
     result = error;
   }
-  assert(reinterpret_cast<std::uintptr_t>(*result_ptr) % alignment == 0);
+  // check that the result is suitable aligned
+  assert((alignment == 0) ||
+         (reinterpret_cast<std::uintptr_t>(*result_ptr) % alignment == 0));
   return result;
 }
 
@@ -3437,10 +3462,21 @@ pi_result cuda_piextUSMSharedAlloc(void **result_ptr, pi_context context,
                                    pi_device device,
                                    pi_usm_mem_properties *properties,
                                    size_t size, pi_uint32 alignment) {
+  // from empirical testing with CUDA 10.2 on a Tesla K40
+  static constexpr pi_uint32 max_alignment = 0x200;
+
+  // enforce a valid pointer to the allocated memory
   assert(result_ptr != nullptr);
+  // check the the context is valid
   assert(context != nullptr);
+  // check that the device is valid
   assert(device != nullptr);
+  // check that the property list is empty
   assert(properties == nullptr);
+  // check that the alignment is not larger than max_alignment, and is either 0
+  // or a power of 2
+  assert(alignment <= max_alignment && (alignment & (alignment - 1)) == 0);
+
   pi_result result = PI_SUCCESS;
   try {
     ScopedContext active(context);
@@ -3449,7 +3485,9 @@ pi_result cuda_piextUSMSharedAlloc(void **result_ptr, pi_context context,
   } catch (pi_result error) {
     result = error;
   }
-  assert(reinterpret_cast<std::uintptr_t>(*result_ptr) % alignment == 0);
+  // check that the result is suitable aligned
+  assert((alignment == 0) ||
+         (reinterpret_cast<std::uintptr_t>(*result_ptr) % alignment == 0));
   return result;
 }
 
