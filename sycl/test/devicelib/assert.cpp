@@ -75,11 +75,11 @@
 //
 // Overall this sounds stable enough. What could possibly go wrong?
 //
-// RUN: env SYCL_PI_TRACE=1 SHOULD_CRASH=1 CL_CONFIG_USE_VECTORIZER=False SYCL_DEVICE_TYPE=CPU EXPECTED_SIGNAL=SIGABRT SKIP_IF_NO_EXT=1 %t.out 2>%t.stderr.native >%t.stdout.native
+// RUN: env SYCL_PI_TRACE=2 SHOULD_CRASH=1 CL_CONFIG_USE_VECTORIZER=False SYCL_DEVICE_TYPE=CPU EXPECTED_SIGNAL=SIGABRT SKIP_IF_NO_EXT=1 %t.out 2>%t.stderr.native >%t.stdout.native
 // RUN: FileCheck %s --input-file %t.stdout.native --check-prefixes=CHECK-NATIVE || FileCheck %s --input-file %t.stderr.native --check-prefix CHECK-NOTSUPPORTED
 // RUN: FileCheck %s --input-file %t.stderr.native --check-prefixes=CHECK-MESSAGE || FileCheck %s --input-file %t.stderr.native --check-prefix CHECK-NOTSUPPORTED
 //
-// RUN: env SYCL_PI_TRACE=1 SYCL_DEVICELIB_INHIBIT_NATIVE=cl_intel_devicelib_assert CL_CONFIG_USE_VECTORIZER=False SYCL_DEVICE_TYPE=CPU EXPECTED_SIGNAL=SIGSEGV %t.out >%t.stdout.pi.fallback
+// RUN: env SYCL_PI_TRACE=2 SYCL_DEVICELIB_INHIBIT_NATIVE=cl_intel_devicelib_assert CL_CONFIG_USE_VECTORIZER=False SYCL_DEVICE_TYPE=CPU EXPECTED_SIGNAL=SIGSEGV %t.out >%t.stdout.pi.fallback
 // RUN: env SHOULD_CRASH=1 SYCL_DEVICELIB_INHIBIT_NATIVE=cl_intel_devicelib_assert CL_CONFIG_USE_VECTORIZER=False SYCL_DEVICE_TYPE=CPU EXPECTED_SIGNAL=SIGSEGV %t.out >%t.stdout.msg.fallback
 // RUN: FileCheck %s --input-file %t.stdout.pi.fallback --check-prefixes=CHECK-FALLBACK
 // RUN: FileCheck %s --input-file %t.stdout.msg.fallback --check-prefixes=CHECK-MESSAGE

@@ -11,8 +11,8 @@ subject to change. Do not rely on these variables in production code.
 
 | Environment variable | Values | Description |
 | -------------------- | ------ | ----------- |
-| SYCL_PI_TRACE | Any(\*) | Force tracing of PI calls to stderr. |
-| SYCL_BE | PI_OPENCL, PI_CUDA, PI_OTHER | When SYCL RT is built with PI, this controls which plugin is used by the default device selector. Default value is PI_OPENCL. |
+| SYCL_PI_TRACE | Described [below](#sycl_pi_trace-options)  | Enable specified level of tracing for PI. |
+| SYCL_BE | PI_OPENCL, PI_CUDA | Force SYCL RT to consider only devices of the specified backend during the device selection. |
 | SYCL_DEVICE_TYPE | One of: CPU, GPU, ACC, HOST | Force SYCL to use the specified device type. If unset, default selection rules are applied. If set to any unlisted value, this control has no effect. If the requested device type is not found, a `cl::sycl::runtime_error` exception is thrown. If a non-default device selector is used, a device must satisfy both the selector and this control to be chosen. This control only has effect on devices created with a selector. |
 | SYCL_PROGRAM_COMPILE_OPTIONS | String of valid OpenCL compile options | Override compile options for all programs. |
 | SYCL_PROGRAM_LINK_OPTIONS | String of valid OpenCL link options | Override link options for all programs. |
@@ -39,3 +39,12 @@ SYCL_PRINT_EXECUTION_GRAPH can accept one or more comma separated values from th
 | after_addHostAcc | print graph after addHostAccessor method |
 | always | print graph before and after each of the above methods |
 
+### SYCL_PI_TRACE Options
+
+SYCL_PI_TRACE accepts a bit-mask. Supported tracing levels are in the table below
+
+| Option | Description |
+| ------ | ----------- |
+| 1 | Enable basic tracing, which is tracing of PI plugins/devices discovery |
+| 2 | Enable tracing of the PI calls |
+| -1 | Enable all levels of tracing |
