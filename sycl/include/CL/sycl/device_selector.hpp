@@ -44,7 +44,6 @@ public:
 ///
 /// \ingroup sycl_api_dev_sel
 class __SYCL_EXPORT default_selector : public device_selector {
->>>>>>> origin/sycl
 public:
   int operator()(const device &dev) const override;
 };
