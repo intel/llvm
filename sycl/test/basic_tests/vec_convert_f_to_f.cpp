@@ -31,7 +31,6 @@ struct helper<0> {
     const T xs = x.template swizzle<0>();
     const T ys = y.template swizzle<0>();
     assert(xs == ys);
-    }
   }
 };
 

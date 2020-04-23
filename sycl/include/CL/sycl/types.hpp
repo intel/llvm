@@ -219,13 +219,13 @@ using is_sint_to_from_uint = std::integral_constant<
 template <typename T, typename R>
 using is_sint_to_float =
     std::integral_constant<bool, std::is_integral<T>::value &&
-                                    !(std::is_unsigned<T>::value) &&                                    
-                                     detail::is_floating_point<R>::value>;      
+                                     !(std::is_unsigned<T>::value) &&
+                                     detail::is_floating_point<R>::value>;
 
 template <typename T, typename R>
 using is_uint_to_float =
-     std::integral_constant<bool, std::is_unsigned<T>::value &&
-                                     detail::is_floating_point<R>::value>;                              
+    std::integral_constant<bool, std::is_unsigned<T>::value &&
+                                     detail::is_floating_point<R>::value>;
 
 template <typename T, typename R>
 using is_int_to_float =
@@ -444,9 +444,9 @@ __SYCL_GENERATE_CONVERT_IMPL(UToF, double)
 
 #define __SYCL_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE(RoundingMode,           \
                                                        RoundingModeCondition)  \
-__SYCL_GENERATE_CONVERT_IMPL(double, RoundingMode, RoundingModeCondition)      \
-__SYCL_GENERATE_CONVERT_IMPL(float, RoundingMode, RoundingModeCondition)       \
-__SYCL_GENERATE_CONVERT_IMPL(half, RoundingMode, RoundingModeCondition)
+  __SYCL_GENERATE_CONVERT_IMPL(double, RoundingMode, RoundingModeCondition)    \
+  __SYCL_GENERATE_CONVERT_IMPL(float, RoundingMode, RoundingModeCondition)     \
+  __SYCL_GENERATE_CONVERT_IMPL(half, RoundingMode, RoundingModeCondition)
 
 __SYCL_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE(rte, RteOrAutomatic)
 __SYCL_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE(rtz, Rtz)
@@ -456,7 +456,7 @@ __SYCL_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE(rtn, Rtn)
 #undef __SYCL_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE
 #undef __SYCL_GENERATE_CONVERT_IMPL
 
-//float to int
+// float to int
 #define __SYCL_GENERATE_CONVERT_IMPL(SPIRVOp, DestType, RoundingMode,          \
                                      RoundingModeCondition)                    \
   template <typename T, typename R, rounding_mode roundingMode>                \
@@ -491,7 +491,7 @@ __SYCL_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE(rte, RteOrAutomatic)
 __SYCL_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE(rtz, Rtz)
 __SYCL_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE(rtp, Rtp)
 __SYCL_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE(rtn, Rtn)
- 
+
 #undef __SYCL_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE
 #undef __SYCL_GENERATE_CONVERT_IMPL
 

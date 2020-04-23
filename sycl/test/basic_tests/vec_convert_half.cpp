@@ -17,9 +17,11 @@
 
 using namespace cl::sycl;
 
-template <typename T, typename convertT, int roundingMode> class kernel_name;
+template <typename T, typename convertT, int roundingMode>
+class kernel_name;
 
-template <int N> struct helper;
+template <int N>
+struct helper;
 
 template <> struct helper<0> {
   template <typename T, int NumElements>
@@ -29,9 +31,10 @@ template <> struct helper<0> {
     const T ys = y.template swizzle<0>();
     assert(xs == ys);
   }
-};  
+};
 
-template <int N> struct helper {
+template <int N>
+struct helper {
   template <typename T, int NumElements>
   static void compare(const vec<T, NumElements> &x,
                       const vec<T, NumElements> &y) {
@@ -52,8 +55,8 @@ void test(const vec<T, NumElements> &ToConvert,
     queue Queue;
 
     cl::sycl::device D = Queue.get_device();
-    if (!D.has_extension("cl_khr_fp16"))      
-        exit(0);      
+    if (!D.has_extension("cl_khr_fp16"))
+      exit(0);
 
     Queue.submit([&](handler &CGH) {
       accessor<vec<convertT, NumElements>, 1, access::mode::write> Accessor(
@@ -66,7 +69,7 @@ void test(const vec<T, NumElements> &ToConvert,
   helper<NumElements - 1>::compare(Converted, Expected);
 }
 
-int main(){
+int main() {
   //automatic
   test<double, half, 4, rounding_mode::automatic>(
       double4{12345.0, 100.0, -50.0, 11111.111},
