@@ -53,6 +53,9 @@ template <> struct maximum<void> {
 #endif
 
 template <typename T = void> using plus = std::plus<T>;
+template <typename T = void> using bit_or = std::bit_or<T>;
+template <typename T = void> using bit_xor = std::bit_xor<T>;
+template <typename T = void> using bit_and = std::bit_and<T>;
 
 } // namespace intel
 
