@@ -17,11 +17,13 @@
 
 using namespace cl::sycl;
 
-template <typename T, typename convertT, int roundingMode> class kernel_name;
+template <typename T, typename convertT, int roundingMode>
+class kernel_name;
 
 template <int N> struct helper;
 
-template <> struct helper<0> {
+template <>
+struct helper<0> {
   template <typename T, int NumElements>
   static void compare(const vec<T, NumElements> &x,
                       const vec<T, NumElements> &y) {
@@ -29,9 +31,10 @@ template <> struct helper<0> {
     const T ys = y.template swizzle<0>();
     assert(xs == ys);
   }
-};  
+};
 
-template <int N> struct helper {
+template <int N>
+struct helper {
   template <typename T, int NumElements>
   static void compare(const vec<T, NumElements> &x,
                       const vec<T, NumElements> &y) {
@@ -68,7 +71,7 @@ int main() {
       char8{44, -44, 100, -50, -128, 127, 0, 1});
   test<int, short, 8, rounding_mode::automatic>(
       int8{100000, -100000, 100, -50, 32768, -32769, 0, 1},
-      short8{-31072, 31072, 100, -50, -32768, 32767, 0, 1});  
+      short8{-31072, 31072, 100, -50, -32768, 32767, 0, 1});
   test<long, int, 8, rounding_mode::automatic>(
       long8{3000000000, -3000000000, 100, -50, 2147483648, -2147483649, 0, 1},
       int8{-1294967296, 1294967296, 100, -50, -2147483648, 2147483647, 0, 1}); 

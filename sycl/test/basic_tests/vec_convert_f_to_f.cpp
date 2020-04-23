@@ -12,33 +12,43 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl.hpp>
-
+#include <iomanip> 
 #include <cassert>
 
 using namespace cl::sycl;
 
-template <typename T, typename convertT, int roundingMode> class kernel_name;
+template <typename T, typename convertT, int roundingMode>
+class kernel_name;
 
-template <int N> struct helper;
+template <int N>
+struct helper;
 
-template <> struct helper<0> {
+template <>
+struct helper<0> {
   template <typename T, int NumElements>
   static void compare(const vec<T, NumElements> &x,
                       const vec<T, NumElements> &y) {
     const T xs = x.template swizzle<0>();
     const T ys = y.template swizzle<0>();
-    assert(xs == ys);
+      if (xs != ys) {
+      std::cerr << "sometihng failed " << std::setprecision(30) << xs << " || "<< ys;;
+      exit(1);
+    }
   }
 };
 
-template <int N> struct helper {
+template <int N>
+struct helper {
   template <typename T, int NumElements>
   static void compare(const vec<T, NumElements> &x,
                       const vec<T, NumElements> &y) {
     const T xs = x.template swizzle<N>();
     const T ys = y.template swizzle<N>();
     helper<N - 1>::compare(x, y);
-    assert(xs == ys);
+        if (xs != ys) {
+      std::cerr << "sometihng failed " << std::setprecision(30) << xs << " || "<< ys;;
+      exit(1);
+    }
   }
 };
 
@@ -74,7 +84,7 @@ int main() {
   test<double, float, 8, rounding_mode::rte>(
       double8{1234567890.0, 987654304.0, 100.0, -50.0, 111111.111, 625.625, 50625.0009765625, -2500000.875},
       float8{1234567936.0f, 987654272.0f, 100.0f, -50.0f, 111111.109375f, 625.625f, 50625.0f, -2500001.0f});
-  test<float, double, 8, rounding_mode::automatic>(
+  test<float, double, 8, rounding_mode::rte>(
       float8{1234567936.0f, 987654272.0f, 100.0f, -50.0f, 111111.109375f, 625.625f, 50625.0f, -2500001.0f},
       double8{1234567936.0, 987654272.0, 100.0, -50.0, 111111.109375, 625.625, 50625.0, -2500001.0});
 
@@ -82,7 +92,7 @@ int main() {
   test<double, float, 8, rounding_mode::rtp>(
       double8{1234567890.0, 987654304.0, 100.0, -50.0, 111111.111, 625.625, 50625.0009765625, -2500000.875},
       float8{1234567936.0f, 987654336.0f, 100.0f, -50.0f, 111111.1171875f, 625.625f, 50625.00390625f, -2500000.75f});
-  test<float, double, 8, rounding_mode::automatic>(
+  test<float, double, 8, rounding_mode::rtp>(
       float8{1234567936.0f, 987654272.0f, 100.0f, -50.0f, 111111.109375f, 625.625f, 50625.0f, -2500001.0f},
       double8{1234567936.0, 987654272.0, 100.0, -50.0, 111111.109375, 625.625, 50625.0, -2500001.0});
 
@@ -90,15 +100,15 @@ int main() {
   test<double, float, 8, rounding_mode::rtn>(
       double8{1234567890.0, 987654304.0, 100.0, -50.0, 111111.111, 625.625, 50625.0009765625, -2500000.875},
       float8{1234567808.0f, 987654272.0f, 100.0f, -50.0f, 111111.109375f, 625.625f, 50625.0f, -2500001.0f});
-  test<float, double, 8, rounding_mode::automatic>(
+  test<float, double, 8, rounding_mode::rtn>(
       float8{1234567936.0f, 987654272.0f, 100.0f, -50.0f, 111111.109375f, 625.625f, 50625.0f, -2500001.0f},
       double8{1234567936.0, 987654272.0, 100.0, -50.0, 111111.109375, 625.625, 50625.0, -2500001.0});
   
   // rtz
   test<double, float, 8, rounding_mode::rtz>(
       double8{1234567890.0, 987654304.0, 100.0, -50.0, 111111.111, 625.625, 50625.0009765625, -2500000.875},
-      float8{1234567808.0f, 987654272.0f, 100.0f, -50.0f, 111111.109375f, 625.625f, 50625.0f, -2500000.75f});  
-  test<float, double, 8, rounding_mode::automatic>(
+      float8{1234567808.0f, 987654272.0f, 100.0f, -50.0f, 111111.109375f, 625.625f, 50625.0f, -2500000.75f});
+  test<float, double, 8, rounding_mode::rtz>(
       float8{1234567936.0f, 987654272.0f, 100.0f, -50.0f, 111111.109375f, 625.625f, 50625.0f, -2500001.0f},
       double8{1234567936.0, 987654272.0, 100.0, -50.0, 111111.109375, 625.625, 50625.0, -2500001.0});  
   
