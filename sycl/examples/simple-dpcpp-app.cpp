@@ -1,6 +1,6 @@
 #include <CL/sycl.hpp>
 
-using namespace sycl;
+using namespace cl::sycl;
 
 int main() {
   // Create a buffer of 4 ints to be used inside the kernel code.
