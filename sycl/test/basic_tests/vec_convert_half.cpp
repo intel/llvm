@@ -23,7 +23,8 @@ class kernel_name;
 template <int N>
 struct helper;
 
-template <> struct helper<0> {
+template <>
+struct helper<0> {
   template <typename T, int NumElements>
   static void compare(const vec<T, NumElements> &x,
                       const vec<T, NumElements> &y) {
