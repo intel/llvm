@@ -36,7 +36,7 @@ target triple = "spir64-unknown-unknown"
 ;
 ; CHECK-ELF-DAG: [[FSECT:[0-9]+]]] .text._ZN1a1bEv PROGBITS
 ; CHECK-ELF-DAG: [{{.*}}] .debug_types.dwo PROGBITS
-; CHECK-ELF-DAG: [{{.*}}] xray_instr_map PROGBITS {{.*}} {{.*}} {{.*}} {{.*}} WAL [[FSECT]]
+; CHECK-ELF-DAG: [{{.*}}] xray_instr_map PROGBITS {{.*}} {{.*}} {{.*}} {{.*}} AL [[FSECT]]
 
 %class.a = type { i8 }
 
