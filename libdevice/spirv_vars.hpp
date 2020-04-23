@@ -26,9 +26,9 @@ SYCL_EXTERNAL size_t __spirv_LocalInvocationId_z();
 #else // __SYCL_NVPTX__
 
 typedef size_t size_t_vec __attribute__((ext_vector_type(3)));
-extern "C" const __attribute__((opencl_constant))
+extern "C" const __attribute__((opencl_global))
 size_t_vec __spirv_BuiltInGlobalInvocationId;
-extern "C" const __attribute__((opencl_constant))
+extern "C" const __attribute__((opencl_global))
 size_t_vec __spirv_BuiltInLocalInvocationId;
 
 SYCL_EXTERNAL inline size_t __spirv_GlobalInvocationId_x() {
