@@ -10,7 +10,6 @@
 
 #include "CL/sycl/access/access.hpp"
 #include <CL/cl.h>
-#include <CL/sycl/detail/clusm.hpp>
 #include <CL/sycl/detail/kernel_desc.hpp>
 #include <CL/sycl/detail/memory_manager.hpp>
 #include <CL/sycl/detail/stream_impl.hpp>
@@ -1772,12 +1771,13 @@ cl_int ExecCGCommand::enqueueImp() {
       ReqMemObjs.emplace_back(ReqToMem);
     });
 
-    auto interop_queue = MQueue->get();
     std::sort(std::begin(ReqMemObjs), std::end(ReqMemObjs));
-    interop_handler InteropHandler(std::move(ReqMemObjs), interop_queue);
+    interop_handler InteropHandler(std::move(ReqMemObjs), MQueue);
     ExecInterop->MInteropTask->call(InteropHandler);
-    Plugin.call<PiApiKind::piEnqueueEventsWait>(MQueue->getHandleRef(), 0, nullptr, &Event);
-    Plugin.call<PiApiKind::piQueueRelease>(reinterpret_cast<pi_queue>(interop_queue));
+    Plugin.call<PiApiKind::piEnqueueEventsWait>(MQueue->getHandleRef(), 0,
+                                                nullptr, &Event);
+    Plugin.call<PiApiKind::piQueueRelease>(
+        reinterpret_cast<pi_queue>(MQueue->get()));
     return CL_SUCCESS;
   }
   case CG::CGTYPE::NONE:

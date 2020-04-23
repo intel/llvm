@@ -99,9 +99,9 @@ using PiMemObjectType = ::pi_mem_type;
 using PiMemImageChannelOrder = ::pi_image_channel_order;
 using PiMemImageChannelType = ::pi_image_channel_type;
 
-void contextSetExtendedDeleter(const cl::sycl::context &constext,
-                               pi_context_extended_deleter func,
-                               void *user_data);
+__SYCL_EXPORT void contextSetExtendedDeleter(const cl::sycl::context &constext,
+                                             pi_context_extended_deleter func,
+                                             void *user_data);
 
 // Function to load the shared library
 // Implementation is OS dependent.
@@ -311,12 +311,12 @@ template <class To, class From> inline To cast(From value) {
 
 // These conversions should use PI interop API.
 template <> inline pi::PiProgram cast(cl_program interop) {
-  RT::assertion(false, "pi::cast -> use piextProgramConvert");
+  RT::assertion(false, "pi::cast -> use piextProgramFromNative");
   return {};
 }
 
 template <> inline pi::PiDevice cast(cl_device_id interop) {
-  RT::assertion(false, "pi::cast -> use piextDeviceConvert");
+  RT::assertion(false, "pi::cast -> use piextDeviceFromNative");
   return {};
 }
 } // namespace pi

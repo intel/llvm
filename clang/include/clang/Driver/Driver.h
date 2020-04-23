@@ -540,6 +540,11 @@ public:
   /// GCC goes to extra lengths here to be a bit more robust.
   std::string GetTemporaryPath(StringRef Prefix, StringRef Suffix) const;
 
+  /// GetUniquePath = Return the pathname of a unique file to use
+  /// as part of compilation. The file will have the given base name (BaseName)
+  /// and extension (Ext).
+  std::string GetUniquePath(StringRef BaseName, StringRef Ext) const;
+
   /// GetTemporaryDirectory - Return the pathname of a temporary directory to
   /// use as part of compilation; the directory will have the given prefix.
   std::string GetTemporaryDirectory(StringRef Prefix) const;
