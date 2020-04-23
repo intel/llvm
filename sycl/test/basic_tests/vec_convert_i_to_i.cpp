@@ -20,7 +20,8 @@ using namespace cl::sycl;
 template <typename T, typename convertT, int roundingMode>
 class kernel_name;
 
-template <int N> struct helper;
+template <int N>
+struct helper;
 
 template <>
 struct helper<0> {
@@ -74,26 +75,26 @@ int main() {
       short8{-31072, 31072, 100, -50, -32768, 32767, 0, 1});
   test<long, int, 8, rounding_mode::automatic>(
       long8{3000000000, -3000000000, 100, -50, 2147483648, -2147483649, 0, 1},
-      int8{-1294967296, 1294967296, 100, -50, -2147483648, 2147483647, 0, 1}); 
+      int8{-1294967296, 1294967296, 100, -50, -2147483648, 2147483647, 0, 1});
 
   test<ushort, uchar, 8, rounding_mode::automatic>(
       ushort8{300, 255, 100, 150, 128, 256, 0, 1},
       uchar8{44, 255, 100, 150, 128, 0, 0, 1});
   test<uint, ushort, 8, rounding_mode::automatic>(
       uint8{100000, 65535, 100, 150, 32768, 65536, 0, 1},
-      ushort8{34464, 65535, 100, 150, 32768, 0, 0, 1}); 
+      ushort8{34464, 65535, 100, 150, 32768, 0, 0, 1});
   test<ulong, uint, 8, rounding_mode::automatic>(
       ulong8{10000000000, 4294967295, 100, 150, 2147483648, 4294967296, 0, 1},
-      uint8{1410065408, 4294967295, 100, 150, 2147483648, 0, 0, 1});  
+      uint8{1410065408, 4294967295, 100, 150, 2147483648, 0, 0, 1});
 
   test<int, uint, 8, rounding_mode::automatic>(
       int8{2147483647, -1, 100, 150, -100, -2147483648, 0, 1},
       uint8{2147483647, 4294967295, 100, 150, 4294967196, 2147483648, 0, 1});
   test<short, uint, 8, rounding_mode::automatic>(
       short8{32767, -1, 100, 150, -100, -32768, 0, 1},
-      uint8{32767, 4294967295, 100, 150, 4294967196, 4294934528, 0, 1}); 
+      uint8{32767, 4294967295, 100, 150, 4294967196, 4294934528, 0, 1});
   test<ulong, int, 8, rounding_mode::automatic>(
       ulong8{3000000000, 2147483647, 100, 150, 2147483648, 1000, 0, 1},
-      int8{-1294967296, 2147483647, 100, 150, -2147483648, 1000, 0, 1}); 
-    return 0;
+      int8{-1294967296, 2147483647, 100, 150, -2147483648, 1000, 0, 1});
+  return 0;
 }

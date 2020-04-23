@@ -12,7 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl.hpp>
-#include <iomanip> 
+
 #include <cassert>
 
 using namespace cl::sycl;
@@ -30,9 +30,7 @@ struct helper<0> {
                       const vec<T, NumElements> &y) {
     const T xs = x.template swizzle<0>();
     const T ys = y.template swizzle<0>();
-      if (xs != ys) {
-      std::cerr << "sometihng failed " << std::setprecision(30) << xs << " || "<< ys;;
-      exit(1);
+    assert(xs == ys);
     }
   }
 };
@@ -45,10 +43,7 @@ struct helper {
     const T xs = x.template swizzle<N>();
     const T ys = y.template swizzle<N>();
     helper<N - 1>::compare(x, y);
-        if (xs != ys) {
-      std::cerr << "sometihng failed " << std::setprecision(30) << xs << " || "<< ys;;
-      exit(1);
-    }
+    assert(xs == ys);
   }
 };
 
@@ -103,14 +98,14 @@ int main() {
   test<float, double, 8, rounding_mode::rtn>(
       float8{1234567936.0f, 987654272.0f, 100.0f, -50.0f, 111111.109375f, 625.625f, 50625.0f, -2500001.0f},
       double8{1234567936.0, 987654272.0, 100.0, -50.0, 111111.109375, 625.625, 50625.0, -2500001.0});
-  
+
   // rtz
   test<double, float, 8, rounding_mode::rtz>(
       double8{1234567890.0, 987654304.0, 100.0, -50.0, 111111.111, 625.625, 50625.0009765625, -2500000.875},
       float8{1234567808.0f, 987654272.0f, 100.0f, -50.0f, 111111.109375f, 625.625f, 50625.0f, -2500000.75f});
   test<float, double, 8, rounding_mode::rtz>(
       float8{1234567936.0f, 987654272.0f, 100.0f, -50.0f, 111111.109375f, 625.625f, 50625.0f, -2500001.0f},
-      double8{1234567936.0, 987654272.0, 100.0, -50.0, 111111.109375, 625.625, 50625.0, -2500001.0});  
-  
+      double8{1234567936.0, 987654272.0, 100.0, -50.0, 111111.109375, 625.625, 50625.0, -2500001.0});
+
   return 0;
 }
