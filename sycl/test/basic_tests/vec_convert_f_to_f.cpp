@@ -14,7 +14,6 @@
 #include <CL/sycl.hpp>
 
 #include <cassert>
-#include <iomanip> 
 
 using namespace cl::sycl;
 
