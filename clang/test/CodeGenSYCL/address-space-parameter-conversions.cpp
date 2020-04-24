@@ -9,7 +9,7 @@ void foo(int * Data) {}
 // CHECK-DAG: define spir_func void @[[RAW_PTR:[a-zA-Z0-9_]+]](i32 addrspace(4)* %
 void foo2(int * Data) {}
 // CHECK-DAG: define spir_func void @[[RAW_PTR2:[a-zA-Z0-9_]+]](i32 addrspace(4)* %
-void foo(__attribute__((opencl_local)) int * Data) {}
+void foo(__attribute__((opencl_local)) int *Data) {}
 // CHECK-DAG: define spir_func void [[LOC_PTR:@[a-zA-Z0-9_]+]](i32 addrspace(3)* %
 
 template<typename T>
