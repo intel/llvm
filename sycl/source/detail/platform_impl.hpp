@@ -76,8 +76,8 @@ public:
   bool is_cuda() const {
     const string_class CUDA_PLATFORM_STRING = "NVIDIA CUDA BACKEND";
     const string_class PlatformName =
-        get_platform_info<string_class, info::platform::version>::get(
-            MPlatform, getPlugin());
+        get_platform_info<string_class, info::platform::name>::get(MPlatform,
+                                                                   getPlugin());
     return PlatformName == CUDA_PLATFORM_STRING;
   }
 
