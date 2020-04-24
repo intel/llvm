@@ -10,6 +10,7 @@
 
 #include "CL/sycl/access/access.hpp"
 #include <CL/cl.h>
+#include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/detail/kernel_desc.hpp>
 #include <CL/sycl/detail/memory_manager.hpp>
 #include <CL/sycl/detail/stream_impl.hpp>
@@ -1672,7 +1673,7 @@ cl_int ExecCGCommand::enqueueImp() {
         Requirement *Req = (Requirement *)(Arg.MPtr);
         AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
         RT::PiMem MemArg = (RT::PiMem)AllocaCmd->getMemAllocation();
-        if (RT::useBackend(pi::Backend::SYCL_BE_PI_OPENCL)) {
+        if (Plugin.getBackend() == backend::opencl) {
           Plugin.call<PiApiKind::piKernelSetArg>(Kernel, Arg.MIndex,
                                                  sizeof(RT::PiMem), &MemArg);
         } else {
