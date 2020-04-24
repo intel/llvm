@@ -1410,8 +1410,7 @@ EmptyCommand::EmptyCommand(QueueImplPtr Queue)
 }
 
 void EmptyCommand::addRequirementsAndDeps(
-    Command *const DepCmd,
-    const std::vector<AllocaCommandBase *> &Allocas,
+    Command *const DepCmd, const std::vector<AllocaCommandBase *> &Allocas,
     const std::vector<Requirement *> &Reqs) {
   assert(Allocas.size() == Reqs.size());
 

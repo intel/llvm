@@ -772,9 +772,8 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
     Visited.insert(AllocaCmd);
 
     for (Command *UserCmd : AllocaCmd->MUsers)
-     if (UserCmd->getType() != Command::CommandType::ALLOCA) {
+      if (UserCmd->getType() != Command::CommandType::ALLOCA)
         ToVisit.push(UserCmd);
-     }
 
     CmdsToDelete.push_back(AllocaCmd);
     // These commands will be deleted later, clear users now to avoid

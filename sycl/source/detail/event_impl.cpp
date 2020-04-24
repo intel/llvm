@@ -68,9 +68,9 @@ void event_impl::setComplete() {
   int Expected = HES_NotReady;
   int Desired = HES_Ready;
 
-  /*bool Succeeded = */MState.compare_exchange_strong(Expected, Desired);
+  bool Succeeded = MState.compare_exchange_strong(Expected, Desired);
 
-  //assert(Succeeded && "Unexpected state of event");
+  assert(Succeeded && "Unexpected state of event");
 #else
   MState.store(static_cast<int>(HES_Ready));
 #endif
