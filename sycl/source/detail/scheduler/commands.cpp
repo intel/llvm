@@ -463,39 +463,36 @@ void Command::addConnectCmdWithReq(const ContextImplPtr &DepEventContext,
                                    const DepDesc &Dep) {
   Requirement *Req = const_cast<Requirement *>(Dep.MDepRequirement);
 
-  {
-    Scheduler::GraphBuilder &GB = Scheduler::getInstance().MGraphBuilder;
+  Scheduler::GraphBuilder &GB = Scheduler::getInstance().MGraphBuilder;
 
-    MemObjRecord *Record = GB.getMemObjRecord(Req->MSYCLMemObj);
-    Dep.MDepCommand->addUser(ConnectCmd);
+  MemObjRecord *Record = GB.getMemObjRecord(Req->MSYCLMemObj);
+  Dep.MDepCommand->addUser(ConnectCmd);
 
-    AllocaCommandBase *AllocaCmd =
-        GB.findAllocaForReq(Record, Req, DepEventContext);
-    assert(AllocaCmd && "There must be alloca for requirement!");
+  AllocaCommandBase *AllocaCmd =
+      GB.findAllocaForReq(Record, Req, DepEventContext);
+  assert(AllocaCmd && "There must be alloca for requirement!");
 
-    std::set<Command *> Deps = GB.findDepsForReq(Record, Req, DepEventContext);
-    assert(Deps.size() && "There must be some deps");
+  std::set<Command *> Deps = GB.findDepsForReq(Record, Req, DepEventContext);
+  assert(Deps.size() && "There must be some deps");
 
-    for (Command *ReqDepCmd : Deps) {
-      ConnectCmd->addDep(DepDesc{ReqDepCmd, Req, AllocaCmd});
-      ReqDepCmd->addUser(ConnectCmd);
-    }
-
-    GB.updateLeaves(Deps, Record, Req->MAccessMode);
-    GB.addNodeToLeaves(Record, ConnectCmd, Req->MAccessMode);
-
-    {
-      DepDesc EmptyCmdDep = Dep;
-      EmptyCmdDep.MDepRequirement = EmptyCmd->addRequirement(*Req);
-      EmptyCmdDep.MDepCommand = ConnectCmd;
-
-      EmptyCmd->addDep(EmptyCmdDep);
-      ConnectCmd->addUser(EmptyCmd);
-    }
-
-    GB.updateLeaves({ConnectCmd}, Record, Req->MAccessMode);
-    GB.addNodeToLeaves(Record, EmptyCmd, Req->MAccessMode);
+  for (Command *ReqDepCmd : Deps) {
+    ConnectCmd->addDep(DepDesc{ReqDepCmd, Req, AllocaCmd});
+    ReqDepCmd->addUser(ConnectCmd);
   }
+
+  GB.updateLeaves(Deps, Record, Req->MAccessMode);
+  GB.addNodeToLeaves(Record, ConnectCmd, Req->MAccessMode);
+
+  {
+    std::vector<AllocaCommandBase *> Allocas(1, Dep.MAllocaCmd);
+    std::vector<Requirement *> Reqs(
+        1, const_cast<Requirement *>(Dep.MDepRequirement));
+    EmptyCmd->addRequirementsAndDeps(ConnectCmd, Allocas, Reqs);
+    ConnectCmd->addUser(EmptyCmd);
+  }
+
+  GB.updateLeaves({ConnectCmd}, Record, Req->MAccessMode);
+  GB.addNodeToLeaves(Record, EmptyCmd, Req->MAccessMode);
 }
 
 void Command::connectDepEvent(EventImplPtr DepEvent,
@@ -528,11 +525,6 @@ void Command::connectDepEvent(EventImplPtr DepEvent,
 
     if (!EmptyCmd)
       throw runtime_error("Out of host memory", PI_OUT_OF_HOST_MEMORY);
-
-    fprintf(stderr, "Created empty cmd %p for host task (dep) for "
-            "connect cmd %p for req %p\n",
-            (void *)EmptyCmd, (void *)ConnectCmd,
-            (const void *)Dep.MDepRequirement);
 
     EmptyCmd->MIsBlockable = true;
     EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueBlocked;
@@ -1416,10 +1408,23 @@ EmptyCommand::EmptyCommand(QueueImplPtr Queue)
   emitInstrumentationDataProxy();
 }
 
-const Requirement *EmptyCommand::addRequirement(Requirement Req) {
-  MRequirements.emplace_back(std::move(Req));
+void EmptyCommand::addRequirementsAndDeps(
+    Command *const DepCmd,
+    const std::vector<AllocaCommandBase *> &Allocas,
+    const std::vector<Requirement *> &Reqs) {
+  assert(Allocas.size() == Reqs.size());
 
-  return &MRequirements.back();
+  MRequirements.reserve(Reqs.size());
+
+  for (size_t Idx = 0; Idx < Reqs.size(); ++Idx) {
+    const Requirement &Req = *Reqs[Idx];
+    AllocaCommandBase *AllocaCmd = Allocas[Idx];
+
+    MRequirements.emplace_back(Req);
+    const Requirement *const StoredReq = &MRequirements.back();
+
+    addDep(DepDesc{DepCmd, StoredReq, AllocaCmd});
+  }
 }
 
 void EmptyCommand::emitInstrumentationData() {

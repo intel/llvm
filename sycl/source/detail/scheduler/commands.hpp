@@ -278,7 +278,9 @@ public:
 
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MRequirements[0]; }
-  const Requirement *addRequirement(Requirement Req);
+  void addRequirementsAndDeps(Command *const DepCmd,
+                              const std::vector<AllocaCommandBase *> &Allocas,
+                              const std::vector<Requirement *> &Reqs);
 
   void emitInstrumentationData();
 
@@ -286,7 +288,6 @@ private:
   cl_int enqueueImp() final { return CL_SUCCESS; }
 
   std::vector<Requirement> MRequirements;
-  std::unique_ptr<Requirement> MRequirement;
 };
 
 /// The release command enqueues release of a memory object instance allocated
