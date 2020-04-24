@@ -13,7 +13,7 @@
 
 #ifdef __SYCL_DEVICE_ONLY__
 
-#define __SPIRV_VAR_QUALIFIERS extern "C" const __attribute__((opencl_global))
+#define __SPIRV_VAR_QUALIFIERS extern "C" const
 
 #ifdef __SYCL_NVPTX__
 
