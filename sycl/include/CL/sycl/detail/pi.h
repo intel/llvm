@@ -1298,7 +1298,8 @@ using pi_usm_migration_flags = _pi_usm_migration_flags;
 /// \param context is the pi_context
 /// \param pi_usm_mem_properties are optional allocation properties
 /// \param size_t is the size of the allocation
-/// \param alignment is the desired alignment of the allocation
+/// \param alignment is the desired alignment of the allocation. 0 indicates no
+///        requirements, and uses the backend default alignment.
 pi_result piextUSMHostAlloc(void **result_ptr, pi_context context,
                             pi_usm_mem_properties *properties, size_t size,
                             pi_uint32 alignment);
@@ -1310,7 +1311,8 @@ pi_result piextUSMHostAlloc(void **result_ptr, pi_context context,
 /// \param device is the device the memory will be allocated on
 /// \param pi_usm_mem_properties are optional allocation properties
 /// \param size_t is the size of the allocation
-/// \param alignment is the desired alignment of the allocation
+/// \param alignment is the desired alignment of the allocation. 0 indicates no
+///        requirements, and uses the backend default alignment.
 pi_result piextUSMDeviceAlloc(void **result_ptr, pi_context context,
                               pi_device device,
                               pi_usm_mem_properties *properties, size_t size,
@@ -1323,7 +1325,8 @@ pi_result piextUSMDeviceAlloc(void **result_ptr, pi_context context,
 /// \param device is the device the memory will be allocated on
 /// \param pi_usm_mem_properties are optional allocation properties
 /// \param size_t is the size of the allocation
-/// \param alignment is the desired alignment of the allocation
+/// \param alignment is the desired alignment of the allocation. 0 indicates no
+///        requirements, and uses the backend default alignment.
 pi_result piextUSMSharedAlloc(void **result_ptr, pi_context context,
                               pi_device device,
                               pi_usm_mem_properties *properties, size_t size,
@@ -1340,8 +1343,7 @@ pi_result piextUSMFree(pi_context context, void *ptr);
 /// \param queue is the queue to submit to
 /// \param ptr is the ptr to memset
 /// \param value is value to set.  It is interpreted as an 8-bit value and the
-/// upper
-///        24 bits are ignored
+///        upper 24 bits are ignored
 /// \param count is the size in bytes to memset
 /// \param num_events_in_waitlist is the number of events to wait on
 /// \param events_waitlist is an array of events to wait on
