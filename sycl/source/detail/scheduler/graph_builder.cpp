@@ -703,9 +703,8 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
       NewCmd->addDep(DepDesc{Dep, Req, AllocaCmd});
 
     if (CGType == CG::CGTYPE::CODEPLAY_HOST_TASK) {
-      EmptyCmd->addDep(DepDesc{NewCmd.get(), Req, AllocaCmd});
-
-      Req->MBlockedCmd = EmptyCmd;
+      const Requirement *StoredReq = EmptyCmd->addRequirement(*Req);
+      EmptyCmd->addDep(DepDesc{NewCmd.get(), StoredReq, AllocaCmd});
     }
   }
 

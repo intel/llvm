@@ -192,10 +192,11 @@ void Scheduler::releaseHostAccessor(Requirement *Req) {
 
   BlockedCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
 
-  unblockSingleReq(Req);
+  enqueueLeavesOfReq(Req);
 }
 
-void Scheduler::unblockSingleReq(Requirement *Req) {
+// static
+void Scheduler::enqueueLeavesOfReq(const Requirement *const Req) {
   MemObjRecord* Record = Req->MSYCLMemObj->MRecord.get();
   auto EnqueueLeaves = [](CircularBuffer<Command *> &Leaves) {
     for (Command *Cmd : Leaves) {

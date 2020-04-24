@@ -277,13 +277,15 @@ public:
   EmptyCommand(QueueImplPtr Queue);
 
   void printDot(std::ostream &Stream) const final;
-  const Requirement *getRequirement() const final { return MRequirement.get(); }
+  const Requirement *getRequirement() const final { return &MRequirements[0]; }
+  const Requirement *addRequirement(Requirement Req);
 
   void emitInstrumentationData();
 
 private:
   cl_int enqueueImp() final { return CL_SUCCESS; }
 
+  std::vector<Requirement> MRequirements;
   std::unique_ptr<Requirement> MRequirement;
 };
 

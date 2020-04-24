@@ -434,7 +434,7 @@ protected:
   Scheduler();
   static Scheduler instance;
 
-  void unblockSingleReq(Requirement *Req);
+  static void enqueueLeavesOfReq(const Requirement *const Req);
   void bulkUnblockReqs(Command *const BlockedCmd,
                        const std::unordered_set<Requirement *> &Reqs);
 

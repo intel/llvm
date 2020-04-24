@@ -230,30 +230,32 @@ public:
     Command *ThisCmd = reinterpret_cast<Command *>(MSelfEvent->getCommand());
     assert(ThisCmd && "No command found for host-task self event");
 
+    // unblock user empty command here
+    EmptyCommand *EmptyCmd = findUserEmptyCommand(ThisCmd);
+    assert(EmptyCmd && "No empty command found");
+
+    EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
+
     // update self-event status
     if (MSelfEvent->is_host()) {
-      for (Command *UserCmd : ThisCmd->MUsers) {
-        EnqueueResultT Res;
-        bool Enqueued = Scheduler::GraphProcessor::enqueueCommand(UserCmd, Res);
-        if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
-          throw runtime_error("Failed to enqueue a dependant command",
-                              PI_INVALID_OPERATION);
-      }
-
       MSelfEvent->setComplete();
+
+      if (EmptyCmd->getEvent()->is_host())
+        EmptyCmd->getEvent()->setComplete();
+
+      // enqueue leaves or enqueue leaves of reqs in ThisCmd.MDeps
+      for (DepDesc &Dep : ThisCmd->MDeps)
+        Scheduler::enqueueLeavesOfReq(Dep.MDepRequirement);
     } else {
       const detail::plugin &Plugin = MSelfEvent->getPlugin();
       Plugin.call<PiApiKind::piEventSetStatus>(MSelfEvent->getHandleRef(),
                                                PI_EVENT_COMPLETE);
+
+      if (EmptyCmd->getEvent()->is_host())
+        EmptyCmd->getEvent()->setComplete();
+
+      // the enqueue process is driven by backend now
     }
-
-    EmptyCommand *EmptyCmd = findUserEmptyCommand(ThisCmd);
-    assert(EmptyCmd && "No empty command found");
-
-    if (EmptyCmd->getEvent()->is_host())
-      EmptyCmd->getEvent()->setComplete();
-
-    unblockBlockedDeps(MDeps);
   }
 
   static void unblockBlockedDeps(const std::vector<DepDesc> &Deps) {
@@ -1415,15 +1417,20 @@ cl_int MemCpyCommandHost::enqueueImp() {
 }
 
 EmptyCommand::EmptyCommand(QueueImplPtr Queue, Requirement Req)
-    : Command(CommandType::EMPTY_TASK, std::move(Queue)),
-      MRequirement(new Requirement(std::move(Req))) {
-
+    : Command(CommandType::EMPTY_TASK, std::move(Queue)) {
+  MRequirements.emplace_back(std::move(Req));
   emitInstrumentationDataProxy();
 }
 
 EmptyCommand::EmptyCommand(QueueImplPtr Queue)
     : Command(CommandType::EMPTY_TASK, std::move(Queue)) {
   emitInstrumentationDataProxy();
+}
+
+const Requirement *EmptyCommand::addRequirement(Requirement Req) {
+  MRequirements.emplace_back(std::move(Req));
+
+  return &MRequirements.back();
 }
 
 void EmptyCommand::emitInstrumentationData() {
