@@ -418,10 +418,6 @@ public:
   /// unblocked.
   void releaseHostAccessor(Requirement *Req);
 
-  // Unblocks operations with memory objects
-  void unblockRequirements(const std::vector<Requirement *> &Reqs,
-                           Command::BlockReason Reason);
-
   /// \return an instance of the scheduler object.
   static Scheduler &getInstance();
 
@@ -435,8 +431,6 @@ protected:
   static Scheduler instance;
 
   static void enqueueLeavesOfReq(const Requirement *const Req);
-  void bulkUnblockReqs(Command *const BlockedCmd,
-                       const std::unordered_set<Requirement *> &Reqs);
 
   /// Graph builder class.
   ///

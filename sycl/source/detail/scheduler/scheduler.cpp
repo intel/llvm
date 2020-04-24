@@ -210,56 +210,6 @@ void Scheduler::enqueueLeavesOfReq(const Requirement *const Req) {
   EnqueueLeaves(Record->MWriteLeaves);
 }
 
-void Scheduler::bulkUnblockReqs(Command *const BlockedCmd,
-                                const std::unordered_set<Requirement *> &Reqs) {
-  bool BlockedCmdEnqueued = false;
-
-  auto EnqueueLeaves = [BlockedCmd, &BlockedCmdEnqueued](
-                           CircularBuffer<Command *> &Leaves) {
-    for (Command *Cmd : Leaves) {
-      if (BlockedCmd == Cmd && BlockedCmdEnqueued)
-        continue;
-
-      BlockedCmdEnqueued |= BlockedCmd == Cmd;
-
-      EnqueueResultT Res;
-      bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res);
-      if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
-        throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
-    }
-  };
-
-  for (Requirement *Req : Reqs) {
-    MemObjRecord *Record = Req->MSYCLMemObj->MRecord.get();
-    EnqueueLeaves(Record->MReadLeaves);
-    EnqueueLeaves(Record->MWriteLeaves);
-  }
-}
-
-void Scheduler::unblockRequirements(const std::vector<Requirement *> &Reqs,
-                                    Command::BlockReason Reason) {
-  // fetch unique blocked cmds
-  std::unordered_map<Command *, std::unordered_set<Requirement *>> BlockedCmds;
-
-  for (Requirement *Req : Reqs) {
-    Command *BlockedCmd = Req->MBlockedCmd;
-
-    BlockedCmds[BlockedCmd].insert(Req);
-  }
-
-  for (const auto &It : BlockedCmds) {
-    if (!It.first)
-      continue;
-
-    Command *BlockedCmd = It.first;
-    const std::unordered_set<Requirement *> &SubReqs = It.second;
-
-    BlockedCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
-
-    bulkUnblockReqs(BlockedCmd, SubReqs);
-  }
-}
-
 Scheduler::Scheduler() {
   sycl::device HostDevice;
   DefaultHostQueue = QueueImplPtr(new queue_impl(

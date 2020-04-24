@@ -257,19 +257,6 @@ public:
       // the enqueue process is driven by backend now
     }
   }
-
-  static void unblockBlockedDeps(const std::vector<DepDesc> &Deps) {
-    std::vector<Requirement *> Reqs;
-    Reqs.resize(Deps.size());
-
-    std::transform(Deps.begin(), Deps.end(), Reqs.begin(),
-                   [](const DepDesc &Dep) {
-                     return const_cast<Requirement *>(Dep.MDepRequirement);
-                   });
-
-    Scheduler::getInstance().unblockRequirements(
-        Reqs, Command::BlockReason::HostTask);
-  }
 };
 
 void Command::waitForPreparedHostEvents() const {
