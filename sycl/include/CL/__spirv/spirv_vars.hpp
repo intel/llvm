@@ -143,9 +143,9 @@ namespace __spirv {
 // built-in variables
 #define __SPIRV_DEFINE_INIT_AND_GET_HELPERS(POSTFIX)                           \
   template <int ID> static size_t get##POSTFIX();                              \
-  template <> size_t get##POSTFIX<0>() { return __spirv_BuiltIn##POSTFIX.x; }  \
-  template <> size_t get##POSTFIX<1>() { return __spirv_BuiltIn##POSTFIX.y; }  \
-  template <> size_t get##POSTFIX<2>() { return __spirv_BuiltIn##POSTFIX.z; }  \
+  template <> size_t get##POSTFIX<0>() { return __spirv_##POSTFIX##_x(); }     \
+  template <> size_t get##POSTFIX<1>() { return __spirv_##POSTFIX##_y(); }     \
+  template <> size_t get##POSTFIX<2>() { return __spirv_##POSTFIX##_z(); }     \
                                                                                \
   template <int Dim, class DstT> struct InitSizesST##POSTFIX;                  \
                                                                                \
