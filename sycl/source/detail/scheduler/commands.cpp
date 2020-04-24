@@ -463,8 +463,6 @@ void Command::addConnectCmdWithReq(const ContextImplPtr &DepEventContext,
                                    const DepDesc &Dep) {
   Requirement *Req = const_cast<Requirement *>(Dep.MDepRequirement);
 
-  Req->MBlockedCmd = EmptyCmd;
-
   {
     Scheduler::GraphBuilder &GB = Scheduler::getInstance().MGraphBuilder;
 
@@ -488,6 +486,7 @@ void Command::addConnectCmdWithReq(const ContextImplPtr &DepEventContext,
 
     {
       DepDesc EmptyCmdDep = Dep;
+      EmptyCmdDep.MDepRequirement = EmptyCmd->addRequirement(*Req);
       EmptyCmdDep.MDepCommand = ConnectCmd;
 
       EmptyCmd->addDep(EmptyCmdDep);
