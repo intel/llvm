@@ -158,6 +158,7 @@ void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
   if (!Record)
     // No operations were performed on the mem object
     return;
+
   waitForRecordToFinish(Record);
   MGraphBuilder.decrementLeafCountersForRecord(Record);
   MGraphBuilder.cleanupCommandsForRecord(Record);
@@ -180,20 +181,18 @@ EventImplPtr Scheduler::addHostAccessor(Requirement *Req,
 }
 
 void Scheduler::releaseHostAccessor(Requirement *Req) {
-  Command *const BlockedCmd =
-      Req->findBlockedCommand([](const Command *const Cmd) {
-        return Cmd->MBlockReason == Command::BlockReason::HostAccessor;
-      });
+  Command *const BlockedCmd = Req->MBlockedCmd;
 
   assert(BlockedCmd && "Can't find appropriate command to unblock");
 
-  if (!BlockedCmd)
-    return;
+  if (EventImplPtr Event = BlockedCmd->getEvent())
+    if (Event->is_host()) {
+      Event->setComplete();
+    }
 
   BlockedCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
 
-  if (Req->removeBlockedCommand(BlockedCmd))
-    unblockSingleReq(Req);
+  unblockSingleReq(Req);
 }
 
 void Scheduler::unblockSingleReq(Requirement *Req) {
@@ -230,11 +229,9 @@ void Scheduler::bulkUnblockReqs(Command *const BlockedCmd,
   };
 
   for (Requirement *Req : Reqs) {
-    if (Req->removeBlockedCommand(BlockedCmd)) {
-      MemObjRecord *Record = Req->MSYCLMemObj->MRecord.get();
-      EnqueueLeaves(Record->MReadLeaves);
-      EnqueueLeaves(Record->MWriteLeaves);
-    }
+    MemObjRecord *Record = Req->MSYCLMemObj->MRecord.get();
+    EnqueueLeaves(Record->MReadLeaves);
+    EnqueueLeaves(Record->MWriteLeaves);
   }
 }
 
@@ -243,16 +240,8 @@ void Scheduler::unblockRequirements(const std::vector<Requirement *> &Reqs,
   // fetch unique blocked cmds
   std::unordered_map<Command *, std::unordered_set<Requirement *>> BlockedCmds;
 
-  std::function<bool(const Command *const)> CheckCmd =
-      [Reason](const Command *const Cmd) {
-        return Cmd->MBlockReason == Reason;
-      };
-
   for (Requirement *Req : Reqs) {
-    Command *BlockedCmd = Req->findBlockedCommand(CheckCmd);
-
-    assert(BlockedCmd &&
-           "Can't find appropriate command to unblock multiple requirements");
+    Command *BlockedCmd = Req->MBlockedCmd;
 
     BlockedCmds[BlockedCmd].insert(Req);
   }

@@ -429,7 +429,7 @@ Command *Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
   updateLeaves({UpdateHostAccCmd}, Record, Req->MAccessMode);
   addNodeToLeaves(Record, EmptyCmd, Req->MAccessMode);
 
-  Req->addBlockedCommand(EmptyCmd);
+  Req->MBlockedCmd = EmptyCmd;
 
   if (MPrintOptionsArray[AfterAddHostAcc])
     printGraphAsDot("after_addHostAccessor");
@@ -669,6 +669,7 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
 
   if (CGType == CG::CGTYPE::CODEPLAY_HOST_TASK) {
     EmptyCmd = new EmptyCommand(Scheduler::getInstance().getDefaultHostQueue());
+
     EmptyCmd->MIsBlockable = true;
     EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueBlocked;
     EmptyCmd->MBlockReason = Command::BlockReason::HostTask;
@@ -704,7 +705,7 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
     if (CGType == CG::CGTYPE::CODEPLAY_HOST_TASK) {
       EmptyCmd->addDep(DepDesc{NewCmd.get(), Req, AllocaCmd});
 
-      Req->addBlockedCommand(EmptyCmd);
+      Req->MBlockedCmd = EmptyCmd;
     }
   }
 
@@ -763,8 +764,12 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
   // Dependencies of the users will be cleaned up during the traversal
   for (Command *AllocaCmd : AllocaCommands) {
     Visited.insert(AllocaCmd);
+
     for (Command *UserCmd : AllocaCmd->MUsers)
-      ToVisit.push(UserCmd);
+     if (UserCmd->getType() != Command::CommandType::ALLOCA) {
+        ToVisit.push(UserCmd);
+     }
+
     CmdsToDelete.push_back(AllocaCmd);
     // These commands will be deleted later, clear users now to avoid
     // updating them during edge removal
@@ -780,7 +785,9 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
       continue;
 
     for (Command *UserCmd : Cmd->MUsers)
-      ToVisit.push(UserCmd);
+      if (UserCmd->getType() != Command::CommandType::ALLOCA) {
+        ToVisit.push(UserCmd);
+      }
 
     // Delete all dependencies on any allocations being removed
     // Track which commands should have their users updated

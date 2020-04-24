@@ -474,7 +474,7 @@ void Command::addConnectCmdWithReq(const ContextImplPtr &DepEventContext,
                                    const DepDesc &Dep) {
   Requirement *Req = const_cast<Requirement *>(Dep.MDepRequirement);
 
-  Req->addBlockedCommand(EmptyCmd);
+  Req->MBlockedCmd = EmptyCmd;
 
   {
     Scheduler::GraphBuilder &GB = Scheduler::getInstance().MGraphBuilder;
@@ -537,6 +537,11 @@ void Command::connectDepEvent(EventImplPtr DepEvent,
   if (Command *DepCmd = reinterpret_cast<Command *>(DepEvent->getCommand())) {
     EmptyCommand *EmptyCmd =
         new EmptyCommand(Scheduler::getInstance().getDefaultHostQueue());
+
+    fprintf(stderr, "Created empty cmd %p for host task (dep) for "
+            "connect cmd %p for req %p\n",
+            (void *)EmptyCmd, (void *)ConnectCmd,
+            (const void *)Dep.MDepRequirement);
 
     EmptyCmd->MIsBlockable = true;
     EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueBlocked;

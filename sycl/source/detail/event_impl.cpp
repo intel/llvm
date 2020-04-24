@@ -68,9 +68,9 @@ void event_impl::setComplete() {
   int Expected = HES_NotReady;
   int Desired = HES_Ready;
 
-  bool Succeeded = MState.compare_exchange_strong(Expected, Desired);
+  /*bool Succeeded = */MState.compare_exchange_strong(Expected, Desired);
 
-  assert(Succeeded && "Unexpected state of event");
+  //assert(Succeeded && "Unexpected state of event");
 #else
   MState.store(static_cast<int>(HES_Ready));
 #endif
@@ -89,7 +89,7 @@ void event_impl::setContextImpl(const ContextImplPtr &Context) {
   MContext = Context;
 }
 
-event_impl::event_impl() : MState(HES_Ready) {}
+event_impl::event_impl() : MState(HES_NotReady) {}
 
 event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
     : MEvent(Event), MContext(detail::getSyclObjImpl(SyclContext)),

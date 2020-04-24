@@ -15,9 +15,6 @@
 #include <CL/sycl/range.hpp>
 #include <CL/sycl/stl.hpp>
 
-#include <mutex>
-#include <unordered_set>
-
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
@@ -99,20 +96,7 @@ public:
 
   void *MData = nullptr;
 
-protected:
-  using CheckCmdFn = std::function<bool(const Command *const)>;
-
-  void addBlockedCommand(Command *BlockedCmd);
-  Command *findBlockedCommand(const CheckCmdFn &Check);
-  bool removeBlockedCommand(Command *BlockedCmd);
-  size_t countBlockedCommand(const CheckCmdFn &Check);
-
-  friend class Command;
-  friend class Scheduler;
-
-private:
-  std::mutex MBlockedCmdsMutex;
-  std::unordered_set<Command *> MBlockedCmds;
+  Command *MBlockedCmd = nullptr;
 };
 
 using AccessorImplPtr = shared_ptr_class<AccessorImplHost>;
