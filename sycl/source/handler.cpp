@@ -13,12 +13,24 @@
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <detail/kernel_impl.hpp>
+#include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-event handler::finalize(const cl::sycl::detail::code_location &Payload) {
-  sycl::event EventRet;
+
+void handler::addEventToQueue(shared_ptr_class<detail::queue_impl> Queue,
+                              cl::sycl::event Event) {
+  Queue->addEvent(std::move(Event));
+}
+
+event handler::finalize() {
+  // This block of code is needed only to 5th/default reduction implementation.
+  // It is harmless (does nothing) for other implementations.
+  if (MIsFinalized)
+    return MLastEvent;
+  MIsFinalized = true;
+
   unique_ptr_class<detail::CG> CommandGroup;
   switch (MCGType) {
   case detail::CG::KERNEL:
@@ -28,15 +40,15 @@ event handler::finalize(const cl::sycl::detail::code_location &Payload) {
         std::move(MArgsStorage), std::move(MAccStorage),
         std::move(MSharedPtrStorage), std::move(MRequirements),
         std::move(MEvents), std::move(MArgs), std::move(MKernelName),
-        std::move(MOSModuleHandle), std::move(MStreamStorage), MCGType,
-        Payload));
+        std::move(MOSModuleHandle), std::move(MStreamStorage),
+        std::move(MReductionStorage), MCGType, MCodeLoc));
     break;
   }
   case detail::CG::INTEROP_TASK_CODEPLAY:
     CommandGroup.reset(new detail::CGInteropTask(
         std::move(MInteropTask), std::move(MArgsStorage),
         std::move(MAccStorage), std::move(MSharedPtrStorage),
-        std::move(MRequirements), std::move(MEvents), MCGType, Payload));
+        std::move(MRequirements), std::move(MEvents), MCGType, MCodeLoc));
     break;
   case detail::CG::COPY_ACC_TO_PTR:
   case detail::CG::COPY_PTR_TO_ACC:
@@ -44,37 +56,37 @@ event handler::finalize(const cl::sycl::detail::code_location &Payload) {
     CommandGroup.reset(new detail::CGCopy(
         MCGType, MSrcPtr, MDstPtr, std::move(MArgsStorage),
         std::move(MAccStorage), std::move(MSharedPtrStorage),
-        std::move(MRequirements), std::move(MEvents), Payload));
+        std::move(MRequirements), std::move(MEvents), MCodeLoc));
     break;
   case detail::CG::FILL:
     CommandGroup.reset(new detail::CGFill(
         std::move(MPattern), MDstPtr, std::move(MArgsStorage),
         std::move(MAccStorage), std::move(MSharedPtrStorage),
-        std::move(MRequirements), std::move(MEvents), Payload));
+        std::move(MRequirements), std::move(MEvents), MCodeLoc));
     break;
   case detail::CG::UPDATE_HOST:
     CommandGroup.reset(new detail::CGUpdateHost(
         MDstPtr, std::move(MArgsStorage), std::move(MAccStorage),
         std::move(MSharedPtrStorage), std::move(MRequirements),
-        std::move(MEvents), Payload));
+        std::move(MEvents), MCodeLoc));
     break;
   case detail::CG::COPY_USM:
     CommandGroup.reset(new detail::CGCopyUSM(
         MSrcPtr, MDstPtr, MLength, std::move(MArgsStorage),
         std::move(MAccStorage), std::move(MSharedPtrStorage),
-        std::move(MRequirements), std::move(MEvents), Payload));
+        std::move(MRequirements), std::move(MEvents), MCodeLoc));
     break;
   case detail::CG::FILL_USM:
     CommandGroup.reset(new detail::CGFillUSM(
         std::move(MPattern), MDstPtr, MLength, std::move(MArgsStorage),
         std::move(MAccStorage), std::move(MSharedPtrStorage),
-        std::move(MRequirements), std::move(MEvents), Payload));
+        std::move(MRequirements), std::move(MEvents), MCodeLoc));
     break;
   case detail::CG::PREFETCH_USM:
     CommandGroup.reset(new detail::CGPrefetchUSM(
         MDstPtr, MLength, std::move(MArgsStorage), std::move(MAccStorage),
         std::move(MSharedPtrStorage), std::move(MRequirements),
-        std::move(MEvents), Payload));
+        std::move(MEvents), MCodeLoc));
     break;
   case detail::CG::NONE:
     throw runtime_error("Command group submitted without a kernel or a "
@@ -88,8 +100,8 @@ event handler::finalize(const cl::sycl::detail::code_location &Payload) {
   detail::EventImplPtr Event = detail::Scheduler::getInstance().addCG(
       std::move(CommandGroup), std::move(MQueue));
 
-  EventRet = detail::createSyclObjFromImpl<event>(Event);
-  return EventRet;
+  MLastEvent = detail::createSyclObjFromImpl<event>(Event);
+  return MLastEvent;
 }
 
 void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
