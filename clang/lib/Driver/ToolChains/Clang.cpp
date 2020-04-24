@@ -7282,8 +7282,6 @@ void OffloadBundler::ConstructJobMultipleOutputs(
         TT.setVendorName("intel");
         TT.setOS(getToolChain().getTriple().getOS());
         TT.setEnvironment(llvm::Triple::SYCLDevice);
-        if (C.getDriver().IsCLMode())
-          TT.setObjectFormat(llvm::Triple::COFF);
         Triples += "sycl-";
         Triples += TT.normalize();
       } else if (getToolChain().getTriple().getSubArch() !=

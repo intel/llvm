@@ -5,7 +5,7 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
-//==------------------- buffer.cpp - SYCL buffer basic test ----------------==//
+//==------------------- buffer_interop.cpp - SYCL buffer basic test ---------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -36,16 +36,16 @@ int main() {
     buffer<int, 1> Buffer{OpenCLBuffer, MyQueue.get_context()};
 
     if (Buffer.get_range() != InteropRange) {
-          assert(false);
-          Failed = true;
+      assert(false);
+      Failed = true;
     }
     if (Buffer.get_size() != InteropSize) {
-          assert(false);
-          Failed = true;
+      assert(false);
+      Failed = true;
     }
     if (Buffer.get_count() != Size) {
-          assert(false);
-          Failed = true;
+      assert(false);
+      Failed = true;
     }
 
     MyQueue.submit([&](handler &CGH) {
@@ -57,8 +57,7 @@ int main() {
     int Data[Size] = {10};
     std::vector<int> Result(Size, 0);
     {
-      buffer<int, 1> BufferData{Data, range<1>{Size},
-                                {property::buffer::use_host_ptr()}};
+      buffer<int, 1> BufferData{Data, range<1>{Size}, {property::buffer::use_host_ptr()}};
       BufferData.set_final_data(Result.begin());
       MyQueue.submit([&](handler &CGH) {
         auto Data = BufferData.get_access<access::mode::write>(CGH);
@@ -132,7 +131,7 @@ int main() {
     MyQueue.submit([&](handler &CGH) {
       auto B = Buffer.get_access<access::mode::write>(CGH);
       CGH.parallel_for<class HostAccess>(range<1>{Size},
-                                        [=](id<1> Index) { B[Index] = 10; });
+                                         [=](id<1> Index) { B[Index] = 10; });
     });
     auto Acc = Buffer.get_access<cl::sycl::access::mode::read>();
     for (size_t i = 0; i < Size; ++i) {
@@ -181,6 +180,87 @@ int main() {
     CHECK_OCL_CODE(clReleaseMemObject(OpenCLBuffer));
     CHECK_OCL_CODE(clReleaseContext(OpenCLContext));
     CHECK_OCL_CODE(clReleaseEvent(OpenCLEvent));
+  }
+
+  {
+    queue Queue;
+    if (!Queue.is_host()) {
+      std::vector<int> Data1(10, -1);
+      std::vector<int> Data2(10, -2);
+      {
+        buffer<int, 1> BufferA(Data1.data(), range<1>(10));
+        buffer<int, 1> BufferB(Data2);
+
+        program Program(Queue.get_context());
+        Program.build_with_source("kernel void override_source(global int* Acc) "
+                                  "{Acc[get_global_id(0)] = 0; }\n");
+        cl::sycl::kernel Kernel = Program.get_kernel("override_source");
+        Queue.submit([&](handler &CGH) {
+          auto AccA = BufferA.get_access<access::mode::read_write>(CGH);
+          CGH.set_arg(0, AccA);
+          auto AccB = BufferB.get_access<access::mode::read_write>(CGH);
+          CGH.parallel_for(cl::sycl::range<1>(10), Kernel);
+        });
+      } // Data is copied back
+      for (int i = 0; i < 10; i++) {
+        if (Data2[i] != -2) {
+          std::cout << " Data2[" << i << "] is " << Data2[i] << " expected " << -2 << std::endl;
+          assert(false);
+          Failed = true;
+        }
+      }
+      for (int i = 0; i < 10; i++) {
+        if (Data1[i] != 0) {
+          std::cout << " Data1[" << i << "] is " << Data1[i] << " expected " << 0 << std::endl;
+          assert(false);
+          Failed = true;
+        }
+      }
+    }
+  }
+
+  {
+    queue Queue;
+    if (!Queue.is_host()) {
+      std::vector<int> Data1(10, -1);
+      std::vector<int> Data2(10, -2);
+      {
+        buffer<int, 1> BufferA(Data1.data(), range<1>(10));
+        buffer<int, 1> BufferB(Data2);
+        accessor<int, 1, access::mode::read_write,
+                 access::target::global_buffer, access::placeholder::true_t>
+            AccA(BufferA);
+        accessor<int, 1, access::mode::read_write,
+                 access::target::global_buffer, access::placeholder::true_t>
+            AccB(BufferB);
+
+        program Program(Queue.get_context());
+        Program.build_with_source("kernel void override_source_placeholder(global "
+                                  "int* Acc) {Acc[get_global_id(0)] = 0; }\n");
+        cl::sycl::kernel Kernel = Program.get_kernel("override_source_placeholder");
+
+        Queue.submit([&](handler &CGH) {
+          CGH.require(AccA);
+          CGH.set_arg(0, AccA);
+          CGH.require(AccB);
+          CGH.parallel_for(cl::sycl::range<1>(10), Kernel);
+        });
+      } // Data is copied back
+      for (int i = 0; i < 10; i++) {
+        if (Data2[i] != -2) {
+          std::cout << " Data2[" << i << "] is " << Data2[i] << " expected " << -2 << std::endl;
+          assert(false);
+          Failed = true;
+        }
+      }
+      for (int i = 0; i < 10; i++) {
+        if (Data1[i] != 0) {
+          std::cout << " Data1[" << i << "] is " << Data1[i] << " expected " << 0 << std::endl;
+          assert(false);
+          Failed = true;
+        }
+      }
+    }
   }
 
   return Failed;

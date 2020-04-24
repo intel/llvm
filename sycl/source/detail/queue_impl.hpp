@@ -392,12 +392,20 @@ private:
 
   void initHostTaskAndEventCallbackThreadPool();
 
+  /// Stores a USM operation event that should be associated with the queue
+  ///
+  /// \param Event is the event to be stored
+  void addUSMEvent(event Event);
+
   /// Protects all the fields that can be changed by class' methods.
   mutex_class MMutex;
 
   DeviceImplPtr MDevice;
   const ContextImplPtr MContext;
-  vector_class<event> MEvents;
+  vector_class<std::weak_ptr<event_impl>> MEvents;
+  // USM operations are not added to the scheduler command graph,
+  // queue is the only owner on the runtime side.
+  vector_class<event> MUSMEvents;
   exception_list MExceptions;
   const async_handler MAsyncHandler;
   const property_list MPropList;
