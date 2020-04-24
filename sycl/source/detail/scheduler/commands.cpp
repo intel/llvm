@@ -527,6 +527,9 @@ void Command::connectDepEvent(EventImplPtr DepEvent,
     EmptyCommand *EmptyCmd =
         new EmptyCommand(Scheduler::getInstance().getDefaultHostQueue());
 
+    if (!EmptyCmd)
+      throw runtime_error("Out of host memory", PI_OUT_OF_HOST_MEMORY);
+
     fprintf(stderr, "Created empty cmd %p for host task (dep) for "
             "connect cmd %p for req %p\n",
             (void *)EmptyCmd, (void *)ConnectCmd,

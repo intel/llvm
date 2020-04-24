@@ -670,6 +670,9 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
   if (CGType == CG::CGTYPE::CODEPLAY_HOST_TASK) {
     EmptyCmd = new EmptyCommand(Scheduler::getInstance().getDefaultHostQueue());
 
+    if (!EmptyCmd)
+      throw runtime_error("Out of host memory", PI_OUT_OF_HOST_MEMORY);
+
     EmptyCmd->MIsBlockable = true;
     EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueBlocked;
     EmptyCmd->MBlockReason = Command::BlockReason::HostTask;
