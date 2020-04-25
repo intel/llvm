@@ -680,14 +680,12 @@ RTDeviceBinaryImage &ProgramManager::getDeviceImage(OSModuleHandle M,
 
   // Ask the native runtime under the given context to choose the device image
   // it prefers.
-  if (Imgs.size() > 1) {
-    std::vector<pi_device_binary> RawImgs(Imgs.size());
-    for (unsigned I = 0; I < Imgs.size(); I++)
-      RawImgs[I] = const_cast<pi_device_binary>(&Imgs[I]->getRawData());
+  std::vector<pi_device_binary> RawImgs(Imgs.size());
+  for (unsigned I = 0; I < Imgs.size(); I++)
+    RawImgs[I] = const_cast<pi_device_binary>(&Imgs[I]->getRawData());
 
-    Ctx->getPlugin().call<PiApiKind::piextDeviceSelectBinary>(
-        getFirstDevice(Ctx), RawImgs.data(), (cl_uint)RawImgs.size(), &ImgInd);
-  }
+  Ctx->getPlugin().call<PiApiKind::piextDeviceSelectBinary>(
+      getFirstDevice(Ctx), RawImgs.data(), (cl_uint)RawImgs.size(), &ImgInd);
   Img = Imgs[ImgInd].get();
 
   if (DbgProgMgr > 0) {
