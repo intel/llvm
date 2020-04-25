@@ -13,6 +13,7 @@
 #include "clang/Driver/Driver.h"
 #include "clang/Driver/DriverDiagnostic.h"
 #include "clang/Driver/Options.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
 
@@ -421,6 +422,17 @@ SYCLToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
   return DAL;
 }
 
+void parseTargetOpts(StringRef ArgString, const llvm::opt::ArgList &Args,
+                     llvm::opt::ArgStringList &CmdArgs) {
+  // Tokenize the string.
+  SmallVector<const char *, 8> TargetArgs;
+  llvm::BumpPtrAllocator A;
+  llvm::StringSaver S(A);
+  llvm::cl::TokenizeGNUCommandLine(ArgString, S, TargetArgs);
+  for (StringRef const &TA : TargetArgs)
+    CmdArgs.push_back(Args.MakeArgString(TA));
+}
+
 // Expects a specific type of option (e.g. -Xsycl-target-backend) and will
 // extract the arguments.
 void SYCLToolChain::TranslateTargetOpt(const llvm::opt::ArgList &Args,
@@ -455,13 +467,7 @@ void SYCLToolChain::TranslateTargetOpt(const llvm::opt::ArgList &Args,
       // Triple found, add the next argument in line.
       ArgString = A->getValue(1);
 
-    // Do a simple parse of the args to pass back
-    SmallVector<StringRef, 16> TargetArgs;
-    // TODO: Improve parsing, as this only handles arguments separated by
-    // spaces.
-    ArgString.split(TargetArgs, ' ', -1, false);
-    for (const auto &TA : TargetArgs)
-      CmdArgs.push_back(Args.MakeArgString(TA));
+    parseTargetOpts(ArgString, Args, CmdArgs);
     A->claim();
   }
 }
@@ -485,13 +491,7 @@ void SYCLToolChain::TranslateBackendTargetArgs(const llvm::opt::ArgList &Args,
     }
     if (A->getOption().matches(options::OPT_Xs_separate)) {
       StringRef ArgString(A->getValue());
-      // Do a simple parse of the args to pass back
-      SmallVector<StringRef, 16> TargetArgs;
-      // TODO: Improve parsing, as this only handles arguments separated by
-      // spaces.
-      ArgString.split(TargetArgs, ' ', -1, false);
-      for (const auto &TA : TargetArgs)
-        CmdArgs.push_back(Args.MakeArgString(TA));
+      parseTargetOpts(ArgString, Args, CmdArgs);
       A->claim();
       continue;
     }
