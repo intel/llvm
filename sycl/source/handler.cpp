@@ -40,8 +40,8 @@ event handler::finalize() {
         std::move(MArgsStorage), std::move(MAccStorage),
         std::move(MSharedPtrStorage), std::move(MRequirements),
         std::move(MEvents), std::move(MArgs), std::move(MKernelName),
-        std::move(MOSModuleHandle), std::move(MStreamStorage),
-        std::move(MReductionStorage), MCGType, MCodeLoc));
+        std::move(MOSModuleHandle), std::move(MStreamStorage), MCGType,
+        MCodeLoc));
     break;
   }
   case detail::CG::INTEROP_TASK_CODEPLAY:

@@ -456,7 +456,6 @@ public:
   string_class MKernelName;
   detail::OSModuleHandle MOSModuleHandle;
   vector_class<shared_ptr_class<detail::stream_impl>> MStreams;
-  vector_class<shared_ptr_class<void>> MReductions;
 
   CGExecKernel(NDRDescT NDRDesc, unique_ptr_class<HostKernelBase> HKernel,
                shared_ptr_class<detail::kernel_impl> SyclKernel,
@@ -468,15 +467,14 @@ public:
                vector_class<ArgDesc> Args, string_class KernelName,
                detail::OSModuleHandle OSModuleHandle,
                vector_class<shared_ptr_class<detail::stream_impl>> Streams,
-               vector_class<shared_ptr_class<void>> Reductions, CGTYPE Type,
-               detail::code_location loc = {})
+               CGTYPE Type, detail::code_location loc = {})
       : CG(Type, std::move(ArgsStorage), std::move(AccStorage),
            std::move(SharedPtrStorage), std::move(Requirements),
            std::move(Events), std::move(loc)),
         MNDRDesc(std::move(NDRDesc)), MHostKernel(std::move(HKernel)),
         MSyclKernel(std::move(SyclKernel)), MArgs(std::move(Args)),
         MKernelName(std::move(KernelName)), MOSModuleHandle(OSModuleHandle),
-        MStreams(std::move(Streams)), MReductions(std::move(Reductions)) {
+        MStreams(std::move(Streams)) {
     assert((getType() == RUN_ON_HOST_INTEL || getType() == KERNEL) &&
            "Wrong type of exec kernel CG.");
   }

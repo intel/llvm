@@ -255,14 +255,14 @@ private:
     MStreamStorage.push_back(std::move(Stream));
   }
 
-  /// Saves buffers and scalars associated with reduction to handler.
-  /// They are then forwarded to command group later and destroyed
-  /// only after the command group finishes the work on device/host.
+  /// Saves buffers created by handling reduction feature in handler.
+  /// They are then forwarded to command group and destroyed only after
+  /// the command group finishes the work on device/host.
+  /// The 'MSharedPtrStorage' suits that need.
   ///
-  /// @param ReduObj is a pointer to object that must be preserved
-  /// for reduction until the .
-  void addReduction(shared_ptr_class<void> ReduObj) {
-    MReductionStorage.push_back(std::move(ReduObj));
+  /// @param ReduObj is a pointer to object that must be stored.
+  void addReduction(shared_ptr_class<const void> ReduObj) {
+    MSharedPtrStorage.push_back(std::move(ReduObj));
   }
 
   ~handler() = default;
@@ -1714,7 +1714,6 @@ private:
   vector_class<detail::AccessorImplPtr> MAccStorage;
   vector_class<detail::LocalAccessorImplPtr> MLocalAccStorage;
   vector_class<shared_ptr_class<detail::stream_impl>> MStreamStorage;
-  vector_class<shared_ptr_class<void>> MReductionStorage;
   vector_class<shared_ptr_class<const void>> MSharedPtrStorage;
   /// The list of arguments for the kernel.
   vector_class<detail::ArgDesc> MArgs;
