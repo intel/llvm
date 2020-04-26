@@ -32,6 +32,11 @@ device device_selector::select_device() const {
                                 PI_DEVICE_NOT_FOUND);
 }
 
+/// Devices of different kinds are prioritized in the following order:
+/// 1. GPU
+/// 2. Accelerator
+/// 3. CPU
+/// 4. Host
 int default_selector::operator()(const device &dev) const {
 
   // Take note of the SYCL_BE environment variable when doing default selection
@@ -42,7 +47,8 @@ int default_selector::operator()(const device &dev) const {
     // information than the driver_version of the device.
     const platform platform = dev.get_info<info::device::platform>();
     const std::string platformVersion =
-        platform.get_info<info::platform::version>();;
+        platform.get_info<info::platform::version>();
+    ;
     // If using PI_CUDA, don't accept a non-CUDA device
     if (platformVersion.find("CUDA") == std::string::npos &&
         backend == "PI_CUDA") {

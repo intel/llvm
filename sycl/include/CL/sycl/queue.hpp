@@ -32,7 +32,7 @@ namespace detail {
 class queue_impl;
 }
 
-/// Encapsulates a single SYCL queue which shcedules kernels on a SYCL device.
+/// Encapsulates a single SYCL queue which schedules kernels on a SYCL device.
 ///
 /// A SYCL queue can be used to submit command groups to be executed by the SYCL
 /// runtime.
@@ -311,7 +311,7 @@ public:
   ///
   /// \param Ptr is a USM pointer to the memory to be prefetched to the device.
   /// \param Count is a number of bytes to be prefetched.
-  event prefetch(const void* Ptr, size_t Count) {
+  event prefetch(const void *Ptr, size_t Count) {
     return submit([=](handler &CGH) { CGH.prefetch(Ptr, Count); });
   }
 

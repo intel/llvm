@@ -33,8 +33,6 @@ class queue_impl;
 ///
 /// \deprecated Replaced by in_order queue property.
 /// \sa queue
-///
-/// \ingroup sycl_api
 class __SYCL_EXPORT_DEPRECATED("Replaced by in_order queue property")
     ordered_queue {
 public:

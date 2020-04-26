@@ -18,8 +18,7 @@ namespace sycl {
 template <int dimensions> class range;
 template <int dimensions, bool with_offset> class item;
 
-/// A vector of dimensions that is used to represent an id into a global or
-/// local range.
+/// A unique identifier of an item in an index space.
 ///
 /// \ingroup sycl_api
 template <int dimensions = 1> class id : public detail::array<dimensions> {
@@ -38,7 +37,7 @@ private:
   class __private_class;
 
   template <typename N, typename T>
-  using EnableIfIntegral  = detail::enable_if_t<std::is_integral<N>::value, T>;
+  using EnableIfIntegral = detail::enable_if_t<std::is_integral<N>::value, T>;
   template <bool B, typename T>
   using EnableIfT = detail::conditional_t<B, T, __private_class>;
 #endif // __SYCL_DISABLE_ID_TO_INT_CONV__
@@ -117,14 +116,14 @@ public:
    * will be "id op size_t"*/
 #define __SYCL_GEN_OPT(op)                                                     \
   template <typename T>                                                        \
-  EnableIfIntegral <T, bool> operator op(const T &rhs) const {                 \
+  EnableIfIntegral<T, bool> operator op(const T &rhs) const {                  \
     if (this->common_array[0] != rhs)                                          \
       return false op true;                                                    \
     return true op true;                                                       \
   }                                                                            \
   template <typename T>                                                        \
-  friend EnableIfIntegral <T, bool> operator op(const T &lhs,                  \
-                                           const id<dimensions> &rhs) {        \
+  friend EnableIfIntegral<T, bool> operator op(const T &lhs,                   \
+                                               const id<dimensions> &rhs) {    \
     if (lhs != rhs.common_array[0])                                            \
       return false op true;                                                    \
     return true op true;                                                       \
@@ -152,7 +151,7 @@ public:
 #define __SYCL_GEN_OPT(op)                                                     \
   __SYCL_GEN_OPT_BASE(op)                                                      \
   template <typename T>                                                        \
-  EnableIfIntegral <T, id<dimensions>> operator op(const T &rhs) const {       \
+  EnableIfIntegral<T, id<dimensions>> operator op(const T &rhs) const {        \
     id<dimensions> result;                                                     \
     for (int i = 0; i < dimensions; ++i) {                                     \
       result.common_array[i] = this->common_array[i] op rhs;                   \
@@ -160,7 +159,7 @@ public:
     return result;                                                             \
   }                                                                            \
   template <typename T>                                                        \
-  friend EnableIfIntegral <T, id<dimensions>> operator op(                     \
+  friend EnableIfIntegral<T, id<dimensions>> operator op(                      \
       const T &lhs, const id<dimensions> &rhs) {                               \
     id<dimensions> result;                                                     \
     for (int i = 0; i < dimensions; ++i) {                                     \

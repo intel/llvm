@@ -342,7 +342,7 @@ Applied default alignment.")
 #define SYCL_ALIGNAS(N) alignas(N)
 #endif
 
-/// Provides a cross-patform SIMD vector class tempate that works efficiently on
+/// Provides a cross-patform vector class template that works efficiently on
 /// SYCL devices as well as in host C++ code.
 ///
 /// \ingroup sycl_api

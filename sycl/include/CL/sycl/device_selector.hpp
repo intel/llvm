@@ -33,12 +33,7 @@ public:
   virtual int operator()(const device &device) const = 0;
 };
 
-/// The default selector chooses the first available SYCL device. Devices of
-/// different kinds are prioritized in the following order:
-/// 1. GPU
-/// 2. Accelerator
-/// 3. CPU
-/// 4. Host
+/// The default selector chooses the first available SYCL device.
 ///
 /// \sa device
 ///

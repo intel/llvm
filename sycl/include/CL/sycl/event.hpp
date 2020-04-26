@@ -24,7 +24,7 @@ namespace detail {
 class event_impl;
 }
 
-/// An event objects an be used to synchronize memory transfers, enqueues of
+/// An event object can be used to synchronize memory transfers, enqueues of
 /// kernels and signaling barriers.
 ///
 /// \ingroup sycl_api
