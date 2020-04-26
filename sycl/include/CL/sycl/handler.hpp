@@ -9,6 +9,7 @@
 #pragma once
 
 #include <CL/sycl/access/access.hpp>
+#include <CL/sycl/atomic.hpp>
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/cg.hpp>
 #include <CL/sycl/detail/export.hpp>
@@ -363,6 +364,107 @@ private:
     for (size_t I = 0; I < Dims_Src; ++I)
       if (Src[I] > Dst[I])
         return false;
+    return true;
+  }
+
+  /// Handles some special cases of the copy operation from one accessor
+  /// to another accessor. Returns true if the copy is handled here.
+  ///
+  /// \param Src is a source SYCL accessor.
+  /// \param Dst is a destination SYCL accessor.
+  // TODO: support atomic accessor in Src or/and Dst.
+  template <typename TSrc, int DimSrc, access::mode ModeSrc,
+            access::target TargetSrc, typename TDst, int DimDst,
+            access::mode ModeDst, access::target TargetDst,
+            access::placeholder IsPHSrc, access::placeholder IsPHDst>
+  detail::enable_if_t<(DimSrc > 0) && (DimDst > 0), bool>
+  copyAccToAccHelper(accessor<TSrc, DimSrc, ModeSrc, TargetSrc, IsPHSrc> Src,
+                     accessor<TDst, DimDst, ModeDst, TargetDst, IsPHDst> Dst) {
+    if (!MIsHost &&
+        IsCopyingRectRegionAvailable(Src.get_range(), Dst.get_range()))
+      return false;
+
+    range<1> LinearizedRange(Src.get_count());
+    parallel_for<class __copyAcc2Acc<TSrc, DimSrc, ModeSrc, TargetSrc,
+                                     TDst, DimDst, ModeDst, TargetDst,
+                                     IsPHSrc, IsPHDst>>
+                                     (LinearizedRange, [=](id<1> Id) {
+      size_t Index = Id[0];
+      id<DimSrc> SrcIndex = getDelinearizedIndex(Src.get_range(), Index);
+      id<DimDst> DstIndex = getDelinearizedIndex(Dst.get_range(), Index);
+      Dst[DstIndex] = Src[SrcIndex];
+    });
+    return true;
+  }
+
+  template <typename T, int Dim, access::mode Mode, access::target Target,
+            access::placeholder IsPH>
+  detail::enable_if_t<Dim == 0 && Mode == access::mode::atomic, T>
+  readFromFirstAccElement(accessor<T, Dim, Mode, Target, IsPH> Src) const {
+    atomic<T, access::address_space::global_space> AtomicSrc = Src;
+    return AtomicSrc.load();
+  }
+
+  template <typename T, int Dim, access::mode Mode, access::target Target,
+            access::placeholder IsPH>
+  detail::enable_if_t<(Dim > 0) && Mode == access::mode::atomic, T>
+  readFromFirstAccElement(accessor<T, Dim, Mode, Target, IsPH> Src) const {
+    id<Dim> Id = getDelinearizedIndex(Src.get_range(), 0);
+    return Src[Id].load();
+  }
+
+  template <typename T, int Dim, access::mode Mode, access::target Target,
+            access::placeholder IsPH>
+  detail::enable_if_t<Mode != access::mode::atomic, T>
+  readFromFirstAccElement(accessor<T, Dim, Mode, Target, IsPH> Src) const {
+    return *(Src.get_pointer());
+  }
+
+  template <typename T, int Dim, access::mode Mode, access::target Target,
+            access::placeholder IsPH>
+  detail::enable_if_t<Dim == 0 && Mode == access::mode::atomic, void>
+  writeToFirstAccElement(accessor<T, Dim, Mode, Target, IsPH> Dst, T V) const {
+    atomic<T, access::address_space::global_space> AtomicDst = Dst;
+    AtomicDst.store(V);
+  }
+
+  template <typename T, int Dim, access::mode Mode, access::target Target,
+            access::placeholder IsPH>
+  detail::enable_if_t<(Dim > 0) && Mode == access::mode::atomic, void>
+  writeToFirstAccElement(accessor<T, Dim, Mode, Target, IsPH> Dst, T V) const {
+    id<Dim> Id = getDelinearizedIndex(Dst.get_range(), 0);
+    Dst[Id].store(V);
+  }
+
+  template <typename T, int Dim, access::mode Mode, access::target Target,
+            access::placeholder IsPH>
+  detail::enable_if_t<Mode != access::mode::atomic, void>
+  writeToFirstAccElement(accessor<T, Dim, Mode, Target, IsPH> Dst, T V) const {
+    *(Dst.get_pointer()) = V;
+  }
+
+  /// Handles some special cases of the copy operation from one accessor
+  /// to another accessor. Returns true if the copy is handled here.
+  ///
+  /// Source must have at least as many bytes as the range accessed by Dst.
+  ///
+  /// \param Src is a source SYCL accessor.
+  /// \param Dst is a destination SYCL accessor.
+  template <typename TSrc, int DimSrc, access::mode ModeSrc,
+            access::target TargetSrc, typename TDst, int DimDst,
+            access::mode ModeDst, access::target TargetDst,
+            access::placeholder IsPHSrc, access::placeholder IsPHDst>
+  detail::enable_if_t<DimSrc == 0 || DimDst == 0, bool>
+  copyAccToAccHelper(accessor<TSrc, DimSrc, ModeSrc, TargetSrc, IsPHSrc> Src,
+                     accessor<TDst, DimDst, ModeDst, TargetDst, IsPHDst> Dst) {
+    if (!MIsHost)
+      return false;
+
+    single_task<class __copyAcc2Acc<TSrc, DimSrc, ModeSrc, TargetSrc,
+                                    TDst, DimDst, ModeDst, TargetDst,
+                                    IsPHSrc, IsPHDst>> ([=]() {
+      writeToFirstAccElement(Dst, readFromFirstAccElement(Src));
+    });
     return true;
   }
 
@@ -985,6 +1087,7 @@ public:
   ///
   /// \param Src is a source SYCL accessor.
   /// \param Dst is a pointer to destination memory.
+  // TODO: support 0-dimensional and atomic accessors.
   template <typename T_Src, typename T_Dst, int Dims, access::mode AccessMode,
             access::target AccessTarget,
             access::placeholder IsPlaceholder = access::placeholder::false_t>
@@ -1030,6 +1133,7 @@ public:
   ///
   /// \param Src is a pointer to source memory.
   /// \param Dst is a destination SYCL accessor.
+  // TODO: support 0-dimensional and atomic accessors.
   template <typename T_Src, typename T_Dst, int Dims, access::mode AccessMode,
             access::target AccessTarget,
             access::placeholder IsPlaceholder = access::placeholder::false_t>
@@ -1072,7 +1176,7 @@ public:
   /// Copies the contents of memory object accessed by Src to the memory
   /// object accessed by Dst.
   ///
-  /// Source must have at least as many bytes as the range accessed by Dst.
+  /// Dst must have at least as many bytes as the range accessed by Src.
   ///
   /// \param Src is a source SYCL accessor.
   /// \param Dst is a destination SYCL accessor.
@@ -1093,32 +1197,10 @@ public:
                   "Invalid source accessor target for the copy method.");
     static_assert(isValidTargetForExplicitOp(AccessTarget_Dst),
                   "Invalid destination accessor target for the copy method.");
-    // TODO replace to get_size() when it will provide correct values.
-    assert(
-        (Dst.get_range().size() * sizeof(T_Dst) >=
-         Src.get_range().size() * sizeof(T_Src)) &&
-        "dest must have at least as many bytes as the range accessed by src.");
-    if (MIsHost ||
-        !IsCopyingRectRegionAvailable(Src.get_range(), Dst.get_range())) {
-      range<Dims_Src> CopyRange = Src.get_range();
-      size_t Range = 1;
-      for (size_t I = 0; I < Dims_Src; ++I)
-        Range *= CopyRange[I];
-      range<1> LinearizedRange(Range);
-      parallel_for< class __copyAcc2Acc< T_Src, Dims_Src, AccessMode_Src,
-                                         AccessTarget_Src, T_Dst, Dims_Dst,
-                                         AccessMode_Dst, AccessTarget_Dst,
-                                         IsPlaceholder_Src,
-                                         IsPlaceholder_Dst>>
-                                         (LinearizedRange, [=](id<1> Id) {
-        size_t Index = Id[0];
-        id<Dims_Src> SrcIndex = getDelinearizedIndex(Src.get_range(), Index);
-        id<Dims_Dst> DstIndex = getDelinearizedIndex(Dst.get_range(), Index);
-        Dst[DstIndex] = Src[SrcIndex];
-      });
-
+    assert(Dst.get_size() >= Src.get_size() &&
+           "The destination accessor does not fit the copied memory.");
+    if (copyAccToAccHelper(Src, Dst))
       return;
-    }
     MCGType = detail::CG::COPY_ACC_TO_ACC;
 
     detail::AccessorBaseHost *AccBaseSrc = (detail::AccessorBaseHost *)&Src;
