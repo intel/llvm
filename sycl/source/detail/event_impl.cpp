@@ -129,8 +129,11 @@ event_impl::event_impl(QueueImplPtr Queue) : MQueue(Queue) {
       if (!MHostProfilingInfo)
         throw runtime_error("Out of host memory", PI_OUT_OF_HOST_MEMORY);
     }
-  } else
-    MState.store(HES_Ready);
+
+    return;
+  }
+
+  MState.store(HES_Ready);
 }
 
 void *event_impl::instrumentationProlog(string_class &Name, int32_t StreamID,

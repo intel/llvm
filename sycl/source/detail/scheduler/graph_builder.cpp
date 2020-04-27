@@ -678,11 +678,6 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
     EmptyCmd->MBlockReason = Command::BlockReason::HostTask;
   }
 
-  std::vector<AllocaCommandBase *> AllocasForReqs;
-
-  if (CGType == CG::CGTYPE::CODEPLAY_HOST_TASK)
-    AllocasForReqs.reserve(Reqs.size());
-
   for (Requirement *Req : Reqs) {
     MemObjRecord *Record = getOrInsertMemObjRecord(Queue, Req);
     markModifiedIfWrite(Record, Req);
@@ -710,12 +705,12 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
     for (Command *Dep : Deps)
       NewCmd->addDep(DepDesc{Dep, Req, AllocaCmd});
 
-    if (CGType == CG::CGTYPE::CODEPLAY_HOST_TASK)
-      AllocasForReqs.push_back(AllocaCmd);
+    if (CGType == CG::CGTYPE::CODEPLAY_HOST_TASK) {
+      EmptyCmd->addRequirement(NewCmd.get(), AllocaCmd, Req);
+    }
   }
 
   if (CGType == CG::CGTYPE::CODEPLAY_HOST_TASK) {
-    EmptyCmd->addRequirementsAndDeps(NewCmd.get(), AllocasForReqs, Reqs);
     NewCmd->addUser(EmptyCmd);
   }
 

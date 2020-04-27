@@ -10,8 +10,6 @@
 #include <detail/event_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
 
-#include <algorithm>
-
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {

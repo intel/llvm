@@ -243,7 +243,7 @@ public:
     // The enqueue process is driven by backend for non-host.
     // For host event we'll enqueue leaves of requirements
     if (MSelfEvent->is_host())
-      for (DepDesc &Dep : ThisCmd->MDeps)
+      for (const DepDesc &Dep : ThisCmd->MDeps)
         Scheduler::enqueueLeavesOfReq(Dep.MDepRequirement);
   }
 };
@@ -472,13 +472,8 @@ void Command::addConnectCmdWithReq(const ContextImplPtr &DepEventContext,
   GB.updateLeaves(Deps, Record, Req->MAccessMode);
   GB.addNodeToLeaves(Record, ConnectCmd, Req->MAccessMode);
 
-  {
-    std::vector<AllocaCommandBase *> Allocas(1, Dep.MAllocaCmd);
-    std::vector<Requirement *> Reqs(
-        1, const_cast<Requirement *>(Dep.MDepRequirement));
-    EmptyCmd->addRequirementsAndDeps(ConnectCmd, Allocas, Reqs);
-    ConnectCmd->addUser(EmptyCmd);
-  }
+  EmptyCmd->addRequirement(ConnectCmd, Dep.MAllocaCmd, Dep.MDepRequirement);
+  ConnectCmd->addUser(EmptyCmd);
 
   GB.updateLeaves({ConnectCmd}, Record, Req->MAccessMode);
   GB.addNodeToLeaves(Record, EmptyCmd, Req->MAccessMode);
@@ -1409,22 +1404,12 @@ cl_int EmptyCommand::enqueueImp() {
   return CL_SUCCESS;
 }
 
-void EmptyCommand::addRequirementsAndDeps(
-    Command *const DepCmd, const std::vector<AllocaCommandBase *> &Allocas,
-    const std::vector<Requirement *> &Reqs) {
-  assert(Allocas.size() == Reqs.size());
+void EmptyCommand::addRequirement(Command *DepCmd, AllocaCommandBase *AllocaCmd,
+                                  const Requirement *Req) {
+  MRequirements.emplace_back(*Req);
+  const Requirement *const StoredReq = &MRequirements.back();
 
-  MRequirements.reserve(Reqs.size());
-
-  for (size_t Idx = 0; Idx < Reqs.size(); ++Idx) {
-    const Requirement &Req = *Reqs[Idx];
-    AllocaCommandBase *AllocaCmd = Allocas[Idx];
-
-    MRequirements.emplace_back(Req);
-    const Requirement *const StoredReq = &MRequirements.back();
-
-    addDep(DepDesc{DepCmd, StoredReq, AllocaCmd});
-  }
+  addDep(DepDesc{DepCmd, StoredReq, AllocaCmd});
 }
 
 void EmptyCommand::emitInstrumentationData() {
@@ -2100,8 +2085,7 @@ cl_int ExecCGCommand::enqueueImp() {
         Requirement *Req = static_cast<Requirement *>(Arg.MPtr);
         AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
 
-        detail::Requirement *TaskReq = HostTask->MRequirements[ReqIdx];
-        TaskReq->MData = AllocaCmd->getMemAllocation();
+        Req->MData = AllocaCmd->getMemAllocation();
         ++ReqIdx;
         break;
       }

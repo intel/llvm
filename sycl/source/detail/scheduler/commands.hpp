@@ -10,6 +10,7 @@
 
 #include <atomic>
 #include <cstdint>
+#include <deque>
 #include <memory>
 #include <set>
 #include <unordered_set>
@@ -278,16 +279,15 @@ public:
 
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MRequirements[0]; }
-  void addRequirementsAndDeps(Command *const DepCmd,
-                              const std::vector<AllocaCommandBase *> &Allocas,
-                              const std::vector<Requirement *> &Reqs);
+  void addRequirement(Command *DepCmd, AllocaCommandBase *AllocaCmd,
+                      const Requirement *Req);
 
   void emitInstrumentationData();
 
 private:
   cl_int enqueueImp() final;
 
-  std::vector<Requirement> MRequirements;
+  std::deque<Requirement> MRequirements;
 };
 
 /// The release command enqueues release of a memory object instance allocated
