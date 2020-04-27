@@ -155,6 +155,7 @@ extern SYCL_EXTERNAL TempRetT __spirv_ImageSampleExplicitLod(SampledType,
       macro(__attribute__((opencl_local)), Arg)
 
 __SPIRV_ATOMICS(__SPIRV_ATOMIC_FLOAT, float)
+__SPIRV_ATOMICS(__SPIRV_ATOMIC_FLOAT, double)
 __SPIRV_ATOMICS(__SPIRV_ATOMIC_SIGNED, int)
 __SPIRV_ATOMICS(__SPIRV_ATOMIC_SIGNED, long)
 __SPIRV_ATOMICS(__SPIRV_ATOMIC_SIGNED, long long)

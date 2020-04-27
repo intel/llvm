@@ -46,3 +46,10 @@
 #warning "No assumptions will be emitted due to no __builtin_assume available"
 #endif
 #endif
+
+// inline constexpr is a C++17 feature
+#if __cplusplus >= 201703L
+#define __SYCL_INLINE_CONSTEXPR inline constexpr
+#else
+#define __SYCL_INLINE_CONSTEXPR static constexpr
+#endif
