@@ -1,16 +1,8 @@
-// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUNx: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
-
-//==---reduction_nd_conditional.cpp - SYCL reduction + condition test ------==//
-//
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-//
-//===----------------------------------------------------------------------===//
 
 // This test performs basic checks of parallel_for(nd_range, reduction, func)
 // with reduction and conditional increment of the reduction variable.
@@ -41,9 +33,7 @@ void initInputData(buffer<T, 1> &InBuf, T &ExpectedOut, T Identity,
 };
 
 template <typename T, int Dim, class BinaryOperation>
-class Known;
-template <typename T, int Dim, class BinaryOperation>
-class Unknown;
+class SomeClass;
 
 template <typename T>
 struct Vec {
@@ -97,7 +87,7 @@ void test(T Identity, size_t WGSize, size_t NWItems) {
     range<1> GlobalRange(NWItems);
     range<1> LocalRange(WGSize);
     nd_range<1> NDRange(GlobalRange, LocalRange);
-    CGH.parallel_for<Known<T, Dim, BinaryOperation>>(
+    CGH.parallel_for<SomeClass<T, Dim, BinaryOperation>>(
         NDRange, Redu, [=](nd_item<1> NDIt, auto &Sum) {
           size_t I = NDIt.get_global_linear_id();
           if (I < 2)

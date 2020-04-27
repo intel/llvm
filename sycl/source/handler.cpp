@@ -25,8 +25,8 @@ void handler::addEventToQueue(shared_ptr_class<detail::queue_impl> Queue,
 }
 
 event handler::finalize() {
-  // This block of code is needed only to 5th/default reduction implementation.
-  // It is harmless (does nothing) for other implementations.
+  // This block of code is needed only for reduction implementation.
+  // It is harmless (does nothing) for everything else.
   if (MIsFinalized)
     return MLastEvent;
   MIsFinalized = true;

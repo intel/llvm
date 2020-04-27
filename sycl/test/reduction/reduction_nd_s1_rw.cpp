@@ -1,74 +1,21 @@
-// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUNx: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
-//==----------------reduction_ctor.cpp - SYCL reduction basic test ---------==//
-//
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-//
-//===----------------------------------------------------------------------===//
 
 // This test performs basic checks of parallel_for(nd_range, reduction, func)
 // with reductions initialized with 1-dimensional read_write accessor
 // accessing 1 element buffer.
 
+#include "reduction_utils.hpp"
 #include <CL/sycl.hpp>
 #include <cassert>
 
 using namespace cl::sycl;
 
-template <typename T, class BinaryOperation>
-void initInputData(buffer<T, 1> &InBuf, T &ExpectedOut, T Identity,
-                   BinaryOperation BOp, size_t N) {
-  ExpectedOut = Identity;
-  auto In = InBuf.template get_access<access::mode::write>();
-  for (int I = 0; I < N; ++I) {
-    if (std::is_same<BinaryOperation, std::multiplies<T>>::value)
-      In[I] = 1 + (((I % 37) == 0) ? 1 : 0);
-    else
-      In[I] = ((I + 1) % 5) + 1.1;
-    ExpectedOut = BOp(ExpectedOut, In[I]);
-  }
-};
-
 template <typename T, int Dim, class BinaryOperation>
-class Known;
-template <typename T, int Dim, class BinaryOperation>
-class Unknown;
-
-template <typename T>
-struct Vec {
-  Vec() : X(0), Y(0) {}
-  Vec(T X, T Y) : X(X), Y(Y) {}
-  Vec(T V) : X(V), Y(V) {}
-  bool operator==(const Vec &P) const {
-    return P.X == X && P.Y == Y;
-  }
-  bool operator!=(const Vec &P) const {
-    return !(*this == P);
-  }
-  T X;
-  T Y;
-};
-template <typename T>
-bool operator==(const Vec<T> &A, const Vec<T> &B) {
-  return A.X == B.X && A.Y == B.Y;
-}
-template <typename T>
-std::ostream &operator<<(std::ostream &OS, const Vec<T> &P) {
-  return OS << "(" << P.X << ", " << P.Y << ")";
-}
-
-template <class T>
-struct VecPlus {
-  using P = Vec<T>;
-  P operator()(const P &A, const P &B) const {
-    return P(A.X + B.X, A.Y + B.Y);
-  }
-};
+class SomeClass;
 
 template <typename T, int Dim, class BinaryOperation>
 void test(T Identity, size_t WGSize, size_t NWItems) {
@@ -93,7 +40,7 @@ void test(T Identity, size_t WGSize, size_t NWItems) {
     range<1> GlobalRange(NWItems);
     range<1> LocalRange(WGSize);
     nd_range<1> NDRange(GlobalRange, LocalRange);
-    CGH.parallel_for<Known<T, Dim, BinaryOperation>>(
+    CGH.parallel_for<SomeClass<T, Dim, BinaryOperation>>(
         NDRange, Redu, [=](nd_item<1> NDIt, auto &Sum) {
           Sum.combine(In[NDIt.get_global_linear_id()]);
         });
@@ -145,7 +92,7 @@ int main() {
   test<double, 1, intel::maximum<double>>(std::numeric_limits<double>::min(), 8, 256);
 
   // Check with CUSTOM type.
-  test<Vec<long long>, 1, VecPlus<long long>>(Vec<long long>(0), 8, 256);
+  test<CustomVec<long long>, 1, CustomVecPlus<long long>>(CustomVec<long long>(0), 8, 256);
 
   std::cout << "Test passed\n";
   return 0;

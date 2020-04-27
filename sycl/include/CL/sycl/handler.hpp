@@ -232,7 +232,7 @@ private:
   void saveCodeLoc(detail::code_location CodeLoc) { MCodeLoc = CodeLoc; }
 
   /// Stores the given \param Event to the \param Queue.
-  /// Even thought MQueue is a field of handler, the method addEvent() of
+  /// Even though MQueue is a field of handler, the method addEvent() of
   /// queue_impl class cannot be called inside this handler.hpp file
   /// as queue_impl is incomplete class for handler.
   static void addEventToQueue(shared_ptr_class<detail::queue_impl> Queue,
@@ -814,7 +814,7 @@ public:
   /// user's lambda function \param KernelFunc and does one iteration of
   /// reduction of elements in each of work-groups.
   /// This version uses tree-reduction algorithm to reduce elements in each
-  /// of work-groups. At the end of each work-groups the partial sum is written
+  /// of work-groups. At the end of each work-group the partial sum is written
   /// to a global buffer.
   ///
   /// Briefly: user's lambda, tree-reduction, CUSTOM types/ops.
@@ -827,7 +827,7 @@ public:
     size_t NWorkGroups = Range.get_group_range().size();
 
     bool IsUnderLoaded = (NWorkGroups * WGSize - NWorkItems) != 0;
-    size_t InefficientCase = (IsUnderLoaded || (WGSize & (WGSize - 1))) ? 1 : 0;
+    bool IsEfficientCase = !IsUnderLoaded && ((WGSize & (WGSize - 1)) == 0);
 
     bool IsUpdateOfUserAcc =
         Reduction::accessor_mode == access::mode::read_write &&
@@ -835,13 +835,14 @@ public:
 
     // Use local memory to reduce elements in work-groups into 0-th element.
     // If WGSize is not power of two, then WGSize+1 elements are allocated.
-    // The additional last element is used to catch reduce elements that could
-    // otherwise be lost in the tree-reduction algorithm used in the kernel.
-    auto LocalReds = Redu.getReadWriteLocalAcc(WGSize + InefficientCase, *this);
+    // The additional last element is used to catch elements that could
+    // otherwise be lost in the tree-reduction algorithm.
+    size_t NumLocalElements = WGSize + (IsEfficientCase ? 0 : 1);
+    auto LocalReds = Redu.getReadWriteLocalAcc(NumLocalElements, *this);
 
     auto Out = Redu.getWriteAccForPartialReds(NWorkGroups, 0, *this);
     auto ReduIdentity = Redu.getIdentity();
-    if (!InefficientCase) {
+    if (IsEfficientCase) {
       // Efficient case: work-groups are fully loaded and work-group size
       // is power of two.
       parallel_for<KernelName>(Range, [=](nd_item<Dims> NDIt) {
@@ -863,7 +864,7 @@ public:
           NDIt.barrier();
         }
 
-        // Compute the the partial sum/reduction for the work-group.
+        // Compute the partial sum/reduction for the work-group.
         if (LID == 0)
           Out.get_pointer().get()[NDIt.get_group_linear_id()] =
               IsUpdateOfUserAcc ? BOp(*(Out.get_pointer()), LocalReds[0])
@@ -904,7 +905,7 @@ public:
           PrevStep = CurStep;
         }
 
-        // Compute the the partial sum/reduction for the work-group.
+        // Compute the partial sum/reduction for the work-group.
         if (LID == 0) {
           auto GrID = NDIt.get_group_linear_id();
           auto V = BOp(LocalReds[0], LocalReds[WGSize]);
@@ -918,7 +919,7 @@ public:
   /// Implements a command group function that enqueues a kernel that does one
   /// iteration of reduction of elements in each of work-groups.
   /// This version uses tree-reduction algorithm to reduce elements in each
-  /// of work-groups. At the end of each work-groups the partial sum is written
+  /// of work-groups. At the end of each work-group the partial sum is written
   /// to a global buffer.
   ///
   /// Briefly: aux kernel, tree-reduction, CUSTOM types/ops.
@@ -932,7 +933,7 @@ public:
     // size may be not power of those. Those two cases considered inefficient
     // as they require additional code and checks in the kernel.
     bool IsUnderLoaded = NWorkGroups * WGSize != NWorkItems;
-    size_t InefficientCase = (IsUnderLoaded || (WGSize & (WGSize - 1))) ? 1 : 0;
+    bool IsEfficientCase = !IsUnderLoaded && (WGSize & (WGSize - 1)) == 0;
 
     bool IsUpdateOfUserAcc =
         Reduction::accessor_mode == access::mode::read_write &&
@@ -940,9 +941,10 @@ public:
 
     // Use local memory to reduce elements in work-groups into 0-th element.
     // If WGSize is not power of two, then WGSize+1 elements are allocated.
-    // The additional last element is used to catch reduce elements that
-    // could otherwise be lost in the tree-reduction algorithm.
-    auto LocalReds = Redu.getReadWriteLocalAcc(WGSize + InefficientCase, *this);
+    // The additional last element is used to catch elements that could
+    // otherwise be lost in the tree-reduction algorithm.
+    size_t NumLocalElements = WGSize + (IsEfficientCase ? 0 : 1);
+    auto LocalReds = Redu.getReadWriteLocalAcc(NumLocalElements, *this);
 
     // Get read accessor to the buffer that was used as output
     // in the previous kernel. After that create new output buffer if needed
@@ -951,7 +953,7 @@ public:
     auto In = Redu.getReadAccToPreviousPartialReds(*this);
     auto Out = Redu.getWriteAccForPartialReds(NWorkGroups, KernelRun, *this);
 
-    if (!InefficientCase) {
+    if (IsEfficientCase) {
       // Efficient case: work-groups are fully loaded and work-group size
       // is power of two.
       using AuxName = typename detail::get_reduction_aux_1st_kernel_name_t<
@@ -972,7 +974,7 @@ public:
           NDIt.barrier();
         }
 
-        // Compute the the partial sum/reduction for the work-group.
+        // Compute the partial sum/reduction for the work-group.
         if (LID == 0)
           Out.get_pointer().get()[NDIt.get_group_linear_id()] =
               IsUpdateOfUserAcc ? BOp(*(Out.get_pointer()), LocalReds[0])
@@ -1010,7 +1012,7 @@ public:
           PrevStep = CurStep;
         }
 
-        // Compute the the partial sum/reduction for the work-group.
+        // Compute the partial sum/reduction for the work-group.
         if (LID == 0) {
           auto GrID = NDIt.get_group_linear_id();
           auto V = BOp(LocalReds[0], LocalReds[WGSize]);
@@ -1096,7 +1098,7 @@ public:
       handler AuxHandler(QueueCopy, MIsHost);
       AuxHandler.saveCodeLoc(MCodeLoc);
 
-      // The last kernel DOES write to reductions's accessor.
+      // The last kernel DOES write to reduction's accessor.
       // Associate it with handler manually.
       if (NWorkGroups == 1)
         AuxHandler.associateWithHandler(Redu.MAcc);
