@@ -298,6 +298,74 @@ define double @trunc_signed32_f64_nsz(double %x) #0 {
   ret double %r
 }
 
+define double @trunc_f32_signed32_f64_no_fast_math(float %x) {
+; SSE-LABEL: trunc_f32_signed32_f64_no_fast_math:
+; SSE:       # %bb.0:
+; SSE-NEXT:    cvttps2dq %xmm0, %xmm0
+; SSE-NEXT:    cvtdq2pd %xmm0, %xmm0
+; SSE-NEXT:    retq
+;
+; AVX1-LABEL: trunc_f32_signed32_f64_no_fast_math:
+; AVX1:       # %bb.0:
+; AVX1-NEXT:    vcvttps2dq %xmm0, %xmm0
+; AVX1-NEXT:    vcvtdq2pd %xmm0, %xmm0
+; AVX1-NEXT:    retq
+  %i = fptosi float %x to i32
+  %r = sitofp i32 %i to double
+  ret double %r
+}
+
+define double @trunc_f32_signed32_f64_nsz(float %x) #0 {
+; SSE-LABEL: trunc_f32_signed32_f64_nsz:
+; SSE:       # %bb.0:
+; SSE-NEXT:    cvttps2dq %xmm0, %xmm0
+; SSE-NEXT:    cvtdq2pd %xmm0, %xmm0
+; SSE-NEXT:    retq
+;
+; AVX1-LABEL: trunc_f32_signed32_f64_nsz:
+; AVX1:       # %bb.0:
+; AVX1-NEXT:    vcvttps2dq %xmm0, %xmm0
+; AVX1-NEXT:    vcvtdq2pd %xmm0, %xmm0
+; AVX1-NEXT:    retq
+  %i = fptosi float %x to i32
+  %r = sitofp i32 %i to double
+  ret double %r
+}
+
+define float @trunc_f64_signed32_f32_no_fast_math(double %x) {
+; SSE-LABEL: trunc_f64_signed32_f32_no_fast_math:
+; SSE:       # %bb.0:
+; SSE-NEXT:    cvttpd2dq %xmm0, %xmm0
+; SSE-NEXT:    cvtdq2ps %xmm0, %xmm0
+; SSE-NEXT:    retq
+;
+; AVX1-LABEL: trunc_f64_signed32_f32_no_fast_math:
+; AVX1:       # %bb.0:
+; AVX1-NEXT:    vcvttpd2dq %xmm0, %xmm0
+; AVX1-NEXT:    vcvtdq2ps %xmm0, %xmm0
+; AVX1-NEXT:    retq
+  %i = fptosi double %x to i32
+  %r = sitofp i32 %i to float
+  ret float %r
+}
+
+define float @trunc_f64_signed32_f32_nsz(double %x) #0 {
+; SSE-LABEL: trunc_f64_signed32_f32_nsz:
+; SSE:       # %bb.0:
+; SSE-NEXT:    cvttpd2dq %xmm0, %xmm0
+; SSE-NEXT:    cvtdq2ps %xmm0, %xmm0
+; SSE-NEXT:    retq
+;
+; AVX1-LABEL: trunc_f64_signed32_f32_nsz:
+; AVX1:       # %bb.0:
+; AVX1-NEXT:    vcvttpd2dq %xmm0, %xmm0
+; AVX1-NEXT:    vcvtdq2ps %xmm0, %xmm0
+; AVX1-NEXT:    retq
+  %i = fptosi double %x to i32
+  %r = sitofp i32 %i to float
+  ret float %r
+}
+
 define double @trunc_signed_f64_no_fast_math(double %x) {
 ; SSE-LABEL: trunc_signed_f64_no_fast_math:
 ; SSE:       # %bb.0:

@@ -637,13 +637,48 @@ template <class ELFT> void Writer<ELFT>::run() {
     error("failed to write to the output file: " + toString(std::move(e)));
 }
 
+template <class ELFT, class RelTy>
+static void markUsedLocalSymbolsImpl(ObjFile<ELFT> *file,
+                                     llvm::ArrayRef<RelTy> rels) {
+  for (const RelTy &rel : rels) {
+    Symbol &sym = file->getRelocTargetSym(rel);
+    if (sym.isLocal())
+      sym.used = true;
+  }
+}
+
+// The function ensures that the "used" field of local symbols reflects the fact
+// that the symbol is used in a relocation from a live section.
+template <class ELFT> static void markUsedLocalSymbols() {
+  // With --gc-sections, the field is already filled.
+  // See MarkLive<ELFT>::resolveReloc().
+  if (config->gcSections)
+    return;
+  // Without --gc-sections, the field is initialized with "true".
+  // Drop the flag first and then rise for symbols referenced in relocations.
+  for (InputFile *file : objectFiles) {
+    ObjFile<ELFT> *f = cast<ObjFile<ELFT>>(file);
+    for (Symbol *b : f->getLocalSymbols())
+      b->used = false;
+    for (InputSectionBase *s : f->getSections()) {
+      InputSection *isec = dyn_cast_or_null<InputSection>(s);
+      if (!isec)
+        continue;
+      if (isec->type == SHT_REL)
+        markUsedLocalSymbolsImpl(f, isec->getDataAs<typename ELFT::Rel>());
+      else if (isec->type == SHT_RELA)
+        markUsedLocalSymbolsImpl(f, isec->getDataAs<typename ELFT::Rela>());
+    }
+  }
+}
+
 static bool shouldKeepInSymtab(const Defined &sym) {
   if (sym.isSection())
     return false;
 
-  // If --emit-reloc or -r is given, all symbols including local ones need to be
-  // copied because they may be referenced by relocations.
-  if (config->copyRelocs)
+  // If --emit-reloc or -r is given, preserve symbols referenced by relocations
+  // from live sections.
+  if (config->copyRelocs && sym.used)
     return true;
 
   if (config->discard == DiscardPolicy::None)
@@ -696,6 +731,8 @@ static bool includeInSymtab(const Symbol &b) {
 template <class ELFT> void Writer<ELFT>::copyLocalSymbols() {
   if (!in.symTab)
     return;
+  if (config->copyRelocs && config->discard != DiscardPolicy::None)
+    markUsedLocalSymbols<ELFT>();
   for (InputFile *file : objectFiles) {
     ObjFile<ELFT> *f = cast<ObjFile<ELFT>>(file);
     for (Symbol *b : f->getLocalSymbols()) {
@@ -1604,6 +1641,11 @@ template <class ELFT> void Writer<ELFT>::resolveShfLinkOrder() {
   }
 }
 
+static void finalizeSynthetic(SyntheticSection *sec) {
+  if (sec && sec->isNeeded() && sec->getParent())
+    sec->finalizeContents();
+}
+
 // We need to generate and finalize the content that depends on the address of
 // InputSections. As the generation of the content may also alter InputSection
 // addresses we must converge to a fixed point. We do that here. See the comment
@@ -1613,6 +1655,11 @@ template <class ELFT> void Writer<ELFT>::finalizeAddressDependentContent() {
   AArch64Err843419Patcher a64p;
   ARMErr657417Patcher a32p;
   script->assignAddresses();
+  // .ARM.exidx does not require precise addresses, but it does require the
+  // relative addresses of OutputSections because linker scripts can assign
+  // Virtual Addresses to OutputSections that are not monotonically increasing.
+  for (Partition &part : partitions)
+    finalizeSynthetic(part.armExidx);
 
   // Converts call x@GDPLT to call __tls_get_addr
   if (config->emachine == EM_HEXAGON)
@@ -1760,11 +1807,6 @@ template <class ELFT> void Writer<ELFT>::optimizeBasicBlockJumps() {
     for (InputSection *is : sections)
       is->trim();
   }
-}
-
-static void finalizeSynthetic(SyntheticSection *sec) {
-  if (sec && sec->isNeeded() && sec->getParent())
-    sec->finalizeContents();
 }
 
 // In order to allow users to manipulate linker-synthesized sections,
@@ -2035,7 +2077,6 @@ template <class ELFT> void Writer<ELFT>::finalizeSections() {
   // Dynamic section must be the last one in this list and dynamic
   // symbol table section (dynSymTab) must be the first one.
   for (Partition &part : partitions) {
-    finalizeSynthetic(part.armExidx);
     finalizeSynthetic(part.dynSymTab);
     finalizeSynthetic(part.gnuHashTab);
     finalizeSynthetic(part.hashTab);

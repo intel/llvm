@@ -112,7 +112,7 @@ bool llvm::hasVectorInstrinsicScalarOpd(Intrinsic::ID ID,
 /// its ID, in case it does not found it return not_intrinsic.
 Intrinsic::ID llvm::getVectorIntrinsicIDForCall(const CallInst *CI,
                                                 const TargetLibraryInfo *TLI) {
-  Intrinsic::ID ID = getIntrinsicForCallSite(CI, TLI);
+  Intrinsic::ID ID = getIntrinsicForCallSite(*CI, TLI);
   if (ID == Intrinsic::not_intrinsic)
     return Intrinsic::not_intrinsic;
 
@@ -263,10 +263,10 @@ Value *llvm::findScalarElement(Value *V, unsigned EltNo) {
   assert(V->getType()->isVectorTy() && "Not looking at a vector?");
   VectorType *VTy = cast<VectorType>(V->getType());
   // For fixed-length vector, return undef for out of range access.
-  if (!VTy->isScalable()) {
-    unsigned Width = VTy->getNumElements();
+  if (auto *FVTy = dyn_cast<FixedVectorType>(VTy)) {
+    unsigned Width = FVTy->getNumElements();
     if (EltNo >= Width)
-      return UndefValue::get(VTy->getElementType());
+      return UndefValue::get(FVTy->getElementType());
   }
 
   if (Constant *C = dyn_cast<Constant>(V))

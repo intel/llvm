@@ -169,10 +169,10 @@ define i8 @t9(i8 %x, i8 %y) {
 }
 define i8 @n10(i8 %x, i8 %y, i8 %z) {
 ; CHECK-LABEL: @n10(
-; CHECK-NEXT:    [[T0_NEG:%.*]] = sub i8 [[X:%.*]], [[Y:%.*]]
-; CHECK-NEXT:    [[T0:%.*]] = sub i8 [[Y]], [[X]]
+; CHECK-NEXT:    [[T0:%.*]] = sub i8 [[Y:%.*]], [[X:%.*]]
 ; CHECK-NEXT:    call void @use8(i8 [[T0]])
-; CHECK-NEXT:    ret i8 [[T0_NEG]]
+; CHECK-NEXT:    [[T1:%.*]] = sub i8 0, [[T0]]
+; CHECK-NEXT:    ret i8 [[T1]]
 ;
   %t0 = sub i8 %y, %x
   call void @use8(i8 %t0)
@@ -621,4 +621,204 @@ define i8 @negate_zext_wrongwidth(i8 %x, i2 %y) {
   %t0 = zext i2 %y to i8
   %t1 = sub i8 %x, %t0
   ret i8 %t1
+}
+
+define <2 x i4> @negate_shufflevector_oneinput_reverse(<2 x i4> %x, <2 x i4> %y) {
+; CHECK-LABEL: @negate_shufflevector_oneinput_reverse(
+; CHECK-NEXT:    [[T0_NEG:%.*]] = shl <2 x i4> <i4 6, i4 -5>, [[X:%.*]]
+; CHECK-NEXT:    [[T1_NEG:%.*]] = shufflevector <2 x i4> [[T0_NEG]], <2 x i4> undef, <2 x i32> <i32 1, i32 0>
+; CHECK-NEXT:    [[T2:%.*]] = add <2 x i4> [[T1_NEG]], [[Y:%.*]]
+; CHECK-NEXT:    ret <2 x i4> [[T2]]
+;
+  %t0 = shl <2 x i4> <i4 -6, i4 5>, %x
+  %t1 = shufflevector <2 x i4> %t0, <2 x i4> undef, <2 x i32> <i32 1, i32 0>
+  %t2 = sub <2 x i4> %y, %t1
+  ret <2 x i4> %t2
+}
+define <2 x i4> @negate_shufflevector_oneinput_second_lane_is_undef(<2 x i4> %x, <2 x i4> %y) {
+; CHECK-LABEL: @negate_shufflevector_oneinput_second_lane_is_undef(
+; CHECK-NEXT:    [[T0_NEG:%.*]] = shl <2 x i4> <i4 6, i4 -5>, [[X:%.*]]
+; CHECK-NEXT:    [[T1_NEG:%.*]] = shufflevector <2 x i4> [[T0_NEG]], <2 x i4> undef, <2 x i32> <i32 0, i32 undef>
+; CHECK-NEXT:    [[T2:%.*]] = add <2 x i4> [[T1_NEG]], [[Y:%.*]]
+; CHECK-NEXT:    ret <2 x i4> [[T2]]
+;
+  %t0 = shl <2 x i4> <i4 -6, i4 5>, %x
+  %t1 = shufflevector <2 x i4> %t0, <2 x i4> undef, <2 x i32> <i32 0, i32 2>
+  %t2 = sub <2 x i4> %y, %t1
+  ret <2 x i4> %t2
+}
+define <2 x i4> @negate_shufflevector_twoinputs(<2 x i4> %x, <2 x i4> %y, <2 x i4> %z) {
+; CHECK-LABEL: @negate_shufflevector_twoinputs(
+; CHECK-NEXT:    [[T0_NEG:%.*]] = shl <2 x i4> <i4 6, i4 -5>, [[X:%.*]]
+; CHECK-NEXT:    [[T1_NEG:%.*]] = add <2 x i4> [[Y:%.*]], <i4 undef, i4 1>
+; CHECK-NEXT:    [[T2_NEG:%.*]] = shufflevector <2 x i4> [[T0_NEG]], <2 x i4> [[T1_NEG]], <2 x i32> <i32 0, i32 3>
+; CHECK-NEXT:    [[T3:%.*]] = add <2 x i4> [[T2_NEG]], [[Z:%.*]]
+; CHECK-NEXT:    ret <2 x i4> [[T3]]
+;
+  %t0 = shl <2 x i4> <i4 -6, i4 5>, %x
+  %t1 = xor <2 x i4> %y, <i4 -1, i4 -1>
+  %t2 = shufflevector <2 x i4> %t0, <2 x i4> %t1, <2 x i32> <i32 0, i32 3>
+  %t3 = sub <2 x i4> %z, %t2
+  ret <2 x i4> %t3
+}
+define <2 x i4> @negate_shufflevector_oneinput_extrause(<2 x i4> %x, <2 x i4> %y) {
+; CHECK-LABEL: @negate_shufflevector_oneinput_extrause(
+; CHECK-NEXT:    [[T0:%.*]] = shl <2 x i4> <i4 -6, i4 5>, [[X:%.*]]
+; CHECK-NEXT:    [[T1:%.*]] = shufflevector <2 x i4> [[T0]], <2 x i4> undef, <2 x i32> <i32 1, i32 0>
+; CHECK-NEXT:    call void @use_v2i4(<2 x i4> [[T1]])
+; CHECK-NEXT:    [[T2:%.*]] = sub <2 x i4> [[Y:%.*]], [[T1]]
+; CHECK-NEXT:    ret <2 x i4> [[T2]]
+;
+  %t0 = shl <2 x i4> <i4 -6, i4 5>, %x
+  %t1 = shufflevector <2 x i4> %t0, <2 x i4> undef, <2 x i32> <i32 1, i32 0>
+  call void @use_v2i4(<2 x i4> %t1)
+  %t2 = sub <2 x i4> %y, %t1
+  ret <2 x i4> %t2
+}
+
+; zext of non-negative can be negated
+; sext of non-positive can be negated
+define i16 @negation_of_zeroext_of_nonnegative(i8 %x) {
+; CHECK-LABEL: @negation_of_zeroext_of_nonnegative(
+; CHECK-NEXT:    [[T0:%.*]] = sub i8 0, [[X:%.*]]
+; CHECK-NEXT:    [[T1:%.*]] = icmp sgt i8 [[T0]], -1
+; CHECK-NEXT:    br i1 [[T1]], label [[NONNEG_BB:%.*]], label [[NEG_BB:%.*]]
+; CHECK:       nonneg_bb:
+; CHECK-NEXT:    [[T2:%.*]] = zext i8 [[T0]] to i16
+; CHECK-NEXT:    [[T3:%.*]] = sub nsw i16 0, [[T2]]
+; CHECK-NEXT:    ret i16 [[T3]]
+; CHECK:       neg_bb:
+; CHECK-NEXT:    ret i16 0
+;
+  %t0 = sub i8 0, %x
+  %t1 = icmp sge i8 %t0, 0
+  br i1 %t1, label %nonneg_bb, label %neg_bb
+
+nonneg_bb:
+  %t2 = zext i8 %t0 to i16
+  %t3 = sub i16 0, %t2
+  ret i16 %t3
+
+neg_bb:
+  ret i16 0
+}
+define i16 @negation_of_zeroext_of_positive(i8 %x) {
+; CHECK-LABEL: @negation_of_zeroext_of_positive(
+; CHECK-NEXT:    [[T0:%.*]] = sub i8 0, [[X:%.*]]
+; CHECK-NEXT:    [[T1:%.*]] = icmp sgt i8 [[T0]], 0
+; CHECK-NEXT:    br i1 [[T1]], label [[NONNEG_BB:%.*]], label [[NEG_BB:%.*]]
+; CHECK:       nonneg_bb:
+; CHECK-NEXT:    [[T2:%.*]] = zext i8 [[T0]] to i16
+; CHECK-NEXT:    [[T3:%.*]] = sub nsw i16 0, [[T2]]
+; CHECK-NEXT:    ret i16 [[T3]]
+; CHECK:       neg_bb:
+; CHECK-NEXT:    ret i16 0
+;
+  %t0 = sub i8 0, %x
+  %t1 = icmp sgt i8 %t0, 0
+  br i1 %t1, label %nonneg_bb, label %neg_bb
+
+nonneg_bb:
+  %t2 = zext i8 %t0 to i16
+  %t3 = sub i16 0, %t2
+  ret i16 %t3
+
+neg_bb:
+  ret i16 0
+}
+define i16 @negation_of_signext_of_negative(i8 %x) {
+; CHECK-LABEL: @negation_of_signext_of_negative(
+; CHECK-NEXT:    [[T0:%.*]] = sub i8 0, [[X:%.*]]
+; CHECK-NEXT:    [[T1:%.*]] = icmp slt i8 [[T0]], 0
+; CHECK-NEXT:    br i1 [[T1]], label [[NEG_BB:%.*]], label [[NONNEG_BB:%.*]]
+; CHECK:       neg_bb:
+; CHECK-NEXT:    [[T2:%.*]] = sext i8 [[T0]] to i16
+; CHECK-NEXT:    [[T3:%.*]] = sub nsw i16 0, [[T2]]
+; CHECK-NEXT:    ret i16 [[T3]]
+; CHECK:       nonneg_bb:
+; CHECK-NEXT:    ret i16 0
+;
+  %t0 = sub i8 0, %x
+  %t1 = icmp slt i8 %t0, 0
+  br i1 %t1, label %neg_bb, label %nonneg_bb
+
+neg_bb:
+  %t2 = sext i8 %t0 to i16
+  %t3 = sub i16 0, %t2
+  ret i16 %t3
+
+nonneg_bb:
+  ret i16 0
+}
+define i16 @negation_of_signext_of_nonpositive(i8 %x) {
+; CHECK-LABEL: @negation_of_signext_of_nonpositive(
+; CHECK-NEXT:    [[T0:%.*]] = sub i8 0, [[X:%.*]]
+; CHECK-NEXT:    [[T1:%.*]] = icmp slt i8 [[T0]], 1
+; CHECK-NEXT:    br i1 [[T1]], label [[NEG_BB:%.*]], label [[NONNEG_BB:%.*]]
+; CHECK:       neg_bb:
+; CHECK-NEXT:    [[T2:%.*]] = sext i8 [[T0]] to i16
+; CHECK-NEXT:    [[T3:%.*]] = sub nsw i16 0, [[T2]]
+; CHECK-NEXT:    ret i16 [[T3]]
+; CHECK:       nonneg_bb:
+; CHECK-NEXT:    ret i16 0
+;
+  %t0 = sub i8 0, %x
+  %t1 = icmp sle i8 %t0, 0
+  br i1 %t1, label %neg_bb, label %nonneg_bb
+
+neg_bb:
+  %t2 = sext i8 %t0 to i16
+  %t3 = sub i16 0, %t2
+  ret i16 %t3
+
+nonneg_bb:
+  ret i16 0
+}
+define i16 @negation_of_signext_of_nonnegative__wrong_cast(i8 %x) {
+; CHECK-LABEL: @negation_of_signext_of_nonnegative__wrong_cast(
+; CHECK-NEXT:    [[T0:%.*]] = sub i8 0, [[X:%.*]]
+; CHECK-NEXT:    [[T1:%.*]] = icmp sgt i8 [[T0]], -1
+; CHECK-NEXT:    br i1 [[T1]], label [[NONNEG_BB:%.*]], label [[NEG_BB:%.*]]
+; CHECK:       nonneg_bb:
+; CHECK-NEXT:    [[T2:%.*]] = sext i8 [[T0]] to i16
+; CHECK-NEXT:    [[T3:%.*]] = sub nsw i16 0, [[T2]]
+; CHECK-NEXT:    ret i16 [[T3]]
+; CHECK:       neg_bb:
+; CHECK-NEXT:    ret i16 0
+;
+  %t0 = sub i8 0, %x
+  %t1 = icmp sge i8 %t0, 0
+  br i1 %t1, label %nonneg_bb, label %neg_bb
+
+nonneg_bb:
+  %t2 = sext i8 %t0 to i16
+  %t3 = sub i16 0, %t2
+  ret i16 %t3
+
+neg_bb:
+  ret i16 0
+}
+define i16 @negation_of_zeroext_of_negative_wrongcast(i8 %x) {
+; CHECK-LABEL: @negation_of_zeroext_of_negative_wrongcast(
+; CHECK-NEXT:    [[T0:%.*]] = sub i8 0, [[X:%.*]]
+; CHECK-NEXT:    [[T1:%.*]] = icmp slt i8 [[T0]], 0
+; CHECK-NEXT:    br i1 [[T1]], label [[NEG_BB:%.*]], label [[NONNEG_BB:%.*]]
+; CHECK:       neg_bb:
+; CHECK-NEXT:    [[T2:%.*]] = zext i8 [[T0]] to i16
+; CHECK-NEXT:    [[T3:%.*]] = sub nsw i16 0, [[T2]]
+; CHECK-NEXT:    ret i16 [[T3]]
+; CHECK:       nonneg_bb:
+; CHECK-NEXT:    ret i16 0
+;
+  %t0 = sub i8 0, %x
+  %t1 = icmp slt i8 %t0, 0
+  br i1 %t1, label %neg_bb, label %nonneg_bb
+
+neg_bb:
+  %t2 = zext i8 %t0 to i16
+  %t3 = sub i16 0, %t2
+  ret i16 %t3
+
+nonneg_bb:
+  ret i16 0
 }

@@ -767,9 +767,7 @@ static bool ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
   Opts.DebugExplicitImport = Args.hasArg(OPT_dwarf_explicit_import);
   Opts.DebugFwdTemplateParams = Args.hasArg(OPT_debug_forward_template_params);
   Opts.EmbedSource = Args.hasArg(OPT_gembed_source);
-
-  Opts.ForceDwarfFrameSection =
-      Args.hasFlag(OPT_fforce_dwarf_frame, OPT_fno_force_dwarf_frame, false);
+  Opts.ForceDwarfFrameSection = Args.hasArg(OPT_fforce_dwarf_frame);
 
   for (const auto &Arg : Args.getAllArgValues(OPT_fdebug_prefix_map_EQ)) {
     auto Split = StringRef(Arg).split('=');
@@ -1301,11 +1299,18 @@ static bool ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
       Diags.Report(diag::err_drv_invalid_value) << A->getAsString(Args) << Val;
   }
 
-  if (Arg *A = Args.getLastArg(OPT_fpcc_struct_return, OPT_freg_struct_return)) {
-    if (A->getOption().matches(OPT_fpcc_struct_return)) {
+  // X86_32 has -fppc-struct-return and -freg-struct-return.
+  // PPC32 has -maix-struct-return and -msvr4-struct-return.
+  if (Arg *A =
+          Args.getLastArg(OPT_fpcc_struct_return, OPT_freg_struct_return,
+                          OPT_maix_struct_return, OPT_msvr4_struct_return)) {
+    const Option &O = A->getOption();
+    if (O.matches(OPT_fpcc_struct_return) ||
+        O.matches(OPT_maix_struct_return)) {
       Opts.setStructReturnConvention(CodeGenOptions::SRCK_OnStack);
     } else {
-      assert(A->getOption().matches(OPT_freg_struct_return));
+      assert(O.matches(OPT_freg_struct_return) ||
+             O.matches(OPT_msvr4_struct_return));
       Opts.setStructReturnConvention(CodeGenOptions::SRCK_InRegs);
     }
   }

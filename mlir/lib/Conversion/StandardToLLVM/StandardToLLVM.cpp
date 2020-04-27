@@ -17,6 +17,7 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Attributes.h"
+#include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Module.h"
@@ -2746,6 +2747,128 @@ struct AtomicCmpXchgOpLowering : public LoadStoreOpLowering<AtomicRMWOp> {
   }
 };
 
+/// Wrap a llvm.cmpxchg operation in a while loop so that the operation can be
+/// retried until it succeeds in atomically storing a new value into memory.
+///
+///      +---------------------------------+
+///      |   <code before the AtomicRMWOp> |
+///      |   <compute initial %loaded>     |
+///      |   br loop(%loaded)              |
+///      +---------------------------------+
+///             |
+///  -------|   |
+///  |      v   v
+///  |   +--------------------------------+
+///  |   | loop(%loaded):                 |
+///  |   |   <body contents>              |
+///  |   |   %pair = cmpxchg              |
+///  |   |   %ok = %pair[0]               |
+///  |   |   %new = %pair[1]              |
+///  |   |   cond_br %ok, end, loop(%new) |
+///  |   +--------------------------------+
+///  |          |        |
+///  |-----------        |
+///                      v
+///      +--------------------------------+
+///      | end:                           |
+///      |   <code after the AtomicRMWOp> |
+///      +--------------------------------+
+///
+struct GenericAtomicRMWOpLowering
+    : public LoadStoreOpLowering<GenericAtomicRMWOp> {
+  using Base::Base;
+
+  LogicalResult
+  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto atomicOp = cast<GenericAtomicRMWOp>(op);
+
+    auto loc = op->getLoc();
+    OperandAdaptor<GenericAtomicRMWOp> adaptor(operands);
+    LLVM::LLVMType valueType =
+        typeConverter.convertType(atomicOp.getResult().getType())
+            .cast<LLVM::LLVMType>();
+
+    // Split the block into initial, loop, and ending parts.
+    auto *initBlock = rewriter.getInsertionBlock();
+    auto *loopBlock =
+        rewriter.createBlock(initBlock->getParent(),
+                             std::next(Region::iterator(initBlock)), valueType);
+    auto *endBlock = rewriter.createBlock(
+        loopBlock->getParent(), std::next(Region::iterator(loopBlock)));
+
+    // Operations range to be moved to `endBlock`.
+    auto opsToMoveStart = atomicOp.getOperation()->getIterator();
+    auto opsToMoveEnd = initBlock->back().getIterator();
+
+    // Compute the loaded value and branch to the loop block.
+    rewriter.setInsertionPointToEnd(initBlock);
+    auto memRefType = atomicOp.memref().getType().cast<MemRefType>();
+    auto dataPtr = getDataPtr(loc, memRefType, adaptor.memref(),
+                              adaptor.indices(), rewriter, getModule());
+    Value init = rewriter.create<LLVM::LoadOp>(loc, dataPtr);
+    rewriter.create<LLVM::BrOp>(loc, init, loopBlock);
+
+    // Prepare the body of the loop block.
+    rewriter.setInsertionPointToStart(loopBlock);
+
+    // Clone the GenericAtomicRMWOp region and extract the result.
+    auto loopArgument = loopBlock->getArgument(0);
+    BlockAndValueMapping mapping;
+    mapping.map(atomicOp.getCurrentValue(), loopArgument);
+    Block &entryBlock = atomicOp.body().front();
+    for (auto &nestedOp : entryBlock.without_terminator()) {
+      Operation *clone = rewriter.clone(nestedOp, mapping);
+      mapping.map(nestedOp.getResults(), clone->getResults());
+    }
+    Value result = mapping.lookup(entryBlock.getTerminator()->getOperand(0));
+
+    // Prepare the epilog of the loop block.
+    // Append the cmpxchg op to the end of the loop block.
+    auto successOrdering = LLVM::AtomicOrdering::acq_rel;
+    auto failureOrdering = LLVM::AtomicOrdering::monotonic;
+    auto boolType = LLVM::LLVMType::getInt1Ty(&getDialect());
+    auto pairType = LLVM::LLVMType::getStructTy(valueType, boolType);
+    auto cmpxchg = rewriter.create<LLVM::AtomicCmpXchgOp>(
+        loc, pairType, dataPtr, loopArgument, result, successOrdering,
+        failureOrdering);
+    // Extract the %new_loaded and %ok values from the pair.
+    Value newLoaded = rewriter.create<LLVM::ExtractValueOp>(
+        loc, valueType, cmpxchg, rewriter.getI64ArrayAttr({0}));
+    Value ok = rewriter.create<LLVM::ExtractValueOp>(
+        loc, boolType, cmpxchg, rewriter.getI64ArrayAttr({1}));
+
+    // Conditionally branch to the end or back to the loop depending on %ok.
+    rewriter.create<LLVM::CondBrOp>(loc, ok, endBlock, ArrayRef<Value>(),
+                                    loopBlock, newLoaded);
+
+    rewriter.setInsertionPointToEnd(endBlock);
+    MoveOpsRange(atomicOp.getResult(), newLoaded, std::next(opsToMoveStart),
+                 std::next(opsToMoveEnd), rewriter);
+
+    // The 'result' of the atomic_rmw op is the newly loaded value.
+    rewriter.replaceOp(op, {newLoaded});
+
+    return success();
+  }
+
+private:
+  // Clones a segment of ops [start, end) and erases the original.
+  void MoveOpsRange(ValueRange oldResult, ValueRange newResult,
+                    Block::iterator start, Block::iterator end,
+                    ConversionPatternRewriter &rewriter) const {
+    BlockAndValueMapping mapping;
+    mapping.map(oldResult, newResult);
+    SmallVector<Operation *, 2> opsToErase;
+    for (auto it = start; it != end; ++it) {
+      rewriter.clone(*it, mapping);
+      opsToErase.push_back(&*it);
+    }
+    for (auto *it : opsToErase)
+      rewriter.eraseOp(it);
+  }
+};
+
 } // namespace
 
 /// Collect a set of patterns to convert from the Standard dialect to LLVM.
@@ -2775,6 +2898,7 @@ void mlir::populateStdToLLVMNonMemoryConversionPatterns(
       DivFOpLowering,
       ExpOpLowering,
       Exp2OpLowering,
+      GenericAtomicRMWOpLowering,
       LogOpLowering,
       Log10OpLowering,
       Log2OpLowering,

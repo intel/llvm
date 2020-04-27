@@ -111,7 +111,7 @@
 #include "llvm/Analysis/PostDominators.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
-#include "llvm/IR/CallSite.h"
+#include "llvm/IR/AbstractCallSite.h"
 #include "llvm/IR/ConstantRange.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/Support/Allocator.h"
@@ -729,15 +729,12 @@ struct Attributor {
   /// \param InfoCache Cache to hold various information accessible for
   ///                  the abstract attributes.
   /// \param CGUpdater Helper to update an underlying call graph.
-  /// \param DepRecomputeInterval Number of iterations until the dependences
-  ///                             between abstract attributes are recomputed.
   /// \param Whitelist If not null, a set limiting the attribute opportunities.
   Attributor(SetVector<Function *> &Functions, InformationCache &InfoCache,
-             CallGraphUpdater &CGUpdater, unsigned DepRecomputeInterval,
+             CallGraphUpdater &CGUpdater,
              DenseSet<const char *> *Whitelist = nullptr)
       : Allocator(InfoCache.Allocator), Functions(Functions),
-        InfoCache(InfoCache), CGUpdater(CGUpdater),
-        DepRecomputeInterval(DepRecomputeInterval), Whitelist(Whitelist) {}
+        InfoCache(InfoCache), CGUpdater(CGUpdater), Whitelist(Whitelist) {}
 
   ~Attributor();
 
@@ -1268,10 +1265,6 @@ private:
   /// Set if the attribute currently updated did query a non-fix attribute.
   bool QueriedNonFixAA;
 
-  /// Number of iterations until the dependences between abstract attributes are
-  /// recomputed.
-  const unsigned DepRecomputeInterval;
-
   /// If not null, a set limiting the attribute opportunities.
   const DenseSet<const char *> *Whitelist;
 
@@ -1367,6 +1360,9 @@ struct IntegerStateBase : public AbstractState {
 
   /// Return the worst possible representable state.
   static constexpr base_t getWorstState() { return WorstState; }
+  static constexpr base_t getWorstState(const IntegerStateBase &) {
+    return getWorstState();
+  }
 
   /// See AbstractState::isValidState()
   /// NOTE: For now we simply pretend that the worst possible state is invalid.
@@ -2280,6 +2276,16 @@ struct DerefState : AbstractState {
   static DerefState getBestState() { return DerefState(); }
   static DerefState getBestState(const DerefState &) { return getBestState(); }
 
+  /// Return the worst possible representable state.
+  static DerefState getWorstState() {
+    DerefState DS;
+    DS.indicatePessimisticFixpoint();
+    return DS;
+  }
+  static DerefState getWorstState(const DerefState &) {
+    return getWorstState();
+  }
+
   /// State representing for dereferenceable bytes.
   IncIntegerState<> DerefBytesState;
 
@@ -2370,13 +2376,13 @@ struct DerefState : AbstractState {
   }
 
   /// Equality for DerefState.
-  bool operator==(const DerefState &R) {
+  bool operator==(const DerefState &R) const {
     return this->DerefBytesState == R.DerefBytesState &&
            this->GlobalState == R.GlobalState;
   }
 
   /// Inequality for DerefState.
-  bool operator!=(const DerefState &R) { return !(*this == R); }
+  bool operator!=(const DerefState &R) const { return !(*this == R); }
 
   /// See IntegerStateBase::operator^=
   DerefState operator^=(const DerefState &R) {
@@ -2860,6 +2866,14 @@ struct AAValueConstantRange : public IntegerRangeState,
 
   /// Unique ID (due to the unique address)
   static const char ID;
+};
+
+/// Run options, used by the pass manager.
+enum AttributorRunOption {
+  NONE = 0,
+  MODULE = 1 << 0,
+  CGSCC = 1 << 1,
+  ALL = MODULE | CGSCC
 };
 
 } // end namespace llvm

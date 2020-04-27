@@ -15,6 +15,7 @@
 
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/Analysis/AssumeBundleQueries.h"
 #include "llvm/Analysis/CaptureTracking.h"
 #include "llvm/Analysis/LazyValueInfo.h"
 #include "llvm/Analysis/MemoryBuiltins.h"
@@ -39,6 +40,8 @@ static cl::opt<bool> ManifestInternal(
 
 static cl::opt<int> MaxHeapToStackSize("max-heap-to-stack-size", cl::init(128),
                                        cl::Hidden);
+
+STATISTIC(NumAAs, "Number of abstract attributes created");
 
 // Some helper macros to deal with statistics tracking.
 //
@@ -903,10 +906,13 @@ ChangeStatus AAReturnedValuesImpl::manifest(Attributor &A) {
 
   // If the assumed unique return value is an argument, annotate it.
   if (auto *UniqueRVArg = dyn_cast<Argument>(UniqueRV.getValue())) {
-    // TODO: This should be handled differently!
-    this->AnchorVal = UniqueRVArg;
-    this->KindOrArgNo = UniqueRVArg->getArgNo();
-    Changed = IRAttribute::manifest(A);
+    if (UniqueRVArg->getType()->canLosslesslyBitCastTo(
+            getAssociatedFunction()->getReturnType())) {
+      // TODO: This should be handled differently!
+      this->AnchorVal = UniqueRVArg;
+      this->KindOrArgNo = UniqueRVArg->getArgNo();
+      Changed = IRAttribute::manifest(A);
+    }
   } else if (auto *RVC = dyn_cast<Constant>(UniqueRV.getValue())) {
     // We can replace the returned value with the unique returned constant.
     Value &AnchorValue = getAnchorValue();
@@ -1579,8 +1585,15 @@ static int64_t getKnownNonNullAndDerefBytesForUse(
       F ? llvm::NullPointerIsDefined(F, PtrTy->getPointerAddressSpace()) : true;
   const DataLayout &DL = A.getInfoCache().getDL();
   if (const auto *CB = dyn_cast<CallBase>(I)) {
-    if (CB->isBundleOperand(U))
+    if (CB->isBundleOperand(U)) {
+      if (RetainedKnowledge RK = getKnowledgeFromUse(
+              U, {Attribute::NonNull, Attribute::Dereferenceable})) {
+        IsNonNull |=
+            (RK.AttrKind == Attribute::NonNull || !NullPointerIsDefined);
+        return RK.ArgValue;
+      }
       return 0;
+    }
 
     if (CB->isCallee(U)) {
       IsNonNull |= !NullPointerIsDefined;
@@ -4168,7 +4181,8 @@ ChangeStatus AANoCaptureImpl::updateImpl(Attributor &A) {
   // defined in AACaptureUseTracker, that can look at in-flight abstract
   // attributes and directly updates the assumed state.
   SmallVector<const Value *, 4> PotentialCopies;
-  unsigned RemainingUsesToExplore = DefaultMaxUsesToExplore;
+  unsigned RemainingUsesToExplore =
+      getDefaultMaxUsesToExploreForCaptureTracking();
   AACaptureUseTracker Tracker(A, *this, IsDeadAA, T, PotentialCopies,
                               RemainingUsesToExplore);
 
@@ -6005,16 +6019,21 @@ std::string AAMemoryLocation::getMemoryLocationsAsStr(
   return S;
 }
 
+namespace {
 struct AAMemoryLocationImpl : public AAMemoryLocation {
 
   AAMemoryLocationImpl(const IRPosition &IRP, Attributor &A)
-      : AAMemoryLocation(IRP, A), Allocator(A.Allocator) {}
+      : AAMemoryLocation(IRP, A), Allocator(A.Allocator) {
+    for (unsigned u = 0; u < llvm::CTLog2<VALID_STATE>(); ++u)
+      AccessKind2Accesses[u] = nullptr;
+  }
 
   ~AAMemoryLocationImpl() {
     // The AccessSets are allocated via a BumpPtrAllocator, we call
     // the destructor manually.
-    for (auto &It : AccessKind2Accesses)
-      It.getSecond()->~AccessSet();
+    for (unsigned u = 0; u < llvm::CTLog2<VALID_STATE>(); ++u)
+      if (AccessKind2Accesses[u])
+        AccessKind2Accesses[u]->~AccessSet();
   }
 
   /// See AbstractAttribute::initialize(...).
@@ -6104,11 +6123,13 @@ struct AAMemoryLocationImpl : public AAMemoryLocation {
     if (AssumedMLK == NO_LOCATIONS)
       return true;
 
-    for (MemoryLocationsKind CurMLK = 1; CurMLK < NO_LOCATIONS; CurMLK *= 2) {
+    unsigned Idx = 0;
+    for (MemoryLocationsKind CurMLK = 1; CurMLK < NO_LOCATIONS;
+         CurMLK *= 2, ++Idx) {
       if (CurMLK & RequestedMLK)
         continue;
 
-      if (const AccessSet *Accesses = AccessKind2Accesses.lookup(CurMLK))
+      if (const AccessSet *Accesses = AccessKind2Accesses[Idx])
         for (const AccessInfo &AI : *Accesses)
           if (!Pred(AI.I, AI.Ptr, AI.Kind, CurMLK))
             return false;
@@ -6161,9 +6182,8 @@ protected:
 
   /// Mapping from *single* memory location kinds, e.g., LOCAL_MEM with the
   /// value of NO_LOCAL_MEM, to the accesses encountered for this memory kind.
-  using AccessSet = SmallSet<AccessInfo, 8, AccessInfo>;
-  using AccessKind2AccessSetTy = DenseMap<unsigned, AccessSet *>;
-  AccessKind2AccessSetTy AccessKind2Accesses;
+  using AccessSet = SmallSet<AccessInfo, 2, AccessInfo>;
+  AccessSet *AccessKind2Accesses[llvm::CTLog2<VALID_STATE>()];
 
   /// Return the kind(s) of location that may be accessed by \p V.
   AAMemoryLocation::MemoryLocationsKind
@@ -6183,7 +6203,7 @@ protected:
     }
 
     assert(isPowerOf2_32(MLK) && "Expected a single location set!");
-    auto *&Accesses = AccessKind2Accesses[MLK];
+    auto *&Accesses = AccessKind2Accesses[llvm::Log2_32(MLK)];
     if (!Accesses)
       Accesses = new (Allocator) AccessSet();
     Changed |= Accesses->insert(AccessInfo{I, Ptr, Kind}).second;
@@ -6962,6 +6982,7 @@ struct AAValueConstantRangeCallSiteArgument : AAValueConstantRangeFloating {
     STATS_DECLTRACK_CSARG_ATTR(value_range)
   }
 };
+} // namespace
 
 const char AAReturnedValues::ID = 0;
 const char AANoUnwind::ID = 0;
@@ -6995,6 +7016,7 @@ const char AAValueConstantRange::ID = 0;
 #define SWITCH_PK_CREATE(CLASS, IRP, PK, SUFFIX)                               \
   case IRPosition::PK:                                                         \
     AA = new (A.Allocator) CLASS##SUFFIX(IRP, A);                              \
+    ++NumAAs;                                                                  \
     break;
 
 #define CREATE_FUNCTION_ABSTRACT_ATTRIBUTE_FOR_POSITION(CLASS)                 \

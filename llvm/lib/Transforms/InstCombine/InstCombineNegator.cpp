@@ -111,6 +111,10 @@ LLVM_NODISCARD Value *Negator::visit(Value *V, unsigned Depth) {
   ++NumValuesVisitedInThisNegator;
 #endif
 
+  // -(undef) -> undef.
+  if (match(V, m_Undef()))
+    return V;
+
   // In i1, negation can simply be ignored.
   if (V->getType()->isIntOrIntVectorTy(1))
     return V;
@@ -148,10 +152,6 @@ LLVM_NODISCARD Value *Negator::visit(Value *V, unsigned Depth) {
 
   // In some cases we can give the answer without further recursion.
   switch (I->getOpcode()) {
-  case Instruction::Sub:
-    // `sub` is always negatible.
-    return Builder.CreateSub(I->getOperand(1), I->getOperand(0),
-                             I->getName() + ".neg");
   case Instruction::Add:
     // `inc` is always negatible.
     if (match(I->getOperand(1), m_One()))
@@ -179,24 +179,6 @@ LLVM_NODISCARD Value *Negator::visit(Value *V, unsigned Depth) {
     }
     break;
   }
-  case Instruction::SDiv:
-    // `sdiv` is negatible if divisor is not undef/INT_MIN/1.
-    // While this is normally not behind a use-check,
-    // let's consider division to be special since it's costly.
-    if (!I->hasOneUse())
-      break;
-    if (auto *Op1C = dyn_cast<Constant>(I->getOperand(1))) {
-      if (!Op1C->containsUndefElement() && Op1C->isNotMinSignedValue() &&
-          Op1C->isNotOneValue()) {
-        Value *BO =
-            Builder.CreateSDiv(I->getOperand(0), ConstantExpr::getNeg(Op1C),
-                               I->getName() + ".neg");
-        if (auto *NewInstr = dyn_cast<Instruction>(BO))
-          NewInstr->setIsExact(I->isExact());
-        return BO;
-      }
-    }
-    break;
   case Instruction::SExt:
   case Instruction::ZExt:
     // `*ext` of i1 is always negatible
@@ -211,10 +193,38 @@ LLVM_NODISCARD Value *Negator::visit(Value *V, unsigned Depth) {
     break; // Other instructions require recursive reasoning.
   }
 
-  // Rest of the logic is recursive, and if either the current instruction
-  // has other uses or if it's time to give up then it's time.
+  // Some other cases, while still don't require recursion,
+  // are restricted to the one-use case.
   if (!V->hasOneUse())
     return nullptr;
+
+  switch (I->getOpcode()) {
+  case Instruction::Sub:
+    // `sub` is always negatible.
+    // But if the old `sub` sticks around, even thought we don't increase
+    // instruction count, this is a likely regression since we increased
+    // live-range of *both* of the operands, which might lead to more spilling.
+    return Builder.CreateSub(I->getOperand(1), I->getOperand(0),
+                             I->getName() + ".neg");
+  case Instruction::SDiv:
+    // `sdiv` is negatible if divisor is not undef/INT_MIN/1.
+    // While this is normally not behind a use-check,
+    // let's consider division to be special since it's costly.
+    if (auto *Op1C = dyn_cast<Constant>(I->getOperand(1))) {
+      if (!Op1C->containsUndefElement() && Op1C->isNotMinSignedValue() &&
+          Op1C->isNotOneValue()) {
+        Value *BO =
+            Builder.CreateSDiv(I->getOperand(0), ConstantExpr::getNeg(Op1C),
+                               I->getName() + ".neg");
+        if (auto *NewInstr = dyn_cast<Instruction>(BO))
+          NewInstr->setIsExact(I->isExact());
+        return BO;
+      }
+    }
+    break;
+  }
+
+  // Rest of the logic is recursive, so if it's time to give up then it's time.
   if (Depth > NegatorMaxDepth) {
     LLVM_DEBUG(dbgs() << "Negator: reached maximal allowed traversal depth in "
                       << *V << ". Giving up.\n");
@@ -264,6 +274,18 @@ LLVM_NODISCARD Value *Negator::visit(Value *V, unsigned Depth) {
     // Do preserve the metadata!
     return Builder.CreateSelect(I->getOperand(0), NegOp1, NegOp2,
                                 I->getName() + ".neg", /*MDFrom=*/I);
+  }
+  case Instruction::ShuffleVector: {
+    // `shufflevector` is negatible if both operands are negatible.
+    ShuffleVectorInst *Shuf = cast<ShuffleVectorInst>(I);
+    Value *NegOp0 = visit(I->getOperand(0), Depth + 1);
+    if (!NegOp0) // Early return.
+      return nullptr;
+    Value *NegOp1 = visit(I->getOperand(1), Depth + 1);
+    if (!NegOp1)
+      return nullptr;
+    return Builder.CreateShuffleVector(NegOp0, NegOp1, Shuf->getShuffleMask(),
+                                       I->getName() + ".neg");
   }
   case Instruction::Trunc: {
     // `trunc` is negatible if its operand is negatible.
@@ -319,7 +341,7 @@ LLVM_NODISCARD Value *Negator::visit(Value *V, unsigned Depth) {
   }
 
   llvm_unreachable("Can't get here. We always return from switch.");
-};
+}
 
 LLVM_NODISCARD Optional<Negator::Result> Negator::run(Value *Root) {
   Value *Negated = visit(Root, /*Depth=*/0);
@@ -331,7 +353,7 @@ LLVM_NODISCARD Optional<Negator::Result> Negator::run(Value *Root) {
     return llvm::None;
   }
   return std::make_pair(ArrayRef<Instruction *>(NewInstructions), Negated);
-};
+}
 
 LLVM_NODISCARD Value *Negator::Negate(bool LHSIsZero, Value *Root,
                                       InstCombiner &IC) {
@@ -374,4 +396,4 @@ LLVM_NODISCARD Value *Negator::Negate(bool LHSIsZero, Value *Root,
 
   // And return the new root.
   return Res->second;
-};
+}

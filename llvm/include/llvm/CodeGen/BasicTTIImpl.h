@@ -725,7 +725,7 @@ public:
     // If the cast is marked as legal (or promote) then assume low cost.
     if (SrcLT.first == DstLT.first &&
         TLI->isOperationLegalOrPromote(ISD, DstLT.second))
-      return 1;
+      return SrcLT.first;
 
     // Handle scalar conversions.
     if (!Src->isVectorTy() && !Dst->isVectorTy()) {
@@ -752,11 +752,11 @@ public:
 
         // Assume that Zext is done using AND.
         if (Opcode == Instruction::ZExt)
-          return 1;
+          return SrcLT.first;
 
         // Assume that sext is done using SHL and SRA.
         if (Opcode == Instruction::SExt)
-          return 2;
+          return SrcLT.first * 2;
 
         // Just check the op cost. If the operation is legal then assume it
         // costs

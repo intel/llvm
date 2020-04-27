@@ -43,7 +43,6 @@
 #include "llvm/Config/llvm-config.h"
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/BasicBlock.h"
-#include "llvm/IR/CallSite.h"
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DataLayout.h"
@@ -116,8 +115,8 @@ static cl::opt<uint32_t> MaxNumDeps(
 
 struct llvm::GVN::Expression {
   uint32_t opcode;
-  Type *type = nullptr;
   bool commutative = false;
+  Type *type = nullptr;
   SmallVector<uint32_t, 4> varargs;
 
   Expression(uint32_t o = ~2U) : opcode(o) {}

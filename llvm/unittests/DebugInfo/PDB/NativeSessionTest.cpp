@@ -30,6 +30,8 @@ static std::string getExePath() {
 
 TEST(NativeSessionTest, TestCreateFromExe) {
   std::unique_ptr<IPDBSession> S;
+  // Tests that the PDB file can be found if it is in the same directory as the
+  // executable.
   Error E = pdb::loadDataForEXE(PDB_ReaderType::Native, getExePath(), S);
   ASSERT_THAT_ERROR(std::move(E), Succeeded());
 }

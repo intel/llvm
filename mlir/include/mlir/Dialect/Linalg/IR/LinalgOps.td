@@ -16,6 +16,7 @@
 include "mlir/Dialect/Affine/IR/AffineOpsBase.td"
 include "mlir/Dialect/Linalg/IR/LinalgBase.td"
 include "mlir/Interfaces/SideEffects.td"
+include "mlir/Interfaces/ViewLikeInterface.td"
 
 // Base class for Linalg dialect ops that do not correspond to library calls.
 class Linalg_Op<string mnemonic, list<OpTrait> traits = []> :
@@ -172,10 +173,15 @@ def Linalg_TensorReshapeOp : Linalg_ReshapeLikeOp<"tensor_reshape">,
     RankedTensorType getResultType() {
       return result().getType().cast<RankedTensorType>();
     }
+    SmallVector<AffineMap, 4> getReassociationMaps() {
+      return llvm::to_vector<4>(llvm::map_range(reassociation(),
+        [](Attribute a) { return a.cast<AffineMapAttr>().getValue(); }));
+    }
   }];
 }
 
-def Linalg_SliceOp : Linalg_Op<"slice", [NoSideEffect]>,
+def Linalg_SliceOp : Linalg_Op<"slice", [
+      DeclareOpInterfaceMethods<ViewLikeOpInterface>, NoSideEffect]>,
     Arguments<(ins AnyStridedMemRef:$view,
                    Variadic<AnyTypeOf<[Range, Index]>>:$indexings)>,
     Results<(outs AnyStridedMemRef)> {

@@ -165,7 +165,11 @@ NativeSession::searchForPdb(const PdbSearchOptions &Opts) {
   Expected<std::string> PathOrErr = getPdbPathFromExe(Opts.ExePath);
   if (!PathOrErr)
     return PathOrErr.takeError();
-  StringRef PdbName = sys::path::filename(PathOrErr.get());
+  StringRef PathFromExe = PathOrErr.get();
+  sys::path::Style Style = PathFromExe.startswith("/")
+                               ? sys::path::Style::posix
+                               : sys::path::Style::windows;
+  StringRef PdbName = sys::path::filename(PathFromExe, Style);
 
   // Check if pdb exists in the executable directory.
   SmallString<128> PdbPath = StringRef(Opts.ExePath);

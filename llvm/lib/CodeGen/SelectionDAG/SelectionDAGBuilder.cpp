@@ -69,7 +69,6 @@
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/CFG.h"
-#include "llvm/IR/CallSite.h"
 #include "llvm/IR/CallingConv.h"
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/ConstantRange.h"
@@ -6361,7 +6360,7 @@ void SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I,
 
     int FI = FuncInfo.StaticAllocaMap[Slot];
     MFI.setStackProtectorIndex(FI);
-    EVT PtrTy = Src.getValueType();
+    EVT PtrTy = TLI.getFrameIndexTy(DAG.getDataLayout());
 
     SDValue FIN = DAG.getFrameIndex(FI, PtrTy);
 

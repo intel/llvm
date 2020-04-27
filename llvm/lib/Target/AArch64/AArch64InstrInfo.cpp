@@ -1183,10 +1183,9 @@ static bool areCFlagsAccessedBetweenInstrs(
                         return MI.getIterator() == From;
                       }) != To->getParent()->rend());
 
-  // We iterate backward starting \p To until we hit \p From.
-  for (--To; To != From; --To) {
-    const MachineInstr &Instr = *To;
-
+  // We iterate backward starting at \p To until we hit \p From.
+  for (const MachineInstr &Instr :
+       instructionsWithoutDebug(++To.getReverse(), From.getReverse())) {
     if (((AccessToCheck & AK_Write) &&
          Instr.modifiesRegister(AArch64::NZCV, TRI)) ||
         ((AccessToCheck & AK_Read) && Instr.readsRegister(AArch64::NZCV, TRI)))
@@ -1443,10 +1442,9 @@ static bool canInstrSubstituteCmpInstr(MachineInstr *MI, MachineInstr *CmpInstr,
     return false;
 
   UsedNZCV NZCVUsedAfterCmp;
-  for (auto I = std::next(CmpInstr->getIterator()),
-            E = CmpInstr->getParent()->instr_end();
-       I != E; ++I) {
-    const MachineInstr &Instr = *I;
+  for (const MachineInstr &Instr :
+       instructionsWithoutDebug(std::next(CmpInstr->getIterator()),
+                                CmpInstr->getParent()->instr_end())) {
     if (Instr.readsRegister(AArch64::NZCV, TRI)) {
       AArch64CC::CondCode CC = findCondCodeUsedByInstr(Instr);
       if (CC == AArch64CC::Invalid) // Unsupported conditional instruction
@@ -3173,6 +3171,17 @@ void AArch64InstrInfo::loadRegFromStackSlot(
   if (Offset)
     MI.addImm(0);
   MI.addMemOperand(MMO);
+}
+
+bool llvm::isNZCVTouchedInInstructionRange(const MachineInstr &DefMI,
+                                           const MachineInstr &UseMI,
+                                           const TargetRegisterInfo *TRI) {
+  return any_of(instructionsWithoutDebug(std::next(DefMI.getIterator()),
+                                         UseMI.getIterator()),
+                [TRI](const MachineInstr &I) {
+                  return I.modifiesRegister(AArch64::NZCV, TRI) ||
+                         I.readsRegister(AArch64::NZCV, TRI);
+                });
 }
 
 // Helper function to emit a frame offset adjustment from a given
@@ -6450,7 +6459,8 @@ void AArch64InstrInfo::buildOutlinedFrame(
     IsLeafFunction = false;
 
     // LR has to be a live in so that we can save it.
-    MBB.addLiveIn(AArch64::LR);
+    if (!MBB.isLiveIn(AArch64::LR))
+      MBB.addLiveIn(AArch64::LR);
 
     MachineBasicBlock::iterator It = MBB.begin();
     MachineBasicBlock::iterator Et = MBB.end();
@@ -6529,8 +6539,13 @@ void AArch64InstrInfo::buildOutlinedFrame(
   }
 
   // It's not a tail call, so we have to insert the return ourselves.
+
+  // LR has to be a live in so that we can return to it.
+  if (!MBB.isLiveIn(AArch64::LR))
+    MBB.addLiveIn(AArch64::LR);
+
   MachineInstr *ret = BuildMI(MF, DebugLoc(), get(AArch64::RET))
-                          .addReg(AArch64::LR, RegState::Undef);
+                          .addReg(AArch64::LR);
   MBB.insert(MBB.end(), ret);
 
   signOutlinedFunction(MF, MBB, ShouldSignReturnAddr,
