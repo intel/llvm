@@ -87,12 +87,14 @@ namespace RT = detail::pi;
 /// ```
 class PiMock {
 public:
-  /// Default-constructs PiMock.
+  /// Constructs PiMock from a device_selector, provided that
+  /// a non-host device can and will be selected. Default-constructs
+  /// from a default_selector.
   ///
-  /// Delegates to the device_selector-based constructor by passing
-  /// a default_constructor and assuming a non-host device will be
-  /// available.
-  PiMock() : PiMock(cl::sycl::default_selector{}) {}
+  /// \param DevSelector is a reference to a device_selector instance.
+  explicit PiMock(const cl::sycl::device_selector &DevSelector =
+                      cl::sycl::default_selector{})
+      : PiMock(cl::sycl::platform{DevSelector}) {}
 
   /// Constructs PiMock from a queue.
   ///
@@ -125,13 +127,6 @@ public:
     // Save a copy of the platform resource
     MPlatform = OriginalPlatform;
   }
-
-  /// Constructs PiMock from a device_selector, provided that
-  /// a non-host device can and will be selected.
-  ///
-  /// \param DevSelector is a reference to a device_selector instance.
-  explicit PiMock(const cl::sycl::device_selector &DevSelector)
-      : PiMock(cl::sycl::platform{DevSelector}) {}
 
   /// Explicit construction from a host_selector is forbidden.
   PiMock(const cl::sycl::host_selector &HostSelector) = delete;
