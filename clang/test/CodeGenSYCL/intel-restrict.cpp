@@ -24,5 +24,5 @@ int main() {
   int g = 42;
   kernel<class kernel_restrict_other_types>(
       [a,b,c,g]() [[intel::kernel_args_restrict]] { c[0] = a[0] + b[0] + g;});
-// CHECK: define spir_kernel {{.*}}kernel_restrict_other_types(%"class.{{.*}}.anon.1"* byval(%"class.{{.*}}.anon.1") align 8 %_arg_kernelObject, i32 addrspace(1)* noalias %{{.*}}, i32 addrspace(1)* noalias %{{.*}}, i32 addrspace(1)* noalias %{{.*}}, i32 %{{.*}})
+  // CHECK: define spir_kernel {{.*}}kernel_restrict_other_types(%"class.{{.*}}.anon.1"* byval(%"class.{{.*}}.anon.1") align 8 %_arg_kernelObject, i32 addrspace(1)* noalias %{{.*}}, i32 addrspace(1)* noalias %{{.*}}, i32 addrspace(1)* noalias %{{.*}})
 }

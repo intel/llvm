@@ -848,7 +848,13 @@ public:
   }
   void handleKernelObject(CXXRecordDecl *KernelObject,
                           QualType KernelType) final {
-    // Do we need any diagnostics for Kernel Object?
+    // TODO: Is this check correct? SYCL spec only talks about kernel defined as
+    // named function objects. What about lambda functions?
+    /*if (!KernelObject->isStandardLayoutType())
+      IsInvalid =
+          Diag.Report(KernelObject->getLocation(),
+      diag::err_sycl_non_std_layout_type)
+          << KernelType;*/
   }
 
   // We should be able to handle this, so we made it part of the visitor, but
@@ -1010,12 +1016,9 @@ public:
     addParam(FD, ModTy);
   }
 
-  void handleScalarType(FieldDecl *FD, QualType FieldTy) final {
-    addParam(FD, FieldTy);
-  }
-
+  // TODO: Accessors in structs
   void handleStructType(FieldDecl *FD, QualType FieldTy) final {
-    addParam(FD, FieldTy);
+    // addParam(FD, FieldTy);
   }
 
   void handleSyclStreamType(FieldDecl *FD, QualType FieldTy) final {
@@ -1040,6 +1043,8 @@ public:
     return ArrayRef<ParmVarDecl *>(std::begin(Params) + LastParamIndex,
                                    std::end(Params));
   }
+
+  ParmVarDecl *getKernelObjectParam() { return Params.front(); }
 };
 
 class SyclKernelBodyCreator
@@ -1047,9 +1052,6 @@ class SyclKernelBodyCreator
   SyclKernelDeclCreator &DeclCreator;
   llvm::SmallVector<Stmt *, 16> BodyStmts;
   llvm::SmallVector<Stmt *, 16> FinalizeStmts;
-  llvm::SmallVector<Expr *, 16> InitExprs;
-  VarDecl *KernelObjClone;
-  InitializedEntity VarEntity;
   CXXRecordDecl *KernelObj;
   llvm::SmallVector<Expr *, 16> MemberExprBases;
   FunctionDecl *KernelCallerFunc;
@@ -1059,22 +1061,24 @@ class SyclKernelBodyCreator
   // statements in advance to allocate it, so we cannot do this as we go along.
   CompoundStmt *createKernelBody() {
 
-    Expr *ILE = new (SemaRef.getASTContext()) InitListExpr(
-        SemaRef.getASTContext(), SourceLocation(), InitExprs, SourceLocation());
-    ILE->setType(QualType(KernelObj->getTypeForDecl(), 0));
-    KernelObjClone->setInit(ILE);
     Stmt *FunctionBody = KernelCallerFunc->getBody();
 
-    ParmVarDecl *KernelObjParam = *(KernelCallerFunc->param_begin());
+    // Kernel object parameter from kernel caller function
+    ParmVarDecl *KernelCallerObjParam = *(KernelCallerFunc->param_begin());
+    // Kernel object parameter from generated kernel.
+    ParmVarDecl *KernelObjParam = DeclCreator.getKernelObjectParam();
 
     // DeclRefExpr with valid source location but with decl which is not marked
     // as used is invalid.
-    KernelObjClone->setIsUsed();
+    KernelObjParam->setIsUsed();
     std::pair<DeclaratorDecl *, DeclaratorDecl *> MappingPair =
-        std::make_pair(KernelObjParam, KernelObjClone);
+        std::make_pair(KernelCallerObjParam, KernelObjParam);
 
     // Push the Kernel function scope to ensure the scope isn't empty
     SemaRef.PushFunctionScope();
+
+    // Replacing all references to kernel caller function parameter in kernel
+    // body with references to kernel object parameter in generated kernel.
     KernelBodyTransform KBT(MappingPair, SemaRef);
     Stmt *NewBody = KBT.TransformStmt(FunctionBody).get();
     BodyStmts.push_back(NewBody);
@@ -1124,26 +1128,13 @@ class SyclKernelBodyCreator
     return Result;
   }
 
+  // TODO: Correct Stream + Accessors
   void createExprForStructOrScalar(FieldDecl *FD) {
     ParmVarDecl *KernelParameter =
         DeclCreator.getParamVarDeclsForCurrentField()[0];
-    InitializedEntity Entity =
-        InitializedEntity::InitializeMember(FD, &VarEntity);
     QualType ParamType = KernelParameter->getOriginalType();
     Expr *DRE = SemaRef.BuildDeclRefExpr(KernelParameter, ParamType, VK_LValue,
                                          SourceLocation());
-    if (FD->getType()->isPointerType() &&
-        FD->getType()->getPointeeType().getAddressSpace() !=
-            ParamType->getPointeeType().getAddressSpace())
-      DRE = ImplicitCastExpr::Create(SemaRef.Context, FD->getType(),
-                                     CK_AddressSpaceConversion, DRE, nullptr,
-                                     VK_RValue);
-    InitializationKind InitKind =
-        InitializationKind::CreateCopy(SourceLocation(), SourceLocation());
-    InitializationSequence InitSeq(SemaRef, Entity, InitKind, DRE);
-
-    ExprResult MemberInit = InitSeq.Perform(SemaRef, Entity, InitKind, DRE);
-    InitExprs.push_back(MemberInit.get());
   }
 
   void createSpecialMethodCall(const CXXRecordDecl *SpecialClass, Expr *Base,
@@ -1183,32 +1174,8 @@ class SyclKernelBodyCreator
       BodyStmts.push_back(Call);
   }
 
-  // FIXME Avoid creation of kernel obj clone.
-  // See https://github.com/intel/llvm/issues/1544 for details.
-  static VarDecl *createKernelObjClone(ASTContext &Ctx, DeclContext *DC,
-                                       CXXRecordDecl *KernelObj) {
-    TypeSourceInfo *TSInfo =
-        KernelObj->isLambda() ? KernelObj->getLambdaTypeInfo() : nullptr;
-    VarDecl *VD = VarDecl::Create(
-        Ctx, DC, SourceLocation(), SourceLocation(), KernelObj->getIdentifier(),
-        QualType(KernelObj->getTypeForDecl(), 0), TSInfo, SC_None);
-
-    return VD;
-  }
-
   void handleSpecialType(FieldDecl *FD, QualType Ty) {
     const auto *RecordDecl = Ty->getAsCXXRecordDecl();
-    // Perform initialization only if it is field of kernel object
-    if (MemberExprBases.size() == 1) {
-      InitializedEntity Entity =
-          InitializedEntity::InitializeMember(FD, &VarEntity);
-      // Initialize with the default constructor.
-      InitializationKind InitKind =
-          InitializationKind::CreateDefault(SourceLocation());
-      InitializationSequence InitSeq(SemaRef, Entity, InitKind, None);
-      ExprResult MemberInit = InitSeq.Perform(SemaRef, Entity, InitKind, None);
-      InitExprs.push_back(MemberInit.get());
-    }
     createSpecialMethodCall(RecordDecl, MemberExprBases.back(), InitMethodName,
                             FD);
   }
@@ -1218,20 +1185,8 @@ public:
                         CXXRecordDecl *KernelObj,
                         FunctionDecl *KernelCallerFunc)
       : SyclKernelFieldHandler(S), DeclCreator(DC),
-        KernelObjClone(createKernelObjClone(S.getASTContext(),
-                                            DC.getKernelDecl(), KernelObj)),
-        VarEntity(InitializedEntity::InitializeVariable(KernelObjClone)),
         KernelObj(KernelObj), KernelCallerFunc(KernelCallerFunc) {
     markParallelWorkItemCalls();
-
-    Stmt *DS = new (S.Context) DeclStmt(DeclGroupRef(KernelObjClone),
-                                        SourceLocation(), SourceLocation());
-    BodyStmts.push_back(DS);
-    DeclRefExpr *KernelObjCloneRef = DeclRefExpr::Create(
-        S.Context, NestedNameSpecifierLoc(), SourceLocation(), KernelObjClone,
-        false, DeclarationNameInfo(), QualType(KernelObj->getTypeForDecl(), 0),
-        VK_LValue);
-    MemberExprBases.push_back(KernelObjCloneRef);
   }
 
   ~SyclKernelBodyCreator() {
@@ -1267,15 +1222,39 @@ public:
   }
 
   void handlePointerType(FieldDecl *FD, QualType FieldTy) final {
-    createExprForStructOrScalar(FD);
+    ParmVarDecl *KernelParameter =
+        DeclCreator.getParamVarDeclsForCurrentField()[0];
+    QualType ParamType = KernelParameter->getOriginalType();
+    Expr *DRE = SemaRef.BuildDeclRefExpr(KernelParameter, ParamType, VK_LValue,
+                                         SourceLocation());
+    if (FD->getType()->isPointerType() &&
+        FD->getType()->getPointeeType().getAddressSpace() !=
+            ParamType->getPointeeType().getAddressSpace())
+      DRE = ImplicitCastExpr::Create(SemaRef.Context, FD->getType(),
+                                     CK_AddressSpaceConversion, DRE, nullptr,
+                                     VK_RValue);
+
+    MemberExpr *KernelObjectPointerField =
+        BuildMemberExpr(MemberExprBases.back(), FD);
+    Expr *AssignPointerParameter = new (SemaRef.getASTContext())
+        BinaryOperator(KernelObjectPointerField, DRE, BO_Assign, FieldTy,
+                       VK_LValue, OK_Ordinary, SourceLocation(), FPOptions());
+
+    BodyStmts.push_back(AssignPointerParameter);
   }
 
+  // TODO: Accessors in structs
   void handleStructType(FieldDecl *FD, QualType FieldTy) final {
-    createExprForStructOrScalar(FD);
+    // createExprForStructOrScalar(FD);
   }
 
-  void handleScalarType(FieldDecl *FD, QualType FieldTy) final {
-    createExprForStructOrScalar(FD);
+  void handleKernelObject(CXXRecordDecl *KernelObject, QualType KernelType) {
+    ParmVarDecl *KernelParameter =
+        DeclCreator.getParamVarDeclsForCurrentField()[0];
+    QualType ParamType = KernelParameter->getOriginalType();
+    Expr *KernelObjRef = SemaRef.BuildDeclRefExpr(KernelParameter, ParamType,
+                                                  VK_LValue, SourceLocation());
+    MemberExprBases.push_back(KernelObjRef);
   }
 
   void enterStruct(const CXXRecordDecl *, FieldDecl *FD) final {

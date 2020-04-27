@@ -9,7 +9,9 @@ int main() {
 
   // CHECK: define spir_kernel void @_ZTSZ4mainE15kernel_function(%"class.{{.*}}.anon"* byval(%"class.{{.*}}.anon") align 1 %_arg_kernelObject)
 
-  // CHECK: call spir_func void @"_ZZ4mainENK3$_0clEv"(%"class.{{.*}}.anon" addrspace(4)* %2)
+  // CHECK: [[CAST:%[0-9]+]] = addrspacecast %"class.{{.*}}.anon"* %_arg_kernelObject to %"class.{{.*}}.anon" addrspace(4)*
+
+  // CHECK: call spir_func void @"_ZZ4mainENK3$_0clEv"(%"class.{{.*}}.anon" addrspace(4)* [[CAST]])
 
   // CHECK: define internal spir_func void @"_ZZ4mainENK3$_0clEv"(%"class.{{.*}}anon" addrspace(4)* %this)
 

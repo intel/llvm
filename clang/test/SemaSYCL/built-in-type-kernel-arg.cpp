@@ -45,50 +45,32 @@ int main() {
   return 0;
 }
 // Check kernel parameters
-// CHECK: FunctionDecl {{.*}}kernel_const{{.*}} 'void ((lambda at {{.*}}built-in-type-kernel-arg.cpp{{.*}}), const int)'
+// CHECK: FunctionDecl {{.*}}kernel_const{{.*}} 'void ((lambda at {{.*}}built-in-type-kernel-arg.cpp{{.*}}))'
 // CHECK: ParmVarDecl {{.*}} used _arg_kernelObject '(lambda at {{.*}}built-in-type-kernel-arg.cpp{{.*}})
-// CHECK: ParmVarDecl {{.*}} used _arg_ 'const int'
-
-// Check that lambda field of const built-in type is initialized
-// CHECK: VarDecl {{.*}}'(lambda at {{.*}}built-in-type-kernel-arg.cpp{{.*}})'
-// CHECK-NEXT: InitListExpr
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
-// CHECK-NEXT: DeclRefExpr {{.*}} 'const int' lvalue ParmVar {{.*}} '_arg_' 'const int'
 
 // Check kernel parameters
-// CHECK: {{.*}}kernel_int{{.*}} 'void ((lambda at {{.*}}built-in-type-kernel-arg.cpp{{.*}}), int)'
+// CHECK: {{.*}}kernel_int{{.*}} 'void ((lambda at {{.*}}built-in-type-kernel-arg.cpp{{.*}}))'
 // CHECK: ParmVarDecl {{.*}} used _arg_kernelObject '(lambda at {{.*}}built-in-type-kernel-arg.cpp{{.*}})
-// CHECK: ParmVarDecl {{.*}} used _arg_ 'int'
-
-// Check that lambda field of built-in type is initialized
-// CHECK: VarDecl {{.*}}'(lambda at {{.*}}built-in-type-kernel-arg.cpp{{.*}})'
-// CHECK-NEXT: InitListExpr
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
-// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_' 'int'
 
 // Check kernel parameters
-// CHECK: {{.*}}kernel_struct{{.*}} 'void ((lambda at {{.*}}built-in-type-kernel-arg.cpp{{.*}}), test_struct)'
+// CHECK: {{.*}}kernel_struct{{.*}} 'void ((lambda at {{.*}}built-in-type-kernel-arg.cpp{{.*}}))'
 // CHECK: ParmVarDecl {{.*}} used _arg_kernelObject '(lambda at {{.*}}built-in-type-kernel-arg.cpp{{.*}})
-// CHECK: ParmVarDecl {{.*}} used _arg_ 'test_struct'
-
-// Check that lambda field of struct type is initialized
-// CHECK: VarDecl {{.*}}'(lambda at {{.*}}built-in-type-kernel-arg.cpp{{.*}})'
-// CHECK-NEXT: InitListExpr
-// CHECK-NEXT: CXXConstructExpr {{.*}}'test_struct'{{.*}}void (const test_struct &)
-// CHECK-NEXT: ImplicitCastExpr {{.*}}'const test_struct' lvalue <NoOp>
-// CHECK-NEXT: DeclRefExpr {{.*}} 'test_struct' lvalue ParmVar {{.*}} '_arg_' 'test_struct'
 
 // Check kernel parameters
 // CHECK: {{.*}}kernel_pointer{{.*}} 'void ((lambda at {{.*}}built-in-type-kernel-arg.cpp{{.*}}), __global int *, __global int *)'
 // CHECK: ParmVarDecl {{.*}} used _arg_kernelObject '(lambda at {{.*}}built-in-type-kernel-arg.cpp{{.*}})
 // CHECK: ParmVarDecl {{.*}} used _arg_ '__global int *'
 // CHECK: ParmVarDecl {{.*}} used _arg_ '__global int *'
-// CHECK: VarDecl {{.*}}'(lambda at {{.*}}built-in-type-kernel-arg.cpp{{.*}})'
 
-// Check that lambda fields of pointer types are initialized
-// CHECK: InitListExpr
+// Check that lambda fields of pointer types are assigned with kernel pointer parameters.
+// CHECK: BinaryOperator {{.*}} '='
+// CHECK-NEXT: MemberExpr {{.*}} 'int *'
+// CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at {{.*}}built-in-type-kernel-arg.cpp{{.*}})' lvalue ParmVar {{.*}} '_arg_kernelObject' '(lambda at {{.*}}built-in-type-kernel-arg.cpp{{.*}})'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
 // CHECK-NEXT: DeclRefExpr {{.*}} '__global int *' lvalue ParmVar {{.*}} '_arg_' '__global int *'
+
+// CHECK: BinaryOperator {{.*}} '='
+// CHECK-NEXT: MemberExpr {{.*}} 'int *'
+// CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at {{.*}}built-in-type-kernel-arg.cpp{{.*}})' lvalue ParmVar {{.*}} '_arg_kernelObject' '(lambda at {{.*}}built-in-type-kernel-arg.cpp{{.*}})'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
 // CHECK-NEXT: DeclRefExpr {{.*}} '__global int *' lvalue ParmVar {{.*}} '_arg_' '__global int *'
-
