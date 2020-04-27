@@ -185,11 +185,6 @@ void Scheduler::releaseHostAccessor(Requirement *Req) {
 
   assert(BlockedCmd && "Can't find appropriate command to unblock");
 
-  if (EventImplPtr Event = BlockedCmd->getEvent())
-    if (Event->is_host()) {
-      Event->setComplete();
-    }
-
   BlockedCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
 
   enqueueLeavesOfReq(Req);

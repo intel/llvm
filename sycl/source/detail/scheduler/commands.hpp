@@ -285,7 +285,7 @@ public:
   void emitInstrumentationData();
 
 private:
-  cl_int enqueueImp() final { return CL_SUCCESS; }
+  cl_int enqueueImp() final;
 
   std::vector<Requirement> MRequirements;
 };

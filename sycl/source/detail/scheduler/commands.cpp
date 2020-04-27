@@ -241,9 +241,6 @@ public:
     if (MSelfEvent->is_host()) {
       MSelfEvent->setComplete();
 
-      if (EmptyCmd->getEvent()->is_host())
-        EmptyCmd->getEvent()->setComplete();
-
       // enqueue leaves or enqueue leaves of reqs in ThisCmd.MDeps
       for (DepDesc &Dep : ThisCmd->MDeps)
         Scheduler::enqueueLeavesOfReq(Dep.MDepRequirement);
@@ -251,10 +248,6 @@ public:
       const detail::plugin &Plugin = MSelfEvent->getPlugin();
       Plugin.call<PiApiKind::piEventSetStatus>(MSelfEvent->getHandleRef(),
                                                PI_EVENT_COMPLETE);
-
-      if (EmptyCmd->getEvent()->is_host())
-        EmptyCmd->getEvent()->setComplete();
-
       // the enqueue process is driven by backend now
     }
   }
@@ -1411,6 +1404,16 @@ EmptyCommand::EmptyCommand(QueueImplPtr Queue)
   emitInstrumentationDataProxy();
 }
 
+cl_int EmptyCommand::enqueueImp() {
+  waitForPreparedHostEvents();
+  waitForEvents(MQueue, MPreparedDepsEvents, MEvent->getHandleRef());
+
+  if (MEvent->is_host())
+    MEvent->setComplete();
+
+  return CL_SUCCESS;
+}
+
 void EmptyCommand::addRequirementsAndDeps(
     Command *const DepCmd, const std::vector<AllocaCommandBase *> &Allocas,
     const std::vector<Requirement *> &Reqs) {
@@ -1902,6 +1905,9 @@ cl_int ExecCGCommand::enqueueImp() {
         ArgsBlob.size() * sizeof(ArgsBlob[0]), Buffers.size(), Buffers.data(),
         const_cast<const void **>(MemLocs.data()), RawEvents.size(),
         RawEvents.empty() ? nullptr : RawEvents.data(), &Event);
+
+    if (MEvent->is_host())
+      MEvent->setComplete();
 
     switch (Error) {
     case PI_INVALID_OPERATION:
