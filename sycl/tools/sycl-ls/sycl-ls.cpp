@@ -1,4 +1,4 @@
-//==----------- lspi.cpp ---------------------------------------------------==//
+//==----------- sycl-ls.cpp ------------------------------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,15 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// The "lspi" utility lists all platforms/devices discovered by PI similar to
-// how lscl prints this for OpenCL devices. It can probably be eventually merged
-// with the more complex "check-sycl" utility.
+// The "sycl-ls" utility lists all platforms/devices discovered by PI similar to
+// how lscl prints this for OpenCL devices.
 //
 // There are two types of output:
 //   concise (default) and
-//   verbose (enabled with any argument).
+//   verbose (enabled with --verbose).
 //
-// In verbose mode it also prints, which devices would be chose  by various SYCL
+// In verbose mode it also prints, which devices would be chosen by various SYCL
 // device selectors.
 //
 #include <CL/sycl.hpp>
@@ -24,10 +23,9 @@
 #include <stdlib.h>
 
 using namespace cl::sycl;
-using namespace std;
 
 // Controls verbose output vs. concise.
-bool verbose = false;
+bool verbose;
 
 // Trivial custom selector that selects a device of the given type.
 class custom_selector : public device_selector {
@@ -40,9 +38,9 @@ public:
   }
 };
 
-static void printDeviceInfo(const device &Device, const string &Prepend) {
+static void printDeviceInfo(const device &Device, const std::string &Prepend) {
   auto DeviceType = Device.get_info<info::device::device_type>();
-  string DeviceTypeName;
+  std::string DeviceTypeName;
   switch (DeviceType) {
   case info::device_type::cpu:
     DeviceTypeName = "CPU ";
@@ -57,7 +55,7 @@ static void printDeviceInfo(const device &Device, const string &Prepend) {
     DeviceTypeName = "ACC ";
     break;
   default:
-    DeviceTypeName = "??? ";
+    DeviceTypeName = "UNKNOWN";
     break;
   }
 
@@ -67,14 +65,14 @@ static void printDeviceInfo(const device &Device, const string &Prepend) {
   auto DeviceDriverVersion = Device.get_info<info::device::driver_version>();
 
   if (verbose) {
-    cout << Prepend << "Type       : " << DeviceTypeName << std::endl;
-    cout << Prepend << "Version    : " << DeviceVersion << std::endl;
-    cout << Prepend << "Name       : " << DeviceName << std::endl;
-    cout << Prepend << "Vendor     : " << DeviceVendor << std::endl;
-    cout << Prepend << "Driver     : " << DeviceDriverVersion << std::endl;
+    std::cout << Prepend << "Type       : " << DeviceTypeName << std::endl;
+    std::cout << Prepend << "Version    : " << DeviceVersion << std::endl;
+    std::cout << Prepend << "Name       : " << DeviceName << std::endl;
+    std::cout << Prepend << "Vendor     : " << DeviceVendor << std::endl;
+    std::cout << Prepend << "Driver     : " << DeviceDriverVersion << std::endl;
   } else {
-    cout << Prepend << DeviceTypeName << ": " << DeviceVersion << "[ "
-         << DeviceDriverVersion << " ]" << std::endl;
+    std::cout << Prepend << DeviceTypeName << ": " << DeviceVersion << "[ "
+              << DeviceDriverVersion << " ]" << std::endl;
   }
 }
 
@@ -89,33 +87,25 @@ static void printSelectorChoice(const device_selector &Selector,
     std::string What = Exception.what();
     if (What.length() > 50)
       What = What.substr(0, 50) + "...";
-
-    if (verbose) {
-      cout << Prepend << "Type       : " << What << std::endl;
-      cout << Prepend << "Version    : " << What << std::endl;
-      cout << Prepend << "Name       : " << What << std::endl;
-      cout << Prepend << "Vendor     : " << What << std::endl;
-      cout << Prepend << "Driver     : " << What << std::endl;
-    } else {
-      cout << Prepend << What << std::endl;
-    }
+    std::cout << Prepend << What << std::endl;
   }
 }
 
 int main(int argc, char **argv) {
 
-  // Any options trigger verbose output.
-  if (argc > 1) {
+  // See if verbose output is requested
+  if (argc == 1)
+    verbose = false;
+  else if (argc == 2 && std::string(argv[1]) == "--verbose")
     verbose = true;
-    if (!std::getenv("SYCL_PI_TRACE")) {
-      // Enable trace of PI discovery.
-      // setenv("SYCL_PI_TRACE", "1", true);
-    }
+  else {
+    std::cout << "Usage: sycl-ls [--verbose]" << std::endl;
+    return -1;
   }
 
   auto Platforms = platform::get_platforms();
   if (verbose)
-    cout << "Platforms: " << Platforms.size() << std::endl;
+    std::cout << "Platforms: " << Platforms.size() << std::endl;
 
   uint32_t PlatformNum = 0;
   for (const auto &Platform : Platforms) {
@@ -124,19 +114,19 @@ int main(int argc, char **argv) {
       auto PlatformVersion = Platform.get_info<info::platform::version>();
       auto PlatformName = Platform.get_info<info::platform::name>();
       auto PlatformVendor = Platform.get_info<info::platform::vendor>();
-      cout << "Platform [#" << PlatformNum << "]:" << std::endl;
-      cout << "    Version  : " << PlatformVersion << std::endl;
-      cout << "    Name     : " << PlatformName << std::endl;
-      cout << "    Vendor   : " << PlatformVendor << std::endl;
+      std::cout << "Platform [#" << PlatformNum << "]:" << std::endl;
+      std::cout << "    Version  : " << PlatformVersion << std::endl;
+      std::cout << "    Name     : " << PlatformName << std::endl;
+      std::cout << "    Vendor   : " << PlatformVendor << std::endl;
     }
     auto Devices = Platform.get_devices();
     if (verbose)
-      cout << "    Devices  : " << Devices.size() << std::endl;
+      std::cout << "    Devices  : " << Devices.size() << std::endl;
     uint32_t DeviceNum = 0;
     for (const auto &Device : Devices) {
       ++DeviceNum;
       if (verbose)
-        cout << "        Device [#" << DeviceNum << "]:" << std::endl;
+        std::cout << "        Device [#" << DeviceNum << "]:" << std::endl;
       printDeviceInfo(Device, verbose ? "        " : "");
     }
   }

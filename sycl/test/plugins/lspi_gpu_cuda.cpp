@@ -1,4 +1,4 @@
-// REQUIERS: gpu, cuda
+// REQUIRES: gpu, cuda
 
 // RUN: lspi --verbose >%t.default.out
 // RUN: FileCheck %s --check-prefixes=CHECK-BUILTIN-GPU-OPENCL,CHECK-CUSTOM-GPU-OPENCL --input-file %t.default.out

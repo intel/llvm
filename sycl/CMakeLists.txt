@@ -232,6 +232,7 @@ add_custom_target( sycl-toolchain
           llvm-link
           llvm-objcopy
           sycl-post-link
+          sycl-ls
   COMMENT "Building SYCL compiler toolchain..."
 )
 
