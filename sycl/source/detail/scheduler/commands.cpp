@@ -563,6 +563,8 @@ void Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep) {
     return;
   }
 
+  // The event handle can be null in case of, for example, alloca command,
+  // which is currently synchrounious, so don't generate OpenCL event.
   if (DepEvent->getHandleRef() == nullptr) {
     return;
   }
