@@ -238,18 +238,13 @@ public:
     EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
 
     // update self-event status
-    if (MSelfEvent->is_host()) {
-      MSelfEvent->setComplete();
+    MSelfEvent->setComplete();
 
-      // enqueue leaves or enqueue leaves of reqs in ThisCmd.MDeps
+    // The enqueue process is driven by backend for non-host.
+    // For host event we'll enqueue leaves of requirements
+    if (MSelfEvent->is_host())
       for (DepDesc &Dep : ThisCmd->MDeps)
         Scheduler::enqueueLeavesOfReq(Dep.MDepRequirement);
-    } else {
-      const detail::plugin &Plugin = MSelfEvent->getPlugin();
-      Plugin.call<PiApiKind::piEventSetStatus>(MSelfEvent->getHandleRef(),
-                                               PI_EVENT_COMPLETE);
-      // the enqueue process is driven by backend now
-    }
   }
 };
 

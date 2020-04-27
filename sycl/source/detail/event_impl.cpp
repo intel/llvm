@@ -62,19 +62,22 @@ void event_impl::waitInternal() const {
 }
 
 void event_impl::setComplete() {
-  assert(MHostEvent && "setComplete is only allowed for host events");
-  assert(!MEvent && "setComplete is only allowed for host events");
-
+  if (MHostEvent && !MEvent) {
 #ifndef NDEBUG
-  int Expected = HES_NotReady;
-  int Desired = HES_Ready;
+    int Expected = HES_NotReady;
+    int Desired = HES_Ready;
 
-  bool Succeeded = MState.compare_exchange_strong(Expected, Desired);
+    bool Succeeded = MState.compare_exchange_strong(Expected, Desired);
 
-  assert(Succeeded && "Unexpected state of event");
+    assert(Succeeded && "Unexpected state of event");
 #else
-  MState.store(static_cast<int>(HES_Ready));
+    MState.store(static_cast<int>(HES_Ready));
 #endif
+  } else if (MEvent)
+    getPlugin().call<PiApiKind::piEventSetStatus>(
+        getHandleRef(), PI_EVENT_COMPLETE);
+  else
+    assert(false && "Event is neither host nor device one.");
 }
 
 const RT::PiEvent &event_impl::getHandleRef() const { return MEvent; }
