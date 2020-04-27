@@ -1,0 +1,193 @@
+SPV_INTEL_optimization_hints
+============================
+
+Name Strings
+------------
+
+SPV_INTEL_optimization_hints
+
+Contact
+-------
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/KhronosGroup/SPIRV-Headers
+
+Contributors
+------------
+
+- Dmitry Sidorov, Intel
+- Alexey Sachkov, Intel
+- Alexey Sotkin, Intel
+- Ben Ashbaugh, Intel
+
+Notice
+------
+
+Copyright (c) 2020 Intel Corporation.  All rights reserved.
+
+Status
+------
+
+Working Draft
+
+This is a preview extension specification, intended to provide early access to a
+feature for review and community feedback. When the feature matures, this
+specification may be released as a formal extension.
+
+Because the interfaces defined by this specification are not final and are
+subject to change they are not intended to be used by shipping software
+products.
+
+Version
+-------
+
+[width="40%",cols="25,25"]
+|========================================
+| Last Modified Date | 2020-04-27
+| Revision           | E
+|========================================
+
+Dependencies
+------------
+
+This extension is written against the SPIR-V Specification,
+Version 1.5 Revision 2.
+
+This extension requires SPIR-V 1.0.
+
+Overview
+--------
+
+This extension adds a decoration *AssumeTrueINTEL* and an instruction
+*OpExpectINTEL* that are appropriately mapped on ‘llvm.assume’ and ‘llvm.expect’
+intrinsics. That is required to save optimization hints through LLVM IR to
+SPIR-V transformation.
+
+Extension Name
+--------------
+
+To use this extension within a SPIR-V module, the following *OpExtension* must
+be present in the module:
+
+----
+OpExtension "SPV_INTEL_optimization_hints"
+----
+
+New Capabilities
+----------------
+This extension introduces a new capability:
+
+----
+OptimizationHintsINTEL
+----
+
+New Instructions
+----------------
+Instructions added under the *OptimizationHintsINTEL* capability:
+
+----
+ExpectINTEL
+----
+
+New Decorations
+---------------
+Decorations added under the *OptimizationHintsINTEL* capability:
+
+----
+AssumeTrueINTEL
+----
+
+Token Number Assignments
+------------------------
+[width="45%",cols="30,15"]
+|===============================
+| OptimizationHintsINTEL | 5629
+| AssumeTrueINTEL        | 5630
+| OpExpectINTEL          | 5631
+|===============================
+
+Modifications to the SPIR-V Specification, Version 1.5
+------------------------------------------------------
+
+Decorations
+~~~~~~~~~~~
+
+In section 3.20 "Decoration", update or add
+
+--
+[options="header"]
+|====
+2+^| Decoration	^| Enabling Capabilities
+| TBD | *AssumeTrueINTEL* +
+Applies to a _Condition_ of a _Boolean Type_. Allows an optimizer to assume that
+the provided _Condition_ is true.
+| *OptimizationHintsINTEL*
+|====
+--
+
+Capabilities
+~~~~~~~~~~~~
+
+Modify Section 3.31, "Capability", adding these rows to the Capability table:
+
+--
+[options="header"]
+|====
+2+^| Capability ^| Depends On
+| TBD | *OptimizationHintsINTEL* +
+Allow to use AssumeTrueINTEL decoration and ExpectINTEL instruction |
+|====
+--
+
+Instructions
+~~~~~~~~~~~~
+
+In section 3.32.1, Miscellaneous Instructions, add a new instruction:
+
+[cols="6", width="100%"]
+|=====
+5+^|*OpExpectINTEL* +
+
+Provides information for optimizers that the most probable value of _Value_ is
+_ExpectedValue_. This instruction can be safely replaced with an entity
+referenced by _Value_.
+
+The type of _Value_ and _ExpectedValue_ must be the same as _Result Type_,
+which shall be of _Integer_ or _Boolean_ type.
+
+| Capability:
+*OptimizationHintsINTEL*
+
+| 5 | TBD | <id> +
+Result Type | Result <id> | Value <id> | ExpectedValue <id>
+|=====
+
+
+Issues
+------
+
+1) From https://llvm.org/docs/LangRef.html#llvm-expect-intrinsic
+_This is an overloaded intrinsic. You can use llvm.expect on any integer bit
+width._
+Shall we put a dependency on SPV_INTEL_arbitrary_precision_integers extension?
+
+Resolution:
+
+No need.
+
+Revision History
+----------------
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|A|2020-04-02|Dmitry Sidorov|Initial revision
+|B|2020-04-03|Dmitry Sidorov|Switch Expected from Decoration to instruction
+|C|2020-04-07|Dmitry Sidorov|Apply Alexey's suggestions
+|D|2020-04-08|Dmitry Sidorov|Rename the extension to SPV_INTEL_optimization_hints
+|E|2020-04-08|Dmitry Sidorov|Assign reserved values
+|========================================
+
