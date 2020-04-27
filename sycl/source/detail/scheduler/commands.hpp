@@ -197,23 +197,6 @@ protected:
   /// Optionality of Dep is set by Dep.MDepCommand not equal to nullptr.
   void processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep);
 
-  /// Perform connection of events in multiple contexts
-  /// \param DepEvent event to depend on
-  /// \param DepEventContext context of DepEvent
-  /// \param Context context of command which wants to depend on DepEvent
-  /// \param Dep optional DepDesc to perform connection properly
-  ///
-  /// Optionality of Dep is set by Dep.MDepCommand not equal to nullptr.
-  void connectDepEvent(EventImplPtr DepEvent,
-                       const ContextImplPtr &DepEventContext,
-                       const ContextImplPtr &Context, const DepDesc &Dep);
-  /// Helper for connectDepEvent
-  /// \param ConnectCmd connection cmd to properly add
-  /// \param Dep DepDesc with non-null MDepRequirmeent
-  void addConnectCmdWithReq(const ContextImplPtr &DepEventContext,
-                            ExecCGCommand *const ConnectCmd,
-                            EmptyCommand *const EmptyCmd, const DepDesc &Dep);
-
   virtual ContextImplPtr getContext() const;
 
   /// Private interface. Derived classes should implement this method.

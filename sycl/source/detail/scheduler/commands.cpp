@@ -446,95 +446,6 @@ void Command::makeTraceEventEpilog() {
 #endif
 }
 
-void Command::addConnectCmdWithReq(const ContextImplPtr &DepEventContext,
-                                   ExecCGCommand *const ConnectCmd,
-                                   EmptyCommand *const EmptyCmd,
-                                   const DepDesc &Dep) {
-  Requirement *Req = const_cast<Requirement *>(Dep.MDepRequirement);
-
-  Scheduler::GraphBuilder &GB = Scheduler::getInstance().MGraphBuilder;
-
-  MemObjRecord *Record = GB.getMemObjRecord(Req->MSYCLMemObj);
-  Dep.MDepCommand->addUser(ConnectCmd);
-
-  AllocaCommandBase *AllocaCmd =
-      GB.findAllocaForReq(Record, Req, DepEventContext);
-  assert(AllocaCmd && "There must be alloca for requirement!");
-
-  std::set<Command *> Deps = GB.findDepsForReq(Record, Req, DepEventContext);
-  assert(Deps.size() && "There must be some deps");
-
-  for (Command *ReqDepCmd : Deps) {
-    ConnectCmd->addDep(DepDesc{ReqDepCmd, Req, AllocaCmd});
-    ReqDepCmd->addUser(ConnectCmd);
-  }
-
-  GB.updateLeaves(Deps, Record, Req->MAccessMode);
-  GB.addNodeToLeaves(Record, ConnectCmd, Req->MAccessMode);
-
-  EmptyCmd->addRequirement(ConnectCmd, Dep.MAllocaCmd, Dep.MDepRequirement);
-  ConnectCmd->addUser(EmptyCmd);
-
-  GB.updateLeaves({ConnectCmd}, Record, Req->MAccessMode);
-  GB.addNodeToLeaves(Record, EmptyCmd, Req->MAccessMode);
-}
-
-void Command::connectDepEvent(EventImplPtr DepEvent,
-                              const ContextImplPtr &DepEventContext,
-                              const ContextImplPtr &Context,
-                              const DepDesc &Dep) {
-  // construct Host Task type command manually and make it depend on DepEvent
-  ExecCGCommand *ConnectCmd = nullptr;
-
-  {
-    // Temporary function. Will be replaced depending on circumstances.
-    std::function<void(void)> Func = []() {};
-
-    std::unique_ptr<detail::HostTask> HT(new detail::HostTask(std::move(Func)));
-    std::unique_ptr<detail::CG> ConnectCG(new detail::CGHostTask(
-        std::move(HT), /* Args = */ {}, /* ArgsStorage = */ {},
-        /* AccStorage = */ {}, /* SharedPtrStorage = */ {},
-        /* Requirements = */ {}, /* DepEvents = */ {DepEvent},
-        CG::CODEPLAY_HOST_TASK, /* Payload */ {}));
-    ConnectCmd = new ExecCGCommand(
-        std::move(ConnectCG), Scheduler::getInstance().getDefaultHostQueue());
-  }
-
-  if (!ConnectCmd)
-    throw runtime_error("Out of host memory", PI_OUT_OF_HOST_MEMORY);
-
-  if (Command *DepCmd = reinterpret_cast<Command *>(DepEvent->getCommand())) {
-    EmptyCommand *EmptyCmd =
-        new EmptyCommand(Scheduler::getInstance().getDefaultHostQueue());
-
-    if (!EmptyCmd)
-      throw runtime_error("Out of host memory", PI_OUT_OF_HOST_MEMORY);
-
-    EmptyCmd->MIsBlockable = true;
-    EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueBlocked;
-    EmptyCmd->MBlockReason = BlockReason::HostTask;
-
-    DepCmd->addUser(ConnectCmd);
-
-    if (Dep.MDepRequirement) {
-      addConnectCmdWithReq(DepEventContext, ConnectCmd, EmptyCmd, Dep);
-    } else /* if (!Dep.MDepRequirement) */ {
-      ConnectCmd->addDep(DepEvent);
-      EmptyCmd->addDep(ConnectCmd->MEvent);
-      ConnectCmd->addUser(EmptyCmd);
-    }
-  } else // if (!DepEvent->getCommand())
-    ConnectCmd->addDep(DepEvent);
-
-  EnqueueResultT Res;
-  bool Enqueued = Scheduler::GraphProcessor::enqueueCommand(ConnectCmd, Res);
-  if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
-    throw runtime_error("Failed to enqueue a sync event between two contexts",
-                        PI_INVALID_OPERATION);
-
-  MPreparedHostDepsEvents.push_back(ConnectCmd->getEvent());
-}
-
 void Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep) {
   const ContextImplPtr &Context = getContext();
 
@@ -554,8 +465,10 @@ void Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep) {
 
   ContextImplPtr DepEventContext = DepEvent->getContextImpl();
   // If contexts don't match - connect them using user event
-  if (DepEventContext != Context && !Context->is_host())
-    connectDepEvent(DepEvent, DepEventContext, Context, Dep);
+  if (DepEventContext != Context && !Context->is_host()) {
+    Scheduler::GraphBuilder &GB = Scheduler::getInstance().MGraphBuilder;
+    GB.connectDepEvent(this, DepEvent, DepEventContext, Context, Dep);
+  }
   else
     MPreparedDepsEvents.push_back(std::move(DepEvent));
 }
