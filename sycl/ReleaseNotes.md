@@ -166,7 +166,7 @@ Release notes for the commit range e8f1f29..ba404be
   - The latest version of Intel(R) Graphics Compute Runtime for OpenCL(TM) from
     https://downloadcenter.intel.com/
 
-Please, see the runtime installation guide [here](https://github.com/intel/llvm/blob/sycl/sycl/doc/GetStartedWithSYCLCompiler.md#install-low-level-runtime)
+Please, see the runtime installation guide [here](https://github.com/intel/llvm/blob/sycl/sycl/doc/GetStartedGuide.md#install-low-level-runtime)
 
 
 
