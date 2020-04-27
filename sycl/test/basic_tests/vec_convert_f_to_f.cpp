@@ -13,6 +13,9 @@
 
 #include "vec_convert.hpp"
 
+// TODO make the convertion on CPU and HOST identical
+
+
 int main() {
   // automatic
   test<double, float, 8, rounding_mode::automatic>(
