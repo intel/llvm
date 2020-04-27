@@ -231,10 +231,10 @@ convertImpl(T Value) {
   return static_cast<R>(Value);
 }
 
+#ifndef __SYCL_DEVICE_ONLY__
 // float to int
 template <typename T, typename R, rounding_mode roundingMode>
 detail::enable_if_t<is_float_to_int<T, R>::value, R> convertImpl(T Value) {
-#ifndef __SYCL_DEVICE_ONLY__
   switch (roundingMode) {
     // Round to nearest even is default rounding mode for floating-point types
   case rounding_mode::automatic:
@@ -264,11 +264,62 @@ detail::enable_if_t<is_float_to_int<T, R>::value, R> convertImpl(T Value) {
     assert(!"Unsupported rounding mode!");
     return static_cast<R>(Value);
   };
-#else
-  // TODO implement device side conversion.
-  return static_cast<R>(Value);
-#endif
 }
+#else
+
+template <rounding_mode Mode>
+using RteOrAutomatic = detail::bool_constant<Mode == rounding_mode::automatic ||
+                                             Mode == rounding_mode::rte>;
+
+template <rounding_mode Mode>
+using Rtz = detail::bool_constant<Mode == rounding_mode::rtz>;
+
+template <rounding_mode Mode>
+using Rtp = detail::bool_constant<Mode == rounding_mode::rtp>;
+
+template <rounding_mode Mode>
+using Rtn = detail::bool_constant<Mode == rounding_mode::rtn>;
+
+// Convert floating-point type to integer type
+#define __SYCL_GENERATE_CONVERT_IMPL(SPIRVOp, DestType, RoundingMode,          \
+                                     RoundingModeCondition)                    \
+  template <typename T, typename R, rounding_mode roundingMode>                \
+  detail::enable_if_t<is_float_to_int<T, R>::value &&                          \
+                          std::is_same<R, DestType>::value &&                  \
+                          RoundingModeCondition<roundingMode>::value,          \
+                      R>                                                       \
+  convertImpl(T Value) {                                                       \
+    using OpenCLT = cl::sycl::detail::ConvertToOpenCLType_t<T>;                \
+    OpenCLT OpValue = cl::sycl::detail::convertDataToType<T, OpenCLT>(Value);  \
+    return __spirv_Convert##SPIRVOp##_R##DestType##_##RoundingMode(OpValue);   \
+  }
+
+#define __SYCL_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE(RoundingMode,           \
+                                                       RoundingModeCondition)  \
+  __SYCL_GENERATE_CONVERT_IMPL(FToS, int, RoundingMode, RoundingModeCondition) \
+  __SYCL_GENERATE_CONVERT_IMPL(FToS, char, RoundingMode,                       \
+                               RoundingModeCondition)                          \
+  __SYCL_GENERATE_CONVERT_IMPL(FToS, short, RoundingMode,                      \
+                               RoundingModeCondition)                          \
+  __SYCL_GENERATE_CONVERT_IMPL(FToS, long, RoundingMode,                       \
+                               RoundingModeCondition)                          \
+  __SYCL_GENERATE_CONVERT_IMPL(FToU, uint, RoundingMode,                       \
+                               RoundingModeCondition)                          \
+  __SYCL_GENERATE_CONVERT_IMPL(FToU, uchar, RoundingMode,                      \
+                               RoundingModeCondition)                          \
+  __SYCL_GENERATE_CONVERT_IMPL(FToU, ushort, RoundingMode,                     \
+                               RoundingModeCondition)                          \
+  __SYCL_GENERATE_CONVERT_IMPL(FToU, ulong, RoundingMode, RoundingModeCondition)
+
+__SYCL_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE(rte, RteOrAutomatic)
+__SYCL_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE(rtz, Rtz)
+__SYCL_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE(rtp, Rtp)
+__SYCL_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE(rtn, Rtn)
+
+#undef __SYCL_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE
+#undef __SYCL_GENERATE_CONVERT_IMPL
+
+#endif // __SYCL_DEVICE_ONLY__
 
 } // namespace detail
 
