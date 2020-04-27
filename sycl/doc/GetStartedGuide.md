@@ -514,7 +514,8 @@ class CUDASelector : public cl::sycl::device_selector {
 
 ## C++ standard
 
-- Minimal supported C++ standard is C++11 on Linux and C++14 on Windows.
+- DPC++ runtime is built as C++14 library.
+- DPC++ compiler is building apps as C++14 apps by default.
 
 ## Known Issues and Limitations
 
