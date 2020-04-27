@@ -85,6 +85,7 @@ namespace RT = detail::pi;
 /// Q.submit(/* expecting mock behavior */);
 /// /*...*/
 /// ```
+// TODO: Consider reworking the class into a `detail::plugin` derivative.
 class PiMock {
 public:
   /// Constructs PiMock from a device_selector, provided that
