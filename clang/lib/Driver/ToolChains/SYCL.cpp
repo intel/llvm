@@ -422,14 +422,14 @@ SYCLToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
   return DAL;
 }
 
-void parseTargetOpts(StringRef ArgString, const llvm::opt::ArgList &Args,
-                     llvm::opt::ArgStringList &CmdArgs) {
+static void parseTargetOpts(StringRef ArgString, const llvm::opt::ArgList &Args,
+                            llvm::opt::ArgStringList &CmdArgs) {
   // Tokenize the string.
   SmallVector<const char *, 8> TargetArgs;
   llvm::BumpPtrAllocator A;
   llvm::StringSaver S(A);
   llvm::cl::TokenizeGNUCommandLine(ArgString, S, TargetArgs);
-  for (StringRef const &TA : TargetArgs)
+  for (StringRef TA : TargetArgs)
     CmdArgs.push_back(Args.MakeArgString(TA));
 }
 
