@@ -631,8 +631,9 @@ static ParamDesc makeParamDesc(const FieldDecl *Src, QualType Ty) {
 // Creates a parameter descriptor for kernel object
 static ParamDesc makeParamDesc(const CXXRecordDecl *Src, QualType Ty) {
   ASTContext &Ctx = Src->getASTContext();
-  // Should the name of parameter be fixed as _arg_kernel_object?
-  std::string Name = (Twine("_arg_") + Src->getName()).str();
+  // There is no name available for lambda object. Name for all
+  // kernel types (lambda and functor) is set as _arg_kernelObject.
+  std::string Name = "_arg_kernelObject";
   return std::make_tuple(Ty, &Ctx.Idents.get(Name),
                          Ctx.getTrivialTypeSourceInfo(Ty));
 }

@@ -18,7 +18,7 @@ void bar() {
   []() [[intelfpga::max_global_work_dim(2)]] {});
 }
 
-// CHECK: define spir_kernel void @{{.*}}kernel_name1() {{.*}} !max_global_work_dim ![[NUM1:[0-9]+]]
-// CHECK: define spir_kernel void @{{.*}}kernel_name2() {{.*}} !max_global_work_dim ![[NUM8:[0-9]+]]
+// CHECK: define spir_kernel void @{{.*}}kernel_name1(%class.{{.*}}.Foo* byval(%class.{{.*}}.Foo) align 1 %_arg_kernelObject) {{.*}} !max_global_work_dim ![[NUM1:[0-9]+]]
+// CHECK: define spir_kernel void @{{.*}}kernel_name2(%"class.{{.*}}.anon"* byval(%"class.{{.*}}.anon") align 1 %_arg_kernelObject) {{.*}} !max_global_work_dim ![[NUM8:[0-9]+]]
 // CHECK: ![[NUM1]] = !{i32 1}
 // CHECK: ![[NUM8]] = !{i32 2}

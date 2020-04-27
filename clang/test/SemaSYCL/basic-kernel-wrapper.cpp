@@ -23,10 +23,11 @@ int main() {
 
 // Check declaration of the kernel
 
-// CHECK: FunctionDecl {{.*}}kernel_wrapper{{.*}} 'void (__global int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>)'
+// CHECK: FunctionDecl {{.*}}kernel_wrapper{{.*}} 'void ((lambda at {{.*}}basic-kernel-wrapper.cpp{{.*}}), __global int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>)'
 
 // Check parameters of the kernel
 
+// CHECK: ParmVarDecl {{.*}} used [[_arg_KernelObject:[0-9a-zA-Z_]+]] '(lambda at {{.*}}basic-kernel-wrapper.cpp{{.*}})'
 // CHECK: ParmVarDecl {{.*}} used [[_arg_Mem:[0-9a-zA-Z_]+]] '__global int *'
 // CHECK: ParmVarDecl {{.*}} used [[_arg_AccessRange:[0-9a-zA-Z_]+]] 'cl::sycl::range<1>'
 // CHECK: ParmVarDecl {{.*}} used [[_arg_MemRange:[0-9a-zA-Z_]+]] 'cl::sycl::range<1>'

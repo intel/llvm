@@ -23,9 +23,10 @@ int main() {
 }
 
 // Check declaration of the kernel
-// CHECK: wrapped_access{{.*}} 'void (AccWrapper<cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::global_buffer, cl::sycl::access::placeholder::false_t> >, __global int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>)'
+// CHECK: wrapped_access{{.*}} 'void ((lambda at {{.*}}wrapped-accessor.cpp{{.*}}), AccWrapper<cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::global_buffer, cl::sycl::access::placeholder::false_t> >, __global int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>)'
 
 // Check parameters of the kernel
+// CHECK: ParmVarDecl {{.*}} used _arg_kernelObject '(lambda at {{.*}}wrapped-accessor.cpp{{.*}})'
 // CHECK: ParmVarDecl {{.*}} used _arg_ 'AccWrapper<cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::global_buffer, cl::sycl::access::placeholder::false_t> >':'AccWrapper<cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::global_buffer, cl::sycl::access::placeholder::false_t> >'
 // CHECK: ParmVarDecl {{.*}} used _arg_accessor '__global int *'
 // CHECK: ParmVarDecl {{.*}} used [[_arg_AccessRange:[0-9a-zA-Z_]+]] 'cl::sycl::range<1>'

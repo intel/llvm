@@ -45,7 +45,8 @@ int main() {
   return 0;
 }
 // Check kernel parameters
-// CHECK: FunctionDecl {{.*}}kernel_const{{.*}} 'void (const int)'
+// CHECK: FunctionDecl {{.*}}kernel_const{{.*}} 'void ((lambda at {{.*}}built-in-type-kernel-arg.cpp{{.*}}), const int)'
+// CHECK: ParmVarDecl {{.*}} used _arg_kernelObject '(lambda at {{.*}}built-in-type-kernel-arg.cpp{{.*}})
 // CHECK: ParmVarDecl {{.*}} used _arg_ 'const int'
 
 // Check that lambda field of const built-in type is initialized
@@ -55,7 +56,8 @@ int main() {
 // CHECK-NEXT: DeclRefExpr {{.*}} 'const int' lvalue ParmVar {{.*}} '_arg_' 'const int'
 
 // Check kernel parameters
-// CHECK: {{.*}}kernel_int{{.*}} 'void (int)'
+// CHECK: {{.*}}kernel_int{{.*}} 'void ((lambda at {{.*}}built-in-type-kernel-arg.cpp{{.*}}), int)'
+// CHECK: ParmVarDecl {{.*}} used _arg_kernelObject '(lambda at {{.*}}built-in-type-kernel-arg.cpp{{.*}})
 // CHECK: ParmVarDecl {{.*}} used _arg_ 'int'
 
 // Check that lambda field of built-in type is initialized
@@ -65,7 +67,8 @@ int main() {
 // CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_' 'int'
 
 // Check kernel parameters
-// CHECK: {{.*}}kernel_struct{{.*}} 'void (test_struct)'
+// CHECK: {{.*}}kernel_struct{{.*}} 'void ((lambda at {{.*}}built-in-type-kernel-arg.cpp{{.*}}), test_struct)'
+// CHECK: ParmVarDecl {{.*}} used _arg_kernelObject '(lambda at {{.*}}built-in-type-kernel-arg.cpp{{.*}})
 // CHECK: ParmVarDecl {{.*}} used _arg_ 'test_struct'
 
 // Check that lambda field of struct type is initialized
@@ -76,7 +79,8 @@ int main() {
 // CHECK-NEXT: DeclRefExpr {{.*}} 'test_struct' lvalue ParmVar {{.*}} '_arg_' 'test_struct'
 
 // Check kernel parameters
-// CHECK: {{.*}}kernel_pointer{{.*}} 'void (__global int *, __global int *)'
+// CHECK: {{.*}}kernel_pointer{{.*}} 'void ((lambda at {{.*}}built-in-type-kernel-arg.cpp{{.*}}), __global int *, __global int *)'
+// CHECK: ParmVarDecl {{.*}} used _arg_kernelObject '(lambda at {{.*}}built-in-type-kernel-arg.cpp{{.*}})
 // CHECK: ParmVarDecl {{.*}} used _arg_ '__global int *'
 // CHECK: ParmVarDecl {{.*}} used _arg_ '__global int *'
 // CHECK: VarDecl {{.*}}'(lambda at {{.*}}built-in-type-kernel-arg.cpp{{.*}})'
@@ -88,4 +92,3 @@ int main() {
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
 // CHECK-NEXT: DeclRefExpr {{.*}} '__global int *' lvalue ParmVar {{.*}} '_arg_' '__global int *'
 
-// Check kernel parameters

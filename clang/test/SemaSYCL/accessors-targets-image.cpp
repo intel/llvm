@@ -63,12 +63,12 @@ int main() {
       });
 }
 
-// CHECK: {{.*}}use_image1d_r 'void (__read_only image1d_t)'
-// CHECK: {{.*}}use_image2d_r 'void (__read_only image2d_t)'
-// CHECK: {{.*}}use_image3d_r 'void (__read_only image3d_t)'
-// CHECK: {{.*}}use_image1d_w 'void (__write_only image1d_t)'
-// CHECK: {{.*}}use_image2d_w 'void (__write_only image2d_t)'
-// CHECK: {{.*}}use_image3d_w 'void (__write_only image3d_t)'
+// CHECK: {{.*}}use_image1d_r 'void ((lambda at {{.*}}accessors-targets-image.cpp{{.*}}), __read_only image1d_t)'
+// CHECK: {{.*}}use_image2d_r 'void ((lambda at {{.*}}accessors-targets-image.cpp{{.*}}), __read_only image2d_t)'
+// CHECK: {{.*}}use_image3d_r 'void ((lambda at {{.*}}accessors-targets-image.cpp{{.*}}), __read_only image3d_t)'
+// CHECK: {{.*}}use_image1d_w 'void ((lambda at {{.*}}accessors-targets-image.cpp{{.*}}), __write_only image1d_t)'
+// CHECK: {{.*}}use_image2d_w 'void ((lambda at {{.*}}accessors-targets-image.cpp{{.*}}), __write_only image2d_t)'
+// CHECK: {{.*}}use_image3d_w 'void ((lambda at {{.*}}accessors-targets-image.cpp{{.*}}), __write_only image3d_t)'
 
 // TODO: SYCL specific fail - analyze and enable
 // XFAIL: windows-msvc

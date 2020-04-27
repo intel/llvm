@@ -1,5 +1,5 @@
 // RUN: %clang_cc1 -fsycl -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -I %S/Inputs -disable-llvm-passes -emit-llvm %s -o - | FileCheck --enable-var-scope %s
-// CHECK: define spir_kernel void @{{[a-zA-Z0-9_]+}}(%opencl.sampler_t addrspace(2)* [[SAMPLER_ARG:%[a-zA-Z0-9_]+]])
+// CHECK: define spir_kernel void @{{[a-zA-Z0-9_]+}}(%"class.{{.*}}.anon"* byval(%"class.{{.*}}.anon") align 8 %_arg_kernelObject, %opencl.sampler_t addrspace(2)* [[SAMPLER_ARG:%[a-zA-Z0-9_]+]])
 // CHECK-NEXT: entry:
 // CHECK-NEXT: [[SAMPLER_ARG]].addr = alloca %opencl.sampler_t addrspace(2)*, align 8
 // CHECK-NEXT: [[ANON:%[0-9]+]] = alloca %"class.{{.*}}.anon", align 8

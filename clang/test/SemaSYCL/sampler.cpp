@@ -16,9 +16,10 @@ int main() {
 }
 
 // Check declaration of the test kernel
-// CHECK: FunctionDecl {{.*}}use_kernel_for_test 'void (sampler_t)'
+// CHECK: FunctionDecl {{.*}}use_kernel_for_test 'void ((lambda at {{.*}}sampler.cpp{{.*}}), sampler_t)'
 //
 // Check parameters of the test kernel
+// CHECK: ParmVarDecl {{.*}} used _arg_kernelObject '(lambda at {{.*}}sampler.cpp{{.*}})'
 // CHECK: ParmVarDecl {{.*}} used [[_arg_sampler:[0-9a-zA-Z_]+]] 'sampler_t'
 //
 // Check that sampler field of the test kernel object is initialized using __init method

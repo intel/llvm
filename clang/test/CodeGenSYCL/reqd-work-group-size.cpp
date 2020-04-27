@@ -30,9 +30,9 @@ void bar() {
       []() [[cl::reqd_work_group_size(8, 8, 8)]]{});
 }
 
-// CHECK: define spir_kernel void @{{.*}}kernel_name1() {{.*}} !reqd_work_group_size ![[WGSIZE32:[0-9]+]]
-// CHECK: define spir_kernel void @{{.*}}kernel_name2() {{.*}} !reqd_work_group_size ![[WGSIZE8:[0-9]+]]
-// CHECK: define spir_kernel void @{{.*}}kernel_name3() {{.*}} !reqd_work_group_size ![[WGSIZE88:[0-9]+]]
+// CHECK: define spir_kernel void @{{.*}}kernel_name1(%class.{{.*}}.Functor32x16x16* byval(%class.{{.*}}.Functor32x16x16) align 1 %_arg_kernelObject) {{.*}} !reqd_work_group_size ![[WGSIZE32:[0-9]+]]
+// CHECK: define spir_kernel void @{{.*}}kernel_name2(%class.{{.*}}.Functor* byval(%class.{{.*}}.Functor) align 1 %_arg_kernelObject) {{.*}} !reqd_work_group_size ![[WGSIZE8:[0-9]+]]
+// CHECK: define spir_kernel void @{{.*}}kernel_name3(%"class.{{.*}}.anon"* byval(%"class.{{.*}}.anon") align 1 %_arg_kernelObject) {{.*}} !reqd_work_group_size ![[WGSIZE88:[0-9]+]]
 // CHECK: ![[WGSIZE32]] = !{i32 16, i32 16, i32 32}
 // CHECK: ![[WGSIZE8]] = !{i32 1, i32 1, i32 8}
 // CHECK: ![[WGSIZE88]] = !{i32 8, i32 8, i32 8}

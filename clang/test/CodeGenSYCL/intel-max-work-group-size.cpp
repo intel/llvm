@@ -18,7 +18,7 @@ void bar() {
   []() [[intelfpga::max_work_group_size(8, 8, 8)]] {});
 }
 
-// CHECK: define spir_kernel void @{{.*}}kernel_name1() {{.*}} !max_work_group_size ![[NUM1:[0-9]+]]
-// CHECK: define spir_kernel void @{{.*}}kernel_name2() {{.*}} !max_work_group_size ![[NUM8:[0-9]+]]
+// CHECK: define spir_kernel void @{{.*}}kernel_name1(%class.{{.*}}.Foo* byval(%class.{{.*}}.Foo) align 1 %_arg_kernelObject) {{.*}} !max_work_group_size ![[NUM1:[0-9]+]]
+// CHECK: define spir_kernel void @{{.*}}kernel_name2(%"class.{{.*}}.anon"* byval(%"class.{{.*}}.anon") align 1 %_arg_kernelObject) {{.*}} !max_work_group_size ![[NUM8:[0-9]+]]
 // CHECK: ![[NUM1]] = !{i32 1, i32 1, i32 1}
 // CHECK: ![[NUM8]] = !{i32 8, i32 8, i32 8}
