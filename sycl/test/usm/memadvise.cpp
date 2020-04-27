@@ -1,4 +1,3 @@
-// XFAIL: cuda
 // SYCL runtime and piextUSM*Alloc functions for CUDA not behaving as described
 // in: https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/USM/USM.adoc
 //
