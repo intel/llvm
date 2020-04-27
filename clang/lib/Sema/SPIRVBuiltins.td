@@ -727,12 +727,19 @@ foreach rnd = ["", "_rte", "_rtn", "_rtp", "_rtz"] in {
     }
   }
 
+<<<<<<< HEAD
   foreach IType = TLSignedInts.List in {
     foreach FType = TLFloat.List in {
       foreach sat = ["", "_sat"] in {
         def : SPVBuiltin<"ConvertFToS_R" # IType.Name # sat # rnd, [IType, FType], Attr.Const>;
       }
       def : SPVBuiltin<"ConvertSToF_R" # FType.Name # rnd, [FType, IType], Attr.Const>;
+=======
+foreach InType = TLAll.List in {
+  foreach OutType = TLUnsignedInts.List in {
+    if !ne(OutType.ElementSize, InType.ElementSize) then {
+      def : SPVBuiltin<"UConvert_R" # OutType.Name, [OutType, InType], Attr.Const>;
+>>>>>>> Builtins fix
       foreach v = [2, 3, 4, 8, 16] in {
         foreach sat = ["", "_sat"] in {
           def : SPVBuiltin<"ConvertFToS_R" # IType.Name # v # sat # rnd,
@@ -745,6 +752,7 @@ foreach rnd = ["", "_rte", "_rtn", "_rtp", "_rtz"] in {
       }
     }
   }
+<<<<<<< HEAD
 
   foreach InType = TLFloat.List in {
     foreach OutType = TLFloat.List in {
@@ -755,6 +763,15 @@ foreach rnd = ["", "_rte", "_rtn", "_rtp", "_rtz"] in {
                            [VectorType<OutType, v>, VectorType<InType, v>],
                            Attr.Const>;
         }
+=======
+  foreach OutType = TLSignedInts.List in {
+    if !ne(OutType.ElementSize, InType.ElementSize) then {
+      def : SPVBuiltin<"SConvert_R" # OutType.Name, [OutType, InType], Attr.Const>;
+      foreach v = [2, 3, 4, 8, 16] in {
+        def : SPVBuiltin<"SConvert_R" # OutType.Name # v,
+                         [VectorType<OutType, v>, VectorType<InType, v>],
+                         Attr.Const>;
+>>>>>>> Builtins fix
       }
     }
   }
