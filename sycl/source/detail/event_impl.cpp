@@ -63,6 +63,7 @@ void event_impl::waitInternal() const {
 
 void event_impl::setComplete() {
   assert(MHostEvent && "setComplete is only allowed for host events");
+  assert(!MEvent && "setComplete is only allowed for host events");
 
 #ifndef NDEBUG
   int Expected = HES_NotReady;
