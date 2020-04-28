@@ -313,6 +313,13 @@ public:
   void setInstr(MachineInstr &MI);
   /// @}
 
+  /// Set the insertion point to before MI, and set the debug loc to MI's loc.
+  /// \pre MI must be in getMF().
+  void setInstrAndDebugLoc(MachineInstr &MI) {
+    setInstr(MI);
+    setDebugLoc(MI.getDebugLoc());
+  }
+
   void setChangeObserver(GISelChangeObserver &Observer);
   void stopObservingChanges();
   /// @}
@@ -379,7 +386,14 @@ public:
   ///
   /// \return a MachineInstrBuilder for the newly created instruction.
   MachineInstrBuilder buildDynStackAlloc(const DstOp &Res, const SrcOp &Size,
-                                         unsigned Align);
+                                         Align Alignment);
+
+  LLVM_ATTRIBUTE_DEPRECATED(inline MachineInstrBuilder buildDynStackAlloc(
+                                const DstOp &Res, const SrcOp &Size,
+                                unsigned Align),
+                            "Use the version that takes MaybeAlign instead") {
+    return buildDynStackAlloc(Res, Size, assumeAligned(Align));
+  }
 
   /// Build and insert \p Res = G_FRAME_INDEX \p Idx
   ///
@@ -1255,6 +1269,11 @@ public:
 
   /// Build and insert `G_FENCE Ordering, Scope`.
   MachineInstrBuilder buildFence(unsigned Ordering, unsigned Scope);
+
+  /// Build and insert \p Dst = G_FREEZE \p Src
+  MachineInstrBuilder buildFreeze(const DstOp &Dst, const SrcOp &Src) {
+    return buildInstr(TargetOpcode::G_FREEZE, {Dst}, {Src});
+  }
 
   /// Build and insert \p Res = G_BLOCK_ADDR \p BA
   ///

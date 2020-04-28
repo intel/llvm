@@ -31,7 +31,18 @@ static std::string demangle(StringRef symName) {
   return std::string(symName);
 }
 
-std::string toString(const elf::Symbol &b) { return demangle(b.getName()); }
+std::string toString(const elf::Symbol &sym) {
+  StringRef name = sym.getName();
+  std::string ret = demangle(name);
+
+  // If sym has a non-default version, its name may have been truncated at '@'
+  // by Symbol::parseSymbolVersion(). Add the trailing part. This check is safe
+  // because every symbol name ends with '\0'.
+  if (name.data()[name.size()] == '@')
+    ret += name.data() + name.size();
+  return ret;
+}
+
 std::string toELFString(const Archive::Symbol &b) {
   return demangle(b.getName());
 }
@@ -52,6 +63,7 @@ Defined *ElfSym::relaIpltStart;
 Defined *ElfSym::relaIpltEnd;
 Defined *ElfSym::riscvGlobalPointer;
 Defined *ElfSym::tlsModuleBase;
+DenseMap<const Symbol *, const InputFile *> backwardReferences;
 
 static uint64_t getSymVA(const Symbol &sym, int64_t &addend) {
   switch (sym.kind()) {
@@ -265,7 +277,7 @@ uint8_t Symbol::computeBinding() const {
   if (config->relocatable)
     return binding;
   if ((visibility != STV_DEFAULT && visibility != STV_PROTECTED) ||
-      versionId == VER_NDX_LOCAL)
+      (versionId == VER_NDX_LOCAL && isDefined()))
     return STB_LOCAL;
   if (!config->gnuUnique && binding == STB_GNU_UNIQUE)
     return STB_GLOBAL;
@@ -360,6 +372,14 @@ bool computeIsPreemptible(const Symbol &sym) {
   if (config->bsymbolic || (config->bsymbolicFunctions && sym.isFunc()))
     return false;
   return true;
+}
+
+void reportBackrefs() {
+  for (auto &it : backwardReferences) {
+    const Symbol &sym = *it.first;
+    warn("backward reference detected: " + sym.getName() + " in " +
+         toString(it.second) + " refers to " + toString(sym.file));
+  }
 }
 
 static uint8_t getMinVisibility(uint8_t va, uint8_t vb) {
@@ -498,9 +518,13 @@ void Symbol::resolveUndefined(const Undefined &other) {
 
     // We don't report backward references to weak symbols as they can be
     // overridden later.
+    //
+    // A traditional linker does not error for -ldef1 -lref -ldef2 (linking
+    // sandwich), where def2 may or may not be the same as def1. We don't want
+    // to warn for this case, so dismiss the warning if we see a subsequent lazy
+    // definition.
     if (backref && !isWeak())
-      warn("backward reference detected: " + other.getName() + " in " +
-           toString(other.file) + " refers to " + toString(file));
+      backwardReferences.try_emplace(this, other.file);
     return;
   }
 
@@ -657,8 +681,12 @@ void Symbol::resolveDefined(const Defined &other) {
 }
 
 template <class LazyT> void Symbol::resolveLazy(const LazyT &other) {
-  if (!isUndefined())
+  if (!isUndefined()) {
+    // See the comment in resolveUndefined().
+    if (isDefined())
+      backwardReferences.erase(this);
     return;
+  }
 
   // An undefined weak will not fetch archive members. See comment on Lazy in
   // Symbols.h for the details.

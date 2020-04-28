@@ -66,6 +66,9 @@ def no_color_diagnostics: F<"no-color-diagnostics">,
 def pdb : P<"pdb", "PDB file path">;
 def pdbstripped : P<"pdbstripped", "Stripped PDB file path">;
 def pdbaltpath : P<"pdbaltpath", "PDB file path to embed in the image">;
+def pdbstream : Joined<["/", "-", "/?", "-?"], "pdbstream:">,
+    MetaVarName<"<name>=<file>">,
+    HelpText<"Embed the contents of <file> in the PDB as named stream <name>">;
 def section : P<"section", "Specify section attributes">;
 def stack   : P<"stack", "Size of the stack">;
 def stub    : P<"stub", "Specify DOS stub file">;
@@ -219,9 +222,9 @@ def lto_obj_path : P<
     "output native object for merged LTO unit to this path">;
 def dash_dash_version : Flag<["--"], "version">,
   HelpText<"Print version information">;
-defm threads: B<"threads",
-    "Run the linker multi-threaded (default)",
-    "Do not run the linker multi-threaded">;
+def threads
+    : P<"threads", "Number of threads. '1' disables multi-threading. By "
+                   "default all available hardware threads are used">;
 
 // Flags for debugging
 def lldmap : F<"lldmap">;

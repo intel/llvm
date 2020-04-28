@@ -359,6 +359,11 @@ public:
   /// \return a native handle.
   pi_native_handle getNative() const;
 
+  /// Stores an event that should be associated with the queue
+  ///
+  /// \param Event is the event to be stored
+  void addEvent(event Event);
+
 private:
   /// Performs command group submission to the queue.
   ///
@@ -370,8 +375,9 @@ private:
                     shared_ptr_class<queue_impl> Self,
                     const detail::code_location &Loc) {
     handler Handler(std::move(Self), MHostQueue);
+    Handler.saveCodeLoc(Loc);
     CGF(Handler);
-    event Event = Handler.finalize(Loc);
+    event Event = Handler.finalize();
     addEvent(Event);
     return Event;
   }

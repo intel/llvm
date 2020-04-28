@@ -90,9 +90,6 @@ using namespace OCLUtil;
 
 namespace SPIRV {
 
-cl::opt<bool> SPIRVMemToReg("spirv-mem2reg", cl::init(false),
-                            cl::desc("LLVM/SPIR-V translation enable mem2reg"));
-
 cl::opt<bool> SPIRVAllowUnknownIntrinsics(
     "spirv-allow-unknown-intrinsics", cl::init(false),
     cl::desc("Unknown LLVM intrinsics will be translated as external function "
@@ -215,7 +212,8 @@ static bool recursiveType(const StructType *ST, const Type *Ty) {
   SmallPtrSet<const StructType *, 4> Seen;
 
   std::function<bool(const Type *Ty)> Run = [&](const Type *Ty) {
-    if (!(isa<StructType>(Ty) || isa<SequentialType>(Ty)) && !Ty->isPointerTy())
+    if (!(isa<StructType>(Ty) || isa<ArrayType>(Ty) || isa<VectorType>(Ty)) &&
+        !Ty->isPointerTy())
       return false;
 
     if (auto *StructTy = dyn_cast<StructType>(Ty)) {
@@ -269,7 +267,9 @@ SPIRVType *LLVMToSPIRV::transType(Type *T) {
     // SPIR-V 2.16.1. Universal Validation Rules: Scalar integer types can be
     // parameterized only as 32 bit, plus any additional sizes enabled by
     // capabilities.
-    if (BM->getErrorLog().checkError(
+    if (BM->isAllowedToUseExtension(
+            ExtensionID::SPV_INTEL_arbitrary_precision_integers) ||
+        BM->getErrorLog().checkError(
             BitWidth == 8 || BitWidth == 16 || BitWidth == 32 || BitWidth == 64,
             SPIRVEC_InvalidBitWidth, std::to_string(BitWidth))) {
       return mapType(T, BM->addIntegerType(T->getIntegerBitWidth()));
@@ -345,9 +345,9 @@ SPIRVType *LLVMToSPIRV::transType(Type *T) {
     }
   }
 
-  if (T->isVectorTy())
-    return mapType(T, BM->addVectorType(transType(T->getVectorElementType()),
-                                        T->getVectorNumElements()));
+  if (auto *VecTy = dyn_cast<VectorType>(T))
+    return mapType(T, BM->addVectorType(transType(VecTy->getElementType()),
+                                        VecTy->getNumElements()));
 
   if (T->isArrayTy()) {
     // SPIR-V 1.3 s3.32.6: Length is the number of elements in the array.
@@ -394,8 +394,8 @@ SPIRVType *LLVMToSPIRV::transType(Type *T) {
 
     for (unsigned I = 0, E = T->getStructNumElements(); I != E; ++I) {
       auto *ElemTy = ST->getElementType(I);
-      if ((isa<StructType>(ElemTy) || isa<SequentialType>(ElemTy) ||
-           isa<PointerType>(ElemTy)) &&
+      if ((isa<StructType>(ElemTy) || isa<ArrayType>(ElemTy) ||
+           isa<VectorType>(ElemTy) || isa<PointerType>(ElemTy)) &&
           recursiveType(ST, ElemTy))
         ForwardRefs.push_back(I);
       else
@@ -1355,6 +1355,30 @@ bool LLVMToSPIRV::transDecoration(Value *V, SPIRVValue *BV) {
     }
   }
 
+  if (auto BVF = dyn_cast_or_null<FPMathOperator>(V)) {
+    auto Opcode = BVF->getOpcode();
+    if (Opcode == Instruction::FAdd || Opcode == Instruction::FSub ||
+        Opcode == Instruction::FMul || Opcode == Instruction::FDiv ||
+        Opcode == Instruction::FRem) {
+      FastMathFlags FMF = BVF->getFastMathFlags();
+      SPIRVWord M{0};
+      if (FMF.isFast())
+        M |= FPFastMathModeFastMask;
+      else {
+        if (FMF.noNaNs())
+          M |= FPFastMathModeNotNaNMask;
+        if (FMF.noInfs())
+          M |= FPFastMathModeNotInfMask;
+        if (FMF.noSignedZeros())
+          M |= FPFastMathModeNSZMask;
+        if (FMF.allowReciprocal())
+          M |= FPFastMathModeAllowRecipMask;
+      }
+      if (M != 0)
+        BV->setFPFastMathMode(M);
+    }
+  }
+
   return true;
 }
 
@@ -1692,7 +1716,13 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
     if (cast<Constant>(Val)->isZeroValue()) {
       Init = BM->addNullConstant(CompositeTy);
     } else {
-      std::vector<SPIRVValue *> Elts{NumElements, transValue(Val, BB)};
+      // On 32-bit systems, size_type of std::vector is not a 64-bit type. Let's
+      // assume that we won't encounter memset for more than 2^32 elements and
+      // insert explicit cast to avoid possible warning/error about narrowing
+      // conversion
+      auto TNumElts =
+          static_cast<std::vector<SPIRVValue *>::size_type>(NumElements);
+      std::vector<SPIRVValue *> Elts(TNumElts, transValue(Val, BB));
       Init = BM->addCompositeConstant(CompositeTy, Elts);
     }
     SPIRVType *VarTy = transType(PointerType::get(AT, SPIRV::SPIRAS_Constant));
@@ -2461,7 +2491,8 @@ LLVMToSPIRV::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
       Type *BoolTy = IntegerType::getInt1Ty(M->getContext());
       auto IsVector = ResultTy->isVectorTy();
       if (IsVector)
-        BoolTy = VectorType::get(BoolTy, ResultTy->getVectorNumElements());
+        BoolTy = VectorType::get(BoolTy,
+                                 cast<VectorType>(ResultTy)->getNumElements());
       auto BBT = transType(BoolTy);
       SPIRVInstruction *Res;
       if (isCmpOpCode(OC)) {
@@ -2547,8 +2578,9 @@ ModulePass *llvm::createLLVMToSPIRV(SPIRVModule *SMod) {
   return new LLVMToSPIRV(SMod);
 }
 
-void addPassesForSPIRV(legacy::PassManager &PassMgr) {
-  if (SPIRVMemToReg)
+void addPassesForSPIRV(legacy::PassManager &PassMgr,
+                       const SPIRV::TranslatorOpts &Opts) {
+  if (Opts.isSPIRVMemToRegEnabled())
     PassMgr.add(createPromoteMemoryToRegisterPass());
   PassMgr.add(createPreprocessMetadata());
   PassMgr.add(createOCL21ToSPIRV());
@@ -2589,7 +2621,7 @@ bool llvm::writeSpirv(Module *M, const SPIRV::TranslatorOpts &Opts,
     return false;
 
   legacy::PassManager PassMgr;
-  addPassesForSPIRV(PassMgr);
+  addPassesForSPIRV(PassMgr, Opts);
   // Run loop simplify pass in order to avoid duplicate OpLoopMerge
   // instruction. It can happen in case of continue operand in the loop.
   if (hasLoopMetadata(M))
@@ -2604,12 +2636,21 @@ bool llvm::writeSpirv(Module *M, const SPIRV::TranslatorOpts &Opts,
 }
 
 bool llvm::regularizeLlvmForSpirv(Module *M, std::string &ErrMsg) {
+  SPIRV::TranslatorOpts DefaultOpts;
+  // To preserve old behavior of the translator, let's enable all extensions
+  // by default in this API
+  DefaultOpts.enableAllExtensions();
+  return llvm::regularizeLlvmForSpirv(M, ErrMsg, DefaultOpts);
+}
+
+bool llvm::regularizeLlvmForSpirv(Module *M, std::string &ErrMsg,
+                                  const SPIRV::TranslatorOpts &Opts) {
   std::unique_ptr<SPIRVModule> BM(SPIRVModule::createSPIRVModule());
   if (!isValidLLVMModule(M, BM->getErrorLog()))
     return false;
 
   legacy::PassManager PassMgr;
-  addPassesForSPIRV(PassMgr);
+  addPassesForSPIRV(PassMgr, Opts);
   PassMgr.run(*M);
   return true;
 }

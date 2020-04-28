@@ -35,6 +35,8 @@ class VPRecipeBuilder {
   /// The profitablity analysis.
   LoopVectorizationCostModel &CM;
 
+  PredicatedScalarEvolution &PSE;
+
   VPBuilder &Builder;
 
   /// When we if-convert we need to create edge masks. We have to cache values
@@ -49,11 +51,8 @@ class VPRecipeBuilder {
 
   // VPlan-VPlan transformations support: Hold a mapping from ingredients to
   // their recipe. To save on memory, only do so for selected ingredients,
-  // marked by having a nullptr entry in this map. If those ingredients get a
-  // VPWidenRecipe, also avoid compressing other ingredients into it to avoid
-  // having to split such recipes later.
+  // marked by having a nullptr entry in this map.
   DenseMap<Instruction *, VPRecipeBase *> Ingredient2Recipe;
-  VPWidenRecipe *LastExtensibleRecipe = nullptr;
 
   /// Set the recipe created for given ingredient. This operation is a no-op for
   /// ingredients that were not marked using a nullptr entry in the map.
@@ -64,6 +63,11 @@ class VPRecipeBuilder {
            "Recipe already set for ingredient");
     Ingredient2Recipe[I] = R;
   }
+
+  /// Check if \p I can be widened at the start of \p Range and possibly
+  /// decrease the range such that the returned value holds for the entire \p
+  /// Range. The function should not be called for memory instructions or calls.
+  bool shouldWiden(Instruction *I, VFRange &Range) const;
 
 public:
   /// A helper function that computes the predicate of the block BB, assuming
@@ -110,13 +114,20 @@ public:
   /// full if-conversion.
   VPBlendRecipe *tryToBlend(Instruction *I, VPlanPtr &Plan);
 
-  /// Check if \p I can be widened within the given VF \p Range. If \p I can be
-  /// widened for \p Range.Start, check if the last recipe of \p VPBB can be
-  /// extended to include \p I or else build a new VPWidenRecipe for it and
-  /// append it to \p VPBB. Return true if \p I can be widened for Range.Start,
-  /// false otherwise. Range.End may be decreased to ensure same decision from
-  /// \p Range.Start to \p Range.End.
-  bool tryToWiden(Instruction *I, VPBasicBlock *VPBB, VFRange &Range);
+  /// Handle call instruction. If \p I is a call that can be widened for \p
+  /// Range.Start, return a new VPWidenCallRecipe. Range.End may be decreased to
+  /// ensure same decision from \p Range.Start to \p Range.End.
+  VPWidenCallRecipe *tryToWidenCall(Instruction *I, VFRange &Range,
+                                    VPlan &Plan);
+  /// Check if \p I is a SelectInst and return a VPWidenSelectRecipe if it is.
+  /// The function should only be called if the cost-model indicates that
+  /// widening should be performed.
+  VPWidenSelectRecipe *tryToWidenSelect(Instruction *I);
+
+  /// Check if \p I has an opcode that can be widened and return a VPWidenRecipe
+  /// if it can. The function should only be called if the cost-model indicates
+  /// that widening should be performed.
+  VPWidenRecipe *tryToWiden(Instruction *I, VPlan &Plan);
 
   /// Create a replicating region for instruction \p I that requires
   /// predication. \p PredRecipe is a VPReplicateRecipe holding \p I.
@@ -126,8 +137,10 @@ public:
 public:
   VPRecipeBuilder(Loop *OrigLoop, const TargetLibraryInfo *TLI,
                   LoopVectorizationLegality *Legal,
-                  LoopVectorizationCostModel &CM, VPBuilder &Builder)
-      : OrigLoop(OrigLoop), TLI(TLI), Legal(Legal), CM(CM), Builder(Builder) {}
+                  LoopVectorizationCostModel &CM,
+                  PredicatedScalarEvolution &PSE, VPBuilder &Builder)
+      : OrigLoop(OrigLoop), TLI(TLI), Legal(Legal), CM(CM), PSE(PSE),
+        Builder(Builder) {}
 
   /// Check if a recipe can be create for \p I withing the given VF \p Range.
   /// If a recipe can be created, it adds it to \p VPBB.

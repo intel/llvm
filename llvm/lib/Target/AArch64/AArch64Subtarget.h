@@ -76,6 +76,7 @@ protected:
   bool HasV8_3aOps = false;
   bool HasV8_4aOps = false;
   bool HasV8_5aOps = false;
+  bool HasV8_6aOps = false;
 
   bool HasFPARMv8 = false;
   bool HasNEON = false;
@@ -143,6 +144,12 @@ protected:
   bool HasRandGen = false;
   bool HasMTE = false;
   bool HasTME = false;
+
+  // Armv8.6-A Extensions
+  bool HasBF16 = false;
+  bool HasAMVS = false;
+  bool HasFineGrainedTraps = false;
+  bool HasEnhancedCounterVirtualization = false;
 
   // Arm SVE2 extensions
   bool HasSVE2AES = false;
@@ -360,7 +367,12 @@ public:
   }
   unsigned getCacheLineSize() const override { return CacheLineSize; }
   unsigned getPrefetchDistance() const override { return PrefetchDistance; }
-  unsigned getMinPrefetchStride() const override { return MinPrefetchStride; }
+  unsigned getMinPrefetchStride(unsigned NumMemAccesses,
+                                unsigned NumStridedMemAccesses,
+                                unsigned NumPrefetches,
+                                bool HasCall) const override {
+    return MinPrefetchStride;
+  }
   unsigned getMaxPrefetchIterationsAhead() const override {
     return MaxPrefetchIterationsAhead;
   }
@@ -403,6 +415,13 @@ public:
   bool hasSVE2SHA3() const { return HasSVE2SHA3; }
   bool hasSVE2BitPerm() const { return HasSVE2BitPerm; }
 
+  // Armv8.6-A Extensions
+  bool hasBF16() const { return HasBF16; }
+  bool hasFineGrainedTraps() const { return HasFineGrainedTraps; }
+  bool hasEnhancedCounterVirtualization() const {
+    return HasEnhancedCounterVirtualization;
+  }
+
   bool isLittleEndian() const { return IsLittle; }
 
   bool isTargetDarwin() const { return TargetTriple.isOSDarwin(); }
@@ -439,6 +458,7 @@ public:
   bool hasDIT() const { return HasDIT; }
   bool hasTRACEV8_4() const { return HasTRACEV8_4; }
   bool hasAM() const { return HasAM; }
+  bool hasAMVS() const { return HasAMVS; }
   bool hasSEL2() const { return HasSEL2; }
   bool hasPMU() const { return HasPMU; }
   bool hasTLB_RMI() const { return HasTLB_RMI; }

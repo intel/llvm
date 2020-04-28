@@ -5443,6 +5443,15 @@ Sema::MarkBaseAndMemberDestructorsReferenced(SourceLocation Location,
   // subobjects.
   bool VisitVirtualBases = !ClassDecl->isAbstract();
 
+  // If the destructor exists and has already been marked used in the MS ABI,
+  // then virtual base destructors have already been checked and marked used.
+  // Skip checking them again to avoid duplicate diagnostics.
+  if (Context.getTargetInfo().getCXXABI().isMicrosoft()) {
+    CXXDestructorDecl *Dtor = ClassDecl->getDestructor();
+    if (Dtor && Dtor->isUsed())
+      VisitVirtualBases = false;
+  }
+
   llvm::SmallPtrSet<const RecordType *, 8> DirectVirtualBases;
 
   // Bases.
@@ -5477,16 +5486,21 @@ Sema::MarkBaseAndMemberDestructorsReferenced(SourceLocation Location,
     DiagnoseUseOfDecl(Dtor, Location);
   }
 
-  if (!VisitVirtualBases)
-    return;
+  if (VisitVirtualBases)
+    MarkVirtualBaseDestructorsReferenced(Location, ClassDecl,
+                                         &DirectVirtualBases);
+}
 
+void Sema::MarkVirtualBaseDestructorsReferenced(
+    SourceLocation Location, CXXRecordDecl *ClassDecl,
+    llvm::SmallPtrSetImpl<const RecordType *> *DirectVirtualBases) {
   // Virtual bases.
   for (const auto &VBase : ClassDecl->vbases()) {
     // Bases are always records in a well-formed non-dependent class.
     const RecordType *RT = VBase.getType()->castAs<RecordType>();
 
-    // Ignore direct virtual bases.
-    if (DirectVirtualBases.count(RT))
+    // Ignore already visited direct virtual bases.
+    if (DirectVirtualBases && DirectVirtualBases->count(RT))
       continue;
 
     CXXRecordDecl *BaseClassDecl = cast<CXXRecordDecl>(RT->getDecl());
@@ -5874,6 +5888,123 @@ static void checkForMultipleExportedDefaultConstructors(Sema &S,
       return;
     }
     LastExportedDefaultCtor = CD;
+  }
+}
+
+static void checkCUDADeviceBuiltinSurfaceClassTemplate(Sema &S,
+                                                       CXXRecordDecl *Class) {
+  bool ErrorReported = false;
+  auto reportIllegalClassTemplate = [&ErrorReported](Sema &S,
+                                                     ClassTemplateDecl *TD) {
+    if (ErrorReported)
+      return;
+    S.Diag(TD->getLocation(),
+           diag::err_cuda_device_builtin_surftex_cls_template)
+        << /*surface*/ 0 << TD;
+    ErrorReported = true;
+  };
+
+  ClassTemplateDecl *TD = Class->getDescribedClassTemplate();
+  if (!TD) {
+    auto *SD = dyn_cast<ClassTemplateSpecializationDecl>(Class);
+    if (!SD) {
+      S.Diag(Class->getLocation(),
+             diag::err_cuda_device_builtin_surftex_ref_decl)
+          << /*surface*/ 0 << Class;
+      S.Diag(Class->getLocation(),
+             diag::note_cuda_device_builtin_surftex_should_be_template_class)
+          << Class;
+      return;
+    }
+    TD = SD->getSpecializedTemplate();
+  }
+
+  TemplateParameterList *Params = TD->getTemplateParameters();
+  unsigned N = Params->size();
+
+  if (N != 2) {
+    reportIllegalClassTemplate(S, TD);
+    S.Diag(TD->getLocation(),
+           diag::note_cuda_device_builtin_surftex_cls_should_have_n_args)
+        << TD << 2;
+  }
+  if (N > 0 && !isa<TemplateTypeParmDecl>(Params->getParam(0))) {
+    reportIllegalClassTemplate(S, TD);
+    S.Diag(TD->getLocation(),
+           diag::note_cuda_device_builtin_surftex_cls_should_have_match_arg)
+        << TD << /*1st*/ 0 << /*type*/ 0;
+  }
+  if (N > 1) {
+    auto *NTTP = dyn_cast<NonTypeTemplateParmDecl>(Params->getParam(1));
+    if (!NTTP || !NTTP->getType()->isIntegralOrEnumerationType()) {
+      reportIllegalClassTemplate(S, TD);
+      S.Diag(TD->getLocation(),
+             diag::note_cuda_device_builtin_surftex_cls_should_have_match_arg)
+          << TD << /*2nd*/ 1 << /*integer*/ 1;
+    }
+  }
+}
+
+static void checkCUDADeviceBuiltinTextureClassTemplate(Sema &S,
+                                                       CXXRecordDecl *Class) {
+  bool ErrorReported = false;
+  auto reportIllegalClassTemplate = [&ErrorReported](Sema &S,
+                                                     ClassTemplateDecl *TD) {
+    if (ErrorReported)
+      return;
+    S.Diag(TD->getLocation(),
+           diag::err_cuda_device_builtin_surftex_cls_template)
+        << /*texture*/ 1 << TD;
+    ErrorReported = true;
+  };
+
+  ClassTemplateDecl *TD = Class->getDescribedClassTemplate();
+  if (!TD) {
+    auto *SD = dyn_cast<ClassTemplateSpecializationDecl>(Class);
+    if (!SD) {
+      S.Diag(Class->getLocation(),
+             diag::err_cuda_device_builtin_surftex_ref_decl)
+          << /*texture*/ 1 << Class;
+      S.Diag(Class->getLocation(),
+             diag::note_cuda_device_builtin_surftex_should_be_template_class)
+          << Class;
+      return;
+    }
+    TD = SD->getSpecializedTemplate();
+  }
+
+  TemplateParameterList *Params = TD->getTemplateParameters();
+  unsigned N = Params->size();
+
+  if (N != 3) {
+    reportIllegalClassTemplate(S, TD);
+    S.Diag(TD->getLocation(),
+           diag::note_cuda_device_builtin_surftex_cls_should_have_n_args)
+        << TD << 3;
+  }
+  if (N > 0 && !isa<TemplateTypeParmDecl>(Params->getParam(0))) {
+    reportIllegalClassTemplate(S, TD);
+    S.Diag(TD->getLocation(),
+           diag::note_cuda_device_builtin_surftex_cls_should_have_match_arg)
+        << TD << /*1st*/ 0 << /*type*/ 0;
+  }
+  if (N > 1) {
+    auto *NTTP = dyn_cast<NonTypeTemplateParmDecl>(Params->getParam(1));
+    if (!NTTP || !NTTP->getType()->isIntegralOrEnumerationType()) {
+      reportIllegalClassTemplate(S, TD);
+      S.Diag(TD->getLocation(),
+             diag::note_cuda_device_builtin_surftex_cls_should_have_match_arg)
+          << TD << /*2nd*/ 1 << /*integer*/ 1;
+    }
+  }
+  if (N > 2) {
+    auto *NTTP = dyn_cast<NonTypeTemplateParmDecl>(Params->getParam(2));
+    if (!NTTP || !NTTP->getType()->isIntegralOrEnumerationType()) {
+      reportIllegalClassTemplate(S, TD);
+      S.Diag(TD->getLocation(),
+             diag::note_cuda_device_builtin_surftex_cls_should_have_match_arg)
+          << TD << /*3rd*/ 2 << /*integer*/ 1;
+    }
   }
 }
 
@@ -6656,6 +6787,13 @@ void Sema::CheckCompletedCXXClass(Scope *S, CXXRecordDecl *Record) {
     // If we want to emit all the vtables, we need to mark it as used.  This
     // is especially required for cases like vtable assumption loads.
     MarkVTableUsed(Record->getInnerLocStart(), Record);
+  }
+
+  if (getLangOpts().CUDA) {
+    if (Record->hasAttr<CUDADeviceBuiltinSurfaceTypeAttr>())
+      checkCUDADeviceBuiltinSurfaceClassTemplate(*this, Record);
+    else if (Record->hasAttr<CUDADeviceBuiltinTextureTypeAttr>())
+      checkCUDADeviceBuiltinTextureClassTemplate(*this, Record);
   }
 }
 
@@ -13078,6 +13216,25 @@ void Sema::DefineImplicitDestructor(SourceLocation CurrentLocation,
   }
 }
 
+void Sema::CheckCompleteDestructorVariant(SourceLocation CurrentLocation,
+                                          CXXDestructorDecl *Destructor) {
+  if (Destructor->isInvalidDecl())
+    return;
+
+  CXXRecordDecl *ClassDecl = Destructor->getParent();
+  assert(Context.getTargetInfo().getCXXABI().isMicrosoft() &&
+         "implicit complete dtors unneeded outside MS ABI");
+  assert(ClassDecl->getNumVBases() > 0 &&
+         "complete dtor only exists for classes with vbases");
+
+  SynthesizedFunctionScope Scope(*this, Destructor);
+
+  // Add a context note for diagnostics produced after this point.
+  Scope.addContextNote(CurrentLocation);
+
+  MarkVirtualBaseDestructorsReferenced(Destructor->getLocation(), ClassDecl);
+}
+
 /// Perform any semantic analysis which needs to be delayed until all
 /// pending class member declarations have been parsed.
 void Sema::ActOnFinishCXXMemberDecls() {
@@ -13538,11 +13695,10 @@ buildSingleCopyAssignRecursively(Sema &S, SourceLocation Loc, QualType T,
   // Create the comparison against the array bound.
   llvm::APInt Upper
     = ArrayTy->getSize().zextOrTrunc(S.Context.getTypeSize(SizeType));
-  Expr *Comparison
-    = new (S.Context) BinaryOperator(IterationVarRefRVal.build(S, Loc),
-                     IntegerLiteral::Create(S.Context, Upper, SizeType, Loc),
-                                     BO_NE, S.Context.BoolTy,
-                                     VK_RValue, OK_Ordinary, Loc, FPOptions());
+  Expr *Comparison = BinaryOperator::Create(
+      S.Context, IterationVarRefRVal.build(S, Loc),
+      IntegerLiteral::Create(S.Context, Upper, SizeType, Loc), BO_NE,
+      S.Context.BoolTy, VK_RValue, OK_Ordinary, Loc, S.CurFPFeatures);
 
   // Create the pre-increment of the iteration variable. We can determine
   // whether the increment will overflow based on the value of the array

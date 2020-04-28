@@ -513,8 +513,8 @@ unsigned SystemZInstrInfo::insertBranch(MachineBasicBlock &MBB,
   return Count;
 }
 
-bool SystemZInstrInfo::analyzeCompare(const MachineInstr &MI, unsigned &SrcReg,
-                                      unsigned &SrcReg2, int &Mask,
+bool SystemZInstrInfo::analyzeCompare(const MachineInstr &MI, Register &SrcReg,
+                                      Register &SrcReg2, int &Mask,
                                       int &Value) const {
   assert(MI.isCompare() && "Caller should have checked for a comparison");
 
@@ -532,8 +532,8 @@ bool SystemZInstrInfo::analyzeCompare(const MachineInstr &MI, unsigned &SrcReg,
 
 bool SystemZInstrInfo::canInsertSelect(const MachineBasicBlock &MBB,
                                        ArrayRef<MachineOperand> Pred,
-                                       unsigned DstReg, unsigned TrueReg,
-                                       unsigned FalseReg, int &CondCycles,
+                                       Register DstReg, Register TrueReg,
+                                       Register FalseReg, int &CondCycles,
                                        int &TrueCycles,
                                        int &FalseCycles) const {
   // Not all subtargets have LOCR instructions.
@@ -566,10 +566,10 @@ bool SystemZInstrInfo::canInsertSelect(const MachineBasicBlock &MBB,
 
 void SystemZInstrInfo::insertSelect(MachineBasicBlock &MBB,
                                     MachineBasicBlock::iterator I,
-                                    const DebugLoc &DL, unsigned DstReg,
+                                    const DebugLoc &DL, Register DstReg,
                                     ArrayRef<MachineOperand> Pred,
-                                    unsigned TrueReg,
-                                    unsigned FalseReg) const {
+                                    Register TrueReg,
+                                    Register FalseReg) const {
   MachineRegisterInfo &MRI = MBB.getParent()->getRegInfo();
   const TargetRegisterClass *RC = MRI.getRegClass(DstReg);
 
@@ -607,7 +607,7 @@ void SystemZInstrInfo::insertSelect(MachineBasicBlock &MBB,
 }
 
 bool SystemZInstrInfo::FoldImmediate(MachineInstr &UseMI, MachineInstr &DefMI,
-                                     unsigned Reg,
+                                     Register Reg,
                                      MachineRegisterInfo *MRI) const {
   unsigned DefOpc = DefMI.getOpcode();
   if (DefOpc != SystemZ::LHIMux && DefOpc != SystemZ::LHI &&
@@ -1078,6 +1078,32 @@ MachineInstr *SystemZInstrInfo::foldMemoryOperandImpl(
     return BuiltMI;
   }
 
+  unsigned MemImmOpc = 0;
+  switch (Opcode) {
+  case SystemZ::LHIMux:
+  case SystemZ::LHI:    MemImmOpc = SystemZ::MVHI;  break;
+  case SystemZ::LGHI:   MemImmOpc = SystemZ::MVGHI; break;
+  case SystemZ::CHIMux:
+  case SystemZ::CHI:    MemImmOpc = SystemZ::CHSI;  break;
+  case SystemZ::CGHI:   MemImmOpc = SystemZ::CGHSI; break;
+  case SystemZ::CLFIMux:
+  case SystemZ::CLFI:
+    if (isUInt<16>(MI.getOperand(1).getImm()))
+      MemImmOpc = SystemZ::CLFHSI;
+    break;
+  case SystemZ::CLGFI:
+    if (isUInt<16>(MI.getOperand(1).getImm()))
+      MemImmOpc = SystemZ::CLGHSI;
+    break;
+  default: break;
+  }
+  if (MemImmOpc)
+    return BuildMI(*InsertPt->getParent(), InsertPt, MI.getDebugLoc(),
+                   get(MemImmOpc))
+               .addFrameIndex(FrameIndex)
+               .addImm(0)
+               .addImm(MI.getOperand(1).getImm());
+
   if (Opcode == SystemZ::LGDR || Opcode == SystemZ::LDGR) {
     bool Op0IsGPR = (Opcode == SystemZ::LGDR);
     bool Op1IsGPR = (Opcode == SystemZ::LDGR);
@@ -1172,18 +1198,17 @@ MachineInstr *SystemZInstrInfo::foldMemoryOperandImpl(
   // See if this is a 3-address instruction that is convertible to 2-address
   // and suitable for folding below.  Only try this with virtual registers
   // and a provided VRM (during regalloc).
-  if (SystemZ::getTwoOperandOpcode(Opcode) != -1) {
+  if (NumOps == 3 && SystemZ::getTargetMemOpcode(MemOpcode) != -1) {
     if (VRM == nullptr)
       return nullptr;
     else {
-      assert(NumOps == 3 && "Expected two source registers.");
       Register DstReg = MI.getOperand(0).getReg();
       Register DstPhys =
           (Register::isVirtualRegister(DstReg) ? VRM->getPhys(DstReg) : DstReg);
       Register SrcReg = (OpNum == 2 ? MI.getOperand(1).getReg()
                                     : ((OpNum == 1 && MI.isCommutable())
                                            ? MI.getOperand(2).getReg()
-                                         : Register()));
+                                           : Register()));
       if (DstPhys && !SystemZ::GRH32BitRegClass.contains(DstPhys) && SrcReg &&
           Register::isVirtualRegister(SrcReg) &&
           DstPhys == VRM->getPhys(SrcReg))

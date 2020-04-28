@@ -945,8 +945,9 @@ static Value *simplifyDivRem(Value *Op0, Value *Op1, bool IsDiv) {
   // If any element of a constant divisor vector is zero or undef, the whole op
   // is undef.
   auto *Op1C = dyn_cast<Constant>(Op1);
-  if (Op1C && Ty->isVectorTy()) {
-    unsigned NumElts = Ty->getVectorNumElements();
+  auto *VTy = dyn_cast<VectorType>(Ty);
+  if (Op1C && VTy) {
+    unsigned NumElts = VTy->getNumElements();
     for (unsigned i = 0; i != NumElts; ++i) {
       Constant *Elt = Op1C->getAggregateElement(i);
       if (Elt && (Elt->isNullValue() || isa<UndefValue>(Elt)))
@@ -1221,7 +1222,8 @@ static bool isUndefShift(Value *Amount) {
 
   // If all lanes of a vector shift are undefined the whole shift is.
   if (isa<ConstantVector>(C) || isa<ConstantDataVector>(C)) {
-    for (unsigned I = 0, E = C->getType()->getVectorNumElements(); I != E; ++I)
+    for (unsigned I = 0, E = cast<VectorType>(C->getType())->getNumElements();
+         I != E; ++I)
       if (!isUndefShift(C->getAggregateElement(I)))
         return false;
     return true;
@@ -4011,7 +4013,7 @@ static Value *SimplifySelectInst(Value *Cond, Value *TrueVal, Value *FalseVal,
   Constant *TrueC, *FalseC;
   if (TrueVal->getType()->isVectorTy() && match(TrueVal, m_Constant(TrueC)) &&
       match(FalseVal, m_Constant(FalseC))) {
-    unsigned NumElts = TrueC->getType()->getVectorNumElements();
+    unsigned NumElts = cast<VectorType>(TrueC->getType())->getNumElements();
     SmallVector<Constant *, 16> NewC;
     for (unsigned i = 0; i != NumElts; ++i) {
       // Bail out on incomplete vector constants.
@@ -4081,7 +4083,7 @@ static Value *SimplifyGEPInst(Type *SrcTy, ArrayRef<Value *> Ops,
     return UndefValue::get(GEPTy);
 
   bool IsScalableVec =
-      SrcTy->isVectorTy() ? SrcTy->getVectorIsScalable() : false;
+      isa<VectorType>(SrcTy) && cast<VectorType>(SrcTy)->isScalable();
 
   if (Ops.size() == 2) {
     // getelementptr P, 0 -> P.
@@ -4223,8 +4225,8 @@ Value *llvm::SimplifyInsertElementInst(Value *Vec, Value *Val, Value *Idx,
 
   // For fixed-length vector, fold into undef if index is out of bounds.
   if (auto *CI = dyn_cast<ConstantInt>(Idx)) {
-    if (!Vec->getType()->getVectorIsScalable() &&
-        CI->uge(Vec->getType()->getVectorNumElements()))
+    if (!cast<VectorType>(Vec->getType())->isScalable() &&
+        CI->uge(cast<VectorType>(Vec->getType())->getNumElements()))
       return UndefValue::get(Vec->getType());
   }
 
@@ -4280,6 +4282,7 @@ Value *llvm::SimplifyExtractValueInst(Value *Agg, ArrayRef<unsigned> Idxs,
 /// If not, this returns null.
 static Value *SimplifyExtractElementInst(Value *Vec, Value *Idx, const SimplifyQuery &,
                                          unsigned) {
+  auto *VecVTy = cast<VectorType>(Vec->getType());
   if (auto *CVec = dyn_cast<Constant>(Vec)) {
     if (auto *CIdx = dyn_cast<Constant>(Idx))
       return ConstantFoldExtractElementInstruction(CVec, CIdx);
@@ -4289,16 +4292,15 @@ static Value *SimplifyExtractElementInst(Value *Vec, Value *Idx, const SimplifyQ
       return Splat;
 
     if (isa<UndefValue>(Vec))
-      return UndefValue::get(Vec->getType()->getVectorElementType());
+      return UndefValue::get(VecVTy->getElementType());
   }
 
   // If extracting a specified index from the vector, see if we can recursively
   // find a previously computed scalar that was inserted into the vector.
   if (auto *IdxC = dyn_cast<ConstantInt>(Idx)) {
     // For fixed-length vector, fold into undef if index is out of bounds.
-    if (!Vec->getType()->getVectorIsScalable() &&
-        IdxC->getValue().uge(Vec->getType()->getVectorNumElements()))
-      return UndefValue::get(Vec->getType()->getVectorElementType());
+    if (!VecVTy->isScalable() && IdxC->getValue().uge(VecVTy->getNumElements()))
+      return UndefValue::get(VecVTy->getElementType());
     if (Value *Elt = findScalarElement(Vec, IdxC->getZExtValue()))
       return Elt;
   }
@@ -4306,7 +4308,7 @@ static Value *SimplifyExtractElementInst(Value *Vec, Value *Idx, const SimplifyQ
   // An undef extract index can be arbitrarily chosen to be an out-of-range
   // index value, which would result in the instruction being undef.
   if (isa<UndefValue>(Idx))
-    return UndefValue::get(Vec->getType()->getVectorElementType());
+    return UndefValue::get(VecVTy->getElementType());
 
   return nullptr;
 }
@@ -4403,7 +4405,7 @@ static Value *foldIdentityShuffles(int DestElt, Value *Op0, Value *Op1,
     return nullptr;
 
   // The mask value chooses which source operand we need to look at next.
-  int InVecNumElts = Op0->getType()->getVectorNumElements();
+  int InVecNumElts = cast<VectorType>(Op0->getType())->getNumElements();
   int RootElt = MaskVal;
   Value *SourceOp = Op0;
   if (MaskVal >= InVecNumElts) {
@@ -4439,36 +4441,31 @@ static Value *foldIdentityShuffles(int DestElt, Value *Op0, Value *Op1,
   return RootVec;
 }
 
-static Value *SimplifyShuffleVectorInst(Value *Op0, Value *Op1, Constant *Mask,
-                                        Type *RetTy, const SimplifyQuery &Q,
+static Value *SimplifyShuffleVectorInst(Value *Op0, Value *Op1,
+                                        ArrayRef<int> Mask, Type *RetTy,
+                                        const SimplifyQuery &Q,
                                         unsigned MaxRecurse) {
-  if (isa<UndefValue>(Mask))
+  if (all_of(Mask, [](int Elem) { return Elem == UndefMaskElem; }))
     return UndefValue::get(RetTy);
 
-  Type *InVecTy = Op0->getType();
-  ElementCount MaskEltCount = Mask->getType()->getVectorElementCount();
-  ElementCount InVecEltCount = InVecTy->getVectorElementCount();
+  auto *InVecTy = cast<VectorType>(Op0->getType());
+  unsigned MaskNumElts = Mask.size();
+  ElementCount InVecEltCount = InVecTy->getElementCount();
 
-  assert(MaskEltCount.Scalable == InVecEltCount.Scalable &&
-         "vscale mismatch between input vector and mask");
-
-  bool Scalable = MaskEltCount.Scalable;
+  bool Scalable = InVecEltCount.Scalable;
 
   SmallVector<int, 32> Indices;
-  if (!Scalable) {
-    ShuffleVectorInst::getShuffleMask(Mask, Indices);
-    assert(MaskEltCount.Min == Indices.size() &&
-           "Size of Indices not same as number of mask elements?");
-  }
+  Indices.assign(Mask.begin(), Mask.end());
 
+  // Canonicalization: If mask does not select elements from an input vector,
+  // replace that input vector with undef.
   if (!Scalable) {
-    // Canonicalization: If mask does not select elements from an input vector,
-    // replace that input vector with undef.
     bool MaskSelects0 = false, MaskSelects1 = false;
-    for (unsigned i = 0; i != MaskEltCount.Min; ++i) {
+    unsigned InVecNumElts = InVecEltCount.Min;
+    for (unsigned i = 0; i != MaskNumElts; ++i) {
       if (Indices[i] == -1)
         continue;
-      if ((unsigned)Indices[i] < InVecEltCount.Min)
+      if ((unsigned)Indices[i] < InVecNumElts)
         MaskSelects0 = true;
       else
         MaskSelects1 = true;
@@ -4514,8 +4511,8 @@ static Value *SimplifyShuffleVectorInst(Value *Op0, Value *Op1, Constant *Mask,
       assert(isa<UndefValue>(Op1) && "Expected undef operand 1 for splat");
 
       // Shuffle mask undefs become undefined constant result elements.
-      SmallVector<Constant *, 16> VecC(MaskEltCount.Min, C);
-      for (unsigned i = 0; i != MaskEltCount.Min; ++i)
+      SmallVector<Constant *, 16> VecC(MaskNumElts, C);
+      for (unsigned i = 0; i != MaskNumElts; ++i)
         if (Indices[i] == -1)
           VecC[i] = UndefValue::get(C->getType());
       return ConstantVector::get(VecC);
@@ -4526,7 +4523,7 @@ static Value *SimplifyShuffleVectorInst(Value *Op0, Value *Op1, Constant *Mask,
   // value type is same as the input vectors' type.
   if (auto *OpShuf = dyn_cast<ShuffleVectorInst>(Op0))
     if (isa<UndefValue>(Op1) && RetTy == InVecTy &&
-        OpShuf->getMask()->getSplatValue())
+        is_splat(OpShuf->getShuffleMask()))
       return Op0;
 
   // All remaining transformation depend on the value of the mask, which is
@@ -4545,7 +4542,7 @@ static Value *SimplifyShuffleVectorInst(Value *Op0, Value *Op1, Constant *Mask,
   // shuffle. This handles simple identity shuffles as well as chains of
   // shuffles that may widen/narrow and/or move elements across lanes and back.
   Value *RootVec = nullptr;
-  for (unsigned i = 0; i != MaskEltCount.Min; ++i) {
+  for (unsigned i = 0; i != MaskNumElts; ++i) {
     // Note that recursion is limited for each vector element, so if any element
     // exceeds the limit, this will fail to simplify.
     RootVec =
@@ -4559,8 +4556,9 @@ static Value *SimplifyShuffleVectorInst(Value *Op0, Value *Op1, Constant *Mask,
 }
 
 /// Given operands for a ShuffleVectorInst, fold the result or return null.
-Value *llvm::SimplifyShuffleVectorInst(Value *Op0, Value *Op1, Constant *Mask,
-                                       Type *RetTy, const SimplifyQuery &Q) {
+Value *llvm::SimplifyShuffleVectorInst(Value *Op0, Value *Op1,
+                                       ArrayRef<int> Mask, Type *RetTy,
+                                       const SimplifyQuery &Q) {
   return ::SimplifyShuffleVectorInst(Op0, Op1, Mask, RetTy, Q, RecursionLimit);
 }
 
@@ -5368,8 +5366,11 @@ Value *llvm::SimplifyCall(CallBase *Call, const SimplifyQuery &Q) {
   ConstantArgs.reserve(NumArgs);
   for (auto &Arg : Call->args()) {
     Constant *C = dyn_cast<Constant>(&Arg);
-    if (!C)
+    if (!C) {
+      if (isa<MetadataAsValue>(Arg.get()))
+        continue;
       return nullptr;
+    }
     ConstantArgs.push_back(C);
   }
 
@@ -5520,8 +5521,9 @@ Value *llvm::SimplifyInstruction(Instruction *I, const SimplifyQuery &SQ,
   }
   case Instruction::ShuffleVector: {
     auto *SVI = cast<ShuffleVectorInst>(I);
-    Result = SimplifyShuffleVectorInst(SVI->getOperand(0), SVI->getOperand(1),
-                                       SVI->getMask(), SVI->getType(), Q);
+    Result =
+        SimplifyShuffleVectorInst(SVI->getOperand(0), SVI->getOperand(1),
+                                  SVI->getShuffleMask(), SVI->getType(), Q);
     break;
   }
   case Instruction::PHI:

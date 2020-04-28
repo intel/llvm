@@ -453,6 +453,20 @@ TEST(DeclarationMatcher, ClassIsDerived) {
   EXPECT_TRUE(notMatches("class X;", IsDerivedFromX));
   EXPECT_TRUE(notMatches("class Y;", IsDerivedFromX));
   EXPECT_TRUE(notMatches("", IsDerivedFromX));
+  EXPECT_TRUE(matches("class X {}; template<int N> class Y : Y<N-1>, X {};",
+    IsDerivedFromX));
+  EXPECT_TRUE(matches("class X {}; template<int N> class Y : X, Y<N-1> {};",
+    IsDerivedFromX));
+
+  DeclarationMatcher IsZDerivedFromX = cxxRecordDecl(hasName("Z"),
+    isDerivedFrom("X"));
+  EXPECT_TRUE(
+    matches(
+      "class X {};"
+      "template<int N> class Y : Y<N-1> {};"
+      "template<> class Y<0> : X {};"
+      "class Z : Y<1> {};",
+      IsZDerivedFromX));
 
   DeclarationMatcher IsDirectlyDerivedFromX =
       cxxRecordDecl(isDirectlyDerivedFrom("X"));
@@ -2612,7 +2626,7 @@ TEST(HasExternalFormalLinkage, Basic) {
 }
 
 TEST(HasDefaultArgument, Basic) {
-  EXPECT_TRUE(matches("void x(int val = 0) {}", 
+  EXPECT_TRUE(matches("void x(int val = 0) {}",
                       parmVarDecl(hasDefaultArgument())));
   EXPECT_TRUE(notMatches("void x(int val) {}",
                       parmVarDecl(hasDefaultArgument())));
@@ -2665,7 +2679,7 @@ TEST(HasTrailingReturn, MatchesTrailingReturn) {
   EXPECT_TRUE(matches("auto Y() -> int { return 0; }",
                       functionDecl(hasTrailingReturn())));
   EXPECT_TRUE(matches("auto X() -> int;", functionDecl(hasTrailingReturn())));
-  EXPECT_TRUE(notMatches("int X() { return 0; }", 
+  EXPECT_TRUE(notMatches("int X() { return 0; }",
                       functionDecl(hasTrailingReturn())));
   EXPECT_TRUE(notMatches("int X();", functionDecl(hasTrailingReturn())));
   EXPECT_TRUE(notMatchesC("void X();", functionDecl(hasTrailingReturn())));
@@ -2891,8 +2905,8 @@ void x(int x) {
 }
 
 TEST(OMPExecutableDirective, isAllowedToContainClauseKind) {
-  auto Matcher =
-      ompExecutableDirective(isAllowedToContainClauseKind(OMPC_default));
+  auto Matcher = ompExecutableDirective(
+      isAllowedToContainClauseKind(llvm::omp::OMPC_default));
 
   const std::string Source0 = R"(
 void x() {

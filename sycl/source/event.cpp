@@ -31,7 +31,7 @@ bool event::operator==(const event &rhs) const { return rhs.impl == impl; }
 
 bool event::operator!=(const event &rhs) const { return !(*this == rhs); }
 
-cl_event event::get() { return impl->get(); }
+cl_event event::get() const { return impl->get(); }
 
 bool event::is_host() const { return impl->is_host(); }
 
