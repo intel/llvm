@@ -227,6 +227,8 @@ bool TypePrinter::canPrefixQualifiers(const Type *T,
     case Type::ObjCInterface:
     case Type::Atomic:
     case Type::Pipe:
+    case Type::ExtInt:
+    case Type::DependentExtInt:
       CanPrefixQualifiers = true;
       break;
 
@@ -1121,6 +1123,28 @@ void TypePrinter::printPipeBefore(const PipeType *T, raw_ostream &OS) {
 
 void TypePrinter::printPipeAfter(const PipeType *T, raw_ostream &OS) {}
 
+void TypePrinter::printExtIntBefore(const ExtIntType *T, raw_ostream &OS) {
+  if (T->isUnsigned())
+    OS << "unsigned ";
+  OS << "_ExtInt(" << T->getNumBits() << ")";
+  spaceBeforePlaceHolder(OS);
+}
+
+void TypePrinter::printExtIntAfter(const ExtIntType *T, raw_ostream &OS) {}
+
+void TypePrinter::printDependentExtIntBefore(const DependentExtIntType *T,
+                                             raw_ostream &OS) {
+  if (T->isUnsigned())
+    OS << "unsigned ";
+  OS << "_ExtInt(";
+  T->getNumBitsExpr()->printPretty(OS, nullptr, Policy);
+  OS << ")";
+  spaceBeforePlaceHolder(OS);
+}
+
+void TypePrinter::printDependentExtIntAfter(const DependentExtIntType *T,
+                                            raw_ostream &OS) {}
+
 /// Appends the given scope to the end of a string.
 void TypePrinter::AppendScope(DeclContext *DC, raw_ostream &OS) {
   if (DC->isTranslationUnit()) return;
@@ -1401,7 +1425,7 @@ void TypePrinter::printDependentTemplateSpecializationBefore(
 
   if (T->getQualifier())
     T->getQualifier()->print(OS, Policy);
-  OS << T->getIdentifier()->getName();
+  OS << "template " << T->getIdentifier()->getName();
   printTemplateArgumentList(OS, T->template_arguments(), Policy);
   spaceBeforePlaceHolder(OS);
 }
@@ -1739,13 +1763,13 @@ static void printTo(raw_ostream &OS, ArrayRef<TA> Args,
 
     OS << ArgString;
 
-    NeedSpace = (!ArgString.empty() && ArgString.back() == '>');
+    // If the last character of our string is '>', add another space to
+    // keep the two '>''s separate tokens.
+    NeedSpace = Policy.SplitTemplateClosers && !ArgString.empty() &&
+                ArgString.back() == '>';
     FirstArg = false;
   }
 
-  // If the last character of our string is '>', add another space to
-  // keep the two '>''s separate tokens. We don't *have* to do this in
-  // C++0x, but it's still good hygiene.
   if (NeedSpace)
     OS << ' ';
 

@@ -319,6 +319,7 @@ int main(int argc, char **argv) {
   initializeScalarizeMaskedMemIntrinPass(*Registry);
   initializeExpandReductionsPass(*Registry);
   initializeHardwareLoopsPass(*Registry);
+  initializeTransformUtils(*Registry);
 
   // Initialize debugging passes.
   initializeScavengerTestPass(*Registry);
@@ -386,8 +387,9 @@ static bool addPass(PassManagerBase &PM, const char *argv0,
     return true;
   }
   std::string Banner = std::string("After ") + std::string(P->getPassName());
+  TPC.addMachinePrePasses();
   PM.add(P);
-  TPC.printAndVerify(Banner);
+  TPC.addMachinePostPasses(Banner);
 
   return false;
 }

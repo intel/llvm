@@ -8,6 +8,7 @@
 
 #include "Annotations.h"
 #include "Cancellation.h"
+#include "ClangdServer.h"
 #include "Context.h"
 #include "Diagnostics.h"
 #include "Matchers.h"
@@ -24,7 +25,9 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include <algorithm>
+#include <atomic>
 #include <chrono>
+#include <cstdint>
 #include <utility>
 
 namespace clang {
@@ -40,13 +43,14 @@ using ::testing::IsEmpty;
 using ::testing::Pointee;
 using ::testing::UnorderedElementsAre;
 
-MATCHER_P2(TUState, State, ActionName, "") {
-  if (arg.Action.S != State) {
-    *result_listener << "state is " << arg.Action.S;
+MATCHER_P2(TUState, PreambleActivity, ASTActivity, "") {
+  if (arg.PreambleActivity != PreambleActivity) {
+    *result_listener << "preamblestate is "
+                     << static_cast<uint8_t>(arg.PreambleActivity);
     return false;
   }
-  if (arg.Action.Name != ActionName) {
-    *result_listener << "name is " << arg.Action.Name;
+  if (arg.ASTActivity.K != ASTActivity) {
+    *result_listener << "aststate is " << arg.ASTActivity.K;
     return false;
   }
   return true;
@@ -281,6 +285,7 @@ TEST_F(TUSchedulerTests, PreambleConsistency) {
     S.runWithPreamble("StaleRead", Path, TUScheduler::Stale,
                       [&](Expected<InputsAndPreamble> Pre) {
                         ASSERT_TRUE(bool(Pre));
+                        ASSERT_TRUE(Pre->Preamble);
                         EXPECT_EQ(Pre->Preamble->Version, "A");
                         EXPECT_THAT(includes(Pre->Preamble),
                                     ElementsAre("<A>"));
@@ -290,11 +295,13 @@ TEST_F(TUSchedulerTests, PreambleConsistency) {
     S.runWithPreamble("ConsistentRead", Path, TUScheduler::Consistent,
                       [&](Expected<InputsAndPreamble> Pre) {
                         ASSERT_TRUE(bool(Pre));
+                        ASSERT_TRUE(Pre->Preamble);
                         EXPECT_EQ(Pre->Preamble->Version, "B");
                         EXPECT_THAT(includes(Pre->Preamble),
                                     ElementsAre("<B>"));
                         ++CallbackCount;
                       });
+    S.blockUntilIdle(timeoutSeconds(10));
   }
   EXPECT_EQ(2, CallbackCount);
 }
@@ -408,7 +415,9 @@ TEST_F(TUSchedulerTests, Invalidation) {
         EXPECT_FALSE(bool(AST));
         llvm::Error E = AST.takeError();
         EXPECT_TRUE(E.isA<CancelledError>());
-        consumeError(std::move(E));
+        handleAllErrors(std::move(E), [&](const CancelledError &E) {
+          EXPECT_EQ(E.Reason, static_cast<int>(ErrorCode::ContentModified));
+        });
       },
       TUScheduler::InvalidateOnUpdate);
   S.runWithAST(
@@ -599,6 +608,37 @@ TEST_F(TUSchedulerTests, EvictedAST) {
               UnorderedElementsAre(Foo, AnyOf(Bar, Baz)));
 }
 
+// We send "empty" changes to TUScheduler when we think some external event
+// *might* have invalidated current state (e.g. a header was edited).
+// Verify that this doesn't evict our cache entries.
+TEST_F(TUSchedulerTests, NoopChangesDontThrashCache) {
+  auto Opts = optsForTest();
+  Opts.RetentionPolicy.MaxRetainedASTs = 1;
+  TUScheduler S(CDB, Opts);
+
+  auto Foo = testPath("foo.cpp");
+  auto FooInputs = getInputs(Foo, "int x=1;");
+  auto Bar = testPath("bar.cpp");
+  auto BarInputs = getInputs(Bar, "int x=2;");
+
+  // After opening Foo then Bar, AST cache contains Bar.
+  S.update(Foo, FooInputs, WantDiagnostics::Auto);
+  ASSERT_TRUE(S.blockUntilIdle(timeoutSeconds(10)));
+  S.update(Bar, BarInputs, WantDiagnostics::Auto);
+  ASSERT_TRUE(S.blockUntilIdle(timeoutSeconds(10)));
+  ASSERT_THAT(S.getFilesWithCachedAST(), ElementsAre(Bar));
+
+  // Any number of no-op updates to Foo don't dislodge Bar from the cache.
+  S.update(Foo, FooInputs, WantDiagnostics::Auto);
+  S.update(Foo, FooInputs, WantDiagnostics::Auto);
+  S.update(Foo, FooInputs, WantDiagnostics::Auto);
+  ASSERT_TRUE(S.blockUntilIdle(timeoutSeconds(10)));
+  ASSERT_THAT(S.getFilesWithCachedAST(), ElementsAre(Bar));
+  // In fact each file has been built only once.
+  ASSERT_EQ(S.fileStats().lookup(Foo).ASTBuilds, 1u);
+  ASSERT_EQ(S.fileStats().lookup(Bar).ASTBuilds, 1u);
+}
+
 TEST_F(TUSchedulerTests, EmptyPreamble) {
   TUScheduler S(CDB, optsForTest());
 
@@ -677,7 +717,7 @@ TEST_F(TUSchedulerTests, NoopOnEmptyChanges) {
   Files[Header] = "int a;";
   Timestamps[Header] = time_t(0);
 
-  auto SourceContents = R"cpp(
+  std::string SourceContents = R"cpp(
       #include "foo.h"
       int b = a;
     )cpp";
@@ -696,25 +736,32 @@ TEST_F(TUSchedulerTests, NoopOnEmptyChanges) {
 
   // Test that subsequent updates with the same inputs do not cause rebuilds.
   ASSERT_TRUE(DoUpdate(SourceContents));
+  ASSERT_EQ(S.fileStats().lookup(Source).ASTBuilds, 1u);
+  ASSERT_EQ(S.fileStats().lookup(Source).PreambleBuilds, 1u);
   ASSERT_FALSE(DoUpdate(SourceContents));
+  ASSERT_EQ(S.fileStats().lookup(Source).ASTBuilds, 1u);
+  ASSERT_EQ(S.fileStats().lookup(Source).PreambleBuilds, 1u);
 
   // Update to a header should cause a rebuild, though.
   Timestamps[Header] = time_t(1);
   ASSERT_TRUE(DoUpdate(SourceContents));
   ASSERT_FALSE(DoUpdate(SourceContents));
+  ASSERT_EQ(S.fileStats().lookup(Source).ASTBuilds, 2u);
+  ASSERT_EQ(S.fileStats().lookup(Source).PreambleBuilds, 2u);
 
   // Update to the contents should cause a rebuild.
-  auto OtherSourceContents = R"cpp(
-      #include "foo.h"
-      int c = d;
-    )cpp";
-  ASSERT_TRUE(DoUpdate(OtherSourceContents));
-  ASSERT_FALSE(DoUpdate(OtherSourceContents));
+  SourceContents += "\nint c = b;";
+  ASSERT_TRUE(DoUpdate(SourceContents));
+  ASSERT_FALSE(DoUpdate(SourceContents));
+  ASSERT_EQ(S.fileStats().lookup(Source).ASTBuilds, 3u);
+  ASSERT_EQ(S.fileStats().lookup(Source).PreambleBuilds, 2u);
 
   // Update to the compile commands should also cause a rebuild.
   CDB.ExtraClangFlags.push_back("-DSOMETHING");
-  ASSERT_TRUE(DoUpdate(OtherSourceContents));
-  ASSERT_FALSE(DoUpdate(OtherSourceContents));
+  ASSERT_TRUE(DoUpdate(SourceContents));
+  ASSERT_FALSE(DoUpdate(SourceContents));
+  ASSERT_EQ(S.fileStats().lookup(Source).ASTBuilds, 4u);
+  ASSERT_EQ(S.fileStats().lookup(Source).PreambleBuilds, 3u);
 }
 
 TEST_F(TUSchedulerTests, ForceRebuild) {
@@ -729,17 +776,19 @@ TEST_F(TUSchedulerTests, ForceRebuild) {
     )cpp";
 
   ParseInputs Inputs = getInputs(Source, SourceContents);
+  std::atomic<size_t> DiagCount(0);
 
   // Update the source contents, which should trigger an initial build with
   // the header file missing.
-  updateWithDiags(S, Source, Inputs, WantDiagnostics::Yes,
-                  [](std::vector<Diag> Diags) {
-    EXPECT_THAT(
-        Diags,
-        ElementsAre(
-            Field(&Diag::Message, "'foo.h' file not found"),
-            Field(&Diag::Message, "use of undeclared identifier 'a'")));
-  });
+  updateWithDiags(
+      S, Source, Inputs, WantDiagnostics::Yes,
+      [&DiagCount](std::vector<Diag> Diags) {
+        ++DiagCount;
+        EXPECT_THAT(Diags,
+                    ElementsAre(Field(&Diag::Message, "'foo.h' file not found"),
+                                Field(&Diag::Message,
+                                      "use of undeclared identifier 'a'")));
+      });
 
   // Add the header file. We need to recreate the inputs since we changed a
   // file from underneath the test FS.
@@ -749,20 +798,24 @@ TEST_F(TUSchedulerTests, ForceRebuild) {
 
   // The addition of the missing header file shouldn't trigger a rebuild since
   // we don't track missing files.
-  updateWithDiags(S, Source, Inputs, WantDiagnostics::Yes,
-                  [](std::vector<Diag> Diags) {
-    ADD_FAILURE() << "Did not expect diagnostics for missing header update";
-  });
+  updateWithDiags(
+      S, Source, Inputs, WantDiagnostics::Yes,
+      [&DiagCount](std::vector<Diag> Diags) {
+        ++DiagCount;
+        ADD_FAILURE() << "Did not expect diagnostics for missing header update";
+      });
 
   // Forcing the reload should should cause a rebuild which no longer has any
   // errors.
   Inputs.ForceRebuild = true;
   updateWithDiags(S, Source, Inputs, WantDiagnostics::Yes,
-                  [](std::vector<Diag> Diags) {
-    EXPECT_THAT(Diags, IsEmpty());
-  });
+                  [&DiagCount](std::vector<Diag> Diags) {
+                    ++DiagCount;
+                    EXPECT_THAT(Diags, IsEmpty());
+                  });
 
   ASSERT_TRUE(S.blockUntilIdle(timeoutSeconds(10)));
+  EXPECT_EQ(DiagCount, 2U);
 }
 TEST_F(TUSchedulerTests, NoChangeDiags) {
   TUScheduler S(CDB, optsForTest(), captureDiags());
@@ -817,18 +870,35 @@ TEST_F(TUSchedulerTests, TUStatus) {
   class CaptureTUStatus : public ClangdServer::Callbacks {
   public:
     void onFileUpdated(PathRef File, const TUStatus &Status) override {
+      auto ASTAction = Status.ASTActivity.K;
+      auto PreambleAction = Status.PreambleActivity;
       std::lock_guard<std::mutex> Lock(Mutex);
-      AllStatus.push_back(Status);
+      // Only push the action if it has changed. Since TUStatus can be published
+      // from either Preamble or AST thread and when one changes the other stays
+      // the same.
+      // Note that this can result in missing some updates when something other
+      // than action kind changes, e.g. when AST is built/reused the action kind
+      // stays as Building.
+      if (ASTActions.empty() || ASTActions.back() != ASTAction)
+        ASTActions.push_back(ASTAction);
+      if (PreambleActions.empty() || PreambleActions.back() != PreambleAction)
+        PreambleActions.push_back(PreambleAction);
     }
 
-    std::vector<TUStatus> allStatus() {
+    std::vector<PreambleAction> preambleStatuses() {
       std::lock_guard<std::mutex> Lock(Mutex);
-      return AllStatus;
+      return PreambleActions;
+    }
+
+    std::vector<ASTAction::Kind> astStatuses() {
+      std::lock_guard<std::mutex> Lock(Mutex);
+      return ASTActions;
     }
 
   private:
     std::mutex Mutex;
-    std::vector<TUStatus> AllStatus;
+    std::vector<ASTAction::Kind> ASTActions;
+    std::vector<PreambleAction> PreambleActions;
   } CaptureTUStatus;
   MockFSProvider FS;
   MockCompilationDatabase CDB;
@@ -838,24 +908,39 @@ TEST_F(TUSchedulerTests, TUStatus) {
   // We schedule the following tasks in the queue:
   //   [Update] [GoToDefinition]
   Server.addDocument(testPath("foo.cpp"), Code.code(), "1",
-                     WantDiagnostics::Yes);
+                     WantDiagnostics::Auto);
+  ASSERT_TRUE(Server.blockUntilIdleForTest());
   Server.locateSymbolAt(testPath("foo.cpp"), Code.point(),
                         [](Expected<std::vector<LocatedSymbol>> Result) {
                           ASSERT_TRUE((bool)Result);
                         });
-
   ASSERT_TRUE(Server.blockUntilIdleForTest());
 
-  EXPECT_THAT(CaptureTUStatus.allStatus(),
+  EXPECT_THAT(CaptureTUStatus.preambleStatuses(),
               ElementsAre(
-                  // Statuses of "Update" action.
-                  TUState(TUAction::RunningAction, "Update (1)"),
-                  TUState(TUAction::BuildingPreamble, "Update (1)"),
-                  TUState(TUAction::BuildingFile, "Update (1)"),
-
-                  // Statuses of "Definitions" action
-                  TUState(TUAction::RunningAction, "Definitions"),
-                  TUState(TUAction::Idle, /*No action*/ "")));
+                  // PreambleThread starts idle, as the update is first handled
+                  // by ASTWorker.
+                  PreambleAction::Idle,
+                  // Then it starts building first preamble and releases that to
+                  // ASTWorker.
+                  PreambleAction::Building,
+                  // Then goes idle and stays that way as we don't receive any
+                  // more update requests.
+                  PreambleAction::Idle));
+  EXPECT_THAT(CaptureTUStatus.astStatuses(),
+              ElementsAre(
+                  // Starts handling the update action and blocks until the
+                  // first preamble is built.
+                  ASTAction::RunningAction,
+                  // Afterwqards it builds an AST for that preamble to publish
+                  // diagnostics.
+                  ASTAction::Building,
+                  // Then goes idle.
+                  ASTAction::Idle,
+                  // Afterwards we start executing go-to-def.
+                  ASTAction::RunningAction,
+                  // Then go idle.
+                  ASTAction::Idle));
 }
 
 TEST_F(TUSchedulerTests, CommandLineErrors) {
@@ -868,8 +953,7 @@ TEST_F(TUSchedulerTests, CommandLineErrors) {
   TUScheduler S(CDB, optsForTest(), captureDiags());
   std::vector<Diag> Diagnostics;
   updateWithDiags(S, testPath("foo.cpp"), "void test() {}",
-                  WantDiagnostics::Yes,
-                  [&](std::vector<Diag> D) {
+                  WantDiagnostics::Yes, [&](std::vector<Diag> D) {
                     Diagnostics = std::move(D);
                     Ready.notify();
                   });
@@ -893,8 +977,7 @@ TEST_F(TUSchedulerTests, CommandLineWarnings) {
   TUScheduler S(CDB, optsForTest(), captureDiags());
   std::vector<Diag> Diagnostics;
   updateWithDiags(S, testPath("foo.cpp"), "void test() {}",
-                  WantDiagnostics::Yes,
-                  [&](std::vector<Diag> D) {
+                  WantDiagnostics::Yes, [&](std::vector<Diag> D) {
                     Diagnostics = std::move(D);
                     Ready.notify();
                   });

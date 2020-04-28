@@ -140,10 +140,6 @@ ASM_FUNCTION_WASM32_RE = re.compile(
     r'^\s*(\.Lfunc_end[0-9]+:\n|end_function)',
     flags=(re.M | re.S))
 
-
-SCRUB_LOOP_COMMENT_RE = re.compile(
-    r'# =>This Inner Loop Header:.*|# in Loop:.*', flags=re.M)
-
 SCRUB_X86_SHUFFLES_RE = (
     re.compile(
         r'^(\s*\w+) [^#\n]+#+ ((?:[xyz]mm\d+|mem)( \{%k\d+\}( \{z\})?)? = .*)$',
@@ -233,10 +229,12 @@ def scrub_asm_powerpc(asm, args):
   asm = common.SCRUB_WHITESPACE_RE.sub(r' ', asm)
   # Expand the tabs used for indentation.
   asm = string.expandtabs(asm, 2)
-  # Stripe unimportant comments, but leave the token '#' in place.
-  asm = SCRUB_LOOP_COMMENT_RE.sub(r'#', asm)
+  # Strip unimportant comments, but leave the token '#' in place.
+  asm = common.SCRUB_LOOP_COMMENT_RE.sub(r'#', asm)
   # Strip trailing whitespace.
   asm = common.SCRUB_TRAILING_WHITESPACE_RE.sub(r'', asm)
+  # Strip the tailing token '#', except the line only has token '#'.
+  asm = common.SCRUB_TAILING_COMMENT_TOKEN_RE.sub(r'', asm)
   return asm
 
 def scrub_asm_mips(asm, args):

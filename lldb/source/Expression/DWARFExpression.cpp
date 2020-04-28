@@ -137,12 +137,15 @@ void DWARFExpression::GetDescription(Stream *s, lldb::DescriptionLevel level,
         m_dwarf_cu->GetLocationTable(m_data);
 
     llvm::MCRegisterInfo *MRI = abi ? &abi->GetMCRegisterInfo() : nullptr;
-
+    llvm::DIDumpOptions DumpOpts;
+    DumpOpts.RecoverableErrorHandler = [&](llvm::Error E) {
+      s->AsRawOstream() << "error: " << toString(std::move(E));
+    };
     loctable_up->dumpLocationList(
         &offset, s->AsRawOstream(),
         llvm::object::SectionedAddress{m_loclist_addresses->cu_file_addr}, MRI,
         DummyDWARFObject(m_data.GetByteOrder() == eByteOrderLittle), nullptr,
-        llvm::DIDumpOptions(), s->GetIndentLevel() + 2);
+        DumpOpts, s->GetIndentLevel() + 2);
   } else {
     // We have a normal location that contains DW_OP location opcodes
     DumpLocation(s, m_data, level, abi);
@@ -2318,6 +2321,12 @@ bool DWARFExpression::Evaluate(
     // rather is a constant value.  The value from the top of the stack is the
     // value to be used.  This is the actual object value and not the location.
     case DW_OP_stack_value:
+      if (stack.empty()) {
+        if (error_ptr)
+          error_ptr->SetErrorString(
+              "Expression stack needs at least 1 item for DW_OP_stack_value.");
+        return false;
+      }
       stack.back().SetValueType(Value::eValueTypeScalar);
       break;
 

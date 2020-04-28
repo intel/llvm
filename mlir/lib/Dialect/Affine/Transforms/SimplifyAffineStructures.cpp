@@ -6,17 +6,16 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file implements a pass to simplify affine structures.
+// This file implements a pass to simplify affine structures in operations.
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Analysis/AffineStructures.h"
-#include "mlir/IR/IntegerSet.h"
-#include "mlir/Pass/Pass.h"
-#include "mlir/Dialect/Affine/IR/AffineValueMap.h"
+#include "PassDetail.h"
+#include "mlir/Analysis/Utils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/Passes.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/IR/IntegerSet.h"
+#include "mlir/IR/PatternMatch.h"
 #include "mlir/Transforms/Utils.h"
 
 #define DEBUG_TYPE "simplify-affine-structure"
@@ -30,7 +29,7 @@ namespace {
 /// all memrefs with non-trivial layout maps are converted to ones with trivial
 /// identity layout ones.
 struct SimplifyAffineStructures
-    : public FunctionPass<SimplifyAffineStructures> {
+    : public SimplifyAffineStructuresBase<SimplifyAffineStructures> {
   void runOnFunction() override;
 
   /// Utility to simplify an affine attribute and update its entry in the parent
@@ -58,15 +57,7 @@ struct SimplifyAffineStructures
     op->setAttr(name, simplified);
   }
 
-  /// Performs basic integer set simplifications. Checks if it's empty, and
-  /// replaces it with the canonical empty set if it is.
-  IntegerSet simplify(IntegerSet set) {
-    FlatAffineConstraints fac(set);
-    if (fac.isEmpty())
-      return IntegerSet::getEmptySet(set.getNumDims(), set.getNumSymbols(),
-                                     &getContext());
-    return set;
-  }
+  IntegerSet simplify(IntegerSet set) { return simplifyIntegerSet(set); }
 
   /// Performs basic affine map simplifications.
   AffineMap simplify(AffineMap map) {
@@ -80,20 +71,30 @@ struct SimplifyAffineStructures
 
 } // end anonymous namespace
 
-std::unique_ptr<OpPassBase<FuncOp>> mlir::createSimplifyAffineStructuresPass() {
+std::unique_ptr<OperationPass<FuncOp>>
+mlir::createSimplifyAffineStructuresPass() {
   return std::make_unique<SimplifyAffineStructures>();
 }
 
 void SimplifyAffineStructures::runOnFunction() {
   auto func = getFunction();
   simplifiedAttributes.clear();
-  func.walk([&](Operation *opInst) {
-    for (auto attr : opInst->getAttrs()) {
+  OwningRewritePatternList patterns;
+  AffineForOp::getCanonicalizationPatterns(patterns, func.getContext());
+  AffineIfOp::getCanonicalizationPatterns(patterns, func.getContext());
+  AffineApplyOp::getCanonicalizationPatterns(patterns, func.getContext());
+  func.walk([&](Operation *op) {
+    for (auto attr : op->getAttrs()) {
       if (auto mapAttr = attr.second.dyn_cast<AffineMapAttr>())
-        simplifyAndUpdateAttribute(opInst, attr.first, mapAttr);
+        simplifyAndUpdateAttribute(op, attr.first, mapAttr);
       else if (auto setAttr = attr.second.dyn_cast<IntegerSetAttr>())
-        simplifyAndUpdateAttribute(opInst, attr.first, setAttr);
+        simplifyAndUpdateAttribute(op, attr.first, setAttr);
     }
+
+    // The simplification of the attribute will likely simplify the op. Try to
+    // fold / apply canonicalization patterns when we have affine dialect ops.
+    if (isa<AffineForOp>(op) || isa<AffineIfOp>(op) || isa<AffineApplyOp>(op))
+      applyOpPatternsAndFold(op, patterns);
   });
 
   // Turn memrefs' non-identity layouts maps into ones with identity. Collect
@@ -105,7 +106,3 @@ void SimplifyAffineStructures::runOnFunction() {
     normalizeMemRef(allocOp);
   }
 }
-
-static PassRegistration<SimplifyAffineStructures>
-    pass("simplify-affine-structures",
-         "Simplify affine expressions in maps/sets and normalize memrefs");

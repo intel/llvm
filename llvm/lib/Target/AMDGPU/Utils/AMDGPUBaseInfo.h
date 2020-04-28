@@ -87,15 +87,6 @@ unsigned getEUsPerCU(const MCSubtargetInfo *STI);
 unsigned getMaxWorkGroupsPerCU(const MCSubtargetInfo *STI,
                                unsigned FlatWorkGroupSize);
 
-/// \returns Maximum number of waves per compute unit for given subtarget \p
-/// STI without any kind of limitation.
-unsigned getMaxWavesPerCU(const MCSubtargetInfo *STI);
-
-/// \returns Maximum number of waves per compute unit for given subtarget \p
-/// STI and limited by given \p FlatWorkGroupSize.
-unsigned getMaxWavesPerCU(const MCSubtargetInfo *STI,
-                          unsigned FlatWorkGroupSize);
-
 /// \returns Minimum number of waves per execution unit for given subtarget \p
 /// STI.
 unsigned getMinWavesPerEU(const MCSubtargetInfo *STI);
@@ -104,10 +95,10 @@ unsigned getMinWavesPerEU(const MCSubtargetInfo *STI);
 /// STI without any kind of limitation.
 unsigned getMaxWavesPerEU(const MCSubtargetInfo *STI);
 
-/// \returns Maximum number of waves per execution unit for given subtarget \p
-/// STI and limited by given \p FlatWorkGroupSize.
-unsigned getMaxWavesPerEU(const MCSubtargetInfo *STI,
-                          unsigned FlatWorkGroupSize);
+/// \returns Number of waves per execution unit required to support the given \p
+/// FlatWorkGroupSize.
+unsigned getWavesPerEUForWorkGroup(const MCSubtargetInfo *STI,
+                                   unsigned FlatWorkGroupSize);
 
 /// \returns Minimum flat work group size for given subtarget \p STI.
 unsigned getMinFlatWorkGroupSize(const MCSubtargetInfo *STI);
@@ -116,7 +107,7 @@ unsigned getMinFlatWorkGroupSize(const MCSubtargetInfo *STI);
 unsigned getMaxFlatWorkGroupSize(const MCSubtargetInfo *STI);
 
 /// \returns Number of waves per work group for given subtarget \p STI and
-/// limited by given \p FlatWorkGroupSize.
+/// \p FlatWorkGroupSize.
 unsigned getWavesPerWorkGroup(const MCSubtargetInfo *STI,
                               unsigned FlatWorkGroupSize);
 
@@ -653,10 +644,12 @@ bool isArgPassedInSGPR(const Argument *Arg);
 /// offsets.
 uint64_t convertSMRDOffsetUnits(const MCSubtargetInfo &ST, uint64_t ByteOffset);
 
-/// \returns The encoding that will be used for \p ByteOffset in the SMRD offset
-/// field, or None if it won't fit. This is useful on all subtargets.
+/// \returns The encoding that will be used for \p ByteOffset in the
+/// SMRD offset field, or None if it won't fit. On GFX9 and GFX10
+/// S_LOAD instructions have a signed offset, on other subtargets it is
+/// unsigned. S_BUFFER has an unsigned offset for all subtargets.
 Optional<int64_t> getSMRDEncodedOffset(const MCSubtargetInfo &ST,
-                                       int64_t ByteOffset);
+                                       int64_t ByteOffset, bool IsBuffer);
 
 /// \return The encoding that can be used for a 32-bit literal offset in an SMRD
 /// instruction. This is only useful on CI.s
@@ -704,19 +697,13 @@ struct SIModeRegisterDefaults {
     FP64FP16InputDenormals(true),
     FP64FP16OutputDenormals(true) {}
 
-  // FIXME: Should not depend on the subtarget
-  SIModeRegisterDefaults(const Function &F, const GCNSubtarget &ST);
+  SIModeRegisterDefaults(const Function &F);
 
   static SIModeRegisterDefaults getDefaultForCallingConv(CallingConv::ID CC) {
     const bool IsCompute = AMDGPU::isCompute(CC);
 
     SIModeRegisterDefaults Mode;
-    Mode.DX10Clamp = true;
     Mode.IEEE = IsCompute;
-    Mode.FP32InputDenormals = false; // FIXME: Should be on by default.
-    Mode.FP32OutputDenormals = false; // FIXME: Should be on by default.
-    Mode.FP64FP16InputDenormals = true;
-    Mode.FP64FP16OutputDenormals = true;
     return Mode;
   }
 

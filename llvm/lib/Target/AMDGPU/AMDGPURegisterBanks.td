@@ -7,11 +7,11 @@
 //===----------------------------------------------------------------------===//
 
 def SGPRRegBank : RegisterBank<"SGPR",
-  [SReg_32, SReg_64, SReg_128, SReg_256, SReg_512, SReg_1024]
+  [SGPR_LO16, SReg_32, SReg_64, SReg_128, SReg_256, SReg_512, SReg_1024]
 >;
 
 def VGPRRegBank : RegisterBank<"VGPR",
-  [VGPR_32, VReg_64, VReg_96, VReg_128, VReg_256, VReg_512, VReg_1024]
+  [VGPR_LO16, VGPR_HI16, VGPR_32, VReg_64, VReg_96, VReg_128, VReg_256, VReg_512, VReg_1024]
 >;
 
 // It is helpful to distinguish conditions from ordinary SGPRs.
