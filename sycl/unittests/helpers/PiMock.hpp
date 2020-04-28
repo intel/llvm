@@ -117,10 +117,11 @@ public:
     // Extract impl and plugin handles
     std::shared_ptr<detail::platform_impl> ImplPtr =
         detail::getSyclObjImpl(OriginalPlatform);
-    const RT::PiPlugin &OriginalPiPlugin = ImplPtr->getPlugin().getPiPlugin();
+    const detail::plugin &OriginalPiPlugin = ImplPtr->getPlugin();
     // Copy the PiPlugin, thus untying our to-be mock platform from other
     // platforms within the context. Reset our platform to use the new plugin.
-    auto NewPluginPtr = std::make_shared<detail::plugin>(OriginalPiPlugin);
+    auto NewPluginPtr = std::make_shared<detail::plugin>(
+        OriginalPiPlugin.getPiPlugin(), OriginalPiPlugin.getBackend());
     ImplPtr->setPlugin(NewPluginPtr);
     // Extract the new PiPlugin instance by a non-const pointer,
     // explicitly allowing modification
