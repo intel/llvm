@@ -50,7 +50,7 @@ event_impl::~event_impl() {
 }
 
 void event_impl::waitInternal() const {
-  if (!MHostEvent) {
+  if (!MHostEvent && MEvent) {
     getPlugin().call<PiApiKind::piEventsWait>(1, &MEvent);
     return;
   }

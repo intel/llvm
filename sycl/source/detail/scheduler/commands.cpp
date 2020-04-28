@@ -439,17 +439,14 @@ void Command::makeTraceEventEpilog() {
 void Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep) {
   const ContextImplPtr &Context = getContext();
 
-  // Async work is not supported for host device.
-  if (DepEvent->is_host()) {
+  // 1. Async work is not supported for host device.
+  // 2. The event handle can be null in case of, for example, alloca command,
+  //    which is currently synchrounious, so don't generate OpenCL event.
+  //    Though, this event isn't host one as it's context isn't host one.
+  if (DepEvent->is_host() || DepEvent->getHandleRef() == nullptr) {
     // call to waitInternal() is in waitForPreparedHostEvents() as it's called
     // from enqueue process functions
     MPreparedHostDepsEvents.push_back(DepEvent);
-    return;
-  }
-
-  // The event handle can be null in case of, for example, alloca command,
-  // which is currently synchrounious, so don't generate OpenCL event.
-  if (DepEvent->getHandleRef() == nullptr) {
     return;
   }
 
@@ -1646,7 +1643,6 @@ void DispatchNativeKernel(void *Blob) {
 cl_int ExecCGCommand::enqueueImp() {
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
-
   auto RawEvents = getPiEvents(EventImpls);
 
   RT::PiEvent &Event = MEvent->getHandleRef();
