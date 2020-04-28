@@ -67,4 +67,8 @@ TEST_F(SchedulerTest, LeafLimit) {
   EXPECT_TRUE(std::any_of(
       NewestLeaf->MDeps.begin(), NewestLeaf->MDeps.end(),
       [&](const detail::DepDesc &DD) { return DD.MDepCommand == OldestLeaf; }));
+
+  FakeDepCmd->getEvent()->setComplete();
+  for (FakeCommand *Cmd : LeavesToAdd)
+    Cmd->getEvent()->setComplete();
 }
