@@ -933,7 +933,6 @@ void Scheduler::GraphBuilder::connectDepEvent(
                         PI_INVALID_OPERATION);
 
   Cmd->addDep(ConnectCmd->getEvent());
-  //Cmd->MPreparedHostDepsEvents.push_back(ConnectCmd->getEvent());
 }
 
 void Scheduler::GraphBuilder::addConnectCmdWithReq(

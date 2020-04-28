@@ -74,8 +74,8 @@ void event_impl::setComplete() {
     MState.store(static_cast<int>(HES_Ready));
 #endif
   } else if (MEvent)
-    getPlugin().call<PiApiKind::piEventSetStatus>(
-        getHandleRef(), PI_EVENT_COMPLETE);
+    getPlugin().call<PiApiKind::piEventSetStatus>(getHandleRef(),
+                                                  PI_EVENT_COMPLETE);
   else
     assert(false && "Event is neither host nor device one.");
 }
