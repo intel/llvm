@@ -139,6 +139,7 @@ std::vector<EventImplPtr> Scheduler::getWaitList(EventImplPtr Event) {
 }
 
 void Scheduler::waitForEvent(EventImplPtr Event) {
+  std::lock_guard<std::mutex> lock(MGraphLock);
   GraphProcessor::waitForEvent(std::move(Event));
 }
 
@@ -181,6 +182,7 @@ EventImplPtr Scheduler::addHostAccessor(Requirement *Req,
 }
 
 void Scheduler::releaseHostAccessor(Requirement *Req) {
+  std::lock_guard<std::mutex> lock(MGraphLock);
   Command *const BlockedCmd = Req->MBlockedCmd;
 
   assert(BlockedCmd && "Can't find appropriate command to unblock");
