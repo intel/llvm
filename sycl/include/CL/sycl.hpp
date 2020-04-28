@@ -26,6 +26,7 @@
 #include <CL/sycl/intel/builtins.hpp>
 #include <CL/sycl/intel/function_pointer.hpp>
 #include <CL/sycl/intel/group_algorithm.hpp>
+#include <CL/sycl/intel/reduction.hpp>
 #include <CL/sycl/intel/sub_group.hpp>
 #include <CL/sycl/item.hpp>
 #include <CL/sycl/kernel.hpp>
