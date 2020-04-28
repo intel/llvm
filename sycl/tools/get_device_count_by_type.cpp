@@ -6,8 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/cl.h>
-#include <CL/cl_ext.h>
 #include <CL/sycl.hpp>
 
 #ifdef USE_PI_CUDA
