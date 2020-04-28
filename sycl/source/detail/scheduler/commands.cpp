@@ -1990,8 +1990,9 @@ cl_int ExecCGCommand::enqueueImp() {
       }
     }
 
-    MQueue->getThreadPool().submit<DispatchHostTask>(std::move(DispatchHostTask(
-        MPreparedDepsEvents, MPreparedHostDepsEvents, HostTask, MDeps, MEvent)));
+    MQueue->getThreadPool().submit<DispatchHostTask>(
+        std::move(DispatchHostTask(MPreparedDepsEvents, MPreparedHostDepsEvents,
+                                   HostTask, MDeps, MEvent)));
 
     return CL_SUCCESS;
   }
