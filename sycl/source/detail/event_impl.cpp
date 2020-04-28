@@ -91,6 +91,8 @@ void event_impl::setContextImpl(const ContextImplPtr &Context) {
   MHostEvent = Context->is_host();
   MOpenCLInterop = !MHostEvent;
   MContext = Context;
+
+  MState = MHostEvent ? HES_NotReady : HES_Ready;
 }
 
 event_impl::event_impl() : MState(HES_Ready) {}
