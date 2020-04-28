@@ -650,6 +650,39 @@ void Scheduler::GraphBuilder::markModifiedIfWrite(MemObjRecord *Record,
   }
 }
 
+void Scheduler::GraphBuilder::addEmptyCmdForHostTask(
+    ExecCGCommand *Cmd, const std::unique_ptr<detail::CG> &CmdGroup,
+    const QueueImplPtr &Queue) {
+  const std::vector<Requirement *> &Reqs = CmdGroup->MRequirements;
+
+  EmptyCommand *EmptyCmd =
+      new EmptyCommand(Scheduler::getInstance().getDefaultHostQueue());
+
+  if (!EmptyCmd)
+    throw runtime_error("Out of host memory", PI_OUT_OF_HOST_MEMORY);
+
+  EmptyCmd->MIsBlockable = true;
+  EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueBlocked;
+  EmptyCmd->MBlockReason = Command::BlockReason::HostTask;
+
+  for (Requirement *Req : Reqs) {
+    MemObjRecord *Record = getOrInsertMemObjRecord(Queue, Req);
+    AllocaCommandBase *AllocaCmd = getOrCreateAllocaForReq(Record, Req, Queue);
+    EmptyCmd->addRequirement(Cmd, AllocaCmd, Req);
+  }
+
+  Cmd->addUser(EmptyCmd);
+
+  const std::vector<DepDesc> &Deps = Cmd->MDeps;
+  for (const DepDesc &Dep : Deps) {
+    const Requirement *Req = Dep.MDepRequirement;
+    MemObjRecord *Record = getMemObjRecord(Req->MSYCLMemObj);
+
+    updateLeaves({Cmd}, Record, Req->MAccessMode);
+    addNodeToLeaves(Record, EmptyCmd, Req->MAccessMode);
+  }
+}
+
 Command *
 Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
                                QueueImplPtr Queue) {
@@ -664,19 +697,6 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
 
   if (MPrintOptionsArray[BeforeAddCG])
     printGraphAsDot("before_addCG");
-
-  EmptyCommand *EmptyCmd = nullptr;
-
-  if (CGType == CG::CGTYPE::HOST_TASK_CODEPLAY) {
-    EmptyCmd = new EmptyCommand(Scheduler::getInstance().getDefaultHostQueue());
-
-    if (!EmptyCmd)
-      throw runtime_error("Out of host memory", PI_OUT_OF_HOST_MEMORY);
-
-    EmptyCmd->MIsBlockable = true;
-    EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueBlocked;
-    EmptyCmd->MBlockReason = Command::BlockReason::HostTask;
-  }
 
   for (Requirement *Req : Reqs) {
     MemObjRecord *Record = getOrInsertMemObjRecord(Queue, Req);
@@ -704,14 +724,6 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
 
     for (Command *Dep : Deps)
       NewCmd->addDep(DepDesc{Dep, Req, AllocaCmd});
-
-    if (CGType == CG::CGTYPE::HOST_TASK_CODEPLAY) {
-      EmptyCmd->addRequirement(NewCmd.get(), AllocaCmd, Req);
-    }
-  }
-
-  if (CGType == CG::CGTYPE::HOST_TASK_CODEPLAY) {
-    NewCmd->addUser(EmptyCmd);
   }
 
   // Set new command as user for dependencies and update leaves.
@@ -725,17 +737,15 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
     MemObjRecord *Record = getMemObjRecord(Req->MSYCLMemObj);
     updateLeaves({Dep.MDepCommand}, Record, Req->MAccessMode);
     addNodeToLeaves(Record, NewCmd.get(), Req->MAccessMode);
-
-    if (CGType == CG::CGTYPE::HOST_TASK_CODEPLAY) {
-      updateLeaves({NewCmd.get()}, Record, Req->MAccessMode);
-      addNodeToLeaves(Record, EmptyCmd, Req->MAccessMode);
-    }
   }
 
   // Register all the events as dependencies
   for (detail::EventImplPtr e : Events) {
     NewCmd->addDep(e);
   }
+
+  if (CGType == CG::CGTYPE::HOST_TASK_CODEPLAY)
+    addEmptyCmdForHostTask(NewCmd.get(), CommandGroup, Queue);
 
   if (MPrintOptionsArray[AfterAddCG])
     printGraphAsDot("after_addCG");
