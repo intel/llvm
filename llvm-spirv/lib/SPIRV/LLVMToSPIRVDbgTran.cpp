@@ -594,7 +594,7 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgEnumType(const DICompositeType *ET) {
   size_t ElemCount = Elements.size();
   for (unsigned I = 0; I < ElemCount; ++I) {
     DIEnumerator *E = cast<DIEnumerator>(Elements[I]);
-    ConstantInt *EnumValue = getInt(M, E->getValue());
+    ConstantInt *EnumValue = getInt(M, E->getValue().getSExtValue());
     SPIRVValue *Val = SPIRVWriter->transValue(EnumValue, nullptr);
     assert(Val->getOpCode() == OpConstant &&
            "LLVM constant must be translated to SPIRV constant");

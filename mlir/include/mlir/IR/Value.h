@@ -138,11 +138,23 @@ public:
   /// there are zero uses of 'this'.
   void replaceAllUsesWith(Value newValue) const;
 
+  /// Replace all uses of 'this' value with 'newValue', updating anything in the
+  /// IR that uses 'this' to use the other value instead except if the user is
+  /// listed in 'exceptions' .
+  void
+  replaceAllUsesExcept(Value newValue,
+                       const SmallPtrSetImpl<Operation *> &exceptions) const;
+
+  /// Replace all uses of 'this' value with 'newValue' if the given callback
+  /// returns true.
+  void replaceUsesWithIf(Value newValue,
+                         function_ref<bool(OpOperand &)> shouldReplace);
+
   //===--------------------------------------------------------------------===//
   // Uses
 
   /// This class implements an iterator over the uses of a value.
-  using use_iterator = FilteredValueUseIterator<OpOperand>;
+  using use_iterator = ValueUseIterator<OpOperand>;
   using use_range = iterator_range<use_iterator>;
 
   use_iterator use_begin() const;
@@ -293,12 +305,21 @@ public:
   /// Returns the number of this result.
   unsigned getResultNumber() const;
 
+  /// Returns the maximum number of results that can be stored inline.
+  static unsigned getMaxInlineResults() {
+    return static_cast<unsigned>(Kind::TrailingOpResult);
+  }
+
 private:
+  /// Given a number of operation results, returns the number that need to be
+  /// stored inline.
+  static unsigned getNumInline(unsigned numResults);
+
   /// Given a number of operation results, returns the number that need to be
   /// stored as trailing.
   static unsigned getNumTrailing(unsigned numResults);
 
-  /// Allow access to `create` and `destroy`.
+  /// Allow access to constructor.
   friend Operation;
 };
 

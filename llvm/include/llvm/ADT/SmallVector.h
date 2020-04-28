@@ -46,6 +46,7 @@ protected:
 
   /// This is an implementation of the grow() method which only works
   /// on POD-like data types and is out of line to reduce code duplication.
+  /// This function will report a fatal error if it cannot increase capacity.
   void grow_pod(void *FirstEl, size_t MinCapacity, size_t TSize);
 
 public:
@@ -233,6 +234,12 @@ template <typename T, bool TriviallyCopyable>
 void SmallVectorTemplateBase<T, TriviallyCopyable>::grow(size_t MinSize) {
   if (MinSize > UINT32_MAX)
     report_bad_alloc_error("SmallVector capacity overflow during allocation");
+
+  // Ensure we can meet the guarantee of space for at least one more element.
+  // The above check alone will not catch the case where grow is called with a
+  // default MinCapacity of 0, but the current capacity cannot be increased.
+  if (this->capacity() == size_t(UINT32_MAX))
+    report_bad_alloc_error("SmallVector capacity unable to grow");
 
   // Always grow, even from zero.
   size_t NewCapacity = size_t(NextPowerOf2(this->capacity() + 2));
@@ -834,7 +841,8 @@ template <typename T> struct alignas(alignof(T)) SmallVectorStorage<T, 0> {};
 /// Note that this does not attempt to be exception safe.
 ///
 template <typename T, unsigned N>
-class SmallVector : public SmallVectorImpl<T>, SmallVectorStorage<T, N> {
+class LLVM_GSL_OWNER SmallVector : public SmallVectorImpl<T>,
+                                   SmallVectorStorage<T, N> {
 public:
   SmallVector() : SmallVectorImpl<T>(N) {}
 

@@ -512,6 +512,12 @@ static void parseAnalyzerConfigs(AnalyzerOptions &AnOpts,
     Diags->Report(diag::err_analyzer_config_invalid_input) << "ctu-dir"
                                                            << "a filename";
 
+  if (AnOpts.CTUOnDemandParsing &&
+      !llvm::sys::fs::exists(AnOpts.CTUOnDemandParsingDatabase))
+    Diags->Report(diag::err_analyzer_config_invalid_input)
+        << "ctu-on-demand-parsing-database"
+        << "a filename";
+
   if (!AnOpts.ModelPath.empty() &&
       !llvm::sys::fs::is_directory(AnOpts.ModelPath))
     Diags->Report(diag::err_analyzer_config_invalid_input) << "model-path"
@@ -767,9 +773,7 @@ static bool ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
   Opts.DebugExplicitImport = Args.hasArg(OPT_dwarf_explicit_import);
   Opts.DebugFwdTemplateParams = Args.hasArg(OPT_debug_forward_template_params);
   Opts.EmbedSource = Args.hasArg(OPT_gembed_source);
-
-  Opts.ForceDwarfFrameSection =
-      Args.hasFlag(OPT_fforce_dwarf_frame, OPT_fno_force_dwarf_frame, false);
+  Opts.ForceDwarfFrameSection = Args.hasArg(OPT_fforce_dwarf_frame);
 
   for (const auto &Arg : Args.getAllArgValues(OPT_fdebug_prefix_map_EQ)) {
     auto Split = StringRef(Arg).split('=');
@@ -1301,11 +1305,18 @@ static bool ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
       Diags.Report(diag::err_drv_invalid_value) << A->getAsString(Args) << Val;
   }
 
-  if (Arg *A = Args.getLastArg(OPT_fpcc_struct_return, OPT_freg_struct_return)) {
-    if (A->getOption().matches(OPT_fpcc_struct_return)) {
+  // X86_32 has -fppc-struct-return and -freg-struct-return.
+  // PPC32 has -maix-struct-return and -msvr4-struct-return.
+  if (Arg *A =
+          Args.getLastArg(OPT_fpcc_struct_return, OPT_freg_struct_return,
+                          OPT_maix_struct_return, OPT_msvr4_struct_return)) {
+    const Option &O = A->getOption();
+    if (O.matches(OPT_fpcc_struct_return) ||
+        O.matches(OPT_maix_struct_return)) {
       Opts.setStructReturnConvention(CodeGenOptions::SRCK_OnStack);
     } else {
-      assert(A->getOption().matches(OPT_freg_struct_return));
+      assert(O.matches(OPT_freg_struct_return) ||
+             O.matches(OPT_msvr4_struct_return));
       Opts.setStructReturnConvention(CodeGenOptions::SRCK_InRegs);
     }
   }
@@ -2293,7 +2304,7 @@ void CompilerInvocation::setLangDefaults(LangOptions &Opts, InputKind IK,
   Opts.CPlusPlus11 = Std.isCPlusPlus11();
   Opts.CPlusPlus14 = Std.isCPlusPlus14();
   Opts.CPlusPlus17 = Std.isCPlusPlus17();
-  Opts.CPlusPlus2a = Std.isCPlusPlus2a();
+  Opts.CPlusPlus20 = Std.isCPlusPlus20();
   Opts.Digraphs = Std.hasDigraphs();
   Opts.GNUMode = Std.isGNUMode();
   Opts.GNUInline = !Opts.C99 && !Opts.CPlusPlus;
@@ -2833,7 +2844,7 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
   Opts.Blocks = Args.hasArg(OPT_fblocks) || (Opts.OpenCL
     && Opts.OpenCLVersion == 200);
   Opts.BlocksRuntimeOptional = Args.hasArg(OPT_fblocks_runtime_optional);
-  Opts.Coroutines = Opts.CPlusPlus2a || Args.hasArg(OPT_fcoroutines_ts);
+  Opts.Coroutines = Opts.CPlusPlus20 || Args.hasArg(OPT_fcoroutines_ts);
 
   Opts.ConvergentFunctions = Opts.OpenCL || (Opts.CUDA && Opts.CUDAIsDevice) ||
     Args.hasArg(OPT_fconvergent_functions);
@@ -2843,7 +2854,7 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
                    OPT_fno_double_square_bracket_attributes,
                    Opts.DoubleSquareBracketAttributes);
 
-  Opts.CPlusPlusModules = Opts.CPlusPlus2a;
+  Opts.CPlusPlusModules = Opts.CPlusPlus20;
   Opts.ModulesTS = Args.hasArg(OPT_fmodules_ts);
   Opts.Modules =
       Args.hasArg(OPT_fmodules) || Opts.ModulesTS || Opts.CPlusPlusModules;
@@ -2864,7 +2875,7 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
   Opts.ImplicitModules = !Args.hasArg(OPT_fno_implicit_modules);
   Opts.CharIsSigned = Opts.OpenCL || !Args.hasArg(OPT_fno_signed_char);
   Opts.WChar = Opts.CPlusPlus && !Args.hasArg(OPT_fno_wchar);
-  Opts.Char8 = Args.hasFlag(OPT_fchar8__t, OPT_fno_char8__t, Opts.CPlusPlus2a);
+  Opts.Char8 = Args.hasFlag(OPT_fchar8__t, OPT_fno_char8__t, Opts.CPlusPlus20);
   if (const Arg *A = Args.getLastArg(OPT_fwchar_type_EQ)) {
     Opts.WCharSize = llvm::StringSwitch<unsigned>(A->getValue())
                          .Case("char", 1)

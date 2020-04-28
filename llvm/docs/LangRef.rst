@@ -1828,7 +1828,7 @@ example:
     ``"preserve-sign"``, or ``"positive-zero"``. The first entry
     indicates the flushing mode for the result of floating point
     operations. The second indicates the handling of denormal inputs
-    to floating point instructions. For compatability with older
+    to floating point instructions. For compatibility with older
     bitcode, if the second value is omitted, both input and output
     modes will assume the same mode.
 
@@ -1879,7 +1879,7 @@ example:
 ``shadowcallstack``
     This attribute indicates that the ShadowCallStack checks are enabled for
     the function. The instrumentation checks that the return address for the
-    function has not changed between the function prolog and eiplog. It is
+    function has not changed between the function prolog and epilog. It is
     currently x86_64-specific.
 
 Call Site Attributes
@@ -7366,9 +7366,8 @@ instruction in most regards. The primary difference is that it
 establishes an association with additional labels to define where control
 flow goes after the call.
 
-Outputs of a '``callbr``' instruction are valid only on the '``fallthrough``'
-path.  Use of outputs on the '``indirect``' path(s) results in :ref:`poison
-values <poisonvalues>`.
+The output values of a '``callbr``' instruction are available only to
+the '``fallthrough``' block, not to any '``indirect``' blocks(s).
 
 The only use of this today is to implement the "goto" feature of gcc inline
 assembly where additional labels can be provided as locations for the inline
@@ -17194,7 +17193,7 @@ The first three arguments to the '``llvm.experimental.constrained.fmuladd``'
 intrinsic must be floating-point or vector of floating-point values.
 All three arguments must have identical types.
 
-The fourth and fifth arguments specifiy the rounding mode and exception behavior
+The fourth and fifth arguments specify the rounding mode and exception behavior
 as described above.
 
 Semantics:

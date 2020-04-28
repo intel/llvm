@@ -1940,6 +1940,10 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
         if (CheckPPCBuiltinFunctionCall(BuiltinID, TheCall))
           return ExprError();
         break;
+      case llvm::Triple::amdgcn:
+        if (CheckAMDGCNBuiltinFunctionCall(BuiltinID, TheCall))
+          return ExprError();
+        break;
       default:
         break;
     }
@@ -2036,13 +2040,89 @@ bool Sema::CheckSVEBuiltinFunctionCall(unsigned BuiltinID, CallExpr *TheCall) {
     int ArgNum, CheckTy, ElementSizeInBits;
     std::tie(ArgNum, CheckTy, ElementSizeInBits) = I;
 
+    typedef bool(*OptionSetCheckFnTy)(int64_t Value);
+
+    // Function that checks whether the operand (ArgNum) is an immediate
+    // that is one of the predefined values.
+    auto CheckImmediateInSet = [&](OptionSetCheckFnTy CheckImm,
+                                   int ErrDiag) -> bool {
+      // We can't check the value of a dependent argument.
+      Expr *Arg = TheCall->getArg(ArgNum);
+      if (Arg->isTypeDependent() || Arg->isValueDependent())
+        return false;
+
+      // Check constant-ness first.
+      llvm::APSInt Imm;
+      if (SemaBuiltinConstantArg(TheCall, ArgNum, Imm))
+        return true;
+
+      if (!CheckImm(Imm.getSExtValue()))
+        return Diag(TheCall->getBeginLoc(), ErrDiag) << Arg->getSourceRange();
+      return false;
+    };
+
     switch ((SVETypeFlags::ImmCheckType)CheckTy) {
     case SVETypeFlags::ImmCheck0_31:
       if (SemaBuiltinConstantArgRange(TheCall, ArgNum, 0, 31))
         HasError = true;
       break;
+    case SVETypeFlags::ImmCheck0_13:
+      if (SemaBuiltinConstantArgRange(TheCall, ArgNum, 0, 13))
+        HasError = true;
+      break;
     case SVETypeFlags::ImmCheck1_16:
       if (SemaBuiltinConstantArgRange(TheCall, ArgNum, 1, 16))
+        HasError = true;
+      break;
+    case SVETypeFlags::ImmCheck0_7:
+      if (SemaBuiltinConstantArgRange(TheCall, ArgNum, 0, 7))
+        HasError = true;
+      break;
+    case SVETypeFlags::ImmCheckExtract:
+      if (SemaBuiltinConstantArgRange(TheCall, ArgNum, 0,
+                                      (2048 / ElementSizeInBits) - 1))
+        HasError = true;
+      break;
+    case SVETypeFlags::ImmCheckShiftRight:
+      if (SemaBuiltinConstantArgRange(TheCall, ArgNum, 1, ElementSizeInBits))
+        HasError = true;
+      break;
+    case SVETypeFlags::ImmCheckShiftRightNarrow:
+      if (SemaBuiltinConstantArgRange(TheCall, ArgNum, 1,
+                                      ElementSizeInBits / 2))
+        HasError = true;
+      break;
+    case SVETypeFlags::ImmCheckShiftLeft:
+      if (SemaBuiltinConstantArgRange(TheCall, ArgNum, 0,
+                                      ElementSizeInBits - 1))
+        HasError = true;
+      break;
+    case SVETypeFlags::ImmCheckLaneIndex:
+      if (SemaBuiltinConstantArgRange(TheCall, ArgNum, 0,
+                                      (128 / (1 * ElementSizeInBits)) - 1))
+        HasError = true;
+      break;
+    case SVETypeFlags::ImmCheckLaneIndexCompRotate:
+      if (SemaBuiltinConstantArgRange(TheCall, ArgNum, 0,
+                                      (128 / (2 * ElementSizeInBits)) - 1))
+        HasError = true;
+      break;
+    case SVETypeFlags::ImmCheckLaneIndexDot:
+      if (SemaBuiltinConstantArgRange(TheCall, ArgNum, 0,
+                                      (128 / (4 * ElementSizeInBits)) - 1))
+        HasError = true;
+      break;
+    case SVETypeFlags::ImmCheckComplexRot90_270:
+      if (CheckImmediateInSet([](int64_t V) { return V == 90 || V == 270; },
+                              diag::err_rotation_argument_to_cadd))
+        HasError = true;
+      break;
+    case SVETypeFlags::ImmCheckComplexRotAll90:
+      if (CheckImmediateInSet(
+              [](int64_t V) {
+                return V == 0 || V == 90 || V == 180 || V == 270;
+              },
+              diag::err_rotation_argument_to_cmla))
         HasError = true;
       break;
     }
@@ -2975,6 +3055,46 @@ bool Sema::CheckPPCBuiltinFunctionCall(unsigned BuiltinID, CallExpr *TheCall) {
     return SemaVSXCheck(TheCall);
   }
   return SemaBuiltinConstantArgRange(TheCall, i, l, u);
+}
+
+bool Sema::CheckAMDGCNBuiltinFunctionCall(unsigned BuiltinID,
+                                          CallExpr *TheCall) {
+  switch (BuiltinID) {
+  case AMDGPU::BI__builtin_amdgcn_fence: {
+    ExprResult Arg = TheCall->getArg(0);
+    auto ArgExpr = Arg.get();
+    Expr::EvalResult ArgResult;
+
+    if (!ArgExpr->EvaluateAsInt(ArgResult, Context))
+      return Diag(ArgExpr->getExprLoc(), diag::err_typecheck_expect_int)
+             << ArgExpr->getType();
+    int ord = ArgResult.Val.getInt().getZExtValue();
+
+    // Check valididty of memory ordering as per C11 / C++11's memody model.
+    switch (static_cast<llvm::AtomicOrderingCABI>(ord)) {
+    case llvm::AtomicOrderingCABI::acquire:
+    case llvm::AtomicOrderingCABI::release:
+    case llvm::AtomicOrderingCABI::acq_rel:
+    case llvm::AtomicOrderingCABI::seq_cst:
+      break;
+    default: {
+      return Diag(ArgExpr->getBeginLoc(),
+                  diag::warn_atomic_op_has_invalid_memory_order)
+             << ArgExpr->getSourceRange();
+    }
+    }
+
+    Arg = TheCall->getArg(1);
+    ArgExpr = Arg.get();
+    Expr::EvalResult ArgResult1;
+    // Check that sync scope is a constant literal
+    if (!ArgExpr->EvaluateAsConstantExpr(ArgResult1, Expr::EvaluateForCodeGen,
+                                         Context))
+      return Diag(ArgExpr->getExprLoc(), diag::err_expr_not_string_literal)
+             << ArgExpr->getType();
+  } break;
+  }
+  return false;
 }
 
 bool Sema::CheckSystemZBuiltinFunctionCall(unsigned BuiltinID,
@@ -13976,12 +14096,12 @@ void Sema::checkUnsafeExprAssigns(SourceLocation Loc,
       return;
 
     unsigned Attributes = PD->getPropertyAttributes();
-    if (Attributes & ObjCPropertyDecl::OBJC_PR_assign) {
+    if (Attributes & ObjCPropertyAttribute::kind_assign) {
       // when 'assign' attribute was not explicitly specified
       // by user, ignore it and rely on property type itself
       // for lifetime info.
       unsigned AsWrittenAttr = PD->getPropertyAttributesAsWritten();
-      if (!(AsWrittenAttr & ObjCPropertyDecl::OBJC_PR_assign) &&
+      if (!(AsWrittenAttr & ObjCPropertyAttribute::kind_assign) &&
           LHSType->isObjCRetainableType())
         return;
 
@@ -13993,8 +14113,7 @@ void Sema::checkUnsafeExprAssigns(SourceLocation Loc,
         }
         RHS = cast->getSubExpr();
       }
-    }
-    else if (Attributes & ObjCPropertyDecl::OBJC_PR_weak) {
+    } else if (Attributes & ObjCPropertyAttribute::kind_weak) {
       if (checkUnsafeAssignObject(*this, Loc, Qualifiers::OCL_Weak, RHS, true))
         return;
     }

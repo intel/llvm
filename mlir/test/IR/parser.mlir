@@ -697,6 +697,11 @@ func @densetensorattr() -> () {
   "intscalar"(){bar = dense<1> : tensor<i32>} : () -> ()
 // CHECK: "floatscalar"() {bar = dense<5.000000e+00> : tensor<f32>} : () -> ()
   "floatscalar"(){bar = dense<5.0> : tensor<f32>} : () -> ()
+
+// CHECK: "index"() {bar = dense<1> : tensor<index>} : () -> ()
+  "index"(){bar = dense<1> : tensor<index>} : () -> ()
+// CHECK: "index"() {bar = dense<[1, 2]> : tensor<2xindex>} : () -> ()
+  "index"(){bar = dense<[1, 2]> : tensor<2xindex>} : () -> ()
   return
 }
 
@@ -759,6 +764,11 @@ func @sparsetensorattr() -> () {
   "foof320"(){bar = sparse<[], []> : tensor<0xf32>} : () -> ()
 // CHECK: "foof321"() {bar = sparse<{{\[}}], {{\[}}]> : tensor<f32>} : () -> ()
   "foof321"(){bar = sparse<[], []> : tensor<f32>} : () -> ()
+
+// CHECK: "foostr"() {bar = sparse<0, "foo"> : tensor<1x1x1x!unknown<"">>} : () -> ()
+  "foostr"(){bar = sparse<0, "foo"> : tensor<1x1x1x!unknown<"">>} : () -> ()
+// CHECK: "foostr"() {bar = sparse<{{\[\[}}1, 1, 0], {{\[}}0, 1, 0], {{\[}}0, 0, 1]], {{\[}}"a", "b", "c"]> : tensor<2x2x2x!unknown<"">>} : () -> ()
+  "foostr"(){bar = sparse<[[1, 1, 0], [0, 1, 0], [0, 0, 1]], ["a", "b", "c"]> : tensor<2x2x2x!unknown<"">>} : () -> ()
   return
 }
 
@@ -1222,12 +1232,5 @@ func @pretty_names() {
   // CHECK: %q, %q_1, %q_2, %r = test.string_attr_pretty_name attributes {names = ["q", "q", "q", "r"]}
 
   // CHECK: return
-  return
-}
-
-// CHECK-LABEL: func @zero_whitespace() {
-// CHECK-NEXT: return
-func @zero_whitespace() {
-     // This is a \0 byte.
   return
 }

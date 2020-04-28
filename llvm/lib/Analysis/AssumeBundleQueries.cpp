@@ -7,17 +7,21 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Analysis/AssumeBundleQueries.h"
+#include "llvm/Analysis/AssumptionCache.h"
+#include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/IntrinsicInst.h"
+#include "llvm/IR/PatternMatch.h"
 
 using namespace llvm;
+using namespace llvm::PatternMatch;
 
 static bool bundleHasArgument(const CallBase::BundleOpInfo &BOI, unsigned Idx) {
   return BOI.End - BOI.Begin > Idx;
 }
 
-static Value *getValueFromBundleOpInfo(IntrinsicInst &Assume,
+static Value *getValueFromBundleOpInfo(CallInst &Assume,
                                        const CallBase::BundleOpInfo &BOI,
                                        unsigned Idx) {
   assert(bundleHasArgument(BOI, Idx) && "index out of range");
@@ -25,8 +29,7 @@ static Value *getValueFromBundleOpInfo(IntrinsicInst &Assume,
 }
 
 bool llvm::hasAttributeInAssume(CallInst &AssumeCI, Value *IsOn,
-                                StringRef AttrName, uint64_t *ArgVal,
-                                AssumeQuery AQR) {
+                                StringRef AttrName, uint64_t *ArgVal) {
   assert(isa<IntrinsicInst>(AssumeCI) &&
          "this function is intended to be used on llvm.assume");
   IntrinsicInst &Assume = cast<IntrinsicInst>(AssumeCI);
@@ -40,27 +43,21 @@ bool llvm::hasAttributeInAssume(CallInst &AssumeCI, Value *IsOn,
   if (Assume.bundle_op_infos().empty())
     return false;
 
-  auto Loop = [&](auto &&Range) {
-    for (auto &BOI : Range) {
-      if (BOI.Tag->getKey() != AttrName)
-        continue;
-      if (IsOn && (BOI.End - BOI.Begin <= ABA_WasOn ||
-                   IsOn != getValueFromBundleOpInfo(Assume, BOI, ABA_WasOn)))
-        continue;
-      if (ArgVal) {
-        assert(BOI.End - BOI.Begin > ABA_Argument);
-        *ArgVal = cast<ConstantInt>(
-                      getValueFromBundleOpInfo(Assume, BOI, ABA_Argument))
-                      ->getZExtValue();
-      }
-      return true;
+  for (auto &BOI : Assume.bundle_op_infos()) {
+    if (BOI.Tag->getKey() != AttrName)
+      continue;
+    if (IsOn && (BOI.End - BOI.Begin <= ABA_WasOn ||
+                 IsOn != getValueFromBundleOpInfo(Assume, BOI, ABA_WasOn)))
+      continue;
+    if (ArgVal) {
+      assert(BOI.End - BOI.Begin > ABA_Argument);
+      *ArgVal =
+          cast<ConstantInt>(getValueFromBundleOpInfo(Assume, BOI, ABA_Argument))
+              ->getZExtValue();
     }
-    return false;
-  };
-
-  if (AQR == AssumeQuery::Lowest)
-    return Loop(Assume.bundle_op_infos());
-  return Loop(reverse(Assume.bundle_op_infos()));
+    return true;
+  }
+  return false;
 }
 
 void llvm::fillMapFromAssume(CallInst &AssumeCI, RetainedKnowledgeMap &Result) {
@@ -92,12 +89,8 @@ void llvm::fillMapFromAssume(CallInst &AssumeCI, RetainedKnowledgeMap &Result) {
   }
 }
 
-RetainedKnowledge llvm::getKnowledgeFromOperandInAssume(CallInst &AssumeCI,
-                                                        unsigned Idx) {
-  IntrinsicInst &Assume = cast<IntrinsicInst>(AssumeCI);
-  assert(Assume.getIntrinsicID() == Intrinsic::assume &&
-         "this function is intended to be used on llvm.assume");
-  CallBase::BundleOpInfo BOI = Assume.getBundleOpInfoForOperand(Idx);
+static RetainedKnowledge
+getKnowledgeFromBundle(CallInst &Assume, const CallBase::BundleOpInfo &BOI) {
   RetainedKnowledge Result;
   Result.AttrKind = Attribute::getAttrKindFromName(BOI.Tag->getKey());
   Result.WasOn = getValueFromBundleOpInfo(Assume, BOI, ABA_WasOn);
@@ -105,8 +98,16 @@ RetainedKnowledge llvm::getKnowledgeFromOperandInAssume(CallInst &AssumeCI,
     Result.ArgValue =
         cast<ConstantInt>(getValueFromBundleOpInfo(Assume, BOI, ABA_Argument))
             ->getZExtValue();
-
   return Result;
+}
+
+RetainedKnowledge llvm::getKnowledgeFromOperandInAssume(CallInst &AssumeCI,
+                                                        unsigned Idx) {
+  IntrinsicInst &Assume = cast<IntrinsicInst>(AssumeCI);
+  assert(Assume.getIntrinsicID() == Intrinsic::assume &&
+         "this function is intended to be used on llvm.assume");
+  CallBase::BundleOpInfo BOI = Assume.getBundleOpInfoForOperand(Idx);
+  return getKnowledgeFromBundle(AssumeCI, BOI);
 }
 
 bool llvm::isAssumeWithEmptyBundle(CallInst &CI) {
@@ -117,4 +118,59 @@ bool llvm::isAssumeWithEmptyBundle(CallInst &CI) {
                  [](const CallBase::BundleOpInfo &BOI) {
                    return BOI.Tag->getKey() != "ignore";
                  });
+}
+
+RetainedKnowledge
+llvm::getKnowledgeFromUse(const Use *U,
+                          ArrayRef<Attribute::AttrKind> AttrKinds) {
+  if (!match(U->getUser(),
+             m_Intrinsic<Intrinsic::assume>(m_Unless(m_Specific(U->get())))))
+    return RetainedKnowledge::none();
+  auto *Intr = cast<IntrinsicInst>(U->getUser());
+  RetainedKnowledge RK =
+      getKnowledgeFromOperandInAssume(*Intr, U->getOperandNo());
+  for (auto Attr : AttrKinds)
+    if (Attr == RK.AttrKind)
+      return RK;
+  return RetainedKnowledge::none();
+}
+
+RetainedKnowledge llvm::getKnowledgeForValue(
+    const Value *V, ArrayRef<Attribute::AttrKind> AttrKinds,
+    AssumptionCache *AC,
+    function_ref<bool(RetainedKnowledge, Instruction *)> Filter) {
+  if (AC) {
+#ifndef NDEBUG
+    RetainedKnowledge RKCheck =
+        getKnowledgeForValue(V, AttrKinds, nullptr, Filter);
+#endif
+    for (AssumptionCache::ResultElem &Elem : AC->assumptionsFor(V)) {
+      IntrinsicInst *II = cast_or_null<IntrinsicInst>(Elem.Assume);
+      if (!II || Elem.Index == AssumptionCache::ExprResultIdx)
+        continue;
+      if (RetainedKnowledge RK = getKnowledgeFromBundle(
+              *II, II->bundle_op_info_begin()[Elem.Index]))
+        if (is_contained(AttrKinds, RK.AttrKind) && Filter(RK, II)) {
+          assert(!!RKCheck && "invalid Assumption cache");
+          return RK;
+        }
+    }
+    assert(!RKCheck && "invalid Assumption cache");
+    return RetainedKnowledge::none();
+  }
+  for (auto &U : V->uses()) {
+    if (RetainedKnowledge RK = getKnowledgeFromUse(&U, AttrKinds))
+      if (Filter(RK, cast<Instruction>(U.getUser())))
+        return RK;
+  }
+  return RetainedKnowledge::none();
+}
+
+RetainedKnowledge llvm::getKnowledgeValidInContext(
+    const Value *V, ArrayRef<Attribute::AttrKind> AttrKinds,
+    const Instruction *CtxI, const DominatorTree *DT, AssumptionCache *AC) {
+  return getKnowledgeForValue(V, AttrKinds, AC,
+                              [&](RetainedKnowledge, Instruction *I) {
+                                return isValidAssumeForContext(I, CtxI, DT);
+                              });
 }

@@ -11,6 +11,7 @@
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
+
 using namespace mlir;
 
 // Native function for testing NativeCodeCall
@@ -129,6 +130,23 @@ struct TestReturnTypeDriver
 };
 } // end anonymous namespace
 
+namespace {
+struct TestDerivedAttributeDriver
+    : public PassWrapper<TestDerivedAttributeDriver, FunctionPass> {
+  void runOnFunction() override;
+};
+} // end anonymous namespace
+
+void TestDerivedAttributeDriver::runOnFunction() {
+  getFunction().walk([](DerivedAttributeOpInterface dOp) {
+    auto dAttr = dOp.materializeDerivedAttributes();
+    if (!dAttr)
+      return;
+    for (auto d : dAttr)
+      dOp.emitRemark() << d.first << " = " << d.second;
+  });
+}
+
 //===----------------------------------------------------------------------===//
 // Legalization Driver.
 //===----------------------------------------------------------------------===//
@@ -216,6 +234,24 @@ struct TestCreateIllegalBlock : public RewritePattern {
     rewriter.create<ILLegalOpF>(op->getLoc(), i32Type);
     rewriter.create<TerminatorOp>(op->getLoc());
     rewriter.replaceOp(op, {});
+    return success();
+  }
+};
+
+/// A simple pattern that tests the undo mechanism when replacing the uses of a
+/// block argument.
+struct TestUndoBlockArgReplace : public ConversionPattern {
+  TestUndoBlockArgReplace(MLIRContext *ctx)
+      : ConversionPattern("test.undo_block_arg_replace", /*benefit=*/1, ctx) {}
+
+  LogicalResult
+  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const final {
+    auto illegalOp =
+        rewriter.create<ILLegalOpF>(op->getLoc(), rewriter.getF32Type());
+    rewriter.replaceUsesOfBlockArgument(op->getRegion(0).front().getArgument(0),
+                                        illegalOp);
+    rewriter.updateRootInPlace(op, [] {});
     return success();
   }
 };
@@ -431,12 +467,14 @@ struct TestLegalizePatternDriver
     TestTypeConverter converter;
     mlir::OwningRewritePatternList patterns;
     populateWithGenerated(&getContext(), &patterns);
-    patterns.insert<
-        TestRegionRewriteBlockMovement, TestRegionRewriteUndo, TestCreateBlock,
-        TestCreateIllegalBlock, TestPassthroughInvalidOp, TestSplitReturnType,
-        TestChangeProducerTypeI32ToF32, TestChangeProducerTypeF32ToF64,
-        TestChangeProducerTypeF32ToInvalid, TestUpdateConsumerType,
-        TestNonRootReplacement, TestBoundedRecursiveRewrite>(&getContext());
+    patterns.insert<TestRegionRewriteBlockMovement, TestRegionRewriteUndo,
+                    TestCreateBlock, TestCreateIllegalBlock,
+                    TestUndoBlockArgReplace, TestPassthroughInvalidOp,
+                    TestSplitReturnType, TestChangeProducerTypeI32ToF32,
+                    TestChangeProducerTypeF32ToF64,
+                    TestChangeProducerTypeF32ToInvalid, TestUpdateConsumerType,
+                    TestNonRootReplacement, TestBoundedRecursiveRewrite>(
+        &getContext());
     patterns.insert<TestDropOpSignatureConversion>(&getContext(), converter);
     mlir::populateFuncOpTypeConversionPattern(patterns, &getContext(),
                                               converter);
@@ -588,6 +626,9 @@ namespace mlir {
 void registerPatternsTestPass() {
   mlir::PassRegistration<TestReturnTypeDriver>("test-return-type",
                                                "Run return type functions");
+
+  mlir::PassRegistration<TestDerivedAttributeDriver>(
+      "test-derived-attr", "Run test derived attributes");
 
   mlir::PassRegistration<TestPatternDriver>("test-patterns",
                                             "Run test dialect patterns");

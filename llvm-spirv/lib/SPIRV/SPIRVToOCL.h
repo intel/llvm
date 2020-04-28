@@ -42,7 +42,6 @@
 #include "SPIRVInternal.h"
 #include "llvm/IR/InstVisitor.h"
 #include "llvm/Pass.h"
-#include "llvm/PassSupport.h"
 
 #include <cstring>
 

@@ -48,8 +48,6 @@
 
 namespace llvm {
 
-class LoopVectorizationLegality;
-class LoopVectorizationCostModel;
 class BasicBlock;
 class DominatorTree;
 class InnerLoopVectorizer;
@@ -59,6 +57,7 @@ class raw_ostream;
 class Value;
 class VPBasicBlock;
 class VPRegionBlock;
+class VPSlotTracker;
 class VPlan;
 class VPlanSlp;
 
@@ -1496,7 +1495,6 @@ struct GraphTraits<Inverse<VPRegionBlock *>>
   }
 };
 
-class VPSlotTracker;
 /// VPlan models a candidate for vectorization, encoding various decisions take
 /// to produce efficient output IR, including which branches, basic-blocks and
 /// output IR instructions to generate, and their cost. VPlan holds a
@@ -1546,10 +1544,9 @@ public:
     if (Entry)
       VPBlockBase::deleteCFG(Entry);
     for (auto &MapEntry : Value2VPValue)
-      if (MapEntry.second != BackedgeTakenCount)
-        delete MapEntry.second;
+      delete MapEntry.second;
     if (BackedgeTakenCount)
-      delete BackedgeTakenCount; // Delete once, if in Value2VPValue or not.
+      delete BackedgeTakenCount;
     for (VPValue *Def : VPExternalDefs)
       delete Def;
     for (VPValue *CBV : VPCBVs)
