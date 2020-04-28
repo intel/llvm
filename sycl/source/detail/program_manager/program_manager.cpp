@@ -1004,7 +1004,7 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
   Bin->EntriesEnd = nullptr;
   Bin->Format = pi::getBinaryImageFormat(Bin->BinaryStart, DataSize);
 
-  switch(Bin->Format) {
+  switch (Bin->Format) {
   case PI_DEVICE_BINARY_TYPE_SPIRV:
     Bin->DeviceTargetSpec = PI_DEVICE_BINARY_TARGET_SPIRV64;
     break;
