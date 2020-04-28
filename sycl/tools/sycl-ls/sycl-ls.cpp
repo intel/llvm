@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 //
 // The "sycl-ls" utility lists all platforms/devices discovered by PI similar to
-// how lscl prints this for OpenCL devices.
+// how clinfo prints this for OpenCL devices.
 //
 // There are two types of output:
 //   concise (default) and
