@@ -119,7 +119,7 @@ In section 3.20 "Decoration", update or add
 [options="header"]
 |====
 2+^| Decoration	^| Enabling Capabilities
-| TBD | *AssumeTrueINTEL* +
+| 5630 | *AssumeTrueINTEL* +
 Applies to a _Condition_ of a _Boolean Type_. Allows an optimizer to assume that
 the provided _Condition_ is true.
 | *OptimizationHintsINTEL*
@@ -135,7 +135,7 @@ Modify Section 3.31, "Capability", adding these rows to the Capability table:
 [options="header"]
 |====
 2+^| Capability ^| Depends On
-| TBD | *OptimizationHintsINTEL* +
+| 5629 | *OptimizationHintsINTEL* +
 Allow to use AssumeTrueINTEL decoration and ExpectINTEL instruction |
 |====
 --
@@ -159,7 +159,7 @@ which shall be of _Integer_ or _Boolean_ type.
 | Capability:
 *OptimizationHintsINTEL*
 
-| 5 | TBD | <id> +
+| 5 | 5631 | <id> +
 Result Type | Result <id> | Value <id> | ExpectedValue <id>
 |=====
 
