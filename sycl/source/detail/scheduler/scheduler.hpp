@@ -558,9 +558,7 @@ protected:
     std::set<Command *> findDepsForReq(MemObjRecord *Record, Requirement *Req,
                                        const ContextImplPtr &Context);
 
-    void addEmptyCmdForHostTask(ExecCGCommand *Cmd,
-                                const std::unique_ptr<detail::CG> &CommandGroup,
-                                const QueueImplPtr &Queue);
+    void addEmptyCmdForHostTask(ExecCGCommand *Cmd, const QueueImplPtr &Queue);
 
   protected:
     /// Finds a command dependency corresponding to the record.

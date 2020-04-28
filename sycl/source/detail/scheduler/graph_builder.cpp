@@ -651,9 +651,8 @@ void Scheduler::GraphBuilder::markModifiedIfWrite(MemObjRecord *Record,
 }
 
 void Scheduler::GraphBuilder::addEmptyCmdForHostTask(
-    ExecCGCommand *Cmd, const std::unique_ptr<detail::CG> &CmdGroup,
-    const QueueImplPtr &Queue) {
-  const std::vector<Requirement *> &Reqs = CmdGroup->MRequirements;
+    ExecCGCommand *Cmd, const QueueImplPtr &Queue) {
+  const std::vector<Requirement *> &Reqs = Cmd->getCG()->MRequirements;
 
   EmptyCommand *EmptyCmd =
       new EmptyCommand(Scheduler::getInstance().getDefaultHostQueue());
@@ -745,7 +744,7 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
   }
 
   if (CGType == CG::CGTYPE::HOST_TASK_CODEPLAY)
-    addEmptyCmdForHostTask(NewCmd.get(), CommandGroup, Queue);
+    addEmptyCmdForHostTask(NewCmd.get(), Queue);
 
   if (MPrintOptionsArray[AfterAddCG])
     printGraphAsDot("after_addCG");

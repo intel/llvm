@@ -456,6 +456,8 @@ public:
   void printDot(std::ostream &Stream) const final;
   void emitInstrumentationData();
 
+  const std::unique_ptr<detail::CG> &getCG() const { return MCommandGroup; }
+
 private:
   cl_int enqueueImp() final;
 
