@@ -28,6 +28,9 @@
 
 #include <array>
 
+//CP
+#include <iostream>
+
 using namespace clang;
 
 using KernelParamKind = SYCLIntegrationHeader::kernel_param_kind_t;
@@ -283,6 +286,17 @@ void Sema::checkSYCLDeviceVarDecl(VarDecl *Var) {
   checkSYCLVarType(*this, Ty, Loc, Visited);
 }
 
+// The first four pair with the enumeration in CL/sycl/usm/usm_enums.hpp 
+enum UsmExpr {
+  Usm_Host,
+  Usm_Device,
+  Usm_Shared,
+  Unknown,
+
+  Not_Usm
+};
+
+
 class MarkDeviceFunction : public RecursiveASTVisitor<MarkDeviceFunction> {
 public:
   MarkDeviceFunction(Sema &S)
@@ -347,6 +361,71 @@ public:
     SemaRef.Diag(E->getExprLoc(), diag::err_sycl_restrict) << Sema::KernelRTTI;
     return true;
   }
+
+ 
+
+  //CP
+  bool VisitDeclRefExpr(DeclRefExpr *E) {
+    // Looks like the usm_shared_t thing won't work out.  
+    // Catches static casts of usm allocations, but not templated or single usm::malloc call, or allocators.
+    
+    ValueDecl *D = E->getDecl();
+    QualType Ty = D->getType();
+    if(Ty->isAnyPointerType() && E->refersToEnclosingVariableOrCapture()) {
+      VarDecl *DVar = dyn_cast<VarDecl>(D);
+      const Expr *Init = DVar->getAnyInitializer();
+      if(Init){
+        Init = Init->IgnoreCasts();
+        QualType InitTy = Init->getType();
+        SourceLocation DecLoc = Init->getExprLoc();
+        SourceRange   RefLoc = E->getSourceRange();
+        std::cout << "captured qualtype: " << InitTy.getAsString() << "\n" 
+        << "declared at: " <<  DecLoc.printToString(SemaRef.getSourceManager())
+        << " refereced at: " <<  RefLoc.printToString(SemaRef.getSourceManager()) << std::endl; 
+
+        UsmExpr  usesUSM = Unknown;
+
+        //function call
+        const CallExpr *CE = dyn_cast<CallExpr>(Init);
+        if(CE){
+          const FunctionDecl *func = CE->getDirectCallee();
+          auto FullName = func->getQualifiedNameAsString();
+          //Check to see if this function call is one of the USM allocators.
+          if((FullName.compare("cl::sycl::malloc_shared") == 0) || (FullName.compare("cl::sycl::aligned_alloc_shared") == 0))
+            usesUSM = Usm_Shared;
+          else if( (FullName.compare("cl::sycl::malloc_device") == 0) || (FullName.compare("cl::sycl::aligned_alloc_device") == 0))
+            usesUSM = Usm_Device;
+          else if((FullName.compare("cl::sycl::malloc_host") == 0) || (FullName.compare("cl::sycl::aligned_alloc_host") == 0))
+            usesUSM = Usm_Host;
+          else if((FullName.compare("cl::sycl::malloc") == 0) || (FullName.compare("cl::sycl::aligned_alloc") == 0)) {
+            auto LastArgIndex = CE->getNumArgs()-1;
+            if (LastArgIndex > 1){
+              const Expr* LastArgExpr = CE->getArg(LastArgIndex); //DeclRefExpr 0x555823c4a2f0 <col:74, col:96> 'cl::sycl::usm::alloc' EnumConstant 0x555823c1cca0 'shared' 'cl::sycl::usm::alloc'
+              const ValueDecl *LADecl = (dyn_cast<DeclRefExpr>(LastArgExpr))->getDecl();
+              if(LADecl){
+                const EnumConstantDecl *EnumDecl = dyn_cast<EnumConstantDecl>(LADecl);
+                if(EnumDecl)
+                  usesUSM = static_cast<UsmExpr>(EnumDecl->getInitVal().getExtValue());
+              }
+            }
+          }
+
+          //std::cout << "call expression. callee: " << func->getNameInfo()/*.getName()*/.getAsString() 
+          //<< " " <<  func->getQualifiedNameAsString() << std::endl;
+        }
+        //var usage
+
+        //diagnostics
+        //if(usesUSM == )
+
+
+      }
+    }
+    return true;
+  }
+    
+
+  
 
   // The call graph for this translation unit.
   CallGraph SYCLCG;
