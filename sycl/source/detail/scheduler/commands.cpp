@@ -189,28 +189,18 @@ class DispatchHostTask {
 
   // Lookup for empty command amongst users of this cmd
   static EmptyCommand *findUserEmptyCommand(Command *ThisCmd) {
-#ifndef NDEBUG
-    EmptyCommand *Result = nullptr;
-#endif
+    assert(ThisCmd->MUsers.size() == 1 &&
+           "Only a single user is expected for host task command");
 
-    for (Command *Cmd : ThisCmd->MUsers)
-      if (Cmd->getType() == Command::CommandType::EMPTY_TASK &&
-          Cmd->MIsBlockable &&
-          Cmd->MBlockReason == Command::BlockReason::HostTask) {
-#ifndef NDEBUG
-        assert(!Result &&
-               "Multiple empty commands in users of a single host task");
-        Result = static_cast<EmptyCommand *>(Cmd);
-#else
-        return static_cast<EmptyCommand *>(Cmd);
-#endif
-      }
+    Command *User = *ThisCmd->MUsers.begin();
 
-#ifndef NDEBUG
-    return Result;
-#else
-    return nullptr;
-#endif
+    assert(User->getType() == Command::CommandType::EMPTY_TASK &&
+           "Expected empty command as single user of host task command");
+    assert(User->MIsBlockable && "Empty command is expected to be blockable");
+    assert(User->MBlockReason == Command::BlockReason::HostTask &&
+           "Empty command is expected to be blocked due to host task");
+
+    return static_cast<EmptyCommand *>(User);
   }
 
 public:
