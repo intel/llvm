@@ -665,9 +665,13 @@ void ProgramManager::populateSpecConstRegistry() {
 RTDeviceBinaryImage &ProgramManager::getDeviceImage(OSModuleHandle M,
                                                     KernelSetId KSId,
                                                     const context &Context) {
-  if (DbgProgMgr > 0)
+  if (DbgProgMgr > 0){
     std::cerr << ">>> ProgramManager::getDeviceImage(" << M << ", \"" << KSId
               << "\", " << getRawSyclObjImpl(Context) << ")\n";
+
+    std::cerr << "available device images:\n";
+    debugPrintBinaryImages();
+  }
   std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
   std::vector<RTDeviceBinaryImageUPtr> &Imgs = *m_DeviceImages[KSId];
   const ContextImplPtr Ctx = getSyclObjImpl(Context);
@@ -689,8 +693,6 @@ RTDeviceBinaryImage &ProgramManager::getDeviceImage(OSModuleHandle M,
   Img = Imgs[ImgInd].get();
 
   if (DbgProgMgr > 0) {
-    std::cerr << "available device images:\n";
-    debugPrintBinaryImages();
     std::cerr << "selected device image: " << &Img->getRawData() << "\n";
     Img->print();
   }
@@ -992,7 +994,7 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
   Bin = new pi_device_binary_struct();
   Bin->Version = PI_DEVICE_BINARY_VERSION;
   Bin->Kind = PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL;
-  Bin->DeviceTargetSpec = PI_DEVICE_BINARY_TARGET_UNKNOWN;
+  Bin->DeviceTargetSpec = PI_DEVICE_BINARY_TARGET_SPIRV64;
   Bin->CompileOptions = "";
   Bin->LinkOptions = "";
   Bin->ManifestStart = nullptr;
