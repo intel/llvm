@@ -15,8 +15,8 @@
 
 #include <cstddef>
 #include <memory>
-#include <shared_mutex>
 #include <set>
+#include <shared_mutex>
 #include <vector>
 
 /// \defgroup sycl_graph DPC++ Execution Graph
