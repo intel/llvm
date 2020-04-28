@@ -661,7 +661,7 @@ protected:
   void waitForRecordToFinish(MemObjRecord *Record);
 
   GraphBuilder MGraphBuilder;
-  std::shared_timed_mutex SMGraphLock;
+  std::shared_timed_mutex MGraphLock;
 
   QueueImplPtr DefaultHostQueue;
 };
