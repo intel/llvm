@@ -20,7 +20,6 @@ namespace sycl {
 namespace detail {
 
 class Command;
-class Scheduler;
 
 // The class describes a requirement to access a SYCL memory object such as
 // sycl::buffer and sycl::image. For example, each accessor used in a kernel,
