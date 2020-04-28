@@ -111,7 +111,7 @@ The device descriptors below are added to the +info::device+ enumeration class:
 |Returns a vector_class of +size_t+ containing the set of sub-group sizes supported by the device.
 |===
 
-An additional query is added to the +kernel+ class, enabling an input value to be passed to `get_info`:
+An additional query is added to the +kernel+ class, enabling an input value to be passed to `get_info`.  The original `get_info` query from the SYCL_INTEL_device_specific_kernel_queries extension should be used for queries that do not specify an input type.
 
 |===
 |Member Functions|Description
