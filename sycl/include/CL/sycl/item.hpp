@@ -8,11 +8,14 @@
 
 #pragma once
 
+#include <CL/sycl/detail/defines.hpp>
 #include <CL/sycl/detail/helpers.hpp>
 #include <CL/sycl/detail/item_base.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/id.hpp>
 #include <CL/sycl/range.hpp>
+
+#include <cstddef>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -28,13 +31,25 @@ public:
 
   id<dimensions> get_id() const { return MImpl.MIndex; }
 
-  size_t get_id(int dimension) const { return MImpl.MIndex[dimension]; }
+  __SYCL_ID_TYPE get_id(int dimension) const {
+    size_t id = MImpl.MIndex[dimension];
+    __SYCL_ASSUME_INT(id);
+    return id;
+  }
 
-  size_t operator[](int dimension) const { return MImpl.MIndex[dimension]; }
+  __SYCL_ID_TYPE operator[](int dimension) const {
+    size_t id = MImpl.MIndex[dimension];
+    __SYCL_ASSUME_INT(id);
+    return id;
+  }
 
   range<dimensions> get_range() const { return MImpl.MExtent; }
 
-  size_t get_range(int dimension) const { return MImpl.MExtent[dimension]; }
+  __SYCL_ID_TYPE get_range(int dimension) const {
+    size_t id = MImpl.MExtent[dimension];
+    __SYCL_ASSUME_INT(id);
+    return id;
+  }
 
   template <bool has_offset = with_offset>
   detail::enable_if_t<has_offset, id<dimensions>> get_offset() const {
@@ -42,8 +57,11 @@ public:
   }
 
   template <bool has_offset = with_offset>
-  detail::enable_if_t<has_offset, size_t> get_offset(int dimension) const {
-    return MImpl.MOffset[dimension];
+  detail::enable_if_t<has_offset, __SYCL_ID_TYPE>
+  get_offset(int dimension) const {
+    size_t id = MImpl.MOffset[dimension];
+    __SYCL_ASSUME_INT(id);
+    return id;
   }
 
   template <bool has_offset = with_offset>
@@ -52,7 +70,11 @@ public:
         MImpl.MExtent, MImpl.MIndex, /*Offset*/ {});
   }
 
-  size_t get_linear_id() const { return MImpl.get_linear_id(); }
+  __SYCL_ID_TYPE get_linear_id() const {
+    size_t id = MImpl.get_linear_id();
+    __SYCL_ASSUME_INT(id);
+    return id;
+  }
 
   item(const item &rhs) = default;
 

@@ -19,6 +19,7 @@
 #include <CL/sycl/nd_range.hpp>
 #include <CL/sycl/range.hpp>
 
+#include <cstddef>
 #include <stdexcept>
 #include <type_traits>
 
@@ -33,16 +34,24 @@ public:
 
   id<dimensions> get_global_id() const { return globalItem.get_id(); }
 
-  size_t get_global_id(int dimension) const {
-    return globalItem.get_id(dimension);
+  __SYCL_ID_TYPE get_global_id(int dimension) const {
+    size_t id = globalItem.get_id(dimension);
+    __SYCL_ASSUME_INT(id);
+    return id;
   }
 
-  size_t get_global_linear_id() const { return globalItem.get_linear_id(); }
+  __SYCL_ID_TYPE get_global_linear_id() const {
+    size_t id = globalItem.get_linear_id();
+    __SYCL_ASSUME_INT(id);
+    return id;
+  }
 
   id<dimensions> get_local_id() const { return localItem.get_id(); }
 
-  size_t get_local_id(int dimension) const {
-    return localItem.get_id(dimension);
+  __SYCL_ID_TYPE get_local_id(int dimension) const {
+    size_t id = localItem.get_id(dimension);
+    __SYCL_ASSUME_INT(id);
+    return id;
   }
 
   size_t get_local_linear_id() const { return localItem.get_linear_id(); }
@@ -51,16 +60,27 @@ public:
 
   intel::sub_group get_sub_group() const { return intel::sub_group(); }
 
-  size_t get_group(int dimension) const { return Group[dimension]; }
+  __SYCL_ID_TYPE get_group(int dimension) const {
+    size_t size = Group[dimension];
+    __SYCL_ASSUME_INT(size);
+    return size;
+  }
 
-  size_t get_group_linear_id() const { return Group.get_linear_id(); }
+  __SYCL_ID_TYPE get_group_linear_id() const {
+    size_t id = Group.get_linear_id();
+    __SYCL_ASSUME_INT(id);
+    return id;
+  }
 
   range<dimensions> get_group_range() const {
     return Group.get_global_range() / Group.get_local_range();
   }
 
-  size_t get_group_range(int dimension) const {
-    return Group.get_global_range(dimension) / Group.get_local_range(dimension);
+  __SYCL_ID_TYPE get_group_range(int dimension) const {
+    size_t range =
+        Group.get_global_range(dimension) / Group.get_local_range(dimension);
+    __SYCL_ASSUME_INT(range);
+    return range;
   }
 
   range<dimensions> get_global_range() const { return globalItem.get_range(); }
