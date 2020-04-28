@@ -5078,6 +5078,13 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                                  options::OPT_fno_trigraphs))
       if (A != Std)
         A->render(Args, CmdArgs);
+  } else if (IsSYCL && types::isCXX(InputType)) {
+    // For DPC++, we default to -std=c++17 for all compilations.  Use of -std
+    // on the command line will override.
+    CmdArgs.push_back("-std=c++17");
+
+    Args.AddLastArg(CmdArgs, options::OPT_ftrigraphs,
+                    options::OPT_fno_trigraphs);
   } else {
     // Honor -std-default.
     //
