@@ -1995,7 +1995,7 @@ cl_int ExecCGCommand::enqueueImp() {
     }
 
     MQueue->getThreadPool().submit<DispatchHostTask>(std::move(DispatchHostTask(
-        EventImpls, MPreparedHostDepsEvents, HostTask, MDeps, MEvent)));
+        MPreparedDepsEvents, MPreparedHostDepsEvents, HostTask, MDeps, MEvent)));
 
     return CL_SUCCESS;
   }
