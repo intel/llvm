@@ -286,13 +286,10 @@ void Sema::checkSYCLDeviceVarDecl(VarDecl *Var) {
   checkSYCLVarType(*this, Ty, Loc, Visited);
 }
 
-// The first four pair with the enumeration in CL/sycl/usm/usm_enums.hpp 
+ 
 enum UsmExpr {
-  Usm_Host,
-  Usm_Device,
-  Usm_Shared,
   Unknown,
-
+  Uses_Usm,
   Not_Usm
 };
 
@@ -391,6 +388,11 @@ public:
           const FunctionDecl *func = CE->getDirectCallee();
           auto FullName = func->getQualifiedNameAsString();
           //Check to see if this function call is one of the USM allocators.
+          if( (FullName.rfind("cl::sycl::malloc", 0) == 0) || (FullName.rfind("cl::sycl::aligned_alloc", 0) == 0))
+            usesUSM = Uses_Usm;
+          else if ( (FullName.compare("malloc")==0) || (FullName.compare("calloc")==0) )
+            usesUSM = Not_Usm;
+/*
           if((FullName.compare("cl::sycl::malloc_shared") == 0) || (FullName.compare("cl::sycl::aligned_alloc_shared") == 0))
             usesUSM = Usm_Shared;
           else if( (FullName.compare("cl::sycl::malloc_device") == 0) || (FullName.compare("cl::sycl::aligned_alloc_device") == 0))
@@ -399,24 +401,30 @@ public:
             usesUSM = Usm_Host;
           else if((FullName.compare("cl::sycl::malloc") == 0) || (FullName.compare("cl::sycl::aligned_alloc") == 0)) {
             auto LastArgIndex = CE->getNumArgs()-1;
-            if (LastArgIndex > 1){
-              const Expr* LastArgExpr = CE->getArg(LastArgIndex); //DeclRefExpr 0x555823c4a2f0 <col:74, col:96> 'cl::sycl::usm::alloc' EnumConstant 0x555823c1cca0 'shared' 'cl::sycl::usm::alloc'
+            if (LastArgIndex > 0){
+              const Expr* LastArgExpr = CE->getArg(LastArgIndex); //e.g. DeclRefExpr 'cl::sycl::usm::alloc' EnumConstant  'shared' 'cl::sycl::usm::alloc'
               const ValueDecl *LADecl = (dyn_cast<DeclRefExpr>(LastArgExpr))->getDecl();
               if(LADecl){
                 const EnumConstantDecl *EnumDecl = dyn_cast<EnumConstantDecl>(LADecl);
-                if(EnumDecl)
+                if(EnumDecl) {
                   usesUSM = static_cast<UsmExpr>(EnumDecl->getInitVal().getExtValue());
+                }
               }
             }
           }
+*/
 
-          //std::cout << "call expression. callee: " << func->getNameInfo()/*.getName()*/.getAsString() 
-          //<< " " <<  func->getQualifiedNameAsString() << std::endl;
+          std::cout << "call expression. callee: " << func->getNameInfo()/*.getName()*/.getAsString() 
+          << " " <<  func->getQualifiedNameAsString() << std::endl;
         }
         //var usage
 
         //diagnostics
-        //if(usesUSM == )
+        std::cout << "usesUSM: " << usesUSM << std::endl;
+        if(usesUSM == Not_Usm){
+          SemaRef.Diag(RefLoc.getBegin(), diag::err_sycl_illegal_memory_reference);
+          SemaRef.Diag(DecLoc, diag::note_sycl_capture_declared_here);
+        }
 
 
       }
