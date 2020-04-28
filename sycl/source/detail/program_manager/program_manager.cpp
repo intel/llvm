@@ -665,7 +665,7 @@ void ProgramManager::populateSpecConstRegistry() {
 RTDeviceBinaryImage &ProgramManager::getDeviceImage(OSModuleHandle M,
                                                     KernelSetId KSId,
                                                     const context &Context) {
-  if (DbgProgMgr > 0){
+  if (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::getDeviceImage(" << M << ", \"" << KSId
               << "\", " << getRawSyclObjImpl(Context) << ")\n";
 
