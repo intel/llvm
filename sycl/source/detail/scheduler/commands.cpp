@@ -1325,7 +1325,7 @@ void EmptyCommand::emitInstrumentationData() {
 
   Requirement &Req = *MRequirements.begin();
 
-  MAddress = Req->MSYCLMemObj;
+  MAddress = Req.MSYCLMemObj;
   makeTraceEventProlog(MAddress);
 
   if (MFirstInstance) {
