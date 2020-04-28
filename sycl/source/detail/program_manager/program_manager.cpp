@@ -85,7 +85,7 @@ static RT::PiProgram createBinaryProgram(const ContextImplPtr Context,
 
   RT::PiProgram Program;
 
-  if (Context->getPlatformImpl()->is_cuda()) {
+  if (Context->getPlugin().getBackend() == backend::cuda) {
     // TODO: Reemplace CreateWithSource with CreateWithBinary in CUDA backend
     const char *SignedData = reinterpret_cast<const char *>(Data);
     Plugin.call<PiApiKind::piclProgramCreateWithSource>(Context->getHandleRef(), 1 /*one binary*/, &SignedData,

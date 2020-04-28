@@ -194,6 +194,14 @@ pi_result OCL(piDevicesGet)(pi_platform platform, pi_device_type device_type,
     *num_devices = 0;
     result = PI_SUCCESS;
   }
+
+  // Absorb the CL_INVALID_DEVICE_TYPE error when the device type is
+  // not supported in some platforms and just return 0 in num_devices
+  if (result == CL_INVALID_DEVICE_TYPE) {
+    assert(num_devices != 0);
+    *num_devices = 0;
+    result = PI_SUCCESS;
+  }
   return cast<pi_result>(result);
 }
 

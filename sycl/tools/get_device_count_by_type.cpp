@@ -8,6 +8,7 @@
 
 #include <CL/cl.h>
 #include <CL/cl_ext.h>
+#include <cstring>
 
 #ifdef USE_PI_CUDA
 #include <cuda.h>
@@ -82,6 +83,18 @@ static bool queryOpenCL(cl_device_type deviceType, cl_uint &deviceCount,
   }
 
   for (cl_uint i = 0; i < platformCount; i++) {
+
+    const size_t MAX_PLATFORM_VENDOR = 100u;
+    char info[MAX_PLATFORM_VENDOR];
+    // get platform attribute value
+    clGetPlatformInfo(platforms[i], CL_PLATFORM_VENDOR, MAX_PLATFORM_VENDOR,
+                      info, NULL);
+    auto IsNVIDIAOpenCL = strstr(info, "NVIDIA") != NULL;
+    if (IsNVIDIAOpenCL) {
+      // Ignore NVIDIA OpenCL platform for testing
+      continue;
+    }
+
     cl_uint deviceCountPart = 0;
     iRet =
         clGetDeviceIDs(platforms[i], deviceType, 0, nullptr, &deviceCountPart);

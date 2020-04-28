@@ -11,6 +11,7 @@
 #include <CL/sycl/device_selector.hpp>
 #include <CL/sycl/exception.hpp>
 #include <CL/sycl/stl.hpp>
+#include <detail/config.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/force_device.hpp>
 // 4.6.1 Device selection class
@@ -28,11 +29,60 @@ static bool isDeviceOfPreferredSyclBe(const device &Device) {
          backend::opencl;
 }
 
+// @return True if the device is invalid for the current backend preferences
+static bool isDeviceInvalidForBe(const device &Device) {
+
+  if (Device.is_host())
+    return false;
+
+  // Taking the version information from the platform gives us more useful
+  // information than the driver_version of the device.
+  const platform platform = Device.get_info<info::device::platform>();
+  const std::string platformVersion =
+      platform.get_info<info::platform::version>();
+
+  backend *BackendPref = detail::SYCLConfig<detail::SYCL_BE>::get();
+  auto BackendType = detail::getSyclObjImpl(Device)->getPlugin().getBackend();
+  static_assert(std::is_same<backend, decltype(BackendType)>(),
+                "Type is not the same");
+
+  // If no preference, assume OpenCL and reject CUDA backend
+  if (BackendType == backend::cuda && !BackendPref) {
+    return true;
+  } else if (!BackendPref)
+    return false;
+
+  // If using PI_CUDA, don't accept a non-CUDA device
+  if (BackendType == backend::opencl && *BackendPref == backend::cuda)
+    return true;
+
+  // If using PI_OPENCL, don't accept a non-OpenCL device
+  if (BackendType == backend::cuda && *BackendPref == backend::opencl)
+    return true;
+
+  return false;
+}
+
 device device_selector::select_device() const {
   vector_class<device> devices = device::get_devices();
   int score = -1;
   const device *res = nullptr;
   for (const auto &dev : devices) {
+
+    // Reject the NVIDIA OpenCL platform
+    if (!dev.is_host()) {
+      string_class PlatformName = dev.get_info<info::device::platform>()
+                                      .get_info<info::platform::name>();
+      const bool IsCUDAPlatform =
+          PlatformName.find("CUDA") != std::string::npos;
+
+      if (detail::getSyclObjImpl(dev)->getPlugin().getBackend() ==
+              backend::opencl &&
+          IsCUDAPlatform) {
+        continue;
+      }
+    }
+
     int dev_score = (*this)(dev);
     if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL)) {
       string_class PlatformVersion = dev.get_info<info::device::platform>()
@@ -81,6 +131,9 @@ int default_selector::operator()(const device &dev) const {
 
   int Score = -1;
 
+  if (isDeviceInvalidForBe(dev))
+    return -1;
+
   // Give preference to device of SYCL BE.
   if (isDeviceOfPreferredSyclBe(dev))
     Score = 50;
@@ -103,19 +156,28 @@ int default_selector::operator()(const device &dev) const {
 
 int gpu_selector::operator()(const device &dev) const {
   int Score = -1;
+
+  if (isDeviceInvalidForBe(dev))
+    return -1;
+
   if (dev.is_gpu()) {
     Score = 1000;
     // Give preference to device of SYCL BE.
     if (isDeviceOfPreferredSyclBe(dev))
-      Score += 50;
+      Score = 50;
   }
   return Score;
 }
 
 int cpu_selector::operator()(const device &dev) const {
   int Score = -1;
+
+  if (isDeviceInvalidForBe(dev))
+    return -1;
+
   if (dev.is_cpu()) {
     Score = 1000;
+
     // Give preference to device of SYCL BE.
     if (isDeviceOfPreferredSyclBe(dev))
       Score += 50;
@@ -125,6 +187,10 @@ int cpu_selector::operator()(const device &dev) const {
 
 int accelerator_selector::operator()(const device &dev) const {
   int Score = -1;
+
+  if (isDeviceInvalidForBe(dev))
+    return -1;
+
   if (dev.is_accelerator()) {
     Score = 1000;
     // Give preference to device of SYCL BE.
@@ -139,8 +205,10 @@ int host_selector::operator()(const device &dev) const {
   if (dev.is_host()) {
     Score = 1000;
     // Give preference to device of SYCL BE.
-    if (isDeviceOfPreferredSyclBe(dev))
+    if (isDeviceOfPreferredSyclBe(dev)) {
       Score += 50;
+    } else if (isDeviceInvalidForBe(dev))
+      return -1;
   }
   return Score;
 }
