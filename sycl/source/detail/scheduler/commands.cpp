@@ -1979,24 +1979,18 @@ cl_int ExecCGCommand::enqueueImp() {
   case CG::CGTYPE::CODEPLAY_HOST_TASK: {
     CGHostTask *HostTask = static_cast<CGHostTask *>(MCommandGroup.get());
 
-    size_t ArgIdx = 0, ReqIdx = 0;
-    while (ArgIdx < HostTask->MArgs.size()) {
-      ArgDesc &Arg = HostTask->MArgs[ArgIdx];
-
+    for (ArgDesc &Arg : HostTask->MArgs) {
       switch (Arg.MType) {
       case kernel_param_kind_t::kind_accessor: {
         Requirement *Req = static_cast<Requirement *>(Arg.MPtr);
         AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
 
         Req->MData = AllocaCmd->getMemAllocation();
-        ++ReqIdx;
         break;
       }
       default:
         throw std::runtime_error("Yet unsupported arg type");
       }
-
-      ++ArgIdx;
     }
 
     MQueue->getThreadPool().submit<DispatchHostTask>(std::move(DispatchHostTask(
