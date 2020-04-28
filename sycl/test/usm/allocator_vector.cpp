@@ -30,12 +30,7 @@ int main() {
   auto dev = q.get_device();
   auto ctxt = q.get_context();
 
-  if (!(dev.get_info<info::device::usm_host_allocations>() &&
-        dev.get_info<info::device::usm_device_allocations>() &&
-        dev.get_info<info::device::usm_shared_allocations>()))
-    return 0;
-
-  {
+  if (dev.get_info<info::device::usm_host_allocations>()) {
     usm_allocator<int, usm::alloc::host> alloc(ctxt, dev);
 
     std::vector<int, decltype(alloc)> vec(alloc);
@@ -64,7 +59,7 @@ int main() {
       return -1;
   }
 
-  {
+  if (dev.get_info<info::device::usm_shared_allocations>()) {
     usm_allocator<int, usm::alloc::shared> alloc(ctxt, dev);
 
     std::vector<int, decltype(alloc)> vec(alloc);
@@ -93,7 +88,7 @@ int main() {
       return -1;
   }
 
-  {
+  if (dev.get_info<info::device::usm_device_allocations>()) {
     usm_allocator<int, usm::alloc::device> alloc(ctxt, dev);
 
     std::vector<int, decltype(alloc)> vec(alloc);
