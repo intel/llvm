@@ -30,12 +30,6 @@ float frexpf(float x, int *exp) { return __devicelib_frexpf(x, exp); }
 
 DEVICE_EXTERN_C
 float ldexpf(float x, int exp) { return __devicelib_ldexpf(x, exp); }
-
-DEVICE_EXTERN_C
-float hypotf(float x, float y) { return __devicelib_hypotf(x, y); }
-#else
-DEVICE_EXTERN_C
-float _hypotf(float x, float y) { return __devicelib_hypotf(x, y); }
 #endif
 
 DEVICE_EXTERN_C
@@ -67,6 +61,11 @@ float sqrtf(float x) { return __devicelib_sqrtf(x); }
 
 DEVICE_EXTERN_C
 float cbrtf(float x) { return __devicelib_cbrtf(x); }
+
+#ifndef _WIN32
+DEVICE_EXTERN_C
+float hypotf(float x, float y) { return __devicelib_hypotf(x, y); }
+#endif
 
 DEVICE_EXTERN_C
 float erff(float x) { return __devicelib_erff(x); }
@@ -366,4 +365,6 @@ float _FSinh(float x, float y) { // compute y * sinh(x), |y| <= 1
   }
 }
 
+DEVICE_EXTERN_C
+float _hypotf(float x, float y) { return __devicelib_hypotf(x, y); }
 #endif
