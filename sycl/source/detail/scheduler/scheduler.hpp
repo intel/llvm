@@ -15,7 +15,7 @@
 
 #include <cstddef>
 #include <memory>
-#include <mutex>
+#include <shared_mutex>
 #include <set>
 #include <vector>
 
@@ -661,8 +661,7 @@ protected:
   void waitForRecordToFinish(MemObjRecord *Record);
 
   GraphBuilder MGraphBuilder;
-  // TODO Use read-write mutex in future.
-  std::mutex MGraphLock;
+  std::shared_timed_mutex SMGraphLock;
 
   QueueImplPtr DefaultHostQueue;
 };

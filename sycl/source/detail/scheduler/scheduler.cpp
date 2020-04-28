@@ -20,12 +20,6 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
-EventImplPtr addHostAccessorToSchedulerInstance(Requirement *Req,
-                                                const bool destructor) {
-  return cl::sycl::detail::Scheduler::getInstance().
-                                              addHostAccessor(Req, destructor);
-}
-
 void Scheduler::waitForRecordToFinish(MemObjRecord *Record) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // Will contain the list of dependencies for the Release Command
@@ -72,7 +66,7 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
   Command *NewCmd = nullptr;
   const bool IsKernel = CommandGroup->getType() == CG::KERNEL;
   {
-    std::lock_guard<std::mutex> Lock(MGraphLock);
+    std::lock_guard<std::shared_timed_mutex> Lock(SMGraphLock);
 
     switch (CommandGroup->getType()) {
     case CG::UPDATE_HOST:
@@ -97,7 +91,7 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
 }
 
 EventImplPtr Scheduler::addCopyBack(Requirement *Req) {
-  std::lock_guard<std::mutex> lock(MGraphLock);
+  std::lock_guard<std::shared_timed_mutex> Lock(SMGraphLock);
   Command *NewCmd = MGraphBuilder.addCopyBack(Req);
   // Command was not creted because there were no operations with
   // buffer.
@@ -131,16 +125,17 @@ Scheduler &Scheduler::getInstance() {
 }
 
 std::vector<EventImplPtr> Scheduler::getWaitList(EventImplPtr Event) {
-  std::lock_guard<std::mutex> lock(MGraphLock);
+  std::shared_lock<std::shared_timed_mutex> Lock(SMGraphLock);
   return GraphProcessor::getWaitList(std::move(Event));
 }
 
 void Scheduler::waitForEvent(EventImplPtr Event) {
+  std::shared_lock<std::shared_timed_mutex> Lock(SMGraphLock);
   GraphProcessor::waitForEvent(std::move(Event));
 }
 
 void Scheduler::cleanupFinishedCommands(EventImplPtr FinishedEvent) {
-  std::lock_guard<std::mutex> lock(MGraphLock);
+  std::unique_lock<std::shared_timed_mutex> Lock(SMGraphLock, std::try_to_lock);
   Command *FinishedCmd = static_cast<Command *>(FinishedEvent->getCommand());
   // The command might have been cleaned up (and set to nullptr) by another
   // thread
@@ -149,7 +144,7 @@ void Scheduler::cleanupFinishedCommands(EventImplPtr FinishedEvent) {
 }
 
 void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
-  std::lock_guard<std::mutex> lock(MGraphLock);
+  std::lock_guard<std::shared_timed_mutex> Lock(SMGraphLock);
 
   MemObjRecord *Record = MGraphBuilder.getMemObjRecord(MemObj);
   if (!Record)
@@ -163,7 +158,7 @@ void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
 
 EventImplPtr Scheduler::addHostAccessor(Requirement *Req,
                                         const bool destructor) {
-  std::lock_guard<std::mutex> lock(MGraphLock);
+  std::lock_guard<std::shared_timed_mutex> Lock(SMGraphLock);
 
   Command *NewCmd = MGraphBuilder.addHostAccessor(Req, destructor);
 
@@ -177,6 +172,7 @@ EventImplPtr Scheduler::addHostAccessor(Requirement *Req,
 }
 
 void Scheduler::releaseHostAccessor(Requirement *Req) {
+  std::shared_lock<std::shared_timed_mutex> Lock(SMGraphLock);
   Req->MBlockedCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
   MemObjRecord* Record = Req->MSYCLMemObj->MRecord.get();
   auto EnqueueLeaves = [](CircularBuffer<Command *> &Leaves) {
