@@ -667,7 +667,7 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
 
   EmptyCommand *EmptyCmd = nullptr;
 
-  if (CGType == CG::CGTYPE::CODEPLAY_HOST_TASK) {
+  if (CGType == CG::CGTYPE::HOST_TASK_CODEPLAY) {
     EmptyCmd = new EmptyCommand(Scheduler::getInstance().getDefaultHostQueue());
 
     if (!EmptyCmd)
@@ -705,12 +705,12 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
     for (Command *Dep : Deps)
       NewCmd->addDep(DepDesc{Dep, Req, AllocaCmd});
 
-    if (CGType == CG::CGTYPE::CODEPLAY_HOST_TASK) {
+    if (CGType == CG::CGTYPE::HOST_TASK_CODEPLAY) {
       EmptyCmd->addRequirement(NewCmd.get(), AllocaCmd, Req);
     }
   }
 
-  if (CGType == CG::CGTYPE::CODEPLAY_HOST_TASK) {
+  if (CGType == CG::CGTYPE::HOST_TASK_CODEPLAY) {
     NewCmd->addUser(EmptyCmd);
   }
 
@@ -726,7 +726,7 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
     updateLeaves({Dep.MDepCommand}, Record, Req->MAccessMode);
     addNodeToLeaves(Record, NewCmd.get(), Req->MAccessMode);
 
-    if (CGType == CG::CGTYPE::CODEPLAY_HOST_TASK) {
+    if (CGType == CG::CGTYPE::HOST_TASK_CODEPLAY) {
       updateLeaves({NewCmd.get()}, Record, Req->MAccessMode);
       addNodeToLeaves(Record, EmptyCmd, Req->MAccessMode);
     }
@@ -895,7 +895,7 @@ void Scheduler::GraphBuilder::connectDepEvent(
         std::move(HT), /* Args = */ {}, /* ArgsStorage = */ {},
         /* AccStorage = */ {}, /* SharedPtrStorage = */ {},
         /* Requirements = */ {}, /* DepEvents = */ {DepEvent},
-        CG::CODEPLAY_HOST_TASK, /* Payload */ {}));
+        CG::HOST_TASK_CODEPLAY, /* Payload */ {}));
     ConnectCmd = new ExecCGCommand(
         std::move(ConnectCG), Scheduler::getInstance().getDefaultHostQueue());
   }

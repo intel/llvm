@@ -77,7 +77,7 @@ event handler::finalize(const cl::sycl::detail::code_location &Payload) {
         std::move(MSharedPtrStorage), std::move(MRequirements),
         std::move(MEvents), Payload));
     break;
-  case detail::CG::CODEPLAY_HOST_TASK:
+  case detail::CG::HOST_TASK_CODEPLAY:
     CommandGroup.reset(new detail::CGHostTask(
         std::move(MHostTask), /*MQueue,*/ std::move(MArgs),
         std::move(MArgsStorage), std::move(MAccStorage),

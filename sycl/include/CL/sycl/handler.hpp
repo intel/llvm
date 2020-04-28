@@ -705,7 +705,7 @@ public:
 
     MHostTask.reset(new detail::HostTask(std::move(Func)));
 
-    MCGType = detail::CG::CODEPLAY_HOST_TASK;
+    MCGType = detail::CG::HOST_TASK_CODEPLAY;
   }
 
   /// Defines and invokes a SYCL kernel function for the specified range and

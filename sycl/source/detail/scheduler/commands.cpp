@@ -1428,7 +1428,7 @@ static std::string cgTypeToString(detail::CG::CGTYPE Type) {
   case detail::CG::PREFETCH_USM:
     return "prefetch usm";
     break;
-  case detail::CG::CODEPLAY_HOST_TASK:
+  case detail::CG::HOST_TASK_CODEPLAY:
     return "host task";
     break;
   default:
@@ -1975,7 +1975,7 @@ cl_int ExecCGCommand::enqueueImp() {
 
     return CL_SUCCESS;
   }
-  case CG::CGTYPE::CODEPLAY_HOST_TASK: {
+  case CG::CGTYPE::HOST_TASK_CODEPLAY: {
     CGHostTask *HostTask = static_cast<CGHostTask *>(MCommandGroup.get());
 
     for (ArgDesc &Arg : HostTask->MArgs) {
