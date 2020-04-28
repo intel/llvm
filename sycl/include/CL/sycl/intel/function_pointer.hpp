@@ -81,7 +81,7 @@ device_func_ptr_holder_t get_device_func_ptr(FuncType F, const char *FuncName,
         PI_INVALID_OPERATION);
   }
 
-  return detail::getDeviceFunctionPointerImpl(D, P, FuncName);
+  return sycl::detail::getDeviceFunctionPointerImpl(D, P, FuncName);
 }
 } // namespace intel
 } // namespace sycl
