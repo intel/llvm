@@ -239,6 +239,10 @@ template <typename T, typename R>
 using is_float_to_float =
     std::integral_constant<bool, detail::is_floating_point<T>::value &&
                                      detail::is_floating_point<R>::value>;
+template <typename T>
+using is_standart_type =
+    std::integral_constant<bool, detail::is_sgentype<T>::value &&
+    !std::is_same<T, long long>::value && !std::is_same<T, unsigned long long>::value>;
 
 template <typename T, typename R, rounding_mode roundingMode, typename OpenCLT, typename OpenCLR>
 detail::enable_if_t<std::is_same<T, R>::value, R> convertImpl(T Value) {
@@ -326,7 +330,7 @@ using Rtn = detail::bool_constant<Mode == rounding_mode::rtn>;
           (std::is_same<OpenCLR, DestType>::value ||                          \
           std::is_same<OpenCLR, signed char>::value &&                        \
           std::is_same<DestType, char>::value) &&                               \
-          !std::is_same<OpenCLT, OpenCLR>::value,                               \
+          !std::is_same<OpenCLT, OpenCLR>::value,                                \
       R>                                                                       \
   convertImpl(T Value) {                                                       \
     OpenCLT OpValue = cl::sycl::detail::convertDataToType<T, OpenCLT>(Value);  \
@@ -337,6 +341,7 @@ __SYCL_GENERATE_CONVERT_IMPL(char)
 __SYCL_GENERATE_CONVERT_IMPL(short)
 __SYCL_GENERATE_CONVERT_IMPL(int)
 __SYCL_GENERATE_CONVERT_IMPL(long)
+__SYCL_GENERATE_CONVERT_IMPL(longlong)
 
 #undef __SYCL_GENERATE_CONVERT_IMPL
 
@@ -465,6 +470,14 @@ __SYCL_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE(rtn, Rtn)
 
 #undef __SYCL_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE
 #undef __SYCL_GENERATE_CONVERT_IMPL
+
+  template <typename T, typename R, rounding_mode roundingMode, typename OpenCLT, typename OpenCLR>
+  detail::enable_if_t<
+      !is_standart_type<OpenCLT>::value || !is_standart_type<OpenCLR>::value,
+      R>
+  convertImpl(T Value) {
+    return static_cast<R>(Value);
+  }
 
 #endif // __SYCL_DEVICE_ONLY__
 
