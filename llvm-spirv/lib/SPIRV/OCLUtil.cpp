@@ -902,6 +902,46 @@ void checkFpContract(BinaryOperator *B, SPIRVBasicBlock *BB) {
     }
   }
 }
+
+std::string getIntelSubgroupBlockDataPostfix(unsigned ElementBitSize,
+                                             unsigned VectorNumElements) {
+  std::ostringstream OSS;
+  switch (ElementBitSize) {
+  case 8:
+    OSS << "_uc";
+    break;
+  case 16:
+    OSS << "_us";
+    break;
+  case 32:
+    // Intentionally does nothing since _ui variant is only an alias.
+    break;
+  case 64:
+    OSS << "_ul";
+    break;
+  default:
+    llvm_unreachable(
+        "Incorrect data bitsize for intel_subgroup_block builtins");
+  }
+  switch (VectorNumElements) {
+  case 1:
+    break;
+  case 2:
+  case 4:
+  case 8:
+    OSS << VectorNumElements;
+    break;
+  case 16:
+    assert(ElementBitSize == 8 &&
+           "16 elements vector allowed only for char builtins");
+    OSS << VectorNumElements;
+    break;
+  default:
+    llvm_unreachable(
+        "Incorrect vector length for intel_subgroup_block builtins");
+  }
+  return OSS.str();
+}
 } // namespace OCLUtil
 
 void llvm::mangleOpenClBuiltin(const std::string &UniqName,

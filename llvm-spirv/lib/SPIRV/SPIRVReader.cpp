@@ -1976,20 +1976,23 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
       // Fastpath
       switch (ColNum) {
       case 2: {
-        Value *V1 = Builder.CreateShuffleVector(MCache[0], MCache[1], ArrayRef<int>({0, 2}));
+        Value *V1 = Builder.CreateShuffleVector(MCache[0], MCache[1],
+                                                ArrayRef<int>({0, 2}));
         V = Builder.CreateInsertValue(V, V1, 0);
-        Value *V2 = Builder.CreateShuffleVector(MCache[0], MCache[1], ArrayRef<int>({1, 3}));
+        Value *V2 = Builder.CreateShuffleVector(MCache[0], MCache[1],
+                                                ArrayRef<int>({1, 3}));
         V = Builder.CreateInsertValue(V, V2, 1);
         return mapValue(BV, V);
       }
 
       case 4: {
-        for (unsigned Idx = 0; Idx < 4; ++Idx) {
-          Value *V1 =
-              Builder.CreateShuffleVector(MCache[0], MCache[1], ArrayRef<uint32_t>({Idx, Idx + 4}));
-          Value *V2 =
-              Builder.CreateShuffleVector(MCache[2], MCache[3], ArrayRef<uint32_t>({Idx, Idx + 4}));
-          Value *V3 = Builder.CreateShuffleVector(V1, V2, ArrayRef<uint32_t>({0, 1, 2, 3}));
+        for (int Idx = 0; Idx < 4; ++Idx) {
+          Value *V1 = Builder.CreateShuffleVector(
+              MCache[0], MCache[1], ArrayRef<int>({Idx, Idx + 4}));
+          Value *V2 = Builder.CreateShuffleVector(
+              MCache[2], MCache[3], ArrayRef<int>({Idx, Idx + 4}));
+          Value *V3 =
+              Builder.CreateShuffleVector(V1, V2, ArrayRef<int>({0, 1, 2, 3}));
           V = Builder.CreateInsertValue(V, V3, Idx);
         }
         return mapValue(BV, V);
@@ -2815,14 +2818,12 @@ std::string SPIRVToLLVM::getOCLBuiltinName(SPIRVInstruction *BI) {
     default:
       return OCLSPIRVBuiltinMap::rmap(OC);
     }
-    if (DataTy) {
-      if (DataTy->getBitWidth() == 16)
-        Name << "_us";
-      if (DataTy->isTypeVector()) {
-        if (unsigned ComponentCount = DataTy->getVectorComponentCount())
-          Name << ComponentCount;
-      }
-    }
+    assert(DataTy && "Intel subgroup block builtins should have data type");
+    unsigned VectorNumElements = 1;
+    if (DataTy->isTypeVector())
+      VectorNumElements = DataTy->getVectorComponentCount();
+    unsigned ElementBitSize = DataTy->getBitWidth();
+    Name << getIntelSubgroupBlockDataPostfix(ElementBitSize, VectorNumElements);
     return Name.str();
   }
   if (isSubgroupAvcINTELInstructionOpCode(OC))
@@ -3695,7 +3696,9 @@ std::unique_ptr<SPIRVModule> readSpirvModule(std::istream &IS,
 } // namespace SPIRV
 
 std::unique_ptr<Module>
-llvm::convertSpirvToLLVM(LLVMContext &C, SPIRVModule &BM, std::string &ErrMsg) {
+llvm::convertSpirvToLLVM(LLVMContext &C, SPIRVModule &BM,
+                         const SPIRV::TranslatorOpts &Opts,
+                         std::string &ErrMsg) {
   std::unique_ptr<Module> M(new Module("", C));
   SPIRVToLLVM BTL(M.get(), &BM);
 
@@ -3704,11 +3707,22 @@ llvm::convertSpirvToLLVM(LLVMContext &C, SPIRVModule &BM, std::string &ErrMsg) {
     return nullptr;
   }
 
-  llvm::legacy::PassManager PassMgr;
-  PassMgr.add(createSPIRVToOCL(*M));
-  PassMgr.run(*M);
+  llvm::ModulePass *LoweringPass =
+      createSPIRVBIsLoweringPass(*M, Opts.getDesiredBIsRepresentation());
+  if (LoweringPass) {
+    // nullptr means no additional lowering is required
+    llvm::legacy::PassManager PassMgr;
+    PassMgr.add(LoweringPass);
+    PassMgr.run(*M);
+  }
 
   return M;
+}
+
+std::unique_ptr<Module>
+llvm::convertSpirvToLLVM(LLVMContext &C, SPIRVModule &BM, std::string &ErrMsg) {
+  SPIRV::TranslatorOpts DefaultOpts;
+  return llvm::convertSpirvToLLVM(C, BM, DefaultOpts, ErrMsg);
 }
 
 bool llvm::readSpirv(LLVMContext &C, std::istream &IS, Module *&M,
@@ -3727,7 +3741,7 @@ bool llvm::readSpirv(LLVMContext &C, const SPIRV::TranslatorOpts &Opts,
   if (!BM)
     return false;
 
-  M = convertSpirvToLLVM(C, *BM, ErrMsg).release();
+  M = convertSpirvToLLVM(C, *BM, Opts, ErrMsg).release();
 
   if (!M)
     return false;

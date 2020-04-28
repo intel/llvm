@@ -13,7 +13,7 @@ void tmpl(T *t){}
 void usages() {
   __attribute__((opencl_global)) int *GLOB;
   __attribute__((opencl_private)) int *PRIV;
-  __attribute__((address_space(3))) int *LOC;
+  __attribute__((opencl_local)) int *LOC;
   int *NoAS;
 
   bar(*GLOB);
@@ -53,10 +53,6 @@ void usages() {
 
   // expected-error@+1{{address space is negative}}
   __attribute__((address_space(-1))) int *TooLow;
-  // expected-error@+1{{address space is outside the valid range of values}}
-  __attribute__((address_space(6))) int *TooHigh;
-  // expected-error@+1{{address space is outside the valid range of values}}
-  __attribute__((address_space(4))) int *TriedGeneric;
   // expected-error@+1{{unknown type name '__generic'}}
   __generic int *IsGeneric;
 

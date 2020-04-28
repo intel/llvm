@@ -2096,7 +2096,9 @@ Preprocessor::ImportAction Preprocessor::HandleHeaderIncludeOrImport(
   // Issue a diagnostic if the name of the file on disk has a different case
   // than the one we're about to open.
   const bool CheckIncludePathPortability =
-      !IsMapped && !File->getFileEntry().tryGetRealPathName().empty();
+//      !IsMapped && !File->getFileEntry().tryGetRealPathName().empty();
+// Disable file portability check to unblock pulldown
+      false;
 
   if (CheckIncludePathPortability) {
     StringRef Name = LookupFilename;

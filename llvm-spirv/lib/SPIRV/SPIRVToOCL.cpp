@@ -52,11 +52,6 @@ static cl::opt<std::string>
                                 cl::desc("Mangled atomic type name prefix"),
                                 cl::init("U7_Atomic"));
 
-static cl::opt<std::string>
-    OCLBuiltinsVersion("spirv-ocl-builtins-version",
-                       cl::desc("Specify version of OCL builtins to translate "
-                                "to (CL1.2, CL2.0, CL2.1)"));
-
 void SPIRVToOCL::visitCallInst(CallInst &CI) {
   LLVM_DEBUG(dbgs() << "[visistCallInst] " << CI << '\n');
   auto F = CI.getCalledFunction();
@@ -402,31 +397,19 @@ std::string SPIRVToOCL::getGroupBuiltinPrefix(CallInst *CI) {
 
 } // namespace SPIRV
 
-ModulePass *llvm::createSPIRVToOCL(Module &M) {
-  if (OCLBuiltinsVersion.getNumOccurrences() > 0) {
-    if (OCLBuiltinsVersion.getValue() == "CL1.2")
-      return createSPIRVToOCL12();
-    else if (OCLBuiltinsVersion.getValue() == "CL2.0" ||
-             OCLBuiltinsVersion.getValue() == "CL2.1")
-      return createSPIRVToOCL20();
-    else {
-      assert(0 && "Invalid spirv-ocl-builtins-version value");
-      return nullptr;
-    }
-  }
-  // Below part of code is here just temporarily (to not broke existing
-  // projects based on translator), because ocl builtins versions shouldn't has
-  // a dependency on OpSource spirv opcode. OpSource spec: "This has no semantic
-  // impact and can safely be removed from a module." After some time it can be
-  // removed, then only factor impacting version of ocl builtins will be
-  // spirv-ocl-builtins-version command option.
-  unsigned OCLVersion = getOCLVersion(&M);
-  if (OCLVersion <= kOCLVer::CL12)
+ModulePass *
+llvm::createSPIRVBIsLoweringPass(Module &M,
+                                 SPIRV::BIsRepresentation BIsRepresentation) {
+  switch (BIsRepresentation) {
+  case SPIRV::BIsRepresentation::OpenCL12:
     return createSPIRVToOCL12();
-  else if (OCLVersion >= kOCLVer::CL20)
+  case SPIRV::BIsRepresentation::OpenCL20:
     return createSPIRVToOCL20();
-  else {
-    assert(0 && "Invalid ocl version in llvm module");
+  case SPIRV::BIsRepresentation::SPIRVFriendlyIR:
+    // nothing to do, already done
+    return nullptr;
+  default:
+    llvm_unreachable("Unsupported built-ins representation");
     return nullptr;
   }
 }

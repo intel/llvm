@@ -3988,7 +3988,7 @@ class OffloadingActionBuilder final {
         A->claim();
         auto ParsedArg = Opts.ParseOneArg(Args, Index);
         // TODO: Support --no-cuda-gpu-arch, --{,no-}cuda-gpu-arch=all.
-        if (ParsedArg->getOption().matches(options::OPT_cuda_gpu_arch_EQ)) {
+        if (ParsedArg->getOption().matches(options::OPT_offload_arch_EQ)) {
           ParsedArg->claim();
           GpuArchList.push_back(StringToCudaArch(ParsedArg->getValue(0)));
         }

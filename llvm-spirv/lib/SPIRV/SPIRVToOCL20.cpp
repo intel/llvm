@@ -135,11 +135,23 @@ void SPIRVToOCL20::visitCallSPIRVControlBarrier(CallInst *CI) {
           return cast<ConstantInt>(Args[I])->getZExtValue();
         };
         auto ExecScope = static_cast<Scope>(GetArg(0));
-        auto MScope = static_cast<Scope>(GetArg(1));
-        auto Sema = mapSPIRVMemSemanticToOCL(GetArg(2));
+        auto MemScope = static_cast<Scope>(GetArg(1));
+
+        if (auto Arg = dyn_cast<ConstantInt>(Args[2])) {
+          auto Sema = mapSPIRVMemSemanticToOCL(Arg->getZExtValue());
+          Args[0] = getInt32(M, Sema.first);
+        } else {
+          int ClMemFenceMask = MemorySemanticsWorkgroupMemoryMask |
+                               MemorySemanticsCrossWorkgroupMemoryMask |
+                               MemorySemanticsImageMemoryMask;
+          Args[0] = getOrCreateSwitchFunc(
+              kSPIRVName::TranslateSPIRVMemFence, Args[2],
+              OCLMemFenceExtendedMap::getRMap(), true /*IsReverse*/, None, CI,
+              M, ClMemFenceMask);
+        }
+        Args[1] = getInt32(M, rmap<OCLScopeKind>(MemScope));
         Args.resize(2);
-        Args[0] = getInt32(M, Sema.first);
-        Args[1] = getInt32(M, rmap<OCLScopeKind>(MScope));
+
         return (ExecScope == ScopeWorkgroup) ? kOCLBuiltinName::WorkGroupBarrier
                                              : kOCLBuiltinName::SubGroupBarrier;
       },
