@@ -897,7 +897,6 @@ void Scheduler::GraphBuilder::connectDepEvent(
   ExecCGCommand *ConnectCmd = nullptr;
 
   {
-    // Temporary function. Will be replaced depending on circumstances.
     std::function<void(void)> Func = []() {};
 
     std::unique_ptr<detail::HostTask> HT(new detail::HostTask(std::move(Func)));
