@@ -65,6 +65,9 @@ float cbrtf(float x) { return __devicelib_cbrtf(x); }
 #ifndef _WIN32
 DEVICE_EXTERN_C
 float hypotf(float x, float y) { return __devicelib_hypotf(x, y); }
+#else
+DEVICE_EXTERN_C
+float _hypotf(float x, float y) { return __devicelib_hypotf(x, y); }
 #endif
 
 DEVICE_EXTERN_C
@@ -364,7 +367,4 @@ float _FSinh(float x, float y) { // compute y * sinh(x), |y| <= 1
     return neg ? -x : x;
   }
 }
-
-DEVICE_EXTERN_C
-float _hypotf(float x, float y) { return __devicelib_hypotf(x, y); }
 #endif
