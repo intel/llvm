@@ -160,7 +160,9 @@ getPiEvents(const std::vector<EventImplPtr> &EventImpls) {
 class DispatchHostTask {
   std::vector<EventImplPtr> MDepEvents;
   std::vector<EventImplPtr> MDepHostEvents;
-  CGHostTask *MHostTask;
+  // Store cg in shared ptr due to copy-constructor call by thread pool
+  // FIXME Employ unique_ptr
+  std::shared_ptr<CGHostTask> MHostTask;
   std::vector<DepDesc> MDeps;
   EventImplPtr MSelfEvent;
 
@@ -217,6 +219,7 @@ public:
 
     // we're ready to call the user-defined lambda now
     MHostTask->MHostTask->call();
+    MHostTask->MHostTask.reset();
 
     Command *ThisCmd = reinterpret_cast<Command *>(MSelfEvent->getCommand());
     assert(ThisCmd && "No command found for host-task self event");
@@ -1974,7 +1977,7 @@ cl_int ExecCGCommand::enqueueImp() {
     return CL_SUCCESS;
   }
   case CG::CGTYPE::HOST_TASK_CODEPLAY: {
-    CGHostTask *HostTask = static_cast<CGHostTask *>(MCommandGroup.get());
+    CGHostTask *HostTask = static_cast<CGHostTask *>(MCommandGroup.release());
 
     for (ArgDesc &Arg : HostTask->MArgs) {
       switch (Arg.MType) {
