@@ -82,6 +82,7 @@ if( NOT OpenCL_INCLUDE_DIRS )
     STEP_TARGETS      build
     COMMENT           "Downloading OpenCL headers."
   )
+  add_definitions(-DCL_TARGET_OPENCL_VERSION=220)
 else()
   add_custom_target( ocl-headers ALL
     DEPENDS ${OpenCL_INCLUDE_DIRS}
