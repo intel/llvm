@@ -1,10 +1,6 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: env SYCL_DEVICE_TYPE=HOST %t.out | FileCheck %s
-// RUN: %CPU_RUN_PLACEHOLDER %t.out %CPU_CHECK_PLACEHOLDER
-// RUN: %GPU_RUN_PLACEHOLDER %t.out %GPU_CHECK_PLACEHOLDER
-// RUN: %ACC_RUN_PLACEHOLDER %t.out %ACC_CHECK_PLACEHOLDER
+// RUN: env SYCL_BE=%sycl_be %t.out | FileCheck %s
 //==------------------- handler.cpp ----------------------------------------==//
-//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -12,12 +8,11 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl.hpp>
+#include <cassert>
 
 using namespace cl;
 
 int main() {
-
-  bool Failed = false;
 
   sycl::queue Queue([](sycl::exception_list ExceptionList) {
     if (ExceptionList.size() != 1) {
@@ -33,8 +28,9 @@ int main() {
       CGH.single_task<class Dummy2>([]() {});
     });
     Queue.throw_asynchronous();
-  } catch (sycl::exception &E) {
+    assert(!"Expected exception not caught");
+  } catch (sycl::exception &ExpectedException) {
     // CHECK: Attempt to set multiple actions for the command group
-    std::cout << E.what() << std::endl;
+    std::cout << ExpectedException.what() << std::endl;
   }
 }
