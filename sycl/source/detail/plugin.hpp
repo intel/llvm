@@ -12,10 +12,17 @@
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/stl.hpp>
 
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+// Include the headers necessary for emitting traces using the trace framework
+#include "xpti_trace_framework.hpp"
+#endif
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
-
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+extern xpti::trace_event_data_t *GPICallEvent;
+#endif
 /// The plugin class provides a unified interface to the underlying low-level
 /// runtimes for the device-agnostic SYCL runtime.
 ///
@@ -53,6 +60,18 @@ public:
   template <PiApiKind PiApiOffset, typename... ArgsT>
   RT::PiResult call_nocheck(ArgsT... Args) const {
     RT::PiFuncInfo<PiApiOffset> PiCallInfo;
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+    // Pair of XPTI begin/end calls that will automatically be made before and
+    // after the PI function call; this notification is guarded and checks for
+    // xptiTraceEnabled(). If arguments needs to be captured, then a data
+    // structure can be sent in the per_instance_user_data field.
+    std::string PIFnName = PiCallInfo.getFuncName();
+    uint64_t CallInstance = xptiGetUniqueId();
+    xpti::framework::scoped_notify ev(
+        SYCL_PICALL_STREAM_NAME,
+        (uint16_t)xpti::trace_point_type_t::function_begin, GPICallEvent,
+        nullptr, CallInstance, static_cast<const void *>(PIFnName.c_str()));
+#endif
     if (pi::trace(pi::TraceLevel::PI_TRACE_CALLS)) {
       std::string FnName = PiCallInfo.getFuncName();
       std::cout << "---> " << FnName << "(" << std::endl;

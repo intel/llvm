@@ -37,16 +37,14 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-// Stream name being used for traces generated from the SYCL runtime
-constexpr const char *PICALL_STREAM_NAME = "sycl.pi";
 // Global (to the SYCL runtime) graph handle that all command groups are a
 // child of
-///< Event to be used by graph related activities
+/// Event to be used by graph related activities
 xpti_td *GSYCLGraphEvent = nullptr;
-///< Event to be used by PI layer related activities
+/// Event to be used by PI layer related activities
 xpti_td *GPICallEvent = nullptr;
-///< Constansts being used as placeholder until one is able to reliably get the
-///< version of the SYCL runtime
+/// Constants being used as placeholder until one is able to reliably get the
+/// version of the SYCL runtime
 constexpr uint32_t GMajVer = 1;
 constexpr uint32_t GMinVer = 0;
 constexpr const char *GVerStr = "sycl 1.0";
@@ -285,6 +283,8 @@ vector_class<plugin> initialize() {
                           GSYCLGraphEvent, GraphInstanceNo, nullptr);
   }
 
+  // Let subscribers know a new stream is being initialized
+  xptiInitialize(SYCL_PICALL_STREAM_NAME, GMajVer, GMinVer, GVerStr);
   xpti::payload_t PIPayload("Plugin Interface Layer");
   uint64_t PiInstanceNo;
   GPICallEvent =

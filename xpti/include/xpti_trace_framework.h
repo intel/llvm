@@ -288,7 +288,7 @@ xptiRegisterCallback(uint8_t stream_id, uint16_t trace_type,
 ///            1. XPTI_RESULT_SUCCESS when the unregistration is successful
 ///            2. XPTI_RESULT_DUPLICATE when the callback function has already
 ///               been disabled for the stream and trace point type
-///            3. XPTI_RESULT_NOTFOUND if the callbackhas not been previously
+///            3. XPTI_RESULT_NOTFOUND if the callback has not been previously
 ///               registered.
 XPTI_EXPORT_API xpti::result_t
 xptiUnregisterCallback(uint8_t stream_id, uint16_t trace_type,
@@ -308,17 +308,27 @@ xptiUnregisterCallback(uint8_t stream_id, uint16_t trace_type,
 /// @param object The event object for which the notification must be sent out.
 /// @param instance The instance number of the current event and this value is
 /// guaranteed to be static for the duration of the callback handler.
-/// @param temporal_user_data This is the field where each tool can send in some
-/// state information and the handshake of the type of this data type must be
-/// handled by extending tracepoint types that handle diffent types od user
-/// data.
+/// @param per_instance_user_data This is the field where each tool can send in
+/// some state information and the handshake of the type of this data type must
+/// be handled by extending tracepoint types that handle diffent types of user
+/// data. If the trace type is function_begin/function_end, then the parent and
+/// object parameters can be null, but the per_instance_user_data must contain
+/// information about the function being traced (preferably the function name).
 /// @return The result code which can be one of:
 ///            1. XPTI_RESULT_SUCCESS when the notification is successful
+///            2. XPTI_RESULT_FALSE when tracing is turned off
+///            3. XPTI_RESULT_INVALIDARG when one or more input parameters are
+///            invalid. For example, for all trace types except function_begin
+///            and function_end, the event 'object' cannot be NULL. If a NULL
+///            value is provided for this parameter, you will see an
+///            XPTI_RESULT_INVALIDARG return value. Similarly, for
+///            function_begin and function_end, the per_instance_user_data value
+///            must be populated to not get this return value.
 XPTI_EXPORT_API xpti::result_t
 xptiNotifySubscribers(uint8_t stream_id, uint16_t trace_type,
                       xpti::trace_event_data_t *parent,
                       xpti::trace_event_data_t *object, uint64_t instance,
-                      const void *temporal_user_data);
+                      const void *per_instance_user_data);
 
 /// @brief Associates <key-value> pairs with an event
 /// @details If the instrumentation embedded in applications need to send
