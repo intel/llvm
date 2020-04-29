@@ -175,8 +175,8 @@ EventImplPtr Scheduler::addHostAccessor(Requirement *Req,
 }
 
 void Scheduler::releaseHostAccessor(Requirement *Req) {
-  std::shared_lock<std::shared_timed_mutex> Lock(MGraphLock);
   Req->MBlockedCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
+  std::shared_lock<std::shared_timed_mutex> Lock(MGraphLock);
   MemObjRecord *Record = Req->MSYCLMemObj->MRecord.get();
   auto EnqueueLeaves = [](CircularBuffer<Command *> &Leaves) {
     for (Command *Cmd : Leaves) {
