@@ -391,11 +391,6 @@ private:
   void instrumentationEpilog(void *TelementryEvent, string_class &Name,
                              int32_t StreamID, uint64_t IId);
 
-  /// Stores an event that should be associated with the queue
-  ///
-  /// \param Event is the event to be stored
-  void addEvent(event Event);
-
   void initHostTaskAndEventCallbackThreadPool();
 
   /// Stores a USM operation event that should be associated with the queue
