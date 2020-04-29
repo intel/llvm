@@ -196,6 +196,41 @@ static void filterAllowList(vector_class<RT::PiDevice> &PiDevices,
   PiDevices.resize(InsertIDx);
 }
 
+
+// @return True if the device is invalid for the current backend preferences
+static bool isDeviceInvalidForBe(const device &Device) {
+
+  if (Device.is_host())
+    return false;
+
+  // Taking the version information from the platform gives us more useful
+  // information than the driver_version of the device.
+  const platform platform = Device.get_info<info::device::platform>();
+  const std::string platformVersion =
+      platform.get_info<info::platform::version>();
+
+  backend *BackendPref = detail::SYCLConfig<detail::SYCL_BE>::get();
+  auto BackendType = detail::getSyclObjImpl(Device)->getPlugin().getBackend();
+  static_assert(std::is_same<backend, decltype(BackendType)>(),
+                "Type is not the same");
+
+  // If no preference, assume OpenCL and reject CUDA backend
+  if (BackendType == backend::cuda && !BackendPref) {
+    return true;
+  } else if (!BackendPref)
+    return false;
+
+  // If using PI_CUDA, don't accept a non-CUDA device
+  if (BackendType == backend::opencl && *BackendPref == backend::cuda)
+    return true;
+
+  // If using PI_OPENCL, don't accept a non-OpenCL device
+  if (BackendType == backend::cuda && *BackendPref == backend::opencl)
+    return true;
+
+  return false;
+}
+
 vector_class<device>
 platform_impl::get_devices(info::device_type DeviceType) const {
   vector_class<device> Res;
@@ -235,6 +270,9 @@ platform_impl::get_devices(info::device_type DeviceType) const {
                        std::make_shared<device_impl>(
                            PiDevice, std::make_shared<platform_impl>(*this)));
                  });
+
+  Res.erase(std::remove_if(Res.begin(), Res.end(), isDeviceInvalidForBe), 
+    Res.end());
 
   return Res;
 }
