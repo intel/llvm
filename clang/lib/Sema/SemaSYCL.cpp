@@ -286,6 +286,60 @@ void Sema::checkSYCLDeviceVarDecl(VarDecl *Var) {
   checkSYCLVarType(*this, Ty, Loc, Visited);
 }
 
+void Sema::checkSYCLDevicePointerCapture(VarDecl *Var, SourceLocation CaptureLoc) {
+  assert(getLangOpts().SYCLIsDevice &&
+         "Should only be called during SYCL compilation");
+  bool speak = true;
+  const Expr *Init = Var->getAnyInitializer();
+  if(Init){
+    Init = Init->IgnoreCasts();
+    QualType InitTy = Init->getType();
+    SourceLocation DecLoc = Init->getExprLoc();
+    
+    enum ExprAllocation {
+      Unknown,
+      USM,
+      Not_USM
+    };
+    ExprAllocation  howAllocated = Unknown;
+
+    //function call
+    const CallExpr *CE = dyn_cast<CallExpr>(Init);
+    if(CE){
+      const FunctionDecl *func = CE->getDirectCallee();
+      auto FullName = func->getQualifiedNameAsString();
+      //Check to see if this function call is one of the USM allocators.
+      if( (FullName.rfind("cl::sycl::malloc", 0) == 0) || (FullName.rfind("cl::sycl::aligned_alloc", 0) == 0))
+        howAllocated = USM;
+      else if ( (FullName.compare("malloc")==0) || (FullName.compare("calloc")==0) )
+        howAllocated = Not_USM;
+
+      //std::cout << "call expression. callee: " << func->getNameInfo()/*.getName()*/.getAsString() 
+      //<< " " <<  func->getQualifiedNameAsString() << std::endl;
+    } else {
+      speak = true;
+    }
+    //var usage
+
+    if(speak){
+      std::cout << "captured qualtype: " << InitTy.getAsString() << "\n:::: " 
+      <<  CaptureLoc.printToString(getSourceManager())
+      << "declared at: " <<  DecLoc.printToString(getSourceManager())
+      <<  std::endl;
+    }
+
+    //diagnostics
+    if(howAllocated == Not_USM){
+      SYCLDiagIfDeviceCode(CaptureLoc, diag::err_sycl_illegal_memory_reference);
+      SYCLDiagIfDeviceCode(DecLoc, diag::note_sycl_capture_declared_here);
+    }else if (howAllocated == Unknown){
+      SYCLDiagIfDeviceCode(CaptureLoc, diag::note_unknown_memory_reference);
+      SYCLDiagIfDeviceCode(DecLoc, diag::note_sycl_capture_declared_here);
+    }
+
+  }
+}
+
 // For a DeclRefExpr, determine how it was allocated.
 enum ExprAllocation {
   Unknown,
@@ -396,7 +450,7 @@ public:
           //std::cout << "call expression. callee: " << func->getNameInfo()/*.getName()*/.getAsString() 
           //<< " " <<  func->getQualifiedNameAsString() << std::endl;
         } else {
-          speak = true;
+          //speak = true;
         }
         //var usage
 
@@ -410,11 +464,11 @@ public:
 
         //diagnostics
         if(howAllocated == Not_USM){
-          SemaRef.Diag(RefLoc.getBegin(), diag::err_sycl_illegal_memory_reference);
-          SemaRef.Diag(DecLoc, diag::note_sycl_capture_declared_here);
+          //SemaRef.Diag(RefLoc.getBegin(), diag::err_sycl_illegal_memory_reference);
+          //SemaRef.Diag(DecLoc, diag::note_sycl_capture_declared_here);
         }else if (howAllocated == Unknown){
-          SemaRef.Diag(RefLoc.getBegin(), diag::note_unknown_memory_reference);
-          SemaRef.Diag(DecLoc, diag::note_sycl_capture_declared_here);
+          //SemaRef.Diag(RefLoc.getBegin(), diag::note_unknown_memory_reference);
+          //SemaRef.Diag(DecLoc, diag::note_sycl_capture_declared_here);
         }
 
 
