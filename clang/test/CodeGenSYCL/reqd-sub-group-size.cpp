@@ -36,4 +36,3 @@ void bar() {
 // CHECK: ![[SGSIZE16]] = !{i32 16}
 // CHECK: ![[SGSIZE8]] = !{i32 8}
 // CHECK: ![[SGSIZE4]] = !{i32 4}
-

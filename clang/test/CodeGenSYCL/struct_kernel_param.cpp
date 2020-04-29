@@ -9,7 +9,6 @@
 // CHECK-EMPTY:
 // CHECK-NEXT:};
 
-
 // This test checks if compiler accepts structures as kernel parameters.
 
 #include "sycl.hpp"

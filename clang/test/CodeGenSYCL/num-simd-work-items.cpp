@@ -23,4 +23,3 @@ void bar() {
 // CHECK: define spir_kernel void @{{.*}}kernel_name2(%"class.{{.*}}.anon"* byval(%"class.{{.*}}.anon") align 1 %_arg_kernelObject) {{.*}} !num_simd_work_items ![[NUM42:[0-9]+]]
 // CHECK: ![[NUM1]] = !{i32 1}
 // CHECK: ![[NUM42]] = !{i32 42}
-
