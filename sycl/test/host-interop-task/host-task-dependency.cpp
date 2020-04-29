@@ -1,6 +1,6 @@
 // RUN: %clangxx -fsycl %s -o %t.out %threads_lib
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %CPU_RUN_PLACEHOLDER SYCL_PI_TRACE=1 %t.out 2>&1 %CPU_CHECK_PLACEHOLDER
+// RUN: %CPU_RUN_PLACEHOLDER SYCL_PI_TRACE=-1 %t.out 2>&1 %CPU_CHECK_PLACEHOLDER
 
 #include <atomic>
 #include <condition_variable>
