@@ -116,6 +116,12 @@ public:
     return getOperation()->getParentOfType<OpTy>();
   }
 
+  /// Returns the closest surrounding parent operation with trait `Trait`.
+  template <template <typename T> class Trait>
+  Operation *getParentWithTrait() {
+    return getOperation()->getParentWithTrait<Trait>();
+  }
+
   /// Return the context this operation belongs to.
   MLIRContext *getContext() { return getOperation()->getContext(); }
 
@@ -368,6 +374,10 @@ LogicalResult verifyAtLeastNOperands(Operation *op, unsigned numOperands);
 LogicalResult verifyOperandsAreFloatLike(Operation *op);
 LogicalResult verifyOperandsAreSignlessIntegerLike(Operation *op);
 LogicalResult verifySameTypeOperands(Operation *op);
+LogicalResult verifyZeroRegion(Operation *op);
+LogicalResult verifyOneRegion(Operation *op);
+LogicalResult verifyNRegions(Operation *op, unsigned numRegions);
+LogicalResult verifyAtLeastNRegions(Operation *op, unsigned numRegions);
 LogicalResult verifyZeroResult(Operation *op);
 LogicalResult verifyOneResult(Operation *op);
 LogicalResult verifyNResults(Operation *op, unsigned numOperands);
@@ -528,6 +538,89 @@ public:
 template <typename ConcreteType>
 class VariadicOperands
     : public detail::MultiOperandTraitBase<ConcreteType, VariadicOperands> {};
+
+//===----------------------------------------------------------------------===//
+// Region Traits
+
+/// This class provides verification for ops that are known to have zero
+/// regions.
+template <typename ConcreteType>
+class ZeroRegion : public TraitBase<ConcreteType, ZeroRegion> {
+public:
+  static LogicalResult verifyTrait(Operation *op) {
+    return impl::verifyZeroRegion(op);
+  }
+};
+
+namespace detail {
+/// Utility trait base that provides accessors for derived traits that have
+/// multiple regions.
+template <typename ConcreteType, template <typename> class TraitType>
+struct MultiRegionTraitBase : public TraitBase<ConcreteType, TraitType> {
+  using region_iterator = MutableArrayRef<Region>;
+  using region_range = RegionRange;
+
+  /// Return the number of regions.
+  unsigned getNumRegions() { return this->getOperation()->getNumRegions(); }
+
+  /// Return the region at `index`.
+  Region &getRegion(unsigned i) { return this->getOperation()->getRegion(i); }
+
+  /// Region iterator access.
+  region_iterator region_begin() {
+    return this->getOperation()->region_begin();
+  }
+  region_iterator region_end() { return this->getOperation()->region_end(); }
+  region_range getRegions() { return this->getOperation()->getRegions(); }
+};
+} // end namespace detail
+
+/// This class provides APIs for ops that are known to have a single region.
+template <typename ConcreteType>
+class OneRegion : public TraitBase<ConcreteType, OneRegion> {
+public:
+  Region &getRegion() { return this->getOperation()->getRegion(0); }
+
+  static LogicalResult verifyTrait(Operation *op) {
+    return impl::verifyOneRegion(op);
+  }
+};
+
+/// This class provides the API for ops that are known to have a specified
+/// number of regions.
+template <unsigned N> class NRegions {
+public:
+  static_assert(N > 1, "use ZeroRegion/OneRegion for N < 2");
+
+  template <typename ConcreteType>
+  class Impl
+      : public detail::MultiRegionTraitBase<ConcreteType, NRegions<N>::Impl> {
+  public:
+    static LogicalResult verifyTrait(Operation *op) {
+      return impl::verifyNRegions(op, N);
+    }
+  };
+};
+
+/// This class provides APIs for ops that are known to have at least a specified
+/// number of regions.
+template <unsigned N> class AtLeastNRegions {
+public:
+  template <typename ConcreteType>
+  class Impl : public detail::MultiRegionTraitBase<ConcreteType,
+                                                   AtLeastNRegions<N>::Impl> {
+  public:
+    static LogicalResult verifyTrait(Operation *op) {
+      return impl::verifyAtLeastNRegions(op, N);
+    }
+  };
+};
+
+/// This class provides the API for ops which have an unknown number of
+/// regions.
+template <typename ConcreteType>
+class VariadicRegions
+    : public detail::MultiRegionTraitBase<ConcreteType, VariadicRegions> {};
 
 //===----------------------------------------------------------------------===//
 // Result Traits
@@ -939,6 +1032,22 @@ public:
   }
 };
 
+/// A trait of region holding operations that define a new scope for automatic
+/// allocations, i.e., allocations that are freed when control is transferred
+/// back from the operation's region. Any operations performing such allocations
+/// (for eg. std.alloca) will have their allocations automatically freed at
+/// their closest enclosing operation with this trait.
+template <typename ConcreteType>
+class AutomaticAllocationScope
+    : public TraitBase<ConcreteType, AutomaticAllocationScope> {
+public:
+  static LogicalResult verifyTrait(Operation *op) {
+    if (op->hasTrait<ZeroRegion>())
+      return op->emitOpError("is expected to have regions");
+    return success();
+  }
+};
+
 /// This class provides APIs and verifiers for ops with regions having a single
 /// block that must terminate with `TerminatorOpType`.
 template <typename TerminatorOpType> struct SingleBlockImplicitTerminator {
@@ -1082,7 +1191,7 @@ public:
   /// Return true if this "op class" can match against the specified operation.
   static bool classof(Operation *op) {
     if (auto *abstractOp = op->getAbstractOperation())
-      return ClassID::getID<ConcreteType>() == abstractOp->classID;
+      return TypeID::get<ConcreteType>() == abstractOp->typeID;
     return op->getName().getStringRef() == ConcreteType::getOperationName();
   }
 
@@ -1175,15 +1284,15 @@ private:
     }
   };
 
-  /// Returns true if this operation contains the trait for the given classID.
-  static bool hasTrait(ClassID *traitID) {
-    return llvm::is_contained(llvm::makeArrayRef({ClassID::getID<Traits>()...}),
+  /// Returns true if this operation contains the trait for the given typeID.
+  static bool hasTrait(TypeID traitID) {
+    return llvm::is_contained(llvm::makeArrayRef({TypeID::get<Traits>()...}),
                               traitID);
   }
 
   /// Returns an opaque pointer to a concept instance of the interface with the
   /// given ID if one was registered to this operation.
-  static void *getRawInterface(ClassID *id) {
+  static void *getRawInterface(TypeID id) {
     return InterfaceLookup::template lookup<Traits<ConcreteType>...>(id);
   }
 
@@ -1195,22 +1304,22 @@ private:
     /// If 'T' is the same interface as 'interfaceID' return the concept
     /// instance.
     template <typename T>
-    static typename std::enable_if<is_detected<has_get_interface_id, T>::value,
-                                   void *>::type
-    lookup(ClassID *interfaceID) {
+    static typename std::enable_if<
+        llvm::is_detected<has_get_interface_id, T>::value, void *>::type
+    lookup(TypeID interfaceID) {
       return (T::getInterfaceID() == interfaceID) ? &T::instance() : nullptr;
     }
 
     /// 'T' is known to not be an interface, return nullptr.
     template <typename T>
-    static typename std::enable_if<!is_detected<has_get_interface_id, T>::value,
-                                   void *>::type
-    lookup(ClassID *) {
+    static typename std::enable_if<
+        !llvm::is_detected<has_get_interface_id, T>::value, void *>::type
+    lookup(TypeID) {
       return nullptr;
     }
 
     template <typename T, typename T2, typename... Ts>
-    static void *lookup(ClassID *interfaceID) {
+    static void *lookup(TypeID interfaceID) {
       auto *concept = lookup<T>(interfaceID);
       return concept ? concept : lookup<T2, Ts...>(interfaceID);
     }
@@ -1256,14 +1365,14 @@ public:
   static bool classof(Operation *op) { return getInterfaceFor(op); }
 
   /// Define an accessor for the ID of this interface.
-  static ClassID *getInterfaceID() { return ClassID::getID<ConcreteType>(); }
+  static TypeID getInterfaceID() { return TypeID::get<ConcreteType>(); }
 
   /// This is a special trait that registers a given interface with an
   /// operation.
   template <typename ConcreteOp>
   struct Trait : public OpTrait::TraitBase<ConcreteOp, Trait> {
     /// Define an accessor for the ID of this interface.
-    static ClassID *getInterfaceID() { return ClassID::getID<ConcreteType>(); }
+    static TypeID getInterfaceID() { return TypeID::get<ConcreteType>(); }
 
     /// Provide an accessor to a static instance of the interface model for the
     /// concrete operation type.

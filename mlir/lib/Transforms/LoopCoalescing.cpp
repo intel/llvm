@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "PassDetail.h"
 #include "mlir/Dialect/LoopOps/LoopOps.h"
-#include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/LoopUtils.h"
 #include "mlir/Transforms/Passes.h"
 #include "mlir/Transforms/RegionUtils.h"
@@ -19,8 +19,7 @@
 using namespace mlir;
 
 namespace {
-class LoopCoalescingPass : public FunctionPass<LoopCoalescingPass> {
-public:
+struct LoopCoalescingPass : public LoopCoalescingBase<LoopCoalescingPass> {
   void runOnFunction() override {
     FuncOp func = getFunction();
 
@@ -86,10 +85,6 @@ public:
 
 } // namespace
 
-std::unique_ptr<OpPassBase<FuncOp>> mlir::createLoopCoalescingPass() {
+std::unique_ptr<OperationPass<FuncOp>> mlir::createLoopCoalescingPass() {
   return std::make_unique<LoopCoalescingPass>();
 }
-
-static PassRegistration<LoopCoalescingPass>
-    reg(PASS_NAME,
-        "coalesce nested loops with independent bounds into a single loop");

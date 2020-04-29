@@ -13,6 +13,8 @@
 
 #ifdef __SYCL_DEVICE_ONLY__
 
+#define __SPIRV_VAR_QUALIFIERS extern "C" const
+
 #ifdef __SYCL_NVPTX__
 
 SYCL_EXTERNAL size_t __spirv_GlobalInvocationId_x();
@@ -46,20 +48,13 @@ SYCL_EXTERNAL size_t __spirv_LocalInvocationId_z();
 #else // __SYCL_NVPTX__
 
 typedef size_t size_t_vec __attribute__((ext_vector_type(3)));
-extern "C" const __attribute__((opencl_constant))
-size_t_vec __spirv_BuiltInGlobalInvocationId;
-extern "C" const __attribute__((opencl_constant))
-size_t_vec __spirv_BuiltInGlobalSize;
-extern "C" const __attribute__((opencl_constant))
-size_t_vec __spirv_BuiltInGlobalOffset;
-extern "C" const __attribute__((opencl_constant))
-size_t_vec __spirv_BuiltInNumWorkgroups;
-extern "C" const __attribute__((opencl_constant))
-size_t_vec __spirv_BuiltInWorkgroupSize;
-extern "C" const __attribute__((opencl_constant))
-size_t_vec __spirv_BuiltInWorkgroupId;
-extern "C" const __attribute__((opencl_constant))
-size_t_vec __spirv_BuiltInLocalInvocationId;
+__SPIRV_VAR_QUALIFIERS size_t_vec __spirv_BuiltInGlobalSize;
+__SPIRV_VAR_QUALIFIERS size_t_vec __spirv_BuiltInGlobalInvocationId;
+__SPIRV_VAR_QUALIFIERS size_t_vec __spirv_BuiltInWorkgroupSize;
+__SPIRV_VAR_QUALIFIERS size_t_vec __spirv_BuiltInNumWorkgroups;
+__SPIRV_VAR_QUALIFIERS size_t_vec __spirv_BuiltInLocalInvocationId;
+__SPIRV_VAR_QUALIFIERS size_t_vec __spirv_BuiltInWorkgroupId;
+__SPIRV_VAR_QUALIFIERS size_t_vec __spirv_BuiltInGlobalOffset;
 
 SYCL_EXTERNAL inline size_t __spirv_GlobalInvocationId_x() {
   return __spirv_BuiltInGlobalInvocationId.x;
@@ -133,40 +128,24 @@ SYCL_EXTERNAL inline size_t __spirv_LocalInvocationId_z() {
 
 #endif // __SYCL_NVPTX__
 
-#define DEFINE_FUNC_ID_TO_XYZ_CONVERTER(POSTFIX)                               \
-  template <int ID> static inline size_t get##POSTFIX();                       \
-  template <> size_t get##POSTFIX<0>() { return __spirv_##POSTFIX##_x(); }     \
-  template <> size_t get##POSTFIX<1>() { return __spirv_##POSTFIX##_y(); }     \
-  template <> size_t get##POSTFIX<2>() { return __spirv_##POSTFIX##_z(); }
+__SPIRV_VAR_QUALIFIERS uint32_t __spirv_BuiltInSubgroupSize;
+__SPIRV_VAR_QUALIFIERS uint32_t __spirv_BuiltInSubgroupMaxSize;
+__SPIRV_VAR_QUALIFIERS uint32_t __spirv_BuiltInNumSubgroups;
+__SPIRV_VAR_QUALIFIERS uint32_t __spirv_BuiltInNumEnqueuedSubgroups;
+__SPIRV_VAR_QUALIFIERS uint32_t __spirv_BuiltInSubgroupId;
+__SPIRV_VAR_QUALIFIERS uint32_t __spirv_BuiltInSubgroupLocalInvocationId;
+
+#undef __SPIRV_VAR_QUALIFIERS
 
 namespace __spirv {
 
-DEFINE_FUNC_ID_TO_XYZ_CONVERTER(GlobalSize);
-DEFINE_FUNC_ID_TO_XYZ_CONVERTER(GlobalInvocationId);
-DEFINE_FUNC_ID_TO_XYZ_CONVERTER(GlobalOffset);
-DEFINE_FUNC_ID_TO_XYZ_CONVERTER(NumWorkgroups);
-DEFINE_FUNC_ID_TO_XYZ_CONVERTER(WorkgroupSize);
-DEFINE_FUNC_ID_TO_XYZ_CONVERTER(WorkgroupId);
-DEFINE_FUNC_ID_TO_XYZ_CONVERTER(LocalInvocationId);
-
-} // namespace __spirv
-
-#undef DEFINE_FUNC_ID_TO_XYZ_CONVERTER
-
-extern "C" const __attribute__((opencl_constant))
-uint32_t __spirv_BuiltInSubgroupSize;
-extern "C" const __attribute__((opencl_constant))
-uint32_t __spirv_BuiltInSubgroupMaxSize;
-extern "C" const __attribute__((opencl_constant))
-uint32_t __spirv_BuiltInNumSubgroups;
-extern "C" const __attribute__((opencl_constant))
-uint32_t __spirv_BuiltInNumEnqueuedSubgroups;
-extern "C" const __attribute__((opencl_constant))
-uint32_t __spirv_BuiltInSubgroupId;
-extern "C" const __attribute__((opencl_constant))
-uint32_t __spirv_BuiltInSubgroupLocalInvocationId;
-
-#define DEFINE_INIT_SIZES(POSTFIX)                                             \
+// Helper function templates to initialize and get vector component from SPIR-V
+// built-in variables
+#define __SPIRV_DEFINE_INIT_AND_GET_HELPERS(POSTFIX)                           \
+  template <int ID> static size_t get##POSTFIX();                              \
+  template <> size_t get##POSTFIX<0>() { return __spirv_##POSTFIX##_x(); }     \
+  template <> size_t get##POSTFIX<1>() { return __spirv_##POSTFIX##_y(); }     \
+  template <> size_t get##POSTFIX<2>() { return __spirv_##POSTFIX##_z(); }     \
                                                                                \
   template <int Dim, class DstT> struct InitSizesST##POSTFIX;                  \
                                                                                \
@@ -188,18 +167,16 @@ uint32_t __spirv_BuiltInSubgroupLocalInvocationId;
     return InitSizesST##POSTFIX<Dims, DstT>::initSize();                       \
   }
 
-namespace __spirv {
+__SPIRV_DEFINE_INIT_AND_GET_HELPERS(GlobalSize);
+__SPIRV_DEFINE_INIT_AND_GET_HELPERS(GlobalInvocationId)
+__SPIRV_DEFINE_INIT_AND_GET_HELPERS(WorkgroupSize)
+__SPIRV_DEFINE_INIT_AND_GET_HELPERS(NumWorkgroups)
+__SPIRV_DEFINE_INIT_AND_GET_HELPERS(LocalInvocationId)
+__SPIRV_DEFINE_INIT_AND_GET_HELPERS(WorkgroupId)
+__SPIRV_DEFINE_INIT_AND_GET_HELPERS(GlobalOffset)
 
-DEFINE_INIT_SIZES(GlobalSize);
-DEFINE_INIT_SIZES(GlobalInvocationId)
-DEFINE_INIT_SIZES(WorkgroupSize)
-DEFINE_INIT_SIZES(NumWorkgroups)
-DEFINE_INIT_SIZES(LocalInvocationId)
-DEFINE_INIT_SIZES(WorkgroupId)
-DEFINE_INIT_SIZES(GlobalOffset)
+#undef __SPIRV_DEFINE_INIT_AND_GET_HELPERS
 
 } // namespace __spirv
-
-#undef DEFINE_INIT_SIZES
 
 #endif // __SYCL_DEVICE_ONLY__

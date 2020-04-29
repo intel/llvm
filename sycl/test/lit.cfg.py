@@ -24,7 +24,7 @@ config.name = 'SYCL'
 config.test_format = lit.formats.ShTest()
 
 # suffixes: A list of file extensions to treat as test files.
-config.suffixes = ['.c', '.cpp'] #add .spv. Currently not clear what to do with those
+config.suffixes = ['.c', '.cpp', '.dump'] #add .spv. Currently not clear what to do with those
 
 # feature tests are considered not so lightweight, so, they are excluded by default
 config.excludes = ['Inputs', 'feature-tests']
@@ -64,6 +64,9 @@ config.substitutions.append( ('%sycl_source_dir', config.sycl_source_dir) )
 config.substitutions.append( ('%opencl_libs_dir',  config.opencl_libs_dir) )
 config.substitutions.append( ('%opencl_include_dir',  config.opencl_include_dir) )
 config.substitutions.append( ('%cuda_toolkit_include',  config.cuda_toolkit_include) )
+config.substitutions.append( ('%sycl_tools_src_dir',  config.sycl_tools_src_dir ) )
+config.substitutions.append( ('%llvm_build_lib_dir',  config.llvm_build_lib_dir ) )
+config.substitutions.append( ('%llvm_build_bin_dir',  config.llvm_build_bin_dir ) )
 
 llvm_config.use_clang()
 

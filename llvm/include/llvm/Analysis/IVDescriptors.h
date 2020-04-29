@@ -19,13 +19,9 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/Analysis/AliasAnalysis.h"
-#include "llvm/Analysis/DemandedBits.h"
-#include "llvm/Analysis/EHPersonalities.h"
 #include "llvm/Analysis/MustExecute.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/IR/Dominators.h"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Operator.h"
 #include "llvm/IR/ValueHandle.h"
@@ -33,19 +29,11 @@
 
 namespace llvm {
 
-class AliasSet;
-class AliasSetTracker;
-class BasicBlock;
-class DataLayout;
+class DemandedBits;
 class Loop;
-class LoopInfo;
-class OptimizationRemarkEmitter;
 class PredicatedScalarEvolution;
-class PredIteratorCache;
 class ScalarEvolution;
 class SCEV;
-class TargetLibraryInfo;
-class TargetTransformInfo;
 
 /// The RecurrenceDescriptor is used to identify recurrences variables in a
 /// loop. Reduction is a special case of recurrence that has uses of the

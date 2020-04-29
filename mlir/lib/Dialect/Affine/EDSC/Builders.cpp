@@ -129,7 +129,7 @@ static ValueHandle createBinaryIndexHandle(
   if (v1) {
     operands.push_back(v1);
   }
-  auto map = AffineMap::get(numDims, numSymbols, {affCombiner(d0, d1)});
+  auto map = AffineMap::get(numDims, numSymbols, affCombiner(d0, d1));
   // TODO: createOrFold when available.
   Operation *op =
       makeComposedAffineApply(ScopedContext::getBuilder(),
@@ -156,7 +156,7 @@ static ValueHandle createBinaryHandle(
     return createBinaryHandle<FOp>(lhs, rhs);
   } else if (thisType.isa<VectorType>() || thisType.isa<TensorType>()) {
     auto aggregateType = thisType.cast<ShapedType>();
-    if (aggregateType.getElementType().isSignedInteger())
+    if (aggregateType.getElementType().isSignlessInteger())
       return createBinaryHandle<IOp>(lhs, rhs);
     else if (aggregateType.getElementType().isa<FloatType>())
       return createBinaryHandle<FOp>(lhs, rhs);
@@ -225,7 +225,7 @@ static ValueHandle createIComparisonExpr(CmpIPredicate predicate,
   (void)lhsType;
   (void)rhsType;
   assert(lhsType == rhsType && "cannot mix types in operators");
-  assert((lhsType.isa<IndexType>() || lhsType.isSignedInteger()) &&
+  assert((lhsType.isa<IndexType>() || lhsType.isSignlessInteger()) &&
          "only integer comparisons are supported");
 
   auto op = ScopedContext::getBuilder().create<CmpIOp>(

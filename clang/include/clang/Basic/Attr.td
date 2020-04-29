@@ -174,12 +174,10 @@ class IdentifierArgument<string name, bit opt = 0> : Argument<name, opt>;
 class IntArgument<string name, bit opt = 0> : Argument<name, opt>;
 class StringArgument<string name, bit opt = 0> : Argument<name, opt>;
 class ExprArgument<string name, bit opt = 0> : Argument<name, opt>;
-class FunctionArgument<string name, bit opt = 0, bit fake = 0> : Argument<name,
-                                                                          opt,
-                                                                          fake>;
-class NamedArgument<string name, bit opt = 0, bit fake = 0> : Argument<name,
-                                                                       opt,
-                                                                       fake>;
+class DeclArgument<DeclNode kind, string name, bit opt = 0, bit fake = 0>
+    : Argument<name, opt, fake> {
+  DeclNode Kind = kind;
+}
 
 // An argument of a OMPDeclareVariantAttr that represents the `match`
 // clause of the declare variant by keeping the information (incl. nesting) in
@@ -966,7 +964,7 @@ def OSConsumesThis : InheritableAttr {
 
 def Cleanup : InheritableAttr {
   let Spellings = [GCC<"cleanup">];
-  let Args = [FunctionArgument<"FunctionDecl">];
+  let Args = [DeclArgument<Function, "FunctionDecl">];
   let Subjects = SubjectList<[LocalVar]>;
   let Documentation = [Undocumented];
 }
@@ -1061,28 +1059,25 @@ def CUDADevice : InheritableAttr {
   let Documentation = [Undocumented];
 }
 
-def HIPPinnedShadow : InheritableAttr {
-  let Spellings = [GNU<"hip_pinned_shadow">, Declspec<"__hip_pinned_shadow__">];
-  let Subjects = SubjectList<[Var]>;
-  let LangOpts = [HIP];
-  let Documentation = [HIPPinnedShadowDocs];
-}
-
 def CUDADeviceBuiltin : IgnoredAttr {
   let Spellings = [GNU<"device_builtin">, Declspec<"__device_builtin__">];
   let LangOpts = [CUDA];
 }
 
-def CUDADeviceBuiltinSurfaceType : IgnoredAttr {
+def CUDADeviceBuiltinSurfaceType : InheritableAttr {
   let Spellings = [GNU<"device_builtin_surface_type">,
                    Declspec<"__device_builtin_surface_type__">];
   let LangOpts = [CUDA];
+  let Subjects = SubjectList<[CXXRecord]>;
+  let Documentation = [CUDADeviceBuiltinSurfaceTypeDocs];
 }
 
-def CUDADeviceBuiltinTextureType : IgnoredAttr {
+def CUDADeviceBuiltinTextureType : InheritableAttr {
   let Spellings = [GNU<"device_builtin_texture_type">,
                    Declspec<"__device_builtin_texture_type__">];
   let LangOpts = [CUDA];
+  let Subjects = SubjectList<[CXXRecord]>;
+  let Documentation = [CUDADeviceBuiltinTextureTypeDocs];
 }
 
 def CUDAGlobal : InheritableAttr {
@@ -2835,7 +2830,7 @@ def DiagnoseIf : InheritableAttr {
                            ["error", "warning"],
                            ["DT_Error", "DT_Warning"]>,
               BoolArgument<"ArgDependent", 0, /*fake*/ 1>,
-              NamedArgument<"Parent", 0, /*fake*/ 1>];
+              DeclArgument<Named, "Parent", 0, /*fake*/ 1>];
   let InheritEvenIfAlreadyPresent = 1;
   let LateParsed = 1;
   let AdditionalMembers = [{
@@ -2889,7 +2884,8 @@ def Used : InheritableAttr {
 
 def Uuid : InheritableAttr {
   let Spellings = [Declspec<"uuid">, Microsoft<"uuid">];
-  let Args = [StringArgument<"Guid">];
+  let Args = [StringArgument<"Guid">,
+              DeclArgument<MSGuid, "GuidDecl", 0, /*fake=*/1>];
   let Subjects = SubjectList<[Record, Enum]>;
   // FIXME: Allow expressing logical AND for LangOpts. Our condition should be:
   // CPlusPlus && (MicrosoftExt || Borland)
@@ -3687,8 +3683,13 @@ def OMPCaptureKind : Attr {
   // This attribute has no spellings as it is only ever created implicitly.
   let Spellings = [];
   let SemaHandler = 0;
-  let Args = [UnsignedArgument<"CaptureKind">];
+  let Args = [UnsignedArgument<"CaptureKindVal">];
   let Documentation = [Undocumented];
+  let AdditionalMembers = [{
+    llvm::omp::Clause getCaptureKind() const {
+      return static_cast<llvm::omp::Clause>(getCaptureKindVal());
+    }
+  }];
 }
 
 def OMPReferencedVar : Attr {
