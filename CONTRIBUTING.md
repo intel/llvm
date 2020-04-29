@@ -77,12 +77,21 @@ for more information.
 - Create a personal fork of the project on GitHub
   - For the DPC++ Compiler project, use **sycl** branch as baseline for your
     changes. See [Get Started Guide](sycl/doc/GetStartedGuide.md).
-- Prepare your patch (follow
-  [LLVM coding standards](https://llvm.org/docs/CodingStandards.html)).
-  [clang-format](https://clang.llvm.org/docs/ClangFormat.html) and [clang-tidy](
-  https://clang.llvm.org/extra/clang-tidy/) tools can be integrated into your
-  workflow to ensure formatting and stylistic compliance of your changes.
+- Prepare your patch
+    - follow [LLVM coding standards](https://llvm.org/docs/CodingStandards.html)
+    - [clang-format](https://clang.llvm.org/docs/ClangFormat.html) and 
+      [clang-tidy](https://clang.llvm.org/extra/clang-tidy/) tools can be integrated into your
+      workflow to ensure formatting and stylistic compliance of your changes.
+    - use
+      ```
+      git diff -U0 sycl~0 --no-color -- | ./clang/tools/clang-format/clang-format-diff.py -p1
+      ```
+      to check the format of your current changes against the `sycl` branch
 - Build the project and run all tests.
+    - complete test suite: `python buildbot/check.py`
+    - sycl test suite `python buildbot/check.py -t test-sycl`
+    - run only "mytest" test `python buildbot/check.py -t test-sycl-mytest`
+    - if necessary, use `-o $LLVM_BUILD_DIR` to specify the llvm build directory
 
 ### Commit message
 
@@ -92,23 +101,6 @@ for more information.
 - For any DPC++-related commit, the `[SYCL]` tag should be present in the
   commit message title. To a reasonable extent, additional tags can be used
   to signify the component changed, e.g.: `[PI]`, `[CUDA]`, `[Doc]`.
-
-### Pre-commit checks
-
-- Before submitting your patch you can verify coding-style conformance with the clang-format tool:
-  ```
-  git diff -U0 sycl~0 --no-color -- | ./clang/tools/clang-format/clang-format-diff.py -p1
-  ```
-  make sure clang-format is installed on your system
-
-- You can also run the sycl test-suite before sending your PR:
-
-    - complete test suite: `python buildbot/check.py`
-    - sycl test suite `python buildbot/check.py -t test-sycl`
-    - run only "mytest" test `python buildbot/check.py -t test-sycl-mytest`
-  
-  if necessary, use `-o $LLVM_BUILD_DIR` to specify the llvm build directory
-
 
 ### Review and acceptance testing
 
