@@ -149,6 +149,10 @@ inline bool isValid(spv::ExecutionMode V) {
   case ExecutionModeSignedZeroInfNanPreserve:
   case ExecutionModeRoundingModeRTE:
   case ExecutionModeRoundingModeRTZ:
+  case ExecutionModeRoundingModeRTPINTEL:
+  case ExecutionModeRoundingModeRTNINTEL:
+  case ExecutionModeFloatingPointModeALTINTEL:
+  case ExecutionModeFloatingPointModeIEEEINTEL:
     return true;
   default:
     return false;
@@ -586,6 +590,8 @@ inline bool isValid(spv::Capability V) {
   case CapabilitySignedZeroInfNanPreserve:
   case CapabilityRoundingModeRTE:
   case CapabilityRoundingModeRTZ:
+  case CapabilityRoundToInfinityINTEL:
+  case CapabilityFloatingPointModeINTEL:
   case CapabilityFPGAMemoryAttributesINTEL:
   case CapabilityArbitraryPrecisionIntegersINTEL:
   case CapabilityFPGALoopControlsINTEL:
