@@ -84,9 +84,11 @@ for more information.
       workflow to ensure formatting and stylistic compliance of your changes.
     - use
       ```
-      git diff -U0 sycl~0 --no-color -- | ./clang/tools/clang-format/clang-format-diff.py -p1
+      ./clang/tools/clang-format/git-clang-format `git merge-base origin/sycl HEAD`
       ```
-      to check the format of your current changes against the `sycl` branch
+      to check the format of your current changes against the `origin/sycl` branch.
+        - `-f` to also correct unstaged changes
+        - `--diff` to only print the diff without applying
 - Build the project and run all tests.
     - complete test suite: `python buildbot/check.py`
     - sycl test suite `python buildbot/check.py -t test-sycl`
