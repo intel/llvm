@@ -1236,9 +1236,10 @@ public:
 
     MemberExpr *KernelObjectPointerField =
         BuildMemberExpr(MemberExprBases.back(), FD);
-    Expr *AssignPointerParameter = new (SemaRef.getASTContext())
-        BinaryOperator(KernelObjectPointerField, DRE, BO_Assign, FieldTy,
-                       VK_LValue, OK_Ordinary, SourceLocation(), FPOptions());
+    Expr *AssignPointerParameter = BinaryOperator::Create(
+        SemaRef.getASTContext(), KernelObjectPointerField, DRE, BO_Assign,
+        FieldTy, VK_LValue, OK_Ordinary, SourceLocation(),
+        FPOptions(SemaRef.getASTContext().getLangOpts()));
 
     BodyStmts.push_back(AssignPointerParameter);
   }
