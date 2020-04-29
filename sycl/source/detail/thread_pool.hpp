@@ -54,7 +54,7 @@ public:
     MStop.store(false);
 
     for (size_t Idx = 0; Idx < MThreadCount; ++Idx)
-      MLaunchedThreads.emplace_back(&ThreadPool::worker, this);
+      MLaunchedThreads.emplace_back([this] { worker(); });
   }
 
   void finishAndWait() {
@@ -70,7 +70,7 @@ public:
   template <typename T> void submit(T &&Func) {
     {
       std::lock_guard<std::mutex> Lock(MJobQueueMutex);
-      MJobQueue.emplace(std::move([Func]() { Func(); }));
+      MJobQueue.emplace([F = std::move(Func)]() { F(); });
     }
 
     MDoSmthOrStop.notify_one();
