@@ -98,22 +98,12 @@ void llvm::computeLTOCacheKey(
   };
   auto AddUnsigned = [&](unsigned I) {
     uint8_t Data[4];
-    Data[0] = I;
-    Data[1] = I >> 8;
-    Data[2] = I >> 16;
-    Data[3] = I >> 24;
+    support::endian::write32le(Data, I);
     Hasher.update(ArrayRef<uint8_t>{Data, 4});
   };
   auto AddUint64 = [&](uint64_t I) {
     uint8_t Data[8];
-    Data[0] = I;
-    Data[1] = I >> 8;
-    Data[2] = I >> 16;
-    Data[3] = I >> 24;
-    Data[4] = I >> 32;
-    Data[5] = I >> 40;
-    Data[6] = I >> 48;
-    Data[7] = I >> 56;
+    support::endian::write64le(Data, I);
     Hasher.update(ArrayRef<uint8_t>{Data, 8});
   };
   AddString(Conf.CPU);
@@ -477,7 +467,8 @@ LTO::RegularLTOState::RegularLTOState(unsigned ParallelCodeGenParallelismLevel,
 LTO::ThinLTOState::ThinLTOState(ThinBackend Backend)
     : Backend(Backend), CombinedIndex(/*HaveGVs*/ false) {
   if (!Backend)
-    this->Backend = createInProcessThinBackend();
+    this->Backend =
+        createInProcessThinBackend(llvm::heavyweight_hardware_concurrency());
 }
 
 LTO::LTO(Config Conf, ThinBackend Backend,
@@ -1090,13 +1081,12 @@ class InProcessThinBackend : public ThinBackendProc {
 public:
   InProcessThinBackend(
       const Config &Conf, ModuleSummaryIndex &CombinedIndex,
-      unsigned ThinLTOParallelismLevel,
+      ThreadPoolStrategy ThinLTOParallelism,
       const StringMap<GVSummaryMapTy> &ModuleToDefinedGVSummaries,
       AddStreamFn AddStream, NativeObjectCache Cache)
       : ThinBackendProc(Conf, CombinedIndex, ModuleToDefinedGVSummaries),
-        BackendThreadPool(
-            heavyweight_hardware_concurrency(ThinLTOParallelismLevel)),
-        AddStream(std::move(AddStream)), Cache(std::move(Cache)) {
+        BackendThreadPool(ThinLTOParallelism), AddStream(std::move(AddStream)),
+        Cache(std::move(Cache)) {
     for (auto &Name : CombinedIndex.cfiFunctionDefs())
       CfiFunctionDefs.insert(
           GlobalValue::getGUID(GlobalValue::dropLLVMManglingEscape(Name)));
@@ -1192,13 +1182,13 @@ public:
 };
 } // end anonymous namespace
 
-ThinBackend lto::createInProcessThinBackend(unsigned ParallelismLevel) {
+ThinBackend lto::createInProcessThinBackend(ThreadPoolStrategy Parallelism) {
   return [=](const Config &Conf, ModuleSummaryIndex &CombinedIndex,
              const StringMap<GVSummaryMapTy> &ModuleToDefinedGVSummaries,
              AddStreamFn AddStream, NativeObjectCache Cache) {
     return std::make_unique<InProcessThinBackend>(
-        Conf, CombinedIndex, ParallelismLevel, ModuleToDefinedGVSummaries,
-        AddStream, Cache);
+        Conf, CombinedIndex, Parallelism, ModuleToDefinedGVSummaries, AddStream,
+        Cache);
   };
 }
 

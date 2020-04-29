@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "PassDetail.h"
 #include "mlir/Transforms/Passes.h"
 
 #include "mlir/Analysis/AffineAnalysis.h"
@@ -17,7 +18,6 @@
 #include "mlir/Analysis/Utils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/LoopUtils.h"
 #include "mlir/Transforms/Utils.h"
 #include "llvm/ADT/DenseMap.h"
@@ -28,8 +28,8 @@
 using namespace mlir;
 
 namespace {
-
-struct PipelineDataTransfer : public FunctionPass<PipelineDataTransfer> {
+struct PipelineDataTransfer
+    : public AffinePipelineDataTransferBase<PipelineDataTransfer> {
   void runOnFunction() override;
   void runOnAffineForOp(AffineForOp forOp);
 
@@ -40,7 +40,7 @@ struct PipelineDataTransfer : public FunctionPass<PipelineDataTransfer> {
 
 /// Creates a pass to pipeline explicit movement of data across levels of the
 /// memory hierarchy.
-std::unique_ptr<OpPassBase<FuncOp>> mlir::createPipelineDataTransferPass() {
+std::unique_ptr<OperationPass<FuncOp>> mlir::createPipelineDataTransferPass() {
   return std::make_unique<PipelineDataTransfer>();
 }
 
@@ -98,8 +98,8 @@ static bool doubleBuffer(Value oldMemRef, AffineForOp forOp) {
   // Create 'iv mod 2' value to index the leading dimension.
   auto d0 = bInner.getAffineDimExpr(0);
   int64_t step = forOp.getStep();
-  auto modTwoMap = AffineMap::get(/*dimCount=*/1, /*symbolCount=*/0,
-                                  {d0.floorDiv(step) % 2});
+  auto modTwoMap =
+      AffineMap::get(/*dimCount=*/1, /*symbolCount=*/0, d0.floorDiv(step) % 2);
   auto ivModTwoOp = bInner.create<AffineApplyOp>(forOp.getLoc(), modTwoMap,
                                                  forOp.getInductionVar());
 
@@ -342,7 +342,7 @@ void PipelineDataTransfer::runOnAffineForOp(AffineForOp forOp) {
       instShiftMap[&op] = 1;
 
   // Get shifts stored in map.
-  std::vector<uint64_t> shifts(forOp.getBody()->getOperations().size());
+  SmallVector<uint64_t, 8> shifts(forOp.getBody()->getOperations().size());
   unsigned s = 0;
   for (auto &op : forOp.getBody()->without_terminator()) {
     assert(instShiftMap.find(&op) != instShiftMap.end());
@@ -355,7 +355,7 @@ void PipelineDataTransfer::runOnAffineForOp(AffineForOp forOp) {
     });
   }
 
-  if (!isInstwiseShiftValid(forOp, shifts)) {
+  if (!isOpwiseShiftValid(forOp, shifts)) {
     // Violates dependences.
     LLVM_DEBUG(llvm::dbgs() << "Shifts invalid - unexpected\n";);
     return;
@@ -366,8 +366,3 @@ void PipelineDataTransfer::runOnAffineForOp(AffineForOp forOp) {
     return;
   }
 }
-
-static PassRegistration<PipelineDataTransfer> pass(
-    "affine-pipeline-data-transfer",
-    "Pipeline non-blocking data transfers between explicitly managed levels of "
-    "the memory hierarchy");

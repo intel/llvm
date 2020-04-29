@@ -132,28 +132,11 @@ public:
     return TTI::TCC_Basic;
   }
 
-  unsigned getCallCost(FunctionType *FTy, int NumArgs, const User *U) {
-    assert(FTy && "FunctionType must be provided to this routine.");
-
-    // The target-independent implementation just measures the size of the
-    // function by approximating that each argument will take on average one
-    // instruction to prepare.
-
-    if (NumArgs < 0)
-      // Set the argument number to the number of explicit arguments in the
-      // function.
-      NumArgs = FTy->getNumParams();
-
-    return TTI::TCC_Basic * (NumArgs + 1);
-  }
-
   unsigned getInliningThresholdMultiplier() { return 1; }
 
   int getInlinerVectorBonusPercent() { return 150; }
 
-  unsigned getMemcpyCost(const Instruction *I) {
-    return TTI::TCC_Expensive;
-  }
+  unsigned getMemcpyCost(const Instruction *I) { return TTI::TCC_Expensive; }
 
   bool hasBranchDivergence() { return false; }
 
@@ -163,17 +146,15 @@ public:
 
   bool isAlwaysUniform(const Value *V) { return false; }
 
-  unsigned getFlatAddressSpace () {
-    return -1;
-  }
+  unsigned getFlatAddressSpace() { return -1; }
 
   bool collectFlatAddressOperands(SmallVectorImpl<int> &OpIndexes,
                                   Intrinsic::ID IID) const {
     return false;
   }
 
-  bool rewriteIntrinsicWithAddressSpace(IntrinsicInst *II,
-                                        Value *OldV, Value *NewV) const {
+  bool rewriteIntrinsicWithAddressSpace(IntrinsicInst *II, Value *OldV,
+                                        Value *NewV) const {
     return false;
   }
 
@@ -214,8 +195,7 @@ public:
   }
 
   bool isHardwareLoopProfitable(Loop *L, ScalarEvolution &SE,
-                                AssumptionCache &AC,
-                                TargetLibraryInfo *LibInfo,
+                                AssumptionCache &AC, TargetLibraryInfo *LibInfo,
                                 HardwareLoopInfo &HWLoopInfo) {
     return false;
   }
@@ -235,8 +215,8 @@ public:
   bool isLegalICmpImmediate(int64_t Imm) { return false; }
 
   bool isLegalAddressingMode(Type *Ty, GlobalValue *BaseGV, int64_t BaseOffset,
-                             bool HasBaseReg, int64_t Scale,
-                             unsigned AddrSpace, Instruction *I = nullptr) {
+                             bool HasBaseReg, int64_t Scale, unsigned AddrSpace,
+                             Instruction *I = nullptr) {
     // Guess that only reg and reg+reg addressing is allowed. This heuristic is
     // taken from the implementation of LSR.
     return !BaseGV && BaseOffset == 0 && (Scale == 0 || Scale == 1);
@@ -261,7 +241,9 @@ public:
 
   bool shouldFavorBackedgeIndex(const Loop *L) const { return false; }
 
-  bool isLegalMaskedStore(Type *DataType, MaybeAlign Alignment) { return false; }
+  bool isLegalMaskedStore(Type *DataType, MaybeAlign Alignment) {
+    return false;
+  }
 
   bool isLegalMaskedLoad(Type *DataType, MaybeAlign Alignment) { return false; }
 
@@ -300,8 +282,8 @@ public:
   int getScalingFactorCost(Type *Ty, GlobalValue *BaseGV, int64_t BaseOffset,
                            bool HasBaseReg, int64_t Scale, unsigned AddrSpace) {
     // Guess that all legal addressing mode are free.
-    if (isLegalAddressingMode(Ty, BaseGV, BaseOffset, HasBaseReg,
-                              Scale, AddrSpace))
+    if (isLegalAddressingMode(Ty, BaseGV, BaseOffset, HasBaseReg, Scale,
+                              AddrSpace))
       return 0;
     return -1;
   }
@@ -326,7 +308,9 @@ public:
   }
 
   unsigned getOperandsScalarizationOverhead(ArrayRef<const Value *> Args,
-                                            unsigned VF) { return 0; }
+                                            unsigned VF) {
+    return 0;
+  }
 
   bool supportsEfficientVectorElementLoadStore() { return false; }
 
@@ -343,11 +327,11 @@ public:
 
   bool isFPVectorizationPotentiallyUnsafe() { return false; }
 
-  bool allowsMisalignedMemoryAccesses(LLVMContext &Context,
-                                      unsigned BitWidth,
-                                      unsigned AddressSpace,
-                                      unsigned Alignment,
-                                      bool *Fast) { return false; }
+  bool allowsMisalignedMemoryAccesses(LLVMContext &Context, unsigned BitWidth,
+                                      unsigned AddressSpace, unsigned Alignment,
+                                      bool *Fast) {
+    return false;
+  }
 
   TTI::PopcntSupportKind getPopcntSupport(unsigned IntTyWidthInBit) {
     return TTI::PSK_Software;
@@ -382,12 +366,14 @@ public:
     return Vector ? 1 : 0;
   };
 
-  const char* getRegisterClassName(unsigned ClassID) const {
+  const char *getRegisterClassName(unsigned ClassID) const {
     switch (ClassID) {
-      default:
-        return "Generic::Unknown Register Class";
-      case 0: return "Generic::ScalarRC";
-      case 1: return "Generic::VectorRC";
+    default:
+      return "Generic::Unknown Register Class";
+    case 0:
+      return "Generic::ScalarRC";
+    case 1:
+      return "Generic::VectorRC";
     }
   }
 
@@ -408,7 +394,8 @@ public:
 
   unsigned getCacheLineSize() const { return 0; }
 
-  llvm::Optional<unsigned> getCacheSize(TargetTransformInfo::CacheLevel Level) const {
+  llvm::Optional<unsigned>
+  getCacheSize(TargetTransformInfo::CacheLevel Level) const {
     switch (Level) {
     case TargetTransformInfo::CacheLevel::L1D:
       LLVM_FALLTHROUGH;
@@ -418,8 +405,8 @@ public:
     llvm_unreachable("Unknown TargetTransformInfo::CacheLevel");
   }
 
-  llvm::Optional<unsigned> getCacheAssociativity(
-    TargetTransformInfo::CacheLevel Level) const {
+  llvm::Optional<unsigned>
+  getCacheAssociativity(TargetTransformInfo::CacheLevel Level) const {
     switch (Level) {
     case TargetTransformInfo::CacheLevel::L1D:
       LLVM_FALLTHROUGH;
@@ -431,8 +418,13 @@ public:
   }
 
   unsigned getPrefetchDistance() const { return 0; }
-  unsigned getMinPrefetchStride() const { return 1; }
+  unsigned getMinPrefetchStride(unsigned NumMemAccesses,
+                                unsigned NumStridedMemAccesses,
+                                unsigned NumPrefetches, bool HasCall) const {
+    return 1;
+  }
   unsigned getMaxPrefetchIterationsAhead() const { return UINT_MAX; }
+  bool enableWritePrefetching() const { return false; }
 
   unsigned getMaxInterleaveFactor(unsigned VF) { return 1; }
 
@@ -452,7 +444,9 @@ public:
   }
 
   unsigned getCastInstrCost(unsigned Opcode, Type *Dst, Type *Src,
-                            const Instruction *I) { return 1; }
+                            const Instruction *I) {
+    return 1;
+  }
 
   unsigned getExtractWithExtendCost(unsigned Opcode, Type *Dst,
                                     VectorType *VecTy, unsigned Index) {
@@ -548,13 +542,10 @@ public:
     return Type::getInt8Ty(Context);
   }
 
-  void getMemcpyLoopResidualLoweringType(SmallVectorImpl<Type *> &OpsOut,
-                                         LLVMContext &Context,
-                                         unsigned RemainingBytes,
-                                         unsigned SrcAddrSpace,
-                                         unsigned DestAddrSpace,
-                                         unsigned SrcAlign,
-                                         unsigned DestAlign) const {
+  void getMemcpyLoopResidualLoweringType(
+      SmallVectorImpl<Type *> &OpsOut, LLVMContext &Context,
+      unsigned RemainingBytes, unsigned SrcAddrSpace, unsigned DestAddrSpace,
+      unsigned SrcAlign, unsigned DestAlign) const {
     for (unsigned i = 0; i != RemainingBytes; ++i)
       OpsOut.push_back(Type::getInt8Ty(Context));
   }
@@ -567,7 +558,8 @@ public:
             Callee->getFnAttribute("target-features"));
   }
 
-  bool areFunctionArgsABICompatible(const Function *Caller, const Function *Callee,
+  bool areFunctionArgsABICompatible(const Function *Caller,
+                                    const Function *Callee,
                                     SmallPtrSetImpl<Argument *> &Args) const {
     return (Caller->getFnAttribute("target-cpu") ==
             Callee->getFnAttribute("target-cpu")) &&
@@ -620,24 +612,18 @@ public:
     return false;
   }
 
-  bool shouldExpandReduction(const IntrinsicInst *II) const {
-    return true;
-  }
+  bool shouldExpandReduction(const IntrinsicInst *II) const { return true; }
 
-  unsigned getGISelRematGlobalCost() const {
-    return 1;
-  }
+  unsigned getGISelRematGlobalCost() const { return 1; }
 
-  bool hasActiveVectorLength() const {
-    return false;
-  }
+  bool hasActiveVectorLength() const { return false; }
 
 protected:
   // Obtain the minimum required size to hold the value (without the sign)
   // In case of a vector it returns the min required size for one element.
-  unsigned minRequiredElementSize(const Value* Val, bool &isSigned) {
+  unsigned minRequiredElementSize(const Value *Val, bool &isSigned) {
     if (isa<ConstantDataVector>(Val) || isa<ConstantVector>(Val)) {
-      const auto* VectorValue = cast<Constant>(Val);
+      const auto *VectorValue = cast<Constant>(Val);
 
       // In case of a vector need to pick the max between the min
       // required size for each element
@@ -651,19 +637,18 @@ protected:
       unsigned MaxRequiredSize = VT->getBitWidth() / VT->getNumElements();
 
       unsigned MinRequiredSize = 0;
-      for(unsigned i = 0, e = VT->getNumElements(); i < e; ++i) {
-        if (auto* IntElement =
-              dyn_cast<ConstantInt>(VectorValue->getAggregateElement(i))) {
+      for (unsigned i = 0, e = VT->getNumElements(); i < e; ++i) {
+        if (auto *IntElement =
+                dyn_cast<ConstantInt>(VectorValue->getAggregateElement(i))) {
           bool signedElement = IntElement->getValue().isNegative();
           // Get the element min required size.
           unsigned ElementMinRequiredSize =
-            IntElement->getValue().getMinSignedBits() - 1;
+              IntElement->getValue().getMinSignedBits() - 1;
           // In case one element is signed then all the vector is signed.
           isSigned |= signedElement;
           // Save the max required bit size between all the elements.
           MinRequiredSize = std::max(MinRequiredSize, ElementMinRequiredSize);
-        }
-        else {
+        } else {
           // not an int constant element
           return MaxRequiredSize;
         }
@@ -671,17 +656,17 @@ protected:
       return MinRequiredSize;
     }
 
-    if (const auto* CI = dyn_cast<ConstantInt>(Val)) {
+    if (const auto *CI = dyn_cast<ConstantInt>(Val)) {
       isSigned = CI->getValue().isNegative();
       return CI->getValue().getMinSignedBits() - 1;
     }
 
-    if (const auto* Cast = dyn_cast<SExtInst>(Val)) {
+    if (const auto *Cast = dyn_cast<SExtInst>(Val)) {
       isSigned = true;
       return Cast->getSrcTy()->getScalarSizeInBits() - 1;
     }
 
-    if (const auto* Cast = dyn_cast<ZExtInst>(Val)) {
+    if (const auto *Cast = dyn_cast<ZExtInst>(Val)) {
       isSigned = false;
       return Cast->getSrcTy()->getScalarSizeInBits();
     }
@@ -726,38 +711,6 @@ protected:
   explicit TargetTransformInfoImplCRTPBase(const DataLayout &DL) : BaseT(DL) {}
 
 public:
-  using BaseT::getCallCost;
-
-  unsigned getCallCost(const Function *F, int NumArgs, const User *U) {
-    assert(F && "A concrete function must be provided to this routine.");
-
-    if (NumArgs < 0)
-      // Set the argument number to the number of explicit arguments in the
-      // function.
-      NumArgs = F->arg_size();
-
-    if (Intrinsic::ID IID = F->getIntrinsicID()) {
-      FunctionType *FTy = F->getFunctionType();
-      SmallVector<Type *, 8> ParamTys(FTy->param_begin(), FTy->param_end());
-      return static_cast<T *>(this)
-          ->getIntrinsicCost(IID, FTy->getReturnType(), ParamTys, U);
-    }
-
-    if (!static_cast<T *>(this)->isLoweredToCall(F))
-      return TTI::TCC_Basic; // Give a basic cost if it will be lowered
-                             // directly.
-
-    return static_cast<T *>(this)->getCallCost(F->getFunctionType(), NumArgs, U);
-  }
-
-  unsigned getCallCost(const Function *F, ArrayRef<const Value *> Arguments,
-                       const User *U) {
-    // Simply delegate to generic handling of the call.
-    // FIXME: We should use instsimplify or something else to catch calls which
-    // will constant fold with these arguments.
-    return static_cast<T *>(this)->getCallCost(F, Arguments.size(), U);
-  }
-
   using BaseT::getGEPCost;
 
   int getGEPCost(Type *PointeeType, const Value *Ptr,
@@ -898,15 +851,20 @@ public:
 
     if (auto CS = ImmutableCallSite(U)) {
       const Function *F = CS.getCalledFunction();
-      if (!F) {
-        // Just use the called value type.
-        Type *FTy = CS.getCalledValue()->getType()->getPointerElementType();
-        return TargetTTI->getCallCost(cast<FunctionType>(FTy),
-                                      CS.arg_size(), U);
-      }
+      if (F) {
+        FunctionType *FTy = F->getFunctionType();
+        if (Intrinsic::ID IID = F->getIntrinsicID()) {
+          SmallVector<Type *, 8> ParamTys(FTy->param_begin(), FTy->param_end());
+          return TargetTTI->getIntrinsicCost(IID, FTy->getReturnType(),
+                                             ParamTys, U);
+        }
 
-      SmallVector<const Value *, 8> Arguments(CS.arg_begin(), CS.arg_end());
-      return TargetTTI->getCallCost(F, Arguments, U);
+        if (!TargetTTI->isLoweredToCall(F))
+          return TTI::TCC_Basic; // Give a basic cost if it will be lowered
+
+        return TTI::TCC_Basic * (FTy->getNumParams() + 1);
+      }
+      return TTI::TCC_Basic * (CS.arg_size() + 1);
     }
 
     if (isa<SExtInst>(U) || isa<ZExtInst>(U) || isa<FPExtInst>(U))
@@ -914,7 +872,8 @@ public:
       // has been removed. A target that needs it should override getUserCost().
       return TargetTTI->getExtCost(cast<Instruction>(U), Operands.back());
 
-    return TargetTTI->getOperationCost(Operator::getOpcode(U), U->getType(),
+    return TargetTTI->getOperationCost(
+        Operator::getOpcode(U), U->getType(),
         U->getNumOperands() == 1 ? U->getOperand(0)->getType() : nullptr);
   }
 
@@ -937,7 +896,7 @@ public:
         return 40;
       // Some intrinsics return a value and a flag, we use the value type
       // to decide its latency.
-      if (StructType* StructTy = dyn_cast<StructType>(DstTy))
+      if (StructType *StructTy = dyn_cast<StructType>(DstTy))
         DstTy = StructTy->getElementType(0);
       // Fall through to simple instructions.
     }
@@ -950,6 +909,6 @@ public:
     return 1;
   }
 };
-}
+} // namespace llvm
 
 #endif

@@ -110,10 +110,6 @@ protected:
   /// Float).
   Type * const *ContainedTys = nullptr;
 
-  static bool isSequentialType(TypeID TyID) {
-    return TyID == ArrayTyID || TyID == VectorTyID;
-  }
-
 public:
   /// Print the current type.
   /// Omit the type details if \p NoDetails == true.
@@ -227,7 +223,7 @@ public:
   bool isPtrOrPtrVectorTy() const { return getScalarType()->isPointerTy(); }
 
   /// True if this is an instance of VectorType.
-  bool isVectorTy() const { return getTypeID() == VectorTyID; }
+  inline bool isVectorTy() const;
 
   /// Return true if this type could be converted with a lossless BitCast to
   /// type 'Ty'. For example, i8* to i32*. BitCasts are valid for types of the
@@ -304,11 +300,7 @@ public:
 
   /// If this is a vector type, return the element type, otherwise return
   /// 'this'.
-  Type *getScalarType() const {
-    if (isVectorTy())
-      return getVectorElementType();
-    return const_cast<Type*>(this);
-  }
+  inline Type *getScalarType() const;
 
   //===--------------------------------------------------------------------===//
   // Type Iteration support.
@@ -343,8 +335,8 @@ public:
 
   //===--------------------------------------------------------------------===//
   // Helper methods corresponding to subclass methods.  This forces a cast to
-  // the specified subclass and calls its accessor.  "getVectorNumElements" (for
-  // example) is shorthand for cast<VectorType>(Ty)->getNumElements().  This is
+  // the specified subclass and calls its accessor.  "getArrayNumElements" (for
+  // example) is shorthand for cast<ArrayType>(Ty)->getNumElements().  This is
   // only intended to cover the core methods that are frequently used, helper
   // methods should not be added here.
 
@@ -358,23 +350,10 @@ public:
   inline unsigned getStructNumElements() const;
   inline Type *getStructElementType(unsigned N) const;
 
-  inline Type *getSequentialElementType() const {
-    assert(isSequentialType(getTypeID()) && "Not a sequential type!");
-    return ContainedTys[0];
-  }
-
   inline uint64_t getArrayNumElements() const;
 
   Type *getArrayElementType() const {
     assert(getTypeID() == ArrayTyID);
-    return ContainedTys[0];
-  }
-
-  inline bool getVectorIsScalable() const;
-  inline unsigned getVectorNumElements() const;
-  inline ElementCount getVectorElementCount() const;
-  Type *getVectorElementType() const {
-    assert(getTypeID() == VectorTyID);
     return ContainedTys[0];
   }
 

@@ -16,6 +16,7 @@
 
 #include "llvm/ADT/StringRef.h"
 #include "llvm/CodeGen/Register.h"
+#include "llvm/Support/Alignment.h"
 #include "llvm/Support/LowLevelTypeImpl.h"
 #include "llvm/Support/MachineValueType.h"
 
@@ -114,6 +115,12 @@ void reportGISelFailure(MachineFunction &MF, const TargetPassConfig &TPC,
                         const char *PassName, StringRef Msg,
                         const MachineInstr &MI);
 
+/// Report an ISel warning as a missed optimization remark to the LLVMContext's
+/// diagnostic stream.
+void reportGISelWarning(MachineFunction &MF, const TargetPassConfig &TPC,
+                        MachineOptimizationRemarkEmitter &MORE,
+                        MachineOptimizationRemarkMissed &R);
+
 /// If \p VReg is defined by a G_CONSTANT fits in int64_t
 /// returns it.
 Optional<int64_t> getConstantVRegVal(Register VReg,
@@ -181,8 +188,7 @@ inline bool isKnownNeverSNaN(Register Val, const MachineRegisterInfo &MRI) {
   return isKnownNeverNaN(Val, MRI, true);
 }
 
-unsigned inferAlignmentFromPtrInfo(MachineFunction &MF,
-                                   const MachinePointerInfo &MPO);
+Align inferAlignFromPtrInfo(MachineFunction &MF, const MachinePointerInfo &MPO);
 
 /// Return the least common multiple type of \p Ty0 and \p Ty1, by changing
 /// the number of vector elements or scalar bitwidth. The intent is a

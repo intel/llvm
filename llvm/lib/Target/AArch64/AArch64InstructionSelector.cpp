@@ -1716,16 +1716,15 @@ bool AArch64InstructionSelector::earlySelect(MachineInstr &I) const {
 
     Register DefReg = I.getOperand(0).getReg();
     LLT Ty = MRI.getType(DefReg);
-    if (Ty != LLT::scalar(64) && Ty != LLT::scalar(32))
-      return false;
-
-    if (Ty == LLT::scalar(64)) {
+    if (Ty.getSizeInBits() == 64) {
       I.getOperand(1).ChangeToRegister(AArch64::XZR, false);
       RBI.constrainGenericRegister(DefReg, AArch64::GPR64RegClass, MRI);
-    } else {
+    } else if (Ty.getSizeInBits() == 32) {
       I.getOperand(1).ChangeToRegister(AArch64::WZR, false);
       RBI.constrainGenericRegister(DefReg, AArch64::GPR32RegClass, MRI);
-    }
+    } else
+      return false;
+
     I.setDesc(TII.get(TargetOpcode::COPY));
     return true;
   }
@@ -2767,14 +2766,13 @@ bool AArch64InstructionSelector::selectBrJT(MachineInstr &I,
 
   Register TargetReg = MRI.createVirtualRegister(&AArch64::GPR64RegClass);
   Register ScratchReg = MRI.createVirtualRegister(&AArch64::GPR64spRegClass);
-  MIB.buildInstr(AArch64::JumpTableDest32, {TargetReg, ScratchReg},
-                 {JTAddr, Index})
-      .addJumpTableIndex(JTI);
-
+  auto JumpTableInst = MIB.buildInstr(AArch64::JumpTableDest32,
+                                      {TargetReg, ScratchReg}, {JTAddr, Index})
+                           .addJumpTableIndex(JTI);
   // Build the indirect branch.
   MIB.buildInstr(AArch64::BR, {}, {TargetReg});
   I.eraseFromParent();
-  return true;
+  return constrainSelectedInstRegOperands(*JumpTableInst, TII, TRI, RBI);
 }
 
 bool AArch64InstructionSelector::selectJumpTable(

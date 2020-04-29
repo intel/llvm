@@ -585,6 +585,9 @@ struct ConversionPatternRewriterImpl {
   /// PatternRewriter hook for replacing the results of an operation.
   void replaceOp(Operation *op, ValueRange newValues);
 
+  /// Notifies that a block was created.
+  void notifyCreatedBlock(Block *block);
+
   /// Notifies that a block was split.
   void notifySplitBlock(Block *block, Block *continuation);
 
@@ -804,6 +807,10 @@ void ConversionPatternRewriterImpl::replaceOp(Operation *op,
   markNestedOpsIgnored(op);
 }
 
+void ConversionPatternRewriterImpl::notifyCreatedBlock(Block *block) {
+  blockActions.push_back(BlockAction::getCreate(block));
+}
+
 void ConversionPatternRewriterImpl::notifySplitBlock(Block *block,
                                                      Block *continuation) {
   blockActions.push_back(BlockAction::getSplit(continuation, block));
@@ -888,6 +895,10 @@ void ConversionPatternRewriter::eraseOp(Operation *op) {
   impl->replaceOp(op, nullRepls);
 }
 
+void ConversionPatternRewriter::eraseBlock(Block *block) {
+  llvm_unreachable("erasing blocks for dialect conversion not implemented");
+}
+
 /// Apply a signature conversion to the entry block of the given region.
 Block *ConversionPatternRewriter::applySignatureConversion(
     Region *region, TypeConverter::SignatureConversion &conversion) {
@@ -908,6 +919,15 @@ void ConversionPatternRewriter::replaceUsesOfBlockArgument(BlockArgument from,
 /// no such a converted value.
 Value ConversionPatternRewriter::getRemappedValue(Value key) {
   return impl->mapping.lookupOrDefault(key);
+}
+
+/// PatternRewriter hook for creating a new block with the given arguments.
+Block *ConversionPatternRewriter::createBlock(Region *parent,
+                                              Region::iterator insertPtr,
+                                              TypeRange argTypes) {
+  Block *block = PatternRewriter::createBlock(parent, insertPtr, argTypes);
+  impl->notifyCreatedBlock(block);
+  return block;
 }
 
 /// PatternRewriter hook for splitting a block into two parts.
@@ -1230,16 +1250,15 @@ OperationLegalizer::legalizePattern(Operation *op, RewritePattern *pattern,
     auto &os = rewriterImpl.logger;
     os.getOStream() << "\n";
     os.startLine() << "* Pattern : '" << pattern->getRootKind() << " -> (";
-    interleaveComma(pattern->getGeneratedOps(), llvm::dbgs());
+    llvm::interleaveComma(pattern->getGeneratedOps(), llvm::dbgs());
     os.getOStream() << ")' {\n";
     os.indent();
   });
 
   // Ensure that we don't cycle by not allowing the same pattern to be
-  // applied twice in the same recursion stack.
-  // TODO(riverriddle) We could eventually converge, but that requires more
-  // complicated analysis.
-  if (!appliedPatterns.insert(pattern).second) {
+  // applied twice in the same recursion stack if it is not known to be safe.
+  if (!pattern->hasBoundedRewriteRecursion() &&
+      !appliedPatterns.insert(pattern).second) {
     LLVM_DEBUG(logFailure(rewriterImpl.logger, "pattern was already applied"));
     return failure();
   }

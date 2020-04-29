@@ -96,9 +96,22 @@ During this release ...
 * Functions with the probe-stack attribute set to "inline-asm" are now protected
   against stack clash without the need of a third-party probing function and
   with limited impact on performance.
+* -x86-enable-old-knl-abi command line switch has been removed. v32i16/v64i8
+  vectors are always passed in ZMM register when avx512f is enabled and avx512bw
+  is disabled.
+* Vectors larger than 512 bits with i16 or i8 elements will be passed in
+  multiple ZMM registers when avx512f is enabled. Previously this required
+  avx512bw otherwise they would split into multiple YMM registers. This means
+  vXi16/vXi8 vectors are consistently treated the same as
+  vXi32/vXi64/vXf64/vXf32 vectors of the same total width.
 
 Changes to the AMDGPU Target
 -----------------------------
+
+* The backend default denormal handling mode has been switched to on
+  for all targets for all compute function types. Frontends wishing to
+  retain the old behavior should explicitly request f32 denormal
+  flushing.
 
 Changes to the AVR Target
 -----------------------------
@@ -128,6 +141,24 @@ Changes to the Go bindings
 
 Changes to the DAG infrastructure
 ---------------------------------
+
+
+Changes to the Debug Info
+---------------------------------
+
+* LLVM now supports the debug entry values (DW_OP_entry_value) production for
+  the x86, ARM, and AArch64 targets by default. Other targets can use
+  the utility by using the experimental option ("-debug-entry-values").
+  This is a debug info feature that allows debuggers to recover the value of
+  optimized-out parameters by going up a stack frame and interpreting the values
+  passed to the callee. The feature improves the debugging user experience when
+  debugging optimized code.
+
+Changes to the LLVM tools
+---------------------------------
+
+* Added an option (--show-section-sizes) to llvm-dwarfdump to show the sizes
+  of all debug sections within a file.
 
 Changes to LLDB
 ===============

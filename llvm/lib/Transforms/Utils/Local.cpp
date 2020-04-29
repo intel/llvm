@@ -25,6 +25,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/TinyPtrVector.h"
+#include "llvm/Analysis/AssumeBundleQueries.h"
 #include "llvm/Analysis/ConstantFolding.h"
 #include "llvm/Analysis/DomTreeUpdater.h"
 #include "llvm/Analysis/EHPersonalities.h"
@@ -59,7 +60,6 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Intrinsics.h"
-#include "llvm/IR/KnowledgeRetention.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/MDBuilder.h"
 #include "llvm/IR/Metadata.h"
@@ -1178,7 +1178,7 @@ static unsigned enforceKnownAlignment(Value *V, unsigned Alignment,
     // then don't round up. This avoids dynamic stack realignment.
     if (DL.exceedsNaturalStackAlignment(Align(PrefAlign)))
       return Alignment;
-    AI->setAlignment(MaybeAlign(PrefAlign));
+    AI->setAlignment(Align(PrefAlign));
     return PrefAlign;
   }
 
@@ -1195,7 +1195,7 @@ static unsigned enforceKnownAlignment(Value *V, unsigned Alignment,
     if (!GO->canIncreaseAlignment())
       return Alignment;
 
-    GO->setAlignment(MaybeAlign(PrefAlign));
+    GO->setAlignment(Align(PrefAlign));
     return PrefAlign;
   }
 
@@ -2555,7 +2555,7 @@ bool llvm::callsGCLeafFunction(const CallBase *Call,
   // marked as 'gc-leaf-function.' All available Libcalls are
   // GC-leaf.
   LibFunc LF;
-  if (TLI.getLibFunc(ImmutableCallSite(Call), LF)) {
+  if (TLI.getLibFunc(*Call, LF)) {
     return TLI.has(LF);
   }
 
@@ -3030,4 +3030,43 @@ AllocaInst *llvm::findAllocaForValue(Value *V,
   if (Res)
     AllocaForValue[V] = Res;
   return Res;
+}
+
+Value *llvm::invertCondition(Value *Condition) {
+  // First: Check if it's a constant
+  if (Constant *C = dyn_cast<Constant>(Condition))
+    return ConstantExpr::getNot(C);
+
+  // Second: If the condition is already inverted, return the original value
+  Value *NotCondition;
+  if (match(Condition, m_Not(m_Value(NotCondition))))
+    return NotCondition;
+
+  if (Instruction *Inst = dyn_cast<Instruction>(Condition)) {
+    // Third: Check all the users for an invert
+    BasicBlock *Parent = Inst->getParent();
+    for (User *U : Condition->users())
+      if (Instruction *I = dyn_cast<Instruction>(U))
+        if (I->getParent() == Parent && match(I, m_Not(m_Specific(Condition))))
+          return I;
+
+    // Last option: Create a new instruction
+    auto Inverted = BinaryOperator::CreateNot(Inst, "");
+    if (isa<PHINode>(Inst)) {
+      // FIXME: This fails if the inversion is to be used in a
+      // subsequent PHINode in the same basic block.
+      Inverted->insertBefore(&*Parent->getFirstInsertionPt());
+    } else {
+      Inverted->insertAfter(Inst);
+    }
+    return Inverted;
+  }
+
+  if (Argument *Arg = dyn_cast<Argument>(Condition)) {
+    BasicBlock &EntryBlock = Arg->getParent()->getEntryBlock();
+    return BinaryOperator::CreateNot(Condition, Arg->getName() + ".inv",
+                                     &*EntryBlock.getFirstInsertionPt());
+  }
+
+  llvm_unreachable("Unhandled condition to invert");
 }

@@ -228,7 +228,7 @@ private:
     explicit attr_value_iterator(ArrayAttr::iterator it)
         : llvm::mapped_iterator<ArrayAttr::iterator, AttrTy (*)(Attribute)>(
               it, [](Attribute attr) { return attr.cast<AttrTy>(); }) {}
-    AttrTy operator*() { return (*this->I).template cast<AttrTy>(); }
+    AttrTy operator*() const { return (*this->I).template cast<AttrTy>(); }
   };
 
 public:
@@ -601,13 +601,13 @@ public:
   int64_t getNumElements() const;
 
   /// Generates a new ElementsAttr by mapping each int value to a new
-  /// underlying APInt. The new values can represent either a integer or float.
+  /// underlying APInt. The new values can represent either an integer or float.
   /// This ElementsAttr should contain integers.
   ElementsAttr mapValues(Type newElementType,
                          function_ref<APInt(const APInt &)> mapping) const;
 
   /// Generates a new ElementsAttr by mapping each float value to a new
-  /// underlying APInt. The new values can represent either a integer or float.
+  /// underlying APInt. The new values can represent either an integer or float.
   /// This ElementsAttr should contain floats.
   ElementsAttr mapValues(Type newElementType,
                          function_ref<APInt(const APFloat &)> mapping) const;
@@ -648,13 +648,14 @@ using DenseIterPtrAndSplat =
 template <typename ConcreteT, typename T, typename PointerT = T *,
           typename ReferenceT = T &>
 class DenseElementIndexedIteratorImpl
-    : public indexed_accessor_iterator<ConcreteT, DenseIterPtrAndSplat, T,
-                                       PointerT, ReferenceT> {
+    : public llvm::indexed_accessor_iterator<ConcreteT, DenseIterPtrAndSplat, T,
+                                             PointerT, ReferenceT> {
 protected:
   DenseElementIndexedIteratorImpl(const char *data, bool isSplat,
                                   size_t dataIndex)
-      : indexed_accessor_iterator<ConcreteT, DenseIterPtrAndSplat, T, PointerT,
-                                  ReferenceT>({data, isSplat}, dataIndex) {}
+      : llvm::indexed_accessor_iterator<ConcreteT, DenseIterPtrAndSplat, T,
+                                        PointerT, ReferenceT>({data, isSplat},
+                                                              dataIndex) {}
 
   /// Return the current index for this iterator, adjusted for the case of a
   /// splat.
@@ -746,8 +747,9 @@ public:
   /// A utility iterator that allows walking over the internal Attribute values
   /// of a DenseElementsAttr.
   class AttributeElementIterator
-      : public indexed_accessor_iterator<AttributeElementIterator, const void *,
-                                         Attribute, Attribute, Attribute> {
+      : public llvm::indexed_accessor_iterator<AttributeElementIterator,
+                                               const void *, Attribute,
+                                               Attribute, Attribute> {
   public:
     /// Accesses the Attribute value at this iterator position.
     Attribute operator*() const;
@@ -950,13 +952,13 @@ public:
   DenseElementsAttr reshape(ShapedType newType);
 
   /// Generates a new DenseElementsAttr by mapping each int value to a new
-  /// underlying APInt. The new values can represent either a integer or float.
+  /// underlying APInt. The new values can represent either an integer or float.
   /// This underlying type must be an DenseIntElementsAttr.
   DenseElementsAttr mapValues(Type newElementType,
                               function_ref<APInt(const APInt &)> mapping) const;
 
   /// Generates a new DenseElementsAttr by mapping each float value to a new
-  /// underlying APInt. the new values can represent either a integer or float.
+  /// underlying APInt. the new values can represent either an integer or float.
   /// This underlying type must be an DenseFPElementsAttr.
   DenseElementsAttr
   mapValues(Type newElementType,

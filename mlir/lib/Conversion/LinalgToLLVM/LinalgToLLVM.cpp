@@ -8,6 +8,7 @@
 
 #include "mlir/Conversion/LinalgToLLVM/LinalgToLLVM.h"
 
+#include "../PassDetail.h"
 #include "mlir/Conversion/AffineToStandard/AffineToStandard.h"
 #include "mlir/Conversion/LoopToStandard/ConvertLoopToStandard.h"
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVM.h"
@@ -28,8 +29,6 @@
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/Types.h"
-#include "mlir/Pass/Pass.h"
-#include "mlir/Pass/PassManager.h"
 #include "mlir/Support/LogicalResult.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/Passes.h"
@@ -164,7 +163,7 @@ public:
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
     auto reshapeOp = cast<ReshapeOp>(op);
-    MemRefType dstType = reshapeOp.getResult().getType().cast<MemRefType>();
+    MemRefType dstType = reshapeOp.getResultType();
 
     if (!dstType.hasStaticShape())
       return failure();
@@ -179,7 +178,7 @@ public:
 
     edsc::ScopedContext context(rewriter, op->getLoc());
     ReshapeOpOperandAdaptor adaptor(operands);
-    BaseViewConversionHelper baseDesc(adaptor.view());
+    BaseViewConversionHelper baseDesc(adaptor.src());
     BaseViewConversionHelper desc(typeConverter.convertType(dstType));
     desc.setAllocatedPtr(baseDesc.allocatedPtr());
     desc.setAlignedPtr(baseDesc.alignedPtr());
@@ -400,8 +399,13 @@ static FlatSymbolRefAttr getLibraryCallSymbolRef(Operation *op,
   // Insert before module terminator.
   rewriter.setInsertionPoint(module.getBody(),
                              std::prev(module.getBody()->end()));
-  rewriter.create<FuncOp>(op->getLoc(), fnNameAttr.getValue(), libFnType,
-                          ArrayRef<NamedAttribute>{});
+  FuncOp funcOp =
+      rewriter.create<FuncOp>(op->getLoc(), fnNameAttr.getValue(), libFnType,
+                              ArrayRef<NamedAttribute>{});
+  // Insert a function attribute that will trigger the emission of the
+  // corresponding `_mlir_ciface_xxx` interface so that external libraries see
+  // a normalized ABI. This interface is added during std to llvm conversion.
+  funcOp.setAttr("llvm.emit_c_interface", UnitAttr::get(op->getContext()));
   return fnNameAttr;
 }
 
@@ -524,12 +528,21 @@ populateLinalgToStandardConversionPatterns(OwningRewritePatternList &patterns,
                                            MLIRContext *ctx) {
   // TODO(ntv) ConvOp conversion needs to export a descriptor with relevant
   // attribute values such as kernel striding and dilation.
-  patterns.insert<CopyTransposeConversion, LinalgOpConversion<ConvOp>,
-                  LinalgOpConversion<CopyOp>, LinalgOpConversion<DotOp>,
-                  LinalgOpConversion<FillOp>, LinalgOpConversion<GenericOp>,
-                  LinalgOpConversion<IndexedGenericOp>,
-                  LinalgOpConversion<MatmulOp>, LinalgOpConversion<MatvecOp>>(
-      ctx);
+  // clang-format off
+  patterns.insert<
+      CopyTransposeConversion,
+      LinalgOpConversion<ConvOp>,
+      LinalgOpConversion<PoolingMaxOp>,
+      LinalgOpConversion<PoolingMinOp>,
+      LinalgOpConversion<PoolingSumOp>,
+      LinalgOpConversion<CopyOp>,
+      LinalgOpConversion<DotOp>,
+      LinalgOpConversion<FillOp>,
+      LinalgOpConversion<GenericOp>,
+      LinalgOpConversion<IndexedGenericOp>,
+      LinalgOpConversion<MatmulOp>,
+      LinalgOpConversion<MatvecOp>>(ctx);
+  // clang-format on
 }
 
 } // namespace
@@ -547,21 +560,21 @@ void mlir::populateLinalgToLLVMConversionPatterns(
 }
 
 namespace {
-struct ConvertLinalgToLLVMPass : public ModulePass<ConvertLinalgToLLVMPass> {
-  void runOnModule() override;
+struct ConvertLinalgToLLVMPass
+    : public ConvertLinalgToLLVMBase<ConvertLinalgToLLVMPass> {
+  void runOnOperation() override;
 };
 } // namespace
 
-void ConvertLinalgToLLVMPass::runOnModule() {
-  auto module = getModule();
+void ConvertLinalgToLLVMPass::runOnOperation() {
+  auto module = getOperation();
 
   // Convert to the LLVM IR dialect using the converter defined above.
   OwningRewritePatternList patterns;
   LLVMTypeConverter converter(&getContext());
   populateAffineToStdConversionPatterns(patterns, &getContext());
   populateLoopToStdConversionPatterns(patterns, &getContext());
-  populateStdToLLVMConversionPatterns(converter, patterns, /*useAlloca=*/false,
-                                      /*emitCWrappers=*/true);
+  populateStdToLLVMConversionPatterns(converter, patterns);
   populateVectorToLLVMMatrixConversionPatterns(converter, patterns);
   populateVectorToLLVMConversionPatterns(converter, patterns);
   populateLinalgToStandardConversionPatterns(patterns, &getContext());
@@ -575,10 +588,6 @@ void ConvertLinalgToLLVMPass::runOnModule() {
     signalPassFailure();
 }
 
-std::unique_ptr<OpPassBase<ModuleOp>> mlir::createConvertLinalgToLLVMPass() {
+std::unique_ptr<OperationPass<ModuleOp>> mlir::createConvertLinalgToLLVMPass() {
   return std::make_unique<ConvertLinalgToLLVMPass>();
 }
-
-static PassRegistration<ConvertLinalgToLLVMPass> pass(
-    "convert-linalg-to-llvm",
-    "Convert the operations from the linalg dialect into the LLVM dialect");

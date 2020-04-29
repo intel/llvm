@@ -110,7 +110,7 @@ static bool isPossiblyBitMask(const EnumDecl *EnumDec) {
 SuspiciousEnumUsageCheck::SuspiciousEnumUsageCheck(StringRef Name,
                                                    ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context),
-      StrictMode(Options.getLocalOrGlobal("StrictMode", 0)) {}
+      StrictMode(Options.getLocalOrGlobal("StrictMode", false)) {}
 
 void SuspiciousEnumUsageCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
   Options.store(Opts, "StrictMode", StrictMode);
@@ -156,7 +156,7 @@ void SuspiciousEnumUsageCheck::checkSuspiciousBitmaskUsage(
   const auto *EnumConst =
       EnumExpr ? dyn_cast<EnumConstantDecl>(EnumExpr->getDecl()) : nullptr;
 
-  // Report the parameter if neccessary.
+  // Report the parameter if necessary.
   if (!EnumConst) {
     diag(EnumDec->getInnerLocStart(), BitmaskVarErrorMessage)
         << countNonPowOfTwoLiteralNum(EnumDec);

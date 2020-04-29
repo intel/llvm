@@ -987,6 +987,9 @@ def C11 : DiagGroup<"c11-extensions">;
 // A warning group for warnings about using C99 features as extensions.
 def C99 : DiagGroup<"c99-extensions", [C99Designator]>;
 
+// A warning group for warnings about using C2x features as extensions.
+def C2x : DiagGroup<"c2x-extensions">;
+
 // A warning group for warnings about GCC extensions.
 def GNU : DiagGroup<"gnu", [GNUAlignofExpression, GNUAnonymousStruct,
                             GNUAutoType,
@@ -1160,8 +1163,8 @@ def UnknownArgument : DiagGroup<"unknown-argument">;
 // compiling OpenCL C/C++ but which is not compatible with the SPIR spec.
 def SpirCompat : DiagGroup<"spir-compat">;
 
-// Warning for the experimental-isel options.
-def ExperimentalISel : DiagGroup<"experimental-isel">;
+// Warning for the GlobalISel options.
+def GlobalISel : DiagGroup<"global-isel">;
 
 // A warning group specifically for warnings related to function
 // multiversioning.
