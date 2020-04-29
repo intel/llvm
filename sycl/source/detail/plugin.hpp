@@ -88,7 +88,7 @@ private:
 /// \ingroup sycl_pi
 ///
 inline bool operator==(const plugin &lhs, const plugin &rhs) {
-  return (lhs.getPiPlugin().PluginVersion == rhs.getPiPlugin().PluginVersion);
+  return (lhs.getBackend() == rhs.getBackend());
 }
 
 } // namespace detail
