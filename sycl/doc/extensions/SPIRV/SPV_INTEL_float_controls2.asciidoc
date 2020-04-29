@@ -1,0 +1,140 @@
+SPV_INTEL_float_controls2
+=========================
+
+Name Strings
+------------
+
+SPV_INTEL_float_controls2
+
+Contact
+-------
+
+To report problems or to provide input on this extension, please open a new issue at:
+https://github.com/intel/llvm/issues
+
+Contributors
+------------
+
+- Gang Chen, Intel
+- Mariusz Merecki, Intel
+- Aleksander Us, Intel
+- Konstantin Vladimirov, Intel
+
+
+
+Notice
+------
+
+Copyright (c) 2020 Intel Corporation. All rights reserved.
+
+Status
+------
+
+Working Draft
+
+This is a preview extension specification, intended to provide early access to a feature for review and community feedback. When the feature matures, this specification may be released as a formal extension.
+
+Because the interfaces defined by this specification are not final and are subject to change they are not intended to be used by shipping software products. If you are interested in using this feature in your software product, please let us know!
+
+
+Version
+-------
+
+[width="40%",cols="25,25"]
+|========================================
+| Last Modified Date | 2020-04-24
+| Revision           | 2
+|========================================
+
+Dependencies
+------------
+
+This extension is written against the SPIR-V Specification,
+Version 1.5, Revision 2, Unified
+
+This extension requires SPIR-V 1.0.
+
+Overview
+--------
+
+This extension provides new execution modes to control floating-point computations by overriding an implementation’s default behavior for rounding modes and floating point modes.
+
+
+Extension Name
+--------------
+
+To use this extension within a SPIR-V module, the following
+*OpExtension* must be present in the module:
+
+----
+OpExtension "SPV_INTEL_float_controls2"
+----
+
+Modifications to the SPIR-V Specification, Version 1.5, Revision 2, Unified
+---------------------------------------------------------------------------
+
+Modify Section 3.6, Execution Mode, add the following rows to the Execution Mode table:
+
+--
+[cols="1,20,10,10",options="header",width = "80%"]
+|====
+  2+^| Execution Mode  | Enabling Capabilities | Extra Operands
+| 5620 | *RoundingModeRTPINTEL* +
+The default rounding mode for floating-point arithmetic and conversions instructions must be round to positive infinity.
+If an instruction is decorated with *FPRoundingMode* or defines a rounding mode in its description, that rounding mode is applied and *RoundingModeRTPINTEL* is ignored.
+Only affects instructions operating on a floating-point type whose component width is _Target Width_.
+
+_Target Width_ is an unsigned 32-bit integer.
+| *RoundToInfinityINTEL* | <<Literal, 'Literal'>>  _Target Width_
+| 5621 | *RoundingModeRTNINTEL* +
+The default rounding mode for floating-point arithmetic and conversions instructions must be round to negative infinity.
+If an instruction is decorated with *FPRoundingMode* or defines a rounding mode in its description, that rounding mode is applied and *RoundingModeRTPNINTEL* is ignored.
+Only affects instructions operating on a floating-point type whose component width is _Target Width_.
+
+_Target Width_ is an unsigned 32-bit integer.
+| *RoundToInfinityINTEL* | <<Literal, 'Literal'>> _Target Width_
+| 5622 | *FloatingPointModeALTINTEL* +
+The default floating-point operation mode for floating-point arithmetic and conversions instructions must be the Alternative Floating-Point Mode as specified by the client API.
+Only affects instructions operating on a floating-point type whose component width is _Target Width_.
+
+_Target Width_ is an unsigned 32-bit integer.
+| *FloatingPointModeINTEL* | <<Literal, 'Literal'>> _Target Width_
+| 5623 | *FloatingPointModeIEEEINTEL* +
+The default floating-point operation mode for floating-point arithmetic and conversions instructions must be the IEEE Mode as specified by the client API.
+Only affects instructions operating on a floating-point type whose component width is _Target Width_.
+
+_Target Width_ is an unsigned 32-bit integer.
+| *FloatingPointModeINTEL* | <<Literal, 'Literal'>> _Target Width_
+|====
+--
+
+Modify Section 3.31, Capability, add the following rows the 'Capability' table:
+--
+[cols="1,20,10,10",options="header",width = "80%"]
+|====
+  2+^| Capability      |     Implicitly Declares    | Enabled by Extension
+| 5582 | *RoundToInfinityINTEL* +
+Module uses *RoundingModeRTNINTEL* or *RoundingModeRTPINTEL* execution modes.
+|| *SPV_INTEL_float_controls2*
+| 5583 | *FloatingPointModeINTEL* +
+Module uses *FloatingPointModeIEEEINTEL* or *FloatingPointModeALTINTEL* execution modes.
+|| *SPV_INTEL_float_controls2*
+|====
+--
+
+Issues
+------
+
+
+
+Revision History
+----------------
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2020-04-17|Mariusz Merecki|Initial revision
+|2|2020-04-24|Mariusz Merecki|Assigned token numbers to *RoundToInfinityINTEL* and *FloatingPointModeINTEL*
+|========================================
