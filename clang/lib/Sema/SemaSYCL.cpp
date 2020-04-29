@@ -286,11 +286,11 @@ void Sema::checkSYCLDeviceVarDecl(VarDecl *Var) {
   checkSYCLVarType(*this, Ty, Loc, Visited);
 }
 
- 
-enum UsmExpr {
+// For a DeclRefExpr, determine how it was allocated.
+enum ExprAllocation {
   Unknown,
-  Uses_Usm,
-  Not_Usm
+  USM,
+  Not_USM
 };
 
 
@@ -366,6 +366,7 @@ public:
     // Looks like the usm_shared_t thing won't work out.  
     // Catches static casts of usm allocations, but not templated or single usm::malloc call, or allocators.
     
+    bool speak = false;
     ValueDecl *D = E->getDecl();
     QualType Ty = D->getType();
     if(Ty->isAnyPointerType() && E->refersToEnclosingVariableOrCapture()) {
@@ -376,11 +377,10 @@ public:
         QualType InitTy = Init->getType();
         SourceLocation DecLoc = Init->getExprLoc();
         SourceRange   RefLoc = E->getSourceRange();
-        std::cout << "captured qualtype: " << InitTy.getAsString() << "\n" 
-        << "declared at: " <<  DecLoc.printToString(SemaRef.getSourceManager())
-        << " refereced at: " <<  RefLoc.printToString(SemaRef.getSourceManager()) << std::endl; 
 
-        UsmExpr  usesUSM = Unknown;
+         
+
+        ExprAllocation  howAllocated = Unknown;
 
         //function call
         const CallExpr *CE = dyn_cast<CallExpr>(Init);
@@ -389,40 +389,31 @@ public:
           auto FullName = func->getQualifiedNameAsString();
           //Check to see if this function call is one of the USM allocators.
           if( (FullName.rfind("cl::sycl::malloc", 0) == 0) || (FullName.rfind("cl::sycl::aligned_alloc", 0) == 0))
-            usesUSM = Uses_Usm;
+            howAllocated = USM;
           else if ( (FullName.compare("malloc")==0) || (FullName.compare("calloc")==0) )
-            usesUSM = Not_Usm;
-/*
-          if((FullName.compare("cl::sycl::malloc_shared") == 0) || (FullName.compare("cl::sycl::aligned_alloc_shared") == 0))
-            usesUSM = Usm_Shared;
-          else if( (FullName.compare("cl::sycl::malloc_device") == 0) || (FullName.compare("cl::sycl::aligned_alloc_device") == 0))
-            usesUSM = Usm_Device;
-          else if((FullName.compare("cl::sycl::malloc_host") == 0) || (FullName.compare("cl::sycl::aligned_alloc_host") == 0))
-            usesUSM = Usm_Host;
-          else if((FullName.compare("cl::sycl::malloc") == 0) || (FullName.compare("cl::sycl::aligned_alloc") == 0)) {
-            auto LastArgIndex = CE->getNumArgs()-1;
-            if (LastArgIndex > 0){
-              const Expr* LastArgExpr = CE->getArg(LastArgIndex); //e.g. DeclRefExpr 'cl::sycl::usm::alloc' EnumConstant  'shared' 'cl::sycl::usm::alloc'
-              const ValueDecl *LADecl = (dyn_cast<DeclRefExpr>(LastArgExpr))->getDecl();
-              if(LADecl){
-                const EnumConstantDecl *EnumDecl = dyn_cast<EnumConstantDecl>(LADecl);
-                if(EnumDecl) {
-                  usesUSM = static_cast<UsmExpr>(EnumDecl->getInitVal().getExtValue());
-                }
-              }
-            }
-          }
-*/
+            howAllocated = Not_USM;
 
-          std::cout << "call expression. callee: " << func->getNameInfo()/*.getName()*/.getAsString() 
-          << " " <<  func->getQualifiedNameAsString() << std::endl;
+          //std::cout << "call expression. callee: " << func->getNameInfo()/*.getName()*/.getAsString() 
+          //<< " " <<  func->getQualifiedNameAsString() << std::endl;
+        } else {
+          speak = true;
         }
         //var usage
 
+
+        if(speak){
+          std::cout << "captured qualtype: " << InitTy.getAsString() << "\n:::: " 
+          <<  RefLoc.printToString(SemaRef.getSourceManager())
+          << "declared at: " <<  DecLoc.printToString(SemaRef.getSourceManager())
+          <<  std::endl;
+        }
+
         //diagnostics
-        std::cout << "usesUSM: " << usesUSM << std::endl;
-        if(usesUSM == Not_Usm){
+        if(howAllocated == Not_USM){
           SemaRef.Diag(RefLoc.getBegin(), diag::err_sycl_illegal_memory_reference);
+          SemaRef.Diag(DecLoc, diag::note_sycl_capture_declared_here);
+        }else if (howAllocated == Unknown){
+          SemaRef.Diag(RefLoc.getBegin(), diag::note_unknown_memory_reference);
           SemaRef.Diag(DecLoc, diag::note_sycl_capture_declared_here);
         }
 

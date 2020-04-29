@@ -10701,7 +10701,9 @@ def err_sycl_non_trivially_copy_ctor_dtor_type
 def err_sycl_non_std_layout_type : Error<
   "kernel parameter has non-standard layout class/struct type %0">;
 def err_sycl_illegal_memory_reference : Error<
-  "Illegal memory reference in SYCL device. Use USM (malloc_shared, etc) instead.">;
+  "Illegal memory reference in SYCL device kernel. Use USM (malloc_shared, etc) instead.">;
+def note_unknown_memory_reference : Note<
+  "Unknown memory reference in SYCL device kernel. Be sure memory was allocated with USM (malloc_shared, etc).">;
 def note_sycl_capture_declared_here : Note<
   "Declared here.">;
 def err_conflicting_sycl_kernel_attributes : Error<
