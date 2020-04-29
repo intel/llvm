@@ -44,7 +44,7 @@ int main() {
   check_size<event, 16>();
   check_size<gpu_selector, 8>();
 #ifdef _MSC_VER
-  check_size<handler, 520>();
+  check_size<handler, 528>();
 #else
   check_size<handler, 536>();
 #endif
