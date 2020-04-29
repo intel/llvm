@@ -90,10 +90,9 @@ event handler::finalize() {
     break;
   case detail::CG::HOST_TASK_CODEPLAY:
     CommandGroup.reset(new detail::CGHostTask(
-        std::move(MHostTask), /*MQueue,*/ std::move(MArgs),
-        std::move(MArgsStorage), std::move(MAccStorage),
-        std::move(MSharedPtrStorage), std::move(MRequirements),
-        std::move(MEvents), MCGType, Payload));
+        std::move(MHostTask), std::move(MArgs), std::move(MArgsStorage),
+        std::move(MAccStorage), std::move(MSharedPtrStorage),
+        std::move(MRequirements), std::move(MEvents), MCGType, MCodeLoc));
     break;
   case detail::CG::NONE:
     throw runtime_error("Command group submitted without a kernel or a "
