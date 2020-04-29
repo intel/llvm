@@ -4,6 +4,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(LLVM_REQUIRES_EH 1)
 add_sycl_unittest(PiTests OBJECT 
   EnqueueMemTest.cpp
+  PiMock.cpp
   PlatformTest.cpp
   EventTest.cpp
 )
