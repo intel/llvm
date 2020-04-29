@@ -131,7 +131,7 @@ struct get_reduction_aux_2nd_kernel_name_t {
       typename get_kernel_name_t<Name, Type>::name>;
 };
 
-device getDeviceFromHandler(handler &);
+__SYCL_EXPORT device getDeviceFromHandler(handler &);
 
 template <typename, typename T> struct check_fn_signature {
   static_assert(std::integral_constant<T, false>::value,
