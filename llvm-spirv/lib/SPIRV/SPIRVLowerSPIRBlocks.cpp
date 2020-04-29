@@ -267,7 +267,7 @@ private:
       LLVM_DEBUG(dbgs() << "[lowerGetBlockInvoke]  " << *CallInv);
       // Handle ret = block_func_ptr(context_ptr, args)
       auto CI = cast<CallInst>(CallInv);
-      auto F = CI->getCalledValue();
+      auto F = CI->getCalledOperand();
       if (InvokeF == nullptr) {
         getBlockInvokeFuncAndContext(CallGetBlkInvoke->getArgOperand(0),
                                      &InvokeF, nullptr);

@@ -1871,7 +1871,7 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
       // Other LLVM intrinsics shouldn't get to SPIRV, because they
       // can't be represented in SPIRV or aren't implemented yet.
       BM->getErrorLog().checkError(false, SPIRVEC_InvalidFunctionCall,
-                                   II->getCalledValue()->getName().str(), "",
+                                   II->getCalledOperand()->getName().str(), "",
                                    __FILE__, __LINE__);
   }
   return nullptr;
@@ -1931,7 +1931,7 @@ SPIRVValue *LLVMToSPIRV::transIndirectCallInst(CallInst *CI,
     return nullptr;
 
   return BM->addIndirectCallInst(
-      transValue(CI->getCalledValue(), BB), transType(CI->getType()),
+      transValue(CI->getCalledOperand(), BB), transType(CI->getType()),
       transArguments(CI, BB, SPIRVEntry::createUnique(OpFunctionCall).get()),
       BB);
 }
