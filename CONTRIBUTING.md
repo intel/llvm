@@ -93,6 +93,23 @@ for more information.
   commit message title. To a reasonable extent, additional tags can be used
   to signify the component changed, e.g.: `[PI]`, `[CUDA]`, `[Doc]`.
 
+### Pre-commit checks
+
+- Before submitting your patch you can verify coding-style conformance with the clang-format tool:
+  ```
+  git diff -U0 sycl~0 --no-color -- | ./clang/tools/clang-format/clang-format-diff.py -p1
+  ```
+  make sure clang-format is installed on your system
+
+- You can also run the sycl test-suite before sending your PR:
+
+    - complete test suite: `python buildbot/check.py`
+    - sycl test suite `python buildbot/check.py -t test-sycl`
+    - run only "mytest" test `python buildbot/check.py -t test-sycl-mytest`
+  
+  if necessary, use `-o $LLVM_BUILD_DIR` to specify the llvm build directory
+
+
 ### Review and acceptance testing
 
 - Create a pull request for your changes following [Creating a pull request
