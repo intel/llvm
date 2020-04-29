@@ -194,13 +194,13 @@ The member functions below are common to atomic references for any type +T+:
 | `T exchange(T operand, memory_order order = default_read_modify_write_order, memory_scope scope = default_scope) const noexcept`
 | Atomically replaces the value of the object referenced by this +atomic_ref+ with _operand_ and returns the original value of the referenced object.
 
-| `bool compare_exchange_weak(T &expected, T desired, memory_order success = default_read_modify_write_order, memory_order failure = default_read_order, memory_scope scope = default_scope) const noexcept`
+| `bool compare_exchange_weak(T &expected, T desired, memory_order success, memory_order failure, memory_scope scope = default_scope) const noexcept`
 | Atomically compares the value of the object referenced by this +atomic_ref+ against the value of _expected_. If the values are equal attempts to replace the value of the referenced object with the value of +desired+, otherwise assigns the original value of the referenced object to _expected_. Returns +true+ if the comparison operation and replacement operation were successful. The _failure_ memory order of this atomic operation must be +memory_order::relaxed+, +memory_order::acquire+ or +memory_order::seq_cst+.
 
 | `bool compare_exchange_weak(T &expected, T desired, memory_order order = default_read_modify_write_order, memory_scope scope = default_scope) const noexcept`
 | Equivalent to +compare_exchange_weak(expected, desired, order, order, scope)+.
 
-| `bool compare_exchange_strong(T &expected, T desired, memory_order success = default_read_modify_write_order, memory_order failure = default_read_order, memory_scope scope = default_scope) const noexcept`
+| `bool compare_exchange_strong(T &expected, T desired, memory_order success, memory_order failure, memory_scope scope = default_scope) const noexcept`
 | Atomically compares the value of the object referenced by this +atomic_ref+ against the value of _expected_. If the values are equal replaces the value of the referenced object with the value of +desired+, otherwise assigns the original value of the referenced object to _expected_. Returns +true+ if the comparison operation was successful. The _failure_ memory order of this atomic operation must be +memory_order::relaxed+, +memory_order::acquire+ or +memory_order::seq_cst+.
 
 | `bool compare_exchange_strong(T &expected, T desired, memory_order order = default_read_modify_write_order, memory_scope scope = default_scope) const noexcept`
@@ -235,7 +235,7 @@ The additional member functions below are available for atomic references to int
 | Equivalent to +fetch_sub(1)+.
 
 | `T operator--() const noexcept`
-| Equivalent to +fetch_sub(1) + 1+.
+| Equivalent to +fetch_sub(1) - 1+.
 
 | `T fetch_and(T operand, memory_order order = default_read_modify_write_order, memory_scope scope = default_scope) const noexcept`
 | Atomically performs a bitwise AND between _operand_ and the value of the object referenced by this +atomic_ref+, and assigns the result to the value of the referenced object. Returns the original value of the referenced object.
@@ -315,7 +315,7 @@ The additional member functions below are available for atomic references to poi
 | Equivalent to +fetch_sub(1)+.
 
 | `T* operator--() const noexcept`
-| Equivalent to +fetch_sub(1) + 1+.
+| Equivalent to +fetch_sub(1) - 1+.
 
 |===
 
@@ -412,8 +412,8 @@ class atomic_ref {
     memory_scope scope = default_scope) const noexcept;
 
   bool compare_exchange_weak(T &expected, T desired,
-    memory_order success = default_read_modify_write_order,
-    memory_order failure = default_read_order,
+    memory_order success,
+    memory_order failure,
     memory_scope scope = default_scope) const noexcept;
 
   bool compare_exchange_weak(T &expected, T desired,
@@ -421,8 +421,8 @@ class atomic_ref {
     memory_scope scope = default_scope) const noexcept;
 
   bool compare_exchange_strong(T &expected, T desired,
-    memory_order success = default_read_modify_write_order,
-    memory_order failure = default_read_order,
+    memory_order success,
+    memory_order failure,
     memory_scope scope = default_scope) const noexcept;
 
   bool compare_exchange_strong(T &expected, T desired,
@@ -542,8 +542,8 @@ class atomic_ref<T*, DefaultOrder, DefaultScope, Space> {
     memory_scope scope = default_scope) const noexcept;
 
   bool compare_exchange_weak(T* &expected, T* desired,
-    memory_order success = default_read_modify_write_order,
-    memory_order failure = default_read_order,
+    memory_order success,
+    memory_order failure,
     memory_scope scope = default_scope) const noexcept;
 
   bool compare_exchange_weak(T* &expected, T* desired,
@@ -551,8 +551,8 @@ class atomic_ref<T*, DefaultOrder, DefaultScope, Space> {
     memory_scope scope = default_scope) const noexcept;
 
   bool compare_exchange_strong(T* &expected, T* desired,
-    memory_order success = default_read_modify_write_order,
-    memory_order failure = default_read_order,
+    memory_order success,
+    memory_order failure,
     memory_scope scope = default_scope) const noexcept;
 
   bool compare_exchange_strong(T* &expected, T* desired,
@@ -604,6 +604,7 @@ None.
 |2|2020-04-07|John Pennycook|*Rename class, remove accessor usage, adjust memory orders*
 |3|2020-04-09|John Pennycook|*Add atomic_fence*
 |4|2020-04-24|John Pennycook|*Add memory scope*
+|5|2020-04-29|John Pennycook|*Fix ambiguous overloads of compare_exchange and typo in fetch_sub*
 |========================================
 
 //************************************************************************
