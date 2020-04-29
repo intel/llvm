@@ -1,0 +1,154 @@
+SPV_INTEL_vector_compute
+========================
+
+Name Strings
+------------
+
+SPV_INTEL_vector_compute
+
+Contact
+-------
+
+To report problems or to provide input on this extension, please open a new issue at:
+https://github.com/intel/llvm/issues
+
+Contributors
+------------
+
+- Gang Chen, Intel
+- Mariusz Merecki, Intel
+- Aleksandr Bezzubikov, Intel
+
+
+Notice
+------
+
+Copyright (c) 2020 Intel Corporation. All rights reserved.
+
+Status
+------
+
+Working Draft
+
+This is a preview extension specification, intended to provide early access to a feature for review and community feedback. When the feature matures, this specification may be released as a formal extension.
+
+Because the interfaces defined by this specification are not final and are subject to change they are not intended to be used by shipping software products. If you are interested in using this feature in your software product, please let us know!
+
+
+Version
+-------
+
+[width="40%",cols="25,25"]
+|========================================
+| Last Modified Date | 2020-04-24
+| Revision           | 2
+|========================================
+
+Dependencies
+------------
+
+This extension is written against the SPIR-V Specification,
+Version 1.5, Revision 2, Unified
+
+This extension requires SPIR-V 1.0.
+
+Overview
+--------
+
+This extension adds new execution model, capability, execution modes and decorations
+to support INTEL vector compute specific features in SPIR-V.
+
+
+Extension Name
+--------------
+
+To use this extension within a SPIR-V module, the following
+*OpExtension* must be present in the module:
+
+----
+OpExtension "SPV_INTEL_vector_compute"
+----
+
+Modifications to the SPIR-V Specification, Version 1.5, Revision 2, Unified
+---------------------------------------------------------------------------
+
+Modify Section 3.3, Execution Model, add the following row to the Execution Model table:
+
+[cols="1,20,10",options="header",width = "60%"]
+|====
+2+^| Execution Model | Enabling Capabilities
+| 5626 | *VectorComputeKernelINTEL* | *VectorComputeINTEL*
+|====
+
+Modify Section 3.6, Execution Mode, add the following rows to the Execution Mode table:
+
+--
+[cols="1,20,10,10",options="header",width = "80%"]
+|====
+  2+^| Execution Mode  | Enabling Capabilities | Extra Operands
+| 5618 | *SharedLocalMemorySizeINTEL* +
+Specifies the size of shared memory required by kernel, in bytes.
+
+'Size' is an unsigned 32-bit integer.
+
+See the client API specification for more detail.
+| *VectorComputeINTEL* | <<Literal, 'Literal'>> _Size_
+|====
+--
+
+Modify Section 3.20, Decoration, add the following rows to the Decoration table:
+
+--
+[cols="1,20,10,10",options="header",width = "80%"]
+|====
+  2+^| Decoration  | Enabling Capabilities | Extra Operands
+| 5624 | *KernelArgumentTypeINTEL* +
+Apply to a function parameter to provide information about high level language argument type.
+
+_Argument Type_ is an unsigned 32-bit integer.
+
+See the client API specification for more detail.
+| *VectorComputeINTEL* | <<Literal, 'Literal'>> _Argument Type_
+| 5625 | *KernelArgumentDescINTEL* +
+Apply to a function parameter to provide a string description of the argument.
+
+'Description' is a literal string.
+
+See the client API specification for more detail.
+| *VectorComputeINTEL* | <<Literal, 'Literal'>> _Description_
+| 5627 | *StackCallINTEL* +
+Apply to a function definition to specify that this function is a stack call function.
+
+See the client API specification for more detail.
+| *VectorComputeINTEL* |
+|====
+--
+
+Modify Section 3.31, Capability, add the following row the 'Capability' table:
+--
+[cols="1,20,10,10",options="header",width = "80%"]
+|====
+  2+^| Capability      |     Implicitly Declares    | Enabled by Extension
+| 5617 | *VectorComputeINTEL* +
+Enables the use of *VectorComputeKernelINTEL* execution model, *SharedLocalMemorySizeINTEL* execution mode and *KernelArgumentTypeINTEL*, *KernelArgumentDescINTEL* and *StackCallINTEL* decorations.
+
+See the client API specification for more detail.
+|| *SPV_INTEL_vector_compute*
+|====
+--
+
+Issues
+------
+
+
+Revision History
+----------------
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2020-04-17|Mariusz Merecki|Initial revision
+|2|2020-04-24|Mariusz Merecki|Assigned token number to *VectorComputeKernelINTEL*
+|========================================
