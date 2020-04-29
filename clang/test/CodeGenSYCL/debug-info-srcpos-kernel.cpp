@@ -1,4 +1,4 @@
-// RUN: %clang -fsycl-device-only %s -S -I %S/Inputs -emit-llvm -g -o - | FileCheck %s
+// RUN: %clang -fsycl-device-only %s -S -emit-llvm -O0 -I %S/Inputs -g -o - | FileCheck %s
 //
 // Verify the SYCL kernel routine is marked artificial and has no source
 // correlation.

@@ -133,4 +133,4 @@ class AccessorOpIndexMatcher(gdb.xmethod.XMethodMatcher):
         return methods
 
 
-gdb.xmethod.register_xmethod_matcher(None, AccessorOpIndexMatcher())
+gdb.xmethod.register_xmethod_matcher(None, AccessorOpIndexMatcher(), replace=True)

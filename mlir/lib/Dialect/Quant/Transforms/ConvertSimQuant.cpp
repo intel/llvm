@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "PassDetail.h"
 #include "mlir/Dialect/Quant/FakeQuantSupport.h"
 #include "mlir/Dialect/Quant/Passes.h"
 #include "mlir/Dialect/Quant/QuantOps.h"
@@ -13,16 +14,13 @@
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/StandardTypes.h"
-#include "mlir/Pass/Pass.h"
 
 using namespace mlir;
 using namespace mlir::quant;
 
 namespace {
-
-class ConvertSimulatedQuantPass
-    : public FunctionPass<ConvertSimulatedQuantPass> {
-public:
+struct ConvertSimulatedQuantPass
+    : public QuantConvertSimulatedQuantBase<ConvertSimulatedQuantPass> {
   void runOnFunction() override;
 };
 
@@ -133,17 +131,12 @@ void ConvertSimulatedQuantPass::runOnFunction() {
   auto ctx = func.getContext();
   patterns.insert<ConstFakeQuantRewrite, ConstFakeQuantPerAxisRewrite>(
       ctx, &hadFailure);
-  applyPatternsGreedily(func, patterns);
+  applyPatternsAndFoldGreedily(func, patterns);
   if (hadFailure)
     signalPassFailure();
 }
 
-std::unique_ptr<OpPassBase<FuncOp>>
+std::unique_ptr<OperationPass<FuncOp>>
 mlir::quant::createConvertSimulatedQuantPass() {
   return std::make_unique<ConvertSimulatedQuantPass>();
 }
-
-static PassRegistration<ConvertSimulatedQuantPass>
-    pass("quant-convert-simulated-quantization",
-         "Converts training-time simulated quantization ops to corresponding "
-         "quantize/dequantize casts.");

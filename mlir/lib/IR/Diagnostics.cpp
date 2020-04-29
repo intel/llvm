@@ -16,7 +16,6 @@
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringMap.h"
-#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Mutex.h"
 #include "llvm/Support/PrettyStackTrace.h"
 #include "llvm/Support/Regex.h"
@@ -27,21 +26,16 @@
 using namespace mlir;
 using namespace mlir::detail;
 
-static llvm::cl::opt<bool> printStackTraceOnDiagnostic(
-    "mlir-print-stacktrace-on-diagnostic",
-    llvm::cl::desc("When a diagnostic is emitted, also print the stack trace "
-                   "as an attached note"));
-
 //===----------------------------------------------------------------------===//
 // DiagnosticArgument
 //===----------------------------------------------------------------------===//
 
-// Construct from an Attribute.
+/// Construct from an Attribute.
 DiagnosticArgument::DiagnosticArgument(Attribute attr)
     : kind(DiagnosticArgumentKind::Attribute),
       opaqueVal(reinterpret_cast<intptr_t>(attr.getAsOpaquePointer())) {}
 
-// Construct from a Type.
+/// Construct from a Type.
 DiagnosticArgument::DiagnosticArgument(Type val)
     : kind(DiagnosticArgumentKind::Type),
       opaqueVal(reinterpret_cast<intptr_t>(val.getAsOpaquePointer())) {}
@@ -70,9 +64,6 @@ void DiagnosticArgument::print(raw_ostream &os) const {
     break;
   case DiagnosticArgumentKind::Integer:
     os << getAsInteger();
-    break;
-  case DiagnosticArgumentKind::Operation:
-    getAsOperation().print(os, OpPrintingFlags().useLocalScope());
     break;
   case DiagnosticArgumentKind::String:
     os << getAsString();
@@ -129,6 +120,14 @@ Diagnostic &Diagnostic::operator<<(OperationName val) {
   // the lifetime of its data.
   arguments.push_back(DiagnosticArgument(val.getStringRef()));
   return *this;
+}
+
+/// Stream in an Operation.
+Diagnostic &Diagnostic::operator<<(Operation &val) {
+  std::string str;
+  llvm::raw_string_ostream os(str);
+  os << val;
+  return *this << os.str();
 }
 
 /// Outputs this diagnostic to a stream.
@@ -278,13 +277,14 @@ void DiagnosticEngine::emit(Diagnostic diag) {
 /// diagnostic.
 static InFlightDiagnostic
 emitDiag(Location location, DiagnosticSeverity severity, const Twine &message) {
-  auto &diagEngine = location->getContext()->getDiagEngine();
+  MLIRContext *ctx = location->getContext();
+  auto &diagEngine = ctx->getDiagEngine();
   auto diag = diagEngine.emit(location, severity);
   if (!message.isTriviallyEmpty())
     diag << message;
 
   // Add the stack trace as a note if necessary.
-  if (printStackTraceOnDiagnostic) {
+  if (ctx->shouldPrintStackTraceOnDiagnostic()) {
     std::string bt;
     {
       llvm::raw_string_ostream stream(bt);
@@ -435,7 +435,8 @@ SourceMgrDiagnosticHandler::SourceMgrDiagnosticHandler(llvm::SourceMgr &mgr,
 SourceMgrDiagnosticHandler::~SourceMgrDiagnosticHandler() {}
 
 void SourceMgrDiagnosticHandler::emitDiagnostic(Location loc, Twine message,
-                                                DiagnosticSeverity kind) {
+                                                DiagnosticSeverity kind,
+                                                bool displaySourceLine) {
   // Extract a file location from this loc.
   auto fileLoc = getFileLineColLoc(loc);
 
@@ -449,41 +450,52 @@ void SourceMgrDiagnosticHandler::emitDiagnostic(Location loc, Twine message,
     return mgr.PrintMessage(os, llvm::SMLoc(), getDiagKind(kind), strOS.str());
   }
 
-  // Otherwise, try to convert the file location to an SMLoc.
-  auto smloc = convertLocToSMLoc(*fileLoc);
-  if (smloc.isValid())
-    return mgr.PrintMessage(os, smloc, getDiagKind(kind), message);
+  // Otherwise if we are displaying the source line, try to convert the file
+  // location to an SMLoc.
+  if (displaySourceLine) {
+    auto smloc = convertLocToSMLoc(*fileLoc);
+    if (smloc.isValid())
+      return mgr.PrintMessage(os, smloc, getDiagKind(kind), message);
+  }
 
   // If the conversion was unsuccessful, create a diagnostic with the file
-  // information.
-  llvm::SMDiagnostic diag(fileLoc->getFilename(), getDiagKind(kind),
-                          message.str());
+  // information. We manually combine the line and column to avoid asserts in
+  // the constructor of SMDiagnostic that takes a location.
+  std::string locStr;
+  llvm::raw_string_ostream locOS(locStr);
+  locOS << fileLoc->getFilename() << ":" << fileLoc->getLine() << ":"
+        << fileLoc->getColumn();
+  llvm::SMDiagnostic diag(locOS.str(), getDiagKind(kind), message.str());
   diag.print(nullptr, os);
 }
 
 /// Emit the given diagnostic with the held source manager.
 void SourceMgrDiagnosticHandler::emitDiagnostic(Diagnostic &diag) {
   // Emit the diagnostic.
-  auto loc = diag.getLocation();
+  Location loc = diag.getLocation();
   emitDiagnostic(loc, diag.str(), diag.getSeverity());
 
   // If the diagnostic location was a call site location, then print the call
   // stack as well.
   if (auto callLoc = getCallSiteLoc(loc)) {
     // Print the call stack while valid, or until the limit is reached.
-    Location callerLoc = callLoc->getCaller();
+    loc = callLoc->getCaller();
     for (unsigned curDepth = 0; curDepth < callStackLimit; ++curDepth) {
-      emitDiagnostic(callerLoc, "called from", DiagnosticSeverity::Note);
-      callLoc = getCallSiteLoc(callerLoc);
-      if (!callLoc)
+      emitDiagnostic(loc, "called from", DiagnosticSeverity::Note);
+      if ((callLoc = getCallSiteLoc(loc)))
+        loc = callLoc->getCaller();
+      else
         break;
-      callerLoc = callLoc->getCaller();
     }
   }
 
-  // Emit each of the notes.
-  for (auto &note : diag.getNotes())
-    emitDiagnostic(note.getLocation(), note.str(), note.getSeverity());
+  // Emit each of the notes. Only display the source code if the location is
+  // different from the previous location.
+  for (auto &note : diag.getNotes()) {
+    emitDiagnostic(note.getLocation(), note.str(), note.getSeverity(),
+                   /*displaySourceLine=*/loc != note.getLocation());
+    loc = note.getLocation();
+  }
 }
 
 /// Get a memory buffer for the given file, or nullptr if one is not found.

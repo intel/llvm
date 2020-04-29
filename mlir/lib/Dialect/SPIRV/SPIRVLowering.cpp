@@ -99,9 +99,9 @@ Type SPIRVTypeConverter::getIndexType(MLIRContext *context) {
 
 /// Mapping between SPIR-V storage classes to memref memory spaces.
 ///
-/// Note: memref does not have a defined smenatics for each memory space; it
+/// Note: memref does not have a defined semantics for each memory space; it
 /// depends on the context where it is used. There are no particular reasons
-/// behind the number assigments; we try to follow NVVM conventions and largely
+/// behind the number assignments; we try to follow NVVM conventions and largely
 /// give common storage classes a smaller number. The hope is use symbolic
 /// memory space representation eventually after memref supports it.
 // TODO(antiagainst): swap Generic and StorageBuffer assignment to be more akin
@@ -136,6 +136,7 @@ SPIRVTypeConverter::getMemorySpaceForStorageClass(spirv::StorageClass storage) {
 
   switch (storage) { STORAGE_SPACE_MAP_LIST(STORAGE_SPACE_MAP_FN) }
 #undef STORAGE_SPACE_MAP_FN
+  llvm_unreachable("unhandled storage class!");
 }
 
 Optional<spirv::StorageClass>
@@ -236,7 +237,7 @@ convertScalarType(const spirv::TargetEnv &targetEnv, spirv::ScalarType type,
   // bitwidth given this is a scalar type.
   // TODO(antiagainst): We are unconditionally converting the bitwidth here,
   // this might be okay for non-interface types (i.e., types used in
-  // Priviate/Function storage classes), but not for interface types (i.e.,
+  // Private/Function storage classes), but not for interface types (i.e.,
   // types used in StorageBuffer/Uniform/PushConstant/etc. storage classes).
   // This is because the later actually affects the ABI contract with the
   // runtime. So we may want to expose a control on SPIRVTypeConverter to fail
@@ -467,8 +468,8 @@ FuncOpConversion::matchAndRewrite(FuncOp funcOp, ArrayRef<Value> operands,
 
   // Copy over all attributes other than the function name and type.
   for (const auto &namedAttr : funcOp.getAttrs()) {
-    if (!namedAttr.first.is(impl::getTypeAttrName()) &&
-        !namedAttr.first.is(SymbolTable::getSymbolAttrName()))
+    if (namedAttr.first != impl::getTypeAttrName() &&
+        namedAttr.first != SymbolTable::getSymbolAttrName())
       newFuncOp.setAttr(namedAttr.first, namedAttr.second);
   }
 

@@ -1,4 +1,4 @@
-// RUN: mlir-opt %s -split-input-file -verify-diagnostics
+// RUN: mlir-opt -allow-unregistered-dialect %s -split-input-file -verify-diagnostics
 
 func @dim(tensor<1xf32>) {
 ^bb(%0: tensor<1xf32>):
@@ -1158,3 +1158,11 @@ func @assume_alignment(%0: memref<4x4xf16>) {
   std.assume_alignment %0, 0 : memref<4x4xf16>
   return
 }
+
+// -----
+
+"alloca_without_scoped_alloc_parent"() ( {
+  std.alloca() : memref<1xf32>
+  // expected-error@-1 {{requires an ancestor op with AutomaticAllocationScope trait}}
+  return
+}) : () -> ()

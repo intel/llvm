@@ -75,10 +75,12 @@ public:
       report_fatal_error("llvm.memmove of non-constant length not supported",
                          false);
     auto *Length = cast<ConstantInt>(I.getLength());
-    if (isa<BitCastInst>(Src))
-      // The source could be bit-cast from another type,
-      // need the original type for the allocation of the temporary variable
-      SrcTy = cast<BitCastInst>(Src)->getOperand(0)->getType();
+    auto *S = Src;
+    // The source could be bit-cast or addrspacecast from another type,
+    // need the original type for the allocation of the temporary variable
+    while (isa<BitCastInst>(S) || isa<AddrSpaceCastInst>(S))
+      S = cast<CastInst>(S)->getOperand(0);
+    SrcTy = S->getType();
     MaybeAlign Align = I.getSourceAlign();
     auto Volatile = I.isVolatile();
     Value *NumElements = nullptr;
@@ -87,9 +89,13 @@ public:
       NumElements = Builder.getInt32(SrcTy->getArrayNumElements());
       ElementsCount = SrcTy->getArrayNumElements();
     }
-    if (Mod->getDataLayout().getTypeSizeInBits(SrcTy->getPointerElementType()) *
-            ElementsCount !=
-        Length->getZExtValue() * 8)
+    if (((ElementsCount > 1) && (Mod->getDataLayout().getTypeSizeInBits(
+                                     SrcTy->getPointerElementType()) *
+                                     ElementsCount !=
+                                 Length->getZExtValue() * 8)) ||
+        ((ElementsCount == 1) &&
+         (Mod->getDataLayout().getTypeSizeInBits(
+              SrcTy->getPointerElementType()) < Length->getZExtValue() * 8)))
       report_fatal_error("Size of the memcpy should match the allocated memory",
                          false);
 

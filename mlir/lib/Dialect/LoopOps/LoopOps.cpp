@@ -19,7 +19,6 @@
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/Value.h"
 #include "mlir/Support/MathExtras.h"
-#include "mlir/Support/STLExtras.h"
 
 using namespace mlir;
 using namespace mlir::loop;
@@ -47,7 +46,9 @@ void ForOp::build(Builder *builder, OperationState &result, Value lb, Value ub,
   for (Value v : iterArgs)
     result.addTypes(v.getType());
   Region *bodyRegion = result.addRegion();
-  ForOp::ensureTerminator(*bodyRegion, *builder, result.location);
+  bodyRegion->push_back(new Block());
+  if (iterArgs.empty())
+    ForOp::ensureTerminator(*bodyRegion, *builder, result.location);
   bodyRegion->front().addArgument(builder->getIndexType());
   for (Value v : iterArgs)
     bodyRegion->front().addArgument(v.getType());
@@ -105,7 +106,7 @@ static void print(OpAsmPrinter &p, ForOp op) {
     auto regionArgs = op.getRegionIterArgs();
     auto operands = op.getIterOperands();
 
-    mlir::interleaveComma(llvm::zip(regionArgs, operands), p, [&](auto it) {
+    llvm::interleaveComma(llvm::zip(regionArgs, operands), p, [&](auto it) {
       p << std::get<0>(it) << " = " << std::get<1>(it);
     });
     p << ")";
@@ -182,7 +183,7 @@ bool ForOp::isDefinedOutsideOfLoop(Value value) {
 
 LogicalResult ForOp::moveOutOfLoop(ArrayRef<Operation *> ops) {
   for (auto op : ops)
-    op->moveBefore(this->getOperation());
+    op->moveBefore(*this);
   return success();
 }
 
@@ -191,8 +192,8 @@ ForOp mlir::loop::getForInductionVarOwner(Value val) {
   if (!ivArg)
     return ForOp();
   assert(ivArg.getOwner() && "unlinked block argument");
-  auto *containingInst = ivArg.getOwner()->getParentOp();
-  return dyn_cast_or_null<ForOp>(containingInst);
+  auto *containingOp = ivArg.getOwner()->getParentOp();
+  return dyn_cast_or_null<ForOp>(containingOp);
 }
 
 //===----------------------------------------------------------------------===//
@@ -201,7 +202,7 @@ ForOp mlir::loop::getForInductionVarOwner(Value val) {
 
 void IfOp::build(Builder *builder, OperationState &result, Value cond,
                  bool withElseRegion) {
-    build(builder, result, /*resultTypes=*/llvm::None, cond, withElseRegion);
+  build(builder, result, /*resultTypes=*/llvm::None, cond, withElseRegion);
 }
 
 void IfOp::build(Builder *builder, OperationState &result,
@@ -459,13 +460,25 @@ static void print(OpAsmPrinter &p, ParallelOp op) {
       op.getAttrs(), /*elidedAttrs=*/ParallelOp::getOperandSegmentSizeAttr());
 }
 
+Region &ParallelOp::getLoopBody() { return region(); }
+
+bool ParallelOp::isDefinedOutsideOfLoop(Value value) {
+  return !region().isAncestor(value.getParentRegion());
+}
+
+LogicalResult ParallelOp::moveOutOfLoop(ArrayRef<Operation *> ops) {
+  for (auto op : ops)
+    op->moveBefore(*this);
+  return success();
+}
+
 ParallelOp mlir::loop::getParallelForInductionVarOwner(Value val) {
   auto ivArg = val.dyn_cast<BlockArgument>();
   if (!ivArg)
     return ParallelOp();
   assert(ivArg.getOwner() && "unlinked block argument");
-  auto *containingInst = ivArg.getOwner()->getParentOp();
-  return dyn_cast<ParallelOp>(containingInst);
+  auto *containingOp = ivArg.getOwner()->getParentOp();
+  return dyn_cast<ParallelOp>(containingOp);
 }
 
 //===----------------------------------------------------------------------===//

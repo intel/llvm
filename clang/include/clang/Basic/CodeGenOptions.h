@@ -110,14 +110,6 @@ public:
     Embed_Marker    // Embed a marker as a placeholder for bitcode.
   };
 
-  enum class SignReturnAddressScope {
-    None,    // No signing for any function
-    NonLeaf, // Sign the return address of functions that spill LR
-    All      // Sign the return address of all functions
-  };
-
-  enum class SignReturnAddressKeyValue { AKey, BKey };
-
   enum class FramePointerKind {
     None,        // Omit all frame pointers.
     NonLeaf,     // Keep non-leaf frame pointers.
@@ -313,6 +305,16 @@ public:
 
   /// List of dynamic shared object files to be loaded as pass plugins.
   std::vector<std::string> PassPlugins;
+
+  /// Path to whitelist file specifying which objects
+  /// (files, functions) should exclusively be instrumented
+  /// by sanitizer coverage pass.
+  std::vector<std::string> SanitizeCoverageWhitelistFiles;
+
+  /// Path to blacklist file specifying which objects
+  /// (files, functions) listed for instrumentation by sanitizer
+  /// coverage pass should actually not be instrumented.
+  std::vector<std::string> SanitizeCoverageBlacklistFiles;
 
 public:
   // Define accessors/mutators for code generation options of enumeration type.

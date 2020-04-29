@@ -98,6 +98,8 @@ public:
     return m_collector;
   }
 
+  void recordInterestingDirectory(const llvm::Twine &dir);
+
   void Keep() override {
     auto mapping = GetRoot().CopyByAppendingPathComponent(Info::file);
     // Temporary files that are removed during execution can cause copy errors.
@@ -132,7 +134,7 @@ public:
   static char ID;
 };
 
-/// Provider for the LLDB current working directroy.
+/// Provider for the LLDB current working directory.
 ///
 /// When the reproducer is kept, it writes lldb's current working directory to
 /// a file named cwd.txt in the reproducer root.

@@ -35,11 +35,11 @@ class AddressSpace<string _AS> {
 // the one it will be lowered to.
 // This file assumes it will get lowered to generic or private.
 def DefaultAS    : AddressSpace<"clang::LangAS::Default">;
-def PrivateAS    : AddressSpace<"clang::LangAS::sycl_private">;
-def GlobalAS     : AddressSpace<"clang::LangAS::sycl_global">;
-def ConstantAS   : AddressSpace<"clang::LangAS::sycl_constant">;
-def LocalAS      : AddressSpace<"clang::LangAS::sycl_local">;
-def GenericAS    : AddressSpace<"clang::LangAS::sycl_generic">;
+def PrivateAS    : AddressSpace<"clang::LangAS::opencl_private">;
+def GlobalAS     : AddressSpace<"clang::LangAS::opencl_global">;
+def ConstantAS   : AddressSpace<"clang::LangAS::opencl_constant">;
+def LocalAS      : AddressSpace<"clang::LangAS::opencl_local">;
+def GenericAS    : AddressSpace<"clang::LangAS::opencl_generic">;
 
 // TODO: Manage capabilities. Unused for now.
 class AbstractExtension<string _Ext> {
@@ -286,8 +286,8 @@ class ConstOCLSPVBuiltin<string _Name, list<Type> _Signature> :
 
 // OpenCL v1.0/1.2/2.0 s6.1.1: Built-in Scalar Data Types.
 def Bool      : IntType<"bool",   QualType<"BoolTy">, 1>;
-def TrueChar  : IntType<"char",      QualType<"CharTy", 0, 1>, 8>;
-def Char      : IntType<"schar",      QualType<"SignedCharTy", 0, 1>, 8>;
+def TrueChar  : IntType<"_char",      QualType<"CharTy", 0, 1>, 8>;
+def Char      : IntType<"char",      QualType<"SignedCharTy", 0, 1>, 8>;
 def SChar     : IntType<"schar",     QualType<"SignedCharTy", 0, 1>, 8>;
 def UChar     : UIntType<"uchar",     QualType<"UnsignedCharTy">, 8>;
 def Short     : IntType<"short",     QualType<"ShortTy", 0, 1>, 16>;
@@ -713,8 +713,10 @@ foreach name = ["GenericPtrMemSemantics"] in {
 
 foreach IType = [UChar, UShort, UInt, ULong] in {
   foreach FType = [Float, Double, Half] in {
-    def : SPVBuiltin<"ConvertFToU_R" # IType.Name, [IType, FType], Attr.Const>;
     def : SPVBuiltin<"ConvertUToF_R" # FType.Name, [FType, IType], Attr.Const>;
+    foreach rnd = ["", "_rte", "_rtz", "_rtp", "_rtn"] in {
+      def : SPVBuiltin<"ConvertFToU_R" # IType.Name # rnd, [IType, FType], Attr.Const>;
+    }
     foreach v = [2, 3, 4, 8, 16] in {
       def : SPVBuiltin<"ConvertFToU_R" # IType.Name # v,
                        [VectorType<IType, v>, VectorType<FType, v>],
@@ -728,8 +730,10 @@ foreach IType = [UChar, UShort, UInt, ULong] in {
 
 foreach IType = [Char, Short, Int, Long] in {
   foreach FType = [Float, Double, Half] in {
-    def : SPVBuiltin<"ConvertFToS_R" # IType.Name, [IType, FType], Attr.Const>;
     def : SPVBuiltin<"ConvertSToF_R" # FType.Name, [FType, IType], Attr.Const>;
+    foreach rnd = ["", "_rte", "_rtz", "_rtp", "_rtn"] in {
+      def : SPVBuiltin<"ConvertFToS_R" # IType.Name # rnd, [IType, FType], Attr.Const>;
+    }
     foreach v = [2, 3, 4, 8, 16] in {
       def : SPVBuiltin<"ConvertFToS_R" # IType.Name # v,
                        [VectorType<IType, v>, VectorType<FType, v>],

@@ -75,7 +75,7 @@ void test_read_write(int fd, char *buf) {
   }
 }
 
-size_t fread(void *, size_t, size_t, FILE *);
+size_t fread(void *restrict, size_t, size_t, FILE *);
 size_t fwrite(const void *restrict, size_t, size_t, FILE *restrict);
 void test_fread_fwrite(FILE *fp, int *buf) {
 
@@ -87,6 +87,14 @@ void test_fread_fwrite(FILE *fp, int *buf) {
 
   size_t z = fwrite(buf, sizeof(int), y, fp);
   clang_analyzer_eval(z <= y); // expected-warning{{TRUE}}
+}
+
+void test_fread_uninitialized(void) {
+  void *ptr;
+  size_t sz;
+  size_t nmem;
+  FILE *fp;
+  (void)fread(ptr, sz, nmem, fp); // expected-warning {{1st function call argument is an uninitialized value}}
 }
 
 ssize_t getline(char **, size_t *, FILE *);

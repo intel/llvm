@@ -4,11 +4,6 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
-// XFAIL: cuda
-// Currently unsupported on cuda due to a lambda name being generated with "->"
-// which the backend can't accept.
-// fatal error: error in backend: Symbol name with unsupported characters
-
 //==-- kernel_unnamed.cpp - SYCL kernel naming variants test ------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
