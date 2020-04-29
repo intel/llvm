@@ -397,7 +397,8 @@ __SYCL_GENERATE_CONVERT_IMPL(SToF, double)
 
 // uint to float
 #define __SYCL_GENERATE_CONVERT_IMPL(SPIRVOp, DestType)                        \
-  template <typename T, typename R, rounding_mode roundingMode, typename OpenCLT, typename OpenCLR>                \
+  template <typename T, typename R, rounding_mode roundingMode,                \
+            typename OpenCLT, typename OpenCLR>                                \
   detail::enable_if_t<                                                         \
       is_uint_to_float<T, R>::value && std::is_same<R, DestType>::value, R>    \
   convertImpl(T Value) {                                                       \
