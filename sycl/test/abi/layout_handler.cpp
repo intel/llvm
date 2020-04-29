@@ -31,6 +31,7 @@
 // CHECK-NEXT: IntegerLiteral {{.*}} 'int' 0
 // CHECK-NEXT: FieldDecl {{.*}} MPattern 'vector_class<char>':'std::vector<char, std::allocator<char>>'
 // CHECK-NEXT: FieldDecl {{.*}} MHostKernel 'unique_ptr_class<detail::HostKernelBase>':'std::unique_ptr<cl::sycl::detail::HostKernelBase, std::default_delete<cl::sycl::detail::HostKernelBase>>'
+// CHECK-NEXT: FieldDecl {{.*}} MHostTask 'unique_ptr_class<detail::HostTask>':'std::unique_ptr<cl::sycl::detail::HostTask, std::default_delete<cl::sycl::detail::HostTask>>'
 // CHECK-NEXT: FieldDecl {{.*}} MOSModuleHandle 'detail::OSModuleHandle':'long'
 // CHECK-NEXT: FieldDecl {{.*}} MInteropTask 'std::unique_ptr<detail::InteropTask>':'std::unique_ptr<cl::sycl::detail::InteropTask, std::default_delete<cl::sycl::detail::InteropTask>>'
 // CHECK-NEXT: FieldDecl {{.*}} MEvents 'vector_class<detail::EventImplPtr>':'std::vector<std::shared_ptr<cl::sycl::detail::event_impl>, std::allocator<std::shared_ptr<cl::sycl::detail::event_impl>>>'
