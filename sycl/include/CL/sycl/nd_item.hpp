@@ -34,13 +34,13 @@ public:
 
   id<dimensions> get_global_id() const { return globalItem.get_id(); }
 
-  __SYCL_ID_TYPE get_global_id(int dimension) const {
+  size_t ALWAYS_INLINE get_global_id(int dimension) const {
     size_t id = globalItem.get_id(dimension);
     __SYCL_ASSUME_INT(id);
     return id;
   }
 
-  __SYCL_ID_TYPE get_global_linear_id() const {
+  size_t ALWAYS_INLINE get_global_linear_id() const {
     size_t id = globalItem.get_linear_id();
     __SYCL_ASSUME_INT(id);
     return id;
@@ -48,7 +48,7 @@ public:
 
   id<dimensions> get_local_id() const { return localItem.get_id(); }
 
-  __SYCL_ID_TYPE get_local_id(int dimension) const {
+  size_t ALWAYS_INLINE get_local_id(int dimension) const {
     size_t id = localItem.get_id(dimension);
     __SYCL_ASSUME_INT(id);
     return id;
@@ -60,13 +60,13 @@ public:
 
   intel::sub_group get_sub_group() const { return intel::sub_group(); }
 
-  __SYCL_ID_TYPE get_group(int dimension) const {
+  size_t ALWAYS_INLINE get_group(int dimension) const {
     size_t size = Group[dimension];
     __SYCL_ASSUME_INT(size);
     return size;
   }
 
-  __SYCL_ID_TYPE get_group_linear_id() const {
+  size_t ALWAYS_INLINE get_group_linear_id() const {
     size_t id = Group.get_linear_id();
     __SYCL_ASSUME_INT(id);
     return id;
@@ -76,7 +76,7 @@ public:
     return Group.get_global_range() / Group.get_local_range();
   }
 
-  __SYCL_ID_TYPE get_group_range(int dimension) const {
+  size_t ALWAYS_INLINE get_group_range(int dimension) const {
     size_t range =
         Group.get_global_range(dimension) / Group.get_local_range(dimension);
     __SYCL_ASSUME_INT(range);
@@ -121,39 +121,36 @@ public:
     Group.mem_fence();
   }
 
-  template<typename dataT>
+  template <typename dataT>
   device_event async_work_group_copy(local_ptr<dataT> dest,
                                      global_ptr<dataT> src,
                                      size_t numElements) const {
     return Group.async_work_group_copy(dest, src, numElements);
   }
 
-  template<typename dataT>
+  template <typename dataT>
   device_event async_work_group_copy(global_ptr<dataT> dest,
                                      local_ptr<dataT> src,
                                      size_t numElements) const {
     return Group.async_work_group_copy(dest, src, numElements);
   }
 
-  template<typename dataT>
+  template <typename dataT>
   device_event async_work_group_copy(local_ptr<dataT> dest,
-                                     global_ptr<dataT> src,
-                                     size_t numElements,
+                                     global_ptr<dataT> src, size_t numElements,
                                      size_t srcStride) const {
 
     return Group.async_work_group_copy(dest, src, numElements, srcStride);
   }
 
-  template<typename dataT>
+  template <typename dataT>
   device_event async_work_group_copy(global_ptr<dataT> dest,
-                                     local_ptr<dataT> src,
-                                     size_t numElements,
+                                     local_ptr<dataT> src, size_t numElements,
                                      size_t destStride) const {
     return Group.async_work_group_copy(dest, src, numElements, destStride);
   }
 
-  template<typename... eventTN>
-  void wait_for(eventTN... events) const {
+  template <typename... eventTN> void wait_for(eventTN... events) const {
     Group.wait_for(events...);
   }
 

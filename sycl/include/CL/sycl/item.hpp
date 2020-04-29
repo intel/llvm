@@ -31,13 +31,13 @@ public:
 
   id<dimensions> get_id() const { return MImpl.MIndex; }
 
-  __SYCL_ID_TYPE get_id(int dimension) const {
+  size_t ALWAYS_INLINE get_id(int dimension) const {
     size_t id = MImpl.MIndex[dimension];
     __SYCL_ASSUME_INT(id);
     return id;
   }
 
-  __SYCL_ID_TYPE operator[](int dimension) const {
+  size_t ALWAYS_INLINE operator[](int dimension) const {
     size_t id = MImpl.MIndex[dimension];
     __SYCL_ASSUME_INT(id);
     return id;
@@ -45,7 +45,7 @@ public:
 
   range<dimensions> get_range() const { return MImpl.MExtent; }
 
-  __SYCL_ID_TYPE get_range(int dimension) const {
+  size_t ALWAYS_INLINE get_range(int dimension) const {
     size_t id = MImpl.MExtent[dimension];
     __SYCL_ASSUME_INT(id);
     return id;
@@ -57,8 +57,8 @@ public:
   }
 
   template <bool has_offset = with_offset>
-  detail::enable_if_t<has_offset, __SYCL_ID_TYPE>
-  get_offset(int dimension) const {
+  detail::enable_if_t<has_offset, size_t>
+  ALWAYS_INLINE get_offset(int dimension) const {
     size_t id = MImpl.MOffset[dimension];
     __SYCL_ASSUME_INT(id);
     return id;
@@ -70,7 +70,7 @@ public:
         MImpl.MExtent, MImpl.MIndex, /*Offset*/ {});
   }
 
-  __SYCL_ID_TYPE get_linear_id() const {
+  size_t ALWAYS_INLINE get_linear_id() const {
     size_t id = MImpl.get_linear_id();
     __SYCL_ASSUME_INT(id);
     return id;
