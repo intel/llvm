@@ -192,7 +192,7 @@ void Scheduler::releaseHostAccessor(Requirement *Req) {
 
 // static
 void Scheduler::enqueueLeavesOfReq(const Requirement *const Req) {
-  MemObjRecord* Record = Req->MSYCLMemObj->MRecord.get();
+  MemObjRecord *Record = Req->MSYCLMemObj->MRecord.get();
   auto EnqueueLeaves = [](CircularBuffer<Command *> &Leaves) {
     for (Command *Cmd : Leaves) {
       EnqueueResultT Res;
