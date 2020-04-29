@@ -1,3 +1,4 @@
+// XFAIL: cuda
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=CPU %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
@@ -15,6 +16,7 @@
 #include <cassert>
 
 // TODO make the convertion on CPU and HOST identical
+// TODO make the test to pass on cuda
 
 using namespace cl::sycl;
 

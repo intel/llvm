@@ -212,8 +212,8 @@ int main() {
                        s::access::address_space::global_space>>::value,
       "");
 
-  static_assert(std::is_same<d::SelectMatchingOpenCLType_t<s::ulonglong>,
-                             s::cl_ulong>::value,
+  static_assert(std::is_same<d::SelectMatchingOpenCLType_t<s::longlong>,
+                             s::cl_long>::value,
                 "");
 
   static_assert(
