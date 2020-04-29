@@ -60,10 +60,14 @@ function(add_sycl_rt_library LIB_NAME)
         "${sycl_inc_dir}"
         ${OpenCL_INCLUDE_DIRS}
   )
+
+  find_package(Threads REQUIRED)
+
   target_link_libraries(${LIB_NAME}
       PRIVATE
         ${OpenCL_LIBRARIES}
         ${CMAKE_DL_LIBS}
+        ${CMAKE_THREAD_LIBS_INIT}
       PUBLIC
         $<$<BOOL:${SYCL_BUILD_PI_CUDA}>:pi_cuda>
   )

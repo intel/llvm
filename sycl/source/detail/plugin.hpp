@@ -30,6 +30,7 @@ public:
   ~plugin() = default;
 
   const RT::PiPlugin &getPiPlugin() const { return MPlugin; }
+  RT::PiPlugin &getPiPlugin() { return MPlugin; }
 
   /// Checks return value from PI calls.
   ///

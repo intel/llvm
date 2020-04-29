@@ -120,6 +120,14 @@ public:
     return *MPlugin;
   }
 
+  /// Sets the platform implementation to use another plugin.
+  ///
+  /// \param PluginPtr is a pointer to a plugin instance
+  void setPlugin(std::shared_ptr<plugin> PluginPtr) {
+    assert(!MHostPlatform && "Plugin is not available for Host");
+    MPlugin = std::move(PluginPtr);
+  }
+
 private:
   bool MHostPlatform = false;
   RT::PiPlatform MPlatform = 0;

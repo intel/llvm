@@ -342,6 +342,31 @@ public:
            "Only scalar/1-element reductions are supported now.");
   }
 
+  accessor<T, buffer_dim, access::mode::discard_read_write,
+           access::target::local>
+  getReadWriteLocalAcc(size_t Size, handler &CGH) {
+    return accessor<T, buffer_dim, access::mode::discard_read_write,
+                    access::target::local>(Size, CGH);
+  }
+
+  accessor<T, buffer_dim, access::mode::read>
+  getReadAccToPreviousPartialReds(handler &CGH) const {
+    CGH.addReduction(MOutBufPtr);
+    return accessor<T, buffer_dim, access::mode::read>(*MOutBufPtr, CGH);
+  }
+
+  accessor_type getWriteAccForPartialReds(size_t Size, size_t RunNumber,
+                                          handler &CGH) {
+    if (Size == 1) {
+      if (RunNumber > 0)
+        CGH.associateWithHandler(this->MAcc);
+      return this->MAcc;
+    }
+    // Create a new output buffer and return an accessor to it.
+    MOutBufPtr = std::make_shared<buffer<T, buffer_dim>>(range<1>(Size));
+    CGH.addReduction(MOutBufPtr);
+    return accessor_type(*MOutBufPtr, CGH);
+  }
   /// User's accessor to where the reduction must be written.
   accessor_type MAcc;
 
@@ -349,6 +374,7 @@ private:
   /// Identity of the BinaryOperation.
   /// The result of BinaryOperation(X, MIdentity) is equal to X for any X.
   const T MIdentity;
+  shared_ptr_class<buffer<T, buffer_dim>> MOutBufPtr;
 };
 
 } // namespace detail
