@@ -213,13 +213,6 @@ private:
   /// usage in finalize() method.
   void saveCodeLoc(detail::code_location CodeLoc) { MCodeLoc = CodeLoc; }
 
-  /// Stores the given \param Event to the \param Queue.
-  /// Even though MQueue is a field of handler, the method addEvent() of
-  /// queue_impl class cannot be called inside this handler.hpp file
-  /// as queue_impl is incomplete class for handler.
-  static void addEventToQueue(shared_ptr_class<detail::queue_impl> Queue,
-                              cl::sycl::event Event);
-
   /// Constructs CG object of specific type, passes it to Scheduler and
   /// returns sycl::event object representing the command group.
   /// It's expected that the method is the latest method executed before
@@ -268,30 +261,6 @@ private:
     MAssociatedAccesors.emplace_back(detail::kernel_param_kind_t::kind_accessor,
                                      Req, static_cast<int>(AccessTarget),
                                      /*index*/ 0);
-  }
-
-  template <typename DataT, int Dims, access::mode AccessMode,
-            access::target AccessTarget>
-  void dissociateWithHandler(accessor<DataT, Dims, AccessMode, AccessTarget,
-                                      access::placeholder::false_t>
-                                 Acc) {
-    detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Acc;
-    detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
-    detail::Requirement *Req = AccImpl.get();
-
-    // Remove accessor from the list of requirements, accessors storage,
-    // and from the list of associated accessors.
-    auto ReqIt = std::find(MRequirements.begin(), MRequirements.end(), Req);
-    auto AccIt = std::find(MAccStorage.begin(), MAccStorage.end(), AccImpl);
-    auto It =
-        std::find_if(MAssociatedAccesors.begin(), MAssociatedAccesors.end(),
-                     [Req](const detail::ArgDesc &D) { return D.MPtr == Req; });
-    assert((ReqIt != MRequirements.end() && AccIt != MAccStorage.end() &&
-            It != MAssociatedAccesors.end()) &&
-           "Cannot dissociate accessor.");
-    MRequirements.erase(ReqIt);
-    MAccStorage.erase(AccIt);
-    MAssociatedAccesors.erase(It);
   }
 
   // Recursively calls itself until arguments pack is fully processed.
@@ -832,30 +801,23 @@ public:
     //    necessary to reduce all partial sums into one final sum.
 
     // 1. Call the kernel that includes user's lambda function.
-    // If this kernel is going to be now last one, i.e. it does not write
-    // to user's accessor, then detach user's accessor from this kernel
-    // to make the dependencies between accessors and kernels more clean and
-    // correct.
-    if (NWorkGroups > 1)
-      dissociateWithHandler(Redu.MAcc);
-
     intel::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu);
     auto QueueCopy = MQueue;
     MLastEvent = this->finalize();
 
     // 2. Run the additional aux kernel as many times as needed to reduce
     // all partial sums into one scalar.
+
+    // TODO: user's nd_range and the work-group size specified there must
+    // be honored only for the main kernel that calls user's lambda functions.
+    // There is no need in using the same work-group size in these additional
+    // kernels. Thus, the better strategy here is to make the work-group size
+    // as big as possible to converge/reduce the partial sums into the last
+    // sum faster.
     size_t WGSize = Range.get_local_range().size();
     size_t NWorkItems = NWorkGroups;
     size_t KernelRun = 1;
     while (NWorkItems > 1) {
-      // Before creating another kernel, add the event from the previous kernel
-      // to queue.
-      addEventToQueue(QueueCopy, MLastEvent);
-
-      // TODO: here the work-group size is not limited by user's needs,
-      // the better strategy here is to make the work-group-size as big
-      // as possible.
       WGSize = std::min(WGSize, NWorkItems);
       NWorkGroups = NWorkItems / WGSize;
       // The last group may be not fully loaded. Still register it as a group.

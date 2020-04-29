@@ -412,19 +412,21 @@ struct get_reduction_aux_2nd_kernel_name_t {
 ///
 /// Briefly: user's lambda, tree-reduction, CUSTOM types/ops.
 template <typename KernelName, typename KernelType, int Dims, class Reduction>
-void reduCGFunc(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
-                Reduction &Redu) {
+void reduCGFunc(handler &CGH, KernelType KernelFunc,
+                const nd_range<Dims> &Range, Reduction &Redu) {
 
   size_t NWorkItems = Range.get_global_range().size();
   size_t WGSize = Range.get_local_range().size();
   size_t NWorkGroups = Range.get_group_range().size();
 
-  bool IsUnderLoaded = (NWorkGroups * WGSize - NWorkItems) != 0;
-  bool IsEfficientCase = !IsUnderLoaded && ((WGSize & (WGSize - 1)) == 0);
+  // The last work-group may be not fully loaded with work, or the work group
+  // size may be not power of two. Those two cases considered inefficient
+  // as they require additional code and checks in the kernel.
+  bool HasNonUniformWG = (NWorkGroups * WGSize - NWorkItems) != 0;
+  bool IsEfficientCase = !HasNonUniformWG && ((WGSize & (WGSize - 1)) == 0);
 
   bool IsUpdateOfUserAcc =
-      Reduction::accessor_mode == access::mode::read_write &&
-      NWorkGroups == 1;
+      Reduction::accessor_mode == access::mode::read_write && NWorkGroups == 1;
 
   // Use local memory to reduce elements in work-groups into 0-th element.
   // If WGSize is not power of two, then WGSize+1 elements are allocated.
@@ -436,8 +438,7 @@ void reduCGFunc(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range
   auto Out = Redu.getWriteAccForPartialReds(NWorkGroups, 0, CGH);
   auto ReduIdentity = Redu.getIdentity();
   if (IsEfficientCase) {
-    // Efficient case: work-groups are fully loaded and work-group size
-    // is power of two.
+    // Efficient case: work-groups are uniform and WGSize is is power of two.
     CGH.parallel_for<KernelName>(Range, [=](nd_item<Dims> NDIt) {
       // Call user's functions. Reducer.MValue gets initialized there.
       typename Reduction::reducer_type Reducer(ReduIdentity);
@@ -464,13 +465,14 @@ void reduCGFunc(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range
                               : LocalReds[0];
     });
   } else {
-    // Inefficient case: work-groups are not fully loaded
-    // or WGSize is not power of two.
+    // Inefficient case: work-groups are non uniform or WGSize is not power
+    // of two, which requires more conditional, read and write operations.
     // These two inefficient cases are handled by one kernel, which
     // can be split later into two separate kernels, if there are users who
     // really need more efficient code for them.
-    using AuxName = typename get_reduction_main_2nd_kernel_name_t<
-        KernelName, KernelType>::name;
+    using AuxName =
+        typename get_reduction_main_2nd_kernel_name_t<KernelName,
+                                                      KernelType>::name;
     CGH.parallel_for<AuxName>(Range, [=](nd_item<Dims> NDIt) {
       // Call user's functions. Reducer.MValue gets initialized there.
       typename Reduction::reducer_type Reducer(ReduIdentity);
@@ -500,7 +502,7 @@ void reduCGFunc(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range
 
       // Compute the partial sum/reduction for the work-group.
       if (LID == 0) {
-        auto GrID = NDIt.get_group_linear_id();
+        size_t GrID = NDIt.get_group_linear_id();
         auto V = BOp(LocalReds[0], LocalReds[WGSize]);
         Out.get_pointer().get()[GrID] =
             IsUpdateOfUserAcc ? BOp(*(Out.get_pointer()), V) : V;
@@ -518,19 +520,18 @@ void reduCGFunc(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range
 /// Briefly: aux kernel, tree-reduction, CUSTOM types/ops.
 template <typename KernelName, typename KernelType, int Dims, class Reduction>
 void reduAuxCGFunc(handler &CGH, const nd_range<Dims> &Range, size_t NWorkItems,
-                    size_t KernelRun, Reduction &Redu) {
+                   size_t KernelRun, Reduction &Redu) {
   size_t WGSize = Range.get_local_range().size();
   size_t NWorkGroups = Range.get_group_range().size();
 
   // The last work-group may be not fully loaded with work, or the work group
-  // size may be not power of those. Those two cases considered inefficient
+  // size may be not power of two. Those two cases considered inefficient
   // as they require additional code and checks in the kernel.
-  bool IsUnderLoaded = NWorkGroups * WGSize != NWorkItems;
-  bool IsEfficientCase = !IsUnderLoaded && (WGSize & (WGSize - 1)) == 0;
+  bool HasNonUniformWG = NWorkGroups * WGSize != NWorkItems;
+  bool IsEfficientCase = !HasNonUniformWG && (WGSize & (WGSize - 1)) == 0;
 
   bool IsUpdateOfUserAcc =
-      Reduction::accessor_mode == access::mode::read_write &&
-      NWorkGroups == 1;
+      Reduction::accessor_mode == access::mode::read_write && NWorkGroups == 1;
 
   // Use local memory to reduce elements in work-groups into 0-th element.
   // If WGSize is not power of two, then WGSize+1 elements are allocated.
@@ -549,8 +550,9 @@ void reduAuxCGFunc(handler &CGH, const nd_range<Dims> &Range, size_t NWorkItems,
   if (IsEfficientCase) {
     // Efficient case: work-groups are fully loaded and work-group size
     // is power of two.
-    using AuxName = typename get_reduction_aux_1st_kernel_name_t<
-        KernelName, KernelType>::name;
+    using AuxName =
+        typename get_reduction_aux_1st_kernel_name_t<KernelName,
+                                                     KernelType>::name;
     CGH.parallel_for<AuxName>(Range, [=](nd_item<Dims> NDIt) {
       // Copy the element to local memory to prepare it for tree-reduction.
       size_t LID = NDIt.get_local_linear_id();
@@ -579,8 +581,9 @@ void reduAuxCGFunc(handler &CGH, const nd_range<Dims> &Range, size_t NWorkItems,
     // These two inefficient cases are handled by one kernel, which
     // can be split later into two separate kernels, if there are users
     // who really need more efficient code for them.
-    using AuxName = typename get_reduction_aux_2nd_kernel_name_t<
-        KernelName, KernelType>::name;
+    using AuxName =
+        typename get_reduction_aux_2nd_kernel_name_t<KernelName,
+                                                     KernelType>::name;
     auto ReduIdentity = Redu.getIdentity();
     CGH.parallel_for<AuxName>(Range, [=](nd_item<Dims> NDIt) {
       size_t WGSize = NDIt.get_local_range().size();
@@ -607,7 +610,7 @@ void reduAuxCGFunc(handler &CGH, const nd_range<Dims> &Range, size_t NWorkItems,
 
       // Compute the partial sum/reduction for the work-group.
       if (LID == 0) {
-        auto GrID = NDIt.get_group_linear_id();
+        size_t GrID = NDIt.get_group_linear_id();
         auto V = BOp(LocalReds[0], LocalReds[WGSize]);
         Out.get_pointer().get()[GrID] =
             IsUpdateOfUserAcc ? BOp(*(Out.get_pointer()), V) : V;
