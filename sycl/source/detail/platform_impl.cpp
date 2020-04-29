@@ -196,7 +196,6 @@ static void filterAllowList(vector_class<RT::PiDevice> &PiDevices,
   PiDevices.resize(InsertIDx);
 }
 
-
 // @return True if the device is invalid for the current backend preferences
 static bool isDeviceInvalidForBe(const device &Device) {
 
@@ -271,8 +270,8 @@ platform_impl::get_devices(info::device_type DeviceType) const {
                            PiDevice, std::make_shared<platform_impl>(*this)));
                  });
 
-  Res.erase(std::remove_if(Res.begin(), Res.end(), isDeviceInvalidForBe), 
-    Res.end());
+  Res.erase(std::remove_if(Res.begin(), Res.end(), isDeviceInvalidForBe),
+            Res.end());
 
   return Res;
 }

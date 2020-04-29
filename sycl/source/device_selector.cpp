@@ -68,8 +68,8 @@ device device_selector::select_device() const {
     // preference to the device of the preferred BE.
     //
     if (score < dev_score ||
-        (score == dev_score && isDeviceOfPreferredSyclBe(dev) 
-         && dev_score != -1)) {
+        (score == dev_score && isDeviceOfPreferredSyclBe(dev) &&
+         dev_score != -1)) {
       res = &dev;
       score = dev_score;
     }
