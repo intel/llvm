@@ -8,14 +8,9 @@
 
 #include "sycl.hpp"
 
-template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
-  kernelFunc();
-}
-
 int main() {
   cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write> accessorA;
-  kernel_single_task<class kernel_function>(
+  cl::sycl::kernel_single_task<class kernel_function>(
       [=]() {
         accessorA.use();
       });
