@@ -615,15 +615,6 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
         } else {
           LinkedAllocaCmd->MIsActive = false;
           Record->MCurContext = Queue->getContextImplPtr();
-
-          std::set<Command *> Deps =
-              findDepsForReq(Record, Req, Queue->getContextImplPtr());
-          for (Command *Dep : Deps) {
-            AllocaCmd->addDep(DepDesc{Dep, Req, LinkedAllocaCmd});
-            Dep->addUser(AllocaCmd);
-          }
-          updateLeaves(Deps, Record, Req->MAccessMode);
-          addNodeToLeaves(Record, AllocaCmd, Req->MAccessMode);
         }
       }
     }
@@ -776,8 +767,7 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
     Visited.insert(AllocaCmd);
 
     for (Command *UserCmd : AllocaCmd->MUsers)
-      if (UserCmd->getType() != Command::CommandType::ALLOCA)
-        ToVisit.push(UserCmd);
+      ToVisit.push(UserCmd);
 
     CmdsToDelete.push_back(AllocaCmd);
     // These commands will be deleted later, clear users now to avoid
@@ -794,9 +784,7 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
       continue;
 
     for (Command *UserCmd : Cmd->MUsers)
-      if (UserCmd->getType() != Command::CommandType::ALLOCA) {
-        ToVisit.push(UserCmd);
-      }
+      ToVisit.push(UserCmd);
 
     // Delete all dependencies on any allocations being removed
     // Track which commands should have their users updated
