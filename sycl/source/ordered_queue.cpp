@@ -110,8 +110,8 @@ ordered_queue::get_info() const {
 }
 
 #define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
-  template __SYCL_EXPORT                                                       \
-  ret_type ordered_queue::get_info<info::param_type::param>() const;
+  template __SYCL_EXPORT ret_type                                              \
+  ordered_queue::get_info<info::param_type::param>() const;
 
 #include <CL/sycl/info/queue_traits.def>
 
