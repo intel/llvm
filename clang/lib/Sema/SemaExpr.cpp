@@ -16254,8 +16254,6 @@ static DeclContext *getParentOfCapturingContextOrNull(DeclContext *DC, VarDecl *
   return nullptr;
 }
 
-//CP
-#include <iostream>
 
 // Certain capturing entities (lambdas, blocks etc.) are not allowed to capture
 // certain types of variables (unnamed, variably modified types etc.)
@@ -16323,9 +16321,9 @@ static bool isVariableCapturable(CapturingScopeInfo *CSI, VarDecl *Var,
       S.Diag(Loc, diag::err_opencl_block_ref_block);
     return false;
   }
-  // SYCL - emit errors for any illegal pointer derefs.
+  // SYCL: Emit diagnostics for any illegal pointer derefs.
   if(Diagnose && S.getLangOpts().SYCLIsDevice && Var->getType()->isAnyPointerType())
-    checkSYCLDevicePointerCapture(Var, Loc);
+    S.checkSYCLDevicePointerCapture(Var, Loc);
   
   return true;
 }
