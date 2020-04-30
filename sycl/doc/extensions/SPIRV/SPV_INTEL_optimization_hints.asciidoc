@@ -110,22 +110,6 @@ Token Number Assignments
 Modifications to the SPIR-V Specification, Version 1.5
 ------------------------------------------------------
 
-Decorations
-~~~~~~~~~~~
-
-In section 3.20 "Decoration", update or add
-
---
-[options="header"]
-|====
-2+^| Decoration	^| Enabling Capabilities
-| 5630 | *AssumeTrueINTEL* +
-Applies to a _Condition_ of a _Boolean Type_. Allows an optimizer to assume that
-the provided _Condition_ is true.
-| *OptimizationHintsINTEL*
-|====
---
-
 Capabilities
 ~~~~~~~~~~~~
 
@@ -145,6 +129,20 @@ Instructions
 
 In section 3.32.1, Miscellaneous Instructions, add a new instruction:
 
+[cols="3", width="100%"]
+|=====
+2+^|*OpAssumeTrueINTEL* +
+The instruction allows the optimizer to assume that the provided _Condition_ is
+always true whenever the control flow reaches the instruction call. If the
+_Condition_ is violated during execution, the behavior is undefined.
+
+The type of _Condition_ shall be _Boolean_.
+| Capability:
+*OptimizationHintsINTEL*
+
+| 2 | 5630 | Condition <id>
+|=====
+
 [cols="6", width="100%"]
 |=====
 5+^|*OpExpectINTEL* +
@@ -162,7 +160,6 @@ which shall be of _Integer_ or _Boolean_ type.
 | 5 | 5631 | <id> +
 Result Type | Result <id> | Value <id> | ExpectedValue <id>
 |=====
-
 
 Issues
 ------
@@ -189,5 +186,6 @@ Revision History
 |C|2020-04-07|Dmitry Sidorov|Apply Alexey's suggestions
 |D|2020-04-08|Dmitry Sidorov|Rename the extension to SPV_INTEL_optimization_hints
 |E|2020-04-08|Dmitry Sidorov|Assign reserved values
+|F|2020-04-30|Dmitry Sidorov|Switch AssumeTrue from Decoration to instruction
 |========================================
 
