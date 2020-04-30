@@ -34,21 +34,6 @@ device device_selector::select_device() const {
   int score = -1;
   const device *res = nullptr;
   for (const auto &dev : devices) {
-
-    // Reject the NVIDIA OpenCL platform
-    if (!dev.is_host()) {
-      string_class PlatformName = dev.get_info<info::device::platform>()
-                                      .get_info<info::platform::name>();
-      const bool IsCUDAPlatform =
-          PlatformName.find("CUDA") != std::string::npos;
-
-      if (detail::getSyclObjImpl(dev)->getPlugin().getBackend() ==
-              backend::opencl &&
-          IsCUDAPlatform) {
-        continue;
-      }
-    }
-
     int dev_score = (*this)(dev);
     if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL)) {
       string_class PlatformVersion = dev.get_info<info::device::platform>()
@@ -95,9 +80,7 @@ device device_selector::select_device() const {
 }
 
 int default_selector::operator()(const device &dev) const {
-
   int Score = -1;
-
   // Give preference to device of SYCL BE.
   if (isDeviceOfPreferredSyclBe(dev))
     Score = 50;
@@ -120,12 +103,11 @@ int default_selector::operator()(const device &dev) const {
 
 int gpu_selector::operator()(const device &dev) const {
   int Score = -1;
-
   if (dev.is_gpu()) {
     Score = 1000;
     // Give preference to device of SYCL BE.
     if (isDeviceOfPreferredSyclBe(dev))
-      Score = 50;
+      Score += 50;
   }
   return Score;
 }

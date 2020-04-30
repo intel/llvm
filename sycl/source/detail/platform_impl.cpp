@@ -202,29 +202,29 @@ static bool isDeviceInvalidForBe(const device &Device) {
   if (Device.is_host())
     return false;
 
-  // Taking the version information from the platform gives us more useful
-  // information than the driver_version of the device.
+  // Retrieve Platform version to identify CUDA OpenCL platform
+  // String:  OpenCL 1.2 CUDA <version>
   const platform platform = Device.get_info<info::device::platform>();
   const std::string platformVersion =
       platform.get_info<info::platform::version>();
+  const bool HasOpenCL = (platformVersion.find("OpenCL") != std::string::npos);
+  const bool HasCUDA = (platformVersion.find("CUDA") != std::string::npos);
 
-  backend *BackendPref = detail::SYCLConfig<detail::SYCL_BE>::get();
-  auto BackendType = detail::getSyclObjImpl(Device)->getPlugin().getBackend();
-  static_assert(std::is_same<backend, decltype(BackendType)>(),
-                "Type is not the same");
+  backend *PrefBackend = detail::SYCLConfig<detail::SYCL_BE>::get();
+  auto DeviceBackend = detail::getSyclObjImpl(Device)->getPlugin().getBackend();
 
-  // If no preference, assume OpenCL and reject CUDA backend
-  if (BackendType == backend::cuda && !BackendPref) {
+  // Reject the NVIDIA OpenCL implementation
+  if (DeviceBackend == backend::opencl && HasCUDA && HasOpenCL)
     return true;
-  } else if (!BackendPref)
+
+  // If no preference, assume OpenCL and reject CUDA
+  if (DeviceBackend == backend::cuda && !PrefBackend) {
+    return true;
+  } else if (!PrefBackend)
     return false;
 
-  // If using PI_CUDA, don't accept a non-CUDA device
-  if (BackendType == backend::opencl && *BackendPref == backend::cuda)
-    return true;
-
-  // If using PI_OPENCL, don't accept a non-OpenCL device
-  if (BackendType == backend::cuda && *BackendPref == backend::opencl)
+  // If using PI_OPENCL, reject the CUDA backend
+  if (DeviceBackend == backend::cuda && *PrefBackend == backend::opencl)
     return true;
 
   return false;
