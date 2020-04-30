@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// The "sycl-ls" utility lists all platforms/devices discovered by PI similar to
-// how clinfo prints this for OpenCL devices.
+// The "sycl-ls" utility lists all platforms/devices discovered by SYCL similar
+// to how clinfo prints this for OpenCL devices.
 //
 // There are two types of output:
 //   concise (default) and
@@ -100,7 +100,7 @@ int main(int argc, char **argv) {
     verbose = true;
   else {
     std::cout << "Usage: sycl-ls [--verbose]" << std::endl;
-    return -1;
+    return EXIT_FAILURE;
   }
 
   auto Platforms = platform::get_platforms();
@@ -132,7 +132,7 @@ int main(int argc, char **argv) {
   }
 
   if (!verbose) {
-    return 0;
+    return EXIT_SUCCESS;
   }
 
   // Print the selectors choice in one-line always
@@ -153,5 +153,5 @@ int main(int argc, char **argv) {
   printSelectorChoice(custom_selector(info::device_type::accelerator),
                       "custom_selector(acc)    : ");
 
-  return 0;
+  return EXIT_SUCCESS;
 }
