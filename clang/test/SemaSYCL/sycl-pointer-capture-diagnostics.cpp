@@ -3,11 +3,6 @@
 // Pointer variables captured by kernel lambda are checked.
 // Ensure those diagnostics are working correctly.
 
-// Mock USM functions trigger warnings, suppress.
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wreturn-stack-address"
-#pragma clang diagnostic ignored "-Wint-to-pointer-cast"
-
 namespace std {
 class type_info;
 typedef __typeof__(sizeof(int)) size_t;
@@ -25,7 +20,7 @@ typedef int device;
 typedef int context;
 typedef double queue;
 
-// Mock USM memory allocation functions.
+//-- Mock USM memory allocation functions.
 namespace usm {
 enum class alloc { host,
                    device,
@@ -33,77 +28,22 @@ enum class alloc { host,
                    unknown };
 } // namespace usm
 
-void *malloc(std::size_t sz, const device &dev, const context &ctxt, cl::sycl::usm::alloc kind) {
-  int a = 11;
-  return (void *)(&a);
-}
-void *malloc(std::size_t sz, const queue &q, cl::sycl::usm::alloc kind) {
-  int a = 11;
-  return (void *)(&a);
-}
-
-void *malloc_device(std::size_t sz, const device &dev, const context &ctxt) {
-  int a = 11;
-  return (void *)(&a);
-}
-void *malloc_device(std::size_t sz, const queue &q) {
-  int a = 11;
-  return (void *)(&a);
-}
-
-void *malloc_shared(std::size_t sz, const device &dev, const context &ctxt) {
-  int a = 11;
-  return (void *)(&a);
-}
-void *malloc_shared(std::size_t sz, const queue &q) {
-  int a = 11;
-  return (void *)(&a);
-}
-
-void *malloc_host(std::size_t sz, const context &ctxt) {
-  int a = 12;
-  return (void *)(&a);
-}
-void *malloc_host(std::size_t sz, const queue &q) {
-  int a = 12;
-  return (void *)(&a);
-}
-
-void *aligned_alloc(std::size_t alignment, std::size_t sz, const device &dev, const context &ctxt, cl::sycl::usm::alloc kind) {
-  int a = 11;
-  return (void *)(&a);
-}
-void *aligned_alloc(std::size_t alignment, std::size_t sz, const queue &q, cl::sycl::usm::alloc kind) {
-  int a = 11;
-  return (void *)(&a);
-}
-
-void *aligned_alloc_device(std::size_t alignment, std::size_t sz, const device &dev, const context &ctxt) {
-  int a = 11;
-  return (void *)(&a);
-}
-void *aligned_alloc_device(std::size_t alignment, std::size_t sz, const queue &q) {
-  int a = 11;
-  return (void *)(&a);
-}
-
-void *aligned_alloc_shared(std::size_t alignment, std::size_t sz, const device &dev, const context &ctxt) {
-  int a = 11;
-  return (void *)(&a);
-}
-void *aligned_alloc_shared(std::size_t alignment, std::size_t sz, const queue &q) {
-  int a = 11;
-  return (void *)(&a);
-}
-
-void *aligned_alloc_host(std::size_t alignment, std::size_t sz, const context &ctxt) {
-  int a = 12;
-  return (void *)(&a);
-}
-void *aligned_alloc_host(std::size_t alignment, std::size_t sz, const queue &q) {
-  int a = 12;
-  return (void *)(&a);
-}
+void *malloc(std::size_t sz, const device &dev, const context &ctxt, cl::sycl::usm::alloc kind);
+void *malloc(std::size_t sz, const queue &q, cl::sycl::usm::alloc kind);
+void *malloc_device(std::size_t sz, const device &dev, const context &ctxt);
+void *malloc_device(std::size_t sz, const queue &q);
+void *malloc_shared(std::size_t sz, const device &dev, const context &ctxt);
+void *malloc_shared(std::size_t sz, const queue &q);
+void *malloc_host(std::size_t sz, const context &ctxt);
+void *malloc_host(std::size_t sz, const queue &q);
+void *aligned_alloc(std::size_t alignment, std::size_t sz, const device &dev, const context &ctxt, cl::sycl::usm::alloc kind);
+void *aligned_alloc(std::size_t alignment, std::size_t sz, const queue &q, cl::sycl::usm::alloc kind);
+void *aligned_alloc_device(std::size_t alignment, std::size_t sz, const device &dev, const context &ctxt);
+void *aligned_alloc_device(std::size_t alignment, std::size_t sz, const queue &q);
+void *aligned_alloc_shared(std::size_t alignment, std::size_t sz, const device &dev, const context &ctxt);
+void *aligned_alloc_shared(std::size_t alignment, std::size_t sz, const queue &q);
+void *aligned_alloc_host(std::size_t alignment, std::size_t sz, const context &ctxt);
+void *aligned_alloc_host(std::size_t alignment, std::size_t sz, const queue &q);
 
 //template form
 template <typename T>
@@ -114,15 +54,21 @@ T *malloc_shared(std::size_t Count, const device &Dev, const context &Ctxt) {
 } // namespace sycl
 } // namespace cl
 
-void *malloc(std::size_t sz) {
-  int a = 11;
-  return (void *)(&a);
+void *malloc(std::size_t sz);
+void *calloc(std::size_t num, std::size_t sz);
+//-- End Mocks
+
+// User functions that might allocate memory in some way unknown to us.
+float *unknownFunc();
+
+void allocateUSMByHandle(float **pointerHandle, std::size_t sz, sycl::device &dev, sycl::context &ctxt) {
+  float *mem = sycl::malloc_shared<float>(sz, dev, ctxt);
+  *pointerHandle = mem;
 }
-void *calloc(std::size_t num, std::size_t sz) {
-  int a = 11;
-  return (void *)(&a);
-}
-// -- END MOCKS
+
+struct Mesh {
+  float a;
+};
 
 float calledFromLambda(float *first) {
   return first[0];
@@ -133,19 +79,37 @@ int main(int argc, char **argv) {
   int device = 0, context = 0;
   double queue = 0;
 
-  //bad pointers
+  //-- Declarations
+
+  //-- various bad pointers
   float stackFloat = 20.0;
   float *stackFloatP = &stackFloat; //#decl_stackFloatP
 
   float *frenemy = stackFloatP; //#decl_frenemy
   frenemy++;
 
+  // expected-warning@+1 {{cast to 'float *' from smaller integer type 'int'}}
   float *fromParam = (float *)(argc); //#decl_fromParam
 
-  // std::string is already caught by 'non-trivially copy constructible' check. 
+  // std::string is already caught by 'non-trivially copy constructible' check.
   // so we only worry about literal strings.
   auto stringLiteral = "omgwtf"; //#decl_stringLiteral
 
+  float *apocryphal = unknownFunc(); //#decl_apocryphal
+  float *usmByHandle;
+  allocateUSMByHandle(&usmByHandle, 10, device, context);
+
+  //-- structs
+  Mesh stackMesh;
+  stackMesh.a = 31.0;
+  Mesh *stackMeshP = &stackMesh; //#decl_stackMeshP
+  Mesh *stackMeshP2;
+  Mesh *mallocMeshP = static_cast<Mesh *>(malloc(sizeof(Mesh)));                            //#decl_mallocMeshP
+  Mesh *mallocMeshP2 = static_cast<Mesh *>(malloc(sizeof(Mesh)));                           //#decl_mallocMeshP2
+  Mesh *usmMeshP = static_cast<Mesh *>(sycl::malloc_shared(sizeof(Mesh), device, context)); //#decl_usmMeshP
+  Mesh *usmMeshP2 = sycl::malloc_shared<Mesh>(1, device, context);                          //#decl_usmMeshP2
+
+  //-- malloc
   float *mallocFloatP = static_cast<float *>(malloc(sizeof(float) * 2));  //#decl_mallocFloatP
   float *mallocFloatP2 = static_cast<float *>(malloc(sizeof(float) * 2)); //#decl_mallocFloatP2
   float *callocFloatP = static_cast<float *>(calloc(2, sizeof(float)));   //#decl_callocFloatP
@@ -178,9 +142,10 @@ int main(int argc, char **argv) {
   float *usmDeviceP3 = static_cast<float *>(sycl::malloc(sizeof(float), device, context, cl::sycl::usm::alloc::device));
   float *usmDeviceP4 = static_cast<float *>(sycl::malloc(sizeof(float), queue, cl::sycl::usm::alloc::device));
 
-  // --- direct lambda testing ---
   cl::sycl::kernel_single_task<class AName>([=]() {
-    // --- The following dangerous pointer captures result in errors or notes.
+    // --- Captures
+
+    //-- various bad pointers
 
     // expected-note@#call_kernelFunc {{called by 'kernel_single_task<AName, (lambda}}
     // expected-note@#decl_mallocFloatP {{Declared here.}}
@@ -188,7 +153,7 @@ int main(int argc, char **argv) {
     calledFromLambda(mallocFloatP);
 
     // expected-note@#decl_stackFloatP {{Declared here.}}
-    // expected-note@+1 {{Unknown memory reference in SYCL device kernel. Be sure memory was allocated with USM (malloc_shared, etc).}}
+    // expected-error@+1 {{Illegal memory reference in SYCL device kernel. Use USM (malloc_shared, etc) instead.}}
     stackFloatP[0] = 30.0;
 
     // expected-note@#decl_frenemy {{Declared here.}}
@@ -203,6 +168,31 @@ int main(int argc, char **argv) {
     // expected-error@+1 {{Illegal memory reference in SYCL device kernel. Use USM (malloc_shared, etc) instead.}}
     char x = stringLiteral[0];
 
+    // expected-note@#decl_apocryphal {{Declared here.}}
+    // expected-note@+1 {{Unknown memory reference in SYCL device kernel. Be sure memory was allocated with USM (malloc_shared, etc).}}
+    apocryphal[0] = 88.0;
+    // expected-note@+1 {{Unknown memory reference in SYCL device kernel. Be sure memory was allocated with USM (malloc_shared, etc).}}
+    usmByHandle[0] = 89.0; // Unfortunately, while this might actually be USM, we cannot determine that, and issue a note reminding the user.
+
+    //-- structs
+
+    // expected-note@#decl_stackMeshP {{Declared here.}}
+    // expected-error@+1 {{Illegal memory reference in SYCL device kernel. Use USM (malloc_shared, etc) instead.}}
+    float smpa = stackMeshP->a;
+
+    // expected-note@+1 {{Unknown memory reference in SYCL device kernel. Be sure memory was allocated with USM (malloc_shared, etc).}}
+    stackMeshP2->a = 34.0;
+
+    // expected-note@#decl_mallocMeshP {{Declared here.}}
+    // expected-error@+1 {{Illegal memory reference in SYCL device kernel. Use USM (malloc_shared, etc) instead.}}
+    float mmpa = mallocMeshP->a;
+
+    // expected-note@#decl_mallocMeshP2 {{Declared here.}}
+    // expected-error@+1 {{Illegal memory reference in SYCL device kernel. Use USM (malloc_shared, etc) instead.}}
+    mallocMeshP2->a = 45.0;
+
+    //-- malloc
+
     // expected-note@#decl_mallocFloatP2 {{Declared here.}}
     // expected-error@+1 {{Illegal memory reference in SYCL device kernel. Use USM (malloc_shared, etc) instead.}}
     mallocFloatP2[0] = 80;
@@ -215,20 +205,25 @@ int main(int argc, char **argv) {
     // expected-error@+1 {{Illegal memory reference in SYCL device kernel. Use USM (malloc_shared, etc) instead.}}
     float someValue = *callocFloatP2;
 
-
-
-    // --- Only the first capture of a pointer emits anything. So these violations will NOT emit redundant diagnostics.
+    // --- Only the first capture of a pointer emits anything. So these accesses will NOT emit redundant diagnostics.
     calledFromLambda(mallocFloatP);
     stackFloatP[0] = 31.0;
     frenemy[0] = 41.0;
     fromParam[0] = 71.0;
     char y = stringLiteral[0];
+    apocryphal[0] = 88.1;
+    float smpa2 = stackMeshP->a;
+    stackMeshP2->a = 34.2;
+    float mmpa2 = mallocMeshP->a;
+    mallocMeshP2->a = 45.2;
     mallocFloatP2[0] = 81;
     callocFloatP[0] = 81;
     float someOtherValue = *callocFloatP2;
 
     // --- These captures all use USM, and should pass without any notes or errors.
     calledFromLambda(usmSharedP);
+    float umpa = usmMeshP->a;
+    usmMeshP2->a = 61.0;
     usmSharedP[0] = 1;
     usmSharedP2[0] = 1;
     usmSharedP3[0] = 1;
@@ -260,6 +255,12 @@ int main(int argc, char **argv) {
     frenemy[0] = 40.0;
     fromParam[0] = 70.0;
     char x = stringLiteral[0];
+    apocryphal[0] = 89.0;
+    usmByHandle[0] = 90.0;
+    float smpa = stackMeshP->a;
+    stackMeshP2->a = 34.0;
+    float mmpa = mallocMeshP->a;
+    mallocMeshP2->a = 45.0;
     mallocFloatP2[0] = 80;
     callocFloatP[0] = 80;
     float someValue = *callocFloatP2;
@@ -268,5 +269,3 @@ int main(int argc, char **argv) {
 
   return 0;
 }
-
-#pragma clang diagnostic pop

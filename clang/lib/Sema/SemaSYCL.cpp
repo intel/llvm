@@ -28,8 +28,6 @@
 
 #include <array>
 
-//CP
-#include <iostream>
 
 using namespace clang;
 
@@ -289,18 +287,22 @@ void Sema::checkSYCLDeviceVarDecl(VarDecl *Var) {
 void Sema::checkSYCLDevicePointerCapture(VarDecl *Var, SourceLocation CaptureLoc) {
   assert(getLangOpts().SYCLIsDevice &&
          "Should only be called during SYCL compilation");
-  bool speak = false;
+  assert(Var->getType()->isAnyPointerType() && 
+        "Should only be called for pointer types being captured.");
+
+  enum ExprAllocation { Unknown, USM, Not_USM };
+  ExprAllocation  howAllocated = Unknown;
+
+  SourceLocation DecLoc = SourceLocation();
+
+  // Try to determine provenance of this Var.
   const Expr *Init = Var->getAnyInitializer();
   if(Init){
     Init = Init->IgnoreCasts();
-    QualType InitTy = Init->getType();
-    SourceLocation DecLoc = Init->getExprLoc();
+    DecLoc = Init->getExprLoc();
     
-    enum ExprAllocation { Unknown, USM, Not_USM };
-    ExprAllocation  howAllocated = Unknown;
-
     const CallExpr *CE = dyn_cast<CallExpr>(Init);
-    if(CE){
+    if(CE) {
       // Captured pointer is result of function call.
       const FunctionDecl *func = CE->getDirectCallee();
       auto FullName = func->getQualifiedNameAsString();
@@ -310,34 +312,28 @@ void Sema::checkSYCLDevicePointerCapture(VarDecl *Var, SourceLocation CaptureLoc
       else if ( (FullName.compare("malloc")==0) || (FullName.compare("calloc")==0) )
         howAllocated = Not_USM;
 
-      //std::cout << "call expression. callee: " << func->getNameInfo()/*.getName()*/.getAsString() 
-      //<< " " <<  func->getQualifiedNameAsString() << std::endl;
     } else {
-      // var usage
+      // Var has initialization, but not as return result of a function, disqualify any other obvious bad initialization expressions. 
       const StringLiteral *SL = dyn_cast<StringLiteral>(Init);
       if(SL)
-        howAllocated = Not_USM;  //
-      speak = true;
+        howAllocated = Not_USM;
+      
+      if(Init->isRValue()) // pr-value
+        howAllocated = Not_USM;
     }
+  } 
+  //else: Var does not have local initialization, might be parameter, or initialized via ref, etc. 
+  //      Nothing more we can determine at this time.
     
-
-    if(speak){
-      std::cout << "captured qualtype: " << InitTy.getAsString() << "\n:::: " 
-      <<  CaptureLoc.printToString(getSourceManager())
-      << "declared at: " <<  DecLoc.printToString(getSourceManager())
-      <<  std::endl;
-    }
-
-    //diagnostics
-    if(howAllocated == Not_USM){
-      SYCLDiagIfDeviceCode(CaptureLoc, diag::err_sycl_illegal_memory_reference);
-      SYCLDiagIfDeviceCode(DecLoc, diag::note_sycl_capture_declared_here);
-    }else if (howAllocated == Unknown){
-      SYCLDiagIfDeviceCode(CaptureLoc, diag::note_unknown_memory_reference);
-      SYCLDiagIfDeviceCode(DecLoc, diag::note_sycl_capture_declared_here);
-    }
-
-  }
+  //diagnostics
+  if(howAllocated == Not_USM)
+    SYCLDiagIfDeviceCode(CaptureLoc, diag::err_sycl_illegal_memory_reference);
+  else if (howAllocated == Unknown)
+    SYCLDiagIfDeviceCode(CaptureLoc, diag::note_unknown_memory_reference);
+    
+  if(howAllocated != USM && DecLoc.isValid())
+    SYCLDiagIfDeviceCode(DecLoc, diag::note_sycl_capture_declared_here);
+  
 }
 
 
