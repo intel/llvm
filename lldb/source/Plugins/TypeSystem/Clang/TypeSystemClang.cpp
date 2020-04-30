@@ -344,6 +344,13 @@ static void SetMemberOwningModule(clang::Decl *member,
   member->setFromASTFile();
   member->setOwningModuleID(id.GetValue());
   member->setModuleOwnershipKind(clang::Decl::ModuleOwnershipKind::Visible);
+  if (auto *nd = llvm::dyn_cast<clang::NamedDecl>(member))
+    if (auto *dc = llvm::dyn_cast<clang::DeclContext>(parent)) {
+      dc->setHasExternalVisibleStorage(true);
+      // This triggers ExternalASTSource::FindExternalVisibleDeclsByName() to be
+      // called when searching for members.
+      dc->setHasExternalLexicalStorage(true);
+    }
 }
 
 char TypeSystemClang::ID;
@@ -1224,11 +1231,6 @@ void TypeSystemClang::SetOwningModule(clang::Decl *decl,
   decl->setFromASTFile();
   decl->setOwningModuleID(owning_module.GetValue());
   decl->setModuleOwnershipKind(clang::Decl::ModuleOwnershipKind::Visible);
-  if (auto *decl_ctx = llvm::dyn_cast<clang::DeclContext>(decl)) {
-    decl_ctx->setHasExternalVisibleStorage();
-    if (auto *ns = llvm::dyn_cast<NamespaceDecl>(decl_ctx))
-      ns->getPrimaryContext()->setMustBuildLookupTable();
-  }
 }
 
 OptionalClangModuleID
@@ -3539,7 +3541,8 @@ bool TypeSystemClang::IsScalarType(lldb::opaque_compiler_type_t type) {
 bool TypeSystemClang::IsTypedefType(lldb::opaque_compiler_type_t type) {
   if (!type)
     return false;
-  return GetQualType(type)->getTypeClass() == clang::Type::Typedef;
+  return RemoveWrappingTypes(GetQualType(type), {clang::Type::Typedef})
+             ->getTypeClass() == clang::Type::Typedef;
 }
 
 bool TypeSystemClang::IsVoidType(lldb::opaque_compiler_type_t type) {
@@ -4523,8 +4526,8 @@ CompilerType TypeSystemClang::CreateTypedef(
 CompilerType
 TypeSystemClang::GetTypedefedType(lldb::opaque_compiler_type_t type) {
   if (type) {
-    const clang::TypedefType *typedef_type =
-        llvm::dyn_cast<clang::TypedefType>(GetQualType(type));
+    const clang::TypedefType *typedef_type = llvm::dyn_cast<clang::TypedefType>(
+        RemoveWrappingTypes(GetQualType(type), {clang::Type::Typedef}));
     if (typedef_type)
       return GetType(typedef_type->getDecl()->getUnderlyingType());
   }
@@ -7590,7 +7593,7 @@ bool TypeSystemClang::AddObjCClassProperty(
     setter_sel = clang_ast.Selectors.getSelector(1, &setter_ident);
   }
   property_decl->setSetterName(setter_sel);
-  property_decl->setPropertyAttributes(ObjCPropertyDecl::OBJC_PR_setter);
+  property_decl->setPropertyAttributes(ObjCPropertyAttribute::kind_setter);
 
   if (property_getter_name != nullptr) {
     clang::IdentifierInfo *getter_ident =
@@ -7601,33 +7604,34 @@ bool TypeSystemClang::AddObjCClassProperty(
     getter_sel = clang_ast.Selectors.getSelector(0, &getter_ident);
   }
   property_decl->setGetterName(getter_sel);
-  property_decl->setPropertyAttributes(ObjCPropertyDecl::OBJC_PR_getter);
+  property_decl->setPropertyAttributes(ObjCPropertyAttribute::kind_getter);
 
   if (ivar_decl)
     property_decl->setPropertyIvarDecl(ivar_decl);
 
   if (property_attributes & DW_APPLE_PROPERTY_readonly)
-    property_decl->setPropertyAttributes(ObjCPropertyDecl::OBJC_PR_readonly);
+    property_decl->setPropertyAttributes(ObjCPropertyAttribute::kind_readonly);
   if (property_attributes & DW_APPLE_PROPERTY_readwrite)
-    property_decl->setPropertyAttributes(ObjCPropertyDecl::OBJC_PR_readwrite);
+    property_decl->setPropertyAttributes(ObjCPropertyAttribute::kind_readwrite);
   if (property_attributes & DW_APPLE_PROPERTY_assign)
-    property_decl->setPropertyAttributes(ObjCPropertyDecl::OBJC_PR_assign);
+    property_decl->setPropertyAttributes(ObjCPropertyAttribute::kind_assign);
   if (property_attributes & DW_APPLE_PROPERTY_retain)
-    property_decl->setPropertyAttributes(ObjCPropertyDecl::OBJC_PR_retain);
+    property_decl->setPropertyAttributes(ObjCPropertyAttribute::kind_retain);
   if (property_attributes & DW_APPLE_PROPERTY_copy)
-    property_decl->setPropertyAttributes(ObjCPropertyDecl::OBJC_PR_copy);
+    property_decl->setPropertyAttributes(ObjCPropertyAttribute::kind_copy);
   if (property_attributes & DW_APPLE_PROPERTY_nonatomic)
-    property_decl->setPropertyAttributes(ObjCPropertyDecl::OBJC_PR_nonatomic);
-  if (property_attributes & ObjCPropertyDecl::OBJC_PR_nullability)
-    property_decl->setPropertyAttributes(ObjCPropertyDecl::OBJC_PR_nullability);
-  if (property_attributes & ObjCPropertyDecl::OBJC_PR_null_resettable)
+    property_decl->setPropertyAttributes(ObjCPropertyAttribute::kind_nonatomic);
+  if (property_attributes & ObjCPropertyAttribute::kind_nullability)
     property_decl->setPropertyAttributes(
-        ObjCPropertyDecl::OBJC_PR_null_resettable);
-  if (property_attributes & ObjCPropertyDecl::OBJC_PR_class)
-    property_decl->setPropertyAttributes(ObjCPropertyDecl::OBJC_PR_class);
+        ObjCPropertyAttribute::kind_nullability);
+  if (property_attributes & ObjCPropertyAttribute::kind_null_resettable)
+    property_decl->setPropertyAttributes(
+        ObjCPropertyAttribute::kind_null_resettable);
+  if (property_attributes & ObjCPropertyAttribute::kind_class)
+    property_decl->setPropertyAttributes(ObjCPropertyAttribute::kind_class);
 
   const bool isInstance =
-      (property_attributes & ObjCPropertyDecl::OBJC_PR_class) == 0;
+      (property_attributes & ObjCPropertyAttribute::kind_class) == 0;
 
   clang::ObjCMethodDecl *getter = nullptr;
   if (!getter_sel.isNull())

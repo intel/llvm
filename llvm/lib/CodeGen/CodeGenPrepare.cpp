@@ -1939,12 +1939,14 @@ bool CodeGenPrepare::optimizeCallInst(CallInst *CI, bool &ModifiedDT) {
     // If this is a memcpy (or similar) then we may be able to improve the
     // alignment
     if (MemIntrinsic *MI = dyn_cast<MemIntrinsic>(CI)) {
-      unsigned DestAlign = getKnownAlignment(MI->getDest(), *DL);
-      if (DestAlign > MI->getDestAlignment())
+      Align DestAlign = getKnownAlignment(MI->getDest(), *DL);
+      MaybeAlign MIDestAlign = MI->getDestAlign();
+      if (!MIDestAlign || DestAlign > *MIDestAlign)
         MI->setDestAlignment(DestAlign);
       if (MemTransferInst *MTI = dyn_cast<MemTransferInst>(MI)) {
-        unsigned SrcAlign = getKnownAlignment(MTI->getSource(), *DL);
-        if (SrcAlign > MTI->getSourceAlignment())
+        MaybeAlign MTISrcAlign = MTI->getSourceAlign();
+        Align SrcAlign = getKnownAlignment(MTI->getSource(), *DL);
+        if (!MTISrcAlign || SrcAlign > *MTISrcAlign)
           MTI->setSourceAlignment(SrcAlign);
       }
     }
@@ -6957,7 +6959,7 @@ static bool splitMergedValStore(StoreInst &SI, const DataLayout &DL,
   // whereas scalable vectors would have to be shifted by
   // <2log(vscale) + number of bits> in order to store the
   // low/high parts. Bailing out for now.
-  if (StoreType->isVectorTy() && cast<VectorType>(StoreType)->isScalable())
+  if (isa<ScalableVectorType>(StoreType))
     return false;
 
   if (!DL.typeSizeEqualsStoreSize(StoreType) ||

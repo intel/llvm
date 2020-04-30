@@ -198,8 +198,8 @@ static void generateCreationChecks(Instruction &I,
     break;
   case Instruction::ExtractElement: {
     Value *Vec = I.getOperand(0);
-    auto *VecVTy = cast<VectorType>(Vec->getType());
-    if (VecVTy->isScalable())
+    auto *VecVTy = dyn_cast<FixedVectorType>(Vec->getType());
+    if (!VecVTy)
       break;
     Value *Idx = I.getOperand(1);
     unsigned NumElts = VecVTy->getNumElements();
@@ -211,8 +211,8 @@ static void generateCreationChecks(Instruction &I,
   }
   case Instruction::InsertElement: {
     Value *Vec = I.getOperand(0);
-    auto *VecVTy = cast<VectorType>(Vec->getType());
-    if (VecVTy->isScalable())
+    auto *VecVTy = dyn_cast<FixedVectorType>(Vec->getType());
+    if (!VecVTy)
       break;
     Value *Idx = I.getOperand(2);
     unsigned NumElts = VecVTy->getNumElements();
@@ -283,7 +283,7 @@ static bool rewrite(Function &F) {
       
       // Note: There are many more sources of documented UB, but this pass only
       // attempts to find UB triggered by propagation of poison.
-      if (Value *Op = const_cast<Value*>(getGuaranteedNonFullPoisonOp(&I)))
+      if (Value *Op = const_cast<Value*>(getGuaranteedNonPoisonOp(&I)))
         CreateAssertNot(B, getPoisonFor(ValToPoison, Op));
 
       if (LocalCheck)
@@ -294,7 +294,7 @@ static bool rewrite(Function &F) {
           }
 
       SmallVector<Value*, 4> Checks;
-      if (propagatesFullPoison(&I))
+      if (propagatesPoison(&I))
         for (Value *V : I.operands())
           Checks.push_back(getPoisonFor(ValToPoison, V));
 
@@ -344,7 +344,7 @@ PreservedAnalyses PoisonCheckingPass::run(Function &F,
    - shufflevector - It would seem reasonable for an out of bounds mask element
      to produce poison, but the LangRef does not state.  
    - and/or - It would seem reasonable for poison to propagate from both
-     arguments, but LangRef doesn't state and propagatesFullPoison doesn't
+     arguments, but LangRef doesn't state and propagatesPoison doesn't
      include these two.
    - all binary ops w/vector operands - The likely interpretation would be that
      any element overflowing should produce poison for the entire result, but

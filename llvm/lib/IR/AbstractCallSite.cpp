@@ -14,9 +14,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "llvm/IR/AbstractCallSite.h"
 #include "llvm/ADT/Statistic.h"
-#include "llvm/ADT/StringSwitch.h"
-#include "llvm/IR/CallSite.h"
 #include "llvm/Support/Debug.h"
 
 using namespace llvm;
@@ -33,8 +32,8 @@ STATISTIC(NumInvalidAbstractCallSitesUnknownCallee,
 STATISTIC(NumInvalidAbstractCallSitesNoCallback,
           "Number of invalid abstract call sites created (no callback)");
 
-void AbstractCallSite::getCallbackUses(const CallBase &CB,
-                                       SmallVectorImpl<const Use *> &CallbackUses) {
+void AbstractCallSite::getCallbackUses(
+    const CallBase &CB, SmallVectorImpl<const Use *> &CallbackUses) {
   const Function *Callee = CB.getCalledFunction();
   if (!Callee)
     return;

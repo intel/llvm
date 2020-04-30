@@ -24,7 +24,6 @@ namespace llvm {
 
 class GCNSubtarget;
 class LiveIntervals;
-class MachineRegisterInfo;
 class SIMachineFunctionInfo;
 
 class SIRegisterInfo final : public AMDGPUGenRegisterInfo {
@@ -115,6 +114,10 @@ public:
   unsigned getHWRegIndex(MCRegister Reg) const {
     return getEncodingValue(Reg) & 0xff;
   }
+
+  static const TargetRegisterClass *getVGPRClassForBitWidth(unsigned BitWidth);
+  static const TargetRegisterClass *getAGPRClassForBitWidth(unsigned BitWidth);
+  static const TargetRegisterClass *getSGPRClassForBitWidth(unsigned BitWidth);
 
   /// Return the 'base' register class for this register.
   /// e.g. SGPR0 => SReg_32, VGPR => VGPR_32 SGPR0_SGPR1 -> SReg_32, etc.

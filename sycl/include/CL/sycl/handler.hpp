@@ -131,8 +131,6 @@ struct get_reduction_aux_2nd_kernel_name_t {
       typename get_kernel_name_t<Name, Type>::name>;
 };
 
-__SYCL_EXPORT device getDeviceFromHandler(handler &);
-
 template <typename, typename T> struct check_fn_signature {
   static_assert(std::integral_constant<T, false>::value,
                 "Second template parameter is required to be of function type");
@@ -153,6 +151,11 @@ private:
 public:
   static constexpr bool value = type::value;
 };
+
+__SYCL_EXPORT device getDeviceFromHandler(handler &);
+
+device getDeviceFromHandler(handler &);
+
 } // namespace detail
 
 namespace intel {
@@ -160,6 +163,14 @@ namespace detail {
 template <typename T, class BinaryOperation, int Dims, access::mode AccMode,
           access::placeholder IsPlaceholder>
 class reduction_impl;
+
+template <typename KernelName, typename KernelType, int Dims, class Reduction>
+void reduCGFunc(handler &CGH, KernelType KernelFunc,
+                const nd_range<Dims> &Range, Reduction &Redu);
+
+template <typename KernelName, typename KernelType, int Dims, class Reduction>
+void reduAuxCGFunc(handler &CGH, const nd_range<Dims> &Range, size_t NWorkItems,
+                   size_t KernelRun, Reduction &Redu);
 } // namespace detail
 } // namespace intel
 
@@ -249,13 +260,6 @@ private:
   /// usage in finalize() method.
   void saveCodeLoc(detail::code_location CodeLoc) { MCodeLoc = CodeLoc; }
 
-  /// Stores the given \param Event to the \param Queue.
-  /// Even though MQueue is a field of handler, the method addEvent() of
-  /// queue_impl class cannot be called inside this handler.hpp file
-  /// as queue_impl is incomplete class for handler.
-  static void addEventToQueue(shared_ptr_class<detail::queue_impl> Queue,
-                              cl::sycl::event Event);
-
   /// Constructs CG object of specific type, passes it to Scheduler and
   /// returns sycl::event object representing the command group.
   /// It's expected that the method is the latest method executed before
@@ -304,30 +308,6 @@ private:
     MAssociatedAccesors.emplace_back(detail::kernel_param_kind_t::kind_accessor,
                                      Req, static_cast<int>(AccessTarget),
                                      /*index*/ 0);
-  }
-
-  template <typename DataT, int Dims, access::mode AccessMode,
-            access::target AccessTarget>
-  void dissociateWithHandler(accessor<DataT, Dims, AccessMode, AccessTarget,
-                                      access::placeholder::false_t>
-                                 Acc) {
-    detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Acc;
-    detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
-    detail::Requirement *Req = AccImpl.get();
-
-    // Remove accessor from the list of requirements, accessors storage,
-    // and from the list of associated accessors.
-    auto ReqIt = std::find(MRequirements.begin(), MRequirements.end(), Req);
-    auto AccIt = std::find(MAccStorage.begin(), MAccStorage.end(), AccImpl);
-    auto It =
-        std::find_if(MAssociatedAccesors.begin(), MAssociatedAccesors.end(),
-                     [Req](const detail::ArgDesc &D) { return D.MPtr == Req; });
-    assert((ReqIt != MRequirements.end() && AccIt != MAccStorage.end() &&
-            It != MAssociatedAccesors.end()) &&
-           "Cannot dissociate accessor.");
-    MRequirements.erase(ReqIt);
-    MAccStorage.erase(AccIt);
-    MAssociatedAccesors.erase(It);
   }
 
   // Recursively calls itself until arguments pack is fully processed.
@@ -842,219 +822,6 @@ public:
 #endif
   }
 
-  /// Implements a command group function that enqueues a kernel that calls
-  /// user's lambda function \param KernelFunc and does one iteration of
-  /// reduction of elements in each of work-groups.
-  /// This version uses tree-reduction algorithm to reduce elements in each
-  /// of work-groups. At the end of each work-group the partial sum is written
-  /// to a global buffer.
-  ///
-  /// Briefly: user's lambda, tree-reduction, CUSTOM types/ops.
-  template <typename KernelName, typename KernelType, int Dims, class Reduction>
-  void reduCGFunc(KernelType KernelFunc, const nd_range<Dims> &Range,
-                  Reduction &Redu) {
-
-    size_t NWorkItems = Range.get_global_range().size();
-    size_t WGSize = Range.get_local_range().size();
-    size_t NWorkGroups = Range.get_group_range().size();
-
-    bool IsUnderLoaded = (NWorkGroups * WGSize - NWorkItems) != 0;
-    bool IsEfficientCase = !IsUnderLoaded && ((WGSize & (WGSize - 1)) == 0);
-
-    bool IsUpdateOfUserAcc =
-        Reduction::accessor_mode == access::mode::read_write &&
-        NWorkGroups == 1;
-
-    // Use local memory to reduce elements in work-groups into 0-th element.
-    // If WGSize is not power of two, then WGSize+1 elements are allocated.
-    // The additional last element is used to catch elements that could
-    // otherwise be lost in the tree-reduction algorithm.
-    size_t NumLocalElements = WGSize + (IsEfficientCase ? 0 : 1);
-    auto LocalReds = Redu.getReadWriteLocalAcc(NumLocalElements, *this);
-
-    auto Out = Redu.getWriteAccForPartialReds(NWorkGroups, 0, *this);
-    auto ReduIdentity = Redu.getIdentity();
-    if (IsEfficientCase) {
-      // Efficient case: work-groups are fully loaded and work-group size
-      // is power of two.
-      parallel_for<KernelName>(Range, [=](nd_item<Dims> NDIt) {
-        // Call user's functions. Reducer.MValue gets initialized there.
-        typename Reduction::reducer_type Reducer(ReduIdentity);
-        KernelFunc(NDIt, Reducer);
-
-        // Copy the element to local memory to prepare it for tree-reduction.
-        size_t LID = NDIt.get_local_linear_id();
-        LocalReds[LID] = Reducer.MValue;
-        NDIt.barrier();
-
-        // Tree-reduction: reduce the local array LocalReds[:] to LocalReds[0].
-        typename Reduction::binary_operation BOp;
-        size_t WGSize = NDIt.get_local_range().size();
-        for (size_t CurStep = WGSize >> 1; CurStep > 0; CurStep >>= 1) {
-          if (LID < CurStep)
-            LocalReds[LID] = BOp(LocalReds[LID], LocalReds[LID + CurStep]);
-          NDIt.barrier();
-        }
-
-        // Compute the partial sum/reduction for the work-group.
-        if (LID == 0)
-          Out.get_pointer().get()[NDIt.get_group_linear_id()] =
-              IsUpdateOfUserAcc ? BOp(*(Out.get_pointer()), LocalReds[0])
-                                : LocalReds[0];
-      });
-    } else {
-      // Inefficient case: work-groups are not fully loaded
-      // or WGSize is not power of two.
-      // These two inefficient cases are handled by one kernel, which
-      // can be split later into two separate kernels, if there are users who
-      // really need more efficient code for them.
-      using AuxName = typename detail::get_reduction_main_2nd_kernel_name_t<
-          KernelName, KernelType>::name;
-      parallel_for<AuxName>(Range, [=](nd_item<Dims> NDIt) {
-        // Call user's functions. Reducer.MValue gets initialized there.
-        typename Reduction::reducer_type Reducer(ReduIdentity);
-        KernelFunc(NDIt, Reducer);
-
-        size_t WGSize = NDIt.get_local_range().size();
-        size_t LID = NDIt.get_local_linear_id();
-        size_t GID = NDIt.get_global_linear_id();
-        // Copy the element to local memory to prepare it for tree-reduction.
-        LocalReds[LID] = (GID < NWorkItems) ? Reducer.MValue : ReduIdentity;
-        LocalReds[WGSize] = ReduIdentity;
-        NDIt.barrier();
-
-        // Tree-reduction: reduce the local array LocalReds[:] to LocalReds[0]
-        // LocalReds[WGSize] accumulates last/odd elements when the step
-        // of tree-reduction loop is not even.
-        typename Reduction::binary_operation BOp;
-        size_t PrevStep = WGSize;
-        for (size_t CurStep = PrevStep >> 1; CurStep > 0; CurStep >>= 1) {
-          if (LID < CurStep)
-            LocalReds[LID] = BOp(LocalReds[LID], LocalReds[LID + CurStep]);
-          else if (LID == CurStep && (PrevStep & 0x1))
-            LocalReds[WGSize] = BOp(LocalReds[WGSize], LocalReds[PrevStep - 1]);
-          NDIt.barrier();
-          PrevStep = CurStep;
-        }
-
-        // Compute the partial sum/reduction for the work-group.
-        if (LID == 0) {
-          auto GrID = NDIt.get_group_linear_id();
-          auto V = BOp(LocalReds[0], LocalReds[WGSize]);
-          Out.get_pointer().get()[GrID] =
-              IsUpdateOfUserAcc ? BOp(*(Out.get_pointer()), V) : V;
-        }
-      });
-    }
-  }
-
-  /// Implements a command group function that enqueues a kernel that does one
-  /// iteration of reduction of elements in each of work-groups.
-  /// This version uses tree-reduction algorithm to reduce elements in each
-  /// of work-groups. At the end of each work-group the partial sum is written
-  /// to a global buffer.
-  ///
-  /// Briefly: aux kernel, tree-reduction, CUSTOM types/ops.
-  template <typename KernelName, typename KernelType, int Dims, class Reduction>
-  void reduAuxCGFunc(const nd_range<Dims> &Range, size_t NWorkItems,
-                     size_t KernelRun, Reduction &Redu) {
-    size_t WGSize = Range.get_local_range().size();
-    size_t NWorkGroups = Range.get_group_range().size();
-
-    // The last work-group may be not fully loaded with work, or the work group
-    // size may be not power of those. Those two cases considered inefficient
-    // as they require additional code and checks in the kernel.
-    bool IsUnderLoaded = NWorkGroups * WGSize != NWorkItems;
-    bool IsEfficientCase = !IsUnderLoaded && (WGSize & (WGSize - 1)) == 0;
-
-    bool IsUpdateOfUserAcc =
-        Reduction::accessor_mode == access::mode::read_write &&
-        NWorkGroups == 1;
-
-    // Use local memory to reduce elements in work-groups into 0-th element.
-    // If WGSize is not power of two, then WGSize+1 elements are allocated.
-    // The additional last element is used to catch elements that could
-    // otherwise be lost in the tree-reduction algorithm.
-    size_t NumLocalElements = WGSize + (IsEfficientCase ? 0 : 1);
-    auto LocalReds = Redu.getReadWriteLocalAcc(NumLocalElements, *this);
-
-    // Get read accessor to the buffer that was used as output
-    // in the previous kernel. After that create new output buffer if needed
-    // and get accessor to it (or use reduction's accessor if the kernel
-    // is the last one).
-    auto In = Redu.getReadAccToPreviousPartialReds(*this);
-    auto Out = Redu.getWriteAccForPartialReds(NWorkGroups, KernelRun, *this);
-
-    if (IsEfficientCase) {
-      // Efficient case: work-groups are fully loaded and work-group size
-      // is power of two.
-      using AuxName = typename detail::get_reduction_aux_1st_kernel_name_t<
-          KernelName, KernelType>::name;
-      parallel_for<AuxName>(Range, [=](nd_item<Dims> NDIt) {
-        // Copy the element to local memory to prepare it for tree-reduction.
-        size_t LID = NDIt.get_local_linear_id();
-        size_t GID = NDIt.get_global_linear_id();
-        LocalReds[LID] = In[GID];
-        NDIt.barrier();
-
-        // Tree-reduction: reduce the local array LocalReds[:] to LocalReds[0]
-        typename Reduction::binary_operation BOp;
-        size_t WGSize = NDIt.get_local_range().size();
-        for (size_t CurStep = WGSize >> 1; CurStep > 0; CurStep >>= 1) {
-          if (LID < CurStep)
-            LocalReds[LID] = BOp(LocalReds[LID], LocalReds[LID + CurStep]);
-          NDIt.barrier();
-        }
-
-        // Compute the partial sum/reduction for the work-group.
-        if (LID == 0)
-          Out.get_pointer().get()[NDIt.get_group_linear_id()] =
-              IsUpdateOfUserAcc ? BOp(*(Out.get_pointer()), LocalReds[0])
-                                : LocalReds[0];
-      });
-    } else {
-      // Inefficient case: work-groups are not fully loaded
-      // or WGSize is not power of two.
-      // These two inefficient cases are handled by one kernel, which
-      // can be split later into two separate kernels, if there are users
-      // who really need more efficient code for them.
-      using AuxName = typename detail::get_reduction_aux_2nd_kernel_name_t<
-          KernelName, KernelType>::name;
-      auto ReduIdentity = Redu.getIdentity();
-      parallel_for<AuxName>(Range, [=](nd_item<Dims> NDIt) {
-        size_t WGSize = NDIt.get_local_range().size();
-        size_t LID = NDIt.get_local_linear_id();
-        size_t GID = NDIt.get_global_linear_id();
-        // Copy the element to local memory to prepare it for tree-reduction
-        LocalReds[LID] = (GID < NWorkItems) ? In[GID] : ReduIdentity;
-        LocalReds[WGSize] = ReduIdentity;
-        NDIt.barrier();
-
-        // Tree-reduction: reduce the local array LocalReds[:] to LocalReds[0]
-        // LocalReds[WGSize] accumulates last/odd elements when the step
-        // of tree-reduction loop is not even.
-        typename Reduction::binary_operation BOp;
-        size_t PrevStep = WGSize;
-        for (size_t CurStep = PrevStep >> 1; CurStep > 0; CurStep >>= 1) {
-          if (LID < CurStep)
-            LocalReds[LID] = BOp(LocalReds[LID], LocalReds[LID + CurStep]);
-          else if (LID == CurStep && (PrevStep & 0x1))
-            LocalReds[WGSize] = BOp(LocalReds[WGSize], LocalReds[PrevStep - 1]);
-          NDIt.barrier();
-          PrevStep = CurStep;
-        }
-
-        // Compute the partial sum/reduction for the work-group.
-        if (LID == 0) {
-          auto GrID = NDIt.get_group_linear_id();
-          auto V = BOp(LocalReds[0], LocalReds[WGSize]);
-          Out.get_pointer().get()[GrID] =
-              IsUpdateOfUserAcc ? BOp(*(Out.get_pointer()), V) : V;
-        }
-      });
-    }
-  }
-
   /// Defines and invokes a SYCL kernel function for the specified nd_range.
   /// Performs reduction operation specified in \param Redu.
   ///
@@ -1095,30 +862,23 @@ public:
     //    necessary to reduce all partial sums into one final sum.
 
     // 1. Call the kernel that includes user's lambda function.
-    // If this kernel is going to be now last one, i.e. it does not write
-    // to user's accessor, then detach user's accessor from this kernel
-    // to make the dependencies between accessors and kernels more clean and
-    // correct.
-    if (NWorkGroups > 1)
-      dissociateWithHandler(Redu.MAcc);
-
-    reduCGFunc<KernelName>(KernelFunc, Range, Redu);
+    intel::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu);
     auto QueueCopy = MQueue;
     MLastEvent = this->finalize();
 
     // 2. Run the additional aux kernel as many times as needed to reduce
     // all partial sums into one scalar.
+
+    // TODO: user's nd_range and the work-group size specified there must
+    // be honored only for the main kernel that calls user's lambda functions.
+    // There is no need in using the same work-group size in these additional
+    // kernels. Thus, the better strategy here is to make the work-group size
+    // as big as possible to converge/reduce the partial sums into the last
+    // sum faster.
     size_t WGSize = Range.get_local_range().size();
     size_t NWorkItems = NWorkGroups;
     size_t KernelRun = 1;
     while (NWorkItems > 1) {
-      // Before creating another kernel, add the event from the previous kernel
-      // to queue.
-      addEventToQueue(QueueCopy, MLastEvent);
-
-      // TODO: here the work-group size is not limited by user's needs,
-      // the better strategy here is to make the work-group-size as big
-      // as possible.
       WGSize = std::min(WGSize, NWorkItems);
       NWorkGroups = NWorkItems / WGSize;
       // The last group may be not fully loaded. Still register it as a group.
@@ -1134,8 +894,8 @@ public:
       // Associate it with handler manually.
       if (NWorkGroups == 1)
         AuxHandler.associateWithHandler(Redu.MAcc);
-      AuxHandler.reduAuxCGFunc<KernelName, KernelType>(Range, NWorkItems,
-                                                       KernelRun, Redu);
+      intel::detail::reduAuxCGFunc<KernelName, KernelType>(
+          AuxHandler, Range, NWorkItems, KernelRun, Redu);
       MLastEvent = AuxHandler.finalize();
 
       NWorkItems = NWorkGroups;

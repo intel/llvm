@@ -2842,8 +2842,8 @@ static void handleWarnUnusedResult(Sema &S, Decl *D, const ParsedAttr &AL) {
     // extension warning for C2x mode.
     const LangOptions &LO = S.getLangOpts();
     if (AL.getNumArgs() == 1) {
-      if (LO.CPlusPlus && !LO.CPlusPlus2a)
-        S.Diag(AL.getLoc(), diag::ext_cxx2a_attr) << AL;
+      if (LO.CPlusPlus && !LO.CPlusPlus20)
+        S.Diag(AL.getLoc(), diag::ext_cxx20_attr) << AL;
 
       // Since this this is spelled [[nodiscard]], get the optional string
       // literal. If in C++ mode, but not in C++2a mode, diagnose as an

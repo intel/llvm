@@ -359,11 +359,6 @@ public:
   /// \return a native handle.
   pi_native_handle getNative() const;
 
-  /// Stores an event that should be associated with the queue
-  ///
-  /// \param Event is the event to be stored
-  void addEvent(event Event);
-
 private:
   /// Performs command group submission to the queue.
   ///
@@ -397,6 +392,11 @@ private:
   ///
   /// \param Event is the event to be stored
   void addUSMEvent(event Event);
+
+  /// Stores an event that should be associated with the queue
+  ///
+  /// \param Event is the event to be stored
+  void addEvent(event Event);
 
   /// Protects all the fields that can be changed by class' methods.
   mutex_class MMutex;
