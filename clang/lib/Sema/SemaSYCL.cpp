@@ -28,7 +28,6 @@
 
 #include <array>
 
-
 using namespace clang;
 
 using KernelParamKind = SYCLIntegrationHeader::kernel_param_kind_t;
@@ -412,7 +411,6 @@ public:
     return true;
   }
 
- 
   // The call graph for this translation unit.
   CallGraph SYCLCG;
   // The set of functions called by a kernel function.

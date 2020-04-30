@@ -25,8 +25,8 @@ int *unknownFunc();
 
 int main() {
   int data = 5;
-  int* data_addr = unknownFunc();     //#decl_data_addr
-  int* new_data_addr = unknownFunc(); //#decl_new_data_addr
+  int *data_addr = unknownFunc();     //#decl_data_addr
+  int *new_data_addr = unknownFunc(); //#decl_new_data_addr
   test_struct s;
   s.data = data;
   kernel<class kernel_int>(
