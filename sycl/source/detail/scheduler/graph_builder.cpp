@@ -785,6 +785,13 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
     AllocaCmd->MUsers.clear();
   }
 
+  // unchain from deps allocas, whose linked allocas are to be removed currently
+  for (AllocaCommandBase *AllocaCmd : AllocaCommands)
+    if (Visited.count(AllocaCmd->MLinkedAllocaCmd))
+      for (DepDesc &Dep : AllocaCmd->MDeps)
+        if (Dep.MDepCommand)
+          Dep.MDepCommand->MUsers.erase(AllocaCmd);
+
   // Traverse the graph using BFS
   while (!ToVisit.empty()) {
     Command *Cmd = ToVisit.front();
@@ -794,9 +801,8 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
       continue;
 
     for (Command *UserCmd : Cmd->MUsers)
-      if (UserCmd->getType() != Command::CommandType::ALLOCA) {
+      if (UserCmd->getType() != Command::CommandType::ALLOCA)
         ToVisit.push(UserCmd);
-      }
 
     // Delete all dependencies on any allocations being removed
     // Track which commands should have their users updated
