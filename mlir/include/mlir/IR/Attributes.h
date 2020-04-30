@@ -40,7 +40,8 @@ struct SymbolRefAttributeStorage;
 struct TypeAttributeStorage;
 
 /// Elements Attributes.
-struct DenseElementsAttributeStorage;
+struct DenseIntOrFPElementsAttributeStorage;
+struct DenseStringElementsAttributeStorage;
 struct OpaqueElementsAttributeStorage;
 struct SparseElementsAttributeStorage;
 } // namespace detail
@@ -141,10 +142,11 @@ enum Kind {
   Unit,
 
   /// Elements Attributes.
-  DenseElements,
+  DenseIntOrFPElements,
+  DenseStringElements,
   OpaqueElements,
   SparseElements,
-  FIRST_ELEMENTS_ATTR = DenseElements,
+  FIRST_ELEMENTS_ATTR = DenseIntOrFPElements,
   LAST_ELEMENTS_ATTR = SparseElements,
 
   /// Locations.
@@ -276,8 +278,17 @@ public:
   using Base::Base;
   using ValueType = ArrayRef<NamedAttribute>;
 
+  /// Construct a dictionary attribute with the provided list of named
+  /// attributes. This method assumes that the provided list is unordered. If
+  /// the caller can guarantee that the attributes are ordered by name,
+  /// getWithSorted should be used instead.
   static DictionaryAttr get(ArrayRef<NamedAttribute> value,
                             MLIRContext *context);
+
+  /// Construct a dictionary with an array of values that is known to already be
+  /// sorted by name and uniqued.
+  static DictionaryAttr getWithSorted(ArrayRef<NamedAttribute> value,
+                                      MLIRContext *context);
 
   ArrayRef<NamedAttribute> getValue() const;
 
@@ -671,15 +682,14 @@ protected:
 
 /// An attribute that represents a reference to a dense vector or tensor object.
 ///
-class DenseElementsAttr
-    : public Attribute::AttrBase<DenseElementsAttr, ElementsAttr,
-                                 detail::DenseElementsAttributeStorage> {
+class DenseElementsAttr : public ElementsAttr {
 public:
-  using Base::Base;
+  using ElementsAttr::ElementsAttr;
 
   /// Method for support type inquiry through isa, cast and dyn_cast.
   static bool classof(Attribute attr) {
-    return attr.getKind() == StandardAttributes::DenseElements;
+    return attr.getKind() == StandardAttributes::DenseIntOrFPElements ||
+           attr.getKind() == StandardAttributes::DenseStringElements;
   }
 
   /// Constructs a dense elements attribute from an array of element values.
@@ -711,6 +721,10 @@ public:
 
   /// Overload of the above 'get' method that is specialized for boolean values.
   static DenseElementsAttr get(ShapedType type, ArrayRef<bool> values);
+
+  /// Overload of the above 'get' method that is specialized for StringRef
+  /// values.
+  static DenseElementsAttr get(ShapedType type, ArrayRef<StringRef> values);
 
   /// Constructs a dense integer elements attribute from an array of APInt
   /// values. Each APInt value is expected to have the same bitwidth as the
@@ -882,6 +896,16 @@ public:
             ElementIterator<T>(rawData, splat, getNumElements())};
   }
 
+  template <typename T, typename = typename std::enable_if<
+                            std::is_same<T, StringRef>::value>::type>
+  llvm::iterator_range<ElementIterator<StringRef>> getValues() const {
+    auto stringRefs = getRawStringData();
+    const char *ptr = reinterpret_cast<const char *>(stringRefs.data());
+    bool splat = isSplat();
+    return {ElementIterator<StringRef>(ptr, splat, 0),
+            ElementIterator<StringRef>(ptr, splat, getNumElements())};
+  }
+
   /// Return the held element values as a range of Attributes.
   llvm::iterator_range<AttributeElementIterator> getAttributeValues() const;
   template <typename T, typename = typename std::enable_if<
@@ -942,6 +966,9 @@ public:
   /// form the user might expect.
   ArrayRef<char> getRawData() const;
 
+  /// Return the raw StringRef data held by this attribute.
+  ArrayRef<StringRef> getRawStringData() const;
+
   //===--------------------------------------------------------------------===//
   // Mutation Utilities
   //===--------------------------------------------------------------------===//
@@ -973,6 +1000,60 @@ protected:
     return IntElementIterator(*this, getNumElements());
   }
 
+  /// Overload of the raw 'get' method that asserts that the given type is of
+  /// integer or floating-point type. This method is used to verify type
+  /// invariants that the templatized 'get' method cannot.
+  static DenseElementsAttr getRawIntOrFloat(ShapedType type,
+                                            ArrayRef<char> data,
+                                            int64_t dataEltSize, bool isInt,
+                                            bool isSigned);
+
+  /// Check the information for a C++ data type, check if this type is valid for
+  /// the current attribute. This method is used to verify specific type
+  /// invariants that the templatized 'getValues' method cannot.
+  bool isValidIntOrFloat(int64_t dataEltSize, bool isInt, bool isSigned) const;
+};
+
+/// An attribute class for representing dense arrays of strings. The structure
+/// storing and querying a list of densely packed strings.
+class DenseStringElementsAttr
+    : public Attribute::AttrBase<DenseStringElementsAttr, DenseElementsAttr,
+                                 detail::DenseStringElementsAttributeStorage> {
+
+public:
+  using Base::Base;
+
+  /// Method for support type inquiry through isa, cast and dyn_cast.
+  static bool kindof(unsigned kind) {
+    return kind == StandardAttributes::DenseStringElements;
+  }
+
+  /// Overload of the raw 'get' method that asserts that the given type is of
+  /// integer or floating-point type. This method is used to verify type
+  /// invariants that the templatized 'get' method cannot.
+  static DenseStringElementsAttr get(ShapedType type, ArrayRef<StringRef> data);
+
+protected:
+  friend DenseElementsAttr;
+};
+
+/// An attribute class for specializing behavior of Int and Floating-point
+/// densely packed string arrays.
+class DenseIntOrFPElementsAttr
+    : public Attribute::AttrBase<DenseIntOrFPElementsAttr, DenseElementsAttr,
+                                 detail::DenseIntOrFPElementsAttributeStorage> {
+
+public:
+  using Base::Base;
+
+  /// Method for support type inquiry through isa, cast and dyn_cast.
+  static bool kindof(unsigned kind) {
+    return kind == StandardAttributes::DenseIntOrFPElements;
+  }
+
+protected:
+  friend DenseElementsAttr;
+
   /// Constructs a dense elements attribute from an array of raw APInt values.
   /// Each APInt value is expected to have the same bitwidth as the element type
   /// of 'type'. 'type' must be a vector or tensor with static shape.
@@ -990,20 +1071,15 @@ protected:
                                             ArrayRef<char> data,
                                             int64_t dataEltSize, bool isInt,
                                             bool isSigned);
-
-  /// Check the information for a C++ data type, check if this type is valid for
-  /// the current attribute. This method is used to verify specific type
-  /// invariants that the templatized 'getValues' method cannot.
-  bool isValidIntOrFloat(int64_t dataEltSize, bool isInt, bool isSigned) const;
 };
 
 /// An attribute that represents a reference to a dense float vector or tensor
 /// object. Each element is stored as a double.
-class DenseFPElementsAttr : public DenseElementsAttr {
+class DenseFPElementsAttr : public DenseIntOrFPElementsAttr {
 public:
   using iterator = DenseElementsAttr::FloatElementIterator;
 
-  using DenseElementsAttr::DenseElementsAttr;
+  using DenseIntOrFPElementsAttr::DenseIntOrFPElementsAttr;
 
   /// Get an instance of a DenseFPElementsAttr with the given arguments. This
   /// simply wraps the DenseElementsAttr::get calls.
@@ -1035,13 +1111,13 @@ public:
 
 /// An attribute that represents a reference to a dense integer vector or tensor
 /// object.
-class DenseIntElementsAttr : public DenseElementsAttr {
+class DenseIntElementsAttr : public DenseIntOrFPElementsAttr {
 public:
   /// DenseIntElementsAttr iterates on APInt, so we can use the raw element
   /// iterator directly.
   using iterator = DenseElementsAttr::IntElementIterator;
 
-  using DenseElementsAttr::DenseElementsAttr;
+  using DenseIntOrFPElementsAttr::DenseIntOrFPElementsAttr;
 
   /// Get an instance of a DenseIntElementsAttr with the given arguments. This
   /// simply wraps the DenseElementsAttr::get calls.
@@ -1200,6 +1276,14 @@ private:
   getZeroValue() const {
     return getZeroAPFloat();
   }
+
+  /// Get a zero for a StringRef.
+  template <typename T>
+  typename std::enable_if<std::is_same<StringRef, T>::value, T>::type
+  getZeroValue() const {
+    return StringRef();
+  }
+
   /// Get a zero for an C++ integer or float type.
   template <typename T>
   typename std::enable_if<std::numeric_limits<T>::is_integer ||
@@ -1266,7 +1350,7 @@ class ElementsAttrIterator
             typename... Args>
   RetT process(Args &... args) const {
     switch (attrKind) {
-    case StandardAttributes::DenseElements:
+    case StandardAttributes::DenseIntOrFPElements:
       return ProcessFn<DenseIteratorT>()(args...);
     case StandardAttributes::SparseElements:
       return ProcessFn<SparseIteratorT>()(args...);
@@ -1390,8 +1474,8 @@ inline ::llvm::hash_code hash_value(Attribute arg) {
 // NamedAttributeList
 //===----------------------------------------------------------------------===//
 
-/// A NamedAttributeList is used to manage a list of named attributes. This
-/// provides simple interfaces for adding/removing/finding attributes from
+/// A NamedAttributeList is a mutable wrapper around a DictionaryAttr. It
+/// provides additional interfaces for adding, removing, replacing attributes
 /// within a DictionaryAttr.
 ///
 /// We assume there will be relatively few attributes on a given operation

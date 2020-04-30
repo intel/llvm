@@ -16,7 +16,6 @@
 
 #include "LocalAccessorToSharedMemory.h"
 #include "../MCTargetDesc/NVPTXBaseInfo.h"
-#include "llvm/IR/CallSite.h"
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/PassManager.h"

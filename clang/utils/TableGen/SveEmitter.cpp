@@ -208,6 +208,21 @@ public:
     return BrOpen != std::string::npos && BrClose != std::string::npos;
   }
 
+  /// Return true if the intrinsic takes a splat operand.
+  bool hasSplat() const {
+    // These prototype modifiers are described in arm_sve.td.
+    return Proto.find_first_of("ajfrKLR") != std::string::npos;
+  }
+
+  /// Return the parameter index of the splat operand.
+  unsigned getSplatIdx() const {
+    // These prototype modifiers are described in arm_sve.td.
+    auto Idx = Proto.find_first_of("ajfrKLR");
+    assert(Idx != std::string::npos && Idx > 0 &&
+           "Prototype has no splat operand");
+    return Idx - 1;
+  }
+
   /// Emits the intrinsic declaration to the ostream.
   void emitIntrinsic(raw_ostream &OS) const;
 
@@ -249,6 +264,14 @@ public:
     llvm_unreachable("Unsupported imm check");
   }
 
+  /// Returns the enum value for the flag type
+  uint64_t getEnumValueForFlag(StringRef C) const {
+    auto Res = FlagTypes.find(C);
+    if (Res != FlagTypes.end())
+      return Res->getValue();
+    llvm_unreachable("Unsupported flag");
+  }
+
   // Returns the SVETypeFlags for a given value and mask.
   uint64_t encodeFlag(uint64_t V, StringRef MaskName) const {
     auto It = FlagTypes.find(MaskName);
@@ -276,6 +299,12 @@ public:
   // Returns the SVETypeFlags for the given merge type.
   uint64_t encodeMergeType(uint64_t MT) {
     return encodeFlag(MT, "MergeTypeMask");
+  }
+
+  // Returns the SVETypeFlags for the given splat operand.
+  unsigned encodeSplatOperand(unsigned SplatIdx) {
+    assert(SplatIdx < 7 && "SplatIdx out of encodable range");
+    return encodeFlag(SplatIdx + 1, "SplatOperandMask");
   }
 
   // Returns the SVETypeFlags value for the given SVEType.
@@ -456,12 +485,40 @@ void SVEType::applyModifier(char Mod) {
     Bitwidth = ElementBitwidth;
     NumVectors = 0;
     break;
+  case 'e':
+    Signed = false;
+    ElementBitwidth /= 2;
+    break;
+  case 'h':
+    ElementBitwidth /= 2;
+    break;
+  case 'q':
+    ElementBitwidth /= 4;
+    break;
+  case 'o':
+    ElementBitwidth *= 4;
+    break;
   case 'P':
     Signed = true;
     Float = false;
     Predicate = true;
     Bitwidth = 16;
     ElementBitwidth = 1;
+    break;
+  case 's':
+  case 'a':
+    Bitwidth = ElementBitwidth;
+    NumVectors = 0;
+    break;
+  case 'u':
+    Predicate = false;
+    Signed = false;
+    Float = false;
+    break;
+  case 'x':
+    Predicate = false;
+    Signed = true;
+    Float = false;
     break;
   case 'i':
     Predicate = false;
@@ -480,12 +537,74 @@ void SVEType::applyModifier(char Mod) {
     Immediate = true;
     PredicatePattern = true;
     break;
+  case 'J':
+    Predicate = false;
+    Float = false;
+    ElementBitwidth = Bitwidth = 32;
+    NumVectors = 0;
+    Signed = true;
+    Immediate = true;
+    PrefetchOp = true;
+    break;
+  case 'k':
+    Predicate = false;
+    Signed = true;
+    Float = false;
+    ElementBitwidth = Bitwidth = 32;
+    NumVectors = 0;
+    break;
   case 'l':
     Predicate = false;
     Signed = true;
     Float = false;
     ElementBitwidth = Bitwidth = 64;
     NumVectors = 0;
+    break;
+  case 'm':
+    Predicate = false;
+    Signed = false;
+    Float = false;
+    ElementBitwidth = Bitwidth = 32;
+    NumVectors = 0;
+    break;
+  case 'n':
+    Predicate = false;
+    Signed = false;
+    Float = false;
+    ElementBitwidth = Bitwidth = 64;
+    NumVectors = 0;
+    break;
+  case 'w':
+    ElementBitwidth = 64;
+    break;
+  case 'j':
+    ElementBitwidth = Bitwidth = 64;
+    NumVectors = 0;
+    break;
+  case 't':
+    Signed = true;
+    Float = false;
+    ElementBitwidth = 32;
+    break;
+  case 'z':
+    Signed = false;
+    Float = false;
+    ElementBitwidth = 32;
+    break;
+  case 'O':
+    Predicate = false;
+    Float = true;
+    ElementBitwidth = 16;
+    break;
+  case 'M':
+    Predicate = false;
+    Float = true;
+    ElementBitwidth = 32;
+    break;
+  case 'N':
+    Predicate = false;
+    Float = true;
+    ElementBitwidth = 64;
     break;
   case 'S':
     Constant = true;
@@ -601,6 +720,9 @@ Intrinsic::Intrinsic(StringRef Name, StringRef Proto, uint64_t MergeTy,
       if (T.isPredicatePattern())
         ImmChecks.emplace_back(
             I - 1, Emitter.getEnumValueForImmCheck("ImmCheck0_31"));
+      else if (T.isPrefetchOp())
+        ImmChecks.emplace_back(
+            I - 1, Emitter.getEnumValueForImmCheck("ImmCheck0_13"));
     }
   }
 
@@ -608,6 +730,8 @@ Intrinsic::Intrinsic(StringRef Name, StringRef Proto, uint64_t MergeTy,
   this->Flags |= Emitter.encodeTypeFlags(BaseType);
   this->Flags |= Emitter.encodeMemoryElementType(MemoryElementTy);
   this->Flags |= Emitter.encodeMergeType(MergeTy);
+  if (hasSplat())
+    this->Flags |= Emitter.encodeSplatOperand(getSplatIdx());
 }
 
 std::string Intrinsic::getBuiltinTypeStr() {
@@ -781,6 +905,13 @@ void SVEEmitter::createIntrinsic(
   for (auto FlagRec : FlagsList)
     Flags |= FlagRec->getValueAsInt("Value");
 
+  // Create a dummy TypeSpec for non-overloaded builtins.
+  if (Types.empty()) {
+    assert((Flags & getEnumValueForFlag("IsOverloadNone")) &&
+           "Expect TypeSpec for overloaded builtin!");
+    Types = "i";
+  }
+
   // Extract type specs from string
   SmallVector<TypeSpec, 8> TypeSpecs;
   TypeSpec Acc;
@@ -894,6 +1025,22 @@ void SVEEmitter::createHeader(raw_ostream &OS) {
   OS << "  SV_ALL = 31\n";
   OS << "} sv_pattern;\n\n";
 
+  OS << "typedef enum\n";
+  OS << "{\n";
+  OS << "  SV_PLDL1KEEP = 0,\n";
+  OS << "  SV_PLDL1STRM = 1,\n";
+  OS << "  SV_PLDL2KEEP = 2,\n";
+  OS << "  SV_PLDL2STRM = 3,\n";
+  OS << "  SV_PLDL3KEEP = 4,\n";
+  OS << "  SV_PLDL3STRM = 5,\n";
+  OS << "  SV_PSTL1KEEP = 8,\n";
+  OS << "  SV_PSTL1STRM = 9,\n";
+  OS << "  SV_PSTL2KEEP = 10,\n";
+  OS << "  SV_PSTL2STRM = 11,\n";
+  OS << "  SV_PSTL3KEEP = 12,\n";
+  OS << "  SV_PSTL3STRM = 13\n";
+  OS << "} sv_prfop;\n\n";
+
   OS << "/* Function attributes */\n";
   OS << "#define __aio static inline __attribute__((__always_inline__, "
         "__nodebug__, __overloadable__))\n\n";
@@ -933,6 +1080,17 @@ void SVEEmitter::createHeader(raw_ostream &OS) {
 
   if (!InGuard.empty())
     OS << "#endif  //" << InGuard << "\n";
+
+  OS << "#if defined(__ARM_FEATURE_SVE2)\n";
+  OS << "#define svcvtnt_f16_x      svcvtnt_f16_m\n";
+  OS << "#define svcvtnt_f16_f32_x  svcvtnt_f16_f32_m\n";
+  OS << "#define svcvtnt_f32_x      svcvtnt_f32_m\n";
+  OS << "#define svcvtnt_f32_f64_x  svcvtnt_f32_f64_m\n\n";
+
+  OS << "#define svcvtxnt_f32_x     svcvtxnt_f32_m\n";
+  OS << "#define svcvtxnt_f32_f64_x svcvtxnt_f32_f64_m\n\n";
+
+  OS << "#endif /*__ARM_FEATURE_SVE2 */\n\n";
 
   OS << "#ifdef __cplusplus\n";
   OS << "} // extern \"C\"\n";

@@ -5,6 +5,9 @@
 ; RUN: llc -mtriple=x86_64-apple-darwin -filetype=obj %t.ll -o %t
 ; RUN: llvm-dwarfdump -debug-line %t | FileCheck %s
 
+target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
+target triple = "spir64-unknown-unknown"
+
 ; Check that the line table starts at 7, not 4, but that the first
 ; statement isn't until line 8.
 
@@ -49,5 +52,3 @@ declare void @llvm.dbg.declare(metadata, metadata, metadata) nounwind readnone
 !18 = !DILocation(line: 9, column: 5, scope: !15)
 !19 = !DIFile(filename: "ending-run.c", directory: "/Users/echristo/tmp")
 !20 = !{i32 1, !"Debug Info Version", i32 3}
-target triple = "spir64-unknown-unknown"
-target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"

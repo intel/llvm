@@ -4,6 +4,9 @@
 
 ; RUN: llc -mtriple=x86_64-linux-gnu -filetype=obj -o - %t.ll | llvm-dwarfdump -debug-loc - | FileCheck %s
 
+target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
+target triple = "spir64-unknown-unknown"
+
 ; The test inlines the function F four times, with each inlined variable for
 ; "i4" sharing the same virtual register. This means the live interval of the
 ; register spans all of the inlined callsites, extending beyond the lexical
@@ -83,5 +86,3 @@ declare void @llvm.dbg.value(metadata, i64, metadata, metadata)
 !66 = !DILocation(line: 4, column: 10, scope: !7, inlinedAt: !61)
 !67 = !DILocation(line: 10, column: 23, scope: !25)
 !68 = !DILocation(line: 8, column: 3, scope: !25)
-target triple = "spir64-unknown-unknown"
-target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"

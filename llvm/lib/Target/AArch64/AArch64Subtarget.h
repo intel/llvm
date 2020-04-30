@@ -19,6 +19,7 @@
 #include "AArch64RegisterInfo.h"
 #include "AArch64SelectionDAGInfo.h"
 #include "llvm/CodeGen/GlobalISel/CallLowering.h"
+#include "llvm/CodeGen/GlobalISel/InlineAsmLowering.h"
 #include "llvm/CodeGen/GlobalISel/InstructionSelector.h"
 #include "llvm/CodeGen/GlobalISel/LegalizerInfo.h"
 #include "llvm/CodeGen/GlobalISel/RegisterBankInfo.h"
@@ -147,6 +148,9 @@ protected:
 
   // Armv8.6-A Extensions
   bool HasBF16 = false;
+  bool HasMatMulInt8 = false;
+  bool HasMatMulFP32 = false;
+  bool HasMatMulFP64 = false;
   bool HasAMVS = false;
   bool HasFineGrainedTraps = false;
   bool HasEnhancedCounterVirtualization = false;
@@ -233,6 +237,7 @@ protected:
 
   /// GlobalISel related APIs.
   std::unique_ptr<CallLowering> CallLoweringInfo;
+  std::unique_ptr<InlineAsmLowering> InlineAsmLoweringInfo;
   std::unique_ptr<InstructionSelector> InstSelector;
   std::unique_ptr<LegalizerInfo> Legalizer;
   std::unique_ptr<RegisterBankInfo> RegBankInfo;
@@ -268,6 +273,7 @@ public:
     return &getInstrInfo()->getRegisterInfo();
   }
   const CallLowering *getCallLowering() const override;
+  const InlineAsmLowering *getInlineAsmLowering() const override;
   InstructionSelector *getInstructionSelector() const override;
   const LegalizerInfo *getLegalizerInfo() const override;
   const RegisterBankInfo *getRegBankInfo() const override;
@@ -414,6 +420,9 @@ public:
   bool hasSVE2SM4() const { return HasSVE2SM4; }
   bool hasSVE2SHA3() const { return HasSVE2SHA3; }
   bool hasSVE2BitPerm() const { return HasSVE2BitPerm; }
+  bool hasMatMulInt8() const { return HasMatMulInt8; }
+  bool hasMatMulFP32() const { return HasMatMulFP32; }
+  bool hasMatMulFP64() const { return HasMatMulFP64; }
 
   // Armv8.6-A Extensions
   bool hasBF16() const { return HasBF16; }

@@ -5499,7 +5499,7 @@ void DeclarationVisitor::CheckInitialDataTarget(
     const Symbol &pointer, const SomeExpr &expr, SourceName source) {
   auto &messages{GetFoldingContext().messages()};
   auto restorer{messages.SetLocation(source)};
-  if (!evaluate::IsInitialDataTarget(expr, messages)) {
+  if (!evaluate::IsInitialDataTarget(expr, &messages)) {
     Say(source,
         "Pointer '%s' cannot be initialized with a reference to a designator with non-constant subscripts"_err_en_US,
         pointer.name());
@@ -6299,6 +6299,15 @@ bool OmpAttributeVisitor::Pre(const parser::OpenMPBlockConstruct &x) {
     break;
   case parser::OmpBlockDirective::Directive::Workshare:
     PushContext(beginDir.source, OmpDirective::WORKSHARE);
+    break;
+  case parser::OmpBlockDirective::Directive::ParallelWorkshare:
+    PushContext(beginDir.source, OmpDirective::PARALLEL_WORKSHARE);
+    break;
+  case parser::OmpBlockDirective::Directive::TargetTeams:
+    PushContext(beginDir.source, OmpDirective::TARGET_TEAMS);
+    break;
+  case parser::OmpBlockDirective::Directive::TargetParallel:
+    PushContext(beginDir.source, OmpDirective::TARGET_PARALLEL);
     break;
   default:
     // TODO others
