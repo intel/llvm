@@ -698,8 +698,8 @@ void Verifier::visitGlobalVariable(const GlobalVariable &GV) {
   // the runtime size. If the global is a struct or an array containing
   // scalable vectors, that will be caught by the isValidElementType methods
   // in StructType or ArrayType instead.
-  if (auto *VTy = dyn_cast<VectorType>(GV.getValueType()))
-    Assert(!VTy->isScalable(), "Globals cannot contain scalable vectors", &GV);
+  Assert(!isa<ScalableVectorType>(GV.getValueType()),
+         "Globals cannot contain scalable vectors", &GV);
 
   if (!GV.hasInitializer()) {
     visitGlobalValue(GV);
@@ -2825,8 +2825,9 @@ void Verifier::visitAddrSpaceCastInst(AddrSpaceCastInst &I) {
          &I);
   Assert(SrcTy->getPointerAddressSpace() != DestTy->getPointerAddressSpace(),
          "AddrSpaceCast must be between different address spaces", &I);
-  if (SrcTy->isVectorTy())
-    Assert(SrcTy->getVectorNumElements() == DestTy->getVectorNumElements(),
+  if (auto *SrcVTy = dyn_cast<VectorType>(SrcTy))
+    Assert(SrcVTy->getNumElements() ==
+               cast<VectorType>(DestTy)->getNumElements(),
            "AddrSpaceCast vector pointer number of elements mismatch", &I);
   visitInstruction(I);
 }
@@ -3076,15 +3077,16 @@ static bool isTypeCongruent(Type *L, Type *R) {
 
 static AttrBuilder getParameterABIAttributes(int I, AttributeList Attrs) {
   static const Attribute::AttrKind ABIAttrs[] = {
-      Attribute::StructRet, Attribute::ByVal, Attribute::InAlloca,
-      Attribute::InReg, Attribute::Returned, Attribute::SwiftSelf,
-      Attribute::SwiftError};
+      Attribute::StructRet, Attribute::ByVal,     Attribute::InAlloca,
+      Attribute::InReg,     Attribute::SwiftSelf, Attribute::SwiftError};
   AttrBuilder Copy;
   for (auto AK : ABIAttrs) {
     if (Attrs.hasParamAttribute(I, AK))
       Copy.addAttribute(AK);
   }
-  if (Attrs.hasParamAttribute(I, Attribute::Alignment))
+  // `align` is ABI-affecting only in combination with `byval`.
+  if (Attrs.hasParamAttribute(I, Attribute::Alignment) &&
+      Attrs.hasParamAttribute(I, Attribute::ByVal))
     Copy.addAlignmentAttr(Attrs.getParamAlignment(I));
   return Copy;
 }
@@ -3308,7 +3310,7 @@ void Verifier::visitInsertElementInst(InsertElementInst &IE) {
 
 void Verifier::visitShuffleVectorInst(ShuffleVectorInst &SV) {
   Assert(ShuffleVectorInst::isValidOperands(SV.getOperand(0), SV.getOperand(1),
-                                            SV.getOperand(2)),
+                                            SV.getShuffleMask()),
          "Invalid shufflevector operands!", &SV);
   visitInstruction(SV);
 }
@@ -3332,16 +3334,18 @@ void Verifier::visitGetElementPtrInst(GetElementPtrInst &GEP) {
              GEP.getResultElementType() == ElTy,
          "GEP is not of right type for indices!", &GEP, ElTy);
 
-  if (GEP.getType()->isVectorTy()) {
+  if (auto *GEPVTy = dyn_cast<VectorType>(GEP.getType())) {
     // Additional checks for vector GEPs.
-    unsigned GEPWidth = GEP.getType()->getVectorNumElements();
+    unsigned GEPWidth = GEPVTy->getNumElements();
     if (GEP.getPointerOperandType()->isVectorTy())
-      Assert(GEPWidth == GEP.getPointerOperandType()->getVectorNumElements(),
-             "Vector GEP result width doesn't match operand's", &GEP);
+      Assert(
+          GEPWidth ==
+              cast<VectorType>(GEP.getPointerOperandType())->getNumElements(),
+          "Vector GEP result width doesn't match operand's", &GEP);
     for (Value *Idx : Idxs) {
       Type *IndexTy = Idx->getType();
-      if (IndexTy->isVectorTy()) {
-        unsigned IndexWidth = IndexTy->getVectorNumElements();
+      if (auto *IndexVTy = dyn_cast<VectorType>(IndexTy)) {
+        unsigned IndexWidth = IndexVTy->getNumElements();
         Assert(IndexWidth == GEPWidth, "Invalid GEP index vector width", &GEP);
       }
       Assert(IndexTy->isIntOrIntVectorTy(),
@@ -4655,8 +4659,8 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
            "masked_load: return must match pointer type", Call);
     Assert(PassThru->getType() == DataTy,
            "masked_load: pass through and data type must match", Call);
-    Assert(Mask->getType()->getVectorNumElements() ==
-               DataTy->getVectorNumElements(),
+    Assert(cast<VectorType>(Mask->getType())->getNumElements() ==
+               cast<VectorType>(DataTy)->getNumElements(),
            "masked_load: vector mask must be same length as data", Call);
     break;
   }
@@ -4674,8 +4678,8 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
     Type *DataTy = cast<PointerType>(Ptr->getType())->getElementType();
     Assert(DataTy == Val->getType(),
            "masked_store: storee must match pointer type", Call);
-    Assert(Mask->getType()->getVectorNumElements() ==
-               DataTy->getVectorNumElements(),
+    Assert(cast<VectorType>(Mask->getType())->getNumElements() ==
+               cast<VectorType>(DataTy)->getNumElements(),
            "masked_store: vector mask must be same length as data", Call);
     break;
   }
@@ -4787,6 +4791,42 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
     Type *Ty = Call.getType();
     unsigned Size = Ty->getScalarSizeInBits();
     Assert(Size % 16 == 0, "bswap must be an even number of bytes", &Call);
+    break;
+  }
+  case Intrinsic::matrix_multiply:
+  case Intrinsic::matrix_transpose:
+  case Intrinsic::matrix_columnwise_load:
+  case Intrinsic::matrix_columnwise_store: {
+    ConstantInt *NumRows;
+    ConstantInt *NumColumns;
+    VectorType *TypeToCheck;
+    switch (ID) {
+    case Intrinsic::matrix_multiply:
+      NumRows = cast<ConstantInt>(Call.getArgOperand(2));
+      NumColumns = cast<ConstantInt>(Call.getArgOperand(4));
+      TypeToCheck = cast<VectorType>(Call.getType());
+      break;
+    case Intrinsic::matrix_transpose:
+      NumRows = cast<ConstantInt>(Call.getArgOperand(1));
+      NumColumns = cast<ConstantInt>(Call.getArgOperand(2));
+      TypeToCheck = cast<VectorType>(Call.getType());
+      break;
+    case Intrinsic::matrix_columnwise_load:
+      NumRows = cast<ConstantInt>(Call.getArgOperand(2));
+      NumColumns = cast<ConstantInt>(Call.getArgOperand(3));
+      TypeToCheck = cast<VectorType>(Call.getType());
+      break;
+    case Intrinsic::matrix_columnwise_store:
+      NumRows = cast<ConstantInt>(Call.getArgOperand(3));
+      NumColumns = cast<ConstantInt>(Call.getArgOperand(4));
+      TypeToCheck = cast<VectorType>(Call.getArgOperand(0)->getType());
+      break;
+    default:
+      llvm_unreachable("unexpected intrinsic");
+    }
+    Assert(TypeToCheck->getNumElements() ==
+               NumRows->getZExtValue() * NumColumns->getZExtValue(),
+           "result of a matrix operation does not fit in the returned vector");
     break;
   }
   };

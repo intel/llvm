@@ -87,7 +87,18 @@ bool BoolAttr::getValue() const { return getImpl()->value; }
 /// NamedAttributes.
 static int compareNamedAttributes(const NamedAttribute *lhs,
                                   const NamedAttribute *rhs) {
-  return lhs->first.strref().compare(rhs->first.strref());
+  return strcmp(lhs->first.data(), rhs->first.data());
+}
+
+/// Returns if the name of the given attribute precedes that of 'name'.
+static bool compareNamedAttributeWithName(const NamedAttribute &attr,
+                                          StringRef name) {
+  // This is correct even when attr.first.data()[name.size()] is not a zero
+  // string terminator, because we only care about a less than comparison.
+  // This can't use memcmp, because it doesn't guarantee that it will stop
+  // reading both buffers if one is shorter than the other, even if there is
+  // a difference.
+  return strncmp(attr.first.data(), name.data(), name.size()) < 0;
 }
 
 DictionaryAttr DictionaryAttr::get(ArrayRef<NamedAttribute> value,
@@ -111,7 +122,7 @@ DictionaryAttr DictionaryAttr::get(ArrayRef<NamedAttribute> value,
            "DictionaryAttr element names must be unique");
 
     // Don't invoke a general sort for two element case.
-    if (value[0].first.strref() > value[1].first.strref()) {
+    if (compareNamedAttributes(&value[0], &value[1]) > 0) {
       storage.push_back(value[1]);
       storage.push_back(value[0]);
       value = storage;
@@ -121,7 +132,7 @@ DictionaryAttr DictionaryAttr::get(ArrayRef<NamedAttribute> value,
     // Check to see they are sorted already.
     bool isSorted = true;
     for (unsigned i = 0, e = value.size() - 1; i != e; ++i) {
-      if (value[i].first.strref() > value[i + 1].first.strref()) {
+      if (compareNamedAttributes(&value[i], &value[i + 1]) > 0) {
         isSorted = false;
         break;
       }
@@ -145,6 +156,24 @@ DictionaryAttr DictionaryAttr::get(ArrayRef<NamedAttribute> value,
   return Base::get(context, StandardAttributes::Dictionary, value);
 }
 
+/// Construct a dictionary with an array of values that is known to already be
+/// sorted by name and uniqued.
+DictionaryAttr DictionaryAttr::getWithSorted(ArrayRef<NamedAttribute> value,
+                                             MLIRContext *context) {
+  // Ensure that the attribute elements are unique and sorted.
+  assert(llvm::is_sorted(value,
+                         [](NamedAttribute l, NamedAttribute r) {
+                           return l.first.strref() < r.first.strref();
+                         }) &&
+         "expected attribute values to be sorted");
+  assert(std::adjacent_find(value.begin(), value.end(),
+                            [](NamedAttribute l, NamedAttribute r) {
+                              return l.first == r.first;
+                            }) == value.end() &&
+         "DictionaryAttr element names must be unique");
+  return Base::get(context, StandardAttributes::Dictionary, value);
+}
+
 ArrayRef<NamedAttribute> DictionaryAttr::getValue() const {
   return getImpl()->getElements();
 }
@@ -152,11 +181,8 @@ ArrayRef<NamedAttribute> DictionaryAttr::getValue() const {
 /// Return the specified attribute if present, null otherwise.
 Attribute DictionaryAttr::get(StringRef name) const {
   ArrayRef<NamedAttribute> values = getValue();
-  auto compare = [](NamedAttribute attr, StringRef name) {
-    return attr.first.strref() < name;
-  };
-  auto it = llvm::lower_bound(values, name, compare);
-  return it != values.end() && it->first.is(name) ? it->second : Attribute();
+  auto it = llvm::lower_bound(values, name, compareNamedAttributeWithName);
+  return it != values.end() && it->first == name ? it->second : Attribute();
 }
 Attribute DictionaryAttr::get(Identifier name) const {
   for (auto elt : getValue())
@@ -270,7 +296,7 @@ IntegerAttr IntegerAttr::get(Type type, const APInt &value) {
 IntegerAttr IntegerAttr::get(Type type, int64_t value) {
   // This uses 64 bit APInts by default for index type.
   if (type.isIndex())
-    return get(type, APInt(64, value));
+    return get(type, APInt(IndexType::kInternalStorageBitWidth, value));
 
   auto intType = type.cast<IntegerType>();
   return get(type, APInt(intType.getWidth(), value, intType.isSignedInteger()));
@@ -406,7 +432,7 @@ int64_t ElementsAttr::getNumElements() const {
 /// element, then a null attribute is returned.
 Attribute ElementsAttr::getValue(ArrayRef<uint64_t> index) const {
   switch (getKind()) {
-  case StandardAttributes::DenseElements:
+  case StandardAttributes::DenseIntOrFPElements:
     return cast<DenseElementsAttr>().getValue(index);
   case StandardAttributes::OpaqueElements:
     return cast<OpaqueElementsAttr>().getValue(index);
@@ -437,7 +463,7 @@ ElementsAttr
 ElementsAttr::mapValues(Type newElementType,
                         function_ref<APInt(const APInt &)> mapping) const {
   switch (getKind()) {
-  case StandardAttributes::DenseElements:
+  case StandardAttributes::DenseIntOrFPElements:
     return cast<DenseElementsAttr>().mapValues(newElementType, mapping);
   default:
     llvm_unreachable("unsupported ElementsAttr subtype");
@@ -448,7 +474,7 @@ ElementsAttr
 ElementsAttr::mapValues(Type newElementType,
                         function_ref<APInt(const APFloat &)> mapping) const {
   switch (getKind()) {
-  case StandardAttributes::DenseElements:
+  case StandardAttributes::DenseIntOrFPElements:
     return cast<DenseElementsAttr>().mapValues(newElementType, mapping);
   default:
     llvm_unreachable("unsupported ElementsAttr subtype");
@@ -477,12 +503,6 @@ uint64_t ElementsAttr::getFlattenedIndex(ArrayRef<uint64_t> index) const {
 //===----------------------------------------------------------------------===//
 // DenseElementAttr Utilities
 //===----------------------------------------------------------------------===//
-
-static size_t getDenseElementBitwidth(Type eltType) {
-  // FIXME(b/121118307): using 64 bits for BF16 because it is currently stored
-  // with double semantics.
-  return eltType.isBF16() ? 64 : eltType.getIntOrFloatBitWidth();
-}
 
 /// Get the bitwidth of a dense element type within the buffer.
 /// DenseElementsAttr requires bitwidths greater than 1 to be aligned by 8.
@@ -549,8 +569,8 @@ static bool hasSameElementsOrSplat(ShapedType type, const Values &values) {
 /// Constructs a new iterator.
 DenseElementsAttr::AttributeElementIterator::AttributeElementIterator(
     DenseElementsAttr attr, size_t index)
-    : indexed_accessor_iterator<AttributeElementIterator, const void *,
-                                Attribute, Attribute, Attribute>(
+    : llvm::indexed_accessor_iterator<AttributeElementIterator, const void *,
+                                      Attribute, Attribute, Attribute>(
           attr.getAsOpaquePointer(), index) {}
 
 /// Accesses the Attribute value at this iterator position.
@@ -587,7 +607,7 @@ DenseElementsAttr::IntElementIterator::IntElementIterator(
     DenseElementsAttr attr, size_t dataIndex)
     : DenseElementIndexedIteratorImpl<IntElementIterator, APInt, APInt, APInt>(
           attr.getRawData().data(), attr.isSplat(), dataIndex),
-      bitWidth(getDenseElementBitwidth(attr.getType().getElementType())) {}
+      bitWidth(getDenseElementBitWidth(attr.getType().getElementType())) {}
 
 /// Accesses the raw APInt value at this iterator position.
 APInt DenseElementsAttr::IntElementIterator::operator*() const {
@@ -608,12 +628,12 @@ DenseElementsAttr::FloatElementIterator::FloatElementIterator(
 
 DenseElementsAttr DenseElementsAttr::get(ShapedType type,
                                          ArrayRef<Attribute> values) {
-  assert(type.getElementType().isIntOrFloat() &&
-         "expected int or float element type");
+  assert(type.getElementType().isIntOrIndexOrFloat() &&
+         "expected int or index or float element type");
   assert(hasSameElementsOrSplat(type, values));
 
   auto eltType = type.getElementType();
-  size_t bitWidth = getDenseElementBitwidth(eltType);
+  size_t bitWidth = getDenseElementBitWidth(eltType);
   size_t storageBitWidth = getDenseElementStorageWidth(bitWidth);
 
   // Compress the attribute values into a character buffer.
@@ -632,6 +652,7 @@ DenseElementsAttr DenseElementsAttr::get(ShapedType type,
       intVal = values[i].cast<FloatAttr>().getValue().bitcastToAPInt();
       break;
     case StandardTypes::Integer:
+    case StandardTypes::Index:
       intVal = values[i].isa<BoolAttr>()
                    ? APInt(1, values[i].cast<BoolAttr>().getValue() ? 1 : 0)
                    : values[i].cast<IntegerAttr>().getValue();
@@ -643,7 +664,8 @@ DenseElementsAttr DenseElementsAttr::get(ShapedType type,
            "expected value to have same bitwidth as element type");
     writeBits(data.data(), i * storageBitWidth, intVal);
   }
-  return getRaw(type, data, /*isSplat=*/(values.size() == 1));
+  return DenseIntOrFPElementsAttr::getRaw(type, data,
+                                          /*isSplat=*/(values.size() == 1));
 }
 
 DenseElementsAttr DenseElementsAttr::get(ShapedType type,
@@ -654,7 +676,14 @@ DenseElementsAttr DenseElementsAttr::get(ShapedType type,
   std::vector<char> buff(llvm::divideCeil(values.size(), CHAR_BIT));
   for (int i = 0, e = values.size(); i != e; ++i)
     setBit(buff.data(), i, values[i]);
-  return getRaw(type, buff, /*isSplat=*/(values.size() == 1));
+  return DenseIntOrFPElementsAttr::getRaw(type, buff,
+                                          /*isSplat=*/(values.size() == 1));
+}
+
+DenseElementsAttr DenseElementsAttr::get(ShapedType type,
+                                         ArrayRef<StringRef> values) {
+  assert(!type.getElementType().isIntOrFloat());
+  return DenseStringElementsAttr::get(type, values);
 }
 
 /// Constructs a dense integer elements attribute from an array of APInt
@@ -662,8 +691,8 @@ DenseElementsAttr DenseElementsAttr::get(ShapedType type,
 /// element type of 'type'.
 DenseElementsAttr DenseElementsAttr::get(ShapedType type,
                                          ArrayRef<APInt> values) {
-  assert(type.getElementType().isa<IntegerType>());
-  return getRaw(type, values);
+  assert(type.getElementType().isIntOrIndex());
+  return DenseIntOrFPElementsAttr::getRaw(type, values);
 }
 
 // Constructs a dense float elements attribute from an array of APFloat
@@ -677,7 +706,7 @@ DenseElementsAttr DenseElementsAttr::get(ShapedType type,
   std::vector<APInt> intValues(values.size());
   for (unsigned i = 0, e = values.size(); i != e; ++i)
     intValues[i] = values[i].bitcastToAPInt();
-  return getRaw(type, intValues);
+  return DenseIntOrFPElementsAttr::getRaw(type, intValues);
 }
 
 /// Construct a dense elements attribute from a raw buffer representing the
@@ -686,34 +715,7 @@ DenseElementsAttr DenseElementsAttr::get(ShapedType type,
 DenseElementsAttr DenseElementsAttr::getFromRawBuffer(ShapedType type,
                                                       ArrayRef<char> rawBuffer,
                                                       bool isSplatBuffer) {
-  return getRaw(type, rawBuffer, isSplatBuffer);
-}
-
-/// Constructs a dense elements attribute from an array of raw APInt values.
-/// Each APInt value is expected to have the same bitwidth as the element type
-/// of 'type'.
-DenseElementsAttr DenseElementsAttr::getRaw(ShapedType type,
-                                            ArrayRef<APInt> values) {
-  assert(hasSameElementsOrSplat(type, values));
-
-  size_t bitWidth = getDenseElementBitwidth(type.getElementType());
-  size_t storageBitWidth = getDenseElementStorageWidth(bitWidth);
-  std::vector<char> elementData(llvm::divideCeil(storageBitWidth, CHAR_BIT) *
-                                values.size());
-  for (unsigned i = 0, e = values.size(); i != e; ++i) {
-    assert(values[i].getBitWidth() == bitWidth);
-    writeBits(elementData.data(), i * storageBitWidth, values[i]);
-  }
-  return getRaw(type, elementData, /*isSplat=*/(values.size() == 1));
-}
-
-DenseElementsAttr DenseElementsAttr::getRaw(ShapedType type,
-                                            ArrayRef<char> data, bool isSplat) {
-  assert((type.isa<RankedTensorType>() || type.isa<VectorType>()) &&
-         "type must be ranked tensor or vector");
-  assert(type.hasStaticShape() && "type must have static shape");
-  return Base::get(type.getContext(), StandardAttributes::DenseElements, type,
-                   data, isSplat);
+  return DenseIntOrFPElementsAttr::getRaw(type, rawBuffer, isSplatBuffer);
 }
 
 /// Check the information for a C++ data type, check if this type is valid for
@@ -722,13 +724,16 @@ DenseElementsAttr DenseElementsAttr::getRaw(ShapedType type,
 static bool isValidIntOrFloat(ShapedType type, int64_t dataEltSize, bool isInt,
                               bool isSigned) {
   // Make sure that the data element size is the same as the type element width.
-  if (getDenseElementBitwidth(type.getElementType()) !=
+  if (getDenseElementBitWidth(type.getElementType()) !=
       static_cast<size_t>(dataEltSize * CHAR_BIT))
     return false;
 
-  // Check that the element type is either float or integer.
+  // Check that the element type is either float or integer or index.
   if (!isInt)
     return type.getElementType().isa<FloatType>();
+
+  if (type.getElementType().isIndex())
+    return true;
 
   auto intType = type.getElementType().dyn_cast<IntegerType>();
   if (!intType)
@@ -740,19 +745,14 @@ static bool isValidIntOrFloat(ShapedType type, int64_t dataEltSize, bool isInt,
   return intType.isSigned() ? isSigned : !isSigned;
 }
 
-/// Overload of the 'getRaw' method that asserts that the given type is of
-/// integer type. This method is used to verify type invariants that the
-/// templatized 'get' method cannot.
+/// Defaults down the subclass implementation.
 DenseElementsAttr DenseElementsAttr::getRawIntOrFloat(ShapedType type,
                                                       ArrayRef<char> data,
                                                       int64_t dataEltSize,
                                                       bool isInt,
                                                       bool isSigned) {
-  assert(::isValidIntOrFloat(type, dataEltSize, isInt, isSigned));
-
-  int64_t numElements = data.size() / dataEltSize;
-  assert(numElements == 1 || numElements == type.getNumElements());
-  return getRaw(type, data, /*isSplat=*/numElements == 1);
+  return DenseIntOrFPElementsAttr::getRawIntOrFloat(type, data, dataEltSize,
+                                                    isInt, isSigned);
 }
 
 /// A method used to verify specific type invariants that the templatized 'get'
@@ -764,7 +764,9 @@ bool DenseElementsAttr::isValidIntOrFloat(int64_t dataEltSize, bool isInt,
 
 /// Returns if this attribute corresponds to a splat, i.e. if all element
 /// values are the same.
-bool DenseElementsAttr::isSplat() const { return getImpl()->isSplat; }
+bool DenseElementsAttr::isSplat() const {
+  return static_cast<DenseElementsAttributeStorage *>(impl)->isSplat;
+}
 
 /// Return the held element values as a range of Attributes.
 auto DenseElementsAttr::getAttributeValues() const
@@ -793,18 +795,15 @@ auto DenseElementsAttr::getBoolValues() const
 /// this attribute must be of integer type.
 auto DenseElementsAttr::getIntValues() const
     -> llvm::iterator_range<IntElementIterator> {
-  assert(getType().getElementType().isa<IntegerType>() &&
-         "expected integer type");
+  assert(getType().getElementType().isIntOrIndex() && "expected integral type");
   return {raw_int_begin(), raw_int_end()};
 }
 auto DenseElementsAttr::int_value_begin() const -> IntElementIterator {
-  assert(getType().getElementType().isa<IntegerType>() &&
-         "expected integer type");
+  assert(getType().getElementType().isIntOrIndex() && "expected integral type");
   return raw_int_begin();
 }
 auto DenseElementsAttr::int_value_end() const -> IntElementIterator {
-  assert(getType().getElementType().isa<IntegerType>() &&
-         "expected integer type");
+  assert(getType().getElementType().isIntOrIndex() && "expected integral type");
   return raw_int_end();
 }
 
@@ -827,7 +826,11 @@ auto DenseElementsAttr::float_value_end() const -> FloatElementIterator {
 
 /// Return the raw storage data held by this attribute.
 ArrayRef<char> DenseElementsAttr::getRawData() const {
-  return static_cast<ImplType *>(impl)->data;
+  return static_cast<DenseIntOrFPElementsAttributeStorage *>(impl)->data;
+}
+
+ArrayRef<StringRef> DenseElementsAttr::getRawStringData() const {
+  return static_cast<DenseStringElementsAttributeStorage *>(impl)->data;
 }
 
 /// Return a new DenseElementsAttr that has the same data as the current
@@ -843,7 +846,7 @@ DenseElementsAttr DenseElementsAttr::reshape(ShapedType newType) {
          "expected the same element type");
   assert(newType.getNumElements() == curType.getNumElements() &&
          "expected the same number of elements");
-  return getRaw(newType, getRawData(), isSplat());
+  return DenseIntOrFPElementsAttr::getRaw(newType, getRawData(), isSplat());
 }
 
 DenseElementsAttr
@@ -858,6 +861,63 @@ DenseElementsAttr DenseElementsAttr::mapValues(
 }
 
 //===----------------------------------------------------------------------===//
+// DenseStringElementsAttr
+//===----------------------------------------------------------------------===//
+
+DenseStringElementsAttr
+DenseStringElementsAttr::get(ShapedType type, ArrayRef<StringRef> values) {
+  return Base::get(type.getContext(), StandardAttributes::DenseStringElements,
+                   type, values, (values.size() == 1));
+}
+
+//===----------------------------------------------------------------------===//
+// DenseIntOrFPElementsAttr
+//===----------------------------------------------------------------------===//
+
+/// Constructs a dense elements attribute from an array of raw APInt values.
+/// Each APInt value is expected to have the same bitwidth as the element type
+/// of 'type'.
+DenseElementsAttr DenseIntOrFPElementsAttr::getRaw(ShapedType type,
+                                                   ArrayRef<APInt> values) {
+  assert(hasSameElementsOrSplat(type, values));
+
+  size_t bitWidth = getDenseElementBitWidth(type.getElementType());
+  size_t storageBitWidth = getDenseElementStorageWidth(bitWidth);
+  std::vector<char> elementData(llvm::divideCeil(storageBitWidth, CHAR_BIT) *
+                                values.size());
+  for (unsigned i = 0, e = values.size(); i != e; ++i) {
+    assert(values[i].getBitWidth() == bitWidth);
+    writeBits(elementData.data(), i * storageBitWidth, values[i]);
+  }
+  return DenseIntOrFPElementsAttr::getRaw(type, elementData,
+                                          /*isSplat=*/(values.size() == 1));
+}
+
+DenseElementsAttr DenseIntOrFPElementsAttr::getRaw(ShapedType type,
+                                                   ArrayRef<char> data,
+                                                   bool isSplat) {
+  assert((type.isa<RankedTensorType>() || type.isa<VectorType>()) &&
+         "type must be ranked tensor or vector");
+  assert(type.hasStaticShape() && "type must have static shape");
+  return Base::get(type.getContext(), StandardAttributes::DenseIntOrFPElements,
+                   type, data, isSplat);
+}
+
+/// Overload of the 'getRaw' method that asserts that the given type is of
+/// integer type. This method is used to verify type invariants that the
+/// templatized 'get' method cannot.
+DenseElementsAttr
+DenseIntOrFPElementsAttr::getRawIntOrFloat(ShapedType type, ArrayRef<char> data,
+                                           int64_t dataEltSize, bool isInt,
+                                           bool isSigned) {
+  assert(::isValidIntOrFloat(type, dataEltSize, isInt, isSigned));
+
+  int64_t numElements = data.size() / dataEltSize;
+  assert(numElements == 1 || numElements == type.getNumElements());
+  return getRaw(type, data, /*isSplat=*/numElements == 1);
+}
+
+//===----------------------------------------------------------------------===//
 // DenseFPElementsAttr
 //===----------------------------------------------------------------------===//
 
@@ -865,7 +925,7 @@ template <typename Fn, typename Attr>
 static ShapedType mappingHelper(Fn mapping, Attr &attr, ShapedType inType,
                                 Type newElementType,
                                 llvm::SmallVectorImpl<char> &data) {
-  size_t bitWidth = getDenseElementBitwidth(newElementType);
+  size_t bitWidth = getDenseElementBitWidth(newElementType);
   size_t storageBitWidth = getDenseElementStorageWidth(bitWidth);
 
   ShapedType newArrayType;
@@ -932,7 +992,7 @@ DenseElementsAttr DenseIntElementsAttr::mapValues(
 /// Method for supporting type inquiry through isa, cast and dyn_cast.
 bool DenseIntElementsAttr::classof(Attribute attr) {
   return attr.isa<DenseElementsAttr>() &&
-         attr.getType().cast<ShapedType>().getElementType().isa<IntegerType>();
+         attr.getType().cast<ShapedType>().getElementType().isIntOrIndex();
 }
 
 //===----------------------------------------------------------------------===//
@@ -1119,19 +1179,29 @@ Attribute NamedAttributeList::get(Identifier name) const {
 void NamedAttributeList::set(Identifier name, Attribute value) {
   assert(value && "attributes may never be null");
 
-  // If we already have this attribute, replace it.
-  auto origAttrs = getAttrs();
-  SmallVector<NamedAttribute, 8> newAttrs(origAttrs.begin(), origAttrs.end());
-  for (auto &elt : newAttrs)
-    if (elt.first == name) {
-      elt.second = value;
-      attrs = DictionaryAttr::get(newAttrs, value.getContext());
+  // Look for an existing value for the given name, and set it in-place.
+  ArrayRef<NamedAttribute> values = getAttrs();
+  auto it = llvm::find_if(
+      values, [name](NamedAttribute attr) { return attr.first == name; });
+  if (it != values.end()) {
+    // Bail out early if the value is the same as what we already have.
+    if (it->second == value)
       return;
-    }
 
-  // Otherwise, add it.
+    SmallVector<NamedAttribute, 8> newAttrs(values.begin(), values.end());
+    newAttrs[it - values.begin()].second = value;
+    attrs = DictionaryAttr::getWithSorted(newAttrs, value.getContext());
+    return;
+  }
+
+  // Otherwise, insert the new attribute into its sorted position.
+  it = llvm::lower_bound(values, name, compareNamedAttributeWithName);
+  SmallVector<NamedAttribute, 8> newAttrs;
+  newAttrs.reserve(values.size() + 1);
+  newAttrs.append(values.begin(), it);
   newAttrs.push_back({name, value});
-  attrs = DictionaryAttr::get(newAttrs, value.getContext());
+  newAttrs.append(it, values.end());
+  attrs = DictionaryAttr::getWithSorted(newAttrs, value.getContext());
 }
 
 /// Remove the attribute with the specified name if it exists.  The return
@@ -1150,7 +1220,8 @@ auto NamedAttributeList::remove(Identifier name) -> RemoveResult {
       newAttrs.reserve(origAttrs.size() - 1);
       newAttrs.append(origAttrs.begin(), origAttrs.begin() + i);
       newAttrs.append(origAttrs.begin() + i + 1, origAttrs.end());
-      attrs = DictionaryAttr::get(newAttrs, newAttrs[0].second.getContext());
+      attrs = DictionaryAttr::getWithSorted(newAttrs,
+                                            newAttrs[0].second.getContext());
       return RemoveResult::Removed;
     }
   }

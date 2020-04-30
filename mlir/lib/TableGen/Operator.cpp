@@ -11,11 +11,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/TableGen/Operator.h"
-#include "mlir/ADT/TypeSwitch.h"
 #include "mlir/TableGen/OpTrait.h"
 #include "mlir/TableGen/Predicate.h"
 #include "mlir/TableGen/Type.h"
 #include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/TableGen/Error.h"
@@ -81,10 +81,6 @@ StringRef tblgen::Operator::getExtraClassDeclaration() const {
 
 const llvm::Record &tblgen::Operator::getDef() const { return def; }
 
-bool tblgen::Operator::isVariadic() const {
-  return getNumVariadicOperands() != 0 || getNumVariadicResults() != 0;
-}
-
 bool tblgen::Operator::skipDefaultBuilders() const {
   return def.getValueAsBit("skipDefaultBuilders");
 }
@@ -119,16 +115,16 @@ auto tblgen::Operator::getResultDecorators(int index) const
   return *result->getValueAsListInit("decorators");
 }
 
-unsigned tblgen::Operator::getNumVariadicResults() const {
-  return std::count_if(
-      results.begin(), results.end(),
-      [](const NamedTypeConstraint &c) { return c.constraint.isVariadic(); });
+unsigned tblgen::Operator::getNumVariableLengthResults() const {
+  return llvm::count_if(results, [](const NamedTypeConstraint &c) {
+    return c.constraint.isVariableLength();
+  });
 }
 
-unsigned tblgen::Operator::getNumVariadicOperands() const {
-  return std::count_if(
-      operands.begin(), operands.end(),
-      [](const NamedTypeConstraint &c) { return c.constraint.isVariadic(); });
+unsigned tblgen::Operator::getNumVariableLengthOperands() const {
+  return llvm::count_if(operands, [](const NamedTypeConstraint &c) {
+    return c.constraint.isVariableLength();
+  });
 }
 
 tblgen::Operator::arg_iterator tblgen::Operator::arg_begin() const {
@@ -173,10 +169,26 @@ const tblgen::OpTrait *tblgen::Operator::getTrait(StringRef trait) const {
   return nullptr;
 }
 
+auto tblgen::Operator::region_begin() const -> const_region_iterator {
+  return regions.begin();
+}
+auto tblgen::Operator::region_end() const -> const_region_iterator {
+  return regions.end();
+}
+auto tblgen::Operator::getRegions() const
+    -> llvm::iterator_range<const_region_iterator> {
+  return {region_begin(), region_end()};
+}
+
 unsigned tblgen::Operator::getNumRegions() const { return regions.size(); }
 
 const tblgen::NamedRegion &tblgen::Operator::getRegion(unsigned index) const {
   return regions[index];
+}
+
+unsigned tblgen::Operator::getNumVariadicRegions() const {
+  return llvm::count_if(regions,
+                        [](const NamedRegion &c) { return c.isVariadic(); });
 }
 
 auto tblgen::Operator::successor_begin() const -> const_successor_iterator {
@@ -388,7 +400,16 @@ void tblgen::Operator::populateOpStructure() {
       PrintFatalError(def.getLoc(),
                       Twine("undefined kind for region #") + Twine(i));
     }
-    regions.push_back({name, Region(regionInit->getDef())});
+    Region region(regionInit->getDef());
+    if (region.isVariadic()) {
+      // Only support variadic regions if it is the last one for now.
+      if (i != e - 1)
+        PrintFatalError(def.getLoc(), "only the last region can be variadic");
+      if (name.empty())
+        PrintFatalError(def.getLoc(), "variadic regions must be named");
+    }
+
+    regions.push_back({name, region});
   }
 
   LLVM_DEBUG(print(llvm::dbgs()));

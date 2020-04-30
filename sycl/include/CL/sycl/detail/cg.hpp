@@ -47,7 +47,7 @@ class interop_handler {
 
 public:
   using QueueImplPtr = std::shared_ptr<detail::queue_impl>;
-  using ReqToMem = std::pair<detail::Requirement*, pi_mem>;
+  using ReqToMem = std::pair<detail::Requirement *, pi_mem>;
 
   interop_handler(std::vector<ReqToMem> MemObjs, QueueImplPtr Queue)
       : MQueue(std::move(Queue)), MMemObjs(std::move(MemObjs)) {}
@@ -407,7 +407,7 @@ public:
     FILL_USM,
     PREFETCH_USM,
     INTEROP_TASK_CODEPLAY,
-    CODEPLAY_HOST_TASK
+    HOST_TASK_CODEPLAY
   };
 
   CG(CGTYPE Type, vector_class<vector_class<char>> ArgsStorage,

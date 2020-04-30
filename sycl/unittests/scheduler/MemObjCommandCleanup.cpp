@@ -9,49 +9,44 @@
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
 
-#include <CL/sycl.hpp>
-#include <detail/scheduler/scheduler.hpp>
-
-#include <gtest/gtest.h>
-
 using namespace cl::sycl;
 
 TEST_F(SchedulerTest, MemObjCommandCleanup) {
-  TestScheduler TS;
+  MockScheduler MS;
   buffer<int, 1> BufA(range<1>(1));
   buffer<int, 1> BufB(range<1>(1));
-  detail::Requirement FakeReqA = getFakeRequirement(BufA);
-  detail::Requirement FakeReqB = getFakeRequirement(BufB);
+  detail::Requirement MockReqA = getMockRequirement(BufA);
+  detail::Requirement MockReqB = getMockRequirement(BufB);
   detail::MemObjRecord *RecA =
-      TS.getOrInsertMemObjRecord(detail::getSyclObjImpl(MQueue), &FakeReqA);
+      MS.getOrInsertMemObjRecord(detail::getSyclObjImpl(MQueue), &MockReqA);
 
   // Create 2 fake allocas, one of which will be cleaned up
-  detail::AllocaCommand *FakeAllocaA =
-      new detail::AllocaCommand(detail::getSyclObjImpl(MQueue), FakeReqA);
-  std::unique_ptr<detail::AllocaCommand> FakeAllocaB{
-      new detail::AllocaCommand(detail::getSyclObjImpl(MQueue), FakeReqB)};
-  RecA->MAllocaCommands.push_back(FakeAllocaA);
+  detail::AllocaCommand *MockAllocaA =
+      new detail::AllocaCommand(detail::getSyclObjImpl(MQueue), MockReqA);
+  std::unique_ptr<detail::AllocaCommand> MockAllocaB{
+      new detail::AllocaCommand(detail::getSyclObjImpl(MQueue), MockReqB)};
+  RecA->MAllocaCommands.push_back(MockAllocaA);
 
   // Create a direct user of both allocas
-  std::unique_ptr<FakeCommand> FakeDirectUser{
-      new FakeCommand(detail::getSyclObjImpl(MQueue), FakeReqA)};
-  addEdge(FakeDirectUser.get(), FakeAllocaA, FakeAllocaA);
-  addEdge(FakeDirectUser.get(), FakeAllocaB.get(), FakeAllocaB.get());
+  std::unique_ptr<MockCommand> MockDirectUser{
+      new MockCommand(detail::getSyclObjImpl(MQueue), MockReqA)};
+  addEdge(MockDirectUser.get(), MockAllocaA, MockAllocaA);
+  addEdge(MockDirectUser.get(), MockAllocaB.get(), MockAllocaB.get());
 
   // Create an indirect user of the soon-to-be deleted alloca
   bool IndirectUserDeleted = false;
   std::function<void()> Callback = [&]() { IndirectUserDeleted = true; };
-  FakeCommand *FakeIndirectUser = new FakeCommandWithCallback(
-      detail::getSyclObjImpl(MQueue), FakeReqA, Callback);
-  addEdge(FakeIndirectUser, FakeDirectUser.get(), FakeAllocaA);
+  MockCommand *MockIndirectUser = new MockCommandWithCallback(
+      detail::getSyclObjImpl(MQueue), MockReqA, Callback);
+  addEdge(MockIndirectUser, MockDirectUser.get(), MockAllocaA);
 
-  TS.cleanupCommandsForRecord(RecA);
-  TS.removeRecordForMemObj(detail::getSyclObjImpl(BufA).get());
+  MS.cleanupCommandsForRecord(RecA);
+  MS.removeRecordForMemObj(detail::getSyclObjImpl(BufA).get());
 
   // Check that the direct user has been left with the second alloca
   // as the only dependency, while the indirect user has been cleaned up.
-  ASSERT_EQ(FakeDirectUser->MUsers.size(), 0U);
-  ASSERT_EQ(FakeDirectUser->MDeps.size(), 1U);
-  EXPECT_EQ(FakeDirectUser->MDeps[0].MDepCommand, FakeAllocaB.get());
+  ASSERT_EQ(MockDirectUser->MUsers.size(), 0U);
+  ASSERT_EQ(MockDirectUser->MDeps.size(), 1U);
+  EXPECT_EQ(MockDirectUser->MDeps[0].MDepCommand, MockAllocaB.get());
   EXPECT_TRUE(IndirectUserDeleted);
 }

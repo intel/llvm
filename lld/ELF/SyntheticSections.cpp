@@ -2151,7 +2151,7 @@ template <class ELFT> void SymbolTableSection<ELFT>::writeTo(uint8_t *buf) {
       eSym->st_size = sym->getSize();
 
     // st_value is usually an address of a symbol, but that has a
-    // special meaining for uninstantiated common symbols (this can
+    // special meaning for uninstantiated common symbols (this can
     // occur if -r is given).
     if (BssSection *commonSec = getCommonSec(ent.sym))
       eSym->st_value = commonSec->alignment;
@@ -2250,7 +2250,7 @@ size_t SymtabShndxSection::getSize() const {
 // DSOs. That means resolving all dynamic symbols takes O(m)*O(n)
 // where m is the number of DSOs and n is the number of dynamic
 // symbols. For modern large programs, both m and n are large.  So
-// making each step faster by using hash tables substiantially
+// making each step faster by using hash tables substantially
 // improves time to load programs.
 //
 // (Note that this is not the only way to design the shared library.
@@ -2746,11 +2746,11 @@ createSymbols(ArrayRef<std::vector<GdbIndexSection::NameAttrEntry>> nameAttrs,
   // The number of symbols we will handle in this function is of the order
   // of millions for very large executables, so we use multi-threading to
   // speed it up.
-  size_t numShards = 32;
-  size_t concurrency = 1;
-  if (threadsEnabled)
-    concurrency = std::min<size_t>(
-        hardware_concurrency().compute_thread_count(), numShards);
+  constexpr size_t numShards = 32;
+  size_t concurrency = PowerOf2Floor(
+      std::min<size_t>(hardware_concurrency(parallel::strategy.ThreadsRequested)
+                           .compute_thread_count(),
+                       numShards));
 
   // A sharded map to uniquify symbols by name.
   std::vector<DenseMap<CachedHashStringRef, size_t>> map(numShards);
@@ -3193,10 +3193,10 @@ void MergeNoTailSection::finalizeContents() {
 
   // Concurrency level. Must be a power of 2 to avoid expensive modulo
   // operations in the following tight loop.
-  size_t concurrency = 1;
-  if (threadsEnabled)
-    concurrency = std::min<size_t>(
-        hardware_concurrency().compute_thread_count(), numShards);
+  size_t concurrency = PowerOf2Floor(
+      std::min<size_t>(hardware_concurrency(parallel::strategy.ThreadsRequested)
+                           .compute_thread_count(),
+                       numShards));
 
   // Add section pieces to the builders.
   parallelForEachN(0, concurrency, [&](size_t threadId) {
@@ -3276,8 +3276,13 @@ static bool isValidExidxSectionDep(InputSection *isec) {
 bool ARMExidxSyntheticSection::addSection(InputSection *isec) {
   if (isec->type == SHT_ARM_EXIDX) {
     if (InputSection *dep = isec->getLinkOrderDep())
-      if (isValidExidxSectionDep(dep))
+      if (isValidExidxSectionDep(dep)) {
         exidxSections.push_back(isec);
+        // Every exidxSection is 8 bytes, we need an estimate of
+        // size before assignAddresses can be called. Final size
+        // will only be known after finalize is called.
+        size += 8;
+      }
     return true;
   }
 
@@ -3363,14 +3368,14 @@ void ARMExidxSyntheticSection::finalizeContents() {
 
   // Sort the executable sections that may or may not have associated
   // .ARM.exidx sections by order of ascending address. This requires the
-  // relative positions of InputSections to be known.
+  // relative positions of InputSections and OutputSections to be known.
   auto compareByFilePosition = [](const InputSection *a,
                                   const InputSection *b) {
     OutputSection *aOut = a->getParent();
     OutputSection *bOut = b->getParent();
 
     if (aOut != bOut)
-      return aOut->sectionIndex < bOut->sectionIndex;
+      return aOut->addr < bOut->addr;
     return a->outSecOff < b->outSecOff;
   };
   llvm::stable_sort(executableSections, compareByFilePosition);

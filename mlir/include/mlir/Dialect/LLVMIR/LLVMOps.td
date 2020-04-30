@@ -410,9 +410,12 @@ def LLVM_InsertValueOp : LLVM_OneResultOp<"insertvalue", [NoSideEffect]>,
 }
 def LLVM_ShuffleVectorOp
     : LLVM_OneResultOp<"shufflevector", [NoSideEffect]>,
-      Arguments<(ins LLVM_Type:$v1, LLVM_Type:$v2, ArrayAttr:$mask)>,
-      LLVM_Builder<
-      "$res = builder.CreateShuffleVector($v1, $v2, extractPosition($mask));"> {
+      Arguments<(ins LLVM_Type:$v1, LLVM_Type:$v2, ArrayAttr:$mask)> {
+  string llvmBuilder = [{
+      SmallVector<unsigned, 4> position = extractPosition($mask);
+      SmallVector<int, 4> mask(position.begin(), position.end());
+      $res = builder.CreateShuffleVector($v1, $v2, mask);
+  }];
   let builders = [OpBuilder<
     "Builder *b, OperationState &result, Value v1, Value v2, "
     "ArrayAttr mask, ArrayRef<NamedAttribute> attrs = {}">];
@@ -660,10 +663,12 @@ def LLVM_GlobalOp
 }
 
 def LLVM_LLVMFuncOp
-    : LLVM_ZeroResultOp<"func", [IsolatedFromAbove, FunctionLike, Symbol]>,
+    : LLVM_ZeroResultOp<"func", [AutomaticAllocationScope, IsolatedFromAbove,
+                                 FunctionLike, Symbol]>,
       Arguments<(ins DefaultValuedAttr<Linkage,
                                        "Linkage::External">:$linkage,
-                     OptionalAttr<FlatSymbolRefAttr>:$personality)> {
+                     OptionalAttr<FlatSymbolRefAttr>:$personality,
+                     OptionalAttr<ArrayAttr>:$passthrough)> {
   let summary = "LLVM dialect function, has wrapped LLVM IR function type";
 
   let regions = (region AnyRegion:$body);
@@ -771,6 +776,7 @@ class LLVM_TernarySameArgsIntrinsicOp<string func, list<OpTrait> traits = []> :
 def LLVM_CopySignOp : LLVM_BinarySameArgsIntrinsicOp<"copysign">;
 def LLVM_CosOp : LLVM_UnaryIntrinsicOp<"cos">;
 def LLVM_ExpOp : LLVM_UnaryIntrinsicOp<"exp">;
+def LLVM_Exp2Op : LLVM_UnaryIntrinsicOp<"exp2">;
 def LLVM_FAbsOp : LLVM_UnaryIntrinsicOp<"fabs">;
 def LLVM_FCeilOp : LLVM_UnaryIntrinsicOp<"ceil">;
 def LLVM_FMAOp : LLVM_TernarySameArgsIntrinsicOp<"fma">;
@@ -864,7 +870,7 @@ def LLVM_MatrixMultiplyOp
 
 /// Create a llvm.matrix.transpose call, transposing a `rows` x `columns` 2-D
 /// `matrix`, as specified in the LLVM MatrixBuilder.
-def LLVM_MatrixTranposeOp
+def LLVM_MatrixTransposeOp
     : LLVM_OneResultOp<"intr.matrix.transpose">,
       Arguments<(ins LLVM_Type:$matrix, I32Attr:$rows, I32Attr:$columns)> {
   string llvmBuilder = [{

@@ -370,8 +370,9 @@ private:
                     shared_ptr_class<queue_impl> Self,
                     const detail::code_location &Loc) {
     handler Handler(std::move(Self), MHostQueue);
+    Handler.saveCodeLoc(Loc);
     CGF(Handler);
-    event Event = Handler.finalize(Loc);
+    event Event = Handler.finalize();
     addEvent(Event);
     return Event;
   }
@@ -385,19 +386,27 @@ private:
   void instrumentationEpilog(void *TelementryEvent, string_class &Name,
                              int32_t StreamID, uint64_t IId);
 
+  void initHostTaskAndEventCallbackThreadPool();
+
+  /// Stores a USM operation event that should be associated with the queue
+  ///
+  /// \param Event is the event to be stored
+  void addUSMEvent(event Event);
+
   /// Stores an event that should be associated with the queue
   ///
   /// \param Event is the event to be stored
   void addEvent(event Event);
-
-  void initHostTaskAndEventCallbackThreadPool();
 
   /// Protects all the fields that can be changed by class' methods.
   mutex_class MMutex;
 
   DeviceImplPtr MDevice;
   const ContextImplPtr MContext;
-  vector_class<event> MEvents;
+  vector_class<std::weak_ptr<event_impl>> MEvents;
+  // USM operations are not added to the scheduler command graph,
+  // queue is the only owner on the runtime side.
+  vector_class<event> MUSMEvents;
   exception_list MExceptions;
   const async_handler MAsyncHandler;
   const property_list MPropList;

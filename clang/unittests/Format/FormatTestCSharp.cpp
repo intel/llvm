@@ -245,13 +245,11 @@ TEST_F(FormatTestCSharp, Attributes) {
                "}");
 
   verifyFormat("[TestMethod]\n"
-               "public string Host\n"
-               "{ set; get; }");
+               "public string Host { set; get; }");
 
   verifyFormat("[TestMethod(\"start\", HelpText = \"Starts the server "
                "listening on provided host\")]\n"
-               "public string Host\n"
-               "{ set; get; }");
+               "public string Host { set; get; }");
 
   verifyFormat(
       "[DllImport(\"Hello\", EntryPoint = \"hello_world\")]\n"
@@ -564,7 +562,7 @@ var myDict = new Dictionary<string, string> {
 
 TEST_F(FormatTestCSharp, CSharpArrayInitializers) {
   FormatStyle Style = getGoogleStyle(FormatStyle::LK_CSharp);
-  
+
   verifyFormat(R"(//
 private MySet<Node>[] setPoints = {
   new Point<Node>(),
@@ -624,6 +622,7 @@ TEST_F(FormatTestCSharp, CSharpSpaces) {
   Style.SpaceBeforeCpp11BracedList = true;
   Style.Cpp11BracedListStyle = false;
   Style.SpacesInContainerLiterals = false;
+  Style.SpaceAfterCStyleCast = false;
 
   verifyFormat(R"(new Car { "Door", 0.1 })", Style);
   verifyFormat(R"(new Car { 0.1, "Door" })", Style);
@@ -641,6 +640,12 @@ TEST_F(FormatTestCSharp, CSharpSpaces) {
   verifyFormat(R"(Result this[Index x] => Foo(x);)", Style);
 
   verifyFormat(R"(char[,,] rawCharArray = MakeCharacterGrid();)", Style);
+
+  // Not seen as a C-style cast.
+  verifyFormat(R"(//
+foreach ((A a, B b) in someList) {
+})",
+               Style);
 
   Style.SpacesInSquareBrackets = true;
   verifyFormat(R"(private float[ , ] Values;)", Style);
@@ -709,6 +714,23 @@ class ItemFactory<T>
               IAnotherInterface<T>,
               IAnotherInterfaceStill<T> {})",
                Style);
+
+  Style.ColumnLimit = 50; // Force lines to be wrapped.
+  verifyFormat(R"(//
+class ItemFactory<T, U>
+    where T : new(),
+              IAnInterface<T>,
+              IAnotherInterface<T, U>,
+              IAnotherInterfaceStill<T, U> {})",
+               Style);
+
+  // In other languages `where` can be used as a normal identifier.
+  // This example is in C++!
+  verifyFormat(R"(//
+class A {
+  int f(int where) {}
+};)",
+               getGoogleStyle(FormatStyle::LK_Cpp));
 }
 
 } // namespace format

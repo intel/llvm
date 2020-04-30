@@ -15,8 +15,8 @@
 
 #include <cstddef>
 #include <memory>
-#include <mutex>
 #include <set>
+#include <shared_mutex>
 #include <unordered_set>
 #include <vector>
 
@@ -418,10 +418,6 @@ public:
   /// unblocked.
   void releaseHostAccessor(Requirement *Req);
 
-  // Unblocks operations with memory objects
-  void unblockRequirements(const std::vector<Requirement *> &Reqs,
-                           Command::BlockReason Reason);
-
   /// \return an instance of the scheduler object.
   static Scheduler &getInstance();
 
@@ -434,9 +430,7 @@ protected:
   Scheduler();
   static Scheduler instance;
 
-  void unblockSingleReq(Requirement *Req);
-  void bulkUnblockReqs(Command *const BlockedCmd,
-                       const std::unordered_set<Requirement *> &Reqs);
+  static void enqueueLeavesOfReq(const Requirement *const Req);
 
   /// Graph builder class.
   ///
@@ -518,6 +512,24 @@ protected:
     void updateLeaves(const std::set<Command *> &Cmds, MemObjRecord *Record,
                       access::mode AccessMode);
 
+    /// Perform connection of events in multiple contexts
+    /// \param DepEvent event to depend on
+    /// \param DepEventContext context of DepEvent
+    /// \param Context context of command which wants to depend on DepEvent
+    /// \param Dep optional DepDesc to perform connection properly
+    ///
+    /// Optionality of Dep is set by Dep.MDepCommand not equal to nullptr.
+    void connectDepEvent(Command *const Cmd, EventImplPtr DepEvent,
+                         const ContextImplPtr &DepEventContext,
+                         const ContextImplPtr &Context, const DepDesc &Dep);
+    /// Helper for connectDepEvent
+    /// \param ConnectCmd connection cmd to properly add
+    /// \param Dep DepDesc with non-null MDepRequirmeent
+    void addConnectCmdWithReq(Command *const Cmd,
+                              const ContextImplPtr &DepEventContext,
+                              ExecCGCommand *const ConnectCmd,
+                              EmptyCommand *const EmptyCmd, const DepDesc &Dep);
+
     std::vector<SYCLMemObjI *> MMemObjs;
 
   private:
@@ -545,6 +557,8 @@ protected:
     /// Finds dependencies for the requirement.
     std::set<Command *> findDepsForReq(MemObjRecord *Record, Requirement *Req,
                                        const ContextImplPtr &Context);
+
+    void addEmptyCmdForHostTask(ExecCGCommand *Cmd, const QueueImplPtr &Queue);
 
   protected:
     /// Finds a command dependency corresponding to the record.
@@ -675,8 +689,7 @@ protected:
   void waitForRecordToFinish(MemObjRecord *Record);
 
   GraphBuilder MGraphBuilder;
-  // TODO Use read-write mutex in future.
-  std::mutex MGraphLock;
+  std::shared_timed_mutex MGraphLock;
 
   QueueImplPtr DefaultHostQueue;
 

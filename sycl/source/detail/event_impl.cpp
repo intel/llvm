@@ -50,7 +50,7 @@ event_impl::~event_impl() {
 }
 
 void event_impl::waitInternal() const {
-  if (!MHostEvent) {
+  if (!MHostEvent && MEvent) {
     getPlugin().call<PiApiKind::piEventsWait>(1, &MEvent);
     return;
   }
@@ -62,18 +62,22 @@ void event_impl::waitInternal() const {
 }
 
 void event_impl::setComplete() {
-  assert(MHostEvent && "setComplete is only allowed for host events");
-
+  if (MHostEvent && !MEvent) {
 #ifndef NDEBUG
-  int Expected = HES_NotReady;
-  int Desired = HES_Ready;
+    int Expected = HES_NotReady;
+    int Desired = HES_Ready;
 
-  bool Succeeded = MState.compare_exchange_strong(Expected, Desired);
+    bool Succeeded = MState.compare_exchange_strong(Expected, Desired);
 
-  assert(Succeeded && "Unexpected state of event");
+    assert(Succeeded && "Unexpected state of event");
 #else
-  MState.store(static_cast<int>(HES_Ready));
+    MState.store(static_cast<int>(HES_Ready));
 #endif
+  } else if (MEvent)
+    getPlugin().call<PiApiKind::piEventSetStatus>(getHandleRef(),
+                                                  PI_EVENT_COMPLETE);
+  else
+    assert(false && "Event is neither host nor device one.");
 }
 
 const RT::PiEvent &event_impl::getHandleRef() const { return MEvent; }
@@ -87,6 +91,8 @@ void event_impl::setContextImpl(const ContextImplPtr &Context) {
   MHostEvent = Context->is_host();
   MOpenCLInterop = !MHostEvent;
   MContext = Context;
+
+  MState = MHostEvent ? HES_NotReady : HES_Ready;
 }
 
 event_impl::event_impl() : MState(HES_Ready) {}
@@ -125,8 +131,11 @@ event_impl::event_impl(QueueImplPtr Queue) : MQueue(Queue) {
       if (!MHostProfilingInfo)
         throw runtime_error("Out of host memory", PI_OUT_OF_HOST_MEMORY);
     }
-  } else
-    MState.store(HES_Ready);
+
+    return;
+  }
+
+  MState.store(HES_Ready);
 }
 
 void *event_impl::instrumentationProlog(string_class &Name, int32_t StreamID,

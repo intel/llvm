@@ -20,11 +20,8 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/FloatingPointMode.h"
 #include "llvm/ADT/GraphTraits.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/ilist.h"
 #include "llvm/ADT/iterator.h"
 #include "llvm/Analysis/EHPersonalities.h"
@@ -35,7 +32,6 @@
 #include "llvm/Support/ArrayRecycler.h"
 #include "llvm/Support/AtomicOrdering.h"
 #include "llvm/Support/Compiler.h"
-#include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/Recycler.h"
 #include "llvm/Target/TargetOptions.h"
 #include <cassert>
@@ -50,10 +46,12 @@ class BasicBlock;
 class BlockAddress;
 class DataLayout;
 class DebugLoc;
+struct DenormalMode;
 class DIExpression;
 class DILocalVariable;
 class DILocation;
 class Function;
+class GISelChangeObserver;
 class GlobalValue;
 class LLVMTargetMachine;
 class MachineConstantPool;
@@ -70,11 +68,11 @@ class Pass;
 class PseudoSourceValueManager;
 class raw_ostream;
 class SlotIndexes;
+class StringRef;
 class TargetRegisterClass;
 class TargetSubtargetInfo;
 struct WasmEHFuncInfo;
 struct WinEHFuncInfo;
-class GISelChangeObserver;
 
 template <> struct ilist_alloc_traits<MachineBasicBlock> {
   void deleteNode(MachineBasicBlock *MBB);
@@ -224,7 +222,7 @@ struct LandingPadInfo {
 };
 
 class MachineFunction {
-  const Function &F;
+  Function &F;
   const LLVMTargetMachine &Target;
   const TargetSubtargetInfo *STI;
   MCContext &Ctx;
@@ -346,11 +344,6 @@ class MachineFunction {
   /// Section Type for basic blocks, only relevant with basic block sections.
   BasicBlockSection BBSectionsType = BasicBlockSection::None;
 
-  /// With Basic Block Sections, this stores the bb ranges of cold and
-  /// exception sections.
-  std::pair<int, int> ColdSectionRange = {-1, -1};
-  std::pair<int, int> ExceptionSectionRange = {-1, -1};
-
   /// List of C++ TypeInfo used.
   std::vector<const GlobalValue *> TypeInfos;
 
@@ -435,7 +428,7 @@ public:
   using VariableDbgInfoMapTy = SmallVector<VariableDbgInfo, 4>;
   VariableDbgInfoMapTy VariableDbgInfos;
 
-  MachineFunction(const Function &F, const LLVMTargetMachine &Target,
+  MachineFunction(Function &F, const LLVMTargetMachine &Target,
                   const TargetSubtargetInfo &STI, unsigned FunctionNum,
                   MachineModuleInfo &MMI);
   MachineFunction(const MachineFunction &) = delete;
@@ -484,6 +477,9 @@ public:
   const DataLayout &getDataLayout() const;
 
   /// Return the LLVM function that this machine code represents
+  Function &getFunction() { return F; }
+
+  /// Return the LLVM function that this machine code represents
   const Function &getFunction() const { return F; }
 
   /// getName - Return the name of the corresponding LLVM function.
@@ -505,21 +501,12 @@ public:
 
   void setBBSectionsType(BasicBlockSection V) { BBSectionsType = V; }
 
-  void setSectionRange();
-
-  /// Returns true if this basic block number starts a cold or exception
-  /// section.
-  bool isSectionStartMBB(int N) const {
-    return (N == ColdSectionRange.first || N == ExceptionSectionRange.first);
-  }
-
-  /// Returns true if this basic block ends a cold or exception section.
-  bool isSectionEndMBB(int N) const {
-    return (N == ColdSectionRange.second || N == ExceptionSectionRange.second);
-  }
-
   /// Creates basic block Labels for this function.
   void createBBLabels();
+
+  /// Assign IsBeginSection IsEndSection fields for basic blocks in this
+  /// function.
+  void assignBeginEndSections();
 
   /// getTarget - Return the target machine this machine code is compiled with
   const LLVMTargetMachine &getTarget() const { return Target; }
@@ -813,9 +800,8 @@ public:
   /// explicitly deallocated.
   MachineMemOperand *getMachineMemOperand(
       MachinePointerInfo PtrInfo, MachineMemOperand::Flags f, uint64_t s,
-      unsigned base_alignment, const AAMDNodes &AAInfo = AAMDNodes(),
-      const MDNode *Ranges = nullptr,
-      SyncScope::ID SSID = SyncScope::System,
+      Align base_alignment, const AAMDNodes &AAInfo = AAMDNodes(),
+      const MDNode *Ranges = nullptr, SyncScope::ID SSID = SyncScope::System,
       AtomicOrdering Ordering = AtomicOrdering::NotAtomic,
       AtomicOrdering FailureOrdering = AtomicOrdering::NotAtomic);
 

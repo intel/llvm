@@ -10,11 +10,12 @@ add_mlir_dialect_library(MLIRLinalgTransforms
 
   DEPENDS
   intrinsics_gen
+  MLIRLinalgPassIncGen
   MLIRLinalgTransformPatternsIncGen
   )
 target_link_libraries(MLIRLinalgTransforms
   PUBLIC
-  MLIRAffine
+  MLIRAffineOps
   MLIRAnalysis
   MLIREDSC
   MLIRIR

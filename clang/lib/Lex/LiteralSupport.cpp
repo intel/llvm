@@ -25,6 +25,7 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Support/ConvertUTF.h"
+#include "llvm/Support/Error.h"
 #include "llvm/Support/ErrorHandling.h"
 #include <algorithm>
 #include <cassert>
@@ -815,7 +816,7 @@ bool NumericLiteralParser::isValidUDSuffix(const LangOptions &LangOpts,
       .Cases("h", "min", "s", true)
       .Cases("ms", "us", "ns", true)
       .Cases("il", "i", "if", true)
-      .Cases("d", "y", LangOpts.CPlusPlus2a)
+      .Cases("d", "y", LangOpts.CPlusPlus20)
       .Default(false);
 }
 

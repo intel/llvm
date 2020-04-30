@@ -16,7 +16,6 @@
 #include "llvm/CodeGen/ISDOpcodes.h"
 #include "llvm/CodeGen/ValueTypes.h"
 #include "llvm/IR/BasicBlock.h"
-#include "llvm/IR/CallSite.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Instruction.h"
@@ -434,7 +433,7 @@ int ARMTTIImpl::getVectorInstrCost(unsigned Opcode, Type *ValTy,
                         Opcode == Instruction::ExtractElement)) {
     // Cross-class copies are expensive on many microarchitectures,
     // so assume they are expensive by default.
-    if (ValTy->getVectorElementType()->isIntegerTy())
+    if (cast<VectorType>(ValTy)->getElementType()->isIntegerTy())
       return 3;
 
     // Even if it's not a cross class copy, this likely leads to mixing
@@ -452,7 +451,7 @@ int ARMTTIImpl::getVectorInstrCost(unsigned Opcode, Type *ValTy,
     // result anyway.
     return std::max(BaseT::getVectorInstrCost(Opcode, ValTy, Index),
                     ST->getMVEVectorCostFactor()) *
-           ValTy->getVectorNumElements() / 2;
+           cast<VectorType>(ValTy)->getNumElements() / 2;
   }
 
   return BaseT::getVectorInstrCost(Opcode, ValTy, Index);
@@ -587,8 +586,8 @@ int ARMTTIImpl::getMemcpyCost(const Instruction *I) {
   return LibCallCost;
 }
 
-int ARMTTIImpl::getShuffleCost(TTI::ShuffleKind Kind, Type *Tp, int Index,
-                               Type *SubTp) {
+int ARMTTIImpl::getShuffleCost(TTI::ShuffleKind Kind, VectorType *Tp,
+                               int Index, VectorType *SubTp) {
   if (ST->hasNEON()) {
     if (Kind == TTI::SK_Broadcast) {
       static const CostTblEntry NEONDupTbl[] = {
@@ -794,8 +793,8 @@ int ARMTTIImpl::getArithmeticInstrCost(unsigned Opcode, Type *Ty,
     return LT.first * BaseCost;
 
   // Else this is expand, assume that we need to scalarize this op.
-  if (Ty->isVectorTy()) {
-    unsigned Num = Ty->getVectorNumElements();
+  if (auto *VTy = dyn_cast<VectorType>(Ty)) {
+    unsigned Num = VTy->getNumElements();
     unsigned Cost = getArithmeticInstrCost(Opcode, Ty->getScalarType());
     // Return the cost of multiple scalar invocation plus the cost of
     // inserting and extracting the values.
@@ -812,7 +811,7 @@ int ARMTTIImpl::getMemoryOpCost(unsigned Opcode, Type *Src,
 
   if (ST->hasNEON() && Src->isVectorTy() &&
       (Alignment && *Alignment != Align(16)) &&
-      Src->getVectorElementType()->isDoubleTy()) {
+      cast<VectorType>(Src)->getElementType()->isDoubleTy()) {
     // Unaligned loads/stores are extremely inefficient.
     // We need 4 uops for vst.1/vld.1 vs 1uop for vldr/vstr.
     return LT.first * 4;
@@ -835,7 +834,7 @@ int ARMTTIImpl::getInterleavedMemoryOpCost(
 
   if (Factor <= TLI->getMaxSupportedInterleaveFactor() && !EltIs64Bits &&
       !UseMaskForCond && !UseMaskForGaps) {
-    unsigned NumElts = VecTy->getVectorNumElements();
+    unsigned NumElts = cast<VectorType>(VecTy)->getNumElements();
     auto *SubVecTy = VectorType::get(VecTy->getScalarType(), NumElts / Factor);
 
     // vldN/vstN only support legal vector types of size 64 or 128 in bits.
@@ -1354,8 +1353,7 @@ void ARMTTIImpl::getUnrollingPreferences(Loop *L, ScalarEvolution &SE,
         return;
 
       if (isa<CallInst>(I) || isa<InvokeInst>(I)) {
-        ImmutableCallSite CS(&I);
-        if (const Function *F = CS.getCalledFunction()) {
+        if (const Function *F = cast<CallBase>(I).getCalledFunction()) {
           if (!isLoweredToCall(F))
             continue;
         }
@@ -1403,7 +1401,7 @@ bool ARMTTIImpl::useReductionIntrinsic(unsigned Opcode, Type *Ty,
   case Instruction::ICmp:
   case Instruction::Add:
     return ScalarBits < 64 &&
-           (ScalarBits * Ty->getVectorNumElements()) % 128 == 0;
+           (ScalarBits * cast<VectorType>(Ty)->getNumElements()) % 128 == 0;
   default:
     llvm_unreachable("Unhandled reduction opcode");
   }

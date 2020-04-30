@@ -223,6 +223,9 @@ StringRef llvm::object::getELFSectionTypeName(uint32_t Machine, unsigned Type) {
       STRINGIFY_ENUM_CASE(ELF, SHT_MIPS_ABIFLAGS);
     }
     break;
+  case ELF::EM_RISCV:
+    switch (Type) { STRINGIFY_ENUM_CASE(ELF, SHT_RISCV_ATTRIBUTES); }
+    break;
   default:
     break;
   }
@@ -580,7 +583,18 @@ Expected<const uint8_t *> ELFFile<ELFT>::toMappedAddr(uint64_t VAddr) const {
   if (Delta >= Phdr.p_filesz)
     return createError("virtual address is not in any segment: 0x" +
                        Twine::utohexstr(VAddr));
-  return base() + Phdr.p_offset + Delta;
+
+  uint64_t Offset = Phdr.p_offset + Delta;
+  if (Offset >= getBufSize())
+    return createError("can't map virtual address 0x" +
+                       Twine::utohexstr(VAddr) + " to the segment with index " +
+                       Twine(&Phdr - (*ProgramHeadersOrError).data() + 1) +
+                       ": the segment ends at 0x" +
+                       Twine::utohexstr(Phdr.p_offset + Phdr.p_filesz) +
+                       ", which is greater than the file size (0x" +
+                       Twine::utohexstr(getBufSize()) + ")");
+
+  return base() + Offset;
 }
 
 template class llvm::object::ELFFile<ELF32LE>;

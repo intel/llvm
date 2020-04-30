@@ -24,7 +24,7 @@ config.name = 'SYCL'
 config.test_format = lit.formats.ShTest()
 
 # suffixes: A list of file extensions to treat as test files.
-config.suffixes = ['.c', '.cpp'] #add .spv. Currently not clear what to do with those
+config.suffixes = ['.c', '.cpp', '.dump'] #add .spv. Currently not clear what to do with those
 
 # feature tests are considered not so lightweight, so, they are excluded by default
 config.excludes = ['Inputs', 'feature-tests']
@@ -56,23 +56,18 @@ elif platform.system() == "Darwin":
     llvm_config.with_environment('CPATH', "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/", append_path=True)
     llvm_config.with_environment('DYLD_LIBRARY_PATH', config.sycl_libs_dir)
 
-# propagate the environment variable OCL_ICD_FILANEMES to use proper runtime.
-if 'OCL_ICD_FILENAMES' in os.environ:
-    config.environment['OCL_ICD_FILENAMES'] = os.environ['OCL_ICD_FILENAMES']
+llvm_config.with_environment('PATH', config.sycl_tools_dir, append_path=True)
 
 config.substitutions.append( ('%threads_lib', config.sycl_threads_lib) )
-
-if 'SYCL_DEVICE_ALLOWLIST' in os.environ:
-    config.environment['SYCL_DEVICE_ALLOWLIST'] = os.environ['SYCL_DEVICE_ALLOWLIST']
-
 config.substitutions.append( ('%sycl_libs_dir',  config.sycl_libs_dir ) )
 config.substitutions.append( ('%sycl_include',  config.sycl_include ) )
 config.substitutions.append( ('%sycl_source_dir', config.sycl_source_dir) )
 config.substitutions.append( ('%opencl_libs_dir',  config.opencl_libs_dir) )
 config.substitutions.append( ('%opencl_include_dir',  config.opencl_include_dir) )
 config.substitutions.append( ('%cuda_toolkit_include',  config.cuda_toolkit_include) )
-
-llvm_config.with_environment('PATH', config.sycl_tools_dir, append_path=True)
+config.substitutions.append( ('%sycl_tools_src_dir',  config.sycl_tools_src_dir ) )
+config.substitutions.append( ('%llvm_build_lib_dir',  config.llvm_build_lib_dir ) )
+config.substitutions.append( ('%llvm_build_bin_dir',  config.llvm_build_bin_dir ) )
 
 llvm_config.use_clang()
 

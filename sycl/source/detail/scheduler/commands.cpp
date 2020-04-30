@@ -10,6 +10,7 @@
 
 #include "CL/sycl/access/access.hpp"
 #include <CL/cl.h>
+#include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/detail/kernel_desc.hpp>
 #include <CL/sycl/detail/memory_manager.hpp>
 #include <CL/sycl/detail/stream_impl.hpp>
@@ -159,7 +160,9 @@ getPiEvents(const std::vector<EventImplPtr> &EventImpls) {
 class DispatchHostTask {
   std::vector<EventImplPtr> MDepEvents;
   std::vector<EventImplPtr> MDepHostEvents;
-  CGHostTask *MHostTask;
+  // Store cg in shared ptr due to copy-constructor call by thread pool
+  // FIXME Employ unique_ptr
+  std::shared_ptr<CGHostTask> MHostTask;
   std::vector<DepDesc> MDeps;
   EventImplPtr MSelfEvent;
   std::vector<interop_handle::ReqToMem> MReqToMem;
@@ -189,28 +192,18 @@ class DispatchHostTask {
 
   // Lookup for empty command amongst users of this cmd
   static EmptyCommand *findUserEmptyCommand(Command *ThisCmd) {
-#ifndef NDEBUG
-    EmptyCommand *Result = nullptr;
-#endif
+    assert(ThisCmd->MUsers.size() == 1 &&
+           "Only a single user is expected for host task command");
 
-    for (Command *Cmd : ThisCmd->MUsers)
-      if (Cmd->getType() == Command::CommandType::EMPTY_TASK &&
-          Cmd->MIsBlockable &&
-          Cmd->MBlockReason == Command::BlockReason::HostTask) {
-#ifndef NDEBUG
-        assert(!Result &&
-               "Multiple empty commands in users of a single host task");
-        Result = static_cast<EmptyCommand *>(Cmd);
-#else
-        return static_cast<EmptyCommand *>(Cmd);
-#endif
-      }
+    Command *User = *ThisCmd->MUsers.begin();
 
-#ifndef NDEBUG
-    return Result;
-#else
-    return nullptr;
-#endif
+    assert(User->getType() == Command::CommandType::EMPTY_TASK &&
+           "Expected empty command as single user of host task command");
+    assert(User->MIsBlockable && "Empty command is expected to be blockable");
+    assert(User->MBlockReason == Command::BlockReason::HostTask &&
+           "Empty command is expected to be blocked due to host task");
+
+    return static_cast<EmptyCommand *>(User);
   }
 
 public:
@@ -240,46 +233,25 @@ public:
     } else
       HT->call();
 
+    HT.reset();
+
     Command *ThisCmd = reinterpret_cast<Command *>(MSelfEvent->getCommand());
     assert(ThisCmd && "No command found for host-task self event");
 
-    // update self-event status
-    if (MSelfEvent->is_host()) {
-      for (Command *UserCmd : ThisCmd->MUsers) {
-        EnqueueResultT Res;
-        bool Enqueued = Scheduler::GraphProcessor::enqueueCommand(UserCmd, Res);
-        if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
-          throw runtime_error("Failed to enqueue a dependant command",
-                              PI_INVALID_OPERATION);
-      }
-
-      MSelfEvent->setComplete();
-    } else {
-      const detail::plugin &Plugin = MSelfEvent->getPlugin();
-      Plugin.call<PiApiKind::piEventSetStatus>(MSelfEvent->getHandleRef(),
-                                               PI_EVENT_COMPLETE);
-    }
-
+    // unblock user empty command here
     EmptyCommand *EmptyCmd = findUserEmptyCommand(ThisCmd);
     assert(EmptyCmd && "No empty command found");
 
-    if (EmptyCmd->getEvent()->is_host())
-      EmptyCmd->getEvent()->setComplete();
+    EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
 
-    unblockBlockedDeps(MDeps);
-  }
+    // update self-event status
+    MSelfEvent->setComplete();
 
-  static void unblockBlockedDeps(const std::vector<DepDesc> &Deps) {
-    std::vector<Requirement *> Reqs;
-    Reqs.resize(Deps.size());
-
-    std::transform(Deps.begin(), Deps.end(), Reqs.begin(),
-                   [](const DepDesc &Dep) {
-                     return const_cast<Requirement *>(Dep.MDepRequirement);
-                   });
-
-    Scheduler::getInstance().unblockRequirements(
-        Reqs, Command::BlockReason::HostTask);
+    // The enqueue process is driven by backend for non-host.
+    // For host event we'll enqueue leaves of requirements
+    if (MSelfEvent->is_host())
+      for (const DepDesc &Dep : ThisCmd->MDeps)
+        Scheduler::enqueueLeavesOfReq(Dep.MDepRequirement);
   }
 };
 
@@ -481,122 +453,26 @@ void Command::makeTraceEventEpilog() {
 #endif
 }
 
-void Command::addConnectCmdWithReq(const ContextImplPtr &DepEventContext,
-                                   ExecCGCommand *const ConnectCmd,
-                                   EmptyCommand *const EmptyCmd,
-                                   const DepDesc &Dep) {
-  Requirement *Req = const_cast<Requirement *>(Dep.MDepRequirement);
-
-  Req->addBlockedCommand(EmptyCmd);
-
-  {
-    Scheduler::GraphBuilder &GB = Scheduler::getInstance().MGraphBuilder;
-
-    MemObjRecord *Record = GB.getMemObjRecord(Req->MSYCLMemObj);
-    Dep.MDepCommand->addUser(ConnectCmd);
-
-    AllocaCommandBase *AllocaCmd =
-        GB.findAllocaForReq(Record, Req, DepEventContext);
-    assert(AllocaCmd && "There must be alloca for requirement!");
-
-    std::set<Command *> Deps = GB.findDepsForReq(Record, Req, DepEventContext);
-    assert(Deps.size() && "There must be some deps");
-
-    for (Command *ReqDepCmd : Deps) {
-      ConnectCmd->addDep(DepDesc{ReqDepCmd, Req, AllocaCmd});
-      ReqDepCmd->addUser(ConnectCmd);
-    }
-
-    GB.updateLeaves(Deps, Record, Req->MAccessMode);
-    GB.addNodeToLeaves(Record, ConnectCmd, Req->MAccessMode);
-
-    {
-      DepDesc EmptyCmdDep = Dep;
-      EmptyCmdDep.MDepCommand = ConnectCmd;
-
-      EmptyCmd->addDep(EmptyCmdDep);
-      ConnectCmd->addUser(EmptyCmd);
-    }
-
-    GB.updateLeaves({ConnectCmd}, Record, Req->MAccessMode);
-    GB.addNodeToLeaves(Record, EmptyCmd, Req->MAccessMode);
-  }
-}
-
-void Command::connectDepEvent(EventImplPtr DepEvent,
-                              const ContextImplPtr &DepEventContext,
-                              const ContextImplPtr &Context,
-                              const DepDesc &Dep) {
-  // construct Host Task type command manually and make it depend on DepEvent
-  ExecCGCommand *ConnectCmd = nullptr;
-
-  {
-    // Temporary function. Will be replaced depending on circumstances.
-    std::function<void(void)> Func = []() {};
-
-    std::unique_ptr<detail::HostTask> HT(new detail::HostTask(std::move(Func)));
-    std::unique_ptr<detail::CG> ConnectCG(new detail::CGHostTask(
-        std::move(HT), /* Queue = */{}, /* Context = */ {}, /* Args = */ {},
-        /* ArgsStorage = */ {}, /* AccStorage = */ {},
-        /* SharedPtrStorage = */ {}, /* Requirements = */ {},
-        /* DepEvents = */ {DepEvent}, CG::CODEPLAY_HOST_TASK,
-        /* Payload */ {}));
-    ConnectCmd = new ExecCGCommand(
-        std::move(ConnectCG), Scheduler::getInstance().getDefaultHostQueue());
-  }
-
-  if (!ConnectCmd)
-    throw runtime_error("Out of host memory", PI_OUT_OF_HOST_MEMORY);
-
-  if (Command *DepCmd = reinterpret_cast<Command *>(DepEvent->getCommand())) {
-    EmptyCommand *EmptyCmd =
-        new EmptyCommand(Scheduler::getInstance().getDefaultHostQueue());
-
-    EmptyCmd->MIsBlockable = true;
-    EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueBlocked;
-    EmptyCmd->MBlockReason = BlockReason::HostTask;
-
-    DepCmd->addUser(ConnectCmd);
-
-    if (Dep.MDepRequirement) {
-      addConnectCmdWithReq(DepEventContext, ConnectCmd, EmptyCmd, Dep);
-    } else /* if (!Dep.MDepRequirement) */ {
-      ConnectCmd->addDep(DepEvent);
-      EmptyCmd->addDep(ConnectCmd->MEvent);
-      ConnectCmd->addUser(EmptyCmd);
-    }
-  } else // if (!DepEvent->getCommand())
-    ConnectCmd->addDep(DepEvent);
-
-  EnqueueResultT Res;
-  bool Enqueued = Scheduler::GraphProcessor::enqueueCommand(ConnectCmd, Res);
-  if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
-    throw runtime_error("Failed to enqueue a sync event between two contexts",
-                        PI_INVALID_OPERATION);
-
-  MPreparedHostDepsEvents.push_back(ConnectCmd->getEvent());
-}
-
 void Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep) {
   const ContextImplPtr &Context = getContext();
 
-  // Async work is not supported for host device.
-  if (DepEvent->is_host()) {
+  // 1. Async work is not supported for host device.
+  // 2. The event handle can be null in case of, for example, alloca command,
+  //    which is currently synchrounious, so don't generate OpenCL event.
+  //    Though, this event isn't host one as it's context isn't host one.
+  if (DepEvent->is_host() || DepEvent->getHandleRef() == nullptr) {
     // call to waitInternal() is in waitForPreparedHostEvents() as it's called
     // from enqueue process functions
     MPreparedHostDepsEvents.push_back(DepEvent);
     return;
   }
 
-  if (DepEvent->getHandleRef() == nullptr) {
-    return;
-  }
-
   ContextImplPtr DepEventContext = DepEvent->getContextImpl();
   // If contexts don't match - connect them using user event
-  if (DepEventContext != Context && !Context->is_host())
-    connectDepEvent(DepEvent, DepEventContext, Context, Dep);
-  else
+  if (DepEventContext != Context && !Context->is_host()) {
+    Scheduler::GraphBuilder &GB = Scheduler::getInstance().MGraphBuilder;
+    GB.connectDepEvent(this, DepEvent, DepEventContext, Context, Dep);
+  } else
     MPreparedDepsEvents.push_back(std::move(DepEvent));
 }
 
@@ -830,8 +706,8 @@ void AllocaCommand::emitInstrumentationData() {
 }
 
 cl_int AllocaCommand::enqueueImp() {
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   waitForPreparedHostEvents();
+  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
 
   RT::PiEvent &Event = MEvent->getHandleRef();
 
@@ -927,8 +803,8 @@ void *AllocaSubBufCommand::getMemAllocation() const {
 }
 
 cl_int AllocaSubBufCommand::enqueueImp() {
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   waitForPreparedHostEvents();
+  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   RT::PiEvent &Event = MEvent->getHandleRef();
 
   MMemAllocation = MemoryManager::allocateMemSubBuffer(
@@ -991,8 +867,8 @@ void ReleaseCommand::emitInstrumentationData() {
 }
 
 cl_int ReleaseCommand::enqueueImp() {
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   waitForPreparedHostEvents();
+  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   std::vector<RT::PiEvent> RawEvents = getPiEvents(EventImpls);
   bool SkipRelease = false;
 
@@ -1105,8 +981,8 @@ void MapMemObject::emitInstrumentationData() {
 }
 
 cl_int MapMemObject::enqueueImp() {
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   waitForPreparedHostEvents();
+  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   std::vector<RT::PiEvent> RawEvents = getPiEvents(EventImpls);
 
   RT::PiEvent &Event = MEvent->getHandleRef();
@@ -1165,8 +1041,8 @@ void UnMapMemObject::emitInstrumentationData() {
 }
 
 cl_int UnMapMemObject::enqueueImp() {
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   waitForPreparedHostEvents();
+  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   std::vector<RT::PiEvent> RawEvents = getPiEvents(EventImpls);
 
   RT::PiEvent &Event = MEvent->getHandleRef();
@@ -1242,8 +1118,8 @@ ContextImplPtr MemCpyCommand::getContext() const {
 
 cl_int MemCpyCommand::enqueueImp() {
   QueueImplPtr Queue = MQueue->is_host() ? MSrcQueue : MQueue;
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   waitForPreparedHostEvents();
+  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
 
   RT::PiEvent &Event = MEvent->getHandleRef();
 
@@ -1309,8 +1185,8 @@ void ExecCGCommand::flushStreams() {
 }
 
 cl_int UpdateHostRequirementCommand::enqueueImp() {
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   waitForPreparedHostEvents();
+  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   RT::PiEvent &Event = MEvent->getHandleRef();
   Command::waitForEvents(MQueue, EventImpls, Event);
 
@@ -1392,8 +1268,8 @@ ContextImplPtr MemCpyCommandHost::getContext() const {
 
 cl_int MemCpyCommandHost::enqueueImp() {
   QueueImplPtr Queue = MQueue->is_host() ? MSrcQueue : MQueue;
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   waitForPreparedHostEvents();
+  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   std::vector<RT::PiEvent> RawEvents = getPiEvents(EventImpls);
 
   RT::PiEvent &Event = MEvent->getHandleRef();
@@ -1424,9 +1300,8 @@ cl_int MemCpyCommandHost::enqueueImp() {
 }
 
 EmptyCommand::EmptyCommand(QueueImplPtr Queue, Requirement Req)
-    : Command(CommandType::EMPTY_TASK, std::move(Queue)),
-      MRequirement(new Requirement(std::move(Req))) {
-
+    : Command(CommandType::EMPTY_TASK, std::move(Queue)) {
+  MRequirements.emplace_back(std::move(Req));
   emitInstrumentationDataProxy();
 }
 
@@ -1435,16 +1310,36 @@ EmptyCommand::EmptyCommand(QueueImplPtr Queue)
   emitInstrumentationDataProxy();
 }
 
+cl_int EmptyCommand::enqueueImp() {
+  waitForPreparedHostEvents();
+  waitForEvents(MQueue, MPreparedDepsEvents, MEvent->getHandleRef());
+
+  if (MEvent->is_host())
+    MEvent->setComplete();
+
+  return CL_SUCCESS;
+}
+
+void EmptyCommand::addRequirement(Command *DepCmd, AllocaCommandBase *AllocaCmd,
+                                  const Requirement *Req) {
+  MRequirements.emplace_back(*Req);
+  const Requirement *const StoredReq = &MRequirements.back();
+
+  addDep(DepDesc{DepCmd, StoredReq, AllocaCmd});
+}
+
 void EmptyCommand::emitInstrumentationData() {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (!xptiTraceEnabled())
     return;
   // Create a payload with the command name and an event using this payload to
   // emit a node_create
-  if (!MRequirement.get())
+  if (MRequirements.empty())
     return;
 
-  MAddress = MRequirement->MSYCLMemObj;
+  Requirement &Req = *MRequirements.begin();
+
+  MAddress = Req.MSYCLMemObj;
   makeTraceEventProlog(MAddress);
 
   if (MFirstInstance) {
@@ -1549,7 +1444,7 @@ static std::string cgTypeToString(detail::CG::CGTYPE Type) {
   case detail::CG::PREFETCH_USM:
     return "prefetch usm";
     break;
-  case detail::CG::CODEPLAY_HOST_TASK:
+  case detail::CG::HOST_TASK_CODEPLAY:
     return "host task";
     break;
   default:
@@ -1763,9 +1658,8 @@ void DispatchNativeKernel(void *Blob) {
 }
 
 cl_int ExecCGCommand::enqueueImp() {
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   waitForPreparedHostEvents();
-
+  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   auto RawEvents = getPiEvents(EventImpls);
 
   RT::PiEvent &Event = MEvent->getHandleRef();
@@ -1909,6 +1803,9 @@ cl_int ExecCGCommand::enqueueImp() {
         const_cast<const void **>(MemLocs.data()), RawEvents.size(),
         RawEvents.empty() ? nullptr : RawEvents.data(), &Event);
 
+    if (MEvent->is_host())
+      MEvent->setComplete();
+
     switch (Error) {
     case PI_INVALID_OPERATION:
       throw cl::sycl::runtime_error(
@@ -1965,7 +1862,7 @@ cl_int ExecCGCommand::enqueueImp() {
         Requirement *Req = (Requirement *)(Arg.MPtr);
         AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
         RT::PiMem MemArg = (RT::PiMem)AllocaCmd->getMemAllocation();
-        if (RT::useBackend(pi::Backend::SYCL_BE_PI_OPENCL)) {
+        if (Plugin.getBackend() == backend::opencl) {
           Plugin.call<PiApiKind::piKernelSetArg>(Kernel, Arg.MIndex,
                                                  sizeof(RT::PiMem), &MemArg);
         } else {
@@ -2093,28 +1990,21 @@ cl_int ExecCGCommand::enqueueImp() {
 
     return CL_SUCCESS;
   }
-  case CG::CGTYPE::CODEPLAY_HOST_TASK: {
-    CGHostTask *HostTask = static_cast<CGHostTask *>(MCommandGroup.get());
+  case CG::CGTYPE::HOST_TASK_CODEPLAY: {
+    CGHostTask *HostTask = static_cast<CGHostTask *>(MCommandGroup.release());
 
-    size_t ArgIdx = 0, ReqIdx = 0;
-    while (ArgIdx < HostTask->MArgs.size()) {
-      ArgDesc &Arg = HostTask->MArgs[ArgIdx];
-
+    for (ArgDesc &Arg : HostTask->MArgs) {
       switch (Arg.MType) {
       case kernel_param_kind_t::kind_accessor: {
         Requirement *Req = static_cast<Requirement *>(Arg.MPtr);
         AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
 
-        detail::Requirement *TaskReq = HostTask->MRequirements[ReqIdx];
-        TaskReq->MData = AllocaCmd->getMemAllocation();
-        ++ReqIdx;
+        Req->MData = AllocaCmd->getMemAllocation();
         break;
       }
       default:
         throw std::runtime_error("Yet unsupported arg type");
       }
-
-      ++ArgIdx;
     }
 
     std::vector<interop_handle::ReqToMem> ReqToMem;
@@ -2131,8 +2021,8 @@ cl_int ExecCGCommand::enqueueImp() {
     std::sort(std::begin(ReqToMem), std::end(ReqToMem));
 
     MQueue->getThreadPool().submit<DispatchHostTask>(std::move(DispatchHostTask(
-        EventImpls, MPreparedHostDepsEvents, HostTask, MDeps,
-        std::move(ReqToMem), MEvent)));
+        MPreparedDepsEvents, MPreparedHostDepsEvents, HostTask, MDeps,
+        std::move(ReqToMem) MEvent)));
 
     return CL_SUCCESS;
   }

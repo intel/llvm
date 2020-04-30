@@ -25,26 +25,23 @@ namespace mlir {
 /// operations are organized into operation blocks represented by a 'Block'
 /// class.
 class Operation final
-    : public IRMultiObjectWithUseList<OpOperand>,
-      public llvm::ilist_node_with_parent<Operation, Block>,
-      private llvm::TrailingObjects<Operation, detail::TrailingOpResult,
-                                    BlockOperand, Region,
-                                    detail::OperandStorage> {
+    : public llvm::ilist_node_with_parent<Operation, Block>,
+      private llvm::TrailingObjects<Operation, detail::InLineOpResult,
+                                    detail::TrailingOpResult, BlockOperand,
+                                    Region, detail::OperandStorage> {
 public:
   /// Create a new Operation with the specific fields.
   static Operation *create(Location location, OperationName name,
                            ArrayRef<Type> resultTypes, ArrayRef<Value> operands,
                            ArrayRef<NamedAttribute> attributes,
-                           ArrayRef<Block *> successors, unsigned numRegions,
-                           bool resizableOperandList);
+                           ArrayRef<Block *> successors, unsigned numRegions);
 
   /// Overload of create that takes an existing NamedAttributeList to avoid
   /// unnecessarily uniquing a list of attributes.
   static Operation *create(Location location, OperationName name,
                            ArrayRef<Type> resultTypes, ArrayRef<Value> operands,
                            NamedAttributeList attributes,
-                           ArrayRef<Block *> successors, unsigned numRegions,
-                           bool resizableOperandList);
+                           ArrayRef<Block *> successors, unsigned numRegions);
 
   /// Create a new Operation from the fields stored in `state`.
   static Operation *create(const OperationState &state);
@@ -54,8 +51,7 @@ public:
                            ArrayRef<Type> resultTypes, ArrayRef<Value> operands,
                            NamedAttributeList attributes,
                            ArrayRef<Block *> successors = {},
-                           RegionRange regions = {},
-                           bool resizableOperandList = false);
+                           RegionRange regions = {});
 
   /// The name of an operation is the key identifier for it.
   OperationName getName() { return name; }
@@ -124,6 +120,16 @@ public:
       if (auto parentOp = dyn_cast<OpTy>(op))
         return parentOp;
     return OpTy();
+  }
+
+  /// Returns the closest surrounding parent operation with trait `Trait`.
+  template <template <typename T> class Trait>
+  Operation *getParentWithTrait() {
+    Operation *op = this;
+    while ((op = op->getParentOp()))
+      if (op->hasTrait<Trait>())
+        return op;
+    return nullptr;
   }
 
   /// Return true if this operation is a proper ancestor of the `other`
@@ -195,16 +201,13 @@ public:
   // Operands
   //===--------------------------------------------------------------------===//
 
-  /// Returns if the operation has a resizable operation list, i.e. operands can
-  /// be added.
-  bool hasResizableOperandsList() { return getOperandStorage().isResizable(); }
-
   /// Replace the current operands of this operation with the ones provided in
-  /// 'operands'. If the operands list is not resizable, the size of 'operands'
-  /// must be less than or equal to the current number of operands.
+  /// 'operands'.
   void setOperands(ValueRange operands);
 
-  unsigned getNumOperands() { return getOperandStorage().size(); }
+  unsigned getNumOperands() {
+    return LLVM_LIKELY(hasOperandStorage) ? getOperandStorage().size() : 0;
+  }
 
   Value getOperand(unsigned idx) { return getOpOperand(idx).get(); }
   void setOperand(unsigned idx, Value value) {
@@ -225,7 +228,8 @@ public:
   void eraseOperand(unsigned idx) { getOperandStorage().eraseOperand(idx); }
 
   MutableArrayRef<OpOperand> getOpOperands() {
-    return getOperandStorage().getOperands();
+    return LLVM_LIKELY(hasOperandStorage) ? getOperandStorage().getOperands()
+                                          : MutableArrayRef<OpOperand>();
   }
 
   OpOperand &getOpOperand(unsigned idx) { return getOpOperands()[idx]; }
@@ -432,9 +436,9 @@ public:
     return getTerminatorStatus() == TerminatorStatus::NonTerminator;
   }
 
-  /// Returns if the operation is known to be completely isolated from enclosing
-  /// regions, i.e. no internal regions reference values defined above this
-  /// operation.
+  /// Returns true if the operation is known to be completely isolated from
+  /// enclosing regions, i.e., no internal regions reference values defined
+  /// above this operation.
   bool isKnownIsolatedFromAbove() {
     if (auto *absOp = getAbstractOperation())
       return absOp->hasProperty(OperationProperty::IsolatedFromAbove);
@@ -480,6 +484,76 @@ public:
   }
 
   //===--------------------------------------------------------------------===//
+  // Uses
+  //===--------------------------------------------------------------------===//
+
+  /// Drop all uses of results of this operation.
+  void dropAllUses() {
+    for (OpResult result : getOpResults())
+      result.dropAllUses();
+  }
+
+  /// This class implements a use iterator for the Operation. This iterates over
+  /// all uses of all results.
+  class UseIterator final
+      : public llvm::iterator_facade_base<
+            UseIterator, std::forward_iterator_tag, OpOperand> {
+  public:
+    /// Initialize UseIterator for op, specify end to return iterator to last
+    /// use.
+    explicit UseIterator(Operation *op, bool end = false);
+
+    using llvm::iterator_facade_base<UseIterator, std::forward_iterator_tag,
+                                     OpOperand>::operator++;
+    UseIterator &operator++();
+    OpOperand *operator->() const { return use.getOperand(); }
+    OpOperand &operator*() const { return *use.getOperand(); }
+
+    bool operator==(const UseIterator &rhs) const { return use == rhs.use; }
+    bool operator!=(const UseIterator &rhs) const { return !(*this == rhs); }
+
+  private:
+    void skipOverResultsWithNoUsers();
+
+    /// The operation whose uses are being iterated over.
+    Operation *op;
+    /// The result of op who's uses are being iterated over.
+    Operation::result_iterator res;
+    /// The use of the result.
+    Value::use_iterator use;
+  };
+  using use_iterator = UseIterator;
+  using use_range = iterator_range<use_iterator>;
+
+  use_iterator use_begin() { return use_iterator(this); }
+  use_iterator use_end() { return use_iterator(this, /*end=*/true); }
+
+  /// Returns a range of all uses, which is useful for iterating over all uses.
+  use_range getUses() { return {use_begin(), use_end()}; }
+
+  /// Returns true if this operation has exactly one use.
+  bool hasOneUse() { return llvm::hasSingleElement(getUses()); }
+
+  /// Returns true if this operation has no uses.
+  bool use_empty() {
+    return llvm::all_of(getOpResults(),
+                        [](OpResult result) { return result.use_empty(); });
+  }
+
+  //===--------------------------------------------------------------------===//
+  // Users
+  //===--------------------------------------------------------------------===//
+
+  using user_iterator = ValueUserIterator<use_iterator, OpOperand>;
+  using user_range = iterator_range<user_iterator>;
+
+  user_iterator user_begin() { return user_iterator(use_begin()); }
+  user_iterator user_end() { return user_iterator(use_end()); }
+
+  /// Returns a range of all users.
+  user_range getUsers() { return {user_begin(), user_end()}; }
+
+  //===--------------------------------------------------------------------===//
   // Other
   //===--------------------------------------------------------------------===//
 
@@ -522,7 +596,7 @@ private:
 private:
   Operation(Location location, OperationName name, ArrayRef<Type> resultTypes,
             unsigned numSuccessors, unsigned numRegions,
-            const NamedAttributeList &attributes);
+            const NamedAttributeList &attributes, bool hasOperandStorage);
 
   // Operations are deleted through the destroy() member because they are
   // allocated with malloc.
@@ -530,16 +604,18 @@ private:
 
   /// Returns the operand storage object.
   detail::OperandStorage &getOperandStorage() {
+    assert(hasOperandStorage && "expected operation to have operand storage");
     return *getTrailingObjects<detail::OperandStorage>();
   }
 
-  /// Returns a raw pointer to the storage for the given trailing result. The
-  /// given result number should be 0-based relative to the trailing results,
-  /// and not all of the results of the operation. This method should generally
-  /// only be used by the 'Value' classes.
-  detail::TrailingOpResult *getTrailingResult(unsigned trailingResultNumber) {
-    return getTrailingObjects<detail::TrailingOpResult>() +
-           trailingResultNumber;
+  /// Returns a pointer to the use list for the given trailing result.
+  detail::TrailingOpResult *getTrailingResult(unsigned resultNumber) {
+    return getTrailingObjects<detail::TrailingOpResult>() + resultNumber;
+  }
+
+  /// Returns a pointer to the use list for the given inline result.
+  detail::InLineOpResult *getInlineResult(unsigned resultNumber) {
+    return getTrailingObjects<detail::InLineOpResult>() + resultNumber;
   }
 
   /// Provide a 'getParent' method for ilist_node_with_parent methods.
@@ -561,7 +637,12 @@ private:
   mutable unsigned orderIndex = 0;
 
   const unsigned numSuccs;
-  const unsigned numRegions : 31;
+  const unsigned numRegions : 30;
+
+  /// This bit signals whether this operation has an operand storage or not. The
+  /// operand storage may be elided for operations that are known to never have
+  /// operands.
+  bool hasOperandStorage : 1;
 
   /// This holds the result types of the operation. There are three different
   /// states recorded here:
@@ -585,15 +666,20 @@ private:
   // allow block to access the 'orderIndex' field.
   friend class Block;
 
-  // allow value to access the 'getTrailingResult' method.
+  // allow value to access the 'ResultStorage' methods.
   friend class Value;
 
   // allow ilist_node_with_parent to access the 'getParent' method.
   friend class llvm::ilist_node_with_parent<Operation, Block>;
 
   // This stuff is used by the TrailingObjects template.
-  friend llvm::TrailingObjects<Operation, detail::TrailingOpResult,
-                               BlockOperand, Region, detail::OperandStorage>;
+  friend llvm::TrailingObjects<Operation, detail::InLineOpResult,
+                               detail::TrailingOpResult, BlockOperand, Region,
+                               detail::OperandStorage>;
+  size_t numTrailingObjects(OverloadToken<detail::InLineOpResult>) const {
+    return OpResult::getNumInline(
+        const_cast<Operation *>(this)->getNumResults());
+  }
   size_t numTrailingObjects(OverloadToken<detail::TrailingOpResult>) const {
     return OpResult::getNumTrailing(
         const_cast<Operation *>(this)->getNumResults());
@@ -605,7 +691,7 @@ private:
 };
 
 inline raw_ostream &operator<<(raw_ostream &os, Operation &op) {
-  op.print(os);
+  op.print(os, OpPrintingFlags().useLocalScope());
   return os;
 }
 

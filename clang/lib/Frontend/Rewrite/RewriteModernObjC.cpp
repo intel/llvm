@@ -941,9 +941,10 @@ void RewriteModernObjC::RewritePropertyImplDecl(ObjCPropertyImplDecl *PID,
 
   unsigned Attributes = PD->getPropertyAttributes();
   if (mustSynthesizeSetterGetterMethod(IMD, PD, true /*getter*/)) {
-    bool GenGetProperty = !(Attributes & ObjCPropertyDecl::OBJC_PR_nonatomic) &&
-                          (Attributes & (ObjCPropertyDecl::OBJC_PR_retain |
-                                         ObjCPropertyDecl::OBJC_PR_copy));
+    bool GenGetProperty =
+        !(Attributes & ObjCPropertyAttribute::kind_nonatomic) &&
+        (Attributes & (ObjCPropertyAttribute::kind_retain |
+                       ObjCPropertyAttribute::kind_copy));
     std::string Getr;
     if (GenGetProperty && !objcGetPropertyDefined) {
       objcGetPropertyDefined = true;
@@ -1002,8 +1003,8 @@ void RewriteModernObjC::RewritePropertyImplDecl(ObjCPropertyImplDecl *PID,
 
   // Generate the 'setter' function.
   std::string Setr;
-  bool GenSetProperty = Attributes & (ObjCPropertyDecl::OBJC_PR_retain |
-                                      ObjCPropertyDecl::OBJC_PR_copy);
+  bool GenSetProperty = Attributes & (ObjCPropertyAttribute::kind_retain |
+                                      ObjCPropertyAttribute::kind_copy);
   if (GenSetProperty && !objcSetPropertyDefined) {
     objcSetPropertyDefined = true;
     // FIXME. Is this attribute correct in all cases?
@@ -1022,11 +1023,11 @@ void RewriteModernObjC::RewritePropertyImplDecl(ObjCPropertyImplDecl *PID,
     Setr += ", (id)";
     Setr += PD->getName();
     Setr += ", ";
-    if (Attributes & ObjCPropertyDecl::OBJC_PR_nonatomic)
+    if (Attributes & ObjCPropertyAttribute::kind_nonatomic)
       Setr += "0, ";
     else
       Setr += "1, ";
-    if (Attributes & ObjCPropertyDecl::OBJC_PR_copy)
+    if (Attributes & ObjCPropertyAttribute::kind_copy)
       Setr += "1)";
     else
       Setr += "0)";
@@ -7484,10 +7485,10 @@ Stmt *RewriteModernObjC::RewriteObjCIvarRefExpr(ObjCIvarRefExpr *IV) {
       DeclRefExpr *DRE = new (Context)
           DeclRefExpr(*Context, NewVD, false, Context->UnsignedLongTy,
                       VK_LValue, SourceLocation());
-      BinaryOperator *addExpr =
-        new (Context) BinaryOperator(castExpr, DRE, BO_Add,
-                                     Context->getPointerType(Context->CharTy),
-                                     VK_RValue, OK_Ordinary, SourceLocation(), FPOptions());
+      BinaryOperator *addExpr = BinaryOperator::Create(
+          *Context, castExpr, DRE, BO_Add,
+          Context->getPointerType(Context->CharTy), VK_RValue, OK_Ordinary,
+          SourceLocation(), FPOptions(Context->getLangOpts()));
       // Don't forget the parens to enforce the proper binding.
       ParenExpr *PE = new (Context) ParenExpr(SourceLocation(),
                                               SourceLocation(),

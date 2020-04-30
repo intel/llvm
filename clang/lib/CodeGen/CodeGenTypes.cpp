@@ -97,18 +97,18 @@ void CodeGenTypes::addRecordTypeName(const RecordDecl *RD,
 /// ConvertType in that it is used to convert to the memory representation for
 /// a type.  For example, the scalar representation for _Bool is i1, but the
 /// memory representation is usually i8 or i32, depending on the target.
-llvm::Type *CodeGenTypes::ConvertTypeForMem(QualType T) {
+llvm::Type *CodeGenTypes::ConvertTypeForMem(QualType T, bool ForBitField) {
   llvm::Type *R = ConvertType(T);
 
-  // If this is a non-bool type, don't map it.
-  if (!R->isIntegerTy(1))
-    return R;
+  // If this is a bool type, or an ExtIntType in a bitfield representation,
+  // map this integer to the target-specified size.
+  if ((ForBitField && T->isExtIntType()) || R->isIntegerTy(1))
+    return llvm::IntegerType::get(getLLVMContext(),
+                                  (unsigned)Context.getTypeSize(T));
 
-  // Otherwise, return an integer of the target-specified size.
-  return llvm::IntegerType::get(getLLVMContext(),
-                                (unsigned)Context.getTypeSize(T));
+  // Else, don't map it.
+  return R;
 }
-
 
 /// isRecordLayoutComplete - Return true if the specified type is already
 /// completely laid out.
@@ -397,6 +397,20 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
 
   const Type *Ty = T.getTypePtr();
 
+  // For the device-side compilation, CUDA device builtin surface/texture types
+  // may be represented in different types.
+  if (Context.getLangOpts().CUDAIsDevice) {
+    if (T->isCUDADeviceBuiltinSurfaceType()) {
+      if (auto *Ty = CGM.getTargetCodeGenInfo()
+                         .getCUDADeviceBuiltinSurfaceDeviceType())
+        return Ty;
+    } else if (T->isCUDADeviceBuiltinTextureType()) {
+      if (auto *Ty = CGM.getTargetCodeGenInfo()
+                         .getCUDADeviceBuiltinTextureDeviceType())
+        return Ty;
+    }
+  }
+
   // RecordTypes are cached and processed specially.
   if (const RecordType *RT = dyn_cast<RecordType>(Ty))
     return ConvertRecordDeclType(RT->getDecl());
@@ -595,7 +609,11 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
     llvm::Type *PointeeType = ConvertTypeForMem(ETy);
     if (PointeeType->isVoidTy())
       PointeeType = llvm::Type::getInt8Ty(getLLVMContext());
-    unsigned AS = Context.getTargetAddressSpace(ETy);
+
+    unsigned AS = PointeeType->isFunctionTy()
+                      ? getDataLayout().getProgramAddressSpace()
+                      : Context.getTargetAddressSpace(ETy);
+
     ResultType = llvm::PointerType::get(PointeeType, AS);
     break;
   }
@@ -725,6 +743,11 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
   }
   case Type::Pipe: {
     ResultType = CGM.getOpenCLRuntime().getPipeType(cast<PipeType>(Ty));
+    break;
+  }
+  case Type::ExtInt: {
+    const auto &EIT = cast<ExtIntType>(Ty);
+    ResultType = llvm::Type::getIntNTy(getLLVMContext(), EIT->getNumBits());
     break;
   }
   }

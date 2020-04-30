@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "llvm-dwarfdump.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSet.h"
@@ -17,7 +18,8 @@
 
 #define DEBUG_TYPE "dwarfdump"
 using namespace llvm;
-using namespace object;
+using namespace llvm::dwarfdump;
+using namespace llvm::object;
 
 /// This represents the number of categories of debug location coverage being
 /// calculated. The first category is the number of variables with 0% location
@@ -25,6 +27,7 @@ using namespace object;
 /// location coverage.
 constexpr int NumOfCoverageCategories = 12;
 
+namespace {
 /// Holds statistics for one function (or other entity that has a PC range and
 /// contains variables, such as a compile unit).
 struct PerFunctionStats {
@@ -139,6 +142,7 @@ struct LocationStats {
   /// Total number of local variables processed.
   unsigned NumVar = 0;
 };
+} // namespace
 
 /// Collect debug location statistics for one DIE.
 static void collectLocStats(uint64_t BytesCovered, uint64_t BytesInScope,
@@ -468,6 +472,7 @@ static void printDatum(raw_ostream &OS, const char *Key, json::Value Value) {
   OS << ",\"" << Key << "\":" << Value;
   LLVM_DEBUG(llvm::dbgs() << Key << ": " << Value << '\n');
 }
+
 static void printLocationStats(raw_ostream &OS,
                                const char *Key,
                                std::vector<unsigned> &LocationStats) {
@@ -491,6 +496,12 @@ static void printLocationStats(raw_ostream &OS,
   LLVM_DEBUG(llvm::dbgs() << Key << " with 100% of its scope covered: "
                           << LocationStats[NumOfCoverageCategories - 1]);
 }
+
+static void printSectionSizes(raw_ostream &OS, const SectionSizes &Sizes) {
+  for (const auto &DebugSec : Sizes.DebugSectionSizes)
+    OS << ",\"size of " << DebugSec.getKey() << "\":" << DebugSec.getValue();
+}
+
 /// \}
 
 /// Collect debug info quality metrics for an entire DIContext.
@@ -501,8 +512,9 @@ static void printLocationStats(raw_ostream &OS,
 /// of particular optimizations. The raw numbers themselves are not particularly
 /// useful, only the delta between compiling the same program with different
 /// compilers is.
-bool collectStatsForObjectFile(ObjectFile &Obj, DWARFContext &DICtx,
-                               const Twine &Filename, raw_ostream &OS) {
+bool dwarfdump::collectStatsForObjectFile(ObjectFile &Obj, DWARFContext &DICtx,
+                                          const Twine &Filename,
+                                          raw_ostream &OS) {
   StringRef FormatName = Obj.getFileFormatName();
   GlobalStats GlobalStats;
   LocationStats LocStats;
@@ -511,6 +523,10 @@ bool collectStatsForObjectFile(ObjectFile &Obj, DWARFContext &DICtx,
     if (DWARFDie CUDie = CU->getNonSkeletonUnitDIE(false))
       collectStatsRecursive(CUDie, "/", "g", 0, 0, Statistics, GlobalStats,
                             LocStats);
+
+  /// Collect the sizes of debug sections.
+  SectionSizes Sizes;
+  calculateSectionSizes(Obj, Sizes, Filename);
 
   /// The version number should be increased every time the algorithm is changed
   /// (including bug fixes). New metrics may be added without increasing the
@@ -602,6 +618,7 @@ bool collectStatsForObjectFile(ObjectFile &Obj, DWARFContext &DICtx,
   printDatum(OS, "vars with binary location", VarWithLoc);
   printDatum(OS, "total variables procesed by location statistics",
              LocStats.NumVarParam);
+  printSectionSizes(OS, Sizes);
   printLocationStats(OS, "variables", LocStats.VarParamLocStats);
   printLocationStats(OS, "variables (excluding the debug entry values)",
                      LocStats.VarParamNonEntryValLocStats);

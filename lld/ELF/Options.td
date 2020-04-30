@@ -42,6 +42,10 @@ defm compress_debug_sections:
 
 defm defsym: Eq<"defsym", "Define a symbol alias">, MetaVarName<"<symbol>=<value>">;
 
+defm optimize_bb_jumps: B<"optimize-bb-jumps",
+    "Remove direct jumps at the end to the next basic block",
+    "Do not remove any direct jumps at the end to the next basic block (default)">;
+
 defm split_stack_adjust_size
     : Eq<"split-stack-adjust-size",
          "Specify adjustment to stack size when a split-stack function calls a "
@@ -350,9 +354,10 @@ defm target2:
   Eq<"target2", "Interpret R_ARM_TARGET2 as <type>, where <type> is one of rel, abs, or got-rel">,
   MetaVarName<"<type>">;
 
-defm threads: B<"threads",
-    "Run the linker multi-threaded (default)",
-    "Do not run the linker multi-threaded">;
+defm threads
+    : Eq<"threads",
+         "Number of threads. '1' disables multi-threading. By default all "
+         "available hardware threads are used">;
 
 def time_trace: F<"time-trace">, HelpText<"Record time trace">;
 def time_trace_file_eq: J<"time-trace-file=">, HelpText<"Specify time trace output file">;
@@ -397,6 +402,12 @@ defm version_script: Eq<"version-script", "Read a version script">;
 defm warn_backrefs: B<"warn-backrefs",
     "Warn about backward symbol references to fetch archive members",
     "Do not warn about backward symbol references to fetch archive members (default)">;
+
+defm warn_backrefs_exclude
+    : Eq<"warn-backrefs-exclude",
+         "Glob describing an archive (or an object file within --start-lib) "
+         "which should be ignored for --warn-backrefs.">,
+      MetaVarName<"<glob>">;
 
 defm warn_common: B<"warn-common",
     "Warn about duplicate common symbols",
@@ -499,8 +510,12 @@ def opt_remarks_with_hotness: Flag<["--"], "opt-remarks-with-hotness">,
   HelpText<"Include hotness information in the optimization remarks file">;
 def opt_remarks_format: Separate<["--"], "opt-remarks-format">,
   HelpText<"The format used for serializing remarks (default: YAML)">;
-defm plugin_opt: Eq<"plugin-opt", "specifies LTO options for compatibility with GNU linkers">;
 def save_temps: F<"save-temps">;
+def lto_basicblock_sections: J<"lto-basicblock-sections=">,
+  HelpText<"Enable basic block sections for LTO">;
+defm lto_unique_bb_section_names: B<"lto-unique-bb-section-names",
+    "Give unique names to every basic block section for LTO",
+    "Do not give unique names to every basic block section for LTO (default)">;
 def shuffle_sections: J<"shuffle-sections=">, MetaVarName<"<seed>">,
   HelpText<"Shuffle input sections using the given seed. If 0, use a random seed">;
 def thinlto_cache_dir: J<"thinlto-cache-dir=">,
@@ -509,47 +524,48 @@ defm thinlto_cache_policy: Eq<"thinlto-cache-policy", "Pruning policy for the Th
 def thinlto_emit_imports_files: F<"thinlto-emit-imports-files">;
 def thinlto_index_only: F<"thinlto-index-only">;
 def thinlto_index_only_eq: J<"thinlto-index-only=">;
-def thinlto_jobs: J<"thinlto-jobs=">, HelpText<"Number of ThinLTO jobs">;
+def thinlto_jobs: J<"thinlto-jobs=">,
+  HelpText<"Number of ThinLTO jobs. Default to --threads=">;
 def thinlto_object_suffix_replace_eq: J<"thinlto-object-suffix-replace=">;
 def thinlto_prefix_replace_eq: J<"thinlto-prefix-replace=">;
 
-def: J<"plugin-opt=O">, Alias<lto_O>, HelpText<"Alias for -lto-O">;
+def: J<"plugin-opt=O">, Alias<lto_O>, HelpText<"Alias for --lto-O">;
 def: F<"plugin-opt=debug-pass-manager">,
-  Alias<lto_debug_pass_manager>, HelpText<"Alias for -lto-debug-pass-manager">;
-def: F<"plugin-opt=disable-verify">, Alias<disable_verify>, HelpText<"Alias for -disable-verify">;
+  Alias<lto_debug_pass_manager>, HelpText<"Alias for --lto-debug-pass-manager">;
+def: F<"plugin-opt=disable-verify">, Alias<disable_verify>, HelpText<"Alias for --disable-verify">;
 def plugin_opt_dwo_dir_eq: J<"plugin-opt=dwo_dir=">,
   HelpText<"Directory to store .dwo files when LTO and debug fission are used">;
 def plugin_opt_emit_llvm: F<"plugin-opt=emit-llvm">;
-def: J<"plugin-opt=jobs=">, Alias<thinlto_jobs>, HelpText<"Alias for -thinlto-jobs">;
-def: J<"plugin-opt=lto-partitions=">, Alias<lto_partitions>, HelpText<"Alias for -lto-partitions">;
+def: J<"plugin-opt=jobs=">, Alias<thinlto_jobs>, HelpText<"Alias for --thinlto-jobs">;
+def: J<"plugin-opt=lto-partitions=">, Alias<lto_partitions>, HelpText<"Alias for --lto-partitions">;
 def plugin_opt_mcpu_eq: J<"plugin-opt=mcpu=">;
 def: F<"plugin-opt=new-pass-manager">,
-  Alias<lto_new_pass_manager>, HelpText<"Alias for -lto-new-pass-manager">;
+  Alias<lto_new_pass_manager>, HelpText<"Alias for --lto-new-pass-manager">;
 def: F<"plugin-opt=cs-profile-generate">,
-  Alias<lto_cs_profile_generate>, HelpText<"Alias for -lto-cs-profile-generate">;
+  Alias<lto_cs_profile_generate>, HelpText<"Alias for --lto-cs-profile-generate">;
 def: J<"plugin-opt=cs-profile-path=">,
-  Alias<lto_cs_profile_file>, HelpText<"Alias for -lto-cs-profile-file">;
+  Alias<lto_cs_profile_file>, HelpText<"Alias for --lto-cs-profile-file">;
 def: J<"plugin-opt=obj-path=">,
   Alias<lto_obj_path_eq>,
-  HelpText<"Alias for -lto-obj-path=">;
+  HelpText<"Alias for --lto-obj-path=">;
 def: J<"plugin-opt=sample-profile=">,
-  Alias<lto_sample_profile>, HelpText<"Alias for -lto-sample-profile">;
-def: F<"plugin-opt=save-temps">, Alias<save_temps>, HelpText<"Alias for -save-temps">;
+  Alias<lto_sample_profile>, HelpText<"Alias for --lto-sample-profile">;
+def: F<"plugin-opt=save-temps">, Alias<save_temps>, HelpText<"Alias for --save-temps">;
 def: F<"plugin-opt=thinlto-emit-imports-files">,
   Alias<thinlto_emit_imports_files>,
-  HelpText<"Alias for -thinlto-emit-imports-files">;
+  HelpText<"Alias for --thinlto-emit-imports-files">;
 def: F<"plugin-opt=thinlto-index-only">,
   Alias<thinlto_index_only>,
-  HelpText<"Alias for -thinlto-index-only">;
+  HelpText<"Alias for --thinlto-index-only">;
 def: J<"plugin-opt=thinlto-index-only=">,
   Alias<thinlto_index_only_eq>,
-  HelpText<"Alias for -thinlto-index-only=">;
+  HelpText<"Alias for --thinlto-index-only=">;
 def: J<"plugin-opt=thinlto-object-suffix-replace=">,
  Alias<thinlto_object_suffix_replace_eq>,
- HelpText<"Alias for -thinlto-object-suffix-replace=">;
+ HelpText<"Alias for --thinlto-object-suffix-replace=">;
 def: J<"plugin-opt=thinlto-prefix-replace=">,
   Alias<thinlto_prefix_replace_eq>,
-  HelpText<"Alias for -thinlto-prefix-replace=">;
+  HelpText<"Alias for --thinlto-prefix-replace=">;
 
 // Ignore LTO plugin-related options.
 // clang -flto passes -plugin and -plugin-opt to the linker. This is required
@@ -560,10 +576,17 @@ def: J<"plugin-opt=thinlto-prefix-replace=">,
 // --version output.
 defm plugin: Eq<"plugin", "Ignored for compatibility with GNU linkers">;
 
-def plugin_opt_fresolution_eq: J<"plugin-opt=-fresolution=">;
-def plugin_opt_pass_through_eq: J<"plugin-opt=-pass-through=">;
-def plugin_opt_thinlto: J<"plugin-opt=thinlto">;
-def plugin_opt_slash: J<"plugin-opt=/">;
+def plugin_opt_eq_minus: J<"plugin-opt=-">,
+  HelpText<"Specify an LLVM option for compatibility with LLVMgold.so">;
+def: J<"plugin-opt=thinlto">;
+
+// Ignore GCC collect2 LTO plugin related options. Note that we don't support
+// GCC LTO, but GCC collect2 passes these options even in non-LTO mode.
+def: J<"plugin-opt=-fresolution=">;
+def: J<"plugin-opt=-pass-through=">;
+// This may be either an unhandled LLVMgold.so feature or GCC passed
+// -plugin-opt=path/to/{liblto_plugin.so,lto-wrapper}
+def plugin_opt_eq : J<"plugin-opt=">;
 
 // Options listed below are silently ignored for now for compatibility.
 def: F<"detect-odr-violations">;

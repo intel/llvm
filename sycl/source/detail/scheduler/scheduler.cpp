@@ -20,12 +20,6 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
-EventImplPtr addHostAccessorToSchedulerInstance(Requirement *Req,
-                                                const bool destructor) {
-  return cl::sycl::detail::Scheduler::getInstance().
-                                              addHostAccessor(Req, destructor);
-}
-
 void Scheduler::waitForRecordToFinish(MemObjRecord *Record) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // Will contain the list of dependencies for the Release Command
@@ -72,14 +66,14 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
   Command *NewCmd = nullptr;
   const bool IsKernel = CommandGroup->getType() == CG::KERNEL;
   {
-    std::lock_guard<std::mutex> Lock(MGraphLock);
+    std::lock_guard<std::shared_timed_mutex> Lock(MGraphLock);
 
     switch (CommandGroup->getType()) {
     case CG::UPDATE_HOST:
       NewCmd = MGraphBuilder.addCGUpdateHost(std::move(CommandGroup),
                                              DefaultHostQueue);
       break;
-    case CG::CODEPLAY_HOST_TASK:
+    case CG::HOST_TASK_CODEPLAY:
       NewCmd = MGraphBuilder.addCG(std::move(CommandGroup), DefaultHostQueue);
       break;
     default:
@@ -100,7 +94,7 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
 }
 
 EventImplPtr Scheduler::addCopyBack(Requirement *Req) {
-  std::lock_guard<std::mutex> lock(MGraphLock);
+  std::lock_guard<std::shared_timed_mutex> Lock(MGraphLock);
   Command *NewCmd = MGraphBuilder.addCopyBack(Req);
   // Command was not creted because there were no operations with
   // buffer.
@@ -124,40 +118,45 @@ EventImplPtr Scheduler::addCopyBack(Requirement *Req) {
 // else that has no priority set, or has a priority higher than 2000).
 Scheduler Scheduler::instance __attribute__((init_priority(2000)));
 #else
-#pragma warning(disable:4073)
+#pragma warning(disable : 4073)
 #pragma init_seg(lib)
 Scheduler Scheduler::instance;
 #endif
 
-Scheduler &Scheduler::getInstance() {
-  return instance;
-}
+Scheduler &Scheduler::getInstance() { return instance; }
 
 std::vector<EventImplPtr> Scheduler::getWaitList(EventImplPtr Event) {
-  std::lock_guard<std::mutex> lock(MGraphLock);
+  std::shared_lock<std::shared_timed_mutex> Lock(MGraphLock);
   return GraphProcessor::getWaitList(std::move(Event));
 }
 
 void Scheduler::waitForEvent(EventImplPtr Event) {
+  std::shared_lock<std::shared_timed_mutex> Lock(MGraphLock);
   GraphProcessor::waitForEvent(std::move(Event));
 }
 
 void Scheduler::cleanupFinishedCommands(EventImplPtr FinishedEvent) {
-  std::lock_guard<std::mutex> lock(MGraphLock);
-  Command *FinishedCmd = static_cast<Command *>(FinishedEvent->getCommand());
-  // The command might have been cleaned up (and set to nullptr) by another
-  // thread
-  if (FinishedCmd)
-    MGraphBuilder.cleanupFinishedCommands(FinishedCmd);
+  // Avoiding deadlock situation, where one thread is in the process of
+  // enqueueing (with a locked mutex) a currently blocked task that waits for
+  // another thread which is stuck at attempting cleanup.
+  std::unique_lock<std::shared_timed_mutex> Lock(MGraphLock, std::try_to_lock);
+  if (Lock.owns_lock()) {
+    Command *FinishedCmd = static_cast<Command *>(FinishedEvent->getCommand());
+    // The command might have been cleaned up (and set to nullptr) by another
+    // thread
+    if (FinishedCmd)
+      MGraphBuilder.cleanupFinishedCommands(FinishedCmd);
+  }
 }
 
 void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
-  std::lock_guard<std::mutex> lock(MGraphLock);
+  std::lock_guard<std::shared_timed_mutex> Lock(MGraphLock);
 
   MemObjRecord *Record = MGraphBuilder.getMemObjRecord(MemObj);
   if (!Record)
     // No operations were performed on the mem object
     return;
+
   waitForRecordToFinish(Record);
   MGraphBuilder.decrementLeafCountersForRecord(Record);
   MGraphBuilder.cleanupCommandsForRecord(Record);
@@ -166,7 +165,7 @@ void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
 
 EventImplPtr Scheduler::addHostAccessor(Requirement *Req,
                                         const bool destructor) {
-  std::lock_guard<std::mutex> lock(MGraphLock);
+  std::lock_guard<std::shared_timed_mutex> Lock(MGraphLock);
 
   Command *NewCmd = MGraphBuilder.addHostAccessor(Req, destructor);
 
@@ -180,24 +179,20 @@ EventImplPtr Scheduler::addHostAccessor(Requirement *Req,
 }
 
 void Scheduler::releaseHostAccessor(Requirement *Req) {
-  Command *const BlockedCmd =
-      Req->findBlockedCommand([](const Command *const Cmd) {
-        return Cmd->MBlockReason == Command::BlockReason::HostAccessor;
-      });
+  Command *const BlockedCmd = Req->MBlockedCmd;
+
+  std::shared_lock<std::shared_timed_mutex> Lock(MGraphLock);
 
   assert(BlockedCmd && "Can't find appropriate command to unblock");
 
-  if (!BlockedCmd)
-    return;
-
   BlockedCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
 
-  if (Req->removeBlockedCommand(BlockedCmd))
-    unblockSingleReq(Req);
+  enqueueLeavesOfReq(Req);
 }
 
-void Scheduler::unblockSingleReq(Requirement *Req) {
-  MemObjRecord* Record = Req->MSYCLMemObj->MRecord.get();
+// static
+void Scheduler::enqueueLeavesOfReq(const Requirement *const Req) {
+  MemObjRecord *Record = Req->MSYCLMemObj->MRecord.get();
   auto EnqueueLeaves = [](CircularBuffer<Command *> &Leaves) {
     for (Command *Cmd : Leaves) {
       EnqueueResultT Res;
@@ -210,71 +205,11 @@ void Scheduler::unblockSingleReq(Requirement *Req) {
   EnqueueLeaves(Record->MWriteLeaves);
 }
 
-void Scheduler::bulkUnblockReqs(Command *const BlockedCmd,
-                                const std::unordered_set<Requirement *> &Reqs) {
-  bool BlockedCmdEnqueued = false;
-
-  auto EnqueueLeaves = [BlockedCmd, &BlockedCmdEnqueued](
-                           CircularBuffer<Command *> &Leaves) {
-    for (Command *Cmd : Leaves) {
-      if (BlockedCmd == Cmd && BlockedCmdEnqueued)
-        continue;
-
-      BlockedCmdEnqueued |= BlockedCmd == Cmd;
-
-      EnqueueResultT Res;
-      bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res);
-      if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
-        throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
-    }
-  };
-
-  for (Requirement *Req : Reqs) {
-    if (Req->removeBlockedCommand(BlockedCmd)) {
-      MemObjRecord *Record = Req->MSYCLMemObj->MRecord.get();
-      EnqueueLeaves(Record->MReadLeaves);
-      EnqueueLeaves(Record->MWriteLeaves);
-    }
-  }
-}
-
-void Scheduler::unblockRequirements(const std::vector<Requirement *> &Reqs,
-                                    Command::BlockReason Reason) {
-  // fetch unique blocked cmds
-  std::unordered_map<Command *, std::unordered_set<Requirement *>> BlockedCmds;
-
-  std::function<bool(const Command *const)> CheckCmd =
-      [Reason](const Command *const Cmd) {
-        return Cmd->MBlockReason == Reason;
-      };
-
-  for (Requirement *Req : Reqs) {
-    Command *BlockedCmd = Req->findBlockedCommand(CheckCmd);
-
-    assert(BlockedCmd &&
-           "Can't find appropriate command to unblock multiple requirements");
-
-    BlockedCmds[BlockedCmd].insert(Req);
-  }
-
-  for (const auto &It : BlockedCmds) {
-    if (!It.first)
-      continue;
-
-    Command *BlockedCmd = It.first;
-    const std::unordered_set<Requirement *> &SubReqs = It.second;
-
-    BlockedCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
-
-    bulkUnblockReqs(BlockedCmd, SubReqs);
-  }
-}
-
 Scheduler::Scheduler() {
   sycl::device HostDevice;
-  DefaultHostQueue = QueueImplPtr(new queue_impl(
-      detail::getSyclObjImpl(HostDevice), /*AsyncHandler=*/{},
-          QueueOrder::Ordered, /*PropList=*/{}));
+  DefaultHostQueue = QueueImplPtr(
+      new queue_impl(detail::getSyclObjImpl(HostDevice), /*AsyncHandler=*/{},
+                     QueueOrder::Ordered, /*PropList=*/{}));
 }
 
 } // namespace detail

@@ -56,11 +56,12 @@ public:
   /// folded results, and returns success. `preReplaceAction` is invoked on `op`
   /// before it is replaced. 'processGeneratedConstants' is invoked for any new
   /// operations generated when folding. If the op was completely folded it is
-  /// erased.
+  /// erased. If it is just updated in place, `inPlaceUpdate` is set to true.
   LogicalResult
   tryToFold(Operation *op,
             function_ref<void(Operation *)> processGeneratedConstants = nullptr,
-            function_ref<void(Operation *)> preReplaceAction = nullptr);
+            function_ref<void(Operation *)> preReplaceAction = nullptr,
+            bool *inPlaceUpdate = nullptr);
 
   /// Notifies that the given constant `op` should be remove from this
   /// OperationFolder's internal bookkeeping.
@@ -117,6 +118,11 @@ public:
 
   /// Clear out any constants cached inside of the folder.
   void clear();
+
+  /// Get or create a constant using the given builder. On success this returns
+  /// the constant operation, nullptr otherwise.
+  Value getOrCreateConstant(OpBuilder &builder, Dialect *dialect,
+                            Attribute value, Type type, Location loc);
 
 private:
   /// This map keeps track of uniqued constants by dialect, attribute, and type.

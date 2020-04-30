@@ -206,6 +206,15 @@ public:
   bool useMemoryTagging() { return false; }
   void disableMemoryTagging() {}
 
+  const char *getRegionInfoArrayAddress() const { return nullptr; }
+  static uptr getRegionInfoArraySize() { return 0; }
+
+  static BlockInfo findNearestBlock(const char *RegionInfoData, uptr Ptr) {
+    (void)RegionInfoData;
+    (void)Ptr;
+    return {};
+  }
+
 private:
   static const uptr NumClasses = SizeClassMap::NumClasses;
   static const uptr RegionSize = 1UL << RegionSizeLog;
@@ -225,7 +234,7 @@ private:
     u64 LastReleaseAtNs;
   };
 
-  struct ALIGNED(SCUDO_CACHE_LINE_SIZE) SizeClassInfo {
+  struct alignas(SCUDO_CACHE_LINE_SIZE) SizeClassInfo {
     HybridMutex Mutex;
     SinglyLinkedList<TransferBatch> FreeList;
     uptr CurrentRegion;
