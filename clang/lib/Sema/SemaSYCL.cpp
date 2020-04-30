@@ -284,58 +284,68 @@ void Sema::checkSYCLDeviceVarDecl(VarDecl *Var) {
   checkSYCLVarType(*this, Ty, Loc, Visited);
 }
 
-void Sema::checkSYCLDevicePointerCapture(VarDecl *Var, SourceLocation CaptureLoc) {
+void Sema::checkSYCLDevicePointerCapture(VarDecl *Var,
+                                         SourceLocation CaptureLoc) {
+  // Any pointer captured into the SYCL kernel lambda will fail when
+  // dereferenced...except USM. If it weren't for USM we could just emit a
+  // deferred diagnostic for every pointer capture. Instead, we attempt to
+  // identify which pointers are USM, and which are definitely not. For those
+  // that are definitely not, we emit an error. For those that are unknown, we
+  // emit a gentle note suggesting the user ensure they are using USM.  For USM
+  // pointers, we do nothing.
   assert(getLangOpts().SYCLIsDevice &&
          "Should only be called during SYCL compilation");
-  assert(Var->getType()->isAnyPointerType() && 
-        "Should only be called for pointer types being captured.");
+  assert(Var->getType()->isAnyPointerType() &&
+         "Should only be called for pointer types being captured.");
 
   enum ExprAllocation { Unknown, USM, Not_USM };
-  ExprAllocation  howAllocated = Unknown;
+  ExprAllocation howAllocated = Unknown;
 
   SourceLocation DecLoc = SourceLocation();
 
   // Try to determine provenance of this Var.
   const Expr *Init = Var->getAnyInitializer();
-  if(Init){
+  if (Init) {
     Init = Init->IgnoreCasts();
     DecLoc = Init->getExprLoc();
-    
+
     const CallExpr *CE = dyn_cast<CallExpr>(Init);
-    if(CE) {
+    if (CE) {
       // Captured pointer is result of function call.
       const FunctionDecl *func = CE->getDirectCallee();
       auto FullName = func->getQualifiedNameAsString();
       // Check to see if this function call is one of the USM allocators.
-      if( (FullName.rfind("cl::sycl::malloc", 0) == 0) || (FullName.rfind("cl::sycl::aligned_alloc", 0) == 0))
+      if ((FullName.rfind("cl::sycl::malloc", 0) == 0) ||
+          (FullName.rfind("cl::sycl::aligned_alloc", 0) == 0))
         howAllocated = USM;
-      else if ( (FullName.compare("malloc")==0) || (FullName.compare("calloc")==0) )
+      else if ((FullName.compare("malloc") == 0) ||
+               (FullName.compare("calloc") == 0))
         howAllocated = Not_USM;
 
     } else {
-      // Var has initialization, but not as return result of a function, disqualify any other obvious bad initialization expressions. 
+      // Var has initialization, but not as return result of a function,
+      // disqualify any other obvious bad initialization expressions.
       const StringLiteral *SL = dyn_cast<StringLiteral>(Init);
-      if(SL)
+      if (SL)
         howAllocated = Not_USM;
-      
-      if(Init->isRValue()) // pr-value
+
+      if (Init->isRValue()) // pr-value
         howAllocated = Not_USM;
     }
-  } 
-  //else: Var does not have local initialization, might be parameter, or initialized via ref, etc. 
+  }
+  // else: Var does not have local initialization, might be parameter, or
+  // initialized via ref, etc.
   //      Nothing more we can determine at this time.
-    
-  //diagnostics
-  if(howAllocated == Not_USM)
+
+  // diagnostics
+  if (howAllocated == Not_USM)
     SYCLDiagIfDeviceCode(CaptureLoc, diag::err_sycl_illegal_memory_reference);
   else if (howAllocated == Unknown)
     SYCLDiagIfDeviceCode(CaptureLoc, diag::note_unknown_memory_reference);
-    
-  if(howAllocated != USM && DecLoc.isValid())
-    SYCLDiagIfDeviceCode(DecLoc, diag::note_sycl_capture_declared_here);
-  
-}
 
+  if (howAllocated != USM && DecLoc.isValid())
+    SYCLDiagIfDeviceCode(DecLoc, diag::note_sycl_capture_declared_here);
+}
 
 class MarkDeviceFunction : public RecursiveASTVisitor<MarkDeviceFunction> {
 public:
