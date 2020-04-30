@@ -382,7 +382,7 @@ static PassPipelineRegistration<> pipeline(
 ```
 
 Pipeline registration also allows for simplified registration of
-specifializations for existing passes:
+specializations for existing passes:
 
 ```c++
 static PassPipelineRegistration<> foo10(
@@ -984,6 +984,31 @@ reproducible may have the form:
 
 ```mlir
 // configuration: -pass-pipeline='func(cse, canonicalize), inline'
+// note: verifyPasses=false
+
+module {
+  func @foo() {
+    ...
+  }
+}
+```
+
+### Local Reproducer Generation
+
+An additional flag may be passed to
+`PassManager::enableCrashReproducerGeneration`, and specified via
+`pass-pipeline-local-reproducer` on the command line, that signals that the pass
+manager should attempt to generate a "local" reproducer. This will attempt to
+generate a reproducer containing IR right before the pass that fails. This is
+useful for situations where the crash is known to be within a specific pass, or
+when the original input relies on components (like dialects or passes) that may
+not always be available.
+
+For example, if the failure in the previous example came from `canonicalize`,
+the following reproducer will be generated:
+
+```mlir
+// configuration: -pass-pipeline='func(canonicalize)'
 // note: verifyPasses=false
 
 module {

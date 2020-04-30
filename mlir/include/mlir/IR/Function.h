@@ -13,7 +13,6 @@
 #ifndef MLIR_IR_FUNCTION_H
 #define MLIR_IR_FUNCTION_H
 
-#include "mlir/Dialect/Affine/Traits.h"
 #include "mlir/IR/Block.h"
 #include "mlir/IR/FunctionSupport.h"
 #include "mlir/IR/OpDefinition.h"
@@ -48,13 +47,13 @@ public:
                        iterator_range<dialect_attr_iterator> attrs);
   static FuncOp create(Location location, StringRef name, FunctionType type,
                        ArrayRef<NamedAttribute> attrs,
-                       ArrayRef<NamedAttributeList> argAttrs);
+                       ArrayRef<MutableDictionaryAttr> argAttrs);
 
-  static void build(Builder *builder, OperationState &result, StringRef name,
+  static void build(OpBuilder &builder, OperationState &result, StringRef name,
                     FunctionType type, ArrayRef<NamedAttribute> attrs);
-  static void build(Builder *builder, OperationState &result, StringRef name,
+  static void build(OpBuilder &builder, OperationState &result, StringRef name,
                     FunctionType type, ArrayRef<NamedAttribute> attrs,
-                    ArrayRef<NamedAttributeList> argAttrs);
+                    ArrayRef<MutableDictionaryAttr> argAttrs);
 
   /// Operation hooks.
   static ParseResult parse(OpAsmParser &parser, OperationState &result);

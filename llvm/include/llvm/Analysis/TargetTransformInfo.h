@@ -153,7 +153,8 @@ public:
   enum TargetCostKind {
     TCK_RecipThroughput, ///< Reciprocal throughput.
     TCK_Latency,         ///< The latency of instruction.
-    TCK_CodeSize         ///< Instruction code size.
+    TCK_CodeSize,        ///< Instruction code size.
+    TCK_SizeAndLatency   ///< The weighted sum of size and latency.
   };
 
   /// Query the cost of a specified instruction.
@@ -172,7 +173,8 @@ public:
       return getInstructionLatency(I);
 
     case TCK_CodeSize:
-      return getUserCost(I);
+    case TCK_SizeAndLatency:
+      return getUserCost(I, kind);
     }
     llvm_unreachable("Unknown instruction cost kind");
   }
@@ -263,14 +265,15 @@ public:
   ///
   /// The returned cost is defined in terms of \c TargetCostConstants, see its
   /// comments for a detailed explanation of the cost values.
-  int getUserCost(const User *U, ArrayRef<const Value *> Operands) const;
+  int getUserCost(const User *U, ArrayRef<const Value *> Operands,
+                  TargetCostKind CostKind) const;
 
   /// This is a helper function which calls the two-argument getUserCost
   /// with \p Operands which are the current operands U has.
-  int getUserCost(const User *U) const {
+  int getUserCost(const User *U, TargetCostKind CostKind) const {
     SmallVector<const Value *, 4> Operands(U->value_op_begin(),
                                            U->value_op_end());
-    return getUserCost(U, Operands);
+    return getUserCost(U, Operands, CostKind);
   }
 
   /// Return true if branch divergence exists.
@@ -608,8 +611,15 @@ public:
   ///  should use coldcc calling convention.
   bool useColdCCForColdCall(Function &F) const;
 
-  unsigned getScalarizationOverhead(Type *Ty, bool Insert, bool Extract) const;
+  /// Estimate the overhead of scalarizing an instruction. Insert and Extract
+  /// are set if the demanded result elements need to be inserted and/or
+  /// extracted from vectors.
+  unsigned getScalarizationOverhead(Type *Ty, const APInt &DemandedElts,
+                                    bool Insert, bool Extract) const;
 
+  /// Estimate the overhead of scalarizing an instructions unique
+  /// non-constant operands. The types of the arguments are ordinarily
+  /// scalar, in which case the costs are multiplied with VF.
   unsigned getOperandsScalarizationOverhead(ArrayRef<const Value *> Args,
                                             unsigned VF) const;
 
@@ -1170,7 +1180,8 @@ public:
   getEstimatedNumberOfCaseClusters(const SwitchInst &SI, unsigned &JTSize,
                                    ProfileSummaryInfo *PSI,
                                    BlockFrequencyInfo *BFI) = 0;
-  virtual int getUserCost(const User *U, ArrayRef<const Value *> Operands) = 0;
+  virtual int getUserCost(const User *U, ArrayRef<const Value *> Operands,
+                          TargetCostKind CostKind) = 0;
   virtual bool hasBranchDivergence() = 0;
   virtual bool useGPUDivergenceAnalysis() = 0;
   virtual bool isSourceOfDivergence(const Value *V) = 0;
@@ -1227,8 +1238,8 @@ public:
   virtual bool shouldBuildLookupTables() = 0;
   virtual bool shouldBuildLookupTablesForConstant(Constant *C) = 0;
   virtual bool useColdCCForColdCall(Function &F) = 0;
-  virtual unsigned getScalarizationOverhead(Type *Ty, bool Insert,
-                                            bool Extract) = 0;
+  virtual unsigned getScalarizationOverhead(Type *Ty, const APInt &DemandedElts,
+                                            bool Insert, bool Extract) = 0;
   virtual unsigned
   getOperandsScalarizationOverhead(ArrayRef<const Value *> Args,
                                    unsigned VF) = 0;
@@ -1422,8 +1433,9 @@ public:
   int getMemcpyCost(const Instruction *I) override {
     return Impl.getMemcpyCost(I);
   }
-  int getUserCost(const User *U, ArrayRef<const Value *> Operands) override {
-    return Impl.getUserCost(U, Operands);
+  int getUserCost(const User *U, ArrayRef<const Value *> Operands,
+                  TargetCostKind CostKind) override {
+    return Impl.getUserCost(U, Operands, CostKind);
   }
   bool hasBranchDivergence() override { return Impl.hasBranchDivergence(); }
   bool useGPUDivergenceAnalysis() override {
@@ -1551,9 +1563,9 @@ public:
     return Impl.useColdCCForColdCall(F);
   }
 
-  unsigned getScalarizationOverhead(Type *Ty, bool Insert,
-                                    bool Extract) override {
-    return Impl.getScalarizationOverhead(Ty, Insert, Extract);
+  unsigned getScalarizationOverhead(Type *Ty, const APInt &DemandedElts,
+                                    bool Insert, bool Extract) override {
+    return Impl.getScalarizationOverhead(Ty, DemandedElts, Insert, Extract);
   }
   unsigned getOperandsScalarizationOverhead(ArrayRef<const Value *> Args,
                                             unsigned VF) override {

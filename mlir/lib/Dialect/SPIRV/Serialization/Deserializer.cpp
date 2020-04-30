@@ -445,7 +445,7 @@ private:
   DenseMap<uint32_t, StringRef> nameMap;
 
   // Result <id> to decorations mapping.
-  DenseMap<uint32_t, NamedAttributeList> decorations;
+  DenseMap<uint32_t, MutableDictionaryAttr> decorations;
 
   // Result <id> to type decorations.
   DenseMap<uint32_t, uint32_t> typeDecorations;
@@ -521,9 +521,9 @@ Optional<spirv::ModuleOp> Deserializer::collect() { return module; }
 //===----------------------------------------------------------------------===//
 
 spirv::ModuleOp Deserializer::createModuleOp() {
-  Builder builder(context);
+  OpBuilder builder(context);
   OperationState state(unknownLoc, spirv::ModuleOp::getOperationName());
-  spirv::ModuleOp::build(&builder, state);
+  spirv::ModuleOp::build(builder, state);
   return cast<spirv::ModuleOp>(Operation::create(state));
 }
 

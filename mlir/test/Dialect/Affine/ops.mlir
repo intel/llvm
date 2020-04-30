@@ -142,6 +142,17 @@ func @valid_symbol_polyhedral_scope(%n : index, %A : memref<?xf32>) {
 
 // -----
 
+// Test the fact that module op always provides a polyhedral scope.
+
+%idx = "test.foo"() : () -> (index)
+"test.func"() ({
+^bb0(%A : memref<?xf32>):
+  affine.load %A[%idx] : memref<?xf32>
+  "terminate"() : () -> ()
+}) : () -> ()
+
+// -----
+
 // CHECK-LABEL: @parallel
 // CHECK-SAME: (%[[N:.*]]: index)
 func @parallel(%N : index) {

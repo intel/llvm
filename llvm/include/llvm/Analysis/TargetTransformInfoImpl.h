@@ -239,7 +239,8 @@ public:
 
   bool useColdCCForColdCall(Function &F) { return false; }
 
-  unsigned getScalarizationOverhead(Type *Ty, bool Insert, bool Extract) {
+  unsigned getScalarizationOverhead(Type *Ty, const APInt &DemandedElts,
+                                    bool Insert, bool Extract) {
     return 0;
   }
 
@@ -792,9 +793,11 @@ public:
     return static_cast<T *>(this)->getIntrinsicCost(IID, RetTy, ParamTys, U);
   }
 
-  unsigned getUserCost(const User *U, ArrayRef<const Value *> Operands) {
+  unsigned getUserCost(const User *U, ArrayRef<const Value *> Operands,
+                       enum TTI::TargetCostKind CostKind) {
     auto *TargetTTI = static_cast<T *>(this);
 
+    // FIXME: Unlikely to be true for anything but CodeSize.
     if (const auto *CB = dyn_cast<CallBase>(U)) {
       const Function *F = CB->getCalledFunction();
       if (F) {
@@ -841,6 +844,7 @@ public:
     case Instruction::SRem:
     case Instruction::UDiv:
     case Instruction::URem:
+      // FIXME: Unlikely to be true for CodeSize.
       return TTI::TCC_Expensive;
     case Instruction::IntToPtr:
     case Instruction::PtrToInt:
@@ -867,7 +871,7 @@ public:
   int getInstructionLatency(const Instruction *I) {
     SmallVector<const Value *, 4> Operands(I->value_op_begin(),
                                            I->value_op_end());
-    if (getUserCost(I, Operands) == TTI::TCC_Free)
+    if (getUserCost(I, Operands, TTI::TCK_Latency) == TTI::TCC_Free)
       return 0;
 
     if (isa<LoadInst>(I))

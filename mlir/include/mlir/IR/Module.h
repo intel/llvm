@@ -30,7 +30,8 @@ class ModuleTerminatorOp;
 class ModuleOp
     : public Op<
           ModuleOp, OpTrait::ZeroOperands, OpTrait::ZeroResult,
-          OpTrait::IsIsolatedFromAbove, OpTrait::SymbolTable,
+          OpTrait::IsIsolatedFromAbove, OpTrait::PolyhedralScope,
+          OpTrait::SymbolTable,
           OpTrait::SingleBlockImplicitTerminator<ModuleTerminatorOp>::Impl,
           SymbolOpInterface::Trait> {
 public:
@@ -39,7 +40,7 @@ public:
 
   static StringRef getOperationName() { return "module"; }
 
-  static void build(Builder *builder, OperationState &result,
+  static void build(OpBuilder &builder, OperationState &result,
                     Optional<StringRef> name = llvm::None);
 
   /// Construct a module from the given location with an optional name.
@@ -117,7 +118,7 @@ class ModuleTerminatorOp
 public:
   using Op::Op;
   static StringRef getOperationName() { return "module_terminator"; }
-  static void build(Builder *, OperationState &) {}
+  static void build(OpBuilder &, OperationState &) {}
 };
 
 /// This class acts as an owning reference to a module, and will automatically

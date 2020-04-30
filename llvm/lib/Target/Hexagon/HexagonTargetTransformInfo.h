@@ -101,9 +101,10 @@ public:
     return true;
   }
 
-  unsigned getScalarizationOverhead(Type *Ty, bool Insert, bool Extract);
-  unsigned getOperandsScalarizationOverhead(ArrayRef<const Value*> Args,
-            unsigned VF);
+  unsigned getScalarizationOverhead(Type *Ty, const APInt &DemandedElts,
+                                    bool Insert, bool Extract);
+  unsigned getOperandsScalarizationOverhead(ArrayRef<const Value *> Args,
+                                            unsigned VF);
   unsigned getCallInstrCost(Function *F, Type *RetTy, ArrayRef<Type*> Tys);
   unsigned getIntrinsicInstrCost(Intrinsic::ID ID, Type *RetTy,
                                  ArrayRef<Value *> Args, FastMathFlags FMF,
@@ -148,7 +149,8 @@ public:
 
   /// @}
 
-  int getUserCost(const User *U, ArrayRef<const Value *> Operands);
+  int getUserCost(const User *U, ArrayRef<const Value *> Operands,
+                  TTI::TargetCostKind CostKind);
 
   // Hexagon specific decision to generate a lookup table.
   bool shouldBuildLookupTables() const;
