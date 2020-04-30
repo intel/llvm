@@ -21,10 +21,12 @@ void test(const int some_const) {
       });
 }
 
+int *unknownFunc();
+
 int main() {
   int data = 5;
-  int* data_addr = &data;
-  int* new_data_addr = nullptr;
+  int* data_addr = unknownFunc();     //#decl_data_addr
+  int* new_data_addr = unknownFunc(); //#decl_new_data_addr
   test_struct s;
   s.data = data;
   kernel<class kernel_int>(
@@ -38,6 +40,9 @@ int main() {
       });
   kernel<class kernel_pointer>(
       [=]() {
+        // expected-note@#decl_new_data_addr {{Declared here.}}
+        // expected-note@#decl_data_addr {{Declared here.}}
+        // expected-note@+1 2{{Unknown memory reference in SYCL device kernel. Be sure memory was allocated with USM (malloc_shared, etc).}}
         new_data_addr[0] = data_addr[0];
       });
   const int some_const = 10;
