@@ -240,7 +240,7 @@ using is_float_to_float =
     std::integral_constant<bool, detail::is_floating_point<T>::value &&
                                      detail::is_floating_point<R>::value>;
 template <typename T>
-using is_standart_type = std::integral_constant<
+using is_standard_type = std::integral_constant<
     bool, detail::is_sgentype<T>::value && !std::is_same<T, long long>::value &&
               !std::is_same<T, unsigned long long>::value>;
 
@@ -486,7 +486,7 @@ __SYCL_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE(rtn, Rtn)
 template <typename T, typename R, rounding_mode roundingMode, typename OpenCLT,
           typename OpenCLR>
 detail::enable_if_t<
-    (!is_standart_type<T>::value && !is_standart_type<OpenCLT>::value ||
+    (!is_standard_type<T>::value && !is_standart_type<OpenCLT>::value ||
      !is_standart_type<R>::value && !is_standart_type<OpenCLR>::value) &&
         !std::is_same<OpenCLT, OpenCLR>::value,
     R>
