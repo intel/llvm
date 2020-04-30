@@ -110,7 +110,8 @@ ordered_queue::get_info() const {
 }
 
 #define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
-  template ret_type ordered_queue::get_info<info::param_type::param>() const;
+  template __SYCL_EXPORT ret_type                                              \
+  ordered_queue::get_info<info::param_type::param>() const;
 
 #include <CL/sycl/info/queue_traits.def>
 
@@ -124,9 +125,9 @@ template <typename propertyT> propertyT ordered_queue::get_property() const {
   return impl->get_property<propertyT>();
 }
 
-template bool
+template __SYCL_EXPORT bool
 ordered_queue::has_property<property::queue::enable_profiling>() const;
-template property::queue::enable_profiling
+template __SYCL_EXPORT property::queue::enable_profiling
 ordered_queue::get_property<property::queue::enable_profiling>() const;
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
