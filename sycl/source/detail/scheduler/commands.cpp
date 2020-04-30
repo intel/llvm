@@ -9,8 +9,8 @@
 #include <detail/error_handling/error_handling.hpp>
 
 #include "CL/sycl/access/access.hpp"
-#include <CL/cl.h>
 #include <CL/sycl/backend_types.hpp>
+#include <CL/sycl/detail/cl.h>
 #include <CL/sycl/detail/kernel_desc.hpp>
 #include <CL/sycl/detail/memory_manager.hpp>
 #include <CL/sycl/detail/stream_impl.hpp>

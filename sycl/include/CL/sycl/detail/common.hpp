@@ -8,12 +8,10 @@
 
 #pragma once
 
+#include <CL/cl_ext_intel.h>
+#include <CL/sycl/detail/cl.h>
 #include <CL/sycl/detail/defines.hpp>
 #include <CL/sycl/detail/export.hpp>
-
-#include <CL/cl.h>
-#include <CL/cl_ext.h>
-#include <CL/cl_ext_intel.h>
 
 #include <cstdint>
 #include <string>
