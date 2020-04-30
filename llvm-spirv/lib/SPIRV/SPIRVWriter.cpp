@@ -700,6 +700,7 @@ SPIRVInstruction *LLVMToSPIRV::transCmpInst(CmpInst *Cmp, SPIRVBasicBlock *BB) {
 SPIRV::SPIRVInstruction *LLVMToSPIRV::transUnaryInst(UnaryInstruction *U,
                                                      SPIRVBasicBlock *BB) {
   Op BOC = OpNop;
+  SPIRVValue *Op = nullptr;
   if (auto Cast = dyn_cast<AddrSpaceCastInst>(U)) {
     if (Cast->getDestTy()->getPointerAddressSpace() == SPIRAS_Generic) {
       assert(Cast->getSrcTy()->getPointerAddressSpace() != SPIRAS_Constant &&
@@ -714,9 +715,21 @@ SPIRV::SPIRVInstruction *LLVMToSPIRV::transUnaryInst(UnaryInstruction *U,
   } else {
     auto OpCode = U->getOpcode();
     BOC = OpCodeMap::map(OpCode);
+
+    if (Function *F = dyn_cast<Function>(U->getOperand(0))) {
+      if (!BM->checkExtension(ExtensionID::SPV_INTEL_function_pointers,
+                              SPIRVEC_FunctionPointers, toString(U)))
+        return nullptr;
+      assert(BOC == OpConvertPtrToU &&
+             "Illegal unary operation on function pointer");
+      Op = BM->addFunctionPointerINTELInst(
+          transType(F->getType()),
+          static_cast<SPIRVFunction *>(transValue(F, BB)), BB);
+    }
   }
 
-  auto Op = transValue(U->getOperand(0), BB);
+  if (!Op)
+    Op = transValue(U->getOperand(0), BB);
   return BM->addUnaryInst(transBoolOpCode(Op, BOC), transType(U->getType()), Op,
                           BB);
 }
