@@ -3519,8 +3519,12 @@ pi_result cuda_piextUSMEnqueueMemset(pi_queue queue, void *ptr, pi_int32 value,
                                      pi_uint32 num_events_in_waitlist,
                                      const pi_event *events_waitlist,
                                      pi_event *event) {
+  // enforce that the queue is valid
   assert(queue != nullptr);
-  assert(ptr != nullptr);
+  // check that the pointer is valid
+  if (ptr == nullptr) {
+    return PI_INVALID_VALUE;
+  }
   CUstream cuStream = queue->get();
   pi_result result = PI_SUCCESS;
   std::unique_ptr<_pi_event> event_ptr{nullptr};
@@ -3552,9 +3556,12 @@ pi_result cuda_piextUSMEnqueueMemcpy(pi_queue queue, pi_bool blocking,
                                      pi_uint32 num_events_in_waitlist,
                                      const pi_event *events_waitlist,
                                      pi_event *event) {
+  // enforce that the queue is valid
   assert(queue != nullptr);
-  assert(dst_ptr != nullptr);
-  assert(src_ptr != nullptr);
+  // check that the source and destination pointers are valid
+  if (dst_ptr == nullptr || src_ptr == nullptr) {
+    return PI_INVALID_VALUE;
+  }
   CUstream cuStream = queue->get();
   pi_result result = PI_SUCCESS;
   std::unique_ptr<_pi_event> event_ptr{nullptr};
@@ -3591,8 +3598,12 @@ pi_result cuda_piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr,
                                        pi_uint32 num_events_in_waitlist,
                                        const pi_event *events_waitlist,
                                        pi_event *event) {
+  // enforce that the queue is valid
   assert(queue != nullptr);
-  assert(ptr != nullptr);
+  // check that the pointer is valid
+  if (ptr == nullptr) {
+    return PI_INVALID_VALUE;
+  }
   CUstream cuStream = queue->get();
   pi_result result = PI_SUCCESS;
   std::unique_ptr<_pi_event> event_ptr{nullptr};
@@ -3627,8 +3638,12 @@ pi_result cuda_piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr,
 pi_result cuda_piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
                                         size_t length, int advice,
                                         pi_event *event) {
+  // enforce that the queue is valid
   assert(queue != nullptr);
-  assert(ptr != nullptr);
+  // check that the pointer is valid
+  if (ptr == nullptr) {
+    return PI_INVALID_VALUE;
+  }
   // TODO implement a mapping to cuMemAdvise once the expected behaviour
   // of piextUSMEnqueueMemAdvise is detailed in the USM extension
   return cuda_piEnqueueEventsWait(queue, 0, nullptr, event);
