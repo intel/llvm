@@ -142,6 +142,10 @@ int main(int argc, char **argv) {
 
   float *fromParam = (float *)(argc); //#decl_fromParam
 
+  // std::string is already caught by 'non-trivially copy constructible' check. 
+  // so we only worry about literal strings.
+  auto stringLiteral = "omgwtf"; //#decl_stringLiteral
+
   float *mallocFloatP = static_cast<float *>(malloc(sizeof(float) * 2));  //#decl_mallocFloatP
   float *mallocFloatP2 = static_cast<float *>(malloc(sizeof(float) * 2)); //#decl_mallocFloatP2
   float *callocFloatP = static_cast<float *>(calloc(2, sizeof(float)));   //#decl_callocFloatP
@@ -195,6 +199,10 @@ int main(int argc, char **argv) {
     // expected-note@+1 {{Unknown memory reference in SYCL device kernel. Be sure memory was allocated with USM (malloc_shared, etc).}}
     fromParam[0] = 70.0;
 
+    // expected-note@#decl_stringLiteral {{Declared here.}}
+    // expected-error@+1 {{Illegal memory reference in SYCL device kernel. Use USM (malloc_shared, etc) instead.}}
+    char x = stringLiteral[0];
+
     // expected-note@#decl_mallocFloatP2 {{Declared here.}}
     // expected-error@+1 {{Illegal memory reference in SYCL device kernel. Use USM (malloc_shared, etc) instead.}}
     mallocFloatP2[0] = 80;
@@ -207,11 +215,14 @@ int main(int argc, char **argv) {
     // expected-error@+1 {{Illegal memory reference in SYCL device kernel. Use USM (malloc_shared, etc) instead.}}
     float someValue = *callocFloatP2;
 
+
+
     // --- Only the first capture of a pointer emits anything. So these violations will NOT emit redundant diagnostics.
     calledFromLambda(mallocFloatP);
     stackFloatP[0] = 31.0;
     frenemy[0] = 41.0;
     fromParam[0] = 71.0;
+    char y = stringLiteral[0];
     mallocFloatP2[0] = 81;
     callocFloatP[0] = 81;
     float someOtherValue = *callocFloatP2;
@@ -248,6 +259,7 @@ int main(int argc, char **argv) {
     stackFloatP[0] = 30.0;
     frenemy[0] = 40.0;
     fromParam[0] = 70.0;
+    char x = stringLiteral[0];
     mallocFloatP2[0] = 80;
     callocFloatP[0] = 80;
     float someValue = *callocFloatP2;

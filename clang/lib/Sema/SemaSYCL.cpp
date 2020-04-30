@@ -301,7 +301,7 @@ void Sema::checkSYCLDevicePointerCapture(VarDecl *Var, SourceLocation CaptureLoc
 
     const CallExpr *CE = dyn_cast<CallExpr>(Init);
     if(CE){
-      // Captured variable is result of function call.
+      // Captured pointer is result of function call.
       const FunctionDecl *func = CE->getDirectCallee();
       auto FullName = func->getQualifiedNameAsString();
       // Check to see if this function call is one of the USM allocators.
@@ -314,6 +314,9 @@ void Sema::checkSYCLDevicePointerCapture(VarDecl *Var, SourceLocation CaptureLoc
       //<< " " <<  func->getQualifiedNameAsString() << std::endl;
     } else {
       // var usage
+      const StringLiteral *SL = dyn_cast<StringLiteral>(Init);
+      if(SL)
+        howAllocated = Not_USM;  //
       speak = true;
     }
     

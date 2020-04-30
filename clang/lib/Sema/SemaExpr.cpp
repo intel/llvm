@@ -16322,7 +16322,7 @@ static bool isVariableCapturable(CapturingScopeInfo *CSI, VarDecl *Var,
     return false;
   }
   // SYCL: Emit diagnostics for any illegal pointer derefs.
-  if(Diagnose && S.getLangOpts().SYCLIsDevice && Var->getType()->isAnyPointerType())
+  if(Diagnose && S.getLangOpts().SYCLIsDevice  && Var->getType()->isAnyPointerType())
     S.checkSYCLDevicePointerCapture(Var, Loc);
   
   return true;
