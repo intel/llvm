@@ -10,6 +10,8 @@
 #include "device_math.h"
 #include <cmath>
 
+#if __SPIR_DEVICE_ONLY__
+
 DEVICE_EXTERN_C
 float __devicelib_crealf(float __complex__ z) { return __real__(z); }
 
@@ -427,3 +429,4 @@ float __complex__ __devicelib_catanf(float __complex__ z) {
       CMPLXF(-__devicelib_cimagf(z), __devicelib_crealf(z)));
   return CMPLXF(__devicelib_cimagf(w), -__devicelib_crealf(w));
 }
+#endif // __SPIR_DEVICE_ONLY__

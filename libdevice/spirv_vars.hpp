@@ -10,8 +10,9 @@
 
 #include <cstddef>
 #include <cstdint>
+#include "device.h"
 
-#ifdef __SYCL_DEVICE_ONLY__
+#if __SPIR_DEVICE_ONLY__
 
 #ifdef __SYCL_NVPTX__
 
@@ -97,4 +98,4 @@ DEFINE_INIT_SIZES(LocalInvocationId)
 
 #undef DEFINE_INIT_SIZES
 
-#endif // __SYCL_DEVICE_ONLY__
+#endif // __SPIR_DEVICE_ONLY__
