@@ -228,12 +228,17 @@ vector_class<plugin> initialize() {
       continue;
     }
     backend *BE = SYCLConfig<SYCL_BE>::get();
-    if (!BE || (*BE == backend::opencl &&
-                PluginNames[I].first.find("opencl") != std::string::npos)) {
+    // Use OpenCL as the default interoperability plugin.
+    // This will go away when we make backend interoperability selection
+    // explicit in SYCL-2020.
+    backend InteropBE = BE ? *BE : backend::opencl;
+
+    if (InteropBE == backend::opencl &&
+        PluginNames[I].first.find("opencl") != std::string::npos) {
       // Use the OpenCL plugin as the GlobalPlugin
       GlobalPlugin =
           std::make_shared<plugin>(PluginInformation, backend::opencl);
-    } else if (*BE == backend::cuda &&
+    } else if (InteropBE == backend::cuda &&
                PluginNames[I].first.find("cuda") != std::string::npos) {
       // Use the CUDA plugin as the GlobalPlugin
       GlobalPlugin = std::make_shared<plugin>(PluginInformation, backend::cuda);
