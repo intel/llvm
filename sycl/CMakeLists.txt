@@ -232,6 +232,7 @@ add_custom_target( sycl-toolchain
           llvm-link
           llvm-objcopy
           sycl-post-link
+          sycl-ls
   COMMENT "Building SYCL compiler toolchain..."
 )
 
@@ -281,6 +282,7 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      llvm-link
      llvm-objcopy
      sycl-post-link
+     sycl-ls
      clang-resource-headers
      opencl-headers
      sycl-headers
