@@ -16,6 +16,7 @@
 
 #include "CL/opencl.h"
 #include <CL/sycl/detail/pi.h>
+#include <CL/sycl/detail/export.hpp>
 
 #include <cassert>
 #include <cstring>
@@ -161,10 +162,10 @@ static pi_result USMSetIndirectAccess(pi_kernel kernel) {
 extern "C" {
 
 // Convenience macro makes source code search easier
-#define OCL(pi_api) Ocl##pi_api
+#define OCL(pi_api) pi_api
 
 // Example of a PI interface that does not map exactly to an OpenCL one.
-pi_result OCL(piPlatformsGet)(pi_uint32 num_entries, pi_platform *platforms,
+__SYCL_EXPORT pi_result OCL(piPlatformsGet)(pi_uint32 num_entries, pi_platform *platforms,
                               pi_uint32 *num_platforms) {
   cl_int result = clGetPlatformIDs(cast<cl_uint>(num_entries),
                                    cast<cl_platform_id *>(platforms),
@@ -180,7 +181,7 @@ pi_result OCL(piPlatformsGet)(pi_uint32 num_entries, pi_platform *platforms,
 }
 
 // Example of a PI interface that does not map exactly to an OpenCL one.
-pi_result OCL(piDevicesGet)(pi_platform platform, pi_device_type device_type,
+__SYCL_EXPORT pi_result OCL(piDevicesGet)(pi_platform platform, pi_device_type device_type,
                             pi_uint32 num_entries, pi_device *devices,
                             pi_uint32 *num_devices) {
   cl_int result = clGetDeviceIDs(
@@ -197,7 +198,7 @@ pi_result OCL(piDevicesGet)(pi_platform platform, pi_device_type device_type,
   return cast<pi_result>(result);
 }
 
-pi_result OCL(piextDeviceSelectBinary)(pi_device device,
+__SYCL_EXPORT pi_result OCL(piextDeviceSelectBinary)(pi_device device,
                                        pi_device_binary *images,
                                        pi_uint32 num_images,
                                        pi_uint32 *selected_image_ind) {
@@ -269,14 +270,14 @@ pi_result OCL(piextDeviceSelectBinary)(pi_device device,
   return PI_INVALID_BINARY;
 }
 
-pi_result OCL(piextDeviceCreateWithNativeHandle)(pi_native_handle nativeHandle,
+__SYCL_EXPORT pi_result OCL(piextDeviceCreateWithNativeHandle)(pi_native_handle nativeHandle,
                                                  pi_device *piDevice) {
   assert(piDevice != nullptr);
   *piDevice = reinterpret_cast<pi_device>(nativeHandle);
   return PI_SUCCESS;
 }
 
-pi_result OCL(piQueueCreate)(pi_context context, pi_device device,
+__SYCL_EXPORT pi_result OCL(piQueueCreate)(pi_context context, pi_device device,
                              pi_queue_properties properties, pi_queue *queue) {
   assert(queue && "piQueueCreate failed, queue argument is null");
 
@@ -316,14 +317,14 @@ pi_result OCL(piQueueCreate)(pi_context context, pi_device device,
   return cast<pi_result>(ret_err);
 }
 
-pi_result OCL(piextQueueCreateWithNativeHandle)(pi_native_handle nativeHandle,
+__SYCL_EXPORT pi_result OCL(piextQueueCreateWithNativeHandle)(pi_native_handle nativeHandle,
                                                 pi_queue *piQueue) {
   assert(piQueue != nullptr);
   *piQueue = reinterpret_cast<pi_queue>(nativeHandle);
   return PI_SUCCESS;
 }
 
-pi_result OCL(piProgramCreate)(pi_context context, const void *il,
+__SYCL_EXPORT pi_result OCL(piProgramCreate)(pi_context context, const void *il,
                                size_t length, pi_program *res_program) {
 
   size_t deviceCount;
@@ -401,14 +402,14 @@ pi_result OCL(piProgramCreate)(pi_context context, const void *il,
   return err;
 }
 
-pi_result OCL(piextProgramCreateWithNativeHandle)(pi_native_handle nativeHandle,
+__SYCL_EXPORT pi_result OCL(piextProgramCreateWithNativeHandle)(pi_native_handle nativeHandle,
                                                   pi_program *piProgram) {
   assert(piProgram != nullptr);
   *piProgram = reinterpret_cast<pi_program>(nativeHandle);
   return PI_SUCCESS;
 }
 
-pi_result OCL(piSamplerCreate)(pi_context context,
+__SYCL_EXPORT pi_result OCL(piSamplerCreate)(pi_context context,
                                const pi_sampler_properties *sampler_properties,
                                pi_sampler *result_sampler) {
   // Initialize properties according to OpenCL 2.1 spec.
@@ -439,14 +440,14 @@ pi_result OCL(piSamplerCreate)(pi_context context,
   return error_code;
 }
 
-pi_result OCL(piextKernelSetArgMemObj)(pi_kernel kernel, pi_uint32 arg_index,
+__SYCL_EXPORT pi_result OCL(piextKernelSetArgMemObj)(pi_kernel kernel, pi_uint32 arg_index,
                                        const pi_mem *arg_value) {
   return cast<pi_result>(
       clSetKernelArg(cast<cl_kernel>(kernel), cast<cl_uint>(arg_index),
                      sizeof(arg_value), cast<const cl_mem *>(arg_value)));
 }
 
-pi_result OCL(piextGetDeviceFunctionPointer)(pi_device device,
+__SYCL_EXPORT pi_result OCL(piextGetDeviceFunctionPointer)(pi_device device,
                                              pi_program program,
                                              const char *func_name,
                                              pi_uint64 *function_pointer_ret) {
@@ -484,7 +485,7 @@ pi_result OCL(piextGetDeviceFunctionPointer)(pi_device device,
                                   function_pointer_ret));
 }
 
-pi_result OCL(piContextCreate)(const pi_context_properties *properties,
+__SYCL_EXPORT pi_result OCL(piContextCreate)(const pi_context_properties *properties,
                                pi_uint32 num_devices, const pi_device *devices,
                                void (*pfn_notify)(const char *errinfo,
                                                   const void *private_info,
@@ -499,14 +500,14 @@ pi_result OCL(piContextCreate)(const pi_context_properties *properties,
   return ret;
 }
 
-pi_result OCL(piextContextCreateWithNativeHandle)(pi_native_handle nativeHandle,
+__SYCL_EXPORT pi_result OCL(piextContextCreateWithNativeHandle)(pi_native_handle nativeHandle,
                                                   pi_context *piContext) {
   assert(piContext != nullptr);
   *piContext = reinterpret_cast<pi_context>(nativeHandle);
   return PI_SUCCESS;
 }
 
-pi_result OCL(piMemBufferCreate)(pi_context context, pi_mem_flags flags,
+__SYCL_EXPORT pi_result OCL(piMemBufferCreate)(pi_context context, pi_mem_flags flags,
                                  size_t size, void *host_ptr, pi_mem *ret_mem) {
   pi_result ret_err = PI_INVALID_OPERATION;
   *ret_mem = cast<pi_mem>(clCreateBuffer(cast<cl_context>(context),
@@ -516,7 +517,7 @@ pi_result OCL(piMemBufferCreate)(pi_context context, pi_mem_flags flags,
   return ret_err;
 }
 
-pi_result OCL(piMemImageCreate)(pi_context context, pi_mem_flags flags,
+__SYCL_EXPORT pi_result OCL(piMemImageCreate)(pi_context context, pi_mem_flags flags,
                                 const pi_image_format *image_format,
                                 const pi_image_desc *image_desc, void *host_ptr,
                                 pi_mem *ret_mem) {
@@ -530,7 +531,7 @@ pi_result OCL(piMemImageCreate)(pi_context context, pi_mem_flags flags,
   return ret_err;
 }
 
-pi_result OCL(piMemBufferPartition)(pi_mem buffer, pi_mem_flags flags,
+__SYCL_EXPORT pi_result OCL(piMemBufferPartition)(pi_mem buffer, pi_mem_flags flags,
                                     pi_buffer_create_type buffer_create_type,
                                     void *buffer_create_info, pi_mem *ret_mem) {
 
@@ -542,14 +543,14 @@ pi_result OCL(piMemBufferPartition)(pi_mem buffer, pi_mem_flags flags,
   return ret_err;
 }
 
-pi_result OCL(piextMemCreateWithNativeHandle)(pi_native_handle nativeHandle,
+__SYCL_EXPORT pi_result OCL(piextMemCreateWithNativeHandle)(pi_native_handle nativeHandle,
                                               pi_mem *piMem) {
   assert(piMem != nullptr);
   *piMem = reinterpret_cast<pi_mem>(nativeHandle);
   return PI_SUCCESS;
 }
 
-pi_result OCL(piclProgramCreateWithSource)(pi_context context, pi_uint32 count,
+__SYCL_EXPORT pi_result OCL(piclProgramCreateWithSource)(pi_context context, pi_uint32 count,
                                            const char **strings,
                                            const size_t *lengths,
                                            pi_program *ret_program) {
@@ -561,7 +562,7 @@ pi_result OCL(piclProgramCreateWithSource)(pi_context context, pi_uint32 count,
   return ret_err;
 }
 
-pi_result OCL(piclProgramCreateWithBinary)(
+__SYCL_EXPORT pi_result OCL(piclProgramCreateWithBinary)(
     pi_context context, pi_uint32 num_devices, const pi_device *device_list,
     const size_t *lengths, const unsigned char **binaries,
     pi_int32 *binary_status, pi_program *ret_program) {
@@ -574,7 +575,7 @@ pi_result OCL(piclProgramCreateWithBinary)(
   return ret_err;
 }
 
-pi_result OCL(piProgramLink)(pi_context context, pi_uint32 num_devices,
+__SYCL_EXPORT pi_result OCL(piProgramLink)(pi_context context, pi_uint32 num_devices,
                              const pi_device *device_list, const char *options,
                              pi_uint32 num_input_programs,
                              const pi_program *input_programs,
@@ -593,7 +594,7 @@ pi_result OCL(piProgramLink)(pi_context context, pi_uint32 num_devices,
   return ret_err;
 }
 
-pi_result OCL(piKernelCreate)(pi_program program, const char *kernel_name,
+__SYCL_EXPORT pi_result OCL(piKernelCreate)(pi_program program, const char *kernel_name,
                               pi_kernel *ret_kernel) {
 
   pi_result ret_err = PI_INVALID_OPERATION;
@@ -602,7 +603,7 @@ pi_result OCL(piKernelCreate)(pi_program program, const char *kernel_name,
   return ret_err;
 }
 
-pi_result OCL(piEventCreate)(pi_context context, pi_event *ret_event) {
+__SYCL_EXPORT pi_result OCL(piEventCreate)(pi_context context, pi_event *ret_event) {
 
   pi_result ret_err = PI_INVALID_OPERATION;
   *ret_event = cast<pi_event>(
@@ -610,14 +611,14 @@ pi_result OCL(piEventCreate)(pi_context context, pi_event *ret_event) {
   return ret_err;
 }
 
-pi_result OCL(piextEventCreateWithNativeHandle)(pi_native_handle nativeHandle,
+__SYCL_EXPORT pi_result OCL(piextEventCreateWithNativeHandle)(pi_native_handle nativeHandle,
                                                 pi_event *piEvent) {
   assert(piEvent != nullptr);
   *piEvent = reinterpret_cast<pi_event>(nativeHandle);
   return PI_SUCCESS;
 }
 
-pi_result OCL(piEnqueueMemBufferMap)(
+__SYCL_EXPORT pi_result OCL(piEnqueueMemBufferMap)(
     pi_queue command_queue, pi_mem buffer, pi_bool blocking_map,
     cl_map_flags map_flags, // TODO: untie from OpenCL
     size_t offset, size_t size, pi_uint32 num_events_in_wait_list,
@@ -644,7 +645,7 @@ pi_result OCL(piEnqueueMemBufferMap)(
 /// \param pi_usm_mem_properties are optional allocation properties
 /// \param size_t is the size of the allocation
 /// \param alignment is the desired alignment of the allocation
-pi_result OCL(piextUSMHostAlloc)(void **result_ptr, pi_context context,
+__SYCL_EXPORT pi_result OCL(piextUSMHostAlloc)(void **result_ptr, pi_context context,
                                  pi_usm_mem_properties *properties, size_t size,
                                  pi_uint32 alignment) {
 
@@ -675,7 +676,7 @@ pi_result OCL(piextUSMHostAlloc)(void **result_ptr, pi_context context,
 /// \param pi_usm_mem_properties are optional allocation properties
 /// \param size_t is the size of the allocation
 /// \param alignment is the desired alignment of the allocation
-pi_result OCL(piextUSMDeviceAlloc)(void **result_ptr, pi_context context,
+__SYCL_EXPORT pi_result OCL(piextUSMDeviceAlloc)(void **result_ptr, pi_context context,
                                    pi_device device,
                                    pi_usm_mem_properties *properties,
                                    size_t size, pi_uint32 alignment) {
@@ -708,7 +709,7 @@ pi_result OCL(piextUSMDeviceAlloc)(void **result_ptr, pi_context context,
 /// \param pi_usm_mem_properties are optional allocation properties
 /// \param size_t is the size of the allocation
 /// \param alignment is the desired alignment of the allocation
-pi_result OCL(piextUSMSharedAlloc)(void **result_ptr, pi_context context,
+__SYCL_EXPORT pi_result OCL(piextUSMSharedAlloc)(void **result_ptr, pi_context context,
                                    pi_device device,
                                    pi_usm_mem_properties *properties,
                                    size_t size, pi_uint32 alignment) {
@@ -737,7 +738,7 @@ pi_result OCL(piextUSMSharedAlloc)(void **result_ptr, pi_context context,
 ///
 /// \param context is the pi_context of the allocation
 /// \param ptr is the memory to be freed
-pi_result OCL(piextUSMFree)(pi_context context, void *ptr) {
+__SYCL_EXPORT pi_result OCL(piextUSMFree)(pi_context context, void *ptr) {
 
   clMemFreeINTEL_fn FuncPtr = nullptr;
   pi_result RetVal = PI_INVALID_OPERATION;
@@ -758,7 +759,7 @@ pi_result OCL(piextUSMFree)(pi_context context, void *ptr) {
 /// \param arg_index is the index of the kernel argument
 /// \param arg_size is the size in bytes of the argument (ignored in CL)
 /// \param arg_value is the pointer argument
-pi_result OCL(piextKernelSetArgPointer)(pi_kernel kernel, pi_uint32 arg_index,
+__SYCL_EXPORT pi_result OCL(piextKernelSetArgPointer)(pi_kernel kernel, pi_uint32 arg_index,
                                         size_t arg_size,
                                         const void *arg_value) {
 
@@ -799,7 +800,7 @@ pi_result OCL(piextKernelSetArgPointer)(pi_kernel kernel, pi_uint32 arg_index,
 /// \param num_events_in_waitlist is the number of events to wait on
 /// \param events_waitlist is an array of events to wait on
 /// \param event is the event that represents this operation
-pi_result OCL(piextUSMEnqueueMemset)(pi_queue queue, void *ptr, pi_int32 value,
+__SYCL_EXPORT pi_result OCL(piextUSMEnqueueMemset)(pi_queue queue, void *ptr, pi_int32 value,
                                      size_t count,
                                      pi_uint32 num_events_in_waitlist,
                                      const pi_event *events_waitlist,
@@ -839,7 +840,7 @@ pi_result OCL(piextUSMEnqueueMemset)(pi_queue queue, void *ptr, pi_int32 value,
 /// \param num_events_in_waitlist is the number of events to wait on
 /// \param events_waitlist is an array of events to wait on
 /// \param event is the event that represents this operation
-pi_result OCL(piextUSMEnqueueMemcpy)(pi_queue queue, pi_bool blocking,
+__SYCL_EXPORT pi_result OCL(piextUSMEnqueueMemcpy)(pi_queue queue, pi_bool blocking,
                                      void *dst_ptr, const void *src_ptr,
                                      size_t size,
                                      pi_uint32 num_events_in_waitlist,
@@ -879,7 +880,7 @@ pi_result OCL(piextUSMEnqueueMemcpy)(pi_queue queue, pi_bool blocking,
 /// \param num_events_in_waitlist is the number of events to wait on
 /// \param events_waitlist is an array of events to wait on
 /// \param event is the event that represents this operation
-pi_result OCL(piextUSMEnqueuePrefetch)(pi_queue queue, const void *ptr,
+__SYCL_EXPORT pi_result OCL(piextUSMEnqueuePrefetch)(pi_queue queue, const void *ptr,
                                        size_t size,
                                        pi_usm_migration_flags flags,
                                        pi_uint32 num_events_in_waitlist,
@@ -924,8 +925,8 @@ pi_result OCL(piextUSMEnqueuePrefetch)(pi_queue queue, const void *ptr,
 /// \param advice is device specific advice
 /// \param event is the event that represents this operation
 // USM memadvise API to govern behavior of automatic migration mechanisms
-pi_result OCL(piextUSMEnqueueMemAdvise)(pi_queue queue, const void *ptr,
-                                        size_t length, int advice,
+__SYCL_EXPORT pi_result OCL(piextUSMEnqueueMemAdvise)(pi_queue queue, const void *ptr,
+                                        size_t length, pi_mem_advice advice,
                                         pi_event *event) {
 
   return cast<pi_result>(
@@ -976,7 +977,7 @@ pi_result OCL(piextUSMEnqueueMemAdvise)(pi_queue queue, const void *ptr,
 /// \param param_value_size is the size of the result in bytes
 /// \param param_value is the result
 /// \param param_value_ret is how many bytes were written
-pi_result OCL(piextUSMGetMemAllocInfo)(pi_context context, const void *ptr,
+__SYCL_EXPORT pi_result OCL(piextUSMGetMemAllocInfo)(pi_context context, const void *ptr,
                                        pi_mem_info param_name,
                                        size_t param_value_size,
                                        void *param_value,
@@ -1007,7 +1008,7 @@ pi_result OCL(piextUSMGetMemAllocInfo)(pi_context context, const void *ptr,
 /// If param_name is PI_USM_INDIRECT_ACCESS, the value will be a ptr to
 ///    the pi_bool value PI_TRUE
 /// If param_name is PI_USM_PTRS, the value will be an array of ptrs
-pi_result OCL(piKernelSetExecInfo)(pi_kernel kernel,
+__SYCL_EXPORT pi_result OCL(piKernelSetExecInfo)(pi_kernel kernel,
                                    pi_kernel_exec_info param_name,
                                    size_t param_value_size,
                                    const void *param_value) {
@@ -1024,7 +1025,7 @@ typedef CL_API_ENTRY cl_int(CL_API_CALL *clSetProgramSpecializationConstant_fn)(
     cl_program program, cl_uint spec_id, size_t spec_size,
     const void *spec_value);
 
-static pi_result OCL(piextProgramSetSpecializationConstantImpl)(
+__SYCL_EXPORT pi_result OCL(piextProgramSetSpecializationConstantImpl)(
     pi_program prog, unsigned int spec_id, size_t spec_size,
     const void *spec_value) {
   cl_program ClProg = cast<cl_program>(prog);
@@ -1052,14 +1053,14 @@ static pi_result OCL(piextProgramSetSpecializationConstantImpl)(
 /// \param nativeHandle is a pointer to be set to the native handle
 ///
 /// PI_SUCCESS
-pi_result OCL(piextGetNativeHandle)(void *piObj,
+__SYCL_EXPORT pi_result OCL(piextGetNativeHandle)(void *piObj,
                                     pi_native_handle *nativeHandle) {
   assert(nativeHandle != nullptr);
   *nativeHandle = reinterpret_cast<pi_native_handle>(piObj);
   return PI_SUCCESS;
 }
 
-pi_result piPluginInit(pi_plugin *PluginInit) {
+__SYCL_EXPORT pi_result piPluginInit(pi_plugin *PluginInit) {
   int CompareVersions = strcmp(PluginInit->PiVersion, SupportedVersion);
   if (CompareVersions < 0) {
     // PI interface supports lower version of PI.
