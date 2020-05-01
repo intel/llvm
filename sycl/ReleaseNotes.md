@@ -1,3 +1,175 @@
+# March'20 release notes
+
+Release notes for the commit range e8f1f29..ba404be
+
+## New features
+  - Initial CUDA backend support [7a9a425]
+  - [SYCL][FPGA] Implement IO pipes interface [c900248]
+  - Added the implementation of [GroupAlgorithms extension](doc/extensions/GroupAlgorithms/SYCL_INTEL_group_algorithms.asciidoc)
+    [8bfa107]
+  - Added a partial implementation of [sub group algorithms extension](doc/extensions/SubGroupAlgorithms/SYCL_INTEL_sub_group_algorithms.asciidoc)
+    [017af4e]
+  - New attributes for Intel FPGA devices: `intelfpga::force_pow2_depth`,
+    `intelfpga::loop_coalesce`, `intelfpga::speculated_iterations`,
+    `intelfpga::disable_loop_pipelining`, `intelfpga::max_interleaving`
+    [73dd705][a5b9804]
+  - Added support for `intel::reqd_work_group_size` attribute [8eb588d]
+  - Added support for specialization constants feature which is based on
+    [SYCL Specialization Constant proposal](https://github.com/codeplaysoftware/standards-proposals/blob/master/spec-constant/index.md) [29abe37]
+
+## Improvements
+### SYCL Frontend and driver changes
+  - Added a diagnostic on attempt to declare or use non-const static variable
+    inside device code [7743e86] [1853516]
+  - Relaxed requirements for kernel types even more. Now by default they should
+    have trivial copy constructor and trivial destructor [17aac3c]
+  - Changed `std::numeric_limits<sycl::half>` to constexpr functions [85d7a5e]
+  - Added a diagnostic on attempt to use zero length arrays inside device code
+    [e6ce614]
+  - Added support for math functions 'fabs' and 'ceil' in device code [f41309b]
+  - Added a diagnostic (warning) on attempt to append new device object to
+    an archive which already contains an AOT-compiled device object [9d348eb]
+  - Added a diagnostic on attempt to use functions which have no definition in
+    the TU and are not marked with `SYCL_EXTERNAL` macro inside device code
+    [a3b340b]
+  - Added a diagnostic on attempt to use thread local storage inside device code
+    [eb373c4]
+  - Removed arch designator from the default output file name when compiling
+    with `-fsycl-link` option. Now an output file has just a flat name based on
+    the first input file [dc729a7]
+  - The SYCL headers were moved from `lib/clang/11.0.0/include` to
+    `include/sycl` to support mixed compilers [39501f6]
+  - Added support for the GCC style inline assembly in the device code [6f4e007]
+  - Improved fat static library support: the driver now consider for offloading
+    static libraries which are passed on the command line as well as libraries
+    passed as part of the linker options. This effectively negates the need to
+    use `-foffload-static-lib` and `-foffload-whole-static-lib` options which
+    are deprecated now.
+  - The `SYCL_EXTERNAL` macro is now allowed to be used with class member
+    functions [3baec18]
+  - Set `aux-target-cpu` for the device compilation which sets AVX and other
+    necessary macro based on a target [f953fda]
+
+### SYCL headers and runtime
+  - Changed `sycl::context` and `sycl::queue` constructors to be explicit to
+    avoid unintended conversions [c220eb8][3b6799a]
+  - Added a diagnostic on setting `SYCL_DEVICE_TYPE` environment variable to an
+    incorrect value [0125496]
+  - Improved error codes which are encoded in the SYCL exceptions [04ee17c]
+  - Removed functions that use float type in the fallback library for fp64
+    complex [6ccd84a0]
+  - Added support for `RESTRICT_WRITE_ACCESS_TO_CONSTANT_PTR` macro which allows
+    to enable diagnostic on writing to a raw pointer obtained from a
+    `sycl::constant_ptr` object [c9ed5b2]
+  - Added support for USM extension for CUDA backend [498d56c]
+
+### Documentation
+  - Refactored [USM specification](doc/extensions/USM/USM.adoc) [0438422]
+  - Added [GroupAlgorithms extensions](doc/extensions/GroupAlgorithms/)
+    as replacement of GroupCollectives extension [c181fdb][b18a566]
+  - Doxygen documentation is now rendered to GitHub Pages. An initial
+    implementation is available [online](https://intel.github.io/llvm-docs/doxygen/annotated.html)
+    [29d9cc2]
+  - More details have been added about the `-fintelfpga` option in the
+    [Compiler User Manual](doc/SYCLCompilerUserManual.md) [4b03ddb]
+  - Added [SYCL_INTEL_enqueue_barrier extension document](doc/extensions/EnqueueBarrier/enqueue_barrier.asciidoc)
+    [6cfd2cb]
+  - Added [standard layout relaxation extension](doc/extensions/RelaxStdLayout/SYCL_INTEL_relax_standard_layout.asciidoc)
+    [ce53521]
+  - Deprecated SubGroupNDRange extension [d9b178f]
+  - Added extension for base sub-group class:
+    [SubGroup](doc/extensions/SubGroup/SYCL_INTEL_sub_group.asciidoc) [d9b178f]
+  - Added extension for functions operating on sub-groups:
+    [SubGroupAlgorithms](doc/extensions/SubGroupAlgorithms/SYCL_INTEL_sub_group_algorithms.asciidoc)
+    [d9b178f]
+  - Added extension introducing group masks and ballot functionality:
+    [GroupMask](doc/extensions/GroupMask/SYCL_INTEL_group_mask.asciidoc)
+    [d9b178f]
+  - The project has been renamed to "oneAPI DPC++ Compiler", all documentation
+    has been fixed accordingly [7a2e75e]
+
+## Bug fixes
+### SYCL Frontend and driver changes
+  - Fixed a problem with compiler not being able to find a dependency file when
+    compiling AOT to an object for FPGA [7b58b01]
+  - Fixed a problem with host object not being added to the partial link step
+    when compiling from source and using `-foffload-static-lib` option [1a951cb]
+  - Reversed `reqd_work_group_size` attribute to match SYCL behavior [1da6fbe]
+  - Fixed dependency output location when `/Fo<dir>` is given [2b6f4f4]
+  - Fixed a crash which happened when no kernel name is passed to the
+    `sycl::handler::parallel_for` [fadaa59]
+
+### SYCL headers and runtime
+  - Fixed `sycl::queue::wait()` which was not waiting for event associated with
+    USM operation [850fb9f]
+  - Fixed problem with reporting wrong error message on the second attempt to
+    build program if the first attempt failed [9a34a11]
+  - Fixed an issue which could happen when `sycl::event::wait` is called from
+    multiple threads [3da5473]
+  - Aligned `sub_group::store` signature between host and device [b3a9426]
+  - Fixed `sycl::program::get_compile_options` and
+    `sycl::program::get_build_options` to return correct values [03326f7]
+  - Fixed `sycl::multi_ptr`'s methods that were incorrectly enabled/disabled on
+    device/host [401d174]
+  - Fixed incorrect dependency handling when creating sub-buffers which could
+    lead to data races [45e39bd]
+  - Reversed reported max work-group size for a device to align with work-group
+    size reversing before kernels launch [72b7dee]
+  - Fixed incorrect handling of kernels that use hierarchical parallelism when
+    `-O0` option is passed to the clang [fd8ae8a]
+  - Changed names of SYCL internal variables to avoid conflict with commonly
+    used macros: `SUCCESS`, `BLOCKED` and `FAILED` [0f7e361]
+  - Fixed a bug when a host device was always included in the device list
+    returned by `sycl::device::get_devices` [6cf590f]
+  - Fixed a problem with passing `sycl::vec` object to
+    `sycl::group::async_work_group_copy` [20aa83e]
+  - Fixed behavior of sycl::malloc_shared to return nullptr for the allocation
+    size of zero or less byte, and the behavior of sycl::free functions to
+    ignore the deallocation request from nullptr [d596593]
+  - Fixed a possible problem with selecting work-group size which is bigger than
+    max allowed work-group [b48f08f]
+  - Fixed an issue which causes errors when using sub-buffers [5d1d716]
+  - Changed the implementation of the buffer constructor from a pair of
+    iterators. Now, data is not written back to the host on destruction of the
+    buffer unless the buffer has a valid non-null pointer specified via the
+    member function set_final_data [fb72758]
+  - Fixed a problem with incorrect acceptance of a lambda which takes an
+    argument of the `sycl::id` type in the `sycl::handler::parallel_for` version
+    which takes a `sycl::ndrange` object [0408899]
+  - Resolved circular dependency between `sycl::event` and `sycl::queue`
+    [8c71dcb]
+
+
+## Known issues
+  - The format of the object files produced by the compiler can change between
+    versions. The workaround is to rebuild the application.
+  - The SYCL library doesn't guarantee stable API/ABI, so applications compiled
+    with older version of the SYCL library may not work with new one.
+    The workaround is to rebuild the application.
+  - Using `cl::sycl::program` API to refer to a kernel defined in another
+    translation unit leads to undefined behavior
+  - Linkage errors with the following message:
+    `error LNK2005: "bool const std::_Is_integral<bool>" (??$_Is_integral@_N@std@@3_NB) already defined`
+    can happen when a SYCL application is built using MS Visual Studio 2019
+    version below 16.3.0
+    The workaround is to enable `-std=c++17` for the failing MSVC version.
+
+## Prerequisites
+### Linux
+  - Experimental Intel(R) CPU Runtime for OpenCL(TM) Applications with SYCL
+    support from the release package https://github.com/intel/llvm/releases/
+  - The latest version of Intel(R) Graphics Compute Runtime for OpenCL(TM) from
+    https://github.com/intel/compute-runtime/releases/
+### Windows
+  - Experimental Intel(R) CPU Runtime for OpenCL(TM) Applications with SYCL
+    support from the release package https://github.com/intel/llvm/releases/
+  - The latest version of Intel(R) Graphics Compute Runtime for OpenCL(TM) from
+    https://downloadcenter.intel.com/
+
+Please, see the runtime installation guide [here](https://github.com/intel/llvm/blob/sycl/sycl/doc/GetStartedGuide.md#install-low-level-runtime)
+
+
+
 # February'20 release notes
 
 Release notes for commit e8f1f29

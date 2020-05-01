@@ -1,4 +1,4 @@
-//===-- MIMGInstructions.td - MIMG Instruction Defintions -----------------===//
+//===-- MIMGInstructions.td - MIMG Instruction Definitions ----------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -815,6 +815,11 @@ def ImageDimIntrinsicTable : GenericTable {
   let PrimaryKey = ["Intr"];
   let PrimaryKeyName = "getImageDimIntrinsicInfo";
   let PrimaryKeyEarlyOut = 1;
+}
+
+def getImageDimInstrinsicByBaseOpcode : SearchIndex {
+  let Table = ImageDimIntrinsicTable;
+  let Key = ["BaseOpcode", "Dim"];
 }
 
 foreach intr = !listconcat(AMDGPUImageDimIntrinsics,

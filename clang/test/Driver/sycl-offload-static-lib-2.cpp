@@ -10,15 +10,21 @@
 // Build a fat static lib that will be used for all tests
 // RUN: echo "void foo(void) {}" > %t1.cpp
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl %t1.cpp -c -o %t1_bundle.o
-// RUN: llvm-ar crv %t.a %t1_bundle.o
+// RUN: llvm-ar cr %t.a %t1_bundle.o
+// RUN: llvm-ar cr %t.lo %t1_bundle.o
+// RUN: llvm-ar cr %t_2.a %t1_bundle.o
 //
 // RUN: touch %t.a
+// RUN: touch %t.lo
 // RUN: touch %t.o
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -L/dummy/dir %t.a -### %t.o 2>&1 \
-// RUN:   | FileCheck %s -check-prefix=STATIC_LIB
-// STATIC_LIB: ld{{(.exe)?}}" "-r" "-o" {{.*}} "[[INPUT:.+\.o]]" "-L/dummy/dir"{{.*}} "[[INPUT:.+\.a]]"
-// STATIC_LIB: clang-offload-bundler{{.*}} "-type=oo"
-// STATIC_LIB: llvm-link{{.*}} "@{{.*}}"
+// RUN:   | FileCheck %s -check-prefix=STATIC_LIB -DINPUTA=%t.a -DINPUTO=%t.o
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -L/dummy/dir %t.lo -### %t.o 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=STATIC_LIB -DINPUTA=%t.lo -DINPUTO=%t.o
+// STATIC_LIB: ld{{(.exe)?}}" "-r" "-o" "[[INPUTLD:[^ ]+\.o]]" {{.*}} "-L/dummy/dir"{{.*}} "[[INPUTO]]" "[[INPUTA]]"
+// STATIC_LIB: clang-offload-bundler{{.*}} "-type=oo" {{.*}} "-inputs=[[INPUTLD]]" "-outputs=[[LISTFILE:.+\.txt]]"
+// STATIC_LIB: llvm-link{{.*}} "@[[LISTFILE]]"
+// STATIC_LIB: ld{{.*}} "[[INPUTA]]" "[[INPUTO]]"
 
 /// ###########################################################################
 
@@ -94,8 +100,10 @@
 
 /// test behaviors of static lib with no source/object
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -L/dummy/dir %t.a -### 2>&1 \
-// RUN:   | FileCheck %s -check-prefixes=STATIC_LIB_NOSRC
-// STATIC_LIB_NOSRC: clang-offload-bundler{{.*}} "-type=ao" "-targets=host-x86_64-unknown-linux-gnu" "-inputs=[[INPUTLIB:.+\.a]]" "-check-section"
+// RUN:   | FileCheck %s -check-prefix=STATIC_LIB_NOSRC -DINPUTLIB=%t.a
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -L/dummy/dir %t.lo -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=STATIC_LIB_NOSRC -DINPUTLIB=%t.lo
+// STATIC_LIB_NOSRC: clang-offload-bundler{{.*}} "-type=ao" "-targets=host-x86_64-unknown-linux-gnu" "-inputs=[[INPUTLIB]]" "-check-section"
 // STATIC_LIB_NOSRC: ld{{.*}} "-r" "-o" "[[PARTIALOBJ:.+\.o]]" "{{.*}}crt1.o" {{.*}} "-L/dummy/dir" {{.*}} "[[INPUTLIB]]"
 // STATIC_LIB_NOSRC: clang-offload-bundler{{.*}} "-type=oo" "-targets=sycl-spir64-unknown-unknown-sycldevice" "-inputs=[[PARTIALOBJ]]" "-outputs=[[DEVICELIST:.+\.txt]]" "-unbundle"
 // STATIC_LIB_NOSRC: llvm-link{{.*}} "@[[DEVICELIST]]" "-o" "[[BCFILE:.+\.bc]]"

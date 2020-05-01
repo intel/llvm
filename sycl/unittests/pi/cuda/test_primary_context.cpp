@@ -12,7 +12,6 @@
 
 #include <CL/sycl.hpp>
 #include <CL/sycl/backend/cuda.hpp>
-#include <CL/sycl/detail/pi.hpp>
 #include <detail/plugin.hpp>
 #include <pi_cuda.hpp>
 
@@ -20,60 +19,46 @@
 
 using namespace cl::sycl;
 
-void check(bool condition, const char *conditionString, const char *filename,
-           const long line) noexcept {
-  if (!condition) {
-    std::cerr << "CHECK failed in " << filename << "#" << line << " "
-              << conditionString << "\n";
-    std::abort();
-  }
-}
-
-#define CHECK(CONDITION) check(CONDITION, #CONDITION, __FILE__, __LINE__)
-
-bool isCudaDevice(const device &dev) {
-  const platform platform = dev.get_info<info::device::platform>();
-  const std::string platformVersion =
-      platform.get_info<info::platform::version>();
-  // If using PI_CUDA, don't accept a non-CUDA device
-  return platformVersion.find("CUDA") != std::string::npos;
-}
-
-class cuda_device_selector : public device_selector {
-public:
-  int operator()(const device &dev) const { return isCudaDevice(dev) ? 1 : -1; }
-};
-
-class other_cuda_device_selector : public device_selector {
-public:
-  other_cuda_device_selector(const device &dev) : excludeDevice{dev} {}
-
-  int operator()(const device &dev) const {
-    if (!isCudaDevice(dev)) {
-      return -1;
-    }
-    if (dev.get() == excludeDevice.get()) {
-      // Return only this device if it is the only available
-      return 0;
-    }
-    return 1;
-  }
-
-private:
-  const device &excludeDevice;
-};
-
-using namespace cl::sycl;
-
 struct DISABLED_CudaPrimaryContextTests : public ::testing::Test {
 
 protected:
-  std::vector<detail::plugin> Plugins;
-
-  pi_platform platform_;
   device deviceA_;
   device deviceB_;
   context context_;
+
+  static bool isCudaDevice(const device &dev) {
+    const platform platform = dev.get_info<info::device::platform>();
+    const std::string platformVersion =
+        platform.get_info<info::platform::version>();
+    // If using PI_CUDA, don't accept a non-CUDA device
+    return platformVersion.find("CUDA") != std::string::npos;
+  }
+
+  class cuda_device_selector : public device_selector {
+  public:
+    int operator()(const device &dev) const {
+      return isCudaDevice(dev) ? 1 : -1;
+    }
+  };
+
+  class other_cuda_device_selector : public device_selector {
+  public:
+    other_cuda_device_selector(const device &dev) : excludeDevice{dev} {}
+
+    int operator()(const device &dev) const {
+      if (!isCudaDevice(dev)) {
+        return -1;
+      }
+      if (dev.get() == excludeDevice.get()) {
+        // Return only this device if it is the only available
+        return 0;
+      }
+      return 1;
+    }
+
+  private:
+    const device &excludeDevice;
+  };
 
   void SetUp() override {
 
@@ -96,8 +81,8 @@ TEST_F(DISABLED_CudaPrimaryContextTests, piSingleContext) {
   std::cout << "create single context" << std::endl;
   context Context(deviceA_, async_handler{}, /*UsePrimaryContext=*/true);
 
-  CUdevice CudaDevice = reinterpret_cast<pi_device>(deviceA_.get())->get();
-  CUcontext CudaContext = reinterpret_cast<pi_context>(Context.get())->get();
+  CUdevice CudaDevice = deviceA_.get_native<backend::cuda>();
+  CUcontext CudaContext = Context.get_native<backend::cuda>();
 
   CUcontext PrimaryCudaContext;
   cuDevicePrimaryCtxRetain(&PrimaryCudaContext, CudaDevice);
@@ -112,22 +97,23 @@ TEST_F(DISABLED_CudaPrimaryContextTests, piMultiContextSingleDevice) {
   context ContextA(deviceA_, async_handler{}, /*UsePrimaryContext=*/true);
   context ContextB(deviceA_, async_handler{}, /*UsePrimaryContext=*/true);
 
-  CUcontext CudaContextA = reinterpret_cast<pi_context>(ContextA.get())->get();
-  CUcontext CudaContextB = reinterpret_cast<pi_context>(ContextB.get())->get();
+  CUcontext CudaContextA = ContextA.get_native<backend::cuda>();
+  CUcontext CudaContextB = ContextB.get_native<backend::cuda>();
 
   ASSERT_EQ(CudaContextA, CudaContextB);
 }
 
 TEST_F(DISABLED_CudaPrimaryContextTests, piMultiContextMultiDevice) {
-  if (isCudaDevice(deviceB_) && deviceA_.get() != deviceB_.get()) {
+  CUdevice CudaDeviceA = deviceA_.get_native<backend::cuda>();
+  CUdevice CudaDeviceB = deviceB_.get_native<backend::cuda>();
+
+  if (isCudaDevice(deviceB_) && CudaDeviceA != CudaDeviceB) {
     std::cout << "create multiple contexts for multiple devices" << std::endl;
     context ContextA(deviceA_, async_handler{}, /*UsePrimaryContext=*/true);
     context ContextB(deviceB_, async_handler{}, /*UsePrimaryContext=*/true);
 
-    CUcontext CudaContextA =
-        reinterpret_cast<pi_context>(ContextA.get())->get();
-    CUcontext CudaContextB =
-        reinterpret_cast<pi_context>(ContextB.get())->get();
+    CUcontext CudaContextA = ContextA.get_native<backend::cuda>();
+    CUcontext CudaContextB = ContextB.get_native<backend::cuda>();
 
     ASSERT_NE(CudaContextA, CudaContextB);
   }

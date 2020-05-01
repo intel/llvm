@@ -409,7 +409,7 @@ endfunction(set_windows_version_resource_properties)
 #   )
 function(llvm_add_library name)
   cmake_parse_arguments(ARG
-    "MODULE;SHARED;STATIC;OBJECT;DISABLE_LLVM_LINK_LLVM_DYLIB;SONAME;NO_INSTALL_RPATH;COMPONENT_LIB;ENABLE_PLUGINS"
+    "MODULE;SHARED;STATIC;OBJECT;DISABLE_LLVM_LINK_LLVM_DYLIB;SONAME;NO_INSTALL_RPATH;COMPONENT_LIB"
     "OUTPUT_NAME;PLUGIN_TOOL;ENTITLEMENTS;BUNDLE_PATH"
     "ADDITIONAL_HEADERS;DEPENDS;LINK_COMPONENTS;LINK_LIBS;OBJLIBS"
     ${ARGN})
@@ -422,9 +422,6 @@ function(llvm_add_library name)
     set(ALL_FILES ${ARG_OBJLIBS})
   else()
     llvm_process_sources(ALL_FILES ${ARG_UNPARSED_ARGUMENTS} ${ARG_ADDITIONAL_HEADERS})
-  endif()
-  if(ARG_ENABLE_PLUGINS)
-    set_property(GLOBAL APPEND PROPERTY LLVM_PLUGIN_TARGETS ${name})
   endif()
 
   if(ARG_MODULE)
@@ -758,7 +755,7 @@ endmacro(add_llvm_library name)
 
 macro(add_llvm_executable name)
   cmake_parse_arguments(ARG
-    "DISABLE_LLVM_LINK_LLVM_DYLIB;IGNORE_EXTERNALIZE_DEBUGINFO;NO_INSTALL_RPATH;SUPPORT_PLUGINS;ENABLE_PLUGINS"
+    "DISABLE_LLVM_LINK_LLVM_DYLIB;IGNORE_EXTERNALIZE_DEBUGINFO;NO_INSTALL_RPATH;SUPPORT_PLUGINS"
     "ENTITLEMENTS;BUNDLE_PATH"
     "DEPENDS"
     ${ARGN})
@@ -845,9 +842,6 @@ macro(add_llvm_executable name)
     # API for all shared libaries loaded by this executable.
     target_link_libraries(${name} PRIVATE ${LLVM_PTHREAD_LIB})
   endif()
-  if(ARG_ENABLE_PLUGINS)
-    set_property(GLOBAL APPEND PROPERTY LLVM_PLUGIN_TARGETS ${name})
-  endif()
 
   llvm_codesign(${name} ENTITLEMENTS ${ARG_ENTITLEMENTS} BUNDLE_PATH ${ARG_BUNDLE_PATH})
 endmacro(add_llvm_executable name)
@@ -883,7 +877,7 @@ function(add_llvm_pass_plugin name)
     list(REMOVE_ITEM ARG_UNPARSED_ARGUMENTS BUILDTREE_ONLY)
     # process_llvm_pass_plugins takes care of the actual linking, just create an
     # object library as of now
-    add_llvm_library(${name} OBJECT ${ARG_UNPARSED_ARGUMENTS})
+    add_llvm_component_library(${name} OBJECT ${ARG_UNPARSED_ARGUMENTS})
     target_compile_definitions(${name} PRIVATE LLVM_${name_upper}_LINK_INTO_TOOLS)
     set_property(TARGET ${name} APPEND PROPERTY COMPILE_DEFINITIONS LLVM_LINK_INTO_TOOLS)
     if (TARGET intrinsics_gen)
@@ -920,18 +914,18 @@ function(process_llvm_pass_plugins)
       include(LLVMConfigExtensions)
   endif()
 
-  # Add static plugins to each plugin target.
+  # Add static plugins to the Extension component
   foreach(llvm_extension ${LLVM_STATIC_EXTENSIONS})
-    get_property(llvm_plugin_targets GLOBAL PROPERTY LLVM_PLUGIN_TARGETS)
-    foreach(llvm_plugin_target ${llvm_plugin_targets})
-      set_property(TARGET ${llvm_plugin_target} APPEND PROPERTY LINK_LIBRARIES ${llvm_extension})
-      set_property(TARGET ${llvm_plugin_target} APPEND PROPERTY INTERFACE_LINK_LIBRARIES ${llvm_extension})
-    endforeach()
+      set_property(TARGET LLVMExtensions APPEND PROPERTY LINK_LIBRARIES ${llvm_extension})
+      set_property(TARGET LLVMExtensions APPEND PROPERTY INTERFACE_LINK_LIBRARIES ${llvm_extension})
   endforeach()
 
-  # Eventually generate the extension header, and store config to a cmake file
+  # Eventually generate the extension headers, and store config to a cmake file
   # for usage in third-party configuration.
   if(ARG_GEN_CONFIG)
+
+      ## Part 1: Extension header to be included whenever we need extension
+      #  processing.
       set(LLVM_INSTALL_PACKAGE_DIR lib${LLVM_LIBDIR_SUFFIX}/cmake/llvm)
       set(llvm_cmake_builddir "${LLVM_BINARY_DIR}/${LLVM_INSTALL_PACKAGE_DIR}")
       file(WRITE
@@ -942,17 +936,69 @@ function(process_llvm_pass_plugins)
           DESTINATION ${LLVM_INSTALL_PACKAGE_DIR}
           COMPONENT cmake-exports)
 
-      file(WRITE "${LLVM_BINARY_DIR}/include/llvm/Support/Extension.def.tmp" "//extension handlers\n")
+      set(ExtensionDef "${LLVM_BINARY_DIR}/include/llvm/Support/Extension.def")
+      file(WRITE "${ExtensionDef}.tmp" "//extension handlers\n")
       foreach(llvm_extension ${LLVM_STATIC_EXTENSIONS})
-        file(APPEND "${LLVM_BINARY_DIR}/include/llvm/Support/Extension.def.tmp" "HANDLE_EXTENSION(${llvm_extension})\n")
+          file(APPEND "${ExtensionDef}.tmp" "HANDLE_EXTENSION(${llvm_extension})\n")
       endforeach()
-      file(APPEND "${LLVM_BINARY_DIR}/include/llvm/Support/Extension.def.tmp" "#undef HANDLE_EXTENSION\n")
+      file(APPEND "${ExtensionDef}.tmp" "#undef HANDLE_EXTENSION\n")
 
       # only replace if there's an actual change
       execute_process(COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${LLVM_BINARY_DIR}/include/llvm/Support/Extension.def.tmp"
-        "${LLVM_BINARY_DIR}/include/llvm/Support/Extension.def")
-      file(REMOVE "${LLVM_BINARY_DIR}/include/llvm/Support/Extension.def.tmp")
+          "${ExtensionDef}.tmp"
+          "${ExtensionDef}")
+      file(REMOVE "${ExtensionDef}.tmp")
+
+      ## Part 2: Extension header that captures each extension dependency, to be
+      #  used by llvm-config.
+      set(ExtensionDeps "${LLVM_BINARY_DIR}/tools/llvm-config/ExtensionDependencies.inc")
+
+      # Max needed to correctly size the required library array.
+      set(llvm_plugin_max_deps_length 0)
+      foreach(llvm_extension ${LLVM_STATIC_EXTENSIONS})
+        get_property(llvm_plugin_deps TARGET ${llvm_extension} PROPERTY LINK_LIBRARIES)
+        list(LENGTH llvm_plugin_deps llvm_plugin_deps_length)
+        if(llvm_plugin_deps_length GREATER llvm_plugin_max_deps_length)
+            set(llvm_plugin_max_deps_length ${llvm_plugin_deps_length})
+        endif()
+      endforeach()
+
+      list(LENGTH LLVM_STATIC_EXTENSIONS llvm_static_extension_count)
+      file(WRITE
+          "${ExtensionDeps}.tmp"
+          "#include <array>\n\
+           struct ExtensionDescriptor {\n\
+              const char* Name;\n\
+              const char* RequiredLibraries[1 + 1 + ${llvm_plugin_max_deps_length}];\n\
+           };\n\
+           std::array<ExtensionDescriptor, ${llvm_static_extension_count}>  AvailableExtensions{\n")
+
+      foreach(llvm_extension ${LLVM_STATIC_EXTENSIONS})
+        get_property(llvm_plugin_deps TARGET ${llvm_extension} PROPERTY LINK_LIBRARIES)
+
+        file(APPEND "${ExtensionDeps}.tmp" "{\"${llvm_extension}\", {")
+        foreach(llvm_plugin_dep ${llvm_plugin_deps})
+            # Turn library dependency back to component name, if possible.
+            # That way llvm-config can avoid redundant dependencies.
+            STRING(REGEX REPLACE "^-l" ""  plugin_dep_name ${llvm_plugin_dep})
+            STRING(REGEX MATCH "^LLVM" is_llvm_library ${plugin_dep_name})
+            if(is_llvm_library)
+                STRING(REGEX REPLACE "^LLVM" ""  plugin_dep_name ${plugin_dep_name})
+                STRING(TOLOWER ${plugin_dep_name} plugin_dep_name)
+            endif()
+            file(APPEND "${ExtensionDeps}.tmp" "\"${plugin_dep_name}\", ")
+        endforeach()
+
+        # Self + mandatory trailing null, because the number of RequiredLibraries differs between extensions.
+        file(APPEND "${ExtensionDeps}.tmp" \"${llvm_extension}\", "nullptr}},\n")
+      endforeach()
+      file(APPEND "${ExtensionDeps}.tmp" "};\n")
+
+      # only replace if there's an actual change
+      execute_process(COMMAND ${CMAKE_COMMAND} -E copy_if_different
+          "${ExtensionDeps}.tmp"
+          "${ExtensionDeps}")
+      file(REMOVE "${ExtensionDeps}.tmp")
   endif()
 endfunction()
 
@@ -1031,7 +1077,7 @@ endfunction()
 
 # Export symbols if LLVM plugins are enabled.
 function(export_executable_symbols_for_plugins target)
-  if(LLVM_ENABLE_PLUGINS)
+  if(LLVM_ENABLE_PLUGINS OR LLVM_EXPORT_SYMBOLS_FOR_PLUGINS)
     export_executable_symbols(${target})
   endif()
 endfunction()
@@ -1391,13 +1437,64 @@ macro(set_llvm_build_mode)
   endif ()
 endmacro()
 
+# Takes a list of path names in pathlist and a base directory, and returns
+# a list of paths relative to the base directory in out_pathlist.
+# Paths that are on a different drive than the basedir (on Windows) or that
+# contain symlinks are returned absolute.
+# Use with LLVM_LIT_PATH_FUNCTION below.
+function(make_paths_relative out_pathlist basedir pathlist)
+  # Passing ARG_PATH_VALUES as-is to execute_process() makes cmake strip
+  # empty list entries. So escape the ;s in the list and do the splitting
+  # ourselves. cmake has no relpath function, so use Python for that.
+  string(REPLACE ";" "\\;" pathlist_escaped "${pathlist}")
+  execute_process(COMMAND "${PYTHON_EXECUTABLE}" "-c" "\n
+import os, sys\n
+base = sys.argv[1]
+def haslink(p):\n
+    if not p or p == os.path.dirname(p): return False\n
+    return os.path.islink(p) or haslink(os.path.dirname(p))\n
+def relpath(p):\n
+    if not p: return ''\n
+    if os.path.splitdrive(p)[0] != os.path.splitdrive(base)[0]: return p\n
+    if haslink(p) or haslink(base): return p\n
+    return os.path.relpath(p, base)\n
+sys.stdout.write(';'.join(relpath(p) for p in sys.argv[2].split(';')))"
+    ${basedir}
+    ${pathlist_escaped}
+    OUTPUT_VARIABLE pathlist_relative)
+  set(${out_pathlist} "${pathlist_relative}" PARENT_SCOPE)
+endfunction()
+
+# Converts a file that's relative to the current python file to an absolute
+# path. Since this uses __file__, it has to be emitted into python files that
+# use it and can't be in a lit module. Use with make_paths_relative().
+string(CONCAT LLVM_LIT_PATH_FUNCTION
+  # Lit converts config paths to lower case in discovery.py, before
+  # loading the config. This causes __file__ to be all lower-case (including
+  # the drive letter), but several clang tests pass -include %s and a
+  # clang warning checks that passed case matches on-disk cache. So it's
+  # important that this restores the on-disk case of the prefix.
+  "# Allow generated file to be relocatable.\n"
+  "def path(p):\n"
+  "    if not p: return ''\n"
+  "    p = os.path.join(os.path.dirname(os.path.abspath(__file__)), p)\n"
+  "    if os.name == 'nt' and os.path.isabs(p): return p[0].upper() + p[1:]\n"
+  "    return p\n"
+  )
+
 # This function provides an automatic way to 'configure'-like generate a file
 # based on a set of common and custom variables, specifically targeting the
 # variables needed for the 'lit.site.cfg' files. This function bundles the
 # common variables that any Lit instance is likely to need, and custom
 # variables can be passed in.
+# The keyword PATHS is followed by a list of cmake variable names that are
+# mentioned as `path("@varname@")` in the lit.cfg.py.in file. Variables in that
+# list are treated as paths that are relative to the directory the generated
+# lit.cfg.py file is in, and the `path()` function converts the relative
+# path back to absolute form. This makes it possible to move a build directory
+# containing lit.cfg.py files from one machine to another.
 function(configure_lit_site_cfg site_in site_out)
-  cmake_parse_arguments(ARG "" "" "MAIN_CONFIG;OUTPUT_MAPPING" ${ARGN})
+  cmake_parse_arguments(ARG "" "" "MAIN_CONFIG;OUTPUT_MAPPING;PATHS" ${ARGN})
 
   if ("${ARG_MAIN_CONFIG}" STREQUAL "")
     get_filename_component(INPUT_DIR ${site_in} DIRECTORY)
@@ -1447,12 +1544,15 @@ function(configure_lit_site_cfg site_in site_out)
   set(HOST_CXX "${CMAKE_CXX_COMPILER} ${CMAKE_CXX_COMPILER_ARG1}")
   set(HOST_LDFLAGS "${CMAKE_EXE_LINKER_FLAGS}")
 
-  set(LIT_SITE_CFG_IN_HEADER  "## Autogenerated from ${site_in}\n## Do not edit!")
+  string(CONCAT LIT_SITE_CFG_IN_HEADER
+    "# Autogenerated from ${site_in}\n# Do not edit!\n\n"
+    "${LLVM_LIT_PATH_FUNCTION}"
+    )
 
   # Override config_target_triple (and the env)
   if(LLVM_TARGET_TRIPLE_ENV)
     # This is expanded into the heading.
-    string(CONCAT LIT_SITE_CFG_IN_HEADER "${LIT_SITE_CFG_IN_HEADER}\n\n"
+    string(CONCAT LIT_SITE_CFG_IN_HEADER "${LIT_SITE_CFG_IN_HEADER}"
       "import os\n"
       "target_env = \"${LLVM_TARGET_TRIPLE_ENV}\"\n"
       "config.target_triple = config.environment[target_env] = os.environ.get(target_env, \"${TARGET_TRIPLE}\")\n"
@@ -1462,12 +1562,47 @@ function(configure_lit_site_cfg site_in site_out)
     set(TARGET_TRIPLE "\"+config.target_triple+\"")
   endif()
 
+  if (ARG_PATHS)
+    # Walk ARG_PATHS and collect the current value of the variables in there.
+    # list(APPEND) ignores empty elements exactly if the list is empty,
+    # so start the list with a dummy element and drop it, to make sure that
+    # even empty values make it into the values list.
+    set(ARG_PATH_VALUES "dummy")
+    foreach(path ${ARG_PATHS})
+      list(APPEND ARG_PATH_VALUES "${${path}}")
+    endforeach()
+    list(REMOVE_AT ARG_PATH_VALUES 0)
+
+    get_filename_component(OUTPUT_DIR ${site_out} DIRECTORY)
+    make_paths_relative(
+        ARG_PATH_VALUES_RELATIVE "${OUTPUT_DIR}" "${ARG_PATH_VALUES}")
+
+    list(LENGTH ARG_PATHS len_paths)
+    list(LENGTH ARG_PATH_VALUES len_path_values)
+    list(LENGTH ARG_PATH_VALUES_RELATIVE len_path_value_rels)
+    if ((NOT ${len_paths} EQUAL ${len_path_values}) OR
+        (NOT ${len_paths} EQUAL ${len_path_value_rels}))
+      message(SEND_ERROR "PATHS lengths got confused")
+    endif()
+
+    # Transform variables mentioned in ARG_PATHS to relative paths for
+    # the configure_file() call. Variables are copied to subscopeds by cmake,
+    # so this only modifies the local copy of the variables.
+    math(EXPR arg_path_limit "${len_paths} - 1")
+    foreach(i RANGE ${arg_path_limit})
+      list(GET ARG_PATHS ${i} val1)
+      list(GET ARG_PATH_VALUES_RELATIVE ${i} val2)
+      set(${val1} ${val2})
+    endforeach()
+  endif()
+
   configure_file(${site_in} ${site_out} @ONLY)
+
   if (EXISTS "${ARG_MAIN_CONFIG}")
-    set(PYTHON_STATEMENT "map_config('${ARG_MAIN_CONFIG}', '${site_out}')")
-    get_property(LLVM_LIT_CONFIG_MAP GLOBAL PROPERTY LLVM_LIT_CONFIG_MAP)
-    set(LLVM_LIT_CONFIG_MAP "${LLVM_LIT_CONFIG_MAP}\n${PYTHON_STATEMENT}")
-    set_property(GLOBAL PROPERTY LLVM_LIT_CONFIG_MAP ${LLVM_LIT_CONFIG_MAP})
+    # Remember main config / generated site config for llvm-lit.in.
+    get_property(LLVM_LIT_CONFIG_FILES GLOBAL PROPERTY LLVM_LIT_CONFIG_FILES)
+    list(APPEND LLVM_LIT_CONFIG_FILES "${ARG_MAIN_CONFIG}" "${site_out}")
+    set_property(GLOBAL PROPERTY LLVM_LIT_CONFIG_FILES ${LLVM_LIT_CONFIG_FILES})
   endif()
 endfunction()
 

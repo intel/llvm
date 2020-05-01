@@ -143,6 +143,11 @@ public:
   /// Returns true if and only if context contains the given device.
   bool hasDevice(shared_ptr_class<detail::device_impl> Device) const;
 
+  /// Gets the native handle of the SYCL context.
+  ///
+  /// \return a native handle.
+  pi_native_handle getNative() const;
+
 private:
   async_handler MAsyncHandler;
   vector_class<device> MDevices;

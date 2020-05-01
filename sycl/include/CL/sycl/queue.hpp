@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/device.hpp>
@@ -638,7 +639,18 @@ public:
   /// Equivalent to has_property<property::queue::in_order>()
   bool is_in_order() const;
 
+  /// Gets the native handle of the SYCL queue.
+  ///
+  /// \return a native handle, the type of which defined by the backend.
+  template <backend BackendName>
+  auto get_native() const -> typename interop<BackendName, queue>::type {
+    return reinterpret_cast<typename interop<BackendName, queue>::type>(
+        getNative());
+  }
+
 private:
+  pi_native_handle getNative() const;
+
   shared_ptr_class<detail::queue_impl> impl;
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);

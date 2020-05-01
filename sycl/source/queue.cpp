@@ -151,5 +151,8 @@ queue::get_property<property::queue::enable_profiling>() const;
 bool queue::is_in_order() const {
   return impl->has_property<property::queue::in_order>();
 }
+
+pi_native_handle queue::getNative() const { return impl->getNative(); }
+
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

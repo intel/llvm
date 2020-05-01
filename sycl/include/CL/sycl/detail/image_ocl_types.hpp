@@ -185,7 +185,7 @@ struct opencl_image_type;
 
 // Creation of dummy ocl types for host_image targets.
 // These dummy ocl types are needed by the compiler parser for the compilation
-// of host application code with SYCL_DEVICE_ONLY macro set.
+// of host application code with __SYCL_DEVICE_ONLY__ macro set.
 template <int Dimensions, access::mode AccessMode>
 struct opencl_image_type<Dimensions, AccessMode, access::target::host_image> {
   using type =

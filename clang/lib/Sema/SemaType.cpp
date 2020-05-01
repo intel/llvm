@@ -35,6 +35,7 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringSwitch.h"
+#include "llvm/IR/DerivedTypes.h"
 #include "llvm/Support/ErrorHandling.h"
 
 using namespace clang;
@@ -1447,6 +1448,15 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
     }
     break;
   }
+  case DeclSpec::TST_extint: {
+    Result = S.BuildExtIntType(DS.getTypeSpecSign() == TSS_unsigned,
+                               DS.getRepAsExpr(), DS.getBeginLoc());
+    if (Result.isNull()) {
+      Result = Context.IntTy;
+      declarator.setInvalidType(true);
+    }
+    break;
+  }
   case DeclSpec::TST_accum: {
     switch (DS.getTypeSpecWidth()) {
       case DeclSpec::TSW_short:
@@ -1688,6 +1698,12 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
     declarator.setInvalidType(true);
     break;
   }
+
+  // FIXME: we want resulting declarations to be marked invalid, but claiming
+  // the type is invalid is too strong - e.g. it causes ActOnTypeName to return
+  // a null type.
+  if (Result->containsErrors())
+    declarator.setInvalidType();
 
   if (S.getLangOpts().OpenCL &&
       S.checkOpenCLDisabledTypeDeclSpec(DS, Result))
@@ -2165,6 +2181,45 @@ QualType Sema::BuildWritePipeType(QualType T, SourceLocation Loc) {
   return Context.getWritePipeType(T);
 }
 
+/// Build a extended int type.
+///
+/// \param IsUnsigned Boolean representing the signedness of the type.
+///
+/// \param BitWidth Size of this int type in bits, or an expression representing
+/// that.
+///
+/// \param Loc Location of the keyword.
+QualType Sema::BuildExtIntType(bool IsUnsigned, Expr *BitWidth,
+                               SourceLocation Loc) {
+  if (BitWidth->isInstantiationDependent())
+    return Context.getDependentExtIntType(IsUnsigned, BitWidth);
+
+  llvm::APSInt Bits(32);
+  ExprResult ICE = VerifyIntegerConstantExpression(BitWidth, &Bits);
+
+  if (ICE.isInvalid())
+    return QualType();
+
+  int64_t NumBits = Bits.getSExtValue();
+  if (!IsUnsigned && NumBits < 2) {
+    Diag(Loc, diag::err_ext_int_bad_size) << 0;
+    return QualType();
+  }
+
+  if (IsUnsigned && NumBits < 1) {
+    Diag(Loc, diag::err_ext_int_bad_size) << 1;
+    return QualType();
+  }
+
+  if (NumBits > llvm::IntegerType::MAX_INT_BITS) {
+    Diag(Loc, diag::err_ext_int_max_size) << IsUnsigned
+                                          << llvm::IntegerType::MAX_INT_BITS;
+    return QualType();
+  }
+
+  return Context.getExtIntType(IsUnsigned, NumBits);
+}
+
 /// Check whether the specified array size makes the array type a VLA.  If so,
 /// return true, if not, return the size of the array in SizeVal.
 static bool isArraySizeVLA(Sema &S, Expr *ArraySize, llvm::APSInt &SizeVal) {
@@ -2443,28 +2498,34 @@ QualType Sema::BuildVectorType(QualType CurType, Expr *SizeExpr,
     return Context.getDependentVectorType(CurType, SizeExpr, AttrLoc,
                                                VectorType::GenericVector);
 
-  unsigned VectorSize = static_cast<unsigned>(VecSize.getZExtValue() * 8);
+  // vecSize is specified in bytes - convert to bits.
+  if (!VecSize.isIntN(61)) {
+    // Bit size will overflow uint64.
+    Diag(AttrLoc, diag::err_attribute_size_too_large)
+        << SizeExpr->getSourceRange();
+    return QualType();
+  }
+  uint64_t VectorSizeBits = VecSize.getZExtValue() * 8;
   unsigned TypeSize = static_cast<unsigned>(Context.getTypeSize(CurType));
 
-  if (VectorSize == 0) {
+  if (VectorSizeBits == 0) {
     Diag(AttrLoc, diag::err_attribute_zero_size) << SizeExpr->getSourceRange();
     return QualType();
   }
 
-  // vecSize is specified in bytes - convert to bits.
-  if (VectorSize % TypeSize) {
+  if (VectorSizeBits % TypeSize) {
     Diag(AttrLoc, diag::err_attribute_invalid_size)
         << SizeExpr->getSourceRange();
     return QualType();
   }
 
-  if (VectorType::isVectorSizeTooLarge(VectorSize / TypeSize)) {
+  if (VectorSizeBits / TypeSize > std::numeric_limits<uint32_t>::max()) {
     Diag(AttrLoc, diag::err_attribute_size_too_large)
         << SizeExpr->getSourceRange();
     return QualType();
   }
 
-  return Context.getVectorType(CurType, VectorSize / TypeSize,
+  return Context.getVectorType(CurType, VectorSizeBits / TypeSize,
                                VectorType::GenericVector);
 }
 
@@ -2496,6 +2557,11 @@ QualType Sema::BuildExtVectorType(QualType T, Expr *ArraySize,
       return QualType();
     }
 
+    if (!vecSize.isIntN(32)) {
+      Diag(AttrLoc, diag::err_attribute_size_too_large)
+          << ArraySize->getSourceRange();
+      return QualType();
+    }
     // Unlike gcc's vector_size attribute, the size is specified as the
     // number of elements, not the number of bytes.
     unsigned vectorSize = static_cast<unsigned>(vecSize.getZExtValue());
@@ -2503,12 +2569,6 @@ QualType Sema::BuildExtVectorType(QualType T, Expr *ArraySize,
     if (vectorSize == 0) {
       Diag(AttrLoc, diag::err_attribute_zero_size)
       << ArraySize->getSourceRange();
-      return QualType();
-    }
-
-    if (VectorType::isVectorSizeTooLarge(vectorSize)) {
-      Diag(AttrLoc, diag::err_attribute_size_too_large)
-        << ArraySize->getSourceRange();
       return QualType();
     }
 
@@ -2547,7 +2607,7 @@ bool Sema::CheckFunctionReturnType(QualType T, SourceLocation Loc) {
 
   // C++2a [dcl.fct]p12:
   //   A volatile-qualified return type is deprecated
-  if (T.isVolatileQualified() && getLangOpts().CPlusPlus2a)
+  if (T.isVolatileQualified() && getLangOpts().CPlusPlus20)
     Diag(Loc, diag::warn_deprecated_volatile_return) << T;
 
   return false;
@@ -2632,7 +2692,7 @@ QualType Sema::BuildFunctionType(QualType T,
 
     // C++2a [dcl.fct]p4:
     //   A parameter with volatile-qualified type is deprecated
-    if (ParamType.isVolatileQualified() && getLangOpts().CPlusPlus2a)
+    if (ParamType.isVolatileQualified() && getLangOpts().CPlusPlus20)
       Diag(Loc, diag::warn_deprecated_volatile_param) << ParamType;
 
     ParamTypes[Idx] = ParamType;
@@ -3133,7 +3193,7 @@ static QualType GetDeclSpecTypeForDeclarator(TypeProcessingState &state,
       InventedTemplateParameterInfo *Info = nullptr;
       if (D.getContext() == DeclaratorContext::PrototypeContext) {
         // With concepts we allow 'auto' in function parameters.
-        if (!SemaRef.getLangOpts().CPlusPlus2a || !Auto ||
+        if (!SemaRef.getLangOpts().CPlusPlus20 || !Auto ||
             Auto->getKeyword() != AutoTypeKeyword::Auto) {
           Error = 0;
           break;
@@ -4748,7 +4808,7 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
             // An error occurred parsing the trailing return type.
             T = Context.IntTy;
             D.setInvalidType(true);
-          } else if (S.getLangOpts().CPlusPlus2a)
+          } else if (S.getLangOpts().CPlusPlus20)
             // Handle cases like: `auto f() -> auto` or `auto f() -> C auto`.
             if (AutoType *Auto = T->getContainedAutoType())
               if (S.getCurScope()->isFunctionDeclarationScope())
@@ -4867,7 +4927,7 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
 
         // C++2a [dcl.fct]p12:
         //   A volatile-qualified return type is deprecated
-        if (T.isVolatileQualified() && S.getLangOpts().CPlusPlus2a)
+        if (T.isVolatileQualified() && S.getLangOpts().CPlusPlus20)
           S.Diag(DeclType.Loc, diag::warn_deprecated_volatile_return) << T;
       }
 
@@ -5358,7 +5418,7 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
 
   // C++2a [dcl.fct]p4:
   //   A parameter with volatile-qualified type is deprecated
-  if (T.isVolatileQualified() && S.getLangOpts().CPlusPlus2a &&
+  if (T.isVolatileQualified() && S.getLangOpts().CPlusPlus20 &&
       (D.getContext() == DeclaratorContext::PrototypeContext ||
        D.getContext() == DeclaratorContext::LambdaExprParameterContext))
     S.Diag(D.getIdentifierLoc(), diag::warn_deprecated_volatile_param) << T;
@@ -5384,7 +5444,7 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
       // We represent function parameter packs as function parameters whose
       // type is a pack expansion.
       if (!T->containsUnexpandedParameterPack() &&
-          (!LangOpts.CPlusPlus2a || !T->getContainedAutoType())) {
+          (!LangOpts.CPlusPlus20 || !T->getContainedAutoType())) {
         S.Diag(D.getEllipsisLoc(),
              diag::err_function_parameter_pack_without_parameter_packs)
           << T <<  D.getSourceRange();
@@ -5786,6 +5846,14 @@ namespace {
       TL.getValueLoc().initializeFullCopy(TInfo->getTypeLoc());
     }
 
+    void VisitExtIntTypeLoc(ExtIntTypeLoc TL) {
+      TL.setNameLoc(DS.getTypeSpecTypeLoc());
+    }
+
+    void VisitDependentExtIntTypeLoc(DependentExtIntTypeLoc TL) {
+      TL.setNameLoc(DS.getTypeSpecTypeLoc());
+    }
+
     void VisitTypeLoc(TypeLoc TL) {
       // FIXME: add other typespec types and change this to an assert.
       TL.initialize(Context, DS.getTypeSpecTypeLoc());
@@ -5911,6 +5979,9 @@ namespace {
     void VisitPipeTypeLoc(PipeTypeLoc TL) {
       assert(Chunk.Kind == DeclaratorChunk::Pipe);
       TL.setKWLoc(Chunk.Loc);
+    }
+    void VisitExtIntTypeLoc(ExtIntTypeLoc TL) {
+      TL.setNameLoc(Chunk.Loc);
     }
     void VisitMacroQualifiedTypeLoc(MacroQualifiedTypeLoc TL) {
       TL.setExpansionLoc(Chunk.Loc);
@@ -6118,35 +6189,14 @@ static bool BuildAddressSpaceIndex(Sema &S, LangAS &ASIdx,
     llvm::APSInt max(addrSpace.getBitWidth());
     max =
         Qualifiers::MaxAddressSpace - (unsigned)LangAS::FirstTargetAddressSpace;
-
     if (addrSpace > max) {
       S.Diag(AttrLoc, diag::err_attribute_address_space_too_high)
           << (unsigned)max.getZExtValue() << AddrSpace->getSourceRange();
       return false;
     }
 
-    if (S.LangOpts.SYCLIsDevice && (addrSpace >= 4)) {
-      S.Diag(AttrLoc, diag::err_sycl_attribute_address_space_invalid)
-          << AddrSpace->getSourceRange();
-      return false;
-    }
-
-    ASIdx = getLangASFromTargetAS(
-                             static_cast<unsigned>(addrSpace.getZExtValue()));
-
-    if (S.LangOpts.SYCLIsDevice) {
-      ASIdx =
-          [](unsigned AS) {
-            switch (AS) {
-            case 0: return LangAS::sycl_private;
-            case 1: return LangAS::sycl_global;
-            case 2: return LangAS::sycl_constant;
-            case 3: return LangAS::sycl_local;
-            case 4: default: llvm_unreachable("Invalid SYCL AS");
-            }
-          }(static_cast<unsigned>(ASIdx) -
-            static_cast<unsigned>(LangAS::FirstTargetAddressSpace));
-    }
+    ASIdx =
+        getLangASFromTargetAS(static_cast<unsigned>(addrSpace.getZExtValue()));
     return true;
   }
 
@@ -6272,8 +6322,7 @@ static void HandleAddressSpaceTypeAttribute(QualType &Type,
       Attr.setInvalid();
   } else {
     // The keyword-based type attributes imply which address space to use.
-    ASIdx = S.getLangOpts().SYCLIsDevice ?
-                Attr.asSYCLLangAS() : Attr.asOpenCLLangAS();
+    ASIdx = Attr.asOpenCLLangAS();
     if (ASIdx == LangAS::Default)
       llvm_unreachable("Invalid address space");
 
@@ -8160,10 +8209,12 @@ bool Sema::hasVisibleDefinition(NamedDecl *D, NamedDecl **Suggested,
   } else if (auto *ED = dyn_cast<EnumDecl>(D)) {
     if (auto *Pattern = ED->getTemplateInstantiationPattern())
       ED = Pattern;
-    if (OnlyNeedComplete && ED->isFixed()) {
-      // If the enum has a fixed underlying type, and we're only looking for a
-      // complete type (not a definition), any visible declaration of it will
-      // do.
+    if (OnlyNeedComplete && (ED->isFixed() || getLangOpts().MSVCCompat)) {
+      // If the enum has a fixed underlying type, it may have been forward
+      // declared. In -fms-compatibility, `enum Foo;` will also forward declare
+      // the enum and assign it the underlying type of `int`. Since we're only
+      // looking for a complete type (not a definition), any visible declaration
+      // of it will do.
       *Suggested = nullptr;
       for (auto *Redecl : ED->redecls()) {
         if (isVisible(Redecl))
@@ -8405,14 +8456,14 @@ bool Sema::RequireCompleteTypeImpl(SourceLocation Loc, QualType T,
 
   // If the type was a forward declaration of a class/struct/union
   // type, produce a note.
-  if (Tag && !Tag->isInvalidDecl())
+  if (Tag && !Tag->isInvalidDecl() && !Tag->getLocation().isInvalid())
     Diag(Tag->getLocation(),
          Tag->isBeingDefined() ? diag::note_type_being_defined
                                : diag::note_forward_declaration)
       << Context.getTagDeclType(Tag);
 
   // If the Objective-C class was a forward declaration, produce a note.
-  if (IFace && !IFace->isInvalidDecl())
+  if (IFace && !IFace->isInvalidDecl() && !IFace->getLocation().isInvalid())
     Diag(IFace->getLocation(), diag::note_forward_class);
 
   // If we have external information that we can use to suggest a fix,
@@ -8524,7 +8575,7 @@ bool Sema::RequireLiteralType(SourceLocation Loc, QualType T,
         return true;
       }
     }
-  } else if (getLangOpts().CPlusPlus2a ? !RD->hasConstexprDestructor()
+  } else if (getLangOpts().CPlusPlus20 ? !RD->hasConstexprDestructor()
                                        : !RD->hasTrivialDestructor()) {
     // All fields and bases are of literal types, so have trivial or constexpr
     // destructors. If this class's destructor is non-trivial / non-constexpr,
@@ -8534,7 +8585,7 @@ bool Sema::RequireLiteralType(SourceLocation Loc, QualType T,
     if (!Dtor)
       return true;
 
-    if (getLangOpts().CPlusPlus2a) {
+    if (getLangOpts().CPlusPlus20) {
       Diag(Dtor->getLocation(), diag::note_non_literal_non_constexpr_dtor)
           << RD;
     } else {
@@ -8731,6 +8782,12 @@ QualType Sema::BuildAtomicType(QualType T, SourceLocation Loc) {
     else if (!T.isTriviallyCopyableType(Context))
       // Some other non-trivially-copyable type (probably a C++ class)
       DisallowedKind = 7;
+    else if (auto *ExtTy = T->getAs<ExtIntType>()) {
+      if (ExtTy->getNumBits() < 8)
+        DisallowedKind = 8;
+      else if (!llvm::isPowerOf2_32(ExtTy->getNumBits()))
+        DisallowedKind = 9;
+    }
 
     if (DisallowedKind != -1) {
       Diag(Loc, diag::err_atomic_specifier_bad_type) << DisallowedKind << T;

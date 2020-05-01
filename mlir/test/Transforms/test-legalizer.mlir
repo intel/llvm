@@ -1,4 +1,4 @@
-// RUN: mlir-opt -split-input-file -test-legalize-patterns -verify-diagnostics %s | FileCheck %s
+// RUN: mlir-opt -allow-unregistered-dialect -split-input-file -test-legalize-patterns -verify-diagnostics %s | FileCheck %s
 
 // CHECK-LABEL: verifyDirectPattern
 func @verifyDirectPattern() -> i32 {
@@ -130,6 +130,26 @@ func @remove_foldable_op(%arg0 : i32) -> (i32) {
   return %0 : i32
 }
 
+// CHECK-LABEL: @create_block
+func @create_block() {
+  "test.container"() ({
+    // Check that we created a block with arguments.
+    // CHECK-NOT: test.create_block
+    // CHECK: ^{{.*}}(%{{.*}}: i32, %{{.*}}: i32):
+    // CHECK: test.finish
+    "test.create_block"() : () -> ()
+    "test.finish"() : () -> ()
+  }) : () -> ()
+  return
+}
+
+// CHECK-LABEL: @bounded_recursion
+func @bounded_recursion() {
+  // CHECK: test.recursive_rewrite 0
+  test.recursive_rewrite 3
+  return
+}
+
 // -----
 
 func @fail_to_convert_illegal_op() -> i32 {
@@ -160,6 +180,34 @@ func @fail_to_convert_region() {
       // expected-error@+1 {{failed to legalize operation 'test.region_builder'}}
       "test.region_builder"() : () -> ()
       "test.valid"() : () -> ()
+  }) : () -> ()
+  return
+}
+
+// -----
+
+// CHECK-LABEL: @create_illegal_block
+func @create_illegal_block() {
+  "test.container"() ({
+    // Check that we can undo block creation, i.e. that the block was removed.
+    // CHECK: test.create_illegal_block
+    // CHECK-NOT: ^{{.*}}(%{{.*}}: i32, %{{.*}}: i32):
+    "test.create_illegal_block"() : () -> ()
+    "test.finish"() : () -> ()
+  }) : () -> ()
+  return
+}
+
+// -----
+
+// CHECK-LABEL: @undo_block_arg_replace
+func @undo_block_arg_replace() {
+  "test.undo_block_arg_replace"() ({
+  ^bb0(%arg0: i32):
+    // CHECK: ^bb0(%[[ARG:.*]]: i32):
+    // CHECK-NEXT: "test.return"(%[[ARG]]) : (i32)
+
+    "test.return"(%arg0) : (i32) -> ()
   }) : () -> ()
   return
 }

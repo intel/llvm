@@ -1,5 +1,5 @@
 add_mlir_dialect(SPIRVOps spv)
-add_mlir_doc(SPIRVOps -gen-dialect-doc SPIRVDialect Dialects/)
+add_mlir_doc(SPIRVOps -gen-op-doc SPIRVOps Dialects/)
 
 set(LLVM_TARGET_DEFINITIONS SPIRVBase.td)
 mlir_tablegen(SPIRVEnums.h.inc -gen-enum-decls)
@@ -30,3 +30,9 @@ set(LLVM_TARGET_DEFINITIONS TargetAndABI.td)
 mlir_tablegen(TargetAndABI.h.inc -gen-struct-attr-decls)
 mlir_tablegen(TargetAndABI.cpp.inc -gen-struct-attr-defs)
 add_public_tablegen_target(MLIRSPIRVTargetAndABIIncGen)
+
+set(LLVM_TARGET_DEFINITIONS Passes.td)
+mlir_tablegen(Passes.h.inc -gen-pass-decls)
+add_public_tablegen_target(MLIRSPIRVPassIncGen)
+
+add_mlir_doc(Passes -gen-pass-doc SPIRVPasses ./)

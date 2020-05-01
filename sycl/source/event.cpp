@@ -31,7 +31,7 @@ bool event::operator==(const event &rhs) const { return rhs.impl == impl; }
 
 bool event::operator!=(const event &rhs) const { return !(*this == rhs); }
 
-cl_event event::get() { return impl->get(); }
+cl_event event::get() const { return impl->get(); }
 
 bool event::is_host() const { return impl->is_host(); }
 
@@ -84,6 +84,8 @@ event::event(shared_ptr_class<detail::event_impl> event_impl)
 #include <CL/sycl/info/event_profiling_traits.def>
 
 #undef PARAM_TRAITS_SPEC
+
+pi_native_handle event::getNative() const { return impl->getNative(); }
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

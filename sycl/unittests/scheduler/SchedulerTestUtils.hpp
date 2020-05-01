@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
+#include <CL/cl.h>
 #include <CL/sycl.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
@@ -15,12 +16,18 @@
 // This header contains a few common classes/methods used in
 // execution graph testing.
 
-class FakeCommand : public cl::sycl::detail::Command {
+cl::sycl::detail::Requirement getMockRequirement();
+
+class MockCommand : public cl::sycl::detail::Command {
 public:
-  FakeCommand(cl::sycl::detail::QueueImplPtr Queue,
+  MockCommand(cl::sycl::detail::QueueImplPtr Queue,
               cl::sycl::detail::Requirement Req)
       : Command{cl::sycl::detail::Command::EMPTY_TASK, Queue},
         MRequirement{std::move(Req)} {}
+
+  MockCommand(cl::sycl::detail::QueueImplPtr Queue)
+      : Command{cl::sycl::detail::Command::EMPTY_TASK, Queue},
+        MRequirement{std::move(getMockRequirement())} {}
 
   void printDot(std::ostream &Stream) const override {}
   void emitInstrumentationData() override {}
@@ -37,20 +44,20 @@ protected:
   cl::sycl::detail::Requirement MRequirement;
 };
 
-class FakeCommandWithCallback : public FakeCommand {
+class MockCommandWithCallback : public MockCommand {
 public:
-  FakeCommandWithCallback(cl::sycl::detail::QueueImplPtr Queue,
+  MockCommandWithCallback(cl::sycl::detail::QueueImplPtr Queue,
                           cl::sycl::detail::Requirement Req,
                           std::function<void()> Callback)
-      : FakeCommand(Queue, Req), MCallback(std::move(Callback)) {}
+      : MockCommand(Queue, Req), MCallback(std::move(Callback)) {}
 
-  ~FakeCommandWithCallback() override { MCallback(); }
+  ~MockCommandWithCallback() override { MCallback(); }
 
 protected:
   std::function<void()> MCallback;
 };
 
-class TestScheduler : public cl::sycl::detail::Scheduler {
+class MockScheduler : public cl::sycl::detail::Scheduler {
 public:
   cl::sycl::detail::MemObjRecord *
   getOrInsertMemObjRecord(const cl::sycl::detail::QueueImplPtr &Queue,
@@ -71,19 +78,24 @@ public:
       cl::sycl::access::mode Mode = cl::sycl::access::mode::read_write) {
     return MGraphBuilder.addNodeToLeaves(Rec, Cmd, Mode);
   }
+
+  static bool enqueueCommand(cl::sycl::detail::Command *Cmd,
+                             cl::sycl::detail::EnqueueResultT &EnqueueResult,
+                             cl::sycl::detail::BlockingT Blocking) {
+    return GraphProcessor::enqueueCommand(Cmd, EnqueueResult, Blocking);
+  }
 };
 
 void addEdge(cl::sycl::detail::Command *User, cl::sycl::detail::Command *Dep,
              cl::sycl::detail::AllocaCommandBase *Alloca);
 
 template <typename MemObjT>
-cl::sycl::detail::Requirement getFakeRequirement(const MemObjT &MemObj) {
-  return {{0, 0, 0},
-          {0, 0, 0},
-          {0, 0, 0},
-          cl::sycl::access::mode::read_write,
-          cl::sycl::detail::getSyclObjImpl(MemObj).get(),
-          0,
-          0,
-          0};
+cl::sycl::detail::Requirement getMockRequirement(const MemObjT &MemObj) {
+  return {/*Offset*/ {0, 0, 0},
+          /*AccessRange*/ {0, 0, 0},
+          /*MemoryRange*/ {0, 0, 0},
+          /*AccessMode*/ cl::sycl::access::mode::read_write,
+          /*SYCLMemObj*/ cl::sycl::detail::getSyclObjImpl(MemObj).get(),
+          /*Dims*/ 0,
+          /*ElementSize*/ 0};
 }

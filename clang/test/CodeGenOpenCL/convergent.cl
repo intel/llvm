@@ -121,7 +121,7 @@ void test_unroll() {
 
 // The new PM produces a slightly different IR for the loop from the legacy PM,
 // but the test still checks that the loop is not unrolled.
-// CHECK-LEGACY:  br i1 %{{.+}}, label %[[for_body]], label %[[for_cond_cleanup]]
+// CHECK-LEGACY:  br i1 %{{.+}}, label %[[for_cond_cleanup]], label %[[for_body]]
 // CHECK-NEW:     br i1 %{{.+}}, label %[[for_body_crit_edge:.+]], label %[[for_cond_cleanup]]
 // CHECK-NEW:     [[for_body_crit_edge]]:
 

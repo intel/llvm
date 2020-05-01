@@ -591,6 +591,8 @@ def warn_cxx17_compat_for_range_init_stmt : Warning<
 def warn_empty_init_statement : Warning<
   "empty initialization statement of '%select{if|switch|range-based for}0' "
   "has no effect">, InGroup<EmptyInitStatement>, DefaultIgnore;
+def err_keyword_as_parameter : Error <
+  "invalid parameter name: '%0' is a keyword">;
 
 // C++ derived classes
 def err_dup_virtual : Error<"duplicate 'virtual' in base specifier">;
@@ -674,7 +676,7 @@ def err_ms_property_expected_comma_or_rparen : Error<
 def err_ms_property_initializer : Error<
   "property declaration cannot have an in-class initializer">;
 
-def warn_cxx2a_compat_explicit_bool : Warning<
+def warn_cxx20_compat_explicit_bool : Warning<
   "this expression will be parsed as explicit(bool) in C++20">,
   InGroup<CXX20Compat>, DefaultIgnore;
 def warn_cxx17_compat_explicit_bool : Warning<
@@ -1220,6 +1222,10 @@ def err_omp_expected_identifier_for_critical : Error<
   "expected identifier specifying the name of the 'omp critical' directive">;
 def err_omp_expected_reduction_identifier : Error<
   "expected identifier or one of the following operators: '+', '-', '*', '&', '|', '^', '&&', or '||'">;
+def err_omp_expected_equal_in_iterator : Error<
+  "expected '=' in iterator specifier">;
+def err_omp_expected_punc_after_iterator : Error<
+  "expected ',' or ')' after iterator specifier">;
 def err_omp_decl_in_declare_simd_variant : Error<
   "function declaration is expected after 'declare %select{simd|variant}0' directive">;
 def err_omp_unknown_map_type : Error<
@@ -1232,8 +1238,11 @@ def err_omp_map_type_modifier_missing : Error<
   "missing map type modifier">;
 def err_omp_declare_simd_inbranch_notinbranch : Error<
   "unexpected '%0' clause, '%1' is specified already">;
-def err_expected_end_declare_target : Error<
-  "expected '#pragma omp end declare target'">;
+def err_expected_end_declare_target_or_variant : Error<
+  "expected '#pragma omp end declare %select{target|variant}0'">;
+def err_expected_begin_declare_variant
+    : Error<"'#pragma omp end declare variant' with no matching '#pragma omp "
+            "begin declare variant'">;
 def err_omp_declare_target_unexpected_clause: Error<
   "unexpected '%0' clause, only %select{'to' or 'link'|'to', 'link' or 'device_type'}1 clauses expected">;
 def err_omp_expected_clause: Error<
@@ -1306,6 +1315,8 @@ def warn_omp_ctx_incompatible_score_for_property
 def warn_omp_more_one_device_type_clause
     : Warning<"more than one 'device_type' clause is specified">,
       InGroup<OpenMPClauses>;
+def err_omp_variant_ctx_second_match_extension : Error<
+  "only a single match extension allowed per OpenMP context selector">;
 
 // Pragma loop support.
 def err_pragma_loop_missing_argument : Error<

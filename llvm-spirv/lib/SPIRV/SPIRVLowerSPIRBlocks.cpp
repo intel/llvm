@@ -55,7 +55,6 @@
 #include "llvm/IR/Verifier.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
-#include "llvm/PassSupport.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Transforms/Utils/Cloning.h"
@@ -348,7 +347,7 @@ private:
         return ACT->getAssumptionCache(F);
       };
       InlineFunctionInfo IFI(CG, &GetAssumptionCache);
-      InlineFunction(CI, IFI);
+      InlineFunction(*cast<CallBase>(CI), IFI);
       Inlined = true;
     }
     return Changed || Inlined;
@@ -462,21 +461,16 @@ private:
       // Redirect all users of the old function to the new one.
       for (User *U : F.users()) {
         ConstantExpr *CE = dyn_cast<ConstantExpr>(U);
-        CallSite CS(U);
         if (CE && CE->getOpcode() == Instruction::BitCast) {
           Constant *NewCE = ConstantExpr::getBitCast(NF, CE->getType());
           U->replaceAllUsesWith(NewCE);
-        } else if (CS) {
-          assert(isa<CallInst>(CS.getInstruction()) &&
-                 "Call instruction is expected");
-          CallInst *Call = cast<CallInst>(CS.getInstruction());
-
+        } else if (auto *Call = dyn_cast<CallInst>(U)) {
           std::vector<Value *> Args;
-          auto I = CS.arg_begin();
-          Args.assign(++I, CS.arg_end()); // Skip first argument.
+          auto I = Call->arg_begin();
+          Args.assign(++I, Call->arg_end()); // Skip first argument.
           CallInst *New = CallInst::Create(NF, Args, "", Call);
           assert(New->getType() == Call->getType());
-          New->setCallingConv(CS.getCallingConv());
+          New->setCallingConv(Call->getCallingConv());
           New->setAttributes(NF->getAttributes());
           if (Call->isTailCall())
             New->setTailCall();

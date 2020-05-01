@@ -33,11 +33,6 @@ static const unsigned SPIRAddrSpaceMap[] = {
     0, // cuda_device
     0, // cuda_constant
     0, // cuda_shared
-    1, // sycl_global
-    3, // sycl_local
-    2, // sycl_constant
-    0, // sycl_private
-    4, // sycl_generic
     0, // ptr32_sptr
     0, // ptr32_uptr
     0  // ptr64
@@ -53,11 +48,6 @@ static const unsigned SYCLAddrSpaceMap[] = {
     0, // cuda_device
     0, // cuda_constant
     0, // cuda_shared
-    1, // sycl_global
-    3, // sycl_local
-    2, // sycl_constant
-    0, // sycl_private
-    4, // sycl_generic
     0, // ptr32_sptr
     0, // ptr32_uptr
     0  // ptr64
@@ -70,11 +60,9 @@ public:
     TLSSupported = false;
     VLASupported = false;
     LongWidth = LongAlign = 64;
-    if (Triple.getEnvironment() == llvm::Triple::SYCLDevice) {
-      AddrSpaceMap = &SYCLAddrSpaceMap;
-    } else {
-      AddrSpaceMap = &SPIRAddrSpaceMap;
-    }
+    AddrSpaceMap = (Triple.getEnvironment() == llvm::Triple::SYCLDevice)
+                       ? &SYCLAddrSpaceMap
+                       : &SPIRAddrSpaceMap;
     UseAddrSpaceMapMangling = true;
     HasLegalHalfType = true;
     HasFloat16 = true;
@@ -135,8 +123,9 @@ public:
     PointerWidth = PointerAlign = 32;
     SizeType = TargetInfo::UnsignedInt;
     PtrDiffType = IntPtrType = TargetInfo::SignedInt;
-    resetDataLayout("e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-"
-                    "v96:128-v192:256-v256:256-v512:512-v1024:1024");
+    resetDataLayout(
+        "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-"
+        "v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64");
   }
 
   void getTargetDefines(const LangOptions &Opts,
@@ -151,8 +140,9 @@ public:
     SizeType = TargetInfo::UnsignedLong;
     PtrDiffType = IntPtrType = TargetInfo::SignedLong;
 
-    resetDataLayout("e-i64:64-v16:16-v24:32-v32:32-v48:64-"
-                    "v96:128-v192:256-v256:256-v512:512-v1024:1024");
+    resetDataLayout(
+        "e-i64:64-v16:16-v24:32-v32:32-v48:64-"
+        "v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64");
   }
 
   void getTargetDefines(const LangOptions &Opts,

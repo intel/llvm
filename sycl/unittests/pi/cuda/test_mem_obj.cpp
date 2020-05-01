@@ -11,7 +11,7 @@
 #include <cuda.h>
 
 #include <CL/sycl.hpp>
-#include <CL/sycl/backend/cuda.hpp>
+#include <CL/sycl/detail/cuda_definitions.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <detail/plugin.hpp>
 #include <pi_cuda.hpp>

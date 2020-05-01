@@ -1,8 +1,9 @@
+// XFAIL: cuda
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
-// RUNx: %CPU_RUN_PLACEHOLDER %t.out
-// RUNx: %GPU_RUN_PLACEHOLDER %t.out
-// RUNx: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %CPU_RUN_PLACEHOLDER %t.out
+// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %ACC_RUN_PLACEHOLDER %t.out
 //==------------ vec_convert.cpp - SYCL vec class convert method test ------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -15,8 +16,7 @@
 
 #include <cassert>
 
-// TODO uncomment run lines on non-host devices when the rounding modes will
-// be implemented.
+// TODO make the test to pass on cuda
 
 using namespace cl::sycl;
 

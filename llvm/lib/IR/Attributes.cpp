@@ -504,19 +504,19 @@ std::string Attribute::getAsString(bool InAttrGrp) const {
   //
   if (isStringAttribute()) {
     std::string Result;
-    Result += (Twine('"') + getKindAsString() + Twine('"')).str();
-
-    std::string AttrVal = std::string(pImpl->getValueAsString());
-    if (AttrVal.empty()) return Result;
-
-    // Since some attribute strings contain special characters that cannot be
-    // printable, those have to be escaped to make the attribute value printable
-    // as is.  e.g. "\01__gnu_mcount_nc"
     {
       raw_string_ostream OS(Result);
-      OS << "=\"";
-      printEscapedString(AttrVal, OS);
-      OS << "\"";
+      OS << '"' << getKindAsString() << '"';
+
+      // Since some attribute strings contain special characters that cannot be
+      // printable, those have to be escaped to make the attribute value
+      // printable as is.  e.g. "\01__gnu_mcount_nc"
+      const auto &AttrVal = pImpl->getValueAsString();
+      if (!AttrVal.empty()) {
+        OS << "=\"";
+        printEscapedString(AttrVal, OS);
+        OS << "\"";
+      }
     }
     return Result;
   }
@@ -770,7 +770,9 @@ AttributeSetNode::AttributeSetNode(ArrayRef<Attribute> Attrs)
                 "Too many attributes");
 
   for (const auto &I : *this) {
-    if (!I.isStringAttribute()) {
+    if (I.isStringAttribute()) {
+      StringAttrs.insert({ I.getKindAsString(), I });
+    } else {
       Attribute::AttrKind Kind = I.getKindAsEnum();
       AvailableAttrs[Kind / 8] |= 1ULL << (Kind % 8);
     }
@@ -779,16 +781,21 @@ AttributeSetNode::AttributeSetNode(ArrayRef<Attribute> Attrs)
 
 AttributeSetNode *AttributeSetNode::get(LLVMContext &C,
                                         ArrayRef<Attribute> Attrs) {
-  if (Attrs.empty())
+  SmallVector<Attribute, 8> SortedAttrs(Attrs.begin(), Attrs.end());
+  llvm::sort(SortedAttrs);
+  return getSorted(C, SortedAttrs);
+}
+
+AttributeSetNode *AttributeSetNode::getSorted(LLVMContext &C,
+                                              ArrayRef<Attribute> SortedAttrs) {
+  if (SortedAttrs.empty())
     return nullptr;
 
-  // Otherwise, build a key to look up the existing attributes.
+  // Build a key to look up the existing attributes.
   LLVMContextImpl *pImpl = C.pImpl;
   FoldingSetNodeID ID;
 
-  SmallVector<Attribute, 8> SortedAttrs(Attrs.begin(), Attrs.end());
-  llvm::sort(SortedAttrs);
-
+  assert(llvm::is_sorted(SortedAttrs) && "Expected sorted attributes!");
   for (const auto &Attr : SortedAttrs)
     Attr.Profile(ID);
 
@@ -853,72 +860,74 @@ AttributeSetNode *AttributeSetNode::get(LLVMContext &C, const AttrBuilder &B) {
   for (const auto &TDA : B.td_attrs())
     Attrs.emplace_back(Attribute::get(C, TDA.first, TDA.second));
 
-  return get(C, Attrs);
+  return getSorted(C, Attrs);
 }
 
 bool AttributeSetNode::hasAttribute(StringRef Kind) const {
-  for (const auto &I : *this)
-    if (I.hasAttribute(Kind))
-      return true;
-  return false;
+  return StringAttrs.count(Kind);
+}
+
+Optional<Attribute>
+AttributeSetNode::findEnumAttribute(Attribute::AttrKind Kind) const {
+  // Do a quick presence check.
+  if (!hasAttribute(Kind))
+    return None;
+
+  // Attributes in a set are sorted by enum value, followed by string
+  // attributes. Binary search the one we want.
+  const Attribute *I =
+      std::lower_bound(begin(), end() - StringAttrs.size(), Kind,
+                       [](Attribute A, Attribute::AttrKind Kind) {
+                         return A.getKindAsEnum() < Kind;
+                       });
+  assert(I != end() && I->hasAttribute(Kind) && "Presence check failed?");
+  return *I;
 }
 
 Attribute AttributeSetNode::getAttribute(Attribute::AttrKind Kind) const {
-  if (hasAttribute(Kind)) {
-    for (const auto &I : *this)
-      if (I.hasAttribute(Kind))
-        return I;
-  }
+  if (auto A = findEnumAttribute(Kind))
+    return *A;
   return {};
 }
 
 Attribute AttributeSetNode::getAttribute(StringRef Kind) const {
-  for (const auto &I : *this)
-    if (I.hasAttribute(Kind))
-      return I;
-  return {};
+  return StringAttrs.lookup(Kind);
 }
 
 MaybeAlign AttributeSetNode::getAlignment() const {
-  for (const auto &I : *this)
-    if (I.hasAttribute(Attribute::Alignment))
-      return I.getAlignment();
+  if (auto A = findEnumAttribute(Attribute::Alignment))
+    return A->getAlignment();
   return None;
 }
 
 MaybeAlign AttributeSetNode::getStackAlignment() const {
-  for (const auto &I : *this)
-    if (I.hasAttribute(Attribute::StackAlignment))
-      return I.getStackAlignment();
+  if (auto A = findEnumAttribute(Attribute::StackAlignment))
+    return A->getStackAlignment();
   return None;
 }
 
 Type *AttributeSetNode::getByValType() const {
-  for (const auto &I : *this)
-    if (I.hasAttribute(Attribute::ByVal))
-      return I.getValueAsType();
+  if (auto A = findEnumAttribute(Attribute::ByVal))
+    return A->getValueAsType();
   return 0;
 }
 
 uint64_t AttributeSetNode::getDereferenceableBytes() const {
-  for (const auto &I : *this)
-    if (I.hasAttribute(Attribute::Dereferenceable))
-      return I.getDereferenceableBytes();
+  if (auto A = findEnumAttribute(Attribute::Dereferenceable))
+    return A->getDereferenceableBytes();
   return 0;
 }
 
 uint64_t AttributeSetNode::getDereferenceableOrNullBytes() const {
-  for (const auto &I : *this)
-    if (I.hasAttribute(Attribute::DereferenceableOrNull))
-      return I.getDereferenceableOrNullBytes();
+  if (auto A = findEnumAttribute(Attribute::DereferenceableOrNull))
+    return A->getDereferenceableOrNullBytes();
   return 0;
 }
 
 std::pair<unsigned, Optional<unsigned>>
 AttributeSetNode::getAllocSizeArgs() const {
-  for (const auto &I : *this)
-    if (I.hasAttribute(Attribute::AllocSize))
-      return I.getAllocSizeArgs();
+  if (auto A = findEnumAttribute(Attribute::AllocSize))
+    return A->getAllocSizeArgs();
   return std::make_pair(0, 0);
 }
 
@@ -1019,11 +1028,12 @@ AttributeList::get(LLVMContext &C,
   if (Attrs.empty())
     return {};
 
-  assert(std::is_sorted(Attrs.begin(), Attrs.end(),
-                        [](const std::pair<unsigned, Attribute> &LHS,
-                           const std::pair<unsigned, Attribute> &RHS) {
-                          return LHS.first < RHS.first;
-                        }) && "Misordered Attributes list!");
+  assert(llvm::is_sorted(Attrs,
+                         [](const std::pair<unsigned, Attribute> &LHS,
+                            const std::pair<unsigned, Attribute> &RHS) {
+                           return LHS.first < RHS.first;
+                         }) &&
+         "Misordered Attributes list!");
   assert(llvm::none_of(Attrs,
                        [](const std::pair<unsigned, Attribute> &Pair) {
                          return Pair.second.hasAttribute(Attribute::None);
@@ -1055,11 +1065,11 @@ AttributeList::get(LLVMContext &C,
   if (Attrs.empty())
     return {};
 
-  assert(std::is_sorted(Attrs.begin(), Attrs.end(),
-                        [](const std::pair<unsigned, AttributeSet> &LHS,
-                           const std::pair<unsigned, AttributeSet> &RHS) {
-                          return LHS.first < RHS.first;
-                        }) &&
+  assert(llvm::is_sorted(Attrs,
+                         [](const std::pair<unsigned, AttributeSet> &LHS,
+                            const std::pair<unsigned, AttributeSet> &RHS) {
+                           return LHS.first < RHS.first;
+                         }) &&
          "Misordered Attributes list!");
   assert(llvm::none_of(Attrs,
                        [](const std::pair<unsigned, AttributeSet> &Pair) {
@@ -1228,7 +1238,7 @@ AttributeList AttributeList::addAttributes(LLVMContext &C, unsigned Index,
 AttributeList AttributeList::addParamAttribute(LLVMContext &C,
                                                ArrayRef<unsigned> ArgNos,
                                                Attribute A) const {
-  assert(std::is_sorted(ArgNos.begin(), ArgNos.end()));
+  assert(llvm::is_sorted(ArgNos));
 
   SmallVector<AttributeSet, 4> AttrSets(this->begin(), this->end());
   unsigned MaxIndex = attrIdxToArrayIdx(ArgNos.back() + FirstArgIndex);

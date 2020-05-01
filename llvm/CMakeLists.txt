@@ -2,6 +2,14 @@
 
 cmake_minimum_required(VERSION 3.4.3)
 
+if ("${CMAKE_VERSION}" VERSION_LESS "3.13.4")
+  message(WARNING
+    "Your CMake version is ${CMAKE_VERSION}. Starting with LLVM 12.0.0, the "
+    "minimum version of CMake required to build LLVM will become 3.13.4, and "
+    "using an older CMake will become an error. Please upgrade your CMake to "
+    "at least 3.13.4 now to avoid issues in the future!")
+endif()
+
 if(POLICY CMP0068)
   cmake_policy(SET CMP0068 NEW)
   set(CMAKE_BUILD_WITH_INSTALL_NAME_DIR ON)
@@ -64,8 +72,12 @@ endif()
 # This allows an easy way of setting up a build directory for llvm and another
 # one for llvm+clang+... using the same sources.
 set(LLVM_ALL_PROJECTS "clang;clang-tools-extra;compiler-rt;debuginfo-tests;libc;libclc;libcxx;libcxxabi;libunwind;lld;lldb;mlir;openmp;parallel-libs;polly;pstl")
+# The flang project is not yet part of "all" projects (see C++ requirements)
+set(LLVM_EXTRA_PROJECTS "flang")
+# List of all known projects in the mono repo
+set(LLVM_KNOWN_PROJECTS "${LLVM_ALL_PROJECTS};${LLVM_EXTRA_PROJECTS}")
 set(LLVM_ENABLE_PROJECTS "" CACHE STRING
-	"Semicolon-separated list of projects to build (${LLVM_ALL_PROJECTS}), or \"all\".")
+	"Semicolon-separated list of projects to build (${LLVM_KNOWN_PROJECTS}), or \"all\".")
 if( LLVM_ENABLE_PROJECTS STREQUAL "all" )
   set( LLVM_ENABLE_PROJECTS ${LLVM_ALL_PROJECTS})
 endif()
@@ -89,7 +101,7 @@ mark_as_advanced(LLVM_ENABLE_PROJECTS_USED)
 
 if (LLVM_ENABLE_PROJECTS_USED OR NOT LLVM_ENABLE_PROJECTS STREQUAL "")
   set(LLVM_ENABLE_PROJECTS_USED ON CACHE BOOL "" FORCE)
-  foreach(proj ${LLVM_ALL_PROJECTS} ${LLVM_EXTERNAL_PROJECTS})
+  foreach(proj ${LLVM_KNOWN_PROJECTS} ${LLVM_EXTERNAL_PROJECTS})
     string(TOUPPER "${proj}" upper_proj)
     string(REGEX REPLACE "-" "_" upper_proj ${upper_proj})
     if ("${proj}" IN_LIST LLVM_ENABLE_PROJECTS)
@@ -411,15 +423,16 @@ endif()
 option(LLVM_ENABLE_EXPENSIVE_CHECKS "Enable expensive checks" OFF)
 
 # While adding scalable vector support to LLVM, we temporarily want to
-# allow an implicit conversion of TypeSize to uint64_t. This CMake flag
-# enables a more strict conversion where it asserts that the type is not
-# a scalable vector type.
+# allow an implicit conversion of TypeSize to uint64_t, and to allow
+# code to get the fixed number of elements from a possibly scalable vector.
+# This CMake flag enables a more strict mode where it asserts that the type
+# is not a scalable vector type.
 #
 # Enabling this flag makes it easier to find cases where the compiler makes
 # assumptions on the size being 'fixed size', when building tests for
 # SVE/SVE2 or other scalable vector architectures.
 option(LLVM_ENABLE_STRICT_FIXED_SIZE_VECTORS
-       "Enable assertions that type is not scalable in implicit conversion from TypeSize to uint64_t" OFF)
+       "Enable assertions that type is not scalable in implicit conversion from TypeSize to uint64_t and calls to getNumElements" OFF)
 
 set(LLVM_ABI_BREAKING_CHECKS "WITH_ASSERTS" CACHE STRING
   "Enable abi-breaking checks.  Can be WITH_ASSERTS, FORCE_ON or FORCE_OFF.")

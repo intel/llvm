@@ -76,6 +76,9 @@ public:
 
   /// Support method to enable LLVM-style type casting.
   static bool kindof(unsigned kind) { return kind == StandardTypes::Index; }
+
+  /// Storage bit width used for IndexType by internal compiler data structures.
+  static constexpr unsigned kInternalStorageBitWidth = 64;
 };
 
 /// Integer types can have arbitrary bitwidth up to a large fixed limit.
@@ -128,7 +131,7 @@ public:
   /// Return the signedness semantics of this integer type.
   SignednessSemantics getSignedness() const;
 
-  /// Return true if this is a singless integer type.
+  /// Return true if this is a signless integer type.
   bool isSignless() const { return getSignedness() == Signless; }
   /// Return true if this is a signed integer type.
   bool isSigned() const { return getSignedness() == Signed; }
@@ -252,7 +255,11 @@ public:
 
   /// If this is ranked type, return the size of the specified dimension.
   /// Otherwise, abort.
-  int64_t getDimSize(int64_t i) const;
+  int64_t getDimSize(unsigned idx) const;
+
+  /// Returns true if this dimension has a dynamic size (for ranked types);
+  /// aborts for unranked types.
+  bool isDynamicDim(unsigned idx) const;
 
   /// Returns the position of the dynamic dimension relative to just the dynamic
   /// dimensions, given its `index` within the shape.
@@ -276,7 +283,9 @@ public:
   }
 
   /// Whether the given dimension size indicates a dynamic dimension.
-  static constexpr bool isDynamic(int64_t dSize) { return dSize < 0; }
+  static constexpr bool isDynamic(int64_t dSize) {
+    return dSize == kDynamicSize;
+  }
   static constexpr bool isDynamicStrideOrOffset(int64_t dStrideOrOffset) {
     return dStrideOrOffset == kDynamicStrideOrOffset;
   }
@@ -330,7 +339,7 @@ public:
     // element type within that dialect.
     return type.isa<ComplexType>() || type.isa<FloatType>() ||
            type.isa<IntegerType>() || type.isa<OpaqueType>() ||
-           type.isa<VectorType>() ||
+           type.isa<VectorType>() || type.isa<IndexType>() ||
            (type.getKind() > Type::Kind::LAST_STANDARD_TYPE);
   }
 
@@ -666,9 +675,18 @@ MemRefType canonicalizeStridedLayout(MemRefType t);
 /// varying stride is always `1`.
 ///
 /// Examples:
-///   - memref<3x4x5xf32> has canonical stride expression `20*d0 + 5*d1 + d2`.
-///   - memref<3x?x5xf32> has canonical stride expression `s0*d0 + 5*d1 + d2`.
-///   - memref<3x4x?xf32> has canonical stride expression `s1*d0 + s0*d1 + d2`.
+///   - memref<3x4x5xf32> has canonical stride expression
+///         `20*exprs[0] + 5*exprs[1] + exprs[2]`.
+///   - memref<3x?x5xf32> has canonical stride expression
+///         `s0*exprs[0] + 5*exprs[1] + exprs[2]`.
+///   - memref<3x4x?xf32> has canonical stride expression
+///         `s1*exprs[0] + s0*exprs[1] + exprs[2]`.
+AffineExpr makeCanonicalStridedLayoutExpr(ArrayRef<int64_t> sizes,
+                                          ArrayRef<AffineExpr> exprs,
+                                          MLIRContext *context);
+
+/// Return the result of makeCanonicalStrudedLayoutExpr for the common case
+/// where `exprs` is {d0, d1, .., d_(sizes.size()-1)}
 AffineExpr makeCanonicalStridedLayoutExpr(ArrayRef<int64_t> sizes,
                                           MLIRContext *context);
 

@@ -32,7 +32,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file implements regularization of LLVM moduel for SPIR-V.
+// This file implements regularization of LLVM module for SPIR-V.
 //
 //===----------------------------------------------------------------------===//
 #define DEBUG_TYPE "spv-lower-const-expr"
@@ -49,7 +49,6 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/Pass.h"
-#include "llvm/PassSupport.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 

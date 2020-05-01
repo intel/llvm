@@ -13,6 +13,7 @@
 #include <CL/sycl/buffer.hpp>
 #include <CL/sycl/detail/accessor_impl.hpp>
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/generic_type_traits.hpp>
 #include <CL/sycl/detail/image_accessor_util.hpp>
 #include <CL/sycl/detail/image_ocl_types.hpp>
@@ -166,7 +167,7 @@ static T<NewDim> convertToArrayOfN(T<OldDim> OldObj) {
   return NewObj;
 }
 
-device getDeviceFromHandler(handler &CommandGroupHandlerRef);
+__SYCL_EXPORT device getDeviceFromHandler(handler &CommandGroupHandlerRef);
 
 template <typename DataT, int Dimensions, access::mode AccessMode,
           access::target AccessTarget, access::placeholder IsPlaceholder>

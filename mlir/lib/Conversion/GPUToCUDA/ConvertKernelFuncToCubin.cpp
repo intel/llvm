@@ -15,6 +15,7 @@
 #include "mlir/Conversion/GPUToCUDA/GPUToCUDAPass.h"
 
 #include "mlir/Dialect/GPU/GPUDialect.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Function.h"
@@ -30,6 +31,7 @@
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/Error.h"
+#include "llvm/Support/Mutex.h"
 #include "llvm/Support/TargetRegistry.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Target/TargetMachine.h"
@@ -47,13 +49,20 @@ static constexpr const char *kCubinAnnotation = "nvvm.cubin";
 /// GPU binary code, which is then attached as an attribute to the function. The
 /// function body is erased.
 class GpuKernelToCubinPass
-    : public OperationPass<GpuKernelToCubinPass, gpu::GPUModuleOp> {
+    : public PassWrapper<GpuKernelToCubinPass,
+                         OperationPass<gpu::GPUModuleOp>> {
 public:
   GpuKernelToCubinPass(CubinGenerator cubinGenerator)
       : cubinGenerator(cubinGenerator) {}
 
   void runOnOperation() override {
     gpu::GPUModuleOp module = getOperation();
+
+    // Lock access to the llvm context.
+    llvm::sys::SmartScopedLock<true> scopedLock(
+        module.getContext()
+            ->getRegisteredDialect<LLVM::LLVMDialect>()
+            ->getLLVMContextMutex());
 
     // Make sure the NVPTX target is initialized.
     LLVMInitializeNVPTXTarget();
@@ -97,12 +106,19 @@ std::string GpuKernelToCubinPass::translateModuleToPtx(
     llvm::Module &module, llvm::TargetMachine &target_machine) {
   std::string ptx;
   {
+    // Clone the llvm module into a new context to enable concurrent compilation
+    // with multiple threads.
+    // TODO(zinenko): Reevaluate model of ownership of LLVMContext in
+    //                LLVMDialect.
+    llvm::LLVMContext llvmContext;
+    auto clone = LLVM::cloneModuleIntoNewContext(&llvmContext, &module);
+
     llvm::raw_string_ostream stream(ptx);
     llvm::buffer_ostream pstream(stream);
     llvm::legacy::PassManager codegen_passes;
     target_machine.addPassesToEmitFile(codegen_passes, pstream, nullptr,
                                        llvm::CGFT_AssemblyFile);
-    codegen_passes.run(module);
+    codegen_passes.run(*clone);
   }
 
   return ptx;
@@ -143,7 +159,7 @@ StringAttr GpuKernelToCubinPass::translateGPUModuleToCubinAnnotation(
   return StringAttr::get({cubin->data(), cubin->size()}, loc->getContext());
 }
 
-std::unique_ptr<OpPassBase<gpu::GPUModuleOp>>
+std::unique_ptr<OperationPass<gpu::GPUModuleOp>>
 mlir::createConvertGPUKernelToCubinPass(CubinGenerator cubinGenerator) {
   return std::make_unique<GpuKernelToCubinPass>(cubinGenerator);
 }

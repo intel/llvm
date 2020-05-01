@@ -228,9 +228,9 @@ static void predictValueUseListOrderImpl(const Value *V, const Function *F,
     return LU->getOperandNo() > RU->getOperandNo();
   });
 
-  if (std::is_sorted(
-          List.begin(), List.end(),
-          [](const Entry &L, const Entry &R) { return L.second < R.second; }))
+  if (llvm::is_sorted(List, [](const Entry &L, const Entry &R) {
+        return L.second < R.second;
+      }))
     // Order is already correct.
     return;
 
@@ -462,6 +462,33 @@ static void PrintLLVMName(raw_ostream &OS, const Value *V) {
                 isa<GlobalValue>(V) ? GlobalPrefix : LocalPrefix);
 }
 
+static void PrintShuffleMask(raw_ostream &Out, Type *Ty, ArrayRef<int> Mask) {
+  Out << ", <";
+  if (isa<ScalableVectorType>(Ty))
+    Out << "vscale x ";
+  Out << Mask.size() << " x i32> ";
+  bool FirstElt = true;
+  if (all_of(Mask, [](int Elt) { return Elt == 0; })) {
+    Out << "zeroinitializer";
+  } else if (all_of(Mask, [](int Elt) { return Elt == UndefMaskElem; })) {
+    Out << "undef";
+  } else {
+    Out << "<";
+    for (int Elt : Mask) {
+      if (FirstElt)
+        FirstElt = false;
+      else
+        Out << ", ";
+      Out << "i32 ";
+      if (Elt == UndefMaskElem)
+        Out << "undef";
+      else
+        Out << Elt;
+    }
+    Out << ">";
+  }
+}
+
 namespace {
 
 class TypePrinting {
@@ -623,12 +650,14 @@ void TypePrinting::print(Type *Ty, raw_ostream &OS) {
     OS << ']';
     return;
   }
-  case Type::VectorTyID: {
+  case Type::FixedVectorTyID:
+  case Type::ScalableVectorTyID: {
     VectorType *PTy = cast<VectorType>(Ty);
+    ElementCount EC = PTy->getElementCount();
     OS << "<";
-    if (PTy->isScalable())
+    if (EC.Scalable)
       OS << "vscale x ";
-    OS << PTy->getNumElements() << " x ";
+    OS << EC.Min << " x ";
     print(PTy->getElementType(), OS);
     OS << '>';
     return;
@@ -1477,13 +1506,14 @@ static void WriteConstantInternal(raw_ostream &Out, const Constant *CV,
   }
 
   if (isa<ConstantVector>(CV) || isa<ConstantDataVector>(CV)) {
-    Type *ETy = CV->getType()->getVectorElementType();
+    auto *CVVTy = cast<VectorType>(CV->getType());
+    Type *ETy = CVVTy->getElementType();
     Out << '<';
     TypePrinter.print(ETy, Out);
     Out << ' ';
     WriteAsOperandInternal(Out, CV->getAggregateElement(0U), &TypePrinter,
                            Machine, Context);
-    for (unsigned i = 1, e = CV->getType()->getVectorNumElements(); i != e;++i){
+    for (unsigned i = 1, e = CVVTy->getNumElements(); i != e; ++i) {
       Out << ", ";
       TypePrinter.print(ETy, Out);
       Out << ' ';
@@ -1546,6 +1576,9 @@ static void WriteConstantInternal(raw_ostream &Out, const Constant *CV,
       Out << " to ";
       TypePrinter.print(CE->getType(), Out);
     }
+
+    if (CE->getOpcode() == Instruction::ShuffleVector)
+      PrintShuffleMask(Out, CE->getType(), CE->getShuffleMask());
 
     Out << ')';
     return;
@@ -1616,6 +1649,8 @@ struct MDFieldPrinter {
                      bool ShouldSkipNull = true);
   template <class IntTy>
   void printInt(StringRef Name, IntTy Int, bool ShouldSkipZero = true);
+  void printAPInt(StringRef Name, APInt Int, bool IsUnsigned,
+                  bool ShouldSkipZero);
   void printBool(StringRef Name, bool Value, Optional<bool> Default = None);
   void printDIFlags(StringRef Name, DINode::DIFlags Flags);
   void printDISPFlags(StringRef Name, DISubprogram::DISPFlags Flags);
@@ -1689,6 +1724,15 @@ void MDFieldPrinter::printInt(StringRef Name, IntTy Int, bool ShouldSkipZero) {
     return;
 
   Out << FS << Name << ": " << Int;
+}
+
+void MDFieldPrinter::printAPInt(StringRef Name, APInt Int, bool IsUnsigned,
+                                bool ShouldSkipZero) {
+  if (ShouldSkipZero && Int.isNullValue())
+    return;
+
+  Out << FS << Name << ": ";
+  Int.print(Out, !IsUnsigned);
 }
 
 void MDFieldPrinter::printBool(StringRef Name, bool Value,
@@ -1820,13 +1864,10 @@ static void writeDIEnumerator(raw_ostream &Out, const DIEnumerator *N,
   Out << "!DIEnumerator(";
   MDFieldPrinter Printer(Out);
   Printer.printString("name", N->getName(), /* ShouldSkipEmpty */ false);
-  if (N->isUnsigned()) {
-    auto Value = static_cast<uint64_t>(N->getValue());
-    Printer.printInt("value", Value, /* ShouldSkipZero */ false);
+  Printer.printAPInt("value", N->getValue(), N->isUnsigned(),
+                     /*ShouldSkipZero=*/false);
+  if (N->isUnsigned())
     Printer.printBool("isUnsigned", true);
-  } else {
-    Printer.printInt("value", N->getValue(), /* ShouldSkipZero */ false);
-  }
   Out << ")";
 }
 
@@ -4093,6 +4134,8 @@ void AssemblyWriter::printInstruction(const Instruction &I) {
                 RMWI->getSyncScopeID());
   } else if (const FenceInst *FI = dyn_cast<FenceInst>(&I)) {
     writeAtomic(FI->getContext(), FI->getOrdering(), FI->getSyncScopeID());
+  } else if (const ShuffleVectorInst *SVI = dyn_cast<ShuffleVectorInst>(&I)) {
+    PrintShuffleMask(Out, SVI->getType(), SVI->getShuffleMask());
   }
 
   // Print Metadata info.

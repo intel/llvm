@@ -242,6 +242,8 @@ with embedded linked images for each target specified at the command line.
 
 ![Multi source compilation flow](Multi-source-compilation-flow.png)
 
+*TODO: the diagram needs to be updating to reflect the latest driver additions.*
+
 The clang driver orchestrates compilation and linking process based on a
 SYCL-specific offload action builder and invokes external tools as needed. On
 the diagram above, every dark-blue box is a tool invoked as a separate process
@@ -434,6 +436,74 @@ unit)
 * `per_kernel` - enables emitting a separate module for each kernel
 * `off` - disables device code split
 
+#### CUDA support
+
+The driver supports compilation to NVPTX when the `nvptx64-nvidia-cuda-sycldevice` is passed to `-fsycl-targets`.
+
+Unlike other AOT targets, the bitcode module linked from intermediate compiled objects never goes through SPIR-V. Instead it is passed directly in bitcode form down to the NVPTX Back End. All produced bitcode depends on two libraries, `libdevice.bc` (provided by the CUDA SDK) and `libspirv-nvptx64--nvidiacl.bc` (built by the libclc project).
+
+During the device linking step (device linker box in the [Separate Compilation and Linking](#separate-compilation-and-linking) illustration), llvm bitcode objects for the CUDA target are linked together alongside `libspirv-nvptx64--nvidiacl.bc` and `libdevice.bc`, compiled to PTX using the NVPTX backend, and assembled into a cubin using the `ptxas` tool (part of the CUDA SDK). The PTX file and cubin are assembled together using `fatbinary` to produce a CUDA fatbin. The CUDA fatbin is then passed to the offload wrapper tool.
+
+##### Checking if the compiler is targeting NVPTX
+
+When the SYCL compiler is in device mode and targeting the NVPTX backend, compiler defines the macro `__SYCL_NVPTX__`.
+This macro can safely be used to enable NVPTX specific code path in SYCL kernels.
+
+*Note: this macro is only define during the device compilation phase.*
+
+##### NVPTX Builtins
+
+When the SYCL compiler is in device mode and targeting the NVPTX backend, the compiler exposes NVPTX builtins supported by clang.
+
+*Note: this enable NVPTX specific features which cannot be supported by other targets or the host.*
+
+Example:
+```cpp
+double my_min(double x, double y) {
+#ifdef __SYCL_NVPTX__
+  // Only available if in device mode and
+  // while compiling for the NVPTX target.
+  return __nvvm_fmin_d(x, y);
+#else
+  return x < y ? x : y;
+#endif
+}
+```
+
+##### Local memory support
+
+In CUDA, users can only allocate one chunk of host allocated shared memory (which maps to SYCL's local accessors).
+This chunk of memory is allocated as an array `extern __shared__ <type> <name>[];` which LLVM represents as an external global symbol to the CUDA shared memory address space.
+The NVPTX backend then lowers this into a `.extern .shared .align 4 .b8` PTX instruction.
+
+In SYCL, users can allocate multiple local accessors and pass them as kernel parameters. When the SYCL frontend lowers the SYCL kernel invocation into an OpenCL compliant kernel entry, it lowers local accessors into a pointer to OpenCL local memory (CUDA shared memory) but this is not legal for CUDA kernels.
+
+To legalize the SYCL lowering for CUDA, a SYCL for CUDA specific pass will do the following:
+- Create a global symbol to the CUDA shared memory address space
+- Transform all pointers to CUDA shared memory into a 32 bit integer representing the offset in bytes to use with the global symbol
+- Replace all uses of the transformed pointers by the address to global symbol offset by the value of the integer passed as parameter
+
+As an example, the following kernel:
+```
+define void @SYCL_generated_kernel(i64 addrspace(3)* nocapture %local_ptr, i32 %arg, i64 addrspace(3)* nocapture %local_ptr2) {
+  %0 = load i64, i64 addrspace(3)* %local_ptr
+  %1 = load i64, i64 addrspace(3)* %local_ptr2
+}
+```
+Is transformed into this kernel when targeting CUDA:
+```
+@SYCL_generated_kernel.shared_mem = external dso_local local_unnamed_addr addrspace(3) global [0 x i8], align 4
+
+define void @SYCL_generated_kernel(i32 %local_ptr_offset, i32 %arg, i32 %local_ptr_offset2) {
+  %new_local_ptr = getelementptr inbounds [0 x i8], [0 x i8] addrspace(3)* @SYCL_generated_kernel.shared_mem, i32 0, i32 %local_ptr_offset
+  %new_local_ptr2 = getelementptr inbounds [0 x i8], [0 x i8] addrspace(3)* @SYCL_generated_kernel.shared_mem, i32 0, i32 %local_ptr_offset2
+  %0 = load i32, i32 addrspace(3)* %new_local_ptr
+  %1 = load i64, i64 addrspace(3)* %new_local_ptr2
+}
+```
+
+On the runtime side, when setting local memory arguments, the CUDA PI implementation will internally set the argument as the offset with respect to the accumulated size of used local memory. This approach preserves the exisiting PI interface.
+
 ### Integration with SPIR-V format
 
 This section explains how to generate SPIR-V specific types and operations from
@@ -553,4 +623,3 @@ compiler:
 ## DPC++ Language extensions to SYCL
 
 List of language extensions can be found at [extensions](extensions)
-

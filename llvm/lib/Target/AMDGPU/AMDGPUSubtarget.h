@@ -66,7 +66,6 @@ private:
 protected:
   bool Has16BitInsts;
   bool HasMadMixInsts;
-  bool FP32Denormals;
   bool FPExceptions;
   bool HasSDWA;
   bool HasVOP3PInsts;
@@ -149,15 +148,6 @@ public:
     return HasMadMixInsts;
   }
 
-  bool hasFP32Denormals(const Function &F) const {
-    // FIXME: This should not be a property of the subtarget. This should be a
-    // property with a default set by the calling convention which can be
-    // overridden by attributes. For now, use the subtarget feature as a
-    // placeholder attribute. The function arguments only purpose is to
-    // discourage use without a function context until this is removed.
-    return FP32Denormals;
-  }
-
   bool hasFPExceptions() const {
     return FPExceptions;
   }
@@ -222,9 +212,10 @@ public:
   /// \returns Maximum flat work group size supported by the subtarget.
   virtual unsigned getMaxFlatWorkGroupSize() const = 0;
 
-  /// \returns Maximum number of waves per execution unit supported by the
-  /// subtarget and limited by given \p FlatWorkGroupSize.
-  virtual unsigned getMaxWavesPerEU(unsigned FlatWorkGroupSize) const  = 0;
+  /// \returns Number of waves per execution unit required to support the given
+  /// \p FlatWorkGroupSize.
+  virtual unsigned
+  getWavesPerEUForWorkGroup(unsigned FlatWorkGroupSize) const = 0;
 
   /// \returns Minimum number of waves per execution unit supported by the
   /// subtarget.
@@ -300,10 +291,10 @@ protected:
 
   // Possibly statically set by tablegen, but may want to be overridden.
   bool FastFMAF32;
+  bool FastDenormalF32;
   bool HalfRate64Ops;
 
   // Dynamially set bits that enable features.
-  bool FP64FP16Denormals;
   bool FlatForGlobal;
   bool AutoWaitcntBeforeBarrier;
   bool CodeObjectV3;
@@ -635,20 +626,6 @@ public:
   unsigned getMaxLocalMemSizeWithWaveCount(unsigned WaveCount,
                                            const Function &) const;
 
-  /// Alias for hasFP64FP16Denormals
-  bool hasFP16Denormals(const Function &F) const {
-    return FP64FP16Denormals;
-  }
-
-  /// Alias for hasFP64FP16Denormals
-  bool hasFP64Denormals(const Function &F) const {
-    return FP64FP16Denormals;
-  }
-
-  bool hasFP64FP16Denormals(const Function &F) const {
-    return FP64FP16Denormals;
-  }
-
   bool supportsMinMaxDenormModes() const {
     return getGeneration() >= AMDGPUSubtarget::GFX9;
   }
@@ -911,30 +888,6 @@ public:
 
   void setScalarizeGlobalBehavior(bool b) { ScalarizeGlobal = b; }
   bool getScalarizeGlobalBehavior() const { return ScalarizeGlobal; }
-
-  /// \returns Number of execution units per compute unit supported by the
-  /// subtarget.
-  unsigned getEUsPerCU() const {
-    return AMDGPU::IsaInfo::getEUsPerCU(this);
-  }
-
-  /// \returns Maximum number of waves per compute unit supported by the
-  /// subtarget without any kind of limitation.
-  unsigned getMaxWavesPerCU() const {
-    return AMDGPU::IsaInfo::getMaxWavesPerCU(this);
-  }
-
-  /// \returns Maximum number of waves per compute unit supported by the
-  /// subtarget and limited by given \p FlatWorkGroupSize.
-  unsigned getMaxWavesPerCU(unsigned FlatWorkGroupSize) const {
-    return AMDGPU::IsaInfo::getMaxWavesPerCU(this, FlatWorkGroupSize);
-  }
-
-  /// \returns Number of waves per work group supported by the subtarget and
-  /// limited by given \p FlatWorkGroupSize.
-  unsigned getWavesPerWorkGroup(unsigned FlatWorkGroupSize) const {
-    return AMDGPU::IsaInfo::getWavesPerWorkGroup(this, FlatWorkGroupSize);
-  }
 
   // static wrappers
   static bool hasHalfRate64Ops(const TargetSubtargetInfo &STI);
@@ -1227,10 +1180,11 @@ public:
     return AMDGPU::IsaInfo::getMaxFlatWorkGroupSize(this);
   }
 
-  /// \returns Maximum number of waves per execution unit supported by the
-  /// subtarget and limited by given \p FlatWorkGroupSize.
-  unsigned getMaxWavesPerEU(unsigned FlatWorkGroupSize) const override {
-    return AMDGPU::IsaInfo::getMaxWavesPerEU(this, FlatWorkGroupSize);
+  /// \returns Number of waves per execution unit required to support the given
+  /// \p FlatWorkGroupSize.
+  unsigned
+  getWavesPerEUForWorkGroup(unsigned FlatWorkGroupSize) const override {
+    return AMDGPU::IsaInfo::getWavesPerEUForWorkGroup(this, FlatWorkGroupSize);
   }
 
   /// \returns Minimum number of waves per execution unit supported by the
@@ -1239,7 +1193,8 @@ public:
     return AMDGPU::IsaInfo::getMinWavesPerEU(this);
   }
 
-  void adjustSchedDependency(SUnit *Src, SUnit *Dst, SDep &Dep) const override;
+  void adjustSchedDependency(SUnit *Def, int DefOpIdx, SUnit *Use, int UseOpIdx,
+                             SDep &Dep) const override;
 };
 
 class R600Subtarget final : public R600GenSubtargetInfo,
@@ -1364,10 +1319,11 @@ public:
     return AMDGPU::IsaInfo::getMaxFlatWorkGroupSize(this);
   }
 
-  /// \returns Maximum number of waves per execution unit supported by the
-  /// subtarget and limited by given \p FlatWorkGroupSize.
-  unsigned getMaxWavesPerEU(unsigned FlatWorkGroupSize) const override {
-    return AMDGPU::IsaInfo::getMaxWavesPerEU(this, FlatWorkGroupSize);
+  /// \returns Number of waves per execution unit required to support the given
+  /// \p FlatWorkGroupSize.
+  unsigned
+  getWavesPerEUForWorkGroup(unsigned FlatWorkGroupSize) const override {
+    return AMDGPU::IsaInfo::getWavesPerEUForWorkGroup(this, FlatWorkGroupSize);
   }
 
   /// \returns Minimum number of waves per execution unit supported by the

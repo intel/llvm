@@ -424,6 +424,9 @@ StringRef ObjFile<ELFT>::getShtGroupSignature(ArrayRef<Elf_Shdr> sections,
 
 template <class ELFT>
 bool ObjFile<ELFT>::shouldMerge(const Elf_Shdr &sec, StringRef name) {
+  if (!(sec.sh_flags & SHF_MERGE))
+    return false;
+
   // On a regular link we don't merge sections if -O0 (default is -O1). This
   // sometimes makes the linker significantly faster, although the output will
   // be bigger.
@@ -459,10 +462,7 @@ bool ObjFile<ELFT>::shouldMerge(const Elf_Shdr &sec, StringRef name) {
           Twine(sec.sh_size) + ") must be a multiple of sh_entsize (" +
           Twine(entSize) + ")");
 
-  uint64_t flags = sec.sh_flags;
-  if (!(flags & SHF_MERGE))
-    return false;
-  if (flags & SHF_WRITE)
+  if (sec.sh_flags & SHF_WRITE)
     fatal(toString(this) + ":(" + name +
           "): writable SHF_MERGE section is not supported");
 
@@ -669,7 +669,9 @@ void ObjFile<ELFT>::initializeSections(bool ignoreComdats) {
 // the input objects have been compiled.
 static void updateARMVFPArgs(const ARMAttributeParser &attributes,
                              const InputFile *f) {
-  if (!attributes.hasAttribute(ARMBuildAttrs::ABI_VFP_args))
+  Optional<unsigned> attr =
+      attributes.getAttributeValue(ARMBuildAttrs::ABI_VFP_args);
+  if (!attr.hasValue())
     // If an ABI tag isn't present then it is implicitly given the value of 0
     // which maps to ARMBuildAttrs::BaseAAPCS. However many assembler files,
     // including some in glibc that don't use FP args (and should have value 3)
@@ -677,7 +679,7 @@ static void updateARMVFPArgs(const ARMAttributeParser &attributes,
     // as a clash.
     return;
 
-  unsigned vfpArgs = attributes.getAttributeValue(ARMBuildAttrs::ABI_VFP_args);
+  unsigned vfpArgs = attr.getValue();
   ARMVFPArgKind arg;
   switch (vfpArgs) {
   case ARMBuildAttrs::BaseAAPCS:
@@ -714,9 +716,11 @@ static void updateARMVFPArgs(const ARMAttributeParser &attributes,
 // is compiled with an architecture that supports these features then lld is
 // permitted to use them.
 static void updateSupportedARMFeatures(const ARMAttributeParser &attributes) {
-  if (!attributes.hasAttribute(ARMBuildAttrs::CPU_arch))
+  Optional<unsigned> attr =
+      attributes.getAttributeValue(ARMBuildAttrs::CPU_arch);
+  if (!attr.hasValue())
     return;
-  auto arch = attributes.getAttributeValue(ARMBuildAttrs::CPU_arch);
+  auto arch = attr.getValue();
   switch (arch) {
   case ARMBuildAttrs::Pre_v4:
   case ARMBuildAttrs::v4:

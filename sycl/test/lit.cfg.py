@@ -24,9 +24,10 @@ config.name = 'SYCL'
 config.test_format = lit.formats.ShTest()
 
 # suffixes: A list of file extensions to treat as test files.
-config.suffixes = ['.c', '.cpp'] #add .spv. Currently not clear what to do with those
+config.suffixes = ['.c', '.cpp', '.dump'] #add .spv. Currently not clear what to do with those
 
-config.excludes = ['Inputs']
+# feature tests are considered not so lightweight, so, they are excluded by default
+config.excludes = ['Inputs', 'feature-tests']
 
 # test_source_root: The root path where tests are located.
 config.test_source_root = os.path.dirname(__file__)
@@ -63,12 +64,16 @@ config.substitutions.append( ('%sycl_source_dir', config.sycl_source_dir) )
 config.substitutions.append( ('%opencl_libs_dir',  config.opencl_libs_dir) )
 config.substitutions.append( ('%opencl_include_dir',  config.opencl_include_dir) )
 config.substitutions.append( ('%cuda_toolkit_include',  config.cuda_toolkit_include) )
+config.substitutions.append( ('%sycl_tools_src_dir',  config.sycl_tools_src_dir ) )
+config.substitutions.append( ('%llvm_build_lib_dir',  config.llvm_build_lib_dir ) )
+config.substitutions.append( ('%llvm_build_bin_dir',  config.llvm_build_bin_dir ) )
 
 llvm_config.use_clang()
 
 llvm_config.add_tool_substitutions(['llvm-spirv'], [config.sycl_tools_dir])
 
 backend=lit_config.params.get('SYCL_BE', "PI_OPENCL")
+lit_config.note("Backend: {BACKEND}".format(BACKEND=backend))
 
 get_device_count_by_type_path = os.path.join(config.llvm_tools_dir, "get_device_count_by_type")
 
@@ -119,11 +124,11 @@ cpu_check_on_linux_substitute = ""
 if getDeviceCount("cpu")[0]:
     found_at_least_one_device = True
     lit_config.note("Found available CPU device")
-    cpu_run_substitute = "env SYCL_DEVICE_TYPE=CPU "
+    cpu_run_substitute = "env SYCL_DEVICE_TYPE=CPU SYCL_BE={SYCL_BE} ".format(SYCL_BE=backend)
     cpu_check_substitute = "| FileCheck %s"
     config.available_features.add('cpu')
     if platform.system() == "Linux":
-        cpu_run_on_linux_substitute = "env SYCL_DEVICE_TYPE=CPU "
+        cpu_run_on_linux_substitute = "env SYCL_DEVICE_TYPE=CPU SYCL_BE={SYCL_BE} ".format(SYCL_BE=backend)
         cpu_check_on_linux_substitute = "| FileCheck %s"
 else:
     lit_config.warning("CPU device not found")
@@ -144,18 +149,15 @@ cuda = False
 if gpu_count > 0:
     found_at_least_one_device = True
     lit_config.note("Found available GPU device")
-    gpu_run_substitute = " env SYCL_DEVICE_TYPE=GPU "
+    gpu_run_substitute = " env SYCL_DEVICE_TYPE=GPU SYCL_BE={SYCL_BE} ".format(SYCL_BE=backend)
     gpu_check_substitute = "| FileCheck %s"
     config.available_features.add('gpu')
     if cuda:
        config.available_features.add('cuda')
-       gpu_run_substitute += " SYCL_BE=PI_CUDA "
 
     if platform.system() == "Linux":
-        gpu_run_on_linux_substitute = "env SYCL_DEVICE_TYPE=GPU "
+        gpu_run_on_linux_substitute = "env SYCL_DEVICE_TYPE=GPU SYCL_BE={SYCL_BE} ".format(SYCL_BE=backend)
         gpu_check_on_linux_substitute = "| FileCheck %s"
-        if cuda:
-            gpu_run_on_linux_substitute += " SYCL_BE=PI_CUDA "
 else:
     lit_config.warning("GPU device not found")
 

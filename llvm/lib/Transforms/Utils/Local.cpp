@@ -25,6 +25,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/TinyPtrVector.h"
+#include "llvm/Analysis/AssumeBundleQueries.h"
 #include "llvm/Analysis/ConstantFolding.h"
 #include "llvm/Analysis/DomTreeUpdater.h"
 #include "llvm/Analysis/EHPersonalities.h"
@@ -40,7 +41,6 @@
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/CFG.h"
-#include "llvm/IR/CallSite.h"
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/ConstantRange.h"
 #include "llvm/IR/Constants.h"
@@ -59,7 +59,6 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Intrinsics.h"
-#include "llvm/IR/KnowledgeRetention.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/MDBuilder.h"
 #include "llvm/IR/Metadata.h"
@@ -1156,9 +1155,8 @@ bool llvm::EliminateDuplicatePHINodes(BasicBlock *BB) {
 /// often possible though. If alignment is important, a more reliable approach
 /// is to simply align all global variables and allocation instructions to
 /// their preferred alignment from the beginning.
-static unsigned enforceKnownAlignment(Value *V, unsigned Alignment,
-                                      unsigned PrefAlign,
-                                      const DataLayout &DL) {
+static Align enforceKnownAlignment(Value *V, Align Alignment, Align PrefAlign,
+                                   const DataLayout &DL) {
   assert(PrefAlign > Alignment);
 
   V = V->stripPointerCasts();
@@ -1170,21 +1168,21 @@ static unsigned enforceKnownAlignment(Value *V, unsigned Alignment,
     // stripPointerCasts recurses through infinite layers of bitcasts,
     // while computeKnownBits is not allowed to traverse more than 6
     // levels.
-    Alignment = std::max(AI->getAlignment(), Alignment);
+    Alignment = max(AI->getAlign(), Alignment);
     if (PrefAlign <= Alignment)
       return Alignment;
 
     // If the preferred alignment is greater than the natural stack alignment
     // then don't round up. This avoids dynamic stack realignment.
-    if (DL.exceedsNaturalStackAlignment(Align(PrefAlign)))
+    if (DL.exceedsNaturalStackAlignment(PrefAlign))
       return Alignment;
-    AI->setAlignment(MaybeAlign(PrefAlign));
+    AI->setAlignment(PrefAlign);
     return PrefAlign;
   }
 
   if (auto *GO = dyn_cast<GlobalObject>(V)) {
     // TODO: as above, this shouldn't be necessary.
-    Alignment = std::max(GO->getAlignment(), Alignment);
+    Alignment = max(GO->getAlign(), Alignment);
     if (PrefAlign <= Alignment)
       return Alignment;
 
@@ -1195,18 +1193,18 @@ static unsigned enforceKnownAlignment(Value *V, unsigned Alignment,
     if (!GO->canIncreaseAlignment())
       return Alignment;
 
-    GO->setAlignment(MaybeAlign(PrefAlign));
+    GO->setAlignment(PrefAlign);
     return PrefAlign;
   }
 
   return Alignment;
 }
 
-unsigned llvm::getOrEnforceKnownAlignment(Value *V, unsigned PrefAlign,
-                                          const DataLayout &DL,
-                                          const Instruction *CxtI,
-                                          AssumptionCache *AC,
-                                          const DominatorTree *DT) {
+Align llvm::getOrEnforceKnownAlignment(Value *V, MaybeAlign PrefAlign,
+                                       const DataLayout &DL,
+                                       const Instruction *CxtI,
+                                       AssumptionCache *AC,
+                                       const DominatorTree *DT) {
   assert(V->getType()->isPointerTy() &&
          "getOrEnforceKnownAlignment expects a pointer!");
 
@@ -1215,18 +1213,16 @@ unsigned llvm::getOrEnforceKnownAlignment(Value *V, unsigned PrefAlign,
 
   // Avoid trouble with ridiculously large TrailZ values, such as
   // those computed from a null pointer.
-  TrailZ = std::min(TrailZ, unsigned(sizeof(unsigned) * CHAR_BIT - 1));
+  // LLVM doesn't support alignments larger than (1 << MaxAlignmentExponent).
+  TrailZ = std::min(TrailZ, +Value::MaxAlignmentExponent);
 
-  unsigned Align = 1u << std::min(Known.getBitWidth() - 1, TrailZ);
+  Align Alignment = Align(1ull << std::min(Known.getBitWidth() - 1, TrailZ));
 
-  // LLVM doesn't support alignments larger than this currently.
-  Align = std::min(Align, +Value::MaximumAlignment);
-
-  if (PrefAlign > Align)
-    Align = enforceKnownAlignment(V, Align, PrefAlign, DL);
+  if (PrefAlign && *PrefAlign > Alignment)
+    Alignment = enforceKnownAlignment(V, Alignment, *PrefAlign, DL);
 
   // We don't need to make any adjustment.
-  return Align;
+  return Alignment;
 }
 
 ///===---------------------------------------------------------------------===//
@@ -2555,7 +2551,7 @@ bool llvm::callsGCLeafFunction(const CallBase *Call,
   // marked as 'gc-leaf-function.' All available Libcalls are
   // GC-leaf.
   LibFunc LF;
-  if (TLI.getLibFunc(ImmutableCallSite(Call), LF)) {
+  if (TLI.getLibFunc(*Call, LF)) {
     return TLI.has(LF);
   }
 
@@ -2936,37 +2932,38 @@ bool llvm::canReplaceOperandWithVariable(const Instruction *I, unsigned OpIdx) {
     return true;
   case Instruction::Call:
   case Instruction::Invoke: {
-    ImmutableCallSite CS(I);
+    const auto &CB = cast<CallBase>(*I);
 
     // Can't handle inline asm. Skip it.
-    if (CS.isInlineAsm())
+    if (CB.isInlineAsm())
       return false;
 
     // Constant bundle operands may need to retain their constant-ness for
     // correctness.
-    if (CS.isBundleOperand(OpIdx))
+    if (CB.isBundleOperand(OpIdx))
       return false;
 
-    if (OpIdx < CS.getNumArgOperands()) {
+    if (OpIdx < CB.getNumArgOperands()) {
       // Some variadic intrinsics require constants in the variadic arguments,
       // which currently aren't markable as immarg.
-      if (CS.isIntrinsic() && OpIdx >= CS.getFunctionType()->getNumParams()) {
+      if (isa<IntrinsicInst>(CB) &&
+          OpIdx >= CB.getFunctionType()->getNumParams()) {
         // This is known to be OK for stackmap.
-        return CS.getIntrinsicID() == Intrinsic::experimental_stackmap;
+        return CB.getIntrinsicID() == Intrinsic::experimental_stackmap;
       }
 
       // gcroot is a special case, since it requires a constant argument which
       // isn't also required to be a simple ConstantInt.
-      if (CS.getIntrinsicID() == Intrinsic::gcroot)
+      if (CB.getIntrinsicID() == Intrinsic::gcroot)
         return false;
 
       // Some intrinsic operands are required to be immediates.
-      return !CS.paramHasAttr(OpIdx, Attribute::ImmArg);
+      return !CB.paramHasAttr(OpIdx, Attribute::ImmArg);
     }
 
     // It is never allowed to replace the call argument to an intrinsic, but it
     // may be possible for a call.
-    return !CS.isIntrinsic();
+    return !isa<IntrinsicInst>(CB);
   }
   case Instruction::ShuffleVector:
     // Shufflevector masks are constant.
@@ -3030,4 +3027,43 @@ AllocaInst *llvm::findAllocaForValue(Value *V,
   if (Res)
     AllocaForValue[V] = Res;
   return Res;
+}
+
+Value *llvm::invertCondition(Value *Condition) {
+  // First: Check if it's a constant
+  if (Constant *C = dyn_cast<Constant>(Condition))
+    return ConstantExpr::getNot(C);
+
+  // Second: If the condition is already inverted, return the original value
+  Value *NotCondition;
+  if (match(Condition, m_Not(m_Value(NotCondition))))
+    return NotCondition;
+
+  if (Instruction *Inst = dyn_cast<Instruction>(Condition)) {
+    // Third: Check all the users for an invert
+    BasicBlock *Parent = Inst->getParent();
+    for (User *U : Condition->users())
+      if (Instruction *I = dyn_cast<Instruction>(U))
+        if (I->getParent() == Parent && match(I, m_Not(m_Specific(Condition))))
+          return I;
+
+    // Last option: Create a new instruction
+    auto Inverted = BinaryOperator::CreateNot(Inst, "");
+    if (isa<PHINode>(Inst)) {
+      // FIXME: This fails if the inversion is to be used in a
+      // subsequent PHINode in the same basic block.
+      Inverted->insertBefore(&*Parent->getFirstInsertionPt());
+    } else {
+      Inverted->insertAfter(Inst);
+    }
+    return Inverted;
+  }
+
+  if (Argument *Arg = dyn_cast<Argument>(Condition)) {
+    BasicBlock &EntryBlock = Arg->getParent()->getEntryBlock();
+    return BinaryOperator::CreateNot(Condition, Arg->getName() + ".inv",
+                                     &*EntryBlock.getFirstInsertionPt());
+  }
+
+  llvm_unreachable("Unhandled condition to invert");
 }
