@@ -107,8 +107,6 @@ template <typename Type> struct get_kernel_name_t<detail::auto_name, Type> {
 
 __SYCL_EXPORT device getDeviceFromHandler(handler &);
 
-device getDeviceFromHandler(handler &);
-
 } // namespace detail
 
 namespace intel {
