@@ -19,11 +19,6 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
-void handler::addEventToQueue(shared_ptr_class<detail::queue_impl> Queue,
-                              cl::sycl::event Event) {
-  Queue->addEvent(std::move(Event));
-}
-
 event handler::finalize() {
   // This block of code is needed only for reduction implementation.
   // It is harmless (does nothing) for everything else.
