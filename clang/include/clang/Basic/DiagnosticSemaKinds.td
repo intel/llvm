@@ -889,6 +889,16 @@ def warn_pragma_pack_pop_identifier_and_alignment : Warning<
   "specifying both a name and alignment to 'pop' is undefined">;
 def warn_pragma_pop_failed : Warning<"#pragma %0(pop, ...) failed: %1">,
   InGroup<IgnoredPragmas>;
+def err_pragma_fc_pp_scope : Error<
+  "'#pragma float_control push/pop' can only appear at file scope">;
+def err_pragma_fc_noprecise_requires_nofenv : Error<
+  "'#pragma float_control(precise, off)' is illegal when fenv_access is enabled">;
+def err_pragma_fc_except_requires_precise : Error<
+  "'#pragma float_control(except, on)' is illegal when precise is disabled">;
+def err_pragma_fc_noprecise_requires_noexcept : Error<
+  "'#pragma float_control(precise, off)' is illegal when except is enabled">;
+def err_pragma_fenv_requires_precise : Error<
+  "'#pragma STDC FENV_ACCESS ON' is illegal when precise is disabled">;
 def warn_cxx_ms_struct :
   Warning<"ms_struct may not produce Microsoft-compatible layouts for classes "
           "with base classes or virtual functions">,
@@ -10262,8 +10272,8 @@ def note_omp_flush_order_clause_here : Note<
   "memory order clause '%0' is specified here">;
 def err_omp_non_lvalue_in_map_or_motion_clauses: Error<
   "expected addressable lvalue in '%0' clause">;
-def err_omp_event_var_expected : Error<
-  "expected variable of the 'omp_event_handle_t' type%select{|, not %1}0">;
+def err_omp_var_expected : Error<
+  "expected variable of the '%0' type%select{|, not %2}1">;
 def warn_nested_declare_variant
     : Warning<"nesting `omp begin/end declare variant` is not supported yet; "
               "nested context ignored">,
@@ -10271,6 +10281,22 @@ def warn_nested_declare_variant
 def err_omp_non_pointer_type_array_shaping_base : Error<
   "expected expression with a pointer to a complete type as a base of an array "
   "shaping operation">;
+def err_omp_reduction_task_not_parallel_or_worksharing : Error<
+  "'reduction' clause with 'task' modifier allowed only on non-simd parallel or"
+  " worksharing constructs">;
+def err_omp_expected_array_alloctraits : Error<
+  "expected constant sized array of 'omp_alloctrait_t' elements, not %0">;
+def err_omp_predefined_allocator_with_traits : Error<
+  "predefined allocator cannot have traits specified">;
+def note_omp_predefined_allocator : Note<
+  "predefined trait '%0' used here">;
+def err_omp_nonpredefined_allocator_without_traits : Error<
+  "non-predefined allocator must have traits specified">;
+def err_omp_allocator_used_in_clauses : Error<
+  "allocators used in 'uses_allocators' clause cannot appear in other "
+  "data-sharing or data-mapping attribute clauses">;
+def err_omp_allocator_not_in_uses_allocators : Error<
+  "allocator must be specified in the 'uses_allocators' clause">;
 } // end of OpenMP category
 
 let CategoryName = "Related Result Type Issue" in {

@@ -271,6 +271,9 @@ public:
     OS << "\n---\n";
   }
   void renderPlainText(llvm::raw_ostream &OS) const override { OS << '\n'; }
+  std::unique_ptr<Block> clone() const override {
+    return std::make_unique<Ruler>(*this);
+  }
   bool isRuler() const override { return true; }
 };
 
@@ -285,6 +288,10 @@ public:
   void renderPlainText(llvm::raw_ostream &OS) const override {
     // In plaintext we want one empty line before and after codeblocks.
     OS << '\n' << Contents << "\n\n";
+  }
+
+  std::unique_ptr<Block> clone() const override {
+    return std::make_unique<CodeBlock>(*this);
   }
 
   CodeBlock(std::string Contents, std::string Language)
@@ -358,10 +365,28 @@ void Paragraph::renderMarkdown(llvm::raw_ostream &OS) const {
   OS << "  \n";
 }
 
+std::unique_ptr<Block> Paragraph::clone() const {
+  return std::make_unique<Paragraph>(*this);
+}
+
+/// Choose a marker to delimit `Text` from a prioritized list of options.
+/// This is more readable than escaping for plain-text.
+llvm::StringRef chooseMarker(llvm::ArrayRef<llvm::StringRef> Options,
+                             llvm::StringRef Text) {
+  // Prefer a delimiter whose characters don't appear in the text.
+  for (llvm::StringRef S : Options)
+    if (Text.find_first_of(S) == llvm::StringRef::npos)
+      return S;
+  return Options.front();
+}
+
 void Paragraph::renderPlainText(llvm::raw_ostream &OS) const {
   llvm::StringRef Sep = "";
   for (auto &C : Chunks) {
-    OS << Sep << C.Contents;
+    llvm::StringRef Marker = "";
+    if (C.Preserve && C.Kind == Chunk::InlineCode)
+      Marker = chooseMarker({"`", "'", "\""}, C.Contents);
+    OS << Sep << Marker << C.Contents << Marker;
     Sep = " ";
   }
   OS << '\n';
@@ -396,7 +421,7 @@ Paragraph &Paragraph::appendText(llvm::StringRef Text) {
   return *this;
 }
 
-Paragraph &Paragraph::appendCode(llvm::StringRef Code) {
+Paragraph &Paragraph::appendCode(llvm::StringRef Code, bool Preserve) {
   std::string Norm = canonicalizeSpaces(std::move(Code));
   if (Norm.empty())
     return *this;
@@ -404,12 +429,29 @@ Paragraph &Paragraph::appendCode(llvm::StringRef Code) {
   Chunk &C = Chunks.back();
   C.Contents = std::move(Norm);
   C.Kind = Chunk::InlineCode;
+  C.Preserve = Preserve;
   return *this;
+}
+
+std::unique_ptr<Block> BulletList::clone() const {
+  return std::make_unique<BulletList>(*this);
 }
 
 class Document &BulletList::addItem() {
   Items.emplace_back();
   return Items.back();
+}
+
+Document &Document::operator=(const Document &Other) {
+  Children.clear();
+  for (const auto &C : Other.Children)
+    Children.push_back(C->clone());
+  return *this;
+}
+
+void Document::append(Document Other) {
+  std::move(Other.Children.begin(), Other.Children.end(),
+            std::back_inserter(Children));
 }
 
 Paragraph &Document::addParagraph() {

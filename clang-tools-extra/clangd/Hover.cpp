@@ -648,6 +648,7 @@ bool isHardLineBreakIndicator(llvm::StringRef Rest) {
 }
 
 bool isHardLineBreakAfter(llvm::StringRef Line, llvm::StringRef Rest) {
+  // Should we also consider whether Line is short?
   return punctuationIndicatesLineBreak(Line) || isHardLineBreakIndicator(Rest);
 }
 
@@ -876,7 +877,7 @@ void parseDocumentationLine(llvm::StringRef Line, markup::Paragraph &Out) {
       case '`':
         if (auto Range = getBacktickQuoteRange(Line, I)) {
           Out.appendText(Line.substr(0, I));
-          Out.appendCode(Range->trim("`"));
+          Out.appendCode(Range->trim("`"), /*Preserve=*/true);
           return parseDocumentationLine(Line.substr(I+Range->size()), Out);
         }
         break;
