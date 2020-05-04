@@ -523,7 +523,7 @@ private:
   }
 
 #ifndef __SYCL_DEVICE_ONLY__
-  /// Copies the contents of memory object accessed by Src into the memory
+  /// Copies the content of memory object accessed by Src into the memory
   /// pointed by Dst.
   ///
   /// \param Src is a source SYCL accessor.
@@ -1279,7 +1279,7 @@ public:
 
   // Explicit copy operations API
 
-  /// Copies the contents of memory object accessed by Src into the memory
+  /// Copies the content of memory object accessed by Src into the memory
   /// pointed by Dst.
   ///
   /// Source must have at least as many bytes as the range accessed by Dst.
@@ -1301,7 +1301,7 @@ public:
     copy(Src, RawDstPtr);
   }
 
-  /// Copies the contents of memory pointed by Src into the memory object
+  /// Copies the content of memory pointed by Src into the memory object
   /// accessed by Dst.
   ///
   /// Source must have at least as many bytes as the range accessed by Dst.
@@ -1324,7 +1324,7 @@ public:
     copy(RawSrcPtr, Dst);
   }
 
-  /// Copies the contents of memory object accessed by Src into the memory
+  /// Copies the content of memory object accessed by Src into the memory
   /// pointed by Dst.
   ///
   /// Source must have at least as many bytes as the range accessed by Dst.
@@ -1360,7 +1360,7 @@ public:
     MAccStorage.push_back(std::move(AccImpl));
   }
 
-  /// Copies the contents of memory pointed by Src into the memory object
+  /// Copies the content of memory pointed by Src into the memory object
   /// accessed by Dst.
   ///
   /// Source must have at least as many bytes as the range accessed by Dst.
@@ -1397,7 +1397,7 @@ public:
     MAccStorage.push_back(std::move(AccImpl));
   }
 
-  /// Copies the contents of memory object accessed by Src to the memory
+  /// Copies the content of memory object accessed by Src to the memory
   /// object accessed by Dst.
   ///
   /// Dst must have at least as many bytes as the range accessed by Src.
