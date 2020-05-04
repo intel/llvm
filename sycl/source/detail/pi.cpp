@@ -49,6 +49,48 @@ constexpr uint32_t GMajVer = 1;
 constexpr uint32_t GMinVer = 0;
 constexpr const char *GVerStr = "sycl 1.0";
 #endif
+// Implementation of the SYCL PI API call tracing methods that use XPTI
+// framework to emit these traces that will be used by tools.
+uint64_t plugin::emitFunctionBeginTrace(const char *FName) const {
+  uint64_t CorrelationID = 0;
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  // The function_begin and function_end trace point types are defined to
+  // trace library API calls and they are currently enabled here for supports
+  // tools that need the API scope. The methods emitFunctionBeginTrace() and
+  // emitFunctionEndTrace() can be extended to also trace the arguments of the
+  // PI API call using a trace point type the extends the predefined trace
+  // point types.
+  //
+  // You can use the sample collector in llvm/xptifw/samples/syclpi_collector
+  // to print the API traces and also extend them to support an arguments that
+  // may be traced later.
+  if (xptiTraceEnabled()) {
+    uint8_t StreamID = xptiRegisterStream(SYCL_PICALL_STREAM_NAME);
+    CorrelationID = xptiGetUniqueId();
+    xptiNotifySubscribers(StreamID,
+                          (uint16_t)xpti::trace_point_type_t::function_begin,
+                          GPICallEvent, nullptr, CorrelationID,
+                          static_cast<const void *>(FName));
+  }
+#endif
+  return CorrelationID;
+}
+
+void plugin::emitFunctionEndTrace(uint64_t CorrelationID, const char *FName) const {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (xptiTraceEnabled()) {
+    // CorrelationID is the unique ID that ties together a function_begin and
+    // function_end pair of trace calls. The splitting of a scoped_notify into
+    // two function calls incurs an additional overhead as the StreamID must
+    // be looked up twice.
+    uint8_t StreamID = xptiRegisterStream(SYCL_PICALL_STREAM_NAME);
+    xptiNotifySubscribers(StreamID,
+                          (uint16_t)xpti::trace_point_type_t::function_end,
+                          GPICallEvent, nullptr, CorrelationID,
+                          static_cast<const void *>(FName));
+  }
+#endif
+}
 
 namespace pi {
 
