@@ -967,11 +967,11 @@ void OCL20ToSPIRV::visitCallGroupBuiltin(CallInst *CI,
             else {
               // clustered reduce args are (type, uint)
               // other operation args are (type)
-              auto mangledName = F->getName();
-              auto mangledTyC = ClusteredOp.empty()
-                                    ? mangledName.back()
-                                    : mangledName.take_back(2).front();
-              if (isMangledTypeSigned(mangledTyC))
+              auto MangledName = F->getName();
+              auto MangledTyC = ClusteredOp.empty()
+                                    ? MangledName.back()
+                                    : MangledName.take_back(2).front();
+              if (isMangledTypeSigned(MangledTyC))
                 OpTyC = 's';
               else
                 OpTyC = 'u';
