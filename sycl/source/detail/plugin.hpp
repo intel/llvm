@@ -14,7 +14,7 @@
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 // Include the headers necessary for emitting traces using the trace framework
-#include "xpti_trace_framework.hpp"
+#include "xpti_trace_framework.h"
 #endif
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -47,6 +47,37 @@ public:
     CHECK_OCL_CODE_THROW(pi_result, Exception);
   }
 
+  uint64_t emitFunctionBeginTrace(const char *FName) const {
+    uint64_t CorrelationID = 0;
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+    if (xptiTraceEnabled()) {
+      uint8_t StreamID = xptiRegisterStream(SYCL_PICALL_STREAM_NAME);
+      CorrelationID = xptiGetUniqueId();
+      xptiNotifySubscribers(StreamID,
+                            (uint16_t)xpti::trace_point_type_t::function_begin,
+                            GPICallEvent, nullptr, CorrelationID,
+                            static_cast<const void *>(FName));
+    }
+#endif
+    return CorrelationID;
+  }
+
+  void emitFunctionEndTrace(uint64_t CorrelationID, const char *FName) const {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+    if (xptiTraceEnabled()) {
+      // CorrelationID is the unique ID that ties together a function_begin and
+      // function_end pair of trace calls. The splitting of a scoped_notify into
+      // two function calls incurs an additional overhead as the StreamID must
+      // be looked up twice.
+      uint8_t StreamID = xptiRegisterStream(SYCL_PICALL_STREAM_NAME);
+      xptiNotifySubscribers(StreamID,
+                            (uint16_t)xpti::trace_point_type_t::function_end,
+                            GPICallEvent, nullptr, CorrelationID,
+                            static_cast<const void *>(FName));
+    }
+#endif
+  }
+
   /// Calls the PiApi, traces the call, and returns the result.
   ///
   /// Usage:
@@ -61,16 +92,11 @@ public:
   RT::PiResult call_nocheck(ArgsT... Args) const {
     RT::PiFuncInfo<PiApiOffset> PiCallInfo;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-    // Pair of XPTI begin/end calls that will automatically be made before and
-    // after the PI function call; this notification is guarded and checks for
-    // xptiTraceEnabled(). If arguments needs to be captured, then a data
-    // structure can be sent in the per_instance_user_data field.
+    // Emit a function_begin trace for the PI API before the call is executed.
+    // If arguments need to be captured, then a data structure can be sent in
+    // the per_instance_user_data field.
     std::string PIFnName = PiCallInfo.getFuncName();
-    uint64_t CallInstance = xptiGetUniqueId();
-    xpti::framework::scoped_notify ev(
-        SYCL_PICALL_STREAM_NAME,
-        (uint16_t)xpti::trace_point_type_t::function_begin, GPICallEvent,
-        nullptr, CallInstance, static_cast<const void *>(PIFnName.c_str()));
+    uint64_t CorrelationID = emitFunctionBeginTrace(PIFnName.c_str());
 #endif
     if (pi::trace(pi::TraceLevel::PI_TRACE_CALLS)) {
       std::string FnName = PiCallInfo.getFuncName();
@@ -82,6 +108,10 @@ public:
       std::cout << ") ---> ";
       RT::printArgs(R);
     }
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+    // Close the function begin with a call to function end
+    emitFunctionEndTrace(CorrelationID, PIFnName.c_str());
+#endif
     return R;
   }
 

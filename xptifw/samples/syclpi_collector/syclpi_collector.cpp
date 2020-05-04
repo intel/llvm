@@ -33,8 +33,8 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
   // The example basic collector under xptifw/samples/basic_collector takes in
   // streams from anyone as an example. In this collector, we will accept
   // streams from just the SYCL  plugin interface (PI) layer.
+  printf("Stream Name: %s\n", stream_name);
   if (std::string("sycl.pi") == stream_name) {
-    char *tstr;
     // Register this stream to get the stream ID; This stream may already have
     // been registered by the framework and will return the previously
     // registered stream ID. In this sample, we subscribe to only the events
@@ -71,10 +71,15 @@ XPTI_CALLBACK_API void tpCallback(uint16_t TraceType,
   // function name that these trace points are defined to trace.
   if (UserData) {
     const char *Name = (const char *)UserData;
+    const char *be = "BEGIN";
 
     // Lock while we print information
     std::lock_guard<std::mutex> Lock(GIOMutex);
     // Print the record information
-    printf("SYCL_PI: %-35s\n", Name);
+    if(TraceType & 0x1)
+      be = "END";
+    else
+      be = "BEGIN";
+    printf("SYCL_PI: %-35s %s\n", Name, be);
   }
 }
