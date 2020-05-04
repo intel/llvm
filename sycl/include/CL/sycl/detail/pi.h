@@ -46,9 +46,9 @@
 // elsewhere, e.g. in the pi_opencl, but constants/enums mapping is now
 // done here, for efficiency and simplicity.
 
-#include <CL/sycl/detail/export.hpp>
 #include <CL/cl_usm_ext.h>
 #include <CL/sycl/detail/cl.h>
+#include <CL/sycl/detail/export.hpp>
 #include <cstdint>
 
 #ifdef __cplusplus
