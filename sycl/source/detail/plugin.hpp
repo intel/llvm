@@ -50,6 +50,16 @@ public:
   uint64_t emitFunctionBeginTrace(const char *FName) const {
     uint64_t CorrelationID = 0;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
+    // The function_begin and function_end trace point types are defined to
+    // trace library API calls and they are currently enabled here for supports
+    // tools that need the API scope. The methods emitFunctionBeginTrace() and
+    // emitFunctionEndTrace() can be extended to also trace the arguments of the
+    // PI API call using a trace point type the extends the predefined trace
+    // point types.
+    //
+    // You can use the sample collector in llvm/xptifw/samples/syclpi_collector
+    // to print the API traces and also extend them to support an arguments that
+    // may be traced later.
     if (xptiTraceEnabled()) {
       uint8_t StreamID = xptiRegisterStream(SYCL_PICALL_STREAM_NAME);
       CorrelationID = xptiGetUniqueId();
