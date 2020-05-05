@@ -1142,10 +1142,15 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
       DepFile = "-";
     } else if (ArgMD->getOption().matches(options::OPT_MMD) &&
                Args.hasArg(options::OPT_fintelfpga) &&
-               !Args.hasArg(options::OPT_c)) {
+               JA.isDeviceOffloading(Action::OFK_SYCL)) {
       // When generating dependency files for FPGA AOT, the output files will
-      // always be named after the source file.
-      DepFile = Args.MakeArgString(Twine(getBaseInputStem(Args, Inputs)) + ".d");
+      // always be temporary.  Generate here, which will be used for the aoc
+      // call as well as bundling.
+      std::string BaseName(Clang::getBaseInputName(Args, Inputs[0]));
+      std::string DepTmpName =
+          C.getDriver().GetTemporaryPath(llvm::sys::path::stem(BaseName), "d");
+      DepFile = C.addTempFile(C.getArgs().MakeArgString(DepTmpName));
+      C.getDriver().addFPGATempDepFile(DepFile, BaseName);
     } else {
       DepFile = getDependencyFileName(Args, Inputs);
       C.addFailureResultFile(DepFile, &JA);
@@ -7210,10 +7215,10 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
   // For -fintelfpga, when bundling objects we also want to bundle up the
   // named dependency file.
   if (IsFPGADepBundle) {
-    SmallString<128> CurOutput(Output.getFilename());
-    llvm::sys::path::replace_extension(CurOutput, "d");
+    const char *BaseName = Clang::getBaseInputName(TCArgs, Inputs[0]);
+    SmallString<128> DepFile(C.getDriver().getFPGATempDepFile(BaseName));
     UB += ',';
-    UB += CurOutput;
+    UB += DepFile;
   }
   CmdArgs.push_back(TCArgs.MakeArgString(UB));
 

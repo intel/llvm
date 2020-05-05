@@ -298,7 +298,7 @@
 // RUN:  | FileCheck -DOUTDIR=%t_dir -check-prefix=CHK-FPGA-REPORT-OPT2 %s
 // RUN: %clang_cl -### -fsycl -fintelfpga %t_dir/dummy.cpp 2>&1 \
 // RUN:  | FileCheck -DOUTDIR=%t_dir -check-prefix=CHK-FPGA-REPORT-OPT2 %s
-// CHK-FPGA-REPORT-OPT2: aoc{{.*}} "-sycl"{{.*}} "-dep-files=dummy.d" "-output-report-folder=dummy.prj"
+// CHK-FPGA-REPORT-OPT2: aoc{{.*}} "-sycl"{{.*}} "-dep-files={{.+}}dummy-{{.+}}.d" "-output-report-folder=dummy.prj"
 // CHK-FPGA-REPORT-OPT2-NOT: aoc{{.*}} "-sycl" {{.*}}[[OUTDIR]]{{.*}}
 
 /// -fintelfpga output report file should be based on first input (src/obj)
@@ -320,9 +320,9 @@
 /// -fintelfpga output dep file using -Fo<dir>
 // RUN: mkdir -p %t_dir
 // RUN: %clang_cl -### -c -fsycl -fintelfpga -Fo%t_dir/ %s 2>&1 \
-// RUN:  | FileCheck -DDEPDIR=%t_dir/ -check-prefix=CHK-FPGA-DEP-DIR %s
-// CHK-FPGA-DEP-DIR: clang{{.*}} "-dependency-file" "[[DEPDIR]][[DEPFILE:.+\.d]]"
-// CHK-FPGA-DEP-DIR: clang-offload-bundler{{.*}} "-inputs={{.*}}.bc,{{.*}}.obj,[[DEPDIR]][[DEPFILE]]"
+// RUN:  | FileCheck -check-prefix=CHK-FPGA-DEP-DIR %s
+// CHK-FPGA-DEP-DIR: clang{{.*}} "-dependency-file" "[[DEPFILE:.+\.d]]"
+// CHK-FPGA-DEP-DIR: clang-offload-bundler{{.*}} "-inputs={{.*}}.bc,{{.*}}.obj,[[DEPFILE]]"
 
 /// -fintelfpga static lib (aoco)
 // RUN:  echo "Dummy AOCO image" > %t.aoco

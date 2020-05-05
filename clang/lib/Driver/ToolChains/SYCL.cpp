@@ -247,14 +247,12 @@ void SYCL::fpga::BackendCompiler::ConstructJob(Compilation &C,
     if (Ty == types::TY_INVALID)
       continue;
     if (types::isSrcFile(Ty) || Ty == types::TY_Object) {
-      // Dependency files and the project report are created in CWD, so strip
-      // off any directory information if provided with the input file.
-      // TODO - Use temporary files for dependency file creation and
-      // usage with -fintelfpga.
+      // The project report is created in CWD, so strip off any directory
+      // information if provided with the input file.
       ArgName = llvm::sys::path::filename(ArgName);
       if (types::isSrcFile(Ty)) {
-        SmallString<128> DepName(ArgName);
-        llvm::sys::path::replace_extension(DepName, "d");
+        SmallString<128> DepName(
+            C.getDriver().getFPGATempDepFile(StringRef(ArgName).str()));
         FPGADepFiles.push_back(InputInfo(types::TY_Dependencies,
                                          Args.MakeArgString(DepName),
                                          Args.MakeArgString(DepName)));

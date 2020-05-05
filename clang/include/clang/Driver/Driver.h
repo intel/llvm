@@ -635,6 +635,9 @@ private:
   bool checkForOffloadStaticLib(Compilation &C,
                                 llvm::opt::DerivedArgList &Args) const;
 
+  /// Track filename used for the FPGA dependency info.
+  mutable llvm::StringMap<const std::string> FPGATempDepFiles;
+
 public:
   /// GetReleaseVersion - Parse (([0-9]+)(.([0-9]+)(.([0-9]+)?))?)? and
   /// return the grouped values as integers. Numbers which are not
@@ -658,6 +661,20 @@ public:
   static void getDefaultModuleCachePath(SmallVectorImpl<char> &Result);
 
   bool getOffloadStaticLibSeen() const { return OffloadStaticLibSeen; };
+
+  /// addFPGATempDepFile - Add a file to be added to the bundling step of
+  /// an FPGA object.
+  std::string addFPGATempDepFile(const std::string &Name,
+                                 const std::string &JA) const {
+    std::pair<std::string, std::string> TP(JA, Name);
+    FPGATempDepFiles.insert(TP);
+    return Name;
+  }
+  /// getFPGATempDepFile - Get a file to be added to the bundling step of
+  /// an FPGA object.
+  const std::string getFPGATempDepFile(const std::string &JA) const {
+    return FPGATempDepFiles[JA];
+  }
 };
 
 /// \return True if the last defined optimization level is -Ofast.
