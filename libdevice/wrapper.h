@@ -17,7 +17,7 @@
 #include <cstdint>
 // We need the following header to ensure the definition of all spirv variables
 // required by the wrapper libraries.
-#include "spirv_vars.hpp"
+#include "spirv_vars.h"
 
 DEVICE_EXTERN_C
 void __devicelib_assert_fail(const char *expr, const char *file, int32_t line,

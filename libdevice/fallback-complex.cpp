@@ -8,9 +8,9 @@
 
 #include "device_complex.h"
 #include "device_math.h"
-#include <cmath>
 
 #if __SPIR_DEVICE_ONLY__
+#include <cmath>
 
 DEVICE_EXTERN_C
 float __devicelib_crealf(float __complex__ z) { return __real__(z); }
