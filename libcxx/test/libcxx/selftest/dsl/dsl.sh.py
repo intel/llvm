@@ -6,9 +6,6 @@
 #
 #===----------------------------------------------------------------------===##
 
-# TODO: Unbreak this on Windows
-# UNSUPPORTED: host-windows
-
 # RUN: %{python} %s %S %T %{escaped_exec} \
 # RUN:                    %{escaped_cxx} \
 # RUN:                    %{escaped_flags} \
@@ -188,6 +185,13 @@ class TestFeature(SetupConfigs):
         self.assertIn('-foo', self.getSubstitution('%{compile_flags}'))
         self.assertEqual(origLinkFlags, self.getSubstitution('%{link_flags}'))
 
+    def test_compile_flag_can_be_a_callable(self):
+        feature = dsl.Feature(name='name',
+                              compileFlag=lambda cfg: (self.assertIs(self.config, cfg), '-foo')[1])
+        assert feature.isSupported(self.config)
+        feature.enableIn(self.config)
+        self.assertIn('-foo', self.getSubstitution('%{compile_flags}'))
+
     def test_adding_link_flag(self):
         feature = dsl.Feature(name='name', linkFlag='-foo')
         origCompileFlags = copy.deepcopy(self.getSubstitution('%{compile_flags}'))
@@ -196,6 +200,13 @@ class TestFeature(SetupConfigs):
         self.assertIn('name', self.config.available_features)
         self.assertIn('-foo', self.getSubstitution('%{link_flags}'))
         self.assertEqual(origCompileFlags, self.getSubstitution('%{compile_flags}'))
+
+    def test_link_flag_can_be_a_callable(self):
+        feature = dsl.Feature(name='name',
+                              linkFlag=lambda cfg: (self.assertIs(self.config, cfg), '-foo')[1])
+        assert feature.isSupported(self.config)
+        feature.enableIn(self.config)
+        self.assertIn('-foo', self.getSubstitution('%{link_flags}'))
 
     def test_adding_both_flags(self):
         feature = dsl.Feature(name='name', compileFlag='-hello', linkFlag='-world')

@@ -122,23 +122,21 @@ CGUseList::CGUseList(Operation *op, CallGraph &cg) {
 
   // Walk each of the symbol tables looking for discardable callgraph nodes.
   auto walkFn = [&](Operation *symbolTableOp, bool allUsesVisible) {
-    for (Block &block : symbolTableOp->getRegion(0)) {
-      for (Operation &op : block) {
-        // If this is a callgraph operation, check to see if it is discardable.
-        if (auto callable = dyn_cast<CallableOpInterface>(&op)) {
-          if (auto *node = cg.lookupNode(callable.getCallableRegion())) {
-            SymbolOpInterface symbol = dyn_cast<SymbolOpInterface>(&op);
-            if (symbol && (allUsesVisible || symbol.isPrivate()) &&
-                symbol.canDiscardOnUseEmpty()) {
-              discardableSymNodeUses.try_emplace(node, 0);
-            }
-            continue;
+    for (Operation &op : symbolTableOp->getRegion(0).getOps()) {
+      // If this is a callgraph operation, check to see if it is discardable.
+      if (auto callable = dyn_cast<CallableOpInterface>(&op)) {
+        if (auto *node = cg.lookupNode(callable.getCallableRegion())) {
+          SymbolOpInterface symbol = dyn_cast<SymbolOpInterface>(&op);
+          if (symbol && (allUsesVisible || symbol.isPrivate()) &&
+              symbol.canDiscardOnUseEmpty()) {
+            discardableSymNodeUses.try_emplace(node, 0);
           }
+          continue;
         }
-        // Otherwise, check for any referenced nodes. These will be always-live.
-        walkReferencedSymbolNodes(&op, cg, alwaysLiveNodes,
-                                  [](CallGraphNode *, Operation *) {});
       }
+      // Otherwise, check for any referenced nodes. These will be always-live.
+      walkReferencedSymbolNodes(&op, cg, alwaysLiveNodes,
+                                [](CallGraphNode *, Operation *) {});
     }
   };
   SymbolTable::walkSymbolTables(op, /*allSymUsesVisible=*/!op->getBlock(),
@@ -496,22 +494,28 @@ static void canonicalizeSCC(CallGraph &cg, CGUseList &useList,
   // NOTE: This is simple now, because we don't enable canonicalizing nodes
   // within children. When we remove this restriction, this logic will need to
   // be reworked.
-  ParallelDiagnosticHandler canonicalizationHandler(context);
-  llvm::parallel::for_each_n(
-      llvm::parallel::par, /*Begin=*/size_t(0),
-      /*End=*/nodesToCanonicalize.size(), [&](size_t index) {
-        // Set the order for this thread so that diagnostics will be properly
-        // ordered.
-        canonicalizationHandler.setOrderIDForThread(index);
+  if (context->isMultithreadingEnabled()) {
+    ParallelDiagnosticHandler canonicalizationHandler(context);
+    llvm::parallel::for_each_n(
+        llvm::parallel::par, /*Begin=*/size_t(0),
+        /*End=*/nodesToCanonicalize.size(), [&](size_t index) {
+          // Set the order for this thread so that diagnostics will be properly
+          // ordered.
+          canonicalizationHandler.setOrderIDForThread(index);
 
-        // Apply the canonicalization patterns to this region.
-        auto *node = nodesToCanonicalize[index];
-        applyPatternsAndFoldGreedily(*node->getCallableRegion(), canonPatterns);
+          // Apply the canonicalization patterns to this region.
+          auto *node = nodesToCanonicalize[index];
+          applyPatternsAndFoldGreedily(*node->getCallableRegion(),
+                                       canonPatterns);
 
-        // Make sure to reset the order ID for the diagnostic handler, as this
-        // thread may be used in a different context.
-        canonicalizationHandler.eraseOrderIDForThread();
-      });
+          // Make sure to reset the order ID for the diagnostic handler, as this
+          // thread may be used in a different context.
+          canonicalizationHandler.eraseOrderIDForThread();
+        });
+  } else {
+    for (CallGraphNode *node : nodesToCanonicalize)
+      applyPatternsAndFoldGreedily(*node->getCallableRegion(), canonPatterns);
+  }
 
   // Recompute the uses held by each of the nodes.
   for (CallGraphNode *node : nodesToCanonicalize)

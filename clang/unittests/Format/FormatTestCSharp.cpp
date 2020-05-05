@@ -706,6 +706,9 @@ TEST_F(FormatTestCSharp, CSharpSpaces) {
   verifyFormat(R"(char[,,] rawCharArray = MakeCharacterGrid();)", Style);
   verifyFormat(R"(var (key, value))", Style);
 
+  // `&&` is not seen as a reference.
+  verifyFormat(R"(A == typeof(X) && someBool)", Style);
+
   // Not seen as a C-style cast.
   verifyFormat(R"(//
 foreach ((A a, B b) in someList) {
@@ -761,7 +764,8 @@ TEST_F(FormatTestCSharp, CSharpGenericTypeConstraints) {
 
   verifyFormat(R"(//
 class ItemFactory<T>
-    where T : new() {})", Style);
+    where T : new() {})",
+               Style);
 
   verifyFormat(R"(//
 class Dictionary<TKey, TVal>

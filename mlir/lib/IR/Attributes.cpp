@@ -16,6 +16,7 @@
 #include "mlir/IR/Types.h"
 #include "llvm/ADT/Sequence.h"
 #include "llvm/ADT/Twine.h"
+#include "llvm/Support/Endian.h"
 
 using namespace mlir;
 using namespace mlir::detail;
@@ -550,6 +551,29 @@ static bool getBit(const char *rawData, size_t bitPos) {
   return (rawData[bitPos / CHAR_BIT] & (1 << (bitPos % CHAR_BIT))) != 0;
 }
 
+/// Get start position of actual data in `value`. Actual data is
+/// stored in last `bitWidth`/CHAR_BIT bytes in big endian.
+static char *getAPIntDataPos(APInt &value, size_t bitWidth) {
+  char *dataPos =
+      const_cast<char *>(reinterpret_cast<const char *>(value.getRawData()));
+  if (llvm::support::endian::system_endianness() ==
+      llvm::support::endianness::big)
+    dataPos = dataPos + 8 - llvm::divideCeil(bitWidth, CHAR_BIT);
+  return dataPos;
+}
+
+/// Read APInt `value` from appropriate position.
+static void readAPInt(APInt &value, size_t bitWidth, char *outData) {
+  char *dataPos = getAPIntDataPos(value, bitWidth);
+  std::copy_n(dataPos, llvm::divideCeil(bitWidth, CHAR_BIT), outData);
+}
+
+/// Write `inData` to appropriate position of APInt `value`.
+static void writeAPInt(const char *inData, size_t bitWidth, APInt &value) {
+  char *dataPos = getAPIntDataPos(value, bitWidth);
+  std::copy_n(inData, llvm::divideCeil(bitWidth, CHAR_BIT), dataPos);
+}
+
 /// Writes value to the bit position `bitPos` in array `rawData`.
 static void writeBits(char *rawData, size_t bitPos, APInt value) {
   size_t bitWidth = value.getBitWidth();
@@ -560,9 +584,7 @@ static void writeBits(char *rawData, size_t bitPos, APInt value) {
 
   // Otherwise, the bit position is guaranteed to be byte aligned.
   assert((bitPos % CHAR_BIT) == 0 && "expected bitPos to be 8-bit aligned");
-  std::copy_n(reinterpret_cast<const char *>(value.getRawData()),
-              llvm::divideCeil(bitWidth, CHAR_BIT),
-              rawData + (bitPos / CHAR_BIT));
+  readAPInt(value, bitWidth, rawData + (bitPos / CHAR_BIT));
 }
 
 /// Reads the next `bitWidth` bits from the bit position `bitPos` in array
@@ -575,9 +597,7 @@ static APInt readBits(const char *rawData, size_t bitPos, size_t bitWidth) {
   // Otherwise, the bit position must be 8-bit aligned.
   assert((bitPos % CHAR_BIT) == 0 && "expected bitPos to be 8-bit aligned");
   APInt result(bitWidth, 0);
-  std::copy_n(
-      rawData + (bitPos / CHAR_BIT), llvm::divideCeil(bitWidth, CHAR_BIT),
-      const_cast<char *>(reinterpret_cast<const char *>(result.getRawData())));
+  writeAPInt(rawData + (bitPos / CHAR_BIT), bitWidth, result);
   return result;
 }
 
@@ -615,6 +635,8 @@ Attribute DenseElementsAttr::AttributeElementIterator::operator*() const {
     FloatElementIterator floatIt(floatEltTy.getFloatSemantics(), intIt);
     return FloatAttr::get(eltTy, *floatIt);
   }
+  if (owner.isa<DenseStringElementsAttr>())
+    return StringAttr::get(owner.getRawStringData()[index], eltTy);
   llvm_unreachable("unexpected element type");
 }
 
@@ -655,11 +677,23 @@ DenseElementsAttr::FloatElementIterator::FloatElementIterator(
 
 DenseElementsAttr DenseElementsAttr::get(ShapedType type,
                                          ArrayRef<Attribute> values) {
-  assert(type.getElementType().isIntOrIndexOrFloat() &&
-         "expected int or index or float element type");
   assert(hasSameElementsOrSplat(type, values));
 
+  // If the element type is not based on int/float/index, assume it is a string
+  // type.
   auto eltType = type.getElementType();
+  if (!type.getElementType().isIntOrIndexOrFloat()) {
+    SmallVector<StringRef, 8> stringValues;
+    stringValues.reserve(values.size());
+    for (Attribute attr : values) {
+      assert(attr.isa<StringAttr>() &&
+             "expected string value for non integer/index/float element");
+      stringValues.push_back(attr.cast<StringAttr>().getValue());
+    }
+    return get(type, stringValues);
+  }
+
+  // Otherwise, get the raw storage width to use for the allocation.
   size_t bitWidth = getDenseElementBitWidth(eltType);
   size_t storageBitWidth = getDenseElementStorageWidth(bitWidth);
 
