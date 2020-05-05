@@ -13,7 +13,7 @@
 set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
 # We chose MODULE type because libpi_opencl.so should never be linked dynamically to a target.
-# MODULE will limit this library to be used to load symbols via dllopen only
+# MODULE will limit this library to be used to load symbols via dlopen only
 add_library(pi_opencl MODULE
   "${sycl_inc_dir}/CL/sycl/detail/pi.h"
   "pi_opencl.cpp"
@@ -37,11 +37,11 @@ target_link_libraries( pi_opencl
 )
 if (MSVC)
   # by defining __SYCL_BUILD_SYCL_DLL, we can use __declspec(dllexport)
-  # which are individually tagged for all pi* symbols in pi_opencl.cpp
+  # which are individually tagged for all pi* symbols in pi.h
   target_compile_definitions(pi_opencl PRIVATE __SYCL_BUILD_SYCL_DLL)
 else()
   # we set the visibility of all symbols 'hidden' by default.
-  # In *.cpp files, we set exported symbols with visibility==default individually
+  # In pi.h file, we set exported symbols with visibility==default individually
   target_compile_options(pi_opencl PUBLIC -fvisibility=hidden)
 
   # This script file is used to allow exporting pi* symbols only.
