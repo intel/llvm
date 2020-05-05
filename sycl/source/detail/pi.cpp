@@ -49,9 +49,14 @@ constexpr uint32_t GMajVer = 1;
 constexpr uint32_t GMinVer = 0;
 constexpr const char *GVerStr = "sycl 1.0";
 #endif
+
+namespace pi {
+
+bool XPTIInitDone = false;
+
 // Implementation of the SYCL PI API call tracing methods that use XPTI
 // framework to emit these traces that will be used by tools.
-uint64_t plugin::emitFunctionBeginTrace(const char *FName) const {
+uint64_t emitFunctionBeginTrace(const char *FName) {
   uint64_t CorrelationID = 0;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // The function_begin and function_end trace point types are defined to
@@ -76,7 +81,7 @@ uint64_t plugin::emitFunctionBeginTrace(const char *FName) const {
   return CorrelationID;
 }
 
-void plugin::emitFunctionEndTrace(uint64_t CorrelationID, const char *FName) const {
+void emitFunctionEndTrace(uint64_t CorrelationID, const char *FName) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (xptiTraceEnabled()) {
     // CorrelationID is the unique ID that ties together a function_begin and
@@ -91,10 +96,6 @@ void plugin::emitFunctionEndTrace(uint64_t CorrelationID, const char *FName) con
   }
 #endif
 }
-
-namespace pi {
-
-bool XPTIInitDone = false;
 
 void contextSetExtendedDeleter(const cl::sycl::context &context,
                                pi_context_extended_deleter func,
