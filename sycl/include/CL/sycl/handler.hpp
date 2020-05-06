@@ -539,7 +539,7 @@ private:
       size_t LinearIndex = Index[0];
       for (int I = 1; I < Dim; ++I)
         LinearIndex += Range[I] * Index[I];
-      ((TSrc *)Dst)[LinearIndex] = Src[Index];
+      (reinterpret_cast<TSrc *>(Dst))[LinearIndex] = Src[Index];
     });
   }
 
@@ -574,7 +574,7 @@ private:
       size_t LinearIndex = Index[0];
       for (int I = 1; I < Dim; ++I)
         LinearIndex += Range[I] * Index[I];
-      Dst[Index] = ((TDst *)Src)[LinearIndex];
+      Dst[Index] = (reinterpret_cast<TDst *>(Src))[LinearIndex];
     });
   }
 
