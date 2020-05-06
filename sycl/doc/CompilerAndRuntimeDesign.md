@@ -219,7 +219,7 @@ performed as a part of the code transformation sequence done by the
 a_0.bc
 a_1.bc
 ```
-- Pass this file list to the `llvm-for-each` tool along with AOT compilation
+- Pass this file list to the `llvm-foreach` tool along with AOT compilation
 command to invoke it on every file in the list. This will result in another
 file list
 ```
