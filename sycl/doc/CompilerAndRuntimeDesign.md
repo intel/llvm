@@ -436,7 +436,7 @@ There are multiple possible variants of the graph depending on:
 
 Colors of the graph's edges show which paths are taken depending on the above
 factors. Each edge is also annotated with the input/output file type.
-The diagram does not show the `llvm-for-each` tool invocations for clarity.
+The diagram does not show the `llvm-foreach` tool invocations for clarity.
 This tool invokes given command line over each file in a file list. In this
 diagram the tool is applied to `llvm-spirv` and AOT backend whenever the
 input/output type is `TY_tempfilelist`. The second invocation of the
