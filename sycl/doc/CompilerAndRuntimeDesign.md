@@ -364,7 +364,7 @@ The wrapper object is created by the `clang-offload-wrapper` tool, or simply
 put into in the object's data section. It encompasses all needed information
 about the wrapped device binaries - number of binaries, symbols each binary
 defines, etc. - as well as the binaries themselves.
-1. Registration/unregistration functions. The first one is put into a special
+2. Registration/unregistration functions. The first one is put into a special
 section so that it is invoked when the parent fat binary is loaded into a
 process at runtime, the second one is put into another section to be invoked
 when the parent fat binary is unloaded. The registration function basically
