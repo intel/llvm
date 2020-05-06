@@ -4,7 +4,7 @@ using namespace cl::sycl;
 
 int main() {
   // Create a buffer of 4 ints to be used inside the kernel code.
-  buffer<cl_int, 1> Buffer(4);
+  buffer<int, 1> Buffer(4);
 
   // Create a simple asynchronous exception handler.
   auto AsyncHandler = [](exception_list ExceptionList) {
@@ -26,7 +26,7 @@ int main() {
     // Execute kernel.
     cgh.parallel_for<class FillBuffer>(NumOfWorkItems, [=](id<1> WIid) {
       // Fill buffer with indices.
-      Accessor[WIid] = static_cast<cl_int>(WIid.get(0));
+      Accessor[WIid] = static_cast<int>(WIid.get(0));
     });
   });
 
