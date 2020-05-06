@@ -73,7 +73,9 @@ int main(int argc, char **argv) {
       program2.set_spec_constant<MyFloatConst>(goldf);
 
   program1.build_with_kernel_type<KernelAAAi>();
-  program2.build_with_kernel_type<KernelBBBf>();
+  // Use an option (does not matter which exactly) to test different internal
+  // SYCL RT execution path
+  program2.build_with_kernel_type<KernelBBBf>("-cl-fast-relaxed-math");
 
   std::vector<int> veci(1);
   std::vector<float> vecf(1);

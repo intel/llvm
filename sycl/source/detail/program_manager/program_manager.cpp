@@ -960,37 +960,35 @@ void ProgramManager::flushSpecConstants(const program_impl &Prg,
     std::cerr << ">>> ProgramManager::flushSpecConstants(" << Prg.get()
               << ",...)\n";
   }
-  if (Img) {
+  pi::PiProgram PrgHandle = Prg.getHandleRef();
+  // program_impl can't correspond to two different native programs
+  assert(!NativePrg || !PrgHandle || (NativePrg == PrgHandle));
+  NativePrg = NativePrg ? NativePrg : PrgHandle;
+
+  if (!Img) {
+    // caller hasn't provided the image object - find it
+    { // make sure NativePrograms map access is synchronized
+      ContextImplPtr Ctx = getSyclObjImpl(Prg.get_context());
+      auto LockGuard = Ctx->getKernelProgramCache().acquireCachedPrograms();
+      auto It = NativePrograms.find(NativePrg);
+      if (It == NativePrograms.end()) {
+        if (DbgProgMgr > 0)
+          std::cerr << ">>> WARNING: flushSpecConstants requested on a "
+                       "program w/o known binary image\n";
+        return; // program origin is unknown
+      }
+      Img = It->second;
+    }
     if (!Img->supportsSpecConstants()) {
       if (DbgProgMgr > 0)
         std::cerr << ">>> ProgramManager::flushSpecConstants: binary image "
                   << &Img->getRawData() << " doesn't support spec constants\n";
+      // this device binary image does not support runtime setting of
+      // specialization constants; compiler must have generated default values
       return;
     }
-    Prg.flush_spec_constants(*Img, NativePrg);
-    return;
   }
-  { // make sure NativePrograms map access is synchronized
-    ContextImplPtr Ctx = getSyclObjImpl(Prg.get_context());
-    auto LockGuard = Ctx->getKernelProgramCache().acquireCachedPrograms();
-    auto It = NativePrograms.find(pi::cast<pi::PiProgram>(Prg.get()));
-    if (It == NativePrograms.end()) {
-      if (DbgProgMgr > 0)
-        std::cerr << ">>> WARNING: flushSpecConstants requested on a "
-                     "program w/o known binary image\n";
-      return; // program origin is unknown
-    }
-    Img = It->second;
-  }
-  if (!Img->supportsSpecConstants()) {
-    if (DbgProgMgr > 0)
-      std::cerr << ">>> ProgramManager::flushSpecConstants: binary image "
-                << &Img->getRawData() << " doesn't support spec constants\n";
-    // this device binary image does not support runtime setting of
-    // specialization constants; compiler must have generated default values
-    return;
-  }
-  Prg.flush_spec_constants(*Img);
+  Prg.flush_spec_constants(*Img, NativePrg);
 }
 
 } // namespace detail
