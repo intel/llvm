@@ -35,7 +35,7 @@ chose to do one or more of the following:
 - compile the device SPIRV module ahead-of-time for one or more targets
 - perform device code splitting so that device code is distributed across
   multiple modules rather than enclosed in a single one
-- linkage of static device libraries is requested
+- perform linkage of static device libraries
 Sections below provide more details on some of those scenarios.
 
 SYCL sources can be also compiled as a regular C++ code, in this mode there is
