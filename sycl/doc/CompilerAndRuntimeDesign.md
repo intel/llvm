@@ -12,7 +12,7 @@ DPC++ application compilation flow:
 
 ![High level component diagram for DPC++ Compiler](images/Compiler-HLD.svg)
 
-<div align="center"> Diagram 1. Application build flow. </div>
+*Diagram 1. Application build flow.*  
 
 DPC++ compiler logically can be split into the host compiler and a number of
 device compilers—one per each supported target. Clang driver orchestrates the
@@ -335,7 +335,7 @@ bundler/unbundler actions are basically inserted between the `llvm-link` and
 the `linker` invocations as shown on the Diagram 1.
 
 ![Multi source compilation flow](images/SplitCompileAndLink.svg)
-<div align="center"> Diagram 2. Split compilation and linkage. </div>
+*Diagram 2. Split compilation and linkage.*  
 
 
 *Current implementation uses LLVM IR as a default device binary format for `fat
@@ -432,7 +432,8 @@ There are multiple possible variants of the graph depending on:
 - AOT compilation
 
 ![Multi source compilation flow](images/DeviceLinkAndWrap.svg)
-<div align="center"> Diagram 3. Device code link flows</div>
+*Diagram 3. Device code link flows.*  
+
 Colors of the graph's edges show which paths are taken depending on the above
 factors. Each edge is also annotated with the input/output file type.
 The diagram does not show the `llvm-for-each` tool invocations for clarity.
