@@ -228,16 +228,16 @@ public:
     EmptyCommand *EmptyCmd = findUserEmptyCommand(ThisCmd);
     assert(EmptyCmd && "No empty command found");
 
-    EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
-
     // update self-event status
     MSelfEvent->setComplete();
+
+    EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
 
     // The enqueue process is driven by backend for non-host.
     // For host event we'll enqueue leaves of requirements
     if (MSelfEvent->is_host())
       for (const DepDesc &Dep : ThisCmd->MDeps)
-        Scheduler::enqueueLeavesOfReq(Dep.MDepRequirement);
+        Scheduler::getInstance().enqueueLeavesOfReq(Dep.MDepRequirement);
   }
 };
 
@@ -1308,7 +1308,8 @@ cl_int EmptyCommand::enqueueImp() {
 
 void EmptyCommand::addRequirement(Command *DepCmd, AllocaCommandBase *AllocaCmd,
                                   const Requirement *Req) {
-  MRequirements.emplace_back(*Req);
+  const Requirement &ReqRef = *Req;
+  MRequirements.emplace_back(ReqRef);
   const Requirement *const StoredReq = &MRequirements.back();
 
   addDep(DepDesc{DepCmd, StoredReq, AllocaCmd});

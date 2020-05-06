@@ -190,8 +190,13 @@ void Scheduler::releaseHostAccessor(Requirement *Req) {
   enqueueLeavesOfReq(Req);
 }
 
-// static
 void Scheduler::enqueueLeavesOfReq(const Requirement *const Req) {
+  std::shared_lock<std::shared_timed_mutex> Lock(MGraphLock);
+  enqueueLeavesOfReqUnlocked(Req);
+}
+
+// static
+void Scheduler::enqueueLeavesOfReqUnlocked(const Requirement *const Req) {
   MemObjRecord *Record = Req->MSYCLMemObj->MRecord.get();
   auto EnqueueLeaves = [](CircularBuffer<Command *> &Leaves) {
     for (Command *Cmd : Leaves) {

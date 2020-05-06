@@ -430,7 +430,8 @@ protected:
   Scheduler();
   static Scheduler instance;
 
-  static void enqueueLeavesOfReq(const Requirement *const Req);
+  static void enqueueLeavesOfReqUnlocked(const Requirement *const Req);
+  void enqueueLeavesOfReq(const Requirement *const Req);
 
   /// Graph builder class.
   ///
