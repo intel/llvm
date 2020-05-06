@@ -105,32 +105,6 @@ template <typename Type> struct get_kernel_name_t<detail::auto_name, Type> {
   using name = Type;
 };
 
-/// These are the forward declaration for the classes that help to create
-/// names for additional kernels. It is used only when there are
-/// more then 1 kernels in one parallel_for() implementing SYCL reduction.
-template <typename Type> class __sycl_reduction_main_2nd_kernel;
-template <typename Type> class __sycl_reduction_aux_1st_kernel;
-template <typename Type> class __sycl_reduction_aux_2nd_kernel;
-
-/// Helper structs to get additional kernel name types based on given
-/// \c Name and \c Type types: if \c Name is undefined (is a \c auto_name) then
-/// \c Type becomes the \c Name.
-template <typename Name, typename Type>
-struct get_reduction_main_2nd_kernel_name_t {
-  using name = __sycl_reduction_main_2nd_kernel<
-      typename get_kernel_name_t<Name, Type>::name>;
-};
-template <typename Name, typename Type>
-struct get_reduction_aux_1st_kernel_name_t {
-  using name = __sycl_reduction_aux_1st_kernel<
-      typename get_kernel_name_t<Name, Type>::name>;
-};
-template <typename Name, typename Type>
-struct get_reduction_aux_2nd_kernel_name_t {
-  using name = __sycl_reduction_aux_2nd_kernel<
-      typename get_kernel_name_t<Name, Type>::name>;
-};
-
 template <typename, typename T> struct check_fn_signature {
   static_assert(std::integral_constant<T, false>::value,
                 "Second template parameter is required to be of function type");
