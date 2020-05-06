@@ -1,9 +1,10 @@
-// RUN: %clangxx -fsycl -fsycl-device-code-split=per_kernel -o %t.out %s
+// UNSUPPORTED: cuda
+// CUDA does not support device code splitting.
+//
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsycl-device-code-split=per_kernel -o %t.out %s
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
-
-// XFAIL: cuda
 
 #include <CL/sycl.hpp>
 

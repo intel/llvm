@@ -32,7 +32,15 @@ Adding a new exported symbol is considered to be non-breaking change.
 
 ## ABI Versioning Policy
 
-TBD
+The release version of the DPC++ runtime library follows
+[Semantic Versioning](https://semver.org/) scheme: `MAJOR.MINOR.PATCH`. `MAJOR`
+version indicates breaking change. Version `X` is backwards incompatible with
+version `X-1`. `MINOR` indicates a non-breaking change. The development version
+of the library has a postfix `-V` that indicates breaking changes between
+releases. Every time a pull request introduces a breaking change, it must also
+uplift `V`. It is pull request author responsibility to accordingly update
+this version. If `V > 0` on release date, then `MAJOR_VERSION` is uplifted and
+`V` is set to zero.
 
 ## `__SYCL_EXPORT` Macro
 

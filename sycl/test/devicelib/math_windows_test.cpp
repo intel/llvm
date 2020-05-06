@@ -1,6 +1,6 @@
-// REQUIRES: cpu, linux
+// REQUIRES: cpu, windows
 // RUN: %clangxx -fsycl -c %s -o %t.o
-// RUN: %clangxx -fsycl %t.o %sycl_libs_dir/libsycl-cmath.o -o %t.out
+// RUN: %clangxx -fsycl %t.o %sycl_libs_dir/../bin/libsycl-cmath.o -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
@@ -13,13 +13,13 @@ namespace s = cl::sycl;
 constexpr s::access::mode sycl_read = s::access::mode::read;
 constexpr s::access::mode sycl_write = s::access::mode::write;
 
-#define TEST_NUM 38
+#define TEST_NUM 39
 
 float ref_val[TEST_NUM] = {
     1, 0, 0, 0, 0, 0, 0, 1, 1, 0.5,
-    0, 2, 0, 0, 1, 0, 2, 0, 0, 0,
-    0, 0, 1, 0, 1, 2, 0, 1, 2, 5,
-    0, 0, 0, 0, 0.5, 0.5, NAN, NAN};
+    0, 0, 1, 0, 2, 0, 0, 0, 0, 0,
+    1, 0, 1, 2, 0, 1, 2, 5, 0, 0,
+    0, 0, 0.5, 0.5, NAN, NAN, 1, 2, 0};
 
 float refIptr = 1;
 
@@ -27,24 +27,25 @@ void device_math_test(s::queue &deviceQueue) {
   s::range<1> numOfItems{TEST_NUM};
   float result[TEST_NUM] = {-1};
 
-  // Variable exponent is an integer value to store the exponent in frexp function
-  int exponent = -1;
-
   // Variable iptr stores the integral part of float point in modf function
   float iptr = -1;
 
   // Variable quo stores the sign and some bits of x/y in remquo function
   int quo = -1;
+
+  // Varaible enm stores the enum value retured by MSVC function
+  short enm[2] = {10, 10};
+
   {
     s::buffer<float, 1> buffer1(result, numOfItems);
-    s::buffer<int, 1> buffer2(&exponent, s::range<1>{1});
-    s::buffer<float, 1> buffer3(&iptr, s::range<1>{1});
-    s::buffer<int, 1> buffer4(&quo, s::range<1>{1});
+    s::buffer<float, 1> buffer2(&iptr, s::range<1>{1});
+    s::buffer<int, 1> buffer3(&quo, s::range<1>{1});
+    s::buffer<short, 1> buffer4(enm, s::range<1>{2});
     deviceQueue.submit([&](cl::sycl::handler &cgh) {
       auto res_access = buffer1.template get_access<sycl_write>(cgh);
-      auto exp_access = buffer2.template get_access<sycl_write>(cgh);
-      auto iptr_access = buffer3.template get_access<sycl_write>(cgh);
-      auto quo_access = buffer4.template get_access<sycl_write>(cgh);
+      auto iptr_access = buffer2.template get_access<sycl_write>(cgh);
+      auto quo_access = buffer3.template get_access<sycl_write>(cgh);
+      auto enm_access = buffer4.template get_access<sycl_write>(cgh);
       cgh.single_task<class DeviceMathTest>([=]() {
         int i = 0;
         res_access[i++] = cosf(0.0f);
@@ -57,8 +58,6 @@ void device_math_test(s::queue &deviceQueue) {
         res_access[i++] = coshf(0.0f);
         res_access[i++] = expf(0.0f);
         res_access[i++] = fmodf(1.5f, 1.0f);
-        res_access[i++] = frexpf(0.0f, &exp_access[0]);
-        res_access[i++] = ldexpf(1.0f, 1);
         res_access[i++] = log10f(1.0f);
         res_access[i++] = modff(1.0f, &iptr_access[0]);
         res_access[i++] = powf(1.0f, 1.0f);
@@ -86,6 +85,12 @@ void device_math_test(s::queue &deviceQueue) {
         float a = NAN;
         res_access[i++] = tgammaf(a);
         res_access[i++] = lgammaf(a);
+        enm_access[0] = _FDtest(&a);
+        a = 0.0f;
+        enm_access[1] = _FExp(&a, 1.0f, 0);
+        res_access[i++] = a;
+        res_access[i++] = _FCosh(0.0f, 2.0f);
+        res_access[i++] = _FSinh(0.0f, 1.0f);
       });
     });
   }
@@ -98,11 +103,14 @@ void device_math_test(s::queue &deviceQueue) {
   // Test modf integral part
   assert(approx_equal_fp(iptr, refIptr));
 
-  // Test frexp exponent
-  assert(exponent == 0);
-
   // Test remquo sign
   assert(quo == 0);
+
+  // Test enum value returned by _FDtest
+  assert(enm[0] == _NANCODE);
+
+  // Test enum value returned by _FExp
+  assert(enm[1] == _FINITE);
 }
 
 int main() {

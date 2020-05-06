@@ -51,12 +51,12 @@ searched at locations in env LD_LIBRARY_PATH on Linux and env PATH on Windows.
 installation directory by using DT_RPATH on Linux. Similar functionality can be
 achieved on Windows using SetDllDirectory. This will help avoiding extra setting
 of LD_LIBRARY_PATH.)
-To avoid any issues with read-only access, an environment variable SYCL_PI_CONFIG
-can be set to point to the configuration file which lists the Plugin names. The
-enviroment variable if set overrides the predetermined location's config file.
-These Plugins are then be searched in LD_LIBRARY_PATH locations.
-It is the developer's responsibility to include the plugin names from the
-predetermined location's config file to enable discovery of all plugins.
+To avoid any issues with read-only access, an environment variable
+SYCL_PI_CONFIG can be set to point to the configuration file which lists the
+Plugin names. The enviroment variable if set overrides the predetermined
+location's config file. These Plugins are then be searched in LD_LIBRARY_PATH
+locations. It is the developer's responsibility to include the plugin names from
+the predetermined location's config file to enable discovery of all plugins.
 (TBD - Extend to support search in DT_RPATH as above.)
 In the current implementation the plugin names are hardcoded in the library.
 Configuration file or env SYCL_PI_CONFIG is currently not being considered.
@@ -72,11 +72,12 @@ SYCL_PI_TRACE=-1 lists all PI Traces above and more debug messages.
 
 #### Plugin binary interface
 Plugins should implement all the Interface APIs required for the PI Version
-it supports. There is [pi.def](../include/CL/sycl/detail/pi.def)/ 
+it supports. There is [pi.def](../include/CL/sycl/detail/pi.def)/
 [pi.h](../include/CL/sycl/detail/pi.h) file listing all PI API names that can be
 called by the specific version of Plugin Interface.
-It exports a function - "piPluginInit" that returns the plugin details and function pointer
-table containing the list of pointers to implemented Interface Functions defined in pi.h.
+It exports a function - "piPluginInit" that returns the plugin details and
+function pointer table containing the list of pointers to implemented Interface
+Functions defined in pi.h.
 In the future, this document will list the minimum set of Interface APIs
 to be supported by Plugins. This will also require adding functionality to SYCL
 Runtime to work with such limited functionality plugins.
@@ -86,7 +87,7 @@ be picked up by the DPC++ runtime for offload.)
 
 #### Binding a Plugin
 The DPC++ Runtime loads all discovered Plugins and tries to bind them by calling
-piPluginInit API for each loaded Plugin. The Plugins return the information of 
+piPluginInit API for each loaded Plugin. The Plugins return the information of
 supported PI version and the list of implemented PI API Function pointers.
 (TBD - Use the PI API Version information and check for compatibility.
 Extend to support version compatibility checks without loading the library.
@@ -97,8 +98,8 @@ The PI API calls are later forwarded using this information.
 A plugin is said to "bind" after this process completes with no errors.
 During device selection, the user can prefer selection of a device from a
 specific Plugin or Backend using the env SYCL_BE. The correspondence between
-a plugin and a SYCL_BE value is currently hardcoded in the runtime. 
-( TBD: Make this a part of configuration file). 
+a plugin and a SYCL_BE value is currently hardcoded in the runtime.
+( TBD: Make this a part of configuration file).
 Eg: SYCL_BE=PI_OPENCL corresponds to OpenCL Plugin.
 
 #### OpenCL plugin
@@ -109,13 +110,15 @@ OpenCL implementations. They can be installed either in the standard Khronos
 ICD-compatible way (e.g. listed in files under /etc/OpenCL/vendors on
 Linux) or not, and the OpenCL plugin can hook up with both.
 
-TBD - implement and describe the nested OpenCL implementation discovery process performed by
-the OpenCL plugin
+TBD - implement and describe the nested OpenCL implementation discovery process
+performed by the OpenCL plugin
 
 ### Device enumeration by plugins
-Devices from all bound plugins are queried and listed as and when required, eg: during device selection in device_selector.
+Devices from all bound plugins are queried and listed as and when required, eg:
+during device selection in device_selector.
 The trace shows the PI API calls made when using SYCL_PI_TRACE=-1.
-(TBD - Add the trace to list all available devices when plugins are successfully bound.)
+(TBD - Add the trace to list all available devices when plugins are successfully
+bound.)
 
 ### Plugin Unloading
 The plugins not chosen to be connected to should be unloaded.
@@ -130,8 +133,8 @@ able to operate on the corresponding device. The core API further breaks down
 into
   - **OpenCL-based** APIs which have OpenCL origin and semantics
   - **Extension** APIs which don't have counterparts in the OpenCL
-- **Interoperability API** which allows interoperability with underlying runtimes
-such as OpenCL.
+- **Interoperability API** which allows interoperability with underlying
+runtimes such as OpenCL.
 
 See [pi.h](../include/CL/sycl/detail/pi.h) header for the full list and
 descriptions of PI APIs.
