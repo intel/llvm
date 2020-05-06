@@ -16,8 +16,12 @@ Contributors
 ------------
 
 - Gang Chen, Intel
-- Mariusz Merecki, Intel
 - Aleksandr Bezzubikov, Intel
+- Aleksander Us, Intel
+- Nikita Rudenko, Intel
+- Konstantin Vladimirov, Intel
+- Alexey Sachkov, Intel
+- Mariusz Merecki, Intel
 
 
 Notice
@@ -40,8 +44,8 @@ Version
 
 [width="40%",cols="25,25"]
 |========================================
-| Last Modified Date | 2020-04-24
-| Revision           | 2
+| Last Modified Date | 2020-05-06
+| Revision           | 3
 |========================================
 
 Dependencies
@@ -55,7 +59,7 @@ This extension requires SPIR-V 1.0.
 Overview
 --------
 
-This extension adds new execution model, capability, execution modes and decorations
+This extension adds new capability, execution mode and decorations
 to support INTEL vector compute specific features in SPIR-V.
 
 
@@ -71,14 +75,6 @@ OpExtension "SPV_INTEL_vector_compute"
 
 Modifications to the SPIR-V Specification, Version 1.5, Revision 2, Unified
 ---------------------------------------------------------------------------
-
-Modify Section 3.3, Execution Model, add the following row to the Execution Model table:
-
-[cols="1,20,10",options="header",width = "60%"]
-|====
-2+^| Execution Model | Enabling Capabilities
-| 5626 | *VectorComputeKernelINTEL* | *VectorComputeINTEL*
-|====
 
 Modify Section 3.6, Execution Mode, add the following rows to the Execution Mode table:
 
@@ -102,20 +98,11 @@ Modify Section 3.20, Decoration, add the following rows to the Decoration table:
 [cols="1,20,10,10",options="header",width = "80%"]
 |====
   2+^| Decoration  | Enabling Capabilities | Extra Operands
-| 5624 | *KernelArgumentTypeINTEL* +
-Apply to a function parameter to provide information about high level language argument type.
-
-_Argument Type_ is an unsigned 32-bit integer.
+| 5626 | *VectorComputeFunctionINTEL* +
+Apply to a function definition to specify that this function is a vector compute function.
 
 See the client API specification for more detail.
-| *VectorComputeINTEL* | <<Literal, 'Literal'>> _Argument Type_
-| 5625 | *KernelArgumentDescINTEL* +
-Apply to a function parameter to provide a string description of the argument.
-
-'Description' is a literal string.
-
-See the client API specification for more detail.
-| *VectorComputeINTEL* | <<Literal, 'Literal'>> _Description_
+| *VectorComputeINTEL* |
 | 5627 | *StackCallINTEL* +
 Apply to a function definition to specify that this function is a stack call function.
 
@@ -130,7 +117,7 @@ Modify Section 3.31, Capability, add the following row the 'Capability' table:
 |====
   2+^| Capability      |     Implicitly Declares    | Enabled by Extension
 | 5617 | *VectorComputeINTEL* +
-Enables the use of *VectorComputeKernelINTEL* execution model, *SharedLocalMemorySizeINTEL* execution mode and *KernelArgumentTypeINTEL*, *KernelArgumentDescINTEL* and *StackCallINTEL* decorations.
+Enables the use of *SharedLocalMemorySizeINTEL* execution mode and *VectorComputeFunctionINTEL* and *StackCallINTEL* decorations.
 
 See the client API specification for more detail.
 || *SPV_INTEL_vector_compute*
@@ -151,4 +138,5 @@ Revision History
 |Rev|Date|Author|Changes
 |1|2020-04-17|Mariusz Merecki|Initial revision
 |2|2020-04-24|Mariusz Merecki|Assigned token number to *VectorComputeKernelINTEL*
+|3|2020-05-06|Mariusz Merecki|Removed *VectorComputeKernelINTEL*, *KernelArgumentTypeINTEL* and *KernelArgumentDescINTEL*. Added *VectorComputeFunctionINTEL*.
 |========================================
