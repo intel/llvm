@@ -18,6 +18,7 @@
 
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/FloatingPointMode.h"
 #include "llvm/Support/ErrorHandling.h"
 #include <memory>
 
@@ -141,7 +142,7 @@ enum lostFraction { // Example of truncated bits:
 // members.
 struct APFloatBase {
   typedef APInt::WordType integerPart;
-  static const unsigned integerPartWidth = APInt::APINT_BITS_PER_WORD;
+  static constexpr unsigned integerPartWidth = APInt::APINT_BITS_PER_WORD;
 
   /// A signed type to represent a floating point numbers unbiased exponent.
   typedef int32_t ExponentType;
@@ -182,13 +183,15 @@ struct APFloatBase {
   };
 
   /// IEEE-754R 4.3: Rounding-direction attributes.
-  enum roundingMode {
-    rmNearestTiesToEven,
-    rmTowardPositive,
-    rmTowardNegative,
-    rmTowardZero,
-    rmNearestTiesToAway
-  };
+  using roundingMode = llvm::RoundingMode;
+
+  static constexpr roundingMode rmNearestTiesToEven =
+                                                RoundingMode::NearestTiesToEven;
+  static constexpr roundingMode rmTowardPositive = RoundingMode::TowardPositive;
+  static constexpr roundingMode rmTowardNegative = RoundingMode::TowardNegative;
+  static constexpr roundingMode rmTowardZero     = RoundingMode::TowardZero;
+  static constexpr roundingMode rmNearestTiesToAway =
+                                                RoundingMode::NearestTiesToAway;
 
   /// IEEE-754R 7: Default exception handling.
   ///

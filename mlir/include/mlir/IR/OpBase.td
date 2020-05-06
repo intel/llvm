@@ -297,10 +297,14 @@ class DialectType<Dialect d, Pred condition, string descr = ""> :
 }
 
 // A variadic type constraint. It expands to zero or more of the base type. This
-// class is used for supporting variadic operands/results. An op can declare no
-// more than one variadic operand/result, and that operand/result must be the
-// last one in the operand/result list.
+// class is used for supporting variadic operands/results.
 class Variadic<Type type> : TypeConstraint<type.predicate, type.description> {
+  Type baseType = type;
+}
+
+// An optional type constraint. It expands to either zero or one of the base
+// type. This class is used for supporting optional operands/results.
+class Optional<Type type> : TypeConstraint<type.predicate, type.description> {
   Type baseType = type;
 }
 
@@ -319,7 +323,8 @@ class BuildableType<code builder> {
 def AnyType : Type<CPred<"true">, "any type">;
 
 // None type
-def NoneType : Type<CPred<"$_self.isa<NoneType>()">, "none type">;
+def NoneType : Type<CPred<"$_self.isa<NoneType>()">, "none type">,
+      BuildableType<"$_builder.getType<NoneType>()">;
 
 // Any type from the given list
 class AnyTypeOf<list<Type> allowedTypes, string description = ""> : Type<
@@ -577,6 +582,7 @@ def I8Tensor   : TensorOf<[I8]>;
 def I16Tensor  : TensorOf<[I16]>;
 def I32Tensor  : TensorOf<[I32]>;
 def I64Tensor  : TensorOf<[I64]>;
+def IndexTensor: TensorOf<[Index]>;
 
 def BF16Tensor : TensorOf<[BF16]>;
 def F16Tensor  : TensorOf<[F16]>;
@@ -835,7 +841,18 @@ def AnyAttr : Attr<CPred<"true">, "any attribute"> {
 def BoolAttr : Attr<CPred<"$_self.isa<BoolAttr>()">, "bool attribute"> {
   let storageType = [{ BoolAttr }];
   let returnType = [{ bool }];
+  let valueType = I1;
   let constBuilderCall = "$_builder.getBoolAttr($0)";
+}
+
+// Index attribute.
+def IndexAttr :
+    TypedAttrBase<
+      Index, "IntegerAttr",
+      And<[CPred<"$_self.isa<IntegerAttr>()">,
+           CPred<"$_self.cast<IntegerAttr>().getType().isa<IndexType>()">]>,
+      "index attribute"> {
+  let returnType = [{ APInt }];
 }
 
 // Base class for any integer (regardless of signedness semantics) attributes
@@ -942,10 +959,17 @@ class StringBasedAttr<Pred condition, string descr> : Attr<condition, descr> {
   let constBuilderCall = "$_builder.getStringAttr(\"$0\")";
   let storageType = [{ StringAttr }];
   let returnType = [{ StringRef }];
+  let valueType = NoneType;
 }
 
 def StrAttr : StringBasedAttr<CPred<"$_self.isa<StringAttr>()">,
                               "string attribute">;
+
+// String attribute that has a specific value type.
+class TypedStrAttr<Type ty> : StringBasedAttr<CPred<"$_self.isa<StringAttr>()">,
+                                                    "string attribute"> {
+  let valueType = ty;
+}
 
 // Base class for attributes containing types. Example:
 //   def IntTypeAttr : TypeAttrBase<"IntegerType", "integer type attribute">
@@ -957,6 +981,7 @@ class TypeAttrBase<string retType, string description> :
     description> {
   let storageType = [{ TypeAttr }];
   let returnType = retType;
+  let valueType = NoneType;
   let convertFromStorage = "$_self.getValue().cast<" # retType # ">()";
 }
 
@@ -970,6 +995,7 @@ def UnitAttr : Attr<CPred<"$_self.isa<UnitAttr>()">, "unit attribute"> {
   let constBuilderCall = "$_builder.getUnitAttr()";
   let convertFromStorage = "$_self != nullptr";
   let returnType = "bool";
+  let valueType = NoneType;
   let isOptional = 1;
 }
 
@@ -1166,6 +1192,7 @@ class DictionaryAttrBase : Attr<CPred<"$_self.isa<DictionaryAttr>()">,
                           "dictionary of named attribute values"> {
   let storageType = [{ DictionaryAttr }];
   let returnType = [{ DictionaryAttr }];
+  let valueType = NoneType;
   let convertFromStorage = "$_self";
 }
 
@@ -1280,11 +1307,22 @@ class RankedFloatElementsAttr<int width, list<int> dims> : ElementsAttrBase<
 class RankedF32ElementsAttr<list<int> dims> : RankedFloatElementsAttr<32, dims>;
 class RankedF64ElementsAttr<list<int> dims> : RankedFloatElementsAttr<64, dims>;
 
+def StringElementsAttr : ElementsAttrBase<
+  CPred<"$_self.isa<DenseStringElementsAttr>()" >,
+  "string elements attribute"> {
+
+  let storageType = [{ DenseElementsAttr }];
+  let returnType = [{ DenseElementsAttr }];
+
+  let convertFromStorage = "$_self";
+}
+
 // Base class for array attributes.
 class ArrayAttrBase<Pred condition, string description> :
     Attr<condition, description> {
   let storageType = [{ ArrayAttr }];
   let returnType = [{ ArrayAttr }];
+  let valueType = NoneType;
   let convertFromStorage = "$_self";
 }
 
@@ -1364,6 +1402,7 @@ def SymbolRefAttr : Attr<CPred<"$_self.isa<SymbolRefAttr>()">,
                         "symbol reference attribute"> {
   let storageType = [{ SymbolRefAttr }];
   let returnType = [{ SymbolRefAttr }];
+  let valueType = NoneType;
   let constBuilderCall = "$_builder.getSymbolRefAttr($0)";
   let convertFromStorage = "$_self";
 }
@@ -1371,6 +1410,7 @@ def FlatSymbolRefAttr : Attr<CPred<"$_self.isa<FlatSymbolRefAttr>()">,
                                    "flat symbol reference attribute"> {
   let storageType = [{ FlatSymbolRefAttr }];
   let returnType = [{ StringRef }];
+  let valueType = NoneType;
   let constBuilderCall = "$_builder.getSymbolRefAttr($0)";
   let convertFromStorage = "$_self.getValue()";
 }
@@ -1389,13 +1429,29 @@ def SymbolRefArrayAttr :
 // Note: All derived attributes should be materializable as an Attribute. E.g.,
 // do not use DerivedAttr for things that could not have been stored as
 // Attribute.
-class DerivedAttr<code ret, code b> : Attr<CPred<"true">, "derived attribute"> {
+//
+class DerivedAttr<code ret, code b, code convert = ""> :
+    Attr<CPred<"true">, "derived attribute"> {
   let returnType = ret;
   code body = b;
+
+  // Specify how to convert from the derived attribute to an attibute.
+  //
+  // ## Special placeholders
+  //
+  // Special placeholders can be used to refer to entities during conversion:
+  //
+  // * `$_builder` will be replaced by a mlir::Builder instance.
+  // * `$_ctx` will be replaced by the MLIRContext* instance.
+  // * `$_self` will be replaced with the derived attribute (value produces
+  //    `returnType`).
+  let convertFromStorage = convert;
 }
 
 // Derived attribute that returns a mlir::Type.
-class DerivedTypeAttr<code body> : DerivedAttr<"Type", body>;
+class DerivedTypeAttr<code body> : DerivedAttr<"Type", body> {
+  let convertFromStorage = "TypeAttr::get($_self)";
+}
 
 //===----------------------------------------------------------------------===//
 // Constant attribute kinds
@@ -1518,6 +1574,10 @@ class SizedRegion<int numBlocks> : Region<
   CPred<"$_self.getBlocks().size() == " # numBlocks>,
   "region with " # numBlocks # " blocks">;
 
+// A variadic region constraint. It expands to zero or more of the base region.
+class VariadicRegion<Region region>
+  : Region<region.predicate, region.description>;
+
 //===----------------------------------------------------------------------===//
 // Successor definitions
 //===----------------------------------------------------------------------===//
@@ -1568,6 +1628,8 @@ class PredOpTrait<string descr, Pred pred> : OpTrait {
   Pred predicate = pred;
 }
 
+// Op defines an automatic allocation scope.
+def AutomaticAllocationScope : NativeOpTrait<"AutomaticAllocationScope">;
 // Op supports operand broadcast behavior.
 def ResultsBroadcastableShape :
   NativeOpTrait<"ResultsBroadcastableShape">;
@@ -2039,9 +2101,10 @@ class TCOpIsBroadcastableToRes<int opId, int resId> : And<[
 // 1) all operands involved are of shaped type and
 // 2) the indices are not out of range.
 class TCopVTEtAreSameAt<list<int> indices> : CPred<
-  "llvm::is_splat(mlir::functional::map("
-    "[this](unsigned i) { return getElementTypeOrSelf(this->getOperand(i)); }, "
-    "llvm::ArrayRef<unsigned>({" # StrJoinInt<indices>.result # "})))">;
+  "llvm::is_splat(llvm::map_range("
+    "llvm::ArrayRef<unsigned>({" # StrJoinInt<indices>.result # "}), "
+    "[this](unsigned i) { return getElementTypeOrSelf(this->getOperand(i)); "
+    "}))">;
 
 //===----------------------------------------------------------------------===//
 // Pattern definitions
@@ -2160,8 +2223,13 @@ class NativeCodeCall<string expr> {
 }
 
 //===----------------------------------------------------------------------===//
-// Common directives
+// Rewrite directives
 //===----------------------------------------------------------------------===//
+
+// Directive used in result pattern to specify the location of the generated
+// op. This directive must be used as the last argument to the op creation
+// DAG construct. The arguments to location must be previously captured symbol.
+def location;
 
 // Directive used in result pattern to indicate that no new op are generated,
 // so to replace the matched DAG with an existing SSA value.

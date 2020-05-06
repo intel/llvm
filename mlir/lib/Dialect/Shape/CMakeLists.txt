@@ -9,6 +9,8 @@ add_mlir_dialect_library(MLIRShape
   )
 target_link_libraries(MLIRShape
   PUBLIC
+  MLIRDialect
+  MLIRInferTypeOpInterface
   MLIRIR
   MLIRSideEffects
   LLVMSupport

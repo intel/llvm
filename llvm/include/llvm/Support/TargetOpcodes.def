@@ -279,6 +279,9 @@ HANDLE_TARGET_OPCODE(G_INTTOPTR)
 /// COPY is the relevant instruction.
 HANDLE_TARGET_OPCODE(G_BITCAST)
 
+/// Generic freeze.
+HANDLE_TARGET_OPCODE(G_FREEZE)
+
 /// INTRINSIC trunc intrinsic.
 HANDLE_TARGET_OPCODE(G_INTRINSIC_TRUNC)
 
@@ -384,6 +387,12 @@ HANDLE_TARGET_OPCODE(G_LSHR)
 
 // Generic arithmetic right-shift
 HANDLE_TARGET_OPCODE(G_ASHR)
+
+// Generic funnel left shift
+HANDLE_TARGET_OPCODE(G_FSHL)
+
+// Generic funnel right shift
+HANDLE_TARGET_OPCODE(G_FSHR)
 
 /// Generic integer-base comparison, also applicable to vectors of integers.
 HANDLE_TARGET_OPCODE(G_ICMP)

@@ -79,8 +79,8 @@ AffineDialect::AffineDialect(MLIRContext *context)
 /// Materialize a single constant operation from a given attribute value with
 /// the desired resultant type.
 Operation *AffineDialect::materializeConstant(OpBuilder &builder,
-                                                 Attribute value, Type type,
-                                                 Location loc) {
+                                              Attribute value, Type type,
+                                              Location loc) {
   return builder.create<ConstantOp>(loc, type, value);
 }
 
@@ -133,7 +133,7 @@ static bool isMemRefSizeValidSymbol(AnyMemRefDefOp memrefDefOp,
                                     unsigned index) {
   auto memRefType = memrefDefOp.getType();
   // Statically shaped.
-  if (!ShapedType::isDynamic(memRefType.getDimSize(index)))
+  if (!memRefType.isDynamicDim(index))
     return true;
   // Get the position of the dimension among dynamic dimensions;
   unsigned dynamicDimPos = memRefType.getDynamicDimIndex(index);
@@ -522,7 +522,8 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
          "Unexpected number of concatenated symbols");
   auto numDims = dimValueToPosition.size();
   auto numSymbols = concatenatedSymbols.size() - map.getNumSymbols();
-  auto auxiliaryMap = AffineMap::get(numDims, numSymbols, auxiliaryExprs);
+  auto auxiliaryMap =
+      AffineMap::get(numDims, numSymbols, auxiliaryExprs, map.getContext());
 
   LLVM_DEBUG(map.print(dbgs() << "\nCompose map: "));
   LLVM_DEBUG(auxiliaryMap.print(dbgs() << "\nWith map: "));
@@ -1084,9 +1085,6 @@ void AffineForOp::build(Builder *builder, OperationState &result,
   body->addArgument(IndexType::get(builder->getContext()));
   bodyRegion->push_back(body);
   ensureTerminator(*bodyRegion, *builder, result.location);
-
-  // Set the operands list as resizable so that we can freely modify the bounds.
-  result.setOperandListToResizable();
 }
 
 void AffineForOp::build(Builder *builder, OperationState &result, int64_t lb,
@@ -1258,12 +1256,7 @@ static ParseResult parseAffineForOp(OpAsmParser &parser,
   AffineForOp::ensureTerminator(*body, builder, result.location);
 
   // Parse the optional attribute list.
-  if (parser.parseOptionalAttrDict(result.attributes))
-    return failure();
-
-  // Set the operands list as resizable so that we can freely modify the bounds.
-  result.setOperandListToResizable();
-  return success();
+  return parser.parseOptionalAttrDict(result.attributes);
 }
 
 static void printBound(AffineMapAttr boundMap,
@@ -1383,7 +1376,10 @@ static LogicalResult canonicalizeLoopBounds(AffineForOp forOp) {
   auto prevUbMap = ubMap;
 
   canonicalizeMapAndOperands(&lbMap, &lbOperands);
+  lbMap = removeDuplicateExprs(lbMap);
+
   canonicalizeMapAndOperands(&ubMap, &ubOperands);
+  ubMap = removeDuplicateExprs(ubMap);
 
   // Any canonicalization change always leads to updated map(s).
   if (lbMap == prevLbMap && ubMap == prevUbMap)
@@ -1404,7 +1400,7 @@ struct AffineForEmptyLoopFolder : public OpRewritePattern<AffineForOp> {
   LogicalResult matchAndRewrite(AffineForOp forOp,
                                 PatternRewriter &rewriter) const override {
     // Check that the body only contains a terminator.
-    if (!has_single_element(*forOp.getBody()))
+    if (!llvm::hasSingleElement(*forOp.getBody()))
       return failure();
     rewriter.eraseOp(forOp);
     return success();
@@ -1566,6 +1562,25 @@ void mlir::extractForInductionVars(ArrayRef<AffineForOp> forInsts,
 // AffineIfOp
 //===----------------------------------------------------------------------===//
 
+namespace {
+/// Remove else blocks that have nothing other than the terminator.
+struct SimplifyDeadElse : public OpRewritePattern<AffineIfOp> {
+  using OpRewritePattern<AffineIfOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(AffineIfOp ifOp,
+                                PatternRewriter &rewriter) const override {
+    if (ifOp.elseRegion().empty() ||
+        !llvm::hasSingleElement(*ifOp.getElseBlock()))
+      return failure();
+
+    rewriter.startRootUpdate(ifOp);
+    rewriter.eraseBlock(ifOp.getElseBlock());
+    rewriter.finalizeRootUpdate(ifOp);
+    return success();
+  }
+};
+} // end anonymous namespace.
+
 static LogicalResult verify(AffineIfOp op) {
   // Verify that we have a condition attribute.
   auto conditionAttr =
@@ -1708,6 +1723,11 @@ LogicalResult AffineIfOp::fold(ArrayRef<Attribute>,
   }
 
   return failure();
+}
+
+void AffineIfOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                             MLIRContext *context) {
+  results.insert<SimplifyDeadElse>(context);
 }
 
 //===----------------------------------------------------------------------===//
@@ -2136,19 +2156,13 @@ LogicalResult AffinePrefetchOp::fold(ArrayRef<Attribute> cstOperands,
 
 void AffineParallelOp::build(Builder *builder, OperationState &result,
                              ArrayRef<int64_t> ranges) {
-  // Default initalize empty maps.
-  auto lbMap = AffineMap::get(builder->getContext());
-  auto ubMap = AffineMap::get(builder->getContext());
-  // If there are ranges, set each to [0, N).
-  if (ranges.size()) {
-    SmallVector<AffineExpr, 8> lbExprs(ranges.size(),
-                                       builder->getAffineConstantExpr(0));
-    lbMap = AffineMap::get(0, 0, lbExprs);
-    SmallVector<AffineExpr, 8> ubExprs;
-    for (int64_t range : ranges)
-      ubExprs.push_back(builder->getAffineConstantExpr(range));
-    ubMap = AffineMap::get(0, 0, ubExprs);
-  }
+  SmallVector<AffineExpr, 8> lbExprs(ranges.size(),
+                                     builder->getAffineConstantExpr(0));
+  auto lbMap = AffineMap::get(0, 0, lbExprs, builder->getContext());
+  SmallVector<AffineExpr, 8> ubExprs;
+  for (int64_t range : ranges)
+    ubExprs.push_back(builder->getAffineConstantExpr(range));
+  auto ubMap = AffineMap::get(0, 0, ubExprs, builder->getContext());
   build(builder, result, lbMap, {}, ubMap, {});
 }
 
@@ -2277,7 +2291,7 @@ static void print(OpAsmPrinter &p, AffineParallelOp op) {
   }
   if (!elideSteps) {
     p << " step (";
-    interleaveComma(steps, p);
+    llvm::interleaveComma(steps, p);
     p << ')';
   }
   p.printRegion(op.region(), /*printEntryBlockArgs=*/false,

@@ -24,7 +24,6 @@
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/StandardTypes.h"
-#include "mlir/Support/STLExtras.h"
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/MapVector.h"
@@ -63,50 +62,66 @@ OpAsmPrinter::~OpAsmPrinter() {}
 // OpPrintingFlags
 //===----------------------------------------------------------------------===//
 
-static llvm::cl::opt<int> printElementsAttrWithHexIfLarger(
-    "mlir-print-elementsattrs-with-hex-if-larger",
-    llvm::cl::desc(
-        "Print DenseElementsAttrs with a hex string that have "
-        "more elements than the given upper limit (use -1 to disable)"),
-    llvm::cl::init(100));
+namespace {
+/// This struct contains command line options that can be used to initialize
+/// various bits of the AsmPrinter. This uses a struct wrapper to avoid the need
+/// for global command line options.
+struct AsmPrinterOptions {
+  llvm::cl::opt<int64_t> printElementsAttrWithHexIfLarger{
+      "mlir-print-elementsattrs-with-hex-if-larger",
+      llvm::cl::desc(
+          "Print DenseElementsAttrs with a hex string that have "
+          "more elements than the given upper limit (use -1 to disable)")};
 
-static llvm::cl::opt<unsigned> elideElementsAttrIfLarger(
-    "mlir-elide-elementsattrs-if-larger",
-    llvm::cl::desc("Elide ElementsAttrs with \"...\" that have "
-                   "more elements than the given upper limit"));
+  llvm::cl::opt<unsigned> elideElementsAttrIfLarger{
+      "mlir-elide-elementsattrs-if-larger",
+      llvm::cl::desc("Elide ElementsAttrs with \"...\" that have "
+                     "more elements than the given upper limit")};
 
-static llvm::cl::opt<bool>
-    printDebugInfoOpt("mlir-print-debuginfo",
-                      llvm::cl::desc("Print debug info in MLIR output"),
-                      llvm::cl::init(false));
+  llvm::cl::opt<bool> printDebugInfoOpt{
+      "mlir-print-debuginfo", llvm::cl::init(false),
+      llvm::cl::desc("Print debug info in MLIR output")};
 
-static llvm::cl::opt<bool> printPrettyDebugInfoOpt(
-    "mlir-pretty-debuginfo",
-    llvm::cl::desc("Print pretty debug info in MLIR output"),
-    llvm::cl::init(false));
+  llvm::cl::opt<bool> printPrettyDebugInfoOpt{
+      "mlir-pretty-debuginfo", llvm::cl::init(false),
+      llvm::cl::desc("Print pretty debug info in MLIR output")};
 
-// Use the generic op output form in the operation printer even if the custom
-// form is defined.
-static llvm::cl::opt<bool>
-    printGenericOpFormOpt("mlir-print-op-generic",
-                          llvm::cl::desc("Print the generic op form"),
-                          llvm::cl::init(false), llvm::cl::Hidden);
+  // Use the generic op output form in the operation printer even if the custom
+  // form is defined.
+  llvm::cl::opt<bool> printGenericOpFormOpt{
+      "mlir-print-op-generic", llvm::cl::init(false),
+      llvm::cl::desc("Print the generic op form"), llvm::cl::Hidden};
 
-static llvm::cl::opt<bool> printLocalScopeOpt(
-    "mlir-print-local-scope",
-    llvm::cl::desc("Print assuming in local scope by default"),
-    llvm::cl::init(false), llvm::cl::Hidden);
+  llvm::cl::opt<bool> printLocalScopeOpt{
+      "mlir-print-local-scope", llvm::cl::init(false),
+      llvm::cl::desc("Print assuming in local scope by default"),
+      llvm::cl::Hidden};
+};
+} // end anonymous namespace
+
+static llvm::ManagedStatic<AsmPrinterOptions> clOptions;
+
+/// Register a set of useful command-line options that can be used to configure
+/// various flags within the AsmPrinter.
+void mlir::registerAsmPrinterCLOptions() {
+  // Make sure that the options struct has been initialized.
+  *clOptions;
+}
 
 /// Initialize the printing flags with default supplied by the cl::opts above.
 OpPrintingFlags::OpPrintingFlags()
-    : elementsAttrElementLimit(
-          elideElementsAttrIfLarger.getNumOccurrences()
-              ? Optional<int64_t>(elideElementsAttrIfLarger)
-              : Optional<int64_t>()),
-      printDebugInfoFlag(printDebugInfoOpt),
-      printDebugInfoPrettyFormFlag(printPrettyDebugInfoOpt),
-      printGenericOpFormFlag(printGenericOpFormOpt),
-      printLocalScope(printLocalScopeOpt) {}
+    : printDebugInfoFlag(false), printDebugInfoPrettyFormFlag(false),
+      printGenericOpFormFlag(false), printLocalScope(false) {
+  // Initialize based upon command line options, if they are available.
+  if (!clOptions.isConstructed())
+    return;
+  if (clOptions->elideElementsAttrIfLarger.getNumOccurrences())
+    elementsAttrElementLimit = clOptions->elideElementsAttrIfLarger;
+  printDebugInfoFlag = clOptions->printDebugInfoOpt;
+  printDebugInfoPrettyFormFlag = clOptions->printPrettyDebugInfoOpt;
+  printGenericOpFormFlag = clOptions->printGenericOpFormOpt;
+  printLocalScope = clOptions->printLocalScopeOpt;
+}
 
 /// Enable the elision of large elements attributes, by printing a '...'
 /// instead of the element data, when the number of elements is greater than
@@ -146,6 +161,11 @@ bool OpPrintingFlags::shouldElideElementsAttr(ElementsAttr attr) const {
          *elementsAttrElementLimit < int64_t(attr.getNumElements());
 }
 
+/// Return the size limit for printing large ElementsAttr.
+Optional<int64_t> OpPrintingFlags::getLargeElementsAttrLimit() const {
+  return elementsAttrElementLimit;
+}
+
 /// Return if debug information should be printed.
 bool OpPrintingFlags::shouldPrintDebugInfo() const {
   return printDebugInfoFlag;
@@ -163,6 +183,23 @@ bool OpPrintingFlags::shouldPrintGenericOpForm() const {
 
 /// Return if the printer should use local scope when dumping the IR.
 bool OpPrintingFlags::shouldUseLocalScope() const { return printLocalScope; }
+
+/// Returns true if an ElementsAttr with the given number of elements should be
+/// printed with hex.
+static bool shouldPrintElementsAttrWithHex(int64_t numElements) {
+  // Check to see if a command line option was provided for the limit.
+  if (clOptions.isConstructed()) {
+    if (clOptions->printElementsAttrWithHexIfLarger.getNumOccurrences()) {
+      // -1 is used to disable hex printing.
+      if (clOptions->printElementsAttrWithHexIfLarger == -1)
+        return false;
+      return numElements > clOptions->printElementsAttrWithHexIfLarger;
+    }
+  }
+
+  // Otherwise, default to printing with hex if the number of elements is >100.
+  return numElements > 100;
+}
 
 //===----------------------------------------------------------------------===//
 // NewLineCounter
@@ -895,10 +932,10 @@ public:
 
   template <typename Container, typename UnaryFunctor>
   inline void interleaveComma(const Container &c, UnaryFunctor each_fn) const {
-    mlir::interleaveComma(c, os, each_fn);
+    llvm::interleaveComma(c, os, each_fn);
   }
 
-  /// This enum descripes the different kinds of elision for the type of an
+  /// This enum describes the different kinds of elision for the type of an
   /// attribute when printing it.
   enum class AttrTypeElision {
     /// The type must not be elided,
@@ -935,6 +972,14 @@ protected:
   /// Print a dense elements attribute. If 'allowHex' is true, a hex string is
   /// used instead of individual elements when the elements attr is large.
   void printDenseElementsAttr(DenseElementsAttr attr, bool allowHex);
+
+  /// Print a dense string elements attribute.
+  void printDenseStringElementsAttr(DenseStringElementsAttr attr);
+
+  /// Print a dense elements attribute. If 'allowHex' is true, a hex string is
+  /// used instead of individual elements when the elements attr is large.
+  void printDenseIntOrFPElementsAttr(DenseIntOrFPElementsAttr attr,
+                                     bool allowHex);
 
   void printDialectAttribute(Attribute attr);
   void printDialectType(Type type);
@@ -1286,11 +1331,12 @@ void ModulePrinter::printAttribute(Attribute attr,
     break;
   case StandardAttributes::Integer: {
     auto intAttr = attr.cast<IntegerAttr>();
-    // Print all signed/signless integer attributes as signed unless i1.
-    bool isSigned =
-        attrType.isIndex() || (!attrType.isUnsignedInteger() &&
-                               attrType.getIntOrFloatBitWidth() != 1);
-    intAttr.getValue().print(os, isSigned);
+    // Only print attributes as unsigned if they are explicitly unsigned or are
+    // signless 1-bit values.  Indexes, signed values, and multi-bit signless
+    // values print as signed.
+    bool isUnsigned =
+        attrType.isUnsignedInteger() || attrType.isSignlessInteger(1);
+    intAttr.getValue().print(os, !isUnsigned);
 
     // IntegerAttr elides the type if I64.
     if (typeElision == AttrTypeElision::May && attrType.isSignlessInteger(64))
@@ -1354,14 +1400,25 @@ void ModulePrinter::printAttribute(Attribute attr,
     os << '"' << "0x" << llvm::toHex(eltsAttr.getValue()) << "\">";
     break;
   }
-  case StandardAttributes::DenseElements: {
-    auto eltsAttr = attr.cast<DenseElementsAttr>();
+  case StandardAttributes::DenseIntOrFPElements: {
+    auto eltsAttr = attr.cast<DenseIntOrFPElementsAttr>();
     if (printerFlags.shouldElideElementsAttr(eltsAttr)) {
       printElidedElementsAttr(os);
       break;
     }
     os << "dense<";
-    printDenseElementsAttr(eltsAttr, /*allowHex=*/true);
+    printDenseIntOrFPElementsAttr(eltsAttr, /*allowHex=*/true);
+    os << '>';
+    break;
+  }
+  case StandardAttributes::DenseStringElements: {
+    auto eltsAttr = attr.cast<DenseStringElementsAttr>();
+    if (printerFlags.shouldElideElementsAttr(eltsAttr)) {
+      printElidedElementsAttr(os);
+      break;
+    }
+    os << "dense<";
+    printDenseStringElementsAttr(eltsAttr);
     os << '>';
     break;
   }
@@ -1373,7 +1430,8 @@ void ModulePrinter::printAttribute(Attribute attr,
       break;
     }
     os << "sparse<";
-    printDenseElementsAttr(elementsAttr.getIndices(), /*allowHex=*/false);
+    printDenseIntOrFPElementsAttr(elementsAttr.getIndices(),
+                                  /*allowHex=*/false);
     os << ", ";
     printDenseElementsAttr(elementsAttr.getValues(), /*allowHex=*/true);
     os << '>';
@@ -1416,15 +1474,33 @@ static void printDenseFloatElement(DenseElementsAttr attr, raw_ostream &os,
   printFloatValue(value, os);
 }
 
+static void printDenseStringElement(DenseStringElementsAttr attr,
+                                    raw_ostream &os, unsigned index) {
+  os << "\"";
+  printEscapedString(attr.getRawStringData()[index], os);
+  os << "\"";
+}
+
 void ModulePrinter::printDenseElementsAttr(DenseElementsAttr attr,
                                            bool allowHex) {
+  if (auto stringAttr = attr.dyn_cast<DenseStringElementsAttr>()) {
+    printDenseStringElementsAttr(stringAttr);
+    return;
+  }
+
+  printDenseIntOrFPElementsAttr(attr.cast<DenseIntOrFPElementsAttr>(),
+                                allowHex);
+}
+
+void ModulePrinter::printDenseIntOrFPElementsAttr(DenseIntOrFPElementsAttr attr,
+                                                  bool allowHex) {
   auto type = attr.getType();
   auto shape = type.getShape();
   auto rank = type.getRank();
   bool isSigned = !type.getElementType().isUnsignedInteger();
 
   // The function used to print elements of this attribute.
-  auto printEltFn = type.getElementType().isa<IntegerType>()
+  auto printEltFn = type.getElementType().isIntOrIndex()
                         ? printDenseIntElement
                         : printDenseFloatElement;
 
@@ -1445,8 +1521,7 @@ void ModulePrinter::printDenseElementsAttr(DenseElementsAttr attr,
   }
 
   // Check to see if we should format this attribute as a hex string.
-  if (allowHex && printElementsAttrWithHexIfLarger != -1 &&
-      numElements > printElementsAttrWithHexIfLarger) {
+  if (allowHex && shouldPrintElementsAttrWithHex(numElements)) {
     ArrayRef<char> rawData = attr.getRawData();
     os << '"' << "0x" << llvm::toHex(StringRef(rawData.data(), rawData.size()))
        << "\"";
@@ -1489,7 +1564,69 @@ void ModulePrinter::printDenseElementsAttr(DenseElementsAttr attr,
     os << ']';
 }
 
+void ModulePrinter::printDenseStringElementsAttr(DenseStringElementsAttr attr) {
+  auto type = attr.getType();
+  auto shape = type.getShape();
+  auto rank = type.getRank();
+
+  // Special case for 0-d and splat tensors.
+  if (attr.isSplat()) {
+    printDenseStringElement(attr, os, 0);
+    return;
+  }
+
+  // Special case for degenerate tensors.
+  auto numElements = type.getNumElements();
+  if (numElements == 0) {
+    for (int i = 0; i < rank; ++i)
+      os << '[';
+    for (int i = 0; i < rank; ++i)
+      os << ']';
+    return;
+  }
+
+  // We use a mixed-radix counter to iterate through the shape. When we bump a
+  // non-least-significant digit, we emit a close bracket. When we next emit an
+  // element we re-open all closed brackets.
+
+  // The mixed-radix counter, with radices in 'shape'.
+  SmallVector<unsigned, 4> counter(rank, 0);
+  // The number of brackets that have been opened and not closed.
+  unsigned openBrackets = 0;
+
+  auto bumpCounter = [&]() {
+    // Bump the least significant digit.
+    ++counter[rank - 1];
+    // Iterate backwards bubbling back the increment.
+    for (unsigned i = rank - 1; i > 0; --i)
+      if (counter[i] >= shape[i]) {
+        // Index 'i' is rolled over. Bump (i-1) and close a bracket.
+        counter[i] = 0;
+        ++counter[i - 1];
+        --openBrackets;
+        os << ']';
+      }
+  };
+
+  for (unsigned idx = 0, e = numElements; idx != e; ++idx) {
+    if (idx != 0)
+      os << ", ";
+    while (openBrackets++ < rank)
+      os << '[';
+    openBrackets = rank;
+    printDenseStringElement(attr, os, idx);
+    bumpCounter();
+  }
+  while (openBrackets-- > 0)
+    os << ']';
+}
+
 void ModulePrinter::printType(Type type) {
+  if (!type) {
+    os << "<<NULL TYPE>>";
+    return;
+  }
+
   // Check for an alias for this type.
   if (state) {
     StringRef alias = state->getAliasState().getTypeAlias(type);
@@ -2025,7 +2162,7 @@ public:
     state->getSSANameState().shadowRegionArgs(region, namesToUse);
   }
 
-  /// Print the given affine map with the smybol and dimension operands printed
+  /// Print the given affine map with the symbol and dimension operands printed
   /// inline with the map.
   void printAffineMapOfSSAIds(AffineMapAttr mapAttr,
                               ValueRange operands) override;
@@ -2284,8 +2421,8 @@ void IntegerSet::dump() const {
 }
 
 void AffineExpr::print(raw_ostream &os) const {
-  if (expr == nullptr) {
-    os << "null affine expr";
+  if (!expr) {
+    os << "<<NULL AFFINE EXPR>>";
     return;
   }
   ModulePrinter(os).printAffineExpr(*this);
@@ -2297,8 +2434,8 @@ void AffineExpr::dump() const {
 }
 
 void AffineMap::print(raw_ostream &os) const {
-  if (map == nullptr) {
-    os << "null affine map";
+  if (!map) {
+    os << "<<NULL AFFINE MAP>>";
     return;
   }
   ModulePrinter(os).printAffineMap(*this);
@@ -2339,23 +2476,23 @@ void Value::printAsOperand(raw_ostream &os, AsmState &state) {
 }
 
 void Operation::print(raw_ostream &os, OpPrintingFlags flags) {
-  // Handle top-level operations or local printing.
-  if (!getParent() || flags.shouldUseLocalScope()) {
-    AsmState state(this);
-    OperationPrinter(os, flags, state.getImpl()).print(this);
-    return;
-  }
+  // Find the operation to number from based upon the provided flags.
+  Operation *printedOp = this;
+  bool shouldUseLocalScope = flags.shouldUseLocalScope();
+  do {
+    // If we are printing local scope, stop at the first operation that is
+    // isolated from above.
+    if (shouldUseLocalScope && printedOp->isKnownIsolatedFromAbove())
+      break;
 
-  Operation *parentOp = getParentOp();
-  if (!parentOp) {
-    os << "<<UNLINKED OPERATION>>\n";
-    return;
-  }
-  // Get the top-level op.
-  while (auto *nextOp = parentOp->getParentOp())
-    parentOp = nextOp;
+    // Otherwise, traverse up to the next parent.
+    Operation *parentOp = printedOp->getParentOp();
+    if (!parentOp)
+      break;
+    printedOp = parentOp;
+  } while (true);
 
-  AsmState state(parentOp);
+  AsmState state(printedOp);
   print(os, state, flags);
 }
 void Operation::print(raw_ostream &os, AsmState &state, OpPrintingFlags flags) {
@@ -2393,10 +2530,6 @@ void Block::printAsOperand(raw_ostream &os, bool printType) {
     os << "<<UNLINKED BLOCK>>\n";
     return;
   }
-  // Get the top-level op.
-  while (auto *nextOp = parentOp->getParentOp())
-    parentOp = nextOp;
-
   AsmState state(parentOp);
   printAsOperand(os, state);
 }

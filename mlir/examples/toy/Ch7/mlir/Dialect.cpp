@@ -192,7 +192,7 @@ static mlir::LogicalResult verifyConstantForType(mlir::Type type,
                                                  mlir::Attribute opaqueValue,
                                                  mlir::Operation *op) {
   if (type.isa<mlir::TensorType>()) {
-    // Check that the value is a elements attribute.
+    // Check that the value is an elements attribute.
     auto attrValue = opaqueValue.dyn_cast<mlir::DenseFPElementsAttr>();
     if (!attrValue)
       return op->emitError("constant of TensorType must be initialized by "
@@ -537,7 +537,7 @@ void ToyDialect::printType(mlir::Type type,
 
   // Print the struct type according to the parser format.
   printer << "struct<";
-  mlir::interleaveComma(structType.getElementTypes(), printer);
+  llvm::interleaveComma(structType.getElementTypes(), printer);
   printer << '>';
 }
 

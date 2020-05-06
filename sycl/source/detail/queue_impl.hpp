@@ -362,8 +362,9 @@ private:
                     shared_ptr_class<queue_impl> Self,
                     const detail::code_location &Loc) {
     handler Handler(std::move(Self), MHostQueue);
+    Handler.saveCodeLoc(Loc);
     CGF(Handler);
-    event Event = Handler.finalize(Loc);
+    event Event = Handler.finalize();
     addEvent(Event);
     return Event;
   }
@@ -377,15 +378,15 @@ private:
   void instrumentationEpilog(void *TelementryEvent, string_class &Name,
                              int32_t StreamID, uint64_t IId);
 
-  /// Stores an event that should be associated with the queue
-  ///
-  /// \param Event is the event to be stored
-  void addEvent(event Event);
-
   /// Stores a USM operation event that should be associated with the queue
   ///
   /// \param Event is the event to be stored
   void addUSMEvent(event Event);
+
+  /// Stores an event that should be associated with the queue
+  ///
+  /// \param Event is the event to be stored
+  void addEvent(event Event);
 
   /// Protects all the fields that can be changed by class' methods.
   mutex_class MMutex;

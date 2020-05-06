@@ -1024,7 +1024,7 @@ static Register getTestBitReg(Register Reg, uint64_t &Bit, bool &Invert,
     unsigned Opc = MI->getOpcode();
 
     if (!MI->getOperand(0).isReg() ||
-        !MRI.hasOneUse(MI->getOperand(0).getReg()))
+        !MRI.hasOneNonDBGUse(MI->getOperand(0).getReg()))
       break;
 
     // (tbz (any_ext x), b) -> (tbz x, b) if we don't use the extended bits.
@@ -1035,7 +1035,7 @@ static Register getTestBitReg(Register Reg, uint64_t &Bit, bool &Invert,
         Opc == TargetOpcode::G_TRUNC) {
       Register NextReg = MI->getOperand(1).getReg();
       // Did we find something worth folding?
-      if (!NextReg.isValid() || !MRI.hasOneUse(NextReg))
+      if (!NextReg.isValid() || !MRI.hasOneNonDBGUse(NextReg))
         break;
 
       // NextReg is worth folding. Keep looking.
@@ -1716,16 +1716,15 @@ bool AArch64InstructionSelector::earlySelect(MachineInstr &I) const {
 
     Register DefReg = I.getOperand(0).getReg();
     LLT Ty = MRI.getType(DefReg);
-    if (Ty != LLT::scalar(64) && Ty != LLT::scalar(32))
-      return false;
-
-    if (Ty == LLT::scalar(64)) {
+    if (Ty.getSizeInBits() == 64) {
       I.getOperand(1).ChangeToRegister(AArch64::XZR, false);
       RBI.constrainGenericRegister(DefReg, AArch64::GPR64RegClass, MRI);
-    } else {
+    } else if (Ty.getSizeInBits() == 32) {
       I.getOperand(1).ChangeToRegister(AArch64::WZR, false);
       RBI.constrainGenericRegister(DefReg, AArch64::GPR32RegClass, MRI);
-    }
+    } else
+      return false;
+
     I.setDesc(TII.get(TargetOpcode::COPY));
     return true;
   }
@@ -2767,14 +2766,13 @@ bool AArch64InstructionSelector::selectBrJT(MachineInstr &I,
 
   Register TargetReg = MRI.createVirtualRegister(&AArch64::GPR64RegClass);
   Register ScratchReg = MRI.createVirtualRegister(&AArch64::GPR64spRegClass);
-  MIB.buildInstr(AArch64::JumpTableDest32, {TargetReg, ScratchReg},
-                 {JTAddr, Index})
-      .addJumpTableIndex(JTI);
-
+  auto JumpTableInst = MIB.buildInstr(AArch64::JumpTableDest32,
+                                      {TargetReg, ScratchReg}, {JTAddr, Index})
+                           .addJumpTableIndex(JTI);
   // Build the indirect branch.
   MIB.buildInstr(AArch64::BR, {}, {TargetReg});
   I.eraseFromParent();
-  return true;
+  return constrainSelectedInstRegOperands(*JumpTableInst, TII, TRI, RBI);
 }
 
 bool AArch64InstructionSelector::selectJumpTable(
@@ -3830,13 +3828,12 @@ bool AArch64InstructionSelector::tryOptSelect(MachineInstr &I) const {
   while (CondDef) {
     // We can only fold if all of the defs have one use.
     Register CondDefReg = CondDef->getOperand(0).getReg();
-    if (!MRI.hasOneUse(CondDefReg)) {
+    if (!MRI.hasOneNonDBGUse(CondDefReg)) {
       // Unless it's another select.
-      for (auto UI = MRI.use_instr_begin(CondDefReg), UE = MRI.use_instr_end();
-           UI != UE; ++UI) {
-        if (CondDef == &*UI)
+      for (const MachineInstr &UI : MRI.use_nodbg_instructions(CondDefReg)) {
+        if (CondDef == &UI)
           continue;
-        if (UI->getOpcode() != TargetOpcode::G_SELECT)
+        if (UI.getOpcode() != TargetOpcode::G_SELECT)
           return false;
       }
     }
@@ -4661,7 +4658,7 @@ bool AArch64InstructionSelector::isWorthFoldingIntoExtendedReg(
     MachineInstr &MI, const MachineRegisterInfo &MRI) const {
   // Always fold if there is one use, or if we're optimizing for size.
   Register DefReg = MI.getOperand(0).getReg();
-  if (MRI.hasOneUse(DefReg) ||
+  if (MRI.hasOneNonDBGUse(DefReg) ||
       MI.getParent()->getParent()->getFunction().hasMinSize())
     return true;
 
@@ -4673,7 +4670,7 @@ bool AArch64InstructionSelector::isWorthFoldingIntoExtendedReg(
   // We have a fastpath, so folding a shift in and potentially computing it
   // many times may be beneficial. Check if this is only used in memory ops.
   // If it is, then we should fold.
-  return all_of(MRI.use_instructions(DefReg),
+  return all_of(MRI.use_nodbg_instructions(DefReg),
                 [](MachineInstr &Use) { return Use.mayLoadOrStore(); });
 }
 
@@ -4831,7 +4828,7 @@ AArch64InstructionSelector::selectAddrModeRegisterOffset(
   // If this is used more than once, let's not bother folding.
   // TODO: Check if they are memory ops. If they are, then we can still fold
   // without having to recompute anything.
-  if (!MRI.hasOneUse(Gep->getOperand(0).getReg()))
+  if (!MRI.hasOneNonDBGUse(Gep->getOperand(0).getReg()))
     return None;
 
   // Base is the GEP's LHS, offset is its RHS.

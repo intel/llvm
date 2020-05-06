@@ -24,11 +24,7 @@ namespace sycl {
 #else
 namespace __sycl_std = __host_std;
 #endif
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
 /* ----------------- 4.13.3 Math functions. ---------------------------------*/
 // genfloat acos (genfloat x)
 template <typename T>
@@ -731,7 +727,8 @@ detail::enable_if_t<detail::is_geninteger<T>::value, T> clz(T x) __NOEXC {
 namespace intel {
 // geninteger ctz (geninteger x)
 template <typename T>
-detail::enable_if_t<detail::is_geninteger<T>::value, T> ctz(T x) __NOEXC {
+sycl::detail::enable_if_t<sycl::detail::is_geninteger<T>::value, T>
+ctz(T x) __NOEXC {
   return __sycl_std::__invoke_ctz<T>(x);
 }
 } // namespace intel
@@ -1554,6 +1551,15 @@ extern SYCL_EXTERNAL void __assert_fail(const char *expr, const char *file,
 }
 #elif defined(_WIN32)
 extern "C" {
+extern SYCL_EXTERNAL double _Cosh(double x, double y);
+extern SYCL_EXTERNAL short _Dtest(double *px);
+extern SYCL_EXTERNAL short _Exp(double *px, double y, short eoff);
+extern SYCL_EXTERNAL float _FCosh(float x, float y);
+extern SYCL_EXTERNAL short _FDtest(float *px);
+extern SYCL_EXTERNAL short _FExp(float *px, float y, short eoff);
+extern SYCL_EXTERNAL float _FSinh(float x, float y);
+extern SYCL_EXTERNAL double _Sinh(double x, double y);
+extern SYCL_EXTERNAL float _hypotf(float x, float y);
 extern SYCL_EXTERNAL void _wassert(const wchar_t *wexpr, const wchar_t *wfile,
                                    unsigned line);
 }

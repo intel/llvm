@@ -757,12 +757,13 @@ public:
       return false;
 
     int64_t Val = MCE->getValue();
-    int64_t SVal = std::make_signed_t<T>(Val);
-    int64_t UVal = std::make_unsigned_t<T>(Val);
-    if (Val != SVal && Val != UVal)
+    // Avoid left shift by 64 directly.
+    uint64_t Upper = UINT64_C(-1) << (sizeof(T) * 4) << (sizeof(T) * 4);
+    // Allow all-0 or all-1 in top bits to permit bitwise NOT.
+    if ((Val & Upper) && (Val & Upper) != Upper)
       return false;
 
-    return AArch64_AM::isLogicalImmediate(UVal, sizeof(T) * 8);
+    return AArch64_AM::isLogicalImmediate(Val & ~Upper, sizeof(T) * 8);
   }
 
   bool isShiftedImm() const { return Kind == k_ShiftedImm; }
@@ -2859,6 +2860,8 @@ static void setRequiredFeatureString(FeatureBitset FBS, std::string &Str) {
     Str += "ARMv8.4a";
   else if (FBS[AArch64::HasV8_5aOps])
     Str += "ARMv8.5a";
+  else if (FBS[AArch64::HasV8_6aOps])
+    Str += "ARMv8.6a";
   else {
     auto ext = std::find_if(std::begin(ExtensionMap),
       std::end(ExtensionMap),
@@ -4253,6 +4256,8 @@ bool AArch64AsmParser::showMatchError(SMLoc Loc, unsigned ErrCode,
     return Error(Loc, "index must be a multiple of 4 in range [-32, 28].");
   case Match_InvalidMemoryIndexed16SImm4:
     return Error(Loc, "index must be a multiple of 16 in range [-128, 112].");
+  case Match_InvalidMemoryIndexed32SImm4:
+    return Error(Loc, "index must be a multiple of 32 in range [-256, 224].");
   case Match_InvalidMemoryIndexed1SImm6:
     return Error(Loc, "index must be an integer in range [-32, 31].");
   case Match_InvalidMemoryIndexedSImm8:
@@ -4912,6 +4917,7 @@ bool AArch64AsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
   case Match_InvalidMemoryIndexed4SImm4:
   case Match_InvalidMemoryIndexed1SImm6:
   case Match_InvalidMemoryIndexed16SImm4:
+  case Match_InvalidMemoryIndexed32SImm4:
   case Match_InvalidMemoryIndexed4SImm7:
   case Match_InvalidMemoryIndexed8SImm7:
   case Match_InvalidMemoryIndexed16SImm7:
@@ -5094,6 +5100,7 @@ static void ExpandCryptoAEK(AArch64::ArchKind ArchKind,
       break;
     case AArch64::ArchKind::ARMV8_4A:
     case AArch64::ArchKind::ARMV8_5A:
+    case AArch64::ArchKind::ARMV8_6A:
       RequestedExtensions.push_back("sm4");
       RequestedExtensions.push_back("sha3");
       RequestedExtensions.push_back("sha2");
@@ -5113,6 +5120,7 @@ static void ExpandCryptoAEK(AArch64::ArchKind ArchKind,
       break;
     case AArch64::ArchKind::ARMV8_4A:
     case AArch64::ArchKind::ARMV8_5A:
+    case AArch64::ArchKind::ARMV8_6A:
       RequestedExtensions.push_back("nosm4");
       RequestedExtensions.push_back("nosha3");
       RequestedExtensions.push_back("nosha2");

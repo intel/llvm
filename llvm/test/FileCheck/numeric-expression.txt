@@ -41,8 +41,10 @@ CHECK-LABEL: DEF FMT SPC
 CHECK-NEXT: [[# %x , VAR2a : ]]
 
 ; Numeric variable definition with unsupported matching format.
+RUN: %ProtectFileCheckOutput \
 RUN: not FileCheck --check-prefixes ERR,INVALID-FMT-SPEC1 --input-file %s %s 2>&1 \
 RUN:   | FileCheck --check-prefix INVALID-FMT-SPEC-MSG1 --strict-whitespace %s
+RUN: %ProtectFileCheckOutput \
 RUN: not FileCheck --check-prefixes ERR,INVALID-FMT-SPEC2 --input-file %s %s 2>&1 \
 RUN:   | FileCheck --check-prefix INVALID-FMT-SPEC-MSG2 --strict-whitespace %s
 
@@ -182,16 +184,28 @@ CHECK-NEXT: [[# %u, VAR2]]
 CHECK-NEXT: [[# %u, VAR3]]
 
 ; Conflicting implicit format.
-RUN: not FileCheck --check-prefixes CHECK,FMT-CONFLICT --input-file %s %s 2>&1 \
-RUN:   | FileCheck --strict-whitespace --check-prefix FMT-CONFLICT-MSG %s
+RUN: %ProtectFileCheckOutput \
+RUN: not FileCheck --check-prefixes CHECK,FMT-CONFLICT1 --input-file %s %s 2>&1 \
+RUN:   | FileCheck --strict-whitespace --check-prefix FMT-CONFLICT1-MSG %s
+RUN: %ProtectFileCheckOutput \
+RUN: not FileCheck --check-prefixes CHECK,FMT-CONFLICT2 --input-file %s %s 2>&1 \
+RUN:   | FileCheck --strict-whitespace --check-prefix FMT-CONFLICT2-MSG %s
 
 VAR USE IMPL FMT CONFLICT
 23
-FMT-CONFLICT-LABEL: VAR USE IMPL FMT CONFLICT
-FMT-CONFLICT-NEXT: [[#VAR1 + VAR2]]
-FMT-CONFLICT-MSG: numeric-expression.txt:[[#@LINE-1]]:23: error: variables with conflicting format specifier: need an explicit one
-FMT-CONFLICT-MSG-NEXT: {{F}}MT-CONFLICT-NEXT: {{\[\[#VAR1 \+ VAR2\]\]}}
-FMT-CONFLICT-MSG-NEXT: {{^                      \^$}}
+FMT-CONFLICT1-LABEL: VAR USE IMPL FMT CONFLICT
+FMT-CONFLICT1-NEXT: [[#VAR1 + VAR2]]
+FMT-CONFLICT1-MSG: numeric-expression.txt:[[#@LINE-1]]:24: error: implicit format conflict between 'VAR1' (%u) and 'VAR2' (%x), need an explicit format specifier
+FMT-CONFLICT1-MSG-NEXT: {{F}}MT-CONFLICT1-NEXT: {{\[\[#VAR1 \+ VAR2\]\]}}
+FMT-CONFLICT1-MSG-NEXT: {{^                       \^$}}
+
+VAR USE IMPL FMT CONFLICT COMPLEX
+34
+FMT-CONFLICT2-LABEL: VAR USE IMPL FMT CONFLICT
+FMT-CONFLICT2-NEXT: [[#VAR1 + VAR1a + VAR2]]
+FMT-CONFLICT2-MSG: numeric-expression.txt:[[#@LINE-1]]:24: error: implicit format conflict between 'VAR1 + VAR1a' (%u) and 'VAR2' (%x), need an explicit format specifier
+FMT-CONFLICT2-MSG-NEXT: {{F}}MT-CONFLICT2-NEXT: {{\[\[#VAR1 \+ VAR1a \+ VAR2\]\]}}
+FMT-CONFLICT2-MSG-NEXT: {{^                       \^$}}
 
 ; Explicitly specified format can override conflicting implicit formats.
 VAR USE IMPL OVERRIDE FMT CONFLICT
@@ -359,6 +373,7 @@ SAME-LINE-USE-MSG2-NEXT: {{S}}AME-LINE-USE2-NEXT: {{\[\[#VAR2:VAR1\+1\]\] \[\[#V
 SAME-LINE-USE-MSG2-NEXT:        {{^}}                                         ^{{$}}
 
 ; Invalid change of format in variable redefinition.
+RUN: %ProtectFileCheckOutput \
 RUN: not FileCheck --check-prefix REDEF-NEW-FMT --input-file %s %s 2>&1 \
 RUN:   | FileCheck --strict-whitespace --check-prefix REDEF-NEW-FMT-MSG %s
 

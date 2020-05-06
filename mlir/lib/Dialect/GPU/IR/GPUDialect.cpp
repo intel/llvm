@@ -11,8 +11,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/GPU/GPUDialect.h"
+
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Function.h"
 #include "mlir/IR/FunctionImplementation.h"
@@ -44,7 +46,7 @@ GPUDialect::GPUDialect(MLIRContext *context)
 LogicalResult GPUDialect::verifyOperationAttribute(Operation *op,
                                                    NamedAttribute attr) {
   if (!attr.second.isa<UnitAttr>() ||
-      !attr.first.is(getContainerModuleAttrName()))
+      attr.first != getContainerModuleAttrName())
     return success();
 
   auto module = dyn_cast<ModuleOp>(op);
@@ -62,10 +64,8 @@ LogicalResult GPUDialect::verifyOperationAttribute(Operation *op,
 
     // Ignore launch ops with missing attributes here. The errors will be
     // reported by the verifiers of those ops.
-    if (!launchOp.getAttrOfType<StringAttr>(
-            LaunchFuncOp::getKernelAttrName()) ||
-        !launchOp.getAttrOfType<SymbolRefAttr>(
-            LaunchFuncOp::getKernelModuleAttrName()))
+    if (!launchOp.getAttrOfType<SymbolRefAttr>(
+            LaunchFuncOp::getKernelAttrName()))
       return success();
 
     // Check that `launch_func` refers to a well-formed GPU kernel module.
@@ -76,13 +76,12 @@ LogicalResult GPUDialect::verifyOperationAttribute(Operation *op,
              << "kernel module '" << kernelModuleName << "' is undefined";
 
     // Check that `launch_func` refers to a well-formed kernel function.
-    StringRef kernelName = launchOp.kernel();
-    Operation *kernelFunc = kernelModule.lookupSymbol(kernelName);
+    Operation *kernelFunc = module.lookupSymbol(launchOp.kernel());
     auto kernelGPUFunction = dyn_cast_or_null<gpu::GPUFuncOp>(kernelFunc);
     auto kernelLLVMFunction = dyn_cast_or_null<LLVM::LLVMFuncOp>(kernelFunc);
     if (!kernelGPUFunction && !kernelLLVMFunction)
       return launchOp.emitOpError("kernel function '")
-             << kernelName << "' is undefined";
+             << launchOp.kernel() << "' is undefined";
     if (!kernelFunc->getAttrOfType<mlir::UnitAttr>(
             GPUDialect::getKernelFuncAttrName()))
       return launchOp.emitOpError("kernel function is missing the '")
@@ -90,7 +89,7 @@ LogicalResult GPUDialect::verifyOperationAttribute(Operation *op,
 
     // TODO(ntv,zinenko,herhut): if the kernel function has been converted to
     // the LLVM dialect but the caller hasn't (which happens during the
-    // separate compilation), do not check type correspondance as it would
+    // separate compilation), do not check type correspondence as it would
     // require the verifier to be aware of the LLVM type conversion.
     if (kernelLLVMFunction)
       return success();
@@ -397,11 +396,11 @@ void LaunchFuncOp::build(Builder *builder, OperationState &result,
   result.addOperands(
       {gridSizeX, gridSizeY, gridSizeZ, blockSizeX, blockSizeY, blockSizeZ});
   result.addOperands(kernelOperands);
-  result.addAttribute(getKernelAttrName(),
-                      builder->getStringAttr(kernelFunc.getName()));
   auto kernelModule = kernelFunc.getParentOfType<GPUModuleOp>();
-  result.addAttribute(getKernelModuleAttrName(),
-                      builder->getSymbolRefAttr(kernelModule.getName()));
+  auto kernelSymbol = builder->getSymbolRefAttr(
+      kernelModule.getName(),
+      {builder->getSymbolRefAttr(kernelFunc.getName())});
+  result.addAttribute(getKernelAttrName(), kernelSymbol);
 }
 
 void LaunchFuncOp::build(Builder *builder, OperationState &result,
@@ -411,8 +410,8 @@ void LaunchFuncOp::build(Builder *builder, OperationState &result,
         blockSize.x, blockSize.y, blockSize.z, kernelOperands);
 }
 
-StringRef LaunchFuncOp::kernel() {
-  return getAttrOfType<StringAttr>(getKernelAttrName()).getValue();
+SymbolRefAttr LaunchFuncOp::kernel() {
+  return getAttrOfType<SymbolRefAttr>(getKernelAttrName());
 }
 
 unsigned LaunchFuncOp::getNumKernelOperands() {
@@ -420,9 +419,10 @@ unsigned LaunchFuncOp::getNumKernelOperands() {
 }
 
 StringRef LaunchFuncOp::getKernelModuleName() {
-  return getAttrOfType<SymbolRefAttr>(getKernelModuleAttrName())
-      .getRootReference();
+  return kernel().getRootReference();
 }
+
+StringRef LaunchFuncOp::getKernelName() { return kernel().getLeafReference(); }
 
 Value LaunchFuncOp::getKernelOperand(unsigned i) {
   return getOperation()->getOperand(i + kNumConfigOperands);
@@ -446,16 +446,10 @@ static LogicalResult verify(LaunchFuncOp op) {
         "expected the closest surrounding module to have the '" +
         GPUDialect::getContainerModuleAttrName() + "' attribute");
 
-  auto kernelAttr = op.getAttrOfType<StringAttr>(op.getKernelAttrName());
+  auto kernelAttr = op.getAttrOfType<SymbolRefAttr>(op.getKernelAttrName());
   if (!kernelAttr)
-    return op.emitOpError("string attribute '" + op.getKernelAttrName() +
-                          "' must be specified");
-
-  auto kernelModuleAttr =
-      op.getAttrOfType<SymbolRefAttr>(op.getKernelModuleAttrName());
-  if (!kernelModuleAttr)
     return op.emitOpError("symbol reference attribute '" +
-                          op.getKernelModuleAttrName() + "' must be specified");
+                          op.getKernelAttrName() + "' must be specified");
 
   return success();
 }
@@ -610,8 +604,8 @@ static void printAttributions(OpAsmPrinter &p, StringRef keyword,
     return;
 
   p << ' ' << keyword << '(';
-  interleaveComma(values, p,
-                  [&p](BlockArgument v) { p << v << " : " << v.getType(); });
+  llvm::interleaveComma(
+      values, p, [&p](BlockArgument v) { p << v << " : " << v.getType(); });
   p << ')';
 }
 

@@ -60,8 +60,12 @@ public:
   unsigned getRegisterBitWidth(bool Vector) const;
 
   unsigned getCacheLineSize() const override { return 256; }
-  unsigned getPrefetchDistance() const override { return 2000; }
-  unsigned getMinPrefetchStride() const override { return 2048; }
+  unsigned getPrefetchDistance() const override { return 4500; }
+  unsigned getMinPrefetchStride(unsigned NumMemAccesses,
+                                unsigned NumStridedMemAccesses,
+                                unsigned NumPrefetches,
+                                bool HasCall) const override;
+  bool enableWritePrefetching() const override { return true; }
 
   bool hasDivRemOp(Type *DataType, bool IsSigned);
   bool prefersVectorizedAddressing() { return false; }
@@ -77,7 +81,8 @@ public:
       TTI::OperandValueProperties Opd2PropInfo = TTI::OP_None,
       ArrayRef<const Value *> Args = ArrayRef<const Value *>(),
       const Instruction *CxtI = nullptr);
-  int getShuffleCost(TTI::ShuffleKind Kind, Type *Tp, int Index, Type *SubTp);
+  int getShuffleCost(TTI::ShuffleKind Kind, VectorType *Tp, int Index,
+                     VectorType *SubTp);
   unsigned getVectorTruncCost(Type *SrcTy, Type *DstTy);
   unsigned getVectorBitmaskConversionCost(Type *SrcTy, Type *DstTy);
   unsigned getBoolVecToIntConversionCost(unsigned Opcode, Type *Dst,

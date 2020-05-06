@@ -1107,14 +1107,16 @@ Currently, only the following parameter attributes are defined:
 .. _noalias:
 
 ``noalias``
-    This indicates that objects accessed via pointer values
+    This indicates that memory locations accessed via pointer values
     :ref:`based <pointeraliasing>` on the argument or return value are not also
     accessed, during the execution of the function, via pointer values not
-    *based* on the argument or return value. The attribute on a return value
-    also has additional semantics described below. The caller shares the
-    responsibility with the callee for ensuring that these requirements are met.
-    For further details, please see the discussion of the NoAlias response in
-    :ref:`alias analysis <Must, May, or No>`.
+    *based* on the argument or return value. This guarantee only holds for
+    memory locations that are *modified*, by any means, during the execution of
+    the function. The attribute on a return value also has additional semantics
+    described below. The caller shares the responsibility with the callee for
+    ensuring that these requirements are met.  For further details, please see
+    the discussion of the NoAlias response in :ref:`alias analysis <Must, May,
+    or No>`.
 
     Note that this definition of ``noalias`` is intentionally similar
     to the definition of ``restrict`` in C99 for function arguments.
@@ -1826,7 +1828,7 @@ example:
     ``"preserve-sign"``, or ``"positive-zero"``. The first entry
     indicates the flushing mode for the result of floating point
     operations. The second indicates the handling of denormal inputs
-    to floating point instructions. For compatability with older
+    to floating point instructions. For compatibility with older
     bitcode, if the second value is omitted, both input and output
     modes will assume the same mode.
 
@@ -1877,7 +1879,7 @@ example:
 ``shadowcallstack``
     This attribute indicates that the ShadowCallStack checks are enabled for
     the function. The instrumentation checks that the return address for the
-    function has not changed between the function prolog and eiplog. It is
+    function has not changed between the function prolog and epilog. It is
     currently x86_64-specific.
 
 Call Site Attributes
@@ -3416,6 +3418,7 @@ uses with" concept would not hold.
 
 To ensure all uses of a given register observe the same value (even if
 '``undef``'), the :ref:`freeze instruction <i_freeze>` can be used.
+A value is frozen if its uses see the same value.
 
 .. code-block:: llvm
 
@@ -3452,7 +3455,34 @@ match what was already there. However, a store *to* an undefined
 location could clobber arbitrary memory, therefore, it has undefined
 behavior.
 
-**MemorySanitizer**, a detector of uses of uninitialized memory,
+Branching on an undefined value is undefined behavior.
+This explains optimizations that depend on branch conditions to construct
+predicates, such as Correlated Value Propagation and Global Value Numbering.
+In case of switch instruction, the branch condition should be frozen, otherwise
+it is undefined behavior.
+
+.. code-block:: text
+
+    Unsafe:
+      br undef, BB1, BB2 ; UB
+
+      %X = and i32 undef, 255
+      switch %X, label %ret [ .. ] ; UB
+
+      store undef, i8* %ptr
+      %X = load i8* %ptr ; %X is undef
+      switch i8 %X, label %ret [ .. ] ; UB
+
+    Safe:
+      %X = or i8 undef, 255 ; always 255
+      switch i8 %X, label %ret [ .. ] ; Well-defined
+
+      %X = freeze i1 undef
+      br %X, BB1, BB2 ; Well-defined (non-deterministic jump)
+
+
+This is also consistent with the behavior of MemorySanitizer.
+MemorySanitizer, detector of uses of uninitialized memory,
 defines a branch with condition that depends on an undef value (or
 certain other values, like e.g. a result of a load from heap-allocated
 memory that has never been stored to) to have an externally visible
@@ -7035,7 +7065,8 @@ Upon execution of a conditional '``br``' instruction, the '``i1``'
 argument is evaluated. If the value is ``true``, control flows to the
 '``iftrue``' ``label`` argument. If "cond" is ``false``, control flows
 to the '``iffalse``' ``label`` argument.
-If '``cond``' is ``poison``, this instruction has undefined behavior.
+If '``cond``' is ``poison`` or ``undef``, this instruction has undefined
+behavior.
 
 Example:
 """"""""
@@ -7086,7 +7117,8 @@ When the '``switch``' instruction is executed, this table is searched
 for the given value. If the value is found, control flow is transferred
 to the corresponding destination; otherwise, control flow is transferred
 to the default destination.
-If '``value``' is ``poison``, this instruction has undefined behavior.
+If '``value``' is ``poison`` or ``undef``, this instruction has undefined
+behavior.
 
 Implementation:
 """""""""""""""
@@ -7151,7 +7183,8 @@ Control transfers to the block specified in the address argument. All
 possible destination blocks must be listed in the label list, otherwise
 this instruction has undefined behavior. This implies that jumps to
 labels defined in other functions have undefined behavior as well.
-If '``address``' is ``poison``, this instruction has undefined behavior.
+If '``address``' is ``poison`` or ``undef``, this instruction has undefined
+behavior.
 
 Implementation:
 """""""""""""""
@@ -7333,9 +7366,8 @@ instruction in most regards. The primary difference is that it
 establishes an association with additional labels to define where control
 flow goes after the call.
 
-Outputs of a '``callbr``' instruction are valid only on the '``fallthrough``'
-path.  Use of outputs on the '``indirect``' path(s) results in :ref:`poison
-values <poisonvalues>`.
+The output values of a '``callbr``' instruction are available only to
+the '``fallthrough``' block, not to any '``indirect``' blocks(s).
 
 The only use of this today is to implement the "goto" feature of gcc inline
 assembly where additional labels can be provided as locations for the inline
@@ -8655,27 +8687,27 @@ Arguments:
 """"""""""
 
 The first two operands of a '``shufflevector``' instruction are vectors
-with the same type. The third argument is a shuffle mask whose element
-type is always 'i32'. The result of the instruction is a vector whose
-length is the same as the shuffle mask and whose element type is the
+with the same type. The third argument is a shuffle mask vector constant
+whose element type is ``i32``. The mask vector elements must be constant
+integers or ``undef`` values. The result of the instruction is a vector
+whose length is the same as the shuffle mask and whose element type is the
 same as the element type of the first two operands.
-
-The shuffle mask operand is required to be a constant vector with either
-constant integer or undef values.
 
 Semantics:
 """"""""""
 
 The elements of the two input vectors are numbered from left to right
-across both of the vectors. The shuffle mask operand specifies, for each
-element of the result vector, which element of the two input vectors the
-result element gets.
+across both of the vectors. For each element of the result vector, the
+shuffle mask selects an element from one of the input vectors to copy
+to the result. Non-negative elements in the mask represent an index
+into the concatenated pair of input vectors.
 
-If the shuffle mask is undef, the result vector is undef. If any element
-of the mask operand is undef, that element of the result is undef. If the
-shuffle mask selects an undef element from one of the input vectors, the
-resulting element is undef. An undef mask element prevents a poisoned
-vector element from propagating.
+If the shuffle mask is undefined, the result vector is undefined. If
+the shuffle mask selects an undefined element from one of the input
+vectors, the resulting element is undefined. An undefined element
+in the mask vector specifies that the resulting element is undefined.
+An undefined element in the mask vector prevents a poisoned vector
+element from propagating.
 
 For scalable vectors, the only valid mask values at present are
 ``zeroinitializer`` and ``undef``, since we cannot write all indices as
@@ -16523,6 +16555,7 @@ by the intrinsic, this argument must be one of the following strings:
       "round.downward"
       "round.upward"
       "round.towardzero"
+      "round.tonearestaway"
 
 If this argument is "round.dynamic" optimization passes must assume that the
 rounding mode is unknown and may change at runtime.  No transformations that
@@ -17160,7 +17193,7 @@ The first three arguments to the '``llvm.experimental.constrained.fmuladd``'
 intrinsic must be floating-point or vector of floating-point values.
 All three arguments must have identical types.
 
-The fourth and fifth arguments specifiy the rounding mode and exception behavior
+The fourth and fifth arguments specify the rounding mode and exception behavior
 as described above.
 
 Semantics:

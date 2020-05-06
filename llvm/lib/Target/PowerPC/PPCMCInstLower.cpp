@@ -78,10 +78,19 @@ static MCOperand GetSymbolRef(const MachineOperand &MO, const MCSymbol *Symbol,
       break;
   }
 
- if (MO.getTargetFlags() == PPCII::MO_PLT)
+  if (MO.getTargetFlags() == PPCII::MO_PLT)
     RefKind = MCSymbolRefExpr::VK_PLT;
+  else if (MO.getTargetFlags() == PPCII::MO_PCREL_FLAG)
+    RefKind = MCSymbolRefExpr::VK_PCREL;
+  else if (MO.getTargetFlags() == (PPCII::MO_PCREL_FLAG | PPCII::MO_GOT_FLAG))
+    RefKind = MCSymbolRefExpr::VK_PPC_GOT_PCREL;
 
-  const MachineFunction *MF = MO.getParent()->getParent()->getParent();
+  const MachineInstr *MI = MO.getParent();
+
+  if (MI->getOpcode() == PPC::BL8_NOTOC)
+    RefKind = MCSymbolRefExpr::VK_PPC_NOTOC;
+
+  const MachineFunction *MF = MI->getMF();
   const Module *M = MF->getFunction().getParent();
   const PPCSubtarget *Subtarget = &(MF->getSubtarget<PPCSubtarget>());
   const TargetMachine &TM = Printer.TM;
@@ -140,6 +149,9 @@ bool llvm::LowerPPCMachineOperandToMCOperand(const MachineOperand &MO,
     assert(MO.getReg() > PPC::NoRegister &&
            MO.getReg() < PPC::NUM_TARGET_REGS &&
            "Invalid register for this target!");
+    // Ignore all implicit register operands.
+    if (MO.isImplicit())
+      return false;
     OutMO = MCOperand::createReg(MO.getReg());
     return true;
   case MachineOperand::MO_Immediate:

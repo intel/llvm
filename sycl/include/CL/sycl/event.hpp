@@ -58,7 +58,7 @@ public:
   /// Returns a valid OpenCL event interoperability handle.
   ///
   /// \return a valid instance of OpenCL cl_event.
-  cl_event get();
+  cl_event get() const;
 
   /// Checks if this event is a SYCL host event.
   ///

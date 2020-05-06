@@ -14,21 +14,18 @@
 #ifndef LLVM_ANALYSIS_PROFILE_SUMMARY_INFO_H
 #define LLVM_ANALYSIS_PROFILE_SUMMARY_INFO_H
 
-#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/SmallSet.h"
 #include "llvm/IR/Function.h"
-#include "llvm/IR/Instructions.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/IR/ProfileSummary.h"
-#include "llvm/IR/ValueHandle.h"
 #include "llvm/Pass.h"
 #include <memory>
 
 namespace llvm {
 class BasicBlock;
 class BlockFrequencyInfo;
-class CallSite;
+class CallBase;
+class Instruction;
 class ProfileSummary;
 /// Analysis providing profile information.
 ///
@@ -147,10 +144,10 @@ public:
   /// cold percentile cutoff value.
   bool isColdBlockNthPercentile(int PercentileCutoff,
                                 const BasicBlock *BB, BlockFrequencyInfo *BFI);
-  /// Returns true if CallSite \p CS is considered hot.
-  bool isHotCallSite(const CallSite &CS, BlockFrequencyInfo *BFI);
-  /// Returns true if Callsite \p CS is considered cold.
-  bool isColdCallSite(const CallSite &CS, BlockFrequencyInfo *BFI);
+  /// Returns true if the call site \p CB is considered hot.
+  bool isHotCallSite(const CallBase &CB, BlockFrequencyInfo *BFI);
+  /// Returns true if call site \p CB is considered cold.
+  bool isColdCallSite(const CallBase &CB, BlockFrequencyInfo *BFI);
   /// Returns HotCountThreshold if set. Recompute HotCountThreshold
   /// if not set.
   uint64_t getOrCompHotCountThreshold();

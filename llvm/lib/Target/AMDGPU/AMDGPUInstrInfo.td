@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file contains DAG node defintions for the AMDGPU target.
+// This file contains DAG node definitions for the AMDGPU target.
 //
 //===----------------------------------------------------------------------===//
 
@@ -121,8 +121,6 @@ def AMDGPUrcp_impl : SDNode<"AMDGPUISD::RCP", SDTFPUnaryOp>;
 // out = 1.0 / sqrt(a)
 def AMDGPUrsq_impl : SDNode<"AMDGPUISD::RSQ", SDTFPUnaryOp>;
 
-// out = 1.0 / sqrt(a)
-def AMDGPUrsq_legacy_impl : SDNode<"AMDGPUISD::RSQ_LEGACY", SDTFPUnaryOp>;
 def AMDGPUrcp_legacy_impl : SDNode<"AMDGPUISD::RCP_LEGACY", SDTFPUnaryOp>;
 
 def AMDGPUrcp_iflag : SDNode<"AMDGPUISD::RCP_IFLAG", SDTFPUnaryOp>;
@@ -238,7 +236,7 @@ def AMDGPUdiv_scale : SDNode<"AMDGPUISD::DIV_SCALE", AMDGPUDivScaleOp>;
 
 //  Special case divide FMA with scale and flags (src0 = Quotient,
 //  src1 = Denominator, src2 = Numerator).
-def AMDGPUdiv_fmas : SDNode<"AMDGPUISD::DIV_FMAS", AMDGPUFmasOp,
+def AMDGPUdiv_fmas_impl : SDNode<"AMDGPUISD::DIV_FMAS", AMDGPUFmasOp,
                             [SDNPOptInGlue]>;
 
 // Single or double precision division fixup.
@@ -289,7 +287,7 @@ def AMDGPUffbh_i32_impl : SDNode<"AMDGPUISD::FFBH_I32", SDTIntBitCountUnaryOp>;
 def AMDGPUffbl_b32_impl : SDNode<"AMDGPUISD::FFBL_B32", SDTIntBitCountUnaryOp>;
 
 // Signed and unsigned 24-bit multiply. The highest 8-bits are ignore
-// when performing the mulitply. The result is a 32-bit value.
+// when performing the multiply. The result is a 32-bit value.
 def AMDGPUmul_u24_impl : SDNode<"AMDGPUISD::MUL_U24", SDTIntBinOp,
   [SDNPCommutative, SDNPAssociative]
 >;
@@ -377,16 +375,13 @@ def AMDGPUret_flag : SDNode<"AMDGPUISD::RET_FLAG", SDTypeProfile<0, 1, [SDTCisPt
 
 
 //===----------------------------------------------------------------------===//
-// Intrinsic/Custom node compatability PatFrags
+// Intrinsic/Custom node compatibility PatFrags
 //===----------------------------------------------------------------------===//
 
 def AMDGPUrcp : PatFrags<(ops node:$src), [(int_amdgcn_rcp node:$src),
                                            (AMDGPUrcp_impl node:$src)]>;
 def AMDGPUrcp_legacy : PatFrags<(ops node:$src), [(int_amdgcn_rcp_legacy node:$src),
                                                   (AMDGPUrcp_legacy_impl node:$src)]>;
-
-def AMDGPUrsq_legacy : PatFrags<(ops node:$src), [(int_amdgcn_rsq_legacy node:$src),
-                                                  (AMDGPUrsq_legacy_impl node:$src)]>;
 
 def AMDGPUrsq : PatFrags<(ops node:$src), [(int_amdgcn_rsq node:$src),
                                            (AMDGPUrsq_impl node:$src)]>;
@@ -476,3 +471,7 @@ def AMDGPUfmul_legacy : PatFrags<(ops node:$src0, node:$src1),
 def AMDGPUfdot2 : PatFrags<(ops node:$src0, node:$src1, node:$src2, node:$clamp),
   [(int_amdgcn_fdot2 node:$src0, node:$src1, node:$src2, node:$clamp),
    (AMDGPUfdot2_impl node:$src0, node:$src1, node:$src2, node:$clamp)]>;
+
+def AMDGPUdiv_fmas : PatFrags<(ops node:$src0, node:$src1, node:$src2, node:$vcc),
+  [(int_amdgcn_div_fmas node:$src0, node:$src1, node:$src2, node:$vcc),
+   (AMDGPUdiv_fmas_impl node:$src0, node:$src1, node:$src2, node:$vcc)]>;

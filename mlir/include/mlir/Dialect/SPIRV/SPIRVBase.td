@@ -3040,9 +3040,6 @@ def SPV_IntVec4 : SPV_Vec4<SPV_Integer>;
 def SPV_IOrUIVec4 : SPV_Vec4<SPV_SignlessOrUnsignedInt>;
 def SPV_Int32Vec4 : SPV_Vec4<AnyI32>;
 
-// TODO(antiagainst): Use a more appropriate way to model optional operands
-class SPV_Optional<Type type> : Variadic<type>;
-
 // TODO(ravishankarm): From 1.4, this should also include Composite type.
 def SPV_SelectType : AnyTypeOf<[SPV_Scalar, SPV_Vector, SPV_AnyPtr]>;
 
@@ -3285,7 +3282,7 @@ def SPV_OpcodeAttr :
 class SPV_Op<string mnemonic, list<OpTrait> traits = []> :
     Op<SPIRV_Dialect, mnemonic, !listconcat(traits, [
          // TODO(antiagainst): We don't need all of the following traits for
-         // every op; only the suitabble ones should be added automatically
+         // every op; only the suitable ones should be added automatically
          // after ODS supports dialect-specific contents.
          DeclareOpInterfaceMethods<QueryMinVersionInterface>,
          DeclareOpInterfaceMethods<QueryMaxVersionInterface>,

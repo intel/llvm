@@ -157,7 +157,7 @@ is usually the associated section's comdat.
    1. It must be a COMDAT section.
    2. It cannot be another associative COMDAT section.
 
-In the following example the symobl ``sym`` is the comdat symbol of ``.foo``
+In the following example the symbol ``sym`` is the comdat symbol of ``.foo``
 and ``.bar`` is associated to ``.foo``.
 
 .. code-block:: gas
@@ -282,7 +282,7 @@ The following directives are specified:
 
   - libpath
 
-    The paramter identifies an additional library search path to be considered
+    The parameter identifies an additional library search path to be considered
     when looking up libraries after the inclusion of this option.
 
 ``SHT_LLVM_DEPENDENT_LIBRARIES`` Section (Dependent Libraries)
@@ -417,7 +417,7 @@ Introduces a function ID that can be used with ``.cv_loc``. Includes
 caller, whether the caller is a real function or another inlined call site.
 
 Syntax:
-  ``.cv_inline_site_id`` *FunctionId* ``within`` *Function* ``inlined_at`` *FileNumber Line* [ *Colomn* ]
+  ``.cv_inline_site_id`` *FunctionId* ``within`` *Function* ``inlined_at`` *FileNumber Line* [ *Column* ]
 
 ``.cv_loc`` Directive
 ^^^^^^^^^^^^^^^^^^^^^

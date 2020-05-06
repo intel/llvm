@@ -2,10 +2,20 @@ cmake_minimum_required(VERSION 3.2)
 
 project(sycl-solution)
 # Requirements
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 option(SYCL_ENABLE_WERROR "Treat all warnings as errors in SYCL project" OFF)
+option(SYCL_ADD_DEV_VERSION_POSTFIX "Adds -V postfix to version string" ON)
+
+set(SYCL_MAJOR_VERSION 0)
+set(SYCL_MINOR_VERSION 1)
+set(SYCL_PATCH_VERSION 0)
+set(SYCL_DEV_ABI_VERSION 1)
+if (SYCL_ADD_DEV_VERSION_POSTFIX)
+  set(SYCL_VERSION_POSTFIX "-${SYCL_DEV_ABI_VERSION}")
+endif()
+set(SYCL_VERSION_STRING "${SYCL_MAJOR_VERSION}.${SYCL_MINOR_VERSION}.${SYCL_PATCH_VERSION}${SYCL_VERSION_POSTFIX}")
 
 # enable all warnings by default
 if (MSVC)
@@ -200,7 +210,11 @@ add_subdirectory( source )
 
 # Auxilliary extras for SYCL headers/library
 if (NOT WIN32)
-  install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/xmethods/$<TARGET_FILE_NAME:sycl>-gdb.py" DESTINATION lib${LLVM_LIBDIR_SUFFIX} COMPONENT sycl-headers-extras)
+  install(FILES
+      "${CMAKE_CURRENT_SOURCE_DIR}/xmethods/libsycl.so-gdb.py"
+      RENAME "${CMAKE_CURRENT_SOURCE_DIR}/xmethods/$<TARGET_FILE_NAME:sycl>-gdb.py"
+      DESTINATION lib${LLVM_LIBDIR_SUFFIX}
+      COMPONENT sycl-headers-extras)
 endif()
 
 # SYCL toolchain builds all components: compiler, libraries, headers, etc.
@@ -218,6 +232,7 @@ add_custom_target( sycl-toolchain
           llvm-link
           llvm-objcopy
           sycl-post-link
+          sycl-ls
   COMMENT "Building SYCL compiler toolchain..."
 )
 
@@ -267,6 +282,7 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      llvm-link
      llvm-objcopy
      sycl-post-link
+     sycl-ls
      clang-resource-headers
      opencl-headers
      sycl-headers

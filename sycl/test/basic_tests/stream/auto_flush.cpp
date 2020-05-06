@@ -1,10 +1,8 @@
-// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // TODO: Enable on host when commands cleanup will be implemented in scheduler
 // RUN: %CPU_RUN_PLACEHOLDER %t.out %CPU_CHECK_PLACEHOLDER
 // RUN: %GPU_RUN_ON_LINUX_PLACEHOLDER %t.out %GPU_CHECK_ON_LINUX_PLACEHOLDER
 // RUN: %ACC_RUN_PLACEHOLDER %t.out %ACC_CHECK_PLACEHOLDER
-// XFAIL: cuda
-// cuda fail due to unimplemented param_name 4131 in cuda_piDeviceGetInfo
 //==-------------- copy.cpp - SYCL stream obect auto flushing test ---------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

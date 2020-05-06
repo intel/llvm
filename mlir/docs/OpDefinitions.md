@@ -10,7 +10,7 @@ equivalent `mlir::Op` C++ template specialization at compiler build time.
 This manual explains in detail all the available mechanisms for defining
 operations in such a table-driven manner. It aims to be a specification instead
 of a tutorial. Please refer to [Quickstart tutorial to adding MLIR graph
-rewrite](QuickstartRewrites.md) for the latter.
+rewrite](Tutorials/QuickstartRewrites.md) for the latter.
 
 In addition to detailing each mechanism, this manual also tries to capture
 best practices. They are rendered as quoted bullet points.
@@ -221,11 +221,28 @@ To declare a variadic operand, wrap the `TypeConstraint` for the operand with
 
 Normally operations have no variadic operands or just one variadic operand. For
 the latter case, it is easy to deduce which dynamic operands are for the static
-variadic operand definition. But if an operation has more than one variadic
-operands, it would be impossible to attribute dynamic operands to the
-corresponding static variadic operand definitions without further information
-from the operation. Therefore, the `SameVariadicOperandSize` trait is needed to
-indicate that all variadic operands have the same number of dynamic values.
+variadic operand definition. Though, if an operation has more than one variable
+length operands (either optional or variadic), it would be impossible to
+attribute dynamic operands to the corresponding static variadic operand
+definitions without further information from the operation. Therefore, either
+the `SameVariadicOperandSize` or `AttrSizedOperandSegments` trait is needed to
+indicate that all variable length operands have the same number of dynamic
+values.
+
+#### Optional operands
+
+To declare an optional operand, wrap the `TypeConstraint` for the operand with
+`Optional<...>`.
+
+Normally operations have no optional operands or just one optional operand. For
+the latter case, it is easy to deduce which dynamic operands are for the static
+operand definition. Though, if an operation has more than one variable length
+operands (either optional or variadic), it would be impossible to attribute
+dynamic operands to the corresponding static variadic operand definitions
+without further information from the operation. Therefore, either the
+`SameVariadicOperandSize` or `AttrSizedOperandSegments` trait is needed to
+indicate that all variable length operands have the same number of dynamic
+values.
 
 #### Optional attributes
 
@@ -264,6 +281,24 @@ Right now, the following primitive constraints are supported:
     `I`-th element to be greater than or equal to `N`
 
 TODO: Design and implement more primitive constraints
+
+### Operation regions
+
+The regions of an operation are specified inside of the `dag`-typed `regions`,
+led by `region`:
+
+```tablegen
+let regions = (region
+  <region-constraint>:$<region-name>,
+  ...
+);
+```
+
+#### Variadic regions
+
+Similar to the `Variadic` class used for variadic operands and results,
+`VariadicRegion<...>` can be used for regions. Variadic regions can currently
+only be specified as the last region in the regions list.
 
 ### Operation results
 
@@ -675,7 +710,7 @@ information. An optional group is defined by wrapping a set of elements within
     the group.
     -   Any attribute variable may be used, but only optional attributes can be
         marked as the anchor.
-    -   Only variadic, i.e. optional, operand arguments can be used.
+    -   Only variadic or optional operand arguments can be used.
     -   The operands to a type directive must be defined within the optional
         group.
 
@@ -710,7 +745,7 @@ to:
    -  Note that `attr-dict` does not overlap with individual attributes. These
       attributes will simply be elided when printing the attribute dictionary.
 
-##### Type Inferrence
+##### Type Inference
 
 One requirement of the format is that the types of operands and results must
 always be present. In certain instances, the type of a variable may be deduced
@@ -981,6 +1016,33 @@ duplication, which is being worked on right now.
 
 ## Attribute Definition
 
+An attribute is a compile-time known constant of an operation.
+
+ODS provides attribute wrappers over C++ attribute classes. There are a few
+common C++ [attribute classes][AttrClasses] defined in MLIR's core IR library
+and one is free to define dialect-specific attribute classes. ODS allows one
+to use these attributes in TableGen to define operations, potentially with
+more fine-grained constraints. For example, `StrAttr` directly maps to
+`StringAttr`; `F32Attr`/`F64Attr` requires the `FloatAttr` to additionally
+be of a certain bitwidth.
+
+ODS attributes are defined as having a storage type (corresponding to a backing
+`mlir::Attribute` that _stores_ the attribute), a return type (corresponding to
+the C++ _return_ type of the generated of the helper getters) as well as method
+to convert between the internal storage and the helper method.
+
+### Attribute decorators
+
+There are a few important attribute adapters/decorators/modifers that can be
+applied to ODS attributes to specify common additional properties like
+optionality, default values, etc.:
+
+*   `DefaultValuedAttr`: specifies the
+    [default value](#attributes-with-default-values) for an attribute.
+*   `OptionalAttr`: specfies an attribute as [optional](#optional-attributes).
+*   `Confined`: adapts an attribute with
+    [further constraints](#confining-attributes).
+
 ### Enum attributes
 
 Some attributes can only take values from an predefined enum, e.g., the
@@ -1193,19 +1255,6 @@ llvm::Optional<MyBitEnum> symbolizeMyBitEnum(uint32_t value) {
 }
 ```
 
-TODO(b/132506080): This following is outdated. Update it.
-
-An attribute is a compile time known constant of an operation. Attributes are
-required to be known to construct an operation (e.g., the padding behavior is
-required to fully define the `conv2d` op).
-
-Attributes are defined as having a storage type (corresponding to a derived
-class of `mlir::Attribute`), a return type (that corresponds to the C++ type to
-use in the generation of the helper accessors) as well as method to convert
-between the internal storage and the helper method. Derived attributes are a
-special class of attributes that do not have storage but are instead calculated
-based on the operation and its attributes.
-
 ## Debugging Tips
 
 ### Run `mlir-tblgen` to see the generated content
@@ -1304,8 +1353,9 @@ requirements that were desirable:
 [TableGenIntro]: https://llvm.org/docs/TableGen/LangIntro.html
 [TableGenRef]: https://llvm.org/docs/TableGen/LangRef.html
 [TableGenBackend]: https://llvm.org/docs/TableGen/BackEnds.html#introduction
-[OpBase]: ../include/mlir/IR/OpBase.td
-[OpDefinitionsGen]: ../tools/mlir-tblgen/OpDefinitionsGen.cpp
-[EnumsGen]: ../tools/mlir-tblgen/EnumsGen.cpp
+[OpBase]: https://github.com/llvm/llvm-project/blob/master/mlir/include/mlir/IR/OpBase.td
+[OpDefinitionsGen]: https://github.com/llvm/llvm-project/blob/master/mlir/tools/mlir-tblgen/OpDefinitionsGen.cpp
+[EnumsGen]: https://github.com/llvm/llvm-project/blob/master/mlir/tools/mlir-tblgen/EnumsGen.cpp
 [StringAttr]: LangRef.md#string-attribute
 [IntegerAttr]: LangRef.md#integer-attribute
+[AttrClasses]: https://github.com/llvm/llvm-project/blob/master/mlir/include/mlir/IR/Attributes.h
