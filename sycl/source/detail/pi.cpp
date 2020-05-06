@@ -69,6 +69,26 @@ uint64_t emitFunctionBeginTrace(const char *FName) {
   // You can use the sample collector in llvm/xptifw/samples/syclpi_collector
   // to print the API traces and also extend them to support an arguments that
   // may be traced later.
+  //
+  /// Example Usage:
+  /// \code{cpp}
+  /// // Two diagnostic trace types defined for function begin and function end
+  /// // with different semantics than the one in the default trace type list.
+  /// typedef enum {
+  ///   diagnostic_func_begin = XPTI_TRACE_POINT_BEGIN(0),
+  ///   diagnostic_func_end = XPTI_TRACE_POINT_END(0),
+  /// }syclpi_extension_t;
+  /// ...
+  /// uint16_t pi_func_begin =
+  ///     xptiRegisterUserDefinedTracePoint("sycl.pi", func_begin);
+  /// uint16_t pi_func_end =
+  ///     xptiRegisterUserDefinedTracePoint("sycl.pi", func_end);
+  /// ...
+  /// // Setup argument data for the function being traced
+  /// ...
+  /// xptiNotifySubscribers(stream_id, pi_func_begin, parent, event, instance,
+  ///                       (void *)argument_data);
+  /// \endcode
   if (xptiTraceEnabled()) {
     uint8_t StreamID = xptiRegisterStream(SYCL_PICALL_STREAM_NAME);
     CorrelationID = xptiGetUniqueId();
