@@ -189,7 +189,7 @@ one per each separate device binary.
 
 Current design of clang driver doesn't allow to model that, namely:
 1. Multiple inputs/outputs in the action graph.
-1. Logical grouping of multiple inputs/outputs. For example, an input or output can consist of multiple pairs of files, where each pair represents information for a single device code module:  [a file with device code, a file with exported symbols].
+2. Logical grouping of multiple inputs/outputs. For example, an input or output can consist of multiple pairs of files, where each pair represents information for a single device code module:  [a file with device code, a file with exported symbols].
 
 To support this, SYCL introduces the `file-table-tform` tool. This tool can
 transform file tables following commands passed as input arguments. Each row
