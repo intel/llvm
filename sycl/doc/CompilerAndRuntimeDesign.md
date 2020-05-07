@@ -432,6 +432,7 @@ There are multiple possible variants of the graph depending on:
 - AOT compilation
 
 ![Multi source compilation flow](images/DeviceLinkAndWrap.svg)
+
 *Diagram 3. Device code link flows.*  
 
 Colors of the graph's edges show which paths are taken depending on the above
