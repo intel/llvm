@@ -140,14 +140,18 @@ std::string getOpenCLErrorNameByErrorCode(cl_int CLErr) {
     return "CL_INVALID_LINKER_OPTIONS";
   case CL_INVALID_DEVICE_PARTITION_COUNT:
     return "CL_INVALID_DEVICE_PARTITION_COUNT";
+#ifdef CL_VERSION_2_0
   case CL_INVALID_PIPE_SIZE:
     return "CL_INVALID_PIPE_SIZE";
   case CL_INVALID_DEVICE_QUEUE:
     return "CL_INVALID_DEVICE_QUEUE";
+#endif
+#ifdef CL_VERSION_2_2
   case CL_INVALID_SPEC_ID:
     return "CL_INVALID_SPEC_ID";
   case CL_MAX_SIZE_RESTRICTION_EXCEEDED:
     return "CL_MAX_SIZE_RESTRICTION_EXCEEDED";
+#endif
   default:
     return "Unknown error code";
   }
