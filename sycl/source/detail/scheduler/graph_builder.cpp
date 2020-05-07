@@ -914,10 +914,11 @@ void Scheduler::GraphBuilder::connectDepEvent(
 
     std::unique_ptr<detail::HostTask> HT(new detail::HostTask(std::move(Func)));
     std::unique_ptr<detail::CG> ConnectCG(new detail::CGHostTask(
-        std::move(HT), /* Args = */ {}, /* ArgsStorage = */ {},
-        /* AccStorage = */ {}, /* SharedPtrStorage = */ {},
-        /* Requirements = */ {}, /* DepEvents = */ {DepEvent},
-        CG::HOST_TASK_CODEPLAY, /* Payload */ {}));
+        std::move(HT), /* Queue = */ {}, /* Context = */ {}, /* Args = */ {},
+        /* ArgsStorage = */ {}, /* AccStorage = */ {},
+        /* SharedPtrStorage = */ {}, /* Requirements = */ {},
+        /* DepEvents = */ {DepEvent}, CG::HOST_TASK_CODEPLAY,
+        /* Payload */ {}));
     ConnectCmd = new ExecCGCommand(
         std::move(ConnectCG), Scheduler::getInstance().getDefaultHostQueue());
   }

@@ -652,7 +652,7 @@ public:
   std::unique_ptr<HostTask> MHostTask;
   // queue for host-interop task
   shared_ptr_class<detail::queue_impl> MQueue;
-  // context to create self event with
+  // context for host-interop task
   shared_ptr_class<detail::context_impl> MContext;
   vector_class<ArgDesc> MArgs;
 

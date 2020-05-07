@@ -2023,7 +2023,7 @@ cl_int ExecCGCommand::enqueueImp() {
 
     MQueue->getThreadPool().submit<DispatchHostTask>(std::move(DispatchHostTask(
         MPreparedDepsEvents, MPreparedHostDepsEvents, HostTask, MDeps,
-        std::move(ReqToMem) MEvent)));
+        std::move(ReqToMem), MEvent)));
 
     return CL_SUCCESS;
   }
