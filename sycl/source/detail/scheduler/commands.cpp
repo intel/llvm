@@ -158,19 +158,13 @@ getPiEvents(const std::vector<EventImplPtr> &EventImpls) {
 }
 
 class DispatchHostTask {
-  std::vector<EventImplPtr> MDepEvents;
-  std::vector<EventImplPtr> MDepHostEvents;
-  // Store cg in shared ptr due to copy-constructor call by thread pool
-  // FIXME Employ unique_ptr
-  std::shared_ptr<CGHostTask> MHostTask;
-  std::vector<DepDesc> MDeps;
-  EventImplPtr MSelfEvent;
+  ExecCGCommand *MThisCmd;
 
   void waitForEvents() const {
     std::map<const detail::plugin *, std::vector<EventImplPtr>>
         RequiredEventsPerPlugin;
 
-    for (const EventImplPtr &Event : MDepEvents) {
+    for (const EventImplPtr &Event : MThisCmd->MPreparedDepsEvents) {
       const detail::plugin &Plugin = Event->getPlugin();
       RequiredEventsPerPlugin[&Plugin].push_back(Event);
     }
@@ -187,7 +181,7 @@ class DispatchHostTask {
     }
 
     // wait for dependency host events
-    for (const EventImplPtr &Event : MDepHostEvents) {
+    for (const EventImplPtr &Event : MThisCmd->MPreparedHostDepsEvents) {
       Event->waitInternal();
     }
   }
@@ -209,38 +203,39 @@ class DispatchHostTask {
   }
 
 public:
-  DispatchHostTask(std::vector<EventImplPtr> DepEvents,
-                   std::vector<EventImplPtr> DepHostEvents,
-                   CGHostTask *HostTask, std::vector<DepDesc> Deps,
-                   EventImplPtr SelfEvent)
-      : MDepEvents(std::move(DepEvents)),
-        MDepHostEvents(DepHostEvents), MHostTask{HostTask},
-        MDeps(std::move(Deps)), MSelfEvent(std::move(SelfEvent)) {}
+  DispatchHostTask(ExecCGCommand *ThisCmd)
+      : MThisCmd{ThisCmd} {}
 
   void operator()() const {
     waitForEvents();
 
-    // we're ready to call the user-defined lambda now
-    MHostTask->MHostTask->call();
-    MHostTask->MHostTask.reset();
+    assert(MThisCmd->getCG().get());
+    assert(MThisCmd->getCG()->getType() == CG::CGTYPE::HOST_TASK_CODEPLAY);
 
-    Command *ThisCmd = reinterpret_cast<Command *>(MSelfEvent->getCommand());
-    assert(ThisCmd && "No command found for host-task self event");
+    CGHostTask *HostTask = static_cast<CGHostTask *>(MThisCmd->getCG().get());
+
+    // we're ready to call the user-defined lambda now
+    HostTask->MHostTask->call();
+    HostTask->MHostTask.reset();
 
     // unblock user empty command here
-    EmptyCommand *EmptyCmd = findUserEmptyCommand(ThisCmd);
+    EmptyCommand *EmptyCmd = findUserEmptyCommand(MThisCmd);
     assert(EmptyCmd && "No empty command found");
 
+    // Completing command's event along with unblocking enqueue readiness of
+    // empty command may lead to quick deallocation of MThisCmd by some cleanup
+    // process. Thus we'll copy deps prior to completing of event and unblocking
+    // of empty command.
+
+    std::vector<DepDesc> Deps = MThisCmd->MDeps;
+
     // update self-event status
-    MSelfEvent->setComplete();
+    MThisCmd->MEvent->setComplete();
 
     EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
 
-    // The enqueue process is driven by backend for non-host.
-    // For host event we'll enqueue leaves of requirements
-    if (MSelfEvent->is_host())
-      for (const DepDesc &Dep : ThisCmd->MDeps)
-        Scheduler::getInstance().enqueueLeavesOfReq(Dep.MDepRequirement);
+    for (const DepDesc &Dep : Deps)
+      Scheduler::getInstance().enqueueLeavesOfReq(Dep.MDepRequirement);
   }
 };
 
@@ -1919,7 +1914,7 @@ cl_int ExecCGCommand::enqueueImp() {
     return CL_SUCCESS;
   }
   case CG::CGTYPE::HOST_TASK_CODEPLAY: {
-    CGHostTask *HostTask = static_cast<CGHostTask *>(MCommandGroup.release());
+    CGHostTask *HostTask = static_cast<CGHostTask *>(MCommandGroup.get());
 
     for (ArgDesc &Arg : HostTask->MArgs) {
       switch (Arg.MType) {
@@ -1936,8 +1931,7 @@ cl_int ExecCGCommand::enqueueImp() {
     }
 
     MQueue->getThreadPool().submit<DispatchHostTask>(
-        std::move(DispatchHostTask(MPreparedDepsEvents, MPreparedHostDepsEvents,
-                                   HostTask, MDeps, MEvent)));
+        std::move(DispatchHostTask(this)));
 
     MShouldCompleteEventIfPossible = false;
 

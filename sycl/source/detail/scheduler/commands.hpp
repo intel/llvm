@@ -27,6 +27,7 @@ namespace detail {
 class queue_impl;
 class event_impl;
 class context_impl;
+class DispatchHostTask;
 
 using QueueImplPtr = std::shared_ptr<detail::queue_impl>;
 using EventImplPtr = std::shared_ptr<detail::event_impl>;
@@ -206,6 +207,8 @@ protected:
   CommandType MType;
   /// Mutex used to protect enqueueing from race conditions
   std::mutex MEnqueueMtx;
+
+  friend class DispatchHostTask;
 
 public:
   /// Contains list of dependencies(edges)
