@@ -49,7 +49,6 @@ struct llvm::pdb::GSIHashStreamBuilder {
   };
 
   std::vector<CVSymbol> Records;
-  uint32_t StreamIndex;
   llvm::DenseSet<CVSymbol, SymbolDenseMapInfo> SymbolHashes;
   std::vector<PSHashRecord> HashRecords;
   std::array<support::ulittle32_t, (IPHR_HASH + 32) / 32> HashBitmap;
@@ -213,11 +212,12 @@ Error GSIStreamBuilder::finalizeMsfLayout() {
   Expected<uint32_t> Idx = Msf.addStream(calculateGlobalsHashStreamSize());
   if (!Idx)
     return Idx.takeError();
-  GSH->StreamIndex = *Idx;
+  GlobalsStreamIndex = *Idx;
+
   Idx = Msf.addStream(calculatePublicsHashStreamSize());
   if (!Idx)
     return Idx.takeError();
-  PSH->StreamIndex = *Idx;
+  PublicsStreamIndex = *Idx;
 
   uint32_t RecordBytes =
       GSH->calculateRecordByteSize() + PSH->calculateRecordByteSize();
@@ -225,19 +225,34 @@ Error GSIStreamBuilder::finalizeMsfLayout() {
   Idx = Msf.addStream(RecordBytes);
   if (!Idx)
     return Idx.takeError();
-  RecordStreamIdx = *Idx;
+  RecordStreamIndex = *Idx;
   return Error::success();
 }
 
-static bool comparePubSymByAddrAndName(
-    const std::pair<const CVSymbol *, const PublicSym32 *> &LS,
-    const std::pair<const CVSymbol *, const PublicSym32 *> &RS) {
-  if (LS.second->Segment != RS.second->Segment)
-    return LS.second->Segment < RS.second->Segment;
-  if (LS.second->Offset != RS.second->Offset)
-    return LS.second->Offset < RS.second->Offset;
+static StringRef extractPubSym(const CVSymbol *Sym, uint16_t &Seg,
+                               uint32_t &Offset) {
+  ArrayRef<uint8_t> Buf = Sym->content();
+  assert(Buf.size() > sizeof(PublicSym32Header));
+  const auto *Hdr = reinterpret_cast<const PublicSym32Header *>(Buf.data());
+  Buf = Buf.drop_front(sizeof(PublicSym32Header));
+  Seg = Hdr->Segment;
+  Offset = Hdr->Offset;
+  // Don't worry about finding the null terminator, since the strings will be
+  // compared later.
+  return StringRef(reinterpret_cast<const char *>(Buf.data()), Buf.size());
+}
 
-  return LS.second->Name < RS.second->Name;
+static bool comparePubSymByAddrAndName(const CVSymbol *LS, const CVSymbol *RS) {
+  uint16_t LSeg, RSeg;
+  uint32_t LOff, ROff;
+  StringRef LName, RName;
+  LName = extractPubSym(LS, LSeg, LOff);
+  RName = extractPubSym(RS, RSeg, ROff);
+  if (LSeg != RSeg)
+    return LSeg < RSeg;
+  if (LOff != ROff)
+    return LOff < ROff;
+  return LName < RName;
 }
 
 /// Compute the address map. The address map is an array of symbol offsets
@@ -246,19 +261,15 @@ static std::vector<ulittle32_t> computeAddrMap(ArrayRef<CVSymbol> Records) {
   // Make a vector of pointers to the symbols so we can sort it by address.
   // Also gather the symbol offsets while we're at it.
 
-  std::vector<PublicSym32> DeserializedPublics;
-  std::vector<std::pair<const CVSymbol *, const PublicSym32 *>> PublicsByAddr;
+  std::vector<const CVSymbol *> PublicsByAddr;
   std::vector<uint32_t> SymOffsets;
-  DeserializedPublics.reserve(Records.size());
   PublicsByAddr.reserve(Records.size());
   SymOffsets.reserve(Records.size());
 
   uint32_t SymOffset = 0;
   for (const CVSymbol &Sym : Records) {
     assert(Sym.kind() == SymbolKind::S_PUB32);
-    DeserializedPublics.push_back(
-        cantFail(SymbolDeserializer::deserializeAs<PublicSym32>(Sym)));
-    PublicsByAddr.emplace_back(&Sym, &DeserializedPublics.back());
+    PublicsByAddr.push_back(&Sym);
     SymOffsets.push_back(SymOffset);
     SymOffset += Sym.length();
   }
@@ -267,20 +278,12 @@ static std::vector<ulittle32_t> computeAddrMap(ArrayRef<CVSymbol> Records) {
   // Fill in the symbol offsets in the appropriate order.
   std::vector<ulittle32_t> AddrMap;
   AddrMap.reserve(Records.size());
-  for (auto &Sym : PublicsByAddr) {
-    ptrdiff_t Idx = std::distance(Records.data(), Sym.first);
+  for (const CVSymbol *Sym : PublicsByAddr) {
+    ptrdiff_t Idx = std::distance(Records.data(), Sym);
     assert(Idx >= 0 && size_t(Idx) < Records.size());
     AddrMap.push_back(ulittle32_t(SymOffsets[Idx]));
   }
   return AddrMap;
-}
-
-uint32_t GSIStreamBuilder::getPublicsStreamIndex() const {
-  return PSH->StreamIndex;
-}
-
-uint32_t GSIStreamBuilder::getGlobalsStreamIndex() const {
-  return GSH->StreamIndex;
 }
 
 void GSIStreamBuilder::addPublicSymbol(const PublicSym32 &Pub) {
@@ -366,7 +369,7 @@ Error GSIStreamBuilder::commit(const msf::MSFLayout &Layout,
   auto PS = WritableMappedBlockStream::createIndexedStream(
       Layout, Buffer, getPublicsStreamIndex(), Msf.getAllocator());
   auto PRS = WritableMappedBlockStream::createIndexedStream(
-      Layout, Buffer, getRecordStreamIdx(), Msf.getAllocator());
+      Layout, Buffer, getRecordStreamIndex(), Msf.getAllocator());
 
   if (auto EC = commitSymbolRecordStream(*PRS))
     return EC;

@@ -682,10 +682,14 @@ void ASTStmtReader::VisitParenListExpr(ParenListExpr *E) {
 
 void ASTStmtReader::VisitUnaryOperator(UnaryOperator *E) {
   VisitExpr(E);
+  bool hasFP_Features = Record.readInt();
+  assert(hasFP_Features == E->hasStoredFPFeatures());
   E->setSubExpr(Record.readSubExpr());
   E->setOpcode((UnaryOperator::Opcode)Record.readInt());
   E->setOperatorLoc(readSourceLocation());
   E->setCanOverflow(Record.readInt());
+  if (hasFP_Features)
+    E->setStoredFPFeatures(FPOptions(Record.readInt()));
 }
 
 void ASTStmtReader::VisitOffsetOfExpr(OffsetOfExpr *E) {
@@ -2308,6 +2312,7 @@ void ASTStmtReader::VisitOMPParallelDirective(OMPParallelDirective *D) {
   // The NumClauses field was read in ReadStmtFromStream.
   Record.skipInts(1);
   VisitOMPExecutableDirective(D);
+  D->setTaskReductionRefExpr(Record.readSubExpr());
   D->setHasCancel(Record.readInt());
 }
 
@@ -2317,6 +2322,7 @@ void ASTStmtReader::VisitOMPSimdDirective(OMPSimdDirective *D) {
 
 void ASTStmtReader::VisitOMPForDirective(OMPForDirective *D) {
   VisitOMPLoopDirective(D);
+  D->setTaskReductionRefExpr(Record.readSubExpr());
   D->setHasCancel(Record.readInt());
 }
 
@@ -2329,6 +2335,7 @@ void ASTStmtReader::VisitOMPSectionsDirective(OMPSectionsDirective *D) {
   // The NumClauses field was read in ReadStmtFromStream.
   Record.skipInts(1);
   VisitOMPExecutableDirective(D);
+  D->setTaskReductionRefExpr(Record.readSubExpr());
   D->setHasCancel(Record.readInt());
 }
 
@@ -2360,6 +2367,7 @@ void ASTStmtReader::VisitOMPCriticalDirective(OMPCriticalDirective *D) {
 
 void ASTStmtReader::VisitOMPParallelForDirective(OMPParallelForDirective *D) {
   VisitOMPLoopDirective(D);
+  D->setTaskReductionRefExpr(Record.readSubExpr());
   D->setHasCancel(Record.readInt());
 }
 
@@ -2374,6 +2382,7 @@ void ASTStmtReader::VisitOMPParallelMasterDirective(
   // The NumClauses field was read in ReadStmtFromStream.
   Record.skipInts(1);
   VisitOMPExecutableDirective(D);
+  D->setTaskReductionRefExpr(Record.readSubExpr());
 }
 
 void ASTStmtReader::VisitOMPParallelSectionsDirective(
@@ -2382,6 +2391,7 @@ void ASTStmtReader::VisitOMPParallelSectionsDirective(
   // The NumClauses field was read in ReadStmtFromStream.
   Record.skipInts(1);
   VisitOMPExecutableDirective(D);
+  D->setTaskReductionRefExpr(Record.readSubExpr());
   D->setHasCancel(Record.readInt());
 }
 
@@ -2489,11 +2499,14 @@ void ASTStmtReader::VisitOMPTargetParallelDirective(
   VisitStmt(D);
   Record.skipInts(1);
   VisitOMPExecutableDirective(D);
+  D->setTaskReductionRefExpr(Record.readSubExpr());
+  D->setHasCancel(Record.readBool());
 }
 
 void ASTStmtReader::VisitOMPTargetParallelForDirective(
     OMPTargetParallelForDirective *D) {
   VisitOMPLoopDirective(D);
+  D->setTaskReductionRefExpr(Record.readSubExpr());
   D->setHasCancel(Record.readInt());
 }
 
@@ -2563,6 +2576,7 @@ void ASTStmtReader::VisitOMPTargetUpdateDirective(OMPTargetUpdateDirective *D) {
 void ASTStmtReader::VisitOMPDistributeParallelForDirective(
     OMPDistributeParallelForDirective *D) {
   VisitOMPLoopDirective(D);
+  D->setTaskReductionRefExpr(Record.readSubExpr());
   D->setHasCancel(Record.readInt());
 }
 
@@ -2603,6 +2617,7 @@ void ASTStmtReader::VisitOMPTeamsDistributeParallelForSimdDirective(
 void ASTStmtReader::VisitOMPTeamsDistributeParallelForDirective(
     OMPTeamsDistributeParallelForDirective *D) {
   VisitOMPLoopDirective(D);
+  D->setTaskReductionRefExpr(Record.readSubExpr());
   D->setHasCancel(Record.readInt());
 }
 
@@ -2621,6 +2636,7 @@ void ASTStmtReader::VisitOMPTargetTeamsDistributeDirective(
 void ASTStmtReader::VisitOMPTargetTeamsDistributeParallelForDirective(
     OMPTargetTeamsDistributeParallelForDirective *D) {
   VisitOMPLoopDirective(D);
+  D->setTaskReductionRefExpr(Record.readSubExpr());
   D->setHasCancel(Record.readInt());
 }
 
@@ -2888,7 +2904,8 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
       break;
 
     case EXPR_UNARY_OPERATOR:
-      S = new (Context) UnaryOperator(Empty);
+      S = UnaryOperator::CreateEmpty(Context,
+                                     Record[ASTStmtReader::NumExprFields]);
       break;
 
     case EXPR_OFFSETOF:

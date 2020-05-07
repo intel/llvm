@@ -296,12 +296,21 @@ public:
   Attribute get(StringRef name) const;
   Attribute get(Identifier name) const;
 
+  /// Return the specified named attribute if present, None otherwise.
+  Optional<NamedAttribute> getNamed(StringRef name) const;
+  Optional<NamedAttribute> getNamed(Identifier name) const;
+
   /// Support range iteration.
   using iterator = llvm::ArrayRef<NamedAttribute>::iterator;
   iterator begin() const;
   iterator end() const;
   bool empty() const { return size() == 0; }
   size_t size() const;
+
+  /// Sorts the NamedAttributes in the array ordered by name as expected by
+  /// getWithSorted.
+  /// Requires: uniquely named attributes.
+  static void sort(SmallVectorImpl<NamedAttribute> &array);
 
   /// Methods for supporting type inquiry through isa, cast, and dyn_cast.
   static bool kindof(unsigned kind) {
@@ -694,7 +703,8 @@ public:
 
   /// Constructs a dense elements attribute from an array of element values.
   /// Each element attribute value is expected to be an element of 'type'.
-  /// 'type' must be a vector or tensor with static shape.
+  /// 'type' must be a vector or tensor with static shape. If the element of
+  /// `type` is non-integer/index/float it is assumed to be a string type.
   static DenseElementsAttr get(ShapedType type, ArrayRef<Attribute> values);
 
   /// Constructs a dense integer elements attribute from an array of integer
@@ -1471,26 +1481,26 @@ inline ::llvm::hash_code hash_value(Attribute arg) {
 }
 
 //===----------------------------------------------------------------------===//
-// NamedAttributeList
+// MutableDictionaryAttr
 //===----------------------------------------------------------------------===//
 
-/// A NamedAttributeList is a mutable wrapper around a DictionaryAttr. It
+/// A MutableDictionaryAttr is a mutable wrapper around a DictionaryAttr. It
 /// provides additional interfaces for adding, removing, replacing attributes
 /// within a DictionaryAttr.
 ///
 /// We assume there will be relatively few attributes on a given operation
 /// (maybe a dozen or so, but not hundreds or thousands) so we use linear
 /// searches for everything.
-class NamedAttributeList {
+class MutableDictionaryAttr {
 public:
-  NamedAttributeList(DictionaryAttr attrs = nullptr)
+  MutableDictionaryAttr(DictionaryAttr attrs = nullptr)
       : attrs((attrs && !attrs.empty()) ? attrs : nullptr) {}
-  NamedAttributeList(ArrayRef<NamedAttribute> attributes);
+  MutableDictionaryAttr(ArrayRef<NamedAttribute> attributes);
 
-  bool operator!=(const NamedAttributeList &other) const {
+  bool operator!=(const MutableDictionaryAttr &other) const {
     return !(*this == other);
   }
-  bool operator==(const NamedAttributeList &other) const {
+  bool operator==(const MutableDictionaryAttr &other) const {
     return attrs == other.attrs;
   }
 
@@ -1507,6 +1517,10 @@ public:
   /// Return the specified attribute if present, null otherwise.
   Attribute get(StringRef name) const;
   Attribute get(Identifier name) const;
+
+  /// Return the specified named attribute if present, None otherwise.
+  Optional<NamedAttribute> getNamed(StringRef name) const;
+  Optional<NamedAttribute> getNamed(Identifier name) const;
 
   /// If the an attribute exists with the specified name, change it to the new
   /// value.  Otherwise, add a new attribute with the specified name/value.

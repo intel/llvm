@@ -15,6 +15,7 @@
 
 #include "lldb/API/SBBroadcaster.h"
 #include "lldb/API/SBCommandInterpreter.h"
+#include "lldb/API/SBCommandInterpreterRunOptions.h"
 #include "lldb/API/SBCommandReturnObject.h"
 #include "lldb/API/SBError.h"
 #include "lldb/API/SBEvent.h"
@@ -1166,9 +1167,9 @@ void SBDebugger::RunCommandInterpreter(bool auto_handle_events,
 
   if (m_opaque_sp) {
     CommandInterpreterRunOptions options;
-
-    m_opaque_sp->GetCommandInterpreter().RunCommandInterpreter(
-        auto_handle_events, spawn_thread, options);
+    options.SetAutoHandleEvents(auto_handle_events);
+    options.SetSpawnThread(spawn_thread);
+    m_opaque_sp->GetCommandInterpreter().RunCommandInterpreter(options);
   }
 }
 
@@ -1186,13 +1187,33 @@ void SBDebugger::RunCommandInterpreter(bool auto_handle_events,
                      quit_requested, stopped_for_crash);
 
   if (m_opaque_sp) {
+    options.SetAutoHandleEvents(auto_handle_events);
+    options.SetSpawnThread(spawn_thread);
     CommandInterpreter &interp = m_opaque_sp->GetCommandInterpreter();
-    interp.RunCommandInterpreter(auto_handle_events, spawn_thread,
-                                 options.ref());
-    num_errors = interp.GetNumErrors();
-    quit_requested = interp.GetQuitRequested();
-    stopped_for_crash = interp.GetStoppedForCrash();
+    CommandInterpreterRunResult result =
+        interp.RunCommandInterpreter(options.ref());
+    num_errors = result.GetNumErrors();
+    quit_requested =
+        result.IsResult(lldb::eCommandInterpreterResultQuitRequested);
+    stopped_for_crash =
+        result.IsResult(lldb::eCommandInterpreterResultInferiorCrash);
   }
+}
+
+SBCommandInterpreterRunResult SBDebugger::RunCommandInterpreter(
+    const SBCommandInterpreterRunOptions &options) {
+  LLDB_RECORD_METHOD(lldb::SBCommandInterpreterRunResult, SBDebugger,
+                     RunCommandInterpreter,
+                     (const lldb::SBCommandInterpreterRunOptions &), options);
+
+  if (!m_opaque_sp)
+    return LLDB_RECORD_RESULT(SBCommandInterpreterRunResult());
+
+  CommandInterpreter &interp = m_opaque_sp->GetCommandInterpreter();
+  CommandInterpreterRunResult result =
+      interp.RunCommandInterpreter(options.ref());
+
+  return LLDB_RECORD_RESULT(SBCommandInterpreterRunResult(result));
 }
 
 SBError SBDebugger::RunREPL(lldb::LanguageType language,
@@ -1821,6 +1842,9 @@ template <> void RegisterMethods<SBDebugger>(Registry &R) {
                        (lldb::SBTypeNameSpecifier));
   LLDB_REGISTER_METHOD(bool, SBDebugger, EnableLog,
                        (const char *, const char **));
+  LLDB_REGISTER_METHOD(lldb::SBCommandInterpreterRunResult, SBDebugger,
+                       RunCommandInterpreter,
+                       (const lldb::SBCommandInterpreterRunOptions &));
 }
 
 } // namespace repro

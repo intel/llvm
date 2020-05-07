@@ -90,8 +90,10 @@ bool link(ArrayRef<const char *> args, bool canExitEarly, raw_ostream &stdoutOS,
 
   inputSections.clear();
   outputSections.clear();
+  archiveFiles.clear();
   binaryFiles.clear();
   bitcodeFiles.clear();
+  lazyObjFiles.clear();
   objectFiles.clear();
   sharedFiles.clear();
   backwardReferences.clear();
@@ -917,6 +919,7 @@ static void readConfigs(opt::InputArgList &args) {
   config->ltoCSProfileGenerate = args.hasArg(OPT_lto_cs_profile_generate);
   config->ltoCSProfileFile = args.getLastArgValue(OPT_lto_cs_profile_file);
   config->ltoDebugPassManager = args.hasArg(OPT_lto_debug_pass_manager);
+  config->ltoEmitAsm = args.hasArg(OPT_lto_emit_asm);
   config->ltoNewPassManager = args.hasArg(OPT_lto_new_pass_manager);
   config->ltoNewPmPasses = args.getLastArgValue(OPT_lto_newpm_passes);
   config->ltoWholeProgramVisibility =
@@ -953,6 +956,7 @@ static void readConfigs(opt::InputArgList &args) {
       args.hasFlag(OPT_print_icf_sections, OPT_no_print_icf_sections, false);
   config->printGcSections =
       args.hasFlag(OPT_print_gc_sections, OPT_no_print_gc_sections, false);
+  config->printArchiveStats = args.getLastArgValue(OPT_print_archive_stats);
   config->printSymbolOrder =
       args.getLastArgValue(OPT_print_symbol_order);
   config->rpath = getRpath(args);
@@ -963,7 +967,7 @@ static void readConfigs(opt::InputArgList &args) {
   config->searchPaths = args::getStrings(args, OPT_library_path);
   config->sectionStartMap = getSectionStartMap(args);
   config->shared = args.hasArg(OPT_shared);
-  config->singleRoRx = args.hasArg(OPT_no_rosegment);
+  config->singleRoRx = !args.hasFlag(OPT_rosegment, OPT_no_rosegment, true);
   config->soName = args.getLastArgValue(OPT_soname);
   config->sortSection = getSortSection(args);
   config->splitStackAdjustSize = args::getInteger(args, OPT_split_stack_adjust_size, 16384);
@@ -1949,13 +1953,10 @@ template <class ELFT> void LinkerDriver::link(opt::InputArgList &args) {
   // If -thinlto-index-only is given, we should create only "index
   // files" and not object files. Index file creation is already done
   // in addCombinedLTOObject, so we are done if that's the case.
-  if (config->thinLTOIndexOnly)
-    return;
-
-  // Likewise, --plugin-opt=emit-llvm is an option to make LTO create
-  // an output file in bitcode and exit, so that you can just get a
-  // combined bitcode file.
-  if (config->emitLLVM)
+  // Likewise, --plugin-opt=emit-llvm and --plugin-opt=emit-asm are the
+  // options to create output files in bitcode or assembly code
+  // repsectively. No object files are generated.
+  if (config->thinLTOIndexOnly || config->emitLLVM || config->ltoEmitAsm)
     return;
 
   // Apply symbol renames for -wrap.

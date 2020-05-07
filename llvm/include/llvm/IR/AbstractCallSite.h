@@ -141,6 +141,12 @@ public:
     assert(!CI.ParameterEncoding.empty() &&
            "Callback without parameter encoding!");
 
+    // If the use is actually in a constant cast expression which itself
+    // has only one use, we look through the constant cast expression.
+    if (auto *CE = dyn_cast<ConstantExpr>(U->getUser()))
+      if (CE->hasOneUse() && CE->isCast())
+        U = &*CE->use_begin();
+
     return (int)CB->getArgOperandNo(U) == CI.ParameterEncoding[0];
   }
 
@@ -201,16 +207,16 @@ public:
   }
 
   /// Return the pointer to function that is being called.
-  Value *getCalledValue() const {
+  Value *getCalledOperand() const {
     if (isDirectCall())
-      return CB->getCalledValue();
+      return CB->getCalledOperand();
     return CB->getArgOperand(getCallArgOperandNoForCallee());
   }
 
   /// Return the function being called if this is a direct call, otherwise
   /// return null (if it's an indirect call).
   Function *getCalledFunction() const {
-    Value *V = getCalledValue();
+    Value *V = getCalledOperand();
     return V ? dyn_cast<Function>(V->stripPointerCasts()) : nullptr;
   }
 };

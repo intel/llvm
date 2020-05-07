@@ -146,7 +146,7 @@ template parameter to the `Op` class.
 
 ### Operation documentation
 
-This includes both an one-line `summary` and a longer human-readable
+This includes both a one-line `summary` and a longer human-readable
 `description`. They will be used to drive automatic generation of dialect
 documentation. They need to be provided in the operation's definition body:
 
@@ -348,13 +348,14 @@ class. See [Constraints](#constraints) for more information.
 
 ### Operation interfaces
 
-[Operation interfaces](Interfaces.md#operation-interfaces) are a mechanism by
-which to opaquely call methods and access information on an *Op instance*,
-without knowing the exact operation type. Operation interfaces defined in C++
-can be accessed in the ODS framework via the `OpInterfaceTrait` class. Aside
-from using pre-existing interfaces in the C++ API, the ODS framework also
-provides a simplified mechanism for defining such interfaces; that removes much
-of the boilerplate necessary.
+[Operation interfaces](Interfaces.md#operation-interfaces) allow
+operations to expose method calls without the
+caller needing to know the exact operation type. Operation interfaces
+defined in C++ can be accessed in the ODS framework via the
+`OpInterfaceTrait` class. Aside from using pre-existing interfaces in
+the C++ API, the ODS framework also provides a simplified mechanism
+for defining such interfaces which removes much of the boilerplate
+necessary.
 
 Providing a definition of the `OpInterface` class will auto-generate the C++
 classes for the interface. An `OpInterface` includes a name, for the C++ class,
@@ -442,7 +443,7 @@ def MyInterface : OpInterface<"MyInterface"> {
     // Provide only a default definition of the method.
     // Note: `ConcreteOp` corresponds to the derived operation typename.
     InterfaceMethod<"/*insert doc here*/",
-      "unsigned", "getNumInputsAndOutputs", (ins), /*methodBody=*/[{}], [{
+      "unsigned", "getNumWithDefault", (ins), /*methodBody=*/[{}], [{
         ConcreteOp op = cast<ConcreteOp>(getOperation());
         return op.getNumInputs() + op.getNumOutputs();
     }]>,
@@ -455,6 +456,13 @@ def MyInterface : OpInterface<"MyInterface"> {
 // declaration but instead handled by the op interface trait directly.
 def OpWithInferTypeInterfaceOp : Op<...
     [DeclareOpInterfaceMethods<MyInterface>]> { ... }
+
+// Methods that have a default implementation do not have declarations
+// generated. If an operation wishes to override the default behavior, it can
+// explicitly specify the method that it wishes to override. This will force
+// the generation of a declaration for those methods.
+def OpWithOverrideInferTypeInterfaceOp : Op<...
+    [DeclareOpInterfaceMethods<MyInterface, ["getNumWithDefault"]>]> { ... }
 ```
 
 A verification method can also be specified on the `OpInterface` by setting
@@ -490,14 +498,14 @@ The following builders are generated:
 
 ```c++
 // All result-types/operands/attributes have one aggregate parameter.
-static void build(Builder *odsBuilder, OperationState &odsState,
+static void build(OpBuilder &odsBuilder, OperationState &odsState,
                   ArrayRef<Type> resultTypes,
                   ValueRange operands,
                   ArrayRef<NamedAttribute> attributes);
 
 // Each result-type/operand/attribute has a separate parameter. The parameters
 // for attributes are of mlir::Attribute types.
-static void build(Builder *odsBuilder, OperationState &odsState,
+static void build(OpBuilder &odsBuilder, OperationState &odsState,
                   Type i32_result, Type f32_result, ...,
                   Value i32_operand, Value f32_operand, ...,
                   IntegerAttr i32_attr, FloatAttr f32_attr, ...);
@@ -506,20 +514,20 @@ static void build(Builder *odsBuilder, OperationState &odsState,
 // for attributes are raw values unwrapped with mlir::Attribute instances.
 // (Note that this builder will not always be generated. See the following
 // explanation for more details.)
-static void build(Builder *odsBuilder, OperationState &odsState,
+static void build(OpBuilder &odsBuilder, OperationState &odsState,
                   Type i32_result, Type f32_result, ...,
                   Value i32_operand, Value f32_operand, ...,
                   APInt i32_attr, StringRef f32_attr, ...);
 
 // Each operand/attribute has a separate parameter but result type is aggregate.
-static void build(Builder *odsBuilder, OperationState &odsState,
+static void build(OpBuilder &odsBuilder, OperationState &odsState,
                   ArrayRef<Type> resultTypes,
                   Value i32_operand, Value f32_operand, ...,
                   IntegerAttr i32_attr, FloatAttr f32_attr, ...);
 
 // All operands/attributes have aggregate parameters.
 // Generated if InferTypeOpInterface interface is specified.
-static void build(Builder *odsBuilder, OperationState &odsState,
+static void build(OpBuilder &odsBuilder, OperationState &odsState,
                   ValueRange operands,
                   ArrayRef<NamedAttribute> attributes);
 
@@ -581,8 +589,8 @@ def MyOp : ... {
   ...
 
   let builders = [
-    OpBuilder<"Builder *builder, OperationState &state, float val = 0.5f", [{
-      state.addAttribute("attr", builder->getF32FloatAttr(val));
+    OpBuilder<"OpBuilder &builder, OperationState &state, float val = 0.5f", [{
+      state.addAttribute("attr", builder.getF32FloatAttr(val));
     }]>
   ];
 }
@@ -591,8 +599,8 @@ def MyOp : ... {
 The generated builder will look like:
 
 ```c++
-static void build(Builder *builder, OperationState &state, float val = 0.5f) {
-  state.addAttribute("attr", builder->getF32FloatAttr(val));
+static void build(OpBuilder &builder, OperationState &state, float val = 0.5f) {
+  state.addAttribute("attr", builder.getF32FloatAttr(val));
 }
 ```
 
@@ -863,7 +871,7 @@ significantly involve writing constraints. We have the `Constraint` class in
 
 An operation's constraint can cover different range; it may
 
-* Only concern a single attribute (e.g. being an 32-bit integer greater than 5),
+* Only concern a single attribute (e.g. being a 32-bit integer greater than 5),
 * Multiple operands and results (e.g., the 1st result's shape must be the same
   as the 1st operand), or
 * Intrinsic to the operation itself (e.g., having no side effect).
@@ -1039,13 +1047,13 @@ optionality, default values, etc.:
 
 *   `DefaultValuedAttr`: specifies the
     [default value](#attributes-with-default-values) for an attribute.
-*   `OptionalAttr`: specfies an attribute as [optional](#optional-attributes).
+*   `OptionalAttr`: specifies an attribute as [optional](#optional-attributes).
 *   `Confined`: adapts an attribute with
     [further constraints](#confining-attributes).
 
 ### Enum attributes
 
-Some attributes can only take values from an predefined enum, e.g., the
+Some attributes can only take values from a predefined enum, e.g., the
 comparison kind of a comparison op. To define such attributes, ODS provides
 several mechanisms: `StrEnumAttr`, `IntEnumAttr`, and `BitEnumAttr`.
 

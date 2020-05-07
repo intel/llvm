@@ -59,10 +59,7 @@ public:
 
 }
 
-static std::string getOutputPath(opt::InputArgList *Args,
-                                 const NewArchiveMember &FirstMember) {
-  if (auto *Arg = Args->getLastArg(OPT_out))
-    return Arg->getValue();
+static std::string getDefaultOutputPath(const NewArchiveMember &FirstMember) {
   SmallString<128> Val = StringRef(FirstMember.Buf->getBufferIdentifier());
   sys::path::replace_extension(Val, ".lib");
   return std::string(Val.str());
@@ -292,8 +289,9 @@ int llvm::libDriverMain(ArrayRef<const char *> ArgsArr) {
     return 0;
   }
 
-  // If no input files, silently do nothing to match lib.exe.
-  if (!Args.hasArgNoClaim(OPT_INPUT))
+  // If no input files and not told otherwise, silently do nothing to match
+  // lib.exe
+  if (!Args.hasArgNoClaim(OPT_INPUT) && !Args.hasArg(OPT_llvmlibempty))
     return 0;
 
   if (Args.hasArg(OPT_lst)) {
@@ -352,7 +350,15 @@ int llvm::libDriverMain(ArrayRef<const char *> ArgsArr) {
   }
 
   // Create an archive file.
-  std::string OutputPath = getOutputPath(&Args, Members[0]);
+  std::string OutputPath;
+  if (auto *Arg = Args.getLastArg(OPT_out)) {
+    OutputPath = Arg->getValue();
+  } else if (!Members.empty()) {
+    OutputPath = getDefaultOutputPath(Members[0]);
+  } else {
+    llvm::errs() << "no output path given, and cannot infer with no inputs\n";
+    return 1;
+  }
   // llvm-lib uses relative paths for both regular and thin archives, unlike
   // standard GNU ar, which only uses relative paths for thin archives and
   // basenames for regular archives.
