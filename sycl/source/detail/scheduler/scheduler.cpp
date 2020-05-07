@@ -187,7 +187,7 @@ void Scheduler::releaseHostAccessor(Requirement *Req) {
 
   BlockedCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
 
-  enqueueLeavesOfReq(Req);
+  enqueueLeavesOfReqUnlocked(Req);
 }
 
 void Scheduler::enqueueLeavesOfReq(const Requirement *const Req) {

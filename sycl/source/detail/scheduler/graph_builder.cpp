@@ -775,9 +775,9 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
   for (Command *AllocaCmd : AllocaCommands) {
     Visited.insert(AllocaCmd);
 
-    // Linked alloca cmd may be in users of this alloca. We're not going to
-    // visit it.
     for (Command *UserCmd : AllocaCmd->MUsers)
+      // Linked alloca cmd may be in users of this alloca. We're not going to
+      // visit it.
       if (UserCmd->getType() != Command::CommandType::ALLOCA)
         ToVisit.push(UserCmd);
       else
@@ -794,10 +794,13 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
   for (AllocaCommandBase *AllocaCmd : AllocaCommands) {
     AllocaCommandBase *LinkedCmd = AllocaCmd->MLinkedAllocaCmd;
 
-    if (LinkedCmd && Visited.count(LinkedCmd))
+    if (LinkedCmd) {
+      assert(Visited.count(LinkedCmd));
+
       for (DepDesc &Dep : AllocaCmd->MDeps)
         if (Dep.MDepCommand)
           Dep.MDepCommand->MUsers.erase(AllocaCmd);
+    }
   }
 
   // Traverse the graph using BFS
@@ -938,16 +941,22 @@ void Scheduler::GraphBuilder::connectDepEvent(
 
     DepCmd->addUser(ConnectCmd);
 
-    if (Dep.MDepRequirement) {
+    if (Dep.MDepRequirement)
       addConnectCmdWithReq(Cmd, DepEventContext, ConnectCmd, EmptyCmd, Dep);
-    } else /* if (!Dep.MDepRequirement) */ {
+    else {
       ConnectCmd->addDep(DepEvent);
       EmptyCmd->addDep(ConnectCmd->getEvent());
       ConnectCmd->addUser(EmptyCmd);
     }
-  } else // if (!DepEvent->getCommand())
+  } else
+    // if there is no command for the event (either the command is removed
+    // during cleanup or it's a user's event)
     ConnectCmd->addDep(DepEvent);
 
+  // FIXME graph builder shouldn't really enqueue commands. We're in the middle
+  // of enqueue process for some command Cmd. We're going to add a dependency
+  // for it. Need some nice and cute solution to enqueue ConnectCmd via standard
+  // scheduler/graph processor mechanisms.
   EnqueueResultT Res;
   bool Enqueued = Scheduler::GraphProcessor::enqueueCommand(ConnectCmd, Res);
   if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
@@ -963,16 +972,14 @@ void Scheduler::GraphBuilder::addConnectCmdWithReq(
     const DepDesc &Dep) {
   Requirement *Req = const_cast<Requirement *>(Dep.MDepRequirement);
 
-  Scheduler::GraphBuilder &GB = Scheduler::getInstance().MGraphBuilder;
-
-  MemObjRecord *Record = GB.getMemObjRecord(Req->MSYCLMemObj);
+  MemObjRecord *Record = getMemObjRecord(Req->MSYCLMemObj);
   Dep.MDepCommand->addUser(ConnectCmd);
 
   AllocaCommandBase *AllocaCmd =
-      GB.findAllocaForReq(Record, Req, DepEventContext);
+      findAllocaForReq(Record, Req, DepEventContext);
   assert(AllocaCmd && "There must be alloca for requirement!");
 
-  std::set<Command *> Deps = GB.findDepsForReq(Record, Req, DepEventContext);
+  std::set<Command *> Deps = findDepsForReq(Record, Req, DepEventContext);
   assert(Deps.size() && "There must be some deps");
 
   for (Command *ReqDepCmd : Deps) {

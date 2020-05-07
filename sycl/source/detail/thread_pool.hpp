@@ -26,7 +26,7 @@ class ThreadPool {
   void worker() {
     std::unique_lock<std::mutex> Lock(MJobQueueMutex);
 
-    for (;;) {
+    while (true) {
       MDoSmthOrStop.wait(
           Lock, [this]() { return !MJobQueue.empty() || MStop.load(); });
 

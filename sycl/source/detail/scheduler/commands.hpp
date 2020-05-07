@@ -251,6 +251,8 @@ public:
   bool MFirstInstance = false;
   /// Instance ID tracked for the command.
   uint64_t MInstanceID = 0;
+
+  bool MShouldCompleteEventIfPossible = true;
 };
 
 /// The empty command does nothing during enqueue. The task can be used to
@@ -270,6 +272,9 @@ public:
 private:
   cl_int enqueueImp() final;
 
+  // Employing deque here as it allows to push_back/emplace_back without
+  // invalidation of pointer or reference to stored data item regardless of
+  // iterator invalidation.
   std::deque<Requirement> MRequirements;
 };
 

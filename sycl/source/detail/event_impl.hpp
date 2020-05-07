@@ -168,10 +168,11 @@ private:
   std::unique_ptr<HostProfilingInfo> MHostProfilingInfo;
   void *MCommand = nullptr;
 
-  enum HostEventState : int { HES_NotReady = 0, HES_Ready };
+  enum HostEventState : int { HES_NotComplete = 0, HES_Complete };
 
-  // State of host event. Employed only for host events.
-  // Used values are listed in HostEventState enum.
+  // State of host event. Employed only for host events and event with no
+  // backend's representation (e.g. alloca). Used values are listed in
+  // HostEventState enum.
   std::atomic<int> MState;
 };
 

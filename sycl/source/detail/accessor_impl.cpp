@@ -27,6 +27,7 @@ void addHostAccessorAndWait(Requirement *Req) {
       detail::Scheduler::getInstance().addHostAccessor(Req);
   Event->wait(Event);
 }
-} // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+}
+}
+}
+
