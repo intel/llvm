@@ -76,7 +76,7 @@ XPTI_CALLBACK_API void tpCallback(uint16_t TraceType,
     // Lock while we print information
     std::lock_guard<std::mutex> Lock(GIOMutex);
     // Print the record information
-    if(TraceType & 0x1)
+    if (TraceType & 0x1)
       be = "END";
     else
       be = "BEGIN";

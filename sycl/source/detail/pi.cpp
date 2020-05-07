@@ -92,10 +92,9 @@ uint64_t emitFunctionBeginTrace(const char *FName) {
   if (xptiTraceEnabled()) {
     uint8_t StreamID = xptiRegisterStream(SYCL_PICALL_STREAM_NAME);
     CorrelationID = xptiGetUniqueId();
-    xptiNotifySubscribers(StreamID,
-                          (uint16_t)xpti::trace_point_type_t::function_begin,
-                          GPICallEvent, nullptr, CorrelationID,
-                          static_cast<const void *>(FName));
+    xptiNotifySubscribers(
+        StreamID, (uint16_t)xpti::trace_point_type_t::function_begin,
+        GPICallEvent, nullptr, CorrelationID, static_cast<const void *>(FName));
   }
 #endif
   return CorrelationID;
@@ -109,10 +108,9 @@ void emitFunctionEndTrace(uint64_t CorrelationID, const char *FName) {
     // two function calls incurs an additional overhead as the StreamID must
     // be looked up twice.
     uint8_t StreamID = xptiRegisterStream(SYCL_PICALL_STREAM_NAME);
-    xptiNotifySubscribers(StreamID,
-                          (uint16_t)xpti::trace_point_type_t::function_end,
-                          GPICallEvent, nullptr, CorrelationID,
-                          static_cast<const void *>(FName));
+    xptiNotifySubscribers(
+        StreamID, (uint16_t)xpti::trace_point_type_t::function_end,
+        GPICallEvent, nullptr, CorrelationID, static_cast<const void *>(FName));
   }
 #endif
 }
