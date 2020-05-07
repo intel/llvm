@@ -289,8 +289,9 @@ public:
 
 /// This class encapsulates the reduction variable/accessor,
 /// the reduction operator and an optional operator identity.
-template <typename T, class BinaryOperation, int Dims, access::mode AccMode,
-          access::placeholder IsPlaceholder>
+template <typename T, class BinaryOperation, int Dims, bool IsUSM,
+          access::mode AccMode = access::mode::read_write,
+          access::placeholder IsPlaceholder = access::placeholder::false_t>
 class reduction_impl {
 public:
   using reducer_type = reducer<T, BinaryOperation>;
@@ -308,14 +309,16 @@ public:
       IsReduOptForFastAtomicFetch<T, BinaryOperation>::value;
   static constexpr bool has_fast_reduce =
       IsReduOptForFastReduce<T, BinaryOperation>::value;
+  static constexpr bool is_usm = IsUSM;
+  static constexpr bool is_placeholder =
+      (IsPlaceholder == access::placeholder::true_t);
 
   // Only scalar (i.e. 0-dim and 1-dim with 1 element) reductions supported now.
-  // TODO: suport (Dims > 1) and placeholder accessors/reductions.
+  // TODO: suport (Dims > 1) accessors/reductions.
   // TODO: support true 1-Dimensional accessors/reductions (get_count() > 1).
   // (get_count() == 1) is checked in the constructor of reduction_impl.
-  static_assert(Dims <= 1 && IsPlaceholder == access::placeholder::false_t,
-                "Multi-dimensional and placeholder reductions"
-                " are not supported yet.");
+  static_assert(Dims <= 1,
+                "Multi-dimensional reductions are not supported yet.");
 
   /// Returns the statically known identity value.
   template <typename _T = T, class _BinaryOperation = BinaryOperation>
@@ -369,6 +372,52 @@ public:
            "Only scalar/1-element reductions are supported now.");
   }
 
+  /// Constructs reduction_impl when the identity value is statically known.
+  template <
+      typename _T = T, class _BinaryOperation = BinaryOperation,
+      enable_if_t<IsKnownIdentityOp<_T, _BinaryOperation>::value> * = nullptr>
+  reduction_impl(T &VarRef)
+      : MIdentity(getIdentity()),
+        MUSMBufPtr(
+            std::make_shared<buffer<T, buffer_dim>>(&VarRef, range<1>(1))),
+        MAcc(accessor_type(*MUSMBufPtr)), MUSMPointer(&VarRef) {}
+
+  /// Constructs reduction_impl when the identity value is statically known,
+  /// and user still passed the identity value.
+  template <
+      typename _T = T, class _BinaryOperation = BinaryOperation,
+      enable_if_t<IsKnownIdentityOp<_T, _BinaryOperation>::value> * = nullptr>
+  reduction_impl(T &VarRef, const T &Identity)
+      : MIdentity(Identity), MUSMBufPtr(std::make_shared<buffer<T, buffer_dim>>(
+                                 &VarRef, range<1>(1))),
+        MAcc(accessor_type(*MUSMBufPtr)), MUSMPointer(&VarRef) {
+    // For operations with known identity value the operator == is defined.
+    // It is sort of dilemma here: from one point of view - user may set
+    // such identity that would be enough for his data, i.e. identity=100 for
+    // min operation if user knows all data elements are less than 100.
+    // From another point of view - it is the source of unexpected errors,
+    // when the input data changes.
+    // Let's be strict for now and emit an error if identity is not proper.
+    assert(Identity == getIdentity() && "Unexpected Identity parameter value.");
+  }
+
+  /// Constructs reduction_impl when the identity value is unknown.
+  template <
+      typename _T = T, class _BinaryOperation = BinaryOperation,
+      enable_if_t<!IsKnownIdentityOp<_T, _BinaryOperation>::value> * = nullptr>
+  reduction_impl(T &VarRef, const T &Identity)
+      : MIdentity(Identity), MUSMBufPtr(std::make_shared<buffer<T, buffer_dim>>(
+                                 &VarRef, range<1>(1))),
+        MAcc(accessor_type(*MUSMBufPtr)), MUSMPointer(&VarRef) {}
+
+  /// Associates reduction accessor with the given handler and saves reduction
+  /// buffer so that it is alive until the command group finishes the work.
+  void associateWithHandler(handler &CGH) {
+    if (MUSMBufPtr != nullptr)
+      CGH.addReduction(MUSMBufPtr);
+    CGH.associateWithHandler(MAcc);
+  }
+
   accessor<T, buffer_dim, access::mode::discard_read_write,
            access::target::local>
   getReadWriteLocalAcc(size_t Size, handler &CGH) {
@@ -382,17 +431,30 @@ public:
     return accessor<T, buffer_dim, access::mode::read>(*MOutBufPtr, CGH);
   }
 
-  accessor_type getWriteAccForPartialReds(size_t Size, size_t RunNumber,
-                                          handler &CGH) {
-    if (Size == 1) {
-      if (RunNumber > 0)
-        CGH.associateWithHandler(this->MAcc);
+  template <access::placeholder _IsPlaceholder = IsPlaceholder>
+  enable_if_t<_IsPlaceholder == access::placeholder::false_t, accessor_type>
+  getWriteAccForPartialReds(size_t Size, handler &CGH) {
+    if (Size == 1)
       return this->MAcc;
-    }
+
     // Create a new output buffer and return an accessor to it.
     MOutBufPtr = std::make_shared<buffer<T, buffer_dim>>(range<1>(Size));
     CGH.addReduction(MOutBufPtr);
     return accessor_type(*MOutBufPtr, CGH);
+  }
+
+  template <access::placeholder _IsPlaceholder = IsPlaceholder>
+  enable_if_t<_IsPlaceholder == access::placeholder::true_t, accessor_type>
+  getWriteAccForPartialReds(size_t Size, handler &CGH) {
+    if (Size == 1)
+      return this->MAcc;
+
+    // Create a new output buffer and return an accessor to it.
+    MOutBufPtr = std::make_shared<buffer<T, buffer_dim>>(range<1>(Size));
+    accessor_type NewAcc(*MOutBufPtr);
+    CGH.addReduction(MOutBufPtr);
+    CGH.require(NewAcc);
+    return NewAcc;
   }
 
   /// Creates 1-element global buffer initialized with identity value and
@@ -408,14 +470,30 @@ public:
                     access::target::global_buffer>(*RWReduBuf, CGH);
   }
 
-  /// User's accessor to where the reduction must be written.
-  accessor_type MAcc;
+  accessor_type &getUserAccessor() { return MAcc; }
+
+  T *getUSMPointer() {
+    assert(is_usm && "Unexpected call of getUSMPointer().");
+    return MUSMPointer;
+  }
 
 private:
   /// Identity of the BinaryOperation.
   /// The result of BinaryOperation(X, MIdentity) is equal to X for any X.
   const T MIdentity;
+
+  /// Buffer that is automatically created for reduction USM variable passed
+  /// as a regular C++ type, not as sycl::accessor.
+  shared_ptr_class<buffer<T, buffer_dim>> MUSMBufPtr;
+
+  /// User's accessor to where the reduction must be written.
+  accessor_type MAcc;
+
   shared_ptr_class<buffer<T, buffer_dim>> MOutBufPtr;
+
+  /// USM pointer referencing the memory to where the result of the reduction
+  /// must be written. Applicable/used only for USM reductions.
+  T *MUSMPointer = nullptr;
 };
 
 /// These are the forward declaration for the classes that help to create
@@ -612,7 +690,7 @@ reduCGFunc(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
   bool IsUpdateOfUserAcc =
       Reduction::accessor_mode == access::mode::read_write && NWorkGroups == 1;
 
-  auto Out = Redu.getWriteAccForPartialReds(NWorkGroups, 0, CGH);
+  auto Out = Redu.getWriteAccForPartialReds(NWorkGroups, CGH);
   if (NWorkGroups * WGSize == NWorkItems) {
     // Efficient case: uniform work-groups.
     CGH.parallel_for<KernelName>(Range, [=](nd_item<Dims> NDIt) {
@@ -684,7 +762,7 @@ reduCGFunc(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
   size_t NumLocalElements = WGSize + (IsEfficientCase ? 0 : 1);
   auto LocalReds = Redu.getReadWriteLocalAcc(NumLocalElements, CGH);
 
-  auto Out = Redu.getWriteAccForPartialReds(NWorkGroups, 0, CGH);
+  auto Out = Redu.getWriteAccForPartialReds(NWorkGroups, CGH);
   auto ReduIdentity = Redu.getIdentity();
   if (IsEfficientCase) {
     // Efficient case: work-groups are uniform and WGSize is is power of two.
@@ -770,7 +848,7 @@ reduCGFunc(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
 template <typename KernelName, typename KernelType, int Dims, class Reduction>
 enable_if_t<Reduction::has_fast_reduce && !Reduction::has_fast_atomics>
 reduAuxCGFunc(handler &CGH, const nd_range<Dims> &Range, size_t NWorkItems,
-              size_t KernelRun, Reduction &Redu) {
+              Reduction &Redu) {
   size_t WGSize = Range.get_local_range().size();
   size_t NWorkGroups = Range.get_group_range().size();
 
@@ -781,7 +859,7 @@ reduAuxCGFunc(handler &CGH, const nd_range<Dims> &Range, size_t NWorkItems,
   // in the previous kernel. After that create new output buffer and
   // get accessor to it to store the new partial sum(s).
   auto In = Redu.getReadAccToPreviousPartialReds(CGH);
-  auto Out = Redu.getWriteAccForPartialReds(NWorkGroups, KernelRun, CGH);
+  auto Out = Redu.getWriteAccForPartialReds(NWorkGroups, CGH);
 
   if (NWorkGroups * WGSize == NWorkItems) {
     // Efficient case: uniform work groups.
@@ -827,7 +905,7 @@ reduAuxCGFunc(handler &CGH, const nd_range<Dims> &Range, size_t NWorkItems,
 template <typename KernelName, typename KernelType, int Dims, class Reduction>
 enable_if_t<!Reduction::has_fast_reduce && !Reduction::has_fast_atomics>
 reduAuxCGFunc(handler &CGH, const nd_range<Dims> &Range, size_t NWorkItems,
-              size_t KernelRun, Reduction &Redu) {
+              Reduction &Redu) {
   size_t WGSize = Range.get_local_range().size();
   size_t NWorkGroups = Range.get_group_range().size();
 
@@ -852,7 +930,7 @@ reduAuxCGFunc(handler &CGH, const nd_range<Dims> &Range, size_t NWorkItems,
   // and get accessor to it (or use reduction's accessor if the kernel
   // is the last one).
   auto In = Redu.getReadAccToPreviousPartialReds(CGH);
-  auto Out = Redu.getWriteAccForPartialReds(NWorkGroups, KernelRun, CGH);
+  auto Out = Redu.getWriteAccForPartialReds(NWorkGroups, CGH);
 
   if (IsEfficientCase) {
     // Efficient case: work-groups are fully loaded and work-group size
@@ -934,11 +1012,11 @@ reduAuxCGFunc(handler &CGH, const nd_range<Dims> &Range, size_t NWorkItems,
 /// binary operation that must be used in the reduction \param Combiner.
 template <typename T, class BinaryOperation, int Dims, access::mode AccMode,
           access::placeholder IsPH>
-detail::reduction_impl<T, BinaryOperation, Dims, AccMode, IsPH>
+detail::reduction_impl<T, BinaryOperation, Dims, false, AccMode, IsPH>
 reduction(accessor<T, Dims, AccMode, access::target::global_buffer, IsPH> &Acc,
           const T &Identity, BinaryOperation Combiner) {
   // The Combiner argument was needed only to define the BinaryOperation param.
-  return detail::reduction_impl<T, BinaryOperation, Dims, AccMode, IsPH>(
+  return detail::reduction_impl<T, BinaryOperation, Dims, false, AccMode, IsPH>(
       Acc, Identity);
 }
 
@@ -951,11 +1029,45 @@ template <typename T, class BinaryOperation, int Dims, access::mode AccMode,
           access::placeholder IsPH>
 detail::enable_if_t<
     detail::IsKnownIdentityOp<T, BinaryOperation>::value,
-    detail::reduction_impl<T, BinaryOperation, Dims, AccMode, IsPH>>
+    detail::reduction_impl<T, BinaryOperation, Dims, false, AccMode, IsPH>>
 reduction(accessor<T, Dims, AccMode, access::target::global_buffer, IsPH> &Acc,
           BinaryOperation Combiner) {
   // The Combiner argument was needed only to define the BinaryOperation param.
-  return detail::reduction_impl<T, BinaryOperation, Dims, AccMode, IsPH>(Acc);
+  return detail::reduction_impl<T, BinaryOperation, Dims, false, AccMode, IsPH>(
+      Acc);
+}
+
+/// Creates and returns an object implementing the reduction functionality.
+/// Accepts 3 arguments: the reference to the reduction variable to where
+/// the computed reduction must be stored \param VarRef, identity value
+/// \param Identity, and the binary operation that must be used
+/// in the reduction \param Combiner.
+template <typename T, class BinaryOperation>
+detail::reduction_impl<T, BinaryOperation, 0, true, access::mode::read_write,
+                       access::placeholder::true_t>
+reduction(T &VarRef, const T &Identity, BinaryOperation Combiner) {
+  // The Combiner argument was needed only to define the BinaryOperation param.
+  return detail::reduction_impl<T, BinaryOperation, 0, true,
+                                access::mode::read_write,
+                                access::placeholder::true_t>(VarRef, Identity);
+}
+
+/// Creates and returns an object implementing the reduction functionality.
+/// Accepts 3 arguments: the reference to the reduction variable to where
+/// the computed reduction must be stored \param VarRef, identity value
+/// \param Identity, and the binary operation that must be used
+/// in the reduction \param Combiner.
+/// The identity value is not passed to this version as it is statically known.
+template <typename T, class BinaryOperation>
+detail::enable_if_t<detail::IsKnownIdentityOp<T, BinaryOperation>::value,
+                    detail::reduction_impl<T, BinaryOperation, 0, true,
+                                           access::mode::read_write,
+                                           access::placeholder::true_t>>
+reduction(T &VarRef, BinaryOperation Combiner) {
+  // The Combiner argument was needed only to define the BinaryOperation param.
+  return detail::reduction_impl<T, BinaryOperation, 0, true,
+                                access::mode::read_write,
+                                access::placeholder::true_t>(VarRef);
 }
 
 } // namespace intel
