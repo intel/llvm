@@ -1203,24 +1203,26 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
     // the accessed array variables, our GEP may have been marked into
     // a so-called index group, an MDNode by itself.
     if (MDNode *IndexGroup = GEP->getMetadata("llvm.index.group")) {
-      // When where we work with embedded loops, it's natural that
+      SPIRVId AccessedArrayId = TransPointerOperand->getId();
+      unsigned NumOperands = IndexGroup->getNumOperands();
+      // When we're working with embedded loops, it's natural that
       // the outer loop's hints apply to all code contained within.
       // The inner loop's specific hints, however, should stay private
       // to the inner loop's scope.
       // Consequently, the following division of the index group metadata
       // nodes emerges:
+
       // 1) The metadata node has no operands. It will be directly referenced
       //    from within the optimization hint metadata.
+      if (NumOperands == 0)
+        IndexGroupArrayMap[IndexGroup] = AccessedArrayId;
       // 2) The metadata node has several operands. It serves to link an index
       //    group specific to some embedded loop with other index groups that
       //    mark the same array variable for the outer loop(s).
-      unsigned NumOperands = IndexGroup->getNumOperands();
-      if (NumOperands > 0)
-        // The index group for this particular "embedded loop depth" is always
-        // signalled by the last variable. We'll want to associate this loop's
-        // control parameters with this inner-loop-specific index group
-        IndexGroup = getMDOperandAsMDNode(IndexGroup, NumOperands - 1);
-      IndexGroupArrayMap[IndexGroup] = TransPointerOperand->getId();
+      for (unsigned I = 0; I < NumOperands; ++I) {
+        auto *ContainedIndexGroup = getMDOperandAsMDNode(IndexGroup, I);
+        IndexGroupArrayMap[ContainedIndexGroup] = AccessedArrayId;
+      }
     }
 
     return mapValue(V, BM->addPtrAccessChainInst(transType(GEP->getType()),
