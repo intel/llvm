@@ -315,6 +315,9 @@ public:
     detail::stableSerializeSpecConstRegistry(SpecConstRegistry, Dst);
   }
 
+  /// Tells whether a specialization constant has been set for this program.
+  bool hasSetSpecConstants() const { return !SpecConstRegistry.empty(); }
+
 private:
   // Deligating Constructor used in Implementation.
   program_impl(ContextImplPtr Context, pi_native_handle InteropProgram,

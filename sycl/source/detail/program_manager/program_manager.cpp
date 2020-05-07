@@ -15,6 +15,7 @@
 #include <CL/sycl/detail/util.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/exception.hpp>
+#include <CL/sycl/experimental/spec_constant.hpp>
 #include <CL/sycl/stl.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
@@ -928,31 +929,6 @@ void ProgramManager::dumpImage(const RTDeviceBinaryImage &Img,
   F.close();
 }
 
-DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
-    std::unique_ptr<char[]> &&DataPtr, size_t DataSize, OSModuleHandle M)
-    : RTDeviceBinaryImage(M) {
-  Data = std::move(DataPtr);
-  Bin = new pi_device_binary_struct();
-  Bin->Version = PI_DEVICE_BINARY_VERSION;
-  Bin->Kind = PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL;
-  Bin->DeviceTargetSpec = PI_DEVICE_BINARY_TARGET_UNKNOWN;
-  Bin->CompileOptions = "";
-  Bin->LinkOptions = "";
-  Bin->ManifestStart = nullptr;
-  Bin->ManifestEnd = nullptr;
-  Bin->BinaryStart = reinterpret_cast<unsigned char *>(Data.get());
-  Bin->BinaryEnd = Bin->BinaryStart + DataSize;
-  Bin->EntriesBegin = nullptr;
-  Bin->EntriesEnd = nullptr;
-  Bin->Format = pi::getBinaryImageFormat(Bin->BinaryStart, DataSize);
-  init(Bin);
-}
-
-DynRTDeviceBinaryImage::~DynRTDeviceBinaryImage() {
-  delete Bin;
-  Bin = nullptr;
-}
-
 void ProgramManager::flushSpecConstants(const program_impl &Prg,
                                         RT::PiProgram NativePrg,
                                         const RTDeviceBinaryImage *Img) {
@@ -960,6 +936,8 @@ void ProgramManager::flushSpecConstants(const program_impl &Prg,
     std::cerr << ">>> ProgramManager::flushSpecConstants(" << Prg.get()
               << ",...)\n";
   }
+  if (!Prg.hasSetSpecConstants())
+    return; // nothing to do
   pi::PiProgram PrgHandle = Prg.getHandleRef();
   // program_impl can't correspond to two different native programs
   assert(!NativePrg || !PrgHandle || (NativePrg == PrgHandle));
@@ -971,20 +949,20 @@ void ProgramManager::flushSpecConstants(const program_impl &Prg,
       ContextImplPtr Ctx = getSyclObjImpl(Prg.get_context());
       auto LockGuard = Ctx->getKernelProgramCache().acquireCachedPrograms();
       auto It = NativePrograms.find(NativePrg);
-      if (It == NativePrograms.end()) {
-        if (DbgProgMgr > 0)
-          std::cerr << ">>> WARNING: flushSpecConstants requested on a "
-                       "program w/o known binary image\n";
-        return; // program origin is unknown
-      }
+      if (It == NativePrograms.end())
+        throw sycl::experimental::spec_const_error(
+            "spec constant is set in a program w/o a binary image",
+            PI_INVALID_OPERATION);
       Img = It->second;
     }
     if (!Img->supportsSpecConstants()) {
       if (DbgProgMgr > 0)
         std::cerr << ">>> ProgramManager::flushSpecConstants: binary image "
                   << &Img->getRawData() << " doesn't support spec constants\n";
-      // this device binary image does not support runtime setting of
-      // specialization constants; compiler must have generated default values
+      // This device binary image does not support runtime setting of
+      // specialization constants; compiler must have generated default values.
+      // NOTE: Can't throw here, as it would always take place with AOT
+      //-compiled code. New Khronos 2020 spec should fix this inconsistency.
       return;
     }
   }

@@ -22,7 +22,7 @@ namespace detail {
 // Represents a specialization constant value in SYCL runtime.
 class spec_constant_impl {
 public:
-  spec_constant_impl() = default;
+  spec_constant_impl() : Size(0), Bytes{0} {};
 
   spec_constant_impl(size_t Size, const void *Val) { set(Size, Val); }
 
@@ -33,7 +33,7 @@ public:
   bool isSet() const { return Size != 0; }
 
 private:
-  size_t Size; // size of its value
+  size_t Size; // the size of the spec constant value
   // TODO invent more flexible approach to support values of arbitrary type:
   unsigned char Bytes[8]; // memory to hold the value bytes
 };

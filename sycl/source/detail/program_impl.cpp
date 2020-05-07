@@ -485,7 +485,7 @@ void program_impl::flush_spec_constants(const RTDeviceBinaryImage &Img,
 
   auto LockGuard = Ctx->getKernelProgramCache().acquireCachedPrograms();
 
-  for (SCItTy SCIt = SCRange.begin(); SCIt != SCRange.end(); SCIt++) {
+  for (SCItTy SCIt : SCRange) {
     const char *SCName = (*SCIt)->Name;
     auto SCEntry = SpecConstRegistry.find(SCName);
     if (SCEntry == SpecConstRegistry.end())
