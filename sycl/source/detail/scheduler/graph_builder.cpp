@@ -775,9 +775,13 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
   for (Command *AllocaCmd : AllocaCommands) {
     Visited.insert(AllocaCmd);
 
+    // Linked alloca cmd may be in users of this alloca. We're not going to
+    // visit it.
     for (Command *UserCmd : AllocaCmd->MUsers)
       if (UserCmd->getType() != Command::CommandType::ALLOCA)
         ToVisit.push(UserCmd);
+      else
+        Visited.insert(UserCmd);
 
     CmdsToDelete.push_back(AllocaCmd);
     // These commands will be deleted later, clear users now to avoid
@@ -785,12 +789,16 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
     AllocaCmd->MUsers.clear();
   }
 
-  // unchain from deps allocas, whose linked allocas are to be removed currently
-  for (AllocaCommandBase *AllocaCmd : AllocaCommands)
-    if (Visited.count(AllocaCmd->MLinkedAllocaCmd))
+  // Linked alloca's share dependencies. Unchain from deps linked alloca's.
+  // Any cmd of the alloca - linked_alloca may be used later on.
+  for (AllocaCommandBase *AllocaCmd : AllocaCommands) {
+    AllocaCommandBase *LinkedCmd = AllocaCmd->MLinkedAllocaCmd;
+
+    if (LinkedCmd && Visited.count(LinkedCmd))
       for (DepDesc &Dep : AllocaCmd->MDeps)
         if (Dep.MDepCommand)
           Dep.MDepCommand->MUsers.erase(AllocaCmd);
+  }
 
   // Traverse the graph using BFS
   while (!ToVisit.empty()) {

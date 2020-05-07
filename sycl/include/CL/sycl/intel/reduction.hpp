@@ -9,6 +9,7 @@
 #pragma once
 
 #include <CL/sycl/accessor.hpp>
+#include <CL/sycl/intel/group_algorithm.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -23,6 +24,25 @@ using cl::sycl::detail::is_geninteger32bit;
 using cl::sycl::detail::is_geninteger64bit;
 using cl::sycl::detail::is_geninteger8bit;
 using cl::sycl::detail::remove_AS;
+
+template <typename T, class BinaryOperation>
+using IsReduOptForFastAtomicFetch = detail::bool_constant<
+    (is_geninteger32bit<T>::value || is_geninteger64bit<T>::value) &&
+    (std::is_same<BinaryOperation, intel::plus<T>>::value ||
+     std::is_same<BinaryOperation, intel::minimum<T>>::value ||
+     std::is_same<BinaryOperation, intel::maximum<T>>::value ||
+     std::is_same<BinaryOperation, intel::bit_or<T>>::value ||
+     std::is_same<BinaryOperation, intel::bit_xor<T>>::value ||
+     std::is_same<BinaryOperation, intel::bit_and<T>>::value)>;
+
+template <typename T, class BinaryOperation>
+using IsReduOptForFastReduce = detail::bool_constant<
+    (is_geninteger32bit<T>::value || is_geninteger64bit<T>::value ||
+     std::is_same<T, half>::value || std::is_same<T, float>::value ||
+     std::is_same<T, double>::value) &&
+    (std::is_same<BinaryOperation, intel::plus<T>>::value ||
+     std::is_same<BinaryOperation, intel::minimum<T>>::value ||
+     std::is_same<BinaryOperation, intel::maximum<T>>::value)>;
 
 // Identity = 0
 template <typename T, class BinaryOperation>
@@ -278,9 +298,16 @@ public:
   using binary_operation = BinaryOperation;
   using accessor_type =
       accessor<T, Dims, AccMode, access::target::global_buffer, IsPlaceholder>;
+  using rw_accessor_type =
+      accessor<T, Dims, access::mode::read_write, access::target::global_buffer,
+               IsPlaceholder>;
   static constexpr access::mode accessor_mode = AccMode;
   static constexpr int accessor_dim = Dims;
   static constexpr int buffer_dim = (Dims == 0) ? 1 : Dims;
+  static constexpr bool has_fast_atomics =
+      IsReduOptForFastAtomicFetch<T, BinaryOperation>::value;
+  static constexpr bool has_fast_reduce =
+      IsReduOptForFastReduce<T, BinaryOperation>::value;
 
   // Only scalar (i.e. 0-dim and 1-dim with 1 element) reductions supported now.
   // TODO: suport (Dims > 1) and placeholder accessors/reductions.
@@ -367,6 +394,20 @@ public:
     CGH.addReduction(MOutBufPtr);
     return accessor_type(*MOutBufPtr, CGH);
   }
+
+  /// Creates 1-element global buffer initialized with identity value and
+  /// returns an accessor to that buffer.
+  accessor<T, Dims, access::mode::read_write, access::target::global_buffer>
+  getReadWriteScalarAcc(handler &CGH) const {
+    auto RWReduVal = std::make_shared<T>(MIdentity);
+    CGH.addReduction(RWReduVal);
+    auto RWReduBuf =
+        std::make_shared<buffer<T, 1>>(RWReduVal.get(), range<1>(1));
+    CGH.addReduction(RWReduBuf);
+    return accessor<T, Dims, access::mode::read_write,
+                    access::target::global_buffer>(*RWReduBuf, CGH);
+  }
+
   /// User's accessor to where the reduction must be written.
   accessor_type MAcc;
 
@@ -404,6 +445,213 @@ struct get_reduction_aux_2nd_kernel_name_t {
 };
 
 /// Implements a command group function that enqueues a kernel that calls
+/// user's lambda function KernelFunc and also does one iteration of reduction
+/// of elements computed in user's lambda function.
+/// This version uses intel::reduce() algorithm to reduce elements in each
+/// of work-groups, then it calls fast sycl atomic operations to update
+/// user's reduction variable.
+///
+/// Briefly: calls user's lambda, intel::reduce() + atomic, INT + ADD/MIN/MAX.
+template <typename KernelName, typename KernelType, int Dims, class Reduction>
+enable_if_t<Reduction::has_fast_reduce && Reduction::has_fast_atomics>
+reduCGFunc(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
+           Reduction &Redu, typename Reduction::rw_accessor_type &Out) {
+
+  size_t NWorkItems = Range.get_global_range().size();
+  size_t WGSize = Range.get_local_range().size();
+  size_t NWorkGroups = Range.get_group_range().size();
+
+  if (NWorkGroups * WGSize == NWorkItems) {
+    // Efficient case: all work-groups are uniform.
+    CGH.parallel_for<KernelName>(Range, [=](nd_item<Dims> NDIt) {
+      // Call user's function. Reducer.MValue gets initialized there.
+      typename Reduction::reducer_type Reducer;
+      KernelFunc(NDIt, Reducer);
+
+      typename Reduction::binary_operation BOp;
+      Reducer.MValue = intel::reduce(NDIt.get_group(), Reducer.MValue, BOp);
+      if (NDIt.get_local_linear_id() == 0)
+        Reducer.atomic_combine(Out.get_pointer().get());
+    });
+  } else {
+    // Inefficient case: non-uniform work groups.
+    using AuxName =
+        typename get_reduction_main_2nd_kernel_name_t<KernelName,
+                                                      KernelType>::name;
+    CGH.parallel_for<AuxName>(Range, [=](nd_item<Dims> NDIt) {
+      // Call user's functions. Reducer.MValue gets initialized there.
+      typename Reduction::reducer_type Reducer;
+      KernelFunc(NDIt, Reducer);
+
+      typename Reduction::binary_operation BOp;
+      size_t GID = NDIt.get_global_linear_id();
+      auto Val = (GID < NWorkItems) ? Reducer.MValue : Reducer.getIdentity();
+      Reducer.MValue = intel::reduce(NDIt.get_group(), Val, BOp);
+      if (NDIt.get_local_linear_id() == 0)
+        Reducer.atomic_combine(Out.get_pointer().get());
+    });
+  }
+}
+
+/// Implements a command group function that enqueues a kernel that calls
+/// user's lambda function KernelFunc and also does one iteration of reduction
+/// of elements computed in user's lambda function.
+/// This version uses tree-reduction algorithm to reduce elements in each
+/// of work-groups, then it calls fast sycl atomic operations to update
+/// user's reduction variable.
+///
+/// Briefly: calls user's lambda, tree-reduction + atomic, INT + AND/OR/XOR.
+template <typename KernelName, typename KernelType, int Dims, class Reduction>
+enable_if_t<!Reduction::has_fast_reduce && Reduction::has_fast_atomics>
+reduCGFunc(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
+           Reduction &Redu, typename Reduction::rw_accessor_type &Out) {
+
+  size_t NWorkItems = Range.get_global_range().size();
+  size_t WGSize = Range.get_local_range().size();
+  size_t NWorkGroups = Range.get_group_range().size();
+
+  // Use local memory to reduce elements in work-groups into zero-th element.
+  // If WGSize is not power of two, then WGSize+1 elements are allocated.
+  // The additional last element is used to catch reduce elements that could
+  // otherwise be lost in the tree-reduction algorithm used in the kernel.
+  bool HasNonUniformWG = (NWorkGroups * WGSize - NWorkItems) != 0;
+  bool IsEfficientCase = !HasNonUniformWG && (WGSize & (WGSize - 1)) == 0;
+  size_t NLocalElements = WGSize + (IsEfficientCase ? 0 : 1);
+  auto LocalReds = Redu.getReadWriteLocalAcc(NLocalElements, CGH);
+
+  if (IsEfficientCase) {
+    // Efficient case: uniform work-groups and WGSize is power of two.
+    CGH.parallel_for<KernelName>(Range, [=](nd_item<Dims> NDIt) {
+      // Call user's functions. Reducer.MValue gets initialized there.
+      typename Reduction::reducer_type Reducer;
+      KernelFunc(NDIt, Reducer);
+
+      size_t LID = NDIt.get_local_linear_id();
+      // Copy the element to local memory to prepare it for tree-reduction.
+      LocalReds[LID] = Reducer.MValue;
+      NDIt.barrier();
+
+      // Tree-reduction: reduce the local array LocalReds[:] to LocalReds[0].
+      typename Reduction::binary_operation BOp;
+      size_t WGSize = NDIt.get_local_range().size();
+      for (size_t CurStep = WGSize >> 1; CurStep > 0; CurStep >>= 1) {
+        if (LID < CurStep)
+          LocalReds[LID] = BOp(LocalReds[LID], LocalReds[LID + CurStep]);
+        NDIt.barrier();
+      }
+
+      if (LID == 0) {
+        Reducer.MValue = LocalReds[0];
+        Reducer.atomic_combine(Out.get_pointer().get());
+      }
+    });
+  } else {
+    // Inefficient case: non-uniform work-groups or WGSize is not power of two.
+    // These two inefficient cases are handled by one kernel, which
+    // can be split later into two separate kernels, if there are users who
+    // really need more efficient code for them.
+    using AuxName =
+        typename get_reduction_main_2nd_kernel_name_t<KernelName,
+                                                      KernelType>::name;
+    CGH.parallel_for<AuxName>(Range, [=](nd_item<Dims> NDIt) {
+      // Call user's functions. Reducer.MValue gets initialized there.
+      typename Reduction::reducer_type Reducer;
+      KernelFunc(NDIt, Reducer);
+
+      size_t WGSize = NDIt.get_local_range().size();
+      size_t LID = NDIt.get_local_linear_id();
+      size_t GID = NDIt.get_global_linear_id();
+      // Copy the element to local memory to prepare it for tree-reduction.
+      auto ReduIdentity = Reducer.getIdentity();
+      LocalReds[LID] = (GID < NWorkItems) ? Reducer.MValue : ReduIdentity;
+      LocalReds[WGSize] = ReduIdentity;
+      NDIt.barrier();
+
+      // Tree-reduction: reduce the local array LocalReds[:] to LocalReds[0].
+      // LocalReds[WGSize] accumulates last/odd elements when the step
+      // of tree-reduction loop is not even.
+      typename Reduction::binary_operation BOp;
+      size_t PrevStep = WGSize;
+      for (size_t CurStep = PrevStep >> 1; CurStep > 0; CurStep >>= 1) {
+        if (LID < CurStep)
+          LocalReds[LID] = BOp(LocalReds[LID], LocalReds[LID + CurStep]);
+        else if (LID == CurStep && (PrevStep & 0x1))
+          LocalReds[WGSize] = BOp(LocalReds[WGSize], LocalReds[PrevStep - 1]);
+        NDIt.barrier();
+        PrevStep = CurStep;
+      }
+
+      if (LID == 0) {
+        Reducer.MValue = BOp(LocalReds[0], LocalReds[WGSize]);
+        Reducer.atomic_combine(Out.get_pointer().get());
+      }
+    });
+  }
+}
+
+/// Implements a command group function that enqueues a kernel that
+/// calls user's lambda function and does one iteration of reduction
+/// of elements in each of work-groups.
+/// This version uses intel::reduce() algorithm to reduce elements in each
+/// of work-groups. At the end of each work-groups the partial sum is written
+/// to a global buffer.
+///
+/// Briefly: user's lambda, intel:reduce(), FP + ADD/MIN/MAX.
+template <typename KernelName, typename KernelType, int Dims, class Reduction>
+enable_if_t<Reduction::has_fast_reduce && !Reduction::has_fast_atomics>
+reduCGFunc(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
+           Reduction &Redu) {
+
+  size_t NWorkItems = Range.get_global_range().size();
+  size_t WGSize = Range.get_local_range().size();
+  size_t NWorkGroups = Range.get_group_range().size();
+
+  // This additional check is needed for 'read_write' accessor case only.
+  // It does not slow-down the kernel writing to 'discard_write' accessor as
+  // the condition seems to be resolved at compile time for 'discard_write'.
+  bool IsUpdateOfUserAcc =
+      Reduction::accessor_mode == access::mode::read_write && NWorkGroups == 1;
+
+  auto Out = Redu.getWriteAccForPartialReds(NWorkGroups, 0, CGH);
+  if (NWorkGroups * WGSize == NWorkItems) {
+    // Efficient case: uniform work-groups.
+    CGH.parallel_for<KernelName>(Range, [=](nd_item<Dims> NDIt) {
+      // Call user's functions. Reducer.MValue gets initialized there.
+      typename Reduction::reducer_type Reducer;
+      KernelFunc(NDIt, Reducer);
+
+      // Compute the partial sum/reduction for the work-group.
+      typename Reduction::binary_operation BOp;
+      size_t WGID = NDIt.get_group_linear_id();
+      auto V = intel::reduce(NDIt.get_group(), Reducer.MValue, BOp);
+      if (NDIt.get_local_linear_id() == 0)
+        Out.get_pointer().get()[WGID] =
+            IsUpdateOfUserAcc ? BOp(*(Out.get_pointer()), V) : V;
+    });
+  } else {
+    // Inefficient case: non-uniform work-group require additional checks.
+    using AuxName =
+        typename get_reduction_main_2nd_kernel_name_t<KernelName,
+                                                      KernelType>::name;
+    CGH.parallel_for<AuxName>(Range, [=](nd_item<Dims> NDIt) {
+      // Call user's functions. Reducer.MValue gets initialized there.
+      typename Reduction::reducer_type Reducer;
+      KernelFunc(NDIt, Reducer);
+
+      // Compute the partial sum/reduction for the work-group.
+      typename Reduction::binary_operation BOp;
+      size_t GID = NDIt.get_global_linear_id();
+      size_t WGID = NDIt.get_group_linear_id();
+      auto V = (GID < NWorkItems) ? Reducer.MValue : Reducer.getIdentity();
+      V = intel::reduce(NDIt.get_group(), V, BOp);
+      if (NDIt.get_local_linear_id() == 0)
+        Out.get_pointer().get()[WGID] =
+            IsUpdateOfUserAcc ? BOp(*(Out.get_pointer()), V) : V;
+    });
+  }
+}
+
+/// Implements a command group function that enqueues a kernel that calls
 /// user's lambda function \param KernelFunc and does one iteration of
 /// reduction of elements in each of work-groups.
 /// This version uses tree-reduction algorithm to reduce elements in each
@@ -412,8 +660,9 @@ struct get_reduction_aux_2nd_kernel_name_t {
 ///
 /// Briefly: user's lambda, tree-reduction, CUSTOM types/ops.
 template <typename KernelName, typename KernelType, int Dims, class Reduction>
-void reduCGFunc(handler &CGH, KernelType KernelFunc,
-                const nd_range<Dims> &Range, Reduction &Redu) {
+enable_if_t<!Reduction::has_fast_reduce && !Reduction::has_fast_atomics>
+reduCGFunc(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
+           Reduction &Redu) {
 
   size_t NWorkItems = Range.get_global_range().size();
   size_t WGSize = Range.get_local_range().size();
@@ -422,7 +671,7 @@ void reduCGFunc(handler &CGH, KernelType KernelFunc,
   // The last work-group may be not fully loaded with work, or the work group
   // size may be not power of two. Those two cases considered inefficient
   // as they require additional code and checks in the kernel.
-  bool HasNonUniformWG = (NWorkGroups * WGSize - NWorkItems) != 0;
+  bool HasNonUniformWG = NWorkGroups * WGSize != NWorkItems;
   bool IsEfficientCase = !HasNonUniformWG && ((WGSize & (WGSize - 1)) == 0);
 
   bool IsUpdateOfUserAcc =
@@ -513,14 +762,72 @@ void reduCGFunc(handler &CGH, KernelType KernelFunc,
 
 /// Implements a command group function that enqueues a kernel that does one
 /// iteration of reduction of elements in each of work-groups.
+/// This version uses intel::reduce() algorithm to reduce elements in each
+/// of work-groups. At the end of each work-groups the partial sum is written
+/// to a global buffer.
+///
+/// Briefly: aux kernel, intel:reduce(), reproducible results,FP + ADD/MIN/MAX
+template <typename KernelName, typename KernelType, int Dims, class Reduction>
+enable_if_t<Reduction::has_fast_reduce && !Reduction::has_fast_atomics>
+reduAuxCGFunc(handler &CGH, const nd_range<Dims> &Range, size_t NWorkItems,
+              size_t KernelRun, Reduction &Redu) {
+  size_t WGSize = Range.get_local_range().size();
+  size_t NWorkGroups = Range.get_group_range().size();
+
+  bool IsUpdateOfUserAcc =
+      Reduction::accessor_mode == access::mode::read_write && NWorkGroups == 1;
+
+  // Get read accessor to the buffer that was used as output
+  // in the previous kernel. After that create new output buffer and
+  // get accessor to it to store the new partial sum(s).
+  auto In = Redu.getReadAccToPreviousPartialReds(CGH);
+  auto Out = Redu.getWriteAccForPartialReds(NWorkGroups, KernelRun, CGH);
+
+  if (NWorkGroups * WGSize == NWorkItems) {
+    // Efficient case: uniform work groups.
+    using AuxName =
+        typename get_reduction_aux_1st_kernel_name_t<KernelName,
+                                                     KernelType>::name;
+    CGH.parallel_for<AuxName>(Range, [=](nd_item<Dims> NDIt) {
+      typename Reduction::binary_operation BOp;
+      size_t WGID = NDIt.get_group_linear_id();
+      size_t GID = NDIt.get_global_linear_id();
+      auto V = intel::reduce(NDIt.get_group(), In[GID], BOp);
+      if (NDIt.get_local_linear_id() == 0)
+        Out.get_pointer().get()[WGID] =
+            IsUpdateOfUserAcc ? BOp(*(Out.get_pointer()), V) : V;
+    });
+  } else {
+    // Inefficient case: non-uniform work-groups require additional checks.
+    using AuxName =
+        typename get_reduction_aux_2nd_kernel_name_t<KernelName,
+                                                     KernelType>::name;
+    CGH.parallel_for<AuxName>(Range, [=](nd_item<Dims> NDIt) {
+      typename Reduction::binary_operation BOp;
+      size_t WGID = NDIt.get_group_linear_id();
+      size_t GID = NDIt.get_global_linear_id();
+      typename Reduction::reducer_type Reducer;
+      auto V =
+          (GID < NWorkItems) ? In[GID] : Reduction::reducer_type::getIdentity();
+      V = intel::reduce(NDIt.get_group(), V, BOp);
+      if (NDIt.get_local_linear_id() == 0)
+        Out.get_pointer().get()[WGID] =
+            IsUpdateOfUserAcc ? BOp(*(Out.get_pointer()), V) : V;
+    });
+  }
+}
+
+/// Implements a command group function that enqueues a kernel that does one
+/// iteration of reduction of elements in each of work-groups.
 /// This version uses tree-reduction algorithm to reduce elements in each
 /// of work-groups. At the end of each work-group the partial sum is written
 /// to a global buffer.
 ///
 /// Briefly: aux kernel, tree-reduction, CUSTOM types/ops.
 template <typename KernelName, typename KernelType, int Dims, class Reduction>
-void reduAuxCGFunc(handler &CGH, const nd_range<Dims> &Range, size_t NWorkItems,
-                   size_t KernelRun, Reduction &Redu) {
+enable_if_t<!Reduction::has_fast_reduce && !Reduction::has_fast_atomics>
+reduAuxCGFunc(handler &CGH, const nd_range<Dims> &Range, size_t NWorkItems,
+              size_t KernelRun, Reduction &Redu) {
   size_t WGSize = Range.get_local_range().size();
   size_t NWorkGroups = Range.get_group_range().size();
 

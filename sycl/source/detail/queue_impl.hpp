@@ -424,8 +424,7 @@ private:
   bool MSupportOOO = true;
 
   // Thread pool for host task and event callbacks execution.
-  // The thread pool is instantiated upon the very first call to
-  // getHostTaskAndEventCallbackThreadPool
+  // The thread pool is instantiated upon the very first call to getThreadPool()
   std::unique_ptr<ThreadPool> MHostTaskThreadPool;
 };
 

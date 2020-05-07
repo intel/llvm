@@ -1,9 +1,10 @@
-// RUN: %clangxx -fsycl -fsycl-device-code-split=per_source -I %S/Inputs -o %t.out %s %S/Inputs/split-per-source-second-file.cpp
+// UNSUPPORTED: cuda
+// CUDA does not support device code splitting.
+//
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsycl-device-code-split=per_source -I %S/Inputs -o %t.out %s %S/Inputs/split-per-source-second-file.cpp
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
-
-// XFAIL: cuda
 
 #include "Inputs/split-per-source.h"
 
