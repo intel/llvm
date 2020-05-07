@@ -46,8 +46,7 @@ protected:
     RecordProperty(platform_count_key, platform_count);
 
     if (platform_count == 0u) {
-      std::cout
-          << "WARNING: piPlatformsGet does not find any PI platforms.\n";
+      std::cout << "WARNING: piPlatformsGet does not find any PI platforms.\n";
 
       // Do not call into OpenCL below as a platform count of 0 might fail with
       // OpenCL implementations if the platforms pointer is not `nullptr`.
@@ -64,9 +63,8 @@ protected:
 
 static std::vector<detail::plugin> Plugins = detail::pi::initialize();
 
-INSTANTIATE_TEST_CASE_P(PlatformTestImpl,
-                        PlatformTest,
-                        testing::ValuesIn(Plugins),); 
+INSTANTIATE_TEST_CASE_P(PlatformTestImpl, PlatformTest,
+                        testing::ValuesIn(Plugins), );
 
 TEST_P(PlatformTest, piPlatformsGet) {
   // The PlatformTest::SetUp method is called to prepare for this test case

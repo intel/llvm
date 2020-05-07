@@ -10,11 +10,11 @@
 
 #include <cuda.h>
 
+#include "test_get_plugin.hpp"
 #include <CL/sycl.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <detail/plugin.hpp>
 #include <pi_cuda.hpp>
-#include "test_get_plugin.hpp"
 
 using namespace cl::sycl;
 
@@ -80,10 +80,9 @@ TEST_F(CudaCommandsTest, PIEnqueueReadBufferBlocking) {
                 context_, PI_MEM_FLAGS_ACCESS_RW, bytes, nullptr, &memObj)),
             PI_SUCCESS);
 
-  ASSERT_EQ(
-      (plugin.call_nocheck<detail::PiApiKind::piEnqueueMemBufferWrite>(
-          queue_, memObj, true, 0, bytes, data, 0, nullptr, nullptr)),
-      PI_SUCCESS);
+  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piEnqueueMemBufferWrite>(
+                queue_, memObj, true, 0, bytes, data, 0, nullptr, nullptr)),
+            PI_SUCCESS);
 
   ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piEnqueueMemBufferRead>(
                 queue_, memObj, true, 0, bytes, output, 0, nullptr, nullptr)),
@@ -111,10 +110,9 @@ TEST_F(CudaCommandsTest, PIEnqueueReadBufferNonBlocking) {
             PI_SUCCESS);
 
   pi_event cpIn, cpOut;
-  ASSERT_EQ(
-      (plugin.call_nocheck<detail::PiApiKind::piEnqueueMemBufferWrite>(
-          queue_, memObj, false, 0, bytes, data, 0, nullptr, &cpIn)),
-      PI_SUCCESS);
+  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piEnqueueMemBufferWrite>(
+                queue_, memObj, false, 0, bytes, data, 0, nullptr, &cpIn)),
+            PI_SUCCESS);
   ASSERT_NE(cpIn, nullptr);
 
   ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piEnqueueMemBufferRead>(
@@ -122,9 +120,8 @@ TEST_F(CudaCommandsTest, PIEnqueueReadBufferNonBlocking) {
             PI_SUCCESS);
   ASSERT_NE(cpOut, nullptr);
 
-  ASSERT_EQ(
-      (plugin.call_nocheck<detail::PiApiKind::piEventsWait>(1, &cpOut)),
-      PI_SUCCESS);
+  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piEventsWait>(1, &cpOut)),
+            PI_SUCCESS);
 
   bool isSame =
       std::equal(std::begin(output), std::end(output), std::begin(data));

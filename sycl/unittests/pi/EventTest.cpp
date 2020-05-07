@@ -7,8 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "CL/sycl/detail/pi.hpp"
-#include <detail/plugin.hpp>
 #include <atomic>
+#include <detail/plugin.hpp>
 #include <gtest/gtest.h>
 #include <thread>
 
@@ -25,8 +25,7 @@ protected:
 
   EventTest()
       : _context{nullptr}, _queue{nullptr}, _device{nullptr},
-        _result{PI_INVALID_VALUE} {
-  }
+        _result{PI_INVALID_VALUE} {}
 
   ~EventTest() override = default;
 
@@ -65,21 +64,18 @@ protected:
 
     detail::plugin plugin = GetParam();
 
-    ASSERT_EQ(
-        (plugin.call_nocheck<detail::PiApiKind::piQueueRelease>(_queue)),
-        PI_SUCCESS);
-
-    ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piContextRelease>(
-                  _context)),
+    ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piQueueRelease>(_queue)),
               PI_SUCCESS);
+
+    ASSERT_EQ(
+        (plugin.call_nocheck<detail::PiApiKind::piContextRelease>(_context)),
+        PI_SUCCESS);
   }
 };
 
 static std::vector<detail::plugin> Plugins = detail::pi::initialize();
 
-INSTANTIATE_TEST_CASE_P(EventTestImpl,
-                        EventTest,
-                        testing::ValuesIn(Plugins),); 
+INSTANTIATE_TEST_CASE_P(EventTestImpl, EventTest, testing::ValuesIn(Plugins), );
 
 // TODO: need more negative tests to show errors being reported when expected
 // (invalid arguments etc).
@@ -89,9 +85,9 @@ TEST_P(EventTest, PICreateEvent) {
 
   detail::plugin plugin = GetParam();
 
-  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piEventCreate>(_context,
-                                                                       &foo)),
-            PI_SUCCESS);
+  ASSERT_EQ(
+      (plugin.call_nocheck<detail::PiApiKind::piEventCreate>(_context, &foo)),
+      PI_SUCCESS);
   ASSERT_NE(foo, nullptr);
 
   EXPECT_EQ((plugin.call_nocheck<detail::PiApiKind::piEventRelease>(foo)),
@@ -131,8 +127,8 @@ TEST_P(EventTest, piEventSetCallback) {
   // gate event lets us register callbacks before letting the enqueued work be
   // executed.
   pi_event gateEvent;
-  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piEventCreate>(
-                _context, &gateEvent)),
+  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piEventCreate>(_context,
+                                                                   &gateEvent)),
             PI_SUCCESS);
 
   constexpr const size_t dataCount = 1000u;
@@ -146,11 +142,10 @@ TEST_P(EventTest, piEventSetCallback) {
       PI_SUCCESS);
 
   pi_event syncEvent;
-  ASSERT_EQ(
-      (plugin.call_nocheck<detail::PiApiKind::piEnqueueMemBufferWrite>(
-          _queue, memObj, false, 0, size_in_bytes, data.data(), 1, &gateEvent,
-          &syncEvent)),
-      PI_SUCCESS);
+  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piEnqueueMemBufferWrite>(
+                _queue, memObj, false, 0, size_in_bytes, data.data(), 1,
+                &gateEvent, &syncEvent)),
+            PI_SUCCESS);
 
   for (size_t i = 0; i < event_type_count; i++) {
     user_data[i].event_type = event_callback_types[i];
@@ -174,12 +169,10 @@ TEST_P(EventTest, piEventSetCallback) {
     EXPECT_TRUE(triggered_flag[k]);
   }
 
-  ASSERT_EQ(
-      (plugin.call_nocheck<detail::PiApiKind::piEventRelease>(gateEvent)),
-      PI_SUCCESS);
-  ASSERT_EQ(
-      (plugin.call_nocheck<detail::PiApiKind::piEventRelease>(syncEvent)),
-      PI_SUCCESS);
+  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piEventRelease>(gateEvent)),
+            PI_SUCCESS);
+  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piEventRelease>(syncEvent)),
+            PI_SUCCESS);
 }
 
 TEST_P(EventTest, piEventGetInfo) {
@@ -187,9 +180,9 @@ TEST_P(EventTest, piEventGetInfo) {
   detail::plugin plugin = GetParam();
 
   pi_event foo;
-  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piEventCreate>(_context,
-                                                                       &foo)),
-            PI_SUCCESS);
+  ASSERT_EQ(
+      (plugin.call_nocheck<detail::PiApiKind::piEventCreate>(_context, &foo)),
+      PI_SUCCESS);
   ASSERT_NE(foo, nullptr);
 
   pi_uint64 paramValue = 0;
@@ -211,9 +204,9 @@ TEST_P(EventTest, piEventSetStatus) {
   detail::plugin plugin = GetParam();
 
   pi_event foo;
-  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piEventCreate>(_context,
-                                                                       &foo)),
-            PI_SUCCESS);
+  ASSERT_EQ(
+      (plugin.call_nocheck<detail::PiApiKind::piEventCreate>(_context, &foo)),
+      PI_SUCCESS);
   ASSERT_NE(foo, nullptr);
 
   pi_event_status paramValue = PI_EVENT_QUEUED;
@@ -243,9 +236,9 @@ TEST_P(EventTest, WaitForManualEventOnOtherThread) {
   detail::plugin plugin = GetParam();
 
   pi_event foo;
-  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piEventCreate>(_context,
-                                                                       &foo)),
-            PI_SUCCESS);
+  ASSERT_EQ(
+      (plugin.call_nocheck<detail::PiApiKind::piEventCreate>(_context, &foo)),
+      PI_SUCCESS);
   ASSERT_NE(foo, nullptr);
 
   pi_event_status paramValue = {};
@@ -260,9 +253,8 @@ TEST_P(EventTest, WaitForManualEventOnOtherThread) {
 
   auto tWaiter = std::thread([&]() {
     started = true;
-    ASSERT_EQ(
-        (plugin.call_nocheck<detail::PiApiKind::piEventsWait>(1, &foo)),
-        PI_SUCCESS);
+    ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piEventsWait>(1, &foo)),
+              PI_SUCCESS);
   });
 
   while (!started) {
@@ -302,10 +294,9 @@ TEST_P(EventTest, piEnqueueEventsWait) {
 
   pi_event events[4] = {nullptr, nullptr, nullptr, nullptr};
 
-  ASSERT_EQ(
-      (plugin.call_nocheck<detail::PiApiKind::piEnqueueMemBufferWrite>(
-          _queue, memObj, true, 0, bytes, data, 0, nullptr, &events[0])),
-      PI_SUCCESS);
+  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piEnqueueMemBufferWrite>(
+                _queue, memObj, true, 0, bytes, data, 0, nullptr, &events[0])),
+            PI_SUCCESS);
   ASSERT_NE(events[0], nullptr);
 
   ASSERT_EQ(
@@ -314,8 +305,8 @@ TEST_P(EventTest, piEnqueueEventsWait) {
       PI_SUCCESS);
   ASSERT_NE(events[1], nullptr);
 
-  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piEventCreate>(
-                _context, &events[2])),
+  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piEventCreate>(_context,
+                                                                   &events[2])),
             PI_SUCCESS);
   ASSERT_NE(events[2], nullptr);
 

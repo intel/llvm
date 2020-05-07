@@ -10,13 +10,13 @@
 
 #include <cuda.h>
 
+#include "test_get_plugin.hpp"
 #include <CL/sycl.hpp>
 #include <CL/sycl/detail/cuda_definitions.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <detail/plugin.hpp>
 #include <pi_cuda.hpp>
 #include <thread>
-#include "test_get_plugin.hpp"
 
 const unsigned int LATEST_KNOWN_CUDA_DRIVER_API_VERSION = 3020u;
 
@@ -115,9 +115,8 @@ TEST_F(CudaBaseObjectsTest, piContextCreatePrimaryTrue) {
   cuErr = cuCtxGetCurrent(&current);
   ASSERT_EQ(cuErr, CUDA_SUCCESS);
   ASSERT_EQ(current, cudaContext);
-  ASSERT_EQ(
-      (plugin.call_nocheck<detail::PiApiKind::piContextRelease>(ctxt)),
-      PI_SUCCESS);
+  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piContextRelease>(ctxt)),
+            PI_SUCCESS);
 }
 
 TEST_F(CudaBaseObjectsTest, piContextCreatePrimaryFalse) {
@@ -161,9 +160,8 @@ TEST_F(CudaBaseObjectsTest, piContextCreatePrimaryFalse) {
   cuErr = cuCtxGetCurrent(&current);
   ASSERT_EQ(cuErr, CUDA_SUCCESS);
   ASSERT_EQ(current, cudaContext);
-  ASSERT_EQ(
-      (plugin.call_nocheck<detail::PiApiKind::piContextRelease>(ctxt)),
-      PI_SUCCESS);
+  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piContextRelease>(ctxt)),
+            PI_SUCCESS);
 }
 
 TEST_F(CudaBaseObjectsTest, piContextCreateChildThread) {
@@ -217,7 +215,6 @@ TEST_F(CudaBaseObjectsTest, piContextCreateChildThread) {
 
   callContextFromOtherThread.join();
 
-  ASSERT_EQ(
-      (plugin.call_nocheck<detail::PiApiKind::piContextRelease>(ctxt)),
-      PI_SUCCESS);
+  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piContextRelease>(ctxt)),
+            PI_SUCCESS);
 }

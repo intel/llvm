@@ -10,11 +10,11 @@
 
 #include <cuda.h>
 
+#include "test_get_plugin.hpp"
 #include <CL/sycl.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <detail/plugin.hpp>
 #include <pi_cuda.hpp>
-#include "test_get_plugin.hpp"
 
 using namespace cl::sycl;
 
@@ -124,8 +124,6 @@ const char *threeParamsTwoLocal = "\n\
   \n\
 }\n\
 ";
-
-
 
 TEST_F(CudaKernelsTest, PICreateProgramAndKernel) {
 
@@ -264,10 +262,9 @@ TEST_F(CudaKernelsTest, PIkerneldispatch) {
                 context_, PI_MEM_FLAGS_ACCESS_RW, memSize, nullptr, &memObj)),
             PI_SUCCESS);
 
-  ASSERT_EQ(
-      (plugin.call_nocheck<detail::PiApiKind::piextKernelSetArgMemObj>(
-          kern, 0, &memObj)),
-      PI_SUCCESS);
+  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piextKernelSetArgMemObj>(
+                kern, 0, &memObj)),
+            PI_SUCCESS);
 
   size_t workDim = 1;
   size_t globalWorkOffset[] = {0};
@@ -310,15 +307,13 @@ TEST_F(CudaKernelsTest, PIkerneldispatchTwo) {
                 context_, PI_MEM_FLAGS_ACCESS_RW, memSize, nullptr, &memObj2)),
             PI_SUCCESS);
 
-  ASSERT_EQ(
-      (plugin.call_nocheck<detail::PiApiKind::piextKernelSetArgMemObj>(
-          kern, 0, &memObj)),
-      PI_SUCCESS);
+  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piextKernelSetArgMemObj>(
+                kern, 0, &memObj)),
+            PI_SUCCESS);
 
-  ASSERT_EQ(
-      (plugin.call_nocheck<detail::PiApiKind::piextKernelSetArgMemObj>(
-          kern, 1, &memObj2)),
-      PI_SUCCESS);
+  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piextKernelSetArgMemObj>(
+                kern, 1, &memObj2)),
+            PI_SUCCESS);
 
   size_t workDim = 1;
   size_t globalWorkOffset[] = {0};
@@ -334,8 +329,6 @@ TEST_F(CudaKernelsTest, PIkerneldispatchTwo) {
   ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piMemRelease>(memObj2)),
             PI_SUCCESS);
 }
-
-
 
 TEST_F(CudaKernelsTest, PIKernelArgumentSetTwiceOneLocal) {
 
@@ -378,5 +371,4 @@ TEST_F(CudaKernelsTest, PIKernelArgumentSetTwiceOneLocal) {
   ASSERT_EQ(kernArgs3.size(), (size_t)3);
   storedValue = *(static_cast<const int *>(kernArgs3[2]));
   ASSERT_EQ(storedValue, static_cast<int>(sizeof(int)));
-
 }

@@ -10,12 +10,12 @@
 
 #include <cuda.h>
 
+#include "test_get_plugin.hpp"
 #include <CL/sycl.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <detail/plugin.hpp>
 #include <pi_cuda.hpp>
 #include <thread>
-#include "test_get_plugin.hpp"
 
 using namespace cl::sycl;
 
@@ -29,9 +29,7 @@ protected:
   pi_queue _queue;
   pi_device _device;
 
-  CudaEventTests()
-      : _context{nullptr}, _queue{nullptr}, _device{nullptr} {
-  }
+  CudaEventTests() : _context{nullptr}, _queue{nullptr}, _device{nullptr} {}
 
   ~CudaEventTests() override = default;
 
@@ -71,9 +69,9 @@ protected:
 TEST_F(CudaEventTests, PICreateEvent) {
 
   pi_event foo;
-  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piEventCreate>(_context,
-                                                                       &foo)),
-            PI_SUCCESS);
+  ASSERT_EQ(
+      (plugin.call_nocheck<detail::PiApiKind::piEventCreate>(_context, &foo)),
+      PI_SUCCESS);
   ASSERT_NE(foo, nullptr);
   // There is no CUDA interop event for user events
   EXPECT_EQ(foo->get(), nullptr);

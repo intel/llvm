@@ -61,12 +61,11 @@ protected:
 
     ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piMemRelease>(_mem)),
               PI_SUCCESS);
-    ASSERT_EQ(
-        (plugin.call_nocheck<detail::PiApiKind::piQueueRelease>(_queue)),
-        PI_SUCCESS);
-    ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piContextRelease>(
-                  _context)),
+    ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piQueueRelease>(_queue)),
               PI_SUCCESS);
+    ASSERT_EQ(
+        (plugin.call_nocheck<detail::PiApiKind::piContextRelease>(_context)),
+        PI_SUCCESS);
   }
 
   template <typename T> void TestBufferFill(const T &pattern) {
@@ -79,24 +78,21 @@ protected:
       ASSERT_NE(pattern, inValues[i]);
     }
 
-    ASSERT_EQ(
-        (plugin.call_nocheck<detail::PiApiKind::piEnqueueMemBufferWrite>(
-            _queue, _mem, PI_TRUE, 0, _numElementsX * sizeof(T), inValues, 0,
-            nullptr, nullptr)),
-        PI_SUCCESS);
+    ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piEnqueueMemBufferWrite>(
+                  _queue, _mem, PI_TRUE, 0, _numElementsX * sizeof(T), inValues,
+                  0, nullptr, nullptr)),
+              PI_SUCCESS);
 
-    ASSERT_EQ(
-        (plugin.call_nocheck<detail::PiApiKind::piEnqueueMemBufferFill>(
-            _queue, _mem, &pattern, sizeof(T), 0, sizeof(inValues), 0, nullptr,
-            nullptr)),
-        PI_SUCCESS);
+    ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piEnqueueMemBufferFill>(
+                  _queue, _mem, &pattern, sizeof(T), 0, sizeof(inValues), 0,
+                  nullptr, nullptr)),
+              PI_SUCCESS);
 
     T outValues[_numElementsX] = {};
-    ASSERT_EQ(
-        (plugin.call_nocheck<detail::PiApiKind::piEnqueueMemBufferRead>(
-            _queue, _mem, PI_TRUE, 0, _numElementsX * sizeof(T), outValues, 0,
-            nullptr, nullptr)),
-        PI_SUCCESS);
+    ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piEnqueueMemBufferRead>(
+                  _queue, _mem, PI_TRUE, 0, _numElementsX * sizeof(T),
+                  outValues, 0, nullptr, nullptr)),
+              PI_SUCCESS);
 
     for (size_t i = 0; i < _numElementsX; ++i) {
       ASSERT_EQ(pattern, outValues[i]);
@@ -106,52 +102,43 @@ protected:
 
 static std::vector<detail::plugin> Plugins = detail::pi::initialize();
 
-INSTANTIATE_TEST_CASE_P(EnqueueMemTestImpl,
-                        EnqueueMemTest,
-                        testing::ValuesIn(Plugins),); 
+INSTANTIATE_TEST_CASE_P(EnqueueMemTestImpl, EnqueueMemTest,
+                        testing::ValuesIn(Plugins), );
 
-template<typename T>
-struct vec4 {
+template <typename T> struct vec4 {
   T x, y, z, w;
 
   bool operator==(const vec4 &rhs) const {
     return x == rhs.x && y == rhs.y && z == rhs.z && w == rhs.w;
   }
 
-  bool operator!=(const vec4 &rhs) const {
-    return !(*this == rhs);
-  }
+  bool operator!=(const vec4 &rhs) const { return !(*this == rhs); }
 };
 
-template<typename T>
-struct vec2 {
+template <typename T> struct vec2 {
   T x, y;
 
-  bool operator==(const vec2 &rhs) const {
-    return x == rhs.x && y == rhs.y;
-  }
+  bool operator==(const vec2 &rhs) const { return x == rhs.x && y == rhs.y; }
 
-  bool operator!=(const vec2 &rhs) const {
-    return !(*this == rhs);
-  }
+  bool operator!=(const vec2 &rhs) const { return !(*this == rhs); }
 };
 
 TEST_P(EnqueueMemTest, piEnqueueMemBufferFill) {
 
-    TestBufferFill(float{1});
-    TestBufferFill(vec2<float>{1, 2});
-    TestBufferFill(vec4<float>{1, 2, 3, 4});
+  TestBufferFill(float{1});
+  TestBufferFill(vec2<float>{1, 2});
+  TestBufferFill(vec4<float>{1, 2, 3, 4});
 
-    TestBufferFill(uint8_t{1});
-    TestBufferFill(vec2<uint8_t>{1, 2});
-    TestBufferFill(vec4<uint8_t>{1, 2, 3, 4});
+  TestBufferFill(uint8_t{1});
+  TestBufferFill(vec2<uint8_t>{1, 2});
+  TestBufferFill(vec4<uint8_t>{1, 2, 3, 4});
 
-    TestBufferFill(uint16_t{1});
-    TestBufferFill(vec2<uint16_t>{1, 2});
-    TestBufferFill(vec4<uint16_t>{1, 2, 3, 4});
+  TestBufferFill(uint16_t{1});
+  TestBufferFill(vec2<uint16_t>{1, 2});
+  TestBufferFill(vec4<uint16_t>{1, 2, 3, 4});
 
-    TestBufferFill(uint32_t{1});
-    TestBufferFill(vec2<uint32_t>{1, 2});
-    TestBufferFill(vec4<uint32_t>{1, 2, 3, 4});
+  TestBufferFill(uint32_t{1});
+  TestBufferFill(vec2<uint32_t>{1, 2});
+  TestBufferFill(vec4<uint32_t>{1, 2, 3, 4});
 }
 } // namespace

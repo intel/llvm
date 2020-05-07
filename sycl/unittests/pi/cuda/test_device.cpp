@@ -10,11 +10,11 @@
 
 #include <cuda.h>
 
+#include "test_get_plugin.hpp"
 #include <CL/sycl.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <detail/plugin.hpp>
 #include <pi_cuda.hpp>
-#include "test_get_plugin.hpp"
 
 using namespace cl::sycl;
 

@@ -23,17 +23,15 @@ protected:
   device syclDevice_;
 
   CudaInteropGetNativeTests()
-  : syclQueue_(cuda_device_selector())
-  , syclContext_(syclQueue_.get_context())
-  , syclDevice_(syclQueue_.get_device())
-  {}
+      : syclQueue_(cuda_device_selector()),
+        syclContext_(syclQueue_.get_context()),
+        syclDevice_(syclQueue_.get_device()) {}
 
   static bool isCudaDevice(const device &dev) {
     const platform platform = dev.get_info<info::device::platform>();
     const std::string platformVersion =
         platform.get_info<info::platform::version>();
-    const std::string platformName =
-        platform.get_info<info::platform::name>();
+    const std::string platformName = platform.get_info<info::platform::name>();
     // If using PI_CUDA, don't accept a non-CUDA device
     return platformVersion.find("CUDA") != std::string::npos &&
            platformName.find("NVIDIA CUDA") != std::string::npos;
