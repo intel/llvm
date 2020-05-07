@@ -112,7 +112,7 @@ public:
   ///          may have kernels with the same name)
   /// \param Context the context to build the program with
   /// \param KernelName the kernel's name
-  /// \param ProgramImpl provides build context information, such as
+  /// \param Prg provides build context information, such as
   ///        current specialization constants settings; can be nullptr.
   ///        Passing as a raw pointer is OK, since it is not captured anywhere
   ///        once the function returns.
