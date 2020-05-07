@@ -8,7 +8,7 @@
 
 #include "device_math.h"
 
-#if __SPIR_DEVICE_ONLY__
+#if __SPIR_TARGET_ONLY__
 
 DEVICE_EXTERN_C
 float scalbnf(float x, int n) { return __devicelib_scalbnf(x, n); }
@@ -369,4 +369,4 @@ float _FSinh(float x, float y) { // compute y * sinh(x), |y| <= 1
   }
 }
 #endif // defined(_WIN32)
-#endif // __SPIR_DEVICE_ONLY__
+#endif // __SPIR_TARGET_ONLY__

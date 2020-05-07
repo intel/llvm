@@ -16,7 +16,7 @@
 #endif // __cplusplus
 
 #if __SPIR__
-#define __SPIR_DEVICE_ONLY__ 1
+#define __SPIR_TARGET_ONLY__ 1
 #ifdef __SYCL_DEVICE_ONLY__
 #define DEVICE_EXTERNAL SYCL_EXTERNAL __attribute__((weak))
 #else  // __SYCL_DEVICE_ONLY__
@@ -26,7 +26,7 @@
 #define DEVICE_EXTERN_C DEVICE_EXTERNAL EXTERN_C
 
 #else  // __SPIR__
-#define __SPIR_DEVICE_ONLY__ 0
+#define __SPIR_TARGET_ONLY__ 0
 #endif // __SPIR__
 
 #endif // __LIBDEVICE_DEVICE_H__

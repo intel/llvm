@@ -11,7 +11,7 @@
 
 #include "device.h"
 
-#if __SPIR_DEVICE_ONLY__
+#if __SPIR_TARGET_ONLY__
 
 #ifdef CL_SYCL_LANGUAGE_VERSION
 // SYCL provides all the needed definitions.
@@ -46,5 +46,5 @@ DEVICE_EXTERNAL inline size_t __spirv_LocalInvocationId_z() {
 }
 
 #endif // CL_SYCL_LANGUAGE_VERSION
-#endif // __SPIR_DEVICE_ONLY__
+#endif // __SPIR_TARGET_ONLY__
 #endif // __LIBDEVICE_SPIRV_VARS_H

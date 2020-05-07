@@ -8,7 +8,7 @@
 
 #include "device_math.h"
 
-#if __SPIR_DEVICE_ONLY__
+#if __SPIR_TARGET_ONLY__
 
 DEVICE_EXTERN_C
 double __devicelib_log(double x) { return __spirv_ocl_log(x); }
@@ -140,4 +140,4 @@ double __devicelib_asinh(double x) { return __spirv_ocl_asinh(x); }
 
 DEVICE_EXTERN_C
 double __devicelib_atanh(double x) { return __spirv_ocl_atanh(x); }
-#endif // __SPIR_DEVICE_ONLY__
+#endif // __SPIR_TARGET_ONLY__
