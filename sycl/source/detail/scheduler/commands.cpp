@@ -203,8 +203,7 @@ class DispatchHostTask {
   }
 
 public:
-  DispatchHostTask(ExecCGCommand *ThisCmd)
-      : MThisCmd{ThisCmd} {}
+  DispatchHostTask(ExecCGCommand *ThisCmd) : MThisCmd{ThisCmd} {}
 
   void operator()() const {
     waitForEvents();

@@ -975,8 +975,7 @@ void Scheduler::GraphBuilder::addConnectCmdWithReq(
   MemObjRecord *Record = getMemObjRecord(Req->MSYCLMemObj);
   Dep.MDepCommand->addUser(ConnectCmd);
 
-  AllocaCommandBase *AllocaCmd =
-      findAllocaForReq(Record, Req, DepEventContext);
+  AllocaCommandBase *AllocaCmd = findAllocaForReq(Record, Req, DepEventContext);
   assert(AllocaCmd && "There must be alloca for requirement!");
 
   std::set<Command *> Deps = findDepsForReq(Record, Req, DepEventContext);
