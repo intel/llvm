@@ -12,29 +12,44 @@
 //
 //===----------------------------------------------------------------------===//
 #include <CL/sycl.hpp>
+#include <cstdint>
 #include <iostream>
 #include <string>
+#include <strstream>
 
 using namespace cl::sycl;
 
-template <typename T> std::string info_to_string(T info) {
+// Handle unknown info, e.g., from non-standard extensions.
+template <typename T>
+std::string unknown_info_to_string(T info) {
+  std::strstream stream;
+  stream << std::hex << static_cast<std::uint64_t>(info) << " (unknown value)"
+         << "\n";
+  return stream.str();
+}
+
+template <typename T>
+std::string info_to_string(T info) {
   return std::to_string(info);
 }
 
-template <> std::string info_to_string(string_class info) {
+template <>
+std::string info_to_string(string_class info) {
   if (info.empty()) {
     return "none";
   }
   return info;
 }
 
-template <> std::string info_to_string(bool info) {
+template <>
+std::string info_to_string(bool info) {
   if (info) {
     return "true";
   }
   return "false";
 }
-template <> std::string info_to_string(info::device_type info) {
+template <>
+std::string info_to_string(info::device_type info) {
   switch (info) {
   case info::device_type::cpu:
     return "cpu";
@@ -50,10 +65,13 @@ template <> std::string info_to_string(info::device_type info) {
     return "host";
   case info::device_type::all:
     return "all";
+  default:
+    return unknown_info_to_string(info);
   }
 }
 
-template <> std::string info_to_string(info::fp_config info) {
+template <>
+std::string info_to_string(info::fp_config info) {
   switch (info) {
   case info::fp_config::denorm:
     return "denorm";
@@ -71,10 +89,13 @@ template <> std::string info_to_string(info::fp_config info) {
     return "correctly_rounded_divide_sqrt";
   case info::fp_config::soft_float:
     return "soft_float";
+  default:
+    return unknown_info_to_string(info);
   }
 }
 
-template <> std::string info_to_string(info::global_mem_cache_type info) {
+template <>
+std::string info_to_string(info::global_mem_cache_type info) {
   switch (info) {
   case info::global_mem_cache_type::none:
     return "none";
@@ -82,10 +103,13 @@ template <> std::string info_to_string(info::global_mem_cache_type info) {
     return "read_only";
   case info::global_mem_cache_type::read_write:
     return "read_write";
+  default:
+    return unknown_info_to_string(info);
   }
 }
 
-template <> std::string info_to_string(info::local_mem_type info) {
+template <>
+std::string info_to_string(info::local_mem_type info) {
   switch (info) {
   case info::local_mem_type::none:
     return "none";
@@ -93,19 +117,25 @@ template <> std::string info_to_string(info::local_mem_type info) {
     return "local";
   case info::local_mem_type::global:
     return "global";
+  default:
+    return unknown_info_to_string(info);
   }
 }
 
-template <> std::string info_to_string(info::execution_capability info) {
+template <>
+std::string info_to_string(info::execution_capability info) {
   switch (info) {
   case info::execution_capability::exec_kernel:
     return "exec_kernel";
   case info::execution_capability::exec_native_kernel:
     return "exec_native_kernel";
+  default:
+    return unknown_info_to_string(info);
   }
 }
 
-template <> std::string info_to_string(info::partition_property info) {
+template <>
+std::string info_to_string(info::partition_property info) {
   switch (info) {
   case info::partition_property::no_partition:
     return "no_partition";
@@ -115,10 +145,13 @@ template <> std::string info_to_string(info::partition_property info) {
     return "partition_by_counts";
   case info::partition_property::partition_by_affinity_domain:
     return "partition_by_affinity_domain";
+  default:
+    return unknown_info_to_string(info);
   }
 }
 
-template <> std::string info_to_string(info::partition_affinity_domain info) {
+template <>
+std::string info_to_string(info::partition_affinity_domain info) {
   switch (info) {
   case info::partition_affinity_domain::not_applicable:
     return "not_applicable";
@@ -134,24 +167,29 @@ template <> std::string info_to_string(info::partition_affinity_domain info) {
     return "L1_cache";
   case info::partition_affinity_domain::next_partitionable:
     return "next_partitionable";
+  default:
+    return unknown_info_to_string(info);
   }
 }
 
-template <> std::string info_to_string(platform info) {
+template <>
+std::string info_to_string(platform info) {
   if (info.is_host()) {
     return "SYCL host platform";
   }
   return "SYCL OpenCL platform";
 }
 
-template <> std::string info_to_string(device info) {
+template <>
+std::string info_to_string(device info) {
   if (info.is_host()) {
     return "SYCL host device";
   }
   return "SYCL OpenCL device";
 }
 
-template <> std::string info_to_string(id<3> info) {
+template <>
+std::string info_to_string(id<3> info) {
   std::string str;
   for (size_t i = 0; i < 3; ++i) {
     str += info_to_string(info[i]) + " ";
@@ -159,7 +197,8 @@ template <> std::string info_to_string(id<3> info) {
   return str;
 }
 
-template <typename T> std::string info_to_string(vector_class<T> info) {
+template <typename T>
+std::string info_to_string(vector_class<T> info) {
   if (info.empty()) {
     return "none";
   }
@@ -184,7 +223,8 @@ void print_info(const platform &plt, const std::string &name) {
 
 int main() {
   std::string separator(std::string(80, '-') + "\n");
-  std::cout << separator << "Device information\n" << separator;
+  std::cout << separator << "Device information\n"
+            << separator;
   default_selector selector;
   device dev(selector.select_device());
 
@@ -336,7 +376,8 @@ int main() {
   print_info<info::device::reference_count, cl::sycl::cl_uint>(
       dev, "Reference count");
 
-  std::cout << separator << "Platform information\n" << separator;
+  std::cout << separator << "Platform information\n"
+            << separator;
   platform plt(dev.get_platform());
   print_info<info::platform::profile, string_class>(plt, "Profile");
   print_info<info::platform::version, string_class>(plt, "Version");
@@ -345,20 +386,23 @@ int main() {
   print_info<info::platform::extensions, vector_class<string_class>>(
       plt, "Extensions");
 
-  std::cout << separator << "Queue information\n" << separator;
+  std::cout << separator << "Queue information\n"
+            << separator;
   queue q(selector);
   auto qdev = q.get_info<cl::sycl::info::queue::device>();
   std::cout << "Device from queue information\n";
   print_info<info::device::name, string_class>(qdev, "Name");
   auto ctx = q.get_info<cl::sycl::info::queue::context>();
 
-  std::cout << separator << "Context information\n" << separator;
+  std::cout << separator << "Context information\n"
+            << separator;
   std::cout << "Devices from context information\n";
   auto cdevs = ctx.get_info<cl::sycl::info::context::devices>();
   for (auto cdev : cdevs) {
     print_info<info::device::name, string_class>(cdev, "Name");
   }
-  std::cout << separator << "Platform from context information\n" << separator;
+  std::cout << separator << "Platform from context information\n"
+            << separator;
   auto cplt = ctx.get_info<cl::sycl::info::context::platform>();
   print_info<info::platform::name, string_class>(cplt, "Name");
 }
