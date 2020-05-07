@@ -156,8 +156,8 @@ void test() {
   auto A1 = std::async(std::launch::async, Thread1Fn, &Ctx);
   auto A2 = std::async(std::launch::async, Thread2Fn, &Ctx);
 
-  A1.wait();
-  A2.wait();
+  A1.get();
+  A2.get();
 
   assert(Ctx.Flag.load());
 
