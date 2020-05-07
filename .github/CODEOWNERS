@@ -63,6 +63,9 @@ sycl/include/CL/sycl/intel/fpga_reg.hpp @MrSidims
 sycl/include/CL/sycl/intel/pipes.hpp @MrSidims
 sycl/include/CL/sycl/pipes.hpp @MrSidims
 
+#Reduction extension
+sycl/include/CL/sycl/intel/reduction.hpp @v-klochkov
+
 # Function pointers
 sycl/include/CL/sycl/intel/function_pointer.hpp @AlexeySachkov
 sycl/source/function_pointer.cpp @AlexeySachkov
