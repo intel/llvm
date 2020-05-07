@@ -212,8 +212,7 @@ add_subdirectory( source )
 if (NOT WIN32)
   install(FILES
       "${CMAKE_CURRENT_SOURCE_DIR}/xmethods/libsycl.so-gdb.py"
-      RENAME "${CMAKE_CURRENT_SOURCE_DIR}/xmethods/$<TARGET_FILE_NAME:sycl>-gdb.py"
-      DESTINATION lib${LLVM_LIBDIR_SUFFIX}
+      DESTINATION "lib${LLVM_LIBDIR_SUFFIX}/$<TARGET_FILE_NAME:sycl>-gdb.py"
       COMPONENT sycl-headers-extras)
 endif()
 
