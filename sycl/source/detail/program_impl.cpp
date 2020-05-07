@@ -495,7 +495,7 @@ void program_impl::flush_spec_constants(const RTDeviceBinaryImage &Img,
     assert(SC.isSet() && "uninitialized spec constant");
     pi_device_binary_property SCProp = *SCIt;
     pi_uint32 ID = pi::DeviceBinaryProperty(SCProp).asUint32();
-    NativePrg = NativePrg ? NativePrg : pi::cast<pi::PiProgram>(get());
+    NativePrg = NativePrg ? NativePrg : getHandleRef();
     Ctx->getPlugin().call<PiApiKind::piextProgramSetSpecializationConstant>(
         NativePrg, ID, SC.getSize(), SC.getValuePtr());
   }
