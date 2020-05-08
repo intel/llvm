@@ -14439,7 +14439,7 @@ Decl *Sema::ActOnFinishFunctionBody(Decl *dcl, Stmt *Body,
     DiscardCleanupsInEvaluationContext();
   }
 
-  if(LangOpts.SYCLIsDevice)
+  if (LangOpts.SYCLIsDevice)
     diagSYCLDevicePointerCaptures(FD);
 
   if (LangOpts.OpenMP || LangOpts.CUDA || LangOpts.SYCLIsDevice) {

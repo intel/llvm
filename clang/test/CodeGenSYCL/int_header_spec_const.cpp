@@ -18,7 +18,7 @@ class MyUInt32Const;
 class MyFloatConst;
 class MyDoubleConst;
 
-double* mockUSMAlloc();
+double *mockUSMAlloc();
 
 int main() {
   // Create specialization constants.
