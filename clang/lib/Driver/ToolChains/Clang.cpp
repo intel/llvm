@@ -7642,7 +7642,17 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
   TranslatorArgs.push_back(Output.getFilename());
   if (getToolChain().getTriple().isSYCLDeviceEnvironment()) {
     TranslatorArgs.push_back("-spirv-max-version=1.1");
-    TranslatorArgs.push_back("-spirv-ext=+all");
+    std::string ExtArg("-spirv-ext=+all");
+    // Disable SPV_INTEL_usm_storage_classes by default since it adds new
+    // storage classes that represent global_device and global_host address
+    // spaces, which are not supported for all targets. With the extension
+    // disable the storage classes will be lowered to CrossWorkgroup storage
+    // class that is mapped to just global address space.
+    if (!(getToolChain().getTriple().getSubArch() ==
+             llvm::Triple::SPIRSubArch_fpga &&
+          TCArgs.hasArg(options::OPT_fenable_usm_address_spaces)))
+      ExtArg += ",-SPV_INTEL_usm_storage_classes";
+    TranslatorArgs.push_back(TCArgs.MakeArgString(ExtArg));
   }
   for (auto I : Inputs) {
     std::string Filename(I.getFilename());
