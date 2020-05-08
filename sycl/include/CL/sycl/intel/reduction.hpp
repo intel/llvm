@@ -373,23 +373,32 @@ public:
   }
 
   /// Constructs reduction_impl when the identity value is statically known.
+  /// The \param VarPtr is a USM pointer to memory, to where the computed
+  /// reduction value is added using BinaryOperation, i.e. it is expected that
+  /// the memory is pre-initialized with some meaningful value.
   template <
       typename _T = T, class _BinaryOperation = BinaryOperation,
       enable_if_t<IsKnownIdentityOp<_T, _BinaryOperation>::value> * = nullptr>
   reduction_impl(T *VarPtr)
       : MIdentity(getIdentity()),
-        MUSMBufPtr(
-            std::make_shared<buffer<T, buffer_dim>>(VarPtr, range<1>(1))),
+        // Buffer destruction must not cause a write to 'VarPtr'
+        MUSMBufPtr(std::make_shared<buffer<T, buffer_dim>>(
+            reinterpret_cast<const T *>(VarPtr), range<1>(1))),
         MAcc(accessor_type(*MUSMBufPtr)), MUSMPointer(VarPtr) {}
 
   /// Constructs reduction_impl when the identity value is statically known,
   /// and user still passed the identity value.
+  /// The \param VarPtr is a USM pointer to memory, to where the computed
+  /// reduction value is added using BinaryOperation, i.e. it is expected that
+  /// the memory is pre-initialized with some meaningful value.
   template <
       typename _T = T, class _BinaryOperation = BinaryOperation,
       enable_if_t<IsKnownIdentityOp<_T, _BinaryOperation>::value> * = nullptr>
   reduction_impl(T *VarPtr, const T &Identity)
-      : MIdentity(Identity), MUSMBufPtr(std::make_shared<buffer<T, buffer_dim>>(
-                                 VarPtr, range<1>(1))),
+      : MIdentity(Identity),
+        // Buffer destruction must not cause a write to 'VarPtr'
+        MUSMBufPtr(std::make_shared<buffer<T, buffer_dim>>(
+            reinterpret_cast<const T *>(VarPtr), range<1>(1))),
         MAcc(accessor_type(*MUSMBufPtr)), MUSMPointer(VarPtr) {
     // For operations with known identity value the operator == is defined.
     // It is sort of dilemma here: from one point of view - user may set
@@ -402,12 +411,17 @@ public:
   }
 
   /// Constructs reduction_impl when the identity value is unknown.
+  /// The \param VarPtr is a USM pointer to memory, to where the computed
+  /// reduction value is added using BinaryOperation, i.e. it is expected that
+  /// the memory is pre-initialized with some meaningful value.
   template <
       typename _T = T, class _BinaryOperation = BinaryOperation,
       enable_if_t<!IsKnownIdentityOp<_T, _BinaryOperation>::value> * = nullptr>
   reduction_impl(T *VarPtr, const T &Identity)
-      : MIdentity(Identity), MUSMBufPtr(std::make_shared<buffer<T, buffer_dim>>(
-                                 VarPtr, range<1>(1))),
+      : MIdentity(Identity),
+        // Buffer destruction must not cause a write to 'VarPtr'
+        MUSMBufPtr(std::make_shared<buffer<T, buffer_dim>>(
+            reinterpret_cast<const T *>(VarPtr), range<1>(1))),
         MAcc(accessor_type(*MUSMBufPtr)), MUSMPointer(VarPtr) {}
 
   /// Associates reduction accessor with the given handler and saves reduction
