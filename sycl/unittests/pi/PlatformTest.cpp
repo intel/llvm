@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "BackendString.hpp"
 #include <CL/sycl.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <detail/plugin.hpp>
@@ -63,8 +64,11 @@ protected:
 
 static std::vector<detail::plugin> Plugins = detail::pi::initialize();
 
-INSTANTIATE_TEST_CASE_P(PlatformTestImpl, PlatformTest,
-                        testing::ValuesIn(Plugins), );
+INSTANTIATE_TEST_CASE_P(
+    PlatformTestImpl, PlatformTest, testing::ValuesIn(Plugins),
+    [](const testing::TestParamInfo<PlatformTest::ParamType> &info) {
+      return pi::GetBackendString(info.param.getBackend());
+    });
 
 TEST_P(PlatformTest, piPlatformsGet) {
   // The PlatformTest::SetUp method is called to prepare for this test case

@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "BackendString.hpp"
 #include "CL/sycl/detail/pi.hpp"
 #include <atomic>
 #include <detail/plugin.hpp>
@@ -34,15 +35,15 @@ protected:
 
     detail::plugin plugin = GetParam();
 
+    RecordProperty("PiBackend", GetBackendString(plugin.getBackend()));
+
     ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piPlatformsGet>(
                   0, nullptr, &numPlatforms)),
-              PI_SUCCESS)
-        << "piPlatformsGet failed.\n";
+              PI_SUCCESS);
 
     ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piPlatformsGet>(
                   numPlatforms, &_platform, nullptr)),
-              PI_SUCCESS)
-        << "piPlatformsGet failed.\n";
+              PI_SUCCESS);
     (void)numPlatforms; // Deal with unused variable warning
 
     ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piDevicesGet>(
@@ -75,7 +76,11 @@ protected:
 
 static std::vector<detail::plugin> Plugins = detail::pi::initialize();
 
-INSTANTIATE_TEST_CASE_P(EventTestImpl, EventTest, testing::ValuesIn(Plugins), );
+INSTANTIATE_TEST_CASE_P(
+    EventTestImpl, EventTest, testing::ValuesIn(Plugins),
+    [](const testing::TestParamInfo<EventTest::ParamType> &info) {
+      return pi::GetBackendString(info.param.getBackend());
+    });
 
 // TODO: need more negative tests to show errors being reported when expected
 // (invalid arguments etc).

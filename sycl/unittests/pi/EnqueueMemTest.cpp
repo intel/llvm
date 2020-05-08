@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "BackendString.hpp"
 #include <CL/sycl/detail/pi.hpp>
 #include <detail/plugin.hpp>
 #include <gtest/gtest.h>
@@ -102,8 +103,11 @@ protected:
 
 static std::vector<detail::plugin> Plugins = detail::pi::initialize();
 
-INSTANTIATE_TEST_CASE_P(EnqueueMemTestImpl, EnqueueMemTest,
-                        testing::ValuesIn(Plugins), );
+INSTANTIATE_TEST_CASE_P(
+    EnqueueMemTestImpl, EnqueueMemTest, testing::ValuesIn(Plugins),
+    [](const testing::TestParamInfo<EnqueueMemTest::ParamType> &info) {
+      return pi::GetBackendString(info.param.getBackend());
+    });
 
 template <typename T> struct vec4 {
   T x, y, z, w;
