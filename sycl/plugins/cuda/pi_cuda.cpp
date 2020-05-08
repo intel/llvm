@@ -3359,6 +3359,13 @@ pi_result cuda_piEnqueueMemBufferMap(pi_queue command_queue, pi_mem buffer,
     ret_err = cuda_piEnqueueMemBufferRead(
         command_queue, buffer, blocking_map, offset, size, hostPtr,
         num_events_in_wait_list, event_wait_list, retEvent);
+  } else {
+    if (retEvent) {
+      auto new_event =
+          _pi_event::make_native(PI_COMMAND_TYPE_MEM_BUFFER_MAP, command_queue);
+      new_event->record();
+      *retEvent = new_event;
+    }
   }
 
   return ret_err;
@@ -3372,7 +3379,7 @@ pi_result cuda_piEnqueueMemUnmap(pi_queue command_queue, pi_mem memobj,
                                  pi_uint32 num_events_in_wait_list,
                                  const pi_event *event_wait_list,
                                  pi_event *retEvent) {
-  pi_result ret_err = PI_INVALID_OPERATION;
+  pi_result ret_err = PI_SUCCESS;
 
   assert(mapped_ptr != nullptr);
   assert(memobj != nullptr);
@@ -3385,6 +3392,13 @@ pi_result cuda_piEnqueueMemUnmap(pi_queue command_queue, pi_mem memobj,
       command_queue, memobj, true, memobj->get_map_offset(mapped_ptr),
       memobj->get_size(), mapped_ptr, num_events_in_wait_list, event_wait_list,
       retEvent);
+  } else {
+    if (retEvent) {
+      auto new_event = _pi_event::make_native(PI_COMMAND_TYPE_MEM_BUFFER_UNMAP,
+                                              command_queue);
+      new_event->record();
+      *retEvent = new_event;
+    }
   }
 
   memobj->unmap(mapped_ptr);
