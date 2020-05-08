@@ -173,6 +173,8 @@ public:
 
   const char *getBlockReason() const;
 
+  virtual ContextImplPtr getContext() const;
+
 protected:
   EventImplPtr MEvent;
   QueueImplPtr MQueue;
@@ -198,7 +200,6 @@ protected:
   /// Optionality of Dep is set by Dep.MDepCommand not equal to nullptr.
   void processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep);
 
-  virtual ContextImplPtr getContext() const;
 
   /// Private interface. Derived classes should implement this method.
   virtual cl_int enqueueImp() = 0;
@@ -417,9 +418,9 @@ public:
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MDstReq; }
   void emitInstrumentationData();
+  ContextImplPtr getContext() const override final;
 
 private:
-  ContextImplPtr getContext() const final;
   cl_int enqueueImp() final;
 
   QueueImplPtr MSrcQueue;
@@ -440,9 +441,9 @@ public:
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MDstReq; }
   void emitInstrumentationData();
+  ContextImplPtr getContext() const override final;
 
 private:
-  ContextImplPtr getContext() const final;
   cl_int enqueueImp() final;
 
   QueueImplPtr MSrcQueue;
