@@ -2288,16 +2288,13 @@ SDValue DAGTypeLegalizer::SplitVecOp_MGATHER(MaskedGatherSDNode *MGT,
     std::tie(IndexLo, IndexHi) = DAG.SplitVector(Index, dl);
 
   MachineMemOperand *MMO = DAG.getMachineFunction().getMachineMemOperand(
-      MGT->getPointerInfo(), MachineMemOperand::MOLoad, LoMemVT.getStoreSize(),
-      Alignment, MGT->getAAInfo(), MGT->getRanges());
+      MGT->getPointerInfo(), MachineMemOperand::MOLoad,
+      MemoryLocation::UnknownSize, Alignment, MGT->getAAInfo(),
+      MGT->getRanges());
 
   SDValue OpsLo[] = {Ch, PassThruLo, MaskLo, Ptr, IndexLo, Scale};
   SDValue Lo = DAG.getMaskedGather(DAG.getVTList(LoVT, MVT::Other), LoVT, dl,
                                    OpsLo, MMO, MGT->getIndexType());
-
-  MMO = DAG.getMachineFunction().getMachineMemOperand(
-      MGT->getPointerInfo(), MachineMemOperand::MOLoad, HiMemVT.getStoreSize(),
-      Alignment, MGT->getAAInfo(), MGT->getRanges());
 
   SDValue OpsHi[] = {Ch, PassThruHi, MaskHi, Ptr, IndexHi, Scale};
   SDValue Hi = DAG.getMaskedGather(DAG.getVTList(HiVT, MVT::Other), HiVT, dl,
@@ -2327,12 +2324,8 @@ SDValue DAGTypeLegalizer::SplitVecOp_MSTORE(MaskedStoreSDNode *N,
   assert(Offset.isUndef() && "Unexpected indexed masked store offset");
   SDValue Mask = N->getMask();
   SDValue Data = N->getValue();
-  EVT MemoryVT = N->getMemoryVT();
   Align Alignment = N->getOriginalAlign();
   SDLoc DL(N);
-
-  EVT LoMemVT, HiMemVT;
-  std::tie(LoMemVT, HiMemVT) = DAG.GetSplitDestVTs(MemoryVT);
 
   SDValue DataLo, DataHi;
   if (getTypeAction(Data.getValueType()) == TargetLowering::TypeSplitVector)
@@ -2352,7 +2345,13 @@ SDValue DAGTypeLegalizer::SplitVecOp_MSTORE(MaskedStoreSDNode *N,
       std::tie(MaskLo, MaskHi) = DAG.SplitVector(Mask, DL);
   }
 
-  SDValue Lo, Hi;
+  EVT MemoryVT = N->getMemoryVT();
+  EVT LoMemVT, HiMemVT;
+  bool HiIsEmpty = false;
+  std::tie(LoMemVT, HiMemVT) =
+      DAG.GetDependentSplitDestVTs(MemoryVT, DataLo.getValueType(), &HiIsEmpty);
+
+  SDValue Lo, Hi, Res;
   MachineMemOperand *MMO = DAG.getMachineFunction().getMachineMemOperand(
       N->getPointerInfo(), MachineMemOperand::MOStore, LoMemVT.getStoreSize(),
       Alignment, N->getAAInfo(), N->getRanges());
@@ -2361,21 +2360,30 @@ SDValue DAGTypeLegalizer::SplitVecOp_MSTORE(MaskedStoreSDNode *N,
                           N->getAddressingMode(), N->isTruncatingStore(),
                           N->isCompressingStore());
 
-  Ptr = TLI.IncrementMemoryAddress(Ptr, MaskLo, DL, LoMemVT, DAG,
-                                   N->isCompressingStore());
-  unsigned HiOffset = LoMemVT.getStoreSize();
+  if (HiIsEmpty) {
+    // The hi masked store has zero storage size.
+    // Only the lo masked store is needed.
+    Res = Lo;
+  } else {
 
-  MMO = DAG.getMachineFunction().getMachineMemOperand(
-      N->getPointerInfo().getWithOffset(HiOffset), MachineMemOperand::MOStore,
-      HiMemVT.getStoreSize(), Alignment, N->getAAInfo(), N->getRanges());
+    Ptr = TLI.IncrementMemoryAddress(Ptr, MaskLo, DL, LoMemVT, DAG,
+                                     N->isCompressingStore());
+    unsigned HiOffset = LoMemVT.getStoreSize();
 
-  Hi = DAG.getMaskedStore(Ch, DL, DataHi, Ptr, Offset, MaskHi, HiMemVT, MMO,
-                          N->getAddressingMode(), N->isTruncatingStore(),
-                          N->isCompressingStore());
+    MMO = DAG.getMachineFunction().getMachineMemOperand(
+        N->getPointerInfo().getWithOffset(HiOffset), MachineMemOperand::MOStore,
+        HiMemVT.getStoreSize(), Alignment, N->getAAInfo(), N->getRanges());
 
-  // Build a factor node to remember that this store is independent of the
-  // other one.
-  return DAG.getNode(ISD::TokenFactor, DL, MVT::Other, Lo, Hi);
+    Hi = DAG.getMaskedStore(Ch, DL, DataHi, Ptr, Offset, MaskHi, HiMemVT, MMO,
+                            N->getAddressingMode(), N->isTruncatingStore(),
+                            N->isCompressingStore());
+
+    // Build a factor node to remember that this store is independent of the
+    // other one.
+    Res = DAG.getNode(ISD::TokenFactor, DL, MVT::Other, Lo, Hi);
+  }
+
+  return Res;
 }
 
 SDValue DAGTypeLegalizer::SplitVecOp_MSCATTER(MaskedScatterSDNode *N,

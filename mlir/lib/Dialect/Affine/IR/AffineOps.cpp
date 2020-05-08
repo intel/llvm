@@ -85,19 +85,17 @@ Operation *AffineDialect::materializeConstant(OpBuilder &builder,
 }
 
 /// A utility function to check if a value is defined at the top level of an
-/// op with trait `PolyhedralScope`. A value of index type defined at the top
+/// op with trait `AffineScope`. A value of index type defined at the top
 /// level is always a valid symbol.
 bool mlir::isTopLevelValue(Value value) {
   if (auto arg = value.dyn_cast<BlockArgument>())
-    return arg.getOwner()->getParentOp()->hasTrait<OpTrait::PolyhedralScope>();
-  return value.getDefiningOp()
-      ->getParentOp()
-      ->hasTrait<OpTrait::PolyhedralScope>();
+    return arg.getOwner()->getParentOp()->hasTrait<OpTrait::AffineScope>();
+  return value.getDefiningOp()->getParentOp()->hasTrait<OpTrait::AffineScope>();
 }
 
 /// A utility function to check if a value is defined at the top level of
 /// `region` or is an argument of `region`. A value of index type defined at the
-/// top level of a `PolyhedralScope` region is always a valid symbol for all
+/// top level of a `AffineScope` region is always a valid symbol for all
 /// uses in that region.
 static bool isTopLevelValue(Value value, Region *region) {
   if (auto arg = value.dyn_cast<BlockArgument>())
@@ -106,12 +104,12 @@ static bool isTopLevelValue(Value value, Region *region) {
 }
 
 /// Returns the closest region enclosing `op` that is held by an operation with
-/// trait `PolyhedralScope`.
+/// trait `AffineScope`.
 //  TODO: getAffineScope should be publicly exposed for affine passes/utilities.
 static Region *getAffineScope(Operation *op) {
   auto *curOp = op;
   while (auto *parentOp = curOp->getParentOp()) {
-    if (parentOp->hasTrait<OpTrait::PolyhedralScope>())
+    if (parentOp->hasTrait<OpTrait::AffineScope>())
       return curOp->getParentRegion();
     curOp = parentOp;
   }
@@ -132,9 +130,9 @@ bool mlir::isValidDim(Value value) {
     return isValidDim(value, getAffineScope(defOp));
 
   // This value has to be a block argument for an op that has the
-  // `PolyhedralScope` trait or for an affine.for or affine.parallel.
+  // `AffineScope` trait or for an affine.for or affine.parallel.
   auto *parentOp = value.cast<BlockArgument>().getOwner()->getParentOp();
-  return parentOp->hasTrait<OpTrait::PolyhedralScope>() ||
+  return parentOp->hasTrait<OpTrait::AffineScope>() ||
          isa<AffineForOp>(parentOp) || isa<AffineParallelOp>(parentOp);
 }
 
@@ -209,7 +207,7 @@ static bool isDimOpValidSymbol(DimOp dimOp, Region *region) {
 // the following conditions:
 // *) It is a constant.
 // *) Its defining op or block arg appearance is immediately enclosed by an op
-//    with `PolyhedralScope` trait.
+//    with `AffineScope` trait.
 // *) It is the result of an affine.apply operation with symbol operands.
 // *) It is a result of the dim op on a memref whose corresponding size is a
 //    valid symbol.
@@ -2091,6 +2089,38 @@ static ParseResult parseAffineMinMaxOp(OpAsmParser &parser,
       parser.addTypeToList(indexType, result.types));
 }
 
+/// Fold an affine min or max operation with the given operands. The operand
+/// list may contain nulls, which are interpreted as the operand not being a
+/// constant.
+template <typename T>
+OpFoldResult foldMinMaxOp(T op, ArrayRef<Attribute> operands) {
+  static_assert(llvm::is_one_of<T, AffineMinOp, AffineMaxOp>::value,
+                "expected affine min or max op");
+
+  // Fold the affine map.
+  // TODO(andydavis, ntv) Fold more cases:
+  // min(some_affine, some_affine + constant, ...), etc.
+  SmallVector<int64_t, 2> results;
+  auto foldedMap = op.map().partialConstantFold(operands, &results);
+
+  // If some of the map results are not constant, try changing the map in-place.
+  if (results.empty()) {
+    // If the map is the same, report that folding did not happen.
+    if (foldedMap == op.map())
+      return {};
+    op.setAttr("map", AffineMapAttr::get(foldedMap));
+    return op.getResult();
+  }
+
+  // Otherwise, completely fold the op into a constant.
+  auto resultIt = std::is_same<T, AffineMinOp>::value
+                      ? std::min_element(results.begin(), results.end())
+                      : std::max_element(results.begin(), results.end());
+  if (resultIt == results.end())
+    return {};
+  return IntegerAttr::get(IndexType::get(op.getContext()), *resultIt);
+}
+
 //===----------------------------------------------------------------------===//
 // AffineMinOp
 //===----------------------------------------------------------------------===//
@@ -2099,26 +2129,7 @@ static ParseResult parseAffineMinMaxOp(OpAsmParser &parser,
 //
 
 OpFoldResult AffineMinOp::fold(ArrayRef<Attribute> operands) {
-  // Fold the affine map.
-  // TODO(andydavis, ntv) Fold more cases: partial static information,
-  // min(some_affine, some_affine + constant, ...).
-  SmallVector<Attribute, 2> results;
-  if (failed(map().constantFold(operands, results)))
-    return {};
-
-  // Compute and return min of folded map results.
-  int64_t min = std::numeric_limits<int64_t>::max();
-  int minIndex = -1;
-  for (unsigned i = 0, e = results.size(); i < e; ++i) {
-    auto intAttr = results[i].cast<IntegerAttr>();
-    if (intAttr.getInt() < min) {
-      min = intAttr.getInt();
-      minIndex = i;
-    }
-  }
-  if (minIndex < 0)
-    return {};
-  return results[minIndex];
+  return foldMinMaxOp(*this, operands);
 }
 
 void AffineMinOp::getCanonicalizationPatterns(
@@ -2134,26 +2145,7 @@ void AffineMinOp::getCanonicalizationPatterns(
 //
 
 OpFoldResult AffineMaxOp::fold(ArrayRef<Attribute> operands) {
-  // Fold the affine map.
-  // TODO(andydavis, ntv, ouhang) Fold more cases: partial static information,
-  // max(some_affine, some_affine + constant, ...).
-  SmallVector<Attribute, 2> results;
-  if (failed(map().constantFold(operands, results)))
-    return {};
-
-  // Compute and return max of folded map results.
-  int64_t max = std::numeric_limits<int64_t>::min();
-  int maxIndex = -1;
-  for (unsigned i = 0, e = results.size(); i < e; ++i) {
-    auto intAttr = results[i].cast<IntegerAttr>();
-    if (intAttr.getInt() > max) {
-      max = intAttr.getInt();
-      maxIndex = i;
-    }
-  }
-  if (maxIndex < 0)
-    return {};
-  return results[maxIndex];
+  return foldMinMaxOp(*this, operands);
 }
 
 void AffineMaxOp::getCanonicalizationPatterns(
@@ -2453,7 +2445,7 @@ static ParseResult parseAffineParallelOp(OpAsmParser &parser,
     return failure();
 
   AffineMapAttr stepsMapAttr;
-  SmallVector<NamedAttribute, 1> stepsAttrs;
+  NamedAttrList stepsAttrs;
   SmallVector<OpAsmParser::OperandType, 4> stepsMapOperands;
   if (failed(parser.parseOptionalKeyword("step"))) {
     SmallVector<int64_t, 4> steps(ivs.size(), 1);

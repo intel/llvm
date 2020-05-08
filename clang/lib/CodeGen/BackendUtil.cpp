@@ -78,6 +78,7 @@
 #include "llvm/Transforms/Utils/EntryExitInstrumenter.h"
 #include "llvm/Transforms/Utils/NameAnonGlobals.h"
 #include "llvm/Transforms/Utils/SymbolRewriter.h"
+#include "llvm/Transforms/Utils/UniqueInternalLinkageNames.h"
 #include <memory>
 
 namespace SPIRV {
@@ -456,15 +457,15 @@ static void initTargetOptions(llvm::TargetOptions &Options,
 
   // Set FP fusion mode.
   switch (LangOpts.getDefaultFPContractMode()) {
-  case LangOptions::FPC_Off:
+  case LangOptions::FPM_Off:
     // Preserve any contraction performed by the front-end.  (Strict performs
     // splitting of the muladd intrinsic in the backend.)
     Options.AllowFPOpFusion = llvm::FPOpFusion::Standard;
     break;
-  case LangOptions::FPC_On:
+  case LangOptions::FPM_On:
     Options.AllowFPOpFusion = llvm::FPOpFusion::Standard;
     break;
-  case LangOptions::FPC_Fast:
+  case LangOptions::FPM_Fast:
     Options.AllowFPOpFusion = llvm::FPOpFusion::Fast;
     break;
   }
@@ -756,6 +757,12 @@ void EmitAssemblyHelper::CreatePasses(legacy::PassManager &MPM,
   // Set up the per-module pass manager.
   if (!CodeGenOpts.RewriteMapFiles.empty())
     addSymbolRewriterPass(CodeGenOpts, &MPM);
+
+  // Add UniqueInternalLinkageNames Pass which renames internal linkage symbols
+  // with unique names.
+  if (CodeGenOpts.UniqueInternalLinkageNames) {
+    MPM.add(createUniqueInternalLinkageNamesPass());
+  }
 
   if (Optional<GCOVOptions> Options = getGCOVOptions(CodeGenOpts)) {
     MPM.add(createGCOVProfilerPass(*Options));
@@ -1058,8 +1065,11 @@ static void addSanitizersAtO0(ModulePassManager &MPM,
   }
 
   if (LangOpts.Sanitize.has(SanitizerKind::Memory)) {
-    MPM.addPass(MemorySanitizerPass({}));
-    MPM.addPass(createModuleToFunctionPassAdaptor(MemorySanitizerPass({})));
+    bool Recover = CodeGenOpts.SanitizeRecover.has(SanitizerKind::Memory);
+    int TrackOrigins = CodeGenOpts.SanitizeMemoryTrackOrigins;
+    MPM.addPass(MemorySanitizerPass({TrackOrigins, Recover, false}));
+    MPM.addPass(createModuleToFunctionPassAdaptor(
+        MemorySanitizerPass({TrackOrigins, Recover, false})));
   }
 
   if (LangOpts.Sanitize.has(SanitizerKind::KernelMemory)) {
@@ -1242,6 +1252,12 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
       if (LangOpts.Sanitize.has(SanitizerKind::LocalBounds))
         MPM.addPass(createModuleToFunctionPassAdaptor(BoundsCheckingPass()));
 
+      // Add UniqueInternalLinkageNames Pass which renames internal linkage
+      // symbols with unique names.
+      if (CodeGenOpts.UniqueInternalLinkageNames) {
+        MPM.addPass(UniqueInternalLinkageNamesPass());
+      }
+
       // Lastly, add semantically necessary passes for LTO.
       if (IsLTO || IsThinLTO) {
         MPM.addPass(CanonicalizeAliasesPass());
@@ -1278,12 +1294,16 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
               FPM.addPass(BoundsCheckingPass());
             });
       if (LangOpts.Sanitize.has(SanitizerKind::Memory)) {
-        PB.registerPipelineStartEPCallback([](ModulePassManager &MPM) {
-          MPM.addPass(MemorySanitizerPass({}));
-        });
+        int TrackOrigins = CodeGenOpts.SanitizeMemoryTrackOrigins;
+        bool Recover = CodeGenOpts.SanitizeRecover.has(SanitizerKind::Memory);
+        PB.registerPipelineStartEPCallback(
+            [TrackOrigins, Recover](ModulePassManager &MPM) {
+              MPM.addPass(MemorySanitizerPass({TrackOrigins, Recover, false}));
+            });
         PB.registerOptimizerLastEPCallback(
-            [](FunctionPassManager &FPM, PassBuilder::OptimizationLevel Level) {
-              FPM.addPass(MemorySanitizerPass({}));
+            [TrackOrigins, Recover](FunctionPassManager &FPM,
+                                    PassBuilder::OptimizationLevel Level) {
+              FPM.addPass(MemorySanitizerPass({TrackOrigins, Recover, false}));
             });
       }
       if (LangOpts.Sanitize.has(SanitizerKind::Thread)) {
@@ -1326,6 +1346,12 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
         PB.registerPipelineStartEPCallback([Options](ModulePassManager &MPM) {
           MPM.addPass(InstrProfiling(*Options, false));
         });
+
+      // Add UniqueInternalLinkageNames Pass which renames internal linkage
+      // symbols with unique names.
+      if (CodeGenOpts.UniqueInternalLinkageNames) {
+        MPM.addPass(UniqueInternalLinkageNamesPass());
+      }
 
       if (IsThinLTO) {
         MPM = PB.buildThinLTOPreLinkDefaultPipeline(

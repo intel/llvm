@@ -934,6 +934,7 @@ ARMTargetLowering::ARMTargetLowering(const TargetMachine &TM,
     setTargetDAGCombine(ISD::BUILD_VECTOR);
     setTargetDAGCombine(ISD::VECTOR_SHUFFLE);
     setTargetDAGCombine(ISD::INSERT_VECTOR_ELT);
+    setTargetDAGCombine(ISD::EXTRACT_VECTOR_ELT);
     setTargetDAGCombine(ISD::STORE);
     setTargetDAGCombine(ISD::SIGN_EXTEND);
     setTargetDAGCombine(ISD::ZERO_EXTEND);
@@ -13029,13 +13030,18 @@ static SDValue PerformVMOVDRRCombine(SDNode *N, SelectionDAG &DAG) {
 }
 
 static SDValue PerformVMOVhrCombine(SDNode *N, TargetLowering::DAGCombinerInfo &DCI) {
+  SDValue Op0 = N->getOperand(0);
+
+  // VMOVhr (VMOVrh (X)) -> X
+  if (Op0->getOpcode() == ARMISD::VMOVrh)
+    return Op0->getOperand(0);
+
   // FullFP16: half values are passed in S-registers, and we don't
   // need any of the bitcast and moves:
   //
   //     t2: f32,ch = CopyFromReg t0, Register:f32 %0
   //   t5: i32 = bitcast t2
   // t18: f16 = ARMISD::VMOVhr t5
-  SDValue Op0 = N->getOperand(0);
   if (Op0->getOpcode() == ISD::BITCAST) {
     SDValue Copy = Op0->getOperand(0);
     if (Copy.getValueType() == MVT::f32 &&
@@ -13044,6 +13050,18 @@ static SDValue PerformVMOVhrCombine(SDNode *N, TargetLowering::DAGCombinerInfo &
       SDValue NewCopy =
           DCI.DAG.getNode(ISD::CopyFromReg, SDLoc(N), MVT::f16, Ops);
       return NewCopy;
+    }
+  }
+
+  // fold (VMOVhr (load x)) -> (load (f16*)x)
+  if (LoadSDNode *LN0 = dyn_cast<LoadSDNode>(Op0)) {
+    if (LN0->hasOneUse() && LN0->isUnindexed() &&
+        LN0->getMemoryVT() == MVT::i16) {
+      SDValue Load = DCI.DAG.getLoad(MVT::f16, SDLoc(N), LN0->getChain(),
+                                     LN0->getBasePtr(), LN0->getMemOperand());
+      DCI.DAG.ReplaceAllUsesOfValueWith(SDValue(N, 0), Load.getValue(0));
+      DCI.DAG.ReplaceAllUsesOfValueWith(Op0.getValue(1), Load.getValue(1));
+      return Load;
     }
   }
 
@@ -13311,6 +13329,29 @@ static SDValue PerformInsertEltCombine(SDNode *N,
   SDValue InsElt = DAG.getNode(ISD::INSERT_VECTOR_ELT, dl, FloatVT,
                                Vec, V, N->getOperand(2));
   return DAG.getNode(ISD::BITCAST, dl, VT, InsElt);
+}
+
+static SDValue PerformExtractEltCombine(SDNode *N,
+                                        TargetLowering::DAGCombinerInfo &DCI) {
+  SDValue Op0 = N->getOperand(0);
+  EVT VT = N->getValueType(0);
+  SDLoc dl(N);
+
+  // extract (vdup x) -> x
+  if (Op0->getOpcode() == ARMISD::VDUP) {
+    SDValue X = Op0->getOperand(0);
+    if (VT == MVT::f16 && X.getValueType() == MVT::i32)
+      return DCI.DAG.getNode(ARMISD::VMOVhr, dl, VT, X);
+    if (VT == MVT::i32 && X.getValueType() == MVT::f16)
+      return DCI.DAG.getNode(ARMISD::VMOVrh, dl, VT, X);
+
+    while (X.getValueType() != VT && X->getOpcode() == ISD::BITCAST)
+      X = X->getOperand(0);
+    if (X.getValueType() == VT)
+      return X;
+  }
+
+  return SDValue();
 }
 
 /// PerformVECTOR_SHUFFLECombine - Target-specific dag combine xforms for
@@ -15244,8 +15285,17 @@ ARMTargetLowering::PerformCMOVCombine(SDNode *N, SelectionDAG &DAG) const {
   return Res;
 }
 
-static SDValue PerformBITCASTCombine(SDNode *N, SelectionDAG &DAG) {
+static SDValue PerformBITCASTCombine(SDNode *N, SelectionDAG &DAG,
+                                    const ARMSubtarget *ST) {
   SDValue Src = N->getOperand(0);
+  EVT DstVT = N->getValueType(0);
+
+  // Convert v4f32 bitcast (v4i32 vdup (i32)) -> v4f32 vdup (i32) under MVE.
+  if (ST->hasMVEIntegerOps() && Src.getOpcode() == ARMISD::VDUP) {
+    EVT SrcVT = Src.getValueType();
+    if (SrcVT.getScalarSizeInBits() == DstVT.getScalarSizeInBits())
+      return DAG.getNode(ARMISD::VDUP, SDLoc(N), DstVT, Src.getOperand(0));
+  }
 
   // We may have a bitcast of something that has already had this bitcast
   // combine performed on it, so skip past any VECTOR_REG_CASTs.
@@ -15255,7 +15305,6 @@ static SDValue PerformBITCASTCombine(SDNode *N, SelectionDAG &DAG) {
   // Bitcast from element-wise VMOV or VMVN doesn't need VREV if the VREV that
   // would be generated is at least the width of the element type.
   EVT SrcVT = Src.getValueType();
-  EVT DstVT = N->getValueType(0);
   if ((Src.getOpcode() == ARMISD::VMOVIMM ||
        Src.getOpcode() == ARMISD::VMVNIMM ||
        Src.getOpcode() == ARMISD::VMOVFPIMM) &&
@@ -15293,6 +15342,7 @@ SDValue ARMTargetLowering::PerformDAGCombine(SDNode *N,
   case ISD::STORE:      return PerformSTORECombine(N, DCI, Subtarget);
   case ISD::BUILD_VECTOR: return PerformBUILD_VECTORCombine(N, DCI, Subtarget);
   case ISD::INSERT_VECTOR_ELT: return PerformInsertEltCombine(N, DCI);
+  case ISD::EXTRACT_VECTOR_ELT: return PerformExtractEltCombine(N, DCI);
   case ISD::VECTOR_SHUFFLE: return PerformVECTOR_SHUFFLECombine(N, DCI.DAG);
   case ARMISD::VDUPLANE: return PerformVDUPLANECombine(N, DCI);
   case ARMISD::VDUP: return PerformVDUPCombine(N, DCI, Subtarget);
@@ -15321,7 +15371,7 @@ SDValue ARMTargetLowering::PerformDAGCombine(SDNode *N,
   case ARMISD::BUILD_VECTOR:
     return PerformARMBUILD_VECTORCombine(N, DCI);
   case ISD::BITCAST:
-    return PerformBITCASTCombine(N, DCI.DAG);
+    return PerformBITCASTCombine(N, DCI.DAG, Subtarget);
   case ARMISD::PREDICATE_CAST:
     return PerformPREDICATE_CASTCombine(N, DCI);
   case ARMISD::VECTOR_REG_CAST:
