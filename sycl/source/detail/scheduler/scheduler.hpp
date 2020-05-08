@@ -551,7 +551,8 @@ protected:
 
     EmptyCommand *addEmptyCmd(Command *Cmd,
                               const std::vector<Requirement *> &Req,
-                              const QueueImplPtr &Queue);
+                              const QueueImplPtr &Queue,
+                              Command::BlockReason Reason);
 
   protected:
     /// Finds a command dependency corresponding to the record.

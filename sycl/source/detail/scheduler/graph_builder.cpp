@@ -416,7 +416,8 @@ Command *Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
   Command *UpdateHostAccCmd = insertUpdateHostReqCmd(Record, Req, HostQueue);
 
   // Need empty command to be blocked until host accessor is destructed
-  EmptyCommand *EmptyCmd = addEmptyCmd(UpdateHostAccCmd, {Req}, HostQueue);
+  EmptyCommand *EmptyCmd = addEmptyCmd(UpdateHostAccCmd, {Req}, HostQueue,
+                                       Command::BlockReason::HostAccessor);
 
   Req->MBlockedCmd = EmptyCmd;
 
@@ -642,7 +643,8 @@ void Scheduler::GraphBuilder::markModifiedIfWrite(MemObjRecord *Record,
 EmptyCommand *
 Scheduler::GraphBuilder::addEmptyCmd(Command *Cmd,
                                      const std::vector<Requirement *> &Reqs,
-                                     const QueueImplPtr &Queue) {
+                                     const QueueImplPtr &Queue,
+                                     Command::BlockReason Reason) {
   EmptyCommand *EmptyCmd =
       new EmptyCommand(Scheduler::getInstance().getDefaultHostQueue());
 
@@ -651,7 +653,7 @@ Scheduler::GraphBuilder::addEmptyCmd(Command *Cmd,
 
   EmptyCmd->MIsBlockable = true;
   EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueBlocked;
-  EmptyCmd->MBlockReason = Command::BlockReason::HostTask;
+  EmptyCmd->MBlockReason = Reason;
 
   for (Requirement *Req : Reqs) {
     MemObjRecord *Record = getOrInsertMemObjRecord(Queue, Req);
@@ -735,7 +737,8 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
   }
 
   if (CGType == CG::CGTYPE::CODEPLAY_HOST_TASK)
-    addEmptyCmd(NewCmd.get(), NewCmd->getCG()->MRequirements, Queue);
+    addEmptyCmd(NewCmd.get(), NewCmd->getCG()->MRequirements, Queue,
+                Command::BlockReason::HostTask);
 
   if (MPrintOptionsArray[AfterAddCG])
     printGraphAsDot("after_addCG");
@@ -946,11 +949,13 @@ void Scheduler::GraphBuilder::connectDepEvent(Command *const Cmd,
     const auto &Reqs = std::vector<Requirement *>(
         1, const_cast<Requirement *>(Dep.MDepRequirement));
     EmptyCmd = addEmptyCmd(ConnectCmd, Reqs,
-                           Scheduler::getInstance().getDefaultHostQueue());
+                           Scheduler::getInstance().getDefaultHostQueue(),
+                           Command::BlockReason::HostTask);
     // Dependencies for EmptyCmd are set in addEmptyCmd for provided Reqs.
   } else {
     EmptyCmd = addEmptyCmd(ConnectCmd, {},
-                           Scheduler::getInstance().getDefaultHostQueue());
+                           Scheduler::getInstance().getDefaultHostQueue(),
+                           Command::BlockReason::HostTask);
 
     // There is no requirement thus, empty command will only depend on
     // ConnectCmd via its event.
