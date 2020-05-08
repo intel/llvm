@@ -2867,11 +2867,9 @@ pi_result cuda_piEnqueueEventsWait(pi_queue command_queue,
     }
 
     if (event) {
-      auto new_event =
-          _pi_event::make_native(PI_COMMAND_TYPE_MARKER, command_queue);
-      new_event->start();
-      new_event->record();
-      *event = new_event;
+      *event = _pi_event::make_native(PI_COMMAND_TYPE_MARKER, command_queue);
+      (*event)->start();
+      (*event)->record();
     }
 
     return PI_SUCCESS;
@@ -3281,7 +3279,6 @@ pi_result cuda_piEnqueueMemBufferFill(pi_queue command_queue, pi_mem buffer,
     return PI_ERROR_UNKNOWN;
   }
 }
-
 /// \TODO Not implemented in CUDA, requires untie from OpenCL
 pi_result cuda_piEnqueueMemImageRead(
     pi_queue command_queue, pi_mem image, pi_bool blocking_read,
@@ -3361,10 +3358,9 @@ pi_result cuda_piEnqueueMemBufferMap(pi_queue command_queue, pi_mem buffer,
         num_events_in_wait_list, event_wait_list, retEvent);
   } else {
     if (retEvent) {
-      auto new_event =
+      *retEvent =
           _pi_event::make_native(PI_COMMAND_TYPE_MEM_BUFFER_MAP, command_queue);
-      new_event->record();
-      *retEvent = new_event;
+      (*retEvent)->record();
     }
   }
 
@@ -3394,10 +3390,9 @@ pi_result cuda_piEnqueueMemUnmap(pi_queue command_queue, pi_mem memobj,
       retEvent);
   } else {
     if (retEvent) {
-      auto new_event = _pi_event::make_native(PI_COMMAND_TYPE_MEM_BUFFER_UNMAP,
-                                              command_queue);
-      new_event->record();
-      *retEvent = new_event;
+      *retEvent = _pi_event::make_native(PI_COMMAND_TYPE_MEM_BUFFER_UNMAP,
+                                         command_queue);
+      (*retEvent)->record();
     }
   }
 
