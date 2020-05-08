@@ -584,7 +584,7 @@ void CoroCloner::replaceEntryBlock() {
   // Move any allocas into Entry that weren't moved into the frame.
   for (auto IT = OldEntry->begin(), End = OldEntry->end(); IT != End;) {
     Instruction &I = *IT++;
-    if (!isa<AllocaInst>(&I) || I.getNumUses() == 0)
+    if (!isa<AllocaInst>(&I) || I.use_empty())
       continue;
 
     I.moveBefore(*Entry, Entry->getFirstInsertionPt());
@@ -1167,7 +1167,7 @@ static bool simplifySuspendPoint(CoroSuspendInst *Suspend,
   if (!CB)
     return false;
 
-  auto *Callee = CB->getCalledValue()->stripPointerCasts();
+  auto *Callee = CB->getCalledOperand()->stripPointerCasts();
 
   // See if the callsite is for resumption or destruction of the coroutine.
   auto *SubFn = dyn_cast<CoroSubFnInst>(Callee);
@@ -1197,7 +1197,7 @@ static bool simplifySuspendPoint(CoroSuspendInst *Suspend,
   }
 
   // Grab the CalledValue from CB before erasing the CallInstr.
-  auto *CalledValue = CB->getCalledValue();
+  auto *CalledValue = CB->getCalledOperand();
   CB->eraseFromParent();
 
   // If no more users remove it. Usually it is a bitcast of SubFn.

@@ -535,7 +535,7 @@ void DeclPrinter::VisitEnumDecl(EnumDecl *D) {
   if (Policy.SuppressDefinition)
     return;
 
-  if (D->isFixed() && D->getASTContext().getLangOpts().CPlusPlus11)
+  if (D->isFixed())
     Out << " : " << D->getIntegerType().stream(Policy);
 
   if (D->isCompleteDefinition()) {

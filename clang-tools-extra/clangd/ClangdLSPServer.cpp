@@ -7,18 +7,17 @@
 //===----------------------------------------------------------------------===//
 
 #include "ClangdLSPServer.h"
-#include "Context.h"
 #include "Diagnostics.h"
 #include "DraftStore.h"
-#include "FormattedString.h"
 #include "GlobalCompilationDatabase.h"
 #include "Protocol.h"
 #include "SemanticHighlighting.h"
 #include "SourceCode.h"
 #include "TUScheduler.h"
-#include "Trace.h"
 #include "URI.h"
 #include "refactor/Tweak.h"
+#include "support/Context.h"
+#include "support/Trace.h"
 #include "clang/Basic/Version.h"
 #include "clang/Tooling/Core/Replacement.h"
 #include "llvm/ADT/ArrayRef.h"
@@ -42,6 +41,11 @@
 namespace clang {
 namespace clangd {
 namespace {
+
+// Tracks end-to-end latency of high level lsp calls. Measurements are in
+// seconds.
+constexpr trace::Metric LSPLatency("lsp_latency", trace::Metric::Distribution,
+                                   "method_name");
 
 // LSP defines file versions as numbers that increase.
 // ClangdServer treats them as opaque and therefore uses strings instead.
@@ -185,7 +189,7 @@ public:
     WithContext HandlerContext(handlerContext());
     // Calls can be canceled by the client. Add cancellation context.
     WithContext WithCancel(cancelableRequestContext(ID));
-    trace::Span Tracer(Method);
+    trace::Span Tracer(Method, LSPLatency);
     SPAN_ATTACH(Tracer, "Params", Params);
     ReplyOnce Reply(ID, Method, &Server, Tracer.Args);
     log("<-- {0}({1})", Method, ID);
@@ -297,7 +301,7 @@ public:
         elog("Failed to decode {0} request.", Method);
         return;
       }
-      trace::Span Tracer(Method);
+      trace::Span Tracer(Method, LSPLatency);
       SPAN_ATTACH(Tracer, "Params", RawParams);
       (Server.*Handler)(P);
     };
@@ -528,6 +532,8 @@ void ClangdLSPServer::onInitialize(const InitializeParams &Params,
   CCOpts.IncludeFixIts = Params.capabilities.CompletionFixes;
   if (!CCOpts.BundleOverloads.hasValue())
     CCOpts.BundleOverloads = Params.capabilities.HasSignatureHelp;
+  CCOpts.DocumentationFormat =
+      Params.capabilities.CompletionDocumentationFormat;
   DiagOpts.EmbedFixesInDiagnostics = Params.capabilities.DiagnosticFixes;
   DiagOpts.SendDiagnosticCategory = Params.capabilities.DiagnosticCategory;
   DiagOpts.EmitRelatedLocations =
@@ -1288,7 +1294,7 @@ void ClangdLSPServer::onSemanticTokens(const SemanticTokensParams &Params,
         Result.tokens = toSemanticTokens(*HT);
         {
           std::lock_guard<std::mutex> Lock(SemanticTokensMutex);
-          auto& Last = LastSemanticTokens[File];
+          auto &Last = LastSemanticTokens[File];
 
           Last.tokens = Result.tokens;
           increment(Last.resultId);
@@ -1313,7 +1319,7 @@ void ClangdLSPServer::onSemanticTokensEdits(
         SemanticTokensOrEdits Result;
         {
           std::lock_guard<std::mutex> Lock(SemanticTokensMutex);
-          auto& Last = LastSemanticTokens[File];
+          auto &Last = LastSemanticTokens[File];
 
           if (PrevResultID == Last.resultId) {
             Result.edits = diffTokens(Last.tokens, Toks);

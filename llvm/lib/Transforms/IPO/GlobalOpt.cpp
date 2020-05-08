@@ -467,14 +467,19 @@ static bool CanDoGlobalSRA(GlobalVariable *GV) {
 /// Copy over the debug info for a variable to its SRA replacements.
 static void transferSRADebugInfo(GlobalVariable *GV, GlobalVariable *NGV,
                                  uint64_t FragmentOffsetInBits,
-                                 uint64_t FragmentSizeInBits,
-                                 unsigned NumElements) {
+                                 uint64_t FragmentSizeInBits) {
   SmallVector<DIGlobalVariableExpression *, 1> GVs;
   GV->getDebugInfo(GVs);
   for (auto *GVE : GVs) {
     DIVariable *Var = GVE->getVariable();
+    Optional<uint64_t> VarSize = Var->getSizeInBits();
+
     DIExpression *Expr = GVE->getExpression();
-    if (NumElements > 1) {
+    // If the FragmentSize is smaller than the variable,
+    // emit a fragment expression.
+    // If the variable size is unknown a fragment must be
+    // emitted to be safe.
+    if (!VarSize || FragmentSizeInBits < *VarSize) {
       if (auto E = DIExpression::createFragmentExpression(
               Expr, FragmentOffsetInBits, FragmentSizeInBits))
         Expr = *E;
@@ -556,8 +561,7 @@ static GlobalVariable *SRAGlobal(GlobalVariable *GV, const DataLayout &DL) {
       // Copy over the debug info for the variable.
       uint64_t Size = DL.getTypeAllocSizeInBits(NGV->getValueType());
       uint64_t FragmentOffsetInBits = Layout.getElementOffsetInBits(ElementIdx);
-      transferSRADebugInfo(GV, NGV, FragmentOffsetInBits, Size,
-                           STy->getNumElements());
+      transferSRADebugInfo(GV, NGV, FragmentOffsetInBits, Size);
     } else {
       uint64_t EltSize = DL.getTypeAllocSize(ElTy);
       Align EltAlign(DL.getABITypeAlignment(ElTy));
@@ -570,7 +574,7 @@ static GlobalVariable *SRAGlobal(GlobalVariable *GV, const DataLayout &DL) {
       if (NewAlign > EltAlign)
         NGV->setAlignment(NewAlign);
       transferSRADebugInfo(GV, NGV, FragmentSizeInBits * ElementIdx,
-                           FragmentSizeInBits, GetSRASequentialNumElements(Ty));
+                           FragmentSizeInBits);
     }
   }
 
@@ -658,12 +662,12 @@ static bool AllUsesOfValueWillTrapIfNull(const Value *V,
         return false;  // Storing the value.
       }
     } else if (const CallInst *CI = dyn_cast<CallInst>(U)) {
-      if (CI->getCalledValue() != V) {
+      if (CI->getCalledOperand() != V) {
         //cerr << "NONTRAPPING USE: " << *U;
         return false;  // Not calling the ptr
       }
     } else if (const InvokeInst *II = dyn_cast<InvokeInst>(U)) {
-      if (II->getCalledValue() != V) {
+      if (II->getCalledOperand() != V) {
         //cerr << "NONTRAPPING USE: " << *U;
         return false;  // Not calling the ptr
       }
@@ -721,7 +725,7 @@ static bool OptimizeAwayTrappingUsesOfValue(Value *V, Constant *NewV) {
       }
     } else if (isa<CallInst>(I) || isa<InvokeInst>(I)) {
       CallBase *CB = cast<CallBase>(I);
-      if (CB->getCalledValue() == V) {
+      if (CB->getCalledOperand() == V) {
         // Calling through the pointer!  Turn into a direct call, but be careful
         // that the pointer is not also being passed as an argument.
         CB->setCalledOperand(NewV);
