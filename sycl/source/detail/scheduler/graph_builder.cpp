@@ -946,8 +946,30 @@ void Scheduler::GraphBuilder::connectDepEvent(Command *const Cmd,
   EmptyCommand *EmptyCmd = nullptr;
 
   if (Dep.MDepRequirement) {
-    const auto &Reqs = std::vector<Requirement *>(
-        1, const_cast<Requirement *>(Dep.MDepRequirement));
+    Requirement *Req = const_cast<Requirement *>(Dep.MDepRequirement);
+
+    // make ConnectCmd depend on requirement
+    {
+      MemObjRecord *Record = getMemObjRecord(Req->MSYCLMemObj);
+      Dep.MDepCommand->addUser(ConnectCmd);
+
+      AllocaCommandBase *AllocaCmd = findAllocaForReq(Record, Req,
+                                                      DepEventContext);
+      assert(AllocaCmd && "There must be alloca for requirement!");
+
+      std::set<Command *> Deps = findDepsForReq(Record, Req, DepEventContext);
+      assert(Deps.size() && "There must be some deps");
+
+      for (Command *ReqDepCmd : Deps) {
+        ConnectCmd->addDep(DepDesc{ReqDepCmd, Req, AllocaCmd});
+        ReqDepCmd->addUser(ConnectCmd);
+      }
+
+      updateLeaves(Deps, Record, Req->MAccessMode);
+      addNodeToLeaves(Record, ConnectCmd, Req->MAccessMode);
+    }
+
+    const auto &Reqs = std::vector<Requirement *>(1, Req);
     EmptyCmd = addEmptyCmd(ConnectCmd, Reqs,
                            Scheduler::getInstance().getDefaultHostQueue(),
                            Command::BlockReason::HostTask);
