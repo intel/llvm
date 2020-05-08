@@ -7,6 +7,9 @@
 ; RUN: llc -mtriple=%triple -filetype=obj < %t.ll > %t
 ; RUN: llvm-dwarfdump %t | FileCheck %s
 
+target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
+target triple = "spir64-unknown-unknown"
+
 ; IR generated from clang -O -g with the following source
 ;
 ; void f1(int x, int y);
@@ -80,5 +83,3 @@ attributes #2 = { nounwind readnone }
 !24 = !DILocation(line: 7, scope: !8)
 !25 = !DILocation(line: 8, scope: !8)
 !26 = !{i32 1, !"Debug Info Version", i32 3}
-target triple = "spir64-unknown-unknown"
-target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"

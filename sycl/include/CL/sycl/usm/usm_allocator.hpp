@@ -87,8 +87,7 @@ public:
       usm::alloc AllocT = AllocKind,
       typename std::enable_if<AllocT == usm::alloc::device, int>::type = 0>
   void destroy(pointer Ptr) {
-    throw feature_not_supported(
-        "Device pointers do not support destroy on host", PI_INVALID_OPERATION);
+    // This method must be a NOP for device pointers.
   }
 
   /// Note:: AllocKind == alloc::device is not allowed.

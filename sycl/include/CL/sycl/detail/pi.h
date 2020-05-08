@@ -45,9 +45,9 @@
 // TODO: we need a mapping of PI to OpenCL somewhere, and this can be done
 // elsewhere, e.g. in the pi_opencl, but constants/enums mapping is now
 // done here, for efficiency and simplicity.
-//
+
 #include <CL/cl_usm_ext.h>
-#include <CL/opencl.h>
+#include <CL/sycl/detail/cl.h>
 #include <cstdint>
 
 #ifdef __cplusplus

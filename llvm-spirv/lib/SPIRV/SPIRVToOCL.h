@@ -97,10 +97,6 @@ public:
   /// No change with arguments.
   void visitCallSPIRVBuiltin(CallInst *CI, Op OC);
 
-  /// Translate mangled atomic type name: "atomic_" =>
-  ///   MangledAtomicTypeNamePrefix
-  void translateMangledAtomicTypeName();
-
   /// Get prefix work_/sub_ for OCL group builtin functions.
   /// Assuming the first argument of \param CI is a constant integer for
   /// workgroup/subgroup scope enums.

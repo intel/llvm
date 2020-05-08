@@ -6,6 +6,9 @@
 
 ; RUN: llc -mtriple=%triple -O0 -filetype=obj < %t.ll | llvm-dwarfdump - | FileCheck %s
 
+target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
+target triple = "spir64-unknown-unknown"
+
 ; Just because there are no scopes/locations on any instructions in the
 ; function doesn't mean we can't describe the address range of the function.
 ; Check that we do that
@@ -35,5 +38,3 @@ entry:
 !8 = !{null}
 !9 = !DILocation(line: 2, column: 1, scope: !6)
 
-target triple = "spir64-unknown-unknown"
-target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"

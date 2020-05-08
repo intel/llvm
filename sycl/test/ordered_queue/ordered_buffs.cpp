@@ -1,10 +1,9 @@
 // REQUIRES: opencl
 
-// RUN: %clangxx -fsycl %s -o %t.out -L %opencl_libs_dir -lOpenCL
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out -L %opencl_libs_dir -lOpenCL
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
-// XFAIL: cuda
 //==-------- ordered_buffs.cpp - SYCL buffers in ordered queues test--------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

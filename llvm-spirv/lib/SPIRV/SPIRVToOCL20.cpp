@@ -92,8 +92,6 @@ bool SPIRVToOCL20::runOnModule(Module &Module) {
   Ctx = &M->getContext();
   visit(*M);
 
-  translateMangledAtomicTypeName();
-
   eraseUselessFunctions(&Module);
 
   LLVM_DEBUG(dbgs() << "After SPIRVToOCL20:\n" << *M);

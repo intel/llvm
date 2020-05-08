@@ -5,6 +5,9 @@
 ; RUN: llc -O0 %t.ll -mtriple=x86_64-unknown-linux-gnu -filetype=obj -o %t
 ; RUN: llvm-dwarfdump -v -debug-info %t | FileCheck %s
 
+target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
+target triple = "spir64-unknown-unknown"
+
 ; Make sure that the base type from the subrange type has a name.
 ; CHECK: DW_TAG_subrange_type
 ; CHECK-NEXT: DW_AT_type [DW_FORM_ref4]     (cu + 0x{{[0-9a-f]+}} => {[[SUBTYPE:0x[0-9a-f]*]]}
@@ -41,5 +44,3 @@ declare void @llvm.dbg.declare(metadata, metadata, metadata) nounwind readnone
 !16 = !DILocation(line: 6, scope: !11)
 !17 = !DIFile(filename: "foo.c", directory: "/usr/local/google/home/echristo/tmp")
 !18 = !{i32 1, !"Debug Info Version", i32 3}
-target triple = "spir64-unknown-unknown"
-target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
