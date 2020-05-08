@@ -920,30 +920,28 @@ void Scheduler::GraphBuilder::connectDepEvent(
   if (!ConnectCmd)
     throw runtime_error("Out of host memory", PI_OUT_OF_HOST_MEMORY);
 
-  if (Command *DepCmd = reinterpret_cast<Command *>(DepEvent->getCommand())) {
-    EmptyCommand *EmptyCmd =
-        new EmptyCommand(Scheduler::getInstance().getDefaultHostQueue());
-
-    if (!EmptyCmd)
-      throw runtime_error("Out of host memory", PI_OUT_OF_HOST_MEMORY);
-
-    EmptyCmd->MIsBlockable = true;
-    EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueBlocked;
-    EmptyCmd->MBlockReason = Command::BlockReason::HostTask;
-
+  if (Command *DepCmd = reinterpret_cast<Command *>(DepEvent->getCommand()))
     DepCmd->addUser(ConnectCmd);
 
-    if (Dep.MDepRequirement)
-      addConnectCmdWithReq(Cmd, DepEventContext, ConnectCmd, EmptyCmd, Dep);
-    else {
-      ConnectCmd->addDep(DepEvent);
-      EmptyCmd->addDep(ConnectCmd->getEvent());
-      ConnectCmd->addUser(EmptyCmd);
-    }
-  } else
-    // if there is no command for the event (either the command is removed
-    // during cleanup or it's a user's event)
-    ConnectCmd->addDep(DepEvent);
+  ConnectCmd->addDep(DepEvent);
+
+  EmptyCommand *EmptyCmd = nullptr;
+
+  if (Dep.MDepRequirement) {
+    const auto &Reqs = std::vector<Requirement *>(
+        1, const_cast<Requirement *>(Dep.MDepRequirement));
+    EmptyCmd = addEmptyCmd(ConnectCmd, Reqs,
+                           Scheduler::getInstance().getDefaultHostQueue());
+    // Dependencies for EmptyCmd are set in addEmptyCmd for provided Reqs.
+  }
+  else {
+    EmptyCmd = addEmptyCmd(ConnectCmd, {},
+                           Scheduler::getInstance().getDefaultHostQueue());
+
+    // There is no requirement thus, empty command will only depend on
+    // ConnectCmd via its event.
+    EmptyCmd->addDep(ConnectCmd->getEvent());
+  }
 
   // FIXME graph builder shouldn't really enqueue commands. We're in the middle
   // of enqueue process for some command Cmd. We're going to add a dependency
@@ -956,36 +954,6 @@ void Scheduler::GraphBuilder::connectDepEvent(
                         PI_INVALID_OPERATION);
 
   Cmd->addDep(ConnectCmd->getEvent());
-}
-
-void Scheduler::GraphBuilder::addConnectCmdWithReq(
-    Command *const Cmd, const ContextImplPtr &DepEventContext,
-    ExecCGCommand *const ConnectCmd, EmptyCommand *const EmptyCmd,
-    const DepDesc &Dep) {
-  Requirement *Req = const_cast<Requirement *>(Dep.MDepRequirement);
-
-  MemObjRecord *Record = getMemObjRecord(Req->MSYCLMemObj);
-  Dep.MDepCommand->addUser(ConnectCmd);
-
-  AllocaCommandBase *AllocaCmd = findAllocaForReq(Record, Req, DepEventContext);
-  assert(AllocaCmd && "There must be alloca for requirement!");
-
-  std::set<Command *> Deps = findDepsForReq(Record, Req, DepEventContext);
-  assert(Deps.size() && "There must be some deps");
-
-  for (Command *ReqDepCmd : Deps) {
-    ConnectCmd->addDep(DepDesc{ReqDepCmd, Req, AllocaCmd});
-    ReqDepCmd->addUser(ConnectCmd);
-  }
-
-  updateLeaves(Deps, Record, Req->MAccessMode);
-  addNodeToLeaves(Record, ConnectCmd, Req->MAccessMode);
-
-  EmptyCmd->addRequirement(ConnectCmd, Dep.MAllocaCmd, Dep.MDepRequirement);
-  ConnectCmd->addUser(EmptyCmd);
-
-  updateLeaves({ConnectCmd}, Record, Req->MAccessMode);
-  addNodeToLeaves(Record, EmptyCmd, Req->MAccessMode);
 }
 
 } // namespace detail

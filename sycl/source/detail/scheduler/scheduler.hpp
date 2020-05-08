@@ -521,13 +521,6 @@ protected:
     /// Optionality of Dep is set by Dep.MDepCommand equal to nullptr.
     void connectDepEvent(Command *const Cmd, EventImplPtr DepEvent,
                          const DepDesc &Dep);
-    /// Helper for connectDepEvent
-    /// \param ConnectCmd connection cmd to properly add
-    /// \param Dep DepDesc with non-null MDepRequirmeent
-    void addConnectCmdWithReq(Command *const Cmd,
-                              const ContextImplPtr &DepEventContext,
-                              ExecCGCommand *const ConnectCmd,
-                              EmptyCommand *const EmptyCmd, const DepDesc &Dep);
 
     std::vector<SYCLMemObjI *> MMemObjs;
 
