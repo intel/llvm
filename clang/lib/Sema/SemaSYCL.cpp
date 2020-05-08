@@ -1637,6 +1637,32 @@ static std::string eraseAnonNamespace(std::string S) {
   return S;
 }
 
+static bool checkIfDeclInCLNameSpace(DeclContext *DC) {
+
+  bool inCL = false;
+
+  while (DC) {
+
+    auto *NS = dyn_cast_or_null<NamespaceDecl>(DC);
+    DC = NS->getDeclContext();
+
+    if (NS && DC->isTranslationUnit()) {
+
+      const IdentifierInfo *II = NS->getIdentifier();
+
+      if (II && II->isStr("cl")) {
+        inCL = true;
+        break;
+      }
+    }
+
+    if (!NS)
+      break;
+  }
+
+  return inCL;
+}
+
 // Emits a forward declaration
 void SYCLIntegrationHeader::emitFwdDecl(raw_ostream &O, const Decl *D,
                                         SourceLocation KernelLocation) {
@@ -1693,7 +1719,13 @@ void SYCLIntegrationHeader::emitFwdDecl(raw_ostream &O, const Decl *D,
   std::string S;
   llvm::raw_string_ostream SO(S);
   D->print(SO, P);
-  O << SO.str() << ";\n";
+  O << SO.str();
+
+  if (const auto *ED = dyn_cast<EnumDecl>(D)) {
+    QualType T = ED->getIntegerType();
+    O << " : " << T.getAsString() << ";\n";
+  } else
+    O << ";\n";
 
   // print closing braces for namespaces if needed
   for (unsigned I = 0; I < NamespaceCnt; ++I)
@@ -1796,6 +1828,26 @@ void SYCLIntegrationHeader::emitForwardClassDecls(
         }
         break;
       }
+      case TemplateArgument::ArgKind::Integral: {
+        // Handle Kernel Name Type templated using enum.
+        QualType T = Arg.getIntegralType();
+        if (const EnumType *ET = T->getAs<EnumType>()) {
+          auto EnumDecl = ET->getDecl();
+          DeclContext *DC = EnumDecl->getDeclContext();
+          auto *NS = dyn_cast_or_null<NamespaceDecl>(DC);
+          bool InCLNameSpace = false;
+
+          // Header files are included before integration header. Enums
+          // therefore defined in headers need not be forward declared. Their
+          // definitions are available in integration header.
+          if (NS)
+            InCLNameSpace = checkIfDeclInCLNameSpace(DC);
+
+          if (!InCLNameSpace)
+            emitFwdDecl(O, EnumDecl, KernelLocation);
+        }
+        break;
+      }
       default:
         break; // nop
       }
@@ -1820,6 +1872,85 @@ static std::string getCPPTypeString(QualType Ty) {
   PrintingPolicy P(LO);
   P.SuppressTypedefs = true;
   return eraseAnonNamespace(Ty.getAsString(P));
+}
+
+static void printArguments(raw_ostream &ArgOS, ArrayRef<TemplateArgument> Args,
+                           const PrintingPolicy &P, bool ParameterPack) {
+
+  if (!ParameterPack)
+    ArgOS << "<";
+
+  bool FirstArg = true;
+  const char *Comma = ", ";
+
+  for (unsigned I = 0; I < Args.size(); I++) {
+    const TemplateArgument &Arg = Args[I];
+    if (Arg.getKind() == TemplateArgument::ArgKind::Pack) {
+      if (Arg.pack_size() && !FirstArg)
+        ArgOS << Comma;
+      printArguments(ArgOS, Arg.getPackAsArray(), P, true);
+    } else if (Arg.getKind() == TemplateArgument::ArgKind::Integral) {
+      if (!FirstArg)
+        ArgOS << Comma;
+
+      QualType T = Arg.getIntegralType();
+      const EnumType *ET = T->getAs<EnumType>();
+
+      // Enums defined in SYCL headers are not changed to explicit values since
+      // the definition is visible in integration header.
+      if (ET && !checkIfDeclInCLNameSpace(ET->getDecl()->getDeclContext())) {
+        const llvm::APSInt &Val = Arg.getAsIntegral();
+        ArgOS << "<(" << ET->getDecl()->getQualifiedNameAsString() << ")>"
+              << Val;
+      } else {
+        Arg.print(P, ArgOS);
+      }
+    } else {
+      if (!FirstArg)
+        ArgOS << Comma;
+      LangOptions LO;
+      PrintingPolicy TypePolicy(LO);
+      TypePolicy.SuppressTypedefs = true;
+      TypePolicy.SuppressTagKeyword = true;
+      Arg.print(TypePolicy, ArgOS);
+    }
+    FirstArg = false;
+  }
+
+  if (!ParameterPack)
+    ArgOS << ">";
+}
+
+static std::string getKernelNameTypeString(QualType T) {
+
+  const CXXRecordDecl *RD = T->getAsCXXRecordDecl();
+
+  if (!RD)
+    return getCPPTypeString(T);
+
+  // If kernel name type is a template specialization with enum type
+  // template parameters, enumerators in name type string should be
+  // replaced  with their underlying value since the enum definition
+  // is not visible in integration header.
+  if (const auto *TSD = dyn_cast<ClassTemplateSpecializationDecl>(RD)) {
+    LangOptions LO;
+    PrintingPolicy P(LO);
+    P.SuppressTypedefs = true;
+    SmallString<64> Buf;
+    llvm::raw_svector_ostream ArgOS(Buf);
+
+    // Print template class name
+    TSD->printQualifiedName(ArgOS, P);
+
+    const TemplateArgumentList &Args = TSD->getTemplateArgs();
+
+    // Print template arguments substituting enumerators
+    printArguments(ArgOS, Args.asArray(), P, false);
+
+    return eraseAnonNamespace(ArgOS.str().str());
+  }
+
+  return getCPPTypeString(T);
 }
 
 void SYCLIntegrationHeader::emit(raw_ostream &O) {
@@ -1938,8 +2069,9 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
         O << "', '" << c;
       O << "'> {\n";
     } else {
-      O << "template <> struct KernelInfo<" << getCPPTypeString(K.NameType)
-        << "> {\n";
+
+      O << "template <> struct KernelInfo<"
+        << getKernelNameTypeString(K.NameType) << "> {\n";
     }
     O << "  DLL_LOCAL\n";
     O << "  static constexpr const char* getName() { return \"" << K.Name
