@@ -215,7 +215,6 @@ public:
 
     // we're ready to call the user-defined lambda now
     HostTask->MHostTask->call();
-    HostTask->MHostTask.reset();
 
     // unblock user empty command here
     EmptyCommand *EmptyCmd = findUserEmptyCommand(MThisCmd);
