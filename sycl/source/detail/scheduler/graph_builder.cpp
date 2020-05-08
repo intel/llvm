@@ -639,8 +639,10 @@ void Scheduler::GraphBuilder::markModifiedIfWrite(MemObjRecord *Record,
   }
 }
 
-EmptyCommand *Scheduler::GraphBuilder::addEmptyCmd(Command *Cmd,
-    const std::vector<Requirement *> &Reqs, const QueueImplPtr &Queue) {
+EmptyCommand *
+Scheduler::GraphBuilder::addEmptyCmd(Command *Cmd,
+                                     const std::vector<Requirement *> &Reqs,
+                                     const QueueImplPtr &Queue) {
   EmptyCommand *EmptyCmd =
       new EmptyCommand(Scheduler::getInstance().getDefaultHostQueue());
 
@@ -906,8 +908,9 @@ void Scheduler::GraphBuilder::removeRecordForMemObj(SYCLMemObjI *MemObject) {
 // ConnectCmd depend on on this command. If there is valid, i.e. non-nil,
 // requirement in Dep we make ConnectCmd depend on DepEvent's command with this
 // requirement.
-void Scheduler::GraphBuilder::connectDepEvent(
-    Command *const Cmd, EventImplPtr DepEvent, const DepDesc &Dep) {
+void Scheduler::GraphBuilder::connectDepEvent(Command *const Cmd,
+                                              EventImplPtr DepEvent,
+                                              const DepDesc &Dep) {
   const ContextImplPtr &Context = Cmd->getContext();
   const ContextImplPtr &DepEventContext = DepEvent->getContextImpl();
 
@@ -945,8 +948,7 @@ void Scheduler::GraphBuilder::connectDepEvent(
     EmptyCmd = addEmptyCmd(ConnectCmd, Reqs,
                            Scheduler::getInstance().getDefaultHostQueue());
     // Dependencies for EmptyCmd are set in addEmptyCmd for provided Reqs.
-  }
-  else {
+  } else {
     EmptyCmd = addEmptyCmd(ConnectCmd, {},
                            Scheduler::getInstance().getDefaultHostQueue());
 

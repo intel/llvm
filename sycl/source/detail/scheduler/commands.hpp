@@ -200,7 +200,6 @@ protected:
   /// Optionality of Dep is set by Dep.MDepCommand not equal to nullptr.
   void processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep);
 
-
   /// Private interface. Derived classes should implement this method.
   virtual cl_int enqueueImp() = 0;
 
