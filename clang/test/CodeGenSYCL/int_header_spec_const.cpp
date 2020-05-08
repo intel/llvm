@@ -18,6 +18,8 @@ class MyUInt32Const;
 class MyFloatConst;
 class MyDoubleConst;
 
+double* mockUSMAlloc();
+
 int main() {
   // Create specialization constants.
   cl::sycl::experimental::spec_constant<bool, MyBoolConst> i1(false);
@@ -33,8 +35,7 @@ int main() {
   cl::sycl::experimental::spec_constant<float, MyFloatConst> f32(0);
   cl::sycl::experimental::spec_constant<double, MyDoubleConst> f64(0);
 
-  double val;
-  double *ptr = &val; // to avoid "unused" warnings
+  double *ptr = mockUSMAlloc(); // to avoid "unused" warnings
 
   cl::sycl::kernel_single_task<SpecializedKernel>([=]() {
     *ptr = i1.get() +

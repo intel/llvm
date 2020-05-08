@@ -10814,6 +10814,8 @@ def err_sycl_non_trivially_copy_ctor_dtor_type
             "constructible|destructible}0 class/struct type %1">;
 def err_sycl_non_std_layout_type : Error<
   "kernel parameter has non-standard layout class/struct type %0">;
+def err_sycl_illegal_memory_reference : Error<
+  "Illegal memory reference in SYCL device kernel. Use USM (malloc_shared, etc) instead.">;
 def err_conflicting_sycl_kernel_attributes : Error<
   "conflicting attributes applied to a SYCL kernel">;
 def err_conflicting_sycl_function_attributes : Error<

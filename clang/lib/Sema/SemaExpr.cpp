@@ -16759,6 +16759,10 @@ static bool isVariableCapturable(CapturingScopeInfo *CSI, VarDecl *Var,
       S.Diag(Loc, diag::err_opencl_block_ref_block);
     return false;
   }
+  // SYCL: Emit diagnostics for any illegal pointer derefs.
+  if (Diagnose && IsLambda && S.getLangOpts().SYCLIsDevice &&
+      Var->getType()->isAnyPointerType())
+    S.checkSYCLDevicePointerCapture(Var, Loc);
 
   return true;
 }
