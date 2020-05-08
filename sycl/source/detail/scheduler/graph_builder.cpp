@@ -416,18 +416,7 @@ Command *Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
   Command *UpdateHostAccCmd = insertUpdateHostReqCmd(Record, Req, HostQueue);
 
   // Need empty command to be blocked until host accessor is destructed
-  EmptyCommand *EmptyCmd = new EmptyCommand(HostQueue, *Req);
-
-  EmptyCmd->addDep(
-      DepDesc{UpdateHostAccCmd, EmptyCmd->getRequirement(), HostAllocaCmd});
-  UpdateHostAccCmd->addUser(EmptyCmd);
-
-  EmptyCmd->MIsBlockable = true;
-  EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueBlocked;
-  EmptyCmd->MBlockReason = Command::BlockReason::HostAccessor;
-
-  updateLeaves({UpdateHostAccCmd}, Record, Req->MAccessMode);
-  addNodeToLeaves(Record, EmptyCmd, Req->MAccessMode);
+  EmptyCommand *EmptyCmd = addEmptyCmd(UpdateHostAccCmd, {Req}, HostQueue);
 
   Req->MBlockedCmd = EmptyCmd;
 
@@ -650,10 +639,8 @@ void Scheduler::GraphBuilder::markModifiedIfWrite(MemObjRecord *Record,
   }
 }
 
-void Scheduler::GraphBuilder::addEmptyCmdForHostTask(
-    ExecCGCommand *Cmd, const QueueImplPtr &Queue) {
-  const std::vector<Requirement *> &Reqs = Cmd->getCG()->MRequirements;
-
+EmptyCommand *Scheduler::GraphBuilder::addEmptyCmd(Command *Cmd,
+    const std::vector<Requirement *> &Reqs, const QueueImplPtr &Queue) {
   EmptyCommand *EmptyCmd =
       new EmptyCommand(Scheduler::getInstance().getDefaultHostQueue());
 
@@ -680,6 +667,8 @@ void Scheduler::GraphBuilder::addEmptyCmdForHostTask(
     updateLeaves({Cmd}, Record, Req->MAccessMode);
     addNodeToLeaves(Record, EmptyCmd, Req->MAccessMode);
   }
+
+  return EmptyCmd;
 }
 
 Command *
@@ -744,7 +733,7 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
   }
 
   if (CGType == CG::CGTYPE::HOST_TASK_CODEPLAY)
-    addEmptyCmdForHostTask(NewCmd.get(), Queue);
+    addEmptyCmd(NewCmd.get(), NewCmd->getCG()->MRequirements, Queue);
 
   if (MPrintOptionsArray[AfterAddCG])
     printGraphAsDot("after_addCG");

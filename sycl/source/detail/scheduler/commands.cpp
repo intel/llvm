@@ -1259,12 +1259,6 @@ cl_int MemCpyCommandHost::enqueueImp() {
   return CL_SUCCESS;
 }
 
-EmptyCommand::EmptyCommand(QueueImplPtr Queue, Requirement Req)
-    : Command(CommandType::EMPTY_TASK, std::move(Queue)) {
-  MRequirements.emplace_back(std::move(Req));
-  emitInstrumentationDataProxy();
-}
-
 EmptyCommand::EmptyCommand(QueueImplPtr Queue)
     : Command(CommandType::EMPTY_TASK, std::move(Queue)) {
   emitInstrumentationDataProxy();

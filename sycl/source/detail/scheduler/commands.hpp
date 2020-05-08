@@ -262,7 +262,6 @@ public:
 /// implement lock in the graph, or to merge several nodes into one.
 class EmptyCommand : public Command {
 public:
-  EmptyCommand(QueueImplPtr Queue, Requirement Req);
   EmptyCommand(QueueImplPtr Queue);
 
   void printDot(std::ostream &Stream) const final;
