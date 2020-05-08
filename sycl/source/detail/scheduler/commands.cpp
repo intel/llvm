@@ -454,7 +454,7 @@ void Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep) {
   // If contexts don't match we'll connect them using host task
   if (DepEventContext != Context && !Context->is_host()) {
     Scheduler::GraphBuilder &GB = Scheduler::getInstance().MGraphBuilder;
-    GB.connectDepEvent(this, DepEvent, DepEventContext, Context, Dep);
+    GB.connectDepEvent(this, DepEvent, Dep);
   } else
     MPreparedDepsEvents.push_back(std::move(DepEvent));
 }

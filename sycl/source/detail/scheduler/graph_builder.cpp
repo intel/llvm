@@ -895,9 +895,12 @@ void Scheduler::GraphBuilder::removeRecordForMemObj(SYCLMemObjI *MemObject) {
 }
 
 void Scheduler::GraphBuilder::connectDepEvent(
-    Command *const Cmd, EventImplPtr DepEvent,
-    const ContextImplPtr &DepEventContext, const ContextImplPtr &Context,
-    const DepDesc &Dep) {
+    Command *const Cmd, EventImplPtr DepEvent, const DepDesc &Dep) {
+  const ContextImplPtr &Context = Cmd->getContext();
+  const ContextImplPtr &DepEventContext = DepEvent->getContext();
+
+  assert(Cntext != DepEventContext);
+
   // construct Host Task type command manually and make it depend on DepEvent
   ExecCGCommand *ConnectCmd = nullptr;
 

@@ -514,15 +514,13 @@ protected:
                       access::mode AccessMode);
 
     /// Perform connection of events in multiple contexts
+    /// \param Cmd dependant command
     /// \param DepEvent event to depend on
-    /// \param DepEventContext context of DepEvent
-    /// \param Context context of command which wants to depend on DepEvent
     /// \param Dep optional DepDesc to perform connection properly
     ///
-    /// Optionality of Dep is set by Dep.MDepCommand not equal to nullptr.
+    /// Optionality of Dep is set by Dep.MDepCommand equal to nullptr.
     void connectDepEvent(Command *const Cmd, EventImplPtr DepEvent,
-                         const ContextImplPtr &DepEventContext,
-                         const ContextImplPtr &Context, const DepDesc &Dep);
+                         const DepDesc &Dep);
     /// Helper for connectDepEvent
     /// \param ConnectCmd connection cmd to properly add
     /// \param Dep DepDesc with non-null MDepRequirmeent
