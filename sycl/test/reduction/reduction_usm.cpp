@@ -21,6 +21,11 @@ class SomeClass;
 
 template <typename T, int Dim, class BinaryOperation>
 void test(T Identity, size_t WGSize, size_t NWItems) {
+  queue Q;
+  auto Dev = Q.get_device();
+  if (!Dev.get_info<info::device::usm_shared_allocations>())
+    return;
+
   // Initialize.
   T CorrectOut;
   BinaryOperation BOp;
@@ -28,13 +33,13 @@ void test(T Identity, size_t WGSize, size_t NWItems) {
   buffer<T, 1> InBuf(NWItems);
   initInputData(InBuf, CorrectOut, Identity, BOp, NWItems);
 
-  T ReduVar = Identity;
+  T *ReduVarPtr = (T *)malloc_shared(sizeof(T), Dev, Q.get_context());
+  *ReduVarPtr = Identity;
 
   // Compute.
-  queue Q;
   Q.submit([&](handler &CGH) {
     auto In = InBuf.template get_access<access::mode::read>(CGH);
-    auto Redu = intel::reduction(ReduVar, Identity, BOp);
+    auto Redu = intel::reduction(ReduVarPtr, Identity, BOp);
     range<1> GlobalRange(NWItems);
     range<1> LocalRange(WGSize);
     nd_range<1> NDRange(GlobalRange, LocalRange);
@@ -46,12 +51,13 @@ void test(T Identity, size_t WGSize, size_t NWItems) {
   Q.wait();
 
   // Check correctness.
-  if (ReduVar != CorrectOut) {
+  if (*ReduVarPtr != CorrectOut) {
     std::cout << "NWItems = " << NWItems << ", WGSize = " << WGSize << "\n";
-    std::cout << "Computed value: " << ReduVar
+    std::cout << "Computed value: " << *ReduVarPtr
               << ", Expected value: " << CorrectOut << "\n";
     assert(0 && "Wrong value.");
   }
+  free(ReduVarPtr, Q.get_context());
 }
 
 int main() {

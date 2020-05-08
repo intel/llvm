@@ -376,21 +376,21 @@ public:
   template <
       typename _T = T, class _BinaryOperation = BinaryOperation,
       enable_if_t<IsKnownIdentityOp<_T, _BinaryOperation>::value> * = nullptr>
-  reduction_impl(T &VarRef)
+  reduction_impl(T *VarPtr)
       : MIdentity(getIdentity()),
         MUSMBufPtr(
-            std::make_shared<buffer<T, buffer_dim>>(&VarRef, range<1>(1))),
-        MAcc(accessor_type(*MUSMBufPtr)), MUSMPointer(&VarRef) {}
+            std::make_shared<buffer<T, buffer_dim>>(VarPtr, range<1>(1))),
+        MAcc(accessor_type(*MUSMBufPtr)), MUSMPointer(VarPtr) {}
 
   /// Constructs reduction_impl when the identity value is statically known,
   /// and user still passed the identity value.
   template <
       typename _T = T, class _BinaryOperation = BinaryOperation,
       enable_if_t<IsKnownIdentityOp<_T, _BinaryOperation>::value> * = nullptr>
-  reduction_impl(T &VarRef, const T &Identity)
+  reduction_impl(T *VarPtr, const T &Identity)
       : MIdentity(Identity), MUSMBufPtr(std::make_shared<buffer<T, buffer_dim>>(
-                                 &VarRef, range<1>(1))),
-        MAcc(accessor_type(*MUSMBufPtr)), MUSMPointer(&VarRef) {
+                                 VarPtr, range<1>(1))),
+        MAcc(accessor_type(*MUSMBufPtr)), MUSMPointer(VarPtr) {
     // For operations with known identity value the operator == is defined.
     // It is sort of dilemma here: from one point of view - user may set
     // such identity that would be enough for his data, i.e. identity=100 for
@@ -405,10 +405,10 @@ public:
   template <
       typename _T = T, class _BinaryOperation = BinaryOperation,
       enable_if_t<!IsKnownIdentityOp<_T, _BinaryOperation>::value> * = nullptr>
-  reduction_impl(T &VarRef, const T &Identity)
+  reduction_impl(T *VarPtr, const T &Identity)
       : MIdentity(Identity), MUSMBufPtr(std::make_shared<buffer<T, buffer_dim>>(
-                                 &VarRef, range<1>(1))),
-        MAcc(accessor_type(*MUSMBufPtr)), MUSMPointer(&VarRef) {}
+                                 VarPtr, range<1>(1))),
+        MAcc(accessor_type(*MUSMBufPtr)), MUSMPointer(VarPtr) {}
 
   /// Associates reduction accessor with the given handler and saves reduction
   /// buffer so that it is alive until the command group finishes the work.
@@ -1045,11 +1045,11 @@ reduction(accessor<T, Dims, AccMode, access::target::global_buffer, IsPH> &Acc,
 template <typename T, class BinaryOperation>
 detail::reduction_impl<T, BinaryOperation, 0, true, access::mode::read_write,
                        access::placeholder::true_t>
-reduction(T &VarRef, const T &Identity, BinaryOperation Combiner) {
+reduction(T *VarPtr, const T &Identity, BinaryOperation Combiner) {
   // The Combiner argument was needed only to define the BinaryOperation param.
   return detail::reduction_impl<T, BinaryOperation, 0, true,
                                 access::mode::read_write,
-                                access::placeholder::true_t>(VarRef, Identity);
+                                access::placeholder::true_t>(VarPtr, Identity);
 }
 
 /// Creates and returns an object implementing the reduction functionality.
@@ -1063,11 +1063,11 @@ detail::enable_if_t<detail::IsKnownIdentityOp<T, BinaryOperation>::value,
                     detail::reduction_impl<T, BinaryOperation, 0, true,
                                            access::mode::read_write,
                                            access::placeholder::true_t>>
-reduction(T &VarRef, BinaryOperation Combiner) {
+reduction(T *VarPtr, BinaryOperation Combiner) {
   // The Combiner argument was needed only to define the BinaryOperation param.
   return detail::reduction_impl<T, BinaryOperation, 0, true,
                                 access::mode::read_write,
-                                access::placeholder::true_t>(VarRef);
+                                access::placeholder::true_t>(VarPtr);
 }
 
 } // namespace intel
