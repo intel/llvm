@@ -27,6 +27,7 @@ set_target_properties(pi_opencl PROPERTIES LINKER_LANGUAGE CXX)
 #preprocessor definitions for compiling a target's sources. We do not need it for pi_opencl
 target_include_directories(pi_opencl PRIVATE "${sycl_inc_dir}")
 
+#link pi_opencl with OpenCL headers and ICD Loader.
 target_link_libraries( pi_opencl
   PRIVATE OpenCL::Headers
   PRIVATE ${OpenCL_LIBRARIES}
@@ -44,10 +45,9 @@ else()
   # All other symbols are regarded as local (hidden)
   set(linker_script "${CMAKE_CURRENT_SOURCE_DIR}/../ld-version-script.txt")
 
-  #link pi_opencl with OpenCL headers and ICD Loader.
+  # Filter symbols based on the scope defined in the script file,
+  # and export pi* function symbols in the library. 
   target_link_libraries( pi_opencl
-    # Filter symbols based on the scope defined in the script file,
-    # and export pi* function symbols in the library. 
     PRIVATE "-Wl,--version-script=${linker_script}"
   )
 endif()
