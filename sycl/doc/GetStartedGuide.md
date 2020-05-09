@@ -516,7 +516,7 @@ class CUDASelector : public cl::sycl::device_selector {
 ## C++ standard
 
 - DPC++ runtime is built as C++14 library.
-- DPC++ compiler is building apps as C++14 apps by default.
+- DPC++ compiler is building apps as C++17 apps by default.
 
 ## Known Issues and Limitations
 
