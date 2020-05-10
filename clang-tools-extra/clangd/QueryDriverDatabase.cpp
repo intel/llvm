@@ -30,9 +30,9 @@
 // in the paths that are explicitly whitelisted by the user.
 
 #include "GlobalCompilationDatabase.h"
-#include "Logger.h"
-#include "Path.h"
-#include "Trace.h"
+#include "support/Logger.h"
+#include "support/Path.h"
+#include "support/Trace.h"
 #include "clang/Driver/Types.h"
 #include "clang/Tooling/CompilationDatabase.h"
 #include "llvm/ADT/DenseMap.h"
@@ -169,7 +169,7 @@ extractSystemIncludes(PathRef Driver, llvm::StringRef Lang,
   }
 
   auto Includes = parseDriverOutput(BufOrError->get()->getBuffer());
-  log("System include extractor: succesfully executed {0}, got includes: "
+  log("System include extractor: successfully executed {0}, got includes: "
       "\"{1}\"",
       Driver, llvm::join(Includes, ", "));
   return Includes;

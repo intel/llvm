@@ -1,8 +1,11 @@
-add_llvm_library(MLIRTestTransforms
+# Exclude tests from libMLIR.so
+add_mlir_library(MLIRTestTransforms
   TestAllReduceLowering.cpp
+  TestBufferPlacement.cpp
   TestCallGraph.cpp
   TestConstantFold.cpp
   TestConvertGPUKernelToCubin.cpp
+  TestDominance.cpp
   TestLoopFusion.cpp
   TestGpuMemoryPromotion.cpp
   TestGpuParallelLoopMapping.cpp
@@ -11,6 +14,7 @@ add_llvm_library(MLIRTestTransforms
   TestLiveness.cpp
   TestLoopMapping.cpp
   TestLoopParametricTiling.cpp
+  TestLoopUnrolling.cpp
   TestOpaqueLoc.cpp
   TestMemRefBoundCheck.cpp
   TestMemRefDependenceCheck.cpp
@@ -18,23 +22,17 @@ add_llvm_library(MLIRTestTransforms
   TestVectorToLoopsConversion.cpp
   TestVectorTransforms.cpp
 
+  EXCLUDE_FROM_LIBMLIR
+
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Transforms
 
   DEPENDS
   MLIRStandardOpsIncGen
-  MLIRTestLinalgTransformPatternsIncGen
   MLIRTestVectorTransformPatternsIncGen
-)
 
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../TestDialect)
-include_directories(${CMAKE_CURRENT_BINARY_DIR}/../TestDialect)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../DeclarativeTransforms)
-include_directories(${CMAKE_CURRENT_BINARY_DIR}/../DeclarativeTransforms)
-
-target_link_libraries(MLIRTestTransforms
-  PUBLIC
-  MLIRAffine
+  LINK_LIBS PUBLIC
+  MLIRAffineOps
   MLIRAnalysis
   MLIREDSC
   MLIRGPU
@@ -50,3 +48,8 @@ target_link_libraries(MLIRTestTransforms
   MLIRVectorToLoops
   MLIRVector
   )
+
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../Dialect/Test)
+include_directories(${CMAKE_CURRENT_BINARY_DIR}/../Dialect/Test)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../DeclarativeTransforms)
+include_directories(${CMAKE_CURRENT_BINARY_DIR}/../DeclarativeTransforms)

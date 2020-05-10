@@ -1,6 +1,5 @@
 add_subdirectory(Affine)
 add_subdirectory(AVX512)
-add_subdirectory(FxpMathOps)
 add_subdirectory(GPU)
 add_subdirectory(Linalg)
 add_subdirectory(LLVMIR)
@@ -22,8 +21,7 @@ add_mlir_library(MLIRDialect
 
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect
-  )
-target_link_libraries(MLIRDialect
-  PUBLIC
+
+  LINK_LIBS PUBLIC
   MLIRIR
   )

@@ -10,6 +10,7 @@
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/common_info.hpp>
 #include <CL/sycl/detail/kernel_desc.hpp>
+#include <CL/sycl/detail/spec_constant_impl.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/program.hpp>
 #include <CL/sycl/stl.hpp>
@@ -292,12 +293,30 @@ public:
   void set_spec_constant_impl(const char *Name, const void *ValAddr,
                               size_t ValSize);
 
+  /// Takes current values of specialization constants and "injects" them into
+  /// the underlying native program program via specialization constant
+  /// managemment PI APIs. The native program passed as non-null argument
+  /// overrides the MProgram native program field.
+  /// \param Img device binary image corresponding to this program, used to
+  ///        resolve spec constant name to SPIRV integer ID
+  /// \param NativePrg if not null, used as the flush target, otherwise MProgram
+  ///        is used
+  void flush_spec_constants(const RTDeviceBinaryImage &Img,
+                            RT::PiProgram NativePrg = nullptr) const;
+
   /// Returns the OS module handle this program belongs to. A program belongs to
   /// an OS module if it was built from device image(s) belonging to that
   /// module.
   /// TODO Some programs can be linked from images belonging to different
   ///      modules. May need a special fake handle for the resulting program.
   OSModuleHandle getOSModuleHandle() const { return MProgramModuleHandle; }
+
+  void stableSerializeSpecConstRegistry(SerializedObj &Dst) const {
+    detail::stableSerializeSpecConstRegistry(SpecConstRegistry, Dst);
+  }
+
+  /// Tells whether a specialization constant has been set for this program.
+  bool hasSetSpecConstants() const { return !SpecConstRegistry.empty(); }
 
 private:
   // Deligating Constructor used in Implementation.
@@ -389,6 +408,12 @@ private:
   string_class MLinkOptions;
   string_class MBuildOptions;
   OSModuleHandle MProgramModuleHandle = OSUtil::ExeModuleHandle;
+
+  // Keeps specialization constant map for this program. Spec constant name
+  // resolution to actual SPIRV integer ID happens at build time, where the
+  // device binary image is available. Access is guarded by this context's
+  // program cache lock.
+  SpecConstRegistryT SpecConstRegistry;
 
   /// Only allow kernel caching for programs constructed with context only (or
   /// device list and context) and built with build_with_kernel_type with

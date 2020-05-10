@@ -138,7 +138,7 @@ static void reportTypeError(const Symbol *existing, const InputFile *file,
 }
 
 // Check the type of new symbol matches that of the symbol is replacing.
-// Returns true if the function types match, false is there is a singature
+// Returns true if the function types match, false is there is a signature
 // mismatch.
 static bool signatureMatches(FunctionSymbol *existing,
                              const WasmSignature *newSig) {
@@ -279,7 +279,7 @@ Symbol *SymbolTable::addDefinedFunction(StringRef name, uint32_t flags,
   std::tie(s, wasInserted) = insert(name, file);
 
   auto replaceSym = [&](Symbol *sym) {
-    // If the new defined function doesn't have signture (i.e. bitcode
+    // If the new defined function doesn't have signature (i.e. bitcode
     // functions) but the old symbol does, then preserve the old signature
     const WasmSignature *oldSig = s->getSignature();
     auto* newSym = replaceSymbol<DefinedFunction>(sym, name, flags, file, function);
@@ -642,8 +642,10 @@ InputFunction *SymbolTable::replaceWithUnreachable(Symbol *sym,
   auto *func = make<SyntheticFunction>(sig, sym->getName(), debugName);
   func->setBody(unreachableFn);
   syntheticFunctions.emplace_back(func);
-  replaceSymbol<DefinedFunction>(sym, sym->getName(), sym->flags, nullptr,
-                                 func);
+  // Mark new symbols as local. For relocatable output we don't want them
+  // to be exported outside the object file.
+  replaceSymbol<DefinedFunction>(sym, debugName, WASM_SYMBOL_BINDING_LOCAL,
+                                 nullptr, func);
   return func;
 }
 

@@ -1298,6 +1298,20 @@ TEST_F(FormatTest, CaseRanges) {
                "}");
 }
 
+TEST_F(FormatTest, ShortEnums) {
+  FormatStyle Style = getLLVMStyle();
+  Style.AllowShortEnumsOnASingleLine = true;
+  verifyFormat("enum { A, B, C } ShortEnum1, ShortEnum2;", Style);
+  Style.AllowShortEnumsOnASingleLine = false;
+  verifyFormat("enum\n"
+               "{\n"
+               "  A,\n"
+               "  B,\n"
+               "  C\n"
+               "} ShortEnum1, ShortEnum2;",
+               Style);
+}
+
 TEST_F(FormatTest, ShortCaseLabels) {
   FormatStyle Style = getLLVMStyle();
   Style.AllowShortCaseLabelsOnASingleLine = true;
@@ -1929,6 +1943,24 @@ TEST_F(FormatTest, FormatsEnum) {
                "  TWO\n"
                "};\n"
                "int i;");
+
+  FormatStyle EightIndent = getLLVMStyle();
+  EightIndent.IndentWidth = 8;
+  verifyFormat("enum {\n"
+               "        VOID,\n"
+               "        CHAR,\n"
+               "        SHORT,\n"
+               "        INT,\n"
+               "        LONG,\n"
+               "        SIGNED,\n"
+               "        UNSIGNED,\n"
+               "        BOOL,\n"
+               "        FLOAT,\n"
+               "        DOUBLE,\n"
+               "        COMPLEX\n"
+               "};",
+               EightIndent);
+
   // Not enums.
   verifyFormat("enum X f() {\n"
                "  a();\n"
@@ -6261,7 +6293,17 @@ TEST_F(FormatTest, ReturnTypeBreakingStyle) {
                "void\n"
                "A::operator[]() {}\n"
                "void\n"
-               "A::operator!() {}\n",
+               "A::operator!() {}\n"
+               "void\n"
+               "A::operator**() {}\n"
+               "void\n"
+               "A::operator<Foo> *() {}\n"
+               "void\n"
+               "A::operator<Foo> **() {}\n"
+               "void\n"
+               "A::operator<Foo> &() {}\n"
+               "void\n"
+               "A::operator void **() {}\n",
                Style);
   verifyFormat("constexpr auto\n"
                "operator()() const -> reference {}\n"
@@ -6275,6 +6317,10 @@ TEST_F(FormatTest, ReturnTypeBreakingStyle) {
                "operator->() const -> reference {}\n"
                "constexpr auto\n"
                "operator++() const -> reference {}\n"
+               "constexpr auto\n"
+               "operator void *() const -> reference {}\n"
+               "constexpr auto\n"
+               "operator void **() const -> reference {}\n"
                "constexpr auto\n"
                "operator void *() const -> reference {}\n"
                "constexpr auto\n"
@@ -8363,6 +8409,17 @@ TEST_F(FormatTest, LayoutCxx11BraceInitializers) {
             format("vector<int> SomeVector = { // aaa\n"
                    "    1, 2, };"));
 
+  // C++11 brace initializer list l-braces should not be treated any differently
+  // when breaking before lambda bodies is enabled
+  FormatStyle BreakBeforeLambdaBody = getLLVMStyle();
+  BreakBeforeLambdaBody.BreakBeforeBraces = FormatStyle::BS_Custom;
+  BreakBeforeLambdaBody.BraceWrapping.BeforeLambdaBody = true;
+  BreakBeforeLambdaBody.AlwaysBreakBeforeMultilineStrings = true;
+  verifyFormat(
+      "std::runtime_error{\n"
+      "    \"Long string which will force a break onto the next line...\"};",
+      BreakBeforeLambdaBody);
+
   FormatStyle ExtraSpaces = getLLVMStyle();
   ExtraSpaces.Cpp11BracedListStyle = false;
   ExtraSpaces.ColumnLimit = 75;
@@ -8467,6 +8524,20 @@ TEST_F(FormatTest, LayoutCxx11BraceInitializers) {
   verifyFormat("vector< int > x{};", SpaceBetweenBraces);
   SpaceBetweenBraces.SpaceInEmptyParentheses = true;
   verifyFormat("vector< int > x{ };", SpaceBetweenBraces);
+}
+
+TEST_F(FormatTest, FormatSpacesInAngles) {
+  FormatStyle SpaceInAngles = getLLVMStyle();
+  SpaceInAngles.SpacesInAngles = true;
+  verifyFormat("vector< ::std::string > x1;", SpaceInAngles);
+  verifyFormat("Foo< int, Bar > x2;", SpaceInAngles);
+  verifyFormat("Foo< ::int, ::Bar > x3;", SpaceInAngles);
+
+  SpaceInAngles.SpacesInAngles = false;
+  verifyFormat("vector<::std::string> x4;", SpaceInAngles);
+  verifyFormat("vector<int> x5;", SpaceInAngles);
+  verifyFormat("Foo<int, Bar> x6;", SpaceInAngles);
+  verifyFormat("Foo<::int, ::Bar> x7;", SpaceInAngles);
 }
 
 TEST_F(FormatTest, FormatsBracedListsInColumnLayout) {
@@ -10133,17 +10204,18 @@ TEST_F(FormatTest, ConfigurableUseOfTab) {
                    " \t \t    comment */",
                    Tab));
   EXPECT_EQ("{\n"
-            "  /*\n"
-            "   * Comment\n"
-            "   */\n"
-            "  int i;\n"
+            "        /*\n"
+            "         * Comment\n"
+            "         */\n"
+            "        int i;\n"
             "}",
             format("{\n"
                    "\t/*\n"
                    "\t * Comment\n"
                    "\t */\n"
                    "\t int i;\n"
-                   "}"));
+                   "}",
+                   Tab));
 
   Tab.UseTab = FormatStyle::UT_ForContinuationAndIndentation;
   Tab.TabWidth = 8;
@@ -10314,14 +10386,244 @@ TEST_F(FormatTest, ConfigurableUseOfTab) {
                    "\t*/\n"
                    "}",
                    Tab));
+  EXPECT_EQ("/* some\n"
+            "   comment */",
+            format(" \t \t /* some\n"
+                   " \t \t    comment */",
+                   Tab));
+  EXPECT_EQ("int a; /* some\n"
+            "   comment */",
+            format(" \t \t int a; /* some\n"
+                   " \t \t    comment */",
+                   Tab));
+  EXPECT_EQ("int a; /* some\n"
+            "comment */",
+            format(" \t \t int\ta; /* some\n"
+                   " \t \t    comment */",
+                   Tab));
+  EXPECT_EQ("f(\"\t\t\"); /* some\n"
+            "    comment */",
+            format(" \t \t f(\"\t\t\"); /* some\n"
+                   " \t \t    comment */",
+                   Tab));
+  EXPECT_EQ("{\n"
+            "\t/*\n"
+            "\t * Comment\n"
+            "\t */\n"
+            "\tint i;\n"
+            "}",
+            format("{\n"
+                   "\t/*\n"
+                   "\t * Comment\n"
+                   "\t */\n"
+                   "\t int i;\n"
+                   "}",
+                   Tab));
+  Tab.TabWidth = 2;
+  Tab.IndentWidth = 2;
+  EXPECT_EQ("{\n"
+            "\t/* aaaa\n"
+            "\t\t bbbb */\n"
+            "}",
+            format("{\n"
+                   "/* aaaa\n"
+                   "\t bbbb */\n"
+                   "}",
+                   Tab));
+  EXPECT_EQ("{\n"
+            "\t/*\n"
+            "\t\taaaaaaaaaaaaaaaaaaaaaaaaaa\n"
+            "\t\tbbbbbbbbbbbbb\n"
+            "\t*/\n"
+            "}",
+            format("{\n"
+                   "/*\n"
+                   "\taaaaaaaaaaaaaaaaaaaaaaaaaa bbbbbbbbbbbbb\n"
+                   "*/\n"
+                   "}",
+                   Tab));
+  Tab.AlignConsecutiveAssignments = true;
+  Tab.AlignConsecutiveDeclarations = true;
+  Tab.TabWidth = 4;
+  Tab.IndentWidth = 4;
+  verifyFormat("class Assign {\n"
+               "\tvoid f() {\n"
+               "\t\tint         x      = 123;\n"
+               "\t\tint         random = 4;\n"
+               "\t\tstd::string alphabet =\n"
+               "\t\t\t\"abcdefghijklmnopqrstuvwxyz\";\n"
+               "\t}\n"
+               "};",
+               Tab);
+
+  Tab.UseTab = FormatStyle::UT_AlignWithSpaces;
+  Tab.TabWidth = 8;
+  Tab.IndentWidth = 8;
+  EXPECT_EQ("if (aaaaaaaa && // q\n"
+            "    bb)         // w\n"
+            "\t;",
+            format("if (aaaaaaaa &&// q\n"
+                   "bb)// w\n"
+                   ";",
+                   Tab));
+  EXPECT_EQ("if (aaa && bbb) // w\n"
+            "\t;",
+            format("if(aaa&&bbb)// w\n"
+                   ";",
+                   Tab));
+  verifyFormat("class X {\n"
+               "\tvoid f() {\n"
+               "\t\tsomeFunction(parameter1,\n"
+               "\t\t             parameter2);\n"
+               "\t}\n"
+               "};",
+               Tab);
+  verifyFormat("#define A                        \\\n"
+               "\tvoid f() {               \\\n"
+               "\t\tsomeFunction(    \\\n"
+               "\t\t    parameter1,  \\\n"
+               "\t\t    parameter2); \\\n"
+               "\t}",
+               Tab);
+  Tab.TabWidth = 4;
+  Tab.IndentWidth = 8;
+  verifyFormat("class TabWidth4Indent8 {\n"
+               "\t\tvoid f() {\n"
+               "\t\t\t\tsomeFunction(parameter1,\n"
+               "\t\t\t\t             parameter2);\n"
+               "\t\t}\n"
+               "};",
+               Tab);
+  Tab.TabWidth = 4;
+  Tab.IndentWidth = 4;
+  verifyFormat("class TabWidth4Indent4 {\n"
+               "\tvoid f() {\n"
+               "\t\tsomeFunction(parameter1,\n"
+               "\t\t             parameter2);\n"
+               "\t}\n"
+               "};",
+               Tab);
+  Tab.TabWidth = 8;
+  Tab.IndentWidth = 4;
+  verifyFormat("class TabWidth8Indent4 {\n"
+               "    void f() {\n"
+               "\tsomeFunction(parameter1,\n"
+               "\t             parameter2);\n"
+               "    }\n"
+               "};",
+               Tab);
+  Tab.TabWidth = 8;
+  Tab.IndentWidth = 8;
   EXPECT_EQ("/*\n"
-            "\t      a\t\tcomment\n"
-            "\t      in multiple lines\n"
+            "              a\t\tcomment\n"
+            "              in multiple lines\n"
             "       */",
             format("   /*\t \t \n"
                    " \t \t a\t\tcomment\t \t\n"
                    " \t \t in multiple lines\t\n"
                    " \t  */",
+                   Tab));
+  verifyFormat("{\n"
+               "\taaaaaaaaaaaaaaaaaaaaaaaaaaaa();\n"
+               "\taaaaaaaaaaaaaaaaaaaaaaaaaaaa();\n"
+               "\taaaaaaaaaaaaaaaaaaaaaaaaaaaa();\n"
+               "\taaaaaaaaaaaaaaaaaaaaaaaaaaaa();\n"
+               "\taaaaaaaaaaaaaaaaaaaaaaaaaaaa();\n"
+               "\taaaaaaaaaaaaaaaaaaaaaaaaaaaa();\n"
+               "};",
+               Tab);
+  verifyFormat("enum AA {\n"
+               "\ta1, // Force multiple lines\n"
+               "\ta2,\n"
+               "\ta3\n"
+               "};",
+               Tab);
+  EXPECT_EQ("if (aaaaaaaa && // q\n"
+            "    bb)         // w\n"
+            "\t;",
+            format("if (aaaaaaaa &&// q\n"
+                   "bb)// w\n"
+                   ";",
+                   Tab));
+  verifyFormat("class X {\n"
+               "\tvoid f() {\n"
+               "\t\tsomeFunction(parameter1,\n"
+               "\t\t             parameter2);\n"
+               "\t}\n"
+               "};",
+               Tab);
+  verifyFormat("{\n"
+               "\tQ(\n"
+               "\t    {\n"
+               "\t\t    int a;\n"
+               "\t\t    someFunction(aaaaaaaa,\n"
+               "\t\t                 bbbbbbb);\n"
+               "\t    },\n"
+               "\t    p);\n"
+               "}",
+               Tab);
+  EXPECT_EQ("{\n"
+            "\t/* aaaa\n"
+            "\t   bbbb */\n"
+            "}",
+            format("{\n"
+                   "/* aaaa\n"
+                   "   bbbb */\n"
+                   "}",
+                   Tab));
+  EXPECT_EQ("{\n"
+            "\t/*\n"
+            "\t  aaaaaaaaaaaaaaaaaaaaaaaaaa\n"
+            "\t  bbbbbbbbbbbbb\n"
+            "\t*/\n"
+            "}",
+            format("{\n"
+                   "/*\n"
+                   "  aaaaaaaaaaaaaaaaaaaaaaaaaa bbbbbbbbbbbbb\n"
+                   "*/\n"
+                   "}",
+                   Tab));
+  EXPECT_EQ("{\n"
+            "\t// aaaaaaaaaaaaaaaaaaaaaaaaaa\n"
+            "\t// bbbbbbbbbbbbb\n"
+            "}",
+            format("{\n"
+                   "\t// aaaaaaaaaaaaaaaaaaaaaaaaaa bbbbbbbbbbbbb\n"
+                   "}",
+                   Tab));
+  EXPECT_EQ("{\n"
+            "\t/*\n"
+            "\t  aaaaaaaaaaaaaaaaaaaaaaaaaa\n"
+            "\t  bbbbbbbbbbbbb\n"
+            "\t*/\n"
+            "}",
+            format("{\n"
+                   "\t/*\n"
+                   "\t  aaaaaaaaaaaaaaaaaaaaaaaaaa bbbbbbbbbbbbb\n"
+                   "\t*/\n"
+                   "}",
+                   Tab));
+  EXPECT_EQ("{\n"
+            "\t/*\n"
+            "\n"
+            "\t*/\n"
+            "}",
+            format("{\n"
+                   "\t/*\n"
+                   "\n"
+                   "\t*/\n"
+                   "}",
+                   Tab));
+  EXPECT_EQ("{\n"
+            "\t/*\n"
+            " asdf\n"
+            "\t*/\n"
+            "}",
+            format("{\n"
+                   "\t/*\n"
+                   " asdf\n"
+                   "\t*/\n"
+                   "}",
                    Tab));
   EXPECT_EQ("/* some\n"
             "   comment */",
@@ -10344,17 +10646,41 @@ TEST_F(FormatTest, ConfigurableUseOfTab) {
                    " \t \t    comment */",
                    Tab));
   EXPECT_EQ("{\n"
-            "  /*\n"
-            "   * Comment\n"
-            "   */\n"
-            "  int i;\n"
+            "\t/*\n"
+            "\t * Comment\n"
+            "\t */\n"
+            "\tint i;\n"
             "}",
             format("{\n"
                    "\t/*\n"
                    "\t * Comment\n"
                    "\t */\n"
                    "\t int i;\n"
-                   "}"));
+                   "}",
+                   Tab));
+  Tab.TabWidth = 2;
+  Tab.IndentWidth = 2;
+  EXPECT_EQ("{\n"
+            "\t/* aaaa\n"
+            "\t   bbbb */\n"
+            "}",
+            format("{\n"
+                   "/* aaaa\n"
+                   "   bbbb */\n"
+                   "}",
+                   Tab));
+  EXPECT_EQ("{\n"
+            "\t/*\n"
+            "\t  aaaaaaaaaaaaaaaaaaaaaaaaaa\n"
+            "\t  bbbbbbbbbbbbb\n"
+            "\t*/\n"
+            "}",
+            format("{\n"
+                   "/*\n"
+                   "  aaaaaaaaaaaaaaaaaaaaaaaaaa bbbbbbbbbbbbb\n"
+                   "*/\n"
+                   "}",
+                   Tab));
   Tab.AlignConsecutiveAssignments = true;
   Tab.AlignConsecutiveDeclarations = true;
   Tab.TabWidth = 4;
@@ -10409,6 +10735,23 @@ TEST_F(FormatTest, ZeroTabWidth) {
                    Tab));
 
   Tab.UseTab = FormatStyle::UT_ForContinuationAndIndentation;
+  EXPECT_EQ("void a(){\n"
+            "    // line starts with '\t'\n"
+            "};",
+            format("void a(){\n"
+                   "\t// line starts with '\t'\n"
+                   "};",
+                   Tab));
+
+  EXPECT_EQ("void a(){\n"
+            "    // line starts with '\t'\n"
+            "};",
+            format("void a(){\n"
+                   "\t\t// line starts with '\t'\n"
+                   "};",
+                   Tab));
+
+  Tab.UseTab = FormatStyle::UT_AlignWithSpaces;
   EXPECT_EQ("void a(){\n"
             "    // line starts with '\t'\n"
             "};",
@@ -12644,6 +12987,7 @@ TEST_F(FormatTest, ParsesConfigurationBools) {
   CHECK_PARSE_BOOL(AllowAllConstructorInitializersOnNextLine);
   CHECK_PARSE_BOOL(AllowAllParametersOfDeclarationOnNextLine);
   CHECK_PARSE_BOOL(AllowShortCaseLabelsOnASingleLine);
+  CHECK_PARSE_BOOL(AllowShortEnumsOnASingleLine);
   CHECK_PARSE_BOOL(AllowShortLoopsOnASingleLine);
   CHECK_PARSE_BOOL(BinPackArguments);
   CHECK_PARSE_BOOL(BinPackParameters);
@@ -12825,6 +13169,8 @@ TEST_F(FormatTest, ParsesConfiguration) {
   CHECK_PARSE("UseTab: Always", UseTab, FormatStyle::UT_Always);
   CHECK_PARSE("UseTab: ForContinuationAndIndentation", UseTab,
               FormatStyle::UT_ForContinuationAndIndentation);
+  CHECK_PARSE("UseTab: AlignWithSpaces", UseTab,
+              FormatStyle::UT_AlignWithSpaces);
   // For backward compatibility:
   CHECK_PARSE("UseTab: false", UseTab, FormatStyle::UT_Never);
   CHECK_PARSE("UseTab: true", UseTab, FormatStyle::UT_Always);
@@ -13819,6 +14165,8 @@ TEST_F(FormatTest, FormatsLambdas) {
                "    -> int {\n"
                "  return 1; //\n"
                "};");
+  verifyFormat("[]() -> Void<T...> {};");
+  verifyFormat("[a, b]() -> Tuple<T...> { return {}; };");
 
   // Lambdas with explicit template argument lists.
   verifyFormat(
@@ -15336,9 +15684,20 @@ TEST_F(FormatTest, OperatorSpacing) {
   Style.PointerAlignment = FormatStyle::PAS_Right;
   verifyFormat("Foo::operator*();", Style);
   verifyFormat("Foo::operator void *();", Style);
+  verifyFormat("Foo::operator void **();", Style);
   verifyFormat("Foo::operator()(void *);", Style);
   verifyFormat("Foo::operator*(void *);", Style);
   verifyFormat("Foo::operator*();", Style);
+  verifyFormat("Foo::operator**();", Style);
+  verifyFormat("Foo::operator&();", Style);
+  verifyFormat("Foo::operator<int> *();", Style);
+  verifyFormat("Foo::operator<Foo> *();", Style);
+  verifyFormat("Foo::operator<int> **();", Style);
+  verifyFormat("Foo::operator<Foo> **();", Style);
+  verifyFormat("Foo::operator<int> &();", Style);
+  verifyFormat("Foo::operator<Foo> &();", Style);
+  verifyFormat("Foo::operator<int> &&();", Style);
+  verifyFormat("Foo::operator<Foo> &&();", Style);
   verifyFormat("operator*(int (*)(), class Foo);", Style);
 
   verifyFormat("Foo::operator&();", Style);
@@ -15349,21 +15708,39 @@ TEST_F(FormatTest, OperatorSpacing) {
   verifyFormat("operator&(int (&)(), class Foo);", Style);
 
   verifyFormat("Foo::operator&&();", Style);
+  verifyFormat("Foo::operator**();", Style);
   verifyFormat("Foo::operator void &&();", Style);
   verifyFormat("Foo::operator()(void &&);", Style);
   verifyFormat("Foo::operator&&(void &&);", Style);
   verifyFormat("Foo::operator&&();", Style);
   verifyFormat("operator&&(int(&&)(), class Foo);", Style);
+  verifyFormat("operator const nsTArrayRight<E> &()", Style);
+  verifyFormat("[[nodiscard]] operator const nsTArrayRight<E, Allocator> &()",
+               Style);
+  verifyFormat("operator void **()", Style);
+  verifyFormat("operator const FooRight<Object> &()", Style);
+  verifyFormat("operator const FooRight<Object> *()", Style);
+  verifyFormat("operator const FooRight<Object> **()", Style);
 
   Style.PointerAlignment = FormatStyle::PAS_Left;
   verifyFormat("Foo::operator*();", Style);
+  verifyFormat("Foo::operator**();", Style);
   verifyFormat("Foo::operator void*();", Style);
+  verifyFormat("Foo::operator void**();", Style);
   verifyFormat("Foo::operator/*comment*/ void*();", Style);
   verifyFormat("Foo::operator/*a*/ const /*b*/ void*();", Style);
   verifyFormat("Foo::operator/*a*/ volatile /*b*/ void*();", Style);
   verifyFormat("Foo::operator()(void*);", Style);
   verifyFormat("Foo::operator*(void*);", Style);
   verifyFormat("Foo::operator*();", Style);
+  verifyFormat("Foo::operator<int>*();", Style);
+  verifyFormat("Foo::operator<Foo>*();", Style);
+  verifyFormat("Foo::operator<int>**();", Style);
+  verifyFormat("Foo::operator<Foo>**();", Style);
+  verifyFormat("Foo::operator<int>&();", Style);
+  verifyFormat("Foo::operator<Foo>&();", Style);
+  verifyFormat("Foo::operator<int>&&();", Style);
+  verifyFormat("Foo::operator<Foo>&&();", Style);
   verifyFormat("operator*(int (*)(), class Foo);", Style);
 
   verifyFormat("Foo::operator&();", Style);
@@ -15385,6 +15762,21 @@ TEST_F(FormatTest, OperatorSpacing) {
   verifyFormat("Foo::operator&&(void&&);", Style);
   verifyFormat("Foo::operator&&();", Style);
   verifyFormat("operator&&(int(&&)(), class Foo);", Style);
+  verifyFormat("operator const nsTArrayLeft<E>&()", Style);
+  verifyFormat("[[nodiscard]] operator const nsTArrayLeft<E, Allocator>&()",
+               Style);
+  verifyFormat("operator void**()", Style);
+  verifyFormat("operator const FooLeft<Object>&()", Style);
+  verifyFormat("operator const FooLeft<Object>*()", Style);
+  verifyFormat("operator const FooLeft<Object>**()", Style);
+
+  // PR45107
+  verifyFormat("operator Vector<String>&();", Style);
+  verifyFormat("operator const Vector<String>&();", Style);
+  verifyFormat("operator foo::Bar*();", Style);
+  verifyFormat("operator const Foo<X>::Bar<Y>*();", Style);
+  verifyFormat("operator/*a*/ const /*b*/ Foo /*c*/<X> /*d*/ ::Bar<Y>*();",
+               Style);
 
   Style.PointerAlignment = FormatStyle::PAS_Middle;
   verifyFormat("Foo::operator*();", Style);

@@ -334,6 +334,11 @@ void Sema::DiagnoseUnusedExprResult(const Stmt *S) {
     }
   } else if (const PseudoObjectExpr *POE = dyn_cast<PseudoObjectExpr>(E)) {
     const Expr *Source = POE->getSyntacticForm();
+    // Handle the actually selected call of an OpenMP specialized call.
+    if (LangOpts.OpenMP && isa<CallExpr>(Source) &&
+        POE->getNumSemanticExprs() == 1 &&
+        isa<CallExpr>(POE->getSemanticExpr(0)))
+      return DiagnoseUnusedExprResult(POE->getSemanticExpr(0));
     if (isa<ObjCSubscriptRefExpr>(Source))
       DiagID = diag::warn_unused_container_subscript_expr;
     else
@@ -2664,7 +2669,8 @@ StmtResult Sema::BuildCXXForRangeStmt(SourceLocation ForLoc,
     // trying to determine whether this would be a valid range.
     if (!LoopVar->isInvalidDecl() && Kind != BFRK_Check) {
       AddInitializerToDecl(LoopVar, DerefExpr.get(), /*DirectInit=*/false);
-      if (LoopVar->isInvalidDecl())
+      if (LoopVar->isInvalidDecl() ||
+          (LoopVar->getInit() && LoopVar->getInit()->containsErrors()))
         NoteForRangeBeginEndFunction(*this, BeginExpr.get(), BEF_begin);
     }
   }
@@ -3625,6 +3631,12 @@ StmtResult Sema::BuildReturnStmt(SourceLocation ReturnLoc, Expr *RetValExp) {
       if (isa<CXXBoolLiteralExpr>(RetValExp))
         Diag(ReturnLoc, diag::warn_main_returns_bool_literal)
           << RetValExp->getSourceRange();
+    if (FD->hasAttr<CmseNSEntryAttr>() && RetValExp) {
+      if (const auto *RT = dyn_cast<RecordType>(FnRetType.getCanonicalType())) {
+        if (RT->getDecl()->isOrContainsUnion())
+          Diag(RetValExp->getBeginLoc(), diag::warn_cmse_nonsecure_union) << 1;
+      }
+    }
   } else if (ObjCMethodDecl *MD = getCurMethodDecl()) {
     FnRetType = MD->getReturnType();
     isObjCMethod = true;

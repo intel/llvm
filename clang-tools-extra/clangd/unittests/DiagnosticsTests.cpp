@@ -9,13 +9,13 @@
 #include "Annotations.h"
 #include "Diagnostics.h"
 #include "ParsedAST.h"
-#include "Path.h"
 #include "Protocol.h"
 #include "SourceCode.h"
 #include "TestFS.h"
 #include "TestIndex.h"
 #include "TestTU.h"
 #include "index/MemIndex.h"
+#include "support/Path.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/DiagnosticSema.h"
 #include "llvm/Support/ScopedPrinter.h"
@@ -33,6 +33,7 @@ using ::testing::ElementsAre;
 using ::testing::Field;
 using ::testing::IsEmpty;
 using ::testing::Pair;
+using testing::SizeIs;
 using ::testing::UnorderedElementsAre;
 
 ::testing::Matcher<const Diag &> WithFix(::testing::Matcher<Fix> FixMatcher) {
@@ -61,9 +62,7 @@ MATCHER_P3(Fix, Range, Replacement, Message,
          arg.Edits[0].range == Range && arg.Edits[0].newText == Replacement;
 }
 
-MATCHER_P(FixMessage, Message, "") {
-  return arg.Message == Message;
-}
+MATCHER_P(FixMessage, Message, "") { return arg.Message == Message; }
 
 MATCHER_P(EqualToLSPDiag, LSPDiag,
           "LSP diagnostic " + llvm::to_string(LSPDiag)) {
@@ -105,6 +104,7 @@ TEST(DiagnosticsTest, DiagnosticRanges) {
   // Check we report correct ranges, including various edge-cases.
   Annotations Test(R"cpp(
     // error-ok
+    #define ID(X) X
     namespace test{};
     void $decl[[foo]]();
     class T{$explicit[[]]$constructor[[T]](int a);};
@@ -117,6 +117,7 @@ o]]();
       struct Foo { int x; }; Foo a;
       a.$nomember[[y]];
       test::$nomembernamespace[[test]];
+      $macro[[ID($macroarg[[fod]])]]();
     }
   )cpp");
   auto TU = TestTU::withCode(Test.code());
@@ -145,6 +146,10 @@ o]]();
           Diag(Test.range("nomember"), "no member named 'y' in 'Foo'"),
           Diag(Test.range("nomembernamespace"),
                "no member named 'test' in namespace 'test'"),
+          AllOf(Diag(Test.range("macro"),
+                     "use of undeclared identifier 'fod'; did you mean 'foo'?"),
+                WithFix(Fix(Test.range("macroarg"), "foo",
+                            "change 'fod' to 'foo'"))),
           // We make sure here that the entire token is highlighted
           AllOf(Diag(Test.range("constructor"),
                      "single-argument constructors must be marked explicit to "
@@ -258,13 +263,40 @@ TEST(DiagnosticsTest, ClangTidy) {
           Diag(Test.range("macroarg"),
                "multiple unsequenced modifications to 'y'"),
           AllOf(
-            Diag(Test.range("main"),
-                 "use a trailing return type for this function"),
-            DiagSource(Diag::ClangTidy),
-            DiagName("modernize-use-trailing-return-type"),
-            // Verify that we don't have "[check-name]" suffix in the message.
-            WithFix(FixMessage("use a trailing return type for this function")))
-          ));
+              Diag(Test.range("main"),
+                   "use a trailing return type for this function"),
+              DiagSource(Diag::ClangTidy),
+              DiagName("modernize-use-trailing-return-type"),
+              // Verify that we don't have "[check-name]" suffix in the message.
+              WithFix(FixMessage(
+                  "use a trailing return type for this function")))));
+}
+
+TEST(DiagnosticTest, NoMultipleDiagnosticInFlight) {
+  Annotations Main(R"cpp(
+    template <typename T> struct Foo {
+      T *begin();
+      T *end();
+    };
+    struct LabelInfo {
+      int a;
+      bool b;
+    };
+
+    void f() {
+      Foo<LabelInfo> label_info_map;
+      [[for]] (auto it = label_info_map.begin(); it != label_info_map.end(); ++it) {
+        auto S = *it;
+      }
+    }
+  )cpp");
+  TestTU TU = TestTU::withCode(Main.code());
+  TU.ClangTidyChecks = "modernize-loop-convert";
+  EXPECT_THAT(
+      TU.build().getDiagnostics(),
+      UnorderedElementsAre(::testing::AllOf(
+          Diag(Main.range(), "use range-based for loop instead"),
+          DiagSource(Diag::ClangTidy), DiagName("modernize-loop-convert"))));
 }
 
 TEST(DiagnosticTest, ClangTidySuppressionComment) {
@@ -274,7 +306,11 @@ TEST(DiagnosticTest, ClangTidySuppressionComment) {
       double d = 8 / i;  // NOLINT
       // NOLINTNEXTLINE
       double e = 8 / i;
-      double f = [[8]] / i;
+      #define BAD 8 / i
+      double f = BAD;  // NOLINT
+      double g = [[8]] / i;
+      #define BAD2 BAD
+      double h = BAD2;  // NOLINT
     }
   )cpp");
   TestTU TU = TestTU::withCode(Main.code());
@@ -374,6 +410,47 @@ TEST(DiagnosticsTest, Preprocessor) {
   EXPECT_THAT(
       TestTU::withCode(Test.code()).build().getDiagnostics(),
       ElementsAre(Diag(Test.range(), "use of undeclared identifier 'b'")));
+}
+
+// Recursive main-file include is diagnosed, and doesn't crash.
+TEST(DiagnosticsTest, RecursivePreamble) {
+  auto TU = TestTU::withCode(R"cpp(
+    #include "foo.h" // error-ok
+    int symbol;
+  )cpp");
+  TU.Filename = "foo.h";
+  EXPECT_THAT(TU.build().getDiagnostics(),
+              ElementsAre(DiagName("pp_including_mainfile_in_preamble")));
+  EXPECT_THAT(TU.build().getLocalTopLevelDecls(), SizeIs(1));
+}
+
+// Recursive main-file include with #pragma once guard is OK.
+TEST(DiagnosticsTest, RecursivePreamblePragmaOnce) {
+  auto TU = TestTU::withCode(R"cpp(
+    #pragma once
+    #include "foo.h"
+    int symbol;
+  )cpp");
+  TU.Filename = "foo.h";
+  EXPECT_THAT(TU.build().getDiagnostics(), IsEmpty());
+  EXPECT_THAT(TU.build().getLocalTopLevelDecls(), SizeIs(1));
+}
+
+// Recursive main-file include with #ifndef guard should be OK.
+// However, it's not yet recognized (incomplete at end of preamble).
+TEST(DiagnosticsTest, RecursivePreambleIfndefGuard) {
+  auto TU = TestTU::withCode(R"cpp(
+    #ifndef FOO
+    #define FOO
+    #include "foo.h" // error-ok
+    int symbol;
+    #endif
+  )cpp");
+  TU.Filename = "foo.h";
+  // FIXME: should be no errors here.
+  EXPECT_THAT(TU.build().getDiagnostics(),
+              ElementsAre(DiagName("pp_including_mainfile_in_preamble")));
+  EXPECT_THAT(TU.build().getLocalTopLevelDecls(), SizeIs(1));
 }
 
 TEST(DiagnosticsTest, InsideMacros) {
@@ -678,7 +755,7 @@ void foo() {
 TEST(IncludeFixerTest, NoCrashMemebrAccess) {
   Annotations Test(R"cpp(// error-ok
     struct X { int  xyz; };
-    void g() { X x; x.$[[xy]] }
+    void g() { X x; x.$[[xy]]; }
   )cpp");
   auto TU = TestTU::withCode(Test.code());
   auto Index = buildIndexWithSymbol(
@@ -836,8 +913,9 @@ TEST(IncludeFixerTest, NoCrashOnTemplateInstantiations) {
   auto Index = buildIndexWithSymbol({});
   TU.ExternalIndex = Index.get();
 
-  EXPECT_THAT(TU.build().getDiagnostics(),
-              ElementsAre(Diag(Test.range(), "use of undeclared identifier 'a'")));
+  EXPECT_THAT(
+      TU.build().getDiagnostics(),
+      ElementsAre(Diag(Test.range(), "use of undeclared identifier 'a'")));
 }
 
 TEST(DiagsInHeaders, DiagInsideHeader) {

@@ -34,7 +34,7 @@ write_lit_config("lit_site_cfg") {
     "CLANG_TOOLS_DIR=" + rebase_path("$root_out_dir/bin"),
     "LLVM_LIT_TOOLS_DIR=",  # Intentionally empty, matches cmake build.
     "LLVM_TOOLS_DIR=" + rebase_path("$root_out_dir/bin"),
-    "PYTHON_EXECUTABLE=$python_path",
+    "Python3_EXECUTABLE=$python_path",
   ]
 
   if (clang_enable_static_analyzer) {
@@ -90,12 +90,6 @@ action("check-clang-tools") {
   }
   args = [
     "-sv",
-    "--param",
-    "clang_site_config=" +
-        rebase_path(clang_tools_extra_lit_site_cfg_file, root_out_dir),
-    "--param",
-    "clang_unit_site_config=" +
-        rebase_path(clang_tools_extra_lit_unit_site_cfg_file, root_out_dir),
     rebase_path(".", root_out_dir),
   ]
   outputs = [ "$target_gen_dir/run-lit" ]  # Non-existing, so that ninja runs it

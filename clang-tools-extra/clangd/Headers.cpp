@@ -8,8 +8,8 @@
 
 #include "Headers.h"
 #include "Compiler.h"
-#include "Logger.h"
 #include "SourceCode.h"
+#include "support/Logger.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/CompilerInvocation.h"
 #include "clang/Frontend/FrontendActions.h"
@@ -28,7 +28,7 @@ public:
 
   // Record existing #includes - both written and resolved paths. Only #includes
   // in the main file are collected.
-  void InclusionDirective(SourceLocation HashLoc, const Token & /*IncludeTok*/,
+  void InclusionDirective(SourceLocation HashLoc, const Token &IncludeTok,
                           llvm::StringRef FileName, bool IsAngled,
                           CharSourceRange FilenameRange, const FileEntry *File,
                           llvm::StringRef /*SearchPath*/,
@@ -38,12 +38,14 @@ public:
     if (isInsideMainFile(HashLoc, SM)) {
       Out->MainFileIncludes.emplace_back();
       auto &Inc = Out->MainFileIncludes.back();
-      Inc.R = halfOpenToRange(SM, FilenameRange);
       Inc.Written =
           (IsAngled ? "<" + FileName + ">" : "\"" + FileName + "\"").str();
       Inc.Resolved = std::string(File ? File->tryGetRealPathName() : "");
       Inc.HashOffset = SM.getFileOffset(HashLoc);
+      Inc.HashLine =
+          SM.getLineNumber(SM.getFileID(HashLoc), Inc.HashOffset) - 1;
       Inc.FileKind = FileKind;
+      Inc.Directive = IncludeTok.getIdentifierInfo()->getPPKeywordID();
     }
     if (File) {
       auto *IncludingFileEntry = SM.getFileEntryForID(SM.getFileID(HashLoc));
@@ -227,8 +229,8 @@ IncludeInserter::insert(llvm::StringRef VerbatimHeader) const {
 
 llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, const Inclusion &Inc) {
   return OS << Inc.Written << " = "
-            << (Inc.Resolved.empty() ? Inc.Resolved : "[unresolved]") << " at "
-            << Inc.R;
+            << (!Inc.Resolved.empty() ? Inc.Resolved : "[unresolved]")
+            << " at line" << Inc.HashLine;
 }
 
 } // namespace clangd

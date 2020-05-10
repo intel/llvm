@@ -1,9 +1,12 @@
 ; RUN: llvm-as < %s -o %t.bc
-; RUN: llvm-spirv %t.bc -o %t.spv -spirv-mem2reg=false
+; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 
 ; RUN: llc -mtriple=%triple -filetype=asm -asm-verbose=0 -O0 < %t.ll | FileCheck %s
 ; RUN: llc -mtriple=%triple -filetype=obj -O0 < %t.ll | llvm-dwarfdump -debug-line - | FileCheck %s --check-prefix=INT
+
+target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
+target triple = "spir64-unknown-unknown"
 
 ; Check that the assembly output properly handles is_stmt changes. And since
 ; we're testing anyway, check the integrated assembler too.
@@ -82,5 +85,3 @@ attributes #1 = { "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "n
 !15 = !DILocation(line: 4, column: 9, scope: !4)
 !16 = !DILocation(line: 4, column: 15, scope: !4)
 !17 = !DILocation(line: 5, column: 1, scope: !4)
-target triple = "spir64-unknown-unknown"
-target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"

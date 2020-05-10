@@ -3,12 +3,14 @@ add_mlir_conversion_library(MLIRLoopToStandard
 
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Conversion/LoopToStandard
-)
-target_link_libraries(
-  MLIRLoopToStandard
-  PUBLIC
+
+  DEPENDS
+  MLIRConversionPassIncGen
+
+  LINK_COMPONENTS
+  Core
+
+  LINK_LIBS PUBLIC
   MLIRLoopOps
   MLIRTransforms
-  LLVMCore
-  LLVMSupport
   )

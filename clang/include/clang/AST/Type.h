@@ -488,15 +488,12 @@ public:
   /// Returns true if the address space in these qualifiers is equal to or
   /// a superset of the address space in the argument qualifiers.
   bool isAddressSpaceSupersetOf(Qualifiers other) const {
-
-    return
-        isAddressSpaceSupersetOf(getAddressSpace(), other.getAddressSpace()) ||
-        (!hasAddressSpace() &&
-         (other.getAddressSpace() == LangAS::sycl_private ||
-          other.getAddressSpace() == LangAS::sycl_local ||
-          other.getAddressSpace() == LangAS::sycl_global ||
-          other.getAddressSpace() == LangAS::sycl_constant ||
-          other.getAddressSpace() == LangAS::sycl_generic));
+    return isAddressSpaceSupersetOf(getAddressSpace(),
+                                    other.getAddressSpace()) ||
+           (!hasAddressSpace() &&
+            (other.getAddressSpace() == LangAS::opencl_private ||
+             other.getAddressSpace() == LangAS::opencl_local ||
+             other.getAddressSpace() == LangAS::opencl_global));
   }
 
   /// Determines if these qualifiers compatibly include another set.
@@ -1475,7 +1472,7 @@ private:
     unsigned TC : 8;
 
     /// Store information on the type dependency.
-    /*TypeDependence*/ unsigned Dependence : TypeDependenceBits;
+    unsigned Dependence : llvm::BitWidth<TypeDependence>;
 
     /// True if the cache (i.e. the bitfields here starting with
     /// 'Cache') is valid.
@@ -1504,7 +1501,7 @@ private:
       return CachedLocalOrUnnamed;
     }
   };
-  enum { NumTypeBits = 8 + TypeDependenceBits + 6 };
+  enum { NumTypeBits = 8 + llvm::BitWidth<TypeDependence> + 6 };
 
 protected:
   // These classes allow subclasses to somewhat cleanly pack bitfields
@@ -1658,11 +1655,8 @@ protected:
     /// The kind of vector, either a generic vector type or some
     /// target-specific vector type such as for AltiVec or Neon.
     unsigned VecKind : 3;
-
     /// The number of elements in the vector.
-    unsigned NumElements : 29 - NumTypeBits;
-
-    enum { MaxNumElements = (1 << (29 - NumTypeBits)) - 1 };
+    uint32_t NumElements;
   };
 
   class AttributedTypeBitfields {
@@ -2112,12 +2106,18 @@ public:
   bool isOCLExtOpaqueType() const;              // Any OpenCL extension type
 
   bool isPipeType() const;                      // OpenCL pipe type
+  bool isExtIntType() const;                    // Extended Int Type
   bool isOpenCLSpecificType() const;            // Any OpenCL specific type
 
   /// Determines if this type, which must satisfy
   /// isObjCLifetimeType(), is implicitly __unsafe_unretained rather
   /// than implicitly __strong.
   bool isObjCARCImplicitlyUnretainedType() const;
+
+  /// Check if the type is the CUDA device builtin surface type.
+  bool isCUDADeviceBuiltinSurfaceType() const;
+  /// Check if the type is the CUDA device builtin texture type.
+  bool isCUDADeviceBuiltinTextureType() const;
 
   /// Return the implicit lifetime for this type, which must not be dependent.
   Qualifiers::ObjCLifetime getObjCARCImplicitLifetime() const;
@@ -2140,6 +2140,11 @@ public:
 
   TypeDependence getDependence() const {
     return static_cast<TypeDependence>(TypeBits.Dependence);
+  }
+
+  /// Whether this type is an error type.
+  bool containsErrors() const {
+    return getDependence() & TypeDependence::Error;
   }
 
   /// Whether this type is a dependent type, meaning that its definition
@@ -3247,10 +3252,6 @@ public:
   QualType getElementType() const { return ElementType; }
   unsigned getNumElements() const { return VectorTypeBits.NumElements; }
 
-  static bool isVectorSizeTooLarge(unsigned NumElements) {
-    return NumElements > VectorTypeBitfields::MaxNumElements;
-  }
-
   bool isSugared() const { return false; }
   QualType desugar() const { return QualType(this, 0); }
 
@@ -3522,13 +3523,12 @@ public:
     enum { NoReturnMask = 0x20 };
     enum { ProducesResultMask = 0x40 };
     enum { NoCallerSavedRegsMask = 0x80 };
+    enum {
+      RegParmMask =  0x700,
+      RegParmOffset = 8
+    };
     enum { NoCfCheckMask = 0x800 };
     enum { CmseNSCallMask = 0x1000 };
-    enum {
-      RegParmMask = ~(CallConvMask | NoReturnMask | ProducesResultMask |
-                      NoCallerSavedRegsMask | NoCfCheckMask | CmseNSCallMask),
-      RegParmOffset = 8
-    }; // Assumed to be the last field
     uint16_t Bits = CC_C;
 
     ExtInfo(unsigned Bits) : Bits(static_cast<uint16_t>(Bits)) {}
@@ -3561,7 +3561,7 @@ public:
     bool getCmseNSCall() const { return Bits & CmseNSCallMask; }
     bool getNoCallerSavedRegs() const { return Bits & NoCallerSavedRegsMask; }
     bool getNoCfCheck() const { return Bits & NoCfCheckMask; }
-    bool getHasRegParm() const { return (Bits >> RegParmOffset) != 0; }
+    bool getHasRegParm() const { return ((Bits & RegParmMask) >> RegParmOffset) != 0; }
 
     unsigned getRegParm() const {
       unsigned RegParm = (Bits & RegParmMask) >> RegParmOffset;
@@ -5609,6 +5609,7 @@ public:
   void Profile(llvm::FoldingSetNodeID &ID);
   static void Profile(llvm::FoldingSetNodeID &ID,
                       const ObjCTypeParamDecl *OTPDecl,
+                      QualType CanonicalType,
                       ArrayRef<ObjCProtocolDecl *> protocols);
 
   ObjCTypeParamDecl *getDecl() const { return OTPDecl; }
@@ -6132,6 +6133,64 @@ public:
   bool isReadOnly() const { return isRead; }
 };
 
+/// A fixed int type of a specified bitwidth.
+class ExtIntType final : public Type, public llvm::FoldingSetNode {
+  friend class ASTContext;
+  unsigned IsUnsigned : 1;
+  unsigned NumBits : 24;
+
+protected:
+  ExtIntType(bool isUnsigned, unsigned NumBits);
+
+public:
+  bool isUnsigned() const { return IsUnsigned; }
+  bool isSigned() const { return !IsUnsigned; }
+  unsigned getNumBits() const { return NumBits; }
+
+  bool isSugared() const { return false; }
+  QualType desugar() const { return QualType(this, 0); }
+
+  void Profile(llvm::FoldingSetNodeID &ID) {
+    Profile(ID, isUnsigned(), getNumBits());
+  }
+
+  static void Profile(llvm::FoldingSetNodeID &ID, bool IsUnsigned,
+                      unsigned NumBits) {
+    ID.AddBoolean(IsUnsigned);
+    ID.AddInteger(NumBits);
+  }
+
+  static bool classof(const Type *T) { return T->getTypeClass() == ExtInt; }
+};
+
+class DependentExtIntType final : public Type, public llvm::FoldingSetNode {
+  friend class ASTContext;
+  const ASTContext &Context;
+  llvm::PointerIntPair<Expr*, 1, bool> ExprAndUnsigned;
+
+protected:
+  DependentExtIntType(const ASTContext &Context, bool IsUnsigned,
+                      Expr *NumBits);
+
+public:
+  bool isUnsigned() const;
+  bool isSigned() const { return !isUnsigned(); }
+  Expr *getNumBitsExpr() const;
+
+  bool isSugared() const { return false; }
+  QualType desugar() const { return QualType(this, 0); }
+
+  void Profile(llvm::FoldingSetNodeID &ID) {
+    Profile(ID, Context, isUnsigned(), getNumBitsExpr());
+  }
+  static void Profile(llvm::FoldingSetNodeID &ID, const ASTContext &Context,
+                      bool IsUnsigned, Expr *NumBitsExpr);
+
+  static bool classof(const Type *T) {
+    return T->getTypeClass() == DependentExtInt;
+  }
+};
+
 /// A qualifier set is used to build a set of qualifiers.
 class QualifierCollector : public Qualifiers {
 public:
@@ -6651,6 +6710,10 @@ inline bool Type::isPipeType() const {
   return isa<PipeType>(CanonicalType);
 }
 
+inline bool Type::isExtIntType() const {
+  return isa<ExtIntType>(CanonicalType);
+}
+
 #define EXT_OPAQUE_TYPE(ExtType, Id, Ext) \
   inline bool Type::is##Id##Type() const { \
     return isSpecificBuiltinType(BuiltinType::Id); \
@@ -6682,9 +6745,9 @@ inline bool Type::isTemplateTypeParmType() const {
 }
 
 inline bool Type::isSpecificBuiltinType(unsigned K) const {
-  if (const BuiltinType *BT = getAs<BuiltinType>())
-    if (BT->getKind() == (BuiltinType::Kind) K)
-      return true;
+  if (const BuiltinType *BT = getAs<BuiltinType>()) {
+    return BT->getKind() == static_cast<BuiltinType::Kind>(K);
+  }
   return false;
 }
 
@@ -6703,9 +6766,7 @@ inline const BuiltinType *Type::getAsPlaceholderType() const {
 
 inline bool Type::isSpecificPlaceholderType(unsigned K) const {
   assert(BuiltinType::isPlaceholderTypeKind((BuiltinType::Kind) K));
-  if (const auto *BT = dyn_cast<BuiltinType>(this))
-    return (BT->getKind() == (BuiltinType::Kind) K);
-  return false;
+  return isSpecificBuiltinType(K);
 }
 
 inline bool Type::isNonOverloadPlaceholderType() const {
@@ -6715,34 +6776,24 @@ inline bool Type::isNonOverloadPlaceholderType() const {
 }
 
 inline bool Type::isVoidType() const {
-  if (const auto *BT = dyn_cast<BuiltinType>(CanonicalType))
-    return BT->getKind() == BuiltinType::Void;
-  return false;
+  return isSpecificBuiltinType(BuiltinType::Void);
 }
 
 inline bool Type::isHalfType() const {
-  if (const auto *BT = dyn_cast<BuiltinType>(CanonicalType))
-    return BT->getKind() == BuiltinType::Half;
   // FIXME: Should we allow complex __fp16? Probably not.
-  return false;
+  return isSpecificBuiltinType(BuiltinType::Half);
 }
 
 inline bool Type::isFloat16Type() const {
-  if (const auto *BT = dyn_cast<BuiltinType>(CanonicalType))
-    return BT->getKind() == BuiltinType::Float16;
-  return false;
+  return isSpecificBuiltinType(BuiltinType::Float16);
 }
 
 inline bool Type::isFloat128Type() const {
-  if (const auto *BT = dyn_cast<BuiltinType>(CanonicalType))
-    return BT->getKind() == BuiltinType::Float128;
-  return false;
+  return isSpecificBuiltinType(BuiltinType::Float128);
 }
 
 inline bool Type::isNullPtrType() const {
-  if (const auto *BT = getAs<BuiltinType>())
-    return BT->getKind() == BuiltinType::NullPtr;
-  return false;
+  return isSpecificBuiltinType(BuiltinType::NullPtr);
 }
 
 bool IsEnumDeclComplete(EnumDecl *);
@@ -6758,7 +6809,7 @@ inline bool Type::isIntegerType() const {
     return IsEnumDeclComplete(ET->getDecl()) &&
       !IsEnumDeclScoped(ET->getDecl());
   }
-  return false;
+  return isExtIntType();
 }
 
 inline bool Type::isFixedPointType() const {
@@ -6815,7 +6866,8 @@ inline bool Type::isScalarType() const {
          isa<BlockPointerType>(CanonicalType) ||
          isa<MemberPointerType>(CanonicalType) ||
          isa<ComplexType>(CanonicalType) ||
-         isa<ObjCObjectPointerType>(CanonicalType);
+         isa<ObjCObjectPointerType>(CanonicalType) ||
+         isExtIntType();
 }
 
 inline bool Type::isIntegralOrEnumerationType() const {
@@ -6828,7 +6880,7 @@ inline bool Type::isIntegralOrEnumerationType() const {
   if (const auto *ET = dyn_cast<EnumType>(CanonicalType))
     return IsEnumDeclComplete(ET->getDecl());
 
-  return false;
+  return isExtIntType();
 }
 
 inline bool Type::isBooleanType() const {

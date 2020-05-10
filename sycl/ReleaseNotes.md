@@ -166,7 +166,7 @@ Release notes for the commit range e8f1f29..ba404be
   - The latest version of Intel(R) Graphics Compute Runtime for OpenCL(TM) from
     https://downloadcenter.intel.com/
 
-Please, see the runtime installation guide [here](https://github.com/intel/llvm/blob/sycl/sycl/doc/GetStartedWithSYCLCompiler.md#install-low-level-runtime)
+Please, see the runtime installation guide [here](https://github.com/intel/llvm/blob/sycl/sycl/doc/GetStartedGuide.md#install-low-level-runtime)
 
 
 
@@ -929,8 +929,9 @@ Release notes for commit c557eb740d55e828fcf74b28d2b686c928e45318.
 - The problem with calling inlined kernel from multiple TUs is fixed.
 - Fixed compiler warnings for Intel FPGA attributes on host compilation.
 - Fixed bug with passing values of `vec<#, half>` type to the kernel.
-- Fixed buffer constructor which takes host data as shared_ptr. Now it increments
-  shared_ptr reference counter and reuses provided memory if possible.
+- Fixed buffer constructor which takes host data as shared_ptr. Now it
+  increments shared_ptr reference counter and reuses provided memory if
+  possible.
 - Fixed a bug with nd_item.barrier not respecting fence_space flag
 
 ## Prerequisites
@@ -1001,9 +1002,9 @@ Release notes for commit 64c0262c0f0b9e1b7b2e2dcef57542a3fe3bdb97.
  - Fixed code generation for 3-element boolean vectors.
 
 ## Prerequisites
- - Experimental Intel(R) CPU Runtime for OpenCL(TM) Applications with SYCL support is
-   available now and recommended OpenCL CPU RT prerequisite for the SYCL
-   compiler.
+ - Experimental Intel(R) CPU Runtime for OpenCL(TM) Applications with SYCL
+   support is available now and recommended OpenCL CPU RT prerequisite for the
+   SYCL compiler.
  - The Intel(R) Graphics Compute Runtime for OpenCL(TM) version 19.25.13237 is
    recommended OpenCL GPU RT prerequisite for the SYCL compiler.
 
@@ -1039,7 +1040,8 @@ d404d1c6767524c21b9c5d05f11b89510abc0ab9.
 - Memory attribute `intelfpga::max_concurrency` was renamed to
   `intelfpga::max_private_copies` to avoid name conflict with fresh added loop
   attribute
-- Added support for const values and local accessors in `handler::set_arg` method.
+- Added support for const values and local accessors in `handler::set_arg`
+  method.
 
 ## Bug Fixes
 - The new scheduler is implemented with the following bug fixes:
@@ -1056,8 +1058,8 @@ d404d1c6767524c21b9c5d05f11b89510abc0ab9.
   specification.
 - Compiling multiple objects when using `-fsycl-link-targets` now creates proper
   final .spv binary.
-- Fixed bug with crash in sampler destructor when sampler object is created using
-  enumerations.
+- Fixed bug with crash in sampler destructor when sampler object is created
+  using enumerations.
 - Fixed `handler::set_arg`, so now it works correctly with kernels created using
   program constructor which takes `cl_program` or `program::build_with_source`.
 - Now `lgamma_r` builtin works correctly when application is built without
@@ -1076,7 +1078,6 @@ d404d1c6767524c21b9c5d05f11b89510abc0ab9.
 - Applications can hang at exit when running on OpenCL CPU device because some
   OpenCL handles allocated inside SYCL(e.g. `cl_command_queue`) are not
   released.
-
 
 # May'19 release notes
 

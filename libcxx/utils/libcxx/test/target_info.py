@@ -7,6 +7,7 @@
 #===----------------------------------------------------------------------===//
 
 import importlib
+import lit.util
 import locale
 import os
 import platform
@@ -38,8 +39,10 @@ class DefaultTargetInfo(object):
     def add_cxx_link_flags(self, flags): pass
     def configure_env(self, env): pass
     def allow_cxxabi_link(self): return True
-    def add_sanitizer_features(self, sanitizer_type, features): pass
     def use_lit_shell_default(self): return False
+
+    def add_platform_features(self, features):
+        features.add(self.platform())
 
     def add_path(self, dest_env, new_path):
         if not new_path:
@@ -89,13 +92,12 @@ class DarwinLocalTI(DefaultTargetInfo):
         super(DarwinLocalTI, self).__init__(full_config)
 
     def is_host_macosx(self):
-        name = subprocess.check_output(['sw_vers', '-productName']).strip()
+        name = lit.util.to_string(subprocess.check_output(['sw_vers', '-productName'])).strip()
         return name == "Mac OS X"
 
     def get_macosx_version(self):
         assert self.is_host_macosx()
-        version = subprocess.check_output(
-            ['sw_vers', '-productVersion']).strip()
+        version = lit.util.to_string(subprocess.check_output(['sw_vers', '-productVersion'])).strip()
         version = re.sub(r'([0-9]+\.[0-9]+)(\..*)?', r'\1', version)
         return version
 
@@ -230,6 +232,10 @@ class LinuxLocalTI(DefaultTargetInfo):
 
     def add_locale_features(self, features):
         self.add_common_locales(features)
+
+    def add_platform_features(self, features):
+        super(LinuxLocalTI, self).add_platform_features(features)
+
         # Some linux distributions have different locale data than others.
         # Insert the distributions name and name-version into the available
         # features to allow tests to XFAIL on them.
@@ -281,7 +287,7 @@ class LinuxRemoteTI(LinuxLocalTI):
     def __init__(self, full_config):
         super(LinuxRemoteTI, self).__init__(full_config)
         self.__cached_locales = None
-    
+
     def _test_locale(self, loc):
         if self.__cached_locales is None:
             self.full_config.lit_config.note('asking the remote host for supported locales...')

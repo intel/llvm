@@ -332,13 +332,16 @@ void Decl::setDeclContextsImpl(DeclContext *SemaDC, DeclContext *LexicalDC,
   }
 }
 
-bool Decl::isLexicallyWithinFunctionOrMethod() const {
+bool Decl::isInLocalScope() const {
   const DeclContext *LDC = getLexicalDeclContext();
   while (true) {
     if (LDC->isFunctionOrMethod())
       return true;
     if (!isa<TagDecl>(LDC))
       return false;
+    if (const auto *CRD = dyn_cast<CXXRecordDecl>(LDC))
+      if (CRD->isLambda())
+        return true;
     LDC = LDC->getLexicalParent();
   }
   return false;
@@ -378,6 +381,12 @@ ASTContext &Decl::getASTContext() const {
   return getTranslationUnitDecl()->getASTContext();
 }
 
+/// Helper to get the language options from the ASTContext.
+/// Defined out of line to avoid depending on ASTContext.h.
+const LangOptions &Decl::getLangOpts() const {
+  return getASTContext().getLangOpts();
+}
+
 ASTMutationListener *Decl::getASTMutationListener() const {
   return getASTContext().getASTMutationListener();
 }
@@ -390,8 +399,10 @@ unsigned Decl::getMaxAlignment() const {
   const AttrVec &V = getAttrs();
   ASTContext &Ctx = getASTContext();
   specific_attr_iterator<AlignedAttr> I(V.begin()), E(V.end());
-  for (; I != E; ++I)
-    Align = std::max(Align, I->getAlignment(Ctx));
+  for (; I != E; ++I) {
+    if (!I->isAlignmentErrorDependent())
+      Align = std::max(Align, I->getAlignment(Ctx));
+  }
   return Align;
 }
 
@@ -789,6 +800,7 @@ unsigned Decl::getIdentifierNamespaceForKind(Kind DeclKind) {
     case TranslationUnit:
     case ExternCContext:
     case Decomposition:
+    case MSGuid:
 
     case UsingDirective:
     case BuiltinTemplate:

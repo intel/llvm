@@ -273,6 +273,7 @@ static const StringMap<MachineInfo> TargetMap{
     // SPARC
     {"elf32-sparc", {ELF::EM_SPARC, false, false}},
     {"elf32-sparcel", {ELF::EM_SPARC, false, true}},
+    {"elf32-hexagon", {ELF::EM_HEXAGON, false, true}},
 };
 
 static Expected<TargetInfo>
@@ -666,8 +667,10 @@ parseObjcopyOptions(ArrayRef<const char *> ArgsArr,
   Config.KeepFileSymbols = InputArgs.hasArg(OBJCOPY_keep_file_symbols);
   Config.DecompressDebugSections =
       InputArgs.hasArg(OBJCOPY_decompress_debug_sections);
-  if (Config.DiscardMode == DiscardType::All)
+  if (Config.DiscardMode == DiscardType::All) {
     Config.StripDebug = true;
+    Config.KeepFileSymbols = true;
+  }
   for (auto Arg : InputArgs.filtered(OBJCOPY_localize_symbol))
     if (Error E = Config.SymbolsToLocalize.addMatcher(NameOrPattern::create(
             Arg->getValue(), SymbolMatchStyle, ErrorCallback)))
@@ -937,8 +940,10 @@ parseStripOptions(ArrayRef<const char *> ArgsArr,
       !Config.StripAllGNU && Config.SymbolsToRemove.empty())
     Config.StripAll = true;
 
-  if (Config.DiscardMode == DiscardType::All)
+  if (Config.DiscardMode == DiscardType::All) {
     Config.StripDebug = true;
+    Config.KeepFileSymbols = true;
+  }
 
   Config.DeterministicArchives =
       InputArgs.hasFlag(STRIP_enable_deterministic_archives,

@@ -88,7 +88,7 @@ public:
   using value_iterator = NamedTypeConstraint *;
   using value_range = llvm::iterator_range<value_iterator>;
 
-  // Returns true if this op has variadic operands or results.
+  // Returns true if this op has variable length operands or results.
   bool isVariadic() const;
 
   // Returns true if default builders should not be generated.
@@ -115,8 +115,8 @@ public:
   // Returns the `index`-th result's decorators.
   var_decorator_range getResultDecorators(int index) const;
 
-  // Returns the number of variadic results in this operation.
-  unsigned getNumVariadicResults() const;
+  // Returns the number of variable length results in this operation.
+  unsigned getNumVariableLengthResults() const;
 
   // Op attribute iterators.
   using attribute_iterator = const NamedAttribute *;
@@ -142,7 +142,7 @@ public:
   }
 
   // Returns the number of variadic operands in this operation.
-  unsigned getNumVariadicOperands() const;
+  unsigned getNumVariableLengthOperands() const;
 
   // Returns the total number of arguments.
   int getNumArgs() const { return arguments.size(); }
@@ -165,10 +165,19 @@ public:
   // requiring the raw MLIR trait here.
   const OpTrait *getTrait(llvm::StringRef trait) const;
 
+  // Regions.
+  using const_region_iterator = const NamedRegion *;
+  const_region_iterator region_begin() const;
+  const_region_iterator region_end() const;
+  llvm::iterator_range<const_region_iterator> getRegions() const;
+
   // Returns the number of regions.
   unsigned getNumRegions() const;
   // Returns the `index`-th region.
   const NamedRegion &getRegion(unsigned index) const;
+
+  // Returns the number of variadic regions in this operation.
+  unsigned getNumVariadicRegions() const;
 
   // Successors.
   using const_successor_iterator = const NamedSuccessor *;

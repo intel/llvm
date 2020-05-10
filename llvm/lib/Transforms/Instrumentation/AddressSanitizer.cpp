@@ -30,7 +30,6 @@
 #include "llvm/IR/Argument.h"
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/BasicBlock.h"
-#include "llvm/IR/CallSite.h"
 #include "llvm/IR/Comdat.h"
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/Constants.h"
@@ -70,6 +69,7 @@
 #include "llvm/Support/ScopedPrinter.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Instrumentation.h"
+#include "llvm/Transforms/Instrumentation/AddressSanitizerCommon.h"
 #include "llvm/Transforms/Utils/ASanStackFrameLayout.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Local.h"
@@ -212,6 +212,11 @@ static cl::opt<bool> ClInstrumentAtomics(
     "asan-instrument-atomics",
     cl::desc("instrument atomic instructions (rmw, cmpxchg)"), cl::Hidden,
     cl::init(true));
+
+static cl::opt<bool>
+    ClInstrumentByval("asan-instrument-byval",
+                      cl::desc("instrument byval call arguments"), cl::Hidden,
+                      cl::init(true));
 
 static cl::opt<bool> ClAlwaysSlowPath(
     "asan-always-slow-path",
@@ -613,16 +618,13 @@ struct AddressSanitizer {
   /// Check if we want (and can) handle this alloca.
   bool isInterestingAlloca(const AllocaInst &AI);
 
-  /// If it is an interesting memory access, return the PointerOperand
-  /// and set IsWrite/Alignment. Otherwise return nullptr.
-  /// MaybeMask is an output parameter for the mask Value, if we're looking at a
-  /// masked load/store.
-  Value *isInterestingMemoryAccess(Instruction *I, bool *IsWrite,
-                                   uint64_t *TypeSize, unsigned *Alignment,
-                                   Value **MaybeMask = nullptr);
+  bool ignoreAccess(Value *Ptr);
+  void getInterestingMemoryOperands(
+      Instruction *I, SmallVectorImpl<InterestingMemoryOperand> &Interesting);
 
-  void instrumentMop(ObjectSizeOffsetVisitor &ObjSizeVis, Instruction *I,
-                     bool UseCalls, const DataLayout &DL);
+  void instrumentMop(ObjectSizeOffsetVisitor &ObjSizeVis,
+                     InterestingMemoryOperand &O, bool UseCalls,
+                     const DataLayout &DL);
   void instrumentPointerComparisonOrSubtraction(Instruction *I);
   void instrumentAddress(Instruction *OrigIns, Instruction *InsertBefore,
                          Value *Addr, uint32_t TypeSize, bool IsWrite,
@@ -639,6 +641,7 @@ struct AddressSanitizer {
                                  Value *SizeArgument, uint32_t Exp);
   void instrumentMemIntrinsic(MemIntrinsic *MI);
   Value *memToShadow(Value *Shadow, IRBuilder<> &IRB);
+  bool suppressInstrumentationSiteForDebug(int &Instrumented);
   bool instrumentFunction(Function &F, const TargetLibraryInfo *TLI);
   bool maybeInsertAsanInitAtFunctionEntry(Function &F);
   void maybeInsertDynamicShadowAtFunctionEntry(Function &F);
@@ -1076,12 +1079,11 @@ struct FunctionStackPoisoner : public InstVisitor<FunctionStackPoisoner> {
       DynamicAllocaPoisonCallVec.push_back(APC);
   }
 
-  void visitCallSite(CallSite CS) {
-    Instruction *I = CS.getInstruction();
-    if (CallInst *CI = dyn_cast<CallInst>(I)) {
+  void visitCallBase(CallBase &CB) {
+    if (CallInst *CI = dyn_cast<CallInst>(&CB)) {
       HasNonEmptyInlineAsm |= CI->isInlineAsm() &&
                               !CI->isIdenticalTo(EmptyInlineAsm.get()) &&
-                              I != ASan.LocalDynamicShadow;
+                              &CB != ASan.LocalDynamicShadow;
       HasReturnsTwiceCall |= CI->canReturnTwice();
     }
   }
@@ -1341,98 +1343,92 @@ bool AddressSanitizer::isInterestingAlloca(const AllocaInst &AI) {
   return IsInteresting;
 }
 
-Value *AddressSanitizer::isInterestingMemoryAccess(Instruction *I,
-                                                   bool *IsWrite,
-                                                   uint64_t *TypeSize,
-                                                   unsigned *Alignment,
-                                                   Value **MaybeMask) {
-  // Skip memory accesses inserted by another instrumentation.
-  if (I->hasMetadata("nosanitize")) return nullptr;
+bool AddressSanitizer::ignoreAccess(Value *Ptr) {
+  // Do not instrument acesses from different address spaces; we cannot deal
+  // with them.
+  Type *PtrTy = cast<PointerType>(Ptr->getType()->getScalarType());
+  if (PtrTy->getPointerAddressSpace() != 0)
+    return true;
 
-  // Do not instrument the load fetching the dynamic shadow address.
-  if (LocalDynamicShadow == I)
-    return nullptr;
-
-  Value *PtrOperand = nullptr;
-  const DataLayout &DL = I->getModule()->getDataLayout();
-  if (LoadInst *LI = dyn_cast<LoadInst>(I)) {
-    if (!ClInstrumentReads) return nullptr;
-    *IsWrite = false;
-    *TypeSize = DL.getTypeStoreSizeInBits(LI->getType());
-    *Alignment = LI->getAlignment();
-    PtrOperand = LI->getPointerOperand();
-  } else if (StoreInst *SI = dyn_cast<StoreInst>(I)) {
-    if (!ClInstrumentWrites) return nullptr;
-    *IsWrite = true;
-    *TypeSize = DL.getTypeStoreSizeInBits(SI->getValueOperand()->getType());
-    *Alignment = SI->getAlignment();
-    PtrOperand = SI->getPointerOperand();
-  } else if (AtomicRMWInst *RMW = dyn_cast<AtomicRMWInst>(I)) {
-    if (!ClInstrumentAtomics) return nullptr;
-    *IsWrite = true;
-    *TypeSize = DL.getTypeStoreSizeInBits(RMW->getValOperand()->getType());
-    *Alignment = 0;
-    PtrOperand = RMW->getPointerOperand();
-  } else if (AtomicCmpXchgInst *XCHG = dyn_cast<AtomicCmpXchgInst>(I)) {
-    if (!ClInstrumentAtomics) return nullptr;
-    *IsWrite = true;
-    *TypeSize = DL.getTypeStoreSizeInBits(XCHG->getCompareOperand()->getType());
-    *Alignment = 0;
-    PtrOperand = XCHG->getPointerOperand();
-  } else if (auto CI = dyn_cast<CallInst>(I)) {
-    auto *F = dyn_cast<Function>(CI->getCalledValue());
-    if (F && (F->getName().startswith("llvm.masked.load.") ||
-              F->getName().startswith("llvm.masked.store."))) {
-      unsigned OpOffset = 0;
-      if (F->getName().startswith("llvm.masked.store.")) {
-        if (!ClInstrumentWrites)
-          return nullptr;
-        // Masked store has an initial operand for the value.
-        OpOffset = 1;
-        *IsWrite = true;
-      } else {
-        if (!ClInstrumentReads)
-          return nullptr;
-        *IsWrite = false;
-      }
-
-      auto BasePtr = CI->getOperand(0 + OpOffset);
-      auto Ty = cast<PointerType>(BasePtr->getType())->getElementType();
-      *TypeSize = DL.getTypeStoreSizeInBits(Ty);
-      if (auto AlignmentConstant =
-              dyn_cast<ConstantInt>(CI->getOperand(1 + OpOffset)))
-        *Alignment = (unsigned)AlignmentConstant->getZExtValue();
-      else
-        *Alignment = 1; // No alignment guarantees. We probably got Undef
-      if (MaybeMask)
-        *MaybeMask = CI->getOperand(2 + OpOffset);
-      PtrOperand = BasePtr;
-    }
-  }
-
-  if (PtrOperand) {
-    // Do not instrument acesses from different address spaces; we cannot deal
-    // with them.
-    Type *PtrTy = cast<PointerType>(PtrOperand->getType()->getScalarType());
-    if (PtrTy->getPointerAddressSpace() != 0)
-      return nullptr;
-
-    // Ignore swifterror addresses.
-    // swifterror memory addresses are mem2reg promoted by instruction
-    // selection. As such they cannot have regular uses like an instrumentation
-    // function and it makes no sense to track them as memory.
-    if (PtrOperand->isSwiftError())
-      return nullptr;
-  }
+  // Ignore swifterror addresses.
+  // swifterror memory addresses are mem2reg promoted by instruction
+  // selection. As such they cannot have regular uses like an instrumentation
+  // function and it makes no sense to track them as memory.
+  if (Ptr->isSwiftError())
+    return true;
 
   // Treat memory accesses to promotable allocas as non-interesting since they
   // will not cause memory violations. This greatly speeds up the instrumented
   // executable at -O0.
-  if (ClSkipPromotableAllocas)
-    if (auto AI = dyn_cast_or_null<AllocaInst>(PtrOperand))
-      return isInterestingAlloca(*AI) ? AI : nullptr;
+  if (auto AI = dyn_cast_or_null<AllocaInst>(Ptr))
+    if (ClSkipPromotableAllocas && !isInterestingAlloca(*AI))
+      return true;
 
-  return PtrOperand;
+  return false;
+}
+
+void AddressSanitizer::getInterestingMemoryOperands(
+    Instruction *I, SmallVectorImpl<InterestingMemoryOperand> &Interesting) {
+  // Skip memory accesses inserted by another instrumentation.
+  if (I->hasMetadata("nosanitize"))
+    return;
+
+  // Do not instrument the load fetching the dynamic shadow address.
+  if (LocalDynamicShadow == I)
+    return;
+
+  if (LoadInst *LI = dyn_cast<LoadInst>(I)) {
+    if (!ClInstrumentReads || ignoreAccess(LI->getPointerOperand()))
+      return;
+    Interesting.emplace_back(I, LI->getPointerOperandIndex(), false,
+                             LI->getType(), LI->getAlignment());
+  } else if (StoreInst *SI = dyn_cast<StoreInst>(I)) {
+    if (!ClInstrumentWrites || ignoreAccess(SI->getPointerOperand()))
+      return;
+    Interesting.emplace_back(I, SI->getPointerOperandIndex(), true,
+                             SI->getValueOperand()->getType(),
+                             SI->getAlignment());
+  } else if (AtomicRMWInst *RMW = dyn_cast<AtomicRMWInst>(I)) {
+    if (!ClInstrumentAtomics || ignoreAccess(RMW->getPointerOperand()))
+      return;
+    Interesting.emplace_back(I, RMW->getPointerOperandIndex(), true,
+                             RMW->getValOperand()->getType(), 0);
+  } else if (AtomicCmpXchgInst *XCHG = dyn_cast<AtomicCmpXchgInst>(I)) {
+    if (!ClInstrumentAtomics || ignoreAccess(XCHG->getPointerOperand()))
+      return;
+    Interesting.emplace_back(I, XCHG->getPointerOperandIndex(), true,
+                             XCHG->getCompareOperand()->getType(), 0);
+  } else if (auto CI = dyn_cast<CallInst>(I)) {
+    auto *F = CI->getCalledFunction();
+    if (F && (F->getName().startswith("llvm.masked.load.") ||
+              F->getName().startswith("llvm.masked.store."))) {
+      bool IsWrite = F->getName().startswith("llvm.masked.store.");
+      // Masked store has an initial operand for the value.
+      unsigned OpOffset = IsWrite ? 1 : 0;
+      if (IsWrite ? !ClInstrumentWrites : !ClInstrumentReads)
+        return;
+
+      auto BasePtr = CI->getOperand(OpOffset);
+      if (ignoreAccess(BasePtr))
+        return;
+      auto Ty = cast<PointerType>(BasePtr->getType())->getElementType();
+      unsigned Alignment = 1;
+      // Otherwise no alignment guarantees. We probably got Undef.
+      if (auto AlignmentConstant =
+              dyn_cast<ConstantInt>(CI->getOperand(1 + OpOffset)))
+        Alignment = (unsigned)AlignmentConstant->getZExtValue();
+      Value *Mask = CI->getOperand(2 + OpOffset);
+      Interesting.emplace_back(I, OpOffset, IsWrite, Ty, Alignment, Mask);
+    } else {
+      for (unsigned ArgNo = 0; ArgNo < CI->getNumArgOperands(); ArgNo++) {
+        if (!ClInstrumentByval || !CI->isByValArgument(ArgNo) ||
+            ignoreAccess(CI->getArgOperand(ArgNo)))
+          continue;
+        Type *Ty = CI->getParamByValType(ArgNo);
+        Interesting.emplace_back(I, ArgNo, false, Ty, 1);
+      }
+    }
+  }
 }
 
 static bool isPointerOperand(Value *V) {
@@ -1513,9 +1509,10 @@ static void instrumentMaskedLoadOrStore(AddressSanitizer *Pass,
                                         unsigned Granularity, uint32_t TypeSize,
                                         bool IsWrite, Value *SizeArgument,
                                         bool UseCalls, uint32_t Exp) {
-  auto *VTy = cast<PointerType>(Addr->getType())->getElementType();
+  auto *VTy =
+      cast<VectorType>(cast<PointerType>(Addr->getType())->getElementType());
   uint64_t ElemTypeSize = DL.getTypeStoreSizeInBits(VTy->getScalarType());
-  unsigned Num = VTy->getVectorNumElements();
+  unsigned Num = VTy->getNumElements();
   auto Zero = ConstantInt::get(IntptrTy, 0);
   for (unsigned Idx = 0; Idx < Num; ++Idx) {
     Value *InstrumentedAddress = nullptr;
@@ -1546,15 +1543,9 @@ static void instrumentMaskedLoadOrStore(AddressSanitizer *Pass,
 }
 
 void AddressSanitizer::instrumentMop(ObjectSizeOffsetVisitor &ObjSizeVis,
-                                     Instruction *I, bool UseCalls,
+                                     InterestingMemoryOperand &O, bool UseCalls,
                                      const DataLayout &DL) {
-  bool IsWrite = false;
-  unsigned Alignment = 0;
-  uint64_t TypeSize = 0;
-  Value *MaybeMask = nullptr;
-  Value *Addr =
-      isInterestingMemoryAccess(I, &IsWrite, &TypeSize, &Alignment, &MaybeMask);
-  assert(Addr);
+  Value *Addr = O.getPtr();
 
   // Optimization experiments.
   // The experiments can be used to evaluate potential optimizations that remove
@@ -1574,7 +1565,7 @@ void AddressSanitizer::instrumentMop(ObjectSizeOffsetVisitor &ObjSizeVis,
     // dynamically initialized global is always valid.
     GlobalVariable *G = dyn_cast<GlobalVariable>(GetUnderlyingObject(Addr, DL));
     if (G && (!ClInitializers || GlobalIsLinkerInitialized(G)) &&
-        isSafeAccess(ObjSizeVis, Addr, TypeSize)) {
+        isSafeAccess(ObjSizeVis, Addr, O.TypeSize)) {
       NumOptimizedAccessesToGlobalVar++;
       return;
     }
@@ -1583,25 +1574,26 @@ void AddressSanitizer::instrumentMop(ObjectSizeOffsetVisitor &ObjSizeVis,
   if (ClOpt && ClOptStack) {
     // A direct inbounds access to a stack variable is always valid.
     if (isa<AllocaInst>(GetUnderlyingObject(Addr, DL)) &&
-        isSafeAccess(ObjSizeVis, Addr, TypeSize)) {
+        isSafeAccess(ObjSizeVis, Addr, O.TypeSize)) {
       NumOptimizedAccessesToStackVar++;
       return;
     }
   }
 
-  if (IsWrite)
+  if (O.IsWrite)
     NumInstrumentedWrites++;
   else
     NumInstrumentedReads++;
 
   unsigned Granularity = 1 << Mapping.Scale;
-  if (MaybeMask) {
-    instrumentMaskedLoadOrStore(this, DL, IntptrTy, MaybeMask, I, Addr,
-                                Alignment, Granularity, TypeSize, IsWrite,
-                                nullptr, UseCalls, Exp);
+  if (O.MaybeMask) {
+    instrumentMaskedLoadOrStore(this, DL, IntptrTy, O.MaybeMask, O.getInsn(),
+                                Addr, O.Alignment, Granularity, O.TypeSize,
+                                O.IsWrite, nullptr, UseCalls, Exp);
   } else {
-    doInstrumentAddress(this, I, I, Addr, Alignment, Granularity, TypeSize,
-                        IsWrite, nullptr, UseCalls, Exp);
+    doInstrumentAddress(this, O.getInsn(), O.getInsn(), Addr, O.Alignment,
+                        Granularity, O.TypeSize, O.IsWrite, nullptr, UseCalls,
+                        Exp);
   }
 }
 
@@ -2611,6 +2603,14 @@ void AddressSanitizer::markEscapedLocalAllocas(Function &F) {
   }
 }
 
+bool AddressSanitizer::suppressInstrumentationSiteForDebug(int &Instrumented) {
+  bool ShouldInstrument =
+      ClDebugMin < 0 || ClDebugMax < 0 ||
+      (Instrumented >= ClDebugMin && Instrumented <= ClDebugMax);
+  Instrumented++;
+  return !ShouldInstrument;
+}
+
 bool AddressSanitizer::instrumentFunction(Function &F,
                                           const TargetLibraryInfo *TLI) {
   if (F.getLinkage() == GlobalValue::AvailableExternallyLinkage) return false;
@@ -2643,14 +2643,12 @@ bool AddressSanitizer::instrumentFunction(Function &F,
   // We want to instrument every address only once per basic block (unless there
   // are calls between uses).
   SmallPtrSet<Value *, 16> TempsToInstrument;
-  SmallVector<Instruction *, 16> ToInstrument;
+  SmallVector<InterestingMemoryOperand, 16> OperandsToInstrument;
+  SmallVector<MemIntrinsic *, 16> IntrinToInstrument;
   SmallVector<Instruction *, 8> NoReturnCalls;
   SmallVector<BasicBlock *, 16> AllBlocks;
   SmallVector<Instruction *, 16> PointerComparisonsOrSubtracts;
   int NumAllocas = 0;
-  bool IsWrite;
-  unsigned Alignment;
-  uint64_t TypeSize;
 
   // Fill the set of memory operations to instrument.
   for (auto &BB : F) {
@@ -2659,51 +2657,54 @@ bool AddressSanitizer::instrumentFunction(Function &F,
     int NumInsnsPerBB = 0;
     for (auto &Inst : BB) {
       if (LooksLikeCodeInBug11395(&Inst)) return false;
-      Value *MaybeMask = nullptr;
-      if (Value *Addr = isInterestingMemoryAccess(&Inst, &IsWrite, &TypeSize,
-                                                  &Alignment, &MaybeMask)) {
-        if (ClOpt && ClOptSameTemp) {
-          // If we have a mask, skip instrumentation if we've already
-          // instrumented the full object. But don't add to TempsToInstrument
-          // because we might get another load/store with a different mask.
-          if (MaybeMask) {
-            if (TempsToInstrument.count(Addr))
-              continue; // We've seen this (whole) temp in the current BB.
-          } else {
-            if (!TempsToInstrument.insert(Addr).second)
-              continue; // We've seen this temp in the current BB.
+      SmallVector<InterestingMemoryOperand, 1> InterestingOperands;
+      getInterestingMemoryOperands(&Inst, InterestingOperands);
+
+      if (!InterestingOperands.empty()) {
+        for (auto &Operand : InterestingOperands) {
+          if (ClOpt && ClOptSameTemp) {
+            Value *Ptr = Operand.getPtr();
+            // If we have a mask, skip instrumentation if we've already
+            // instrumented the full object. But don't add to TempsToInstrument
+            // because we might get another load/store with a different mask.
+            if (Operand.MaybeMask) {
+              if (TempsToInstrument.count(Ptr))
+                continue; // We've seen this (whole) temp in the current BB.
+            } else {
+              if (!TempsToInstrument.insert(Ptr).second)
+                continue; // We've seen this temp in the current BB.
+            }
           }
+          OperandsToInstrument.push_back(Operand);
+          NumInsnsPerBB++;
         }
       } else if (((ClInvalidPointerPairs || ClInvalidPointerCmp) &&
                   isInterestingPointerComparison(&Inst)) ||
                  ((ClInvalidPointerPairs || ClInvalidPointerSub) &&
                   isInterestingPointerSubtraction(&Inst))) {
         PointerComparisonsOrSubtracts.push_back(&Inst);
-        continue;
-      } else if (isa<MemIntrinsic>(Inst)) {
+      } else if (MemIntrinsic *MI = dyn_cast<MemIntrinsic>(&Inst)) {
         // ok, take it.
+        IntrinToInstrument.push_back(MI);
+        NumInsnsPerBB++;
       } else {
         if (isa<AllocaInst>(Inst)) NumAllocas++;
-        CallSite CS(&Inst);
-        if (CS) {
+        if (auto *CB = dyn_cast<CallBase>(&Inst)) {
           // A call inside BB.
           TempsToInstrument.clear();
-          if (CS.doesNotReturn() && !CS->hasMetadata("nosanitize"))
-            NoReturnCalls.push_back(CS.getInstruction());
+          if (CB->doesNotReturn() && !CB->hasMetadata("nosanitize"))
+            NoReturnCalls.push_back(CB);
         }
         if (CallInst *CI = dyn_cast<CallInst>(&Inst))
           maybeMarkSanitizerLibraryCallNoBuiltin(CI, TLI);
-        continue;
       }
-      ToInstrument.push_back(&Inst);
-      NumInsnsPerBB++;
       if (NumInsnsPerBB >= ClMaxInsnsToInstrumentPerBB) break;
     }
   }
 
-  bool UseCalls =
-      (ClInstrumentationWithCallsThreshold >= 0 &&
-       ToInstrument.size() > (unsigned)ClInstrumentationWithCallsThreshold);
+  bool UseCalls = (ClInstrumentationWithCallsThreshold >= 0 &&
+                   OperandsToInstrument.size() + IntrinToInstrument.size() >
+                       (unsigned)ClInstrumentationWithCallsThreshold);
   const DataLayout &DL = F.getParent()->getDataLayout();
   ObjectSizeOpts ObjSizeOpts;
   ObjSizeOpts.RoundToAlign = true;
@@ -2711,16 +2712,16 @@ bool AddressSanitizer::instrumentFunction(Function &F,
 
   // Instrument.
   int NumInstrumented = 0;
-  for (auto Inst : ToInstrument) {
-    if (ClDebugMin < 0 || ClDebugMax < 0 ||
-        (NumInstrumented >= ClDebugMin && NumInstrumented <= ClDebugMax)) {
-      if (isInterestingMemoryAccess(Inst, &IsWrite, &TypeSize, &Alignment))
-        instrumentMop(ObjSizeVis, Inst, UseCalls,
-                      F.getParent()->getDataLayout());
-      else
-        instrumentMemIntrinsic(cast<MemIntrinsic>(Inst));
-    }
-    NumInstrumented++;
+  for (auto &Operand : OperandsToInstrument) {
+    if (!suppressInstrumentationSiteForDebug(NumInstrumented))
+      instrumentMop(ObjSizeVis, Operand, UseCalls,
+                    F.getParent()->getDataLayout());
+    FunctionModified = true;
+  }
+  for (auto Inst : IntrinToInstrument) {
+    if (!suppressInstrumentationSiteForDebug(NumInstrumented))
+      instrumentMemIntrinsic(Inst);
+    FunctionModified = true;
   }
 
   FunctionStackPoisoner FSP(F, *this);
@@ -2735,10 +2736,10 @@ bool AddressSanitizer::instrumentFunction(Function &F,
 
   for (auto Inst : PointerComparisonsOrSubtracts) {
     instrumentPointerComparisonOrSubtraction(Inst);
-    NumInstrumented++;
+    FunctionModified = true;
   }
 
-  if (NumInstrumented > 0 || ChangedStack || !NoReturnCalls.empty())
+  if (ChangedStack || !NoReturnCalls.empty())
     FunctionModified = true;
 
   LLVM_DEBUG(dbgs() << "ASAN done instrumenting: " << FunctionModified << " "
@@ -2983,6 +2984,59 @@ void FunctionStackPoisoner::processDynamicAllocas() {
   unpoisonDynamicAllocas();
 }
 
+/// Collect instructions in the entry block after \p InsBefore which initialize
+/// permanent storage for a function argument. These instructions must remain in
+/// the entry block so that uninitialized values do not appear in backtraces. An
+/// added benefit is that this conserves spill slots. This does not move stores
+/// before instrumented / "interesting" allocas.
+static void findStoresToUninstrumentedArgAllocas(
+    AddressSanitizer &ASan, Instruction &InsBefore,
+    SmallVectorImpl<Instruction *> &InitInsts) {
+  Instruction *Start = InsBefore.getNextNonDebugInstruction();
+  for (Instruction *It = Start; It; It = It->getNextNonDebugInstruction()) {
+    // Argument initialization looks like:
+    // 1) store <Argument>, <Alloca> OR
+    // 2) <CastArgument> = cast <Argument> to ...
+    //    store <CastArgument> to <Alloca>
+    // Do not consider any other kind of instruction.
+    //
+    // Note: This covers all known cases, but may not be exhaustive. An
+    // alternative to pattern-matching stores is to DFS over all Argument uses:
+    // this might be more general, but is probably much more complicated.
+    if (isa<AllocaInst>(It) || isa<CastInst>(It))
+      continue;
+    if (auto *Store = dyn_cast<StoreInst>(It)) {
+      // The store destination must be an alloca that isn't interesting for
+      // ASan to instrument. These are moved up before InsBefore, and they're
+      // not interesting because allocas for arguments can be mem2reg'd.
+      auto *Alloca = dyn_cast<AllocaInst>(Store->getPointerOperand());
+      if (!Alloca || ASan.isInterestingAlloca(*Alloca))
+        continue;
+
+      Value *Val = Store->getValueOperand();
+      bool IsDirectArgInit = isa<Argument>(Val);
+      bool IsArgInitViaCast =
+          isa<CastInst>(Val) &&
+          isa<Argument>(cast<CastInst>(Val)->getOperand(0)) &&
+          // Check that the cast appears directly before the store. Otherwise
+          // moving the cast before InsBefore may break the IR.
+          Val == It->getPrevNonDebugInstruction();
+      bool IsArgInit = IsDirectArgInit || IsArgInitViaCast;
+      if (!IsArgInit)
+        continue;
+
+      if (IsArgInitViaCast)
+        InitInsts.push_back(cast<Instruction>(Val));
+      InitInsts.push_back(Store);
+      continue;
+    }
+
+    // Do not reorder past unknown instructions: argument initialization should
+    // only involve casts and stores.
+    return;
+  }
+}
+
 void FunctionStackPoisoner::processStaticAllocas() {
   if (AllocaVec.empty()) {
     assert(StaticAllocaPoisonCallVec.empty());
@@ -3005,6 +3059,15 @@ void FunctionStackPoisoner::processStaticAllocas() {
   for (auto *AI : StaticAllocasToMoveUp)
     if (AI->getParent() == InsBeforeB)
       AI->moveBefore(InsBefore);
+
+  // Move stores of arguments into entry-block allocas as well. This prevents
+  // extra stack slots from being generated (to house the argument values until
+  // they can be stored into the allocas). This also prevents uninitialized
+  // values from being shown in backtraces.
+  SmallVector<Instruction *, 8> ArgInitInsts;
+  findStoresToUninstrumentedArgAllocas(ASan, *InsBefore, ArgInitInsts);
+  for (Instruction *ArgInitInst : ArgInitInsts)
+    ArgInitInst->moveBefore(InsBefore);
 
   // If we have a call to llvm.localescape, keep it in the entry block.
   if (LocalEscapeCall) LocalEscapeCall->moveBefore(InsBefore);

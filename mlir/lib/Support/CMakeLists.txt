@@ -4,7 +4,6 @@ set(LLVM_OPTIONAL_SOURCES
   MlirOptMain.cpp
   StorageUniquer.cpp
   ToolUtilities.cpp
-  TranslateClParser.cpp
 )
 
 add_mlir_library(MLIRSupport
@@ -14,10 +13,11 @@ add_mlir_library(MLIRSupport
 
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Support
-  )
-target_link_libraries(MLIRSupport
-  PUBLIC
-  LLVMSupport
+
+  LINK_COMPONENTS
+  Support
+
+  LINK_LIBS PUBLIC
   ${LLVM_PTHREAD_LIB})
 
 add_mlir_library(MLIROptLib
@@ -25,33 +25,33 @@ add_mlir_library(MLIROptLib
 
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Support
-  )
-target_link_libraries(MLIROptLib
-  PUBLIC
+
+  LINK_COMPONENTS
+  Support
+
+  LINK_LIBS PUBLIC
   MLIRPass
   MLIRParser
-  LLVMSupport
   MLIRSupport
   )
 
-add_mlir_library(MLIRTranslateClParser
-  TranslateClParser.cpp
-
-  ADDITIONAL_HEADER_DIRS
-  ${MLIR_MAIN_INCLUDE_DIR}/mlir/Support
-  )
-target_link_libraries(MLIRTranslateClParser
-  PUBLIC
-  LLVMSupport
-  MLIRIR
-  MLIRTranslation
-  MLIRParser)
-
-add_llvm_library(MLIRJitRunner
+# Exclude from libMLIR.so because the JIT infrastructure
+# is a big dependency which most don't need.
+add_mlir_library(MLIRJitRunner
   JitRunner.cpp
-)
-target_link_libraries(MLIRJitRunner
-  PUBLIC
+
+  DEPENDS
+  intrinsics_gen
+
+  EXCLUDE_FROM_LIBMLIR
+
+  LINK_COMPONENTS
+  Core
+  OrcJIT
+  JITLink
+  Support
+
+  LINK_LIBS PUBLIC
   MLIRExecutionEngine
   MLIRIR
   MLIRParser
@@ -60,6 +60,4 @@ target_link_libraries(MLIRJitRunner
   MLIRTransforms
   MLIRStandardToLLVM
   MLIRSupport
-  LLVMCore
-  LLVMSupport
 )

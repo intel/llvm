@@ -11,11 +11,11 @@
 
 #include "Compiler.h"
 #include "Diagnostics.h"
-#include "Function.h"
 #include "GlobalCompilationDatabase.h"
-#include "Path.h"
-#include "Threading.h"
 #include "index/CanonicalIncludes.h"
+#include "support/Function.h"
+#include "support/Path.h"
+#include "support/Threading.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringMap.h"
@@ -83,18 +83,22 @@ struct DebouncePolicy {
   static DebouncePolicy fixed(clock::duration);
 };
 
-struct TUAction {
-  enum State {
-    Queued,           // The TU is pending in the thread task queue to be built.
-    RunningAction,    // Starting running actions on the TU.
-    BuildingPreamble, // The preamble of the TU is being built.
-    BuildingFile,     // The TU is being built. It is only emitted when building
-                      // the AST for diagnostics in write action (update).
+enum class PreambleAction {
+  Idle,
+  Building,
+};
+
+struct ASTAction {
+  enum Kind {
+    Queued,        // The action is pending in the thread task queue to be run.
+    RunningAction, // Started running actions on the TU.
+    Building,      // The AST is being built.
     Idle, // Indicates the worker thread is idle, and ready to run any upcoming
           // actions.
   };
-  TUAction(State S, llvm::StringRef Name) : S(S), Name(Name) {}
-  State S;
+  ASTAction() = default;
+  ASTAction(Kind K, llvm::StringRef Name) : K(K), Name(Name) {}
+  Kind K = ASTAction::Idle;
   /// The name of the action currently running, e.g. Update, GoToDef, Hover.
   /// Empty if we are in the idle state.
   std::string Name;
@@ -111,7 +115,9 @@ struct TUStatus {
   /// Serialize this to an LSP file status item.
   FileStatus render(PathRef File) const;
 
-  TUAction Action;
+  PreambleAction PreambleActivity = PreambleAction::Idle;
+  ASTAction ASTActivity;
+  /// Stores status of the last build for the translation unit.
   BuildDetails Details;
 };
 
@@ -191,9 +197,14 @@ public:
               std::unique_ptr<ParsingCallbacks> ASTCallbacks = nullptr);
   ~TUScheduler();
 
-  /// Returns estimated memory usage for each of the currently open files.
-  /// The order of results is unspecified.
-  std::vector<std::pair<Path, std::size_t>> getUsedBytesPerFile() const;
+  struct FileStats {
+    std::size_t UsedBytes = 0;
+    unsigned PreambleBuilds = 0;
+    unsigned ASTBuilds = 0;
+  };
+  /// Returns resources used for each of the currently open files.
+  /// Results are inherently racy as they measure activity of other threads.
+  llvm::StringMap<FileStats> fileStats() const;
 
   /// Returns a list of files with ASTs currently stored in memory. This method
   /// is not very reliable and is only used for test. E.g., the results will not
@@ -245,11 +256,6 @@ public:
 
   /// Controls whether preamble reads wait for the preamble to be up-to-date.
   enum PreambleConsistency {
-    /// The preamble is generated from the current version of the file.
-    /// If the content was recently updated, we will wait until we have a
-    /// preamble that reflects that update.
-    /// This is the slowest option, and may be delayed by other tasks.
-    Consistent,
     /// The preamble may be generated from an older version of the file.
     /// Reading from locations in the preamble may cause files to be re-read.
     /// This gives callers two options:

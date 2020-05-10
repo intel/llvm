@@ -1,4 +1,4 @@
-//===----------------------- Unittests for sigaddset ----------------------===//
+//===-- Unittests for sigaddset -------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,7 +8,6 @@
 
 #include "include/errno.h"
 #include "include/signal.h"
-#include "src/errno/llvmlibc_errno.h"
 #include "src/signal/sigaddset.h"
 
 #include "utils/UnitTest/ErrnoSetterMatcher.h"

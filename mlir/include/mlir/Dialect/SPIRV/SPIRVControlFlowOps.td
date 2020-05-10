@@ -29,7 +29,7 @@ def SPV_BranchOp : SPV_Op<"Branch", [
   let description = [{
     This instruction must be the last instruction in a block.
 
-    ### Custom assembly form
+    <!-- End of AutoGen section -->
 
     ```
     branch-op ::= `spv.Branch` successor
@@ -37,9 +37,9 @@ def SPV_BranchOp : SPV_Op<"Branch", [
     branch-use-list ::= `(` ssa-use-list `:` type-list-no-parens `)`
     ```
 
-    For example:
+    #### Example:
 
-    ```
+    ```mlir
     spv.Branch ^target
     spv.Branch ^target(%0, %1: i32, f32)
     ```
@@ -55,7 +55,7 @@ def SPV_BranchOp : SPV_Op<"Branch", [
 
   let builders = [
     OpBuilder<
-      "Builder *, OperationState &state, "
+      "OpBuilder &, OperationState &state, "
       "Block *successor, ValueRange arguments = {}", [{
         state.addSuccessors(successor);
         state.addOperands(arguments);
@@ -105,7 +105,7 @@ def SPV_BranchConditionalOp : SPV_Op<"BranchConditional", [
 
     This instruction must be the last instruction in a block.
 
-    ### Custom assembly form
+    <!-- End of AutoGen section -->
 
     ```
     branch-conditional-op ::= `spv.BranchConditional` ssa-use
@@ -115,9 +115,9 @@ def SPV_BranchConditionalOp : SPV_Op<"BranchConditional", [
     branch-use-list ::= `(` ssa-use-list `:` type-list-no-parens `)`
     ```
 
-    For example:
+    #### Example:
 
-    ```
+    ```mlir
     spv.BranchConditional %condition, ^true_branch, ^false_branch
     spv.BranchConditional %condition, ^true_branch(%0: i32), ^false_branch(%1: i32)
     ```
@@ -137,7 +137,7 @@ def SPV_BranchConditionalOp : SPV_Op<"BranchConditional", [
 
   let builders = [
     OpBuilder<
-      "Builder *builder, OperationState &state, Value condition, "
+      "OpBuilder &builder, OperationState &state, Value condition, "
       "Block *trueBlock, ValueRange trueArguments, "
       "Block *falseBlock, ValueRange falseArguments, "
       "Optional<std::pair<uint32_t, uint32_t>> weights = {}",
@@ -145,8 +145,8 @@ def SPV_BranchConditionalOp : SPV_Op<"BranchConditional", [
         ArrayAttr weightsAttr;
         if (weights) {
           weightsAttr =
-              builder->getI32ArrayAttr({static_cast<int32_t>(weights->first),
-                                        static_cast<int32_t>(weights->second)});
+              builder.getI32ArrayAttr({static_cast<int32_t>(weights->first),
+                                       static_cast<int32_t>(weights->second)});
         }
         build(builder, state, condition, trueArguments, falseArguments,
               weightsAttr, trueBlock, falseBlock);
@@ -219,16 +219,16 @@ def SPV_FunctionCallOp : SPV_Op<"FunctionCall", [
     information: Result Type must match the Return Type of the function, and
     the calling argument types must match the formal parameter types.
 
-    ### Custom assembly form
+    <!-- End of AutoGen section -->
 
     ```
     function-call-op ::= `spv.FunctionCall` function-id `(` ssa-use-list `)`
                      `:` function-type
     ```
 
-    For example:
+    #### Example:
 
-    ```
+    ```mlir
     spv.FunctionCall @f_void(%arg0) : (i32) ->  ()
     %0 = spv.FunctionCall @f_iadd(%arg0, %arg1) : (i32, i32) -> i32
     ```
@@ -240,7 +240,7 @@ def SPV_FunctionCallOp : SPV_Op<"FunctionCall", [
   );
 
   let results = (outs
-    SPV_Optional<SPV_Type>:$result
+    Optional<SPV_Type>:$result
   );
 
   let autogenSerialization = 0;
@@ -290,7 +290,7 @@ def SPV_LoopOp : SPV_Op<"loop", [InFunctionScope]> {
 
   let regions = (region AnyRegion:$body);
 
-  let builders = [OpBuilder<"Builder *builder, OperationState &state">];
+  let builders = [OpBuilder<"OpBuilder &builder, OperationState &state">];
 
   let extraClassDeclaration = [{
     // Returns the entry block.
@@ -348,7 +348,7 @@ def SPV_ReturnOp : SPV_Op<"Return", [InFunctionScope, NoSideEffect,
   let description = [{
     This instruction must be the last instruction in a block.
 
-    ### Custom assembly form
+    <!-- End of AutoGen section -->
 
     ```
     return-op ::= `spv.Return`
@@ -370,7 +370,7 @@ def SPV_UnreachableOp : SPV_Op<"Unreachable", [InFunctionScope, Terminator]> {
   let description = [{
     This instruction must be the last instruction in a block.
 
-    ### Custom assembly form
+    <!-- End of AutoGen section -->
 
     ```
     unreachable-op ::= `spv.Unreachable`
@@ -397,15 +397,15 @@ def SPV_ReturnValueOp : SPV_Op<"ReturnValue", [InFunctionScope, NoSideEffect,
 
     This instruction must be the last instruction in a block.
 
-    ### Custom assembly form
+    <!-- End of AutoGen section -->
 
     ```
     return-value-op ::= `spv.ReturnValue` ssa-use `:` spirv-type
     ```
 
-    For example:
+    #### Example:
 
-    ```
+    ```mlir
     spv.ReturnValue %0 : f32
     ```
   }];
@@ -465,8 +465,8 @@ def SPV_SelectionOp : SPV_Op<"selection", [InFunctionScope]> {
     /// newly inserted spv.selection op afterwards.
     static SelectionOp createIfThen(
         Location loc, Value condition,
-        function_ref<void(OpBuilder *builder)> thenBody,
-        OpBuilder *builder);
+        function_ref<void(OpBuilder &builder)> thenBody,
+        OpBuilder &builder);
   }];
 
   let hasOpcode = 0;

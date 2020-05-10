@@ -1,9 +1,10 @@
 # MLIR project.
-set(MLIR_MAIN_SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include ) # --src-root
-set(MLIR_INCLUDE_DIR ${CMAKE_CURRENT_BINARY_DIR}/include ) # --includedir
+set(MLIR_MAIN_SRC_DIR     ${CMAKE_CURRENT_SOURCE_DIR}  )
+set(MLIR_MAIN_INCLUDE_DIR ${MLIR_MAIN_SRC_DIR}/include )
 
-set(MLIR_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
-set(MLIR_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
+set(MLIR_SOURCE_DIR  ${CMAKE_CURRENT_SOURCE_DIR})
+set(MLIR_BINARY_DIR  ${CMAKE_CURRENT_BINARY_DIR})
+set(MLIR_INCLUDE_DIR ${CMAKE_CURRENT_BINARY_DIR}/include)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
 
@@ -11,8 +12,13 @@ include(AddMLIR)
 
 # Installing the headers and docs needs to depend on generating any public
 # tablegen'd targets.
+# mlir-generic-headers are dialect-independent.
+add_custom_target(mlir-generic-headers)
+set_target_properties(mlir-generic-headers PROPERTIES FOLDER "Misc")
+# mlir-headers may be dialect-dependent.
 add_custom_target(mlir-headers)
 set_target_properties(mlir-headers PROPERTIES FOLDER "Misc")
+add_dependencies(mlir-headers mlir-generic-headers)
 add_custom_target(mlir-doc)
 
 # Build the CUDA conversions and run according tests if the NVPTX backend

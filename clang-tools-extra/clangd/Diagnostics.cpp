@@ -9,9 +9,9 @@
 #include "Diagnostics.h"
 #include "../clang-tidy/ClangTidyDiagnosticConsumer.h"
 #include "Compiler.h"
-#include "Logger.h"
 #include "Protocol.h"
 #include "SourceCode.h"
+#include "support/Logger.h"
 #include "clang/Basic/AllDiagnostics.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/DiagnosticIDs.h"
@@ -556,10 +556,23 @@ void StoreDiags::HandleDiagnostic(DiagnosticsEngine::Level DiagLevel,
     if (!InsideMainFile)
       return false;
 
+    // Copy as we may modify the ranges.
+    auto FixIts = Info.getFixItHints().vec();
     llvm::SmallVector<TextEdit, 1> Edits;
-    for (auto &FixIt : Info.getFixItHints()) {
-      // Follow clang's behavior, don't apply FixIt to the code in macros,
-      // we are less certain it is the right fix.
+    for (auto &FixIt : FixIts) {
+      // Allow fixits within a single macro-arg expansion to be applied.
+      // This can be incorrect if the argument is expanded multiple times in
+      // different contexts. Hopefully this is rare!
+      if (FixIt.RemoveRange.getBegin().isMacroID() &&
+          FixIt.RemoveRange.getEnd().isMacroID() &&
+          SM.getFileID(FixIt.RemoveRange.getBegin()) ==
+              SM.getFileID(FixIt.RemoveRange.getEnd())) {
+        FixIt.RemoveRange = CharSourceRange(
+            {SM.getTopMacroCallerLoc(FixIt.RemoveRange.getBegin()),
+             SM.getTopMacroCallerLoc(FixIt.RemoveRange.getEnd())},
+            FixIt.RemoveRange.isTokenRange());
+      }
+      // Otherwise, follow clang's behavior: no fixits in macros.
       if (FixIt.RemoveRange.getBegin().isMacroID() ||
           FixIt.RemoveRange.getEnd().isMacroID())
         return false;
@@ -570,8 +583,8 @@ void StoreDiags::HandleDiagnostic(DiagnosticsEngine::Level DiagLevel,
 
     llvm::SmallString<64> Message;
     // If requested and possible, create a message like "change 'foo' to 'bar'".
-    if (SyntheticMessage && Info.getNumFixItHints() == 1) {
-      const auto &FixIt = Info.getFixItHint(0);
+    if (SyntheticMessage && FixIts.size() == 1) {
+      const auto &FixIt = FixIts.front();
       bool Invalid = false;
       llvm::StringRef Remove =
           Lexer::getSourceText(FixIt.RemoveRange, SM, *LangOpts, &Invalid);
@@ -597,7 +610,7 @@ void StoreDiags::HandleDiagnostic(DiagnosticsEngine::Level DiagLevel,
         std::replace(Message.begin(), Message.end(), '\n', ' ');
       }
     }
-    if (Message.empty()) // either !SytheticMessage, or we failed to make one.
+    if (Message.empty()) // either !SyntheticMessage, or we failed to make one.
       Info.FormatDiagnostic(Message);
     LastDiag->Fixes.push_back(
         Fix{std::string(Message.str()), std::move(Edits)});

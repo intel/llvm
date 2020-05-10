@@ -21,6 +21,7 @@
 #include "mlir/Interfaces/CallInterfaces.h"
 #include "mlir/Interfaces/ControlFlowInterfaces.h"
 #include "mlir/Interfaces/SideEffects.h"
+#include "mlir/Interfaces/ViewLikeInterface.h"
 
 // Pull in all enum type definitions and utility function declarations.
 #include "mlir/Dialect/StandardOps/IR/OpsEnums.h.inc"
@@ -46,7 +47,7 @@ public:
   using ConstantOp::ConstantOp;
 
   /// Builds a constant float op producing a float of the specified type.
-  static void build(Builder *builder, OperationState &result,
+  static void build(OpBuilder &builder, OperationState &result,
                     const APFloat &value, FloatType type);
 
   APFloat getValue() { return getAttrOfType<FloatAttr>("value").getValue(); }
@@ -63,12 +64,12 @@ class ConstantIntOp : public ConstantOp {
 public:
   using ConstantOp::ConstantOp;
   /// Build a constant int op producing an integer of the specified width.
-  static void build(Builder *builder, OperationState &result, int64_t value,
+  static void build(OpBuilder &builder, OperationState &result, int64_t value,
                     unsigned width);
 
   /// Build a constant int op producing an integer with the specified type,
   /// which must be an integer type.
-  static void build(Builder *builder, OperationState &result, int64_t value,
+  static void build(OpBuilder &builder, OperationState &result, int64_t value,
                     Type type);
 
   int64_t getValue() { return getAttrOfType<IntegerAttr>("value").getInt(); }
@@ -86,7 +87,7 @@ public:
   using ConstantOp::ConstantOp;
 
   /// Build a constant int op producing an index.
-  static void build(Builder *builder, OperationState &result, int64_t value);
+  static void build(OpBuilder &builder, OperationState &result, int64_t value);
 
   int64_t getValue() { return getAttrOfType<IntegerAttr>("value").getInt(); }
 
@@ -135,7 +136,7 @@ class DmaStartOp
 public:
   using Op::Op;
 
-  static void build(Builder *builder, OperationState &result, Value srcMemRef,
+  static void build(OpBuilder &builder, OperationState &result, Value srcMemRef,
                     ValueRange srcIndices, Value destMemRef,
                     ValueRange destIndices, Value numElements, Value tagMemRef,
                     ValueRange tagIndices, Value stride = nullptr,
@@ -259,7 +260,7 @@ class DmaWaitOp
 public:
   using Op::Op;
 
-  static void build(Builder *builder, OperationState &result, Value tagMemRef,
+  static void build(OpBuilder &builder, OperationState &result, Value tagMemRef,
                     ValueRange tagIndices, Value numElements);
 
   static StringRef getOperationName() { return "std.dma_wait"; }
@@ -285,6 +286,7 @@ public:
   void print(OpAsmPrinter &p);
   LogicalResult fold(ArrayRef<Attribute> cstOperands,
                      SmallVectorImpl<OpFoldResult> &results);
+  LogicalResult verify();
 };
 
 /// Prints dimension and symbol list.

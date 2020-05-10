@@ -20,12 +20,6 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
-EventImplPtr addHostAccessorToSchedulerInstance(Requirement *Req,
-                                                const bool destructor) {
-  return cl::sycl::detail::Scheduler::getInstance().
-                                              addHostAccessor(Req, destructor);
-}
-
 void Scheduler::waitForRecordToFinish(MemObjRecord *Record) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // Will contain the list of dependencies for the Release Command
@@ -72,7 +66,7 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
   Command *NewCmd = nullptr;
   const bool IsKernel = CommandGroup->getType() == CG::KERNEL;
   {
-    std::lock_guard<std::mutex> Lock(MGraphLock);
+    std::lock_guard<std::shared_timed_mutex> Lock(MGraphLock);
 
     switch (CommandGroup->getType()) {
     case CG::UPDATE_HOST:
@@ -97,7 +91,7 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
 }
 
 EventImplPtr Scheduler::addCopyBack(Requirement *Req) {
-  std::lock_guard<std::mutex> lock(MGraphLock);
+  std::lock_guard<std::shared_timed_mutex> Lock(MGraphLock);
   Command *NewCmd = MGraphBuilder.addCopyBack(Req);
   // Command was not creted because there were no operations with
   // buffer.
@@ -121,35 +115,39 @@ EventImplPtr Scheduler::addCopyBack(Requirement *Req) {
 // else that has no priority set, or has a priority higher than 2000).
 Scheduler Scheduler::instance __attribute__((init_priority(2000)));
 #else
-#pragma warning(disable:4073)
+#pragma warning(disable : 4073)
 #pragma init_seg(lib)
 Scheduler Scheduler::instance;
 #endif
 
-Scheduler &Scheduler::getInstance() {
-  return instance;
-}
+Scheduler &Scheduler::getInstance() { return instance; }
 
 std::vector<EventImplPtr> Scheduler::getWaitList(EventImplPtr Event) {
-  std::lock_guard<std::mutex> lock(MGraphLock);
+  std::shared_lock<std::shared_timed_mutex> Lock(MGraphLock);
   return GraphProcessor::getWaitList(std::move(Event));
 }
 
 void Scheduler::waitForEvent(EventImplPtr Event) {
+  std::shared_lock<std::shared_timed_mutex> Lock(MGraphLock);
   GraphProcessor::waitForEvent(std::move(Event));
 }
 
 void Scheduler::cleanupFinishedCommands(EventImplPtr FinishedEvent) {
-  std::lock_guard<std::mutex> lock(MGraphLock);
-  Command *FinishedCmd = static_cast<Command *>(FinishedEvent->getCommand());
-  // The command might have been cleaned up (and set to nullptr) by another
-  // thread
-  if (FinishedCmd)
-    MGraphBuilder.cleanupFinishedCommands(FinishedCmd);
+  // Avoiding deadlock situation, where one thread is in the process of
+  // enqueueing (with a locked mutex) a currently blocked task that waits for
+  // another thread which is stuck at attempting cleanup.
+  std::unique_lock<std::shared_timed_mutex> Lock(MGraphLock, std::try_to_lock);
+  if (Lock.owns_lock()) {
+    Command *FinishedCmd = static_cast<Command *>(FinishedEvent->getCommand());
+    // The command might have been cleaned up (and set to nullptr) by another
+    // thread
+    if (FinishedCmd)
+      MGraphBuilder.cleanupFinishedCommands(FinishedCmd);
+  }
 }
 
 void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
-  std::lock_guard<std::mutex> lock(MGraphLock);
+  std::lock_guard<std::shared_timed_mutex> Lock(MGraphLock);
 
   MemObjRecord *Record = MGraphBuilder.getMemObjRecord(MemObj);
   if (!Record)
@@ -163,7 +161,7 @@ void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
 
 EventImplPtr Scheduler::addHostAccessor(Requirement *Req,
                                         const bool destructor) {
-  std::lock_guard<std::mutex> lock(MGraphLock);
+  std::lock_guard<std::shared_timed_mutex> Lock(MGraphLock);
 
   Command *NewCmd = MGraphBuilder.addHostAccessor(Req, destructor);
 
@@ -178,7 +176,8 @@ EventImplPtr Scheduler::addHostAccessor(Requirement *Req,
 
 void Scheduler::releaseHostAccessor(Requirement *Req) {
   Req->MBlockedCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
-  MemObjRecord* Record = Req->MSYCLMemObj->MRecord.get();
+  std::shared_lock<std::shared_timed_mutex> Lock(MGraphLock);
+  MemObjRecord *Record = Req->MSYCLMemObj->MRecord.get();
   auto EnqueueLeaves = [](CircularBuffer<Command *> &Leaves) {
     for (Command *Cmd : Leaves) {
       EnqueueResultT Res;
@@ -193,9 +192,9 @@ void Scheduler::releaseHostAccessor(Requirement *Req) {
 
 Scheduler::Scheduler() {
   sycl::device HostDevice;
-  DefaultHostQueue = QueueImplPtr(new queue_impl(
-      detail::getSyclObjImpl(HostDevice), /*AsyncHandler=*/{},
-          QueueOrder::Ordered, /*PropList=*/{}));
+  DefaultHostQueue = QueueImplPtr(
+      new queue_impl(detail::getSyclObjImpl(HostDevice), /*AsyncHandler=*/{},
+                     QueueOrder::Ordered, /*PropList=*/{}));
 }
 
 } // namespace detail

@@ -83,3 +83,95 @@ int binary = a + nullptr;
 // CHECK-NEXT:  `-DeclRefExpr {{.*}} 'a'
 // DISABLED-NOT: -RecoveryExpr {{.*}} contains-errors
 int ternary = a ? nullptr : a;
+
+// CHECK:     FunctionDecl
+// CHECK-NEXT:|-ParmVarDecl {{.*}} x
+// CHECK-NEXT:`-CompoundStmt
+// CHECK-NEXT: |-RecoveryExpr {{.*}} contains-errors
+// CHECK-NEXT: | `-DeclRefExpr {{.*}} 'foo'
+// CHECK-NEXT: `-CallExpr {{.*}} contains-errors
+// CHECK-NEXT:  |-RecoveryExpr {{.*}} contains-errors
+// CHECK-NEXT:  | `-DeclRefExpr {{.*}} 'foo'
+// CHECK-NEXT:  `-DeclRefExpr {{.*}} 'x'
+struct Foo {} foo;
+void test(int x) {
+  foo.abc;
+  foo->func(x);
+}
+
+// CHECK:     |-AlignedAttr {{.*}} alignas
+// CHECK-NEXT:| `-RecoveryExpr {{.*}} contains-errors
+// CHECK-NEXT:|   `-UnresolvedLookupExpr {{.*}} 'invalid'
+struct alignas(invalid()) Aligned {};
+
+void InvalidInitalizer(int x) {
+  struct Bar { Bar(); };
+  // CHECK:     `-VarDecl {{.*}} a1 'Bar'
+  // CHECK-NEXT: `-RecoveryExpr {{.*}} contains-errors
+  // CHECK-NEXT:  `-IntegerLiteral {{.*}} 'int' 1
+  Bar a1(1);
+  // CHECK:     `-VarDecl {{.*}} a2 'Bar'
+  // CHECK-NEXT: `-RecoveryExpr {{.*}} contains-errors
+  // CHECK-NEXT:  `-DeclRefExpr {{.*}} 'x'
+  Bar a2(x);
+  // CHECK:     `-VarDecl {{.*}} a3 'Bar'
+  // CHECK-NEXT: `-RecoveryExpr {{.*}} contains-errors
+  // CHECK-NEXT:  `-InitListExpr
+  // CHECK-NEDT:   `-DeclRefExpr {{.*}} 'x'
+  Bar a3{x};
+  // CHECK:     `-VarDecl {{.*}} a4 'Bar'
+  // CHECK-NEXT: `-ParenListExpr {{.*}} 'NULL TYPE' contains-errors
+  // CHECK-NEXT:  `-RecoveryExpr {{.*}} contains-errors
+  // CHECK-NEXT:   `-UnresolvedLookupExpr {{.*}} 'invalid'
+  Bar a4(invalid());
+  // CHECK:     `-VarDecl {{.*}} a5 'Bar'
+  // CHECK-NEXT: `-InitListExpr {{.*}} contains-errors
+  // CHECK-NEXT:  `-RecoveryExpr {{.*}} contains-errors
+  // CHECK-NEXT:   `-UnresolvedLookupExpr {{.*}} 'invalid'
+  Bar a5{invalid()};
+
+  // CHECK:     `-VarDecl {{.*}} b1 'Bar'
+  // CHECK-NEXT: `-RecoveryExpr {{.*}} contains-errors
+  // CHECK-NEXT:  `-IntegerLiteral {{.*}} 'int' 1
+  Bar b1 = 1;
+  // CHECK:     `-VarDecl {{.*}} b2 'Bar'
+  // CHECK-NEXT: `-RecoveryExpr {{.*}} contains-errors
+  // CHECK-NEXT:  `-InitListExpr
+  Bar b2 = {1};
+  // FIXME: preserve the invalid initializer.
+  // CHECK: `-VarDecl {{.*}} b3 'Bar'
+  Bar b3 = Bar(x);
+  // FIXME: preserve the invalid initializer.
+  // CHECK: `-VarDecl {{.*}} b4 'Bar'
+  Bar b4 = Bar{x};
+  // CHECK:     `-VarDecl {{.*}} b5 'Bar'
+  // CHECK-NEXT: `-CXXUnresolvedConstructExpr {{.*}} 'Bar' contains-errors 'Bar'
+  // CHECK-NEXT:   `-RecoveryExpr {{.*}} contains-errors
+  // CHECK-NEXT:     `-UnresolvedLookupExpr {{.*}} 'invalid'
+  Bar b5 = Bar(invalid());
+  // CHECK:     `-VarDecl {{.*}} b6 'Bar'
+  // CHECK-NEXT: `-CXXUnresolvedConstructExpr {{.*}} 'Bar' contains-errors 'Bar'
+  // CHECK-NEXT:  `-InitListExpr {{.*}} contains-errors
+  // CHECK-NEXT:   `-RecoveryExpr {{.*}} contains-errors
+  // CHECK-NEXT:     `-UnresolvedLookupExpr {{.*}} 'invalid'
+  Bar b6 = Bar{invalid()};
+}
+void InitializerForAuto() {
+  // CHECK:     `-VarDecl {{.*}} invalid a 'auto'
+  // CHECK-NEXT: `-RecoveryExpr {{.*}} '<dependent type>' contains-errors
+  // CHECK-NEXT:   `-UnresolvedLookupExpr {{.*}} 'invalid'
+  auto a = invalid();
+
+  // CHECK:     `-VarDecl {{.*}} invalid b 'auto'
+  // CHECK-NEXT: `-CallExpr {{.*}} '<dependent type>' contains-errors
+  // CHECK-NEXT:   |-UnresolvedLookupExpr {{.*}} 'some_func'
+  // CHECK-NEXT:   `-RecoveryExpr {{.*}} '<dependent type>' contains-errors
+  // CHECK-NEXT:     `-UnresolvedLookupExpr {{.*}} 'invalid'
+  auto b = some_func(invalid());
+
+  decltype(ned);
+  // very bad initailizer: there is an unresolved typo expr internally, we just
+  // drop it.
+  // CHECK: `-VarDecl {{.*}} invalid unresolved_typo 'auto'
+  auto unresolved_typo = gned.*[] {};
+}

@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "Compiler.h"
-#include "Logger.h"
+#include "support/Logger.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Lex/PreprocessorOptions.h"
 #include "clang/Serialization/PCHContainerOperations.h"
@@ -65,6 +65,15 @@ buildCompilerInvocation(const ParseInputs &Inputs,
   CI->getFrontendOpts().DisableFree = false;
   CI->getLangOpts()->CommentOpts.ParseAllComments = true;
   CI->getLangOpts()->RetainCommentsFromSystemHeaders = true;
+
+  // Disable any dependency outputting, we don't want to generate files or write
+  // to stdout/stderr.
+  CI->getDependencyOutputOpts().ShowIncludesDest =
+      ShowIncludesDestination::None;
+  CI->getDependencyOutputOpts().OutputFile.clear();
+  CI->getDependencyOutputOpts().HeaderIncludeOutputFile.clear();
+  CI->getDependencyOutputOpts().DOTOutputFile.clear();
+  CI->getDependencyOutputOpts().ModuleDependencyOutputDir.clear();
   return CI;
 }
 

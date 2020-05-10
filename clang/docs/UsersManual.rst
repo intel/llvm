@@ -1466,7 +1466,7 @@ are listed below.
 
 **-f[no-]sanitize-recover=check1,check2,...**
 
-**-f[no-]sanitize-recover=all**
+**-f[no-]sanitize-recover[=all]**
 
    Controls which checks enabled by ``-fsanitize=`` flag are non-fatal.
    If the check is fatal, program will halt after the first error
@@ -1492,6 +1492,8 @@ are listed below.
 
 **-f[no-]sanitize-trap=check1,check2,...**
 
+**-f[no-]sanitize-trap[=all]**
+
    Controls which checks enabled by the ``-fsanitize=`` flag trap. This
    option is intended for use in cases where the sanitizer runtime cannot
    be used (for instance, when building libc or a kernel module), or where
@@ -1499,9 +1501,7 @@ are listed below.
 
    This flag is only compatible with :doc:`control flow integrity
    <ControlFlowIntegrity>` schemes and :doc:`UndefinedBehaviorSanitizer`
-   checks other than ``vptr``. If this flag
-   is supplied together with ``-fsanitize=undefined``, the ``vptr`` sanitizer
-   will be implicitly disabled.
+   checks other than ``vptr``.
 
    This flag is enabled by default for sanitizers in the ``cfi`` group.
 
@@ -3668,3 +3668,56 @@ This option is intended to be used as a temporary means to build projects where
 clang-cl cannot successfully compile all the files. clang-cl may fail to compile
 a file either because it cannot generate code for some C++ feature, or because
 it cannot parse some Microsoft language extension.
+
+Finding Clang runtime libraries
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+clang-cl supports several features that require runtime library support:
+
+- Address Sanitizer (ASan): ``-fsanitize=address``
+- Undefined Behavior Sanitizer (UBSan): ``-fsanitize=undefined``
+- Code coverage: ``-fprofile-instr-generate -fcoverage-mapping``
+- Profile Guided Optimization (PGO): ``-fprofile-instr-generate``
+- Certain math operations (int128 division) require the builtins library
+
+In order to use these features, the user must link the right runtime libraries
+into their program. These libraries are distributed alongside Clang in the
+library resource directory. Clang searches for the resource directory by
+searching relative to the Clang executable. For example, if LLVM is installed
+in ``C:\Program Files\LLVM``, then the profile runtime library will be located
+at the path
+``C:\Program Files\LLVM\lib\clang\11.0.0\lib\windows\clang_rt.profile-x86_64.lib``.
+
+For UBSan, PGO, and coverage, Clang will emit object files that auto-link the
+appropriate runtime library, but the user generally needs to help the linker
+(whether it is ``lld-link.exe`` or MSVC ``link.exe``) find the library resource
+directory. Using the example installation above, this would mean passing
+``/LIBPATH:C:\Program Files\LLVM\lib\clang\11.0.0\lib\windows`` to the linker.
+If the user links the program with the ``clang`` or ``clang-cl`` drivers, the
+driver will pass this flag for them.
+
+If the linker cannot find the appropriate library, it will emit an error like
+this::
+
+  $ clang-cl -c -fsanitize=undefined t.cpp
+
+  $ lld-link t.obj -dll
+  lld-link: error: could not open 'clang_rt.ubsan_standalone-x86_64.lib': no such file or directory
+  lld-link: error: could not open 'clang_rt.ubsan_standalone_cxx-x86_64.lib': no such file or directory
+
+  $ link t.obj -dll -nologo
+  LINK : fatal error LNK1104: cannot open file 'clang_rt.ubsan_standalone-x86_64.lib'
+
+To fix the error, add the appropriate ``/libpath:`` flag to the link line.
+
+For ASan, as of this writing, the user is also responsible for linking against
+the correct ASan libraries.
+
+If the user is using the dynamic CRT (``/MD``), then they should add
+``clang_rt.asan_dynamic-x86_64.lib`` to the link line as a regular input. For
+other architectures, replace x86_64 with the appropriate name here and below.
+
+If the user is using the static CRT (``/MT``), then different runtimes are used
+to produce DLLs and EXEs. To link a DLL, pass
+``clang_rt.asan_dll_thunk-x86_64.lib``. To link an EXE, pass
+``-wholearchive:clang_rt.asan-x86_64.lib``.

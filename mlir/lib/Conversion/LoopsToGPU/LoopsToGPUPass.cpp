@@ -7,12 +7,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Conversion/LoopsToGPU/LoopsToGPUPass.h"
+#include "../PassDetail.h"
 #include "mlir/Conversion/LoopsToGPU/LoopsToGPU.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/GPU/GPUDialect.h"
 #include "mlir/Dialect/LoopOps/LoopOps.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
-#include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
 
 #include "llvm/ADT/ArrayRef.h"
@@ -28,37 +28,26 @@ namespace {
 // A pass that traverses top-level loops in the function and converts them to
 // GPU launch operations.  Nested launches are not allowed, so this does not
 // walk the function recursively to avoid considering nested loops.
-struct ForLoopMapper : public FunctionPass<ForLoopMapper> {
+struct ForLoopMapper : public ConvertSimpleLoopsToGPUBase<ForLoopMapper> {
   ForLoopMapper() = default;
-  ForLoopMapper(const ForLoopMapper &) {}
   ForLoopMapper(unsigned numBlockDims, unsigned numThreadDims) {
     this->numBlockDims = numBlockDims;
     this->numThreadDims = numThreadDims;
   }
 
   void runOnFunction() override {
-    for (Block &block : getFunction())
-      for (Operation &op : llvm::make_early_inc_range(block)) {
-        if (auto forOp = dyn_cast<AffineForOp>(&op)) {
-          if (failed(convertAffineLoopNestToGPULaunch(forOp, numBlockDims,
-                                                      numThreadDims)))
-            signalPassFailure();
-        } else if (auto forOp = dyn_cast<ForOp>(&op)) {
-          if (failed(convertLoopNestToGPULaunch(forOp, numBlockDims,
-                                                numThreadDims)))
-            signalPassFailure();
-        }
+    for (Operation &op : llvm::make_early_inc_range(getFunction().getOps())) {
+      if (auto forOp = dyn_cast<AffineForOp>(&op)) {
+        if (failed(convertAffineLoopNestToGPULaunch(forOp, numBlockDims,
+                                                    numThreadDims)))
+          signalPassFailure();
+      } else if (auto forOp = dyn_cast<ForOp>(&op)) {
+        if (failed(
+                convertLoopNestToGPULaunch(forOp, numBlockDims, numThreadDims)))
+          signalPassFailure();
       }
+    }
   }
-
-  Option<unsigned> numBlockDims{
-      *this, "gpu-block-dims",
-      llvm::cl::desc("Number of GPU block dimensions for mapping"),
-      llvm::cl::init(1u)};
-  Option<unsigned> numThreadDims{
-      *this, "gpu-thread-dims",
-      llvm::cl::desc("Number of GPU thread dimensions for mapping"),
-      llvm::cl::init(1u)};
 };
 
 // A pass that traverses top-level loops in the function and convertes them to
@@ -67,13 +56,12 @@ struct ForLoopMapper : public FunctionPass<ForLoopMapper> {
 // nested loops as the size of `numWorkGroups`. Within these any loop nest has
 // to be perfectly nested upto depth equal to size of `workGroupSize`.
 struct ImperfectlyNestedForLoopMapper
-    : public FunctionPass<ImperfectlyNestedForLoopMapper> {
+    : public ConvertLoopsToGPUBase<ImperfectlyNestedForLoopMapper> {
   ImperfectlyNestedForLoopMapper() = default;
-  ImperfectlyNestedForLoopMapper(const ImperfectlyNestedForLoopMapper &) {}
   ImperfectlyNestedForLoopMapper(ArrayRef<int64_t> numWorkGroups,
                                  ArrayRef<int64_t> workGroupSize) {
-    this->numWorkGroups->assign(numWorkGroups.begin(), numWorkGroups.end());
-    this->workGroupSize->assign(workGroupSize.begin(), workGroupSize.end());
+    this->numWorkGroups = numWorkGroups;
+    this->workGroupSize = workGroupSize;
   }
 
   void runOnFunction() override {
@@ -92,28 +80,17 @@ struct ImperfectlyNestedForLoopMapper
           funcOp.getLoc(), builder.getIntegerAttr(builder.getIndexType(), val));
       workGroupSizeVal.push_back(constOp);
     }
-    for (Block &block : getFunction()) {
-      for (Operation &op : llvm::make_early_inc_range(block)) {
-        if (auto forOp = dyn_cast<ForOp>(&op)) {
-          if (failed(convertLoopToGPULaunch(forOp, numWorkGroupsVal,
-                                            workGroupSizeVal))) {
-            return signalPassFailure();
-          }
-        }
+    for (ForOp forOp : llvm::make_early_inc_range(funcOp.getOps<ForOp>())) {
+      if (failed(convertLoopToGPULaunch(forOp, numWorkGroupsVal,
+                                        workGroupSizeVal))) {
+        return signalPassFailure();
       }
     }
   }
-  ListOption<int64_t> numWorkGroups{
-      *this, "gpu-num-workgroups",
-      llvm::cl::desc("Num workgroups in the GPU launch"), llvm::cl::ZeroOrMore,
-      llvm::cl::MiscFlags::CommaSeparated};
-  ListOption<int64_t> workGroupSize{
-      *this, "gpu-workgroup-size",
-      llvm::cl::desc("Workgroup Size in the GPU launch"), llvm::cl::ZeroOrMore,
-      llvm::cl::MiscFlags::CommaSeparated};
 };
 
-struct ParallelLoopToGpuPass : public OperationPass<ParallelLoopToGpuPass> {
+struct ParallelLoopToGpuPass
+    : public ConvertParallelLoopToGpuBase<ParallelLoopToGpuPass> {
   void runOnOperation() override {
     OwningRewritePatternList patterns;
     populateParallelLoopToGPUPatterns(patterns, &getContext());
@@ -130,30 +107,25 @@ struct ParallelLoopToGpuPass : public OperationPass<ParallelLoopToGpuPass> {
 
 } // namespace
 
-std::unique_ptr<OpPassBase<FuncOp>>
+std::unique_ptr<OperationPass<FuncOp>>
 mlir::createSimpleLoopsToGPUPass(unsigned numBlockDims,
                                  unsigned numThreadDims) {
   return std::make_unique<ForLoopMapper>(numBlockDims, numThreadDims);
 }
+std::unique_ptr<OperationPass<FuncOp>> mlir::createSimpleLoopsToGPUPass() {
+  return std::make_unique<ForLoopMapper>();
+}
 
-std::unique_ptr<OpPassBase<FuncOp>>
+std::unique_ptr<OperationPass<FuncOp>>
 mlir::createLoopToGPUPass(ArrayRef<int64_t> numWorkGroups,
                           ArrayRef<int64_t> workGroupSize) {
   return std::make_unique<ImperfectlyNestedForLoopMapper>(numWorkGroups,
                                                           workGroupSize);
 }
+std::unique_ptr<OperationPass<FuncOp>> mlir::createLoopToGPUPass() {
+  return std::make_unique<ImperfectlyNestedForLoopMapper>();
+}
 
 std::unique_ptr<Pass> mlir::createParallelLoopToGpuPass() {
   return std::make_unique<ParallelLoopToGpuPass>();
 }
-
-static PassRegistration<ForLoopMapper>
-    registration(PASS_NAME, "Convert top-level loops to GPU kernels");
-
-static PassRegistration<ImperfectlyNestedForLoopMapper>
-    loopOpToGPU(LOOPOP_TO_GPU_PASS_NAME,
-                "Convert top-level loop::ForOp to GPU kernels");
-
-static PassRegistration<ParallelLoopToGpuPass>
-    pass("convert-parallel-loops-to-gpu", "Convert mapped loop.parallel ops"
-                                          " to gpu launch operations.");

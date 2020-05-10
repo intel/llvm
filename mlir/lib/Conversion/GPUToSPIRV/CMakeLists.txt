@@ -7,11 +7,10 @@ add_mlir_conversion_library(MLIRGPUtoSPIRVTransforms
   ConvertGPUToSPIRVPass.cpp
 
   DEPENDS
+  MLIRConversionPassIncGen
   MLIRGPUToSPIRVIncGen
-  )
 
-target_link_libraries(MLIRGPUtoSPIRVTransforms
-  PUBLIC
+  LINK_LIBS PUBLIC
   MLIRGPU
   MLIRIR
   MLIRPass

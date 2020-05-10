@@ -1,4 +1,4 @@
-// RUN: mlir-opt %s -split-input-file -verify-diagnostics
+// RUN: mlir-opt -allow-unregistered-dialect %s -split-input-file -verify-diagnostics
 
 func @dim(tensor<1xf32>) {
 ^bb(%0: tensor<1xf32>):
@@ -281,25 +281,19 @@ func @func_with_ops(i1, i32, i64) {
 
 // -----
 
-func @func_with_ops(i1, vector<42xi32>, vector<42xi32>) {
-^bb0(%cond : i1, %t : vector<42xi32>, %f : vector<42xi32>):
-  // expected-error@+1 {{requires the same shape for all operands and results}}
-  %r = "std.select"(%cond, %t, %f) : (i1, vector<42xi32>, vector<42xi32>) -> vector<42xi32>
+func @func_with_ops(vector<12xi1>, vector<42xi32>, vector<42xi32>) {
+^bb0(%cond : vector<12xi1>, %t : vector<42xi32>, %f : vector<42xi32>):
+  // expected-error@+1 {{expected condition type to have the same shape as the result type, expected 'vector<42xi1>', but got 'vector<12xi1>'}}
+  %r = "std.select"(%cond, %t, %f) : (vector<12xi1>, vector<42xi32>, vector<42xi32>) -> vector<42xi32>
 }
 
 // -----
 
-func @func_with_ops(i1, tensor<42xi32>, tensor<?xi32>) {
-^bb0(%cond : i1, %t : tensor<42xi32>, %f : tensor<?xi32>):
-  // expected-error@+1 {{ op requires the same shape for all operands and results}}
-  %r = "std.select"(%cond, %t, %f) : (i1, tensor<42xi32>, tensor<?xi32>) -> tensor<42xi32>
+func @func_with_ops(tensor<12xi1>, tensor<42xi32>, tensor<42xi32>) {
+^bb0(%cond : tensor<12xi1>, %t : tensor<42xi32>, %f : tensor<42xi32>):
+  // expected-error@+1 {{expected condition type to have the same shape as the result type, expected 'tensor<42xi1>', but got 'tensor<12xi1>'}}
+  %r = "std.select"(%cond, %t, %f) : (tensor<12xi1>, tensor<42xi32>, tensor<42xi32>) -> tensor<42xi32>
 }
-
-// -----
-
-func @invalid_select_shape(%cond : i1, %idx : () -> ()) {
-  // expected-error@+1 {{'result' must be signless-integer-like or floating-point-like, but got '() -> ()'}}
-  %sel = select %cond, %idx, %idx : () -> ()
 
 // -----
 
@@ -309,9 +303,34 @@ func @invalid_cmp_shape(%idx : () -> ()) {
 
 // -----
 
+func @dma_start_not_enough_operands() {
+  // expected-error@+1 {{expected at least 4 operands}}
+  "std.dma_start"() : () -> ()
+}
+
+// -----
+
 func @dma_no_src_memref(%m : f32, %tag : f32, %c0 : index) {
   // expected-error@+1 {{expected source to be of memref type}}
   dma_start %m[%c0], %m[%c0], %c0, %tag[%c0] : f32, f32, f32
+}
+
+// -----
+
+func @dma_start_not_enough_operands_for_src(
+    %src: memref<2x2x2xf32>, %idx: index) {
+  // expected-error@+1 {{expected at least 7 operands}}
+  "std.dma_start"(%src, %idx, %idx, %idx) : (memref<2x2x2xf32>, index, index, index) -> ()
+}
+
+// -----
+
+func @dma_start_src_index_wrong_type(
+    %src: memref<2x2xf32>, %idx: index, %dst: memref<2xf32,1>,
+    %tag: memref<i32,2>, %flt: f32) {
+  // expected-error@+1 {{expected source indices to be of index type}}
+  "std.dma_start"(%src, %idx, %flt, %dst, %idx, %tag, %idx)
+      : (memref<2x2xf32>, index, f32, memref<2xf32,1>, index, memref<i32,2>, index) -> ()
 }
 
 // -----
@@ -324,6 +343,36 @@ func @dma_no_dst_memref(%m : f32, %tag : f32, %c0 : index) {
 
 // -----
 
+func @dma_start_not_enough_operands_for_dst(
+    %src: memref<2x2xf32>, %idx: index, %dst: memref<2xf32,1>,
+    %tag: memref<i32,2>) {
+  // expected-error@+1 {{expected at least 7 operands}}
+  "std.dma_start"(%src, %idx, %idx, %dst, %idx, %idx)
+      : (memref<2x2xf32>, index, index, memref<2xf32,1>, index, index) -> ()
+}
+
+// -----
+
+func @dma_start_dst_index_wrong_type(
+    %src: memref<2x2xf32>, %idx: index, %dst: memref<2xf32,1>,
+    %tag: memref<i32,2>, %flt: f32) {
+  // expected-error@+1 {{expected destination indices to be of index type}}
+  "std.dma_start"(%src, %idx, %idx, %dst, %flt, %tag, %idx)
+      : (memref<2x2xf32>, index, index, memref<2xf32,1>, f32, memref<i32,2>, index) -> ()
+}
+
+// -----
+
+func @dma_start_dst_index_wrong_type(
+    %src: memref<2x2xf32>, %idx: index, %dst: memref<2xf32,1>,
+    %tag: memref<i32,2>, %flt: f32) {
+  // expected-error@+1 {{expected num elements to be of index type}}
+  "std.dma_start"(%src, %idx, %idx, %dst, %idx, %flt, %tag)
+      : (memref<2x2xf32>, index, index, memref<2xf32,1>, index, f32, memref<i32,2>) -> ()
+}
+
+// -----
+
 func @dma_no_tag_memref(%tag : f32, %c0 : index) {
   %mref = alloc() : memref<8 x f32>
   // expected-error@+1 {{expected tag to be of memref type}}
@@ -332,9 +381,80 @@ func @dma_no_tag_memref(%tag : f32, %c0 : index) {
 
 // -----
 
+func @dma_start_not_enough_operands_for_tag(
+    %src: memref<2x2xf32>, %idx: index, %dst: memref<2xf32,1>,
+    %tag: memref<2xi32,2>) {
+  // expected-error@+1 {{expected at least 8 operands}}
+  "std.dma_start"(%src, %idx, %idx, %dst, %idx, %idx, %tag)
+      : (memref<2x2xf32>, index, index, memref<2xf32,1>, index, index, memref<2xi32,2>) -> ()
+}
+
+// -----
+
+func @dma_start_dst_index_wrong_type(
+    %src: memref<2x2xf32>, %idx: index, %dst: memref<2xf32,1>,
+    %tag: memref<2xi32,2>, %flt: f32) {
+  // expected-error@+1 {{expected tag indices to be of index type}}
+  "std.dma_start"(%src, %idx, %idx, %dst, %idx, %idx, %tag, %flt)
+      : (memref<2x2xf32>, index, index, memref<2xf32,1>, index, index, memref<2xi32,2>, f32) -> ()
+}
+
+// -----
+
+func @dma_start_same_space(
+    %src: memref<2x2xf32>, %idx: index, %dst: memref<2xf32>,
+    %tag: memref<i32,2>) {
+  // expected-error@+1 {{DMA should be between different memory spaces}}
+  dma_start %src[%idx, %idx], %dst[%idx], %idx, %tag[] : memref<2x2xf32>, memref<2xf32>, memref<i32,2>
+}
+
+// -----
+
+func @dma_start_too_many_operands(
+    %src: memref<2x2xf32>, %idx: index, %dst: memref<2xf32,1>,
+    %tag: memref<i32,2>) {
+  // expected-error@+1 {{incorrect number of operands}}
+  "std.dma_start"(%src, %idx, %idx, %dst, %idx, %idx, %tag, %idx, %idx, %idx)
+      : (memref<2x2xf32>, index, index, memref<2xf32,1>, index, index, memref<i32,2>, index, index, index) -> ()
+}
+
+
+// -----
+
+func @dma_start_wrong_stride_type(
+    %src: memref<2x2xf32>, %idx: index, %dst: memref<2xf32,1>,
+    %tag: memref<i32,2>, %flt: f32) {
+  // expected-error@+1 {{expected stride and num elements per stride to be of type index}}
+  "std.dma_start"(%src, %idx, %idx, %dst, %idx, %idx, %tag, %idx, %flt)
+      : (memref<2x2xf32>, index, index, memref<2xf32,1>, index, index, memref<i32,2>, index, f32) -> ()
+}
+
+// -----
+
+func @dma_wait_not_enough_operands() {
+  // expected-error@+1 {{expected at least 2 operands}}
+  "std.dma_wait"() : () -> ()
+}
+
+// -----
+
 func @dma_wait_no_tag_memref(%tag : f32, %c0 : index) {
   // expected-error@+1 {{expected tag to be of memref type}}
-  dma_wait %tag[%c0], %arg0 : f32
+  "std.dma_wait"(%tag, %c0, %c0) : (f32, index, index) -> ()
+}
+
+// -----
+
+func @dma_wait_wrong_index_type(%tag : memref<2xi32>, %idx: index, %flt: f32) {
+  // expected-error@+1 {{expected tag indices to be of index type}}
+  "std.dma_wait"(%tag, %flt, %idx) : (memref<2xi32>, f32, index) -> ()
+}
+
+// -----
+
+func @dma_wait_wrong_num_elements_type(%tag : memref<2xi32>, %idx: index, %flt: f32) {
+  // expected-error@+1 {{expected the number of elements to be of index type}}
+  "std.dma_wait"(%tag, %idx, %flt) : (memref<2xi32>, index, f32) -> ()
 }
 
 // -----
@@ -1143,6 +1263,66 @@ func @atomic_rmw_expects_int(%I: memref<16x10xf32>, %i : index, %val : f32) {
 
 // -----
 
+func @generic_atomic_rmw_wrong_arg_num(%I: memref<10xf32>, %i : index) {
+  // expected-error@+1 {{expected single number of entry block arguments}}
+  %x = generic_atomic_rmw %I[%i] : memref<10xf32> {
+    ^bb0(%arg0 : f32, %arg1 : f32):
+      %c1 = constant 1.0 : f32
+      atomic_yield %c1 : f32
+  }
+  return
+}
+
+// -----
+
+func @generic_atomic_rmw_wrong_arg_type(%I: memref<10xf32>, %i : index) {
+  // expected-error@+1 {{expected block argument of the same type result type}}
+  %x = generic_atomic_rmw %I[%i] : memref<10xf32> {
+    ^bb0(%old_value : i32):
+      %c1 = constant 1.0 : f32
+      atomic_yield %c1 : f32
+  }
+  return
+}
+
+// -----
+
+func @generic_atomic_rmw_result_type_mismatch(%I: memref<10xf32>, %i : index) {
+ // expected-error@+1 {{failed to verify that result type matches element type of memref}}
+ %0 = "std.generic_atomic_rmw"(%I, %i) ( {
+    ^bb0(%old_value: f32):
+      %c1 = constant 1.0 : f32
+      atomic_yield %c1 : f32
+    }) : (memref<10xf32>, index) -> i32
+  return
+}
+
+// -----
+
+func @generic_atomic_rmw_has_side_effects(%I: memref<10xf32>, %i : index) {
+  // expected-error@+4 {{should contain only operations with no side effects}}
+  %x = generic_atomic_rmw %I[%i] : memref<10xf32> {
+    ^bb0(%old_value : f32):
+      %c1 = constant 1.0 : f32
+      %buf = alloc() : memref<2048xf32>
+      atomic_yield %c1 : f32
+  }
+}
+
+// -----
+
+func @atomic_yield_type_mismatch(%I: memref<10xf32>, %i : index) {
+  // expected-error@+4 {{op types mismatch between yield op: 'i32' and its parent: 'f32'}}
+  %x = generic_atomic_rmw %I[%i] : memref<10xf32> {
+    ^bb0(%old_value : f32):
+      %c1 = constant 1 : i32
+      atomic_yield %c1 : i32
+  }
+  return
+}
+
+// -----
+
 // alignment is not power of 2.
 func @assume_alignment(%0: memref<4x4xf16>) {
   // expected-error@+1 {{alignment must be power of 2}}
@@ -1156,5 +1336,57 @@ func @assume_alignment(%0: memref<4x4xf16>) {
 func @assume_alignment(%0: memref<4x4xf16>) {
   // expected-error@+1 {{'std.assume_alignment' op attribute 'alignment' failed to satisfy constraint: 32-bit signless integer attribute whose value is positive}}
   std.assume_alignment %0, 0 : memref<4x4xf16>
+  return
+}
+
+// -----
+
+"alloca_without_scoped_alloc_parent"() ( {
+  std.alloca() : memref<1xf32>
+  // expected-error@-1 {{requires an ancestor op with AutomaticAllocationScope trait}}
+  return
+}) : () -> ()
+
+// -----
+
+func @complex_number_from_non_float_operands(%real: i32, %imag: i32) {
+  // expected-error@+1 {{'complex' must be complex type with floating-point elements, but got 'complex<i32>'}}
+  std.create_complex %real, %imag : complex<i32>
+  return
+}
+
+// -----
+
+// expected-note@+1 {{prior use here}}
+func @complex_number_from_different_float_types(%real: f32, %imag: f64) {
+  // expected-error@+1 {{expects different type than prior uses: 'f32' vs 'f64'}}
+  std.create_complex %real, %imag : complex<f32>
+  return
+}
+
+// -----
+
+// expected-note@+1 {{prior use here}}
+func @complex_number_from_incompatible_float_type(%real: f32, %imag: f32) {
+  // expected-error@+1 {{expects different type than prior uses: 'f64' vs 'f32'}}
+  std.create_complex %real, %imag : complex<f64>
+  return
+}
+
+// -----
+
+// expected-note@+1 {{prior use here}}
+func @real_part_from_incompatible_complex_type(%cplx: complex<f32>) {
+  // expected-error@+1 {{expects different type than prior uses: 'complex<f64>' vs 'complex<f32>'}}
+  std.re %cplx : complex<f64>
+  return
+}
+
+// -----
+
+// expected-note@+1 {{prior use here}}
+func @imaginary_part_from_incompatible_complex_type(%cplx: complex<f64>) {
+  // expected-error@+1 {{expects different type than prior uses: 'complex<f32>' vs 'complex<f64>'}}
+  std.re %cplx : complex<f32>
   return
 }

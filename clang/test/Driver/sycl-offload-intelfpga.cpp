@@ -414,5 +414,12 @@
 // CHK-FPGA-AOCO-LIN: ld{{.*}} "[[INPUTLIB]]" {{.*}} "[[FINALOBJL]]"
 // CHK-FPGA-AOCO-WIN: link.exe{{.*}} "{{.*}}[[INPUTLIB]]" {{.*}} "[[FINALOBJW]]"
 
+/// Check for implied options (-g -O0)
+// RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fintelfpga -g -O0 -Xs "-DFOO1 -DFOO2" %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-TOOLS-IMPLIED-OPTS %s
+// RUN:   %clang_cl -### -fsycl -fintelfpga -Zi -Od -Xs "-DFOO1 -DFOO2" %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-TOOLS-IMPLIED-OPTS %s
+// CHK-TOOLS-IMPLIED-OPTS: aoc{{.*}} "-g" "-cl-opt-disable" "-DFOO1" "-DFOO2"
+
 // TODO: SYCL specific fail - analyze and enable
 // XFAIL: windows-msvc

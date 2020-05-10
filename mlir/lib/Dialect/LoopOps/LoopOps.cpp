@@ -19,7 +19,6 @@
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/Value.h"
 #include "mlir/Support/MathExtras.h"
-#include "mlir/Support/STLExtras.h"
 
 using namespace mlir;
 using namespace mlir::loop;
@@ -40,15 +39,17 @@ LoopOpsDialect::LoopOpsDialect(MLIRContext *context)
 // ForOp
 //===----------------------------------------------------------------------===//
 
-void ForOp::build(Builder *builder, OperationState &result, Value lb, Value ub,
-                  Value step, ValueRange iterArgs) {
+void ForOp::build(OpBuilder &builder, OperationState &result, Value lb,
+                  Value ub, Value step, ValueRange iterArgs) {
   result.addOperands({lb, ub, step});
   result.addOperands(iterArgs);
   for (Value v : iterArgs)
     result.addTypes(v.getType());
   Region *bodyRegion = result.addRegion();
-  ForOp::ensureTerminator(*bodyRegion, *builder, result.location);
-  bodyRegion->front().addArgument(builder->getIndexType());
+  bodyRegion->push_back(new Block());
+  if (iterArgs.empty())
+    ForOp::ensureTerminator(*bodyRegion, builder, result.location);
+  bodyRegion->front().addArgument(builder.getIndexType());
   for (Value v : iterArgs)
     bodyRegion->front().addArgument(v.getType());
 }
@@ -105,7 +106,7 @@ static void print(OpAsmPrinter &p, ForOp op) {
     auto regionArgs = op.getRegionIterArgs();
     auto operands = op.getIterOperands();
 
-    mlir::interleaveComma(llvm::zip(regionArgs, operands), p, [&](auto it) {
+    llvm::interleaveComma(llvm::zip(regionArgs, operands), p, [&](auto it) {
       p << std::get<0>(it) << " = " << std::get<1>(it);
     });
     p << ")";
@@ -182,7 +183,7 @@ bool ForOp::isDefinedOutsideOfLoop(Value value) {
 
 LogicalResult ForOp::moveOutOfLoop(ArrayRef<Operation *> ops) {
   for (auto op : ops)
-    op->moveBefore(this->getOperation());
+    op->moveBefore(*this);
   return success();
 }
 
@@ -191,20 +192,53 @@ ForOp mlir::loop::getForInductionVarOwner(Value val) {
   if (!ivArg)
     return ForOp();
   assert(ivArg.getOwner() && "unlinked block argument");
-  auto *containingInst = ivArg.getOwner()->getParentOp();
-  return dyn_cast_or_null<ForOp>(containingInst);
+  auto *containingOp = ivArg.getOwner()->getParentOp();
+  return dyn_cast_or_null<ForOp>(containingOp);
+}
+
+/// Return operands used when entering the region at 'index'. These operands
+/// correspond to the loop iterator operands, i.e., those exclusing the
+/// induction variable. LoopOp only has one region, so 0 is the only valid value
+/// for `index`.
+OperandRange ForOp::getSuccessorEntryOperands(unsigned index) {
+  assert(index == 0 && "invalid region index");
+
+  // The initial operands map to the loop arguments after the induction
+  // variable.
+  return initArgs();
+}
+
+/// Given the region at `index`, or the parent operation if `index` is None,
+/// return the successor regions. These are the regions that may be selected
+/// during the flow of control. `operands` is a set of optional attributes that
+/// correspond to a constant value for each operand, or null if that operand is
+/// not a constant.
+void ForOp::getSuccessorRegions(Optional<unsigned> index,
+                                ArrayRef<Attribute> operands,
+                                SmallVectorImpl<RegionSuccessor> &regions) {
+  // If the predecessor is the ForOp, branch into the body using the iterator
+  // arguments.
+  if (!index.hasValue()) {
+    regions.push_back(RegionSuccessor(&getLoopBody(), getRegionIterArgs()));
+    return;
+  }
+
+  // Otherwise, the loop may branch back to itself or the parent operation.
+  assert(index.getValue() == 0 && "expected loop region");
+  regions.push_back(RegionSuccessor(&getLoopBody(), getRegionIterArgs()));
+  regions.push_back(RegionSuccessor(getResults()));
 }
 
 //===----------------------------------------------------------------------===//
 // IfOp
 //===----------------------------------------------------------------------===//
 
-void IfOp::build(Builder *builder, OperationState &result, Value cond,
+void IfOp::build(OpBuilder &builder, OperationState &result, Value cond,
                  bool withElseRegion) {
-    build(builder, result, /*resultTypes=*/llvm::None, cond, withElseRegion);
+  build(builder, result, /*resultTypes=*/llvm::None, cond, withElseRegion);
 }
 
-void IfOp::build(Builder *builder, OperationState &result,
+void IfOp::build(OpBuilder &builder, OperationState &result,
                  TypeRange resultTypes, Value cond, bool withElseRegion) {
   result.addOperands(cond);
   result.addTypes(resultTypes);
@@ -212,13 +246,13 @@ void IfOp::build(Builder *builder, OperationState &result,
   Region *thenRegion = result.addRegion();
   thenRegion->push_back(new Block());
   if (resultTypes.empty())
-    IfOp::ensureTerminator(*thenRegion, *builder, result.location);
+    IfOp::ensureTerminator(*thenRegion, builder, result.location);
 
   Region *elseRegion = result.addRegion();
   if (withElseRegion) {
     elseRegion->push_back(new Block());
     if (resultTypes.empty())
-      IfOp::ensureTerminator(*elseRegion, *builder, result.location);
+      IfOp::ensureTerminator(*elseRegion, builder, result.location);
   }
 }
 
@@ -297,26 +331,63 @@ static void print(OpAsmPrinter &p, IfOp op) {
   p.printOptionalAttrDict(op.getAttrs());
 }
 
+/// Given the region at `index`, or the parent operation if `index` is None,
+/// return the successor regions. These are the regions that may be selected
+/// during the flow of control. `operands` is a set of optional attributes that
+/// correspond to a constant value for each operand, or null if that operand is
+/// not a constant.
+void IfOp::getSuccessorRegions(Optional<unsigned> index,
+                               ArrayRef<Attribute> operands,
+                               SmallVectorImpl<RegionSuccessor> &regions) {
+  // The `then` and the `else` region branch back to the parent operation.
+  if (index.hasValue()) {
+    regions.push_back(RegionSuccessor(getResults()));
+    return;
+  }
+
+  // Don't consider the else region if it is empty.
+  Region *elseRegion = &this->elseRegion();
+  if (elseRegion->empty())
+    elseRegion = nullptr;
+
+  // Otherwise, the successor is dependent on the condition.
+  bool condition;
+  if (auto condAttr = operands.front().dyn_cast_or_null<IntegerAttr>()) {
+    condition = condAttr.getValue().isOneValue();
+  } else if (auto condAttr = operands.front().dyn_cast_or_null<BoolAttr>()) {
+    condition = condAttr.getValue();
+  } else {
+    // If the condition isn't constant, both regions may be executed.
+    regions.push_back(RegionSuccessor(&thenRegion()));
+    regions.push_back(RegionSuccessor(elseRegion));
+    return;
+  }
+
+  // Add the successor regions using the condition.
+  regions.push_back(RegionSuccessor(condition ? &thenRegion() : elseRegion));
+}
+
 //===----------------------------------------------------------------------===//
 // ParallelOp
 //===----------------------------------------------------------------------===//
 
-void ParallelOp::build(Builder *builder, OperationState &result, ValueRange lbs,
-                       ValueRange ubs, ValueRange steps, ValueRange initVals) {
+void ParallelOp::build(OpBuilder &builder, OperationState &result,
+                       ValueRange lbs, ValueRange ubs, ValueRange steps,
+                       ValueRange initVals) {
   result.addOperands(lbs);
   result.addOperands(ubs);
   result.addOperands(steps);
   result.addOperands(initVals);
   result.addAttribute(
       ParallelOp::getOperandSegmentSizeAttr(),
-      builder->getI32VectorAttr({static_cast<int32_t>(lbs.size()),
-                                 static_cast<int32_t>(ubs.size()),
-                                 static_cast<int32_t>(steps.size()),
-                                 static_cast<int32_t>(initVals.size())}));
+      builder.getI32VectorAttr({static_cast<int32_t>(lbs.size()),
+                                static_cast<int32_t>(ubs.size()),
+                                static_cast<int32_t>(steps.size()),
+                                static_cast<int32_t>(initVals.size())}));
   Region *bodyRegion = result.addRegion();
-  ParallelOp::ensureTerminator(*bodyRegion, *builder, result.location);
+  ParallelOp::ensureTerminator(*bodyRegion, builder, result.location);
   for (size_t i = 0, e = steps.size(); i < e; ++i)
-    bodyRegion->front().addArgument(builder->getIndexType());
+    bodyRegion->front().addArgument(builder.getIndexType());
   for (Value init : initVals)
     result.addTypes(init.getType());
 }
@@ -459,20 +530,33 @@ static void print(OpAsmPrinter &p, ParallelOp op) {
       op.getAttrs(), /*elidedAttrs=*/ParallelOp::getOperandSegmentSizeAttr());
 }
 
+Region &ParallelOp::getLoopBody() { return region(); }
+
+bool ParallelOp::isDefinedOutsideOfLoop(Value value) {
+  return !region().isAncestor(value.getParentRegion());
+}
+
+LogicalResult ParallelOp::moveOutOfLoop(ArrayRef<Operation *> ops) {
+  for (auto op : ops)
+    op->moveBefore(*this);
+  return success();
+}
+
 ParallelOp mlir::loop::getParallelForInductionVarOwner(Value val) {
   auto ivArg = val.dyn_cast<BlockArgument>();
   if (!ivArg)
     return ParallelOp();
   assert(ivArg.getOwner() && "unlinked block argument");
-  auto *containingInst = ivArg.getOwner()->getParentOp();
-  return dyn_cast<ParallelOp>(containingInst);
+  auto *containingOp = ivArg.getOwner()->getParentOp();
+  return dyn_cast<ParallelOp>(containingOp);
 }
 
 //===----------------------------------------------------------------------===//
 // ReduceOp
 //===----------------------------------------------------------------------===//
 
-void ReduceOp::build(Builder *builder, OperationState &result, Value operand) {
+void ReduceOp::build(OpBuilder &builder, OperationState &result,
+                     Value operand) {
   auto type = operand.getType();
   result.addOperands(operand);
   Region *bodyRegion = result.addRegion();

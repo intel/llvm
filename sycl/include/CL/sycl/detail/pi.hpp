@@ -142,8 +142,9 @@ template <PiApiKind PiApiOffset> struct PiFuncInfo {};
 
 #define _PI_API(api)                                                           \
   template <> struct PiFuncInfo<PiApiKind::api> {                              \
+    using FuncPtrT = decltype(&::api);                                         \
     inline std::string getFuncName() { return #api; }                          \
-    inline decltype(&::api) getFuncPtr(PiPlugin MPlugin) {                     \
+    inline FuncPtrT getFuncPtr(PiPlugin MPlugin) {                             \
       return MPlugin.PiFunctionTable.api;                                      \
     }                                                                          \
   };

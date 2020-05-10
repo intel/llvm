@@ -13,6 +13,7 @@ Clang Language Extensions
    BlockLanguageSpec
    Block-ABI-Apple
    AutomaticReferenceCounting
+   MatrixTypes
 
 Introduction
 ============
@@ -491,6 +492,24 @@ See also :ref:`langext-__builtin_shufflevector`, :ref:`langext-__builtin_convert
 .. [#] While OpenCL and GCC vectors both implement the comparison operator(?:) as a
   'select', they operate somewhat differently. OpenCL selects based on signedness of
   the condition operands, but GCC vectors use normal bool conversions (that is, != 0).
+
+Matrix Types
+============
+
+Clang provides an extension for matrix types, which is currently being
+implemented. See :ref:`the draft specification <matrixtypes>` for more details.
+
+For example, the code below uses the matrix types extension to multiply two 4x4
+float matrices and add the result to a third 4x4 matrix.
+
+.. code-block:: c++
+
+  typedef float m4x4_t __attribute__((matrix_type(4, 4)));
+
+  m4x4_t f(m4x4_t a, m4x4_t b, m4x4_t c) {
+    return a + b * c;
+  }
+
 
 Half-Precision Floating Point
 =============================
@@ -2188,7 +2207,7 @@ argument.
   __builtin_preserve_access_index(v->j);
 
 ``__builtin_unique_stable_name``
-------------------------
+--------------------------------
 
 ``__builtin_unique_stable_name()`` is a builtin that takes a type or expression and
 produces a string literal containing a unique name for the type (or type of the
@@ -2333,10 +2352,11 @@ String builtins
 ---------------
 
 Clang provides constant expression evaluation support for builtins forms of
-the following functions from the C standard library ``<string.h>`` header:
+the following functions from the C standard library headers
+``<string.h>`` and ``<wchar.h>``:
 
 * ``memchr``
-* ``memcmp``
+* ``memcmp`` (and its deprecated BSD / POSIX alias ``bcmp``)
 * ``strchr``
 * ``strcmp``
 * ``strlen``
@@ -2366,7 +2386,11 @@ In addition to the above, one further builtin is provided:
 constant expressions in C++11 onwards (where a cast from ``void*`` to ``char*``
 is disallowed in general).
 
-Support for constant expression evaluation for the above builtins be detected
+Constant evaluation support for the ``__builtin_mem*`` functions is provided
+only for arrays of ``char``, ``signed char``, ``unsigned char``, or ``char8_t``,
+despite these functions accepting an argument of type ``const void*``.
+
+Support for constant expression evaluation for the above builtins can be detected
 with ``__has_feature(cxx_constexpr_string_builtins)``.
 
 Memory builtins
@@ -2385,6 +2409,25 @@ Intrinsic](https://llvm.org/docs/LangRef.html#llvm-memcpy-inline-intrinsic) for
 more information.
 
 Note that the `size` argument must be a compile time constant.
+
+Clang provides constant expression evaluation support for builtin forms of the
+following functions from the C standard library headers
+``<string.h>`` and ``<wchar.h>``:
+
+* ``memcpy``
+* ``memmove``
+* ``wmemcpy``
+* ``wmemmove``
+
+In each case, the builtin form has the name of the C library function prefixed
+by ``__builtin_``.
+
+Constant evaluation support is only provided when the source and destination
+are pointers to arrays with the same trivially copyable element type, and the
+given size is an exact multiple of the element size that is no greater than
+the number of elements accessible through the source and destination operands.
+
+Constant evaluation support is not yet provided for ``__builtin_memcpy_inline``.
 
 Atomic Min/Max builtins with memory ordering
 --------------------------------------------
@@ -3312,6 +3355,9 @@ Clang supports the following match rules:
 - ``variable(is_global)``: Can be used to apply attributes to global variables
   only.
 
+- ``variable(is_local)``: Can be used to apply attributes to local variables
+  only.
+
 - ``variable(is_parameter)``: Can be used to apply attributes to parameters
   only.
 
@@ -3437,3 +3483,56 @@ Since the size of ``buffer`` can't be known at compile time, Clang will fold
 ``__builtin_object_size(buffer, 0)`` into ``-1``. However, if this was written
 as ``__builtin_dynamic_object_size(buffer, 0)``, Clang will fold it into
 ``size``, providing some extra runtime safety.
+
+Extended Integer Types
+======================
+
+Clang supports a set of extended integer types under the syntax ``_ExtInt(N)``
+where ``N`` is an integer that specifies the number of bits that are used to represent
+the type, including the sign bit. The keyword ``_ExtInt`` is a type specifier, thus
+it can be used in any place a type can, including as a non-type-template-parameter,
+as the type of a bitfield, and as the underlying type of an enumeration.
+
+An extended integer can be declared either signed, or unsigned by using the
+``signed``/``unsigned`` keywords. If no sign specifier is used or if the ``signed``
+keyword is used, the extended integer type is a signed integer and can represent
+negative values.
+
+The ``N`` expression is an integer constant expression, which specifies the number
+of bits used to represent the type, following normal integer representations for
+both signed and unsigned types. Both a signed and unsigned extended integer of the
+same ``N`` value will have the same number of bits in its representation. Many
+architectures don't have a way of representing non power-of-2 integers, so these
+architectures emulate these types using larger integers. In these cases, they are
+expected to follow the 'as-if' rule and do math 'as-if' they were done at the
+specified number of bits.
+
+In order to be consistent with the C language specification, and make the extended
+integer types useful for their intended purpose, extended integers follow the C
+standard integer conversion ranks. An extended integer type has a greater rank than
+any integer type with less precision.  However, they have lower rank than any
+of the built in or other integer types (such as __int128). Usual arithmetic conversions
+also work the same, where the smaller ranked integer is converted to the larger.
+
+The one exception to the C rules for integers for these types is Integer Promotion.
+Unary +, -, and ~ operators typically will promote operands to ``int``. Doing these
+promotions would inflate the size of required hardware on some platforms, so extended
+integer types aren't subject to the integer promotion rules in these cases.
+
+In languages (such as OpenCL) that define shift by-out-of-range behavior as a mask,
+non-power-of-two versions of these types use an unsigned remainder operation to constrain
+the value to the proper range, preventing undefined behavior.
+
+Extended integer types are aligned to the next greatest power-of-2 up to 64 bits.
+The size of these types for the purposes of layout and ``sizeof`` are the number of
+bits aligned to this calculated alignment. This permits the use of these types in
+allocated arrays using common ``sizeof(Array)/sizeof(ElementType)`` pattern.
+
+Extended integer types work with the C _Atomic type modifier, however only precisions
+that are powers-of-2 greater than 8 bit are accepted.
+
+Extended integer types align with existing calling conventions. They have the same size
+and alignment as the smallest basic type that can contain them. Types that are larger
+than 64 bits are handled in the same way as _int128 is handled; they are conceptually
+treated as struct of register size chunks. They number of chunks are the smallest
+number that can contain the types which does not necessarily mean a power-of-2 size.

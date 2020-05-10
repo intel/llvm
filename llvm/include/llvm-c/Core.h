@@ -157,10 +157,11 @@ typedef enum {
   LLVMStructTypeKind,      /**< Structures */
   LLVMArrayTypeKind,       /**< Arrays */
   LLVMPointerTypeKind,     /**< Pointers */
-  LLVMVectorTypeKind,      /**< SIMD 'packed' format, or other vector type */
   LLVMMetadataTypeKind,    /**< Metadata */
   LLVMX86_MMXTypeKind,     /**< X86 MMX */
-  LLVMTokenTypeKind        /**< Tokens */
+  LLVMTokenTypeKind,       /**< Tokens */
+  LLVMFixedVectorTypeKind, /**< Fixed width SIMD vector type */
+  LLVMScalableVectorTypeKind /**< Scalable SIMD vector type */
 } LLVMTypeKind;
 
 typedef enum {
@@ -3251,8 +3252,8 @@ LLVMTypeRef LLVMGetCalledFunctionType(LLVMValueRef C);
  * This expects an LLVMValueRef that corresponds to a llvm::CallInst or
  * llvm::InvokeInst.
  *
- * @see llvm::CallInst::getCalledValue()
- * @see llvm::InvokeInst::getCalledValue()
+ * @see llvm::CallInst::getCalledOperand()
+ * @see llvm::InvokeInst::getCalledOperand()
  */
 LLVMValueRef LLVMGetCalledValue(LLVMValueRef Instr);
 

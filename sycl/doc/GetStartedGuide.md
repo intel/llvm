@@ -130,8 +130,8 @@ To enable support for CUDA devices, follow the instructions for the Linux
 DPC++ toolchain, but add the `--cuda` flag to `configure.py`
 
 Enabling this flag requires an installation of
-[CUDA 10.1](https://developer.nvidia.com/cuda-10.1-download-archive-update2) on the system,
-refer to
+[CUDA 10.1](https://developer.nvidia.com/cuda-10.1-download-archive-update2) on
+the system, refer to
 [NVIDIA CUDA Installation Guide for Linux](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html).
 
 Currently, the only combination tested is Ubuntu 18.04 with CUDA 10.2 using
@@ -145,17 +145,18 @@ above.
 The DPC++ toolchain support on CUDA platforms is still in an experimental phase.
 Currently, the DPC++ toolchain relies on having a recent OpenCL implementation
 on the system in order to link applications to the DPC++ runtime.
-The OpenCL implementation is not used at runtime if only the CUDA backend is 
+The OpenCL implementation is not used at runtime if only the CUDA backend is
 used in the application, but must be installed.
 
 The OpenCL implementation provided by the CUDA SDK is OpenCL 1.2, which is
 too old to link with the DPC++ runtime and lacks some symbols.
 
-We recommend installing the low level CPU runtime, following the instructions 
+We recommend installing the low level CPU runtime, following the instructions
 in the next section.
 
-Instead of installing the low level CPU runtime, it is possible to build and 
-install the [Khronos ICD loader](https://github.com/KhronosGroup/OpenCL-ICD-Loader), 
+Instead of installing the low level CPU runtime, it is possible to build and
+install the
+[Khronos ICD loader](https://github.com/KhronosGroup/OpenCL-ICD-Loader),
 which contains all the symbols required.
 
 ### Install low level runtime
@@ -276,7 +277,7 @@ python %DPCPP_HOME%\llvm\buildbot\check.py
 If no OpenCL GPU/CPU runtimes are available, the corresponding tests are
 skipped.
 
-If CUDA support has been built, it is tested only if there are CUDA devices 
+If CUDA support has been built, it is tested only if there are CUDA devices
 available.
 
 #### Run Khronos\* SYCL\* conformance test suite (optional)
@@ -411,7 +412,7 @@ clang++ -fsycl -fsycl-targets=nvptx64-nvidia-cuda-sycldevice \
 This `simple-sycl-app.exe` application doesn't specify SYCL device for
 execution, so SYCL runtime will use `default_selector` logic to select one
 of accelerators available in the system or SYCL host device.
-In this case, the behaviour of the `default_selector` can be altered 
+In this case, the behaviour of the `default_selector` can be altered
 using the `SYCL_BE` environment variable, setting `PI_CUDA` forces
 the usage of the CUDA backend (if available), `PI_OPENCL` will
 force the usage of the OpenCL backend.
@@ -514,7 +515,8 @@ class CUDASelector : public cl::sycl::device_selector {
 
 ## C++ standard
 
-- Minimal supported C++ standard is C++11 on Linux and C++14 on Windows.
+- DPC++ runtime is built as C++14 library.
+- DPC++ compiler is building apps as C++14 apps by default.
 
 ## Known Issues and Limitations
 
@@ -541,6 +543,5 @@ class CUDASelector : public cl::sycl::device_selector {
 [https://spec.oneapi.com/versions/latest/elements/dpcpp/source/index.html](https://spec.oneapi.com/versions/latest/elements/dpcpp/source/index.html)
 - SYCL\* 1.2.1 specification:
 [www.khronos.org/registry/SYCL/specs/sycl-1.2.1.pdf](https://www.khronos.org/registry/SYCL/specs/sycl-1.2.1.pdf)
-
 
 \*Other names and brands may be claimed as the property of others.

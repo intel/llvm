@@ -723,9 +723,10 @@ private:
 
   struct PendingMacroInfo {
     ModuleFile *M;
-    uint64_t MacroDirectivesOffset;
+    /// Offset relative to ModuleFile::MacroOffsetsBase.
+    uint32_t MacroDirectivesOffset;
 
-    PendingMacroInfo(ModuleFile *M, uint64_t MacroDirectivesOffset)
+    PendingMacroInfo(ModuleFile *M, uint32_t MacroDirectivesOffset)
         : M(M), MacroDirectivesOffset(MacroDirectivesOffset) {}
   };
 
@@ -1354,7 +1355,7 @@ private:
                           unsigned PreviousGeneration = 0);
 
   RecordLocation getLocalBitOffset(uint64_t GlobalOffset);
-  uint64_t getGlobalBitOffset(ModuleFile &M, uint32_t LocalOffset);
+  uint64_t getGlobalBitOffset(ModuleFile &M, uint64_t LocalOffset);
 
   /// Returns the first preprocessed entity ID that begins or ends after
   /// \arg Loc.
@@ -2205,7 +2206,7 @@ public:
   /// \param MacroDirectivesOffset Offset of the serialized macro directive
   /// history.
   void addPendingMacro(IdentifierInfo *II, ModuleFile *M,
-                       uint64_t MacroDirectivesOffset);
+                       uint32_t MacroDirectivesOffset);
 
   /// Read the set of macros defined by this external macro source.
   void ReadDefinedMacros() override;

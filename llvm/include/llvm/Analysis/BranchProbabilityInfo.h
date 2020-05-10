@@ -55,8 +55,9 @@ public:
   BranchProbabilityInfo() = default;
 
   BranchProbabilityInfo(const Function &F, const LoopInfo &LI,
-                        const TargetLibraryInfo *TLI = nullptr) {
-    calculate(F, LI, TLI);
+                        const TargetLibraryInfo *TLI = nullptr,
+                        PostDominatorTree *PDT = nullptr) {
+    calculate(F, LI, TLI, PDT);
   }
 
   BranchProbabilityInfo(BranchProbabilityInfo &&Arg)
@@ -98,7 +99,7 @@ public:
                                        const BasicBlock *Dst) const;
 
   BranchProbability getEdgeProbability(const BasicBlock *Src,
-                                       succ_const_iterator Dst) const;
+                                       const_succ_iterator Dst) const;
 
   /// Test if an edge is hot relative to other out-edges of the Src.
   ///
@@ -135,7 +136,7 @@ public:
   }
 
   void calculate(const Function &F, const LoopInfo &LI,
-                 const TargetLibraryInfo *TLI = nullptr);
+                 const TargetLibraryInfo *TLI, PostDominatorTree *PDT);
 
   /// Forget analysis results for the given basic block.
   void eraseBlock(const BasicBlock *BB);

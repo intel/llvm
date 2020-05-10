@@ -79,7 +79,6 @@
 ; CHECK-O-NEXT: Running pass: LowerExpectIntrinsicPass
 ; CHECK-O3-NEXT: Running pass: CallSiteSplittingPass
 ; CHECK-O-NEXT: Finished llvm::Function pass manager run.
-; CHECK-O-NEXT: Running pass: AttributorPass
 ; CHECK-O-NEXT: Running pass: IPSCCPPass
 ; CHECK-O-NEXT: Running pass: CalledValuePropagationPass
 ; CHECK-O-NEXT: Running pass: GlobalOptPass
@@ -98,6 +97,8 @@
 ; CHECK-O-NEXT: Running analysis: CallGraphAnalysis
 ; CHECK-O-NEXT: Running pass: RequireAnalysisPass<{{.*}}ProfileSummaryAnalysis
 ; CHECK-PRELINK-O-NEXT: Running analysis: ProfileSummaryAnalysis
+; CHECK-O-NEXT: Running pass: PassManager<{{.*}}Module{{.*}}>
+; CHECK-O-NEXT: Starting llvm::Module pass manager run.
 ; CHECK-O-NEXT: Running pass: ModuleToPostOrderCGSCCPassAdaptor<{{.*}}LazyCallGraph{{.*}}>
 ; CHECK-O-NEXT: Running analysis: InnerAnalysisManagerProxy
 ; CHECK-O-NEXT: Running analysis: LazyCallGraphAnalysis
@@ -106,7 +107,6 @@
 ; CHECK-O-NEXT: Running analysis: OuterAnalysisManagerProxy<{{.*}}LazyCallGraph::SCC{{.*}}>
 ; CHECK-O-NEXT: Starting CGSCC pass manager run.
 ; CHECK-O-NEXT: Running pass: InlinerPass
-; CHECK-O-NEXT: Running pass: AttributorCGSCCPass
 ; CHECK-O-NEXT: Running pass: PostOrderFunctionAttrsPass
 ; CHECK-O3-NEXT: Running pass: ArgumentPromotionPass
 ; CHECK-O2-NEXT: Running pass: OpenMPOptPass on (foo)
@@ -198,6 +198,7 @@
 ; CHECK-O-NEXT: Finished llvm::Function pass manager run.
 ; CHECK-O-NEXT: Finished CGSCC pass manager run.
 ; CHECK-O-NEXT: Finished llvm::Module pass manager run.
+; CHECK-O-NEXT: Finished llvm::Module pass manager run.
 ; CHECK-PRELINK-O-NEXT: Running pass: GlobalOptPass
 ; CHECK-POSTLINK-O-NEXT: Running pass: PassManager<{{.*}}Module{{.*}}>
 ; CHECK-POSTLINK-O-NEXT: Starting llvm::Module pass manager run.
@@ -217,6 +218,7 @@
 ; CHECK-POSTLINK-O-NEXT: Running pass: LCSSAPass
 ; CHECK-POSTLINK-O-NEXT: Finished llvm::Function pass manager run
 ; CHECK-POSTLINK-O-NEXT: Running pass: LoopDistributePass
+; CHECK-POSTLINK-O-NEXT: Running pass: InjectTLIMappings
 ; CHECK-POSTLINK-O-NEXT: Running pass: LoopVectorizePass
 ; CHECK-POSTLINK-O-NEXT: Running analysis: BlockFrequencyAnalysis
 ; CHECK-POSTLINK-O-NEXT: Running analysis: BranchProbabilityAnalysis

@@ -10,21 +10,20 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "PassDetail.h"
 #include "mlir/Dialect/Affine/EDSC/Intrinsics.h"
-#include "mlir/Dialect/Linalg/EDSC/Intrinsics.h"
+#include "mlir/Dialect/Linalg/EDSC/FoldedIntrinsics.h"
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 #include "mlir/Dialect/Linalg/IR/LinalgTypes.h"
 #include "mlir/Dialect/Linalg/Passes.h"
+#include "mlir/Dialect/Linalg/Transforms/Transforms.h"
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
 #include "mlir/Dialect/LoopOps/LoopOps.h"
 #include "mlir/Dialect/StandardOps/EDSC/Intrinsics.h"
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/AffineExprVisitor.h"
 #include "mlir/IR/AffineMap.h"
-#include "mlir/IR/OpImplementation.h"
-#include "mlir/Pass/Pass.h"
 #include "mlir/Support/LLVM.h"
-#include "mlir/Support/STLExtras.h"
 #include "mlir/Transforms/FoldUtils.h"
 
 #include "llvm/ADT/SetVector.h"
@@ -38,20 +37,50 @@ using namespace mlir::loop;
 
 using llvm::SetVector;
 
-using folded_affine_min = folded::ValueBuilder<AffineMinOp>;
-using folded_linalg_range = folded::ValueBuilder<linalg::RangeOp>;
+using folded_affine_min = FoldedValueBuilder<AffineMinOp>;
+using folded_linalg_range = FoldedValueBuilder<linalg::RangeOp>;
+using folded_std_dim = FoldedValueBuilder<DimOp>;
+using folded_std_subview = FoldedValueBuilder<SubViewOp>;
+using folded_std_view = FoldedValueBuilder<ViewOp>;
 
 #define DEBUG_TYPE "linalg-promotion"
 
-static Value allocBuffer(Type elementType, Value size, bool dynamicBuffers) {
+/// If `size` comes from an AffineMinOp and one of the dimensions of AffineMin
+/// is a constant then return a new value set to the smallest such constant.
+/// Otherwise return size.
+static Value extractSmallestConstantBoundingSize(OpBuilder &b, Location loc,
+                                                 Value size) {
+  auto affineMinOp = dyn_cast_or_null<AffineMinOp>(size.getDefiningOp());
+  if (!affineMinOp)
+    return size;
+  if (!llvm::any_of(affineMinOp.getAffineMap().getResults(), [](AffineExpr e) {
+        return e.dyn_cast<AffineConstantExpr>();
+      }))
+    return size;
+  int64_t minConst = std::numeric_limits<int64_t>::max();
+  for (auto e : affineMinOp.getAffineMap().getResults())
+    if (auto cst = e.dyn_cast<AffineConstantExpr>())
+      minConst = std::min(minConst, cst.getValue());
+  assert(minConst != std::numeric_limits<int64_t>::max());
+  return b.create<ConstantIndexOp>(loc, minConst);
+}
+
+static Value allocBuffer(Type elementType, Value size, bool dynamicBuffers,
+                         OperationFolder *folder, int64_t alignment = 0) {
   auto *ctx = size.getContext();
   auto width = llvm::divideCeil(elementType.getIntOrFloatBitWidth(), 8);
+  IntegerAttr alignment_attr;
+  if (alignment)
+    alignment_attr = IntegerAttr::get(IntegerType::get(64, ctx), alignment);
   if (!dynamicBuffers)
     if (auto cst = dyn_cast_or_null<ConstantIndexOp>(size.getDefiningOp()))
       return std_alloc(
-          MemRefType::get(width * cst.getValue(), IntegerType::get(8, ctx)));
-  Value mul = std_muli(std_constant_index(width), size);
-  return std_alloc(MemRefType::get(-1, IntegerType::get(8, ctx)), mul);
+          MemRefType::get(width * cst.getValue(), IntegerType::get(8, ctx)),
+          ValueRange{}, alignment_attr);
+  Value mul =
+      folded_std_muli(folder, folded_std_constant_index(folder, width), size);
+  return std_alloc(MemRefType::get(-1, IntegerType::get(8, ctx)), mul,
+                   alignment_attr);
 }
 
 // Performs promotion of a `subView` into a local buffer of the size of the
@@ -74,6 +103,7 @@ static Value allocBuffer(Type elementType, Value size, bool dynamicBuffers) {
 static PromotionInfo promoteFullTileBuffer(OpBuilder &b, Location loc,
                                            SubViewOp subView,
                                            bool dynamicBuffers,
+                                           int64_t alignment,
                                            OperationFolder *folder) {
   auto zero = folded_std_constant_index(folder, 0);
   auto one = folded_std_constant_index(folder, 1);
@@ -81,31 +111,35 @@ static PromotionInfo promoteFullTileBuffer(OpBuilder &b, Location loc,
   auto viewType = subView.getType();
   auto rank = viewType.getRank();
   Value allocSize = one;
-  SmallVector<Value, 8> fullRanges, partialRanges;
-  fullRanges.reserve(rank);
-  partialRanges.reserve(rank);
+  SmallVector<Value, 8> fullSizes, partialSizes;
+  fullSizes.reserve(rank);
+  partialSizes.reserve(rank);
   for (auto en : llvm::enumerate(subView.getRanges())) {
     auto rank = en.index();
     auto rangeValue = en.value();
-    Value d = rangeValue.size;
-    allocSize = folded_std_muli(folder, allocSize, d).getValue();
-    fullRanges.push_back(d);
-    partialRanges.push_back(
-        folded_linalg_range(folder, zero, std_dim(subView, rank), one));
+    // Try to extract a tight constant
+    Value size = extractSmallestConstantBoundingSize(b, loc, rangeValue.size);
+    allocSize = folded_std_muli(folder, allocSize, size);
+    fullSizes.push_back(size);
+    partialSizes.push_back(folded_std_dim(folder, subView, rank));
   }
-  SmallVector<int64_t, 4> dynSizes(fullRanges.size(), -1);
-  auto buffer =
-      allocBuffer(viewType.getElementType(), allocSize, dynamicBuffers);
-  auto fullLocalView = std_view(
-      MemRefType::get(dynSizes, viewType.getElementType()), buffer, fullRanges);
-  auto partialLocalView = linalg_slice(fullLocalView, partialRanges);
+  SmallVector<int64_t, 4> dynSizes(fullSizes.size(), -1);
+  auto buffer = allocBuffer(viewType.getElementType(), allocSize,
+                            dynamicBuffers, folder, alignment);
+  auto fullLocalView = folded_std_view(
+      folder, MemRefType::get(dynSizes, viewType.getElementType()), buffer,
+      fullSizes);
+  SmallVector<Value, 4> zeros(fullSizes.size(), zero);
+  SmallVector<Value, 4> ones(fullSizes.size(), one);
+  auto partialLocalView =
+      folded_std_subview(folder, fullLocalView, zeros, partialSizes, ones);
   return PromotionInfo{buffer, fullLocalView, partialLocalView};
 }
 
 SmallVector<PromotionInfo, 8>
 mlir::linalg::promoteSubViews(OpBuilder &b, Location loc,
                               ArrayRef<Value> subViews, bool dynamicBuffers,
-                              OperationFolder *folder) {
+                              int64_t alignment, OperationFolder *folder) {
   if (subViews.empty())
     return {};
 
@@ -115,8 +149,8 @@ mlir::linalg::promoteSubViews(OpBuilder &b, Location loc,
   DenseMap<Value, PromotionInfo> promotionInfoMap;
   for (auto v : subViews) {
     SubViewOp subView = cast<SubViewOp>(v.getDefiningOp());
-    auto promotionInfo =
-        promoteFullTileBuffer(b, loc, subView, dynamicBuffers, folder);
+    auto promotionInfo = promoteFullTileBuffer(b, loc, subView, dynamicBuffers,
+                                               alignment, folder);
     promotionInfoMap.insert(std::make_pair(subView.getResult(), promotionInfo));
     res.push_back(promotionInfo);
   }
@@ -151,6 +185,7 @@ mlir::linalg::promoteSubViews(OpBuilder &b, Location loc,
 LinalgOp mlir::linalg::promoteSubViewOperands(OpBuilder &b, LinalgOp op,
                                               SetVector<Value> subViews,
                                               bool dynamicBuffers,
+                                              int64_t alignment,
                                               OperationFolder *folder) {
   assert(op.hasBufferSemantics() && "expected linalg op with buffer semantics");
 
@@ -162,8 +197,9 @@ LinalgOp mlir::linalg::promoteSubViewOperands(OpBuilder &b, LinalgOp op,
 
   // 1. Promote the specified views and use them in the new op.
   ScopedContext scope(b, op.getLoc());
-  auto promotedBufferAndViews = promoteSubViews(
-      b, op.getLoc(), subViews.getArrayRef(), dynamicBuffers, folder);
+  auto promotedBufferAndViews =
+      promoteSubViews(b, op.getLoc(), subViews.getArrayRef(), dynamicBuffers,
+                      alignment, folder);
   SmallVector<Value, 8> opViews;
   opViews.reserve(op.getNumInputsAndOutputs());
   SmallVector<std::pair<Value, Value>, 8> writebackViews;
@@ -221,7 +257,7 @@ static void promoteSubViews(FuncOp f, bool dynamicBuffers) {
         if (sv.getType().getElementType().isSignlessIntOrFloat())
           subViews.insert(sv);
     if (!subViews.empty()) {
-      promoteSubViewOperands(b, op, subViews, dynamicBuffers, &folder);
+      promoteSubViewOperands(b, op, subViews, dynamicBuffers, 0, &folder);
       toErase.push_back(op);
     }
   });
@@ -229,10 +265,24 @@ static void promoteSubViews(FuncOp f, bool dynamicBuffers) {
     op.erase();
 }
 
+LogicalResult mlir::linalg::promoteSubviewsLinalgOpPrecondition(
+    Operation *op, llvm::Optional<DenseSet<unsigned>> operandIndicesToPromote) {
+  LinalgOp linOp = dyn_cast<LinalgOp>(op);
+  // Transformation applies to buffers only.
+  if (!linOp || !linOp.hasBufferSemantics())
+    return failure();
+  for (auto en : llvm::enumerate(linOp.getInputsAndOutputBuffers())) {
+    auto sv = isa_and_nonnull<SubViewOp>(en.value().getDefiningOp());
+    if (sv && (!operandIndicesToPromote.hasValue() ||
+               operandIndicesToPromote->count(en.index())))
+      return success();
+  }
+  return failure();
+}
+
 namespace {
-struct LinalgPromotionPass : public FunctionPass<LinalgPromotionPass> {
+struct LinalgPromotionPass : public LinalgPromotionBase<LinalgPromotionPass> {
   LinalgPromotionPass() = default;
-  LinalgPromotionPass(const LinalgPromotionPass &) {}
   LinalgPromotionPass(bool dynamicBuffers) {
     this->dynamicBuffers = dynamicBuffers;
   }
@@ -240,18 +290,13 @@ struct LinalgPromotionPass : public FunctionPass<LinalgPromotionPass> {
   void runOnFunction() override {
     promoteSubViews(getFunction(), dynamicBuffers);
   }
-
-  Option<bool> dynamicBuffers{
-      *this, "test-promote-dynamic",
-      llvm::cl::desc("Test generation of dynamic promoted buffers"),
-      llvm::cl::init(false)};
 };
 } // namespace
 
-std::unique_ptr<OpPassBase<FuncOp>>
+std::unique_ptr<OperationPass<FuncOp>>
 mlir::createLinalgPromotionPass(bool dynamicBuffers) {
   return std::make_unique<LinalgPromotionPass>(dynamicBuffers);
 }
-
-static PassRegistration<LinalgPromotionPass>
-    pass("linalg-promote-subviews", "promote subview ops to local buffers");
+std::unique_ptr<OperationPass<FuncOp>> mlir::createLinalgPromotionPass() {
+  return std::make_unique<LinalgPromotionPass>();
+}

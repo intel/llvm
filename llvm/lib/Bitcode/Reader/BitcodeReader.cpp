@@ -27,7 +27,6 @@
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/AutoUpgrade.h"
 #include "llvm/IR/BasicBlock.h"
-#include "llvm/IR/CallSite.h"
 #include "llvm/IR/CallingConv.h"
 #include "llvm/IR/Comdat.h"
 #include "llvm/IR/Constant.h"
@@ -1285,25 +1284,10 @@ static uint64_t getRawAttributeMask(Attribute::AttrKind Val) {
     return 1ULL << 62;
   case Attribute::NoFree:
     return 1ULL << 63;
-  case Attribute::NoSync:
-    llvm_unreachable("nosync attribute not supported in raw format");
-    break;
-  case Attribute::Dereferenceable:
-    llvm_unreachable("dereferenceable attribute not supported in raw format");
-    break;
-  case Attribute::DereferenceableOrNull:
-    llvm_unreachable("dereferenceable_or_null attribute not supported in raw "
-                     "format");
-    break;
-  case Attribute::ArgMemOnly:
-    llvm_unreachable("argmemonly attribute not supported in raw format");
-    break;
-  case Attribute::AllocSize:
-    llvm_unreachable("allocsize not supported in raw format");
-    break;
-  case Attribute::SanitizeMemTag:
-    llvm_unreachable("sanitize_memtag attribute not supported in raw format");
-    break;
+  default:
+    // Other attributes are not supported in the raw format,
+    // as we ran out of space.
+    return 0;
   }
   llvm_unreachable("Unsupported attribute type");
 }
@@ -1313,13 +1297,6 @@ static void addRawAttributeValue(AttrBuilder &B, uint64_t Val) {
 
   for (Attribute::AttrKind I = Attribute::None; I != Attribute::EndAttrKinds;
        I = Attribute::AttrKind(I + 1)) {
-    if (I == Attribute::SanitizeMemTag ||
-        I == Attribute::Dereferenceable ||
-        I == Attribute::DereferenceableOrNull ||
-        I == Attribute::ArgMemOnly ||
-        I == Attribute::AllocSize ||
-        I == Attribute::NoSync)
-      continue;
     if (uint64_t A = (Val & getRawAttributeMask(I))) {
       if (I == Attribute::Alignment)
         B.addAlignmentAttr(1ULL << ((A >> 16) - 1));
@@ -1545,6 +1522,8 @@ static Attribute::AttrKind getAttrFromCode(uint64_t Code) {
     return Attribute::ImmArg;
   case bitc::ATTR_KIND_SANITIZE_MEMTAG:
     return Attribute::SanitizeMemTag;
+  case bitc::ATTR_KIND_PREALLOCATED:
+    return Attribute::Preallocated;
   }
 }
 
@@ -1660,8 +1639,11 @@ Error BitcodeReader::parseAttributeGroupBlock() {
           Attribute::AttrKind Kind;
           if (Error Err = parseAttrKind(Record[++i], &Kind))
             return Err;
-          if (Kind == Attribute::ByVal)
+          if (Kind == Attribute::ByVal) {
             B.addByValAttr(HasType ? getTypeByID(Record[++i]) : nullptr);
+          } else if (Kind == Attribute::Preallocated) {
+            B.addPreallocatedAttr(getTypeByID(Record[++i]));
+          }
         }
       }
 
@@ -2318,7 +2300,7 @@ Error BitcodeReader::resolveGlobalAndIndirectSymbolInits() {
   return Error::success();
 }
 
-static APInt readWideAPInt(ArrayRef<uint64_t> Vals, unsigned TypeBits) {
+APInt llvm::readWideAPInt(ArrayRef<uint64_t> Vals, unsigned TypeBits) {
   SmallVector<uint64_t, 8> Words(Vals.size());
   transform(Vals, Words.begin(),
                  BitcodeReader::decodeSignRotatedValue);
@@ -2337,6 +2319,15 @@ Error BitcodeReader::parseConstants() {
   Type *CurFullTy = Type::getInt32Ty(Context);
   unsigned NextCstNo = ValueList.size();
 
+  struct DelayedShufTy {
+    VectorType *OpTy;
+    VectorType *RTy;
+    Type *CurFullTy;
+    uint64_t Op0Idx;
+    uint64_t Op1Idx;
+    uint64_t Op2Idx;
+  };
+  std::vector<DelayedShufTy> DelayedShuffles;
   while (true) {
     Expected<BitstreamEntry> MaybeEntry = Stream.advanceSkippingSubblocks();
     if (!MaybeEntry)
@@ -2353,6 +2344,29 @@ Error BitcodeReader::parseConstants() {
 
       // Once all the constants have been read, go through and resolve forward
       // references.
+      //
+      // We have to treat shuffles specially because they don't have three
+      // operands anymore.  We need to convert the shuffle mask into an array,
+      // and we can't convert a forward reference.
+      for (auto &DelayedShuffle : DelayedShuffles) {
+        VectorType *OpTy = DelayedShuffle.OpTy;
+        VectorType *RTy = DelayedShuffle.RTy;
+        uint64_t Op0Idx = DelayedShuffle.Op0Idx;
+        uint64_t Op1Idx = DelayedShuffle.Op1Idx;
+        uint64_t Op2Idx = DelayedShuffle.Op2Idx;
+        Constant *Op0 = ValueList.getConstantFwdRef(Op0Idx, OpTy);
+        Constant *Op1 = ValueList.getConstantFwdRef(Op1Idx, OpTy);
+        Type *ShufTy =
+            VectorType::get(Type::getInt32Ty(Context), RTy->getElementCount());
+        Constant *Op2 = ValueList.getConstantFwdRef(Op2Idx, ShufTy);
+        if (!ShuffleVectorInst::isValidOperands(Op0, Op1, Op2))
+          return error("Invalid shufflevector operands");
+        SmallVector<int, 16> Mask;
+        ShuffleVectorInst::getShuffleMask(Op2, Mask);
+        Value *V = ConstantExpr::getShuffleVector(Op0, Op1, Mask);
+        ValueList.assignValue(V, NextCstNo, DelayedShuffle.CurFullTy);
+        ++NextCstNo;
+      }
       ValueList.resolveConstantForwardRefs();
       return Error::success();
     case BitstreamEntry::Record:
@@ -2473,7 +2487,11 @@ Error BitcodeReader::parseConstants() {
       if (Record.empty())
         return error("Invalid record");
 
-      Type *EltTy = cast<SequentialType>(CurTy)->getElementType();
+      Type *EltTy;
+      if (auto *Array = dyn_cast<ArrayType>(CurTy))
+        EltTy = Array->getElementType();
+      else
+        EltTy = cast<VectorType>(CurTy)->getElementType();
       if (EltTy->isIntegerTy(8)) {
         SmallVector<uint8_t, 16> Elts(Record.begin(), Record.end());
         if (isa<VectorType>(CurTy))
@@ -2694,13 +2712,9 @@ Error BitcodeReader::parseConstants() {
       VectorType *OpTy = dyn_cast<VectorType>(CurTy);
       if (Record.size() < 3 || !OpTy)
         return error("Invalid record");
-      Constant *Op0 = ValueList.getConstantFwdRef(Record[0], OpTy);
-      Constant *Op1 = ValueList.getConstantFwdRef(Record[1], OpTy);
-      Type *ShufTy = VectorType::get(Type::getInt32Ty(Context),
-                                     OpTy->getElementCount());
-      Constant *Op2 = ValueList.getConstantFwdRef(Record[2], ShufTy);
-      V = ConstantExpr::getShuffleVector(Op0, Op1, Op2);
-      break;
+      DelayedShuffles.push_back(
+          {OpTy, OpTy, CurFullTy, Record[0], Record[1], Record[2]});
+      continue;
     }
     case bitc::CST_CODE_CE_SHUFVEC_EX: { // [opty, opval, opval, opval]
       VectorType *RTy = dyn_cast<VectorType>(CurTy);
@@ -2708,13 +2722,9 @@ Error BitcodeReader::parseConstants() {
         dyn_cast_or_null<VectorType>(getTypeByID(Record[0]));
       if (Record.size() < 4 || !RTy || !OpTy)
         return error("Invalid record");
-      Constant *Op0 = ValueList.getConstantFwdRef(Record[1], OpTy);
-      Constant *Op1 = ValueList.getConstantFwdRef(Record[2], OpTy);
-      Type *ShufTy = VectorType::get(Type::getInt32Ty(Context),
-                                     RTy->getElementCount());
-      Constant *Op2 = ValueList.getConstantFwdRef(Record[3], ShufTy);
-      V = ConstantExpr::getShuffleVector(Op0, Op1, Op2);
-      break;
+      DelayedShuffles.push_back(
+          {OpTy, RTy, CurFullTy, Record[1], Record[2], Record[3]});
+      continue;
     }
     case bitc::CST_CODE_CE_CMP: {     // CE_CMP: [opty, opval, opval, pred]
       if (Record.size() < 4)
@@ -4140,7 +4150,7 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
       if (!Vec->getType()->isVectorTy())
         return error("Invalid type for value");
       I = ExtractElementInst::Create(Vec, Idx);
-      FullTy = FullTy->getVectorElementType();
+      FullTy = cast<VectorType>(FullTy)->getElementType();
       InstructionList.push_back(I);
       break;
     }
@@ -4174,8 +4184,9 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
         return error("Invalid type for value");
 
       I = new ShuffleVectorInst(Vec1, Vec2, Mask);
-      FullTy = VectorType::get(FullTy->getVectorElementType(),
-                               Mask->getType()->getVectorElementCount());
+      FullTy =
+          VectorType::get(cast<VectorType>(FullTy)->getElementType(),
+                          cast<VectorType>(Mask->getType())->getElementCount());
       InstructionList.push_back(I);
       break;
     }
@@ -5167,8 +5178,8 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
             !FullTy->isPointerTy() && !isa<StructType>(FullTy) &&
             !isa<ArrayType>(FullTy) &&
             (!isa<VectorType>(FullTy) ||
-             FullTy->getVectorElementType()->isFloatingPointTy() ||
-             FullTy->getVectorElementType()->isIntegerTy()) &&
+             cast<VectorType>(FullTy)->getElementType()->isFloatingPointTy() ||
+             cast<VectorType>(FullTy)->getElementType()->isIntegerTy()) &&
             "Structured types must be assigned with corresponding non-opaque "
             "pointer type");
       }
@@ -5283,7 +5294,7 @@ Error BitcodeReader::materialize(GlobalValue *GV) {
     for (auto UI = I.first->materialized_user_begin(), UE = I.first->user_end();
          UI != UE;)
       // Don't expect any other users than call sites
-      CallSite(*UI++).setCalledFunction(I.second);
+      cast<CallBase>(*UI++)->setCalledFunction(I.second);
 
   // Finish fn->subprogram upgrade for materialized functions.
   if (DISubprogram *SP = MDLoader->lookupSubprogramForFunction(F))

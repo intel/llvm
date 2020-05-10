@@ -510,15 +510,16 @@ int main(int argc, char **argv) {
   for (auto &InputFile : Options.InputFiles) {
     // Dump the symbol table for each input file and requested arch
     if (Options.DumpStab) {
-      if (!dumpStab(InputFile, Options.Archs, Options.LinkOpts.PrependPath))
+      if (!dumpStab(Options.LinkOpts.VFS, InputFile, Options.Archs,
+                    Options.LinkOpts.PrependPath))
         return 1;
       continue;
     }
 
     auto DebugMapPtrsOrErr =
-        parseDebugMap(InputFile, Options.Archs, Options.LinkOpts.PrependPath,
-                      Options.PaperTrailWarnings, Options.LinkOpts.Verbose,
-                      Options.InputIsYAMLDebugMap);
+        parseDebugMap(Options.LinkOpts.VFS, InputFile, Options.Archs,
+                      Options.LinkOpts.PrependPath, Options.PaperTrailWarnings,
+                      Options.LinkOpts.Verbose, Options.InputIsYAMLDebugMap);
 
     if (auto EC = DebugMapPtrsOrErr.getError()) {
       WithColor::error() << "cannot parse the debug map for '" << InputFile
@@ -545,12 +546,16 @@ int main(int argc, char **argv) {
     }
 
     // Shared a single binary holder for all the link steps.
-    BinaryHolder BinHolder;
+    BinaryHolder BinHolder(Options.LinkOpts.VFS);
 
-    unsigned ThreadCount = Options.LinkOpts.Threads;
-    if (!ThreadCount)
-      ThreadCount = DebugMapPtrsOrErr->size();
-    ThreadPool Threads(hardware_concurrency(ThreadCount));
+    ThreadPoolStrategy S = hardware_concurrency(Options.LinkOpts.Threads);
+    if (Options.LinkOpts.Threads == 0) {
+      // If NumThreads is not specified, create one thread for each input, up to
+      // the number of hardware threads.
+      S.ThreadsRequested = DebugMapPtrsOrErr->size();
+      S.Limit = true;
+    }
+    ThreadPool Threads(S);
 
     // If there is more than one link to execute, we need to generate
     // temporary files.
@@ -625,7 +630,7 @@ int main(int argc, char **argv) {
       // FIXME: The DwarfLinker can have some very deep recursion that can max
       // out the (significantly smaller) stack when using threads. We don't
       // want this limitation when we only have a single thread.
-      if (ThreadCount == 1)
+      if (S.ThreadsRequested == 1)
         LinkLambda(OS, Options.LinkOpts);
       else
         Threads.async(LinkLambda, OS, Options.LinkOpts);

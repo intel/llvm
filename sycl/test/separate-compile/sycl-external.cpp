@@ -1,8 +1,8 @@
 // Test1 - check that kernel can call a SYCL_EXTERNAL function defined in a
 // different object file.
-// RUN: %clangxx -fsycl -DSOURCE1 -c %s -o %t1.o
-// RUN: %clangxx -fsycl -DSOURCE2 -c %s -o %t2.o
-// RUN: %clangxx -fsycl %t1.o %t2.o -o %t.exe
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -DSOURCE1 -c %s -o %t1.o
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -DSOURCE2 -c %s -o %t2.o
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %t1.o %t2.o -o %t.exe
 // RUN: %CPU_RUN_PLACEHOLDER %t.exe
 // RUN: %GPU_RUN_PLACEHOLDER %t.exe
 // RUN: %ACC_RUN_PLACEHOLDER %t.exe
@@ -11,11 +11,10 @@
 // static library.
 // RUN: rm -f %t.a
 // RUN: llvm-ar crv %t.a %t1.o
-// RUN: %clangxx -fsycl %t2.o -foffload-static-lib=%t.a -o %t.exe
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %t2.o -foffload-static-lib=%t.a -o %t.exe
 // RUN: %CPU_RUN_PLACEHOLDER %t.exe
 // RUN: %GPU_RUN_PLACEHOLDER %t.exe
 // RUN: %ACC_RUN_PLACEHOLDER %t.exe
-// XFAIL: cuda
 
 #include <CL/sycl.hpp>
 #include <iostream>

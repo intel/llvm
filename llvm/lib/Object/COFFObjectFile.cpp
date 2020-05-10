@@ -166,7 +166,7 @@ uint32_t COFFObjectFile::getSymbolAlignment(DataRefImpl Ref) const {
 }
 
 Expected<uint64_t> COFFObjectFile::getSymbolAddress(DataRefImpl Ref) const {
-  uint64_t Result = getSymbolValue(Ref);
+  uint64_t Result = cantFail(getSymbolValue(Ref));
   COFFSymbolRef Symb = getCOFFSymbol(Ref);
   int32_t SectionNumber = Symb.getSectionNumber();
 
@@ -209,7 +209,7 @@ Expected<SymbolRef::Type> COFFObjectFile::getSymbolType(DataRefImpl Ref) const {
   return SymbolRef::ST_Other;
 }
 
-uint32_t COFFObjectFile::getSymbolFlags(DataRefImpl Ref) const {
+Expected<uint32_t> COFFObjectFile::getSymbolFlags(DataRefImpl Ref) const {
   COFFSymbolRef Symb = getCOFFSymbol(Ref);
   uint32_t Result = SymbolRef::SF_None;
 
@@ -326,6 +326,12 @@ bool COFFObjectFile::isSectionBSS(DataRefImpl Ref) const {
                             COFF::IMAGE_SCN_MEM_READ |
                             COFF::IMAGE_SCN_MEM_WRITE;
   return (Sec->Characteristics & BssFlags) == BssFlags;
+}
+
+// The .debug sections are the only debug sections for COFF
+// (\see MCObjectFileInfo.cpp).
+bool COFFObjectFile::isDebugSection(StringRef SectionName) const {
+  return SectionName.startswith(".debug");
 }
 
 unsigned COFFObjectFile::getSectionID(SectionRef Sec) const {

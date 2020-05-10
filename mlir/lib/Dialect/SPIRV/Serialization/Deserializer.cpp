@@ -20,11 +20,11 @@
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Location.h"
 #include "mlir/Support/LogicalResult.h"
-#include "mlir/Support/StringExtras.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/Sequence.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/bit.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
@@ -66,6 +66,16 @@ struct BlockMergeInfo {
   BlockMergeInfo() : mergeBlock(nullptr), continueBlock(nullptr) {}
   BlockMergeInfo(Block *m, Block *c = nullptr)
       : mergeBlock(m), continueBlock(c) {}
+};
+
+/// A struct for containing OpLine instruction information.
+struct DebugLine {
+  uint32_t fileID;
+  uint32_t line;
+  uint32_t col;
+
+  DebugLine(uint32_t fileIDNum, uint32_t lineNum, uint32_t colNum)
+      : fileID(fileIDNum), line(lineNum), col(colNum) {}
 };
 
 /// Map from a selection/loop's header block to its merge (and continue) target.
@@ -233,6 +243,23 @@ private:
   LogicalResult processConstantNull(ArrayRef<uint32_t> operands);
 
   //===--------------------------------------------------------------------===//
+  // Debug
+  //===--------------------------------------------------------------------===//
+
+  /// Discontinues any source-level location information that might be active
+  /// from a previous OpLine instruction.
+  LogicalResult clearDebugLine();
+
+  /// Creates a FileLineColLoc with the OpLine location information.
+  Location createFileLineColLoc(OpBuilder opBuilder);
+
+  /// Processes a SPIR-V OpLine instruction with the given `operands`.
+  LogicalResult processDebugLine(ArrayRef<uint32_t> operands);
+
+  /// Processes a SPIR-V OpString instruction with the given `operands`.
+  LogicalResult processDebugString(ArrayRef<uint32_t> operands);
+
+  //===--------------------------------------------------------------------===//
   // Control flow
   //===--------------------------------------------------------------------===//
 
@@ -376,6 +403,10 @@ private:
   /// The SPIR-V binary module.
   ArrayRef<uint32_t> binary;
 
+  /// Contains the data of the OpLine instruction which precedes the current
+  /// processing instruction.
+  llvm::Optional<DebugLine> debugLine;
+
   /// The current word offset into the binary module.
   unsigned curOffset = 0;
 
@@ -444,8 +475,11 @@ private:
   // Result <id> to name mapping.
   DenseMap<uint32_t, StringRef> nameMap;
 
+  // Result <id> to debug info mapping.
+  DenseMap<uint32_t, StringRef> debugInfoMap;
+
   // Result <id> to decorations mapping.
-  DenseMap<uint32_t, NamedAttributeList> decorations;
+  DenseMap<uint32_t, MutableDictionaryAttr> decorations;
 
   // Result <id> to type decorations.
   DenseMap<uint32_t, uint32_t> typeDecorations;
@@ -521,9 +555,9 @@ Optional<spirv::ModuleOp> Deserializer::collect() { return module; }
 //===----------------------------------------------------------------------===//
 
 spirv::ModuleOp Deserializer::createModuleOp() {
-  Builder builder(context);
+  OpBuilder builder(context);
   OperationState state(unknownLoc, spirv::ModuleOp::getOperationName());
-  spirv::ModuleOp::build(&builder, state);
+  spirv::ModuleOp::build(builder, state);
   return cast<spirv::ModuleOp>(Operation::create(state));
 }
 
@@ -553,11 +587,11 @@ LogicalResult Deserializer::processHeader() {
       MIN_VERSION_CASE(5);
 #undef MIN_VERSION_CASE
     default:
-      return emitError(unknownLoc, "unspported SPIR-V minor version: ")
+      return emitError(unknownLoc, "unsupported SPIR-V minor version: ")
              << minorVersion;
     }
   } else {
-    return emitError(unknownLoc, "unspported SPIR-V major version: ")
+    return emitError(unknownLoc, "unsupported SPIR-V major version: ")
            << majorVersion;
   }
 
@@ -647,7 +681,7 @@ LogicalResult Deserializer::processDecoration(ArrayRef<uint32_t> words) {
   if (decorationName.empty()) {
     return emitError(unknownLoc, "invalid Decoration code : ") << words[1];
   }
-  auto attrName = convertToSnakeCase(decorationName);
+  auto attrName = llvm::convertToSnakeFromCamelCase(decorationName);
   auto symbol = opBuilder.getIdentifier(attrName);
   switch (static_cast<spirv::Decoration>(words[1])) {
   case spirv::Decoration::DescriptorSet:
@@ -1203,7 +1237,8 @@ Deserializer::processRuntimeArrayType(ArrayRef<uint32_t> operands) {
                      "OpTypeRuntimeArray references undefined <id> ")
            << operands[1];
   }
-  typeMap[operands[0]] = spirv::RuntimeArrayType::get(memberType);
+  typeMap[operands[0]] = spirv::RuntimeArrayType::get(
+      memberType, typeDecorations.lookup(operands[0]));
   return success();
 }
 
@@ -1505,6 +1540,7 @@ LogicalResult Deserializer::processBranch(ArrayRef<uint32_t> operands) {
   auto *target = getOrCreateBlock(operands[0]);
   opBuilder.create<spirv::BranchOp>(unknownLoc, target);
 
+  clearDebugLine();
   return success();
 }
 
@@ -1535,6 +1571,7 @@ Deserializer::processBranchConditional(ArrayRef<uint32_t> operands) {
       /*trueArguments=*/ArrayRef<Value>(), falseBlock,
       /*falseArguments=*/ArrayRef<Value>(), weights);
 
+  clearDebugLine();
   return success();
 }
 
@@ -1994,6 +2031,57 @@ LogicalResult Deserializer::structurizeControlFlow() {
 }
 
 //===----------------------------------------------------------------------===//
+// Debug
+//===----------------------------------------------------------------------===//
+
+Location Deserializer::createFileLineColLoc(OpBuilder opBuilder) {
+  if (!debugLine)
+    return unknownLoc;
+
+  auto fileName = debugInfoMap.lookup(debugLine->fileID).str();
+  if (fileName.empty())
+    fileName = "<unknown>";
+  return opBuilder.getFileLineColLoc(opBuilder.getIdentifier(fileName),
+                                     debugLine->line, debugLine->col);
+}
+
+LogicalResult Deserializer::processDebugLine(ArrayRef<uint32_t> operands) {
+  // According to SPIR-V spec:
+  // "This location information applies to the instructions physically
+  // following this instruction, up to the first occurrence of any of the
+  // following: the next end of block, the next OpLine instruction, or the next
+  // OpNoLine instruction."
+  if (operands.size() != 3)
+    return emitError(unknownLoc, "OpLine must have 3 operands");
+  debugLine = DebugLine(operands[0], operands[1], operands[2]);
+  return success();
+}
+
+LogicalResult Deserializer::clearDebugLine() {
+  debugLine = llvm::None;
+  return success();
+}
+
+LogicalResult Deserializer::processDebugString(ArrayRef<uint32_t> operands) {
+  if (operands.size() < 2)
+    return emitError(unknownLoc, "OpString needs at least 2 operands");
+
+  if (!debugInfoMap.lookup(operands[0]).empty())
+    return emitError(unknownLoc,
+                     "duplicate debug string found for result <id> ")
+           << operands[0];
+
+  unsigned wordIndex = 1;
+  StringRef debugString = decodeStringLiteral(operands, wordIndex);
+  if (wordIndex != operands.size())
+    return emitError(unknownLoc,
+                     "unexpected trailing words in OpString instruction");
+
+  debugInfoMap[operands[0]] = debugString;
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
 // Instruction
 //===----------------------------------------------------------------------===//
 
@@ -2084,10 +2172,15 @@ LogicalResult Deserializer::processInstruction(spirv::Opcode opcode,
       return processGlobalVariable(operands);
     }
     break;
+  case spirv::Opcode::OpLine:
+    return processDebugLine(operands);
+  case spirv::Opcode::OpNoLine:
+    return clearDebugLine();
   case spirv::Opcode::OpName:
     return processName(operands);
-  case spirv::Opcode::OpModuleProcessed:
   case spirv::Opcode::OpString:
+    return processDebugString(operands);
+  case spirv::Opcode::OpModuleProcessed:
   case spirv::Opcode::OpSource:
   case spirv::Opcode::OpSourceContinued:
   case spirv::Opcode::OpSourceExtension:
@@ -2290,6 +2383,10 @@ Deserializer::processOp<spirv::FunctionCallOp>(ArrayRef<uint32_t> operands) {
            << operands[0];
   }
 
+  // Use null type to mean no result type.
+  if (isVoidType(resultType))
+    resultType = nullptr;
+
   auto resultID = operands[1];
   auto functionID = operands[2];
 
@@ -2305,18 +2402,12 @@ Deserializer::processOp<spirv::FunctionCallOp>(ArrayRef<uint32_t> operands) {
     arguments.push_back(value);
   }
 
-  SmallVector<Type, 1> resultTypes;
-  if (!isVoidType(resultType)) {
-    resultTypes.push_back(resultType);
-  }
-
   auto opFunctionCall = opBuilder.create<spirv::FunctionCallOp>(
-      unknownLoc, resultTypes, opBuilder.getSymbolRefAttr(functionName),
+      unknownLoc, resultType, opBuilder.getSymbolRefAttr(functionName),
       arguments);
 
-  if (!resultTypes.empty()) {
+  if (resultType)
     valueMap[resultID] = opFunctionCall.getResult(0);
-  }
   return success();
 }
 

@@ -90,10 +90,13 @@ bool link(ArrayRef<const char *> args, bool canExitEarly, raw_ostream &stdoutOS,
 
   inputSections.clear();
   outputSections.clear();
+  archiveFiles.clear();
   binaryFiles.clear();
   bitcodeFiles.clear();
+  lazyObjFiles.clear();
   objectFiles.clear();
   sharedFiles.clear();
+  backwardReferences.clear();
 
   config = make<Configuration>();
   driver = make<LinkerDriver>();
@@ -148,6 +151,7 @@ static std::tuple<ELFKind, uint16_t, uint8_t> parseEmulation(StringRef emul) {
           .Cases("elf_amd64", "elf_x86_64", {ELF64LEKind, EM_X86_64})
           .Case("elf_i386", {ELF32LEKind, EM_386})
           .Case("elf_iamcu", {ELF32LEKind, EM_IAMCU})
+          .Case("elf64_sparc", {ELF64BEKind, EM_SPARCV9})
           .Default({ELFNoneKind, EM_NONE});
 
   if (ret.first == ELFNoneKind)
@@ -607,9 +611,6 @@ static bool isOutputFormatBinary(opt::InputArgList &args) {
 }
 
 static DiscardPolicy getDiscard(opt::InputArgList &args) {
-  if (args.hasArg(OPT_relocatable))
-    return DiscardPolicy::None;
-
   auto *arg =
       args.getLastArg(OPT_discard_all, OPT_discard_locals, OPT_discard_none);
   if (!arg)
@@ -860,7 +861,6 @@ static void readConfigs(opt::InputArgList &args) {
       args.hasFlag(OPT_fatal_warnings, OPT_no_fatal_warnings, false);
   errorHandler().vsDiagnostics =
       args.hasArg(OPT_visual_studio_diagnostics_format, false);
-  threadsEnabled = args.hasFlag(OPT_threads, OPT_no_threads, true);
 
   config->allowMultipleDefinition =
       args.hasFlag(OPT_allow_multiple_definition,
@@ -879,6 +879,8 @@ static void readConfigs(opt::InputArgList &args) {
   config->cref = args.hasFlag(OPT_cref, OPT_no_cref, false);
   config->defineCommon = args.hasFlag(OPT_define_common, OPT_no_define_common,
                                       !args.hasArg(OPT_relocatable));
+  config->optimizeBBJumps =
+      args.hasFlag(OPT_optimize_bb_jumps, OPT_no_optimize_bb_jumps, false);
   config->demangle = args.hasFlag(OPT_demangle, OPT_no_demangle, true);
   config->dependentLibraries = args.hasFlag(OPT_dependent_libraries, OPT_no_dependent_libraries, true);
   config->disableVerify = args.hasArg(OPT_disable_verify);
@@ -917,6 +919,7 @@ static void readConfigs(opt::InputArgList &args) {
   config->ltoCSProfileGenerate = args.hasArg(OPT_lto_cs_profile_generate);
   config->ltoCSProfileFile = args.getLastArgValue(OPT_lto_cs_profile_file);
   config->ltoDebugPassManager = args.hasArg(OPT_lto_debug_pass_manager);
+  config->ltoEmitAsm = args.hasArg(OPT_lto_emit_asm);
   config->ltoNewPassManager = args.hasArg(OPT_lto_new_pass_manager);
   config->ltoNewPmPasses = args.getLastArgValue(OPT_lto_newpm_passes);
   config->ltoWholeProgramVisibility =
@@ -925,6 +928,11 @@ static void readConfigs(opt::InputArgList &args) {
   config->ltoObjPath = args.getLastArgValue(OPT_lto_obj_path_eq);
   config->ltoPartitions = args::getInteger(args, OPT_lto_partitions, 1);
   config->ltoSampleProfile = args.getLastArgValue(OPT_lto_sample_profile);
+  config->ltoBasicBlockSections =
+      args.getLastArgValue(OPT_lto_basicblock_sections);
+  config->ltoUniqueBBSectionNames =
+      args.hasFlag(OPT_lto_unique_bb_section_names,
+                   OPT_no_lto_unique_bb_section_names, false);
   config->mapFile = args.getLastArgValue(OPT_Map);
   config->mipsGotSize = args::getInteger(args, OPT_mips_got_size, 0xfff0);
   config->mergeArmExidx =
@@ -948,6 +956,7 @@ static void readConfigs(opt::InputArgList &args) {
       args.hasFlag(OPT_print_icf_sections, OPT_no_print_icf_sections, false);
   config->printGcSections =
       args.hasFlag(OPT_print_gc_sections, OPT_no_print_gc_sections, false);
+  config->printArchiveStats = args.getLastArgValue(OPT_print_archive_stats);
   config->printSymbolOrder =
       args.getLastArgValue(OPT_print_symbol_order);
   config->rpath = getRpath(args);
@@ -958,7 +967,7 @@ static void readConfigs(opt::InputArgList &args) {
   config->searchPaths = args::getStrings(args, OPT_library_path);
   config->sectionStartMap = getSectionStartMap(args);
   config->shared = args.hasArg(OPT_shared);
-  config->singleRoRx = args.hasArg(OPT_no_rosegment);
+  config->singleRoRx = !args.hasFlag(OPT_rosegment, OPT_no_rosegment, true);
   config->soName = args.getLastArgValue(OPT_soname);
   config->sortSection = getSortSection(args);
   config->splitStackAdjustSize = args::getInteger(args, OPT_split_stack_adjust_size, 16384);
@@ -974,7 +983,6 @@ static void readConfigs(opt::InputArgList &args) {
   config->thinLTOIndexOnly = args.hasArg(OPT_thinlto_index_only) ||
                              args.hasArg(OPT_thinlto_index_only_eq);
   config->thinLTOIndexOnlyArg = args.getLastArgValue(OPT_thinlto_index_only_eq);
-  config->thinLTOJobs = args::getInteger(args, OPT_thinlto_jobs, -1u);
   config->thinLTOObjectSuffixReplace =
       getOldNewOptions(args, OPT_thinlto_object_suffix_replace_eq);
   config->thinLTOPrefixReplace =
@@ -1029,19 +1037,41 @@ static void readConfigs(opt::InputArgList &args) {
     parseClangOption(saver.save("-mcpu=" + StringRef(arg->getValue())),
                      arg->getSpelling());
 
-  for (auto *arg : args.filtered(OPT_plugin_opt))
-    parseClangOption(arg->getValue(), arg->getSpelling());
+  for (opt::Arg *arg : args.filtered(OPT_plugin_opt_eq_minus))
+    parseClangOption(std::string("-") + arg->getValue(), arg->getSpelling());
+
+  // GCC collect2 passes -plugin-opt=path/to/lto-wrapper with an absolute or
+  // relative path. Just ignore. If not ended with "lto-wrapper", consider it an
+  // unsupported LLVMgold.so option and error.
+  for (opt::Arg *arg : args.filtered(OPT_plugin_opt_eq))
+    if (!StringRef(arg->getValue()).endswith("lto-wrapper"))
+      error(arg->getSpelling() + ": unknown plugin option '" + arg->getValue() +
+            "'");
 
   // Parse -mllvm options.
   for (auto *arg : args.filtered(OPT_mllvm))
     parseClangOption(arg->getValue(), arg->getSpelling());
 
+  // --threads= takes a positive integer and provides the default value for
+  // --thinlto-jobs=.
+  if (auto *arg = args.getLastArg(OPT_threads)) {
+    StringRef v(arg->getValue());
+    unsigned threads = 0;
+    if (!llvm::to_integer(v, threads, 0) || threads == 0)
+      error(arg->getSpelling() + ": expected a positive integer, but got '" +
+            arg->getValue() + "'");
+    parallel::strategy = hardware_concurrency(threads);
+    config->thinLTOJobs = v;
+  }
+  if (auto *arg = args.getLastArg(OPT_thinlto_jobs))
+    config->thinLTOJobs = arg->getValue();
+
   if (config->ltoo > 3)
     error("invalid optimization level for LTO: " + Twine(config->ltoo));
   if (config->ltoPartitions == 0)
     error("--lto-partitions: number of threads must be > 0");
-  if (config->thinLTOJobs == 0)
-    error("--thinlto-jobs: number of threads must be > 0");
+  if (!get_threadpool_strategy(config->thinLTOJobs))
+    error("--thinlto-jobs: invalid job count: " + config->thinLTOJobs);
 
   if (config->splitStackAdjustSize < 0)
     error("--split-stack-adjust-size: size must be >= 0");
@@ -1117,6 +1147,14 @@ static void readConfigs(opt::InputArgList &args) {
       for (StringRef s : args::getLines(*buffer))
         config->versionDefinitions[VER_NDX_GLOBAL].patterns.push_back(
             {s, /*isExternCpp=*/false, /*hasWildcard=*/false});
+  }
+
+  for (opt::Arg *arg : args.filtered(OPT_warn_backrefs_exclude)) {
+    StringRef pattern(arg->getValue());
+    if (Expected<GlobPattern> pat = GlobPattern::create(pattern))
+      config->warnBackrefsExclude.push_back(std::move(*pat));
+    else
+      error(arg->getSpelling() + ": " + toString(pat.takeError()));
   }
 
   // Parses -dynamic-list and -export-dynamic-symbol. They make some
@@ -1427,6 +1465,10 @@ static void handleUndefined(Symbol *sym) {
   // Since a symbol may not be used inside the program, LTO may
   // eliminate it. Mark the symbol as "used" to prevent it.
   sym->isUsedInRegularObj = true;
+
+  // GNU linkers allow -u foo -ldef -lref. We should not treat it as a backward
+  // reference.
+  backwardReferences.erase(sym);
 
   if (sym->isLazy())
     sym->fetch();
@@ -1902,19 +1944,19 @@ template <class ELFT> void LinkerDriver::link(opt::InputArgList &args) {
   // With this the symbol table should be complete. After this, no new names
   // except a few linker-synthesized ones will be added to the symbol table.
   compileBitcodeFiles<ELFT>();
+
+  // Symbol resolution finished. Report backward reference problems.
+  reportBackrefs();
   if (errorCount())
     return;
 
   // If -thinlto-index-only is given, we should create only "index
   // files" and not object files. Index file creation is already done
   // in addCombinedLTOObject, so we are done if that's the case.
-  if (config->thinLTOIndexOnly)
-    return;
-
-  // Likewise, --plugin-opt=emit-llvm is an option to make LTO create
-  // an output file in bitcode and exit, so that you can just get a
-  // combined bitcode file.
-  if (config->emitLLVM)
+  // Likewise, --plugin-opt=emit-llvm and --plugin-opt=emit-asm are the
+  // options to create output files in bitcode or assembly code
+  // repsectively. No object files are generated.
+  if (config->thinLTOIndexOnly || config->emitLLVM || config->ltoEmitAsm)
     return;
 
   // Apply symbol renames for -wrap.

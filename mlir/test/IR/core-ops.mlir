@@ -1,8 +1,8 @@
-// RUN: mlir-opt %s | FileCheck %s
+// RUN: mlir-opt -allow-unregistered-dialect %s | FileCheck %s
 // Verify the printed output can be parsed.
-// RUN: mlir-opt %s | mlir-opt | FileCheck %s
+// RUN: mlir-opt -allow-unregistered-dialect %s | mlir-opt -allow-unregistered-dialect | FileCheck %s
 // Verify the generic form can be parsed.
-// RUN: mlir-opt -mlir-print-op-generic %s | mlir-opt | FileCheck %s
+// RUN: mlir-opt -allow-unregistered-dialect -mlir-print-op-generic %s | mlir-opt -allow-unregistered-dialect | FileCheck %s
 
 // CHECK: #map0 = affine_map<(d0) -> (d0 + 1)>
 
@@ -86,6 +86,24 @@ func @standard_instrs(tensor<4x4x?xf32>, f32, i32, index, i64, f16) {
   // CHECK: %13 = muli %4, %4 : i32
   %i6 = muli %i2, %i2 : i32
 
+  // CHECK: %[[C0:.*]] = create_complex %[[F2:.*]], %[[F2]] : complex<f32>
+  %c0 = "std.create_complex"(%f2, %f2) : (f32, f32) -> complex<f32>
+
+  // CHECK: %[[C1:.*]] = create_complex %[[F2]], %[[F2]] : complex<f32>
+  %c1 = create_complex %f2, %f2 : complex<f32>
+
+  // CHECK: %[[REAL0:.*]] = re %[[CPLX0:.*]] : complex<f32>
+  %real0 = "std.re"(%c0) : (complex<f32>) -> f32
+
+  // CHECK: %[[REAL1:.*]] = re %[[CPLX0]] : complex<f32>
+  %real1 = re %c0 : complex<f32>
+
+  // CHECK: %[[IMAG0:.*]] = im %[[CPLX0]] : complex<f32>
+  %imag0 = "std.im"(%c0) : (complex<f32>) -> f32
+
+  // CHECK: %[[IMAG1:.*]] = im %[[CPLX0]] : complex<f32>
+  %imag1 = im %c0 : complex<f32>
+
   // CHECK: %c42_i32 = constant 42 : i32
   %x = "std.constant"(){value = 42 : i32} : () -> i32
 
@@ -141,17 +159,17 @@ func @standard_instrs(tensor<4x4x?xf32>, f32, i32, index, i64, f16) {
   // CHECK: %{{[0-9]+}} = select %{{[0-9]+}}, %arg3, %arg3 : index
   %21 = select %18, %idx, %idx : index
 
-  // CHECK: %{{[0-9]+}} = select %{{[0-9]+}}, %cst_4, %cst_4 : tensor<42xi32>
-  %22 = select %19, %tci32, %tci32 : tensor<42 x i32>
+  // CHECK: %{{[0-9]+}} = select %{{[0-9]+}}, %cst_4, %cst_4 : tensor<42xi1>, tensor<42xi32>
+  %22 = select %19, %tci32, %tci32 : tensor<42 x i1>, tensor<42 x i32>
 
-  // CHECK: %{{[0-9]+}} = select %{{[0-9]+}}, %cst_5, %cst_5 : vector<42xi32>
-  %23 = select %20, %vci32, %vci32 : vector<42 x i32>
+  // CHECK: %{{[0-9]+}} = select %{{[0-9]+}}, %cst_5, %cst_5 : vector<42xi1>, vector<42xi32>
+  %23 = select %20, %vci32, %vci32 : vector<42 x i1>, vector<42 x i32>
 
   // CHECK: %{{[0-9]+}} = select %{{[0-9]+}}, %arg3, %arg3 : index
   %24 = "std.select"(%18, %idx, %idx) : (i1, index, index) -> index
 
   // CHECK: %{{[0-9]+}} = select %{{[0-9]+}}, %cst_4, %cst_4 : tensor<42xi32>
-  %25 = "std.select"(%19, %tci32, %tci32) : (tensor<42 x i1>, tensor<42 x i32>, tensor<42 x i32>) -> tensor<42 x i32>
+  %25 = std.select %18, %tci32, %tci32 : tensor<42 x i32>
 
   // CHECK: %{{[0-9]+}} = divi_signed %arg2, %arg2 : i32
   %26 = divi_signed %i, %i : i32
@@ -515,6 +533,18 @@ func @standard_instrs(tensor<4x4x?xf32>, f32, i32, index, i64, f16) {
   // CHECK: %{{[0-9]+}} = rsqrt %arg1 : f32
   %145 = rsqrt %f : f32
 
+  // CHECK: %{{[0-9]+}} = sin %arg1 : f32
+  %146 = "std.sin"(%f) : (f32) -> f32
+
+  // CHECK: %{{[0-9]+}} = sin %arg1 : f32
+  %147 = sin %f : f32
+
+  // CHECK: %{{[0-9]+}} = sin %cst_8 : vector<4xf32>
+  %148 = sin %vcf32 : vector<4xf32>
+
+  // CHECK: %{{[0-9]+}} = sin %arg0 : tensor<4x4x?xf32>
+  %149 = sin %t : tensor<4x4x?xf32>
+
   return
 }
 
@@ -751,9 +781,23 @@ func @tensor_load_store(%0 : memref<4x4xi32>) {
 }
 
 // CHECK-LABEL: func @atomic_rmw
+// CHECK-SAME: ([[BUF:%.*]]: memref<10xf32>, [[VAL:%.*]]: f32, [[I:%.*]]: index)
 func @atomic_rmw(%I: memref<10xf32>, %val: f32, %i : index) {
-  // CHECK: %{{.*}} = atomic_rmw "addf" %{{.*}}, %{{.*}}[%{{.*}}]
   %x = atomic_rmw "addf" %val, %I[%i] : (f32, memref<10xf32>) -> f32
+  // CHECK: atomic_rmw "addf" [[VAL]], [[BUF]]{{\[}}[[I]]]
+  return
+}
+
+// CHECK-LABEL: func @generic_atomic_rmw
+// CHECK-SAME: ([[BUF:%.*]]: memref<1x2xf32>, [[I:%.*]]: index, [[J:%.*]]: index)
+func @generic_atomic_rmw(%I: memref<1x2xf32>, %i : index, %j : index) {
+  %x = generic_atomic_rmw %I[%i, %j] : memref<1x2xf32> {
+  // CHECK-NEXT: generic_atomic_rmw [[BUF]]{{\[}}[[I]], [[J]]] : memref
+    ^bb0(%old_value : f32):
+      %c1 = constant 1.0 : f32
+      %out = addf %c1, %old_value : f32
+      atomic_yield %out : f32
+  }
   return
 }
 

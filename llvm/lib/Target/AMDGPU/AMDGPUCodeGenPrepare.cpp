@@ -15,6 +15,7 @@
 #include "AMDGPU.h"
 #include "AMDGPUSubtarget.h"
 #include "AMDGPUTargetMachine.h"
+#include "llvm/ADT/FloatingPointMode.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/Analysis/ConstantFolding.h"
@@ -27,6 +28,7 @@
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstVisitor.h"
@@ -39,10 +41,10 @@
 #include "llvm/IR/Operator.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Value.h"
-#include "llvm/Transforms/Utils/IntegerDivision.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Transforms/Utils/IntegerDivision.h"
 #include <cassert>
 #include <iterator>
 
@@ -56,7 +58,7 @@ static cl::opt<bool> WidenLoads(
   "amdgpu-codegenprepare-widen-constant-loads",
   cl::desc("Widen sub-dword constant address space loads in AMDGPUCodeGenPrepare"),
   cl::ReallyHidden,
-  cl::init(true));
+  cl::init(false));
 
 static cl::opt<bool> UseMul24Intrin(
   "amdgpu-codegenprepare-mul24",
@@ -1387,7 +1389,9 @@ bool AMDGPUCodeGenPrepare::runOnFunction(Function &F) {
   DT = DTWP ? &DTWP->getDomTree() : nullptr;
 
   HasUnsafeFPMath = hasUnsafeFPMath(F);
-  HasFP32Denormals = ST->hasFP32Denormals(F);
+
+  AMDGPU::SIModeRegisterDefaults Mode(F);
+  HasFP32Denormals = Mode.allFP32Denormals();
 
   bool MadeChange = false;
 

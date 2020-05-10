@@ -926,7 +926,7 @@ Corrected:
         return NameClassification::NonType(D);
     }
 
-    if (getLangOpts().CPlusPlus2a && SS.isEmpty() && NextToken.is(tok::less)) {
+    if (getLangOpts().CPlusPlus20 && SS.isEmpty() && NextToken.is(tok::less)) {
       // In C++20 onwards, this could be an ADL-only call to a function
       // template, and we're required to assume that this is a template name.
       //
@@ -1069,7 +1069,7 @@ Corrected:
            Result, /*AllowFunctionTemplates=*/true,
            /*AllowDependent=*/false,
            /*AllowNonTemplateFunctions*/ SS.isEmpty() &&
-               getLangOpts().CPlusPlus2a))) {
+               getLangOpts().CPlusPlus20))) {
     // C++ [temp.names]p3:
     //   After name lookup (3.4) finds that a name is a template-name or that
     //   an operator-function-id or a literal- operator-id refers to a set of
@@ -2592,7 +2592,7 @@ static bool mergeDeclAttribute(Sema &S, NamedDecl *D,
             AMK == Sema::AMK_ProtocolImplementation))
     NewAttr = nullptr;
   else if (const auto *UA = dyn_cast<UuidAttr>(Attr))
-    NewAttr = S.mergeUuidAttr(D, *UA, UA->getGuid());
+    NewAttr = S.mergeUuidAttr(D, *UA, UA->getGuid(), UA->getGuidDecl());
   else if (const auto *SLHA = dyn_cast<SpeculativeLoadHardeningAttr>(Attr))
     NewAttr = S.mergeSpeculativeLoadHardeningAttr(D, *SLHA);
   else if (const auto *SLHA = dyn_cast<NoSpeculativeLoadHardeningAttr>(Attr))
@@ -2734,6 +2734,11 @@ static void checkNewAttributesAfterDef(Sema &S, Decl *New, const Decl *Old) {
       // honored it.
       ++I;
       continue;
+    } else if (isa<OMPDeclareVariantAttr>(NewAttribute)) {
+      // We allow to add OMP[Begin]DeclareVariantAttr to be added to
+      // declarations after defintions.
+      ++I;
+      continue;
     }
 
     S.Diag(NewAttribute->getLocation(),
@@ -2754,7 +2759,7 @@ static void diagnoseMissingConstinit(Sema &S, const VarDecl *InitDecl,
   // enough of the attribute list spelling information to extract that without
   // heroics.
   std::string SuitableSpelling;
-  if (S.getLangOpts().CPlusPlus2a)
+  if (S.getLangOpts().CPlusPlus20)
     SuitableSpelling = std::string(
         S.PP.getLastMacroWithSpelling(InsertLoc, {tok::kw_constinit}));
   if (SuitableSpelling.empty() && S.getLangOpts().CPlusPlus11)
@@ -2768,7 +2773,7 @@ static void diagnoseMissingConstinit(Sema &S, const VarDecl *InitDecl,
         InsertLoc, {tok::kw___attribute, tok::l_paren, tok::r_paren,
                     S.PP.getIdentifierInfo("require_constant_initialization"),
                     tok::r_paren, tok::r_paren}));
-  if (SuitableSpelling.empty() && S.getLangOpts().CPlusPlus2a)
+  if (SuitableSpelling.empty() && S.getLangOpts().CPlusPlus20)
     SuitableSpelling = "constinit";
   if (SuitableSpelling.empty() && S.getLangOpts().CPlusPlus11)
     SuitableSpelling = "[[clang::require_constant_initialization]]";
@@ -9050,10 +9055,10 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
       // be either constructors or to return a literal type. Therefore,
       // destructors cannot be declared constexpr.
       if (isa<CXXDestructorDecl>(NewFD) &&
-          (!getLangOpts().CPlusPlus2a || ConstexprKind == CSK_consteval)) {
+          (!getLangOpts().CPlusPlus20 || ConstexprKind == CSK_consteval)) {
         Diag(D.getDeclSpec().getConstexprSpecLoc(), diag::err_constexpr_dtor)
             << ConstexprKind;
-        NewFD->setConstexprKind(getLangOpts().CPlusPlus2a ? CSK_unspecified : CSK_constexpr);
+        NewFD->setConstexprKind(getLangOpts().CPlusPlus20 ? CSK_unspecified : CSK_constexpr);
       }
       // C++20 [dcl.constexpr]p2: An allocation function, or a
       // deallocation function shall not be declared with the consteval
@@ -11855,8 +11860,16 @@ void Sema::AddInitializerToDecl(Decl *RealDecl, Expr *Init, bool DirectInit) {
     // be deduced based on the chosen correction if the original init contains a
     // TypoExpr.
     ExprResult Res = CorrectDelayedTyposInExpr(Init, VDecl);
-    if (!Res.isUsable() || Res.get()->containsErrors()) {
+    if (!Res.isUsable()) {
+      // There are unresolved typos in Init, just drop them.
+      // FIXME: improve the recovery strategy to preserve the Init.
       RealDecl->setInvalidDecl();
+      return;
+    }
+    if (Res.get()->containsErrors()) {
+      // Invalidate the decl as we don't know the type for recovery-expr yet.
+      RealDecl->setInvalidDecl();
+      VDecl->setInit(Res.get());
       return;
     }
     Init = Res.get();
@@ -12004,7 +12017,12 @@ void Sema::AddInitializerToDecl(Decl *RealDecl, Expr *Init, bool DirectInit) {
                                    /*TreatUnavailableAsInvalid=*/false);
     ExprResult Result = InitSeq.Perform(*this, Entity, Kind, Args, &DclT);
     if (Result.isInvalid()) {
-      VDecl->setInvalidDecl();
+      // If the provied initializer fails to initialize the var decl,
+      // we attach a recovery expr for better recovery.
+      auto RecoveryExpr =
+          CreateRecoveryExpr(Init->getBeginLoc(), Init->getEndLoc(), Args);
+      if (RecoveryExpr.get())
+        VDecl->setInit(RecoveryExpr.get());
       return;
     }
 
@@ -12265,7 +12283,7 @@ void Sema::AddInitializerToDecl(Decl *RealDecl, Expr *Init, bool DirectInit) {
     VDecl->setInitStyle(VarDecl::ListInit);
   }
 
-  if (LangOpts.OpenMP && VDecl->hasGlobalStorage())
+  if (LangOpts.OpenMP && VDecl->isFileVarDecl())
     DeclsToCheckForDeferredDiags.push_back(VDecl);
   CheckCompleteVariableDeclaration(VDecl);
 }
@@ -12561,12 +12579,18 @@ void Sema::ActOnUninitializedDecl(Decl *RealDecl) {
 
     InitializationSequence InitSeq(*this, Entity, Kind, None);
     ExprResult Init = InitSeq.Perform(*this, Entity, Kind, None);
-    if (Init.isInvalid())
-      Var->setInvalidDecl();
-    else if (Init.get()) {
+
+    if (Init.get()) {
       Var->setInit(MaybeCreateExprWithCleanups(Init.get()));
       // This is important for template substitution.
       Var->setInitStyle(VarDecl::CallInit);
+    } else if (Init.isInvalid()) {
+      // If default-init fails, attach a recovery-expr initializer to track
+      // that initialization was attempted and failed.
+      auto RecoveryExpr =
+          CreateRecoveryExpr(Var->getLocation(), Var->getLocation(), {});
+      if (RecoveryExpr.get())
+        Var->setInit(RecoveryExpr.get());
     }
 
     CheckCompleteVariableDeclaration(Var);
@@ -13585,9 +13609,28 @@ Sema::ActOnStartOfFunctionDef(Scope *FnBodyScope, Declarator &D,
   assert(D.isFunctionDeclarator() && "Not a function declarator!");
   Scope *ParentScope = FnBodyScope->getParent();
 
+  // Check if we are in an `omp begin/end declare variant` scope. If we are, and
+  // we define a non-templated function definition, we will create a declaration
+  // instead (=BaseFD), and emit the definition with a mangled name afterwards.
+  // The base function declaration will have the equivalent of an `omp declare
+  // variant` annotation which specifies the mangled definition as a
+  // specialization function under the OpenMP context defined as part of the
+  // `omp begin declare variant`.
+  FunctionDecl *BaseFD = nullptr;
+  if (LangOpts.OpenMP && isInOpenMPDeclareVariantScope() &&
+      TemplateParameterLists.empty())
+    BaseFD = ActOnStartOfFunctionDefinitionInOpenMPDeclareVariantScope(
+        ParentScope, D);
+
   D.setFunctionDefinitionKind(FDK_Definition);
   Decl *DP = HandleDeclarator(ParentScope, D, TemplateParameterLists);
-  return ActOnStartOfFunctionDef(FnBodyScope, DP, SkipBody);
+  Decl *Dcl = ActOnStartOfFunctionDef(FnBodyScope, DP, SkipBody);
+
+  if (BaseFD)
+    ActOnFinishedFunctionDefinitionInOpenMPDeclareVariantScope(
+        cast<FunctionDecl>(Dcl), BaseFD);
+
+  return Dcl;
 }
 
 void Sema::ActOnFinishInlineFunctionDef(FunctionDecl *D) {
@@ -14802,12 +14845,16 @@ bool Sema::CheckEnumUnderlyingType(TypeSourceInfo *TI) {
   if (T->isDependentType())
     return false;
 
+  // This doesn't use 'isIntegralType' despite the error message mentioning
+  // integral type because isIntegralType would also allow enum types in C.
   if (const BuiltinType *BT = T->getAs<BuiltinType>())
     if (BT->isInteger())
       return false;
 
-  Diag(UnderlyingLoc, diag::err_enum_invalid_underlying) << T;
-  return true;
+  if (T->isExtIntType())
+    return false;
+
+  return Diag(UnderlyingLoc, diag::err_enum_invalid_underlying) << T;
 }
 
 /// Check whether this is a valid redeclaration of a previous enumeration.
@@ -16164,6 +16211,10 @@ ExprResult Sema::VerifyBitField(SourceLocation FieldLoc,
                                 IdentifierInfo *FieldName,
                                 QualType FieldTy, bool IsMsStruct,
                                 Expr *BitWidth, bool *ZeroWidth) {
+  assert(BitWidth);
+  if (BitWidth->containsErrors())
+    return ExprError();
+
   // Default to true; that shouldn't confuse checks for emptiness
   if (ZeroWidth)
     *ZeroWidth = true;

@@ -18,7 +18,6 @@
 #include "llvm/ADT/StringMap.h"
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/Instructions.h"
-#include "llvm/IR/Module.h"
 #include "llvm/IR/ModuleSummaryIndex.h"
 #include "llvm/IR/Operator.h"
 #include "llvm/IR/Type.h"
@@ -27,7 +26,6 @@
 
 namespace llvm {
   class Module;
-  class OpaqueType;
   class Function;
   class Value;
   class BasicBlock;
@@ -38,7 +36,6 @@ namespace llvm {
   class MDString;
   class MDNode;
   struct SlotMapping;
-  class StructType;
 
   /// ValID - Represents a reference of a definition of some sort with no type.
   /// There are several cases where we have to parse the value but where the
@@ -308,6 +305,7 @@ namespace llvm {
     bool ParseTopLevelEntities();
     bool ValidateEndOfModule();
     bool ValidateEndOfIndex();
+    bool ParseTargetDefinitions();
     bool ParseTargetDefinition();
     bool ParseModuleAsm();
     bool ParseSourceFileName();
@@ -340,6 +338,7 @@ namespace llvm {
                                     std::vector<unsigned> &FwdRefAttrGrps,
                                     bool inAttrGrp, LocTy &BuiltinLoc);
     bool ParseByValWithOptionalType(Type *&Result);
+    bool ParsePreallocated(Type *&Result);
 
     // Module Summary Index Parsing.
     bool SkipModuleSummaryEntry();

@@ -483,6 +483,20 @@ public:
   /// callbacks, metadata).
   Error defineMaterializing(SymbolFlagsMap SymbolFlags);
 
+  /// Define the given symbols as non-existent, removing it from the symbol
+  /// table and notifying any pending queries. Queries that lookup up the
+  /// symbol using the SymbolLookupFlags::WeaklyReferencedSymbol flag will
+  /// behave as if the symbol had not been matched in the first place. Queries
+  /// that required this symbol will fail with a missing symbol definition
+  /// error.
+  ///
+  /// This method is intended to support cleanup of special symbols like
+  /// initializer symbols: Queries using
+  /// SymbolLookupFlags::WeaklyReferencedSymbol can be used to trigger their
+  /// emission, and this method can be used to remove them from the JITDylib
+  /// once materialization is complete.
+  void defineNonExistent(ArrayRef<SymbolStringPtr> Symbols);
+
   /// Notify all not-yet-emitted covered by this MaterializationResponsibility
   /// instance that an error has occurred.
   /// This will remove all symbols covered by this MaterializationResponsibilty
@@ -721,15 +735,6 @@ public:
   void notifySymbolMetRequiredState(const SymbolStringPtr &Name,
                                     JITEvaluatedSymbol Sym);
 
-  /// Remove a symbol from the query. This is used to drop weakly referenced
-  /// symbols that are not found.
-  void dropSymbol(const SymbolStringPtr &Name) {
-    assert(ResolvedSymbols.count(Name) &&
-           "Redundant removal of weakly-referenced symbol");
-    ResolvedSymbols.erase(Name);
-    --OutstandingSymbolsCount;
-  }
-
   /// Returns true if all symbols covered by this query have been
   ///        resolved.
   bool isComplete() const { return OutstandingSymbolsCount == 0; }
@@ -746,6 +751,8 @@ private:
   void addQueryDependence(JITDylib &JD, SymbolStringPtr Name);
 
   void removeQueryDependence(JITDylib &JD, const SymbolStringPtr &Name);
+
+  void dropSymbol(const SymbolStringPtr &Name);
 
   bool canStillFail();
 
@@ -818,47 +825,46 @@ public:
   /// have been added and not yet removed).
   void removeGenerator(DefinitionGenerator &G);
 
-  /// Set the search order to be used when fixing up definitions in JITDylib.
-  /// This will replace the previous search order, and apply to any symbol
+  /// Set the link order to be used when fixing up definitions in JITDylib.
+  /// This will replace the previous link order, and apply to any symbol
   /// resolutions made for definitions in this JITDylib after the call to
-  /// setSearchOrder (even if the definition itself was added before the
+  /// setLinkOrder (even if the definition itself was added before the
   /// call).
   ///
-  /// If SearchThisJITDylibFirst is set, which by default it is, then this
-  /// JITDylib will add itself to the beginning of the SearchOrder (Clients
-  /// should *not* put this JITDylib in the list in this case, to avoid
-  /// redundant lookups).
+  /// If LinkAgainstThisJITDylibFirst is true (the default) then this JITDylib
+  /// will add itself to the beginning of the LinkOrder (Clients should not
+  /// put this JITDylib in the list in this case, to avoid redundant lookups).
   ///
-  /// If SearchThisJITDylibFirst is false then the search order will be used as
-  /// given. The main motivation for this feature is to support deliberate
+  /// If LinkAgainstThisJITDylibFirst is false then the link order will be used
+  /// as-is. The primary motivation for this feature is to support deliberate
   /// shadowing of symbols in this JITDylib by a facade JITDylib. For example,
   /// the facade may resolve function names to stubs, and the stubs may compile
   /// lazily by looking up symbols in this dylib. Adding the facade dylib
-  /// as the first in the search order (instead of this dylib) ensures that
+  /// as the first in the link order (instead of this dylib) ensures that
   /// definitions within this dylib resolve to the lazy-compiling stubs,
   /// rather than immediately materializing the definitions in this dylib.
-  void setSearchOrder(JITDylibSearchOrder NewSearchOrder,
-                      bool SearchThisJITDylibFirst = true);
+  void setLinkOrder(JITDylibSearchOrder NewSearchOrder,
+                    bool LinkAgainstThisJITDylibFirst = true);
 
-  /// Add the given JITDylib to the search order for definitions in this
+  /// Add the given JITDylib to the link order for definitions in this
   /// JITDylib.
-  void addToSearchOrder(JITDylib &JD,
-                        JITDylibLookupFlags JDLookupFlags =
-                            JITDylibLookupFlags::MatchExportedSymbolsOnly);
+  void addToLinkOrder(JITDylib &JD,
+                      JITDylibLookupFlags JDLookupFlags =
+                          JITDylibLookupFlags::MatchExportedSymbolsOnly);
 
-  /// Replace OldJD with NewJD in the search order if OldJD is present.
+  /// Replace OldJD with NewJD in the link order if OldJD is present.
   /// Otherwise this operation is a no-op.
-  void replaceInSearchOrder(JITDylib &OldJD, JITDylib &NewJD,
-                            JITDylibLookupFlags JDLookupFlags =
-                                JITDylibLookupFlags::MatchExportedSymbolsOnly);
+  void replaceInLinkOrder(JITDylib &OldJD, JITDylib &NewJD,
+                          JITDylibLookupFlags JDLookupFlags =
+                              JITDylibLookupFlags::MatchExportedSymbolsOnly);
 
-  /// Remove the given JITDylib from the search order for this JITDylib if it is
+  /// Remove the given JITDylib from the link order for this JITDylib if it is
   /// present. Otherwise this operation is a no-op.
-  void removeFromSearchOrder(JITDylib &JD);
+  void removeFromLinkOrder(JITDylib &JD);
 
-  /// Do something with the search order (run under the session lock).
+  /// Do something with the link order (run under the session lock).
   template <typename Func>
-  auto withSearchOrderDo(Func &&F)
+  auto withLinkOrderDo(Func &&F)
       -> decltype(F(std::declval<const JITDylibSearchOrder &>()));
 
   /// Define all symbols provided by the materialization unit to be part of this
@@ -1042,7 +1048,7 @@ private:
   UnmaterializedInfosMap UnmaterializedInfos;
   MaterializingInfosMap MaterializingInfos;
   std::vector<std::unique_ptr<DefinitionGenerator>> DefGenerators;
-  JITDylibSearchOrder SearchOrder;
+  JITDylibSearchOrder LinkOrder;
 };
 
 /// Platforms set up standard symbols and mediate interactions between dynamic
@@ -1290,14 +1296,27 @@ GeneratorT &JITDylib::addGenerator(std::unique_ptr<GeneratorT> DefGenerator) {
 }
 
 template <typename Func>
-auto JITDylib::withSearchOrderDo(Func &&F)
+auto JITDylib::withLinkOrderDo(Func &&F)
     -> decltype(F(std::declval<const JITDylibSearchOrder &>())) {
-  return ES.runSessionLocked([&]() { return F(SearchOrder); });
+  return ES.runSessionLocked([&]() { return F(LinkOrder); });
 }
 
 template <typename MaterializationUnitType>
 Error JITDylib::define(std::unique_ptr<MaterializationUnitType> &&MU) {
   assert(MU && "Can not define with a null MU");
+
+  if (MU->getSymbols().empty()) {
+    // Empty MUs are allowable but pathological, so issue a warning.
+    DEBUG_WITH_TYPE("orc", {
+      dbgs() << "Warning: Discarding empty MU " << MU->getName() << " for "
+             << getName() << "\n";
+    });
+    return Error::success();
+  } else
+    DEBUG_WITH_TYPE("orc", {
+      dbgs() << "Defining MU " << MU->getName() << " for " << getName() << "\n";
+    });
+
   return ES.runSessionLocked([&, this]() -> Error {
     if (auto Err = defineImpl(*MU))
       return Err;
@@ -1319,6 +1338,18 @@ Error JITDylib::define(std::unique_ptr<MaterializationUnitType> &&MU) {
 template <typename MaterializationUnitType>
 Error JITDylib::define(std::unique_ptr<MaterializationUnitType> &MU) {
   assert(MU && "Can not define with a null MU");
+
+  if (MU->getSymbols().empty()) {
+    // Empty MUs are allowable but pathological, so issue a warning.
+    DEBUG_WITH_TYPE("orc", {
+      dbgs() << "Warning: Discarding empty MU " << MU->getName() << getName()
+             << "\n";
+    });
+    return Error::success();
+  } else
+    DEBUG_WITH_TYPE("orc", {
+      dbgs() << "Defining MU " << MU->getName() << " for " << getName() << "\n";
+    });
 
   return ES.runSessionLocked([&, this]() -> Error {
     if (auto Err = defineImpl(*MU))
