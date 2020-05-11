@@ -44,8 +44,8 @@ Version
 
 [width="40%",cols="25,25"]
 |========================================
-| Last Modified Date | 2020-04-27
-| Revision           | E
+| Last Modified Date | 2020-05-12
+| Revision           | G
 |========================================
 
 Dependencies
@@ -59,8 +59,8 @@ This extension requires SPIR-V 1.0.
 Overview
 --------
 
-This extension adds *AssumeTrueINTEL* and *OpExpectINTEL* instructions that are
-appropriately mapped on ‘llvm.assume’ and ‘llvm.expect’ intrinsics. That is
+This extension adds *OpAssumeTrueINTEL* and *OpExpectINTEL* instructions that
+are mapped to ‘llvm.assume’ and ‘llvm.expect’ intrinsics respectively. That is
 required to save optimization hints through LLVM IR to SPIR-V transformation.
 
 Extension Name
@@ -86,8 +86,8 @@ New Instructions
 Instructions added under the *OptimizationHintsINTEL* capability:
 
 ----
-ExpectINTEL
-AssumeTrueINTEL
+OpExpectINTEL
+OpAssumeTrueINTEL
 ----
 
 Token Number Assignments
@@ -95,7 +95,7 @@ Token Number Assignments
 [width="45%",cols="30,15"]
 |===============================
 | OptimizationHintsINTEL | 5629
-| AssumeTrueINTEL        | 5630
+| OpAssumeTrueINTEL      | 5630
 | OpExpectINTEL          | 5631
 |===============================
 
@@ -112,7 +112,7 @@ Modify Section 3.31, "Capability", adding these rows to the Capability table:
 |====
 2+^| Capability ^| Depends On
 | 5629 | *OptimizationHintsINTEL* +
-Allow to use AssumeTrueINTEL and ExpectINTEL instructions |
+Allow to use OpAssumeTrueINTEL and OpExpectINTEL instructions |
 |====
 --
 
@@ -125,7 +125,7 @@ In section 3.32.1, Miscellaneous Instructions, add a new instruction:
 |=====
 2+^|*OpAssumeTrueINTEL* +
 The instruction allows the optimizer to assume that the provided _Condition_ is
-always true whenever the control flow reaches the instruction call. If the
+always true whenever the control flow reaches the instruction. If the
 _Condition_ is violated during execution, the behavior is undefined.
 
 The type of _Condition_ shall be _Boolean_.
@@ -179,5 +179,6 @@ Revision History
 |D|2020-04-08|Dmitry Sidorov|Rename the extension to SPV_INTEL_optimization_hints
 |E|2020-04-08|Dmitry Sidorov|Assign reserved values
 |F|2020-04-30|Dmitry Sidorov|Switch AssumeTrue from Decoration to instruction
+|G|2020-05-12|Dmitry Sidorov|Fix typos
 |========================================
 
