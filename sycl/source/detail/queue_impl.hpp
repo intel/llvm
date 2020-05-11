@@ -70,14 +70,14 @@ public:
       : MDevice(Device), MContext(Context), MAsyncHandler(AsyncHandler),
         MPropList(PropList), MHostQueue(MDevice->is_host()),
         MOpenCLInterop(!MHostQueue) {
-    if (!MHostQueue) {
-      MCommandQueue = createQueue(Order);
-    }
     if (!Context->hasDevice(Device))
       throw cl::sycl::invalid_parameter_error(
           "Queue cannot be constructed with the given context and device "
           "as the context does not contain the given device.",
           PI_INVALID_DEVICE);
+    if (!MHostQueue) {
+      MCommandQueue = createQueue(Order);
+    }
   }
 
   /// Constructs a SYCL queue from plugin interoperability handle.
@@ -241,6 +241,8 @@ public:
     RT::PiContext Context = MContext->getHandleRef();
     RT::PiDevice Device = MDevice->getHandleRef();
     const detail::plugin &Plugin = getPlugin();
+
+    assert(Plugin.getBackend() == MDevice->getPlugin().getBackend());
     RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piQueueCreate>(
         Context, Device, CreationFlags, &Queue);
 

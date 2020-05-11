@@ -87,7 +87,7 @@ class PDBLinker {
 
 public:
   PDBLinker(SymbolTable *symtab)
-      : alloc(), symtab(symtab), builder(alloc), tMerger(alloc) {
+      : symtab(symtab), builder(bAlloc), tMerger(bAlloc) {
     // This isn't strictly necessary, but link.exe usually puts an empty string
     // as the first "valid" string in the string table, so we do the same in
     // order to maintain as much byte-for-byte compatibility as possible.
@@ -166,8 +166,6 @@ public:
   void printStats();
 
 private:
-  BumpPtrAllocator alloc;
-
   SymbolTable *symtab;
 
   pdb::PDBFileBuilder builder;
@@ -726,10 +724,9 @@ static void translateIdSymbols(MutableArrayRef<uint8_t> &recordData,
     // in both cases we just need the second type index.
     if (!ti->isSimple() && !ti->isNoneType()) {
       CVType funcIdData = iDTable.getType(*ti);
-      SmallVector<TypeIndex, 2> indices;
-      discoverTypeIndices(funcIdData, indices);
-      assert(indices.size() == 2);
-      *ti = indices[1];
+      ArrayRef<uint8_t> tiBuf = funcIdData.data().slice(8, 4);
+      assert(tiBuf.size() == 4 && "corrupt LF_[MEM]FUNC_ID record");
+      *ti = *reinterpret_cast<const TypeIndex *>(tiBuf.data());
     }
 
     kind = (kind == SymbolKind::S_GPROC32_ID) ? SymbolKind::S_GPROC32
@@ -899,7 +896,7 @@ void PDBLinker::mergeSymbolRecords(ObjFile *file, const CVIndexMap &indexMap,
   MutableArrayRef<uint8_t> alignedSymbolMem;
   if (needsRealignment) {
     void *alignedData =
-        alloc.Allocate(totalRealignedSize, alignOf(CodeViewContainer::Pdb));
+        bAlloc.Allocate(totalRealignedSize, alignOf(CodeViewContainer::Pdb));
     alignedSymbolMem = makeMutableArrayRef(
         reinterpret_cast<uint8_t *>(alignedData), totalRealignedSize);
   }
@@ -981,9 +978,8 @@ void PDBLinker::mergeSymbolRecords(ObjFile *file, const CVIndexMap &indexMap,
 }
 
 // Allocate memory for a .debug$S / .debug$F section and relocate it.
-static ArrayRef<uint8_t> relocateDebugChunk(BumpPtrAllocator &alloc,
-                                            SectionChunk &debugChunk) {
-  uint8_t *buffer = alloc.Allocate<uint8_t>(debugChunk.getSize());
+static ArrayRef<uint8_t> relocateDebugChunk(SectionChunk &debugChunk) {
+  uint8_t *buffer = bAlloc.Allocate<uint8_t>(debugChunk.getSize());
   assert(debugChunk.getOutputSectionIdx() == 0 &&
          "debug sections should not be in output sections");
   debugChunk.writeTo(buffer);
@@ -1031,7 +1027,7 @@ void DebugSHandler::handleDebugS(lld::coff::SectionChunk &debugS) {
   DebugSubsectionArray subsections;
 
   ArrayRef<uint8_t> relocatedDebugContents = SectionChunk::consumeDebugMagic(
-      relocateDebugChunk(linker.alloc, debugS), debugS.getSectionName());
+      relocateDebugChunk(debugS), debugS.getSectionName());
 
   BinaryStreamReader reader(relocatedDebugContents, support::little);
   exitOnErr(reader.readArray(subsections, relocatedDebugContents.size()));
@@ -1242,7 +1238,7 @@ void PDBLinker::addObjFile(ObjFile *file, CVIndexMap *externIndexMap) {
 
     if (debugChunk->getSectionName() == ".debug$F") {
       ArrayRef<uint8_t> relocatedDebugContents =
-          relocateDebugChunk(alloc, *debugChunk);
+          relocateDebugChunk(*debugChunk);
 
       FixedStreamArray<object::FpoData> fpoRecords;
       BinaryStreamReader reader(relocatedDebugContents, support::little);
@@ -1523,8 +1519,7 @@ static void fillLinkerVerRecord(Compile3Sym &cs) {
 }
 
 static void addCommonLinkerModuleSymbols(StringRef path,
-                                         pdb::DbiModuleDescriptorBuilder &mod,
-                                         BumpPtrAllocator &allocator) {
+                                         pdb::DbiModuleDescriptorBuilder &mod) {
   ObjNameSym ons(SymbolRecordKind::ObjNameSym);
   EnvBlockSym ebs(SymbolRecordKind::EnvBlockSym);
   Compile3Sym cs(SymbolRecordKind::Compile3Sym);
@@ -1551,17 +1546,16 @@ static void addCommonLinkerModuleSymbols(StringRef path,
   ebs.Fields.push_back("cmd");
   ebs.Fields.push_back(argStr);
   mod.addSymbol(codeview::SymbolSerializer::writeOneSymbol(
-      ons, allocator, CodeViewContainer::Pdb));
+      ons, bAlloc, CodeViewContainer::Pdb));
   mod.addSymbol(codeview::SymbolSerializer::writeOneSymbol(
-      cs, allocator, CodeViewContainer::Pdb));
+      cs, bAlloc, CodeViewContainer::Pdb));
   mod.addSymbol(codeview::SymbolSerializer::writeOneSymbol(
-      ebs, allocator, CodeViewContainer::Pdb));
+      ebs, bAlloc, CodeViewContainer::Pdb));
 }
 
 static void addLinkerModuleCoffGroup(PartialSection *sec,
                                      pdb::DbiModuleDescriptorBuilder &mod,
-                                     OutputSection &os,
-                                     BumpPtrAllocator &allocator) {
+                                     OutputSection &os) {
   // If there's a section, there's at least one chunk
   assert(!sec->chunks.empty());
   const Chunk *firstChunk = *sec->chunks.begin();
@@ -1582,12 +1576,11 @@ static void addLinkerModuleCoffGroup(PartialSection *sec,
     cgs.Characteristics |= llvm::COFF::IMAGE_SCN_MEM_WRITE;
 
   mod.addSymbol(codeview::SymbolSerializer::writeOneSymbol(
-      cgs, allocator, CodeViewContainer::Pdb));
+      cgs, bAlloc, CodeViewContainer::Pdb));
 }
 
 static void addLinkerModuleSectionSymbol(pdb::DbiModuleDescriptorBuilder &mod,
-                                         OutputSection &os,
-                                         BumpPtrAllocator &allocator) {
+                                         OutputSection &os) {
   SectionSym sym(SymbolRecordKind::SectionSym);
   sym.Alignment = 12; // 2^12 = 4KB
   sym.Characteristics = os.header.Characteristics;
@@ -1596,7 +1589,7 @@ static void addLinkerModuleSectionSymbol(pdb::DbiModuleDescriptorBuilder &mod,
   sym.Rva = os.getRVA();
   sym.SectionNumber = os.sectionIndex;
   mod.addSymbol(codeview::SymbolSerializer::writeOneSymbol(
-      sym, allocator, CodeViewContainer::Pdb));
+      sym, bAlloc, CodeViewContainer::Pdb));
 
   // Skip COFF groups in MinGW because it adds a significant footprint to the
   // PDB, due to each function being in its own section
@@ -1605,7 +1598,7 @@ static void addLinkerModuleSectionSymbol(pdb::DbiModuleDescriptorBuilder &mod,
 
   // Output COFF groups for individual chunks of this section.
   for (PartialSection *sec : os.contribSections) {
-    addLinkerModuleCoffGroup(sec, mod, os, allocator);
+    addLinkerModuleCoffGroup(sec, mod, os);
   }
 }
 
@@ -1672,18 +1665,18 @@ void PDBLinker::addImportFilesToPDB(ArrayRef<OutputSection *> outputSections) {
     ts.Offset = thunkChunk->getRVA() - thunkOS->getRVA();
 
     mod->addSymbol(codeview::SymbolSerializer::writeOneSymbol(
-        ons, alloc, CodeViewContainer::Pdb));
+        ons, bAlloc, CodeViewContainer::Pdb));
     mod->addSymbol(codeview::SymbolSerializer::writeOneSymbol(
-        cs, alloc, CodeViewContainer::Pdb));
+        cs, bAlloc, CodeViewContainer::Pdb));
 
     SmallVector<SymbolScope, 4> scopes;
     CVSymbol newSym = codeview::SymbolSerializer::writeOneSymbol(
-        ts, alloc, CodeViewContainer::Pdb);
+        ts, bAlloc, CodeViewContainer::Pdb);
     scopeStackOpen(scopes, mod->getNextSymbolOffset(), newSym);
 
     mod->addSymbol(newSym);
 
-    newSym = codeview::SymbolSerializer::writeOneSymbol(es, alloc,
+    newSym = codeview::SymbolSerializer::writeOneSymbol(es, bAlloc,
                                                         CodeViewContainer::Pdb);
     scopeStackClose(scopes, mod->getNextSymbolOffset(), file);
 
@@ -1759,11 +1752,11 @@ void PDBLinker::addSections(ArrayRef<OutputSection *> outputSections,
   uint32_t pdbFilePathNI = dbiBuilder.addECName(nativePath);
   auto &linkerModule = exitOnErr(dbiBuilder.addModuleInfo("* Linker *"));
   linkerModule.setPdbFilePathNI(pdbFilePathNI);
-  addCommonLinkerModuleSymbols(nativePath, linkerModule, alloc);
+  addCommonLinkerModuleSymbols(nativePath, linkerModule);
 
   // Add section contributions. They must be ordered by ascending RVA.
   for (OutputSection *os : outputSections) {
-    addLinkerModuleSectionSymbol(linkerModule, *os, alloc);
+    addLinkerModuleSectionSymbol(linkerModule, *os);
     for (Chunk *c : os->chunks) {
       pdb::SectionContrib sc =
           createSectionContrib(c, linkerModule.getModuleIndex());

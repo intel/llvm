@@ -407,7 +407,8 @@ public:
   BasicBlock *createVectorizedLoopSkeleton();
 
   /// Widen a single instruction within the innermost loop.
-  void widenInstruction(Instruction &I);
+  void widenInstruction(Instruction &I, VPUser &Operands,
+                        VPTransformState &State);
 
   /// Widen a single call instruction within the innermost loop.
   void widenCallInstruction(CallInst &I, VPUser &ArgOperands,
@@ -3276,7 +3277,8 @@ unsigned LoopVectorizationCostModel::getVectorCallCost(CallInst *CI,
   // to be vectors, so we need to extract individual elements from there,
   // execute VF scalar calls, and then gather the result into the vector return
   // value.
-  unsigned ScalarCallCost = TTI.getCallInstrCost(F, ScalarRetTy, ScalarTys);
+  unsigned ScalarCallCost = TTI.getCallInstrCost(F, ScalarRetTy, ScalarTys,
+                                                 TTI::TCK_RecipThroughput);
   if (VF == 1)
     return ScalarCallCost;
 
@@ -3301,7 +3303,8 @@ unsigned LoopVectorizationCostModel::getVectorCallCost(CallInst *CI,
     return Cost;
 
   // If the corresponding vector cost is cheaper, return its cost.
-  unsigned VectorCallCost = TTI.getCallInstrCost(nullptr, RetTy, Tys);
+  unsigned VectorCallCost = TTI.getCallInstrCost(nullptr, RetTy, Tys,
+                                                 TTI::TCK_RecipThroughput);
   if (VectorCallCost < Cost) {
     NeedToScalarize = false;
     return VectorCallCost;
@@ -3319,7 +3322,9 @@ unsigned LoopVectorizationCostModel::getVectorIntrinsicCost(CallInst *CI,
     FMF = FPMO->getFastMathFlags();
 
   SmallVector<Value *, 4> Operands(CI->arg_operands());
-  return TTI.getIntrinsicInstrCost(ID, CI->getType(), Operands, FMF, VF, CI);
+  return TTI.getIntrinsicInstrCost(ID, CI->getType(), Operands, FMF, VF,
+                                   TargetTransformInfo::TCK_RecipThroughput,
+                                   CI);
 }
 
 static Type *smallestIntegerVectorType(Type *T1, Type *T2) {
@@ -4231,7 +4236,8 @@ static bool mayDivideByZero(Instruction &I) {
   return !CInt || CInt->isZero();
 }
 
-void InnerLoopVectorizer::widenInstruction(Instruction &I) {
+void InnerLoopVectorizer::widenInstruction(Instruction &I, VPUser &User,
+                                           VPTransformState &State) {
   switch (I.getOpcode()) {
   case Instruction::Call:
   case Instruction::Br:
@@ -4263,8 +4269,8 @@ void InnerLoopVectorizer::widenInstruction(Instruction &I) {
 
     for (unsigned Part = 0; Part < UF; ++Part) {
       SmallVector<Value *, 2> Ops;
-      for (Value *Op : I.operands())
-        Ops.push_back(getOrCreateVectorValue(Op, Part));
+      for (VPValue *VPOp : User.operands())
+        Ops.push_back(State.get(VPOp, Part));
 
       Value *V = Builder.CreateNAryOp(I.getOpcode(), Ops);
 
@@ -4285,8 +4291,8 @@ void InnerLoopVectorizer::widenInstruction(Instruction &I) {
     auto *Cmp = cast<CmpInst>(&I);
     setDebugLocFromInst(Builder, Cmp);
     for (unsigned Part = 0; Part < UF; ++Part) {
-      Value *A = getOrCreateVectorValue(Cmp->getOperand(0), Part);
-      Value *B = getOrCreateVectorValue(Cmp->getOperand(1), Part);
+      Value *A = State.get(User.getOperand(0), Part);
+      Value *B = State.get(User.getOperand(1), Part);
       Value *C = nullptr;
       if (FCmp) {
         // Propagate fast math flags.
@@ -4323,7 +4329,7 @@ void InnerLoopVectorizer::widenInstruction(Instruction &I) {
         (VF == 1) ? CI->getType() : VectorType::get(CI->getType(), VF);
 
     for (unsigned Part = 0; Part < UF; ++Part) {
-      Value *A = getOrCreateVectorValue(CI->getOperand(0), Part);
+      Value *A = State.get(User.getOperand(0), Part);
       Value *Cast = Builder.CreateCast(CI->getOpcode(), A, DestTy);
       VectorLoopValueMap.setVectorValue(&I, Part, Cast);
       addMetadata(Cast, &I);
@@ -4382,22 +4388,17 @@ void InnerLoopVectorizer::widenCallInstruction(CallInst &I, VPUser &ArgOperands,
       if (VF > 1)
         TysForDecl[0] = VectorType::get(CI->getType()->getScalarType(), VF);
       VectorF = Intrinsic::getDeclaration(M, ID, TysForDecl);
+      assert(VectorF && "Can't retrieve vector intrinsic.");
     } else {
       // Use vector version of the function call.
       const VFShape Shape =
           VFShape::get(*CI, {VF, false} /*EC*/, false /*HasGlobalPred*/);
 #ifndef NDEBUG
-        const SmallVector<VFInfo, 8> Infos = VFDatabase::getMappings(*CI);
-        assert(std::find_if(Infos.begin(), Infos.end(),
-                            [&Shape](const VFInfo &Info) {
-                              return Info.Shape == Shape;
-                            }) != Infos.end() &&
-               "Vector function shape is missing from the database.");
+      assert(VFDatabase(*CI).getVectorizedFunction(Shape) != nullptr &&
+             "Can't create vector function.");
 #endif
         VectorF = VFDatabase(*CI).getVectorizedFunction(Shape);
     }
-      assert(VectorF && "Can't create vector function.");
-
       SmallVector<OperandBundleDef, 1> OpBundles;
       CI->getOperandBundlesAsDefs(OpBundles);
       CallInst *V = Builder.CreateCall(VectorF, Args, OpBundles);
@@ -5701,8 +5702,9 @@ int LoopVectorizationCostModel::computePredInstDiscount(
     // Compute the scalarization overhead of needed insertelement instructions
     // and phi nodes.
     if (isScalarWithPredication(I) && !I->getType()->isVoidTy()) {
-      ScalarCost += TTI.getScalarizationOverhead(ToVectorTy(I->getType(), VF),
-                                                 true, false);
+      ScalarCost += TTI.getScalarizationOverhead(
+          cast<VectorType>(ToVectorTy(I->getType(), VF)),
+          APInt::getAllOnesValue(VF), true, false);
       ScalarCost += VF * TTI.getCFInstrCost(Instruction::PHI);
     }
 
@@ -5718,7 +5720,8 @@ int LoopVectorizationCostModel::computePredInstDiscount(
           Worklist.push_back(J);
         else if (needsExtract(J, VF))
           ScalarCost += TTI.getScalarizationOverhead(
-                              ToVectorTy(J->getType(),VF), false, true);
+              cast<VectorType>(ToVectorTy(J->getType(), VF)),
+              APInt::getAllOnesValue(VF), false, true);
       }
 
     // Scale the total scalar cost by block probability.
@@ -5833,7 +5836,8 @@ unsigned LoopVectorizationCostModel::getMemInstScalarizationCost(Instruction *I,
   // vectorized loop where the user of it is a vectorized instruction.
   const MaybeAlign Alignment = getLoadStoreAlignment(I);
   Cost += VF * TTI.getMemoryOpCost(I->getOpcode(), ValTy->getScalarType(),
-                                   Alignment, AS);
+                                   Alignment, AS, 
+                                   TTI::TCK_RecipThroughput);
 
   // Get the overhead of the extractelement and insertelement instructions
   // we might create due to scalarization.
@@ -5861,6 +5865,7 @@ unsigned LoopVectorizationCostModel::getConsecutiveMemOpCost(Instruction *I,
   Value *Ptr = getLoadStorePointerOperand(I);
   unsigned AS = getLoadStoreAddressSpace(I);
   int ConsecutiveStride = Legal->isConsecutivePtr(Ptr);
+  enum TTI::TargetCostKind CostKind = TTI::TCK_RecipThroughput;
 
   assert((ConsecutiveStride == 1 || ConsecutiveStride == -1) &&
          "Stride should be 1 or -1 for consecutive memory access");
@@ -5868,9 +5873,11 @@ unsigned LoopVectorizationCostModel::getConsecutiveMemOpCost(Instruction *I,
   unsigned Cost = 0;
   if (Legal->isMaskRequired(I))
     Cost += TTI.getMaskedMemoryOpCost(I->getOpcode(), VectorTy,
-                                      Alignment ? Alignment->value() : 0, AS);
+                                      Alignment ? Alignment->value() : 0, AS,
+                                      CostKind);
   else
-    Cost += TTI.getMemoryOpCost(I->getOpcode(), VectorTy, Alignment, AS, I);
+    Cost += TTI.getMemoryOpCost(I->getOpcode(), VectorTy, Alignment, AS,
+                                CostKind, I);
 
   bool Reverse = ConsecutiveStride < 0;
   if (Reverse)
@@ -5884,16 +5891,19 @@ unsigned LoopVectorizationCostModel::getUniformMemOpCost(Instruction *I,
   auto *VectorTy = cast<VectorType>(ToVectorTy(ValTy, VF));
   const MaybeAlign Alignment = getLoadStoreAlignment(I);
   unsigned AS = getLoadStoreAddressSpace(I);
+  enum TTI::TargetCostKind CostKind = TTI::TCK_RecipThroughput;
   if (isa<LoadInst>(I)) {
     return TTI.getAddressComputationCost(ValTy) +
-           TTI.getMemoryOpCost(Instruction::Load, ValTy, Alignment, AS) +
+           TTI.getMemoryOpCost(Instruction::Load, ValTy, Alignment, AS,
+                               CostKind) +
            TTI.getShuffleCost(TargetTransformInfo::SK_Broadcast, VectorTy);
   }
   StoreInst *SI = cast<StoreInst>(I);
 
   bool isLoopInvariantStoreValue = Legal->isUniform(SI->getValueOperand());
   return TTI.getAddressComputationCost(ValTy) +
-         TTI.getMemoryOpCost(Instruction::Store, ValTy, Alignment, AS) +
+         TTI.getMemoryOpCost(Instruction::Store, ValTy, Alignment, AS,
+                             CostKind) +
          (isLoopInvariantStoreValue
               ? 0
               : TTI.getVectorInstrCost(Instruction::ExtractElement, VectorTy,
@@ -5910,7 +5920,9 @@ unsigned LoopVectorizationCostModel::getGatherScatterCost(Instruction *I,
   return TTI.getAddressComputationCost(VectorTy) +
          TTI.getGatherScatterOpCost(I->getOpcode(), VectorTy, Ptr,
                                     Legal->isMaskRequired(I),
-                                    Alignment ? Alignment->value() : 0, I);
+                                    Alignment ? Alignment->value() : 0,
+                                    TargetTransformInfo::TCK_RecipThroughput,
+                                    I);
 }
 
 unsigned LoopVectorizationCostModel::getInterleaveGroupCost(Instruction *I,
@@ -5939,7 +5951,8 @@ unsigned LoopVectorizationCostModel::getInterleaveGroupCost(Instruction *I,
       Group->requiresScalarEpilogue() && !isScalarEpilogueAllowed();
   unsigned Cost = TTI.getInterleavedMemoryOpCost(
       I->getOpcode(), WideVecTy, Group->getFactor(), Indices,
-      Group->getAlign().value(), AS, Legal->isMaskRequired(I), UseMaskForGaps);
+      Group->getAlign().value(), AS, TTI::TCK_RecipThroughput,
+      Legal->isMaskRequired(I), UseMaskForGaps);
 
   if (Group->isReverse()) {
     // TODO: Add support for reversed masked interleaved access.
@@ -5961,7 +5974,8 @@ unsigned LoopVectorizationCostModel::getMemoryInstructionCost(Instruction *I,
     unsigned AS = getLoadStoreAddressSpace(I);
 
     return TTI.getAddressComputationCost(ValTy) +
-           TTI.getMemoryOpCost(I->getOpcode(), ValTy, Alignment, AS, I);
+           TTI.getMemoryOpCost(I->getOpcode(), ValTy, Alignment, AS,
+                               TTI::TCK_RecipThroughput, I);
   }
   return getWideningCost(I, VF);
 }
@@ -6002,7 +6016,8 @@ unsigned LoopVectorizationCostModel::getScalarizationOverhead(Instruction *I,
   Type *RetTy = ToVectorTy(I->getType(), VF);
   if (!RetTy->isVoidTy() &&
       (!isa<LoadInst>(I) || !TTI.supportsEfficientVectorElementLoadStore()))
-    Cost += TTI.getScalarizationOverhead(RetTy, true, false);
+    Cost += TTI.getScalarizationOverhead(
+        cast<VectorType>(RetTy), APInt::getAllOnesValue(VF), true, false);
 
   // Some targets keep addresses scalar.
   if (isa<LoadInst>(I) && !TTI.prefersVectorizedAddressing())
@@ -6182,6 +6197,7 @@ unsigned LoopVectorizationCostModel::getInstructionCost(Instruction *I,
     RetTy = IntegerType::get(RetTy->getContext(), MinBWs[I]);
   VectorTy = isScalarAfterVectorization(I, VF) ? RetTy : ToVectorTy(RetTy, VF);
   auto SE = PSE.getSE();
+  TTI::TargetCostKind CostKind = TTI::TCK_RecipThroughput;
 
   // TODO: We need to estimate the cost of intrinsic calls.
   switch (I->getOpcode()) {
@@ -6206,9 +6222,10 @@ unsigned LoopVectorizationCostModel::getInstructionCost(Instruction *I,
 
     if (ScalarPredicatedBB) {
       // Return cost for branches around scalarized and predicated blocks.
-      Type *Vec_i1Ty =
+      VectorType *Vec_i1Ty =
           VectorType::get(IntegerType::getInt1Ty(RetTy->getContext()), VF);
-      return (TTI.getScalarizationOverhead(Vec_i1Ty, false, true) +
+      return (TTI.getScalarizationOverhead(Vec_i1Ty, APInt::getAllOnesValue(VF),
+                                           false, true) +
               (TTI.getCFInstrCost(Instruction::Br) * VF));
     } else if (I->getParent() == TheLoop->getLoopLatch() || VF == 1)
       // The back-edge branch will remain, as will all scalar branches.
@@ -6237,7 +6254,8 @@ unsigned LoopVectorizationCostModel::getInstructionCost(Instruction *I,
       return (Phi->getNumIncomingValues() - 1) *
              TTI.getCmpSelInstrCost(
                  Instruction::Select, ToVectorTy(Phi->getType(), VF),
-                 ToVectorTy(Type::getInt1Ty(Phi->getContext()), VF));
+                 ToVectorTy(Type::getInt1Ty(Phi->getContext()), VF),
+                 CostKind);
 
     return TTI.getCFInstrCost(Instruction::PHI);
   }
@@ -6259,7 +6277,7 @@ unsigned LoopVectorizationCostModel::getInstructionCost(Instruction *I,
       Cost += VF * TTI.getCFInstrCost(Instruction::PHI);
 
       // The cost of the non-predicated instruction.
-      Cost += VF * TTI.getArithmeticInstrCost(I->getOpcode(), RetTy);
+      Cost += VF * TTI.getArithmeticInstrCost(I->getOpcode(), RetTy, CostKind);
 
       // The cost of insertelement and extractelement instructions needed for
       // scalarization.
@@ -6300,13 +6318,15 @@ unsigned LoopVectorizationCostModel::getInstructionCost(Instruction *I,
     SmallVector<const Value *, 4> Operands(I->operand_values());
     unsigned N = isScalarAfterVectorization(I, VF) ? VF : 1;
     return N * TTI.getArithmeticInstrCost(
-                   I->getOpcode(), VectorTy, TargetTransformInfo::OK_AnyValue,
+                   I->getOpcode(), VectorTy, CostKind,
+                   TargetTransformInfo::OK_AnyValue,
                    Op2VK, TargetTransformInfo::OP_None, Op2VP, Operands, I);
   }
   case Instruction::FNeg: {
     unsigned N = isScalarAfterVectorization(I, VF) ? VF : 1;
     return N * TTI.getArithmeticInstrCost(
-                   I->getOpcode(), VectorTy, TargetTransformInfo::OK_AnyValue,
+                   I->getOpcode(), VectorTy, CostKind,
+                   TargetTransformInfo::OK_AnyValue,
                    TargetTransformInfo::OK_AnyValue,
                    TargetTransformInfo::OP_None, TargetTransformInfo::OP_None,
                    I->getOperand(0), I);
@@ -6319,7 +6339,8 @@ unsigned LoopVectorizationCostModel::getInstructionCost(Instruction *I,
     if (!ScalarCond)
       CondTy = VectorType::get(CondTy, VF);
 
-    return TTI.getCmpSelInstrCost(I->getOpcode(), VectorTy, CondTy, I);
+    return TTI.getCmpSelInstrCost(I->getOpcode(), VectorTy, CondTy,
+                                  CostKind, I);
   }
   case Instruction::ICmp:
   case Instruction::FCmp: {
@@ -6328,7 +6349,8 @@ unsigned LoopVectorizationCostModel::getInstructionCost(Instruction *I,
     if (canTruncateToMinimalBitwidth(Op0AsInstruction, VF))
       ValTy = IntegerType::get(ValTy->getContext(), MinBWs[Op0AsInstruction]);
     VectorTy = ToVectorTy(ValTy, VF);
-    return TTI.getCmpSelInstrCost(I->getOpcode(), VectorTy, nullptr, I);
+    return TTI.getCmpSelInstrCost(I->getOpcode(), VectorTy, nullptr, CostKind,
+                                  I);
   }
   case Instruction::Store:
   case Instruction::Load: {
@@ -6361,7 +6383,7 @@ unsigned LoopVectorizationCostModel::getInstructionCost(Instruction *I,
     if (isOptimizableIVTruncate(I, VF)) {
       auto *Trunc = cast<TruncInst>(I);
       return TTI.getCastInstrCost(Instruction::Trunc, Trunc->getDestTy(),
-                                  Trunc->getSrcTy(), Trunc);
+                                  Trunc->getSrcTy(), CostKind, Trunc);
     }
 
     Type *SrcScalarTy = I->getOperand(0)->getType();
@@ -6387,7 +6409,8 @@ unsigned LoopVectorizationCostModel::getInstructionCost(Instruction *I,
     }
 
     unsigned N = isScalarAfterVectorization(I, VF) ? VF : 1;
-    return N * TTI.getCastInstrCost(I->getOpcode(), VectorTy, SrcVecTy, I);
+    return N * TTI.getCastInstrCost(I->getOpcode(), VectorTy, SrcVecTy,
+                                    CostKind, I);
   }
   case Instruction::Call: {
     bool NeedToScalarize;
@@ -6400,7 +6423,8 @@ unsigned LoopVectorizationCostModel::getInstructionCost(Instruction *I,
   default:
     // The cost of executing VF copies of the scalar instruction. This opcode
     // is unknown. Assume that it is the same as 'mul'.
-    return VF * TTI.getArithmeticInstrCost(Instruction::Mul, VectorTy) +
+    return VF * TTI.getArithmeticInstrCost(Instruction::Mul, VectorTy,
+                                           CostKind) +
            getScalarizationOverhead(I, VF);
   } // end of switch.
 }
@@ -6936,12 +6960,7 @@ VPWidenCallRecipe *VPRecipeBuilder::tryToWidenCall(CallInst *CI, VFRange &Range,
   if (!LoopVectorizationPlanner::getDecisionAndClampRange(willWiden, Range))
     return nullptr;
 
-  // Success: widen this call.
-  auto VPValues = map_range(CI->arg_operands(), [&Plan](Value *Op) {
-    return Plan.getOrAddVPValue(Op);
-  });
-
-  return new VPWidenCallRecipe(*CI, VPValues);
+  return new VPWidenCallRecipe(*CI, Plan.mapToVPValues(CI->arg_operands()));
 }
 
 bool VPRecipeBuilder::shouldWiden(Instruction *I, VFRange &Range) const {
@@ -7004,7 +7023,7 @@ VPWidenRecipe *VPRecipeBuilder::tryToWiden(Instruction *I, VPlan &Plan) const {
     return nullptr;
 
   // Success: widen this instruction.
-  return new VPWidenRecipe(*I);
+  return new VPWidenRecipe(*I, Plan.mapToVPValues(I->operands()));
 }
 
 VPBasicBlock *VPRecipeBuilder::handleReplication(
@@ -7411,7 +7430,7 @@ void VPWidenSelectRecipe::execute(VPTransformState &State) {
 }
 
 void VPWidenRecipe::execute(VPTransformState &State) {
-  State.ILV->widenInstruction(Ingredient);
+  State.ILV->widenInstruction(Ingredient, User, State);
 }
 
 void VPWidenGEPRecipe::execute(VPTransformState &State) {

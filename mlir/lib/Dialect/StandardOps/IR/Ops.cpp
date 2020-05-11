@@ -484,7 +484,7 @@ static LogicalResult verify(AtomicRMWOp op) {
 // GenericAtomicRMWOp
 //===----------------------------------------------------------------------===//
 
-void GenericAtomicRMWOp::build(Builder *builder, OperationState &result,
+void GenericAtomicRMWOp::build(OpBuilder &builder, OperationState &result,
                                Value memref, ValueRange ivs) {
   result.addOperands(memref);
   result.addOperands(ivs);
@@ -677,12 +677,11 @@ void BranchOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
       context);
 }
 
-Optional<OperandRange> BranchOp::getSuccessorOperands(unsigned index) {
+Optional<MutableOperandRange>
+BranchOp::getMutableSuccessorOperands(unsigned index) {
   assert(index == 0 && "invalid successor index");
-  return getOperands();
+  return destOperandsMutable();
 }
-
-bool BranchOp::canEraseSuccessorOperand() { return true; }
 
 Block *BranchOp::getSuccessorForOperands(ArrayRef<Attribute>) { return dest(); }
 
@@ -775,13 +774,12 @@ static Type getI1SameShape(Type type) {
 // CmpIOp
 //===----------------------------------------------------------------------===//
 
-static void buildCmpIOp(Builder *build, OperationState &result,
+static void buildCmpIOp(OpBuilder &build, OperationState &result,
                         CmpIPredicate predicate, Value lhs, Value rhs) {
   result.addOperands({lhs, rhs});
   result.types.push_back(getI1SameShape(lhs.getType()));
-  result.addAttribute(
-      CmpIOp::getPredicateAttrName(),
-      build->getI64IntegerAttr(static_cast<int64_t>(predicate)));
+  result.addAttribute(CmpIOp::getPredicateAttrName(),
+                      build.getI64IntegerAttr(static_cast<int64_t>(predicate)));
 }
 
 // Compute `lhs` `pred` `rhs`, where `pred` is one of the known integer
@@ -830,13 +828,12 @@ OpFoldResult CmpIOp::fold(ArrayRef<Attribute> operands) {
 // CmpFOp
 //===----------------------------------------------------------------------===//
 
-static void buildCmpFOp(Builder *build, OperationState &result,
+static void buildCmpFOp(OpBuilder &build, OperationState &result,
                         CmpFPredicate predicate, Value lhs, Value rhs) {
   result.addOperands({lhs, rhs});
   result.types.push_back(getI1SameShape(lhs.getType()));
-  result.addAttribute(
-      CmpFOp::getPredicateAttrName(),
-      build->getI64IntegerAttr(static_cast<int64_t>(predicate)));
+  result.addAttribute(CmpFOp::getPredicateAttrName(),
+                      build.getI64IntegerAttr(static_cast<int64_t>(predicate)));
 }
 
 /// Compute `lhs` `pred` `rhs`, where `pred` is one of the known floating point
@@ -1023,12 +1020,12 @@ void CondBranchOp::getCanonicalizationPatterns(
                  SimplifyCondBranchIdenticalSuccessors>(context);
 }
 
-Optional<OperandRange> CondBranchOp::getSuccessorOperands(unsigned index) {
+Optional<MutableOperandRange>
+CondBranchOp::getMutableSuccessorOperands(unsigned index) {
   assert(index < getNumSuccessors() && "invalid successor index");
-  return index == trueIndex ? getTrueOperands() : getFalseOperands();
+  return index == trueIndex ? trueDestOperandsMutable()
+                            : falseDestOperandsMutable();
 }
-
-bool CondBranchOp::canEraseSuccessorOperand() { return true; }
 
 Block *CondBranchOp::getSuccessorForOperands(ArrayRef<Attribute> operands) {
   if (BoolAttr condAttr = operands.front().dyn_cast_or_null<BoolAttr>())
@@ -1180,9 +1177,9 @@ bool ConstantOp::isBuildableWith(Attribute value, Type type) {
          value.isa<UnitAttr>();
 }
 
-void ConstantFloatOp::build(Builder *builder, OperationState &result,
+void ConstantFloatOp::build(OpBuilder &builder, OperationState &result,
                             const APFloat &value, FloatType type) {
-  ConstantOp::build(builder, result, type, builder->getFloatAttr(type, value));
+  ConstantOp::build(builder, result, type, builder.getFloatAttr(type, value));
 }
 
 bool ConstantFloatOp::classof(Operation *op) {
@@ -1195,21 +1192,19 @@ bool ConstantIntOp::classof(Operation *op) {
          op->getResult(0).getType().isSignlessInteger();
 }
 
-void ConstantIntOp::build(Builder *builder, OperationState &result,
+void ConstantIntOp::build(OpBuilder &builder, OperationState &result,
                           int64_t value, unsigned width) {
-  Type type = builder->getIntegerType(width);
-  ConstantOp::build(builder, result, type,
-                    builder->getIntegerAttr(type, value));
+  Type type = builder.getIntegerType(width);
+  ConstantOp::build(builder, result, type, builder.getIntegerAttr(type, value));
 }
 
 /// Build a constant int op producing an integer with the specified type,
 /// which must be an integer type.
-void ConstantIntOp::build(Builder *builder, OperationState &result,
+void ConstantIntOp::build(OpBuilder &builder, OperationState &result,
                           int64_t value, Type type) {
   assert(type.isSignlessInteger() &&
          "ConstantIntOp can only have signless integer type");
-  ConstantOp::build(builder, result, type,
-                    builder->getIntegerAttr(type, value));
+  ConstantOp::build(builder, result, type, builder.getIntegerAttr(type, value));
 }
 
 /// ConstantIndexOp only matches values whose result type is Index.
@@ -1217,11 +1212,10 @@ bool ConstantIndexOp::classof(Operation *op) {
   return ConstantOp::classof(op) && op->getResult(0).getType().isIndex();
 }
 
-void ConstantIndexOp::build(Builder *builder, OperationState &result,
+void ConstantIndexOp::build(OpBuilder &builder, OperationState &result,
                             int64_t value) {
-  Type type = builder->getIndexType();
-  ConstantOp::build(builder, result, type,
-                    builder->getIntegerAttr(type, value));
+  Type type = builder.getIndexType();
+  ConstantOp::build(builder, result, type, builder.getIntegerAttr(type, value));
 }
 
 //===----------------------------------------------------------------------===//
@@ -1363,7 +1357,7 @@ OpFoldResult DimOp::fold(ArrayRef<Attribute> operands) {
 // DmaStartOp
 // ---------------------------------------------------------------------------
 
-void DmaStartOp::build(Builder *builder, OperationState &result,
+void DmaStartOp::build(OpBuilder &builder, OperationState &result,
                        Value srcMemRef, ValueRange srcIndices, Value destMemRef,
                        ValueRange destIndices, Value numElements,
                        Value tagMemRef, ValueRange tagIndices, Value stride,
@@ -1450,49 +1444,82 @@ ParseResult DmaStartOp::parse(OpAsmParser &parser, OperationState &result) {
       parser.resolveOperands(tagIndexInfos, indexType, result.operands))
     return failure();
 
-  auto memrefType0 = types[0].dyn_cast<MemRefType>();
-  if (!memrefType0)
-    return parser.emitError(parser.getNameLoc(),
-                            "expected source to be of memref type");
-
-  auto memrefType1 = types[1].dyn_cast<MemRefType>();
-  if (!memrefType1)
-    return parser.emitError(parser.getNameLoc(),
-                            "expected destination to be of memref type");
-
-  auto memrefType2 = types[2].dyn_cast<MemRefType>();
-  if (!memrefType2)
-    return parser.emitError(parser.getNameLoc(),
-                            "expected tag to be of memref type");
-
   if (isStrided) {
     if (parser.resolveOperands(strideInfo, indexType, result.operands))
       return failure();
   }
 
-  // Check that source/destination index list size matches associated rank.
-  if (static_cast<int64_t>(srcIndexInfos.size()) != memrefType0.getRank() ||
-      static_cast<int64_t>(dstIndexInfos.size()) != memrefType1.getRank())
-    return parser.emitError(parser.getNameLoc(),
-                            "memref rank not equal to indices count");
-  if (static_cast<int64_t>(tagIndexInfos.size()) != memrefType2.getRank())
-    return parser.emitError(parser.getNameLoc(),
-                            "tag memref rank not equal to indices count");
 
   return success();
 }
 
 LogicalResult DmaStartOp::verify() {
+  unsigned numOperands = getNumOperands();
+
+  // Mandatory non-variadic operands are: src memref, dst memref, tag memref and
+  // the number of elements.
+  if (numOperands < 4)
+    return emitOpError("expected at least 4 operands");
+
+  // Check types of operands. The order of these calls is important: the later
+  // calls rely on some type properties to compute the operand position.
+  // 1. Source memref.
+  if (!getSrcMemRef().getType().isa<MemRefType>())
+    return emitOpError("expected source to be of memref type");
+  if (numOperands < getSrcMemRefRank() + 4)
+    return emitOpError() << "expected at least " << getSrcMemRefRank() + 4
+                         << " operands";
+  if (!getSrcIndices().empty() &&
+      !llvm::all_of(getSrcIndices().getTypes(),
+                    [](Type t) { return t.isIndex(); }))
+    return emitOpError("expected source indices to be of index type");
+
+  // 2. Destination memref.
+  if (!getDstMemRef().getType().isa<MemRefType>())
+    return emitOpError("expected destination to be of memref type");
+  unsigned numExpectedOperands = getSrcMemRefRank() + getDstMemRefRank() + 4;
+  if (numOperands < numExpectedOperands)
+    return emitOpError() << "expected at least " << numExpectedOperands
+                         << " operands";
+  if (!getDstIndices().empty() &&
+      !llvm::all_of(getDstIndices().getTypes(),
+                    [](Type t) { return t.isIndex(); }))
+    return emitOpError("expected destination indices to be of index type");
+
+  // 3. Number of elements.
+  if (!getNumElements().getType().isIndex())
+    return emitOpError("expected num elements to be of index type");
+
+  // 4. Tag memref.
+  if (!getTagMemRef().getType().isa<MemRefType>())
+    return emitOpError("expected tag to be of memref type");
+  numExpectedOperands += getTagMemRefRank();
+  if (numOperands < numExpectedOperands)
+    return emitOpError() << "expected at least " << numExpectedOperands
+                         << " operands";
+  if (!getTagIndices().empty() &&
+      !llvm::all_of(getTagIndices().getTypes(),
+                    [](Type t) { return t.isIndex(); }))
+    return emitOpError("expected tag indices to be of index type");
+
   // DMAs from different memory spaces supported.
   if (getSrcMemorySpace() == getDstMemorySpace())
     return emitOpError("DMA should be between different memory spaces");
 
-  if (getNumOperands() != getTagMemRefRank() + getSrcMemRefRank() +
-                              getDstMemRefRank() + 3 + 1 &&
-      getNumOperands() != getTagMemRefRank() + getSrcMemRefRank() +
-                              getDstMemRefRank() + 3 + 1 + 2) {
+  // Optional stride-related operands must be either both present or both
+  // absent.
+  if (numOperands != numExpectedOperands &&
+      numOperands != numExpectedOperands + 2)
     return emitOpError("incorrect number of operands");
+
+  // 5. Strides.
+  if (isStrided()) {
+    if (!getStride().getType().isIndex() ||
+        !getNumElementsPerStride().getType().isIndex())
+      return emitOpError(
+          "expected stride and num elements per stride to be of type index");
   }
+
   return success();
 }
 
@@ -1506,8 +1533,9 @@ LogicalResult DmaStartOp::fold(ArrayRef<Attribute> cstOperands,
 // DmaWaitOp
 // ---------------------------------------------------------------------------
 
-void DmaWaitOp::build(Builder *builder, OperationState &result, Value tagMemRef,
-                      ValueRange tagIndices, Value numElements) {
+void DmaWaitOp::build(OpBuilder &builder, OperationState &result,
+                      Value tagMemRef, ValueRange tagIndices,
+                      Value numElements) {
   result.addOperands(tagMemRef);
   result.addOperands(tagIndices);
   result.addOperands(numElements);
@@ -1541,15 +1569,6 @@ ParseResult DmaWaitOp::parse(OpAsmParser &parser, OperationState &result) {
       parser.resolveOperand(numElementsInfo, indexType, result.operands))
     return failure();
 
-  auto memrefType = type.dyn_cast<MemRefType>();
-  if (!memrefType)
-    return parser.emitError(parser.getNameLoc(),
-                            "expected tag to be of memref type");
-
-  if (static_cast<int64_t>(tagIndexInfos.size()) != memrefType.getRank())
-    return parser.emitError(parser.getNameLoc(),
-                            "tag memref rank not equal to indices count");
-
   return success();
 }
 
@@ -1557,6 +1576,32 @@ LogicalResult DmaWaitOp::fold(ArrayRef<Attribute> cstOperands,
                               SmallVectorImpl<OpFoldResult> &results) {
   /// dma_wait(memrefcast) -> dma_wait
   return foldMemRefCast(*this);
+}
+
+LogicalResult DmaWaitOp::verify() {
+  // Mandatory non-variadic operands are tag and the number of elements.
+  if (getNumOperands() < 2)
+    return emitOpError() << "expected at least 2 operands";
+
+  // Check types of operands. The order of these calls is important: the later
+  // calls rely on some type properties to compute the operand position.
+  if (!getTagMemRef().getType().isa<MemRefType>())
+    return emitOpError() << "expected tag to be of memref type";
+
+  if (getNumOperands() != 2 + getTagMemRefRank())
+    return emitOpError() << "expected " << 2 + getTagMemRefRank()
+                         << " operands";
+
+  if (!getTagIndices().empty() &&
+      !llvm::all_of(getTagIndices().getTypes(),
+                    [](Type t) { return t.isIndex(); }))
+    return emitOpError() << "expected tag indices to be of index type";
+
+  if (!getNumElements().getType().isIndex())
+    return emitOpError()
+           << "expected the number of elements to be of index type";
+
+  return success();
 }
 
 //===----------------------------------------------------------------------===//
@@ -2009,6 +2054,16 @@ OpFoldResult SignedDivIOp::fold(ArrayRef<Attribute> operands) {
     }
     return a.sdiv_ov(b, overflowOrDiv0);
   });
+
+  // Fold out division by one. Assumes all tensors of all ones are splats.
+  if (auto rhs = operands[1].dyn_cast_or_null<IntegerAttr>()) {
+    if (rhs.getValue() == 1)
+      return lhs();
+  } else if (auto rhs = operands[1].dyn_cast_or_null<SplatElementsAttr>()) {
+    if (rhs.getSplatValue<IntegerAttr>().getValue() == 1)
+      return lhs();
+  }
+
   return overflowOrDiv0 ? Attribute() : result;
 }
 
@@ -2147,7 +2202,7 @@ static Type inferSubViewResultType(MemRefType memRefType) {
       .setAffineMaps(stridedLayout);
 }
 
-void mlir::SubViewOp::build(Builder *b, OperationState &result, Value source,
+void mlir::SubViewOp::build(OpBuilder &b, OperationState &result, Value source,
                             ValueRange offsets, ValueRange sizes,
                             ValueRange strides, Type resultType,
                             ArrayRef<NamedAttribute> attrs) {
@@ -2157,8 +2212,8 @@ void mlir::SubViewOp::build(Builder *b, OperationState &result, Value source,
   result.addAttributes(attrs);
 }
 
-void mlir::SubViewOp::build(Builder *b, OperationState &result, Type resultType,
-                            Value source) {
+void mlir::SubViewOp::build(OpBuilder &b, OperationState &result,
+                            Type resultType, Value source) {
   build(b, result, source, /*offsets=*/{}, /*sizes=*/{}, /*strides=*/{},
         resultType);
 }
@@ -2537,6 +2592,16 @@ OpFoldResult UnsignedDivIOp::fold(ArrayRef<Attribute> operands) {
     }
     return a.udiv(b);
   });
+
+  // Fold out division by one. Assumes all tensors of all ones are splats.
+  if (auto rhs = operands[1].dyn_cast_or_null<IntegerAttr>()) {
+    if (rhs.getValue() == 1)
+      return lhs();
+  } else if (auto rhs = operands[1].dyn_cast_or_null<SplatElementsAttr>()) {
+    if (rhs.getSplatValue<IntegerAttr>().getValue() == 1)
+      return lhs();
+  }
+
   return div0 ? Attribute() : result;
 }
 

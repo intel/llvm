@@ -117,6 +117,19 @@ static std::string describeSanitizeArg(const llvm::opt::Arg *A,
 /// Sanitizers set.
 static std::string toString(const clang::SanitizerSet &Sanitizers);
 
+static void validateSpecialCaseListFormat(const Driver &D,
+                                          std::vector<std::string> &SCLFiles,
+                                          unsigned MalformedSCLErrorDiagID) {
+  if (SCLFiles.empty())
+    return;
+
+  std::string BLError;
+  std::unique_ptr<llvm::SpecialCaseList> SCL(
+      llvm::SpecialCaseList::create(SCLFiles, D.getVFS(), BLError));
+  if (!SCL.get())
+    D.Diag(MalformedSCLErrorDiagID) << BLError;
+}
+
 static void addDefaultBlacklists(const Driver &D, SanitizerMask Kinds,
                                  std::vector<std::string> &BlacklistFiles) {
   struct Blacklist {
@@ -147,6 +160,8 @@ static void addDefaultBlacklists(const Driver &D, SanitizerMask Kinds,
       // should fail.
       D.Diag(clang::diag::err_drv_no_such_file) << Path;
   }
+  validateSpecialCaseListFormat(
+      D, BlacklistFiles, clang::diag::err_drv_malformed_sanitizer_blacklist);
 }
 
 /// Parse -f(no-)?sanitize-(coverage-)?(white|black)list argument's values,
@@ -173,14 +188,7 @@ static void parseSpecialCaseListArg(const Driver &D,
       SCLFiles.clear();
     }
   }
-  // Validate special case list format.
-  {
-    std::string BLError;
-    std::unique_ptr<llvm::SpecialCaseList> SCL(
-        llvm::SpecialCaseList::create(SCLFiles, D.getVFS(), BLError));
-    if (!SCL.get())
-      D.Diag(MalformedSCLErrorDiagID) << BLError;
-  }
+  validateSpecialCaseListFormat(D, SCLFiles, MalformedSCLErrorDiagID);
 }
 
 /// Sets group bits for every group that has at least one representative already
@@ -566,16 +574,13 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
   RecoverableKinds &= ~TrappingKinds;
 
   // Setup blacklist files.
-  // Add default blacklist from resource directory.
-  addDefaultBlacklists(D, Kinds, SystemBlacklistFiles);
+  // Add default blacklist from resource directory for activated sanitizers, and
+  // validate special case lists format.
+  if (!Args.hasArgNoClaim(options::OPT_fno_sanitize_blacklist))
+    addDefaultBlacklists(D, Kinds, SystemBlacklistFiles);
 
   // Parse -f(no-)?sanitize-blacklist options.
   // This also validates special case lists format.
-  // Here, OptSpecifier() acts as a never-matching command-line argument.
-  // So, there is no way to append to system blacklist but it can be cleared.
-  parseSpecialCaseListArg(D, Args, SystemBlacklistFiles, OptSpecifier(),
-                          options::OPT_fno_sanitize_blacklist,
-                          clang::diag::err_drv_malformed_sanitizer_blacklist);
   parseSpecialCaseListArg(D, Args, UserBlacklistFiles,
                           options::OPT_fsanitize_blacklist,
                           options::OPT_fno_sanitize_blacklist,
@@ -955,22 +960,24 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
   if (TC.getTriple().isOSWindows() && needsUbsanRt()) {
     // Instruct the code generator to embed linker directives in the object file
     // that cause the required runtime libraries to be linked.
-    CmdArgs.push_back(Args.MakeArgString(
-        "--dependent-lib=" + TC.getCompilerRT(Args, "ubsan_standalone")));
+    CmdArgs.push_back(
+        Args.MakeArgString("--dependent-lib=" +
+                           TC.getCompilerRTBasename(Args, "ubsan_standalone")));
     if (types::isCXX(InputType))
       CmdArgs.push_back(Args.MakeArgString(
-          "--dependent-lib=" + TC.getCompilerRT(Args, "ubsan_standalone_cxx")));
+          "--dependent-lib=" +
+          TC.getCompilerRTBasename(Args, "ubsan_standalone_cxx")));
   }
   if (TC.getTriple().isOSWindows() && needsStatsRt()) {
-    CmdArgs.push_back(Args.MakeArgString("--dependent-lib=" +
-                                         TC.getCompilerRT(Args, "stats_client")));
+    CmdArgs.push_back(Args.MakeArgString(
+        "--dependent-lib=" + TC.getCompilerRTBasename(Args, "stats_client")));
 
     // The main executable must export the stats runtime.
     // FIXME: Only exporting from the main executable (e.g. based on whether the
     // translation unit defines main()) would save a little space, but having
     // multiple copies of the runtime shouldn't hurt.
-    CmdArgs.push_back(Args.MakeArgString("--dependent-lib=" +
-                                         TC.getCompilerRT(Args, "stats")));
+    CmdArgs.push_back(Args.MakeArgString(
+        "--dependent-lib=" + TC.getCompilerRTBasename(Args, "stats")));
     addIncludeLinkerOption(TC, Args, CmdArgs, "__sanitizer_stats_register");
   }
 

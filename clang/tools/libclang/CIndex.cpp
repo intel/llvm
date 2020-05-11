@@ -1295,6 +1295,14 @@ bool CursorVisitor::VisitFriendDecl(FriendDecl *D) {
   return false;
 }
 
+bool CursorVisitor::VisitDecompositionDecl(DecompositionDecl *D) {
+  for (auto *B : D->bindings()) {
+    if (Visit(MakeCXCursor(B, TU, RegionOfInterest)))
+      return true;
+  }
+  return VisitVarDecl(D);
+}
+
 bool CursorVisitor::VisitDeclarationNameInfo(DeclarationNameInfo Name) {
   switch (Name.getName().getNameKind()) {
   case clang::DeclarationName::Identifier:
@@ -2490,6 +2498,14 @@ void OMPClauseEnqueue::VisitOMPNontemporalClause(
     Visitor->AddStmt(E);
 }
 void OMPClauseEnqueue::VisitOMPOrderClause(const OMPOrderClause *C) {}
+void OMPClauseEnqueue::VisitOMPUsesAllocatorsClause(
+    const OMPUsesAllocatorsClause *C) {
+  for (unsigned I = 0, E = C->getNumberOfAllocators(); I < E; ++I) {
+    const OMPUsesAllocatorsClause::Data &D = C->getAllocatorData(I);
+    Visitor->AddStmt(D.Allocator);
+    Visitor->AddStmt(D.AllocatorTraits);
+  }
+}
 } // namespace
 
 void EnqueueVisitor::EnqueueChildren(const OMPClause *S) {
@@ -2664,6 +2680,7 @@ void EnqueueVisitor::VisitIfStmt(const IfStmt *If) {
   AddStmt(If->getElse());
   AddStmt(If->getThen());
   AddStmt(If->getCond());
+  AddStmt(If->getInit());
   AddDecl(If->getConditionVariable());
 }
 void EnqueueVisitor::VisitInitListExpr(const InitListExpr *IE) {

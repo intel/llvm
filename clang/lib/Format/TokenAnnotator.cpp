@@ -395,7 +395,7 @@ private:
 
     if (!AttrTok)
       return false;
-    
+
     // Allow an attribute to be the only content of a file.
     AttrTok = AttrTok->Next;
     if (!AttrTok)
@@ -1852,6 +1852,10 @@ private:
     if (Style.Language == FormatStyle::LK_JavaScript)
       return TT_BinaryOperator;
 
+    // && in C# must be a binary operator.
+    if (Style.isCSharp() && Tok.is(tok::ampamp))
+      return TT_BinaryOperator;
+
     const FormatToken *PrevToken = Tok.getPreviousNonComment();
     if (!PrevToken)
       return TT_UnaryOperator;
@@ -2279,6 +2283,10 @@ static bool isFunctionDeclarationName(const FormatToken &Current,
           Next->Next && Next->Next->isOneOf(tok::star, tok::amp, tok::ampamp)) {
         // For operator void*(), operator char*(), operator Foo*().
         Next = Next->Next;
+        continue;
+      }
+      if (Next->is(TT_TemplateOpener) && Next->MatchingParen) {
+        Next = Next->MatchingParen;
         continue;
       }
 
@@ -2810,6 +2818,8 @@ bool TokenAnnotator::spaceRequiredBetween(const AnnotatedLine &Line,
                                     tok::l_square));
   if (Right.is(tok::star) && Left.is(tok::l_paren))
     return false;
+  if (Right.is(tok::star) && Left.is(tok::star))
+    return false;
   if (Right.isOneOf(tok::star, tok::amp, tok::ampamp)) {
     const FormatToken *Previous = &Left;
     while (Previous && !Previous->is(tok::kw_operator)) {
@@ -2837,9 +2847,10 @@ bool TokenAnnotator::spaceRequiredBetween(const AnnotatedLine &Line,
     //   operator std::Foo*()
     //   operator C<T>::D<U>*()
     // dependent on PointerAlignment style.
-    if (Previous && (Previous->endsSequence(tok::kw_operator) ||
-       Previous->endsSequence(tok::kw_const, tok::kw_operator) ||
-       Previous->endsSequence(tok::kw_volatile, tok::kw_operator)))
+    if (Previous &&
+        (Previous->endsSequence(tok::kw_operator) ||
+         Previous->endsSequence(tok::kw_const, tok::kw_operator) ||
+         Previous->endsSequence(tok::kw_volatile, tok::kw_operator)))
       return (Style.PointerAlignment != FormatStyle::PAS_Left);
   }
   const auto SpaceRequiredForArrayInitializerLSquare =
@@ -3052,6 +3063,10 @@ bool TokenAnnotator::spaceRequiredBefore(const AnnotatedLine &Line,
     if (Left.is(TT_CSharpNullConditionalLSquare))
       return Style.SpacesInSquareBrackets;
 
+    // space after var in `var (key, value)`
+    if (Left.is(Keywords.kw_var) && Right.is(tok::l_paren))
+      return true;
+
     // space between keywords and paren e.g. "using ("
     if (Right.is(tok::l_paren))
       if (Left.isOneOf(tok::kw_using, Keywords.kw_async, Keywords.kw_when))
@@ -3259,12 +3274,13 @@ bool TokenAnnotator::spaceRequiredBefore(const AnnotatedLine &Line,
     return Right.WhitespaceRange.getBegin() != Right.WhitespaceRange.getEnd();
   if (Right.is(tok::coloncolon) &&
       !Left.isOneOf(tok::l_brace, tok::comment, tok::l_paren))
+    // Put a space between < and :: in vector< ::std::string >
     return (Left.is(TT_TemplateOpener) &&
-            Style.Standard < FormatStyle::LS_Cpp11) ||
+            (Style.Standard < FormatStyle::LS_Cpp11 || Style.SpacesInAngles)) ||
            !(Left.isOneOf(tok::l_paren, tok::r_paren, tok::l_square,
-                          tok::kw___super, TT_TemplateCloser,
-                          TT_TemplateOpener)) ||
-           (Left.is(tok ::l_paren) && Style.SpacesInParentheses);
+                          tok::kw___super, TT_TemplateOpener,
+                          TT_TemplateCloser)) ||
+           (Left.is(tok::l_paren) && Style.SpacesInParentheses);
   if ((Left.is(TT_TemplateOpener)) != (Right.is(TT_TemplateCloser)))
     return Style.SpacesInAngles;
   // Space before TT_StructuredBindingLSquare.
@@ -3325,22 +3341,20 @@ static bool isOneChildWithoutMustBreakBefore(const FormatToken &Tok) {
   if (Tok.Children.size() != 1)
     return false;
   FormatToken *curElt = Tok.Children[0]->First;
-    while (curElt) {
-      if (curElt->MustBreakBefore)
-        return false;
-      curElt = curElt->Next;
-    }
+  while (curElt) {
+    if (curElt->MustBreakBefore)
+      return false;
+    curElt = curElt->Next;
+  }
   return true;
 }
-static bool
-isAllmanLambdaBrace(const FormatToken &Tok) {
+static bool isAllmanLambdaBrace(const FormatToken &Tok) {
   return (Tok.is(tok::l_brace) && Tok.BlockKind == BK_Block &&
-      !Tok.isOneOf(TT_ObjCBlockLBrace, TT_DictLiteral));
+          !Tok.isOneOf(TT_ObjCBlockLBrace, TT_DictLiteral));
 }
 
-static bool
-isAllmanBraceIncludedBreakableLambda(const FormatToken &Tok,
-                            FormatStyle::ShortLambdaStyle ShortLambdaOption) {
+static bool isAllmanBraceIncludedBreakableLambda(
+    const FormatToken &Tok, FormatStyle::ShortLambdaStyle ShortLambdaOption) {
   if (!isAllmanLambdaBrace(Tok))
     return false;
 
@@ -3497,7 +3511,7 @@ bool TokenAnnotator::mustBreakBefore(const AnnotatedLine &Line,
   if (Style.BraceWrapping.BeforeLambdaBody &&
       (isAllmanBraceIncludedBreakableLambda(Left, ShortLambdaOption) ||
        isAllmanBraceIncludedBreakableLambda(Right, ShortLambdaOption))) {
-      return true;
+    return true;
   }
 
   if (isAllmanBrace(Left) || isAllmanBrace(Right))
@@ -3929,7 +3943,7 @@ bool TokenAnnotator::canBreakBefore(const AnnotatedLine &Line,
          Right.isMemberAccess() ||
          Right.isOneOf(TT_TrailingReturnArrow, TT_LambdaArrow, tok::lessless,
                        tok::colon, tok::l_square, tok::at) ||
-         (Style.BraceWrapping.BeforeLambdaBody && Right.is(tok::l_brace)) ||
+         (Style.BraceWrapping.BeforeLambdaBody && Right.is(TT_LambdaLBrace)) ||
          (Left.is(tok::r_paren) &&
           Right.isOneOf(tok::identifier, tok::kw_const)) ||
          (Left.is(tok::l_paren) && !Right.is(tok::r_paren)) ||

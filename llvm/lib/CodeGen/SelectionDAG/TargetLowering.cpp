@@ -2416,6 +2416,8 @@ bool TargetLowering::SimplifyDemandedVectorElts(
       break;
     unsigned SubIdx = Idx.getZExtValue();
     APInt SubElts = DemandedElts.extractBits(NumSubElts, SubIdx);
+    if (!SubElts)
+      return TLO.CombineTo(Op, Base);
     APInt SubUndef, SubZero;
     if (SimplifyDemandedVectorElts(Sub, SubElts, SubUndef, SubZero, TLO,
                                    Depth + 1))
@@ -2436,6 +2438,22 @@ bool TargetLowering::SimplifyDemandedVectorElts(
       return true;
     KnownUndef.insertBits(SubUndef, SubIdx);
     KnownZero.insertBits(SubZero, SubIdx);
+
+    // Attempt to avoid multi-use ops if we don't need anything from them.
+    if (!BaseElts.isAllOnesValue() || !SubElts.isAllOnesValue()) {
+      APInt DemandedBits = APInt::getAllOnesValue(VT.getScalarSizeInBits());
+      SDValue NewBase = SimplifyMultipleUseDemandedBits(
+          Base, DemandedBits, BaseElts, TLO.DAG, Depth + 1);
+      SDValue NewSub = SimplifyMultipleUseDemandedBits(
+          Sub, DemandedBits, SubElts, TLO.DAG, Depth + 1);
+      if (NewBase || NewSub) {
+        NewBase = NewBase ? NewBase : Base;
+        NewSub = NewSub ? NewSub : Sub;
+        SDValue NewOp = TLO.DAG.getNode(Op.getOpcode(), SDLoc(Op), VT, NewBase,
+                                        NewSub, Op.getOperand(2));
+        return TLO.CombineTo(Op, NewOp);
+      }
+    }
     break;
   }
   case ISD::EXTRACT_SUBVECTOR: {
@@ -2452,6 +2470,18 @@ bool TargetLowering::SimplifyDemandedVectorElts(
         return true;
       KnownUndef = SrcUndef.extractBits(NumElts, Idx);
       KnownZero = SrcZero.extractBits(NumElts, Idx);
+
+      // Attempt to avoid multi-use ops if we don't need anything from them.
+      if (!DemandedElts.isAllOnesValue()) {
+        APInt DemandedBits = APInt::getAllOnesValue(VT.getScalarSizeInBits());
+        SDValue NewSrc = SimplifyMultipleUseDemandedBits(
+            Src, DemandedBits, SrcElts, TLO.DAG, Depth + 1);
+        if (NewSrc) {
+          SDValue NewOp = TLO.DAG.getNode(Op.getOpcode(), SDLoc(Op), VT, NewSrc,
+                                          Op.getOperand(1));
+          return TLO.CombineTo(Op, NewOp);
+        }
+      }
     }
     break;
   }
@@ -4321,7 +4351,7 @@ TargetLowering::ParseConstraints(const DataLayout &DL,
                                  const CallBase &Call) const {
   /// Information about all of the constraints.
   AsmOperandInfoVector ConstraintOperands;
-  const InlineAsm *IA = cast<InlineAsm>(Call.getCalledValue());
+  const InlineAsm *IA = cast<InlineAsm>(Call.getCalledOperand());
   unsigned maCount = 0; // Largest number of multiple alternative constraints.
 
   // Do a prepass over the constraints, canonicalizing them, and building up the
@@ -6590,27 +6620,40 @@ TargetLowering::scalarizeVectorLoad(LoadSDNode *LD,
   // elements that are byte-sized must therefore be stored as an integer
   // built out of the extracted vector elements.
   if (!SrcEltVT.isByteSized()) {
-    unsigned NumBits = SrcVT.getSizeInBits();
-    EVT IntVT = EVT::getIntegerVT(*DAG.getContext(), NumBits);
+    unsigned NumLoadBits = SrcVT.getStoreSizeInBits();
+    EVT LoadVT = EVT::getIntegerVT(*DAG.getContext(), NumLoadBits);
 
-    SDValue Load = DAG.getLoad(IntVT, SL, Chain, BasePTR, LD->getPointerInfo(),
-                               LD->getAlignment(),
-                               LD->getMemOperand()->getFlags(),
-                               LD->getAAInfo());
+    unsigned NumSrcBits = SrcVT.getSizeInBits();
+    EVT SrcIntVT = EVT::getIntegerVT(*DAG.getContext(), NumSrcBits);
+
+    unsigned SrcEltBits = SrcEltVT.getSizeInBits();
+    SDValue SrcEltBitMask = DAG.getConstant(
+        APInt::getLowBitsSet(NumLoadBits, SrcEltBits), SL, LoadVT);
+
+    // Load the whole vector and avoid masking off the top bits as it makes
+    // the codegen worse.
+    SDValue Load =
+        DAG.getExtLoad(ISD::EXTLOAD, SL, LoadVT, Chain, BasePTR,
+                       LD->getPointerInfo(), SrcIntVT, LD->getAlignment(),
+                       LD->getMemOperand()->getFlags(), LD->getAAInfo());
 
     SmallVector<SDValue, 8> Vals;
     for (unsigned Idx = 0; Idx < NumElem; ++Idx) {
       unsigned ShiftIntoIdx =
           (DAG.getDataLayout().isBigEndian() ? (NumElem - 1) - Idx : Idx);
       SDValue ShiftAmount =
-          DAG.getConstant(ShiftIntoIdx * SrcEltVT.getSizeInBits(), SL, IntVT);
-      SDValue ShiftedElt =
-          DAG.getNode(ISD::SRL, SL, IntVT, Load, ShiftAmount);
-      SDValue Scalar = DAG.getNode(ISD::TRUNCATE, SL, SrcEltVT, ShiftedElt);
+          DAG.getConstant(ShiftIntoIdx * SrcEltVT.getSizeInBits(), SL,
+                          getShiftAmountTy(LoadVT, DAG.getDataLayout()));
+      SDValue ShiftedElt = DAG.getNode(ISD::SRL, SL, LoadVT, Load, ShiftAmount);
+      SDValue Elt =
+          DAG.getNode(ISD::AND, SL, LoadVT, ShiftedElt, SrcEltBitMask);
+      SDValue Scalar = DAG.getNode(ISD::TRUNCATE, SL, SrcEltVT, Elt);
+
       if (ExtType != ISD::NON_EXTLOAD) {
         unsigned ExtendOp = ISD::getExtForLoadExtType(false, ExtType);
         Scalar = DAG.getNode(ExtendOp, SL, DstEltVT, Scalar);
       }
+
       Vals.push_back(Scalar);
     }
 

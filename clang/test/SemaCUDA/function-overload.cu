@@ -1,8 +1,8 @@
 // REQUIRES: x86-registered-target
 // REQUIRES: nvptx-registered-target
 
-// RUN: %clang_cc1 -triple x86_64-unknown-linux-gnu -fsyntax-only -verify %s
-// RUN: %clang_cc1 -triple nvptx64-nvidia-cuda -fsyntax-only -fcuda-is-device -verify %s
+// RUN: %clang_cc1 -std=c++11 -triple x86_64-unknown-linux-gnu -fsyntax-only -verify %s
+// RUN: %clang_cc1 -std=c++11 -triple nvptx64-nvidia-cuda -fsyntax-only -fcuda-is-device -verify %s
 
 #include "Inputs/cuda.h"
 
@@ -448,4 +448,18 @@ __host__ __device__ int constexpr_overload(const T &x, const T &y) {
 // Verify that function overloading doesn't prune candidate wrongly.
 int test_constexpr_overload(C2 &x, C2 &y) {
   return constexpr_overload(x, y);
+}
+
+// Verify no ambiguity for new operator.
+void *a = new int;
+__device__ void *b = new int;
+// expected-error@-1{{dynamic initialization is not supported for __device__, __constant__, and __shared__ variables.}}
+
+// Verify no ambiguity for new operator.
+template<typename _Tp> _Tp&& f();
+template<typename _Tp, typename = decltype(new _Tp(f<_Tp>()))>
+void __test();
+
+void foo() {
+  __test<int>();
 }

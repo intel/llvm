@@ -543,6 +543,79 @@ private:
     return true;
   }
 
+#ifndef __SYCL_DEVICE_ONLY__
+  /// Copies the content of memory object accessed by Src into the memory
+  /// pointed by Dst.
+  ///
+  /// \param Src is a source SYCL accessor.
+  /// \param Dst is a pointer to destination memory.
+  template <typename TSrc, typename TDst, int Dim, access::mode AccMode,
+            access::target AccTarget, access::placeholder IsPH>
+  detail::enable_if_t<(Dim > 0)>
+  copyAccToPtrHost(accessor<TSrc, Dim, AccMode, AccTarget, IsPH> Src,
+                   TDst *Dst) {
+    range<Dim> Range = Src.get_range();
+    parallel_for<class __copyAcc2Ptr<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>
+        (Range, [=](id<Dim> Index) {
+      size_t LinearIndex = Index[0];
+      for (int I = 1; I < Dim; ++I)
+        LinearIndex += Range[I] * Index[I];
+      (reinterpret_cast<TSrc *>(Dst))[LinearIndex] = Src[Index];
+    });
+  }
+
+  /// Copies 1 element accessed by 0-dimensional accessor Src into the memory
+  /// pointed by Dst.
+  ///
+  /// \param Src is a source SYCL accessor.
+  /// \param Dst is a pointer to destination memory.
+  template <typename TSrc, typename TDst, int Dim, access::mode AccMode,
+            access::target AccTarget, access::placeholder IsPH>
+  detail::enable_if_t<Dim == 0>
+  copyAccToPtrHost(accessor<TSrc, Dim, AccMode, AccTarget, IsPH> Src,
+                   TDst *Dst) {
+    single_task<class __copyAcc2Ptr<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>
+        ([=]() {
+      *Dst = readFromFirstAccElement(Src);
+    });
+  }
+
+  /// Copies the memory pointed by Src into the memory accessed by Dst.
+  ///
+  /// \param Src is a pointer to source memory.
+  /// \param Dst is a destination SYCL accessor.
+  template <typename TSrc, typename TDst, int Dim, access::mode AccMode,
+            access::target AccTarget, access::placeholder IsPH>
+  detail::enable_if_t<(Dim > 0)>
+  copyPtrToAccHost(TDst *Src,
+                   accessor<TSrc, Dim, AccMode, AccTarget, IsPH> Dst) {
+    range<Dim> Range = Dst.get_range();
+    parallel_for<class __copyPtr2Acc<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>
+        (Range, [=](id<Dim> Index) {
+      size_t LinearIndex = Index[0];
+      for (int I = 1; I < Dim; ++I)
+        LinearIndex += Range[I] * Index[I];
+      Dst[Index] = (reinterpret_cast<TDst *>(Src))[LinearIndex];
+    });
+  }
+
+  /// Copies 1 element pointed by Src to memory accessed by 0-dimensional
+  /// accessor Dst.
+  ///
+  /// \param Src is a pointer to source memory.
+  /// \param Dst is a destination SYCL accessor.
+  template <typename TSrc, typename TDst, int Dim, access::mode AccMode,
+            access::target AccTarget, access::placeholder IsPH>
+  detail::enable_if_t<Dim == 0>
+  copyPtrToAccHost(TDst *Src,
+                   accessor<TSrc, Dim, AccMode, AccTarget, IsPH> Dst) {
+    single_task<class __copyPtr2Acc<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>
+        ([=]() {
+      writeToFirstAccElement(Dst, *Src);
+    });
+  }
+#endif // __SYCL_DEVICE_ONLY__
+
   constexpr static bool isConstOrGlobal(access::target AccessTarget) {
     return AccessTarget == access::target::global_buffer ||
            AccessTarget == access::target::constant_buffer;
@@ -1241,7 +1314,7 @@ public:
 
   // Explicit copy operations API
 
-  /// Copies the contents of memory object accessed by Src into the memory
+  /// Copies the content of memory object accessed by Src into the memory
   /// pointed by Dst.
   ///
   /// Source must have at least as many bytes as the range accessed by Dst.
@@ -1263,7 +1336,7 @@ public:
     copy(Src, RawDstPtr);
   }
 
-  /// Copies the contents of memory pointed by Src into the memory object
+  /// Copies the content of memory pointed by Src into the memory object
   /// accessed by Dst.
   ///
   /// Source must have at least as many bytes as the range accessed by Dst.
@@ -1286,14 +1359,13 @@ public:
     copy(RawSrcPtr, Dst);
   }
 
-  /// Copies the contents of memory object accessed by Src into the memory
+  /// Copies the content of memory object accessed by Src into the memory
   /// pointed by Dst.
   ///
   /// Source must have at least as many bytes as the range accessed by Dst.
   ///
   /// \param Src is a source SYCL accessor.
   /// \param Dst is a pointer to destination memory.
-  // TODO: support 0-dimensional and atomic accessors.
   template <typename T_Src, typename T_Dst, int Dims, access::mode AccessMode,
             access::target AccessTarget,
             access::placeholder IsPlaceholder = access::placeholder::false_t>
@@ -1305,17 +1377,8 @@ public:
 #ifndef __SYCL_DEVICE_ONLY__
     if (MIsHost) {
       // TODO: Temporary implementation for host. Should be handled by memory
-      // manger.
-      range<Dims> Range = Src.get_range();
-      parallel_for< class __copyAcc2Ptr< T_Src, T_Dst, Dims, AccessMode,
-                                         AccessTarget, IsPlaceholder>>
-                                         (Range, [=](id<Dims> Index) {
-        size_t LinearIndex = Index[0];
-        for (int I = 1; I < Dims; ++I)
-          LinearIndex += Range[I] * Index[I];
-        ((T_Src *)Dst)[LinearIndex] = Src[Index];
-      });
-
+      // manager.
+      copyAccToPtrHost(Src, Dst);
       return;
     }
 #endif
@@ -1332,14 +1395,13 @@ public:
     MAccStorage.push_back(std::move(AccImpl));
   }
 
-  /// Copies the contents of memory pointed by Src into the memory object
+  /// Copies the content of memory pointed by Src into the memory object
   /// accessed by Dst.
   ///
   /// Source must have at least as many bytes as the range accessed by Dst.
   ///
   /// \param Src is a pointer to source memory.
   /// \param Dst is a destination SYCL accessor.
-  // TODO: support 0-dimensional and atomic accessors.
   template <typename T_Src, typename T_Dst, int Dims, access::mode AccessMode,
             access::target AccessTarget,
             access::placeholder IsPlaceholder = access::placeholder::false_t>
@@ -1352,17 +1414,8 @@ public:
 #ifndef __SYCL_DEVICE_ONLY__
     if (MIsHost) {
       // TODO: Temporary implementation for host. Should be handled by memory
-      // manger.
-      range<Dims> Range = Dst.get_range();
-      parallel_for< class __copyPtr2Acc< T_Src, T_Dst, Dims, AccessMode,
-                                         AccessTarget, IsPlaceholder>>
-                                         (Range, [=](id<Dims> Index) {
-        size_t LinearIndex = Index[0];
-        for (int I = 1; I < Dims; ++I)
-          LinearIndex += Range[I] * Index[I];
-
-        Dst[Index] = ((T_Dst *)Src)[LinearIndex];
-      });
+      // manager.
+      copyPtrToAccHost(Src, Dst);
       return;
     }
 #endif
@@ -1379,7 +1432,7 @@ public:
     MAccStorage.push_back(std::move(AccImpl));
   }
 
-  /// Copies the contents of memory object accessed by Src to the memory
+  /// Copies the content of memory object accessed by Src to the memory
   /// object accessed by Dst.
   ///
   /// Dst must have at least as many bytes as the range accessed by Src.

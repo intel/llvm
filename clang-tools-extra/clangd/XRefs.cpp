@@ -10,7 +10,6 @@
 #include "CodeCompletionStrings.h"
 #include "FindSymbols.h"
 #include "FindTarget.h"
-#include "Logger.h"
 #include "ParsedAST.h"
 #include "Protocol.h"
 #include "Quality.h"
@@ -21,6 +20,7 @@
 #include "index/Merge.h"
 #include "index/Relation.h"
 #include "index/SymbolLocation.h"
+#include "support/Logger.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/ASTTypeTraits.h"
 #include "clang/AST/Attr.h"
@@ -187,7 +187,7 @@ llvm::Optional<LocatedSymbol> locateFileReferent(const Position &Pos,
                                                  ParsedAST &AST,
                                                  llvm::StringRef MainFilePath) {
   for (auto &Inc : AST.getIncludeStructure().MainFileIncludes) {
-    if (!Inc.Resolved.empty() && Inc.R.start.line == Pos.line) {
+    if (!Inc.Resolved.empty() && Inc.HashLine == Pos.line) {
       LocatedSymbol File;
       File.Name = std::string(llvm::sys::path::filename(Inc.Resolved));
       File.PreferredDeclaration = {
@@ -599,10 +599,23 @@ std::vector<DocumentLink> getDocumentLinks(ParsedAST &AST) {
 
   std::vector<DocumentLink> Result;
   for (auto &Inc : AST.getIncludeStructure().MainFileIncludes) {
-    if (!Inc.Resolved.empty()) {
-      Result.push_back(DocumentLink(
-          {Inc.R, URIForFile::canonicalize(Inc.Resolved, *MainFilePath)}));
-    }
+    if (Inc.Resolved.empty())
+      continue;
+    auto HashLoc = SM.getComposedLoc(SM.getMainFileID(), Inc.HashOffset);
+    const auto *HashTok = AST.getTokens().spelledTokenAt(HashLoc);
+    assert(HashTok && "got inclusion at wrong offset");
+    const auto *IncludeTok = std::next(HashTok);
+    const auto *FileTok = std::next(IncludeTok);
+    // FileTok->range is not sufficient here, as raw lexing wouldn't yield
+    // correct tokens for angled filenames. Hence we explicitly use
+    // Inc.Written's length.
+    auto FileRange =
+        syntax::FileRange(SM, FileTok->location(), Inc.Written.length())
+            .toCharRange(SM);
+
+    Result.push_back(
+        DocumentLink({halfOpenToRange(SM, FileRange),
+                      URIForFile::canonicalize(Inc.Resolved, *MainFilePath)}));
   }
 
   return Result;
