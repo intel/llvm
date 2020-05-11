@@ -3473,14 +3473,15 @@ class OffloadingActionBuilder final {
     Action *finalizeNVPTXDependences(Action *Input, const llvm::Triple &TT) {
       auto *BA = C.getDriver().ConstructPhaseAction(
           C, Args, phases::Backend, Input, AssociatedOffloadKind);
-      if (TT.getOS() != llvm::Triple::NVCL) {
-        auto *AA = C.getDriver().ConstructPhaseAction(
-            C, Args, phases::Assemble, BA, AssociatedOffloadKind);
-        ActionList DeviceActions = {BA, AA};
-        return C.MakeAction<LinkJobAction>(DeviceActions,
-                                           types::TY_CUDA_FATBIN);
-      }
-      return BA;
+      if (TT.getOS() == llvm::Triple::NVCL)
+        return BA;
+        
+      auto *AA = C.getDriver().ConstructPhaseAction(
+          C, Args, phases::Assemble, BA, AssociatedOffloadKind);
+      ActionList DeviceActions = {BA, AA};
+      return C.MakeAction<LinkJobAction>(DeviceActions,
+                                          types::TY_CUDA_FATBIN);
+      
     }
 
   public:
@@ -3863,34 +3864,38 @@ class OffloadingActionBuilder final {
         // post link is not optional - even if not splitting, always need to
         // process specialization constants
         bool MultiFileActionDeps = !isSpirvAOT || DeviceCodeSplit;
-        types::ID PostLinkOutType = isNVPTX || !MultiFileActionDeps
+        types::ID PostLinkOutType = !MultiFileActionDeps
                                         ? types::TY_LLVM_BC
                                         : types::TY_Tempfiletable;
         auto *PostLinkAction = C.MakeAction<SYCLPostLinkJobAction>(
             DeviceLinkAction, PostLinkOutType);
         PostLinkAction->setRTSetsSpecConstants(!isAOT);
 
-        if (isNVPTX) {
-          Action *FinAction =
-              finalizeNVPTXDependences(PostLinkAction, (*TC)->getTriple());
-          WrapperInputs.push_back(FinAction);
-        } else {
-          // For SPIRV-based targets - translate to SPIRV then optionally
-          // compile ahead-of-time to native architecture
-          Action *SPIRVInput = PostLinkAction;
-          constexpr char COL_CODE[] = "Code";
+        // For SPIRV-based targets - translate to SPIRV then optionally
+        // compile ahead-of-time to native architecture
+        Action *SPIRVInput = PostLinkAction;
+        Action *BuildCodeAction;
+        constexpr char COL_CODE[] = "Code";
 
-          if (MultiFileActionDeps) {
-            auto *ExtractIRFilesAction = C.MakeAction<FileTableTformJobAction>(
-                PostLinkAction, types::TY_Tempfilelist);
-            // single column w/o title fits TY_Tempfilelist format
-            ExtractIRFilesAction->addExtractColumnTform(COL_CODE,
-                                                        false /*drop titles*/);
-            SPIRVInput = ExtractIRFilesAction;
-          }
+        if (MultiFileActionDeps) {
+          auto *ExtractIRFilesAction = C.MakeAction<FileTableTformJobAction>(
+              PostLinkAction, types::TY_Tempfilelist);
+          // single column w/o title fits TY_Tempfilelist format
+          ExtractIRFilesAction->addExtractColumnTform(COL_CODE,
+                                                      false /*drop titles*/);
+          SPIRVInput = ExtractIRFilesAction;
+        }
+        if (isNVPTX) {
+          // TODO: USE llvm-foreach with SPIRVInput here
+          auto *PostLink2 = C.MakeAction<SYCLPostLinkJobAction>(DeviceLinkAction, types::TY_LLVM_BC);
+          PostLink2->setRTSetsSpecConstants(!isAOT);
+          BuildCodeAction =
+              finalizeNVPTXDependences(PostLink2, (*TC)->getTriple());
+
+        } else {
           types::ID SPIRVOutType =
               MultiFileActionDeps ? types::TY_Tempfilelist : types::TY_SPIRV;
-          Action *BuildCodeAction =
+          BuildCodeAction =
               C.MakeAction<SPIRVTranslatorJobAction>(SPIRVInput, SPIRVOutType);
 
           // After the Link, wrap the files before the final host link
@@ -3919,15 +3924,15 @@ class OffloadingActionBuilder final {
             BuildCodeAction =
                 C.MakeAction<BackendCompileJobAction>(BEInputs, OutType);
           }
-          if (MultiFileActionDeps) {
-            ActionList TformInputs{PostLinkAction, BuildCodeAction};
-            auto *ReplaceFilesAction = C.MakeAction<FileTableTformJobAction>(
-                TformInputs, types::TY_Tempfiletable);
-            ReplaceFilesAction->addReplaceColumnTform(COL_CODE, COL_CODE);
-            BuildCodeAction = ReplaceFilesAction;
-          }
-          WrapperInputs.push_back(BuildCodeAction);
         }
+        if (MultiFileActionDeps) {
+          ActionList TformInputs{PostLinkAction, BuildCodeAction};
+          auto *ReplaceFilesAction = C.MakeAction<FileTableTformJobAction>(
+              TformInputs, types::TY_Tempfiletable);
+          ReplaceFilesAction->addReplaceColumnTform(COL_CODE, COL_CODE);
+          BuildCodeAction = ReplaceFilesAction;
+        }
+        WrapperInputs.push_back(BuildCodeAction);
         // After the Link, wrap the files before the final host link
         auto *DeviceWrappingAction = C.MakeAction<OffloadWrapperJobAction>(
             WrapperInputs, types::TY_Object);
