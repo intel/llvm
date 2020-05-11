@@ -16,7 +16,7 @@
 #ifdef CL_SYCL_LANGUAGE_VERSION
 // SYCL provides all the needed definitions.
 #include "CL/__spirv/spirv_vars.hpp"
-#else  // CL_SYCL_LANGUAGE_VERSION
+#else // CL_SYCL_LANGUAGE_VERSION
 
 #include <cstddef>
 #include <cstdint>
