@@ -8,9 +8,11 @@
 
 #pragma once
 
+#include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/locked.hpp>
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/detail/pi.hpp>
+#include <CL/sycl/detail/util.hpp>
 #include <detail/platform_impl.hpp>
 
 #include <atomic>
@@ -51,7 +53,8 @@ public:
   using PiProgramT = std::remove_pointer<RT::PiProgram>::type;
   using PiProgramPtrT = std::atomic<PiProgramT *>;
   using ProgramWithBuildStateT = BuildResult<PiProgramT>;
-  using ProgramCacheT = std::map<OSModuleHandle, ProgramWithBuildStateT>;
+  using ProgramCacheKeyT = std::pair<SerializedObj, KernelSetId>;
+  using ProgramCacheT = std::map<ProgramCacheKeyT, ProgramWithBuildStateT>;
   using ContextPtr = context_impl *;
 
   using PiKernelT = std::remove_pointer<RT::PiKernel>::type;
