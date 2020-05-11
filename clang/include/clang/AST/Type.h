@@ -493,7 +493,9 @@ public:
            (!hasAddressSpace() &&
             (other.getAddressSpace() == LangAS::opencl_private ||
              other.getAddressSpace() == LangAS::opencl_local ||
-             other.getAddressSpace() == LangAS::opencl_global));
+             other.getAddressSpace() == LangAS::opencl_global ||
+             other.getAddressSpace() == LangAS::opencl_global_device ||
+             other.getAddressSpace() == LangAS::opencl_global_host));
   }
 
   /// Determines if these qualifiers compatibly include another set.

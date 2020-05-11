@@ -12,12 +12,20 @@ void tmpl(T *t){}
 
 void usages() {
   __attribute__((opencl_global)) int *GLOB;
+  __attribute__((opencl_global_device)) int *GLOB_DEV;
+  __attribute__((opencl_global_host)) int *GLOB_HOST;
   __attribute__((opencl_private)) int *PRIV;
   __attribute__((opencl_local)) int *LOC;
   int *NoAS;
 
   bar(*GLOB);
   bar2(*GLOB);
+
+  bar(*GLOB_DEV);
+  bar2(*GLOB_DEV);
+
+  bar(*GLOB_HOST);
+  bar2(*GLOB_HOST);
 
   bar(*PRIV);
   bar2(*PRIV);
@@ -30,6 +38,10 @@ void usages() {
 
   foo(GLOB);
   foo2(GLOB);
+  foo(GLOB_DEV);
+  foo2(GLOB_DEV);
+  foo(GLOB_HOST);
+  foo2(GLOB_HOST);
   foo(PRIV);
   foo2(PRIV);
   foo(NoAS);
@@ -38,12 +50,18 @@ void usages() {
   foo2(LOC);
 
   tmpl(GLOB);
+  tmpl(GLOB_DEV);
+  tmpl(GLOB_HOST);
   tmpl(PRIV);
   tmpl(NoAS);
   tmpl(LOC);
 
   (void)static_cast<int*>(GLOB);
   (void)static_cast<void*>(GLOB);
+  (void)static_cast<int*>(GLOB_DEV);
+  (void)static_cast<void*>(GLOB_DEV);
+  (void)static_cast<int*>(GLOB_HOST);
+  (void)static_cast<void*>(GLOB_HOST);
   // FIXME: determine if we can warn on the below conversions.
   int *i = GLOB;
   void *v = GLOB;

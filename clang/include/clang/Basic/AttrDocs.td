@@ -3545,6 +3545,30 @@ scope) variables and static local variable as well.
   }];
 }
 
+def OpenCLAddressSpaceGlobalDeviceDocs : Documentation {
+  let Category = DocOpenCLAddressSpaces;
+  let Heading = "[[clang::opencl_global_device]]";
+  let Content = [{
+The global_device address space attribute specifies that an object is allocated
+in global memory on device. It is supposed to be used only in SYCL headers and
+not in the actual OpenCL/SYCL user code. It helps distinguishing USM pointers
+that access device memory and accessors that access global memory from those
+that access host memory.
+  }];
+}
+
+def OpenCLAddressSpaceGlobalHostDocs : Documentation {
+  let Category = DocOpenCLAddressSpaces;
+  let Heading = "[[clang::opencl_global_host]]";
+  let Content = [{
+The global_host address space attribute specifies that an object is allocated in
+global memory on host. It is supposed to be used only in SYCL headers and not in
+the actual OpenCL/SYCL user code. It helps distinguishing USM pointers that
+access host memory from those that access device memory and from accessors that
+access global memory.
+  }];
+}
+
 def OpenCLAddressSpaceLocalDocs : Documentation {
   let Category = DocOpenCLAddressSpaces;
   let Heading = "__local, local, [[clang::opencl_local]]";
