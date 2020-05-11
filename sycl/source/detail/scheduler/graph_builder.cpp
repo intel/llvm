@@ -734,7 +734,7 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
     NewCmd->addDep(e);
   }
 
-  if (CGType == CG::CGTYPE::HOST_TASK_CODEPLAY)
+  if (CGType == CG::CGTYPE::CODEPLAY_HOST_TASK)
     addEmptyCmd(NewCmd.get(), NewCmd->getCG()->MRequirements, Queue);
 
   if (MPrintOptionsArray[AfterAddCG])
@@ -927,7 +927,7 @@ void Scheduler::GraphBuilder::connectDepEvent(Command *const Cmd,
         std::move(HT), /* Args = */ {}, /* ArgsStorage = */ {},
         /* AccStorage = */ {}, /* SharedPtrStorage = */ {},
         /* Requirements = */ {}, /* DepEvents = */ {DepEvent},
-        CG::HOST_TASK_CODEPLAY, /* Payload */ {}));
+        CG::CODEPLAY_HOST_TASK, /* Payload */ {}));
     ConnectCmd = new ExecCGCommand(
         std::move(ConnectCG), Scheduler::getInstance().getDefaultHostQueue());
   }
