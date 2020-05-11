@@ -209,7 +209,7 @@ public:
     waitForEvents();
 
     assert(MThisCmd->getCG().get());
-    assert(MThisCmd->getCG()->getType() == CG::CGTYPE::HOST_TASK_CODEPLAY);
+    assert(MThisCmd->getCG()->getType() == CG::CGTYPE::CODEPLAY_HOST_TASK);
 
     CGHostTask *HostTask = static_cast<CGHostTask *>(MThisCmd->getCG().get());
 
@@ -1396,7 +1396,7 @@ static std::string cgTypeToString(detail::CG::CGTYPE Type) {
   case detail::CG::PREFETCH_USM:
     return "prefetch usm";
     break;
-  case detail::CG::HOST_TASK_CODEPLAY:
+  case detail::CG::CODEPLAY_HOST_TASK:
     return "host task";
     break;
   default:
@@ -1876,7 +1876,7 @@ cl_int ExecCGCommand::enqueueImp() {
 
     return CL_SUCCESS;
   }
-  case CG::CGTYPE::INTEROP_TASK_CODEPLAY: {
+  case CG::CGTYPE::CODEPLAY_INTEROP_TASK: {
     const detail::plugin &Plugin = MQueue->getPlugin();
     CGInteropTask *ExecInterop = (CGInteropTask *)MCommandGroup.get();
     // Wait for dependencies to complete before dispatching work on the host
@@ -1906,7 +1906,7 @@ cl_int ExecCGCommand::enqueueImp() {
 
     return CL_SUCCESS;
   }
-  case CG::CGTYPE::HOST_TASK_CODEPLAY: {
+  case CG::CGTYPE::CODEPLAY_HOST_TASK: {
     CGHostTask *HostTask = static_cast<CGHostTask *>(MCommandGroup.get());
 
     for (ArgDesc &Arg : HostTask->MArgs) {

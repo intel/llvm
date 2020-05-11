@@ -759,7 +759,7 @@ public:
 
     MHostTask.reset(new detail::HostTask(std::move(Func)));
 
-    MCGType = detail::CG::HOST_TASK_CODEPLAY;
+    MCGType = detail::CG::CODEPLAY_HOST_TASK;
   }
 
   /// Defines and invokes a SYCL kernel function for the specified range and
@@ -1088,7 +1088,7 @@ public:
   template <typename FuncT> void interop_task(FuncT Func) {
 
     MInteropTask.reset(new detail::InteropTask(std::move(Func)));
-    MCGType = detail::CG::INTEROP_TASK_CODEPLAY;
+    MCGType = detail::CG::CODEPLAY_INTEROP_TASK;
   }
 
   /// Defines and invokes a SYCL kernel function for the specified range.
