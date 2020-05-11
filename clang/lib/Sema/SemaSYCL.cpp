@@ -1642,24 +1642,19 @@ static bool checkIfDeclInCLNameSpace(DeclContext *DC) {
   bool inCL = false;
 
   while (DC) {
-
     auto *NS = dyn_cast_or_null<NamespaceDecl>(DC);
-    DC = NS->getDeclContext();
-
-    if (NS && DC->isTranslationUnit()) {
-
-      const IdentifierInfo *II = NS->getIdentifier();
-
-      if (II && II->isStr("cl")) {
-        inCL = true;
-        break;
-      }
-    }
 
     if (!NS)
       break;
-  }
 
+    DC = NS->getDeclContext();
+    if (DC->isTranslationUnit()) {
+      const IdentifierInfo *II = NS->getIdentifier();
+      if (II && II->isStr("cl"))
+        inCL = true;
+      break;
+    }
+  }
   return inCL;
 }
 
@@ -1843,7 +1838,7 @@ void SYCLIntegrationHeader::emitForwardClassDecls(
           if (NS)
             InCLNameSpace = checkIfDeclInCLNameSpace(DC);
 
-          if (!InCLNameSpace)
+          if (!NS || (NS && !InCLNameSpace))
             emitFwdDecl(O, EnumDecl, KernelLocation);
         }
         break;
@@ -1900,8 +1895,7 @@ static void printArguments(raw_ostream &ArgOS, ArrayRef<TemplateArgument> Args,
       // the definition is visible in integration header.
       if (ET && !checkIfDeclInCLNameSpace(ET->getDecl()->getDeclContext())) {
         const llvm::APSInt &Val = Arg.getAsIntegral();
-        ArgOS << "<(" << ET->getDecl()->getQualifiedNameAsString() << ")>"
-              << Val;
+        ArgOS << "(" << ET->getDecl()->getQualifiedNameAsString() << ")" << Val;
       } else {
         Arg.print(P, ArgOS);
       }
