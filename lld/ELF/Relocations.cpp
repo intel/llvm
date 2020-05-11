@@ -1294,17 +1294,6 @@ static void scanReloc(InputSectionBase &sec, OffsetGetter &getOffset, RelTy *&i,
   if (expr == R_NONE)
     return;
 
-  // We can separate the small code model relocations into 2 categories:
-  // 1) Those that access the compiler generated .toc sections.
-  // 2) Those that access the linker allocated got entries.
-  // lld allocates got entries to symbols on demand. Since we don't try to sort
-  // the got entries in any way, we don't have to track which objects have
-  // got-based small code model relocs. The .toc sections get placed after the
-  // end of the linker allocated .got section and we do sort those so sections
-  // addressed with small code model relocations come first.
-  if (config->emachine == EM_PPC64 && isPPC64SmallCodeModelTocReloc(type))
-    sec.file->ppc64SmallCodeModelTocRelocs = true;
-
   if (sym.isGnuIFunc() && !config->zText && config->warnIfuncTextrel) {
     warn("using ifunc symbols when text relocations are allowed may produce "
          "a binary that will segfault, if the object file is linked with "
@@ -1317,6 +1306,25 @@ static void scanReloc(InputSectionBase &sec, OffsetGetter &getOffset, RelTy *&i,
 
   // Read an addend.
   int64_t addend = computeAddend<ELFT>(rel, end, sec, expr, sym.isLocal());
+
+  if (config->emachine == EM_PPC64) {
+    // We can separate the small code model relocations into 2 categories:
+    // 1) Those that access the compiler generated .toc sections.
+    // 2) Those that access the linker allocated got entries.
+    // lld allocates got entries to symbols on demand. Since we don't try to
+    // sort the got entries in any way, we don't have to track which objects
+    // have got-based small code model relocs. The .toc sections get placed
+    // after the end of the linker allocated .got section and we do sort those
+    // so sections addressed with small code model relocations come first.
+    if (isPPC64SmallCodeModelTocReloc(type))
+      sec.file->ppc64SmallCodeModelTocRelocs = true;
+
+    // Record the TOC entry (.toc + addend) as not relaxable. See the comment in
+    // InputSectionBase::relocateAlloc().
+    if (type == R_PPC64_TOC16_LO && sym.isSection() && isa<Defined>(sym) &&
+        cast<Defined>(sym).section->name == ".toc")
+      ppc64noTocRelax.insert({&sym, addend});
+  }
 
   // Relax relocations.
   //
@@ -1336,8 +1344,11 @@ static void scanReloc(InputSectionBase &sec, OffsetGetter &getOffset, RelTy *&i,
         addend &= ~0x8000;
       // R_HEX_GD_PLT_B22_PCREL (call a@GDPLT) is transformed into
       // call __tls_get_addr even if the symbol is non-preemptible.
-      if (!(config->emachine == EM_HEXAGON && type == R_HEX_GD_PLT_B22_PCREL))
-        expr = fromPlt(expr);
+      if (!(config->emachine == EM_HEXAGON &&
+           (type == R_HEX_GD_PLT_B22_PCREL ||
+            type == R_HEX_GD_PLT_B22_PCREL_X ||
+            type == R_HEX_GD_PLT_B32_PCREL_X)))
+      expr = fromPlt(expr);
     }
   }
 

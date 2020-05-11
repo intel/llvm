@@ -472,8 +472,28 @@ void SYCLToolChain::TranslateTargetOpt(const llvm::opt::ArgList &Args,
   }
 }
 
+static void addImpliedArgs(const llvm::Triple &Triple,
+                           const llvm::opt::ArgList &Args,
+                           llvm::opt::ArgStringList &CmdArgs) {
+  // Current implied args are for debug information and disabling of
+  // optimizations.
+  // TODO: Add support for other architectures (gen, x86_64) as those are
+  // being defined.
+  if (Triple.getSubArch() == llvm::Triple::NoSubArch ||
+      Triple.getSubArch() == llvm::Triple::SPIRSubArch_fpga) {
+    if (Arg *A = Args.getLastArg(options::OPT_g_Group, options::OPT__SLASH_Z7))
+      if (!A->getOption().matches(options::OPT_g0))
+        CmdArgs.push_back("-g");
+    if (Args.getLastArg(options::OPT_O0))
+      CmdArgs.push_back("-cl-opt-disable");
+  }
+}
+
 void SYCLToolChain::TranslateBackendTargetArgs(const llvm::opt::ArgList &Args,
     llvm::opt::ArgStringList &CmdArgs) const {
+  // Add any implied arguments before user defined arguments.
+  addImpliedArgs(getTriple(), Args, CmdArgs);
+
   // Handle -Xs flags.
   for (auto *A : Args) {
     // When parsing the target args, the -Xs<opt> type option applies to all

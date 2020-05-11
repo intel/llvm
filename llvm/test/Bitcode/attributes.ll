@@ -204,7 +204,7 @@ define void @f34()
 ; CHECK: define void @f34()
 {
   call void @nobuiltin() nobuiltin
-; CHECK: call void @nobuiltin() #40
+; CHECK: call void @nobuiltin() #[[NOBUILTIN:[0-9]+]]
         ret void;
 }
 
@@ -371,7 +371,13 @@ define void @f62() nosync
 ; CHECK: define void @f63() #39
 define void @f63() sanitize_memtag
 {
-  ret void;
+  ret void
+}
+
+; CHECK: define void @f64(i32* preallocated(i32) %a)
+define void @f64(i32* preallocated(i32) %a)
+{
+  ret void
 }
 
 ; CHECK: attributes #0 = { noreturn }
@@ -414,4 +420,4 @@ define void @f63() sanitize_memtag
 ; CHECK: attributes #37 = { nofree }
 ; CHECK: attributes #38 = { nosync }
 ; CHECK: attributes #39 = { sanitize_memtag }
-; CHECK: attributes #40 = { nobuiltin }
+; CHECK: attributes #[[NOBUILTIN]] = { nobuiltin }

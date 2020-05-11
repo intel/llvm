@@ -1889,7 +1889,7 @@ bool CodeGenPrepare::optimizeCallInst(CallInst *CI, bool &ModifiedDT) {
   // Lower inline assembly if we can.
   // If we found an inline asm expession, and if the target knows how to
   // lower it to normal LLVM code, do so now.
-  if (isa<InlineAsm>(CI->getCalledValue())) {
+  if (CI->isInlineAsm()) {
     if (TLI->ExpandInlineAsm(CI)) {
       // Avoid invalidating the iterator.
       CurInstIterator = BB->begin();
@@ -4636,7 +4636,7 @@ static bool FindAllMemoryUses(
           continue;
       }
 
-      InlineAsm *IA = dyn_cast<InlineAsm>(CI->getCalledValue());
+      InlineAsm *IA = dyn_cast<InlineAsm>(CI->getCalledOperand());
       if (!IA) return true;
 
       // If this is a memory operand, we're cool, otherwise bail out.
@@ -6103,7 +6103,8 @@ static bool sinkSelectOperand(const TargetTransformInfo *TTI, Value *V) {
   // If it's safe to speculatively execute, then it should not have side
   // effects; therefore, it's safe to sink and possibly *not* execute.
   return I && I->hasOneUse() && isSafeToSpeculativelyExecute(I) &&
-         TTI->getUserCost(I) >= TargetTransformInfo::TCC_Expensive;
+         TTI->getUserCost(I, TargetTransformInfo::TCK_SizeAndLatency) >=
+         TargetTransformInfo::TCC_Expensive;
 }
 
 /// Returns true if a SelectInst should be turned into an explicit branch.
@@ -6651,6 +6652,8 @@ class VectorPromoteHelper {
     uint64_t ScalarCost =
         TTI.getVectorInstrCost(Transition->getOpcode(), PromotedType, Index);
     uint64_t VectorCost = StoreExtractCombineCost;
+    enum TargetTransformInfo::TargetCostKind CostKind =
+      TargetTransformInfo::TCK_RecipThroughput;
     for (const auto &Inst : InstsToBePromoted) {
       // Compute the cost.
       // By construction, all instructions being promoted are arithmetic ones.
@@ -6666,8 +6669,9 @@ class VectorPromoteHelper {
           !IsArg0Constant ? TargetTransformInfo::OK_UniformConstantValue
                           : TargetTransformInfo::OK_AnyValue;
       ScalarCost += TTI.getArithmeticInstrCost(
-          Inst->getOpcode(), Inst->getType(), Arg0OVK, Arg1OVK);
+          Inst->getOpcode(), Inst->getType(), CostKind, Arg0OVK, Arg1OVK);
       VectorCost += TTI.getArithmeticInstrCost(Inst->getOpcode(), PromotedType,
+                                               CostKind,
                                                Arg0OVK, Arg1OVK);
     }
     LLVM_DEBUG(
@@ -7126,7 +7130,8 @@ static bool tryUnmergingGEPsAcrossIndirectBr(GetElementPtrInst *GEPI,
     return false;
   ConstantInt *GEPIIdx = cast<ConstantInt>(GEPI->getOperand(1));
   // Check that GEPI is a cheap one.
-  if (TTI->getIntImmCost(GEPIIdx->getValue(), GEPIIdx->getType())
+  if (TTI->getIntImmCost(GEPIIdx->getValue(), GEPIIdx->getType(),
+                         TargetTransformInfo::TCK_SizeAndLatency)
       > TargetTransformInfo::TCC_Basic)
     return false;
   Value *GEPIOp = GEPI->getOperand(0);
@@ -7175,7 +7180,8 @@ static bool tryUnmergingGEPsAcrossIndirectBr(GetElementPtrInst *GEPI,
         cast<ConstantInt>(UGEPI->getOperand(1))->getType())
       return false;
     ConstantInt *UGEPIIdx = cast<ConstantInt>(UGEPI->getOperand(1));
-    if (TTI->getIntImmCost(UGEPIIdx->getValue(), UGEPIIdx->getType())
+    if (TTI->getIntImmCost(UGEPIIdx->getValue(), UGEPIIdx->getType(),
+                           TargetTransformInfo::TCK_SizeAndLatency)
         > TargetTransformInfo::TCC_Basic)
       return false;
     UGEPIs.push_back(UGEPI);
@@ -7186,7 +7192,9 @@ static bool tryUnmergingGEPsAcrossIndirectBr(GetElementPtrInst *GEPI,
   for (GetElementPtrInst *UGEPI : UGEPIs) {
     ConstantInt *UGEPIIdx = cast<ConstantInt>(UGEPI->getOperand(1));
     APInt NewIdx = UGEPIIdx->getValue() - GEPIIdx->getValue();
-    unsigned ImmCost = TTI->getIntImmCost(NewIdx, GEPIIdx->getType());
+    unsigned ImmCost =
+      TTI->getIntImmCost(NewIdx, GEPIIdx->getType(),
+                         TargetTransformInfo::TCK_SizeAndLatency);
     if (ImmCost > TargetTransformInfo::TCC_Basic)
       return false;
   }

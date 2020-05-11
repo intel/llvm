@@ -138,6 +138,7 @@ static lto::Config createConfig() {
   c.DwoDir = std::string(config->dwoDir);
 
   c.HasWholeProgramVisibility = config->ltoWholeProgramVisibility;
+  c.AlwaysEmitRegularLTOObj = !config->ltoObjPath.empty();
 
   c.TimeTraceEnabled = config->timeTraceEnabled;
   c.TimeTraceGranularity = config->timeTraceGranularity;
@@ -152,6 +153,9 @@ static lto::Config createConfig() {
       return false;
     };
   }
+
+  if (config->ltoEmitAsm)
+    c.CGFileType = CGFT_AssemblyFile;
 
   if (config->saveTemps)
     checkError(c.addSaveTemps(config->outputFile.str() + ".",
@@ -324,9 +328,17 @@ std::vector<InputFile *> BitcodeCompiler::compile() {
   }
 
   if (config->saveTemps) {
-    saveBuffer(buf[0], config->outputFile + ".lto.o");
+    if (!buf[0].empty())
+      saveBuffer(buf[0], config->outputFile + ".lto.o");
     for (unsigned i = 1; i != maxTasks; ++i)
       saveBuffer(buf[i], config->outputFile + Twine(i) + ".lto.o");
+  }
+
+  if (config->ltoEmitAsm) {
+    saveBuffer(buf[0], config->outputFile);
+    for (unsigned i = 1; i != maxTasks; ++i)
+      saveBuffer(buf[i], config->outputFile + Twine(i));
+    return {};
   }
 
   std::vector<InputFile *> ret;
