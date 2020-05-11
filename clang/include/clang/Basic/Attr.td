@@ -1265,7 +1265,7 @@ def IntelReqdSubGroupSize: InheritableAttr {
   let Args = [UnsignedArgument<"SubGroupSize">];
   let Subjects = SubjectList<[Function, CXXMethod], ErrorDiag>;
   let Documentation = [IntelReqdSubGroupSizeDocs];
-  let LangOpts = [OpenCL, SYCLIsDevice];
+  let LangOpts = [OpenCL, SYCLIsDevice, SYCLIsHost];
 }
 
 // This attribute is both a type attribute, and a declaration attribute (for
