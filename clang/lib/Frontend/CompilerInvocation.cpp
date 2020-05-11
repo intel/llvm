@@ -1021,9 +1021,6 @@ static bool ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
         std::string(Args.getLastArgValue(OPT_coverage_data_file));
     Opts.CoverageNotesFile =
         std::string(Args.getLastArgValue(OPT_coverage_notes_file));
-    Opts.CoverageExtraChecksum = Args.hasArg(OPT_coverage_cfg_checksum);
-    Opts.CoverageNoFunctionNamesInData =
-        Args.hasArg(OPT_coverage_no_function_names_in_data);
     Opts.ProfileFilterFiles =
         std::string(Args.getLastArgValue(OPT_fprofile_filter_files_EQ));
     Opts.ProfileExcludeFiles =
@@ -2910,6 +2907,8 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
     Diags.Report(diag::warn_fe_concepts_ts_flag);
   Opts.RecoveryAST =
       Args.hasFlag(OPT_frecovery_ast, OPT_fno_recovery_ast, false);
+  Opts.RecoveryASTType =
++      Args.hasFlag(OPT_frecovery_ast_type, OPT_fno_recovery_ast_type, false);
   Opts.HeinousExtensions = Args.hasArg(OPT_fheinous_gnu_extensions);
   Opts.AccessControl = !Args.hasArg(OPT_fno_access_control);
   Opts.ElideConstructors = !Args.hasArg(OPT_fno_elide_constructors);
@@ -3354,6 +3353,8 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
 
   Opts.CompleteMemberPointers = Args.hasArg(OPT_fcomplete_member_pointers);
   Opts.BuildingPCHWithObjectFile = Args.hasArg(OPT_building_pch_with_obj);
+
+  Opts.MatrixTypes = Args.hasArg(OPT_fenable_matrix);
 
   Opts.MaxTokens = getLastArgIntValue(Args, OPT_fmax_tokens_EQ, 0, Diags);
 

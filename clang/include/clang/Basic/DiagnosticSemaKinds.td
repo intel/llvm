@@ -2418,9 +2418,6 @@ def err_enum_redeclare_fixed_mismatch : Error<
   "enumeration previously declared with %select{non|}0fixed underlying type">;
 def err_enum_redeclare_scoped_mismatch : Error<
   "enumeration previously declared as %select{un|}0scoped">;
-def err_enum_class_reference : Error<
-  "reference to %select{|scoped }0enumeration must use 'enum' "
-  "not 'enum class'">;
 def err_only_enums_have_underlying_types : Error<
   "only enumeration types have underlying types">;
 def err_underlying_type_of_incomplete_enum : Error<
@@ -2814,6 +2811,7 @@ def warn_attribute_too_few_arguments : Warning<
   "%0 attribute takes at least %1 argument%s1 - attribute ignored">,
  InGroup<IgnoredAttributes>;
 def err_attribute_invalid_vector_type : Error<"invalid vector element type %0">;
+def err_attribute_invalid_matrix_type : Error<"invalid matrix element type %0">;
 def err_attribute_bad_neon_vector_size : Error<
   "Neon vector size must be 64 or 128 bits">;
 def err_attribute_requires_positive_integer : Error<
@@ -2921,8 +2919,8 @@ def err_init_method_bad_return_type : Error<
   "init methods must return an object pointer type, not %0">;
 def err_attribute_invalid_size : Error<
   "vector size not an integral multiple of component size">;
-def err_attribute_zero_size : Error<"zero vector size">;
-def err_attribute_size_too_large : Error<"vector size too large">;
+def err_attribute_zero_size : Error<"zero %0 size">;
+def err_attribute_size_too_large : Error<"%0 size too large">;
 def err_typecheck_vector_not_convertable_implict_truncation : Error<
    "cannot convert between %select{scalar|vector}0 type %1 and vector type"
    " %2 as implicit conversion would cause truncation">;
@@ -5525,6 +5523,8 @@ def err_bitfield_width_exceeds_type_width : Error<
 def err_anon_bitfield_width_exceeds_type_width : Error<
   "width of anonymous bit-field (%0 bits) exceeds %select{width|size}1 "
   "of its type (%2 bit%s2)">;
+def err_anon_bitfield_init : Error<
+  "anonymous bit-field cannot have a default member initializer">;
 def err_incorrect_number_of_vector_initializers : Error<
   "number of elements must be either one or match the size of the vector">;
 
@@ -10782,6 +10782,9 @@ def warn_noderef_to_dereferenceable_pointer : Warning<
 def err_builtin_launder_invalid_arg : Error<
   "%select{non-pointer|function pointer|void pointer}0 argument to "
   "'__builtin_launder' is not allowed">;
+
+def err_builtin_matrix_disabled: Error<
+  "matrix types extension is disabled. Pass -fenable-matrix to enable it">;
 
 // SYCL-specific diagnostics
 def err_sycl_kernel_incorrectly_named : Error<

@@ -15623,16 +15623,8 @@ Decl *Sema::ActOnTag(Scope *S, unsigned TagSpec, TagUseKind TUK,
 
         if (Kind == TTK_Enum && PrevTagDecl->getTagKind() == TTK_Enum) {
           const EnumDecl *PrevEnum = cast<EnumDecl>(PrevTagDecl);
-
-          // If this is an elaborated-type-specifier for a scoped enumeration,
-          // the 'class' keyword is not necessary and not permitted.
-          if (TUK == TUK_Reference || TUK == TUK_Friend) {
-            if (ScopedEnum)
-              Diag(ScopedEnumKWLoc, diag::err_enum_class_reference)
-                << PrevEnum->isScoped()
-                << FixItHint::CreateRemoval(ScopedEnumKWLoc);
+          if (TUK == TUK_Reference || TUK == TUK_Friend)
             return PrevTagDecl;
-          }
 
           QualType EnumUnderlyingTy;
           if (TypeSourceInfo *TI = EnumUnderlying.dyn_cast<TypeSourceInfo*>())
@@ -16450,7 +16442,7 @@ FieldDecl *Sema::CheckFieldDecl(DeclarationName Name, QualType T,
   }
 
   QualType EltTy = Context.getBaseElementType(T);
-  if (!EltTy->isDependentType()) {
+  if (!EltTy->isDependentType() && !EltTy->containsErrors()) {
     if (RequireCompleteSizedType(Loc, EltTy,
                                  diag::err_field_incomplete_or_sizeless)) {
       // Fields of incomplete type force their record to be invalid.
@@ -16537,6 +16529,14 @@ FieldDecl *Sema::CheckFieldDecl(DeclarationName Name, QualType T,
     BitWidth = VerifyBitField(Loc, II, T, Record->isMsStruct(Context), BitWidth,
                               &ZeroWidth).get();
     if (!BitWidth) {
+      InvalidDecl = true;
+      BitWidth = nullptr;
+      ZeroWidth = false;
+    }
+
+    // Only data members can have in-class initializers.
+    if (BitWidth && !II && InitStyle) {
+      Diag(Loc, diag::err_anon_bitfield_init);
       InvalidDecl = true;
       BitWidth = nullptr;
       ZeroWidth = false;

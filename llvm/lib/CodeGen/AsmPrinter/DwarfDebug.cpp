@@ -652,9 +652,9 @@ static void collectCallSiteParameters(const MachineInstr *CallMI,
     return;
 
   auto *MBB = CallMI->getParent();
-  const auto &TRI = MF->getSubtarget().getRegisterInfo();
-  const auto &TII = MF->getSubtarget().getInstrInfo();
-  const auto &TLI = MF->getSubtarget().getTargetLowering();
+  const TargetRegisterInfo &TRI = *MF->getSubtarget().getRegisterInfo();
+  const TargetInstrInfo &TII = *MF->getSubtarget().getInstrInfo();
+  const TargetLowering &TLI = *MF->getSubtarget().getTargetLowering();
 
   // Skip the call instruction.
   auto I = std::next(CallMI->getReverseIterator());
@@ -706,20 +706,21 @@ static void collectCallSiteParameters(const MachineInstr *CallMI,
 
   // If the MI is an instruction defining one or more parameters' forwarding
   // registers, add those defines.
-  auto getForwardingRegsDefinedByMI = [&](const MachineInstr &MI,
-                                          SmallSetVector<unsigned, 4> &Defs) {
-    if (MI.isDebugInstr())
-      return;
+  auto getForwardingRegsDefinedByMI =
+      [&TRI](const MachineInstr &MI, SmallSetVector<unsigned, 4> &Defs,
+             const FwdRegWorklist &ForwardedRegWorklist) {
+        if (MI.isDebugInstr())
+          return;
 
-    for (const MachineOperand &MO : MI.operands()) {
-      if (MO.isReg() && MO.isDef() &&
-          Register::isPhysicalRegister(MO.getReg())) {
-        for (auto FwdReg : ForwardedRegWorklist)
-          if (TRI->regsOverlap(FwdReg.first, MO.getReg()))
-            Defs.insert(FwdReg.first);
-      }
-    }
-  };
+        for (const MachineOperand &MO : MI.operands()) {
+          if (MO.isReg() && MO.isDef() &&
+              Register::isPhysicalRegister(MO.getReg())) {
+            for (auto FwdReg : ForwardedRegWorklist)
+              if (TRI.regsOverlap(FwdReg.first, MO.getReg()))
+                Defs.insert(FwdReg.first);
+          }
+        }
+      };
 
   // Search for a loading value in forwarding registers.
   for (; I != MBB->rend(); ++I) {
@@ -738,22 +739,22 @@ static void collectCallSiteParameters(const MachineInstr *CallMI,
     // Set of worklist registers that are defined by this instruction.
     SmallSetVector<unsigned, 4> FwdRegDefs;
 
-    getForwardingRegsDefinedByMI(*I, FwdRegDefs);
+    getForwardingRegsDefinedByMI(*I, FwdRegDefs, ForwardedRegWorklist);
     if (FwdRegDefs.empty())
       continue;
 
     for (auto ParamFwdReg : FwdRegDefs) {
-      if (auto ParamValue = TII->describeLoadedValue(*I, ParamFwdReg)) {
+      if (auto ParamValue = TII.describeLoadedValue(*I, ParamFwdReg)) {
         if (ParamValue->first.isImm()) {
           int64_t Val = ParamValue->first.getImm();
           finishCallSiteParams(Val, ParamValue->second,
                                ForwardedRegWorklist[ParamFwdReg], Params);
         } else if (ParamValue->first.isReg()) {
           Register RegLoc = ParamValue->first.getReg();
-          unsigned SP = TLI->getStackPointerRegisterToSaveRestore();
-          Register FP = TRI->getFrameRegister(*MF);
+          unsigned SP = TLI.getStackPointerRegisterToSaveRestore();
+          Register FP = TRI.getFrameRegister(*MF);
           bool IsSPorFP = (RegLoc == SP) || (RegLoc == FP);
-          if (TRI->isCalleeSavedPhysReg(RegLoc, *MF) || IsSPorFP) {
+          if (TRI.isCalleeSavedPhysReg(RegLoc, *MF) || IsSPorFP) {
             MachineLocation MLoc(RegLoc, /*IsIndirect=*/IsSPorFP);
             finishCallSiteParams(MLoc, ParamValue->second,
                                  ForwardedRegWorklist[ParamFwdReg], Params);
