@@ -79,6 +79,8 @@ public:
         MElemSize(Other.MElemSize), MOffsetInBytes(Other.MOffsetInBytes),
         MIsSubBuffer(Other.MIsSubBuffer) {}
 
+  void resize(size_t GlobalSize);
+
   id<3> MOffset;
   // The size of accessing region.
   range<3> MAccessRange;
@@ -96,6 +98,8 @@ public:
   void *MData = nullptr;
 
   Command *MBlockedCmd = nullptr;
+
+  bool PerWI = false;
 };
 
 using AccessorImplPtr = shared_ptr_class<AccessorImplHost>;
@@ -139,23 +143,6 @@ public:
   int MDims;
   int MElemSize;
   std::vector<char> MMem;
-
-  bool PerWI = false;
-  size_t LocalMemSize;
-  size_t MaxWGSize;
-  void resize(size_t LocalSize, size_t GlobalSize) {
-    if (GlobalSize != 1 && LocalSize != 1) {
-      // If local size is not specified then work group size is chosen by
-      // runtime. That is why try to allocate based on max work group size or
-      // global size. In the worst case allocate 80% of local memory.
-      size_t MinEstWGSize = LocalSize ? LocalSize : GlobalSize;
-      MinEstWGSize = MinEstWGSize > MaxWGSize ? MaxWGSize : MinEstWGSize;
-      size_t NewSize = MinEstWGSize * MSize[0];
-      MSize[0] =
-          NewSize > 8 * LocalMemSize / 10 ? 8 * LocalMemSize / 10 : NewSize;
-      MMem.resize(NewSize * MElemSize);
-    }
-  }
 };
 
 using LocalAccessorImplPtr = shared_ptr_class<LocalAccessorImplHost>;

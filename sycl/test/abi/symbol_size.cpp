@@ -59,7 +59,7 @@ int main() {
   check_size<program, 16>();
   check_size<range<1>, 8>();
   check_size<sampler, 16>();
-  check_size<stream, 208>();
+  check_size<stream, 144>();
   check_size<queue, 16>();
 
   return 0;
