@@ -113,6 +113,8 @@ public:
     } catch (...) {
     }
   }
+
+  void resize(size_t size) { BaseT::MSizeInBytes = size; }
 };
 
 } // namespace detail
