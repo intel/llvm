@@ -12,7 +12,9 @@
 
 #include <CL/sycl/detail/device_binary_image.hpp>
 
-using namespace sycl::detail;
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+namespace detail {
 
 DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
     std::unique_ptr<char[]> &&DataPtr, size_t DataSize, OSModuleHandle M)
@@ -38,3 +40,7 @@ DynRTDeviceBinaryImage::~DynRTDeviceBinaryImage() {
   delete Bin;
   Bin = nullptr;
 }
+
+} // namespace detail
+} // namespace sycl
+} // __SYCL_INLINE_NAMESPACE(cl)
