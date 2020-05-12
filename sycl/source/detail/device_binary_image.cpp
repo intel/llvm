@@ -21,7 +21,6 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
   Bin = new pi_device_binary_struct();
   Bin->Version = PI_DEVICE_BINARY_VERSION;
   Bin->Kind = PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL;
-  Bin->DeviceTargetSpec = PI_DEVICE_BINARY_TARGET_UNKNOWN;
   Bin->CompileOptions = "";
   Bin->LinkOptions = "";
   Bin->ManifestStart = nullptr;
@@ -31,6 +30,13 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
   Bin->EntriesBegin = nullptr;
   Bin->EntriesEnd = nullptr;
   Bin->Format = pi::getBinaryImageFormat(Bin->BinaryStart, DataSize);
+  switch (Bin->Format) {
+  case PI_DEVICE_BINARY_TYPE_SPIRV:
+    Bin->DeviceTargetSpec = PI_DEVICE_BINARY_TARGET_SPIRV64;
+    break;
+  default:
+    Bin->DeviceTargetSpec = PI_DEVICE_BINARY_TARGET_UNKNOWN;
+  }
   init(Bin);
 }
 
