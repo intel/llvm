@@ -13,11 +13,6 @@
 
 #if __SPIR_TARGET_ONLY__
 
-#ifdef CL_SYCL_LANGUAGE_VERSION
-// SYCL provides all the needed definitions.
-#include "CL/__spirv/spirv_vars.hpp"
-#else // CL_SYCL_LANGUAGE_VERSION
-
 #include <cstddef>
 #include <cstdint>
 
@@ -45,6 +40,5 @@ DEVICE_EXTERNAL inline size_t __spirv_LocalInvocationId_z() {
   return __spirv_BuiltInLocalInvocationId.z;
 }
 
-#endif // CL_SYCL_LANGUAGE_VERSION
 #endif // __SPIR_TARGET_ONLY__
 #endif // __LIBDEVICE_SPIRV_VARS_H
