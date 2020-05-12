@@ -1,11 +1,6 @@
 // RUN: %clang_cc1 -fsycl -fsycl-is-device -fsyntax-only -verify -DTRIGGER_ERROR %s
 // RUN: %clang_cc1 -fsycl -fsycl-is-device -ast-dump %s | FileCheck %s
-// RUN: %clang_cc1 -fsycl -fsycl-is-host -fsyntax-only -verify %s -DSYCLHOST
 
-#ifdef SYCLHOST
-// expected-no-diagnostics
-[[cl::intel_reqd_sub_group_size(8)]] void fun() {}
-#else
 [[cl::intel_reqd_sub_group_size(4)]] void foo() {} // expected-note {{conflicting attribute is here}}
 // expected-note@-1 {{conflicting attribute is here}}
 [[cl::intel_reqd_sub_group_size(32)]] void baz() {} // expected-note {{conflicting attribute is here}}
@@ -60,4 +55,3 @@ void bar() {
 // CHECK: IntelReqdSubGroupSizeAttr {{.*}} 4
 // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name5
 // CHECK: IntelReqdSubGroupSizeAttr {{.*}} 2
-#endif // SYCLHOST
