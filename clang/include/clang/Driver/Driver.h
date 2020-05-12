@@ -664,15 +664,14 @@ public:
 
   /// addFPGATempDepFile - Add a file to be added to the bundling step of
   /// an FPGA object.
-  void addFPGATempDepFile(const std::string &Name,
-                          const std::string &JA) const {
-    std::pair<std::string, std::string> TP(JA, Name);
-    FPGATempDepFiles.insert(TP);
+  void addFPGATempDepFile(const std::string &DepName,
+                          const std::string &FileName) const {
+    FPGATempDepFiles.insert({FileName, DepName});
   }
   /// getFPGATempDepFile - Get a file to be added to the bundling step of
   /// an FPGA object.
-  const std::string getFPGATempDepFile(const std::string &JA) const {
-    return FPGATempDepFiles[JA];
+  const std::string getFPGATempDepFile(const std::string &FileName) const {
+    return FPGATempDepFiles[FileName];
   }
 };
 

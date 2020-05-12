@@ -1143,9 +1143,8 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
     } else if (ArgMD->getOption().matches(options::OPT_MMD) &&
                Args.hasArg(options::OPT_fintelfpga) &&
                JA.isDeviceOffloading(Action::OFK_SYCL)) {
-      // When generating dependency files for FPGA AOT, the output files will
-      // always be temporary.  Generate here, which will be used for the aoc
-      // call as well as bundling.
+      // Generate dependency files as temporary. These will be used for the
+      // aoc call/bundled during fat object creation
       std::string BaseName(Clang::getBaseInputName(Args, Inputs[0]));
       std::string DepTmpName =
           C.getDriver().GetTemporaryPath(llvm::sys::path::stem(BaseName), "d");
@@ -7217,8 +7216,10 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
   if (IsFPGADepBundle) {
     const char *BaseName = Clang::getBaseInputName(TCArgs, Inputs[0]);
     SmallString<128> DepFile(C.getDriver().getFPGATempDepFile(BaseName));
-    UB += ',';
-    UB += DepFile;
+    if (!DepFile.empty()) {
+      UB += ',';
+      UB += DepFile;
+    }
   }
   CmdArgs.push_back(TCArgs.MakeArgString(UB));
 

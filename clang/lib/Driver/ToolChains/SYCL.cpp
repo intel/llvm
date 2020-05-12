@@ -252,10 +252,11 @@ void SYCL::fpga::BackendCompiler::ConstructJob(Compilation &C,
       ArgName = llvm::sys::path::filename(ArgName);
       if (types::isSrcFile(Ty)) {
         SmallString<128> DepName(
-            C.getDriver().getFPGATempDepFile(StringRef(ArgName).str()));
-        FPGADepFiles.push_back(InputInfo(types::TY_Dependencies,
-                                         Args.MakeArgString(DepName),
-                                         Args.MakeArgString(DepName)));
+            C.getDriver().getFPGATempDepFile(std::string(ArgName)));
+        if (!DepName.empty())
+          FPGADepFiles.push_back(InputInfo(types::TY_Dependencies,
+                                           Args.MakeArgString(DepName),
+                                           Args.MakeArgString(DepName)));
       }
       if (createdReportName.empty()) {
         // Project report should be saved into CWD, so strip off any
