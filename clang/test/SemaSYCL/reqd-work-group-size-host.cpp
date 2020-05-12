@@ -16,4 +16,4 @@ void bar() {
   kernel<class kernel_name>(f);
 }
 
-[[cl::reqd_work_group_size(4, 1, 1)]] void f4() {} 
+[[cl::reqd_work_group_size(4, 1, 1)]] void f4() {}

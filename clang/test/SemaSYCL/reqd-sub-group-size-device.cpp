@@ -45,7 +45,6 @@ void bar() {
     baz();
   });
 #endif
-
   kernel<class kernel_name5>([]() [[cl::intel_reqd_sub_group_size(2)]] { });
 }
 
