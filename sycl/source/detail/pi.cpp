@@ -48,7 +48,7 @@ xpti_td *GPICallEvent = nullptr;
 constexpr uint32_t GMajVer = 1;
 constexpr uint32_t GMinVer = 0;
 constexpr const char *GVerStr = "sycl 1.0";
-#endif
+#endif // XPTI_ENABLE_INSTRUMENTATION
 
 namespace pi {
 
@@ -60,14 +60,14 @@ uint64_t emitFunctionBeginTrace(const char *FName) {
   uint64_t CorrelationID = 0;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // The function_begin and function_end trace point types are defined to
-  // trace library API calls and they are currently enabled here for supports
+  // trace library API calls and they are currently enabled here for support
   // tools that need the API scope. The methods emitFunctionBeginTrace() and
   // emitFunctionEndTrace() can be extended to also trace the arguments of the
   // PI API call using a trace point type the extends the predefined trace
   // point types.
   //
   // You can use the sample collector in llvm/xptifw/samples/syclpi_collector
-  // to print the API traces and also extend them to support an arguments that
+  // to print the API traces and also extend them to support  arguments that
   // may be traced later.
   //
   /// Example Usage:
@@ -96,7 +96,7 @@ uint64_t emitFunctionBeginTrace(const char *FName) {
         StreamID, (uint16_t)xpti::trace_point_type_t::function_begin,
         GPICallEvent, nullptr, CorrelationID, static_cast<const void *>(FName));
   }
-#endif
+#endif // XPTI_ENABLE_INSTRUMENTATION
   return CorrelationID;
 }
 
@@ -112,7 +112,7 @@ void emitFunctionEndTrace(uint64_t CorrelationID, const char *FName) {
         StreamID, (uint16_t)xpti::trace_point_type_t::function_end,
         GPICallEvent, nullptr, CorrelationID, static_cast<const void *>(FName));
   }
-#endif
+#endif // XPTI_ENABLE_INSTRUMENTATION
 }
 
 void contextSetExtendedDeleter(const cl::sycl::context &context,
