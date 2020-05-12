@@ -21,7 +21,6 @@
 #include "lld/Common/ErrorHandler.h"
 #include "lld/Common/Filesystem.h"
 #include "lld/Common/Memory.h"
-#include "lld/Common/Threads.h"
 #include "lld/Common/Timer.h"
 #include "lld/Common/Version.h"
 #include "llvm/ADT/Optional.h"
@@ -39,6 +38,7 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/LEB128.h"
 #include "llvm/Support/MathExtras.h"
+#include "llvm/Support/Parallel.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Process.h"
 #include "llvm/Support/TarWriter.h"
@@ -848,7 +848,8 @@ static void parseModuleDefs(StringRef path) {
     // and set as "ExtName = Name". If Name has the form "OtherDll.Func",
     // it shouldn't be a normal exported function but a forward to another
     // DLL instead. This is supported by both MS and GNU linkers.
-    if (e1.ExtName != e1.Name && StringRef(e1.Name).contains('.')) {
+    if (!e1.ExtName.empty() && e1.ExtName != e1.Name &&
+        StringRef(e1.Name).contains('.')) {
       e2.name = saver.save(e1.ExtName);
       e2.forwardTo = saver.save(e1.Name);
       config->exports.push_back(e2);

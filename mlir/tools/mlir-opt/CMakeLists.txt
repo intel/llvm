@@ -39,12 +39,8 @@ add_mlir_library(MLIRMlirOptMain
 
   EXCLUDE_FROM_LIBMLIR
 
-  LINK_LIBS
+  LINK_LIBS PUBLIC
   ${LIBS}
-
-  DEPENDS
-  intrinsics_gen
-  mlir-headers
   )
 
 add_llvm_tool(mlir-opt

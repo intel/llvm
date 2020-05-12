@@ -1340,13 +1340,24 @@ RValue CodeGenFunction::emitBuiltinOSLogFormat(const CallExpr &E) {
     } else if (const Expr *TheExpr = Item.getExpr()) {
       ArgVal = EmitScalarExpr(TheExpr, /*Ignore*/ false);
 
-      // If this is a retainable type, push a lifetime-extended cleanup to
-      // ensure the lifetime of the argument is extended to the end of the
-      // enclosing block scope.
-      // FIXME: We only have to do this if the argument is a temporary, which
-      //        gets released after the full expression.
+      // If a temporary object that requires destruction after the full
+      // expression is passed, push a lifetime-extended cleanup to extend its
+      // lifetime to the end of the enclosing block scope.
+      auto LifetimeExtendObject = [&](const Expr *E) {
+        E = E->IgnoreParenCasts();
+        // Extend lifetimes of objects returned by function calls and message
+        // sends.
+
+        // FIXME: We should do this in other cases in which temporaries are
+        //        created including arguments of non-ARC types (e.g., C++
+        //        temporaries).
+        if (isa<CallExpr>(E) || isa<ObjCMessageExpr>(E))
+          return true;
+        return false;
+      };
+
       if (TheExpr->getType()->isObjCRetainableType() &&
-          getLangOpts().ObjCAutoRefCount) {
+          getLangOpts().ObjCAutoRefCount && LifetimeExtendObject(TheExpr)) {
         assert(getEvaluationKind(TheExpr->getType()) == TEK_Scalar &&
                "Only scalar can be a ObjC retainable type");
         if (!isa<Constant>(ArgVal)) {
@@ -7798,6 +7809,34 @@ Value *CodeGenFunction::EmitSVEGatherPrefetch(SVETypeFlags TypeFlags,
   return Builder.CreateCall(F, Ops);
 }
 
+// SVE2's svpmullb and svpmullt builtins are similar to the svpmullb_pair and
+// svpmullt_pair intrinsics, with the exception that their results are bitcast
+// to a wider type.
+Value *CodeGenFunction::EmitSVEPMull(SVETypeFlags TypeFlags,
+                                     SmallVectorImpl<Value *> &Ops,
+                                     unsigned BuiltinID) {
+  // Splat scalar operand to vector (intrinsics with _n infix)
+  if (TypeFlags.hasSplatOperand()) {
+    unsigned OpNo = TypeFlags.getSplatOperand();
+    Ops[OpNo] = EmitSVEDupX(Ops[OpNo]);
+  }
+
+  // The pair-wise function has a narrower overloaded type.
+  Function *F = CGM.getIntrinsic(BuiltinID, Ops[0]->getType());
+  Value *Call = Builder.CreateCall(F, {Ops[0], Ops[1]});
+
+  // Now bitcast to the wider result type.
+  llvm::ScalableVectorType *Ty = getSVEType(TypeFlags);
+  return EmitSVEReinterpret(Call, Ty);
+}
+
+Value *CodeGenFunction::EmitSVEMovl(SVETypeFlags TypeFlags,
+                                    ArrayRef<Value *> Ops, unsigned BuiltinID) {
+  llvm::Type *OverloadedTy = getSVEType(TypeFlags);
+  Function *F = CGM.getIntrinsic(BuiltinID, OverloadedTy);
+  return Builder.CreateCall(F, {Ops[0], Builder.getInt32(0)});
+}
+
 Value *CodeGenFunction::EmitSVEPrefetchLoad(SVETypeFlags TypeFlags,
                                             SmallVectorImpl<Value *> &Ops,
                                             unsigned BuiltinID) {
@@ -7882,6 +7921,16 @@ Value *CodeGenFunction::EmitSVEDupX(Value* Scalar) {
   return Builder.CreateCall(F, Scalar);
 }
 
+Value *CodeGenFunction::EmitSVEReinterpret(Value *Val, llvm::Type *Ty) {
+  // FIXME: For big endian this needs an additional REV, or needs a separate
+  // intrinsic that is code-generated as a no-op, because the LLVM bitcast
+  // instruction is defined as 'bitwise' equivalent from memory point of
+  // view (when storing/reloading), whereas the svreinterpret builtin
+  // implements bitwise equivalent cast from register point of view.
+  // LLVM CodeGen for a bitcast must add an explicit REV for big-endian.
+  return Builder.CreateBitCast(Val, Ty);
+}
+
 static void InsertExplicitZeroOperand(CGBuilderTy &Builder, llvm::Type *Ty,
                                       SmallVectorImpl<Value *> &Ops) {
   auto *SplatZero = Constant::getNullValue(Ty);
@@ -7927,13 +7976,7 @@ Value *CodeGenFunction::EmitAArch64SVEBuiltinExpr(unsigned BuiltinID,
   if (BuiltinID >= SVE::BI__builtin_sve_reinterpret_s8_s8 &&
       BuiltinID <= SVE::BI__builtin_sve_reinterpret_f64_f64) {
     Value *Val = EmitScalarExpr(E->getArg(0));
-    // FIXME: For big endian this needs an additional REV, or needs a separate
-    // intrinsic that is code-generated as a no-op, because the LLVM bitcast
-    // instruction is defined as 'bitwise' equivalent from memory point of
-    // view (when storing/reloading), whereas the svreinterpret builtin
-    // implements bitwise equivalent cast from register point of view.
-    // LLVM CodeGen for a bitcast must add an explicit REV for big-endian.
-    return Builder.CreateBitCast(Val, Ty);
+    return EmitSVEReinterpret(Val, Ty);
   }
 
   llvm::SmallVector<Value *, 4> Ops;
@@ -8039,6 +8082,38 @@ Value *CodeGenFunction::EmitAArch64SVEBuiltinExpr(unsigned BuiltinID,
     Function *F = CGM.getIntrinsic(Intrinsic::aarch64_sve_eor_z, OverloadedTy);
     return Builder.CreateCall(F, {Ops[0], Ops[1], Ops[0]});
   }
+
+  case SVE::BI__builtin_sve_svmovlb_u16:
+  case SVE::BI__builtin_sve_svmovlb_u32:
+  case SVE::BI__builtin_sve_svmovlb_u64:
+    return EmitSVEMovl(TypeFlags, Ops, Intrinsic::aarch64_sve_ushllb);
+
+  case SVE::BI__builtin_sve_svmovlb_s16:
+  case SVE::BI__builtin_sve_svmovlb_s32:
+  case SVE::BI__builtin_sve_svmovlb_s64:
+    return EmitSVEMovl(TypeFlags, Ops, Intrinsic::aarch64_sve_sshllb);
+
+  case SVE::BI__builtin_sve_svmovlt_u16:
+  case SVE::BI__builtin_sve_svmovlt_u32:
+  case SVE::BI__builtin_sve_svmovlt_u64:
+    return EmitSVEMovl(TypeFlags, Ops, Intrinsic::aarch64_sve_ushllt);
+
+  case SVE::BI__builtin_sve_svmovlt_s16:
+  case SVE::BI__builtin_sve_svmovlt_s32:
+  case SVE::BI__builtin_sve_svmovlt_s64:
+    return EmitSVEMovl(TypeFlags, Ops, Intrinsic::aarch64_sve_sshllt);
+
+  case SVE::BI__builtin_sve_svpmullt_u16:
+  case SVE::BI__builtin_sve_svpmullt_u64:
+  case SVE::BI__builtin_sve_svpmullt_n_u16:
+  case SVE::BI__builtin_sve_svpmullt_n_u64:
+    return EmitSVEPMull(TypeFlags, Ops, Intrinsic::aarch64_sve_pmullt_pair);
+
+  case SVE::BI__builtin_sve_svpmullb_u16:
+  case SVE::BI__builtin_sve_svpmullb_u64:
+  case SVE::BI__builtin_sve_svpmullb_n_u16:
+  case SVE::BI__builtin_sve_svpmullb_n_u64:
+    return EmitSVEPMull(TypeFlags, Ops, Intrinsic::aarch64_sve_pmullb_pair);
 
   case SVE::BI__builtin_sve_svdupq_n_b8:
   case SVE::BI__builtin_sve_svdupq_n_b16:
@@ -15974,6 +16049,20 @@ Value *CodeGenFunction::EmitWebAssemblyBuiltinExpr(unsigned BuiltinID,
     Function *Callee =
         CGM.getIntrinsic(IntNo, {ConvertType(E->getType()), Vec->getType()});
     return Builder.CreateCall(Callee, Vec);
+  }
+  case WebAssembly::BI__builtin_wasm_shuffle_v8x16: {
+    Value *Ops[18];
+    size_t OpIdx = 0;
+    Ops[OpIdx++] = EmitScalarExpr(E->getArg(0));
+    Ops[OpIdx++] = EmitScalarExpr(E->getArg(1));
+    while (OpIdx < 18) {
+      llvm::APSInt LaneConst;
+      if (!E->getArg(OpIdx)->isIntegerConstantExpr(LaneConst, getContext()))
+        llvm_unreachable("Constant arg isn't actually constant?");
+      Ops[OpIdx++] = llvm::ConstantInt::get(getLLVMContext(), LaneConst);
+    }
+    Function *Callee = CGM.getIntrinsic(Intrinsic::wasm_shuffle);
+    return Builder.CreateCall(Callee, Ops);
   }
   default:
     return nullptr;

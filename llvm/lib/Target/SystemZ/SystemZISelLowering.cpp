@@ -649,6 +649,8 @@ SystemZTargetLowering::SystemZTargetLowering(const TargetMachine &TM,
   setTargetDAGCombine(ISD::UDIV);
   setTargetDAGCombine(ISD::SREM);
   setTargetDAGCombine(ISD::UREM);
+  setTargetDAGCombine(ISD::INTRINSIC_VOID);
+  setTargetDAGCombine(ISD::INTRINSIC_W_CHAIN);
 
   // Handle intrinsics.
   setOperationAction(ISD::INTRINSIC_W_CHAIN, MVT::Other, Custom);
@@ -3126,7 +3128,7 @@ SDValue SystemZTargetLowering::lowerGlobalTLSAddress(GlobalAddressSDNode *Node,
       SystemZConstantPoolValue *CPV =
         SystemZConstantPoolValue::Create(GV, SystemZCP::TLSGD);
 
-      Offset = DAG.getConstantPool(CPV, PtrVT, 8);
+      Offset = DAG.getConstantPool(CPV, PtrVT, Align(8));
       Offset = DAG.getLoad(
           PtrVT, DL, DAG.getEntryNode(), Offset,
           MachinePointerInfo::getConstantPool(DAG.getMachineFunction()));
@@ -3141,7 +3143,7 @@ SDValue SystemZTargetLowering::lowerGlobalTLSAddress(GlobalAddressSDNode *Node,
       SystemZConstantPoolValue *CPV =
         SystemZConstantPoolValue::Create(GV, SystemZCP::TLSLDM);
 
-      Offset = DAG.getConstantPool(CPV, PtrVT, 8);
+      Offset = DAG.getConstantPool(CPV, PtrVT, Align(8));
       Offset = DAG.getLoad(
           PtrVT, DL, DAG.getEntryNode(), Offset,
           MachinePointerInfo::getConstantPool(DAG.getMachineFunction()));
@@ -3159,7 +3161,7 @@ SDValue SystemZTargetLowering::lowerGlobalTLSAddress(GlobalAddressSDNode *Node,
       // Add the per-symbol offset.
       CPV = SystemZConstantPoolValue::Create(GV, SystemZCP::DTPOFF);
 
-      SDValue DTPOffset = DAG.getConstantPool(CPV, PtrVT, 8);
+      SDValue DTPOffset = DAG.getConstantPool(CPV, PtrVT, Align(8));
       DTPOffset = DAG.getLoad(
           PtrVT, DL, DAG.getEntryNode(), DTPOffset,
           MachinePointerInfo::getConstantPool(DAG.getMachineFunction()));
@@ -3184,7 +3186,7 @@ SDValue SystemZTargetLowering::lowerGlobalTLSAddress(GlobalAddressSDNode *Node,
       SystemZConstantPoolValue *CPV =
         SystemZConstantPoolValue::Create(GV, SystemZCP::NTPOFF);
 
-      Offset = DAG.getConstantPool(CPV, PtrVT, 8);
+      Offset = DAG.getConstantPool(CPV, PtrVT, Align(8));
       Offset = DAG.getLoad(
           PtrVT, DL, DAG.getEntryNode(), Offset,
           MachinePointerInfo::getConstantPool(DAG.getMachineFunction()));
@@ -3225,11 +3227,11 @@ SDValue SystemZTargetLowering::lowerConstantPool(ConstantPoolSDNode *CP,
 
   SDValue Result;
   if (CP->isMachineConstantPoolEntry())
-    Result = DAG.getTargetConstantPool(CP->getMachineCPVal(), PtrVT,
-                                       CP->getAlignment());
+    Result =
+        DAG.getTargetConstantPool(CP->getMachineCPVal(), PtrVT, CP->getAlign());
   else
-    Result = DAG.getTargetConstantPool(CP->getConstVal(), PtrVT,
-                                       CP->getAlignment(), CP->getOffset());
+    Result = DAG.getTargetConstantPool(CP->getConstVal(), PtrVT, CP->getAlign(),
+                                       CP->getOffset());
 
   // Use LARL to load the address of the constant pool entry.
   return DAG.getNode(SystemZISD::PCREL_WRAPPER, DL, PtrVT, Result);
@@ -6413,6 +6415,34 @@ SDValue SystemZTargetLowering::combineIntDIVREM(
   return SDValue();
 }
 
+SDValue SystemZTargetLowering::combineINTRINSIC(
+    SDNode *N, DAGCombinerInfo &DCI) const {
+  SelectionDAG &DAG = DCI.DAG;
+
+  unsigned Id = cast<ConstantSDNode>(N->getOperand(1))->getZExtValue();
+  switch (Id) {
+  // VECTOR LOAD (RIGHTMOST) WITH LENGTH with a length operand of 15
+  // or larger is simply a vector load.
+  case Intrinsic::s390_vll:
+  case Intrinsic::s390_vlrl:
+    if (auto *C = dyn_cast<ConstantSDNode>(N->getOperand(2)))
+      if (C->getZExtValue() >= 15)
+        return DAG.getLoad(N->getValueType(0), SDLoc(N), N->getOperand(0),
+                           N->getOperand(3), MachinePointerInfo());
+    break;
+  // Likewise for VECTOR STORE (RIGHTMOST) WITH LENGTH.
+  case Intrinsic::s390_vstl:
+  case Intrinsic::s390_vstrl:
+    if (auto *C = dyn_cast<ConstantSDNode>(N->getOperand(3)))
+      if (C->getZExtValue() >= 15)
+        return DAG.getStore(N->getOperand(0), SDLoc(N), N->getOperand(2),
+                            N->getOperand(4), MachinePointerInfo());
+    break;
+  }
+
+  return SDValue();
+}
+
 SDValue SystemZTargetLowering::unwrapAddress(SDValue N) const {
   if (N->getOpcode() == SystemZISD::PCREL_WRAPPER)
     return N->getOperand(0);
@@ -6447,6 +6477,8 @@ SDValue SystemZTargetLowering::PerformDAGCombine(SDNode *N,
   case ISD::UDIV:
   case ISD::SREM:
   case ISD::UREM:               return combineIntDIVREM(N, DCI);
+  case ISD::INTRINSIC_W_CHAIN:
+  case ISD::INTRINSIC_VOID:     return combineINTRINSIC(N, DCI);
   }
 
   return SDValue();

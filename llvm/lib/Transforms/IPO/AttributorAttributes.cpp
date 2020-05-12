@@ -247,7 +247,7 @@ static bool genericValueTraversal(
     Attributor &A, IRPosition IRP, const AAType &QueryingAA, StateTy &State,
     function_ref<bool(Value &, const Instruction *, StateTy &, bool)>
         VisitValueCB,
-    const Instruction *CtxI, int MaxValues = 16,
+    const Instruction *CtxI, bool UseValueSimplify = true, int MaxValues = 16,
     function_ref<Value *(Value *)> StripCB = nullptr) {
 
   const AAIsDead *LivenessAA = nullptr;
@@ -322,6 +322,18 @@ static bool genericValueTraversal(
             {PHI->getIncomingValue(u), IncomingBB->getTerminator()});
       }
       continue;
+    }
+
+    if (UseValueSimplify && !isa<Constant>(V)) {
+      bool UsedAssumedInformation = false;
+      Optional<Constant *> C =
+          A.getAssumedConstant(*V, QueryingAA, UsedAssumedInformation);
+      if (!C.hasValue())
+        continue;
+      if (Value *NewV = C.getValue()) {
+        Worklist.push_back({NewV, CtxI});
+        continue;
+      }
     }
 
     // Once a leaf is reached we inform the user through the callback.
@@ -539,7 +551,7 @@ static void followUsesInContext(AAType &AA, Attributor &A,
 ///
 template <class AAType, typename StateType = typename AAType::StateType>
 static void followUsesInMBEC(AAType &AA, Attributor &A, StateType &S,
-                            Instruction &CtxI) {
+                             Instruction &CtxI) {
 
   // Container for (transitive) uses of the associated value.
   SetVector<const Use *> Uses;
@@ -979,7 +991,8 @@ ChangeStatus AAReturnedValuesImpl::updateImpl(Attributor &A) {
                                 const Instruction *CtxI) {
     IRPosition RetValPos = IRPosition::value(RV);
     return genericValueTraversal<AAReturnedValues, RVState>(
-        A, RetValPos, *this, RVS, VisitValueCB, CtxI);
+        A, RetValPos, *this, RVS, VisitValueCB, CtxI,
+        /* UseValueSimplify */ false);
   };
 
   // Callback for all "return intructions" live in the associated function.
@@ -1601,14 +1614,20 @@ struct AANonNullImpl : AANonNull {
 
   /// See AbstractAttribute::initialize(...).
   void initialize(Attributor &A) override {
+    Value &V = getAssociatedValue();
     if (!NullIsDefined &&
         hasAttr({Attribute::NonNull, Attribute::Dereferenceable},
                 /* IgnoreSubsumingPositions */ false, &A))
       indicateOptimisticFixpoint();
-    else if (isa<ConstantPointerNull>(getAssociatedValue()))
+    else if (isa<ConstantPointerNull>(V))
       indicatePessimisticFixpoint();
     else
       AANonNull::initialize(A);
+
+    bool CanBeNull = true;
+    if (V.getPointerDereferenceableBytes(A.getDataLayout(), CanBeNull))
+      if (!CanBeNull)
+        indicateOptimisticFixpoint();
 
     if (!getState().isAtFixpoint())
       if (Instruction *CtxI = getCtxI())
@@ -2598,11 +2617,14 @@ struct AAIsDeadValueImpl : public AAIsDead {
     if (!NoUnwindAA.isAssumedNoUnwind())
       return false;
 
-    const auto &MemBehaviorAA = A.getAAFor<AAMemoryBehavior>(*this, CallIRP);
-    if (!MemBehaviorAA.isAssumedReadOnly())
-      return false;
-
-    return true;
+    const auto &MemBehaviorAA = A.getAAFor<AAMemoryBehavior>(
+        *this, CallIRP, /* TrackDependence */ false);
+    if (MemBehaviorAA.isAssumedReadOnly()) {
+      if (!MemBehaviorAA.isKnownReadOnly())
+        A.recordDependence(MemBehaviorAA, *this, DepClassTy::OPTIONAL);
+      return true;
+    }
+    return false;
   }
 };
 
@@ -3015,7 +3037,8 @@ identifyAliveSuccessors(Attributor &A, const InvokeInst &II,
     AliveSuccessors.push_back(&II.getUnwindDest()->front());
   } else {
     const IRPosition &IPos = IRPosition::callsite_function(II);
-    const auto &AANoUnw = A.getAAFor<AANoUnwind>(AA, IPos);
+    const auto &AANoUnw = A.getAAFor<AANoUnwind>(
+        AA, IPos, /* TrackDependence */ true, DepClassTy::OPTIONAL);
     if (AANoUnw.isAssumedNoUnwind()) {
       UsedAssumedInformation |= !AANoUnw.isKnownNoUnwind();
     } else {
@@ -3215,10 +3238,15 @@ struct AADereferenceableImpl : AADereferenceable {
     for (const Attribute &Attr : Attrs)
       takeKnownDerefBytesMaximum(Attr.getValueAsInt());
 
-    NonNullAA = &A.getAAFor<AANonNull>(*this, getIRPosition(),
+    const IRPosition &IRP = this->getIRPosition();
+    NonNullAA = &A.getAAFor<AANonNull>(*this, IRP,
                                        /* TrackDependence */ false);
 
-    const IRPosition &IRP = this->getIRPosition();
+    bool CanBeNull;
+    takeKnownDerefBytesMaximum(
+        IRP.getAssociatedValue().getPointerDereferenceableBytes(
+            A.getDataLayout(), CanBeNull));
+
     bool IsFnInterface = IRP.isFnInterfaceKind();
     Function *FnScope = IRP.getAnchorScope();
     if (IsFnInterface && (!FnScope || !A.isFunctionIPOAmendable(*FnScope))) {
@@ -3526,6 +3554,16 @@ struct AAAlignImpl : AAAlign {
     getAttrs({Attribute::Alignment}, Attrs);
     for (const Attribute &Attr : Attrs)
       takeKnownMaximum(Attr.getValueAsInt());
+
+    Value &V = getAssociatedValue();
+    // TODO: This is a HACK to avoid getPointerAlignment to introduce a ptr2int
+    //       use of the function pointer. This was caused by D73131. We want to
+    //       avoid this for function pointers especially because we iterate
+    //       their uses and int2ptr is not handled. It is not a correctness
+    //       problem though!
+    if (!V.getType()->getPointerElementType()->isFunctionTy())
+      takeKnownMaximum(
+          V.getPointerAlignment(A.getDataLayout()).valueOrOne().value());
 
     if (getIRPosition().isFnInterfaceKind() &&
         (!getAnchorScope() ||
@@ -4061,12 +4099,14 @@ ChangeStatus AANoCaptureImpl::updateImpl(Attributor &A) {
   AANoCapture::StateType T;
 
   // Readonly means we cannot capture through memory.
-  const auto &FnMemAA = A.getAAFor<AAMemoryBehavior>(
-      *this, FnPos, /* TrackDependence */ true, DepClassTy::OPTIONAL);
+  const auto &FnMemAA =
+      A.getAAFor<AAMemoryBehavior>(*this, FnPos, /* TrackDependence */ false);
   if (FnMemAA.isAssumedReadOnly()) {
     T.addKnownBits(NOT_CAPTURED_IN_MEM);
     if (FnMemAA.isKnownReadOnly())
       addKnownBits(NOT_CAPTURED_IN_MEM);
+    else
+      A.recordDependence(FnMemAA, *this, DepClassTy::OPTIONAL);
   }
 
   // Make sure all returned values are different than the underlying value.
@@ -4524,7 +4564,8 @@ struct AAValueSimplifyFloating : AAValueSimplifyImpl {
 
     bool Dummy = false;
     if (!genericValueTraversal<AAValueSimplify, bool>(
-            A, getIRPosition(), *this, Dummy, VisitValueCB, getCtxI()))
+            A, getIRPosition(), *this, Dummy, VisitValueCB, getCtxI(),
+            /* UseValueSimplify */ false))
       if (!askSimplifiedValueForAAValueConstantRange(A))
         return indicatePessimisticFixpoint();
 
@@ -5612,7 +5653,6 @@ struct AAMemoryBehaviorCallSiteArgument final : AAMemoryBehaviorArgument {
         removeKnownBits(NO_READS);
         removeAssumedBits(NO_READS);
       }
-    } else {
     }
     AAMemoryBehaviorArgument::initialize(A);
   }
@@ -5696,8 +5736,10 @@ struct AAMemoryBehaviorCallSite final : AAMemoryBehaviorImpl {
   void initialize(Attributor &A) override {
     AAMemoryBehaviorImpl::initialize(A);
     Function *F = getAssociatedFunction();
-    if (!F || !A.isFunctionIPOAmendable(*F))
+    if (!F || !A.isFunctionIPOAmendable(*F)) {
       indicatePessimisticFixpoint();
+      return;
+    }
   }
 
   /// See AbstractAttribute::updateImpl(...).
@@ -5975,14 +6017,25 @@ struct AAMemoryLocationImpl : public AAMemoryLocation {
   /// See AbstractAttribute::initialize(...).
   void initialize(Attributor &A) override {
     intersectAssumedBits(BEST_STATE);
-    getKnownStateFromValue(getIRPosition(), getState());
+    getKnownStateFromValue(A, getIRPosition(), getState());
     IRAttribute::initialize(A);
   }
 
   /// Return the memory behavior information encoded in the IR for \p IRP.
-  static void getKnownStateFromValue(const IRPosition &IRP,
+  static void getKnownStateFromValue(Attributor &A, const IRPosition &IRP,
                                      BitIntegerState &State,
                                      bool IgnoreSubsumingPositions = false) {
+    // For internal functions we ignore `argmemonly` and
+    // `inaccessiblememorargmemonly` as we might break it via interprocedural
+    // constant propagation. It is unclear if this is the best way but it is
+    // unlikely this will cause real performance problems. If we are deriving
+    // attributes for the anchor function we even remove the attribute in
+    // addition to ignoring it.
+    bool UseArgMemOnly = true;
+    Function *AnchorFn = IRP.getAnchorScope();
+    if (AnchorFn && A.isRunOn(*AnchorFn))
+      UseArgMemOnly = !AnchorFn->hasLocalLinkage();
+
     SmallVector<Attribute, 2> Attrs;
     IRP.getAttrs(AttrKinds, Attrs, IgnoreSubsumingPositions);
     for (const Attribute &Attr : Attrs) {
@@ -5994,11 +6047,17 @@ struct AAMemoryLocationImpl : public AAMemoryLocation {
         State.addKnownBits(inverseLocation(NO_INACCESSIBLE_MEM, true, true));
         break;
       case Attribute::ArgMemOnly:
-        State.addKnownBits(inverseLocation(NO_ARGUMENT_MEM, true, true));
+        if (UseArgMemOnly)
+          State.addKnownBits(inverseLocation(NO_ARGUMENT_MEM, true, true));
+        else
+          IRP.removeAttrs({Attribute::ArgMemOnly});
         break;
       case Attribute::InaccessibleMemOrArgMemOnly:
-        State.addKnownBits(
-            inverseLocation(NO_INACCESSIBLE_MEM | NO_ARGUMENT_MEM, true, true));
+        if (UseArgMemOnly)
+          State.addKnownBits(inverseLocation(
+              NO_INACCESSIBLE_MEM | NO_ARGUMENT_MEM, true, true));
+        else
+          IRP.removeAttrs({Attribute::InaccessibleMemOrArgMemOnly});
         break;
       default:
         llvm_unreachable("Unexpected attribute!");
@@ -6084,7 +6143,8 @@ struct AAMemoryLocationImpl : public AAMemoryLocation {
     Instruction *I = dyn_cast<Instruction>(&getAssociatedValue());
     for (MemoryLocationsKind CurMLK = 1; CurMLK < NO_LOCATIONS; CurMLK *= 2)
       if (!(CurMLK & KnownMLK))
-        updateStateAndAccessesMap(getState(), CurMLK, I, nullptr, Changed);
+        updateStateAndAccessesMap(getState(), CurMLK, I, nullptr, Changed,
+                                  getAccessKindFromInst(I));
     return AAMemoryLocation::indicatePessimisticFixpoint();
   }
 
@@ -6125,24 +6185,29 @@ protected:
   AAMemoryLocation::MemoryLocationsKind
   categorizeAccessedLocations(Attributor &A, Instruction &I, bool &Changed);
 
+  /// Return the access kind as determined by \p I.
+  AccessKind getAccessKindFromInst(const Instruction *I) {
+    AccessKind AK = READ_WRITE;
+    if (I) {
+      AK = I->mayReadFromMemory() ? READ : NONE;
+      AK = AccessKind(AK | (I->mayWriteToMemory() ? WRITE : NONE));
+    }
+    return AK;
+  }
+
   /// Update the state \p State and the AccessKind2Accesses given that \p I is
-  /// an access to a \p MLK memory location with the access pointer \p Ptr.
+  /// an access of kind \p AK to a \p MLK memory location with the access
+  /// pointer \p Ptr.
   void updateStateAndAccessesMap(AAMemoryLocation::StateType &State,
                                  MemoryLocationsKind MLK, const Instruction *I,
-                                 const Value *Ptr, bool &Changed) {
-    // TODO: The kind should be determined at the call sites based on the
-    // information we have there.
-    AccessKind Kind = READ_WRITE;
-    if (I) {
-      Kind = I->mayReadFromMemory() ? READ : NONE;
-      Kind = AccessKind(Kind | (I->mayWriteToMemory() ? WRITE : NONE));
-    }
+                                 const Value *Ptr, bool &Changed,
+                                 AccessKind AK = READ_WRITE) {
 
     assert(isPowerOf2_32(MLK) && "Expected a single location set!");
     auto *&Accesses = AccessKind2Accesses[llvm::Log2_32(MLK)];
     if (!Accesses)
       Accesses = new (Allocator) AccessSet();
-    Changed |= Accesses->insert(AccessInfo{I, Ptr, Kind}).second;
+    Changed |= Accesses->insert(AccessInfo{I, Ptr, AK}).second;
     State.removeAssumedBits(MLK);
   }
 
@@ -6181,37 +6246,40 @@ void AAMemoryLocationImpl::categorizePtrValue(
   auto VisitValueCB = [&](Value &V, const Instruction *,
                           AAMemoryLocation::StateType &T,
                           bool Stripped) -> bool {
+    MemoryLocationsKind MLK = NO_LOCATIONS;
     assert(!isa<GEPOperator>(V) && "GEPs should have been stripped.");
     if (isa<UndefValue>(V))
       return true;
     if (auto *Arg = dyn_cast<Argument>(&V)) {
       if (Arg->hasByValAttr())
-        updateStateAndAccessesMap(T, NO_LOCAL_MEM, &I, &V, Changed);
+        MLK = NO_LOCAL_MEM;
       else
-        updateStateAndAccessesMap(T, NO_ARGUMENT_MEM, &I, &V, Changed);
-      return true;
-    }
-    if (auto *GV = dyn_cast<GlobalValue>(&V)) {
+        MLK = NO_ARGUMENT_MEM;
+    } else if (auto *GV = dyn_cast<GlobalValue>(&V)) {
       if (GV->hasLocalLinkage())
-        updateStateAndAccessesMap(T, NO_GLOBAL_INTERNAL_MEM, &I, &V, Changed);
+        MLK = NO_GLOBAL_INTERNAL_MEM;
       else
-        updateStateAndAccessesMap(T, NO_GLOBAL_EXTERNAL_MEM, &I, &V, Changed);
+        MLK = NO_GLOBAL_EXTERNAL_MEM;
+    } else if (isa<ConstantPointerNull>(V) &&
+               !NullPointerIsDefined(getAssociatedFunction(),
+                                     V.getType()->getPointerAddressSpace())) {
       return true;
-    }
-    if (isa<AllocaInst>(V)) {
-      updateStateAndAccessesMap(T, NO_LOCAL_MEM, &I, &V, Changed);
-      return true;
-    }
-    if (const auto *CB = dyn_cast<CallBase>(&V)) {
+    } else if (isa<AllocaInst>(V)) {
+      MLK = NO_LOCAL_MEM;
+    } else if (const auto *CB = dyn_cast<CallBase>(&V)) {
       const auto &NoAliasAA =
           A.getAAFor<AANoAlias>(*this, IRPosition::callsite_returned(*CB));
-      if (NoAliasAA.isAssumedNoAlias()) {
-        updateStateAndAccessesMap(T, NO_MALLOCED_MEM, &I, &V, Changed);
-        return true;
-      }
+      if (NoAliasAA.isAssumedNoAlias())
+        MLK = NO_MALLOCED_MEM;
+      else
+        MLK = NO_UNKOWN_MEM;
+    } else {
+      MLK = NO_UNKOWN_MEM;
     }
 
-    updateStateAndAccessesMap(T, NO_UNKOWN_MEM, &I, &V, Changed);
+    assert(MLK != NO_LOCATIONS && "No location specified!");
+    updateStateAndAccessesMap(T, MLK, &I, &V, Changed,
+                              getAccessKindFromInst(&I));
     LLVM_DEBUG(dbgs() << "[AAMemoryLocation] Ptr value cannot be categorized: "
                       << V << " -> " << getMemoryLocationsAsStr(T.getAssumed())
                       << "\n");
@@ -6220,10 +6288,12 @@ void AAMemoryLocationImpl::categorizePtrValue(
 
   if (!genericValueTraversal<AAMemoryLocation, AAMemoryLocation::StateType>(
           A, IRPosition::value(Ptr), *this, State, VisitValueCB, getCtxI(),
+          /* UseValueSimplify */ true,
           /* MaxValues */ 32, StripGEPCB)) {
     LLVM_DEBUG(
         dbgs() << "[AAMemoryLocation] Pointer locations not categorized\n");
-    updateStateAndAccessesMap(State, NO_UNKOWN_MEM, &I, nullptr, Changed);
+    updateStateAndAccessesMap(State, NO_UNKOWN_MEM, &I, nullptr, Changed,
+                              getAccessKindFromInst(&I));
   } else {
     LLVM_DEBUG(
         dbgs()
@@ -6254,7 +6324,7 @@ AAMemoryLocationImpl::categorizeAccessedLocations(Attributor &A, Instruction &I,
 
     if (CBMemLocationAA.isAssumedInaccessibleMemOnly()) {
       updateStateAndAccessesMap(AccessedLocs, NO_INACCESSIBLE_MEM, &I, nullptr,
-                                Changed);
+                                Changed, getAccessKindFromInst(&I));
       return AccessedLocs.getAssumed();
     }
 
@@ -6268,7 +6338,8 @@ AAMemoryLocationImpl::categorizeAccessedLocations(Attributor &A, Instruction &I,
     for (MemoryLocationsKind CurMLK = 1; CurMLK < NO_LOCATIONS; CurMLK *= 2) {
       if (CBAssumedNotAccessedLocsNoArgMem & CurMLK)
         continue;
-      updateStateAndAccessesMap(AccessedLocs, CurMLK, &I, nullptr, Changed);
+      updateStateAndAccessesMap(AccessedLocs, CurMLK, &I, nullptr, Changed,
+                                getAccessKindFromInst(&I));
     }
 
     // Now handle global memory if it might be accessed. This is slightly tricky
@@ -6277,7 +6348,8 @@ AAMemoryLocationImpl::categorizeAccessedLocations(Attributor &A, Instruction &I,
     if (HasGlobalAccesses) {
       auto AccessPred = [&](const Instruction *, const Value *Ptr,
                             AccessKind Kind, MemoryLocationsKind MLK) {
-        updateStateAndAccessesMap(AccessedLocs, MLK, &I, Ptr, Changed);
+        updateStateAndAccessesMap(AccessedLocs, MLK, &I, Ptr, Changed,
+                                  getAccessKindFromInst(&I));
         return true;
       };
       if (!CBMemLocationAA.checkForAllAccessesToMemoryKind(
@@ -6331,7 +6403,8 @@ AAMemoryLocationImpl::categorizeAccessedLocations(Attributor &A, Instruction &I,
 
   LLVM_DEBUG(dbgs() << "[AAMemoryLocation] Failed to categorize instruction: "
                     << I << "\n");
-  updateStateAndAccessesMap(AccessedLocs, NO_UNKOWN_MEM, &I, nullptr, Changed);
+  updateStateAndAccessesMap(AccessedLocs, NO_UNKOWN_MEM, &I, nullptr, Changed,
+                            getAccessKindFromInst(&I));
   return AccessedLocs.getAssumed();
 }
 
@@ -6395,8 +6468,10 @@ struct AAMemoryLocationCallSite final : AAMemoryLocationImpl {
   void initialize(Attributor &A) override {
     AAMemoryLocationImpl::initialize(A);
     Function *F = getAssociatedFunction();
-    if (!F || !A.isFunctionIPOAmendable(*F))
+    if (!F || !A.isFunctionIPOAmendable(*F)) {
       indicatePessimisticFixpoint();
+      return;
+    }
   }
 
   /// See AbstractAttribute::updateImpl(...).
@@ -6411,7 +6486,8 @@ struct AAMemoryLocationCallSite final : AAMemoryLocationImpl {
     bool Changed = false;
     auto AccessPred = [&](const Instruction *I, const Value *Ptr,
                           AccessKind Kind, MemoryLocationsKind MLK) {
-      updateStateAndAccessesMap(getState(), MLK, I, Ptr, Changed);
+      updateStateAndAccessesMap(getState(), MLK, I, Ptr, Changed,
+                                getAccessKindFromInst(I));
       return true;
     };
     if (!FnAA.checkForAllAccessesToMemoryKind(AccessPred, ALL_LOCATIONS))
@@ -6853,7 +6929,8 @@ struct AAValueConstantRangeFloating : AAValueConstantRangeImpl {
     IntegerRangeState T(getBitWidth());
 
     if (!genericValueTraversal<AAValueConstantRange, IntegerRangeState>(
-            A, getIRPosition(), *this, T, VisitValueCB, getCtxI()))
+            A, getIRPosition(), *this, T, VisitValueCB, getCtxI(),
+            /* UseValueSimplify */ false))
       return indicatePessimisticFixpoint();
 
     return clampStateAndIndicateChange(getState(), T);
