@@ -130,4 +130,5 @@ def main():
 
     do_configure(args)
 
+if __name__ == "__main__":
     sys.exist(0)
