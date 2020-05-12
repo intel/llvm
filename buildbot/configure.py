@@ -99,6 +99,8 @@ def do_configure(args):
             os.remove(cmake_cache)
         subprocess.check_call(cmake_cmd, cwd=abs_obj_dir)
 
+    return True
+
 def main():
     parser = argparse.ArgumentParser(prog="configure.py",
                                      description="Generate build files from CMake configuration files",
@@ -130,5 +132,4 @@ def main():
 
     do_configure(args)
 
-if __name__ == "__main__":
-    sys.exist(0)
+    sys.exit(0)
