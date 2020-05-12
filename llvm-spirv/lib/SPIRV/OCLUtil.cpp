@@ -969,6 +969,105 @@ std::string getIntelSubgroupBlockDataPostfix(unsigned ElementBitSize,
 }
 } // namespace OCLUtil
 
+Value *SPIRV::transOCLMemScopeIntoSPIRVScope(Value *MemScope,
+                                             Optional<int> DefaultCase,
+                                             Instruction *InsertBefore) {
+  if (auto *C = dyn_cast<ConstantInt>(MemScope)) {
+    return ConstantInt::get(
+        C->getType(), map<Scope>(static_cast<OCLScopeKind>(C->getZExtValue())));
+  }
+
+  // If memory_scope is not a constant, then we have to insert dynamic mapping:
+  return getOrCreateSwitchFunc(kSPIRVName::TranslateOCLMemScope, MemScope,
+                               OCLMemScopeMap::getMap(), /* IsReverse */ false,
+                               DefaultCase, InsertBefore);
+}
+
+Value *SPIRV::transOCLMemOrderIntoSPIRVMemorySemantics(
+    Value *MemOrder, Optional<int> DefaultCase, Instruction *InsertBefore) {
+  if (auto *C = dyn_cast<ConstantInt>(MemOrder)) {
+    return ConstantInt::get(
+        C->getType(), mapOCLMemSemanticToSPIRV(
+                          0, static_cast<OCLMemOrderKind>(C->getZExtValue())));
+  }
+
+  return getOrCreateSwitchFunc(kSPIRVName::TranslateOCLMemOrder, MemOrder,
+                               OCLMemOrderMap::getMap(), /* IsReverse */ false,
+                               DefaultCase, InsertBefore);
+}
+
+Value *
+SPIRV::transSPIRVMemoryScopeIntoOCLMemoryScope(Value *MemScope,
+                                               Instruction *InsertBefore) {
+  if (auto *C = dyn_cast<ConstantInt>(MemScope)) {
+    return ConstantInt::get(C->getType(), rmap<OCLScopeKind>(static_cast<Scope>(
+                                              C->getZExtValue())));
+  }
+
+  if (auto *CI = dyn_cast<CallInst>(MemScope)) {
+    Function *F = CI->getCalledFunction();
+    if (F && F->getName().equals(kSPIRVName::TranslateOCLMemScope)) {
+      // In case the SPIR-V module was created from an OpenCL program by
+      // *this* SPIR-V generator, we know that the value passed to
+      // __translate_ocl_memory_scope is what we should pass to the
+      // OpenCL builtin now.
+      return CI->getArgOperand(0);
+    }
+  }
+
+  return getOrCreateSwitchFunc(kSPIRVName::TranslateSPIRVMemScope, MemScope,
+                               OCLMemScopeMap::getRMap(),
+                               /* IsReverse */ true, None, InsertBefore);
+}
+
+Value *
+SPIRV::transSPIRVMemorySemanticsIntoOCLMemoryOrder(Value *MemorySemantics,
+                                                   Instruction *InsertBefore) {
+  if (auto *C = dyn_cast<ConstantInt>(MemorySemantics)) {
+    return ConstantInt::get(C->getType(),
+                            mapSPIRVMemSemanticToOCL(C->getZExtValue()).second);
+  }
+
+  if (auto *CI = dyn_cast<CallInst>(MemorySemantics)) {
+    Function *F = CI->getCalledFunction();
+    if (F && F->getName().equals(kSPIRVName::TranslateOCLMemOrder)) {
+      // In case the SPIR-V module was created from an OpenCL program by
+      // *this* SPIR-V generator, we know that the value passed to
+      // __translate_ocl_memory_order is what we should pass to the
+      // OpenCL builtin now.
+      return CI->getArgOperand(0);
+    }
+  }
+
+  // SPIR-V MemorySemantics contains both OCL mem_fence_flags and mem_order and
+  // therefore, we need to apply mask
+  int Mask = MemorySemanticsMaskNone | MemorySemanticsAcquireMask |
+             MemorySemanticsReleaseMask | MemorySemanticsAcquireReleaseMask |
+             MemorySemanticsSequentiallyConsistentMask;
+  return getOrCreateSwitchFunc(kSPIRVName::TranslateSPIRVMemOrder,
+                               MemorySemantics, OCLMemOrderMap::getRMap(),
+                               /* IsReverse */ true, None, InsertBefore, Mask);
+}
+
+Value *SPIRV::transSPIRVMemorySemanticsIntoOCLMemFenceFlags(
+    Value *MemorySemantics, Instruction *InsertBefore) {
+  if (auto *C = dyn_cast<ConstantInt>(MemorySemantics)) {
+    return ConstantInt::get(C->getType(),
+                            mapSPIRVMemSemanticToOCL(C->getZExtValue()).first);
+  }
+
+  // TODO: any possible optimizations?
+  // SPIR-V MemorySemantics contains both OCL mem_fence_flags and mem_order and
+  // therefore, we need to apply mask
+  int Mask = MemorySemanticsWorkgroupMemoryMask |
+             MemorySemanticsCrossWorkgroupMemoryMask |
+             MemorySemanticsImageMemoryMask;
+  return getOrCreateSwitchFunc(kSPIRVName::TranslateSPIRVMemFence,
+                               MemorySemantics,
+                               OCLMemFenceExtendedMap::getRMap(),
+                               /* IsReverse */ true, None, InsertBefore, Mask);
+}
+
 void llvm::mangleOpenClBuiltin(const std::string &UniqName,
                                ArrayRef<Type *> ArgTypes,
                                std::string &MangledName) {
