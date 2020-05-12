@@ -18,7 +18,6 @@
 #include <CL/sycl/stl.hpp>
 
 #include <cstring>
-#include <stdexcept>
 #include <type_traits>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -264,7 +263,7 @@ public:
 
   void *allocateMem(ContextImplPtr Context, bool InitFromUserData,
                     void *HostPtr, RT::PiEvent &InteropEvent) override {
-    throw std::runtime_error("Not implemented");
+    throw runtime_error("Not implemented", PI_INVALID_OPERATION);
   }
 
   MemObjType getType() const override { return UNDEFINED; }
