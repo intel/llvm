@@ -1711,6 +1711,7 @@ void SYCLIntegrationHeader::emitFwdDecl(raw_ostream &O, const Decl *D,
   PrintingPolicy P(D->getASTContext().getLangOpts());
   P.adjustForCPlusPlusFwdDecl();
   P.SuppressTypedefs = true;
+  P.SuppressUnwrittenScope = true;
   std::string S;
   llvm::raw_string_ostream SO(S);
   D->print(SO, P);

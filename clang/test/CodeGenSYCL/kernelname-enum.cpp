@@ -20,6 +20,13 @@ enum class namespace_short : short {
 };
 }
 
+namespace {
+enum class enum_in_anonNS : short {
+  val_1,
+  val_2
+};
+}
+
 template <no_namespace_int EnumType>
 class dummy_functor_1 {
 public:
@@ -38,11 +45,18 @@ public:
   void operator()() {}
 };
 
+template <enum_in_anonNS EnumType>
+class dummy_functor_4 {
+public:
+  void operator()() {}
+};
+
 int main() {
 
   dummy_functor_1<no_namespace_int::val_1> f1;
   dummy_functor_2<no_namespace_short::val_2> f2;
   dummy_functor_3<internal::namespace_short::val_2> f3;
+  dummy_functor_4<enum_in_anonNS::val_2> f4;
 
   cl::sycl::queue q;
 
@@ -58,6 +72,10 @@ int main() {
     cgh.single_task(f3);
   });
 
+  q.submit([&](cl::sycl::handler &cgh) {
+    cgh.single_task(f4);
+  });
+
   return 0;
 }
 
@@ -70,8 +88,13 @@ int main() {
 // CHECK-NEXT: enum class namespace_short : short;
 // CHECK-NEXT: }
 // CHECK: template <internal::namespace_short EnumType> class dummy_functor_3;
+// CHECK: namespace  {
+// CHECK-NEXT: enum class enum_in_anonNS : short;
+// CHECK-NEXT: }
+// CHECK: template <enum_in_anonNS EnumType> class dummy_functor_4;
 
 // CHECK: Specializations of KernelInfo for kernel function types:
 // CHECK: template <> struct KernelInfo<dummy_functor_1<(no_namespace_int)0>>
 // CHECK: template <> struct KernelInfo<dummy_functor_2<(no_namespace_short)1>>
 // CHECK: template <> struct KernelInfo<dummy_functor_3<(internal::namespace_short)1>>
+// CHECK: template <> struct KernelInfo<dummy_functor_4<(enum_in_anonNS)1>>
