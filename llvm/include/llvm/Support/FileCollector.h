@@ -23,6 +23,7 @@ class FileCollectorFileSystem;
 /// the VFS.
 class FileCollector {
 public:
+  /// \p Root directory gets created in copyFiles unless it already exists.
   FileCollector(std::string Root, std::string OverlayRoot);
 
   void addFile(const Twine &file);
@@ -69,7 +70,7 @@ protected:
   addDirectoryImpl(const llvm::Twine &Dir,
                    IntrusiveRefCntPtr<vfs::FileSystem> FS, std::error_code &EC);
 
-  /// Synchronizes adding files.
+  /// Synchronizes access to Seen, VFSWriter and SymlinkMap.
   std::mutex Mutex;
 
   /// The root directory where files are copied.

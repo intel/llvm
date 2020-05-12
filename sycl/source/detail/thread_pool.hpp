@@ -1,3 +1,11 @@
+//===-- thread_pool.hpp - Simple thread pool --------------------*- C++ -*-===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
 #pragma once
 
 #include <algorithm>
@@ -26,7 +34,7 @@ class ThreadPool {
   void worker() {
     std::unique_lock<std::mutex> Lock(MJobQueueMutex);
 
-    for (;;) {
+    while (true) {
       MDoSmthOrStop.wait(
           Lock, [this]() { return !MJobQueue.empty() || MStop.load(); });
 

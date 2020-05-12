@@ -9,9 +9,9 @@
 
 #pragma once
 
-#include <CL/cl.h>
 #include <CL/sycl/accessor.hpp>
 #include <CL/sycl/backend_types.hpp>
+#include <CL/sycl/detail/cl.h>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

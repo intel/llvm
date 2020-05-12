@@ -1,7 +1,4 @@
-// RUN: %clangxx -fsycl %s -o %t.out %threads_lib
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out %threads_lib
 // RUN: %CPU_RUN_PLACEHOLDER SYCL_PI_TRACE=-1 %t.out 2>&1 %CPU_CHECK_PLACEHOLDER
 // RUN: %GPU_RUN_PLACEHOLDER SYCL_PI_TRACE=-1 %t.out 2>&1 %GPU_CHECK_PLACEHOLDER
 // RUN: %ACC_RUN_PLACEHOLDER SYCL_PI_TRACE=-1 %t.out 2>&1 %ACC_CHECK_PLACEHOLDER
@@ -156,8 +153,8 @@ void test() {
   auto A1 = std::async(std::launch::async, Thread1Fn, &Ctx);
   auto A2 = std::async(std::launch::async, Thread2Fn, &Ctx);
 
-  A1.wait();
-  A2.wait();
+  A1.get();
+  A2.get();
 
   assert(Ctx.Flag.load());
 

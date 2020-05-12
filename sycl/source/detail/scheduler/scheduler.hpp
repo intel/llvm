@@ -514,22 +514,13 @@ protected:
                       access::mode AccessMode);
 
     /// Perform connection of events in multiple contexts
+    /// \param Cmd dependant command
     /// \param DepEvent event to depend on
-    /// \param DepEventContext context of DepEvent
-    /// \param Context context of command which wants to depend on DepEvent
     /// \param Dep optional DepDesc to perform connection properly
     ///
-    /// Optionality of Dep is set by Dep.MDepCommand not equal to nullptr.
+    /// Optionality of Dep is set by Dep.MDepCommand equal to nullptr.
     void connectDepEvent(Command *const Cmd, EventImplPtr DepEvent,
-                         const ContextImplPtr &DepEventContext,
-                         const ContextImplPtr &Context, const DepDesc &Dep);
-    /// Helper for connectDepEvent
-    /// \param ConnectCmd connection cmd to properly add
-    /// \param Dep DepDesc with non-null MDepRequirmeent
-    void addConnectCmdWithReq(Command *const Cmd,
-                              const ContextImplPtr &DepEventContext,
-                              ExecCGCommand *const ConnectCmd,
-                              EmptyCommand *const EmptyCmd, const DepDesc &Dep);
+                         const DepDesc &Dep);
 
     std::vector<SYCLMemObjI *> MMemObjs;
 
@@ -559,7 +550,10 @@ protected:
     std::set<Command *> findDepsForReq(MemObjRecord *Record, Requirement *Req,
                                        const ContextImplPtr &Context);
 
-    void addEmptyCmdForHostTask(ExecCGCommand *Cmd, const QueueImplPtr &Queue);
+    EmptyCommand *addEmptyCmd(Command *Cmd,
+                              const std::vector<Requirement *> &Req,
+                              const QueueImplPtr &Queue,
+                              Command::BlockReason Reason);
 
   protected:
     /// Finds a command dependency corresponding to the record.

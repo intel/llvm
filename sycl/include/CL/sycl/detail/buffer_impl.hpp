@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include <CL/cl.h>
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/common.hpp>

@@ -73,7 +73,7 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
       NewCmd = MGraphBuilder.addCGUpdateHost(std::move(CommandGroup),
                                              DefaultHostQueue);
       break;
-    case CG::HOST_TASK_CODEPLAY:
+    case CG::CODEPLAY_HOST_TASK:
       NewCmd = MGraphBuilder.addCG(std::move(CommandGroup), DefaultHostQueue);
       break;
     default:
@@ -187,7 +187,7 @@ void Scheduler::releaseHostAccessor(Requirement *Req) {
 
   BlockedCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
 
-  enqueueLeavesOfReq(Req);
+  enqueueLeavesOfReqUnlocked(Req);
 }
 
 void Scheduler::enqueueLeavesOfReq(const Requirement *const Req) {

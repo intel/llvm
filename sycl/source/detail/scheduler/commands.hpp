@@ -27,6 +27,7 @@ namespace detail {
 class queue_impl;
 class event_impl;
 class context_impl;
+class DispatchHostTask;
 
 using QueueImplPtr = std::shared_ptr<detail::queue_impl>;
 using EventImplPtr = std::shared_ptr<detail::event_impl>;
@@ -172,6 +173,8 @@ public:
 
   const char *getBlockReason() const;
 
+  virtual ContextImplPtr getContext() const;
+
 protected:
   EventImplPtr MEvent;
   QueueImplPtr MQueue;
@@ -197,8 +200,6 @@ protected:
   /// Optionality of Dep is set by Dep.MDepCommand not equal to nullptr.
   void processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep);
 
-  virtual ContextImplPtr getContext() const;
-
   /// Private interface. Derived classes should implement this method.
   virtual cl_int enqueueImp() = 0;
 
@@ -206,6 +207,8 @@ protected:
   CommandType MType;
   /// Mutex used to protect enqueueing from race conditions
   std::mutex MEnqueueMtx;
+
+  friend class DispatchHostTask;
 
 public:
   /// Contains list of dependencies(edges)
@@ -251,13 +254,14 @@ public:
   bool MFirstInstance = false;
   /// Instance ID tracked for the command.
   uint64_t MInstanceID = 0;
+
+  bool MShouldCompleteEventIfPossible = true;
 };
 
 /// The empty command does nothing during enqueue. The task can be used to
 /// implement lock in the graph, or to merge several nodes into one.
 class EmptyCommand : public Command {
 public:
-  EmptyCommand(QueueImplPtr Queue, Requirement Req);
   EmptyCommand(QueueImplPtr Queue);
 
   void printDot(std::ostream &Stream) const final;
@@ -270,6 +274,9 @@ public:
 private:
   cl_int enqueueImp() final;
 
+  // Employing deque here as it allows to push_back/emplace_back without
+  // invalidation of pointer or reference to stored data item regardless of
+  // iterator invalidation.
   std::deque<Requirement> MRequirements;
 };
 
@@ -410,9 +417,9 @@ public:
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MDstReq; }
   void emitInstrumentationData();
+  ContextImplPtr getContext() const override final;
 
 private:
-  ContextImplPtr getContext() const final;
   cl_int enqueueImp() final;
 
   QueueImplPtr MSrcQueue;
@@ -433,9 +440,9 @@ public:
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MDstReq; }
   void emitInstrumentationData();
+  ContextImplPtr getContext() const override final;
 
 private:
-  ContextImplPtr getContext() const final;
   cl_int enqueueImp() final;
 
   QueueImplPtr MSrcQueue;

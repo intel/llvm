@@ -251,6 +251,20 @@ template <typename T> void test_copy_ptr_acc() {
   for (size_t I = 0; I < Size; ++I) {
     assert(Data[I] == Values[I]);
   }
+
+  // Check copy from memory to 0-dimensional accessor.
+  T SrcValue = 99;
+  T DstValue = 0;
+  {
+    buffer<T, 1> DstBuf(&DstValue, range<1>(1));
+    queue Queue;
+    Queue.submit([&](handler &Cgh) {
+      accessor<T, 0, access::mode::discard_write, access::target::global_buffer>
+          DstAcc(DstBuf, Cgh);
+      Cgh.copy(&SrcValue, DstAcc);
+    });
+  }
+  assert(DstValue == 99);
 }
 
 template <typename T> void test_copy_acc_ptr() {
@@ -272,6 +286,38 @@ template <typename T> void test_copy_acc_ptr() {
   for (size_t I = 0; I < Size; ++I) {
     assert(Data[I] == Values[I]);
   }
+
+  // Check copy from 0-dimensional accessor to memory
+  T SrcValue = 99;
+  T DstValue = 0;
+  {
+    buffer<T, 1> SrcBuf(&SrcValue, range<1>(1));
+    queue Queue;
+    Queue.submit([&](handler &Cgh) {
+      accessor<T, 0, access::mode::read, access::target::global_buffer>
+          SrcAcc(SrcBuf, Cgh);
+      Cgh.copy(SrcAcc, &DstValue);
+    });
+  }
+  assert(DstValue == 99);
+
+  // Check copy from 0-dimensional placeholder accessor to memory
+  SrcValue = 77;
+  DstValue = 0;
+  {
+    buffer<T, 1> SrcBuf(&SrcValue, range<1>(1));
+    accessor<T, 0, access::mode::read, access::target::global_buffer,
+             access::placeholder::true_t>
+        SrcAcc(SrcBuf);
+    {
+      queue Queue;
+      Queue.submit([&](handler &Cgh) {
+        Cgh.require(SrcAcc);
+        Cgh.copy(SrcAcc, &DstValue);
+      });
+    }
+  }
+  assert(DstValue == 77);
 }
 
 template <typename T> void test_copy_shared_ptr_acc() {
