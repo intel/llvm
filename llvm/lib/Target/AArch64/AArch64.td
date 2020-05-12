@@ -142,7 +142,7 @@ def FeatureStrictAlign : SubtargetFeature<"strict-align",
                                           "Disallow all unaligned memory "
                                           "access">;
 
-foreach i = {1-7,9-15,18,20-28} in
+foreach i = {1-7,9-15,18,20-28,30} in
     def FeatureReserveX#i : SubtargetFeature<"reserve-x"#i, "ReserveXRegister["#i#"]", "true",
                                              "Reserve X"#i#", making it unavailable "
                                              "as a GPR">;
@@ -605,6 +605,14 @@ def ProcA64FX : SubtargetFeature<"a64fx", "ARMProcFamily", "A64FX",
                                   FeatureComplxNum
                                   ]>;
 
+def ProcCarmel : SubtargetFeature<"carmel", "ARMProcFamily", "Carmel",
+                                  "Nvidia Carmel processors", [
+                                   HasV8_2aOps,
+                                   FeatureNEON,
+                                   FeatureCrypto,
+                                   FeatureFullFP16
+                                   ]>;
+
 // Note that cyclone does not fuse AES instructions, but newer apple chips do
 // perform the fusion and cyclone is used by default when targetting apple OSes.
 def ProcAppleA7 : SubtargetFeature<"apple-a7", "ARMProcFamily", "AppleA7",
@@ -946,6 +954,9 @@ def : ProcessorModel<"apple-latest", CycloneModel, [ProcAppleA13]>;
 // Fujitsu A64FX
 // FIXME: Scheduling model is not implemented yet.
 def : ProcessorModel<"a64fx", NoSchedModel, [ProcA64FX]>;
+
+// Nvidia Carmel
+def : ProcessorModel<"carmel", NoSchedModel, [ProcCarmel]>;
 
 //===----------------------------------------------------------------------===//
 // Assembly parser

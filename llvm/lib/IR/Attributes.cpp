@@ -92,9 +92,9 @@ Attribute Attribute::get(LLVMContext &Context, Attribute::AttrKind Kind,
     // If we didn't find any existing attributes of the same shape then create a
     // new one and insert it.
     if (!Val)
-      PA = new EnumAttributeImpl(Kind);
+      PA = new (pImpl->Alloc) EnumAttributeImpl(Kind);
     else
-      PA = new IntAttributeImpl(Kind, Val);
+      PA = new (pImpl->Alloc) IntAttributeImpl(Kind, Val);
     pImpl->AttrsSet.InsertNode(PA, InsertPoint);
   }
 
@@ -114,7 +114,10 @@ Attribute Attribute::get(LLVMContext &Context, StringRef Kind, StringRef Val) {
   if (!PA) {
     // If we didn't find any existing attributes of the same shape then create a
     // new one and insert it.
-    PA = new StringAttributeImpl(Kind, Val);
+    void *Mem =
+        pImpl->Alloc.Allocate(StringAttributeImpl::totalSizeToAlloc(Kind, Val),
+                              alignof(StringAttributeImpl));
+    PA = new (Mem) StringAttributeImpl(Kind, Val);
     pImpl->AttrsSet.InsertNode(PA, InsertPoint);
   }
 
@@ -135,7 +138,7 @@ Attribute Attribute::get(LLVMContext &Context, Attribute::AttrKind Kind,
   if (!PA) {
     // If we didn't find any existing attributes of the same shape then create a
     // new one and insert it.
-    PA = new TypeAttributeImpl(Kind, Ty);
+    PA = new (pImpl->Alloc) TypeAttributeImpl(Kind, Ty);
     pImpl->AttrsSet.InsertNode(PA, InsertPoint);
   }
 
@@ -167,6 +170,10 @@ Attribute Attribute::getWithDereferenceableOrNullBytes(LLVMContext &Context,
 
 Attribute Attribute::getWithByValType(LLVMContext &Context, Type *Ty) {
   return get(Context, ByVal, Ty);
+}
+
+Attribute Attribute::getWithPreallocatedType(LLVMContext &Context, Type *Ty) {
+  return get(Context, Preallocated, Ty);
 }
 
 Attribute
@@ -446,6 +453,17 @@ std::string Attribute::getAsString(bool InAttrGrp) const {
     return Result;
   }
 
+  if (hasAttribute(Attribute::Preallocated)) {
+    std::string Result;
+    Result += "preallocated";
+    raw_string_ostream OS(Result);
+    Result += '(';
+    getValueAsType()->print(OS, false, true);
+    OS.flush();
+    Result += ')';
+    return Result;
+  }
+
   // FIXME: These should be output like this:
   //
   //   align=4
@@ -538,17 +556,6 @@ void Attribute::Profile(FoldingSetNodeID &ID) const {
 //===----------------------------------------------------------------------===//
 // AttributeImpl Definition
 //===----------------------------------------------------------------------===//
-
-// Pin the vtables to this file.
-AttributeImpl::~AttributeImpl() = default;
-
-void EnumAttributeImpl::anchor() {}
-
-void IntAttributeImpl::anchor() {}
-
-void StringAttributeImpl::anchor() {}
-
-void TypeAttributeImpl::anchor() {}
 
 bool AttributeImpl::hasAttribute(Attribute::AttrKind A) const {
   if (isStringAttribute()) return false;
@@ -731,6 +738,10 @@ Type *AttributeSet::getByValType() const {
   return SetNode ? SetNode->getByValType() : nullptr;
 }
 
+Type *AttributeSet::getPreallocatedType() const {
+  return SetNode ? SetNode->getPreallocatedType() : nullptr;
+}
+
 std::pair<unsigned, Optional<unsigned>> AttributeSet::getAllocSizeArgs() const {
   return SetNode ? SetNode->getAllocSizeArgs()
                  : std::pair<unsigned, Optional<unsigned>>(0, 0);
@@ -829,6 +840,9 @@ AttributeSetNode *AttributeSetNode::get(LLVMContext &C, const AttrBuilder &B) {
     case Attribute::ByVal:
       Attr = Attribute::getWithByValType(C, B.getByValType());
       break;
+    case Attribute::Preallocated:
+      Attr = Attribute::getWithPreallocatedType(C, B.getPreallocatedType());
+      break;
     case Attribute::Alignment:
       assert(B.getAlignment() && "Alignment must be set");
       Attr = Attribute::getWithAlignment(C, *B.getAlignment());
@@ -912,6 +926,13 @@ Type *AttributeSetNode::getByValType() const {
   return 0;
 }
 
+Type *AttributeSetNode::getPreallocatedType() const {
+  for (const auto &I : *this)
+    if (I.hasAttribute(Attribute::Preallocated))
+      return I.getValueAsType();
+  return 0;
+}
+
 uint64_t AttributeSetNode::getDereferenceableBytes() const {
   if (auto A = findEnumAttribute(Attribute::Dereferenceable))
     return A->getDereferenceableBytes();
@@ -953,9 +974,8 @@ static constexpr unsigned attrIdxToArrayIdx(unsigned Index) {
   return Index == AttributeList::FunctionIndex ? 0 : Index + 1;
 }
 
-AttributeListImpl::AttributeListImpl(LLVMContext &C,
-                                     ArrayRef<AttributeSet> Sets)
-    : Context(C), NumAttrSets(Sets.size()) {
+AttributeListImpl::AttributeListImpl(ArrayRef<AttributeSet> Sets)
+    : NumAttrSets(Sets.size()) {
   assert(!Sets.empty() && "pointless AttributeListImpl");
 
   // There's memory after the node where we can store the entries in.
@@ -1011,9 +1031,10 @@ AttributeList AttributeList::getImpl(LLVMContext &C,
   // create a new one and insert it.
   if (!PA) {
     // Coallocate entries after the AttributeListImpl itself.
-    void *Mem = ::operator new(
-        AttributeListImpl::totalSizeToAlloc<AttributeSet>(AttrSets.size()));
-    PA = new (Mem) AttributeListImpl(C, AttrSets);
+    void *Mem = pImpl->Alloc.Allocate(
+        AttributeListImpl::totalSizeToAlloc<AttributeSet>(AttrSets.size()),
+        alignof(AttributeListImpl));
+    PA = new (Mem) AttributeListImpl(AttrSets);
     pImpl->AttrsLists.InsertNode(PA, InsertPoint);
   }
 
@@ -1338,8 +1359,6 @@ AttributeList::addAllocSizeAttr(LLVMContext &C, unsigned Index,
 // AttributeList Accessor Methods
 //===----------------------------------------------------------------------===//
 
-LLVMContext &AttributeList::getContext() const { return pImpl->getContext(); }
-
 AttributeSet AttributeList::getParamAttributes(unsigned ArgNo) const {
   return getAttributes(ArgNo + FirstArgIndex);
 }
@@ -1495,6 +1514,7 @@ void AttrBuilder::clear() {
   DerefBytes = DerefOrNullBytes = 0;
   AllocSizeArgs = 0;
   ByValType = nullptr;
+  PreallocatedType = nullptr;
 }
 
 AttrBuilder &AttrBuilder::addAttribute(Attribute::AttrKind Val) {
@@ -1520,6 +1540,8 @@ AttrBuilder &AttrBuilder::addAttribute(Attribute Attr) {
     StackAlignment = Attr.getStackAlignment();
   else if (Kind == Attribute::ByVal)
     ByValType = Attr.getValueAsType();
+  else if (Kind == Attribute::Preallocated)
+    PreallocatedType = Attr.getValueAsType();
   else if (Kind == Attribute::Dereferenceable)
     DerefBytes = Attr.getDereferenceableBytes();
   else if (Kind == Attribute::DereferenceableOrNull)
@@ -1544,6 +1566,8 @@ AttrBuilder &AttrBuilder::removeAttribute(Attribute::AttrKind Val) {
     StackAlignment.reset();
   else if (Val == Attribute::ByVal)
     ByValType = nullptr;
+  else if (Val == Attribute::Preallocated)
+    PreallocatedType = nullptr;
   else if (Val == Attribute::Dereferenceable)
     DerefBytes = 0;
   else if (Val == Attribute::DereferenceableOrNull)
@@ -1632,6 +1656,12 @@ AttrBuilder &AttrBuilder::addByValAttr(Type *Ty) {
   return *this;
 }
 
+AttrBuilder &AttrBuilder::addPreallocatedAttr(Type *Ty) {
+  Attrs[Attribute::Preallocated] = true;
+  PreallocatedType = Ty;
+  return *this;
+}
+
 AttrBuilder &AttrBuilder::merge(const AttrBuilder &B) {
   // FIXME: What if both have alignments, but they don't match?!
   if (!Alignment)
@@ -1651,6 +1681,9 @@ AttrBuilder &AttrBuilder::merge(const AttrBuilder &B) {
 
   if (!ByValType)
     ByValType = B.ByValType;
+
+  if (!PreallocatedType)
+    PreallocatedType = B.PreallocatedType;
 
   Attrs |= B.Attrs;
 
@@ -1679,6 +1712,9 @@ AttrBuilder &AttrBuilder::remove(const AttrBuilder &B) {
 
   if (B.ByValType)
     ByValType = nullptr;
+
+  if (B.PreallocatedType)
+    PreallocatedType = nullptr;
 
   Attrs &= ~B.Attrs;
 
@@ -1739,7 +1775,8 @@ bool AttrBuilder::operator==(const AttrBuilder &B) {
       return false;
 
   return Alignment == B.Alignment && StackAlignment == B.StackAlignment &&
-         DerefBytes == B.DerefBytes && ByValType == B.ByValType;
+         DerefBytes == B.DerefBytes && ByValType == B.ByValType &&
+         PreallocatedType == B.PreallocatedType;
 }
 
 //===----------------------------------------------------------------------===//
@@ -1757,17 +1794,18 @@ AttrBuilder AttributeFuncs::typeIncompatible(Type *Ty) {
 
   if (!Ty->isPointerTy())
     // Attribute that only apply to pointers.
-    Incompatible.addAttribute(Attribute::ByVal)
-      .addAttribute(Attribute::Nest)
-      .addAttribute(Attribute::NoAlias)
-      .addAttribute(Attribute::NoCapture)
-      .addAttribute(Attribute::NonNull)
-      .addDereferenceableAttr(1) // the int here is ignored
-      .addDereferenceableOrNullAttr(1) // the int here is ignored
-      .addAttribute(Attribute::ReadNone)
-      .addAttribute(Attribute::ReadOnly)
-      .addAttribute(Attribute::StructRet)
-      .addAttribute(Attribute::InAlloca);
+    Incompatible.addAttribute(Attribute::Nest)
+        .addAttribute(Attribute::NoAlias)
+        .addAttribute(Attribute::NoCapture)
+        .addAttribute(Attribute::NonNull)
+        .addDereferenceableAttr(1)       // the int here is ignored
+        .addDereferenceableOrNullAttr(1) // the int here is ignored
+        .addAttribute(Attribute::ReadNone)
+        .addAttribute(Attribute::ReadOnly)
+        .addAttribute(Attribute::StructRet)
+        .addAttribute(Attribute::InAlloca)
+        .addPreallocatedAttr(Ty)
+        .addByValAttr(Ty);
 
   return Incompatible;
 }

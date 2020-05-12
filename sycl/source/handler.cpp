@@ -39,7 +39,7 @@ event handler::finalize() {
         MCodeLoc));
     break;
   }
-  case detail::CG::INTEROP_TASK_CODEPLAY:
+  case detail::CG::CODEPLAY_INTEROP_TASK:
     CommandGroup.reset(new detail::CGInteropTask(
         std::move(MInteropTask), std::move(MArgsStorage),
         std::move(MAccStorage), std::move(MSharedPtrStorage),
@@ -83,7 +83,7 @@ event handler::finalize() {
         std::move(MSharedPtrStorage), std::move(MRequirements),
         std::move(MEvents), MCodeLoc));
     break;
-  case detail::CG::HOST_TASK_CODEPLAY:
+  case detail::CG::CODEPLAY_HOST_TASK:
     CommandGroup.reset(new detail::CGHostTask(
         std::move(MHostTask), std::move(MArgs), std::move(MArgsStorage),
         std::move(MAccStorage), std::move(MSharedPtrStorage),

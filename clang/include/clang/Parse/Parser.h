@@ -3119,6 +3119,11 @@ private:
   /// <range-specification> }+ ')'
   ExprResult ParseOpenMPIteratorsExpr();
 
+  /// Parses allocators and traits in the context of the uses_allocator clause.
+  /// Expected format:
+  /// '(' { <allocator> [ '(' <allocator_traits> ')' ] }+ ')'
+  OMPClause *ParseOpenMPUsesAllocatorClause(OpenMPDirectiveKind DKind);
+
 public:
   /// Parses simple expression in parens for single-expression clauses of OpenMP
   /// constructs.

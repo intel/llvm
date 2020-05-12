@@ -114,11 +114,12 @@ bool Argument::hasInAllocaAttr() const {
   return hasAttribute(Attribute::InAlloca);
 }
 
-bool Argument::hasByValOrInAllocaAttr() const {
+bool Argument::hasPassPointeeByValueAttr() const {
   if (!getType()->isPointerTy()) return false;
   AttributeList Attrs = getParent()->getAttributes();
   return Attrs.hasParamAttribute(getArgNo(), Attribute::ByVal) ||
-         Attrs.hasParamAttribute(getArgNo(), Attribute::InAlloca);
+         Attrs.hasParamAttribute(getArgNo(), Attribute::InAlloca) ||
+         Attrs.hasParamAttribute(getArgNo(), Attribute::Preallocated);
 }
 
 unsigned Argument::getParamAlignment() const {
@@ -1074,8 +1075,8 @@ static Type *DecodeFixedType(ArrayRef<Intrinsic::IITDescriptor> &Infos,
     // Return the overloaded type (which determines the pointers address space)
     return Tys[D.getOverloadArgNumber()];
   case IITDescriptor::ScalableVecArgument: {
-    auto *Ty = cast<VectorType>(DecodeFixedType(Infos, Tys, Context));
-    return VectorType::get(Ty->getElementType(), {Ty->getNumElements(), true});
+    auto *Ty = cast<FixedVectorType>(DecodeFixedType(Infos, Tys, Context));
+    return ScalableVectorType::get(Ty->getElementType(), Ty->getNumElements());
   }
   }
   llvm_unreachable("unhandled");

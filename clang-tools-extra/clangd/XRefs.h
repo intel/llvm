@@ -13,12 +13,11 @@
 #ifndef LLVM_CLANG_TOOLS_EXTRA_CLANGD_XREFS_H
 #define LLVM_CLANG_TOOLS_EXTRA_CLANGD_XREFS_H
 
-#include "FormattedString.h"
-#include "Path.h"
 #include "Protocol.h"
 #include "SourceCode.h"
 #include "index/Index.h"
 #include "index/SymbolLocation.h"
+#include "support/Path.h"
 #include "clang/AST/ASTTypeTraits.h"
 #include "clang/AST/Type.h"
 #include "clang/Format/Format.h"
