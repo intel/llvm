@@ -107,20 +107,25 @@ bool SPIRVToOCL20::runOnModule(Module &Module) {
 
 void SPIRVToOCL20::visitCallSPIRVMemoryBarrier(CallInst *CI) {
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
-  mutateCallInstOCL(M, CI,
-                    [=](CallInst *, std::vector<Value *> &Args) {
-                      auto GetArg = [=](unsigned I) {
-                        return cast<ConstantInt>(Args[I])->getZExtValue();
-                      };
-                      auto MScope = static_cast<Scope>(GetArg(0));
-                      auto Sema = mapSPIRVMemSemanticToOCL(GetArg(1));
-                      Args.resize(3);
-                      Args[0] = getInt32(M, Sema.first);
-                      Args[1] = getInt32(M, Sema.second);
-                      Args[2] = getInt32(M, rmap<OCLScopeKind>(MScope));
-                      return kOCLBuiltinName::AtomicWorkItemFence;
-                    },
-                    &Attrs);
+  mutateCallInstOCL(
+      M, CI,
+      [=](CallInst *, std::vector<Value *> &Args) {
+        Value *MemScope =
+            getInt32(M, rmap<OCLScopeKind>(static_cast<Scope>(
+                            cast<ConstantInt>(Args[0])->getZExtValue())));
+        Value *MemFenceFlags =
+            SPIRV::transSPIRVMemorySemanticsIntoOCLMemFenceFlags(Args[1], CI);
+        Value *MemOrder =
+            SPIRV::transSPIRVMemorySemanticsIntoOCLMemoryOrder(Args[1], CI);
+
+        Args.resize(3);
+        Args[0] = MemFenceFlags;
+        Args[1] = MemOrder;
+        Args[2] = MemScope;
+
+        return kOCLBuiltinName::AtomicWorkItemFence;
+      },
+      &Attrs);
 }
 
 void SPIRVToOCL20::visitCallSPIRVControlBarrier(CallInst *CI) {
