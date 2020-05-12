@@ -129,3 +129,5 @@ def main():
     print("args:{}".format(args))
 
     do_configure(args)
+
+    sys.exist(0)
