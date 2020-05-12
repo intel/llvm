@@ -8,7 +8,7 @@ def do_configure(args):
     # Get absolute path to source directory
     abs_src_dir = os.path.abspath(args.src_dir if args.src_dir else os.path.join(__file__, "../.."))
     # Get absolute path to build directory
-    abs_obj_dir = os.path.abspath(args.obj_dir if args.obj_dir else abs_src_dir, "build")
+    abs_obj_dir = os.path.abspath(args.obj_dir) if args.obj_dir else os.path.join(abs_src_dir, "build")
     # Create build directory if it doesn't exist
     if not os.path.isdir(abs_obj_dir):
       os.makedirs(abs_obj_dir)
