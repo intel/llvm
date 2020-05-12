@@ -559,15 +559,13 @@ static RT::PiProgram loadDeviceLibFallback(
     std::map<DeviceLibExt, RT::PiProgram> &CachedLibPrograms) {
 
   const char *LibFileName = getDeviceLibFilename(Extension);
-  std::map<DeviceLibExt, RT::PiProgram>::iterator LibProgIt;
-  bool NotExists = false;
-  std::tie(LibProgIt, NotExists) =
-      CachedLibPrograms.insert({Extension, nullptr});
+  auto CacheResult = CachedLibPrograms.insert({Extension, nullptr});
+  bool Cached = !CacheResult.second;
+  std::map<DeviceLibExt, RT::PiProgram>::iterator LibProgIt = CacheResult.first;
   RT::PiProgram &LibProg = LibProgIt->second;
 
-  if (!NotExists) {
+  if (Cached)
     return LibProg;
-  }
 
   if (!loadDeviceLib(Context, LibFileName, LibProg)) {
     CachedLibPrograms.erase(LibProgIt);
