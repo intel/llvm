@@ -130,6 +130,9 @@ def main():
 
     print("args:{}".format(args))
 
-    do_configure(args)
+    return do_configure(args)
 
-    sys.exit(0)
+if __name__ == "__main__":
+    ret = main()
+    exit_code = 0 if ret else 1
+    sys.exit(exit_code)
