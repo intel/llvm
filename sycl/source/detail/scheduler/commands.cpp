@@ -225,16 +225,22 @@ public:
     // empty command may lead to quick deallocation of MThisCmd by some cleanup
     // process. Thus we'll copy deps prior to completing of event and unblocking
     // of empty command.
+    // Also, it's possible to have record deallocated prior to enqueue process.
+    // Thus we employ read-lock of graph.
+    {
+      Scheduler &Sched = Scheduler::getInstance();
+      std::shared_lock<std::shared_timed_mutex> Lock(Sched.MGraphLock);
 
-    std::vector<DepDesc> Deps = MThisCmd->MDeps;
+      std::vector<DepDesc> Deps = MThisCmd->MDeps;
 
-    // update self-event status
-    MThisCmd->MEvent->setComplete();
+      // update self-event status
+      MThisCmd->MEvent->setComplete();
 
-    EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
+      EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
 
-    for (const DepDesc &Dep : Deps)
-      Scheduler::getInstance().enqueueLeavesOfReq(Dep.MDepRequirement);
+      for (const DepDesc &Dep : Deps)
+        Scheduler::enqueueLeavesOfReqUnlocked(Dep.MDepRequirement);
+    }
   }
 };
 
