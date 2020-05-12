@@ -694,10 +694,12 @@ static void VisitAccessorWrapperHelper(CXXRecordDecl *Owner, RangeTy Range,
     if (Util::isSyclAccessorType(ItemTy))
       (void)std::initializer_list<int>{
           (handlers.handleSyclAccessorType(Item, ItemTy), 0)...};
-    else if (Util::isSyclStreamType(ItemTy))
+    else if (Util::isSyclStreamType(ItemTy)) {
+      VisitAccessorWrapper(Owner, Item, ItemTy->getAsCXXRecordDecl(),
+                           handlers...);
       (void)std::initializer_list<int>{
           (handlers.handleSyclStreamType(Item, ItemTy), 0)...};
-    else if (ItemTy->isStructureOrClassType())
+    } else if (ItemTy->isStructureOrClassType())
       VisitAccessorWrapper(Owner, Item, ItemTy->getAsCXXRecordDecl(),
                            handlers...);
   }
