@@ -6,14 +6,12 @@
 
 #include <detail/plugin.hpp>
 
-using namespace cl::sycl;
-
 namespace pi {
-inline detail::plugin initializeAndGetCuda() {
-  auto plugins = detail::pi::initialize();
+inline cl::sycl::detail::plugin initializeAndGetCuda() {
+  auto plugins = cl::sycl::detail::pi::initialize();
   auto it = std::find_if(
       plugins.begin(), plugins.end(),
-      [](detail::plugin p) -> bool { return p.getBackend() == backend::cuda; });
+      [](cl::sycl::detail::plugin p) -> bool { return p.getBackend() == cl::sycl::backend::cuda; });
   if (it == plugins.end()) {
     throw std::runtime_error("PI CUDA plugin not found.");
   }
