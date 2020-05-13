@@ -369,6 +369,43 @@ bool isVarInStmt(VarDecl *V, std::function<bool(const Expr *)> AssignF,
   return false;
 }
 
+namespace {
+/// HasRefToVar - A visitor class to search for references to
+/// a particular declaration (the needle) within any evaluated component of an
+/// expression (recursively).
+class HasRefToVar : public ConstEvaluatedExprVisitor<HasRefToVar> {
+  bool Match;
+  const VarDecl *Var;
+  Sema &SemaRef;
+
+public:
+  typedef ConstEvaluatedExprVisitor<HasRefToVar> Inherited;
+
+  HasRefToVar(ASTContext &Context, const VarDecl *Var, Sema &S)
+    : Inherited(Context), Match(false), Var(Var), SemaRef(S) {}
+
+  void VisitExpr(const Expr *E) {
+    // Stop evaluating if we already have a match.
+    if (Match)
+      return;
+
+    Inherited::VisitExpr(E);
+  }
+
+  void VisitDeclRefExpr(const DeclRefExpr *DRE) {
+    const ValueDecl *VD = DRE->getDecl();
+    if (VD == Var) {
+      Match = true;
+      std::cout << VD->getNameAsString() << "match @ " << DRE->getBeginLoc().printToString(SemaRef.getSourceManager()) << std::endl;
+    }
+    else
+      Inherited::VisitDeclRefExpr(DRE);
+  }
+
+  bool matches() const { return Match; }
+};
+} // anonymous namespace
+
 typedef std::tuple<VarDecl *, SourceLocation, FunctionDecl *> CaptureTuple;
 typedef std::unordered_multimap<FunctionDecl *, CaptureTuple> CaptureMMap;
 
