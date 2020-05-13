@@ -12,7 +12,9 @@
 
 #include <CL/sycl/detail/device_binary_image.hpp>
 
-using namespace sycl::detail;
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+namespace detail {
 
 DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
     std::unique_ptr<char[]> &&DataPtr, size_t DataSize, OSModuleHandle M)
@@ -21,7 +23,6 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
   Bin = new pi_device_binary_struct();
   Bin->Version = PI_DEVICE_BINARY_VERSION;
   Bin->Kind = PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL;
-  Bin->DeviceTargetSpec = PI_DEVICE_BINARY_TARGET_UNKNOWN;
   Bin->CompileOptions = "";
   Bin->LinkOptions = "";
   Bin->ManifestStart = nullptr;
@@ -31,6 +32,13 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
   Bin->EntriesBegin = nullptr;
   Bin->EntriesEnd = nullptr;
   Bin->Format = pi::getBinaryImageFormat(Bin->BinaryStart, DataSize);
+  switch (Bin->Format) {
+  case PI_DEVICE_BINARY_TYPE_SPIRV:
+    Bin->DeviceTargetSpec = PI_DEVICE_BINARY_TARGET_SPIRV64;
+    break;
+  default:
+    Bin->DeviceTargetSpec = PI_DEVICE_BINARY_TARGET_UNKNOWN;
+  }
   init(Bin);
 }
 
@@ -38,3 +46,7 @@ DynRTDeviceBinaryImage::~DynRTDeviceBinaryImage() {
   delete Bin;
   Bin = nullptr;
 }
+
+} // namespace detail
+} // namespace sycl
+} // __SYCL_INLINE_NAMESPACE(cl)

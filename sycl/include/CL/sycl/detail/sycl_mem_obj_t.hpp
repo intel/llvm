@@ -261,6 +261,13 @@ public:
   static size_t getBufSizeForContext(const ContextImplPtr &Context,
                                      cl_mem MemObject);
 
+  void *allocateMem(ContextImplPtr Context, bool InitFromUserData,
+                    void *HostPtr, RT::PiEvent &InteropEvent) override {
+    throw runtime_error("Not implemented", PI_INVALID_OPERATION);
+  }
+
+  MemObjType getType() const override { return UNDEFINED; }
+
 protected:
   // Allocator used for allocation memory on host.
   unique_ptr_class<SYCLMemObjAllocator> MAllocator;

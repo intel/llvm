@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -triple wasm32-unknown-unknown -target-feature +unimplemented-simd128 -target-feature +nontrapping-fptoint -target-feature +exception-handling -target-feature +bulk-memory -flax-vector-conversions=none -O3 -emit-llvm -o - %s | FileCheck %s -check-prefixes WEBASSEMBLY,WEBASSEMBLY32
-// RUN: %clang_cc1 -triple wasm64-unknown-unknown -target-feature +unimplemented-simd128 -target-feature +nontrapping-fptoint -target-feature +exception-handling -target-feature +bulk-memory -flax-vector-conversions=none -O3 -emit-llvm -o - %s | FileCheck %s -check-prefixes WEBASSEMBLY,WEBASSEMBLY64
-// RUN: not %clang_cc1 -triple wasm64-unknown-unknown -target-feature +nontrapping-fptoint -target-feature +exception-handling -target-feature +bulk-memory -flax-vector-conversions=none -O3 -emit-llvm -o - %s 2>&1 | FileCheck %s -check-prefixes MISSING-SIMD
+// RUN: %clang_cc1 -triple wasm32-unknown-unknown -target-feature +unimplemented-simd128 -target-feature +nontrapping-fptoint -target-feature +exception-handling -target-feature +bulk-memory -target-feature +atomics -flax-vector-conversions=none -O3 -emit-llvm -o - %s | FileCheck %s -check-prefixes WEBASSEMBLY,WEBASSEMBLY32
+// RUN: %clang_cc1 -triple wasm64-unknown-unknown -target-feature +unimplemented-simd128 -target-feature +nontrapping-fptoint -target-feature +exception-handling -target-feature +bulk-memory -target-feature +atomics -flax-vector-conversions=none -O3 -emit-llvm -o - %s | FileCheck %s -check-prefixes WEBASSEMBLY,WEBASSEMBLY64
+// RUN: not %clang_cc1 -triple wasm64-unknown-unknown -target-feature +nontrapping-fptoint -target-feature +exception-handling -target-feature +bulk-memory -target-feature +atomics -flax-vector-conversions=none -O3 -emit-llvm -o - %s 2>&1 | FileCheck %s -check-prefixes MISSING-SIMD
 
 // SIMD convenience types
 typedef char i8x16 __attribute((vector_size(16)));
@@ -724,5 +724,14 @@ i32x4 widen_high_u_i32x4_i16x8(i16x8 v) {
 i8x16 swizzle_v8x16(i8x16 x, i8x16 y) {
   return __builtin_wasm_swizzle_v8x16(x, y);
   // WEBASSEMBLY: call <16 x i8> @llvm.wasm.swizzle(<16 x i8> %x, <16 x i8> %y)
+}
+
+i8x16 shuffle(i8x16 x, i8x16 y) {
+  return __builtin_wasm_shuffle_v8x16(x, y, 0, 1, 2, 3, 4, 5, 6, 7,
+                                      8, 9, 10, 11, 12, 13, 14, 15);
+  // WEBASSEMBLY: call <16 x i8> @llvm.wasm.shuffle(<16 x i8> %x, <16 x i8> %y,
+  // WEBASSEMBLY-SAME: i32 0, i32 1, i32 2, i32 3, i32 4, i32 5, i32 6, i32 7,
+  // WEBASSEMBLY-SAME: i32 8, i32 9, i32 10, i32 11, i32 12, i32 13, i32 14,
+  // WEBASSEMBLY-SAME: i32 15
   // WEBASSEMBLY-NEXT: ret
 }

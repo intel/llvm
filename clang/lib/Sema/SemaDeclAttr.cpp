@@ -2981,6 +2981,9 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
 
 // Handles intel_reqd_sub_group_size.
 static void handleSubGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
+  if (S.LangOpts.SYCLIsHost)
+    return;
+
   uint32_t SGSize;
   const Expr *E = AL.getArgAsExpr(0);
   if (!checkUInt32Argument(S, AL, E, SGSize))

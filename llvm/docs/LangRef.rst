@@ -272,8 +272,8 @@ linkage:
     visible, meaning that it participates in linkage and can be used to
     resolve external symbol references.
 
-It is illegal for a function *declaration* to have any linkage type
-other than ``external`` or ``extern_weak``.
+It is illegal for a global variable or function *declaration* to have any
+linkage type other than ``external`` or ``extern_weak``.
 
 .. _callingconv:
 
@@ -615,6 +615,8 @@ Global variable definitions must be initialized.
 Global variables in other translation units can also be declared, in which
 case they don't have an initializer.
 
+Global variables can optionally specify a :ref:`linkage type <linkage>`.
+
 Either global variable definitions or declarations may have an explicit section
 to be placed in and may have an optional explicit alignment specified. If there
 is a mismatch between the explicit or inferred section information for the
@@ -685,6 +687,13 @@ case, the extra alignment could be observable: for example, code could
 assume that the globals are densely packed in their section and try to
 iterate over them as an array, alignment padding would break this
 iteration. The maximum alignment is ``1 << 29``.
+
+For global variables declarations, as well as definitions that may be
+replaced at link time (``linkonce``, ``weak``, ``extern_weak`` and ``common``
+linkage types), LLVM makes no assumptions about the allocation size of the
+variables, except that they may not overlap. The alignment of a global variable
+declaration or replaceable definition must not be greater than the alignment of
+the definition it resolves to.
 
 Globals can also have a :ref:`DLL storage class <dllstorageclass>`,
 an optional :ref:`runtime preemption specifier <runtime_preemption_model>`,
@@ -2727,7 +2736,8 @@ floating-point transformations.
 
 ``nsz``
    No Signed Zeros - Allow optimizations to treat the sign of a zero
-   argument or result as insignificant.
+   argument or result as insignificant. This does not imply that -0.0
+   is poison and/or guaranteed to not exist in the operation.
 
 ``arcp``
    Allow Reciprocal - Allow optimizations to use the reciprocal of an
@@ -4103,6 +4113,7 @@ AMDGPU:
 - ``r``: A 32 or 64-bit integer register.
 - ``[0-9]v``: The 32-bit VGPR register, number 0-9.
 - ``[0-9]s``: The 32-bit SGPR register, number 0-9.
+- ``[0-9]a``: The 32-bit AGPR register, number 0-9.
 
 
 All ARM modes:

@@ -1642,6 +1642,17 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
   };
 
   switch (II->getIntrinsicID()) {
+  case Intrinsic::assume: {
+    // llvm.assume translation is currently supported only within
+    // SPV_INTEL_optimization_hints extension, ignore it otherwise, since it's
+    // an optimization hint
+    if (BM->isAllowedToUseExtension(
+            ExtensionID::SPV_INTEL_optimization_hints)) {
+      SPIRVValue *Condition = transValue(II->getArgOperand(0), BB);
+      return BM->addAssumeTrueINTELInst(Condition, BB);
+    }
+    return nullptr;
+  }
   case Intrinsic::bitreverse: {
     BM->addCapability(CapabilityShader);
     SPIRVType *Ty = transType(II->getType());
@@ -1679,6 +1690,19 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
     std::vector<SPIRVValue *> Ops(1, transValue(II->getArgOperand(0), BB));
     return BM->addExtInst(Ty, BM->getExtInstSetId(SPIRVEIS_OpenCL), ExtOp, Ops,
                           BB);
+  }
+  case Intrinsic::expect: {
+    // llvm.expect translation is currently supported only within
+    // SPV_INTEL_optimization_hints extension, replace it with a translated
+    // value of #0 operand otherwise, since it's an optimization hint
+    SPIRVValue *Value = transValue(II->getArgOperand(0), BB);
+    if (BM->isAllowedToUseExtension(
+            ExtensionID::SPV_INTEL_optimization_hints)) {
+      SPIRVType *Ty = transType(II->getType());
+      SPIRVValue *ExpectedValue = transValue(II->getArgOperand(1), BB);
+      return BM->addExpectINTELInst(Ty, Value, ExpectedValue, BB);
+    }
+    return Value;
   }
   case Intrinsic::fmuladd: {
     // For llvm.fmuladd.* fusion is not guaranteed. If a fused multiply-add
@@ -1858,7 +1882,6 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
   case Intrinsic::invariant_start:
   case Intrinsic::invariant_end:
   case Intrinsic::dbg_label:
-  case Intrinsic::assume:
     return nullptr;
   default:
     if (SPIRVAllowUnknownIntrinsics)
