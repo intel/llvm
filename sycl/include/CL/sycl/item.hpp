@@ -65,7 +65,7 @@ public:
 
   template <bool has_offset = with_offset>
   detail::enable_if_t<has_offset, size_t>
-  ALWAYS_INLINE get_offset(int dimension) const {
+      ALWAYS_INLINE get_offset(int dimension) const {
     size_t id = MImpl.MOffset[dimension];
     __SYCL_ASSUME_INT(id);
     return id;
