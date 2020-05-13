@@ -8,34 +8,46 @@
 
 #include "FileIndex.h"
 #include "CollectMacros.h"
-#include "Logger.h"
 #include "ParsedAST.h"
 #include "SymbolCollector.h"
 #include "index/CanonicalIncludes.h"
 #include "index/Index.h"
 #include "index/MemIndex.h"
 #include "index/Merge.h"
+#include "index/Ref.h"
+#include "index/Relation.h"
+#include "index/Serialization.h"
+#include "index/Symbol.h"
+#include "index/SymbolID.h"
 #include "index/SymbolOrigin.h"
 #include "index/dex/Dex.h"
+#include "support/Logger.h"
+#include "support/Path.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/Index/IndexingAction.h"
 #include "clang/Index/IndexingOptions.h"
 #include "clang/Lex/MacroInfo.h"
 #include "clang/Lex/Preprocessor.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/DenseSet.h"
+#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/Error.h"
 #include <memory>
+#include <tuple>
+#include <utility>
+#include <vector>
 
 namespace clang {
 namespace clangd {
+namespace {
 
-static SlabTuple indexSymbols(ASTContext &AST, std::shared_ptr<Preprocessor> PP,
-                              llvm::ArrayRef<Decl *> DeclsToIndex,
-                              const MainFileMacros *MacroRefsToIndex,
-                              const CanonicalIncludes &Includes,
-                              bool IsIndexMainAST, llvm::StringRef Version) {
+SlabTuple indexSymbols(ASTContext &AST, std::shared_ptr<Preprocessor> PP,
+                       llvm::ArrayRef<Decl *> DeclsToIndex,
+                       const MainFileMacros *MacroRefsToIndex,
+                       const CanonicalIncludes &Includes, bool IsIndexMainAST,
+                       llvm::StringRef Version) {
   SymbolCollector::Options CollectorOpts;
   CollectorOpts.CollectIncludePath = true;
   CollectorOpts.Includes = &Includes;
@@ -85,6 +97,113 @@ static SlabTuple indexSymbols(ASTContext &AST, std::shared_ptr<Preprocessor> PP,
                          std::move(Relations));
 }
 
+// We keep only the node "U" and its edges. Any node other than "U" will be
+// empty in the resultant graph.
+IncludeGraph getSubGraph(llvm::StringRef URI, const IncludeGraph &FullGraph) {
+  IncludeGraph IG;
+
+  auto Entry = IG.try_emplace(URI).first;
+  auto &Node = Entry->getValue();
+  Node = FullGraph.lookup(Entry->getKey());
+  Node.URI = Entry->getKey();
+
+  // URIs inside nodes must point into the keys of the same IncludeGraph.
+  for (auto &Include : Node.DirectIncludes) {
+    auto I = IG.try_emplace(Include).first;
+    I->getValue().URI = I->getKey();
+    Include = I->getKey();
+  }
+  return IG;
+}
+} // namespace
+
+FileShardedIndex::FileShardedIndex(IndexFileIn Input)
+    : Index(std::move(Input)) {
+  // Used to build RelationSlabs.
+  llvm::DenseMap<SymbolID, FileShard *> SymbolIDToFile;
+
+  // Attribute each Symbol to both their declaration and definition locations.
+  if (Index.Symbols) {
+    for (const auto &S : *Index.Symbols) {
+      auto It = Shards.try_emplace(S.CanonicalDeclaration.FileURI);
+      It.first->getValue().Symbols.insert(&S);
+      SymbolIDToFile[S.ID] = &It.first->getValue();
+      // Only bother if definition file is different than declaration file.
+      if (S.Definition &&
+          S.Definition.FileURI != S.CanonicalDeclaration.FileURI) {
+        auto It = Shards.try_emplace(S.Definition.FileURI);
+        It.first->getValue().Symbols.insert(&S);
+      }
+    }
+  }
+  // Attribute references into each file they occured in.
+  if (Index.Refs) {
+    for (const auto &SymRefs : *Index.Refs) {
+      for (const auto &R : SymRefs.second) {
+        const auto It = Shards.try_emplace(R.Location.FileURI);
+        It.first->getValue().Refs.insert(&R);
+        RefToSymID[&R] = SymRefs.first;
+      }
+    }
+  }
+  // Attribute relations to the file declaraing their Subject as Object might
+  // not have been indexed, see SymbolCollector::processRelations for details.
+  if (Index.Relations) {
+    for (const auto &R : *Index.Relations) {
+      // FIXME: RelationSlab shouldn't contain dangling relations.
+      if (auto *File = SymbolIDToFile.lookup(R.Subject))
+        File->Relations.insert(&R);
+    }
+  }
+  // Store only the direct includes of a file in a shard.
+  if (Index.Sources) {
+    const auto &FullGraph = *Index.Sources;
+    for (const auto &It : FullGraph) {
+      auto ShardIt = Shards.try_emplace(It.first());
+      ShardIt.first->getValue().IG = getSubGraph(It.first(), FullGraph);
+    }
+  }
+}
+std::vector<llvm::StringRef> FileShardedIndex::getAllSources() const {
+  // It should be enough to construct a vector with {Shards.keys().begin(),
+  // Shards.keys().end()} but MSVC fails to compile that.
+  std::vector<PathRef> Result;
+  Result.reserve(Shards.size());
+  for (auto Key : Shards.keys())
+    Result.push_back(Key);
+  return Result;
+}
+
+llvm::Optional<IndexFileIn>
+FileShardedIndex::getShard(llvm::StringRef Uri) const {
+  auto It = Shards.find(Uri);
+  if (It == Shards.end())
+    return llvm::None;
+
+  IndexFileIn IF;
+  IF.Sources = It->getValue().IG;
+  IF.Cmd = Index.Cmd;
+
+  SymbolSlab::Builder SymB;
+  for (const auto *S : It->getValue().Symbols)
+    SymB.insert(*S);
+  IF.Symbols = std::move(SymB).build();
+
+  RefSlab::Builder RefB;
+  for (const auto *Ref : It->getValue().Refs) {
+    auto SID = RefToSymID.lookup(Ref);
+    RefB.insert(SID, *Ref);
+  }
+  IF.Refs = std::move(RefB).build();
+
+  RelationSlab::Builder RelB;
+  for (const auto *Rel : It->getValue().Relations) {
+    RelB.insert(*Rel);
+  }
+  IF.Relations = std::move(RelB).build();
+  return IF;
+}
+
 SlabTuple indexMainDecls(ParsedAST &AST) {
   return indexSymbols(AST.getASTContext(), AST.getPreprocessorPtr(),
                       AST.getLocalTopLevelDecls(), &AST.getMacros(),
@@ -103,27 +222,28 @@ SlabTuple indexHeaderSymbols(llvm::StringRef Version, ASTContext &AST,
                       /*IsIndexMainAST=*/false, Version);
 }
 
-void FileSymbols::update(PathRef Path, std::unique_ptr<SymbolSlab> Symbols,
+void FileSymbols::update(llvm::StringRef Key,
+                         std::unique_ptr<SymbolSlab> Symbols,
                          std::unique_ptr<RefSlab> Refs,
                          std::unique_ptr<RelationSlab> Relations,
                          bool CountReferences) {
   std::lock_guard<std::mutex> Lock(Mutex);
   if (!Symbols)
-    FileToSymbols.erase(Path);
+    SymbolsSnapshot.erase(Key);
   else
-    FileToSymbols[Path] = std::move(Symbols);
+    SymbolsSnapshot[Key] = std::move(Symbols);
   if (!Refs) {
-    FileToRefs.erase(Path);
+    RefsSnapshot.erase(Key);
   } else {
     RefSlabAndCountReferences Item;
     Item.CountReferences = CountReferences;
     Item.Slab = std::move(Refs);
-    FileToRefs[Path] = std::move(Item);
+    RefsSnapshot[Key] = std::move(Item);
   }
   if (!Relations)
-    FileToRelations.erase(Path);
+    RelatiosSnapshot.erase(Key);
   else
-    FileToRelations[Path] = std::move(Relations);
+    RelatiosSnapshot[Key] = std::move(Relations);
 }
 
 std::unique_ptr<SymbolIndex>
@@ -134,14 +254,14 @@ FileSymbols::buildIndex(IndexType Type, DuplicateHandling DuplicateHandle) {
   std::vector<RefSlab *> MainFileRefs;
   {
     std::lock_guard<std::mutex> Lock(Mutex);
-    for (const auto &FileAndSymbols : FileToSymbols)
+    for (const auto &FileAndSymbols : SymbolsSnapshot)
       SymbolSlabs.push_back(FileAndSymbols.second);
-    for (const auto &FileAndRefs : FileToRefs) {
+    for (const auto &FileAndRefs : RefsSnapshot) {
       RefSlabs.push_back(FileAndRefs.second.Slab);
       if (FileAndRefs.second.CountReferences)
         MainFileRefs.push_back(RefSlabs.back().get());
     }
-    for (const auto &FileAndRelations : FileToRelations)
+    for (const auto &FileAndRelations : RelatiosSnapshot)
       RelationSlabs.push_back(FileAndRelations.second);
   }
   std::vector<const Symbol *> AllSymbols;
@@ -254,15 +374,27 @@ void FileIndex::updatePreamble(PathRef Path, llvm::StringRef Version,
                                ASTContext &AST,
                                std::shared_ptr<Preprocessor> PP,
                                const CanonicalIncludes &Includes) {
-  auto Slabs = indexHeaderSymbols(Version, AST, std::move(PP), Includes);
-  PreambleSymbols.update(
-      Path, std::make_unique<SymbolSlab>(std::move(std::get<0>(Slabs))),
-      std::make_unique<RefSlab>(),
-      std::make_unique<RelationSlab>(std::move(std::get<2>(Slabs))),
-      /*CountReferences=*/false);
+  IndexFileIn IF;
+  std::tie(IF.Symbols, std::ignore, IF.Relations) =
+      indexHeaderSymbols(Version, AST, std::move(PP), Includes);
+  FileShardedIndex ShardedIndex(std::move(IF));
+  for (auto Uri : ShardedIndex.getAllSources()) {
+    auto IF = ShardedIndex.getShard(Uri);
+    // We are using the key received from ShardedIndex, so it should always
+    // exist.
+    assert(IF);
+    PreambleSymbols.update(
+        Uri, std::make_unique<SymbolSlab>(std::move(*IF->Symbols)),
+        std::make_unique<RefSlab>(),
+        std::make_unique<RelationSlab>(std::move(*IF->Relations)),
+        /*CountReferences=*/false);
+  }
   PreambleIndex.reset(
       PreambleSymbols.buildIndex(UseDex ? IndexType::Heavy : IndexType::Light,
                                  DuplicateHandling::PickOne));
+  vlog("Build dynamic index for header symbols with estimated memory usage of "
+       "{0} bytes",
+       PreambleIndex.estimateMemoryUsage());
 }
 
 void FileIndex::updateMain(PathRef Path, ParsedAST &AST) {
@@ -274,6 +406,9 @@ void FileIndex::updateMain(PathRef Path, ParsedAST &AST) {
       /*CountReferences=*/true);
   MainFileIndex.reset(
       MainFileSymbols.buildIndex(IndexType::Light, DuplicateHandling::Merge));
+  vlog("Build dynamic index for main-file symbols with estimated memory usage "
+       "of {0} bytes",
+       MainFileIndex.estimateMemoryUsage());
 }
 
 } // namespace clangd

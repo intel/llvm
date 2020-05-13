@@ -43,7 +43,11 @@ int main() {
   check_size<device_selector, 8>();
   check_size<event, 16>();
   check_size<gpu_selector, 8>();
-  check_size<handler, 472>();
+#ifdef _MSC_VER
+  check_size<handler, 520>();
+#else
+  check_size<handler, 528>();
+#endif
   check_size<image<1>, 16>();
   check_size<kernel, 16>();
   check_size<platform, 16>();

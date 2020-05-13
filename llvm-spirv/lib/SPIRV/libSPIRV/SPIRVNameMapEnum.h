@@ -498,6 +498,8 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilitySubgroupAvcMotionEstimationChromaINTEL,
       "SubgroupAvcMotionEstimationChromaINTEL");
   add(CapabilityFPGAMemoryAttributesINTEL, "FPGAMemoryAttributesINTEL");
+  add(CapabilityArbitraryPrecisionIntegersINTEL,
+      "ArbitraryPrecisionIntegersINTEL");
   add(CapabilityFPGALoopControlsINTEL, "FPGALoopControlsINTEL");
   add(CapabilityFPGARegINTEL, "FPGARegINTEL");
   add(CapabilityBlockingPipesINTEL, "BlockingPipesINTEL");
@@ -507,6 +509,7 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilityKernelAttributesINTEL, "KernelAttributesINTEL");
   add(CapabilityFPGAKernelAttributesINTEL, "FPGAKernelAttributesINTEL");
   add(CapabilityIOPipeINTEL, "IOPipeINTEL");
+  add(CapabilityOptimizationHintsINTEL, "OptimizationHintsINTEL");
 }
 SPIRV_DEF_NAMEMAP(Capability, SPIRVCapabilityNameMap)
 

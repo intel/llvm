@@ -11,6 +11,7 @@
 ///
 //===----------------------------------------------------------------------===//
 
+#include "clang/AST/ExprOpenMP.h"
 #include "clang/Serialization/ASTRecordWriter.h"
 #include "clang/Sema/DeclSpec.h"
 #include "clang/AST/ASTContext.h"
@@ -628,8 +629,9 @@ void ASTStmtWriter::VisitIntegerLiteral(IntegerLiteral *E) {
 void ASTStmtWriter::VisitFixedPointLiteral(FixedPointLiteral *E) {
   VisitExpr(E);
   Record.AddSourceLocation(E->getLocation());
+  Record.push_back(E->getScale());
   Record.AddAPInt(E->getValue());
-  Code = serialization::EXPR_INTEGER_LITERAL;
+  Code = serialization::EXPR_FIXEDPOINT_LITERAL;
 }
 
 void ASTStmtWriter::VisitFloatingLiteral(FloatingLiteral *E) {
@@ -700,10 +702,16 @@ void ASTStmtWriter::VisitParenListExpr(ParenListExpr *E) {
 
 void ASTStmtWriter::VisitUnaryOperator(UnaryOperator *E) {
   VisitExpr(E);
+  bool HasFPFeatures = E->hasStoredFPFeatures();
+  // Write this first for easy access when deserializing, as they affect the
+  // size of the UnaryOperator.
+  Record.push_back(HasFPFeatures);
   Record.AddStmt(E->getSubExpr());
   Record.push_back(E->getOpcode()); // FIXME: stable encoding
   Record.AddSourceLocation(E->getOperatorLoc());
   Record.push_back(E->canOverflow());
+  if (HasFPFeatures)
+    Record.push_back(E->getStoredFPFeatures().getAsOpaqueInt());
   Code = serialization::EXPR_UNARY_OPERATOR;
 }
 
@@ -772,6 +780,45 @@ void ASTStmtWriter::VisitOMPArraySectionExpr(OMPArraySectionExpr *E) {
   Record.AddSourceLocation(E->getColonLoc());
   Record.AddSourceLocation(E->getRBracketLoc());
   Code = serialization::EXPR_OMP_ARRAY_SECTION;
+}
+
+void ASTStmtWriter::VisitOMPArrayShapingExpr(OMPArrayShapingExpr *E) {
+  VisitExpr(E);
+  Record.push_back(E->getDimensions().size());
+  Record.AddStmt(E->getBase());
+  for (Expr *Dim : E->getDimensions())
+    Record.AddStmt(Dim);
+  for (SourceRange SR : E->getBracketsRanges())
+    Record.AddSourceRange(SR);
+  Record.AddSourceLocation(E->getLParenLoc());
+  Record.AddSourceLocation(E->getRParenLoc());
+  Code = serialization::EXPR_OMP_ARRAY_SHAPING;
+}
+
+void ASTStmtWriter::VisitOMPIteratorExpr(OMPIteratorExpr *E) {
+  VisitExpr(E);
+  Record.push_back(E->numOfIterators());
+  Record.AddSourceLocation(E->getIteratorKwLoc());
+  Record.AddSourceLocation(E->getLParenLoc());
+  Record.AddSourceLocation(E->getRParenLoc());
+  for (unsigned I = 0, End = E->numOfIterators(); I < End; ++I) {
+    Record.AddDeclRef(E->getIteratorDecl(I));
+    Record.AddSourceLocation(E->getAssignLoc(I));
+    OMPIteratorExpr::IteratorRange Range = E->getIteratorRange(I);
+    Record.AddStmt(Range.Begin);
+    Record.AddStmt(Range.End);
+    Record.AddStmt(Range.Step);
+    Record.AddSourceLocation(E->getColonLoc(I));
+    if (Range.Step)
+      Record.AddSourceLocation(E->getSecondColonLoc(I));
+    // Serialize helpers
+    OMPIteratorHelperData &HD = E->getHelper(I);
+    Record.AddDeclRef(HD.CounterVD);
+    Record.AddStmt(HD.Upper);
+    Record.AddStmt(HD.Update);
+    Record.AddStmt(HD.CounterUpdate);
+  }
+  Code = serialization::EXPR_OMP_ITERATOR;
 }
 
 void ASTStmtWriter::VisitCallExpr(CallExpr *E) {
@@ -878,11 +925,16 @@ void ASTStmtWriter::VisitCastExpr(CastExpr *E) {
 
 void ASTStmtWriter::VisitBinaryOperator(BinaryOperator *E) {
   VisitExpr(E);
+  bool HasFPFeatures = E->hasStoredFPFeatures();
+  // Write this first for easy access when deserializing, as they affect the
+  // size of the UnaryOperator.
+  Record.push_back(HasFPFeatures);
+  Record.push_back(E->getOpcode()); // FIXME: stable encoding
   Record.AddStmt(E->getLHS());
   Record.AddStmt(E->getRHS());
-  Record.push_back(E->getOpcode()); // FIXME: stable encoding
   Record.AddSourceLocation(E->getOperatorLoc());
-  Record.push_back(E->getFPFeatures().getInt());
+  if (HasFPFeatures)
+    Record.push_back(E->getStoredFPFeatures().getAsOpaqueInt());
   Code = serialization::EXPR_BINARY_OPERATOR;
 }
 
@@ -1473,7 +1525,7 @@ void ASTStmtWriter::VisitMSDependentExistsStmt(MSDependentExistsStmt *S) {
 void ASTStmtWriter::VisitCXXOperatorCallExpr(CXXOperatorCallExpr *E) {
   VisitCallExpr(E);
   Record.push_back(E->getOperator());
-  Record.push_back(E->getFPFeatures().getInt());
+  Record.push_back(E->getFPFeatures().getAsOpaqueInt());
   Record.AddSourceRange(E->Range);
   Code = serialization::EXPR_CXX_OPERATOR_CALL;
 }
@@ -2029,7 +2081,7 @@ void ASTStmtWriter::VisitMSPropertySubscriptExpr(MSPropertySubscriptExpr *E) {
 void ASTStmtWriter::VisitCXXUuidofExpr(CXXUuidofExpr *E) {
   VisitExpr(E);
   Record.AddSourceRange(E->getSourceRange());
-  Record.AddString(E->getUuidStr());
+  Record.AddDeclRef(E->getGuidDecl());
   if (E->isTypeOperand()) {
     Record.AddTypeSourceInfo(E->getTypeOperandSourceInfo());
     Code = serialization::EXPR_CXX_UUIDOF_TYPE;
@@ -2149,6 +2201,7 @@ void ASTStmtWriter::VisitOMPParallelDirective(OMPParallelDirective *D) {
   VisitStmt(D);
   Record.push_back(D->getNumClauses());
   VisitOMPExecutableDirective(D);
+  Record.AddStmt(D->getTaskReductionRefExpr());
   Record.push_back(D->hasCancel() ? 1 : 0);
   Code = serialization::STMT_OMP_PARALLEL_DIRECTIVE;
 }
@@ -2160,6 +2213,7 @@ void ASTStmtWriter::VisitOMPSimdDirective(OMPSimdDirective *D) {
 
 void ASTStmtWriter::VisitOMPForDirective(OMPForDirective *D) {
   VisitOMPLoopDirective(D);
+  Record.AddStmt(D->getTaskReductionRefExpr());
   Record.push_back(D->hasCancel() ? 1 : 0);
   Code = serialization::STMT_OMP_FOR_DIRECTIVE;
 }
@@ -2173,6 +2227,7 @@ void ASTStmtWriter::VisitOMPSectionsDirective(OMPSectionsDirective *D) {
   VisitStmt(D);
   Record.push_back(D->getNumClauses());
   VisitOMPExecutableDirective(D);
+  Record.AddStmt(D->getTaskReductionRefExpr());
   Record.push_back(D->hasCancel() ? 1 : 0);
   Code = serialization::STMT_OMP_SECTIONS_DIRECTIVE;
 }
@@ -2207,6 +2262,7 @@ void ASTStmtWriter::VisitOMPCriticalDirective(OMPCriticalDirective *D) {
 
 void ASTStmtWriter::VisitOMPParallelForDirective(OMPParallelForDirective *D) {
   VisitOMPLoopDirective(D);
+  Record.AddStmt(D->getTaskReductionRefExpr());
   Record.push_back(D->hasCancel() ? 1 : 0);
   Code = serialization::STMT_OMP_PARALLEL_FOR_DIRECTIVE;
 }
@@ -2222,6 +2278,7 @@ void ASTStmtWriter::VisitOMPParallelMasterDirective(
   VisitStmt(D);
   Record.push_back(D->getNumClauses());
   VisitOMPExecutableDirective(D);
+  Record.AddStmt(D->getTaskReductionRefExpr());
   Code = serialization::STMT_OMP_PARALLEL_MASTER_DIRECTIVE;
 }
 
@@ -2230,6 +2287,7 @@ void ASTStmtWriter::VisitOMPParallelSectionsDirective(
   VisitStmt(D);
   Record.push_back(D->getNumClauses());
   VisitOMPExecutableDirective(D);
+  Record.AddStmt(D->getTaskReductionRefExpr());
   Record.push_back(D->hasCancel() ? 1 : 0);
   Code = serialization::STMT_OMP_PARALLEL_SECTIONS_DIRECTIVE;
 }
@@ -2290,12 +2348,15 @@ void ASTStmtWriter::VisitOMPTargetParallelDirective(
   VisitStmt(D);
   Record.push_back(D->getNumClauses());
   VisitOMPExecutableDirective(D);
+  Record.AddStmt(D->getTaskReductionRefExpr());
+  Record.writeBool(D->hasCancel());
   Code = serialization::STMT_OMP_TARGET_PARALLEL_DIRECTIVE;
 }
 
 void ASTStmtWriter::VisitOMPTargetParallelForDirective(
     OMPTargetParallelForDirective *D) {
   VisitOMPLoopDirective(D);
+  Record.AddStmt(D->getTaskReductionRefExpr());
   Record.push_back(D->hasCancel() ? 1 : 0);
   Code = serialization::STMT_OMP_TARGET_PARALLEL_FOR_DIRECTIVE;
 }
@@ -2429,6 +2490,7 @@ void ASTStmtWriter::VisitOMPTargetUpdateDirective(OMPTargetUpdateDirective *D) {
 void ASTStmtWriter::VisitOMPDistributeParallelForDirective(
     OMPDistributeParallelForDirective *D) {
   VisitOMPLoopDirective(D);
+  Record.AddStmt(D->getTaskReductionRefExpr());
   Record.push_back(D->hasCancel() ? 1 : 0);
   Code = serialization::STMT_OMP_DISTRIBUTE_PARALLEL_FOR_DIRECTIVE;
 }
@@ -2477,6 +2539,7 @@ void ASTStmtWriter::VisitOMPTeamsDistributeParallelForSimdDirective(
 void ASTStmtWriter::VisitOMPTeamsDistributeParallelForDirective(
     OMPTeamsDistributeParallelForDirective *D) {
   VisitOMPLoopDirective(D);
+  Record.AddStmt(D->getTaskReductionRefExpr());
   Record.push_back(D->hasCancel() ? 1 : 0);
   Code = serialization::STMT_OMP_TEAMS_DISTRIBUTE_PARALLEL_FOR_DIRECTIVE;
 }
@@ -2497,6 +2560,7 @@ void ASTStmtWriter::VisitOMPTargetTeamsDistributeDirective(
 void ASTStmtWriter::VisitOMPTargetTeamsDistributeParallelForDirective(
     OMPTargetTeamsDistributeParallelForDirective *D) {
   VisitOMPLoopDirective(D);
+  Record.AddStmt(D->getTaskReductionRefExpr());
   Record.push_back(D->hasCancel() ? 1 : 0);
   Code = serialization::STMT_OMP_TARGET_TEAMS_DISTRIBUTE_PARALLEL_FOR_DIRECTIVE;
 }

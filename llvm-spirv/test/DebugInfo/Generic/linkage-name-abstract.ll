@@ -1,5 +1,5 @@
 ; RUN: llvm-as < %s -o %t.bc
-; RUN: llvm-spirv %t.bc -o %t.spv -spirv-mem2reg=false
+; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 
 ; RUN: llc -mtriple=%triple -O0 -filetype=obj -dwarf-linkage-names=Abstract < %t.ll | llvm-dwarfdump -v -debug-info - > %t
@@ -72,6 +72,9 @@
 ; REF-NOT:  {{DW_TAG|NULL}}
 ; REF:      DW_AT_abstract_origin {{.*}} {[[F5_ABS]]}
 
+target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
+target triple = "spir64-unknown-unknown"
+
 
 ; Function Attrs: alwaysinline uwtable
 define void @_Z2f2v() #0 !dbg !6 {
@@ -134,5 +137,3 @@ attributes #0 = { alwaysinline }
 !22 = !DILocation(line: 13, column: 3, scope: !15, inlinedAt: !23)
 !23 = distinct !DILocation(line: 16, column: 3, scope: !21)
 !24 = !DILocation(line: 17, column: 1, scope: !21)
-target triple = "spir64-unknown-unknown"
-target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"

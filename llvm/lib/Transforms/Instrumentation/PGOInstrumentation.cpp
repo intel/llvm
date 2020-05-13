@@ -71,7 +71,6 @@
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/CFG.h"
-#include "llvm/IR/CallSite.h"
 #include "llvm/IR/Comdat.h"
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/Constants.h"
@@ -1795,7 +1794,7 @@ void setIrrLoopHeaderMetadata(Module *M, Instruction *TI, uint64_t Count) {
 
 template <> struct GraphTraits<PGOUseFunc *> {
   using NodeRef = const BasicBlock *;
-  using ChildIteratorType = succ_const_iterator;
+  using ChildIteratorType = const_succ_iterator;
   using nodes_iterator = pointer_iterator<Function::const_iterator>;
 
   static NodeRef getEntryNode(const PGOUseFunc *G) {

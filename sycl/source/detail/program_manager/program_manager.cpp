@@ -15,6 +15,7 @@
 #include <CL/sycl/detail/util.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/exception.hpp>
+#include <CL/sycl/experimental/spec_constant.hpp>
 #include <CL/sycl/stl.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
@@ -184,7 +185,7 @@ RetT *waitUntilBuilt(KernelProgramCache &Cache,
 ///         cache. Accepts nothing. Return pointer to built entity.
 template <typename RetT, typename ExceptionT, typename KeyT, typename AcquireFT,
           typename GetCacheFT, typename BuildFT>
-RetT *getOrBuild(KernelProgramCache &KPCache, const KeyT &CacheKey,
+RetT *getOrBuild(KernelProgramCache &KPCache, KeyT &&CacheKey,
                  AcquireFT &&Acquire, GetCacheFT &&GetCache, BuildFT &&Build) {
   bool InsertionTookPlace;
   KernelProgramCache::BuildResult<RetT> *BuildResult;
@@ -356,9 +357,10 @@ RT::PiProgram ProgramManager::createPIProgram(const RTDeviceBinaryImage &Img,
   return Res;
 }
 
-RT::PiProgram
-ProgramManager::getBuiltPIProgram(OSModuleHandle M, const context &Context,
-                                  const string_class &KernelName) {
+RT::PiProgram ProgramManager::getBuiltPIProgram(OSModuleHandle M,
+                                                const context &Context,
+                                                const string_class &KernelName,
+                                                const program_impl *Prg) {
   KernelSetId KSId = getKernelSetId(M, KernelName);
 
   const ContextImplPtr Ctx = getSyclObjImpl(Context);
@@ -374,15 +376,16 @@ ProgramManager::getBuiltPIProgram(OSModuleHandle M, const context &Context,
   auto GetF = [](const Locked<ProgramCacheT> &LockedCache) -> ProgramCacheT& {
     return LockedCache.get();
   };
-  auto BuildF = [this, &M, &KSId, &Context] {
+  auto BuildF = [this, &M, &KSId, &Context, Prg] {
     const RTDeviceBinaryImage &Img = getDeviceImage(M, KSId, Context);
 
     ContextImplPtr ContextImpl = getSyclObjImpl(Context);
     const detail::plugin &Plugin = ContextImpl->getPlugin();
-    RT::PiProgram Prg = createPIProgram(Img, Context);
-    flushSpecConstants(Prg, *ContextImpl);
+    RT::PiProgram NativePrg = createPIProgram(Img, Context);
+    if (Prg)
+      flushSpecConstants(*Prg, NativePrg, &Img);
     ProgramPtr ProgramManaged(
-        Prg, Plugin.getPiPlugin().PiFunctionTable.piProgramRelease);
+        NativePrg, Plugin.getPiPlugin().PiFunctionTable.piProgramRelease);
 
     // Link a fallback implementation of device libraries if they are not
     // supported by a device compiler.
@@ -403,19 +406,25 @@ ProgramManager::getBuiltPIProgram(OSModuleHandle M, const context &Context,
     return BuiltProgram.release();
   };
 
-  return getOrBuild<PiProgramT, compile_program_error>(Cache, KSId, AcquireF,
-                                                       GetF, BuildF);
+  using KeyT = KernelProgramCache::ProgramCacheKeyT;
+  SerializedObj SpecConsts;
+  if (Prg)
+    Prg->stableSerializeSpecConstRegistry(SpecConsts);
+
+  return getOrBuild<PiProgramT, compile_program_error>(
+      Cache, KeyT(std::move(SpecConsts), KSId), AcquireF, GetF, BuildF);
 }
 
 RT::PiKernel ProgramManager::getOrCreateKernel(OSModuleHandle M,
                                                const context &Context,
-                                               const string_class &KernelName) {
+                                               const string_class &KernelName,
+                                               const program_impl *Prg) {
   if (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::getOrCreateKernel(" << M << ", "
               << getRawSyclObjImpl(Context) << ", " << KernelName << ")\n";
   }
 
-  RT::PiProgram Program = getBuiltPIProgram(M, Context, KernelName);
+  RT::PiProgram Program = getBuiltPIProgram(M, Context, KernelName, Prg);
   const ContextImplPtr Ctx = getSyclObjImpl(Context);
 
   using PiKernelT = KernelProgramCache::PiKernelT;
@@ -550,15 +559,13 @@ static RT::PiProgram loadDeviceLibFallback(
     std::map<DeviceLibExt, RT::PiProgram> &CachedLibPrograms) {
 
   const char *LibFileName = getDeviceLibFilename(Extension);
-  std::map<DeviceLibExt, RT::PiProgram>::iterator LibProgIt;
-  bool NotExists = false;
-  std::tie(LibProgIt, NotExists) =
-      CachedLibPrograms.insert({Extension, nullptr});
+  auto CacheResult = CachedLibPrograms.insert({Extension, nullptr});
+  bool Cached = !CacheResult.second;
+  std::map<DeviceLibExt, RT::PiProgram>::iterator LibProgIt = CacheResult.first;
   RT::PiProgram &LibProg = LibProgIt->second;
 
-  if (!NotExists) {
+  if (Cached)
     return LibProg;
-  }
 
   if (!loadDeviceLib(Context, LibFileName, LibProg)) {
     CachedLibPrograms.erase(LibProgIt);
@@ -567,6 +574,7 @@ static RT::PiProgram loadDeviceLibFallback(
   }
 
   const detail::plugin &Plugin = Context->getPlugin();
+  // TODO no spec constants are used in the std libraries, support in the future
   RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piProgramCompile>(
       LibProg,
       // Assume that Devices contains all devices from Context.
@@ -624,50 +632,16 @@ ProgramManager::ProgramManager() {
   }
 }
 
-void ProgramManager::populateSpecConstRegistry() {
-  if (DbgProgMgr > 1) {
-    std::cerr << ">>> ProgramManager::populateSpecConstRegistry\n";
-  }
-  for (const auto &Entry : m_DeviceImages) {
-    const std::vector<RTDeviceBinaryImageUPtr> &Imgs = *Entry.second.get();
-    assert((Imgs.size() > 0) && "no device binary image for a kernel set");
-    OSModuleHandle H = Imgs[0]->getOSModuleHandle();
-    SpecConstMapTy &GlobalIDMap = SpecConstRegistry[H];
-
-    for (const RTDeviceBinaryImageUPtr &Img : Imgs) {
-      if (DbgProgMgr > 1) {
-        std::cerr << ">>>   device binary image found\n";
-        Img->print();
-      }
-      if (Img->getOSModuleHandle() != H)
-        throw sycl::runtime_error("module handle mismatch", PI_INVALID_BINARY);
-
-      for (const pi_device_binary_property ImgIDMapEntry :
-           Img->getSpecConstants()) {
-        pi_uint32 ID = pi::DeviceBinaryProperty(ImgIDMapEntry).asUint32();
-        auto InsRes =
-            GlobalIDMap.emplace(ImgIDMapEntry->Name, spec_constant_impl(ID));
-
-        if (!InsRes.second) {
-          // spec constant with the same name already exists - check ID match
-          if (InsRes.first->second.getID() != ID) {
-            std::string Name(ImgIDMapEntry->Name);
-            throw sycl::runtime_error(
-                "Integer ID mismatch for spec. constant " + Name,
-                PI_INVALID_BINARY);
-          }
-        }
-      }
-    }
-  }
-}
-
 RTDeviceBinaryImage &ProgramManager::getDeviceImage(OSModuleHandle M,
                                                     KernelSetId KSId,
                                                     const context &Context) {
-  if (DbgProgMgr > 0)
+  if (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::getDeviceImage(" << M << ", \"" << KSId
               << "\", " << getRawSyclObjImpl(Context) << ")\n";
+
+    std::cerr << "available device images:\n";
+    debugPrintBinaryImages();
+  }
   std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
   std::vector<RTDeviceBinaryImageUPtr> &Imgs = *m_DeviceImages[KSId];
   const ContextImplPtr Ctx = getSyclObjImpl(Context);
@@ -680,19 +654,15 @@ RTDeviceBinaryImage &ProgramManager::getDeviceImage(OSModuleHandle M,
 
   // Ask the native runtime under the given context to choose the device image
   // it prefers.
-  if (Imgs.size() > 1) {
-    std::vector<pi_device_binary> RawImgs(Imgs.size());
-    for (unsigned I = 0; I < Imgs.size(); I++)
-      RawImgs[I] = const_cast<pi_device_binary>(&Imgs[I]->getRawData());
+  std::vector<pi_device_binary> RawImgs(Imgs.size());
+  for (unsigned I = 0; I < Imgs.size(); I++)
+    RawImgs[I] = const_cast<pi_device_binary>(&Imgs[I]->getRawData());
 
-    Ctx->getPlugin().call<PiApiKind::piextDeviceSelectBinary>(
-        getFirstDevice(Ctx), RawImgs.data(), (cl_uint)RawImgs.size(), &ImgInd);
-  }
+  Ctx->getPlugin().call<PiApiKind::piextDeviceSelectBinary>(
+      getFirstDevice(Ctx), RawImgs.data(), (cl_uint)RawImgs.size(), &ImgInd);
   Img = Imgs[ImgInd].get();
 
   if (DbgProgMgr > 0) {
-    std::cerr << "available device images:\n";
-    debugPrintBinaryImages();
     std::cerr << "selected device image: " << &Img->getRawData() << "\n";
     Img->print();
   }
@@ -889,7 +859,6 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
       Imgs.reset(new std::vector<RTDeviceBinaryImageUPtr>());
     Imgs->push_back(std::move(Img));
   }
-  populateSpecConstRegistry();
 }
 
 void ProgramManager::debugPrintBinaryImages() const {
@@ -958,139 +927,44 @@ void ProgramManager::dumpImage(const RTDeviceBinaryImage &Img,
   F.close();
 }
 
-spec_constant_impl &ProgramManager::resolveSpecConstant(const program_impl *P,
-                                                        const char *Name) {
+void ProgramManager::flushSpecConstants(const program_impl &Prg,
+                                        RT::PiProgram NativePrg,
+                                        const RTDeviceBinaryImage *Img) {
   if (DbgProgMgr > 2) {
-    std::cerr << ">>> ProgramManager::resolveSpecConstant(" << P << ", "
-              << "\"" << Name << "\")\n";
+    std::cerr << ">>> ProgramManager::flushSpecConstants(" << Prg.get()
+              << ",...)\n";
   }
-  auto SpecConstMapIt = SpecConstRegistry.find(P->getOSModuleHandle());
+  if (!Prg.hasSetSpecConstants())
+    return; // nothing to do
+  pi::PiProgram PrgHandle = Prg.getHandleRef();
+  // program_impl can't correspond to two different native programs
+  assert(!NativePrg || !PrgHandle || (NativePrg == PrgHandle));
+  NativePrg = NativePrg ? NativePrg : PrgHandle;
 
-  if (SpecConstMapIt == SpecConstRegistry.end())
-    throw runtime_error("Module has no spec constants: " +
-                            P->getOSModuleHandle(),
-                        PI_INVALID_OPERATION);
-
-  if (DbgProgMgr > 3) {
-    std::cerr << ">>> spec constants (Name/ID) in program " << P << ":\n";
-    for (auto &P : SpecConstMapIt->second) {
-      std::cerr << "      " << P.first << "/" << P.second << "\n";
+  if (!Img) {
+    // caller hasn't provided the image object - find it
+    { // make sure NativePrograms map access is synchronized
+      ContextImplPtr Ctx = getSyclObjImpl(Prg.get_context());
+      auto LockGuard = Ctx->getKernelProgramCache().acquireCachedPrograms();
+      auto It = NativePrograms.find(NativePrg);
+      if (It == NativePrograms.end())
+        throw sycl::experimental::spec_const_error(
+            "spec constant is set in a program w/o a binary image",
+            PI_INVALID_OPERATION);
+      Img = It->second;
     }
-  }
-  auto SpecConstEntryIt = SpecConstMapIt->second.find(Name);
-
-  if (SpecConstEntryIt == SpecConstMapIt->second.end()) {
-    std::string NameStr(Name);
-    throw runtime_error("Module has no spec constant: <" + NameStr + ">",
-                        PI_INVALID_OPERATION);
-  }
-  return SpecConstEntryIt->second;
-}
-
-DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
-    std::unique_ptr<char[]> &&DataPtr, size_t DataSize, OSModuleHandle M)
-    : RTDeviceBinaryImage(M) {
-  Data = std::move(DataPtr);
-  Bin = new pi_device_binary_struct();
-  Bin->Version = PI_DEVICE_BINARY_VERSION;
-  Bin->Kind = PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL;
-  Bin->DeviceTargetSpec = PI_DEVICE_BINARY_TARGET_UNKNOWN;
-  Bin->CompileOptions = "";
-  Bin->LinkOptions = "";
-  Bin->ManifestStart = nullptr;
-  Bin->ManifestEnd = nullptr;
-  Bin->BinaryStart = reinterpret_cast<unsigned char *>(Data.get());
-  Bin->BinaryEnd = Bin->BinaryStart + DataSize;
-  Bin->EntriesBegin = nullptr;
-  Bin->EntriesEnd = nullptr;
-  Bin->Format = pi::getBinaryImageFormat(Bin->BinaryStart, DataSize);
-  init(Bin);
-}
-
-DynRTDeviceBinaryImage::~DynRTDeviceBinaryImage() {
-  delete Bin;
-  Bin = nullptr;
-}
-
-// Convenience class to iteratate via specialization constant names in the
-// binary image given in the constructor. Also implements the C string iterator
-// interface requred by some program manager APIs.
-class SpecConstNameIterator : public CStringIterator {
-public:
-  SpecConstNameIterator(const RTDeviceBinaryImage &Img)
-      : Range(Img.getSpecConstants()) {
-    Cur = Range.begin();
-  }
-
-  virtual const char *next() {
-    if (Cur == Range.end())
-      return nullptr;
-    const char *Res = (*Cur)->Name;
-    Cur++;
-    return Res;
-  }
-
-private:
-  const pi::DeviceBinaryImage::PropertyRange &Range;
-  pi::DeviceBinaryImage::PropertyRange::ConstIterator Cur;
-};
-
-void ProgramManager::flushSpecConstants(pi::PiProgram Prg, context_impl &Ctx) {
-  if (DbgProgMgr > 2) {
-    std::cerr << ">>> ProgramManager::flushSpecConstants(" << Prg << ",...)\n";
-  }
-  const RTDeviceBinaryImage *Img = nullptr;
-  { // make sure NativePrograms map access is synchronized
-    auto LockGuard = Ctx.getKernelProgramCache().acquireCachedPrograms();
-    auto It = NativePrograms.find(Prg);
-    if (It == NativePrograms.end()) {
+    if (!Img->supportsSpecConstants()) {
       if (DbgProgMgr > 0)
-        std::cerr << ">>> WARNING: flushSpecConstants requested on a PI "
-                     "program w/o known binary image\n";
-      return; // program origin is unknown
+        std::cerr << ">>> ProgramManager::flushSpecConstants: binary image "
+                  << &Img->getRawData() << " doesn't support spec constants\n";
+      // This device binary image does not support runtime setting of
+      // specialization constants; compiler must have generated default values.
+      // NOTE: Can't throw here, as it would always take place with AOT
+      //-compiled code. New Khronos 2020 spec should fix this inconsistency.
+      return;
     }
-    Img = It->second;
   }
-  if (!Img->supportsSpecConstants())
-    // this device binary image does not support runtime setting of
-    // specialization constants; compiler must have generated default values
-    return;
-  OSModuleHandle ModuleHandle = Img->getOSModuleHandle();
-  if (DbgProgMgr > 2) {
-    Img->print();
-    std::cerr << "\n  OSModuleHandle:" << ModuleHandle << "\n";
-  }
-
-  auto It = SpecConstRegistry.find(ModuleHandle);
-  if (It == SpecConstRegistry.end()) {
-    if (DbgProgMgr > 0)
-      std::cerr << ">>> WARNING: flushSpecConstants no "
-                << "specialization contant registry for an OS module\n";
-    return;
-  }
-  const SpecConstMapTy &SCMap = It->second;
-  SpecConstNameIterator SCIt(*Img);
-
-  // iterate via all specialization constants the program's image depends on,
-  // and set each to current runtime value (if any)
-  for (const char *SCName = SCIt.next(); SCName; SCName = SCIt.next()) {
-    auto SCEntry = SCMap.find(SCName);
-    if (SCEntry == SCMap.end())
-      throw runtime_error("specialization constant " + std::string(SCName) +
-                              "not found in registry",
-                          PI_ERROR_UNKNOWN);
-    const spec_constant_impl &SC = SCEntry->second;
-    if (DbgProgMgr > 2) {
-      std::cerr << "  Spec const found: << " << SCName << " " << SC << "\n";
-    }
-    // TODO data race is possible - users setting specialization constant value
-    // and reading it here during program build. Should be fixed with new spec
-    // const specification implementation.
-    if (!SC.isSet())
-      continue;
-    Ctx.getPlugin().call<PiApiKind::piextProgramSetSpecializationConstant>(
-        Prg, SC.getID(), SC.getSize(), SC.getValuePtr());
-  }
+  Prg.flush_spec_constants(*Img, NativePrg);
 }
 
 } // namespace detail

@@ -35,6 +35,7 @@
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Use.h"
 #include "llvm/IR/Value.h"
 #include "llvm/InitializePasses.h"
@@ -597,6 +598,23 @@ static bool unswitchTrivialSwitch(Loop &L, SwitchInst &SI, DominatorTree &DT,
 
   auto *ParentBB = SI.getParent();
 
+  auto IsTriviallyUnswitchableExitBlock = [&](BasicBlock &BBToCheck) {
+    // BBToCheck is not an exit block if it is inside loop L.
+    if (L.contains(&BBToCheck))
+      return false;
+    // BBToCheck is not trivial to unswitch if its phis aren't loop invariant.
+    if (!areLoopExitPHIsLoopInvariant(L, *ParentBB, BBToCheck))
+      return false;
+    // We do not unswitch a block that only has an unreachable statement, as
+    // it's possible this is a previously unswitched block. Only unswitch if
+    // either the terminator is not unreachable, or, if it is, it's not the only
+    // instruction in the block.
+    auto *TI = BBToCheck.getTerminator();
+    bool isUnreachable = isa<UnreachableInst>(TI);
+    return !isUnreachable ||
+           (isUnreachable && (BBToCheck.getFirstNonPHIOrDbg() != TI));
+  };
+
   SmallVector<int, 4> ExitCaseIndices;
   for (auto Case : SI.cases()) {
     auto *SuccBB = Case.getCaseSuccessor();
@@ -607,9 +625,7 @@ static bool unswitchTrivialSwitch(Loop &L, SwitchInst &SI, DominatorTree &DT,
   BasicBlock *DefaultExitBB = nullptr;
   SwitchInstProfUpdateWrapper::CaseWeightOpt DefaultCaseWeight =
       SwitchInstProfUpdateWrapper::getSuccessorWeight(SI, 0);
-  if (!L.contains(SI.getDefaultDest()) &&
-      areLoopExitPHIsLoopInvariant(L, *ParentBB, *SI.getDefaultDest()) &&
-      !isa<UnreachableInst>(SI.getDefaultDest()->getTerminator())) {
+  if (IsTriviallyUnswitchableExitBlock(*SI.getDefaultDest())) {
     DefaultExitBB = SI.getDefaultDest();
   } else if (ExitCaseIndices.empty())
     return false;
@@ -2655,11 +2671,11 @@ unswitchBestCondition(Loop &L, DominatorTree &DT, LoopInfo &LI,
 
       if (I.getType()->isTokenTy() && I.isUsedOutsideOfBlock(BB))
         return false;
-      if (auto CS = CallSite(&I))
-        if (CS.isConvergent() || CS.cannotDuplicate())
+      if (auto *CB = dyn_cast<CallBase>(&I))
+        if (CB->isConvergent() || CB->cannotDuplicate())
           return false;
 
-      Cost += TTI.getUserCost(&I);
+      Cost += TTI.getUserCost(&I, TargetTransformInfo::TCK_CodeSize);
     }
     assert(Cost >= 0 && "Must not have negative costs!");
     LoopCost += Cost;

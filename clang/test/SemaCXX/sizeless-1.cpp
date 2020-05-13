@@ -94,9 +94,18 @@ void func(int sel) {
 
 #if __cplusplus >= 201103L
   int empty_brace_init_int = {};
+  svint8_t empty_brace_init_int8 = {};
 #else
   int empty_brace_init_int = {}; // expected-error {{scalar initializer cannot be empty}}
+  svint8_t empty_brace_init_int8 = {}; // expected-error {{initializer for sizeless type 'svint8_t' (aka '__SVInt8_t') cannot be empty}}
 #endif
+  svint8_t brace_init_int8 = {local_int8};
+  svint8_t bad_brace_init_int8_1 = {local_int8, 0};    // expected-error {{excess elements in initializer for indivisible sizeless type 'svint8_t'}}
+  svint8_t bad_brace_init_int8_2 = {0};                // expected-error {{rvalue of type 'int'}}
+  svint8_t bad_brace_init_int8_3 = {local_int16};      // expected-error {{lvalue of type 'svint16_t'}}
+  svint8_t bad_brace_init_int8_4 = {[0] = local_int8}; // expected-error {{designator in initializer for indivisible sizeless type 'svint8_t'}} expected-warning {{array designators are a C99 extension}}
+  svint8_t bad_brace_init_int8_5 = {{local_int8}};     // expected-warning {{too many braces around initializer}}
+  svint8_t bad_brace_init_int8_6 = {{local_int8, 0}};  // expected-warning {{too many braces around initializer}}
 
   const svint8_t const_int8 = local_int8; // expected-note {{declared const here}}
   const svint8_t uninit_const_int8;       // expected-error {{default initialization of an object of const type 'const svint8_t'}}
@@ -266,6 +275,7 @@ int vararg_receiver(int count, svint8_t first, ...) {
   __builtin_va_list va;
 
   __builtin_va_start(va, first);
+  __builtin_va_arg(va, svint8_t);
   __builtin_va_end(va);
   return count;
 }
@@ -454,6 +464,14 @@ void cxx_only(int sel) {
   local_int8 = ref_int8;
 
 #if __cplusplus >= 201103L
+  svint8_t zero_init_int8{};
+  svint8_t init_int8{local_int8};
+  svint8_t bad_brace_init_int8_1{local_int8, 0};    // expected-error {{excess elements in initializer for indivisible sizeless type 'svint8_t'}}
+  svint8_t bad_brace_init_int8_2{0};                // expected-error {{rvalue of type 'int'}}
+  svint8_t bad_brace_init_int8_3{local_int16};      // expected-error {{lvalue of type 'svint16_t'}}
+  svint8_t bad_brace_init_int8_4{[0] = local_int8}; // expected-error {{designator in initializer for indivisible sizeless type 'svint8_t'}} expected-warning {{array designators are a C99 extension}}
+  svint8_t bad_brace_init_int8_5{{local_int8}};     // expected-warning {{too many braces around initializer}}
+  svint8_t bad_brace_init_int8_6{{local_int8, 0}};  // expected-warning {{too many braces around initializer}}
   svint8_t wrapper_init_int8{wrapper<svint8_t>()};
   svint8_t &ref_init_int8{local_int8};
 
@@ -477,6 +495,7 @@ void cxx_only(int sel) {
   (void)typeid(ref_int8);
   (void)typeid(static_int8_ptr);
 
+  _Static_assert(__is_trivially_copyable(svint8_t), "");
   _Static_assert(__is_trivially_destructible(svint8_t), "");
   _Static_assert(!__is_nothrow_assignable(svint8_t, svint8_t), "");
   _Static_assert(__is_nothrow_assignable(svint8_t &, svint8_t), "");
@@ -491,6 +510,16 @@ void cxx_only(int sel) {
   _Static_assert(!__is_assignable(svint8_t, svint8_t), "");
   _Static_assert(__is_assignable(svint8_t &, svint8_t), "");
   _Static_assert(!__is_assignable(svint8_t &, svint16_t), "");
+  _Static_assert(__has_nothrow_assign(svint8_t), "");
+  _Static_assert(__has_nothrow_move_assign(svint8_t), "");
+  _Static_assert(__has_nothrow_copy(svint8_t), "");
+  _Static_assert(__has_nothrow_constructor(svint8_t), "");
+  _Static_assert(__has_trivial_assign(svint8_t), "");
+  _Static_assert(__has_trivial_move_assign(svint8_t), "");
+  _Static_assert(__has_trivial_copy(svint8_t), "");
+  _Static_assert(__has_trivial_constructor(svint8_t), "");
+  _Static_assert(__has_trivial_move_constructor(svint8_t), "");
+  _Static_assert(__has_trivial_destructor(svint8_t), "");
   _Static_assert(!__has_virtual_destructor(svint8_t), "");
   _Static_assert(!__is_abstract(svint8_t), "");
   _Static_assert(!__is_aggregate(svint8_t), "");
@@ -502,7 +531,9 @@ void cxx_only(int sel) {
   _Static_assert(!__is_enum(svint8_t), "");
   _Static_assert(!__is_final(svint8_t), "");
   _Static_assert(!__is_literal(svint8_t), "");
+  _Static_assert(__is_pod(svint8_t), "");
   _Static_assert(!__is_polymorphic(svint8_t), "");
+  _Static_assert(__is_trivial(svint8_t), "");
   _Static_assert(__is_object(svint8_t), "");
   _Static_assert(!__is_arithmetic(svint8_t), "");
   _Static_assert(!__is_floating_point(svint8_t), "");
@@ -579,9 +610,7 @@ void cxx_only(int sel) {
   for (const svint8_t &x : wrapper<svint8_t>()) { // expected-warning {{loop variable 'x' binds to a temporary value produced by a range of type 'wrapper<svint8_t>'}} expected-note {{use non-reference type}}
     (void)x;
   }
-  // This warning is bogus and will be removed by a later patch.
-  // The point is to show that it's being removed for the right reasons.
-  for (const svint8_t x : wrapper<const svint8_t &>()) { // expected-warning {{loop variable 'x' creates a copy from type 'const svint8_t'}} expected-note {{use reference type}}
+  for (const svint8_t x : wrapper<const svint8_t &>()) {
     (void)x;
   }
 #endif
@@ -589,4 +618,9 @@ void cxx_only(int sel) {
 
 #if __cplusplus >= 201103L
 svint8_t ret_bad_conv() { return explicit_conv(); } // expected-error {{no viable conversion from returned value of type 'explicit_conv' to function return type 'svint8_t'}}
+
+#pragma clang diagnostic warning "-Wc++98-compat"
+
+void incompat_init() { __attribute__((unused)) svint8_t foo = {}; } // expected-warning {{initializing 'svint8_t' (aka '__SVInt8_t') from an empty initializer list is incompatible with C++98}}
+
 #endif

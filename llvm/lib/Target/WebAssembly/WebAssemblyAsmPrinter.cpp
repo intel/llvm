@@ -122,14 +122,14 @@ void WebAssemblyAsmPrinter::emitEndOfAsmFile(Module &M) {
           F.hasFnAttribute("wasm-import-module")) {
         StringRef Name =
             F.getFnAttribute("wasm-import-module").getValueAsString();
-        Sym->setImportModule(Name);
+        Sym->setImportModule(storeName(Name));
         getTargetStreamer()->emitImportModule(Sym, Name);
       }
       if (TM.getTargetTriple().isOSBinFormatWasm() &&
           F.hasFnAttribute("wasm-import-name")) {
         StringRef Name =
             F.getFnAttribute("wasm-import-name").getValueAsString();
-        Sym->setImportName(Name);
+        Sym->setImportName(storeName(Name));
         getTargetStreamer()->emitImportName(Sym, Name);
       }
     }
@@ -137,7 +137,7 @@ void WebAssemblyAsmPrinter::emitEndOfAsmFile(Module &M) {
     if (F.hasFnAttribute("wasm-export-name")) {
       auto *Sym = cast<MCSymbolWasm>(getSymbol(&F));
       StringRef Name = F.getFnAttribute("wasm-export-name").getValueAsString();
-      Sym->setExportName(Name);
+      Sym->setExportName(storeName(Name));
       getTargetStreamer()->emitExportName(Sym, Name);
     }
   }
@@ -230,20 +230,20 @@ void WebAssemblyAsmPrinter::EmitProducerInfo(Module &M) {
 void WebAssemblyAsmPrinter::EmitTargetFeatures(Module &M) {
   struct FeatureEntry {
     uint8_t Prefix;
-    StringRef Name;
+    std::string Name;
   };
 
   // Read target features and linkage policies from module metadata
   SmallVector<FeatureEntry, 4> EmittedFeatures;
-  for (const SubtargetFeatureKV &KV : WebAssemblyFeatureKV) {
-    std::string MDKey = (StringRef("wasm-feature-") + KV.Key).str();
+  auto EmitFeature = [&](std::string Feature) {
+    std::string MDKey = (StringRef("wasm-feature-") + Feature).str();
     Metadata *Policy = M.getModuleFlag(MDKey);
     if (Policy == nullptr)
-      continue;
+      return;
 
     FeatureEntry Entry;
     Entry.Prefix = 0;
-    Entry.Name = KV.Key;
+    Entry.Name = Feature;
 
     if (auto *MD = cast<ConstantAsMetadata>(Policy))
       if (auto *I = cast<ConstantInt>(MD->getValue()))
@@ -253,10 +253,16 @@ void WebAssemblyAsmPrinter::EmitTargetFeatures(Module &M) {
     if (Entry.Prefix != wasm::WASM_FEATURE_PREFIX_USED &&
         Entry.Prefix != wasm::WASM_FEATURE_PREFIX_REQUIRED &&
         Entry.Prefix != wasm::WASM_FEATURE_PREFIX_DISALLOWED)
-      continue;
+      return;
 
     EmittedFeatures.push_back(Entry);
+  };
+
+  for (const SubtargetFeatureKV &KV : WebAssemblyFeatureKV) {
+    EmitFeature(KV.Key);
   }
+  // This pseudo-feature tells the linker whether shared memory would be safe
+  EmitFeature("shared-mem");
 
   if (EmittedFeatures.size() == 0)
     return;

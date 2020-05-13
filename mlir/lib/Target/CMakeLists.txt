@@ -1,61 +1,71 @@
-add_mlir_library(MLIRTargetLLVMIRModuleTranslation
+add_mlir_translation_library(MLIRTargetLLVMIRModuleTranslation
   LLVMIR/DebugTranslation.cpp
   LLVMIR/ModuleTranslation.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Target/LLVMIR
+
   DEPENDS
   intrinsics_gen
-  )
-target_link_libraries(MLIRTargetLLVMIRModuleTranslation
-  PUBLIC
+
+  LINK_COMPONENTS
+  Core
+  FrontendOpenMP
+  TransformUtils
+
+  LINK_LIBS PUBLIC
   MLIRLLVMIR
   MLIRLLVMIRTransforms
-  LLVMCore
-  LLVMIRReader
-  LLVMSupport
-  LLVMTransformUtils
   MLIRTranslation
   )
 
-add_mlir_library(MLIRTargetAVX512
+add_mlir_translation_library(MLIRTargetAVX512
   LLVMIR/LLVMAVX512Intr.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Target/LLVMIR
+
   DEPENDS
   MLIRLLVMAVX512ConversionsIncGen
-  )
-target_link_libraries(MLIRTargetAVX512
-  PUBLIC
+
+  LINK_COMPONENTS
+  Core
+
+  LINK_LIBS PUBLIC
   MLIRIR
   MLIRLLVMAVX512
   MLIRLLVMIR
   MLIRTargetLLVMIRModuleTranslation
   )
 
-add_mlir_library(MLIRTargetLLVMIR
+add_mlir_translation_library(MLIRTargetLLVMIR
   LLVMIR/ConvertFromLLVMIR.cpp
   LLVMIR/ConvertToLLVMIR.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Target/LLVMIR
-  )
-target_link_libraries(MLIRTargetLLVMIR
-  PUBLIC
+
+  LINK_COMPONENTS
+  Core
+  IRReader
+
+  LINK_LIBS PUBLIC
   MLIRTargetLLVMIRModuleTranslation
   )
 
-add_mlir_library(MLIRTargetNVVMIR
+add_mlir_translation_library(MLIRTargetNVVMIR
   LLVMIR/ConvertToNVVMIR.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Target/LLVMIR
+
   DEPENDS
   intrinsics_gen
-  )
-target_link_libraries(MLIRTargetNVVMIR
-  PUBLIC
+
+  LINK_COMPONENTS
+  Core
+
+  LINK_LIBS PUBLIC
   MLIRGPU
   MLIRIR
   MLIRLLVMIR
@@ -63,16 +73,19 @@ target_link_libraries(MLIRTargetNVVMIR
   MLIRTargetLLVMIRModuleTranslation
   )
 
-add_mlir_library(MLIRTargetROCDLIR
+add_mlir_translation_library(MLIRTargetROCDLIR
   LLVMIR/ConvertToROCDLIR.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Target/LLVMIR
+
   DEPENDS
   intrinsics_gen
-  )
-target_link_libraries(MLIRTargetROCDLIR
-  PUBLIC
+
+  LINK_COMPONENTS
+  Core
+
+  LINK_LIBS PUBLIC
   MLIRGPU
   MLIRIR
   MLIRLLVMIR

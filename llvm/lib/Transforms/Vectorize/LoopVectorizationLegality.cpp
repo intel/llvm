@@ -668,6 +668,7 @@ bool LoopVectorizationLegality::canVectorizeInstrs() {
 
         if (RecurrenceDescriptor::isFirstOrderRecurrence(Phi, TheLoop,
                                                          SinkAfter, DT)) {
+          AllowedExit.insert(Phi);
           FirstOrderRecurrences.insert(Phi);
           continue;
         }
@@ -982,14 +983,14 @@ bool LoopVectorizationLegality::canVectorizeWithIfConvert() {
   // the memory pointed to can be dereferenced (with the access size implied by
   // the value's type) unconditionally within the loop header without
   // introducing a new fault.
-  SmallPtrSet<Value *, 8> SafePointes;
+  SmallPtrSet<Value *, 8> SafePointers;
 
   // Collect safe addresses.
   for (BasicBlock *BB : TheLoop->blocks()) {
     if (!blockNeedsPredication(BB)) {
       for (Instruction &I : *BB)
         if (auto *Ptr = getLoadStorePointerOperand(&I))
-          SafePointes.insert(Ptr);
+          SafePointers.insert(Ptr);
       continue;
     }
 
@@ -1003,7 +1004,7 @@ bool LoopVectorizationLegality::canVectorizeWithIfConvert() {
       LoadInst *LI = dyn_cast<LoadInst>(&I);
       if (LI && !mustSuppressSpeculation(*LI) &&
           isDereferenceableAndAlignedInLoop(LI, TheLoop, SE, *DT))
-        SafePointes.insert(LI->getPointerOperand());
+        SafePointers.insert(LI->getPointerOperand());
     }
   }
 
@@ -1021,7 +1022,7 @@ bool LoopVectorizationLegality::canVectorizeWithIfConvert() {
 
     // We must be able to predicate all blocks that need to be predicated.
     if (blockNeedsPredication(BB)) {
-      if (!blockCanBePredicated(BB, SafePointes)) {
+      if (!blockCanBePredicated(BB, SafePointers)) {
         reportVectorizationFailure(
             "Control flow cannot be substituted for a select",
             "control flow cannot be substituted for a select",
@@ -1232,15 +1233,6 @@ bool LoopVectorizationLegality::canVectorize(bool UseVPlanNativePath) {
 bool LoopVectorizationLegality::prepareToFoldTailByMasking() {
 
   LLVM_DEBUG(dbgs() << "LV: checking if tail can be folded by masking.\n");
-
-  if (!PrimaryInduction) {
-    reportVectorizationFailure(
-        "No primary induction, cannot fold tail by masking",
-        "Missing a primary induction variable in the loop, which is "
-        "needed in order to fold tail by masking as required.",
-        "NoPrimaryInduction", ORE, TheLoop);
-    return false;
-  }
 
   SmallPtrSet<const Value *, 8> ReductionLiveOuts;
 

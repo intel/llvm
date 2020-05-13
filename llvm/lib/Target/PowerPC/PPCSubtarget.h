@@ -63,7 +63,6 @@ namespace PPC {
 }
 
 class GlobalValue;
-class TargetMachine;
 
 class PPCSubtarget : public PPCGenSubtargetInfo {
 public:
@@ -144,6 +143,7 @@ protected:
   bool VectorsUseTwoUnits;
   bool UsePPCPreRASchedStrategy;
   bool UsePPCPostRASchedStrategy;
+  bool PredictableSelectIsExpensive;
 
   POPCNTDKind HasPOPCNTD;
 
@@ -333,6 +333,7 @@ public:
 
   bool is64BitELFABI() const { return  isSVR4ABI() && isPPC64(); }
   bool is32BitELFABI() const { return  isSVR4ABI() && !isPPC64(); }
+  bool isUsingPCRelativeCalls() const;
 
   /// Originally, this function return hasISEL(). Now we always enable it,
   /// but may expand the ISEL instruction later.
@@ -394,6 +395,10 @@ public:
   }
 
   bool isXRaySupported() const override { return IsPPC64 && IsLittleEndian; }
+
+  bool isPredictableSelectIsExpensive() const {
+    return PredictableSelectIsExpensive;
+  }
 };
 } // End llvm namespace
 

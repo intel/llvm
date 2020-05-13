@@ -41,11 +41,10 @@ func @f1(%A: memref<?x?xf32, offset: 0, strides: [?, 1]>,
 }
 // CHECK-LABEL: func @f1
 // CHECK:   (%[[A:.*]]:{{.*}}, %[[B:.*]]:{{.*}}, %[[C:.*]]:{{.*}}, %[[D:.*]]:{{.*}}, %[[E:.*]]:{{.*}})
-// No RAW dependences, the pass does not fuse RAR atm.
-// CHECK: linalg.matmul
 // CHECK: loop.for
 // CHECK:   loop.for
 // CHECK:     loop.for
+// CHECK:       linalg.matmul
 // CHECK:       linalg.matmul
 
 // -----
@@ -334,15 +333,13 @@ func @f6(%A: memref<?x?xf32, offset: 0, strides: [?, ?]>,
 }
 // CHECK-LABEL: func @f6
 // CHECK:  (%[[A:.*]]:{{.*}}, %[[B:.*]]:{{.*}}, %[[C:.*]]:{{.*}}, %[[D:.*]]:{{.*}}, %[[E:.*]]:{{.*}})
-// Cannot fuse C due to interleaved read of C that would be bypassed.
-// Cannot fuse E (WAW).
-// CHECK:  linalg.matmul
-// CHECK:  linalg.matmul
+// Fuse the producer of E (WAW) then the producer of C (WAR).
 // CHECK:  loop.for
 // CHECK:    loop.for
 // CHECK:      loop.for
 // CHECK:        linalg.matmul
-// CHECK-NOT:      linalg.matmul
+// CHECK:        linalg.matmul
+// CHECK:        linalg.matmul
 
 // -----
 
@@ -607,111 +604,6 @@ func @pointwise_no_view(%M: index, %N: index) {
 // CHECK:      linalg.generic
 // CHECK:        mulf
 
-// -----
-
-#map5 = affine_map<(d0, d1)[s0, s1, s2] -> (d0 * s1 + s0 + d1 * s2)>
-#map6 = affine_map<(d0, d1) -> (d0, d1)>
-#id_2d = affine_map<(i, j) -> (i, j)>
-#pointwise_2d_trait = {
-  args_in = 2,
-  args_out = 1,
-  indexing_maps = [#id_2d, #id_2d, #id_2d],
-  iterator_types = ["parallel", "parallel"]
-}
-func @indexed_generic_test(%A: memref<?x?xf32>,
-                           %B: memref<?x?xf32>,
-                           %C: memref<?x?xf32>,
-                           %D: memref<?x?xf32>) {
-  linalg.generic #pointwise_2d_trait %A, %B, %C {
-  ^bb0(%e: f32, %arg5: f32, %arg6: f32):   // no predecessors
-    %2 = addf %e, %arg5 : f32
-    linalg.yield %2 : f32
-  }: memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>
-  %c1 = constant 1 : index
-  %c0 = constant 0 : index
-  %c25 = constant 25 : index
-  %c10 = constant 10 : index
-  %0 = dim %C, 0 : memref<?x?xf32>
-  %1 = dim %C, 1 : memref<?x?xf32>
-  %2 = dim %D, 0 : memref<?x?xf32>
-  %3 = dim %D, 1 : memref<?x?xf32>
-  loop.for %arg2 = %c0 to %0 step %c10 {
-    loop.for %arg3 = %c0 to %1 step %c25 {
-      %4 = std.subview %C[%arg2, %arg3][%c10, %c25][%c1, %c1] :
-          memref<?x?xf32> to memref<?x?xf32, #map5>
-      %5 = std.subview %D[%arg2, %arg3][%c10, %c25][%c1, %c1] :
-          memref<?x?xf32> to memref<?x?xf32, #map5>
-      linalg.indexed_generic {
-        indexing_maps = [#map6, #map6],
-        iterator_types = ["parallel", "parallel"],
-        args_in = 1,
-        args_out = 1
-      } %4, %5 {
-      ^bb0(%arg4: index, %arg5: index, %arg6: f32, %arg7: f32):
-        %6 = addi %arg4, %arg2 : index
-        %7 = addi %arg5, %arg3 : index
-        %8 = index_cast %6 : index to i32
-        %9 = sitofp %8 : i32 to f32
-        %10 = index_cast %7 : index to i32
-        %11 = sitofp %10 : i32 to f32
-        %12 = addf %9, %11 : f32
-        linalg.yield %12 : f32
-      }: memref<?x?xf32, #map5>, memref<?x?xf32, #map5>
-    }
-  }
-  return
-}
-// CHECK-LABEL: func @indexed_generic_test
-// CHECK:  loop.for
-// CHECK:    loop.for
-// CHECK-NOT:  loop.for
-// CHECK:      linalg.generic
-// CHECK:        addf
-// CHECK:      linalg.indexed_generic
-// CHECK:        index_cast
-
-// -----
-
-//
-// We should not be fusing indexed_generic into a generic yet.
-// https://bugs.llvm.org/show_bug.cgi?id=44875
-//
-
-#map0 = affine_map<(d0)[s0,s1] -> (d0 * s1 + s0)>
-#pointwise_map = affine_map<(d0) -> (d0)>
-#pointwise_1d_trait = {
-  args_in = 1,
-  args_out = 1,
-  indexing_maps = [#pointwise_map, #pointwise_map],
-  iterator_types = ["parallel"]
-}
-
-func @nofuse_indexed_generic(%A: memref<?xf32>, %B: memref<?xf32>, %C: memref<?xf32>) {
-  linalg.indexed_generic #pointwise_1d_trait %A, %B {
-  ^bb0(%i: index, %a: f32, %b: f32):
-    linalg.yield %a : f32
-  }: memref<?xf32>, memref<?xf32>
-
-  %c0 = constant 0 : index
-  %c1 = constant 1 : index
-  %c10 = constant 10 : index
-  %dB = dim %B, 0 : memref<?xf32>
-  loop.for %i = %c0 to %dB step %c10 {
-    %subB = subview %B[%i][%c10][%c1] : memref<?xf32> to memref<?xf32, #map0>
-    %subC = subview %C[%i][%c10][%c1] : memref<?xf32> to memref<?xf32, #map0>
-    linalg.generic #pointwise_1d_trait %subB, %subC {
-    ^bb0(%b: f32, %c: f32):
-      linalg.yield %b : f32
-    }: memref<?xf32, #map0>, memref<?xf32, #map0>
-  }
-  return
-}
-// CHECK-LABEL: func @nofuse_indexed_generic
-// CHECK-NOT: loop.for
-// CHECK:     linalg.indexed_generic
-// CHECK:     loop.for
-// CHECK-NOT:   linalg.indexed_generic
-// CHECK:       linalg.generic
 
 // -----
 
@@ -785,3 +677,98 @@ func @fusion_of_three(%arg0: memref<100x10xf32>,
 // CHECK:       linalg.generic
 // CHECK:         exp
 // CHECK:         linalg.yield
+
+// -----
+
+#map0 = affine_map<(d0, d1, d2) -> (d0, d1 - d2)>
+#map1 = affine_map<(d0, d1, d2, d3)[s0, s1, s2, s3, s4] -> (d0 * s1 + s0 + d1 * s2 + d2 * s3 + d3 * s4)>
+#map2 = affine_map<()[s0] -> (s0 + 3)>
+
+func @fill_and_conv(%arg0: memref<1x4x5x1xf32>, %arg1: memref<2x3x1x1xf32>, %arg2: memref<1x4x5x1xf32>) {
+  %cst = constant 0.000000e+00 : f32
+  linalg.fill(%arg2, %cst) : memref<1x4x5x1xf32>, f32
+
+  %c4 = constant 4 : index
+  %c1 = constant 1 : index
+  %c0 = constant 0 : index
+  %c2 = constant 2 : index
+  %c3 = constant 3 : index
+  %4 = dim %arg1, 0 : memref<2x3x1x1xf32>
+  %5 = dim %arg1, 1 : memref<2x3x1x1xf32>
+  %6 = dim %arg0, 0 : memref<1x4x5x1xf32>
+  %7 = dim %arg0, 1 : memref<1x4x5x1xf32>
+  %8 = dim %arg0, 3 : memref<1x4x5x1xf32>
+  %9 = dim %arg2, 0 : memref<1x4x5x1xf32>
+  %10 = dim %arg2, 1 : memref<1x4x5x1xf32>
+  %11 = dim %arg2, 2 : memref<1x4x5x1xf32>
+  %12 = dim %arg2, 3 : memref<1x4x5x1xf32>
+  %13 = linalg.range %c0 : %6 : %c2 : !linalg.range
+  %14 = linalg.range %c0 : %10 : %c3 : !linalg.range
+  loop.for %arg3 = %c0 to %6 step %c2 {
+    loop.for %arg4 = %c0 to %10 step %c3 {
+      %15 = affine.min #map0(%c2, %c1, %arg3)
+      %16 = affine.apply #map2()[%7]
+      %17 = affine.min #map0(%16, %c4, %arg4)
+      %18 = dim %arg0, 2 : memref<1x4x5x1xf32>
+      %19 = dim %arg0, 3 : memref<1x4x5x1xf32>
+      %20 = subview %arg0[%arg3, %arg4, %c0, %c0] [%15, %17, %18, %19] [%c1, %c1, %c1, %c1] : memref<1x4x5x1xf32> to memref<?x?x?x?xf32, #map1>
+      %21 = affine.min #map0(%c2, %c1, %arg3)
+      %22 = affine.min #map0(%c3, %c4, %arg4)
+      %23 = dim %arg2, 2 : memref<1x4x5x1xf32>
+      %24 = dim %arg2, 3 : memref<1x4x5x1xf32>
+      %25 = subview %arg2[%arg3, %arg4, %c0, %c0] [%21, %22, %23, %24] [%c1, %c1, %c1, %c1] : memref<1x4x5x1xf32> to memref<?x?x?x?xf32, #map1>
+      linalg.conv(%arg1, %20, %25) {dilations = [1, 1], strides = [1, 1]} : memref<2x3x1x1xf32>, memref<?x?x?x?xf32, #map1>, memref<?x?x?x?xf32, #map1>
+    }
+  }
+  return
+}
+// CHECK-LABEL: func @fill_and_conv
+// CHECK: loop.for
+// CHECK:   loop.for
+// CHECK:     linalg.fill
+// CHECK:     linalg.conv
+
+// -----
+
+// Test that different allocation-like ops are recognized and properly handled.
+func @accept_different_alloc_ops(%dim: index, %s0 : index, %s1: index) {
+  %c0 = constant 0 : index
+  %c1 = constant 1 : index
+  %c2 = constant 2 : index
+  %c3 = constant 3 : index
+  %c4 = constant 4 : index
+
+  %A = alloca(%dim, %dim)[%s0, %s1] : memref<?x?xf32, offset: 0, strides: [?, ?]>
+  %B = alloca(%dim, %dim)[%s0, %s1] : memref<?x?xf32, offset: 0, strides: [?, ?]>
+  %C = alloc(%dim, %dim)[%s0, %s1]  : memref<?x?xf32, offset: 0, strides: [?, ?]>
+
+  linalg.matmul(%A, %B, %C) :
+    memref<?x?xf32, offset: 0, strides: [?, ?]>,
+    memref<?x?xf32, offset: 0, strides: [?, ?]>,
+    memref<?x?xf32, offset: 0, strides: [?, ?]>
+
+  loop.for %i = %c0 to %dim step %c2 {
+    loop.for %j = %c0 to %dim step %c3 {
+      loop.for %k = %c0 to %dim step %c4 {
+        %0 = std.subview %A[%i, %k][%c2, %c4][%c1, %c1] :
+          memref<?x?xf32, offset: 0, strides: [?, ?]> to
+          memref<?x?xf32, offset: ?, strides: [?, ?]>
+        %1 = std.subview %B[%k, %j][%c4, %c3][%c1, %c1] :
+          memref<?x?xf32, offset: 0, strides: [?, ?]> to
+          memref<?x?xf32, offset: ?, strides: [?, ?]>
+        %2 = std.subview %C[%i, %j][%c2, %c3][%c1, %c1] :
+          memref<?x?xf32, offset: 0, strides: [?, ?]> to
+          memref<?x?xf32, offset: ?, strides: [?, ?]>
+        linalg.matmul(%0, %1, %2) :
+          memref<?x?xf32, offset: ?, strides: [?, ?]>,
+          memref<?x?xf32, offset: ?, strides: [?, ?]>,
+          memref<?x?xf32, offset: ?, strides: [?, ?]>
+      }
+    }
+  }
+  return
+}
+
+// CHECK-LABEL: func @accept_different_alloc_ops
+// CHECK-COUNT-3: loop.for
+// CHECK-COUNT-2:   linalg.matmul

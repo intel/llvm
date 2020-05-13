@@ -1,6 +1,3 @@
-// XFAIL: cuda
-// TODO: Fix accidential error return when unmapping read-only memory objects.
-//
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -I %sycl_source_dir %s -o %t.out -g
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out

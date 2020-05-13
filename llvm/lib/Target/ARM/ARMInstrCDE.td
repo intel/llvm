@@ -255,7 +255,7 @@ class CDE_FP_Vec_Instr<bit vec, bit acc, dag oops, dag iops, string asm, string 
   let Inst{6} = vec;
 }
 
-// Base class for floating-point variants of CDE VCX* intructions
+// Base class for floating-point variants of CDE VCX* instructions
 class CDE_FP_Instr<bit acc, bit sz, dag oops, dag iops, string asm, string cstr>
   : CDE_FP_Vec_Instr<0b0, acc, oops, iops, asm, cstr> {
   let Inst{24} = sz;
@@ -606,3 +606,61 @@ let Predicates = [HasCDE, HasMVEInt] in {
             (v16i8 (CDE_VCX3A_vec p_imm:$coproc, MQPR:$acc, MQPR:$n, MQPR:$m,
                                   imm_4b:$imm))>;
 }
+
+multiclass VCXPredicatedPat_m<MVEVectorVTInfo VTI> {
+  def : Pat<(VTI.Vec (int_arm_cde_vcx1q_predicated timm:$coproc,
+                                    (VTI.Vec MQPR:$inactive), timm:$imm,
+                                    (VTI.Pred VCCR:$pred))),
+            (VTI.Vec (CDE_VCX1_vec p_imm:$coproc, imm_12b:$imm, ARMVCCThen,
+                                    (VTI.Pred VCCR:$pred),
+                                    (VTI.Vec MQPR:$inactive)))>;
+  def : Pat<(VTI.Vec (int_arm_cde_vcx1qa_predicated timm:$coproc,
+                                    (VTI.Vec MQPR:$acc), timm:$imm,
+                                    (VTI.Pred VCCR:$pred))),
+            (VTI.Vec (CDE_VCX1A_vec p_imm:$coproc, (VTI.Vec MQPR:$acc),
+                                    imm_12b:$imm, ARMVCCThen,
+                                    (VTI.Pred VCCR:$pred)))>;
+
+  def : Pat<(VTI.Vec (int_arm_cde_vcx2q_predicated timm:$coproc,
+                                    (VTI.Vec MQPR:$inactive),
+                                    (v16i8 MQPR:$n), timm:$imm,
+                                    (VTI.Pred VCCR:$pred))),
+            (VTI.Vec (CDE_VCX2_vec p_imm:$coproc, (v16i8 MQPR:$n),
+                                    imm_7b:$imm, ARMVCCThen,
+                                    (VTI.Pred VCCR:$pred),
+                                    (VTI.Vec MQPR:$inactive)))>;
+  def : Pat<(VTI.Vec (int_arm_cde_vcx2qa_predicated timm:$coproc,
+                                    (VTI.Vec MQPR:$acc),
+                                    (v16i8 MQPR:$n), timm:$imm,
+                                    (VTI.Pred VCCR:$pred))),
+            (VTI.Vec (CDE_VCX2A_vec p_imm:$coproc, (VTI.Vec MQPR:$acc),
+                                    (v16i8 MQPR:$n), timm:$imm, ARMVCCThen,
+                                    (VTI.Pred VCCR:$pred)))>;
+
+  def : Pat<(VTI.Vec (int_arm_cde_vcx3q_predicated timm:$coproc,
+                                    (VTI.Vec MQPR:$inactive),
+                                    (v16i8 MQPR:$n), (v16i8 MQPR:$m),
+                                    timm:$imm,
+                                    (VTI.Pred VCCR:$pred))),
+            (VTI.Vec (CDE_VCX3_vec p_imm:$coproc, (v16i8 MQPR:$n),
+                                    (v16i8 MQPR:$m),
+                                    imm_4b:$imm, ARMVCCThen,
+                                    (VTI.Pred VCCR:$pred),
+                                    (VTI.Vec MQPR:$inactive)))>;
+  def : Pat<(VTI.Vec (int_arm_cde_vcx3qa_predicated timm:$coproc,
+                                    (VTI.Vec MQPR:$acc),
+                                    (v16i8 MQPR:$n), (v16i8 MQPR:$m), timm:$imm,
+                                    (VTI.Pred VCCR:$pred))),
+            (VTI.Vec (CDE_VCX3A_vec p_imm:$coproc, (VTI.Vec MQPR:$acc),
+                                    (v16i8 MQPR:$n), (v16i8 MQPR:$m),
+                                    imm_4b:$imm, ARMVCCThen,
+                                    (VTI.Pred VCCR:$pred)))>;
+}
+
+let Predicates = [HasCDE, HasMVEInt] in
+  foreach VTI = [ MVE_v16i8, MVE_v8i16, MVE_v4i32, MVE_v2i64 ] in
+    defm : VCXPredicatedPat_m<VTI>;
+
+let Predicates = [HasCDE, HasMVEFloat] in
+  foreach VTI = [ MVE_v8f16, MVE_v4f32 ] in
+    defm : VCXPredicatedPat_m<VTI>;

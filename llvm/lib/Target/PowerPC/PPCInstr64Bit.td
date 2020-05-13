@@ -140,6 +140,15 @@ let isCall = 1, PPC970_Unit = 7, Defs = [LR8] in {
                              (outs), (ins abscalltarget:$func),
                              "bla $func\n\tnop", IIC_BrB,
                              [(PPCcall_nop (i64 imm:$func))]>;
+    let Predicates = [PCRelativeMemops] in {
+      // BL8_NOTOC means that the caller does not use the TOC pointer and if
+      // it does use R2 then it is just a caller saved register. Therefore it is
+      // safe to emit only the bl and not the nop for this instruction. The
+      // linker will not try to restore R2 after the call.
+      def BL8_NOTOC : IForm_and_DForm_4_zero<18, 0, 1, 24, (outs),
+                                             (ins calltarget:$func),
+                                             "bl $func", IIC_BrB, []>;
+    }
   }
   let Uses = [CTR8, RM] in {
     let isPredicable = 1 in
@@ -193,6 +202,11 @@ def : Pat<(PPCcall (i64 texternalsym:$dst)),
           (BL8 texternalsym:$dst)>;
 def : Pat<(PPCcall_nop (i64 texternalsym:$dst)),
           (BL8_NOP texternalsym:$dst)>;
+
+def : Pat<(PPCcall_notoc (i64 tglobaladdr:$dst)),
+          (BL8_NOTOC tglobaladdr:$dst)>;
+def : Pat<(PPCcall_notoc (i64 texternalsym:$dst)),
+          (BL8_NOTOC texternalsym:$dst)>;
 
 // Calls for AIX
 def : Pat<(PPCcall (i64 mcsym:$dst)),
@@ -1127,7 +1141,7 @@ def ADDISgotTprelHA: PPCEmitTimePseudo<(outs g8rc:$rD), (ins g8rc_nox0:$reg, s16
                            (PPCaddisGotTprelHA i64:$reg,
                                                tglobaltlsaddr:$disp))]>,
                   isPPC64;
-def LDgotTprelL: PPCEmitTimePseudo<(outs g8rc:$rD), (ins s16imm64:$disp, g8rc_nox0:$reg),
+def LDgotTprelL: PPCEmitTimePseudo<(outs g8rc_nox0:$rD), (ins s16imm64:$disp, g8rc_nox0:$reg),
                         "#LDgotTprelL",
                         [(set i64:$rD,
                           (PPCldGotTprelL tglobaltlsaddr:$disp, i64:$reg))]>,

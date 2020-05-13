@@ -1,9 +1,10 @@
 add_mlir_dialect_library(MLIRLLVMIRTransforms
   LegalizeForExport.cpp
-  )
 
-target_link_libraries(MLIRLLVMIRTransforms
-  PUBLIC
+  DEPENDS
+  MLIRLLVMPassIncGen
+
+  LINK_LIBS PUBLIC
   MLIRIR
   MLIRLLVMIR
   MLIRPass

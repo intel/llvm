@@ -14,7 +14,6 @@ template<int (*Compare)(const char *s1, const char *s2)>
 int equal(const char *s1, const char *s2) {
   return Compare(s1, s2) == 0;
 }
-
 template int equal<&__builtin_strcmp>(const char*, const char*); // expected-error {{builtin functions must be directly called}}
 
 // PR13195

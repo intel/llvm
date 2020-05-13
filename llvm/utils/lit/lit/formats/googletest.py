@@ -12,7 +12,7 @@ kIsWindows = sys.platform in ['win32', 'cygwin']
 
 class GoogleTest(TestFormat):
     def __init__(self, test_sub_dirs, test_suffix):
-        self.test_sub_dirs = os.path.normcase(str(test_sub_dirs)).split(';')
+        self.test_sub_dirs = str(test_sub_dirs).split(';')
 
         # On Windows, assume tests will also end in '.exe'.
         exe_suffix = str(test_suffix)
@@ -41,7 +41,7 @@ class GoogleTest(TestFormat):
             litConfig.warning(
                 "unable to discover google-tests in %r: %s. Process output: %s"
                 % (path, sys.exc_info()[1], exc.output))
-            raise StopIteration
+            return
 
         nested_tests = []
         for ln in output.splitlines(False):  # Don't keep newlines.

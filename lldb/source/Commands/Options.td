@@ -157,7 +157,7 @@ let Command = "breakpoint set" in {
     "multiple times tomake one breakpoint for multiple methods.">;
   def breakpoint_set_func_regex : Option<"func-regex", "r">, Group<7>,
     Arg<"RegularExpression">, Required, Desc<"Set the breakpoint by function "
-    "name, evaluating a regular-expression to findthe function name(s).">;
+    "name, evaluating a regular-expression to find the function name(s).">;
   def breakpoint_set_basename : Option<"basename", "b">, Group<8>,
     Arg<"FunctionName">, Required, Completion<"Symbol">,
     Desc<"Set the breakpoint by function basename (C++ namespaces and arguments"
@@ -969,6 +969,11 @@ let Command = "thread plan list" in {
     Desc<"Display more information about the thread plans">;
   def thread_plan_list_internal : Option<"internal", "i">, Group<1>,
     Desc<"Display internal as well as user thread plans">;
+  def thread_plan_list_thread_id : Option<"thread-id", "t">, Group<1>,
+    Arg<"ThreadID">, Desc<"List the thread plans for this TID, can be "
+    "specified more than once.">;
+  def thread_plan_list_unreported : Option<"unreported", "u">, Group<1>,
+    Desc<"Display thread plans for unreported threads">;
 }
 
 let Command = "type summary add" in {

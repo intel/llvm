@@ -32,8 +32,10 @@
 #include <windows.h>
 #include "WindowsMMap.h"
 #else
-#include <sys/mman.h>
 #include <sys/file.h>
+#include <sys/mman.h>
+#include <sys/types.h>
+#include <unistd.h>
 #endif
 
 #if defined(__FreeBSD__) && defined(__i386__)
@@ -87,6 +89,7 @@ static uint64_t cur_buffer_size = 0;
 static uint64_t cur_pos = 0;
 static uint64_t file_size = 0;
 static int new_file = 0;
+static int gcov_version;
 #if defined(_WIN32)
 static HANDLE mmap_handle = NULL;
 #endif
@@ -118,6 +121,11 @@ struct fn_list writeout_fn_list;
  *  A list of flush functions that our __gcov_flush() function should call, shared between all dynamic objects.
  */
 struct fn_list flush_fn_list;
+
+/*
+ *  A list of reset functions, shared between all dynamic objects.
+ */
+struct fn_list reset_fn_list;
 
 static void fn_list_insert(struct fn_list* list, fn_ptr fn) {
   struct fn_node* new_node = malloc(sizeof(struct fn_node));
@@ -196,7 +204,12 @@ static uint32_t length_of_string(const char *s) {
   return (strlen(s) / 4) + 1;
 }
 
-static void write_string(const char *s) {
+// Remove when we support libgcov 9 current_working_directory.
+#if !defined(_MSC_VER) && defined(__clang__)
+__attribute__((unused))
+#endif
+static void
+write_string(const char *s) {
   uint32_t len = length_of_string(s);
   write_32bit_value(len);
   write_bytes(s, strlen(s));
@@ -348,20 +361,29 @@ void llvm_gcda_start_file(const char *orig_filename, const char version[4],
   fd = open(filename, O_RDWR | O_BINARY);
 
   if (fd == -1) {
-    /* Try opening the file, creating it if necessary. */
-    new_file = 1;
-    mode = "w+b";
-    fd = open(filename, O_RDWR | O_CREAT | O_BINARY, 0644);
-    if (fd == -1) {
+    /* Try creating the file. */
+    fd = open(filename, O_RDWR | O_CREAT | O_EXCL | O_BINARY, 0644);
+    if (fd != -1) {
+      new_file = 1;
+      mode = "w+b";
+    } else {
       /* Try creating the directories first then opening the file. */
       __llvm_profile_recursive_mkdir(filename);
-      fd = open(filename, O_RDWR | O_CREAT | O_BINARY, 0644);
-      if (fd == -1) {
-        /* Bah! It's hopeless. */
-        int errnum = errno;
-        fprintf(stderr, "profiling: %s: cannot open: %s\n", filename,
-                strerror(errnum));
-        return;
+      fd = open(filename, O_RDWR | O_CREAT | O_EXCL | O_BINARY, 0644);
+      if (fd != -1) {
+        new_file = 1;
+        mode = "w+b";
+      } else {
+        /* Another process may have created the file just now.
+         * Try opening it without O_CREAT and O_EXCL. */
+        fd = open(filename, O_RDWR | O_BINARY);
+        if (fd == -1) {
+          /* Bah! It's hopeless. */
+          int errnum = errno;
+          fprintf(stderr, "profiling: %s: cannot open: %s\n", filename,
+                  strerror(errnum));
+          return;
+        }
       }
     }
   }
@@ -393,6 +415,18 @@ void llvm_gcda_start_file(const char *orig_filename, const char version[4],
   }
 
   /* gcda file, version, stamp checksum. */
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+  gcov_version = version[3] >= 'A'
+                     ? (version[3] - 'A') * 100 + (version[2] - '0') * 10 +
+                           version[1] - '0'
+                     : (version[3] - '0') * 10 + version[1] - '0';
+#else
+  gcov_version = version[0] >= 'A'
+                     ? (version[0] - 'A') * 100 + (version[1] - '0') * 10 +
+                           version[2] - '0'
+                     : (version[0] - '0') * 10 + version[2] - '0';
+#endif
+
   write_bytes("adcg", 4);
   write_bytes(version, 4);
   write_32bit_value(checksum);
@@ -429,30 +463,25 @@ void llvm_gcda_increment_indirect_counter(uint32_t *predecessor,
 }
 
 COMPILER_RT_VISIBILITY
-void llvm_gcda_emit_function(uint32_t ident, const char *function_name,
-                             uint32_t func_checksum, uint8_t use_extra_checksum,
+void llvm_gcda_emit_function(uint32_t ident, uint32_t func_checksum,
                              uint32_t cfg_checksum) {
   uint32_t len = 2;
+  int use_extra_checksum = gcov_version >= 47;
 
   if (use_extra_checksum)
     len++;
 #ifdef DEBUG_GCDAPROFILING
-  fprintf(stderr, "llvmgcda: function id=0x%08x name=%s\n", ident,
-          function_name ? function_name : "NULL");
+  fprintf(stderr, "llvmgcda: function id=0x%08x\n", ident);
 #endif
   if (!output_file) return;
 
   /* function tag */
   write_bytes("\0\0\0\1", 4);
-  if (function_name)
-    len += 1 + length_of_string(function_name);
   write_32bit_value(len);
   write_32bit_value(ident);
   write_32bit_value(func_checksum);
   if (use_extra_checksum)
     write_32bit_value(cfg_checksum);
-  if (function_name)
-    write_string(function_name);
 }
 
 COMPILER_RT_VISIBILITY
@@ -634,7 +663,46 @@ void llvm_delete_flush_function_list(void) {
 }
 
 COMPILER_RT_VISIBILITY
-void llvm_gcov_init(fn_ptr wfn, fn_ptr ffn) {
+void llvm_register_reset_function(fn_ptr fn) {
+  fn_list_insert(&reset_fn_list, fn);
+}
+
+COMPILER_RT_VISIBILITY
+void llvm_delete_reset_function_list(void) { fn_list_remove(&reset_fn_list); }
+
+COMPILER_RT_VISIBILITY
+void llvm_reset_counters(void) {
+  struct fn_node *curr = reset_fn_list.head;
+
+  while (curr) {
+    if (curr->id == CURRENT_ID) {
+      curr->fn();
+    }
+    curr = curr->next;
+  }
+}
+
+#if !defined(_WIN32)
+COMPILER_RT_VISIBILITY
+pid_t __gcov_fork() {
+  pid_t parent_pid = getpid();
+  pid_t pid = fork();
+
+  if (pid == 0) {
+    pid_t child_pid = getpid();
+    if (child_pid != parent_pid) {
+      // The pid changed so we've a fork (one could have its own fork function)
+      // Just reset the counters for this child process
+      // threads.
+      llvm_reset_counters();
+    }
+  }
+  return pid;
+}
+#endif
+
+COMPILER_RT_VISIBILITY
+void llvm_gcov_init(fn_ptr wfn, fn_ptr ffn, fn_ptr rfn) {
   static int atexit_ran = 0;
 
   if (wfn)
@@ -643,10 +711,14 @@ void llvm_gcov_init(fn_ptr wfn, fn_ptr ffn) {
   if (ffn)
     llvm_register_flush_function(ffn);
 
+  if (rfn)
+    llvm_register_reset_function(rfn);
+
   if (atexit_ran == 0) {
     atexit_ran = 1;
 
     /* Make sure we write out the data and delete the data structures. */
+    atexit(llvm_delete_reset_function_list);
     atexit(llvm_delete_flush_function_list);
     atexit(llvm_delete_writeout_function_list);
     atexit(llvm_writeout_files);

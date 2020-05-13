@@ -166,6 +166,8 @@ public:
       return HostTarget->checkCallingConvention(CC);
     return CCCR_Warning;
   }
+
+  bool hasExtIntType() const override { return true; }
 };
 } // namespace targets
 } // namespace clang

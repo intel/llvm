@@ -44,7 +44,6 @@ namespace llvm {
 class ArrayType;
 class IntegerType;
 class PointerType;
-class SequentialType;
 class StructType;
 class VectorType;
 template <class ConstantClass> struct ConstantAggrKeyType;
@@ -517,12 +516,13 @@ private:
 
 public:
   /// Return a ConstantVector with the specified constant in each element.
+  /// Note that this might not return an instance of ConstantVector
   static Constant *getSplat(ElementCount EC, Constant *Elt);
 
-  /// Specialize the getType() method to always return a VectorType,
+  /// Specialize the getType() method to always return a FixedVectorType,
   /// which reduces the amount of casting needed in parts of the compiler.
-  inline VectorType *getType() const {
-    return cast<VectorType>(Value::getType());
+  inline FixedVectorType *getType() const {
+    return cast<FixedVectorType>(Value::getType());
   }
 
   /// If all elements of the vector constant have the same value, return that
@@ -630,12 +630,6 @@ public:
   /// Note that this has to compute a new constant to return, so it isn't as
   /// efficient as getElementAsInteger/Float/Double.
   Constant *getElementAsConstant(unsigned i) const;
-
-  /// Specialize the getType() method to always return a SequentialType, which
-  /// reduces the amount of casting needed in parts of the compiler.
-  inline SequentialType *getType() const {
-    return cast<SequentialType>(Value::getType());
-  }
 
   /// Return the element type of the array/vector.
   Type *getElementType() const;
@@ -766,7 +760,12 @@ class ConstantDataVector final : public ConstantDataSequential {
   friend class ConstantDataSequential;
 
   explicit ConstantDataVector(Type *ty, const char *Data)
-      : ConstantDataSequential(ty, ConstantDataVectorVal, Data) {}
+      : ConstantDataSequential(ty, ConstantDataVectorVal, Data),
+        IsSplatSet(false) {}
+  // Cache whether or not the constant is a splat.
+  mutable bool IsSplatSet : 1;
+  mutable bool IsSplat : 1;
+  bool isSplatData() const;
 
 public:
   ConstantDataVector(const ConstantDataVector &) = delete;
@@ -803,10 +802,10 @@ public:
   /// same value, return that value. Otherwise return NULL.
   Constant *getSplatValue() const;
 
-  /// Specialize the getType() method to always return a VectorType,
+  /// Specialize the getType() method to always return a FixedVectorType,
   /// which reduces the amount of casting needed in parts of the compiler.
-  inline VectorType *getType() const {
-    return cast<VectorType>(Value::getType());
+  inline FixedVectorType *getType() const {
+    return cast<FixedVectorType>(Value::getType());
   }
 
   /// Methods for support type inquiry through isa, cast, and dyn_cast:
@@ -1201,7 +1200,8 @@ public:
                                      Type *OnlyIfReducedTy = nullptr);
   static Constant *getInsertElement(Constant *Vec, Constant *Elt, Constant *Idx,
                                     Type *OnlyIfReducedTy = nullptr);
-  static Constant *getShuffleVector(Constant *V1, Constant *V2, Constant *Mask,
+  static Constant *getShuffleVector(Constant *V1, Constant *V2,
+                                    ArrayRef<int> Mask,
                                     Type *OnlyIfReducedTy = nullptr);
   static Constant *getExtractValue(Constant *Agg, ArrayRef<unsigned> Idxs,
                                    Type *OnlyIfReducedTy = nullptr);
@@ -1219,6 +1219,16 @@ public:
   /// Assert that this is an insertvalue or exactvalue
   /// expression and return the list of indices.
   ArrayRef<unsigned> getIndices() const;
+
+  /// Assert that this is a shufflevector and return the mask. See class
+  /// ShuffleVectorInst for a description of the mask representation.
+  ArrayRef<int> getShuffleMask() const;
+
+  /// Assert that this is a shufflevector and return the mask.
+  ///
+  /// TODO: This is a temporary hack until we update the bitcode format for
+  /// shufflevector.
+  Constant *getShuffleMaskForBitcode() const;
 
   /// Return a string representation for an opcode.
   const char *getOpcodeName() const;

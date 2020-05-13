@@ -116,6 +116,7 @@ public:
   bool convertSetCCLogicToBitwiseLogic(EVT VT) const override {
     return VT.isScalarInteger();
   }
+  bool convertSelectOfConstantsToMath(EVT VT) const override { return true; }
 
   bool shouldInsertFencesForAtomic(const Instruction *I) const override {
     return isa<LoadInst>(I) || isa<StoreInst>(I);
@@ -129,6 +130,10 @@ public:
     return ISD::SIGN_EXTEND;
   }
 
+  ISD::NodeType getExtendForAtomicCmpSwapArg() const override {
+    return ISD::SIGN_EXTEND;
+  }
+
   bool shouldExpandShift(SelectionDAG &DAG, SDNode *N) const override {
     if (DAG.getMachineFunction().getFunction().hasMinSize())
       return false;
@@ -139,12 +144,12 @@ public:
 
   /// If a physical register, this returns the register that receives the
   /// exception address on entry to an EH pad.
-  unsigned
+  Register
   getExceptionPointerRegister(const Constant *PersonalityFn) const override;
 
   /// If a physical register, this returns the register that receives the
   /// exception typeid on entry to a landing pad.
-  unsigned
+  Register
   getExceptionSelectorRegister(const Constant *PersonalityFn) const override;
 
   bool shouldExtendTypeInLibCall(EVT Type) const override;
@@ -203,6 +208,7 @@ private:
   SDValue lowerRETURNADDR(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerShiftLeftParts(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerShiftRightParts(SDValue Op, SelectionDAG &DAG, bool IsSRA) const;
+  SDValue LowerINTRINSIC_WO_CHAIN(SDValue Op, SelectionDAG &DAG) const;
 
   bool isEligibleForTailCallOptimization(
       CCState &CCInfo, CallLoweringInfo &CLI, MachineFunction &MF,

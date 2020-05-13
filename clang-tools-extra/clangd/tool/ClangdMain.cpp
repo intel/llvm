@@ -9,15 +9,15 @@
 #include "ClangdLSPServer.h"
 #include "CodeComplete.h"
 #include "Features.inc"
-#include "Path.h"
 #include "PathMapping.h"
 #include "Protocol.h"
-#include "Shutdown.h"
-#include "Trace.h"
 #include "Transport.h"
 #include "index/Background.h"
 #include "index/Serialization.h"
 #include "refactor/Rename.h"
+#include "support/Path.h"
+#include "support/Shutdown.h"
+#include "support/Trace.h"
 #include "clang/Basic/Version.h"
 #include "clang/Format/Format.h"
 #include "llvm/ADT/Optional.h"
@@ -281,6 +281,15 @@ opt<bool> CrossFileRename{
     Hidden,
 };
 
+opt<bool> RecoveryAST{
+    "recovery-ast",
+    cat(Features),
+    desc("Preserve expressions in AST for broken code (C++ only). Note that "
+         "this feature is experimental and may lead to crashes"),
+    init(false),
+    Hidden,
+};
+
 opt<unsigned> WorkerThreadsCount{
     "j",
     cat(Misc),
@@ -473,7 +482,7 @@ int main(int argc, char *argv[]) {
       R"(clangd is a language server that provides IDE-like features to editors.
 
 It should be used via an editor plugin rather than invoked directly. For more information, see:
-	https://clang.llvm.org/extra/clangd/
+	https://clangd.llvm.org/
 	https://microsoft.github.io/language-server-protocol/
 
 clangd accepts flags on the commandline, and in the CLANGD_FLAGS environment variable.
@@ -561,10 +570,7 @@ clangd accepts flags on the commandline, and in the CLANGD_FLAGS environment var
   LoggingSession LoggingSession(Logger);
   // Write some initial logs before we start doing any real work.
   log("{0}", clang::getClangToolFullVersion("clangd"));
-// FIXME: abstract this better, and print PID on windows too.
-#ifndef _WIN32
-  log("PID: {0}", getpid());
-#endif
+  log("PID: {0}", llvm::sys::Process::getProcessId());
   {
     SmallString<128> CWD;
     if (auto Err = llvm::sys::fs::current_path(CWD))
@@ -629,6 +635,7 @@ clangd accepts flags on the commandline, and in the CLANGD_FLAGS environment var
   }
   Opts.StaticIndex = StaticIdx.get();
   Opts.AsyncThreadsCount = WorkerThreadsCount;
+  Opts.BuildRecoveryAST = RecoveryAST;
 
   clangd::CodeCompleteOptions CCOpts;
   CCOpts.IncludeIneligibleResults = IncludeIneligibleResults;
@@ -681,18 +688,42 @@ clangd accepts flags on the commandline, and in the CLANGD_FLAGS environment var
   std::unique_ptr<tidy::ClangTidyOptionsProvider>
       ClangTidyOptProvider; /*GUARDED_BY(ClangTidyOptMu)*/
   if (EnableClangTidy) {
-    auto OverrideClangTidyOptions = tidy::ClangTidyOptions::getDefaults();
-    OverrideClangTidyOptions.Checks = ClangTidyChecks;
+    auto EmptyDefaults = tidy::ClangTidyOptions::getDefaults();
+    EmptyDefaults.Checks.reset(); // So we can tell if checks were ever set.
+    tidy::ClangTidyOptions OverrideClangTidyOptions;
+    if (!ClangTidyChecks.empty())
+      OverrideClangTidyOptions.Checks = ClangTidyChecks;
     ClangTidyOptProvider = std::make_unique<tidy::FileOptionsProvider>(
         tidy::ClangTidyGlobalOptions(),
-        /* Default */ tidy::ClangTidyOptions::getDefaults(),
+        /* Default */ EmptyDefaults,
         /* Override */ OverrideClangTidyOptions, FSProvider.getFileSystem());
     Opts.GetClangTidyOptions = [&](llvm::vfs::FileSystem &,
                                    llvm::StringRef File) {
       // This function must be thread-safe and tidy option providers are not.
-      std::lock_guard<std::mutex> Lock(ClangTidyOptMu);
-      // FIXME: use the FS provided to the function.
-      return ClangTidyOptProvider->getOptions(File);
+      tidy::ClangTidyOptions Opts;
+      {
+        std::lock_guard<std::mutex> Lock(ClangTidyOptMu);
+        // FIXME: use the FS provided to the function.
+        Opts = ClangTidyOptProvider->getOptions(File);
+      }
+      if (!Opts.Checks) {
+        // If the user hasn't configured clang-tidy checks at all, including
+        // via .clang-tidy, give them a nice set of checks.
+        // (This should be what the "default" options does, but it isn't...)
+        //
+        // These default checks are chosen for:
+        //  - low false-positive rate
+        //  - providing a lot of value
+        //  - being reasonably efficient
+        Opts.Checks = llvm::join_items(
+            ",", "readability-misleading-indentation",
+            "readability-deleted-default", "bugprone-integer-division",
+            "bugprone-sizeof-expression", "bugprone-suspicious-missing-comma",
+            "bugprone-unused-raii", "bugprone-unused-return-value",
+            "misc-unused-using-decls", "misc-unused-alias-decls",
+            "misc-definitions-in-headers");
+      }
+      return Opts;
     };
   }
   Opts.SuggestMissingIncludes = SuggestMissingIncludes;
@@ -710,7 +741,7 @@ clangd accepts flags on the commandline, and in the CLANGD_FLAGS environment var
     OffsetEncodingFromFlag = ForceOffsetEncoding;
 
   clangd::RenameOptions RenameOpts;
-  // Shall we allow to custimize the file limit?
+  // Shall we allow to customize the file limit?
   RenameOpts.AllowCrossFile = CrossFileRename;
 
   ClangdLSPServer LSPServer(

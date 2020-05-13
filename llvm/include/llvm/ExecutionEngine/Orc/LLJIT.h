@@ -85,8 +85,21 @@ public:
     return ES->createJITDylib(std::move(Name));
   }
 
-  /// Convenience method for defining an absolute symbol.
-  Error defineAbsolute(StringRef Name, JITEvaluatedSymbol Address);
+  /// A convenience method for defining MUs in LLJIT's Main JITDylib. This can
+  /// be useful for succinctly defining absolute symbols, aliases and
+  /// re-exports.
+  template <typename MUType>
+  Error define(std::unique_ptr<MUType> &&MU) {
+    return Main->define(std::move(MU));
+  }
+
+  /// A convenience method for defining MUs in LLJIT's Main JITDylib. This can
+  /// be usedful for succinctly defining absolute symbols, aliases and
+  /// re-exports.
+  template <typename MUType>
+  Error define(std::unique_ptr<MUType> &MU) {
+    return Main->define(MU);
+  }
 
   /// Adds an IR module to the given JITDylib.
   Error addIRModule(JITDylib &JD, ThreadSafeModule TSM);
@@ -107,7 +120,14 @@ public:
   /// Look up a symbol in JITDylib JD by the symbol's linker-mangled name (to
   /// look up symbols based on their IR name use the lookup function instead).
   Expected<JITEvaluatedSymbol> lookupLinkerMangled(JITDylib &JD,
-                                                   StringRef Name);
+                                                   SymbolStringPtr Name);
+
+  /// Look up a symbol in JITDylib JD by the symbol's linker-mangled name (to
+  /// look up symbols based on their IR name use the lookup function instead).
+  Expected<JITEvaluatedSymbol> lookupLinkerMangled(JITDylib &JD,
+                                                   StringRef Name) {
+    return lookupLinkerMangled(JD, ES->intern(Name));
+  }
 
   /// Look up a symbol in the main JITDylib by the symbol's linker-mangled name
   /// (to look up symbols based on their IR name use the lookup function
@@ -166,6 +186,14 @@ public:
   /// Returns a reference to the IR compile layer.
   IRCompileLayer &getIRCompileLayer() { return *CompileLayer; }
 
+  /// Returns a linker-mangled version of UnmangledName.
+  std::string mangle(StringRef UnmangledName) const;
+
+  /// Returns an interned, linker-mangled version of UnmangledName.
+  SymbolStringPtr mangleAndIntern(StringRef UnmangledName) const {
+    return ES->intern(mangle(UnmangledName));
+  }
+
 protected:
   static std::unique_ptr<ObjectLayer>
   createObjectLinkingLayer(LLJITBuilderState &S, ExecutionSession &ES);
@@ -175,8 +203,6 @@ protected:
 
   /// Create an LLJIT instance with a single compile thread.
   LLJIT(LLJITBuilderState &S, Error &Err);
-
-  std::string mangle(StringRef UnmangledName);
 
   Error applyDataLayout(Module &M);
 

@@ -42,6 +42,7 @@ add_llvm_target(AMDGPUCodeGen
   AMDGPUAtomicOptimizer.cpp
   AMDGPUCallLowering.cpp
   AMDGPUCodeGenPrepare.cpp
+  AMDGPUExportClustering.cpp
   AMDGPUFixFunctionBitcasts.cpp
   AMDGPUFrameLowering.cpp
   AMDGPUHSAMetadataStreamer.cpp
@@ -121,6 +122,7 @@ add_llvm_target(AMDGPUCodeGen
   SIOptimizeExecMaskingPreRA.cpp
   SIPeepholeSDWA.cpp
   SIPostRABundler.cpp
+  SIPreEmitPeephole.cpp
   SIRegisterInfo.cpp
   SIRemoveShortExecBranches.cpp
   SIShrinkInstructions.cpp

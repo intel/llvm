@@ -1,35 +1,8 @@
 function(mlir_tablegen ofn)
-  tablegen(MLIR ${ARGV} "-I${MLIR_MAIN_SRC_DIR}" "-I${MLIR_INCLUDE_DIR}")
+  tablegen(MLIR ${ARGV})
   set(TABLEGEN_OUTPUT ${TABLEGEN_OUTPUT} ${CMAKE_CURRENT_BINARY_DIR}/${ofn}
       PARENT_SCOPE)
 endfunction()
-
-# TODO: This is to handle the current static registration, but should be
-# factored out a bit.
-function(whole_archive_link target)
-  add_dependencies(${target} ${ARGN})
-  if("${CMAKE_SYSTEM_NAME}" STREQUAL "Darwin")
-    set(link_flags "-L${CMAKE_BINARY_DIR}/lib ")
-    FOREACH(LIB ${ARGN})
-      if("${CMAKE_GENERATOR}" STREQUAL "Xcode")
-        string(CONCAT link_flags ${link_flags} "-Wl,-force_load ${CMAKE_BINARY_DIR}/${CMAKE_CFG_INTDIR}/lib/lib${LIB}.a ")
-      else()
-        string(CONCAT link_flags ${link_flags} "-Wl,-force_load ${CMAKE_BINARY_DIR}/lib/lib${LIB}.a ")
-      endif()
-    ENDFOREACH(LIB)
-  elseif(MSVC)
-    FOREACH(LIB ${ARGN})
-      string(CONCAT link_flags ${link_flags} "/WHOLEARCHIVE:${CMAKE_BINARY_DIR}/${CMAKE_CFG_INTDIR}/lib/${LIB}.lib ")
-    ENDFOREACH(LIB)
-  else()
-    set(link_flags "-L${CMAKE_BINARY_DIR}/lib -Wl,--whole-archive,")
-    FOREACH(LIB ${ARGN})
-      string(CONCAT link_flags ${link_flags} "-l${LIB},")
-    ENDFOREACH(LIB)
-    string(CONCAT link_flags ${link_flags} "--no-whole-archive")
-  endif()
-  set_target_properties(${target} PROPERTIES LINK_FLAGS ${link_flags})
-endfunction(whole_archive_link)
 
 # Declare a dialect in the include directory
 function(add_mlir_dialect dialect dialect_namespace)
@@ -44,7 +17,7 @@ endfunction()
 # Generate Documentation
 function(add_mlir_doc doc_filename command output_file output_directory)
   set(LLVM_TARGET_DEFINITIONS ${doc_filename}.td)
-  tablegen(MLIR ${output_file}.md ${command} "-I${MLIR_MAIN_SRC_DIR}" "-I${MLIR_INCLUDE_DIR}")
+  tablegen(MLIR ${output_file}.md ${command} "-I${MLIR_MAIN_INCLUDE_DIR}" "-I${MLIR_INCLUDE_DIR}")
   set(GEN_DOC_FILE ${MLIR_BINARY_DIR}/docs/${output_directory}${output_file}.md)
   add_custom_command(
           OUTPUT ${GEN_DOC_FILE}
@@ -56,20 +29,160 @@ function(add_mlir_doc doc_filename command output_file output_directory)
   add_dependencies(mlir-doc ${output_file}DocGen)
 endfunction()
 
-# Declare a library which can be compiled in libMLIR.so
-macro(add_mlir_library name)
-  set_property(GLOBAL APPEND PROPERTY MLIR_ALL_LIBS ${name})
-  add_llvm_library(${ARGV})
-endmacro(add_mlir_library)
+# Declare an mlir library which can be compiled in libMLIR.so
+# In addition to everything that llvm_add_librar accepts, this
+# also has the following option:
+# EXCLUDE_FROM_LIBMLIR
+#   Don't include this library in libMLIR.so.  This option should be used
+#   for test libraries, executable-specific libraries, or rarely used libraries
+#   with large dependencies.
+function(add_mlir_library name)
+  cmake_parse_arguments(ARG
+    "SHARED;INSTALL_WITH_TOOLCHAIN;EXCLUDE_FROM_LIBMLIR"
+    ""
+    "ADDITIONAL_HEADERS;DEPENDS;LINK_COMPONENTS;LINK_LIBS"
+    ${ARGN})
+  set(srcs)
+  if(MSVC_IDE OR XCODE)
+    # Add public headers
+    file(RELATIVE_PATH lib_path
+      ${MLIR_SOURCE_DIR}/lib/
+      ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+    if(NOT lib_path MATCHES "^[.][.]")
+      file( GLOB_RECURSE headers
+        ${MLIR_SOURCE_DIR}/include/mlir/${lib_path}/*.h
+        ${MLIR_SOURCE_DIR}/include/mlir/${lib_path}/*.def
+      )
+      set_source_files_properties(${headers} PROPERTIES HEADER_FILE_ONLY ON)
+
+      file( GLOB_RECURSE tds
+        ${MLIR_SOURCE_DIR}/include/mlir/${lib_path}/*.td
+      )
+      source_group("TableGen descriptions" FILES ${tds})
+      set_source_files_properties(${tds}} PROPERTIES HEADER_FILE_ONLY ON)
+
+      if(headers OR tds)
+        set(srcs ${headers} ${tds})
+      endif()
+    endif()
+  endif(MSVC_IDE OR XCODE)
+  if(srcs OR ARG_ADDITIONAL_HEADERS)
+    set(srcs
+      ADDITIONAL_HEADERS
+      ${srcs}
+      ${ARG_ADDITIONAL_HEADERS} # It may contain unparsed unknown args.
+      )
+  endif()
+  if(ARG_SHARED)
+    set(LIBTYPE SHARED)
+  else()
+    # llvm_add_library ignores BUILD_SHARED_LIBS if STATIC is explicitly set,
+    # so we need to handle it here.
+    if(BUILD_SHARED_LIBS)
+      set(LIBTYPE SHARED)
+    else()
+      set(LIBTYPE STATIC)
+    endif()
+    if(NOT XCODE)
+      # The Xcode generator doesn't handle object libraries correctly.
+      list(APPEND LIBTYPE OBJECT)
+    endif()
+    # Test libraries and such shouldn't be include in libMLIR.so
+    if(NOT ARG_EXCLUDE_FROM_LIBMLIR)
+      set_property(GLOBAL APPEND PROPERTY MLIR_STATIC_LIBS ${name})
+      set_property(GLOBAL APPEND PROPERTY MLIR_LLVM_LINK_COMPONENTS ${ARG_LINK_COMPONENTS})
+      set_property(GLOBAL APPEND PROPERTY MLIR_LLVM_LINK_COMPONENTS ${LLVM_LINK_COMPONENTS})
+    endif()
+  endif()
+
+  # MLIR libraries uniformly depend on LLVMSupport.  Just specify it once here.
+  list(APPEND ARG_LINK_COMPONENTS Support)
+  list(APPEND ARG_DEPENDS mlir-generic-headers)
+  llvm_add_library(${name} ${LIBTYPE} ${ARG_UNPARSED_ARGUMENTS} ${srcs} DEPENDS ${ARG_DEPENDS} LINK_COMPONENTS ${ARG_LINK_COMPONENTS} LINK_LIBS ${ARG_LINK_LIBS})
+
+  if(TARGET ${name})
+    target_link_libraries(${name} INTERFACE ${LLVM_COMMON_LIBS})
+
+    if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY)
+      set(export_to_mlirtargets)
+      if (${name} IN_LIST LLVM_DISTRIBUTION_COMPONENTS OR
+          "mlir-libraries" IN_LIST LLVM_DISTRIBUTION_COMPONENTS OR
+          NOT LLVM_DISTRIBUTION_COMPONENTS)
+          set(export_to_mlirtargets EXPORT MLIRTargets)
+        set_property(GLOBAL PROPERTY MLIR_HAS_EXPORTS True)
+      endif()
+
+      install(TARGETS ${name}
+        COMPONENT ${name}
+        ${export_to_mlirtargets}
+        LIBRARY DESTINATION lib${LLVM_LIBDIR_SUFFIX}
+        ARCHIVE DESTINATION lib${LLVM_LIBDIR_SUFFIX}
+        RUNTIME DESTINATION bin)
+
+      if (NOT LLVM_ENABLE_IDE)
+        add_llvm_install_targets(install-${name}
+                                 DEPENDS ${name}
+                                 COMPONENT ${name})
+      endif()
+      set_property(GLOBAL APPEND PROPERTY MLIR_ALL_LIBS ${name})
+    endif()
+    set_property(GLOBAL APPEND PROPERTY MLIR_EXPORTS ${name})
+  else()
+    # Add empty "phony" target
+    add_custom_target(${name})
+  endif()
+  set_target_properties(${name} PROPERTIES FOLDER "MLIR libraries")
+endfunction(add_mlir_library)
 
 # Declare the library associated with a dialect.
 function(add_mlir_dialect_library name)
   set_property(GLOBAL APPEND PROPERTY MLIR_DIALECT_LIBS ${name})
-  add_mlir_library(${ARGV})
+  add_mlir_library(${ARGV} DEPENDS mlir-headers)
 endfunction(add_mlir_dialect_library)
 
 # Declare the library associated with a conversion.
 function(add_mlir_conversion_library name)
   set_property(GLOBAL APPEND PROPERTY MLIR_CONVERSION_LIBS ${name})
-  add_mlir_library(${ARGV})
+  add_mlir_library(${ARGV} DEPENDS mlir-headers)
 endfunction(add_mlir_conversion_library)
+
+# Declare the library associated with a translation.
+function(add_mlir_translation_library name)
+  set_property(GLOBAL APPEND PROPERTY MLIR_TRANSLATION_LIBS ${name})
+  add_mlir_library(${ARGV} DEPENDS mlir-headers)
+endfunction(add_mlir_translation_library)
+
+# Verification tools to aid debugging.
+function(mlir_check_link_libraries name)
+  if(TARGET ${name})
+    get_target_property(libs ${name} LINK_LIBRARIES)
+    # message("${name} libs are: ${libs}")
+    set(linking_llvm 0)
+    foreach(lib ${libs})
+      if(lib)
+        if(${lib} MATCHES "^LLVM$")
+          set(linking_llvm 1)
+        endif()
+        if((${lib} MATCHES "^LLVM.+") AND ${linking_llvm})
+          # This will almost always cause execution problems, since the
+          # same symbol might be loaded from 2 separate libraries.  This
+          # often comes from referring to an LLVM library target
+          # explicitly in target_link_libraries()
+          message("WARNING: ${l} links LLVM and ${lib}!")
+        endif()
+      endif()
+    endforeach()
+  endif()
+endfunction(mlir_check_link_libraries)
+
+function(mlir_check_all_link_libraries name)
+  mlir_check_link_libraries(${name})
+  if(TARGET ${name})
+    get_target_property(libs ${name} LINK_LIBRARIES)
+    # message("${name} libs are: ${libs}")
+    foreach(lib ${libs})
+      mlir_check_link_libraries(${lib})
+    endforeach()
+  endif()
+endfunction(mlir_check_all_link_libraries)

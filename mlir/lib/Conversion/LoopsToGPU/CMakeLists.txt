@@ -4,10 +4,12 @@ add_mlir_conversion_library(MLIRLoopsToGPU
 
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Conversion/LoopsToGPU
-)
-target_link_libraries(MLIRLoopsToGPU
-  PUBLIC
-  MLIRAffine
+
+  DEPENDS
+  MLIRConversionPassIncGen
+
+  LINK_LIBS PUBLIC
+  MLIRAffineOps
   MLIRAffineToStandard
   MLIRGPU
   MLIRIR
@@ -16,5 +18,4 @@ target_link_libraries(MLIRLoopsToGPU
   MLIRStandardOps
   MLIRSupport
   MLIRTransforms
-  LLVMSupport
   )

@@ -162,12 +162,12 @@ MachineInstrBuilder MachineIRBuilder::buildDbgLabel(const MDNode *Label) {
 
 MachineInstrBuilder MachineIRBuilder::buildDynStackAlloc(const DstOp &Res,
                                                          const SrcOp &Size,
-                                                         unsigned Align) {
+                                                         Align Alignment) {
   assert(Res.getLLTTy(*getMRI()).isPointer() && "expected ptr dst type");
   auto MIB = buildInstr(TargetOpcode::G_DYN_STACKALLOC);
   Res.addDefToMIB(*getMRI(), MIB);
   Size.addSrcToMIB(MIB);
-  MIB.addImm(Align);
+  MIB.addImm(Alignment.value());
   return MIB;
 }
 
@@ -290,6 +290,7 @@ MachineInstrBuilder MachineIRBuilder::buildConstant(const DstOp &Res,
   }
 
   auto Const = buildInstr(TargetOpcode::G_CONSTANT);
+  Const->setDebugLoc(DebugLoc());
   Res.addDefToMIB(*getMRI(), Const);
   Const.addCImm(&Val);
   return Const;
@@ -513,7 +514,7 @@ void MachineIRBuilder::buildSequence(Register Res, ArrayRef<Register> Ops,
 #ifndef NDEBUG
   assert(Ops.size() == Indices.size() && "incompatible args");
   assert(!Ops.empty() && "invalid trivial sequence");
-  assert(std::is_sorted(Indices.begin(), Indices.end()) &&
+  assert(llvm::is_sorted(Indices) &&
          "sequence offsets must be in ascending order");
 
   assert(getMRI()->getType(Res).isValid() && "invalid operand type");

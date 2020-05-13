@@ -147,7 +147,7 @@ class ShellCommandResult(object):
         self.exitCode = exitCode
         self.timeoutReached = timeoutReached
         self.outputFiles = list(outputFiles)
-               
+
 def executeShCmd(cmd, shenv, results, timeout=0):
     """
         Wrapper around _executeShCmd that handles
@@ -844,7 +844,7 @@ def _executeShCmd(cmd, shenv, results, timeoutHelper):
                         data = None
                     if data is not None:
                         output_files.append((name, path, data))
-            
+
         results.append(ShellCommandResult(
             cmd.commands[i], out, err, res, timeoutHelper.timeoutReached(),
             output_files))
@@ -917,7 +917,7 @@ def executeScriptInternal(test, litConfig, tmpBase, commands, cwd):
                 else:
                     out += data
                 out += "\n"
-                    
+
         if result.stdout.strip():
             out += '# command output:\n%s\n' % (result.stdout,)
         if result.stderr.strip():
@@ -1147,10 +1147,18 @@ def _memoize(f):
 def _caching_re_compile(r):
     return re.compile(r)
 
-def applySubstitutions(script, substitutions):
-    """Apply substitutions to the script.  Allow full regular expression syntax.
+def applySubstitutions(script, substitutions, recursion_limit=None):
+    """
+    Apply substitutions to the script.  Allow full regular expression syntax.
     Replace each matching occurrence of regular expression pattern a with
-    substitution b in line ln."""
+    substitution b in line ln.
+
+    If a substitution expands into another substitution, it is expanded
+    recursively until the line has no more expandable substitutions. If
+    the line can still can be substituted after being substituted
+    `recursion_limit` times, it is an error. If the `recursion_limit` is
+    `None` (the default), no recursive substitution is performed at all.
+    """
     def processLine(ln):
         # Apply substitutions
         for a,b in substitutions:
@@ -1167,9 +1175,28 @@ def applySubstitutions(script, substitutions):
 
         # Strip the trailing newline and any extra whitespace.
         return ln.strip()
+
+    def processLineToFixedPoint(ln):
+        assert isinstance(recursion_limit, int) and recursion_limit >= 0
+        origLine = ln
+        steps = 0
+        processed = processLine(ln)
+        while processed != ln and steps < recursion_limit:
+            ln = processed
+            processed = processLine(ln)
+            steps += 1
+
+        if processed != ln:
+            raise ValueError("Recursive substitution of '%s' did not complete "
+                             "in the provided recursion limit (%s)" % \
+                             (origLine, recursion_limit))
+
+        return processed
+
     # Note Python 3 map() gives an iterator rather than a list so explicitly
     # convert to list before returning.
-    return list(map(processLine, script))
+    process = processLine if recursion_limit is None else processLineToFixedPoint
+    return list(map(process, script))
 
 
 class ParserKind(object):
@@ -1180,7 +1207,7 @@ class ParserKind(object):
     TAG: A keyword taking no value. Ex 'END.'
     COMMAND: A keyword taking a list of shell commands. Ex 'RUN:'
     LIST: A keyword taking a comma-separated list of values.
-    BOOLEAN_EXPR: A keyword taking a comma-separated list of 
+    BOOLEAN_EXPR: A keyword taking a comma-separated list of
         boolean expressions. Ex 'XFAIL:'
     INTEGER: A keyword taking a single integer. Ex 'ALLOW_RETRIES:'
     CUSTOM: A keyword with custom parsing semantics.
@@ -1375,7 +1402,7 @@ def parseIntegratedTestScript(test, additional_parsers=[],
         IntegratedTestKeywordParser('END.', ParserKind.TAG)
     ]
     keyword_parsers = {p.keyword: p for p in builtin_parsers}
-    
+
     # Install user-defined additional parsers.
     for parser in additional_parsers:
         if not isinstance(parser, IntegratedTestKeywordParser):
@@ -1385,7 +1412,7 @@ def parseIntegratedTestScript(test, additional_parsers=[],
             raise ValueError("Parser for keyword '%s' already exists"
                              % parser.keyword)
         keyword_parsers[parser.keyword] = parser
-        
+
     # Collect the test lines from the script.
     sourcepath = test.getSourcePath()
     for line_number, command_type, ln in \
@@ -1450,25 +1477,43 @@ def parseIntegratedTestScript(test, additional_parsers=[],
 
 
 def _runShTest(test, litConfig, useExternalSh, script, tmpBase):
+    def runOnce(execdir):
+        if useExternalSh:
+            res = executeScript(test, litConfig, tmpBase, script, execdir)
+        else:
+            res = executeScriptInternal(test, litConfig, tmpBase, script, execdir)
+        if isinstance(res, lit.Test.Result):
+            return res
+
+        out,err,exitCode,timeoutInfo = res
+        if exitCode == 0:
+            status = Test.PASS
+        else:
+            if timeoutInfo is None:
+                status = Test.FAIL
+            else:
+                status = Test.TIMEOUT
+        return out,err,exitCode,timeoutInfo,status
+
     # Create the output directory if it does not already exist.
     lit.util.mkdir_p(os.path.dirname(tmpBase))
 
+    # Re-run failed tests up to test.allowed_retries times.
     execdir = os.path.dirname(test.getExecPath())
-    if useExternalSh:
-        res = executeScript(test, litConfig, tmpBase, script, execdir)
-    else:
-        res = executeScriptInternal(test, litConfig, tmpBase, script, execdir)
-    if isinstance(res, lit.Test.Result):
-        return res
+    attempts = test.allowed_retries + 1
+    for i in range(attempts):
+        res = runOnce(execdir)
+        if isinstance(res, lit.Test.Result):
+            return res
 
-    out,err,exitCode,timeoutInfo = res
-    if exitCode == 0:
-        status = Test.PASS
-    else:
-        if timeoutInfo is None:
-            status = Test.FAIL
-        else:
-            status = Test.TIMEOUT
+        out,err,exitCode,timeoutInfo,status = res
+        if status != Test.FAIL:
+            break
+
+    # If we had to run the test more than once, count it as a flaky pass. These
+    # will be printed separately in the test summary.
+    if i > 0 and status == Test.PASS:
+        status = Test.FLAKYPASS
 
     # Form the output log.
     output = """Script:\n--\n%s\n--\nExit Code: %d\n""" % (
@@ -1506,16 +1551,7 @@ def executeShTest(test, litConfig, useExternalSh,
     substitutions = list(extra_substitutions)
     substitutions += getDefaultSubstitutions(test, tmpDir, tmpBase,
                                              normalize_slashes=useExternalSh)
-    script = applySubstitutions(script, substitutions)
+    script = applySubstitutions(script, substitutions,
+                                recursion_limit=test.config.recursiveExpansionLimit)
 
-    # Re-run failed tests up to test.allowed_retries times.
-    attempts = test.allowed_retries + 1
-    for i in range(attempts):
-        res = _runShTest(test, litConfig, useExternalSh, script, tmpBase)
-        if res.code != Test.FAIL:
-            break
-    # If we had to run the test more than once, count it as a flaky pass. These
-    # will be printed separately in the test summary.
-    if i > 0 and res.code == Test.PASS:
-        res.code = Test.FLAKYPASS
-    return res
+    return _runShTest(test, litConfig, useExternalSh, script, tmpBase)

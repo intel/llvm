@@ -395,6 +395,21 @@ the configuration (without a prefix: ``Auto``).
                                               return;
                                             }
 
+**AllowShortEnumsOnASingleLine** (``bool``)
+  Allow short enums on a single line.
+
+  .. code-block:: c++
+
+    true:
+    enum { A, B } myEnum;
+
+    false:
+    enum
+    {
+      A,
+      B
+    } myEnum;
+
 **AllowShortFunctionsOnASingleLine** (``ShortFunctionStyle``)
   Dependent on the value, ``int f() { return 0; }`` can be put on a
   single line.
@@ -716,26 +731,6 @@ the configuration (without a prefix: ``Auto``).
         aaaaaaaaaaaaaaaaaaaa,
         aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa);
     }
-
-
-**InsertTrailingCommas** (``TrailingCommaStyle``) can be set to ``TCS_Wrapped``
-  to insert trailing commas in container literals (arrays and objects) that wrap
-  across multiple lines. It is currently only available for JavaScript and
-  disabled by default (``TCS_None``).
-
-  ``InsertTrailingCommas`` cannot be used together with ``BinPackArguments`` as
-  inserting the comma disables bin-packing.
-
-  .. code-block:: c++
-
-    TSC_Wrapped:
-    const someArray = [
-      aaaaaaaaaaaaaaaaaaaaaaaaaa,
-      aaaaaaaaaaaaaaaaaaaaaaaaaa,
-      aaaaaaaaaaaaaaaaaaaaaaaaaa,
-      //                        ^ inserted
-    ]
-
 
 **BinPackParameters** (``bool``)
   If ``false``, a function declaration's or function definition's
@@ -1770,6 +1765,38 @@ the configuration (without a prefix: ``Auto``).
      LoooooooooooooooooooooooooooooooooooooooongReturnType
      LoooooooooooooooooooooooooooooooongFunctionDeclaration();
 
+**InsertTrailingCommas** (``TrailingCommaStyle``)
+  If set to ``TCS_Wrapped`` will insert trailing commas in container
+  literals (arrays and objects) that wrap across multiple lines.
+  It is currently only available for JavaScript
+  and disabled by default ``TCS_None``.
+  ``InsertTrailingCommas`` cannot be used together with ``BinPackArguments``
+  as inserting the comma disables bin-packing.
+
+  .. code-block:: c++
+
+    TSC_Wrapped:
+    const someArray = [
+    aaaaaaaaaaaaaaaaaaaaaaaaaa,
+    aaaaaaaaaaaaaaaaaaaaaaaaaa,
+    aaaaaaaaaaaaaaaaaaaaaaaaaa,
+    //                        ^ inserted
+    ]
+
+  Possible values:
+
+  * ``TCS_None`` (in configuration: ``None``)
+    Do not insert trailing commas.
+
+  * ``TCS_Wrapped`` (in configuration: ``Wrapped``)
+    Insert trailing commas in container literals that were wrapped over
+    multiple lines. Note that this is conceptually incompatible with
+    bin-packing, because the trailing comma is used as an indicator
+    that a container should be formatted one-per-line (i.e. not bin-packed).
+    So inserting a trailing comma counteracts bin-packing.
+
+
+
 **JavaImportGroups** (``std::vector<std::string>``)
   A vector of prefixes ordered by the desired groups for Java imports.
 
@@ -2064,7 +2091,8 @@ the configuration (without a prefix: ``Auto``).
     false:
      - (void)_aMethod
      {
-         [self.test1 t:self w:self callback:^(typeof(self) self, NSNumber *u, NSNumber *v) {
+         [self.test1 t:self w:self callback:^(typeof(self) self, NSNumber
+         *u, NSNumber *v) {
              u = c;
          }]
      }
@@ -2308,6 +2336,19 @@ the configuration (without a prefix: ``Auto``).
          }
        }
 
+  * ``SBPO_ControlStatementsExceptForEachMacros`` (in configuration: ``ControlStatementsExceptForEachMacros``)
+    Same as ``SBPO_ControlStatements`` except this option doesn't apply to
+    ForEach macros. This is useful in projects where ForEach macros are
+    treated as function calls instead of control statements.
+
+    .. code-block:: c++
+
+       void f() {
+         Q_FOREACH(...) {
+           f();
+         }
+       }
+
   * ``SBPO_NonEmptyParentheses`` (in configuration: ``NonEmptyParentheses``)
     Put a space before opening parentheses only if the parentheses are not
     empty i.e. '()'
@@ -2534,7 +2575,12 @@ the configuration (without a prefix: ``Auto``).
     Use tabs only for indentation.
 
   * ``UT_ForContinuationAndIndentation`` (in configuration: ``ForContinuationAndIndentation``)
-    Use tabs only for line continuation and indentation.
+    Fill all leading whitespace with tabs, and use spaces for alignment that
+    appears within a line (e.g. consecutive assignments and declarations).
+
+  * ``UT_AlignWithSpaces`` (in configuration: ``AlignWithSpaces``)
+    Use tabs for line continuation and indentation, and spaces for
+    alignment.
 
   * ``UT_Always`` (in configuration: ``Always``)
     Use tabs whenever we need to fill whitespace that spans at least from

@@ -35,11 +35,16 @@ bool MCXCOFFStreamer::emitSymbolAttribute(MCSymbol *Sym,
 
   switch (Attribute) {
   case MCSA_Global:
+  case MCSA_Extern:
     Symbol->setStorageClass(XCOFF::C_EXT);
     Symbol->setExternal(true);
     break;
   case MCSA_LGlobal:
     Symbol->setStorageClass(XCOFF::C_HIDEXT);
+    Symbol->setExternal(true);
+    break;
+  case llvm::MCSA_Weak:
+    Symbol->setStorageClass(XCOFF::C_WEAKEXT);
     Symbol->setExternal(true);
     break;
   default:
@@ -66,7 +71,7 @@ void MCXCOFFStreamer::emitZerofill(MCSection *Section, MCSymbol *Symbol,
   report_fatal_error("Zero fill not implemented for XCOFF.");
 }
 
-void MCXCOFFStreamer::EmitInstToData(const MCInst &Inst,
+void MCXCOFFStreamer::emitInstToData(const MCInst &Inst,
                                      const MCSubtargetInfo &STI) {
   MCAssembler &Assembler = getAssembler();
   SmallVector<MCFixup, 4> Fixups;

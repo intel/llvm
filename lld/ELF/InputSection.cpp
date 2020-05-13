@@ -45,6 +45,7 @@ std::string toString(const elf::InputSectionBase *sec) {
 
 namespace elf {
 std::vector<InputSectionBase *> inputSections;
+DenseSet<std::pair<const Symbol *, uint64_t>> ppc64noTocRelax;
 
 template <class ELFT>
 static ArrayRef<uint8_t> getSectionContents(ObjFile<ELFT> &file,
@@ -138,7 +139,7 @@ size_t InputSectionBase::getSize() const {
     return s->getSize();
   if (uncompressedSize >= 0)
     return uncompressedSize;
-  return rawData.size();
+  return rawData.size() - bytesDropped;
 }
 
 void InputSectionBase::uncompress() const {
@@ -650,6 +651,7 @@ static int64_t getTlsTpOffset(const Symbol &s) {
 
     // Variant 2.
   case EM_HEXAGON:
+  case EM_SPARCV9:
   case EM_386:
   case EM_X86_64:
     return s.getVA(0) - tls->p_memsz -
@@ -659,8 +661,9 @@ static int64_t getTlsTpOffset(const Symbol &s) {
   }
 }
 
-static uint64_t getRelocTargetVA(const InputFile *file, RelType type, int64_t a,
-                                 uint64_t p, const Symbol &sym, RelExpr expr) {
+uint64_t InputSectionBase::getRelocTargetVA(const InputFile *file, RelType type,
+                                            int64_t a, uint64_t p,
+                                            const Symbol &sym, RelExpr expr) {
   switch (expr) {
   case R_ABS:
   case R_DTPREL:
@@ -708,7 +711,7 @@ static uint64_t getRelocTargetVA(const InputFile *file, RelType type, int64_t a,
     // ftp://www.linux-mips.org/pub/linux/mips/doc/ABI/mipsabi.pdf
     // microMIPS variants of these relocations use slightly different
     // expressions: AHL + GP - P + 3 for %lo() and AHL + GP - P - 1 for %hi()
-    // to correctly handle less-sugnificant bit of the microMIPS symbol.
+    // to correctly handle less-significant bit of the microMIPS symbol.
     uint64_t v = in.mipsGot->getGp(file) + a - p;
     if (type == R_MIPS_LO16 || type == R_MICROMIPS_LO16)
       v += 4;
@@ -805,7 +808,7 @@ static uint64_t getRelocTargetVA(const InputFile *file, RelType type, int64_t a,
     // --noinhibit-exec, even a non-weak undefined reference may reach here.
     // Just return A, which matches R_ABS, and the behavior of some dynamic
     // loaders.
-    if (sym.isUndefined())
+    if (sym.isUndefined() || sym.isLazy())
       return a;
     return getTlsTpOffset(sym) + a;
   case R_RELAX_TLS_GD_TO_LE_NEG:
@@ -870,6 +873,12 @@ void InputSection::relocateNonAlloc(uint8_t *buf, ArrayRef<RelTy> rels) {
     RelExpr expr = target->getRelExpr(type, sym, bufLoc);
     if (expr == R_NONE)
       continue;
+
+    if (expr == R_SIZE) {
+      target->relocateNoSym(bufLoc, type,
+                            SignExtend64<bits>(sym.getSize() + addend));
+      continue;
+    }
 
     if (expr != R_ABS && expr != R_DTPREL && expr != R_RISCV_ADD) {
       std::string msg = getLocation<ELFT>(offset) +
@@ -942,6 +951,8 @@ void InputSectionBase::relocateAlloc(uint8_t *buf, uint8_t *bufEnd) {
   const unsigned bits = config->wordsize * 8;
 
   for (const Relocation &rel : relocations) {
+    if (rel.expr == R_NONE)
+      continue;
     uint64_t offset = rel.offset;
     if (auto *sec = dyn_cast<InputSection>(this))
       offset += sec->outSecOff;
@@ -960,7 +971,13 @@ void InputSectionBase::relocateAlloc(uint8_t *buf, uint8_t *bufEnd) {
       target->relaxGot(bufLoc, rel, targetVA);
       break;
     case R_PPC64_RELAX_TOC:
-      if (!tryRelaxPPC64TocIndirection(rel, bufLoc))
+      // rel.sym refers to the STT_SECTION symbol associated to the .toc input
+      // section. If an R_PPC64_TOC16_LO (.toc + addend) references the TOC
+      // entry, there may be R_PPC64_TOC16_HA not paired with
+      // R_PPC64_TOC16_LO_DS. Don't relax. This loses some relaxation
+      // opportunities but is safe.
+      if (ppc64noTocRelax.count({rel.sym, rel.addend}) ||
+          !tryRelaxPPC64TocIndirection(rel, bufLoc))
         target->relocate(bufLoc, rel, targetVA);
       break;
     case R_RELAX_TLS_IE_TO_LE:
@@ -1009,6 +1026,18 @@ void InputSectionBase::relocateAlloc(uint8_t *buf, uint8_t *bufEnd) {
     default:
       target->relocate(bufLoc, rel, targetVA);
       break;
+    }
+  }
+
+  // Apply jumpInstrMods.  jumpInstrMods are created when the opcode of
+  // a jmp insn must be modified to shrink the jmp insn or to flip the jmp
+  // insn.  This is primarily used to relax and optimize jumps created with
+  // basic block sections.
+  if (auto *sec = dyn_cast<InputSection>(this)) {
+    for (const JumpInstrMod &jumpMod : jumpInstrMods) {
+      uint64_t offset = jumpMod.offset + sec->outSecOff;
+      uint8_t *bufLoc = buf + offset;
+      target->applyJumpInstrMod(bufLoc, jumpMod.original, jumpMod.size);
     }
   }
 }

@@ -29,7 +29,6 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
-#include "llvm/ADT/StringRef.h"
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DebugInfoMetadata.h"
@@ -53,8 +52,7 @@
 
 namespace llvm {
 
-class ConstantFP;
-class ConstantInt;
+class StringRef;
 class Type;
 class Value;
 class ValueHandleBase;
@@ -355,19 +353,22 @@ template <> struct MDNodeKeyImpl<DISubrange> {
 };
 
 template <> struct MDNodeKeyImpl<DIEnumerator> {
-  int64_t Value;
+  APInt Value;
   MDString *Name;
   bool IsUnsigned;
 
-  MDNodeKeyImpl(int64_t Value, bool IsUnsigned, MDString *Name)
+  MDNodeKeyImpl(APInt Value, bool IsUnsigned, MDString *Name)
       : Value(Value), Name(Name), IsUnsigned(IsUnsigned) {}
+  MDNodeKeyImpl(int64_t Value, bool IsUnsigned, MDString *Name)
+      : Value(APInt(64, Value, !IsUnsigned)), Name(Name),
+        IsUnsigned(IsUnsigned) {}
   MDNodeKeyImpl(const DIEnumerator *N)
       : Value(N->getValue()), Name(N->getRawName()),
         IsUnsigned(N->isUnsigned()) {}
 
   bool isKeyOf(const DIEnumerator *RHS) const {
-    return Value == RHS->getValue() && IsUnsigned == RHS->isUnsigned() &&
-           Name == RHS->getRawName();
+    return APInt::isSameValue(Value, RHS->getValue()) &&
+           IsUnsigned == RHS->isUnsigned() && Name == RHS->getRawName();
   }
 
   unsigned getHashValue() const { return hash_combine(Value, Name); }
@@ -1378,9 +1379,6 @@ public:
   /// integer representing the next DWARF path discriminator to assign to
   /// instructions in different blocks at the same location.
   DenseMap<std::pair<const char *, unsigned>, unsigned> DiscriminatorTable;
-
-  int getOrAddScopeRecordIdxEntry(MDNode *N, int ExistingIdx);
-  int getOrAddScopeInlinedAtIdxEntry(MDNode *Scope, MDNode *IA,int ExistingIdx);
 
   /// A set of interned tags for operand bundles.  The StringMap maps
   /// bundle tags to their IDs.

@@ -221,6 +221,20 @@ struct FormatStyle {
   /// \endcode
   bool AllowAllParametersOfDeclarationOnNextLine;
 
+  /// Allow short enums on a single line.
+  /// \code
+  ///   true:
+  ///   enum { A, B } myEnum;
+  ///
+  ///   false:
+  ///   enum
+  ///   {
+  ///     A,
+  ///     B
+  ///   } myEnum;
+  /// \endcode
+  bool AllowShortEnumsOnASingleLine;
+
   /// Different styles for merging short blocks containing at most one
   /// statement.
   enum ShortBlockStyle {
@@ -561,6 +575,21 @@ struct FormatStyle {
     TCS_Wrapped,
   };
 
+  /// If set to ``TCS_Wrapped`` will insert trailing commas in container
+  /// literals (arrays and objects) that wrap across multiple lines.
+  /// It is currently only available for JavaScript
+  /// and disabled by default ``TCS_None``.
+  /// ``InsertTrailingCommas`` cannot be used together with ``BinPackArguments``
+  /// as inserting the comma disables bin-packing.
+  /// \code
+  ///   TSC_Wrapped:
+  ///   const someArray = [
+  ///   aaaaaaaaaaaaaaaaaaaaaaaaaa,
+  ///   aaaaaaaaaaaaaaaaaaaaaaaaaa,
+  ///   aaaaaaaaaaaaaaaaaaaaaaaaaa,
+  ///   //                        ^ inserted
+  ///   ]
+  /// \endcode
   TrailingCommaStyle InsertTrailingCommas;
 
   /// If ``false``, a function declaration's or function definition's
@@ -1954,6 +1983,17 @@ struct FormatStyle {
     ///    }
     /// \endcode
     SBPO_ControlStatements,
+    /// Same as ``SBPO_ControlStatements`` except this option doesn't apply to
+    /// ForEach macros. This is useful in projects where ForEach macros are 
+    /// treated as function calls instead of control statements. 
+    /// \code
+    ///    void f() {
+    ///      Q_FOREACH(...) {
+    ///        f();
+    ///      }
+    ///    }
+    /// \endcode
+    SBPO_ControlStatementsExceptForEachMacros,
     /// Put a space before opening parentheses only if the parentheses are not
     /// empty i.e. '()'
     /// \code
@@ -2129,8 +2169,12 @@ struct FormatStyle {
     UT_Never,
     /// Use tabs only for indentation.
     UT_ForIndentation,
-    /// Use tabs only for line continuation and indentation.
+    /// Fill all leading whitespace with tabs, and use spaces for alignment that
+    /// appears within a line (e.g. consecutive assignments and declarations).
     UT_ForContinuationAndIndentation,
+    /// Use tabs for line continuation and indentation, and spaces for
+    /// alignment.
+    UT_AlignWithSpaces,
     /// Use tabs whenever we need to fill whitespace that spans at least from
     /// one tab stop to the next one.
     UT_Always
@@ -2156,6 +2200,7 @@ struct FormatStyle {
                R.AllowAllConstructorInitializersOnNextLine &&
            AllowAllParametersOfDeclarationOnNextLine ==
                R.AllowAllParametersOfDeclarationOnNextLine &&
+           AllowShortEnumsOnASingleLine == R.AllowShortEnumsOnASingleLine &&
            AllowShortBlocksOnASingleLine == R.AllowShortBlocksOnASingleLine &&
            AllowShortCaseLabelsOnASingleLine ==
                R.AllowShortCaseLabelsOnASingleLine &&

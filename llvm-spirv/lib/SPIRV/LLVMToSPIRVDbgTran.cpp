@@ -180,12 +180,14 @@ void LLVMToSPIRVDbgTran::transLocationInfo() {
               continue;
           }
         }
+        V = SPIRVWriter->getTranslatedValue(&I);
+        if (!V || isConstantOpCode(V->getOpCode()))
+          continue;
         const DebugLoc &DL = I.getDebugLoc();
         if (!DL.get()) {
           if (DbgScope || InlinedAt) { // Emit DebugNoScope
             DbgScope = nullptr;
             InlinedAt = nullptr;
-            V = SPIRVWriter->getTranslatedValue(&I);
             transDebugLoc(DL, SBB, static_cast<SPIRVInstruction *>(V));
           }
           continue;
@@ -194,27 +196,24 @@ void LLVMToSPIRVDbgTran::transLocationInfo() {
         if (DL.getScope() != DbgScope || DL.getInlinedAt() != InlinedAt) {
           DbgScope = DL.getScope();
           InlinedAt = DL.getInlinedAt();
-          V = SPIRVWriter->getTranslatedValue(&I);
           transDebugLoc(DL, SBB, static_cast<SPIRVInstruction *>(V));
         }
         // If any component of OpLine has changed emit another OpLine
         SPIRVString *DirAndFile = BM->getString(getFullPath(DL.get()));
         if (File != DirAndFile || LineNo != DL.getLine() ||
             Col != DL.getCol()) {
-          V = SPIRVWriter->getTranslatedValue(&I);
-          if (!V)
-            continue;
           File = DirAndFile;
           LineNo = DL.getLine();
           Col = DL.getCol();
           // According to the spec, OpLine for an OpBranch/OpBranchConditional
           // must precede the merge instruction and not the branch instruction
-          auto *VPrev = static_cast<SPIRVInstruction *>(V)->getPrevious();
-          if (VPrev && (VPrev->getOpCode() == OpLoopMerge ||
-                        VPrev->getOpCode() == OpLoopControlINTEL)) {
-            assert(V->getOpCode() == OpBranch ||
-                   V->getOpCode() == OpBranchConditional);
-            V = VPrev;
+          if (V->getOpCode() == OpBranch ||
+              V->getOpCode() == OpBranchConditional) {
+            auto *VPrev = static_cast<SPIRVInstruction *>(V)->getPrevious();
+            if (VPrev && (VPrev->getOpCode() == OpLoopMerge ||
+                          VPrev->getOpCode() == OpLoopControlINTEL)) {
+              V = VPrev;
+            }
           }
           BM->addLine(V, File ? File->getId() : getDebugInfoNone()->getId(),
                       LineNo, Col);
@@ -594,7 +593,7 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgEnumType(const DICompositeType *ET) {
   size_t ElemCount = Elements.size();
   for (unsigned I = 0; I < ElemCount; ++I) {
     DIEnumerator *E = cast<DIEnumerator>(Elements[I]);
-    ConstantInt *EnumValue = getInt(M, E->getValue());
+    ConstantInt *EnumValue = getInt(M, E->getValue().getSExtValue());
     SPIRVValue *Val = SPIRVWriter->transValue(EnumValue, nullptr);
     assert(Val->getOpCode() == OpConstant &&
            "LLVM constant must be translated to SPIRV constant");

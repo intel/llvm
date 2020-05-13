@@ -201,6 +201,8 @@ StringRef ARMTargetInfo::getCPUAttr() const {
     return "8_4A";
   case llvm::ARM::ArchKind::ARMV8_5A:
     return "8_5A";
+  case llvm::ARM::ArchKind::ARMV8_6A:
+    return "8_6A";
   case llvm::ARM::ArchKind::ARMV8MBaseline:
     return "8M_BASE";
   case llvm::ARM::ArchKind::ARMV8MMainline:
@@ -423,6 +425,7 @@ bool ARMTargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
   // Note that SoftFloatABI is initialized in our constructor.
   HWDiv = 0;
   DotProd = 0;
+  HasMatMul = 0;
   HasFloat16 = true;
   ARMCDECoprocMask = 0;
 
@@ -489,6 +492,8 @@ bool ARMTargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
       FPU |= FPARMV8;
       MVE |= MVE_INT | MVE_FP;
       HW_FP |= HW_FP_SP | HW_FP_HP;
+    } else if (Feature == "+i8mm") {
+      HasMatMul = 1;
     } else if (Feature.size() == strlen("+cdecp0") && Feature >= "+cdecp0" &&
                Feature <= "+cdecp7") {
       unsigned Coproc = Feature.back() - '0';
@@ -818,6 +823,9 @@ void ARMTargetInfo::getTargetDefines(const LangOptions &Opts,
   if (DotProd)
     Builder.defineMacro("__ARM_FEATURE_DOTPROD", "1");
 
+  if (HasMatMul)
+    Builder.defineMacro("__ARM_FEATURE_MATMUL_INT8", "1");
+
   switch (ArchKind) {
   default:
     break;
@@ -830,6 +838,7 @@ void ARMTargetInfo::getTargetDefines(const LangOptions &Opts,
   case llvm::ARM::ArchKind::ARMV8_3A:
   case llvm::ARM::ArchKind::ARMV8_4A:
   case llvm::ARM::ArchKind::ARMV8_5A:
+  case llvm::ARM::ArchKind::ARMV8_6A:
     getTargetDefinesARMV83A(Opts, Builder);
     break;
   }

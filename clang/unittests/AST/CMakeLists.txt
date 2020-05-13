@@ -1,4 +1,5 @@
 set(LLVM_LINK_COMPONENTS
+  FrontendOpenMP
   Support
   )
 
@@ -42,5 +43,9 @@ clang_target_link_libraries(ASTTests
   clangFrontend
   clangSerialization
   clangTooling
-  LLVMTestingSupport
   )
+
+target_link_libraries(ASTTests
+  PRIVATE
+  LLVMTestingSupport
+)

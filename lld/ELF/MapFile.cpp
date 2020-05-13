@@ -26,9 +26,9 @@
 #include "Symbols.h"
 #include "SyntheticSections.h"
 #include "lld/Common/Strings.h"
-#include "lld/Common/Threads.h"
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/SetVector.h"
+#include "llvm/Support/Parallel.h"
 #include "llvm/Support/raw_ostream.h"
 
 using namespace llvm;
@@ -257,6 +257,24 @@ void writeCrossReferenceTable() {
       if (file != sym->file)
         print("", toString(file));
   }
+}
+
+void writeArchiveStats() {
+  if (config->printArchiveStats.empty())
+    return;
+
+  std::error_code ec;
+  raw_fd_ostream os(config->printArchiveStats, ec, sys::fs::OF_None);
+  if (ec) {
+    error("--print-archive-stats=: cannot open " + config->printArchiveStats +
+          ": " + ec.message());
+    return;
+  }
+
+  os << "members\tfetched\tarchive\n";
+  for (const ArchiveFile *f : archiveFiles)
+    os << f->getMemberCount() << '\t' << f->getFetchedMemberCount() << '\t'
+       << f->getName() << '\n';
 }
 
 } // namespace elf

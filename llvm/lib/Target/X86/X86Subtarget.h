@@ -17,15 +17,9 @@
 #include "X86ISelLowering.h"
 #include "X86InstrInfo.h"
 #include "X86SelectionDAGInfo.h"
-#include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Triple.h"
-#include "llvm/CodeGen/GlobalISel/CallLowering.h"
-#include "llvm/CodeGen/GlobalISel/InstructionSelector.h"
-#include "llvm/CodeGen/GlobalISel/LegalizerInfo.h"
-#include "llvm/CodeGen/GlobalISel/RegisterBankInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/IR/CallingConv.h"
-#include "llvm/Target/TargetMachine.h"
 #include <climits>
 #include <memory>
 
@@ -34,7 +28,13 @@
 
 namespace llvm {
 
+class CallLowering;
 class GlobalValue;
+class InstructionSelector;
+class LegalizerInfo;
+class RegisterBankInfo;
+class StringRef;
+class TargetMachine;
 
 /// The X86 backend supports a number of different styles of PIC.
 ///
@@ -397,6 +397,12 @@ protected:
   /// Processor supports PCONFIG instruction
   bool HasPCONFIG = false;
 
+  /// Processor supports SERIALIZE instruction
+  bool HasSERIALIZE = false;
+
+  /// Processor supports TSXLDTRK instruction
+  bool HasTSXLDTRK = false;
+
   /// Processor has a single uop BEXTR implementation.
   bool HasFastBEXTR = false;
 
@@ -424,6 +430,12 @@ protected:
   /// When using a retpoline thunk, call an externally provided thunk rather
   /// than emitting one inside the compiler.
   bool UseRetpolineExternalThunk = false;
+
+  /// Prevent generation of indirect call/branch instructions from memory,
+  /// and force all indirect call/branch instructions from a register to be
+  /// preceded by an LFENCE. Also decompose RET instructions into a
+  /// POP+LFENCE+JMP sequence.
+  bool UseLVIControlFlowIntegrity = false;
 
   /// Use software floating point for code generation.
   bool UseSoftFloat = false;
@@ -706,13 +718,27 @@ public:
   bool threewayBranchProfitable() const { return ThreewayBranchProfitable; }
   bool hasINVPCID() const { return HasINVPCID; }
   bool hasENQCMD() const { return HasENQCMD; }
+  bool hasSERIALIZE() const { return HasSERIALIZE; }
+  bool hasTSXLDTRK() const { return HasTSXLDTRK; }
   bool useRetpolineIndirectCalls() const { return UseRetpolineIndirectCalls; }
   bool useRetpolineIndirectBranches() const {
     return UseRetpolineIndirectBranches;
   }
   bool useRetpolineExternalThunk() const { return UseRetpolineExternalThunk; }
+
+  // These are generic getters that OR together all of the thunk types
+  // supported by the subtarget. Therefore useIndirectThunk*() will return true
+  // if any respective thunk feature is enabled.
+  bool useIndirectThunkCalls() const {
+    return useRetpolineIndirectCalls() || useLVIControlFlowIntegrity();
+  }
+  bool useIndirectThunkBranches() const {
+    return useRetpolineIndirectBranches() || useLVIControlFlowIntegrity();
+  }
+
   bool preferMaskRegisters() const { return PreferMaskRegisters; }
   bool useGLMDivSqrtCosts() const { return UseGLMDivSqrtCosts; }
+  bool useLVIControlFlowIntegrity() const { return UseLVIControlFlowIntegrity; }
 
   unsigned getPreferVectorWidth() const { return PreferVectorWidth; }
   unsigned getRequiredVectorWidth() const { return RequiredVectorWidth; }
@@ -857,10 +883,10 @@ public:
   /// Return true if the subtarget allows calls to immediate address.
   bool isLegalToCallImmediateAddr() const;
 
-  /// If we are using retpolines, we need to expand indirectbr to avoid it
+  /// If we are using indirect thunks, we need to expand indirectbr to avoid it
   /// lowering to an actual indirect jump.
   bool enableIndirectBrExpand() const override {
-    return useRetpolineIndirectBranches();
+    return useIndirectThunkBranches();
   }
 
   /// Enable the MachineScheduler pass for all X86 subtargets.

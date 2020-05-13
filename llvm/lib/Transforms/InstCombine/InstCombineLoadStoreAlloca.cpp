@@ -32,22 +32,6 @@ using namespace PatternMatch;
 STATISTIC(NumDeadStore,    "Number of dead stores eliminated");
 STATISTIC(NumGlobalCopies, "Number of allocas copied from constant global");
 
-/// pointsToConstantGlobal - Return true if V (possibly indirectly) points to
-/// some part of a constant global variable.  This intentionally only accepts
-/// constant expressions because we can't rewrite arbitrary instructions.
-static bool pointsToConstantGlobal(Value *V) {
-  if (GlobalVariable *GV = dyn_cast<GlobalVariable>(V))
-    return GV->isConstant();
-
-  if (ConstantExpr *CE = dyn_cast<ConstantExpr>(V)) {
-    if (CE->getOpcode() == Instruction::BitCast ||
-        CE->getOpcode() == Instruction::AddrSpaceCast ||
-        CE->getOpcode() == Instruction::GetElementPtr)
-      return pointsToConstantGlobal(CE->getOperand(0));
-  }
-  return false;
-}
-
 /// isOnlyCopiedFromConstantGlobal - Recursively walk the uses of a (derived)
 /// pointer to an alloca.  Ignore any reads of the pointer, return false if we
 /// see any stores or other unknown uses.  If we see pointer arithmetic, keep
@@ -56,7 +40,8 @@ static bool pointsToConstantGlobal(Value *V) {
 /// the alloca, and if the source pointer is a pointer to a constant global, we
 /// can optimize this.
 static bool
-isOnlyCopiedFromConstantGlobal(Value *V, MemTransferInst *&TheCopy,
+isOnlyCopiedFromConstantMemory(AliasAnalysis *AA,
+                               Value *V, MemTransferInst *&TheCopy,
                                SmallVectorImpl<Instruction *> &ToDelete) {
   // We track lifetime intrinsics as we encounter them.  If we decide to go
   // ahead and replace the value with the global, this lets the caller quickly
@@ -145,7 +130,7 @@ isOnlyCopiedFromConstantGlobal(Value *V, MemTransferInst *&TheCopy,
       if (U.getOperandNo() != 0) return false;
 
       // If the source of the memcpy/move is not a constant global, reject it.
-      if (!pointsToConstantGlobal(MI->getSource()))
+      if (!AA->pointsToConstantMemory(MI->getSource()))
         return false;
 
       // Otherwise, the transform is safe.  Remember the copy instruction.
@@ -159,10 +144,11 @@ isOnlyCopiedFromConstantGlobal(Value *V, MemTransferInst *&TheCopy,
 /// modified by a copy from a constant global.  If we can prove this, we can
 /// replace any uses of the alloca with uses of the global directly.
 static MemTransferInst *
-isOnlyCopiedFromConstantGlobal(AllocaInst *AI,
+isOnlyCopiedFromConstantMemory(AliasAnalysis *AA,
+                               AllocaInst *AI,
                                SmallVectorImpl<Instruction *> &ToDelete) {
   MemTransferInst *TheCopy = nullptr;
-  if (isOnlyCopiedFromConstantGlobal(AI, TheCopy, ToDelete))
+  if (isOnlyCopiedFromConstantMemory(AA, AI, TheCopy, ToDelete))
     return TheCopy;
   return nullptr;
 }
@@ -391,38 +377,39 @@ Instruction *InstCombiner::visitAllocaInst(AllocaInst &AI) {
 
   if (AI.getAlignment()) {
     // Check to see if this allocation is only modified by a memcpy/memmove from
-    // a constant global whose alignment is equal to or exceeds that of the
-    // allocation.  If this is the case, we can change all users to use
-    // the constant global instead.  This is commonly produced by the CFE by
-    // constructs like "void foo() { int A[] = {1,2,3,4,5,6,7,8,9...}; }" if 'A'
-    // is only subsequently read.
+    // a constant whose alignment is equal to or exceeds that of the allocation.
+    // If this is the case, we can change all users to use the constant global
+    // instead.  This is commonly produced by the CFE by constructs like "void
+    // foo() { int A[] = {1,2,3,4,5,6,7,8,9...}; }" if 'A' is only subsequently
+    // read.
     SmallVector<Instruction *, 4> ToDelete;
-    if (MemTransferInst *Copy = isOnlyCopiedFromConstantGlobal(&AI, ToDelete)) {
-      unsigned SourceAlign = getOrEnforceKnownAlignment(
-          Copy->getSource(), AI.getAlignment(), DL, &AI, &AC, &DT);
-      if (AI.getAlignment() <= SourceAlign &&
+    if (MemTransferInst *Copy = isOnlyCopiedFromConstantMemory(AA, &AI, ToDelete)) {
+      MaybeAlign AllocaAlign = AI.getAlign();
+      Align SourceAlign = getOrEnforceKnownAlignment(
+          Copy->getSource(), AllocaAlign, DL, &AI, &AC, &DT);
+      if ((!AllocaAlign || *AllocaAlign <= SourceAlign) &&
           isDereferenceableForAllocaSize(Copy->getSource(), &AI, DL)) {
         LLVM_DEBUG(dbgs() << "Found alloca equal to global: " << AI << '\n');
         LLVM_DEBUG(dbgs() << "  memcpy = " << *Copy << '\n');
         for (unsigned i = 0, e = ToDelete.size(); i != e; ++i)
           eraseInstFromFunction(*ToDelete[i]);
-        Constant *TheSrc = cast<Constant>(Copy->getSource());
+        Value *TheSrc = Copy->getSource();
         auto *SrcTy = TheSrc->getType();
         auto *DestTy = PointerType::get(AI.getType()->getPointerElementType(),
                                         SrcTy->getPointerAddressSpace());
-        Constant *Cast =
-            ConstantExpr::getPointerBitCastOrAddrSpaceCast(TheSrc, DestTy);
+        Value *Cast =
+          Builder.CreatePointerBitCastOrAddrSpaceCast(TheSrc, DestTy);
         if (AI.getType()->getPointerAddressSpace() ==
             SrcTy->getPointerAddressSpace()) {
           Instruction *NewI = replaceInstUsesWith(AI, Cast);
           eraseInstFromFunction(*Copy);
           ++NumGlobalCopies;
           return NewI;
-        } else {
-          PointerReplacer PtrReplacer(*this);
-          PtrReplacer.replacePointer(AI, Cast);
-          ++NumGlobalCopies;
         }
+
+        PointerReplacer PtrReplacer(*this);
+        PtrReplacer.replacePointer(AI, Cast);
+        ++NumGlobalCopies;
       }
     }
   }
@@ -590,11 +577,9 @@ static Instruction *combineLoadToOperationType(InstCombiner &IC, LoadInst &LI) {
   // Do not perform canonicalization if minmax pattern is found (to avoid
   // infinite loop).
   Type *Dummy;
-  if (!Ty->isIntegerTy() && Ty->isSized() &&
-      !(Ty->isVectorTy() && Ty->getVectorIsScalable()) &&
+  if (!Ty->isIntegerTy() && Ty->isSized() && !isa<ScalableVectorType>(Ty) &&
       DL.isLegalInteger(DL.getTypeStoreSizeInBits(Ty)) &&
-      DL.typeSizeEqualsStoreSize(Ty) &&
-      !DL.isNonIntegralPointerType(Ty) &&
+      DL.typeSizeEqualsStoreSize(Ty) && !DL.isNonIntegralPointerType(Ty) &&
       !isMinMaxWithLoads(
           peekThroughBitcast(LI.getPointerOperand(), /*OneUseOnly=*/true),
           Dummy)) {
@@ -957,16 +942,16 @@ Instruction *InstCombiner::visitLoadInst(LoadInst &LI) {
     return Res;
 
   // Attempt to improve the alignment.
-  unsigned KnownAlign = getOrEnforceKnownAlignment(
-      Op, DL.getPrefTypeAlignment(LI.getType()), DL, &LI, &AC, &DT);
-  unsigned LoadAlign = LI.getAlignment();
-  unsigned EffectiveLoadAlign =
-      LoadAlign != 0 ? LoadAlign : DL.getABITypeAlignment(LI.getType());
+  Align KnownAlign = getOrEnforceKnownAlignment(
+      Op, DL.getPrefTypeAlign(LI.getType()), DL, &LI, &AC, &DT);
+  MaybeAlign LoadAlign = LI.getAlign();
+  Align EffectiveLoadAlign =
+      LoadAlign ? *LoadAlign : DL.getABITypeAlign(LI.getType());
 
   if (KnownAlign > EffectiveLoadAlign)
-    LI.setAlignment(MaybeAlign(KnownAlign));
+    LI.setAlignment(KnownAlign);
   else if (LoadAlign == 0)
-    LI.setAlignment(MaybeAlign(EffectiveLoadAlign));
+    LI.setAlignment(EffectiveLoadAlign);
 
   // Replace GEP indices if possible.
   if (Instruction *NewGEPI = replaceGEPIdxWithZero(*this, Op, LI)) {
@@ -1362,11 +1347,11 @@ Instruction *InstCombiner::visitStoreInst(StoreInst &SI) {
     return eraseInstFromFunction(SI);
 
   // Attempt to improve the alignment.
-  const Align KnownAlign = Align(getOrEnforceKnownAlignment(
-      Ptr, DL.getPrefTypeAlignment(Val->getType()), DL, &SI, &AC, &DT));
-  const MaybeAlign StoreAlign = MaybeAlign(SI.getAlignment());
+  const Align KnownAlign = getOrEnforceKnownAlignment(
+      Ptr, DL.getPrefTypeAlign(Val->getType()), DL, &SI, &AC, &DT);
+  const MaybeAlign StoreAlign = SI.getAlign();
   const Align EffectiveStoreAlign =
-      StoreAlign ? *StoreAlign : Align(DL.getABITypeAlignment(Val->getType()));
+      StoreAlign ? *StoreAlign : DL.getABITypeAlign(Val->getType());
 
   if (KnownAlign > EffectiveStoreAlign)
     SI.setAlignment(KnownAlign);

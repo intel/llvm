@@ -11,8 +11,6 @@ def isWave32 : Predicate<"Subtarget->getWavefrontSize() == 32">,
 def isWave64 : Predicate<"Subtarget->getWavefrontSize() == 64">,
   AssemblerPredicate <(all_of FeatureWavefrontSize64)>;
 
-def DisableInst : Predicate <"false">, AssemblerPredicate<(all_of FeatureDisable)>;
-
 class GCNPredicateControl : PredicateControl {
   Predicate SIAssemblerPredicate = isGFX6GFX7;
   Predicate VIAssemblerPredicate = isGFX8GFX9;
@@ -968,7 +966,7 @@ def VOPDstS64orS32 : BoolRC {
 }
 
 // SCSrc_i1 is the operand for pseudo instructions only.
-// Boolean immeadiates shall not be exposed to codegen instructions.
+// Boolean immediates shall not be exposed to codegen instructions.
 def SCSrc_i1 : RegisterOperand<SReg_1_XEXEC> {
   let OperandNamespace = "AMDGPU";
   let OperandType = "OPERAND_REG_IMM_INT32";

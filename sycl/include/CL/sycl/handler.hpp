@@ -106,7 +106,48 @@ template <typename Type> struct get_kernel_name_t<detail::auto_name, Type> {
 };
 
 __SYCL_EXPORT device getDeviceFromHandler(handler &);
+
 } // namespace detail
+
+namespace intel {
+namespace detail {
+template <typename T, class BinaryOperation, int Dims, access::mode AccMode,
+          access::placeholder IsPlaceholder>
+class reduction_impl;
+
+using cl::sycl::detail::enable_if_t;
+
+template <typename KernelName, typename KernelType, int Dims, class Reduction>
+enable_if_t<Reduction::has_fast_reduce && Reduction::has_fast_atomics>
+reduCGFunc(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
+           Reduction &Redu, typename Reduction::rw_accessor_type &Out);
+
+template <typename KernelName, typename KernelType, int Dims, class Reduction>
+enable_if_t<!Reduction::has_fast_reduce && Reduction::has_fast_atomics>
+reduCGFunc(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
+           Reduction &Redu, typename Reduction::rw_accessor_type &Out);
+
+template <typename KernelName, typename KernelType, int Dims, class Reduction>
+enable_if_t<Reduction::has_fast_reduce && !Reduction::has_fast_atomics>
+reduCGFunc(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
+           Reduction &Redu);
+
+template <typename KernelName, typename KernelType, int Dims, class Reduction>
+enable_if_t<!Reduction::has_fast_reduce && !Reduction::has_fast_atomics>
+reduCGFunc(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
+           Reduction &Redu);
+
+template <typename KernelName, typename KernelType, int Dims, class Reduction>
+enable_if_t<Reduction::has_fast_reduce && !Reduction::has_fast_atomics>
+reduAuxCGFunc(handler &CGH, const nd_range<Dims> &Range, size_t NWorkItems,
+              size_t KernelRun, Reduction &Redu);
+
+template <typename KernelName, typename KernelType, int Dims, class Reduction>
+enable_if_t<!Reduction::has_fast_reduce && !Reduction::has_fast_atomics>
+reduAuxCGFunc(handler &CGH, const nd_range<Dims> &Range, size_t NWorkItems,
+              size_t KernelRun, Reduction &Redu);
+} // namespace detail
+} // namespace intel
 
 /// 4.8.3 Command group handler class
 ///
@@ -190,14 +231,17 @@ private:
     return LambdaName == KernelName;
   }
 
+  /// Saves the location of user's code passed in \param CodeLoc for future
+  /// usage in finalize() method.
+  void saveCodeLoc(detail::code_location CodeLoc) { MCodeLoc = CodeLoc; }
+
   /// Constructs CG object of specific type, passes it to Scheduler and
   /// returns sycl::event object representing the command group.
   /// It's expected that the method is the latest method executed before
   /// object destruction.
   ///
-  /// \param Payload contains the code location of user code
   /// \return a SYCL event object representing the command group
-  event finalize(const cl::sycl::detail::code_location &Payload = {});
+  event finalize();
 
   /// Saves streams associated with this handler.
   ///
@@ -206,6 +250,16 @@ private:
   /// \param Stream is a pointer to SYCL stream.
   void addStream(shared_ptr_class<detail::stream_impl> Stream) {
     MStreamStorage.push_back(std::move(Stream));
+  }
+
+  /// Saves buffers created by handling reduction feature in handler.
+  /// They are then forwarded to command group and destroyed only after
+  /// the command group finishes the work on device/host.
+  /// The 'MSharedPtrStorage' suits that need.
+  ///
+  /// @param ReduObj is a pointer to object that must be stored.
+  void addReduction(shared_ptr_class<const void> ReduObj) {
+    MSharedPtrStorage.push_back(std::move(ReduObj));
   }
 
   ~handler() = default;
@@ -468,6 +522,79 @@ private:
     return true;
   }
 
+#ifndef __SYCL_DEVICE_ONLY__
+  /// Copies the content of memory object accessed by Src into the memory
+  /// pointed by Dst.
+  ///
+  /// \param Src is a source SYCL accessor.
+  /// \param Dst is a pointer to destination memory.
+  template <typename TSrc, typename TDst, int Dim, access::mode AccMode,
+            access::target AccTarget, access::placeholder IsPH>
+  detail::enable_if_t<(Dim > 0)>
+  copyAccToPtrHost(accessor<TSrc, Dim, AccMode, AccTarget, IsPH> Src,
+                   TDst *Dst) {
+    range<Dim> Range = Src.get_range();
+    parallel_for<class __copyAcc2Ptr<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>
+        (Range, [=](id<Dim> Index) {
+      size_t LinearIndex = Index[0];
+      for (int I = 1; I < Dim; ++I)
+        LinearIndex += Range[I] * Index[I];
+      (reinterpret_cast<TSrc *>(Dst))[LinearIndex] = Src[Index];
+    });
+  }
+
+  /// Copies 1 element accessed by 0-dimensional accessor Src into the memory
+  /// pointed by Dst.
+  ///
+  /// \param Src is a source SYCL accessor.
+  /// \param Dst is a pointer to destination memory.
+  template <typename TSrc, typename TDst, int Dim, access::mode AccMode,
+            access::target AccTarget, access::placeholder IsPH>
+  detail::enable_if_t<Dim == 0>
+  copyAccToPtrHost(accessor<TSrc, Dim, AccMode, AccTarget, IsPH> Src,
+                   TDst *Dst) {
+    single_task<class __copyAcc2Ptr<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>
+        ([=]() {
+      *Dst = readFromFirstAccElement(Src);
+    });
+  }
+
+  /// Copies the memory pointed by Src into the memory accessed by Dst.
+  ///
+  /// \param Src is a pointer to source memory.
+  /// \param Dst is a destination SYCL accessor.
+  template <typename TSrc, typename TDst, int Dim, access::mode AccMode,
+            access::target AccTarget, access::placeholder IsPH>
+  detail::enable_if_t<(Dim > 0)>
+  copyPtrToAccHost(TDst *Src,
+                   accessor<TSrc, Dim, AccMode, AccTarget, IsPH> Dst) {
+    range<Dim> Range = Dst.get_range();
+    parallel_for<class __copyPtr2Acc<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>
+        (Range, [=](id<Dim> Index) {
+      size_t LinearIndex = Index[0];
+      for (int I = 1; I < Dim; ++I)
+        LinearIndex += Range[I] * Index[I];
+      Dst[Index] = (reinterpret_cast<TDst *>(Src))[LinearIndex];
+    });
+  }
+
+  /// Copies 1 element pointed by Src to memory accessed by 0-dimensional
+  /// accessor Dst.
+  ///
+  /// \param Src is a pointer to source memory.
+  /// \param Dst is a destination SYCL accessor.
+  template <typename TSrc, typename TDst, int Dim, access::mode AccMode,
+            access::target AccTarget, access::placeholder IsPH>
+  detail::enable_if_t<Dim == 0>
+  copyPtrToAccHost(TDst *Src,
+                   accessor<TSrc, Dim, AccMode, AccTarget, IsPH> Dst) {
+    single_task<class __copyPtr2Acc<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>
+        ([=]() {
+      writeToFirstAccElement(Dst, *Src);
+    });
+  }
+#endif // __SYCL_DEVICE_ONLY__
+
   constexpr static bool isConstOrGlobal(access::target AccessTarget) {
     return AccessTarget == access::target::global_buffer ||
            AccessTarget == access::target::constant_buffer;
@@ -727,6 +854,123 @@ public:
     StoreLambda<NameT, KernelType, Dims>(std::move(KernelFunc));
     MCGType = detail::CG::KERNEL;
 #endif
+  }
+
+  /// Implements parallel_for() accepting nd_range and 1 reduction variable
+  /// having 'read_write' access mode.
+  /// This version uses fast sycl::atomic operations to update user's reduction
+  /// variable at the end of each work-group work.
+  template <typename KernelName = detail::auto_name, typename KernelType,
+            int Dims, typename Reduction>
+  detail::enable_if_t<Reduction::accessor_mode == access::mode::read_write &&
+                      Reduction::has_fast_atomics>
+  parallel_for(nd_range<Dims> Range, Reduction &Redu, KernelType KernelFunc) {
+    intel::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu,
+                                          Redu.MAcc);
+  }
+
+  /// Implements parallel_for() accepting nd_range and 1 reduction variable
+  /// having 'discard_write' access mode.
+  /// This version uses fast sycl::atomic operations to update user's reduction
+  /// variable at the end of each work-group work.
+  ///
+  /// The reduction variable must be initialized before the kernel is started
+  /// because atomic operations only update the value, but never initialize it.
+  /// Thus, an additional 'read_write' accessor is created/initialized with
+  /// identity value and then passed to the kernel. After running the kernel it
+  /// is copied to user's 'discard_write' accessor.
+  template <typename KernelName = detail::auto_name, typename KernelType,
+            int Dims, typename Reduction>
+  detail::enable_if_t<Reduction::accessor_mode == access::mode::discard_write &&
+                      Reduction::has_fast_atomics>
+  parallel_for(nd_range<Dims> Range, Reduction &Redu, KernelType KernelFunc) {
+    auto QueueCopy = MQueue;
+    auto RWAcc = Redu.getReadWriteScalarAcc(*this);
+    intel::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu,
+                                          RWAcc);
+    this->finalize();
+
+    // Copy from RWAcc to some temp memory.
+    handler CopyHandler(QueueCopy, MIsHost);
+    CopyHandler.saveCodeLoc(MCodeLoc);
+    CopyHandler.associateWithHandler(RWAcc);
+    CopyHandler.copy(RWAcc, Redu.MAcc);
+    MLastEvent = CopyHandler.finalize();
+  }
+
+  /// Defines and invokes a SYCL kernel function for the specified nd_range.
+  /// Performs reduction operation specified in \param Redu.
+  ///
+  /// The SYCL kernel function is defined as a lambda function or a named
+  /// function object type and given an id or item for indexing in the indexing
+  /// space defined by range.
+  /// If it is a named function object and the function object type is
+  /// globally visible, there is no need for the developer to provide
+  /// a kernel name for it.
+  ///
+  /// TODO: Need to handle more than 1 reduction in parallel_for().
+  /// TODO: Support HOST. The kernels called by this parallel_for() may use
+  /// some functionality that is not yet supported on HOST such as:
+  /// barrier(), and intel::reduce() that also may be used in more
+  /// optimized implementations waiting for their turn of code-review.
+  template <typename KernelName = detail::auto_name, typename KernelType,
+            int Dims, typename Reduction>
+  detail::enable_if_t<!Reduction::has_fast_atomics>
+  parallel_for(nd_range<Dims> Range, Reduction &Redu, KernelType KernelFunc) {
+    size_t NWorkGroups = Range.get_group_range().size();
+
+    // This parallel_for() is lowered to the following sequence:
+    // 1) Call a kernel that a) call user's lambda function and b) performs
+    //    one iteration of reduction, storing the partial reductions/sums
+    //    to either a newly created global buffer or to user's reduction
+    //    accessor. So, if the original 'Range' has totally
+    //    N1 elements and work-group size is W, then after the first iteration
+    //    there will be N2 partial sums where N2 = N1 / W.
+    //    If (N2 == 1) then the partial sum is written to user's accessor.
+    //    Otherwise, a new global buffer is created and partial sums are written
+    //    to it.
+    // 2) Call an aux kernel (if necessary, i.e. if N2 > 1) as many times as
+    //    necessary to reduce all partial sums into one final sum.
+
+    // 1. Call the kernel that includes user's lambda function.
+    intel::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu);
+    auto QueueCopy = MQueue;
+    this->finalize();
+
+    // 2. Run the additional aux kernel as many times as needed to reduce
+    // all partial sums into one scalar.
+
+    // TODO: user's nd_range and the work-group size specified there must
+    // be honored only for the main kernel that calls user's lambda functions.
+    // There is no need in using the same work-group size in these additional
+    // kernels. Thus, the better strategy here is to make the work-group size
+    // as big as possible to converge/reduce the partial sums into the last
+    // sum faster.
+    size_t WGSize = Range.get_local_range().size();
+    size_t NWorkItems = NWorkGroups;
+    size_t KernelRun = 1;
+    while (NWorkItems > 1) {
+      WGSize = std::min(WGSize, NWorkItems);
+      NWorkGroups = NWorkItems / WGSize;
+      // The last group may be not fully loaded. Still register it as a group.
+      if ((NWorkItems % WGSize) != 0)
+        ++NWorkGroups;
+      nd_range<1> Range(range<1>(WGSize * NWorkGroups), range<1>(WGSize));
+
+      handler AuxHandler(QueueCopy, MIsHost);
+      AuxHandler.saveCodeLoc(MCodeLoc);
+
+      // The last kernel DOES write to reduction's accessor.
+      // Associate it with handler manually.
+      if (NWorkGroups == 1)
+        AuxHandler.associateWithHandler(Redu.MAcc);
+      intel::detail::reduAuxCGFunc<KernelName, KernelType>(
+          AuxHandler, Range, NWorkItems, KernelRun, Redu);
+      MLastEvent = AuxHandler.finalize();
+
+      NWorkItems = NWorkGroups;
+      ++KernelRun;
+    } // end while (NWorkItems > 1)
   }
 
   /// Hierarchical kernel invocation method of a kernel defined as a lambda
@@ -1035,7 +1279,7 @@ public:
 
   // Explicit copy operations API
 
-  /// Copies the contents of memory object accessed by Src into the memory
+  /// Copies the content of memory object accessed by Src into the memory
   /// pointed by Dst.
   ///
   /// Source must have at least as many bytes as the range accessed by Dst.
@@ -1057,7 +1301,7 @@ public:
     copy(Src, RawDstPtr);
   }
 
-  /// Copies the contents of memory pointed by Src into the memory object
+  /// Copies the content of memory pointed by Src into the memory object
   /// accessed by Dst.
   ///
   /// Source must have at least as many bytes as the range accessed by Dst.
@@ -1080,14 +1324,13 @@ public:
     copy(RawSrcPtr, Dst);
   }
 
-  /// Copies the contents of memory object accessed by Src into the memory
+  /// Copies the content of memory object accessed by Src into the memory
   /// pointed by Dst.
   ///
   /// Source must have at least as many bytes as the range accessed by Dst.
   ///
   /// \param Src is a source SYCL accessor.
   /// \param Dst is a pointer to destination memory.
-  // TODO: support 0-dimensional and atomic accessors.
   template <typename T_Src, typename T_Dst, int Dims, access::mode AccessMode,
             access::target AccessTarget,
             access::placeholder IsPlaceholder = access::placeholder::false_t>
@@ -1099,17 +1342,8 @@ public:
 #ifndef __SYCL_DEVICE_ONLY__
     if (MIsHost) {
       // TODO: Temporary implementation for host. Should be handled by memory
-      // manger.
-      range<Dims> Range = Src.get_range();
-      parallel_for< class __copyAcc2Ptr< T_Src, T_Dst, Dims, AccessMode,
-                                         AccessTarget, IsPlaceholder>>
-                                         (Range, [=](id<Dims> Index) {
-        size_t LinearIndex = Index[0];
-        for (int I = 1; I < Dims; ++I)
-          LinearIndex += Range[I] * Index[I];
-        ((T_Src *)Dst)[LinearIndex] = Src[Index];
-      });
-
+      // manager.
+      copyAccToPtrHost(Src, Dst);
       return;
     }
 #endif
@@ -1126,14 +1360,13 @@ public:
     MAccStorage.push_back(std::move(AccImpl));
   }
 
-  /// Copies the contents of memory pointed by Src into the memory object
+  /// Copies the content of memory pointed by Src into the memory object
   /// accessed by Dst.
   ///
   /// Source must have at least as many bytes as the range accessed by Dst.
   ///
   /// \param Src is a pointer to source memory.
   /// \param Dst is a destination SYCL accessor.
-  // TODO: support 0-dimensional and atomic accessors.
   template <typename T_Src, typename T_Dst, int Dims, access::mode AccessMode,
             access::target AccessTarget,
             access::placeholder IsPlaceholder = access::placeholder::false_t>
@@ -1146,17 +1379,8 @@ public:
 #ifndef __SYCL_DEVICE_ONLY__
     if (MIsHost) {
       // TODO: Temporary implementation for host. Should be handled by memory
-      // manger.
-      range<Dims> Range = Dst.get_range();
-      parallel_for< class __copyPtr2Acc< T_Src, T_Dst, Dims, AccessMode,
-                                         AccessTarget, IsPlaceholder>>
-                                         (Range, [=](id<Dims> Index) {
-        size_t LinearIndex = Index[0];
-        for (int I = 1; I < Dims; ++I)
-          LinearIndex += Range[I] * Index[I];
-
-        Dst[Index] = ((T_Dst *)Src)[LinearIndex];
-      });
+      // manager.
+      copyPtrToAccHost(Src, Dst);
       return;
     }
 #endif
@@ -1173,7 +1397,7 @@ public:
     MAccStorage.push_back(std::move(AccImpl));
   }
 
-  /// Copies the contents of memory object accessed by Src to the memory
+  /// Copies the content of memory object accessed by Src to the memory
   /// object accessed by Dst.
   ///
   /// Dst must have at least as many bytes as the range accessed by Src.
@@ -1368,6 +1592,10 @@ private:
 
   bool MIsHost = false;
 
+  detail::code_location MCodeLoc = {};
+  bool MIsFinalized = false;
+  event MLastEvent;
+
   // Make queue_impl class friend to be able to call finalize method.
   friend class detail::queue_impl;
   // Make accessor class friend to keep the list of associated accessors.
@@ -1382,6 +1610,11 @@ private:
   // Make stream class friend to be able to keep the list of associated streams
   friend class stream;
   friend class detail::stream_impl;
+  // Make reduction_impl friend to store buffers and arrays created for it
+  // in handler from reduction_impl methods.
+  template <typename T, class BinaryOperation, int Dims, access::mode AccMode,
+            access::placeholder IsPlaceholder>
+  friend class intel::detail::reduction_impl;
 };
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

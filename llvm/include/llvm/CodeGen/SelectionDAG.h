@@ -662,18 +662,19 @@ public:
   SDValue getTargetJumpTable(int JTI, EVT VT, unsigned TargetFlags = 0) {
     return getJumpTable(JTI, VT, true, TargetFlags);
   }
-  SDValue getConstantPool(const Constant *C, EVT VT, unsigned Align = 0,
+  SDValue getConstantPool(const Constant *C, EVT VT, MaybeAlign Align = None,
                           int Offs = 0, bool isT = false,
                           unsigned TargetFlags = 0);
-  SDValue getTargetConstantPool(const Constant *C, EVT VT, unsigned Align = 0,
-                                int Offset = 0, unsigned TargetFlags = 0) {
+  SDValue getTargetConstantPool(const Constant *C, EVT VT,
+                                MaybeAlign Align = None, int Offset = 0,
+                                unsigned TargetFlags = 0) {
     return getConstantPool(C, VT, Align, Offset, true, TargetFlags);
   }
   SDValue getConstantPool(MachineConstantPoolValue *C, EVT VT,
-                          unsigned Align = 0, int Offs = 0, bool isT=false,
-                          unsigned TargetFlags = 0);
+                          MaybeAlign Align = None, int Offs = 0,
+                          bool isT = false, unsigned TargetFlags = 0);
   SDValue getTargetConstantPool(MachineConstantPoolValue *C, EVT VT,
-                                unsigned Align = 0, int Offset = 0,
+                                MaybeAlign Align = None, int Offset = 0,
                                 unsigned TargetFlags = 0) {
     return getConstantPool(C, VT, Align, Offset, true, TargetFlags);
   }
@@ -1114,14 +1115,36 @@ public:
   /// INTRINSIC_W_CHAIN, or a target-specific opcode with a value not
   /// less than FIRST_TARGET_MEMORY_OPCODE.
   SDValue getMemIntrinsicNode(
-    unsigned Opcode, const SDLoc &dl, SDVTList VTList,
-    ArrayRef<SDValue> Ops, EVT MemVT,
-    MachinePointerInfo PtrInfo,
-    unsigned Align = 0,
-    MachineMemOperand::Flags Flags
-    = MachineMemOperand::MOLoad | MachineMemOperand::MOStore,
-    uint64_t Size = 0,
-    const AAMDNodes &AAInfo = AAMDNodes());
+      unsigned Opcode, const SDLoc &dl, SDVTList VTList, ArrayRef<SDValue> Ops,
+      EVT MemVT, MachinePointerInfo PtrInfo, Align Alignment,
+      MachineMemOperand::Flags Flags = MachineMemOperand::MOLoad |
+                                       MachineMemOperand::MOStore,
+      uint64_t Size = 0, const AAMDNodes &AAInfo = AAMDNodes());
+
+  inline SDValue getMemIntrinsicNode(
+      unsigned Opcode, const SDLoc &dl, SDVTList VTList, ArrayRef<SDValue> Ops,
+      EVT MemVT, MachinePointerInfo PtrInfo, MaybeAlign Alignment = None,
+      MachineMemOperand::Flags Flags = MachineMemOperand::MOLoad |
+                                       MachineMemOperand::MOStore,
+      uint64_t Size = 0, const AAMDNodes &AAInfo = AAMDNodes()) {
+    // Ensure that codegen never sees alignment 0
+    return getMemIntrinsicNode(Opcode, dl, VTList, Ops, MemVT, PtrInfo,
+                               Alignment.getValueOr(getEVTAlign(MemVT)), Flags,
+                               Size, AAInfo);
+  }
+
+  LLVM_ATTRIBUTE_DEPRECATED(
+      inline SDValue getMemIntrinsicNode(
+          unsigned Opcode, const SDLoc &dl, SDVTList VTList,
+          ArrayRef<SDValue> Ops, EVT MemVT, MachinePointerInfo PtrInfo,
+          unsigned Alignment,
+          MachineMemOperand::Flags Flags = MachineMemOperand::MOLoad |
+                                           MachineMemOperand::MOStore,
+          uint64_t Size = 0, const AAMDNodes &AAInfo = AAMDNodes()),
+      "") {
+    return getMemIntrinsicNode(Opcode, dl, VTList, Ops, MemVT, PtrInfo,
+                               MaybeAlign(Alignment), Flags, Size, AAInfo);
+  }
 
   SDValue getMemIntrinsicNode(unsigned Opcode, const SDLoc &dl, SDVTList VTList,
                               ArrayRef<SDValue> Ops, EVT MemVT,
@@ -1142,18 +1165,38 @@ public:
   /// This function will set the MOLoad flag on MMOFlags, but you can set it if
   /// you want.  The MOStore flag must not be set.
   SDValue getLoad(EVT VT, const SDLoc &dl, SDValue Chain, SDValue Ptr,
-                  MachinePointerInfo PtrInfo, unsigned Alignment = 0,
+                  MachinePointerInfo PtrInfo, MaybeAlign Alignment,
                   MachineMemOperand::Flags MMOFlags = MachineMemOperand::MONone,
                   const AAMDNodes &AAInfo = AAMDNodes(),
                   const MDNode *Ranges = nullptr);
+  /// FIXME: Remove once transition to Align is over.
+  inline SDValue
+  getLoad(EVT VT, const SDLoc &dl, SDValue Chain, SDValue Ptr,
+          MachinePointerInfo PtrInfo, unsigned Alignment = 0,
+          MachineMemOperand::Flags MMOFlags = MachineMemOperand::MONone,
+          const AAMDNodes &AAInfo = AAMDNodes(),
+          const MDNode *Ranges = nullptr) {
+    return getLoad(VT, dl, Chain, Ptr, PtrInfo, MaybeAlign(Alignment), MMOFlags,
+                   AAInfo, Ranges);
+  }
   SDValue getLoad(EVT VT, const SDLoc &dl, SDValue Chain, SDValue Ptr,
                   MachineMemOperand *MMO);
   SDValue
   getExtLoad(ISD::LoadExtType ExtType, const SDLoc &dl, EVT VT, SDValue Chain,
              SDValue Ptr, MachinePointerInfo PtrInfo, EVT MemVT,
-             unsigned Alignment = 0,
+             MaybeAlign Alignment,
              MachineMemOperand::Flags MMOFlags = MachineMemOperand::MONone,
              const AAMDNodes &AAInfo = AAMDNodes());
+  /// FIXME: Remove once transition to Align is over.
+  inline SDValue
+  getExtLoad(ISD::LoadExtType ExtType, const SDLoc &dl, EVT VT, SDValue Chain,
+             SDValue Ptr, MachinePointerInfo PtrInfo, EVT MemVT,
+             unsigned Alignment = 0,
+             MachineMemOperand::Flags MMOFlags = MachineMemOperand::MONone,
+             const AAMDNodes &AAInfo = AAMDNodes()) {
+    return getExtLoad(ExtType, dl, VT, Chain, Ptr, PtrInfo, MemVT,
+                      MaybeAlign(Alignment), MMOFlags, AAInfo);
+  }
   SDValue getExtLoad(ISD::LoadExtType ExtType, const SDLoc &dl, EVT VT,
                      SDValue Chain, SDValue Ptr, EVT MemVT,
                      MachineMemOperand *MMO);
@@ -1161,10 +1204,33 @@ public:
                          SDValue Offset, ISD::MemIndexedMode AM);
   SDValue getLoad(ISD::MemIndexedMode AM, ISD::LoadExtType ExtType, EVT VT,
                   const SDLoc &dl, SDValue Chain, SDValue Ptr, SDValue Offset,
-                  MachinePointerInfo PtrInfo, EVT MemVT, unsigned Alignment = 0,
+                  MachinePointerInfo PtrInfo, EVT MemVT, Align Alignment,
                   MachineMemOperand::Flags MMOFlags = MachineMemOperand::MONone,
                   const AAMDNodes &AAInfo = AAMDNodes(),
                   const MDNode *Ranges = nullptr);
+  inline SDValue
+  getLoad(ISD::MemIndexedMode AM, ISD::LoadExtType ExtType, EVT VT,
+          const SDLoc &dl, SDValue Chain, SDValue Ptr, SDValue Offset,
+          MachinePointerInfo PtrInfo, EVT MemVT, MaybeAlign Alignment,
+          MachineMemOperand::Flags MMOFlags = MachineMemOperand::MONone,
+          const AAMDNodes &AAInfo = AAMDNodes(),
+          const MDNode *Ranges = nullptr) {
+    // Ensures that codegen never sees a None Alignment.
+    return getLoad(AM, ExtType, VT, dl, Chain, Ptr, Offset, PtrInfo, MemVT,
+                   Alignment.getValueOr(getEVTAlign(MemVT)), MMOFlags, AAInfo,
+                   Ranges);
+  }
+  /// FIXME: Remove once transition to Align is over.
+  inline SDValue
+  getLoad(ISD::MemIndexedMode AM, ISD::LoadExtType ExtType, EVT VT,
+          const SDLoc &dl, SDValue Chain, SDValue Ptr, SDValue Offset,
+          MachinePointerInfo PtrInfo, EVT MemVT, unsigned Alignment = 0,
+          MachineMemOperand::Flags MMOFlags = MachineMemOperand::MONone,
+          const AAMDNodes &AAInfo = AAMDNodes(),
+          const MDNode *Ranges = nullptr) {
+    return getLoad(AM, ExtType, VT, dl, Chain, Ptr, Offset, PtrInfo, MemVT,
+                   MaybeAlign(Alignment), MMOFlags, AAInfo, Ranges);
+  }
   SDValue getLoad(ISD::MemIndexedMode AM, ISD::LoadExtType ExtType, EVT VT,
                   const SDLoc &dl, SDValue Chain, SDValue Ptr, SDValue Offset,
                   EVT MemVT, MachineMemOperand *MMO);
@@ -1173,18 +1239,55 @@ public:
   ///
   /// This function will set the MOStore flag on MMOFlags, but you can set it if
   /// you want.  The MOLoad and MOInvariant flags must not be set.
+
   SDValue
+  getStore(SDValue Chain, const SDLoc &dl, SDValue Val, SDValue Ptr,
+           MachinePointerInfo PtrInfo, Align Alignment,
+           MachineMemOperand::Flags MMOFlags = MachineMemOperand::MONone,
+           const AAMDNodes &AAInfo = AAMDNodes());
+  inline SDValue
+  getStore(SDValue Chain, const SDLoc &dl, SDValue Val, SDValue Ptr,
+           MachinePointerInfo PtrInfo, MaybeAlign Alignment,
+           MachineMemOperand::Flags MMOFlags = MachineMemOperand::MONone,
+           const AAMDNodes &AAInfo = AAMDNodes()) {
+    return getStore(Chain, dl, Val, Ptr, PtrInfo,
+                    Alignment.getValueOr(getEVTAlign(Val.getValueType())),
+                    MMOFlags, AAInfo);
+  }
+  /// FIXME: Remove once transition to Align is over.
+  inline SDValue
   getStore(SDValue Chain, const SDLoc &dl, SDValue Val, SDValue Ptr,
            MachinePointerInfo PtrInfo, unsigned Alignment = 0,
            MachineMemOperand::Flags MMOFlags = MachineMemOperand::MONone,
-           const AAMDNodes &AAInfo = AAMDNodes());
+           const AAMDNodes &AAInfo = AAMDNodes()) {
+    return getStore(Chain, dl, Val, Ptr, PtrInfo, MaybeAlign(Alignment),
+                    MMOFlags, AAInfo);
+  }
   SDValue getStore(SDValue Chain, const SDLoc &dl, SDValue Val, SDValue Ptr,
                    MachineMemOperand *MMO);
   SDValue
   getTruncStore(SDValue Chain, const SDLoc &dl, SDValue Val, SDValue Ptr,
-                MachinePointerInfo PtrInfo, EVT SVT, unsigned Alignment = 0,
+                MachinePointerInfo PtrInfo, EVT SVT, Align Alignment,
                 MachineMemOperand::Flags MMOFlags = MachineMemOperand::MONone,
                 const AAMDNodes &AAInfo = AAMDNodes());
+  inline SDValue
+  getTruncStore(SDValue Chain, const SDLoc &dl, SDValue Val, SDValue Ptr,
+                MachinePointerInfo PtrInfo, EVT SVT, MaybeAlign Alignment,
+                MachineMemOperand::Flags MMOFlags = MachineMemOperand::MONone,
+                const AAMDNodes &AAInfo = AAMDNodes()) {
+    return getTruncStore(Chain, dl, Val, Ptr, PtrInfo, SVT,
+                         Alignment.getValueOr(getEVTAlign(SVT)), MMOFlags,
+                         AAInfo);
+  }
+  /// FIXME: Remove once transition to Align is over.
+  inline SDValue
+  getTruncStore(SDValue Chain, const SDLoc &dl, SDValue Val, SDValue Ptr,
+                MachinePointerInfo PtrInfo, EVT SVT, unsigned Alignment = 0,
+                MachineMemOperand::Flags MMOFlags = MachineMemOperand::MONone,
+                const AAMDNodes &AAInfo = AAMDNodes()) {
+    return getTruncStore(Chain, dl, Val, Ptr, PtrInfo, SVT,
+                         MaybeAlign(Alignment), MMOFlags, AAInfo);
+  }
   SDValue getTruncStore(SDValue Chain, const SDLoc &dl, SDValue Val,
                         SDValue Ptr, EVT SVT, MachineMemOperand *MMO);
   SDValue getIndexedStore(SDValue OrigStore, const SDLoc &dl, SDValue Base,
@@ -1223,6 +1326,9 @@ public:
   /// Return an AddrSpaceCastSDNode.
   SDValue getAddrSpaceCast(const SDLoc &dl, EVT VT, SDValue Ptr, unsigned SrcAS,
                            unsigned DestAS);
+
+  /// Return a freeze using the SDLoc of the value operand.
+  SDValue getFreeze(SDValue V);
 
   /// Return the specified value casted to
   /// the target's desired shift amount type.
@@ -1710,13 +1816,27 @@ public:
   bool areNonVolatileConsecutiveLoads(LoadSDNode *LD, LoadSDNode *Base,
                                       unsigned Bytes, int Dist) const;
 
-  /// Infer alignment of a load / store address. Return 0 if
-  /// it cannot be inferred.
-  unsigned InferPtrAlignment(SDValue Ptr) const;
+  /// Infer alignment of a load / store address. Return None if it cannot be
+  /// inferred.
+  MaybeAlign InferPtrAlign(SDValue Ptr) const;
+
+  LLVM_ATTRIBUTE_DEPRECATED(inline unsigned InferPtrAlignment(SDValue Ptr)
+                                const,
+                            "Use InferPtrAlign instead") {
+    if (auto A = InferPtrAlign(Ptr))
+      return A->value();
+    return 0;
+  }
 
   /// Compute the VTs needed for the low/hi parts of a type
   /// which is split (or expanded) into two not necessarily identical pieces.
   std::pair<EVT, EVT> GetSplitDestVTs(const EVT &VT) const;
+
+  /// Compute the VTs needed for the low/hi parts of a type, dependent on an
+  /// enveloping VT that has been split into two identical pieces. Sets the
+  /// HisIsEmpty flag when hi type has zero storage size.
+  std::pair<EVT, EVT> GetDependentSplitDestVTs(const EVT &VT, const EVT &EnvVT,
+                                               bool *HiIsEmpty) const;
 
   /// Split the vector with EXTRACT_SUBVECTOR using the provides
   /// VTs and return the low/high part.
@@ -1749,7 +1869,12 @@ public:
                              EVT EltVT = EVT());
 
   /// Compute the default alignment value for the given type.
-  unsigned getEVTAlignment(EVT MemoryVT) const;
+  Align getEVTAlign(EVT MemoryVT) const;
+  /// Compute the default alignment value for the given type.
+  /// FIXME: Remove once transition to Align is over.
+  inline unsigned getEVTAlignment(EVT MemoryVT) const {
+    return getEVTAlign(MemoryVT).value();
+  }
 
   /// Test whether the given value is a constant int or similar node.
   SDNode *isConstantIntBuildVectorOrConstantInt(SDValue N);

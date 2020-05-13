@@ -417,6 +417,11 @@ public:
                                         SPIRVBasicBlock *) override;
   SPIRVInstruction *addSampledImageInst(SPIRVType *, SPIRVValue *, SPIRVValue *,
                                         SPIRVBasicBlock *) override;
+  SPIRVInstruction *addAssumeTrueINTELInst(SPIRVValue *Condition,
+                                           SPIRVBasicBlock *BB) override;
+  SPIRVInstruction *addExpectINTELInst(SPIRVType *ResultTy, SPIRVValue *Value,
+                                       SPIRVValue *ExpectedValue,
+                                       SPIRVBasicBlock *BB) override;
 
   virtual SPIRVId getExtInstSetId(SPIRVExtInstSetKind Kind) const override;
 
@@ -1474,6 +1479,22 @@ SPIRVInstruction *SPIRVModuleImpl::addSampledImageInst(SPIRVType *ResultTy,
   return addInstruction(SPIRVInstTemplateBase::create(
                             OpSampledImage, ResultTy, getId(),
                             getVec(Image->getId(), Sampler->getId()), BB, this),
+                        BB);
+}
+
+SPIRVInstruction *SPIRVModuleImpl::addAssumeTrueINTELInst(SPIRVValue *Condition,
+                                                          SPIRVBasicBlock *BB) {
+  return addInstruction(new SPIRVAssumeTrueINTEL(Condition->getId(), BB), BB);
+}
+
+SPIRVInstruction *SPIRVModuleImpl::addExpectINTELInst(SPIRVType *ResultTy,
+                                                      SPIRVValue *Value,
+                                                      SPIRVValue *ExpectedValue,
+                                                      SPIRVBasicBlock *BB) {
+  return addInstruction(SPIRVInstTemplateBase::create(
+                            OpExpectINTEL, ResultTy, getId(),
+                            getVec(Value->getId(), ExpectedValue->getId()), BB,
+                            this),
                         BB);
 }
 

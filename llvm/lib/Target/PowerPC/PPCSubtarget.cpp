@@ -120,6 +120,7 @@ void PPCSubtarget::initializeEnvironment() {
   VectorsUseTwoUnits = false;
   UsePPCPreRASchedStrategy = false;
   UsePPCPostRASchedStrategy = false;
+  PredictableSelectIsExpensive = false;
 
   HasPOPCNTD = POPCNTD_Unavailable;
 }
@@ -227,3 +228,8 @@ bool PPCSubtarget::isGVIndirectSymbol(const GlobalValue *GV) const {
 
 bool PPCSubtarget::isELFv2ABI() const { return TM.isELFv2ABI(); }
 bool PPCSubtarget::isPPC64() const { return TM.isPPC64(); }
+
+bool PPCSubtarget::isUsingPCRelativeCalls() const {
+  return isPPC64() && hasPCRelativeMemops() && isELFv2ABI() &&
+         CodeModel::Medium == getTargetMachine().getCodeModel();
+}

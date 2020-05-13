@@ -69,14 +69,14 @@ public:
       : MDevice(Device), MContext(Context), MAsyncHandler(AsyncHandler),
         MPropList(PropList), MHostQueue(MDevice->is_host()),
         MOpenCLInterop(!MHostQueue) {
-    if (!MHostQueue) {
-      MCommandQueue = createQueue(Order);
-    }
     if (!Context->hasDevice(Device))
       throw cl::sycl::invalid_parameter_error(
           "Queue cannot be constructed with the given context and device "
           "as the context does not contain the given device.",
           PI_INVALID_DEVICE);
+    if (!MHostQueue) {
+      MCommandQueue = createQueue(Order);
+    }
   }
 
   /// Constructs a SYCL queue from plugin interoperability handle.
@@ -240,6 +240,8 @@ public:
     RT::PiContext Context = MContext->getHandleRef();
     RT::PiDevice Device = MDevice->getHandleRef();
     const detail::plugin &Plugin = getPlugin();
+
+    assert(Plugin.getBackend() == MDevice->getPlugin().getBackend());
     RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piQueueCreate>(
         Context, Device, CreationFlags, &Queue);
 
@@ -362,8 +364,9 @@ private:
                     shared_ptr_class<queue_impl> Self,
                     const detail::code_location &Loc) {
     handler Handler(std::move(Self), MHostQueue);
+    Handler.saveCodeLoc(Loc);
     CGF(Handler);
-    event Event = Handler.finalize(Loc);
+    event Event = Handler.finalize();
     addEvent(Event);
     return Event;
   }
@@ -377,15 +380,15 @@ private:
   void instrumentationEpilog(void *TelementryEvent, string_class &Name,
                              int32_t StreamID, uint64_t IId);
 
-  /// Stores an event that should be associated with the queue
-  ///
-  /// \param Event is the event to be stored
-  void addEvent(event Event);
-
   /// Stores a USM operation event that should be associated with the queue
   ///
   /// \param Event is the event to be stored
   void addUSMEvent(event Event);
+
+  /// Stores an event that should be associated with the queue
+  ///
+  /// \param Event is the event to be stored
+  void addEvent(event Event);
 
   /// Protects all the fields that can be changed by class' methods.
   mutex_class MMutex;

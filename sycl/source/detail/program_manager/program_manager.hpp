@@ -9,6 +9,7 @@
 #pragma once
 
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/device_binary_image.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/detail/pi.hpp>
@@ -17,6 +18,7 @@
 #include <CL/sycl/stl.hpp>
 
 #include <map>
+#include <memory>
 #include <unordered_map>
 #include <vector>
 
@@ -50,49 +52,6 @@ enum DeviceLibExt {
   cl_intel_devicelib_complex_fp64
 };
 
-// SYCL RT wrapper over PI binary image.
-class RTDeviceBinaryImage : public pi::DeviceBinaryImage {
-public:
-  RTDeviceBinaryImage(OSModuleHandle ModuleHandle)
-      : pi::DeviceBinaryImage(), ModuleHandle(ModuleHandle) {}
-  RTDeviceBinaryImage(pi_device_binary Bin, OSModuleHandle ModuleHandle)
-      : pi::DeviceBinaryImage(Bin), ModuleHandle(ModuleHandle) {}
-  OSModuleHandle getOSModuleHandle() const { return ModuleHandle; }
-
-  ~RTDeviceBinaryImage() override {}
-
-  bool supportsSpecConstants() const {
-    return getFormat() == PI_DEVICE_BINARY_TYPE_SPIRV;
-  }
-
-  const pi_device_binary_struct &getRawData() const { return *get(); }
-
-  void print() const override {
-    pi::DeviceBinaryImage::print();
-    std::cerr << "    OSModuleHandle=" << ModuleHandle << "\n";
-  }
-
-protected:
-  OSModuleHandle ModuleHandle;
-};
-
-// Dynamically allocated device binary image, which de-allocates its binary data
-// in destructor.
-class DynRTDeviceBinaryImage : public RTDeviceBinaryImage {
-public:
-  DynRTDeviceBinaryImage(std::unique_ptr<char[]> &&DataPtr, size_t DataSize,
-                         OSModuleHandle M);
-  ~DynRTDeviceBinaryImage() override;
-
-  void print() const override {
-    RTDeviceBinaryImage::print();
-    std::cerr << "    DYNAMICALLY CREATED\n";
-  }
-
-protected:
-  std::unique_ptr<char[]> Data;
-};
-
 // Provides single loading and building OpenCL programs with unique contexts
 // that is necessary for no interoperability cases with lambda.
 class ProgramManager {
@@ -105,10 +64,22 @@ public:
                                       const context &Context);
   RT::PiProgram createPIProgram(const RTDeviceBinaryImage &Img,
                                 const context &Context);
+  /// Builds or retrieves from cache a program defining the kernel with given
+  /// name.
+  /// \param M idenfies the OS module the kernel comes from (multiple OS modules
+  ///          may have kernels with the same name)
+  /// \param Context the context to build the program with
+  /// \param KernelName the kernel's name
+  /// \param Prg provides build context information, such as
+  ///        current specialization constants settings; can be nullptr.
+  ///        Passing as a raw pointer is OK, since it is not captured anywhere
+  ///        once the function returns.
   RT::PiProgram getBuiltPIProgram(OSModuleHandle M, const context &Context,
-                                  const string_class &KernelName);
+                                  const string_class &KernelName,
+                                  const program_impl *Prg = nullptr);
   RT::PiKernel getOrCreateKernel(OSModuleHandle M, const context &Context,
-                                 const string_class &KernelName);
+                                 const string_class &KernelName,
+                                 const program_impl *Prg);
   RT::PiProgram getPiProgramFromPiKernel(RT::PiKernel Kernel,
                                          const ContextImplPtr Context);
 
@@ -117,12 +88,20 @@ public:
   static string_class getProgramBuildLog(const RT::PiProgram &Program,
                                          const ContextImplPtr Context);
 
-  spec_constant_impl &resolveSpecConstant(const program_impl *P,
-                                          const char *Name);
-
-  // Takes current values of specialization constants and "injects" them into
-  // the program via specialization constant managemment PI APIs
-  void flushSpecConstants(pi::PiProgram Prg, context_impl &Ctx);
+  /// Resolves given program to a device binary image and requests the program
+  /// to flush constants the image depends on.
+  /// \param Prg the program object to get spec constant settings from.
+  ///        Passing program_impl by raw reference is OK, since it is not
+  ///        captured anywhere once the function returns.
+  /// \param NativePrg the native program, target for spec constant setting; if
+  ///        not null then overrides the native program in Prg
+  /// \param Img A source of the information about which constants need
+  ///        setting and symboling->integer spec constnant ID mapping. If not
+  ///        null, overrides native program->binary image binding maintained by
+  ///        the program manager.
+  void flushSpecConstants(const program_impl &Prg,
+                          pi::PiProgram NativePrg = nullptr,
+                          const RTDeviceBinaryImage *Img = nullptr);
 
 private:
   ProgramManager();
@@ -148,9 +127,6 @@ private:
                              const string_class &KernelName) const;
   /// Dumps image to current directory
   void dumpImage(const RTDeviceBinaryImage &Img, KernelSetId KSId) const;
-
-  void populateSpecConstRegistryImpl(const RTDeviceBinaryImage &Img);
-  void populateSpecConstRegistry();
 
   /// The three maps below are used during kernel resolution. Any kernel is
   /// identified by its name and the OS module it's coming from, allowing
@@ -186,21 +162,6 @@ private:
   /// Such images are assumed to contain all kernel associated with the module.
   /// Access must be guarded by the \ref Sync::getGlobalLock()
   std::unordered_map<OSModuleHandle, KernelSetId> m_OSModuleKernelSets;
-
-  // Maps specialization constant symbolic name to its integer ID.
-  // NOTE: a key in this map is a pointer into some existing device binary image
-  // and it is invalidated once the encompassing OS module gets unloaded.
-  using SpecConstMapTy =
-      std::unordered_map<const char *, spec_constant_impl, HashCStr, CmpCStr>;
-
-  // Keeps specialization constant map for each operating system module.
-  // The base approach is that there is a global name->id spec constant map for
-  // each OS module. This map is populated from the name->id pairs found in
-  // device binary image upon registration at startup for this OS module.
-  // If multiple images beloning to the same OS module have a specialization
-  // constant with the same name, its corresponding numeric id must also match.
-  // It is modified (populated) once at startup, so no locks are necessary.
-  std::unordered_map<OSModuleHandle, SpecConstMapTy> SpecConstRegistry;
 
   // Keeps track of pi_program to image correspondence. Needed for:
   // - knowing which specialization constants are used in the program and

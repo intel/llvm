@@ -302,8 +302,6 @@ Page align sections.
 Do not set the text data sections to be writable, page align sections.
 .It Fl -no-rosegment
 Do not put read-only non-executable sections in their own segment.
-.It Fl -no-threads
-Do not run the linker multi-threaded.
 .It Fl -no-undefined-version
 Report version scripts that refer undefined symbols.
 .It Fl -no-undefined
@@ -416,6 +414,9 @@ List removed unused sections.
 List identical folded sections.
 .It Fl -print-map
 Print a link map to the standard output.
+.It Fl -print-archive-stats Ns = Ns Ar file
+Write archive usage statistics to the specified file.
+Print the numbers of members and fetched members for each archive.
 .It Fl -push-state
 Save the current state of
 .Fl -as-needed ,
@@ -525,9 +526,12 @@ Path to ThinLTO cached object file directory.
 Pruning policy for the ThinLTO cache.
 .It Fl -thinlto-jobs Ns = Ns Ar value
 Number of ThinLTO jobs.
-.It Fl -threads
-Run the linker multi-threaded.
-This option is enabled by default.
+.It Fl -threads Ns = Ns Ar N
+Number of threads.
+.Cm all
+(default) means all of concurrent threads supported.
+.Cm 1
+disables multi-threading.
 .It Fl -trace
 Print the names of the input files.
 .It Fl -trace-symbol Ns = Ns Ar symbol , Fl y Ar symbol
@@ -573,6 +577,10 @@ Read version script from
 Warn about reverse or cyclic dependencies to or between static archives.
 This can be used to ensure linker invocation remains compatible with
 traditional Unix-like linkers.
+.It Fl -warn-backrefs-exclude Ns = Ns Ar glob
+Glob describing an archive (or an object file within --start-lib)
+which should be ignored for
+.Fl -warn-backrefs
 .It Fl -warn-common
 Warn about duplicate common symbols.
 .It Fl -warn-ifunc-textrel

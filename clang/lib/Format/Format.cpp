@@ -93,6 +93,7 @@ template <> struct ScalarEnumerationTraits<FormatStyle::UseTabStyle> {
     IO.enumCase(Value, "ForIndentation", FormatStyle::UT_ForIndentation);
     IO.enumCase(Value, "ForContinuationAndIndentation",
                 FormatStyle::UT_ForContinuationAndIndentation);
+    IO.enumCase(Value, "AlignWithSpaces", FormatStyle::UT_AlignWithSpaces);
   }
 };
 
@@ -194,11 +195,13 @@ struct ScalarEnumerationTraits<
   static void
   enumeration(IO &IO,
               FormatStyle::BraceWrappingAfterControlStatementStyle &Value) {
-    IO.enumCase(Value, "false", FormatStyle::BWACS_Never);
-    IO.enumCase(Value, "true", FormatStyle::BWACS_Always);
     IO.enumCase(Value, "Never", FormatStyle::BWACS_Never);
     IO.enumCase(Value, "MultiLine", FormatStyle::BWACS_MultiLine);
     IO.enumCase(Value, "Always", FormatStyle::BWACS_Always);
+
+    // For backward compatibility.
+    IO.enumCase(Value, "false", FormatStyle::BWACS_Never);
+    IO.enumCase(Value, "true", FormatStyle::BWACS_Always);
   }
 };
 
@@ -326,6 +329,8 @@ struct ScalarEnumerationTraits<FormatStyle::SpaceBeforeParensOptions> {
     IO.enumCase(Value, "Never", FormatStyle::SBPO_Never);
     IO.enumCase(Value, "ControlStatements",
                 FormatStyle::SBPO_ControlStatements);
+    IO.enumCase(Value, "ControlStatementsExceptForEachMacros",
+                FormatStyle::SBPO_ControlStatementsExceptForEachMacros);
     IO.enumCase(Value, "NonEmptyParentheses",
                 FormatStyle::SBPO_NonEmptyParentheses);
     IO.enumCase(Value, "Always", FormatStyle::SBPO_Always);
@@ -396,6 +401,8 @@ template <> struct MappingTraits<FormatStyle> {
                    Style.AllowAllConstructorInitializersOnNextLine);
     IO.mapOptional("AllowAllParametersOfDeclarationOnNextLine",
                    Style.AllowAllParametersOfDeclarationOnNextLine);
+    IO.mapOptional("AllowShortEnumsOnASingleLine",
+                   Style.AllowShortEnumsOnASingleLine);
     IO.mapOptional("AllowShortBlocksOnASingleLine",
                    Style.AllowShortBlocksOnASingleLine);
     IO.mapOptional("AllowShortCaseLabelsOnASingleLine",
@@ -751,6 +758,7 @@ FormatStyle getLLVMStyle(FormatStyle::LanguageKind Language) {
   LLVMStyle.AllowAllArgumentsOnNextLine = true;
   LLVMStyle.AllowAllConstructorInitializersOnNextLine = true;
   LLVMStyle.AllowAllParametersOfDeclarationOnNextLine = true;
+  LLVMStyle.AllowShortEnumsOnASingleLine = true;
   LLVMStyle.AllowShortFunctionsOnASingleLine = FormatStyle::SFS_All;
   LLVMStyle.AllowShortBlocksOnASingleLine = FormatStyle::SBS_Never;
   LLVMStyle.AllowShortCaseLabelsOnASingleLine = false;
@@ -1136,6 +1144,7 @@ FormatStyle getMicrosoftStyle(FormatStyle::LanguageKind Language) {
   Style.BraceWrapping.BeforeCatch = true;
   Style.BraceWrapping.BeforeElse = true;
   Style.PenaltyReturnTypeOnItsOwnLine = 1000;
+  Style.AllowShortEnumsOnASingleLine = false;
   Style.AllowShortFunctionsOnASingleLine = FormatStyle::SFS_None;
   Style.AllowShortCaseLabelsOnASingleLine = false;
   Style.AllowShortIfStatementsOnASingleLine = FormatStyle::SIS_Never;
@@ -2048,8 +2057,7 @@ static void sortCppIncludes(const FormatStyle &Style,
   // enough as additional newlines might be added or removed across #include
   // blocks. This we handle below by generating the updated #imclude blocks and
   // comparing it to the original.
-  if (Indices.size() == Includes.size() &&
-      std::is_sorted(Indices.begin(), Indices.end()) &&
+  if (Indices.size() == Includes.size() && llvm::is_sorted(Indices) &&
       Style.IncludeStyle.IncludeBlocks == tooling::IncludeStyle::IBS_Preserve)
     return;
 
@@ -2621,7 +2629,8 @@ LangOptions getFormattingLangOpts(const FormatStyle &Style) {
   LangOpts.CPlusPlus11 = LexingStd >= FormatStyle::LS_Cpp11;
   LangOpts.CPlusPlus14 = LexingStd >= FormatStyle::LS_Cpp14;
   LangOpts.CPlusPlus17 = LexingStd >= FormatStyle::LS_Cpp17;
-  LangOpts.CPlusPlus2a = LexingStd >= FormatStyle::LS_Cpp20;
+  LangOpts.CPlusPlus20 = LexingStd >= FormatStyle::LS_Cpp20;
+  LangOpts.Char8 = LexingStd >= FormatStyle::LS_Cpp20;
 
   LangOpts.LineComment = 1;
   bool AlternativeOperators = Style.isCpp();
@@ -2635,7 +2644,7 @@ LangOptions getFormattingLangOpts(const FormatStyle &Style) {
 
 const char *StyleOptionHelpDescription =
     "Coding style, currently supports:\n"
-    "  LLVM, Google, Chromium, Mozilla, WebKit.\n"
+    "  LLVM, GNU, Google, Chromium, Microsoft, Mozilla, WebKit.\n"
     "Use -style=file to load style configuration from\n"
     ".clang-format file located in one of the parent\n"
     "directories of the source file (or current\n"

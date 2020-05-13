@@ -164,7 +164,8 @@ Error MachOPlatform::notifyAdding(JITDylib &JD, const MaterializationUnit &MU) {
   if (!InitSym)
     return Error::success();
 
-  RegisteredInitSymbols[&JD].add(InitSym);
+  RegisteredInitSymbols[&JD].add(InitSym,
+                                 SymbolLookupFlags::WeaklyReferencedSymbol);
   LLVM_DEBUG({
     dbgs() << "MachOPlatform: Registered init symbol " << *InitSym << " for MU "
            << MU.getName() << "\n";
@@ -270,8 +271,8 @@ std::vector<JITDylib *> MachOPlatform::getDFSLinkOrder(JITDylib &JD) {
       continue;
     Visited.insert(NextJD);
     Result.push_back(NextJD);
-    NextJD->withSearchOrderDo([&](const JITDylibSearchOrder &SO) {
-      for (auto &KV : SO)
+    NextJD->withLinkOrderDo([&](const JITDylibSearchOrder &LO) {
+      for (auto &KV : LO)
         WorkStack.push_back(KV.first);
     });
   }

@@ -1644,9 +1644,10 @@ SDValue AMDGPUTargetLowering::LowerDIVREM24(SDValue Op, SelectionDAG &DAG,
   const AMDGPUMachineFunction *MFI = MF.getInfo<AMDGPUMachineFunction>();
 
   // float fr = mad(fqneg, fb, fa);
-  unsigned OpCode = MFI->getMode().allFP32Denormals() ?
-                    (unsigned)AMDGPUISD::FMAD_FTZ :
-                    (unsigned)ISD::FMAD;
+  unsigned OpCode = !MFI->getMode().allFP32Denormals() ?
+                    (unsigned)ISD::FMAD :
+                    (unsigned)AMDGPUISD::FMAD_FTZ;
+
   SDValue fr = DAG.getNode(OpCode, DL, FltVT, fqneg, fb, fa);
 
   // int iq = (int)fq;
@@ -1729,9 +1730,10 @@ void AMDGPUTargetLowering::LowerUDIVREM64(SDValue Op,
     const SIMachineFunctionInfo *MFI = MF.getInfo<SIMachineFunctionInfo>();
 
     // Compute denominator reciprocal.
-    unsigned FMAD = MFI->getMode().allFP32Denormals() ?
-                    (unsigned)AMDGPUISD::FMAD_FTZ :
-                    (unsigned)ISD::FMAD;
+    unsigned FMAD = !MFI->getMode().allFP32Denormals() ?
+                    (unsigned)ISD::FMAD :
+                    (unsigned)AMDGPUISD::FMAD_FTZ;
+
 
     SDValue Cvt_Lo = DAG.getNode(ISD::UINT_TO_FP, DL, MVT::f32, RHS_Lo);
     SDValue Cvt_Hi = DAG.getNode(ISD::UINT_TO_FP, DL, MVT::f32, RHS_Hi);
@@ -2998,6 +3000,16 @@ SDValue AMDGPUTargetLowering::performIntrinsicWOChainCombine(
   case Intrinsic::amdgcn_mul_i24:
   case Intrinsic::amdgcn_mul_u24:
     return simplifyI24(N, DCI);
+  case Intrinsic::amdgcn_fract:
+  case Intrinsic::amdgcn_rsq:
+  case Intrinsic::amdgcn_rcp_legacy:
+  case Intrinsic::amdgcn_rsq_legacy:
+  case Intrinsic::amdgcn_rsq_clamp:
+  case Intrinsic::amdgcn_ldexp: {
+    // FIXME: This is probably wrong. If src is an sNaN, it won't be quieted
+    SDValue Src = N->getOperand(1);
+    return Src.isUndef() ? Src : SDValue();
+  }
   default:
     return SDValue();
   }
@@ -4256,7 +4268,6 @@ const char* AMDGPUTargetLowering::getTargetNodeName(unsigned Opcode) const {
   NODE_NAME_CASE(RCP)
   NODE_NAME_CASE(RSQ)
   NODE_NAME_CASE(RCP_LEGACY)
-  NODE_NAME_CASE(RSQ_LEGACY)
   NODE_NAME_CASE(RCP_IFLAG)
   NODE_NAME_CASE(FMUL_LEGACY)
   NODE_NAME_CASE(RSQ_CLAMP)
@@ -4651,7 +4662,6 @@ bool AMDGPUTargetLowering::isKnownNeverNaNForTargetNode(SDValue Op,
   case AMDGPUISD::RCP:
   case AMDGPUISD::RSQ:
   case AMDGPUISD::RCP_LEGACY:
-  case AMDGPUISD::RSQ_LEGACY:
   case AMDGPUISD::RSQ_CLAMP: {
     if (SNaN)
       return true;
@@ -4694,6 +4704,17 @@ bool AMDGPUTargetLowering::isKnownNeverNaNForTargetNode(SDValue Op,
         return true;
       return DAG.isKnownNeverNaN(Op.getOperand(1), SNaN, Depth + 1) &&
              DAG.isKnownNeverNaN(Op.getOperand(2), SNaN, Depth + 1);
+    }
+    case Intrinsic::amdgcn_rcp:
+    case Intrinsic::amdgcn_rsq:
+    case Intrinsic::amdgcn_rcp_legacy:
+    case Intrinsic::amdgcn_rsq_legacy:
+    case Intrinsic::amdgcn_rsq_clamp: {
+      if (SNaN)
+        return true;
+
+      // TODO: Need is known positive check.
+      return false;
     }
     case Intrinsic::amdgcn_fdot2:
       // TODO: Refine on operand

@@ -168,15 +168,16 @@ LLVMType Importer::processType(llvm::Type *type) {
       return nullptr;
     return LLVMType::getArrayTy(elementType, type->getArrayNumElements());
   }
-  case llvm::Type::VectorTyID: {
-    if (type->getVectorIsScalable()) {
-      emitError(unknownLoc) << "scalable vector types not supported";
-      return nullptr;
-    }
-    LLVMType elementType = processType(type->getVectorElementType());
+  case llvm::Type::ScalableVectorTyID: {
+    emitError(unknownLoc) << "scalable vector types not supported";
+    return nullptr;
+  }
+  case llvm::Type::FixedVectorTyID: {
+    auto *typeVTy = llvm::cast<llvm::FixedVectorType>(type);
+    LLVMType elementType = processType(typeVTy->getElementType());
     if (!elementType)
       return nullptr;
-    return LLVMType::getVectorTy(elementType, type->getVectorNumElements());
+    return LLVMType::getVectorTy(elementType, typeVTy->getNumElements());
   }
   case llvm::Type::VoidTyID:
     return LLVMType::getVoidTy(dialect);
@@ -243,7 +244,8 @@ Type Importer::getStdTypeForAttr(LLVMType type) {
 
   // LLVM vectors can only contain scalars.
   if (type.isVectorTy()) {
-    auto numElements = type.getUnderlyingType()->getVectorElementCount();
+    auto numElements = llvm::cast<llvm::VectorType>(type.getUnderlyingType())
+                           ->getElementCount();
     if (numElements.Scalable) {
       emitError(unknownLoc) << "scalable vectors not supported";
       return nullptr;
@@ -269,7 +271,8 @@ Type Importer::getStdTypeForAttr(LLVMType type) {
     if (type.getArrayElementType().isVectorTy()) {
       LLVMType vectorType = type.getArrayElementType();
       auto numElements =
-          vectorType.getUnderlyingType()->getVectorElementCount();
+          llvm::cast<llvm::VectorType>(vectorType.getUnderlyingType())
+              ->getElementCount();
       if (numElements.Scalable) {
         emitError(unknownLoc) << "scalable vectors not supported";
         return nullptr;
@@ -446,7 +449,7 @@ Value Importer::processValue(llvm::Value *value) {
   // We don't expect to see instructions in dominator order. If we haven't seen
   // this instruction yet, create an unknown op and remap it later.
   if (isa<llvm::Instruction>(value)) {
-    OperationState state(UnknownLoc::get(context), "unknown");
+    OperationState state(UnknownLoc::get(context), "llvm.unknown");
     LLVMType type = processType(value->getType());
     if (!type)
       return nullptr;
@@ -462,55 +465,60 @@ Value Importer::processValue(llvm::Value *value) {
   return nullptr;
 }
 
+/// Return the MLIR OperationName for the given LLVM opcode.
+static StringRef lookupOperationNameFromOpcode(unsigned opcode) {
 // Maps from LLVM opcode to MLIR OperationName. This is deliberately ordered
 // as in llvm/IR/Instructions.def to aid comprehension and spot missing
 // instructions.
 #define INST(llvm_n, mlir_n)                                                   \
   { llvm::Instruction::llvm_n, LLVM::mlir_n##Op::getOperationName() }
-static const DenseMap<unsigned, StringRef> opcMap = {
-    // Ret is handled specially.
-    // Br is handled specially.
-    // FIXME: switch
-    // FIXME: indirectbr
-    // FIXME: invoke
-    INST(Resume, Resume),
-    // FIXME: unreachable
-    // FIXME: cleanupret
-    // FIXME: catchret
-    // FIXME: catchswitch
-    // FIXME: callbr
-    // FIXME: fneg
-    INST(Add, Add), INST(FAdd, FAdd), INST(Sub, Sub), INST(FSub, FSub),
-    INST(Mul, Mul), INST(FMul, FMul), INST(UDiv, UDiv), INST(SDiv, SDiv),
-    INST(FDiv, FDiv), INST(URem, URem), INST(SRem, SRem), INST(FRem, FRem),
-    INST(Shl, Shl), INST(LShr, LShr), INST(AShr, AShr), INST(And, And),
-    INST(Or, Or), INST(Xor, XOr), INST(Alloca, Alloca), INST(Load, Load),
-    INST(Store, Store),
-    // Getelementptr is handled specially.
-    INST(Ret, Return), INST(Fence, Fence),
-    // FIXME: atomiccmpxchg
-    // FIXME: atomicrmw
-    INST(Trunc, Trunc), INST(ZExt, ZExt), INST(SExt, SExt),
-    INST(FPToUI, FPToUI), INST(FPToSI, FPToSI), INST(UIToFP, UIToFP),
-    INST(SIToFP, SIToFP), INST(FPTrunc, FPTrunc), INST(FPExt, FPExt),
-    INST(PtrToInt, PtrToInt), INST(IntToPtr, IntToPtr), INST(BitCast, Bitcast),
-    INST(AddrSpaceCast, AddrSpaceCast),
-    // FIXME: cleanuppad
-    // FIXME: catchpad
-    // ICmp is handled specially.
-    // FIXME: fcmp
-    // PHI is handled specially.
-    INST(Freeze, Freeze), INST(Call, Call),
-    // FIXME: select
-    // FIXME: vaarg
-    // FIXME: extractelement
-    // FIXME: insertelement
-    // FIXME: shufflevector
-    // FIXME: extractvalue
-    // FIXME: insertvalue
-    // FIXME: landingpad
-};
+  static const DenseMap<unsigned, StringRef> opcMap = {
+      // Ret is handled specially.
+      // Br is handled specially.
+      // FIXME: switch
+      // FIXME: indirectbr
+      // FIXME: invoke
+      INST(Resume, Resume),
+      // FIXME: unreachable
+      // FIXME: cleanupret
+      // FIXME: catchret
+      // FIXME: catchswitch
+      // FIXME: callbr
+      // FIXME: fneg
+      INST(Add, Add), INST(FAdd, FAdd), INST(Sub, Sub), INST(FSub, FSub),
+      INST(Mul, Mul), INST(FMul, FMul), INST(UDiv, UDiv), INST(SDiv, SDiv),
+      INST(FDiv, FDiv), INST(URem, URem), INST(SRem, SRem), INST(FRem, FRem),
+      INST(Shl, Shl), INST(LShr, LShr), INST(AShr, AShr), INST(And, And),
+      INST(Or, Or), INST(Xor, XOr), INST(Alloca, Alloca), INST(Load, Load),
+      INST(Store, Store),
+      // Getelementptr is handled specially.
+      INST(Ret, Return), INST(Fence, Fence),
+      // FIXME: atomiccmpxchg
+      // FIXME: atomicrmw
+      INST(Trunc, Trunc), INST(ZExt, ZExt), INST(SExt, SExt),
+      INST(FPToUI, FPToUI), INST(FPToSI, FPToSI), INST(UIToFP, UIToFP),
+      INST(SIToFP, SIToFP), INST(FPTrunc, FPTrunc), INST(FPExt, FPExt),
+      INST(PtrToInt, PtrToInt), INST(IntToPtr, IntToPtr),
+      INST(BitCast, Bitcast), INST(AddrSpaceCast, AddrSpaceCast),
+      // FIXME: cleanuppad
+      // FIXME: catchpad
+      // ICmp is handled specially.
+      // FIXME: fcmp
+      // PHI is handled specially.
+      INST(Freeze, Freeze), INST(Call, Call),
+      // FIXME: select
+      // FIXME: vaarg
+      // FIXME: extractelement
+      // FIXME: insertelement
+      // FIXME: shufflevector
+      // FIXME: extractvalue
+      // FIXME: insertvalue
+      // FIXME: landingpad
+  };
 #undef INST
+
+  return opcMap.lookup(opcode);
+}
 
 static ICmpPredicate getICmpPredicate(llvm::CmpInst::Predicate p) {
   switch (p) {
@@ -621,7 +629,7 @@ LogicalResult Importer::processInstruction(llvm::Instruction *inst) {
   case llvm::Instruction::AddrSpaceCast:
   case llvm::Instruction::Freeze:
   case llvm::Instruction::BitCast: {
-    OperationState state(loc, opcMap.lookup(inst->getOpcode()));
+    OperationState state(loc, lookupOperationNameFromOpcode(inst->getOpcode()));
     SmallVector<Value, 4> ops;
     ops.reserve(inst->getNumOperands());
     for (auto *op : inst->operand_values()) {
@@ -712,7 +720,7 @@ LogicalResult Importer::processInstruction(llvm::Instruction *inst) {
       op = b.create<CallOp>(loc, tys, b.getSymbolRefAttr(callee->getName()),
                             ops);
     } else {
-      Value calledValue = processValue(ci->getCalledValue());
+      Value calledValue = processValue(ci->getCalledOperand());
       if (!calledValue)
         return failure();
       ops.insert(ops.begin(), calledValue);
@@ -758,7 +766,7 @@ LogicalResult Importer::processInstruction(llvm::Instruction *inst) {
                               ops, blocks[ii->getNormalDest()], normalArgs,
                               blocks[ii->getUnwindDest()], unwindArgs);
     } else {
-      ops.insert(ops.begin(), processValue(ii->getCalledValue()));
+      ops.insert(ops.begin(), processValue(ii->getCalledOperand()));
       op = b.create<InvokeOp>(loc, tys, ops, blocks[ii->getNormalDest()],
                               normalArgs, blocks[ii->getUnwindDest()],
                               unwindArgs);
@@ -929,8 +937,11 @@ OwningModuleRef translateLLVMIRToModule(llvm::SourceMgr &sourceMgr,
   return translateLLVMIRToModule(std::move(llvmModule), context);
 }
 
-static TranslateToMLIRRegistration
-    fromLLVM("import-llvm",
-             [](llvm::SourceMgr &sourceMgr, MLIRContext *context) {
-               return translateLLVMIRToModule(sourceMgr, context);
-             });
+namespace mlir {
+void registerFromLLVMIRTranslation() {
+  TranslateToMLIRRegistration fromLLVM(
+      "import-llvm", [](llvm::SourceMgr &sourceMgr, MLIRContext *context) {
+        return ::translateLLVMIRToModule(sourceMgr, context);
+      });
+}
+} // namespace mlir

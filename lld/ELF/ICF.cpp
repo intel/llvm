@@ -80,10 +80,10 @@
 #include "Symbols.h"
 #include "SyntheticSections.h"
 #include "Writer.h"
-#include "lld/Common/Threads.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/BinaryFormat/ELF.h"
 #include "llvm/Object/ELF.h"
+#include "llvm/Support/Parallel.h"
 #include "llvm/Support/TimeProfiler.h"
 #include "llvm/Support/xxhash.h"
 #include <algorithm>
@@ -400,7 +400,7 @@ template <class ELFT>
 void ICF<ELFT>::forEachClass(llvm::function_ref<void(size_t, size_t)> fn) {
   // If threading is disabled or the number of sections are
   // too small to use threading, call Fn sequentially.
-  if (!threadsEnabled || sections.size() < 1024) {
+  if (parallel::strategy.ThreadsRequested == 1 || sections.size() < 1024) {
     forEachClassRange(0, sections.size(), fn);
     ++cnt;
     return;
@@ -467,9 +467,8 @@ template <class ELFT> void ICF<ELFT>::run() {
   }
 
   // Initially, we use hash values to partition sections.
-  parallelForEach(sections, [&](InputSection *s) {
-    s->eqClass[0] = xxHash64(s->data());
-  });
+  parallelForEach(
+      sections, [&](InputSection *s) { s->eqClass[0] = xxHash64(s->data()); });
 
   for (unsigned cnt = 0; cnt != 2; ++cnt) {
     parallelForEach(sections, [&](InputSection *s) {

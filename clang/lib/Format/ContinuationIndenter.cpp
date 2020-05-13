@@ -330,7 +330,7 @@ bool ContinuationIndenter::mustBreak(const LineState &State) {
   const FormatToken &Current = *State.NextToken;
   const FormatToken &Previous = *Current.Previous;
   if (Style.BraceWrapping.BeforeLambdaBody && Current.CanBreakBefore &&
-      Current.is(TT_LambdaLBrace)) {
+      Current.is(TT_LambdaLBrace) && Previous.isNot(TT_LineComment)) {
     auto LambdaBodyLength = getLengthToMatchingParen(Current, State.Stack);
     return (LambdaBodyLength > getColumnLimit(State));
   }
@@ -342,10 +342,16 @@ bool ContinuationIndenter::mustBreak(const LineState &State) {
   if (Previous.is(tok::semi) && State.LineContainsContinuedForLoopSection)
     return true;
   if (Style.Language == FormatStyle::LK_ObjC &&
+      Style.ObjCBreakBeforeNestedBlockParam &&
       Current.ObjCSelectorNameParts > 1 &&
       Current.startsSequence(TT_SelectorName, tok::colon, tok::caret)) {
     return true;
   }
+  // Avoid producing inconsistent states by requiring breaks where they are not
+  // permitted for C# generic type constraints.
+  if (State.Stack.back().IsCSharpGenericTypeConstraint &&
+      Previous.isNot(TT_CSharpGenericTypeConstraintComma))
+    return false;
   if ((startsNextParameter(Current, Style) || Previous.is(tok::semi) ||
        (Previous.is(TT_TemplateCloser) && Current.is(TT_StartOfName) &&
         Style.isCpp() &&
@@ -417,7 +423,7 @@ bool ContinuationIndenter::mustBreak(const LineState &State) {
       State.Stack.back().BreakBeforeParameter && Current.CanBreakBefore)
     return true;
 
-  if (State.Column <= NewLineColumn)
+  if (!State.Line->First->is(tok::kw_enum) && State.Column <= NewLineColumn)
     return false;
 
   if (Style.AlwaysBreakBeforeMultilineStrings &&
@@ -636,8 +642,10 @@ void ContinuationIndenter::addTokenOnCurrentLine(LineState &State, bool DryRun,
   if (Style.AlignAfterOpenBracket != FormatStyle::BAS_DontAlign &&
       !State.Stack.back().IsCSharpGenericTypeConstraint &&
       Previous.opensScope() && Previous.isNot(TT_ObjCMethodExpr) &&
-      (Current.isNot(TT_LineComment) || Previous.BlockKind == BK_BracedInit))
+      (Current.isNot(TT_LineComment) || Previous.BlockKind == BK_BracedInit)) {
     State.Stack.back().Indent = State.Column + Spaces;
+    State.Stack.back().IsAligned = true;
+  }
   if (State.Stack.back().AvoidBinPacking && startsNextParameter(Current, Style))
     State.Stack.back().NoLineBreak = true;
   if (startsSegmentOfBuilderTypeCall(Current) &&
@@ -852,6 +860,7 @@ unsigned ContinuationIndenter::addTokenOnNewLine(LineState &State,
     bool ContinuePPDirective =
         State.Line->InPPDirective && State.Line->Type != LT_ImportStatement;
     Whitespaces.replaceWhitespace(Current, Newlines, State.Column, State.Column,
+                                  State.Stack.back().IsAligned,
                                   ContinuePPDirective);
   }
 
@@ -1457,10 +1466,11 @@ void ContinuationIndenter::moveStatePastScopeOpener(LineState &State,
       ParenState(&Current, NewIndent, LastSpace, AvoidBinPacking, NoLineBreak));
   State.Stack.back().NestedBlockIndent = NestedBlockIndent;
   State.Stack.back().BreakBeforeParameter = BreakBeforeParameter;
-  State.Stack.back().HasMultipleNestedBlocks = (Current.BlockParameterCount > 1);
+  State.Stack.back().HasMultipleNestedBlocks =
+      (Current.BlockParameterCount > 1);
 
-  if (Style.BraceWrapping.BeforeLambdaBody &&
-      Current.Next != nullptr && Current.Tok.is(tok::l_paren)) {
+  if (Style.BraceWrapping.BeforeLambdaBody && Current.Next != nullptr &&
+      Current.Tok.is(tok::l_paren)) {
     // Search for any parameter that is a lambda
     FormatToken const *next = Current.Next;
     while (next != nullptr) {

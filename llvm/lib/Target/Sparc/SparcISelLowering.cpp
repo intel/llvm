@@ -692,9 +692,9 @@ SparcTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
 }
 
 static bool hasReturnsTwiceAttr(SelectionDAG &DAG, SDValue Callee,
-                                ImmutableCallSite CS) {
-  if (CS)
-    return CS.hasFnAttr(Attribute::ReturnsTwice);
+                                const CallBase *Call) {
+  if (Call)
+    return Call->hasFnAttr(Attribute::ReturnsTwice);
 
   const Function *CalleeFn = nullptr;
   if (GlobalAddressSDNode *G = dyn_cast<GlobalAddressSDNode>(Callee)) {
@@ -936,7 +936,7 @@ SparcTargetLowering::LowerCall_32(TargetLowering::CallLoweringInfo &CLI,
     InFlag = Chain.getValue(1);
   }
 
-  bool hasReturnsTwice = hasReturnsTwiceAttr(DAG, Callee, CLI.CS);
+  bool hasReturnsTwice = hasReturnsTwiceAttr(DAG, Callee, CLI.CB);
 
   // If the callee is a GlobalAddress node (quite common, every direct call is)
   // turn it into a TargetGlobalAddress node so that legalize doesn't hack it.
@@ -1243,7 +1243,7 @@ SparcTargetLowering::LowerCall_64(TargetLowering::CallLoweringInfo &CLI,
   // turn it into a TargetGlobalAddress node so that legalize doesn't hack it.
   // Likewise ExternalSymbol -> TargetExternalSymbol.
   SDValue Callee = CLI.Callee;
-  bool hasReturnsTwice = hasReturnsTwiceAttr(DAG, Callee, CLI.CS);
+  bool hasReturnsTwice = hasReturnsTwiceAttr(DAG, Callee, CLI.CB);
   unsigned TF = isPositionIndependent() ? SparcMCExpr::VK_Sparc_WPLT30 : 0;
   if (GlobalAddressSDNode *G = dyn_cast<GlobalAddressSDNode>(Callee))
     Callee = DAG.getTargetGlobalAddress(G->getGlobal(), DL, PtrVT, 0, TF);
@@ -1292,7 +1292,7 @@ SparcTargetLowering::LowerCall_64(TargetLowering::CallLoweringInfo &CLI,
 
   // Set inreg flag manually for codegen generated library calls that
   // return float.
-  if (CLI.Ins.size() == 1 && CLI.Ins[0].VT == MVT::f32 && !CLI.CS)
+  if (CLI.Ins.size() == 1 && CLI.Ins[0].VT == MVT::f32 && !CLI.CB)
     CLI.Ins[0].Flags.setInReg();
 
   RVInfo.AnalyzeCallResult(CLI.Ins, RetCC_Sparc64);
@@ -1906,10 +1906,8 @@ SDValue SparcTargetLowering::withTargetFlags(SDValue Op, unsigned TF,
                                       GA->getOffset(), TF);
 
   if (const ConstantPoolSDNode *CP = dyn_cast<ConstantPoolSDNode>(Op))
-    return DAG.getTargetConstantPool(CP->getConstVal(),
-                                     CP->getValueType(0),
-                                     CP->getAlignment(),
-                                     CP->getOffset(), TF);
+    return DAG.getTargetConstantPool(CP->getConstVal(), CP->getValueType(0),
+                                     CP->getAlign(), CP->getOffset(), TF);
 
   if (const BlockAddressSDNode *BA = dyn_cast<BlockAddressSDNode>(Op))
     return DAG.getTargetBlockAddress(BA->getBlockAddress(),
@@ -2544,15 +2542,15 @@ static SDValue LowerDYNAMIC_STACKALLOC(SDValue Op, SelectionDAG &DAG,
                                        const SparcSubtarget *Subtarget) {
   SDValue Chain = Op.getOperand(0);  // Legalize the chain.
   SDValue Size  = Op.getOperand(1);  // Legalize the size.
-  unsigned Align = cast<ConstantSDNode>(Op.getOperand(2))->getZExtValue();
-  unsigned StackAlign = Subtarget->getFrameLowering()->getStackAlignment();
+  MaybeAlign Alignment(cast<ConstantSDNode>(Op.getOperand(2))->getZExtValue());
+  Align StackAlign = Subtarget->getFrameLowering()->getStackAlign();
   EVT VT = Size->getValueType(0);
   SDLoc dl(Op);
 
   // TODO: implement over-aligned alloca. (Note: also implies
   // supporting support for overaligned function frames + dynamic
   // allocations, at all, which currently isn't supported)
-  if (Align > StackAlign) {
+  if (Alignment && *Alignment > StackAlign) {
     const MachineFunction &MF = DAG.getMachineFunction();
     report_fatal_error("Function \"" + Twine(MF.getName()) + "\": "
                        "over-aligned dynamic alloca not supported.");

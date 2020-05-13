@@ -16,7 +16,11 @@ namespace intrinsics {
 
 using vector_broadcast = ValueBuilder<vector::BroadcastOp>;
 using vector_contract = ValueBuilder<vector::ContractionOp>;
+using vector_matmul = ValueBuilder<vector::MatmulOp>;
 using vector_print = OperationBuilder<vector::PrintOp>;
+using vector_transfer_read = ValueBuilder<vector::TransferReadOp>;
+using vector_transfer_write = OperationBuilder<vector::TransferWriteOp>;
+using vector_type_cast = ValueBuilder<vector::TypeCastOp>;
 
 } // namespace intrinsics
 } // namespace edsc

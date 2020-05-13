@@ -328,7 +328,9 @@ static void setStaticAnalyzerCheckerOpts(const ClangTidyOptions &Opts,
     StringRef OptName(Opt.first);
     if (!OptName.startswith(AnalyzerPrefix))
       continue;
-    AnalyzerOptions->Config[OptName.substr(AnalyzerPrefix.size())] = Opt.second;
+    // Analyzer options are always local options so we can ignore priority.
+    AnalyzerOptions->Config[OptName.substr(AnalyzerPrefix.size())] =
+        Opt.second.Value;
   }
 }
 
@@ -454,7 +456,7 @@ std::vector<std::string> ClangTidyASTConsumerFactory::getCheckNames() {
     CheckNames.push_back(AnalyzerCheckNamePrefix + AnalyzerCheck.first);
 #endif // CLANG_ENABLE_STATIC_ANALYZER
 
-  std::sort(CheckNames.begin(), CheckNames.end());
+  llvm::sort(CheckNames);
   return CheckNames;
 }
 
