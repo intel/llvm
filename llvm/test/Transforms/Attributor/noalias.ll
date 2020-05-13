@@ -182,7 +182,7 @@ define i8* @test7() nounwind {
 ; CHECK-NEXT:    [[TOBOOL:%.*]] = icmp eq i8* [[A]], null
 ; CHECK-NEXT:    br i1 [[TOBOOL]], label [[RETURN:%.*]], label [[IF_END:%.*]]
 ; CHECK:       if.end:
-; CHECK-NEXT:    store i8 7, i8* [[A]]
+; CHECK-NEXT:    store i8 7, i8* [[A]], align 1
 ; CHECK-NEXT:    br label [[RETURN]]
 ; CHECK:       return:
 ; CHECK-NEXT:    [[RETVAL_0:%.*]] = phi i8* [ [[A]], [[IF_END]] ], [ null, [[ENTRY:%.*]] ]
@@ -211,7 +211,7 @@ define i8* @test8(i32* %0) nounwind uwtable {
 ; CHECK-NEXT:    [[TMP3:%.*]] = icmp ne i32* [[TMP0]], null
 ; CHECK-NEXT:    br i1 [[TMP3]], label [[TMP4:%.*]], label [[TMP5:%.*]]
 ; CHECK:       4:
-; CHECK-NEXT:    store i8 10, i8* [[TMP2]]
+; CHECK-NEXT:    store i8 10, i8* [[TMP2]], align 1
 ; CHECK-NEXT:    br label [[TMP5]]
 ; CHECK:       5:
 ; CHECK-NEXT:    ret i8* [[TMP2]]
@@ -533,29 +533,17 @@ define internal i32 @ret(i32* %arg) {
 
 ; Function Attrs: nounwind optsize
 define internal fastcc double @strtox(i8* %s, i8** %p, i32 %prec) unnamed_addr {
-; NOT_CGSCC_NPM-LABEL: define {{[^@]+}}@strtox
-; NOT_CGSCC_NPM-SAME: (i8* noalias [[S:%.*]]) unnamed_addr
-; NOT_CGSCC_NPM-NEXT:  entry:
-; NOT_CGSCC_NPM-NEXT:    [[F:%.*]] = alloca [[STRUCT__IO_FILE:%.*]], align 8
-; NOT_CGSCC_NPM-NEXT:    [[TMP0:%.*]] = bitcast %struct._IO_FILE* [[F]] to i8*
-; NOT_CGSCC_NPM-NEXT:    call void @llvm.lifetime.start.p0i8(i64 144, i8* nocapture nonnull align 8 dereferenceable(240) [[TMP0]])
-; NOT_CGSCC_NPM-NEXT:    [[CALL:%.*]] = call i32 bitcast (i32 (...)* @sh_fromstring to i32 (%struct._IO_FILE*, i8*)*)(%struct._IO_FILE* nonnull align 8 dereferenceable(240) [[F]], i8* [[S]])
-; NOT_CGSCC_NPM-NEXT:    call void @__shlim(%struct._IO_FILE* nonnull align 8 dereferenceable(240) [[F]], i64 0)
-; NOT_CGSCC_NPM-NEXT:    [[CALL1:%.*]] = call double @__floatscan(%struct._IO_FILE* nonnull align 8 dereferenceable(240) [[F]], i32 1, i32 1)
-; NOT_CGSCC_NPM-NEXT:    call void @llvm.lifetime.end.p0i8(i64 144, i8* nocapture nonnull align 8 dereferenceable(240) [[TMP0]])
-; NOT_CGSCC_NPM-NEXT:    ret double [[CALL1]]
-;
-; IS__CGSCC____-LABEL: define {{[^@]+}}@strtox
-; IS__CGSCC____-SAME: (i8* [[S:%.*]]) unnamed_addr
-; IS__CGSCC____-NEXT:  entry:
-; IS__CGSCC____-NEXT:    [[F:%.*]] = alloca [[STRUCT__IO_FILE:%.*]], align 8
-; IS__CGSCC____-NEXT:    [[TMP0:%.*]] = bitcast %struct._IO_FILE* [[F]] to i8*
-; IS__CGSCC____-NEXT:    call void @llvm.lifetime.start.p0i8(i64 144, i8* nocapture nonnull align 8 dereferenceable(240) [[TMP0]])
-; IS__CGSCC____-NEXT:    [[CALL:%.*]] = call i32 bitcast (i32 (...)* @sh_fromstring to i32 (%struct._IO_FILE*, i8*)*)(%struct._IO_FILE* nonnull align 8 dereferenceable(240) [[F]], i8* [[S]])
-; IS__CGSCC____-NEXT:    call void @__shlim(%struct._IO_FILE* nonnull align 8 dereferenceable(240) [[F]], i64 0)
-; IS__CGSCC____-NEXT:    [[CALL1:%.*]] = call double @__floatscan(%struct._IO_FILE* nonnull align 8 dereferenceable(240) [[F]], i32 1, i32 1)
-; IS__CGSCC____-NEXT:    call void @llvm.lifetime.end.p0i8(i64 144, i8* nocapture nonnull align 8 dereferenceable(240) [[TMP0]])
-; IS__CGSCC____-NEXT:    ret double [[CALL1]]
+; CHECK-LABEL: define {{[^@]+}}@strtox
+; CHECK-SAME: (i8* [[S:%.*]]) unnamed_addr
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[F:%.*]] = alloca [[STRUCT__IO_FILE:%.*]], align 8
+; CHECK-NEXT:    [[TMP0:%.*]] = bitcast %struct._IO_FILE* [[F]] to i8*
+; CHECK-NEXT:    call void @llvm.lifetime.start.p0i8(i64 144, i8* nocapture nonnull align 8 dereferenceable(240) [[TMP0]])
+; CHECK-NEXT:    [[CALL:%.*]] = call i32 bitcast (i32 (...)* @sh_fromstring to i32 (%struct._IO_FILE*, i8*)*)(%struct._IO_FILE* nonnull align 8 dereferenceable(240) [[F]], i8* [[S]])
+; CHECK-NEXT:    call void @__shlim(%struct._IO_FILE* nonnull align 8 dereferenceable(240) [[F]], i64 0)
+; CHECK-NEXT:    [[CALL1:%.*]] = call double @__floatscan(%struct._IO_FILE* nonnull align 8 dereferenceable(240) [[F]], i32 1, i32 1)
+; CHECK-NEXT:    call void @llvm.lifetime.end.p0i8(i64 144, i8* nocapture nonnull align 8 dereferenceable(240) [[TMP0]])
+; CHECK-NEXT:    ret double [[CALL1]]
 ;
 entry:
   %f = alloca %struct._IO_FILE, align 8

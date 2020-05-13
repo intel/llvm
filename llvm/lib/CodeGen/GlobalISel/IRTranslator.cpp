@@ -838,9 +838,16 @@ bool IRTranslator::translateIndirectBr(const User &U,
   MIRBuilder.buildBrIndirect(Tgt);
 
   // Link successors.
+  SmallPtrSet<const BasicBlock *, 32> AddedSuccessors;
   MachineBasicBlock &CurBB = MIRBuilder.getMBB();
-  for (const BasicBlock *Succ : successors(&BrInst))
+  for (const BasicBlock *Succ : successors(&BrInst)) {
+    // It's legal for indirectbr instructions to have duplicate blocks in the
+    // destination list. We don't allow this in MIR. Skip anything that's
+    // already a successor.
+    if (!AddedSuccessors.insert(Succ).second)
+      continue;
     CurBB.addSuccessor(&getMBB(*Succ));
+  }
 
   return true;
 }
@@ -1577,7 +1584,8 @@ bool IRTranslator::translateInlineAsm(const CallBase &CB,
     return false;
   }
 
-  return ALI->lowerInlineAsm(MIRBuilder, CB);
+  return ALI->lowerInlineAsm(
+      MIRBuilder, CB, [&](const Value &Val) { return getOrCreateVRegs(Val); });
 }
 
 bool IRTranslator::translateCallBase(const CallBase &CB,

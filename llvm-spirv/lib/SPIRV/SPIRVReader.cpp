@@ -2187,6 +2187,23 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     return mapValue(BV, transFunction(F));
   }
 
+  case OpAssumeTrueINTEL: {
+    IRBuilder<> Builder(BB);
+    SPIRVAssumeTrueINTEL *BC = static_cast<SPIRVAssumeTrueINTEL *>(BV);
+    Value *Condition = transValue(BC->getCondition(), F, BB);
+    return mapValue(BV, Builder.CreateAssumption(Condition));
+  }
+
+  case OpExpectINTEL: {
+    IRBuilder<> Builder(BB);
+    SPIRVExpectINTELInstBase *BC = static_cast<SPIRVExpectINTELInstBase *>(BV);
+    Type *RetTy = transType(BC->getType());
+    Value *Val = transValue(BC->getOperand(0), F, BB);
+    Value *ExpVal = transValue(BC->getOperand(1), F, BB);
+    return mapValue(
+        BV, Builder.CreateIntrinsic(Intrinsic::expect, RetTy, {Val, ExpVal}));
+  }
+
   case OpExtInst: {
     auto *ExtInst = static_cast<SPIRVExtInst *>(BV);
     switch (ExtInst->getExtSetKind()) {

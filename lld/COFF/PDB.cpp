@@ -16,7 +16,6 @@
 #include "TypeMerger.h"
 #include "Writer.h"
 #include "lld/Common/ErrorHandler.h"
-#include "lld/Common/Threads.h"
 #include "lld/Common/Timer.h"
 #include "llvm/DebugInfo/CodeView/DebugFrameDataSubsection.h"
 #include "llvm/DebugInfo/CodeView/DebugSubsectionRecord.h"
@@ -75,7 +74,7 @@ static Timer totalPdbLinkTimer("PDB Emission (Cumulative)", Timer::root());
 static Timer addObjectsTimer("Add Objects", totalPdbLinkTimer);
 static Timer typeMergingTimer("Type Merging", addObjectsTimer);
 static Timer symbolMergingTimer("Symbol Merging", addObjectsTimer);
-static Timer globalsLayoutTimer("Globals Stream Layout", totalPdbLinkTimer);
+static Timer publicsLayoutTimer("Publics Stream Layout", totalPdbLinkTimer);
 static Timer tpiStreamLayoutTimer("TPI Stream Layout", totalPdbLinkTimer);
 static Timer diskCommitTimer("Commit to Disk", totalPdbLinkTimer);
 
@@ -105,6 +104,9 @@ public:
 
   /// Link CodeView from each object file in the symbol table into the PDB.
   void addObjectsToPDB();
+
+  /// Add every live, defined public symbol to the PDB.
+  void addPublicsToPDB();
 
   /// Link info for each import file in the symbol table into the PDB.
   void addImportFilesToPDB(ArrayRef<OutputSection *> outputSections);
@@ -792,6 +794,7 @@ static bool symbolGoesInModuleStream(const CVSymbol &sym, bool isGlobalScope) {
   switch (sym.kind()) {
   case SymbolKind::S_GDATA32:
   case SymbolKind::S_CONSTANT:
+  case SymbolKind::S_GTHREAD32:
   // We really should not be seeing S_PROCREF and S_LPROCREF in the first place
   // since they are synthesized by the linker in response to S_GPROC32 and
   // S_LPROC32, but if we do see them, don't put them in the module stream I
@@ -804,17 +807,18 @@ static bool symbolGoesInModuleStream(const CVSymbol &sym, bool isGlobalScope) {
     return !isGlobalScope;
   // S_GDATA32 does not go in the module stream, but S_LDATA32 does.
   case SymbolKind::S_LDATA32:
+  case SymbolKind::S_LTHREAD32:
   default:
     return true;
   }
 }
 
-static bool symbolGoesInGlobalsStream(const CVSymbol &sym, bool isGlobalScope) {
+static bool symbolGoesInGlobalsStream(const CVSymbol &sym,
+                                      bool isFunctionScope) {
   switch (sym.kind()) {
   case SymbolKind::S_CONSTANT:
   case SymbolKind::S_GDATA32:
-  // S_LDATA32 goes in both the module stream and the globals stream.
-  case SymbolKind::S_LDATA32:
+  case SymbolKind::S_GTHREAD32:
   case SymbolKind::S_GPROC32:
   case SymbolKind::S_LPROC32:
   // We really should not be seeing S_PROCREF and S_LPROCREF in the first place
@@ -823,9 +827,11 @@ static bool symbolGoesInGlobalsStream(const CVSymbol &sym, bool isGlobalScope) {
   case SymbolKind::S_PROCREF:
   case SymbolKind::S_LPROCREF:
     return true;
-  // S_UDT records go in the globals stream if it is a global S_UDT.
+  // Records that go in the globals stream, unless they are function-local.
   case SymbolKind::S_UDT:
-    return isGlobalScope;
+  case SymbolKind::S_LDATA32:
+  case SymbolKind::S_LTHREAD32:
+    return !isFunctionScope;
   default:
     return false;
   }
@@ -837,6 +843,8 @@ static void addGlobalSymbol(pdb::GSIStreamBuilder &builder, uint16_t modIndex,
   case SymbolKind::S_CONSTANT:
   case SymbolKind::S_UDT:
   case SymbolKind::S_GDATA32:
+  case SymbolKind::S_GTHREAD32:
+  case SymbolKind::S_LTHREAD32:
   case SymbolKind::S_LDATA32:
   case SymbolKind::S_PROCREF:
   case SymbolKind::S_LPROCREF:
@@ -950,7 +958,7 @@ void PDBLinker::mergeSymbolRecords(ObjFile *file, const CVIndexMap &indexMap,
         // adding the symbol to the module since we may need to get the next
         // symbol offset, and writing to the module's symbol stream will update
         // that offset.
-        if (symbolGoesInGlobalsStream(sym, scopes.empty())) {
+        if (symbolGoesInGlobalsStream(sym, !scopes.empty())) {
           addGlobalSymbol(builder.getGsiBuilder(),
                           file->moduleDBI->getModuleIndex(), curSymOffset, sym);
           ++globalSymbols;
@@ -1289,20 +1297,24 @@ static void createModuleDBI(pdb::PDBFileBuilder &builder) {
   }
 }
 
-static PublicSym32 createPublic(Defined *def) {
-  PublicSym32 pub(SymbolKind::S_PUB32);
-  pub.Name = def->getName();
+static pdb::BulkPublic createPublic(Defined *def) {
+  pdb::BulkPublic pub;
+  pub.Name = def->getName().data();
+  pub.NameLen = def->getName().size();
+
+  PublicSymFlags flags = PublicSymFlags::None;
   if (auto *d = dyn_cast<DefinedCOFF>(def)) {
     if (d->getCOFFSymbol().isFunctionDefinition())
-      pub.Flags = PublicSymFlags::Function;
+      flags = PublicSymFlags::Function;
   } else if (isa<DefinedImportThunk>(def)) {
-    pub.Flags = PublicSymFlags::Function;
+    flags = PublicSymFlags::Function;
   }
+  pub.Flags = static_cast<uint16_t>(flags);
 
   OutputSection *os = def->getChunk()->getOutputSection();
   assert(os && "all publics should be in final image");
   pub.Offset = def->getRVA() - os->getRVA();
-  pub.Segment = os->sectionIndex;
+  pub.U.Segment = os->sectionIndex;
   return pub;
 }
 
@@ -1324,13 +1336,16 @@ void PDBLinker::addObjectsToPDB() {
   addTypeInfo(builder.getTpiBuilder(), tMerger.getTypeTable());
   addTypeInfo(builder.getIpiBuilder(), tMerger.getIDTable());
   t2.stop();
+}
 
-  ScopedTimer t3(globalsLayoutTimer);
-  // Compute the public and global symbols.
+void PDBLinker::addPublicsToPDB() {
+  ScopedTimer t3(publicsLayoutTimer);
+  // Compute the public symbols.
   auto &gsiBuilder = builder.getGsiBuilder();
-  std::vector<PublicSym32> publics;
+  std::vector<pdb::BulkPublic> publics;
   symtab->forEachSymbol([&publics](Symbol *s) {
-    // Only emit defined, live symbols that have a chunk.
+    // Only emit external, defined, live symbols that have a chunk. Static,
+    // non-external symbols do not appear in the symbol table.
     auto *def = dyn_cast<Defined>(s);
     if (def && def->isLive() && def->getChunk())
       publics.push_back(createPublic(def));
@@ -1338,12 +1353,7 @@ void PDBLinker::addObjectsToPDB() {
 
   if (!publics.empty()) {
     publicSymbols = publics.size();
-    // Sort the public symbols and add them to the stream.
-    parallelSort(publics, [](const PublicSym32 &l, const PublicSym32 &r) {
-      return l.Name < r.Name;
-    });
-    for (const PublicSym32 &pub : publics)
-      gsiBuilder.addPublicSymbol(pub);
+    gsiBuilder.addPublicSymbols(std::move(publics));
   }
 }
 
@@ -1702,6 +1712,7 @@ void lld::coff::createPDB(SymbolTable *symtab,
   pdb.addSections(outputSections, sectionTable);
   pdb.addNatvisFiles();
   pdb.addNamedStreams();
+  pdb.addPublicsToPDB();
 
   ScopedTimer t2(diskCommitTimer);
   codeview::GUID guid;
