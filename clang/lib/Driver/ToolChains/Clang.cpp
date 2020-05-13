@@ -7708,7 +7708,8 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
     addArgs(CmdArgs, TCArgs, {"-symbols"});
   }
   // specialization constants processing is mandatory
-  if (llvm::dyn_cast<SYCLPostLinkJobAction>(&JA)->getRTSetsSpecConstants())
+  auto *SYCLPostLink = llvm::dyn_cast<SYCLPostLinkJobAction>(&JA);
+  if (SYCLPostLink && SYCLPostLink->getRTSetsSpecConstants())
     addArgs(CmdArgs, TCArgs, {"-spec-const=rt"});
   else
     addArgs(CmdArgs, TCArgs, {"-spec-const=default"});
