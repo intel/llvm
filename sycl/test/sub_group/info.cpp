@@ -58,13 +58,11 @@ int main() {
     uint32_t Res = 0;
     for (auto r : {range<3>(3, 4, 5), range<3>(1, 1, 1), range<3>(4, 2, 1),
                    range<3>(32, 3, 4), range<3>(7, 9, 11)}) {
-      bool CorrectResult = false;
       Res = Kernel.get_sub_group_info<
           info::kernel_sub_group::max_sub_group_size>(Device, r);
-      if (Res == r.size() || Res == max_sg_num)
-        CorrectResult = true;
-      exit_if_not_equal<uint32_t>(CorrectResult, true,
-                                  "max_sub_group_size");
+      bool Expected = (Res == r.size() || Res == max_sg_num);
+      exit_if_not_equal<bool>(Expected, true,
+                              "max_sub_group_size");
     }
 
     Res = Kernel.get_sub_group_info<
