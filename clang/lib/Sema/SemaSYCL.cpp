@@ -23,6 +23,7 @@
 #include "clang/Sema/Sema.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
@@ -382,13 +383,16 @@ class HasRefToVar : public ConstEvaluatedExprVisitor<HasRefToVar> {
   const VarDecl *Var;
   FunctionDecl *LambdaFD;
   Stmt *LambdaStmt;
-  std::function<bool(const Expr *)> AssignF;
+  //std::function<bool(const Expr *)> AssignF;
+  llvm::function_ref<bool(const Expr *)> AssignF; 
+  //bool (*AssignF)(const Expr *);  //function pointer can't be capturing lambda
+  //auto AssignF;                   //auto not allowed as member (also warning if in constructor param list)
   Sema &SemaRef;
 
 public:
   typedef ConstEvaluatedExprVisitor<HasRefToVar> Inherited;
 
-  HasRefToVar(ASTContext &Context, const VarDecl *Var, FunctionDecl *FD, std::function<bool(const Expr *)> AF, Sema &S)
+  HasRefToVar(ASTContext &Context, const VarDecl *Var, FunctionDecl *FD, llvm::function_ref<bool(const Expr *)> AF, Sema &S)
     : Inherited(Context), Match(false), Var(Var), LambdaFD(FD), LambdaStmt(FD->getBody()), AssignF(AF), SemaRef(S) {}
 
   void VisitExpr(const Expr *E){
@@ -518,7 +522,8 @@ void Sema::diagSYCLDevicePointerCaptures(FunctionDecl *CallFD) {
       }
       return updated;
     };
-    std::function<bool(const Expr *)> AssignF = VetCallExpr;
+    //std::function<bool(const Expr *)> AssignF = VetCallExpr;
+    llvm::function_ref<bool(const Expr *)> AssignF = VetCallExpr;
 
     SourceLocation DecLoc = SourceLocation();
 

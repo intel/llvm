@@ -86,6 +86,7 @@ int something(float *fromParam) {
   float stackFloat = 20.0;
   float *stackFloatP = &stackFloat; //#decl_stackFloatP
   float *neverInitialized;
+  float *stackFloatP2 = &stackFloat;
 
   // std::string is already caught by 'non-trivially copy constructible' check.
   // so we only worry about literal strings.
@@ -118,6 +119,7 @@ int something(float *fromParam) {
   //-- malloc
   float *mallocFloatP = static_cast<float *>(malloc(sizeof(float) * 2));  //#decl_mallocFloatP
   float *mallocFloatP2 = static_cast<float *>(malloc(sizeof(float) * 2)); //#decl_mallocFloatP2
+  float *mallocFloatP3 = static_cast<float *>(malloc(sizeof(float) * 2)); 
   float *callocFloatP = static_cast<float *>(calloc(2, sizeof(float)));   //#decl_callocFloatP
   float *callocFloatP2 = static_cast<float *>(calloc(2, sizeof(float)));  //#decl_callocFloatP2
 
@@ -266,20 +268,8 @@ int something(float *fromParam) {
 
   auto noProblemLambda = [=]() {
     // --- Outside a SYCL context no errors are emitted.
-    calledFromLambda(mallocFloatP);
-    calledFromLambda(usmSharedP);
-    stackFloatP[0] = 30.0;
-    fromParam[0] = 70.0;
-    char x = stringLiteral[0];
-    apocryphal[0] = 89.0;
-    usmByHandle[0] = 90.0;
-    float smpa = stackMeshP->a;
-    neverInitializedMeshP->a = 34.0;
-    float mmpa = mallocMeshP->a;
-    mallocMeshP2->a = 45.0;
-    mallocFloatP2[0] = 80;
-    callocFloatP[0] = 80;
-    float someValue = *callocFloatP2;
+    mallocFloatP3[0] = -1.0;
+    stackFloatP2[0] = -2.0; 
   };
   noProblemLambda();
 
