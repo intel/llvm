@@ -961,6 +961,14 @@ void Scheduler::GraphBuilder::connectDepEvent(Command *const Cmd,
       assert(Deps.size() && "There must be some deps");
 
       for (Command *ReqDepCmd : Deps) {
+        // we don't want to depend on any host task as the only "entry point" to
+        // host task is its empty cmd which is in Deps anyway
+        if (ReqDepCmd->getType() == Command::CommandType::RUN_CG) {
+            auto *Cmd = static_cast<ExecCGCommand *>(ReqDepCmd);
+            if (Cmd->getCG()->getType() == CG::CGTYPE::CODEPLAY_HOST_TASK)
+              continue;
+        }
+
         ConnectCmd->addDep(DepDesc{ReqDepCmd, Req, AllocaCmd});
         ReqDepCmd->addUser(ConnectCmd);
       }
