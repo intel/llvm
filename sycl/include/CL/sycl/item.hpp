@@ -29,7 +29,10 @@ template <int dimensions = 1, bool with_offset = true> class item {
 public:
   item() = delete;
 
-  id<dimensions> get_id() const { return MImpl.MIndex; }
+  id<dimensions> get_id() const {
+    __SYCL_ASSUME_ARRAY_INT(dimensions, MImpl.MIndex);
+    return MImpl.MIndex;
+  }
 
   size_t ALWAYS_INLINE get_id(int dimension) const {
     size_t id = MImpl.MIndex[dimension];
@@ -43,7 +46,10 @@ public:
     return id;
   }
 
-  range<dimensions> get_range() const { return MImpl.MExtent; }
+  range<dimensions> get_range() const {
+    __SYCL_ASSUME_ARRAY_INT(dimensions, MImpl.MExtent);
+    return MImpl.MExtent;
+  }
 
   size_t ALWAYS_INLINE get_range(int dimension) const {
     size_t id = MImpl.MExtent[dimension];
@@ -53,6 +59,7 @@ public:
 
   template <bool has_offset = with_offset>
   detail::enable_if_t<has_offset, id<dimensions>> get_offset() const {
+    __SYCL_ASSUME_ARRAY_INT(dimensions, MImpl.MOffset);
     return MImpl.MOffset;
   }
 

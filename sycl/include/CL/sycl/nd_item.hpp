@@ -32,7 +32,10 @@ template <int dimensions = 1> class nd_item {
 public:
   nd_item() = delete;
 
-  id<dimensions> get_global_id() const { return globalItem.get_id(); }
+  id<dimensions> get_global_id() const {
+    __SYCL_ASSUME_ID_INT(dimensions, globalItem);
+    return globalItem.get_id();
+  }
 
   size_t ALWAYS_INLINE get_global_id(int dimension) const {
     size_t id = globalItem.get_id(dimension);
@@ -46,7 +49,10 @@ public:
     return id;
   }
 
-  id<dimensions> get_local_id() const { return localItem.get_id(); }
+  id<dimensions> get_local_id() const {
+    __SYCL_ASSUME_ID_INT(dimensions, localItem);
+    return localItem.get_id();
+  }
 
   size_t ALWAYS_INLINE get_local_id(int dimension) const {
     size_t id = localItem.get_id(dimension);
@@ -54,9 +60,16 @@ public:
     return id;
   }
 
-  size_t get_local_linear_id() const { return localItem.get_linear_id(); }
+  size_t get_local_linear_id() const {
+    size_t id = localItem.get_linear_id();
+    __SYCL_ASSUME_INT(id);
+    return id;
+  }
 
-  group<dimensions> get_group() const { return Group; }
+  group<dimensions> get_group() const {
+    __SYCL_ASSUME_ARRAY_INT(dimensions, Group);
+    return Group;
+  }
 
   intel::sub_group get_sub_group() const { return intel::sub_group(); }
 
