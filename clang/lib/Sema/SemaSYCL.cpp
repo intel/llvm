@@ -10,6 +10,7 @@
 
 #include "TreeTransform.h"
 #include "clang/AST/AST.h"
+#include "clang/AST/EvaluatedExprVisitor.h"
 #include "clang/AST/Mangle.h"
 #include "clang/AST/QualTypeNames.h"
 #include "clang/AST/RecordLayout.h"
@@ -28,6 +29,9 @@
 
 #include <array>
 #include <unordered_map>
+
+//CP
+#include <iostream>
 
 using namespace clang;
 
@@ -376,27 +380,63 @@ namespace {
 class HasRefToVar : public ConstEvaluatedExprVisitor<HasRefToVar> {
   bool Match;
   const VarDecl *Var;
+  FunctionDecl *LambdaFD;
+  Stmt *LambdaStmt;
+  std::function<bool(const Expr *)> AssignF;
   Sema &SemaRef;
 
 public:
   typedef ConstEvaluatedExprVisitor<HasRefToVar> Inherited;
 
-  HasRefToVar(ASTContext &Context, const VarDecl *Var, Sema &S)
-    : Inherited(Context), Match(false), Var(Var), SemaRef(S) {}
+  HasRefToVar(ASTContext &Context, const VarDecl *Var, FunctionDecl *FD, std::function<bool(const Expr *)> AF, Sema &S)
+    : Inherited(Context), Match(false), Var(Var), LambdaFD(FD), LambdaStmt(FD->getBody()), AssignF(AF), SemaRef(S) {}
 
-  void VisitExpr(const Expr *E) {
-    // Stop evaluating if we already have a match.
-    if (Match)
-      return;
-
+  void VisitExpr(const Expr *E){
+    // Cease visiting if we have matched.
+    if(Match)
+      return;  
+    
     Inherited::VisitExpr(E);
   }
+
+  void VisitLambdaExpr(const LambdaExpr *LE){
+    // Do not visit the original capturing lambda. 
+    Stmt *BodyStmt = LE->getBody();
+    if(BodyStmt == LambdaStmt)
+        return; 
+    
+    Inherited::VisitLambdaExpr(LE);
+  }
+
+  void VisitBinaryOperator(const BinaryOperator *BO){
+    if(Match){ return; }
+    // std::cout << "BinaryOperator looking for " << Var->getNameAsString()
+    //           << " in " << BO->getSourceRange().printToString(SemaRef.getSourceManager()) << std::endl;
+
+    const Expr *LHS = BO->getLHS();
+    const Expr *RHS = BO->getRHS();
+
+    // If LHS matches and this is an Assignment Operation, vet the assignment. 
+    Visit(LHS);
+    if(Match){
+      // std::cout << "BinaryOp: LHS matched! for " << Var->getNameAsString() 
+      //           << " @ " << BO->getSourceRange().printToString(SemaRef.getSourceManager()) << std::endl;
+      if (BO->isAssignmentOp() && AssignF && AssignF(RHS)){
+        //std::cout << "AssignF updated!" << std::endl;
+        Match = false; // Continue searching. 
+        return;        // But no need to visit RHS now.
+      }
+    }
+    if(!Match)
+      Visit(RHS);
+  }
+  
 
   void VisitDeclRefExpr(const DeclRefExpr *DRE) {
     const ValueDecl *VD = DRE->getDecl();
     if (VD == Var) {
       Match = true;
-      std::cout << VD->getNameAsString() << "match @ " << DRE->getBeginLoc().printToString(SemaRef.getSourceManager()) << std::endl;
+      std::cout << VD->getNameAsString() << " match @ " << DRE->getBeginLoc().printToString(SemaRef.getSourceManager()) << std::endl;
     }
     else
       Inherited::VisitDeclRefExpr(DRE);
@@ -454,11 +494,12 @@ void Sema::diagSYCLDevicePointerCaptures(FunctionDecl *CallFD) {
     ExprAllocation howAllocated = Unknown;
 
     // We will use this to check declarations and assignments.
-    auto VetteCallExpr = [&howAllocated](const Expr *E) {
+    auto VetCallExpr = [&howAllocated](const Expr *E) {
       E = E->IgnoreCasts();
       const CallExpr *CE = dyn_cast<CallExpr>(E);
       bool updated = false;
       if (CE) {
+        //std::cout << "vet callexpr" << std::endl;
         const FunctionDecl *func = CE->getDirectCallee();
         auto FullName = func->getQualifiedNameAsString();
         // Check to see if this function call is one of the USM allocators.
@@ -466,16 +507,18 @@ void Sema::diagSYCLDevicePointerCaptures(FunctionDecl *CallFD) {
             (FullName.rfind("cl::sycl::aligned_alloc", 0) == 0)) {
           howAllocated = USM;
           updated = true;
+          //std::cout << "looking GOOD !!" << std::endl;
         } else if (howAllocated == Unknown &&
                    ((FullName.compare("malloc") == 0) ||
                     (FullName.compare("calloc") == 0))) {
           howAllocated = WillCrash;
           updated = true;
+          //std::cout << "looking BAD" << std::endl;
         }
       }
       return updated;
     };
-    std::function<bool(const Expr *)> AssignF = VetteCallExpr;
+    std::function<bool(const Expr *)> AssignF = VetCallExpr;
 
     SourceLocation DecLoc = SourceLocation();
 
@@ -487,7 +530,7 @@ void Sema::diagSYCLDevicePointerCaptures(FunctionDecl *CallFD) {
 
       const CallExpr *CE = dyn_cast<CallExpr>(Init);
       if (CE) {
-        VetteCallExpr(CE); // Modifies howAllocated via side-effect.
+        VetCallExpr(CE); // Modifies howAllocated via side-effect.
       } else {
         // Var has initialization, but not as return result of a function,
         // disqualify any other obvious bad initialization expressions.
@@ -506,6 +549,7 @@ void Sema::diagSYCLDevicePointerCaptures(FunctionDecl *CallFD) {
     // is subject to change. So we look through the statements to see if that
     // variable is otherwise referenced before capture, or if reassigned it is
     // assessed with AssignF.
+    /*
     DeclContext *DC = Var->getParentFunctionOrMethod();
     const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(DC);
     if (FD && FD->hasBody()) {
@@ -516,8 +560,31 @@ void Sema::diagSYCLDevicePointerCaptures(FunctionDecl *CallFD) {
     } else {
       howAllocated = Unknown;
     }
+    */
+    
+    
+    DeclContext *DC = Var->getParentFunctionOrMethod();
+    const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(DC);
+    //std::cout << Var->getNameAsString() << std::endl;
+    //std::cout << Var->getNameAsString() << "  FD: " << FD->getSourceRange().printToString(getSourceManager())
+    //          << " FDCap: " << FDCap->getSourceRange().printToString(getSourceManager()) << std::endl;
+    if (FD && FD->hasBody()) {
+      Stmt *TopStmt = FD->getBody(FD);
+      //Stmt *LambdaStmt = FDCap->getBody(); //CompountStmt
+      HasRefToVar HasRefVisitor(FD->getASTContext(), Var, FDCap, AssignF, *this); 
+      HasRefVisitor.Visit(TopStmt);
+      if (HasRefVisitor.matches()){
+        howAllocated = Unknown; 
+        std::cout << Var->getNameAsString() << " has a match" << std::endl;  //@ 142:46
+      }
+    } else {
+      std::cout << "no body" << std::endl;
+      howAllocated = Unknown;
+    }
+    //std::cout << std::endl;
+    
 
-    // Emit diagnostics.   We use long form because we need to pass in the
+    // Emit deferred diagnostics.   We use long form because we need to pass in the
     // captured FunctionDecl.
     if (howAllocated == WillCrash) {
       Sema::DeviceDiagBuilder(Sema::DeviceDiagBuilder::K_Deferred, CaptureLoc,
