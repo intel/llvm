@@ -941,8 +941,6 @@ void Scheduler::GraphBuilder::connectDepEvent(Command *const Cmd,
   if (Command *DepCmd = reinterpret_cast<Command *>(DepEvent->getCommand()))
     DepCmd->addUser(ConnectCmd);
 
-  ConnectCmd->addDep(DepEvent);
-
   EmptyCommand *EmptyCmd = nullptr;
 
   if (Dep.MDepRequirement) {
@@ -982,6 +980,14 @@ void Scheduler::GraphBuilder::connectDepEvent(Command *const Cmd,
                            Scheduler::getInstance().getDefaultHostQueue(),
                            Command::BlockReason::HostTask);
     // Dependencies for EmptyCmd are set in addEmptyCmd for provided Reqs.
+
+    // Depend Cmd on empty command
+    {
+      DepDesc CmdDep = Dep;
+      CmdDep.MDepCommand = EmptyCmd;
+
+      Cmd->addDep(CmdDep);
+    }
   } else {
     EmptyCmd = addEmptyCmd(ConnectCmd, {},
                            Scheduler::getInstance().getDefaultHostQueue(),
@@ -990,6 +996,10 @@ void Scheduler::GraphBuilder::connectDepEvent(Command *const Cmd,
     // There is no requirement thus, empty command will only depend on
     // ConnectCmd via its event.
     EmptyCmd->addDep(ConnectCmd->getEvent());
+    ConnectCmd->addDep(DepEvent);
+
+    // Depend Cmd on empty command
+    Cmd->addDep(EmptyCmd->getEvent());
   }
 
   // FIXME graph builder shouldn't really enqueue commands. We're in the middle
@@ -1001,8 +1011,6 @@ void Scheduler::GraphBuilder::connectDepEvent(Command *const Cmd,
   if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
     throw runtime_error("Failed to enqueue a sync event between two contexts",
                         PI_INVALID_OPERATION);
-
-  Cmd->addDep(ConnectCmd->getEvent());
 }
 
 } // namespace detail
