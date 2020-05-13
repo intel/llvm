@@ -3,8 +3,8 @@
 // RUN: %GPU_RUN_PLACEHOLDER SYCL_PI_TRACE=-1 %t.out 2>&1 %GPU_CHECK_PLACEHOLDER
 // RUN: %ACC_RUN_PLACEHOLDER SYCL_PI_TRACE=-1 %t.out 2>&1 %ACC_CHECK_PLACEHOLDER
 
-#include <vector>
 #include <CL/sycl.hpp>
+#include <vector>
 
 namespace S = cl::sycl;
 
@@ -72,4 +72,3 @@ int main(void) {
   test();
   return 0;
 }
-

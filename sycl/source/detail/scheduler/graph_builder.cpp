@@ -641,10 +641,9 @@ void Scheduler::GraphBuilder::markModifiedIfWrite(MemObjRecord *Record,
 }
 
 EmptyCommand *
-Scheduler::GraphBuilder::addEmptyCmd(Command *Cmd,
-                                     const std::vector<Requirement *> &Reqs,
-                                     const QueueImplPtr &Queue,
-                                     Command::BlockReason Reason) {
+Scheduler::GraphBuilder::addEmptyCmd(
+    Command *Cmd, const std::vector<Requirement *> &Reqs,
+    const QueueImplPtr &Queue, Command::BlockReason Reason) {
   EmptyCommand *EmptyCmd =
       new EmptyCommand(Scheduler::getInstance().getDefaultHostQueue());
 
@@ -951,8 +950,8 @@ void Scheduler::GraphBuilder::connectDepEvent(Command *const Cmd,
       MemObjRecord *Record = getMemObjRecord(Req->MSYCLMemObj);
       Dep.MDepCommand->addUser(ConnectCmd);
 
-      AllocaCommandBase *AllocaCmd = findAllocaForReq(Record, Req,
-                                                      DepEventContext);
+      AllocaCommandBase *AllocaCmd =
+          findAllocaForReq(Record, Req, DepEventContext);
       assert(AllocaCmd && "There must be alloca for requirement!");
 
       std::set<Command *> Deps = findDepsForReq(Record, Req, DepEventContext);
@@ -962,9 +961,9 @@ void Scheduler::GraphBuilder::connectDepEvent(Command *const Cmd,
         // we don't want to depend on any host task as the only "entry point" to
         // host task is its empty cmd which is in Deps anyway
         if (ReqDepCmd->getType() == Command::CommandType::RUN_CG) {
-            auto *Cmd = static_cast<ExecCGCommand *>(ReqDepCmd);
-            if (Cmd->getCG()->getType() == CG::CGTYPE::CODEPLAY_HOST_TASK)
-              continue;
+          auto *Cmd = static_cast<ExecCGCommand *>(ReqDepCmd);
+          if (Cmd->getCG()->getType() == CG::CGTYPE::CODEPLAY_HOST_TASK)
+            continue;
         }
 
         ConnectCmd->addDep(DepDesc{ReqDepCmd, Req, AllocaCmd});
