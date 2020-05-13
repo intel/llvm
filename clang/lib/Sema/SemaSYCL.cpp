@@ -376,24 +376,20 @@ bool isVarInStmt(VarDecl *V, std::function<bool(const Expr *)> AssignF,
 
 namespace {
 /// HasRefToVar - A visitor class to search for references to
-/// a particular declaration (the needle) within any evaluated component of an
-/// expression (recursively).
+/// a particular VarDecl within some expression, but not
+/// searching within an inner lambda FunctionDecl .
 class HasRefToVar : public ConstEvaluatedExprVisitor<HasRefToVar> {
   bool Match;
   const VarDecl *Var;
-  FunctionDecl *LambdaFD;
   Stmt *LambdaStmt;
-  //std::function<bool(const Expr *)> AssignF;
-  llvm::function_ref<bool(const Expr *)> AssignF; 
-  //bool (*AssignF)(const Expr *);  //function pointer can't be capturing lambda
-  //auto AssignF;                   //auto not allowed as member (also warning if in constructor param list)
+  llvm::function_ref<bool(const Expr *)> AssignF;
   Sema &SemaRef;
 
 public:
   typedef ConstEvaluatedExprVisitor<HasRefToVar> Inherited;
 
   HasRefToVar(ASTContext &Context, const VarDecl *Var, FunctionDecl *FD, llvm::function_ref<bool(const Expr *)> AF, Sema &S)
-    : Inherited(Context), Match(false), Var(Var), LambdaFD(FD), LambdaStmt(FD->getBody()), AssignF(AF), SemaRef(S) {}
+    : Inherited(Context), Match(false), Var(Var), LambdaStmt(FD->getBody()), AssignF(AF), SemaRef(S) {}
 
   void VisitExpr(const Expr *E){
     // Cease visiting if we have matched.
@@ -414,19 +410,14 @@ public:
 
   void VisitBinaryOperator(const BinaryOperator *BO){
     if(Match){ return; }
-    // std::cout << "BinaryOperator looking for " << Var->getNameAsString()
-    //           << " in " << BO->getSourceRange().printToString(SemaRef.getSourceManager()) << std::endl;
-
+    
     const Expr *LHS = BO->getLHS();
     const Expr *RHS = BO->getRHS();
 
     // If LHS matches and this is an Assignment Operation, vet the assignment. 
     Visit(LHS);
     if(Match){
-      // std::cout << "BinaryOp: LHS matched! for " << Var->getNameAsString() 
-      //           << " @ " << BO->getSourceRange().printToString(SemaRef.getSourceManager()) << std::endl;
       if (BO->isAssignmentOp() && AssignF && AssignF(RHS)){
-        //std::cout << "AssignF updated!" << std::endl;
         Match = false; // Continue searching. 
         return;        // But no need to visit RHS now.
       }
@@ -435,13 +426,10 @@ public:
       Visit(RHS);
   }
   
-
   void VisitDeclRefExpr(const DeclRefExpr *DRE) {
     const ValueDecl *VD = DRE->getDecl();
-    if (VD == Var) {
+    if (VD == Var) 
       Match = true;
-      std::cout << VD->getNameAsString() << " match @ " << DRE->getBeginLoc().printToString(SemaRef.getSourceManager()) << std::endl;
-    }
     else
       Inherited::VisitDeclRefExpr(DRE);
   }
