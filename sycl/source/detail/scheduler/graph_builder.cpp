@@ -640,8 +640,7 @@ void Scheduler::GraphBuilder::markModifiedIfWrite(MemObjRecord *Record,
   }
 }
 
-EmptyCommand *
-Scheduler::GraphBuilder::addEmptyCmd(
+EmptyCommand *Scheduler::GraphBuilder::addEmptyCmd(
     Command *Cmd, const std::vector<Requirement *> &Reqs,
     const QueueImplPtr &Queue, Command::BlockReason Reason) {
   EmptyCommand *EmptyCmd =
