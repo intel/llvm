@@ -1,5 +1,5 @@
-// RUN: %clangxx -fsycl -Xclang -fsycl-is-host -c -S -emit-llvm -o %t -D__SYCL_ID_QUERIES_FIT_IN_INT__=1 %s
-// FileCheck %s --input-file %t
+// RUN: %clangxx -fsycl -Xclang -fsycl-is-host -O1 -c -S -emit-llvm -o %t.ll -D__SYCL_ID_QUERIES_FIT_IN_INT__=1 %s
+// RUN: FileCheck %s --input-file %t.ll
 
 #include <CL/sycl.hpp>
 
