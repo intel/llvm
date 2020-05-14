@@ -66,7 +66,9 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
   Command *NewCmd = nullptr;
   const bool IsKernel = CommandGroup->getType() == CG::KERNEL;
   {
-    std::lock_guard<std::shared_timed_mutex> Lock(MGraphLock);
+    std::unique_lock<std::shared_timed_mutex> Lock(MGraphLock, std::defer_lock);
+    while (!Lock.try_lock())
+      ;
 
     switch (CommandGroup->getType()) {
     case CG::UPDATE_HOST:
@@ -91,7 +93,9 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
 }
 
 EventImplPtr Scheduler::addCopyBack(Requirement *Req) {
-  std::lock_guard<std::shared_timed_mutex> Lock(MGraphLock);
+  std::unique_lock<std::shared_timed_mutex> Lock(MGraphLock, std::defer_lock);
+  while (!Lock.try_lock())
+    ;
   Command *NewCmd = MGraphBuilder.addCopyBack(Req);
   // Command was not creted because there were no operations with
   // buffer.
@@ -147,7 +151,9 @@ void Scheduler::cleanupFinishedCommands(EventImplPtr FinishedEvent) {
 }
 
 void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
-  std::lock_guard<std::shared_timed_mutex> Lock(MGraphLock);
+  std::unique_lock<std::shared_timed_mutex> Lock(MGraphLock, std::defer_lock);
+  while (!Lock.try_lock())
+    ;
 
   MemObjRecord *Record = MGraphBuilder.getMemObjRecord(MemObj);
   if (!Record)
@@ -161,7 +167,13 @@ void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
 
 EventImplPtr Scheduler::addHostAccessor(Requirement *Req,
                                         const bool destructor) {
-  std::lock_guard<std::shared_timed_mutex> Lock(MGraphLock);
+  // Avoiding deadlock situation for MSVC. std::shared_timed_mutex specification
+  // does not specify a priority for shared and exclusive locks. It will be a
+  // deadlock in MSVC's std::shared_timed_mutex implementation, if exclusive
+  // lock occurs after shared lock.
+  std::unique_lock<std::shared_timed_mutex> Lock(MGraphLock, std::defer_lock);
+  while (!Lock.try_lock())
+    ;
 
   Command *NewCmd = MGraphBuilder.addHostAccessor(Req, destructor);
 
