@@ -1845,55 +1845,66 @@ static std::string getCPPTypeString(QualType Ty) {
 
 static void printArguments(ASTContext &Ctx, raw_ostream &ArgOS,
                            ArrayRef<TemplateArgument> Args,
-                           const PrintingPolicy &P, bool ParameterPack) {
+                           const PrintingPolicy &P);
 
-  if (!ParameterPack)
-    ArgOS << "<";
+static void printArgument(ASTContext &Ctx, raw_ostream &ArgOS,
+                          TemplateArgument Arg, const PrintingPolicy &P) {
+  switch (Arg.getKind()) {
+  case TemplateArgument::ArgKind::Pack: {
+    printArguments(Ctx, ArgOS, Arg.getPackAsArray(), P);
+    break;
+  }
+  case TemplateArgument::ArgKind::Integral: {
+    QualType T = Arg.getIntegralType();
+    const EnumType *ET = T->getAs<EnumType>();
 
+    if (ET) {
+      const llvm::APSInt &Val = Arg.getAsIntegral();
+      ArgOS << "(" << ET->getDecl()->getQualifiedNameAsString() << ")" << Val;
+    } else {
+      Arg.print(P, ArgOS);
+    }
+    break;
+  }
+  case TemplateArgument::ArgKind::Type: {
+    LangOptions LO;
+    PrintingPolicy TypePolicy(LO);
+    TypePolicy.SuppressTypedefs = true;
+    TypePolicy.SuppressTagKeyword = true;
+    QualType T = Arg.getAsType();
+    QualType FullyQualifiedType = TypeName::getFullyQualifiedType(T, Ctx, true);
+    ArgOS << FullyQualifiedType.getAsString(TypePolicy);
+    break;
+  }
+  default:
+    Arg.print(P, ArgOS);
+  }
+}
+
+static void printArguments(ASTContext &Ctx, raw_ostream &ArgOS,
+                           ArrayRef<TemplateArgument> Args,
+                           const PrintingPolicy &P) {
   bool FirstArg = true;
   const char *Comma = ", ";
 
   for (unsigned I = 0; I < Args.size(); I++) {
     const TemplateArgument &Arg = Args[I];
-    if (Arg.getKind() == TemplateArgument::ArgKind::Pack) {
-      if (Arg.pack_size() && !FirstArg)
-        ArgOS << Comma;
-      printArguments(Ctx, ArgOS, Arg.getPackAsArray(), P,
-                     /*ParameterPack*/ true);
-    } else if (Arg.getKind() == TemplateArgument::ArgKind::Integral) {
-      if (!FirstArg)
-        ArgOS << Comma;
 
-      QualType T = Arg.getIntegralType();
-      const EnumType *ET = T->getAs<EnumType>();
+    if (!FirstArg)
+      ArgOS << Comma;
 
-      if (ET) {
-        const llvm::APSInt &Val = Arg.getAsIntegral();
-        ArgOS << "(" << ET->getDecl()->getQualifiedNameAsString() << ")" << Val;
-      } else {
-        Arg.print(P, ArgOS);
-      }
-    } else if (Arg.getKind() == TemplateArgument::ArgKind::Type) {
-      if (!FirstArg)
-        ArgOS << Comma;
-      LangOptions LO;
-      PrintingPolicy TypePolicy(LO);
-      TypePolicy.SuppressTypedefs = true;
-      TypePolicy.SuppressTagKeyword = true;
-      QualType T = Arg.getAsType();
-      QualType FullyQualifiedType =
-          TypeName::getFullyQualifiedType(T, Ctx, true);
-      ArgOS << FullyQualifiedType.getAsString(TypePolicy);
-    } else {
-      if (!FirstArg)
-        ArgOS << Comma;
-      Arg.print(P, ArgOS);
-    }
+    printArgument(Ctx, ArgOS, Arg, P);
+
     FirstArg = false;
   }
+}
 
-  if (!ParameterPack)
-    ArgOS << ">";
+static void printTemplateArguments(ASTContext &Ctx, raw_ostream &ArgOS,
+                                   ArrayRef<TemplateArgument> Args,
+                                   const PrintingPolicy &P) {
+  ArgOS << "<";
+  printArguments(Ctx, ArgOS, Args, P);
+  ArgOS << ">";
 }
 
 static std::string getKernelNameTypeString(QualType T) {
@@ -1920,7 +1931,7 @@ static std::string getKernelNameTypeString(QualType T) {
     // Print template arguments substituting enumerators
     ASTContext &Ctx = RD->getASTContext();
     const TemplateArgumentList &Args = TSD->getTemplateArgs();
-    printArguments(Ctx, ArgOS, Args.asArray(), P, /*ParameterPack*/ false);
+    printTemplateArguments(Ctx, ArgOS, Args.asArray(), P);
 
     return eraseAnonNamespace(ArgOS.str().str());
   }
