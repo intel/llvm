@@ -119,9 +119,9 @@ int something(float *fromParam) {
   //-- malloc
   float *mallocFloatP = static_cast<float *>(malloc(sizeof(float) * 2));  //#decl_mallocFloatP
   float *mallocFloatP2 = static_cast<float *>(malloc(sizeof(float) * 2)); //#decl_mallocFloatP2
-  float *mallocFloatP3 = static_cast<float *>(malloc(sizeof(float) * 2)); 
-  float *callocFloatP = static_cast<float *>(calloc(2, sizeof(float)));   //#decl_callocFloatP
-  float *callocFloatP2 = static_cast<float *>(calloc(2, sizeof(float)));  //#decl_callocFloatP2
+  float *mallocFloatP3 = static_cast<float *>(malloc(sizeof(float) * 2));
+  float *callocFloatP = static_cast<float *>(calloc(2, sizeof(float)));  //#decl_callocFloatP
+  float *callocFloatP2 = static_cast<float *>(calloc(2, sizeof(float))); //#decl_callocFloatP2
 
   //usm
   float *usmSharedP = static_cast<float *>(sycl::malloc_shared(sizeof(float), device, context));
@@ -269,7 +269,7 @@ int something(float *fromParam) {
   auto noProblemLambda = [=]() {
     // --- Outside a SYCL context no errors are emitted.
     mallocFloatP3[0] = -1.0;
-    stackFloatP2[0] = -2.0; 
+    stackFloatP2[0] = -2.0;
   };
   noProblemLambda();
 

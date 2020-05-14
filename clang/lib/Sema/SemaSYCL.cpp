@@ -21,9 +21,9 @@
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Sema/Initialization.h"
 #include "clang/Sema/Sema.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
@@ -300,65 +300,70 @@ class HasRefToVar : public ConstEvaluatedExprVisitor<HasRefToVar> {
 public:
   typedef ConstEvaluatedExprVisitor<HasRefToVar> Inherited;
 
-  HasRefToVar(ASTContext &Context, const VarDecl *Var, FunctionDecl *FD, llvm::function_ref<bool(const Expr *)> AF, Sema &S)
-    : Inherited(Context), Match(false), Var(Var), LambdaStmt(FD->getBody()), AssignF(AF), SemaRef(S) {}
+  HasRefToVar(ASTContext &Context, const VarDecl *Var, FunctionDecl *FD,
+              llvm::function_ref<bool(const Expr *)> AF, Sema &S)
+      : Inherited(Context), Match(false), Var(Var), LambdaStmt(FD->getBody()),
+        AssignF(AF), SemaRef(S) {}
 
-  void VisitExpr(const Expr *E){
+  void VisitExpr(const Expr *E) {
     // Cease visiting once we have matched.
-    if(Match)
-      return;  
+    if (Match)
+      return;
 
-    if(const ArraySubscriptExpr *ASE = dyn_cast<ArraySubscriptExpr>(E)){
+    if (const ArraySubscriptExpr *ASE = dyn_cast<ArraySubscriptExpr>(E)) {
       const Expr *Base = ASE->getBase();
       const Expr *Idx = ASE->getIdx();
       Visit(Idx);
-      if(Match){ return; }
+      if (Match) {
+        return;
+      }
       const DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(Base->IgnoreCasts());
-      if(!DRE) //Direct derefs of a variable do not match, but all others do. 
+      if (!DRE) // Direct derefs of a variable do not match, but all others do.
         Visit(Base);
-    }
-    else 
+    } else
       Inherited::VisitExpr(E);
   }
 
-  void VisitLambdaExpr(const LambdaExpr *LE){
-    // Do not visit the original capturing lambda. 
+  void VisitLambdaExpr(const LambdaExpr *LE) {
+    // Do not visit the original capturing lambda.
     Stmt *BodyStmt = LE->getBody();
-    if(BodyStmt == LambdaStmt)
-        return; 
-    
+    if (BodyStmt == LambdaStmt)
+      return;
+
     Inherited::VisitLambdaExpr(LE);
   }
 
-  void VisitUnaryOperator(const UnaryOperator *UO){
+  void VisitUnaryOperator(const UnaryOperator *UO) {
     const Expr *E = UO->getSubExpr();
     // Direct dereferences of a variable do not match, but all others do.
-    if(UO->getOpcode() == UO_Deref){
+    if (UO->getOpcode() == UO_Deref) {
       const DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(E->IgnoreCasts());
-      if(DRE)
-        return; 
+      if (DRE)
+        return;
     }
-    
+
     Visit(E);
   }
-  
-  void VisitBinaryOperator(const BinaryOperator *BO){
-    if(Match){ return; }
-    
+
+  void VisitBinaryOperator(const BinaryOperator *BO) {
+    if (Match) {
+      return;
+    }
+
     const Expr *LHS = BO->getLHS();
     const Expr *RHS = BO->getRHS();
-    // If LHS matches and this is an Assignment Operation, vet the assignment. 
+    // If LHS matches and this is an Assignment Operation, vet the assignment.
     Visit(LHS);
-    if(Match){
-      if (BO->isAssignmentOp() && AssignF && AssignF(RHS)){
-        Match = false; // Continue searching. 
+    if (Match) {
+      if (BO->isAssignmentOp() && AssignF && AssignF(RHS)) {
+        Match = false; // Continue searching.
         return;        // But no need to visit RHS now.
       }
     }
-    if(!Match)
+    if (!Match)
       Visit(RHS);
   }
-  
+
   void VisitDeclRefExpr(const DeclRefExpr *DRE) {
     const ValueDecl *VD = DRE->getDecl();
     if (VD == Var)
@@ -386,7 +391,7 @@ void Sema::checkSYCLDevicePointerCapture(VarDecl *Var,
   assert(Var->getType()->isAnyPointerType() &&
          "Should only be called for pointer types being captured.");
 
-  FunctionDecl *LambdaFD = dyn_cast<FunctionDecl>(getCurLexicalContext());  
+  FunctionDecl *LambdaFD = dyn_cast<FunctionDecl>(getCurLexicalContext());
   DeclContext *DC = LambdaFD->getParentFunctionOrMethod();
   FunctionDecl *ParentFD = dyn_cast_or_null<FunctionDecl>(DC);
 
@@ -409,90 +414,93 @@ void Sema::diagSYCLDevicePointerCaptures(FunctionDecl *ParentFD) {
 
   auto PCs = PotentialCapturesMM.equal_range(ParentFD);
 
-  for_each(PCs.first, PCs.second, [this, ParentFD](CaptureMMap::value_type &CapVal) {
-    CaptureTuple CT = CapVal.second;
-    VarDecl *Var = std::get<0>(CT);
-    SourceLocation CaptureLoc = std::get<1>(CT);
-    FunctionDecl *LambdaFD = std::get<2>(CT);
+  for_each(
+      PCs.first, PCs.second, [this, ParentFD](CaptureMMap::value_type &CapVal) {
+        CaptureTuple CT = CapVal.second;
+        VarDecl *Var = std::get<0>(CT);
+        SourceLocation CaptureLoc = std::get<1>(CT);
+        FunctionDecl *LambdaFD = std::get<2>(CT);
 
-    enum ExprAllocation { Unknown, USM, WillCrash };
-    ExprAllocation howAllocated = Unknown;
+        enum ExprAllocation { Unknown, USM, WillCrash };
+        ExprAllocation howAllocated = Unknown;
 
-    // We will use this to check declarations and assignments.
-    auto VetCallExpr = [&howAllocated](const Expr *E) {
-      E = E->IgnoreCasts();
-      const CallExpr *CE = dyn_cast<CallExpr>(E);
-      bool updated = false;
-      if (CE) {
-        const FunctionDecl *func = CE->getDirectCallee();
-        auto FullName = func->getQualifiedNameAsString();
-        // Check to see if this function call is one of the USM allocators.
-        if ((FullName.rfind("cl::sycl::malloc", 0) == 0) ||
-            (FullName.rfind("cl::sycl::aligned_alloc", 0) == 0)) {
-          howAllocated = USM;
-          updated = true;
-        } else if (howAllocated == Unknown &&
-                   ((FullName.compare("malloc") == 0) ||
-                    (FullName.compare("calloc") == 0))) {
-          howAllocated = WillCrash;
-          updated = true;
+        // We will use this to check declarations and assignments.
+        auto VetCallExpr = [&howAllocated](const Expr *E) {
+          E = E->IgnoreCasts();
+          const CallExpr *CE = dyn_cast<CallExpr>(E);
+          bool updated = false;
+          if (CE) {
+            const FunctionDecl *func = CE->getDirectCallee();
+            auto FullName = func->getQualifiedNameAsString();
+            // Check to see if this function call is one of the USM allocators.
+            if ((FullName.rfind("cl::sycl::malloc", 0) == 0) ||
+                (FullName.rfind("cl::sycl::aligned_alloc", 0) == 0)) {
+              howAllocated = USM;
+              updated = true;
+            } else if (howAllocated == Unknown &&
+                       ((FullName.compare("malloc") == 0) ||
+                        (FullName.compare("calloc") == 0))) {
+              howAllocated = WillCrash;
+              updated = true;
+            }
+          }
+          return updated;
+        };
+        llvm::function_ref<bool(const Expr *)> AssignF = VetCallExpr;
+
+        SourceLocation DecLoc = SourceLocation();
+
+        // Try to determine provenance of this Var.
+        const Expr *Init = Var->getAnyInitializer();
+        if (Init) {
+          Init = Init->IgnoreCasts();
+          DecLoc = Init->getExprLoc();
+
+          const CallExpr *CE = dyn_cast<CallExpr>(Init);
+          if (CE) {
+            VetCallExpr(CE); // Modifies howAllocated via side-effect.
+          } else {
+            // Var has initialization, but not as return result of a function,
+            // disqualify any other obvious bad initialization expressions.
+            const StringLiteral *SL = dyn_cast<StringLiteral>(Init);
+            if (SL)
+              howAllocated = WillCrash;
+
+            const UnaryOperator *UO = dyn_cast<UnaryOperator>(Init);
+            if (UO && (UO->getOpcode() == UO_AddrOf))
+              howAllocated = WillCrash;
+          }
         }
-      }
-      return updated;
-    };
-    llvm::function_ref<bool(const Expr *)> AssignF = VetCallExpr;
+        // else: Var does not have local initialization, might be parameter,
+        // etc.
 
-    SourceLocation DecLoc = SourceLocation();
+        // We may have identified some initialization as unsafe. But that
+        // variable is subject to change. So we look through the statements to
+        // see if that variable is otherwise referenced before capture, or if
+        // reassigned it is assessed with AssignF.
+        if (ParentFD && ParentFD->hasBody()) {
+          Stmt *TopStmt = ParentFD->getBody();
+          HasRefToVar HasRefVisitor(ParentFD->getASTContext(), Var, LambdaFD,
+                                    AssignF, *this);
+          HasRefVisitor.Visit(TopStmt);
+          if (HasRefVisitor.matches())
+            howAllocated = Unknown;
 
-    // Try to determine provenance of this Var.
-    const Expr *Init = Var->getAnyInitializer();
-    if (Init) {
-      Init = Init->IgnoreCasts();
-      DecLoc = Init->getExprLoc();
+        } else {
+          howAllocated = Unknown;
+        }
 
-      const CallExpr *CE = dyn_cast<CallExpr>(Init);
-      if (CE) {
-        VetCallExpr(CE); // Modifies howAllocated via side-effect.
-      } else {
-        // Var has initialization, but not as return result of a function,
-        // disqualify any other obvious bad initialization expressions.
-        const StringLiteral *SL = dyn_cast<StringLiteral>(Init);
-        if (SL)
-          howAllocated = WillCrash;
-
-        const UnaryOperator *UO = dyn_cast<UnaryOperator>(Init);
-        if (UO && (UO->getOpcode() == UO_AddrOf))
-          howAllocated = WillCrash;
-      }
-    }
-    // else: Var does not have local initialization, might be parameter, etc.
-
-    // We may have identified some initialization as unsafe. But that variable
-    // is subject to change. So we look through the statements to see if that
-    // variable is otherwise referenced before capture, or if reassigned it is
-    // assessed with AssignF.
-    if (ParentFD && ParentFD->hasBody()) {
-      Stmt *TopStmt = ParentFD->getBody();
-      HasRefToVar HasRefVisitor(ParentFD->getASTContext(), Var, LambdaFD, AssignF, *this); 
-      HasRefVisitor.Visit(TopStmt);
-      if (HasRefVisitor.matches())
-        howAllocated = Unknown; 
-
-    } else {
-      howAllocated = Unknown;
-    }
-    
-    // Emit deferred diagnostics.   We use long form because we need to pass in the
-    // capturing lambda FunctionDecl.
-    if (howAllocated == WillCrash) {
-      Sema::DeviceDiagBuilder(Sema::DeviceDiagBuilder::K_Deferred, CaptureLoc,
-                              diag::err_sycl_illegal_memory_reference, LambdaFD,
-                              *this);
-      if (DecLoc.isValid())
-        Sema::DeviceDiagBuilder(Sema::DeviceDiagBuilder::K_Deferred, DecLoc,
-                                diag::note_declared_at, LambdaFD, *this);
-    }
-  }); // for_each
+        // Emit deferred diagnostics.   We use long form because we need to pass
+        // in the capturing lambda FunctionDecl.
+        if (howAllocated == WillCrash) {
+          Sema::DeviceDiagBuilder(
+              Sema::DeviceDiagBuilder::K_Deferred, CaptureLoc,
+              diag::err_sycl_illegal_memory_reference, LambdaFD, *this);
+          if (DecLoc.isValid())
+            Sema::DeviceDiagBuilder(Sema::DeviceDiagBuilder::K_Deferred, DecLoc,
+                                    diag::note_declared_at, LambdaFD, *this);
+        }
+      }); // for_each
   PotentialCapturesMM.erase(ParentFD);
 }
 
