@@ -463,7 +463,13 @@ public:
   void printDot(std::ostream &Stream) const final;
   void emitInstrumentationData();
 
-  const std::unique_ptr<detail::CG> &getCG() const { return MCommandGroup; }
+  detail::CG &getCG() const { return *MCommandGroup; }
+
+  // MEmptyCmd one is only employed if this command refers to host-task.
+  // MEmptyCmd due to unreliable mechanism of lookup for single EmptyCommand
+  // amongst users of host-task-representing command. This unreliability roots
+  // in cleanup process.
+  EmptyCommand *MEmptyCmd = nullptr;
 
 private:
   cl_int enqueueImp() final;

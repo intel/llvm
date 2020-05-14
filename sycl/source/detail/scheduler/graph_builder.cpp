@@ -735,8 +735,9 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
   }
 
   if (CGType == CG::CGTYPE::CODEPLAY_HOST_TASK)
-    addEmptyCmd(NewCmd.get(), NewCmd->getCG()->MRequirements, Queue,
-                Command::BlockReason::HostTask);
+    NewCmd->MEmptyCmd = addEmptyCmd(
+        NewCmd.get(), NewCmd->getCG().MRequirements, Queue,
+        Command::BlockReason::HostTask);
 
   if (MPrintOptionsArray[AfterAddCG])
     printGraphAsDot("after_addCG");
@@ -961,7 +962,7 @@ void Scheduler::GraphBuilder::connectDepEvent(Command *const Cmd,
         // host task is its empty cmd which is in Deps anyway
         if (ReqDepCmd->getType() == Command::CommandType::RUN_CG) {
           auto *Cmd = static_cast<ExecCGCommand *>(ReqDepCmd);
-          if (Cmd->getCG()->getType() == CG::CGTYPE::CODEPLAY_HOST_TASK)
+          if (Cmd->getCG().getType() == CG::CGTYPE::CODEPLAY_HOST_TASK)
             continue;
         }
 
@@ -1001,6 +1002,8 @@ void Scheduler::GraphBuilder::connectDepEvent(Command *const Cmd,
   }
 
   EmptyCmd->addUser(Cmd);
+
+  ConnectCmd->MEmptyCmd = EmptyCmd;
 
   // FIXME graph builder shouldn't really enqueue commands. We're in the middle
   // of enqueue process for some command Cmd. We're going to add a dependency

@@ -186,39 +186,22 @@ class DispatchHostTask {
     }
   }
 
-  // Lookup for empty command amongst users of this cmd
-  static EmptyCommand *findUserEmptyCommand(Command *ThisCmd) {
-    assert(ThisCmd->MUsers.size() == 1 &&
-           "Only a single user is expected for host task command");
-
-    Command *User = *ThisCmd->MUsers.begin();
-
-    assert(User->getType() == Command::CommandType::EMPTY_TASK &&
-           "Expected empty command as single user of host task command");
-    assert(User->MIsBlockable && "Empty command is expected to be blockable");
-    assert(User->MBlockReason == Command::BlockReason::HostTask &&
-           "Empty command is expected to be blocked due to host task");
-
-    return static_cast<EmptyCommand *>(User);
-  }
-
 public:
   DispatchHostTask(ExecCGCommand *ThisCmd) : MThisCmd{ThisCmd} {}
 
   void operator()() const {
     waitForEvents();
 
-    assert(MThisCmd->getCG().get());
-    assert(MThisCmd->getCG()->getType() == CG::CGTYPE::CODEPLAY_HOST_TASK);
+    assert(MThisCmd->getCG().getType() == CG::CGTYPE::CODEPLAY_HOST_TASK);
 
-    CGHostTask *HostTask = static_cast<CGHostTask *>(MThisCmd->getCG().get());
+    CGHostTask &HostTask = static_cast<CGHostTask &>(MThisCmd->getCG());
 
     // we're ready to call the user-defined lambda now
-    HostTask->MHostTask->call();
-    HostTask->MHostTask.reset();
+    HostTask.MHostTask->call();
+    HostTask.MHostTask.reset();
 
     // unblock user empty command here
-    EmptyCommand *EmptyCmd = findUserEmptyCommand(MThisCmd);
+    EmptyCommand *EmptyCmd = MThisCmd->MEmptyCmd;
     assert(EmptyCmd && "No empty command found");
 
     // Completing command's event along with unblocking enqueue readiness of
