@@ -465,10 +465,6 @@ void Sema::diagSYCLDevicePointerCaptures(FunctionDecl *ParentFD) {
             const StringLiteral *SL = dyn_cast<StringLiteral>(Init);
             if (SL)
               howAllocated = WillCrash;
-
-            const UnaryOperator *UO = dyn_cast<UnaryOperator>(Init);
-            if (UO && (UO->getOpcode() == UO_AddrOf))
-              howAllocated = WillCrash;
           }
         }
         // else: Var does not have local initialization, might be parameter,

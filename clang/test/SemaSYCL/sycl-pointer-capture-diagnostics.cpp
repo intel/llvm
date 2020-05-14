@@ -163,9 +163,7 @@ int something(float *fromParam) {
     // expected-error@+1 {{Illegal memory reference in SYCL device kernel. Use USM (malloc_shared, etc) instead.}}
     calledFromLambda(mallocFloatP);
 
-    // expected-note@#decl_stackFloatP {{declared here}}
-    // expected-error@+1 {{Illegal memory reference in SYCL device kernel. Use USM (malloc_shared, etc) instead.}}
-    stackFloatP[0] = 30.0;
+    stackFloatP[0] = 30.0; //will crash, not caught presently
 
     neverInitialized[0] = 31.0; //will crash, not caught presently.
 
@@ -186,9 +184,7 @@ int something(float *fromParam) {
     //-- struct pointers
     //    various bad struct pointer derefs will cause crashes if not caught.
 
-    // expected-note@#decl_stackMeshP {{declared here}}
-    // expected-error@+1 {{Illegal memory reference in SYCL device kernel. Use USM (malloc_shared, etc) instead.}}
-    float smpa = stackMeshP->a;
+    float smpa = stackMeshP->a; //will crash, not caught presently.
 
     neverInitializedMeshP->a = 34.0; //will crash, not caught presently.
 
