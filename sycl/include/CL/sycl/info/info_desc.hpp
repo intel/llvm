@@ -185,11 +185,6 @@ enum class queue : cl_command_queue_info {
   device = CL_QUEUE_DEVICE,
   reference_count = CL_QUEUE_REFERENCE_COUNT
 };
-enum class ordered_queue : cl_command_queue_info {
-  context = CL_QUEUE_CONTEXT,
-  device = CL_QUEUE_DEVICE,
-  reference_count = CL_QUEUE_REFERENCE_COUNT
-};
 
 // A.5 Kernel information desctiptors
 enum class kernel : cl_kernel_info {

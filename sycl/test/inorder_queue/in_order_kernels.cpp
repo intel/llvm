@@ -20,7 +20,7 @@
 using namespace cl::sycl;
 
 int main() {
-  ordered_queue q;
+  queue q{property::queue::in_order()};
   auto dev = q.get_device();
   auto ctx = q.get_context();
   const int N = 8;
