@@ -32,7 +32,7 @@ template <int dimensions = 1> class nd_item {
 public:
   nd_item() = delete;
 
-  id<dimensions> get_global_id() const {
+  id<dimensions> ALWAYS_INLINE get_global_id() const {
     __SYCL_ASSUME_ID_INT(dimensions, globalItem);
     return globalItem.get_id();
   }
@@ -49,7 +49,7 @@ public:
     return id;
   }
 
-  id<dimensions> get_local_id() const {
+  id<dimensions> ALWAYS_INLINE get_local_id() const {
     __SYCL_ASSUME_ID_INT(dimensions, localItem);
     return localItem.get_id();
   }
@@ -66,7 +66,7 @@ public:
     return id;
   }
 
-  group<dimensions> get_group() const {
+  group<dimensions> ALWAYS_INLINE get_group() const {
     __SYCL_ASSUME_ARRAY_INT(dimensions, Group);
     return Group;
   }
