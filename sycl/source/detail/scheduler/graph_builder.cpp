@@ -735,9 +735,8 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
   }
 
   if (CGType == CG::CGTYPE::CODEPLAY_HOST_TASK)
-    NewCmd->MEmptyCmd = addEmptyCmd(
-        NewCmd.get(), NewCmd->getCG().MRequirements, Queue,
-        Command::BlockReason::HostTask);
+    NewCmd->MEmptyCmd = addEmptyCmd(NewCmd.get(), NewCmd->getCG().MRequirements,
+                                    Queue, Command::BlockReason::HostTask);
 
   if (MPrintOptionsArray[AfterAddCG])
     printGraphAsDot("after_addCG");
