@@ -1884,14 +1884,11 @@ static void printArgument(ASTContext &Ctx, raw_ostream &ArgOS,
 static void printArguments(ASTContext &Ctx, raw_ostream &ArgOS,
                            ArrayRef<TemplateArgument> Args,
                            const PrintingPolicy &P) {
-  bool FirstArg = true;
-  const char *Comma = ", ";
-
   for (unsigned I = 0; I < Args.size(); I++) {
     const TemplateArgument &Arg = Args[I];
 
-    if (!FirstArg)
-      ArgOS << Comma;
+    if (I != 0)
+      ArgOS << ", ";
 
     printArgument(Ctx, ArgOS, Arg, P);
 
