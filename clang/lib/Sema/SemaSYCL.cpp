@@ -1891,7 +1891,6 @@ static void printArguments(ASTContext &Ctx, raw_ostream &ArgOS,
       ArgOS << ", ";
 
     printArgument(Ctx, ArgOS, Arg, P);
-
   }
 }
 
