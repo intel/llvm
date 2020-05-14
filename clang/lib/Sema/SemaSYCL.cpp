@@ -392,11 +392,21 @@ public:
     : Inherited(Context), Match(false), Var(Var), LambdaStmt(FD->getBody()), AssignF(AF), SemaRef(S) {}
 
   void VisitExpr(const Expr *E){
-    // Cease visiting if we have matched.
+    // Cease visiting once we have matched.
     if(Match)
       return;  
-    
-    Inherited::VisitExpr(E);
+
+    if(const ArraySubscriptExpr *ASE = dyn_cast<ArraySubscriptExpr>(E)){
+      const Expr *Base = ASE->getBase();
+      const Expr *Idx = ASE->getIdx();
+      Visit(Idx);
+      if(Match){ return; }
+      const DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(Base->IgnoreCasts());
+      if(!DRE) //Direct derefs of a variable do not match, but all others do. 
+        Visit(Base);
+    }
+    else 
+      Inherited::VisitExpr(E);
   }
 
   void VisitLambdaExpr(const LambdaExpr *LE){
@@ -407,6 +417,22 @@ public:
     
     Inherited::VisitLambdaExpr(LE);
   }
+
+  void VisitUnaryOperator(const UnaryOperator *UO){
+    
+    const Expr *E = UO->getSubExpr();
+    // Direct dereferences of a variable do not match, but all others do.
+    if(UO->getOpcode() == UO_Deref){
+      const DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(E->IgnoreCasts());
+      if(DRE){
+        //std::cout << "UO bailing for: " << Var->getNameAsString() << " @ " << DRE->getBeginLoc().printToString(SemaRef.getSourceManager()) << std::endl;
+        return; 
+      }
+    }
+    
+    Visit(E);
+  }
+  
 
   void VisitBinaryOperator(const BinaryOperator *BO){
     if(Match){ return; }
@@ -428,8 +454,10 @@ public:
   
   void VisitDeclRefExpr(const DeclRefExpr *DRE) {
     const ValueDecl *VD = DRE->getDecl();
-    if (VD == Var) 
+    if (VD == Var) {
       Match = true;
+      std::cout << "matching " << Var->getNameAsString() << " @ " << DRE->getBeginLoc().printToString(SemaRef.getSourceManager()) << std::endl; 
+    }
     else
       Inherited::VisitDeclRefExpr(DRE);
   }
@@ -570,8 +598,9 @@ void Sema::diagSYCLDevicePointerCaptures(FunctionDecl *CallFD) {
         howAllocated = Unknown; 
         std::cout << Var->getNameAsString() << " has a match" << std::endl;  //@ 142:46
       }
+      
     } else {
-      std::cout << "no body" << std::endl;
+      std::cout << "no boyd" << std::endl;
       howAllocated = Unknown;
     }
     //std::cout << std::endl;
