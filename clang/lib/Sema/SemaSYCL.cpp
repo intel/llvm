@@ -1892,7 +1892,6 @@ static void printArguments(ASTContext &Ctx, raw_ostream &ArgOS,
 
     printArgument(Ctx, ArgOS, Arg, P);
 
-    FirstArg = false;
   }
 }
 
