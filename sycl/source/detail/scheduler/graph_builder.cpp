@@ -1000,6 +1000,8 @@ void Scheduler::GraphBuilder::connectDepEvent(Command *const Cmd,
     Cmd->addDep(EmptyCmd->getEvent());
   }
 
+  EmptyCmd->addUser(Cmd);
+
   // FIXME graph builder shouldn't really enqueue commands. We're in the middle
   // of enqueue process for some command Cmd. We're going to add a dependency
   // for it. Need some nice and cute solution to enqueue ConnectCmd via standard
