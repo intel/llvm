@@ -55,17 +55,21 @@ void test() {
     });
   };
 
-  Q1.submit(CG1);
-  Q2.submit(CG2);
-  Q2.submit(CG1);
-  Q1.submit(CG2);
+  static const size_t NTIMES = 100;
+
+  for (size_t Idx = 0; Idx < NTIMES; ++Idx) {
+    Q1.submit(CG1);
+    Q2.submit(CG2);
+    Q2.submit(CG1);
+    Q1.submit(CG2);
+  }
 
   Q1.wait_and_throw();
   Q2.wait_and_throw();
 
   for (size_t I = 0; I < WIDTH; ++I)
     for (size_t J = 0; J < HEIGHT; ++J)
-      assert(DataC[I * HEIGHT + J] == (1 + 2 * 3) + 2 * 3);
+      assert(DataC[I * HEIGHT + J] == (1 + 2 * 3 * NTIMES * 2));
 }
 
 int main(void) {
