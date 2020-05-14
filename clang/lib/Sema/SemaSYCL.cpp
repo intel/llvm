@@ -1700,11 +1700,12 @@ void SYCLIntegrationHeader::emitFwdDecl(raw_ostream &O, const Decl *D,
     QualType T = ED->getIntegerType();
     // Backup since getIntegerType() returns null for enum forward
     // declaration with no fixed underlying type
-    if (!T)
+    if (T.isNull())
       T = ED->getPromotionType();
-    O << " : " << T.getAsString() << ";\n";
-  } else
-    O << ";\n";
+    O << " : " << T.getAsString();
+  }
+
+  O << ";\n";
 
   // print closing braces for namespaces if needed
   for (unsigned I = 0; I < NamespaceCnt; ++I)
@@ -1810,7 +1811,7 @@ void SYCLIntegrationHeader::emitForwardClassDecls(
       case TemplateArgument::ArgKind::Integral: {
         // Handle Kernel Name Type templated using enum.
         QualType T = Arg.getIntegralType();
-        if (const EnumType *ET = T->getAs<EnumType>()) {
+        if (const auto *ET = T->getAs<EnumType>()) {
           const EnumDecl *ED = ET->getDecl();
           emitFwdDecl(O, ED, KernelLocation);
         }
@@ -1857,7 +1858,8 @@ static void printArguments(ASTContext &Ctx, raw_ostream &ArgOS,
     if (Arg.getKind() == TemplateArgument::ArgKind::Pack) {
       if (Arg.pack_size() && !FirstArg)
         ArgOS << Comma;
-      printArguments(Ctx, ArgOS, Arg.getPackAsArray(), P, true);
+      printArguments(Ctx, ArgOS, Arg.getPackAsArray(), P,
+                     /*ParameterPack*/ true);
     } else if (Arg.getKind() == TemplateArgument::ArgKind::Integral) {
       if (!FirstArg)
         ArgOS << Comma;
@@ -1913,12 +1915,12 @@ static std::string getKernelNameTypeString(QualType T) {
     llvm::raw_svector_ostream ArgOS(Buf);
 
     // Print template class name
-    TSD->printQualifiedName(ArgOS, P, true);
+    TSD->printQualifiedName(ArgOS, P, /*WithGlobalNsPrefix*/ true);
 
     // Print template arguments substituting enumerators
     ASTContext &Ctx = RD->getASTContext();
     const TemplateArgumentList &Args = TSD->getTemplateArgs();
-    printArguments(Ctx, ArgOS, Args.asArray(), P, false);
+    printArguments(Ctx, ArgOS, Args.asArray(), P, /*ParameterPack*/ false);
 
     return eraseAnonNamespace(ArgOS.str().str());
   }

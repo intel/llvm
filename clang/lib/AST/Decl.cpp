@@ -1594,9 +1594,8 @@ void NamedDecl::printNestedNameSpecifier(raw_ostream &OS,
     Ctx = Ctx->getParent();
   }
 
-  if (Contexts.empty() && WithGlobalNsPrefix) {
-    if (getDeclContext()->isTranslationUnit())
-      OS << "::";
+  if (WithGlobalNsPrefix) {
+    OS << "::";
   }
 
   for (const DeclContext *DC : llvm::reverse(Contexts)) {
@@ -1611,10 +1610,7 @@ void NamedDecl::printNestedNameSpecifier(raw_ostream &OS,
       if (ND->isAnonymousNamespace()) {
         OS << (P.MSVCFormatting ? "`anonymous namespace\'"
                                 : "(anonymous namespace)");
-      } else if (WithGlobalNsPrefix &&
-                 ND->getDeclContext()->isTranslationUnit())
-        OS << "::" << *ND;
-      else
+      } else
         OS << *ND;
     } else if (const auto *RD = dyn_cast<RecordDecl>(DC)) {
       if (!RD->getIdentifier())

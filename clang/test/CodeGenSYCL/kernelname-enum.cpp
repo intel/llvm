@@ -3,6 +3,16 @@
 
 #include "sycl.hpp"
 
+enum unscoped_enum : int {
+  val_1,
+  val_2
+};
+
+enum unscoped_enum_no_type_set {
+  val_3,
+  val_4
+};
+
 enum class no_namespace_int : int {
   val_1,
   val_2
@@ -62,6 +72,18 @@ public:
   void operator()() {}
 };
 
+template <unscoped_enum EnumType>
+class dummy_functor_6 {
+public:
+  void operator()() {}
+};
+
+template <unscoped_enum_no_type_set EnumType>
+class dummy_functor_7 {
+public:
+  void operator()() {}
+};
+
 int main() {
 
   dummy_functor_1<no_namespace_int::val_1> f1;
@@ -69,6 +91,8 @@ int main() {
   dummy_functor_3<internal::namespace_short::val_2> f3;
   dummy_functor_4<enum_in_anonNS::val_2> f4;
   dummy_functor_5<no_type_set::val_1> f5;
+  dummy_functor_6<unscoped_enum::val_1> f6;
+  dummy_functor_7<unscoped_enum_no_type_set::val_4> f7;
 
   cl::sycl::queue q;
 
@@ -92,6 +116,14 @@ int main() {
     cgh.single_task(f5);
   });
 
+  q.submit([&](cl::sycl::handler &cgh) {
+    cgh.single_task(f6);
+  });
+
+  q.submit([&](cl::sycl::handler &cgh) {
+    cgh.single_task(f7);
+  });
+
   return 0;
 }
 
@@ -110,6 +142,10 @@ int main() {
 // CHECK: template <enum_in_anonNS EnumType> class dummy_functor_4;
 // CHECK: enum class no_type_set : int;
 // CHECK: template <no_type_set EnumType> class dummy_functor_5;
+// CHECK: enum unscoped_enum : int;
+// CHECK: template <unscoped_enum EnumType> class dummy_functor_6;
+// CHECK: enum unscoped_enum_no_type_set : unsigned int;
+// CHECK: template <unscoped_enum_no_type_set EnumType> class dummy_functor_7;
 
 // CHECK: Specializations of KernelInfo for kernel function types:
 // CHECK: template <> struct KernelInfo<::dummy_functor_1<(no_namespace_int)0>>
@@ -117,3 +153,5 @@ int main() {
 // CHECK: template <> struct KernelInfo<::dummy_functor_3<(internal::namespace_short)1>>
 // CHECK: template <> struct KernelInfo<::dummy_functor_4<(enum_in_anonNS)1>>
 // CHECK: template <> struct KernelInfo<::dummy_functor_5<(no_type_set)0>>
+// CHECK: template <> struct KernelInfo<::dummy_functor_6<(unscoped_enum)0>>
+// CHECK: template <> struct KernelInfo<::dummy_functor_7<(unscoped_enum_no_type_set)1>>
