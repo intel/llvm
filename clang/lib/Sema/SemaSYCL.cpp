@@ -481,7 +481,7 @@ void Sema::checkSYCLDevicePointerCapture(VarDecl *Var,
   assert(Var->getType()->isAnyPointerType() &&
          "Should only be called for pointer types being captured.");
 
-  FunctionDecl *LambdaFD = dyn_cast<FunctionDecl>(getCurLexicalContext());
+  FunctionDecl *LambdaFD = dyn_cast<FunctionDecl>(getCurLexicalContext());  
   DeclContext *DC = LambdaFD->getParentFunctionOrMethod();
   FunctionDecl *ParentFD = dyn_cast_or_null<FunctionDecl>(DC);
 
@@ -504,7 +504,7 @@ void Sema::diagSYCLDevicePointerCaptures(FunctionDecl *CallFD) {
 
   auto PCs = PotentialCapturesMM.equal_range(CallFD);
 
-  for_each(PCs.first, PCs.second, [this](CaptureMMap::value_type &CapVal) {
+  for_each(PCs.first, PCs.second, [this, CallFD](CaptureMMap::value_type &CapVal) {
     CaptureTuple CT = CapVal.second;
     VarDecl *Var = std::get<0>(CT);
     SourceLocation CaptureLoc = std::get<1>(CT);
@@ -586,6 +586,10 @@ void Sema::diagSYCLDevicePointerCaptures(FunctionDecl *CallFD) {
     
     DeclContext *DC = Var->getParentFunctionOrMethod();
     const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(DC);
+    if(FD && !FD->hasBody()){
+      std::cout << "FD has no body - " << FD->willHaveBody() << std::endl;
+      FD = CallFD;
+    }
     //std::cout << Var->getNameAsString() << std::endl;
     //std::cout << Var->getNameAsString() << "  FD: " << FD->getSourceRange().printToString(getSourceManager())
     //          << " FDCap: " << FDCap->getSourceRange().printToString(getSourceManager()) << std::endl;
@@ -600,7 +604,7 @@ void Sema::diagSYCLDevicePointerCaptures(FunctionDecl *CallFD) {
       }
       
     } else {
-      std::cout << "no boyd" << std::endl;
+      //std::cout << "no boyd" << std::endl;
       howAllocated = Unknown;
     }
     //std::cout << std::endl;
