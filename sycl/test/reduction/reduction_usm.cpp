@@ -1,11 +1,15 @@
 // UNSUPPORTED: cuda
 // Reductions use work-group builtins not yet supported by CUDA.
 
+// UNSUPPORTED: linux
+// TODO: Enable the test for Linux when CI uses GPU driver 20.06.15619 or newer.
+
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUNx: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
+
+// TODO: Enable the test for HOST when it supports intel::reduce() and barrier()
 
 // This test performs basic checks of parallel_for(nd_range, reduction, func)
 // with reductions initialized with USM var.

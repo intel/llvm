@@ -856,7 +856,7 @@ public:
   parallel_for(nd_range<Dims> Range, Reduction &Redu, KernelType KernelFunc) {
     if (Reduction::is_usm)
       Redu.associateWithHandler(*this);
-    auto QueueCopy = MQueue;
+    shared_ptr_class<detail::queue_impl> QueueCopy = MQueue;
     auto Acc = Redu.getUserAccessor();
     intel::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu, Acc);
 
@@ -887,7 +887,7 @@ public:
   detail::enable_if_t<Reduction::accessor_mode == access::mode::discard_write &&
                       Reduction::has_fast_atomics>
   parallel_for(nd_range<Dims> Range, Reduction &Redu, KernelType KernelFunc) {
-    auto QueueCopy = MQueue;
+    shared_ptr_class<detail::queue_impl> QueueCopy = MQueue;
     auto RWAcc = Redu.getReadWriteScalarAcc(*this);
     intel::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu,
                                           RWAcc);
@@ -940,7 +940,7 @@ public:
     if (Reduction::is_usm && NWorkGroups == 1)
       Redu.associateWithHandler(*this);
     intel::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu);
-    auto QueueCopy = MQueue;
+    shared_ptr_class<detail::queue_impl> QueueCopy = MQueue;
     this->finalize();
 
     // 2. Run the additional aux kernel as many times as needed to reduce
