@@ -58,8 +58,8 @@ public:
   }
 
   template <bool has_offset = with_offset>
-  detail::enable_if_t<has_offset, id<dimensions>> ALWAYS_INLINE
-  get_offset() const {
+  detail::enable_if_t<has_offset, id<dimensions>>
+      ALWAYS_INLINE get_offset() const {
     __SYCL_ASSUME_ARRAY_INT(dimensions, MImpl.MOffset);
     return MImpl.MOffset;
   }
