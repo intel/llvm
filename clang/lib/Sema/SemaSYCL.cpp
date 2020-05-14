@@ -1698,6 +1698,10 @@ void SYCLIntegrationHeader::emitFwdDecl(raw_ostream &O, const Decl *D,
 
   if (const auto *ED = dyn_cast<EnumDecl>(D)) {
     QualType T = ED->getIntegerType();
+    // Backup since getIntegerType() returns null for enum forward
+    // declaration with no fixed underlying type
+    if (!T)
+      T = ED->getPromotionType();
     O << " : " << T.getAsString() << ";\n";
   } else
     O << ";\n";
