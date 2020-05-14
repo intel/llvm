@@ -1538,14 +1538,14 @@ void NamedDecl::printQualifiedName(raw_ostream &OS) const {
   printQualifiedName(OS, getASTContext().getPrintingPolicy());
 }
 
-void NamedDecl::printQualifiedName(raw_ostream &OS,
-                                   const PrintingPolicy &P) const {
+void NamedDecl::printQualifiedName(raw_ostream &OS, const PrintingPolicy &P,
+                                   bool WithGlobalNsPrefix) const {
   if (getDeclContext()->isFunctionOrMethod()) {
     // We do not print '(anonymous)' for function parameters without name.
     printName(OS);
     return;
   }
-  printNestedNameSpecifier(OS, P);
+  printNestedNameSpecifier(OS, P, WithGlobalNsPrefix);
   if (getDeclName())
     OS << *this;
   else {
@@ -1566,7 +1566,8 @@ void NamedDecl::printNestedNameSpecifier(raw_ostream &OS) const {
 }
 
 void NamedDecl::printNestedNameSpecifier(raw_ostream &OS,
-                                         const PrintingPolicy &P) const {
+                                         const PrintingPolicy &P,
+                                         bool WithGlobalNsPrefix) const {
   const DeclContext *Ctx = getDeclContext();
 
   // For ObjC methods and properties, look through categories and use the
@@ -1593,6 +1594,11 @@ void NamedDecl::printNestedNameSpecifier(raw_ostream &OS,
     Ctx = Ctx->getParent();
   }
 
+  if (Contexts.empty() && WithGlobalNsPrefix) {
+    if (getDeclContext()->isTranslationUnit())
+      OS << "::";
+  }
+
   for (const DeclContext *DC : llvm::reverse(Contexts)) {
     if (const auto *Spec = dyn_cast<ClassTemplateSpecializationDecl>(DC)) {
       OS << Spec->getName();
@@ -1605,7 +1611,9 @@ void NamedDecl::printNestedNameSpecifier(raw_ostream &OS,
       if (ND->isAnonymousNamespace()) {
         OS << (P.MSVCFormatting ? "`anonymous namespace\'"
                                 : "(anonymous namespace)");
-      }
+      } else if (WithGlobalNsPrefix &&
+                 ND->getDeclContext()->isTranslationUnit())
+        OS << "::" << *ND;
       else
         OS << *ND;
     } else if (const auto *RD = dyn_cast<RecordDecl>(DC)) {

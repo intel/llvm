@@ -1637,27 +1637,6 @@ static std::string eraseAnonNamespace(std::string S) {
   return S;
 }
 
-static bool checkIfDeclInCLNameSpace(DeclContext *DC) {
-
-  bool inCL = false;
-
-  while (DC) {
-    auto *NS = dyn_cast_or_null<NamespaceDecl>(DC);
-
-    if (!NS)
-      break;
-
-    DC = NS->getDeclContext();
-    if (DC->isTranslationUnit()) {
-      const IdentifierInfo *II = NS->getIdentifier();
-      if (II && II->isStr("cl"))
-        inCL = true;
-      break;
-    }
-  }
-  return inCL;
-}
-
 // Emits a forward declaration
 void SYCLIntegrationHeader::emitFwdDecl(raw_ostream &O, const Decl *D,
                                         SourceLocation KernelLocation) {
@@ -1828,19 +1807,8 @@ void SYCLIntegrationHeader::emitForwardClassDecls(
         // Handle Kernel Name Type templated using enum.
         QualType T = Arg.getIntegralType();
         if (const EnumType *ET = T->getAs<EnumType>()) {
-          auto EnumDecl = ET->getDecl();
-          DeclContext *DC = EnumDecl->getDeclContext();
-          auto *NS = dyn_cast_or_null<NamespaceDecl>(DC);
-          bool InCLNameSpace = false;
-
-          // Header files are included before integration header. Enums
-          // therefore defined in headers need not be forward declared. Their
-          // definitions are available in integration header.
-          if (NS)
-            InCLNameSpace = checkIfDeclInCLNameSpace(DC);
-
-          if (!NS || (NS && !InCLNameSpace))
-            emitFwdDecl(O, EnumDecl, KernelLocation);
+          const EnumDecl *ED = ET->getDecl();
+          emitFwdDecl(O, ED, KernelLocation);
         }
         break;
       }
@@ -1870,7 +1838,8 @@ static std::string getCPPTypeString(QualType Ty) {
   return eraseAnonNamespace(Ty.getAsString(P));
 }
 
-static void printArguments(raw_ostream &ArgOS, ArrayRef<TemplateArgument> Args,
+static void printArguments(ASTContext &Ctx, raw_ostream &ArgOS,
+                           ArrayRef<TemplateArgument> Args,
                            const PrintingPolicy &P, bool ParameterPack) {
 
   if (!ParameterPack)
@@ -1884,7 +1853,7 @@ static void printArguments(raw_ostream &ArgOS, ArrayRef<TemplateArgument> Args,
     if (Arg.getKind() == TemplateArgument::ArgKind::Pack) {
       if (Arg.pack_size() && !FirstArg)
         ArgOS << Comma;
-      printArguments(ArgOS, Arg.getPackAsArray(), P, true);
+      printArguments(Ctx, ArgOS, Arg.getPackAsArray(), P, true);
     } else if (Arg.getKind() == TemplateArgument::ArgKind::Integral) {
       if (!FirstArg)
         ArgOS << Comma;
@@ -1892,22 +1861,27 @@ static void printArguments(raw_ostream &ArgOS, ArrayRef<TemplateArgument> Args,
       QualType T = Arg.getIntegralType();
       const EnumType *ET = T->getAs<EnumType>();
 
-      // Enums defined in SYCL headers are not changed to explicit values since
-      // the definition is visible in integration header.
-      if (ET && !checkIfDeclInCLNameSpace(ET->getDecl()->getDeclContext())) {
+      if (ET) {
         const llvm::APSInt &Val = Arg.getAsIntegral();
         ArgOS << "(" << ET->getDecl()->getQualifiedNameAsString() << ")" << Val;
       } else {
         Arg.print(P, ArgOS);
       }
-    } else {
+    } else if (Arg.getKind() == TemplateArgument::ArgKind::Type) {
       if (!FirstArg)
         ArgOS << Comma;
       LangOptions LO;
       PrintingPolicy TypePolicy(LO);
       TypePolicy.SuppressTypedefs = true;
       TypePolicy.SuppressTagKeyword = true;
-      Arg.print(TypePolicy, ArgOS);
+      QualType T = Arg.getAsType();
+      QualType FullyQualifiedType =
+          TypeName::getFullyQualifiedType(T, Ctx, true);
+      ArgOS << FullyQualifiedType.getAsString(TypePolicy);
+    } else {
+      if (!FirstArg)
+        ArgOS << Comma;
+      Arg.print(P, ArgOS);
     }
     FirstArg = false;
   }
@@ -1935,12 +1909,12 @@ static std::string getKernelNameTypeString(QualType T) {
     llvm::raw_svector_ostream ArgOS(Buf);
 
     // Print template class name
-    TSD->printQualifiedName(ArgOS, P);
-
-    const TemplateArgumentList &Args = TSD->getTemplateArgs();
+    TSD->printQualifiedName(ArgOS, P, true);
 
     // Print template arguments substituting enumerators
-    printArguments(ArgOS, Args.asArray(), P, false);
+    ASTContext &Ctx = RD->getASTContext();
+    const TemplateArgumentList &Args = TSD->getTemplateArgs();
+    printArguments(Ctx, ArgOS, Args.asArray(), P, false);
 
     return eraseAnonNamespace(ArgOS.str().str());
   }
