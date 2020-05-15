@@ -61,7 +61,8 @@ static std::string getTypeString(Type *T) {
 }
 
 /// Run: module ::= toplevelentity*
-bool LLParser::Run() {
+bool LLParser::Run(bool UpgradeDebugInfo,
+                   DataLayoutCallbackTy DataLayoutCallback) {
   // Prime the lexer.
   Lex.Lex();
 
@@ -73,9 +74,12 @@ bool LLParser::Run() {
   if (M) {
     if (ParseTargetDefinitions())
       return true;
+
+    if (auto LayoutOverride = DataLayoutCallback(M->getTargetTriple()))
+      M->setDataLayout(*LayoutOverride);
   }
 
-  return ParseTopLevelEntities() || ValidateEndOfModule() ||
+  return ParseTopLevelEntities() || ValidateEndOfModule(UpgradeDebugInfo) ||
          ValidateEndOfIndex();
 }
 
@@ -123,7 +127,7 @@ void LLParser::restoreParsingState(const SlotMapping *Slots) {
 
 /// ValidateEndOfModule - Do final validity and sanity checks at the end of the
 /// module.
-bool LLParser::ValidateEndOfModule() {
+bool LLParser::ValidateEndOfModule(bool UpgradeDebugInfo) {
   if (!M)
     return false;
   // Handle any function attribute group forward references.
@@ -400,8 +404,7 @@ bool LLParser::ParseTargetDefinition() {
     if (ParseToken(lltok::equal, "expected '=' after target datalayout") ||
         ParseStringConstant(Str))
       return true;
-    if (DataLayoutStr.empty())
-      M->setDataLayout(Str);
+    M->setDataLayout(Str);
     return false;
   }
 }
@@ -1306,6 +1309,7 @@ bool LLParser::ParseFnAttributeValuePairs(AttrBuilder &B,
       B.addAttribute(Attribute::NoImplicitFloat); break;
     case lltok::kw_noinline: B.addAttribute(Attribute::NoInline); break;
     case lltok::kw_nonlazybind: B.addAttribute(Attribute::NonLazyBind); break;
+    case lltok::kw_nomerge: B.addAttribute(Attribute::NoMerge); break;
     case lltok::kw_noredzone: B.addAttribute(Attribute::NoRedZone); break;
     case lltok::kw_noreturn: B.addAttribute(Attribute::NoReturn); break;
     case lltok::kw_nosync: B.addAttribute(Attribute::NoSync); break;
@@ -1698,6 +1702,7 @@ bool LLParser::ParseOptionalParamAttrs(AttrBuilder &B) {
     case lltok::kw_noimplicitfloat:
     case lltok::kw_noinline:
     case lltok::kw_nonlazybind:
+    case lltok::kw_nomerge:
     case lltok::kw_noredzone:
     case lltok::kw_noreturn:
     case lltok::kw_nocf_check:
@@ -1797,6 +1802,7 @@ bool LLParser::ParseOptionalReturnAttrs(AttrBuilder &B) {
     case lltok::kw_noimplicitfloat:
     case lltok::kw_noinline:
     case lltok::kw_nonlazybind:
+    case lltok::kw_nomerge:
     case lltok::kw_noredzone:
     case lltok::kw_noreturn:
     case lltok::kw_nocf_check:
@@ -4877,21 +4883,24 @@ bool LLParser::ParseDIMacroFile(MDNode *&Result, bool IsDistinct) {
 }
 
 /// ParseDIModule:
-///   ::= !DIModule(scope: !0, name: "SomeModule", configMacros: "-DNDEBUG",
-///                 includePath: "/usr/include", apinotes: "module.apinotes")
+///   ::= !DIModule(scope: !0, name: "SomeModule", configMacros:
+///   "-DNDEBUG", includePath: "/usr/include", apinotes: "module.apinotes",
+///   file: !1, line: 4)
 bool LLParser::ParseDIModule(MDNode *&Result, bool IsDistinct) {
 #define VISIT_MD_FIELDS(OPTIONAL, REQUIRED)                                    \
   REQUIRED(scope, MDField, );                                                  \
   REQUIRED(name, MDStringField, );                                             \
   OPTIONAL(configMacros, MDStringField, );                                     \
   OPTIONAL(includePath, MDStringField, );                                      \
-  OPTIONAL(apinotes, MDStringField, );
+  OPTIONAL(apinotes, MDStringField, );                                         \
+  OPTIONAL(file, MDField, );                                                   \
+  OPTIONAL(line, LineField, );
   PARSE_MD_FIELDS();
 #undef VISIT_MD_FIELDS
 
-  Result =
-      GET_OR_DISTINCT(DIModule, (Context, scope.Val, name.Val, configMacros.Val,
-                                 includePath.Val, apinotes.Val));
+  Result = GET_OR_DISTINCT(DIModule, (Context, file.Val, scope.Val, name.Val,
+                                      configMacros.Val, includePath.Val,
+                                      apinotes.Val, line.Val));
   return false;
 }
 
@@ -7047,8 +7056,11 @@ int LLParser::ParseLoad(Instruction *&Inst, PerFunctionState &PFS) {
   if (Ty != cast<PointerType>(Val->getType())->getElementType())
     return Error(ExplicitTypeLoc,
                  "explicit pointee type doesn't match operand's pointee type");
-
-  Inst = new LoadInst(Ty, Val, "", isVolatile, Alignment, Ordering, SSID);
+  if (!Alignment && !Ty->isSized())
+    return Error(ExplicitTypeLoc, "loading unsized types is not allowed");
+  if (!Alignment)
+    Alignment = M->getDataLayout().getABITypeAlign(Ty);
+  Inst = new LoadInst(Ty, Val, "", isVolatile, *Alignment, Ordering, SSID);
   return AteExtraComma ? InstExtraComma : InstNormal;
 }
 

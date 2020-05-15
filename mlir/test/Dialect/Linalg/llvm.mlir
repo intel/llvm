@@ -62,7 +62,7 @@ func @slice_with_range_and_index(%arg0: memref<?x?xf64, offset: ?, strides: [?, 
   %c0 = constant 0 : index
   %c1 = constant 1 : index
   %R = linalg.range %c0:%c1:%c1 : !linalg.range
-  loop.for %i0 = %c0 to %c1 step %c1 {
+  scf.for %i0 = %c0 to %c1 step %c1 {
     %1 = linalg.slice %arg0[%i0, %R] : memref<?x?xf64, offset: ?, strides: [?, 1]>, index, !linalg.range, memref<?xf64, offset: ?, strides: [1]>
   }
   return
@@ -180,9 +180,9 @@ func @matmul_vec_impl(%A: !matrix_type_A, %B: !matrix_type_B, %C: !matrix_type_C
 // LLVM-LOOPS: %[[T0:.*]] = dim %[[A]], 0 : memref<?x?xvector<4xf32>>
 // LLVM-LOOPS: %[[T1:.*]] = dim %[[A]], 1 : memref<?x?xvector<4xf32>>
 // LLVM-LOOPS: %[[T2:.*]] = dim %[[B]], 1 : memref<?x?xvector<4xf32>>
-// LLVM-LOOPS: loop.for %[[I:.*]] = %[[C0]] to %[[T0]] step %[[C1]] {
-// LLVM-LOOPS: loop.for %[[J:.*]] = %[[C0]] to %[[T2]] step %[[C1]] {
-// LLVM-LOOPS: loop.for %[[K:.*]] = %[[C0]] to %[[T1]] step %[[C1]] {
+// LLVM-LOOPS: scf.for %[[I:.*]] = %[[C0]] to %[[T0]] step %[[C1]] {
+// LLVM-LOOPS: scf.for %[[J:.*]] = %[[C0]] to %[[T2]] step %[[C1]] {
+// LLVM-LOOPS: scf.for %[[K:.*]] = %[[C0]] to %[[T1]] step %[[C1]] {
 // LLVM-LOOPS:   %[[T3:.*]] = load %[[A]][%[[I]], %[[K]]] : memref<?x?xvector<4xf32>>
 // LLVM-LOOPS:   %[[T4:.*]] = load %[[B]][%[[K]], %[[J]]] : memref<?x?xvector<4xf32>>
 // LLVM-LOOPS:   %[[T5:.*]] = load %[[C]][%[[I]], %[[J]]] : memref<?x?xvector<4x4xf32>>
@@ -214,62 +214,101 @@ func @matmul_vec_indexed(%A: !matrix_type_A,
 // CHECK-SAME: !llvm<"<4 x float>*">, !llvm<"<4 x float>*">, !llvm.i64, !llvm.i64, !llvm.i64, !llvm.i64, !llvm.i64
 // CHECK-SAME: !llvm<"[4 x <4 x float>]*">, !llvm<"[4 x <4 x float>]*">, !llvm.i64, !llvm.i64, !llvm.i64, !llvm.i64, !llvm.i64
 
-func @reshape_static(%arg0: memref<3x4x5xf32>) {
-  // Reshapes that expand and collapse back a contiguous tensor with some 1's.
+func @reshape_static_expand(%arg0: memref<3x4x5xf32>) -> memref<1x3x4x1x5xf32> {
+  // Reshapes that expand a contiguous tensor with some 1's.
   %0 = linalg.reshape %arg0 [affine_map<(i, j, k, l, m) -> (i, j)>,
                              affine_map<(i, j, k, l, m) -> (k)>,
                              affine_map<(i, j, k, l, m) -> (l, m)>] :
     memref<3x4x5xf32> into memref<1x3x4x1x5xf32>
-  %r0 = linalg.reshape %0 [affine_map<(i, j, k, l, m) -> (i, j)>,
-                           affine_map<(i, j, k, l, m) -> (k)>,
-                           affine_map<(i, j, k, l, m) -> (l, m)>] :
-    memref<1x3x4x1x5xf32> into memref<3x4x5xf32>
-  return
+  return %0 : memref<1x3x4x1x5xf32>
 }
-// CHECK-LABEL: func @reshape_static(
-//       CHECK: llvm.mlir.undef : !llvm<"{ float*, float*, i64, [5 x i64], [5 x i64] }">
-//       CHECK: llvm.extractvalue {{.*}}[0] : !llvm<"{ float*, float*, i64, [3 x i64], [3 x i64] }">
-//       CHECK: llvm.insertvalue {{.*}}[0] : !llvm<"{ float*, float*, i64, [5 x i64], [5 x i64] }">
-//       CHECK: llvm.extractvalue {{.*}}[1] : !llvm<"{ float*, float*, i64, [3 x i64], [3 x i64] }">
-//       CHECK: llvm.insertvalue {{.*}}[1] : !llvm<"{ float*, float*, i64, [5 x i64], [5 x i64] }">
-//       CHECK: llvm.extractvalue {{.*}}[2] : !llvm<"{ float*, float*, i64, [3 x i64], [3 x i64] }">
-//       CHECK: llvm.insertvalue {{.*}}[2] : !llvm<"{ float*, float*, i64, [5 x i64], [5 x i64] }">
-//       CHECK: llvm.mlir.constant(1 : index) : !llvm.i64
-//       CHECK: llvm.insertvalue {{.*}}[3, 0] : !llvm<"{ float*, float*, i64, [5 x i64], [5 x i64] }">
-//       CHECK: llvm.mlir.constant(3 : index) : !llvm.i64
-//       CHECK: llvm.insertvalue {{.*}}[3, 1] : !llvm<"{ float*, float*, i64, [5 x i64], [5 x i64] }">
-//       CHECK: llvm.mlir.constant(4 : index) : !llvm.i64
-//       CHECK: llvm.insertvalue {{.*}}[3, 2] : !llvm<"{ float*, float*, i64, [5 x i64], [5 x i64] }">
-//       CHECK: llvm.mlir.constant(1 : index) : !llvm.i64
-//       CHECK: llvm.insertvalue {{.*}}[3, 3] : !llvm<"{ float*, float*, i64, [5 x i64], [5 x i64] }">
-//       CHECK: llvm.mlir.constant(5 : index) : !llvm.i64
-//       CHECK: llvm.insertvalue {{.*}}[3, 4] : !llvm<"{ float*, float*, i64, [5 x i64], [5 x i64] }">
-//       CHECK: llvm.mlir.constant(60 : index) : !llvm.i64
-//       CHECK: llvm.insertvalue {{.*}}[4, 0] : !llvm<"{ float*, float*, i64, [5 x i64], [5 x i64] }">
-//       CHECK: llvm.mlir.constant(20 : index) : !llvm.i64
-//       CHECK: llvm.insertvalue {{.*}}[4, 1] : !llvm<"{ float*, float*, i64, [5 x i64], [5 x i64] }">
-//       CHECK: llvm.mlir.constant(5 : index) : !llvm.i64
-//       CHECK: llvm.insertvalue {{.*}}[4, 2] : !llvm<"{ float*, float*, i64, [5 x i64], [5 x i64] }">
-//       CHECK: llvm.mlir.constant(5 : index) : !llvm.i64
-//       CHECK: llvm.insertvalue {{.*}}[4, 3] : !llvm<"{ float*, float*, i64, [5 x i64], [5 x i64] }">
-//       CHECK: llvm.mlir.constant(1 : index) : !llvm.i64
-//       CHECK: llvm.insertvalue {{.*}}[4, 4] : !llvm<"{ float*, float*, i64, [5 x i64], [5 x i64] }">
-//       CHECK: llvm.mlir.undef : !llvm<"{ float*, float*, i64, [3 x i64], [3 x i64] }">
-//       CHECK: llvm.extractvalue {{.*}}[0] : !llvm<"{ float*, float*, i64, [5 x i64], [5 x i64] }">
-//       CHECK: llvm.insertvalue {{.*}}[0] : !llvm<"{ float*, float*, i64, [3 x i64], [3 x i64] }">
-//       CHECK: llvm.extractvalue {{.*}}[1] : !llvm<"{ float*, float*, i64, [5 x i64], [5 x i64] }">
-//       CHECK: llvm.insertvalue {{.*}}[1] : !llvm<"{ float*, float*, i64, [3 x i64], [3 x i64] }">
-//       CHECK: llvm.extractvalue {{.*}}[2] : !llvm<"{ float*, float*, i64, [5 x i64], [5 x i64] }">
-//       CHECK: llvm.insertvalue {{.*}}[2] : !llvm<"{ float*, float*, i64, [3 x i64], [3 x i64] }">
-//       CHECK: llvm.mlir.constant(3 : index) : !llvm.i64
-//       CHECK: llvm.insertvalue {{.*}}[3, 0] : !llvm<"{ float*, float*, i64, [3 x i64], [3 x i64] }">
-//       CHECK: llvm.mlir.constant(4 : index) : !llvm.i64
-//       CHECK: llvm.insertvalue {{.*}}[3, 1] : !llvm<"{ float*, float*, i64, [3 x i64], [3 x i64] }">
-//       CHECK: llvm.mlir.constant(5 : index) : !llvm.i64
-//       CHECK: llvm.insertvalue {{.*}}[3, 2] : !llvm<"{ float*, float*, i64, [3 x i64], [3 x i64] }">
-//       CHECK: llvm.mlir.constant(20 : index) : !llvm.i64
-//       CHECK: llvm.insertvalue {{.*}}[4, 0] : !llvm<"{ float*, float*, i64, [3 x i64], [3 x i64] }">
-//       CHECK: llvm.mlir.constant(5 : index) : !llvm.i64
-//       CHECK: llvm.insertvalue {{.*}}[4, 1] : !llvm<"{ float*, float*, i64, [3 x i64], [3 x i64] }">
-//       CHECK: llvm.mlir.constant(1 : index) : !llvm.i64
-//       CHECK: llvm.insertvalue {{.*}}[4, 2] : !llvm<"{ float*, float*, i64, [3 x i64], [3 x i64] }">
+// CHECK-LABEL: func @reshape_static_expand
+//       CHECK:    llvm.mlir.undef : !llvm<"{ float*, float*, i64, [5 x i64], [5 x i64] }">
+//       CHECK:    llvm.extractvalue %{{.*}}[0] : !llvm<"{ float*, float*, i64, [3 x i64], [3 x i64] }">
+//       CHECK:    llvm.insertvalue %{{.*}}, %{{.*}}[0] : !llvm<"{ float*, float*, i64, [5 x i64], [5 x i64] }">
+//       CHECK:    llvm.extractvalue %{{.*}}[1] : !llvm<"{ float*, float*, i64, [3 x i64], [3 x i64] }">
+//       CHECK:    llvm.insertvalue %{{.*}}, %{{.*}}[1] : !llvm<"{ float*, float*, i64, [5 x i64], [5 x i64] }">
+//       CHECK:    llvm.extractvalue %{{.*}}[2] : !llvm<"{ float*, float*, i64, [3 x i64], [3 x i64] }">
+//       CHECK:    llvm.insertvalue %{{.*}}, %{{.*}}[2] : !llvm<"{ float*, float*, i64, [5 x i64], [5 x i64] }">
+//       CHECK:    llvm.mlir.constant(1 : index) : !llvm.i64
+//       CHECK:    llvm.insertvalue %{{.*}}, %{{.*}}[3, 0] : !llvm<"{ float*, float*, i64, [5 x i64], [5 x i64] }">
+//       CHECK:    llvm.mlir.constant(3 : index) : !llvm.i64
+//       CHECK:    llvm.insertvalue %{{.*}}, %{{.*}}[3, 1] : !llvm<"{ float*, float*, i64, [5 x i64], [5 x i64] }">
+//       CHECK:    llvm.mlir.constant(4 : index) : !llvm.i64
+//       CHECK:    llvm.insertvalue %{{.*}}, %{{.*}}[3, 2] : !llvm<"{ float*, float*, i64, [5 x i64], [5 x i64] }">
+//       CHECK:    llvm.mlir.constant(1 : index) : !llvm.i64
+//       CHECK:    llvm.insertvalue %{{.*}}, %{{.*}}[3, 3] : !llvm<"{ float*, float*, i64, [5 x i64], [5 x i64] }">
+//       CHECK:    llvm.mlir.constant(5 : index) : !llvm.i64
+//       CHECK:    llvm.insertvalue %{{.*}}, %{{.*}}[3, 4] : !llvm<"{ float*, float*, i64, [5 x i64], [5 x i64] }">
+//       CHECK:    llvm.mlir.constant(60 : index) : !llvm.i64
+//       CHECK:    llvm.insertvalue %{{.*}}, %{{.*}}[4, 0] : !llvm<"{ float*, float*, i64, [5 x i64], [5 x i64] }">
+//       CHECK:    llvm.mlir.constant(20 : index) : !llvm.i64
+//       CHECK:    llvm.insertvalue %{{.*}}, %{{.*}}[4, 1] : !llvm<"{ float*, float*, i64, [5 x i64], [5 x i64] }">
+//       CHECK:    llvm.mlir.constant(5 : index) : !llvm.i64
+//       CHECK:    llvm.insertvalue %{{.*}}, %{{.*}}[4, 2] : !llvm<"{ float*, float*, i64, [5 x i64], [5 x i64] }">
+//       CHECK:    llvm.mlir.constant(5 : index) : !llvm.i64
+//       CHECK:    llvm.insertvalue %{{.*}}, %{{.*}}[4, 3] : !llvm<"{ float*, float*, i64, [5 x i64], [5 x i64] }">
+//       CHECK:    llvm.mlir.constant(1 : index) : !llvm.i64
+//       CHECK:    llvm.insertvalue %{{.*}}, %{{.*}}[4, 4] : !llvm<"{ float*, float*, i64, [5 x i64], [5 x i64] }">
+
+func @reshape_static_collapse(%arg0: memref<1x3x4x1x5xf32>) -> memref<3x4x5xf32> {
+  %0 = linalg.reshape %arg0 [affine_map<(i, j, k, l, m) -> (i, j)>,
+                             affine_map<(i, j, k, l, m) -> (k)>,
+                             affine_map<(i, j, k, l, m) -> (l, m)>] :
+    memref<1x3x4x1x5xf32> into memref<3x4x5xf32>
+  return %0 : memref<3x4x5xf32>
+}
+// CHECK-LABEL: func @reshape_static_collapse
+//       CHECK:    llvm.mlir.undef : !llvm<"{ float*, float*, i64, [3 x i64], [3 x i64] }">
+//       CHECK:    llvm.extractvalue %{{.*}}[0] : !llvm<"{ float*, float*, i64, [5 x i64], [5 x i64] }">
+//       CHECK:    llvm.insertvalue %{{.*}}, %{{.*}}[0] : !llvm<"{ float*, float*, i64, [3 x i64], [3 x i64] }">
+//       CHECK:    llvm.extractvalue %{{.*}}[1] : !llvm<"{ float*, float*, i64, [5 x i64], [5 x i64] }">
+//       CHECK:    llvm.insertvalue %{{.*}}, %{{.*}}[1] : !llvm<"{ float*, float*, i64, [3 x i64], [3 x i64] }">
+//       CHECK:    llvm.extractvalue %{{.*}}[2] : !llvm<"{ float*, float*, i64, [5 x i64], [5 x i64] }">
+//       CHECK:    llvm.insertvalue %{{.*}}, %{{.*}}[2] : !llvm<"{ float*, float*, i64, [3 x i64], [3 x i64] }">
+//       CHECK:    llvm.mlir.constant(3 : index) : !llvm.i64
+//       CHECK:    llvm.insertvalue %{{.*}}, %{{.*}}[3, 0] : !llvm<"{ float*, float*, i64, [3 x i64], [3 x i64] }">
+//       CHECK:    llvm.mlir.constant(4 : index) : !llvm.i64
+//       CHECK:    llvm.insertvalue %{{.*}}, %{{.*}}[3, 1] : !llvm<"{ float*, float*, i64, [3 x i64], [3 x i64] }">
+//       CHECK:    llvm.mlir.constant(5 : index) : !llvm.i64
+//       CHECK:    llvm.insertvalue %{{.*}}, %{{.*}}[3, 2] : !llvm<"{ float*, float*, i64, [3 x i64], [3 x i64] }">
+//       CHECK:    llvm.mlir.constant(20 : index) : !llvm.i64
+//       CHECK:    llvm.insertvalue %{{.*}}, %{{.*}}[4, 0] : !llvm<"{ float*, float*, i64, [3 x i64], [3 x i64] }">
+//       CHECK:    llvm.mlir.constant(5 : index) : !llvm.i64
+//       CHECK:    llvm.insertvalue %{{.*}}, %{{.*}}[4, 1] : !llvm<"{ float*, float*, i64, [3 x i64], [3 x i64] }">
+//       CHECK:    llvm.mlir.constant(1 : index) : !llvm.i64
+//       CHECK:    llvm.insertvalue %{{.*}}, %{{.*}}[4, 2] : !llvm<"{ float*, float*, i64, [3 x i64], [3 x i64] }">
+
+func @reshape_fold_zero_dim(%arg0 : memref<1x1xf32>) -> memref<f32> {
+  %0 = linalg.reshape %arg0 [] : memref<1x1xf32> into memref<f32>
+  return %0 : memref<f32>
+}
+// CHECK-LABEL: func @reshape_fold_zero_dim
+//       CHECK:   llvm.mlir.undef : !llvm<"{ float*, float*, i64 }">
+//       CHECK:   llvm.extractvalue %{{.*}}[0] : !llvm<"{ float*, float*, i64, [2 x i64], [2 x i64] }">
+//       CHECK:   llvm.insertvalue %{{.*}}, %{{.*}}[0] : !llvm<"{ float*, float*, i64 }">
+//       CHECK:   llvm.extractvalue %{{.*}}[1] : !llvm<"{ float*, float*, i64, [2 x i64], [2 x i64] }">
+//       CHECK:   llvm.insertvalue %{{.*}}, %{{.*}}[1] : !llvm<"{ float*, float*, i64 }">
+//       CHECK:   llvm.extractvalue %{{.*}}[2] : !llvm<"{ float*, float*, i64, [2 x i64], [2 x i64] }">
+//       CHECK:   llvm.insertvalue %{{.*}}, %{{.*}}[2] : !llvm<"{ float*, float*, i64 }">
+
+func @reshape_expand_zero_dim(%arg0 : memref<f32>) -> memref<1x1xf32> {
+  %0 = linalg.reshape %arg0 [] : memref<f32> into memref<1x1xf32>
+  return %0 : memref<1x1xf32>
+}
+// CHECK-LABEL: func @reshape_expand_zero_dim
+//       CHECK:   llvm.mlir.undef : !llvm<"{ float*, float*, i64, [2 x i64], [2 x i64] }">
+//       CHECK:   llvm.extractvalue %{{.*}}[0] : !llvm<"{ float*, float*, i64 }">
+//       CHECK:   llvm.insertvalue %{{.*}}, %{{.*}}[0] : !llvm<"{ float*, float*, i64, [2 x i64], [2 x i64] }">
+//       CHECK:   llvm.extractvalue %{{.*}}[1] : !llvm<"{ float*, float*, i64 }">
+//       CHECK:   llvm.insertvalue %{{.*}}, %{{.*}}[1] : !llvm<"{ float*, float*, i64, [2 x i64], [2 x i64] }">
+//       CHECK:   llvm.extractvalue %{{.*}}[2] : !llvm<"{ float*, float*, i64 }">
+//       CHECK:   llvm.insertvalue %{{.*}}, %{{.*}}[2] : !llvm<"{ float*, float*, i64, [2 x i64], [2 x i64] }">
+//       CHECK:   llvm.mlir.constant(1 : index) : !llvm.i64
+//       CHECK:   llvm.insertvalue %{{.*}}, %{{.*}}[3, 0] : !llvm<"{ float*, float*, i64, [2 x i64], [2 x i64] }">
+//       CHECK:   llvm.mlir.constant(1 : index) : !llvm.i64
+//       CHECK:   llvm.insertvalue %{{.*}}, %{{.*}}[3, 1] : !llvm<"{ float*, float*, i64, [2 x i64], [2 x i64] }">
+//       CHECK:   llvm.mlir.constant(1 : index) : !llvm.i64
+//       CHECK:   llvm.insertvalue %{{.*}}, %{{.*}}[4, 0] : !llvm<"{ float*, float*, i64, [2 x i64], [2 x i64] }">
+//       CHECK:   llvm.mlir.constant(1 : index) : !llvm.i64
+//       CHECK:   llvm.insertvalue %{{.*}}, %{{.*}}[4, 1] : !llvm<"{ float*, float*, i64, [2 x i64], [2 x i64] }">

@@ -374,23 +374,17 @@ n]] = 10; // error-ok
                   Fix(Source.range(), "ident", "change 'ide\\…' to 'ident'"))));
 }
 
-TEST(DiagnosticTest, ClangTidyWarningAsErrorTrumpsSuppressionComment) {
+TEST(DiagnosticTest, ClangTidySuppressionCommentTrumpsWarningAsError) {
   Annotations Main(R"cpp(
     int main() {
       int i = 3;
-      double f = [[8]] / i;  // NOLINT // error-ok
+      double f = [[8]] / i;  // NOLINT
     }
   )cpp");
   TestTU TU = TestTU::withCode(Main.code());
   TU.ClangTidyChecks = "bugprone-integer-division";
   TU.ClangTidyWarningsAsErrors = "bugprone-integer-division";
-  EXPECT_THAT(
-      TU.build().getDiagnostics(),
-      UnorderedElementsAre(::testing::AllOf(
-          Diag(Main.range(), "result of integer division used in a floating "
-                             "point context; possible loss of precision"),
-          DiagSource(Diag::ClangTidy), DiagName("bugprone-integer-division"),
-          DiagSeverity(DiagnosticsEngine::Error))));
+  EXPECT_THAT(TU.build().getDiagnostics(), UnorderedElementsAre());
 }
 
 TEST(DiagnosticsTest, Preprocessor) {
@@ -1037,6 +1031,20 @@ TEST(DiagsInHeaders, OnlyErrorOrFatal) {
                   Diag(Main.range(), "in included file: C++ requires "
                                      "a type specifier for all declarations"),
                   WithNote(Diag(Header.range(), "error occurred here")))));
+}
+
+TEST(DiagsInHeaders, OnlyDefaultErrorOrFatal) {
+  Annotations Main(R"cpp(
+    #include [["a.h"]] // get unused "foo" warning when building preamble.
+    )cpp");
+  Annotations Header(R"cpp(
+    namespace { void foo() {} }
+    void func() {foo();} ;)cpp");
+  TestTU TU = TestTU::withCode(Main.code());
+  TU.AdditionalFiles = {{"a.h", std::string(Header.code())}};
+  // promote warnings to errors.
+  TU.ExtraArgs = {"-Werror", "-Wunused"};
+  EXPECT_THAT(TU.build().getDiagnostics(), IsEmpty());
 }
 
 TEST(DiagsInHeaders, FromNonWrittenSources) {

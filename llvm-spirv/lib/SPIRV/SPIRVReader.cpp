@@ -1673,10 +1673,17 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
   case OpLoad: {
     SPIRVLoad *BL = static_cast<SPIRVLoad *>(BV);
     auto V = transValue(BL->getSrc(), F, BB);
-    LoadInst *LI =
-        new LoadInst(V->getType()->getPointerElementType(), V, BV->getName(),
-                     BL->SPIRVMemoryAccess::isVolatile(),
-                     MaybeAlign(BL->SPIRVMemoryAccess::getAlignment()), BB);
+    Type *Ty = V->getType()->getPointerElementType();
+    LoadInst *LI = nullptr;
+    uint64_t AlignValue = BL->SPIRVMemoryAccess::getAlignment();
+    if (0 == AlignValue) {
+      LI = new LoadInst(Ty, V, BV->getName(),
+                        BL->SPIRVMemoryAccess::isVolatile(), BB);
+    } else {
+      LI = new LoadInst(Ty, V, BV->getName(),
+                        BL->SPIRVMemoryAccess::isVolatile(), Align(AlignValue),
+                        BB);
+    }
     if (BL->SPIRVMemoryAccess::isNonTemporal())
       transNonTemporalMetadata(LI);
     return mapValue(BV, LI);

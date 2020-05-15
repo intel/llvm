@@ -95,6 +95,10 @@ static cl::opt<bool> DisableLoopAlignment(
   cl::desc("Do not align and prefetch loops"),
   cl::init(false));
 
+static cl::opt<bool> VGPRReserveforSGPRSpill(
+    "amdgpu-reserve-vgpr-for-sgpr-spill",
+    cl::desc("Allocates one VGPR for future SGPR Spill"), cl::init(true));
+
 static bool hasFP32Denormals(const MachineFunction &MF) {
   const SIMachineFunctionInfo *Info = MF.getInfo<SIMachineFunctionInfo>();
   return Info->getMode().allFP32Denormals();
@@ -144,8 +148,14 @@ SITargetLowering::SITargetLowering(const TargetMachine &TM,
   addRegisterClass(MVT::v8i32, &AMDGPU::SGPR_256RegClass);
   addRegisterClass(MVT::v8f32, &AMDGPU::VReg_256RegClass);
 
+  addRegisterClass(MVT::v4i64, &AMDGPU::SGPR_256RegClass);
+  addRegisterClass(MVT::v4f64, &AMDGPU::VReg_256RegClass);
+
   addRegisterClass(MVT::v16i32, &AMDGPU::SGPR_512RegClass);
   addRegisterClass(MVT::v16f32, &AMDGPU::VReg_512RegClass);
+
+  addRegisterClass(MVT::v8i64, &AMDGPU::SGPR_512RegClass);
+  addRegisterClass(MVT::v8f64, &AMDGPU::VReg_512RegClass);
 
   if (Subtarget->has16BitInsts()) {
     addRegisterClass(MVT::i16, &AMDGPU::SReg_32RegClass);
@@ -229,6 +239,10 @@ SITargetLowering::SITargetLowering(const TargetMachine &TM,
 
   setOperationAction(ISD::TRUNCATE, MVT::v2i32, Expand);
   setOperationAction(ISD::FP_ROUND, MVT::v2f32, Expand);
+  setOperationAction(ISD::TRUNCATE, MVT::v4i32, Expand);
+  setOperationAction(ISD::FP_ROUND, MVT::v4f32, Expand);
+  setOperationAction(ISD::TRUNCATE, MVT::v8i32, Expand);
+  setOperationAction(ISD::FP_ROUND, MVT::v8f32, Expand);
 
   setOperationAction(ISD::SIGN_EXTEND_INREG, MVT::v2i1, Custom);
   setOperationAction(ISD::SIGN_EXTEND_INREG, MVT::v4i1, Custom);
@@ -265,6 +279,7 @@ SITargetLowering::SITargetLowering(const TargetMachine &TM,
   // with > 4 elements.
   for (MVT VT : { MVT::v8i32, MVT::v8f32, MVT::v16i32, MVT::v16f32,
                   MVT::v2i64, MVT::v2f64, MVT::v4i16, MVT::v4f16,
+                  MVT::v4i64, MVT::v4f64, MVT::v8i64, MVT::v8f64,
                   MVT::v32i32, MVT::v32f32 }) {
     for (unsigned Op = 0; Op < ISD::BUILTIN_OP_END; ++Op) {
       switch (Op) {
@@ -307,6 +322,34 @@ SITargetLowering::SITargetLowering(const TargetMachine &TM,
 
     setOperationAction(ISD::SCALAR_TO_VECTOR, Vec64, Promote);
     AddPromotedToType(ISD::SCALAR_TO_VECTOR, Vec64, MVT::v4i32);
+  }
+
+  for (MVT Vec64 : { MVT::v4i64, MVT::v4f64 }) {
+    setOperationAction(ISD::BUILD_VECTOR, Vec64, Promote);
+    AddPromotedToType(ISD::BUILD_VECTOR, Vec64, MVT::v8i32);
+
+    setOperationAction(ISD::EXTRACT_VECTOR_ELT, Vec64, Promote);
+    AddPromotedToType(ISD::EXTRACT_VECTOR_ELT, Vec64, MVT::v8i32);
+
+    setOperationAction(ISD::INSERT_VECTOR_ELT, Vec64, Promote);
+    AddPromotedToType(ISD::INSERT_VECTOR_ELT, Vec64, MVT::v8i32);
+
+    setOperationAction(ISD::SCALAR_TO_VECTOR, Vec64, Promote);
+    AddPromotedToType(ISD::SCALAR_TO_VECTOR, Vec64, MVT::v8i32);
+  }
+
+  for (MVT Vec64 : { MVT::v8i64, MVT::v8f64 }) {
+    setOperationAction(ISD::BUILD_VECTOR, Vec64, Promote);
+    AddPromotedToType(ISD::BUILD_VECTOR, Vec64, MVT::v16i32);
+
+    setOperationAction(ISD::EXTRACT_VECTOR_ELT, Vec64, Promote);
+    AddPromotedToType(ISD::EXTRACT_VECTOR_ELT, Vec64, MVT::v16i32);
+
+    setOperationAction(ISD::INSERT_VECTOR_ELT, Vec64, Promote);
+    AddPromotedToType(ISD::INSERT_VECTOR_ELT, Vec64, MVT::v16i32);
+
+    setOperationAction(ISD::SCALAR_TO_VECTOR, Vec64, Promote);
+    AddPromotedToType(ISD::SCALAR_TO_VECTOR, Vec64, MVT::v16i32);
   }
 
   setOperationAction(ISD::VECTOR_SHUFFLE, MVT::v8i32, Expand);
@@ -895,9 +938,8 @@ unsigned SITargetLowering::getVectorTypeBreakdownForCallingConv(
 static EVT memVTFromImageData(Type *Ty, unsigned DMaskLanes) {
   assert(DMaskLanes != 0);
 
-  if (auto *VT = dyn_cast<VectorType>(Ty)) {
-    unsigned NumElts = std::min(DMaskLanes,
-                                static_cast<unsigned>(VT->getNumElements()));
+  if (auto *VT = dyn_cast<FixedVectorType>(Ty)) {
+    unsigned NumElts = std::min(DMaskLanes, VT->getNumElements());
     return EVT::getVectorVT(Ty->getContext(),
                             EVT::getEVT(VT->getElementType()),
                             NumElts);
@@ -4871,7 +4913,7 @@ SDValue SITargetLowering::getSegmentAperture(unsigned AS, const SDLoc &DL,
 
   MachineFunction &MF = DAG.getMachineFunction();
   SIMachineFunctionInfo *Info = MF.getInfo<SIMachineFunctionInfo>();
-  unsigned UserSGPR = Info->getQueuePtrUserSGPR();
+  Register UserSGPR = Info->getQueuePtrUserSGPR();
   assert(UserSGPR != AMDGPU::NoRegister);
 
   SDValue QueuePtr = CreateLiveInRegister(
@@ -10858,6 +10900,13 @@ void SITargetLowering::finalizeLowering(MachineFunction &MF) const {
   }
 
   TargetLoweringBase::finalizeLowering(MF);
+
+  // Allocate a VGPR for future SGPR Spill if
+  // "amdgpu-reserve-vgpr-for-sgpr-spill" option is used
+  // FIXME: We won't need this hack if we split SGPR allocation from VGPR
+  if (VGPRReserveforSGPRSpill && !Info->VGPRReservedForSGPRSpill &&
+      !Info->isEntryFunction() && MF.getFrameInfo().hasStackObjects())
+    Info->reserveVGPRforSGPRSpills(MF);
 }
 
 void SITargetLowering::computeKnownBitsForFrameIndex(const SDValue Op,

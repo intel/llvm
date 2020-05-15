@@ -219,7 +219,7 @@ struct LoopToGpuConverter {
 
 // Return true if the value is obviously a constant "one".
 static bool isConstantOne(Value value) {
-  if (auto def = dyn_cast_or_null<ConstantIndexOp>(value.getDefiningOp()))
+  if (auto def = value.getDefiningOp<ConstantIndexOp>())
     return def.getValue() == 1;
   return false;
 }
@@ -505,11 +505,11 @@ struct ParallelToGpuLaunchLowering : public OpRewritePattern<ParallelOp> {
 /// `upperBound`.
 static Value deriveStaticUpperBound(Value upperBound,
                                     PatternRewriter &rewriter) {
-  if (auto op = dyn_cast_or_null<ConstantIndexOp>(upperBound.getDefiningOp())) {
+  if (auto op = upperBound.getDefiningOp<ConstantIndexOp>()) {
     return op;
   }
 
-  if (auto minOp = dyn_cast_or_null<AffineMinOp>(upperBound.getDefiningOp())) {
+  if (auto minOp = upperBound.getDefiningOp<AffineMinOp>()) {
     for (const AffineExpr &result : minOp.map().getResults()) {
       if (auto constExpr = result.dyn_cast<AffineConstantExpr>()) {
         return rewriter.create<ConstantIndexOp>(minOp.getLoc(),
@@ -518,7 +518,7 @@ static Value deriveStaticUpperBound(Value upperBound,
     }
   }
 
-  if (auto multiplyOp = dyn_cast_or_null<MulIOp>(upperBound.getDefiningOp())) {
+  if (auto multiplyOp = upperBound.getDefiningOp<MulIOp>()) {
     if (auto lhs = dyn_cast_or_null<ConstantIndexOp>(
             deriveStaticUpperBound(multiplyOp.getOperand(0), rewriter)
                 .getDefiningOp()))
@@ -563,7 +563,7 @@ static unsigned getLaunchOpArgumentNum(gpu::Processor processor) {
 }
 
 /// Modifies the current transformation state to capture the effect of the given
-/// `loop.parallel` operation on index substitutions and the operations to be
+/// `scf.parallel` operation on index substitutions and the operations to be
 /// inserted.
 /// Specifically, if a dimension of a parallel loop is mapped to a hardware id,
 /// this function will
@@ -607,7 +607,7 @@ static LogicalResult processParallelLoop(
                                   launchIndependent](Value val) -> Value {
     if (launchIndependent(val))
       return val;
-    if (ConstantOp constOp = dyn_cast_or_null<ConstantOp>(val.getDefiningOp()))
+    if (ConstantOp constOp = val.getDefiningOp<ConstantOp>())
       return rewriter.create<ConstantOp>(constOp.getLoc(), constOp.getValue());
     return {};
   };
@@ -734,11 +734,11 @@ static LogicalResult processParallelLoop(
   return success();
 }
 
-/// Lower a `loop.parallel` operation into a corresponding `gpu.launch`
+/// Lower a `scf.parallel` operation into a corresponding `gpu.launch`
 /// operation.
 ///
 /// This essentially transforms a loop nest into a corresponding SIMT function.
-/// The conversion is driven by mapping annotations on the `loop.parallel`
+/// The conversion is driven by mapping annotations on the `scf.parallel`
 /// operations. The mapping is provided via a `DictionaryAttribute` named
 /// `mapping`, which has three entries:
 ///  - processor: the hardware id to map to. 0-2 are block dimensions, 3-5 are
@@ -747,9 +747,9 @@ static LogicalResult processParallelLoop(
 ///          substitution.
 ///  - bound : An affine map that is used to compute the bound of the hardware
 ///            id based on an upper bound of the number of iterations.
-/// If the `loop.parallel` contains nested `loop.parallel` operations, those
+/// If the `scf.parallel` contains nested `scf.parallel` operations, those
 /// need to be annotated, as well. Structurally, the transformation works by
-/// splicing all operations from nested `loop.parallel` operations into a single
+/// splicing all operations from nested `scf.parallel` operations into a single
 /// sequence. Indices mapped to hardware ids are substituted with those ids,
 /// wheras sequential mappings result in a sequential for-loop. To have more
 /// flexibility when mapping code to hardware ids, the transform supports two
@@ -791,7 +791,7 @@ ParallelToGpuLaunchLowering::matchAndRewrite(ParallelOp parallelOp,
   while (!worklist.empty()) {
     Operation *op = worklist.pop_back_val();
     // Now walk over the body and clone it.
-    // TODO: This is only correct if there either is no further loop.parallel
+    // TODO: This is only correct if there either is no further scf.parallel
     //       nested or this code is side-effect free. Otherwise we might need
     //       predication. We are overly conservative for now and only allow
     //       side-effects in the innermost scope.
@@ -800,7 +800,7 @@ ParallelToGpuLaunchLowering::matchAndRewrite(ParallelOp parallelOp,
       // sideeffects until now.
       if (seenSideeffects)
         return failure();
-      // A nested loop.parallel needs insertion of code to compute indices.
+      // A nested scf.parallel needs insertion of code to compute indices.
       // Insert that now. This will also update the worklist with the loops
       // body.
       if (failed(processParallelLoop(nestedParallel, launchOp, cloningMap,
