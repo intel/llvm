@@ -1,14 +1,12 @@
 // UNSUPPORTED: cuda
 // Reductions use work-group builtins not yet supported by CUDA.
 
-// UNSUPPORTED: linux
-// TODO: Enable the test for Linux when CI uses GPU driver 20.06.15619 or newer.
-
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
+// RUNx: env SYCL_DEVICE_TYPE=HOST %t.out
 // TODO: Enable the test for HOST when it supports intel::reduce() and barrier()
 
 // This test performs basic checks of parallel_for(nd_range, reduction, func)
@@ -24,11 +22,21 @@ template <typename T, int Dim, class BinaryOperation>
 class SomeClass;
 
 template <typename T, int Dim, class BinaryOperation>
-void test(T Identity, size_t WGSize, size_t NWItems) {
+void test(T Identity, size_t WGSize, size_t NWItems, usm::alloc AllocType) {
   queue Q;
   auto Dev = Q.get_device();
-  if (!Dev.get_info<info::device::usm_shared_allocations>())
+
+  if (AllocType == usm::alloc::shared &&
+      !Dev.get_info<info::device::usm_shared_allocations>())
     return;
+  if (AllocType == usm::alloc::host &&
+      !Dev.get_info<info::device::usm_host_allocations>())
+    return;
+
+  T *ReduVarPtr = (T *)malloc(sizeof(T), Dev, Q.get_context(), AllocType);
+  if (ReduVarPtr == nullptr)
+    return;
+  *ReduVarPtr = Identity;
 
   // Initialize.
   T CorrectOut;
@@ -36,9 +44,6 @@ void test(T Identity, size_t WGSize, size_t NWItems) {
 
   buffer<T, 1> InBuf(NWItems);
   initInputData(InBuf, CorrectOut, Identity, BOp, NWItems);
-
-  T *ReduVarPtr = (T *)malloc_shared(sizeof(T), Dev, Q.get_context());
-  *ReduVarPtr = Identity;
 
   // Compute.
   Q.submit([&](handler &CGH) {
@@ -61,26 +66,36 @@ void test(T Identity, size_t WGSize, size_t NWItems) {
               << ", Expected value: " << CorrectOut << "\n";
     assert(0 && "Wrong value.");
   }
+
   free(ReduVarPtr, Q.get_context());
+}
+
+template <typename T, int Dim, class BinaryOperation>
+void testUSM(T Identity, size_t WGSize, size_t NWItems) {
+  test<T, Dim, BinaryOperation>(Identity, WGSize, NWItems, usm::alloc::shared);
+  test<T, Dim, BinaryOperation>(Identity, WGSize, NWItems, usm::alloc::host);
 }
 
 int main() {
   // fast atomics and fast reduce
-  test<int, 1, intel::plus<int>>(0, 49, 49 * 5);
-  test<int, 0, intel::plus<int>>(0, 8, 128);
+  testUSM<int, 1, intel::plus<int>>(0, 49, 49 * 5);
+  testUSM<int, 0, intel::plus<int>>(0, 8, 128);
 
   // fast atomics
-  test<int, 0, intel::bit_or<int>>(0, 7, 7 * 3);
-  test<int, 1, intel::bit_or<int>>(0, 4, 128);
+  testUSM<int, 0, intel::bit_or<int>>(0, 7, 7 * 3);
+  testUSM<int, 1, intel::bit_or<int>>(0, 4, 128);
 
   // fast reduce
-  test<float, 1, intel::minimum<float>>(std::numeric_limits<float>::max(), 5, 5 * 7);
-  test<float, 0, intel::maximum<float>>(std::numeric_limits<float>::min(), 4, 128);
+  testUSM<float, 1, intel::minimum<float>>(
+      (std::numeric_limits<float>::max)(), 5, 5 * 7);
+  testUSM<float, 0, intel::maximum<float>>(
+      (std::numeric_limits<float>::min)(), 4, 128);
 
   // generic algorithm
-  test<int, 0, std::multiplies<int>>(1, 7, 7 * 5);
-  test<int, 1, std::multiplies<int>>(1, 8, 16);
-  test<CustomVec<short>, 0, CustomVecPlus<short>>(CustomVec<short>(0), 8, 8 * 3);
+  testUSM<int, 0, std::multiplies<int>>(1, 7, 7 * 5);
+  testUSM<int, 1, std::multiplies<int>>(1, 8, 16);
+  testUSM<CustomVec<short>, 0, CustomVecPlus<short>>(
+      CustomVec<short>(0), 8, 8 * 3);
 
   std::cout << "Test passed\n";
   return 0;
