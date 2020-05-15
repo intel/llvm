@@ -6,8 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <core/clc_core.h>
-#include <spirv/spirv.h>
+#ifdef __CLC_GEN_S
+#define DECL __spirv_ocl_s_sub_sat
+#else
+#define DECL __spirv_ocl_u_sub_sat
+#endif
 
-#define __CLC_BODY <mad_sat.inc>
-#include <clc/integer/gentype.inc>
+_CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE DECL(__CLC_GENTYPE x, __CLC_GENTYPE y) {
+  return __clc_sub_sat(x, y);
+}
+
+#undef DECL
