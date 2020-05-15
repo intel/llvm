@@ -365,7 +365,7 @@ static void copyH2H(SYCLMemObjI *SYCLMemObj, char *SrcMem,
     return;
 
   size_t BytesToCopy =
-       SrcAccessRange[0] * SrcElemSize * SrcAccessRange[1] * SrcAccessRange[2];
+      SrcAccessRange[0] * SrcElemSize * SrcAccessRange[1] * SrcAccessRange[2];
   std::memcpy(DstMem, SrcMem, BytesToCopy);
 }
 
