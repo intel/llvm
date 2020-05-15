@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "BackendString.hpp"
 #include <CL/sycl.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <detail/plugin.hpp>
@@ -17,17 +16,15 @@ namespace {
 
 using namespace cl::sycl;
 
-class PlatformTest : public testing::TestWithParam<detail::plugin> {
+class PlatformTest : public ::testing::Test {
 protected:
   std::vector<pi_platform> _platforms;
-  PlatformTest() : _platforms{} {};
+  std::vector<detail::plugin> Plugins;
+  PlatformTest() : _platforms{} { Plugins = detail::pi::initialize(); };
 
   ~PlatformTest() override = default;
 
   void SetUp() {
-
-    detail::plugin plugin = GetParam();
-
     ASSERT_NO_FATAL_FAILURE(Test::SetUp());
 
     const static char *platform_count_key = "PiPlatformCount";
@@ -39,7 +36,7 @@ protected:
 
     // TODO: Change the test to check this for all plugins present.
     // Currently, it is only checking for the first plugin attached.
-    ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piPlatformsGet>(
+    ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piPlatformsGet>(
                   0, nullptr, &platform_count)),
               PI_SUCCESS);
 
@@ -47,7 +44,8 @@ protected:
     RecordProperty(platform_count_key, platform_count);
 
     if (platform_count == 0u) {
-      std::cout << "WARNING: piPlatformsGet does not find any PI platforms.\n";
+      std::cout
+          << "WARNING: piPlatformsGet does not find any PI platforms.\n";
 
       // Do not call into OpenCL below as a platform count of 0 might fail with
       // OpenCL implementations if the platforms pointer is not `nullptr`.
@@ -56,39 +54,28 @@ protected:
 
     _platforms.resize(platform_count, nullptr);
 
-    ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piPlatformsGet>(
+    ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piPlatformsGet>(
                   _platforms.size(), _platforms.data(), nullptr)),
               PI_SUCCESS);
   }
 };
 
-static std::vector<detail::plugin> Plugins = detail::pi::initialize();
-
-INSTANTIATE_TEST_CASE_P(
-    PlatformTestImpl, PlatformTest, testing::ValuesIn(Plugins),
-    [](const testing::TestParamInfo<PlatformTest::ParamType> &info) {
-      return pi::GetBackendString(info.param.getBackend());
-    });
-
-TEST_P(PlatformTest, piPlatformsGet) {
+TEST_F(PlatformTest, piPlatformsGet) {
   // The PlatformTest::SetUp method is called to prepare for this test case
   // implicitly tests the calls to `piPlatformsGet`.
 }
 
-TEST_P(PlatformTest, piPlatformGetInfo) {
-
-  detail::plugin plugin = GetParam();
-
+TEST_F(PlatformTest, piPlatformGetInfo) {
   auto get_info_test = [&](pi_platform platform, _pi_platform_info info) {
     size_t reported_string_length = 0;
-    EXPECT_EQ((plugin.call_nocheck<detail::PiApiKind::piPlatformGetInfo>(
+    EXPECT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piPlatformGetInfo>(
                   platform, info, 0u, nullptr, &reported_string_length)),
               PI_SUCCESS);
 
     // Create a larger result string to catch overwrites.
     std::vector<char> param_value(reported_string_length * 2u, '\0');
     EXPECT_EQ(
-        (plugin.call_nocheck<detail::PiApiKind::piPlatformGetInfo>(
+        (Plugins[0].call_nocheck<detail::PiApiKind::piPlatformGetInfo>(
             platform, info, param_value.size(), param_value.data(), nullptr)),
         PI_SUCCESS)
         << "piPlatformGetInfo for " << detail::pi::platformInfoToString(info)

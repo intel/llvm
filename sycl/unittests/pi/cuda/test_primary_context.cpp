@@ -10,7 +10,6 @@
 
 #include <cuda.h>
 
-#include "test_get_plugin.hpp"
 #include <CL/sycl.hpp>
 #include <CL/sycl/backend/cuda.hpp>
 #include <detail/plugin.hpp>
@@ -20,7 +19,7 @@
 
 using namespace cl::sycl;
 
-struct CudaPrimaryContextTests : public ::testing::Test {
+struct DISABLED_CudaPrimaryContextTests : public ::testing::Test {
 
 protected:
   device deviceA_;
@@ -78,7 +77,7 @@ protected:
   void TearDown() override {}
 };
 
-TEST_F(CudaPrimaryContextTests, piSingleContext) {
+TEST_F(DISABLED_CudaPrimaryContextTests, piSingleContext) {
   std::cout << "create single context" << std::endl;
   context Context(deviceA_, async_handler{}, /*UsePrimaryContext=*/true);
 
@@ -93,7 +92,7 @@ TEST_F(CudaPrimaryContextTests, piSingleContext) {
   cuDevicePrimaryCtxRelease(CudaDevice);
 }
 
-TEST_F(CudaPrimaryContextTests, piMultiContextSingleDevice) {
+TEST_F(DISABLED_CudaPrimaryContextTests, piMultiContextSingleDevice) {
   std::cout << "create multiple contexts for one device" << std::endl;
   context ContextA(deviceA_, async_handler{}, /*UsePrimaryContext=*/true);
   context ContextB(deviceA_, async_handler{}, /*UsePrimaryContext=*/true);
@@ -104,7 +103,7 @@ TEST_F(CudaPrimaryContextTests, piMultiContextSingleDevice) {
   ASSERT_EQ(CudaContextA, CudaContextB);
 }
 
-TEST_F(CudaPrimaryContextTests, piMultiContextMultiDevice) {
+TEST_F(DISABLED_CudaPrimaryContextTests, piMultiContextMultiDevice) {
   CUdevice CudaDeviceA = deviceA_.get_native<backend::cuda>();
   CUdevice CudaDeviceB = deviceB_.get_native<backend::cuda>();
 

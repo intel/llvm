@@ -45,7 +45,7 @@
 // TODO: we need a mapping of PI to OpenCL somewhere, and this can be done
 // elsewhere, e.g. in the pi_opencl, but constants/enums mapping is now
 // done here, for efficiency and simplicity.
-
+#include <CL/cl_ext_intel.h>
 #include <CL/cl_usm_ext.h>
 #include <CL/sycl/detail/cl.h>
 #include <CL/sycl/detail/export.hpp>
@@ -133,16 +133,9 @@ typedef enum {
 // make the translation to OpenCL transparent.
 //
 typedef enum : pi_uint64 {
-  PI_DEVICE_TYPE_DEFAULT =
-      CL_DEVICE_TYPE_DEFAULT, ///< The default device available in the PI
-                              ///< plugin.
-  PI_DEVICE_TYPE_ALL =
-      CL_DEVICE_TYPE_ALL, ///< All devices available in the PI plugin.
-  PI_DEVICE_TYPE_CPU =
-      CL_DEVICE_TYPE_CPU, ///< A PI device that is the host processor.
-  PI_DEVICE_TYPE_GPU = CL_DEVICE_TYPE_GPU, ///< A PI device that is a GPU.
-  PI_DEVICE_TYPE_ACC = CL_DEVICE_TYPE_ACCELERATOR ///< A PI device that is a
-                                                  ///< dedicated accelerator.
+  PI_DEVICE_TYPE_CPU = CL_DEVICE_TYPE_CPU,
+  PI_DEVICE_TYPE_GPU = CL_DEVICE_TYPE_GPU,
+  PI_DEVICE_TYPE_ACC = CL_DEVICE_TYPE_ACCELERATOR
 } _pi_device_type;
 
 typedef enum {
@@ -315,6 +308,14 @@ typedef enum {
   PI_IMAGE_INFO_HEIGHT = CL_IMAGE_HEIGHT,
   PI_IMAGE_INFO_DEPTH = CL_IMAGE_DEPTH
 } _pi_image_info;
+
+typedef enum {
+  PI_KERNEL_MAX_SUB_GROUP_SIZE = CL_KERNEL_MAX_SUB_GROUP_SIZE_FOR_NDRANGE,
+  PI_KERNEL_MAX_NUM_SUB_GROUPS = CL_KERNEL_MAX_NUM_SUB_GROUPS,
+  PI_KERNEL_COMPILE_NUM_SUB_GROUPS = CL_KERNEL_COMPILE_NUM_SUB_GROUPS,
+  PI_KERNEL_COMPILE_SUB_GROUP_SIZE_INTEL =
+      CL_KERNEL_COMPILE_SUB_GROUP_SIZE_INTEL
+} _pi_kernel_sub_group_info;
 
 typedef enum {
   PI_EVENT_INFO_COMMAND_QUEUE = CL_EVENT_COMMAND_QUEUE,
@@ -510,6 +511,7 @@ using pi_queue_info = _pi_queue_info;
 using pi_image_info = _pi_image_info;
 using pi_kernel_info = _pi_kernel_info;
 using pi_kernel_group_info = _pi_kernel_group_info;
+using pi_kernel_sub_group_info = _pi_kernel_sub_group_info;
 using pi_event_info = _pi_event_info;
 using pi_command_type = _pi_command_type;
 using pi_mem_type = _pi_mem_type;
@@ -1056,9 +1058,26 @@ __SYCL_EXPORT pi_result piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
                                              void *param_value,
                                              size_t *param_value_size_ret);
 
+/// API to query information from the sub-group from a kernel
+///
+/// \param kernel is the pi_kernel to query
+/// \param device is the device the kernel is executed on
+/// \param param_name is a pi_kernel_sub_group_info enum value that
+///        specifies the informtation queried for.
+/// \param input_value_size is the size of input value passed in
+///        ptr input_value param
+/// \param input_value is the ptr to the input value passed.
+/// \param param_value_size is the size of the value in bytes.
+/// \param param_value is a pointer to the value to set.
+/// \param param_value_size_ret is a pointer to return the size of data in
+///        param_value ptr.
+///
+/// All queries expect a return of 4 bytes in param_value_size,
+/// param_value_size_ret, and a uint32_t value should to be written in
+/// param_value ptr.
+/// Note: This behaviour differs from OpenCL. OpenCL returns size_t.
 __SYCL_EXPORT pi_result piKernelGetSubGroupInfo(
-    pi_kernel kernel, pi_device device,
-    cl_kernel_sub_group_info param_name, // TODO: untie from OpenCL
+    pi_kernel kernel, pi_device device, pi_kernel_sub_group_info param_name,
     size_t input_value_size, const void *input_value, size_t param_value_size,
     void *param_value, size_t *param_value_size_ret);
 
