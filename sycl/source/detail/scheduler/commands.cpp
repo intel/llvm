@@ -1909,7 +1909,7 @@ cl_int ExecCGCommand::enqueueImp() {
         break;
       }
       default:
-        throw std::runtime_error("Yet unsupported arg type");
+        throw runtime_error("Unsupported arg type", PI_INVALID_VALUE);
       }
     }
 

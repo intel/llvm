@@ -219,6 +219,7 @@ class HostTask {
   std::function<void()> MHostTask;
 
 public:
+  HostTask() : MHostTask([]() {}) {}
   HostTask(std::function<void()> &&Func) : MHostTask(Func) {}
 
   void call() { MHostTask(); }

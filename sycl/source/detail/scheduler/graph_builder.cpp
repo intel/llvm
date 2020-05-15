@@ -900,11 +900,11 @@ void Scheduler::GraphBuilder::removeRecordForMemObj(SYCLMemObjI *MemObject) {
 // Make Cmd depend on DepEvent from different context. Connection is performed
 // via distinct ConnectCmd with host task command group on host queue. Cmd will
 // depend on ConnectCmd's host event.
-// DepEvent may not have an associated with it command in at least two cases:
+// DepEvent may not have a command associated with it in at least two cases:
 //  - the command was deleted upon cleanup process;
 //  - DepEvent is user event.
-// In both these cases the only thing we can do is to make ConnectCmd depend on
-// DepEvent.
+// In both of these cases the only thing we can do is to make ConnectCmd depend
+// on DepEvent.
 // Otherwise, when there is a command associated with DepEvent, we make
 // ConnectCmd depend on on this command. If there is valid, i.e. non-nil,
 // requirement in Dep we make ConnectCmd depend on DepEvent's command with this
@@ -921,9 +921,7 @@ void Scheduler::GraphBuilder::connectDepEvent(Command *const Cmd,
   ExecCGCommand *ConnectCmd = nullptr;
 
   {
-    std::function<void(void)> Func = []() {};
-
-    std::unique_ptr<detail::HostTask> HT(new detail::HostTask(std::move(Func)));
+    std::unique_ptr<detail::HostTask> HT(new detail::HostTask);
     std::unique_ptr<detail::CG> ConnectCG(new detail::CGHostTask(
         std::move(HT), /* Args = */ {}, /* ArgsStorage = */ {},
         /* AccStorage = */ {}, /* SharedPtrStorage = */ {},
