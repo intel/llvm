@@ -67,9 +67,13 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
   const bool IsKernel = CommandGroup->getType() == CG::KERNEL;
   {
     std::unique_lock<std::shared_timed_mutex> Lock(MGraphLock, std::defer_lock);
+#ifdef _WIN32
     while (!Lock.owns_lock()) {
       Lock.try_lock();
     }
+#else
+    Lock.lock();
+#endif // _WIN32
 
     switch (CommandGroup->getType()) {
     case CG::UPDATE_HOST:
@@ -95,9 +99,13 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
 
 EventImplPtr Scheduler::addCopyBack(Requirement *Req) {
   std::unique_lock<std::shared_timed_mutex> Lock(MGraphLock, std::defer_lock);
+#ifdef _WIN32
   while (!Lock.owns_lock()) {
     Lock.try_lock();
   }
+#else
+  Lock.lock();
+#endif // _WIN32
   Command *NewCmd = MGraphBuilder.addCopyBack(Req);
   // Command was not creted because there were no operations with
   // buffer.
@@ -154,9 +162,13 @@ void Scheduler::cleanupFinishedCommands(EventImplPtr FinishedEvent) {
 
 void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
   std::unique_lock<std::shared_timed_mutex> Lock(MGraphLock, std::defer_lock);
+#ifdef _WIN32
   while (!Lock.owns_lock()) {
     Lock.try_lock();
   }
+#else
+  Lock.lock();
+#endif // _WIN32
 
   MemObjRecord *Record = MGraphBuilder.getMemObjRecord(MemObj);
   if (!Record)
@@ -170,14 +182,20 @@ void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
 
 EventImplPtr Scheduler::addHostAccessor(Requirement *Req,
                                         const bool destructor) {
+  std::unique_lock<std::shared_timed_mutex> Lock(MGraphLock, std::defer_lock);
   // Avoiding deadlock situation for MSVC. std::shared_timed_mutex specification
   // does not specify a priority for shared and exclusive accesses. It will be a
   // deadlock in MSVC's std::shared_timed_mutex implementation, if exclusive
   // access occurs after shared access.
-  std::unique_lock<std::shared_timed_mutex> Lock(MGraphLock, std::defer_lock);
+  // TODO: after switching to C++17, change std::shared_timed_mutex to
+  // std::shared_mutex and use std::lock_guard here both for Windows and Linux.
+#ifdef _WIN32
   while (!Lock.owns_lock()) {
     Lock.try_lock();
   }
+#else
+  Lock.lock();
+#endif // _WIN32
 
   Command *NewCmd = MGraphBuilder.addHostAccessor(Req, destructor);
 
@@ -191,8 +209,8 @@ EventImplPtr Scheduler::addHostAccessor(Requirement *Req,
 }
 
 void Scheduler::releaseHostAccessor(Requirement *Req) {
-  std::shared_lock<std::shared_timed_mutex> Lock(MGraphLock);
   Req->MBlockedCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
+  std::shared_lock<std::shared_timed_mutex> Lock(MGraphLock);
   MemObjRecord *Record = Req->MSYCLMemObj->MRecord.get();
   auto EnqueueLeaves = [](CircularBuffer<Command *> &Leaves) {
     for (Command *Cmd : Leaves) {
