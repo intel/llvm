@@ -20,6 +20,8 @@ using namespace cl::sycl;
 
 template <typename T, int Dim, class BinaryOperation>
 class SomeClass;
+template <typename T, int Dim, class BinaryOperation>
+class Copy1;
 
 template <typename T, int Dim, class BinaryOperation>
 void test(T Identity, size_t WGSize, size_t NWItems, usm::alloc AllocType) {
@@ -32,11 +34,23 @@ void test(T Identity, size_t WGSize, size_t NWItems, usm::alloc AllocType) {
   if (AllocType == usm::alloc::host &&
       !Dev.get_info<info::device::usm_host_allocations>())
     return;
+  if (AllocType == usm::alloc::device &&
+      !Dev.get_info<info::device::usm_device_allocations>())
+    return;
 
   T *ReduVarPtr = (T *)malloc(sizeof(T), Dev, Q.get_context(), AllocType);
   if (ReduVarPtr == nullptr)
     return;
-  *ReduVarPtr = Identity;
+  if (AllocType == usm::alloc::device) {
+    event E = Q.submit([&](handler &CGH) {
+      CGH.single_task<class Copy1<T, Dim, BinaryOperation>>([=]() {
+        *ReduVarPtr = Identity;
+      });
+    });
+    E.wait();
+  } else {
+    *ReduVarPtr = Identity;
+  }
 
   // Initialize.
   T CorrectOut;
@@ -60,10 +74,22 @@ void test(T Identity, size_t WGSize, size_t NWItems, usm::alloc AllocType) {
   Q.wait();
 
   // Check correctness.
-  if (*ReduVarPtr != CorrectOut) {
+  T ComputedOut;
+  if (AllocType == usm::alloc::device) {
+    buffer<T, 1> Buf(&ComputedOut, range<1>(1));
+    event E = Q.submit([&](handler &CGH) {
+      auto OutAcc = Buf.template get_access<access::mode::discard_write>(CGH);
+      CGH.copy(ReduVarPtr, OutAcc);
+    });
+    ComputedOut = (Buf.template get_access<access::mode::read>())[0];
+  } else {
+    ComputedOut = *ReduVarPtr;
+  }
+  if (ComputedOut != CorrectOut) {
     std::cout << "NWItems = " << NWItems << ", WGSize = " << WGSize << "\n";
-    std::cout << "Computed value: " << *ReduVarPtr
-              << ", Expected value: " << CorrectOut << "\n";
+    std::cout << "Computed value: " << ComputedOut
+              << ", Expected value: " << CorrectOut
+              << ", AllocMode: " << static_cast<int>(AllocType) << "\n";
     assert(0 && "Wrong value.");
   }
 
@@ -74,6 +100,7 @@ template <typename T, int Dim, class BinaryOperation>
 void testUSM(T Identity, size_t WGSize, size_t NWItems) {
   test<T, Dim, BinaryOperation>(Identity, WGSize, NWItems, usm::alloc::shared);
   test<T, Dim, BinaryOperation>(Identity, WGSize, NWItems, usm::alloc::host);
+  test<T, Dim, BinaryOperation>(Identity, WGSize, NWItems, usm::alloc::device);
 }
 
 int main() {
