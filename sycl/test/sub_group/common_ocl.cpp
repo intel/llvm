@@ -60,10 +60,6 @@ void check(queue &Queue, const int G, const int L, const char *SpvFile) {
       cgh.set_args(oclacc);
       cgh.parallel_for(NdRange, Prog.get_kernel("ocl_subgr"));
     });
-    size_t NumSG = Prog.get_kernel("ocl_subgr")
-                       .get_sub_group_info<
-                           info::kernel_sub_group::sub_group_count_for_ndrange>(
-                           Queue.get_device(), range<3>(G, 1, 1));
     auto oclacc = oclbuf.get_access<access::mode::read_write>();
 
     Queue.submit([&](handler &cgh) {
