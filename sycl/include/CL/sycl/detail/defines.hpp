@@ -40,22 +40,6 @@
 
 #if defined(__SYCL_ID_QUERIES_FIT_IN_INT__) && __has_builtin(__builtin_assume)
 #define __SYCL_ASSUME_INT(x) __builtin_assume(x <= INT_MAX)
-#define __SYCL_ASSUME_ID_INT(dims, x)                                          \
-  do {                                                                         \
-    for (size_t dim = 0; dim < dims; ++dim) {                                  \
-      size_t id = x.get_id(dim);                                               \
-      __SYCL_ASSUME_INT(id);                                                   \
-    }                                                                          \
-  } while (0)
-#define __SYCL_ASSUME_ARRAY_INT(dims, x)                                       \
-  do {                                                                         \
-    for (size_t dim = 0; dim < dims; ++dim) {                                  \
-      size_t id = x[dim];                                                      \
-      __SYCL_ASSUME_INT(id);                                                   \
-    }                                                                          \
-  } while (0)
 #else
 #define __SYCL_ASSUME_INT(x)
-#define __SYCL_ASSUME_ID_INT(dims, x)
-#define __SYCL_ASSUME_ARRAY_INT(dims, x)
 #endif

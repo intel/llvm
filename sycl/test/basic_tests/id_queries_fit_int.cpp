@@ -15,13 +15,6 @@ int main() {
   // CHECK: call void @llvm.assume(i1 {{.*}})
   int LinearId = TestItem.get_linear_id();
 
-  id<1> IdD = TestItem.get_id();
-  // CHECK: call void @llvm.assume(i1 {{.*}})
-  range<1> RangeD = TestItem.get_range();
-  // CHECK: call void @llvm.assume(i1 {{.*}})
-  id<1> Offset = TestItem.get_offset();
-  // CHECK: call void @llvm.assume(i1 {{.*}})
-
   cl::sycl::nd_item<1> TestNDItem =
       detail::Builder::createNDItem<1>(detail::Builder::createItem<1, false>({4}, {2}),
                                        detail::Builder::createItem<1, false>({2}, {0}),
@@ -45,12 +38,6 @@ int main() {
   int GlobalRange = TestNDItem.get_global_range(0);
   // CHECK: call void @llvm.assume(i1 {{.*}})
   int LocalRange = TestNDItem.get_local_range(0);
-
-  id<1> GlobalIdD = TestNDItem.get_global_id();
-  // CHECK: call void @llvm.assume(i1 {{.*}})
-  id<1> LocalIdD = TestNDItem.get_local_id();
-  // CHECK: call void @llvm.assume(i1 {{.*}})
-  group<1> GroupD = TestNDItem.get_group();
 
   return 0;
 }
