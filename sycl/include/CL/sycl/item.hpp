@@ -29,7 +29,7 @@ template <int dimensions = 1, bool with_offset = true> class item {
 public:
   item() = delete;
 
-  id<dimensions> ALWAYS_INLINE get_id() const { return MImpl.MIndex; }
+  id<dimensions> get_id() const { return MImpl.MIndex; }
 
   size_t ALWAYS_INLINE get_id(int dimension) const {
     size_t id = MImpl.MIndex[dimension];
@@ -43,7 +43,7 @@ public:
     return id;
   }
 
-  range<dimensions> ALWAYS_INLINE get_range() const { return MImpl.MExtent; }
+  range<dimensions> get_range() const { return MImpl.MExtent; }
 
   size_t ALWAYS_INLINE get_range(int dimension) const {
     size_t id = MImpl.MExtent[dimension];
