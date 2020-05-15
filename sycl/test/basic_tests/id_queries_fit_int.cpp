@@ -39,6 +39,13 @@ int main() {
   // CHECK: call void @llvm.assume(i1 {{.*}})
   int LocalRange = TestNDItem.get_local_range(0);
 
+  int GlobalIdConverted = TestNDItem.get_global_id();
+  // CHECK: call void @llvm.assume(i1 {{.*}})
+  int LocalIdConverted = TestNDItem.get_local_id();
+  // CHECK: call void @llvm.assume(i1 {{.*}})
+  int OffsetConferted = TestNDItem.get_offset();
+  // CHECK: call void @llvm.assume(i1 {{.*}})
+
   return 0;
 }
 // CHECK: }
