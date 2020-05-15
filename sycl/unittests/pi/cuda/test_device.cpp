@@ -10,7 +10,6 @@
 
 #include <cuda.h>
 
-#include "test_get_plugin.hpp"
 #include <CL/sycl.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <detail/plugin.hpp>
@@ -18,10 +17,10 @@
 
 using namespace cl::sycl;
 
-struct CudaDeviceTests : public ::testing::Test {
+struct DISABLED_CudaDeviceTests : public ::testing::Test {
 
 protected:
-  detail::plugin plugin = pi::initializeAndGetCuda();
+  std::vector<detail::plugin> Plugins;
 
   pi_platform platform_;
   pi_device device_;
@@ -29,41 +28,42 @@ protected:
 
   void SetUp() override {
     pi_uint32 numPlatforms = 0;
-    ASSERT_EQ(plugin.getBackend(), backend::cuda);
+    ASSERT_FALSE(Plugins.empty());
 
-    ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piPlatformsGet>(
+    ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piPlatformsGet>(
                   0, nullptr, &numPlatforms)),
               PI_SUCCESS)
         << "piPlatformsGet failed.\n";
 
-    ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piPlatformsGet>(
+    ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piPlatformsGet>(
                   numPlatforms, &platform_, nullptr)),
               PI_SUCCESS)
         << "piPlatformsGet failed.\n";
 
-    ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piDevicesGet>(
+    ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piDevicesGet>(
                   platform_, PI_DEVICE_TYPE_GPU, 1, &device_, nullptr)),
               PI_SUCCESS);
-    ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piContextCreate>(
+    ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piContextCreate>(
                   nullptr, 1, &device_, nullptr, nullptr, &context_)),
               PI_SUCCESS);
     EXPECT_NE(context_, nullptr);
   }
 
   void TearDown() override {
-    plugin.call<detail::PiApiKind::piDeviceRelease>(device_);
-    plugin.call<detail::PiApiKind::piContextRelease>(context_);
+    Plugins[0].call<detail::PiApiKind::piDeviceRelease>(device_);
+    Plugins[0].call<detail::PiApiKind::piContextRelease>(context_);
   }
 
-  CudaDeviceTests() = default;
-  ~CudaDeviceTests() = default;
+  DISABLED_CudaDeviceTests() { detail::pi::initialize(); }
+
+  ~DISABLED_CudaDeviceTests() = default;
 };
 
-TEST_F(CudaDeviceTests, PIDeviceGetInfoSimple) {
+TEST_F(DISABLED_CudaDeviceTests, PIDeviceGetInfoSimple) {
 
   size_t return_size = 0;
   pi_device_type device_type;
-  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
                 device_, PI_DEVICE_INFO_TYPE, sizeof(pi_device_type),
                 &device_type, &return_size)),
             PI_SUCCESS);
@@ -73,7 +73,7 @@ TEST_F(CudaDeviceTests, PIDeviceGetInfoSimple) {
       PI_DEVICE_TYPE_GPU); // backend pre-defined value, device must be a GPU
 
   pi_device parent_device = nullptr;
-  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
                 device_, PI_DEVICE_INFO_PARENT_DEVICE, sizeof(pi_device),
                 &parent_device, &return_size)),
             PI_SUCCESS);
@@ -82,7 +82,7 @@ TEST_F(CudaDeviceTests, PIDeviceGetInfoSimple) {
             nullptr); // backend pre-set value, device cannot have a parent
 
   pi_platform platform = nullptr;
-  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
                 device_, PI_DEVICE_INFO_PLATFORM, sizeof(pi_platform),
                 &platform, &return_size)),
             PI_SUCCESS);
@@ -91,7 +91,7 @@ TEST_F(CudaDeviceTests, PIDeviceGetInfoSimple) {
                                   // test fixture platform
 
   cl_device_partition_property device_partition_property = -1;
-  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
                 device_, PI_DEVICE_INFO_PARTITION_TYPE,
                 sizeof(cl_device_partition_property),
                 &device_partition_property, &return_size)),
