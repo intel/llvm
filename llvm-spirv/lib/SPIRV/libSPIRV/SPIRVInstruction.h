@@ -2621,6 +2621,60 @@ _SPIRV_OP(GenericPtrMemSemantics, true, 4, false)
 _SPIRV_OP(GenericCastToPtrExplicit, true, 5, false, 1)
 #undef _SPIRV_OP
 
+class SPIRVAssumeTrueINTEL : public SPIRVInstruction {
+public:
+  static const Op OC = OpAssumeTrueINTEL;
+  static const SPIRVWord FixedWordCount = 2;
+
+  SPIRVAssumeTrueINTEL(SPIRVId TheCondition, SPIRVBasicBlock *BB)
+      : SPIRVInstruction(FixedWordCount, OC, BB), ConditionId(TheCondition) {
+    validate();
+    setHasNoId();
+    setHasNoType();
+    assert(BB && "Invalid BB");
+  }
+
+  SPIRVAssumeTrueINTEL() : SPIRVInstruction(OC), ConditionId(SPIRVID_MAX) {
+    setHasNoId();
+    setHasNoType();
+  }
+
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(CapabilityOptimizationHintsINTEL);
+  }
+
+  SPIRVExtSet getRequiredExtensions() const override {
+    return getSet(ExtensionID::SPV_INTEL_optimization_hints);
+  }
+
+  SPIRVValue *getCondition() const { return getValue(ConditionId); }
+
+  void setWordCount(SPIRVWord TheWordCount) override {
+    SPIRVEntry::setWordCount(TheWordCount);
+  }
+  _SPIRV_DEF_ENCDEC1(ConditionId)
+
+protected:
+  SPIRVId ConditionId;
+};
+
+class SPIRVExpectINTELInstBase : public SPIRVInstTemplateBase {
+protected:
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(CapabilityOptimizationHintsINTEL);
+  }
+
+  SPIRVExtSet getRequiredExtensions() const override {
+    return getSet(ExtensionID::SPV_INTEL_optimization_hints);
+  }
+};
+
+#define _SPIRV_OP(x, ...)                                                      \
+  typedef SPIRVInstTemplate<SPIRVExpectINTELInstBase, Op##x, __VA_ARGS__>      \
+      SPIRV##x;
+_SPIRV_OP(ExpectINTEL, true, 5)
+#undef _SPIRV_OP
+
 class SPIRVSubgroupShuffleINTELInstBase : public SPIRVInstTemplateBase {
 protected:
   SPIRVCapVec getRequiredCapability() const override {

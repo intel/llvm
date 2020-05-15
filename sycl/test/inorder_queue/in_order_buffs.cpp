@@ -31,7 +31,7 @@ int main() {
   int dataB[dataSize] = {0};
 
   {
-    ordered_queue Queue;
+    queue Queue{property::queue::in_order()};
 
     // Purpose of this test is to create a dependency between two kernels
     // RAW dependency

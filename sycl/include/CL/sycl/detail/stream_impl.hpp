@@ -13,7 +13,6 @@
 #include <CL/sycl/detail/array.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/device_selector.hpp>
-#include <CL/sycl/ordered_queue.hpp>
 #include <CL/sycl/queue.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {

@@ -559,15 +559,13 @@ static RT::PiProgram loadDeviceLibFallback(
     std::map<DeviceLibExt, RT::PiProgram> &CachedLibPrograms) {
 
   const char *LibFileName = getDeviceLibFilename(Extension);
-  std::map<DeviceLibExt, RT::PiProgram>::iterator LibProgIt;
-  bool NotExists = false;
-  std::tie(LibProgIt, NotExists) =
-      CachedLibPrograms.insert({Extension, nullptr});
+  auto CacheResult = CachedLibPrograms.insert({Extension, nullptr});
+  bool Cached = !CacheResult.second;
+  std::map<DeviceLibExt, RT::PiProgram>::iterator LibProgIt = CacheResult.first;
   RT::PiProgram &LibProg = LibProgIt->second;
 
-  if (!NotExists) {
+  if (Cached)
     return LibProg;
-  }
 
   if (!loadDeviceLib(Context, LibFileName, LibProg)) {
     CachedLibPrograms.erase(LibProgIt);
@@ -637,9 +635,13 @@ ProgramManager::ProgramManager() {
 RTDeviceBinaryImage &ProgramManager::getDeviceImage(OSModuleHandle M,
                                                     KernelSetId KSId,
                                                     const context &Context) {
-  if (DbgProgMgr > 0)
+  if (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::getDeviceImage(" << M << ", \"" << KSId
               << "\", " << getRawSyclObjImpl(Context) << ")\n";
+
+    std::cerr << "available device images:\n";
+    debugPrintBinaryImages();
+  }
   std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
   std::vector<RTDeviceBinaryImageUPtr> &Imgs = *m_DeviceImages[KSId];
   const ContextImplPtr Ctx = getSyclObjImpl(Context);
@@ -652,19 +654,15 @@ RTDeviceBinaryImage &ProgramManager::getDeviceImage(OSModuleHandle M,
 
   // Ask the native runtime under the given context to choose the device image
   // it prefers.
-  if (Imgs.size() > 1) {
-    std::vector<pi_device_binary> RawImgs(Imgs.size());
-    for (unsigned I = 0; I < Imgs.size(); I++)
-      RawImgs[I] = const_cast<pi_device_binary>(&Imgs[I]->getRawData());
+  std::vector<pi_device_binary> RawImgs(Imgs.size());
+  for (unsigned I = 0; I < Imgs.size(); I++)
+    RawImgs[I] = const_cast<pi_device_binary>(&Imgs[I]->getRawData());
 
-    Ctx->getPlugin().call<PiApiKind::piextDeviceSelectBinary>(
-        getFirstDevice(Ctx), RawImgs.data(), (cl_uint)RawImgs.size(), &ImgInd);
-  }
+  Ctx->getPlugin().call<PiApiKind::piextDeviceSelectBinary>(
+      getFirstDevice(Ctx), RawImgs.data(), (cl_uint)RawImgs.size(), &ImgInd);
   Img = Imgs[ImgInd].get();
 
   if (DbgProgMgr > 0) {
-    std::cerr << "available device images:\n";
-    debugPrintBinaryImages();
     std::cerr << "selected device image: " << &Img->getRawData() << "\n";
     Img->print();
   }

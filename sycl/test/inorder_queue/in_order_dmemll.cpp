@@ -37,7 +37,7 @@ struct Node {
 
 class foo;
 int main() {
-  ordered_queue q;
+  queue q{property::queue::in_order()};
   auto dev = q.get_device();
   auto ctxt = q.get_context();
   Node *d_head = nullptr;

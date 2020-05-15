@@ -1,24 +1,6 @@
 // RUN: %clang_cc1 -fsycl -fsycl-is-device -fsyntax-only -verify -DTRIGGER_ERROR %s
 // RUN: %clang_cc1 -fsycl -fsycl-is-device -ast-dump %s | FileCheck %s
-// RUN: %clang_cc1 -fsycl -fsycl-is-host -fsyntax-only -verify %s
 
-#ifndef __SYCL_DEVICE_ONLY__
-// expected-no-diagnostics
-class Functor {
-public:
-  [[cl::reqd_work_group_size(4, 1, 1)]] void operator()() {}
-};
-
-template <typename name, typename Func>
-void kernel(Func kernelFunc) {
-  kernelFunc();
-}
-
-void bar() {
-  Functor f;
-  kernel<class kernel_name>(f);
-}
-#else
 [[cl::reqd_work_group_size(4, 1, 1)]] void f4x1x1() {} // expected-note {{conflicting attribute is here}}
 // expected-note@-1 {{conflicting attribute is here}}
 [[cl::reqd_work_group_size(32, 1, 1)]] void f32x1x1() {} // expected-note {{conflicting attribute is here}}
@@ -128,4 +110,3 @@ void bar() {
 // CHECK: ReqdWorkGroupSizeAttr {{.*}} 128 128 128
 // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name5
 // CHECK: ReqdWorkGroupSizeAttr {{.*}} 32 32 32
-#endif // __SYCL_DEVICE_ONLY__

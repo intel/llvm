@@ -716,15 +716,18 @@ pi_result cuda_piDevicesGet(pi_platform platform, pi_device_type device_type,
                             pi_uint32 *num_devices) {
 
   pi_result err = PI_SUCCESS;
-  const bool askingForGPU = (device_type & PI_DEVICE_TYPE_GPU);
-  size_t numDevices = askingForGPU ? platform->devices_.size() : 0;
+  const bool askingForDefault = device_type == PI_DEVICE_TYPE_DEFAULT;
+  const bool askingForGPU = device_type & PI_DEVICE_TYPE_GPU;
+  const bool returnDevices = askingForDefault || askingForGPU;
+
+  size_t numDevices = returnDevices ? platform->devices_.size() : 0;
 
   try {
     if (num_devices) {
       *num_devices = numDevices;
     }
 
-    if (askingForGPU && devices) {
+    if (returnDevices && devices) {
       for (size_t i = 0; i < std::min(size_t(num_entries), numDevices); ++i) {
         devices[i] = platform->devices_[i].get();
       }
@@ -2867,11 +2870,9 @@ pi_result cuda_piEnqueueEventsWait(pi_queue command_queue,
     }
 
     if (event) {
-      auto new_event =
-          _pi_event::make_native(PI_COMMAND_TYPE_MARKER, command_queue);
-      new_event->start();
-      new_event->record();
-      *event = new_event;
+      *event = _pi_event::make_native(PI_COMMAND_TYPE_MARKER, command_queue);
+      (*event)->start();
+      (*event)->record();
     }
 
     return PI_SUCCESS;
@@ -3281,7 +3282,6 @@ pi_result cuda_piEnqueueMemBufferFill(pi_queue command_queue, pi_mem buffer,
     return PI_ERROR_UNKNOWN;
   }
 }
-
 /// \TODO Not implemented in CUDA, requires untie from OpenCL
 pi_result cuda_piEnqueueMemImageRead(
     pi_queue command_queue, pi_mem image, pi_bool blocking_read,
@@ -3359,6 +3359,12 @@ pi_result cuda_piEnqueueMemBufferMap(pi_queue command_queue, pi_mem buffer,
     ret_err = cuda_piEnqueueMemBufferRead(
         command_queue, buffer, blocking_map, offset, size, hostPtr,
         num_events_in_wait_list, event_wait_list, retEvent);
+  } else {
+    if (retEvent) {
+      *retEvent =
+          _pi_event::make_native(PI_COMMAND_TYPE_MEM_BUFFER_MAP, command_queue);
+      (*retEvent)->record();
+    }
   }
 
   return ret_err;
@@ -3372,7 +3378,7 @@ pi_result cuda_piEnqueueMemUnmap(pi_queue command_queue, pi_mem memobj,
                                  pi_uint32 num_events_in_wait_list,
                                  const pi_event *event_wait_list,
                                  pi_event *retEvent) {
-  pi_result ret_err = PI_INVALID_OPERATION;
+  pi_result ret_err = PI_SUCCESS;
 
   assert(mapped_ptr != nullptr);
   assert(memobj != nullptr);
@@ -3385,6 +3391,12 @@ pi_result cuda_piEnqueueMemUnmap(pi_queue command_queue, pi_mem memobj,
       command_queue, memobj, true, memobj->get_map_offset(mapped_ptr),
       memobj->get_size(), mapped_ptr, num_events_in_wait_list, event_wait_list,
       retEvent);
+  } else {
+    if (retEvent) {
+      *retEvent = _pi_event::make_native(PI_COMMAND_TYPE_MEM_BUFFER_UNMAP,
+                                         command_queue);
+      (*retEvent)->record();
+    }
   }
 
   memobj->unmap(mapped_ptr);
