@@ -42,4 +42,7 @@
 #define __SYCL_ASSUME_INT(x) __builtin_assume(x <= INT_MAX)
 #else
 #define __SYCL_ASSUME_INT(x)
+#if defined(__SYCL_ID_QUERIES_FIT_IN_INT__) && !__has_builtin(__builtin_assume)
+#warning "No assumptions wil be emitted due to no __builtin_assume available"
+#endif
 #endif
