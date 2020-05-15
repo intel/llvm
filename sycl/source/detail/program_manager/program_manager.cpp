@@ -672,9 +672,6 @@ RTDeviceBinaryImage &ProgramManager::getDeviceImage(OSModuleHandle M,
   return *Img;
 }
 
-// TODO: getDeviceLibPrograms should also support Windows but
-// current implementation doesn't work on Windows when multiple
-// device libraries exist and this problem should be fixed.
 static std::vector<RT::PiProgram>
 getDeviceLibPrograms(const ContextImplPtr Context,
                      const std::vector<RT::PiDevice> &Devices,
