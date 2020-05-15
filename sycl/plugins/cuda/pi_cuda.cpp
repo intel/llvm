@@ -716,18 +716,15 @@ pi_result cuda_piDevicesGet(pi_platform platform, pi_device_type device_type,
                             pi_uint32 *num_devices) {
 
   pi_result err = PI_SUCCESS;
-  const bool askingForDefault = device_type == PI_DEVICE_TYPE_DEFAULT;
-  const bool askingForGPU = device_type & PI_DEVICE_TYPE_GPU;
-  const bool returnDevices = askingForDefault || askingForGPU;
-
-  size_t numDevices = returnDevices ? platform->devices_.size() : 0;
+  const bool askingForGPU = (device_type & PI_DEVICE_TYPE_GPU);
+  size_t numDevices = askingForGPU ? platform->devices_.size() : 0;
 
   try {
     if (num_devices) {
       *num_devices = numDevices;
     }
 
-    if (returnDevices && devices) {
+    if (askingForGPU && devices) {
       for (size_t i = 0; i < std::min(size_t(num_entries), numDevices); ++i) {
         devices[i] = platform->devices_[i].get();
       }

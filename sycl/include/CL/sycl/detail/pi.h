@@ -133,16 +133,9 @@ typedef enum {
 // make the translation to OpenCL transparent.
 //
 typedef enum : pi_uint64 {
-  PI_DEVICE_TYPE_DEFAULT =
-      CL_DEVICE_TYPE_DEFAULT, ///< The default device available in the PI
-                              ///< plugin.
-  PI_DEVICE_TYPE_ALL =
-      CL_DEVICE_TYPE_ALL, ///< All devices available in the PI plugin.
-  PI_DEVICE_TYPE_CPU =
-      CL_DEVICE_TYPE_CPU, ///< A PI device that is the host processor.
-  PI_DEVICE_TYPE_GPU = CL_DEVICE_TYPE_GPU, ///< A PI device that is a GPU.
-  PI_DEVICE_TYPE_ACC = CL_DEVICE_TYPE_ACCELERATOR ///< A PI device that is a
-                                                  ///< dedicated accelerator.
+  PI_DEVICE_TYPE_CPU = CL_DEVICE_TYPE_CPU,
+  PI_DEVICE_TYPE_GPU = CL_DEVICE_TYPE_GPU,
+  PI_DEVICE_TYPE_ACC = CL_DEVICE_TYPE_ACCELERATOR
 } _pi_device_type;
 
 typedef enum {
