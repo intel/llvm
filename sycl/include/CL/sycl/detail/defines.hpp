@@ -39,7 +39,7 @@
 #endif
 
 #if defined(__SYCL_ID_QUERIES_FIT_IN_INT__) && __has_builtin(__builtin_assume)
-#define __SYCL_ASSUME_INT(x) __builtin_assume(x <= INT_MAX)
+#define __SYCL_ASSUME_INT(x) __builtin_assume((x) <= INT_MAX)
 #else
 #define __SYCL_ASSUME_INT(x)
 #if defined(__SYCL_ID_QUERIES_FIT_IN_INT__) && !__has_builtin(__builtin_assume)
