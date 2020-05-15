@@ -358,13 +358,15 @@ static void copyH2H(SYCLMemObjI *SYCLMemObj, char *SrcMem,
                         PI_INVALID_OPERATION);
   }
 
-  DstOffset[0] *= DstElemSize;
-  SrcOffset[0] *= SrcElemSize;
+  SrcMem += SrcOffset[0] * SrcElemSize;
+  DstMem += DstOffset[0] * DstElemSize;
+
+  if (SrcMem == DstMem)
+    return;
 
   size_t BytesToCopy =
-      SrcAccessRange[0] * SrcElemSize * SrcAccessRange[1] * SrcAccessRange[2];
-
-  std::memcpy(DstMem + DstOffset[0], SrcMem + SrcOffset[0], BytesToCopy);
+       SrcAccessRange[0] * SrcElemSize * SrcAccessRange[1] * SrcAccessRange[2];
+  std::memcpy(DstMem, SrcMem, BytesToCopy);
 }
 
 // Copies memory between: host and device, host and host,
