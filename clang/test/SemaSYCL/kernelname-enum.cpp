@@ -75,7 +75,5 @@ int main() {
     cgh.single_task(f4);
   });
 
-
   return 0;
 }
-
