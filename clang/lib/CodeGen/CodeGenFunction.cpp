@@ -586,6 +586,14 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
                     llvm::MDNode::get(Context, AttrMDArgs));
   }
 
+  if (FD->hasAttr<SYCLSimdAttr>()) {
+    Fn->setMetadata("sycl_explicit_simd", llvm::MDNode::get(Context, {}));
+    llvm::Metadata *AttrMDArgs[] = {
+        llvm::ConstantAsMetadata::get(Builder.getInt32(1))};
+    Fn->setMetadata("intel_reqd_sub_group_size",
+                    llvm::MDNode::get(Context, AttrMDArgs));
+  }
+
   if (const SYCLIntelNumSimdWorkItemsAttr *A =
       FD->getAttr<SYCLIntelNumSimdWorkItemsAttr>()) {
     llvm::Metadata *AttrMDArgs[] = {

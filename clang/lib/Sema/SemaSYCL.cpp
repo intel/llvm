@@ -459,6 +459,8 @@ public:
           FD->dropAttr<SYCLIntelNoGlobalWorkOffsetAttr>();
         }
       }
+      if (auto *A = FD->getAttr<SYCLSimdAttr>())
+        Attrs.insert(A);
 
       // TODO: vec_len_hint should be handled here
 
@@ -1045,7 +1047,8 @@ class SyclKernelDeclCreator
   }
 
   static FunctionDecl *createKernelDecl(ASTContext &Ctx, StringRef Name,
-                                        SourceLocation Loc, bool IsInline) {
+                                        SourceLocation Loc, bool IsInline,
+                                        bool IsSIMDKernel) {
     // Create this with no prototype, and we can fix this up after we've seen
     // all the params.
     FunctionProtoType::ExtProtoInfo Info(CC_OpenCLKernel);
@@ -1056,6 +1059,8 @@ class SyclKernelDeclCreator
         FuncType, Ctx.getTrivialTypeSourceInfo(Ctx.VoidTy), SC_None);
     FD->setImplicitlyInline(IsInline);
     setKernelImplicitAttrs(Ctx, FD, Name);
+    if (IsSIMDKernel)
+      FD->addAttr(SYCLSimdAttr::CreateImplicit(Ctx));
 
     // Add kernel to translation unit to see it in AST-dump.
     Ctx.getTranslationUnitDecl()->addDecl(FD);
@@ -1064,9 +1069,11 @@ class SyclKernelDeclCreator
 
 public:
   SyclKernelDeclCreator(Sema &S, SyclKernelFieldChecker &ArgChecker,
-                        StringRef Name, SourceLocation Loc, bool IsInline)
+                        StringRef Name, SourceLocation Loc, bool IsInline,
+                        bool IsSIMDKernel)
       : SyclKernelFieldHandler(S),
-        KernelDecl(createKernelDecl(S.getASTContext(), Name, Loc, IsInline)),
+        KernelDecl(createKernelDecl(S.getASTContext(), Name, Loc, IsInline,
+                                    IsSIMDKernel)),
         ArgChecker(ArgChecker), FuncContext(SemaRef, KernelDecl) {}
 
   ~SyclKernelDeclCreator() {
@@ -1595,9 +1602,9 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
   StringRef KernelName(getLangOpts().SYCLUnnamedLambda ? StableName
                                                        : CalculatedName);
   SyclKernelFieldChecker checker(*this);
-  SyclKernelDeclCreator kernel_decl(*this, checker, KernelName,
-                                    KernelLambda->getLocation(),
-                                    KernelCallerFunc->isInlined());
+  SyclKernelDeclCreator kernel_decl(
+      *this, checker, KernelName, KernelLambda->getLocation(),
+      KernelCallerFunc->isInlined(), KernelCallerFunc->hasAttr<SYCLSimdAttr>());
   SyclKernelBodyCreator kernel_body(*this, kernel_decl, KernelLambda,
                                     KernelCallerFunc);
   SyclKernelIntHeaderCreator int_header(
@@ -1676,7 +1683,8 @@ void Sema::MarkDevice(void) {
         case attr::Kind::SYCLIntelNumSimdWorkItems:
         case attr::Kind::SYCLIntelMaxGlobalWorkDim:
         case attr::Kind::SYCLIntelMaxWorkGroupSize:
-        case attr::Kind::SYCLIntelNoGlobalWorkOffset: {
+        case attr::Kind::SYCLIntelNoGlobalWorkOffset:
+        case attr::Kind::SYCLSimd: {
           SYCLKernel->addAttr(A);
           break;
         }

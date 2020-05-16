@@ -648,8 +648,16 @@ void CodeGenModule::Release() {
     SPIRVerMD->addOperand(llvm::MDNode::get(Ctx, SPIRVerElts));
     // We are trying to look like OpenCL C++ for SPIR-V translator.
     // 4 - OpenCL_CPP, 100000 - OpenCL C++ version 1.0
+    // 6 - CM, if any kernel or function is an explicit SIMD one
+    int Lang = 4;
+    for (auto &F : TheModule.functions())
+      if (F.getMetadata("sycl_explicit_simd") != nullptr) {
+        Lang = 6;
+        break;
+      }
+
     llvm::Metadata *SPIRVSourceElts[] = {
-        llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(Int32Ty, 4)),
+        llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(Int32Ty, Lang)),
         llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(Int32Ty, 100000))};
     llvm::NamedMDNode *SPIRVSourceMD =
         TheModule.getOrInsertNamedMetadata("spirv.Source");
