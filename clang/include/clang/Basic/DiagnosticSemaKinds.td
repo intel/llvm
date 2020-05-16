@@ -10761,7 +10761,9 @@ def err_builtin_launder_invalid_arg : Error<
 // SYCL-specific diagnostics
 def err_sycl_kernel_incorrectly_named : Error<
   "kernel %select{name is missing"
-  "|needs to have a globally-visible name}0">;
+  "|needs to have a globally-visible name"
+  "|name cannot be templated using unscoped enum without fixed underlying type"
+  "}0">;
 def err_sycl_restrict : Error<
   "SYCL kernel cannot "
 "%select{use a non-const global variable"

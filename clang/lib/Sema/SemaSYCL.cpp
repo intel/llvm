@@ -1637,6 +1637,18 @@ static std::string eraseAnonNamespace(std::string S) {
   return S;
 }
 
+static bool checkEnumTemplateParameter(const EnumDecl *ED,
+                                       DiagnosticsEngine &Diag,
+                                       SourceLocation KernelLocation) {
+  if (!ED->isScoped() && !ED->isFixed()) {
+    Diag.Report(KernelLocation, diag::err_sycl_kernel_incorrectly_named) << 2;
+    Diag.Report(ED->getSourceRange().getBegin(), diag::note_entity_declared_at)
+        << ED;
+    return false;
+  }
+  return true;
+}
+
 // Emits a forward declaration
 void SYCLIntegrationHeader::emitFwdDecl(raw_ostream &O, const Decl *D,
                                         SourceLocation KernelLocation) {
@@ -1774,8 +1786,20 @@ void SYCLIntegrationHeader::emitForwardClassDecls(
 
       switch (Arg.getKind()) {
       case TemplateArgument::ArgKind::Type:
-        emitForwardClassDecls(O, Arg.getAsType(), KernelLocation, Printed);
+      case TemplateArgument::ArgKind::Integral: {
+        QualType T = (Arg.getKind() == TemplateArgument::ArgKind::Type)
+                         ? Arg.getAsType()
+                         : Arg.getIntegralType();
+
+        // Handle Kernel Name Type templated using enum type and value.
+        if (const auto *ET = T->getAs<EnumType>()) {
+          const EnumDecl *ED = ET->getDecl();
+          if (checkEnumTemplateParameter(ED, Diag, KernelLocation))
+            emitFwdDecl(O, ED, KernelLocation);
+        } else if (Arg.getKind() == TemplateArgument::ArgKind::Type)
+          emitForwardClassDecls(O, T, KernelLocation, Printed);
         break;
+      }
       case TemplateArgument::ArgKind::Pack: {
         ArrayRef<TemplateArgument> Pack = Arg.getPackAsArray();
 
@@ -1805,15 +1829,6 @@ void SYCLIntegrationHeader::emitForwardClassDecls(
         TemplateDecl *TD = Arg.getAsTemplate().getAsTemplateDecl();
         if (Printed.insert(TD).second) {
           emitFwdDecl(O, TD, KernelLocation);
-        }
-        break;
-      }
-      case TemplateArgument::ArgKind::Integral: {
-        // Handle Kernel Name Type templated using enum.
-        QualType T = Arg.getIntegralType();
-        if (const auto *ET = T->getAs<EnumType>()) {
-          const EnumDecl *ED = ET->getDecl();
-          emitFwdDecl(O, ED, KernelLocation);
         }
         break;
       }

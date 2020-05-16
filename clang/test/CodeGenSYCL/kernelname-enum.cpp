@@ -8,11 +8,6 @@ enum unscoped_enum : int {
   val_2
 };
 
-enum unscoped_enum_no_type_set {
-  val_3,
-  val_4
-};
-
 enum class no_namespace_int : int {
   val_1,
   val_2
@@ -78,7 +73,7 @@ public:
   void operator()() {}
 };
 
-template <unscoped_enum_no_type_set EnumType>
+template <typename EnumType>
 class dummy_functor_7 {
 public:
   void operator()() {}
@@ -92,7 +87,8 @@ int main() {
   dummy_functor_4<enum_in_anonNS::val_2> f4;
   dummy_functor_5<no_type_set::val_1> f5;
   dummy_functor_6<unscoped_enum::val_1> f6;
-  dummy_functor_7<unscoped_enum_no_type_set::val_4> f7;
+  dummy_functor_7<no_namespace_int> f7;
+  dummy_functor_7<internal::namespace_short> f8;
 
   cl::sycl::queue q;
 
@@ -124,6 +120,10 @@ int main() {
     cgh.single_task(f7);
   });
 
+  q.submit([&](cl::sycl::handler &cgh) {
+    cgh.single_task(f8);
+  });
+
   return 0;
 }
 
@@ -144,8 +144,7 @@ int main() {
 // CHECK: template <no_type_set EnumType> class dummy_functor_5;
 // CHECK: enum unscoped_enum : int;
 // CHECK: template <unscoped_enum EnumType> class dummy_functor_6;
-// CHECK: enum unscoped_enum_no_type_set : unsigned int;
-// CHECK: template <unscoped_enum_no_type_set EnumType> class dummy_functor_7;
+// CHECK: template <typename EnumType> class dummy_functor_7;
 
 // CHECK: Specializations of KernelInfo for kernel function types:
 // CHECK: template <> struct KernelInfo<::dummy_functor_1<(no_namespace_int)0>>
@@ -154,4 +153,5 @@ int main() {
 // CHECK: template <> struct KernelInfo<::dummy_functor_4<(enum_in_anonNS)1>>
 // CHECK: template <> struct KernelInfo<::dummy_functor_5<(no_type_set)0>>
 // CHECK: template <> struct KernelInfo<::dummy_functor_6<(unscoped_enum)0>>
-// CHECK: template <> struct KernelInfo<::dummy_functor_7<(unscoped_enum_no_type_set)1>>
+// CHECK: template <> struct KernelInfo<::dummy_functor_7<::no_namespace_int>>
+// CHECK: template <> struct KernelInfo<::dummy_functor_7<::internal::namespace_short>>

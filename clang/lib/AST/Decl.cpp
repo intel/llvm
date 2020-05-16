@@ -1594,9 +1594,8 @@ void NamedDecl::printNestedNameSpecifier(raw_ostream &OS,
     Ctx = Ctx->getParent();
   }
 
-  if (WithGlobalNsPrefix) {
+  if (WithGlobalNsPrefix)
     OS << "::";
-  }
 
   for (const DeclContext *DC : llvm::reverse(Contexts)) {
     if (const auto *Spec = dyn_cast<ClassTemplateSpecializationDecl>(DC)) {
