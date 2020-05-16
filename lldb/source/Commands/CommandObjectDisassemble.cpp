@@ -23,7 +23,7 @@
 
 static constexpr unsigned default_disasm_byte_size = 32;
 static constexpr unsigned default_disasm_num_ins = 4;
-static constexpr unsigned large_function_threshold = 4000;
+static constexpr unsigned large_function_threshold = 8000;
 
 using namespace lldb;
 using namespace lldb_private;

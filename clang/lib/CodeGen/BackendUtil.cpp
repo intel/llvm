@@ -1043,15 +1043,6 @@ static void addSanitizersAtO0(ModulePassManager &MPM,
                               const Triple &TargetTriple,
                               const LangOptions &LangOpts,
                               const CodeGenOptions &CodeGenOpts) {
-  if (CodeGenOpts.SanitizeCoverageType ||
-      CodeGenOpts.SanitizeCoverageIndirectCalls ||
-      CodeGenOpts.SanitizeCoverageTraceCmp) {
-    auto SancovOpts = getSancovOptsFromCGOpts(CodeGenOpts);
-    MPM.addPass(ModuleSanitizerCoveragePass(
-        SancovOpts, CodeGenOpts.SanitizeCoverageWhitelistFiles,
-        CodeGenOpts.SanitizeCoverageBlacklistFiles));
-  }
-
   auto ASanPass = [&](SanitizerMask Mask, bool CompileKernel) {
     MPM.addPass(RequireAnalysisPass<ASanGlobalsMetadataAnalysis, Module>());
     bool Recover = CodeGenOpts.SanitizeRecover.has(Mask);
@@ -1292,17 +1283,6 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
             EntryExitInstrumenterPass(/*PostInlining=*/false)));
       });
 
-      if (CodeGenOpts.SanitizeCoverageType ||
-          CodeGenOpts.SanitizeCoverageIndirectCalls ||
-          CodeGenOpts.SanitizeCoverageTraceCmp) {
-        PB.registerPipelineStartEPCallback([&](ModulePassManager &MPM) {
-          auto SancovOpts = getSancovOptsFromCGOpts(CodeGenOpts);
-          MPM.addPass(ModuleSanitizerCoveragePass(
-              SancovOpts, CodeGenOpts.SanitizeCoverageWhitelistFiles,
-              CodeGenOpts.SanitizeCoverageBlacklistFiles));
-        });
-      }
-
       // Register callbacks to schedule sanitizer passes at the appropriate part of
       // the pipeline.
       // FIXME: either handle asan/the remaining sanitizers or error out
@@ -1385,6 +1365,15 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
         MPM = PB.buildPerModuleDefaultPipeline(Level,
                                                CodeGenOpts.DebugPassManager);
       }
+    }
+
+    if (CodeGenOpts.SanitizeCoverageType ||
+        CodeGenOpts.SanitizeCoverageIndirectCalls ||
+        CodeGenOpts.SanitizeCoverageTraceCmp) {
+      auto SancovOpts = getSancovOptsFromCGOpts(CodeGenOpts);
+      MPM.addPass(ModuleSanitizerCoveragePass(
+          SancovOpts, CodeGenOpts.SanitizeCoverageWhitelistFiles,
+          CodeGenOpts.SanitizeCoverageBlacklistFiles));
     }
 
     if (LangOpts.Sanitize.has(SanitizerKind::HWAddress)) {

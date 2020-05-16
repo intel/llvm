@@ -20,7 +20,7 @@
 ; CHECK-SPIRV-NOT: 5 Store {{[0-9]+}} {{[0-9]+}} 2 4
 ; CHECK-SPIRV: 5 Store {{[0-9]+}} {{[0-9]+}} 6 4
 ; CHECK-SPIRV-NOT: 5 Store {{[0-9]+}} {{[0-9]+}} 2 0
-; CHECK-SPIRV: 3 Store {{[0-9]+}} {{[0-9]+}}
+; CHECK-SPIRV: 5 Store {{[0-9]+}} {{[0-9]+}}
 
 ; CHECK-LLVM: store volatile i32 addrspace(4)* %0, i32 addrspace(4)** %ptr, align 8
 ; CHECK-LLVM: load volatile i32 addrspace(4)*, i32 addrspace(4)** %ptr, align 8
