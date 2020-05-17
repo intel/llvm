@@ -5460,8 +5460,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   Args.AddLastArg(CmdArgs, options::OPT_pthread);
 
-  if (Args.hasFlag(options::OPT_mspeculative_load_hardening, options::OPT_mno_speculative_load_hardening,
-                   false))
+  if (Args.hasFlag(options::OPT_mspeculative_load_hardening,
+                   options::OPT_mno_speculative_load_hardening, false))
     CmdArgs.push_back(Args.MakeArgString("-mspeculative-load-hardening"));
 
   RenderSSPOptions(TC, Args, CmdArgs, KernelOrKext);
@@ -6314,11 +6314,12 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   if (Arg *A = Args.getLastArg(options::OPT_moutline,
                                options::OPT_mno_outline)) {
     if (A->getOption().matches(options::OPT_moutline)) {
-      // We only support -moutline in AArch64 right now. If we're not compiling
-      // for AArch64, emit a warning and ignore the flag. Otherwise, add the
-      // proper mllvm flags.
-      if (Triple.getArch() != llvm::Triple::aarch64 &&
-          Triple.getArch() != llvm::Triple::aarch64_32) {
+      // We only support -moutline in AArch64 and ARM targets right now. If
+      // we're not compiling for these, emit a warning and ignore the flag.
+      // Otherwise, add the proper mllvm flags.
+      if (!(Triple.isARM() || Triple.isThumb() ||
+            Triple.getArch() == llvm::Triple::aarch64 ||
+            Triple.getArch() == llvm::Triple::aarch64_32)) {
         D.Diag(diag::warn_drv_moutline_unsupported_opt) << Triple.getArchName();
       } else {
         CmdArgs.push_back("-mllvm");

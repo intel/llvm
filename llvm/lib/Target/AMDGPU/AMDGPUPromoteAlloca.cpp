@@ -297,9 +297,9 @@ Value *AMDGPUPromoteAlloca::getWorkitemID(IRBuilder<> &Builder, unsigned N) {
   return CI;
 }
 
-static VectorType *arrayTypeToVecType(ArrayType *ArrayTy) {
-  return VectorType::get(ArrayTy->getElementType(),
-                         ArrayTy->getNumElements());
+static FixedVectorType *arrayTypeToVecType(ArrayType *ArrayTy) {
+  return FixedVectorType::get(ArrayTy->getElementType(),
+                              ArrayTy->getNumElements());
 }
 
 static Value *stripBitcasts(Value *V) {
@@ -390,7 +390,7 @@ static bool tryPromoteAllocaToVector(AllocaInst *Alloca, const DataLayout &DL) {
   }
 
   Type *AllocaTy = Alloca->getAllocatedType();
-  VectorType *VectorTy = dyn_cast<VectorType>(AllocaTy);
+  auto *VectorTy = dyn_cast<FixedVectorType>(AllocaTy);
   if (auto *ArrayTy = dyn_cast<ArrayType>(AllocaTy)) {
     if (VectorType::isValidElementType(ArrayTy->getElementType()) &&
         ArrayTy->getNumElements() > 0)
@@ -468,7 +468,7 @@ static bool tryPromoteAllocaToVector(AllocaInst *Alloca, const DataLayout &DL) {
     IRBuilder<> Builder(Inst);
     switch (Inst->getOpcode()) {
     case Instruction::Load: {
-      if (Inst->getType() == AllocaTy)
+      if (Inst->getType() == AllocaTy || Inst->getType()->isVectorTy())
         break;
 
       Type *VecPtrTy = VectorTy->getPointerTo(AMDGPUAS::PRIVATE_ADDRESS);
@@ -486,7 +486,8 @@ static bool tryPromoteAllocaToVector(AllocaInst *Alloca, const DataLayout &DL) {
     }
     case Instruction::Store: {
       StoreInst *SI = cast<StoreInst>(Inst);
-      if (SI->getValueOperand()->getType() == AllocaTy)
+      if (SI->getValueOperand()->getType() == AllocaTy ||
+          SI->getValueOperand()->getType()->isVectorTy())
         break;
 
       Type *VecPtrTy = VectorTy->getPointerTo(AMDGPUAS::PRIVATE_ADDRESS);
