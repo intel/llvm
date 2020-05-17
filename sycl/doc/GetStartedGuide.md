@@ -164,33 +164,20 @@ which contains all the symbols required.
 To run DPC++ applications on OpenCL devices, OpenCL implementation(s) must be
 present in the system.
 
-Please, refer to [the Release Notes](../ReleaseNotes.md) for recommended Intel
-runtime versions.
+Refer to [the dependency configuration file](../../buildbot/dependency.conf)
+for recommended Intel runtime versions. The same versions are used in BuildBot
+testing.
 
-The `GPU` runtime that is needed to run DPC++ application on Intel `GPU` devices
-can be downloaded from the following web pages:
-
-* Linux: [Intel&reg; Graphics Compute Runtime for
-   OpenCL&trade;](https://github.com/intel/compute-runtime/releases)
-
-* Windows: [Intel&reg; Download
-   Center](https://downloadcenter.intel.com/product/80939/Graphics-Drivers)
-
-
-To install Intel `CPU` runtime for OpenCL devices the corresponding runtime
-asset/archive should be downloaded from
-[DPC++ Compiler and Runtime updates](../ReleaseNotes.md) and installed following
-procedure below.
-
-Intel `CPU` runtime for OpenCL depends on Threading Building Blocks library
-which should be downloaded from [Threading Building Blocks (TBB)
- GitHub repository](https://github.com/intel/tbb) and installed following
-procedure below.
+The `GPU` and `CPU` runtimes as well as TBB runtime which are needed to run
+DPC++ application on Intel `GPU` or Intel `CPU` devices can be downloaded using
+links in [the dependency configuration file](../../buildbot/dependency.conf)
+and installed following the instructions below.
 
 Intel `CPU` runtime for OpenCL devices can be switched into Intel FPGA
 Emulation device for OpenCL. The following parameter should be set in `cl.cfg`
-file (available in directory containing CPU runtime for OpenCL) to switch
-OpenCL device mode:
+file (available in directory containing CPU runtime for OpenCL) or environment
+variable with the same name and value should be set to switch OpenCL device
+mode:
 ```
 CL_CONFIG_DEVICES = fpga-emu
 ```
