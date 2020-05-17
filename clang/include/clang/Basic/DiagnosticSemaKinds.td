@@ -10762,7 +10762,7 @@ def err_builtin_launder_invalid_arg : Error<
 def err_sycl_kernel_incorrectly_named : Error<
   "kernel %select{name is missing"
   "|needs to have a globally-visible name"
-  "|name cannot be templated using unscoped enum without fixed underlying type"
+  "|name is invalid. Unscoped enum requires fixed underlying type"
   "}0">;
 def err_sycl_restrict : Error<
   "SYCL kernel cannot "

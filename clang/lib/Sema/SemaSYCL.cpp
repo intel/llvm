@@ -1644,9 +1644,9 @@ static bool checkEnumTemplateParameter(const EnumDecl *ED,
     Diag.Report(KernelLocation, diag::err_sycl_kernel_incorrectly_named) << 2;
     Diag.Report(ED->getSourceRange().getBegin(), diag::note_entity_declared_at)
         << ED;
-    return false;
+    return true;
   }
-  return true;
+  return false;
 }
 
 // Emits a forward declaration
@@ -1794,7 +1794,7 @@ void SYCLIntegrationHeader::emitForwardClassDecls(
         // Handle Kernel Name Type templated using enum type and value.
         if (const auto *ET = T->getAs<EnumType>()) {
           const EnumDecl *ED = ET->getDecl();
-          if (checkEnumTemplateParameter(ED, Diag, KernelLocation))
+          if (!checkEnumTemplateParameter(ED, Diag, KernelLocation))
             emitFwdDecl(O, ED, KernelLocation);
         } else if (Arg.getKind() == TemplateArgument::ArgKind::Type)
           emitForwardClassDecls(O, T, KernelLocation, Printed);

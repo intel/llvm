@@ -31,7 +31,7 @@ public:
   void operator()() {}
 };
 
-// expected-error@+2 {{kernel name cannot be templated using unscoped enum without fixed underlying type}}
+// expected-error@+2 {{kernel name is invalid. Unscoped enum requires fixed underlying type}}
 template <unscoped_enum_no_type_set EnumType>
 class dummy_functor_2 {
 public:
