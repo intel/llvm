@@ -228,7 +228,7 @@ ln -s /opt/intel/tbb_<tbb_version>/tbb/lib/intel64/gcc4.8/libtbbmalloc.so
 ln -s /opt/intel/tbb_<tbb_version>/tbb/lib/intel64/gcc4.8/libtbb.so.2
   /opt/intel/oclcpuexp_<cpu_version>/x64
 ln -s /opt/intel/tbb_<tbb_version>/tbb/lib/intel64/gcc4.8/libtbbmalloc.so.2
-  /opt/intel/oclcpuexp_<cpu_version>/
+  /opt/intel/oclcpuexp_<cpu_version>/x64
 ```
 
 5) Configure library paths
