@@ -1661,10 +1661,15 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
   case OpStore: {
     SPIRVStore *BS = static_cast<SPIRVStore *>(BV);
-    StoreInst *SI = new StoreInst(
-        transValue(BS->getSrc(), F, BB), transValue(BS->getDst(), F, BB),
-        BS->SPIRVMemoryAccess::isVolatile(),
-        MaybeAlign(BS->SPIRVMemoryAccess::getAlignment()), BB);
+    StoreInst *SI = nullptr;
+    auto *Src = transValue(BS->getSrc(), F, BB);
+    auto *Dst = transValue(BS->getDst(), F, BB);
+    bool isVolatile = BS->SPIRVMemoryAccess::isVolatile();
+    uint64_t AlignValue = BS->SPIRVMemoryAccess::getAlignment();
+    if (0 == AlignValue)
+      SI = new StoreInst(Src, Dst, isVolatile, BB);
+    else
+      SI = new StoreInst(Src, Dst, isVolatile, Align(AlignValue), BB);
     if (BS->SPIRVMemoryAccess::isNonTemporal())
       transNonTemporalMetadata(SI);
     return mapValue(BV, SI);
@@ -1673,10 +1678,17 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
   case OpLoad: {
     SPIRVLoad *BL = static_cast<SPIRVLoad *>(BV);
     auto V = transValue(BL->getSrc(), F, BB);
-    LoadInst *LI =
-        new LoadInst(V->getType()->getPointerElementType(), V, BV->getName(),
-                     BL->SPIRVMemoryAccess::isVolatile(),
-                     MaybeAlign(BL->SPIRVMemoryAccess::getAlignment()), BB);
+    Type *Ty = V->getType()->getPointerElementType();
+    LoadInst *LI = nullptr;
+    uint64_t AlignValue = BL->SPIRVMemoryAccess::getAlignment();
+    if (0 == AlignValue) {
+      LI = new LoadInst(Ty, V, BV->getName(),
+                        BL->SPIRVMemoryAccess::isVolatile(), BB);
+    } else {
+      LI = new LoadInst(Ty, V, BV->getName(),
+                        BL->SPIRVMemoryAccess::isVolatile(), Align(AlignValue),
+                        BB);
+    }
     if (BL->SPIRVMemoryAccess::isNonTemporal())
       transNonTemporalMetadata(LI);
     return mapValue(BV, LI);
