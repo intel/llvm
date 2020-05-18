@@ -446,7 +446,8 @@ Command *Scheduler::GraphBuilder::addCGUpdateHost(
 /// 2. New and examined commands has non-overlapping requirements -> can bypass
 /// 3. New and examined commands have different contexts -> cannot bypass
 std::set<Command *>
-Scheduler::GraphBuilder::findDepsForReq(MemObjRecord *Record, const Requirement *Req,
+Scheduler::GraphBuilder::findDepsForReq(MemObjRecord *Record,
+                                        const Requirement *Req,
                                         const ContextImplPtr &Context) {
   std::set<Command *> RetDeps;
   std::set<Command *> Visited;
@@ -513,8 +514,10 @@ DepDesc Scheduler::GraphBuilder::findDepForRecord(Command *Cmd,
 
 // The function searches for the alloca command matching context and
 // requirement.
-AllocaCommandBase *Scheduler::GraphBuilder::findAllocaForReq(
-    MemObjRecord *Record, const Requirement *Req, const ContextImplPtr &Context) {
+AllocaCommandBase *
+Scheduler::GraphBuilder::findAllocaForReq(MemObjRecord *Record,
+                                          const Requirement *Req,
+                                          const ContextImplPtr &Context) {
   auto IsSuitableAlloca = [&Context, Req](AllocaCommandBase *AllocaCmd) {
     bool Res = sameCtx(AllocaCmd->getQueue()->getContextImplPtr(), Context);
     if (IsSuitableSubReq(Req)) {
@@ -641,11 +644,10 @@ void Scheduler::GraphBuilder::markModifiedIfWrite(MemObjRecord *Record,
 }
 
 template<typename T>
-typename std::enable_if<std::is_same<typename std::remove_cv<T>::type,
-                                     Requirement>::value,
-                        EmptyCommand *>::type
-Scheduler::GraphBuilder::addEmptyCmd(Command *Cmd,
-                                     const std::vector<T *> &Reqs,
+typename std::enable_if<
+    std::is_same<typename std::remove_cv<T>::type, Requirement>::value,
+    EmptyCommand *>::type
+Scheduler::GraphBuilder::addEmptyCmd(Command *Cmd, const std::vector<T *> &Reqs,
                                      const QueueImplPtr &Queue,
                                      Command::BlockReason Reason) {
   EmptyCommand *EmptyCmd =
@@ -949,16 +951,16 @@ void Scheduler::GraphBuilder::connectDepEvent(Command *const Cmd,
     // make ConnectCmd depend on requirement
     ConnectCmd->addDep(Dep);
     assert(reinterpret_cast<Command *>(DepEvent->getCommand()) ==
-        Dep.MDepCommand);
+           Dep.MDepCommand);
     // add user to Dep.MDepCommand is already performed beyond this if branch
 
     MemObjRecord *Record = getMemObjRecord(Dep.MDepRequirement->MSYCLMemObj);
 
-    updateLeaves({ Dep.MDepCommand }, Record, Dep.MDepRequirement->MAccessMode);
+    updateLeaves({Dep.MDepCommand}, Record, Dep.MDepRequirement->MAccessMode);
     addNodeToLeaves(Record, ConnectCmd, Dep.MDepRequirement->MAccessMode);
 
     const std::vector<const Requirement *> Reqs(1, Dep.MDepRequirement);
-    EmptyCmd = addEmptyCmd<>(ConnectCmd, Reqs,
+    EmptyCmd = addEmptyCmd(ConnectCmd, Reqs,
                            Scheduler::getInstance().getDefaultHostQueue(),
                            Command::BlockReason::HostTask);
     // Dependencies for EmptyCmd are set in addEmptyCmd for provided Reqs.

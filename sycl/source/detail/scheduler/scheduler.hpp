@@ -551,9 +551,9 @@ protected:
                                        const ContextImplPtr &Context);
 
     template<typename T>
-    typename std::enable_if<std::is_same<typename std::remove_cv<T>::type,
-                                         Requirement>::value,
-                            EmptyCommand *>::type
+    typename std::enable_if<
+        std::is_same<typename std::remove_cv<T>::type, Requirement>::value,
+        EmptyCommand *>::type
     addEmptyCmd(Command *Cmd, const std::vector<T *> &Req,
                 const QueueImplPtr &Queue, Command::BlockReason Reason);
 
