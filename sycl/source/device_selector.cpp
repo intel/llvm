@@ -35,9 +35,7 @@ device device_selector::select_device() const {
   const device *res = nullptr;
 
   for (const auto &dev : devices) {
-    int dev_score = REJECT_DEVICE_SCORE;
-
-    dev_score = (*this)(dev);
+    int dev_score = (*this)(dev);
 
     if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL)) {
       string_class PlatformVersion = dev.get_info<info::device::platform>()
