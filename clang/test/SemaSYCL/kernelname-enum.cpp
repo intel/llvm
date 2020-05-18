@@ -1,7 +1,5 @@
 // RUN: %clang_cc1 -I %S/Inputs -fsycl -fsycl-is-device -fsycl-int-header=%t.h -fsyntax-only -verify %s
 
-//#include <sycl.hpp>
-
 #include "sycl.hpp"
 
 enum unscoped_enum_int : int {
