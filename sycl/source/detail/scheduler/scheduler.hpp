@@ -428,6 +428,13 @@ protected:
   Scheduler();
   static Scheduler instance;
 
+  /// Provides exclusive access to std::shared_timed_mutex object with deadlock
+  /// avoidance
+  ///
+  /// \param Lock is an instance of std::unique_lock<std::shared_timed_mutex>
+  /// class
+  void lockSharedTimedMutex(std::unique_lock<std::shared_timed_mutex> &Lock);
+
   /// Graph builder class.
   ///
   /// The graph builder provides means to change an existing graph (e.g. add
