@@ -909,6 +909,7 @@ void Scheduler::GraphBuilder::removeRecordForMemObj(SYCLMemObjI *MemObject) {
 // ConnectCmd depend on on this command. If there is valid, i.e. non-nil,
 // requirement in Dep we make ConnectCmd depend on DepEvent's command with this
 // requirement.
+// Optionality of Dep is set by Dep.MDepCommand equal to nullptr.
 void Scheduler::GraphBuilder::connectDepEvent(Command *const Cmd,
                                               EventImplPtr DepEvent,
                                               const DepDesc &Dep) {
@@ -990,6 +991,7 @@ void Scheduler::GraphBuilder::connectDepEvent(Command *const Cmd,
   // of enqueue process for some command Cmd. We're going to add a dependency
   // for it. Need some nice and cute solution to enqueue ConnectCmd via standard
   // scheduler/graph processor mechanisms.
+  // Though, we need this call to enqueue to launch ConnectCmd.
   EnqueueResultT Res;
   bool Enqueued = Scheduler::GraphProcessor::enqueueCommand(ConnectCmd, Res);
   if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
