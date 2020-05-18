@@ -120,55 +120,30 @@ get_kernel_work_group_info_host<info::kernel_work_group::private_mem_size>(
 }
 // The kernel sub-group methods
 
-template <typename TOut, info::kernel_sub_group Param>
-struct get_kernel_sub_group_info {
-  static TOut get(RT::PiKernel Kernel, RT::PiDevice Device,
-                  const plugin &Plugin) {
-    TOut Result;
+template <info::kernel_sub_group Param> struct get_kernel_sub_group_info {
+  static uint32_t get(RT::PiKernel Kernel, RT::PiDevice Device,
+                      const plugin &Plugin) {
+    uint32_t Result;
     // TODO catch an exception and put it to list of asynchronous exceptions
     Plugin.call<PiApiKind::piKernelGetSubGroupInfo>(
-        Kernel, Device, cl_kernel_sub_group_info(Param), 0, nullptr,
-        sizeof(TOut), &Result, nullptr);
+        Kernel, Device, pi_kernel_sub_group_info(Param), 0, nullptr,
+        sizeof(uint32_t), &Result, nullptr);
+
     return Result;
   }
 };
 
-template <typename TOut, info::kernel_sub_group Param, typename TIn>
+template <info::kernel_sub_group Param>
 struct get_kernel_sub_group_info_with_input {
-  static TOut get(RT::PiKernel Kernel, RT::PiDevice Device, TIn In,
-                  const plugin &Plugin) {
-    TOut Result;
-    // TODO catch an exception and put it to list of asynchronous exceptions
-    Plugin.call<PiApiKind::piKernelGetSubGroupInfo>(
-        Kernel, Device, cl_kernel_sub_group_info(Param), sizeof(TIn), &In,
-        sizeof(TOut), &Result, nullptr);
-    return Result;
-  }
-};
-
-template <info::kernel_sub_group Param>
-struct get_kernel_sub_group_info_with_input<cl::sycl::range<3>, Param, size_t> {
-  static cl::sycl::range<3> get(RT::PiKernel Kernel, RT::PiDevice Device,
-                                size_t In, const plugin &Plugin) {
-    size_t Result[3];
-    // TODO catch an exception and put it to list of asynchronous exceptions
-    Plugin.call<PiApiKind::piKernelGetSubGroupInfo>(
-        Kernel, Device, cl_kernel_sub_group_info(Param), sizeof(size_t), &In,
-        sizeof(size_t) * 3, Result, nullptr);
-    return cl::sycl::range<3>(Result[0], Result[1], Result[2]);
-  }
-};
-
-template <info::kernel_sub_group Param>
-struct get_kernel_sub_group_info_with_input<size_t, Param, cl::sycl::range<3>> {
-  static size_t get(RT::PiKernel Kernel, RT::PiDevice Device,
-                    cl::sycl::range<3> In, const plugin &Plugin) {
+  static uint32_t get(RT::PiKernel Kernel, RT::PiDevice Device,
+                      cl::sycl::range<3> In, const plugin &Plugin) {
     size_t Input[3] = {In[0], In[1], In[2]};
-    size_t Result;
+    uint32_t Result;
     // TODO catch an exception and put it to list of asynchronous exceptions
     Plugin.call<PiApiKind::piKernelGetSubGroupInfo>(
-        Kernel, Device, cl_kernel_sub_group_info(Param), sizeof(size_t) * 3,
-        Input, sizeof(size_t), &Result, nullptr);
+        Kernel, Device, pi_kernel_sub_group_info(Param), sizeof(size_t) * 3,
+        Input, sizeof(uint32_t), &Result, nullptr);
+
     return Result;
   }
 };

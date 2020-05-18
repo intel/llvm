@@ -9,6 +9,7 @@
 #include "Driver.h"
 #include "Config.h"
 #include "InputFiles.h"
+#include "OutputSection.h"
 #include "OutputSegment.h"
 #include "SymbolTable.h"
 #include "Symbols.h"
@@ -25,9 +26,11 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/BinaryFormat/MachO.h"
 #include "llvm/BinaryFormat/Magic.h"
+#include "llvm/Object/Archive.h"
 #include "llvm/Option/ArgList.h"
 #include "llvm/Option/Option.h"
 #include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/Path.h"
 
 using namespace llvm;
 using namespace llvm::MachO;
@@ -103,6 +106,16 @@ static void addFile(StringRef path) {
   MemoryBufferRef mbref = *buffer;
 
   switch (identify_magic(mbref.getBuffer())) {
+  case file_magic::archive: {
+    std::unique_ptr<object::Archive> file = CHECK(
+        object::Archive::create(mbref), path + ": failed to parse archive");
+
+    if (!file->isEmpty() && !file->hasSymbolTable())
+      error(path + ": archive has no index; run ranlib to add one");
+
+    inputFiles.push_back(make<ArchiveFile>(std::move(file)));
+    break;
+  }
   case file_magic::macho_object:
     inputFiles.push_back(make<ObjFile>(mbref));
     break;
@@ -114,10 +127,40 @@ static void addFile(StringRef path) {
   }
 }
 
+// We expect sub-library names of the form "libfoo", which will match a dylib
+// with a path of .*/libfoo.dylib.
+static bool markSubLibrary(StringRef searchName) {
+  for (InputFile *file : inputFiles) {
+    if (auto *dylibFile = dyn_cast<DylibFile>(file)) {
+      StringRef filename = path::filename(dylibFile->getName());
+      if (filename.consume_front(searchName) && filename == ".dylib") {
+        dylibFile->reexport = true;
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+static void handlePlatformVersion(opt::ArgList::iterator &it,
+                                  const opt::ArgList::iterator &end) {
+  // -platform_version takes 3 args, which LLVM's option library doesn't
+  // support directly.  So this explicitly handles that.
+  // FIXME: stash skipped args for later use.
+  for (int i = 0; i < 3; ++i) {
+    ++it;
+    if (it == end || (*it)->getOption().getID() != OPT_INPUT)
+      fatal("usage: -platform_version platform min_version sdk_version");
+  }
+}
+
 bool macho::link(llvm::ArrayRef<const char *> argsArr, bool canExitEarly,
                  raw_ostream &stdoutOS, raw_ostream &stderrOS) {
   lld::stdoutOS = &stdoutOS;
   lld::stderrOS = &stderrOS;
+
+  stderrOS.enable_colors(stderrOS.has_colors());
+  // TODO: Set up error handler properly, e.g. the errorLimitExceededMsg
 
   MachOOptTable parser;
   opt::InputArgList args = parser.parse(argsArr.slice(1));
@@ -128,7 +171,10 @@ bool macho::link(llvm::ArrayRef<const char *> argsArr, bool canExitEarly,
 
   config->entry = symtab->addUndefined(args.getLastArgValue(OPT_e, "_main"));
   config->outputFile = args.getLastArgValue(OPT_o, "a.out");
+  config->installName =
+      args.getLastArgValue(OPT_install_name, config->outputFile);
   config->searchPaths = getSearchPaths(args);
+  config->outputType = args.hasArg(OPT_dylib) ? MH_DYLIB : MH_EXECUTE;
 
   if (args.hasArg(OPT_v)) {
     message(getLLDVersion());
@@ -139,11 +185,9 @@ bool macho::link(llvm::ArrayRef<const char *> argsArr, bool canExitEarly,
     return !errorCount();
   }
 
-  getOrCreateOutputSegment("__TEXT", VM_PROT_READ | VM_PROT_EXECUTE);
-  getOrCreateOutputSegment("__DATA", VM_PROT_READ | VM_PROT_WRITE);
-  getOrCreateOutputSegment("__DATA_CONST", VM_PROT_READ | VM_PROT_WRITE);
-
-  for (opt::Arg *arg : args) {
+  for (opt::ArgList::iterator it = args.begin(), end = args.end(); it != end;
+       ++it) {
+    const opt::Arg *arg = *it;
     switch (arg->getOption().getID()) {
     case OPT_INPUT:
       addFile(arg->getValue());
@@ -152,10 +196,31 @@ bool macho::link(llvm::ArrayRef<const char *> argsArr, bool canExitEarly,
       if (Optional<std::string> path = findDylib(arg->getValue()))
         addFile(*path);
       break;
+    case OPT_platform_version: {
+      handlePlatformVersion(it, end); // Can advance "it".
+      break;
+    }
     }
   }
 
-  if (!isa<Defined>(config->entry)) {
+  // Now that all dylibs have been loaded, search for those that should be
+  // re-exported.
+  for (opt::Arg *arg : args.filtered(OPT_sub_library)) {
+    config->hasReexports = true;
+    StringRef searchName = arg->getValue();
+    if (!markSubLibrary(searchName))
+      error("-sub_library " + searchName + " does not match a supplied dylib");
+  }
+
+  // dyld requires us to load libSystem. Since we may run tests on non-OSX
+  // systems which do not have libSystem, we mock it out here.
+  // TODO: Replace this with a stub tbd file once we have TAPI support.
+  if (StringRef(getenv("LLD_IN_TEST")) == "1" &&
+      config->outputType == MH_EXECUTE) {
+    inputFiles.push_back(DylibFile::createLibSystemMock());
+  }
+
+  if (config->outputType == MH_EXECUTE && !isa<Defined>(config->entry)) {
     error("undefined symbol: " + config->entry->getName());
     return false;
   }
@@ -166,14 +231,6 @@ bool macho::link(llvm::ArrayRef<const char *> argsArr, bool canExitEarly,
   for (InputFile *file : inputFiles)
     for (InputSection *sec : file->sections)
       inputSections.push_back(sec);
-
-  // Add input sections to output segments.
-  for (InputSection *isec : inputSections) {
-    OutputSegment *os =
-        getOrCreateOutputSegment(isec->segname, VM_PROT_READ | VM_PROT_WRITE);
-    isec->parent = os;
-    os->sections[isec->name].push_back(isec);
-  }
 
   // Write to an output file.
   writeResult();

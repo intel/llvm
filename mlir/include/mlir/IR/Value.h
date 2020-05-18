@@ -116,12 +116,22 @@ public:
   /// defines it.
   Operation *getDefiningOp() const;
 
+  /// If this value is the result of an operation of type OpTy, return the
+  /// operation that defines it.
+  template <typename OpTy>
+  OpTy getDefiningOp() const {
+    return llvm::dyn_cast_or_null<OpTy>(getDefiningOp());
+  }
+
   /// If this value is the result of an operation, use it as a location,
   /// otherwise return an unknown location.
   Location getLoc() const;
 
   /// Return the Region in which this Value is defined.
   Region *getParentRegion();
+
+  /// Return the Block in which this Value is defined.
+  Block *getParentBlock();
 
   //===--------------------------------------------------------------------===//
   // UseLists
@@ -149,6 +159,9 @@ public:
   /// returns true.
   void replaceUsesWithIf(Value newValue,
                          function_ref<bool(OpOperand &)> shouldReplace);
+
+  /// Returns true if the value is used outside of the given block.
+  bool isUsedOutsideOfBlock(Block *block);
 
   //===--------------------------------------------------------------------===//
   // Uses

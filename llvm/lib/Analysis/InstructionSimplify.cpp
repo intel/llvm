@@ -4302,9 +4302,9 @@ Value *llvm::SimplifyInsertElementInst(Value *Vec, Value *Val, Value *Idx,
   if (isa<UndefValue>(Idx))
     return UndefValue::get(Vec->getType());
 
-  // Inserting an undef scalar? Assume it is the same value as the existing
-  // vector element.
-  if (isa<UndefValue>(Val))
+  // If the scalar is undef, and there is no risk of propagating poison from the
+  // vector value, simplify to the vector value.
+  if (isa<UndefValue>(Val) && isGuaranteedNotToBeUndefOrPoison(Vec))
     return Vec;
 
   // If we are extracting a value from a vector, then inserting it into the same
@@ -5407,7 +5407,7 @@ static Value *simplifyIntrinsic(CallBase *Call, const SimplifyQuery &Q) {
 }
 
 Value *llvm::SimplifyCall(CallBase *Call, const SimplifyQuery &Q) {
-  Value *Callee = Call->getCalledValue();
+  Value *Callee = Call->getCalledOperand();
 
   // musttail calls can only be simplified if they are also DCEd.
   // As we can't guarantee this here, don't simplify them.
@@ -5600,9 +5600,6 @@ Value *llvm::SimplifyInstruction(Instruction *I, const SimplifyQuery &SQ,
     break;
   case Instruction::Call: {
     Result = SimplifyCall(cast<CallInst>(I), Q);
-    // Don't perform known bits simplification below for musttail calls.
-    if (cast<CallInst>(I)->isMustTailCall())
-      return Result;
     break;
   }
   case Instruction::Freeze:
@@ -5618,14 +5615,6 @@ Value *llvm::SimplifyInstruction(Instruction *I, const SimplifyQuery &SQ,
     // No simplifications for Alloca and it can't be constant folded.
     Result = nullptr;
     break;
-  }
-
-  // In general, it is possible for computeKnownBits to determine all bits in a
-  // value even when the operands are not all constants.
-  if (!Result && I->getType()->isIntOrIntVectorTy()) {
-    KnownBits Known = computeKnownBits(I, Q.DL, /*Depth*/ 0, Q.AC, I, Q.DT, ORE);
-    if (Known.isConstant())
-      Result = ConstantInt::get(I->getType(), Known.getConstant());
   }
 
   /// If called on unreachable code, the above logic may report that the

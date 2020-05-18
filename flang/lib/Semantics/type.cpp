@@ -77,7 +77,9 @@ void DerivedTypeSpec::CookParameters(evaluate::FoldingContext &foldingContext) {
       name = *nextNameIter++;
       auto it{std::find_if(parameterDecls.begin(), parameterDecls.end(),
           [&](const Symbol &symbol) { return symbol.name() == name; })};
-      CHECK(it != parameterDecls.end());
+      if (it == parameterDecls.end()) {
+        break;
+      }
       attr = it->get().get<TypeParamDetails>().attr();
     } else {
       messages.Say(name_,
@@ -504,6 +506,13 @@ bool ArraySpec::IsAssumedSize() const {
 }
 bool ArraySpec::IsAssumedRank() const {
   return Rank() == 1 && front().lbound().isAssumed();
+}
+bool ArraySpec::IsConstantShape() const {
+  return CheckAll([](const ShapeSpec &x) {
+    const auto &lb{x.lbound().GetExplicit()};
+    const auto &ub{x.ubound().GetExplicit()};
+    return lb && ub && IsConstantExpr(*lb) && IsConstantExpr(*ub);
+  });
 }
 
 llvm::raw_ostream &operator<<(

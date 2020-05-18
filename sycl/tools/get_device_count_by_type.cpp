@@ -6,6 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+// Suppress a compiler warning about undefined CL_TARGET_OPENCL_VERSION
+// and define all symbols up to OpenCL 2.2
+#ifndef CL_TARGET_OPENCL_VERSION
+#define CL_TARGET_OPENCL_VERSION 220
+#endif
+
 #include <CL/cl.h>
 #include <CL/cl_ext.h>
 

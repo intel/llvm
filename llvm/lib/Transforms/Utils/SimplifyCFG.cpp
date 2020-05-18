@@ -330,7 +330,7 @@ static unsigned ComputeSpeculationCost(const User *I,
                                        const TargetTransformInfo &TTI) {
   assert(isSafeToSpeculativelyExecute(I) &&
          "Instruction is not safe to speculatively execute!");
-  return TTI.getUserCost(I);
+  return TTI.getUserCost(I, TargetTransformInfo::TCK_SizeAndLatency);
 }
 
 /// If we have a merge point of an "if condition" as accepted above,
@@ -1300,6 +1300,14 @@ bool SimplifyCFGOpt::HoistThenElseCodeToIf(BranchInst *BI,
     if (!TTI.isProfitableToHoist(I1) || !TTI.isProfitableToHoist(I2))
       return Changed;
 
+    // If any of the two call sites has nomerge attribute, stop hoisting.
+    if (const auto *CB1 = dyn_cast<CallBase>(I1))
+      if (CB1->cannotMerge())
+        return Changed;
+    if (const auto *CB2 = dyn_cast<CallBase>(I2))
+      if (CB2->cannotMerge())
+        return Changed;
+
     if (isa<DbgInfoIntrinsic>(I1) || isa<DbgInfoIntrinsic>(I2)) {
       assert (isa<DbgInfoIntrinsic>(I1) && isa<DbgInfoIntrinsic>(I2));
       // The debug location is an integral part of a debug info intrinsic
@@ -1485,8 +1493,9 @@ static bool canSinkInstructions(
     // Conservatively return false if I is an inline-asm instruction. Sinking
     // and merging inline-asm instructions can potentially create arguments
     // that cannot satisfy the inline-asm constraints.
+    // If the instruction has nomerge attribute, return false.
     if (const auto *C = dyn_cast<CallBase>(I))
-      if (C->isInlineAsm())
+      if (C->isInlineAsm() || C->cannotMerge())
         return false;
 
     // Each instruction must have zero or one use.
@@ -2898,9 +2907,14 @@ bool llvm::FoldBranchToCommonDest(BranchInst *BI, MemorySSAUpdater *MSSAU,
     // could replace PBI's branch probabilities with BI's.
 
     // Copy any debug value intrinsics into the end of PredBlock.
-    for (Instruction &I : *BB)
-      if (isa<DbgInfoIntrinsic>(I))
-        I.clone()->insertBefore(PBI);
+    for (Instruction &I : *BB) {
+      if (isa<DbgInfoIntrinsic>(I)) {
+        Instruction *NewI = I.clone();
+        RemapInstruction(NewI, VMap,
+                         RF_NoModuleLevelChanges | RF_IgnoreMissingLocals);
+        NewI->insertBefore(PBI);
+      }
+    }
 
     return true;
   }
@@ -3045,7 +3059,7 @@ static bool mergeConditionalStoreToAddress(BasicBlock *PTB, BasicBlock *PFB,
         return false; // Not in white-list - not worthwhile folding.
       // And finally, if this is a non-free instruction that we are okay
       // speculating, ensure that we consider the speculation budget.
-      BudgetRemaining -= TTI.getUserCost(&I);
+      BudgetRemaining -= TTI.getUserCost(&I, TargetTransformInfo::TCK_SizeAndLatency);
       if (BudgetRemaining < 0)
         return false; // Eagerly refuse to fold as soon as we're out of budget.
     }
@@ -6103,7 +6117,7 @@ static bool passingValueIsAlwaysUndefined(Value *V, Instruction *I) {
     // A call to null is undefined.
     if (auto *CB = dyn_cast<CallBase>(Use))
       return !NullPointerIsDefined(CB->getFunction()) &&
-             CB->getCalledValue() == I;
+             CB->getCalledOperand() == I;
   }
   return false;
 }

@@ -16,6 +16,7 @@
 #include "mlir/IR/Types.h"
 #include "llvm/ADT/Sequence.h"
 #include "llvm/ADT/Twine.h"
+#include "llvm/Support/Endian.h"
 
 using namespace mlir;
 using namespace mlir::detail;
@@ -83,65 +84,45 @@ bool BoolAttr::getValue() const { return getImpl()->value; }
 // DictionaryAttr
 //===----------------------------------------------------------------------===//
 
-/// Perform a three-way comparison between the names of the specified
-/// NamedAttributes.
-static int compareNamedAttributes(const NamedAttribute *lhs,
-                                  const NamedAttribute *rhs) {
-  return strcmp(lhs->first.data(), rhs->first.data());
-}
-
-/// Returns if the name of the given attribute precedes that of 'name'.
-static bool compareNamedAttributeWithName(const NamedAttribute &attr,
-                                          StringRef name) {
-  // This is correct even when attr.first.data()[name.size()] is not a zero
-  // string terminator, because we only care about a less than comparison.
-  // This can't use memcmp, because it doesn't guarantee that it will stop
-  // reading both buffers if one is shorter than the other, even if there is
-  // a difference.
-  return strncmp(attr.first.data(), name.data(), name.size()) < 0;
-}
-
-DictionaryAttr DictionaryAttr::get(ArrayRef<NamedAttribute> value,
-                                   MLIRContext *context) {
-  assert(llvm::all_of(value,
-                      [](const NamedAttribute &attr) { return attr.second; }) &&
-         "value cannot have null entries");
-
-  // We need to sort the element list to canonicalize it, but we also don't want
-  // to do a ton of work in the super common case where the element list is
-  // already sorted.
-  SmallVector<NamedAttribute, 8> storage;
+/// Helper function that does either an in place sort or sorts from source array
+/// into destination. If inPlace then storage is both the source and the
+/// destination, else value is the source and storage destination. Returns
+/// whether source was sorted.
+template <bool inPlace>
+static bool dictionaryAttrSort(ArrayRef<NamedAttribute> value,
+                               SmallVectorImpl<NamedAttribute> &storage) {
+  // Specialize for the common case.
   switch (value.size()) {
   case 0:
+    // Zero already sorted.
     break;
   case 1:
-    // A single element is already sorted.
+    // One already sorted but may need to be copied.
+    if (!inPlace)
+      storage.assign({value[0]});
     break;
-  case 2:
+  case 2: {
     assert(value[0].first != value[1].first &&
            "DictionaryAttr element names must be unique");
-
-    // Don't invoke a general sort for two element case.
-    if (compareNamedAttributes(&value[0], &value[1]) > 0) {
-      storage.push_back(value[1]);
-      storage.push_back(value[0]);
-      value = storage;
+    bool isSorted = value[0] < value[1];
+    if (inPlace) {
+      if (!isSorted)
+        std::swap(storage[0], storage[1]);
+    } else if (isSorted) {
+      storage.assign({value[0], value[1]});
+    } else {
+      storage.assign({value[1], value[0]});
     }
-    break;
+    return !isSorted;
+  }
   default:
+    if (!inPlace)
+      storage.assign(value.begin(), value.end());
     // Check to see they are sorted already.
-    bool isSorted = true;
-    for (unsigned i = 0, e = value.size() - 1; i != e; ++i) {
-      if (compareNamedAttributes(&value[i], &value[i + 1]) > 0) {
-        isSorted = false;
-        break;
-      }
-    }
-    // If not, do a general sort.
+    bool isSorted = llvm::is_sorted(value);
     if (!isSorted) {
-      storage.append(value.begin(), value.end());
-      llvm::array_pod_sort(storage.begin(), storage.end(),
-                           compareNamedAttributes);
+      // If not, do a general sort.
+      llvm::array_pod_sort(storage.begin(), storage.end());
       value = storage;
     }
 
@@ -151,15 +132,41 @@ DictionaryAttr DictionaryAttr::get(ArrayRef<NamedAttribute> value,
                                 return l.first == r.first;
                               }) == value.end() &&
            "DictionaryAttr element names must be unique");
+    return !isSorted;
   }
+  return false;
+}
+
+bool DictionaryAttr::sort(ArrayRef<NamedAttribute> value,
+                          SmallVectorImpl<NamedAttribute> &storage) {
+  return dictionaryAttrSort</*inPlace=*/false>(value, storage);
+}
+
+bool DictionaryAttr::sortInPlace(SmallVectorImpl<NamedAttribute> &array) {
+  return dictionaryAttrSort</*inPlace=*/true>(array, array);
+}
+
+DictionaryAttr DictionaryAttr::get(ArrayRef<NamedAttribute> value,
+                                   MLIRContext *context) {
+  if (value.empty())
+    return DictionaryAttr::getEmpty(context);
+  assert(llvm::all_of(value,
+                      [](const NamedAttribute &attr) { return attr.second; }) &&
+         "value cannot have null entries");
+
+  // We need to sort the element list to canonicalize it.
+  SmallVector<NamedAttribute, 8> storage;
+  if (dictionaryAttrSort</*inPlace=*/false>(value, storage))
+    value = storage;
 
   return Base::get(context, StandardAttributes::Dictionary, value);
 }
-
 /// Construct a dictionary with an array of values that is known to already be
 /// sorted by name and uniqued.
 DictionaryAttr DictionaryAttr::getWithSorted(ArrayRef<NamedAttribute> value,
                                              MLIRContext *context) {
+  if (value.empty())
+    return DictionaryAttr::getEmpty(context);
   // Ensure that the attribute elements are unique and sorted.
   assert(llvm::is_sorted(value,
                          [](NamedAttribute l, NamedAttribute r) {
@@ -180,15 +187,26 @@ ArrayRef<NamedAttribute> DictionaryAttr::getValue() const {
 
 /// Return the specified attribute if present, null otherwise.
 Attribute DictionaryAttr::get(StringRef name) const {
-  ArrayRef<NamedAttribute> values = getValue();
-  auto it = llvm::lower_bound(values, name, compareNamedAttributeWithName);
-  return it != values.end() && it->first == name ? it->second : Attribute();
+  Optional<NamedAttribute> attr = getNamed(name);
+  return attr ? attr->second : nullptr;
 }
 Attribute DictionaryAttr::get(Identifier name) const {
+  Optional<NamedAttribute> attr = getNamed(name);
+  return attr ? attr->second : nullptr;
+}
+
+/// Return the specified named attribute if present, None otherwise.
+Optional<NamedAttribute> DictionaryAttr::getNamed(StringRef name) const {
+  ArrayRef<NamedAttribute> values = getValue();
+  const auto *it = llvm::lower_bound(values, name);
+  return it != values.end() && it->first == name ? *it
+                                                 : Optional<NamedAttribute>();
+}
+Optional<NamedAttribute> DictionaryAttr::getNamed(Identifier name) const {
   for (auto elt : getValue())
     if (elt.first == name)
-      return elt.second;
-  return nullptr;
+      return elt;
+  return llvm::None;
 }
 
 DictionaryAttr::iterator DictionaryAttr::begin() const {
@@ -509,6 +527,9 @@ uint64_t ElementsAttr::getFlattenedIndex(ArrayRef<uint64_t> index) const {
 static size_t getDenseElementStorageWidth(size_t origWidth) {
   return origWidth == 1 ? origWidth : llvm::alignTo<8>(origWidth);
 }
+static size_t getDenseElementStorageWidth(Type elementType) {
+  return getDenseElementStorageWidth(getDenseElementBitWidth(elementType));
+}
 
 /// Set a bit to a specific value.
 static void setBit(char *rawData, size_t bitPos, bool value) {
@@ -523,6 +544,29 @@ static bool getBit(const char *rawData, size_t bitPos) {
   return (rawData[bitPos / CHAR_BIT] & (1 << (bitPos % CHAR_BIT))) != 0;
 }
 
+/// Get start position of actual data in `value`. Actual data is
+/// stored in last `bitWidth`/CHAR_BIT bytes in big endian.
+static char *getAPIntDataPos(APInt &value, size_t bitWidth) {
+  char *dataPos =
+      const_cast<char *>(reinterpret_cast<const char *>(value.getRawData()));
+  if (llvm::support::endian::system_endianness() ==
+      llvm::support::endianness::big)
+    dataPos = dataPos + 8 - llvm::divideCeil(bitWidth, CHAR_BIT);
+  return dataPos;
+}
+
+/// Read APInt `value` from appropriate position.
+static void readAPInt(APInt &value, size_t bitWidth, char *outData) {
+  char *dataPos = getAPIntDataPos(value, bitWidth);
+  std::copy_n(dataPos, llvm::divideCeil(bitWidth, CHAR_BIT), outData);
+}
+
+/// Write `inData` to appropriate position of APInt `value`.
+static void writeAPInt(const char *inData, size_t bitWidth, APInt &value) {
+  char *dataPos = getAPIntDataPos(value, bitWidth);
+  std::copy_n(inData, llvm::divideCeil(bitWidth, CHAR_BIT), dataPos);
+}
+
 /// Writes value to the bit position `bitPos` in array `rawData`.
 static void writeBits(char *rawData, size_t bitPos, APInt value) {
   size_t bitWidth = value.getBitWidth();
@@ -533,9 +577,7 @@ static void writeBits(char *rawData, size_t bitPos, APInt value) {
 
   // Otherwise, the bit position is guaranteed to be byte aligned.
   assert((bitPos % CHAR_BIT) == 0 && "expected bitPos to be 8-bit aligned");
-  std::copy_n(reinterpret_cast<const char *>(value.getRawData()),
-              llvm::divideCeil(bitWidth, CHAR_BIT),
-              rawData + (bitPos / CHAR_BIT));
+  readAPInt(value, bitWidth, rawData + (bitPos / CHAR_BIT));
 }
 
 /// Reads the next `bitWidth` bits from the bit position `bitPos` in array
@@ -548,9 +590,7 @@ static APInt readBits(const char *rawData, size_t bitPos, size_t bitWidth) {
   // Otherwise, the bit position must be 8-bit aligned.
   assert((bitPos % CHAR_BIT) == 0 && "expected bitPos to be 8-bit aligned");
   APInt result(bitWidth, 0);
-  std::copy_n(
-      rawData + (bitPos / CHAR_BIT), llvm::divideCeil(bitWidth, CHAR_BIT),
-      const_cast<char *>(reinterpret_cast<const char *>(result.getRawData())));
+  writeAPInt(rawData + (bitPos / CHAR_BIT), bitWidth, result);
   return result;
 }
 
@@ -566,14 +606,15 @@ static bool hasSameElementsOrSplat(ShapedType type, const Values &values) {
 // DenseElementAttr Iterators
 //===----------------------------------------------------------------------===//
 
-/// Constructs a new iterator.
+//===----------------------------------------------------------------------===//
+// AttributeElementIterator
+
 DenseElementsAttr::AttributeElementIterator::AttributeElementIterator(
     DenseElementsAttr attr, size_t index)
     : llvm::indexed_accessor_iterator<AttributeElementIterator, const void *,
                                       Attribute, Attribute, Attribute>(
           attr.getAsOpaquePointer(), index) {}
 
-/// Accesses the Attribute value at this iterator position.
 Attribute DenseElementsAttr::AttributeElementIterator::operator*() const {
   auto owner = getFromOpaquePointer(base).cast<DenseElementsAttr>();
   Type eltTy = owner.getType().getElementType();
@@ -588,33 +629,63 @@ Attribute DenseElementsAttr::AttributeElementIterator::operator*() const {
     FloatElementIterator floatIt(floatEltTy.getFloatSemantics(), intIt);
     return FloatAttr::get(eltTy, *floatIt);
   }
+  if (owner.isa<DenseStringElementsAttr>()) {
+    ArrayRef<StringRef> vals = owner.getRawStringData();
+    return StringAttr::get(owner.isSplat() ? vals.front() : vals[index], eltTy);
+  }
   llvm_unreachable("unexpected element type");
 }
 
-/// Constructs a new iterator.
+//===----------------------------------------------------------------------===//
+// BoolElementIterator
+
 DenseElementsAttr::BoolElementIterator::BoolElementIterator(
     DenseElementsAttr attr, size_t dataIndex)
     : DenseElementIndexedIteratorImpl<BoolElementIterator, bool, bool, bool>(
           attr.getRawData().data(), attr.isSplat(), dataIndex) {}
 
-/// Accesses the bool value at this iterator position.
 bool DenseElementsAttr::BoolElementIterator::operator*() const {
   return getBit(getData(), getDataIndex());
 }
 
-/// Constructs a new iterator.
+//===----------------------------------------------------------------------===//
+// IntElementIterator
+
 DenseElementsAttr::IntElementIterator::IntElementIterator(
     DenseElementsAttr attr, size_t dataIndex)
     : DenseElementIndexedIteratorImpl<IntElementIterator, APInt, APInt, APInt>(
           attr.getRawData().data(), attr.isSplat(), dataIndex),
       bitWidth(getDenseElementBitWidth(attr.getType().getElementType())) {}
 
-/// Accesses the raw APInt value at this iterator position.
 APInt DenseElementsAttr::IntElementIterator::operator*() const {
   return readBits(getData(),
                   getDataIndex() * getDenseElementStorageWidth(bitWidth),
                   bitWidth);
 }
+
+//===----------------------------------------------------------------------===//
+// ComplexIntElementIterator
+
+DenseElementsAttr::ComplexIntElementIterator::ComplexIntElementIterator(
+    DenseElementsAttr attr, size_t dataIndex)
+    : DenseElementIndexedIteratorImpl<ComplexIntElementIterator,
+                                      std::complex<APInt>, std::complex<APInt>,
+                                      std::complex<APInt>>(
+          attr.getRawData().data(), attr.isSplat(), dataIndex) {
+  auto complexType = attr.getType().getElementType().cast<ComplexType>();
+  bitWidth = getDenseElementBitWidth(complexType.getElementType());
+}
+
+std::complex<APInt>
+DenseElementsAttr::ComplexIntElementIterator::operator*() const {
+  size_t storageWidth = getDenseElementStorageWidth(bitWidth);
+  size_t offset = getDataIndex() * storageWidth * 2;
+  return {readBits(getData(), offset, bitWidth),
+          readBits(getData(), offset + storageWidth, bitWidth)};
+}
+
+//===----------------------------------------------------------------------===//
+// FloatElementIterator
 
 DenseElementsAttr::FloatElementIterator::FloatElementIterator(
     const llvm::fltSemantics &smt, IntElementIterator it)
@@ -623,16 +694,40 @@ DenseElementsAttr::FloatElementIterator::FloatElementIterator(
           it, [&](const APInt &val) { return APFloat(smt, val); }) {}
 
 //===----------------------------------------------------------------------===//
+// ComplexFloatElementIterator
+
+DenseElementsAttr::ComplexFloatElementIterator::ComplexFloatElementIterator(
+    const llvm::fltSemantics &smt, ComplexIntElementIterator it)
+    : llvm::mapped_iterator<
+          ComplexIntElementIterator,
+          std::function<std::complex<APFloat>(const std::complex<APInt> &)>>(
+          it, [&](const std::complex<APInt> &val) -> std::complex<APFloat> {
+            return {APFloat(smt, val.real()), APFloat(smt, val.imag())};
+          }) {}
+
+//===----------------------------------------------------------------------===//
 // DenseElementsAttr
 //===----------------------------------------------------------------------===//
 
 DenseElementsAttr DenseElementsAttr::get(ShapedType type,
                                          ArrayRef<Attribute> values) {
-  assert(type.getElementType().isIntOrIndexOrFloat() &&
-         "expected int or index or float element type");
   assert(hasSameElementsOrSplat(type, values));
 
+  // If the element type is not based on int/float/index, assume it is a string
+  // type.
   auto eltType = type.getElementType();
+  if (!type.getElementType().isIntOrIndexOrFloat()) {
+    SmallVector<StringRef, 8> stringValues;
+    stringValues.reserve(values.size());
+    for (Attribute attr : values) {
+      assert(attr.isa<StringAttr>() &&
+             "expected string value for non integer/index/float element");
+      stringValues.push_back(attr.cast<StringAttr>().getValue());
+    }
+    return get(type, stringValues);
+  }
+
+  // Otherwise, get the raw storage width to use for the allocation.
   size_t bitWidth = getDenseElementBitWidth(eltType);
   size_t storageBitWidth = getDenseElementStorageWidth(bitWidth);
 
@@ -692,7 +787,21 @@ DenseElementsAttr DenseElementsAttr::get(ShapedType type,
 DenseElementsAttr DenseElementsAttr::get(ShapedType type,
                                          ArrayRef<APInt> values) {
   assert(type.getElementType().isIntOrIndex());
-  return DenseIntOrFPElementsAttr::getRaw(type, values);
+  assert(hasSameElementsOrSplat(type, values));
+  size_t storageBitWidth = getDenseElementStorageWidth(type.getElementType());
+  return DenseIntOrFPElementsAttr::getRaw(type, storageBitWidth, values,
+                                          /*isSplat=*/(values.size() == 1));
+}
+DenseElementsAttr DenseElementsAttr::get(ShapedType type,
+                                         ArrayRef<std::complex<APInt>> values) {
+  ComplexType complex = type.getElementType().cast<ComplexType>();
+  assert(complex.getElementType().isa<IntegerType>());
+  assert(hasSameElementsOrSplat(type, values));
+  size_t storageBitWidth = getDenseElementStorageWidth(complex) / 2;
+  ArrayRef<APInt> intVals(reinterpret_cast<const APInt *>(values.data()),
+                          values.size() * 2);
+  return DenseIntOrFPElementsAttr::getRaw(type, storageBitWidth, intVals,
+                                          /*isSplat=*/(values.size() == 1));
 }
 
 // Constructs a dense float elements attribute from an array of APFloat
@@ -701,12 +810,22 @@ DenseElementsAttr DenseElementsAttr::get(ShapedType type,
 DenseElementsAttr DenseElementsAttr::get(ShapedType type,
                                          ArrayRef<APFloat> values) {
   assert(type.getElementType().isa<FloatType>());
-
-  // Convert the APFloat values to APInt and create a dense elements attribute.
-  std::vector<APInt> intValues(values.size());
-  for (unsigned i = 0, e = values.size(); i != e; ++i)
-    intValues[i] = values[i].bitcastToAPInt();
-  return DenseIntOrFPElementsAttr::getRaw(type, intValues);
+  assert(hasSameElementsOrSplat(type, values));
+  size_t storageBitWidth = getDenseElementStorageWidth(type.getElementType());
+  return DenseIntOrFPElementsAttr::getRaw(type, storageBitWidth, values,
+                                          /*isSplat=*/(values.size() == 1));
+}
+DenseElementsAttr
+DenseElementsAttr::get(ShapedType type,
+                       ArrayRef<std::complex<APFloat>> values) {
+  ComplexType complex = type.getElementType().cast<ComplexType>();
+  assert(complex.getElementType().isa<FloatType>());
+  assert(hasSameElementsOrSplat(type, values));
+  ArrayRef<APFloat> apVals(reinterpret_cast<const APFloat *>(values.data()),
+                           values.size() * 2);
+  size_t storageBitWidth = getDenseElementStorageWidth(complex) / 2;
+  return DenseIntOrFPElementsAttr::getRaw(type, storageBitWidth, apVals,
+                                          /*isSplat=*/(values.size() == 1));
 }
 
 /// Construct a dense elements attribute from a raw buffer representing the
@@ -718,24 +837,43 @@ DenseElementsAttr DenseElementsAttr::getFromRawBuffer(ShapedType type,
   return DenseIntOrFPElementsAttr::getRaw(type, rawBuffer, isSplatBuffer);
 }
 
+/// Returns true if the given buffer is a valid raw buffer for the given type.
+bool DenseElementsAttr::isValidRawBuffer(ShapedType type,
+                                         ArrayRef<char> rawBuffer,
+                                         bool &detectedSplat) {
+  size_t storageWidth = getDenseElementStorageWidth(type.getElementType());
+  size_t rawBufferWidth = rawBuffer.size() * CHAR_BIT;
+
+  // Storage width of 1 is special as it is packed by the bit.
+  if (storageWidth == 1) {
+    // Check for a splat, or a buffer equal to the number of elements.
+    if ((detectedSplat = rawBuffer.size() == 1))
+      return true;
+    return rawBufferWidth == llvm::alignTo<8>(type.getNumElements());
+  }
+  // All other types are 8-bit aligned.
+  if ((detectedSplat = rawBufferWidth == storageWidth))
+    return true;
+  return rawBufferWidth == (storageWidth * type.getNumElements());
+}
+
 /// Check the information for a C++ data type, check if this type is valid for
 /// the current attribute. This method is used to verify specific type
 /// invariants that the templatized 'getValues' method cannot.
-static bool isValidIntOrFloat(ShapedType type, int64_t dataEltSize, bool isInt,
+static bool isValidIntOrFloat(Type type, int64_t dataEltSize, bool isInt,
                               bool isSigned) {
   // Make sure that the data element size is the same as the type element width.
-  if (getDenseElementBitWidth(type.getElementType()) !=
+  if (getDenseElementBitWidth(type) !=
       static_cast<size_t>(dataEltSize * CHAR_BIT))
     return false;
 
   // Check that the element type is either float or integer or index.
   if (!isInt)
-    return type.getElementType().isa<FloatType>();
-
-  if (type.getElementType().isIndex())
+    return type.isa<FloatType>();
+  if (type.isIndex())
     return true;
 
-  auto intType = type.getElementType().dyn_cast<IntegerType>();
+  auto intType = type.dyn_cast<IntegerType>();
   if (!intType)
     return false;
 
@@ -746,6 +884,13 @@ static bool isValidIntOrFloat(ShapedType type, int64_t dataEltSize, bool isInt,
 }
 
 /// Defaults down the subclass implementation.
+DenseElementsAttr DenseElementsAttr::getRawComplex(ShapedType type,
+                                                   ArrayRef<char> data,
+                                                   int64_t dataEltSize,
+                                                   bool isInt, bool isSigned) {
+  return DenseIntOrFPElementsAttr::getRawComplex(type, data, dataEltSize, isInt,
+                                                 isSigned);
+}
 DenseElementsAttr DenseElementsAttr::getRawIntOrFloat(ShapedType type,
                                                       ArrayRef<char> data,
                                                       int64_t dataEltSize,
@@ -759,7 +904,17 @@ DenseElementsAttr DenseElementsAttr::getRawIntOrFloat(ShapedType type,
 /// method cannot.
 bool DenseElementsAttr::isValidIntOrFloat(int64_t dataEltSize, bool isInt,
                                           bool isSigned) const {
-  return ::isValidIntOrFloat(getType(), dataEltSize, isInt, isSigned);
+  return ::isValidIntOrFloat(getType().getElementType(), dataEltSize, isInt,
+                             isSigned);
+}
+
+/// Check the information for a C++ data type, check if this type is valid for
+/// the current attribute.
+bool DenseElementsAttr::isValidComplex(int64_t dataEltSize, bool isInt,
+                                       bool isSigned) const {
+  return ::isValidIntOrFloat(
+      getType().getElementType().cast<ComplexType>().getElementType(),
+      dataEltSize / 2, isInt, isSigned);
 }
 
 /// Returns if this attribute corresponds to a splat, i.e. if all element
@@ -806,13 +961,20 @@ auto DenseElementsAttr::int_value_end() const -> IntElementIterator {
   assert(getType().getElementType().isIntOrIndex() && "expected integral type");
   return raw_int_end();
 }
+auto DenseElementsAttr::getComplexIntValues() const
+    -> llvm::iterator_range<ComplexIntElementIterator> {
+  Type eltTy = getType().getElementType().cast<ComplexType>().getElementType();
+  (void)eltTy;
+  assert(eltTy.isa<IntegerType>() && "expected complex integral type");
+  return {ComplexIntElementIterator(*this, 0),
+          ComplexIntElementIterator(*this, getNumElements())};
+}
 
 /// Return the held element values as a range of APFloat. The element type of
 /// this attribute must be of float type.
 auto DenseElementsAttr::getFloatValues() const
     -> llvm::iterator_range<FloatElementIterator> {
   auto elementType = getType().getElementType().cast<FloatType>();
-  assert(elementType.isa<FloatType>() && "expected float type");
   const auto &elementSemantics = elementType.getFloatSemantics();
   return {FloatElementIterator(elementSemantics, raw_int_begin()),
           FloatElementIterator(elementSemantics, raw_int_end())};
@@ -822,6 +984,14 @@ auto DenseElementsAttr::float_value_begin() const -> FloatElementIterator {
 }
 auto DenseElementsAttr::float_value_end() const -> FloatElementIterator {
   return getFloatValues().end();
+}
+auto DenseElementsAttr::getComplexFloatValues() const
+    -> llvm::iterator_range<ComplexFloatElementIterator> {
+  Type eltTy = getType().getElementType().cast<ComplexType>().getElementType();
+  assert(eltTy.isa<FloatType>() && "expected complex float type");
+  const auto &semantics = eltTy.cast<FloatType>().getFloatSemantics();
+  return {{semantics, {*this, 0}},
+          {semantics, {*this, static_cast<size_t>(getNumElements())}}};
 }
 
 /// Return the raw storage data held by this attribute.
@@ -874,23 +1044,42 @@ DenseStringElementsAttr::get(ShapedType type, ArrayRef<StringRef> values) {
 // DenseIntOrFPElementsAttr
 //===----------------------------------------------------------------------===//
 
+/// Utility method to write a range of APInt values to a buffer.
+template <typename APRangeT>
+static void writeAPIntsToBuffer(size_t storageWidth, std::vector<char> &data,
+                                APRangeT &&values) {
+  data.resize(llvm::divideCeil(storageWidth, CHAR_BIT) * llvm::size(values));
+  size_t offset = 0;
+  for (auto it = values.begin(), e = values.end(); it != e;
+       ++it, offset += storageWidth) {
+    assert((*it).getBitWidth() <= storageWidth);
+    writeBits(data.data(), offset, *it);
+  }
+}
+
+/// Constructs a dense elements attribute from an array of raw APFloat values.
+/// Each APFloat value is expected to have the same bitwidth as the element
+/// type of 'type'. 'type' must be a vector or tensor with static shape.
+DenseElementsAttr DenseIntOrFPElementsAttr::getRaw(ShapedType type,
+                                                   size_t storageWidth,
+                                                   ArrayRef<APFloat> values,
+                                                   bool isSplat) {
+  std::vector<char> data;
+  auto unwrapFloat = [](const APFloat &val) { return val.bitcastToAPInt(); };
+  writeAPIntsToBuffer(storageWidth, data, llvm::map_range(values, unwrapFloat));
+  return DenseIntOrFPElementsAttr::getRaw(type, data, isSplat);
+}
+
 /// Constructs a dense elements attribute from an array of raw APInt values.
 /// Each APInt value is expected to have the same bitwidth as the element type
 /// of 'type'.
 DenseElementsAttr DenseIntOrFPElementsAttr::getRaw(ShapedType type,
-                                                   ArrayRef<APInt> values) {
-  assert(hasSameElementsOrSplat(type, values));
-
-  size_t bitWidth = getDenseElementBitWidth(type.getElementType());
-  size_t storageBitWidth = getDenseElementStorageWidth(bitWidth);
-  std::vector<char> elementData(llvm::divideCeil(storageBitWidth, CHAR_BIT) *
-                                values.size());
-  for (unsigned i = 0, e = values.size(); i != e; ++i) {
-    assert(values[i].getBitWidth() == bitWidth);
-    writeBits(elementData.data(), i * storageBitWidth, values[i]);
-  }
-  return DenseIntOrFPElementsAttr::getRaw(type, elementData,
-                                          /*isSplat=*/(values.size() == 1));
+                                                   size_t storageWidth,
+                                                   ArrayRef<APInt> values,
+                                                   bool isSplat) {
+  std::vector<char> data;
+  writeAPIntsToBuffer(storageWidth, data, values);
+  return DenseIntOrFPElementsAttr::getRaw(type, data, isSplat);
 }
 
 DenseElementsAttr DenseIntOrFPElementsAttr::getRaw(ShapedType type,
@@ -903,6 +1092,23 @@ DenseElementsAttr DenseIntOrFPElementsAttr::getRaw(ShapedType type,
                    type, data, isSplat);
 }
 
+/// Overload of the raw 'get' method that asserts that the given type is of
+/// complex type. This method is used to verify type invariants that the
+/// templatized 'get' method cannot.
+DenseElementsAttr DenseIntOrFPElementsAttr::getRawComplex(ShapedType type,
+                                                          ArrayRef<char> data,
+                                                          int64_t dataEltSize,
+                                                          bool isInt,
+                                                          bool isSigned) {
+  assert(::isValidIntOrFloat(
+      type.getElementType().cast<ComplexType>().getElementType(),
+      dataEltSize / 2, isInt, isSigned));
+
+  int64_t numElements = data.size() / dataEltSize;
+  assert(numElements == 1 || numElements == type.getNumElements());
+  return getRaw(type, data, /*isSplat=*/numElements == 1);
+}
+
 /// Overload of the 'getRaw' method that asserts that the given type is of
 /// integer type. This method is used to verify type invariants that the
 /// templatized 'get' method cannot.
@@ -910,7 +1116,8 @@ DenseElementsAttr
 DenseIntOrFPElementsAttr::getRawIntOrFloat(ShapedType type, ArrayRef<char> data,
                                            int64_t dataEltSize, bool isInt,
                                            bool isSigned) {
-  assert(::isValidIntOrFloat(type, dataEltSize, isInt, isSigned));
+  assert(
+      ::isValidIntOrFloat(type.getElementType(), dataEltSize, isInt, isSigned));
 
   int64_t numElements = data.size() / dataEltSize;
   assert(numElements == 1 || numElements == type.getNumElements());
@@ -1144,19 +1351,29 @@ std::vector<ptrdiff_t> SparseElementsAttr::getFlattenedSparseIndices() const {
 }
 
 //===----------------------------------------------------------------------===//
-// NamedAttributeList
+// MutableDictionaryAttr
 //===----------------------------------------------------------------------===//
 
-NamedAttributeList::NamedAttributeList(ArrayRef<NamedAttribute> attributes) {
+MutableDictionaryAttr::MutableDictionaryAttr(
+    ArrayRef<NamedAttribute> attributes) {
   setAttrs(attributes);
 }
 
-ArrayRef<NamedAttribute> NamedAttributeList::getAttrs() const {
+/// Return the underlying dictionary attribute.
+DictionaryAttr
+MutableDictionaryAttr::getDictionary(MLIRContext *context) const {
+  // Construct empty DictionaryAttr if needed.
+  if (!attrs)
+    return DictionaryAttr::get({}, context);
+  return attrs;
+}
+
+ArrayRef<NamedAttribute> MutableDictionaryAttr::getAttrs() const {
   return attrs ? attrs.getValue() : llvm::None;
 }
 
 /// Replace the held attributes with ones provided in 'newAttrs'.
-void NamedAttributeList::setAttrs(ArrayRef<NamedAttribute> attributes) {
+void MutableDictionaryAttr::setAttrs(ArrayRef<NamedAttribute> attributes) {
   // Don't create an attribute list if there are no attributes.
   if (attributes.empty())
     attrs = nullptr;
@@ -1165,23 +1382,32 @@ void NamedAttributeList::setAttrs(ArrayRef<NamedAttribute> attributes) {
 }
 
 /// Return the specified attribute if present, null otherwise.
-Attribute NamedAttributeList::get(StringRef name) const {
+Attribute MutableDictionaryAttr::get(StringRef name) const {
   return attrs ? attrs.get(name) : nullptr;
 }
 
 /// Return the specified attribute if present, null otherwise.
-Attribute NamedAttributeList::get(Identifier name) const {
+Attribute MutableDictionaryAttr::get(Identifier name) const {
   return attrs ? attrs.get(name) : nullptr;
+}
+
+/// Return the specified named attribute if present, None otherwise.
+Optional<NamedAttribute> MutableDictionaryAttr::getNamed(StringRef name) const {
+  return attrs ? attrs.getNamed(name) : Optional<NamedAttribute>();
+}
+Optional<NamedAttribute>
+MutableDictionaryAttr::getNamed(Identifier name) const {
+  return attrs ? attrs.getNamed(name) : Optional<NamedAttribute>();
 }
 
 /// If the an attribute exists with the specified name, change it to the new
 /// value.  Otherwise, add a new attribute with the specified name/value.
-void NamedAttributeList::set(Identifier name, Attribute value) {
+void MutableDictionaryAttr::set(Identifier name, Attribute value) {
   assert(value && "attributes may never be null");
 
   // Look for an existing value for the given name, and set it in-place.
   ArrayRef<NamedAttribute> values = getAttrs();
-  auto it = llvm::find_if(
+  const auto *it = llvm::find_if(
       values, [name](NamedAttribute attr) { return attr.first == name; });
   if (it != values.end()) {
     // Bail out early if the value is the same as what we already have.
@@ -1195,7 +1421,7 @@ void NamedAttributeList::set(Identifier name, Attribute value) {
   }
 
   // Otherwise, insert the new attribute into its sorted position.
-  it = llvm::lower_bound(values, name, compareNamedAttributeWithName);
+  it = llvm::lower_bound(values, name);
   SmallVector<NamedAttribute, 8> newAttrs;
   newAttrs.reserve(values.size() + 1);
   newAttrs.append(values.begin(), it);
@@ -1206,7 +1432,7 @@ void NamedAttributeList::set(Identifier name, Attribute value) {
 
 /// Remove the attribute with the specified name if it exists.  The return
 /// value indicates whether the attribute was present or not.
-auto NamedAttributeList::remove(Identifier name) -> RemoveResult {
+auto MutableDictionaryAttr::remove(Identifier name) -> RemoveResult {
   auto origAttrs = getAttrs();
   for (unsigned i = 0, e = origAttrs.size(); i != e; ++i) {
     if (origAttrs[i].first == name) {
@@ -1226,4 +1452,16 @@ auto NamedAttributeList::remove(Identifier name) -> RemoveResult {
     }
   }
   return RemoveResult::NotFound;
+}
+
+bool mlir::operator<(const NamedAttribute &lhs, const NamedAttribute &rhs) {
+  return strcmp(lhs.first.data(), rhs.first.data()) < 0;
+}
+bool mlir::operator<(const NamedAttribute &lhs, StringRef rhs) {
+  // This is correct even when attr.first.data()[name.size()] is not a zero
+  // string terminator, because we only care about a less than comparison.
+  // This can't use memcmp, because it doesn't guarantee that it will stop
+  // reading both buffers if one is shorter than the other, even if there is
+  // a difference.
+  return strncmp(lhs.first.data(), rhs.data(), rhs.size()) < 0;
 }

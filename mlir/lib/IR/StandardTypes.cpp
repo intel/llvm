@@ -90,6 +90,29 @@ bool Type::isIntOrFloat() { return isa<IntegerType>() || isa<FloatType>(); }
 bool Type::isIntOrIndexOrFloat() { return isIntOrFloat() || isIndex(); }
 
 //===----------------------------------------------------------------------===//
+/// ComplexType
+//===----------------------------------------------------------------------===//
+
+ComplexType ComplexType::get(Type elementType) {
+  return Base::get(elementType.getContext(), StandardTypes::Complex,
+                   elementType);
+}
+
+ComplexType ComplexType::getChecked(Type elementType, Location location) {
+  return Base::getChecked(location, StandardTypes::Complex, elementType);
+}
+
+/// Verify the construction of an integer type.
+LogicalResult ComplexType::verifyConstructionInvariants(Location loc,
+                                                        Type elementType) {
+  if (!elementType.isIntOrFloat())
+    return emitError(loc, "invalid element type for complex");
+  return success();
+}
+
+Type ComplexType::getElementType() { return getImpl()->elementType; }
+
+//===----------------------------------------------------------------------===//
 // Integer Type
 //===----------------------------------------------------------------------===//
 
@@ -613,29 +636,6 @@ LogicalResult mlir::getStridesAndOffset(MemRefType t,
 }
 
 //===----------------------------------------------------------------------===//
-/// ComplexType
-//===----------------------------------------------------------------------===//
-
-ComplexType ComplexType::get(Type elementType) {
-  return Base::get(elementType.getContext(), StandardTypes::Complex,
-                   elementType);
-}
-
-ComplexType ComplexType::getChecked(Type elementType, Location location) {
-  return Base::getChecked(location, StandardTypes::Complex, elementType);
-}
-
-/// Verify the construction of an integer type.
-LogicalResult ComplexType::verifyConstructionInvariants(Location loc,
-                                                        Type elementType) {
-  if (!elementType.isa<FloatType>() && !elementType.isSignlessInteger())
-    return emitError(loc, "invalid element type for complex");
-  return success();
-}
-
-Type ComplexType::getElementType() { return getImpl()->elementType; }
-
-//===----------------------------------------------------------------------===//
 /// TupleType
 //===----------------------------------------------------------------------===//
 
@@ -762,6 +762,14 @@ AffineExpr mlir::makeCanonicalStridedLayoutExpr(ArrayRef<int64_t> sizes,
       dynamicPoisonBit = true;
   }
   return simplifyAffineExpr(expr, numDims, nSymbols);
+}
+
+/// Return a version of `t` with a layout that has all dynamic offset and
+/// strides. This is used to erase the static layout.
+MemRefType mlir::eraseStridedLayout(MemRefType t) {
+  auto val = ShapedType::kDynamicStrideOrOffset;
+  return MemRefType::Builder(t).setAffineMaps(makeStridedLinearLayoutMap(
+      SmallVector<int64_t, 4>(t.getRank(), val), val, t.getContext()));
 }
 
 AffineExpr mlir::makeCanonicalStridedLayoutExpr(ArrayRef<int64_t> sizes,

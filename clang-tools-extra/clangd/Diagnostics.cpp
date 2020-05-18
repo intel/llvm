@@ -9,9 +9,9 @@
 #include "Diagnostics.h"
 #include "../clang-tidy/ClangTidyDiagnosticConsumer.h"
 #include "Compiler.h"
-#include "Logger.h"
 #include "Protocol.h"
 #include "SourceCode.h"
+#include "support/Logger.h"
 #include "clang/Basic/AllDiagnostics.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/DiagnosticIDs.h"
@@ -124,7 +124,9 @@ Range diagnosticRange(const clang::Diagnostic &D, const LangOptions &L) {
 bool adjustDiagFromHeader(Diag &D, const clang::Diagnostic &Info,
                           const LangOptions &LangOpts) {
   // We only report diagnostics with at least error severity from headers.
-  if (D.Severity < DiagnosticsEngine::Level::Error)
+  // Use default severity to avoid noise with -Werror.
+  if (!Info.getDiags()->getDiagnosticIDs()->isDefaultMappingAsError(
+          Info.getID()))
     return false;
 
   const SourceManager &SM = Info.getSourceManager();
@@ -514,7 +516,8 @@ void StoreDiags::HandleDiagnostic(DiagnosticsEngine::Level DiagLevel,
   if (Info.getLocation().isInvalid()) {
     // Handle diagnostics coming from command-line arguments. The source manager
     // is *not* available at this point, so we cannot use it.
-    if (DiagLevel < DiagnosticsEngine::Level::Error) {
+    if (!Info.getDiags()->getDiagnosticIDs()->isDefaultMappingAsError(
+            Info.getID())) {
       IgnoreDiagnostics::log(DiagLevel, Info);
       return; // non-errors add too much noise, do not show them.
     }

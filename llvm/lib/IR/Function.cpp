@@ -114,11 +114,12 @@ bool Argument::hasInAllocaAttr() const {
   return hasAttribute(Attribute::InAlloca);
 }
 
-bool Argument::hasByValOrInAllocaAttr() const {
+bool Argument::hasPassPointeeByValueAttr() const {
   if (!getType()->isPointerTy()) return false;
   AttributeList Attrs = getParent()->getAttributes();
   return Attrs.hasParamAttribute(getArgNo(), Attribute::ByVal) ||
-         Attrs.hasParamAttribute(getArgNo(), Attribute::InAlloca);
+         Attrs.hasParamAttribute(getArgNo(), Attribute::InAlloca) ||
+         Attrs.hasParamAttribute(getArgNo(), Attribute::Preallocated);
 }
 
 unsigned Argument::getParamAlignment() const {
@@ -654,6 +655,7 @@ static std::string getMangledTypeStr(Type* Ty) {
     case Type::VoidTyID:      Result += "isVoid";   break;
     case Type::MetadataTyID:  Result += "Metadata"; break;
     case Type::HalfTyID:      Result += "f16";      break;
+    case Type::BFloatTyID:    Result += "bf16";     break;
     case Type::FloatTyID:     Result += "f32";      break;
     case Type::DoubleTyID:    Result += "f64";      break;
     case Type::X86_FP80TyID:  Result += "f80";      break;
@@ -1074,8 +1076,8 @@ static Type *DecodeFixedType(ArrayRef<Intrinsic::IITDescriptor> &Infos,
     // Return the overloaded type (which determines the pointers address space)
     return Tys[D.getOverloadArgNumber()];
   case IITDescriptor::ScalableVecArgument: {
-    auto *Ty = cast<VectorType>(DecodeFixedType(Infos, Tys, Context));
-    return VectorType::get(Ty->getElementType(), {Ty->getNumElements(), true});
+    auto *Ty = cast<FixedVectorType>(DecodeFixedType(Infos, Tys, Context));
+    return ScalableVectorType::get(Ty->getElementType(), Ty->getNumElements());
   }
   }
   llvm_unreachable("unhandled");
@@ -1179,7 +1181,9 @@ static bool matchIntrinsicType(
     case IITDescriptor::Quad: return !Ty->isFP128Ty();
     case IITDescriptor::Integer: return !Ty->isIntegerTy(D.Integer_Width);
     case IITDescriptor::Vector: {
-      VectorType *VT = dyn_cast<VectorType>(Ty);
+      // FIXME: We shouldn't be assuming all Vector types are fixed width.
+      // This will be fixed soon in another future patch.
+      FixedVectorType *VT = dyn_cast<FixedVectorType>(Ty);
       return !VT || VT->getNumElements() != D.Vector_Width ||
              matchIntrinsicType(VT->getElementType(), Infos, ArgTys,
                                 DeferredChecks, IsDeferredCheck);
@@ -1356,7 +1360,11 @@ static bool matchIntrinsicType(
     case IITDescriptor::ScalableVecArgument: {
       if (!isa<ScalableVectorType>(Ty))
         return true;
-      return matchIntrinsicType(Ty, Infos, ArgTys, DeferredChecks,
+      ScalableVectorType *STy = cast<ScalableVectorType>(Ty);
+      unsigned MinElts = STy->getMinNumElements();
+      FixedVectorType *FVTy =
+          FixedVectorType::get(STy->getElementType(), MinElts);
+      return matchIntrinsicType(FVTy, Infos, ArgTys, DeferredChecks,
                                 IsDeferredCheck);
     }
     case IITDescriptor::VecOfBitcastsToInt: {
@@ -1633,9 +1641,7 @@ Optional<StringRef> Function::getSectionPrefix() const {
 }
 
 bool Function::nullPointerIsDefined() const {
-  return getFnAttribute("null-pointer-is-valid")
-          .getValueAsString()
-          .equals("true");
+  return hasFnAttribute(Attribute::NullPointerIsValid);
 }
 
 bool llvm::NullPointerIsDefined(const Function *F, unsigned AS) {

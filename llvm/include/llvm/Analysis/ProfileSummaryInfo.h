@@ -25,7 +25,6 @@ namespace llvm {
 class BasicBlock;
 class BlockFrequencyInfo;
 class CallBase;
-class Instruction;
 class ProfileSummary;
 /// Analysis providing profile information.
 ///
@@ -97,9 +96,11 @@ public:
   }
 
   /// Returns the profile count for \p CallInst.
-  Optional<uint64_t> getProfileCount(const Instruction *CallInst,
+  Optional<uint64_t> getProfileCount(const CallBase &CallInst,
                                      BlockFrequencyInfo *BFI,
                                      bool AllowSynthetic = false);
+  /// Returns true if module \c M has partial-profile sample profile.
+  bool hasPartialSampleProfile();
   /// Returns true if the working set size of the code is considered huge.
   bool hasHugeWorkingSetSize();
   /// Returns true if the working set size of the code is considered large.
@@ -112,6 +113,8 @@ public:
   bool isFunctionEntryCold(const Function *F);
   /// Returns true if \p F contains only cold code.
   bool isFunctionColdInCallGraph(const Function *F, BlockFrequencyInfo &BFI);
+  /// Returns true if the hotness of \p F is unknown.
+  bool isFunctionHotnessUnknown(const Function &F);
   /// Returns true if \p F contains hot code with regard to a given hot
   /// percentile cutoff value.
   bool isFunctionHotInCallGraphNthPercentile(int PercentileCutoff,

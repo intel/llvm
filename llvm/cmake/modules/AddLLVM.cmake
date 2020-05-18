@@ -90,6 +90,7 @@ function(add_llvm_symbol_exports target_name export_file)
     set_property(TARGET ${target_name} APPEND_STRING PROPERTY
                  LINK_FLAGS " -Wl,-exported_symbols_list,\"${CMAKE_CURRENT_BINARY_DIR}/${native_export_file}\"")
   elseif(${CMAKE_SYSTEM_NAME} MATCHES "AIX")
+    set(native_export_file "${export_file}")
     set_property(TARGET ${target_name} APPEND_STRING PROPERTY
                  LINK_FLAGS " -Wl,-bE:${export_file}")
   elseif(LLVM_HAVE_LINK_VERSION_SCRIPT)
@@ -117,7 +118,7 @@ function(add_llvm_symbol_exports target_name export_file)
     set(native_export_file "${target_name}.def")
 
     add_custom_command(OUTPUT ${native_export_file}
-      COMMAND ${PYTHON_EXECUTABLE} -c "import sys;print(''.join(['EXPORTS\\n']+sys.stdin.readlines(),))"
+      COMMAND "${Python3_EXECUTABLE}" -c "import sys;print(''.join(['EXPORTS\\n']+sys.stdin.readlines(),))"
         < ${export_file} > ${native_export_file}
       DEPENDS ${export_file}
       VERBATIM
@@ -256,6 +257,11 @@ function(add_link_opts target_name)
                      LINK_FLAGS " -Wl,-bnogc")
       endif()
     endif()
+  endif()
+
+  if(ARG_SUPPORT_PLUGINS AND ${CMAKE_SYSTEM_NAME} MATCHES "AIX")
+    set_property(TARGET ${target_name} APPEND_STRING PROPERTY
+                 LINK_FLAGS " -Wl,-brtl")
   endif()
 endfunction(add_link_opts)
 
@@ -466,6 +472,26 @@ function(llvm_add_library name)
     set_target_properties(${obj_name} PROPERTIES FOLDER "Object Libraries")
     if(ARG_DEPENDS)
       add_dependencies(${obj_name} ${ARG_DEPENDS})
+    endif()
+    # Treat link libraries like PUBLIC dependencies.  LINK_LIBS might
+    # result in generating header files.  Add a dependendency so that
+    # the generated header is created before this object library.
+    if(ARG_LINK_LIBS)
+      cmake_parse_arguments(LINK_LIBS_ARG
+        ""
+        ""
+        "PUBLIC;PRIVATE"
+        ${ARG_LINK_LIBS})
+      foreach(link_lib ${LINK_LIBS_ARG_PUBLIC})
+        if(LLVM_PTHREAD_LIB)
+          # Can't specify a dependence on -lpthread
+          if(NOT ${link_lib} STREQUAL ${LLVM_PTHREAD_LIB})
+            add_dependencies(${obj_name} ${link_lib})
+          endif()
+        else()
+          add_dependencies(${obj_name} ${link_lib})
+        endif()
+      endforeach()
     endif()
   endif()
 
@@ -873,11 +899,17 @@ function(add_llvm_pass_plugin name)
   endif()
   option(LLVM_${name_upper}_LINK_INTO_TOOLS "Statically link ${name} into tools (if available)" ${link_into_tools_default})
 
+  # If we statically link the plugin, don't use llvm dylib because we're going
+  # to be part of it.
+  if(LLVM_${name_upper}_LINK_INTO_TOOLS)
+      list(APPEND ARG_UNPARSED_ARGUMENTS DISABLE_LLVM_LINK_LLVM_DYLIB)
+  endif()
+
   if(LLVM_${name_upper}_LINK_INTO_TOOLS)
     list(REMOVE_ITEM ARG_UNPARSED_ARGUMENTS BUILDTREE_ONLY)
     # process_llvm_pass_plugins takes care of the actual linking, just create an
     # object library as of now
-    add_llvm_component_library(${name} OBJECT ${ARG_UNPARSED_ARGUMENTS})
+    add_llvm_library(${name} OBJECT ${ARG_UNPARSED_ARGUMENTS})
     target_compile_definitions(${name} PRIVATE LLVM_${name_upper}_LINK_INTO_TOOLS)
     set_property(TARGET ${name} APPEND PROPERTY COMPILE_DEFINITIONS LLVM_LINK_INTO_TOOLS)
     if (TARGET intrinsics_gen)
@@ -971,12 +1003,12 @@ function(process_llvm_pass_plugins)
               const char* Name;\n\
               const char* RequiredLibraries[1 + 1 + ${llvm_plugin_max_deps_length}];\n\
            };\n\
-           std::array<ExtensionDescriptor, ${llvm_static_extension_count}>  AvailableExtensions{\n")
+           std::array<ExtensionDescriptor, ${llvm_static_extension_count}> AvailableExtensions{\n")
 
       foreach(llvm_extension ${LLVM_STATIC_EXTENSIONS})
         get_property(llvm_plugin_deps TARGET ${llvm_extension} PROPERTY LINK_LIBRARIES)
 
-        file(APPEND "${ExtensionDeps}.tmp" "{\"${llvm_extension}\", {")
+        file(APPEND "${ExtensionDeps}.tmp" "{{\"${llvm_extension}\", {")
         foreach(llvm_plugin_dep ${llvm_plugin_deps})
             # Turn library dependency back to component name, if possible.
             # That way llvm-config can avoid redundant dependencies.
@@ -990,7 +1022,7 @@ function(process_llvm_pass_plugins)
         endforeach()
 
         # Self + mandatory trailing null, because the number of RequiredLibraries differs between extensions.
-        file(APPEND "${ExtensionDeps}.tmp" \"${llvm_extension}\", "nullptr}},\n")
+        file(APPEND "${ExtensionDeps}.tmp" \"${llvm_extension}\", "nullptr}}},\n")
       endforeach()
       file(APPEND "${ExtensionDeps}.tmp" "};\n")
 
@@ -1046,7 +1078,7 @@ function(export_executable_symbols target)
       set(mangling itanium)
     endif()
     add_custom_command(OUTPUT ${exported_symbol_file}
-                       COMMAND ${PYTHON_EXECUTABLE} ${LLVM_MAIN_SRC_DIR}/utils/extract_symbols.py --mangling=${mangling} ${static_libs} -o ${exported_symbol_file}
+                       COMMAND "${Python3_EXECUTABLE}" ${LLVM_MAIN_SRC_DIR}/utils/extract_symbols.py --mangling=${mangling} ${static_libs} -o ${exported_symbol_file}
                        WORKING_DIRECTORY ${LLVM_LIBRARY_OUTPUT_INTDIR}
                        DEPENDS ${LLVM_MAIN_SRC_DIR}/utils/extract_symbols.py ${static_libs}
                        VERBATIM
@@ -1447,7 +1479,7 @@ function(make_paths_relative out_pathlist basedir pathlist)
   # empty list entries. So escape the ;s in the list and do the splitting
   # ourselves. cmake has no relpath function, so use Python for that.
   string(REPLACE ";" "\\;" pathlist_escaped "${pathlist}")
-  execute_process(COMMAND "${PYTHON_EXECUTABLE}" "-c" "\n
+  execute_process(COMMAND "${Python3_EXECUTABLE}" "-c" "\n
 import os, sys\n
 base = sys.argv[1]
 def haslink(p):\n
@@ -1469,17 +1501,10 @@ endfunction()
 # path. Since this uses __file__, it has to be emitted into python files that
 # use it and can't be in a lit module. Use with make_paths_relative().
 string(CONCAT LLVM_LIT_PATH_FUNCTION
-  # Lit converts config paths to lower case in discovery.py, before
-  # loading the config. This causes __file__ to be all lower-case (including
-  # the drive letter), but several clang tests pass -include %s and a
-  # clang warning checks that passed case matches on-disk cache. So it's
-  # important that this restores the on-disk case of the prefix.
   "# Allow generated file to be relocatable.\n"
   "def path(p):\n"
   "    if not p: return ''\n"
-  "    p = os.path.join(os.path.dirname(os.path.abspath(__file__)), p)\n"
-  "    if os.name == 'nt' and os.path.isabs(p): return p[0].upper() + p[1:]\n"
-  "    return p\n"
+  "    return os.path.join(os.path.dirname(os.path.abspath(__file__)), p)\n"
   )
 
 # This function provides an automatic way to 'configure'-like generate a file
@@ -1522,7 +1547,6 @@ function(configure_lit_site_cfg site_in site_out)
   # SHLIBDIR points the build tree.
   string(REPLACE "${CMAKE_CFG_INTDIR}" "${LLVM_BUILD_MODE}" SHLIBDIR "${LLVM_SHLIB_OUTPUT_INTDIR}")
 
-  set(PYTHON_EXECUTABLE ${PYTHON_EXECUTABLE})
   # FIXME: "ENABLE_SHARED" doesn't make sense, since it is used just for
   # plugins. We may rename it.
   if(LLVM_ENABLE_PLUGINS)
@@ -1680,7 +1704,7 @@ function(add_lit_target target comment)
     ALLOW_EXTERNAL
     )
 
-  set(LIT_COMMAND "${PYTHON_EXECUTABLE};${lit_base_dir}/${lit_file_name}")
+  set(LIT_COMMAND "${Python3_EXECUTABLE};${lit_base_dir}/${lit_file_name}")
   list(APPEND LIT_COMMAND ${LIT_ARGS})
   foreach(param ${ARG_PARAMS})
     list(APPEND LIT_COMMAND --param ${param})

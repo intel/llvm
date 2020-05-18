@@ -16,7 +16,7 @@
 include "mlir/IR/OpAsmInterface.td"
 include "mlir/Interfaces/CallInterfaces.td"
 include "mlir/Interfaces/ControlFlowInterfaces.td"
-include "mlir/Interfaces/SideEffects.td"
+include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/Interfaces/ViewLikeInterface.td"
 
 def StandardOps_Dialect : Dialect {
@@ -47,7 +47,7 @@ class CastOp<string mnemonic, list<OpTrait> traits = []> :
   let results = (outs AnyType);
 
   let builders = [OpBuilder<
-    "Builder *builder, OperationState &result, Value source, Type destType", [{
+    "OpBuilder &builder, OperationState &result, Value source, Type destType", [{
        impl::buildCastOp(builder, result, source, destType);
   }]>];
 
@@ -109,6 +109,7 @@ class ArithmeticOp<string mnemonic, list<OpTrait> traits = []> :
 // integer tensor.  The custom assembly form of the operation is as follows
 //
 //     <op>i %0, %1 : i32
+//
 class IntArithmeticOp<string mnemonic, list<OpTrait> traits = []> :
     ArithmeticOp<mnemonic, traits>,
     Arguments<(ins SignlessIntegerLike:$lhs, SignlessIntegerLike:$rhs)>;
@@ -121,29 +122,42 @@ class IntArithmeticOp<string mnemonic, list<OpTrait> traits = []> :
 // is as follows
 //
 //     <op>f %0, %1 : f32
+//
 class FloatArithmeticOp<string mnemonic, list<OpTrait> traits = []> :
     ArithmeticOp<mnemonic, traits>,
     Arguments<(ins FloatLike:$lhs, FloatLike:$rhs)>;
+
+// Base class for standard arithmetic operations on complex numbers with a
+// floating-point element type.
+// These operations take two operands and return one result, all of which must
+// be complex numbers of the same type.
+// The assembly format is as follows
+//
+//     <op>cf %0, %1 : complex<f32>
+//
+class ComplexFloatArithmeticOp<string mnemonic, list<OpTrait> traits = []> :
+    ArithmeticOp<mnemonic, traits>,
+    Arguments<(ins Complex<AnyFloat>:$lhs, Complex<AnyFloat>:$rhs)>;
 
 // Base class for memref allocating ops: alloca and alloc.
 //
 //   %0 = alloclike(%m)[%s] : memref<8x?xf32, (d0, d1)[s0] -> ((d0 + s0), d1)>
 //
 class AllocLikeOp<string mnemonic,
-                  list<OpVariableDecorator> resultDecorators = [],
+                  Resource resource,
                   list<OpTrait> traits = []> :
-    Std_Op<mnemonic, traits> {
+    Std_Op<mnemonic, !listconcat([MemoryEffects<[MemAlloc<resource>]>], traits)> {
 
   let arguments = (ins Variadic<Index>:$value,
                    Confined<OptionalAttr<I64Attr>, [IntMinValue<0>]>:$alignment);
-  let results = (outs Arg<AnyMemRef, "", resultDecorators>);
+  let results = (outs Res<AnyMemRef, "", [MemAlloc<resource>]>);
 
   let builders = [OpBuilder<
-    "Builder *builder, OperationState &result, MemRefType memrefType", [{
+    "OpBuilder &builder, OperationState &result, MemRefType memrefType", [{
        result.types.push_back(memrefType);
      }]>,
     OpBuilder<
-    "Builder *builder, OperationState &result, MemRefType memrefType, " #
+    "OpBuilder &builder, OperationState &result, MemRefType memrefType, " #
     "ValueRange operands, IntegerAttr alignment = IntegerAttr()", [{
        result.addOperands(operands);
        result.types.push_back(memrefType);
@@ -199,6 +213,26 @@ def AbsFOp : FloatUnaryOp<"absf"> {
 
     // Tensor element-wise absolute value.
     %x = absf %y : tensor<4x?xf8>
+    ```
+  }];
+}
+
+//===----------------------------------------------------------------------===//
+// AddCFOp
+//===----------------------------------------------------------------------===//
+
+def AddCFOp : ComplexFloatArithmeticOp<"addcf"> {
+  let summary = "complex number addition";
+  let description = [{
+    The `addcf` operation takes two complex number operands and returns their
+    sum, a single complex number.
+    All operands and result must be of the same type, a complex number with a
+    floating-point element type.
+
+    Example:
+
+    ```mlir
+    %a = addcf %b, %c : complex<f32>
     ```
   }];
 }
@@ -278,7 +312,7 @@ def AddIOp : IntArithmeticOp<"addi", [Commutative]> {
 // AllocOp
 //===----------------------------------------------------------------------===//
 
-def AllocOp : AllocLikeOp<"alloc", [MemAlloc], [MemoryEffects<[MemAlloc]>]> {
+def AllocOp : AllocLikeOp<"alloc", DefaultResource> {
   let summary = "memory allocation operation";
   let description = [{
     The `alloc` operation allocates a region of memory, as specified by its
@@ -325,7 +359,7 @@ def AllocOp : AllocLikeOp<"alloc", [MemAlloc], [MemoryEffects<[MemAlloc]>]> {
 // AllocaOp
 //===----------------------------------------------------------------------===//
 
-def AllocaOp : AllocLikeOp<"alloca"> {
+def AllocaOp : AllocLikeOp<"alloca", AutomaticAllocationScopeResource> {
   let summary = "stack memory allocation operation";
   let description = [{
     The `alloca` operation allocates memory on the stack, to be automatically
@@ -528,16 +562,11 @@ def GenericAtomicRMWOp : Std_Op<"generic_atomic_rmw", [
 
   let skipDefaultBuilders = 1;
   let builders = [
-    OpBuilder<"Builder *builder, OperationState &result, "
+    OpBuilder<"OpBuilder &builder, OperationState &result, "
               "Value memref, ValueRange ivs">
   ];
 
   let extraClassDeclaration = [{
-    OpBuilder getBodyBuilder() {
-      assert(!body().empty() && "Unexpected empty 'body' region.");
-      Block &block = body().front();
-      return OpBuilder(&block, block.end());
-    }
     // The value stored in memref[ivs].
     Value getCurrentValue() {
       return body().front().getArgument(0);
@@ -567,7 +596,8 @@ def AtomicYieldOp : Std_Op<"atomic_yield", [
 //===----------------------------------------------------------------------===//
 
 def BranchOp : Std_Op<"br",
-    [DeclareOpInterfaceMethods<BranchOpInterface>, NoSideEffect, Terminator]> {
+    [DeclareOpInterfaceMethods<BranchOpInterface, ["getSuccessorForOperands"]>,
+     NoSideEffect, Terminator]> {
   let summary = "branch operation";
   let description = [{
     The `br` operation represents a branch operation in a function.
@@ -588,7 +618,7 @@ def BranchOp : Std_Op<"br",
   let arguments = (ins Variadic<AnyType>:$destOperands);
   let successors = (successor AnySuccessor:$dest);
 
-  let builders = [OpBuilder<"Builder *, OperationState &result, Block *dest, "
+  let builders = [OpBuilder<"OpBuilder &, OperationState &result, Block *dest, "
                             "ValueRange destOperands = {}", [{
     result.addSuccessors(dest);
     result.addOperands(destOperands);
@@ -603,10 +633,6 @@ def BranchOp : Std_Op<"br",
 
     /// Erase the operand at 'index' from the operand list.
     void eraseOperand(unsigned index);
-
-    /// Returns the successor that would be chosen with the given constant
-    /// operands. Returns nullptr if a single successor could not be chosen.
-    Block *getSuccessorForOperands(ArrayRef<Attribute>);
   }];
 
   let hasCanonicalizer = 1;
@@ -638,21 +664,21 @@ def CallOp : Std_Op<"call", [CallOpInterface]> {
   let results = (outs Variadic<AnyType>);
 
   let builders = [OpBuilder<
-    "Builder *builder, OperationState &result, FuncOp callee,"
+    "OpBuilder &builder, OperationState &result, FuncOp callee,"
     "ValueRange operands = {}", [{
       result.addOperands(operands);
-      result.addAttribute("callee", builder->getSymbolRefAttr(callee));
+      result.addAttribute("callee", builder.getSymbolRefAttr(callee));
       result.addTypes(callee.getType().getResults());
   }]>, OpBuilder<
-    "Builder *builder, OperationState &result, SymbolRefAttr callee,"
+    "OpBuilder &builder, OperationState &result, SymbolRefAttr callee,"
     "ArrayRef<Type> results, ValueRange operands = {}", [{
       result.addOperands(operands);
       result.addAttribute("callee", callee);
       result.addTypes(results);
   }]>, OpBuilder<
-    "Builder *builder, OperationState &result, StringRef callee,"
+    "OpBuilder &builder, OperationState &result, StringRef callee,"
     "ArrayRef<Type> results, ValueRange operands = {}", [{
-      build(builder, result, builder->getSymbolRefAttr(callee), results,
+      build(builder, result, builder.getSymbolRefAttr(callee), results,
             operands);
   }]>];
 
@@ -714,7 +740,7 @@ def CallIndirectOp : Std_Op<"call_indirect", [
   let results = (outs Variadic<AnyType>:$results);
 
   let builders = [OpBuilder<
-    "Builder *, OperationState &result, Value callee,"
+    "OpBuilder &, OperationState &result, Value callee,"
     "ValueRange operands = {}", [{
       result.operands.push_back(callee);
       result.addOperands(operands);
@@ -847,7 +873,7 @@ def CmpFOp : Std_Op<"cmpf",
   let results = (outs BoolLike:$result);
 
   let builders = [OpBuilder<
-    "Builder *builder, OperationState &result, CmpFPredicate predicate,"
+    "OpBuilder &builder, OperationState &result, CmpFPredicate predicate,"
     "Value lhs, Value rhs", [{
       ::buildCmpFOp(builder, result, predicate, lhs, rhs);
   }]>];
@@ -969,7 +995,7 @@ def CmpIOp : Std_Op<"cmpi",
   let results = (outs BoolLike:$result);
 
   let builders = [OpBuilder<
-    "Builder *builder, OperationState &result, CmpIPredicate predicate,"
+    "OpBuilder &builder, OperationState &result, CmpIPredicate predicate,"
     "Value lhs, Value rhs", [{
       ::buildCmpIOp(builder, result, predicate, lhs, rhs);
   }]>];
@@ -992,11 +1018,46 @@ def CmpIOp : Std_Op<"cmpi",
 }
 
 //===----------------------------------------------------------------------===//
+// CreateComplexOp
+//===----------------------------------------------------------------------===//
+
+def CreateComplexOp : Std_Op<"create_complex",
+    [NoSideEffect,
+     AllTypesMatch<["real", "imaginary"]>,
+     TypesMatchWith<"complex element type matches real operand type",
+                    "complex", "real",
+                    "$_self.cast<ComplexType>().getElementType()">,
+     TypesMatchWith<"complex element type matches imaginary operand type",
+                    "complex", "imaginary",
+                    "$_self.cast<ComplexType>().getElementType()">]> {
+  let summary = "creates a complex number";
+  let description = [{
+    The `create_complex` operation creates a complex number from two
+    floating-point operands, the real and the imaginary part.
+
+    Example:
+
+    ```mlir
+    %a = create_complex %b, %c : complex<f32>
+    ```
+  }];
+
+  let arguments = (ins AnyFloat:$real, AnyFloat:$imaginary);
+  let results = (outs Complex<AnyFloat>:$complex);
+
+  let assemblyFormat = "$real `,` $imaginary attr-dict `:` type($complex)";
+
+  // `CreateComplexOp` is fully verified by its traits.
+  let verifier = ?;
+}
+
+//===----------------------------------------------------------------------===//
 // CondBranchOp
 //===----------------------------------------------------------------------===//
 
 def CondBranchOp : Std_Op<"cond_br",
-    [AttrSizedOperandSegments, DeclareOpInterfaceMethods<BranchOpInterface>,
+    [AttrSizedOperandSegments,
+     DeclareOpInterfaceMethods<BranchOpInterface, ["getSuccessorForOperands"]>,
      NoSideEffect, Terminator]> {
   let summary = "conditional branch operation";
   let description = [{
@@ -1032,13 +1093,13 @@ def CondBranchOp : Std_Op<"cond_br",
   let successors = (successor AnySuccessor:$trueDest, AnySuccessor:$falseDest);
 
   let builders = [OpBuilder<
-    "Builder *builder, OperationState &result, Value condition,"
+    "OpBuilder &builder, OperationState &result, Value condition,"
     "Block *trueDest, ValueRange trueOperands,"
     "Block *falseDest, ValueRange falseOperands", [{
       build(builder, result, condition, trueOperands, falseOperands, trueDest,
             falseDest);
   }]>, OpBuilder<
-    "Builder *builder, OperationState &result, Value condition,"
+    "OpBuilder &builder, OperationState &result, Value condition,"
     "Block *trueDest, Block *falseDest, ValueRange falseOperands = {}", [{
       build(builder, result, condition, trueDest, ValueRange(), falseDest,
             falseOperands);
@@ -1081,7 +1142,7 @@ def CondBranchOp : Std_Op<"cond_br",
 
     /// Erase the operand at 'index' from the true operand list.
     void eraseTrueOperand(unsigned index)  {
-      eraseSuccessorOperand(trueIndex, index);
+      trueDestOperandsMutable().erase(index);
     }
 
     // Accessors for operands to the 'false' destination.
@@ -1100,12 +1161,8 @@ def CondBranchOp : Std_Op<"cond_br",
 
     /// Erase the operand at 'index' from the false operand list.
     void eraseFalseOperand(unsigned index) {
-      eraseSuccessorOperand(falseIndex, index);
+      falseDestOperandsMutable().erase(index);
     }
-
-    /// Returns the successor that would be chosen with the given constant
-    /// operands. Returns nullptr if a single successor could not be chosen.
-    Block *getSuccessorForOperands(ArrayRef<Attribute> operands);
 
   private:
     /// Get the index of the first true destination operand.
@@ -1170,7 +1227,7 @@ def ConstantOp : Std_Op<"constant",
   let results = (outs AnyType);
 
   let builders = [OpBuilder<
-    "Builder *builder, OperationState &result, Attribute value",
+    "OpBuilder &builder, OperationState &result, Attribute value",
     [{ build(builder, result, value.getType(), value); }]>];
 
   let extraClassDeclaration = [{
@@ -1251,6 +1308,36 @@ def CosOp : FloatUnaryOp<"cos"> {
   }];
 }
 
+def SinOp : FloatUnaryOp<"sin"> {
+  let summary = "sine of the specified value";
+  let description = [{
+    Syntax:
+
+    ```
+    operation ::= ssa-id `=` `std.sin` ssa-use `:` type
+    ```
+
+    The `sin` operation computes the sine of a given value. It takes one
+    operand and returns one result of the same type. This type may be a float
+    scalar type, a vector whose element type is float, or a tensor of floats.
+    It has no standard attributes.
+
+    Example:
+
+    ```mlir
+    // Scalar sine value.
+    %a = sin %b : f64
+
+    // SIMD vector element-wise sine value.
+    %f = sin %g : vector<4xf32>
+
+    // Tensor element-wise sine value.
+    %x = sin %y : tensor<4x?xf8>
+    ```
+  }];
+}
+
+
 //===----------------------------------------------------------------------===//
 // DeallocOp
 //===----------------------------------------------------------------------===//
@@ -1319,10 +1406,10 @@ def DimOp : Std_Op<"dim", [NoSideEffect]> {
   let results = (outs Index);
 
   let builders = [OpBuilder<
-    "Builder *builder, OperationState &result, Value memrefOrTensor,"
+    "OpBuilder &builder, OperationState &result, Value memrefOrTensor,"
     "unsigned index", [{
-      auto indexType = builder->getIndexType();
-      auto indexAttr = builder->getIntegerAttr(indexType, index);
+      auto indexType = builder.getIndexType();
+      auto indexAttr = builder.getIntegerAttr(indexType, index);
       build(builder, result, indexType, memrefOrTensor, indexAttr);
     }]>];
 
@@ -1415,7 +1502,7 @@ def ExtractElementOp : Std_Op<"extract_element",
   let results = (outs AnyType:$result);
 
   let builders = [OpBuilder<
-    "Builder *builder, OperationState &result, Value aggregate,"
+    "OpBuilder &builder, OperationState &result, Value aggregate,"
     "ValueRange indices = {}", [{
       auto resType = aggregate.getType().cast<ShapedType>()
                                          .getElementType();
@@ -1459,6 +1546,26 @@ def FPExtOp : CastOp<"fpext">, Arguments<(ins AnyType:$in)> {
 }
 
 //===----------------------------------------------------------------------===//
+// FPToSIOp
+//===----------------------------------------------------------------------===//
+
+def FPToSIOp : CastOp<"fptosi">, Arguments<(ins AnyType:$in)> {
+  let summary = "cast from floating-point type to integer type";
+  let description = [{
+    Cast from a value interpreted as floating-point to the nearest (rounding
+    towards zero) signed integer value.
+  }];
+
+  let extraClassDeclaration = [{
+    /// Return true if `a` and `b` are valid operand and result pairs for
+    /// the operation.
+    static bool areCastCompatible(Type a, Type b);
+  }];
+
+  let hasFolder = 0;
+}
+
+//===----------------------------------------------------------------------===//
 // FPTruncOp
 //===----------------------------------------------------------------------===//
 
@@ -1478,6 +1585,36 @@ def FPTruncOp : CastOp<"fptrunc">, Arguments<(ins AnyType:$in)> {
   }];
 
   let hasFolder = 0;
+}
+
+//===----------------------------------------------------------------------===//
+// ImOp
+//===----------------------------------------------------------------------===//
+
+def ImOp : Std_Op<"im",
+    [NoSideEffect,
+     TypesMatchWith<"complex element type matches result type",
+                    "complex", "imaginary",
+                    "$_self.cast<ComplexType>().getElementType()">]> {
+  let summary = "extracts the imaginary part of a complex number";
+  let description = [{
+    The `im` operation takes a single complex number as its operand and extracts
+    the imaginary part as a floating-point value.
+
+    Example:
+
+    ```mlir
+    %a = im %b : complex<f32>
+    ```
+  }];
+
+  let arguments = (ins Complex<AnyFloat>:$complex);
+  let results = (outs AnyFloat:$imaginary);
+
+  let assemblyFormat = "$complex attr-dict `:` type($complex)";
+
+  // `ImOp` is fully verified by its traits.
+  let verifier = ?;
 }
 
 //===----------------------------------------------------------------------===//
@@ -1553,7 +1690,7 @@ def LoadOp : Std_Op<"load",
   let results = (outs AnyType:$result);
 
   let builders = [OpBuilder<
-    "Builder *, OperationState &result, Value memref,"
+    "OpBuilder &, OperationState &result, Value memref,"
     "ValueRange indices = {}", [{
       auto memrefType = memref.getType().cast<MemRefType>();
       result.addOperands(memref);
@@ -1608,12 +1745,16 @@ def MemRefCastOp : CastOp<"memref_cast"> {
     The `memref_cast` operation converts a memref from one type to an equivalent
     type with a compatible shape. The source and destination types are
     compatible if:
-    a. both are ranked memref types with the same element type, affine mappings,
-    address space, and rank but where the individual dimensions may add or
-    remove constant dimensions from the memref type.
+
+    a. Both are ranked memref types with the same element type, address space,
+    and rank and:
+      1. Both have the same layout or both have compatible strided layouts.
+      2. The individual sizes (resp. offset and strides in the case of strided
+         memrefs) may convert constant dimensions to dynamic dimensions and
+         vice-versa.
 
     If the cast converts any dimensions from an unknown to a known size, then it
-    acts as an assertion that fails at runtime of the dynamic dimensions
+    acts as an assertion that fails at runtime if the dynamic dimensions
     disagree with resultant destination size.
 
     Example:
@@ -1635,7 +1776,7 @@ def MemRefCastOp : CastOp<"memref_cast"> {
                           memref<12x4xf32, offset:?, strides: [?, ?]>
     ```
 
-    b. either or both memref types are unranked with the same element type, and
+    b. Either or both memref types are unranked with the same element type, and
     address space.
 
     Example:
@@ -1805,12 +1946,12 @@ def PrefetchOp : Std_Op<"prefetch"> {
                    BoolAttr:$isDataCache);
 
   let builders = [OpBuilder<
-    "Builder *builder, OperationState &result, Value memref,"
+    "OpBuilder &builder, OperationState &result, Value memref,"
     "ArrayRef<Value> indices, bool isWrite, unsigned hint, bool isData",
     [{
-      auto hintAttr = builder->getI32IntegerAttr(hint);
-      auto isWriteAttr = builder->getBoolAttr(isWrite);
-      auto isDataCacheAttr = builder->getBoolAttr(isData);
+      auto hintAttr = builder.getI32IntegerAttr(hint);
+      auto isWriteAttr = builder.getBoolAttr(isWrite);
+      auto isDataCacheAttr = builder.getBoolAttr(isData);
       result.addOperands(memref);
       result.addOperands(indices);
       result.addAttribute("localityHint", hintAttr);
@@ -1842,7 +1983,7 @@ def RankOp : Std_Op<"rank", [NoSideEffect]> {
     Example:
 
     ```mlir
-    %1 = rank %0 : index
+    %1 = rank %0 : tensor<*xf32>
     ```
   }];
 
@@ -1851,13 +1992,43 @@ def RankOp : Std_Op<"rank", [NoSideEffect]> {
   let verifier = ?;
 
   let builders = [OpBuilder<
-    "Builder *builder, OperationState &result, Value tensor", [{
-      auto indexType = builder->getIndexType();
+    "OpBuilder &builder, OperationState &result, Value tensor", [{
+      auto indexType = builder.getIndexType();
       build(builder, result, indexType, tensor);
     }]>];
 
   let hasFolder = 1;
   let assemblyFormat = "operands attr-dict `:` type(operands)";
+}
+
+//===----------------------------------------------------------------------===//
+// ReOp
+//===----------------------------------------------------------------------===//
+
+def ReOp : Std_Op<"re",
+    [NoSideEffect,
+     TypesMatchWith<"complex element type matches result type",
+                    "complex", "real",
+                    "$_self.cast<ComplexType>().getElementType()">]> {
+  let summary = "extracts the real part of a complex number";
+  let description = [{
+    The `re` operation takes a single complex number as its operand and extracts
+    the real part as a floating-point value.
+
+    Example:
+
+    ```mlir
+    %a = re %b : complex<f32>
+    ```
+  }];
+
+  let arguments = (ins Complex<AnyFloat>:$complex);
+  let results = (outs AnyFloat:$real);
+
+  let assemblyFormat = "$complex attr-dict `:` type($complex)";
+
+  // `ReOp` is fully verified by its traits.
+  let verifier = ?;
 }
 
 //===----------------------------------------------------------------------===//
@@ -1894,7 +2065,7 @@ def ReturnOp : Std_Op<"return", [NoSideEffect, HasParent<"FuncOp">, ReturnLike,
   let arguments = (ins Variadic<AnyType>:$operands);
 
   let builders = [OpBuilder<
-    "Builder *b, OperationState &result", [{ build(b, result, llvm::None); }]
+    "OpBuilder &b, OperationState &result", [{ build(b, result, llvm::None); }]
   >];
 
   let assemblyFormat = "attr-dict ($operands^ `:` type($operands))?";
@@ -1959,7 +2130,7 @@ def SelectOp : Std_Op<"select", [NoSideEffect,
   let results = (outs AnyType:$result);
 
   let builders = [OpBuilder<
-    "Builder *builder, OperationState &result, Value condition,"
+    "OpBuilder &builder, OperationState &result, Value condition,"
     "Value trueValue, Value falseValue", [{
       result.addOperands({condition, trueValue, falseValue});
       result.addTypes(trueValue.getType());
@@ -2118,7 +2289,7 @@ def SignExtendIOp : Std_Op<"sexti",
   let results = (outs SignlessIntegerLike);
 
   let builders = [OpBuilder<
-    "Builder *builder, OperationState &result, Value value, Type destType", [{
+    "OpBuilder &builder, OperationState &result, Value value, Type destType", [{
       result.addOperands(value);
       result.addTypes(destType);
   }]>];
@@ -2192,7 +2363,7 @@ def SplatOp : Std_Op<"splat", [NoSideEffect,
   let results = (outs AnyTypeOf<[AnyVector, AnyStaticShapeTensor]>:$aggregate);
 
   let builders =
-      [OpBuilder<"Builder *builder, OperationState &result, Value element, "
+      [OpBuilder<"OpBuilder &builder, OperationState &result, Value element, "
                   "Type aggregateType",
                   [{ build(builder, result, aggregateType, element); }]>];
 
@@ -2270,7 +2441,7 @@ def StoreOp : Std_Op<"store",
                        Variadic<Index>:$indices);
 
   let builders = [OpBuilder<
-    "Builder *, OperationState &result, Value valueToStore, Value memref", [{
+    "OpBuilder &, OperationState &result, Value valueToStore, Value memref", [{
       result.addOperands(valueToStore);
       result.addOperands(memref);
   }]>];
@@ -2297,6 +2468,26 @@ def StoreOp : Std_Op<"store",
 }
 
 //===----------------------------------------------------------------------===//
+// SubCFOp
+//===----------------------------------------------------------------------===//
+
+def SubCFOp : ComplexFloatArithmeticOp<"subcf"> {
+  let summary = "complex number subtraction";
+  let description = [{
+    The `subcf` operation takes two complex number operands and returns their
+    difference, a single complex number.
+    All operands and result must be of the same type, a complex number with a
+    floating-point element type.
+
+    Example:
+
+    ```mlir
+    %a = subcf %b, %c : complex<f32>
+    ```
+  }];
+}
+
+//===----------------------------------------------------------------------===//
 // SubFOp
 //===----------------------------------------------------------------------===//
 
@@ -2319,7 +2510,7 @@ def SubIOp : IntArithmeticOp<"subi"> {
 //===----------------------------------------------------------------------===//
 
 def SubViewOp : Std_Op<"subview", [
-    AttrSizedOperandSegments, 
+    AttrSizedOperandSegments,
     DeclareOpInterfaceMethods<ViewLikeOpInterface>,
     NoSideEffect,
   ]> {
@@ -2331,17 +2522,14 @@ def SubViewOp : Std_Op<"subview", [
 
     The SubView operation supports the following arguments:
     *) Memref: the "base" memref on which to create a "view" memref.
-    *) Offsets: zero or memref-rank number of dynamic offsets into the "base"
-                memref at which to create the "view" memref.
-    *) Sizes: zero or memref-rank dynamic size operands which specify the
-              dynamic sizes of the result "view" memref type.
-    *) Strides: zero or memref-rank number of dynamic strides which are applied
-                multiplicatively to the base memref strides in each dimension.
-
-    Note on the number of operands for offsets, sizes and strides: For
-    each of these, the number of operands must either be same as the
-    memref-rank number or empty. For the latter, those values will be
-    treated as constants.
+    *) Offsets: memref-rank number of dynamic offsets or static integer
+                attributes into the "base" memref at which to create the "view"
+                memref.
+    *) Sizes: memref-rank number of dynamic sizes or static integer attributes
+              which specify the sizes of the result "view" memref type.
+    *) Strides: memref-rank number of dynamic strides or static integer
+                attributes multiplicatively to the base memref strides in each
+                dimension.
 
     Example 1:
 
@@ -2379,9 +2567,9 @@ def SubViewOp : Std_Op<"subview", [
     %0 = alloc() : memref<8x16x4xf32, (d0, d1, d1) -> (d0 * 64 + d1 * 4 + d2)>
 
     // Subview with constant offsets, sizes and strides.
-    %1 = subview %0[][][]
+    %1 = subview %0[0, 2, 0][4, 4, 4][64, 4, 1]
       : memref<8x16x4xf32, (d0, d1, d2) -> (d0 * 64 + d1 * 4 + d2)> to
-        memref<4x4x4xf32, (d0, d1, d2) -> (d0 * 16 + d1 * 4 + d2 + 8)>
+        memref<4x4x4xf32, (d0, d1, d2) -> (d0 * 64 + d1 * 4 + d2 + 8)>
     ```
 
     Example 4:
@@ -2423,7 +2611,7 @@ def SubViewOp : Std_Op<"subview", [
     // #map2 = (d0, d1)[r0, r1, r2] -> (d0 * r1 + d1 * r2 + r0)
     //
     // where, r0 = o0 * s1 + o1 * s2 + s0, r1 = s1 * t0, r2 = s2 * t1.
-    %1 = subview %0[%i, %j][][%x, %y] :
+    %1 = subview %0[%i, %j][4, 4][%x, %y] :
       : memref<?x?xf32, (d0, d1)[s0, s1, s2] -> (d0 * s1 + d1 * s2 + s0)> to
         memref<4x4xf32, (d0, d1)[r0, r1, r2] -> (d0 * r1 + d1 * r2 + r0)>
 
@@ -2439,24 +2627,25 @@ def SubViewOp : Std_Op<"subview", [
     AnyMemRef:$source,
     Variadic<Index>:$offsets,
     Variadic<Index>:$sizes,
-    Variadic<Index>:$strides
+    Variadic<Index>:$strides,
+    I64ArrayAttr:$static_offsets,
+    I64ArrayAttr:$static_sizes,
+    I64ArrayAttr:$static_strides
   );
   let results = (outs AnyMemRef:$result);
 
-  let assemblyFormat = [{
-    $source `[` $offsets `]` `[` $sizes `]` `[` $strides `]` attr-dict `:`
-    type($source) `to` type($result)
-  }];
-
   let builders = [
+    // Build a SubViewOp with mized static and dynamic entries.
     OpBuilder<
-      "Builder *b, OperationState &result, Value source, "
-      "ValueRange offsets, ValueRange sizes, "
-      "ValueRange strides, Type resultType = Type(), "
-      "ArrayRef<NamedAttribute> attrs = {}">,
+      "OpBuilder &b, OperationState &result, Value source, "
+      "ArrayRef<int64_t> staticOffsets, ArrayRef<int64_t> staticSizes,"
+      "ArrayRef<int64_t> staticStrides, ValueRange offsets, ValueRange sizes, "
+      "ValueRange strides, ArrayRef<NamedAttribute> attrs = {}">,
+    // Build a SubViewOp with all dynamic entries.
     OpBuilder<
-      "Builder *builder, OperationState &result, "
-      "Type resultType, Value source">
+      "OpBuilder &b, OperationState &result, Value source, "
+      "ValueRange offsets, ValueRange sizes, ValueRange strides, "
+      "ArrayRef<NamedAttribute> attrs = {}">
   ];
 
   let extraClassDeclaration = [{
@@ -2485,13 +2674,93 @@ def SubViewOp : Std_Op<"subview", [
     /// operands could not be retrieved.
     LogicalResult getStaticStrides(SmallVectorImpl<int64_t> &staticStrides);
 
-    // Auxiliary range data structure and helper function that unpacks the
-    // offset, size and stride operands of the SubViewOp into a list of triples.
-    // Such a list of triple is sometimes more convenient to manipulate.
+    /// Auxiliary range data structure and helper function that unpacks the
+    /// offset, size and stride operands of the SubViewOp into a list of triples.
+    /// Such a list of triple is sometimes more convenient to manipulate.
     struct Range {
       Value offset, size, stride;
     };
-    SmallVector<Range, 8> getRanges();
+    /// Return the list of SubViewOp::Range (i.e. offset, size, stride). Each
+    /// Range entry contains either the dynamic value or a ConstantIndexOp
+    /// constructed with `b` at location `loc`.
+    SmallVector<Range, 8> getOrCreateRanges(OpBuilder &b, Location loc);
+
+    /// A subview result type can be fully inferred from the source type and the
+    /// static representation of offsets, sizes and strides. Special sentinels
+    /// encode the dynamic case.
+    static Type inferSubViewResultType(MemRefType sourceMemRefType,
+                                       ArrayRef<int64_t> staticOffsets,
+                                       ArrayRef<int64_t> staticSizes,
+                                       ArrayRef<int64_t> staticStrides);
+
+    /// Return the rank of the result MemRefType.
+    unsigned getRank() { return getType().getRank(); }
+
+    /// Return true if the offset `idx` is a static constant.
+    bool isDynamicOffset(unsigned idx);
+    /// Return true if the size `idx` is a static constant.
+    bool isDynamicSize(unsigned idx);
+    /// Return true if the stride `idx` is a static constant.
+    bool isDynamicStride(unsigned idx);
+
+    /// Assert the offset `idx` is a static constant and return its value.
+    int64_t getStaticOffset(unsigned idx) {
+      assert(!isDynamicOffset(idx) && "expected static offset");
+      return
+        static_offsets().cast<ArrayAttr>()[idx].cast<IntegerAttr>().getInt();
+    }
+    /// Assert the size `idx` is a static constant and return its value.
+    int64_t getStaticSize(unsigned idx) {
+      assert(!isDynamicSize(idx) && "expected static size");
+      return static_sizes().cast<ArrayAttr>()[idx].cast<IntegerAttr>().getInt();
+    }
+    /// Assert the stride `idx` is a static constant and return its value.
+    int64_t getStaticStride(unsigned idx) {
+      assert(!isDynamicStride(idx) && "expected static stride");
+      return
+        static_strides().cast<ArrayAttr>()[idx].cast<IntegerAttr>().getInt();
+    }
+
+    /// Assert the offset `idx` is dynamic and return the position of the
+    /// corresponding operand.
+    unsigned getIndexOfDynamicOffset(unsigned idx);
+    /// Assert the size `idx` is dynamic and return the position of the
+    /// corresponding operand.
+    unsigned getIndexOfDynamicSize(unsigned idx);
+    /// Assert the stride `idx` is dynamic and return the position of the
+    /// corresponding operand.
+    unsigned getIndexOfDynamicStride(unsigned idx);
+
+    /// Assert the offset `idx` is dynamic and return its value.
+    Value getDynamicOffset(unsigned idx) {
+      return getOperand(getIndexOfDynamicOffset(idx));
+    }
+    /// Assert the size `idx` is dynamic and return its value.
+    Value getDynamicSize(unsigned idx) {
+      return getOperand(getIndexOfDynamicSize(idx));
+    }
+    /// Assert the stride `idx` is dynamic and return its value.
+    Value getDynamicStride(unsigned idx) {
+      return getOperand(getIndexOfDynamicStride(idx));
+    }
+
+    static StringRef getStaticOffsetsAttrName() {
+      return "static_offsets";
+    }
+    static StringRef getStaticSizesAttrName() {
+      return "static_sizes";
+    }
+    static StringRef getStaticStridesAttrName() {
+      return "static_strides";
+    }
+    static ArrayRef<StringRef> getSpecialAttrNames() {
+      static SmallVector<StringRef, 4> names{
+        getStaticOffsetsAttrName(),
+        getStaticSizesAttrName(),
+        getStaticStridesAttrName(),
+        getOperandSegmentSizeAttr()};
+      return names;
+   }
   }];
 
   let hasCanonicalizer = 1;
@@ -2608,7 +2877,7 @@ def TensorLoadOp : Std_Op<"tensor_load",
   let verifier = ?;
 
   let builders = [OpBuilder<
-    "Builder *builder, OperationState &result, Value memref", [{
+    "OpBuilder &builder, OperationState &result, Value memref", [{
       auto memrefType = memref.getType().cast<MemRefType>();
       auto resultType = RankedTensorType::get(memrefType.getShape(),
                                               memrefType.getElementType());
@@ -2684,7 +2953,7 @@ def TruncateIOp : Std_Op<"trunci", [NoSideEffect, SameOperandsAndResultShape]> {
   let results = (outs SignlessIntegerLike);
 
   let builders = [OpBuilder<
-    "Builder *builder, OperationState &result, Value value, Type destType", [{
+    "OpBuilder &builder, OperationState &result, Value value, Type destType", [{
       result.addOperands(value);
       result.addTypes(destType);
   }]>];
@@ -2796,14 +3065,24 @@ def ViewOp : Std_Op<"view", [
     DeclareOpInterfaceMethods<ViewLikeOpInterface>, NoSideEffect]> {
   let summary = "memref view operation";
   let description = [{
-    The "view" operation converts a 1-D memref with i8 element type,
-    to an N-D memref with arbitrary element type. In addition, the ViewOp
-    supports the following arguments:
-    *) A single dynamic offset operand can be specified which represents a
-       a dynamic offset within the base 1-D memref at which to create the
-       resulting memref view.
-    *) A dynamic size operand must be specified for each dynamic dimension
+    The "view" operation extracts an N-D contiguous memref with empty layout map
+    with arbitrary element type from a 1-D contiguous memref with empty layout
+    map of i8 element  type. The ViewOp supports the following arguments:
+    *) A single dynamic byte-shift operand must be specified which represents a
+       a shift of the base 1-D memref pointer from which to create the resulting
+       contiguous memref view with identity layout.
+    *) A dynamic size operand that must be specified for each dynamic dimension
        in the resulting view memref type.
+
+    The "view" operation gives a structured indexing form to a flat 1-D buffer.
+    Unlike "subview" it can perform a type change. The type change behavior
+    requires the op to have special semantics because, e.g. a byte shift of 3
+    cannot be represented as an offset on f64.
+    For now, a "view" op:
+      1) Only takes a contiguous source memref with 0 offset and empty layout.
+      2) Must specify a byte_shift operand (in the future, a special integer
+      attribute may be added to support the folded case).
+      3) Returns a contiguous memref with 0 offset and empty layout.
 
     Example:
 
@@ -2811,48 +3090,33 @@ def ViewOp : Std_Op<"view", [
     // Allocate a flat 1D/i8 memref.
     %0 = alloc() : memref<2048xi8>
 
-    // ViewOp with static offset and sizes.
-    %1 = view %0[][] : memref<2048xi8> to memref<64x4xf32>
+    // ViewOp with dynamic offset and static sizes.
+    %1 = view %0[%offset_1024][] : memref<2048xi8> to memref<64x4xf32>
 
-    // ViewOp with dynamic offset and one dynamic size.
-    %2 = view %0[%offset_1024][%size0]
-      : memref<2048xi8> to memref<?x4xf32, (d0, d1)[s0] -> (d0 * 4 + d1 + s0)>
-
-    // ViewOp creating 3D shape where two of the dim sizes are dynamic.
-    // *) The dynamic offset specified in the ViewOp is applied to the
-    //    base 1-D memref, and is represented by the symbol 's0' in the
-    //    layout map of the ViewOp result memref type.
-    // *) The dynamic size for the second dimension induces a dynamic
-    //    stride for the first dimension, which is represented by the
-    //    symbol 's1' in the layout map of the ViewOp result memref type.
-    //    Note that this dynamic stride will be computed from the view
-    //    shape and dynamic sizes.
-    %3 = view %0[%offset_1024][%size0, %size1]
-      : memref<2048xi8> to memref<?x?x4xf32,
-        (d0, d1, d2)[s0, s1] -> (d0 * s1 + d1 * 4 + d2 + s0)>
+    // ViewOp with dynamic offset and two dynamic size.
+    %2 = view %0[%offset_1024][%size0, %size1] :
+      memref<2048xi8> to memref<?x4x?xf32>
     ```
   }];
 
   let arguments = (ins MemRefRankOf<[I8], [1]>:$source,
-                       Variadic<Index>:$operands);
+                   Index:$byte_shift,
+                   Variadic<Index>:$sizes);
   let results = (outs AnyMemRef);
 
   let extraClassDeclaration = [{
     /// The result of a view is always a memref.
     MemRefType getType() { return getResult().getType().cast<MemRefType>(); }
 
-    /// Returns the dynamic offset for this view operation if specified.
-    /// Returns nullptr if no dynamic offset was specified.
-    Value getDynamicOffset();
-
-    /// Returns the starting operand list position of the dynamic size operands.
-    unsigned getDynamicSizesOperandStart() {
-      return getDynamicOffset() == nullptr ? 1 : 2;
-    }
-
-    /// Returns the dynamic sizes for this view operation.
+    /// Returns the dynamic sizes for this view operation. This is redundant
+    /// with `sizes` but needed in template implementations. More specifically:
+    /// ```
+    /// template <typename AnyMemRefDefOp>
+    /// bool isMemRefSizeValidSymbol(AnyMemRefDefOp memrefDefOp, unsigned index,
+    ///                              Region *region)
+    /// ```
     operand_range getDynamicSizes() {
-      return {operand_begin() + getDynamicSizesOperandStart(), operand_end()};
+      return {sizes().begin(), sizes().end()};
     }
   }];
 
@@ -2915,7 +3179,7 @@ def ZeroExtendIOp : Std_Op<"zexti", [NoSideEffect, SameOperandsAndResultShape]> 
   let results = (outs SignlessIntegerLike);
 
   let builders = [OpBuilder<
-    "Builder *builder, OperationState &result, Value value, Type destType", [{
+    "OpBuilder &builder, OperationState &result, Value value, Type destType", [{
       result.addOperands(value);
       result.addTypes(destType);
   }]>];

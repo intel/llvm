@@ -611,15 +611,19 @@ getELFSectionNameForGlobal(const GlobalObject *GO, SectionKind Kind,
     Name = getSectionPrefixForGlobal(Kind);
   }
 
+  bool HasPrefix = false;
   if (const auto *F = dyn_cast<Function>(GO)) {
-    if (Optional<StringRef> Prefix = F->getSectionPrefix())
+    if (Optional<StringRef> Prefix = F->getSectionPrefix()) {
       Name += *Prefix;
+      HasPrefix = true;
+    }
   }
 
   if (UniqueSectionName) {
     Name.push_back('.');
     TM.getNameWithPrefix(Name, GO, Mang, /*MayAlwaysUsePrivate*/true);
-  }
+  } else if (HasPrefix)
+    Name.push_back('.');
   return Name;
 }
 
@@ -2131,15 +2135,19 @@ XCOFF::StorageClass TargetLoweringObjectFileXCOFF::getStorageClassForGlobal(
   case GlobalValue::CommonLinkage:
     return XCOFF::C_EXT;
   case GlobalValue::ExternalWeakLinkage:
+  case GlobalValue::LinkOnceAnyLinkage:
   case GlobalValue::LinkOnceODRLinkage:
+  case GlobalValue::WeakAnyLinkage:
+  case GlobalValue::WeakODRLinkage:
     return XCOFF::C_WEAKEXT;
   case GlobalValue::AppendingLinkage:
     report_fatal_error(
         "There is no mapping that implements AppendingLinkage for XCOFF.");
-  default:
-    report_fatal_error(
-        "Unhandled linkage when mapping linkage to StorageClass.");
+  case GlobalValue::AvailableExternallyLinkage:
+    report_fatal_error("unhandled AvailableExternallyLinkage when mapping "
+                       "linkage to StorageClass");
   }
+  llvm_unreachable("Unknown linkage type!");
 }
 
 MCSection *TargetLoweringObjectFileXCOFF::getSectionForFunctionDescriptor(

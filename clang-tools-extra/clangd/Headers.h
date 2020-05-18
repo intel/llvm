@@ -9,10 +9,10 @@
 #ifndef LLVM_CLANG_TOOLS_EXTRA_CLANGD_HEADERS_H
 #define LLVM_CLANG_TOOLS_EXTRA_CLANGD_HEADERS_H
 
-#include "Path.h"
 #include "Protocol.h"
 #include "SourceCode.h"
 #include "index/Symbol.h"
+#include "support/Path.h"
 #include "clang/Basic/TokenKinds.h"
 #include "clang/Format/Format.h"
 #include "clang/Lex/HeaderSearch.h"
@@ -52,14 +52,15 @@ llvm::SmallVector<llvm::StringRef, 1> getRankedIncludes(const Symbol &Sym);
 
 // An #include directive that we found in the main file.
 struct Inclusion {
-  Range R;                      // Inclusion range.
   tok::PPKeywordKind Directive; // Directive used for inclusion, e.g. import
   std::string Written;          // Inclusion name as written e.g. <vector>.
   Path Resolved; // Resolved path of included file. Empty if not resolved.
   unsigned HashOffset = 0; // Byte offset from start of file to #.
+  int HashLine = 0;        // Line number containing the directive, 0-indexed.
   SrcMgr::CharacteristicKind FileKind = SrcMgr::C_User;
 };
 llvm::raw_ostream &operator<<(llvm::raw_ostream &, const Inclusion &);
+bool operator==(const Inclusion &LHS, const Inclusion &RHS);
 
 // Contains information about one file in the build grpah and its direct
 // dependencies. Doesn't own the strings it references (IncludeGraph is

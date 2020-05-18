@@ -1,6 +1,7 @@
 add_subdirectory(Utils)
 
 add_mlir_library(MLIRTransforms
+  BufferPlacement.cpp
   Canonicalizer.cpp
   CSE.cpp
   DialectConversion.cpp
@@ -25,14 +26,12 @@ add_mlir_library(MLIRTransforms
   DEPENDS
   MLIRStandardOpsIncGen
   MLIRTransformsPassIncGen
-  )
 
-target_link_libraries(MLIRTransforms
-  PUBLIC
+  LINK_LIBS PUBLIC
   MLIRAffineOps
   MLIRAnalysis
   MLIRLoopLikeInterface
-  MLIRLoopOps
+  MLIRSCF
   MLIRPass
   MLIRTransformUtils
   MLIRVector

@@ -45,6 +45,7 @@ public:
     AppleA11,
     AppleA12,
     AppleA13,
+    Carmel,
     CortexA35,
     CortexA53,
     CortexA55,
@@ -65,7 +66,8 @@ public:
     ThunderXT81,
     ThunderXT83,
     ThunderXT88,
-    TSV110
+    TSV110,
+    ThunderX3T110
   };
 
 protected:

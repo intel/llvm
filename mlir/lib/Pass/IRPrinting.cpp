@@ -33,8 +33,7 @@ public:
       //   - Operation pointer
       addDataToHash(hasher, op);
       //   - Attributes
-      addDataToHash(hasher,
-                    op->getAttrList().getDictionary().getAsOpaquePointer());
+      addDataToHash(hasher, op->getMutableAttrDict());
       //   - Blocks in Regions
       for (Region &region : op->getRegions()) {
         for (Block &block : region) {
@@ -98,7 +97,7 @@ private:
 
 /// Returns true if the given pass is hidden from IR printing.
 static bool isHiddenPass(Pass *pass) {
-  return isAdaptorPass(pass) || isa<VerifierPass>(pass);
+  return isa<OpToOpPassAdaptor>(pass) || isa<VerifierPass>(pass);
 }
 
 static void printIR(Operation *op, bool printModuleScope, raw_ostream &out,
@@ -172,7 +171,7 @@ void IRPrinterInstrumentation::runAfterPass(Pass *pass, Operation *op) {
 }
 
 void IRPrinterInstrumentation::runAfterPassFailed(Pass *pass, Operation *op) {
-  if (isAdaptorPass(pass))
+  if (isa<OpToOpPassAdaptor>(pass))
     return;
   if (config->shouldPrintAfterOnlyOnChange())
     beforePassFingerPrints.erase(pass);
@@ -256,7 +255,8 @@ struct BasicIRPrinterConfig : public PassManager::IRPrinterConfig {
 /// Add an instrumentation to print the IR before and after pass execution,
 /// using the provided configuration.
 void PassManager::enableIRPrinting(std::unique_ptr<IRPrinterConfig> config) {
-  if (config->shouldPrintAtModuleScope() && isMultithreadingEnabled())
+  if (config->shouldPrintAtModuleScope() &&
+      getContext()->isMultithreadingEnabled())
     llvm::report_fatal_error("IR printing can't be setup on a pass-manager "
                              "without disabling multi-threading first.");
   addInstrumentation(

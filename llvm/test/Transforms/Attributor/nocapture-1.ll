@@ -89,7 +89,7 @@ define i1 @c5(i32* %q, i32 %bitno) {
 ; CHECK-NEXT:    [[TMP2:%.*]] = lshr i32 [[TMP]], [[BITNO]]
 ; CHECK-NEXT:    [[BIT:%.*]] = and i32 [[TMP2]], 1
 ; CHECK-NEXT:    [[LOOKUP:%.*]] = getelementptr [2 x i1], [2 x i1]* @lookup_table, i32 0, i32 [[BIT]]
-; CHECK-NEXT:    [[VAL:%.*]] = load i1, i1* [[LOOKUP]]
+; CHECK-NEXT:    [[VAL:%.*]] = load i1, i1* [[LOOKUP]], align 1
 ; CHECK-NEXT:    ret i1 [[VAL]]
 ;
   %tmp = ptrtoint i32* %q to i32
@@ -104,27 +104,16 @@ define i1 @c5(i32* %q, i32 %bitno) {
 declare void @throw_if_bit_set(i8*, i8) readonly
 
 define i1 @c6(i8* %q, i8 %bit) personality i32 (...)* @__gxx_personality_v0 {
-; IS__TUNIT____-LABEL: define {{[^@]+}}@c6
-; IS__TUNIT____-SAME: (i8* readonly [[Q:%.*]], i8 [[BIT:%.*]]) #5 personality i32 (...)* @__gxx_personality_v0
-; IS__TUNIT____-NEXT:    invoke void @throw_if_bit_set(i8* readonly [[Q]], i8 [[BIT]])
-; IS__TUNIT____-NEXT:    to label [[RET0:%.*]] unwind label [[RET1:%.*]]
-; IS__TUNIT____:       ret0:
-; IS__TUNIT____-NEXT:    ret i1 false
-; IS__TUNIT____:       ret1:
-; IS__TUNIT____-NEXT:    [[EXN:%.*]] = landingpad { i8*, i32 }
-; IS__TUNIT____-NEXT:    cleanup
-; IS__TUNIT____-NEXT:    ret i1 true
-;
-; IS__CGSCC____-LABEL: define {{[^@]+}}@c6
-; IS__CGSCC____-SAME: (i8* readonly [[Q:%.*]], i8 [[BIT:%.*]]) #4 personality i32 (...)* @__gxx_personality_v0
-; IS__CGSCC____-NEXT:    invoke void @throw_if_bit_set(i8* readonly [[Q]], i8 [[BIT]])
-; IS__CGSCC____-NEXT:    to label [[RET0:%.*]] unwind label [[RET1:%.*]]
-; IS__CGSCC____:       ret0:
-; IS__CGSCC____-NEXT:    ret i1 false
-; IS__CGSCC____:       ret1:
-; IS__CGSCC____-NEXT:    [[EXN:%.*]] = landingpad { i8*, i32 }
-; IS__CGSCC____-NEXT:    cleanup
-; IS__CGSCC____-NEXT:    ret i1 true
+; CHECK-LABEL: define {{[^@]+}}@c6
+; CHECK-SAME: (i8* readonly [[Q:%.*]], i8 [[BIT:%.*]]) #4 personality i32 (...)* @__gxx_personality_v0
+; CHECK-NEXT:    invoke void @throw_if_bit_set(i8* readonly [[Q]], i8 [[BIT]])
+; CHECK-NEXT:    to label [[RET0:%.*]] unwind label [[RET1:%.*]]
+; CHECK:       ret0:
+; CHECK-NEXT:    ret i1 false
+; CHECK:       ret1:
+; CHECK-NEXT:    [[EXN:%.*]] = landingpad { i8*, i32 }
+; CHECK-NEXT:    cleanup
+; CHECK-NEXT:    ret i1 true
 ;
   invoke void @throw_if_bit_set(i8* %q, i8 %bit)
   to label %ret0 unwind label %ret1
@@ -158,7 +147,7 @@ define i1 @c7(i32* %q, i32 %bitno) {
 ; CHECK-LABEL: define {{[^@]+}}@c7
 ; CHECK-SAME: (i32* nofree readonly [[Q:%.*]], i32 [[BITNO:%.*]])
 ; CHECK-NEXT:    [[PTR:%.*]] = call i1* @lookup_bit(i32* noalias nofree readnone [[Q]], i32 [[BITNO]])
-; CHECK-NEXT:    [[VAL:%.*]] = load i1, i1* [[PTR]]
+; CHECK-NEXT:    [[VAL:%.*]] = load i1, i1* [[PTR]], align 1
 ; CHECK-NEXT:    ret i1 [[VAL]]
 ;
   %ptr = call i1* @lookup_bit(i32* %q, i32 %bitno)
@@ -272,7 +261,7 @@ define void @nc5(void (i8*)* %f, i8* %p) {
 define void @test1_1(i8* %x1_1, i8* %y1_1, i1 %c) {
 ; CHECK-LABEL: define {{[^@]+}}@test1_1
 ; CHECK-SAME: (i8* nocapture nofree readnone [[X1_1:%.*]], i8* nocapture nofree readnone [[Y1_1:%.*]], i1 [[C:%.*]])
-; CHECK-NEXT:    [[TMP1:%.*]] = call i8* @test1_2(i8* noalias nofree readnone undef, i8* noalias nofree readnone "no-capture-maybe-returned" [[Y1_1]], i1 [[C]])
+; CHECK-NEXT:    [[TMP1:%.*]] = call i8* @test1_2(i8* noalias nocapture nofree readnone undef, i8* noalias nofree readnone "no-capture-maybe-returned" [[Y1_1]], i1 [[C]])
 ; CHECK-NEXT:    store i32* null, i32** @g, align 8
 ; CHECK-NEXT:    ret void
 ;
@@ -286,7 +275,7 @@ define i8* @test1_2(i8* %x1_2, i8* %y1_2, i1 %c) {
 ; CHECK-SAME: (i8* nocapture nofree readnone [[X1_2:%.*]], i8* nofree readnone returned "no-capture-maybe-returned" [[Y1_2:%.*]], i1 [[C:%.*]])
 ; CHECK-NEXT:    br i1 [[C]], label [[T:%.*]], label [[F:%.*]]
 ; CHECK:       t:
-; CHECK-NEXT:    call void @test1_1(i8* noalias nofree readnone undef, i8* noalias nocapture nofree readnone [[Y1_2]], i1 [[C]])
+; CHECK-NEXT:    call void @test1_1(i8* noalias nocapture nofree readnone undef, i8* noalias nocapture nofree readnone [[Y1_2]], i1 [[C]])
 ; CHECK-NEXT:    store i32* null, i32** @g, align 8
 ; CHECK-NEXT:    br label [[F]]
 ; CHECK:       f:
@@ -324,7 +313,7 @@ define void @test3(i8* %x3, i8* %y3, i8* %z3) {
 define void @test4_1(i8* %x4_1, i1 %c) {
 ; CHECK-LABEL: define {{[^@]+}}@test4_1
 ; CHECK-SAME: (i8* nocapture nofree readnone [[X4_1:%.*]], i1 [[C:%.*]])
-; CHECK-NEXT:    [[TMP1:%.*]] = call i8* @test4_2(i8* noalias nofree readnone undef, i8* noalias nofree readnone "no-capture-maybe-returned" [[X4_1]], i8* noalias nofree readnone undef, i1 [[C]])
+; CHECK-NEXT:    [[TMP1:%.*]] = call i8* @test4_2(i8* noalias nocapture nofree readnone undef, i8* noalias nofree readnone "no-capture-maybe-returned" [[X4_1]], i8* noalias nocapture nofree readnone undef, i1 [[C]])
 ; CHECK-NEXT:    store i32* null, i32** @g, align 8
 ; CHECK-NEXT:    ret void
 ;
@@ -338,7 +327,7 @@ define i8* @test4_2(i8* %x4_2, i8* %y4_2, i8* %z4_2, i1 %c) {
 ; CHECK-SAME: (i8* nocapture nofree readnone [[X4_2:%.*]], i8* nofree readnone returned "no-capture-maybe-returned" [[Y4_2:%.*]], i8* nocapture nofree readnone [[Z4_2:%.*]], i1 [[C:%.*]])
 ; CHECK-NEXT:    br i1 [[C]], label [[T:%.*]], label [[F:%.*]]
 ; CHECK:       t:
-; CHECK-NEXT:    call void @test4_1(i8* noalias nofree readnone align 536870912 null, i1 [[C]])
+; CHECK-NEXT:    call void @test4_1(i8* noalias nocapture nofree readnone align 536870912 null, i1 [[C]])
 ; CHECK-NEXT:    store i32* null, i32** @g, align 8
 ; CHECK-NEXT:    br label [[F]]
 ; CHECK:       f:
@@ -430,7 +419,7 @@ define void @nocaptureLaunder(i8* %p) {
 ; CHECK-SAME: (i8* nocapture [[P:%.*]])
 ; CHECK-NEXT:  entry:
 ; CHECK-NEXT:    [[B:%.*]] = call i8* @llvm.launder.invariant.group.p0i8(i8* [[P]])
-; CHECK-NEXT:    store i8 42, i8* [[B]]
+; CHECK-NEXT:    store i8 42, i8* [[B]], align 1
 ; CHECK-NEXT:    ret void
 ;
 entry:
@@ -457,7 +446,7 @@ define void @nocaptureStrip(i8* %p) {
 ; CHECK-SAME: (i8* nocapture writeonly [[P:%.*]])
 ; CHECK-NEXT:  entry:
 ; CHECK-NEXT:    [[B:%.*]] = call i8* @llvm.strip.invariant.group.p0i8(i8* noalias readnone [[P]])
-; CHECK-NEXT:    store i8 42, i8* [[B]]
+; CHECK-NEXT:    store i8 42, i8* [[B]], align 1
 ; CHECK-NEXT:    ret void
 ;
 entry:
@@ -539,7 +528,7 @@ define i1 @nocaptureDereferenceableOrNullICmp(i32* dereferenceable_or_null(4) %x
   ret i1 %2
 }
 
-define i1 @captureDereferenceableOrNullICmp(i32* dereferenceable_or_null(4) %x) "null-pointer-is-valid"="true" {
+define i1 @captureDereferenceableOrNullICmp(i32* dereferenceable_or_null(4) %x) null_pointer_is_valid {
 ; CHECK-LABEL: define {{[^@]+}}@captureDereferenceableOrNullICmp
 ; CHECK-SAME: (i32* nofree readnone dereferenceable_or_null(4) [[X:%.*]])
 ; CHECK-NEXT:    [[TMP1:%.*]] = bitcast i32* [[X]] to i8*
@@ -556,7 +545,7 @@ declare void @unknown(i8*)
 define void @test_callsite() {
 ; CHECK-LABEL: define {{[^@]+}}@test_callsite()
 ; CHECK-NEXT:  entry:
-; CHECK-NEXT:    call void @unknown(i8* noalias align 536870912 null)
+; CHECK-NEXT:    call void @unknown(i8* noalias nocapture align 536870912 null)
 ; CHECK-NEXT:    ret void
 ;
 entry:
@@ -597,7 +586,7 @@ declare void @val_use(i8 %ptr) readonly nounwind
 define void @ptr_uses(i8* %ptr, i8* %wptr) {
 ; CHECK-LABEL: define {{[^@]+}}@ptr_uses
 ; CHECK-SAME: (i8* [[PTR:%.*]], i8* nocapture nonnull writeonly dereferenceable(1) [[WPTR:%.*]])
-; CHECK-NEXT:    store i8 0, i8* [[WPTR]]
+; CHECK-NEXT:    store i8 0, i8* [[WPTR]], align 1
 ; CHECK-NEXT:    ret void
 ;
   %call_ptr = call i8* @maybe_returned_ptr(i8* %ptr)

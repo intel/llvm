@@ -26,6 +26,7 @@ add_entrypoint_library(
     libc.src.string.memcpy
     libc.src.string.strcpy
     libc.src.string.strcat
+    libc.src.string.strlen
 
     # sys/mman.h entrypoints
     libc.src.sys.mman.mmap
@@ -47,6 +48,8 @@ add_entrypoint_library(
   DEPENDS
     # math.h entrypoints
     libc.src.math.cosf
+    libc.src.math.fabs
+    libc.src.math.fabsf
     libc.src.math.round
     libc.src.math.sincosf
     libc.src.math.sinf

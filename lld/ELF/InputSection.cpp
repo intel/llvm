@@ -36,15 +36,16 @@ using namespace llvm::object;
 using namespace llvm::support;
 using namespace llvm::support::endian;
 using namespace llvm::sys;
+using namespace lld;
+using namespace lld::elf;
 
-namespace lld {
+std::vector<InputSectionBase *> elf::inputSections;
+DenseSet<std::pair<const Symbol *, uint64_t>> elf::ppc64noTocRelax;
+
 // Returns a string to construct an error message.
-std::string toString(const elf::InputSectionBase *sec) {
+std::string lld::toString(const InputSectionBase *sec) {
   return (toString(sec->file) + ":(" + sec->name + ")").str();
 }
-
-namespace elf {
-std::vector<InputSectionBase *> inputSections;
 
 template <class ELFT>
 static ArrayRef<uint8_t> getSectionContents(ObjFile<ELFT> &file,
@@ -970,7 +971,13 @@ void InputSectionBase::relocateAlloc(uint8_t *buf, uint8_t *bufEnd) {
       target->relaxGot(bufLoc, rel, targetVA);
       break;
     case R_PPC64_RELAX_TOC:
-      if (!tryRelaxPPC64TocIndirection(rel, bufLoc))
+      // rel.sym refers to the STT_SECTION symbol associated to the .toc input
+      // section. If an R_PPC64_TOC16_LO (.toc + addend) references the TOC
+      // entry, there may be R_PPC64_TOC16_HA not paired with
+      // R_PPC64_TOC16_LO_DS. Don't relax. This loses some relaxation
+      // opportunities but is safe.
+      if (ppc64noTocRelax.count({rel.sym, rel.addend}) ||
+          !tryRelaxPPC64TocIndirection(rel, bufLoc))
         target->relocate(bufLoc, rel, targetVA);
       break;
     case R_RELAX_TLS_IE_TO_LE:
@@ -1130,7 +1137,7 @@ void InputSectionBase::adjustSplitStackFunctionPrologues(uint8_t *buf,
                                                    end, f->stOther))
         continue;
       if (!getFile<ELFT>()->someNoSplitStack)
-        error(toString(this) + ": " + f->getName() +
+        error(lld::toString(this) + ": " + f->getName() +
               " (with -fsplit-stack) calls " + rel.sym->getName() +
               " (without -fsplit-stack), but couldn't adjust its prologue");
     }
@@ -1393,6 +1400,3 @@ template void EhInputSection::split<ELF32LE>();
 template void EhInputSection::split<ELF32BE>();
 template void EhInputSection::split<ELF64LE>();
 template void EhInputSection::split<ELF64BE>();
-
-} // namespace elf
-} // namespace lld

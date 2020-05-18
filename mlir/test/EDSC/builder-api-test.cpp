@@ -11,11 +11,10 @@
 #include "mlir/Dialect/Affine/EDSC/Intrinsics.h"
 #include "mlir/Dialect/Linalg/EDSC/Builders.h"
 #include "mlir/Dialect/Linalg/EDSC/Intrinsics.h"
-#include "mlir/Dialect/LoopOps/EDSC/Intrinsics.h"
+#include "mlir/Dialect/SCF/EDSC/Intrinsics.h"
 #include "mlir/Dialect/StandardOps/EDSC/Intrinsics.h"
 #include "mlir/Dialect/Vector/EDSC/Intrinsics.h"
 #include "mlir/EDSC/Builders.h"
-#include "mlir/EDSC/Intrinsics.h"
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/IntegerSet.h"
@@ -40,7 +39,7 @@ static MLIRContext &globalContext() {
   static bool init_once = []() {
     registerDialect<AffineDialect>();
     registerDialect<linalg::LinalgDialect>();
-    registerDialect<loop::LoopOpsDialect>();
+    registerDialect<scf::SCFDialect>();
     registerDialect<StandardOpsDialect>();
     registerDialect<vector::VectorDialect>();
     return true;
@@ -149,7 +148,7 @@ TEST_FUNC(builder_loop_for) {
   // CHECK-LABEL: func @builder_loop_for(%{{.*}}: index, %{{.*}}: index, %{{.*}}: index, %{{.*}}: index) {
   // CHECK-DAG:    [[r0:%[0-9]+]] = affine.apply affine_map<()[s0, s1] -> (s0 - s1)>()[%{{.*}}, %{{.*}}]
   // CHECK-DAG:    [[r1:%[0-9]+]] = affine.apply affine_map<()[s0, s1] -> (s0 + s1)>()[%{{.*}}, %{{.*}}]
-  // CHECK-NEXT:   loop.for %{{.*}} = [[r0]] to [[r1]] step {{.*}} {
+  // CHECK-NEXT:   scf.for %{{.*}} = [[r0]] to [[r1]] step {{.*}} {
   // clang-format on
   f.print(llvm::outs());
   f.erase();
@@ -176,6 +175,33 @@ TEST_FUNC(builder_max_min_for) {
   f.erase();
 }
 
+TEST_FUNC(builder_block_append) {
+  using namespace edsc::op;
+  auto f = makeFunction("builder_blocks");
+
+  OpBuilder builder(f.getBody());
+  ScopedContext scope(builder, f.getLoc());
+
+  BlockHandle b1, functionBlock(&f.front());
+  BlockBuilder(&b1, {}, {})([&] { std_constant_index(0); });
+  BlockBuilder(b1, Append())([&] { std_constant_index(1); });
+  BlockBuilder(b1, Append())([&] { std_ret(); });
+  // Get back to entry block and add a branch into b1
+  BlockBuilder(functionBlock, Append())([&] { std_br(b1, {}); });
+
+  // clang-format off
+  // CHECK-LABEL: @builder_blocks
+  // CHECK-NEXT:   br ^bb1
+  // CHECK-NEXT: ^bb1: // pred: ^bb0
+  // CHECK-NEXT:   constant 0 : index
+  // CHECK-NEXT:   constant 1 : index
+  // CHECK-NEXT:   return
+  // CHECK-NEXT: }
+  // clang-format on
+  f.print(llvm::outs());
+  f.erase();
+}
+
 TEST_FUNC(builder_blocks) {
   using namespace edsc::op;
   auto f = makeFunction("builder_blocks");
@@ -183,6 +209,8 @@ TEST_FUNC(builder_blocks) {
   OpBuilder builder(f.getBody());
   ScopedContext scope(builder, f.getLoc());
   Value c1(std_constant_int(42, 32)), c2(std_constant_int(1234, 32));
+  ReturnOp ret = std_ret();
+
   Value r;
   Value args12[2];
   Value &arg1 = args12[0], &arg2 = args12[1];
@@ -205,6 +233,7 @@ TEST_FUNC(builder_blocks) {
   });
   // Get back to entry block and add a branch into b1
   BlockBuilder(functionBlock, Append())([&] { std_br(b1, {c1, c2}); });
+  ret.erase();
 
   // clang-format off
   // CHECK-LABEL: @builder_blocks
@@ -274,6 +303,8 @@ TEST_FUNC(builder_cond_branch) {
   Value funcArg(f.getArgument(0));
   Value c32(std_constant_int(32, 32)), c64(std_constant_int(64, 64)),
       c42(std_constant_int(42, 32));
+  ReturnOp ret = std_ret();
+
   Value arg1;
   Value args23[2];
   BlockHandle b1, b2, functionBlock(&f.front());
@@ -283,6 +314,7 @@ TEST_FUNC(builder_cond_branch) {
   BlockBuilder(functionBlock, Append())([&] {
     std_cond_br(funcArg, b1, {c32}, b2, {c64, c42});
   });
+  ret.erase();
 
   // clang-format off
   // CHECK-LABEL: @builder_cond_branch
@@ -1062,12 +1094,12 @@ TEST_FUNC(builder_loop_for_yield) {
   // CHECK:     [[init1:%.*]] = constant
   // CHECK-DAG:    [[r0:%[0-9]+]] = affine.apply affine_map<()[s0, s1] -> (s0 - s1)>()[%{{.*}}, %{{.*}}]
   // CHECK-DAG:    [[r1:%[0-9]+]] = affine.apply affine_map<()[s0, s1] -> (s0 + s1)>()[%{{.*}}, %{{.*}}]
-  // CHECK-NEXT: [[res:%[0-9]+]]:2 = loop.for %{{.*}} = [[r0]] to [[r1]] step {{.*}} iter_args([[arg0:%.*]] = [[init0]], [[arg1:%.*]] = [[init1]]) -> (f32, f32) {
+  // CHECK-NEXT: [[res:%[0-9]+]]:2 = scf.for %{{.*}} = [[r0]] to [[r1]] step {{.*}} iter_args([[arg0:%.*]] = [[init0]], [[arg1:%.*]] = [[init1]]) -> (f32, f32) {
   // CHECK:     [[sum:%[0-9]+]] = addf [[arg0]], [[arg1]] : f32
-  // CHECK:     loop.yield [[arg1]], [[sum]] : f32, f32
+  // CHECK:     scf.yield [[arg1]], [[sum]] : f32, f32
   // CHECK:     addf [[res]]#0, [[res]]#1 : f32
-
   // clang-format on
+
   f.print(llvm::outs());
   f.erase();
 }

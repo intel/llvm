@@ -322,7 +322,8 @@ private:
 
 PreservedAnalyses ModuleSanitizerCoveragePass::run(Module &M,
                                                    ModuleAnalysisManager &MAM) {
-  ModuleSanitizerCoverage ModuleSancov(Options);
+  ModuleSanitizerCoverage ModuleSancov(Options, Whitelist.get(),
+                                       Blacklist.get());
   auto &FAM = MAM.getResult<FunctionAnalysisManagerModuleProxy>(M).getManager();
   auto DTCallback = [&FAM](Function &F) -> const DominatorTree * {
     return &FAM.getResult<DominatorTreeAnalysis>(F);
@@ -786,7 +787,7 @@ void ModuleSanitizerCoverage::InjectCoverageForIndirectCalls(
   for (auto I : IndirCalls) {
     IRBuilder<> IRB(I);
     CallBase &CB = cast<CallBase>(*I);
-    Value *Callee = CB.getCalledValue();
+    Value *Callee = CB.getCalledOperand();
     if (isa<InlineAsm>(Callee))
       continue;
     IRB.CreateCall(SanCovTracePCIndir, IRB.CreatePointerCast(Callee, IntptrTy));
@@ -945,7 +946,12 @@ void ModuleSanitizerCoverage::InjectCoverageAtBlock(Function &F, BasicBlock &BB,
     auto FlagPtr = IRB.CreateGEP(
         FunctionBoolArray->getValueType(), FunctionBoolArray,
         {ConstantInt::get(IntptrTy, 0), ConstantInt::get(IntptrTy, Idx)});
-    auto Store = IRB.CreateStore(ConstantInt::getTrue(Int1Ty), FlagPtr);
+    auto Load = IRB.CreateLoad(Int1Ty, FlagPtr);
+    auto ThenTerm =
+        SplitBlockAndInsertIfThen(IRB.CreateIsNull(Load), &*IP, false);
+    IRBuilder<> ThenIRB(ThenTerm);
+    auto Store = ThenIRB.CreateStore(ConstantInt::getTrue(Int1Ty), FlagPtr);
+    SetNoSanitizeMetadata(Load);
     SetNoSanitizeMetadata(Store);
   }
   if (Options.StackDepth && IsEntryBB && !IsLeafFunc) {

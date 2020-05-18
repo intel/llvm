@@ -263,6 +263,18 @@ BitVector SIRegisterInfo::getReservedRegs(const MachineFunction &MF) const {
     reserveRegisterTuples(Reserved, Reg);
   }
 
+  for (auto Reg : AMDGPU::SReg_32RegClass) {
+    Reserved.set(getSubReg(Reg, AMDGPU::hi16));
+    Register Low = getSubReg(Reg, AMDGPU::lo16);
+    // This is to prevent BB vcc liveness errors.
+    if (!AMDGPU::SGPR_LO16RegClass.contains(Low))
+      Reserved.set(Low);
+  }
+
+  for (auto Reg : AMDGPU::AGPR_32RegClass) {
+    Reserved.set(getSubReg(Reg, AMDGPU::hi16));
+  }
+
   // Reserve all the rest AGPRs if there are no instructions to use it.
   if (!ST.hasMAIInsts()) {
     for (unsigned i = 0; i < MaxNumVGPRs; ++i) {
@@ -307,6 +319,10 @@ BitVector SIRegisterInfo::getReservedRegs(const MachineFunction &MF) const {
 
   for (MCPhysReg Reg : MFI->getVGPRSpillAGPRs())
     reserveRegisterTuples(Reserved, Reg);
+
+  if (MFI->VGPRReservedForSGPRSpill)
+    for (auto SSpill : MFI->getSGPRSpillVGPRs())
+      reserveRegisterTuples(Reserved, SSpill.VGPR);
 
   return Reserved;
 }
@@ -1307,6 +1323,8 @@ SIRegisterInfo::getVGPRClassForBitWidth(unsigned BitWidth) {
 const TargetRegisterClass *
 SIRegisterInfo::getAGPRClassForBitWidth(unsigned BitWidth) {
   switch (BitWidth) {
+  case 16:
+    return &AMDGPU::AGPR_LO16RegClass;
   case 32:
     return &AMDGPU::AGPR_32RegClass;
   case 64:
@@ -1365,7 +1383,8 @@ SIRegisterInfo::getPhysRegClass(MCRegister Reg) const {
   static const TargetRegisterClass *const BaseClasses[] = {
     &AMDGPU::VGPR_LO16RegClass,
     &AMDGPU::VGPR_HI16RegClass,
-    &AMDGPU::SGPR_LO16RegClass,
+    &AMDGPU::SReg_LO16RegClass,
+    &AMDGPU::AGPR_LO16RegClass,
     &AMDGPU::VGPR_32RegClass,
     &AMDGPU::SReg_32RegClass,
     &AMDGPU::AGPR_32RegClass,
@@ -1424,7 +1443,7 @@ bool SIRegisterInfo::hasVGPRs(const TargetRegisterClass *RC) const {
 
 bool SIRegisterInfo::hasAGPRs(const TargetRegisterClass *RC) const {
   unsigned Size = getRegSizeInBits(*RC);
-  if (Size < 32)
+  if (Size < 16)
     return false;
   const TargetRegisterClass *ARC = getAGPRClassForBitWidth(Size);
   if (!ARC) {
@@ -1514,17 +1533,23 @@ bool SIRegisterInfo::shouldRewriteCopySrc(
   return getCommonSubClass(DefRC, SrcRC) != nullptr;
 }
 
-/// Returns a register that is not used at any point in the function.
+/// Returns a lowest register that is not used at any point in the function.
 ///        If all registers are used, then this function will return
-//         AMDGPU::NoRegister.
-MCRegister
-SIRegisterInfo::findUnusedRegister(const MachineRegisterInfo &MRI,
-                                   const TargetRegisterClass *RC,
-                                   const MachineFunction &MF) const {
-
-  for (MCRegister Reg : *RC)
-    if (MRI.isAllocatable(Reg) && !MRI.isPhysRegUsed(Reg))
-      return Reg;
+///         AMDGPU::NoRegister. If \p ReserveHighestVGPR = true, then return
+///         highest unused register.
+MCRegister SIRegisterInfo::findUnusedRegister(const MachineRegisterInfo &MRI,
+                                              const TargetRegisterClass *RC,
+                                              const MachineFunction &MF,
+                                              bool ReserveHighestVGPR) const {
+  if (ReserveHighestVGPR) {
+    for (MCRegister Reg : reverse(*RC))
+      if (MRI.isAllocatable(Reg) && !MRI.isPhysRegUsed(Reg))
+        return Reg;
+  } else {
+    for (MCRegister Reg : *RC)
+      if (MRI.isAllocatable(Reg) && !MRI.isPhysRegUsed(Reg))
+        return Reg;
+  }
   return MCRegister();
 }
 
@@ -1695,6 +1720,8 @@ SIRegisterInfo::getRegClassForSizeOnBank(unsigned Size,
                     : &AMDGPU::SReg_64_XEXECRegClass;
   case AMDGPU::SGPRRegBankID:
     return getSGPRClassForBitWidth(std::max(32u, Size));
+  case AMDGPU::AGPRRegBankID:
+    return getAGPRClassForBitWidth(std::max(32u, Size));
   default:
     llvm_unreachable("unknown register bank");
   }
@@ -1782,4 +1809,21 @@ MachineInstr *SIRegisterInfo::findReachingDef(Register Reg, unsigned SubReg,
   assert(Def->modifiesRegister(Reg, this));
 
   return Def;
+}
+
+MCPhysReg SIRegisterInfo::get32BitRegister(MCPhysReg Reg) const {
+  assert(getRegSizeInBits(*getPhysRegClass(Reg)) <= 32);
+
+  for (const TargetRegisterClass &RC : { AMDGPU::VGPR_32RegClass,
+                                         AMDGPU::SReg_32RegClass,
+                                         AMDGPU::AGPR_32RegClass } ) {
+    if (MCPhysReg Super = getMatchingSuperReg(Reg, AMDGPU::lo16, &RC))
+      return Super;
+  }
+  if (MCPhysReg Super = getMatchingSuperReg(Reg, AMDGPU::hi16,
+                                            &AMDGPU::VGPR_32RegClass)) {
+      return Super;
+  }
+
+  return AMDGPU::NoRegister;
 }

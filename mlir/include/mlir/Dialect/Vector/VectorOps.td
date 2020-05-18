@@ -14,7 +14,7 @@
 #define VECTOR_OPS
 
 include "mlir/Dialect/Affine/IR/AffineOpsBase.td"
-include "mlir/Interfaces/SideEffects.td"
+include "mlir/Interfaces/SideEffectInterfaces.td"
 
 def Vector_Dialect : Dialect {
   let name = "vector";
@@ -143,10 +143,10 @@ def Vector_ContractionOp :
     ```
   }];
   let builders = [OpBuilder<
-    "Builder *builder, OperationState &result, Value lhs, Value rhs, "
+    "OpBuilder &builder, OperationState &result, Value lhs, Value rhs, "
     "Value acc, ArrayAttr indexingMaps, ArrayAttr iteratorTypes">,
     OpBuilder<
-      "Builder *builder, OperationState &result, Value lhs, Value rhs, "
+      "OpBuilder &builder, OperationState &result, Value lhs, Value rhs, "
       "Value acc, ArrayRef<ArrayRef<AffineExpr>> indexingExprs, "
       "ArrayRef<StringRef> iteratorTypes">];
   let extraClassDeclaration = [{
@@ -304,7 +304,7 @@ def Vector_ShuffleOp :
                : vector<2xf32>, vector<2xf32>       ; yields vector<4xf32>
     ```
   }];
-  let builders = [OpBuilder<"Builder *builder, OperationState &result,"
+  let builders = [OpBuilder<"OpBuilder &builder, OperationState &result,"
                             "Value v1, Value v2, ArrayRef<int64_t>">];
   let extraClassDeclaration = [{
     static StringRef getMaskAttrName() { return "mask"; }
@@ -372,7 +372,7 @@ def Vector_ExtractOp :
     ```
   }];
   let builders = [OpBuilder<
-    "Builder *builder, OperationState &result, Value source,"
+    "OpBuilder &builder, OperationState &result, Value source,"
     "ArrayRef<int64_t>">];
   let extraClassDeclaration = [{
     static StringRef getPositionAttrName() { return "position"; }
@@ -418,7 +418,7 @@ def Vector_ExtractSlicesOp :
     ```
   }];
   let builders = [OpBuilder<
-    "Builder *builder, OperationState &result, TupleType tupleType, " #
+    "OpBuilder &builder, OperationState &result, TupleType tupleType, " #
     "Value vector, ArrayRef<int64_t> sizes, " #
     "ArrayRef<int64_t> strides">];
   let extraClassDeclaration = [{
@@ -464,7 +464,7 @@ def Vector_FMAOp :
   let verifier = ?;
   let assemblyFormat = "$lhs `,` $rhs `,` $acc attr-dict `:` type($lhs)";
   let builders = [OpBuilder<
-    "Builder *b, OperationState &result, Value lhs, Value rhs, Value acc",
+    "OpBuilder &b, OperationState &result, Value lhs, Value rhs, Value acc",
     "build(b, result, lhs.getType(), lhs, rhs, acc);">];
   let extraClassDeclaration = [{
     VectorType getVectorType() { return lhs().getType().cast<VectorType>(); }
@@ -535,7 +535,7 @@ def Vector_InsertOp :
   }];
 
   let builders = [OpBuilder<
-    "Builder *builder, OperationState &result, Value source, " #
+    "OpBuilder &builder, OperationState &result, Value source, " #
     "Value dest, ArrayRef<int64_t>">];
   let extraClassDeclaration = [{
     static StringRef getPositionAttrName() { return "position"; }
@@ -638,7 +638,7 @@ def Vector_InsertStridedSliceOp :
   }];
 
   let builders = [OpBuilder<
-    "Builder *builder, OperationState &result, Value source, Value dest, " #
+    "OpBuilder &builder, OperationState &result, Value source, Value dest, " #
     "ArrayRef<int64_t> offsets, ArrayRef<int64_t> strides">];
   let extraClassDeclaration = [{
     static StringRef getOffsetsAttrName() { return "offsets"; }
@@ -816,14 +816,14 @@ def Vector_ReshapeOp :
   }];
 }
 
-def Vector_StridedSliceOp :
-  Vector_Op<"strided_slice", [NoSideEffect,
+def Vector_ExtractStridedSliceOp :
+  Vector_Op<"extract_strided_slice", [NoSideEffect,
     PredOpTrait<"operand and result have same element type",
                  TCresVTEtIsSameAsOpBase<0, 0>>]>,
     Arguments<(ins AnyVector:$vector, I64ArrayAttr:$offsets,
                I64ArrayAttr:$sizes, I64ArrayAttr:$strides)>,
     Results<(outs AnyVector)> {
-  let summary = "strided_slice operation";
+  let summary = "extract_strided_slice operation";
   let description = [{
     Takes an n-D vector, k-D `offsets` integer array attribute, a k-sized
     `sizes` integer array attribute, a k-sized `strides` integer array
@@ -839,17 +839,17 @@ def Vector_StridedSliceOp :
     Example:
 
     ```mlir
-    %1 = vector.strided_slice %0
+    %1 = vector.extract_strided_slice %0
         {offsets = [0, 2], sizes = [2, 4], strides = [1, 1]}:
       vector<4x8x16xf32> to vector<2x4x16xf32>
 
     // TODO(ntv) Evolve to a range form syntax similar to:
-    %1 = vector.strided_slice %0[0:2:1][2:4:1]
+    %1 = vector.extract_strided_slice %0[0:2:1][2:4:1]
       vector<4x8x16xf32> to vector<2x4x16xf32>
     ```
   }];
   let builders = [OpBuilder<
-    "Builder *builder, OperationState &result, Value source, " #
+    "OpBuilder &builder, OperationState &result, Value source, " #
     "ArrayRef<int64_t> offsets, ArrayRef<int64_t> sizes, " #
     "ArrayRef<int64_t> strides">];
   let extraClassDeclaration = [{
@@ -994,6 +994,13 @@ def Vector_TransferReadOp :
     ```
   }];
 
+  let builders = [
+    // Builder that sets permutation map and padding to 'getMinorIdentityMap'
+    // and zero, respectively, by default.
+    OpBuilder<"OpBuilder &builder, OperationState &result, VectorType vector, "
+              "Value memref, ValueRange indices">
+  ];
+
   let extraClassDeclaration = [{
     MemRefType getMemRefType() {
       return memref().getType().cast<MemRefType>();
@@ -1057,6 +1064,13 @@ def Vector_TransferWriteOp :
         : vector<1x1x4x3xf32>, memref<?x?xvector<4x3xf32>>
     ```
   }];
+
+  let builders = [
+    // Builder that sets permutation map and padding to 'getMinorIdentityMap'
+    // by default.
+    OpBuilder<"OpBuilder &builder, OperationState &result, Value vector, "
+              "Value memref, ValueRange indices">
+  ];
 
   let extraClassDeclaration = [{
     VectorType getVectorType() {
@@ -1131,7 +1145,7 @@ def Vector_ShapeCastOp :
 def Vector_TypeCastOp :
   Vector_Op<"type_cast", [NoSideEffect]>,
     Arguments<(ins StaticShapeMemRefOf<[AnyType]>:$memref)>,
-    Results<(outs AnyMemRef)> {
+    Results<(outs AnyMemRef:$result)> {
   let summary = "type_cast op converts a scalar memref to a vector memref";
   let description = [{
     Performs a conversion from a memref with scalar element to a memref with a
@@ -1154,12 +1168,10 @@ def Vector_TypeCastOp :
     ```
   }];
 
+  /// Build the canonical memRefType with a single vector.
+  /// E.g. memref<4 x 5 x vector<6 x f32>> -> memref<vector<4 x 5 x 6 x f32>>.
   let builders = [OpBuilder<
-    "Builder *builder, OperationState &result, Value source">];
-
-  let parser = [{
-    return impl::parseCastOp(parser, result);
-  }];
+    "OpBuilder &builder, OperationState &result, Value source">];
 
   let extraClassDeclaration = [{
     MemRefType getMemRefType() {
@@ -1168,6 +1180,10 @@ def Vector_TypeCastOp :
     MemRefType getResultMemRefType() {
       return getResult().getType().cast<MemRefType>();
     }
+  }];
+
+  let assemblyFormat = [{
+    $memref attr-dict `:` type($memref) `to` type($result)
   }];
 }
 
@@ -1439,13 +1455,13 @@ def Vector_MatmulOp : Vector_Op<"matrix_multiply", [NoSideEffect,
     ```
   }];
   let builders = [
-   OpBuilder<"Builder *builder, OperationState &result, Value lhs, Value rhs, "
+   OpBuilder<"OpBuilder &builder, OperationState &result, Value lhs, Value rhs, "
              "unsigned lhsRows, unsigned lhsColumns, unsigned rhsColumns",
    [{
      result.addOperands({lhs, rhs});
-     result.addAttribute("lhs_rows", builder->getI32IntegerAttr(lhsRows));
-     result.addAttribute("lhs_columns", builder->getI32IntegerAttr(lhsColumns));
-     result.addAttribute("rhs_columns", builder->getI32IntegerAttr(rhsColumns));
+     result.addAttribute("lhs_rows", builder.getI32IntegerAttr(lhsRows));
+     result.addAttribute("lhs_columns", builder.getI32IntegerAttr(lhsColumns));
+     result.addAttribute("rhs_columns", builder.getI32IntegerAttr(rhsColumns));
      result.addTypes(VectorType::get(lhsRows * rhsColumns,
        lhs.getType().cast<VectorType>().getElementType()));
    }]>,

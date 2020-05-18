@@ -20,6 +20,7 @@
 #include "mlir/IR/Types.h"
 #include "mlir/IR/Value.h"
 #include "mlir/Support/LogicalResult.h"
+#include "llvm/ADT/BitmaskEnum.h"
 #include "llvm/ADT/PointerUnion.h"
 #include "llvm/Support/PointerLikeTypeTraits.h"
 #include "llvm/Support/TrailingObjects.h"
@@ -201,6 +202,100 @@ private:
 };
 
 //===----------------------------------------------------------------------===//
+// NamedAttrList
+//===----------------------------------------------------------------------===//
+
+/// NamedAttrList is array of NamedAttributes that tracks whether it is sorted
+/// and does some basic work to remain sorted.
+class NamedAttrList {
+public:
+  using const_iterator = SmallVectorImpl<NamedAttribute>::const_iterator;
+  using const_reference = const NamedAttribute &;
+  using reference = NamedAttribute &;
+  using size_type = size_t;
+
+  NamedAttrList() : dictionarySorted({}, true) {}
+  NamedAttrList(ArrayRef<NamedAttribute> attributes);
+  NamedAttrList(const_iterator in_start, const_iterator in_end);
+
+  bool operator!=(const NamedAttrList &other) const {
+    return !(*this == other);
+  }
+  bool operator==(const NamedAttrList &other) const {
+    return attrs == other.attrs;
+  }
+
+  /// Add an attribute with the specified name.
+  void append(StringRef name, Attribute attr);
+
+  /// Add an attribute with the specified name.
+  void append(Identifier name, Attribute attr);
+
+  /// Add an array of named attributes.
+  void append(ArrayRef<NamedAttribute> newAttributes);
+
+  /// Add a range of named attributes.
+  void append(const_iterator in_start, const_iterator in_end);
+
+  /// Replaces the attributes with new list of attributes.
+  void assign(const_iterator in_start, const_iterator in_end);
+
+  /// Replaces the attributes with new list of attributes.
+  void assign(ArrayRef<NamedAttribute> range) {
+    append(range.begin(), range.end());
+  }
+
+  bool empty() const { return attrs.empty(); }
+
+  void reserve(size_type N) { attrs.reserve(N); }
+
+  /// Add an attribute with the specified name.
+  void push_back(NamedAttribute newAttribute);
+
+  /// Pop last element from list.
+  void pop_back() { attrs.pop_back(); }
+
+  /// Return a dictionary attribute for the underlying dictionary. This will
+  /// return an empty dictionary attribute if empty rather than null.
+  DictionaryAttr getDictionary(MLIRContext *context) const;
+
+  /// Return all of the attributes on this operation.
+  ArrayRef<NamedAttribute> getAttrs() const;
+
+  /// Return the specified attribute if present, null otherwise.
+  Attribute get(Identifier name) const;
+  Attribute get(StringRef name) const;
+
+  /// Return the specified named attribute if present, None otherwise.
+  Optional<NamedAttribute> getNamed(StringRef name) const;
+  Optional<NamedAttribute> getNamed(Identifier name) const;
+
+  /// If the an attribute exists with the specified name, change it to the new
+  /// value.  Otherwise, add a new attribute with the specified name/value.
+  void set(Identifier name, Attribute value);
+  void set(StringRef name, Attribute value);
+
+  const_iterator begin() const { return attrs.begin(); }
+  const_iterator end() const { return attrs.end(); }
+
+  NamedAttrList &operator=(const SmallVectorImpl<NamedAttribute> &rhs);
+  operator ArrayRef<NamedAttribute>() const;
+  operator MutableDictionaryAttr() const;
+
+private:
+  /// Return whether the attributes are sorted.
+  bool isSorted() const { return dictionarySorted.getInt(); }
+
+  // These are marked mutable as they may be modified (e.g., sorted)
+  mutable SmallVector<NamedAttribute, 4> attrs;
+  // Pair with cached DictionaryAttr and status of whether attrs is sorted.
+  // Note: just because sorted does not mean a DictionaryAttr has been created
+  // but the case where there is a DictionaryAttr but attrs isn't sorted should
+  // not occur.
+  mutable llvm::PointerIntPair<Attribute, 1, bool> dictionarySorted;
+};
+
+//===----------------------------------------------------------------------===//
 // OperationName
 //===----------------------------------------------------------------------===//
 
@@ -268,7 +363,7 @@ struct OperationState {
   SmallVector<Value, 4> operands;
   /// Types of the results of this operation.
   SmallVector<Type, 4> types;
-  SmallVector<NamedAttribute, 4> attributes;
+  NamedAttrList attributes;
   /// Successors of this operation and their respective operands.
   SmallVector<Block *, 1> successors;
   /// Regions that the op will hold.
@@ -302,12 +397,12 @@ public:
 
   /// Add an attribute with the specified name.
   void addAttribute(Identifier name, Attribute attr) {
-    attributes.push_back({name, attr});
+    attributes.append(name, attr);
   }
 
   /// Add an array of named attributes.
   void addAttributes(ArrayRef<NamedAttribute> newAttributes) {
-    attributes.append(newAttributes.begin(), newAttributes.end());
+    attributes.append(newAttributes);
   }
 
   /// Add an array of successors.
@@ -328,7 +423,7 @@ public:
   void addRegion(std::unique_ptr<Region> &&region);
 
   /// Get the context held by this operation state.
-  MLIRContext *getContext() { return location->getContext(); }
+  MLIRContext *getContext() const { return location->getContext(); }
 };
 
 //===----------------------------------------------------------------------===//
@@ -369,8 +464,14 @@ public:
   /// 'values'.
   void setOperands(Operation *owner, ValueRange values);
 
-  /// Erase an operand held by the storage.
-  void eraseOperand(unsigned index);
+  /// Replace the operands beginning at 'start' and ending at 'start' + 'length'
+  /// with the ones provided in 'operands'. 'operands' may be smaller or larger
+  /// than the range pointed to by 'start'+'length'.
+  void setOperands(Operation *owner, unsigned start, unsigned length,
+                   ValueRange operands);
+
+  /// Erase the operands held by the storage within the given range.
+  void eraseOperands(unsigned start, unsigned length);
 
   /// Get the operation operands held by the storage.
   MutableArrayRef<OpOperand> getOperands() {
@@ -611,6 +712,17 @@ public:
       ValueTypeIterator<typename ValueRangeT::iterator>>::iterator_range;
   template <typename Container>
   ValueTypeRange(Container &&c) : ValueTypeRange(c.begin(), c.end()) {}
+
+  /// Compare this range with another.
+  template <typename OtherT>
+  bool operator==(const OtherT &other) const {
+    return llvm::size(*this) == llvm::size(other) &&
+           std::equal(this->begin(), this->end(), other.begin());
+  }
+  template <typename OtherT>
+  bool operator!=(const OtherT &other) const {
+    return !(*this == other);
+  }
 };
 
 template <typename RangeT>
@@ -651,6 +763,69 @@ private:
 
   /// Allow access to `offset_base` and `dereference_iterator`.
   friend RangeBaseT;
+};
+
+//===----------------------------------------------------------------------===//
+// MutableOperandRange
+
+/// This class provides a mutable adaptor for a range of operands. It allows for
+/// setting, inserting, and erasing operands from the given range.
+class MutableOperandRange {
+public:
+  /// A pair of a named attribute corresponding to an operand segment attribute,
+  /// and the index within that attribute. The attribute should correspond to an
+  /// i32 DenseElementsAttr.
+  using OperandSegment = std::pair<unsigned, NamedAttribute>;
+
+  /// Construct a new mutable range from the given operand, operand start index,
+  /// and range length. `operandSegments` is an optional set of operand segments
+  /// to be updated when mutating the operand list.
+  MutableOperandRange(Operation *owner, unsigned start, unsigned length,
+                      ArrayRef<OperandSegment> operandSegments = llvm::None);
+  MutableOperandRange(Operation *owner);
+
+  /// Slice this range into a sub range, with the additional operand segment.
+  MutableOperandRange slice(unsigned subStart, unsigned subLen,
+                            Optional<OperandSegment> segment = llvm::None);
+
+  /// Append the given values to the range.
+  void append(ValueRange values);
+
+  /// Assign this range to the given values.
+  void assign(ValueRange values);
+
+  /// Assign the range to the given value.
+  void assign(Value value);
+
+  /// Erase the operands within the given sub-range.
+  void erase(unsigned subStart, unsigned subLen = 1);
+
+  /// Clear this range and erase all of the operands.
+  void clear();
+
+  /// Returns the current size of the range.
+  unsigned size() const { return length; }
+
+  /// Allow implicit conversion to an OperandRange.
+  operator OperandRange() const;
+
+  /// Returns the owning operation.
+  Operation *getOwner() const { return owner; }
+
+private:
+  /// Update the length of this range to the one provided.
+  void updateLength(unsigned newLength);
+
+  /// The owning operation of this range.
+  Operation *owner;
+
+  /// The start index of the operand range within the owner operand list, and
+  /// the length starting from `start`.
+  unsigned start, length;
+
+  /// Optional set of operand segments that should be updated when mutating the
+  /// length of this range.
+  SmallVector<std::pair<unsigned, NamedAttribute>, 1> operandSegments;
 };
 
 //===----------------------------------------------------------------------===//
@@ -752,6 +927,37 @@ private:
   /// Allow access to `offset_base` and `dereference_iterator`.
   friend RangeBaseT;
 };
+
+//===----------------------------------------------------------------------===//
+// Operation Equivalency
+//===----------------------------------------------------------------------===//
+
+/// This class provides utilities for computing if two operations are
+/// equivalent.
+struct OperationEquivalence {
+  enum Flags {
+    None = 0,
+
+    /// This flag signals that operands should not be considered when checking
+    /// for equivalence. This allows for users to implement there own
+    /// equivalence schemes for operand values. The number of operands are still
+    /// checked, just not the operands themselves.
+    IgnoreOperands = 1,
+
+    LLVM_MARK_AS_BITMASK_ENUM(/* LargestValue = */ IgnoreOperands)
+  };
+
+  /// Compute a hash for the given operation.
+  static llvm::hash_code computeHash(Operation *op, Flags flags = Flags::None);
+
+  /// Compare two operations and return if they are equivalent.
+  static bool isEquivalentTo(Operation *lhs, Operation *rhs,
+                             Flags flags = Flags::None);
+};
+
+/// Enable Bitmask enums for OperationEquivalence::Flags.
+LLVM_ENABLE_BITMASK_ENUMS_IN_NAMESPACE();
+
 } // end namespace mlir
 
 namespace llvm {

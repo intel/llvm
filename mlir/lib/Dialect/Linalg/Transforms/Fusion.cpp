@@ -11,7 +11,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "PassDetail.h"
-#include "mlir/Analysis/Dominance.h"
 #include "mlir/Dialect/Linalg/Analysis/DependenceAnalysis.h"
 #include "mlir/Dialect/Linalg/EDSC/FoldedIntrinsics.h"
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
@@ -21,6 +20,7 @@
 #include "mlir/Dialect/StandardOps/EDSC/Intrinsics.h"
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/AffineMap.h"
+#include "mlir/IR/Dominance.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Support/LLVM.h"
 #include "mlir/Transforms/FoldUtils.h"
@@ -161,17 +161,6 @@ static LinalgOp fuse(Value producedView, LinalgOp producer, LinalgOp consumer,
   assert(consumer.hasBufferSemantics() &&
          "expected linalg op with buffer semantics");
 
-  if (auto convOp = dyn_cast<linalg::ConvOp>(producer.getOperation())) {
-    // TODO(ntv): add a level of indirection to linalg.generic.
-    if (convOp.padding())
-      llvm_unreachable("Unexpected conv with padding");
-  }
-  if (auto convOp = dyn_cast<linalg::ConvOp>(consumer.getOperation())) {
-    // TODO(ntv): add a level of indirection to linalg.generic.
-    if (convOp.padding())
-      llvm_unreachable("Unexpected conv with padding");
-  }
-
   auto subView = dyn_cast_or_null<SubViewOp>(
       consumer.getBuffer(consumerIdx).getDefiningOp());
   auto slice = dyn_cast_or_null<SliceOp>(
@@ -195,15 +184,16 @@ static LinalgOp fuse(Value producedView, LinalgOp producer, LinalgOp consumer,
   unsigned nWin = producer.getNumWindowLoops();
   SmallVector<SubViewOp::Range, 8> loopRanges(nPar + nRed + nWin);
 
+  OpBuilder b(consumer.getOperation());
+  auto loc = consumer.getLoc();
   // Iterate over dimensions identified by the producer map for `producerIdx`.
   // This defines a subset of the loop ranges that we need to complete later.
   for (auto en : llvm::enumerate(producerMap.getResults())) {
     unsigned posInProducerLoop = en.value().cast<AffineDimExpr>().getPosition();
-    loopRanges[posInProducerLoop] = subView.getRanges()[en.index()];
+    loopRanges[posInProducerLoop] =
+        subView.getOrCreateRanges(b, loc)[en.index()];
   }
 
-  OpBuilder b(consumer.getOperation());
-  auto loc = consumer.getLoc();
   // Iterate over all dimensions. For the dimensions not identified by the
   // producer map for `producerIdx`, we need to explicitly compute the view that
   // defines the loop ranges using the `producer`.
@@ -287,6 +277,16 @@ bool mlir::linalg::isFusableInto(const LinalgDependenceGraph &graph,
                       << *producer.getOperation());
     return false;
   }
+  if (auto convOp = dyn_cast<linalg::ConvOp>(producer.getOperation())) {
+    // TODO(ntv): add a level of indirection to linalg.generic.
+    if (convOp.padding())
+      return false;
+  }
+  if (auto convOp = dyn_cast<linalg::ConvOp>(consumer.getOperation())) {
+    // TODO(ntv): add a level of indirection to linalg.generic.
+    if (convOp.padding())
+      return false;
+  }
   return true;
 }
 
@@ -320,8 +320,8 @@ fuseProducerOfDep(OpBuilder &b, LinalgOp consumer, unsigned consumerIdx,
 
     // Must be a subview or a slice to guarantee there are loops we can fuse
     // into.
-    auto subView = dyn_cast_or_null<SubViewOp>(consumedView.getDefiningOp());
-    auto slice = dyn_cast_or_null<SliceOp>(consumedView.getDefiningOp());
+    auto subView = consumedView.getDefiningOp<SubViewOp>();
+    auto slice = consumedView.getDefiningOp<SliceOp>();
     if (!subView && !slice) {
       LLVM_DEBUG(dbgs() << "\nNot fusable (not a subview or slice)");
       continue;

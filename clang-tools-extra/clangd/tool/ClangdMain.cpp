@@ -9,15 +9,15 @@
 #include "ClangdLSPServer.h"
 #include "CodeComplete.h"
 #include "Features.inc"
-#include "Path.h"
 #include "PathMapping.h"
 #include "Protocol.h"
-#include "Shutdown.h"
-#include "Trace.h"
 #include "Transport.h"
 #include "index/Background.h"
 #include "index/Serialization.h"
 #include "refactor/Rename.h"
+#include "support/Path.h"
+#include "support/Shutdown.h"
+#include "support/Trace.h"
 #include "clang/Basic/Version.h"
 #include "clang/Format/Format.h"
 #include "llvm/ADT/Optional.h"
@@ -482,7 +482,7 @@ int main(int argc, char *argv[]) {
       R"(clangd is a language server that provides IDE-like features to editors.
 
 It should be used via an editor plugin rather than invoked directly. For more information, see:
-	https://clang.llvm.org/extra/clangd/
+	https://clangd.llvm.org/
 	https://microsoft.github.io/language-server-protocol/
 
 clangd accepts flags on the commandline, and in the CLANGD_FLAGS environment variable.

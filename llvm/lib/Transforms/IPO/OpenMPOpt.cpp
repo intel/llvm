@@ -18,6 +18,7 @@
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Analysis/CallGraphSCCPass.h"
+#include "llvm/Analysis/OptimizationRemarkEmitter.h"
 #include "llvm/Frontend/OpenMP/OMPConstants.h"
 #include "llvm/Frontend/OpenMP/OMPIRBuilder.h"
 #include "llvm/InitializePasses.h"
@@ -50,11 +51,14 @@ static constexpr auto TAG = "[" DEBUG_TYPE "]";
 namespace {
 struct OpenMPOpt {
 
+  using OptimizationRemarkGetter =
+      function_ref<OptimizationRemarkEmitter &(Function *)>;
+
   OpenMPOpt(SmallVectorImpl<Function *> &SCC,
             SmallPtrSetImpl<Function *> &ModuleSlice,
-            CallGraphUpdater &CGUpdater)
+            CallGraphUpdater &CGUpdater, OptimizationRemarkGetter OREGetter)
       : M(*(*SCC.begin())->getParent()), SCC(SCC), ModuleSlice(ModuleSlice),
-        OMPBuilder(M), CGUpdater(CGUpdater) {
+        OMPBuilder(M), CGUpdater(CGUpdater), OREGetter(OREGetter) {
     initializeTypes(M);
     initializeRuntimeFunctions();
     OMPBuilder.initialize();
@@ -62,7 +66,6 @@ struct OpenMPOpt {
 
   /// Generic information that describes a runtime function
   struct RuntimeFunctionInfo {
-    ~RuntimeFunctionInfo() { DeleteContainerSeconds(UsesMap); }
 
     /// The kind, as described by the RuntimeFunction enum.
     RuntimeFunction Kind;
@@ -87,16 +90,19 @@ struct OpenMPOpt {
 
     /// Return the vector of uses in function \p F.
     UseVector &getOrCreateUseVector(Function *F) {
-      UseVector *&UV = UsesMap[F];
+      std::unique_ptr<UseVector> &UV = UsesMap[F];
       if (!UV)
-        UV = new UseVector();
+        UV = std::make_unique<UseVector>();
       return *UV;
     }
 
     /// Return the vector of uses in function \p F or `nullptr` if there are
     /// none.
     const UseVector *getUseVector(Function &F) const {
-      return UsesMap.lookup(&F);
+      auto I = UsesMap.find(&F);
+      if (I != UsesMap.end())
+        return I->second.get();
+      return nullptr;
     }
 
     /// Return how many functions contain uses of this runtime function.
@@ -134,7 +140,7 @@ struct OpenMPOpt {
   private:
     /// Map from functions to all uses of this runtime function contained in
     /// them.
-    DenseMap<Function *, UseVector *> UsesMap;
+    DenseMap<Function *, std::unique_ptr<UseVector>> UsesMap;
   };
 
   /// Run all OpenMP optimizations on the underlying SCC/ModuleSlice.
@@ -176,6 +182,15 @@ private:
 
       LLVM_DEBUG(dbgs() << TAG << "Delete read-only parallel region in "
                         << CI->getCaller()->getName() << "\n");
+
+      auto Remark = [&](OptimizationRemark OR) {
+        return OR << "Parallel region in "
+                  << ore::NV("OpenMPParallelDelete", CI->getCaller()->getName())
+                  << " deleted";
+      };
+      emitRemark<OptimizationRemark>(CI, "OpenMPParallelRegionDeletion",
+                                     Remark);
+
       CGUpdater.removeCallSite(*CI);
       CI->eraseFromParent();
       Changed = true;
@@ -315,6 +330,15 @@ private:
         if (CallInst *CI = getCallIfRegularCall(*U, &RFI)) {
           if (!CanBeMoved(*CI))
             continue;
+
+          auto Remark = [&](OptimizationRemark OR) {
+            auto newLoc = &*F.getEntryBlock().getFirstInsertionPt();
+            return OR << "OpenMP runtime call "
+                      << ore::NV("OpenMPOptRuntime", RFI.Name) << " moved to "
+                      << ore::NV("OpenMPRuntimeMoves", newLoc->getDebugLoc());
+          };
+          emitRemark<OptimizationRemark>(CI, "OpenMPRuntimeCodeMotion", Remark);
+
           CI->moveBefore(&*F.getEntryBlock().getFirstInsertionPt());
           ReplVal = CI;
           break;
@@ -341,6 +365,13 @@ private:
       if (!CI || CI == ReplVal || &F != &Caller)
         return false;
       assert(CI->getCaller() == &F && "Unexpected call!");
+
+      auto Remark = [&](OptimizationRemark OR) {
+        return OR << "OpenMP runtime call "
+                  << ore::NV("OpenMPOptRuntime", RFI.Name) << " deduplicated";
+      };
+      emitRemark<OptimizationRemark>(CI, "OpenMPRuntimeDeduplicated", Remark);
+
       CGUpdater.removeCallSite(*CI);
       CI->replaceAllUsesWith(ReplVal);
       CI->eraseFromParent();
@@ -506,6 +537,29 @@ private:
     // TODO: We should attach the attributes defined in OMPKinds.def.
   }
 
+  /// Emit a remark generically
+  ///
+  /// This template function can be used to generically emit a remark. The
+  /// RemarkKind should be one of the following:
+  ///   - OptimizationRemark to indicate a successful optimization attempt
+  ///   - OptimizationRemarkMissed to report a failed optimization attempt
+  ///   - OptimizationRemarkAnalysis to provide additional information about an
+  ///     optimization attempt
+  ///
+  /// The remark is built using a callback function provided by the caller that
+  /// takes a RemarkKind as input and returns a RemarkKind.
+  template <typename RemarkKind,
+            typename RemarkCallBack = function_ref<RemarkKind(RemarkKind &&)>>
+  void emitRemark(Instruction *Inst, StringRef RemarkName,
+                  RemarkCallBack &&RemarkCB) {
+    Function *F = Inst->getParent()->getParent();
+    auto &ORE = OREGetter(F);
+
+    ORE.emit([&]() {
+      return RemarkCB(RemarkKind(DEBUG_TYPE, RemarkName, Inst)); 
+    });
+  }
+
   /// The underyling module.
   Module &M;
 
@@ -521,6 +575,9 @@ private:
   /// Callback to update the call graph, the first argument is a removed call,
   /// the second an optional replacement call.
   CallGraphUpdater &CGUpdater;
+
+  /// Callback to get an OptimizationRemarkEmitter from a Function *
+  OptimizationRemarkGetter OREGetter;
 
   /// Map from runtime function kind to the runtime function description.
   EnumeratedArray<RuntimeFunctionInfo, RuntimeFunction,
@@ -548,10 +605,16 @@ PreservedAnalyses OpenMPOptPass::run(LazyCallGraph::SCC &C,
   if (SCC.empty())
     return PreservedAnalyses::all();
 
+  auto OREGetter = [&C, &CG, &AM](Function *F) -> OptimizationRemarkEmitter & {
+    FunctionAnalysisManager &FAM =
+        AM.getResult<FunctionAnalysisManagerCGSCCProxy>(C, CG).getManager();
+    return FAM.getResult<OptimizationRemarkEmitterAnalysis>(*F);
+  };
+
   CallGraphUpdater CGUpdater;
   CGUpdater.initialize(CG, C, AM, UR);
   // TODO: Compute the module slice we are allowed to look at.
-  OpenMPOpt OMPOpt(SCC, ModuleSlice, CGUpdater);
+  OpenMPOpt OMPOpt(SCC, ModuleSlice, CGUpdater, OREGetter);
   bool Changed = OMPOpt.run();
   (void)Changed;
   return PreservedAnalyses::all();
@@ -599,8 +662,17 @@ struct OpenMPOptLegacyPass : public CallGraphSCCPass {
     CallGraph &CG = getAnalysis<CallGraphWrapperPass>().getCallGraph();
     CGUpdater.initialize(CG, CGSCC);
 
+    // Maintain a map of functions to avoid rebuilding the ORE
+    DenseMap<Function *, std::unique_ptr<OptimizationRemarkEmitter>> OREMap;
+    auto OREGetter = [&OREMap](Function *F) -> OptimizationRemarkEmitter & {
+      std::unique_ptr<OptimizationRemarkEmitter> &ORE = OREMap[F];
+      if (!ORE)
+        ORE = std::make_unique<OptimizationRemarkEmitter>(F);
+      return *ORE;
+    };
+
     // TODO: Compute the module slice we are allowed to look at.
-    OpenMPOpt OMPOpt(SCC, ModuleSlice, CGUpdater);
+    OpenMPOpt OMPOpt(SCC, ModuleSlice, CGUpdater, OREGetter);
     return OMPOpt.run();
   }
 

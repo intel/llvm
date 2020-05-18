@@ -171,21 +171,17 @@ int FunctionComparator::cmpRangeMetadata(const MDNode *L,
   return 0;
 }
 
-// FIXME(CallSite): the parameters should be CallBase
-int FunctionComparator::cmpOperandBundlesSchema(const Instruction *L,
-                                                const Instruction *R) const {
-  const CallBase *LCS = cast<CallBase>(L);
-  const CallBase *RCS = cast<CallBase>(R);
-
-  assert(LCS->getOpcode() == RCS->getOpcode() && "Can't compare otherwise!");
+int FunctionComparator::cmpOperandBundlesSchema(const CallBase &LCS,
+                                                const CallBase &RCS) const {
+  assert(LCS.getOpcode() == RCS.getOpcode() && "Can't compare otherwise!");
 
   if (int Res =
-          cmpNumbers(LCS->getNumOperandBundles(), RCS->getNumOperandBundles()))
+          cmpNumbers(LCS.getNumOperandBundles(), RCS.getNumOperandBundles()))
     return Res;
 
-  for (unsigned i = 0, e = LCS->getNumOperandBundles(); i != e; ++i) {
-    auto OBL = LCS->getOperandBundleAt(i);
-    auto OBR = RCS->getOperandBundleAt(i);
+  for (unsigned I = 0, E = LCS.getNumOperandBundles(); I != E; ++I) {
+    auto OBL = LCS.getOperandBundleAt(I);
+    auto OBR = RCS.getOperandBundleAt(I);
 
     if (int Res = OBL.getTagName().compare(OBR.getTagName()))
       return Res;
@@ -592,7 +588,7 @@ int FunctionComparator::cmpOperations(const Instruction *L,
       return Res;
     if (int Res = cmpAttrs(CBL->getAttributes(), CBR->getAttributes()))
       return Res;
-    if (int Res = cmpOperandBundlesSchema(L, R))
+    if (int Res = cmpOperandBundlesSchema(*CBL, *CBR))
       return Res;
     if (const CallInst *CI = dyn_cast<CallInst>(L))
       if (int Res = cmpNumbers(CI->getTailCallKind(),
@@ -659,6 +655,16 @@ int FunctionComparator::cmpOperations(const Instruction *L,
       return Res;
     return cmpNumbers(RMWI->getSyncScopeID(),
                       cast<AtomicRMWInst>(R)->getSyncScopeID());
+  }
+  if (const ShuffleVectorInst *SVI = dyn_cast<ShuffleVectorInst>(L)) {
+    ArrayRef<int> LMask = SVI->getShuffleMask();
+    ArrayRef<int> RMask = cast<ShuffleVectorInst>(R)->getShuffleMask();
+    if (int Res = cmpNumbers(LMask.size(), RMask.size()))
+      return Res;
+    for (size_t i = 0, e = LMask.size(); i != e; ++i) {
+      if (int Res = cmpNumbers(LMask[i], RMask[i]))
+        return Res;
+    }
   }
   if (const PHINode *PNL = dyn_cast<PHINode>(L)) {
     const PHINode *PNR = cast<PHINode>(R);

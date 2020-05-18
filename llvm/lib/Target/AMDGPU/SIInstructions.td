@@ -193,16 +193,27 @@ def V_SET_INACTIVE_B64 : VPseudoInstSI <(outs VReg_64:$vdst),
   let Constraints = "$src = $vdst";
 }
 
+let usesCustomInserter = 1, Defs = [VCC, EXEC] in {
+def V_ADD_U64_PSEUDO : VPseudoInstSI <
+  (outs VReg_64:$vdst), (ins VSrc_b64:$src0, VSrc_b64:$src1),
+  [(set VReg_64:$vdst, (getDivergentFrag<add>.ret i64:$src0, i64:$src1))]
+>;
+
+def V_SUB_U64_PSEUDO : VPseudoInstSI <
+  (outs VReg_64:$vdst), (ins VSrc_b64:$src0, VSrc_b64:$src1),
+  [(set VReg_64:$vdst, (getDivergentFrag<sub>.ret i64:$src0, i64:$src1))]
+>;
+} // End usesCustomInserter = 1, Defs = [VCC, EXEC]
 
 let usesCustomInserter = 1, Defs = [SCC] in {
 def S_ADD_U64_PSEUDO : SPseudoInstSI <
-  (outs SReg_64:$vdst), (ins SSrc_b64:$src0, SSrc_b64:$src1),
-  [(set SReg_64:$vdst, (add i64:$src0, i64:$src1))]
+  (outs SReg_64:$sdst), (ins SSrc_b64:$src0, SSrc_b64:$src1),
+  [(set SReg_64:$sdst, (UniformBinFrag<add> i64:$src0, i64:$src1))]
 >;
 
 def S_SUB_U64_PSEUDO : SPseudoInstSI <
-  (outs SReg_64:$vdst), (ins SSrc_b64:$src0, SSrc_b64:$src1),
-  [(set SReg_64:$vdst, (sub i64:$src0, i64:$src1))]
+  (outs SReg_64:$sdst), (ins SSrc_b64:$src0, SSrc_b64:$src1),
+  [(set SReg_64:$sdst, (UniformBinFrag<sub> i64:$src0, i64:$src1))]
 >;
 
 def S_ADD_U64_CO_PSEUDO : SPseudoInstSI <
@@ -212,6 +223,23 @@ def S_ADD_U64_CO_PSEUDO : SPseudoInstSI <
 def S_SUB_U64_CO_PSEUDO : SPseudoInstSI <
   (outs SReg_64:$vdst, VOPDstS64orS32:$sdst), (ins SSrc_b64:$src0, SSrc_b64:$src1)
 >;
+
+def S_ADD_CO_PSEUDO : SPseudoInstSI <
+  (outs SReg_32:$sdst, SSrc_i1:$scc_out), (ins SSrc_b32:$src0, SSrc_b32:$src1, SSrc_i1:$scc_in)
+>;
+
+def S_SUB_CO_PSEUDO : SPseudoInstSI <
+  (outs SReg_32:$sdst, SSrc_i1:$scc_out), (ins SSrc_b32:$src0, SSrc_b32:$src1, SSrc_i1:$scc_in)
+>;
+
+def S_UADDO_PSEUDO : SPseudoInstSI <
+  (outs SReg_32:$sdst, SSrc_i1:$scc_out), (ins SSrc_b32:$src0, SSrc_b32:$src1)
+>;
+
+def S_USUBO_PSEUDO : SPseudoInstSI <
+  (outs SReg_32:$sdst, SSrc_i1:$scc_out), (ins SSrc_b32:$src0, SSrc_b32:$src1)
+>;
+
 } // End usesCustomInserter = 1, Defs = [SCC]
 
 let usesCustomInserter = 1 in {
@@ -537,12 +565,14 @@ def SI_INDIRECT_SRC_V2 : SI_INDIRECT_SRC<VReg_64>;
 def SI_INDIRECT_SRC_V4 : SI_INDIRECT_SRC<VReg_128>;
 def SI_INDIRECT_SRC_V8 : SI_INDIRECT_SRC<VReg_256>;
 def SI_INDIRECT_SRC_V16 : SI_INDIRECT_SRC<VReg_512>;
+def SI_INDIRECT_SRC_V32 : SI_INDIRECT_SRC<VReg_1024>;
 
 def SI_INDIRECT_DST_V1 : SI_INDIRECT_DST<VGPR_32>;
 def SI_INDIRECT_DST_V2 : SI_INDIRECT_DST<VReg_64>;
 def SI_INDIRECT_DST_V4 : SI_INDIRECT_DST<VReg_128>;
 def SI_INDIRECT_DST_V8 : SI_INDIRECT_DST<VReg_256>;
 def SI_INDIRECT_DST_V16 : SI_INDIRECT_DST<VReg_512>;
+def SI_INDIRECT_DST_V32 : SI_INDIRECT_DST<VReg_1024>;
 
 } // End Uses = [EXEC], Defs = [M0, EXEC]
 
@@ -1149,14 +1179,46 @@ def : BitConvert <v8i32, v8f32, SReg_256>;
 def : BitConvert <v8f32, v8i32, SReg_256>;
 def : BitConvert <v8i32, v8f32, VReg_256>;
 def : BitConvert <v8f32, v8i32, VReg_256>;
+def : BitConvert <v4i64, v4f64, VReg_256>;
+def : BitConvert <v4f64, v4i64, VReg_256>;
+def : BitConvert <v4i64, v8i32, VReg_256>;
+def : BitConvert <v4i64, v8f32, VReg_256>;
+def : BitConvert <v4f64, v8i32, VReg_256>;
+def : BitConvert <v4f64, v8f32, VReg_256>;
+def : BitConvert <v8i32, v4i64, VReg_256>;
+def : BitConvert <v8f32, v4i64, VReg_256>;
+def : BitConvert <v8i32, v4f64, VReg_256>;
+def : BitConvert <v8f32, v4f64, VReg_256>;
+
 
 // 512-bit bitcast
 def : BitConvert <v16i32, v16f32, VReg_512>;
 def : BitConvert <v16f32, v16i32, VReg_512>;
+def : BitConvert <v8i64,  v8f64,  VReg_512>;
+def : BitConvert <v8f64,  v8i64,  VReg_512>;
+def : BitConvert <v8i64,  v16i32, VReg_512>;
+def : BitConvert <v8f64,  v16i32, VReg_512>;
+def : BitConvert <v16i32, v8i64,  VReg_512>;
+def : BitConvert <v16i32, v8f64,  VReg_512>;
+def : BitConvert <v8i64,  v16f32, VReg_512>;
+def : BitConvert <v8f64,  v16f32, VReg_512>;
+def : BitConvert <v16f32, v8i64,  VReg_512>;
+def : BitConvert <v16f32, v8f64,  VReg_512>;
 
 // 1024-bit bitcast
 def : BitConvert <v32i32, v32f32, VReg_1024>;
 def : BitConvert <v32f32, v32i32, VReg_1024>;
+def : BitConvert <v16i64, v16f64, VReg_1024>;
+def : BitConvert <v16f64, v16i64, VReg_1024>;
+def : BitConvert <v16i64, v32i32, VReg_1024>;
+def : BitConvert <v32i32, v16i64, VReg_1024>;
+def : BitConvert <v16f64, v32f32, VReg_1024>;
+def : BitConvert <v32f32, v16f64, VReg_1024>;
+def : BitConvert <v16i64, v32f32, VReg_1024>;
+def : BitConvert <v32i32, v16f64, VReg_1024>;
+def : BitConvert <v16f64, v32i32, VReg_1024>;
+def : BitConvert <v32f32, v16i64, VReg_1024>;
+
 
 /********** =================== **********/
 /********** Src & Dst modifiers **********/
@@ -1532,11 +1594,13 @@ defm : SI_INDIRECT_Pattern <v2f32, f32, "V2">;
 defm : SI_INDIRECT_Pattern <v4f32, f32, "V4">;
 defm : SI_INDIRECT_Pattern <v8f32, f32, "V8">;
 defm : SI_INDIRECT_Pattern <v16f32, f32, "V16">;
+defm : SI_INDIRECT_Pattern <v32f32, f32, "V32">;
 
 defm : SI_INDIRECT_Pattern <v2i32, i32, "V2">;
 defm : SI_INDIRECT_Pattern <v4i32, i32, "V4">;
 defm : SI_INDIRECT_Pattern <v8i32, i32, "V8">;
 defm : SI_INDIRECT_Pattern <v16i32, i32, "V16">;
+defm : SI_INDIRECT_Pattern <v32i32, i32, "V32">;
 
 //===----------------------------------------------------------------------===//
 // SAD Patterns

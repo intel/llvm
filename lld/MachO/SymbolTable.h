@@ -11,6 +11,7 @@
 
 #include "lld/Common/LLVM.h"
 #include "llvm/ADT/CachedHashString.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/Object/Archive.h"
 
 namespace lld {
@@ -28,6 +29,9 @@ public:
   Symbol *addUndefined(StringRef name);
 
   Symbol *addDylib(StringRef name, DylibFile *file);
+
+  Symbol *addLazy(StringRef name, ArchiveFile *file,
+                  const llvm::object::Archive::Symbol &sym);
 
   ArrayRef<Symbol *> getSymbols() const { return symVector; }
   Symbol *find(StringRef name);

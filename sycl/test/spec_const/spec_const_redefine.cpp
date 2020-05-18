@@ -1,11 +1,12 @@
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
-// TODO the test currently fails on non-HOST devices as program recompilation
-//      based on spec constants set change is not complete yet.
-// XFAIL: cpu,gpu,acc,cuda
+// RUN: env SYCL_PI_TRACE=2 %CPU_RUN_PLACEHOLDER %t.out 2>&1 %CPU_CHECK_PLACEHOLDER
+// RUN: env SYCL_PI_TRACE=2 %GPU_RUN_PLACEHOLDER %t.out 2>&1 %GPU_CHECK_PLACEHOLDER
+// RUN: env SYCL_PI_TRACE=2 %ACC_RUN_PLACEHOLDER %t.out 2>&1 %ACC_CHECK_PLACEHOLDER
+// TODO: re-enable after CI drivers are updated to newer which support spec
+// constants:
+// XFAIL: linux && opencl
+// UNSUPPORTED: cuda
 //
 //==----------- spec_const_redefine.cpp ------------------------------------==//
 //
@@ -14,27 +15,30 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// The test checks that the specialization constant can be redifined and correct
-// new value is used after redefinition.
+// The test checks that:
+// - a specialization constant can be redifined and correct new value is used
+//   after redefinition.
+// - the program is JITted only once per a unique set of specialization
+//   constants values.
 
 #include <CL/sycl.hpp>
 
 #include <iostream>
 #include <vector>
 
-class MyInt32Const;
+class SC0;
+class SC1;
+class KernelAAA;
 
 using namespace sycl;
 
-class KernelAAAi;
-
-int val = 10;
+int val = 0;
 
 // Fetch a value at runtime.
 int get_value() { return val; }
 
 int main(int argc, char **argv) {
-  val = argc + 16;
+  val = argc;
 
   cl::sycl::queue q(default_selector{}, [](exception_list l) {
     for (auto ep : l) {
@@ -52,36 +56,47 @@ int main(int argc, char **argv) {
 
   std::cout << "Running on " << q.get_device().get_info<info::device::name>()
             << "\n";
-  std::cout << "val = " << val << "\n";
   bool passed = true;
+  int x = get_value();
 
-  for (int i = 0; i < 2; i++) {
+  const int sc_vals[][2] = {
+      {1 + x, 2 + x},
+      {2 + x, 3 + x},
+      {1 + x, 2 + x}, // same as first - program in cache must be used
+      {2 + x, 3 + x}  // same as second - program in cache must be used
+  };
+  constexpr int n_sc_sets = sizeof(sc_vals) / sizeof(sc_vals[0]);
+  std::vector<int> vec(n_sc_sets);
+
+  for (int i = 0; i < n_sc_sets; i++) {
     cl::sycl::program program(q.get_context());
-    int gold = (int)get_value() + i;
-    // The same constant - MyInt32Const - is set to different value with the
-    // same kernel each loop iteration. SYCL RT must rebuild the underlying
-    // program.
-    cl::sycl::experimental::spec_constant<int32_t, MyInt32Const> i32 =
-        program.set_spec_constant<MyInt32Const>(gold);
-    program.build_with_kernel_type<KernelAAAi>();
-    std::vector<int> vec(1);
+    const int *sc_set = &sc_vals[i][0];
+    cl::sycl::experimental::spec_constant<int32_t, SC0> sc0 =
+        program.set_spec_constant<SC0>(sc_set[0]);
+    cl::sycl::experimental::spec_constant<int32_t, SC1> sc1 =
+        program.set_spec_constant<SC1>(sc_set[1]);
+
+    program.build_with_kernel_type<KernelAAA>();
 
     try {
       cl::sycl::buffer<int, 1> buf(vec.data(), vec.size());
 
       q.submit([&](cl::sycl::handler &cgh) {
         auto acc = buf.get_access<cl::sycl::access::mode::write>(cgh);
-        cgh.single_task<KernelAAAi>(
-            program.get_kernel<KernelAAAi>(),
+        cgh.single_task<KernelAAA>(
+            program.get_kernel<KernelAAA>(),
             [=]() {
-              acc[0] = i32.get();
+              acc[i] = sc0.get() + sc1.get();
             });
       });
     } catch (cl::sycl::exception &e) {
       std::cout << "*** Exception caught: " << e.what() << "\n";
       return 1;
     }
-    int val = vec[0];
+    int val = vec[i];
+    int gold = sc_set[0] + sc_set[1];
+
+    std::cout << "val = " << val << " gold = " << gold << "\n";
 
     if (val != gold) {
       std::cout << "*** ERROR[" << i << "]: " << val << " != " << gold << "(gold)\n";
@@ -91,3 +106,11 @@ int main(int argc, char **argv) {
   std::cout << (passed ? "passed\n" : "FAILED\n");
   return passed ? 0 : 1;
 }
+
+// --- Check that only two JIT compilation happened:
+// CHECK-NOT: ---> piProgramLink
+// CHECK: ---> piProgramLink
+// CHECK: ---> piProgramLink
+// CHECK-NOT: ---> piProgramLink
+// --- Check that the test completed with expected results:
+// CHECK: passed

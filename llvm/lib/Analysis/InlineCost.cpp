@@ -54,8 +54,8 @@ static cl::opt<int>
                      cl::ZeroOrMore,
                      cl::desc("Default amount of inlining to perform"));
 
-static cl::opt<bool> PrintDebugInstructionDeltas("print-instruction-deltas",
-    cl::Hidden, cl::init(false),
+static cl::opt<bool> PrintDebugInstructionDeltas(
+    "print-instruction-deltas", cl::Hidden, cl::init(false),
     cl::desc("Prints deltas of cost and threshold per instruction"));
 
 static cl::opt<int> InlineThreshold(
@@ -132,12 +132,20 @@ class CostAnnotationWriter : public AssemblyAnnotationWriter {
 public:
   // This DenseMap stores the delta change in cost and threshold after
   // accounting for the given instruction.
-  DenseMap <const Instruction *, InstructionCostDetail> CostThresholdMap;
+  DenseMap<const Instruction *, InstructionCostDetail> CostThresholdMap;
 
   virtual void emitInstructionAnnot(const Instruction *I,
-                                        formatted_raw_ostream &OS);
+                                    formatted_raw_ostream &OS);
 };
 
+/// Carry out call site analysis, in order to evaluate inlinability.
+/// NOTE: the type is currently used as implementation detail of functions such
+/// as llvm::getInlineCost. Note the function_ref constructor parameters - the
+/// expectation is that they come from the outer scope, from the wrapper
+/// functions. If we want to support constructing CallAnalyzer objects where
+/// lambdas are provided inline at construction, or where the object needs to
+/// otherwise survive past the scope of the provided functions, we need to
+/// revisit the argument types.
 class CallAnalyzer : public InstVisitor<CallAnalyzer, bool> {
   typedef InstVisitor<CallAnalyzer, bool> Base;
   friend class InstVisitor<CallAnalyzer, bool>;
@@ -148,10 +156,10 @@ protected:
   const TargetTransformInfo &TTI;
 
   /// Getter for the cache of @llvm.assume intrinsics.
-  std::function<AssumptionCache &(Function &)> &GetAssumptionCache;
+  function_ref<AssumptionCache &(Function &)> GetAssumptionCache;
 
   /// Getter for BlockFrequencyInfo
-  Optional<function_ref<BlockFrequencyInfo &(Function &)>> &GetBFI;
+  function_ref<BlockFrequencyInfo &(Function &)> GetBFI;
 
   /// Profile summary information.
   ProfileSummaryInfo *PSI;
@@ -382,11 +390,12 @@ protected:
   bool visitUnreachableInst(UnreachableInst &I);
 
 public:
-  CallAnalyzer(const TargetTransformInfo &TTI,
-               std::function<AssumptionCache &(Function &)> &GetAssumptionCache,
-               Optional<function_ref<BlockFrequencyInfo &(Function &)>> &GetBFI,
-               ProfileSummaryInfo *PSI, OptimizationRemarkEmitter *ORE,
-               Function &Callee, CallBase &Call)
+  CallAnalyzer(
+      Function &Callee, CallBase &Call, const TargetTransformInfo &TTI,
+      function_ref<AssumptionCache &(Function &)> GetAssumptionCache,
+      function_ref<BlockFrequencyInfo &(Function &)> GetBFI = nullptr,
+      ProfileSummaryInfo *PSI = nullptr,
+      OptimizationRemarkEmitter *ORE = nullptr)
       : TTI(TTI), GetAssumptionCache(GetAssumptionCache), GetBFI(GetBFI),
         PSI(PSI), F(Callee), DL(F.getParent()->getDataLayout()), ORE(ORE),
         CandidateCall(Call), EnableLoadElimination(true) {}
@@ -426,6 +435,9 @@ class InlineCostCallAnalyzer final : public CallAnalyzer {
 
   /// Attempt to evaluate indirect calls to boost its inline cost.
   const bool BoostIndirectCalls;
+
+  /// Ignore the threshold when finalizing analysis.
+  const bool IgnoreThreshold;
 
   /// Inlining cost measured in abstract units, accounts for all the
   /// instructions expected to be executed for a given function invocation.
@@ -501,8 +513,8 @@ class InlineCostCallAnalyzer final : public CallAnalyzer {
           InlineConstants::IndirectCallThreshold;
       /// FIXME: if InlineCostCallAnalyzer is derived from, this may need
       /// to instantiate the derived class.
-      InlineCostCallAnalyzer CA(TTI, GetAssumptionCache, GetBFI, PSI, ORE, *F,
-                                Call, IndirectCallParams, false);
+      InlineCostCallAnalyzer CA(*F, Call, IndirectCallParams, TTI,
+                                GetAssumptionCache, GetBFI, PSI, ORE, false);
       if (CA.analyze().isSuccess()) {
         // We were able to inline the indirect call! Subtract the cost from the
         // threshold to get the bonus we want to apply, but don't go below zero.
@@ -587,7 +599,7 @@ class InlineCostCallAnalyzer final : public CallAnalyzer {
     // This function is called to store the initial cost of inlining before
     // the given instruction was assessed.
     if (!PrintDebugInstructionDeltas)
-        return ;
+      return;
     Writer.CostThresholdMap[I].CostBefore = Cost;
     Writer.CostThresholdMap[I].ThresholdBefore = Threshold;
   }
@@ -596,7 +608,7 @@ class InlineCostCallAnalyzer final : public CallAnalyzer {
     // This function is called to find new values of cost and threshold after
     // the instruction has been assessed.
     if (!PrintDebugInstructionDeltas)
-        return ;
+      return;
     Writer.CostThresholdMap[I].CostAfter = Cost;
     Writer.CostThresholdMap[I].ThresholdAfter = Threshold;
   }
@@ -629,14 +641,14 @@ class InlineCostCallAnalyzer final : public CallAnalyzer {
     else if (NumVectorInstructions <= NumInstructions / 2)
       Threshold -= VectorBonus / 2;
 
-    if (Cost < std::max(1, Threshold))
+    if (IgnoreThreshold || Cost < std::max(1, Threshold))
       return InlineResult::success();
     return InlineResult::failure("Cost over threshold.");
   }
   bool shouldStop() override {
     // Bail out the moment we cross the threshold. This means we'll under-count
     // the cost, but only when undercounting doesn't matter.
-    return Cost >= Threshold && !ComputeFullInlineCost;
+    return !IgnoreThreshold && Cost >= Threshold && !ComputeFullInlineCost;
   }
 
   void onLoadEliminationOpportunity() override {
@@ -690,16 +702,18 @@ class InlineCostCallAnalyzer final : public CallAnalyzer {
 
 public:
   InlineCostCallAnalyzer(
+      Function &Callee, CallBase &Call, const InlineParams &Params,
       const TargetTransformInfo &TTI,
-      std::function<AssumptionCache &(Function &)> &GetAssumptionCache,
-      Optional<function_ref<BlockFrequencyInfo &(Function &)>> &GetBFI,
-      ProfileSummaryInfo *PSI, OptimizationRemarkEmitter *ORE, Function &Callee,
-      CallBase &Call, const InlineParams &Params, bool BoostIndirect = true)
-      : CallAnalyzer(TTI, GetAssumptionCache, GetBFI, PSI, ORE, Callee, Call),
+      function_ref<AssumptionCache &(Function &)> GetAssumptionCache,
+      function_ref<BlockFrequencyInfo &(Function &)> GetBFI = nullptr,
+      ProfileSummaryInfo *PSI = nullptr,
+      OptimizationRemarkEmitter *ORE = nullptr, bool BoostIndirect = true,
+      bool IgnoreThreshold = false)
+      : CallAnalyzer(Callee, Call, TTI, GetAssumptionCache, GetBFI, PSI, ORE),
         ComputeFullInlineCost(OptComputeFullInlineCost ||
                               Params.ComputeFullInlineCost || ORE),
         Params(Params), Threshold(Params.DefaultThreshold),
-        BoostIndirectCalls(BoostIndirect) {}
+        BoostIndirectCalls(BoostIndirect), IgnoreThreshold(IgnoreThreshold) {}
 
   /// Annotation Writer for cost annotation
   CostAnnotationWriter Writer;
@@ -723,22 +737,24 @@ void CallAnalyzer::disableSROAForArg(AllocaInst *SROAArg) {
   disableLoadElimination();
 }
 
-void CostAnnotationWriter::emitInstructionAnnot(
-    const Instruction *I, formatted_raw_ostream &OS) {
-    // The cost of inlining of the given instruction is printed always.
-    // The threshold delta is printed only when it is non-zero. It happens
-    // when we decided to give a bonus at a particular instruction.
-    assert(CostThresholdMap.count(I) > 0 &&
-           "Expected each instruction to have an instruction annotation");
-    const auto &Record = CostThresholdMap[I];
-    OS << "; cost before = " << Record.CostBefore
-       << ", cost after = " << Record.CostAfter
-       << ", threshold before = " << Record.ThresholdBefore
-       << ", threshold after = " << Record.ThresholdAfter << ", ";
-    OS << "cost delta = " << Record.getCostDelta();
-    if (Record.hasThresholdChanged())
-      OS << ", threshold delta = " << Record.getThresholdDelta();
-    OS << "\n";
+void CostAnnotationWriter::emitInstructionAnnot(const Instruction *I,
+                                                formatted_raw_ostream &OS) {
+  // The cost of inlining of the given instruction is printed always.
+  // The threshold delta is printed only when it is non-zero. It happens
+  // when we decided to give a bonus at a particular instruction.
+  if (CostThresholdMap.count(I) == 0) {
+    OS << "; No analysis for the instruction\n";
+    return;
+  }
+  const auto &Record = CostThresholdMap[I];
+  OS << "; cost before = " << Record.CostBefore
+     << ", cost after = " << Record.CostAfter
+     << ", threshold before = " << Record.ThresholdBefore
+     << ", threshold after = " << Record.ThresholdAfter << ", ";
+  OS << "cost delta = " << Record.getCostDelta();
+  if (Record.hasThresholdChanged())
+    OS << ", threshold delta = " << Record.getThresholdDelta();
+  OS << "\n";
 }
 
 /// If 'V' maps to a SROA candidate, disable SROA for it.
@@ -799,7 +815,9 @@ bool CallAnalyzer::isGEPFree(GetElementPtrInst &GEP) {
       Operands.push_back(SimpleOp);
     else
       Operands.push_back(*I);
-  return TargetTransformInfo::TCC_Free == TTI.getUserCost(&GEP, Operands);
+  return TargetTransformInfo::TCC_Free ==
+         TTI.getUserCost(&GEP, Operands,
+                         TargetTransformInfo::TCK_SizeAndLatency);
 }
 
 bool CallAnalyzer::visitAlloca(AllocaInst &I) {
@@ -1047,7 +1065,8 @@ bool CallAnalyzer::visitPtrToInt(PtrToIntInst &I) {
   if (auto *SROAArg = getSROAArgForValueOrNull(I.getOperand(0)))
     SROAArgValues[&I] = SROAArg;
 
-  return TargetTransformInfo::TCC_Free == TTI.getUserCost(&I);
+  return TargetTransformInfo::TCC_Free ==
+         TTI.getUserCost(&I, TargetTransformInfo::TCK_SizeAndLatency);
 }
 
 bool CallAnalyzer::visitIntToPtr(IntToPtrInst &I) {
@@ -1071,7 +1090,8 @@ bool CallAnalyzer::visitIntToPtr(IntToPtrInst &I) {
   if (auto *SROAArg = getSROAArgForValueOrNull(Op))
     SROAArgValues[&I] = SROAArg;
 
-  return TargetTransformInfo::TCC_Free == TTI.getUserCost(&I);
+  return TargetTransformInfo::TCC_Free ==
+         TTI.getUserCost(&I, TargetTransformInfo::TCK_SizeAndLatency);
 }
 
 bool CallAnalyzer::visitCastInst(CastInst &I) {
@@ -1101,7 +1121,8 @@ bool CallAnalyzer::visitCastInst(CastInst &I) {
     break;
   }
 
-  return TargetTransformInfo::TCC_Free == TTI.getUserCost(&I);
+  return TargetTransformInfo::TCC_Free ==
+         TTI.getUserCost(&I, TargetTransformInfo::TCK_SizeAndLatency);
 }
 
 bool CallAnalyzer::visitUnaryInstruction(UnaryInstruction &I) {
@@ -1287,7 +1308,7 @@ void InlineCostCallAnalyzer::updateThreshold(CallBase &Call, Function &Callee) {
     // Callsite hotness and coldness can be determined if sample profile is
     // used (which adds hotness metadata to calls) or if caller's
     // BlockFrequencyInfo is available.
-    BlockFrequencyInfo *CallerBFI = GetBFI ? &((*GetBFI)(*Caller)) : nullptr;
+    BlockFrequencyInfo *CallerBFI = GetBFI ? &(GetBFI(*Caller)) : nullptr;
     auto HotCallSiteThreshold = getHotCallSiteThreshold(Call, CallerBFI);
     if (!Caller->hasOptSize() && HotCallSiteThreshold) {
       LLVM_DEBUG(dbgs() << "Hot callsite.\n");
@@ -1754,7 +1775,7 @@ bool CallAnalyzer::visitSwitchInst(SwitchInst &SI) {
   // does not (yet) fire.
 
   unsigned JumpTableSize = 0;
-  BlockFrequencyInfo *BFI = GetBFI ? &((*GetBFI)(F)) : nullptr;
+  BlockFrequencyInfo *BFI = GetBFI ? &(GetBFI(F)) : nullptr;
   unsigned NumCaseCluster =
       TTI.getEstimatedNumberOfCaseClusters(SI, JumpTableSize, PSI, BFI);
 
@@ -1803,7 +1824,8 @@ bool CallAnalyzer::visitUnreachableInst(UnreachableInst &I) {
 bool CallAnalyzer::visitInstruction(Instruction &I) {
   // Some instructions are free. All of the free intrinsics can also be
   // handled by SROA, etc.
-  if (TargetTransformInfo::TCC_Free == TTI.getUserCost(&I))
+  if (TargetTransformInfo::TCC_Free ==
+      TTI.getUserCost(&I, TargetTransformInfo::TCK_SizeAndLatency))
     return true;
 
   // We found something we don't understand or can't handle. Mark any SROA-able
@@ -2207,12 +2229,36 @@ int llvm::getCallsiteCost(CallBase &Call, const DataLayout &DL) {
 
 InlineCost llvm::getInlineCost(
     CallBase &Call, const InlineParams &Params, TargetTransformInfo &CalleeTTI,
-    std::function<AssumptionCache &(Function &)> &GetAssumptionCache,
-    Optional<function_ref<BlockFrequencyInfo &(Function &)>> GetBFI,
+    function_ref<AssumptionCache &(Function &)> GetAssumptionCache,
     function_ref<const TargetLibraryInfo &(Function &)> GetTLI,
+    function_ref<BlockFrequencyInfo &(Function &)> GetBFI,
     ProfileSummaryInfo *PSI, OptimizationRemarkEmitter *ORE) {
   return getInlineCost(Call, Call.getCalledFunction(), Params, CalleeTTI,
-                       GetAssumptionCache, GetBFI, GetTLI, PSI, ORE);
+                       GetAssumptionCache, GetTLI, GetBFI, PSI, ORE);
+}
+
+Optional<int> llvm::getInliningCostEstimate(
+    CallBase &Call, TargetTransformInfo &CalleeTTI,
+    function_ref<AssumptionCache &(Function &)> GetAssumptionCache,
+    function_ref<BlockFrequencyInfo &(Function &)> GetBFI,
+    ProfileSummaryInfo *PSI, OptimizationRemarkEmitter *ORE) {
+  const InlineParams Params = {/* DefaultThreshold*/ 0,
+                               /*HintThreshold*/ {},
+                               /*ColdThreshold*/ {},
+                               /*OptSizeThreshold*/ {},
+                               /*OptMinSizeThreshold*/ {},
+                               /*HotCallSiteThreshold*/ {},
+                               /*LocallyHotCallSiteThreshold*/ {},
+                               /*ColdCallSiteThreshold*/ {},
+                               /* ComputeFullInlineCost*/ true};
+
+  InlineCostCallAnalyzer CA(*Call.getCalledFunction(), Call, Params, CalleeTTI,
+                            GetAssumptionCache, GetBFI, PSI, ORE, true,
+                            /*IgnoreThreshold*/ true);
+  auto R = CA.analyze();
+  if (!R.isSuccess())
+    return None;
+  return CA.getCost();
 }
 
 Optional<InlineResult> llvm::getAttributeBasedInliningDecision(
@@ -2279,9 +2325,9 @@ Optional<InlineResult> llvm::getAttributeBasedInliningDecision(
 InlineCost llvm::getInlineCost(
     CallBase &Call, Function *Callee, const InlineParams &Params,
     TargetTransformInfo &CalleeTTI,
-    std::function<AssumptionCache &(Function &)> &GetAssumptionCache,
-    Optional<function_ref<BlockFrequencyInfo &(Function &)>> GetBFI,
+    function_ref<AssumptionCache &(Function &)> GetAssumptionCache,
     function_ref<const TargetLibraryInfo &(Function &)> GetTLI,
+    function_ref<BlockFrequencyInfo &(Function &)> GetBFI,
     ProfileSummaryInfo *PSI, OptimizationRemarkEmitter *ORE) {
 
   auto UserDecision =
@@ -2297,8 +2343,8 @@ InlineCost llvm::getInlineCost(
                           << "... (caller:" << Call.getCaller()->getName()
                           << ")\n");
 
-  InlineCostCallAnalyzer CA(CalleeTTI, GetAssumptionCache, GetBFI, PSI, ORE,
-                            *Callee, Call, Params);
+  InlineCostCallAnalyzer CA(*Callee, Call, Params, CalleeTTI,
+                            GetAssumptionCache, GetBFI, PSI, ORE);
   InlineResult ShouldInline = CA.analyze();
 
   LLVM_DEBUG(CA.dump());

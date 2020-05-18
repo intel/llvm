@@ -389,9 +389,10 @@ MODULES_KEYWORD(module)
 MODULES_KEYWORD(import)
 
 // C++20 keywords.
-CXX20_KEYWORD(char8_t               , CHAR8SUPPORT)
 CXX20_KEYWORD(consteval             , 0)
 CXX20_KEYWORD(constinit             , 0)
+// Not a CXX20_KEYWORD because it is disabled by -fno-char8_t.
+KEYWORD(char8_t                     , CHAR8SUPPORT)
 
 // C11 Extension
 KEYWORD(_Float16                    , KEYALL)
@@ -808,6 +809,11 @@ PRAGMA_ANNOTATION(pragma_fp_contract)
 // The lexer produces these so that they only take effect when the parser
 // handles them.
 PRAGMA_ANNOTATION(pragma_fenv_access)
+
+// Annotation for #pragma float_control
+// The lexer produces these so that they only take effect when the parser
+// handles them.
+PRAGMA_ANNOTATION(pragma_float_control)
 
 // Annotation for #pragma pointers_to_members...
 // The lexer produces these so that they only take effect when the parser

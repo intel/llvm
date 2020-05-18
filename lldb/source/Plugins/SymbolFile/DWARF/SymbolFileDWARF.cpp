@@ -664,12 +664,6 @@ lldb::CompUnitSP SymbolFileDWARF::ParseCompileUnit(DWARFCompileUnit &dwarf_cu) {
         const DWARFBaseDIE cu_die =
             dwarf_cu.GetNonSkeletonUnit().GetUnitDIEOnly();
         if (cu_die) {
-          if (const char *sdk =
-                  cu_die.GetAttributeValueAsString(DW_AT_APPLE_sdk, nullptr)) {
-            const char *sysroot =
-                cu_die.GetAttributeValueAsString(DW_AT_LLVM_sysroot, "");
-            module_sp->RegisterXcodeSDK(sdk, sysroot);
-          }
           FileSpec cu_file_spec(cu_die.GetName(), dwarf_cu.GetPathStyle());
           MakeAbsoluteAndRemap(cu_file_spec, dwarf_cu, module_sp);
 
@@ -776,6 +770,34 @@ lldb::LanguageType SymbolFileDWARF::ParseLanguage(CompileUnit &comp_unit) {
     return GetLanguage(*dwarf_cu);
   else
     return eLanguageTypeUnknown;
+}
+
+XcodeSDK SymbolFileDWARF::ParseXcodeSDK(CompileUnit &comp_unit) {
+  std::lock_guard<std::recursive_mutex> guard(GetModuleMutex());
+  DWARFUnit *dwarf_cu = GetDWARFCompileUnit(&comp_unit);
+  if (!dwarf_cu)
+    return {};
+  const DWARFBaseDIE cu_die = dwarf_cu->GetNonSkeletonUnit().GetUnitDIEOnly();
+  if (!cu_die)
+    return {};
+  const char *sdk = cu_die.GetAttributeValueAsString(DW_AT_APPLE_sdk, nullptr);
+  if (!sdk)
+    return {};
+  const char *sysroot =
+      cu_die.GetAttributeValueAsString(DW_AT_LLVM_sysroot, "");
+  // Register the sysroot path remapping with the module belonging to
+  // the CU as well as the one belonging to the symbol file. The two
+  // would be different if this is an OSO object and module is the
+  // corresponding debug map, in which case both should be updated.
+  ModuleSP module_sp = comp_unit.GetModule();
+  if (module_sp)
+    module_sp->RegisterXcodeSDK(sdk, sysroot);
+
+  ModuleSP local_module_sp = m_objfile_sp->GetModule();
+  if (local_module_sp && local_module_sp != module_sp)
+    local_module_sp->RegisterXcodeSDK(sdk, sysroot);
+
+  return {sdk};
 }
 
 size_t SymbolFileDWARF::ParseFunctions(CompileUnit &comp_unit) {
@@ -1450,17 +1472,20 @@ Type *SymbolFileDWARF::ResolveType(const DWARFDIE &die,
 
 CompileUnit *
 SymbolFileDWARF::GetCompUnitForDWARFCompUnit(DWARFCompileUnit &dwarf_cu) {
-  DWARFCompileUnit *non_dwo_cu =
-      dwarf_cu.IsDWOUnit()
-          ? static_cast<DWARFCompileUnit *>(dwarf_cu.GetUserData())
-          : &dwarf_cu;
+  if (dwarf_cu.IsDWOUnit()) {
+    DWARFCompileUnit *non_dwo_cu =
+        static_cast<DWARFCompileUnit *>(dwarf_cu.GetUserData());
+    assert(non_dwo_cu);
+    return non_dwo_cu->GetSymbolFileDWARF().GetCompUnitForDWARFCompUnit(
+        *non_dwo_cu);
+  }
   // Check if the symbol vendor already knows about this compile unit?
-  if (non_dwo_cu->GetUserData() == nullptr) {
+  if (dwarf_cu.GetUserData() == nullptr) {
     // The symbol vendor doesn't know about this compile unit, we need to parse
     // and add it to the symbol vendor object.
-    return ParseCompileUnit(*non_dwo_cu).get();
+    return ParseCompileUnit(dwarf_cu).get();
   }
-  return static_cast<CompileUnit *>(non_dwo_cu->GetUserData());
+  return static_cast<CompileUnit *>(dwarf_cu.GetUserData());
 }
 
 void SymbolFileDWARF::GetObjCMethods(

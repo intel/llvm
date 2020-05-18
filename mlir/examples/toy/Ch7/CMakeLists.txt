@@ -1,9 +1,12 @@
+# For a better template to copy, see examples/standalone
 include_directories(include)
 add_subdirectory(include)
 
 set(LLVM_LINK_COMPONENTS
   Core
   Support
+  nativecodegen
+  OrcJIT
   )
 
 set(LLVM_TARGET_DEFINITIONS mlir/ToyCombine.td)

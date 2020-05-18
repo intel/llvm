@@ -361,9 +361,7 @@ private:
   // prints a debug message with the updated value.
   void pushToWorkListMsg(ValueLatticeElement &IV, Value *V) {
     LLVM_DEBUG(dbgs() << "updated " << IV << ": " << *V << '\n');
-    if (IV.isOverdefined())
-      return OverdefinedInstWorkList.push_back(V);
-    InstWorkList.push_back(V);
+    pushToWorkList(IV, V);
   }
 
   // markConstant - Make a value be marked as "constant".  If the value
@@ -1223,22 +1221,23 @@ void SCCPSolver::handleCallResult(CallBase &CB) {
       Value *CopyOf = CB.getOperand(0);
       auto *PI = getPredicateInfoFor(&CB);
       auto *PBranch = dyn_cast_or_null<PredicateBranch>(PI);
+      ValueLatticeElement OriginalVal = getValueState(CopyOf);
       if (!PI || !PBranch) {
-        mergeInValue(ValueState[&CB], &CB, getValueState(CopyOf));
+        mergeInValue(ValueState[&CB], &CB, OriginalVal);
         return;
       }
 
       // Everything below relies on the condition being a comparison.
       auto *Cmp = dyn_cast<CmpInst>(PBranch->Condition);
       if (!Cmp) {
-        mergeInValue(ValueState[&CB], &CB, getValueState(CopyOf));
+        mergeInValue(ValueState[&CB], &CB, OriginalVal);
         return;
       }
 
       Value *CmpOp0 = Cmp->getOperand(0);
       Value *CmpOp1 = Cmp->getOperand(1);
       if (CopyOf != CmpOp0 && CopyOf != CmpOp1) {
-        mergeInValue(ValueState[&CB], &CB, getValueState(CopyOf));
+        mergeInValue(ValueState[&CB], &CB, OriginalVal);
         return;
       }
 
@@ -1259,7 +1258,6 @@ void SCCPSolver::handleCallResult(CallBase &CB) {
 
       ValueLatticeElement CondVal = getValueState(CmpOp1);
       ValueLatticeElement &IV = ValueState[&CB];
-      ValueLatticeElement OriginalVal = getValueState(CopyOf);
       if (CondVal.isConstantRange() || OriginalVal.isConstantRange()) {
         auto NewCR =
             ConstantRange::getFull(DL.getTypeSizeInBits(CopyOf->getType()));
@@ -1299,7 +1297,7 @@ void SCCPSolver::handleCallResult(CallBase &CB) {
         return;
       }
 
-      return (void)mergeInValue(IV, &CB, getValueState(CopyOf));
+      return (void)mergeInValue(IV, &CB, OriginalVal);
     }
   }
 

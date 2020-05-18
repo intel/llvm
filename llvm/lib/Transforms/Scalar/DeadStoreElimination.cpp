@@ -839,7 +839,7 @@ static bool handleEndBlock(BasicBlock &BB, AliasAnalysis *AA,
   // Treat byval or inalloca arguments the same, stores to them are dead at the
   // end of the function.
   for (Argument &AI : BB.getParent()->args())
-    if (AI.hasByValOrInAllocaAttr())
+    if (AI.hasPassPointeeByValueAttr())
       DeadStackObjects.insert(&AI);
 
   const DataLayout &DL = BB.getModule()->getDataLayout();
@@ -1332,9 +1332,8 @@ static bool eliminateDeadStores(BasicBlock &BB, AliasAnalysis *AA,
 
             auto *SI = new StoreInst(
                 ConstantInt::get(Earlier->getValueOperand()->getType(), Merged),
-                Earlier->getPointerOperand(), false,
-                MaybeAlign(Earlier->getAlignment()), Earlier->getOrdering(),
-                Earlier->getSyncScopeID(), DepWrite);
+                Earlier->getPointerOperand(), false, Earlier->getAlign(),
+                Earlier->getOrdering(), Earlier->getSyncScopeID(), DepWrite);
 
             unsigned MDToKeep[] = {LLVMContext::MD_dbg, LLVMContext::MD_tbaa,
                                    LLVMContext::MD_alias_scope,
@@ -1549,7 +1548,7 @@ struct DSEState {
     // Treat byval or inalloca arguments the same as Allocas, stores to them are
     // dead at the end of the function.
     for (Argument &AI : F.args())
-      if (AI.hasByValOrInAllocaAttr())
+      if (AI.hasPassPointeeByValueAttr())
         State.InvisibleToCallerBeforeRet.insert(&AI);
     return State;
   }

@@ -288,6 +288,25 @@ void TypeLocWriter::VisitExtVectorTypeLoc(ExtVectorTypeLoc TL) {
   Record.AddSourceLocation(TL.getNameLoc());
 }
 
+void TypeLocWriter::VisitConstantMatrixTypeLoc(ConstantMatrixTypeLoc TL) {
+  Record.AddSourceLocation(TL.getAttrNameLoc());
+  SourceRange range = TL.getAttrOperandParensRange();
+  Record.AddSourceLocation(range.getBegin());
+  Record.AddSourceLocation(range.getEnd());
+  Record.AddStmt(TL.getAttrRowOperand());
+  Record.AddStmt(TL.getAttrColumnOperand());
+}
+
+void TypeLocWriter::VisitDependentSizedMatrixTypeLoc(
+    DependentSizedMatrixTypeLoc TL) {
+  Record.AddSourceLocation(TL.getAttrNameLoc());
+  SourceRange range = TL.getAttrOperandParensRange();
+  Record.AddSourceLocation(range.getBegin());
+  Record.AddSourceLocation(range.getEnd());
+  Record.AddStmt(TL.getAttrRowOperand());
+  Record.AddStmt(TL.getAttrColumnOperand());
+}
+
 void TypeLocWriter::VisitFunctionTypeLoc(FunctionTypeLoc TL) {
   Record.AddSourceLocation(TL.getLocalRangeBegin());
   Record.AddSourceLocation(TL.getLParenLoc());
@@ -1812,7 +1831,7 @@ void ASTWriter::WriteHeaderSearch(const HeaderSearch &HS) {
       Filename, File->getSize(), getTimestampForOutput(File)
     };
     HeaderFileInfoTrait::data_type Data = {
-      *HFI, HS.getModuleMap().findAllModulesForHeader(File), {}
+      *HFI, HS.getModuleMap().findResolvedModulesForHeader(File), {}
     };
     Generator.insert(Key, Data, GeneratorTrait);
     ++NumHeaderSearchEntries;
@@ -2898,8 +2917,10 @@ void ASTWriter::WriteTypeDeclOffsets() {
 void ASTWriter::WriteFileDeclIDsMap() {
   using namespace llvm;
 
-  SmallVector<std::pair<FileID, DeclIDInFileInfo *>, 64> SortedFileDeclIDs(
-      FileDeclIDs.begin(), FileDeclIDs.end());
+  SmallVector<std::pair<FileID, DeclIDInFileInfo *>, 64> SortedFileDeclIDs;
+  SortedFileDeclIDs.reserve(FileDeclIDs.size());
+  for (const auto &P : FileDeclIDs)
+    SortedFileDeclIDs.push_back(std::make_pair(P.first, P.second.get()));
   llvm::sort(SortedFileDeclIDs, llvm::less_first());
 
   // Join the vectors of DeclIDs from all files.
@@ -4137,6 +4158,26 @@ void ASTWriter::WritePackPragmaOptions(Sema &SemaRef) {
   Stream.EmitRecord(PACK_PRAGMA_OPTIONS, Record);
 }
 
+/// Write the state of 'pragma float_control' at the end of the module.
+void ASTWriter::WriteFloatControlPragmaOptions(Sema &SemaRef) {
+  // Don't serialize pragma float_control state for modules,
+  // since it should only take effect on a per-submodule basis.
+  if (WritingModule)
+    return;
+
+  RecordData Record;
+  Record.push_back(SemaRef.FpPragmaStack.CurrentValue);
+  AddSourceLocation(SemaRef.FpPragmaStack.CurrentPragmaLocation, Record);
+  Record.push_back(SemaRef.FpPragmaStack.Stack.size());
+  for (const auto &StackEntry : SemaRef.FpPragmaStack.Stack) {
+    Record.push_back(StackEntry.Value);
+    AddSourceLocation(StackEntry.PragmaLocation, Record);
+    AddSourceLocation(StackEntry.PragmaPushLocation, Record);
+    AddString(StackEntry.StackSlotLabel, Record);
+  }
+  Stream.EmitRecord(FLOAT_CONTROL_PRAGMA_OPTIONS, Record);
+}
+
 void ASTWriter::WriteModuleFileExtension(Sema &SemaRef,
                                          ModuleFileExtensionWriter &Writer) {
   // Enter the extension block.
@@ -4297,9 +4338,7 @@ ASTWriter::ASTWriter(llvm::BitstreamWriter &Stream,
   }
 }
 
-ASTWriter::~ASTWriter() {
-  llvm::DeleteContainerSeconds(FileDeclIDs);
-}
+ASTWriter::~ASTWriter() = default;
 
 const LangOptions &ASTWriter::getLangOpts() const {
   assert(WritingAST && "can't determine lang opts when not writing AST");
@@ -4867,6 +4906,7 @@ ASTFileSignature ASTWriter::WriteASTCore(Sema &SemaRef, StringRef isysroot,
     WriteMSPointersToMembersPragmaOptions(SemaRef);
   }
   WritePackPragmaOptions(SemaRef);
+  WriteFloatControlPragmaOptions(SemaRef);
 
   // Some simple statistics
   RecordData::value_type Record[] = {
@@ -5366,9 +5406,9 @@ void ASTWriter::associateDeclWithFile(const Decl *D, DeclID ID) {
     return;
   assert(SM.getSLocEntry(FID).isFile());
 
-  DeclIDInFileInfo *&Info = FileDeclIDs[FID];
+  std::unique_ptr<DeclIDInFileInfo> &Info = FileDeclIDs[FID];
   if (!Info)
-    Info = new DeclIDInFileInfo();
+    Info = std::make_unique<DeclIDInFileInfo>();
 
   std::pair<unsigned, serialization::DeclID> LocDecl(Offset, ID);
   LocDeclIDsTy &Decls = Info->DeclIDs;
@@ -6649,6 +6689,18 @@ void OMPClauseWriter::VisitOMPOrderClause(OMPOrderClause *C) {
   Record.writeEnum(C->getKind());
   Record.AddSourceLocation(C->getLParenLoc());
   Record.AddSourceLocation(C->getKindKwLoc());
+}
+
+void OMPClauseWriter::VisitOMPUsesAllocatorsClause(OMPUsesAllocatorsClause *C) {
+  Record.push_back(C->getNumberOfAllocators());
+  Record.AddSourceLocation(C->getLParenLoc());
+  for (unsigned I = 0, E = C->getNumberOfAllocators(); I < E; ++I) {
+    OMPUsesAllocatorsClause::Data Data = C->getAllocatorData(I);
+    Record.AddStmt(Data.Allocator);
+    Record.AddStmt(Data.AllocatorTraits);
+    Record.AddSourceLocation(Data.LParenLoc);
+    Record.AddSourceLocation(Data.RParenLoc);
+  }
 }
 
 void ASTRecordWriter::writeOMPTraitInfo(const OMPTraitInfo *TI) {

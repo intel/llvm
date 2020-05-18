@@ -6,15 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <grpcpp/grpcpp.h>
+#include <grpc++/grpc++.h>
 
 #include "Client.h"
 #include "Index.grpc.pb.h"
-#include "Logger.h"
-#include "Trace.h"
 #include "index/Serialization.h"
 #include "marshalling/Marshalling.h"
-#include "llvm/Support/YAMLTraits.h"
+#include "support/Logger.h"
+#include "support/Trace.h"
 
 namespace clang {
 namespace clangd {

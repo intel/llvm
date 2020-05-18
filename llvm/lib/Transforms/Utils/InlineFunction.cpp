@@ -79,9 +79,12 @@ EnableNoAliasConversion("enable-noalias-to-md-conversion", cl::init(true),
   cl::Hidden,
   cl::desc("Convert noalias attributes to metadata during inlining."));
 
+// Disabled by default, because the added alignment assumptions may increase
+// compile-time and block optimizations. This option is not suitable for use
+// with frontends that emit comprehensive parameter alignment annotations.
 static cl::opt<bool>
 PreserveAlignmentAssumptions("preserve-alignment-assumptions-during-inlining",
-  cl::init(true), cl::Hidden,
+  cl::init(false), cl::Hidden,
   cl::desc("Convert align attributes to assumptions during inlining."));
 
 static cl::opt<bool> UpdateReturnAttributes(
@@ -534,7 +537,7 @@ static BasicBlock *HandleCallsInBlockInlinedThroughInvoke(
     // instructions require no special handling.
     CallInst *CI = dyn_cast<CallInst>(I);
 
-    if (!CI || CI->doesNotThrow() || isa<InlineAsm>(CI->getCalledValue()))
+    if (!CI || CI->doesNotThrow() || CI->isInlineAsm())
       continue;
 
     // We do not need to (and in fact, cannot) convert possibly throwing calls
@@ -1231,7 +1234,7 @@ static void AddAlignmentAssumptions(CallBase &CB, InlineFunctionInfo &IFI) {
   if (!PreserveAlignmentAssumptions || !IFI.GetAssumptionCache)
     return;
 
-  AssumptionCache *AC = &(*IFI.GetAssumptionCache)(*CB.getCaller());
+  AssumptionCache *AC = &IFI.GetAssumptionCache(*CB.getCaller());
   auto &DL = CB.getCaller()->getParent()->getDataLayout();
 
   // To avoid inserting redundant assumptions, we should check for assumptions
@@ -1242,7 +1245,7 @@ static void AddAlignmentAssumptions(CallBase &CB, InlineFunctionInfo &IFI) {
   Function *CalledFunc = CB.getCalledFunction();
   for (Argument &Arg : CalledFunc->args()) {
     unsigned Align = Arg.getType()->isPointerTy() ? Arg.getParamAlignment() : 0;
-    if (Align && !Arg.hasByValOrInAllocaAttr() && !Arg.hasNUses(0)) {
+    if (Align && !Arg.hasPassPointeeByValueAttr() && !Arg.hasNUses(0)) {
       if (!DTCalculated) {
         DT.recalculate(*CB.getCaller());
         DTCalculated = true;
@@ -1370,7 +1373,7 @@ static Value *HandleByValArgument(Value *Arg, Instruction *TheCall,
       return Arg;
 
     AssumptionCache *AC =
-        IFI.GetAssumptionCache ? &(*IFI.GetAssumptionCache)(*Caller) : nullptr;
+        IFI.GetAssumptionCache ? &IFI.GetAssumptionCache(*Caller) : nullptr;
 
     // If the pointer is already known to be sufficiently aligned, or if we can
     // round it up to a larger alignment, then we don't need a temporary.
@@ -1559,8 +1562,7 @@ static void updateCallerBFI(BasicBlock *CallSiteBlock,
 /// Update the branch metadata for cloned call instructions.
 static void updateCallProfile(Function *Callee, const ValueToValueMapTy &VMap,
                               const ProfileCount &CalleeEntryCount,
-                              const Instruction *TheCall,
-                              ProfileSummaryInfo *PSI,
+                              const CallBase &TheCall, ProfileSummaryInfo *PSI,
                               BlockFrequencyInfo *CallerBFI) {
   if (!CalleeEntryCount.hasValue() || CalleeEntryCount.isSynthetic() ||
       CalleeEntryCount.getCount() < 1)
@@ -1790,7 +1792,7 @@ llvm::InlineResult llvm::InlineFunction(CallBase &CB, InlineFunctionInfo &IFI,
     AddAlignmentAssumptions(CB, IFI);
 
     AssumptionCache *AC =
-        IFI.GetAssumptionCache ? &(*IFI.GetAssumptionCache)(*Caller) : nullptr;
+        IFI.GetAssumptionCache ? &IFI.GetAssumptionCache(*Caller) : nullptr;
 
     /// Preserve all attributes on of the call and its parameters.
     salvageKnowledge(&CB, AC);
@@ -1810,7 +1812,7 @@ llvm::InlineResult llvm::InlineFunction(CallBase &CB, InlineFunctionInfo &IFI,
       updateCallerBFI(OrigBB, VMap, IFI.CallerBFI, IFI.CalleeBFI,
                       CalledFunc->front());
 
-    updateCallProfile(CalledFunc, VMap, CalledFunc->getEntryCount(), &CB,
+    updateCallProfile(CalledFunc, VMap, CalledFunc->getEntryCount(), CB,
                       IFI.PSI, IFI.CallerBFI);
 
     // Inject byval arguments initialization.
@@ -1902,11 +1904,10 @@ llvm::InlineResult llvm::InlineFunction(CallBase &CB, InlineFunctionInfo &IFI,
     if (IFI.GetAssumptionCache)
       for (BasicBlock &NewBlock :
            make_range(FirstNewBlock->getIterator(), Caller->end()))
-        for (Instruction &I : NewBlock) {
+        for (Instruction &I : NewBlock)
           if (auto *II = dyn_cast<IntrinsicInst>(&I))
             if (II->getIntrinsicID() == Intrinsic::assume)
-              (*IFI.GetAssumptionCache)(*Caller).registerAssumption(II);
-        }
+              IFI.GetAssumptionCache(*Caller).registerAssumption(II);
   }
 
   // If there are any alloca instructions in the block that used to be the entry
@@ -2150,7 +2151,7 @@ llvm::InlineResult llvm::InlineFunction(CallBase &CB, InlineFunctionInfo &IFI,
 
         // Skip call sites which are nounwind intrinsics.
         auto *CalledFn =
-            dyn_cast<Function>(I->getCalledValue()->stripPointerCasts());
+            dyn_cast<Function>(I->getCalledOperand()->stripPointerCasts());
         if (CalledFn && CalledFn->isIntrinsic() && I->doesNotThrow())
           continue;
 
@@ -2494,7 +2495,7 @@ llvm::InlineResult llvm::InlineFunction(CallBase &CB, InlineFunctionInfo &IFI,
   // block other optimizations.
   if (PHI) {
     AssumptionCache *AC =
-        IFI.GetAssumptionCache ? &(*IFI.GetAssumptionCache)(*Caller) : nullptr;
+        IFI.GetAssumptionCache ? &IFI.GetAssumptionCache(*Caller) : nullptr;
     auto &DL = Caller->getParent()->getDataLayout();
     if (Value *V = SimplifyInstruction(PHI, {DL, nullptr, nullptr, AC})) {
       PHI->replaceAllUsesWith(V);

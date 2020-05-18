@@ -1108,7 +1108,7 @@ public:
   };
 
   indexed_accessor_range_base(iterator begin, iterator end)
-      : base(DerivedT::offset_base(begin.getBase(), begin.getIndex())),
+      : base(offset_base(begin.getBase(), begin.getIndex())),
         count(end.getIndex() - begin.getIndex()) {}
   indexed_accessor_range_base(const iterator_range<iterator> &range)
       : indexed_accessor_range_base(range.begin(), range.end()) {}
@@ -1141,7 +1141,7 @@ public:
   /// Drop the first N elements, and keep M elements.
   DerivedT slice(size_t n, size_t m) const {
     assert(n + m <= size() && "invalid size specifiers");
-    return DerivedT(DerivedT::offset_base(base, n), m);
+    return DerivedT(offset_base(base, n), m);
   }
 
   /// Drop the first n elements.
@@ -1172,6 +1172,15 @@ public:
                                  RangeT, iterator_range<iterator>>::value>>
   operator RangeT() const {
     return RangeT(iterator_range<iterator>(*this));
+  }
+
+  /// Returns the base of this range.
+  const BaseT &getBase() const { return base; }
+
+private:
+  /// Offset the given base by the given amount.
+  static BaseT offset_base(const BaseT &base, size_t n) {
+    return n == 0 ? base : DerivedT::offset_base(base, n);
   }
 
 protected:
@@ -1449,24 +1458,6 @@ inline void sort(Container &&C, Compare Comp) {
 //===----------------------------------------------------------------------===//
 //     Extra additions to <algorithm>
 //===----------------------------------------------------------------------===//
-
-/// For a container of pointers, deletes the pointers and then clears the
-/// container.
-template<typename Container>
-void DeleteContainerPointers(Container &C) {
-  for (auto V : C)
-    delete V;
-  C.clear();
-}
-
-/// In a container of pairs (usually a map) whose second element is a pointer,
-/// deletes the second elements and then clears the container.
-template<typename Container>
-void DeleteContainerSeconds(Container &C) {
-  for (auto &V : C)
-    delete V.second;
-  C.clear();
-}
 
 /// Get the size of a range. This is a wrapper function around std::distance
 /// which is only enabled when the operation is O(1).

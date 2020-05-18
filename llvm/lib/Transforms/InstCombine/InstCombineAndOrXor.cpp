@@ -2132,6 +2132,59 @@ static Instruction *matchRotate(Instruction &Or) {
   return IntrinsicInst::Create(F, { ShVal, ShVal, ShAmt });
 }
 
+/// Attempt to combine or(zext(x),shl(zext(y),bw/2) concat packing patterns.
+static Instruction *matchOrConcat(Instruction &Or,
+                                  InstCombiner::BuilderTy &Builder) {
+  assert(Or.getOpcode() == Instruction::Or && "bswap requires an 'or'");
+  Value *Op0 = Or.getOperand(0), *Op1 = Or.getOperand(1);
+  Type *Ty = Or.getType();
+
+  unsigned Width = Ty->getScalarSizeInBits();
+  if ((Width & 1) != 0)
+    return nullptr;
+  unsigned HalfWidth = Width / 2;
+
+  // Canonicalize zext (lower half) to LHS.
+  if (!isa<ZExtInst>(Op0))
+    std::swap(Op0, Op1);
+
+  // Find lower/upper half.
+  Value *LowerSrc, *ShlVal, *UpperSrc;
+  const APInt *C;
+  if (!match(Op0, m_OneUse(m_ZExt(m_Value(LowerSrc)))) ||
+      !match(Op1, m_OneUse(m_Shl(m_Value(ShlVal), m_APInt(C)))) ||
+      !match(ShlVal, m_OneUse(m_ZExt(m_Value(UpperSrc)))))
+    return nullptr;
+  if (*C != HalfWidth || LowerSrc->getType() != UpperSrc->getType() ||
+      LowerSrc->getType()->getScalarSizeInBits() != HalfWidth)
+    return nullptr;
+
+  auto ConcatIntrinsicCalls = [&](Intrinsic::ID id, Value *Lo, Value *Hi) {
+    Value *NewLower = Builder.CreateZExt(Lo, Ty);
+    Value *NewUpper = Builder.CreateZExt(Hi, Ty);
+    NewUpper = Builder.CreateShl(NewUpper, HalfWidth);
+    Value *BinOp = Builder.CreateOr(NewLower, NewUpper);
+    Function *F = Intrinsic::getDeclaration(Or.getModule(), id, Ty);
+    return Builder.CreateCall(F, BinOp);
+  };
+
+  // BSWAP: Push the concat down, swapping the lower/upper sources.
+  // concat(bswap(x),bswap(y)) -> bswap(concat(x,y))
+  Value *LowerBSwap, *UpperBSwap;
+  if (match(LowerSrc, m_BSwap(m_Value(LowerBSwap))) &&
+      match(UpperSrc, m_BSwap(m_Value(UpperBSwap))))
+    return ConcatIntrinsicCalls(Intrinsic::bswap, UpperBSwap, LowerBSwap);
+
+  // BITREVERSE: Push the concat down, swapping the lower/upper sources.
+  // concat(bitreverse(x),bitreverse(y)) -> bitreverse(concat(x,y))
+  Value *LowerBRev, *UpperBRev;
+  if (match(LowerSrc, m_BitReverse(m_Value(LowerBRev))) &&
+      match(UpperSrc, m_BitReverse(m_Value(UpperBRev))))
+    return ConcatIntrinsicCalls(Intrinsic::bitreverse, UpperBRev, LowerBRev);
+
+  return nullptr;
+}
+
 /// If all elements of two constant vectors are 0/-1 and inverses, return true.
 static bool areInverseVectorBitmasks(Constant *C1, Constant *C2) {
   unsigned NumElts = cast<VectorType>(C1->getType())->getNumElements();
@@ -2531,6 +2584,9 @@ Instruction *InstCombiner::visitOr(BinaryOperator &I) {
 
   if (Instruction *Rotate = matchRotate(I))
     return Rotate;
+
+  if (Instruction *Concat = matchOrConcat(I, Builder))
+    return replaceInstUsesWith(I, Concat);
 
   Value *X, *Y;
   const APInt *CV;

@@ -1,9 +1,12 @@
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
-// TODO: re-enable after OpenCL RT is fixed:
-// RUNx: %CPU_RUN_PLACEHOLDER %t.out
-// RUNx: %GPU_RUN_PLACEHOLDER %t.out
-// RUNx: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %CPU_RUN_PLACEHOLDER %t.out
+// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// TODO: re-enable after CI drivers are updated to newer which support spec
+// constants:
+// XFAIL: linux && opencl
+// UNSUPPORTED: cuda
 //
 //==----------- spec_const_hw.cpp ------------------------------------------==//
 //
@@ -73,7 +76,9 @@ int main(int argc, char **argv) {
       program2.set_spec_constant<MyFloatConst>(goldf);
 
   program1.build_with_kernel_type<KernelAAAi>();
-  program2.build_with_kernel_type<KernelBBBf>();
+  // Use an option (does not matter which exactly) to test different internal
+  // SYCL RT execution path
+  program2.build_with_kernel_type<KernelBBBf>("-cl-fast-relaxed-math");
 
   std::vector<int> veci(1);
   std::vector<float> vecf(1);

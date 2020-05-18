@@ -523,7 +523,7 @@ public:
     const int NumPFWGLambdaArgs = 2; // group and lambda obj
     if (Call->getNumArgs() != NumPFWGLambdaArgs)
       return true;
-    if (!Util::isSyclType(Call->getArg(1)->getType(), "group", true /*tmpl*/))
+    if (!Util::isSyclType(Call->getArg(1)->getType(), "group", true /*Tmpl*/))
       return true;
     if (Call->getArg(0)->getType()->getAsCXXRecordDecl() != LambdaObjTy)
       return true;
@@ -694,13 +694,14 @@ static void VisitAccessorWrapperHelper(CXXRecordDecl *Owner, RangeTy Range,
     if (Util::isSyclAccessorType(ItemTy))
       (void)std::initializer_list<int>{
           (handlers.handleSyclAccessorType(Item, ItemTy), 0)...};
-    else if (ItemTy->isStructureOrClassType()) {
+    else if (Util::isSyclStreamType(ItemTy)) {
       VisitAccessorWrapper(Owner, Item, ItemTy->getAsCXXRecordDecl(),
                            handlers...);
-      if (Util::isSyclStreamType(ItemTy))
-        (void)std::initializer_list<int>{
-            (handlers.handleSyclStreamType(Item, ItemTy), 0)...};
-    }
+      (void)std::initializer_list<int>{
+          (handlers.handleSyclStreamType(Item, ItemTy), 0)...};
+    } else if (ItemTy->isStructureOrClassType())
+      VisitAccessorWrapper(Owner, Item, ItemTy->getAsCXXRecordDecl(),
+                           handlers...);
   }
 }
 
@@ -766,7 +767,7 @@ protected:
   SyclKernelFieldHandler(Sema &S) : SemaRef(S) {}
 
 public:
-  // Mark these virutal so that we can use override in the implementer classes,
+  // Mark these virtual so that we can use override in the implementer classes,
   // despite virtual dispatch never being used.
 
   // Accessor can be a base class or a field decl, so both must be handled.
@@ -794,7 +795,7 @@ public:
   virtual void leaveStruct(const CXXRecordDecl *, const CXXBaseSpecifier &) {}
 };
 
-// A type to check the valididty of all of the argument types.
+// A type to check the validity of all of the argument types.
 class SyclKernelFieldChecker
     : public SyclKernelFieldHandler<SyclKernelFieldChecker> {
   bool IsInvalid = false;
@@ -900,7 +901,7 @@ class SyclKernelDeclCreator
 
   static void setKernelImplicitAttrs(ASTContext &Context, FunctionDecl *FD,
                                      StringRef Name) {
-    // Set implict attributes.
+    // Set implicit attributes.
     FD->addAttr(OpenCLKernelAttr::CreateImplicit(Context));
     FD->addAttr(AsmLabelAttr::CreateImplicit(Context, Name));
     FD->addAttr(ArtificialAttr::CreateImplicit(Context));

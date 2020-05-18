@@ -47,11 +47,6 @@
 
 namespace SPIRV {
 
-static cl::opt<std::string>
-    MangledAtomicTypeNamePrefix("spirv-atomic-prefix",
-                                cl::desc("Mangled atomic type name prefix"),
-                                cl::init("U7_Atomic"));
-
 void SPIRVToOCL::visitCallInst(CallInst &CI) {
   LLVM_DEBUG(dbgs() << "[visistCallInst] " << CI << '\n');
   auto F = CI.getCalledFunction();
@@ -360,23 +355,6 @@ void SPIRVToOCL::visitCallSPIRVBuiltin(CallInst *CI, Op OC) {
         return OCLSPIRVBuiltinMap::rmap(OC);
       },
       &Attrs);
-}
-
-void SPIRVToOCL::translateMangledAtomicTypeName() {
-  for (auto &I : M->functions()) {
-    if (!I.hasName())
-      continue;
-    std::string MangledName{I.getName()};
-    StringRef DemangledName;
-    if (!oclIsBuiltin(MangledName, DemangledName) ||
-        DemangledName.find(kOCLBuiltinName::AtomPrefix) != 0)
-      continue;
-    auto Loc = MangledName.find(kOCLBuiltinName::AtomPrefix);
-    Loc = MangledName.find(kMangledName::AtomicPrefixInternal, Loc);
-    MangledName.replace(Loc, strlen(kMangledName::AtomicPrefixInternal),
-                        MangledAtomicTypeNamePrefix);
-    I.setName(MangledName);
-  }
 }
 
 std::string SPIRVToOCL::getGroupBuiltinPrefix(CallInst *CI) {

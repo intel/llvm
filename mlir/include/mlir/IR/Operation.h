@@ -36,11 +36,11 @@ public:
                            ArrayRef<NamedAttribute> attributes,
                            ArrayRef<Block *> successors, unsigned numRegions);
 
-  /// Overload of create that takes an existing NamedAttributeList to avoid
+  /// Overload of create that takes an existing MutableDictionaryAttr to avoid
   /// unnecessarily uniquing a list of attributes.
   static Operation *create(Location location, OperationName name,
                            ArrayRef<Type> resultTypes, ArrayRef<Value> operands,
-                           NamedAttributeList attributes,
+                           MutableDictionaryAttr attributes,
                            ArrayRef<Block *> successors, unsigned numRegions);
 
   /// Create a new Operation from the fields stored in `state`.
@@ -49,7 +49,7 @@ public:
   /// Create a new Operation with the specific fields.
   static Operation *create(Location location, OperationName name,
                            ArrayRef<Type> resultTypes, ArrayRef<Value> operands,
-                           NamedAttributeList attributes,
+                           MutableDictionaryAttr attributes,
                            ArrayRef<Block *> successors = {},
                            RegionRange regions = {});
 
@@ -185,6 +185,15 @@ public:
   /// `iterator` in the specified block.
   void moveBefore(Block *block, llvm::iplist<Operation>::iterator iterator);
 
+  /// Unlink this operation from its current block and insert it right after
+  /// `existingOp` which may be in the same or another block in the same
+  /// function.
+  void moveAfter(Operation *existingOp);
+
+  /// Unlink this operation from its current block and insert it right after
+  /// `iterator` in the specified block.
+  void moveAfter(Block *block, llvm::iplist<Operation>::iterator iterator);
+
   /// Given an operation 'other' that is within the same parent block, return
   /// whether the current operation is before 'other' in the operation list
   /// of the parent block.
@@ -205,6 +214,14 @@ public:
   /// 'operands'.
   void setOperands(ValueRange operands);
 
+  /// Replace the operands beginning at 'start' and ending at 'start' + 'length'
+  /// with the ones provided in 'operands'. 'operands' may be smaller or larger
+  /// than the range pointed to by 'start'+'length'.
+  void setOperands(unsigned start, unsigned length, ValueRange operands);
+
+  /// Insert the given operands into the operand list at the given 'index'.
+  void insertOperands(unsigned index, ValueRange operands);
+
   unsigned getNumOperands() {
     return LLVM_LIKELY(hasOperandStorage) ? getOperandStorage().size() : 0;
   }
@@ -214,6 +231,15 @@ public:
     return getOpOperand(idx).set(value);
   }
 
+  /// Erase the operand at position `idx`.
+  void eraseOperand(unsigned idx) { eraseOperands(idx); }
+
+  /// Erase the operands starting at position `idx` and ending at position
+  /// 'idx'+'length'.
+  void eraseOperands(unsigned idx, unsigned length = 1) {
+    getOperandStorage().eraseOperands(idx, length);
+  }
+
   // Support operand iteration.
   using operand_range = OperandRange;
   using operand_iterator = operand_range::iterator;
@@ -221,11 +247,8 @@ public:
   operand_iterator operand_begin() { return getOperands().begin(); }
   operand_iterator operand_end() { return getOperands().end(); }
 
-  /// Returns an iterator on the underlying Value's (Value ).
+  /// Returns an iterator on the underlying Value's.
   operand_range getOperands() { return operand_range(this); }
-
-  /// Erase the operand at position `idx`.
-  void eraseOperand(unsigned idx) { getOperandStorage().eraseOperand(idx); }
 
   MutableArrayRef<OpOperand> getOpOperands() {
     return LLVM_LIKELY(hasOperandStorage) ? getOperandStorage().getOperands()
@@ -280,13 +303,18 @@ public:
   /// Return all of the attributes on this operation.
   ArrayRef<NamedAttribute> getAttrs() { return attrs.getAttrs(); }
 
-  /// Return the internal attribute list on this operation.
-  NamedAttributeList &getAttrList() { return attrs; }
+  /// Return all of the attributes on this operation as a DictionaryAttr.
+  DictionaryAttr getAttrDictionary() {
+    return attrs.getDictionary(getContext());
+  }
 
-  /// Set the attribute list on this operation.
-  /// Using a NamedAttributeList is more efficient as it does not require new
+  /// Return mutable container of all the attributes on this operation.
+  MutableDictionaryAttr &getMutableAttrDict() { return attrs; }
+
+  /// Set the attribute dictionary on this operation.
+  /// Using a MutableDictionaryAttr is more efficient as it does not require new
   /// uniquing in the MLIRContext.
-  void setAttrs(NamedAttributeList newAttrs) { attrs = newAttrs; }
+  void setAttrs(MutableDictionaryAttr newAttrs) { attrs = newAttrs; }
 
   /// Return the specified attribute if present, null otherwise.
   Attribute getAttr(Identifier name) { return attrs.get(name); }
@@ -309,8 +337,11 @@ public:
 
   /// Remove the attribute with the specified name if it exists.  The return
   /// value indicates whether the attribute was present or not.
-  NamedAttributeList::RemoveResult removeAttr(Identifier name) {
+  MutableDictionaryAttr::RemoveResult removeAttr(Identifier name) {
     return attrs.remove(name);
+  }
+  MutableDictionaryAttr::RemoveResult removeAttr(StringRef name) {
+    return attrs.remove(Identifier::get(name, getContext()));
   }
 
   /// A utility iterator that filters out non-dialect attributes.
@@ -540,6 +571,14 @@ public:
                         [](OpResult result) { return result.use_empty(); });
   }
 
+  /// Returns true if the results of this operation are used outside of the
+  /// given block.
+  bool isUsedOutsideOfBlock(Block *block) {
+    return llvm::any_of(getOpResults(), [block](OpResult result) {
+      return result.isUsedOutsideOfBlock(block);
+    });
+  }
+
   //===--------------------------------------------------------------------===//
   // Users
   //===--------------------------------------------------------------------===//
@@ -596,7 +635,7 @@ private:
 private:
   Operation(Location location, OperationName name, ArrayRef<Type> resultTypes,
             unsigned numSuccessors, unsigned numRegions,
-            const NamedAttributeList &attributes, bool hasOperandStorage);
+            const MutableDictionaryAttr &attributes, bool hasOperandStorage);
 
   // Operations are deleted through the destroy() member because they are
   // allocated with malloc.
@@ -658,7 +697,7 @@ private:
   OperationName name;
 
   /// This holds general named attributes for the operation.
-  NamedAttributeList attrs;
+  MutableDictionaryAttr attrs;
 
   // allow ilist_traits access to 'block' field.
   friend struct llvm::ilist_traits<Operation>;

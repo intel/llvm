@@ -133,9 +133,9 @@ public:
     return isSGPRClass(getRegClass(RCID));
   }
 
-  bool isSGPRReg(const MachineRegisterInfo &MRI, unsigned Reg) const {
+  bool isSGPRReg(const MachineRegisterInfo &MRI, Register Reg) const {
     const TargetRegisterClass *RC;
-    if (Register::isVirtualRegister(Reg))
+    if (Reg.isVirtual())
       RC = MRI.getRegClass(Reg);
     else
       RC = getPhysRegClass(Reg);
@@ -196,7 +196,8 @@ public:
 
   MCRegister findUnusedRegister(const MachineRegisterInfo &MRI,
                                 const TargetRegisterClass *RC,
-                                const MachineFunction &MF) const;
+                                const MachineFunction &MF,
+                                bool ReserveHighestVGPR = false) const;
 
   const TargetRegisterClass *getRegClassForReg(const MachineRegisterInfo &MRI,
                                                Register Reg) const;
@@ -283,13 +284,17 @@ public:
 
   // \returns a DWORD offset of a \p SubReg
   unsigned getChannelFromSubReg(unsigned SubReg) const {
-    return SubReg ? divideCeil(getSubRegIdxOffset(SubReg), 32) : 0;
+    return SubReg ? (getSubRegIdxOffset(SubReg) + 31) / 32 : 0;
   }
 
   // \returns a DWORD size of a \p SubReg
   unsigned getNumChannelsFromSubReg(unsigned SubReg) const {
     return getNumCoveredRegs(getSubRegIndexLaneMask(SubReg));
   }
+
+  // For a given 16 bit \p Reg \returns a 32 bit register holding it.
+  // \returns \p Reg otherwise.
+  MCPhysReg get32BitRegister(MCPhysReg Reg) const;
 
 private:
   void buildSpillLoadStore(MachineBasicBlock::iterator MI,

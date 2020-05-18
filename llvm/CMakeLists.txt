@@ -401,11 +401,10 @@ option(LLVM_ENABLE_WARNINGS "Enable compiler warnings." ON)
 option(LLVM_ENABLE_MODULES "Compile with C++ modules enabled." OFF)
 if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   option(LLVM_ENABLE_MODULE_DEBUGGING "Compile with -gmodules." ON)
-  option(LLVM_ENABLE_LOCAL_SUBMODULE_VISIBILITY "Compile with -fmodules-local-submodule-visibility." OFF)
 else()
   option(LLVM_ENABLE_MODULE_DEBUGGING "Compile with -gmodules." OFF)
-  option(LLVM_ENABLE_LOCAL_SUBMODULE_VISIBILITY "Compile with -fmodules-local-submodule-visibility." ON)
 endif()
+option(LLVM_ENABLE_LOCAL_SUBMODULE_VISIBILITY "Compile with -fmodules-local-submodule-visibility." ON)
 option(LLVM_ENABLE_LIBCXX "Use libc++ if available." OFF)
 option(LLVM_STATIC_LINK_CXX_STDLIB "Statically link the standard library." OFF)
 option(LLVM_ENABLE_LLD "Use lld as C and C++ linker." OFF)
@@ -672,16 +671,38 @@ option(LLVM_ENABLE_PLUGINS "Enable plugin support" ${LLVM_ENABLE_PLUGINS_default
 
 include(HandleLLVMOptions)
 
-include(FindPythonInterp)
-if( NOT PYTHONINTERP_FOUND )
-  message(FATAL_ERROR
-"Unable to find Python interpreter, required for builds and testing.
+if(CMAKE_VERSION VERSION_LESS 3.12)
+  include(FindPythonInterp)
+  if( NOT PYTHONINTERP_FOUND )
+    message(FATAL_ERROR
+  "Unable to find Python interpreter, required for builds and testing.
 
-Please install Python or specify the PYTHON_EXECUTABLE CMake variable.")
-endif()
+  Please install Python or specify the PYTHON_EXECUTABLE CMake variable.")
+  endif()
 
-if( ${PYTHON_VERSION_STRING} VERSION_LESS 2.7 )
-  message(FATAL_ERROR "Python 2.7 or newer is required")
+  if( ${PYTHON_VERSION_STRING} VERSION_LESS 2.7 )
+    message(FATAL_ERROR "Python 2.7 or newer is required")
+  endif()
+
+  add_executable(Python3::Interpreter IMPORTED)
+  set_target_properties(Python3::Interpreter PROPERTIES
+    IMPORTED_LOCATION ${PYTHON_EXECUTABLE})
+  set(Python3_EXECUTABLE ${PYTHON_EXECUTABLE})
+else()
+  find_package(Python3 COMPONENTS Interpreter)
+  if(NOT Python3_Interpreter_FOUND)
+    message(WARNING "Python3 not found, using python2 as a fallback")
+    find_package(Python2 COMPONENTS Interpreter REQUIRED)
+    if(Python2_VERSION VERSION_LESS 2.7)
+      message(SEND_ERROR "Python 2.7 or newer is required")
+    endif()
+
+    # Treat python2 as python3
+    add_executable(Python3::Interpreter IMPORTED)
+    set_target_properties(Python3::Interpreter PROPERTIES
+      IMPORTED_LOCATION ${Python2_EXECUTABLE})
+    set(Python3_EXECUTABLE ${Python2_EXECUTABLE})
+  endif()
 endif()
 
 ######
@@ -717,7 +738,7 @@ endif (LLVM_USE_PERF)
 
 message(STATUS "Constructing LLVMBuild project information")
 execute_process(
-  COMMAND ${PYTHON_EXECUTABLE} -B ${LLVMBUILDTOOL}
+  COMMAND "${Python3_EXECUTABLE}" -B ${LLVMBUILDTOOL}
             --native-target "${LLVM_NATIVE_ARCH}"
             --enable-targets "${LLVM_TARGETS_TO_BUILD}"
             --enable-optional-components "${LLVMOPTIONALCOMPONENTS}"
@@ -853,6 +874,30 @@ endif()
 if (UNIX AND ${CMAKE_SYSTEM_NAME} MATCHES "AIX")
           add_definitions("-D_XOPEN_SOURCE=700")
           add_definitions("-D_LARGE_FILE_API")
+
+  # CMake versions less than 3.16 set default linker flags to include -brtl, as
+  # well as setting -G when building libraries, so clear them out. Note we only
+  # try to clear the form that CMake will set as part of its initial
+  # configuration, it is still possible the user may force it as part of a
+  # compound option.
+  if(CMAKE_VERSION VERSION_LESS 3.16)
+    string(REGEX REPLACE "(^|[ \t]+)-Wl,-brtl([ \t]+|$)" "" CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS}")
+    string(REGEX REPLACE "(^|[ \t]+)-Wl,-brtl([ \t]+|$)" "" CMAKE_SHARED_LINKER_FLAGS  "${CMAKE_SHARED_LINKER_FLAGS}")
+    string(REGEX REPLACE "(^|[ \t]+)-Wl,-brtl([ \t]+|$)" "" CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS}")
+    string(REGEX REPLACE "(^|[ \t]+)(-Wl,)?-G([ \t]+|$)" "" CMAKE_SHARED_LIBRARY_CREATE_C_FLAGS
+      "${CMAKE_SHARED_LIBRARY_CREATE_C_FLAGS}")
+    string(REGEX REPLACE "(^|[ \t]+)(-Wl,)?-G([ \t]+|$)" "" CMAKE_SHARED_LIBRARY_CREATE_CXX_FLAGS
+      "${CMAKE_SHARED_LIBRARY_CREATE_CXX_FLAGS}")
+    string(REGEX REPLACE "(^|[ \t]+)(-Wl,)?-G([ \t]+|$)" "" CMAKE_SHARED_LIBRARY_CREATE_ASM_FLAGS
+      "${CMAKE_SHARED_LIBRARY_CREATE_ASM_FLAGS}")
+  endif()
+
+  # Modules should be built with -G, so we can use runtime linking with
+  # plugins.
+  string(APPEND CMAKE_MODULE_LINKER_FLAGS " -G")
+
+  # Also set the correct flags for building shared libraries.
+  string(APPEND CMAKE_SHARED_LINKER_FLAGS " -shared")
 endif()
 
 # Build with _FILE_OFFSET_BITS=64 on Solaris to match g++ >= 9.

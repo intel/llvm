@@ -255,7 +255,7 @@ Type *AMDGPUCodeGenPrepare::getI32Ty(IRBuilder<> &B, const Type *T) const {
 
   if (T->isIntegerTy())
     return B.getInt32Ty();
-  return VectorType::get(B.getInt32Ty(), cast<VectorType>(T)->getNumElements());
+  return FixedVectorType::get(B.getInt32Ty(), cast<FixedVectorType>(T));
 }
 
 bool AMDGPUCodeGenPrepare::isSigned(const BinaryOperator &I) const {
@@ -477,7 +477,7 @@ bool AMDGPUCodeGenPrepare::isU24(Value *V, unsigned ScalarSize) const {
 
 static void extractValues(IRBuilder<> &Builder,
                           SmallVectorImpl<Value *> &Values, Value *V) {
-  VectorType *VT = dyn_cast<VectorType>(V->getType());
+  auto *VT = dyn_cast<FixedVectorType>(V->getType());
   if (!VT) {
     Values.push_back(V);
     return;
@@ -777,7 +777,7 @@ bool AMDGPUCodeGenPrepare::visitFDiv(BinaryOperator &FDiv) {
   Value *Den = FDiv.getOperand(1);
 
   Value *NewFDiv = nullptr;
-  if (VectorType *VT = dyn_cast<VectorType>(FDiv.getType())) {
+  if (auto *VT = dyn_cast<FixedVectorType>(FDiv.getType())) {
     NewFDiv = UndefValue::get(VT);
 
     // FIXME: Doesn't do the right thing for cases where the vector is partially
@@ -1005,6 +1005,16 @@ bool AMDGPUCodeGenPrepare::divHasSpecialOptimization(
   return false;
 }
 
+static Value *getSign32(Value *V, IRBuilder<> &Builder, const DataLayout *DL) {
+  // Check whether the sign can be determined statically.
+  KnownBits Known = computeKnownBits(V, *DL);
+  if (Known.isNegative())
+    return Constant::getAllOnesValue(V->getType());
+  if (Known.isNonNegative())
+    return Constant::getNullValue(V->getType());
+  return Builder.CreateAShr(V, Builder.getInt32(31));
+}
+
 Value* AMDGPUCodeGenPrepare::expandDivRem32(IRBuilder<> &Builder,
                                             BinaryOperator &I,
                                             Value *Num, Value *Den) const {
@@ -1046,9 +1056,8 @@ Value* AMDGPUCodeGenPrepare::expandDivRem32(IRBuilder<> &Builder,
 
   Value *Sign = nullptr;
   if (IsSigned) {
-    ConstantInt *K31 = Builder.getInt32(31);
-    Value *LHSign = Builder.CreateAShr(Num, K31);
-    Value *RHSign = Builder.CreateAShr(Den, K31);
+    Value *LHSign = getSign32(Num, Builder, DL);
+    Value *RHSign = getSign32(Den, Builder, DL);
     // Remainder sign is the same as LHS
     Sign = IsDiv ? Builder.CreateXor(LHSign, RHSign) : LHSign;
 
@@ -1224,7 +1233,7 @@ bool AMDGPUCodeGenPrepare::visitBinaryOperator(BinaryOperator &I) {
     IRBuilder<> Builder(&I);
     Builder.SetCurrentDebugLocation(I.getDebugLoc());
 
-    if (VectorType *VT = dyn_cast<VectorType>(Ty)) {
+    if (auto *VT = dyn_cast<FixedVectorType>(Ty)) {
       NewDiv = UndefValue::get(VT);
 
       for (unsigned N = 0, E = VT->getNumElements(); N != E; ++N) {

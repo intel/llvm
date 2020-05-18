@@ -15,6 +15,7 @@
 #include "lldb/API/SBBlock.h"
 #include "lldb/API/SBBreakpoint.h"
 #include "lldb/API/SBCommandInterpreter.h"
+#include "lldb/API/SBCommandInterpreterRunOptions.h"
 #include "lldb/API/SBData.h"
 #include "lldb/API/SBDebugger.h"
 #include "lldb/API/SBDeclaration.h"
@@ -40,6 +41,7 @@ SBRegistry::SBRegistry() {
   RegisterMethods<SBBreakpointLocation>(R);
   RegisterMethods<SBBreakpointName>(R);
   RegisterMethods<SBBroadcaster>(R);
+  RegisterMethods<SBCommandInterpreter>(R);
   RegisterMethods<SBCommandInterpreterRunOptions>(R);
   RegisterMethods<SBCommandReturnObject>(R);
   RegisterMethods<SBCommunication>(R);
@@ -227,6 +229,12 @@ const char *SBReproducer::GetPath() {
   auto &r = Reproducer::Instance();
   path = r.GetReproducerPath().GetCString();
   return path.c_str();
+}
+
+void SBReproducer::SetWorkingDirectory(const char *path) {
+  if (auto *g = lldb_private::repro::Reproducer::Instance().GetGenerator()) {
+    g->GetOrCreate<WorkingDirectoryProvider>().Update(path);
+  }
 }
 
 char lldb_private::repro::SBProvider::ID = 0;

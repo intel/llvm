@@ -67,7 +67,7 @@ their layouts, and subscripted accesses to these tensors in memory.
 
 The information captured in the IR allows a compact expression of all loop
 transformations, data remappings, explicit copying necessary for explicitly
-addressed memory in accelerators, mapping to pre-tuned expert written
+addressed memory in accelerators, mapping to pre-tuned expert-written
 primitives, and mapping to specialized vector instructions. Loop transformations
 that can be easily implemented include the body of affine transformations: these
 subsume all traditional loop transformations (unimodular and non-unimodular)
@@ -229,7 +229,7 @@ specifically abstracts the target-specific aspects that intersect with the
 code-generation-related/lowering-related concerns explained above. In fact, the
 `tensor` type even allows dialect-specific types as element types.
 
-### Bit width of a non-primitive types and `index` is undefined
+### Bit width of a non-primitive type and `index` is undefined
 
 The bit width of a compound type is not defined by MLIR, it may be defined by a
 specific lowering pass. In MLIR, bit width is a property of certain primitive
@@ -259,7 +259,7 @@ abstraction, especially closer to source language, might want to differentiate
 signedness with integer types; while others, especially closer to machine
 instruction, might want signless integers. Instead of forcing each abstraction
 to adopt the same integer modelling or develop its own one in house, Integer
-types provides this as an option to help code reuse and consistency.
+type provides this as an option to help code reuse and consistency.
 
 For the standard dialect, the choice is to have signless integer types. An
 integer value does not have an intrinsic sign, and it's up to the specific op
@@ -861,11 +861,12 @@ func @matmul(%A, %B, %C, %M, %N, %K) : (...)  { // %M, N, K are symbols
 
 ### Affine Relations
 
-The current MLIR spec includes affine maps and integer sets, but not affine
-relations. Affine relations are a natural way to model read and write access
-information, which can be very useful to capture the behavior of opaque external
-library calls, high-performance vendor libraries, or user-provided / user-tuned
-routines.
+The current MLIR spec includes affine maps and integer sets, but not
+affine relations. Affine relations are a natural way to model read and
+write access information, which can be very useful to capture the
+behavior of external library calls where no implementation is
+available, high-performance vendor libraries, or user-provided /
+user-tuned routines.
 
 An affine relation is a relation between input and output dimension identifiers
 while being symbolic on a list of symbolic identifiers and with affine

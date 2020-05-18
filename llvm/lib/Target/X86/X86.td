@@ -444,6 +444,13 @@ def FeatureLVIControlFlowIntegrity
           "LFENCE instruction to serialize control flow. Also decompose RET "
           "instructions into a POP+LFENCE+JMP sequence.">;
 
+// Mitigate LVI attacks against data loads
+def FeatureLVILoadHardening
+    : SubtargetFeature<
+          "lvi-load-hardening", "UseLVILoadHardening", "true",
+          "Insert LFENCE instructions to prevent data speculatively injected "
+          "into loads from being used maliciously.">;
+
 // Direct Move instructions.
 def FeatureMOVDIRI  : SubtargetFeature<"movdiri", "HasMOVDIRI", "true",
                                        "Support movdiri instruction">;
@@ -1260,6 +1267,7 @@ def : ProcessorModel<"x86-64", SandyBridgeModel, [
   FeatureNOPL,
   Feature64Bit,
   FeatureSlow3OpsLEA,
+  FeatureSlowDivide64,
   FeatureSlowIncDec,
   FeatureMacroFusion,
   FeatureInsertVZEROUPPER

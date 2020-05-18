@@ -520,12 +520,6 @@ public:
         static_cast<elem_pointer_t>(m_Pointer));
   }
 
-  // Implicit conversion to multi_ptr<const void, Space>
-  operator multi_ptr<const void, Space>() const {
-    using ptr_t = typename detail::PtrValueType<const void, Space>::type *;
-    return multi_ptr<const void, Space>(reinterpret_cast<ptr_t>(m_Pointer));
-  }
-
 private:
   pointer_t m_Pointer;
 };

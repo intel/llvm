@@ -1,8 +1,8 @@
 // REQUIRES: x86-registered-target
 // REQUIRES: nvptx-registered-target
 
-// RUN: %clang_cc1 -triple x86_64-unknown-linux-gnu -fsyntax-only -verify %s
-// RUN: %clang_cc1 -triple nvptx64-nvidia-cuda -fsyntax-only -fcuda-is-device -verify %s
+// RUN: %clang_cc1 -std=c++14 -triple x86_64-unknown-linux-gnu -fsyntax-only -verify %s
+// RUN: %clang_cc1 -std=c++14 -triple nvptx64-nvidia-cuda -fsyntax-only -fcuda-is-device -verify %s
 
 #include "Inputs/cuda.h"
 
@@ -13,6 +13,13 @@ struct DeviceReturnTy {};
 struct DeviceReturnTy2 {};
 struct HostDeviceReturnTy {};
 struct TemplateReturnTy {};
+
+struct CorrectOverloadRetTy{};
+#if __CUDA_ARCH__
+// expected-note@-2 {{candidate constructor (the implicit copy constructor) not viable: no known conversion from 'IncorrectOverloadRetTy' to 'const CorrectOverloadRetTy &' for 1st argument}}
+// expected-note@-3 {{candidate constructor (the implicit move constructor) not viable: no known conversion from 'IncorrectOverloadRetTy' to 'CorrectOverloadRetTy &&' for 1st argument}}
+#endif
+struct IncorrectOverloadRetTy{};
 
 typedef HostReturnTy (*HostFnPtr)();
 typedef DeviceReturnTy (*DeviceFnPtr)();
@@ -448,4 +455,89 @@ __host__ __device__ int constexpr_overload(const T &x, const T &y) {
 // Verify that function overloading doesn't prune candidate wrongly.
 int test_constexpr_overload(C2 &x, C2 &y) {
   return constexpr_overload(x, y);
+}
+
+// Verify no ambiguity for new operator.
+void *a = new int;
+__device__ void *b = new int;
+// expected-error@-1{{dynamic initialization is not supported for __device__, __constant__, and __shared__ variables.}}
+
+// Verify no ambiguity for new operator.
+template<typename _Tp> _Tp&& f();
+template<typename _Tp, typename = decltype(new _Tp(f<_Tp>()))>
+void __test();
+
+void foo() {
+  __test<int>();
+}
+
+// Test resolving implicit host device candidate vs wrong-sided candidate.
+// In device compilation, implicit host device caller choose implicit host
+// device candidate and wrong-sided candidate with equal preference.
+// Resolution result should not change with/without pragma.
+namespace ImplicitHostDeviceVsWrongSided {
+CorrectOverloadRetTy callee(double x);
+#pragma clang force_cuda_host_device begin
+IncorrectOverloadRetTy callee(int x);
+inline CorrectOverloadRetTy implicit_hd_caller() {
+  return callee(1.0);
+}
+#pragma clang force_cuda_host_device end
+}
+
+// Test resolving implicit host device candidate vs same-sided candidate.
+// In host compilation, implicit host device caller choose implicit host
+// device candidate and same-sided candidate with equal preference.
+// Resolution result should not change with/without pragma.
+namespace ImplicitHostDeviceVsSameSide {
+IncorrectOverloadRetTy callee(int x);
+#pragma clang force_cuda_host_device begin
+CorrectOverloadRetTy callee(double x);
+inline CorrectOverloadRetTy implicit_hd_caller() {
+  return callee(1.0);
+}
+#pragma clang force_cuda_host_device end
+}
+
+// Test resolving explicit host device candidate vs. wrong-sided candidate.
+// Explicit host device caller favors host device candidate against wrong-sided
+// candidate.
+namespace ExplicitHostDeviceVsWrongSided {
+CorrectOverloadRetTy callee(double x);
+__host__ __device__ IncorrectOverloadRetTy callee(int x);
+inline __host__ __device__ CorrectOverloadRetTy explicit_hd_caller() {
+  return callee(1.0);
+#if __CUDA_ARCH__
+  // expected-error@-2 {{no viable conversion from returned value of type 'IncorrectOverloadRetTy' to function return type 'CorrectOverloadRetTy'}}
+#endif
+}
+}
+
+// In the implicit host device function 'caller', the second 'callee' should be
+// chosen since it has better match, even though it is an implicit host device
+// function whereas the first 'callee' is a host function. A diagnostic will be
+// emitted if the first 'callee' is chosen since deduced return type cannot be
+// used before it is defined.
+namespace ImplicitHostDeviceByConstExpr {
+template <class a> a b;
+auto callee(...);
+template <class d> constexpr auto callee(d) -> decltype(0);
+struct e {
+  template <class ad, class... f> static auto g(ad, f...) {
+    return h<e, decltype(b<f>)...>;
+  }
+  struct i {
+    template <class, class... f> static constexpr auto caller(f... k) {
+      return callee(k...);
+    }
+  };
+  template <class, class... f> static auto h() {
+    return i::caller<int, f...>;
+  }
+};
+class l {
+  l() {
+    e::g([] {}, this);
+  }
+};
 }
