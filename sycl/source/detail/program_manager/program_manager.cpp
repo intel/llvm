@@ -239,7 +239,8 @@ RetT *getOrBuild(KernelProgramCache &KPCache, KeyT &&CacheKey,
 
 static bool isDeviceBinaryTypeSupported(const context &C,
                                         RT::PiDeviceBinaryType Format) {
-  backend ContextBackend = detail::getSyclObjImpl(C)->getPlugin().getBackend();
+  const backend ContextBackend =
+      detail::getSyclObjImpl(C)->getPlugin().getBackend();
 
   // The CUDA backend cannot use SPIRV
   if (ContextBackend == backend::cuda && Format == PI_DEVICE_BINARY_TYPE_SPIRV)
