@@ -270,17 +270,49 @@ the configuration (without a prefix: ``Auto``).
 
 
 
-**AlignOperands** (``bool``)
+**AlignOperands** (``OperandAlignmentStyle``)
   If ``true``, horizontally align operands of binary and ternary
   expressions.
 
-  Specifically, this aligns operands of a single expression that needs to be
-  split over multiple lines, e.g.:
+  Possible values:
 
-  .. code-block:: c++
+  * ``OAS_DontAlign`` (in configuration: ``DontAlign``)
+    Do not align operands of binary and ternary expressions.
+    The wrapped lines are indented ``ContinuationIndentWidth`` spaces from
+    the start of the line.
 
-    int aaa = bbbbbbbbbbbbbbb +
-              ccccccccccccccc;
+  * ``OAS_Align`` (in configuration: ``Align``)
+    Horizontally align operands of binary and ternary expressions.
+
+    Specifically, this aligns operands of a single expression that needs
+    to be split over multiple lines, e.g.:
+
+    .. code-block:: c++
+
+      int aaa = bbbbbbbbbbbbbbb +
+                ccccccccccccccc;
+
+    When ``BreakBeforeBinaryOperators`` is set, the wrapped operator is
+    aligned with the operand on the first line.
+
+    .. code-block:: c++
+
+      int aaa = bbbbbbbbbbbbbbb
+                + ccccccccccccccc;
+
+  * ``OAS_AlignAfterOperator`` (in configuration: ``AlignAfterOperator``)
+    Horizontally align operands of binary and ternary expressions.
+
+    This is similar to ``AO_Align``, except when
+    ``BreakBeforeBinaryOperators`` is set, the operator is un-indented so
+    that the wrapped operand is aligned with the operand on the first line.
+
+    .. code-block:: c++
+
+      int aaa = bbbbbbbbbbbbbbb
+              + ccccccccccccccc;
+
+
 
 **AlignTrailingComments** (``bool``)
   If ``true``, aligns trailing comments.
@@ -2332,6 +2364,19 @@ the configuration (without a prefix: ``Auto``).
 
        void f() {
          if (true) {
+           f();
+         }
+       }
+
+  * ``SBPO_ControlStatementsExceptForEachMacros`` (in configuration: ``ControlStatementsExceptForEachMacros``)
+    Same as ``SBPO_ControlStatements`` except this option doesn't apply to
+    ForEach macros. This is useful in projects where ForEach macros are
+    treated as function calls instead of control statements.
+
+    .. code-block:: c++
+
+       void f() {
+         Q_FOREACH(...) {
            f();
          }
        }

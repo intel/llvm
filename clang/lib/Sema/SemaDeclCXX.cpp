@@ -10486,15 +10486,12 @@ Decl *Sema::ActOnConversionDeclarator(CXXConversionDecl *Conversion) {
 
   // Make sure we aren't redeclaring the conversion function.
   QualType ConvType = Context.getCanonicalType(Conversion->getConversionType());
-
   // C++ [class.conv.fct]p1:
   //   [...] A conversion function is never used to convert a
   //   (possibly cv-qualified) object to the (possibly cv-qualified)
   //   same object type (or a reference to it), to a (possibly
   //   cv-qualified) base class of that type (or a reference to it),
   //   or to (possibly cv-qualified) void.
-  // FIXME: Suppress this warning if the conversion function ends up being a
-  // virtual function that overrides a virtual function in a base class.
   QualType ClassType
     = Context.getCanonicalType(Context.getTypeDeclType(ClassDecl));
   if (const ReferenceType *ConvTypeRef = ConvType->getAs<ReferenceType>())
@@ -10502,6 +10499,8 @@ Decl *Sema::ActOnConversionDeclarator(CXXConversionDecl *Conversion) {
   if (Conversion->getTemplateSpecializationKind() != TSK_Undeclared &&
       Conversion->getTemplateSpecializationKind() != TSK_ExplicitSpecialization)
     /* Suppress diagnostics for instantiations. */;
+  else if (Conversion->size_overridden_methods() != 0)
+    /* Suppress diagnostics for overriding virtual function in a base class. */;
   else if (ConvType->isRecordType()) {
     ConvType = Context.getCanonicalType(ConvType).getUnqualifiedType();
     if (ConvType == ClassType)
@@ -13455,13 +13454,13 @@ buildMemcpyForAssignmentOp(Sema &S, SourceLocation Loc, QualType T,
   // directly construct UnaryOperators here because semantic analysis
   // does not permit us to take the address of an xvalue.
   Expr *From = FromB.build(S, Loc);
-  From = new (S.Context) UnaryOperator(From, UO_AddrOf,
-                         S.Context.getPointerType(From->getType()),
-                         VK_RValue, OK_Ordinary, Loc, false);
+  From = UnaryOperator::Create(
+      S.Context, From, UO_AddrOf, S.Context.getPointerType(From->getType()),
+      VK_RValue, OK_Ordinary, Loc, false, S.CurFPFeatures);
   Expr *To = ToB.build(S, Loc);
-  To = new (S.Context) UnaryOperator(To, UO_AddrOf,
-                       S.Context.getPointerType(To->getType()),
-                       VK_RValue, OK_Ordinary, Loc, false);
+  To = UnaryOperator::Create(S.Context, To, UO_AddrOf,
+                             S.Context.getPointerType(To->getType()), VK_RValue,
+                             OK_Ordinary, Loc, false, S.CurFPFeatures);
 
   const Type *E = T->getBaseElementTypeUnsafe();
   bool NeedsCollectableMemCpy =
@@ -13703,9 +13702,9 @@ buildSingleCopyAssignRecursively(Sema &S, SourceLocation Loc, QualType T,
   // Create the pre-increment of the iteration variable. We can determine
   // whether the increment will overflow based on the value of the array
   // bound.
-  Expr *Increment = new (S.Context)
-      UnaryOperator(IterationVarRef.build(S, Loc), UO_PreInc, SizeType,
-                    VK_LValue, OK_Ordinary, Loc, Upper.isMaxValue());
+  Expr *Increment = UnaryOperator::Create(
+      S.Context, IterationVarRef.build(S, Loc), UO_PreInc, SizeType, VK_LValue,
+      OK_Ordinary, Loc, Upper.isMaxValue(), S.CurFPFeatures);
 
   // Construct the loop that copies all elements of this array.
   return S.ActOnForStmt(

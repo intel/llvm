@@ -662,18 +662,19 @@ public:
   SDValue getTargetJumpTable(int JTI, EVT VT, unsigned TargetFlags = 0) {
     return getJumpTable(JTI, VT, true, TargetFlags);
   }
-  SDValue getConstantPool(const Constant *C, EVT VT, unsigned Align = 0,
+  SDValue getConstantPool(const Constant *C, EVT VT, MaybeAlign Align = None,
                           int Offs = 0, bool isT = false,
                           unsigned TargetFlags = 0);
-  SDValue getTargetConstantPool(const Constant *C, EVT VT, unsigned Align = 0,
-                                int Offset = 0, unsigned TargetFlags = 0) {
+  SDValue getTargetConstantPool(const Constant *C, EVT VT,
+                                MaybeAlign Align = None, int Offset = 0,
+                                unsigned TargetFlags = 0) {
     return getConstantPool(C, VT, Align, Offset, true, TargetFlags);
   }
   SDValue getConstantPool(MachineConstantPoolValue *C, EVT VT,
-                          unsigned Align = 0, int Offs = 0, bool isT=false,
-                          unsigned TargetFlags = 0);
+                          MaybeAlign Align = None, int Offs = 0,
+                          bool isT = false, unsigned TargetFlags = 0);
   SDValue getTargetConstantPool(MachineConstantPoolValue *C, EVT VT,
-                                unsigned Align = 0, int Offset = 0,
+                                MaybeAlign Align = None, int Offset = 0,
                                 unsigned TargetFlags = 0) {
     return getConstantPool(C, VT, Align, Offset, true, TargetFlags);
   }
@@ -1593,6 +1594,9 @@ public:
   void salvageDebugInfo(SDNode &N);
 
   void dump() const;
+
+  /// Create a stack temporary based on the size in bytes and the alignment
+  SDValue CreateStackTemporary(TypeSize Bytes, Align Alignment);
 
   /// Create a stack temporary, suitable for holding the specified value type.
   /// If minAlign is specified, the slot size will have at least that alignment.

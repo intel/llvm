@@ -24,7 +24,8 @@ ShapeDialect::ShapeDialect(MLIRContext *context)
 #define GET_OP_LIST
 #include "mlir/Dialect/Shape/IR/ShapeOps.cpp.inc"
       >();
-  addTypes<ComponentType, ElementType, ShapeType, SizeType, ValueShapeType>();
+  addTypes<ComponentType, ElementType, ShapeType, SizeType, ValueShapeType,
+           WitnessType>();
   // Allow unknown operations during prototyping and testing. As the dialect is
   // still evolving it makes it simple to start with an unregistered ops and
   // try different variants before actually defining the op.
@@ -60,6 +61,8 @@ Type ShapeDialect::parseType(DialectAsmParser &parser) const {
     return SizeType::get(getContext());
   if (keyword == "value_shape")
     return ValueShapeType::get(getContext());
+  if (keyword == "witness")
+    return WitnessType::get(getContext());
 
   parser.emitError(parser.getNameLoc(), "unknown shape type: ") << keyword;
   return Type();
@@ -83,19 +86,36 @@ void ShapeDialect::printType(Type type, DialectAsmPrinter &os) const {
   case ShapeTypes::ValueShape:
     os << "value_shape";
     return;
+  case ShapeTypes::Witness:
+    os << "witness";
+    return;
   default:
     llvm_unreachable("unexpected 'shape' type kind");
   }
 }
 
 //===----------------------------------------------------------------------===//
+// AnyOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult
+AnyOp::inferReturnTypes(MLIRContext *context, Optional<Location> location,
+                        ValueRange operands, DictionaryAttr attributes,
+                        RegionRange regions,
+                        SmallVectorImpl<Type> &inferredReturnTypes) {
+  inferredReturnTypes.push_back(ShapeType::get(context));
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
 // BroadcastOp
 //===----------------------------------------------------------------------===//
 
-LogicalResult BroadcastOp::inferReturnTypes(
-    MLIRContext *context, Optional<Location> location, ValueRange operands,
-    ArrayRef<NamedAttribute> attributes, RegionRange regions,
-    SmallVectorImpl<Type> &inferredReturnTypes) {
+LogicalResult
+BroadcastOp::inferReturnTypes(MLIRContext *context, Optional<Location> location,
+                              ValueRange operands, DictionaryAttr attributes,
+                              RegionRange regions,
+                              SmallVectorImpl<Type> &inferredReturnTypes) {
   inferredReturnTypes.push_back(ShapeType::get(context));
   return success();
 }
@@ -137,7 +157,7 @@ static ParseResult parseConstShapeOp(OpAsmParser &parser,
   // shape as an ArrayAttr.
   // TODO: Implement custom parser and maybe make syntax a bit more concise.
   Attribute extentsRaw;
-  SmallVector<NamedAttribute, 6> dummy;
+  NamedAttrList dummy;
   if (parser.parseAttribute(extentsRaw, "dummy", dummy))
     return failure();
   auto extentsArray = extentsRaw.dyn_cast<ArrayAttr>();
@@ -159,10 +179,11 @@ static ParseResult parseConstShapeOp(OpAsmParser &parser,
 
 OpFoldResult ConstShapeOp::fold(ArrayRef<Attribute>) { return shape(); }
 
-LogicalResult ConstShapeOp::inferReturnTypes(
-    MLIRContext *context, Optional<Location> location, ValueRange operands,
-    ArrayRef<NamedAttribute> attributes, RegionRange regions,
-    SmallVectorImpl<Type> &inferredReturnTypes) {
+LogicalResult
+ConstShapeOp::inferReturnTypes(MLIRContext *context,
+                               Optional<Location> location, ValueRange operands,
+                               DictionaryAttr attributes, RegionRange regions,
+                               SmallVectorImpl<Type> &inferredReturnTypes) {
   inferredReturnTypes.push_back(ShapeType::get(context));
   return success();
 }
@@ -171,10 +192,11 @@ LogicalResult ConstShapeOp::inferReturnTypes(
 // ConstSizeOp
 //===----------------------------------------------------------------------===//
 
-LogicalResult ConstSizeOp::inferReturnTypes(
-    MLIRContext *context, Optional<Location> location, ValueRange operands,
-    ArrayRef<NamedAttribute> attributes, RegionRange regions,
-    SmallVectorImpl<Type> &inferredReturnTypes) {
+LogicalResult
+ConstSizeOp::inferReturnTypes(MLIRContext *context, Optional<Location> location,
+                              ValueRange operands, DictionaryAttr attributes,
+                              RegionRange regions,
+                              SmallVectorImpl<Type> &inferredReturnTypes) {
   inferredReturnTypes.push_back(SizeType::get(context));
   return success();
 }
@@ -183,10 +205,11 @@ LogicalResult ConstSizeOp::inferReturnTypes(
 // ShapeOfOp
 //===----------------------------------------------------------------------===//
 
-LogicalResult ShapeOfOp::inferReturnTypes(
-    MLIRContext *context, Optional<Location> location, ValueRange operands,
-    ArrayRef<NamedAttribute> attributes, RegionRange regions,
-    SmallVectorImpl<Type> &inferredReturnTypes) {
+LogicalResult
+ShapeOfOp::inferReturnTypes(MLIRContext *context, Optional<Location> location,
+                            ValueRange operands, DictionaryAttr attributes,
+                            RegionRange regions,
+                            SmallVectorImpl<Type> &inferredReturnTypes) {
   inferredReturnTypes.push_back(ShapeType::get(context));
   return success();
 }
@@ -203,10 +226,11 @@ OpFoldResult ShapeOfOp::fold(ArrayRef<Attribute>) {
 // SplitAtOp
 //===----------------------------------------------------------------------===//
 
-LogicalResult SplitAtOp::inferReturnTypes(
-    MLIRContext *context, Optional<Location> location, ValueRange operands,
-    ArrayRef<NamedAttribute> attributes, RegionRange regions,
-    SmallVectorImpl<Type> &inferredReturnTypes) {
+LogicalResult
+SplitAtOp::inferReturnTypes(MLIRContext *context, Optional<Location> location,
+                            ValueRange operands, DictionaryAttr attributes,
+                            RegionRange regions,
+                            SmallVectorImpl<Type> &inferredReturnTypes) {
   auto shapeType = ShapeType::get(context);
   inferredReturnTypes.push_back(shapeType);
   inferredReturnTypes.push_back(shapeType);
@@ -238,10 +262,11 @@ LogicalResult SplitAtOp::fold(ArrayRef<Attribute> operands,
 // ConcatOp
 //===----------------------------------------------------------------------===//
 
-LogicalResult ConcatOp::inferReturnTypes(
-    MLIRContext *context, Optional<Location> location, ValueRange operands,
-    ArrayRef<NamedAttribute> attributes, RegionRange regions,
-    SmallVectorImpl<Type> &inferredReturnTypes) {
+LogicalResult
+ConcatOp::inferReturnTypes(MLIRContext *context, Optional<Location> location,
+                           ValueRange operands, DictionaryAttr attributes,
+                           RegionRange regions,
+                           SmallVectorImpl<Type> &inferredReturnTypes) {
   auto shapeType = ShapeType::get(context);
   inferredReturnTypes.push_back(shapeType);
   return success();

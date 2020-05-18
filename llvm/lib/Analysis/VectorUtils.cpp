@@ -288,9 +288,11 @@ Value *llvm::findScalarElement(Value *V, unsigned EltNo) {
     return findScalarElement(III->getOperand(0), EltNo);
   }
 
-  if (ShuffleVectorInst *SVI = dyn_cast<ShuffleVectorInst>(V)) {
+  ShuffleVectorInst *SVI = dyn_cast<ShuffleVectorInst>(V);
+  // Restrict the following transformation to fixed-length vector.
+  if (SVI && isa<FixedVectorType>(SVI->getType())) {
     unsigned LHSWidth =
-        cast<VectorType>(SVI->getOperand(0)->getType())->getNumElements();
+        cast<FixedVectorType>(SVI->getOperand(0)->getType())->getNumElements();
     int InEl = SVI->getMaskValue(EltNo);
     if (InEl < 0)
       return UndefValue::get(VTy->getElementType());
@@ -1269,6 +1271,18 @@ void InterleaveGroup<Instruction>::addMetadata(Instruction *NewInst) const {
                  [](std::pair<int, Instruction *> p) { return p.second; });
   propagateMetadata(NewInst, VL);
 }
+}
+
+std::string VFABI::mangleTLIVectorName(StringRef VectorName,
+                                       StringRef ScalarName, unsigned numArgs,
+                                       unsigned VF) {
+  SmallString<256> Buffer;
+  llvm::raw_svector_ostream Out(Buffer);
+  Out << "_ZGV" << VFABI::_LLVM_ << "N" << VF;
+  for (unsigned I = 0; I < numArgs; ++I)
+    Out << "v";
+  Out << "_" << ScalarName << "(" << VectorName << ")";
+  return std::string(Out.str());
 }
 
 void VFABI::getVectorVariantNames(

@@ -177,6 +177,17 @@ static cl::opt<bool> ProfileGuidedSectionPrefix(
     "profile-guided-section-prefix", cl::Hidden, cl::init(true), cl::ZeroOrMore,
     cl::desc("Use profile info to add section prefix for hot/cold functions"));
 
+static cl::opt<bool> ProfileUnknownInSpecialSection(
+    "profile-unknown-in-special-section", cl::Hidden, cl::init(false),
+    cl::ZeroOrMore,
+    cl::desc("In profiling mode like sampleFDO, if a function doesn't have "
+             "profile, we cannot tell the function is cold for sure because "
+             "it may be a function newly added without ever being sampled. "
+             "With the flag enabled, compiler can put such profile unknown "
+             "functions into a special section, so runtime system can choose "
+             "to handle it in a different way than .text section, to save "
+             "RAM for example. "));
+
 static cl::opt<unsigned> FreqRatioToSkipMerge(
     "cgp-freq-ratio-to-skip-merge", cl::Hidden, cl::init(2),
     cl::desc("Skip merging empty blocks if (frequency of empty block) / "
@@ -228,6 +239,11 @@ static cl::opt<bool>
 static cl::opt<bool> EnableICMP_EQToICMP_ST(
     "cgp-icmp-eq2icmp-st", cl::Hidden, cl::init(false),
     cl::desc("Enable ICMP_EQ to ICMP_S(L|G)T conversion."));
+
+static cl::opt<bool>
+    VerifyBFIUpdates("cgp-verify-bfi-updates", cl::Hidden, cl::init(false),
+                     cl::desc("Enable BFI update verification for "
+                              "CodeGenPrepare."));
 
 namespace {
 
@@ -405,6 +421,7 @@ class TypePromotionTransaction;
     bool optimizeCmp(CmpInst *Cmp, bool &ModifiedDT);
     bool combineToUSubWithOverflow(CmpInst *Cmp, bool &ModifiedDT);
     bool combineToUAddWithOverflow(CmpInst *Cmp, bool &ModifiedDT);
+    void verifyBFIUpdates(Function &F);
   };
 
 } // end anonymous namespace
@@ -446,6 +463,9 @@ bool CodeGenPrepare::runOnFunction(Function &F) {
       F.setSectionPrefix(".hot");
     else if (PSI->isFunctionColdInCallGraph(&F, *BFI))
       F.setSectionPrefix(".unlikely");
+    else if (ProfileUnknownInSpecialSection && PSI->hasPartialSampleProfile() &&
+             PSI->isFunctionHotnessUnknown(F))
+      F.setSectionPrefix(".unknown");
   }
 
   /// This optimization identifies DIV instructions that can be
@@ -565,7 +585,21 @@ bool CodeGenPrepare::runOnFunction(Function &F) {
   // preparatory transforms.
   EverMadeChange |= placeDbgValues(F);
 
+#ifndef NDEBUG
+  if (VerifyBFIUpdates)
+    verifyBFIUpdates(F);
+#endif
+
   return EverMadeChange;
+}
+
+// Verify BFI has been updated correctly by recomputing BFI and comparing them.
+void CodeGenPrepare::verifyBFIUpdates(Function &F) {
+  DominatorTree NewDT(F);
+  LoopInfo NewLI(NewDT);
+  BranchProbabilityInfo NewBPI(F, NewLI, TLInfo);
+  BlockFrequencyInfo NewBFI(F, NewBPI, NewLI);
+  NewBFI.verifyMatch(*BFI);
 }
 
 /// Merge basic blocks which are connected by a single edge, where one of the
@@ -2204,6 +2238,11 @@ bool CodeGenPrepare::dupRetToEnableTailCallOpts(BasicBlock *BB, bool &ModifiedDT
 
     // Duplicate the return into TailCallBB.
     (void)FoldReturnIntoUncondBranch(RetI, BB, TailCallBB);
+    assert(!VerifyBFIUpdates ||
+           BFI->getBlockFreq(BB) >= BFI->getBlockFreq(TailCallBB));
+    BFI->setBlockFreq(
+        BB,
+        (BFI->getBlockFreq(BB) - BFI->getBlockFreq(TailCallBB)).getFrequency());
     ModifiedDT = Changed = true;
     ++NumRetsDup;
   }
@@ -6376,72 +6415,47 @@ bool CodeGenPrepare::optimizeSelectInst(SelectInst *SI) {
   return true;
 }
 
-static bool isBroadcastShuffle(ShuffleVectorInst *SVI) {
-  ArrayRef<int> Mask(SVI->getShuffleMask());
-  int SplatElem = -1;
-  for (unsigned i = 0; i < Mask.size(); ++i) {
-    if (SplatElem != -1 && Mask[i] != -1 && Mask[i] != SplatElem)
-      return false;
-    SplatElem = Mask[i];
-  }
+/// Some targets only accept certain types for splat inputs. For example a VDUP
+/// in MVE takes a GPR (integer) register, and the instruction that incorporate
+/// a VDUP (such as a VADD qd, qm, rm) also require a gpr register.
+bool CodeGenPrepare::optimizeShuffleVectorInst(ShuffleVectorInst *SVI) {
+  if (!match(SVI,
+             m_ShuffleVector(m_InsertElement(m_Undef(), m_Value(), m_ZeroInt()),
+                             m_Undef(), m_ZeroMask())))
+    return false;
+  Type *NewType = TLI->shouldConvertSplatType(SVI);
+  if (!NewType)
+    return false;
+
+  VectorType *SVIVecType = cast<VectorType>(SVI->getType());
+  assert(!NewType->isVectorTy() && "Expected a scalar type!");
+  assert(NewType->getScalarSizeInBits() == SVIVecType->getScalarSizeInBits() &&
+         "Expected a type of the same size!");
+  Type *NewVecType = VectorType::get(NewType, SVIVecType->getNumElements());
+
+  // Create a bitcast (shuffle (insert (bitcast(..))))
+  IRBuilder<> Builder(SVI->getContext());
+  Builder.SetInsertPoint(SVI);
+  Value *BC1 = Builder.CreateBitCast(
+      cast<Instruction>(SVI->getOperand(0))->getOperand(1), NewType);
+  Value *Insert = Builder.CreateInsertElement(UndefValue::get(NewVecType), BC1,
+                                              (uint64_t)0);
+  Value *Shuffle = Builder.CreateShuffleVector(
+      Insert, UndefValue::get(NewVecType), SVI->getShuffleMask());
+  Value *BC2 = Builder.CreateBitCast(Shuffle, SVIVecType);
+
+  SVI->replaceAllUsesWith(BC2);
+  RecursivelyDeleteTriviallyDeadInstructions(SVI);
+
+  // Also hoist the bitcast up to its operand if it they are not in the same
+  // block.
+  if (auto *BCI = dyn_cast<Instruction>(BC1))
+    if (auto *Op = dyn_cast<Instruction>(BCI->getOperand(0)))
+      if (BCI->getParent() != Op->getParent() && !isa<PHINode>(Op) &&
+          !Op->isTerminator() && !Op->isEHPad())
+        BCI->moveAfter(Op);
 
   return true;
-}
-
-/// Some targets have expensive vector shifts if the lanes aren't all the same
-/// (e.g. x86 only introduced "vpsllvd" and friends with AVX2). In these cases
-/// it's often worth sinking a shufflevector splat down to its use so that
-/// codegen can spot all lanes are identical.
-bool CodeGenPrepare::optimizeShuffleVectorInst(ShuffleVectorInst *SVI) {
-  BasicBlock *DefBB = SVI->getParent();
-
-  // Only do this xform if variable vector shifts are particularly expensive.
-  if (!TLI->isVectorShiftByScalarCheap(SVI->getType()))
-    return false;
-
-  // We only expect better codegen by sinking a shuffle if we can recognise a
-  // constant splat.
-  if (!isBroadcastShuffle(SVI))
-    return false;
-
-  // InsertedShuffles - Only insert a shuffle in each block once.
-  DenseMap<BasicBlock*, Instruction*> InsertedShuffles;
-
-  bool MadeChange = false;
-  for (User *U : SVI->users()) {
-    Instruction *UI = cast<Instruction>(U);
-
-    // Figure out which BB this ext is used in.
-    BasicBlock *UserBB = UI->getParent();
-    if (UserBB == DefBB) continue;
-
-    // For now only apply this when the splat is used by a shift instruction.
-    if (!UI->isShift()) continue;
-
-    // Everything checks out, sink the shuffle if the user's block doesn't
-    // already have a copy.
-    Instruction *&InsertedShuffle = InsertedShuffles[UserBB];
-
-    if (!InsertedShuffle) {
-      BasicBlock::iterator InsertPt = UserBB->getFirstInsertionPt();
-      assert(InsertPt != UserBB->end());
-      InsertedShuffle =
-          new ShuffleVectorInst(SVI->getOperand(0), SVI->getOperand(1),
-                                SVI->getShuffleMask(), "", &*InsertPt);
-      InsertedShuffle->setDebugLoc(SVI->getDebugLoc());
-    }
-
-    UI->replaceUsesOfWith(SVI, InsertedShuffle);
-    MadeChange = true;
-  }
-
-  // If we removed all uses, nuke the shuffle.
-  if (SVI->use_empty()) {
-    SVI->eraseFromParent();
-    MadeChange = true;
-  }
-
-  return MadeChange;
 }
 
 bool CodeGenPrepare::tryToSinkFreeOperands(Instruction *I) {

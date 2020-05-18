@@ -431,7 +431,6 @@ protected:
   static Scheduler instance;
 
   static void enqueueLeavesOfReqUnlocked(const Requirement *const Req);
-  void enqueueLeavesOfReq(const Requirement *const Req);
 
   /// Graph builder class.
   ///
@@ -494,7 +493,7 @@ protected:
     /// \return a pointer to MemObjRecord for pointer to memory object. If the
     /// record is not found, nullptr is returned.
     MemObjRecord *getOrInsertMemObjRecord(const QueueImplPtr &Queue,
-                                          Requirement *Req);
+                                          const Requirement *Req);
 
     /// Decrements leaf counters for all leaves of the record.
     void decrementLeafCountersForRecord(MemObjRecord *Record);
@@ -547,20 +546,24 @@ protected:
                            const QueueImplPtr &Queue);
 
     /// Finds dependencies for the requirement.
-    std::set<Command *> findDepsForReq(MemObjRecord *Record, Requirement *Req,
+    std::set<Command *> findDepsForReq(MemObjRecord *Record,
+                                       const Requirement *Req,
                                        const ContextImplPtr &Context);
 
-    EmptyCommand *addEmptyCmd(Command *Cmd,
-                              const std::vector<Requirement *> &Req,
-                              const QueueImplPtr &Queue,
-                              Command::BlockReason Reason);
+    template <typename T>
+    typename std::enable_if<
+        std::is_same<typename std::remove_cv<T>::type, Requirement>::value,
+        EmptyCommand *>::type
+    addEmptyCmd(Command *Cmd, const std::vector<T *> &Req,
+                const QueueImplPtr &Queue, Command::BlockReason Reason);
 
   protected:
     /// Finds a command dependency corresponding to the record.
     DepDesc findDepForRecord(Command *Cmd, MemObjRecord *Record);
 
     /// Searches for suitable alloca in memory record.
-    AllocaCommandBase *findAllocaForReq(MemObjRecord *Record, Requirement *Req,
+    AllocaCommandBase *findAllocaForReq(MemObjRecord *Record,
+                                        const Requirement *Req,
                                         const ContextImplPtr &Context);
 
     friend class Command;
@@ -570,7 +573,7 @@ protected:
     ///
     /// If none found, creates new one.
     AllocaCommandBase *getOrCreateAllocaForReq(MemObjRecord *Record,
-                                               Requirement *Req,
+                                               const Requirement *Req,
                                                QueueImplPtr Queue);
 
     void markModifiedIfWrite(MemObjRecord *Record, Requirement *Req);

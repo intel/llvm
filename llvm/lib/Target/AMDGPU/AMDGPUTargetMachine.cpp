@@ -16,6 +16,7 @@
 #include "AMDGPU.h"
 #include "AMDGPUAliasAnalysis.h"
 #include "AMDGPUCallLowering.h"
+#include "AMDGPUExportClustering.h"
 #include "AMDGPUInstructionSelector.h"
 #include "AMDGPULegalizerInfo.h"
 #include "AMDGPUMacroFusion.h"
@@ -240,6 +241,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAMDGPUTarget() {
   initializeAMDGPURewriteOutArgumentsPass(*PR);
   initializeAMDGPUUnifyMetadataPass(*PR);
   initializeSIAnnotateControlFlowPass(*PR);
+  initializeSIInsertHardClausesPass(*PR);
   initializeSIInsertWaitcntsPass(*PR);
   initializeSIModeRegisterPass(*PR);
   initializeSIWholeQuadModePass(*PR);
@@ -283,6 +285,7 @@ createGCNMaxOccupancyMachineScheduler(MachineSchedContext *C) {
   DAG->addMutation(createLoadClusterDAGMutation(DAG->TII, DAG->TRI));
   DAG->addMutation(createStoreClusterDAGMutation(DAG->TII, DAG->TRI));
   DAG->addMutation(createAMDGPUMacroFusionDAGMutation());
+  DAG->addMutation(createAMDGPUExportClusteringDAGMutation());
   return DAG;
 }
 
@@ -1042,6 +1045,8 @@ void GCNPassConfig::addPreEmitPass() {
   // FIXME: This stand-alone pass will emit indiv. S_NOP 0, as needed. It would
   // be better for it to emit S_NOP <N> when possible.
   addPass(&PostRAHazardRecognizerID);
+  if (getOptLevel() > CodeGenOpt::None)
+    addPass(&SIInsertHardClausesID);
 
   addPass(&SIRemoveShortExecBranchesID);
   addPass(&SIPreEmitPeepholeID);

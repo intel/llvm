@@ -747,38 +747,64 @@ public:
 };
 
 template <typename ConcreteOp>
-void replaceTransferOp(ConversionPatternRewriter &rewriter,
-                       LLVMTypeConverter &typeConverter, Location loc,
-                       Operation *op, ArrayRef<Value> operands, Value dataPtr,
-                       Value mask);
+LogicalResult replaceTransferOp(ConversionPatternRewriter &rewriter,
+                                LLVMTypeConverter &typeConverter, Location loc,
+                                Operation *op, ArrayRef<Value> operands,
+                                Value dataPtr, Value mask);
+
+LogicalResult getLLVMTypeAndAlignment(LLVMTypeConverter &typeConverter,
+                                      Type type, LLVM::LLVMType &llvmType,
+                                      unsigned &align) {
+  auto convertedType = typeConverter.convertType(type);
+  if (!convertedType)
+    return failure();
+
+  llvmType = convertedType.template cast<LLVM::LLVMType>();
+  auto dataLayout = typeConverter.getDialect()->getLLVMModule().getDataLayout();
+  align = dataLayout.getPrefTypeAlignment(llvmType.getUnderlyingType());
+  return success();
+}
 
 template <>
-void replaceTransferOp<TransferReadOp>(ConversionPatternRewriter &rewriter,
-                                       LLVMTypeConverter &typeConverter,
-                                       Location loc, Operation *op,
-                                       ArrayRef<Value> operands, Value dataPtr,
-                                       Value mask) {
+LogicalResult replaceTransferOp<TransferReadOp>(
+    ConversionPatternRewriter &rewriter, LLVMTypeConverter &typeConverter,
+    Location loc, Operation *op, ArrayRef<Value> operands, Value dataPtr,
+    Value mask) {
   auto xferOp = cast<TransferReadOp>(op);
   auto toLLVMTy = [&](Type t) { return typeConverter.convertType(t); };
   VectorType fillType = xferOp.getVectorType();
   Value fill = rewriter.create<SplatOp>(loc, fillType, xferOp.padding());
   fill = rewriter.create<LLVM::DialectCastOp>(loc, toLLVMTy(fillType), fill);
 
-  auto vecTy = toLLVMTy(xferOp.getVectorType()).template cast<LLVM::LLVMType>();
+  LLVM::LLVMType vecTy;
+  unsigned align;
+  if (failed(getLLVMTypeAndAlignment(typeConverter, xferOp.getVectorType(),
+                                     vecTy, align)))
+    return failure();
+
   rewriter.replaceOpWithNewOp<LLVM::MaskedLoadOp>(
       op, vecTy, dataPtr, mask, ValueRange{fill},
-      rewriter.getI32IntegerAttr(1));
+      rewriter.getI32IntegerAttr(align));
+  return success();
 }
 
 template <>
-void replaceTransferOp<TransferWriteOp>(ConversionPatternRewriter &rewriter,
-                                        LLVMTypeConverter &typeConverter,
-                                        Location loc, Operation *op,
-                                        ArrayRef<Value> operands, Value dataPtr,
-                                        Value mask) {
+LogicalResult replaceTransferOp<TransferWriteOp>(
+    ConversionPatternRewriter &rewriter, LLVMTypeConverter &typeConverter,
+    Location loc, Operation *op, ArrayRef<Value> operands, Value dataPtr,
+    Value mask) {
   auto adaptor = TransferWriteOpOperandAdaptor(operands);
+
+  auto xferOp = cast<TransferWriteOp>(op);
+  LLVM::LLVMType vecTy;
+  unsigned align;
+  if (failed(getLLVMTypeAndAlignment(typeConverter, xferOp.getVectorType(),
+                                     vecTy, align)))
+    return failure();
+
   rewriter.replaceOpWithNewOp<LLVM::MaskedStoreOp>(
-      op, adaptor.vector(), dataPtr, mask, rewriter.getI32IntegerAttr(1));
+      op, adaptor.vector(), dataPtr, mask, rewriter.getI32IntegerAttr(align));
+  return success();
 }
 
 static TransferReadOpOperandAdaptor
@@ -884,10 +910,8 @@ public:
                                                 mask);
 
     // 5. Rewrite as a masked read / write.
-    replaceTransferOp<ConcreteOp>(rewriter, typeConverter, loc, op, operands,
-                                  vectorDataPtr, mask);
-
-    return success();
+    return replaceTransferOp<ConcreteOp>(rewriter, typeConverter, loc, op,
+                                         operands, vectorDataPtr, mask);
   }
 };
 
@@ -1033,14 +1057,15 @@ private:
   }
 };
 
-/// Progressive lowering of StridedSliceOp to either:
+/// Progressive lowering of ExtractStridedSliceOp to either:
 ///   1. extractelement + insertelement for the 1-D case
 ///   2. extract + optional strided_slice + insert for the n-D case.
-class VectorStridedSliceOpConversion : public OpRewritePattern<StridedSliceOp> {
+class VectorStridedSliceOpConversion
+    : public OpRewritePattern<ExtractStridedSliceOp> {
 public:
-  using OpRewritePattern<StridedSliceOp>::OpRewritePattern;
+  using OpRewritePattern<ExtractStridedSliceOp>::OpRewritePattern;
 
-  LogicalResult matchAndRewrite(StridedSliceOp op,
+  LogicalResult matchAndRewrite(ExtractStridedSliceOp op,
                                 PatternRewriter &rewriter) const override {
     auto dstType = op.getResult().getType().cast<VectorType>();
 
@@ -1062,7 +1087,7 @@ public:
          off += stride, ++idx) {
       Value extracted = extractOne(rewriter, loc, op.vector(), off);
       if (op.offsets().getValue().size() > 1) {
-        extracted = rewriter.create<StridedSliceOp>(
+        extracted = rewriter.create<ExtractStridedSliceOp>(
             loc, extracted, getI64SubArray(op.offsets(), /* dropFront=*/1),
             getI64SubArray(op.sizes(), /* dropFront=*/1),
             getI64SubArray(op.strides(), /* dropFront=*/1));
@@ -1072,7 +1097,7 @@ public:
     rewriter.replaceOp(op, {res});
     return success();
   }
-  /// This pattern creates recursive StridedSliceOp, but the recursion is
+  /// This pattern creates recursive ExtractStridedSliceOp, but the recursion is
   /// bounded as the rank is strictly decreasing.
   bool hasBoundedRewriteRecursion() const final { return true; }
 };
@@ -1121,6 +1146,7 @@ void LowerVectorToLLVMPass::runOnOperation() {
   // all contraction operations. Also applies folding and DCE.
   {
     OwningRewritePatternList patterns;
+    populateVectorToVectorCanonicalizationPatterns(patterns, &getContext());
     populateVectorSlicesLoweringPatterns(patterns, &getContext());
     populateVectorContractLoweringPatterns(patterns, &getContext());
     applyPatternsAndFoldGreedily(getOperation(), patterns);

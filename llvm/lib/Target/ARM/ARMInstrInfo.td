@@ -159,6 +159,8 @@ def ARMcall_nolink   : SDNode<"ARMISD::CALL_NOLINK", SDT_ARMcall,
 
 def ARMretflag       : SDNode<"ARMISD::RET_FLAG", SDTNone,
                               [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
+def ARMseretflag     : SDNode<"ARMISD::SERET_FLAG", SDTNone,
+                              [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
 def ARMintretflag    : SDNode<"ARMISD::INTRET_FLAG", SDT_ARMcall,
                               [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
 def ARMcmov          : SDNode<"ARMISD::CMOV", SDT_ARMCMov,
@@ -264,7 +266,7 @@ def ARMvrev64    : SDNode<"ARMISD::VREV64", SDTARMVSHUF>;
 def ARMvrev32    : SDNode<"ARMISD::VREV32", SDTARMVSHUF>;
 def ARMvrev16    : SDNode<"ARMISD::VREV16", SDTARMVSHUF>;
 
-def SDTARMVGETLN  : SDTypeProfile<1, 2, [SDTCisVT<0, i32>, SDTCisInt<1>,
+def SDTARMVGETLN  : SDTypeProfile<1, 2, [SDTCisVT<0, i32>, SDTCisVec<1>,
                                          SDTCisVT<2, i32>]>;
 def ARMvgetlaneu : SDNode<"ARMISD::VGETLANEu", SDTARMVGETLN>;
 def ARMvgetlanes : SDNode<"ARMISD::VGETLANEs", SDTARMVGETLN>;

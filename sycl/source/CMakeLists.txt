@@ -147,7 +147,6 @@ set(SYCL_SOURCES
     "platform.cpp"
     "program.cpp"
     "queue.cpp"
-    "ordered_queue.cpp"
     "sampler.cpp"
     "stream.cpp"
     "spirv_ops.cpp"

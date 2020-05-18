@@ -255,6 +255,12 @@ public:
   /// Instance ID tracked for the command.
   uint64_t MInstanceID = 0;
 
+  // This flag allows to control whether host event should be set complete
+  // after successfull enqueue of command. Event is considered as host event if
+  // either it's is_host() return true or there is no backend representation
+  // of event (i.e. getHandleRef() return reference to nullptr value).
+  // By default the flag is set to true due to most of host operations are
+  // synchronous. The only asynchronous operation currently is host-task.
   bool MShouldCompleteEventIfPossible = true;
 };
 
@@ -463,7 +469,13 @@ public:
   void printDot(std::ostream &Stream) const final;
   void emitInstrumentationData();
 
-  const std::unique_ptr<detail::CG> &getCG() const { return MCommandGroup; }
+  detail::CG &getCG() const { return *MCommandGroup; }
+
+  // MEmptyCmd one is only employed if this command refers to host-task.
+  // MEmptyCmd due to unreliable mechanism of lookup for single EmptyCommand
+  // amongst users of host-task-representing command. This unreliability roots
+  // in cleanup process.
+  EmptyCommand *MEmptyCmd = nullptr;
 
 private:
   cl_int enqueueImp() final;

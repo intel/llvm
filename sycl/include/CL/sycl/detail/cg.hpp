@@ -221,6 +221,7 @@ class HostTask {
   std::function<void(interop_handle)> MInteropTask;
 
 public:
+  HostTask() : MHostTask([]() {}) {}
   HostTask(std::function<void()> &&Func) : MHostTask(Func) {}
   HostTask(std::function<void(interop_handle)> &&Func) : MInteropTask(Func) {}
 

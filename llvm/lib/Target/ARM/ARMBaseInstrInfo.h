@@ -21,6 +21,8 @@
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
+#include "llvm/IR/IntrinsicInst.h"
+#include "llvm/IR/IntrinsicsARM.h"
 #include <array>
 #include <cstdint>
 
@@ -354,6 +356,22 @@ public:
   ArrayRef<std::pair<unsigned, const char *>>
   getSerializableBitmaskMachineOperandTargetFlags() const override;
 
+  /// ARM supports the MachineOutliner.
+  bool isFunctionSafeToOutlineFrom(MachineFunction &MF,
+                                   bool OutlineFromLinkOnceODRs) const override;
+  outliner::OutlinedFunction getOutliningCandidateInfo(
+      std::vector<outliner::Candidate> &RepeatedSequenceLocs) const override;
+  outliner::InstrType getOutliningType(MachineBasicBlock::iterator &MIT,
+                                       unsigned Flags) const override;
+  bool isMBBSafeToOutlineFrom(MachineBasicBlock &MBB,
+                              unsigned &Flags) const override;
+  void buildOutlinedFrame(MachineBasicBlock &MBB, MachineFunction &MF,
+                          const outliner::OutlinedFunction &OF) const override;
+  MachineBasicBlock::iterator
+  insertOutlinedCall(Module &M, MachineBasicBlock &MBB,
+                     MachineBasicBlock::iterator &It, MachineFunction &MF,
+                     const outliner::Candidate &C) const override;
+
 private:
   unsigned getInstBundleLength(const MachineInstr &MI) const;
 
@@ -502,25 +520,6 @@ bool isUncondBranchOpcode(int Opc) {
 // This table shows the VPT instruction variants, i.e. the different
 // mask field encodings, see also B5.6. Predication/conditional execution in
 // the ArmARM.
-
-
-inline static ARM::PredBlockMask getARMVPTBlockMask(unsigned NumInsts) {
-  switch (NumInsts) {
-  case 1:
-    return ARM::PredBlockMask::T;
-  case 2:
-    return ARM::PredBlockMask::TT;
-  case 3:
-    return ARM::PredBlockMask::TTT;
-  case 4:
-    return ARM::PredBlockMask::TTTT;
-  default:
-    break;
-  };
-  llvm_unreachable("Unexpected number of instruction in a VPT block");
-}
-
-
 static inline bool isVPTOpcode(int Opc) {
   return Opc == ARM::MVE_VPTv16i8 || Opc == ARM::MVE_VPTv16u8 ||
          Opc == ARM::MVE_VPTv16s8 || Opc == ARM::MVE_VPTv8i16 ||
@@ -829,6 +828,27 @@ inline bool isLegalAddressImm(unsigned Opcode, int Imm,
   default:
     llvm_unreachable("Unhandled Addressing mode");
   }
+}
+
+// Return true if the given intrinsic is a gather or scatter
+inline bool isGatherScatter(IntrinsicInst *IntInst) {
+  if (IntInst == nullptr)
+    return false;
+  unsigned IntrinsicID = IntInst->getIntrinsicID();
+  return (IntrinsicID == Intrinsic::masked_gather ||
+          IntrinsicID == Intrinsic::arm_mve_vldr_gather_base ||
+          IntrinsicID == Intrinsic::arm_mve_vldr_gather_base_predicated ||
+          IntrinsicID == Intrinsic::arm_mve_vldr_gather_base_wb ||
+          IntrinsicID == Intrinsic::arm_mve_vldr_gather_base_wb_predicated ||
+          IntrinsicID == Intrinsic::arm_mve_vldr_gather_offset ||
+          IntrinsicID == Intrinsic::arm_mve_vldr_gather_offset_predicated ||
+          IntrinsicID == Intrinsic::masked_scatter ||
+          IntrinsicID == Intrinsic::arm_mve_vstr_scatter_base ||
+          IntrinsicID == Intrinsic::arm_mve_vstr_scatter_base_predicated ||
+          IntrinsicID == Intrinsic::arm_mve_vstr_scatter_base_wb ||
+          IntrinsicID == Intrinsic::arm_mve_vstr_scatter_base_wb_predicated ||
+          IntrinsicID == Intrinsic::arm_mve_vstr_scatter_offset ||
+          IntrinsicID == Intrinsic::arm_mve_vstr_scatter_offset_predicated);
 }
 
 } // end namespace llvm

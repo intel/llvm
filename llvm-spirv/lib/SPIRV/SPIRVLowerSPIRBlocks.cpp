@@ -342,11 +342,10 @@ private:
                         << '\n');
       auto CG = &getAnalysis<CallGraphWrapperPass>().getCallGraph();
       auto ACT = &getAnalysis<AssumptionCacheTracker>();
-      std::function<AssumptionCache &(Function &)> GetAssumptionCache =
-          [&](Function &F) -> AssumptionCache & {
+      auto GetAssumptionCache = [&ACT](Function &F) -> AssumptionCache & {
         return ACT->getAssumptionCache(F);
       };
-      InlineFunctionInfo IFI(CG, &GetAssumptionCache);
+      InlineFunctionInfo IFI(CG, GetAssumptionCache);
       InlineFunction(*cast<CallBase>(CI), IFI);
       Inlined = true;
     }

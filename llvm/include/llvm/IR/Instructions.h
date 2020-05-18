@@ -180,23 +180,23 @@ protected:
   LoadInst *cloneImpl() const;
 
 public:
-  LoadInst(Type *Ty, Value *Ptr, const Twine &NameStr = "",
-           Instruction *InsertBefore = nullptr);
+  LoadInst(Type *Ty, Value *Ptr, const Twine &NameStr,
+           Instruction *InsertBefore);
   LoadInst(Type *Ty, Value *Ptr, const Twine &NameStr, BasicBlock *InsertAtEnd);
   LoadInst(Type *Ty, Value *Ptr, const Twine &NameStr, bool isVolatile,
-           Instruction *InsertBefore = nullptr);
+           Instruction *InsertBefore);
   LoadInst(Type *Ty, Value *Ptr, const Twine &NameStr, bool isVolatile,
            BasicBlock *InsertAtEnd);
   LoadInst(Type *Ty, Value *Ptr, const Twine &NameStr, bool isVolatile,
-           MaybeAlign Align, Instruction *InsertBefore = nullptr);
+           Align Align, Instruction *InsertBefore = nullptr);
   LoadInst(Type *Ty, Value *Ptr, const Twine &NameStr, bool isVolatile,
-           MaybeAlign Align, BasicBlock *InsertAtEnd);
+           Align Align, BasicBlock *InsertAtEnd);
   LoadInst(Type *Ty, Value *Ptr, const Twine &NameStr, bool isVolatile,
-           MaybeAlign Align, AtomicOrdering Order,
+           Align Align, AtomicOrdering Order,
            SyncScope::ID SSID = SyncScope::System,
            Instruction *InsertBefore = nullptr);
   LoadInst(Type *Ty, Value *Ptr, const Twine &NameStr, bool isVolatile,
-           MaybeAlign Align, AtomicOrdering Order, SyncScope::ID SSID,
+           Align Align, AtomicOrdering Order, SyncScope::ID SSID,
            BasicBlock *InsertAtEnd);
 
   /// Return true if this is a load from a volatile memory location.
@@ -211,18 +211,14 @@ public:
   /// Return the alignment of the access that is being performed.
   /// FIXME: Remove this function once transition to Align is over.
   /// Use getAlign() instead.
-  unsigned getAlignment() const {
-    if (const auto MA = getAlign())
-      return MA->value();
-    return 0;
-  }
+  unsigned getAlignment() const { return getAlign().value(); }
 
   /// Return the alignment of the access that is being performed.
-  MaybeAlign getAlign() const {
-    return decodeMaybeAlign((getSubclassDataFromInstruction() >> 1) & 31);
+  Align getAlign() const {
+    return *decodeMaybeAlign((getSubclassDataFromInstruction() >> 1) & 31);
   }
 
-  void setAlignment(MaybeAlign Alignment);
+  void setAlignment(Align Alignment);
 
   /// Returns the ordering constraint of this load instruction.
   AtomicOrdering getOrdering() const {
@@ -310,17 +306,16 @@ protected:
 public:
   StoreInst(Value *Val, Value *Ptr, Instruction *InsertBefore);
   StoreInst(Value *Val, Value *Ptr, BasicBlock *InsertAtEnd);
-  StoreInst(Value *Val, Value *Ptr, bool isVolatile = false,
-            Instruction *InsertBefore = nullptr);
+  StoreInst(Value *Val, Value *Ptr, bool isVolatile, Instruction *InsertBefore);
   StoreInst(Value *Val, Value *Ptr, bool isVolatile, BasicBlock *InsertAtEnd);
-  StoreInst(Value *Val, Value *Ptr, bool isVolatile, MaybeAlign Align,
+  StoreInst(Value *Val, Value *Ptr, bool isVolatile, Align Align,
             Instruction *InsertBefore = nullptr);
-  StoreInst(Value *Val, Value *Ptr, bool isVolatile, MaybeAlign Align,
+  StoreInst(Value *Val, Value *Ptr, bool isVolatile, Align Align,
             BasicBlock *InsertAtEnd);
-  StoreInst(Value *Val, Value *Ptr, bool isVolatile, MaybeAlign Align,
+  StoreInst(Value *Val, Value *Ptr, bool isVolatile, Align Align,
             AtomicOrdering Order, SyncScope::ID SSID = SyncScope::System,
             Instruction *InsertBefore = nullptr);
-  StoreInst(Value *Val, Value *Ptr, bool isVolatile, MaybeAlign Align,
+  StoreInst(Value *Val, Value *Ptr, bool isVolatile, Align Align,
             AtomicOrdering Order, SyncScope::ID SSID, BasicBlock *InsertAtEnd);
 
   // allocate space for exactly two operands
@@ -343,17 +338,13 @@ public:
   /// Return the alignment of the access that is being performed
   /// FIXME: Remove this function once transition to Align is over.
   /// Use getAlign() instead.
-  unsigned getAlignment() const {
-    if (const auto MA = getAlign())
-      return MA->value();
-    return 0;
+  unsigned getAlignment() const { return getAlign().value(); }
+
+  Align getAlign() const {
+    return *decodeMaybeAlign((getSubclassDataFromInstruction() >> 1) & 31);
   }
 
-  MaybeAlign getAlign() const {
-    return decodeMaybeAlign((getSubclassDataFromInstruction() >> 1) & 31);
-  }
-
-  void setAlignment(MaybeAlign Alignment);
+  void setAlignment(Align Alignment);
 
   /// Returns the ordering constraint of this store instruction.
   AtomicOrdering getOrdering() const {

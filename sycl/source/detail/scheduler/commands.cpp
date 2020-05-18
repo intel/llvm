@@ -187,22 +187,6 @@ class DispatchHostTask {
     }
   }
 
-  // Lookup for empty command amongst users of this cmd
-  static EmptyCommand *findUserEmptyCommand(Command *ThisCmd) {
-    assert(ThisCmd->MUsers.size() == 1 &&
-           "Only a single user is expected for host task command");
-
-    Command *User = *ThisCmd->MUsers.begin();
-
-    assert(User->getType() == Command::CommandType::EMPTY_TASK &&
-           "Expected empty command as single user of host task command");
-    assert(User->MIsBlockable && "Empty command is expected to be blockable");
-    assert(User->MBlockReason == Command::BlockReason::HostTask &&
-           "Empty command is expected to be blocked due to host task");
-
-    return static_cast<EmptyCommand *>(User);
-  }
-
 public:
   DispatchHostTask(ExecCGCommand *ThisCmd,
                    std::vector<interop_handle::ReqToMem> ReqToMem) 
@@ -211,43 +195,48 @@ public:
   void operator()() const {
     waitForEvents();
 
-    assert(MThisCmd->getCG().get());
-    assert(MThisCmd->getCG()->getType() == CG::CGTYPE::CODEPLAY_HOST_TASK);
+    assert(MThisCmd->getCG().getType() == CG::CGTYPE::CODEPLAY_HOST_TASK);
 
-    CGHostTask *HostTask = static_cast<CGHostTask *>(MThisCmd->getCG().get());
+    CGHostTask &HostTask = static_cast<CGHostTask &>(MThisCmd->getCG());
 
     // we're ready to call the user-defined lambda now
-    if (HostTask->isInteropTask()) {
+    if (HostTask.isInteropTask()) {
       auto Queue = MHostTask->MQueue->get();
       auto DeviceId = MHostTask->MQueue->get_device().get();
       auto Context = MHostTask->MQueue->get_context().get();
 
       interop_handle IH{MReqToMem, Queue, DeviceId, Context};
 
-      HostTask->call(IH);
+      HostTask.call(IH);
     } else
-      HostTask->call();
+      HostTask.call();
 
-    HostTask->MHostTask.reset();
+    HostTask.MHostTask.reset();
 
     // unblock user empty command here
-    EmptyCommand *EmptyCmd = findUserEmptyCommand(MThisCmd);
+    EmptyCommand *EmptyCmd = MThisCmd->MEmptyCmd;
     assert(EmptyCmd && "No empty command found");
 
     // Completing command's event along with unblocking enqueue readiness of
     // empty command may lead to quick deallocation of MThisCmd by some cleanup
     // process. Thus we'll copy deps prior to completing of event and unblocking
     // of empty command.
+    // Also, it's possible to have record deallocated prior to enqueue process.
+    // Thus we employ read-lock of graph.
+    {
+      Scheduler &Sched = Scheduler::getInstance();
+      std::shared_lock<std::shared_timed_mutex> Lock(Sched.MGraphLock);
 
-    std::vector<DepDesc> Deps = MThisCmd->MDeps;
+      std::vector<DepDesc> Deps = MThisCmd->MDeps;
 
-    // update self-event status
-    MThisCmd->MEvent->setComplete();
+      // update self-event status
+      MThisCmd->MEvent->setComplete();
 
-    EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
+      EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
 
-    for (const DepDesc &Dep : Deps)
-      Scheduler::getInstance().enqueueLeavesOfReq(Dep.MDepRequirement);
+      for (const DepDesc &Dep : Deps)
+        Scheduler::enqueueLeavesOfReqUnlocked(Dep.MDepRequirement);
+    }
   }
 };
 
@@ -1933,7 +1922,7 @@ cl_int ExecCGCommand::enqueueImp() {
         break;
       }
       default:
-        throw std::runtime_error("Yet unsupported arg type");
+        throw runtime_error("Unsupported arg type", PI_INVALID_VALUE);
       }
     }
 
