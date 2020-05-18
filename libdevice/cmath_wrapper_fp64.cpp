@@ -8,7 +8,7 @@
 
 #include "device_math.h"
 
-#if __SPIR_TARGET_ONLY__
+#ifdef __SPIR__
 
 // All exported functions in math and complex device libraries are weak
 // reference. If users provide their own math or complex functions(with
@@ -399,4 +399,4 @@ double _Sinh(double x, double y) { // compute y * sinh(x), |y| <= 1
   }
 }
 #endif // defined(_WIN32)
-#endif // __SPIR_TARGET_ONLY__
+#endif // __SPIR__

@@ -11,7 +11,7 @@
 
 #include "device.h"
 
-#if __SPIR_TARGET_ONLY__
+#ifdef __SPIR__
 
 #include <cstddef>
 #include <cstdint>
@@ -40,5 +40,5 @@ DEVICE_EXTERNAL inline size_t __spirv_LocalInvocationId_z() {
   return __spirv_BuiltInLocalInvocationId.z;
 }
 
-#endif // __SPIR_TARGET_ONLY__
+#endif // __SPIR__
 #endif // __LIBDEVICE_SPIRV_VARS_H

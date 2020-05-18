@@ -8,7 +8,7 @@
 
 #include "wrapper.h"
 
-#if __SPIR_TARGET_ONLY__
+#ifdef __SPIR__
 DEVICE_EXTERN_C
 void __assert_fail(const char *expr, const char *file, unsigned int line,
                    const char *func) {
@@ -18,4 +18,4 @@ void __assert_fail(const char *expr, const char *file, unsigned int line,
       __spirv_LocalInvocationId_x(), __spirv_LocalInvocationId_y(),
       __spirv_LocalInvocationId_z());
 }
-#endif // __SPIR_TARGET_ONLY__
+#endif // __SPIR__

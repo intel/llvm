@@ -8,7 +8,7 @@
 
 #include "wrapper.h"
 
-#if __SPIR_TARGET_ONLY__
+#ifdef __SPIR__
 // Truncates a wide (16 or 32 bit) string (wstr) into an ASCII string (str).
 // Any non-ASCII characters are replaced by question mark '?'.
 static void __truncate_wchar_char_str(const wchar_t *wstr, char *str,
@@ -37,4 +37,4 @@ void _wassert(const wchar_t *wexpr, const wchar_t *wfile, unsigned line) {
       __spirv_LocalInvocationId_x(), __spirv_LocalInvocationId_y(),
       __spirv_LocalInvocationId_z());
 }
-#endif // __SPIR_TARGET_ONLY__
+#endif // __SPIR__
