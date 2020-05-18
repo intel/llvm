@@ -85,3 +85,4 @@ sycl/doc/ @pvchupin @kbobrovs
 sycl/doc/extensions/ @mkinsner @jbrodman
 
 xpti/ @tovinkere @andykaylor
+xptifw/ @tovinkere  @andykaylor
