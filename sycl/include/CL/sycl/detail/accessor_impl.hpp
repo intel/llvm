@@ -79,6 +79,15 @@ public:
         MElemSize(Other.MElemSize), MOffsetInBytes(Other.MOffsetInBytes),
         MIsSubBuffer(Other.MIsSubBuffer) {}
 
+  // The resize method provides a way to change the size of the 
+  // allocated memory and corresponding properties for the accessor.
+  // These are normally fixed for the accessor, but this capability
+  // is needed to support the stream class.
+  // Stream implementation creates an accessor with initial size for
+  // work item. But the number of work items is not available during
+  // stream construction. The resize method allows to update the accessor
+  // as the information becomes available to the handler.
+
   void resize(size_t GlobalSize);
 
   id<3> MOffset;
