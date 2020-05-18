@@ -31,7 +31,6 @@ static bool isDeviceOfPreferredSyclBe(const device &Device) {
 device device_selector::select_device() const {
   vector_class<device> devices = device::get_devices();
   // SYCL specification uses -1 to reject a device from selection
-  const int REJECT_DEVICE_SCORE = -1;
   int score = REJECT_DEVICE_SCORE;
   const device *res = nullptr;
 
@@ -91,7 +90,7 @@ device device_selector::select_device() const {
 
 int default_selector::operator()(const device &dev) const {
 
-  int Score = -1;
+  int Score = REJECT_DEVICE_SCORE;
 
   // Give preference to device of SYCL BE.
   if (isDeviceOfPreferredSyclBe(dev))
@@ -114,7 +113,8 @@ int default_selector::operator()(const device &dev) const {
 }
 
 int gpu_selector::operator()(const device &dev) const {
-  int Score = -1;
+  int Score = REJECT_DEVICE_SCORE;
+
   if (dev.is_gpu()) {
     Score = 1000;
     // Give preference to device of SYCL BE.
@@ -125,7 +125,7 @@ int gpu_selector::operator()(const device &dev) const {
 }
 
 int cpu_selector::operator()(const device &dev) const {
-  int Score = -1;
+  int Score = REJECT_DEVICE_SCORE;
   if (dev.is_cpu()) {
     Score = 1000;
     // Give preference to device of SYCL BE.
@@ -136,7 +136,7 @@ int cpu_selector::operator()(const device &dev) const {
 }
 
 int accelerator_selector::operator()(const device &dev) const {
-  int Score = -1;
+  int Score = REJECT_DEVICE_SCORE;
   if (dev.is_accelerator()) {
     Score = 1000;
     // Give preference to device of SYCL BE.
@@ -147,7 +147,7 @@ int accelerator_selector::operator()(const device &dev) const {
 }
 
 int host_selector::operator()(const device &dev) const {
-  int Score = -1;
+  int Score = REJECT_DEVICE_SCORE;
   if (dev.is_host()) {
     Score = 1000;
     // Give preference to device of SYCL BE.

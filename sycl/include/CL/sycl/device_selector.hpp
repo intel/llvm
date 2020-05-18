@@ -19,6 +19,9 @@ namespace sycl {
 class device;
 
 class __SYCL_EXPORT device_selector {
+protected:
+  static const int REJECT_DEVICE_SCORE = -1;
+
 public:
   virtual ~device_selector() = default;
 
