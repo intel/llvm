@@ -550,7 +550,7 @@ protected:
                                        const Requirement *Req,
                                        const ContextImplPtr &Context);
 
-    template<typename T>
+    template <typename T>
     typename std::enable_if<
         std::is_same<typename std::remove_cv<T>::type, Requirement>::value,
         EmptyCommand *>::type
