@@ -1,5 +1,6 @@
 macro(configure_in_llvm_tree)
   set(LLVM_CLANG ${LLVM_RUNTIME_OUTPUT_INTDIR}/clang)
+  set(LLVM_CLANG_FORMAT ${LLVM_RUNTIME_OUTPUT_INTDIR}/clang-format)
   set(LLVM_AS ${LLVM_RUNTIME_OUTPUT_INTDIR}/llvm-as)
   set(LLVM_LINK ${LLVM_RUNTIME_OUTPUT_INTDIR}/llvm-link)
   set(LLVM_OPT ${LLVM_RUNTIME_OUTPUT_INTDIR}/opt)

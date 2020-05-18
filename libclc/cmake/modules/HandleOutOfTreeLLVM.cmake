@@ -43,6 +43,7 @@ macro(configure_out_of_tree_llvm)
   list(APPEND CMAKE_MODULE_PATH ${Clang_DIR})
 
   get_property(LLVM_CLANG TARGET clang PROPERTY LOCATION)
+  get_property(LLVM_CLANG_FORMAT TARGET clang-format PROPERTY LOCATION)
   get_property(LLVM_AS TARGET llvm-as PROPERTY LOCATION)
   get_property(LLVM_LINK TARGET llvm-link PROPERTY LOCATION)
   get_property(LLVM_OPT TARGET opt PROPERTY LOCATION)

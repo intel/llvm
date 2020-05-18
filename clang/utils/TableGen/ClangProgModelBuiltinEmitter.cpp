@@ -63,17 +63,25 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/StringSwitch.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/TableGen/Error.h"
 #include "llvm/TableGen/Record.h"
 #include "llvm/TableGen/StringMatcher.h"
 #include "llvm/TableGen/TableGenBackend.h"
+#include <numeric>
 #include <set>
 
 using namespace llvm;
 
 namespace {
+
+cl::opt<std::string>
+    TypePrefix("json-type-prefix",
+               cl::desc("Use a specific prefix for the types of the json prog "
+                        "model builtin output. Default: __clc."),
+               cl::value_desc("prefix"), cl::init("__clc"), cl::Hidden);
 
 // A list of signatures that are shared by one or more builtin functions.
 struct BuiltinTableEntries {
@@ -92,7 +100,7 @@ public:
   // whether a function is a builtin function.
   void Emit();
 
-private:
+protected:
   // A list of indices into the builtin function table.
   using BuiltinIndexListTy = SmallVector<unsigned, 11>;
 
@@ -236,6 +244,72 @@ private:
   // The function "tan", having the same signatures, would be mapped to the
   // same entry (<I1, I2, I3>).
   MapVector<BuiltinIndexListTy *, BuiltinTableEntries> SignatureListMap;
+};
+
+/// Generate a json file representing the builtins as understood by clang.
+/// This allows the generation of a library interface.
+class JSONBuiltinInterfaceEmitter : public BuiltinNameEmitter {
+  struct TypeDesc {
+    TypeDesc(const Record *T);
+    // Return a string representing the "base" type (ignores pointers).
+    std::string GetBaseTypeAsStr() const;
+
+    llvm::StringRef Name;
+    // True if the underlying type is compiler opaque type.
+    bool IsOpaque;
+    // Size of the vector (if applicable).
+    int VecWidth;
+    // Size of the element in bits.
+    int ElementSize;
+    // Is a integer.
+    bool IsInteger;
+    // Is a signed integer.
+    bool IsSigned;
+    // Is a float.
+    bool IsFloat;
+    // Is a pointer.
+    bool IsPointer;
+    // "const" qualifier.
+    bool IsConst;
+    // "volatile" qualifier.
+    bool IsVolatile;
+    // Is a builtin type.
+    bool IsBuiltin;
+    std::string AddrSpace;
+  };
+
+public:
+  JSONBuiltinInterfaceEmitter(RecordKeeper &Records, raw_ostream &OS,
+                              llvm::StringRef Family)
+      : BuiltinNameEmitter(Records, OS, Family) {}
+
+  // Entrypoint to generate the functions and structures for checking
+  // whether a function is an builtin function.
+  void Emit();
+
+private:
+  void EmitBuiltins();
+
+  // Expand all generic types into a list of types.
+  void ExpandTypes();
+  void ExpandType(const Record *Ty);
+
+  // For each Type records, map a vector of string representing a all types
+  // encoded in the record.
+  // Simple type will result in a 1 element vector, but generic type (e.g. all
+  // ints) will result in a n elements vector encoding concrete types (e.g. int8
+  // uint8, int16 etc.)
+  // The format use is:
+  //   __clc_vec{len}_{type}_t
+  // where
+  //  "_vec{len}" is added if the type is a vector.
+  //  "{type}" is a normalized type:
+  //      int{size}, uint{size}, fp{size}, size (for size_t), event, bool
+  // if the type is a pointer, "{const} {volatile} {asp} *" is appended with
+  //   {asp}: <empty>, __private, __global, __local, __constant
+  //
+  // __clc can be changed using the CLI option TypePrefix
+  DenseMap<const Record *, llvm::SmallVector<std::string, 16>> ExpandedTypes;
 };
 } // namespace
 
@@ -848,6 +922,216 @@ void BuiltinNameEmitter::EmitQualTypeFinder() {
   OS << "\n} // Bultin2Qual\n";
 }
 
+JSONBuiltinInterfaceEmitter::TypeDesc::TypeDesc(const Record *T) {
+  Name = T->getValueAsString("Name");
+  IsInteger = T->getValueAsBit("IsInteger");
+  IsSigned = T->getValueAsBit("IsSigned");
+  IsFloat = T->getValueAsBit("IsFloat");
+  ElementSize = T->getValueAsInt("ElementSize");
+  VecWidth = T->getValueAsInt("VecWidth");
+  IsConst = T->getValueAsBit("IsConst");
+  IsVolatile = T->getValueAsBit("IsVolatile");
+  IsPointer = T->getValueAsBit("IsPointer");
+  IsBuiltin =
+      !T->isSubClassOf("FundamentalType") && !T->isSubClassOf("VectorType");
+
+  AddrSpace = StringSwitch<const char *>(T->getValueAsString("AddrSpace"))
+                  .Case("clang::LangAS::Default", "")
+                  .Case("clang::LangAS::opencl_private", "__private")
+                  .Case("clang::LangAS::opencl_global", "__global")
+                  .Case("clang::LangAS::opencl_constant", "__constant")
+                  .Case("clang::LangAS::opencl_local", "__local")
+                  .Default("__generic");
+}
+
+std::string JSONBuiltinInterfaceEmitter::TypeDesc::GetBaseTypeAsStr() const {
+  if (Name == "void") {
+    return Name.str();
+  }
+
+  llvm::SmallString<32> Buffer;
+  {
+    llvm::raw_svector_ostream TypeStr(Buffer);
+    TypeStr << TypePrefix;
+    if (IsBuiltin) {
+      TypeStr << "_" << Name;
+    } else {
+      if (VecWidth != 1)
+        TypeStr << "_vec" << VecWidth;
+      if (IsInteger) {
+        if (ElementSize == 1)
+          TypeStr << "_bool";
+        else
+          TypeStr << (IsSigned ? "_int" : "_uint") << ElementSize;
+      } else {
+        if (IsFloat)
+          TypeStr << "_fp" << ElementSize;
+        else
+          llvm_unreachable("Unknown type");
+      }
+      TypeStr << "_t";
+    }
+  }
+
+  return static_cast<std::string>(Buffer);
+}
+
+void JSONBuiltinInterfaceEmitter::Emit() {
+
+  // Parse the Records to populate the internal lists.
+  GetOverloads();
+  GroupBySignature();
+  ExpandTypes();
+
+  EmitBuiltins();
+}
+
+// Generate all possible types represented by the input record.
+void JSONBuiltinInterfaceEmitter::ExpandType(const Record *Ty) {
+  auto ExpansionIt = ExpandedTypes.find(Ty);
+
+  if (ExpansionIt != ExpandedTypes.end())
+    return;
+  llvm::SmallVectorImpl<std::string> &Expansion = ExpandedTypes[Ty];
+
+  JSONBuiltinInterfaceEmitter::TypeDesc TypeDesc(Ty);
+
+  bool IsCompound = Ty->isSubClassOf("CompoundType");
+  if (IsCompound) {
+    auto *EltRecord = Ty->getValueAsDef("ElementType");
+    ExpandType(EltRecord);
+    Expansion = ExpandedTypes[EltRecord];
+    for (auto &TypeStr : Expansion) {
+      if (TypeDesc.IsPointer) {
+        if (TypeDesc.IsConst)
+          TypeStr += " const";
+        if (TypeDesc.IsVolatile)
+          TypeStr += " volatile";
+        TypeStr += " ";
+        TypeStr += TypeDesc.AddrSpace;
+        TypeStr += " *";
+      }
+    }
+
+    return;
+  }
+
+  if (Ty->isSubClassOf("GenericType")) {
+    assert(!Expansion.size() && "Types already expanded");
+    auto NVec = Ty->getValueAsDef("VectorList")->getValueAsListOfInts("List");
+    auto NTypes = Ty->getValueAsDef("TypeList")->getValueAsListOfDefs("List");
+    for (auto SubT : NTypes) {
+      for (auto VecWidth : NVec) {
+        JSONBuiltinInterfaceEmitter::TypeDesc TypeDesc(SubT);
+        TypeDesc.VecWidth = VecWidth;
+        Expansion.emplace_back(TypeDesc.GetBaseTypeAsStr());
+      }
+    }
+
+    return;
+  }
+
+  Expansion.emplace_back(TypeDesc.GetBaseTypeAsStr());
+}
+
+void JSONBuiltinInterfaceEmitter::ExpandTypes() {
+  for (const auto *T : Records.getAllDerivedDefinitions("Type")) {
+    ExpandType(T);
+  }
+}
+
+void JSONBuiltinInterfaceEmitter::EmitBuiltins() {
+  struct FnDesc {
+    bool IsPure;
+    bool IsConst;
+    bool IsConv;
+    bool IsVariadic;
+    SmallVector<llvm::StringRef, 8> Args;
+  };
+  StringMap<SmallVector<FnDesc, 16>> NameToProtoList;
+
+  // For each function names, gather the list of overloads
+  for (const auto &SLM : SignatureListMap) {
+    for (const auto &Name : SLM.second.Names) {
+      auto &PrototypeList = NameToProtoList[Name];
+
+      for (const auto &Overload : SLM.second.Signatures) {
+        auto Signature = Overload.first->getValueAsListOfDefs("Signature");
+        auto SignatureTypesIt = llvm::map_range(
+            Signature, [this](const Record *Ty) -> llvm::ArrayRef<std::string> {
+              return ExpandedTypes[Ty];
+            });
+        auto SignatureLenIt = llvm::map_range(
+            SignatureTypesIt, [](llvm::ArrayRef<std::string> ExpandedType) {
+              return ExpandedType.size();
+            });
+        assert(SignatureLenIt.begin() != SignatureLenIt.end());
+        // Find out how many overloads this signature holds.
+        size_t NbOverload = 1;
+        for (size_t Len : SignatureLenIt)
+          NbOverload = std::max(NbOverload, Len);
+        // assert the signature is consistent
+        assert(llvm::all_of(SignatureLenIt, [NbOverload](size_t NbTypes) {
+          return NbTypes == NbOverload || NbTypes == 1;
+        }));
+        for (size_t idx = 0; idx < NbOverload; idx++) {
+          FnDesc Proto;
+          Proto.IsPure = Overload.first->getValueAsBit("IsPure");
+          Proto.IsConst = Overload.first->getValueAsBit("IsConst");
+          Proto.IsConv = Overload.first->getValueAsBit("IsConv");
+          Proto.IsVariadic = Overload.first->getValueAsBit("IsVariadic");
+          for (const auto &Types : SignatureTypesIt) {
+            Proto.Args.emplace_back(Types[idx >= Types.size() ? 0 : idx]);
+          }
+          PrototypeList.emplace_back(std::move(Proto));
+        }
+      }
+    }
+  }
+  OS << "{\n";
+  // emit name : ["ty1", "ty2", "ty3"], ["pure"]
+  llvm::interleave(
+      NameToProtoList.keys(), OS,
+      [&](llvm::StringRef FnName) {
+        OS << "  \"" << FnName << "\" : [\n";
+        auto &PrototypeList = NameToProtoList[FnName];
+        // emit ["ty1", "ty2", "ty3"], ["pure"]
+        llvm::interleave(
+            PrototypeList, OS,
+            [&](const FnDesc &Prototype) {
+              OS << "    [[";
+              // emit "ty1", "ty2", "ty3"
+              llvm::interleave(
+                  Prototype.Args, OS,
+                  [&](llvm::StringRef Type) { OS << "\"" << Type << "\""; },
+                  ",");
+              OS << "], [";
+              bool HasPrev = false;
+              // Helper, skip the comma for the first attribute to comply with
+              // JSON.
+              auto EmitWithPrefix = [&](llvm::StringRef Attr) {
+                if (HasPrev)
+                  OS << ", ";
+                OS << "\"" << Attr << "\"";
+                HasPrev = true;
+              };
+              if (Prototype.IsPure)
+                EmitWithPrefix("pure");
+              if (Prototype.IsConst)
+                EmitWithPrefix("const");
+              if (Prototype.IsConv)
+                EmitWithPrefix("convergent");
+              if (Prototype.IsVariadic)
+                EmitWithPrefix("variadic");
+              OS << "]]";
+            },
+            ",\n");
+        OS << "\n  ]";
+      },
+      ",\n");
+  OS << "\n}\n";
+}
+
 void clang::EmitClangOpenCLBuiltins(RecordKeeper &Records, raw_ostream &OS) {
   BuiltinNameEmitter NameChecker(Records, OS, "OpenCL");
   NameChecker.Emit();
@@ -855,5 +1139,11 @@ void clang::EmitClangOpenCLBuiltins(RecordKeeper &Records, raw_ostream &OS) {
 
 void clang::EmitClangSPIRVBuiltins(RecordKeeper &Records, raw_ostream &OS) {
   BuiltinNameEmitter NameChecker(Records, OS, "SPIRV");
+  NameChecker.Emit();
+}
+
+void clang::EmitProgModelBuiltinsAsJSON(RecordKeeper &Records,
+                                        raw_ostream &OS) {
+  JSONBuiltinInterfaceEmitter NameChecker(Records, OS, "");
   NameChecker.Emit();
 }

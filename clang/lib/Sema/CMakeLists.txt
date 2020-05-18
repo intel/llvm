@@ -23,6 +23,11 @@ clang_tablegen(SPIRVBuiltins.inc -gen-clang-spirv-builtins
  TARGET ClangSPIRVBuiltinsImpl
  )
 
+clang_tablegen(SPIRVBuiltins.json --gen-clang-progmodel-builtins-as-json
+ SOURCE SPIRVBuiltins.td
+ TARGET ClangSPIRVBuiltinsJSON
+ )
+
 add_clang_library(clangSema
   AnalysisBasedWarnings.cpp
   CodeCompleteConsumer.cpp

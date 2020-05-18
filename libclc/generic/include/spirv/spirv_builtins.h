@@ -6,6 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+//
+// Automatically generated file, do not edit!
+//
+
 #include <func.h>
 #include <spirv/spirv_types.h>
 
@@ -6254,6 +6258,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_uint16_t
 
 #ifdef cl_khr_fp64
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp64_t
+    __spirv_ConvertSToF_Rdouble(__clc_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp64_t
     __spirv_ConvertSToF_Rdouble(__clc_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp64_t
     __spirv_ConvertSToF_Rdouble(__clc_int16_t);
@@ -6264,6 +6270,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp64_t
 #endif
 
 #ifdef cl_khr_fp64
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp64_t
+    __spirv_ConvertSToF_Rdouble16(__clc_vec16_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp64_t
     __spirv_ConvertSToF_Rdouble16(__clc_vec16_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp64_t
@@ -6276,6 +6284,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp64_t
 
 #ifdef cl_khr_fp64
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp64_t
+    __spirv_ConvertSToF_Rdouble16_rte(__clc_vec16_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp64_t
     __spirv_ConvertSToF_Rdouble16_rte(__clc_vec16_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp64_t
     __spirv_ConvertSToF_Rdouble16_rte(__clc_vec16_int16_t);
@@ -6286,6 +6296,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp64_t
 #endif
 
 #ifdef cl_khr_fp64
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp64_t
+    __spirv_ConvertSToF_Rdouble16_rtn(__clc_vec16_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp64_t
     __spirv_ConvertSToF_Rdouble16_rtn(__clc_vec16_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp64_t
@@ -6298,6 +6310,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp64_t
 
 #ifdef cl_khr_fp64
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp64_t
+    __spirv_ConvertSToF_Rdouble16_rtp(__clc_vec16_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp64_t
     __spirv_ConvertSToF_Rdouble16_rtp(__clc_vec16_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp64_t
     __spirv_ConvertSToF_Rdouble16_rtp(__clc_vec16_int16_t);
@@ -6308,6 +6322,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp64_t
 #endif
 
 #ifdef cl_khr_fp64
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp64_t
+    __spirv_ConvertSToF_Rdouble16_rtz(__clc_vec16_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp64_t
     __spirv_ConvertSToF_Rdouble16_rtz(__clc_vec16_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp64_t
@@ -6320,6 +6336,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp64_t
 
 #ifdef cl_khr_fp64
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp64_t
+    __spirv_ConvertSToF_Rdouble2(__clc_vec2_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp64_t
     __spirv_ConvertSToF_Rdouble2(__clc_vec2_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp64_t
     __spirv_ConvertSToF_Rdouble2(__clc_vec2_int16_t);
@@ -6330,6 +6348,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp64_t
 #endif
 
 #ifdef cl_khr_fp64
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp64_t
+    __spirv_ConvertSToF_Rdouble2_rte(__clc_vec2_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp64_t
     __spirv_ConvertSToF_Rdouble2_rte(__clc_vec2_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp64_t
@@ -6342,6 +6362,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp64_t
 
 #ifdef cl_khr_fp64
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp64_t
+    __spirv_ConvertSToF_Rdouble2_rtn(__clc_vec2_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp64_t
     __spirv_ConvertSToF_Rdouble2_rtn(__clc_vec2_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp64_t
     __spirv_ConvertSToF_Rdouble2_rtn(__clc_vec2_int16_t);
@@ -6352,6 +6374,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp64_t
 #endif
 
 #ifdef cl_khr_fp64
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp64_t
+    __spirv_ConvertSToF_Rdouble2_rtp(__clc_vec2_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp64_t
     __spirv_ConvertSToF_Rdouble2_rtp(__clc_vec2_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp64_t
@@ -6364,6 +6388,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp64_t
 
 #ifdef cl_khr_fp64
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp64_t
+    __spirv_ConvertSToF_Rdouble2_rtz(__clc_vec2_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp64_t
     __spirv_ConvertSToF_Rdouble2_rtz(__clc_vec2_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp64_t
     __spirv_ConvertSToF_Rdouble2_rtz(__clc_vec2_int16_t);
@@ -6374,6 +6400,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp64_t
 #endif
 
 #ifdef cl_khr_fp64
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp64_t
+    __spirv_ConvertSToF_Rdouble3(__clc_vec3_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp64_t
     __spirv_ConvertSToF_Rdouble3(__clc_vec3_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp64_t
@@ -6386,6 +6414,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp64_t
 
 #ifdef cl_khr_fp64
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp64_t
+    __spirv_ConvertSToF_Rdouble3_rte(__clc_vec3_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp64_t
     __spirv_ConvertSToF_Rdouble3_rte(__clc_vec3_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp64_t
     __spirv_ConvertSToF_Rdouble3_rte(__clc_vec3_int16_t);
@@ -6396,6 +6426,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp64_t
 #endif
 
 #ifdef cl_khr_fp64
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp64_t
+    __spirv_ConvertSToF_Rdouble3_rtn(__clc_vec3_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp64_t
     __spirv_ConvertSToF_Rdouble3_rtn(__clc_vec3_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp64_t
@@ -6408,6 +6440,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp64_t
 
 #ifdef cl_khr_fp64
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp64_t
+    __spirv_ConvertSToF_Rdouble3_rtp(__clc_vec3_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp64_t
     __spirv_ConvertSToF_Rdouble3_rtp(__clc_vec3_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp64_t
     __spirv_ConvertSToF_Rdouble3_rtp(__clc_vec3_int16_t);
@@ -6418,6 +6452,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp64_t
 #endif
 
 #ifdef cl_khr_fp64
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp64_t
+    __spirv_ConvertSToF_Rdouble3_rtz(__clc_vec3_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp64_t
     __spirv_ConvertSToF_Rdouble3_rtz(__clc_vec3_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp64_t
@@ -6430,6 +6466,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp64_t
 
 #ifdef cl_khr_fp64
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp64_t
+    __spirv_ConvertSToF_Rdouble4(__clc_vec4_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp64_t
     __spirv_ConvertSToF_Rdouble4(__clc_vec4_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp64_t
     __spirv_ConvertSToF_Rdouble4(__clc_vec4_int16_t);
@@ -6440,6 +6478,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp64_t
 #endif
 
 #ifdef cl_khr_fp64
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp64_t
+    __spirv_ConvertSToF_Rdouble4_rte(__clc_vec4_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp64_t
     __spirv_ConvertSToF_Rdouble4_rte(__clc_vec4_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp64_t
@@ -6452,6 +6492,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp64_t
 
 #ifdef cl_khr_fp64
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp64_t
+    __spirv_ConvertSToF_Rdouble4_rtn(__clc_vec4_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp64_t
     __spirv_ConvertSToF_Rdouble4_rtn(__clc_vec4_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp64_t
     __spirv_ConvertSToF_Rdouble4_rtn(__clc_vec4_int16_t);
@@ -6462,6 +6504,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp64_t
 #endif
 
 #ifdef cl_khr_fp64
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp64_t
+    __spirv_ConvertSToF_Rdouble4_rtp(__clc_vec4_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp64_t
     __spirv_ConvertSToF_Rdouble4_rtp(__clc_vec4_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp64_t
@@ -6474,6 +6518,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp64_t
 
 #ifdef cl_khr_fp64
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp64_t
+    __spirv_ConvertSToF_Rdouble4_rtz(__clc_vec4_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp64_t
     __spirv_ConvertSToF_Rdouble4_rtz(__clc_vec4_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp64_t
     __spirv_ConvertSToF_Rdouble4_rtz(__clc_vec4_int16_t);
@@ -6484,6 +6530,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp64_t
 #endif
 
 #ifdef cl_khr_fp64
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp64_t
+    __spirv_ConvertSToF_Rdouble8(__clc_vec8_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp64_t
     __spirv_ConvertSToF_Rdouble8(__clc_vec8_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp64_t
@@ -6496,6 +6544,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp64_t
 
 #ifdef cl_khr_fp64
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp64_t
+    __spirv_ConvertSToF_Rdouble8_rte(__clc_vec8_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp64_t
     __spirv_ConvertSToF_Rdouble8_rte(__clc_vec8_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp64_t
     __spirv_ConvertSToF_Rdouble8_rte(__clc_vec8_int16_t);
@@ -6506,6 +6556,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp64_t
 #endif
 
 #ifdef cl_khr_fp64
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp64_t
+    __spirv_ConvertSToF_Rdouble8_rtn(__clc_vec8_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp64_t
     __spirv_ConvertSToF_Rdouble8_rtn(__clc_vec8_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp64_t
@@ -6518,6 +6570,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp64_t
 
 #ifdef cl_khr_fp64
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp64_t
+    __spirv_ConvertSToF_Rdouble8_rtp(__clc_vec8_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp64_t
     __spirv_ConvertSToF_Rdouble8_rtp(__clc_vec8_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp64_t
     __spirv_ConvertSToF_Rdouble8_rtp(__clc_vec8_int16_t);
@@ -6528,6 +6582,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp64_t
 #endif
 
 #ifdef cl_khr_fp64
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp64_t
+    __spirv_ConvertSToF_Rdouble8_rtz(__clc_vec8_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp64_t
     __spirv_ConvertSToF_Rdouble8_rtz(__clc_vec8_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp64_t
@@ -6540,6 +6596,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp64_t
 
 #ifdef cl_khr_fp64
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp64_t
+    __spirv_ConvertSToF_Rdouble_rte(__clc_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp64_t
     __spirv_ConvertSToF_Rdouble_rte(__clc_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp64_t
     __spirv_ConvertSToF_Rdouble_rte(__clc_int16_t);
@@ -6550,6 +6608,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp64_t
 #endif
 
 #ifdef cl_khr_fp64
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp64_t
+    __spirv_ConvertSToF_Rdouble_rtn(__clc_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp64_t
     __spirv_ConvertSToF_Rdouble_rtn(__clc_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp64_t
@@ -6562,6 +6622,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp64_t
 
 #ifdef cl_khr_fp64
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp64_t
+    __spirv_ConvertSToF_Rdouble_rtp(__clc_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp64_t
     __spirv_ConvertSToF_Rdouble_rtp(__clc_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp64_t
     __spirv_ConvertSToF_Rdouble_rtp(__clc_int16_t);
@@ -6573,6 +6635,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp64_t
 
 #ifdef cl_khr_fp64
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp64_t
+    __spirv_ConvertSToF_Rdouble_rtz(__clc_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp64_t
     __spirv_ConvertSToF_Rdouble_rtz(__clc_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp64_t
     __spirv_ConvertSToF_Rdouble_rtz(__clc_int16_t);
@@ -6583,6 +6647,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp64_t
 #endif
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp32_t
+    __spirv_ConvertSToF_Rfloat(__clc_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp32_t
     __spirv_ConvertSToF_Rfloat(__clc_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp32_t
     __spirv_ConvertSToF_Rfloat(__clc_int16_t);
@@ -6591,6 +6657,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp32_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp32_t
     __spirv_ConvertSToF_Rfloat(__clc_int64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp32_t
+    __spirv_ConvertSToF_Rfloat16(__clc_vec16_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp32_t
     __spirv_ConvertSToF_Rfloat16(__clc_vec16_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp32_t
@@ -6601,6 +6669,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp32_t
     __spirv_ConvertSToF_Rfloat16(__clc_vec16_int64_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp32_t
+    __spirv_ConvertSToF_Rfloat16_rte(__clc_vec16_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp32_t
     __spirv_ConvertSToF_Rfloat16_rte(__clc_vec16_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp32_t
     __spirv_ConvertSToF_Rfloat16_rte(__clc_vec16_int16_t);
@@ -6609,6 +6679,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp32_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp32_t
     __spirv_ConvertSToF_Rfloat16_rte(__clc_vec16_int64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp32_t
+    __spirv_ConvertSToF_Rfloat16_rtn(__clc_vec16_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp32_t
     __spirv_ConvertSToF_Rfloat16_rtn(__clc_vec16_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp32_t
@@ -6619,6 +6691,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp32_t
     __spirv_ConvertSToF_Rfloat16_rtn(__clc_vec16_int64_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp32_t
+    __spirv_ConvertSToF_Rfloat16_rtp(__clc_vec16_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp32_t
     __spirv_ConvertSToF_Rfloat16_rtp(__clc_vec16_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp32_t
     __spirv_ConvertSToF_Rfloat16_rtp(__clc_vec16_int16_t);
@@ -6627,6 +6701,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp32_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp32_t
     __spirv_ConvertSToF_Rfloat16_rtp(__clc_vec16_int64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp32_t
+    __spirv_ConvertSToF_Rfloat16_rtz(__clc_vec16_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp32_t
     __spirv_ConvertSToF_Rfloat16_rtz(__clc_vec16_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp32_t
@@ -6637,6 +6713,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp32_t
     __spirv_ConvertSToF_Rfloat16_rtz(__clc_vec16_int64_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp32_t
+    __spirv_ConvertSToF_Rfloat2(__clc_vec2_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp32_t
     __spirv_ConvertSToF_Rfloat2(__clc_vec2_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp32_t
     __spirv_ConvertSToF_Rfloat2(__clc_vec2_int16_t);
@@ -6645,6 +6723,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp32_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp32_t
     __spirv_ConvertSToF_Rfloat2(__clc_vec2_int64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp32_t
+    __spirv_ConvertSToF_Rfloat2_rte(__clc_vec2_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp32_t
     __spirv_ConvertSToF_Rfloat2_rte(__clc_vec2_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp32_t
@@ -6655,6 +6735,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp32_t
     __spirv_ConvertSToF_Rfloat2_rte(__clc_vec2_int64_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp32_t
+    __spirv_ConvertSToF_Rfloat2_rtn(__clc_vec2_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp32_t
     __spirv_ConvertSToF_Rfloat2_rtn(__clc_vec2_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp32_t
     __spirv_ConvertSToF_Rfloat2_rtn(__clc_vec2_int16_t);
@@ -6663,6 +6745,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp32_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp32_t
     __spirv_ConvertSToF_Rfloat2_rtn(__clc_vec2_int64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp32_t
+    __spirv_ConvertSToF_Rfloat2_rtp(__clc_vec2_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp32_t
     __spirv_ConvertSToF_Rfloat2_rtp(__clc_vec2_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp32_t
@@ -6673,6 +6757,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp32_t
     __spirv_ConvertSToF_Rfloat2_rtp(__clc_vec2_int64_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp32_t
+    __spirv_ConvertSToF_Rfloat2_rtz(__clc_vec2_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp32_t
     __spirv_ConvertSToF_Rfloat2_rtz(__clc_vec2_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp32_t
     __spirv_ConvertSToF_Rfloat2_rtz(__clc_vec2_int16_t);
@@ -6681,6 +6767,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp32_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp32_t
     __spirv_ConvertSToF_Rfloat2_rtz(__clc_vec2_int64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp32_t
+    __spirv_ConvertSToF_Rfloat3(__clc_vec3_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp32_t
     __spirv_ConvertSToF_Rfloat3(__clc_vec3_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp32_t
@@ -6691,6 +6779,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp32_t
     __spirv_ConvertSToF_Rfloat3(__clc_vec3_int64_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp32_t
+    __spirv_ConvertSToF_Rfloat3_rte(__clc_vec3_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp32_t
     __spirv_ConvertSToF_Rfloat3_rte(__clc_vec3_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp32_t
     __spirv_ConvertSToF_Rfloat3_rte(__clc_vec3_int16_t);
@@ -6699,6 +6789,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp32_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp32_t
     __spirv_ConvertSToF_Rfloat3_rte(__clc_vec3_int64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp32_t
+    __spirv_ConvertSToF_Rfloat3_rtn(__clc_vec3_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp32_t
     __spirv_ConvertSToF_Rfloat3_rtn(__clc_vec3_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp32_t
@@ -6709,6 +6801,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp32_t
     __spirv_ConvertSToF_Rfloat3_rtn(__clc_vec3_int64_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp32_t
+    __spirv_ConvertSToF_Rfloat3_rtp(__clc_vec3_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp32_t
     __spirv_ConvertSToF_Rfloat3_rtp(__clc_vec3_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp32_t
     __spirv_ConvertSToF_Rfloat3_rtp(__clc_vec3_int16_t);
@@ -6717,6 +6811,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp32_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp32_t
     __spirv_ConvertSToF_Rfloat3_rtp(__clc_vec3_int64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp32_t
+    __spirv_ConvertSToF_Rfloat3_rtz(__clc_vec3_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp32_t
     __spirv_ConvertSToF_Rfloat3_rtz(__clc_vec3_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp32_t
@@ -6727,6 +6823,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp32_t
     __spirv_ConvertSToF_Rfloat3_rtz(__clc_vec3_int64_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp32_t
+    __spirv_ConvertSToF_Rfloat4(__clc_vec4_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp32_t
     __spirv_ConvertSToF_Rfloat4(__clc_vec4_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp32_t
     __spirv_ConvertSToF_Rfloat4(__clc_vec4_int16_t);
@@ -6735,6 +6833,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp32_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp32_t
     __spirv_ConvertSToF_Rfloat4(__clc_vec4_int64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp32_t
+    __spirv_ConvertSToF_Rfloat4_rte(__clc_vec4_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp32_t
     __spirv_ConvertSToF_Rfloat4_rte(__clc_vec4_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp32_t
@@ -6745,6 +6845,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp32_t
     __spirv_ConvertSToF_Rfloat4_rte(__clc_vec4_int64_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp32_t
+    __spirv_ConvertSToF_Rfloat4_rtn(__clc_vec4_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp32_t
     __spirv_ConvertSToF_Rfloat4_rtn(__clc_vec4_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp32_t
     __spirv_ConvertSToF_Rfloat4_rtn(__clc_vec4_int16_t);
@@ -6753,6 +6855,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp32_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp32_t
     __spirv_ConvertSToF_Rfloat4_rtn(__clc_vec4_int64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp32_t
+    __spirv_ConvertSToF_Rfloat4_rtp(__clc_vec4_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp32_t
     __spirv_ConvertSToF_Rfloat4_rtp(__clc_vec4_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp32_t
@@ -6763,6 +6867,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp32_t
     __spirv_ConvertSToF_Rfloat4_rtp(__clc_vec4_int64_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp32_t
+    __spirv_ConvertSToF_Rfloat4_rtz(__clc_vec4_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp32_t
     __spirv_ConvertSToF_Rfloat4_rtz(__clc_vec4_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp32_t
     __spirv_ConvertSToF_Rfloat4_rtz(__clc_vec4_int16_t);
@@ -6771,6 +6877,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp32_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp32_t
     __spirv_ConvertSToF_Rfloat4_rtz(__clc_vec4_int64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp32_t
+    __spirv_ConvertSToF_Rfloat8(__clc_vec8_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp32_t
     __spirv_ConvertSToF_Rfloat8(__clc_vec8_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp32_t
@@ -6781,6 +6889,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp32_t
     __spirv_ConvertSToF_Rfloat8(__clc_vec8_int64_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp32_t
+    __spirv_ConvertSToF_Rfloat8_rte(__clc_vec8_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp32_t
     __spirv_ConvertSToF_Rfloat8_rte(__clc_vec8_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp32_t
     __spirv_ConvertSToF_Rfloat8_rte(__clc_vec8_int16_t);
@@ -6789,6 +6899,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp32_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp32_t
     __spirv_ConvertSToF_Rfloat8_rte(__clc_vec8_int64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp32_t
+    __spirv_ConvertSToF_Rfloat8_rtn(__clc_vec8_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp32_t
     __spirv_ConvertSToF_Rfloat8_rtn(__clc_vec8_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp32_t
@@ -6799,6 +6911,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp32_t
     __spirv_ConvertSToF_Rfloat8_rtn(__clc_vec8_int64_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp32_t
+    __spirv_ConvertSToF_Rfloat8_rtp(__clc_vec8_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp32_t
     __spirv_ConvertSToF_Rfloat8_rtp(__clc_vec8_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp32_t
     __spirv_ConvertSToF_Rfloat8_rtp(__clc_vec8_int16_t);
@@ -6807,6 +6921,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp32_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp32_t
     __spirv_ConvertSToF_Rfloat8_rtp(__clc_vec8_int64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp32_t
+    __spirv_ConvertSToF_Rfloat8_rtz(__clc_vec8_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp32_t
     __spirv_ConvertSToF_Rfloat8_rtz(__clc_vec8_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp32_t
@@ -6817,6 +6933,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp32_t
     __spirv_ConvertSToF_Rfloat8_rtz(__clc_vec8_int64_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp32_t
+    __spirv_ConvertSToF_Rfloat_rte(__clc_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp32_t
     __spirv_ConvertSToF_Rfloat_rte(__clc_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp32_t
     __spirv_ConvertSToF_Rfloat_rte(__clc_int16_t);
@@ -6825,6 +6943,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp32_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp32_t
     __spirv_ConvertSToF_Rfloat_rte(__clc_int64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp32_t
+    __spirv_ConvertSToF_Rfloat_rtn(__clc_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp32_t
     __spirv_ConvertSToF_Rfloat_rtn(__clc_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp32_t
@@ -6835,6 +6955,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp32_t
     __spirv_ConvertSToF_Rfloat_rtn(__clc_int64_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp32_t
+    __spirv_ConvertSToF_Rfloat_rtp(__clc_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp32_t
     __spirv_ConvertSToF_Rfloat_rtp(__clc_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp32_t
     __spirv_ConvertSToF_Rfloat_rtp(__clc_int16_t);
@@ -6843,6 +6965,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp32_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp32_t
     __spirv_ConvertSToF_Rfloat_rtp(__clc_int64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp32_t
+    __spirv_ConvertSToF_Rfloat_rtz(__clc_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp32_t
     __spirv_ConvertSToF_Rfloat_rtz(__clc_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp32_t
@@ -6853,6 +6977,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp32_t
     __spirv_ConvertSToF_Rfloat_rtz(__clc_int64_t);
 
 #ifdef cl_khr_fp16
+_CLC_OVERLOAD
+_CLC_DECL _CLC_CONSTFN __clc_fp16_t __spirv_ConvertSToF_Rhalf(__clc_char_t);
 _CLC_OVERLOAD
 _CLC_DECL _CLC_CONSTFN __clc_fp16_t __spirv_ConvertSToF_Rhalf(__clc_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp16_t
@@ -6865,6 +6991,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp16_t
 
 #ifdef cl_khr_fp16
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp16_t
+    __spirv_ConvertSToF_Rhalf16(__clc_vec16_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp16_t
     __spirv_ConvertSToF_Rhalf16(__clc_vec16_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp16_t
     __spirv_ConvertSToF_Rhalf16(__clc_vec16_int16_t);
@@ -6875,6 +7003,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp16_t
 #endif
 
 #ifdef cl_khr_fp16
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp16_t
+    __spirv_ConvertSToF_Rhalf16_rte(__clc_vec16_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp16_t
     __spirv_ConvertSToF_Rhalf16_rte(__clc_vec16_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp16_t
@@ -6887,6 +7017,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp16_t
 
 #ifdef cl_khr_fp16
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp16_t
+    __spirv_ConvertSToF_Rhalf16_rtn(__clc_vec16_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp16_t
     __spirv_ConvertSToF_Rhalf16_rtn(__clc_vec16_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp16_t
     __spirv_ConvertSToF_Rhalf16_rtn(__clc_vec16_int16_t);
@@ -6897,6 +7029,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp16_t
 #endif
 
 #ifdef cl_khr_fp16
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp16_t
+    __spirv_ConvertSToF_Rhalf16_rtp(__clc_vec16_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp16_t
     __spirv_ConvertSToF_Rhalf16_rtp(__clc_vec16_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp16_t
@@ -6909,6 +7043,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp16_t
 
 #ifdef cl_khr_fp16
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp16_t
+    __spirv_ConvertSToF_Rhalf16_rtz(__clc_vec16_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp16_t
     __spirv_ConvertSToF_Rhalf16_rtz(__clc_vec16_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp16_t
     __spirv_ConvertSToF_Rhalf16_rtz(__clc_vec16_int16_t);
@@ -6919,6 +7055,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp16_t
 #endif
 
 #ifdef cl_khr_fp16
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp16_t
+    __spirv_ConvertSToF_Rhalf2(__clc_vec2_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp16_t
     __spirv_ConvertSToF_Rhalf2(__clc_vec2_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp16_t
@@ -6931,6 +7069,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp16_t
 
 #ifdef cl_khr_fp16
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp16_t
+    __spirv_ConvertSToF_Rhalf2_rte(__clc_vec2_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp16_t
     __spirv_ConvertSToF_Rhalf2_rte(__clc_vec2_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp16_t
     __spirv_ConvertSToF_Rhalf2_rte(__clc_vec2_int16_t);
@@ -6941,6 +7081,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp16_t
 #endif
 
 #ifdef cl_khr_fp16
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp16_t
+    __spirv_ConvertSToF_Rhalf2_rtn(__clc_vec2_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp16_t
     __spirv_ConvertSToF_Rhalf2_rtn(__clc_vec2_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp16_t
@@ -6953,6 +7095,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp16_t
 
 #ifdef cl_khr_fp16
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp16_t
+    __spirv_ConvertSToF_Rhalf2_rtp(__clc_vec2_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp16_t
     __spirv_ConvertSToF_Rhalf2_rtp(__clc_vec2_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp16_t
     __spirv_ConvertSToF_Rhalf2_rtp(__clc_vec2_int16_t);
@@ -6963,6 +7107,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp16_t
 #endif
 
 #ifdef cl_khr_fp16
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp16_t
+    __spirv_ConvertSToF_Rhalf2_rtz(__clc_vec2_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp16_t
     __spirv_ConvertSToF_Rhalf2_rtz(__clc_vec2_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp16_t
@@ -6975,6 +7121,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp16_t
 
 #ifdef cl_khr_fp16
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp16_t
+    __spirv_ConvertSToF_Rhalf3(__clc_vec3_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp16_t
     __spirv_ConvertSToF_Rhalf3(__clc_vec3_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp16_t
     __spirv_ConvertSToF_Rhalf3(__clc_vec3_int16_t);
@@ -6985,6 +7133,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp16_t
 #endif
 
 #ifdef cl_khr_fp16
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp16_t
+    __spirv_ConvertSToF_Rhalf3_rte(__clc_vec3_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp16_t
     __spirv_ConvertSToF_Rhalf3_rte(__clc_vec3_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp16_t
@@ -6997,6 +7147,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp16_t
 
 #ifdef cl_khr_fp16
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp16_t
+    __spirv_ConvertSToF_Rhalf3_rtn(__clc_vec3_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp16_t
     __spirv_ConvertSToF_Rhalf3_rtn(__clc_vec3_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp16_t
     __spirv_ConvertSToF_Rhalf3_rtn(__clc_vec3_int16_t);
@@ -7007,6 +7159,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp16_t
 #endif
 
 #ifdef cl_khr_fp16
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp16_t
+    __spirv_ConvertSToF_Rhalf3_rtp(__clc_vec3_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp16_t
     __spirv_ConvertSToF_Rhalf3_rtp(__clc_vec3_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp16_t
@@ -7019,6 +7173,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp16_t
 
 #ifdef cl_khr_fp16
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp16_t
+    __spirv_ConvertSToF_Rhalf3_rtz(__clc_vec3_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp16_t
     __spirv_ConvertSToF_Rhalf3_rtz(__clc_vec3_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp16_t
     __spirv_ConvertSToF_Rhalf3_rtz(__clc_vec3_int16_t);
@@ -7029,6 +7185,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp16_t
 #endif
 
 #ifdef cl_khr_fp16
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp16_t
+    __spirv_ConvertSToF_Rhalf4(__clc_vec4_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp16_t
     __spirv_ConvertSToF_Rhalf4(__clc_vec4_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp16_t
@@ -7041,6 +7199,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp16_t
 
 #ifdef cl_khr_fp16
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp16_t
+    __spirv_ConvertSToF_Rhalf4_rte(__clc_vec4_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp16_t
     __spirv_ConvertSToF_Rhalf4_rte(__clc_vec4_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp16_t
     __spirv_ConvertSToF_Rhalf4_rte(__clc_vec4_int16_t);
@@ -7051,6 +7211,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp16_t
 #endif
 
 #ifdef cl_khr_fp16
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp16_t
+    __spirv_ConvertSToF_Rhalf4_rtn(__clc_vec4_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp16_t
     __spirv_ConvertSToF_Rhalf4_rtn(__clc_vec4_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp16_t
@@ -7063,6 +7225,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp16_t
 
 #ifdef cl_khr_fp16
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp16_t
+    __spirv_ConvertSToF_Rhalf4_rtp(__clc_vec4_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp16_t
     __spirv_ConvertSToF_Rhalf4_rtp(__clc_vec4_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp16_t
     __spirv_ConvertSToF_Rhalf4_rtp(__clc_vec4_int16_t);
@@ -7073,6 +7237,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp16_t
 #endif
 
 #ifdef cl_khr_fp16
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp16_t
+    __spirv_ConvertSToF_Rhalf4_rtz(__clc_vec4_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp16_t
     __spirv_ConvertSToF_Rhalf4_rtz(__clc_vec4_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp16_t
@@ -7085,6 +7251,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp16_t
 
 #ifdef cl_khr_fp16
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp16_t
+    __spirv_ConvertSToF_Rhalf8(__clc_vec8_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp16_t
     __spirv_ConvertSToF_Rhalf8(__clc_vec8_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp16_t
     __spirv_ConvertSToF_Rhalf8(__clc_vec8_int16_t);
@@ -7095,6 +7263,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp16_t
 #endif
 
 #ifdef cl_khr_fp16
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp16_t
+    __spirv_ConvertSToF_Rhalf8_rte(__clc_vec8_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp16_t
     __spirv_ConvertSToF_Rhalf8_rte(__clc_vec8_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp16_t
@@ -7107,6 +7277,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp16_t
 
 #ifdef cl_khr_fp16
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp16_t
+    __spirv_ConvertSToF_Rhalf8_rtn(__clc_vec8_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp16_t
     __spirv_ConvertSToF_Rhalf8_rtn(__clc_vec8_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp16_t
     __spirv_ConvertSToF_Rhalf8_rtn(__clc_vec8_int16_t);
@@ -7117,6 +7289,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp16_t
 #endif
 
 #ifdef cl_khr_fp16
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp16_t
+    __spirv_ConvertSToF_Rhalf8_rtp(__clc_vec8_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp16_t
     __spirv_ConvertSToF_Rhalf8_rtp(__clc_vec8_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp16_t
@@ -7129,6 +7303,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp16_t
 
 #ifdef cl_khr_fp16
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp16_t
+    __spirv_ConvertSToF_Rhalf8_rtz(__clc_vec8_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp16_t
     __spirv_ConvertSToF_Rhalf8_rtz(__clc_vec8_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp16_t
     __spirv_ConvertSToF_Rhalf8_rtz(__clc_vec8_int16_t);
@@ -7139,6 +7315,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp16_t
 #endif
 
 #ifdef cl_khr_fp16
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp16_t
+    __spirv_ConvertSToF_Rhalf_rte(__clc_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp16_t
     __spirv_ConvertSToF_Rhalf_rte(__clc_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp16_t
@@ -7151,6 +7329,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp16_t
 
 #ifdef cl_khr_fp16
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp16_t
+    __spirv_ConvertSToF_Rhalf_rtn(__clc_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp16_t
     __spirv_ConvertSToF_Rhalf_rtn(__clc_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp16_t
     __spirv_ConvertSToF_Rhalf_rtn(__clc_int16_t);
@@ -7162,6 +7342,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp16_t
 
 #ifdef cl_khr_fp16
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp16_t
+    __spirv_ConvertSToF_Rhalf_rtp(__clc_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp16_t
     __spirv_ConvertSToF_Rhalf_rtp(__clc_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp16_t
     __spirv_ConvertSToF_Rhalf_rtp(__clc_int16_t);
@@ -7172,6 +7354,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp16_t
 #endif
 
 #ifdef cl_khr_fp16
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp16_t
+    __spirv_ConvertSToF_Rhalf_rtz(__clc_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp16_t
     __spirv_ConvertSToF_Rhalf_rtz(__clc_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp16_t
@@ -9289,6 +9473,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_int8_t
     __spirv_SConvert_Rchar_sat(__clc_uint64_t);
 
 _CLC_OVERLOAD
+_CLC_DECL _CLC_CONSTFN __clc_int32_t __spirv_SConvert_Rint(__clc_char_t);
+_CLC_OVERLOAD
 _CLC_DECL _CLC_CONSTFN __clc_int32_t __spirv_SConvert_Rint(__clc_int8_t);
 _CLC_OVERLOAD
 _CLC_DECL _CLC_CONSTFN __clc_int32_t __spirv_SConvert_Rint(__clc_int16_t);
@@ -9301,6 +9487,8 @@ _CLC_DECL _CLC_CONSTFN __clc_int32_t __spirv_SConvert_Rint(__clc_uint16_t);
 _CLC_OVERLOAD
 _CLC_DECL _CLC_CONSTFN __clc_int32_t __spirv_SConvert_Rint(__clc_uint64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_int32_t
+    __spirv_SConvert_Rint16(__clc_vec16_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_int32_t
     __spirv_SConvert_Rint16(__clc_vec16_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_int32_t
@@ -9315,6 +9503,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_int32_t
     __spirv_SConvert_Rint16(__clc_vec16_uint64_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_int32_t
+    __spirv_SConvert_Rint16_sat(__clc_vec16_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_int32_t
     __spirv_SConvert_Rint16_sat(__clc_vec16_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_int32_t
     __spirv_SConvert_Rint16_sat(__clc_vec16_int16_t);
@@ -9327,6 +9517,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_int32_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_int32_t
     __spirv_SConvert_Rint16_sat(__clc_vec16_uint64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_int32_t
+    __spirv_SConvert_Rint2(__clc_vec2_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_int32_t
     __spirv_SConvert_Rint2(__clc_vec2_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_int32_t
@@ -9341,6 +9533,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_int32_t
     __spirv_SConvert_Rint2(__clc_vec2_uint64_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_int32_t
+    __spirv_SConvert_Rint2_sat(__clc_vec2_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_int32_t
     __spirv_SConvert_Rint2_sat(__clc_vec2_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_int32_t
     __spirv_SConvert_Rint2_sat(__clc_vec2_int16_t);
@@ -9353,6 +9547,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_int32_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_int32_t
     __spirv_SConvert_Rint2_sat(__clc_vec2_uint64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_int32_t
+    __spirv_SConvert_Rint3(__clc_vec3_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_int32_t
     __spirv_SConvert_Rint3(__clc_vec3_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_int32_t
@@ -9367,6 +9563,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_int32_t
     __spirv_SConvert_Rint3(__clc_vec3_uint64_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_int32_t
+    __spirv_SConvert_Rint3_sat(__clc_vec3_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_int32_t
     __spirv_SConvert_Rint3_sat(__clc_vec3_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_int32_t
     __spirv_SConvert_Rint3_sat(__clc_vec3_int16_t);
@@ -9379,6 +9577,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_int32_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_int32_t
     __spirv_SConvert_Rint3_sat(__clc_vec3_uint64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_int32_t
+    __spirv_SConvert_Rint4(__clc_vec4_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_int32_t
     __spirv_SConvert_Rint4(__clc_vec4_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_int32_t
@@ -9393,6 +9593,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_int32_t
     __spirv_SConvert_Rint4(__clc_vec4_uint64_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_int32_t
+    __spirv_SConvert_Rint4_sat(__clc_vec4_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_int32_t
     __spirv_SConvert_Rint4_sat(__clc_vec4_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_int32_t
     __spirv_SConvert_Rint4_sat(__clc_vec4_int16_t);
@@ -9405,6 +9607,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_int32_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_int32_t
     __spirv_SConvert_Rint4_sat(__clc_vec4_uint64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_int32_t
+    __spirv_SConvert_Rint8(__clc_vec8_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_int32_t
     __spirv_SConvert_Rint8(__clc_vec8_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_int32_t
@@ -9419,6 +9623,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_int32_t
     __spirv_SConvert_Rint8(__clc_vec8_uint64_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_int32_t
+    __spirv_SConvert_Rint8_sat(__clc_vec8_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_int32_t
     __spirv_SConvert_Rint8_sat(__clc_vec8_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_int32_t
     __spirv_SConvert_Rint8_sat(__clc_vec8_int16_t);
@@ -9431,6 +9637,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_int32_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_int32_t
     __spirv_SConvert_Rint8_sat(__clc_vec8_uint64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_int32_t
+    __spirv_SConvert_Rint_sat(__clc_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_int32_t
     __spirv_SConvert_Rint_sat(__clc_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_int32_t
@@ -9445,6 +9653,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_int32_t
     __spirv_SConvert_Rint_sat(__clc_uint64_t);
 
 _CLC_OVERLOAD
+_CLC_DECL _CLC_CONSTFN __clc_int64_t __spirv_SConvert_Rlong(__clc_char_t);
+_CLC_OVERLOAD
 _CLC_DECL _CLC_CONSTFN __clc_int64_t __spirv_SConvert_Rlong(__clc_int8_t);
 _CLC_OVERLOAD
 _CLC_DECL _CLC_CONSTFN __clc_int64_t __spirv_SConvert_Rlong(__clc_int16_t);
@@ -9457,6 +9667,8 @@ _CLC_DECL _CLC_CONSTFN __clc_int64_t __spirv_SConvert_Rlong(__clc_uint16_t);
 _CLC_OVERLOAD
 _CLC_DECL _CLC_CONSTFN __clc_int64_t __spirv_SConvert_Rlong(__clc_uint32_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_int64_t
+    __spirv_SConvert_Rlong16(__clc_vec16_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_int64_t
     __spirv_SConvert_Rlong16(__clc_vec16_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_int64_t
@@ -9471,6 +9683,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_int64_t
     __spirv_SConvert_Rlong16(__clc_vec16_uint32_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_int64_t
+    __spirv_SConvert_Rlong16_sat(__clc_vec16_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_int64_t
     __spirv_SConvert_Rlong16_sat(__clc_vec16_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_int64_t
     __spirv_SConvert_Rlong16_sat(__clc_vec16_int16_t);
@@ -9483,6 +9697,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_int64_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_int64_t
     __spirv_SConvert_Rlong16_sat(__clc_vec16_uint32_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_int64_t
+    __spirv_SConvert_Rlong2(__clc_vec2_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_int64_t
     __spirv_SConvert_Rlong2(__clc_vec2_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_int64_t
@@ -9497,6 +9713,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_int64_t
     __spirv_SConvert_Rlong2(__clc_vec2_uint32_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_int64_t
+    __spirv_SConvert_Rlong2_sat(__clc_vec2_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_int64_t
     __spirv_SConvert_Rlong2_sat(__clc_vec2_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_int64_t
     __spirv_SConvert_Rlong2_sat(__clc_vec2_int16_t);
@@ -9509,6 +9727,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_int64_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_int64_t
     __spirv_SConvert_Rlong2_sat(__clc_vec2_uint32_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_int64_t
+    __spirv_SConvert_Rlong3(__clc_vec3_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_int64_t
     __spirv_SConvert_Rlong3(__clc_vec3_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_int64_t
@@ -9523,6 +9743,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_int64_t
     __spirv_SConvert_Rlong3(__clc_vec3_uint32_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_int64_t
+    __spirv_SConvert_Rlong3_sat(__clc_vec3_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_int64_t
     __spirv_SConvert_Rlong3_sat(__clc_vec3_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_int64_t
     __spirv_SConvert_Rlong3_sat(__clc_vec3_int16_t);
@@ -9535,6 +9757,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_int64_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_int64_t
     __spirv_SConvert_Rlong3_sat(__clc_vec3_uint32_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_int64_t
+    __spirv_SConvert_Rlong4(__clc_vec4_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_int64_t
     __spirv_SConvert_Rlong4(__clc_vec4_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_int64_t
@@ -9549,6 +9773,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_int64_t
     __spirv_SConvert_Rlong4(__clc_vec4_uint32_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_int64_t
+    __spirv_SConvert_Rlong4_sat(__clc_vec4_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_int64_t
     __spirv_SConvert_Rlong4_sat(__clc_vec4_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_int64_t
     __spirv_SConvert_Rlong4_sat(__clc_vec4_int16_t);
@@ -9561,6 +9787,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_int64_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_int64_t
     __spirv_SConvert_Rlong4_sat(__clc_vec4_uint32_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_int64_t
+    __spirv_SConvert_Rlong8(__clc_vec8_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_int64_t
     __spirv_SConvert_Rlong8(__clc_vec8_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_int64_t
@@ -9575,6 +9803,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_int64_t
     __spirv_SConvert_Rlong8(__clc_vec8_uint32_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_int64_t
+    __spirv_SConvert_Rlong8_sat(__clc_vec8_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_int64_t
     __spirv_SConvert_Rlong8_sat(__clc_vec8_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_int64_t
     __spirv_SConvert_Rlong8_sat(__clc_vec8_int16_t);
@@ -9587,6 +9817,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_int64_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_int64_t
     __spirv_SConvert_Rlong8_sat(__clc_vec8_uint32_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_int64_t
+    __spirv_SConvert_Rlong_sat(__clc_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_int64_t
     __spirv_SConvert_Rlong_sat(__clc_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_int64_t
@@ -9601,6 +9833,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_int64_t
     __spirv_SConvert_Rlong_sat(__clc_uint32_t);
 
 _CLC_OVERLOAD
+_CLC_DECL _CLC_CONSTFN __clc_int16_t __spirv_SConvert_Rshort(__clc_char_t);
+_CLC_OVERLOAD
 _CLC_DECL _CLC_CONSTFN __clc_int16_t __spirv_SConvert_Rshort(__clc_int8_t);
 _CLC_OVERLOAD
 _CLC_DECL _CLC_CONSTFN __clc_int16_t __spirv_SConvert_Rshort(__clc_int32_t);
@@ -9613,6 +9847,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_int16_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_int16_t
     __spirv_SConvert_Rshort(__clc_uint64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_int16_t
+    __spirv_SConvert_Rshort16(__clc_vec16_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_int16_t
     __spirv_SConvert_Rshort16(__clc_vec16_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_int16_t
@@ -9627,6 +9863,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_int16_t
     __spirv_SConvert_Rshort16(__clc_vec16_uint64_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_int16_t
+    __spirv_SConvert_Rshort16_sat(__clc_vec16_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_int16_t
     __spirv_SConvert_Rshort16_sat(__clc_vec16_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_int16_t
     __spirv_SConvert_Rshort16_sat(__clc_vec16_int32_t);
@@ -9639,6 +9877,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_int16_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_int16_t
     __spirv_SConvert_Rshort16_sat(__clc_vec16_uint64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_int16_t
+    __spirv_SConvert_Rshort2(__clc_vec2_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_int16_t
     __spirv_SConvert_Rshort2(__clc_vec2_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_int16_t
@@ -9653,6 +9893,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_int16_t
     __spirv_SConvert_Rshort2(__clc_vec2_uint64_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_int16_t
+    __spirv_SConvert_Rshort2_sat(__clc_vec2_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_int16_t
     __spirv_SConvert_Rshort2_sat(__clc_vec2_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_int16_t
     __spirv_SConvert_Rshort2_sat(__clc_vec2_int32_t);
@@ -9665,6 +9907,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_int16_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_int16_t
     __spirv_SConvert_Rshort2_sat(__clc_vec2_uint64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_int16_t
+    __spirv_SConvert_Rshort3(__clc_vec3_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_int16_t
     __spirv_SConvert_Rshort3(__clc_vec3_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_int16_t
@@ -9679,6 +9923,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_int16_t
     __spirv_SConvert_Rshort3(__clc_vec3_uint64_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_int16_t
+    __spirv_SConvert_Rshort3_sat(__clc_vec3_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_int16_t
     __spirv_SConvert_Rshort3_sat(__clc_vec3_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_int16_t
     __spirv_SConvert_Rshort3_sat(__clc_vec3_int32_t);
@@ -9691,6 +9937,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_int16_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_int16_t
     __spirv_SConvert_Rshort3_sat(__clc_vec3_uint64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_int16_t
+    __spirv_SConvert_Rshort4(__clc_vec4_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_int16_t
     __spirv_SConvert_Rshort4(__clc_vec4_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_int16_t
@@ -9705,6 +9953,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_int16_t
     __spirv_SConvert_Rshort4(__clc_vec4_uint64_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_int16_t
+    __spirv_SConvert_Rshort4_sat(__clc_vec4_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_int16_t
     __spirv_SConvert_Rshort4_sat(__clc_vec4_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_int16_t
     __spirv_SConvert_Rshort4_sat(__clc_vec4_int32_t);
@@ -9717,6 +9967,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_int16_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_int16_t
     __spirv_SConvert_Rshort4_sat(__clc_vec4_uint64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_int16_t
+    __spirv_SConvert_Rshort8(__clc_vec8_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_int16_t
     __spirv_SConvert_Rshort8(__clc_vec8_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_int16_t
@@ -9731,6 +9983,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_int16_t
     __spirv_SConvert_Rshort8(__clc_vec8_uint64_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_int16_t
+    __spirv_SConvert_Rshort8_sat(__clc_vec8_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_int16_t
     __spirv_SConvert_Rshort8_sat(__clc_vec8_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_int16_t
     __spirv_SConvert_Rshort8_sat(__clc_vec8_int32_t);
@@ -9743,6 +9997,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_int16_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_int16_t
     __spirv_SConvert_Rshort8_sat(__clc_vec8_uint64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_int16_t
+    __spirv_SConvert_Rshort_sat(__clc_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_int16_t
     __spirv_SConvert_Rshort_sat(__clc_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_int16_t
@@ -9757,6 +10013,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_int16_t
     __spirv_SConvert_Rshort_sat(__clc_uint64_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_uint8_t
+    __spirv_SatConvertSToU_Ruchar(__clc_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_uint8_t
     __spirv_SatConvertSToU_Ruchar(__clc_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_uint8_t
     __spirv_SatConvertSToU_Ruchar(__clc_int16_t);
@@ -9765,6 +10023,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_uint8_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_uint8_t
     __spirv_SatConvertSToU_Ruchar(__clc_int64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_uint8_t
+    __spirv_SatConvertSToU_Ruchar16(__clc_vec16_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_uint8_t
     __spirv_SatConvertSToU_Ruchar16(__clc_vec16_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_uint8_t
@@ -9775,6 +10035,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_uint8_t
     __spirv_SatConvertSToU_Ruchar16(__clc_vec16_int64_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_uint8_t
+    __spirv_SatConvertSToU_Ruchar2(__clc_vec2_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_uint8_t
     __spirv_SatConvertSToU_Ruchar2(__clc_vec2_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_uint8_t
     __spirv_SatConvertSToU_Ruchar2(__clc_vec2_int16_t);
@@ -9783,6 +10045,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_uint8_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_uint8_t
     __spirv_SatConvertSToU_Ruchar2(__clc_vec2_int64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_uint8_t
+    __spirv_SatConvertSToU_Ruchar3(__clc_vec3_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_uint8_t
     __spirv_SatConvertSToU_Ruchar3(__clc_vec3_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_uint8_t
@@ -9793,6 +10057,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_uint8_t
     __spirv_SatConvertSToU_Ruchar3(__clc_vec3_int64_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_uint8_t
+    __spirv_SatConvertSToU_Ruchar4(__clc_vec4_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_uint8_t
     __spirv_SatConvertSToU_Ruchar4(__clc_vec4_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_uint8_t
     __spirv_SatConvertSToU_Ruchar4(__clc_vec4_int16_t);
@@ -9801,6 +10067,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_uint8_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_uint8_t
     __spirv_SatConvertSToU_Ruchar4(__clc_vec4_int64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_uint8_t
+    __spirv_SatConvertSToU_Ruchar8(__clc_vec8_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_uint8_t
     __spirv_SatConvertSToU_Ruchar8(__clc_vec8_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_uint8_t
@@ -9811,6 +10079,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_uint8_t
     __spirv_SatConvertSToU_Ruchar8(__clc_vec8_int64_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_uint32_t
+    __spirv_SatConvertSToU_Ruint(__clc_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_uint32_t
     __spirv_SatConvertSToU_Ruint(__clc_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_uint32_t
     __spirv_SatConvertSToU_Ruint(__clc_int16_t);
@@ -9819,6 +10089,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_uint32_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_uint32_t
     __spirv_SatConvertSToU_Ruint(__clc_int64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_uint32_t
+    __spirv_SatConvertSToU_Ruint16(__clc_vec16_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_uint32_t
     __spirv_SatConvertSToU_Ruint16(__clc_vec16_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_uint32_t
@@ -9829,6 +10101,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_uint32_t
     __spirv_SatConvertSToU_Ruint16(__clc_vec16_int64_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_uint32_t
+    __spirv_SatConvertSToU_Ruint2(__clc_vec2_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_uint32_t
     __spirv_SatConvertSToU_Ruint2(__clc_vec2_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_uint32_t
     __spirv_SatConvertSToU_Ruint2(__clc_vec2_int16_t);
@@ -9837,6 +10111,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_uint32_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_uint32_t
     __spirv_SatConvertSToU_Ruint2(__clc_vec2_int64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_uint32_t
+    __spirv_SatConvertSToU_Ruint3(__clc_vec3_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_uint32_t
     __spirv_SatConvertSToU_Ruint3(__clc_vec3_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_uint32_t
@@ -9847,6 +10123,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_uint32_t
     __spirv_SatConvertSToU_Ruint3(__clc_vec3_int64_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_uint32_t
+    __spirv_SatConvertSToU_Ruint4(__clc_vec4_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_uint32_t
     __spirv_SatConvertSToU_Ruint4(__clc_vec4_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_uint32_t
     __spirv_SatConvertSToU_Ruint4(__clc_vec4_int16_t);
@@ -9855,6 +10133,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_uint32_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_uint32_t
     __spirv_SatConvertSToU_Ruint4(__clc_vec4_int64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_uint32_t
+    __spirv_SatConvertSToU_Ruint8(__clc_vec8_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_uint32_t
     __spirv_SatConvertSToU_Ruint8(__clc_vec8_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_uint32_t
@@ -9865,6 +10145,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_uint32_t
     __spirv_SatConvertSToU_Ruint8(__clc_vec8_int64_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_uint64_t
+    __spirv_SatConvertSToU_Rulong(__clc_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_uint64_t
     __spirv_SatConvertSToU_Rulong(__clc_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_uint64_t
     __spirv_SatConvertSToU_Rulong(__clc_int16_t);
@@ -9873,6 +10155,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_uint64_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_uint64_t
     __spirv_SatConvertSToU_Rulong(__clc_int64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_uint64_t
+    __spirv_SatConvertSToU_Rulong16(__clc_vec16_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_uint64_t
     __spirv_SatConvertSToU_Rulong16(__clc_vec16_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_uint64_t
@@ -9883,6 +10167,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_uint64_t
     __spirv_SatConvertSToU_Rulong16(__clc_vec16_int64_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_uint64_t
+    __spirv_SatConvertSToU_Rulong2(__clc_vec2_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_uint64_t
     __spirv_SatConvertSToU_Rulong2(__clc_vec2_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_uint64_t
     __spirv_SatConvertSToU_Rulong2(__clc_vec2_int16_t);
@@ -9891,6 +10177,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_uint64_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_uint64_t
     __spirv_SatConvertSToU_Rulong2(__clc_vec2_int64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_uint64_t
+    __spirv_SatConvertSToU_Rulong3(__clc_vec3_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_uint64_t
     __spirv_SatConvertSToU_Rulong3(__clc_vec3_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_uint64_t
@@ -9901,6 +10189,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_uint64_t
     __spirv_SatConvertSToU_Rulong3(__clc_vec3_int64_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_uint64_t
+    __spirv_SatConvertSToU_Rulong4(__clc_vec4_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_uint64_t
     __spirv_SatConvertSToU_Rulong4(__clc_vec4_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_uint64_t
     __spirv_SatConvertSToU_Rulong4(__clc_vec4_int16_t);
@@ -9909,6 +10199,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_uint64_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_uint64_t
     __spirv_SatConvertSToU_Rulong4(__clc_vec4_int64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_uint64_t
+    __spirv_SatConvertSToU_Rulong8(__clc_vec8_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_uint64_t
     __spirv_SatConvertSToU_Rulong8(__clc_vec8_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_uint64_t
@@ -9919,6 +10211,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_uint64_t
     __spirv_SatConvertSToU_Rulong8(__clc_vec8_int64_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_uint16_t
+    __spirv_SatConvertSToU_Rushort(__clc_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_uint16_t
     __spirv_SatConvertSToU_Rushort(__clc_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_uint16_t
     __spirv_SatConvertSToU_Rushort(__clc_int16_t);
@@ -9927,6 +10221,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_uint16_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_uint16_t
     __spirv_SatConvertSToU_Rushort(__clc_int64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_uint16_t
+    __spirv_SatConvertSToU_Rushort16(__clc_vec16_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_uint16_t
     __spirv_SatConvertSToU_Rushort16(__clc_vec16_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_uint16_t
@@ -9937,6 +10233,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_uint16_t
     __spirv_SatConvertSToU_Rushort16(__clc_vec16_int64_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_uint16_t
+    __spirv_SatConvertSToU_Rushort2(__clc_vec2_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_uint16_t
     __spirv_SatConvertSToU_Rushort2(__clc_vec2_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_uint16_t
     __spirv_SatConvertSToU_Rushort2(__clc_vec2_int16_t);
@@ -9945,6 +10243,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_uint16_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_uint16_t
     __spirv_SatConvertSToU_Rushort2(__clc_vec2_int64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_uint16_t
+    __spirv_SatConvertSToU_Rushort3(__clc_vec3_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_uint16_t
     __spirv_SatConvertSToU_Rushort3(__clc_vec3_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_uint16_t
@@ -9955,6 +10255,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_uint16_t
     __spirv_SatConvertSToU_Rushort3(__clc_vec3_int64_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_uint16_t
+    __spirv_SatConvertSToU_Rushort4(__clc_vec4_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_uint16_t
     __spirv_SatConvertSToU_Rushort4(__clc_vec4_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_uint16_t
     __spirv_SatConvertSToU_Rushort4(__clc_vec4_int16_t);
@@ -9963,6 +10265,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_uint16_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_uint16_t
     __spirv_SatConvertSToU_Rushort4(__clc_vec4_int64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_uint16_t
+    __spirv_SatConvertSToU_Rushort8(__clc_vec8_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_uint16_t
     __spirv_SatConvertSToU_Rushort8(__clc_vec8_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_uint16_t
@@ -10345,6 +10649,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_uint8_t
     __spirv_UConvert_Ruchar_sat(__clc_uint64_t);
 
 _CLC_OVERLOAD
+_CLC_DECL _CLC_CONSTFN __clc_uint32_t __spirv_UConvert_Ruint(__clc_char_t);
+_CLC_OVERLOAD
 _CLC_DECL _CLC_CONSTFN __clc_uint32_t __spirv_UConvert_Ruint(__clc_int8_t);
 _CLC_OVERLOAD
 _CLC_DECL _CLC_CONSTFN __clc_uint32_t __spirv_UConvert_Ruint(__clc_int16_t);
@@ -10357,6 +10663,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_uint32_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_uint32_t
     __spirv_UConvert_Ruint(__clc_uint64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_uint32_t
+    __spirv_UConvert_Ruint16(__clc_vec16_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_uint32_t
     __spirv_UConvert_Ruint16(__clc_vec16_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_uint32_t
@@ -10371,6 +10679,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_uint32_t
     __spirv_UConvert_Ruint16(__clc_vec16_uint64_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_uint32_t
+    __spirv_UConvert_Ruint16_sat(__clc_vec16_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_uint32_t
     __spirv_UConvert_Ruint16_sat(__clc_vec16_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_uint32_t
     __spirv_UConvert_Ruint16_sat(__clc_vec16_int16_t);
@@ -10383,6 +10693,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_uint32_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_uint32_t
     __spirv_UConvert_Ruint16_sat(__clc_vec16_uint64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_uint32_t
+    __spirv_UConvert_Ruint2(__clc_vec2_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_uint32_t
     __spirv_UConvert_Ruint2(__clc_vec2_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_uint32_t
@@ -10397,6 +10709,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_uint32_t
     __spirv_UConvert_Ruint2(__clc_vec2_uint64_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_uint32_t
+    __spirv_UConvert_Ruint2_sat(__clc_vec2_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_uint32_t
     __spirv_UConvert_Ruint2_sat(__clc_vec2_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_uint32_t
     __spirv_UConvert_Ruint2_sat(__clc_vec2_int16_t);
@@ -10409,6 +10723,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_uint32_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_uint32_t
     __spirv_UConvert_Ruint2_sat(__clc_vec2_uint64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_uint32_t
+    __spirv_UConvert_Ruint3(__clc_vec3_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_uint32_t
     __spirv_UConvert_Ruint3(__clc_vec3_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_uint32_t
@@ -10423,6 +10739,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_uint32_t
     __spirv_UConvert_Ruint3(__clc_vec3_uint64_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_uint32_t
+    __spirv_UConvert_Ruint3_sat(__clc_vec3_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_uint32_t
     __spirv_UConvert_Ruint3_sat(__clc_vec3_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_uint32_t
     __spirv_UConvert_Ruint3_sat(__clc_vec3_int16_t);
@@ -10435,6 +10753,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_uint32_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_uint32_t
     __spirv_UConvert_Ruint3_sat(__clc_vec3_uint64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_uint32_t
+    __spirv_UConvert_Ruint4(__clc_vec4_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_uint32_t
     __spirv_UConvert_Ruint4(__clc_vec4_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_uint32_t
@@ -10449,6 +10769,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_uint32_t
     __spirv_UConvert_Ruint4(__clc_vec4_uint64_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_uint32_t
+    __spirv_UConvert_Ruint4_sat(__clc_vec4_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_uint32_t
     __spirv_UConvert_Ruint4_sat(__clc_vec4_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_uint32_t
     __spirv_UConvert_Ruint4_sat(__clc_vec4_int16_t);
@@ -10461,6 +10783,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_uint32_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_uint32_t
     __spirv_UConvert_Ruint4_sat(__clc_vec4_uint64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_uint32_t
+    __spirv_UConvert_Ruint8(__clc_vec8_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_uint32_t
     __spirv_UConvert_Ruint8(__clc_vec8_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_uint32_t
@@ -10475,6 +10799,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_uint32_t
     __spirv_UConvert_Ruint8(__clc_vec8_uint64_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_uint32_t
+    __spirv_UConvert_Ruint8_sat(__clc_vec8_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_uint32_t
     __spirv_UConvert_Ruint8_sat(__clc_vec8_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_uint32_t
     __spirv_UConvert_Ruint8_sat(__clc_vec8_int16_t);
@@ -10487,6 +10813,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_uint32_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_uint32_t
     __spirv_UConvert_Ruint8_sat(__clc_vec8_uint64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_uint32_t
+    __spirv_UConvert_Ruint_sat(__clc_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_uint32_t
     __spirv_UConvert_Ruint_sat(__clc_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_uint32_t
@@ -10501,6 +10829,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_uint32_t
     __spirv_UConvert_Ruint_sat(__clc_uint64_t);
 
 _CLC_OVERLOAD
+_CLC_DECL _CLC_CONSTFN __clc_uint64_t __spirv_UConvert_Rulong(__clc_char_t);
+_CLC_OVERLOAD
 _CLC_DECL _CLC_CONSTFN __clc_uint64_t __spirv_UConvert_Rulong(__clc_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_uint64_t
     __spirv_UConvert_Rulong(__clc_int16_t);
@@ -10513,6 +10843,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_uint64_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_uint64_t
     __spirv_UConvert_Rulong(__clc_uint32_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_uint64_t
+    __spirv_UConvert_Rulong16(__clc_vec16_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_uint64_t
     __spirv_UConvert_Rulong16(__clc_vec16_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_uint64_t
@@ -10527,6 +10859,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_uint64_t
     __spirv_UConvert_Rulong16(__clc_vec16_uint32_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_uint64_t
+    __spirv_UConvert_Rulong16_sat(__clc_vec16_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_uint64_t
     __spirv_UConvert_Rulong16_sat(__clc_vec16_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_uint64_t
     __spirv_UConvert_Rulong16_sat(__clc_vec16_int16_t);
@@ -10539,6 +10873,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_uint64_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_uint64_t
     __spirv_UConvert_Rulong16_sat(__clc_vec16_uint32_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_uint64_t
+    __spirv_UConvert_Rulong2(__clc_vec2_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_uint64_t
     __spirv_UConvert_Rulong2(__clc_vec2_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_uint64_t
@@ -10553,6 +10889,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_uint64_t
     __spirv_UConvert_Rulong2(__clc_vec2_uint32_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_uint64_t
+    __spirv_UConvert_Rulong2_sat(__clc_vec2_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_uint64_t
     __spirv_UConvert_Rulong2_sat(__clc_vec2_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_uint64_t
     __spirv_UConvert_Rulong2_sat(__clc_vec2_int16_t);
@@ -10565,6 +10903,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_uint64_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_uint64_t
     __spirv_UConvert_Rulong2_sat(__clc_vec2_uint32_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_uint64_t
+    __spirv_UConvert_Rulong3(__clc_vec3_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_uint64_t
     __spirv_UConvert_Rulong3(__clc_vec3_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_uint64_t
@@ -10579,6 +10919,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_uint64_t
     __spirv_UConvert_Rulong3(__clc_vec3_uint32_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_uint64_t
+    __spirv_UConvert_Rulong3_sat(__clc_vec3_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_uint64_t
     __spirv_UConvert_Rulong3_sat(__clc_vec3_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_uint64_t
     __spirv_UConvert_Rulong3_sat(__clc_vec3_int16_t);
@@ -10591,6 +10933,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_uint64_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_uint64_t
     __spirv_UConvert_Rulong3_sat(__clc_vec3_uint32_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_uint64_t
+    __spirv_UConvert_Rulong4(__clc_vec4_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_uint64_t
     __spirv_UConvert_Rulong4(__clc_vec4_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_uint64_t
@@ -10605,6 +10949,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_uint64_t
     __spirv_UConvert_Rulong4(__clc_vec4_uint32_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_uint64_t
+    __spirv_UConvert_Rulong4_sat(__clc_vec4_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_uint64_t
     __spirv_UConvert_Rulong4_sat(__clc_vec4_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_uint64_t
     __spirv_UConvert_Rulong4_sat(__clc_vec4_int16_t);
@@ -10617,6 +10963,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_uint64_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_uint64_t
     __spirv_UConvert_Rulong4_sat(__clc_vec4_uint32_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_uint64_t
+    __spirv_UConvert_Rulong8(__clc_vec8_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_uint64_t
     __spirv_UConvert_Rulong8(__clc_vec8_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_uint64_t
@@ -10631,6 +10979,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_uint64_t
     __spirv_UConvert_Rulong8(__clc_vec8_uint32_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_uint64_t
+    __spirv_UConvert_Rulong8_sat(__clc_vec8_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_uint64_t
     __spirv_UConvert_Rulong8_sat(__clc_vec8_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_uint64_t
     __spirv_UConvert_Rulong8_sat(__clc_vec8_int16_t);
@@ -10643,6 +10993,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_uint64_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_uint64_t
     __spirv_UConvert_Rulong8_sat(__clc_vec8_uint32_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_uint64_t
+    __spirv_UConvert_Rulong_sat(__clc_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_uint64_t
     __spirv_UConvert_Rulong_sat(__clc_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_uint64_t
@@ -10657,6 +11009,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_uint64_t
     __spirv_UConvert_Rulong_sat(__clc_uint32_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_uint16_t
+    __spirv_UConvert_Rushort(__clc_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_uint16_t
     __spirv_UConvert_Rushort(__clc_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_uint16_t
     __spirv_UConvert_Rushort(__clc_int32_t);
@@ -10669,6 +11023,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_uint16_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_uint16_t
     __spirv_UConvert_Rushort(__clc_uint64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_uint16_t
+    __spirv_UConvert_Rushort16(__clc_vec16_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_uint16_t
     __spirv_UConvert_Rushort16(__clc_vec16_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_uint16_t
@@ -10683,6 +11039,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_uint16_t
     __spirv_UConvert_Rushort16(__clc_vec16_uint64_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_uint16_t
+    __spirv_UConvert_Rushort16_sat(__clc_vec16_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_uint16_t
     __spirv_UConvert_Rushort16_sat(__clc_vec16_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_uint16_t
     __spirv_UConvert_Rushort16_sat(__clc_vec16_int32_t);
@@ -10695,6 +11053,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_uint16_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_uint16_t
     __spirv_UConvert_Rushort16_sat(__clc_vec16_uint64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_uint16_t
+    __spirv_UConvert_Rushort2(__clc_vec2_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_uint16_t
     __spirv_UConvert_Rushort2(__clc_vec2_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_uint16_t
@@ -10709,6 +11069,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_uint16_t
     __spirv_UConvert_Rushort2(__clc_vec2_uint64_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_uint16_t
+    __spirv_UConvert_Rushort2_sat(__clc_vec2_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_uint16_t
     __spirv_UConvert_Rushort2_sat(__clc_vec2_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_uint16_t
     __spirv_UConvert_Rushort2_sat(__clc_vec2_int32_t);
@@ -10721,6 +11083,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_uint16_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_uint16_t
     __spirv_UConvert_Rushort2_sat(__clc_vec2_uint64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_uint16_t
+    __spirv_UConvert_Rushort3(__clc_vec3_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_uint16_t
     __spirv_UConvert_Rushort3(__clc_vec3_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_uint16_t
@@ -10735,6 +11099,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_uint16_t
     __spirv_UConvert_Rushort3(__clc_vec3_uint64_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_uint16_t
+    __spirv_UConvert_Rushort3_sat(__clc_vec3_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_uint16_t
     __spirv_UConvert_Rushort3_sat(__clc_vec3_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_uint16_t
     __spirv_UConvert_Rushort3_sat(__clc_vec3_int32_t);
@@ -10747,6 +11113,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_uint16_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_uint16_t
     __spirv_UConvert_Rushort3_sat(__clc_vec3_uint64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_uint16_t
+    __spirv_UConvert_Rushort4(__clc_vec4_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_uint16_t
     __spirv_UConvert_Rushort4(__clc_vec4_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_uint16_t
@@ -10761,6 +11129,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_uint16_t
     __spirv_UConvert_Rushort4(__clc_vec4_uint64_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_uint16_t
+    __spirv_UConvert_Rushort4_sat(__clc_vec4_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_uint16_t
     __spirv_UConvert_Rushort4_sat(__clc_vec4_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_uint16_t
     __spirv_UConvert_Rushort4_sat(__clc_vec4_int32_t);
@@ -10773,6 +11143,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_uint16_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_uint16_t
     __spirv_UConvert_Rushort4_sat(__clc_vec4_uint64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_uint16_t
+    __spirv_UConvert_Rushort8(__clc_vec8_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_uint16_t
     __spirv_UConvert_Rushort8(__clc_vec8_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_uint16_t
@@ -10787,6 +11159,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_uint16_t
     __spirv_UConvert_Rushort8(__clc_vec8_uint64_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_uint16_t
+    __spirv_UConvert_Rushort8_sat(__clc_vec8_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_uint16_t
     __spirv_UConvert_Rushort8_sat(__clc_vec8_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_uint16_t
     __spirv_UConvert_Rushort8_sat(__clc_vec8_int32_t);
@@ -10799,6 +11173,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_uint16_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_uint16_t
     __spirv_UConvert_Rushort8_sat(__clc_vec8_uint64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_uint16_t
+    __spirv_UConvert_Rushort_sat(__clc_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_uint16_t
     __spirv_UConvert_Rushort_sat(__clc_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_uint16_t
@@ -10856,15 +11232,27 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp16_t __spirv_ocl_fclamp(
 #endif
 
 _CLC_OVERLOAD
+_CLC_DECL _CLC_CONSTFN __clc_uint8_t __spirv_ocl_s_abs(__clc_char_t);
+_CLC_OVERLOAD
 _CLC_DECL _CLC_CONSTFN __clc_uint8_t __spirv_ocl_s_abs(__clc_int8_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_uint8_t
+    __spirv_ocl_s_abs(__clc_vec2_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_uint8_t
     __spirv_ocl_s_abs(__clc_vec2_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_uint8_t
+    __spirv_ocl_s_abs(__clc_vec3_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_uint8_t
     __spirv_ocl_s_abs(__clc_vec3_int8_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_uint8_t
+    __spirv_ocl_s_abs(__clc_vec4_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_uint8_t
     __spirv_ocl_s_abs(__clc_vec4_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_uint8_t
+    __spirv_ocl_s_abs(__clc_vec8_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_uint8_t
     __spirv_ocl_s_abs(__clc_vec8_int8_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_uint8_t
+    __spirv_ocl_s_abs(__clc_vec16_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_uint8_t
     __spirv_ocl_s_abs(__clc_vec16_int8_t);
 _CLC_OVERLOAD
@@ -10905,15 +11293,27 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_uint64_t
     __spirv_ocl_s_abs(__clc_vec16_int64_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_uint8_t
+    __spirv_ocl_s_abs_diff(__clc_char_t, __clc_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_uint8_t
     __spirv_ocl_s_abs_diff(__clc_int8_t, __clc_int8_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_uint8_t
+    __spirv_ocl_s_abs_diff(__clc_vec2_char_t, __clc_vec2_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_uint8_t
     __spirv_ocl_s_abs_diff(__clc_vec2_int8_t, __clc_vec2_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_uint8_t
+    __spirv_ocl_s_abs_diff(__clc_vec3_char_t, __clc_vec3_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_uint8_t
     __spirv_ocl_s_abs_diff(__clc_vec3_int8_t, __clc_vec3_int8_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_uint8_t
+    __spirv_ocl_s_abs_diff(__clc_vec4_char_t, __clc_vec4_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_uint8_t
     __spirv_ocl_s_abs_diff(__clc_vec4_int8_t, __clc_vec4_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_uint8_t
+    __spirv_ocl_s_abs_diff(__clc_vec8_char_t, __clc_vec8_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_uint8_t
     __spirv_ocl_s_abs_diff(__clc_vec8_int8_t, __clc_vec8_int8_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_uint8_t
+    __spirv_ocl_s_abs_diff(__clc_vec16_char_t, __clc_vec16_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_uint8_t
     __spirv_ocl_s_abs_diff(__clc_vec16_int8_t, __clc_vec16_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_uint16_t
@@ -10953,6 +11353,18 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_uint64_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_uint64_t
     __spirv_ocl_s_abs_diff(__clc_vec16_int64_t, __clc_vec16_int64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_char_t
+    __spirv_ocl_s_add_sat(__clc_char_t, __clc_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_char_t
+    __spirv_ocl_s_add_sat(__clc_vec2_char_t, __clc_vec2_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_char_t
+    __spirv_ocl_s_add_sat(__clc_vec3_char_t, __clc_vec3_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_char_t
+    __spirv_ocl_s_add_sat(__clc_vec4_char_t, __clc_vec4_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_char_t
+    __spirv_ocl_s_add_sat(__clc_vec8_char_t, __clc_vec8_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_char_t
+    __spirv_ocl_s_add_sat(__clc_vec16_char_t, __clc_vec16_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_int8_t
     __spirv_ocl_s_add_sat(__clc_int8_t, __clc_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_int8_t
@@ -11002,6 +11414,18 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_int64_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_int64_t
     __spirv_ocl_s_add_sat(__clc_vec16_int64_t, __clc_vec16_int64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_char_t
+    __spirv_ocl_s_clamp(__clc_char_t, __clc_char_t, __clc_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_char_t __spirv_ocl_s_clamp(
+    __clc_vec2_char_t, __clc_vec2_char_t, __clc_vec2_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_char_t __spirv_ocl_s_clamp(
+    __clc_vec3_char_t, __clc_vec3_char_t, __clc_vec3_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_char_t __spirv_ocl_s_clamp(
+    __clc_vec4_char_t, __clc_vec4_char_t, __clc_vec4_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_char_t __spirv_ocl_s_clamp(
+    __clc_vec8_char_t, __clc_vec8_char_t, __clc_vec8_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_char_t __spirv_ocl_s_clamp(
+    __clc_vec16_char_t, __clc_vec16_char_t, __clc_vec16_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_int8_t
     __spirv_ocl_s_clamp(__clc_int8_t, __clc_int8_t, __clc_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_int8_t __spirv_ocl_s_clamp(
@@ -11051,6 +11475,18 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_int64_t __spirv_ocl_s_clamp(
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_int64_t __spirv_ocl_s_clamp(
     __clc_vec16_int64_t, __clc_vec16_int64_t, __clc_vec16_int64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_char_t
+    __spirv_ocl_s_hadd(__clc_char_t, __clc_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_char_t
+    __spirv_ocl_s_hadd(__clc_vec2_char_t, __clc_vec2_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_char_t
+    __spirv_ocl_s_hadd(__clc_vec3_char_t, __clc_vec3_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_char_t
+    __spirv_ocl_s_hadd(__clc_vec4_char_t, __clc_vec4_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_char_t
+    __spirv_ocl_s_hadd(__clc_vec8_char_t, __clc_vec8_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_char_t
+    __spirv_ocl_s_hadd(__clc_vec16_char_t, __clc_vec16_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_int8_t
     __spirv_ocl_s_hadd(__clc_int8_t, __clc_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_int8_t
@@ -11113,6 +11549,18 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_int32_t __spirv_ocl_s_mad24(
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_int32_t __spirv_ocl_s_mad24(
     __clc_vec16_int32_t, __clc_vec16_int32_t, __clc_vec16_int32_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_char_t
+    __spirv_ocl_s_mad_hi(__clc_char_t, __clc_char_t, __clc_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_char_t __spirv_ocl_s_mad_hi(
+    __clc_vec2_char_t, __clc_vec2_char_t, __clc_vec2_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_char_t __spirv_ocl_s_mad_hi(
+    __clc_vec3_char_t, __clc_vec3_char_t, __clc_vec3_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_char_t __spirv_ocl_s_mad_hi(
+    __clc_vec4_char_t, __clc_vec4_char_t, __clc_vec4_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_char_t __spirv_ocl_s_mad_hi(
+    __clc_vec8_char_t, __clc_vec8_char_t, __clc_vec8_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_char_t __spirv_ocl_s_mad_hi(
+    __clc_vec16_char_t, __clc_vec16_char_t, __clc_vec16_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_int8_t
     __spirv_ocl_s_mad_hi(__clc_int8_t, __clc_int8_t, __clc_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_int8_t __spirv_ocl_s_mad_hi(
@@ -11162,6 +11610,18 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_int64_t __spirv_ocl_s_mad_hi(
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_int64_t __spirv_ocl_s_mad_hi(
     __clc_vec16_int64_t, __clc_vec16_int64_t, __clc_vec16_int64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_char_t
+    __spirv_ocl_s_mad_sat(__clc_char_t, __clc_char_t, __clc_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_char_t __spirv_ocl_s_mad_sat(
+    __clc_vec2_char_t, __clc_vec2_char_t, __clc_vec2_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_char_t __spirv_ocl_s_mad_sat(
+    __clc_vec3_char_t, __clc_vec3_char_t, __clc_vec3_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_char_t __spirv_ocl_s_mad_sat(
+    __clc_vec4_char_t, __clc_vec4_char_t, __clc_vec4_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_char_t __spirv_ocl_s_mad_sat(
+    __clc_vec8_char_t, __clc_vec8_char_t, __clc_vec8_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_char_t __spirv_ocl_s_mad_sat(
+    __clc_vec16_char_t, __clc_vec16_char_t, __clc_vec16_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_int8_t
     __spirv_ocl_s_mad_sat(__clc_int8_t, __clc_int8_t, __clc_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_int8_t __spirv_ocl_s_mad_sat(
@@ -11211,6 +11671,18 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_int64_t __spirv_ocl_s_mad_sat(
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_int64_t __spirv_ocl_s_mad_sat(
     __clc_vec16_int64_t, __clc_vec16_int64_t, __clc_vec16_int64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_char_t
+    __spirv_ocl_s_max(__clc_char_t, __clc_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_char_t
+    __spirv_ocl_s_max(__clc_vec2_char_t, __clc_vec2_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_char_t
+    __spirv_ocl_s_max(__clc_vec3_char_t, __clc_vec3_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_char_t
+    __spirv_ocl_s_max(__clc_vec4_char_t, __clc_vec4_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_char_t
+    __spirv_ocl_s_max(__clc_vec8_char_t, __clc_vec8_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_char_t
+    __spirv_ocl_s_max(__clc_vec16_char_t, __clc_vec16_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_int8_t
     __spirv_ocl_s_max(__clc_int8_t, __clc_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_int8_t
@@ -11260,6 +11732,18 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_int64_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_int64_t
     __spirv_ocl_s_max(__clc_vec16_int64_t, __clc_vec16_int64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_char_t
+    __spirv_ocl_s_min(__clc_char_t, __clc_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_char_t
+    __spirv_ocl_s_min(__clc_vec2_char_t, __clc_vec2_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_char_t
+    __spirv_ocl_s_min(__clc_vec3_char_t, __clc_vec3_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_char_t
+    __spirv_ocl_s_min(__clc_vec4_char_t, __clc_vec4_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_char_t
+    __spirv_ocl_s_min(__clc_vec8_char_t, __clc_vec8_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_char_t
+    __spirv_ocl_s_min(__clc_vec16_char_t, __clc_vec16_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_int8_t
     __spirv_ocl_s_min(__clc_int8_t, __clc_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_int8_t
@@ -11322,6 +11806,18 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_int32_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_int32_t
     __spirv_ocl_s_mul24(__clc_vec16_int32_t, __clc_vec16_int32_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_char_t
+    __spirv_ocl_s_mul_hi(__clc_char_t, __clc_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_char_t
+    __spirv_ocl_s_mul_hi(__clc_vec2_char_t, __clc_vec2_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_char_t
+    __spirv_ocl_s_mul_hi(__clc_vec3_char_t, __clc_vec3_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_char_t
+    __spirv_ocl_s_mul_hi(__clc_vec4_char_t, __clc_vec4_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_char_t
+    __spirv_ocl_s_mul_hi(__clc_vec8_char_t, __clc_vec8_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_char_t
+    __spirv_ocl_s_mul_hi(__clc_vec16_char_t, __clc_vec16_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_int8_t
     __spirv_ocl_s_mul_hi(__clc_int8_t, __clc_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_int8_t
@@ -11371,6 +11867,18 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_int64_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_int64_t
     __spirv_ocl_s_mul_hi(__clc_vec16_int64_t, __clc_vec16_int64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_char_t
+    __spirv_ocl_s_rhadd(__clc_char_t, __clc_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_char_t
+    __spirv_ocl_s_rhadd(__clc_vec2_char_t, __clc_vec2_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_char_t
+    __spirv_ocl_s_rhadd(__clc_vec3_char_t, __clc_vec3_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_char_t
+    __spirv_ocl_s_rhadd(__clc_vec4_char_t, __clc_vec4_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_char_t
+    __spirv_ocl_s_rhadd(__clc_vec8_char_t, __clc_vec8_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_char_t
+    __spirv_ocl_s_rhadd(__clc_vec16_char_t, __clc_vec16_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_int8_t
     __spirv_ocl_s_rhadd(__clc_int8_t, __clc_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_int8_t
@@ -11420,6 +11928,18 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_int64_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_int64_t
     __spirv_ocl_s_rhadd(__clc_vec16_int64_t, __clc_vec16_int64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_char_t
+    __spirv_ocl_s_sub_sat(__clc_char_t, __clc_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_char_t
+    __spirv_ocl_s_sub_sat(__clc_vec2_char_t, __clc_vec2_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_char_t
+    __spirv_ocl_s_sub_sat(__clc_vec3_char_t, __clc_vec3_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_char_t
+    __spirv_ocl_s_sub_sat(__clc_vec4_char_t, __clc_vec4_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_char_t
+    __spirv_ocl_s_sub_sat(__clc_vec8_char_t, __clc_vec8_char_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_char_t
+    __spirv_ocl_s_sub_sat(__clc_vec16_char_t, __clc_vec16_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_int8_t
     __spirv_ocl_s_sub_sat(__clc_int8_t, __clc_int8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_int8_t
@@ -11470,15 +11990,27 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_int64_t
     __spirv_ocl_s_sub_sat(__clc_vec16_int64_t, __clc_vec16_int64_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_int16_t
+    __spirv_ocl_s_upsample(__clc_char_t, __clc_uint8_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_int16_t
     __spirv_ocl_s_upsample(__clc_int8_t, __clc_uint8_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_int16_t
+    __spirv_ocl_s_upsample(__clc_vec2_char_t, __clc_vec2_uint8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_int16_t
     __spirv_ocl_s_upsample(__clc_vec2_int8_t, __clc_vec2_uint8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_int16_t
+    __spirv_ocl_s_upsample(__clc_vec3_char_t, __clc_vec3_uint8_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_int16_t
     __spirv_ocl_s_upsample(__clc_vec3_int8_t, __clc_vec3_uint8_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_int16_t
+    __spirv_ocl_s_upsample(__clc_vec4_char_t, __clc_vec4_uint8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_int16_t
     __spirv_ocl_s_upsample(__clc_vec4_int8_t, __clc_vec4_uint8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_int16_t
+    __spirv_ocl_s_upsample(__clc_vec8_char_t, __clc_vec8_uint8_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_int16_t
     __spirv_ocl_s_upsample(__clc_vec8_int8_t, __clc_vec8_uint8_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_int16_t
+    __spirv_ocl_s_upsample(__clc_vec16_char_t, __clc_vec16_uint8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_int16_t
     __spirv_ocl_s_upsample(__clc_vec16_int8_t, __clc_vec16_uint8_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_int32_t

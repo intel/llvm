@@ -98,6 +98,7 @@ message( "" )
 
 # Print toolchain
 message( "clang: ${LLVM_CLANG}" )
+message( "clang-format: ${LLVM_CLANG_FORMAT}" )
 message( "llvm-as: ${LLVM_AS}" )
 message( "llvm-link: ${LLVM_LINK}" )
 message( "opt: ${LLVM_OPT}" )
@@ -105,6 +106,8 @@ message( "" )
 if( NOT LLVM_CLANG OR NOT LLVM_OPT OR NOT LLVM_AS OR NOT LLVM_LINK )
 	message( FATAL_ERROR "toolchain incomplete!" )
 endif()
+
+find_program( PYTHON python )
 
 set( CMAKE_CLC_COMPILER ${LLVM_CLANG} )
 set( CMAKE_CLC_ARCHIVE ${LLVM_LINK} )
@@ -158,7 +161,6 @@ if( ENABLE_RUNTIME_SUBNORMAL )
 		DESTINATION ${CMAKE_INSTALL_DATADIR}/clc )
 endif()
 
-find_program( PYTHON python )
 file( TO_CMAKE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/generic/lib/gen_convert.py clc_script_loc )
 file( TO_CMAKE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/generic/libspirv/gen_core_convert.py core_script_loc )
 file( TO_CMAKE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/generic/libspirv/gen_convert.py spirv_script_loc )
@@ -237,7 +239,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 			COMPILE_OPT ${mcpu}
 			FILES ${libspirv_files}
 			ALIASES ${${d}_aliases}
-			GENERATE_TARGET "generate_convert_spirv.cl" "generate_convert_core.cl"
+			GENERATE_TARGET "generate_convert_spirv.cl" "generate_convert_core.cl" gen_spirv_headers
 			PARENT_TARGET libspirv-builtins)
 
 		add_libclc_builtin_set(clc-${arch_suffix}
@@ -247,7 +249,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 			FILES ${lib_files}
 			LIB_DEP libspirv-${arch_suffix}
 			ALIASES ${${d}_aliases}
-			GENERATE_TARGET "generate_convert_clc.cl"
+			GENERATE_TARGET "generate_convert_clc.cl" gen_spirv_headers
 			PARENT_TARGET libclc-builtins)
 	endforeach( d )
 endforeach( t )
