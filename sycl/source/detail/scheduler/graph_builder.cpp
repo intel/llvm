@@ -944,30 +944,14 @@ void Scheduler::GraphBuilder::connectDepEvent(Command *const Cmd,
 
     // make ConnectCmd depend on requirement
     {
+      ConnectCmd->addDep(Dep);
+      assert(reinterpret_cast<Command *>(DepEvent->getCommand()) ==
+          Dep.MDepCommand);
+      // add user to Dep.MDepCommand is already performed beyond this if branch
+
       MemObjRecord *Record = getMemObjRecord(Req->MSYCLMemObj);
-      Dep.MDepCommand->addUser(ConnectCmd);
 
-      AllocaCommandBase *AllocaCmd =
-          findAllocaForReq(Record, Req, DepEventContext);
-      assert(AllocaCmd && "There must be alloca for requirement!");
-
-      std::set<Command *> Deps = findDepsForReq(Record, Req, DepEventContext);
-      assert(Deps.size() && "There must be some deps");
-
-      for (Command *ReqDepCmd : Deps) {
-        // we don't want to depend on any host task as the only "entry point" to
-        // host task is its empty cmd which is in Deps anyway
-        if (ReqDepCmd->getType() == Command::CommandType::RUN_CG) {
-          auto *Cmd = static_cast<ExecCGCommand *>(ReqDepCmd);
-          if (Cmd->getCG().getType() == CG::CGTYPE::CODEPLAY_HOST_TASK)
-            continue;
-        }
-
-        ConnectCmd->addDep(DepDesc{ReqDepCmd, Req, AllocaCmd});
-        ReqDepCmd->addUser(ConnectCmd);
-      }
-
-      updateLeaves(Deps, Record, Req->MAccessMode);
+      updateLeaves({ Dep.MDepCommand }, Record, Req->MAccessMode);
       addNodeToLeaves(Record, ConnectCmd, Req->MAccessMode);
     }
 
