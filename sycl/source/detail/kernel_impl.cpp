@@ -92,10 +92,9 @@ kernel_impl::get_sub_group_info(const device &Device) const {
     throw runtime_error("Sub-group feature is not supported on HOST device.",
                         PI_INVALID_DEVICE);
   }
-  return get_kernel_sub_group_info<
-      typename info::param_traits<info::kernel_sub_group, param>::return_type,
-      param>::get(this->getHandleRef(), getSyclObjImpl(Device)->getHandleRef(),
-                  getPlugin());
+  return get_kernel_sub_group_info<param>::get(
+      this->getHandleRef(), getSyclObjImpl(Device)->getHandleRef(),
+      getPlugin());
 }
 
 template <info::kernel_sub_group param>
@@ -108,12 +107,9 @@ kernel_impl::get_sub_group_info(
     throw runtime_error("Sub-group feature is not supported on HOST device.",
                         PI_INVALID_DEVICE);
   }
-  return get_kernel_sub_group_info_with_input<
-      typename info::param_traits<info::kernel_sub_group, param>::return_type,
-      param,
-      typename info::param_traits<info::kernel_sub_group, param>::input_type>::
-      get(this->getHandleRef(), getSyclObjImpl(Device)->getHandleRef(), Value,
-          getPlugin());
+  return get_kernel_sub_group_info_with_input<param>::get(
+      this->getHandleRef(), getSyclObjImpl(Device)->getHandleRef(), Value,
+      getPlugin());
 }
 
 #define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \

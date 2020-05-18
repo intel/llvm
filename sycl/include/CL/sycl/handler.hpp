@@ -539,7 +539,8 @@ private:
       size_t LinearIndex = Index[0];
       for (int I = 1; I < Dim; ++I)
         LinearIndex += Range[I] * Index[I];
-      (reinterpret_cast<TSrc *>(Dst))[LinearIndex] = Src[Index];
+      using TSrcNonConst = typename std::remove_const<TSrc>::type;
+      (reinterpret_cast<TSrcNonConst *>(Dst))[LinearIndex] = Src[Index];
     });
   }
 
@@ -555,7 +556,8 @@ private:
                    TDst *Dst) {
     single_task<class __copyAcc2Ptr<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>
         ([=]() {
-      *Dst = readFromFirstAccElement(Src);
+      using TSrcNonConst = typename std::remove_const<TSrc>::type;
+      *(reinterpret_cast<TSrcNonConst *>(Dst)) = readFromFirstAccElement(Src);
     });
   }
 
@@ -566,15 +568,15 @@ private:
   template <typename TSrc, typename TDst, int Dim, access::mode AccMode,
             access::target AccTarget, access::placeholder IsPH>
   detail::enable_if_t<(Dim > 0)>
-  copyPtrToAccHost(TDst *Src,
-                   accessor<TSrc, Dim, AccMode, AccTarget, IsPH> Dst) {
+  copyPtrToAccHost(TSrc *Src,
+                   accessor<TDst, Dim, AccMode, AccTarget, IsPH> Dst) {
     range<Dim> Range = Dst.get_range();
     parallel_for<class __copyPtr2Acc<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>
         (Range, [=](id<Dim> Index) {
       size_t LinearIndex = Index[0];
       for (int I = 1; I < Dim; ++I)
         LinearIndex += Range[I] * Index[I];
-      Dst[Index] = (reinterpret_cast<TDst *>(Src))[LinearIndex];
+      Dst[Index] = (reinterpret_cast<const TDst *>(Src))[LinearIndex];
     });
   }
 
@@ -586,11 +588,11 @@ private:
   template <typename TSrc, typename TDst, int Dim, access::mode AccMode,
             access::target AccTarget, access::placeholder IsPH>
   detail::enable_if_t<Dim == 0>
-  copyPtrToAccHost(TDst *Src,
-                   accessor<TSrc, Dim, AccMode, AccTarget, IsPH> Dst) {
+  copyPtrToAccHost(TSrc *Src,
+                   accessor<TDst, Dim, AccMode, AccTarget, IsPH> Dst) {
     single_task<class __copyPtr2Acc<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>
         ([=]() {
-      writeToFirstAccElement(Dst, *Src);
+      writeToFirstAccElement(Dst, *(reinterpret_cast<const TDst *>(Src)));
     });
   }
 #endif // __SYCL_DEVICE_ONLY__

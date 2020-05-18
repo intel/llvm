@@ -1142,10 +1142,14 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
       DepFile = "-";
     } else if (ArgMD->getOption().matches(options::OPT_MMD) &&
                Args.hasArg(options::OPT_fintelfpga) &&
-               !Args.hasArg(options::OPT_c)) {
-      // When generating dependency files for FPGA AOT, the output files will
-      // always be named after the source file.
-      DepFile = Args.MakeArgString(Twine(getBaseInputStem(Args, Inputs)) + ".d");
+               JA.isDeviceOffloading(Action::OFK_SYCL)) {
+      // Generate dependency files as temporary. These will be used for the
+      // aoc call/bundled during fat object creation
+      std::string BaseName(Clang::getBaseInputName(Args, Inputs[0]));
+      std::string DepTmpName =
+          C.getDriver().GetTemporaryPath(llvm::sys::path::stem(BaseName), "d");
+      DepFile = C.addTempFile(C.getArgs().MakeArgString(DepTmpName));
+      C.getDriver().addFPGATempDepFile(DepFile, BaseName);
     } else {
       DepFile = getDependencyFileName(Args, Inputs);
       C.addFailureResultFile(DepFile, &JA);
@@ -5456,8 +5460,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   Args.AddLastArg(CmdArgs, options::OPT_pthread);
 
-  if (Args.hasFlag(options::OPT_mspeculative_load_hardening, options::OPT_mno_speculative_load_hardening,
-                   false))
+  if (Args.hasFlag(options::OPT_mspeculative_load_hardening,
+                   options::OPT_mno_speculative_load_hardening, false))
     CmdArgs.push_back(Args.MakeArgString("-mspeculative-load-hardening"));
 
   RenderSSPOptions(TC, Args, CmdArgs, KernelOrKext);
@@ -6310,11 +6314,12 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   if (Arg *A = Args.getLastArg(options::OPT_moutline,
                                options::OPT_mno_outline)) {
     if (A->getOption().matches(options::OPT_moutline)) {
-      // We only support -moutline in AArch64 right now. If we're not compiling
-      // for AArch64, emit a warning and ignore the flag. Otherwise, add the
-      // proper mllvm flags.
-      if (Triple.getArch() != llvm::Triple::aarch64 &&
-          Triple.getArch() != llvm::Triple::aarch64_32) {
+      // We only support -moutline in AArch64 and ARM targets right now. If
+      // we're not compiling for these, emit a warning and ignore the flag.
+      // Otherwise, add the proper mllvm flags.
+      if (!(Triple.isARM() || Triple.isThumb() ||
+            Triple.getArch() == llvm::Triple::aarch64 ||
+            Triple.getArch() == llvm::Triple::aarch64_32)) {
         D.Diag(diag::warn_drv_moutline_unsupported_opt) << Triple.getArchName();
       } else {
         CmdArgs.push_back("-mllvm");
@@ -7236,10 +7241,12 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
   // For -fintelfpga, when bundling objects we also want to bundle up the
   // named dependency file.
   if (IsFPGADepBundle) {
-    SmallString<128> CurOutput(Output.getFilename());
-    llvm::sys::path::replace_extension(CurOutput, "d");
-    UB += ',';
-    UB += CurOutput;
+    const char *BaseName = Clang::getBaseInputName(TCArgs, Inputs[0]);
+    SmallString<128> DepFile(C.getDriver().getFPGATempDepFile(BaseName));
+    if (!DepFile.empty()) {
+      UB += ',';
+      UB += DepFile;
+    }
   }
   CmdArgs.push_back(TCArgs.MakeArgString(UB));
 
@@ -7720,7 +7727,8 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
     addArgs(CmdArgs, TCArgs, {"-symbols"});
   }
   // specialization constants processing is mandatory
-  if (llvm::dyn_cast<SYCLPostLinkJobAction>(&JA)->getRTSetsSpecConstants())
+  auto *SYCLPostLink = llvm::dyn_cast<SYCLPostLinkJobAction>(&JA);
+  if (SYCLPostLink && SYCLPostLink->getRTSetsSpecConstants())
     addArgs(CmdArgs, TCArgs, {"-spec-const=rt"});
   else
     addArgs(CmdArgs, TCArgs, {"-spec-const=default"});

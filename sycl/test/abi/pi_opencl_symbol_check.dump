@@ -6,6 +6,7 @@ piDevicesGet
 piEnqueueMemBufferMap
 piEventCreate
 piKernelCreate
+piKernelGetSubGroupInfo
 piKernelSetExecInfo
 piMemBufferCreate
 piMemBufferPartition

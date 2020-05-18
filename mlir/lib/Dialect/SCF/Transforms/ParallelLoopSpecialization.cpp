@@ -1,4 +1,4 @@
-//===- ParallelLoopSpecialization.cpp - loop.parallel specialization ------===//
+//===- ParallelLoopSpecialization.cpp - scf.parallel specialization ------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -29,7 +29,7 @@ static void specializeLoopForUnrolling(ParallelOp op) {
   SmallVector<int64_t, 2> constantIndices;
   constantIndices.reserve(op.upperBound().size());
   for (auto bound : op.upperBound()) {
-    auto minOp = dyn_cast_or_null<AffineMinOp>(bound.getDefiningOp());
+    auto minOp = bound.getDefiningOp<AffineMinOp>();
     if (!minOp)
       return;
     int64_t minConstant = std::numeric_limits<int64_t>::max();

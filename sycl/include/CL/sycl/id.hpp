@@ -96,8 +96,10 @@ public:
    * conversion:
    * int a = id<1>(value); */
 
-  operator EnableIfT<(dimensions == 1), size_t>() const {
-    return this->common_array[0];
+  ALWAYS_INLINE operator EnableIfT<(dimensions == 1), size_t>() const {
+    size_t Result = this->common_array[0];
+    __SYCL_ASSUME_INT(Result);
+    return Result;
   }
 #endif // __SYCL_DISABLE_ID_TO_INT_CONV__
 
