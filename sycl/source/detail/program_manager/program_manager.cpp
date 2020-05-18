@@ -239,10 +239,10 @@ RetT *getOrBuild(KernelProgramCache &KPCache, KeyT &&CacheKey,
 
 static bool isDeviceBinaryTypeSupported(const context &C,
                                         RT::PiDeviceBinaryType Format) {
-  backend CBackend = (detail::getSyclObjImpl(C)->getPlugin()).getBackend();
+  backend ContextBackend = detail::getSyclObjImpl(C)->getPlugin().getBackend();
 
   // The CUDA backend cannot use SPIRV
-  if (CBackend == backend::cuda && Format == PI_DEVICE_BINARY_TYPE_SPIRV)
+  if (ContextBackend == backend::cuda && Format == PI_DEVICE_BINARY_TYPE_SPIRV)
     return false;
 
   // All formats except PI_DEVICE_BINARY_TYPE_SPIRV are supported.
@@ -258,7 +258,7 @@ static bool isDeviceBinaryTypeSupported(const context &C,
   }
 
   // OpenCL 2.1 and greater require clCreateProgramWithIL
-  if ((CBackend == backend::opencl) &&
+  if ((ContextBackend == backend::opencl) &&
       C.get_platform().get_info<info::platform::version>() >= "2.1")
     return true;
 
