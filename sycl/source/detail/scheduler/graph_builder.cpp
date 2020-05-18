@@ -955,7 +955,7 @@ void Scheduler::GraphBuilder::connectDepEvent(Command *const Cmd,
       addNodeToLeaves(Record, ConnectCmd, Req->MAccessMode);
     }
 
-    const auto &Reqs = std::vector<Requirement *>(1, Req);
+    const std::vector<Requirement *> Reqs(1, Req);
     EmptyCmd = addEmptyCmd(ConnectCmd, Reqs,
                            Scheduler::getInstance().getDefaultHostQueue(),
                            Command::BlockReason::HostTask);
