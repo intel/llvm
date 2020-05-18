@@ -79,7 +79,7 @@ public:
         MElemSize(Other.MElemSize), MOffsetInBytes(Other.MOffsetInBytes),
         MIsSubBuffer(Other.MIsSubBuffer) {}
 
-  // The resize method provides a way to change the size of the 
+  // The resize method provides a way to change the size of the
   // allocated memory and corresponding properties for the accessor.
   // These are normally fixed for the accessor, but this capability
   // is needed to support the stream class.
