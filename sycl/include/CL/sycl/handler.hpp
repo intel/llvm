@@ -107,6 +107,32 @@ template <typename Type> struct get_kernel_name_t<detail::auto_name, Type> {
 
 __SYCL_EXPORT device getDeviceFromHandler(handler &);
 
+template<int Dims>
+void throwIfNotIntRange(const range<Dims> &Range) {
+#if defined(__SYCL_ID_QUERIES_FIT_IN_INT__)
+  static constexpr size_t Limit = static_cast<size_t>(INT_MAX);
+  for (size_t Dim = 0; Dim < Dims; ++Dim)
+    if (Range[Dim] > Limit)
+      throw runtime_error("Provided range is out of integer limits. Suggest "
+                          "disabling `id-queries-fit-in-int32' optimizations "
+                          "flag.",
+                          PI_INVALID_VALUE);
+#endif
+}
+
+template<int Dims>
+void throwIfNotIntOffset(const id<Dims> &Id) {
+#if defined(__SYCL_ID_QUERIES_FIT_IN_INT__)
+  static constexpr size_t Limit = static_cast<size_t>(INT_MAX);
+  for (size_t Dim = 0; Dim < Dims; ++Dim)
+    if (Id[Dim] > Limit)
+      throw runtime_error("Provided range is out of integer limits. Suggest "
+                          "disabling `id-queries-fit-in-int32' optimizations "
+                          "flag.",
+                          PI_INVALID_VALUE);
+#endif
+}
+
 } // namespace detail
 
 namespace intel {
@@ -743,6 +769,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     kernel_single_task<NameT>(KernelFunc);
 #else
+    // No need to check if range is out of INT_MAX limits as it's compile-time
+    // known constant.
     MNDRDesc.set(range<1>{1});
 
     StoreLambda<NameT, KernelType, /*Dims*/ 0, void>(KernelFunc);
@@ -770,6 +798,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     kernel_parallel_for<NameT, KernelType, Dims>(KernelFunc);
 #else
+    detail::throwIfNotIntRange(NumWorkItems);
     MNDRDesc.set(std::move(NumWorkItems));
     StoreLambda<NameT, KernelType, Dims>(std::move(KernelFunc));
     MCGType = detail::CG::KERNEL;
@@ -782,6 +811,8 @@ public:
   /// named function object type.
   template <typename FuncT> void run_on_host_intel(FuncT Func) {
     throwIfActionIsCreated();
+    // No need to check if range is out of INT_MAX limits as it's compile-time
+    // known constant
     MNDRDesc.set(range<1>{1});
 
     MArgs = std::move(MAssociatedAccesors);
@@ -812,6 +843,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     kernel_parallel_for<NameT, KernelType, Dims>(KernelFunc);
 #else
+    detail::throwIfNotIntRange(NumWorkItems);
+    detail::throwIfNotIntOffset(WorkItemOffset);
     MNDRDesc.set(std::move(NumWorkItems), std::move(WorkItemOffset));
     StoreLambda<NameT, KernelType, Dims>(std::move(KernelFunc));
     MCGType = detail::CG::KERNEL;
@@ -839,6 +872,9 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     kernel_parallel_for_nd_range<NameT, KernelType, Dims>(KernelFunc);
 #else
+    detail::throwIfNotIntRange(ExecutionRange.get_global_range());
+    detail::throwIfNotIntRange(ExecutionRange.get_local_range());
+    detail::throwIfNotIntOffset(ExecutionRange.get_offset());
     MNDRDesc.set(std::move(ExecutionRange));
     StoreLambda<NameT, KernelType, Dims>(std::move(KernelFunc));
     MCGType = detail::CG::KERNEL;
@@ -1007,6 +1043,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     kernel_parallel_for_work_group<NameT, KernelType, Dims>(KernelFunc);
 #else
+    detail::throwIfNotIntRange(NumWorkGroups);
     MNDRDesc.setNumWorkGroups(NumWorkGroups);
     StoreLambda<NameT, KernelType, Dims>(std::move(KernelFunc));
     MCGType = detail::CG::KERNEL;
@@ -1036,7 +1073,12 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     kernel_parallel_for_work_group<NameT, KernelType, Dims>(KernelFunc);
 #else
-    MNDRDesc.set(nd_range<Dims>(NumWorkGroups * WorkGroupSize, WorkGroupSize));
+    nd_range<Dims> ExecRange = nd_range<Dims>(NumWorkGroups * WorkGroupSize,
+                                              WorkGroupSize);
+    detail::throwIfNotIntRange(ExecRange.get_global_range());
+    detail::throwIfNotIntRange(ExecRange.get_local_range());
+    detail::throwIfNotIntOffset(ExecRange.get_offset());
+    MNDRDesc.set(std::move(ExecRange));
     StoreLambda<NameT, KernelType, Dims>(std::move(KernelFunc));
     MCGType = detail::CG::KERNEL;
 #endif // __SYCL_DEVICE_ONLY__
@@ -1051,6 +1093,8 @@ public:
   void single_task(kernel Kernel) {
     throwIfActionIsCreated();
     verifyKernelInvoc(Kernel);
+    // No need to check if range is out of INT_MAX limits as it's compile-time
+    // known constant
     MNDRDesc.set(range<1>{1});
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     MCGType = detail::CG::KERNEL;
@@ -1069,6 +1113,7 @@ public:
     throwIfActionIsCreated();
     verifyKernelInvoc(Kenrel);
     MKernel = detail::getSyclObjImpl(std::move(Kenrel));
+    detail::throwIfNotIntRange(NumWorkItems);
     MNDRDesc.set(std::move(NumWorkItems));
     MCGType = detail::CG::KERNEL;
     extractArgsAndReqs();
@@ -1088,6 +1133,8 @@ public:
     throwIfActionIsCreated();
     verifyKernelInvoc(Kernel);
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
+    detail::throwIfNotIntRange(NumWorkItems);
+    detail::throwIfNotIntOffset(WorkItemOffset);
     MNDRDesc.set(std::move(NumWorkItems), std::move(WorkItemOffset));
     MCGType = detail::CG::KERNEL;
     extractArgsAndReqs();
@@ -1105,6 +1152,9 @@ public:
     throwIfActionIsCreated();
     verifyKernelInvoc(Kernel);
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
+    detail::throwIfNotIntRange(NDRange.get_global_range());
+    detail::throwIfNotIntRange(NDRange.get_local_range());
+    detail::throwIfNotIntOffset(NDRange.get_offset());
     MNDRDesc.set(std::move(NDRange));
     MCGType = detail::CG::KERNEL;
     extractArgsAndReqs();
@@ -1124,6 +1174,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     kernel_single_task<NameT>(KernelFunc);
 #else
+    // No need to check if range is out of INT_MAX limits as it's compile-time
+    // known constant
     MNDRDesc.set(range<1>{1});
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     MCGType = detail::CG::KERNEL;
@@ -1160,6 +1212,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     kernel_parallel_for<NameT, KernelType, Dims>(KernelFunc);
 #else
+    detail::throwIfNotIntRange(NumWorkItems);
     MNDRDesc.set(std::move(NumWorkItems));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     MCGType = detail::CG::KERNEL;
@@ -1189,6 +1242,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     kernel_parallel_for<NameT, KernelType, Dims>(KernelFunc);
 #else
+    detail::throwIfNotIntRange(NumWorkItems);
+    detail::throwIfNotIntOffset(WorkItemOffset);
     MNDRDesc.set(std::move(NumWorkItems), std::move(WorkItemOffset));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     MCGType = detail::CG::KERNEL;
@@ -1218,6 +1273,9 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     kernel_parallel_for_nd_range<NameT, KernelType, Dims>(KernelFunc);
 #else
+    detail::throwIfNotIntRange(NDRange.get_global_range());
+    detail::throwIfNotIntRange(NDRange.get_local_range());
+    detail::throwIfNotIntOffset(NDRange.get_offset());
     MNDRDesc.set(std::move(NDRange));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     MCGType = detail::CG::KERNEL;
@@ -1251,6 +1309,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     kernel_parallel_for_work_group<NameT, KernelType, Dims>(KernelFunc);
 #else
+    detail::throwIfNotIntRange(NumWorkGroups);
     MNDRDesc.setNumWorkGroups(NumWorkGroups);
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     StoreLambda<NameT, KernelType, Dims>(std::move(KernelFunc));
@@ -1284,7 +1343,12 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     kernel_parallel_for_work_group<NameT, KernelType, Dims>(KernelFunc);
 #else
-    MNDRDesc.set(nd_range<Dims>(NumWorkGroups * WorkGroupSize, WorkGroupSize));
+    nd_range<Dims> ExecRange = nd_range<Dims>(NumWorkGroups * WorkGroupSize,
+                                              WorkGroupSize);
+    detail::throwIfNotIntRange(ExecRange.get_global_range());
+    detail::throwIfNotIntRange(ExecRange.get_local_range());
+    detail::throwIfNotIntOffset(ExecRange.get_offset());
+    MNDRDesc.set(std::move(ExecRange));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     StoreLambda<NameT, KernelType, Dims>(std::move(KernelFunc));
     MCGType = detail::CG::KERNEL;
