@@ -483,7 +483,12 @@ function(llvm_add_library name)
         "PUBLIC;PRIVATE"
         ${ARG_LINK_LIBS})
       foreach(link_lib ${LINK_LIBS_ARG_PUBLIC})
-        if(TARGET ${link_lib})
+        if(LLVM_PTHREAD_LIB)
+          # Can't specify a dependence on -lpthread
+          if(NOT ${link_lib} STREQUAL ${LLVM_PTHREAD_LIB})
+            add_dependencies(${obj_name} ${link_lib})
+          endif()
+        else()
           add_dependencies(${obj_name} ${link_lib})
         endif()
       endforeach()

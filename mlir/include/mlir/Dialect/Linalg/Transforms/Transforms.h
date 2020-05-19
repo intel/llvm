@@ -121,11 +121,11 @@ void vectorizeLinalgOp(OpBuilder &builder, Operation *op);
 template <typename LoopTy, typename ConcreteOp>
 Optional<LinalgLoops> linalgLowerOpToLoops(OpBuilder &builder, Operation *op);
 
-/// Emits a loop nest of `loop.for` with the proper body for `op`.
+/// Emits a loop nest of `scf.for` with the proper body for `op`.
 template <typename ConcreteOp>
 LogicalResult linalgOpToLoops(OpBuilder &builder, Operation *op);
 
-/// Emits a loop nest of `loop.parallel` with the proper body for `op`.
+/// Emits a loop nest of `scf.parallel` with the proper body for `op`.
 template <typename ConcreteOp>
 LogicalResult linalgOpToParallelLoops(OpBuilder &builder, Operation *op);
 
@@ -362,11 +362,28 @@ struct LinalgLoweringPattern : public RewritePattern {
 private:
   /// LinalgTransformMarker handles special attribute manipulations.
   LinalgMarker marker;
-  /// Controls whether the pattern lowers to library calls, loop.for, affine.for
-  /// or loop.parallel.
+  /// Controls whether the pattern lowers to library calls, scf.for, affine.for
+  /// or scf.parallel.
   LinalgLoweringType loweringType;
 };
 
+//===----------------------------------------------------------------------===//
+// Support for staged pattern application.
+//===----------------------------------------------------------------------===//
+/// Helper function to allow applying rewrite patterns, interleaved with more
+/// global transformations, in a staged fashion:
+///   1. the first stage consists of a list of OwningRewritePatternList. Each
+///   OwningRewritePatternList in this list is applied once, in order.
+///   2. the second stage consists of a single OwningRewritePattern that is
+///   applied greedily until convergence.
+///   3. the third stage consists of applying a lambda, generally used for
+///   non-local transformation effects. This allows creating custom fused
+///   transformations where patterns can be ordered and applied at a finer
+///   granularity than a sequence of traditional compiler passes.
+LogicalResult applyStagedPatterns(
+    Operation *op, ArrayRef<OwningRewritePatternList> stage1Patterns,
+    const OwningRewritePatternList &stage2Patterns,
+    llvm::function_ref<LogicalResult(Operation *)> stage3Lambda = nullptr);
 } // namespace linalg
 } // namespace mlir
 
