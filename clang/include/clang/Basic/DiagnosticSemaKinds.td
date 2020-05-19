@@ -10878,4 +10878,6 @@ def err_ext_int_bad_size : Error<"%select{signed|unsigned}0 _ExtInt must "
                                  "have a bit size of at least %select{2|1}0">;
 def err_ext_int_max_size : Error<"%select{signed|unsigned}0 _ExtInt of bit "
                                  "sizes greater than %1 not supported">;
+def err_aux_target_builtin_in_device_code : Error<
+  "AUX target specific builtins should not be present in device code">;                                 
 } // end of sema component.
