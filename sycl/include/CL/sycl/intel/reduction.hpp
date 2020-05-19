@@ -1128,6 +1128,7 @@ detail::reduction_impl<T, BinaryOperation, 0, true, access::mode::read_write,
                        access::placeholder::true_t>
 reduction(T *VarPtr, const T &Identity, BinaryOperation Combiner) {
   // The Combiner argument was needed only to define the BinaryOperation param.
+  (void)Combiner;
   return detail::reduction_impl<T, BinaryOperation, 0, true,
                                 access::mode::read_write,
                                 access::placeholder::true_t>(VarPtr, Identity);
@@ -1146,6 +1147,7 @@ detail::enable_if_t<detail::IsKnownIdentityOp<T, BinaryOperation>::value,
                                            access::placeholder::true_t>>
 reduction(T *VarPtr, BinaryOperation Combiner) {
   // The Combiner argument was needed only to define the BinaryOperation param.
+  (void)Combiner;
   return detail::reduction_impl<T, BinaryOperation, 0, true,
                                 access::mode::read_write,
                                 access::placeholder::true_t>(VarPtr);

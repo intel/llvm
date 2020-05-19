@@ -211,8 +211,8 @@ using is_uint_to_uint =
 
 template <typename T, typename R>
 using is_sint_to_from_uint = std::integral_constant<
-    bool, is_sugeninteger<T>::value && is_sigeninteger<R>::value ||
-              is_sigeninteger<T>::value && is_sugeninteger<R>::value>;
+    bool, (is_sugeninteger<T>::value && is_sigeninteger<R>::value) ||
+              (is_sigeninteger<T>::value && is_sugeninteger<R>::value)>;
 
 template <typename T, typename R>
 using is_sint_to_float =
@@ -486,8 +486,8 @@ __SYCL_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE(rtn, Rtn)
 template <typename T, typename R, rounding_mode roundingMode, typename OpenCLT,
           typename OpenCLR>
 detail::enable_if_t<
-    (!is_standard_type<T>::value && !is_standard_type<OpenCLT>::value ||
-     !is_standard_type<R>::value && !is_standard_type<OpenCLR>::value) &&
+    ((!is_standard_type<T>::value && !is_standard_type<OpenCLT>::value) ||
+     (!is_standard_type<R>::value && !is_standard_type<OpenCLR>::value)) &&
         !std::is_same<OpenCLT, OpenCLR>::value,
     R>
 convertImpl(T Value) {
