@@ -1,5 +1,4 @@
 // RUN: %clang_cc1 -triple spir64-unknown-unknown-sycldevice -fsycl -fsycl-is-device -aux-triple x86_64-unknown-linux-gnu -verify -fsyntax-only  %s
-// 
 //
 /*
  This test is to verify that deferred diagnostics are emitted whenever there is an AUX target builtin function inside device code.
@@ -38,8 +37,8 @@ int main(int argc, char **argv) {
   */
   _mm_prefetch("test", 4); // no error thrown, since this is a valid invocation
 
-  _mm_prefetch("test", 8);// expected-error {{argument value 8 is outside the valid range [0, 7]}}
-  
+  _mm_prefetch("test", 8); // expected-error {{argument value 8 is outside the valid range [0, 7]}}
+
   cl::sycl::kernel_single_task<class AName>([]() {
     //SYCL device compiler will compile this kernel for a device as well as any functions that the kernel calls
     _mm_prefetch("test", 4); // expected-error {{AUX target specific builtins should not be present in device code}}
