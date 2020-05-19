@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -I %source_sycl_include -Wall -Wextra -Wno-ignored-attributes -Wpessimizing-move -Wunused-variable -Wmismatched-tags -Wunneeded-internal-declaration -Werror -Wno-unknown-cuda-version  %s -o %t.out
+// RUN: %clangxx -fsycl -I %source_sycl_include -Wall -Wextra -Wno-ignored-attributes -Wno-deprecated-declarations -Wpessimizing-move -Wunused-variable -Wmismatched-tags -Wunneeded-internal-declaration -Werror -Wno-unknown-cuda-version  %s -o %t.out
 
 #include <CL/sycl.hpp>
 
