@@ -41,8 +41,8 @@ public:
             access::target accessTarget, access::placeholder isPlaceholder>
   typename std::enable_if<accessTarget != access::target::host_buffer,
                           cl_mem>::type
-  get_native_mem(const accessor<dataT, dimensions, accessmode,
-                                accessTarget, isPlaceholder> &Acc) const {
+  get_native_mem(const accessor<dataT, dimensions, accessmode, accessTarget,
+                                isPlaceholder> &Acc) const {
 #ifndef __SYCL_DEVICE_ONLY__
     // employ reinterpret_cast instead of static_cast due to cycle in includes
     // involving CL/sycl/accessor.hpp

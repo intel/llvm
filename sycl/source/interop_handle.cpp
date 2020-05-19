@@ -16,7 +16,7 @@ namespace sycl {
 
 cl_mem interop_handle::getMemImpl(detail::Requirement *Req) const {
   auto Iter = std::find_if(std::begin(MMemObjs), std::end(MMemObjs),
-                          [=](ReqToMem Elem) { return (Elem.first == Req); });
+                           [=](ReqToMem Elem) { return (Elem.first == Req); });
 
   if (Iter == std::end(MMemObjs))
     throw("Invalid memory object used inside interop");
