@@ -30,8 +30,8 @@ static const unsigned NVPTXAddrSpaceMap[] = {
     0, // opencl_private
     // FIXME: generic has to be added to the target
     0,  // opencl_generic
-    11, // opencl_usm_device
-    12, // opencl_usm_host
+    1,  // opencl_usm_device
+    1,  // opencl_usm_host
     1,  // cuda_device
     4,  // cuda_constant
     3,  // cuda_shared
