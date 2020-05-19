@@ -27,10 +27,10 @@ public:
   plugin(RT::PiPlugin Plugin, backend UseBackend)
       : MPlugin(Plugin), MBackend(UseBackend) {}
 
-  plugin& operator=(const plugin&) = default;
-  plugin(const plugin&) = default;
-  plugin& operator=(plugin&& other) noexcept = default;
-  plugin(plugin&& other) noexcept = default;
+  plugin &operator=(const plugin &) = default;
+  plugin(const plugin &) = default;
+  plugin &operator=(plugin &&other) noexcept = default;
+  plugin(plugin &&other) noexcept = default;
 
   ~plugin() = default;
 
