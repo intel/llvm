@@ -20,6 +20,8 @@
 using namespace clang;
 using namespace CodeGen;
 
+namespace {
+
 /// Various utilities.
 /// TODO partially duplicates functionality from SemaSYCL.cpp, can be shared.
 class Util {
@@ -34,6 +36,8 @@ public:
   static bool matchQualifiedTypeName(const CXXRecordDecl *RecTy,
                                      ArrayRef<Util::DeclContextDesc> Scopes);
 };
+
+} // namespace
 
 static bool isPFWI(const FunctionDecl &FD) {
   const auto *MD = dyn_cast<CXXMethodDecl>(&FD);

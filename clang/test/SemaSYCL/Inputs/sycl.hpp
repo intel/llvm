@@ -80,6 +80,10 @@ public:
   void use(void *) const {}
   _ImplT<dimensions> impl;
 
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__SYCL_EXPLICIT_SIMD__)
+  void ESIMDBufferAccessorMarker() {}
+#endif // __SYCL_DEVICE_ONLY__ && __SYCL_EXPLICIT_SIMD__
+
 private:
   using PtrType = typename DeviceValueType<dataT, accessTarget>::type *;
   void __init(PtrType Ptr, range<dimensions> AccessRange,

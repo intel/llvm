@@ -54,6 +54,8 @@ enum KernelInvocationKind {
 const static std::string InitMethodName = "__init";
 const static std::string FinalizeMethodName = "__finalize";
 
+namespace {
+
 /// Various utilities.
 class Util {
 public:
@@ -62,6 +64,7 @@ public:
   /// Checks whether given clang type is a full specialization of the SYCL
   /// accessor class.
   static bool isSyclAccessorType(const QualType &Ty);
+  static bool isSyclAccessorType(const CXXRecordDecl *RecTy);
 
   /// Checks whether given clang type is a full specialization of the SYCL
   /// sampler class.
@@ -77,6 +80,8 @@ public:
   /// \param Name  the class name checked against
   /// \param Tmpl  whether the class is template instantiation or simple record
   static bool isSyclType(const QualType &Ty, StringRef Name, bool Tmpl = false);
+  static bool isSyclType(const CXXRecordDecl *RecTy, StringRef Name,
+                         bool Tmpl = false);
 
   /// Checks whether given clang type is a full specialization of the SYCL
   /// specialization constant class.
@@ -89,7 +94,11 @@ public:
   ///     translation unit (excluding the latter)
   static bool matchQualifiedTypeName(const QualType &Ty,
                                      ArrayRef<Util::DeclContextDesc> Scopes);
+  static bool matchQualifiedTypeName(const CXXRecordDecl *RecTy,
+                                     ArrayRef<Util::DeclContextDesc> Scopes);
 };
+
+} // namespace
 
 // This information is from Section 4.13 of the SYCL spec
 // https://www.khronos.org/registry/SYCL/specs/sycl-1.2.1.pdf
@@ -1261,6 +1270,15 @@ public:
   using SyclKernelFieldHandler::leaveStruct;
 };
 
+/// Tells whether given type is a sycl accessor type which must be mapped to
+/// ESIMD buffer accessor.
+static bool isESIMDAccessor(const CXXRecordDecl *AccTy) {
+  // Cooperate with the SYCL API, which defines this method iff the accessor is
+  // ESIMD accessor.
+  assert(Util::isSyclAccessorType(AccTy) && "sycl::accessor expected");
+  return getMethodByName(AccTy, "ESIMDBufferAccessorMarker") != nullptr;
+}
+
 class SyclKernelIntHeaderCreator
     : public SyclKernelFieldHandler<SyclKernelIntHeaderCreator> {
   SYCLIntegrationHeader &Header;
@@ -1306,7 +1324,10 @@ public:
     int Dims = static_cast<int>(
         AccTy->getTemplateArgs()[1].getAsIntegral().getExtValue());
     int Info = getAccessTarget(AccTy) | (Dims << 11);
-    Header.addParamDesc(SYCLIntegrationHeader::kind_accessor, Info,
+    auto ParamKind = isESIMDAccessor(AccTy)
+                         ? SYCLIntegrationHeader::kind_esimd_buffer_accessor
+                         : SYCLIntegrationHeader::kind_accessor;
+    Header.addParamDesc(ParamKind, Info,
                         getOffset(BC.getType()->getAsCXXRecordDecl()));
   }
 
@@ -1318,8 +1339,10 @@ public:
     int Dims = static_cast<int>(
         AccTy->getTemplateArgs()[1].getAsIntegral().getExtValue());
     int Info = getAccessTarget(AccTy) | (Dims << 11);
-    Header.addParamDesc(SYCLIntegrationHeader::kind_accessor, Info,
-                        getOffset(FD));
+    auto ParamKind = isESIMDAccessor(AccTy)
+                         ? SYCLIntegrationHeader::kind_esimd_buffer_accessor
+                         : SYCLIntegrationHeader::kind_accessor;
+    Header.addParamDesc(ParamKind, Info, getOffset(FD));
   }
 
   void handleSyclSamplerType(FieldDecl *FD, QualType FieldTy) final {
@@ -1623,6 +1646,7 @@ static const char *paramKind2Str(KernelParamKind K) {
     CASE(std_layout);
     CASE(sampler);
     CASE(pointer);
+    CASE(esimd_buffer_accessor);
   default:
     return "<ERROR>";
   }
@@ -2017,7 +2041,13 @@ SYCLIntegrationHeader::SYCLIntegrationHeader(DiagnosticsEngine &_Diag,
 // -----------------------------------------------------------------------------
 
 bool Util::isSyclAccessorType(const QualType &Ty) {
-  return isSyclType(Ty, "accessor", true /*Tmpl*/);
+  if (const CXXRecordDecl *RecTy = Ty->getAsCXXRecordDecl())
+    return isSyclAccessorType(RecTy);
+  return false;
+}
+
+bool Util::isSyclAccessorType(const CXXRecordDecl *RecTy) {
+  return isSyclType(RecTy, "accessor", true /*Tmpl*/);
 }
 
 bool Util::isSyclSamplerType(const QualType &Ty) {
@@ -2039,24 +2069,34 @@ bool Util::isSyclSpecConstantType(const QualType &Ty) {
 }
 
 bool Util::isSyclType(const QualType &Ty, StringRef Name, bool Tmpl) {
+  if (const CXXRecordDecl *RecTy = Ty->getAsCXXRecordDecl())
+    return isSyclType(RecTy, Name, Tmpl);
+  return false;
+}
+
+bool Util::isSyclType(const CXXRecordDecl *RecTy, StringRef Name, bool Tmpl) {
   Decl::Kind ClassDeclKind =
       Tmpl ? Decl::Kind::ClassTemplateSpecialization : Decl::Kind::CXXRecord;
   std::array<DeclContextDesc, 3> Scopes = {
       Util::DeclContextDesc{clang::Decl::Kind::Namespace, "cl"},
       Util::DeclContextDesc{clang::Decl::Kind::Namespace, "sycl"},
       Util::DeclContextDesc{ClassDeclKind, Name}};
-  return matchQualifiedTypeName(Ty, Scopes);
+  return matchQualifiedTypeName(RecTy, Scopes);
 }
 
 bool Util::matchQualifiedTypeName(const QualType &Ty,
                                   ArrayRef<Util::DeclContextDesc> Scopes) {
+  if (const CXXRecordDecl *RecTy = Ty->getAsCXXRecordDecl())
+    return matchQualifiedTypeName(RecTy, Scopes);
+  return false; // only classes/structs supported
+}
+
+bool Util::matchQualifiedTypeName(const CXXRecordDecl *RecTy,
+                                  ArrayRef<Util::DeclContextDesc> Scopes) {
   // The idea: check the declaration context chain starting from the type
   // itself. At each step check the context is of expected kind
   // (namespace) and name.
-  const CXXRecordDecl *RecTy = Ty->getAsCXXRecordDecl();
 
-  if (!RecTy)
-    return false; // only classes/structs supported
   const auto *Ctx = cast<DeclContext>(RecTy);
   StringRef Name = "";
 

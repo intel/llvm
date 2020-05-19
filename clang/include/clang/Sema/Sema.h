@@ -315,7 +315,8 @@ public:
     kind_std_layout,
     kind_sampler,
     kind_pointer,
-    kind_last = kind_pointer
+    kind_esimd_buffer_accessor,
+    kind_last = kind_esimd_buffer_accessor
   };
 
 public:
