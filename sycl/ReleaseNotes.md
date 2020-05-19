@@ -147,8 +147,6 @@ Release notes for the commit range ba404be..67d3d9e
     version below 16.3.0
     The workaround is to enable `-std=c++17` for the failing MSVC version.
 
-Please, see the runtime installation guide [here](https://github.com/intel/llvm/blob/sycl/sycl/doc/GetStartedGuide.md#install-low-level-runtime)
-
 # March'20 release notes
 
 Release notes for the commit range e8f1f29..ba404be
