@@ -3,9 +3,11 @@
 void bar(int & Data) {}
 void bar2(int & Data) {}
 void bar(__attribute__((opencl_private)) int  & Data) {}
+void bar3(__attribute__((opencl_global)) int  & Data) {}
 void foo(int * Data) {}
 void foo2(int * Data) {}
 void foo(__attribute__((opencl_private)) int * Data) {}
+void foo3(__attribute__((opencl_global)) int * Data) {}
 
 template<typename T>
 void tmpl(T *t){}
@@ -23,9 +25,11 @@ void usages() {
 
   bar(*USMDEV);
   bar2(*USMDEV);
+  bar3(*USMDEV);
 
   bar(*USMHOST);
   bar2(*USMHOST);
+  bar3(*USMHOST);
 
   bar(*PRIV);
   bar2(*PRIV);
@@ -40,8 +44,10 @@ void usages() {
   foo2(GLOB);
   foo(USMDEV);
   foo2(USMDEV);
-  foo(USMHOST);
+  foo3(USMDEV);
+  foo(USMDEV);
   foo2(USMHOST);
+  foo3(USMHOST);
   foo(PRIV);
   foo2(PRIV);
   foo(NoAS);
