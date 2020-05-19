@@ -1,7 +1,4 @@
 // RUN: %clangxx -fsycl %s -o %t.out %threads_lib
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
 // RUN: %CPU_RUN_PLACEHOLDER SYCL_PI_TRACE=-1 %t.out 2>&1 %CPU_CHECK_PLACEHOLDER
 // RUN: %GPU_RUN_PLACEHOLDER SYCL_PI_TRACE=-1 %t.out 2>&1 %GPU_CHECK_PLACEHOLDER
 // RUN: %ACC_RUN_PLACEHOLDER SYCL_PI_TRACE=-1 %t.out 2>&1 %ACC_CHECK_PLACEHOLDER
@@ -56,7 +53,7 @@ void Thread1Fn(Context *Ctx) {
   }
 
   // 1. submit task writing to buffer 1
-  Ctx.Queue.submit([&](S::handler &CGH) {
+  Ctx->Queue.submit([&](S::handler &CGH) {
     S::accessor<int, 1, S::access::mode::write,
                 S::access::target::global_buffer>
         GeneratorAcc(Ctx->Buf1, CGH);
@@ -70,7 +67,7 @@ void Thread1Fn(Context *Ctx) {
   });
 
   // 2. submit host task writing from buf 1 to buf 2
-  auto HostTaskEvent = Ctx.Queue.submit([&](S::handler &CGH) {
+  auto HostTaskEvent = Ctx->Queue.submit([&](S::handler &CGH) {
     S::accessor<int, 1, S::access::mode::read,
                 S::access::target::host_buffer>
         CopierSrcAcc(Ctx->Buf1, CGH);
@@ -93,8 +90,8 @@ void Thread1Fn(Context *Ctx) {
       assert(Ctx->Flag.compare_exchange_strong(Expected, Desired));
 
       {
-        std::lock_guard<std::mutex> Lock(Ctx.Mutex);
-        Ctx.CV.notify_all();
+        std::lock_guard<std::mutex> Lock(Ctx->Mutex);
+        Ctx->CV.notify_all();
       }
     };
 
@@ -102,7 +99,7 @@ void Thread1Fn(Context *Ctx) {
   });
 
   // 3. submit simple task to move data between two buffers
-  Ctx.Queue.submit([&](S::handler &CGH) {
+  Ctx->Queue.submit([&](S::handler &CGH) {
     S::accessor<int, 1, S::access::mode::read,
                 S::access::target::global_buffer>
         SrcAcc(Ctx->Buf2, CGH);
@@ -142,7 +139,7 @@ void Thread2Fn(Context *Ctx) {
   std::unique_lock<std::mutex> Lock(Ctx->Mutex);
 
   // T2.1. Wait until flag F is set eq true.
-  Ctx.CV.wait(Lock, [&Ctx] { return Ctx->Flag.load(); });
+  Ctx->CV.wait(Lock, [&Ctx] { return Ctx->Flag.load(); });
 
   assert(Ctx->Flag.load());
 }
@@ -156,14 +153,14 @@ void test() {
 
   S::queue Queue(EH);
 
-  Context Ctx{{false}, Queue, "", {10}, {10}, {10}, {}, {}};
+  Context Ctx{{false}, Queue, {10}, {10}, {10}, {}, {}};
 
   // 0. setup: thread 1 T1: exec smth; thread 2 T2: waits; init flag F = false
   auto A1 = std::async(std::launch::async, Thread1Fn, &Ctx);
   auto A2 = std::async(std::launch::async, Thread2Fn, &Ctx);
 
-  A1.wait();
-  A2.wait();
+  A1.get();
+  A2.get();
 
   assert(Ctx.Flag.load());
 
@@ -175,7 +172,7 @@ void test() {
 
     bool failure = false;
     for (size_t Idx = 0; Idx < ResultAcc.get_count(); ++Idx) {
-      fprintf(stderr, "Third buffer [%3zu] = %i\n", Idx, ResultAcc[Idx]);
+      fprintf(stderr, "Second buffer [%3zu] = %i\n", Idx, ResultAcc[Idx]);
 
       failure |= (ResultAcc[Idx] != Idx);
     }
@@ -196,13 +193,10 @@ int main() {
 // CHECK:---> piEnqueueKernelLaunch(
 // prepare for host task
 // CHECK:---> piEnqueueMemBufferMap(
-// creation of host task self-event
-// CHECK:---> piEventCreate(
-// wait on dependencies of host task
-// CHECK:---> piEventsWait(
-// host task is done, set status of self-event
-// CHECK:---> piEventSetStatus(
 // launch of CopierTask kernel
 // CHECK:---> piKernelCreate(
 // CHECK: CopierTask
 // CHECK:---> piEnqueueKernelLaunch(
+// TODO need to check for piEventsWait as "wait on dependencies of host task".
+// At the same time this piEventsWait may occur anywhere after
+// piEnqueueMemBufferMap ("prepare for host task").
