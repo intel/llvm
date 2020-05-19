@@ -1941,12 +1941,11 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
       if (CheckTSBuiltinFunctionCall(
               Context.getAuxTargetInfo()->getTriple().getArch(),
               Context.BuiltinInfo.getAuxBuiltinID(BuiltinID), TheCall)) {
-                    
               return ExprError();
       }
       /*
-      Parameters of the AUX built-in function have been validated and have no errors.
-      Device code is not allowed to have the AUX built-ins in them.
+      At this point, parameters of the AUX built-in function have been validated and have no errors.
+      We must not allow Device code to have the AUX built-in functions inside them.
       To handle this we use SYCLDiagIfDeviceCode, which creates a DeviceDiagBuilder that emits 
       the diagnostic if the current context is "used as device code".
       We first detect if we are compiling for device. But we don't know that this function will be codegen'ed
