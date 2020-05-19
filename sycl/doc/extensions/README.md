@@ -30,6 +30,7 @@ DPC++ extensions status:
 | [SYCL_INTEL_static_local_memory_query](StaticLocalMemoryQuery/SYCL_INTEL_static_local_memory_query.asciidoc)                | Proposal                                  | |
 | [SYCL_INTEL_sub_group_algorithms](SubGroupAlgorithms/SYCL_INTEL_sub_group_algorithms.asciidoc)                              | Partially supported(OpenCL: CPU, GPU)     | Features from SYCL_INTEL_group_algorithms extended to sub-groups |
 | [Sub-groups for NDRange Parallelism](SubGroupNDRange/SubGroupNDRange.md)                                                    | Deprecated(OpenCL: CPU, GPU)              | |
+| [Sub-groups](SubGroup/SYCL_INTEL_sub_group.asciidoc)                                                                        | Supported(OpenCL)                         | |
 | [SYCL_INTEL_unnamed_kernel_lambda](UnnamedKernelLambda/SYCL_INTEL_unnamed_kernel_lambda.asciidoc)                           | Supported(OpenCL)                         | |
 | [Unified Shared Memory](USM/USM.adoc)                                                                                       | Supported(OpenCL)                         | |
 
