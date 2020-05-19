@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/interop_handle.hpp>
 #include <CL/sycl/detail/accessor_impl.hpp>
+#include <CL/sycl/interop_handle.hpp>
 
 #include <algorithm>
 
@@ -15,15 +15,13 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
 cl_mem interop_handle::getMemImpl(detail::Requirement *Req) const {
-    auto Iter = std::find_if(std::begin(MMemObjs), std::end(MMemObjs),
-      [=](ReqToMem Elem) {
-        return (Elem.first == Req);
-    });
+  auto Iter = std::find_if(std::begin(MMemObjs), std::end(MMemObjs),
+                          [=](ReqToMem Elem) { return (Elem.first == Req); });
 
-    if (Iter == std::end(MMemObjs))
-        throw("Invalid memory object used inside interop");
+  if (Iter == std::end(MMemObjs))
+    throw("Invalid memory object used inside interop");
 
-    return detail::pi::cast<cl_mem>(Iter->second);
+  return detail::pi::cast<cl_mem>(Iter->second);
 }
 
 } // namespace sycl

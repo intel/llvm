@@ -9,10 +9,10 @@
 #pragma once
 
 #include <CL/sycl/access/access.hpp>
+#include <CL/sycl/detail/accessor_impl.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/defines.hpp>
 #include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/detail/accessor_impl.hpp>
 
 #include <memory>
 
@@ -20,10 +20,10 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
 namespace detail {
-  class AccessorBaseHost;
-  class ExecCGCommand;
-  class DispatchHostTask;
-}
+class AccessorBaseHost;
+class ExecCGCommand;
+class DispatchHostTask;
+} // namespace detail
 
 template <typename DataT, int Dims, access::mode AccMode,
           access::target AccTarget, access::placeholder isPlaceholder>
@@ -39,7 +39,7 @@ public:
   /// asynchronously.
   template <typename dataT, int dimensions, access::mode accessmode,
             access::target accessTarget, access::placeholder isPlaceholder>
-  typename std::enable_if<accessTarget != access::target::host_buffer, 
+  typename std::enable_if<accessTarget != access::target::host_buffer,
                           cl_mem>::type
   get_native_mem(const accessor<dataT, dimensions, accessmode,
                                 accessTarget, isPlaceholder> &Acc) const {
@@ -57,12 +57,13 @@ public:
 
   template <typename dataT, int dimensions, access::mode accessmode,
             access::target accessTarget, access::placeholder isPlaceholder>
-  typename std::enable_if<accessTarget == access::target::host_buffer, 
+  typename std::enable_if<accessTarget == access::target::host_buffer,
                           cl_mem>::type
-  get_native_mem(const accessor<dataT, dimensions, accessmode,
-                                accessTarget, isPlaceholder> &Acc) const {
+  get_native_mem(const accessor<dataT, dimensions, accessmode, accessTarget,
+                                isPlaceholder> &Acc) const {
     throw invalid_object_error("Getting memory object out of host accessor is "
-                               "not allowed", PI_INVALID_MEM_OBJECT);
+                               "not allowed",
+                               PI_INVALID_MEM_OBJECT);
   }
 
   /// Returns an underlying OpenCL queue for the SYCL queue used to submit the
@@ -74,26 +75,20 @@ public:
   /// dispatch work, and that other potential OpenCL command queues associated
   /// with the same SYCL command queue are not executing commands while the host
   /// task is executing.
-  cl_command_queue get_native_queue() const noexcept {
-    return MQueue;
-  }
+  cl_command_queue get_native_queue() const noexcept { return MQueue; }
 
   /// Returns an underlying OpenCL device associated with the SYCL queue used
   /// to submit the command group, or the fallback queue if this command-group
   /// is re-trying execution on an OpenCL queue.
-  cl_device_id get_native_device() const noexcept {
-    return MDeviceId;
-  }
+  cl_device_id get_native_device() const noexcept { return MDeviceId; }
 
   /// Returns an underlying OpenCL context associated with the SYCL queue used
   /// to submit the command group, or the fallback queue if this command-group
   /// is re-trying execution on an OpenCL queue.
-  cl_context get_native_context() const noexcept {
-    return MContext;
-  }
+  cl_context get_native_context() const noexcept { return MContext; }
 
 private:
-  using ReqToMem = std::pair<detail::Requirement*, pi_mem>;
+  using ReqToMem = std::pair<detail::Requirement *, pi_mem>;
 
   template <typename DataT, int Dims, access::mode AccMode,
             access::target AccTarget, access::placeholder isPlaceholder>
@@ -105,11 +100,11 @@ public:
   // TODO set c-tor private
   interop_handle(std::vector<ReqToMem> MemObjs, cl_command_queue Queue,
                  cl_device_id DeviceId, cl_context Context)
-      : MQueue(Queue), MDeviceId(DeviceId),
-        MContext(Context), MMemObjs(std::move(MemObjs)) {}
+      : MQueue(Queue), MDeviceId(DeviceId), MContext(Context),
+        MMemObjs(std::move(MemObjs)) {}
 
 private:
-  cl_mem getMemImpl(detail::Requirement* Req) const;
+  cl_mem getMemImpl(detail::Requirement *Req) const;
 
   cl_command_queue MQueue;
   cl_device_id MDeviceId;

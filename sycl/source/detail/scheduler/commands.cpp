@@ -189,7 +189,7 @@ class DispatchHostTask {
 
 public:
   DispatchHostTask(ExecCGCommand *ThisCmd,
-                   std::vector<interop_handle::ReqToMem> ReqToMem) 
+                   std::vector<interop_handle::ReqToMem> ReqToMem)
       : MThisCmd{ThisCmd} {}
 
   void operator()() const {
@@ -1929,14 +1929,14 @@ cl_int ExecCGCommand::enqueueImp() {
     std::vector<interop_handle::ReqToMem> ReqToMem;
     // Extract the Mem Objects for all Requirements, to ensure they are
     // available if a user ask for them inside the interop task scope
-    const auto& HandlerReq = HostTask->MRequirements;
-    std::for_each(std::begin(HandlerReq), std::end(HandlerReq),
-                  [&ReqToMem, this](Requirement* Req) {
+    const std::vector<Requirement *> &HandlerReq = HostTask->MRequirements;
+    auto ReqToMemConv = [&ReqToMem, this](Requirement *Req) {
       AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
       auto MemArg = reinterpret_cast<pi_mem>(AllocaCmd->getMemAllocation());
       interop_handle::ReqToMem ReqToMemEl = std::make_pair(Req, MemArg);
       ReqToMem.emplace_back(ReqToMemEl);
-    });
+    };
+    std::for_each(std::begin(HandlerReq), std::end(HandlerReq), ReqToMemConv);
     std::sort(std::begin(ReqToMem), std::end(ReqToMem));
 
     MQueue->getThreadPool().submit<DispatchHostTask>(
