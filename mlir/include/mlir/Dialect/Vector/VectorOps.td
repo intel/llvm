@@ -14,7 +14,7 @@
 #define VECTOR_OPS
 
 include "mlir/Dialect/Affine/IR/AffineOpsBase.td"
-include "mlir/Interfaces/SideEffects.td"
+include "mlir/Interfaces/SideEffectInterfaces.td"
 
 def Vector_Dialect : Dialect {
   let name = "vector";
@@ -816,14 +816,14 @@ def Vector_ReshapeOp :
   }];
 }
 
-def Vector_StridedSliceOp :
-  Vector_Op<"strided_slice", [NoSideEffect,
+def Vector_ExtractStridedSliceOp :
+  Vector_Op<"extract_strided_slice", [NoSideEffect,
     PredOpTrait<"operand and result have same element type",
                  TCresVTEtIsSameAsOpBase<0, 0>>]>,
     Arguments<(ins AnyVector:$vector, I64ArrayAttr:$offsets,
                I64ArrayAttr:$sizes, I64ArrayAttr:$strides)>,
     Results<(outs AnyVector)> {
-  let summary = "strided_slice operation";
+  let summary = "extract_strided_slice operation";
   let description = [{
     Takes an n-D vector, k-D `offsets` integer array attribute, a k-sized
     `sizes` integer array attribute, a k-sized `strides` integer array
@@ -839,12 +839,12 @@ def Vector_StridedSliceOp :
     Example:
 
     ```mlir
-    %1 = vector.strided_slice %0
+    %1 = vector.extract_strided_slice %0
         {offsets = [0, 2], sizes = [2, 4], strides = [1, 1]}:
       vector<4x8x16xf32> to vector<2x4x16xf32>
 
     // TODO(ntv) Evolve to a range form syntax similar to:
-    %1 = vector.strided_slice %0[0:2:1][2:4:1]
+    %1 = vector.extract_strided_slice %0[0:2:1][2:4:1]
       vector<4x8x16xf32> to vector<2x4x16xf32>
     ```
   }];
@@ -994,6 +994,13 @@ def Vector_TransferReadOp :
     ```
   }];
 
+  let builders = [
+    // Builder that sets permutation map and padding to 'getMinorIdentityMap'
+    // and zero, respectively, by default.
+    OpBuilder<"OpBuilder &builder, OperationState &result, VectorType vector, "
+              "Value memref, ValueRange indices">
+  ];
+
   let extraClassDeclaration = [{
     MemRefType getMemRefType() {
       return memref().getType().cast<MemRefType>();
@@ -1057,6 +1064,13 @@ def Vector_TransferWriteOp :
         : vector<1x1x4x3xf32>, memref<?x?xvector<4x3xf32>>
     ```
   }];
+
+  let builders = [
+    // Builder that sets permutation map and padding to 'getMinorIdentityMap'
+    // by default.
+    OpBuilder<"OpBuilder &builder, OperationState &result, Value vector, "
+              "Value memref, ValueRange indices">
+  ];
 
   let extraClassDeclaration = [{
     VectorType getVectorType() {

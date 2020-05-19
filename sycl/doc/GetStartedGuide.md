@@ -222,13 +222,13 @@ tar -zxvf tbb*lin.tgz
 folder:
 ```bash
 ln -s /opt/intel/tbb_<tbb_version>/tbb/lib/intel64/gcc4.8/libtbb.so
-  /opt/intel/oclcpuexp/x64/libtbb.so
+  /opt/intel/oclcpuexp_<cpu_version>/x64
 ln -s /opt/intel/tbb_<tbb_version>/tbb/lib/intel64/gcc4.8/libtbbmalloc.so
-  /opt/intel/oclcpuexp/x64/libtbbmalloc.so
+  /opt/intel/oclcpuexp_<cpu_version>/x64
 ln -s /opt/intel/tbb_<tbb_version>/tbb/lib/intel64/gcc4.8/libtbb.so.2
-  /opt/intel/oclcpuexp/x64/libtbb.so.2
+  /opt/intel/oclcpuexp_<cpu_version>/x64
 ln -s /opt/intel/tbb_<tbb_version>/tbb/lib/intel64/gcc4.8/libtbbmalloc.so.2
-  /opt/intel/oclcpuexp/x64/libtbbmalloc.so.2
+  /opt/intel/oclcpuexp_<cpu_version>/x64
 ```
 
 5) Configure library paths
@@ -516,7 +516,7 @@ class CUDASelector : public cl::sycl::device_selector {
 ## C++ standard
 
 - DPC++ runtime is built as C++14 library.
-- DPC++ compiler is building apps as C++14 apps by default.
+- DPC++ compiler is building apps as C++17 apps by default.
 
 ## Known Issues and Limitations
 

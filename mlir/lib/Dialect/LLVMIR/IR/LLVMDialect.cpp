@@ -92,8 +92,8 @@ static ParseResult parseCmpOp(OpAsmParser &parser, OperationState &result) {
     predicateValue = static_cast<int64_t>(predicate.getValue());
   }
 
-  result.attributes[0].second =
-      parser.getBuilder().getI64IntegerAttr(predicateValue);
+  result.attributes.set("predicate",
+                        parser.getBuilder().getI64IntegerAttr(predicateValue));
 
   // The result type is either i1 or a vector type <? x i1> if the inputs are
   // vectors.
@@ -425,9 +425,8 @@ static LogicalResult verify(LandingpadOp op) {
     } else {
       // catch - global addresses only.
       // Bitcast ops should have global addresses as their args.
-      if (auto bcOp = dyn_cast_or_null<BitcastOp>(value.getDefiningOp())) {
-        if (auto addrOp =
-                dyn_cast_or_null<AddressOfOp>(bcOp.arg().getDefiningOp()))
+      if (auto bcOp = value.getDefiningOp<BitcastOp>()) {
+        if (auto addrOp = bcOp.arg().getDefiningOp<AddressOfOp>())
           continue;
         return op.emitError("constant clauses expected")
                    .attachNote(bcOp.getLoc())
@@ -435,9 +434,9 @@ static LogicalResult verify(LandingpadOp op) {
                   "bitcast used in clauses for landingpad";
       }
       // NullOp and AddressOfOp allowed
-      if (dyn_cast_or_null<NullOp>(value.getDefiningOp()))
+      if (value.getDefiningOp<NullOp>())
         continue;
-      if (dyn_cast_or_null<AddressOfOp>(value.getDefiningOp()))
+      if (value.getDefiningOp<AddressOfOp>())
         continue;
       return op.emitError("clause #")
              << idx << " is not a known constant - null, addressof, bitcast";
@@ -1186,7 +1185,7 @@ void LLVMFuncOp::build(OpBuilder &builder, OperationState &result,
          "expected as many argument attribute lists as arguments");
   SmallString<8> argAttrName;
   for (unsigned i = 0; i < numInputs; ++i)
-    if (auto argDict = argAttrs[i].getDictionary())
+    if (auto argDict = argAttrs[i].getDictionary(builder.getContext()))
       result.addAttribute(getArgAttrName(i, argAttrName), argDict);
 }
 
@@ -1249,8 +1248,8 @@ static ParseResult parseLLVMFuncOp(OpAsmParser &parser,
 
   StringAttr nameAttr;
   SmallVector<OpAsmParser::OperandType, 8> entryArgs;
-  SmallVector<SmallVector<NamedAttribute, 2>, 1> argAttrs;
-  SmallVector<SmallVector<NamedAttribute, 2>, 1> resultAttrs;
+  SmallVector<NamedAttrList, 1> argAttrs;
+  SmallVector<NamedAttrList, 1> resultAttrs;
   SmallVector<Type, 8> argTypes;
   SmallVector<Type, 4> resultTypes;
   bool isVariadic;

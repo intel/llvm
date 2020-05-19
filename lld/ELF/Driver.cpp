@@ -43,7 +43,6 @@
 #include "lld/Common/Memory.h"
 #include "lld/Common/Strings.h"
 #include "lld/Common/TargetOptionsCommandFlags.h"
-#include "lld/Common/Threads.h"
 #include "lld/Common/Version.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/StringExtras.h"
@@ -53,6 +52,7 @@
 #include "llvm/Support/Compression.h"
 #include "llvm/Support/GlobPattern.h"
 #include "llvm/Support/LEB128.h"
+#include "llvm/Support/Parallel.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/TarWriter.h"
 #include "llvm/Support/TargetSelect.h"
@@ -66,18 +66,17 @@ using namespace llvm::ELF;
 using namespace llvm::object;
 using namespace llvm::sys;
 using namespace llvm::support;
+using namespace lld;
+using namespace lld::elf;
 
-namespace lld {
-namespace elf {
-
-Configuration *config;
-LinkerDriver *driver;
+Configuration *elf::config;
+LinkerDriver *elf::driver;
 
 static void setConfigs(opt::InputArgList &args);
 static void readConfigs(opt::InputArgList &args);
 
-bool link(ArrayRef<const char *> args, bool canExitEarly, raw_ostream &stdoutOS,
-          raw_ostream &stderrOS) {
+bool elf::link(ArrayRef<const char *> args, bool canExitEarly,
+               raw_ostream &stdoutOS, raw_ostream &stderrOS) {
   lld::stdoutOS = &stdoutOS;
   lld::stderrOS = &stderrOS;
 
@@ -2096,6 +2095,3 @@ template <class ELFT> void LinkerDriver::link(opt::InputArgList &args) {
   // Write the result to the file.
   writeResult<ELFT>();
 }
-
-} // namespace elf
-} // namespace lld

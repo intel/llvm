@@ -721,7 +721,7 @@ def XRayLogArgs : InheritableAttr {
 
 def PatchableFunctionEntry
     : InheritableAttr,
-      TargetSpecificAttr<TargetArch<["aarch64", "x86", "x86_64"]>> {
+      TargetSpecificAttr<TargetArch<["aarch64", "aarch64_be", "x86", "x86_64"]>> {
   let Spellings = [GCC<"patchable_function_entry">];
   let Subjects = SubjectList<[Function, ObjCMethod]>;
   let Args = [UnsignedArgument<"Count">, DefaultIntArgument<"Offset", 0>];
@@ -1265,7 +1265,7 @@ def IntelReqdSubGroupSize: InheritableAttr {
   let Args = [UnsignedArgument<"SubGroupSize">];
   let Subjects = SubjectList<[Function, CXXMethod], ErrorDiag>;
   let Documentation = [IntelReqdSubGroupSizeDocs];
-  let LangOpts = [OpenCL, SYCLIsDevice];
+  let LangOpts = [OpenCL, SYCLIsDevice, SYCLIsHost];
 }
 
 // This attribute is both a type attribute, and a declaration attribute (for
@@ -2910,6 +2910,15 @@ def VecTypeHint : InheritableAttr {
   let Documentation = [Undocumented];
 }
 
+def MatrixType : TypeAttr {
+  let Spellings = [Clang<"matrix_type">];
+  let Subjects = SubjectList<[TypedefName], ErrorDiag>;
+  let Args = [ExprArgument<"NumRows">, ExprArgument<"NumColumns">];
+  let Documentation = [Undocumented];
+  let ASTNode = 0;
+  let PragmaAttributeSupport = 0;
+}
+
 def Visibility : InheritableAttr {
   let Clone = 0;
   let Spellings = [GCC<"visibility">];
@@ -3750,14 +3759,16 @@ def OMPAllocateDecl : InheritableAttr {
   let Args = [
     EnumArgument<"AllocatorType", "AllocatorTypeTy",
                  [
-                   "omp_default_mem_alloc", "omp_large_cap_mem_alloc",
-                   "omp_const_mem_alloc", "omp_high_bw_mem_alloc",
-                   "omp_low_lat_mem_alloc", "omp_cgroup_mem_alloc",
-                   "omp_pteam_mem_alloc", "omp_thread_mem_alloc", ""
+                   "omp_null_allocator", "omp_default_mem_alloc",
+                   "omp_large_cap_mem_alloc", "omp_const_mem_alloc",
+                   "omp_high_bw_mem_alloc", "omp_low_lat_mem_alloc",
+                   "omp_cgroup_mem_alloc", "omp_pteam_mem_alloc",
+                   "omp_thread_mem_alloc", ""
                  ],
                  [
-                   "OMPDefaultMemAlloc", "OMPLargeCapMemAlloc",
-                   "OMPConstMemAlloc", "OMPHighBWMemAlloc", "OMPLowLatMemAlloc",
+                   "OMPNullMemAlloc", "OMPDefaultMemAlloc",
+                   "OMPLargeCapMemAlloc", "OMPConstMemAlloc",
+                   "OMPHighBWMemAlloc", "OMPLowLatMemAlloc",
                    "OMPCGroupMemAlloc", "OMPPTeamMemAlloc", "OMPThreadMemAlloc",
                    "OMPUserDefinedMemAlloc"
                  ]>,

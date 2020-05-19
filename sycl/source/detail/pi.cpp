@@ -37,24 +37,83 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-// Stream name being used for traces generated from the SYCL runtime
-constexpr const char *PICALL_STREAM_NAME = "sycl.pi";
 // Global (to the SYCL runtime) graph handle that all command groups are a
 // child of
-///< Event to be used by graph related activities
+/// Event to be used by graph related activities
 xpti_td *GSYCLGraphEvent = nullptr;
-///< Event to be used by PI layer related activities
+/// Event to be used by PI layer related activities
 xpti_td *GPICallEvent = nullptr;
-///< Constansts being used as placeholder until one is able to reliably get the
-///< version of the SYCL runtime
+/// Constants being used as placeholder until one is able to reliably get the
+/// version of the SYCL runtime
 constexpr uint32_t GMajVer = 1;
 constexpr uint32_t GMinVer = 0;
 constexpr const char *GVerStr = "sycl 1.0";
-#endif
+#endif // XPTI_ENABLE_INSTRUMENTATION
 
 namespace pi {
 
 bool XPTIInitDone = false;
+
+// Implementation of the SYCL PI API call tracing methods that use XPTI
+// framework to emit these traces that will be used by tools.
+uint64_t emitFunctionBeginTrace(const char *FName) {
+  uint64_t CorrelationID = 0;
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  // The function_begin and function_end trace point types are defined to
+  // trace library API calls and they are currently enabled here for support
+  // tools that need the API scope. The methods emitFunctionBeginTrace() and
+  // emitFunctionEndTrace() can be extended to also trace the arguments of the
+  // PI API call using a trace point type the extends the predefined trace
+  // point types.
+  //
+  // You can use the sample collector in llvm/xptifw/samples/syclpi_collector
+  // to print the API traces and also extend them to support  arguments that
+  // may be traced later.
+  //
+  /// Example Usage:
+  /// \code{cpp}
+  /// // Two diagnostic trace types defined for function begin and function end
+  /// // with different semantics than the one in the default trace type list.
+  /// typedef enum {
+  ///   diagnostic_func_begin = XPTI_TRACE_POINT_BEGIN(0),
+  ///   diagnostic_func_end = XPTI_TRACE_POINT_END(0),
+  /// }syclpi_extension_t;
+  /// ...
+  /// uint16_t pi_func_begin =
+  ///     xptiRegisterUserDefinedTracePoint("sycl.pi", func_begin);
+  /// uint16_t pi_func_end =
+  ///     xptiRegisterUserDefinedTracePoint("sycl.pi", func_end);
+  /// ...
+  /// // Setup argument data for the function being traced
+  /// ...
+  /// xptiNotifySubscribers(stream_id, pi_func_begin, parent, event, instance,
+  ///                       (void *)argument_data);
+  /// \endcode
+  if (xptiTraceEnabled()) {
+    uint8_t StreamID = xptiRegisterStream(SYCL_PICALL_STREAM_NAME);
+    CorrelationID = xptiGetUniqueId();
+    xptiNotifySubscribers(
+        StreamID, (uint16_t)xpti::trace_point_type_t::function_begin,
+        GPICallEvent, nullptr, CorrelationID, static_cast<const void *>(FName));
+  }
+#endif // XPTI_ENABLE_INSTRUMENTATION
+  return CorrelationID;
+}
+
+void emitFunctionEndTrace(uint64_t CorrelationID, const char *FName) {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (xptiTraceEnabled()) {
+    // CorrelationID is the unique ID that ties together a function_begin and
+    // function_end pair of trace calls. The splitting of a scoped_notify into
+    // two function calls incurs an additional overhead as the StreamID must
+    // be looked up twice.
+    uint8_t StreamID = xptiRegisterStream(SYCL_PICALL_STREAM_NAME);
+    xptiNotifySubscribers(
+        StreamID, (uint16_t)xpti::trace_point_type_t::function_end,
+        GPICallEvent, nullptr, CorrelationID, static_cast<const void *>(FName));
+  }
+#endif // XPTI_ENABLE_INSTRUMENTATION
+}
 
 void contextSetExtendedDeleter(const cl::sycl::context &context,
                                pi_context_extended_deleter func,
@@ -285,6 +344,8 @@ vector_class<plugin> initialize() {
                           GSYCLGraphEvent, GraphInstanceNo, nullptr);
   }
 
+  // Let subscribers know a new stream is being initialized
+  xptiInitialize(SYCL_PICALL_STREAM_NAME, GMajVer, GMinVer, GVerStr);
   xpti::payload_t PIPayload("Plugin Interface Layer");
   uint64_t PiInstanceNo;
   GPICallEvent =

@@ -9,6 +9,8 @@
 #include <iostream>
 #include <set>
 
+static int func_callback_update = 0;
+
 TEST(xptiApiTest, xptiInitializeBadInput) {
   auto Result = xptiInitialize(nullptr, 0, 0, nullptr);
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_INVALIDARG);
@@ -188,6 +190,13 @@ XPTI_CALLBACK_API void trace_point_callback2(uint16_t trace_type,
     (*(int *)user_data) = 1;
 }
 
+XPTI_CALLBACK_API void fn_callback(uint16_t trace_type,
+                                   xpti::trace_event_data_t *parent,
+                                   xpti::trace_event_data_t *event,
+                                   uint64_t instance, const void *user_data) {
+  func_callback_update++;
+}
+
 TEST(xptiApiTest, xptiRegisterCallbackBadInput) {
   uint8_t StreamID = xptiRegisterStream("foo");
   auto Result = xptiRegisterCallback(StreamID, 1, nullptr);
@@ -207,6 +216,11 @@ TEST(xptiApiTest, xptiRegisterCallbackGoodInput) {
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
   Result = xptiRegisterCallback(StreamID, 1, trace_point_callback);
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_DUPLICATE);
+
+  Result = xptiRegisterCallback(
+      StreamID, (uint16_t)xpti::trace_point_type_t::function_begin,
+      fn_callback);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
 }
 
 TEST(xptiApiTest, xptiUnregisterCallbackBadInput) {
@@ -244,6 +258,10 @@ TEST(xptiApiTest, xptiNotifySubscribersBadInput) {
   xptiForceSetTraceEnabled(true);
   Result = xptiNotifySubscribers(StreamID, 1, nullptr, nullptr, 0, nullptr);
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_INVALIDARG);
+  Result = xptiNotifySubscribers(
+      StreamID, (uint16_t)xpti::trace_point_type_t::function_begin, nullptr,
+      nullptr, 0, nullptr);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_INVALIDARG);
 }
 
 TEST(xptiApiTest, xptiNotifySubscribersGoodInput) {
@@ -262,6 +280,20 @@ TEST(xptiApiTest, xptiNotifySubscribersGoodInput) {
                                  (void *)(&foo_return));
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
   EXPECT_EQ(foo_return, 1);
+  int tmp = func_callback_update;
+  // We allow notification with parent and event being null, only for trace
+  // point type of function_begin/end; This test update checks for that
+  Result = xptiNotifySubscribers(
+      StreamID, (uint16_t)xpti::trace_point_type_t::function_begin, nullptr,
+      nullptr, 0, "foo");
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  EXPECT_NE(tmp, func_callback_update);
+  tmp = func_callback_update;
+  Result = xptiNotifySubscribers(
+      StreamID, (uint16_t)xpti::trace_point_type_t::function_begin, nullptr,
+      (xpti::trace_event_data_t *)1, 0, "foo");
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  EXPECT_NE(tmp, func_callback_update);
 }
 
 TEST(xptiApiTest, xptiAddMetadataBadInput) {

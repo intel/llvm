@@ -130,6 +130,7 @@ Modified Compiler Flags
 - ``-fno-char8_t`` now disables the ``char8_t`` keyword, not just the use of
   ``char8_t`` as the character type of ``u8`` literals. This restores the
   Clang 8 behavior that regressed in Clang 9 and 10.
+- -print-targets has been added to print the registered targets.
 
 New Pragmas in Clang
 --------------------
@@ -240,7 +241,11 @@ Build System Changes
 These are major changes to the build system that have happened since the 10.0.0
 release of Clang. Users of the build system should adjust accordingly.
 
-- ...
+- clang-tidy and clang-include-fixer are no longer compiled into libclang by
+  default. You can set ``LIBCLANG_INCLUDE_CLANG_TOOLS_EXTRA=ON`` to undo that,
+  but it's expected that that setting will go away eventually. If this is
+  something you need, please reach out to the mailing list to discuss possible
+  ways forward.
 
 AST Matchers
 ------------

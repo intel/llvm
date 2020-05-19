@@ -890,13 +890,12 @@ private:
 
   void updateAlignment(Instruction *I, Instruction *Repl) {
     if (auto *ReplacementLoad = dyn_cast<LoadInst>(Repl)) {
-      ReplacementLoad->setAlignment(MaybeAlign(std::min(
-          ReplacementLoad->getAlignment(), cast<LoadInst>(I)->getAlignment())));
+      ReplacementLoad->setAlignment(
+          std::min(ReplacementLoad->getAlign(), cast<LoadInst>(I)->getAlign()));
       ++NumLoadsRemoved;
     } else if (auto *ReplacementStore = dyn_cast<StoreInst>(Repl)) {
-      ReplacementStore->setAlignment(
-          MaybeAlign(std::min(ReplacementStore->getAlignment(),
-                              cast<StoreInst>(I)->getAlignment())));
+      ReplacementStore->setAlignment(std::min(ReplacementStore->getAlign(),
+                                              cast<StoreInst>(I)->getAlign()));
       ++NumStoresRemoved;
     } else if (auto *ReplacementAlloca = dyn_cast<AllocaInst>(Repl)) {
       ReplacementAlloca->setAlignment(

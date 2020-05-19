@@ -309,6 +309,9 @@ private:
                                                MachineOperand &RHS,
                                                MachineOperand &Predicate,
                                                MachineIRBuilder &MIB) const;
+  MachineInstr *tryOptArithShiftedCompare(MachineOperand &LHS,
+                                          MachineOperand &RHS,
+                                          MachineIRBuilder &MIB) const;
 
   /// Return true if \p MI is a load or store of \p NumBytes bytes.
   bool isLoadStoreOfNumBytes(const MachineInstr &MI, unsigned NumBytes) const;
@@ -3519,12 +3522,10 @@ unsigned
 AArch64InstructionSelector::emitConstantPoolEntry(Constant *CPVal,
                                                   MachineFunction &MF) const {
   Type *CPTy = CPVal->getType();
-  unsigned Align = MF.getDataLayout().getPrefTypeAlignment(CPTy);
-  if (Align == 0)
-    Align = MF.getDataLayout().getTypeAllocSize(CPTy);
+  Align Alignment = MF.getDataLayout().getPrefTypeAlign(CPTy);
 
   MachineConstantPool *MCP = MF.getConstantPool();
-  return MCP->getConstantPoolIndex(CPVal, Align);
+  return MCP->getConstantPoolIndex(CPVal, Alignment);
 }
 
 MachineInstr *AArch64InstructionSelector::emitLoadFromConstantPool(
@@ -3709,6 +3710,12 @@ AArch64InstructionSelector::emitIntegerCompare(
       tryOptArithImmedIntegerCompare(LHS, RHS, Predicate, MIRBuilder);
   if (ImmedCmp)
     return {ImmedCmp, (CmpInst::Predicate)Predicate.getPredicate()};
+
+  // If we don't have an immediate, we may have a shift which can be folded
+  // into the compare.
+  MachineInstr *ShiftedCmp = tryOptArithShiftedCompare(LHS, RHS, MIRBuilder);
+  if (ShiftedCmp)
+    return {ShiftedCmp, (CmpInst::Predicate)Predicate.getPredicate()};
 
   auto CmpMI =
       MIRBuilder.buildInstr(CmpOpc, {ZReg}, {LHS.getReg(), RHS.getReg()});
@@ -4135,6 +4142,35 @@ MachineInstr *AArch64InstructionSelector::tryOptArithImmedIntegerCompare(
     Opc = AArch64::SUBSXri;
   }
 
+  auto CmpMI = MIB.buildInstr(Opc, {ZReg}, {LHS.getReg()});
+  for (auto &RenderFn : *ImmFns)
+    RenderFn(CmpMI);
+  constrainSelectedInstRegOperands(*CmpMI, TII, TRI, RBI);
+  return &*CmpMI;
+}
+
+MachineInstr *AArch64InstructionSelector::tryOptArithShiftedCompare(
+    MachineOperand &LHS, MachineOperand &RHS, MachineIRBuilder &MIB) const {
+  // We are looking for the following pattern:
+  //
+  // shift = G_SHL/ASHR/LHSR y, c
+  // ...
+  // cmp = G_ICMP pred, something, shift
+  //
+  // Since we will select the G_ICMP to a SUBS, we can potentially fold the
+  // shift into the subtract.
+  static const unsigned OpcTable[2] = {AArch64::SUBSWrs, AArch64::SUBSXrs};
+  static const Register ZRegTable[2] = {AArch64::WZR, AArch64::XZR};
+  auto ImmFns = selectShiftedRegister(RHS);
+  if (!ImmFns)
+    return nullptr;
+  MachineRegisterInfo &MRI = *MIB.getMRI();
+  auto Ty = MRI.getType(LHS.getReg());
+  assert(!Ty.isVector() && "Expected scalar or pointer only?");
+  unsigned Size = Ty.getSizeInBits();
+  bool Idx = (Size == 64);
+  Register ZReg = ZRegTable[Idx];
+  unsigned Opc = OpcTable[Idx];
   auto CmpMI = MIB.buildInstr(Opc, {ZReg}, {LHS.getReg()});
   for (auto &RenderFn : *ImmFns)
     RenderFn(CmpMI);
@@ -4628,11 +4664,13 @@ bool AArch64InstructionSelector::selectIntrinsic(MachineInstr &I,
       }
       MFI.setReturnAddressIsTaken(true);
       MF.addLiveIn(AArch64::LR, &AArch64::GPR64spRegClass);
-      I.getParent()->addLiveIn(AArch64::LR);
       // Insert the copy from LR/X30 into the entry block, before it can be
       // clobbered by anything.
+      MachineBasicBlock &EntryBlock = *MF.begin();
+      if (!EntryBlock.isLiveIn(AArch64::LR))
+        EntryBlock.addLiveIn(AArch64::LR);
       MachineIRBuilder EntryBuilder(MF);
-      EntryBuilder.setInstr(*MF.begin()->begin());
+      EntryBuilder.setInstr(*EntryBlock.begin());
       EntryBuilder.buildCopy({DstReg}, {Register(AArch64::LR)});
       MFReturnAddr = DstReg;
       I.eraseFromParent();

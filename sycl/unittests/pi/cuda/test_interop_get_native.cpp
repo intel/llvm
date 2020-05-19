@@ -74,9 +74,9 @@ TEST_F(DISABLED_CudaInteropGetNativeTests, getNativeQueue) {
 
 TEST_F(DISABLED_CudaInteropGetNativeTests, interopTaskGetMem) {
   buffer<int, 1> syclBuffer(range<1>{1});
-  syclQueue_.submit([&](cl::sycl::handler &cgh) {
+  syclQueue_.submit([&](handler &cgh) {
     auto syclAccessor = syclBuffer.get_access<access::mode::read>(cgh);
-    cgh.interop_task([=](sycl::interop_handler ih) {
+    cgh.interop_task([=](interop_handler ih) {
       CUdeviceptr cudaPtr = ih.get_mem<backend::cuda>(syclAccessor);
       CUdeviceptr cudaPtrBase;
       size_t cudaPtrSize = 0;
@@ -88,8 +88,8 @@ TEST_F(DISABLED_CudaInteropGetNativeTests, interopTaskGetMem) {
 
 TEST_F(DISABLED_CudaInteropGetNativeTests, interopTaskGetBufferMem) {
   CUstream cudaStream = get_native<backend::cuda>(syclQueue_);
-  syclQueue_.submit([&](cl::sycl::handler &cgh) {
-    cgh.interop_task([=](sycl::interop_handler ih) {
+  syclQueue_.submit([&](handler &cgh) {
+    cgh.interop_task([=](interop_handler ih) {
       CUstream cudaInteropStream = ih.get_queue<backend::cuda>();
       ASSERT_EQ(cudaInteropStream, cudaStream);
     });

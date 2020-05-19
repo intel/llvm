@@ -1817,9 +1817,6 @@ void Driver::PrintVersion(const Compilation &C, raw_ostream &OS) const {
   // If configuration file was used, print its path.
   if (!ConfigFile.empty())
     OS << "Configuration file: " << ConfigFile << '\n';
-
-  // Print the registered targets.
-  llvm::TargetRegistry::printRegisteredTargetsForVersion(OS);
 }
 
 /// PrintDiagnosticCategories - Implement the --print-diagnostic-categories
@@ -2068,6 +2065,11 @@ bool Driver::HandleImmediateArgs(const Compilation &C) {
   if (C.getArgs().hasArg(options::OPT_print_effective_triple)) {
     const llvm::Triple Triple(TC.ComputeEffectiveClangTriple(C.getArgs()));
     llvm::outs() << Triple.getTriple() << "\n";
+    return false;
+  }
+
+  if (C.getArgs().hasArg(options::OPT_print_targets)) {
+    llvm::TargetRegistry::printRegisteredTargetsForVersion(llvm::outs());
     return false;
   }
 
@@ -4744,7 +4746,7 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
       }
       UnbundlerInputs.push_back(LI);
     }
-    const Arg *LastArg;
+    const Arg *LastArg = nullptr;
     auto addUnbundlerInput = [&](types::ID T, const StringRef &A) {
       const llvm::opt::OptTable &Opts = getOpts();
       Arg *InputArg = MakeInputArg(Args, Opts, C.getArgs().MakeArgString(A));

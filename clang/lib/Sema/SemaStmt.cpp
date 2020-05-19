@@ -370,7 +370,10 @@ void Sema::DiagnoseUnusedExprResult(const Stmt *S) {
     }
   }
 
-  if (E->isGLValue() && E->getType().isVolatileQualified()) {
+  // Tell the user to assign it into a variable to force a volatile load if this
+  // isn't an array.
+  if (E->isGLValue() && E->getType().isVolatileQualified() &&
+      !E->getType()->isArrayType()) {
     Diag(Loc, diag::warn_unused_volatile) << R1 << R2;
     return;
   }
@@ -393,6 +396,11 @@ sema::CompoundScopeInfo &Sema::getCurCompoundScope() const {
 StmtResult Sema::ActOnCompoundStmt(SourceLocation L, SourceLocation R,
                                    ArrayRef<Stmt *> Elts, bool isStmtExpr) {
   const unsigned NumElts = Elts.size();
+
+  // Mark the current function as usng floating point constrained intrinsics
+  if (getCurFPFeatures().isFPConstrained())
+    if (FunctionDecl *F = dyn_cast<FunctionDecl>(CurContext))
+      F->setUsesFPIntrin(true);
 
   // If we're in C89 mode, check that we don't have any decls after stmts.  If
   // so, emit an extension diagnostic.

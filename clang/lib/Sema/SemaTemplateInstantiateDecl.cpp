@@ -2028,6 +2028,7 @@ Decl *TemplateDeclInstantiator::VisitFunctionDecl(
         D->hasWrittenPrototype(), D->getConstexprKind(),
         TrailingRequiresClause);
     Function->setRangeEnd(D->getSourceRange().getEnd());
+    Function->setUsesFPIntrin(D->usesFPIntrin());
   }
 
   if (D->isInlined())
