@@ -101,7 +101,7 @@ Only affects instructions operating on a floating-point type whose component wid
 _Target Width_ is an unsigned 32-bit integer.
 | *FloatingPointModeINTEL* | <<Literal, 'Literal'>> _Target Width_
 | 5623 | *FloatingPointModeIEEEINTEL* +
-The default floating-point operation mode for floating-point arithmetic and conversions instructions must be the IEEE Mode as specified by the client API.
+The default floating-point operation mode for floating-point arithmetic and conversions instructions must be the IEEE 754 Mode as specified by the client API.
 Only affects instructions operating on a floating-point type whose component width is _Target Width_.
 
 _Target Width_ is an unsigned 32-bit integer.
