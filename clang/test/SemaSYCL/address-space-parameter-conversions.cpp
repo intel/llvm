@@ -3,11 +3,11 @@
 void bar(int & Data) {}
 void bar2(int & Data) {}
 void bar(__attribute__((opencl_private)) int  & Data) {}
-void bar3(__attribute__((opencl_global)) int  & Data) {}
+void bar3(__attribute__((opencl_global)) int &Data) {}
 void foo(int * Data) {}
 void foo2(int * Data) {}
 void foo(__attribute__((opencl_private)) int * Data) {}
-void foo3(__attribute__((opencl_global)) int * Data) {}
+void foo3(__attribute__((opencl_global)) int *Data) {}
 
 template<typename T>
 void tmpl(T *t){}

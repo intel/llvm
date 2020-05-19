@@ -482,8 +482,8 @@ public:
            (A == LangAS::opencl_generic && B != LangAS::opencl_constant) ||
            // For USM extension we define usm_device and usm_host addres spaces,
            // which are a subset of __global.
-           (A == LangAS::opencl_global && (B == LangAS::opencl_usm_device ||
-                                           B == LangAS::opencl_usm_host)) ||
+           (A == LangAS::opencl_global &&
+            (B == LangAS::opencl_usm_device || B == LangAS::opencl_usm_host)) ||
            // Consider pointer size address spaces to be equivalent to default.
            ((isPtrSizeAddressSpace(A) || A == LangAS::Default) &&
             (isPtrSizeAddressSpace(B) || B == LangAS::Default));
