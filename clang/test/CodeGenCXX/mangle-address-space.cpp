@@ -45,7 +45,8 @@ struct ocl_OpaqueType;
 typedef ocl_OpaqueType __global * ocl_OpaqueTypePtr;
 typedef ocl_OpaqueType __attribute__((opencl_global_host)) * ocl_OpaqueTypePtrH;
 typedef ocl_OpaqueType
-__attribute__((opencl_global_device)) * ocl_OpaqueTypePtrD;
+    __attribute__((opencl_global_device)) *
+    ocl_OpaqueTypePtrD;
 
 // CHECKOCL-LABEL: define {{.*}}void @_Z6ocl_f0PU8CLglobal14ocl_OpaqueType
 // WINOCL-LABEL: define {{.*}}void @"?ocl_f0@@YAXPEAU?$_ASCLglobal@$$CAUocl_OpaqueType@@@__clang@@@Z"
@@ -67,9 +68,9 @@ __generic float *ocl_f2(__generic char const * const p) { return 0;}
 
 // CHECKOCL-LABEL: define {{.*}}void @_Z6ocl_f3PU12CLglobalHost14ocl_OpaqueType
 // WINOCL-LABEL: define {{.*}}void @"?ocl_f3@@YAXPEAU?$_ASCLglobalHost@$$CAUocl_OpaqueType@@@__clang@@@Z"
-void ocl_f3(ocl_OpaqueTypePtrH) { }
+void ocl_f3(ocl_OpaqueTypePtrH) {}
 
 // CHECKOCL-LABEL: define {{.*}}void @_Z6ocl_f4PU14CLglobalDevice14ocl_OpaqueType
 // WINOCL-LABEL: define {{.*}}void @"?ocl_f4@@YAXPEAU?$_ASCLglobalDevice@$$CAUocl_OpaqueType@@@__clang@@@Z"
-void ocl_f4(ocl_OpaqueTypePtrD) { }
+void ocl_f4(ocl_OpaqueTypePtrD) {}
 #endif

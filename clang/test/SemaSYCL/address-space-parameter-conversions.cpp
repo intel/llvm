@@ -58,10 +58,10 @@ void usages() {
 
   (void)static_cast<int*>(GLOB);
   (void)static_cast<void*>(GLOB);
-  (void)static_cast<int*>(GLOB_DEV);
-  (void)static_cast<void*>(GLOB_DEV);
-  (void)static_cast<int*>(GLOB_HOST);
-  (void)static_cast<void*>(GLOB_HOST);
+  (void)static_cast<int *>(GLOB_DEV);
+  (void)static_cast<void *>(GLOB_DEV);
+  (void)static_cast<int *>(GLOB_HOST);
+  (void)static_cast<void *>(GLOB_HOST);
   // FIXME: determine if we can warn on the below conversions.
   int *i = GLOB;
   void *v = GLOB;

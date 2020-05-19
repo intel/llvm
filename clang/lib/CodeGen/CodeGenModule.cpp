@@ -1360,12 +1360,18 @@ static void removeImageAccessQualifier(std::string& TyName) {
 // (basically all single AS CPUs).
 static unsigned ArgInfoAddressSpace(LangAS AS) {
   switch (AS) {
-  case LangAS::opencl_global:        return 1;
-  case LangAS::opencl_constant:      return 2;
-  case LangAS::opencl_local:         return 3;
-  case LangAS::opencl_generic:       return 4; // Not in SPIR 2.0 specs.
-  case LangAS::opencl_global_device: return 11;
-  case LangAS::opencl_global_host:   return 12;
+  case LangAS::opencl_global:
+    return 1;
+  case LangAS::opencl_constant:
+    return 2;
+  case LangAS::opencl_local:
+    return 3;
+  case LangAS::opencl_generic:
+    return 4; // Not in SPIR 2.0 specs.
+  case LangAS::opencl_global_device:
+    return 11;
+  case LangAS::opencl_global_host:
+    return 12;
   default:
     return 0; // Assume private.
   }

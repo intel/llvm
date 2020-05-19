@@ -39,23 +39,23 @@ void usages() {
   // CHECK-DAG: [[GLOB_CAST2:%[a-zA-Z0-9]+]] = addrspacecast i32 addrspace(1)* [[GLOB_LOAD2]] to i32 addrspace(4)*
   // CHECK-DAG: call spir_func void @[[RAW_REF2]](i32 addrspace(4)* dereferenceable(4) [[GLOB_CAST2]])
 
-bar(*GLOBDEV);
-// CHECK-DAG: [[GLOBDEV_LOAD:%[a-zA-Z0-9]+]] = load i32 addrspace(11)*, i32 addrspace(11)** [[GLOBDEV]]
-// CHECK-DAG: [[GLOBDEV_CAST:%[a-zA-Z0-9]+]] = addrspacecast i32 addrspace(11)* [[GLOBDEV_LOAD]] to i32 addrspace(4)*
-// CHECK-DAG: call spir_func void @[[RAW_REF]](i32 addrspace(4)* dereferenceable(4) [[GLOBDEV_CAST]])
-bar2(*GLOBDEV);
-// CHECK-DAG: [[GLOBDEV_LOAD2:%[a-zA-Z0-9]+]] = load i32 addrspace(11)*, i32 addrspace(11)** [[GLOBDEV]]
-// CHECK-DAG: [[GLOBDEV_CAST2:%[a-zA-Z0-9]+]] = addrspacecast i32 addrspace(11)* [[GLOBDEV_LOAD2]] to i32 addrspace(4)*
-// CHECK-DAG: call spir_func void @[[RAW_REF2]](i32 addrspace(4)* dereferenceable(4) [[GLOBDEV_CAST2]])
+  bar(*GLOBDEV);
+  // CHECK-DAG: [[GLOBDEV_LOAD:%[a-zA-Z0-9]+]] = load i32 addrspace(11)*, i32 addrspace(11)** [[GLOBDEV]]
+  // CHECK-DAG: [[GLOBDEV_CAST:%[a-zA-Z0-9]+]] = addrspacecast i32 addrspace(11)* [[GLOBDEV_LOAD]] to i32 addrspace(4)*
+  // CHECK-DAG: call spir_func void @[[RAW_REF]](i32 addrspace(4)* dereferenceable(4) [[GLOBDEV_CAST]])
+  bar2(*GLOBDEV);
+  // CHECK-DAG: [[GLOBDEV_LOAD2:%[a-zA-Z0-9]+]] = load i32 addrspace(11)*, i32 addrspace(11)** [[GLOBDEV]]
+  // CHECK-DAG: [[GLOBDEV_CAST2:%[a-zA-Z0-9]+]] = addrspacecast i32 addrspace(11)* [[GLOBDEV_LOAD2]] to i32 addrspace(4)*
+  // CHECK-DAG: call spir_func void @[[RAW_REF2]](i32 addrspace(4)* dereferenceable(4) [[GLOBDEV_CAST2]])
 
-bar(*GLOBHOST);
-// CHECK-DAG: [[GLOBHOST_LOAD:%[a-zA-Z0-9]+]] = load i32 addrspace(12)*, i32 addrspace(12)** [[GLOBHOST]]
-// CHECK-DAG: [[GLOBHOST_CAST:%[a-zA-Z0-9]+]] = addrspacecast i32 addrspace(12)* [[GLOBHOST_LOAD]] to i32 addrspace(4)*
-// CHECK-DAG: call spir_func void @[[RAW_REF]](i32 addrspace(4)* dereferenceable(4) [[GLOBHOST_CAST]])
-bar2(*GLOBHOST);
-// CHECK-DAG: [[GLOBHOST_LOAD2:%[a-zA-Z0-9]+]] = load i32 addrspace(12)*, i32 addrspace(12)** [[GLOBHOST]]
-// CHECK-DAG: [[GLOBHOST_CAST2:%[a-zA-Z0-9]+]] = addrspacecast i32 addrspace(12)* [[GLOBHOST_LOAD2]] to i32 addrspace(4)*
-// CHECK-DAG: call spir_func void @[[RAW_REF2]](i32 addrspace(4)* dereferenceable(4) [[GLOBHOST_CAST2]])
+  bar(*GLOBHOST);
+  // CHECK-DAG: [[GLOBHOST_LOAD:%[a-zA-Z0-9]+]] = load i32 addrspace(12)*, i32 addrspace(12)** [[GLOBHOST]]
+  // CHECK-DAG: [[GLOBHOST_CAST:%[a-zA-Z0-9]+]] = addrspacecast i32 addrspace(12)* [[GLOBHOST_LOAD]] to i32 addrspace(4)*
+  // CHECK-DAG: call spir_func void @[[RAW_REF]](i32 addrspace(4)* dereferenceable(4) [[GLOBHOST_CAST]])
+  bar2(*GLOBHOST);
+  // CHECK-DAG: [[GLOBHOST_LOAD2:%[a-zA-Z0-9]+]] = load i32 addrspace(12)*, i32 addrspace(12)** [[GLOBHOST]]
+  // CHECK-DAG: [[GLOBHOST_CAST2:%[a-zA-Z0-9]+]] = addrspacecast i32 addrspace(12)* [[GLOBHOST_LOAD2]] to i32 addrspace(4)*
+  // CHECK-DAG: call spir_func void @[[RAW_REF2]](i32 addrspace(4)* dereferenceable(4) [[GLOBHOST_CAST2]])
 
   bar(*LOC);
   // CHECK-DAG: [[LOC_LOAD:%[a-zA-Z0-9]+]] = load i32 addrspace(3)*, i32 addrspace(3)** [[LOC]]

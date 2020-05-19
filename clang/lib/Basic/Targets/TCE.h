@@ -30,11 +30,11 @@ namespace targets {
 // publicly available in http://tce.cs.tut.fi
 
 static const unsigned TCEOpenCLAddrSpaceMap[] = {
-    0, // Default
-    3, // opencl_global
-    4, // opencl_local
-    5, // opencl_constant
-    0, // opencl_private
+    0,  // Default
+    3,  // opencl_global
+    4,  // opencl_local
+    5,  // opencl_constant
+    0,  // opencl_private
     11, // opencl_global_device
     12, // opencl_global_host
     // FIXME: generic has to be added to the target

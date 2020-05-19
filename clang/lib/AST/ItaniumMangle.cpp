@@ -2389,17 +2389,37 @@ void CXXNameMangler::mangleQualifiers(Qualifiers Quals, const DependentAddressSp
       //  <OpenCL-addrspace> ::= "CL" [ "global" | "local" | "constant" |
       //                                "private"| "generic" | "global_device" |
       //                                "global_host" ]
-      case LangAS::opencl_global:        ASString = "CLglobal";       break;
-      case LangAS::opencl_global_device: ASString = "CLglobalDevice"; break;
-      case LangAS::opencl_global_host:   ASString = "CLglobalHost";   break;
-      case LangAS::opencl_local:         ASString = "CLlocal";        break;
-      case LangAS::opencl_constant:      ASString = "CLconstant";     break;
-      case LangAS::opencl_private:       ASString = "CLprivate";      break;
-      case LangAS::opencl_generic:       ASString = "CLgeneric";      break;
+      case LangAS::opencl_global:
+        ASString = "CLglobal";
+        break;
+      case LangAS::opencl_global_device:
+        ASString = "CLglobalDevice";
+        break;
+      case LangAS::opencl_global_host:
+        ASString = "CLglobalHost";
+        break;
+      case LangAS::opencl_local:
+        ASString = "CLlocal";
+        break;
+      case LangAS::opencl_constant:
+        ASString = "CLconstant";
+        break;
+      case LangAS::opencl_private:
+        ASString = "CLprivate";
+        break;
+      case LangAS::opencl_generic:
+        ASString = "CLgeneric";
+        break;
       //  <CUDA-addrspace> ::= "CU" [ "device" | "constant" | "shared" ]
-      case LangAS::cuda_device:          ASString = "CUdevice";       break;
-      case LangAS::cuda_constant:        ASString = "CUconstant";     break;
-      case LangAS::cuda_shared:          ASString = "CUshared";       break;
+      case LangAS::cuda_device:
+        ASString = "CUdevice";
+        break;
+      case LangAS::cuda_constant:
+        ASString = "CUconstant";
+        break;
+      case LangAS::cuda_shared:
+        ASString = "CUshared";
+        break;
       //  <ptrsize-addrspace> ::= [ "ptr32_sptr" | "ptr32_uptr" | "ptr64" ]
       case LangAS::ptr32_sptr:
         ASString = "ptr32_sptr";
