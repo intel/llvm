@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "TestGetPlugin.hpp"
 #include "CL/sycl/detail/pi.hpp"
+#include "TestGetPlugin.hpp"
 #include <atomic>
 #include <detail/plugin.hpp>
 #include <gtest/gtest.h>
