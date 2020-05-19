@@ -10446,13 +10446,13 @@ bool ASTContext::DeclMustBeEmitted(const Decl *D) {
   if (D->hasAttr<WeakRefAttr>())
     return false;
 
-  // Aliases and used decls are required.
-  if (D->hasAttr<AliasAttr>() || D->hasAttr<UsedAttr>())
-    return true;
-
   if (LangOpts.SYCLIsDevice && !D->hasAttr<OpenCLKernelAttr>() &&
       !D->hasAttr<SYCLDeviceAttr>())
     return false;
+
+  // Aliases and used decls are required.
+  if (D->hasAttr<AliasAttr>() || D->hasAttr<UsedAttr>())
+    return true;
 
   if (const auto *FD = dyn_cast<FunctionDecl>(D)) {
     // Forward declarations aren't required.
