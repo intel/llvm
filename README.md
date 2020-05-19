@@ -20,13 +20,7 @@ See [LICENSE.txt](sycl/LICENSE.TXT) for details.
 See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
 ## Sub-projects Documentation
-<<<<<<< HEAD
- - oneAPI Data Parallel C++ compiler - See [DPC++ Documentation](https://intel.github.io/llvm-docs/)
-=======
-
-* oneAPI Data Parallel C++ compiler - See
-  [GetStartedGuide.md](sycl/doc/GetStartedGuide.md)
->>>>>>> origin/sycl
+ * oneAPI Data Parallel C++ compiler - See [DPC++ Documentation](https://intel.github.io/llvm-docs/)
 
 ## DPC++ extensions
 
