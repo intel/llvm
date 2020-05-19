@@ -200,16 +200,16 @@ public:
     CGHostTask &HostTask = static_cast<CGHostTask &>(MThisCmd->getCG());
 
     // we're ready to call the user-defined lambda now
-    if (HostTask.isInteropTask()) {
-      auto Queue = MHostTask->MQueue->get();
-      auto DeviceId = MHostTask->MQueue->get_device().get();
-      auto Context = MHostTask->MQueue->get_context().get();
+    if (HostTask.MHostTask->isInteropTask()) {
+      auto Queue = HostTask.MQueue->get();
+      auto DeviceId = HostTask.MQueue->get_device().get();
+      auto Context = HostTask.MQueue->get_context().get();
 
       interop_handle IH{MReqToMem, Queue, DeviceId, Context};
 
-      HostTask.call(IH);
+      HostTask.MHostTask->call(IH);
     } else
-      HostTask.call();
+      HostTask.MHostTask->call();
 
     HostTask.MHostTask.reset();
 
