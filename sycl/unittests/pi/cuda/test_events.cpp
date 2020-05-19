@@ -10,7 +10,7 @@
 
 #include <cuda.h>
 
-#include "test_get_plugin.hpp"
+#include "TestGetPlugin.hpp"
 #include <CL/sycl.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <detail/plugin.hpp>
@@ -22,7 +22,7 @@ using namespace cl::sycl;
 namespace pi {
 class CudaEventTests : public ::testing::Test {
 protected:
-  detail::plugin plugin = pi::initializeAndGetCuda();
+  detail::plugin plugin = pi::initializeAndGet(backend::cuda);
 
   pi_platform _platform;
   pi_context _context;

@@ -1429,9 +1429,9 @@ struct _pi_plugin {
   // Some choices are:
   // - Use of integers to keep major and minor version.
   // - Keeping char* Versions.
-  const char PiVersion[4] = _PI_H_VERSION_STRING;
+  char PiVersion[4];
   // Plugin edits this.
-  char PluginVersion[4] = _PI_H_VERSION_STRING;
+  char PluginVersion[4];
   char *Targets;
   struct FunctionPointers {
 #define _PI_API(api) decltype(::api) *api;

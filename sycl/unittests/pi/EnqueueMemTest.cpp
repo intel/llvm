@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "BackendString.hpp"
+#include "TestGetPlugin.hpp"
 #include <CL/sycl/detail/pi.hpp>
 #include <detail/plugin.hpp>
 #include <gtest/gtest.h>
@@ -101,7 +101,7 @@ protected:
   }
 };
 
-static std::vector<detail::plugin> Plugins = detail::pi::initialize();
+static std::vector<detail::plugin> Plugins = pi::initializeAndRemoveInvalid();
 
 INSTANTIATE_TEST_CASE_P(
     EnqueueMemTestImpl, EnqueueMemTest, testing::ValuesIn(Plugins),

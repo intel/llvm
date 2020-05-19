@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "BackendString.hpp"
+#include "TestGetPlugin.hpp"
 #include "CL/sycl/detail/pi.hpp"
 #include <atomic>
 #include <detail/plugin.hpp>
@@ -74,7 +74,7 @@ protected:
   }
 };
 
-static std::vector<detail::plugin> Plugins = detail::pi::initialize();
+static std::vector<detail::plugin> Plugins = pi::initializeAndRemoveInvalid();
 
 INSTANTIATE_TEST_CASE_P(
     EventTestImpl, EventTest, testing::ValuesIn(Plugins),

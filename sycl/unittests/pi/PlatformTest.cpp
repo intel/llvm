@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "BackendString.hpp"
+#include "TestGetPlugin.hpp"
 #include <CL/sycl.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <detail/plugin.hpp>
@@ -62,7 +62,7 @@ protected:
   }
 };
 
-static std::vector<detail::plugin> Plugins = detail::pi::initialize();
+static std::vector<detail::plugin> Plugins = pi::initializeAndRemoveInvalid();
 
 INSTANTIATE_TEST_CASE_P(
     PlatformTestImpl, PlatformTest, testing::ValuesIn(Plugins),
