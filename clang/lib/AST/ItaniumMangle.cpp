@@ -2387,16 +2387,16 @@ void CXXNameMangler::mangleQualifiers(Qualifiers Quals, const DependentAddressSp
       switch (AS) {
       default: llvm_unreachable("Not a language specific address space");
       //  <OpenCL-addrspace> ::= "CL" [ "global" | "local" | "constant" |
-      //                                "private"| "generic" | "global_device" |
-      //                                "global_host" ]
+      //                                "private"| "generic" | "usm_device" |
+      //                                "usm_host" ]
       case LangAS::opencl_global:
         ASString = "CLglobal";
         break;
-      case LangAS::opencl_global_device:
-        ASString = "CLglobalDevice";
+      case LangAS::opencl_usm_device:
+        ASString = "CLUSMDevice";
         break;
-      case LangAS::opencl_global_host:
-        ASString = "CLglobalHost";
+      case LangAS::opencl_usm_host:
+        ASString = "CLUSMHost";
         break;
       case LangAS::opencl_local:
         ASString = "CLlocal";
