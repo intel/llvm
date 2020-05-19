@@ -214,6 +214,8 @@ bool findPlugins(vector_class<std::pair<std::string, backend>> &PluginNames) {
   //
   PluginNames.push_back(std::make_pair<std::string, backend>(OPENCL_PLUGIN_NAME,
                                                              backend::opencl));
+  PluginNames.push_back(std::make_pair<std::string, backend>(LEVEL0_PLUGIN_NAME,
+                                                             backend::level0));
   PluginNames.push_back(
       std::make_pair<std::string, backend>(CUDA_PLUGIN_NAME, backend::cuda));
   return true;

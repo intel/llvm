@@ -1,0 +1,61 @@
+# PI Level0 plugin library
+
+message(STATUS "Download Level Zero loader and headers from github.com")
+if(MSVC)
+  set(L0_LIBRARY
+      "${LLVM_LIBRARY_OUTPUT_INTDIR}/${CMAKE_STATIC_LIBRARY_PREFIX}ze_loader${CMAKE_STATIC_LIBRARY_SUFFIX}")
+else()
+  set(L0_LIBRARY
+      "${LLVM_LIBRARY_OUTPUT_INTDIR}/${CMAKE_SHARED_LIBRARY_PREFIX}ze_loader${CMAKE_SHARED_LIBRARY_SUFFIX}")
+endif()
+if (CMAKE_C_COMPILER)
+    list(APPEND AUX_CMAKE_FLAGS -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER})
+endif()
+if (CMAKE_CXX_COMPILER)
+    list(APPEND AUX_CMAKE_FLAGS -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER})
+endif()
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/l0_loader_build)
+ExternalProject_Add(l0-loader
+  GIT_REPOSITORY    https://github.com/oneapi-src/level-zero.git
+  GIT_TAG           origin/master
+  SOURCE_DIR        "${CMAKE_CURRENT_BINARY_DIR}/Level0/l0_loader"
+  BINARY_DIR        "${CMAKE_CURRENT_BINARY_DIR}/l0_loader_build"
+  INSTALL_DIR       "${CMAKE_CURRENT_BINARY_DIR}/l0_loader_install"
+  CMAKE_ARGS -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+             -DCMAKE_MAKE_PROGRAM=${CMAKE_MAKE_PROGRAM}
+             -DOpenCL_INCLUDE_DIR=${OpenCL_INCLUDE_DIRS}
+             -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
+             -DCMAKE_INSTALL_LIBDIR:PATH=lib${LLVM_LIBDIR_SUFFIX}
+             ${AUX_CMAKE_FLAGS}
+  STEP_TARGETS      configure,build,install
+  DEPENDS           ocl-headers
+  BUILD_BYPRODUCTS ${L0_LIBRARY}
+)
+ExternalProject_Add_Step(l0-loader llvminstall
+  COMMAND ${CMAKE_COMMAND} -E copy_directory <INSTALL_DIR>/ ${LLVM_BINARY_DIR}
+  COMMENT "Installing l0-loader into the LLVM binary directory"
+  DEPENDEES install
+)
+
+include_directories("${sycl_inc_dir}")
+include_directories(${OPENCL_INCLUDE})
+
+add_library(pi_level0 SHARED
+  "${sycl_inc_dir}/CL/sycl/detail/pi.h"
+  "${CMAKE_CURRENT_SOURCE_DIR}/pi_level0.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/pi_level0.hpp"
+)
+
+add_dependencies(pi_level0 l0-loader)
+add_dependencies(sycl-toolchain pi_level0)
+
+target_link_libraries(pi_level0 PRIVATE "${L0_LIBRARY}")
+if (UNIX)
+  target_link_libraries(pi_level0 PRIVATE pthread)
+endif()
+
+add_common_options(pi_level0)
+
+install(TARGETS pi_level0
+    LIBRARY DESTINATION "lib" COMPONENT pi_level0
+    RUNTIME DESTINATION "bin" COMPONENT pi_level0)

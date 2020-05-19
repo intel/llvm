@@ -164,11 +164,15 @@ which contains all the symbols required.
 To run DPC++ applications on OpenCL devices, OpenCL implementation(s) must be
 present in the system.
 
+To run DPC++ applications on Level Zero devices, Level Zero implementation(s)
+must be present in the system.
+
 Please, refer to [the Release Notes](../ReleaseNotes.md) for recommended Intel
 runtime versions.
 
-The `GPU` runtime that is needed to run DPC++ application on Intel `GPU` devices
-can be downloaded from the following web pages:
+To run DPC++ application on Intel `GPU` devices the OpenCL `GPU` runtime or the
+Level Zero `GPU` runtime is needed. They can be downloaded from the following web
+pages:
 
 * Linux: [Intel&reg; Graphics Compute Runtime for
    OpenCL&trade;](https://github.com/intel/compute-runtime/releases)
