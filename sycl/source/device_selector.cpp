@@ -30,7 +30,7 @@ static bool isDeviceOfPreferredSyclBe(const device &Device) {
 
 device device_selector::select_device() const {
   vector_class<device> devices = device::get_devices();
-  // SYCL specification uses -1 to reject a device from selection
+  // SYCL 1.2.1 defines a negative score to reject a device from selection
   int score = REJECT_DEVICE_SCORE;
   const device *res = nullptr;
 
