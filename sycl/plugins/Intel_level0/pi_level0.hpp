@@ -343,4 +343,3 @@ struct _pi_sampler {
   // Must be atomic to prevent data race when incrementing/decrementing.
   std::atomic<pi_uint32> RefCount;
 };
-

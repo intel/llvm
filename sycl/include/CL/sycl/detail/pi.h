@@ -699,7 +699,7 @@ struct pi_buffer_region_struct {
   size_t origin;
   size_t size;
 };
-using pi_buffer_region_struct *pi_buffer_region;
+using pi_buffer_region = pi_buffer_region_struct *;
 
 // Offload binaries descriptor version supported by this library.
 static const uint16_t PI_DEVICE_BINARIES_VERSION = 1;
