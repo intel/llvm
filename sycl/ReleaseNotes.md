@@ -147,18 +147,6 @@ Release notes for the commit range ba404be..67d3d9e
     version below 16.3.0
     The workaround is to enable `-std=c++17` for the failing MSVC version.
 
-## Prerequisites
-### Linux
-  - Experimental Intel(R) CPU Runtime for OpenCL(TM) Applications with SYCL
-    support from the release package https://github.com/intel/llvm/releases/
-  - The latest version of Intel(R) Graphics Compute Runtime for OpenCL(TM) from
-    https://github.com/intel/compute-runtime/releases/
-### Windows
-  - Experimental Intel(R) CPU Runtime for OpenCL(TM) Applications with SYCL
-    support from the release package https://github.com/intel/llvm/releases/
-  - The latest version of Intel(R) Graphics Compute Runtime for OpenCL(TM) from
-    https://downloadcenter.intel.com/
-
 Please, see the runtime installation guide [here](https://github.com/intel/llvm/blob/sycl/sycl/doc/GetStartedGuide.md#install-low-level-runtime)
 
 # March'20 release notes
