@@ -114,12 +114,12 @@ void test(T Identity, size_t WGSize, size_t NWItems) {
 
 int main() {
 #if __cplusplus >= 201402L
-  test<double, 0, intel::maximum<>>((std::numeric_limits<double>::min)(), 7, 7 * 5);
+  test<double, 0, intel::maximum<>>(getMinimumFPValue<double>(), 7, 7 * 5);
   test<signed char, 0, intel::plus<>>(0, 7, 49);
   test<unsigned char, 1, std::multiplies<>>(1, 4, 16);
 #ifndef SKIP_FOR_HALF
   test<half, 1, intel::plus<>>(0, 4, 8);
-  test<half, 1, intel::minimum<>>((std::numeric_limits<half>::max)(), 8, 32);
+  test<half, 1, intel::minimum<>>(getMaximumFPValue<half>(), 8, 32);
 #endif // SKIP_FOR_HALF
 #endif // __cplusplus >= 201402L
 

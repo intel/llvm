@@ -81,17 +81,17 @@ int main() {
   test<int, 0, intel::bit_or<int>>(0, 8, 256);
   test<int, 0, intel::bit_xor<int>>(0, 8, 256);
   test<int, 0, intel::bit_and<int>>(~0, 8, 256);
-  test<int, 0, intel::minimum<int>>(std::numeric_limits<int>::max(), 8, 256);
-  test<int, 0, intel::maximum<int>>(std::numeric_limits<int>::min(), 8, 256);
+  test<int, 0, intel::minimum<int>>((std::numeric_limits<int>::max)(), 8, 256);
+  test<int, 0, intel::maximum<int>>((std::numeric_limits<int>::min)(), 8, 256);
 
   // Check with various types.
   test<float, 0, std::multiplies<float>>(1, 8, 256);
-  test<float, 0, intel::minimum<float>>(std::numeric_limits<float>::max(), 8, 256);
-  test<float, 0, intel::maximum<float>>(std::numeric_limits<float>::min(), 8, 256);
+  test<float, 0, intel::minimum<float>>(getMaximumFPValue<float>(), 8, 256);
+  test<float, 0, intel::maximum<float>>(getMinimumFPValue<float>(), 8, 256);
 
   test<double, 0, std::multiplies<double>>(1, 8, 256);
-  test<double, 0, intel::minimum<double>>(std::numeric_limits<double>::max(), 8, 256);
-  test<double, 0, intel::maximum<double>>(std::numeric_limits<double>::min(), 8, 256);
+  test<double, 0, intel::minimum<double>>(getMaximumFPValue<double>(), 8, 256);
+  test<double, 0, intel::maximum<double>>(getMinimumFPValue<double>(), 8, 256);
 
   // Check with CUSTOM type.
   test<CustomVec<long long>, 0, CustomVecPlus<long long>>(CustomVec<long long>(0), 8, 256);

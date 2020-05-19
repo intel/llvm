@@ -209,14 +209,18 @@ public:
   template <typename _T = T, class _BinaryOperation = BinaryOperation>
   static enable_if_t<IsMinimumIdentityOp<_T, _BinaryOperation>::value, _T>
   getIdentity() {
-    return (std::numeric_limits<_T>::max)();
+    return std::numeric_limits<_T>::has_infinity
+               ? std::numeric_limits<_T>::infinity()
+               : (std::numeric_limits<_T>::max)();
   }
 
   /// Returns minimal possible value as identity for MAX operations.
   template <typename _T = T, class _BinaryOperation = BinaryOperation>
   static enable_if_t<IsMaximumIdentityOp<_T, _BinaryOperation>::value, _T>
   getIdentity() {
-    return (std::numeric_limits<_T>::min)();
+    return std::numeric_limits<_T>::has_infinity
+               ? -std::numeric_limits<_T>::infinity()
+               : std::numeric_limits<_T>::lowest();
   }
 
   template <typename _T = T>
@@ -389,17 +393,20 @@ public:
       typename _T = T, class _BinaryOperation = BinaryOperation,
       enable_if_t<IsKnownIdentityOp<_T, _BinaryOperation>::value> * = nullptr>
   reduction_impl(accessor_type &Acc, const T &Identity)
-      : MAcc(Acc), MIdentity(Identity) {
+      : MAcc(Acc), MIdentity(getIdentity()) {
     assert(Acc.get_count() == 1 &&
            "Only scalar/1-element reductions are supported now.");
-    // For operations with known identity value the operator == is defined.
-    // It is sort of dilemma here: from one point of view - user may set
-    // such identity that would be enough for his data, i.e. identity=100 for
-    // min operation if user knows all data elements are less than 100.
-    // From another point of view - it is the source of unexpected errors,
-    // when the input data changes.
-    // Let's be strict for now and emit an error if identity is not proper.
-    assert(Identity == getIdentity() && "Unexpected Identity parameter value.");
+    // For now the implementation ignores the identity value given by user
+    // when the implementation knows the identity.
+    // The SPEC could prohibit passing identity parameter to operations with
+    // known identity, but that could have some bad consequences too.
+    // For example, at some moment the implementation may NOT know the identity
+    // for COMPLEX-PLUS reduction. User may create a program that would pass
+    // COMPLEX value (0,0) as identity for PLUS reduction. At some later moment
+    // when the implementation starts handling COMPLEX-PLUS as known operation
+    // the existing user's program remains compilable and working correctly.
+    // I.e. with this constructor here, adding more reduction operations to the
+    // list of known operations does not break the existing programs.
   }
 
   /// Constructs reduction_impl when the identity value is unknown.

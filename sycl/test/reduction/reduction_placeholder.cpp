@@ -72,8 +72,8 @@ int main() {
   test<int, 1, intel::bit_or<int>>(0, 4, 128);
 
   // fast reduce
-  test<float, 1, intel::minimum<float>>(std::numeric_limits<float>::max(), 5, 5 * 7);
-  test<float, 0, intel::maximum<float>>(std::numeric_limits<float>::min(), 4, 128);
+  test<float, 1, intel::minimum<float>>(getMaximumFPValue<float>(), 5, 5 * 7);
+  test<float, 0, intel::maximum<float>>(getMinimumFPValue<float>(), 4, 128);
 
   // generic algorithm
   test<int, 0, std::multiplies<int>>(1, 7, 7 * 5);
