@@ -3545,15 +3545,14 @@ scope) variables and static local variable as well.
   }];
 }
 
-def OpenCLAddressSpaceGlobalDeviceDocs : Documentation {
+def OpenCLUSMAddressSpacesDocs : Documentation {
   let Category = DocOpenCLAddressSpaces;
-  let Heading = "[[clang::opencl_usm_device]]";
+  let Heading = "[[clang::opencl_usm_device]], [[clang::opencl_usm_host]]";
   let Content = [{
-The usm_device address space attribute specifies that an object is allocated
-in global memory on device. It is supposed to be used only in SYCL headers and
-not in the actual OpenCL/SYCL user code. It helps distinguishing USM pointers
-that access device memory and accessors that access global memory from those
-that access host memory.
+The (usm_device) and (usm_host) address space attributes specify that an object
+is allocated in global memory on the device/host. It helps distinguishing USM
+pointers that access device memory and accessors that access global memory from
+those that access host memory.
   }];
 }
 

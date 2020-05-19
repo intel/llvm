@@ -1296,12 +1296,12 @@ def OpenCLGlobalAddressSpace : TypeAttr {
 
 def OpenCLUSMDeviceAddressSpace : TypeAttr {
   let Spellings = [Clang<"opencl_usm_device">];
-  let Documentation = [OpenCLAddressSpaceGlobalDeviceDocs];
+  let Documentation = [OpenCLUSMAddressSpacesDocs];
 }
 
 def OpenCLUSMHostAddressSpace : TypeAttr {
   let Spellings = [Clang<"opencl_usm_host">];
-  let Documentation = [OpenCLAddressSpaceGlobalHostDocs];
+  let Documentation = [OpenCLUSMAddressSpacesDocs];
 }
 
 def OpenCLLocalAddressSpace : TypeAttr {
