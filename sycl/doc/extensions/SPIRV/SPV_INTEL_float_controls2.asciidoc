@@ -57,7 +57,8 @@ This extension requires SPIR-V 1.0.
 Overview
 --------
 
-This extension provides new execution modes to control floating-point computations by overriding an implementation’s default behavior for rounding modes and floating point modes.
+This extension adds execution modes with round to positive infinity and round to negative infinity default rounding.
+Execution modes specifying compliance with floating-point arithmetic (IEEE 754) standard are introduced as well.
 
 
 Extension Name
