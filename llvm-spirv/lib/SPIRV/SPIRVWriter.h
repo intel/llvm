@@ -112,6 +112,7 @@ public:
   // Returns true if succeeds.
   bool translate();
   bool transExecutionMode();
+  void transFPContract();
   SPIRVValue *transConstant(Value *V);
   SPIRVValue *transValue(Value *V, SPIRVBasicBlock *BB,
                          bool CreateForward = true);
@@ -135,6 +136,12 @@ private:
   SPIRVWord SrcLangVer;
   std::unique_ptr<LLVMToSPIRVDbgTran> DbgTran;
   std::unique_ptr<CallGraph> CG;
+
+  enum class FPContract { UNDEF, DISABLED, ENABLED };
+  DenseMap<Function *, FPContract> FPContractMap;
+  FPContract getFPContract(Function *F);
+  bool joinFPContract(Function *F, FPContract C);
+  void fpContractUpdateRecursive(Function *F, FPContract FPC);
 
   SPIRVType *mapType(Type *T, SPIRVType *BT);
   SPIRVValue *mapValue(Value *V, SPIRVValue *BV);

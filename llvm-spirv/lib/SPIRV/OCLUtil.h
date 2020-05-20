@@ -426,9 +426,8 @@ bool isKernelQueryBI(const StringRef MangledName);
 /// Check that the type is the sampler_t
 bool isSamplerTy(Type *Ty);
 
-// Checks if clang did not generate llvm.fmuladd for fp multiply-add operations.
-// If so, it applies ContractionOff ExecutionMode to the kernel.
-void checkFpContract(BinaryOperator *B, SPIRVBasicBlock *BB);
+// Checks if the binary operator is an unfused fmul + fadd instruction.
+bool isUnfusedMulAdd(BinaryOperator *B);
 
 template <typename T> std::string toString(const T *Object) {
   std::string S;
