@@ -1,6 +1,21 @@
+//==---------- pi_level0.cpp - Level Zero Plugin
+//-----------------------------------==//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
+/// \file pi_level0.cpp
+/// Implementation of Level Zero Plugin.
+///
+/// \ingroup sycl_pi_level0
+
 #include "pi_level0.hpp"
 #include <cstdarg>
 #include <cstdio>
+#include <cstring>
 #include <map>
 #include <memory>
 #include <string>
@@ -8,7 +23,7 @@
 
 #include <level_zero/zet_api.h>
 
-// Controls L0 calls serialization to w/a of L0 driver being not MT ready.
+// Controls L0 calls serialization to w/a L0 driver being not MT ready.
 // Recognized values (can be used as a bit mask):
 enum {
   ZeSerializeNone =
@@ -17,7 +32,7 @@ enum {
   ZeSerializeBlock =
       2, // blocking ZE calls, where supported (usually in enqueue commands)
 };
-pi_uint32 ZeSerialize = 0;
+static pi_uint32 ZeSerialize = 0;
 
 // This class encapsulates actions taken along with a call to L0 API.
 class ZeCall {
@@ -49,7 +64,7 @@ public:
 std::mutex ZeCall::GlobalLock;
 
 // Controls L0 calls tracing in zePrint.
-bool ZeDebug = false;
+static bool ZeDebug = false;
 
 static void zePrint(const char *Format, ...) {
   if (ZeDebug) {
@@ -65,12 +80,10 @@ static void zePrint(const char *Format, ...) {
 
 pi_result _pi_mem::addMapping(void *MappedTo, size_t Offset, size_t Size) {
   std::lock_guard<std::mutex> Lock(MappingsMutex);
-  auto It = Mappings.find(MappedTo);
-  if (It != Mappings.end()) {
+  auto Res = Mappings.insert({MappedTo, {Offset, Size}});
+  if (Res.second) {
     zePrint("piEnqueueMemBufferMap: duplicate mapping detected\n");
-    return PI_INVALID_OPERATION;
-  } else {
-    Mappings.insert({MappedTo, {Offset, Size}});
+    return PI_INVALID_VALUE;
   }
   return PI_SUCCESS;
 }
@@ -91,8 +104,8 @@ ze_result_t
 _pi_context::getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &ZePool,
                                             size_t &Index) {
   // Maximum number of events that can be present in an event ZePool is captured
-  // here Setting it to 256 gave best possible performance for several
-  // benchmarks
+  // here. Setting it to 256 gave best possible performance for several
+  // benchmarks.
   static const char *MaxNumEventsPerPoolEnv =
       std::getenv("ZE_MAX_NUMBER_OF_EVENTS_PER_EVENT_POOL");
   static const pi_uint32 MaxNumEventsPerPool =
@@ -145,14 +158,6 @@ _pi_context::decrementAliveEventsInPool(ze_event_pool_handle_t ZePool) {
   }
   return ZE_RESULT_SUCCESS;
 }
-
-#ifdef __cplusplus
-extern "C" {
-#endif // __cplusplus
-
-#include <stdarg.h>
-#include <stdio.h>
-#include <string.h>
 
 // Some opencl extensions we know are supported by all Level0 devices.
 #define ZE_SUPPORTED_EXTENSIONS                                                \
@@ -358,9 +363,6 @@ void _pi_event::deleteZeEventList(ze_event_handle_t *ZeEventList) {
   delete[] ZeEventList;
 }
 
-// Forward declararitons
-decltype(piEventCreate) piEventCreate;
-
 // No generic lambdas in C++11, so use this convinence macro.
 // NOTE: to be used in API returning "ParamValue".
 // NOTE: memset is used to clear all bytes in the memory allocated by SYCL RT
@@ -429,6 +431,11 @@ static void piSignalHandler(int SigNum) {
   else {
 #define __FINALLY() }
 #endif // _WIN32
+
+extern "C" {
+
+// Forward declararitons
+decltype(piEventCreate) piEventCreate;
 
 pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
                          pi_uint32 *NumPlatforms) {
@@ -1897,6 +1904,8 @@ pi_result piProgramCompile(
   // and so L0 module creation would be deferred until
   // piProgramCompile/piProgramLink/piProgramBuild.
   //
+  // It is expected that program was successfully built during piProgramCreate
+  assert(Program && Program->ZeModule);
   return PI_SUCCESS;
 }
 
@@ -1912,6 +1921,8 @@ pi_result piProgramBuild(pi_program Program, pi_uint32 NumDevices,
   // and so L0 module creation would be deferred until
   // piProgramCompile/piProgramLink/piProgramBuild.
   //
+  // It is expected that program was successfully built during piProgramCreate
+  assert(Program && Program->ZeModule);
   return PI_SUCCESS;
 }
 
@@ -2191,19 +2202,15 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
                       const pi_event *EventWaitList, pi_event *Event) {
   assert(Kernel);
   assert(Queue);
-  assert(WorkDim > 0);
-  assert(WorkDim < 4);
+  assert((WorkDim > 0) && (WorkDim < 4));
 
   ze_group_count_t ZeThreadGroupDimensions{1, 1, 1};
   uint32_t WG[3];
 
   // global_work_size of unused dimensions must be set to 1
-  if (WorkDim < 3) {
-    assert(GlobalWorkSize[2] == 1);
-  }
-  if (WorkDim < 2) {
-    assert(GlobalWorkSize[1] == 1);
-  }
+  assert(WorkDim == 3 || GlobalWorkSize[2] == 1);
+  assert(WorkDim >= 2 || GlobalWorkSize[1] == 1);
+
   if (LocalWorkSize) {
     WG[0] = pi_cast<uint32_t>(LocalWorkSize[0]);
     WG[1] = pi_cast<uint32_t>(LocalWorkSize[1]);
@@ -2655,6 +2662,8 @@ pi_result piEnqueueMemBufferReadRect(
       BlockingRead, NumEventsInWaitList, EventWaitList, Event);
 }
 
+} // extern "C"
+
 // Shared by all memory read/write/copy PI interfaces.
 static pi_result
 enqueueMemCopyHelper(pi_command_type CommandType, pi_queue Queue, void *Dst,
@@ -2797,6 +2806,8 @@ static pi_result enqueueMemCopyRectHelper(
   return PI_SUCCESS;
 }
 
+extern "C" {
+
 pi_result piEnqueueMemBufferWrite(pi_queue Queue, pi_mem Buffer,
                                   pi_bool BlockingWrite, size_t Offset,
                                   size_t Size, const void *Ptr,
@@ -2864,6 +2875,8 @@ piEnqueueMemBufferCopyRect(pi_queue Queue, pi_mem SrcBuffer, pi_mem DstBuffer,
       NumEventsInWaitList, EventWaitList, Event);
 }
 
+} // extern "C"
+
 static pi_result
 enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
                      const void *Pattern, size_t PatternSize, size_t Size,
@@ -2916,6 +2929,8 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
 
   return PI_SUCCESS;
 }
+
+extern "C" {
 
 pi_result piEnqueueMemBufferFill(pi_queue Queue, pi_mem Buffer,
                                  const void *Pattern, size_t PatternSize,
@@ -3072,6 +3087,8 @@ pi_result piMemImageGetInfo(pi_mem Image, pi_image_info ParamName,
   return {};
 }
 
+} // extern "C"
+
 static ze_image_region_t getImageRegionHelper(pi_mem Mem, const size_t *Origin,
                                               const size_t *Region) {
 
@@ -3219,6 +3236,8 @@ enqueueMemImageCommandHelper(pi_command_type CommandType, pi_queue Queue,
 
   return PI_SUCCESS;
 }
+
+extern "C" {
 
 pi_result piEnqueueMemImageRead(pi_queue Queue, pi_mem Image,
                                 pi_bool BlockingRead, const size_t *Origin,
@@ -3711,6 +3730,4 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   return PI_SUCCESS;
 }
 
-#ifdef __cplusplus
 } // extern "C"
-#endif // __cplusplus

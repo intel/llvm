@@ -1,9 +1,29 @@
+//===-- pi_level0.hpp - Level Zero Plugin -----------------------------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
+/// \defgroup sycl_pi_level0 Level Zero Plugin
+/// \ingroup sycl_pi
+
+/// \file pi_level0.hpp
+/// Declarations for Level Zero Plugin. It is the interface between the
+/// device-agnostic SYCL runtime layer and underlying Level Zero runtime.
+///
+/// \ingroup sycl_pi_level0
+
+#ifndef PI_LEVEL0_HPP
+#define PI_LEVEL0_HPP
+
 #include <CL/sycl/detail/pi.h>
 #include <atomic>
 #include <cassert>
 #include <iostream>
-#include <map>
 #include <mutex>
+#include <unordered_map>
 
 #include <level_zero/ze_api.h>
 
@@ -123,12 +143,14 @@ private:
   ze_event_pool_handle_t ZeEventPool;
   // This map will be used to determine if a pool is full or not
   // by storing number of empty slots available in the pool
-  std::map<ze_event_pool_handle_t, pi_uint32> NumEventsAvailableInEventPool;
+  std::unordered_map<ze_event_pool_handle_t, pi_uint32>
+      NumEventsAvailableInEventPool;
   // This map will be used to determine number of live events in the pool
   // We use separate maps for number of event slots available in the pool
   // number of events live in the pool live
   // This will help when we try to make the code thread-safe
-  std::map<ze_event_pool_handle_t, pi_uint32> NumEventsLiveInEventPool;
+  std::unordered_map<ze_event_pool_handle_t, pi_uint32>
+      NumEventsLiveInEventPool;
 
   // TODO: we'd like to create a  thread safe map class instead of mutex + map,
   // that must be carefully used together.
@@ -207,7 +229,7 @@ private:
   // The key is the host pointer representing an active mapping.
   // The value is the information needed to maintain/undo the mapping.
   //
-  std::map<void *, Mapping> Mappings;
+  std::unordered_map<void *, Mapping> Mappings;
 
   // TODO: we'd like to create a thread safe map class instead of mutex + map,
   // that must be carefully used together.
@@ -343,3 +365,5 @@ struct _pi_sampler {
   // Must be atomic to prevent data race when incrementing/decrementing.
   std::atomic<pi_uint32> RefCount;
 };
+
+#endif //PI_LEVEL0_HPP
