@@ -1,4 +1,4 @@
-//===-- pi_level0.hpp - Level Zero Plugin -----------------------------------------===//
+//===---------- pi_level0.hpp - Level Zero Plugin -------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -366,4 +366,4 @@ struct _pi_sampler {
   std::atomic<pi_uint32> RefCount;
 };
 
-#endif //PI_LEVEL0_HPP
+#endif // PI_LEVEL0_HPP
