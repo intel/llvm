@@ -55,7 +55,7 @@ void test() {
     });
   };
 
-  static const size_t NTIMES = 100;
+  static const size_t NTIMES = 4;
 
   for (size_t Idx = 0; Idx < NTIMES; ++Idx) {
     Q1.submit(CG1);
