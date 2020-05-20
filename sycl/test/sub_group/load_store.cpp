@@ -37,7 +37,7 @@ template <typename T, int N> void check(queue &Queue) {
     Queue.submit([&](handler &cgh) {
       auto acc = syclbuf.template get_access<access::mode::read_write>(cgh);
       auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>(cgh);
-      accessor<T, 1, access::mode::read_write, access::target::local> local_mem(
+      accessor<T, 1, access::mode::read_write, access::target::local> LocalMem(
           {L}, cgh);
       cgh.parallel_for<sycl_subgr<T, N>>(NdRange, [=](nd_item<1> NdItem) {
         intel::sub_group SG = NdItem.get_sub_group();
@@ -47,12 +47,12 @@ template <typename T, int N> void check(queue &Queue) {
           size_t WGSGoffset = NdItem.get_group(0) * L + SGOffset;
           multi_ptr<T, access::address_space::global_space> mp(
               &acc[WGSGoffset]);
-          multi_ptr<T, access::address_space::local_space> mpl(
-              &local_mem[SGOffset]);
+          multi_ptr<T, access::address_space::local_space> MPL(
+              &LocalMem[SGOffset]);
           // Add all values in read block
           vec<T, N> v(utils<T, N>::add_vec(SG.load<N, T>(mp)));
-          SG.store<N, T>(mpl, v);
-          vec<T, N> t(utils<T, N>::add_vec(SG.load<N, T>(mpl)));
+          SG.store<N, T>(MPL, v);
+          vec<T, N> t(utils<T, N>::add_vec(SG.load<N, T>(MPL)));
           SG.store<N, T>(mp, t);
         }
         if (NdItem.get_global_id(0) == 0)
@@ -111,7 +111,7 @@ template <typename T> void check(queue &Queue) {
     Queue.submit([&](handler &cgh) {
       auto acc = syclbuf.template get_access<access::mode::read_write>(cgh);
       auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>(cgh);
-      accessor<T, 1, access::mode::read_write, access::target::local> local_mem(
+      accessor<T, 1, access::mode::read_write, access::target::local> LocalMem(
           {L}, cgh);
       cgh.parallel_for<sycl_subgr<T, 0>>(NdRange, [=](nd_item<1> NdItem) {
         intel::sub_group SG = NdItem.get_sub_group();
@@ -121,11 +121,11 @@ template <typename T> void check(queue &Queue) {
             SG.get_group_id().get(0) * SG.get_max_local_range().get(0);
         size_t WGSGoffset = NdItem.get_group(0) * L + SGOffset;
         multi_ptr<T, access::address_space::global_space> mp(&acc[WGSGoffset]);
-        multi_ptr<T, access::address_space::local_space> mpl(
-            &local_mem[SGOffset]);
+        multi_ptr<T, access::address_space::local_space> MPL(
+            &LocalMem[SGOffset]);
         T s = SG.load<T>(mp) + (T)SG.get_local_id().get(0);
-        SG.store<T>(mpl, s);
-        T t = SG.load<T>(mpl) + (T)SG.get_local_id().get(0);
+        SG.store<T>(MPL, s);
+        T t = SG.load<T>(MPL) + (T)SG.get_local_id().get(0);
         SG.store<T>(mp, t);
       });
     });
