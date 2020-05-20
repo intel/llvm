@@ -126,7 +126,7 @@ void throwIfNotIntOffset(const id<Dims> &Id) {
   static constexpr size_t Limit = static_cast<size_t>(INT_MAX);
   for (size_t Dim = 0; Dim < Dims; ++Dim)
     if (Id[Dim] > Limit)
-      throw runtime_error("Provided range is out of integer limits. Suggest "
+      throw runtime_error("Provided offset is out of integer limits. Suggest "
                           "disabling `id-queries-fit-in-int32' optimizations "
                           "flag.",
                           PI_INVALID_VALUE);
