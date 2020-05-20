@@ -14,14 +14,13 @@ __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
 } // namespace cl
 
 int main(int argc, char **argv) {
-  //_mm_prefetch is an x86-64 specific builtin where the second integer parameter is required to be a constant 
+  //_mm_prefetch is an x86-64 specific builtin where the second integer parameter is required to be a constant
   //between 0 and 7.
   _mm_prefetch("test", 4); // no error thrown, since this is a valid invocation
 
   _mm_prefetch("test", 8); // expected-error {{argument value 8 is outside the valid range [0, 7]}}
 
   cl::sycl::kernel_single_task<class AName>([]() {
-    
     _mm_prefetch("test", 4); // expected-error {{Host specific builtin cannot be used in device functions}}
     _mm_prefetch("test", 8); // expected-error {{argument value 8 is outside the valid range [0, 7]}} expected-error {{Host specific builtin cannot be used in device functions}}
   });
