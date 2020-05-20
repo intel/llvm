@@ -1938,11 +1938,15 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
     if (Context.BuiltinInfo.isAuxBuiltinID(BuiltinID)) {
       assert(Context.getAuxTargetInfo() &&
              "Aux Target Builtin, but not an aux target?");
-
       if (CheckTSBuiltinFunctionCall(
               Context.getAuxTargetInfo()->getTriple().getArch(),
-              Context.BuiltinInfo.getAuxBuiltinID(BuiltinID), TheCall))
+              Context.BuiltinInfo.getAuxBuiltinID(BuiltinID), TheCall)) {
         return ExprError();
+      }
+      //Detect when host builtins are used in device code only 
+      if (getLangOpts().SYCLIsDevice)
+        SYCLDiagIfDeviceCode(TheCall->getBeginLoc(),
+                             diag::err_aux_target_builtin_in_device_code);
     } else {
       if (CheckTSBuiltinFunctionCall(
               Context.getTargetInfo().getTriple().getArch(), BuiltinID,
