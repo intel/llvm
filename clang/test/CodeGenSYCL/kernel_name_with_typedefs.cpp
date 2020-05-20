@@ -117,16 +117,16 @@ int main() {
   single_task<kernel_name2<const space::long_t, space::a_t>>(f);
   // CHECK: template <> struct KernelInfo<::kernel_name2<const volatile long, const ::space::B>> {
   single_task<kernel_name2<volatile space::clong_t, const space::b_t>>(f);
-  // CHECK: template <> struct KernelInfo<::kernel_name2< ::A, long>> {
+  // CHECK: template <> struct KernelInfo<::kernel_name2<::A, long>> {
   single_task<kernel_name2<space::a_t, space::long_t>>(f);
-  // CHECK: template <> struct KernelInfo<::kernel_name2< ::space::B, int>> {
+  // CHECK: template <> struct KernelInfo<::kernel_name2<::space::B, int>> {
   single_task<kernel_name2<space::b_t, int_t>>(f);
   // full template specialization
   // CHECK: template <> struct KernelInfo<::kernel_name2<int, const unsigned int>> {
   single_task<kernel_name2<int_t, const uint_t>>(f);
-  // CHECK: template <> struct KernelInfo<::kernel_name2<const long, volatile const unsigned long>> {
+  // CHECK: template <> struct KernelInfo<::kernel_name2<const long, const volatile unsigned long>> {
   single_task<kernel_name2<space::clong_t, volatile space::culong_t>>(f);
-  // CHECK: template <> struct KernelInfo<::kernel_name2< ::A, volatile ::space::B>> {
+  // CHECK: template <> struct KernelInfo<::kernel_name2<::A, volatile ::space::B>> {
   single_task<kernel_name2<space::a_t, volatile space::b_t>>(f);
   // CHECK: template <> struct KernelInfo<::kernel_name3<1>> {
   single_task<kernel_name3<1>>(f);

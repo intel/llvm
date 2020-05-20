@@ -41,6 +41,7 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
+
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 // Global graph for the application
 extern xpti::trace_event_data_t *GSYCLGraphEvent;
@@ -156,58 +157,79 @@ getPiEvents(const std::vector<EventImplPtr> &EventImpls) {
   return RetPiEvents;
 }
 
-void EventCompletionClbk(RT::PiEvent, pi_int32, void *data) {
-  // TODO: Handle return values. Store errors to async handler.
-  EventImplPtr *Event = (reinterpret_cast<EventImplPtr *>(data));
-  RT::PiEvent &EventHandle = (*Event)->getHandleRef();
-  const detail::plugin &Plugin = (*Event)->getPlugin();
-  Plugin.call<PiApiKind::piEventSetStatus>(EventHandle, PI_EVENT_COMPLETE);
-  delete (Event);
-}
+class DispatchHostTask {
+  ExecCGCommand *MThisCmd;
 
-// Method prepares PI event's from list sycl::event's
-std::vector<EventImplPtr> Command::prepareEvents(ContextImplPtr Context) {
-  std::vector<EventImplPtr> Result;
-  std::vector<EventImplPtr> GlueEvents;
-  for (EventImplPtr &DepEvent : MDepsEvents) {
-    // Async work is not supported for host device.
-    if (DepEvent->is_host()) {
-      DepEvent->waitInternal();
-      continue;
+  void waitForEvents() const {
+    std::map<const detail::plugin *, std::vector<EventImplPtr>>
+        RequiredEventsPerPlugin;
+
+    for (const EventImplPtr &Event : MThisCmd->MPreparedDepsEvents) {
+      const detail::plugin &Plugin = Event->getPlugin();
+      RequiredEventsPerPlugin[&Plugin].push_back(Event);
     }
-    // The event handle can be null in case of, for example, alloca command,
-    // which is currently synchrounious, so don't generate OpenCL event.
-    if (DepEvent->getHandleRef() == nullptr) {
-      continue;
+
+    // wait for dependency device events
+    // FIXME Current implementation of waiting for events will make the thread
+    // 'sleep' until all of dependency events are complete. We need a bit more
+    // sophisticated waiting mechanism to allow to utilize this thread for any
+    // other available job and resume once all required events are ready.
+    for (auto &PluginWithEvents : RequiredEventsPerPlugin) {
+      std::vector<RT::PiEvent> RawEvents = getPiEvents(PluginWithEvents.second);
+      PluginWithEvents.first->call<PiApiKind::piEventsWait>(RawEvents.size(),
+                                                            RawEvents.data());
     }
-    ContextImplPtr DepEventContext = DepEvent->getContextImpl();
 
-    // If contexts don't match - connect them using user event
-    if (DepEventContext != Context && !Context->is_host()) {
-      EventImplPtr GlueEvent(new detail::event_impl());
-      GlueEvent->setContextImpl(Context);
-      EventImplPtr *GlueEventCopy =
-          new EventImplPtr(GlueEvent); // To increase the reference count by 1.
-
-      RT::PiEvent &GlueEventHandle = GlueEvent->getHandleRef();
-      auto Plugin = Context->getPlugin();
-      auto DepPlugin = DepEventContext->getPlugin();
-      // Add an event on the current context that
-      // is triggered when the DepEvent is complete
-      Plugin.call<PiApiKind::piEventCreate>(Context->getHandleRef(),
-                                            &GlueEventHandle);
-
-      DepPlugin.call<PiApiKind::piEventSetCallback>(
-          DepEvent->getHandleRef(), PI_EVENT_COMPLETE, EventCompletionClbk,
-          /*void *data=*/(GlueEventCopy));
-      GlueEvents.push_back(GlueEvent);
-      Result.push_back(std::move(GlueEvent));
-      continue;
+    // wait for dependency host events
+    for (const EventImplPtr &Event : MThisCmd->MPreparedHostDepsEvents) {
+      Event->waitInternal();
     }
-    Result.push_back(DepEvent);
   }
-  MDepsEvents.insert(MDepsEvents.end(), GlueEvents.begin(), GlueEvents.end());
-  return Result;
+
+public:
+  DispatchHostTask(ExecCGCommand *ThisCmd) : MThisCmd{ThisCmd} {}
+
+  void operator()() const {
+    waitForEvents();
+
+    assert(MThisCmd->getCG().getType() == CG::CGTYPE::CODEPLAY_HOST_TASK);
+
+    CGHostTask &HostTask = static_cast<CGHostTask &>(MThisCmd->getCG());
+
+    // we're ready to call the user-defined lambda now
+    HostTask.MHostTask->call();
+    HostTask.MHostTask.reset();
+
+    // unblock user empty command here
+    EmptyCommand *EmptyCmd = MThisCmd->MEmptyCmd;
+    assert(EmptyCmd && "No empty command found");
+
+    // Completing command's event along with unblocking enqueue readiness of
+    // empty command may lead to quick deallocation of MThisCmd by some cleanup
+    // process. Thus we'll copy deps prior to completing of event and unblocking
+    // of empty command.
+    // Also, it's possible to have record deallocated prior to enqueue process.
+    // Thus we employ read-lock of graph.
+    {
+      Scheduler &Sched = Scheduler::getInstance();
+      std::shared_lock<std::shared_timed_mutex> Lock(Sched.MGraphLock);
+
+      std::vector<DepDesc> Deps = MThisCmd->MDeps;
+
+      // update self-event status
+      MThisCmd->MEvent->setComplete();
+
+      EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
+
+      for (const DepDesc &Dep : Deps)
+        Scheduler::enqueueLeavesOfReqUnlocked(Dep.MDepRequirement);
+    }
+  }
+};
+
+void Command::waitForPreparedHostEvents() const {
+  for (const EventImplPtr &HostEvent : MPreparedHostDepsEvents)
+    HostEvent->waitInternal();
 }
 
 void Command::waitForEvents(QueueImplPtr Queue,
@@ -403,9 +425,37 @@ void Command::makeTraceEventEpilog() {
 #endif
 }
 
+void Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep) {
+  const ContextImplPtr &Context = getContext();
+
+  // 1. Async work is not supported for host device.
+  // 2. The event handle can be null in case of, for example, alloca command,
+  //    which is currently synchrounious, so don't generate OpenCL event.
+  //    Though, this event isn't host one as it's context isn't host one.
+  if (DepEvent->is_host() || DepEvent->getHandleRef() == nullptr) {
+    // call to waitInternal() is in waitForPreparedHostEvents() as it's called
+    // from enqueue process functions
+    MPreparedHostDepsEvents.push_back(DepEvent);
+    return;
+  }
+
+  ContextImplPtr DepEventContext = DepEvent->getContextImpl();
+  // If contexts don't match we'll connect them using host task
+  if (DepEventContext != Context && !Context->is_host()) {
+    Scheduler::GraphBuilder &GB = Scheduler::getInstance().MGraphBuilder;
+    GB.connectDepEvent(this, DepEvent, Dep);
+  } else
+    MPreparedDepsEvents.push_back(std::move(DepEvent));
+}
+
+ContextImplPtr Command::getContext() const {
+  return detail::getSyclObjImpl(MQueue->get_context());
+}
+
 void Command::addDep(DepDesc NewDep) {
-  if (NewDep.MDepCommand)
-    MDepsEvents.push_back(NewDep.MDepCommand->getEvent());
+  if (NewDep.MDepCommand) {
+    processDepEvent(NewDep.MDepCommand->getEvent(), NewDep);
+  }
   MDeps.push_back(NewDep);
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   emitEdgeEventForCommandDependence(
@@ -424,7 +474,7 @@ void Command::addDep(EventImplPtr Event) {
   emitEdgeEventForEventDependence(Cmd, PiEventAddr);
 #endif
 
-  MDepsEvents.push_back(std::move(Event));
+  processDepEvent(std::move(Event), DepDesc{nullptr, nullptr, nullptr});
 }
 
 void Command::emitEnqueuedEventSignal(RT::PiEvent &PiEventAddr) {
@@ -466,7 +516,7 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking) {
     if (ThrowOnBlock)
       throw sycl::runtime_error(
           std::string("Waiting for blocked command. Block reason: ") +
-              std::string(MBlockReason),
+              std::string(getBlockReason()),
           PI_INVALID_OPERATION);
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -474,7 +524,7 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking) {
     // event, which models the barrier while enqueuing along with the blocked
     // reason, as determined by the scheduler
     std::string Info = "enqueue.barrier[";
-    Info += std::string(MBlockReason) + "]";
+    Info += std::string(getBlockReason()) + "]";
     emitInstrumentation(xpti::trace_barrier_begin, Info.c_str());
 #endif
 
@@ -505,15 +555,21 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking) {
   // has already been marked as "failed" if enqueueImp throws an exception.
   // This will avoid execution of the same failed command twice.
   MEnqueueStatus = EnqueueResultT::SyclEnqueueFailed;
+  MShouldCompleteEventIfPossible = true;
   cl_int Res = enqueueImp();
 
   if (CL_SUCCESS != Res)
     EnqueueResult =
         EnqueueResultT(EnqueueResultT::SyclEnqueueFailed, this, Res);
-  else
+  else {
+    if (MShouldCompleteEventIfPossible &&
+        (MEvent->is_host() || MEvent->getHandleRef() == nullptr))
+      MEvent->setComplete();
+
     // Consider the command is successfully enqueued if return code is
     // CL_SUCCESS
     MEnqueueStatus = EnqueueResultT::SyclEnqueueSuccess;
+  }
 
   // Emit this correlation signal before the task end
   emitEnqueuedEventSignal(MEvent->getHandleRef());
@@ -562,6 +618,17 @@ void Command::resolveReleaseDependencies(std::set<Command *> &DepList) {
     }
   }
 #endif
+}
+
+const char *Command::getBlockReason() const {
+  switch (MBlockReason) {
+  case BlockReason::HostAccessor:
+    return "A Buffer is locked by the host accessor";
+  case BlockReason::HostTask:
+    return "Blocked by host task";
+  }
+
+  return "Unknown block reason";
 }
 
 AllocaCommandBase::AllocaCommandBase(CommandType Type, QueueImplPtr Queue,
@@ -617,8 +684,8 @@ void AllocaCommand::emitInstrumentationData() {
 }
 
 cl_int AllocaCommand::enqueueImp() {
-  std::vector<EventImplPtr> EventImpls =
-      Command::prepareEvents(detail::getSyclObjImpl(MQueue->get_context()));
+  waitForPreparedHostEvents();
+  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
 
   RT::PiEvent &Event = MEvent->getHandleRef();
 
@@ -628,6 +695,7 @@ cl_int AllocaCommand::enqueueImp() {
     if (MQueue->is_host()) {
       // Do not need to make allocation if we have a linked device allocation
       Command::waitForEvents(MQueue, EventImpls, Event);
+
       return CL_SUCCESS;
     }
     HostPtr = MLinkedAllocaCmd->getMemAllocation();
@@ -637,6 +705,7 @@ cl_int AllocaCommand::enqueueImp() {
   MMemAllocation = MemoryManager::allocate(
       detail::getSyclObjImpl(MQueue->get_context()), getSYCLMemObj(),
       MInitFromUserData, HostPtr, std::move(EventImpls), Event);
+
   return CL_SUCCESS;
 }
 
@@ -707,8 +776,8 @@ void *AllocaSubBufCommand::getMemAllocation() const {
 }
 
 cl_int AllocaSubBufCommand::enqueueImp() {
-  std::vector<EventImplPtr> EventImpls =
-      Command::prepareEvents(detail::getSyclObjImpl(MQueue->get_context()));
+  waitForPreparedHostEvents();
+  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   RT::PiEvent &Event = MEvent->getHandleRef();
 
   MMemAllocation = MemoryManager::allocateMemSubBuffer(
@@ -716,6 +785,7 @@ cl_int AllocaSubBufCommand::enqueueImp() {
       MParentAlloca->getMemAllocation(), MRequirement.MElemSize,
       MRequirement.MOffsetInBytes, MRequirement.MAccessRange,
       std::move(EventImpls), Event);
+
   return CL_SUCCESS;
 }
 
@@ -767,8 +837,8 @@ void ReleaseCommand::emitInstrumentationData() {
 }
 
 cl_int ReleaseCommand::enqueueImp() {
-  std::vector<EventImplPtr> EventImpls =
-      Command::prepareEvents(detail::getSyclObjImpl(MQueue->get_context()));
+  waitForPreparedHostEvents();
+  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   std::vector<RT::PiEvent> RawEvents = getPiEvents(EventImpls);
   bool SkipRelease = false;
 
@@ -878,8 +948,8 @@ void MapMemObject::emitInstrumentationData() {
 }
 
 cl_int MapMemObject::enqueueImp() {
-  std::vector<EventImplPtr> EventImpls =
-      Command::prepareEvents(detail::getSyclObjImpl(MQueue->get_context()));
+  waitForPreparedHostEvents();
+  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   std::vector<RT::PiEvent> RawEvents = getPiEvents(EventImpls);
 
   RT::PiEvent &Event = MEvent->getHandleRef();
@@ -887,6 +957,7 @@ cl_int MapMemObject::enqueueImp() {
       MSrcAllocaCmd->getSYCLMemObj(), MSrcAllocaCmd->getMemAllocation(), MQueue,
       MMapMode, MSrcReq.MDims, MSrcReq.MMemoryRange, MSrcReq.MAccessRange,
       MSrcReq.MOffset, MSrcReq.MElemSize, std::move(RawEvents), Event);
+
   return CL_SUCCESS;
 }
 
@@ -934,14 +1005,15 @@ void UnMapMemObject::emitInstrumentationData() {
 }
 
 cl_int UnMapMemObject::enqueueImp() {
-  std::vector<EventImplPtr> EventImpls =
-      Command::prepareEvents(detail::getSyclObjImpl(MQueue->get_context()));
+  waitForPreparedHostEvents();
+  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   std::vector<RT::PiEvent> RawEvents = getPiEvents(EventImpls);
 
   RT::PiEvent &Event = MEvent->getHandleRef();
   MemoryManager::unmap(MDstAllocaCmd->getSYCLMemObj(),
                        MDstAllocaCmd->getMemAllocation(), MQueue, *MSrcPtr,
                        std::move(RawEvents), Event);
+
   return CL_SUCCESS;
 }
 
@@ -1000,11 +1072,15 @@ void MemCpyCommand::emitInstrumentationData() {
 #endif
 }
 
+ContextImplPtr MemCpyCommand::getContext() const {
+  const QueueImplPtr &Queue = MQueue->is_host() ? MSrcQueue : MQueue;
+  return detail::getSyclObjImpl(Queue->get_context());
+}
+
 cl_int MemCpyCommand::enqueueImp() {
-  std::vector<EventImplPtr> EventImpls;
   QueueImplPtr Queue = MQueue->is_host() ? MSrcQueue : MQueue;
-  EventImpls =
-      Command::prepareEvents(detail::getSyclObjImpl(Queue->get_context()));
+  waitForPreparedHostEvents();
+  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
 
   RT::PiEvent &Event = MEvent->getHandleRef();
 
@@ -1067,9 +1143,8 @@ void ExecCGCommand::flushStreams() {
 }
 
 cl_int UpdateHostRequirementCommand::enqueueImp() {
-  std::vector<EventImplPtr> EventImpls;
-  EventImpls =
-      Command::prepareEvents(detail::getSyclObjImpl(MQueue->get_context()));
+  waitForPreparedHostEvents();
+  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   RT::PiEvent &Event = MEvent->getHandleRef();
   Command::waitForEvents(MQueue, EventImpls, Event);
 
@@ -1077,6 +1152,7 @@ cl_int UpdateHostRequirementCommand::enqueueImp() {
   assert(MSrcAllocaCmd->getMemAllocation() && "Expected valid source pointer");
   assert(MDstPtr && "Expected valid target pointer");
   *MDstPtr = MSrcAllocaCmd->getMemAllocation();
+
   return CL_SUCCESS;
 }
 
@@ -1140,10 +1216,15 @@ void MemCpyCommandHost::emitInstrumentationData() {
 #endif
 }
 
+ContextImplPtr MemCpyCommandHost::getContext() const {
+  const QueueImplPtr &Queue = MQueue->is_host() ? MSrcQueue : MQueue;
+  return detail::getSyclObjImpl(Queue->get_context());
+}
+
 cl_int MemCpyCommandHost::enqueueImp() {
   QueueImplPtr Queue = MQueue->is_host() ? MSrcQueue : MQueue;
-  std::vector<EventImplPtr> EventImpls =
-      Command::prepareEvents(detail::getSyclObjImpl(Queue->get_context()));
+  waitForPreparedHostEvents();
+  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   std::vector<RT::PiEvent> RawEvents = getPiEvents(EventImpls);
 
   RT::PiEvent &Event = MEvent->getHandleRef();
@@ -1153,6 +1234,7 @@ cl_int MemCpyCommandHost::enqueueImp() {
   if (MDstReq.MAccessMode == access::mode::discard_read_write ||
       MDstReq.MAccessMode == access::mode::discard_write) {
     Command::waitForEvents(Queue, EventImpls, Event);
+
     return CL_SUCCESS;
   }
 
@@ -1162,14 +1244,29 @@ cl_int MemCpyCommandHost::enqueueImp() {
       MSrcReq.MOffset, MSrcReq.MElemSize, *MDstPtr, MQueue, MDstReq.MDims,
       MDstReq.MMemoryRange, MDstReq.MAccessRange, MDstReq.MOffset,
       MDstReq.MElemSize, std::move(RawEvents), Event);
+
   return CL_SUCCESS;
 }
 
-EmptyCommand::EmptyCommand(QueueImplPtr Queue, Requirement Req)
-    : Command(CommandType::EMPTY_TASK, std::move(Queue)),
-      MRequirement(std::move(Req)) {
-
+EmptyCommand::EmptyCommand(QueueImplPtr Queue)
+    : Command(CommandType::EMPTY_TASK, std::move(Queue)) {
   emitInstrumentationDataProxy();
+}
+
+cl_int EmptyCommand::enqueueImp() {
+  waitForPreparedHostEvents();
+  waitForEvents(MQueue, MPreparedDepsEvents, MEvent->getHandleRef());
+
+  return CL_SUCCESS;
+}
+
+void EmptyCommand::addRequirement(Command *DepCmd, AllocaCommandBase *AllocaCmd,
+                                  const Requirement *Req) {
+  const Requirement &ReqRef = *Req;
+  MRequirements.emplace_back(ReqRef);
+  const Requirement *const StoredReq = &MRequirements.back();
+
+  addDep(DepDesc{DepCmd, StoredReq, AllocaCmd});
 }
 
 void EmptyCommand::emitInstrumentationData() {
@@ -1178,7 +1275,12 @@ void EmptyCommand::emitInstrumentationData() {
     return;
   // Create a payload with the command name and an event using this payload to
   // emit a node_create
-  MAddress = MRequirement.MSYCLMemObj;
+  if (MRequirements.empty())
+    return;
+
+  Requirement &Req = *MRequirements.begin();
+
+  MAddress = Req.MSYCLMemObj;
   makeTraceEventProlog(MAddress);
 
   if (MFirstInstance) {
@@ -1282,6 +1384,9 @@ static std::string cgTypeToString(detail::CG::CGTYPE Type) {
     break;
   case detail::CG::PREFETCH_USM:
     return "prefetch usm";
+    break;
+  case detail::CG::CODEPLAY_HOST_TASK:
+    return "host task";
     break;
   default:
     return "unknown";
@@ -1494,9 +1599,8 @@ void DispatchNativeKernel(void *Blob) {
 }
 
 cl_int ExecCGCommand::enqueueImp() {
-  std::vector<EventImplPtr> EventImpls =
-      Command::prepareEvents(detail::getSyclObjImpl(MQueue->get_context()));
-
+  waitForPreparedHostEvents();
+  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   auto RawEvents = getPiEvents(EventImpls);
 
   RT::PiEvent &Event = MEvent->getHandleRef();
@@ -1520,6 +1624,7 @@ cl_int ExecCGCommand::enqueueImp() {
         Scheduler::getInstance().getDefaultHostQueue(), Req->MDims,
         Req->MAccessRange, Req->MAccessRange, /*DstOffset=*/{0, 0, 0},
         Req->MElemSize, std::move(RawEvents), Event);
+
     return CL_SUCCESS;
   }
   case CG::CGTYPE::COPY_PTR_TO_ACC: {
@@ -1553,6 +1658,7 @@ cl_int ExecCGCommand::enqueueImp() {
         ReqSrc->MOffset, ReqSrc->MElemSize, AllocaCmdDst->getMemAllocation(),
         MQueue, ReqDst->MDims, ReqDst->MMemoryRange, ReqDst->MAccessRange,
         ReqDst->MOffset, ReqDst->MElemSize, std::move(RawEvents), Event);
+
     return CL_SUCCESS;
   }
   case CG::CGTYPE::FILL: {
@@ -1565,6 +1671,7 @@ cl_int ExecCGCommand::enqueueImp() {
         Fill->MPattern.size(), Fill->MPattern.data(), Req->MDims,
         Req->MMemoryRange, Req->MAccessRange, Req->MOffset, Req->MElemSize,
         std::move(RawEvents), Event);
+
     return CL_SUCCESS;
   }
   case CG::CGTYPE::RUN_ON_HOST_INTEL: {
@@ -1594,6 +1701,7 @@ cl_int ExecCGCommand::enqueueImp() {
         Plugin.call<PiApiKind::piEventsWait>(RawEvents.size(), &RawEvents[0]);
       }
       DispatchNativeKernel((void *)ArgsBlob.data());
+
       return CL_SUCCESS;
     }
 
@@ -1651,6 +1759,7 @@ cl_int ExecCGCommand::enqueueImp() {
       }
       ExecKernel->MHostKernel->call(NDRDesc,
                                     getEvent()->getHostProfilingInfo());
+
       return CL_SUCCESS;
     }
 
@@ -1732,18 +1841,21 @@ cl_int ExecCGCommand::enqueueImp() {
       return detail::enqueue_kernel_launch::handleError(Error, DeviceImpl,
                                                         Kernel, NDRDesc);
     }
+
     return PI_SUCCESS;
   }
   case CG::CGTYPE::COPY_USM: {
     CGCopyUSM *Copy = (CGCopyUSM *)MCommandGroup.get();
     MemoryManager::copy_usm(Copy->getSrc(), MQueue, Copy->getLength(),
                             Copy->getDst(), std::move(RawEvents), Event);
+
     return CL_SUCCESS;
   }
   case CG::CGTYPE::FILL_USM: {
     CGFillUSM *Fill = (CGFillUSM *)MCommandGroup.get();
     MemoryManager::fill_usm(Fill->getDst(), MQueue, Fill->getLength(),
                             Fill->getFill(), std::move(RawEvents), Event);
+
     return CL_SUCCESS;
   }
   case CG::CGTYPE::PREFETCH_USM: {
@@ -1751,9 +1863,10 @@ cl_int ExecCGCommand::enqueueImp() {
     MemoryManager::prefetch_usm(Prefetch->getDst(), MQueue,
                                 Prefetch->getLength(), std::move(RawEvents),
                                 Event);
+
     return CL_SUCCESS;
   }
-  case CG::CGTYPE::INTEROP_TASK_CODEPLAY: {
+  case CG::CGTYPE::CODEPLAY_INTEROP_TASK: {
     const detail::plugin &Plugin = MQueue->getPlugin();
     CGInteropTask *ExecInterop = (CGInteropTask *)MCommandGroup.get();
     // Wait for dependencies to complete before dispatching work on the host
@@ -1780,6 +1893,31 @@ cl_int ExecCGCommand::enqueueImp() {
                                                 nullptr, &Event);
     Plugin.call<PiApiKind::piQueueRelease>(
         reinterpret_cast<pi_queue>(MQueue->get()));
+
+    return CL_SUCCESS;
+  }
+  case CG::CGTYPE::CODEPLAY_HOST_TASK: {
+    CGHostTask *HostTask = static_cast<CGHostTask *>(MCommandGroup.get());
+
+    for (ArgDesc &Arg : HostTask->MArgs) {
+      switch (Arg.MType) {
+      case kernel_param_kind_t::kind_accessor: {
+        Requirement *Req = static_cast<Requirement *>(Arg.MPtr);
+        AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
+
+        Req->MData = AllocaCmd->getMemAllocation();
+        break;
+      }
+      default:
+        throw runtime_error("Unsupported arg type", PI_INVALID_VALUE);
+      }
+    }
+
+    MQueue->getThreadPool().submit<DispatchHostTask>(
+        std::move(DispatchHostTask(this)));
+
+    MShouldCompleteEventIfPossible = false;
+
     return CL_SUCCESS;
   }
   case CG::CGTYPE::NONE:

@@ -1,48 +1,15 @@
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
-//==----------------reduction_ctor.cpp - SYCL reduction basic test ---------==//
-//
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-//
-//===----------------------------------------------------------------------===//
 
 // This performs basic checks such as reduction creation, getIdentity() method,
 // and the combine() method of the aux class 'reducer'.
 
+#include "reduction_utils.hpp"
 #include <CL/sycl.hpp>
 #include <cassert>
 
 using namespace cl::sycl;
 
-template <typename T, class BinaryOperation, int N>
-struct init_data_t {
-  void initInputData(T IdentityVal,
-                     buffer<T, 1> &InBuf,
-                     T &ExpectedReduValue) {
-    ExpectedReduValue = IdentityVal;
-    BinaryOperation Op;
-    auto In = InBuf.template get_access<access::mode::write>();
-    for (int I = 0; I < N; ++I) {
-      In[I] = ((I + 1) % 5) + 1;
-      ExpectedReduValue = Op(ExpectedReduValue, In[I]);
-    }
-  }
-};
-
-template <typename T, int N>
-struct init_data_t<T, std::multiplies<T>, N> {
-  void initInputData(T IdentityVal, buffer<T, 1> &InBuf, T &ExpectedReduValue) {
-    ExpectedReduValue = IdentityVal;
-    std::multiplies<T> Op;
-    auto In = InBuf.template get_access<access::mode::write>();
-    for (int I = 0; I < N; ++I) {
-      In[I] = 1 + (((I % 37) == 0) ? 1 : 0);
-      ExpectedReduValue = Op(ExpectedReduValue, In[I]);
-    }
-  }
-};
 
 template <typename T, typename Reduction>
 void test_reducer(Reduction &Redu, T A, T B) {
@@ -157,15 +124,13 @@ int main() {
   testBoth<int, intel::bit_or<int>>(0, 1, 8);
   testBoth<int, intel::bit_xor<int>>(0, 7, 3);
   testBoth<int, intel::bit_and<int>>(~0, 7, 3);
-  testBoth<int, intel::minimum<int>>(std::numeric_limits<int>::max(), 7, 3);
-  testBoth<int, intel::maximum<int>>(std::numeric_limits<int>::min(), 7, 3);
+  testBoth<int, intel::minimum<int>>((std::numeric_limits<int>::max)(), 7, 3);
+  testBoth<int, intel::maximum<int>>((std::numeric_limits<int>::min)(), 7, 3);
 
   testBoth<float, intel::plus<float>>(0, 1, 7);
   testBoth<float, std::multiplies<float>>(1, 1, 7);
-  testBoth<float, intel::minimum<float>>(
-      std::numeric_limits<float>::max(), 7, 3);
-  testBoth<float, intel::maximum<float>>(
-      std::numeric_limits<float>::min(), 7, 3);
+  testBoth<float, intel::minimum<float>>(getMaximumFPValue<float>(), 7, 3);
+  testBoth<float, intel::maximum<float>>(getMinimumFPValue<float>(), 7, 3);
 
   testUnknown<Point<float>, 0, PointPlus<float>>(Point<float>(0), Point<float>(1), Point<float>(7));
   testUnknown<Point<float>, 1, PointPlus<float>>(Point<float>(0), Point<float>(1), Point<float>(7));

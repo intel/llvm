@@ -2194,12 +2194,26 @@ void LLVMToSPIRV::transFunction(Function *I) {
     }
   }
 
-  if (BF->getModule()->isEntryPoint(spv::ExecutionModelKernel, BF->getId()) &&
-      BF->shouldFPContractBeDisabled()) {
+  bool IsKernelEntryPoint =
+      BF->getModule()->isEntryPoint(spv::ExecutionModelKernel, BF->getId());
+  bool DisableContraction = false;
+  switch (BM->getFPContractMode()) {
+  case FPContractMode::Fast:
+    DisableContraction = false;
+    break;
+  case FPContractMode::On:
+    DisableContraction = IsKernelEntryPoint && BF->shouldFPContractBeDisabled();
+    break;
+  case FPContractMode::Off:
+    DisableContraction = IsKernelEntryPoint;
+    break;
+  }
+
+  if (DisableContraction) {
     BF->addExecutionMode(BF->getModule()->add(
         new SPIRVExecutionMode(BF, spv::ExecutionModeContractionOff)));
   }
-  if (BF->getModule()->isEntryPoint(spv::ExecutionModelKernel, BF->getId())) {
+  if (IsKernelEntryPoint) {
     collectInputOutputVariables(BF, I);
   }
 }

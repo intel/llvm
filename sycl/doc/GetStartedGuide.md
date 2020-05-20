@@ -3,7 +3,7 @@
 The DPC++ Compiler compiles C++ and SYCL\* source files with code for both CPU
 and a wide range of compute accelerators such as GPU and FPGA.
 
-**Table of contents**
+## Table of contents
 
 * [Prerequisites](#prerequisites)
   * [Create DPC++ workspace](#create-dpc-workspace)
@@ -21,15 +21,16 @@ and a wide range of compute accelerators such as GPU and FPGA.
 
 ## Prerequisites
 
-* `git` - https://git-scm.com/downloads
-* `cmake` version 3.2 or later - http://www.cmake.org/download/
-* `python` - https://www.python.org/downloads/release/python-2716/
-* `ninja` - https://github.com/ninja-build/ninja/wiki/Pre-built-Ninja-packages
+* `git` - [Download](https://git-scm.com/downloads)
+* `cmake` version 3.2 or later - [Download](http://www.cmake.org/download/)
+* `python` - [Download](https://www.python.org/downloads/release/python-2716/)
+* `ninja` -
+[Download](https://github.com/ninja-build/ninja/wiki/Pre-built-Ninja-packages)
 * C++ compiler
   * Linux: `GCC` version 5.1.0 or later (including libstdc++) -
-    https://gcc.gnu.org/install/
+    [Download](https://gcc.gnu.org/install/)
   * Windows: `Visual Studio` version 15.7 preview 4 or later -
-    https://visualstudio.microsoft.com/downloads/
+    [Download](https://visualstudio.microsoft.com/downloads/)
 
 ### Create DPC++ workspace
 
@@ -37,24 +38,23 @@ Throughout this document `DPCPP_HOME` denotes the path to the local directory
 created as DPC++ workspace. It might be useful to create an environment variable
 with the same name.
 
-**Linux**
+**Linux**:
 
 ```bash
 export DPCPP_HOME=~/sycl_workspace
-mkdir -p $DPCPP_HOME/build
+mkdir $DPCPP_HOME
 cd $DPCPP_HOME
 
 git clone https://github.com/intel/llvm -b sycl
-cd $DPCPP_HOME/build
 ```
 
-**Windows (64-bit)**
+**Windows (64-bit)**:
 
 Open a developer command prompt using one of two methods:
 
-- Click start menu and search for "**x64** Native Tools Command Prompt for VS
+* Click start menu and search for "**x64** Native Tools Command Prompt for VS
   XXXX", where XXXX is a version of installed Visual Studio.
-- Ctrl-R, write "cmd", click enter, then run
+* Ctrl-R, write "cmd", click enter, then run
   `"C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Auxiliary\Build\vcvarsall.bat" x64`
 
 ```bat
@@ -63,8 +63,6 @@ mkdir %DPCPP_HOME%
 cd %DPCPP_HOME%
 
 git clone https://github.com/intel/llvm -b sycl
-mkdir %DPCPP_HOME%\build
-cd %DPCPP_HOME%\build
 ```
 
 ## Build DPC++ toolchain
@@ -76,38 +74,32 @@ The easiest way to get started is to use the buildbot
 In case you want to configure CMake manually the up-to-date reference for
 variables is in these files.
 
-**Linux**
+**Linux**:
 
 ```bash
 python $DPCPP_HOME/llvm/buildbot/configure.py
 python $DPCPP_HOME/llvm/buildbot/compile.py
 ```
 
-**Windows**
+**Windows (64-bit)**:
 
 ```bat
 python %DPCPP_HOME%\llvm\buildbot\configure.py
 python %DPCPP_HOME%\llvm\buildbot\compile.py
 ```
 
-**Options**
-
 You can use the following flags with `configure.py`:
 
- * `--system-ocl` -> Don't Download OpenCL deps via cmake but use the system ones
- * `--no-werror` -> Don't treat warnings as errors when compiling llvm
- * `--cuda` -> use the cuda backend (see [Nvidia CUDA](#build-dpc-toolchain-with-support-for-nvidia-cuda))
- * `--shared-libs` -> Build shared libraries
- * `-t` -> Build type (debug or release)
- * `-o` -> Path to build directory
- * `--cmake-gen` -> Set build system type (e.g. `--cmake-gen "Unix Makefiles"`)
+* `--system-ocl` -> Don't Download OpenCL deps via cmake but use the system ones
+* `--no-werror` -> Don't treat warnings as errors when compiling llvm
+* `--cuda` -> use the cuda backend (see [Nvidia CUDA](#build-dpc-toolchain-with-support-for-nvidia-cuda))
+* `--shared-libs` -> Build shared libraries
+* `-t` -> Build type (debug or release)
+* `-o` -> Path to build directory
+* `--cmake-gen` -> Set build system type (e.g. `--cmake-gen "Unix Makefiles"`)
 
 Ahead-of-time compilation for the Intel&reg; processors is enabled by default.
 For more, see [opencl-aot documentation](../../opencl-aot/README.md).
-
-**Deployment**
-
-TODO: add instructions how to deploy built DPC++ toolchain.
 
 ### Build DPC++ toolchain with libc++ library
 
@@ -115,8 +107,9 @@ There is experimental support for building and linking DPC++ runtime with
 libc++ library instead of libstdc++. To enable it the following CMake options
 should be used.
 
-**Linux**
-```
+**Linux**:
+
+```cmake
 -DSYCL_USE_LIBCXX=ON \
 -DSYCL_LIBCXX_INCLUDE_PATH=<path to libc++ headers> \
 -DSYCL_LIBCXX_LIBRARY_PATH=<path to libc++ and libc++abi libraries>
@@ -137,6 +130,10 @@ the system, refer to
 Currently, the only combination tested is Ubuntu 18.04 with CUDA 10.2 using
 a Titan RTX GPU (SM 71), but it should work on any GPU compatible with SM 50 or
 above.
+
+### Deployment
+
+TODO: add instructions how to deploy built DPC++ toolchain.
 
 ## Use DPC++ toolchain
 
@@ -164,80 +161,71 @@ which contains all the symbols required.
 To run DPC++ applications on OpenCL devices, OpenCL implementation(s) must be
 present in the system.
 
-Please, refer to [the Release Notes](../ReleaseNotes.md) for recommended Intel
-runtime versions.
-
-The `GPU` runtime that is needed to run DPC++ application on Intel `GPU` devices
-can be downloaded from the following web pages:
-
-* Linux: [Intel&reg; Graphics Compute Runtime for
-   OpenCL&trade;](https://github.com/intel/compute-runtime/releases)
-
-* Windows: [Intel&reg; Download
-   Center](https://downloadcenter.intel.com/product/80939/Graphics-Drivers)
-
-
-To install Intel `CPU` runtime for OpenCL devices the corresponding runtime
-asset/archive should be downloaded from
-[DPC++ Compiler and Runtime updates](../ReleaseNotes.md) and installed following
-procedure below.
-
-Intel `CPU` runtime for OpenCL depends on Threading Building Blocks library
-which should be downloaded from [Threading Building Blocks (TBB)
- GitHub repository](https://github.com/intel/tbb) and installed following
-procedure below.
+The `GPU` and `CPU` runtimes as well as TBB runtime which are needed to run
+DPC++ application on Intel `GPU` or Intel `CPU` devices can be downloaded using
+links in [the dependency configuration file](../../buildbot/dependency.conf)
+and installed following the instructions below. The same versions are used in PR testing.
 
 Intel `CPU` runtime for OpenCL devices can be switched into Intel FPGA
 Emulation device for OpenCL. The following parameter should be set in `cl.cfg`
-file (available in directory containing CPU runtime for OpenCL) to switch
-OpenCL device mode:
-```
+file (available in directory containing CPU runtime for OpenCL) or environment
+variable with the same name. The following value should be set to switch OpenCL device
+mode:
+
+```bash
 CL_CONFIG_DEVICES = fpga-emu
 ```
 
-**Linux**
+**Linux**:
 
 1) Extract the archive. For example, for the archive
 `oclcpu_rt_<cpu_version>.tar.gz` you would run the following commands
-```bash
-mkdir -p /opt/intel/oclcpuexp_<cpu_version>
-cd /opt/intel/oclcpuexp_<cpu_version>
-tar -zxvf oclcpu_rt_<cpu_version>.tar.gz
-```
+
+    ```bash
+    mkdir -p /opt/intel/oclcpuexp_<cpu_version>
+    cd /opt/intel/oclcpuexp_<cpu_version>
+    tar -zxvf oclcpu_rt_<cpu_version>.tar.gz
+    ```
+
 2) Create ICD file pointing to the new runtime
-```bash
-echo /opt/intel/oclcpuexp_<cpu_version>/x64/libintelocl.so >
-  /etc/OpenCL/vendors/intel_expcpu.icd
-```
+
+    ```bash
+    echo /opt/intel/oclcpuexp_<cpu_version>/x64/libintelocl.so >
+      /etc/OpenCL/vendors/intel_expcpu.icd
+    ```
 
 3) Extract TBB libraries. For example, for the archive tbb-<tbb_version>-lin.tgz
 
-```bash
-mkdir -p /opt/intel/tbb_<tbb_version>
-cd /opt/intel/tbb_<tbb_version>
-tar -zxvf tbb*lin.tgz
-```
+    ```bash
+    mkdir -p /opt/intel/tbb_<tbb_version>
+    cd /opt/intel/tbb_<tbb_version>
+    tar -zxvf tbb*lin.tgz
+    ```
 
 4) Copy files from or create symbolic links to TBB libraries in OpenCL RT
 folder:
-```bash
-ln -s /opt/intel/tbb_<tbb_version>/tbb/lib/intel64/gcc4.8/libtbb.so
-  /opt/intel/oclcpuexp/x64/libtbb.so
-ln -s /opt/intel/tbb_<tbb_version>/tbb/lib/intel64/gcc4.8/libtbbmalloc.so
-  /opt/intel/oclcpuexp/x64/libtbbmalloc.so
-ln -s /opt/intel/tbb_<tbb_version>/tbb/lib/intel64/gcc4.8/libtbb.so.2
-  /opt/intel/oclcpuexp/x64/libtbb.so.2
-ln -s /opt/intel/tbb_<tbb_version>/tbb/lib/intel64/gcc4.8/libtbbmalloc.so.2
-  /opt/intel/oclcpuexp/x64/libtbbmalloc.so.2
-```
+
+    ```bash
+    ln -s /opt/intel/tbb_<tbb_version>/tbb/lib/intel64/gcc4.8/libtbb.so
+      /opt/intel/oclcpuexp_<cpu_version>/x64
+    ln -s /opt/intel/tbb_<tbb_version>/tbb/lib/intel64/gcc4.8/libtbbmalloc.so
+      /opt/intel/oclcpuexp_<cpu_version>/x64
+    ln -s /opt/intel/tbb_<tbb_version>/tbb/lib/intel64/gcc4.8/libtbb.so.2
+      /opt/intel/oclcpuexp_<cpu_version>/x64
+    ln -s /opt/intel/tbb_<tbb_version>/tbb/lib/intel64/gcc4.8/libtbbmalloc.so.2
+      /opt/intel/oclcpuexp_<cpu_version>/x64
+    ```
 
 5) Configure library paths
-```bash
-echo /opt/intel/oclcpuexp_<cpu_version>/x64 >
-  /etc/ld.so.conf.d/libintelopenclexp.conf
-ldconfig -f /etc/ld.so.conf.d/libintelopenclexp.conf
-```
-**Windows (64-bit)**
+
+    ```bash
+    echo /opt/intel/oclcpuexp_<cpu_version>/x64 >
+      /etc/ld.so.conf.d/libintelopenclexp.conf
+    ldconfig -f /etc/ld.so.conf.d/libintelopenclexp.conf
+    ```
+
+**Windows (64-bit)**:
+
 1) If you need `GPU` as well, then update/install it first. Do it **before**
 installing `CPU` runtime as `GPU` runtime installer may re-write some important
 files or settings and make existing `CPU` runtime not working properly.
@@ -253,9 +241,10 @@ type `Command Prompt`, click the Right mouse button on it, then click
 to install runtime to the system and setup environment variables. So, if the
 extracted files are in `c:\oclcpu_rt_<cpu_version>\` folder, then type the
 command:
-```bash
-c:\oclcpu_rt_<cpu_version>\install.bat c:\tbb_<tbb_version>\tbb\bin\intel64\vc14
-```
+
+    ```bash
+    c:\oclcpu_rt_<cpu_version>\install.bat c:\tbb_<tbb_version>\tbb\bin\intel64\vc14
+    ```
 
 ### Test DPC++ toolchain
 
@@ -263,12 +252,13 @@ c:\oclcpu_rt_<cpu_version>\install.bat c:\tbb_<tbb_version>\tbb\bin\intel64\vc14
 
 To verify that built DPC++ toolchain is working correctly, run:
 
-**Linux**
+**Linux**:
+
 ```bash
 python $DPCPP_HOME/llvm/buildbot/check.py
 ```
 
-**Windows**
+**Windows (64-bit)**:
 
 ```bat
 python %DPCPP_HOME%\llvm\buildbot\check.py
@@ -294,12 +284,14 @@ To configure testing of DPC++ toochain set
 `SYCL_IMPLEMENTATION=Intel_SYCL` and
 `Intel_SYCL_ROOT=<path to the SYCL installation>` CMake variables.
 
-**Linux**
+**Linux**:
+
 ```bash
 cmake -DIntel_SYCL_ROOT=$DPCPP_HOME/deploy -DSYCL_IMPLEMENTATION=Intel_SYCL ...
 ```
 
-**Windows (64-bit)**
+**Windows (64-bit)**:
+
 ```bat
 cmake -DIntel_SYCL_ROOT=%DPCPP_HOME%\deploy -DSYCL_IMPLEMENTATION=Intel_SYCL ...
 ```
@@ -308,21 +300,25 @@ cmake -DIntel_SYCL_ROOT=%DPCPP_HOME%\deploy -DSYCL_IMPLEMENTATION=Intel_SYCL ...
 
 Building Doxygen documentation is similar to building the product itself. First,
 the following tools need to be installed:
-- doxygen
-- graphviz
+
+* doxygen
+* graphviz
 
 Then you'll need to add the following options to your CMake configuration
 command:
-```
+
+```cmake
 -DLLVM_ENABLE_DOXYGEN=ON
 ```
 
 After CMake cache is generated, build the documentation with `doxygen-sycl`
-target. It will be put to `/path/to/build/tools/sycl/doc/html` directory.
+target. It will be put to `$DPCPP_HOME/llvm/build/tools/sycl/doc/html`
+directory.
 
 ### Run simple DPC++ application
 
 A simple DPC++ or SYCL\* program consists of following parts:
+
 1. Header section
 2. Allocating buffer for data
 3. Creating SYCL queue
@@ -384,16 +380,18 @@ int main() {
 
 To build simple-sycl-app put `bin` and `lib` to PATHs:
 
-**Linux**
+**Linux**:
+
 ```bash
-export PATH=$DPCPP_HOME/build/bin:$PATH
-export LD_LIBRARY_PATH=$DPCPP_HOME/build/lib:$LD_LIBRARY_PATH
+export PATH=$DPCPP_HOME/llvm/build/bin:$PATH
+export LD_LIBRARY_PATH=$DPCPP_HOME/llvm/build/lib:$LD_LIBRARY_PATH
 ```
 
-**Windows (64-bit)**
+**Windows (64-bit)**:
+
 ```bat
-set PATH=%DPCPP_HOME%\build\bin;%PATH%
-set LIB=%DPCPP_HOME%\build\lib;%LIB%
+set PATH=%DPCPP_HOME%\llvm\build\bin;%PATH%
+set LIB=%DPCPP_HOME%\llvm\build\lib;%LIB%
 ```
 
 and run following command:
@@ -412,7 +410,7 @@ clang++ -fsycl -fsycl-targets=nvptx64-nvidia-cuda-sycldevice \
 This `simple-sycl-app.exe` application doesn't specify SYCL device for
 execution, so SYCL runtime will use `default_selector` logic to select one
 of accelerators available in the system or SYCL host device.
-In this case, the behaviour of the `default_selector` can be altered
+In this case, the behavior of the `default_selector` can be altered
 using the `SYCL_BE` environment variable, setting `PI_CUDA` forces
 the usage of the CUDA backend (if available), `PI_OPENCL` will
 force the usage of the OpenCL backend.
@@ -426,25 +424,26 @@ If there are no OpenCL or CUDA devices available, the SYCL host device is used.
 The SYCL host device executes the SYCL application directly in the host,
 without using any low-level API.
 
-Note: `nvptx64-nvidia-cuda-sycldevice` is usable with `-fsycl-targets`
+**NOTE**: `nvptx64-nvidia-cuda-sycldevice` is usable with `-fsycl-targets`
 if clang was built with the cmake option `SYCL_BUILD_PI_CUDA=ON`.
 
-**Linux & Windows**
+**Linux & Windows (64-bit)**:
+
 ```bash
 ./simple-sycl-app.exe
 The results are correct!
 ```
 
-**Note**:
-Currently, when the application has been built with the CUDA target, the CUDA
-backend must be selected at runtime using the `SYCL_BE` environment variable.
+**NOTE**: Currently, when the application has been built with the CUDA target,
+the CUDA backend must be selected at runtime using the `SYCL_BE` environment
+variable.
 
 ```bash
 SYCL_BE=PI_CUDA ./simple-sycl-app-cuda.exe
 ```
 
-NOTE: DPC++/SYCL developers can specify SYCL device for execution using device
-selectors (e.g. `cl::sycl::cpu_selector`, `cl::sycl::gpu_selector`,
+**NOTE**: DPC++/SYCL developers can specify SYCL device for execution using
+device selectors (e.g. `cl::sycl::cpu_selector`, `cl::sycl::gpu_selector`,
 [Intel FPGA selector(s)](extensions/IntelFPGA/FPGASelector.md)) as
 explained in following section [Code the program for a specific
 GPU](#code-the-program-for-a-specific-gpu).
@@ -493,8 +492,8 @@ int main() {
 
 ```
 
-The device selector below selects an NVIDIA device only, and won't
-execute if there is none.
+The device selector below selects an NVIDIA device only, and won't execute if
+there is none.
 
 ```c++
 class CUDASelector : public cl::sycl::device_selector {
@@ -515,33 +514,33 @@ class CUDASelector : public cl::sycl::device_selector {
 
 ## C++ standard
 
-- DPC++ runtime is built as C++14 library.
-- DPC++ compiler is building apps as C++14 apps by default.
+* DPC++ runtime is built as C++14 library.
+* DPC++ compiler is building apps as C++17 apps by default.
 
 ## Known Issues and Limitations
 
-- DPC++ device compiler fails if the same kernel was used in different
+* DPC++ device compiler fails if the same kernel was used in different
   translation units.
-- SYCL host device is not fully supported.
-- 32-bit host/target is not supported.
-- DPC++ works only with OpenCL low level runtimes which support out-of-order
+* SYCL host device is not fully supported.
+* 32-bit host/target is not supported.
+* DPC++ works only with OpenCL low level runtimes which support out-of-order
   queues.
-- On Windows linking DPC++ applications with `/MTd` flag is known to cause
+* On Windows linking DPC++ applications with `/MTd` flag is known to cause
   crashes.
 
 ### CUDA back-end limitations
 
-- Backend is only supported on Linux
-- The only combination tested is Ubuntu 18.04 with CUDA 10.2 using a Titan RTX
+* Backend is only supported on Linux
+* The only combination tested is Ubuntu 18.04 with CUDA 10.2 using a Titan RTX
   GPU (SM 71), but it should work on any GPU compatible with SM 50 or above
-- The NVIDIA OpenCL headers conflict with the OpenCL headers required for this
+* The NVIDIA OpenCL headers conflict with the OpenCL headers required for this
   project and may cause compilation issues on some platforms
 
 ## Find More
 
-- DPC++ specification:
+* DPC++ specification:
 [https://spec.oneapi.com/versions/latest/elements/dpcpp/source/index.html](https://spec.oneapi.com/versions/latest/elements/dpcpp/source/index.html)
-- SYCL\* 1.2.1 specification:
+* SYCL\* 1.2.1 specification:
 [www.khronos.org/registry/SYCL/specs/sycl-1.2.1.pdf](https://www.khronos.org/registry/SYCL/specs/sycl-1.2.1.pdf)
 
 \*Other names and brands may be claimed as the property of others.

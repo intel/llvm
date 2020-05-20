@@ -826,9 +826,8 @@ public:
 
   template <int Dims = Dimensions, typename AllocatorT,
 	   typename = typename detail::enable_if_t<
-		   (Dims == 0) &&
-                    (!IsPlaceH && (IsGlobalBuf || IsConstantBuf))>
-		    			>
+		   (Dims == 0) && 
+                    (!IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf))>
   accessor(buffer<DataT,1,AllocatorT> &BufferRef,
 		  handler &CommandGroupHandler)
 #ifdef __SYCL_DEVICE_ONLY__
@@ -866,9 +865,9 @@ public:
 #endif
 
   template <int Dims = Dimensions, typename AllocatorT,
-            typename = detail::enable_if_t<(Dims > 0) && (Dims == Dimensions) &&
-                                           (!IsPlaceH &&
-                                            (IsGlobalBuf || IsConstantBuf))>>
+            typename = detail::enable_if_t<
+                (Dims > 0) && (Dims == Dimensions) &&
+                (!IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf))>>
   accessor(buffer<DataT, Dims, AllocatorT> &BufferRef,
            handler &CommandGroupHandler)
 #ifdef __SYCL_DEVICE_ONLY__
