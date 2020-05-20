@@ -394,6 +394,7 @@ public:
       enable_if_t<IsKnownIdentityOp<_T, _BinaryOperation>::value> * = nullptr>
   reduction_impl(accessor_type &Acc, const T &Identity)
       : MAcc(Acc), MIdentity(getIdentity()) {
+    (void)Identity;
     assert(Acc.get_count() == 1 &&
            "Only scalar/1-element reductions are supported now.");
     // For now the implementation ignores the identity value given by user
