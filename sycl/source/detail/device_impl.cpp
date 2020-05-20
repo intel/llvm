@@ -35,6 +35,7 @@ device_impl::device_impl(pi_native_handle InteropDeviceHandle,
                          RT::PiDevice Device, PlatformImplPtr Platform,
                          const plugin &Plugin)
     : MDevice(Device), MIsHostDevice(false) {
+  assert(true);
 
   bool InteroperabilityConstructor = false;
   if (Device == nullptr) {
