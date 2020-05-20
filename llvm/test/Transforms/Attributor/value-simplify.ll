@@ -333,7 +333,7 @@ define internal void @test_byval(%struct.X* byval %a) {
 ;
 ; IS__CGSCC_NPM-LABEL: define {{[^@]+}}@test_byval
 ; IS__CGSCC_NPM-SAME: (i8* nocapture nofree readnone [[TMP0:%.*]])
-; IS__CGSCC_NPM-NEXT:    [[A_PRIV:%.*]] = alloca [[STRUCT_X:%.*]]
+; IS__CGSCC_NPM-NEXT:    [[A_PRIV:%.*]] = alloca [[STRUCT_X:%.*]], align 8
 ; IS__CGSCC_NPM-NEXT:    [[A_PRIV_CAST:%.*]] = bitcast %struct.X* [[A_PRIV]] to i8**
 ; IS__CGSCC_NPM-NEXT:    store i8* [[TMP0]], i8** [[A_PRIV_CAST]], align 8
 ; IS__CGSCC_NPM-NEXT:    [[G0:%.*]] = getelementptr [[STRUCT_X]], %struct.X* [[A_PRIV]], i32 0, i32 0
@@ -388,7 +388,7 @@ define void @fixpoint_changed(i32* %p) {
 ; CHECK-NEXT:    br label [[SW_EPILOG]]
 ; CHECK:       sw.epilog:
 ; CHECK-NEXT:    [[X_0:%.*]] = phi i32 [ 255, [[FOR_BODY]] ], [ 253, [[SW_BB]] ]
-; CHECK-NEXT:    store i32 [[X_0]], i32* [[P]], align 1
+; CHECK-NEXT:    store i32 [[X_0]], i32* [[P]], align 4
 ; CHECK-NEXT:    [[INC]] = add nsw i32 [[J_0]], 1
 ; CHECK-NEXT:    br label [[FOR_COND]]
 ; CHECK:       for.end:

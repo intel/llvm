@@ -1,6 +1,5 @@
-file(GLOB globbed *.c *.cpp)
 add_mlir_dialect_library(MLIRSCF
-  ${globbed}
+  SCF.cpp
   EDSC/Builders.cpp
 
   ADDITIONAL_HEADER_DIRS
@@ -13,7 +12,7 @@ add_mlir_dialect_library(MLIRSCF
   MLIREDSC
   MLIRIR
   MLIRLoopLikeInterface
-  MLIRSideEffects
+  MLIRSideEffectInterfaces
   MLIRStandardOps
   )
 

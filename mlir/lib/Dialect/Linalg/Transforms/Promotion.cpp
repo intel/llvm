@@ -88,7 +88,7 @@ LinalgOpInstancePromotionOptions::LinalgOpInstancePromotionOptions(
 /// Otherwise return size.
 static Value extractSmallestConstantBoundingSize(OpBuilder &b, Location loc,
                                                  Value size) {
-  auto affineMinOp = dyn_cast_or_null<AffineMinOp>(size.getDefiningOp());
+  auto affineMinOp = size.getDefiningOp<AffineMinOp>();
   if (!affineMinOp)
     return size;
   int64_t minConst = std::numeric_limits<int64_t>::max();
@@ -112,7 +112,7 @@ static Value allocBuffer(Type elementType, Value size, bool dynamicBuffers,
     alignment_attr =
         IntegerAttr::get(IntegerType::get(64, ctx), alignment.getValue());
   if (!dynamicBuffers)
-    if (auto cst = dyn_cast_or_null<ConstantIndexOp>(size.getDefiningOp()))
+    if (auto cst = size.getDefiningOp<ConstantIndexOp>())
       return std_alloc(
           MemRefType::get(width * cst.getValue(), IntegerType::get(8, ctx)),
           ValueRange{}, alignment_attr);
@@ -153,7 +153,7 @@ static PromotionInfo promoteSubviewAsNewBuffer(OpBuilder &b, Location loc,
   SmallVector<Value, 8> fullSizes, partialSizes;
   fullSizes.reserve(rank);
   partialSizes.reserve(rank);
-  for (auto en : llvm::enumerate(subView.getRanges())) {
+  for (auto en : llvm::enumerate(subView.getOrCreateRanges(b, loc))) {
     auto rank = en.index();
     auto rangeValue = en.value();
     // Try to extract a tight constant.
@@ -169,7 +169,7 @@ static PromotionInfo promoteSubviewAsNewBuffer(OpBuilder &b, Location loc,
                             dynamicBuffers, folder, alignment);
   auto fullLocalView = folded_std_view(
       folder, MemRefType::get(dynSizes, viewType.getElementType()), buffer,
-      folded_std_constant_index(folder, 0), fullSizes);
+      zero, fullSizes);
   SmallVector<Value, 4> zeros(fullSizes.size(), zero);
   SmallVector<Value, 4> ones(fullSizes.size(), one);
   auto partialLocalView =
