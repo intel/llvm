@@ -105,14 +105,35 @@ template <typename Type> struct get_kernel_name_t<detail::auto_name, Type> {
   using name = Type;
 };
 
+template <typename, typename T> struct check_fn_signature {
+  static_assert(std::integral_constant<T, false>::value,
+                "Second template parameter is required to be of function type");
+};
+
+template <typename F, typename RetT, typename... Args>
+struct check_fn_signature<F, RetT(Args...)> {
+private:
+  template <typename T>
+  static constexpr auto check(T *) -> typename std::is_same<
+      decltype(std::declval<T>().operator()(std::declval<Args>()...)),
+      RetT>::type;
+
+  template <typename> static constexpr std::false_type check(...);
+
+  using type = decltype(check<F>(0));
+
+public:
+  static constexpr bool value = type::value;
+};
+
 __SYCL_EXPORT device getDeviceFromHandler(handler &);
 
 } // namespace detail
 
 namespace intel {
 namespace detail {
-template <typename T, class BinaryOperation, int Dims, access::mode AccMode,
-          access::placeholder IsPlaceholder>
+template <typename T, class BinaryOperation, int Dims, bool IsUSM,
+          access::mode AccMode, access::placeholder IsPlaceholder>
 class reduction_impl;
 
 using cl::sycl::detail::enable_if_t;
@@ -140,12 +161,12 @@ reduCGFunc(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
 template <typename KernelName, typename KernelType, int Dims, class Reduction>
 enable_if_t<Reduction::has_fast_reduce && !Reduction::has_fast_atomics>
 reduAuxCGFunc(handler &CGH, const nd_range<Dims> &Range, size_t NWorkItems,
-              size_t KernelRun, Reduction &Redu);
+              Reduction &Redu);
 
 template <typename KernelName, typename KernelType, int Dims, class Reduction>
 enable_if_t<!Reduction::has_fast_reduce && !Reduction::has_fast_atomics>
 reduAuxCGFunc(handler &CGH, const nd_range<Dims> &Range, size_t NWorkItems,
-              size_t KernelRun, Reduction &Redu);
+              Reduction &Redu);
 } // namespace detail
 } // namespace intel
 
@@ -266,11 +287,9 @@ private:
 
   bool is_host() { return MIsHost; }
 
-  template <typename DataT, int Dims, access::mode AccessMode,
-            access::target AccessTarget>
-  void associateWithHandler(accessor<DataT, Dims, AccessMode, AccessTarget,
-                                     access::placeholder::false_t>
-                                Acc) {
+  template <typename T, int Dims, access::mode AccMode,
+            access::target AccTarget, access::placeholder IsPH>
+  void associateWithHandler(accessor<T, Dims, AccMode, AccTarget, IsPH> Acc) {
     detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Acc;
     detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
     detail::Requirement *Req = AccImpl.get();
@@ -281,7 +300,7 @@ private:
     // Add an accessor to the handler list of associated accessors.
     // For associated accessors index does not means nothing.
     MAssociatedAccesors.emplace_back(detail::kernel_param_kind_t::kind_accessor,
-                                     Req, static_cast<int>(AccessTarget),
+                                     Req, static_cast<int>(AccTarget),
                                      /*index*/ 0);
   }
 
@@ -692,18 +711,7 @@ public:
   void
   require(accessor<DataT, Dims, AccMode, AccTarget, access::placeholder::true_t>
               Acc) {
-    detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Acc;
-    detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
-    detail::Requirement *Req = AccImpl.get();
-    // Add accessor to the list of requirements.
-    MRequirements.push_back(Req);
-    // Store copy of the accessor.
-    MAccStorage.push_back(std::move(AccImpl));
-    // Add an accessor to the handler list of associated accessors.
-    // For associated accessors index does not means nothing.
-    MAssociatedAccesors.emplace_back(detail::kernel_param_kind_t::kind_accessor,
-                                     Req, static_cast<int>(AccTarget),
-                                     /*index*/ 0);
+    associateWithHandler(Acc);
   }
 
   /// Registers event dependencies on this command group.
@@ -802,6 +810,20 @@ public:
     MCGType = detail::CG::RUN_ON_HOST_INTEL;
   }
 
+  template <typename FuncT>
+  typename std::enable_if<detail::check_fn_signature<
+      typename std::remove_reference<FuncT>::type, void()>::value>::type
+  codeplay_host_task(FuncT Func) {
+    throwIfActionIsCreated();
+
+    MNDRDesc.set(range<1>(1));
+    MArgs = std::move(MAssociatedAccesors);
+
+    MHostTask.reset(new detail::HostTask(std::move(Func)));
+
+    MCGType = detail::CG::CODEPLAY_HOST_TASK;
+  }
+
   /// Defines and invokes a SYCL kernel function for the specified range and
   /// offset.
   ///
@@ -866,9 +888,23 @@ public:
             int Dims, typename Reduction>
   detail::enable_if_t<Reduction::accessor_mode == access::mode::read_write &&
                       Reduction::has_fast_atomics>
-  parallel_for(nd_range<Dims> Range, Reduction &Redu, KernelType KernelFunc) {
-    intel::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu,
-                                          Redu.MAcc);
+  parallel_for(nd_range<Dims> Range, Reduction Redu, KernelType KernelFunc) {
+    if (Reduction::is_usm)
+      Redu.associateWithHandler(*this);
+    shared_ptr_class<detail::queue_impl> QueueCopy = MQueue;
+    auto Acc = Redu.getUserAccessor();
+    intel::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu, Acc);
+
+    // Submit non-blocking copy from reduction accessor to user's reduction
+    // variable.
+    if (Reduction::is_usm) {
+      this->finalize();
+      handler CopyHandler(QueueCopy, MIsHost);
+      CopyHandler.saveCodeLoc(MCodeLoc);
+      Redu.associateWithHandler(CopyHandler);
+      CopyHandler.copy(Acc, Redu.getUSMPointer());
+      MLastEvent = CopyHandler.finalize();
+    }
   }
 
   /// Implements parallel_for() accepting nd_range and 1 reduction variable
@@ -885,8 +921,8 @@ public:
             int Dims, typename Reduction>
   detail::enable_if_t<Reduction::accessor_mode == access::mode::discard_write &&
                       Reduction::has_fast_atomics>
-  parallel_for(nd_range<Dims> Range, Reduction &Redu, KernelType KernelFunc) {
-    auto QueueCopy = MQueue;
+  parallel_for(nd_range<Dims> Range, Reduction Redu, KernelType KernelFunc) {
+    shared_ptr_class<detail::queue_impl> QueueCopy = MQueue;
     auto RWAcc = Redu.getReadWriteScalarAcc(*this);
     intel::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu,
                                           RWAcc);
@@ -896,7 +932,8 @@ public:
     handler CopyHandler(QueueCopy, MIsHost);
     CopyHandler.saveCodeLoc(MCodeLoc);
     CopyHandler.associateWithHandler(RWAcc);
-    CopyHandler.copy(RWAcc, Redu.MAcc);
+    Redu.associateWithHandler(CopyHandler);
+    CopyHandler.copy(RWAcc, Redu.getUserAccessor());
     MLastEvent = CopyHandler.finalize();
   }
 
@@ -918,7 +955,7 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims, typename Reduction>
   detail::enable_if_t<!Reduction::has_fast_atomics>
-  parallel_for(nd_range<Dims> Range, Reduction &Redu, KernelType KernelFunc) {
+  parallel_for(nd_range<Dims> Range, Reduction Redu, KernelType KernelFunc) {
     size_t NWorkGroups = Range.get_group_range().size();
 
     // This parallel_for() is lowered to the following sequence:
@@ -935,8 +972,10 @@ public:
     //    necessary to reduce all partial sums into one final sum.
 
     // 1. Call the kernel that includes user's lambda function.
+    if (Reduction::is_usm && NWorkGroups == 1)
+      Redu.associateWithHandler(*this);
     intel::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu);
-    auto QueueCopy = MQueue;
+    shared_ptr_class<detail::queue_impl> QueueCopy = MQueue;
     this->finalize();
 
     // 2. Run the additional aux kernel as many times as needed to reduce
@@ -950,7 +989,6 @@ public:
     // sum faster.
     size_t WGSize = Range.get_local_range().size();
     size_t NWorkItems = NWorkGroups;
-    size_t KernelRun = 1;
     while (NWorkItems > 1) {
       WGSize = std::min(WGSize, NWorkItems);
       NWorkGroups = NWorkItems / WGSize;
@@ -965,14 +1003,23 @@ public:
       // The last kernel DOES write to reduction's accessor.
       // Associate it with handler manually.
       if (NWorkGroups == 1)
-        AuxHandler.associateWithHandler(Redu.MAcc);
-      intel::detail::reduAuxCGFunc<KernelName, KernelType>(
-          AuxHandler, Range, NWorkItems, KernelRun, Redu);
+        Redu.associateWithHandler(AuxHandler);
+      intel::detail::reduAuxCGFunc<KernelName, KernelType>(AuxHandler, Range,
+                                                           NWorkItems, Redu);
       MLastEvent = AuxHandler.finalize();
 
       NWorkItems = NWorkGroups;
-      ++KernelRun;
     } // end while (NWorkItems > 1)
+
+    // Submit non-blocking copy from reduction accessor to user's reduction
+    // variable.
+    if (Reduction::is_usm) {
+      handler CopyHandler(QueueCopy, MIsHost);
+      CopyHandler.saveCodeLoc(MCodeLoc);
+      Redu.associateWithHandler(CopyHandler);
+      CopyHandler.copy(Redu.getUserAccessor(), Redu.getUSMPointer());
+      MLastEvent = CopyHandler.finalize();
+    }
   }
 
   /// Hierarchical kernel invocation method of a kernel defined as a lambda
@@ -1128,7 +1175,7 @@ public:
   template <typename FuncT> void interop_task(FuncT Func) {
 
     MInteropTask.reset(new detail::InteropTask(std::move(Func)));
-    MCGType = detail::CG::INTEROP_TASK_CODEPLAY;
+    MCGType = detail::CG::CODEPLAY_INTEROP_TASK;
   }
 
   /// Defines and invokes a SYCL kernel function for the specified range.
@@ -1586,6 +1633,8 @@ private:
   vector_class<char> MPattern;
   /// Storage for a lambda or function object.
   unique_ptr_class<detail::HostKernelBase> MHostKernel;
+  /// Storage for lambda/function when using HostTask
+  unique_ptr_class<detail::HostTask> MHostTask;
   detail::OSModuleHandle MOSModuleHandle;
   // Storage for a lambda or function when using InteropTasks
   std::unique_ptr<detail::InteropTask> MInteropTask;
@@ -1614,8 +1663,8 @@ private:
   friend class detail::stream_impl;
   // Make reduction_impl friend to store buffers and arrays created for it
   // in handler from reduction_impl methods.
-  template <typename T, class BinaryOperation, int Dims, access::mode AccMode,
-            access::placeholder IsPlaceholder>
+  template <typename T, class BinaryOperation, int Dims, bool IsUSM,
+            access::mode AccMode, access::placeholder IsPlaceholder>
   friend class intel::detail::reduction_impl;
 };
 } // namespace sycl

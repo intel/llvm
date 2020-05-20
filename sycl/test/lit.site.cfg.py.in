@@ -20,6 +20,7 @@ config.llvm_build_bin_dir = "@LLVM_BUILD_BINARY_DIRS@"
 
 config.llvm_enable_projects = "@LLVM_ENABLE_PROJECTS@"
 
+config.sycl_threads_lib = '@SYCL_THREADS_LIB@'
 
 import lit.llvm
 lit.llvm.initialize(lit_config, config)

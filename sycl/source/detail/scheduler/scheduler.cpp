@@ -74,9 +74,16 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
       NewCmd = MGraphBuilder.addCGUpdateHost(std::move(CommandGroup),
                                              DefaultHostQueue);
       break;
+    case CG::CODEPLAY_HOST_TASK:
+      NewCmd = MGraphBuilder.addCG(std::move(CommandGroup), DefaultHostQueue);
+      break;
     default:
       NewCmd = MGraphBuilder.addCG(std::move(CommandGroup), std::move(Queue));
     }
+  }
+
+  {
+    std::shared_lock<std::shared_timed_mutex> Lock(MGraphLock);
 
     // TODO: Check if lazy mode.
     EnqueueResultT Res;
@@ -156,6 +163,7 @@ void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
   if (!Record)
     // No operations were performed on the mem object
     return;
+
   waitForRecordToFinish(Record);
   MGraphBuilder.decrementLeafCountersForRecord(Record);
   MGraphBuilder.cleanupCommandsForRecord(Record);
@@ -179,8 +187,19 @@ EventImplPtr Scheduler::addHostAccessor(Requirement *Req,
 }
 
 void Scheduler::releaseHostAccessor(Requirement *Req) {
-  Req->MBlockedCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
+  Command *const BlockedCmd = Req->MBlockedCmd;
+
   std::shared_lock<std::shared_timed_mutex> Lock(MGraphLock);
+
+  assert(BlockedCmd && "Can't find appropriate command to unblock");
+
+  BlockedCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
+
+  enqueueLeavesOfReqUnlocked(Req);
+}
+
+// static
+void Scheduler::enqueueLeavesOfReqUnlocked(const Requirement *const Req) {
   MemObjRecord *Record = Req->MSYCLMemObj->MRecord.get();
   auto EnqueueLeaves = [](CircularBuffer<Command *> &Leaves) {
     for (Command *Cmd : Leaves) {

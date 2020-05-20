@@ -8,6 +8,7 @@
 
 #include <gtest/gtest.h>
 #include <helpers/PiMock.hpp>
+
 #include <detail/queue_impl.hpp>
 
 using namespace cl::sycl;

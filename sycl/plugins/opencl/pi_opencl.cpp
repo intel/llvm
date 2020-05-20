@@ -598,6 +598,28 @@ pi_result piKernelCreate(pi_program program, const char *kernel_name,
   return ret_err;
 }
 
+pi_result piKernelGetSubGroupInfo(pi_kernel kernel, pi_device device,
+                                  pi_kernel_sub_group_info param_name,
+                                  size_t input_value_size,
+                                  const void *input_value,
+                                  size_t param_value_size, void *param_value,
+                                  size_t *param_value_size_ret) {
+  size_t ret_val;
+  cl_int ret_err;
+  ret_err = cast<pi_result>(clGetKernelSubGroupInfo(
+      cast<cl_kernel>(kernel), cast<cl_device_id>(device),
+      cast<cl_kernel_sub_group_info>(param_name), input_value_size, input_value,
+      sizeof(size_t), &ret_val, param_value_size_ret));
+
+  if (ret_err != CL_SUCCESS)
+    return cast<pi_result>(ret_err);
+
+  *(static_cast<uint32_t *>(param_value)) = static_cast<uint32_t>(ret_val);
+  if (param_value_size_ret)
+    *param_value_size_ret = sizeof(uint32_t);
+  return PI_SUCCESS;
+}
+
 pi_result piEventCreate(pi_context context, pi_event *ret_event) {
 
   pi_result ret_err = PI_INVALID_OPERATION;
@@ -1145,7 +1167,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piKernelSetArg, clSetKernelArg)
   _PI_CL(piKernelGetInfo, clGetKernelInfo)
   _PI_CL(piKernelGetGroupInfo, clGetKernelWorkGroupInfo)
-  _PI_CL(piKernelGetSubGroupInfo, clGetKernelSubGroupInfo)
+  _PI_CL(piKernelGetSubGroupInfo, piKernelGetSubGroupInfo)
   _PI_CL(piKernelRetain, clRetainKernel)
   _PI_CL(piKernelRelease, clReleaseKernel)
   _PI_CL(piKernelSetExecInfo, piKernelSetExecInfo)

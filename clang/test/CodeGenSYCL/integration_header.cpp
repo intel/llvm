@@ -57,8 +57,8 @@
 //
 // CHECK: template <> struct KernelInfo<class first_kernel> {
 // CHECK: template <> struct KernelInfo<::second_namespace::second_kernel<char>> {
-// CHECK: template <> struct KernelInfo<::third_kernel<1, int, ::point<X> >> {
-// CHECK: template <> struct KernelInfo<::fourth_kernel< ::template_arg_ns::namespaced_arg<1> >> {
+// CHECK: template <> struct KernelInfo<::third_kernel<1, int, ::point<X>>> {
+// CHECK: template <> struct KernelInfo<::fourth_kernel<::template_arg_ns::namespaced_arg<1>>> {
 
 #include "sycl.hpp"
 
