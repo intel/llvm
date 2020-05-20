@@ -490,11 +490,11 @@ static void piSignalHandler(int SigNum) {
 pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
                          pi_uint32 *NumPlatforms) {
 
-  static const char *DebugMode = std::getenv("ZeDebug");
+  static const char *DebugMode = std::getenv("ZE_DEBUG");
   if (DebugMode)
     ZeDebug = true;
 
-  static const char *SerializeMode = std::getenv("ZeSerialize");
+  static const char *SerializeMode = std::getenv("ZE_SERIALIZE");
   static const pi_uint32 SerializeModeValue =
       SerializeMode ? std::atoi(SerializeMode) : 0;
   ZeSerialize = SerializeModeValue;
