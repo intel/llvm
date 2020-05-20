@@ -484,8 +484,8 @@ __SYCL_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE(rtn, Rtn)
 template <typename T, typename R, rounding_mode roundingMode, typename OpenCLT,
           typename OpenCLR>
 detail::enable_if_t<
-    (!is_standard_type<OpenCLT>::value ||
-     !is_standard_type<OpenCLR>::value) &&
+    (!is_standard_type<T>::value && !is_standard_type<OpenCLT>::value ||
+     !is_standard_type<R>::value && !is_standard_type<OpenCLR>::value) &&
         !std::is_same<OpenCLT, OpenCLR>::value,
     R>
 convertImpl(T Value) {
