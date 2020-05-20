@@ -2,4 +2,3 @@
 
 ; REQUIRES: shell
 ; UNSUPPORTED: asan, ubsan, msan
-; XFAIL: *
