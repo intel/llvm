@@ -1942,7 +1942,7 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
               Context.getAuxTargetInfo()->getTriple().getArch(),
               Context.BuiltinInfo.getAuxBuiltinID(BuiltinID), TheCall))
         return ExprError();
-      
+
       // Detect when host builtins are used in device code only
       if (getLangOpts().SYCLIsDevice)
         SYCLDiagIfDeviceCode(TheCall->getBeginLoc(),
