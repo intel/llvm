@@ -68,10 +68,10 @@ int main() {
 
   bool currect = true;
   for (int i = 0; i < problem_size; i++) {
-    if (b[i] != a[i] * b[i]) {
+    if (b[i] != a[i] * c[i]) {
       currect = false;
       std::cerr << "error in a[" << i << "]="
-                << b[i] << "!=" << a[i] * b[i] << std::endl;
+                << b[i] << "!=" << a[i] * c[i] << std::endl;
       break;
     }
   }
