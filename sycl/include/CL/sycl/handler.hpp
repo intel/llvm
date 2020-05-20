@@ -105,6 +105,27 @@ template <typename Type> struct get_kernel_name_t<detail::auto_name, Type> {
   using name = Type;
 };
 
+template <typename, typename T> struct check_fn_signature {
+  static_assert(std::integral_constant<T, false>::value,
+                "Second template parameter is required to be of function type");
+};
+
+template <typename F, typename RetT, typename... Args>
+struct check_fn_signature<F, RetT(Args...)> {
+private:
+  template <typename T>
+  static constexpr auto check(T *) -> typename std::is_same<
+      decltype(std::declval<T>().operator()(std::declval<Args>()...)),
+      RetT>::type;
+
+  template <typename> static constexpr std::false_type check(...);
+
+  using type = decltype(check<F>(0));
+
+public:
+  static constexpr bool value = type::value;
+};
+
 __SYCL_EXPORT device getDeviceFromHandler(handler &);
 
 template<int Dims>
@@ -820,6 +841,20 @@ public:
     MCGType = detail::CG::RUN_ON_HOST_INTEL;
   }
 
+  template <typename FuncT>
+  typename std::enable_if<detail::check_fn_signature<
+      typename std::remove_reference<FuncT>::type, void()>::value>::type
+  codeplay_host_task(FuncT Func) {
+    throwIfActionIsCreated();
+
+    MNDRDesc.set(range<1>(1));
+    MArgs = std::move(MAssociatedAccesors);
+
+    MHostTask.reset(new detail::HostTask(std::move(Func)));
+
+    MCGType = detail::CG::CODEPLAY_HOST_TASK;
+  }
+
   /// Defines and invokes a SYCL kernel function for the specified range and
   /// offset.
   ///
@@ -889,7 +924,7 @@ public:
             int Dims, typename Reduction>
   detail::enable_if_t<Reduction::accessor_mode == access::mode::read_write &&
                       Reduction::has_fast_atomics>
-  parallel_for(nd_range<Dims> Range, Reduction &Redu, KernelType KernelFunc) {
+  parallel_for(nd_range<Dims> Range, Reduction Redu, KernelType KernelFunc) {
     if (Reduction::is_usm)
       Redu.associateWithHandler(*this);
     shared_ptr_class<detail::queue_impl> QueueCopy = MQueue;
@@ -922,7 +957,7 @@ public:
             int Dims, typename Reduction>
   detail::enable_if_t<Reduction::accessor_mode == access::mode::discard_write &&
                       Reduction::has_fast_atomics>
-  parallel_for(nd_range<Dims> Range, Reduction &Redu, KernelType KernelFunc) {
+  parallel_for(nd_range<Dims> Range, Reduction Redu, KernelType KernelFunc) {
     shared_ptr_class<detail::queue_impl> QueueCopy = MQueue;
     auto RWAcc = Redu.getReadWriteScalarAcc(*this);
     intel::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu,
@@ -956,7 +991,7 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims, typename Reduction>
   detail::enable_if_t<!Reduction::has_fast_atomics>
-  parallel_for(nd_range<Dims> Range, Reduction &Redu, KernelType KernelFunc) {
+  parallel_for(nd_range<Dims> Range, Reduction Redu, KernelType KernelFunc) {
     size_t NWorkGroups = Range.get_group_range().size();
 
     // This parallel_for() is lowered to the following sequence:
@@ -1192,7 +1227,7 @@ public:
   template <typename FuncT> void interop_task(FuncT Func) {
 
     MInteropTask.reset(new detail::InteropTask(std::move(Func)));
-    MCGType = detail::CG::INTEROP_TASK_CODEPLAY;
+    MCGType = detail::CG::CODEPLAY_INTEROP_TASK;
   }
 
   /// Defines and invokes a SYCL kernel function for the specified range.
@@ -1662,6 +1697,8 @@ private:
   vector_class<char> MPattern;
   /// Storage for a lambda or function object.
   unique_ptr_class<detail::HostKernelBase> MHostKernel;
+  /// Storage for lambda/function when using HostTask
+  unique_ptr_class<detail::HostTask> MHostTask;
   detail::OSModuleHandle MOSModuleHandle;
   // Storage for a lambda or function when using InteropTasks
   std::unique_ptr<detail::InteropTask> MInteropTask;

@@ -14,6 +14,7 @@
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/stl.hpp>
 
+#include <atomic>
 #include <cassert>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -32,7 +33,7 @@ public:
   /// Constructs a ready SYCL event.
   ///
   /// If the constructed SYCL event is waited on it will complete immediately.
-  event_impl() = default;
+  event_impl();
   /// Constructs an event instance from a plug-in event handle.
   ///
   /// The SyclContext must match the plug-in context associated with the
@@ -166,6 +167,13 @@ private:
   bool MHostEvent = true;
   std::unique_ptr<HostProfilingInfo> MHostProfilingInfo;
   void *MCommand = nullptr;
+
+  enum HostEventState : int { HES_NotComplete = 0, HES_Complete };
+
+  // State of host event. Employed only for host events and event with no
+  // backend's representation (e.g. alloca). Used values are listed in
+  // HostEventState enum.
+  std::atomic<int> MState;
 };
 
 } // namespace detail
