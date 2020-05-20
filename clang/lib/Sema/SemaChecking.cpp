@@ -1938,7 +1938,7 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
     if (Context.BuiltinInfo.isAuxBuiltinID(BuiltinID)) {
       assert(Context.getAuxTargetInfo() &&
              "Aux Target Builtin, but not an aux target?");
-             
+
       if (CheckTSBuiltinFunctionCall(
               Context.getAuxTargetInfo()->getTriple().getArch(),
               Context.BuiltinInfo.getAuxBuiltinID(BuiltinID), TheCall))
