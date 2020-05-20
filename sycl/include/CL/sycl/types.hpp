@@ -381,7 +381,10 @@ convertImpl(T Value) {
   template <typename T, typename R, rounding_mode roundingMode,                \
             typename OpenCLT, typename OpenCLR>                                \
   detail::enable_if_t<                                                         \
-      is_sint_to_float<T, R>::value && std::is_same<OpenCLR, DestType>::value, R>    \
+      is_sint_to_float<T, R>::value &&                                         \ 
+       (std::is_same<OpenCLR, DestType>::value ||                              \
+                           std::is_same<OpenCLR, _Float16>::value &&           \
+                               std::is_same<DestType, half>::value), R>        \
   convertImpl(T Value) {                                                       \
     OpenCLT OpValue = cl::sycl::detail::convertDataToType<T, OpenCLT>(Value);  \
     return __spirv_Convert##SPIRVOp##_R##DestType(OpValue);                    \
@@ -398,7 +401,10 @@ __SYCL_GENERATE_CONVERT_IMPL(SToF, double)
   template <typename T, typename R, rounding_mode roundingMode,                \
             typename OpenCLT, typename OpenCLR>                                \
   detail::enable_if_t<                                                         \
-      is_uint_to_float<T, R>::value && std::is_same<OpenCLR, DestType>::value, R>    \
+      is_uint_to_float<T, R>::value &&                                        \
+                          (std::is_same<OpenCLR, DestType>::value ||           \
+                           std::is_same<OpenCLR, _Float16>::value &&           \
+                               std::is_same<DestType, half>::value), R>    \
   convertImpl(T Value) {                                                       \
     OpenCLT OpValue = cl::sycl::detail::convertDataToType<T, OpenCLT>(Value);  \
     return __spirv_Convert##SPIRVOp##_R##DestType(OpValue);                    \
@@ -417,7 +423,9 @@ __SYCL_GENERATE_CONVERT_IMPL(UToF, double)
             typename OpenCLT, typename OpenCLR>                                \
   detail::enable_if_t<is_float_to_float<T, R>::value  &&                       \
                           !std::is_same<OpenCLT, OpenCLR>::value &&            \
-                          std::is_same<OpenCLR, DestType>::value &&            \
+                          (std::is_same<OpenCLR, DestType>::value ||           \
+                           std::is_same<OpenCLR, _Float16>::value &&           \
+                               std::is_same<DestType, half>::value),           \
                           RoundingModeCondition<roundingMode>::value,          \
                       R>                                                       \
   convertImpl(T Value) {                                                       \
