@@ -94,7 +94,7 @@ _pi_context::getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &ZePool,
   // here Setting it to 256 gave best possible performance for several
   // benchmarks
   static const char *MaxNumEventsPerPoolEnv =
-      std::getenv("MAX_NUMBER_OF_EVENTS_PER_EVENT_POOL");
+      std::getenv("ZE_MAX_NUMBER_OF_EVENTS_PER_EVENT_POOL");
   static const pi_uint32 MaxNumEventsPerPool =
       (MaxNumEventsPerPoolEnv) ? std::atoi(MaxNumEventsPerPoolEnv) : 256;
 
@@ -222,111 +222,50 @@ static pi_result enqueueMemCopyRectHelper(
 
 inline void zeParseError(ze_result_t ZeError, std::string &ErrorString) {
   switch (ZeError) {
-  case ZE_RESULT_SUCCESS:
-    ErrorString = "ZE_RESULT_SUCCESS";
+#define ZE_ERRCASE(ERR)                                                        \
+  case ERR:                                                                    \
+    ErrorString = "" #ERR;                                                     \
     break;
-  case ZE_RESULT_NOT_READY:
-    ErrorString = "ZE_RESULT_NOT_READY";
-    break;
-  case ZE_RESULT_ERROR_DEVICE_LOST:
-    ErrorString = "ZE_RESULT_ERROR_DEVICE_LOST";
-    break;
-  case ZE_RESULT_ERROR_OUT_OF_HOST_MEMORY:
-    ErrorString = "ZE_RESULT_ERROR_OUT_OF_HOST_MEMORY";
-    break;
-  case ZE_RESULT_ERROR_OUT_OF_DEVICE_MEMORY:
-    ErrorString = "ZE_RESULT_ERROR_OUT_OF_DEVICE_MEMORY";
-    break;
-  case ZE_RESULT_ERROR_MODULE_BUILD_FAILURE:
-    ErrorString = "ZE_RESULT_ERROR_MODULE_BUILD_FAILURE";
-    break;
-  case ZE_RESULT_ERROR_INSUFFICIENT_PERMISSIONS:
-    ErrorString = "ZE_RESULT_ERROR_INSUFFICIENT_PERMISSIONS";
-    break;
-  case ZE_RESULT_ERROR_NOT_AVAILABLE:
-    ErrorString = "ZE_RESULT_ERROR_NOT_AVAILABLE";
-    break;
-  case ZE_RESULT_ERROR_UNINITIALIZED:
-    ErrorString = "ZE_RESULT_ERROR_UNINITIALIZED";
-    break;
-  case ZE_RESULT_ERROR_UNSUPPORTED_VERSION:
-    ErrorString = "ZE_RESULT_ERROR_UNSUPPORTED_VERSION";
-    break;
-  case ZE_RESULT_ERROR_UNSUPPORTED_FEATURE:
-    ErrorString = "ZE_RESULT_ERROR_UNSUPPORTED_FEATURE";
-    break;
-  case ZE_RESULT_ERROR_INVALID_ARGUMENT:
-    ErrorString = "ZE_RESULT_ERROR_INVALID_ARGUMENT";
-    break;
-  case ZE_RESULT_ERROR_INVALID_NULL_HANDLE:
-    ErrorString = "ZE_RESULT_ERROR_INVALID_NULL_HANDLE";
-    break;
-  case ZE_RESULT_ERROR_HANDLE_OBJECT_IN_USE:
-    ErrorString = "ZE_RESULT_ERROR_HANDLE_OBJECT_IN_USE";
-    break;
-  case ZE_RESULT_ERROR_INVALID_NULL_POINTER:
-    ErrorString = "ZE_RESULT_ERROR_INVALID_NULL_POINTER";
-    break;
-  case ZE_RESULT_ERROR_INVALID_SIZE:
-    ErrorString = "ZE_RESULT_ERROR_INVALID_SIZE";
-    break;
-  case ZE_RESULT_ERROR_UNSUPPORTED_SIZE:
-    ErrorString = "ZE_RESULT_ERROR_UNSUPPORTED_SIZE";
-    break;
-  case ZE_RESULT_ERROR_UNSUPPORTED_ALIGNMENT:
-    ErrorString = "ZE_RESULT_ERROR_UNSUPPORTED_ALIGNMENT";
-    break;
-  case ZE_RESULT_ERROR_INVALID_SYNCHRONIZATION_OBJECT:
-    ErrorString = "ZE_RESULT_ERROR_INVALID_SYNCHRONIZATION_OBJECT";
-    break;
-  case ZE_RESULT_ERROR_INVALID_ENUMERATION:
-    ErrorString = "ZE_RESULT_ERROR_INVALID_ENUMERATION";
-    break;
-  case ZE_RESULT_ERROR_UNSUPPORTED_ENUMERATION:
-    ErrorString = "ZE_RESULT_ERROR_UNSUPPORTED_ENUMERATION";
-    break;
-  case ZE_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT:
-    ErrorString = "ZE_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT";
-    break;
-  case ZE_RESULT_ERROR_INVALID_NATIVE_BINARY:
-    ErrorString = "ZE_RESULT_ERROR_INVALID_NATIVE_BINARY";
-    break;
-  case ZE_RESULT_ERROR_INVALID_GLOBAL_NAME:
-    ErrorString = "ZE_RESULT_ERROR_INVALID_GLOBAL_NAME";
-    break;
-  case ZE_RESULT_ERROR_INVALID_KERNEL_NAME:
-    ErrorString = "ZE_RESULT_ERROR_INVALID_KERNEL_NAME";
-    break;
-  case ZE_RESULT_ERROR_INVALID_FUNCTION_NAME:
-    ErrorString = "ZE_RESULT_ERROR_INVALID_FUNCTION_NAME";
-    break;
-  case ZE_RESULT_ERROR_INVALID_GROUP_SIZE_DIMENSION:
-    ErrorString = "ZE_RESULT_ERROR_INVALID_GROUP_SIZE_DIMENSION";
-    break;
-  case ZE_RESULT_ERROR_INVALID_GLOBAL_WIDTH_DIMENSION:
-    ErrorString = "ZE_RESULT_ERROR_INVALID_GLOBAL_WIDTH_DIMENSION";
-    break;
-  case ZE_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX:
-    ErrorString = "ZE_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX";
-    break;
-  case ZE_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE:
-    ErrorString = "ZE_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE";
-    break;
-  case ZE_RESULT_ERROR_INVALID_KERNEL_ATTRIBUTE_VALUE:
-    ErrorString = "ZE_RESULT_ERROR_INVALID_KERNEL_ATTRIBUTE_VALUE";
-    break;
-  case ZE_RESULT_ERROR_INVALID_COMMAND_LIST_TYPE:
-    ErrorString = "ZE_RESULT_ERROR_INVALID_COMMAND_LIST_TYPE";
-    break;
-  case ZE_RESULT_ERROR_OVERLAPPING_REGIONS:
-    ErrorString = "ZE_RESULT_ERROR_OVERLAPPING_REGIONS";
-    break;
-  case ZE_RESULT_ERROR_UNKNOWN:
-    ErrorString = "ZE_RESULT_ERROR_UNKNOWN";
-    break;
+
+    ZE_ERRCASE(ZE_RESULT_SUCCESS)
+    ZE_ERRCASE(ZE_RESULT_NOT_READY)
+    ZE_ERRCASE(ZE_RESULT_ERROR_DEVICE_LOST)
+    ZE_ERRCASE(ZE_RESULT_ERROR_OUT_OF_HOST_MEMORY)
+    ZE_ERRCASE(ZE_RESULT_ERROR_OUT_OF_DEVICE_MEMORY)
+    ZE_ERRCASE(ZE_RESULT_ERROR_MODULE_BUILD_FAILURE)
+    ZE_ERRCASE(ZE_RESULT_ERROR_INSUFFICIENT_PERMISSIONS)
+    ZE_ERRCASE(ZE_RESULT_ERROR_NOT_AVAILABLE)
+    ZE_ERRCASE(ZE_RESULT_ERROR_UNINITIALIZED)
+    ZE_ERRCASE(ZE_RESULT_ERROR_UNSUPPORTED_VERSION)
+    ZE_ERRCASE(ZE_RESULT_ERROR_UNSUPPORTED_FEATURE)
+    ZE_ERRCASE(ZE_RESULT_ERROR_INVALID_ARGUMENT)
+    ZE_ERRCASE(ZE_RESULT_ERROR_INVALID_NULL_HANDLE)
+    ZE_ERRCASE(ZE_RESULT_ERROR_HANDLE_OBJECT_IN_USE)
+    ZE_ERRCASE(ZE_RESULT_ERROR_INVALID_NULL_POINTER)
+    ZE_ERRCASE(ZE_RESULT_ERROR_INVALID_SIZE)
+    ZE_ERRCASE(ZE_RESULT_ERROR_UNSUPPORTED_SIZE)
+    ZE_ERRCASE(ZE_RESULT_ERROR_UNSUPPORTED_ALIGNMENT)
+    ZE_ERRCASE(ZE_RESULT_ERROR_INVALID_SYNCHRONIZATION_OBJECT)
+    ZE_ERRCASE(ZE_RESULT_ERROR_INVALID_ENUMERATION)
+    ZE_ERRCASE(ZE_RESULT_ERROR_UNSUPPORTED_ENUMERATION)
+    ZE_ERRCASE(ZE_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT)
+    ZE_ERRCASE(ZE_RESULT_ERROR_INVALID_NATIVE_BINARY)
+    ZE_ERRCASE(ZE_RESULT_ERROR_INVALID_GLOBAL_NAME)
+    ZE_ERRCASE(ZE_RESULT_ERROR_INVALID_KERNEL_NAME)
+    ZE_ERRCASE(ZE_RESULT_ERROR_INVALID_FUNCTION_NAME)
+    ZE_ERRCASE(ZE_RESULT_ERROR_INVALID_GROUP_SIZE_DIMENSION)
+    ZE_ERRCASE(ZE_RESULT_ERROR_INVALID_GLOBAL_WIDTH_DIMENSION)
+    ZE_ERRCASE(ZE_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX)
+    ZE_ERRCASE(ZE_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE)
+    ZE_ERRCASE(ZE_RESULT_ERROR_INVALID_KERNEL_ATTRIBUTE_VALUE)
+    ZE_ERRCASE(ZE_RESULT_ERROR_INVALID_COMMAND_LIST_TYPE)
+    ZE_ERRCASE(ZE_RESULT_ERROR_OVERLAPPING_REGIONS)
+    ZE_ERRCASE(ZE_RESULT_ERROR_UNKNOWN)
+
+#undef ZE_ERRCASE
   default:
     assert("Unexpected Error code");
-  }
+  } // switch
 }
 
 ze_result_t ZeCall::check(ze_result_t ZeResult, const char *CallStr,
@@ -371,7 +310,7 @@ _pi_device::createCommandList(ze_command_list_handle_t *ZeCommandList) {
   // Create the command list, because in L0 commands are added to
   // the command lists, and later are then added to the command queue.
   //
-  // TODO: Fugire out how to lower the overhead of creating a new list
+  // TODO: Figure out how to lower the overhead of creating a new list
   // for each PI command, if that appears to be important.
   //
   ze_command_list_desc_t ZeCommandListDesc = {};
@@ -2398,61 +2337,12 @@ pi_result piEventSetCallback(pi_event Event, pi_int32 CommandExecCallbackType,
                                                pi_int32 EventCommandStatus,
                                                void *UserData),
                              void *UserData) {
-
-  // Increment the pi_event's reference counter to avoid destroying the event
-  // before all callbacks are executed.
-  piEventRetain(Event);
-
-  // TODO: Can we support CL_SUBMITTED and CL_RUNNING?
-  //
-  if (CommandExecCallbackType != CL_COMPLETE) {
-    zePrint("piEventSetCallback: unsupported callback type\n");
-    return PI_INVALID_VALUE;
-  }
-
-  // Execute the wait and callback trigger in a side thread to not
-  // block the main host thread.
-  // TODO: We should use a single thread to serve all callbacks.
-  //
-  std::thread WaitThread(
-      [](pi_event Event, pi_int32 CommandExecCallbackType,
-         void (*PFnNotify)(pi_event Event, pi_int32 EventCommandStatus,
-                           void *UserData),
-         void *UserData) {
-        // Implements the wait for the event to complete.
-        assert(CommandExecCallbackType == CL_COMPLETE);
-        assert(Event);
-        ze_result_t ZeResult;
-        do {
-          ZeResult =
-              ZE_CALL_NOCHECK(zeEventHostSynchronize(Event->ZeEvent, 10000));
-        } while (ZeResult == ZE_RESULT_NOT_READY);
-
-        // Call the callback.
-        PFnNotify(Event, CommandExecCallbackType, UserData);
-        piEventRelease(Event);
-      },
-      Event, CommandExecCallbackType, PFnNotify, UserData);
-
-  WaitThread.detach();
+  die("piEventSetCallback: deprecated, to be removed");
   return PI_SUCCESS;
 }
 
 pi_result piEventSetStatus(pi_event Event, pi_int32 ExecutionStatus) {
-  if (ExecutionStatus != CL_COMPLETE) {
-    die("piEventSetStatus: not implemented");
-  }
-
-  assert(Event);
-  ze_result_t ZeResult;
-  ze_event_handle_t ZeEvent = Event->ZeEvent;
-
-  ZeResult = ZE_CALL_NOCHECK(zeEventQueryStatus(ZeEvent));
-  // It can be that the status is already what we need it to be.
-  if (ZeResult != ZE_RESULT_SUCCESS) {
-    ZE_CALL(zeEventHostSignal(ZeEvent));
-    ZE_CALL(zeEventQueryStatus(ZeEvent)); // double check
-  }
+  die("piEventSetStatus: deprecated, to be removed");
   return PI_SUCCESS;
 }
 
@@ -2893,7 +2783,6 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
   if (Res != PI_SUCCESS)
     return Res;
 
-  piEventCreate(Queue->Context, Event);
   (*Event)->Queue = Queue;
   (*Event)->CommandType = CommandType;
   (*Event)->ZeCommandList = ZeCommandList;
