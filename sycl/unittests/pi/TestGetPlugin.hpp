@@ -31,10 +31,9 @@ inline std::vector<cl::sycl::detail::plugin> initializeAndRemoveInvalid() {
       plugins.begin(), plugins.end(),
       [](const cl::sycl::detail::plugin &plugin) -> bool {
         pi_uint32 num = 0;
-        auto result =
-            plugin.call_nocheck<cl::sycl::detail::PiApiKind::piPlatformsGet>(
-                0, nullptr, &num);
-        return num <= 0 || result != PI_SUCCESS;
+        plugin.call_nocheck<cl::sycl::detail::PiApiKind::piPlatformsGet>(
+            0, nullptr, &num);
+        return num <= 0;
       });
 
   plugins.erase(end, plugins.end());
