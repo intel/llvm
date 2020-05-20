@@ -1,5 +1,4 @@
 // RUN: %clang_cc1 -triple spir64-unknown-unknown-sycldevice -fsycl -fsycl-is-device -aux-triple x86_64-unknown-linux-gnu -verify -fsyntax-only  %s
-//
 
 inline namespace cl {
 namespace sycl {
@@ -21,8 +20,8 @@ int main(int argc, char **argv) {
   _mm_prefetch("test", 8); // expected-error {{argument value 8 is outside the valid range [0, 7]}}
 
   cl::sycl::kernel_single_task<class AName>([]() {
-    _mm_prefetch("test", 4); // expected-error {{Host specific builtin cannot be used in device functions}}
-    _mm_prefetch("test", 8); // expected-error {{argument value 8 is outside the valid range [0, 7]}} expected-error {{Host specific builtin cannot be used in device functions}}
+    _mm_prefetch("test", 4); // expected-error {{builtin is not supported on this target}}
+    _mm_prefetch("test", 8); // expected-error {{argument value 8 is outside the valid range [0, 7]}} expected-error {{builtin is not supported on this target}}
   });
   return 0;
 }
