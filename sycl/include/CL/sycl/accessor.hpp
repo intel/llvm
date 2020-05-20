@@ -828,6 +828,7 @@ public:
 	   typename = typename detail::enable_if_t<
 		   (Dims == 0) && 
                     (!IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf))>
+                                      >
   accessor(buffer<DataT,1,AllocatorT> &BufferRef,
 		  handler &CommandGroupHandler)
 #ifdef __SYCL_DEVICE_ONLY__
