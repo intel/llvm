@@ -215,6 +215,16 @@ public:
   void call(cl::sycl::interop_handler &h) { MFunc(h); }
 };
 
+class HostTask {
+  std::function<void()> MHostTask;
+
+public:
+  HostTask() : MHostTask([]() {}) {}
+  HostTask(std::function<void()> &&Func) : MHostTask(Func) {}
+
+  void call() { MHostTask(); }
+};
+
 // Class which stores specific lambda object.
 template <class KernelType, class KernelArgType, int Dims>
 class HostKernel : public HostKernelBase {
@@ -391,7 +401,8 @@ public:
     COPY_USM,
     FILL_USM,
     PREFETCH_USM,
-    INTEROP_TASK_CODEPLAY
+    CODEPLAY_INTEROP_TASK,
+    CODEPLAY_HOST_TASK
   };
 
   CG(CGTYPE Type, vector_class<vector_class<char>> ArgsStorage,
@@ -629,6 +640,24 @@ public:
            std::move(SharedPtrStorage), std::move(Requirements),
            std::move(Events), std::move(loc)),
         MInteropTask(std::move(InteropTask)) {}
+};
+
+class CGHostTask : public CG {
+public:
+  std::unique_ptr<HostTask> MHostTask;
+  vector_class<ArgDesc> MArgs;
+
+  CGHostTask(std::unique_ptr<HostTask> HostTask, vector_class<ArgDesc> Args,
+             std::vector<std::vector<char>> ArgsStorage,
+             std::vector<detail::AccessorImplPtr> AccStorage,
+             std::vector<std::shared_ptr<const void>> SharedPtrStorage,
+             std::vector<Requirement *> Requirements,
+             std::vector<detail::EventImplPtr> Events, CGTYPE Type,
+             detail::code_location loc = {})
+      : CG(Type, std::move(ArgsStorage), std::move(AccStorage),
+           std::move(SharedPtrStorage), std::move(Requirements),
+           std::move(Events), std::move(loc)),
+        MHostTask(std::move(HostTask)), MArgs(std::move(Args)) {}
 };
 
 } // namespace detail

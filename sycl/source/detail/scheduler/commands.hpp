@@ -10,6 +10,7 @@
 
 #include <atomic>
 #include <cstdint>
+#include <deque>
 #include <memory>
 #include <set>
 #include <unordered_set>
@@ -26,6 +27,7 @@ namespace detail {
 class queue_impl;
 class event_impl;
 class context_impl;
+class DispatchHostTask;
 
 using QueueImplPtr = std::shared_ptr<detail::queue_impl>;
 using EventImplPtr = std::shared_ptr<detail::event_impl>;
@@ -35,6 +37,8 @@ class Command;
 class AllocaCommand;
 class AllocaCommandBase;
 class ReleaseCommand;
+class ExecCGCommand;
+class EmptyCommand;
 
 enum BlockingT { NON_BLOCKING = 0, BLOCKING };
 
@@ -95,7 +99,8 @@ public:
     MAP_MEM_OBJ,
     UNMAP_MEM_OBJ,
     UPDATE_REQUIREMENT,
-    EMPTY_TASK
+    EMPTY_TASK,
+    HOST_TASK
   };
 
   Command(CommandType Type, QueueImplPtr Queue);
@@ -166,14 +171,34 @@ public:
 
   virtual ~Command() = default;
 
+  const char *getBlockReason() const;
+
+  virtual ContextImplPtr getContext() const;
+
 protected:
   EventImplPtr MEvent;
   QueueImplPtr MQueue;
-  std::vector<EventImplPtr> MDepsEvents;
+
+  /// Dependency events prepared for waiting by backend.
+  /// See processDepEvent for details.
+  std::vector<EventImplPtr> MPreparedDepsEvents;
+  std::vector<EventImplPtr> MPreparedHostDepsEvents;
 
   void waitForEvents(QueueImplPtr Queue, std::vector<EventImplPtr> &RawEvents,
                      RT::PiEvent &Event);
-  std::vector<EventImplPtr> prepareEvents(ContextImplPtr Context);
+
+  void waitForPreparedHostEvents() const;
+
+  /// Perform glueing of events from different contexts
+  /// \param DepEvent event this commands should depend on
+  /// \param Dep optional DepDesc to perform connection of events properly
+  ///
+  /// Glueing (i.e. connecting) will be performed if and only if DepEvent is
+  /// not from host context and its context doesn't match to context of this
+  /// command. Context of this command is fetched via getContext().
+  ///
+  /// Optionality of Dep is set by Dep.MDepCommand not equal to nullptr.
+  void processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep);
 
   /// Private interface. Derived classes should implement this method.
   virtual cl_int enqueueImp() = 0;
@@ -182,6 +207,8 @@ protected:
   CommandType MType;
   /// Mutex used to protect enqueueing from race conditions
   std::mutex MEnqueueMtx;
+
+  friend class DispatchHostTask;
 
 public:
   /// Contains list of dependencies(edges)
@@ -193,7 +220,10 @@ public:
   /// Counts the number of memory objects this command is a leaf for.
   unsigned MLeafCounter = 0;
 
-  const char *MBlockReason = "Unknown";
+  enum class BlockReason : int { HostAccessor = 0, HostTask };
+
+  // Only have reasonable value while MIsBlockable is true
+  BlockReason MBlockReason;
 
   /// Describes the status of the command.
   std::atomic<EnqueueResultT::ResultT> MEnqueueStatus;
@@ -224,23 +254,36 @@ public:
   bool MFirstInstance = false;
   /// Instance ID tracked for the command.
   uint64_t MInstanceID = 0;
+
+  // This flag allows to control whether host event should be set complete
+  // after successfull enqueue of command. Event is considered as host event if
+  // either it's is_host() return true or there is no backend representation
+  // of event (i.e. getHandleRef() return reference to nullptr value).
+  // By default the flag is set to true due to most of host operations are
+  // synchronous. The only asynchronous operation currently is host-task.
+  bool MShouldCompleteEventIfPossible = true;
 };
 
 /// The empty command does nothing during enqueue. The task can be used to
 /// implement lock in the graph, or to merge several nodes into one.
 class EmptyCommand : public Command {
 public:
-  EmptyCommand(QueueImplPtr Queue, Requirement Req);
+  EmptyCommand(QueueImplPtr Queue);
 
   void printDot(std::ostream &Stream) const final;
-  const Requirement *getRequirement() const final { return &MRequirement; }
+  const Requirement *getRequirement() const final { return &MRequirements[0]; }
+  void addRequirement(Command *DepCmd, AllocaCommandBase *AllocaCmd,
+                      const Requirement *Req);
 
   void emitInstrumentationData();
 
 private:
-  cl_int enqueueImp() final { return CL_SUCCESS; }
+  cl_int enqueueImp() final;
 
-  Requirement MRequirement;
+  // Employing deque here as it allows to push_back/emplace_back without
+  // invalidation of pointer or reference to stored data item regardless of
+  // iterator invalidation.
+  std::deque<Requirement> MRequirements;
 };
 
 /// The release command enqueues release of a memory object instance allocated
@@ -380,6 +423,7 @@ public:
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MDstReq; }
   void emitInstrumentationData();
+  ContextImplPtr getContext() const override final;
 
 private:
   cl_int enqueueImp() final;
@@ -402,6 +446,7 @@ public:
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MDstReq; }
   void emitInstrumentationData();
+  ContextImplPtr getContext() const override final;
 
 private:
   cl_int enqueueImp() final;
@@ -424,12 +469,22 @@ public:
   void printDot(std::ostream &Stream) const final;
   void emitInstrumentationData();
 
+  detail::CG &getCG() const { return *MCommandGroup; }
+
+  // MEmptyCmd one is only employed if this command refers to host-task.
+  // MEmptyCmd due to unreliable mechanism of lookup for single EmptyCommand
+  // amongst users of host-task-representing command. This unreliability roots
+  // in cleanup process.
+  EmptyCommand *MEmptyCmd = nullptr;
+
 private:
   cl_int enqueueImp() final;
 
   AllocaCommandBase *getAllocaForReq(Requirement *Req);
 
   std::unique_ptr<detail::CG> MCommandGroup;
+
+  friend class Command;
 };
 
 class UpdateHostRequirementCommand : public Command {
