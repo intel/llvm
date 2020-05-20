@@ -342,12 +342,16 @@ pi_result _pi_queue::executeCommandList(ze_command_list_handle_t ZeCommandList,
 
 ze_event_handle_t *_pi_event::createZeEventList(pi_uint32 EventListLength,
                                                 const pi_event *EventList) {
-  ze_event_handle_t *ZeEventList = new ze_event_handle_t[EventListLength];
+  try {
+    ze_event_handle_t *ZeEventList = new ze_event_handle_t[EventListLength];
 
-  for (pi_uint32 I = 0; I < EventListLength; I++) {
-    ZeEventList[I] = EventList[I]->ZeEvent;
+    for (pi_uint32 I = 0; I < EventListLength; I++) {
+      ZeEventList[I] = EventList[I]->ZeEvent;
+    }
+    return ZeEventList;
+  } catch (...) {
+    return nullptr;
   }
-  return ZeEventList;
 }
 
 void _pi_event::deleteZeEventList(ze_event_handle_t *ZeEventList) {
@@ -494,30 +498,36 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
     assert(ZeDriverCount == 1);
     ZE_CALL(zeDriverGet(&ZeDriverCount, &ZeDriver));
 
-    // TODO: figure out how/when to release this memory
-    *Platforms = new _pi_platform(ZeDriver);
+    try {
+      // TODO: figure out how/when to release this memory
+      *Platforms = new _pi_platform(ZeDriver);
 
-    // Cache driver properties
-    ze_driver_properties_t ZeDriverProperties;
-    ZE_CALL(zeDriverGetProperties(ZeDriver, &ZeDriverProperties));
-    uint32_t ZeDriverVersion = ZeDriverProperties.driverVersion;
-    // Intel Level-Zero GPU driver stores version as:
-    // | 31 - 24 | 23 - 16 | 15 - 0 |
-    // |  Major  |  Minor  | Build  |
-    std::string VersionMajor =
-        std::to_string((ZeDriverVersion & 0xFF000000) >> 24);
-    std::string VersionMinor =
-        std::to_string((ZeDriverVersion & 0x00FF0000) >> 16);
-    std::string VersionBuild = std::to_string(ZeDriverVersion & 0x0000FFFF);
-    Platforms[0]->ZeDriverVersion = VersionMajor + std::string(".") +
-                                    VersionMinor + std::string(".") +
-                                    VersionBuild;
+      // Cache driver properties
+      ze_driver_properties_t ZeDriverProperties;
+      ZE_CALL(zeDriverGetProperties(ZeDriver, &ZeDriverProperties));
+      uint32_t ZeDriverVersion = ZeDriverProperties.driverVersion;
+      // Intel Level-Zero GPU driver stores version as:
+      // | 31 - 24 | 23 - 16 | 15 - 0 |
+      // |  Major  |  Minor  | Build  |
+      std::string VersionMajor =
+          std::to_string((ZeDriverVersion & 0xFF000000) >> 24);
+      std::string VersionMinor =
+          std::to_string((ZeDriverVersion & 0x00FF0000) >> 16);
+      std::string VersionBuild = std::to_string(ZeDriverVersion & 0x0000FFFF);
+      Platforms[0]->ZeDriverVersion = VersionMajor + std::string(".") +
+                                      VersionMinor + std::string(".") +
+                                      VersionBuild;
 
-    ze_api_version_t ZeApiVersion;
-    ZE_CALL(zeDriverGetApiVersion(ZeDriver, &ZeApiVersion));
-    Platforms[0]->ZeDriverApiVersion =
-        std::to_string(ZE_MAJOR_VERSION(ZeApiVersion)) + std::string(".") +
-        std::to_string(ZE_MINOR_VERSION(ZeApiVersion));
+      ze_api_version_t ZeApiVersion;
+      ZE_CALL(zeDriverGetApiVersion(ZeDriver, &ZeApiVersion));
+      Platforms[0]->ZeDriverApiVersion =
+          std::to_string(ZE_MAJOR_VERSION(ZeApiVersion)) + std::string(".") +
+          std::to_string(ZE_MINOR_VERSION(ZeApiVersion));
+    } catch (const std::bad_alloc &) {
+      return PI_OUT_OF_HOST_MEMORY;
+    } catch (...) {
+      return PI_ERROR_UNKNOWN;
+    }
   }
 
   if (NumPlatforms)
@@ -598,19 +608,25 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
   if (NumDevices)
     *NumDevices = ZeDeviceCount;
 
-  // TODO: Delete array at teardown
-  ze_device_handle_t *ZeDevices = new ze_device_handle_t[ZeDeviceCount];
-  ZE_CALL(zeDeviceGet(ZeDriver, &ZeDeviceCount, ZeDevices));
+  try {
+    // TODO: Delete array at teardown
+    ze_device_handle_t *ZeDevices = new ze_device_handle_t[ZeDeviceCount];
+    ZE_CALL(zeDeviceGet(ZeDriver, &ZeDeviceCount, ZeDevices));
 
-  for (uint32_t I = 0; I < ZeDeviceCount; ++I) {
-    // TODO: add check for device type
-    if (I < NumEntries) {
-      Devices[I] = new _pi_device(ZeDevices[I], Platform);
-      pi_result Result = Devices[I]->initialize();
-      if (Result != PI_SUCCESS) {
-        return Result;
+    for (uint32_t I = 0; I < ZeDeviceCount; ++I) {
+      // TODO: add check for device type
+      if (I < NumEntries) {
+        Devices[I] = new _pi_device(ZeDevices[I], Platform);
+        pi_result Result = Devices[I]->initialize();
+        if (Result != PI_SUCCESS) {
+          return Result;
+        }
       }
     }
+  } catch (const std::bad_alloc &) {
+    return PI_OUT_OF_HOST_MEMORY;
+  } catch (...) {
+    return PI_ERROR_UNKNOWN;
   }
   return PI_SUCCESS;
 }
@@ -652,8 +668,17 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   ZE_CALL(zeDeviceGetMemoryProperties(ZeDevice, &ZeAvailMemCount, nullptr));
   // Confirm at least one memory is available in the device
   assert(ZeAvailMemCount > 0);
-  ze_device_memory_properties_t *ZeDeviceMemoryProperties =
-      new ze_device_memory_properties_t[ZeAvailMemCount]();
+
+  ze_device_memory_properties_t *ZeDeviceMemoryProperties;
+  try {
+    ZeDeviceMemoryProperties =
+        new ze_device_memory_properties_t[ZeAvailMemCount]();
+  } catch (const std::bad_alloc &) {
+    return PI_OUT_OF_HOST_MEMORY;
+  } catch (...) {
+    return PI_ERROR_UNKNOWN;
+  }
+
   for (uint32_t I = 0; I < ZeAvailMemCount; I++) {
     ZeDeviceMemoryProperties[I].version =
         ZE_DEVICE_MEMORY_PROPERTIES_VERSION_CURRENT;
@@ -1188,20 +1213,26 @@ pi_result piDevicePartition(pi_device Device,
     return PI_SUCCESS;
   }
 
-  auto ZeSubdevices = new ze_device_handle_t[Count];
-  ZE_CALL(zeDeviceGetSubDevices(Device->ZeDevice, &Count, ZeSubdevices));
+  try {
+    auto ZeSubdevices = new ze_device_handle_t[Count];
+    ZE_CALL(zeDeviceGetSubDevices(Device->ZeDevice, &Count, ZeSubdevices));
 
-  // Wrap the L0 sub-devices into PI sub-devices, and write them out.
-  for (uint32_t I = 0; I < Count; ++I) {
-    OutDevices[I] = new _pi_device(ZeSubdevices[I], Device->Platform,
-                                   true /* isSubDevice */);
-    pi_result Result = OutDevices[I]->initialize();
-    if (Result != PI_SUCCESS) {
-      delete[] ZeSubdevices;
-      return Result;
+    // Wrap the L0 sub-devices into PI sub-devices, and write them out.
+    for (uint32_t I = 0; I < Count; ++I) {
+      OutDevices[I] = new _pi_device(ZeSubdevices[I], Device->Platform,
+                                     true /* isSubDevice */);
+      pi_result Result = OutDevices[I]->initialize();
+      if (Result != PI_SUCCESS) {
+        delete[] ZeSubdevices;
+        return Result;
+      }
     }
+    delete[] ZeSubdevices;
+  } catch (const std::bad_alloc &) {
+    return PI_OUT_OF_HOST_MEMORY;
+  } catch (...) {
+    return PI_ERROR_UNKNOWN;
   }
-  delete[] ZeSubdevices;
   return PI_SUCCESS;
 }
 
@@ -1261,7 +1292,13 @@ pi_result piContextCreate(const pi_context_properties *Properties,
   assert(Devices);
   assert(RetContext);
 
-  *RetContext = new _pi_context(*Devices);
+  try {
+    *RetContext = new _pi_context(*Devices);
+  } catch (const std::bad_alloc &) {
+    return PI_OUT_OF_HOST_MEMORY;
+  } catch (...) {
+    return PI_ERROR_UNKNOWN;
+  }
   return PI_SUCCESS;
 }
 
@@ -1352,7 +1389,13 @@ pi_result piQueueCreate(pi_context Context, pi_device Device,
                            &ZeCommandQueue));
 
   assert(Queue);
-  *Queue = new _pi_queue(ZeCommandQueue, Context);
+  try {
+    *Queue = new _pi_queue(ZeCommandQueue, Context);
+  } catch (const std::bad_alloc &) {
+    return PI_OUT_OF_HOST_MEMORY;
+  } catch (...) {
+    return PI_ERROR_UNKNOWN;
+  }
   return PI_SUCCESS;
 }
 
@@ -1455,9 +1498,15 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
 
   auto HostPtrOrNull =
       (Flags & PI_MEM_FLAGS_HOST_PTR_USE) ? pi_cast<char *>(HostPtr) : nullptr;
-  *RetMem = new _pi_buffer(Context->Device->Platform,
-                           pi_cast<char *>(Ptr) /* L0 Memory Handle */,
-                           HostPtrOrNull);
+  try {
+    *RetMem = new _pi_buffer(Context->Device->Platform,
+                             pi_cast<char *>(Ptr) /* L0 Memory Handle */,
+                             HostPtrOrNull);
+  } catch (const std::bad_alloc &) {
+    return PI_OUT_OF_HOST_MEMORY;
+  } catch (...) {
+    return PI_ERROR_UNKNOWN;
+  }
 
   return PI_SUCCESS;
 }
@@ -1630,22 +1679,29 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
 
   auto HostPtrOrNull =
       (Flags & PI_MEM_FLAGS_HOST_PTR_USE) ? pi_cast<char *>(HostPtr) : nullptr;
-  auto ZePIImage =
-      new _pi_image(Context->Device->Platform, ZeHImage, HostPtrOrNull);
+
+  try {
+    auto ZePIImage =
+        new _pi_image(Context->Device->Platform, ZeHImage, HostPtrOrNull);
 
 #ifndef NDEBUG
-  ZePIImage->ZeImageDesc = ZeImageDesc;
+    ZePIImage->ZeImageDesc = ZeImageDesc;
 #endif // !NDEBUG
 
-  if ((Flags & PI_MEM_FLAGS_HOST_PTR_USE) != 0 ||
-      (Flags & PI_MEM_FLAGS_HOST_PTR_COPY) != 0) {
-    // Initialize image synchronously with immediate offload
-    ZE_CALL(zeCommandListAppendImageCopyFromMemory(
-        Context->Device->ZeCommandListInit, ZeHImage, HostPtr, nullptr,
-        nullptr));
-  }
+    if ((Flags & PI_MEM_FLAGS_HOST_PTR_USE) != 0 ||
+        (Flags & PI_MEM_FLAGS_HOST_PTR_COPY) != 0) {
+      // Initialize image synchronously with immediate offload
+      ZE_CALL(zeCommandListAppendImageCopyFromMemory(
+          Context->Device->ZeCommandListInit, ZeHImage, HostPtr, nullptr,
+          nullptr));
+    }
 
-  *RetImage = ZePIImage;
+    *RetImage = ZePIImage;
+  } catch (const std::bad_alloc &) {
+    return PI_OUT_OF_HOST_MEMORY;
+  } catch (...) {
+    return PI_ERROR_UNKNOWN;
+  }
   return PI_SUCCESS;
 }
 
@@ -1678,8 +1734,14 @@ pi_result piProgramCreate(pi_context Context, const void *IL, size_t Length,
   ZE_CALL(zeModuleCreate(ZeDevice, &ZeModuleDesc, &ZeModule,
                          0)); // TODO: handle build log
 
-  auto ZePiProgram = new _pi_program(ZeModule, Context);
-  *Program = pi_cast<pi_program>(ZePiProgram);
+  try {
+    auto ZePiProgram = new _pi_program(ZeModule, Context);
+    *Program = pi_cast<pi_program>(ZePiProgram);
+  } catch (const std::bad_alloc &) {
+    return PI_OUT_OF_HOST_MEMORY;
+  } catch (...) {
+    return PI_ERROR_UNKNOWN;
+  }
   return PI_SUCCESS;
 }
 
@@ -1713,8 +1775,14 @@ pi_result piclProgramCreateWithBinary(pi_context Context, pi_uint32 NumDevices,
   ze_module_handle_t ZeModule;
   ZE_CALL(zeModuleCreate(ZeDevice, &ZeModuleDesc, &ZeModule, 0));
 
-  auto ZePiProgram = new _pi_program(ZeModule, Context);
-  *RetProgram = pi_cast<pi_program>(ZePiProgram);
+  try {
+    auto ZePiProgram = new _pi_program(ZeModule, Context);
+    *RetProgram = pi_cast<pi_program>(ZePiProgram);
+  } catch (const std::bad_alloc &) {
+    return PI_OUT_OF_HOST_MEMORY;
+  } catch (...) {
+    return PI_ERROR_UNKNOWN;
+  }
 
   if (BinaryStatus) {
     *BinaryStatus = PI_SUCCESS;
@@ -1766,24 +1834,29 @@ pi_result piProgramGetInfo(pi_program Program, pi_program_info ParamName,
     SET_PARAM_VALUE(size_t{NumKernels});
     break;
   }
-  case PI_PROGRAM_INFO_KERNEL_NAMES: {
-    // There are extra allocations/copying here dictated by the difference
-    // in L0 and PI interfaces.
-    //
-    uint32_t Count = 0;
-    ZE_CALL(zeModuleGetKernelNames(Program->ZeModule, &Count, nullptr));
-    char **PNames = new char *[Count];
-    ZE_CALL(zeModuleGetKernelNames(Program->ZeModule, &Count,
-                                   const_cast<const char **>(PNames)));
-    std::string PINames{""};
-    for (uint32_t I = 0; I < Count; ++I) {
-      PINames += (I > 0 ? ";" : "");
-      PINames += PNames[I];
+  case PI_PROGRAM_INFO_KERNEL_NAMES:
+    try {
+      // There are extra allocations/copying here dictated by the difference
+      // in L0 and PI interfaces.
+      //
+      uint32_t Count = 0;
+      ZE_CALL(zeModuleGetKernelNames(Program->ZeModule, &Count, nullptr));
+      char **PNames = new char *[Count];
+      ZE_CALL(zeModuleGetKernelNames(Program->ZeModule, &Count,
+                                     const_cast<const char **>(PNames)));
+      std::string PINames{""};
+      for (uint32_t I = 0; I < Count; ++I) {
+        PINames += (I > 0 ? ";" : "");
+        PINames += PNames[I];
+      }
+      delete[] PNames;
+      SET_PARAM_VALUE_STR(PINames.c_str());
+    } catch (const std::bad_alloc &) {
+      return PI_OUT_OF_HOST_MEMORY;
+    } catch (...) {
+      return PI_ERROR_UNKNOWN;
     }
-    delete[] PNames;
-    SET_PARAM_VALUE_STR(PINames.c_str());
     break;
-  }
   default:
     die("piProgramGetInfo: not implemented");
   }
@@ -1910,8 +1983,14 @@ pi_result piKernelCreate(pi_program Program, const char *KernelName,
   ZE_CALL(zeKernelCreate(pi_cast<ze_module_handle_t>(Program->ZeModule),
                          &ZeKernelDesc, &ZeKernel));
 
-  auto ZePiKernel = new _pi_kernel(ZeKernel, Program);
-  *RetKernel = pi_cast<pi_kernel>(ZePiKernel);
+  try {
+    auto ZePiKernel = new _pi_kernel(ZeKernel, Program);
+    *RetKernel = pi_cast<pi_kernel>(ZePiKernel);
+  } catch (const std::bad_alloc &) {
+    return PI_OUT_OF_HOST_MEMORY;
+  } catch (...) {
+    return PI_ERROR_UNKNOWN;
+  }
   return PI_SUCCESS;
 }
 
@@ -1982,17 +2061,23 @@ pi_result piKernelGetInfo(pi_kernel Kernel, pi_kernel_info ParamName,
   case PI_KERNEL_INFO_REFERENCE_COUNT:
     SET_PARAM_VALUE(pi_uint32{Kernel->RefCount});
     break;
-  case PI_KERNEL_INFO_ATTRIBUTES: {
-    uint32_t Size;
-    ZE_CALL(zeKernelGetAttribute(
-        Kernel->ZeKernel, ZE_KERNEL_ATTR_SOURCE_ATTRIBUTE, &Size, nullptr));
-    char *attributes = new char[Size];
-    ZE_CALL(zeKernelGetAttribute(
-        Kernel->ZeKernel, ZE_KERNEL_ATTR_SOURCE_ATTRIBUTE, &Size, attributes));
-    SET_PARAM_VALUE_STR(attributes);
-    delete[] attributes;
+  case PI_KERNEL_INFO_ATTRIBUTES:
+    try {
+      uint32_t Size;
+      ZE_CALL(zeKernelGetAttribute(
+          Kernel->ZeKernel, ZE_KERNEL_ATTR_SOURCE_ATTRIBUTE, &Size, nullptr));
+      char *attributes = new char[Size];
+      ZE_CALL(zeKernelGetAttribute(Kernel->ZeKernel,
+                                   ZE_KERNEL_ATTR_SOURCE_ATTRIBUTE, &Size,
+                                   attributes));
+      SET_PARAM_VALUE_STR(attributes);
+      delete[] attributes;
+    } catch (const std::bad_alloc &) {
+      return PI_OUT_OF_HOST_MEMORY;
+    } catch (...) {
+      return PI_ERROR_UNKNOWN;
+    }
     break;
-  }
   default:
     zePrint("Unsupported ParamName in piKernelGetInfo: ParamName=%d(0x%x)\n",
             ParamName, ParamName);
@@ -2221,8 +2306,14 @@ pi_result piEventCreate(pi_context Context, pi_event *RetEvent) {
 
   ZE_CALL(zeEventCreate(ZeEventPool, &ZeEventDesc, &ZeEvent));
 
-  *RetEvent =
-      new _pi_event(ZeEvent, ZeEventPool, Context, PI_COMMAND_TYPE_USER);
+  try {
+    *RetEvent =
+        new _pi_event(ZeEvent, ZeEventPool, Context, PI_COMMAND_TYPE_USER);
+  } catch (const std::bad_alloc &) {
+    return PI_OUT_OF_HOST_MEMORY;
+  } catch (...) {
+    return PI_ERROR_UNKNOWN;
+  }
   return PI_SUCCESS;
 }
 
@@ -2493,7 +2584,13 @@ pi_result piSamplerCreate(pi_context Context,
                           &ZeSamplerDesc, // TODO: translate properties
                           &ZeSampler));
 
-  *RetSampler = new _pi_sampler(ZeSampler);
+  try {
+    *RetSampler = new _pi_sampler(ZeSampler);
+  } catch (const std::bad_alloc &) {
+    return PI_OUT_OF_HOST_MEMORY;
+  } catch (...) {
+    return PI_ERROR_UNKNOWN;
+  }
   return PI_SUCCESS;
 }
 
@@ -3202,12 +3299,19 @@ pi_result piMemBufferPartition(pi_mem Buffer, pi_mem_flags Flags,
   auto Region = (pi_buffer_region)BufferCreateInfo;
   assert(Region->size != 0u && "Invalid size");
   assert(Region->origin <= (Region->origin + Region->size) && "Overflow");
-  *RetMem = new _pi_buffer(
-      Buffer->Platform,
-      pi_cast<char *>(Buffer->getZeHandle()) +
-          Region->origin /* L0 memory handle */,
-      nullptr /* Host pointer */, Buffer /* Parent buffer */,
-      Region->origin /* Sub-buffer origin */, Region->size /*Sub-buffer size*/);
+  try {
+    *RetMem =
+        new _pi_buffer(Buffer->Platform,
+                       pi_cast<char *>(Buffer->getZeHandle()) +
+                           Region->origin /* L0 memory handle */,
+                       nullptr /* Host pointer */, Buffer /* Parent buffer */,
+                       Region->origin /* Sub-buffer origin */,
+                       Region->size /*Sub-buffer size*/);
+  } catch (const std::bad_alloc &) {
+    return PI_OUT_OF_HOST_MEMORY;
+  } catch (...) {
+    return PI_ERROR_UNKNOWN;
+  }
 
   return PI_SUCCESS;
 }
