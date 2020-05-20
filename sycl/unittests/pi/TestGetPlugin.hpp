@@ -33,7 +33,17 @@ inline std::vector<cl::sycl::detail::plugin> initializeAndRemoveInvalid() {
         pi_uint32 num = 0;
         plugin.call_nocheck<cl::sycl::detail::PiApiKind::piPlatformsGet>(
             0, nullptr, &num);
-        return num <= 0;
+
+        bool removePlugin = num <= 0;
+
+        if (removePlugin) {
+          std::cerr
+              << "Warning: " << GetBackendString(plugin.getBackend())
+              << " PI API plugin returned no platforms via piPlatformsGet. "
+                 "This plugin will be removed from testing.\n";
+        }
+
+        return removePlugin;
       });
 
   plugins.erase(end, plugins.end());
