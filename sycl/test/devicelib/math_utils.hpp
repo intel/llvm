@@ -1,6 +1,6 @@
 #ifndef MATH_UTILS
-#include <complex>
 #include <limits>
+#include <cmath>
 
 // Since it is not proper to compare float point using operator ==, this
 // function measures whether the result of cmath function from kernel is

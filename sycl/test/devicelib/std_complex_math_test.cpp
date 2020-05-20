@@ -7,7 +7,7 @@
 
 #include <CL/sycl.hpp>
 #include <cassert>
-#include <cmath>
+#include <complex>
 
 #include "math_utils.hpp"
 
