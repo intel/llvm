@@ -239,8 +239,20 @@ void Command::waitForEvents(QueueImplPtr Queue,
   if (!EventImpls.empty()) {
     std::vector<RT::PiEvent> RawEvents = getPiEvents(EventImpls);
     if (Queue->is_host()) {
-      const detail::plugin &Plugin = EventImpls[0]->getPlugin();
-      Plugin.call<PiApiKind::piEventsWait>(RawEvents.size(), &RawEvents[0]);
+      // host queue can wait for events from different contexts
+      std::map<context_impl *, std::vector<EventImplPtr>>
+          RequiredEventsPerContext;
+
+      for (const EventImplPtr &Event : EventImpls) {
+        ContextImplPtr Context = Event->getContextImpl();
+        RequiredEventsPerContext[Context.get()].push_back(Event);
+      }
+
+      for (auto &CtxWithEvents : RequiredEventsPerContext) {
+        std::vector<RT::PiEvent> RawEvents = getPiEvents(CtxWithEvents.second);
+        CtxWithEvents.first->getPlugin().call<PiApiKind::piEventsWait>(
+            RawEvents.size(), RawEvents.data());
+      }
     } else {
       const detail::plugin &Plugin = Queue->getPlugin();
       Plugin.call<PiApiKind::piEnqueueEventsWait>(
