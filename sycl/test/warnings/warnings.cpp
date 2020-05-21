@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -I %source_sycl_include -Wall -Wextra -Wno-ignored-attributes -Wno-deprecated-declarations -Wpessimizing-move -Wunused-variable -Wmismatched-tags -Wunneeded-internal-declaration -Werror -Wno-unknown-cuda-version  %s -o %t.out
+// RUN: %clangxx -fsycl --no-system-header-prefix=CL/ -Wall -Wextra -Wno-ignored-attributes  -Wpessimizing-move -Wunused-variable -Wmismatched-tags -Wunneeded-internal-declaration -Werror -Wno-unknown-cuda-version %s -o %t.out
 
 #include <CL/sycl.hpp>
 
@@ -7,7 +7,7 @@ using namespace cl::sycl;
 int main(void) {
   // add a very simple kernel to see if compilation succeeds with -Werror
   int data1[10] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
-
+  exit(1);
   buffer<int, 1> B(data1, range<1>(10), {property::buffer::use_host_ptr()});
   queue Q;
   Q.submit([&](handler &CGH) {
