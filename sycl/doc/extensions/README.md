@@ -22,7 +22,7 @@ DPC++ extensions status:
 | [SYCL_INTEL_attribute_style](KernelRHSAttributes/SYCL_INTEL_attribute_style.asciidoc)                                       | Proposal                                  | |
 | [Queue Order Properties](OrderedQueue/OrderedQueue_v2.adoc)                                                                 | Supported                                 | |
 | [Queue Shortcuts](QueueShortcuts/QueueShortcuts.adoc)                                                                       | Supported                                 | |
-| [Reductions for ND-Range Parallelism](Reduction/Reduction.md)                                                               | Partially supported(OpenCL: CPU, GPU)     | Not supported: multiple reduction vars, USM reduction vars, multi-dimensional reduction vars |
+| [Reductions for ND-Range Parallelism](Reduction/Reduction.md)                                                               | Partially supported(OpenCL: CPU, GPU)     | Not supported: multiple reduction vars, multi-dimensional reduction vars |
 | [SYCL_INTEL_relax_standard_layout](RelaxStdLayout/SYCL_INTEL_relax_standard_layout.asciidoc)                                | Supported                                 | |
 | [SYCL_INTEL_reqd_work_group_size](ReqdWorkGroupSize/SYCL_INTEL_reqd_work_group_size.asciidoc)                               | Supported(OpenCL: CPU, GPU)               | |
 | [SPV_INTEL_function_pointers](SPIRV/SPV_INTEL_function_pointers.asciidoc)                                                   | Supported(OpenCL: CPU, GPU; HOST)         | |
