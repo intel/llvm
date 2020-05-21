@@ -78,8 +78,7 @@ convertToFloat4(vec<T, 4> Coords) {
 // ptr.
 template <typename T>
 detail::enable_if_t<std::is_integral<T>::value, size_t>
-getImageOffset(const T &Coords, const id<3> ImgPitch,
-               const uint8_t ElementSize) {
+getImageOffset(const T &Coords, const id<3>, const uint8_t ElementSize) {
   return Coords * ElementSize;
 }
 

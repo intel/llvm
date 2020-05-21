@@ -263,6 +263,10 @@ public:
 
   void *allocateMem(ContextImplPtr Context, bool InitFromUserData,
                     void *HostPtr, RT::PiEvent &InteropEvent) override {
+    (void)Context;
+    (void)InitFromUserData;
+    (void)HostPtr;
+    (void)InteropEvent;
     throw runtime_error("Not implemented", PI_INVALID_OPERATION);
   }
 
