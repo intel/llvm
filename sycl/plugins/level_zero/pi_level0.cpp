@@ -51,14 +51,9 @@ public:
     }
   }
 
-  static ze_result_t check(ze_result_t ZeResult, const char *CallStr,
-                           bool TraceError = true);
-
   // The non-static version just calls static one.
-  ze_result_t checkThis(ze_result_t ZeResult, const char *CallStr,
-                        bool TraceError = true) {
-    return ZeCall::check(ZeResult, CallStr, TraceError);
-  }
+  ze_result_t doCall(ze_result_t ZeResult, const char *CallStr,
+                     bool TraceError = true);
 };
 std::mutex ZeCall::GlobalLock;
 
@@ -108,7 +103,13 @@ _pi_context::getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &ZePool,
   static const char *MaxNumEventsPerPoolEnv =
       std::getenv("ZE_MAX_NUMBER_OF_EVENTS_PER_EVENT_POOL");
   static const pi_uint32 MaxNumEventsPerPool =
-      (MaxNumEventsPerPoolEnv) ? std::atoi(MaxNumEventsPerPoolEnv) : 256;
+      MaxNumEventsPerPoolEnv ? std::atoi(MaxNumEventsPerPoolEnv) : 256;
+
+  if (MaxNumEventsPerPool == 0) {
+    zePrint("Zero size can't be specified in the "
+            "ZE_MAX_NUMBER_OF_EVENTS_PER_EVENT_POOL\n");
+    return ZE_RESULT_ERROR_INVALID_SIZE;
+  }
 
   Index = 0;
   // Create one event ZePool per MaxNumEventsPerPool events
@@ -159,9 +160,9 @@ _pi_context::decrementAliveEventsInPool(ze_event_pool_handle_t ZePool) {
 }
 
 // Some opencl extensions we know are supported by all Level0 devices.
-#define ZE_SUPPORTED_EXTENSIONS                                                \
-  "cl_khr_il_program cl_khr_subgroups cl_intel_subgroups "                     \
-  "cl_intel_subgroups_short cl_intel_required_subgroup_size "
+constexpr char ZE_SUPPORTED_EXTENSIONS[] =
+    "cl_khr_il_program cl_khr_subgroups cl_intel_subgroups "
+    "cl_intel_subgroups_short cl_intel_required_subgroup_size ";
 
 // Map L0 runtime error code to PI error code
 static pi_result mapError(ze_result_t ZeResult) {
@@ -272,8 +273,8 @@ inline void zeParseError(ze_result_t ZeError, std::string &ErrorString) {
   } // switch
 }
 
-ze_result_t ZeCall::check(ze_result_t ZeResult, const char *CallStr,
-                          bool TraceError) {
+ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *CallStr,
+                           bool TraceError) {
   zePrint("ZE ---> %s\n", CallStr);
 
   if (ZeResult && TraceError) {
@@ -285,9 +286,9 @@ ze_result_t ZeCall::check(ze_result_t ZeResult, const char *CallStr,
 }
 
 #define ZE_CALL(Call)                                                          \
-  if (auto Result = ZeCall().checkThis(Call, #Call, true))                     \
+  if (auto Result = ZeCall().doCall(Call, #Call, true))                        \
     return mapError(Result);
-#define ZE_CALL_NOCHECK(Call) ZeCall().checkThis(Call, #Call, false)
+#define ZE_CALL_NOCHECK(Call) ZeCall().doCall(Call, #Call, false)
 
 pi_result _pi_device::initialize() {
   // Create the immediate command list to be used for initializations
@@ -316,13 +317,11 @@ _pi_device::createCommandList(ze_command_list_handle_t *ZeCommandList) {
   //
   // TODO: Figure out how to lower the overhead of creating a new list
   // for each PI command, if that appears to be important.
-  //
   ze_command_list_desc_t ZeCommandListDesc = {};
   ZeCommandListDesc.version = ZE_COMMAND_LIST_DESC_VERSION_CURRENT;
 
   // TODO: can we just reset the command-list created when an earlier
   // command was submitted to the queue?
-  //
   ZE_CALL(zeCommandListCreate(ZeDevice, &ZeCommandListDesc, ZeCommandList));
 
   return PI_SUCCESS;
@@ -401,7 +400,6 @@ void _pi_event::deleteZeEventList(ze_event_handle_t *ZeEventList) {
 // Recover from Linux SIGSEGV signal.
 // We can't reliably catch C++ exceptions thrown from signal
 // handler so use setjmp/longjmp.
-//
 #include <setjmp.h>
 #include <signal.h>
 jmp_buf ReturnHere;
@@ -436,6 +434,8 @@ extern "C" {
 // Forward declararitons
 decltype(piEventCreate) piEventCreate;
 
+std::once_flag OnceFlag;
+
 pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
                          pi_uint32 *NumPlatforms) {
 
@@ -458,20 +458,20 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
   ze_result_t ZeResult;
   // This is a good time to initialize L0.
   // We can still safely recover if something goes wrong during the init.
-  //
-  // NOTE: for some reason only first segfault is reliably handled,
-  // so remember it, and avoid calling zeInit again.
-  //
-  // TODO: we should not call zeInit multiples times ever, so
-  // this code should be changed.
-  //
-  static bool SegFault = false;
   __TRY() {
-    ZeResult = SegFault ? ZE_RESULT_ERROR_UNINITIALIZED
-                        : ZE_CALL_NOCHECK(zeInit(ZE_INIT_FLAG_NONE));
+    // We should not call zeInit multiples times ever.
+    try {
+      std::call_once(OnceFlag, [&ZeResult]() {
+        ZeResult = ZE_CALL_NOCHECK(zeInit(ZE_INIT_FLAG_NONE));
+      });
+    } catch (std::system_error &err) {
+      // if any condition prevents calls to call_once from executing as
+      // specified
+      ZeResult = ZE_RESULT_ERROR_UNINITIALIZED;
+    }
   }
   __CATCH() {
-    SegFault = true;
+    // SegFault = true;
     zePrint("L0 raised segfault: assume no Platforms\n");
     ZeResult = ZE_RESULT_ERROR_UNINITIALIZED;
   }
@@ -484,13 +484,13 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
     return PI_SUCCESS;
   }
 
-  if (auto Res = ZeCall::check(ZeResult, "zeInit")) {
-    return mapError(Res);
+  if (ZeResult != ZE_RESULT_SUCCESS) {
+    zePrint("zeInit: Level Zero initialization failure\n");
+    return mapError(ZeResult);
   }
 
   // L0 does not have concept of Platforms, but L0 driver is the
   // closest match.
-  //
   if (Platforms && NumEntries > 0) {
     uint32_t ZeDriverCount = 0;
     ZE_CALL(zeDriverGet(&ZeDriverCount, nullptr));
@@ -583,7 +583,6 @@ pi_result piPlatformGetInfo(pi_platform Platform, pi_platform_info ParamName,
     // From OpenCL 2.1: "This version string has the following format:
     // OpenCL<space><major_version.minor_version><space><platform-specific
     // information>. Follow the same notation here.
-    //
     SET_PARAM_VALUE_STR(Platform->ZeDriverApiVersion.c_str());
     break;
   default:
@@ -620,7 +619,6 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
     ZE_CALL(zeDeviceGet(ZeDriver, &ZeDeviceCount, ZeDevices));
 
     for (uint32_t I = 0; I < ZeDeviceCount; ++I) {
-      // TODO: add check for device type
       if (I < NumEntries) {
         Devices[I] = new _pi_device(ZeDevices[I], Platform);
         pi_result Result = Devices[I]->initialize();
@@ -652,7 +650,6 @@ pi_result piDeviceRelease(pi_device Device) {
 
   // TODO: OpenCL says root-device ref-count remains unchanged (1),
   // but when would we free the device's data?
-  //
   if (--(Device->RefCount) == 0) {
     // Destroy the command list used for initializations
     ZE_CALL(zeCommandListDestroy(Device->ZeCommandListInit));
@@ -691,7 +688,6 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   }
   // TODO: cache various device properties in the PI device object,
   // and initialize them only upon they are first requested.
-  //
   ZE_CALL(zeDeviceGetMemoryProperties(ZeDevice, &ZeAvailMemCount,
                                       ZeDeviceMemoryProperties));
 
@@ -736,17 +732,14 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     // TODO: Use proper mechanism to get this information from Level0 after
     // it is added to Level0.
     // Hardcoding the few we know are supported by the current hardware.
-    //
-    //
     std::string SupportedExtensions;
 
     // cl_khr_il_program - OpenCL 2.0 KHR extension for SPIRV support. Core
     //   feature in >OpenCL 2.1
     // cl_khr_subgroups - Extension adds support for implementation-controlled
     //   subgroups.
-    // cl_intel_subgroups - Extension adds subgroup features, defined by
-    // Intel. cl_intel_subgroups_short - Extension adds subgroup functions
-    // described in
+    // cl_intel_subgroups - Extension adds subgroup features, defined by Intel.
+    // cl_intel_subgroups_short - Extension adds subgroup functions described in
     //   the cl_intel_subgroups extension to support 16-bit integer data types
     //   for performance.
     // cl_intel_required_subgroup_size - Extension to allow programmers to
@@ -869,13 +862,11 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     SET_PARAM_VALUE(pi_uint32{Device->RefCount});
     break;
   case PI_DEVICE_INFO_PARTITION_PROPERTIES: {
-    //
     // It is debatable if SYCL sub-device and partitioning APIs sufficient to
     // expose Level0 sub-devices?  We start with support of
     // "partition_by_affinity_domain" and "numa" but if that doesn't seem to
     // be a good fit we could look at adding a more descriptive partitioning
     // type.
-    //
     struct {
       pi_device_partition_property Arr[2];
     } PartitionProperties = {{PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN, 0}};
@@ -962,7 +953,6 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     // be for "alignment requirement (in bits) for sub-buffer offsets."
     // An OpenCL implementation returns 8*128, but L0 can do just 8,
     // meaning unaligned access for values of types larger than 8 bits.
-    //
     SET_PARAM_VALUE(pi_uint32{8});
     break;
   case PI_DEVICE_INFO_MAX_SAMPLERS:
@@ -1052,31 +1042,26 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   case PI_DEVICE_INFO_IMAGE2D_MAX_WIDTH:
     // Until L0 provides needed info, hardcode default minimum values required
     // by the SYCL specification.
-    //
     SET_PARAM_VALUE(size_t{8192});
     break;
   case PI_DEVICE_INFO_IMAGE2D_MAX_HEIGHT:
     // Until L0 provides needed info, hardcode default minimum values required
     // by the SYCL specification.
-    //
     SET_PARAM_VALUE(size_t{8192});
     break;
   case PI_DEVICE_INFO_IMAGE3D_MAX_WIDTH:
     // Until L0 provides needed info, hardcode default minimum values required
     // by the SYCL specification.
-    //
     SET_PARAM_VALUE(size_t{2048});
     break;
   case PI_DEVICE_INFO_IMAGE3D_MAX_HEIGHT:
     // Until L0 provides needed info, hardcode default minimum values required
     // by the SYCL specification.
-    //
     SET_PARAM_VALUE(size_t{2048});
     break;
   case PI_DEVICE_INFO_IMAGE3D_MAX_DEPTH:
     // Until L0 provides needed info, hardcode default minimum values required
     // by the SYCL specification.
-    //
     SET_PARAM_VALUE(size_t{2048});
     break;
   case PI_DEVICE_INFO_IMAGE_MAX_BUFFER_SIZE:
@@ -1085,10 +1070,8 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   case PI_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE:
     SET_PARAM_VALUE(size_t{ZeDeviceImageProperties.maxImageArraySlices});
     break;
-  //
   // Handle SIMD widths.
   // TODO: can we do better than this?
-  //
   case PI_DEVICE_INFO_NATIVE_VECTOR_WIDTH_CHAR:
   case PI_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_CHAR:
     SET_PARAM_VALUE(Device->ZeDeviceProperties.physicalEUSimdWidth / 1);
@@ -1118,9 +1101,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     SET_PARAM_VALUE(Device->ZeDeviceProperties.physicalEUSimdWidth / 2);
     break;
   case PI_DEVICE_INFO_MAX_NUM_SUB_GROUPS: {
-    // Max_num_sub_Groups =
-    // maxTotalGroupSize/min(set
-    // of subGroupSizes);
+    // Max_num_sub_Groups = maxTotalGroupSize/min(set of subGroupSizes);
     uint32_t MinSubGroupSize =
         Device->ZeDeviceComputeProperties.subGroupSizes[0];
     for (uint32_t I = 1; I < Device->ZeDeviceComputeProperties.numSubGroupSizes;
@@ -1169,8 +1150,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   case PI_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT: {
     pi_uint64 Supported = 0;
     if (Device->ZeDeviceProperties.unifiedMemorySupported) {
-      // TODO: Use
-      // ze_memory_access_capabilities_t
+      // TODO: Use ze_memory_access_capabilities_t
       Supported = PI_USM_ACCESS | PI_USM_ATOMIC_ACCESS |
                   PI_USM_CONCURRENT_ACCESS | PI_USM_CONCURRENT_ATOMIC_ACCESS;
     }
@@ -1248,8 +1228,8 @@ piextDeviceSelectBinary(pi_device Device, // TODO: does this need to be context?
                         pi_uint32 *SelectedBinaryInd) {
 
   // TODO dummy implementation.
-  // Real implementaion will use the same mechanism OpenCL ICD dispatcher
-  // uses. Somthing like:
+  // Real implementation will use the same mechanism OpenCL ICD dispatcher
+  // uses. Something like:
   //   PI_VALIDATE_HANDLE_RETURN_HANDLE(ctx, PI_INVALID_CONTEXT);
   //     return context->dispatch->piextDeviceSelectIR(
   //       ctx, images, num_images, selected_image);
@@ -1289,7 +1269,6 @@ pi_result piContextCreate(const pi_context_properties *Properties,
   // L0 does not have notion of contexts.
   // Return the device handle (only single device is allowed) as a context
   // handle.
-  //
   if (NumDevices != 1) {
     zePrint("piCreateContext: context should have exactly one Device\n");
     return PI_INVALID_VALUE;
@@ -1844,7 +1823,6 @@ pi_result piProgramGetInfo(pi_program Program, pi_program_info ParamName,
     try {
       // There are extra allocations/copying here dictated by the difference
       // in L0 and PI interfaces.
-      //
       uint32_t Count = 0;
       ZE_CALL(zeModuleGetKernelNames(Program->ZeModule, &Count, nullptr));
       char **PNames = new char *[Count];
@@ -1883,7 +1861,6 @@ pi_result piProgramLink(pi_context Context, pi_uint32 NumDevices,
   // is that this would mean moving zeModuleCreate here entirely,
   // and so L0 module creation would be deferred until
   // piProgramCompile/piProgramLink/piProgramBuild.
-  //
   assert(NumInputPrograms == 1 && InputPrograms);
   assert(RetProgram);
   *RetProgram = InputPrograms[0];
@@ -1934,7 +1911,6 @@ pi_result piProgramGetBuildInfo(pi_program Program, pi_device Device,
     // TODO: is this the only supported binary type in L0?
     // We should probably return CL_PROGRAM_BINARY_TYPE_NONE if asked
     // before the program was compiled.
-    //
     SET_PARAM_VALUE(cl_program_binary_type{CL_PROGRAM_BINARY_TYPE_EXECUTABLE});
   } else if (ParamName == CL_PROGRAM_BUILD_OPTIONS) {
     // TODO: how to get module build options out of L0?
@@ -1942,7 +1918,6 @@ pi_result piProgramGetBuildInfo(pi_program Program, pi_device Device,
     // passed with piProgramCompile/piProgramBuild, but what can we
     // return for programs that were built outside and registered
     // with piProgramRegister?
-    //
     SET_PARAM_VALUE_STR("");
   } else {
     zePrint("piProgramGetBuildInfo: unsupported ParamName\n");
@@ -2014,7 +1989,6 @@ pi_result piKernelSetArg(pi_kernel Kernel, pi_uint32 ArgIndex, size_t ArgSize,
   // We don't know the type of the argument but it seems that the only time
   // SYCL RT would send a pointer to NULL in 'arg_value' is when the argument
   // is a NULL pointer. Treat a pointer to NULL in 'arg_value' as a NULL.
-  //
   if (ArgSize == sizeof(void *) && ArgValue &&
       *(void **)(const_cast<void *>(ArgValue)) == nullptr) {
     ArgValue = nullptr;
@@ -2036,7 +2010,6 @@ pi_result piextKernelSetArgMemObj(pi_kernel Kernel, pi_uint32 ArgIndex,
   // extracting native PI object from PI handle, and have SYCL
   // RT pass that directly to the regular piKernelSetArg (and
   // then remove this piextKernelSetArgMemObj).
-  //
 
   assert(Kernel);
   ZE_CALL(
@@ -2408,7 +2381,6 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
     // TODO: Using UINT32_MAX for timeout should have the desired
     // effect of waiting until the event is trigerred, but it seems that
     // it is causing an OS crash, so use an interruptable loop for now.
-    //
     do {
       ZeResult = ZE_CALL_NOCHECK(zeEventHostSynchronize(ZeEvent, 100000));
     } while (ZeResult == ZE_RESULT_NOT_READY);
@@ -2418,7 +2390,6 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
 
     // NOTE: we are destroying associated command lists here to free
     // resources sooner in case RT is not calling piEventRelease soon enough.
-    //
     if (EventList[I]->ZeCommandList) {
       // Event has been signaled: Destroy the command list associated with the
       // call that generated the event.
@@ -2454,7 +2425,6 @@ pi_result piEventRelease(pi_event Event) {
     if (Event->ZeCommandList) {
       // Destroy the command list associated with the call that generated
       // the event.
-      //
       ZE_CALL(zeCommandListDestroy(Event->ZeCommandList));
       Event->ZeCommandList = nullptr;
     }
@@ -2983,7 +2953,6 @@ piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer, pi_bool BlockingMap,
   // TODO: check if the input buffer is already allocated in shared
   // memory and thus is accessible from the host as is. Can we get SYCL RT
   // to predict/allocate in shared memory from the beginning?
-  //
   if (Buffer->MapHostPtr) {
     // NOTE: borrowing below semantics from OpenCL as SYCL RT relies on it.
     // It is also better for performance.
@@ -2995,7 +2964,6 @@ piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer, pi_bool BlockingMap,
     //   command has completed.
     // - The pointer value returned by clEnqueueMapBuffer will be derived from
     //   the host_ptr specified when the buffer object is created."
-    //
     *RetMap = Buffer->MapHostPtr + Offset;
   } else {
     ze_host_mem_alloc_desc_t ZeDesc = {};
@@ -3030,7 +2998,6 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
 
   // TODO: handle the case when user does not care to follow the event
   // of unmap completion.
-  //
   assert(Event);
 
   auto Res = piEventCreate(Queue->Context, Event);
@@ -3052,7 +3019,6 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
   //
   // NOTE: Keep this in sync with the implementation of
   // piEnqueueMemBufferMap/piEnqueueMemImageMap.
-  //
   _pi_mem::Mapping MapInfo = {};
   if (pi_result Res = MemObj->removeMapping(MappedPtr, MapInfo))
     return Res;
@@ -3165,7 +3131,6 @@ enqueueMemImageCommandHelper(pi_command_type CommandType, pi_queue Queue,
 
     // TODO: L0 does not support row_pitch/slice_pitch for images yet.
     // Check that SYCL RT did not want pitch larger than default.
-    //
 #ifndef NDEBUG
     assert(SrcMem->isImage());
     auto SrcImage = static_cast<_pi_image *>(SrcMem);
@@ -3191,7 +3156,6 @@ enqueueMemImageCommandHelper(pi_command_type CommandType, pi_queue Queue,
 
     // TODO: L0 does not support row_pitch/slice_pitch for images yet.
     // Check that SYCL RT did not want pitch larger than default.
-    //
 #ifndef NDEBUG
     assert(DstMem->isImage());
     auto DstImage = static_cast<_pi_image *>(DstMem);
@@ -3513,7 +3477,6 @@ pi_result piextUSMEnqueuePrefetch(pi_queue Queue, const void *Ptr, size_t Size,
 
   // TODO: L0 does not have a completion "event" with the prefetch API,
   // so manually add command to signal our event.
-  //
   ZE_CALL(zeCommandListAppendSignalEvent(ZeCommandList, (*Event)->ZeEvent));
 
   if (auto Res = Queue->executeCommandList(ZeCommandList, false))
@@ -3592,7 +3555,6 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
 
   // TODO: L0 does not have a completion "event" with the advise API,
   // so manually add command to signal our event.
-  //
   ZE_CALL(zeCommandListAppendSignalEvent(ZeCommandList, (*Event)->ZeEvent));
 
   Queue->executeCommandList(ZeCommandList, false);
@@ -3653,7 +3615,6 @@ pi_result piextUSMGetMemAllocInfo(pi_context Context, const void *Ptr,
   case PI_MEM_ALLOC_DEVICE: {
     // TODO: this wants pi_device, but we didn't remember it, and cannot
     // deduct from the L0 device.
-    //
     die("piextUSMGetMemAllocInfo: PI_MEM_ALLOC_DEVICE not implemented");
     break;
   }
@@ -3687,7 +3648,6 @@ pi_result piKernelSetExecInfo(pi_kernel Kernel, pi_kernel_exec_info ParamName,
     // The whole point for users really was to not need to know anything
     // about the types of allocations kernel uses. So in DPC++ we always
     // just set all 3 modes for each kernel.
-    //
     bool ZeIndirectValue = true;
     ZE_CALL(zeKernelSetAttribute(Kernel->ZeKernel,
                                  ZE_KERNEL_ATTR_INDIRECT_SHARED_ACCESS,
