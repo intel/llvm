@@ -104,6 +104,20 @@ files (GRF).
 namespace sycl {
 namespace intel {
 namespace gpu {
+
+// __vector_type, using clang vector type extension.
+template <typename __Ty, int __N> struct __vector_type {
+  static_assert(!std::is_const<__Ty>::value, "const element type not supported");
+  static_assert(__is_vectorizable_v<__Ty>::value, "element type not supported");
+  static_assert(__N > 0, "zero-element vector not supported");
+
+  static constexpr int length = __N;
+  using type = __Ty __attribute__((ext_vector_type(__N)));
+};
+
+template <int __N>
+using __mask_type_t = typename __vector_type<uint16_t, __N>::type;
+
 template <typename __Ty, int __N> class simd {
 public:
   using value_type = simd<__Ty, __N, 0>;
@@ -728,3 +742,4 @@ int main(void) {
 - Section covering 2D use cases
 - A bridge from `std::simd` to `sycl::intel::gpu::simd`
 - Describe `simd_view` class restrictions
+- Consider auto-inclusion of sycl_explicit_simd.hpp under -fsycl-esimd option
