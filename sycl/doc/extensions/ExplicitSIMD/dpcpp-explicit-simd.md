@@ -8,19 +8,20 @@ architectures. More specifically, Explicit SIMD provides the following
 additional features:
 - Manual vectorization of device code using the `simd` class mapped to Gen's
   general register file. This allows to write efficient code not relying on
-  further widening by the compiler, as with traditional SIMT programming.
+  further widening by the compiler, as with traditional SPMD programming.
 - Low-level APIs efficiently mapped to Gen architecture, such as block reads.
 
-One of the future directions is enabling this extension for other architectures,
-such as x86, with extracting and clearly marking generic and target-dependent
-API portions.
+Here are some future directions in which this API is intended to evolve:
+- enabling this extension for other architectures, such as x86, with extracting
+  and clearly marking generic and target-dependent API portions
+- aligning with `std::simd` and maybe providing `std::simd` implemenation atop
+  `sycl::intel::gpu`
 
 ## Explicit SIMD execution model
 
 Explicit SIMD execution model is a basically an equivalent of the base SYCL
-execution model with subgroup size restricted to 1. Which means in ESP
-it is guaranteed that there is a single work item in any workgroup, and it maps
-to a single hardware thread. All standard SYCL APIs continue to work,
+execution model with subgroup size restricted to 1. Which means each subgroup
+maps to a single hardware thread. All standard SYCL APIs continue to work,
 including `sycl::intel::sub_group` ones, which become either a no-op or
 trivial. E.g. a barrier becomes just a memory fence for a compiler, collectives
 just return the value in the single work-item. Another consequences of the unit
@@ -34,7 +35,7 @@ architecture devices and the host device for now. Attempt to run such code on
 other devices will result in error. 
 
 Kernels and `SYCL_EXTERNAL` functions using ESP must be explicitly marked with
-the `EXPLICIT_SIMD` attribute macro. Subgroup size quiery within such
+the `EXPLICIT_SIMD` attribute macro. Subgroup size query within such
 functions will always return `1`.
 
 *Functor kernel*
@@ -94,19 +95,15 @@ efficient mapping to SIMD vector operations on Intel GPU architectures.
 
 ### SIMD vector class
 
-The ```sycl::intel::gpu::simd``` class is defined as a templated class for a vector
-of fundamental data elements. The fundamental data element type **__Ty** must be
-vectorizable, which can be any of the C++ character/integer/real floating-point types,
-or IEEE-754 half-precision floating-point type. The length of the vector
-is a constant expression, as determined by the template parameter **__N** in a
-given specialization.
+The `sycl::intel::gpu::simd` class is a vector templated on some element type. The element type must be vectorizable type. The set of vectorizable types is the set of fundamental SYCL arithmetic types (C++ arithmetic types or `half` type) excluding `bool`. The length of the vector is the second template parameter.
 
 Each simd class object is mapped to a consecutive block of general register
 files (GRF).
 
 ```cpp
-namespace cm {
-namespace gen {
+namespace sycl {
+namespace intel {
+namespace gpu {
 template <typename __Ty, int __N> class simd {
 public:
   using value_type = simd<__Ty, __N, 0>;
@@ -186,8 +183,9 @@ public:
   void merge(const value_type &__Val, const __mask_type_t<__N> &__Mask);
   void merge(const value_type &__Val1, value_type __Val2,
              const __mask_type_t<__N> &__Mask);
-} // namespace gen
-} // namespace cm
+} // namespace gpu
+} // namespace intel
+} // namespace sycl
 ```
 
 Every specialization of ```sycl::intel::gpu::simd``` shall be a complete type. The term
@@ -207,7 +205,7 @@ the corresponding scalar data element computation. Each such application is
 unsequenced with respect to the others.
 
 To reference a subset of the elements in simd vector object, Explicit SIMD provides ```select```
-function, which returns a simd or simd_view object (*described blow*) representing
+function, which returns a `simd` or `simd_view` object (*described below*) representing
 the selected sub-vector starting from the i-th element. The number of selected
 elements is specified by the template parameter **__Size**, while the distance
 between two adjacent elements is specified by the template parameter **__Stride**.
@@ -306,8 +304,8 @@ simd objects. **__RegionTy** describes the window shape and can be 1D or 2D,
 **__BaseTy** is the original simd object type, which can be a ```simd_view```
 itself.
 
-```simd_view``` allows to model hierarchical “views” of the parent ```simd```
-object’s parts, read/modify its elements through the views. Views can be of
+```simd_view``` allows to model hierarchical "views" of the parent ```simd```
+object's parts, read/modify its elements through the views. Views can be of
 different shapes and dimensions as illustrated below (`auto` resolves to a
 `simd_view` instantiation):
 
@@ -316,8 +314,9 @@ different shapes and dimensions as illustrated below (`auto` resolves to a
 </p>
 
 ```cpp
-namespace cm {
-namespace gen {
+namespace sycl {
+namespace intel {
+namespace gpu {
 template <typename __BaseTy, typename __RegionTy> class simd_view {
 public:
   using __ShapeTy = typename __shape_type<__RegionTy>::type;
@@ -436,8 +435,9 @@ public:
   void merge(const value_type &__Val, const __mask_type_t<length> &__Mask);
   void merge(const value_type &__Val1, value_type __Val2,
              const __mask_type_t<length> &__Mask);
-} // namespace gen
-} // namespace cm
+} // namespace gpu
+} // namespace intel
+} // namespace sycl
 ```
 
 ```sycl::intel::gpu::simd_view``` class supports all the element-wise operations and
@@ -612,15 +612,15 @@ template <CmAtomicOpType Op, typename T, int n,
 
 Examples:
 ##### 1D surface block store.
-T – element type, n – vector length, acc – SYCL global buffer accessor,
-offset – byte offset in the buffer, vals – vector value to store
+T - element type, n - vector length, acc - SYCL global buffer accessor,
+offset - byte offset in the buffer, vals - vector value to store
 ```cpp
 template <typename T, int n, typename AccessorTy>
 void block_store(AccessorTy acc, uint32_t offset, simd<T, n> vals);
 ```
 ##### 2D media block load.
-T – element type, m and n – block dimensions, acc – SYCL image2D accessor,
-x and y – image coordinates
+T - element type, m and n - block dimensions, acc - SYCL image2D accessor,
+x and y - image coordinates
 ```cpp
 template <typename T, int m, int n, typename AccessorTy, unsigned plane = 0>
 simd<T, m * n> media_block_load(AccessorTy acc, unsigned x, unsigned y);
@@ -630,8 +630,8 @@ simd<T, m * n> media_block_load(AccessorTy acc, unsigned x, unsigned y);
 Examples:
 
 ##### SLM scatter.
-T – element type, n – vector length (16 or 32), vals – vector value to store,
-offsets – byte offsets in the local memory, pred – store mask
+T - element type, n - vector length (16 or 32), vals - vector value to store,
+offsets - byte offsets in the local memory, pred - store mask
 ```cpp
 template <typename T, int n>
 typename std::enable_if<(n == 16 || n == 32), void>::type
@@ -641,7 +641,7 @@ slm_store(simd<T, n> vals, simd<uint32_t, n> offsets, simd<uint16_t, n> pred = 1
 
 ### Private Global Variables.
 
-Explicit SIMD extenstion supports "private global" variables - file scope
+Explicit SIMD extension supports "private global" variables - file scope
 variables in private address space (similar to thread-local variables on host).
 These variables have 1 copy per work-item (which maps to a single SIMD thread in
 ESP) and are visible to all functions in the translation unit. Conceptually they
@@ -723,9 +723,8 @@ int main(void) {
 
 ### TODOs
 
-- Design interoperability with SIMT context - via `subgroup::invoke()`
+- Design interoperability with SPMD context
 - Generate sycl::intel::gpu API documentation from sources
 - Section covering 2D use cases
 - A bridge from `std::simd` to `sycl::intel::gpu::simd`
 - Describe `simd_view` class restrictions
-
