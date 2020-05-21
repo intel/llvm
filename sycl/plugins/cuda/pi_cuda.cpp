@@ -276,15 +276,13 @@ _pi_event::_pi_event(pi_command_type type, pi_context context, pi_queue queue)
       isStarted_{false}, evEnd_{nullptr}, evStart_{nullptr}, evQueued_{nullptr},
       queue_{queue}, context_{context} {
 
-  if (type != PI_COMMAND_TYPE_USER) {
-    PI_CHECK_ERROR(cuEventCreate(&evEnd_, CU_EVENT_DEFAULT));
+  assert(type != PI_COMMAND_TYPE_USER);
 
-    if (queue_->properties_ & PI_QUEUE_PROFILING_ENABLE) {
-      PI_CHECK_ERROR(cuEventCreate(&evQueued_, CU_EVENT_DEFAULT));
-      PI_CHECK_ERROR(cuEventCreate(&evStart_, CU_EVENT_DEFAULT));
-    }
-  } else {
-    cl::sycl::detail::pi::die("User-defined events not implemented");
+  PI_CHECK_ERROR(cuEventCreate(&evEnd_, CU_EVENT_DEFAULT));
+
+  if (queue_->properties_ & PI_QUEUE_PROFILING_ENABLE) {
+    PI_CHECK_ERROR(cuEventCreate(&evQueued_, CU_EVENT_DEFAULT));
+    PI_CHECK_ERROR(cuEventCreate(&evStart_, CU_EVENT_DEFAULT));
   }
 
   if (queue_ != nullptr) {
@@ -2622,24 +2620,7 @@ pi_result cuda_piextKernelSetArgPointer(pi_kernel kernel, pi_uint32 arg_index,
 // Events
 //
 pi_result cuda_piEventCreate(pi_context context, pi_event *event) {
-  assert(context != nullptr);
-  assert(event != nullptr);
-  pi_result retErr = PI_SUCCESS;
-  pi_event retEvent = nullptr;
-
-  try {
-    retEvent = _pi_event::make_user(context);
-    if (retEvent == nullptr) {
-      retErr = PI_OUT_OF_HOST_MEMORY;
-    }
-  } catch (pi_result err) {
-    retErr = err;
-  } catch (...) {
-    retErr = PI_OUT_OF_RESOURCES;
-  }
-
-  *event = retEvent;
-  return retErr;
+  cl::sycl::detail::pi::die("PI Event Create not implemented in CUDA backend");
 }
 
 pi_result cuda_piEventGetInfo(pi_event event, pi_event_info param_name,
@@ -2703,13 +2684,13 @@ pi_result cuda_piEventSetCallback(pi_event event,
                                   pi_int32 command_exec_callback_type,
                                   pfn_notify notify, void *user_data) {
 
-  cl::sycl::detail::pi::die("Event Callback not implemented");
+  cl::sycl::detail::pi::die("Event Callback not implemented in CUDA backend");
   return PI_SUCCESS;
 }
 
 pi_result cuda_piEventSetStatus(pi_event event, pi_int32 execution_status) {
 
-  cl::sycl::detail::pi::die("Event Set Status not implemented");
+  cl::sycl::detail::pi::die("Event Set Status not implemented in CUDA backend");
   return PI_INVALID_VALUE;
 }
 

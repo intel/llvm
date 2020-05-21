@@ -32,7 +32,7 @@ protected:
     const std::string platformVersion =
         platform.get_info<info::platform::version>();
     // If using PI_CUDA, don't accept a non-CUDA device
-    return platformVersion.find("CUDA") != std::string::npos;
+    return platformVersion.find("CUDA BACKEND") != std::string::npos;
   }
 
   class cuda_device_selector : public device_selector {

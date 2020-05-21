@@ -358,12 +358,6 @@ public:
   //
   pi_uint64 get_end_time() const;
 
-  // make a user event. CUDA has no concept of user events, so this
-  // functionality is implemented by the CUDA PI implementation.
-  static pi_event make_user(pi_context context) {
-    return new _pi_event(PI_COMMAND_TYPE_USER, context, nullptr);
-  }
-
   // construct a native CUDA. This maps closely to the underlying CUDA event.
   static pi_event make_native(pi_command_type type, pi_queue queue) {
     return new _pi_event(type, queue->get_context(), queue);
