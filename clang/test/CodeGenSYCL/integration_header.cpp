@@ -21,7 +21,8 @@
 // CHECK-NEXT:   "_ZTSN16second_namespace13second_kernelIcEE",
 // CHECK-NEXT:   "_ZTS12third_kernelILi1Ei5pointIZ4mainE1XEE"
 // CHECK-NEXT:   "_ZTS13fourth_kernelIJN15template_arg_ns14namespaced_argILi1EEEEE"
-// CHECK-NEXT:   "_ZTSZ4mainE16accessor_in_base"
+// Enable the following after base classes are supported.
+// C HECK-NEXT:   "_ZTSZ4mainE16accessor_in_base"
 // CHECK-NEXT: };
 //
 // CHECK: static constexpr
@@ -46,14 +47,15 @@
 // CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 0 },
 // CHECK-NEXT:   { kernel_param_kind_t::kind_accessor, 6112, 4 },
 // CHECK-EMPTY:
-// CHECK-NEXT:   //--- _ZTSZ4mainE16accessor_in_base
-// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 64, 0 },
-// CHECK-NEXT:   { kernel_param_kind_t::kind_accessor, 4062, 8 },
-// CHECK-NEXT:   { kernel_param_kind_t::kind_accessor, 4062, 24 },
-// CHECK-NEXT:   { kernel_param_kind_t::kind_accessor, 4062, 40 },
-// CHECK-NEXT:   { kernel_param_kind_t::kind_accessor, 4062, 52 },
-// CHECK-EMPTY:
-// CHECK-NEXT: };
+// Enable the following after base classes are supported.
+// C HECK-NEXT:   //--- _ZTSZ4mainE16accessor_in_base
+// C HECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 64, 0 },
+// C HECK-NEXT:   { kernel_param_kind_t::kind_accessor, 4062, 8 },
+// C HECK-NEXT:   { kernel_param_kind_t::kind_accessor, 4062, 24 },
+// C HECK-NEXT:   { kernel_param_kind_t::kind_accessor, 4062, 40 },
+// C HECK-NEXT:   { kernel_param_kind_t::kind_accessor, 4062, 52 },
+// C HECK-EMPTY:
+// C HECK-NEXT: };
 //
 // CHECK: template <> struct KernelInfo<class first_kernel> {
 // CHECK: template <> struct KernelInfo<::second_namespace::second_kernel<char>> {
@@ -151,11 +153,11 @@ int main() {
       }
   });
 
-  // FIXME: We cannot use the member-capture because all the handlers except the
-  // integration header handler in SemaSYCL don't handle base types right.
-  accessor_in_base::captured c;
-  kernel_single_task<class accessor_in_base>([c]() {
-  });
+  // FIXME: We cannot use the member-capture because none of the handlers
+  // in SemaSYCL don't handle base types right.
+  //accessor_in_base::captured c;
+  //kernel_single_task<class accessor_in_base>([c]() {
+  //});
 
   return 0;
 }
