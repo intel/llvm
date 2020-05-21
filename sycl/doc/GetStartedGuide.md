@@ -109,7 +109,7 @@ should be used.
 
 **Linux**:
 
-```cmake
+```
 -DSYCL_USE_LIBCXX=ON \
 -DSYCL_LIBCXX_INCLUDE_PATH=<path to libc++ headers> \
 -DSYCL_LIBCXX_LIBRARY_PATH=<path to libc++ and libc++abi libraries>
@@ -307,7 +307,7 @@ the following tools need to be installed:
 Then you'll need to add the following options to your CMake configuration
 command:
 
-```cmake
+```
 -DLLVM_ENABLE_DOXYGEN=ON
 ```
 
