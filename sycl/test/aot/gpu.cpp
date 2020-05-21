@@ -11,5 +11,4 @@
 // CUDA is not compatible with SPIR.
 
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_gen-unknown-unknown-sycldevice -Xsycl-target-backend=spir64_gen-unknown-unknown-sycldevice "-device skl" %S/Inputs/aot.cpp -o %t.out
-// RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
