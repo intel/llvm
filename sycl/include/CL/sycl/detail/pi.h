@@ -133,9 +133,16 @@ typedef enum {
 // make the translation to OpenCL transparent.
 //
 typedef enum : pi_uint64 {
-  PI_DEVICE_TYPE_CPU = CL_DEVICE_TYPE_CPU,
-  PI_DEVICE_TYPE_GPU = CL_DEVICE_TYPE_GPU,
-  PI_DEVICE_TYPE_ACC = CL_DEVICE_TYPE_ACCELERATOR
+  PI_DEVICE_TYPE_DEFAULT =
+      CL_DEVICE_TYPE_DEFAULT, ///< The default device available in the PI
+                              ///< plugin.
+  PI_DEVICE_TYPE_ALL =
+      CL_DEVICE_TYPE_ALL, ///< All devices available in the PI plugin.
+  PI_DEVICE_TYPE_CPU =
+      CL_DEVICE_TYPE_CPU, ///< A PI device that is the host processor.
+  PI_DEVICE_TYPE_GPU = CL_DEVICE_TYPE_GPU, ///< A PI device that is a GPU.
+  PI_DEVICE_TYPE_ACC = CL_DEVICE_TYPE_ACCELERATOR ///< A PI device that is a
+                                                  ///< dedicated accelerator.
 } _pi_device_type;
 
 typedef enum {
@@ -224,6 +231,7 @@ typedef enum {
   PI_DEVICE_INFO_BUILT_IN_KERNELS = CL_DEVICE_BUILT_IN_KERNELS,
   PI_DEVICE_INFO_PLATFORM = CL_DEVICE_PLATFORM,
   PI_DEVICE_INFO_REFERENCE_COUNT = CL_DEVICE_REFERENCE_COUNT,
+  PI_DEVICE_INFO_IL_VERSION = CL_DEVICE_IL_VERSION_KHR,
   PI_DEVICE_INFO_NAME = CL_DEVICE_NAME,
   PI_DEVICE_INFO_VENDOR = CL_DEVICE_VENDOR,
   PI_DEVICE_INFO_DRIVER_VERSION = CL_DRIVER_VERSION,
@@ -241,6 +249,10 @@ typedef enum {
   PI_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN =
       CL_DEVICE_PARTITION_AFFINITY_DOMAIN,
   PI_DEVICE_INFO_PARTITION_TYPE = CL_DEVICE_PARTITION_TYPE,
+  PI_DEVICE_INFO_MAX_NUM_SUB_GROUPS = CL_DEVICE_MAX_NUM_SUB_GROUPS,
+  PI_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS =
+      CL_DEVICE_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS,
+  PI_DEVICE_INFO_SUB_GROUP_SIZES_INTEL = CL_DEVICE_SUB_GROUP_SIZES_INTEL,
   PI_DEVICE_INFO_USM_HOST_SUPPORT = CL_DEVICE_HOST_MEM_CAPABILITIES_INTEL,
   PI_DEVICE_INFO_USM_DEVICE_SUPPORT = CL_DEVICE_DEVICE_MEM_CAPABILITIES_INTEL,
   PI_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT =
@@ -298,6 +310,16 @@ typedef enum {
       CL_KERNEL_PREFERRED_WORK_GROUP_SIZE_MULTIPLE,
   PI_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE = CL_KERNEL_PRIVATE_MEM_SIZE
 } _pi_kernel_group_info;
+
+typedef enum {
+  PI_FP_CORRECTLY_ROUNDED_DIVIDE_SQRT = CL_FP_CORRECTLY_ROUNDED_DIVIDE_SQRT,
+  PI_FP_ROUND_TO_NEAREST = CL_FP_ROUND_TO_NEAREST,
+  PI_FP_ROUND_TO_ZERO = CL_FP_ROUND_TO_ZERO,
+  PI_FP_ROUND_TO_INF = CL_FP_ROUND_TO_INF,
+  PI_FP_INF_NAN = CL_FP_INF_NAN,
+  PI_FP_DENORM = CL_FP_DENORM,
+  PI_FP_FMA = CL_FP_FMA
+} _pi_fp_capabilities;
 
 typedef enum {
   PI_IMAGE_INFO_FORMAT = CL_IMAGE_FORMAT,
@@ -512,6 +534,7 @@ using pi_image_info = _pi_image_info;
 using pi_kernel_info = _pi_kernel_info;
 using pi_kernel_group_info = _pi_kernel_group_info;
 using pi_kernel_sub_group_info = _pi_kernel_sub_group_info;
+using pi_fp_capabilities = _pi_fp_capabilities;
 using pi_event_info = _pi_event_info;
 using pi_command_type = _pi_command_type;
 using pi_mem_type = _pi_mem_type;
@@ -677,6 +700,13 @@ struct pi_device_binary_struct {
   // add flexibility.
 };
 using pi_device_binary = pi_device_binary_struct *;
+
+// pi_buffer_region structure repeats cl_buffer_region
+struct pi_buffer_region_struct {
+  size_t origin;
+  size_t size;
+};
+using pi_buffer_region = pi_buffer_region_struct *;
 
 // Offload binaries descriptor version supported by this library.
 static const uint16_t PI_DEVICE_BINARIES_VERSION = 1;
@@ -1118,10 +1148,10 @@ __SYCL_EXPORT pi_result piKernelSetExecInfo(pi_kernel kernel,
 //
 __SYCL_EXPORT pi_result piEventCreate(pi_context context, pi_event *ret_event);
 
-__SYCL_EXPORT pi_result piEventGetInfo(
-    pi_event event,
-    cl_event_info param_name, // TODO: untie from OpenCL
-    size_t param_value_size, void *param_value, size_t *param_value_size_ret);
+__SYCL_EXPORT pi_result piEventGetInfo(pi_event event, pi_event_info param_name,
+                                       size_t param_value_size,
+                                       void *param_value,
+                                       size_t *param_value_size_ret);
 
 __SYCL_EXPORT pi_result piEventGetProfilingInfo(pi_event event,
                                                 pi_profiling_info param_name,
@@ -1439,7 +1469,8 @@ __SYCL_EXPORT pi_result piextUSMEnqueuePrefetch(
 // USM memadvise API to govern behavior of automatic migration mechanisms
 __SYCL_EXPORT pi_result piextUSMEnqueueMemAdvise(pi_queue queue,
                                                  const void *ptr, size_t length,
-                                                 int advice, pi_event *event);
+                                                 pi_mem_advice advice,
+                                                 pi_event *event);
 
 /// API to query information about USM allocated pointers
 /// Valid Queries:
@@ -1469,9 +1500,9 @@ struct _pi_plugin {
   // Some choices are:
   // - Use of integers to keep major and minor version.
   // - Keeping char* Versions.
-  const char PiVersion[4] = _PI_H_VERSION_STRING;
+  char PiVersion[4];
   // Plugin edits this.
-  char PluginVersion[4] = _PI_H_VERSION_STRING;
+  char PluginVersion[4];
   char *Targets;
   struct FunctionPointers {
 #define _PI_API(api) decltype(::api) *api;

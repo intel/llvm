@@ -117,6 +117,8 @@ enum class device : cl_device_info {
   partition_affinity_domains = CL_DEVICE_PARTITION_AFFINITY_DOMAIN,
   partition_type_affinity_domain = CL_DEVICE_PARTITION_TYPE,
   reference_count = CL_DEVICE_REFERENCE_COUNT,
+  il_version =
+      CL_DEVICE_IL_VERSION_KHR, // Same as CL_DEVICE_IL_VERSION for >=OpenCL 2.1
   max_num_sub_groups = CL_DEVICE_MAX_NUM_SUB_GROUPS,
   sub_group_independent_forward_progress =
       CL_DEVICE_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS,
@@ -124,11 +126,11 @@ enum class device : cl_device_info {
   partition_type_property,
   kernel_kernel_pipe_support,
   // USM
-  usm_device_allocations            = PI_USM_DEVICE_SUPPORT,
-  usm_host_allocations              = PI_USM_HOST_SUPPORT,
-  usm_shared_allocations            = PI_USM_SINGLE_SHARED_SUPPORT,
+  usm_device_allocations = PI_USM_DEVICE_SUPPORT,
+  usm_host_allocations = PI_USM_HOST_SUPPORT,
+  usm_shared_allocations = PI_USM_SINGLE_SHARED_SUPPORT,
   usm_restricted_shared_allocations = PI_USM_CROSS_SHARED_SUPPORT,
-  usm_system_allocator              = PI_USM_SYSTEM_SHARED_SUPPORT
+  usm_system_allocator = PI_USM_SYSTEM_SHARED_SUPPORT
 };
 
 enum class device_type : pi_uint64 {
