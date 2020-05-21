@@ -1,17 +1,3 @@
-// REQUIRES: aoc, accelerator
-
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_fpga-unknown-unknown-sycldevice %S/Inputs/aot.cpp -o %t.out
-// RUN: env SYCL_DEVICE_TYPE=HOST %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
-
-//==----- accelerator.cpp - AOT compilation for fpga devices using aoc  ------==//
-//
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-//
-//===------------------------------------------------------------------------===//
-
 #include <CL/sycl.hpp>
 
 #include <array>
@@ -24,33 +10,33 @@ template <typename T>
 class SimpleVadd;
 
 template <typename T, size_t N>
-void simple_vadd(const std::array<T, N>& VA, const std::array<T, N>& VB,
-                 std::array<T, N>& VC) {
+void simple_vadd(const std::array<T, N> &VA, const std::array<T, N> &VB,
+                 std::array<T, N> &VC) {
   cl::sycl::queue deviceQueue([](cl::sycl::exception_list ExceptionList) {
-      for (cl::sycl::exception_ptr_class ExceptionPtr : ExceptionList) {
-        try {
-          std::rethrow_exception(ExceptionPtr);
-        } catch (cl::sycl::exception &E) {
-          std::cerr << E.what();
-        } catch (...) {
-          std::cerr << "Unknown async exception was caught." << std::endl;
-        }
+    for (cl::sycl::exception_ptr_class ExceptionPtr : ExceptionList) {
+      try {
+        std::rethrow_exception(ExceptionPtr);
+      } catch (cl::sycl::exception &E) {
+        std::cerr << E.what();
+      } catch (...) {
+        std::cerr << "Unknown async exception was caught." << std::endl;
       }
-    });
+    }
+  });
 
   cl::sycl::range<1> numOfItems{N};
   cl::sycl::buffer<T, 1> bufferA(VA.data(), numOfItems);
   cl::sycl::buffer<T, 1> bufferB(VB.data(), numOfItems);
   cl::sycl::buffer<T, 1> bufferC(VC.data(), numOfItems);
 
-  deviceQueue.submit([&](cl::sycl::handler& cgh) {
+  deviceQueue.submit([&](cl::sycl::handler &cgh) {
     auto accessorA = bufferA.template get_access<sycl_read>(cgh);
     auto accessorB = bufferB.template get_access<sycl_read>(cgh);
     auto accessorC = bufferC.template get_access<sycl_write>(cgh);
 
     cgh.parallel_for<class SimpleVadd<T>>(numOfItems,
     [=](cl::sycl::id<1> wiID) {
-        accessorC[wiID] = accessorA[wiID] + accessorB[wiID];
+      accessorC[wiID] = accessorA[wiID] + accessorB[wiID];
     });
   });
 
