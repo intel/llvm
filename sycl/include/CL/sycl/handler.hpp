@@ -128,8 +128,7 @@ public:
 
 __SYCL_EXPORT device getDeviceFromHandler(handler &);
 
-template<int Dims>
-void throwIfNotIntRange(const range<Dims> &Range) {
+template <int Dims> void throwIfNotIntRange(const range<Dims> &Range) {
 #if defined(__SYCL_ID_QUERIES_FIT_IN_INT__)
   static constexpr size_t Limit = static_cast<size_t>(INT_MAX);
   for (size_t Dim = 0; Dim < Dims; ++Dim)
@@ -141,8 +140,7 @@ void throwIfNotIntRange(const range<Dims> &Range) {
 #endif
 }
 
-template<int Dims>
-void throwIfNotIntOffset(const id<Dims> &Id) {
+template <int Dims> void throwIfNotIntOffset(const id<Dims> &Id) {
 #if defined(__SYCL_ID_QUERIES_FIT_IN_INT__)
   static constexpr size_t Limit = static_cast<size_t>(INT_MAX);
   for (size_t Dim = 0; Dim < Dims; ++Dim)
@@ -1108,8 +1106,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     kernel_parallel_for_work_group<NameT, KernelType, Dims>(KernelFunc);
 #else
-    nd_range<Dims> ExecRange = nd_range<Dims>(NumWorkGroups * WorkGroupSize,
-                                              WorkGroupSize);
+    nd_range<Dims> ExecRange =
+        nd_range<Dims>(NumWorkGroups * WorkGroupSize, WorkGroupSize);
     detail::throwIfNotIntRange(ExecRange.get_global_range());
     detail::throwIfNotIntRange(ExecRange.get_local_range());
     detail::throwIfNotIntOffset(ExecRange.get_offset());
@@ -1378,8 +1376,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     kernel_parallel_for_work_group<NameT, KernelType, Dims>(KernelFunc);
 #else
-    nd_range<Dims> ExecRange = nd_range<Dims>(NumWorkGroups * WorkGroupSize,
-                                              WorkGroupSize);
+    nd_range<Dims> ExecRange =
+        nd_range<Dims>(NumWorkGroups * WorkGroupSize, WorkGroupSize);
     detail::throwIfNotIntRange(ExecRange.get_global_range());
     detail::throwIfNotIntRange(ExecRange.get_local_range());
     detail::throwIfNotIntOffset(ExecRange.get_offset());

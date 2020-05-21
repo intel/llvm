@@ -3,8 +3,8 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
-#include <climits>
 #include <CL/sycl.hpp>
+#include <climits>
 
 namespace S = cl::sycl;
 
