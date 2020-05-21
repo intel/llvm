@@ -133,6 +133,8 @@ Release notes for the commit range ba404be..67d3d9e
     by an identical supported platform name for CPU and GPU.
 
 ## Known issues
+  - [new] A crash can happen in a multithreaded application if two threads call
+    an API which implies waiting for an event. No known workaround.
   - The format of the object files produced by the compiler can change between
     versions. The workaround is to rebuild the application.
   - The SYCL library doesn't guarantee stable API/ABI, so applications compiled
