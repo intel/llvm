@@ -317,9 +317,8 @@ using Rtn = detail::bool_constant<Mode == rounding_mode::rtn>;
 // convert types with an equal size and diff names
 template <typename T, typename R, rounding_mode roundingMode, typename OpenCLT,
           typename OpenCLR>
-detail::enable_if_t<!std::is_same<T, R>::value &&                       
-                        std::is_same<OpenCLT, OpenCLR>::value,
-                    R>
+detail::enable_if_t<
+    !std::is_same<T, R>::value && std::is_same<OpenCLT, OpenCLR>::value, R>
 convertImpl(T Value) {
   return static_cast<R>(Value);
 }
