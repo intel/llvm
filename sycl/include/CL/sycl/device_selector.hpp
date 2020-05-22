@@ -20,6 +20,7 @@ class device;
 
 class __SYCL_EXPORT device_selector {
 protected:
+  // SYCL 1.2.1 defines a negative score to reject a device from selection
   static constexpr int REJECT_DEVICE_SCORE = -1;
 
 public:
