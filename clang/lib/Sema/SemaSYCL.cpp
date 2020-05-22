@@ -824,7 +824,7 @@ protected:
   SyclKernelFieldHandler(Sema &S) : SemaRef(S) {}
 
 public:
-  // Mark these virutal so that we can use override in the implementer classes,
+  // Mark these virtual so that we can use override in the implementer classes,
   // despite virtual dispatch never being used.
 
   // Accessor can be a base class or a field decl, so both must be handled.
@@ -864,7 +864,7 @@ public:
   virtual void leaveArray() {}
 };
 
-// A type to check the valididty of all of the argument types.
+// A type to check the validity of all of the argument types.
 class SyclKernelFieldChecker
     : public SyclKernelFieldHandler<SyclKernelFieldChecker> {
   bool IsInvalid = false;
@@ -991,7 +991,7 @@ class SyclKernelDeclCreator
 
   static void setKernelImplicitAttrs(ASTContext &Context, FunctionDecl *FD,
                                      StringRef Name) {
-    // Set implict attributes.
+    // Set implicit attributes.
     FD->addAttr(OpenCLKernelAttr::CreateImplicit(Context));
     FD->addAttr(AsmLabelAttr::CreateImplicit(Context, Name));
     FD->addAttr(ArtificialAttr::CreateImplicit(Context));

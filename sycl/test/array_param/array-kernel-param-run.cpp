@@ -188,8 +188,7 @@ bool test_accessor_array_in_struct(queue &myQueue) {
   return verify_1D("Accessor array in struct", c_num_items, output, ref);
 }
 
-bool test_2d_accessor_array(queue &myQueue)
-{
+bool test_2d_accessor_array(queue &myQueue) {
   std::array<int, c_num_items> input1;
   std::array<int, c_num_items> input2;
   std::array<int, c_num_items> output;
@@ -204,20 +203,15 @@ bool test_2d_accessor_array(queue &myQueue)
 
   myQueue.submit([&](handler &cgh) {
     using Accessor =
-      accessor<int, 1, access::mode::read, access::target::global_buffer>;
+        accessor<int, 1, access::mode::read, access::target::global_buffer>;
     Accessor a_array[2][3] =
-    {
-      {
-        in_buffer1.get_access<access::mode::read>(cgh),
-        in_buffer2.get_access<access::mode::read>(cgh),
-        in_buffer1.get_access<access::mode::read>(cgh)
-      },
-      {
-        in_buffer2.get_access<access::mode::read>(cgh),
-        in_buffer1.get_access<access::mode::read>(cgh),
-        in_buffer2.get_access<access::mode::read>(cgh)
-      }
-    };
+        {
+            {in_buffer1.get_access<access::mode::read>(cgh),
+             in_buffer2.get_access<access::mode::read>(cgh),
+             in_buffer1.get_access<access::mode::read>(cgh)},
+            {in_buffer2.get_access<access::mode::read>(cgh),
+             in_buffer1.get_access<access::mode::read>(cgh),
+             in_buffer2.get_access<access::mode::read>(cgh)}};
     auto output_accessor = out_buffer.get_access<access::mode::write>(cgh);
 
     cgh.parallel_for<class t_2d_accessor_array>(num_items, [=](cl::sycl::id<1> index) {
@@ -229,8 +223,7 @@ bool test_2d_accessor_array(queue &myQueue)
   return verify_1D("Accessor array in struct", c_num_items, output, ref);
 }
 
-bool test_array_struct_accessor_array(queue &myQueue)
-{
+bool test_array_struct_accessor_array(queue &myQueue) {
   std::array<int, c_num_items> input1;
   std::array<int, c_num_items> input2;
   std::array<int, c_num_items> output;
@@ -245,29 +238,22 @@ bool test_array_struct_accessor_array(queue &myQueue)
 
   myQueue.submit([&](handler &cgh) {
     using Accessor =
-      accessor<int, 1, access::mode::read, access::target::global_buffer>;
+        accessor<int, 1, access::mode::read, access::target::global_buffer>;
     struct AS {
       double d;
       Accessor a_array[2];
     } array_s_a[2] =
-    {
-      // a[0]
-      {
-        55.0,
         {
-          in_buffer1.get_access<access::mode::read>(cgh),
-          in_buffer2.get_access<access::mode::read>(cgh)
-        }
-      },
-      // a[1]
-      {
-        66.0,
-        {
-          in_buffer1.get_access<access::mode::read>(cgh),
-          in_buffer2.get_access<access::mode::read>(cgh)
-        }
-      }
-    };
+            // a[0]
+            {
+                55.0,
+                {in_buffer1.get_access<access::mode::read>(cgh),
+                 in_buffer2.get_access<access::mode::read>(cgh)}},
+            // a[1]
+            {
+                66.0,
+                {in_buffer1.get_access<access::mode::read>(cgh),
+                 in_buffer2.get_access<access::mode::read>(cgh)}}};
     auto output_accessor = out_buffer.get_access<access::mode::write>(cgh);
 
     cgh.parallel_for<class array_struct_accessor_array>(num_items, [=](cl::sycl::id<1> index) {
@@ -318,7 +304,8 @@ bool run_tests() {
   }
 
   auto D = Q.get_device();
-  const char *devType = D.is_host() ? "Host" : D.is_cpu() ? "CPU" : "GPU";
+  const char *devType = D.is_host() ? "Host" : D.is_cpu() ? "CPU"
+                                                          : "GPU";
   std::cout << passCount << " of " << testCount << " tests passed on "
             << devType << "\n";
 
@@ -329,7 +316,8 @@ int main(int argc, char *argv[]) {
   bool passed = true;
   default_selector selector{};
   auto D = selector.select_device();
-  const char *devType = D.is_host() ? "Host" : D.is_cpu() ? "CPU" : "GPU";
+  const char *devType = D.is_host() ? "Host" : D.is_cpu() ? "CPU"
+                                                          : "GPU";
   std::cout << "Running on device " << devType << " ("
             << D.get_info<cl::sycl::info::device::name>() << ")\n";
   try {
