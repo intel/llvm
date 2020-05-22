@@ -19,8 +19,11 @@
 #include <memory>
 #include <string>
 #include <thread>
+#include <utility>
 
 #include <level_zero/zet_api.h>
+
+namespace {
 
 // Controls L0 calls serialization to w/a L0 driver being not MT ready.
 // Recognized values (can be used as a bit mask):
@@ -68,6 +71,74 @@ static void zePrint(const char *Format, ...) {
     va_end(Args);
   }
 }
+
+template <typename T, typename Assign>
+pi_result getInfoImpl(size_t param_value_size, void *param_value,
+                      size_t *param_value_size_ret, T value, size_t value_size,
+                      Assign &&assign_func) {
+
+  if (param_value != nullptr) {
+
+    if (param_value_size < value_size) {
+      return PI_INVALID_VALUE;
+    }
+
+    assign_func(param_value, value, value_size);
+  }
+
+  if (param_value_size_ret != nullptr) {
+    *param_value_size_ret = value_size;
+  }
+
+  return PI_SUCCESS;
+}
+
+template <typename T>
+pi_result getInfo(size_t param_value_size, void *param_value,
+                  size_t *param_value_size_ret, T value) {
+
+  auto assignment = [](void *param_value, T value, size_t value_size) {
+    *static_cast<T *>(param_value) = value;
+  };
+
+  return getInfoImpl(param_value_size, param_value, param_value_size_ret, value,
+                     sizeof(T), assignment);
+}
+
+template <typename T>
+pi_result getInfoArray(size_t array_length, size_t param_value_size,
+                       void *param_value, size_t *param_value_size_ret,
+                       T *value) {
+  return getInfoImpl(param_value_size, param_value, param_value_size_ret, value,
+                     array_length * sizeof(T), memcpy);
+}
+
+template <>
+pi_result getInfo<const char *>(size_t param_value_size, void *param_value,
+                                size_t *param_value_size_ret,
+                                const char *value) {
+  return getInfoArray(strlen(value) + 1, param_value_size, param_value,
+                      param_value_size_ret, value);
+}
+
+class ReturnHelper {
+public:
+  ReturnHelper(size_t param_value_size, void *param_value,
+               size_t *param_value_size_ret)
+      : param_value_size(param_value_size), param_value(param_value),
+        param_value_size_ret(param_value_size_ret) {}
+
+  template <class T> pi_result operator()(const T &t) {
+    return getInfo(param_value_size, param_value, param_value_size_ret, t);
+  }
+
+private:
+  size_t param_value_size;
+  void *param_value;
+  size_t *param_value_size_ret;
+};
+
+} // anonymous namespace
 
 // TODO:: In the following 4 methods we may want to distinguish read access vs.
 // write (as it is OK for multiple threads to read the map without locking it).
@@ -119,7 +190,6 @@ _pi_context::getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &ZePool,
     // and initialization of the record in NumEventsLiveInEventPool must be done
     // atomically. Otherwise it is possible that decrementAliveEventsInPool will
     // be called for the record in NumEventsLiveInEventPool before its
-    // initialization.
     std::lock(NumEventsAvailableInEventPoolMutex,
               NumEventsLiveInEventPoolMutex);
     std::lock_guard<std::mutex> NumEventsAvailableInEventPoolGuard(
@@ -361,41 +431,6 @@ void _pi_event::deleteZeEventList(ze_event_handle_t *ZeEventList) {
   delete[] ZeEventList;
 }
 
-// No generic lambdas in C++11, so use this convinence macro.
-// NOTE: to be used in API returning "ParamValue".
-// NOTE: memset is used to clear all bytes in the memory allocated by SYCL RT
-// for value. This is a workaround for the problem when return type of the
-// parameter is incorrect in L0 plugin which can result in bad value. This
-// memset can be removed if it is necessary.
-#define SET_PARAM_VALUE(Value)                                                 \
-  {                                                                            \
-    typedef decltype(Value) T;                                                 \
-    if (ParamValue) {                                                          \
-      memset(ParamValue, 0, ParamValueSize);                                   \
-      *(T *)ParamValue = Value;                                                \
-    }                                                                          \
-    if (ParamValueSizeRet)                                                     \
-      *ParamValueSizeRet = sizeof(T);                                          \
-  }
-#define SET_PARAM_VALUE_STR(Value)                                             \
-  {                                                                            \
-    if (ParamValue)                                                            \
-      memcpy(ParamValue, Value, ParamValueSize);                               \
-    if (ParamValueSizeRet)                                                     \
-      *ParamValueSizeRet = strlen(Value) + 1;                                  \
-  }
-
-#define SET_PARAM_VALUE_VLA(Value, NumValues, RetType)                         \
-  {                                                                            \
-    if (ParamValue) {                                                          \
-      memset(ParamValue, 0, ParamValueSize);                                   \
-      for (uint32_t I = 0; I < NumValues; I++)                                 \
-        ((RetType *)ParamValue)[I] = (RetType)Value[I];                        \
-    }                                                                          \
-    if (ParamValueSizeRet)                                                     \
-      *ParamValueSizeRet = NumValues * sizeof(RetType);                        \
-  }
-
 #ifndef _WIN32
 // Recover from Linux SIGSEGV signal.
 // We can't reliably catch C++ exceptions thrown from signal
@@ -459,7 +494,7 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
   // This is a good time to initialize L0.
   // We can still safely recover if something goes wrong during the init.
   __TRY() {
-    // We should not call zeInit multiples times ever.
+    // We should not call zeInit multiple times ever.
     try {
       std::call_once(OnceFlag, [&ZeResult]() {
         ZeResult = ZE_CALL_NOCHECK(zeInit(ZE_INIT_FLAG_NONE));
@@ -551,15 +586,15 @@ pi_result piPlatformGetInfo(pi_platform Platform, pi_platform_info ParamName,
   zePrint("SYCL over Level-Zero %s\n", Platform->ZeDriverVersion.c_str());
   zePrint("==========================\n");
 
+  ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
+
   switch (ParamName) {
   case PI_PLATFORM_INFO_NAME:
     // TODO: Query L0 driver when relevant info is added there.
-    SET_PARAM_VALUE_STR("Intel(R) Level-Zero");
-    break;
+    return ReturnValue("Intel(R) Level-Zero");
   case PI_PLATFORM_INFO_VENDOR:
     // TODO: Query L0 driver when relevant info is added there.
-    SET_PARAM_VALUE_STR("Intel(R) Corporation");
-    break;
+    return ReturnValue("Intel(R) Corporation");
   case PI_PLATFORM_INFO_EXTENSIONS:
     // Convention adopted from OpenCL:
     //     "Returns a space-separated list of extension names (the extension
@@ -570,12 +605,10 @@ pi_result piPlatformGetInfo(pi_platform Platform, pi_platform_info ParamName,
     // TODO: Check the common extensions supported by all connected devices and
     // return them. For now, hardcoding some extensions we know are supported by
     // all Level0 devices.
-    SET_PARAM_VALUE_STR(ZE_SUPPORTED_EXTENSIONS);
-    break;
+    return ReturnValue(ZE_SUPPORTED_EXTENSIONS);
   case PI_PLATFORM_INFO_PROFILE:
     // TODO: figure out what this means and how is this used
-    SET_PARAM_VALUE_STR("FULL_PROFILE");
-    break;
+    return ReturnValue("FULL_PROFILE");
   case PI_PLATFORM_INFO_VERSION:
     // TODO: this should query to zeDriverGetDriverVersion
     // but we don't yet have the driver handle here.
@@ -583,8 +616,8 @@ pi_result piPlatformGetInfo(pi_platform Platform, pi_platform_info ParamName,
     // From OpenCL 2.1: "This version string has the following format:
     // OpenCL<space><major_version.minor_version><space><platform-specific
     // information>. Follow the same notation here.
-    SET_PARAM_VALUE_STR(Platform->ZeDriverApiVersion.c_str());
-    break;
+    //
+    return ReturnValue(Platform->ZeDriverApiVersion.c_str());
   default:
     // TODO: implement other parameters
     die("Unsupported ParamName in piPlatformGetInfo");
@@ -704,26 +737,23 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   ZeDeviceCacheProperties.version = ZE_DEVICE_CACHE_PROPERTIES_VERSION_CURRENT;
   ZE_CALL(zeDeviceGetCacheProperties(ZeDevice, &ZeDeviceCacheProperties));
 
+  ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
+
   switch (ParamName) {
   case PI_DEVICE_INFO_TYPE: {
-    if (Device->ZeDeviceProperties.type == ZE_DEVICE_TYPE_GPU) {
-      SET_PARAM_VALUE(PI_DEVICE_TYPE_GPU);
-    } else { // ZE_DEVICE_TYPE_FPGA
-      zePrint("FPGA not supported\n");
+    if (Device->ZeDeviceProperties.type != ZE_DEVICE_TYPE_GPU) {
+      zePrint("This device type is not supported\n");
       return PI_INVALID_VALUE;
     }
-    break;
+    return ReturnValue(PI_DEVICE_TYPE_GPU);
   }
   case PI_DEVICE_INFO_PARENT_DEVICE:
     // TODO: all L0 devices are parent ?
-    SET_PARAM_VALUE(pi_device{0});
-    break;
+    return ReturnValue(pi_device{0});
   case PI_DEVICE_INFO_PLATFORM:
-    SET_PARAM_VALUE(Device->Platform);
-    break;
+    return ReturnValue(Device->Platform);
   case PI_DEVICE_INFO_VENDOR_ID:
-    SET_PARAM_VALUE(pi_uint32{Device->ZeDeviceProperties.vendorId});
-    break;
+    return ReturnValue(pi_uint32{Device->ZeDeviceProperties.vendorId});
   case PI_DEVICE_INFO_EXTENSIONS: {
     // Convention adopted from OpenCL:
     //     "Returns a space separated list of extension names (the extension
@@ -732,6 +762,8 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     // TODO: Use proper mechanism to get this information from Level0 after
     // it is added to Level0.
     // Hardcoding the few we know are supported by the current hardware.
+    //
+    //
     std::string SupportedExtensions;
 
     // cl_khr_il_program - OpenCL 2.0 KHR extension for SPIRV support. Core
@@ -766,50 +798,40 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
       // Supports reading and writing of images.
       SupportedExtensions += ("cl_khr_3d_image_writes ");
 
-    SET_PARAM_VALUE_STR(SupportedExtensions.c_str());
-    break;
+    return ReturnValue(SupportedExtensions.c_str());
   }
   case PI_DEVICE_INFO_NAME:
-    SET_PARAM_VALUE_STR(Device->ZeDeviceProperties.name);
-    break;
+    return ReturnValue(Device->ZeDeviceProperties.name);
   case PI_DEVICE_INFO_COMPILER_AVAILABLE:
-    SET_PARAM_VALUE(pi_bool{1});
-    break;
+    return ReturnValue(pi_bool{1});
   case PI_DEVICE_INFO_LINKER_AVAILABLE:
-    SET_PARAM_VALUE(pi_bool{1});
-    break;
+    return ReturnValue(pi_bool{1});
   case PI_DEVICE_INFO_MAX_COMPUTE_UNITS: {
     pi_uint32 MaxComputeUnits =
         Device->ZeDeviceProperties.numEUsPerSubslice *
         Device->ZeDeviceProperties.numSubslicesPerSlice *
         Device->ZeDeviceProperties.numSlices;
-    SET_PARAM_VALUE(pi_uint32{MaxComputeUnits});
-    break;
+    return ReturnValue(pi_uint32{MaxComputeUnits});
   }
   case PI_DEVICE_INFO_MAX_WORK_ITEM_DIMENSIONS:
     // L0 spec defines only three dimensions
-    SET_PARAM_VALUE(pi_uint32{3});
-    break;
+    return ReturnValue(pi_uint32{3});
   case PI_DEVICE_INFO_MAX_WORK_GROUP_SIZE:
-    SET_PARAM_VALUE(
+    return ReturnValue(
         pi_uint64{Device->ZeDeviceComputeProperties.maxTotalGroupSize});
-    break;
   case PI_DEVICE_INFO_MAX_WORK_ITEM_SIZES: {
     struct {
       size_t Arr[3];
     } MaxGroupSize = {{Device->ZeDeviceComputeProperties.maxGroupSizeX,
                        Device->ZeDeviceComputeProperties.maxGroupSizeY,
                        Device->ZeDeviceComputeProperties.maxGroupSizeZ}};
-    SET_PARAM_VALUE(MaxGroupSize);
-    break;
+    return ReturnValue(MaxGroupSize);
   }
   case PI_DEVICE_INFO_MAX_CLOCK_FREQUENCY:
-    SET_PARAM_VALUE(pi_uint32{Device->ZeDeviceProperties.coreClockRate});
-    break;
+    return ReturnValue(pi_uint32{Device->ZeDeviceProperties.coreClockRate});
   case PI_DEVICE_INFO_ADDRESS_BITS: {
     // TODO: To confirm with spec.
-    SET_PARAM_VALUE(pi_uint32{64});
-    break;
+    return ReturnValue(pi_uint32{64});
   }
   case PI_DEVICE_INFO_MAX_MEM_ALLOC_SIZE: {
     // TODO: To confirm with spec.
@@ -817,50 +839,40 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     for (uint32_t I = 0; I < ZeAvailMemCount; I++) {
       MaxMemAllocSize += ZeDeviceMemoryProperties[I].totalSize;
     }
-    SET_PARAM_VALUE(pi_uint64{MaxMemAllocSize});
-    break;
+    return ReturnValue(pi_uint64{MaxMemAllocSize});
   }
   case PI_DEVICE_INFO_GLOBAL_MEM_SIZE: {
     uint32_t GlobalMemSize = 0;
     for (uint32_t I = 0; I < ZeAvailMemCount; I++) {
       GlobalMemSize += ZeDeviceMemoryProperties[I].totalSize;
     }
-    SET_PARAM_VALUE(pi_uint64{GlobalMemSize});
-    break;
+    return ReturnValue(pi_uint64{GlobalMemSize});
   }
   case PI_DEVICE_INFO_LOCAL_MEM_SIZE:
-    SET_PARAM_VALUE(
+    return ReturnValue(
         pi_uint64{Device->ZeDeviceComputeProperties.maxSharedLocalMemory});
-    break;
   case PI_DEVICE_INFO_IMAGE_SUPPORT:
-    SET_PARAM_VALUE(pi_bool{ZeDeviceImageProperties.supported});
-    break;
+    return ReturnValue(pi_bool{ZeDeviceImageProperties.supported});
   case PI_DEVICE_INFO_HOST_UNIFIED_MEMORY:
-    SET_PARAM_VALUE(pi_bool{Device->ZeDeviceProperties.unifiedMemorySupported});
-    break;
+    return ReturnValue(
+        pi_bool{Device->ZeDeviceProperties.unifiedMemorySupported});
   case PI_DEVICE_INFO_AVAILABLE:
-    SET_PARAM_VALUE(pi_bool{ZeDevice ? true : false});
-    break;
+    return ReturnValue(pi_bool{ZeDevice ? true : false});
   case PI_DEVICE_INFO_VENDOR:
     // TODO: Level-Zero does not return vendor's name at the moment
     // only the ID.
-    SET_PARAM_VALUE_STR("Intel(R) Corporation");
-    break;
+    return ReturnValue("Intel(R) Corporation");
   case PI_DEVICE_INFO_DRIVER_VERSION:
-    SET_PARAM_VALUE_STR(Device->Platform->ZeDriverVersion.c_str());
-    break;
+    return ReturnValue(Device->Platform->ZeDriverVersion.c_str());
   case PI_DEVICE_INFO_VERSION:
-    SET_PARAM_VALUE_STR(Device->Platform->ZeDriverApiVersion.c_str());
-    break;
+    return ReturnValue(Device->Platform->ZeDriverApiVersion.c_str());
   case PI_DEVICE_INFO_PARTITION_MAX_SUB_DEVICES: {
     uint32_t ZeSubDeviceCount = 0;
     ZE_CALL(zeDeviceGetSubDevices(ZeDevice, &ZeSubDeviceCount, nullptr));
-    SET_PARAM_VALUE(pi_uint32{ZeSubDeviceCount});
-    break;
+    return ReturnValue(pi_uint32{ZeSubDeviceCount});
   }
   case PI_DEVICE_INFO_REFERENCE_COUNT:
-    SET_PARAM_VALUE(pi_uint32{Device->RefCount});
-    break;
+    return ReturnValue(pi_uint32{Device->RefCount});
   case PI_DEVICE_INFO_PARTITION_PROPERTIES: {
     // It is debatable if SYCL sub-device and partitioning APIs sufficient to
     // expose Level0 sub-devices?  We start with support of
@@ -870,13 +882,11 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     struct {
       pi_device_partition_property Arr[2];
     } PartitionProperties = {{PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN, 0}};
-    SET_PARAM_VALUE(PartitionProperties);
-    break;
+    return ReturnValue(PartitionProperties);
   }
   case PI_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN:
-    SET_PARAM_VALUE(pi_device_affinity_domain{
+    return ReturnValue(pi_device_affinity_domain{
         PI_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE});
-    break;
   case PI_DEVICE_INFO_PARTITION_TYPE: {
     if (Device->IsSubDevice) {
       struct {
@@ -884,86 +894,64 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
       } PartitionProperties = {{PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
                                 PI_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE,
                                 0}};
-      SET_PARAM_VALUE(PartitionProperties);
-    } else {
-      // For root-device there is no partitioning to report.
-      SET_PARAM_VALUE(pi_device_partition_property{0});
+      return ReturnValue(PartitionProperties);
     }
-    break;
+    // For root-device there is no partitioning to report.
+    return ReturnValue(pi_device_partition_property{0});
   }
 
     // Everything under here is not supported yet
 
   case PI_DEVICE_INFO_OPENCL_C_VERSION:
-    SET_PARAM_VALUE_STR("");
-    break;
+    return ReturnValue("");
   case PI_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC:
-    SET_PARAM_VALUE(pi_bool{true});
-    break;
+    return ReturnValue(pi_bool{true});
   case PI_DEVICE_INFO_PRINTF_BUFFER_SIZE:
-    SET_PARAM_VALUE(size_t{ZeDeviceKernelProperties.printfBufferSize});
-    break;
+    return ReturnValue(size_t{ZeDeviceKernelProperties.printfBufferSize});
   case PI_DEVICE_INFO_PROFILE:
-    SET_PARAM_VALUE_STR("FULL_PROFILE");
-    break;
+    return ReturnValue("FULL_PROFILE");
   case PI_DEVICE_INFO_BUILT_IN_KERNELS:
     // TODO: To find out correct value
-    SET_PARAM_VALUE_STR("");
-    break;
+    return ReturnValue("");
   case PI_DEVICE_INFO_QUEUE_PROPERTIES:
-    SET_PARAM_VALUE(pi_queue_properties{PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE |
-                                        PI_QUEUE_PROFILING_ENABLE});
-    break;
+    return ReturnValue(pi_queue_properties{
+        PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE | PI_QUEUE_PROFILING_ENABLE});
   case PI_DEVICE_INFO_EXECUTION_CAPABILITIES:
-    SET_PARAM_VALUE(
+    return ReturnValue(
         pi_device_exec_capabilities{PI_DEVICE_EXEC_CAPABILITIES_NATIVE_KERNEL});
-    break;
   case PI_DEVICE_INFO_ENDIAN_LITTLE:
-    SET_PARAM_VALUE(pi_bool{true});
-    break;
+    return ReturnValue(pi_bool{true});
   case PI_DEVICE_INFO_ERROR_CORRECTION_SUPPORT:
-    SET_PARAM_VALUE(pi_bool{Device->ZeDeviceProperties.eccMemorySupported});
-    break;
+    return ReturnValue(pi_bool{Device->ZeDeviceProperties.eccMemorySupported});
   case PI_DEVICE_INFO_PROFILING_TIMER_RESOLUTION:
-    SET_PARAM_VALUE(size_t{Device->ZeDeviceProperties.timerResolution});
-    break;
+    return ReturnValue(size_t{Device->ZeDeviceProperties.timerResolution});
   case PI_DEVICE_INFO_LOCAL_MEM_TYPE:
-    SET_PARAM_VALUE(PI_DEVICE_LOCAL_MEM_TYPE_LOCAL);
-    break;
+    return ReturnValue(PI_DEVICE_LOCAL_MEM_TYPE_LOCAL);
   case PI_DEVICE_INFO_MAX_CONSTANT_ARGS:
-    SET_PARAM_VALUE(pi_uint32{64});
-    break;
+    return ReturnValue(pi_uint32{64});
   case PI_DEVICE_INFO_MAX_CONSTANT_BUFFER_SIZE:
-    SET_PARAM_VALUE(pi_uint64{ZeDeviceImageProperties.maxImageBufferSize});
-    break;
+    return ReturnValue(pi_uint64{ZeDeviceImageProperties.maxImageBufferSize});
   case PI_DEVICE_INFO_GLOBAL_MEM_CACHE_TYPE:
-    SET_PARAM_VALUE(PI_DEVICE_MEM_CACHE_TYPE_READ_WRITE_CACHE);
-    break;
+    return ReturnValue(PI_DEVICE_MEM_CACHE_TYPE_READ_WRITE_CACHE);
   case PI_DEVICE_INFO_GLOBAL_MEM_CACHELINE_SIZE:
-    SET_PARAM_VALUE(pi_uint32{ZeDeviceCacheProperties.lastLevelCachelineSize});
-    break;
+    return ReturnValue(
+        pi_uint32{ZeDeviceCacheProperties.lastLevelCachelineSize});
   case PI_DEVICE_INFO_GLOBAL_MEM_CACHE_SIZE:
-    SET_PARAM_VALUE(pi_uint64{ZeDeviceCacheProperties.lastLevelCacheSize});
-    break;
+    return ReturnValue(pi_uint64{ZeDeviceCacheProperties.lastLevelCacheSize});
   case PI_DEVICE_INFO_MAX_PARAMETER_SIZE:
-    SET_PARAM_VALUE(size_t{ZeDeviceKernelProperties.maxArgumentsSize});
-    break;
+    return ReturnValue(size_t{ZeDeviceKernelProperties.maxArgumentsSize});
   case PI_DEVICE_INFO_MEM_BASE_ADDR_ALIGN:
     // SYCL/OpenCL spec is vague on what this means exactly, but seems to
     // be for "alignment requirement (in bits) for sub-buffer offsets."
     // An OpenCL implementation returns 8*128, but L0 can do just 8,
     // meaning unaligned access for values of types larger than 8 bits.
-    SET_PARAM_VALUE(pi_uint32{8});
-    break;
+    return ReturnValue(pi_uint32{8});
   case PI_DEVICE_INFO_MAX_SAMPLERS:
-    SET_PARAM_VALUE(pi_uint32{ZeDeviceImageProperties.maxSamplers});
-    break;
+    return ReturnValue(pi_uint32{ZeDeviceImageProperties.maxSamplers});
   case PI_DEVICE_INFO_MAX_READ_IMAGE_ARGS:
-    SET_PARAM_VALUE(pi_uint32{ZeDeviceImageProperties.maxReadImageArgs});
-    break;
+    return ReturnValue(pi_uint32{ZeDeviceImageProperties.maxReadImageArgs});
   case PI_DEVICE_INFO_MAX_WRITE_IMAGE_ARGS:
-    SET_PARAM_VALUE(pi_uint32{ZeDeviceImageProperties.maxWriteImageArgs});
-    break;
+    return ReturnValue(pi_uint32{ZeDeviceImageProperties.maxWriteImageArgs});
   case PI_DEVICE_INFO_SINGLE_FP_CONFIG: {
     uint64_t SingleFPValue = 0;
     ze_fp_capabilities_t ZeSingleFPCapabilities =
@@ -986,8 +974,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     if (ZE_FP_CAPS_FMA & ZeSingleFPCapabilities) {
       SingleFPValue |= PI_FP_FMA;
     }
-    SET_PARAM_VALUE(pi_uint64{SingleFPValue});
-    break;
+    return ReturnValue(pi_uint64{SingleFPValue});
   }
   case PI_DEVICE_INFO_HALF_FP_CONFIG: {
     uint64_t HalfFPValue = 0;
@@ -1011,8 +998,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     if (ZE_FP_CAPS_FMA & ZeHalfFPCapabilities) {
       HalfFPValue |= PI_FP_FMA;
     }
-    SET_PARAM_VALUE(pi_uint64{HalfFPValue});
-    break;
+    return ReturnValue(pi_uint64{HalfFPValue});
   }
   case PI_DEVICE_INFO_DOUBLE_FP_CONFIG: {
     uint64_t DoubleFPValue = 0;
@@ -1036,70 +1022,55 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     if (ZE_FP_CAPS_FMA & ZeDoubleFPCapabilities) {
       DoubleFPValue |= PI_FP_FMA;
     }
-    SET_PARAM_VALUE(pi_uint64{DoubleFPValue});
-    break;
+    return ReturnValue(pi_uint64{DoubleFPValue});
   }
   case PI_DEVICE_INFO_IMAGE2D_MAX_WIDTH:
     // Until L0 provides needed info, hardcode default minimum values required
     // by the SYCL specification.
-    SET_PARAM_VALUE(size_t{8192});
-    break;
+    return ReturnValue(size_t{8192});
   case PI_DEVICE_INFO_IMAGE2D_MAX_HEIGHT:
     // Until L0 provides needed info, hardcode default minimum values required
     // by the SYCL specification.
-    SET_PARAM_VALUE(size_t{8192});
-    break;
+    return ReturnValue(size_t{8192});
   case PI_DEVICE_INFO_IMAGE3D_MAX_WIDTH:
     // Until L0 provides needed info, hardcode default minimum values required
     // by the SYCL specification.
-    SET_PARAM_VALUE(size_t{2048});
-    break;
+    return ReturnValue(size_t{2048});
   case PI_DEVICE_INFO_IMAGE3D_MAX_HEIGHT:
     // Until L0 provides needed info, hardcode default minimum values required
     // by the SYCL specification.
-    SET_PARAM_VALUE(size_t{2048});
-    break;
+    return ReturnValue(size_t{2048});
   case PI_DEVICE_INFO_IMAGE3D_MAX_DEPTH:
     // Until L0 provides needed info, hardcode default minimum values required
     // by the SYCL specification.
-    SET_PARAM_VALUE(size_t{2048});
-    break;
+    return ReturnValue(size_t{2048});
   case PI_DEVICE_INFO_IMAGE_MAX_BUFFER_SIZE:
-    SET_PARAM_VALUE(size_t{ZeDeviceImageProperties.maxImageBufferSize});
-    break;
+    return ReturnValue(size_t{ZeDeviceImageProperties.maxImageBufferSize});
   case PI_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE:
-    SET_PARAM_VALUE(size_t{ZeDeviceImageProperties.maxImageArraySlices});
-    break;
+    return ReturnValue(size_t{ZeDeviceImageProperties.maxImageArraySlices});
   // Handle SIMD widths.
   // TODO: can we do better than this?
   case PI_DEVICE_INFO_NATIVE_VECTOR_WIDTH_CHAR:
   case PI_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_CHAR:
-    SET_PARAM_VALUE(Device->ZeDeviceProperties.physicalEUSimdWidth / 1);
-    break;
+    return ReturnValue(Device->ZeDeviceProperties.physicalEUSimdWidth / 1);
   case PI_DEVICE_INFO_NATIVE_VECTOR_WIDTH_SHORT:
   case PI_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_SHORT:
-    SET_PARAM_VALUE(Device->ZeDeviceProperties.physicalEUSimdWidth / 2);
-    break;
+    return ReturnValue(Device->ZeDeviceProperties.physicalEUSimdWidth / 2);
   case PI_DEVICE_INFO_NATIVE_VECTOR_WIDTH_INT:
   case PI_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_INT:
-    SET_PARAM_VALUE(Device->ZeDeviceProperties.physicalEUSimdWidth / 4);
-    break;
+    return ReturnValue(Device->ZeDeviceProperties.physicalEUSimdWidth / 4);
   case PI_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG:
   case PI_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG:
-    SET_PARAM_VALUE(Device->ZeDeviceProperties.physicalEUSimdWidth / 8);
-    break;
+    return ReturnValue(Device->ZeDeviceProperties.physicalEUSimdWidth / 8);
   case PI_DEVICE_INFO_NATIVE_VECTOR_WIDTH_FLOAT:
   case PI_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_FLOAT:
-    SET_PARAM_VALUE(Device->ZeDeviceProperties.physicalEUSimdWidth / 4);
-    break;
+    return ReturnValue(Device->ZeDeviceProperties.physicalEUSimdWidth / 4);
   case PI_DEVICE_INFO_NATIVE_VECTOR_WIDTH_DOUBLE:
   case PI_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_DOUBLE:
-    SET_PARAM_VALUE(Device->ZeDeviceProperties.physicalEUSimdWidth / 8);
-    break;
+    return ReturnValue(Device->ZeDeviceProperties.physicalEUSimdWidth / 8);
   case PI_DEVICE_INFO_NATIVE_VECTOR_WIDTH_HALF:
   case PI_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_HALF:
-    SET_PARAM_VALUE(Device->ZeDeviceProperties.physicalEUSimdWidth / 2);
-    break;
+    return ReturnValue(Device->ZeDeviceProperties.physicalEUSimdWidth / 2);
   case PI_DEVICE_INFO_MAX_NUM_SUB_GROUPS: {
     // Max_num_sub_Groups = maxTotalGroupSize/min(set of subGroupSizes);
     uint32_t MinSubGroupSize =
@@ -1109,22 +1080,19 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
       if (MinSubGroupSize > Device->ZeDeviceComputeProperties.subGroupSizes[I])
         MinSubGroupSize = Device->ZeDeviceComputeProperties.subGroupSizes[I];
     }
-    SET_PARAM_VALUE(Device->ZeDeviceComputeProperties.maxTotalGroupSize /
-                    MinSubGroupSize);
-    break;
+    return ReturnValue(Device->ZeDeviceComputeProperties.maxTotalGroupSize /
+                       MinSubGroupSize);
   }
   case PI_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS: {
     // TODO: Not supported yet. Needs to be updated after support is added.
-    SET_PARAM_VALUE(pi_bool{false});
-    break;
+    return ReturnValue(pi_bool{false});
   }
   case PI_DEVICE_INFO_SUB_GROUP_SIZES_INTEL: {
     // ze_device_compute_properties.subGroupSizes is in uint32_t whereas the
     // expected return is size_t datatype. size_t can be 8 bytes of data.
-    SET_PARAM_VALUE_VLA(Device->ZeDeviceComputeProperties.subGroupSizes,
-                        Device->ZeDeviceComputeProperties.numSubGroupSizes,
-                        size_t);
-    break;
+    return getInfoArray(Device->ZeDeviceComputeProperties.numSubGroupSizes,
+                        ParamValueSize, ParamValue, ParamValueSizeRet,
+                        Device->ZeDeviceComputeProperties.subGroupSizes);
   }
   case PI_DEVICE_INFO_IL_VERSION: {
     // Set to a space separated list of IL version strings of the form
@@ -1140,8 +1108,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
                       SpirvVersionMinor);
     // returned string to contain only len number of characters.
     std::string ILVersion(SpirvVersionString, Len);
-    SET_PARAM_VALUE_STR(ILVersion.c_str());
-    break;
+    return ReturnValue(ILVersion.c_str());
   }
   case PI_DEVICE_INFO_USM_HOST_SUPPORT:
   case PI_DEVICE_INFO_USM_DEVICE_SUPPORT:
@@ -1154,8 +1121,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
       Supported = PI_USM_ACCESS | PI_USM_ATOMIC_ACCESS |
                   PI_USM_CONCURRENT_ACCESS | PI_USM_CONCURRENT_ATOMIC_ACCESS;
     }
-    SET_PARAM_VALUE(Supported);
-    break;
+    return ReturnValue(Supported);
   }
   default:
     zePrint("Unsupported ParamName in piGetDeviceInfo\n");
@@ -1293,13 +1259,15 @@ pi_result piContextGetInfo(pi_context Context, pi_context_info ParamName,
 
   assert(Context);
 
-  if (ParamName == PI_CONTEXT_INFO_DEVICES) {
-    SET_PARAM_VALUE(Context->Device);
-  } else if (ParamName == PI_CONTEXT_INFO_NUM_DEVICES) {
-    SET_PARAM_VALUE(pi_uint32{1});
-  } else if (ParamName == PI_CONTEXT_INFO_REFERENCE_COUNT) {
-    SET_PARAM_VALUE(pi_uint32{Context->RefCount});
-  } else {
+  ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
+  switch (ParamName) {
+  case PI_CONTEXT_INFO_DEVICES:
+    return ReturnValue(Context->Device);
+  case PI_CONTEXT_INFO_NUM_DEVICES:
+    return ReturnValue(pi_uint32{1});
+  case PI_CONTEXT_INFO_REFERENCE_COUNT:
+    return ReturnValue(pi_uint32{Context->RefCount});
+  default:
     // TODO: implement other parameters
     die("piGetContextInfo: unsuppported ParamName.");
   }
@@ -1390,17 +1358,15 @@ pi_result piQueueGetInfo(pi_queue Queue, pi_queue_info ParamName,
 
   assert(Queue);
 
+  ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
   // TODO: consider support for queue properties and size
   switch (ParamName) {
   case PI_QUEUE_INFO_CONTEXT:
-    SET_PARAM_VALUE(Queue->Context);
-    break;
+    return ReturnValue(Queue->Context);
   case PI_QUEUE_INFO_DEVICE:
-    SET_PARAM_VALUE(Queue->Context->Device);
-    break;
+    return ReturnValue(Queue->Context->Device);
   case PI_QUEUE_INFO_REFERENCE_COUNT:
-    SET_PARAM_VALUE(pi_uint32{Queue->RefCount});
-    break;
+    return ReturnValue(pi_uint32{Queue->RefCount});
   case PI_QUEUE_INFO_PROPERTIES:
     die("PI_QUEUE_INFO_PROPERTIES in piQueueGetInfo not implemented\n");
     break;
@@ -1789,23 +1755,20 @@ pi_result piProgramGetInfo(pi_program Program, pi_program_info ParamName,
                            size_t *ParamValueSizeRet) {
 
   assert(Program);
+  ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
   switch (ParamName) {
   case PI_PROGRAM_INFO_REFERENCE_COUNT:
-    SET_PARAM_VALUE(pi_uint32{Program->RefCount});
-    break;
+    return ReturnValue(pi_uint32{Program->RefCount});
   case PI_PROGRAM_INFO_NUM_DEVICES:
     // L0 Module is always for a single device.
-    SET_PARAM_VALUE(pi_uint32{1});
-    break;
+    return ReturnValue(pi_uint32{1});
   case PI_PROGRAM_INFO_DEVICES:
-    SET_PARAM_VALUE(Program->Context->Device);
-    break;
+    return ReturnValue(Program->Context->Device);
   case PI_PROGRAM_INFO_BINARY_SIZES: {
     size_t SzBinary = 0;
     ZE_CALL(zeModuleGetNativeBinary(Program->ZeModule, &SzBinary, nullptr));
     // This is an array of 1 element, initialize if it were scalar.
-    SET_PARAM_VALUE(size_t{SzBinary});
-    break;
+    return ReturnValue(size_t{SzBinary});
   }
   case PI_PROGRAM_INFO_BINARIES: {
     size_t SzBinary = 0;
@@ -1816,8 +1779,7 @@ pi_result piProgramGetInfo(pi_program Program, pi_program_info ParamName,
   case PI_PROGRAM_INFO_NUM_KERNELS: {
     uint32_t NumKernels = 0;
     ZE_CALL(zeModuleGetKernelNames(Program->ZeModule, &NumKernels, nullptr));
-    SET_PARAM_VALUE(size_t{NumKernels});
-    break;
+    return ReturnValue(size_t{NumKernels});
   }
   case PI_PROGRAM_INFO_KERNEL_NAMES:
     try {
@@ -1834,13 +1796,12 @@ pi_result piProgramGetInfo(pi_program Program, pi_program_info ParamName,
         PINames += PNames[I];
       }
       delete[] PNames;
-      SET_PARAM_VALUE_STR(PINames.c_str());
+      return ReturnValue(PINames.c_str());
     } catch (const std::bad_alloc &) {
       return PI_OUT_OF_HOST_MEMORY;
     } catch (...) {
       return PI_ERROR_UNKNOWN;
     }
-    break;
   default:
     die("piProgramGetInfo: not implemented");
   }
@@ -1907,23 +1868,24 @@ pi_result piProgramGetBuildInfo(pi_program Program, pi_device Device,
                                 size_t ParamValueSize, void *ParamValue,
                                 size_t *ParamValueSizeRet) {
 
+  ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
   if (ParamName == CL_PROGRAM_BINARY_TYPE) {
     // TODO: is this the only supported binary type in L0?
     // We should probably return CL_PROGRAM_BINARY_TYPE_NONE if asked
     // before the program was compiled.
-    SET_PARAM_VALUE(cl_program_binary_type{CL_PROGRAM_BINARY_TYPE_EXECUTABLE});
-  } else if (ParamName == CL_PROGRAM_BUILD_OPTIONS) {
+    return ReturnValue(
+        cl_program_binary_type{CL_PROGRAM_BINARY_TYPE_EXECUTABLE});
+  }
+  if (ParamName == CL_PROGRAM_BUILD_OPTIONS) {
     // TODO: how to get module build options out of L0?
     // For the programs that we compiled we can remember the options
     // passed with piProgramCompile/piProgramBuild, but what can we
     // return for programs that were built outside and registered
     // with piProgramRegister?
-    SET_PARAM_VALUE_STR("");
-  } else {
-    zePrint("piProgramGetBuildInfo: unsupported ParamName\n");
-    return PI_INVALID_VALUE;
+    return ReturnValue("");
   }
-  return PI_SUCCESS;
+  zePrint("piProgramGetBuildInfo: unsupported ParamName\n");
+  return PI_INVALID_VALUE;
 }
 
 pi_result piProgramRetain(pi_program Program) {
@@ -2028,22 +1990,18 @@ pi_result piKernelGetInfo(pi_kernel Kernel, pi_kernel_info ParamName,
   ZeKernelProperties.version = ZE_KERNEL_PROPERTIES_VERSION_CURRENT;
   ZE_CALL(zeKernelGetProperties(Kernel->ZeKernel, &ZeKernelProperties));
 
+  ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
   switch (ParamName) {
   case PI_KERNEL_INFO_CONTEXT:
-    SET_PARAM_VALUE(pi_context{Kernel->Program->Context});
-    break;
+    return ReturnValue(pi_context{Kernel->Program->Context});
   case PI_KERNEL_INFO_PROGRAM:
-    SET_PARAM_VALUE(pi_program{Kernel->Program});
-    break;
+    return ReturnValue(pi_program{Kernel->Program});
   case PI_KERNEL_INFO_FUNCTION_NAME:
-    SET_PARAM_VALUE_STR(ZeKernelProperties.name);
-    break;
+    return ReturnValue(ZeKernelProperties.name);
   case PI_KERNEL_INFO_NUM_ARGS:
-    SET_PARAM_VALUE(pi_uint32{ZeKernelProperties.numKernelArgs});
-    break;
+    return ReturnValue(pi_uint32{ZeKernelProperties.numKernelArgs});
   case PI_KERNEL_INFO_REFERENCE_COUNT:
-    SET_PARAM_VALUE(pi_uint32{Kernel->RefCount});
-    break;
+    return ReturnValue(pi_uint32{Kernel->RefCount});
   case PI_KERNEL_INFO_ATTRIBUTES:
     try {
       uint32_t Size;
@@ -2053,14 +2011,14 @@ pi_result piKernelGetInfo(pi_kernel Kernel, pi_kernel_info ParamName,
       ZE_CALL(zeKernelGetAttribute(Kernel->ZeKernel,
                                    ZE_KERNEL_ATTR_SOURCE_ATTRIBUTE, &Size,
                                    attributes));
-      SET_PARAM_VALUE_STR(attributes);
+      auto Res = ReturnValue(attributes);
       delete[] attributes;
+      return Res;
     } catch (const std::bad_alloc &) {
       return PI_OUT_OF_HOST_MEMORY;
     } catch (...) {
       return PI_ERROR_UNKNOWN;
     }
-    break;
   default:
     zePrint("Unsupported ParamName in piKernelGetInfo: ParamName=%d(0x%x)\n",
             ParamName, ParamName);
@@ -2086,6 +2044,7 @@ pi_result piKernelGetGroupInfo(pi_kernel Kernel, pi_device Device,
   ZeKernelProperties.version = ZE_KERNEL_PROPERTIES_VERSION_CURRENT;
   ZE_CALL(zeKernelGetProperties(Kernel->ZeKernel, &ZeKernelProperties));
 
+  ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
   switch (ParamName) {
   case PI_KERNEL_GROUP_INFO_GLOBAL_WORK_SIZE: {
     // TODO: To revisit after level_zero/issues/262 is resolved
@@ -2094,15 +2053,13 @@ pi_result piKernelGetGroupInfo(pi_kernel Kernel, pi_device Device,
     } WorkSize = {{ZeDeviceComputeProperties.maxGroupSizeX,
                    ZeDeviceComputeProperties.maxGroupSizeY,
                    ZeDeviceComputeProperties.maxGroupSizeZ}};
-    SET_PARAM_VALUE(WorkSize);
-    break;
+    return ReturnValue(WorkSize);
   }
   case PI_KERNEL_GROUP_INFO_WORK_GROUP_SIZE: {
     uint32_t X, Y, Z;
     ZE_CALL(zeKernelSuggestGroupSize(Kernel->ZeKernel, 10000, 10000, 10000, &X,
                                      &Y, &Z));
-    SET_PARAM_VALUE(size_t{X * Y * Z});
-    break;
+    return ReturnValue(size_t{X * Y * Z});
   }
   case PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE: {
     struct {
@@ -2110,28 +2067,24 @@ pi_result piKernelGetGroupInfo(pi_kernel Kernel, pi_device Device,
     } WgSize = {{ZeKernelProperties.requiredGroupSizeX,
                  ZeKernelProperties.requiredGroupSizeY,
                  ZeKernelProperties.requiredGroupSizeZ}};
-    SET_PARAM_VALUE(WgSize);
-    break;
+    return ReturnValue(WgSize);
   }
   case PI_KERNEL_GROUP_INFO_LOCAL_MEM_SIZE: {
     // TODO: Assume 0 for now, replace with ze_kernel_properties_t::localMemSize
     // once released in RT.
-    SET_PARAM_VALUE(pi_uint32{0});
-    break;
+    return ReturnValue(pi_uint32{0});
   }
   case PI_KERNEL_GROUP_INFO_PREFERRED_WORK_GROUP_SIZE_MULTIPLE: {
     ze_device_properties_t ZeDeviceProperties;
     ZeDeviceProperties.version = ZE_DEVICE_PROPERTIES_VERSION_CURRENT;
     ZE_CALL(zeDeviceGetProperties(ZeDevice, &ZeDeviceProperties));
 
-    SET_PARAM_VALUE(size_t{ZeDeviceProperties.physicalEUSimdWidth});
-    break;
+    return ReturnValue(size_t{ZeDeviceProperties.physicalEUSimdWidth});
   }
   case PI_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE:
     // TODO: Assume 0 for now, replace with
     // ze_kernel_properties_t::privateMemSize once released in RT.
-    SET_PARAM_VALUE(pi_uint32{0});
-    break;
+    return ReturnValue(pi_uint32{0});
   default:
     zePrint("Unknown ParamName in piKernelGetGroupInfo: ParamName=%d(0x%x)\n",
             ParamName, ParamName);
@@ -2301,32 +2254,29 @@ pi_result piEventGetInfo(pi_event Event, pi_event_info ParamName,
                          size_t *ParamValueSizeRet) {
 
   assert(Event);
+  ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
   switch (ParamName) {
   case PI_EVENT_INFO_COMMAND_QUEUE:
-    SET_PARAM_VALUE(pi_queue{Event->Queue});
-    break;
+    return ReturnValue(pi_queue{Event->Queue});
   case PI_EVENT_INFO_CONTEXT:
-    SET_PARAM_VALUE(pi_context{Event->Queue->Context});
-    break;
+    return ReturnValue(pi_context{Event->Queue->Context});
   case PI_EVENT_INFO_COMMAND_TYPE:
-    SET_PARAM_VALUE(pi_cast<pi_uint64>(Event->CommandType));
-    break;
+    return ReturnValue(pi_cast<pi_uint64>(Event->CommandType));
   case PI_EVENT_INFO_COMMAND_EXECUTION_STATUS: {
     ze_result_t ZeResult;
     ZeResult = ZE_CALL_NOCHECK(zeEventQueryStatus(Event->ZeEvent));
     if (ZeResult == ZE_RESULT_SUCCESS) {
-      SET_PARAM_VALUE(pi_int32{CL_COMPLETE}); // Untie from OpenCL
-    } else {
-      // TODO: We don't know if the status is queueed, submitted or running.
-      //       For now return "running", as others are unlikely to be of
-      //       interest.
-      SET_PARAM_VALUE(pi_int32{CL_RUNNING});
+      return getInfo(ParamValueSize, ParamValue, ParamValueSizeRet,
+                     pi_int32{CL_COMPLETE}); // Untie from OpenCL
     }
-    break;
+    // TODO: We don't know if the status is queueed, submitted or running.
+    //       For now return "running", as others are unlikely to be of
+    //       interest.
+    return getInfo(ParamValueSize, ParamValue, ParamValueSizeRet,
+                   pi_int32{CL_RUNNING});
   }
   case PI_EVENT_INFO_REFERENCE_COUNT:
-    SET_PARAM_VALUE(pi_uint32{Event->RefCount});
-    break;
+    return ReturnValue(pi_uint32{Event->RefCount});
   default:
     zePrint("Unsupported ParamName in piEventGetInfo: ParamName=%d(%x)\n",
             ParamName, ParamName);
@@ -2344,23 +2294,27 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
   uint64_t ZeTimerResolution =
       Event->Queue->Context->Device->ZeDeviceProperties.timerResolution;
 
-  if (ParamName == PI_PROFILING_INFO_COMMAND_START) {
+  ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
+  switch (ParamName) {
+  case PI_PROFILING_INFO_COMMAND_START: {
     uint64_t ContextStart;
     ZE_CALL(zeEventGetTimestamp(
         Event->ZeEvent, ZE_EVENT_TIMESTAMP_CONTEXT_START, &ContextStart));
     ContextStart *= ZeTimerResolution;
-    SET_PARAM_VALUE(uint64_t{ContextStart});
-  } else if (ParamName == PI_PROFILING_INFO_COMMAND_END) {
+    return ReturnValue(uint64_t{ContextStart});
+  }
+  case PI_PROFILING_INFO_COMMAND_END: {
     uint64_t ContextEnd;
     ZE_CALL(zeEventGetTimestamp(Event->ZeEvent, ZE_EVENT_TIMESTAMP_CONTEXT_END,
                                 &ContextEnd));
     ContextEnd *= ZeTimerResolution;
-    SET_PARAM_VALUE(uint64_t{ContextEnd});
-  } else if (ParamName == PI_PROFILING_INFO_COMMAND_QUEUED ||
-             ParamName == PI_PROFILING_INFO_COMMAND_SUBMIT) {
+    return ReturnValue(uint64_t{ContextEnd});
+  }
+  case PI_PROFILING_INFO_COMMAND_QUEUED:
+  case PI_PROFILING_INFO_COMMAND_SUBMIT:
     // TODO: Support these when L0 supported is added.
-    SET_PARAM_VALUE(uint64_t{0});
-  } else {
+    return ReturnValue(uint64_t{0});
+  default:
     zePrint("piEventGetProfilingInfo: not supported ParamName\n");
     return PI_INVALID_VALUE;
   }
@@ -3589,6 +3543,7 @@ pi_result piextUSMGetMemAllocInfo(pi_context Context, const void *Ptr,
                                         Ptr, &ZeMemoryAllocationProperties,
                                         &ZeDeviceHandle));
 
+  ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
   switch (ParamName) {
   case PI_MEM_ALLOC_TYPE: {
     pi_usm_type MemAllocaType;
@@ -3609,8 +3564,7 @@ pi_result piextUSMGetMemAllocInfo(pi_context Context, const void *Ptr,
       zePrint("piextUSMGetMemAllocInfo: unexpected usm memory type\n");
       return PI_INVALID_VALUE;
     }
-    SET_PARAM_VALUE(MemAllocaType);
-    break;
+    return ReturnValue(MemAllocaType);
   }
   case PI_MEM_ALLOC_DEVICE: {
     // TODO: this wants pi_device, but we didn't remember it, and cannot
@@ -3622,15 +3576,13 @@ pi_result piextUSMGetMemAllocInfo(pi_context Context, const void *Ptr,
     void *Base;
     ZE_CALL(zeDriverGetMemAddressRange(Context->Device->Platform->ZeDriver, Ptr,
                                        &Base, nullptr));
-    SET_PARAM_VALUE(Base);
-    break;
+    return ReturnValue(Base);
   }
   case PI_MEM_ALLOC_SIZE: {
     size_t Size;
     ZE_CALL(zeDriverGetMemAddressRange(Context->Device->Platform->ZeDriver, Ptr,
                                        nullptr, &Size));
-    SET_PARAM_VALUE(Size);
-    break;
+    return ReturnValue(Size);
   }
   default:
     zePrint("piextUSMGetMemAllocInfo: unsupported ParamName\n");

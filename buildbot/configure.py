@@ -82,6 +82,14 @@ def do_configure(args):
             "-DOpenCL_INCLUDE_DIR={}".format(ocl_header_dir),
             "-DOpenCL_LIBRARY={}".format(icd_loader_lib)])
 
+    if args.l0_headers and args.l0_loader:
+      cmake_cmd.extend([
+            "-DL0_INCLUDE_DIR={}".format(args.l0_headers),
+            "-DL0_LIBRARY={}".format(args.l0_loader)])
+    elif args.l0_headers or args.l0_loader:
+      sys.exit("Please specify both Level Zero headers and loader or don't specify "
+               "none of them to let download from github.com")
+
     # Add additional CMake options if provided
     if args.cmake_opt:
       cmake_cmd += args.cmake_opt
@@ -115,6 +123,8 @@ def main():
     # User options
     parser.add_argument("-s", "--src-dir", metavar="SRC_DIR", help="source directory (autodetected by default)")
     parser.add_argument("-o", "--obj-dir", metavar="OBJ_DIR", help="build directory. (<src>/build by default)")
+    parser.add_argument("--l0-headers", metavar="L0_HEADER_DIR", help="directory with Level Zero headers")
+    parser.add_argument("--l0-loader", metavar="L0_LOADER", help="path to the Level Zero loader")
     parser.add_argument("-t", "--build-type",
                         metavar="BUILD_TYPE", default="Release", help="build type: Debug, Release")
     parser.add_argument("--cuda", action='store_true', help="switch from OpenCL to CUDA")
