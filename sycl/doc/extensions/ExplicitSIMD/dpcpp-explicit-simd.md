@@ -35,7 +35,7 @@ architecture devices and the host device for now. Attempt to run such code on
 other devices will result in error. 
 
 Kernels and `SYCL_EXTERNAL` functions using ESP must be explicitly marked with
-the `EXPLICIT_SIMD` attribute macro. Subgroup size query within such
+the `[[sycl_explicit_simd]]` attribute. Subgroup size query within such
 functions will always return `1`.
 
 *Functor kernel*
@@ -46,7 +46,7 @@ class Functor {
 public:
   Functor(int X, AccTy &Acc) : X(X), Acc(Acc) {}
 
-  EXPLICIT_SIMD void operator()() { Acc[0] += X; }
+  [[sycl_explicit_simd]] void operator()() { Acc[0] += X; }
 
 private:
   int X;
@@ -56,7 +56,7 @@ private:
 
 *Lambda kernel and function*
 ```cpp
-EXPLICIT_SIMD SYCL_EXTERNAL
+[[sycl_explicit_simd]] SYCL_EXTERNAL
 void sycl_device_f(cl::sycl::global_ptr<int> ptr, sycl::intel::gpu::simd<float, 8> X) {
   sycl::intel::gpu::flat_block_write(*ptr.get(), X);
 }
@@ -65,7 +65,7 @@ void sycl_device_f(cl::sycl::global_ptr<int> ptr, sycl::intel::gpu::simd<float, 
     auto Acc1 = Buf1.get_access<cl::sycl::access::mode::read>(Cgh);
     auto Acc2 = Buf2.get_access<cl::sycl::access::mode::read_write>(Cgh);
 
-    Cgh.single_task<class KernelID>([=] () EXPLICIT_SIMD {
+    Cgh.single_task<class KernelID>([=] () [[sycl_explicit_simd]] {
       sycl::intel::gpu::simd<float, 8> Val = sycl::intel::gpu::flat_block_read(Acc1.get_pointer());
       sycl_device_f(Acc2, Val);
     });
@@ -77,7 +77,7 @@ void sycl_device_f(cl::sycl::global_ptr<int> ptr, sycl::intel::gpu::simd<float, 
 Current ESP implementation does not support using certain standard SYCL features
 inside explicit SIMD kernels and functions. Most of them will be eventually
 dropped. What's not supported today:
-- Mixing `EXPLICIT_SIMD` kernels with SYCL kernels in a single source
+- Mixing `[[sycl_explicit_simd]]` kernels with SYCL kernels in a single source
 - Local accessors. Local memory is allocated and accessed via explicit
 device-side API
 - 2D and 3D accessors
@@ -661,7 +661,7 @@ These variables have 1 copy per work-item (which maps to a single SIMD thread in
 ESP) and are visible to all functions in the translation unit. Conceptually they
 map to SPIRV variable with private storage class. Private globals can be bound
 to a specific byte offset within the GRF. To mark a file scope variable as
-private global, the `INTEL_GPU_PRIVATE` attribute macro is used,
+private global, the `INTEL_GPU_PRIVATE` attribute is used,
 `INTEL_GPU_REGISTER` is used to bind it the register file:
 
 ```cpp
@@ -674,7 +674,7 @@ INTEL_GPU_PRIVATE INTEL_GPU_REGISTER(32) simd<int, 16> vc;
 ```cpp
 #include <iostream>
 #include <CL/sycl.hpp>
-#include <sycl_explicit_simd.hpp>
+#include <sycl_[[sycl_explicit_simd]].hpp>
 
 using namespace cl::sycl;
 
@@ -700,7 +700,7 @@ int main(void) {
 
   auto e = q.submit([&](handler &cgh) {
     cgh.parallel_for<class Test>(
-      Range, [=](nd_item<1> i) EXPLICIT_SIMD {
+      Range, [=](nd_item<1> i) [[sycl_explicit_simd]] {
 
       auto offset = i.get_global_id(0) * VL;
       sycl::intel::gpu<float, VL> va = sycl::intel::gpu::flat_block_load<float, VL>(A + offset);
@@ -742,4 +742,4 @@ int main(void) {
 - Section covering 2D use cases
 - A bridge from `std::simd` to `sycl::intel::gpu::simd`
 - Describe `simd_view` class restrictions
-- Consider auto-inclusion of sycl_explicit_simd.hpp under -fsycl-esimd option
+- Consider auto-inclusion of sycl_[[sycl_explicit_simd]].hpp under -fsycl-esimd option
