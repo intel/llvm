@@ -743,3 +743,6 @@ int main(void) {
 - A bridge from `std::simd` to `sycl::intel::gpu::simd`
 - Describe `simd_view` class restrictions
 - Consider auto-inclusion of sycl_[[sycl_explicit_simd]].hpp under -fsycl-esimd option
+- Add example showing the mapping between an ND-range and the number of
+thread-groups and EU threads, and showing the usage of explicit SIMD together
+with work-group barriers and SLM.
