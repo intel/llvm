@@ -324,7 +324,7 @@ RT::PiProgram ProgramManager::createPIProgram(const RTDeviceBinaryImage &Img,
 
   if (!isDeviceBinaryTypeSupported(Context, Format))
     throw feature_not_supported(
-        "SPIR-V Online compilation is not supported in this context",
+        "SPIR-V online compilation is not supported in this context",
         PI_INVALID_OPERATION);
 
   // Load the image
