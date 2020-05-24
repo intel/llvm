@@ -837,10 +837,7 @@ public:
 #endif
 
   template <int Dims = Dimensions, typename AllocatorT,
-            typename = detail::enable_if_t<(Dims > 0) && (Dims == Dimensions) &&
-                                           ((!IsPlaceH && IsHostBuf) ||
-                                            (IsPlaceH &&
-                                             (IsGlobalBuf || IsConstantBuf)))>>
+            typename = detail::enable_if_t<(Dims == 0) && (!IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf))>
   accessor(buffer<DataT, Dims, AllocatorT> &BufferRef,
            range<Dimensions> AccessRange, id<Dimensions> AccessOffset = {})
 #ifdef __SYCL_DEVICE_ONLY__
