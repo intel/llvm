@@ -56,10 +56,6 @@ typedef uint32_t SPIRVId;
 
 inline bool isValidId(SPIRVId Id) { return Id != SPIRVID_INVALID && Id != 0; }
 
-inline SPIRVWord mkWord(unsigned WordCount, Op OpCode) {
-  return (WordCount << 16) | OpCode;
-}
-
 const static unsigned KSpirvMemOrderSemanticMask = 0x1F;
 
 enum SPIRVGeneratorKind {

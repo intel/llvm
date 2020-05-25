@@ -1029,6 +1029,21 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
       } else
         BVarInit = I->second;
     } else if (Init && !isa<UndefValue>(Init)) {
+      if (auto ArrTy = dyn_cast_or_null<ArrayType>(Init->getType())) {
+        // First 3 words of OpConstantComposite encode: 1) word count & opcode,
+        // 2) Result Type and 3) Result Id.
+        // Max length of SPIRV instruction = 65535 words.
+        const int MaxNumElements = 65535 - 3;
+        if (ArrTy->getNumElements() > MaxNumElements &&
+            !isa<ConstantAggregateZero>(Init)) {
+          std::stringstream SS;
+          SS << "Global variable has a constant array initializer with a number"
+             << " of elements greater than OpConstantComposite can have "
+             << "(65532). Should the array be split?\n Original LLVM value:\n"
+             << toString(GV);
+          getErrorLog().checkError(false, SPIRVEC_InvalidWordCount, SS.str());
+        }
+      }
       BVarInit = transValue(Init, nullptr);
     }
 

@@ -381,6 +381,12 @@ public:
     assert(Module && "Invalid module");
     assert(OpCode != OpNop && "Invalid op code");
     assert((!hasId() || isValidId(Id)) && "Invalid Id");
+    if (WordCount > 65535) {
+      std::stringstream SS;
+      SS << "Id: " << Id << ", OpCode: " << OpCodeNameMap::map(OpCode)
+         << ", Name: \"" << Name << "\"\n";
+      getErrorLog().checkError(false, SPIRVEC_InvalidWordCount, SS.str());
+    }
   }
   void validateFunctionControlMask(SPIRVWord FCtlMask) const;
   void validateValues(const std::vector<SPIRVId> &) const;
