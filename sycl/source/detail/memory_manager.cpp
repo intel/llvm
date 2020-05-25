@@ -189,8 +189,7 @@ void *MemoryManager::allocateMemSubBuffer(ContextImplPtr TargetContext,
     SizeInBytes *= Range[I];
 
   RT::PiResult Error = PI_SUCCESS;
-  // TODO replace with pi_buffer_region
-  cl_buffer_region Region{Offset, SizeInBytes};
+  pi_buffer_region_struct Region{Offset, SizeInBytes};
   RT::PiMem NewMem;
   const detail::plugin &Plugin = TargetContext->getPlugin();
   Error = Plugin.call_nocheck<PiApiKind::piMemBufferPartition>(

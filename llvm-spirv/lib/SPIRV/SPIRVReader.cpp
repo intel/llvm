@@ -3420,7 +3420,7 @@ bool SPIRVToLLVM::transAlign(SPIRVValue *BV, Value *V) {
   if (auto AL = dyn_cast<AllocaInst>(V)) {
     SPIRVWord Align = 0;
     if (BV->hasAlignment(&Align))
-      AL->setAlignment(MaybeAlign(Align));
+      AL->setAlignment(llvm::Align(Align));
     return true;
   }
   if (auto GV = dyn_cast<GlobalVariable>(V)) {

@@ -16,7 +16,7 @@
 // CHECK-NEXT: FieldDecl {{.*}} MAssociatedAccesors 'vector_class<detail::ArgDesc>':'std::vector<cl::sycl::detail::ArgDesc, std::allocator<cl::sycl::detail::ArgDesc>>'
 // CHECK-NEXT: FieldDecl {{.*}} MRequirements 'vector_class<detail::Requirement *>':'std::vector<cl::sycl::detail::AccessorImplHost *, std::allocator<cl::sycl::detail::AccessorImplHost *>>'
 // CHECK-NEXT: FieldDecl {{.*}} MNDRDesc 'detail::NDRDescT':'cl::sycl::detail::NDRDescT'
-// CHECK-NEXT: FieldDecl {{.*}} MKernelName 'cl::sycl::string_class':'std::__cxx11::basic_string<char>'
+// CHECK-NEXT: FieldDecl {{.*}} MKernelName 'cl::sycl::string_class':'std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char>>'
 // CHECK-NEXT: FieldDecl {{.*}} MKernel 'shared_ptr_class<detail::kernel_impl>':'std::shared_ptr<cl::sycl::detail::kernel_impl>'
 // CHECK-NEXT: FieldDecl {{.*}} MCGType 'detail::CG::CGTYPE':'cl::sycl::detail::CG::CGTYPE'
 // CHECK-NEXT: DeclRefExpr {{.*}} 'cl::sycl::detail::CG::CGTYPE' EnumConstant {{.*}} 'NONE' 'cl::sycl::detail::CG::CGTYPE'

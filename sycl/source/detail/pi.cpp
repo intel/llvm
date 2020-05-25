@@ -264,7 +264,9 @@ vector_class<plugin> initialize() {
     std::cerr << "SYCL_PI_TRACE[all]: "
               << "No Plugins Found." << std::endl;
 
-  PiPlugin PluginInformation;
+  PiPlugin PluginInformation{_PI_H_VERSION_STRING, _PI_H_VERSION_STRING,
+                             nullptr};
+
   for (unsigned int I = 0; I < PluginNames.size(); I++) {
     void *Library = loadPlugin(PluginNames[I].first);
 

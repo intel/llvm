@@ -472,6 +472,10 @@ public:
     return TranslationOpts.getSpecializationConstant(SpecId, ConstValue);
   }
 
+  FPContractMode getFPContractMode() const {
+    return TranslationOpts.getFPContractMode();
+  }
+
   // I/O functions
   friend spv_ostream &operator<<(spv_ostream &O, SPIRVModule &M);
   friend std::istream &operator>>(std::istream &I, SPIRVModule &M);

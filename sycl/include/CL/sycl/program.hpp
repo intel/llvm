@@ -307,6 +307,8 @@ public:
                       std::is_floating_point<T>::value,
                   "unsupported specialization constant type");
 #ifdef __SYCL_DEVICE_ONLY__
+    (void)Cst;
+    (void)Name;
     return experimental::spec_constant<T, ID>();
 #else
     set_spec_constant_impl(Name, &Cst, sizeof(T));
