@@ -92,11 +92,11 @@ std::array<float, TestArraySize2> ref2_results = {0.f, 25.f, 169.f, INFINITY, 0.
 void device_complex_test(s::queue &deviceQueue) {
   s::range<1> numOfItems1{TestArraySize1};
   s::range<1> numOfItems2{TestArraySize2};
-  complex<float> result1[TestArraySize1];
-  float result2[TestArraySize2];
+  std::array<complex<float>, TestArraySize1> result1;
+  std::array<float, TestArraySize2> result2;
   {
-    s::buffer<complex<float>, 1> buffer1(result1, numOfItems1);
-    s::buffer<float, 1> buffer2(result2, numOfItems2);
+    s::buffer<complex<float>, 1> buffer1(result1.data(), numOfItems1);
+    s::buffer<float, 1> buffer2(result2.data(), numOfItems2);
     deviceQueue.submit([&](s::handler &cgh) {
       auto buf_out1_access = buffer1.get_access<sycl_write>(cgh);
       auto buf_out2_access = buffer2.get_access<sycl_write>(cgh);
