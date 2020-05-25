@@ -60,7 +60,7 @@ public:
   typename std::enable_if<accessTarget == access::target::host_buffer,
                           cl_mem>::type
   get_native_mem(const accessor<dataT, dimensions, accessmode, accessTarget,
-                                isPlaceholder> &Acc) const {
+                                isPlaceholder> &) const {
     throw invalid_object_error("Getting memory object out of host accessor is "
                                "not allowed",
                                PI_INVALID_MEM_OBJECT);
