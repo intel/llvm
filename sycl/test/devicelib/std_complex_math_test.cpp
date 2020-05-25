@@ -22,8 +22,8 @@ bool approx_equal_cmplx(complex<T> x, complex<T> y) {
          approx_equal_fp(x.imag(), y.imag());
 }
 
-#define TEST_NUM1 57
-#define TEST_NUM2 10
+static constexpr auto TestArraySize1 = 57;
+static constexpr auto TestArraySize2 = 10;
 
 complex<float> ref1_results[TEST_NUM1] = {
     complex<float>(-1.f, 1.f),
