@@ -1079,11 +1079,30 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
     return mapValue(V, BI);
   }
 
-  if (SelectInst *Sel = dyn_cast<SelectInst>(V))
+  if (SelectInst *Sel = dyn_cast<SelectInst>(V)) {
+    SPIRVValue *TrueValue = nullptr;
+    SPIRVValue *FalseValue = nullptr;
+    if (isa<Function>(Sel->getTrueValue())) {
+      if (!BM->checkExtension(ExtensionID::SPV_INTEL_function_pointers,
+                              SPIRVEC_FunctionPointers, toString(Sel)))
+        return nullptr;
+
+      // select with function pointers
+      auto *TrueF = cast<Function>(Sel->getTrueValue());
+      TrueValue = BM->addFunctionPointerINTELInst(
+          transType(TrueF->getType()),
+          static_cast<SPIRVFunction *>(transValue(TrueF, BB)), BB);
+      auto *FalseF = cast<Function>(Sel->getFalseValue());
+      FalseValue = BM->addFunctionPointerINTELInst(
+          transType(FalseF->getType()),
+          static_cast<SPIRVFunction *>(transValue(FalseF, BB)), BB);
+    } else {
+      TrueValue = transValue(Sel->getTrueValue(), BB);
+      FalseValue = transValue(Sel->getFalseValue(), BB);
+    }
     return mapValue(V, BM->addSelectInst(transValue(Sel->getCondition(), BB),
-                                         transValue(Sel->getTrueValue(), BB),
-                                         transValue(Sel->getFalseValue(), BB),
-                                         BB));
+                                         TrueValue, FalseValue, BB));
+  }
 
   if (AllocaInst *Alc = dyn_cast<AllocaInst>(V))
     return mapValue(
