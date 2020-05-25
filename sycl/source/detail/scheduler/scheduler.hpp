@@ -430,6 +430,13 @@ protected:
   Scheduler();
   static Scheduler instance;
 
+  /// Provides exclusive access to std::shared_timed_mutex object with deadlock
+  /// avoidance
+  ///
+  /// \param Lock is an instance of std::unique_lock<std::shared_timed_mutex>
+  /// class
+  void lockSharedTimedMutex(std::unique_lock<std::shared_timed_mutex> &Lock);
+
   static void enqueueLeavesOfReqUnlocked(const Requirement *const Req);
 
   /// Graph builder class.
@@ -687,6 +694,8 @@ protected:
   void waitForRecordToFinish(MemObjRecord *Record);
 
   GraphBuilder MGraphBuilder;
+  // TODO: after switching to C++17, change std::shared_timed_mutex to
+  // std::shared_mutex
   std::shared_timed_mutex MGraphLock;
 
   QueueImplPtr DefaultHostQueue;

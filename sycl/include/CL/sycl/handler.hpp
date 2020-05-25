@@ -336,7 +336,7 @@ private:
     setArgsHelper(++ArgIndex, std::move(Args)...);
   }
 
-  void setArgsHelper(int ArgIndex) {}
+  void setArgsHelper(int) {}
 
   // setArgHelper for local accessor argument.
   template <typename DataT, int Dims, access::mode AccessMode,
@@ -403,7 +403,7 @@ private:
     }
   }
 
-  static id<1> getDelinearizedIndex(const range<1> Range, const size_t Index) {
+  static id<1> getDelinearizedIndex(const range<1>, const size_t Index) {
     return {Index};
   }
 
@@ -742,7 +742,7 @@ public:
   ///
   /// \param Event is a valid SYCL event to wait on.
   void depends_on(event Event) {
-    MEvents.push_back(std::move(detail::getSyclObjImpl(Event)));
+    MEvents.push_back(detail::getSyclObjImpl(Event));
   }
 
   /// Registers event dependencies on this command group.
@@ -750,7 +750,7 @@ public:
   /// \param Events is a vector of valid SYCL events to wait on.
   void depends_on(vector_class<event> Events) {
     for (event &Event : Events) {
-      MEvents.push_back(std::move(detail::getSyclObjImpl(Event)));
+      MEvents.push_back(detail::getSyclObjImpl(Event));
     }
   }
 
@@ -815,6 +815,7 @@ public:
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
 #ifdef __SYCL_DEVICE_ONLY__
+    (void)NumWorkItems;
     kernel_parallel_for<NameT, KernelType, Dims>(KernelFunc);
 #else
     detail::throwIfNotIntRange(NumWorkItems);
@@ -874,6 +875,8 @@ public:
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
 #ifdef __SYCL_DEVICE_ONLY__
+    (void)NumWorkItems;
+    (void)WorkItemOffset;
     kernel_parallel_for<NameT, KernelType, Dims>(KernelFunc);
 #else
     detail::throwIfNotIntRange(NumWorkItems);
@@ -903,6 +906,7 @@ public:
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
 #ifdef __SYCL_DEVICE_ONLY__
+    (void)ExecutionRange;
     kernel_parallel_for_nd_range<NameT, KernelType, Dims>(KernelFunc);
 #else
     detail::throwIfNotIntRange(ExecutionRange.get_global_range());
@@ -1074,6 +1078,7 @@ public:
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
 #ifdef __SYCL_DEVICE_ONLY__
+    (void)NumWorkGroups;
     kernel_parallel_for_work_group<NameT, KernelType, Dims>(KernelFunc);
 #else
     detail::throwIfNotIntRange(NumWorkGroups);
@@ -1104,6 +1109,8 @@ public:
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
 #ifdef __SYCL_DEVICE_ONLY__
+    (void)NumWorkGroups;
+    (void)WorkGroupSize;
     kernel_parallel_for_work_group<NameT, KernelType, Dims>(KernelFunc);
 #else
     nd_range<Dims> ExecRange =
@@ -1205,6 +1212,7 @@ public:
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
 #ifdef __SYCL_DEVICE_ONLY__
+    (void)Kernel;
     kernel_single_task<NameT>(KernelFunc);
 #else
     // No need to check if range is out of INT_MAX limits as it's compile-time
@@ -1243,6 +1251,8 @@ public:
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
 #ifdef __SYCL_DEVICE_ONLY__
+    (void)Kernel;
+    (void)NumWorkItems;
     kernel_parallel_for<NameT, KernelType, Dims>(KernelFunc);
 #else
     detail::throwIfNotIntRange(NumWorkItems);
@@ -1273,6 +1283,9 @@ public:
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
 #ifdef __SYCL_DEVICE_ONLY__
+    (void)Kernel;
+    (void)NumWorkItems;
+    (void)WorkItemOffset;
     kernel_parallel_for<NameT, KernelType, Dims>(KernelFunc);
 #else
     detail::throwIfNotIntRange(NumWorkItems);
@@ -1304,6 +1317,8 @@ public:
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
 #ifdef __SYCL_DEVICE_ONLY__
+    (void)Kernel;
+    (void)NDRange;
     kernel_parallel_for_nd_range<NameT, KernelType, Dims>(KernelFunc);
 #else
     detail::throwIfNotIntRange(NDRange.get_global_range());
@@ -1340,6 +1355,8 @@ public:
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
 #ifdef __SYCL_DEVICE_ONLY__
+    (void)Kernel;
+    (void)NumWorkGroups;
     kernel_parallel_for_work_group<NameT, KernelType, Dims>(KernelFunc);
 #else
     detail::throwIfNotIntRange(NumWorkGroups);
@@ -1374,6 +1391,9 @@ public:
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
 #ifdef __SYCL_DEVICE_ONLY__
+    (void)Kernel;
+    (void)NumWorkGroups;
+    (void)WorkGroupSize;
     kernel_parallel_for_work_group<NameT, KernelType, Dims>(KernelFunc);
 #else
     nd_range<Dims> ExecRange =

@@ -597,62 +597,62 @@ bool operator>=(const multi_ptr<ElementType, Space> &lhs,
 }
 
 template <typename ElementType, access::address_space Space>
-bool operator!=(const multi_ptr<ElementType, Space> &lhs, std::nullptr_t rhs) {
+bool operator!=(const multi_ptr<ElementType, Space> &lhs, std::nullptr_t) {
   return lhs.get() != nullptr;
 }
 
 template <typename ElementType, access::address_space Space>
-bool operator!=(std::nullptr_t lhs, const multi_ptr<ElementType, Space> &rhs) {
+bool operator!=(std::nullptr_t, const multi_ptr<ElementType, Space> &rhs) {
   return rhs.get() != nullptr;
 }
 
 template <typename ElementType, access::address_space Space>
-bool operator==(const multi_ptr<ElementType, Space> &lhs, std::nullptr_t rhs) {
+bool operator==(const multi_ptr<ElementType, Space> &lhs, std::nullptr_t) {
   return lhs.get() == nullptr;
 }
 
 template <typename ElementType, access::address_space Space>
-bool operator==(std::nullptr_t lhs, const multi_ptr<ElementType, Space> &rhs) {
+bool operator==(std::nullptr_t, const multi_ptr<ElementType, Space> &rhs) {
   return rhs.get() == nullptr;
 }
 
 template <typename ElementType, access::address_space Space>
-bool operator>(const multi_ptr<ElementType, Space> &lhs, std::nullptr_t rhs) {
+bool operator>(const multi_ptr<ElementType, Space> &lhs, std::nullptr_t) {
   return lhs.get() != nullptr;
 }
 
 template <typename ElementType, access::address_space Space>
-bool operator>(std::nullptr_t lhs, const multi_ptr<ElementType, Space> &rhs) {
+bool operator>(std::nullptr_t, const multi_ptr<ElementType, Space> &) {
   return false;
 }
 
 template <typename ElementType, access::address_space Space>
-bool operator<(const multi_ptr<ElementType, Space> &lhs, std::nullptr_t rhs) {
+bool operator<(const multi_ptr<ElementType, Space> &, std::nullptr_t) {
   return false;
 }
 
 template <typename ElementType, access::address_space Space>
-bool operator<(std::nullptr_t lhs, const multi_ptr<ElementType, Space> &rhs) {
+bool operator<(std::nullptr_t, const multi_ptr<ElementType, Space> &rhs) {
   return rhs.get() != nullptr;
 }
 
 template <typename ElementType, access::address_space Space>
-bool operator>=(const multi_ptr<ElementType, Space> &lhs, std::nullptr_t rhs) {
+bool operator>=(const multi_ptr<ElementType, Space> &, std::nullptr_t) {
   return true;
 }
 
 template <typename ElementType, access::address_space Space>
-bool operator>=(std::nullptr_t lhs, const multi_ptr<ElementType, Space> &rhs) {
+bool operator>=(std::nullptr_t, const multi_ptr<ElementType, Space> &rhs) {
   return rhs.get() == nullptr;
 }
 
 template <typename ElementType, access::address_space Space>
-bool operator<=(const multi_ptr<ElementType, Space> &lhs, std::nullptr_t rhs) {
+bool operator<=(const multi_ptr<ElementType, Space> &lhs, std::nullptr_t) {
   return lhs.get() == nullptr;
 }
 
 template <typename ElementType, access::address_space Space>
-bool operator<=(std::nullptr_t lhs, const multi_ptr<ElementType, Space> &rhs) {
+bool operator<=(std::nullptr_t, const multi_ptr<ElementType, Space> &rhs) {
   return rhs.get() == nullptr;
 }
 

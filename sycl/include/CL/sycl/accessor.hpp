@@ -387,6 +387,8 @@ public:
   image_accessor(image<Dims, AllocatorT> &ImageRef, int ImageElementSize)
 #ifdef __SYCL_DEVICE_ONLY__
   {
+    (void)ImageRef;
+    (void)ImageElementSize;
     // No implementation needed for device. The constructor is only called by
     // host.
   }
@@ -415,6 +417,9 @@ public:
                  handler &CommandGroupHandlerRef, int ImageElementSize)
 #ifdef __SYCL_DEVICE_ONLY__
   {
+    (void)ImageRef;
+    (void)CommandGroupHandlerRef;
+    (void)ImageElementSize;
     // No implementation needed for device. The constructor is only called by
     // host.
   }
@@ -784,6 +789,7 @@ public:
 		  handler &CommandGroupHandler)
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(id<AdjustedDim>(), range<1>{1}, BufferRef.get_range()) {
+    (void)CommandGroupHandler;
   }
 #else
       : AccessorBaseHost(
@@ -824,6 +830,7 @@ public:
            handler &CommandGroupHandler)
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(id<AdjustedDim>(), BufferRef.get_range(), BufferRef.get_range()) {
+    (void)CommandGroupHandler;
   }
 #else
       : AccessorBaseHost(
@@ -867,6 +874,7 @@ public:
            id<Dimensions> AccessOffset = {})
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(AccessOffset, AccessRange, BufferRef.get_range()) {
+    (void)CommandGroupHandler;
   }
 #else
       : AccessorBaseHost(detail::convertToArrayOfN<3, 0>(AccessOffset),
@@ -1033,7 +1041,7 @@ class accessor<DataT, Dimensions, AccessMode, access::target::local,
   const sycl::range<AdjustedDim> &getSize() const { return impl.MemRange; }
 
   void __init(ConcreteASPtrType Ptr, range<AdjustedDim> AccessRange,
-              range<AdjustedDim> MemRange, id<AdjustedDim> Offset) {
+              range<AdjustedDim>, id<AdjustedDim>) {
     MData = Ptr;
     for (int I = 0; I < AdjustedDim; ++I)
       getSize()[I] = AccessRange[I];
@@ -1075,7 +1083,7 @@ public:
   using const_reference = const DataT &;
 
   template <int Dims = Dimensions, typename = detail::enable_if_t<Dims == 0>>
-  accessor(handler &CommandGroupHandler)
+  accessor(handler &)
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(range<AdjustedDim>{1}) {
   }
@@ -1085,7 +1093,7 @@ public:
 #endif
 
   template <int Dims = Dimensions, typename = detail::enable_if_t<(Dims > 0)>>
-  accessor(range<Dimensions> AllocationSize, handler &CommandGroupHandler)
+  accessor(range<Dimensions> AllocationSize, handler &)
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(AllocationSize) {
   }
@@ -1271,6 +1279,7 @@ struct hash<cl::sycl::accessor<DataT, Dimensions, AccessMode, AccessTarget,
   size_t operator()(const AccType &A) const {
 #ifdef __SYCL_DEVICE_ONLY__
     // Hash is not supported on DEVICE. Just return 0 here.
+    (void)A;
     return 0;
 #else
     // getSyclObjImpl() here returns a pointer to either AccessorImplHost

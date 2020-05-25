@@ -15,39 +15,41 @@
 
 using namespace cl::sycl;
 
-struct DISABLED_CudaInteropGetNativeTests : public ::testing::Test {
+struct CudaInteropGetNativeTests : public ::testing::Test {
 
 protected:
   queue syclQueue_;
   context syclContext_;
   device syclDevice_;
 
+  CudaInteropGetNativeTests()
+      : syclQueue_(cuda_device_selector()),
+        syclContext_(syclQueue_.get_context()),
+        syclDevice_(syclQueue_.get_device()) {}
+
   static bool isCudaDevice(const device &dev) {
     const platform platform = dev.get_info<info::device::platform>();
     const std::string platformVersion =
         platform.get_info<info::platform::version>();
+    const std::string platformName = platform.get_info<info::platform::name>();
     // If using PI_CUDA, don't accept a non-CUDA device
-    return platformVersion.find("CUDA") != std::string::npos;
+    return platformVersion.find("CUDA") != std::string::npos &&
+           platformName.find("NVIDIA CUDA") != std::string::npos;
   }
 
   class cuda_device_selector : public device_selector {
   public:
     int operator()(const device &dev) const {
-      return isCudaDevice(dev) ? 1 : -1;
+      return isCudaDevice(dev) ? 1000 : -1000;
     }
   };
 
-  void SetUp() override {
-    syclQueue_ = queue{cuda_device_selector()};
-    context syclContext_ = syclQueue_.get_context();
-    device syclDevice_ = syclQueue_.get_device();
-    ASSERT_TRUE(isCudaDevice(syclDevice_));
-  }
+  void SetUp() override {}
 
   void TearDown() override {}
 };
 
-TEST_F(DISABLED_CudaInteropGetNativeTests, getNativeDevice) {
+TEST_F(CudaInteropGetNativeTests, getNativeDevice) {
   CUdevice cudaDevice = get_native<backend::cuda>(syclDevice_);
   char cudaDeviceName[2] = {0, 0};
   CUresult result = cuDeviceGetName(cudaDeviceName, 2, cudaDevice);
@@ -55,12 +57,12 @@ TEST_F(DISABLED_CudaInteropGetNativeTests, getNativeDevice) {
   ASSERT_NE(cudaDeviceName[0], 0);
 }
 
-TEST_F(DISABLED_CudaInteropGetNativeTests, getNativeContext) {
+TEST_F(CudaInteropGetNativeTests, getNativeContext) {
   CUcontext cudaContext = get_native<backend::cuda>(syclContext_);
   ASSERT_NE(cudaContext, nullptr);
 }
 
-TEST_F(DISABLED_CudaInteropGetNativeTests, getNativeQueue) {
+TEST_F(CudaInteropGetNativeTests, getNativeQueue) {
   CUstream cudaStream = get_native<backend::cuda>(syclQueue_);
   ASSERT_NE(cudaStream, nullptr);
 
@@ -72,7 +74,7 @@ TEST_F(DISABLED_CudaInteropGetNativeTests, getNativeQueue) {
   ASSERT_EQ(streamContext, cudaContext);
 }
 
-TEST_F(DISABLED_CudaInteropGetNativeTests, interopTaskGetMem) {
+TEST_F(CudaInteropGetNativeTests, interopTaskGetMem) {
   buffer<int, 1> syclBuffer(range<1>{1});
   syclQueue_.submit([&](handler &cgh) {
     auto syclAccessor = syclBuffer.get_access<access::mode::read>(cgh);
@@ -86,7 +88,7 @@ TEST_F(DISABLED_CudaInteropGetNativeTests, interopTaskGetMem) {
   });
 }
 
-TEST_F(DISABLED_CudaInteropGetNativeTests, interopTaskGetBufferMem) {
+TEST_F(CudaInteropGetNativeTests, interopTaskGetBufferMem) {
   CUstream cudaStream = get_native<backend::cuda>(syclQueue_);
   syclQueue_.submit([&](handler &cgh) {
     cgh.interop_task([=](interop_handler ih) {
