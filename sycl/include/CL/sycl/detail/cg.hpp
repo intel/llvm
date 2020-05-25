@@ -18,6 +18,7 @@
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/group.hpp>
 #include <CL/sycl/id.hpp>
+#include <CL/sycl/interop_handle.hpp>
 #include <CL/sycl/kernel.hpp>
 #include <CL/sycl/nd_item.hpp>
 #include <CL/sycl/range.hpp>
@@ -217,12 +218,17 @@ public:
 
 class HostTask {
   std::function<void()> MHostTask;
+  std::function<void(interop_handle)> MInteropTask;
 
 public:
   HostTask() : MHostTask([]() {}) {}
   HostTask(std::function<void()> &&Func) : MHostTask(Func) {}
+  HostTask(std::function<void(interop_handle)> &&Func) : MInteropTask(Func) {}
+
+  bool isInteropTask() const { return !!MInteropTask; }
 
   void call() { MHostTask(); }
+  void call(interop_handle handle) { MInteropTask(handle); }
 };
 
 // Class which stores specific lambda object.
@@ -645,9 +651,16 @@ public:
 class CGHostTask : public CG {
 public:
   std::unique_ptr<HostTask> MHostTask;
+  // queue for host-interop task
+  shared_ptr_class<detail::queue_impl> MQueue;
+  // context for host-interop task
+  shared_ptr_class<detail::context_impl> MContext;
   vector_class<ArgDesc> MArgs;
 
-  CGHostTask(std::unique_ptr<HostTask> HostTask, vector_class<ArgDesc> Args,
+  CGHostTask(std::unique_ptr<HostTask> HostTask,
+             std::shared_ptr<detail::queue_impl> Queue,
+             std::shared_ptr<detail::context_impl> Context,
+             vector_class<ArgDesc> Args,
              std::vector<std::vector<char>> ArgsStorage,
              std::vector<detail::AccessorImplPtr> AccStorage,
              std::vector<std::shared_ptr<const void>> SharedPtrStorage,
@@ -657,7 +670,8 @@ public:
       : CG(Type, std::move(ArgsStorage), std::move(AccStorage),
            std::move(SharedPtrStorage), std::move(Requirements),
            std::move(Events), std::move(loc)),
-        MHostTask(std::move(HostTask)), MArgs(std::move(Args)) {}
+        MHostTask(std::move(HostTask)), MQueue(Queue), MContext(Context),
+        MArgs(std::move(Args)) {}
 };
 
 } // namespace detail
