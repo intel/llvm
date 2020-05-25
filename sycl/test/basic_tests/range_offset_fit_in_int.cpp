@@ -1,7 +1,5 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -D__SYCL_ID_QUERIES_FIT_IN_INT__=1 %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
 
 #include <CL/sycl.hpp>
 #include <climits>
