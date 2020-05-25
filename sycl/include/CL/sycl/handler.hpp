@@ -16,6 +16,7 @@
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/event.hpp>
 #include <CL/sycl/id.hpp>
+#include <CL/sycl/interop_handle.hpp>
 #include <CL/sycl/kernel.hpp>
 #include <CL/sycl/nd_item.hpp>
 #include <CL/sycl/nd_range.hpp>
@@ -823,6 +824,15 @@ public:
     MHostTask.reset(new detail::HostTask(std::move(Func)));
 
     MCGType = detail::CG::CODEPLAY_HOST_TASK;
+  }
+
+
+  template <typename FuncT>
+  typename std::enable_if<
+      detail::check_fn_signature<typename std::remove_reference<FuncT>::type,
+                                 void(interop_handle)>::value>::type
+  codeplay_host_task(FuncT) {
+    throw runtime_error("Not implemented", PI_ERROR_UNKNOWN);
   }
 
   /// Defines and invokes a SYCL kernel function for the specified range and
