@@ -90,10 +90,10 @@ std::array<float, TestArraySize2> ref2_results = {0.f, 25.f, 169.f, INFINITY, 0.
                                                   5.f, 13.f, INFINITY, 0.f, M_PI_2};
 
 void device_complex_test(s::queue &deviceQueue) {
-  s::range<1> numOfItems1{TEST_NUM1};
-  s::range<1> numOfItems2{TEST_NUM2};
-  complex<float> result1[TEST_NUM1];
-  float result2[TEST_NUM2];
+  s::range<1> numOfItems1{TestArraySize1};
+  s::range<1> numOfItems2{TestArraySize2};
+  complex<float> result1[TestArraySize1];
+  float result2[TestArraySize2];
   {
     s::buffer<complex<float>, 1> buffer1(result1, numOfItems1);
     s::buffer<float, 1> buffer2(result2, numOfItems2);
@@ -187,10 +187,10 @@ void device_complex_test(s::queue &deviceQueue) {
     });
   }
 
-  for (size_t idx = 0; idx < TEST_NUM1; ++idx) {
+  for (size_t idx = 0; idx < TestArraySize1; ++idx) {
     assert(approx_equal_cmplx(result1[idx], ref1_results[idx]));
   }
-  for (size_t idx = 0; idx < TEST_NUM2; ++idx) {
+  for (size_t idx = 0; idx < TestArraySize2; ++idx) {
     assert(approx_equal_fp(result2[idx], ref2_results[idx]));
   }
 }
