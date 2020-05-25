@@ -25,7 +25,7 @@ bool approx_equal_cmplx(complex<T> x, complex<T> y) {
 static constexpr auto TestArraySize1 = 57;
 static constexpr auto TestArraySize2 = 10;
 
-complex<float> ref1_results[TEST_NUM1] = {
+std::array<complex<float>, TestArraySize1> ref1_results = {
     complex<float>(-1.f, 1.f),
     complex<float>(1.f, 3.f),
     complex<float>(-2.f, 10.f),
