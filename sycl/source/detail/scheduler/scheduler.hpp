@@ -17,6 +17,7 @@
 #include <memory>
 #include <set>
 #include <shared_mutex>
+#include <unordered_set>
 #include <vector>
 
 /// \defgroup sycl_graph DPC++ Execution Graph
@@ -172,6 +173,7 @@ namespace detail {
 class queue_impl;
 class event_impl;
 class context_impl;
+class DispatchHostTask;
 
 using QueueImplPtr = std::shared_ptr<detail::queue_impl>;
 using EventImplPtr = std::shared_ptr<detail::event_impl>;
@@ -428,6 +430,15 @@ protected:
   Scheduler();
   static Scheduler instance;
 
+  /// Provides exclusive access to std::shared_timed_mutex object with deadlock
+  /// avoidance
+  ///
+  /// \param Lock is an instance of std::unique_lock<std::shared_timed_mutex>
+  /// class
+  void lockSharedTimedMutex(std::unique_lock<std::shared_timed_mutex> &Lock);
+
+  static void enqueueLeavesOfReqUnlocked(const Requirement *const Req);
+
   /// Graph builder class.
   ///
   /// The graph builder provides means to change an existing graph (e.g. add
@@ -489,7 +500,7 @@ protected:
     /// \return a pointer to MemObjRecord for pointer to memory object. If the
     /// record is not found, nullptr is returned.
     MemObjRecord *getOrInsertMemObjRecord(const QueueImplPtr &Queue,
-                                          Requirement *Req);
+                                          const Requirement *Req);
 
     /// Decrements leaf counters for all leaves of the record.
     void decrementLeafCountersForRecord(MemObjRecord *Record);
@@ -507,6 +518,15 @@ protected:
     /// Removes commands from leaves.
     void updateLeaves(const std::set<Command *> &Cmds, MemObjRecord *Record,
                       access::mode AccessMode);
+
+    /// Perform connection of events in multiple contexts
+    /// \param Cmd dependant command
+    /// \param DepEvent event to depend on
+    /// \param Dep optional DepDesc to perform connection properly
+    ///
+    /// Optionality of Dep is set by Dep.MDepCommand equal to nullptr.
+    void connectDepEvent(Command *const Cmd, EventImplPtr DepEvent,
+                         const DepDesc &Dep);
 
     std::vector<SYCLMemObjI *> MMemObjs;
 
@@ -533,21 +553,34 @@ protected:
                            const QueueImplPtr &Queue);
 
     /// Finds dependencies for the requirement.
-    std::set<Command *> findDepsForReq(MemObjRecord *Record, Requirement *Req,
+    std::set<Command *> findDepsForReq(MemObjRecord *Record,
+                                       const Requirement *Req,
                                        const ContextImplPtr &Context);
 
+    template <typename T>
+    typename std::enable_if<
+        std::is_same<typename std::remove_cv<T>::type, Requirement>::value,
+        EmptyCommand *>::type
+    addEmptyCmd(Command *Cmd, const std::vector<T *> &Req,
+                const QueueImplPtr &Queue, Command::BlockReason Reason);
+
+  protected:
     /// Finds a command dependency corresponding to the record.
     DepDesc findDepForRecord(Command *Cmd, MemObjRecord *Record);
 
     /// Searches for suitable alloca in memory record.
-    AllocaCommandBase *findAllocaForReq(MemObjRecord *Record, Requirement *Req,
+    AllocaCommandBase *findAllocaForReq(MemObjRecord *Record,
+                                        const Requirement *Req,
                                         const ContextImplPtr &Context);
 
+    friend class Command;
+
+  private:
     /// Searches for suitable alloca in memory record.
     ///
     /// If none found, creates new one.
     AllocaCommandBase *getOrCreateAllocaForReq(MemObjRecord *Record,
-                                               Requirement *Req,
+                                               const Requirement *Req,
                                                QueueImplPtr Queue);
 
     void markModifiedIfWrite(MemObjRecord *Record, Requirement *Req);
@@ -661,9 +694,14 @@ protected:
   void waitForRecordToFinish(MemObjRecord *Record);
 
   GraphBuilder MGraphBuilder;
+  // TODO: after switching to C++17, change std::shared_timed_mutex to
+  // std::shared_mutex
   std::shared_timed_mutex MGraphLock;
 
   QueueImplPtr DefaultHostQueue;
+
+  friend class Command;
+  friend class DispatchHostTask;
 };
 
 } // namespace detail

@@ -129,7 +129,7 @@ MemObjRecord *Scheduler::GraphBuilder::getMemObjRecord(SYCLMemObjI *MemObject) {
 
 MemObjRecord *
 Scheduler::GraphBuilder::getOrInsertMemObjRecord(const QueueImplPtr &Queue,
-                                                 Requirement *Req) {
+                                                 const Requirement *Req) {
   SYCLMemObjI *MemObject = Req->MSYCLMemObj;
   MemObjRecord *Record = getMemObjRecord(MemObject);
 
@@ -416,17 +416,8 @@ Command *Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
   Command *UpdateHostAccCmd = insertUpdateHostReqCmd(Record, Req, HostQueue);
 
   // Need empty command to be blocked until host accessor is destructed
-  EmptyCommand *EmptyCmd = new EmptyCommand(HostQueue, *Req);
-  EmptyCmd->addDep(
-      DepDesc{UpdateHostAccCmd, EmptyCmd->getRequirement(), HostAllocaCmd});
-  UpdateHostAccCmd->addUser(EmptyCmd);
-
-  EmptyCmd->MIsBlockable = true;
-  EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueBlocked;
-  EmptyCmd->MBlockReason = "A Buffer is locked by the host accessor";
-
-  updateLeaves({UpdateHostAccCmd}, Record, Req->MAccessMode);
-  addNodeToLeaves(Record, EmptyCmd, Req->MAccessMode);
+  EmptyCommand *EmptyCmd = addEmptyCmd<Requirement>(
+      UpdateHostAccCmd, {Req}, HostQueue, Command::BlockReason::HostAccessor);
 
   Req->MBlockedCmd = EmptyCmd;
 
@@ -455,7 +446,8 @@ Command *Scheduler::GraphBuilder::addCGUpdateHost(
 /// 2. New and examined commands has non-overlapping requirements -> can bypass
 /// 3. New and examined commands have different contexts -> cannot bypass
 std::set<Command *>
-Scheduler::GraphBuilder::findDepsForReq(MemObjRecord *Record, Requirement *Req,
+Scheduler::GraphBuilder::findDepsForReq(MemObjRecord *Record,
+                                        const Requirement *Req,
                                         const ContextImplPtr &Context) {
   std::set<Command *> RetDeps;
   std::set<Command *> Visited;
@@ -522,8 +514,10 @@ DepDesc Scheduler::GraphBuilder::findDepForRecord(Command *Cmd,
 
 // The function searches for the alloca command matching context and
 // requirement.
-AllocaCommandBase *Scheduler::GraphBuilder::findAllocaForReq(
-    MemObjRecord *Record, Requirement *Req, const ContextImplPtr &Context) {
+AllocaCommandBase *
+Scheduler::GraphBuilder::findAllocaForReq(MemObjRecord *Record,
+                                          const Requirement *Req,
+                                          const ContextImplPtr &Context) {
   auto IsSuitableAlloca = [&Context, Req](AllocaCommandBase *AllocaCmd) {
     bool Res = sameCtx(AllocaCmd->getQueue()->getContextImplPtr(), Context);
     if (IsSuitableSubReq(Req)) {
@@ -544,7 +538,7 @@ AllocaCommandBase *Scheduler::GraphBuilder::findAllocaForReq(
 // Note, creation of new allocation command can lead to the current context
 // (Record->MCurContext) change.
 AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
-    MemObjRecord *Record, Requirement *Req, QueueImplPtr Queue) {
+    MemObjRecord *Record, const Requirement *Req, QueueImplPtr Queue) {
 
   AllocaCommandBase *AllocaCmd =
       findAllocaForReq(Record, Req, Queue->getContextImplPtr());
@@ -614,6 +608,15 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
         } else {
           LinkedAllocaCmd->MIsActive = false;
           Record->MCurContext = Queue->getContextImplPtr();
+
+          std::set<Command *> Deps =
+              findDepsForReq(Record, Req, Queue->getContextImplPtr());
+          for (Command *Dep : Deps) {
+            AllocaCmd->addDep(DepDesc{Dep, Req, LinkedAllocaCmd});
+            Dep->addUser(AllocaCmd);
+          }
+          updateLeaves(Deps, Record, Req->MAccessMode);
+          addNodeToLeaves(Record, AllocaCmd, Req->MAccessMode);
         }
       }
     }
@@ -640,11 +643,50 @@ void Scheduler::GraphBuilder::markModifiedIfWrite(MemObjRecord *Record,
   }
 }
 
+template <typename T>
+typename std::enable_if<
+    std::is_same<typename std::remove_cv<T>::type, Requirement>::value,
+    EmptyCommand *>::type
+Scheduler::GraphBuilder::addEmptyCmd(Command *Cmd, const std::vector<T *> &Reqs,
+                                     const QueueImplPtr &Queue,
+                                     Command::BlockReason Reason) {
+  EmptyCommand *EmptyCmd =
+      new EmptyCommand(Scheduler::getInstance().getDefaultHostQueue());
+
+  if (!EmptyCmd)
+    throw runtime_error("Out of host memory", PI_OUT_OF_HOST_MEMORY);
+
+  EmptyCmd->MIsBlockable = true;
+  EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueBlocked;
+  EmptyCmd->MBlockReason = Reason;
+
+  for (T *Req : Reqs) {
+    MemObjRecord *Record = getOrInsertMemObjRecord(Queue, Req);
+    AllocaCommandBase *AllocaCmd = getOrCreateAllocaForReq(Record, Req, Queue);
+    EmptyCmd->addRequirement(Cmd, AllocaCmd, Req);
+  }
+
+  Cmd->addUser(EmptyCmd);
+
+  const std::vector<DepDesc> &Deps = Cmd->MDeps;
+  for (const DepDesc &Dep : Deps) {
+    const Requirement *Req = Dep.MDepRequirement;
+    MemObjRecord *Record = getMemObjRecord(Req->MSYCLMemObj);
+
+    updateLeaves({Cmd}, Record, Req->MAccessMode);
+    addNodeToLeaves(Record, EmptyCmd, Req->MAccessMode);
+  }
+
+  return EmptyCmd;
+}
+
 Command *
 Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
                                QueueImplPtr Queue) {
   const std::vector<Requirement *> &Reqs = CommandGroup->MRequirements;
   const std::vector<detail::EventImplPtr> &Events = CommandGroup->MEvents;
+  const CG::CGTYPE CGType = CommandGroup->getType();
+
   std::unique_ptr<ExecCGCommand> NewCmd(
       new ExecCGCommand(std::move(CommandGroup), Queue));
   if (!NewCmd)
@@ -684,6 +726,7 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
   // Set new command as user for dependencies and update leaves.
   // Node dependencies can be modified further when adding the node to leaves,
   // iterate over their copy.
+  // FIXME employ a reference here to eliminate copying of a vector
   std::vector<DepDesc> Deps = NewCmd->MDeps;
   for (DepDesc &Dep : Deps) {
     Dep.MDepCommand->addUser(NewCmd.get());
@@ -698,8 +741,13 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
     NewCmd->addDep(e);
   }
 
+  if (CGType == CG::CGTYPE::CODEPLAY_HOST_TASK)
+    NewCmd->MEmptyCmd = addEmptyCmd(NewCmd.get(), NewCmd->getCG().MRequirements,
+                                    Queue, Command::BlockReason::HostTask);
+
   if (MPrintOptionsArray[AfterAddCG])
     printGraphAsDot("after_addCG");
+
   return NewCmd.release();
 }
 
@@ -725,12 +773,33 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
   // Dependencies of the users will be cleaned up during the traversal
   for (Command *AllocaCmd : AllocaCommands) {
     Visited.insert(AllocaCmd);
+
     for (Command *UserCmd : AllocaCmd->MUsers)
-      ToVisit.push(UserCmd);
+      // Linked alloca cmd may be in users of this alloca. We're not going to
+      // visit it.
+      if (UserCmd->getType() != Command::CommandType::ALLOCA)
+        ToVisit.push(UserCmd);
+      else
+        Visited.insert(UserCmd);
+
     CmdsToDelete.push_back(AllocaCmd);
     // These commands will be deleted later, clear users now to avoid
     // updating them during edge removal
     AllocaCmd->MUsers.clear();
+  }
+
+  // Linked alloca's share dependencies. Unchain from deps linked alloca's.
+  // Any cmd of the alloca - linked_alloca may be used later on.
+  for (AllocaCommandBase *AllocaCmd : AllocaCommands) {
+    AllocaCommandBase *LinkedCmd = AllocaCmd->MLinkedAllocaCmd;
+
+    if (LinkedCmd) {
+      assert(Visited.count(LinkedCmd));
+
+      for (DepDesc &Dep : AllocaCmd->MDeps)
+        if (Dep.MDepCommand)
+          Dep.MDepCommand->MUsers.erase(AllocaCmd);
+    }
   }
 
   // Traverse the graph using BFS
@@ -742,7 +811,8 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
       continue;
 
     for (Command *UserCmd : Cmd->MUsers)
-      ToVisit.push(UserCmd);
+      if (UserCmd->getType() != Command::CommandType::ALLOCA)
+        ToVisit.push(UserCmd);
 
     // Delete all dependencies on any allocations being removed
     // Track which commands should have their users updated
@@ -820,6 +890,7 @@ void Scheduler::GraphBuilder::cleanupFinishedCommands(Command *FinishedCmd) {
       DepCmd->MUsers.erase(Cmd);
     }
     Cmd->getEvent()->setCommand(nullptr);
+
     delete Cmd;
   }
 }
@@ -831,6 +902,101 @@ void Scheduler::GraphBuilder::removeRecordForMemObj(SYCLMemObjI *MemObject) {
   if (It != MMemObjs.end())
     MMemObjs.erase(It);
   MemObject->MRecord.reset();
+}
+
+// Make Cmd depend on DepEvent from different context. Connection is performed
+// via distinct ConnectCmd with host task command group on host queue. Cmd will
+// depend on ConnectCmd's host event.
+// DepEvent may not have a command associated with it in at least two cases:
+//  - the command was deleted upon cleanup process;
+//  - DepEvent is user event.
+// In both of these cases the only thing we can do is to make ConnectCmd depend
+// on DepEvent.
+// Otherwise, when there is a command associated with DepEvent, we make
+// ConnectCmd depend on on this command. If there is valid, i.e. non-nil,
+// requirement in Dep we make ConnectCmd depend on DepEvent's command with this
+// requirement.
+// Optionality of Dep is set by Dep.MDepCommand equal to nullptr.
+void Scheduler::GraphBuilder::connectDepEvent(Command *const Cmd,
+                                              EventImplPtr DepEvent,
+                                              const DepDesc &Dep) {
+  assert(Cmd->getContext() != DepEvent->getContextImpl());
+
+  // construct Host Task type command manually and make it depend on DepEvent
+  ExecCGCommand *ConnectCmd = nullptr;
+
+  {
+    std::unique_ptr<detail::HostTask> HT(new detail::HostTask);
+    std::unique_ptr<detail::CG> ConnectCG(new detail::CGHostTask(
+        std::move(HT), /* Args = */ {}, /* ArgsStorage = */ {},
+        /* AccStorage = */ {}, /* SharedPtrStorage = */ {},
+        /* Requirements = */ {}, /* DepEvents = */ {DepEvent},
+        CG::CODEPLAY_HOST_TASK, /* Payload */ {}));
+    ConnectCmd = new ExecCGCommand(
+        std::move(ConnectCG), Scheduler::getInstance().getDefaultHostQueue());
+  }
+
+  if (!ConnectCmd)
+    throw runtime_error("Out of host memory", PI_OUT_OF_HOST_MEMORY);
+
+  if (Command *DepCmd = reinterpret_cast<Command *>(DepEvent->getCommand()))
+    DepCmd->addUser(ConnectCmd);
+
+  EmptyCommand *EmptyCmd = nullptr;
+
+  if (Dep.MDepRequirement) {
+    // make ConnectCmd depend on requirement
+    ConnectCmd->addDep(Dep);
+    assert(reinterpret_cast<Command *>(DepEvent->getCommand()) ==
+           Dep.MDepCommand);
+    // add user to Dep.MDepCommand is already performed beyond this if branch
+
+    MemObjRecord *Record = getMemObjRecord(Dep.MDepRequirement->MSYCLMemObj);
+
+    updateLeaves({Dep.MDepCommand}, Record, Dep.MDepRequirement->MAccessMode);
+    addNodeToLeaves(Record, ConnectCmd, Dep.MDepRequirement->MAccessMode);
+
+    const std::vector<const Requirement *> Reqs(1, Dep.MDepRequirement);
+    EmptyCmd = addEmptyCmd(ConnectCmd, Reqs,
+                           Scheduler::getInstance().getDefaultHostQueue(),
+                           Command::BlockReason::HostTask);
+    // Dependencies for EmptyCmd are set in addEmptyCmd for provided Reqs.
+
+    // Depend Cmd on empty command
+    {
+      DepDesc CmdDep = Dep;
+      CmdDep.MDepCommand = EmptyCmd;
+
+      Cmd->addDep(CmdDep);
+    }
+  } else {
+    EmptyCmd = addEmptyCmd<Requirement>(
+        ConnectCmd, {}, Scheduler::getInstance().getDefaultHostQueue(),
+        Command::BlockReason::HostTask);
+
+    // There is no requirement thus, empty command will only depend on
+    // ConnectCmd via its event.
+    EmptyCmd->addDep(ConnectCmd->getEvent());
+    ConnectCmd->addDep(DepEvent);
+
+    // Depend Cmd on empty command
+    Cmd->addDep(EmptyCmd->getEvent());
+  }
+
+  EmptyCmd->addUser(Cmd);
+
+  ConnectCmd->MEmptyCmd = EmptyCmd;
+
+  // FIXME graph builder shouldn't really enqueue commands. We're in the middle
+  // of enqueue process for some command Cmd. We're going to add a dependency
+  // for it. Need some nice and cute solution to enqueue ConnectCmd via standard
+  // scheduler/graph processor mechanisms.
+  // Though, we need this call to enqueue to launch ConnectCmd.
+  EnqueueResultT Res;
+  bool Enqueued = Scheduler::GraphProcessor::enqueueCommand(ConnectCmd, Res);
+  if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
+    throw runtime_error("Failed to enqueue a sync event between two contexts",
+                        PI_INVALID_OPERATION);
 }
 
 } // namespace detail

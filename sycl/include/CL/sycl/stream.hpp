@@ -483,6 +483,7 @@ namespace std {
 template <> struct hash<cl::sycl::stream> {
   size_t operator()(const cl::sycl::stream &S) const {
 #ifdef __SYCL_DEVICE_ONLY__
+    (void)S;
     return 0;
 #else
     return hash<std::shared_ptr<cl::sycl::detail::stream_impl>>()(

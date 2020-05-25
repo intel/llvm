@@ -122,6 +122,7 @@ public:
                                         accessMode == access::mode::read_write,
                                     access::fence_space>::type accessSpace =
                 access::fence_space::global_and_local) const {
+    (void)accessSpace;
     Group.mem_fence();
   }
 
