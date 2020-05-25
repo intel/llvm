@@ -15,12 +15,12 @@ void test() {
   // CHECK: %[[P2GEN:[a-zA-Z0-9_]+]] = addrspacecast i32 addrspace(4)** %[[P2]] to i32 addrspace(4)* addrspace(4)*
 
   std::swap(p1, p2);
-  // CHECK: call spir_func void @_ZSt4swap{{.*}}(i32 addrspace(4)* addrspace(4)* dereferenceable(8) %[[P1GEN]], i32 addrspace(4)* addrspace(4)* dereferenceable(8) %[[P2GEN]])
+  // CHECK: call spir_func void @_ZSt4swap{{.*}}(i32 addrspace(4)* addrspace(4)* align 8 dereferenceable(8) %[[P1GEN]], i32 addrspace(4)* addrspace(4)* align 8 dereferenceable(8) %[[P2GEN]])
 
   std::swap(foo, i);
   // CHECK: %[[FOOCAST:[a-zA-Z0-9_]+]] = addrspacecast i32* %[[FOO]] to i32 addrspace(4)*
   // CHECK: %[[ICAST:[a-zA-Z0-9_]+]] = addrspacecast i32* %[[I]] to i32 addrspace(4)*
-  // CHECK: call spir_func void @_ZSt4swap{{.*}}(i32 addrspace(4)* dereferenceable(4) %[[FOOCAST]], i32 addrspace(4)* dereferenceable(4) %[[ICAST]])
+  // CHECK: call spir_func void @_ZSt4swap{{.*}}(i32 addrspace(4)* align 4 dereferenceable(4) %[[FOOCAST]], i32 addrspace(4)* align 4 dereferenceable(4) %[[ICAST]])
 }
 
 template <typename name, typename Func>
