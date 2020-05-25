@@ -243,7 +243,7 @@ LLVM_NODISCARD Value *Negator::visit(Value *V, unsigned Depth) {
   switch (I->getOpcode()) {
   case Instruction::PHI: {
     // `phi` is negatible if all the incoming values are negatible.
-    PHINode *PHI = cast<PHINode>(I);
+    auto *PHI = cast<PHINode>(I);
     SmallVector<Value *, 4> NegatedIncomingValues(PHI->getNumOperands());
     for (auto I : zip(PHI->incoming_values(), NegatedIncomingValues)) {
       if (!(std::get<1>(I) = visit(std::get<0>(I), Depth + 1))) // Early return.
@@ -285,7 +285,7 @@ LLVM_NODISCARD Value *Negator::visit(Value *V, unsigned Depth) {
   }
   case Instruction::ShuffleVector: {
     // `shufflevector` is negatible if both operands are negatible.
-    ShuffleVectorInst *Shuf = cast<ShuffleVectorInst>(I);
+    auto *Shuf = cast<ShuffleVectorInst>(I);
     Value *NegOp0 = visit(I->getOperand(0), Depth + 1);
     if (!NegOp0) // Early return.
       return nullptr;
@@ -293,6 +293,28 @@ LLVM_NODISCARD Value *Negator::visit(Value *V, unsigned Depth) {
     if (!NegOp1)
       return nullptr;
     return Builder.CreateShuffleVector(NegOp0, NegOp1, Shuf->getShuffleMask(),
+                                       I->getName() + ".neg");
+  }
+  case Instruction::ExtractElement: {
+    // `extractelement` is negatible if source operand is negatible.
+    auto *EEI = cast<ExtractElementInst>(I);
+    Value *NegVector = visit(EEI->getVectorOperand(), Depth + 1);
+    if (!NegVector) // Early return.
+      return nullptr;
+    return Builder.CreateExtractElement(NegVector, EEI->getIndexOperand(),
+                                        I->getName() + ".neg");
+  }
+  case Instruction::InsertElement: {
+    // `insertelement` is negatible if both the source vector and
+    // element-to-be-inserted are negatible.
+    auto *IEI = cast<InsertElementInst>(I);
+    Value *NegVector = visit(IEI->getOperand(0), Depth + 1);
+    if (!NegVector) // Early return.
+      return nullptr;
+    Value *NegNewElt = visit(IEI->getOperand(1), Depth + 1);
+    if (!NegNewElt) // Early return.
+      return nullptr;
+    return Builder.CreateInsertElement(NegVector, NegNewElt, IEI->getOperand(2),
                                        I->getName() + ".neg");
   }
   case Instruction::Trunc: {

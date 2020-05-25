@@ -1831,6 +1831,24 @@ unsigned AArch64InstrInfo::getLoadStoreImmIdx(unsigned Opc) {
   case AArch64::ST1H_IMM:
   case AArch64::ST1W_IMM:
   case AArch64::ST1D_IMM:
+  case AArch64::LD1B_H_IMM:
+  case AArch64::LD1SB_H_IMM:
+  case AArch64::LD1H_S_IMM:
+  case AArch64::LD1SH_S_IMM:
+  case AArch64::LD1W_D_IMM:
+  case AArch64::LD1SW_D_IMM:
+  case AArch64::ST1B_H_IMM:
+  case AArch64::ST1H_S_IMM:
+  case AArch64::ST1W_D_IMM:
+  case AArch64::LD1B_S_IMM:
+  case AArch64::LD1SB_S_IMM:
+  case AArch64::LD1H_D_IMM:
+  case AArch64::LD1SH_D_IMM:
+  case AArch64::ST1B_S_IMM:
+  case AArch64::ST1H_D_IMM:
+  case AArch64::LD1B_D_IMM:
+  case AArch64::LD1SB_D_IMM:
+  case AArch64::ST1B_D_IMM:
     return 3;
   case AArch64::ADDG:
   case AArch64::STGOffset:
@@ -2286,6 +2304,45 @@ bool AArch64InstrInfo::getMemOpInfo(unsigned Opcode, TypeSize &Scale,
     // Width = mbytes * elements
     Scale = TypeSize::Scalable(16);
     Width = SVEMaxBytesPerVector;
+    MinOffset = -8;
+    MaxOffset = 7;
+    break;
+  case AArch64::LD1B_H_IMM:
+  case AArch64::LD1SB_H_IMM:
+  case AArch64::LD1H_S_IMM:
+  case AArch64::LD1SH_S_IMM:
+  case AArch64::LD1W_D_IMM:
+  case AArch64::LD1SW_D_IMM:
+  case AArch64::ST1B_H_IMM:
+  case AArch64::ST1H_S_IMM:
+  case AArch64::ST1W_D_IMM:
+    // A half vector worth of data
+    // Width = mbytes * elements
+    Scale = TypeSize::Scalable(8);
+    Width = SVEMaxBytesPerVector / 2;
+    MinOffset = -8;
+    MaxOffset = 7;
+    break;
+  case AArch64::LD1B_S_IMM:
+  case AArch64::LD1SB_S_IMM:
+  case AArch64::LD1H_D_IMM:
+  case AArch64::LD1SH_D_IMM:
+  case AArch64::ST1B_S_IMM:
+  case AArch64::ST1H_D_IMM:
+    // A quarter vector worth of data
+    // Width = mbytes * elements
+    Scale = TypeSize::Scalable(4);
+    Width = SVEMaxBytesPerVector / 4;
+    MinOffset = -8;
+    MaxOffset = 7;
+    break;
+  case AArch64::LD1B_D_IMM:
+  case AArch64::LD1SB_D_IMM:
+  case AArch64::ST1B_D_IMM:
+    // A eighth vector worth of data
+    // Width = mbytes * elements
+    Scale = TypeSize::Scalable(2);
+    Width = SVEMaxBytesPerVector / 8;
     MinOffset = -8;
     MaxOffset = 7;
     break;
@@ -6106,6 +6163,10 @@ bool AArch64InstrInfo::isFunctionSafeToOutlineFrom(
   if (!AFI || AFI->hasRedZone().getValueOr(true))
     return false;
 
+  // FIXME: Teach the outliner to generate/handle Windows unwind info.
+  if (MF.getTarget().getMCAsmInfo()->usesWindowsCFI())
+    return false;
+
   // It's safe to outline from MF.
   return true;
 }
@@ -6483,7 +6544,7 @@ void AArch64InstrInfo::buildOutlinedFrame(
 
     // Add a CFI saying the stack was moved 16 B down.
     int64_t StackPosEntry =
-        MF.addFrameInst(MCCFIInstruction::createDefCfaOffset(nullptr, 16));
+        MF.addFrameInst(MCCFIInstruction::cfiDefCfaOffset(nullptr, 16));
     BuildMI(MBB, It, DebugLoc(), get(AArch64::CFI_INSTRUCTION))
         .addCFIIndex(StackPosEntry)
         .setMIFlags(MachineInstr::FrameSetup);
@@ -6491,7 +6552,7 @@ void AArch64InstrInfo::buildOutlinedFrame(
     // Add a CFI saying that the LR that we want to find is now 16 B higher than
     // before.
     int64_t LRPosEntry =
-        MF.addFrameInst(MCCFIInstruction::createOffset(nullptr, DwarfReg, 16));
+        MF.addFrameInst(MCCFIInstruction::createOffset(nullptr, DwarfReg, -16));
     BuildMI(MBB, It, DebugLoc(), get(AArch64::CFI_INSTRUCTION))
         .addCFIIndex(LRPosEntry)
         .setMIFlags(MachineInstr::FrameSetup);

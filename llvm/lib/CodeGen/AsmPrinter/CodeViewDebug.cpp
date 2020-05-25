@@ -1788,11 +1788,12 @@ translatePtrToMemberRep(unsigned SizeInBytes, bool IsPMF, unsigned Flags) {
 TypeIndex CodeViewDebug::lowerTypeMemberPointer(const DIDerivedType *Ty,
                                                 PointerOptions PO) {
   assert(Ty->getTag() == dwarf::DW_TAG_ptr_to_member_type);
+  bool IsPMF = isa<DISubroutineType>(Ty->getBaseType());
   TypeIndex ClassTI = getTypeIndex(Ty->getClassType());
-  TypeIndex PointeeTI = getTypeIndex(Ty->getBaseType(), Ty->getClassType());
+  TypeIndex PointeeTI =
+      getTypeIndex(Ty->getBaseType(), IsPMF ? Ty->getClassType() : nullptr);
   PointerKind PK = getPointerSizeInBytes() == 8 ? PointerKind::Near64
                                                 : PointerKind::Near32;
-  bool IsPMF = isa<DISubroutineType>(Ty->getBaseType());
   PointerMode PM = IsPMF ? PointerMode::PointerToMemberFunction
                          : PointerMode::PointerToDataMember;
 
@@ -2992,13 +2993,11 @@ void CodeViewDebug::emitDebugInfoForUDTs(
   for (const auto &UDT : UDTs) {
     const DIType *T = UDT.second;
     assert(shouldEmitUdt(T));
-    // Ensure no new types are discovered when executing the code below.
-    // See discussion in https://reviews.llvm.org/D79512
-    assert(OriginalSize == UDTs.size());
-
     MCSymbol *UDTRecordEnd = beginSymbolRecord(SymbolKind::S_UDT);
     OS.AddComment("Type");
     OS.emitInt32(getCompleteTypeIndex(T).getIndex());
+    assert(OriginalSize == UDTs.size() &&
+           "getCompleteTypeIndex found new UDTs!");
     emitNullTerminatedSymbolName(OS, UDT.first);
     endSymbolRecord(UDTRecordEnd);
   }

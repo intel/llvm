@@ -65,10 +65,6 @@ public:
     return SI.getNumCases();
   }
 
-  int getExtCost(const Instruction *I, const Value *Src) {
-    return TTI::TCC_Basic;
-  }
-
   unsigned getInliningThresholdMultiplier() { return 1; }
 
   int getInlinerVectorBonusPercent() { return 150; }
@@ -180,11 +176,9 @@ public:
 
   bool shouldFavorBackedgeIndex(const Loop *L) const { return false; }
 
-  bool isLegalMaskedStore(Type *DataType, MaybeAlign Alignment) {
-    return false;
-  }
+  bool isLegalMaskedStore(Type *DataType, Align Alignment) { return false; }
 
-  bool isLegalMaskedLoad(Type *DataType, MaybeAlign Alignment) { return false; }
+  bool isLegalMaskedLoad(Type *DataType, Align Alignment) { return false; }
 
   bool isLegalNTStore(Type *DataType, Align Alignment) {
     // By default, assume nontemporal memory stores are available for stores
@@ -200,13 +194,9 @@ public:
     return Alignment >= DataSize && isPowerOf2_32(DataSize);
   }
 
-  bool isLegalMaskedScatter(Type *DataType, MaybeAlign Alignment) {
-    return false;
-  }
+  bool isLegalMaskedScatter(Type *DataType, Align Alignment) { return false; }
 
-  bool isLegalMaskedGather(Type *DataType, MaybeAlign Alignment) {
-    return false;
-  }
+  bool isLegalMaskedGather(Type *DataType, Align Alignment) { return false; }
 
   bool isLegalMaskedCompressStore(Type *DataType) { return false; }
 
@@ -441,7 +431,7 @@ public:
     return 1;
   }
 
-  unsigned getMemoryOpCost(unsigned Opcode, Type *Src, MaybeAlign Alignment,
+  unsigned getMemoryOpCost(unsigned Opcode, Type *Src, Align Alignment,
                            unsigned AddressSpace, TTI::TargetCostKind CostKind,
                            const Instruction *I) const {
     return 1;
@@ -470,17 +460,41 @@ public:
     return 1;
   }
 
-  unsigned getIntrinsicInstrCost(Intrinsic::ID ID, Type *RetTy,
-                                 ArrayRef<Type *> Tys, FastMathFlags FMF,
-                                 unsigned ScalarizationCostPassed,
-                                 TTI::TargetCostKind CostKind,
-                                 const Instruction *I) {
-    return 1;
-  }
-  unsigned getIntrinsicInstrCost(Intrinsic::ID ID, Type *RetTy,
-                                 ArrayRef<Value *> Args, FastMathFlags FMF,
-                                 unsigned VF, TTI::TargetCostKind CostKind,
-                                 const Instruction *I) {
+  unsigned getIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
+                                 TTI::TargetCostKind CostKind) {
+    switch (ICA.getID()) {
+    default:
+      break;
+    case Intrinsic::annotation:
+    case Intrinsic::assume:
+    case Intrinsic::sideeffect:
+    case Intrinsic::dbg_declare:
+    case Intrinsic::dbg_value:
+    case Intrinsic::dbg_label:
+    case Intrinsic::invariant_start:
+    case Intrinsic::invariant_end:
+    case Intrinsic::launder_invariant_group:
+    case Intrinsic::strip_invariant_group:
+    case Intrinsic::is_constant:
+    case Intrinsic::lifetime_start:
+    case Intrinsic::lifetime_end:
+    case Intrinsic::objectsize:
+    case Intrinsic::ptr_annotation:
+    case Intrinsic::var_annotation:
+    case Intrinsic::experimental_gc_result:
+    case Intrinsic::experimental_gc_relocate:
+    case Intrinsic::coro_alloc:
+    case Intrinsic::coro_begin:
+    case Intrinsic::coro_free:
+    case Intrinsic::coro_end:
+    case Intrinsic::coro_frame:
+    case Intrinsic::coro_size:
+    case Intrinsic::coro_suspend:
+    case Intrinsic::coro_param:
+    case Intrinsic::coro_subfn_addr:
+      // These intrinsics don't actually represent code after lowering.
+      return 0;
+    }
     return 1;
   }
 
@@ -760,47 +774,16 @@ public:
 
   unsigned getIntrinsicCost(Intrinsic::ID IID, Type *RetTy,
                             ArrayRef<Type *> ParamTys, const User *U,
-                            TTI::TargetCostKind TCK_SizeAndLatency) {
+                            TTI::TargetCostKind CostKind) {
     switch (IID) {
     default:
-      // Intrinsics rarely (if ever) have normal argument setup constraints.
-      // Model them as having a basic instruction cost.
-      return TTI::TCC_Basic;
-
+      break;
     // TODO: other libc intrinsics.
     case Intrinsic::memcpy:
       return static_cast<T *>(this)->getMemcpyCost(dyn_cast<Instruction>(U));
-
-    case Intrinsic::annotation:
-    case Intrinsic::assume:
-    case Intrinsic::sideeffect:
-    case Intrinsic::dbg_declare:
-    case Intrinsic::dbg_value:
-    case Intrinsic::dbg_label:
-    case Intrinsic::invariant_start:
-    case Intrinsic::invariant_end:
-    case Intrinsic::launder_invariant_group:
-    case Intrinsic::strip_invariant_group:
-    case Intrinsic::is_constant:
-    case Intrinsic::lifetime_start:
-    case Intrinsic::lifetime_end:
-    case Intrinsic::objectsize:
-    case Intrinsic::ptr_annotation:
-    case Intrinsic::var_annotation:
-    case Intrinsic::experimental_gc_result:
-    case Intrinsic::experimental_gc_relocate:
-    case Intrinsic::coro_alloc:
-    case Intrinsic::coro_begin:
-    case Intrinsic::coro_free:
-    case Intrinsic::coro_end:
-    case Intrinsic::coro_frame:
-    case Intrinsic::coro_size:
-    case Intrinsic::coro_suspend:
-    case Intrinsic::coro_param:
-    case Intrinsic::coro_subfn_addr:
-      // These intrinsics don't actually represent code after lowering.
-      return TTI::TCC_Free;
     }
+    IntrinsicCostAttributes Attrs(IID, RetTy, ParamTys);
+    return getIntrinsicInstrCost(Attrs, CostKind);
   }
 
   unsigned getIntrinsicCost(Intrinsic::ID IID, Type *RetTy,
@@ -881,7 +864,7 @@ public:
     case Instruction::FPExt:
     case Instruction::SExt:
     case Instruction::ZExt:
-      if (I && TargetTTI->getExtCost(I, Operands.back()) == TTI::TCC_Free)
+      if (TargetTTI->getCastInstrCost(Opcode, Ty, OpTy, CostKind, I) == TTI::TCC_Free)
         return TTI::TCC_Free;
       break;
     }

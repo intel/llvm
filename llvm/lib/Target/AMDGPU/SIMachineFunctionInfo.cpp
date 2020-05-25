@@ -55,11 +55,10 @@ SIMachineFunctionInfo::SIMachineFunctionInfo(const MachineFunction &MF)
 
   Occupancy = ST.computeOccupancy(MF, getLDSSize());
   CallingConv::ID CC = F.getCallingConv();
-  const MachineFrameInfo &FrameInfo = MF.getFrameInfo();
 
   // FIXME: Should have analysis or something rather than attribute to detect
   // calls.
-  const bool HasCalls = FrameInfo.hasCalls() || F.hasFnAttribute("amdgpu-calls");
+  const bool HasCalls = F.hasFnAttribute("amdgpu-calls");
 
   // Enable all kernel inputs if we have the fixed ABI. Don't bother if we don't
   // have any calls.
@@ -125,8 +124,7 @@ SIMachineFunctionInfo::SIMachineFunctionInfo(const MachineFunction &MF)
       WorkItemIDZ = true;
   }
 
-  bool HasStackObjects = FrameInfo.hasStackObjects();
-
+  bool HasStackObjects = F.hasFnAttribute("amdgpu-stack-objects");
   if (isEntryFunction()) {
     // X, XY, and XYZ are the only supported combinations, so make sure Y is
     // enabled if Z is.
@@ -170,20 +168,10 @@ SIMachineFunctionInfo::SIMachineFunctionInfo(const MachineFunction &MF)
     KernargSegmentPtr = true;
 
   if (ST.hasFlatAddressSpace() && isEntryFunction() && isAmdHsaOrMesa) {
-    auto hasNonSpillStackObjects = [&]() {
-      // Avoid expensive checking if there's no stack objects.
-      if (!HasStackObjects)
-        return false;
-      for (auto OI = FrameInfo.getObjectIndexBegin(),
-                OE = FrameInfo.getObjectIndexEnd(); OI != OE; ++OI)
-        if (!FrameInfo.isSpillSlotObjectIndex(OI))
-          return true;
-      // All stack objects are spill slots.
-      return false;
-    };
     // TODO: This could be refined a lot. The attribute is a poor way of
-    // detecting calls that may require it before argument lowering.
-    if (HasCalls || hasNonSpillStackObjects())
+    // detecting calls or stack objects that may require it before argument
+    // lowering.
+    if (HasCalls || HasStackObjects)
       FlatScratchInit = true;
   }
 
@@ -426,9 +414,9 @@ bool SIMachineFunctionInfo::allocateVGPRSpillToAGPR(MachineFunction &MF,
 }
 
 void SIMachineFunctionInfo::removeDeadFrameIndices(MachineFrameInfo &MFI) {
-  // The FP spill hasn't been inserted yet, so keep it around.
+  // The FP & BP spills haven't been inserted yet, so keep them around.
   for (auto &R : SGPRToVGPRSpills) {
-    if (R.first != FramePointerSaveIndex)
+    if (R.first != FramePointerSaveIndex && R.first != BasePointerSaveIndex)
       MFI.RemoveStackObject(R.first);
   }
 
@@ -436,7 +424,7 @@ void SIMachineFunctionInfo::removeDeadFrameIndices(MachineFrameInfo &MFI) {
   // ID.
   for (int i = MFI.getObjectIndexBegin(), e = MFI.getObjectIndexEnd(); i != e;
        ++i)
-    if (i != FramePointerSaveIndex)
+    if (i != FramePointerSaveIndex && i != BasePointerSaveIndex)
       MFI.setStackID(i, TargetStackID::Default);
 
   for (auto &R : VGPRToAGPRSpills) {

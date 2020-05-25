@@ -3500,18 +3500,25 @@ Instruction *InstCombiner::visitCallInst(CallInst &CI) {
     Value *Src = II->getArgOperand(0);
 
     // TODO: Move to ConstantFolding/InstSimplify?
-    if (isa<UndefValue>(Src))
-      return replaceInstUsesWith(CI, Src);
+    if (isa<UndefValue>(Src)) {
+      Type *Ty = II->getType();
+      auto *QNaN = ConstantFP::get(Ty, APFloat::getQNaN(Ty->getFltSemantics()));
+      return replaceInstUsesWith(CI, QNaN);
+    }
+
+    if (II->isStrictFP())
+      break;
 
     if (const ConstantFP *C = dyn_cast<ConstantFP>(Src)) {
       const APFloat &ArgVal = C->getValueAPF();
       APFloat Val(ArgVal.getSemantics(), 1);
-      APFloat::opStatus Status = Val.divide(ArgVal,
-                                            APFloat::rmNearestTiesToEven);
-      // Only do this if it was exact and therefore not dependent on the
-      // rounding mode.
-      if (Status == APFloat::opOK)
-        return replaceInstUsesWith(CI, ConstantFP::get(II->getContext(), Val));
+      Val.divide(ArgVal, APFloat::rmNearestTiesToEven);
+
+      // This is more precise than the instruction may give.
+      //
+      // TODO: The instruction always flushes denormal results (except for f16),
+      // should this also?
+      return replaceInstUsesWith(CI, ConstantFP::get(II->getContext(), Val));
     }
 
     break;
@@ -3520,8 +3527,12 @@ Instruction *InstCombiner::visitCallInst(CallInst &CI) {
     Value *Src = II->getArgOperand(0);
 
     // TODO: Move to ConstantFolding/InstSimplify?
-    if (isa<UndefValue>(Src))
-      return replaceInstUsesWith(CI, Src);
+    if (isa<UndefValue>(Src)) {
+      Type *Ty = II->getType();
+      auto *QNaN = ConstantFP::get(Ty, APFloat::getQNaN(Ty->getFltSemantics()));
+      return replaceInstUsesWith(CI, QNaN);
+    }
+
     break;
   }
   case Intrinsic::amdgcn_frexp_mant:
@@ -4064,6 +4075,53 @@ Instruction *InstCombiner::visitCallInst(CallInst &CI) {
                   m_Value(), m_Specific(II->getArgOperand(1)))))
         return replaceInstUsesWith(*II, Src);
     }
+
+    break;
+  }
+  case Intrinsic::amdgcn_ldexp: {
+    // FIXME: This doesn't introduce new instructions and belongs in
+    // InstructionSimplify.
+    Type *Ty = II->getType();
+    Value *Op0 = II->getArgOperand(0);
+    Value *Op1 = II->getArgOperand(1);
+
+    // Folding undef to qnan is safe regardless of the FP mode.
+    if (isa<UndefValue>(Op0)) {
+      auto *QNaN = ConstantFP::get(Ty, APFloat::getQNaN(Ty->getFltSemantics()));
+      return replaceInstUsesWith(*II, QNaN);
+    }
+
+    const APFloat *C = nullptr;
+    match(Op0, m_APFloat(C));
+
+    // FIXME: Should flush denorms depending on FP mode, but that's ignored
+    // everywhere else.
+    //
+    // These cases should be safe, even with strictfp.
+    // ldexp(0.0, x) -> 0.0
+    // ldexp(-0.0, x) -> -0.0
+    // ldexp(inf, x) -> inf
+    // ldexp(-inf, x) -> -inf
+    if (C && (C->isZero() || C->isInfinity()))
+      return replaceInstUsesWith(*II, Op0);
+
+    // With strictfp, be more careful about possibly needing to flush denormals
+    // or not, and snan behavior depends on ieee_mode.
+    if (II->isStrictFP())
+      break;
+
+    if (C && C->isNaN()) {
+      // FIXME: We just need to make the nan quiet here, but that's unavailable
+      // on APFloat, only IEEEfloat
+      auto *Quieted = ConstantFP::get(
+        Ty, scalbn(*C, 0, APFloat::rmNearestTiesToEven));
+      return replaceInstUsesWith(*II, Quieted);
+    }
+
+    // ldexp(x, 0) -> x
+    // ldexp(x, undef) -> x
+    if (isa<UndefValue>(Op1) || match(Op1, m_ZeroInt()))
+      return replaceInstUsesWith(*II, Op0);
 
     break;
   }
@@ -4737,6 +4795,7 @@ bool InstCombiner::transformConstExprCastCall(CallBase &Call) {
   //
   //  Similarly, avoid folding away bitcasts of byval calls.
   if (Callee->getAttributes().hasAttrSomewhere(Attribute::InAlloca) ||
+      Callee->getAttributes().hasAttrSomewhere(Attribute::Preallocated) ||
       Callee->getAttributes().hasAttrSomewhere(Attribute::ByVal))
     return false;
 
