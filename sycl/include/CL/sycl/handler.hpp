@@ -826,7 +826,6 @@ public:
     MCGType = detail::CG::CODEPLAY_HOST_TASK;
   }
 
-
   template <typename FuncT>
   typename std::enable_if<
       detail::check_fn_signature<typename std::remove_reference<FuncT>::type,
