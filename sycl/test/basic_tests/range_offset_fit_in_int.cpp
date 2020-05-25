@@ -43,13 +43,14 @@ void test() {
   S::range<1> RangeInLimits{1};
   S::id<1> OffsetOutOfLimits{OutOfLimitsSize};
   S::id<1> OffsetInLimits{1};
-  S::nd_range<1> NDRangeROLLILOIL{RangeOutOfLimits, RangeInLimits,
-                                  OffsetInLimits};
-  S::nd_range<1> NDRangeRILLOLOIL{RangeInLimits, RangeOutOfLimits,
-                                  OffsetInLimits};
-  S::nd_range<1> NDRangeRILLILOOL{RangeInLimits, RangeInLimits,
-                                  OffsetOutOfLimits};
-  S::nd_range<1> NDRangeRILLILOIL(RangeInLimits, RangeInLimits, OffsetInLimits);
+  S::nd_range<1> NDRange_ROL_LIL_OIL{RangeOutOfLimits, RangeInLimits,
+                                     OffsetInLimits};
+  S::nd_range<1> NDRange_RIL_LOL_OIL{RangeInLimits, RangeOutOfLimits,
+                                     OffsetInLimits};
+  S::nd_range<1> NDRange_RIL_LIL_OOL{RangeInLimits, RangeInLimits,
+                                     OffsetOutOfLimits};
+  S::nd_range<1> NDRange_RIL_LIL_OIL(RangeInLimits, RangeInLimits,
+                                     OffsetInLimits);
 
   int Data = 0;
   S::buffer<int, 1> Buf{&Data, 1};
@@ -126,7 +127,7 @@ void test() {
       auto Acc = Buf.get_access<cl::sycl::access::mode::read_write>(CGH);
 
       CGH.parallel_for<class PF_ND_GOL_LIL_OIL>(
-          NDRangeROLLILOIL, [Acc](S::nd_item<1> Id) { Acc[0] += 1; });
+          NDRange_ROL_LIL_OIL, [Acc](S::nd_item<1> Id) { Acc[0] += 1; });
     });
   } catch (S::runtime_error &E) {
     checkRangeException(E);
@@ -139,7 +140,7 @@ void test() {
       auto Acc = Buf.get_access<cl::sycl::access::mode::read_write>(CGH);
 
       CGH.parallel_for<class PF_ND_GIL_LOL_OIL>(
-          NDRangeRILLOLOIL, [Acc](S::nd_item<1> Id) { Acc[0] += 1; });
+          NDRange_RIL_LOL_OIL, [Acc](S::nd_item<1> Id) { Acc[0] += 1; });
     });
   } catch (S::runtime_error &E) {
     checkRangeException(E);
@@ -152,7 +153,7 @@ void test() {
       auto Acc = Buf.get_access<cl::sycl::access::mode::read_write>(CGH);
 
       CGH.parallel_for<class PF_ND_GIL_LIL_OOL>(
-          NDRangeRILLILOOL, [Acc](S::nd_item<1> Id) { Acc[0] += 1; });
+          NDRange_RIL_LIL_OOL, [Acc](S::nd_item<1> Id) { Acc[0] += 1; });
     });
   } catch (S::runtime_error &E) {
     checkOffsetException(E);
@@ -165,7 +166,7 @@ void test() {
       auto Acc = Buf.get_access<cl::sycl::access::mode::read_write>(CGH);
 
       CGH.parallel_for<class PF_ND_GIL_LIL_OIL>(
-          NDRangeRILLILOIL, [Acc](S::nd_item<1> Id) { Acc[0] += 1; });
+          NDRange_RIL_LIL_OIL, [Acc](S::nd_item<1> Id) { Acc[0] += 1; });
     });
   } catch (...) {
     assert(false && "Unexpected exception catched");
