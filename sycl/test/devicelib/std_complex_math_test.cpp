@@ -87,7 +87,7 @@ std::array<complex<float>, TestArraySize1> ref1_results = {
     complex<float>(M_PI_2, 0.549306f)};
 
 std::array<float, TestArraySize2> ref2_results = {0.f, 25.f, 169.f, INFINITY, 0.f,
-                                 5.f, 13.f, INFINITY, 0.f, M_PI_2};
+                                                  5.f, 13.f, INFINITY, 0.f, M_PI_2};
 
 void device_complex_test(s::queue &deviceQueue) {
   s::range<1> numOfItems1{TEST_NUM1};
