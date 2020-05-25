@@ -6,6 +6,7 @@
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
 #include <CL/sycl.hpp>
+#include <array>
 #include <cassert>
 #include <complex>
 
@@ -22,10 +23,10 @@ bool approx_equal_cmplx(complex<T> x, complex<T> y) {
          approx_equal_fp(x.imag(), y.imag());
 }
 
-#define TEST_NUM1 57
-#define TEST_NUM2 10
+static constexpr auto TestArraySize1 = 57;
+static constexpr auto TestArraySize2 = 10;
 
-complex<double> ref1_results[TEST_NUM1] = {
+std::array<complex<double>, TestArraySize1> ref1_results = {
     complex<double>(-1., 1.),
     complex<double>(1., 3.),
     complex<double>(-2., 10.),
@@ -85,14 +86,14 @@ complex<double> ref1_results[TEST_NUM1] = {
     complex<double>(M_PI_2, 0.),
     complex<double>(M_PI_2, 0.549306144334055)};
 
-double ref2_results[TEST_NUM2] = {0., 25., 169., INFINITY, 0.,
-                                  5., 13., INFINITY, 0., M_PI_2};
+std::array<double, TestArraySize2> ref2_results = {0., 25., 169., INFINITY, 0.,
+                                                   5., 13., INFINITY, 0., M_PI_2};
 
 void device_complex_test(s::queue &deviceQueue) {
-  s::range<1> numOfItems1{TEST_NUM1};
-  s::range<1> numOfItems2{TEST_NUM2};
-  complex<double> result1[TEST_NUM1];
-  double result2[TEST_NUM2];
+  s::range<1> numOfItems1{TestArraySize1};
+  s::range<1> numOfItems2{TestArraySize2};
+  complex<double> result1[TestArraySize1];
+  double result2[TestArraySize2];
   {
     s::buffer<complex<double>, 1> buffer1(result1, numOfItems1);
     s::buffer<double, 1> buffer2(result2, numOfItems2);
@@ -186,10 +187,10 @@ void device_complex_test(s::queue &deviceQueue) {
     });
   }
 
-  for (size_t idx = 0; idx < TEST_NUM1; ++idx) {
+  for (size_t idx = 0; idx < TestArraySize1; ++idx) {
     assert(approx_equal_cmplx(result1[idx], ref1_results[idx]));
   }
-  for (size_t idx = 0; idx < TEST_NUM2; ++idx) {
+  for (size_t idx = 0; idx < TestArraySize2; ++idx) {
     assert(approx_equal_fp(result2[idx], ref2_results[idx]));
   }
 }
