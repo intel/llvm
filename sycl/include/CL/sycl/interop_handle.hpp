@@ -50,6 +50,7 @@ public:
         reinterpret_cast<const detail::AccessorBaseHost *>(&Acc));
     return getMemImpl(detail::getSyclObjImpl(*AccBase).get());
 #else
+    (void)Acc;
     // we believe this won't be ever called on device side
     return static_cast<cl_mem>(0x0);
 #endif
