@@ -1923,6 +1923,9 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
   case Intrinsic::invariant_start:
   case Intrinsic::invariant_end:
   case Intrinsic::dbg_label:
+  case Intrinsic::trap:
+    // llvm.trap intrinsic is not implemented. But for now don't crash. This
+    // change is pending the trap/abort intrisinc implementation.
     return nullptr;
   default:
     if (SPIRVAllowUnknownIntrinsics)
