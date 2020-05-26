@@ -12578,6 +12578,14 @@ void Sema::ActOnUninitializedDecl(Decl *RealDecl) {
     if (getLangOpts().OpenCL &&
         Var->getType().getAddressSpace() == LangAS::opencl_local)
       return;
+    // In SYCL ESIMD device code non-constant file scope variables can't be
+    // initialized.
+    // TODO add proper diagnostics for both SYCL and OpenCL paths
+    if (getLangOpts().SYCLExplicitSIMD && getLangOpts().SYCLIsDevice &&
+        Var->isFileVarDecl() && Var->hasGlobalStorage() &&
+        (Var->getType().getAddressSpace() != LangAS::opencl_constant))
+      return;
+
     // C++03 [dcl.init]p9:
     //   If no initializer is specified for an object, and the
     //   object is of (possibly cv-qualified) non-POD class type (or

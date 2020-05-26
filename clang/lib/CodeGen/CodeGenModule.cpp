@@ -3885,6 +3885,13 @@ LangAS CodeGenModule::GetGlobalVarAddressSpace(const VarDecl *D) {
     if (!D || D->getType().getAddressSpace() == LangAS::Default) {
       return LangAS::opencl_global;
     }
+    if (D)
+      AddrSpace = D->getType().getAddressSpace();
+    if (AddrSpace == LangAS::opencl_private ||
+        AddrSpace == LangAS::opencl_local)
+      // SYCL explicit SIMD path: recognize globals in private or local address
+      // space.
+      return AddrSpace;
   }
 
   if (LangOpts.CUDA && LangOpts.CUDAIsDevice) {
@@ -4415,8 +4422,12 @@ void CodeGenModule::EmitGlobalVarDefinition(const VarDecl *D,
     if (getCodeGenOpts().hasReducedDebugInfo())
       DI->EmitGlobalVariable(GV, D);
 
-  if (LangOpts.SYCLIsDevice)
+  if (LangOpts.SYCLIsDevice) {
     maybeEmitPipeStorageMetadata(D, GV, *this);
+    // Notify SYCL code generation infrastructure that a global variable is
+    // being generated.
+    getSYCLRuntime().actOnGlobalVarEmit(*this, *D, GV);
+  }
 }
 
 void CodeGenModule::EmitExternalVarDeclaration(const VarDecl *D) {
