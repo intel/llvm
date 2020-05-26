@@ -342,9 +342,9 @@ const llvm::Value *llvm::getSplatValue(const Value *V) {
 
   // shuf (inselt ?, Splat, 0), ?, <0, undef, 0, ...>
   Value *Splat;
-  if (match(V, m_ShuffleVector(
-                   m_InsertElement(m_Value(), m_Value(Splat), m_ZeroInt()),
-                   m_Value(), m_ZeroMask())))
+  if (match(V,
+            m_Shuffle(m_InsertElt(m_Value(), m_Value(Splat), m_ZeroInt()),
+                      m_Value(), m_ZeroMask())))
     return Splat;
 
   return nullptr;
@@ -946,13 +946,8 @@ void InterleavedAccessInfo::collectConstStrideAccesses(
       const SCEV *Scev = replaceSymbolicStrideSCEV(PSE, Strides, Ptr);
       PointerType *PtrTy = cast<PointerType>(Ptr->getType());
       uint64_t Size = DL.getTypeAllocSize(PtrTy->getElementType());
-
-      // An alignment of 0 means target ABI alignment.
-      MaybeAlign Alignment = MaybeAlign(getLoadStoreAlignment(&I));
-      if (!Alignment)
-        Alignment = Align(DL.getABITypeAlignment(PtrTy->getElementType()));
-
-      AccessStrideInfo[&I] = StrideDescriptor(Stride, Scev, Size, *Alignment);
+      AccessStrideInfo[&I] = StrideDescriptor(Stride, Scev, Size,
+                                              getLoadStoreAlignment(&I));
     }
 }
 

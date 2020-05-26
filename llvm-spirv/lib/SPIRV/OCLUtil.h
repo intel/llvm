@@ -426,9 +426,8 @@ bool isKernelQueryBI(const StringRef MangledName);
 /// Check that the type is the sampler_t
 bool isSamplerTy(Type *Ty);
 
-// Checks if clang did not generate llvm.fmuladd for fp multiply-add operations.
-// If so, it applies ContractionOff ExecutionMode to the kernel.
-void checkFpContract(BinaryOperator *B, SPIRVBasicBlock *BB);
+// Checks if the binary operator is an unfused fmul + fadd instruction.
+bool isUnfusedMulAdd(BinaryOperator *B);
 
 template <typename T> std::string toString(const T *Object) {
   std::string S;
@@ -497,12 +496,13 @@ Instruction *
 getOrCreateSwitchFunc(StringRef MapName, Value *V,
                       const SPIRVMap<KeyTy, ValTy, Identifier> &Map,
                       bool IsReverse, Optional<int> DefaultCase,
-                      Instruction *InsertPoint, Module *M, int KeyMask = 0) {
+                      Instruction *InsertPoint, int KeyMask = 0) {
   static_assert(std::is_convertible<KeyTy, int>::value &&
                     std::is_convertible<ValTy, int>::value,
                 "Can map only integer values");
   Type *Ty = V->getType();
   assert(Ty && Ty->isIntegerTy() && "Can't map non-integer types");
+  Module *M = InsertPoint->getModule();
   Function *F = getOrCreateFunction(M, Ty, Ty, MapName);
   if (!F->empty()) // The switch function already exists. just call it.
     return addCallInst(M, MapName, Ty, V, nullptr, InsertPoint);
@@ -543,6 +543,85 @@ getOrCreateSwitchFunc(StringRef MapName, Value *V,
   assert(SI->getDefaultDest() != BB && "Invalid default destination in switch");
   return addCallInst(M, MapName, Ty, V, nullptr, InsertPoint);
 }
+
+/// Performs conversion from OpenCL memory_scope into SPIR-V Scope.
+///
+/// Supports both constant and non-constant values. To handle the latter case,
+/// function with switch..case statement will be inserted into module which
+/// \arg InsertBefore belongs to (in order to perform mapping at runtime)
+///
+/// \param [in] MemScope memory_scope value which needs to be translated
+/// \param [in] DefaultCase default value for switch..case construct if
+///             dynamic mapping is used
+/// \param [in] InsertBefore insertion point for call into conversion function
+///             which is generated if \arg MemScope is not a constant
+/// \returns \c Value corresponding to SPIR-V Scope equivalent to OpenCL
+///          memory_scope passed in \arg MemScope
+Value *transOCLMemScopeIntoSPIRVScope(Value *MemScope,
+                                      Optional<int> DefaultCase,
+                                      Instruction *InsertBefore);
+
+/// Performs conversion from OpenCL memory_order into SPIR-V Memory Semantics.
+///
+/// Supports both constant and non-constant values. To handle the latter case,
+/// function with switch..case statement will be inserted into module which
+/// \arg InsertBefore belongs to (in order to perform mapping at runtime)
+///
+/// \param [in] MemOrder memory_scope value which needs to be translated
+/// \param [in] DefaultCase default value for switch..case construct if
+///             dynamic mapping is used
+/// \param [in] InsertBefore insertion point for call into conversion function
+///             which is generated if \arg MemOrder is not a constant
+/// \returns \c Value corresponding to SPIR-V Memory Semantics equivalent to
+///          OpenCL memory_order passed in \arg MemOrder
+Value *transOCLMemOrderIntoSPIRVMemorySemantics(Value *MemOrder,
+                                                Optional<int> DefaultCase,
+                                                Instruction *InsertBefore);
+
+/// Performs conversion from SPIR-V Scope into OpenCL memory_scope.
+///
+/// Supports both constant and non-constant values. To handle the latter case,
+/// function with switch..case statement will be inserted into module which
+/// \arg InsertBefore belongs to (in order to perform mapping at runtime)
+///
+/// \param [in] MemScope Scope value which needs to be translated
+/// \param [in] InsertBefore insertion point for call into conversion function
+///             which is generated if \arg MemScope is not a constant
+/// \returns \c Value corresponding to  OpenCL memory_scope equivalent to SPIR-V
+///          Scope passed in \arg MemScope
+Value *transSPIRVMemoryScopeIntoOCLMemoryScope(Value *MemScope,
+                                               Instruction *InsertBefore);
+
+/// Performs conversion from SPIR-V Memory Semantics into OpenCL memory_order.
+///
+/// Supports both constant and non-constant values. To handle the latter case,
+/// function with switch..case statement will be inserted into module which
+/// \arg InsertBefore belongs to (in order to perform mapping at runtime)
+///
+/// \param [in] MemorySemantics Memory Semantics value which needs to be
+///             translated
+/// \param [in] InsertBefore insertion point for call into conversion function
+///             which is generated if \arg MemorySemantics is not a constant
+/// \returns \c Value corresponding to  OpenCL memory_order equivalent to SPIR-V
+///          Memory Semantics passed in \arg MemorySemantics
+Value *transSPIRVMemorySemanticsIntoOCLMemoryOrder(Value *MemorySemantics,
+                                                   Instruction *InsertBefore);
+
+/// Performs conversion from SPIR-V Memory Semantics into OpenCL
+/// mem_fence_flags.
+///
+/// Supports both constant and non-constant values. To handle the latter case,
+/// function with switch..case statement will be inserted into module which
+/// \arg InsertBefore belongs to (in order to perform mapping at runtime)
+///
+/// \param [in] MemorySemantics Memory Semantics value which needs to be
+///             translated
+/// \param [in] InsertBefore insertion point for call into conversion function
+///             which is generated if \arg MemorySemantics is not a constant
+/// \returns \c Value corresponding to  OpenCL mem_fence_flags equivalent to
+///          SPIR-V Memory Semantics passed in \arg MemorySemantics
+Value *transSPIRVMemorySemanticsIntoOCLMemFenceFlags(Value *MemorySemantics,
+                                                     Instruction *InsertBefore);
 
 template <> inline void SPIRVMap<std::string, SPIRVGroupOperationKind>::init() {
   add("reduce", GroupOperationReduce);
