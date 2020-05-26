@@ -145,10 +145,10 @@ enum class device_type : pi_uint64 {
 };
 
 enum class partition_property : cl_device_partition_property {
+  no_partition = 0,
   partition_equally = CL_DEVICE_PARTITION_EQUALLY,
   partition_by_counts = CL_DEVICE_PARTITION_BY_COUNTS,
-  partition_by_affinity_domain = CL_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
-  no_partition
+  partition_by_affinity_domain = CL_DEVICE_PARTITION_BY_AFFINITY_DOMAIN
 };
 
 enum class partition_affinity_domain : cl_device_affinity_domain {
