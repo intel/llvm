@@ -603,6 +603,7 @@ Error LTO::addModule(InputFile &Input, unsigned ModI,
   if (LTOInfo->IsThinLTO)
     return addThinLTO(BM, ModSyms, ResI, ResE);
 
+  RegularLTO.EmptyCombinedModule = false;
   Expected<RegularLTOState::AddedModule> ModOrErr =
       addRegularLTO(BM, ModSyms, ResI, ResE);
   if (!ModOrErr)
@@ -756,8 +757,9 @@ LTO::addRegularLTO(BitcodeModule BM, ArrayRef<InputFile::Symbol> Syms,
       // For now they aren't reported correctly by ModuleSymbolTable.
       auto &CommonRes = RegularLTO.Commons[std::string(Sym.getIRName())];
       CommonRes.Size = std::max(CommonRes.Size, Sym.getCommonSize());
-      CommonRes.Align =
-          std::max(CommonRes.Align, MaybeAlign(Sym.getCommonAlignment()));
+      MaybeAlign SymAlign(Sym.getCommonAlignment());
+      if (SymAlign)
+        CommonRes.Align = max(*SymAlign, CommonRes.Align);
       CommonRes.Prevailing |= Res.Prevailing;
     }
 
@@ -1026,10 +1028,13 @@ Error LTO::runRegularLTO(AddStreamFn AddStream) {
         !Conf.PostInternalizeModuleHook(0, *RegularLTO.CombinedModule))
       return Error::success();
   }
-  if (Error Err =
-          backend(Conf, AddStream, RegularLTO.ParallelCodeGenParallelismLevel,
-                  std::move(RegularLTO.CombinedModule), ThinLTO.CombinedIndex))
-    return Err;
+
+  if (!RegularLTO.EmptyCombinedModule || Conf.AlwaysEmitRegularLTOObj) {
+    if (Error Err = backend(
+            Conf, AddStream, RegularLTO.ParallelCodeGenParallelismLevel,
+            std::move(RegularLTO.CombinedModule), ThinLTO.CombinedIndex))
+      return Err;
+  }
 
   return finalizeOptimizationRemarks(std::move(*DiagFileOrErr));
 }

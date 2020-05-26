@@ -27,6 +27,7 @@
 #include "llvm/ExecutionEngine/Orc/RTDyldObjectLinkingLayer.h"
 #include "llvm/ExecutionEngine/SectionMemoryManager.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/MC/SubtargetFeature.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/Host.h"
@@ -51,7 +52,9 @@ using llvm::orc::DynamicLibrarySearchGenerator;
 using llvm::orc::ExecutionSession;
 using llvm::orc::IRCompileLayer;
 using llvm::orc::JITTargetMachineBuilder;
+using llvm::orc::MangleAndInterner;
 using llvm::orc::RTDyldObjectLinkingLayer;
+using llvm::orc::SymbolMap;
 using llvm::orc::ThreadSafeModule;
 using llvm::orc::TMOwningSimpleCompiler;
 
@@ -99,6 +102,14 @@ void ExecutionEngine::dumpToObjectFile(StringRef filename) {
   cache->dumpToObjectFile(filename);
 }
 
+void ExecutionEngine::registerSymbols(
+    llvm::function_ref<SymbolMap(MangleAndInterner)> symbolMap) {
+  auto &mainJitDylib = jit->getMainJITDylib();
+  cantFail(mainJitDylib.define(
+      absoluteSymbols(symbolMap(llvm::orc::MangleAndInterner(
+          mainJitDylib.getExecutionSession(), jit->getDataLayout())))));
+}
+
 // Setup LLVM target triple from the current machine.
 bool ExecutionEngine::setupTargetTriple(Module *llvmModule) {
   // Setup the machine properties from the current architecture.
@@ -109,8 +120,17 @@ bool ExecutionEngine::setupTargetTriple(Module *llvmModule) {
     errs() << "NO target: " << errorMessage << "\n";
     return true;
   }
-  std::unique_ptr<llvm::TargetMachine> machine(
-      target->createTargetMachine(targetTriple, "generic", "", {}, {}));
+
+  std::string cpu(llvm::sys::getHostCPUName());
+  llvm::SubtargetFeatures features;
+  llvm::StringMap<bool> hostFeatures;
+
+  if (llvm::sys::getHostCPUFeatures(hostFeatures))
+    for (auto &f : hostFeatures)
+      features.AddFeature(f.first(), f.second);
+
+  std::unique_ptr<llvm::TargetMachine> machine(target->createTargetMachine(
+      targetTriple, cpu, features.getString(), {}, {}));
   llvmModule->setDataLayout(machine->createDataLayout());
   llvmModule->setTargetTriple(targetTriple);
   return false;
@@ -183,19 +203,24 @@ static void packFunctionArguments(Module *module) {
 }
 
 ExecutionEngine::ExecutionEngine(bool enableObjectCache,
-                                 bool enableGDBNotificationListener)
+                                 bool enableGDBNotificationListener,
+                                 bool enablePerfNotificationListener)
     : cache(enableObjectCache ? new SimpleObjectCache() : nullptr),
       gdbListener(enableGDBNotificationListener
                       ? llvm::JITEventListener::createGDBRegistrationListener()
-                      : nullptr) {}
+                      : nullptr),
+      perfListener(enablePerfNotificationListener
+                       ? llvm::JITEventListener::createPerfJITEventListener()
+                       : nullptr) {}
 
 Expected<std::unique_ptr<ExecutionEngine>> ExecutionEngine::create(
-    ModuleOp m, std::function<Error(llvm::Module *)> transformer,
+    ModuleOp m, llvm::function_ref<Error(llvm::Module *)> transformer,
     Optional<llvm::CodeGenOpt::Level> jitCodeGenOptLevel,
     ArrayRef<StringRef> sharedLibPaths, bool enableObjectCache,
-    bool enableGDBNotificationListener) {
+    bool enableGDBNotificationListener, bool enablePerfNotificationListener) {
   auto engine = std::make_unique<ExecutionEngine>(
-      enableObjectCache, enableGDBNotificationListener);
+      enableObjectCache, enableGDBNotificationListener,
+      enablePerfNotificationListener);
 
   std::unique_ptr<llvm::LLVMContext> ctx(new llvm::LLVMContext);
   auto llvmModule = translateModuleToLLVMIR(m);
@@ -220,16 +245,12 @@ Expected<std::unique_ptr<ExecutionEngine>> ExecutionEngine::create(
                                        const Triple &TT) {
     auto objectLayer = std::make_unique<RTDyldObjectLinkingLayer>(
         session, []() { return std::make_unique<SectionMemoryManager>(); });
-    objectLayer->setNotifyLoaded(
-        [engine = engine.get()](
-            llvm::orc::VModuleKey, const llvm::object::ObjectFile &object,
-            const llvm::RuntimeDyld::LoadedObjectInfo &objectInfo) {
-          if (engine->gdbListener) {
-            uint64_t key = static_cast<uint64_t>(
-                reinterpret_cast<uintptr_t>(object.getData().data()));
-            engine->gdbListener->notifyObjectLoaded(key, object, objectInfo);
-          }
-        });
+
+    // Register JIT event listeners if they are enabled.
+    if (engine->gdbListener)
+      objectLayer->registerJITEventListener(*engine->gdbListener);
+    if (engine->perfListener)
+      objectLayer->registerJITEventListener(*engine->perfListener);
 
     // Resolve symbols from shared libraries.
     for (auto libPath : sharedLibPaths) {

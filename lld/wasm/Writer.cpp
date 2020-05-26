@@ -20,7 +20,6 @@
 #include "lld/Common/ErrorHandler.h"
 #include "lld/Common/Memory.h"
 #include "lld/Common/Strings.h"
-#include "lld/Common/Threads.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
@@ -31,6 +30,7 @@
 #include "llvm/Support/Format.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/LEB128.h"
+#include "llvm/Support/Parallel.h"
 
 #include <cstdarg>
 #include <map>
@@ -53,6 +53,9 @@ public:
 
 private:
   void openFile();
+
+  bool needsPassiveInitialization(const OutputSegment *segment);
+  bool hasPassiveInitializedSegments();
 
   void createInitMemoryFunction();
   void createApplyRelocationsFunction();
@@ -441,21 +444,24 @@ void Writer::populateTargetFeatures() {
   if (!config->checkFeatures)
     return;
 
-  if (disallowed.count("atomics") && config->sharedMemory)
-    error("'atomics' feature is disallowed by " + disallowed["atomics"] +
-          ", so --shared-memory must not be used");
+  if (config->sharedMemory) {
+    if (disallowed.count("shared-mem"))
+      error("--shared-memory is disallowed by " + disallowed["shared-mem"] +
+            " because it was not compiled with 'atomics' or 'bulk-memory' "
+            "features.");
 
-  if (!allowed.count("atomics") && config->sharedMemory)
-    error("'atomics' feature must be used in order to use shared "
-          "memory");
+    for (auto feature : {"atomics", "bulk-memory"})
+      if (!allowed.count(feature))
+        error(StringRef("'") + feature +
+              "' feature must be used in order to use shared memory");
+  }
 
-  if (!allowed.count("bulk-memory") && config->sharedMemory)
-    error("'bulk-memory' feature must be used in order to use shared "
-          "memory");
-
-  if (!allowed.count("bulk-memory") && tlsUsed)
-    error("'bulk-memory' feature must be used in order to use thread-local "
-          "storage");
+  if (tlsUsed) {
+    for (auto feature : {"atomics", "bulk-memory"})
+      if (!allowed.count(feature))
+        error(StringRef("'") + feature +
+              "' feature must be used in order to use thread-local storage");
+  }
 
   // Validate that used features are allowed in output
   if (!inferFeatures) {
@@ -726,6 +732,18 @@ static void createFunction(DefinedFunction *func, StringRef bodyContent) {
   cast<SyntheticFunction>(func->function)->setBody(body);
 }
 
+bool Writer::needsPassiveInitialization(const OutputSegment *segment) {
+  return segment->initFlags & WASM_SEGMENT_IS_PASSIVE &&
+         segment->name != ".tdata" && !segment->isBss;
+}
+
+bool Writer::hasPassiveInitializedSegments() {
+  return std::find_if(segments.begin(), segments.end(),
+                      [this](const OutputSegment *s) {
+                        return this->needsPassiveInitialization(s);
+                      }) != segments.end();
+}
+
 void Writer::createInitMemoryFunction() {
   LLVM_DEBUG(dbgs() << "createInitMemoryFunction\n");
   assert(WasmSym::initMemoryFlag);
@@ -735,7 +753,7 @@ void Writer::createInitMemoryFunction() {
     raw_string_ostream os(bodyContent);
     writeUleb128(os, 0, "num locals");
 
-    if (segments.size()) {
+    if (hasPassiveInitializedSegments()) {
       // Initialize memory in a thread-safe manner. The thread that successfully
       // increments the flag from 0 to 1 is is responsible for performing the
       // memory initialization. Other threads go sleep on the flag until the
@@ -801,7 +819,7 @@ void Writer::createInitMemoryFunction() {
 
       // Did increment 0, so conditionally initialize passive data segments
       for (const OutputSegment *s : segments) {
-        if (s->initFlags & WASM_SEGMENT_IS_PASSIVE && s->name != ".tdata") {
+        if (needsPassiveInitialization(s)) {
           // destination address
           writeI32Const(os, s->startVA, "destination address");
           // source segment offset
@@ -835,7 +853,7 @@ void Writer::createInitMemoryFunction() {
 
       // Unconditionally drop passive data segments
       for (const OutputSegment *s : segments) {
-        if (s->initFlags & WASM_SEGMENT_IS_PASSIVE && s->name != ".tdata") {
+        if (needsPassiveInitialization(s)) {
           // data.drop instruction
           writeU8(os, WASM_OPCODE_MISC_PREFIX, "bulk-memory prefix");
           writeUleb128(os, WASM_OPCODE_DATA_DROP, "data.drop");
@@ -980,7 +998,7 @@ void Writer::createSyntheticSections() {
   out.eventSec = make<EventSection>();
   out.globalSec = make<GlobalSection>();
   out.exportSec = make<ExportSection>();
-  out.startSec = make<StartSection>(segments.size());
+  out.startSec = make<StartSection>(hasPassiveInitializedSegments());
   out.elemSec = make<ElemSection>();
   out.dataCountSec = make<DataCountSection>(segments);
   out.linkingSec = make<LinkingSection>(initFunctions, segments);

@@ -11,9 +11,11 @@ add_entrypoint_library(
     # signal.h entrypoints
     libc.src.signal.raise
     libc.src.signal.sigaction
+    libc.src.signal.sigdelset
     libc.src.signal.sigaddset
     libc.src.signal.sigemptyset
     libc.src.signal.sigprocmask
+    libc.src.signal.sigfillset
     libc.src.signal.signal
 
     # stdlib.h entrypoints
@@ -21,9 +23,12 @@ add_entrypoint_library(
     libc.src.stdlib.abort
 
     # string.h entrypoints
+    libc.src.string.bzero
     libc.src.string.memcpy
-    libc.src.string.strcpy
+    libc.src.string.memset
     libc.src.string.strcat
+    libc.src.string.strcpy
+    libc.src.string.strlen
 
     # sys/mman.h entrypoints
     libc.src.sys.mman.mmap
@@ -45,6 +50,10 @@ add_entrypoint_library(
   DEPENDS
     # math.h entrypoints
     libc.src.math.cosf
+    libc.src.math.fabs
+    libc.src.math.fabsf
+    libc.src.math.expf
+    libc.src.math.exp2f
     libc.src.math.round
     libc.src.math.sincosf
     libc.src.math.sinf

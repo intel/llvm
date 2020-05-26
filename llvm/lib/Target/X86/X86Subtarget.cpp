@@ -10,14 +10,13 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "X86Subtarget.h"
+#include "MCTargetDesc/X86BaseInfo.h"
 #include "X86.h"
-
 #include "X86CallLowering.h"
 #include "X86LegalizerInfo.h"
 #include "X86MacroFusion.h"
 #include "X86RegisterBankInfo.h"
-#include "X86Subtarget.h"
-#include "MCTargetDesc/X86BaseInfo.h"
 #include "X86TargetMachine.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/CodeGen/GlobalISel/CallLowering.h"
@@ -378,4 +377,8 @@ bool X86Subtarget::enableEarlyIfConversion() const {
 void X86Subtarget::getPostRAMutations(
     std::vector<std::unique_ptr<ScheduleDAGMutation>> &Mutations) const {
   Mutations.push_back(createX86MacroFusionDAGMutation());
+}
+
+bool X86Subtarget::isPositionIndependent() const {
+  return TM.isPositionIndependent();
 }

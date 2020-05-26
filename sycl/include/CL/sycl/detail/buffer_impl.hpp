@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include <CL/cl.h>
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/common.hpp>
@@ -44,8 +43,7 @@ class __SYCL_EXPORT buffer_impl final : public SYCLMemObjT {
   using typename BaseT::MemObjType;
 
 public:
-  buffer_impl(size_t SizeInBytes, size_t RequiredAlign,
-              const property_list &Props,
+  buffer_impl(size_t SizeInBytes, size_t, const property_list &Props,
               unique_ptr_class<SYCLMemObjAllocator> Allocator)
       : BaseT(SizeInBytes, Props, std::move(Allocator)) {}
 

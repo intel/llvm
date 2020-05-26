@@ -6507,11 +6507,28 @@ On exit from a function:
     * FLAT_SCRATCH
     * EXEC
     * GFX6-8: M0
-    * All SGPR and VGPR registers except the clobbered registers of SGPR4-31 and
-      VGPR0-31.
+    * All SGPR registers except the clobbered registers of SGPR4-31.
+    * VGPR40-47
+      VGPR56-63
+      VGPR72-79
+      VGPR88-95
+      VGPR104-111
+      VGPR120-127
+      VGPR136-143
+      VGPR152-159
+      VGPR168-175
+      VGPR184-191
+      VGPR200-207
+      VGPR216-223
+      VGPR232-239
+      VGPR248-255
+
+        *Except the argument registers, the VGPR cloberred and the preserved
+        registers are intermixed at regular intervals in order to
+        get a better occupancy.*
 
       For the AMDGPU backend, an inter-procedural register allocation (IPRA)
-      optimization may mark some of clobbered SGPR4-31 and VGPR0-31 registers as
+      optimization may mark some of clobbered SGPR and VGPR registers as
       preserved if it can be determined that the called function does not change
       their value.
 
@@ -6603,8 +6620,8 @@ after the source language arguments in the following order:
     The values come from the initial kernel execution state. See
     :ref:`amdgpu-amdhsa-vgpr-register-set-up-order-table`.
 
-    .. table:: Work-item implict argument layout
-      :name: amdgpu-amdhsa-workitem-implict-argument-layout-table
+    .. table:: Work-item implicit argument layout
+      :name: amdgpu-amdhsa-workitem-implicit-argument-layout-table
 
       ======= ======= ==============
       Bits    Size    Field Name
@@ -6657,12 +6674,12 @@ after the source language arguments in the following order:
 
 The input and result arguments are assigned in order in the following manner:
 
-..note::
+.. note::
 
   There are likely some errors and omissions in the following description that
   need correction.
 
-  ..TODO::
+  .. TODO::
 
     Check the clang source code to decipher how function arguments and return
     results are handled. Also see the AMDGPU specific values used.
@@ -6701,19 +6718,16 @@ describes how the AMDGPU implements function calls:
 1.  SGPR33 is used as a frame pointer (FP) if necessary. Like the SP it is an
     unswizzled scratch address. It is only needed if runtime sized ``alloca``
     are used, or for the reasons defined in ``SIFrameLowering``.
-2.  Runtime stack alignment is not currently supported.
+2.  Runtime stack alignment is supported. SGPR34 is used as a base pointer (BP)
+    to access the incoming stack arguments in the function. The BP is needed
+    only when the function requires the runtime stack alignment.
 
-    .. TODO::
+3.  Allocating SGPR arguments on the stack are not supported.
 
-      - If runtime stack alignment is supported, then will an extra argument
-        pointer register be used?
-
-2.  Allocating SGPR arguments on the stack are not supported.
-
-3.  No CFI is currently generated. See
+4.  No CFI is currently generated. See
     :ref:`amdgpu-dwarf-call-frame-information`.
 
-    ..note::
+    .. note::
 
       CFI will be generated that defines the CFA as the unswizzled address
       relative to the wave scratch base in the unswizzled private address space
@@ -6729,25 +6743,25 @@ describes how the AMDGPU implements function calls:
       local variables and register spill slots are accessed as positive offsets
       relative to ``DW_AT_frame_base``.
 
-4.  Function argument passing is implemented by copying the input physical
+5.  Function argument passing is implemented by copying the input physical
     registers to virtual registers on entry. The register allocator can spill if
     necessary. These are copied back to physical registers at call sites. The
     net effect is that each function call can have these values in entirely
     distinct locations. The IPRA can help avoid shuffling argument registers.
-5.  Call sites are implemented by setting up the arguments at positive offsets
+6.  Call sites are implemented by setting up the arguments at positive offsets
     from SP. Then SP is incremented to account for the known frame size before
     the call and decremented after the call.
 
-    ..note::
+    .. note::
 
       The CFI will reflect the changed calculation needed to compute the CFA
       from SP.
 
-6.  4 byte spill slots are used in the stack frame. One slot is allocated for an
+7.  4 byte spill slots are used in the stack frame. One slot is allocated for an
     emergency spill slot. Buffer instructions are used for stack accesses and
     not the ``flat_scratch`` instruction.
 
-    ..TODO::
+    .. TODO::
 
       Explain when the emergency spill slot is used.
 

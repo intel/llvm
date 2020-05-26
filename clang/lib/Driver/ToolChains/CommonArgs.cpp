@@ -398,13 +398,19 @@ void tools::addLTOOptions(const ToolChain &ToolChain, const ArgList &Args,
     CmdArgs.push_back(Args.MakeArgString(Twine("-plugin-opt=mcpu=") + CPU));
 
   if (Arg *A = Args.getLastArg(options::OPT_O_Group)) {
+    // The optimization level matches
+    // CompilerInvocation.cpp:getOptimizationLevel().
     StringRef OOpt;
     if (A->getOption().matches(options::OPT_O4) ||
         A->getOption().matches(options::OPT_Ofast))
       OOpt = "3";
-    else if (A->getOption().matches(options::OPT_O))
+    else if (A->getOption().matches(options::OPT_O)) {
       OOpt = A->getValue();
-    else if (A->getOption().matches(options::OPT_O0))
+      if (OOpt == "g")
+        OOpt = "1";
+      else if (OOpt == "s" || OOpt == "z")
+        OOpt = "2";
+    } else if (A->getOption().matches(options::OPT_O0))
       OOpt = "0";
     if (!OOpt.empty())
       CmdArgs.push_back(Args.MakeArgString(Twine("-plugin-opt=O") + OOpt));
@@ -776,7 +782,7 @@ bool tools::addSanitizerRuntimes(const ToolChain &TC, const ArgList &Args,
     CmdArgs.push_back("--export-dynamic");
 
   if (SanArgs.hasCrossDsoCfi() && !AddExportDynamic)
-    CmdArgs.push_back("-export-dynamic-symbol=__cfi_check");
+    CmdArgs.push_back("--export-dynamic-symbol=__cfi_check");
 
   return !StaticRuntimes.empty() || !NonWholeStaticRuntimes.empty();
 }
@@ -1335,7 +1341,7 @@ void tools::AddHIPLinkerScript(const ToolChain &TC, Compilation &C,
   llvm::raw_string_ostream LksStream(LksBuffer);
 
   // Get the HIP offload tool chain.
-  auto *HIPTC = static_cast<const toolchains::CudaToolChain *>(
+  auto *HIPTC = static_cast<const toolchains::HIPToolChain *>(
       C.getSingleOffloadToolChain<Action::OFK_HIP>());
   assert(HIPTC->getTriple().getArch() == llvm::Triple::amdgcn &&
          "Wrong platform");

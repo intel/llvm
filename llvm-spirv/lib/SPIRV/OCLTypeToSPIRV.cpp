@@ -45,7 +45,6 @@
 #include "SPIRVInternal.h"
 
 #include "llvm/Pass.h"
-#include "llvm/PassSupport.h"
 #include "llvm/Support/Debug.h"
 
 #include <iterator>

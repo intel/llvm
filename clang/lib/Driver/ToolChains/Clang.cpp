@@ -822,8 +822,8 @@ static void addPGOAndCoverageFlags(const ToolChain &TC, Compilation &C,
     CmdArgs.push_back("-fprofile-instrument=clang");
     if (TC.getTriple().isWindowsMSVCEnvironment()) {
       // Add dependent lib for clang_rt.profile
-      CmdArgs.push_back(Args.MakeArgString("--dependent-lib=" +
-                                           TC.getCompilerRT(Args, "profile")));
+      CmdArgs.push_back(Args.MakeArgString(
+          "--dependent-lib=" + TC.getCompilerRTBasename(Args, "profile")));
     }
   }
 
@@ -840,8 +840,9 @@ static void addPGOAndCoverageFlags(const ToolChain &TC, Compilation &C,
   }
   if (PGOGenArg) {
     if (TC.getTriple().isWindowsMSVCEnvironment()) {
-      CmdArgs.push_back(Args.MakeArgString("--dependent-lib=" +
-                                           TC.getCompilerRT(Args, "profile")));
+      // Add dependent lib for clang_rt.profile
+      CmdArgs.push_back(Args.MakeArgString(
+          "--dependent-lib=" + TC.getCompilerRTBasename(Args, "profile")));
     }
     if (PGOGenArg->getOption().matches(
             PGOGenerateArg ? options::OPT_fprofile_generate_EQ
@@ -870,11 +871,10 @@ static void addPGOAndCoverageFlags(const ToolChain &TC, Compilation &C,
     }
   }
 
-  bool EmitCovNotes = Args.hasArg(options::OPT_ftest_coverage) ||
+  bool EmitCovNotes = Args.hasFlag(options::OPT_ftest_coverage,
+                                   options::OPT_fno_test_coverage, false) ||
                       Args.hasArg(options::OPT_coverage);
-  bool EmitCovData = Args.hasFlag(options::OPT_fprofile_arcs,
-                                  options::OPT_fno_profile_arcs, false) ||
-                     Args.hasArg(options::OPT_coverage);
+  bool EmitCovData = TC.needsGCovInstrumentation(Args);
   if (EmitCovNotes)
     CmdArgs.push_back("-femit-coverage-notes");
   if (EmitCovData)
@@ -1142,10 +1142,14 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
       DepFile = "-";
     } else if (ArgMD->getOption().matches(options::OPT_MMD) &&
                Args.hasArg(options::OPT_fintelfpga) &&
-               !Args.hasArg(options::OPT_c)) {
-      // When generating dependency files for FPGA AOT, the output files will
-      // always be named after the source file.
-      DepFile = Args.MakeArgString(Twine(getBaseInputStem(Args, Inputs)) + ".d");
+               JA.isDeviceOffloading(Action::OFK_SYCL)) {
+      // Generate dependency files as temporary. These will be used for the
+      // aoc call/bundled during fat object creation
+      std::string BaseName(Clang::getBaseInputName(Args, Inputs[0]));
+      std::string DepTmpName =
+          C.getDriver().GetTemporaryPath(llvm::sys::path::stem(BaseName), "d");
+      DepFile = C.addTempFile(C.getArgs().MakeArgString(DepTmpName));
+      C.getDriver().addFPGATempDepFile(DepFile, BaseName);
     } else {
       DepFile = getDependencyFileName(Args, Inputs);
       C.addFailureResultFile(DepFile, &JA);
@@ -4346,6 +4350,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         options::OPT_fno_function_sections,
         options::OPT_fdata_sections,
         options::OPT_fno_data_sections,
+        options::OPT_funique_internal_linkage_names,
+        options::OPT_fno_unique_internal_linkage_names,
         options::OPT_funique_section_names,
         options::OPT_fno_unique_section_names,
         options::OPT_mrestrict_it,
@@ -4629,6 +4635,19 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back(A->getValue());
   }
 
+  if (Arg *A = Args.getLastArg(options::OPT_maix_struct_return,
+                               options::OPT_msvr4_struct_return)) {
+    if (TC.getArch() != llvm::Triple::ppc) {
+      D.Diag(diag::err_drv_unsupported_opt_for_target)
+          << A->getSpelling() << RawTriple.str();
+    } else if (A->getOption().matches(options::OPT_maix_struct_return)) {
+      CmdArgs.push_back("-maix-struct-return");
+    } else {
+      assert(A->getOption().matches(options::OPT_msvr4_struct_return));
+      CmdArgs.push_back("-msvr4-struct-return");
+    }
+  }
+
   if (Arg *A = Args.getLastArg(options::OPT_fpcc_struct_return,
                                options::OPT_freg_struct_return)) {
     if (TC.getArch() != llvm::Triple::x86) {
@@ -4644,6 +4663,13 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   if (Args.hasFlag(options::OPT_mrtd, options::OPT_mno_rtd, false))
     CmdArgs.push_back("-fdefault-calling-conv=stdcall");
+
+  if (Args.hasArg(options::OPT_fenable_matrix)) {
+    // enable-matrix is needed by both the LangOpts and by LLVM.
+    CmdArgs.push_back("-fenable-matrix");
+    CmdArgs.push_back("-mllvm");
+    CmdArgs.push_back("-enable-matrix");
+  }
 
   CodeGenOptions::FramePointerKind FPKeepKind =
                   getFramePointerKind(Args, RawTriple);
@@ -4753,8 +4779,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   // Enable -mconstructor-aliases except on darwin, where we have to work around
   // a linker bug (see <rdar://problem/7651567>), and CUDA device code, where
-  // aliases aren't supported.
-  if (!RawTriple.isOSDarwin() && !RawTriple.isNVPTX())
+  // aliases aren't supported. Similarly, aliases aren't yet supported for AIX.
+  if (!RawTriple.isOSDarwin() && !RawTriple.isNVPTX() && !RawTriple.isOSAIX())
     CmdArgs.push_back("-mconstructor-aliases");
 
   // Darwin's kernel doesn't support guard variables; just die if we
@@ -4953,6 +4979,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                     options::OPT_fno_unique_section_names, true))
     CmdArgs.push_back("-fno-unique-section-names");
 
+  if (Args.hasFlag(options::OPT_funique_internal_linkage_names,
+                   options::OPT_fno_unique_internal_linkage_names, false))
+    CmdArgs.push_back("-funique-internal-linkage-names");
+
   Args.AddLastArg(CmdArgs, options::OPT_finstrument_functions,
                   options::OPT_finstrument_functions_after_inlining,
                   options::OPT_finstrument_function_entry_bare);
@@ -5076,6 +5106,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                                 /*Joined=*/true);
     else if (IsWindowsMSVC)
       ImplyVCPPCXXVer = true;
+    else if (IsSYCL)
+      // For DPC++, we default to -std=c++17 for all compilations.  Use of -std
+      // on the command line will override.
+      CmdArgs.push_back("-std=c++17");
 
     Args.AddLastArg(CmdArgs, options::OPT_ftrigraphs,
                     options::OPT_fno_trigraphs);
@@ -5430,8 +5464,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   Args.AddLastArg(CmdArgs, options::OPT_pthread);
 
-  if (Args.hasFlag(options::OPT_mspeculative_load_hardening, options::OPT_mno_speculative_load_hardening,
-                   false))
+  if (Args.hasFlag(options::OPT_mspeculative_load_hardening,
+                   options::OPT_mno_speculative_load_hardening, false))
     CmdArgs.push_back(Args.MakeArgString("-mspeculative-load-hardening"));
 
   RenderSSPOptions(TC, Args, CmdArgs, KernelOrKext);
@@ -5644,7 +5678,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
     if (LanguageStandard.empty()) {
       if (IsMSVC2015Compatible)
-        LanguageStandard = "-std=c++14";
+        if (IsSYCL)
+          // For DPC++, C++17 is the default.
+          LanguageStandard = "-std=c++17";
+        else
+          LanguageStandard = "-std=c++14";
       else
         LanguageStandard = "-std=c++11";
     }
@@ -6284,11 +6322,12 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   if (Arg *A = Args.getLastArg(options::OPT_moutline,
                                options::OPT_mno_outline)) {
     if (A->getOption().matches(options::OPT_moutline)) {
-      // We only support -moutline in AArch64 right now. If we're not compiling
-      // for AArch64, emit a warning and ignore the flag. Otherwise, add the
-      // proper mllvm flags.
-      if (Triple.getArch() != llvm::Triple::aarch64 &&
-          Triple.getArch() != llvm::Triple::aarch64_32) {
+      // We only support -moutline in AArch64 and ARM targets right now. If
+      // we're not compiling for these, emit a warning and ignore the flag.
+      // Otherwise, add the proper mllvm flags.
+      if (!(Triple.isARM() || Triple.isThumb() ||
+            Triple.getArch() == llvm::Triple::aarch64 ||
+            Triple.getArch() == llvm::Triple::aarch64_32)) {
         D.Diag(diag::warn_drv_moutline_unsupported_opt) << Triple.getArchName();
       } else {
         CmdArgs.push_back("-mllvm");
@@ -7210,10 +7249,12 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
   // For -fintelfpga, when bundling objects we also want to bundle up the
   // named dependency file.
   if (IsFPGADepBundle) {
-    SmallString<128> CurOutput(Output.getFilename());
-    llvm::sys::path::replace_extension(CurOutput, "d");
-    UB += ',';
-    UB += CurOutput;
+    const char *BaseName = Clang::getBaseInputName(TCArgs, Inputs[0]);
+    SmallString<128> DepFile(C.getDriver().getFPGATempDepFile(BaseName));
+    if (!DepFile.empty()) {
+      UB += ',';
+      UB += DepFile;
+    }
   }
   CmdArgs.push_back(TCArgs.MakeArgString(UB));
 
@@ -7694,7 +7735,8 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
     addArgs(CmdArgs, TCArgs, {"-symbols"});
   }
   // specialization constants processing is mandatory
-  if (llvm::dyn_cast<SYCLPostLinkJobAction>(&JA)->getRTSetsSpecConstants())
+  auto *SYCLPostLink = llvm::dyn_cast<SYCLPostLinkJobAction>(&JA);
+  if (SYCLPostLink && SYCLPostLink->getRTSetsSpecConstants())
     addArgs(CmdArgs, TCArgs, {"-spec-const=rt"});
   else
     addArgs(CmdArgs, TCArgs, {"-spec-const=default"});

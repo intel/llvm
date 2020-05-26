@@ -48,7 +48,6 @@ class DbgValueInst;
 class DIBuilder;
 class Function;
 class Instruction;
-class LazyValueInfo;
 class LoadInst;
 class MDNode;
 class MemorySSAUpdater;
@@ -67,18 +66,25 @@ struct SimplifyCFGOptions {
   bool ConvertSwitchToLookupTable;
   bool NeedCanonicalLoop;
   bool SinkCommonInsts;
+  bool SimplifyCondBranch;
+  bool FoldTwoEntryPHINode;
+
   AssumptionCache *AC;
 
   SimplifyCFGOptions(unsigned BonusThreshold = 1,
                      bool ForwardSwitchCond = false,
                      bool SwitchToLookup = false, bool CanonicalLoops = true,
                      bool SinkCommon = false,
-                     AssumptionCache *AssumpCache = nullptr)
+                     AssumptionCache *AssumpCache = nullptr,
+                     bool SimplifyCondBranch = true,
+                     bool FoldTwoEntryPHINode = true)
       : BonusInstThreshold(BonusThreshold),
         ForwardSwitchCondToPhi(ForwardSwitchCond),
         ConvertSwitchToLookupTable(SwitchToLookup),
         NeedCanonicalLoop(CanonicalLoops),
         SinkCommonInsts(SinkCommon),
+        SimplifyCondBranch(SimplifyCondBranch),
+        FoldTwoEntryPHINode(FoldTwoEntryPHINode),
         AC(AssumpCache) {}
 
   // Support 'builder' pattern to set members by name at construction time.
@@ -104,6 +110,15 @@ struct SimplifyCFGOptions {
   }
   SimplifyCFGOptions &setAssumptionCache(AssumptionCache *Cache) {
     AC = Cache;
+    return *this;
+  }
+  SimplifyCFGOptions &setSimplifyCondBranch(bool B) {
+    SimplifyCondBranch = B;
+    return *this;
+  }
+
+  SimplifyCFGOptions &setFoldTwoEntryPHINode(bool B) {
+    FoldTwoEntryPHINode = B;
     return *this;
   }
 };
@@ -267,18 +282,18 @@ AllocaInst *DemotePHIToStack(PHINode *P, Instruction *AllocaPoint = nullptr);
 /// so if alignment is important, a more reliable approach is to simply align
 /// all global variables and allocation instructions to their preferred
 /// alignment from the beginning.
-unsigned getOrEnforceKnownAlignment(Value *V, unsigned PrefAlign,
-                                    const DataLayout &DL,
-                                    const Instruction *CxtI = nullptr,
-                                    AssumptionCache *AC = nullptr,
-                                    const DominatorTree *DT = nullptr);
+Align getOrEnforceKnownAlignment(Value *V, MaybeAlign PrefAlign,
+                                 const DataLayout &DL,
+                                 const Instruction *CxtI = nullptr,
+                                 AssumptionCache *AC = nullptr,
+                                 const DominatorTree *DT = nullptr);
 
 /// Try to infer an alignment for the specified pointer.
-inline unsigned getKnownAlignment(Value *V, const DataLayout &DL,
-                                  const Instruction *CxtI = nullptr,
-                                  AssumptionCache *AC = nullptr,
-                                  const DominatorTree *DT = nullptr) {
-  return getOrEnforceKnownAlignment(V, 0, DL, CxtI, AC, DT);
+inline Align getKnownAlignment(Value *V, const DataLayout &DL,
+                               const Instruction *CxtI = nullptr,
+                               AssumptionCache *AC = nullptr,
+                               const DominatorTree *DT = nullptr) {
+  return getOrEnforceKnownAlignment(V, MaybeAlign(), DL, CxtI, AC, DT);
 }
 
 /// Create a call that matches the invoke \p II in terms of arguments,

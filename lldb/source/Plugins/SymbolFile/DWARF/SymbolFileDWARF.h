@@ -106,6 +106,9 @@ public:
   lldb::LanguageType
   ParseLanguage(lldb_private::CompileUnit &comp_unit) override;
 
+  lldb_private::XcodeSDK
+  ParseXcodeSDK(lldb_private::CompileUnit &comp_unit) override;
+
   size_t ParseFunctions(lldb_private::CompileUnit &comp_unit) override;
 
   bool ParseLineTable(lldb_private::CompileUnit &comp_unit) override;
@@ -238,7 +241,7 @@ public:
   GetCompUnitForDWARFCompUnit(DWARFCompileUnit &dwarf_cu);
 
   virtual void GetObjCMethods(lldb_private::ConstString class_name,
-                              llvm::function_ref<bool(DIERef ref)> callback);
+                              llvm::function_ref<bool(DWARFDIE die)> callback);
 
   bool Supports_DW_AT_APPLE_objc_complete_type(DWARFUnit *cu);
 

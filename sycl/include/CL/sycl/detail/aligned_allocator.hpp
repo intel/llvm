@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include <CL/cl.h>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/range.hpp>
@@ -64,13 +63,13 @@ public:
   }
 
   // Release allocated memory
-  void deallocate(pointer Ptr, size_t size) {
+  void deallocate(pointer Ptr, size_t) {
     if (Ptr)
       detail::OSUtil::alignedFree(Ptr);
   }
 
-  bool operator==(const aligned_allocator&) { return true; }
-  bool operator!=(const aligned_allocator& rhs) { return false; }
+  bool operator==(const aligned_allocator &) { return true; }
+  bool operator!=(const aligned_allocator &) { return false; }
 
   void setAlignment(size_t Alignment) { MAlignment = Alignment; }
 

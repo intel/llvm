@@ -19,6 +19,7 @@
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/CodeGen/SelectionDAG.h"
 #include "llvm/CodeGen/StackMaps.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/CodeGen/TargetLowering.h"
@@ -28,6 +29,7 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MathExtras.h"
+#include "llvm/Target/TargetMachine.h"
 using namespace llvm;
 
 #define DEBUG_TYPE "instr-emitter"
@@ -412,23 +414,14 @@ void InstrEmitter::AddOperand(MachineInstrBuilder &MIB,
     MIB.addJumpTableIndex(JT->getIndex(), JT->getTargetFlags());
   } else if (ConstantPoolSDNode *CP = dyn_cast<ConstantPoolSDNode>(Op)) {
     int Offset = CP->getOffset();
-    unsigned Align = CP->getAlignment();
-    Type *Type = CP->getType();
-    // MachineConstantPool wants an explicit alignment.
-    if (Align == 0) {
-      Align = MF->getDataLayout().getPrefTypeAlignment(Type);
-      if (Align == 0) {
-        // Alignment of vector types.  FIXME!
-        Align = MF->getDataLayout().getTypeAllocSize(Type);
-      }
-    }
+    Align Alignment = CP->getAlign();
 
     unsigned Idx;
     MachineConstantPool *MCP = MF->getConstantPool();
     if (CP->isMachineConstantPoolEntry())
-      Idx = MCP->getConstantPoolIndex(CP->getMachineCPVal(), Align);
+      Idx = MCP->getConstantPoolIndex(CP->getMachineCPVal(), Alignment);
     else
-      Idx = MCP->getConstantPoolIndex(CP->getConstVal(), Align);
+      Idx = MCP->getConstantPoolIndex(CP->getConstVal(), Alignment);
     MIB.addConstantPoolIndex(Idx, Offset, CP->getTargetFlags());
   } else if (ExternalSymbolSDNode *ES = dyn_cast<ExternalSymbolSDNode>(Op)) {
     MIB.addExternalSymbol(ES->getSymbol(), ES->getTargetFlags());

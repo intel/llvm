@@ -509,6 +509,7 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilityKernelAttributesINTEL, "KernelAttributesINTEL");
   add(CapabilityFPGAKernelAttributesINTEL, "FPGAKernelAttributesINTEL");
   add(CapabilityIOPipeINTEL, "IOPipeINTEL");
+  add(CapabilityOptimizationHintsINTEL, "OptimizationHintsINTEL");
 }
 SPIRV_DEF_NAMEMAP(Capability, SPIRVCapabilityNameMap)
 

@@ -679,6 +679,13 @@
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-OPTS %s
 // CHK-TOOLS-OPTS: clang-offload-wrapper{{.*}} "-compile-opts=\"-DFOO1 -DFOO2\""
 
+/// Check for implied options (-g -O0)
+// RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64-unknown-unknown-sycldevice -g -O0 -Xsycl-target-backend "-DFOO1 -DFOO2" %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-TOOLS-IMPLIED-OPTS %s
+// RUN:   %clang_cl -### -fsycl -fsycl-targets=spir64-unknown-unknown-sycldevice -Zi -Od -Xsycl-target-backend "-DFOO1 -DFOO2" %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-TOOLS-IMPLIED-OPTS %s
+// CHK-TOOLS-IMPLIED-OPTS: clang-offload-wrapper{{.*}} "-compile-opts=\"-g -cl-opt-disable -DFOO1 -DFOO2\""
+
 /// Check -Xsycl-target-linker option passing
 // RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_fpga-unknown-unknown-sycldevice -Xsycl-target-linker "-DFOO1 -DFOO2" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-FPGA-OPTS2 %s
@@ -806,6 +813,19 @@
 // RUN: %clangxx -### -c -fsycl -xc %s 2>&1 | FileCheck -check-prefixes=CHECK_XC_FSYCL %s
 // RUN: %clangxx -### -c -fsycl -xc-header %s 2>&1 | FileCheck -check-prefixes=CHECK_XC_FSYCL %s
 // CHECK_XC_FSYCL: The option -x c{{.*}} must not be used in conjunction with -fsycl{{.*}}
+
+// -std=c++17 check (check all 3 compilations)
+// RUN: %clangxx -### -c -fsycl -xc++ %s 2>&1 | FileCheck -check-prefix=CHECK-STD %s
+// RUN: %clang_cl -### -c -fsycl -TP %s 2>&1 | FileCheck -check-prefix=CHECK-STD %s
+// CHECK-STD: clang{{.*}} "-emit-llvm-bc" {{.*}} "-std=c++17"
+// CHECK-STD: clang{{.*}} "-fsyntax-only" {{.*}} "-std=c++17"
+// CHECK-STD: clang{{.*}} "-emit-obj" {{.*}} "-std=c++17"
+
+// -std=c++17 override check
+// RUN: %clangxx -### -c -fsycl -std=c++14 -xc++ %s 2>&1 | FileCheck -check-prefix=CHECK-STD-OVR %s
+// RUN: %clang_cl -### -c -fsycl /std:c++14 -TP %s 2>&1 | FileCheck -check-prefix=CHECK-STD-OVR %s
+// CHECK-STD-OVR: clang{{.*}} "-std=c++14"
+// CHECK-STD-OVR-NOT: clang{{.*}} "-std=c++17"
 
 // TODO: SYCL specific fail - analyze and enable
 // XFAIL: windows-msvc

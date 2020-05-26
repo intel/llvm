@@ -22,12 +22,17 @@ if(CLANG_BUILT_STANDALONE)
   endif()
 endif()
 
+if (CLANGD_ENABLE_REMOTE)
+  include_directories(${CMAKE_CURRENT_BINARY_DIR}/../index/remote)
+  add_definitions(-DGOOGLE_PROTOBUF_NO_RTTI=1)
+  set(REMOTE_TEST_SOURCES remote/MarshallingTests.cpp)
+endif()
+
 add_custom_target(ClangdUnitTests)
 add_unittest(ClangdUnitTests ClangdTests
   Annotations.cpp
   ASTTests.cpp
   BackgroundIndexTests.cpp
-  CancellationTests.cpp
   CanonicalIncludesTests.cpp
   ClangdTests.cpp
   ClangdLSPServerTests.cpp
@@ -35,7 +40,7 @@ add_unittest(ClangdUnitTests ClangdTests
   CodeCompletionStringsTests.cpp
   CollectMacrosTests.cpp
   CompileCommandsTests.cpp
-  ContextTests.cpp
+  CompilerTests.cpp
   DexTests.cpp
   DiagnosticsTests.cpp
   DraftStoreTests.cpp
@@ -44,10 +49,8 @@ add_unittest(ClangdUnitTests ClangdTests
   FileIndexTests.cpp
   FindSymbolsTests.cpp
   FindTargetTests.cpp
-  FormattedStringTests.cpp
   FormatTests.cpp
   FSTests.cpp
-  FunctionTests.cpp
   FuzzyMatchTests.cpp
   GlobalCompilationDatabaseTests.cpp
   HeadersTests.cpp
@@ -59,6 +62,7 @@ add_unittest(ClangdUnitTests ClangdTests
   LSPClient.cpp
   ParsedASTTests.cpp
   PathMappingTests.cpp
+  PreambleTests.cpp
   PrintASTTests.cpp
   QualityTests.cpp
   RenameTests.cpp
@@ -75,13 +79,21 @@ add_unittest(ClangdUnitTests ClangdTests
   TestFS.cpp
   TestIndex.cpp
   TestTU.cpp
-  ThreadingTests.cpp
-  TraceTests.cpp
   TypeHierarchyTests.cpp
   TweakTests.cpp
   TweakTesting.cpp
   URITests.cpp
   XRefsTests.cpp
+
+  support/CancellationTests.cpp
+  support/ContextTests.cpp
+  support/FunctionTests.cpp
+  support/MarkupTests.cpp
+  support/ThreadingTests.cpp
+  support/TestTracer.cpp
+  support/TraceTests.cpp
+
+  ${REMOTE_TEST_SOURCES}
 
   $<TARGET_OBJECTS:obj.clangDaemonTweaks>
   )
@@ -106,10 +118,17 @@ clang_target_link_libraries(ClangdTests
 target_link_libraries(ClangdTests
   PRIVATE
   clangDaemon
+  clangdSupport
   clangTidy
   LLVMSupport
   LLVMTestingSupport
   )
+
+if (CLANGD_ENABLE_REMOTE)
+  target_link_libraries(ClangdTests
+    PRIVATE
+    clangdRemoteMarshalling)
+endif()
 
 if (CLANGD_BUILD_XPC)
   add_subdirectory(xpc)

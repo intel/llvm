@@ -91,6 +91,7 @@ namespace std {
 template <> struct hash<cl::sycl::sampler> {
   size_t operator()(const cl::sycl::sampler &s) const {
 #ifdef __SYCL_DEVICE_ONLY__
+    (void)s;
     return 0;
 #else
     return hash<std::shared_ptr<cl::sycl::detail::sampler_impl>>()(

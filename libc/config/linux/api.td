@@ -117,6 +117,20 @@ def IsNanMacro : MacroDef<"isnan"> {
   }];
 }
 
+def FloatT : TypeDecl<"float_t"> {
+  let Decl = [{
+    #define __need_float_t
+    #include <__llvm-libc-stdc-types.h>
+  }];
+}
+
+def DoubleT : TypeDecl<"double_t"> {
+  let Decl = [{
+    #define __need_double_t
+    #include <__llvm-libc-stdc-types.h>
+  }];
+}
+
 def MathAPI : PublicAPI<"math.h"> {
   let Macros = [
     SimpleMacroDef<"MATH_ERRNO", "1">,
@@ -130,8 +144,16 @@ def MathAPI : PublicAPI<"math.h"> {
     IsInfMacro,
     IsNanMacro,
   ];
+  let TypeDeclarations = [
+    DoubleT,
+    FloatT,
+  ];
   let Functions = [
    "cosf",
+   "fabs",
+   "fabsf",
+   "expf",
+   "exp2f",
    "round",
    "sincosf",
    "sinf",
@@ -270,9 +292,11 @@ def SignalAPI : PublicAPI<"signal.h"> {
   let Functions = [
     "raise",
     "sigaction",
+    "sigdelset",
     "sigprocmask",
     "sigemptyset",
     "sigaddset",
+    "sigfillset",
     "signal",
   ];
 }

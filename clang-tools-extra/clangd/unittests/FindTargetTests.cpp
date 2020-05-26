@@ -158,6 +158,19 @@ TEST_F(TargetDeclTest, Recovery) {
   EXPECT_DECLS("UnresolvedLookupExpr", "int f()", "int f(int, int)");
 }
 
+TEST_F(TargetDeclTest, RecoveryType) {
+  Code = R"cpp(
+    // error-ok: testing behavior on broken code
+    struct S { int member; };
+    S overloaded(int);
+    void foo() {
+      // No overload matches, but we have recovery-expr with the correct type.
+      overloaded().[[member]];
+    }
+  )cpp";
+  EXPECT_DECLS("MemberExpr", "int member");
+}
+
 TEST_F(TargetDeclTest, UsingDecl) {
   Code = R"cpp(
     namespace foo {
@@ -773,6 +786,14 @@ TEST_F(FindExplicitReferencesTest, All) {
         "6: targets = {a::b::S}\n"
         "7: targets = {a::b::S::type}, qualifier = 'struct S::'\n"
         "8: targets = {y}, decl\n"},
+       {R"cpp(
+         void foo() {
+           $0^ten: // PRINT "HELLO WORLD!"
+           goto $1^ten;
+         }
+       )cpp",
+       "0: targets = {ten}, decl\n"
+       "1: targets = {ten}\n"},
        // Simple templates.
        {R"cpp(
           template <class T> struct vector { using value_type = T; };
@@ -1286,6 +1307,20 @@ TEST_F(FindExplicitReferencesTest, All) {
         "1: targets = {}\n"
         "2: targets = {T}\n"
       },
+      // unknown template name should not crash.
+      {R"cpp(
+        template <template <typename> typename T>
+        struct Base {};
+        namespace foo {
+        template <typename $0^T>
+        struct $1^Derive : $2^Base<$3^T::template $4^Unknown> {};
+        }
+      )cpp",
+      "0: targets = {foo::Derive::T}, decl\n"
+      "1: targets = {foo::Derive}, decl\n"
+      "2: targets = {Base}\n"
+      "3: targets = {foo::Derive::T}\n"
+      "4: targets = {}, qualifier = 'T::'\n"},
     };
 
   for (const auto &C : Cases) {

@@ -426,6 +426,13 @@ public:
   virtual SPIRVInstruction *addSampledImageInst(SPIRVType *, SPIRVValue *,
                                                 SPIRVValue *,
                                                 SPIRVBasicBlock *) = 0;
+  virtual SPIRVInstruction *addAssumeTrueINTELInst(SPIRVValue *Condition,
+                                                   SPIRVBasicBlock *BB) = 0;
+  virtual SPIRVInstruction *addExpectINTELInst(SPIRVType *ResultTy,
+                                               SPIRVValue *Value,
+                                               SPIRVValue *ExpectedValue,
+                                               SPIRVBasicBlock *BB) = 0;
+
   virtual SPIRVId getExtInstSetId(SPIRVExtInstSetKind Kind) const = 0;
 
   virtual bool
@@ -463,6 +470,10 @@ public:
 
   bool getSpecializationConstant(SPIRVWord SpecId, uint64_t &ConstValue) {
     return TranslationOpts.getSpecializationConstant(SpecId, ConstValue);
+  }
+
+  FPContractMode getFPContractMode() const {
+    return TranslationOpts.getFPContractMode();
   }
 
   // I/O functions

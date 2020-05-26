@@ -375,7 +375,7 @@ define i32 @test16_no_null_opt_2(i1 %C, i32* %P) #0 {
   ret i32 %V
 }
 
-attributes #0 = { "null-pointer-is-valid"="true" }
+attributes #0 = { null_pointer_is_valid }
 
 define i1 @test17(i32* %X, i1 %C) {
 ; CHECK-LABEL: @test17(
@@ -981,7 +981,7 @@ entry:
 
 ; Test that we can speculate the loads around the select even when we can't
 ; fold the load completely away.
-define i32 @test78_deref(i1 %flag, i32* dereferenceable(4) %x, i32* dereferenceable(4) %y, i32* %z) {
+define i32 @test78_deref(i1 %flag, i32* dereferenceable(4) align 4 %x, i32* dereferenceable(4) align 4 %y, i32* %z) {
 ; CHECK-LABEL: @test78_deref(
 ; CHECK-NEXT:    [[X_VAL:%.*]] = load i32, i32* [[X:%.*]], align 4
 ; CHECK-NEXT:    [[Y_VAL:%.*]] = load i32, i32* [[Y:%.*]], align 4

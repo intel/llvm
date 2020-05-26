@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "VEMCTargetDesc.h"
+#include "TargetInfo/VETargetInfo.h"
 #include "VEInstPrinter.h"
 #include "VEMCAsmInfo.h"
 #include "VETargetStreamer.h"
@@ -35,7 +36,7 @@ static MCAsmInfo *createVEMCAsmInfo(const MCRegisterInfo &MRI, const Triple &TT,
                                     const MCTargetOptions &Options) {
   MCAsmInfo *MAI = new VEELFMCAsmInfo(TT);
   unsigned Reg = MRI.getDwarfRegNum(VE::SX11, true);
-  MCCFIInstruction Inst = MCCFIInstruction::createDefCfa(nullptr, Reg, 0);
+  MCCFIInstruction Inst = MCCFIInstruction::cfiDefCfa(nullptr, Reg, 0);
   MAI->addInitialFrameState(Inst);
   return MAI;
 }

@@ -189,8 +189,7 @@ void *MemoryManager::allocateMemSubBuffer(ContextImplPtr TargetContext,
     SizeInBytes *= Range[I];
 
   RT::PiResult Error = PI_SUCCESS;
-  // TODO replace with pi_buffer_region
-  cl_buffer_region Region{Offset, SizeInBytes};
+  pi_buffer_region_struct Region{Offset, SizeInBytes};
   RT::PiMem NewMem;
   const detail::plugin &Plugin = TargetContext->getPlugin();
   Error = Plugin.call_nocheck<PiApiKind::piMemBufferPartition>(
@@ -358,13 +357,15 @@ static void copyH2H(SYCLMemObjI *SYCLMemObj, char *SrcMem,
                         PI_INVALID_OPERATION);
   }
 
-  DstOffset[0] *= DstElemSize;
-  SrcOffset[0] *= SrcElemSize;
+  SrcMem += SrcOffset[0] * SrcElemSize;
+  DstMem += DstOffset[0] * DstElemSize;
+
+  if (SrcMem == DstMem)
+    return;
 
   size_t BytesToCopy =
       SrcAccessRange[0] * SrcElemSize * SrcAccessRange[1] * SrcAccessRange[2];
-
-  std::memcpy(DstMem + DstOffset[0], SrcMem + SrcOffset[0], BytesToCopy);
+  std::memcpy(DstMem, SrcMem, BytesToCopy);
 }
 
 // Copies memory between: host and device, host and host,

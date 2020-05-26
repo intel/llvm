@@ -224,7 +224,7 @@ class RegisterClass<string namespace, list<ValueType> regTypes, int alignment,
   list<ValueType> RegTypes = regTypes;
 
   // Size - Specify the spill size in bits of the registers.  A default value of
-  // zero lets tablgen pick an appropriate size.
+  // zero lets tablegen pick an appropriate size.
   int Size = 0;
 
   // Alignment - Specify the alignment required of the registers when they are
@@ -703,7 +703,7 @@ class Requires<list<Predicate> preds> {
 /// ops definition - This is just a simple marker used to identify the operand
 /// list for an instruction. outs and ins are identical both syntactically and
 /// semantically; they are used to define def operands and use operands to
-/// improve readibility. This should be used like this:
+/// improve readability. This should be used like this:
 ///     (outs R32:$dst), (ins R32:$src1, R32:$src2) or something similar.
 def ops;
 def outs;
@@ -1172,6 +1172,18 @@ def LOAD_STACK_GUARD : StandardPseudoInstruction {
   bit isReMaterializable = 1;
   let hasSideEffects = 0;
   bit isPseudo = 1;
+}
+def PREALLOCATED_SETUP : StandardPseudoInstruction {
+  let OutOperandList = (outs);
+  let InOperandList = (ins i32imm:$a);
+  let usesCustomInserter = 1;
+  let hasSideEffects = 1;
+}
+def PREALLOCATED_ARG : StandardPseudoInstruction {
+  let OutOperandList = (outs ptr_rc:$loc);
+  let InOperandList = (ins i32imm:$a, i32imm:$b);
+  let usesCustomInserter = 1;
+  let hasSideEffects = 1;
 }
 def LOCAL_ESCAPE : StandardPseudoInstruction {
   // This instruction is really just a label. It has to be part of the chain so

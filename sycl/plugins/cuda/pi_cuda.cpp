@@ -716,15 +716,18 @@ pi_result cuda_piDevicesGet(pi_platform platform, pi_device_type device_type,
                             pi_uint32 *num_devices) {
 
   pi_result err = PI_SUCCESS;
-  const bool askingForGPU = (device_type & PI_DEVICE_TYPE_GPU);
-  size_t numDevices = askingForGPU ? platform->devices_.size() : 0;
+  const bool askingForDefault = device_type == PI_DEVICE_TYPE_DEFAULT;
+  const bool askingForGPU = device_type & PI_DEVICE_TYPE_GPU;
+  const bool returnDevices = askingForDefault || askingForGPU;
+
+  size_t numDevices = returnDevices ? platform->devices_.size() : 0;
 
   try {
     if (num_devices) {
       *num_devices = numDevices;
     }
 
-    if (askingForGPU && devices) {
+    if (returnDevices && devices) {
       for (size_t i = 0; i < std::min(size_t(num_entries), numDevices); ++i) {
         devices[i] = platform->devices_[i].get();
       }
@@ -1029,15 +1032,15 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   }
   case PI_DEVICE_INFO_SINGLE_FP_CONFIG: {
     // TODO: is this config consistent across all NVIDIA GPUs?
-    auto config = CL_FP_DENORM | CL_FP_INF_NAN | CL_FP_ROUND_TO_NEAREST |
-                  CL_FP_ROUND_TO_ZERO | CL_FP_ROUND_TO_INF | CL_FP_FMA |
-                  CL_FP_CORRECTLY_ROUNDED_DIVIDE_SQRT;
+    auto config = PI_FP_DENORM | PI_FP_INF_NAN | PI_FP_ROUND_TO_NEAREST |
+                  PI_FP_ROUND_TO_ZERO | PI_FP_ROUND_TO_INF | PI_FP_FMA |
+                  PI_FP_CORRECTLY_ROUNDED_DIVIDE_SQRT;
     return getInfo(param_value_size, param_value, param_value_size_ret, config);
   }
   case PI_DEVICE_INFO_DOUBLE_FP_CONFIG: {
     // TODO: is this config consistent across all NVIDIA GPUs?
-    auto config = CL_FP_DENORM | CL_FP_INF_NAN | CL_FP_ROUND_TO_NEAREST |
-                  CL_FP_ROUND_TO_ZERO | CL_FP_ROUND_TO_INF | CL_FP_FMA;
+    auto config = PI_FP_DENORM | PI_FP_INF_NAN | PI_FP_ROUND_TO_NEAREST |
+                  PI_FP_ROUND_TO_ZERO | PI_FP_ROUND_TO_INF | PI_FP_FMA;
     return getInfo(param_value_size, param_value, param_value_size_ret, config);
   }
   case PI_DEVICE_INFO_GLOBAL_MEM_CACHE_TYPE: {
@@ -1674,7 +1677,7 @@ pi_result cuda_piMemBufferPartition(pi_mem parent_buffer, pi_mem_flags flags,
   assert(memObj != nullptr);
 
   const auto bufferRegion =
-      *reinterpret_cast<const cl_buffer_region *>(buffer_create_info);
+      *reinterpret_cast<const pi_buffer_region>(buffer_create_info);
   assert((bufferRegion.size != 0u) && "PI_INVALID_BUFFER_SIZE");
 
   assert((bufferRegion.origin <= (bufferRegion.origin + bufferRegion.size)) &&
@@ -2867,11 +2870,9 @@ pi_result cuda_piEnqueueEventsWait(pi_queue command_queue,
     }
 
     if (event) {
-      auto new_event =
-          _pi_event::make_native(PI_COMMAND_TYPE_MARKER, command_queue);
-      new_event->start();
-      new_event->record();
-      *event = new_event;
+      *event = _pi_event::make_native(PI_COMMAND_TYPE_MARKER, command_queue);
+      (*event)->start();
+      (*event)->record();
     }
 
     return PI_SUCCESS;
@@ -3281,7 +3282,6 @@ pi_result cuda_piEnqueueMemBufferFill(pi_queue command_queue, pi_mem buffer,
     return PI_ERROR_UNKNOWN;
   }
 }
-
 /// \TODO Not implemented in CUDA, requires untie from OpenCL
 pi_result cuda_piEnqueueMemImageRead(
     pi_queue command_queue, pi_mem image, pi_bool blocking_read,
@@ -3359,6 +3359,12 @@ pi_result cuda_piEnqueueMemBufferMap(pi_queue command_queue, pi_mem buffer,
     ret_err = cuda_piEnqueueMemBufferRead(
         command_queue, buffer, blocking_map, offset, size, hostPtr,
         num_events_in_wait_list, event_wait_list, retEvent);
+  } else {
+    if (retEvent) {
+      *retEvent =
+          _pi_event::make_native(PI_COMMAND_TYPE_MEM_BUFFER_MAP, command_queue);
+      (*retEvent)->record();
+    }
   }
 
   return ret_err;
@@ -3372,7 +3378,7 @@ pi_result cuda_piEnqueueMemUnmap(pi_queue command_queue, pi_mem memobj,
                                  pi_uint32 num_events_in_wait_list,
                                  const pi_event *event_wait_list,
                                  pi_event *retEvent) {
-  pi_result ret_err = PI_INVALID_OPERATION;
+  pi_result ret_err = PI_SUCCESS;
 
   assert(mapped_ptr != nullptr);
   assert(memobj != nullptr);
@@ -3385,6 +3391,12 @@ pi_result cuda_piEnqueueMemUnmap(pi_queue command_queue, pi_mem memobj,
       command_queue, memobj, true, memobj->get_map_offset(mapped_ptr),
       memobj->get_size(), mapped_ptr, num_events_in_wait_list, event_wait_list,
       retEvent);
+  } else {
+    if (retEvent) {
+      *retEvent = _pi_event::make_native(PI_COMMAND_TYPE_MEM_BUFFER_UNMAP,
+                                         command_queue);
+      (*retEvent)->record();
+    }
   }
 
   memobj->unmap(mapped_ptr);
@@ -3587,7 +3599,7 @@ pi_result cuda_piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr,
 
 /// USM: memadvise API to govern behavior of automatic migration mechanisms
 pi_result cuda_piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
-                                        size_t length, int advice,
+                                        size_t length, pi_mem_advice advice,
                                         pi_event *event) {
   assert(queue != nullptr);
   assert(ptr != nullptr);

@@ -63,7 +63,7 @@ template <ConfigID Config> class SYCLConfigBase;
   public:                                                                      \
     /*Preallocated storage for config value which is extracted from a config   \
      * file*/                                                                  \
-    static char MStorage[MaxSize];                                             \
+    static char MStorage[MaxSize + 1];                                         \
     /*Points to the storage if config is set in the file, nullptr otherwise*/  \
     static const char *MValueFromFile;                                         \
     /*The name of the config*/                                                 \

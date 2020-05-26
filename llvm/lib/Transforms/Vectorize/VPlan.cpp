@@ -393,9 +393,8 @@ void VPInstruction::execute(VPTransformState &State) {
 
 void VPInstruction::print(raw_ostream &O, const Twine &Indent,
                           VPSlotTracker &SlotTracker) const {
-  O << " +\n" << Indent << "\"EMIT ";
+  O << "\"EMIT ";
   print(O, SlotTracker);
-  O << "\\l\"";
 }
 
 void VPInstruction::print(raw_ostream &O) const {
@@ -442,7 +441,11 @@ void VPlan::execute(VPTransformState *State) {
     IRBuilder<> Builder(State->CFG.PrevBB->getTerminator());
     auto *TCMO = Builder.CreateSub(TC, ConstantInt::get(TC->getType(), 1),
                                    "trip.count.minus.1");
-    Value2VPValue[TCMO] = BackedgeTakenCount;
+    auto VF = State->VF;
+    Value *VTCMO =
+        VF == 1 ? TCMO : Builder.CreateVectorSplat(VF, TCMO, "broadcast");
+    for (unsigned Part = 0, UF = State->UF; Part < UF; ++Part)
+      State->set(BackedgeTakenCount, VTCMO, Part);
   }
 
   // 0. Set the reverse mapping from VPValues to Values for code generation.
@@ -654,8 +657,11 @@ void VPlanPrinter::dumpBasicBlock(const VPBasicBlock *BasicBlock) {
       Pred->printAsOperand(OS, SlotTracker);
   }
 
-  for (const VPRecipeBase &Recipe : *BasicBlock)
+  for (const VPRecipeBase &Recipe : *BasicBlock) {
+    OS << " +\n" << Indent;
     Recipe.print(OS, Indent, SlotTracker);
+    OS << "\\l\"";
+  }
 
   // Dump the condition bit.
   const VPValue *CBV = BasicBlock->getCondBit();
@@ -714,53 +720,51 @@ void VPlanPrinter::printAsIngredient(raw_ostream &O, Value *V) {
 
 void VPWidenCallRecipe::print(raw_ostream &O, const Twine &Indent,
                               VPSlotTracker &SlotTracker) const {
-  O << " +\n"
-    << Indent << "\"WIDEN-CALL " << VPlanIngredient(&Ingredient) << "\\l\"";
+  O << "\"WIDEN-CALL " << VPlanIngredient(&Ingredient);
 }
 
 void VPWidenSelectRecipe::print(raw_ostream &O, const Twine &Indent,
                                 VPSlotTracker &SlotTracker) const {
-  O << " +\n"
-    << Indent << "\"WIDEN-SELECT" << VPlanIngredient(&Ingredient)
-    << (InvariantCond ? " (condition is loop invariant)" : "") << "\\l\"";
+  O << "\"WIDEN-SELECT" << VPlanIngredient(&Ingredient)
+    << (InvariantCond ? " (condition is loop invariant)" : "");
 }
 
 void VPWidenRecipe::print(raw_ostream &O, const Twine &Indent,
                           VPSlotTracker &SlotTracker) const {
-  O << " +\n" << Indent << "\"WIDEN\\l\"";
-  O << "\"  " << VPlanIngredient(&Ingredient) << "\\l\"";
+  O << "\"WIDEN\\l\"";
+  O << "\"  " << VPlanIngredient(&Ingredient);
 }
 
 void VPWidenIntOrFpInductionRecipe::print(raw_ostream &O, const Twine &Indent,
                                           VPSlotTracker &SlotTracker) const {
-  O << " +\n" << Indent << "\"WIDEN-INDUCTION";
+  O << "\"WIDEN-INDUCTION";
   if (Trunc) {
     O << "\\l\"";
     O << " +\n" << Indent << "\"  " << VPlanIngredient(IV) << "\\l\"";
-    O << " +\n" << Indent << "\"  " << VPlanIngredient(Trunc) << "\\l\"";
+    O << " +\n" << Indent << "\"  " << VPlanIngredient(Trunc);
   } else
-    O << " " << VPlanIngredient(IV) << "\\l\"";
+    O << " " << VPlanIngredient(IV);
 }
 
 void VPWidenGEPRecipe::print(raw_ostream &O, const Twine &Indent,
                              VPSlotTracker &SlotTracker) const {
-  O << " +\n" << Indent << "\"WIDEN-GEP ";
+  O << "\"WIDEN-GEP ";
   O << (IsPtrLoopInvariant ? "Inv" : "Var");
   size_t IndicesNumber = IsIndexLoopInvariant.size();
   for (size_t I = 0; I < IndicesNumber; ++I)
     O << "[" << (IsIndexLoopInvariant[I] ? "Inv" : "Var") << "]";
   O << "\\l\"";
-  O << " +\n" << Indent << "\"  "  << VPlanIngredient(GEP) << "\\l\"";
+  O << " +\n" << Indent << "\"  " << VPlanIngredient(GEP);
 }
 
 void VPWidenPHIRecipe::print(raw_ostream &O, const Twine &Indent,
                              VPSlotTracker &SlotTracker) const {
-  O << " +\n" << Indent << "\"WIDEN-PHI " << VPlanIngredient(Phi) << "\\l\"";
+  O << "\"WIDEN-PHI " << VPlanIngredient(Phi);
 }
 
 void VPBlendRecipe::print(raw_ostream &O, const Twine &Indent,
                           VPSlotTracker &SlotTracker) const {
-  O << " +\n" << Indent << "\"BLEND ";
+  O << "\"BLEND ";
   Phi->printAsOperand(O, false);
   O << " =";
   if (getNumIncomingValues() == 1) {
@@ -776,29 +780,24 @@ void VPBlendRecipe::print(raw_ostream &O, const Twine &Indent,
       getMask(I)->printAsOperand(O, SlotTracker);
     }
   }
-  O << "\\l\"";
 }
 
 void VPReplicateRecipe::print(raw_ostream &O, const Twine &Indent,
                               VPSlotTracker &SlotTracker) const {
-  O << " +\n"
-    << Indent << "\"" << (IsUniform ? "CLONE " : "REPLICATE ")
+  O << "\"" << (IsUniform ? "CLONE " : "REPLICATE ")
     << VPlanIngredient(Ingredient);
   if (AlsoPack)
     O << " (S->V)";
-  O << "\\l\"";
 }
 
 void VPPredInstPHIRecipe::print(raw_ostream &O, const Twine &Indent,
                                 VPSlotTracker &SlotTracker) const {
-  O << " +\n"
-    << Indent << "\"PHI-PREDICATED-INSTRUCTION " << VPlanIngredient(PredInst)
-    << "\\l\"";
+  O << "\"PHI-PREDICATED-INSTRUCTION " << VPlanIngredient(PredInst);
 }
 
 void VPWidenMemoryInstructionRecipe::print(raw_ostream &O, const Twine &Indent,
                                            VPSlotTracker &SlotTracker) const {
-  O << " +\n" << Indent << "\"WIDEN " << VPlanIngredient(&Instr);
+  O << "\"WIDEN " << VPlanIngredient(&Instr);
   O << ", ";
   getAddr()->printAsOperand(O, SlotTracker);
   VPValue *Mask = getMask();
@@ -806,19 +805,23 @@ void VPWidenMemoryInstructionRecipe::print(raw_ostream &O, const Twine &Indent,
     O << ", ";
     Mask->printAsOperand(O, SlotTracker);
   }
-  O << "\\l\"";
 }
 
 void VPWidenCanonicalIVRecipe::execute(VPTransformState &State) {
   Value *CanonicalIV = State.CanonicalIV;
   Type *STy = CanonicalIV->getType();
   IRBuilder<> Builder(State.CFG.PrevBB->getTerminator());
-  Value *VStart = Builder.CreateVectorSplat(State.VF, CanonicalIV, "broadcast");
+  auto VF = State.VF;
+  Value *VStart = VF == 1
+                      ? CanonicalIV
+                      : Builder.CreateVectorSplat(VF, CanonicalIV, "broadcast");
   for (unsigned Part = 0, UF = State.UF; Part < UF; ++Part) {
     SmallVector<Constant *, 8> Indices;
-    for (unsigned Lane = 0, VF = State.VF; Lane < VF; ++Lane)
+    for (unsigned Lane = 0; Lane < VF; ++Lane)
       Indices.push_back(ConstantInt::get(STy, Part * VF + Lane));
-    Constant *VStep = ConstantVector::get(Indices);
+    // If VF == 1, there is only one iteration in the loop above, thus the
+    // element pushed back into Indices is ConstantInt::get(STy, Part)
+    Constant *VStep = VF == 1 ? Indices.back() : ConstantVector::get(Indices);
     // Add the consecutive indices to the vector value.
     Value *CanonicalVectorIV = Builder.CreateAdd(VStart, VStep, "vec.iv");
     State.set(getVPValue(), CanonicalVectorIV, Part);
@@ -827,9 +830,9 @@ void VPWidenCanonicalIVRecipe::execute(VPTransformState &State) {
 
 void VPWidenCanonicalIVRecipe::print(raw_ostream &O, const Twine &Indent,
                                      VPSlotTracker &SlotTracker) const {
-  O << " +\n" << Indent << "\"EMIT ";
+  O << "\"EMIT ";
   getVPValue()->printAsOperand(O, SlotTracker);
-  O << " = WIDEN-CANONICAL-INDUCTION \\l\"";
+  O << " = WIDEN-CANONICAL-INDUCTION";
 }
 
 template void DomTreeBuilder::Calculate<VPDominatorTree>(VPDominatorTree &DT);

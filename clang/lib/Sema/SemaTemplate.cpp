@@ -485,7 +485,7 @@ bool Sema::LookupTemplateName(LookupResult &Found,
     // all language modes, and diagnose the empty lookup in ActOnCallExpr if we
     // successfully form a call to an undeclared template-id.
     bool AllFunctions =
-        getLangOpts().CPlusPlus2a &&
+        getLangOpts().CPlusPlus20 &&
         std::all_of(Found.begin(), Found.end(), [](NamedDecl *ND) {
           return isa<FunctionDecl>(ND->getUnderlyingDecl());
         });
@@ -4168,7 +4168,7 @@ DeclResult Sema::ActOnVarTemplateSpecialization(
 
     if (isSameAsPrimaryTemplate(VarTemplate->getTemplateParameters(),
                                 Converted) &&
-        (!Context.getLangOpts().CPlusPlus2a ||
+        (!Context.getLangOpts().CPlusPlus20 ||
          !TemplateParams->hasAssociatedConstraints())) {
       // C++ [temp.class.spec]p9b3:
       //
@@ -5867,6 +5867,11 @@ bool UnnamedLocalNoLinkageFinder::VisitDependentSizedExtVectorType(
   return Visit(T->getElementType());
 }
 
+bool UnnamedLocalNoLinkageFinder::VisitDependentSizedMatrixType(
+    const DependentSizedMatrixType *T) {
+  return Visit(T->getElementType());
+}
+
 bool UnnamedLocalNoLinkageFinder::VisitDependentAddressSpaceType(
     const DependentAddressSpaceType *T) {
   return Visit(T->getPointeeType());
@@ -5882,6 +5887,11 @@ bool UnnamedLocalNoLinkageFinder::VisitDependentVectorType(
 }
 
 bool UnnamedLocalNoLinkageFinder::VisitExtVectorType(const ExtVectorType* T) {
+  return Visit(T->getElementType());
+}
+
+bool UnnamedLocalNoLinkageFinder::VisitConstantMatrixType(
+    const ConstantMatrixType *T) {
   return Visit(T->getElementType());
 }
 
@@ -8193,7 +8203,7 @@ DeclResult Sema::ActOnClassTemplateSpecialization(
 
     if (Context.hasSameType(CanonType,
                         ClassTemplate->getInjectedClassNameSpecialization()) &&
-        (!Context.getLangOpts().CPlusPlus2a ||
+        (!Context.getLangOpts().CPlusPlus20 ||
          !TemplateParams->hasAssociatedConstraints())) {
       // C++ [temp.class.spec]p9b3:
       //

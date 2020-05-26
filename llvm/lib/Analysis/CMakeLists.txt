@@ -40,6 +40,7 @@ add_llvm_component_library(LLVMAnalysis
   IVUsers.cpp
   IndirectCallPromotionAnalysis.cpp
   InlineCost.cpp
+  InlineAdvisor.cpp
   InstCount.cpp
   InstructionPrecedenceTracking.cpp
   InstructionSimplify.cpp
@@ -84,7 +85,6 @@ add_llvm_component_library(LLVMAnalysis
   RegionPrinter.cpp
   ScalarEvolution.cpp
   ScalarEvolutionAliasAnalysis.cpp
-  ScalarEvolutionExpander.cpp
   ScalarEvolutionNormalization.cpp
   StackSafetyAnalysis.cpp
   SyncDependenceAnalysis.cpp

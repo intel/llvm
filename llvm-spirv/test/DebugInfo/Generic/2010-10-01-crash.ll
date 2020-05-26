@@ -4,6 +4,9 @@
 
 ; RUN: llc -mtriple=%triple -O0 %t.ll -o /dev/null
 
+target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
+target triple = "spir64-unknown-unknown"
+
 define void @CGRectStandardize(i32* sret %agg.result, i32* byval %rect) nounwind ssp !dbg !0 {
 entry:
   call void @llvm.dbg.declare(metadata i32* %rect, metadata !23, metadata !DIExpression()), !dbg !24
@@ -28,5 +31,3 @@ declare void @llvm.memcpy.p0i8.p0i8.i32(i8* nocapture, i8* nocapture, i32, i1) n
 !27 = !{i32 1, !"Debug Info Version", i32 3}
 !28 = !DISubroutineType(types: !29)
 !29 = !{null}
-target triple = "spir64-unknown-unknown"
-target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"

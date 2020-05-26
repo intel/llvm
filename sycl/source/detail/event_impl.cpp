@@ -50,11 +50,31 @@ event_impl::~event_impl() {
 }
 
 void event_impl::waitInternal() const {
-  if (!MHostEvent) {
+  if (!MHostEvent && MEvent) {
     getPlugin().call<PiApiKind::piEventsWait>(1, &MEvent);
+    return;
   }
-  // Waiting of host events is NOP so far as all operations on host device
-  // are blocking.
+
+  while (MState != HES_Complete)
+    ;
+}
+
+void event_impl::setComplete() {
+  if (MHostEvent || !MEvent) {
+#ifndef NDEBUG
+    int Expected = HES_NotComplete;
+    int Desired = HES_Complete;
+
+    bool Succeeded = MState.compare_exchange_strong(Expected, Desired);
+
+    assert(Succeeded && "Unexpected state of event");
+#else
+    MState.store(static_cast<int>(HES_Complete));
+#endif
+    return;
+  }
+
+  assert(false && "setComplete is not supported for non-host event");
 }
 
 const RT::PiEvent &event_impl::getHandleRef() const { return MEvent; }
@@ -68,11 +88,15 @@ void event_impl::setContextImpl(const ContextImplPtr &Context) {
   MHostEvent = Context->is_host();
   MOpenCLInterop = !MHostEvent;
   MContext = Context;
+
+  MState = HES_NotComplete;
 }
+
+event_impl::event_impl() : MState(HES_Complete) {}
 
 event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
     : MEvent(Event), MContext(detail::getSyclObjImpl(SyclContext)),
-      MOpenCLInterop(true), MHostEvent(false) {
+      MOpenCLInterop(true), MHostEvent(false), MState(HES_Complete) {
 
   if (MContext->is_host()) {
     throw cl::sycl::invalid_parameter_error(
@@ -96,12 +120,19 @@ event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
 }
 
 event_impl::event_impl(QueueImplPtr Queue) : MQueue(Queue) {
-  if (Queue->is_host() &&
-      Queue->has_property<property::queue::enable_profiling>()) {
-    MHostProfilingInfo.reset(new HostProfilingInfo());
-    if (!MHostProfilingInfo)
-      throw runtime_error("Out of host memory", PI_OUT_OF_HOST_MEMORY);
+  if (Queue->is_host()) {
+    MState.store(HES_NotComplete);
+
+    if (Queue->has_property<property::queue::enable_profiling>()) {
+      MHostProfilingInfo.reset(new HostProfilingInfo());
+      if (!MHostProfilingInfo)
+        throw runtime_error("Out of host memory", PI_OUT_OF_HOST_MEMORY);
+    }
+
+    return;
   }
+
+  MState.store(HES_Complete);
 }
 
 void *event_impl::instrumentationProlog(string_class &Name, int32_t StreamID,

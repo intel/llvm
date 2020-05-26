@@ -276,11 +276,12 @@ public:
       break;
     case 'Q': // Memory operand that is an offset from a register (it is
               // usually better to use `m' or `es' in asm statements)
+      Info.setAllowsRegister();
+      LLVM_FALLTHROUGH;
     case 'Z': // Memory operand that is an indexed or indirect from a
               // register (it is usually better to use `m' or `es' in
               // asm statements)
       Info.setAllowsMemory();
-      Info.setAllowsRegister();
       break;
     case 'R': // AIX TOC entry
     case 'a': // Address operand that is an indexed or indirect from a
@@ -332,6 +333,8 @@ public:
                : "u9__ieee128";
   }
   const char *getFloat128Mangling() const override { return "u9__ieee128"; }
+
+  bool hasExtIntType() const override { return true; }
 };
 
 class LLVM_LIBRARY_VISIBILITY PPC32TargetInfo : public PPCTargetInfo {

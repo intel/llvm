@@ -1,3 +1,7 @@
+set(LLVM_LINK_COMPONENTS
+  Core
+  Support
+  )
 add_llvm_executable(mlir-edsc-builder-api-test
   builder-api-test.cpp
 )
@@ -12,12 +16,10 @@ target_link_libraries(mlir-edsc-builder-api-test
   MLIRIR
   MLIRLinalgEDSC
   MLIRLinalgOps
-  MLIRLoopOps
+  MLIRSCF
   MLIRStandardOps
   MLIRTransforms
   MLIRVector
-  LLVMCore
-  LLVMSupport
-)
+  )
 
 target_include_directories(mlir-edsc-builder-api-test PRIVATE ..)

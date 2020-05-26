@@ -13,7 +13,6 @@
 #include <CL/sycl/detail/array.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/device_selector.hpp>
-#include <CL/sycl/ordered_queue.hpp>
 #include <CL/sycl/queue.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -400,9 +399,8 @@ checkForInfNan(char *Buf, T Val) {
 
 // Returns number of symbols written to the buffer
 template <typename T>
-inline EnableIfFP<T, unsigned> ScalarToStr(const T &Val, char *Buf,
-                                           unsigned Flags, int Width,
-                                           int Precision = -1) {
+inline EnableIfFP<T, unsigned>
+ScalarToStr(const T &Val, char *Buf, unsigned Flags, int, int Precision = -1) {
   unsigned Offset = checkForInfNan(Buf, Val);
   if (Offset)
     return Offset;
@@ -429,8 +427,8 @@ inline EnableIfFP<T, unsigned> ScalarToStr(const T &Val, char *Buf,
 // Returns number of symbols written to the buffer
 template <typename T>
 inline typename std::enable_if<std::is_integral<T>::value, unsigned>::type
-ScalarToStr(const T &Val, char *Buf, unsigned Flags, int Width,
-            int Precision = -1) {
+ScalarToStr(const T &Val, char *Buf, unsigned Flags, int, int Precision = -1) {
+  (void)Precision;
   int Base = 10;
 
   // append base manipulator

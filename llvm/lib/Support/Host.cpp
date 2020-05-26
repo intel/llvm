@@ -231,6 +231,16 @@ StringRef sys::detail::getHostCPUNameForARM(StringRef ProcCpuinfoContent) {
     }
   }
 
+  if (Implementer == "0x4e") { // NVIDIA Corporation
+    for (unsigned I = 0, E = Lines.size(); I != E; ++I) {
+      if (Lines[I].startswith("CPU part")) {
+        return StringSwitch<const char *>(Lines[I].substr(8).ltrim("\t :"))
+            .Case("0x004", "carmel")
+            .Default("generic");
+      }
+    }
+  }
+
   if (Implementer == "0x48") // HiSilicon Technologies, Inc.
     // Look for the CPU part line.
     for (unsigned I = 0, E = Lines.size(); I != E; ++I)
@@ -690,6 +700,8 @@ getIntelProcessorTypeAndSubtype(unsigned Family, unsigned Model,
     case 0x5e:              // Skylake desktop
     case 0x8e:              // Kaby Lake mobile
     case 0x9e:              // Kaby Lake desktop
+    case 0xa5:              // Comet Lake-H/S
+    case 0xa6:              // Comet Lake-U
       *Type = X86::INTEL_COREI7; // "skylake"
       *Subtype = X86::INTEL_COREI7_SKYLAKE;
       break;

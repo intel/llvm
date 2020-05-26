@@ -1214,7 +1214,16 @@ bool FastISel::lowerCallTo(CallLoweringInfo &CLI) {
       // the various CC lowering callbacks.
       Flags.setByVal();
     }
-    if (Arg.IsByVal || Arg.IsInAlloca) {
+    if (Arg.IsPreallocated) {
+      Flags.setPreallocated();
+      // Set the byval flag for CCAssignFn callbacks that don't know about
+      // preallocated. This way we can know how many bytes we should've
+      // allocated and how many bytes a callee cleanup function will pop.  If we
+      // port preallocated to more targets, we'll have to add custom
+      // preallocated handling in the various CC lowering callbacks.
+      Flags.setByVal();
+    }
+    if (Arg.IsByVal || Arg.IsInAlloca || Arg.IsPreallocated) {
       PointerType *Ty = cast<PointerType>(Arg.Ty);
       Type *ElementTy = Ty->getElementType();
       unsigned FrameSize =
@@ -1290,7 +1299,7 @@ bool FastISel::lowerCall(const CallInst *CI) {
     IsTailCall = false;
 
   CallLoweringInfo CLI;
-  CLI.setCallee(RetTy, FuncTy, CI->getCalledValue(), std::move(Args), *CI)
+  CLI.setCallee(RetTy, FuncTy, CI->getCalledOperand(), std::move(Args), *CI)
       .setTailCall(IsTailCall);
 
   return lowerCallTo(CLI);
@@ -1300,7 +1309,7 @@ bool FastISel::selectCall(const User *I) {
   const CallInst *Call = cast<CallInst>(I);
 
   // Handle simple inline asms.
-  if (const InlineAsm *IA = dyn_cast<InlineAsm>(Call->getCalledValue())) {
+  if (const InlineAsm *IA = dyn_cast<InlineAsm>(Call->getCalledOperand())) {
     // If the inline asm has side effects, then make sure that no local value
     // lives across by flushing the local value map.
     if (IA->hasSideEffects())

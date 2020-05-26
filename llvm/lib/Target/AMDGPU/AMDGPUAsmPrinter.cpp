@@ -715,6 +715,7 @@ AMDGPUAsmPrinter::SIFunctionResourceInfo AMDGPUAsmPrinter::analyzeResourceUsage(
         case AMDGPU::SRC_PRIVATE_BASE:
         case AMDGPU::SRC_PRIVATE_LIMIT:
         case AMDGPU::SGPR_NULL:
+        case AMDGPU::MODE:
           continue;
 
         case AMDGPU::SRC_POPS_EXITING_WAVE_ID:
@@ -727,6 +728,10 @@ AMDGPUAsmPrinter::SIFunctionResourceInfo AMDGPUAsmPrinter::analyzeResourceUsage(
         case AMDGPU::VCC:
         case AMDGPU::VCC_LO:
         case AMDGPU::VCC_HI:
+        case AMDGPU::VCC_LO_LO16:
+        case AMDGPU::VCC_LO_HI16:
+        case AMDGPU::VCC_HI_LO16:
+        case AMDGPU::VCC_HI_HI16:
           Info.UsesVCC = true;
           continue;
 
@@ -765,7 +770,7 @@ AMDGPUAsmPrinter::SIFunctionResourceInfo AMDGPUAsmPrinter::analyzeResourceUsage(
         }
 
         if (AMDGPU::SReg_32RegClass.contains(Reg) ||
-            AMDGPU::SGPR_LO16RegClass.contains(Reg) ||
+            AMDGPU::SReg_LO16RegClass.contains(Reg) ||
             AMDGPU::SGPR_HI16RegClass.contains(Reg)) {
           assert(!AMDGPU::TTMP_32RegClass.contains(Reg) &&
                  "trap handler registers should not be used");
@@ -776,7 +781,8 @@ AMDGPUAsmPrinter::SIFunctionResourceInfo AMDGPUAsmPrinter::analyzeResourceUsage(
                    AMDGPU::VGPR_HI16RegClass.contains(Reg)) {
           IsSGPR = false;
           Width = 1;
-        } else if (AMDGPU::AGPR_32RegClass.contains(Reg)) {
+        } else if (AMDGPU::AGPR_32RegClass.contains(Reg) ||
+                   AMDGPU::AGPR_LO16RegClass.contains(Reg)) {
           IsSGPR = false;
           IsAGPR = true;
           Width = 1;
@@ -798,6 +804,10 @@ AMDGPUAsmPrinter::SIFunctionResourceInfo AMDGPUAsmPrinter::analyzeResourceUsage(
         } else if (AMDGPU::SReg_96RegClass.contains(Reg)) {
           IsSGPR = true;
           Width = 3;
+        } else if (AMDGPU::AReg_96RegClass.contains(Reg)) {
+          IsSGPR = false;
+          IsAGPR = true;
+          Width = 3;
         } else if (AMDGPU::SReg_128RegClass.contains(Reg)) {
           assert(!AMDGPU::TTMP_128RegClass.contains(Reg) &&
             "trap handler registers should not be used");
@@ -816,6 +826,20 @@ AMDGPUAsmPrinter::SIFunctionResourceInfo AMDGPUAsmPrinter::analyzeResourceUsage(
         } else if (AMDGPU::SReg_160RegClass.contains(Reg)) {
           IsSGPR = true;
           Width = 5;
+        } else if (AMDGPU::AReg_160RegClass.contains(Reg)) {
+          IsSGPR = false;
+          IsAGPR = true;
+          Width = 5;
+        } else if (AMDGPU::VReg_192RegClass.contains(Reg)) {
+          IsSGPR = false;
+          Width = 6;
+        } else if (AMDGPU::SReg_192RegClass.contains(Reg)) {
+          IsSGPR = true;
+          Width = 6;
+        } else if (AMDGPU::AReg_192RegClass.contains(Reg)) {
+          IsSGPR = false;
+          IsAGPR = true;
+          Width = 6;
         } else if (AMDGPU::SReg_256RegClass.contains(Reg)) {
           assert(!AMDGPU::TTMP_256RegClass.contains(Reg) &&
             "trap handler registers should not be used");
@@ -823,6 +847,10 @@ AMDGPUAsmPrinter::SIFunctionResourceInfo AMDGPUAsmPrinter::analyzeResourceUsage(
           Width = 8;
         } else if (AMDGPU::VReg_256RegClass.contains(Reg)) {
           IsSGPR = false;
+          Width = 8;
+        } else if (AMDGPU::AReg_256RegClass.contains(Reg)) {
+          IsSGPR = false;
+          IsAGPR = true;
           Width = 8;
         } else if (AMDGPU::SReg_512RegClass.contains(Reg)) {
           assert(!AMDGPU::TTMP_512RegClass.contains(Reg) &&

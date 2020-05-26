@@ -24,9 +24,9 @@
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineMemOperand.h"
+#include "llvm/CodeGen/MachineModuleInfo.h"
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
-#include "llvm/CodeGen/MachineModuleInfo.h"
 #include "llvm/CodeGen/StackMaps.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
@@ -1183,10 +1183,9 @@ static bool areCFlagsAccessedBetweenInstrs(
                         return MI.getIterator() == From;
                       }) != To->getParent()->rend());
 
-  // We iterate backward starting \p To until we hit \p From.
-  for (--To; To != From; --To) {
-    const MachineInstr &Instr = *To;
-
+  // We iterate backward starting at \p To until we hit \p From.
+  for (const MachineInstr &Instr :
+       instructionsWithoutDebug(++To.getReverse(), From.getReverse())) {
     if (((AccessToCheck & AK_Write) &&
          Instr.modifiesRegister(AArch64::NZCV, TRI)) ||
         ((AccessToCheck & AK_Read) && Instr.readsRegister(AArch64::NZCV, TRI)))
@@ -1443,10 +1442,9 @@ static bool canInstrSubstituteCmpInstr(MachineInstr *MI, MachineInstr *CmpInstr,
     return false;
 
   UsedNZCV NZCVUsedAfterCmp;
-  for (auto I = std::next(CmpInstr->getIterator()),
-            E = CmpInstr->getParent()->instr_end();
-       I != E; ++I) {
-    const MachineInstr &Instr = *I;
+  for (const MachineInstr &Instr :
+       instructionsWithoutDebug(std::next(CmpInstr->getIterator()),
+                                CmpInstr->getParent()->instr_end())) {
     if (Instr.readsRegister(AArch64::NZCV, TRI)) {
       AArch64CC::CondCode CC = findCondCodeUsedByInstr(Instr);
       if (CC == AArch64CC::Invalid) // Unsupported conditional instruction
@@ -1833,6 +1831,24 @@ unsigned AArch64InstrInfo::getLoadStoreImmIdx(unsigned Opc) {
   case AArch64::ST1H_IMM:
   case AArch64::ST1W_IMM:
   case AArch64::ST1D_IMM:
+  case AArch64::LD1B_H_IMM:
+  case AArch64::LD1SB_H_IMM:
+  case AArch64::LD1H_S_IMM:
+  case AArch64::LD1SH_S_IMM:
+  case AArch64::LD1W_D_IMM:
+  case AArch64::LD1SW_D_IMM:
+  case AArch64::ST1B_H_IMM:
+  case AArch64::ST1H_S_IMM:
+  case AArch64::ST1W_D_IMM:
+  case AArch64::LD1B_S_IMM:
+  case AArch64::LD1SB_S_IMM:
+  case AArch64::LD1H_D_IMM:
+  case AArch64::LD1SH_D_IMM:
+  case AArch64::ST1B_S_IMM:
+  case AArch64::ST1H_D_IMM:
+  case AArch64::LD1B_D_IMM:
+  case AArch64::LD1SB_D_IMM:
+  case AArch64::ST1B_D_IMM:
     return 3;
   case AArch64::ADDG:
   case AArch64::STGOffset:
@@ -2288,6 +2304,45 @@ bool AArch64InstrInfo::getMemOpInfo(unsigned Opcode, TypeSize &Scale,
     // Width = mbytes * elements
     Scale = TypeSize::Scalable(16);
     Width = SVEMaxBytesPerVector;
+    MinOffset = -8;
+    MaxOffset = 7;
+    break;
+  case AArch64::LD1B_H_IMM:
+  case AArch64::LD1SB_H_IMM:
+  case AArch64::LD1H_S_IMM:
+  case AArch64::LD1SH_S_IMM:
+  case AArch64::LD1W_D_IMM:
+  case AArch64::LD1SW_D_IMM:
+  case AArch64::ST1B_H_IMM:
+  case AArch64::ST1H_S_IMM:
+  case AArch64::ST1W_D_IMM:
+    // A half vector worth of data
+    // Width = mbytes * elements
+    Scale = TypeSize::Scalable(8);
+    Width = SVEMaxBytesPerVector / 2;
+    MinOffset = -8;
+    MaxOffset = 7;
+    break;
+  case AArch64::LD1B_S_IMM:
+  case AArch64::LD1SB_S_IMM:
+  case AArch64::LD1H_D_IMM:
+  case AArch64::LD1SH_D_IMM:
+  case AArch64::ST1B_S_IMM:
+  case AArch64::ST1H_D_IMM:
+    // A quarter vector worth of data
+    // Width = mbytes * elements
+    Scale = TypeSize::Scalable(4);
+    Width = SVEMaxBytesPerVector / 4;
+    MinOffset = -8;
+    MaxOffset = 7;
+    break;
+  case AArch64::LD1B_D_IMM:
+  case AArch64::LD1SB_D_IMM:
+  case AArch64::ST1B_D_IMM:
+    // A eighth vector worth of data
+    // Width = mbytes * elements
+    Scale = TypeSize::Scalable(2);
+    Width = SVEMaxBytesPerVector / 8;
     MinOffset = -8;
     MaxOffset = 7;
     break;
@@ -3173,6 +3228,17 @@ void AArch64InstrInfo::loadRegFromStackSlot(
   if (Offset)
     MI.addImm(0);
   MI.addMemOperand(MMO);
+}
+
+bool llvm::isNZCVTouchedInInstructionRange(const MachineInstr &DefMI,
+                                           const MachineInstr &UseMI,
+                                           const TargetRegisterInfo *TRI) {
+  return any_of(instructionsWithoutDebug(std::next(DefMI.getIterator()),
+                                         UseMI.getIterator()),
+                [TRI](const MachineInstr &I) {
+                  return I.modifiesRegister(AArch64::NZCV, TRI) ||
+                         I.readsRegister(AArch64::NZCV, TRI);
+                });
 }
 
 // Helper function to emit a frame offset adjustment from a given
@@ -5862,6 +5928,35 @@ outliner::OutlinedFunction AArch64InstrInfo::getOutliningCandidateInfo(
     return C.getMF()->getFunction().hasFnAttribute("branch-target-enforcement");
   });
 
+  // We check to see if CFI Instructions are present, and if they are
+  // we find the number of CFI Instructions in the candidates.
+  unsigned CFICount = 0;
+  MachineBasicBlock::iterator MBBI = RepeatedSequenceLocs[0].front();
+  for (unsigned Loc = RepeatedSequenceLocs[0].getStartIdx();
+       Loc < RepeatedSequenceLocs[0].getEndIdx() + 1; Loc++) {
+    const std::vector<MCCFIInstruction> &CFIInstructions =
+        RepeatedSequenceLocs[0].getMF()->getFrameInstructions();
+    if (MBBI->isCFIInstruction()) {
+      unsigned CFIIndex = MBBI->getOperand(0).getCFIIndex();
+      MCCFIInstruction CFI = CFIInstructions[CFIIndex];
+      CFICount++;
+    }
+    MBBI++;
+  }
+
+  // We compare the number of found CFI Instructions to  the number of CFI
+  // instructions in the parent function for each candidate.  We must check this
+  // since if we outline one of the CFI instructions in a function, we have to
+  // outline them all for correctness. If we do not, the address offsets will be
+  // incorrect between the two sections of the program.
+  for (outliner::Candidate &C : RepeatedSequenceLocs) {
+    std::vector<MCCFIInstruction> CFIInstructions =
+        C.getMF()->getFrameInstructions();
+
+    if (CFICount > 0 && CFICount != CFIInstructions.size())
+      return outliner::OutlinedFunction();
+  }
+
   // Returns true if an instructions is safe to fix up, false otherwise.
   auto IsSafeToFixup = [this, &TRI](MachineInstr &MI) {
     if (MI.isCall())
@@ -6037,6 +6132,11 @@ outliner::OutlinedFunction AArch64InstrInfo::getOutliningCandidateInfo(
     }
   }
 
+  // If we have CFI instructions, we can only outline if the outlined section
+  // can be a tail call
+  if (FrameID != MachineOutlinerTailCall && CFICount > 0)
+    return outliner::OutlinedFunction();
+
   return outliner::OutlinedFunction(RepeatedSequenceLocs, SequenceSize,
                                     NumBytesToCreateFrame, FrameID);
 }
@@ -6061,6 +6161,10 @@ bool AArch64InstrInfo::isFunctionSafeToOutlineFrom(
   // outline from it.
   AArch64FunctionInfo *AFI = MF.getInfo<AArch64FunctionInfo>();
   if (!AFI || AFI->hasRedZone().getValueOr(true))
+    return false;
+
+  // FIXME: Teach the outliner to generate/handle Windows unwind info.
+  if (MF.getTarget().getMCAsmInfo()->usesWindowsCFI())
     return false;
 
   // It's safe to outline from MF.
@@ -6159,12 +6263,13 @@ AArch64InstrInfo::getOutliningType(MachineBasicBlock::iterator &MIT,
     return outliner::InstrType::Illegal;
 
   // We can only outline these if we will tail call the outlined function, or
-  // fix up the CFI offsets. For the sake of safety, don't outline CFI
-  // instructions.
+  // fix up the CFI offsets. Currently, CFI instructions are outlined only if
+  // in a tail call.
   //
-  // FIXME: If the proper fixups are implemented, this should be possible.
+  // FIXME: If the proper fixups for the offset are implemented, this should be
+  // possible.
   if (MI.isCFIInstruction())
-    return outliner::InstrType::Illegal;
+    return outliner::InstrType::Legal;
 
   // Don't allow debug values to impact outlining type.
   if (MI.isDebugInstr() || MI.isIndirectDebugValue())
@@ -6373,9 +6478,14 @@ static void signOutlinedFunction(MachineFunction &MF, MachineBasicBlock &MBB,
 void AArch64InstrInfo::buildOutlinedFrame(
     MachineBasicBlock &MBB, MachineFunction &MF,
     const outliner::OutlinedFunction &OF) const {
-  // For thunk outlining, rewrite the last instruction from a call to a
-  // tail-call.
-  if (OF.FrameConstructionID == MachineOutlinerThunk) {
+
+  AArch64FunctionInfo *FI = MF.getInfo<AArch64FunctionInfo>();
+
+  if (OF.FrameConstructionID == MachineOutlinerTailCall)
+    FI->setOutliningStyle("Tail Call");
+  else if (OF.FrameConstructionID == MachineOutlinerThunk) {
+    // For thunk outlining, rewrite the last instruction from a call to a
+    // tail-call.
     MachineInstr *Call = &*--MBB.instr_end();
     unsigned TailOpcode;
     if (Call->getOpcode() == AArch64::BL) {
@@ -6389,6 +6499,8 @@ void AArch64InstrInfo::buildOutlinedFrame(
                            .addImm(0);
     MBB.insert(MBB.end(), TC);
     Call->eraseFromParent();
+
+    FI->setOutliningStyle("Thunk");
   }
 
   bool IsLeafFunction = true;
@@ -6408,7 +6520,8 @@ void AArch64InstrInfo::buildOutlinedFrame(
     IsLeafFunction = false;
 
     // LR has to be a live in so that we can save it.
-    MBB.addLiveIn(AArch64::LR);
+    if (!MBB.isLiveIn(AArch64::LR))
+      MBB.addLiveIn(AArch64::LR);
 
     MachineBasicBlock::iterator It = MBB.begin();
     MachineBasicBlock::iterator Et = MBB.end();
@@ -6431,7 +6544,7 @@ void AArch64InstrInfo::buildOutlinedFrame(
 
     // Add a CFI saying the stack was moved 16 B down.
     int64_t StackPosEntry =
-        MF.addFrameInst(MCCFIInstruction::createDefCfaOffset(nullptr, 16));
+        MF.addFrameInst(MCCFIInstruction::cfiDefCfaOffset(nullptr, 16));
     BuildMI(MBB, It, DebugLoc(), get(AArch64::CFI_INSTRUCTION))
         .addCFIIndex(StackPosEntry)
         .setMIFlags(MachineInstr::FrameSetup);
@@ -6439,7 +6552,7 @@ void AArch64InstrInfo::buildOutlinedFrame(
     // Add a CFI saying that the LR that we want to find is now 16 B higher than
     // before.
     int64_t LRPosEntry =
-        MF.addFrameInst(MCCFIInstruction::createOffset(nullptr, DwarfReg, 16));
+        MF.addFrameInst(MCCFIInstruction::createOffset(nullptr, DwarfReg, -16));
     BuildMI(MBB, It, DebugLoc(), get(AArch64::CFI_INSTRUCTION))
         .addCFIIndex(LRPosEntry)
         .setMIFlags(MachineInstr::FrameSetup);
@@ -6487,12 +6600,19 @@ void AArch64InstrInfo::buildOutlinedFrame(
   }
 
   // It's not a tail call, so we have to insert the return ourselves.
+
+  // LR has to be a live in so that we can return to it.
+  if (!MBB.isLiveIn(AArch64::LR))
+    MBB.addLiveIn(AArch64::LR);
+
   MachineInstr *ret = BuildMI(MF, DebugLoc(), get(AArch64::RET))
-                          .addReg(AArch64::LR, RegState::Undef);
+                          .addReg(AArch64::LR);
   MBB.insert(MBB.end(), ret);
 
   signOutlinedFunction(MF, MBB, ShouldSignReturnAddr,
                        ShouldSignReturnAddrWithAKey);
+
+  FI->setOutliningStyle("Function");
 
   // Did we have to modify the stack by saving the link register?
   if (OF.FrameConstructionID != MachineOutlinerDefault)

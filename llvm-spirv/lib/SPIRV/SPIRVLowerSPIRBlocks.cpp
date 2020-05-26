@@ -55,7 +55,6 @@
 #include "llvm/IR/Verifier.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
-#include "llvm/PassSupport.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Transforms/Utils/Cloning.h"
@@ -268,7 +267,7 @@ private:
       LLVM_DEBUG(dbgs() << "[lowerGetBlockInvoke]  " << *CallInv);
       // Handle ret = block_func_ptr(context_ptr, args)
       auto CI = cast<CallInst>(CallInv);
-      auto F = CI->getCalledValue();
+      auto F = CI->getCalledOperand();
       if (InvokeF == nullptr) {
         getBlockInvokeFuncAndContext(CallGetBlkInvoke->getArgOperand(0),
                                      &InvokeF, nullptr);
@@ -343,11 +342,10 @@ private:
                         << '\n');
       auto CG = &getAnalysis<CallGraphWrapperPass>().getCallGraph();
       auto ACT = &getAnalysis<AssumptionCacheTracker>();
-      std::function<AssumptionCache &(Function &)> GetAssumptionCache =
-          [&](Function &F) -> AssumptionCache & {
+      auto GetAssumptionCache = [&ACT](Function &F) -> AssumptionCache & {
         return ACT->getAssumptionCache(F);
       };
-      InlineFunctionInfo IFI(CG, &GetAssumptionCache);
+      InlineFunctionInfo IFI(CG, GetAssumptionCache);
       InlineFunction(*cast<CallBase>(CI), IFI);
       Inlined = true;
     }

@@ -3003,13 +3003,13 @@ bool Sema::CheckPointerConversion(Expr *From, QualType ToType,
         // We must have a derived-to-base conversion. Check an
         // ambiguous or inaccessible conversion.
         unsigned InaccessibleID = 0;
-        unsigned AmbigiousID = 0;
+        unsigned AmbiguousID = 0;
         if (Diagnose) {
           InaccessibleID = diag::err_upcast_to_inaccessible_base;
-          AmbigiousID = diag::err_ambiguous_derived_to_base_conv;
+          AmbiguousID = diag::err_ambiguous_derived_to_base_conv;
         }
         if (CheckDerivedToBaseConversion(
-                FromPointeeType, ToPointeeType, InaccessibleID, AmbigiousID,
+                FromPointeeType, ToPointeeType, InaccessibleID, AmbiguousID,
                 From->getExprLoc(), From->getSourceRange(), DeclarationName(),
                 &BasePath, IgnoreBaseAccess))
           return true;
@@ -12776,6 +12776,42 @@ bool Sema::buildOverloadedCallSet(Scope *S, Expr *Fn,
   return false;
 }
 
+// Guess at what the return type for an unresolvable overload should be.
+static QualType chooseRecoveryType(OverloadCandidateSet &CS,
+                                   OverloadCandidateSet::iterator *Best) {
+  llvm::Optional<QualType> Result;
+  // Adjust Type after seeing a candidate.
+  auto ConsiderCandidate = [&](const OverloadCandidate &Candidate) {
+    if (!Candidate.Function)
+      return;
+    QualType T = Candidate.Function->getCallResultType();
+    if (T.isNull())
+      return;
+    if (!Result)
+      Result = T;
+    else if (Result != T)
+      Result = QualType();
+  };
+
+  // Look for an unambiguous type from a progressively larger subset.
+  // e.g. if types disagree, but all *viable* overloads return int, choose int.
+  //
+  // First, consider only the best candidate.
+  if (Best && *Best != CS.end())
+    ConsiderCandidate(**Best);
+  // Next, consider only viable candidates.
+  if (!Result)
+    for (const auto &C : CS)
+      if (C.Viable)
+        ConsiderCandidate(C);
+  // Finally, consider all candidates.
+  if (!Result)
+    for (const auto &C : CS)
+      ConsiderCandidate(C);
+
+  return Result.getValueOr(QualType());
+}
+
 /// FinishOverloadedCallExpr - given an OverloadCandidateSet, builds and returns
 /// the completed call expression. If overload resolution fails, emits
 /// diagnostics and returns ExprError()
@@ -12865,8 +12901,11 @@ static ExprResult FinishOverloadedCallExpr(Sema &SemaRef, Scope *S, Expr *Fn,
   }
   }
 
-  // Overload resolution failed.
-  return ExprError();
+  // Overload resolution failed, try to recover.
+  SmallVector<Expr *, 8> SubExprs = {Fn};
+  SubExprs.append(Args.begin(), Args.end());
+  return SemaRef.CreateRecoveryExpr(Fn->getBeginLoc(), RParenLoc, SubExprs,
+                                    chooseRecoveryType(*CandidateSet, Best));
 }
 
 static void markUnaddressableCandidatesUnviable(Sema &S,
@@ -12966,8 +13005,9 @@ Sema::CreateOverloadedUnaryOp(SourceLocation OpLoc, UnaryOperatorKind Opc,
 
   if (Input->isTypeDependent()) {
     if (Fns.empty())
-      return new (Context) UnaryOperator(Input, Opc, Context.DependentTy,
-                                         VK_RValue, OK_Ordinary, OpLoc, false);
+      return UnaryOperator::Create(Context, Input, Opc, Context.DependentTy,
+                                   VK_RValue, OK_Ordinary, OpLoc, false,
+                                   CurFPFeatures);
 
     CXXRecordDecl *NamingClass = nullptr; // lookup ignores member operators
     UnresolvedLookupExpr *Fn = UnresolvedLookupExpr::Create(
@@ -13206,7 +13246,7 @@ ExprResult Sema::CreateOverloadedBinOp(SourceLocation OpLoc,
   Expr *Args[2] = { LHS, RHS };
   LHS=RHS=nullptr; // Please use only Args instead of LHS/RHS couple
 
-  if (!getLangOpts().CPlusPlus2a)
+  if (!getLangOpts().CPlusPlus20)
     AllowRewrittenCandidates = false;
 
   OverloadedOperatorKind Op = BinaryOperator::getOverloadedOperator(Opc);
@@ -14767,9 +14807,9 @@ Expr *Sema::FixOverloadedFunctionReference(Expr *E, DeclAccessPair Found,
         if (Context.getTargetInfo().getCXXABI().isMicrosoft())
           (void)isCompleteType(UnOp->getOperatorLoc(), MemPtrType);
 
-        return new (Context) UnaryOperator(SubExpr, UO_AddrOf, MemPtrType,
-                                           VK_RValue, OK_Ordinary,
-                                           UnOp->getOperatorLoc(), false);
+        return UnaryOperator::Create(
+            Context, SubExpr, UO_AddrOf, MemPtrType, VK_RValue, OK_Ordinary,
+            UnOp->getOperatorLoc(), false, CurFPFeatures);
       }
     }
     Expr *SubExpr = FixOverloadedFunctionReference(UnOp->getSubExpr(),
@@ -14777,10 +14817,9 @@ Expr *Sema::FixOverloadedFunctionReference(Expr *E, DeclAccessPair Found,
     if (SubExpr == UnOp->getSubExpr())
       return UnOp;
 
-    return new (Context) UnaryOperator(SubExpr, UO_AddrOf,
-                                     Context.getPointerType(SubExpr->getType()),
-                                       VK_RValue, OK_Ordinary,
-                                       UnOp->getOperatorLoc(), false);
+    return UnaryOperator::Create(
+        Context, SubExpr, UO_AddrOf, Context.getPointerType(SubExpr->getType()),
+        VK_RValue, OK_Ordinary, UnOp->getOperatorLoc(), false, CurFPFeatures);
   }
 
   if (UnresolvedLookupExpr *ULE = dyn_cast<UnresolvedLookupExpr>(E)) {

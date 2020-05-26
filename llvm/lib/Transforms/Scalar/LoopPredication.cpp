@@ -184,7 +184,6 @@
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/LoopPass.h"
 #include "llvm/Analysis/ScalarEvolution.h"
-#include "llvm/Analysis/ScalarEvolutionExpander.h"
 #include "llvm/Analysis/ScalarEvolutionExpressions.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/GlobalValue.h"
@@ -199,6 +198,7 @@
 #include "llvm/Transforms/Utils/GuardUtils.h"
 #include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Transforms/Utils/LoopUtils.h"
+#include "llvm/Transforms/Utils/ScalarEvolutionExpander.h"
 
 #define DEBUG_TYPE "loop-predication"
 
@@ -362,8 +362,7 @@ PreservedAnalyses LoopPredicationPass::run(Loop &L, LoopAnalysisManager &AM,
   // For the new PM, we also can't use BranchProbabilityInfo as an analysis
   // pass. Function analyses need to be preserved across loop transformations
   // but BPI is not preserved, hence a newly built one is needed.
-  BranchProbabilityInfo BPI;
-  BPI.calculate(*F, AR.LI);
+  BranchProbabilityInfo BPI(*F, AR.LI, &AR.TLI);
   LoopPredication LP(&AR.AA, &AR.DT, &AR.SE, &AR.LI, &BPI);
   if (!LP.runOnLoop(&L))
     return PreservedAnalyses::all();

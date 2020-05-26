@@ -53,6 +53,7 @@
 #include "llvm/Support/MachineValueType.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Target/TargetMachine.h"
+#include "llvm/Transforms/Utils/SizeOpts.h"
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
@@ -1392,7 +1393,7 @@ unsigned TargetLoweringBase::getVectorTypeBreakdown(LLVMContext &Context, EVT VT
                                                 EVT &IntermediateVT,
                                                 unsigned &NumIntermediates,
                                                 MVT &RegisterVT) const {
-  unsigned NumElts = VT.getVectorNumElements();
+  ElementCount EltCnt = VT.getVectorElementCount();
 
   // If there is a wider vector type with the same element type as this one,
   // or a promoted vector type that has the same number of elements which
@@ -1400,7 +1401,7 @@ unsigned TargetLoweringBase::getVectorTypeBreakdown(LLVMContext &Context, EVT VT
   // This handles things like <2 x float> -> <4 x float> and
   // <4 x i1> -> <4 x i32>.
   LegalizeTypeAction TA = getTypeAction(Context, VT);
-  if (NumElts != 1 && (TA == TypeWidenVector || TA == TypePromoteInteger)) {
+  if (EltCnt.Min != 1 && (TA == TypeWidenVector || TA == TypePromoteInteger)) {
     EVT RegisterEVT = getTypeToTransformTo(Context, VT);
     if (isTypeLegal(RegisterEVT)) {
       IntermediateVT = RegisterEVT;
@@ -1417,22 +1418,22 @@ unsigned TargetLoweringBase::getVectorTypeBreakdown(LLVMContext &Context, EVT VT
 
   // FIXME: We don't support non-power-of-2-sized vectors for now.  Ideally we
   // could break down into LHS/RHS like LegalizeDAG does.
-  if (!isPowerOf2_32(NumElts)) {
-    NumVectorRegs = NumElts;
-    NumElts = 1;
+  if (!isPowerOf2_32(EltCnt.Min)) {
+    NumVectorRegs = EltCnt.Min;
+    EltCnt.Min = 1;
   }
 
   // Divide the input until we get to a supported size.  This will always
   // end with a scalar if the target doesn't support vectors.
-  while (NumElts > 1 && !isTypeLegal(
-                                   EVT::getVectorVT(Context, EltTy, NumElts))) {
-    NumElts >>= 1;
+  while (EltCnt.Min > 1 &&
+         !isTypeLegal(EVT::getVectorVT(Context, EltTy, EltCnt))) {
+    EltCnt.Min >>= 1;
     NumVectorRegs <<= 1;
   }
 
   NumIntermediates = NumVectorRegs;
 
-  EVT NewVT = EVT::getVectorVT(Context, EltTy, NumElts);
+  EVT NewVT = EVT::getVectorVT(Context, EltTy, EltCnt);
   if (!isTypeLegal(NewVT))
     NewVT = EltTy;
   IntermediateVT = NewVT;
@@ -1832,6 +1833,10 @@ unsigned TargetLoweringBase::getMaximumJumpTableSize() const {
 
 void TargetLoweringBase::setMaximumJumpTableSize(unsigned Val) {
   MaximumJumpTableSize = Val;
+}
+
+bool TargetLoweringBase::isJumpTableRelative() const {
+  return getTargetMachine().isPositionIndependent();
 }
 
 //===----------------------------------------------------------------------===//

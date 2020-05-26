@@ -5130,20 +5130,19 @@ static bool evaluateTypeTrait(Sema &S, TypeTrait Kind, SourceLocation KWLoc,
     if (RD && RD->isAbstract())
       return false;
 
-    SmallVector<OpaqueValueExpr, 2> OpaqueArgExprs;
+    llvm::BumpPtrAllocator OpaqueExprAllocator;
     SmallVector<Expr *, 2> ArgExprs;
     ArgExprs.reserve(Args.size() - 1);
     for (unsigned I = 1, N = Args.size(); I != N; ++I) {
       QualType ArgTy = Args[I]->getType();
       if (ArgTy->isObjectType() || ArgTy->isFunctionType())
         ArgTy = S.Context.getRValueReferenceType(ArgTy);
-      OpaqueArgExprs.push_back(
-          OpaqueValueExpr(Args[I]->getTypeLoc().getBeginLoc(),
-                          ArgTy.getNonLValueExprType(S.Context),
-                          Expr::getValueKindForType(ArgTy)));
+      ArgExprs.push_back(
+          new (OpaqueExprAllocator.Allocate<OpaqueValueExpr>())
+              OpaqueValueExpr(Args[I]->getTypeLoc().getBeginLoc(),
+                              ArgTy.getNonLValueExprType(S.Context),
+                              Expr::getValueKindForType(ArgTy)));
     }
-    for (Expr &E : OpaqueArgExprs)
-      ArgExprs.push_back(&E);
 
     // Perform the initialization in an unevaluated context within a SFINAE
     // trap at translation unit scope.
@@ -5693,7 +5692,7 @@ QualType Sema::CheckPointerToMemberOperands(ExprResult &LHS, ExprResult &RHS,
         // C++2a allows functions with ref-qualifier & if their cv-qualifier-seq
         // is (exactly) 'const'.
         if (Proto->isConst() && !Proto->isVolatile())
-          Diag(Loc, getLangOpts().CPlusPlus2a
+          Diag(Loc, getLangOpts().CPlusPlus20
                         ? diag::warn_cxx17_compat_pointer_to_const_ref_member_on_rvalue
                         : diag::ext_pointer_to_const_ref_member_on_rvalue);
         else

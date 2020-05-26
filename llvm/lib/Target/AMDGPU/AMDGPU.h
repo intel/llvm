@@ -10,15 +10,16 @@
 #ifndef LLVM_LIB_TARGET_AMDGPU_AMDGPU_H
 #define LLVM_LIB_TARGET_AMDGPU_AMDGPU_H
 
-#include "llvm/Target/TargetMachine.h"
 #include "llvm/IR/IntrinsicsR600.h" // TODO: Sink this.
 #include "llvm/IR/IntrinsicsAMDGPU.h" // TODO: Sink this.
+#include "llvm/Support/CodeGen.h"
 
 namespace llvm {
 
 class AMDGPUTargetMachine;
 class FunctionPass;
 class GCNTargetMachine;
+class ImmutablePass;
 class ModulePass;
 class Pass;
 class Target;
@@ -195,6 +196,10 @@ FunctionPass *createAMDGPUPromoteAlloca();
 void initializeAMDGPUPromoteAllocaPass(PassRegistry&);
 extern char &AMDGPUPromoteAllocaID;
 
+FunctionPass *createAMDGPUPromoteAllocaToVector();
+void initializeAMDGPUPromoteAllocaToVectorPass(PassRegistry&);
+extern char &AMDGPUPromoteAllocaToVectorID;
+
 Pass *createAMDGPUStructurizeCFGPass();
 FunctionPass *createAMDGPUISelDag(
   TargetMachine *TM = nullptr,
@@ -228,6 +233,9 @@ extern char &SIMemoryLegalizerID;
 
 void initializeSIModeRegisterPass(PassRegistry&);
 extern char &SIModeRegisterID;
+
+void initializeSIInsertHardClausesPass(PassRegistry &);
+extern char &SIInsertHardClausesID;
 
 void initializeSIInsertWaitcntsPass(PassRegistry&);
 extern char &SIInsertWaitcntsID;

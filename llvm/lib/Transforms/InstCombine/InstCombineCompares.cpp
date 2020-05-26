@@ -1886,20 +1886,24 @@ Instruction *InstCombiner::foldICmpOrConstant(ICmpInst &Cmp, BinaryOperator *Or,
   }
 
   Value *OrOp0 = Or->getOperand(0), *OrOp1 = Or->getOperand(1);
-  if (Cmp.isEquality() && Cmp.getOperand(1) == OrOp1) {
-    // X | C == C --> X <=u C
-    // X | C != C --> X  >u C
-    //   iff C+1 is a power of 2 (C is a bitmask of the low bits)
-    if ((C + 1).isPowerOf2()) {
+  const APInt *MaskC;
+  if (match(OrOp1, m_APInt(MaskC)) && Cmp.isEquality()) {
+    if (*MaskC == C && (C + 1).isPowerOf2()) {
+      // X | C == C --> X <=u C
+      // X | C != C --> X  >u C
+      //   iff C+1 is a power of 2 (C is a bitmask of the low bits)
       Pred = (Pred == CmpInst::ICMP_EQ) ? CmpInst::ICMP_ULE : CmpInst::ICMP_UGT;
       return new ICmpInst(Pred, OrOp0, OrOp1);
     }
-    // More general: are all bits outside of a mask constant set or not set?
-    // X | C == C --> (X & ~C) == 0
-    // X | C != C --> (X & ~C) != 0
+
+    // More general: canonicalize 'equality with set bits mask' to
+    // 'equality with clear bits mask'.
+    // (X | MaskC) == C --> (X & ~MaskC) == C ^ MaskC
+    // (X | MaskC) != C --> (X & ~MaskC) != C ^ MaskC
     if (Or->hasOneUse()) {
-      Value *A = Builder.CreateAnd(OrOp0, ~C);
-      return new ICmpInst(Pred, A, ConstantInt::getNullValue(OrOp0->getType()));
+      Value *And = Builder.CreateAnd(OrOp0, ~(*MaskC));
+      Constant *NewC = ConstantInt::get(Or->getType(), C ^ (*MaskC));
+      return new ICmpInst(Pred, And, NewC);
     }
   }
 
@@ -2822,7 +2826,7 @@ static Instruction *foldICmpBitCast(ICmpInst &Cmp,
 
   Value *Vec;
   ArrayRef<int> Mask;
-  if (match(BCSrcOp, m_ShuffleVector(m_Value(Vec), m_Undef(), m_Mask(Mask)))) {
+  if (match(BCSrcOp, m_Shuffle(m_Value(Vec), m_Undef(), m_Mask(Mask)))) {
     // Check whether every element of Mask is the same constant
     if (is_splat(Mask)) {
       auto *VecTy = cast<VectorType>(BCSrcOp->getType());
@@ -5389,14 +5393,14 @@ static Instruction *foldVectorCmp(CmpInst &Cmp,
 
   Value *V1, *V2;
   ArrayRef<int> M;
-  if (!match(LHS, m_ShuffleVector(m_Value(V1), m_Undef(), m_Mask(M))))
+  if (!match(LHS, m_Shuffle(m_Value(V1), m_Undef(), m_Mask(M))))
     return nullptr;
 
   // If both arguments of the cmp are shuffles that use the same mask and
   // shuffle within a single vector, move the shuffle after the cmp:
   // cmp (shuffle V1, M), (shuffle V2, M) --> shuffle (cmp V1, V2), M
   Type *V1Ty = V1->getType();
-  if (match(RHS, m_ShuffleVector(m_Value(V2), m_Undef(), m_SpecificMask(M))) &&
+  if (match(RHS, m_Shuffle(m_Value(V2), m_Undef(), m_SpecificMask(M))) &&
       V1Ty == V2->getType() && (LHS->hasOneUse() || RHS->hasOneUse())) {
     Value *NewCmp = IsFP ? Builder.CreateFCmp(Pred, V1, V2)
                          : Builder.CreateICmp(Pred, V1, V2);

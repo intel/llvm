@@ -8,7 +8,7 @@
 
 #include "FindTarget.h"
 #include "AST.h"
-#include "Logger.h"
+#include "support/Logger.h"
 #include "clang/AST/ASTTypeTraits.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
@@ -643,7 +643,7 @@ llvm::SmallVector<ReferenceLoc, 2> refInDecl(const Decl *D) {
   return V.Refs;
 }
 
-llvm::SmallVector<ReferenceLoc, 2> refInExpr(const Expr *E) {
+llvm::SmallVector<ReferenceLoc, 2> refInStmt(const Stmt *S) {
   struct Visitor : ConstStmtVisitor<Visitor> {
     // FIXME: handle more complicated cases: more ObjC, designated initializers.
     llvm::SmallVector<ReferenceLoc, 2> Refs;
@@ -722,10 +722,25 @@ llvm::SmallVector<ReferenceLoc, 2> refInExpr(const Expr *E) {
                                     /*IsDecl=*/false, std::move(Targets)});
       }
     }
+
+    void VisitGotoStmt(const GotoStmt *GS) {
+      llvm::SmallVector<const NamedDecl *, 1> Targets;
+      if (const auto *L = GS->getLabel())
+        Targets.push_back(L);
+      Refs.push_back(ReferenceLoc{NestedNameSpecifierLoc(), GS->getLabelLoc(),
+                                  /*IsDecl=*/false, std::move(Targets)});
+    }
+
+    void VisitLabelStmt(const LabelStmt *LS) {
+      Refs.push_back(ReferenceLoc{NestedNameSpecifierLoc(),
+                                  LS->getIdentLoc(),
+                                  /*IsDecl=*/true,
+                                  {LS->getDecl()}});
+    }
   };
 
   Visitor V;
-  V.Visit(E);
+  V.Visit(S);
   return V.Refs;
 }
 
@@ -837,8 +852,8 @@ public:
     return RecursiveASTVisitor::TraverseElaboratedTypeLoc(L);
   }
 
-  bool VisitExpr(Expr *E) {
-    visitNode(DynTypedNode::create(*E));
+  bool VisitStmt(Stmt *S) {
+    visitNode(DynTypedNode::create(*S));
     return true;
   }
 
@@ -860,15 +875,17 @@ public:
   // TemplateArgumentLoc is the only way to get locations for references to
   // template template parameters.
   bool TraverseTemplateArgumentLoc(TemplateArgumentLoc A) {
+    llvm::SmallVector<const NamedDecl *, 1> Targets;
     switch (A.getArgument().getKind()) {
     case TemplateArgument::Template:
     case TemplateArgument::TemplateExpansion:
+      if (const auto *D = A.getArgument()
+                              .getAsTemplateOrTemplatePattern()
+                              .getAsTemplateDecl())
+        Targets.push_back(D);
       reportReference(ReferenceLoc{A.getTemplateQualifierLoc(),
                                    A.getTemplateNameLoc(),
-                                   /*IsDecl=*/false,
-                                   {A.getArgument()
-                                        .getAsTemplateOrTemplatePattern()
-                                        .getAsTemplateDecl()}},
+                                   /*IsDecl=*/false, Targets},
                       DynTypedNode::create(A.getArgument()));
       break;
     case TemplateArgument::Declaration:
@@ -924,8 +941,8 @@ private:
   llvm::SmallVector<ReferenceLoc, 2> explicitReference(DynTypedNode N) {
     if (auto *D = N.get<Decl>())
       return refInDecl(D);
-    if (auto *E = N.get<Expr>())
-      return refInExpr(E);
+    if (auto *S = N.get<Stmt>())
+      return refInStmt(S);
     if (auto *NNSL = N.get<NestedNameSpecifierLoc>()) {
       // (!) 'DeclRelation::Alias' ensures we do not loose namespace aliases.
       return {ReferenceLoc{

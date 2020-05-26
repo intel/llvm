@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsyntax-only -verify %s -Wimplicit-int-conversion
+// RUN: %clang_cc1 -fsyntax-only -verify %s -Wimplicit-int-conversion -triple x86_64-gnu-linux
 
 template<int Bounds>
 struct HasExtInt {
@@ -275,4 +275,3 @@ void ImplicitCasts(_ExtInt(31) s31, _ExtInt(33) s33, int i) {
   // expected-warning@+1{{implicit conversion loses integer precision}}
   i = s33;
 }
-

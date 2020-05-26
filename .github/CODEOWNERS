@@ -63,6 +63,9 @@ sycl/include/CL/sycl/intel/fpga_reg.hpp @MrSidims
 sycl/include/CL/sycl/intel/pipes.hpp @MrSidims
 sycl/include/CL/sycl/pipes.hpp @MrSidims
 
+# Reduction extension
+sycl/include/CL/sycl/intel/reduction.hpp @v-klochkov
+
 # Function pointers
 sycl/include/CL/sycl/intel/function_pointer.hpp @AlexeySachkov
 sycl/source/function_pointer.cpp @AlexeySachkov
@@ -75,9 +78,11 @@ sycl/source/half_type.cpp @AlexeySachkov
 sycl/include/CL/sycl/swizzles.def @turinevgeny
 sycl/include/CL/sycl/types.hpp @turinevgeny
 
+sycl/plugins/cuda/ @intel/llvm-reviewers-cuda
 
 sycl/doc/ @pvchupin @kbobrovs
 
 sycl/doc/extensions/ @mkinsner @jbrodman
 
 xpti/ @tovinkere @andykaylor
+xptifw/ @tovinkere  @andykaylor

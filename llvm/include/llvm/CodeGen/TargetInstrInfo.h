@@ -1101,6 +1101,8 @@ public:
                                      MachineInstr &NewMI1,
                                      MachineInstr &NewMI2) const {}
 
+  virtual void setSpecialOperandAttr(MachineInstr &MI, uint16_t Flags) const {}
+
   /// Return true when a target supports MachineCombiner.
   virtual bool useMachineCombiner() const { return false; }
 
@@ -1316,7 +1318,7 @@ public:
 
   /// Returns true if the instruction is a
   /// terminator instruction that has not been predicated.
-  virtual bool isUnpredicatedTerminator(const MachineInstr &MI) const;
+  bool isUnpredicatedTerminator(const MachineInstr &MI) const;
 
   /// Returns true if MI is an unconditional tail call.
   virtual bool isUnconditionalTailCall(const MachineInstr &MI) const {

@@ -11,12 +11,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "MILexer.h"
-#include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/None.h"
-#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSwitch.h"
-#include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
 #include <algorithm>
 #include <cassert>
@@ -534,7 +531,7 @@ static Cursor maybeLexMCSymbol(Cursor C, MIToken &Token,
 }
 
 static bool isValidHexFloatingPointPrefix(char C) {
-  return C == 'H' || C == 'K' || C == 'L' || C == 'M';
+  return C == 'H' || C == 'K' || C == 'L' || C == 'M' || C == 'R';
 }
 
 static Cursor lexFloatingPointLiteral(Cursor Range, Cursor C, MIToken &Token) {

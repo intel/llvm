@@ -68,10 +68,12 @@ class VectorType;
       CALL,         // Function call.
       CALL_PRED,    // Function call that's predicable.
       CALL_NOLINK,  // Function call with branch not branch-and-link.
+      tSECALL,      // CMSE non-secure function call.
       BRCOND,       // Conditional branch.
       BR_JT,        // Jumptable branch.
       BR2_JT,       // Jumptable branch (2 level - jumptable entry is a jump).
       RET_FLAG,     // Return with a flag operand.
+      SERET_FLAG,   // CMSE Entry function return with a flag operand.
       INTRET_FLAG,  // Interrupt return with an LR-offset and a flag operand.
 
       PIC_ADD,      // Add with a PC operand and a PIC label.
@@ -202,6 +204,10 @@ class VectorType;
       VTBL2,        // 2-register shuffle with mask
       VMOVN,        // MVE vmovn
 
+      // MVE Saturating truncates
+      VQMOVNs,      // Vector (V) Saturating (Q) Move and Narrow (N), signed (s)
+      VQMOVNu,      // Vector (V) Saturating (Q) Move and Narrow (N), unsigned (u)
+
       // Vector multiply long:
       VMULLs,       // ...signed
       VMULLu,       // ...unsigned
@@ -299,11 +305,7 @@ class VectorType;
       VST4_UPD,
       VST2LN_UPD,
       VST3LN_UPD,
-      VST4LN_UPD,
-
-      // Load/Store of dual registers
-      LDRD,
-      STRD
+      VST4LN_UPD
     };
 
   } // end namespace ARMISD
@@ -384,6 +386,7 @@ class VectorType;
     bool isZExtFree(SDValue Val, EVT VT2) const override;
     bool shouldSinkOperands(Instruction *I,
                             SmallVectorImpl<Use *> &Ops) const override;
+    Type* shouldConvertSplatType(ShuffleVectorInst* SVI) const override;
 
     bool isFNegFree(EVT VT) const override;
 
@@ -640,7 +643,7 @@ class VectorType;
     /// Returns true if \p VecTy is a legal interleaved access type. This
     /// function checks the vector element type and the overall width of the
     /// vector.
-    bool isLegalInterleavedAccessType(unsigned Factor, VectorType *VecTy,
+    bool isLegalInterleavedAccessType(unsigned Factor, FixedVectorType *VecTy,
                                       const DataLayout &DL) const;
 
     bool alignLoopsWithOptSize() const override;
@@ -768,8 +771,6 @@ class VectorType;
     SDValue LowerFSETCC(SDValue Op, SelectionDAG &DAG) const;
     void lowerABS(SDNode *N, SmallVectorImpl<SDValue> &Results,
                   SelectionDAG &DAG) const;
-    void LowerLOAD(SDNode *N, SmallVectorImpl<SDValue> &Results,
-                   SelectionDAG &DAG) const;
 
     Register getRegisterByName(const char* RegName, LLT VT,
                                const MachineFunction &MF) const override;

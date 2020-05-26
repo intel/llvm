@@ -343,8 +343,10 @@ defm : X86WriteRes<WriteVecStoreX,       [SKXPort237,SKXPort4], 1, [1,1], 2>;
 defm : X86WriteRes<WriteVecStoreY,       [SKXPort237,SKXPort4], 1, [1,1], 2>;
 defm : X86WriteRes<WriteVecStoreNT,      [SKXPort237,SKXPort4], 1, [1,1], 2>;
 defm : X86WriteRes<WriteVecStoreNTY,     [SKXPort237,SKXPort4], 1, [1,1], 2>;
-defm : X86WriteRes<WriteVecMaskedStore,  [SKXPort237,SKXPort0], 2, [1,1], 2>;
-defm : X86WriteRes<WriteVecMaskedStoreY, [SKXPort237,SKXPort0], 2, [1,1], 2>;
+defm : X86WriteRes<WriteVecMaskedStore32,  [SKXPort237,SKXPort0], 2, [1,1], 2>;
+defm : X86WriteRes<WriteVecMaskedStore32Y, [SKXPort237,SKXPort0], 2, [1,1], 2>;
+defm : X86WriteRes<WriteVecMaskedStore64,  [SKXPort237,SKXPort0], 2, [1,1], 2>;
+defm : X86WriteRes<WriteVecMaskedStore64Y, [SKXPort237,SKXPort0], 2, [1,1], 2>;
 defm : X86WriteRes<WriteVecMove,         [SKXPort05],  1, [1], 1>;
 defm : X86WriteRes<WriteVecMoveX,        [SKXPort015], 1, [1], 1>;
 defm : X86WriteRes<WriteVecMoveY,        [SKXPort015], 1, [1], 1>;
@@ -2447,7 +2449,7 @@ def: InstRW<[SKXWriteResGroup267], (instrs PAUSE)>;
 def: InstRW<[WriteZero], (instrs CLC)>;
 
 
-// Intruction variants handled by the renamer. These might not need execution
+// Instruction variants handled by the renamer. These might not need execution
 // ports in certain conditions.
 // See Agner's Fog "The microarchitecture of Intel, AMD and VIA CPUs",
 // section "Skylake Pipeline" > "Register allocation and renaming".

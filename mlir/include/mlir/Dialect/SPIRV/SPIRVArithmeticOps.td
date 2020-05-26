@@ -15,14 +15,25 @@
 #define SPIRV_ARITHMETIC_OPS
 
 include "mlir/Dialect/SPIRV/SPIRVBase.td"
-include "mlir/Interfaces/SideEffects.td"
+include "mlir/Interfaces/SideEffectInterfaces.td"
 
 class SPV_ArithmeticBinaryOp<string mnemonic, Type type,
                        list<OpTrait> traits = []> :
       // Operands type same as result type.
       SPV_BinaryOp<mnemonic, type, type,
                    !listconcat(traits,
-                               [NoSideEffect, SameOperandsAndResultType])>;
+                               [NoSideEffect, SameOperandsAndResultType])> {
+  // In addition to normal types arithmetic instructions can support cooperative
+  // matrix.
+  let arguments = (ins
+    SPV_ScalarOrVectorOrCoopMatrixOf<type>:$operand1,
+    SPV_ScalarOrVectorOrCoopMatrixOf<type>:$operand2
+  );
+
+  let results = (outs
+    SPV_ScalarOrVectorOrCoopMatrixOf<type>:$result
+  );
+}
 
 class SPV_ArithmeticUnaryOp<string mnemonic, Type type,
                             list<OpTrait> traits = []> :

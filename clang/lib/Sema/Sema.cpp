@@ -159,7 +159,8 @@ Sema::Sema(Preprocessor &pp, ASTContext &ctxt, ASTConsumer &consumer,
           LangOpts.getMSPointerToMemberRepresentationMethod()),
       VtorDispStack(LangOpts.getVtorDispMode()), PackStack(0),
       DataSegStack(nullptr), BSSSegStack(nullptr), ConstSegStack(nullptr),
-      CodeSegStack(nullptr), CurInitSeg(nullptr), VisContext(nullptr),
+      CodeSegStack(nullptr), FpPragmaStack(CurFPFeatures.getAsOpaqueInt()),
+      CurInitSeg(nullptr), VisContext(nullptr),
       PragmaAttributeCurrentTargetDecl(nullptr),
       IsBuildingRecoveryCallExpr(false), Cleanup{}, LateTemplateParser(nullptr),
       LateTemplateParserCleanup(nullptr), OpaqueParser(nullptr), IdResolver(pp),
@@ -1559,7 +1560,7 @@ public:
   }
 
   void checkFunc(SourceLocation Loc, FunctionDecl *FD) {
-    auto &Done = DoneMap[InOMPDeviceContext];
+    auto &Done = DoneMap[InOMPDeviceContext > 0 ? 1 : 0];
     FunctionDecl *Caller = UsePath.empty() ? nullptr : UsePath.back();
     if ((!ShouldEmitRootNode && !S.getLangOpts().OpenMP && !Caller) ||
         S.shouldIgnoreInHostDeviceCheck(FD) || InUsePath.count(FD))
