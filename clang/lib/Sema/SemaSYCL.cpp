@@ -1045,7 +1045,7 @@ class SyclKernelDeclCreator
     FD->addAttr(AsmLabelAttr::CreateImplicit(Context, Name));
     FD->addAttr(ArtificialAttr::CreateImplicit(Context));
     if (IsSIMDKernel)
-      FD->addAttr(SYCLSimdAttr::CreateImplicit(Ctx));
+      FD->addAttr(SYCLSimdAttr::CreateImplicit(Context));
   }
 
   static FunctionDecl *createKernelDecl(ASTContext &Ctx, StringRef Name,
