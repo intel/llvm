@@ -10675,7 +10675,8 @@ def err_sycl_attribute_address_space_invalid : Error<
   "address space is outside the valid range of values">;
 def err_sycl_kernel_incorrectly_named : Error<
   "kernel %select{name is missing"
-  "|needs to have a globally-visible name}0">;
+  "|needs to have a globally-visible name"
+  "|name cannot be or use std::nullptr_t}0">;
 def err_sycl_restrict : Error<
   "SYCL kernel cannot "
 "%select{use a non-const global variable"

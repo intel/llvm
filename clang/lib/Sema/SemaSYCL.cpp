@@ -1744,8 +1744,16 @@ void SYCLIntegrationHeader::emitForwardClassDecls(
     ;
   const CXXRecordDecl *RD = T->getAsCXXRecordDecl();
 
-  if (!RD)
+  if (!RD) {
+    // Most non-class types such as `int` can safely skip forward declarations,
+    // but `std::nullptr_t` is a special case that doesn't behave well.
+    if (T->isNullPtrType()) {
+      Diag.Report(KernelLocation, diag::err_sycl_kernel_incorrectly_named)
+          << /* name cannot be or use std::nullptr_t */ 2;
+    }
+
     return;
+  }
 
   // see if this is a template specialization ...
   if (const auto *TSD = dyn_cast<ClassTemplateSpecializationDecl>(RD)) {
@@ -1823,10 +1831,8 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "// This is auto-generated SYCL integration header.\n";
   O << "\n";
 
-  O << "#include <cstddef>\n";
   O << "#include <CL/sycl/detail/defines.hpp>\n";
   O << "#include <CL/sycl/detail/kernel_desc.hpp>\n";
-  O << "using nullptr_t = std::nullptr_t;\n";
 
   O << "\n";
 
