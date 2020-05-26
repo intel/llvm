@@ -18,8 +18,8 @@ struct TestCtx {
   bool EventCtx2WasWaited = false;
 
   TestCtx(queue &Queue1, queue &Queue2)
-    : Q1(Queue1), Q2(Queue2), Ctx1{detail::getSyclObjImpl(Q1.get_context())},
-      Ctx2{detail::getSyclObjImpl(Q2.get_context())} {}
+      : Q1(Queue1), Q2(Queue2), Ctx1{detail::getSyclObjImpl(Q1.get_context())},
+        Ctx2{detail::getSyclObjImpl(Q2.get_context())} {}
 };
 
 std::unique_ptr<TestCtx> TestContext;
@@ -40,20 +40,18 @@ pi_result waitFunc(pi_uint32 N, const pi_event *List) {
   return PI_SUCCESS;
 }
 
-pi_result retairReleaseFunc(pi_event) {
-  return PI_SUCCESS;
-}
+pi_result retainReleaseFunc(pi_event) { return PI_SUCCESS; }
 
 pi_result getEventInfoFunc(pi_event Event, pi_event_info PName, size_t PVSize,
                            void *PV, size_t *PVSizeRet) {
   EXPECT_EQ(PName, PI_EVENT_INFO_CONTEXT) << "Unknown param name";
 
   if (Event == TestContext->EventCtx1)
-    *reinterpret_cast<pi_context *>(PV) = reinterpret_cast<pi_context>(
-        TestContext->Ctx1->get());
+    *reinterpret_cast<pi_context *>(PV) =
+        reinterpret_cast<pi_context>(TestContext->Ctx1->get());
   else if (Event == TestContext->EventCtx2)
-    *reinterpret_cast<pi_context *>(PV) = reinterpret_cast<pi_context>(
-        TestContext->Ctx2->get());
+    *reinterpret_cast<pi_context *>(PV) =
+        reinterpret_cast<pi_context>(TestContext->Ctx2->get());
 
   return PI_SUCCESS;
 }
@@ -72,28 +70,26 @@ TEST_F(SchedulerTest, CommandsWaitForEvents) {
   unittest::PiMock Mock2(Q2);
 
   Mock1.redefine<detail::PiApiKind::piEventsWait>(waitFunc);
-  Mock1.redefine<detail::PiApiKind::piEventRetain>(retairReleaseFunc);
-  Mock1.redefine<detail::PiApiKind::piEventRelease>(retairReleaseFunc);
+  Mock1.redefine<detail::PiApiKind::piEventRetain>(retainReleaseFunc);
+  Mock1.redefine<detail::PiApiKind::piEventRelease>(retainReleaseFunc);
   Mock1.redefine<detail::PiApiKind::piEventGetInfo>(getEventInfoFunc);
 
   Mock2.redefine<detail::PiApiKind::piEventsWait>(waitFunc);
-  Mock2.redefine<detail::PiApiKind::piEventRetain>(retairReleaseFunc);
-  Mock2.redefine<detail::PiApiKind::piEventRelease>(retairReleaseFunc);
+  Mock2.redefine<detail::PiApiKind::piEventRetain>(retainReleaseFunc);
+  Mock2.redefine<detail::PiApiKind::piEventRelease>(retainReleaseFunc);
   Mock2.redefine<detail::PiApiKind::piEventGetInfo>(getEventInfoFunc);
-
 
   TestContext.reset(new TestCtx(Q1, Q2));
 
-  std::shared_ptr<detail::event_impl> E1(new detail::event_impl(
-      TestContext->EventCtx1, Q1.get_context()));
-  std::shared_ptr<detail::event_impl> E2(new detail::event_impl(
-      TestContext->EventCtx2, Q2.get_context()));
+  std::shared_ptr<detail::event_impl> E1(
+      new detail::event_impl(TestContext->EventCtx1, Q1.get_context()));
+  std::shared_ptr<detail::event_impl> E2(
+      new detail::event_impl(TestContext->EventCtx2, Q2.get_context()));
 
   sycl::device HostDevice;
-  std::shared_ptr<detail::queue_impl> DefaultHostQueue(
-      new detail::queue_impl(detail::getSyclObjImpl(HostDevice),
-                             /*AsyncHandler=*/{},
-                             detail::QueueOrder::Ordered, /*PropList=*/{}));
+  std::shared_ptr<detail::queue_impl> DefaultHostQueue(new detail::queue_impl(
+      detail::getSyclObjImpl(HostDevice), /*AsyncHandler=*/{},
+      detail::QueueOrder::Ordered, /*PropList=*/{}));
 
   MockCommand Cmd(DefaultHostQueue);
 
