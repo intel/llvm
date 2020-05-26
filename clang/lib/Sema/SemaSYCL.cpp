@@ -1039,11 +1039,13 @@ class SyclKernelDeclCreator
   }
 
   static void setKernelImplicitAttrs(ASTContext &Context, FunctionDecl *FD,
-                                     StringRef Name) {
+                                     StringRef Name, bool IsSIMDKernel) {
     // Set implicit attributes.
     FD->addAttr(OpenCLKernelAttr::CreateImplicit(Context));
     FD->addAttr(AsmLabelAttr::CreateImplicit(Context, Name));
     FD->addAttr(ArtificialAttr::CreateImplicit(Context));
+    if (IsSIMDKernel)
+      FD->addAttr(SYCLSimdAttr::CreateImplicit(Ctx));
   }
 
   static FunctionDecl *createKernelDecl(ASTContext &Ctx, StringRef Name,
@@ -1058,9 +1060,7 @@ class SyclKernelDeclCreator
         Ctx, Ctx.getTranslationUnitDecl(), Loc, Loc, &Ctx.Idents.get(Name),
         FuncType, Ctx.getTrivialTypeSourceInfo(Ctx.VoidTy), SC_None);
     FD->setImplicitlyInline(IsInline);
-    setKernelImplicitAttrs(Ctx, FD, Name);
-    if (IsSIMDKernel)
-      FD->addAttr(SYCLSimdAttr::CreateImplicit(Ctx));
+    setKernelImplicitAttrs(Ctx, FD, Name, IsSIMDKernel);
 
     // Add kernel to translation unit to see it in AST-dump.
     Ctx.getTranslationUnitDecl()->addDecl(FD);
