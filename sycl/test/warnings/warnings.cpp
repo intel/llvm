@@ -6,8 +6,8 @@ using namespace cl::sycl;
 int main() {
   vec<long, 4> newVec;
   queue myQueue;
-  buffer<vec<long, 4>, 1> resultBuf {&newVec, range<1> {1}};
-  myQueue.submit([&](handler& cgh) {
+  buffer<vec<long, 4>, 1> resultBuf{&newVec, range<1>{1}};
+  myQueue.submit([&](handler &cgh) {
     auto writeResult = resultBuf.get_access<access::mode::write>(cgh);
     cgh.single_task<class kernel_name>([=]() {
       writeResult[0] = (vec<int, 4>{1, 2, 3, 4}).template convert<long>();
