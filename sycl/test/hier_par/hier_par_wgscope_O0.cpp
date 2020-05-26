@@ -1,4 +1,4 @@
-//==- hier_par_wgscope.cpp --- hier. parallelism test for WG scope (-O0) ---==//
+//==- hier_par_wgscope_O0.cpp --- hier. parallelism test for WG scope (-O0) ==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,8 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// RUN: %clangxx -O0 -fsycl -fsycl-targets=%sycl_triple \
-// RUN:   -I%S/src %s -o %t.out
+// RUN: %clangxx -O0 -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
@@ -20,7 +19,7 @@
 // code and data in the work group scope, and when the test is compiled with
 // -O0 switch.
 
-#include "hier_par_wgscope_impl.src"
+#include "Inputs/hier_par_wgscope_impl.hpp"
 
 int main() {
   return run();

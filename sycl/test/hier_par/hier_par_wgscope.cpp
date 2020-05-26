@@ -6,8 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple \
-// RUN:   -I%S/src %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
@@ -16,7 +15,7 @@
 // This test checks correctness of hierarchical kernel execution when there is
 // code and data in the work group scope.
 
-#include "hier_par_wgscope_impl.src"
+#include "Inputs/hier_par_wgscope_impl.hpp"
 
 int main() {
   return run();

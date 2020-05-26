@@ -1,3 +1,11 @@
+//==- hier_par_wgscope_impl.hpp --- hier. parallelism test for WG scope ----==//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
 // Shared code for the hier_par_wgscope* tests
 
 #include <CL/sycl.hpp>
