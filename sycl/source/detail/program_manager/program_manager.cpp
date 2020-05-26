@@ -360,7 +360,8 @@ RT::PiProgram ProgramManager::createPIProgram(const RTDeviceBinaryImage &Img,
 RT::PiProgram ProgramManager::getBuiltPIProgram(OSModuleHandle M,
                                                 const context &Context,
                                                 const string_class &KernelName,
-                                                const program_impl *Prg, bool FromProgramApi) {
+                                                const program_impl *Prg,
+                                                bool FromProgramApi) {
   KernelSetId KSId = getKernelSetId(M, KernelName);
 
   const ContextImplPtr Ctx = getSyclObjImpl(Context);
@@ -377,7 +378,8 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(OSModuleHandle M,
     return LockedCache.get();
   };
   auto BuildF = [this, &M, &KSId, &Context, Prg, &FromProgramApi] {
-    const RTDeviceBinaryImage &Img = getDeviceImage(M, KSId, Context, FromProgramApi);
+    const RTDeviceBinaryImage &Img =
+        getDeviceImage(M, KSId, Context, FromProgramApi);
 
     ContextImplPtr ContextImpl = getSyclObjImpl(Context);
     const detail::plugin &Plugin = ContextImpl->getPlugin();
@@ -665,11 +667,14 @@ RTDeviceBinaryImage &ProgramManager::getDeviceImage(OSModuleHandle M,
   if (FromProgramApi) {
     // if the image is already compiled with AOT then throws exception
     const pi_device_binary_struct &RawImg = Imgs[ImgInd]->getRawData();
-    if ((strcmp(RawImg.DeviceTargetSpec, PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64) == 0) ||
-        (strcmp(RawImg.DeviceTargetSpec, PI_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0) ||
-        (strcmp(RawImg.DeviceTargetSpec, PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0)) {
-          throw feature_not_supported("Recompiling AOT image is not supported",
-                                      PI_INVALID_OPERATION);
+    if ((strcmp(RawImg.DeviceTargetSpec,
+                PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64) == 0) ||
+        (strcmp(RawImg.DeviceTargetSpec, PI_DEVICE_BINARY_TARGET_SPIRV64_GEN) ==
+         0) ||
+        (strcmp(RawImg.DeviceTargetSpec,
+                PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0)) {
+      throw feature_not_supported("Recompiling AOT image is not supported",
+                                  PI_INVALID_OPERATION);
     }
   }
 

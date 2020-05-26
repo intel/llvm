@@ -13,9 +13,8 @@ namespace DeviceCodeSplitTests {
 
 TEST_F(DeviceCodeSplit, SplitPerSourceCheckFile1) {
 
-  expectedKernel = std::map<std::string, bool> {{"File1Kern1", true },
-                                                {"File1Kern2", true },
-                                                {"File2Kern1", false }};
+  expectedKernel = std::map<std::string, bool>{
+      {"File1Kern1", true}, {"File1Kern2", true}, {"File2Kern1", false}};
   int Data = 0;
   {
     cl::sycl::buffer<int, 1> Buf(&Data, cl::sycl::range<1>(1));
@@ -32,9 +31,8 @@ TEST_F(DeviceCodeSplit, SplitPerSourceCheckFile1) {
 
 TEST_F(DeviceCodeSplit, SplitPerSourceCheckFile2) {
 
-  expectedKernel = std::map<std::string, bool> {{"File1Kern1", false },
-                                                {"File1Kern2", false },
-                                                {"File2Kern1", true }};
+  expectedKernel = std::map<std::string, bool>{
+      {"File1Kern1", false}, {"File1Kern2", false}, {"File2Kern1", true}};
   int Data = 0;
   {
     cl::sycl::buffer<int, 1> Buf(&Data, cl::sycl::range<1>(1));
@@ -43,4 +41,4 @@ TEST_F(DeviceCodeSplit, SplitPerSourceCheckFile2) {
   EXPECT_EQ(Data, 3);
 }
 
-} // namespace
+} // namespace DeviceCodeSplitTests

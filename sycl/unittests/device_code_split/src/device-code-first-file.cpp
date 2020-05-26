@@ -9,15 +9,15 @@
 #include "device-code-split-lib.hpp"
 
 void runKernel1FromFile1(cl::sycl::queue Q, cl::sycl::buffer<int, 1> Buf) {
-    Q.submit([&](cl::sycl::handler &Cgh) {
-      auto Acc = Buf.get_access<cl::sycl::access::mode::read_write>(Cgh);
-      Cgh.single_task<File1Kern1>([=]() { Acc[0] = 1; });
-    });
+  Q.submit([&](cl::sycl::handler &Cgh) {
+    auto Acc = Buf.get_access<cl::sycl::access::mode::read_write>(Cgh);
+    Cgh.single_task<File1Kern1>([=]() { Acc[0] = 1; });
+  });
 }
 
 void runKernel2FromFile1(cl::sycl::queue Q, cl::sycl::buffer<int, 1> Buf) {
-    Q.submit([&](cl::sycl::handler &Cgh) {
-      auto Acc = Buf.get_access<cl::sycl::access::mode::read_write>(Cgh);
-      Cgh.single_task<File1Kern2>([=]() { Acc[0] = 2; });
-    });
+  Q.submit([&](cl::sycl::handler &Cgh) {
+    auto Acc = Buf.get_access<cl::sycl::access::mode::read_write>(Cgh);
+    Cgh.single_task<File1Kern2>([=]() { Acc[0] = 2; });
+  });
 }
