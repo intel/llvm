@@ -674,7 +674,7 @@ INTEL_GPU_PRIVATE INTEL_GPU_REGISTER(32) simd<int, 16> vc;
 ```cpp
 #include <iostream>
 #include <CL/sycl.hpp>
-#include <sycl_[[sycl_explicit_simd]].hpp>
+#include <sycl_esimd.hpp>
 
 using namespace cl::sycl;
 
