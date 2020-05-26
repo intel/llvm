@@ -2041,9 +2041,7 @@ SYCLIntegrationHeader::SYCLIntegrationHeader(DiagnosticsEngine &_Diag,
 // -----------------------------------------------------------------------------
 
 bool Util::isSyclAccessorType(const QualType &Ty) {
-  if (const CXXRecordDecl *RecTy = Ty->getAsCXXRecordDecl())
-    return isSyclAccessorType(RecTy);
-  return false;
+  return isSyclType(Ty, "accessor", true /*Tmpl*/);
 }
 
 bool Util::isSyclAccessorType(const CXXRecordDecl *RecTy) {
