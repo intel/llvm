@@ -61,7 +61,8 @@ public:
   static ProgramManager &getInstance();
   RTDeviceBinaryImage &getDeviceImage(OSModuleHandle M,
                                       const string_class &KernelName,
-                                      const context &Context);
+                                      const context &Context,
+                                      bool FromProgramApi = false);
   RT::PiProgram createPIProgram(const RTDeviceBinaryImage &Img,
                                 const context &Context);
   /// Builds or retrieves from cache a program defining the kernel with given
@@ -76,7 +77,7 @@ public:
   ///        once the function returns.
   RT::PiProgram getBuiltPIProgram(OSModuleHandle M, const context &Context,
                                   const string_class &KernelName,
-                                  const program_impl *Prg = nullptr);
+                                  const program_impl *Prg = nullptr, bool FromProgramApi = false);
   RT::PiKernel getOrCreateKernel(OSModuleHandle M, const context &Context,
                                  const string_class &KernelName,
                                  const program_impl *Prg);
@@ -110,7 +111,7 @@ private:
   ProgramManager &operator=(ProgramManager const &) = delete;
 
   RTDeviceBinaryImage &getDeviceImage(OSModuleHandle M, KernelSetId KSId,
-                                      const context &Context);
+                                      const context &Context, bool FromProgramApi = false);
   using ProgramPtr = unique_ptr_class<remove_pointer_t<RT::PiProgram>,
                                       decltype(&::piProgramRelease)>;
   ProgramPtr build(ProgramPtr Program, const ContextImplPtr Context,

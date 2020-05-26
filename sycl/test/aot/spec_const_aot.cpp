@@ -38,7 +38,6 @@ int main(int argc, char **argv) {
   cl::sycl::experimental::spec_constant<int32_t, MyInt32Const> i32 =
       prog.set_spec_constant<MyInt32Const>(10);
 
-  prog.build_with_kernel_type<Kernel>();
 
   std::vector<int> vec(1);
   {
@@ -47,7 +46,6 @@ int main(int argc, char **argv) {
     q.submit([&](cl::sycl::handler &cgh) {
       auto acc = buf.get_access<cl::sycl::access::mode::write>(cgh);
       cgh.single_task<Kernel>(
-          prog.get_kernel<Kernel>(),
           [=]() {
             acc[0] = i32.get();
           });
