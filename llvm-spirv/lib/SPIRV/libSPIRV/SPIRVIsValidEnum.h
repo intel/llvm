@@ -581,6 +581,11 @@ inline bool isValid(spv::Capability V) {
   case CapabilityGroupNonUniformShuffleRelative:
   case CapabilityGroupNonUniformClustered:
   case CapabilityGroupNonUniformQuad:
+  case CapabilityDenormPreserve:
+  case CapabilityDenormFlushToZero:
+  case CapabilitySignedZeroInfNanPreserve:
+  case CapabilityRoundingModeRTE:
+  case CapabilityRoundingModeRTZ:
   case CapabilityFPGAMemoryAttributesINTEL:
   case CapabilityArbitraryPrecisionIntegersINTEL:
   case CapabilityFPGALoopControlsINTEL:

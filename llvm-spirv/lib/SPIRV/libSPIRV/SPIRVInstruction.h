@@ -2275,7 +2275,6 @@ protected:
       return;
     assert(getValueType(Vector1) == getValueType(Vector2));
     assert(Components.size() == Type->getVectorComponentCount());
-    assert(Components.size() > 1);
   }
   SPIRVId Vector1;
   SPIRVId Vector2;

@@ -7,6 +7,7 @@
 ; RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.spv -r -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
 
+; CHECK-SPIRV: Capability CapabilitySubgroupDispatch
 ; CHECK-SPIRV: EntryPoint 6 [[kernel:[0-9]+]] "foo"
 ; CHECK-SPIRV: ExecutionMode [[kernel]] 35 8
 
