@@ -687,21 +687,46 @@ static void VisitAccessorWrapper(CXXRecordDecl *Owner, ParentTy &Parent,
                                  Handlers &... handlers);
 
 template <typename RangeTy, typename... Handlers>
+static void VisitField(CXXRecordDecl *Owner, RangeTy Item, QualType ItemTy,
+                       Handlers &... handlers) {
+  if (Util::isSyclAccessorType(ItemTy)) {
+    (void)std::initializer_list<int>{
+        (handlers.handleSyclAccessorType(Item, ItemTy), 0)...};
+  } else if (Util::isSyclStreamType(ItemTy))
+    (void)std::initializer_list<int>{
+        (handlers.handleSyclStreamType(Item, ItemTy), 0)...};
+  else {
+    if (ItemTy->isArrayType()) {
+      VisitArrayElements(Item, ItemTy, handlers...);
+    } else if (ItemTy->isStructureOrClassType()) {
+      VisitAccessorWrapper(Owner, Item, ItemTy->getAsCXXRecordDecl(),
+                           handlers...);
+    }
+  }
+}
+
+template <typename RangeTy, typename... Handlers>
+static void VisitArrayElements(RangeTy Item, QualType FieldTy,
+                               Handlers &... handlers) {
+  const ConstantArrayType *CAT = cast<ConstantArrayType>(FieldTy);
+  QualType ET = CAT->getElementType();
+  int64_t ElemCount = CAT->getSize().getSExtValue();
+  std::initializer_list<int>{(handlers.enterArray(), 0)...};
+  for (int64_t Count = 0; Count < ElemCount; Count++) {
+    VisitField(nullptr, Item, ET, handlers...);
+    (void)std::initializer_list<int>{(handlers.nextElement(ET), 0)...};
+  }
+  (void)std::initializer_list<int>{(handlers.leaveArray(ET, ElemCount), 0)...};
+}
+
+template <typename RangeTy, typename... Handlers>
 static void VisitAccessorWrapperHelper(CXXRecordDecl *Owner, RangeTy Range,
                                        Handlers &... handlers) {
   for (const auto &Item : Range) {
     QualType ItemTy = getItemType(Item);
-    if (Util::isSyclAccessorType(ItemTy))
-      (void)std::initializer_list<int>{
-          (handlers.handleSyclAccessorType(Item, ItemTy), 0)...};
-    else if (Util::isSyclStreamType(ItemTy)) {
-      VisitAccessorWrapper(Owner, Item, ItemTy->getAsCXXRecordDecl(),
-                           handlers...);
-      (void)std::initializer_list<int>{
-          (handlers.handleSyclStreamType(Item, ItemTy), 0)...};
-    } else if (ItemTy->isStructureOrClassType())
-      VisitAccessorWrapper(Owner, Item, ItemTy->getAsCXXRecordDecl(),
-                           handlers...);
+    (void)std::initializer_list<int>{(handlers.enterField(Owner, Item), 0)...};
+    VisitField(Owner, Item, ItemTy, handlers...);
+    (void)std::initializer_list<int>{(handlers.leaveField(Owner, Item), 0)...};
   }
 }
 
@@ -728,6 +753,8 @@ static void VisitRecordFields(RecordDecl::field_range Fields,
   (void)std::initializer_list<int> { (handlers.FUNC(Field, FieldTy), 0)... }
 
   for (const auto &Field : Fields) {
+    (void)std::initializer_list<int>{
+        (handlers.enterField(nullptr, Field), 0)...};
     QualType FieldTy = Field->getType();
 
     if (Util::isSyclAccessorType(FieldTy))
@@ -749,12 +776,15 @@ static void VisitRecordFields(RecordDecl::field_range Fields,
       KF_FOR_EACH(handleReferenceType);
     else if (FieldTy->isPointerType())
       KF_FOR_EACH(handlePointerType);
-    else if (FieldTy->isArrayType())
+    else if (FieldTy->isArrayType()) {
       KF_FOR_EACH(handleArrayType);
-    else if (FieldTy->isScalarType())
+      VisitArrayElements(Field, FieldTy, handlers...);
+    } else if (FieldTy->isScalarType())
       KF_FOR_EACH(handleScalarType);
     else
       KF_FOR_EACH(handleOtherType);
+    (void)std::initializer_list<int>{
+        (handlers.leaveField(nullptr, Field), 0)...};
   }
 #undef KF_FOR_EACH
 }
@@ -780,6 +810,7 @@ public:
   virtual void handleStructType(FieldDecl *, QualType) {}
   virtual void handleReferenceType(FieldDecl *, QualType) {}
   virtual void handlePointerType(FieldDecl *, QualType) {}
+  virtual void handleArrayType(const CXXBaseSpecifier &, QualType) {}
   virtual void handleArrayType(FieldDecl *, QualType) {}
   virtual void handleScalarType(FieldDecl *, QualType) {}
   // Most handlers shouldn't be handling this, just the field checker.
@@ -793,6 +824,17 @@ public:
   virtual void leaveStruct(const CXXRecordDecl *, FieldDecl *) {}
   virtual void enterStruct(const CXXRecordDecl *, const CXXBaseSpecifier &) {}
   virtual void leaveStruct(const CXXRecordDecl *, const CXXBaseSpecifier &) {}
+
+  // The following are used for stepping through array elements.
+
+  virtual void enterField(const CXXRecordDecl *, const CXXBaseSpecifier &) {}
+  virtual void leaveField(const CXXRecordDecl *, const CXXBaseSpecifier &) {}
+  virtual void enterField(const CXXRecordDecl *, FieldDecl *) {}
+  virtual void leaveField(const CXXRecordDecl *, FieldDecl *) {}
+  virtual void enterArray(const CXXBaseSpecifier &) {}
+  virtual void enterArray() {}
+  virtual void nextElement(QualType) {}
+  virtual void leaveArray(QualType, int64_t) {}
 };
 
 // A type to check the validity of all of the argument types.
@@ -800,6 +842,43 @@ class SyclKernelFieldChecker
     : public SyclKernelFieldHandler<SyclKernelFieldChecker> {
   bool IsInvalid = false;
   DiagnosticsEngine &Diag;
+
+  // Check whether the object is bit-wise copyable
+  bool copyableToKernel(const FieldDecl *FD, const QualType &FieldTy) {
+    // C++ lambda capture already flags non-constant array types.
+    // Here, we check copyability.
+    if (FieldTy->isConstantArrayType()) {
+      const ConstantArrayType *CAT = cast<ConstantArrayType>(FieldTy);
+      QualType ET = CAT->getElementType();
+      return copyableToKernel(FD, ET);
+    }
+    if (SemaRef.getASTContext().getLangOpts().SYCLStdLayoutKernelParams) {
+      if (!FieldTy->isStandardLayoutType()) {
+        SemaRef.getASTContext().getDiagnostics().Report(
+            FD->getLocation(), diag::err_sycl_non_std_layout_type)
+            << FieldTy;
+        return false;
+      }
+    }
+    if (!FieldTy->isStructureOrClassType()) {
+      return true;
+    }
+    CXXRecordDecl *RD =
+        cast<CXXRecordDecl>(FieldTy->getAs<RecordType>()->getDecl());
+    if (!RD->hasTrivialCopyConstructor()) {
+      SemaRef.getASTContext().getDiagnostics().Report(
+          FD->getLocation(), diag::err_sycl_non_trivially_copy_ctor_dtor_type)
+          << 0 << FieldTy;
+      return false;
+    }
+    if (!RD->hasTrivialDestructor()) {
+      SemaRef.getASTContext().getDiagnostics().Report(
+          FD->getLocation(), diag::err_sycl_non_trivially_copy_ctor_dtor_type)
+          << 1 << FieldTy;
+      return false;
+    }
+    return true;
+  }
 
 public:
   SyclKernelFieldChecker(Sema &S)
@@ -810,33 +889,17 @@ public:
     IsInvalid = Diag.Report(FD->getLocation(), diag::err_bad_kernel_param_type)
                 << FieldTy;
   }
-  void handleStructType(FieldDecl *FD, QualType FieldTy) final {
-    if (SemaRef.getASTContext().getLangOpts().SYCLStdLayoutKernelParams &&
-        !FieldTy->isStandardLayoutType())
-      IsInvalid =
-          Diag.Report(FD->getLocation(), diag::err_sycl_non_std_layout_type)
-          << FieldTy;
-    else {
-      CXXRecordDecl *RD = FieldTy->getAsCXXRecordDecl();
-      if (!RD->hasTrivialCopyConstructor())
 
-        IsInvalid =
-            Diag.Report(FD->getLocation(),
-                        diag::err_sycl_non_trivially_copy_ctor_dtor_type)
-            << 0 << FieldTy;
-      else if (!RD->hasTrivialDestructor())
-        IsInvalid =
-            Diag.Report(FD->getLocation(),
-                        diag::err_sycl_non_trivially_copy_ctor_dtor_type)
-            << 1 << FieldTy;
-    }
+  void handleStructType(FieldDecl *FD, QualType FieldTy) final {
+    IsInvalid = !copyableToKernel(FD, FieldTy);
   }
 
-  // We should be able to handle this, so we made it part of the visitor, but
-  // this is 'to be implemented'.
+  void handleArrayType(const CXXBaseSpecifier &, QualType) final {
+    // FIXME
+  }
+
   void handleArrayType(FieldDecl *FD, QualType FieldTy) final {
-    IsInvalid = Diag.Report(FD->getLocation(), diag::err_bad_kernel_param_type)
-                << FieldTy;
+    IsInvalid = !copyableToKernel(FD, FieldTy);
   }
 
   void handleOtherType(FieldDecl *FD, QualType FieldTy) final {
@@ -1437,20 +1500,23 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
                                                        : CalculatedName);
 
   SyclKernelFieldChecker checker(*this);
-  SyclKernelDeclCreator kernel_decl(*this, checker, KernelName,
-                                    KernelLambda->getLocation(),
-                                    KernelCallerFunc->isInlined());
-  SyclKernelBodyCreator kernel_body(*this, kernel_decl, KernelLambda,
-                                    KernelCallerFunc);
-  SyclKernelIntHeaderCreator int_header(
-      *this, getSyclIntegrationHeader(), KernelLambda,
-      calculateKernelNameType(Context, KernelCallerFunc), KernelName,
-      StableName);
+  VisitRecordFields(KernelLambda->fields(), checker);
+  if (checker.isValid()) {
+    SyclKernelDeclCreator kernel_decl(*this, checker, KernelName,
+                                      KernelLambda->getLocation(),
+                                      KernelCallerFunc->isInlined());
+    SyclKernelBodyCreator kernel_body(*this, kernel_decl, KernelLambda,
+                                      KernelCallerFunc);
+    SyclKernelIntHeaderCreator int_header(
+        *this, getSyclIntegrationHeader(), KernelLambda,
+        calculateKernelNameType(Context, KernelCallerFunc), KernelName,
+        StableName);
 
-  ConstructingOpenCLKernel = true;
-  VisitRecordFields(KernelLambda->fields(), checker, kernel_decl, kernel_body,
-                    int_header);
-  ConstructingOpenCLKernel = false;
+    ConstructingOpenCLKernel = true;
+    VisitRecordFields(KernelLambda->fields(), kernel_decl, kernel_body,
+                      int_header);
+    ConstructingOpenCLKernel = false;
+  }
 }
 
 void Sema::MarkDevice(void) {
