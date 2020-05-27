@@ -4,14 +4,6 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
-//==---- bit_cast.cpp - SYCL bit_cast test -------------------==//
-//
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-//
-//===----------------------------------------------------------------------===//
-
 #include <CL/sycl.hpp>
 
 #include <iostream>
@@ -45,7 +37,7 @@ int test(const From &ValueToConvert, const To &Expected) {
   bool isActualEqualsToExpected = false;
   if (std::is_integral<To>::value) {
     isActualEqualsToExpected = Actual == Expected;
-  } else if ((std::is_floating_point<To>::value) || std::is_same<To, cl::sycl::half>::value)) {
+  } else if ((std::is_floating_point<To>::value) || std::is_same<To, cl::sycl::half>::value) {
       static const float Epsilon = 0.0000001f;
       isActualEqualsToExpected = fabs(Actual - Expected) < Epsilon;
     }
