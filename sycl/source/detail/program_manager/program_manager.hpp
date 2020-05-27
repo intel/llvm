@@ -75,6 +75,7 @@ public:
   ///        current specialization constants settings; can be nullptr.
   ///        Passing as a raw pointer is OK, since it is not captured anywhere
   ///        once the function returns.
+  /// \param FromProgramApi indicates that it came from a public program API
   RT::PiProgram getBuiltPIProgram(OSModuleHandle M, const context &Context,
                                   const string_class &KernelName,
                                   const program_impl *Prg = nullptr,

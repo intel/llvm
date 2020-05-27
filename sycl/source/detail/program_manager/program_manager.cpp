@@ -665,7 +665,7 @@ RTDeviceBinaryImage &ProgramManager::getDeviceImage(OSModuleHandle M,
       getFirstDevice(Ctx), RawImgs.data(), (cl_uint)RawImgs.size(), &ImgInd);
 
   if (FromProgramApi) {
-    // if the image is already compiled with AOT then throws exception
+    // If the image is already compiled with AOT, throw an exception.
     const pi_device_binary_struct &RawImg = Imgs[ImgInd]->getRawData();
     if ((strcmp(RawImg.DeviceTargetSpec,
                 PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64) == 0) ||

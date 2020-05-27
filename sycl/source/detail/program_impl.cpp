@@ -231,7 +231,8 @@ void program_impl::build_with_kernel_name(string_class KernelName,
     if (is_cacheable_with_options(BuildOptions)) {
       MProgramAndKernelCachingAllowed = true;
       MProgram = ProgramManager::getInstance().getBuiltPIProgram(
-          Module, get_context(), KernelName, this, true);
+          Module, get_context(), KernelName, this,
+          /*FromProgramApi=*/true);
       const detail::plugin &Plugin = getPlugin();
       Plugin.call<PiApiKind::piProgramRetain>(MProgram);
     } else {
@@ -440,7 +441,8 @@ void program_impl::create_pi_program_with_kernel_name(
   assert(!MProgram && "This program already has an encapsulated PI program");
   ProgramManager &PM = ProgramManager::getInstance();
   RTDeviceBinaryImage &Img =
-      PM.getDeviceImage(Module, KernelName, get_context(), true);
+      PM.getDeviceImage(Module, KernelName, get_context(),
+                        /*FromProgramApi=*/true);
   MProgram = PM.createPIProgram(Img, get_context());
 }
 
