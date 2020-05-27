@@ -8,8 +8,8 @@
 
 #pragma once
 
-#include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/access/access.hpp>
+#include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/detail/accessor_impl.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/defines.hpp>
@@ -46,8 +46,8 @@ public:
             access::mode Mode, access::target Target, access::placeholder IsPlh>
   typename std::enable_if<
       Target != access::target::host_buffer,
-      typename interop<BackendName, accessor<DataT, Dims, Mode, Target,
-                       IsPlh>>::type>::type
+      typename interop<BackendName,
+                       accessor<DataT, Dims, Mode, Target, IsPlh>>::type>::type
   get_native_mem(const accessor<DataT, Dims, Mode, Target, IsPlh> &Acc) const {
 #ifndef __SYCL_DEVICE_ONLY__
     // employ reinterpret_cast instead of static_cast due to cycle in includes
@@ -67,8 +67,8 @@ public:
             access::mode Mode, access::target Target, access::placeholder IsPlh>
   typename std::enable_if<
       Target == access::target::host_buffer,
-      typename interop<BackendName, accessor<DataT, Dims, Mode, Target,
-                       IsPlh>>::type>::type
+      typename interop<BackendName,
+                       accessor<DataT, Dims, Mode, Target, IsPlh>>::type>::type
   get_native_mem(const accessor<DataT, Dims, Mode, Target, IsPlh> &Acc) const {
     throw invalid_object_error("Getting memory object out of host accessor is "
                                "not allowed",
@@ -85,10 +85,9 @@ public:
   /// with the same SYCL command queue are not executing commands while the host
   /// task is executing.
   template <backend BackendName = backend::opencl>
-  auto
-  get_native_queue() const noexcept ->
+  auto get_native_queue() const noexcept ->
       typename interop<BackendName, queue>::type {
-     return reinterpret_cast<typename interop<BackendName, queue>::type>(
+    return reinterpret_cast<typename interop<BackendName, queue>::type>(
         getNativeQueue());
   }
 
@@ -97,9 +96,8 @@ public:
   /// is re-trying execution on an OpenCL queue.
   template <backend BackendName = backend::opencl>
   auto get_native_device() const noexcept ->
-      typename interop<BackendName, device>::type
-  {
-     return reinterpret_cast<typename interop<BackendName, device>::type>(
+      typename interop<BackendName, device>::type {
+    return reinterpret_cast<typename interop<BackendName, device>::type>(
         getNativeDevice());
   }
 
@@ -108,9 +106,8 @@ public:
   /// is re-trying execution on an OpenCL queue.
   template <backend BackendName = backend::opencl>
   auto get_native_context() const noexcept ->
-      typename interop<BackendName, context>::type
-  {
-     return reinterpret_cast<typename interop<BackendName, context>::type>(
+      typename interop<BackendName, context>::type {
+    return reinterpret_cast<typename interop<BackendName, context>::type>(
         getNativeContext());
   }
 
@@ -127,13 +124,13 @@ public:
         MMemObjs(std::move(MemObjs)) {}
 
 private:
-  template <backend BackendName, typename DataT, int Dims,
-            access::mode Mode, access::target Target, access::placeholder IsPlh>
-  auto getMemImpl(detail::Requirement *Req) const -> typename interop<
-      BackendName, accessor<DataT, Dims, Mode, Target, IsPlh>>::type {
-    return reinterpret_cast<
-        typename interop<BackendName,
-                         accessor<DataT, Dims, Mode, Target, IsPlh>>::type>(
+  template <backend BackendName, typename DataT, int Dims, access::mode Mode,
+            access::target Target, access::placeholder IsPlh>
+  auto getMemImpl(detail::Requirement *Req) const ->
+      typename interop<BackendName,
+                       accessor<DataT, Dims, Mode, Target, IsPlh>>::type {
+    return reinterpret_cast<typename interop<
+        BackendName, accessor<DataT, Dims, Mode, Target, IsPlh>>::type>(
         getNativeMem(Req));
   }
 
