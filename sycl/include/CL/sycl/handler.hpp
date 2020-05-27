@@ -150,8 +150,8 @@ typename std::enable_if<std::is_same<T, range<Dims>>::value ||
                         std::is_same<T, id<Dims>>::value>::type
 checkValueRange(const T &V) {
 #if defined(__SYCL_ID_QUERIES_FIT_IN_INT__)
-  static constexpr size_t Limit = static_cast<size_t>(
-      std::numeric_limits<int>::max());
+  static constexpr size_t Limit =
+      static_cast<size_t>(std::numeric_limits<int>::max());
   for (size_t Dim = 0; Dim < Dims; ++Dim)
     if (V[Dim] > Limit)
       throw runtime_error(NotIntMsg<T>::Msg, PI_INVALID_VALUE);
