@@ -1,7 +1,7 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t1.out
-// RUN: env SYCL_DEVICE_TYPE=HOST %t1.out
-// RUN: %CPU_RUN_PLACEHOLDER %t1.out
-// RUN: %GPU_RUN_PLACEHOLDER %t1.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: env SYCL_DEVICE_TYPE=HOST %t.out
+// RUN: %CPU_RUN_PLACEHOLDER %t.out
+// RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
 //==---- bit_cast.cpp - SYCL bit_cast test -------------------==//
@@ -45,11 +45,12 @@ int test(const From &ValueToConvert, const To &Expected) {
   bool isActualEqualsToExpected = false;
   if (std::is_integral<To>::value) {
     isActualEqualsToExpected = Actual == Expected;
-  } else if ((std::is_floating_point<To>::value) || typeid(To) == typeid(cl::sycl::half)) {
-    static const float Epsilon = 0.0000001f;
-    isActualEqualsToExpected = fabs(Actual - Expected) < Epsilon;
-  } else {
-    std::cerr << "Type " << typeid(To).name() << " neither integral not floating point\n";
+  } else if ((std::is_floating_point<To>::value) || std::is_same<To, cl::sycl::half>::value)) {
+      static const float Epsilon = 0.0000001f;
+      isActualEqualsToExpected = fabs(Actual - Expected) < Epsilon;
+    }
+  else {
+    std::cerr << "Type " << typeid(To).name() << " neither integral nor floating point\n";
     return 1;
   }
   if (!isActualEqualsToExpected) {
