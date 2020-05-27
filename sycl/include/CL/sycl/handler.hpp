@@ -8,11 +8,14 @@
 
 #pragma once
 
+#include <CL/sycl/accessor.hpp>
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/atomic.hpp>
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/cg.hpp>
+#include <CL/sycl/detail/cg_types.hpp>
 #include <CL/sycl/detail/export.hpp>
+#include <CL/sycl/detail/handler_proxy.hpp>
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/event.hpp>
 #include <CL/sycl/id.hpp>
@@ -287,10 +290,12 @@ private:
 
   bool is_host() { return MIsHost; }
 
-  template <typename T, int Dims, access::mode AccMode,
-            access::target AccTarget, access::placeholder IsPH>
-  void associateWithHandler(accessor<T, Dims, AccMode, AccTarget, IsPH> Acc) {
-    detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Acc;
+//  template <typename T, int Dims, access::mode AccMode,
+//            access::target AccTarget, access::placeholder IsPH>
+//  void associateWithHandler(accessor<T, Dims, AccMode, AccTarget, IsPH> Acc) {
+  void associateWithHandler(detail::AccessorBaseHost *AccBase,
+                            access::target AccTarget) {
+//    detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Acc;
     detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
     detail::Requirement *Req = AccImpl.get();
     // Add accessor to the list of requirements.
@@ -711,7 +716,11 @@ public:
   void
   require(accessor<DataT, Dims, AccMode, AccTarget, access::placeholder::true_t>
               Acc) {
-    associateWithHandler(Acc);
+#ifndef __SYCL_DEVICE_ONLY__
+    associateWithHandler(/*(detail::AccessorBaseHost *)*/&Acc, AccTarget);
+#else
+    (void)Acc;
+#endif
   }
 
   /// Registers event dependencies on this command group.
@@ -935,8 +944,10 @@ public:
     // Copy from RWAcc to some temp memory.
     handler CopyHandler(QueueCopy, MIsHost);
     CopyHandler.saveCodeLoc(MCodeLoc);
-    CopyHandler.associateWithHandler(RWAcc);
+#ifndef __SYCL_DEVICE_ONLY__
+    CopyHandler.associateWithHandler(&RWAcc, access::target::global_buffer);
     Redu.associateWithHandler(CopyHandler);
+#endif
     CopyHandler.copy(RWAcc, Redu.getUserAccessor());
     MLastEvent = CopyHandler.finalize();
   }
@@ -1686,6 +1697,9 @@ private:
   template <typename T, class BinaryOperation, int Dims, bool IsUSM,
             access::mode AccMode, access::placeholder IsPlaceholder>
   friend class intel::detail::reduction_impl;
+
+  friend void detail::associateWithHandler(
+      handler &, detail::AccessorBaseHost *, access::target);
 };
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

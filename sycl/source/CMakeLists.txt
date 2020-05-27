@@ -112,6 +112,7 @@ set(SYCL_SOURCES
     "detail/event_impl.cpp"
     "detail/force_device.cpp"
     "detail/helpers.cpp"
+    "detail/handler_proxy.cpp"
     "detail/image_accessor_util.cpp"
     "detail/image_impl.cpp"
     "detail/kernel_impl.cpp"

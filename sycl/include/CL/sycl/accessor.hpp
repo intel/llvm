@@ -15,10 +15,10 @@
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/generic_type_traits.hpp>
+#include <CL/sycl/detail/handler_proxy.hpp>
 #include <CL/sycl/detail/image_accessor_util.hpp>
 #include <CL/sycl/detail/image_ocl_types.hpp>
 #include <CL/sycl/exception.hpp>
-#include <CL/sycl/handler.hpp>
 #include <CL/sycl/id.hpp>
 #include <CL/sycl/image.hpp>
 #include <CL/sycl/pointers.hpp>
@@ -797,7 +797,7 @@ public:
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()), AccessMode,
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
-    CommandGroupHandler.associateWithHandler(*this);
+    detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
   }
 #endif
 
@@ -839,7 +839,7 @@ public:
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()), AccessMode,
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
-    CommandGroupHandler.associateWithHandler(*this);
+    detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
   }
 #endif
 
@@ -883,7 +883,7 @@ public:
                          AccessMode, detail::getSyclObjImpl(BufferRef).get(),
                          Dimensions, sizeof(DataT), BufferRef.OffsetInBytes,
                          BufferRef.IsSubBuffer) {
-    CommandGroupHandler.associateWithHandler(*this);
+    detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
   }
 #endif
 
@@ -1186,7 +1186,10 @@ public:
                                access::target::image, IsPlaceholder>(
             Image, CommandGroupHandler,
             (detail::getSyclObjImpl(Image))->getElementSize()) {
-    CommandGroupHandler.associateWithHandler(*this);
+#ifndef __SYCL_DEVICE_ONLY__
+    detail::associateWithHandler(CommandGroupHandler, this,
+                                 access::target::image);
+#endif
   }
 #ifdef __SYCL_DEVICE_ONLY__
 private:
@@ -1254,7 +1257,10 @@ public:
                                access::target::image, IsPlaceholder>(
             Image, CommandGroupHandler,
             (detail::getSyclObjImpl(Image))->getElementSize()) {
-    CommandGroupHandler.associateWithHandler(*this);
+#ifndef __SYCL_DEVICE_ONLY__
+    detail::associateWithHandler(CommandGroupHandler, this,
+                                 access::target::image_array);
+#endif
   }
 
   detail::__image_array_slice__<DataT, Dimensions, AccessMode, IsPlaceholder>
