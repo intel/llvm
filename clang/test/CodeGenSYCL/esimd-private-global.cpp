@@ -5,10 +5,10 @@
 // This test checks that FE allows globals with register_num attribute in ESIMD mode.
 
 __attribute__((opencl_private)) __attribute__((register_num(17))) int vc;
-
-// CHECK-DAG: @vc = {{.+}} i32 0, align 4 #0
-// CHECK-DAG: attributes #0 = { "genx_byte_offset"="17" "genx_volatile" }
+// CHECK: @vc = {{.+}} i32 0, align 4 #0
 
 SYCL_EXTERNAL void init_vc(int x) {
   vc = x;
+  // CHECK: store i32 %0, i32* @vc
 }
+// CHECK: attributes #0 = { "genx_byte_offset"="17" "genx_volatile" }

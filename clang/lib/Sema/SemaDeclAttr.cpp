@@ -4504,7 +4504,8 @@ static void handleSYCLRegisterNumAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
         << AL << 0;
     return;
   }
-  assert(AL.getNumArgs() == 1);
+  if (!checkAttributeNumArgs(S, AL, 1))
+    return;
   uint32_t RegNo = 0;
   const Expr *E = AL.getArgAsExpr(0);
   if (!checkUInt32Argument(S, AL, E, RegNo, 0, /*StrictlyUnsigned=*/true))

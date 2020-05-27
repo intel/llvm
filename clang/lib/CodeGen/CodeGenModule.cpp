@@ -3885,13 +3885,6 @@ LangAS CodeGenModule::GetGlobalVarAddressSpace(const VarDecl *D) {
     if (!D || D->getType().getAddressSpace() == LangAS::Default) {
       return LangAS::opencl_global;
     }
-    if (D)
-      AddrSpace = D->getType().getAddressSpace();
-    if (AddrSpace == LangAS::opencl_private ||
-        AddrSpace == LangAS::opencl_local)
-      // SYCL explicit SIMD path: recognize globals in private or local address
-      // space.
-      return AddrSpace;
   }
 
   if (LangOpts.CUDA && LangOpts.CUDAIsDevice) {
