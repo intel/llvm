@@ -423,8 +423,10 @@
 // CHK-LINK-UB: 0: input, "[[INPUT:.+\.o]]", object
 // CHK-LINK-UB: 1: clang-offload-unbundler, {0}, object
 // CHK-LINK-UB: 2: linker, {1}, image, (device-sycl)
-// CHK-LINK-UB: 3: clang-offload-wrapper, {2}, object, (device-sycl)
-// CHK-LINK-UB: 4: offload, "device-sycl (spir64-unknown-unknown-sycldevice{{.*}})" {3}, object
+// CHK-LINK-UB: 3: sycl-post-link, {2}, ir, (device-sycl)
+// CHK-LINK-UB: 4: llvm-spirv, {3}, image, (device-sycl)
+// CHK-LINK-UB: 5: clang-offload-wrapper, {4}, object, (device-sycl)
+// CHK-LINK-UB: 6: offload, "device-sycl (spir64-unknown-unknown-sycldevice)" {5}, object
 
 /// ###########################################################################
 
@@ -437,8 +439,10 @@
 // CHK-LINK: 1: preprocessor, {0}, cpp-output, (device-sycl)
 // CHK-LINK: 2: compiler, {1}, ir, (device-sycl)
 // CHK-LINK: 3: linker, {2}, image, (device-sycl)
-// CHK-LINK: 4: clang-offload-wrapper, {3}, object, (device-sycl)
-// CHK-LINK: 5: offload, "device-sycl (spir64-unknown-unknown-sycldevice{{.*}})" {4}, object
+// CHK-LINK: 4: sycl-post-link, {3}, ir, (device-sycl)
+// CHK-LINK: 5: llvm-spirv, {4}, image, (device-sycl)
+// CHK-LINK: 6: clang-offload-wrapper, {5}, object, (device-sycl)
+// CHK-LINK: 7: offload, "device-sycl (spir64-unknown-unknown-sycldevice)" {6}, object
 
 /// ###########################################################################
 
