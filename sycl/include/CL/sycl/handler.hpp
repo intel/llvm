@@ -25,6 +25,7 @@
 
 #include <algorithm>
 #include <functional>
+#include <limits>
 #include <memory>
 #include <type_traits>
 
@@ -133,23 +134,24 @@ template <typename T> struct NotIntMsg;
 
 template <int Dims> struct NotIntMsg<range<Dims>> {
   constexpr static char *Msg = "Provided range is out of integer limits. "
-                               "Suggest disabling `id-queries-fit-in-int32' "
-                               "optimizations flag.";
+                               "Suggest disabling `fsycl-id-queries-fit-in-int'"
+                               " optimizations flag.";
 };
 
 template <int Dims> struct NotIntMsg<id<Dims>> {
   constexpr static char *Msg = "Provided offset is out of integer limits. "
-                               "Suggest disabling `id-queries-fit-in-int32' "
-                               "optimizations flag.";
+                               "Suggest disabling `fsycl-id-queries-fit-in-int'"
+                               " optimizations flag.";
 };
 #endif
 
 template <int Dims, typename T>
 typename std::enable_if<std::is_same<T, range<Dims>>::value ||
                         std::is_same<T, id<Dims>>::value>::type
-throwIfNotInt(const T &V) {
+checkValueRange(const T &V) {
 #if defined(__SYCL_ID_QUERIES_FIT_IN_INT__)
-  static constexpr size_t Limit = static_cast<size_t>(INT_MAX);
+  static constexpr size_t Limit = static_cast<size_t>(
+      std::numeric_limits<int>::max());
   for (size_t Dim = 0; Dim < Dims; ++Dim)
     if (V[Dim] > Limit)
       throw runtime_error(NotIntMsg<T>::Msg, PI_INVALID_VALUE);
@@ -824,7 +826,7 @@ public:
     (void)NumWorkItems;
     kernel_parallel_for<NameT, KernelType, Dims>(KernelFunc);
 #else
-    detail::throwIfNotInt<Dims>(NumWorkItems);
+    detail::checkValueRange<Dims>(NumWorkItems);
     MNDRDesc.set(std::move(NumWorkItems));
     StoreLambda<NameT, KernelType, Dims>(std::move(KernelFunc));
     MCGType = detail::CG::KERNEL;
@@ -885,8 +887,8 @@ public:
     (void)WorkItemOffset;
     kernel_parallel_for<NameT, KernelType, Dims>(KernelFunc);
 #else
-    detail::throwIfNotInt<Dims>(NumWorkItems);
-    detail::throwIfNotInt<Dims>(WorkItemOffset);
+    detail::checkValueRange<Dims>(NumWorkItems);
+    detail::checkValueRange<Dims>(WorkItemOffset);
     MNDRDesc.set(std::move(NumWorkItems), std::move(WorkItemOffset));
     StoreLambda<NameT, KernelType, Dims>(std::move(KernelFunc));
     MCGType = detail::CG::KERNEL;
@@ -915,9 +917,9 @@ public:
     (void)ExecutionRange;
     kernel_parallel_for_nd_range<NameT, KernelType, Dims>(KernelFunc);
 #else
-    detail::throwIfNotInt<Dims>(ExecutionRange.get_global_range());
-    detail::throwIfNotInt<Dims>(ExecutionRange.get_local_range());
-    detail::throwIfNotInt<Dims>(ExecutionRange.get_offset());
+    detail::checkValueRange<Dims>(ExecutionRange.get_global_range());
+    detail::checkValueRange<Dims>(ExecutionRange.get_local_range());
+    detail::checkValueRange<Dims>(ExecutionRange.get_offset());
     MNDRDesc.set(std::move(ExecutionRange));
     StoreLambda<NameT, KernelType, Dims>(std::move(KernelFunc));
     MCGType = detail::CG::KERNEL;
@@ -1087,7 +1089,7 @@ public:
     (void)NumWorkGroups;
     kernel_parallel_for_work_group<NameT, KernelType, Dims>(KernelFunc);
 #else
-    detail::throwIfNotInt<Dims>(NumWorkGroups);
+    detail::checkValueRange<Dims>(NumWorkGroups);
     MNDRDesc.setNumWorkGroups(NumWorkGroups);
     StoreLambda<NameT, KernelType, Dims>(std::move(KernelFunc));
     MCGType = detail::CG::KERNEL;
@@ -1121,9 +1123,9 @@ public:
 #else
     nd_range<Dims> ExecRange =
         nd_range<Dims>(NumWorkGroups * WorkGroupSize, WorkGroupSize);
-    detail::throwIfNotInt<Dims>(ExecRange.get_global_range());
-    detail::throwIfNotInt<Dims>(ExecRange.get_local_range());
-    detail::throwIfNotInt<Dims>(ExecRange.get_offset());
+    detail::checkValueRange<Dims>(ExecRange.get_global_range());
+    detail::checkValueRange<Dims>(ExecRange.get_local_range());
+    detail::checkValueRange<Dims>(ExecRange.get_offset());
     MNDRDesc.set(std::move(ExecRange));
     StoreLambda<NameT, KernelType, Dims>(std::move(KernelFunc));
     MCGType = detail::CG::KERNEL;
@@ -1159,7 +1161,7 @@ public:
     throwIfActionIsCreated();
     verifyKernelInvoc(Kenrel);
     MKernel = detail::getSyclObjImpl(std::move(Kenrel));
-    detail::throwIfNotInt<Dims>(NumWorkItems);
+    detail::checkValueRange<Dims>(NumWorkItems);
     MNDRDesc.set(std::move(NumWorkItems));
     MCGType = detail::CG::KERNEL;
     extractArgsAndReqs();
@@ -1179,8 +1181,8 @@ public:
     throwIfActionIsCreated();
     verifyKernelInvoc(Kernel);
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
-    detail::throwIfNotInt<Dims>(NumWorkItems);
-    detail::throwIfNotInt<Dims>(WorkItemOffset);
+    detail::checkValueRange<Dims>(NumWorkItems);
+    detail::checkValueRange<Dims>(WorkItemOffset);
     MNDRDesc.set(std::move(NumWorkItems), std::move(WorkItemOffset));
     MCGType = detail::CG::KERNEL;
     extractArgsAndReqs();
@@ -1198,9 +1200,9 @@ public:
     throwIfActionIsCreated();
     verifyKernelInvoc(Kernel);
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
-    detail::throwIfNotInt<Dims>(NDRange.get_global_range());
-    detail::throwIfNotInt<Dims>(NDRange.get_local_range());
-    detail::throwIfNotInt<Dims>(NDRange.get_offset());
+    detail::checkValueRange<Dims>(NDRange.get_global_range());
+    detail::checkValueRange<Dims>(NDRange.get_local_range());
+    detail::checkValueRange<Dims>(NDRange.get_offset());
     MNDRDesc.set(std::move(NDRange));
     MCGType = detail::CG::KERNEL;
     extractArgsAndReqs();
@@ -1261,7 +1263,7 @@ public:
     (void)NumWorkItems;
     kernel_parallel_for<NameT, KernelType, Dims>(KernelFunc);
 #else
-    detail::throwIfNotInt<Dims>(NumWorkItems);
+    detail::checkValueRange<Dims>(NumWorkItems);
     MNDRDesc.set(std::move(NumWorkItems));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     MCGType = detail::CG::KERNEL;
@@ -1294,8 +1296,8 @@ public:
     (void)WorkItemOffset;
     kernel_parallel_for<NameT, KernelType, Dims>(KernelFunc);
 #else
-    detail::throwIfNotInt<Dims>(NumWorkItems);
-    detail::throwIfNotInt<Dims>(WorkItemOffset);
+    detail::checkValueRange<Dims>(NumWorkItems);
+    detail::checkValueRange<Dims>(WorkItemOffset);
     MNDRDesc.set(std::move(NumWorkItems), std::move(WorkItemOffset));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     MCGType = detail::CG::KERNEL;
@@ -1327,9 +1329,9 @@ public:
     (void)NDRange;
     kernel_parallel_for_nd_range<NameT, KernelType, Dims>(KernelFunc);
 #else
-    detail::throwIfNotInt<Dims>(NDRange.get_global_range());
-    detail::throwIfNotInt<Dims>(NDRange.get_local_range());
-    detail::throwIfNotInt<Dims>(NDRange.get_offset());
+    detail::checkValueRange<Dims>(NDRange.get_global_range());
+    detail::checkValueRange<Dims>(NDRange.get_local_range());
+    detail::checkValueRange<Dims>(NDRange.get_offset());
     MNDRDesc.set(std::move(NDRange));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     MCGType = detail::CG::KERNEL;
@@ -1365,7 +1367,7 @@ public:
     (void)NumWorkGroups;
     kernel_parallel_for_work_group<NameT, KernelType, Dims>(KernelFunc);
 #else
-    detail::throwIfNotInt<Dims>(NumWorkGroups);
+    detail::checkValueRange<Dims>(NumWorkGroups);
     MNDRDesc.setNumWorkGroups(NumWorkGroups);
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     StoreLambda<NameT, KernelType, Dims>(std::move(KernelFunc));
@@ -1404,9 +1406,9 @@ public:
 #else
     nd_range<Dims> ExecRange =
         nd_range<Dims>(NumWorkGroups * WorkGroupSize, WorkGroupSize);
-    detail::throwIfNotInt<Dims>(ExecRange.get_global_range());
-    detail::throwIfNotInt<Dims>(ExecRange.get_local_range());
-    detail::throwIfNotInt<Dims>(ExecRange.get_offset());
+    detail::checkValueRange<Dims>(ExecRange.get_global_range());
+    detail::checkValueRange<Dims>(ExecRange.get_local_range());
+    detail::checkValueRange<Dims>(ExecRange.get_offset());
     MNDRDesc.set(std::move(ExecRange));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     StoreLambda<NameT, KernelType, Dims>(std::move(KernelFunc));
