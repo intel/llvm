@@ -11,6 +11,7 @@
 #include <CL/sycl/image.hpp>
 #include <detail/context_impl.hpp>
 
+#include <algorithm>
 #include <vector>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -20,7 +21,6 @@ namespace detail {
 template <info::device Param>
 static bool checkImageValueRange(const std::vector<device> &Devices,
                                  const size_t Value) {
-  // const auto &Devices = getDevices(Context);
   return Value >= 1 && std::all_of(Devices.cbegin(), Devices.cend(),
                                    [Value](const device &Dev) {
                                      return Value <= Dev.get_info<Param>();
