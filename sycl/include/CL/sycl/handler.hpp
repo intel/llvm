@@ -132,16 +132,18 @@ __SYCL_EXPORT device getDeviceFromHandler(handler &);
 #if defined(__SYCL_ID_QUERIES_FIT_IN_INT__)
 template <typename T> struct NotIntMsg;
 
+// TODO reword for "`fsycl-id-queries-fit-in-int' optimization flag." when
+// implemented
 template <int Dims> struct NotIntMsg<range<Dims>> {
   constexpr static char *Msg = "Provided range is out of integer limits. "
-                               "Suggest disabling `fsycl-id-queries-fit-in-int'"
-                               " optimizations flag.";
+                               "Pass `-U__SYCL_ID_QUERIES_FIT_IN_INT__' to "
+                               "disable range check.";
 };
 
 template <int Dims> struct NotIntMsg<id<Dims>> {
   constexpr static char *Msg = "Provided offset is out of integer limits. "
-                               "Suggest disabling `fsycl-id-queries-fit-in-int'"
-                               " optimizations flag.";
+                               "Pass `-U__SYCL_ID_QUERIES_FIT_IN_INT__' to "
+                               "disable offset check.";
 };
 #endif
 

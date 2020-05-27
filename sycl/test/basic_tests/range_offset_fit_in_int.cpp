@@ -7,9 +7,9 @@
 namespace S = cl::sycl;
 
 void checkRangeException(S::runtime_error &E) {
-  constexpr char Msg[] = "Provided range is out of integer limits. Suggest "
-                         "disabling `fsycl-id-queries-fit-in-int' optimizations"
-                         " flag.";
+  constexpr char Msg[] = "Provided range is out of integer limits. "
+                         "Pass `-U__SYCL_ID_QUERIES_FIT_IN_INT__' to "
+                         "disable range check.";
 
   std::cerr << E.what() << std::endl;
 
@@ -17,9 +17,9 @@ void checkRangeException(S::runtime_error &E) {
 }
 
 void checkOffsetException(S::runtime_error &E) {
-  constexpr char Msg[] = "Provided offset is out of integer limits. Suggest "
-                         "disabling `fsycl-id-queries-fit-in-int' optimizations"
-                         " flag.";
+  constexpr char Msg[] = "Provided offset is out of integer limits. "
+                         "Pass `-U__SYCL_ID_QUERIES_FIT_IN_INT__' to "
+                         "disable offset check.";
 
   std::cerr << E.what() << std::endl;
 
