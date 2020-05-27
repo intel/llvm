@@ -8,20 +8,40 @@
 
 #include <CL/sycl/detail/accessor_impl.hpp>
 #include <CL/sycl/interop_handle.hpp>
+#include <detail/context_impl.hpp>
+#include <detail/device_impl.hpp>
+#include <detail/queue_impl.hpp>
 
 #include <algorithm>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
-cl_mem interop_handle::getMemImpl(detail::Requirement *Req) const {
+pi_native_handle interop_handle::getNativeMem(detail::Requirement *Req) const {
   auto Iter = std::find_if(std::begin(MMemObjs), std::end(MMemObjs),
                            [=](ReqToMem Elem) { return (Elem.first == Req); });
 
-  if (Iter == std::end(MMemObjs))
+  if (Iter == std::end(MMemObjs)) {
     throw("Invalid memory object used inside interop");
+  }
 
-  return detail::pi::cast<cl_mem>(Iter->second);
+  auto Plugin = MQueue->getPlugin();
+  pi_native_handle Handle;
+  Plugin.call<detail::PiApiKind::piextMemGetNativeHandle>(Iter->second,
+                                                          &Handle);
+  return Handle;
+}
+
+pi_native_handle interop_handle::getNativeDevice() const {
+  return MDevice->getNative();
+}
+
+pi_native_handle interop_handle::getNativeContext() const {
+  return MContext->getNative();
+}
+
+pi_native_handle interop_handle::getNativeQueue() const {
+  return MQueue->getNative();
 }
 
 } // namespace sycl
