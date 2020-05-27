@@ -105,6 +105,22 @@ static void foreachKernelArgMD(
   }
 }
 
+static SPIRVMemoryModelKind getMemoryModel(Module &M) {
+  auto *MemoryModelMD = M.getNamedMetadata(kSPIRVMD::MemoryModel);
+  if (MemoryModelMD && (MemoryModelMD->getNumOperands() > 0)) {
+    auto *Ref0 = MemoryModelMD->getOperand(0);
+    if (Ref0 && Ref0->getNumOperands() > 1) {
+      auto &&ModelOp = Ref0->getOperand(1);
+      auto *ModelCI = mdconst::dyn_extract<ConstantInt>(ModelOp);
+      if (ModelCI && (ModelCI->getValue().getActiveBits() <= 64)) {
+        auto Model = static_cast<SPIRVMemoryModelKind>(ModelCI->getZExtValue());
+        return Model;
+      }
+    }
+  }
+  return SPIRVMemoryModelKind::MemoryModelMax;
+}
+
 LLVMToSPIRV::LLVMToSPIRV(SPIRVModule *SMod)
     : ModulePass(ID), M(nullptr), Ctx(nullptr), BM(SMod), SrcLang(0),
       SrcLangVer(0) {
@@ -2362,7 +2378,7 @@ bool LLVMToSPIRV::translate() {
   for (auto I : Defs)
     transFunction(I);
 
-  if (!transOCLKernelMetadata())
+  if (!transMetadata())
     return false;
   if (!transExecutionMode())
     return false;
@@ -2565,7 +2581,18 @@ void LLVMToSPIRV::transFPContract() {
   }
 }
 
-bool LLVMToSPIRV::transOCLKernelMetadata() {
+bool LLVMToSPIRV::transMetadata() {
+  if (!transOCLMetadata())
+    return false;
+
+  auto Model = getMemoryModel(*M);
+  if (Model != SPIRVMemoryModelKind::MemoryModelMax)
+    BM->setMemoryModel(static_cast<SPIRVMemoryModelKind>(Model));
+
+  return true;
+}
+
+bool LLVMToSPIRV::transOCLMetadata() {
   for (auto &F : *M) {
     if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
       continue;

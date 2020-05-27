@@ -3345,6 +3345,11 @@ bool SPIRVToLLVM::transMetadata() {
                      getMDNodeStringIntVec(Context, EM->getLiterals()));
     }
   }
+  NamedMDNode *MemoryModelMD =
+      M->getOrInsertNamedMetadata(kSPIRVMD::MemoryModel);
+  MemoryModelMD->addOperand(
+      getMDTwoInt(Context, static_cast<unsigned>(BM->getAddressingModel()),
+                  static_cast<unsigned>(BM->getMemoryModel())));
   return true;
 }
 
