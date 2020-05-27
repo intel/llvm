@@ -91,12 +91,6 @@ public:
 private:
   using ReqToMem = std::pair<detail::Requirement *, pi_mem>;
 
-  template <typename DataT, int Dims, access::mode AccMode,
-            access::target AccTarget, access::placeholder isPlaceholder>
-  friend class accessor;
-  friend class detail::ExecCGCommand;
-  friend class detail::DispatchHostTask;
-
 public:
   // TODO set c-tor private
   interop_handle(std::vector<ReqToMem> MemObjs, cl_command_queue Queue,
