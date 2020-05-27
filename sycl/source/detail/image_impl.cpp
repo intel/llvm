@@ -10,6 +10,7 @@
 #include <CL/sycl/detail/memory_manager.hpp>
 #include <CL/sycl/image.hpp>
 #include <detail/context_impl.hpp>
+
 #include <vector>
 
 __SYCL_INLINE_NAMESPACE(cl) {
