@@ -25,6 +25,10 @@ class Builder;
 template <int dimensions> class id;
 template <int dimensions> class range;
 
+/// Identifies an instance of the function object executing at each point
+/// in a range.
+///
+/// \ingroup sycl_api
 template <int dimensions = 1, bool with_offset = true> class item {
 public:
   item() = delete;

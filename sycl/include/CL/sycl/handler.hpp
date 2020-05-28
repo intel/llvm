@@ -170,7 +170,7 @@ reduAuxCGFunc(handler &CGH, const nd_range<Dims> &Range, size_t NWorkItems,
 } // namespace detail
 } // namespace intel
 
-/// 4.8.3 Command group handler class
+/// Command group handler class.
 ///
 /// Objects of the handler class collect information about command group, such
 /// as kernel, requirements to the memory, arguments for the kernel.
@@ -197,6 +197,12 @@ reduAuxCGFunc(handler &CGH, const nd_range<Dims> &Range, size_t NWorkItems,
 /// end. So, handler class contains all fields simultaneously, then during
 /// "finalization" it constructs CG object, that represents specific operation,
 /// passing fields that are required only.
+///
+/// \sa queue
+/// \sa program
+/// \sa kernel
+///
+/// \ingroup sycl_api
 class __SYCL_EXPORT handler {
 private:
   /// Constructs SYCL handler from queue.

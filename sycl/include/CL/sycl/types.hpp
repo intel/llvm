@@ -523,6 +523,10 @@ Applied default alignment.")
 #define SYCL_ALIGNAS(N) alignas(N)
 #endif
 
+/// Provides a cross-patform vector class template that works efficiently on
+/// SYCL devices as well as in host C++ code.
+///
+/// \ingroup sycl_api
 template <typename Type, int NumElements> class vec {
   using DataT = Type;
 
@@ -662,7 +666,7 @@ public:
     *this = Rhs.template as<vec>();
     return *this;
   }
-  
+
 #ifdef __SYCL_USE_EXT_VECTOR_TYPE__
   template <typename T = void>
   using EnableIfNotHostHalf = typename std::enable_if<
