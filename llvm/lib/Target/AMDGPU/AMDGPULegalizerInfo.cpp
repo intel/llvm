@@ -66,12 +66,6 @@ static LegalityPredicate isMultiple32(unsigned TypeIdx,
   };
 }
 
-static LegalityPredicate sizeIs(unsigned TypeIdx, unsigned Size) {
-  return [=](const LegalityQuery &Query) {
-    return Query.Types[TypeIdx].getSizeInBits() == Size;
-  };
-}
-
 static LegalityPredicate isSmallOddVector(unsigned TypeIdx) {
   return [=](const LegalityQuery &Query) {
     const LLT Ty = Query.Types[TypeIdx];
@@ -560,9 +554,17 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
       .scalarize(0);
   }
 
-  getActionDefinitionsBuilder({G_PTR_ADD, G_PTR_MASK})
-    .scalarize(0)
-    .alwaysLegal();
+  // FIXME: Clamp offset operand.
+  getActionDefinitionsBuilder(G_PTR_ADD)
+    .legalIf(isPointer(0))
+    .scalarize(0);
+
+  getActionDefinitionsBuilder(G_PTRMASK)
+    .legalIf(typeInSet(1, {S64, S32}))
+    .minScalar(1, S32)
+    .maxScalarIf(sizeIs(0, 32), 1, S32)
+    .maxScalarIf(sizeIs(0, 64), 1, S64)
+    .scalarize(0);
 
   auto &CmpBuilder =
     getActionDefinitionsBuilder(G_ICMP)

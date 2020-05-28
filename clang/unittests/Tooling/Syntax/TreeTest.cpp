@@ -564,7 +564,8 @@ void test() {
     |-{
     |-ExpressionStatement
     | |-UnknownExpression
-    | | |-test
+    | | |-UnknownExpression
+    | | | `-test
     | | |-(
     | | `-)
     | `-;
@@ -576,17 +577,405 @@ void test() {
     | |-)
     | |-ExpressionStatement
     | | |-UnknownExpression
-    | | | |-test
+    | | | |-UnknownExpression
+    | | | | `-test
     | | | |-(
     | | | `-)
     | | `-;
     | |-else
     | `-ExpressionStatement
     |   |-UnknownExpression
-    |   | |-test
+    |   | |-UnknownExpression
+    |   | | `-test
     |   | |-(
     |   | `-)
     |   `-;
+    `-}
+)txt");
+}
+
+TEST_F(SyntaxTreeTest, PostfixUnaryOperator) {
+  expectTreeDumpEqual(
+      R"cpp(
+void test(int a) {
+  a++;
+  a--;
+}
+    )cpp",
+      R"txt(
+*: TranslationUnit
+`-SimpleDeclaration
+  |-void
+  |-SimpleDeclarator
+  | |-test
+  | `-ParametersAndQualifiers
+  |   |-(
+  |   |-SimpleDeclaration
+  |   | |-int
+  |   | `-SimpleDeclarator
+  |   |   `-a
+  |   `-)
+  `-CompoundStatement
+    |-{
+    |-ExpressionStatement
+    | |-PostfixUnaryOperatorExpression
+    | | |-UnknownExpression
+    | | | `-a
+    | | `-++
+    | `-;
+    |-ExpressionStatement
+    | |-PostfixUnaryOperatorExpression
+    | | |-UnknownExpression
+    | | | `-a
+    | | `---
+    | `-;
+    `-}
+)txt");
+}
+
+TEST_F(SyntaxTreeTest, PrefixUnaryOperator) {
+  expectTreeDumpEqual(
+      R"cpp(
+void test(int a, int *ap, bool b) {
+  --a; ++a;
+  ~a; compl a;
+  -a;
+  +a;
+  &a;
+  *ap;
+  !b; not b;
+  __real a; __imag a;
+}
+    )cpp",
+      R"txt(
+*: TranslationUnit
+`-SimpleDeclaration
+  |-void
+  |-SimpleDeclarator
+  | |-test
+  | `-ParametersAndQualifiers
+  |   |-(
+  |   |-SimpleDeclaration
+  |   | |-int
+  |   | `-SimpleDeclarator
+  |   |   `-a
+  |   |-,
+  |   |-SimpleDeclaration
+  |   | |-int
+  |   | `-SimpleDeclarator
+  |   |   |-*
+  |   |   `-ap
+  |   |-,
+  |   |-SimpleDeclaration
+  |   | |-bool
+  |   | `-SimpleDeclarator
+  |   |   `-b
+  |   `-)
+  `-CompoundStatement
+    |-{
+    |-ExpressionStatement
+    | |-PrefixUnaryOperatorExpression
+    | | |---
+    | | `-UnknownExpression
+    | |   `-a
+    | `-;
+    |-ExpressionStatement
+    | |-PrefixUnaryOperatorExpression
+    | | |-++
+    | | `-UnknownExpression
+    | |   `-a
+    | `-;
+    |-ExpressionStatement
+    | |-PrefixUnaryOperatorExpression
+    | | |-~
+    | | `-UnknownExpression
+    | |   `-a
+    | `-;
+    |-ExpressionStatement
+    | |-PrefixUnaryOperatorExpression
+    | | |-compl
+    | | `-UnknownExpression
+    | |   `-a
+    | `-;
+    |-ExpressionStatement
+    | |-PrefixUnaryOperatorExpression
+    | | |--
+    | | `-UnknownExpression
+    | |   `-a
+    | `-;
+    |-ExpressionStatement
+    | |-PrefixUnaryOperatorExpression
+    | | |-+
+    | | `-UnknownExpression
+    | |   `-a
+    | `-;
+    |-ExpressionStatement
+    | |-PrefixUnaryOperatorExpression
+    | | |-&
+    | | `-UnknownExpression
+    | |   `-a
+    | `-;
+    |-ExpressionStatement
+    | |-PrefixUnaryOperatorExpression
+    | | |-*
+    | | `-UnknownExpression
+    | |   `-ap
+    | `-;
+    |-ExpressionStatement
+    | |-PrefixUnaryOperatorExpression
+    | | |-!
+    | | `-UnknownExpression
+    | |   `-b
+    | `-;
+    |-ExpressionStatement
+    | |-PrefixUnaryOperatorExpression
+    | | |-not
+    | | `-UnknownExpression
+    | |   `-b
+    | `-;
+    |-ExpressionStatement
+    | |-PrefixUnaryOperatorExpression
+    | | |-__real
+    | | `-UnknownExpression
+    | |   `-a
+    | `-;
+    |-ExpressionStatement
+    | |-PrefixUnaryOperatorExpression
+    | | |-__imag
+    | | `-UnknownExpression
+    | |   `-a
+    | `-;
+    `-}
+)txt");
+}
+
+TEST_F(SyntaxTreeTest, BinaryOperator) {
+  expectTreeDumpEqual(
+      R"cpp(
+void test(int a) {
+  1 - 2;
+  1 == 2;
+  a = 1;
+  a <<= 1;
+
+  true || false;
+  true or false;
+
+  1 & 2;
+  1 bitand 2;
+
+  a ^= 3;
+  a xor_eq 3;
+}
+    )cpp",
+      R"txt(
+*: TranslationUnit
+`-SimpleDeclaration
+  |-void
+  |-SimpleDeclarator
+  | |-test
+  | `-ParametersAndQualifiers
+  |   |-(
+  |   |-SimpleDeclaration
+  |   | |-int
+  |   | `-SimpleDeclarator
+  |   |   `-a
+  |   `-)
+  `-CompoundStatement
+    |-{
+    |-ExpressionStatement
+    | |-BinaryOperatorExpression
+    | | |-UnknownExpression
+    | | | `-1
+    | | |--
+    | | `-UnknownExpression
+    | |   `-2
+    | `-;
+    |-ExpressionStatement
+    | |-BinaryOperatorExpression
+    | | |-UnknownExpression
+    | | | `-1
+    | | |-==
+    | | `-UnknownExpression
+    | |   `-2
+    | `-;
+    |-ExpressionStatement
+    | |-BinaryOperatorExpression
+    | | |-UnknownExpression
+    | | | `-a
+    | | |-=
+    | | `-UnknownExpression
+    | |   `-1
+    | `-;
+    |-ExpressionStatement
+    | |-BinaryOperatorExpression
+    | | |-UnknownExpression
+    | | | `-a
+    | | |-<<=
+    | | `-UnknownExpression
+    | |   `-1
+    | `-;
+    |-ExpressionStatement
+    | |-BinaryOperatorExpression
+    | | |-UnknownExpression
+    | | | `-true
+    | | |-||
+    | | `-UnknownExpression
+    | |   `-false
+    | `-;
+    |-ExpressionStatement
+    | |-BinaryOperatorExpression
+    | | |-UnknownExpression
+    | | | `-true
+    | | |-or
+    | | `-UnknownExpression
+    | |   `-false
+    | `-;
+    |-ExpressionStatement
+    | |-BinaryOperatorExpression
+    | | |-UnknownExpression
+    | | | `-1
+    | | |-&
+    | | `-UnknownExpression
+    | |   `-2
+    | `-;
+    |-ExpressionStatement
+    | |-BinaryOperatorExpression
+    | | |-UnknownExpression
+    | | | `-1
+    | | |-bitand
+    | | `-UnknownExpression
+    | |   `-2
+    | `-;
+    |-ExpressionStatement
+    | |-BinaryOperatorExpression
+    | | |-UnknownExpression
+    | | | `-a
+    | | |-^=
+    | | `-UnknownExpression
+    | |   `-3
+    | `-;
+    |-ExpressionStatement
+    | |-BinaryOperatorExpression
+    | | |-UnknownExpression
+    | | | `-a
+    | | |-xor_eq
+    | | `-UnknownExpression
+    | |   `-3
+    | `-;
+    `-}
+)txt");
+}
+
+TEST_F(SyntaxTreeTest, NestedBinaryOperator) {
+  expectTreeDumpEqual(
+      R"cpp(
+void test(int a, int b) {
+  (1 + 2) * (4 / 2);
+  a + b + 42;
+  a = b = 42;
+  a + b * 4 + 2;
+  a % 2 + b * 42;
+}
+    )cpp",
+      R"txt(
+*: TranslationUnit
+`-SimpleDeclaration
+  |-void
+  |-SimpleDeclarator
+  | |-test
+  | `-ParametersAndQualifiers
+  |   |-(
+  |   |-SimpleDeclaration
+  |   | |-int
+  |   | `-SimpleDeclarator
+  |   |   `-a
+  |   |-,
+  |   |-SimpleDeclaration
+  |   | |-int
+  |   | `-SimpleDeclarator
+  |   |   `-b
+  |   `-)
+  `-CompoundStatement
+    |-{
+    |-ExpressionStatement
+    | |-BinaryOperatorExpression
+    | | |-UnknownExpression
+    | | | |-(
+    | | | |-BinaryOperatorExpression
+    | | | | |-UnknownExpression
+    | | | | | `-1
+    | | | | |-+
+    | | | | `-UnknownExpression
+    | | | |   `-2
+    | | | `-)
+    | | |-*
+    | | `-UnknownExpression
+    | |   |-(
+    | |   |-BinaryOperatorExpression
+    | |   | |-UnknownExpression
+    | |   | | `-4
+    | |   | |-/
+    | |   | `-UnknownExpression
+    | |   |   `-2
+    | |   `-)
+    | `-;
+    |-ExpressionStatement
+    | |-BinaryOperatorExpression
+    | | |-BinaryOperatorExpression
+    | | | |-UnknownExpression
+    | | | | `-a
+    | | | |-+
+    | | | `-UnknownExpression
+    | | |   `-b
+    | | |-+
+    | | `-UnknownExpression
+    | |   `-42
+    | `-;
+    |-ExpressionStatement
+    | |-BinaryOperatorExpression
+    | | |-UnknownExpression
+    | | | `-a
+    | | |-=
+    | | `-BinaryOperatorExpression
+    | |   |-UnknownExpression
+    | |   | `-b
+    | |   |-=
+    | |   `-UnknownExpression
+    | |     `-42
+    | `-;
+    |-ExpressionStatement
+    | |-BinaryOperatorExpression
+    | | |-BinaryOperatorExpression
+    | | | |-UnknownExpression
+    | | | | `-a
+    | | | |-+
+    | | | `-BinaryOperatorExpression
+    | | |   |-UnknownExpression
+    | | |   | `-b
+    | | |   |-*
+    | | |   `-UnknownExpression
+    | | |     `-4
+    | | |-+
+    | | `-UnknownExpression
+    | |   `-2
+    | `-;
+    |-ExpressionStatement
+    | |-BinaryOperatorExpression
+    | | |-BinaryOperatorExpression
+    | | | |-UnknownExpression
+    | | | | `-a
+    | | | |-%
+    | | | `-UnknownExpression
+    | | |   `-2
+    | | |-+
+    | | `-BinaryOperatorExpression
+    | |   |-UnknownExpression
+    | |   | `-b
+    | |   |-*
+    | |   `-UnknownExpression
+    | |     `-42
+    | `-;
     `-}
 )txt");
 }
@@ -1201,10 +1590,12 @@ void test() {
     |-IfStatement
     | |-I: if
     | |-I: (
-    | |-I: UnknownExpression
-    | | |-I: 1
+    | |-I: BinaryOperatorExpression
+    | | |-I: UnknownExpression
+    | | | `-I: 1
     | | |-I: +
-    | | `-I: 1
+    | | `-I: UnknownExpression
+    | |   `-I: 1
     | |-I: )
     | |-I: CompoundStatement
     | | |-I: {
@@ -1312,13 +1703,17 @@ void f(int xs[static 10]);
 | | | `-]
 | | |-=
 | | `-UnknownExpression
-| |   |-{
-| |   |-1
-| |   |-,
-| |   |-2
-| |   |-,
-| |   |-3
-| |   `-}
+| |   `-UnknownExpression
+| |     |-{
+| |     |-UnknownExpression
+| |     | `-1
+| |     |-,
+| |     |-UnknownExpression
+| |     | `-2
+| |     |-,
+| |     |-UnknownExpression
+| |     | `-3
+| |     `-}
 | `-;
 `-SimpleDeclaration
   |-void
@@ -1626,9 +2021,10 @@ const int const *const *volatile b;
 | |-SimpleDeclarator
 | | |-west
 | | |-=
-| | `-UnknownExpression
+| | `-PrefixUnaryOperatorExpression
 | |   |--
-| |   `-1
+| |   `-UnknownExpression
+| |     `-1
 | `-;
 |-SimpleDeclaration
 | |-int

@@ -842,6 +842,9 @@ SITargetLowering::SITargetLowering(const TargetMachine &TM,
   setTargetDAGCombine(ISD::ATOMIC_LOAD_UMAX);
   setTargetDAGCombine(ISD::ATOMIC_LOAD_FADD);
 
+  // FIXME: In other contexts we pretend this is a per-function property.
+  setStackPointerRegisterToSaveRestore(AMDGPU::SGPR32);
+
   setSchedulingPreference(Sched::RegPressure);
 }
 
@@ -3086,6 +3089,67 @@ SDValue SITargetLowering::LowerCall(CallLoweringInfo &CLI,
                          IsThisReturn ? OutVals[0] : SDValue());
 }
 
+// This is identical to the default implementation in ExpandDYNAMIC_STACKALLOC,
+// except for applying the wave size scale to the increment amount.
+SDValue SITargetLowering::lowerDYNAMIC_STACKALLOCImpl(
+    SDValue Op, SelectionDAG &DAG) const {
+  const MachineFunction &MF = DAG.getMachineFunction();
+  const SIMachineFunctionInfo *Info = MF.getInfo<SIMachineFunctionInfo>();
+
+  SDLoc dl(Op);
+  EVT VT = Op.getValueType();
+  SDValue Tmp1 = Op;
+  SDValue Tmp2 = Op.getValue(1);
+  SDValue Tmp3 = Op.getOperand(2);
+  SDValue Chain = Tmp1.getOperand(0);
+
+  Register SPReg = Info->getStackPtrOffsetReg();
+
+  // Chain the dynamic stack allocation so that it doesn't modify the stack
+  // pointer when other instructions are using the stack.
+  Chain = DAG.getCALLSEQ_START(Chain, 0, 0, dl);
+
+  SDValue Size  = Tmp2.getOperand(1);
+  SDValue SP = DAG.getCopyFromReg(Chain, dl, SPReg, VT);
+  Chain = SP.getValue(1);
+  unsigned Align = cast<ConstantSDNode>(Tmp3)->getZExtValue();
+  const GCNSubtarget &ST = MF.getSubtarget<GCNSubtarget>();
+  const TargetFrameLowering *TFL = ST.getFrameLowering();
+  unsigned Opc =
+    TFL->getStackGrowthDirection() == TargetFrameLowering::StackGrowsUp ?
+    ISD::ADD : ISD::SUB;
+
+  SDValue ScaledSize = DAG.getNode(
+      ISD::SHL, dl, VT, Size,
+      DAG.getConstant(ST.getWavefrontSizeLog2(), dl, MVT::i32));
+
+  unsigned StackAlign = TFL->getStackAlignment();
+  Tmp1 = DAG.getNode(Opc, dl, VT, SP, ScaledSize); // Value
+  if (Align > StackAlign)
+    Tmp1 = DAG.getNode(ISD::AND, dl, VT, Tmp1,
+                       DAG.getConstant(-(uint64_t)Align, dl, VT));
+  Chain = DAG.getCopyToReg(Chain, dl, SPReg, Tmp1);    // Output chain
+  Tmp2 = DAG.getCALLSEQ_END(
+      Chain, DAG.getIntPtrConstant(0, dl, true),
+      DAG.getIntPtrConstant(0, dl, true), SDValue(), dl);
+
+  return DAG.getMergeValues({Tmp1, Tmp2}, dl);
+}
+
+SDValue SITargetLowering::LowerDYNAMIC_STACKALLOC(SDValue Op,
+                                                  SelectionDAG &DAG) const {
+  // We only handle constant sizes here to allow non-entry block, static sized
+  // allocas. A truly dynamic value is more difficult to support because we
+  // don't know if the size value is uniform or not. If the size isn't uniform,
+  // we would need to do a wave reduction to get the maximum size to know how
+  // much to increment the uniform stack pointer.
+  SDValue Size = Op.getOperand(1);
+  if (isa<ConstantSDNode>(Size))
+      return lowerDYNAMIC_STACKALLOCImpl(Op, DAG); // Use "generic" expansion.
+
+  return AMDGPUTargetLowering::LowerDYNAMIC_STACKALLOC(Op, DAG);
+}
+
 Register SITargetLowering::getRegisterByName(const char* RegName, LLT VT,
                                              const MachineFunction &MF) const {
   Register Reg = StringSwitch<Register>(RegName)
@@ -4302,6 +4366,8 @@ SDValue SITargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
   case ISD::FMINNUM_IEEE:
   case ISD::FMAXNUM_IEEE:
     return splitBinaryVectorOp(Op, DAG);
+  case ISD::DYNAMIC_STACKALLOC:
+    return LowerDYNAMIC_STACKALLOC(Op, DAG);
   }
   return SDValue();
 }
@@ -7625,7 +7691,7 @@ SDValue SITargetLowering::LowerLOAD(SDValue Op, SelectionDAG &DAG) const {
       AS == AMDGPUAS::CONSTANT_ADDRESS_32BIT ||
       AS == AMDGPUAS::GLOBAL_ADDRESS) {
     if (Subtarget->getScalarizeGlobalBehavior() && !Op->isDivergent() &&
-        !Load->isVolatile() && isMemOpHasNoClobberedMemOperand(Load) &&
+        Load->isSimple() && isMemOpHasNoClobberedMemOperand(Load) &&
         Alignment >= 4 && NumElements < 32) {
       if (MemVT.isPow2VectorType())
         return SDValue();
@@ -10886,9 +10952,67 @@ SITargetLowering::getConstraintType(StringRef Constraint) const {
     case 'v':
     case 'a':
       return C_RegisterClass;
+    case 'A':
+      return C_Other;
     }
   }
   return TargetLowering::getConstraintType(Constraint);
+}
+
+void SITargetLowering::LowerAsmOperandForConstraint(SDValue Op,
+                                                    std::string &Constraint,
+                                                    std::vector<SDValue> &Ops,
+                                                    SelectionDAG &DAG) const {
+  if (Constraint.length() == 1 && Constraint[0] == 'A') {
+    LowerAsmOperandForConstraintA(Op, Ops, DAG);
+  } else {
+    TargetLowering::LowerAsmOperandForConstraint(Op, Constraint, Ops, DAG);
+  }
+}
+
+void SITargetLowering::LowerAsmOperandForConstraintA(SDValue Op,
+                                                     std::vector<SDValue> &Ops,
+                                                     SelectionDAG &DAG) const {
+  unsigned Size = Op.getScalarValueSizeInBits();
+  if (Size > 64)
+    return;
+
+  uint64_t Val;
+  bool IsConst = false;
+  if (ConstantSDNode *C = dyn_cast<ConstantSDNode>(Op)) {
+    Val = C->getSExtValue();
+    IsConst = true;
+  } else if (ConstantFPSDNode *C = dyn_cast<ConstantFPSDNode>(Op)) {
+    Val = C->getValueAPF().bitcastToAPInt().getSExtValue();
+    IsConst = true;
+  } else if (BuildVectorSDNode *V = dyn_cast<BuildVectorSDNode>(Op)) {
+    if (Size != 16 || Op.getNumOperands() != 2)
+      return;
+    if (Op.getOperand(0).isUndef() || Op.getOperand(1).isUndef())
+      return;
+    if (ConstantSDNode *C = V->getConstantSplatNode()) {
+      Val = C->getSExtValue();
+      IsConst = true;
+    } else if (ConstantFPSDNode *C = V->getConstantFPSplatNode()) {
+      Val = C->getValueAPF().bitcastToAPInt().getSExtValue();
+      IsConst = true;
+    }
+  }
+
+  if (IsConst) {
+    bool HasInv2Pi = Subtarget->hasInv2PiInlineImm();
+    if ((Size == 16 && AMDGPU::isInlinableLiteral16(Val, HasInv2Pi)) ||
+        (Size == 32 && AMDGPU::isInlinableLiteral32(Val, HasInv2Pi)) ||
+        (Size == 64 && AMDGPU::isInlinableLiteral64(Val, HasInv2Pi))) {
+      // Clear unused bits of fp constants
+      if (!AMDGPU::isInlinableIntLiteral(Val)) {
+        unsigned UnusedBits = 64 - Size;
+        Val = (Val << UnusedBits) >> UnusedBits;
+      }
+      auto Res = DAG.getTargetConstant(Val, SDLoc(Op), MVT::i64);
+      Ops.push_back(Res);
+    }
+  }
 }
 
 // Figure out which registers should be reserved for stack access. Only after

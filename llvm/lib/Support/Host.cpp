@@ -142,6 +142,7 @@ StringRef sys::detail::getHostCPUNameForPowerPC(StringRef ProcCpuinfoContent) {
       .Case("POWER8E", "pwr8")
       .Case("POWER8NVL", "pwr8")
       .Case("POWER9", "pwr9")
+      .Case("POWER10", "pwr10")
       // FIXME: If we get a simulator or machine with the capabilities of
       // mcpu=future, we should revisit this and add the name reported by the
       // simulator/machine.
@@ -776,7 +777,7 @@ getIntelProcessorTypeAndSubtype(unsigned Family, unsigned Model,
 
     default: // Unknown family 6 CPU, try to guess.
       // TODO detect tigerlake host
-      if (Features3 & (1 << (X86::FEATURE_AVX512VP2INTERSECT - 64))) {
+      if (Features2 & (1 << (X86::FEATURE_AVX512VP2INTERSECT - 32))) {
         *Type = X86::INTEL_COREI7;
         *Subtype = X86::INTEL_COREI7_TIGERLAKE;
         break;

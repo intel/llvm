@@ -155,7 +155,9 @@ private:
 
   // Emit an integer compare between LHS and RHS, which checks for Predicate.
   //
-  // This may update Predicate when emitting the compare.
+  // This returns the produced compare instruction, and the predicate which
+  // was ultimately used in the compare. The predicate may differ from what
+  // is passed in \p Predicate due to optimization.
   std::pair<MachineInstr *, CmpInst::Predicate>
   emitIntegerCompare(MachineOperand &LHS, MachineOperand &RHS,
                      MachineOperand &Predicate,
@@ -307,7 +309,7 @@ private:
                                       MachineIRBuilder &MIRBuilder) const;
   MachineInstr *tryOptArithImmedIntegerCompare(MachineOperand &LHS,
                                                MachineOperand &RHS,
-                                               MachineOperand &Predicate,
+                                               CmpInst::Predicate &Predicate,
                                                MachineIRBuilder &MIB) const;
   MachineInstr *tryOptArithShiftedCompare(MachineOperand &LHS,
                                           MachineOperand &RHS,
@@ -2383,14 +2385,17 @@ bool AArch64InstructionSelector::select(MachineInstr &I) {
     return true;
   }
 
-  case TargetOpcode::G_PTR_MASK: {
-    uint64_t Align = I.getOperand(2).getImm();
-    if (Align >= 64 || Align == 0)
+  case TargetOpcode::G_PTRMASK: {
+    Register MaskReg = I.getOperand(2).getReg();
+    Optional<int64_t> MaskVal = getConstantVRegVal(MaskReg, MRI);
+    // TODO: Implement arbitrary cases
+    if (!MaskVal || !isShiftedMask_64(*MaskVal))
       return false;
 
-    uint64_t Mask = ~((1ULL << Align) - 1);
+    uint64_t Mask = *MaskVal;
     I.setDesc(TII.get(AArch64::ANDXri));
-    I.getOperand(2).setImm(AArch64_AM::encodeLogicalImmediate(Mask, 64));
+    I.getOperand(2).ChangeToImmediate(
+        AArch64_AM::encodeLogicalImmediate(Mask, 64));
 
     return constrainSelectedInstRegOperands(I, TII, TRI, RBI);
   }
@@ -3682,13 +3687,16 @@ AArch64InstructionSelector::emitIntegerCompare(
     MachineOperand &LHS, MachineOperand &RHS, MachineOperand &Predicate,
     MachineIRBuilder &MIRBuilder) const {
   assert(LHS.isReg() && RHS.isReg() && "Expected LHS and RHS to be registers!");
+  assert(Predicate.isPredicate() && "Expected predicate?");
   MachineRegisterInfo &MRI = MIRBuilder.getMF().getRegInfo();
+
+  CmpInst::Predicate P = (CmpInst::Predicate)Predicate.getPredicate();
 
   // Fold the compare if possible.
   MachineInstr *FoldCmp =
       tryFoldIntegerCompare(LHS, RHS, Predicate, MIRBuilder);
   if (FoldCmp)
-    return {FoldCmp, (CmpInst::Predicate)Predicate.getPredicate()};
+    return {FoldCmp, P};
 
   // Can't fold into a CMN. Just emit a normal compare.
   unsigned CmpOpc = 0;
@@ -3709,21 +3717,21 @@ AArch64InstructionSelector::emitIntegerCompare(
 
   // Try to match immediate forms.
   MachineInstr *ImmedCmp =
-      tryOptArithImmedIntegerCompare(LHS, RHS, Predicate, MIRBuilder);
+      tryOptArithImmedIntegerCompare(LHS, RHS, P, MIRBuilder);
   if (ImmedCmp)
-    return {ImmedCmp, (CmpInst::Predicate)Predicate.getPredicate()};
+    return {ImmedCmp, P};
 
   // If we don't have an immediate, we may have a shift which can be folded
   // into the compare.
   MachineInstr *ShiftedCmp = tryOptArithShiftedCompare(LHS, RHS, MIRBuilder);
   if (ShiftedCmp)
-    return {ShiftedCmp, (CmpInst::Predicate)Predicate.getPredicate()};
+    return {ShiftedCmp, P};
 
   auto CmpMI =
       MIRBuilder.buildInstr(CmpOpc, {ZReg}, {LHS.getReg(), RHS.getReg()});
   // Make sure that we can constrain the compare that we emitted.
   constrainSelectedInstRegOperands(*CmpMI, TII, TRI, RBI);
-  return {&*CmpMI, (CmpInst::Predicate)Predicate.getPredicate()};
+  return {&*CmpMI, P};
 }
 
 MachineInstr *AArch64InstructionSelector::emitVectorConcat(
@@ -4039,7 +4047,7 @@ MachineInstr *AArch64InstructionSelector::tryFoldIntegerCompare(
 }
 
 MachineInstr *AArch64InstructionSelector::tryOptArithImmedIntegerCompare(
-    MachineOperand &LHS, MachineOperand &RHS, MachineOperand &Predicate,
+    MachineOperand &LHS, MachineOperand &RHS, CmpInst::Predicate &P,
     MachineIRBuilder &MIB) const {
   // Attempt to select the immediate form of an integer compare.
   MachineRegisterInfo &MRI = *MIB.getMRI();
@@ -4048,7 +4056,6 @@ MachineInstr *AArch64InstructionSelector::tryOptArithImmedIntegerCompare(
   unsigned Size = Ty.getSizeInBits();
   assert((Size == 32 || Size == 64) &&
          "Expected 32 bit or 64 bit compare only?");
-  auto P = (CmpInst::Predicate)Predicate.getPredicate();
 
   // Check if this is a case we can already handle.
   InstructionSelector::ComplexRendererFns ImmFns;
@@ -4063,6 +4070,7 @@ MachineInstr *AArch64InstructionSelector::tryOptArithImmedIntegerCompare(
     // We have a constant, but it doesn't fit. Try adjusting it by one and
     // updating the predicate if possible.
     uint64_t C = *MaybeImmed;
+    CmpInst::Predicate NewP;
     switch (P) {
     default:
       return nullptr;
@@ -4077,7 +4085,7 @@ MachineInstr *AArch64InstructionSelector::tryOptArithImmedIntegerCompare(
       if ((Size == 64 && static_cast<int64_t>(C) == INT64_MIN) ||
           (Size == 32 && static_cast<int32_t>(C) == INT32_MIN))
         return nullptr;
-      P = (P == CmpInst::ICMP_SLT) ? CmpInst::ICMP_SLE : CmpInst::ICMP_SGT;
+      NewP = (P == CmpInst::ICMP_SLT) ? CmpInst::ICMP_SLE : CmpInst::ICMP_SGT;
       C -= 1;
       break;
     case CmpInst::ICMP_ULT:
@@ -4090,7 +4098,7 @@ MachineInstr *AArch64InstructionSelector::tryOptArithImmedIntegerCompare(
       // When c is not zero.
       if (C == 0)
         return nullptr;
-      P = (P == CmpInst::ICMP_ULT) ? CmpInst::ICMP_ULE : CmpInst::ICMP_UGT;
+      NewP = (P == CmpInst::ICMP_ULT) ? CmpInst::ICMP_ULE : CmpInst::ICMP_UGT;
       C -= 1;
       break;
     case CmpInst::ICMP_SLE:
@@ -4104,7 +4112,7 @@ MachineInstr *AArch64InstructionSelector::tryOptArithImmedIntegerCompare(
       if ((Size == 32 && static_cast<int32_t>(C) == INT32_MAX) ||
           (Size == 64 && static_cast<int64_t>(C) == INT64_MAX))
         return nullptr;
-      P = (P == CmpInst::ICMP_SLE) ? CmpInst::ICMP_SLT : CmpInst::ICMP_SGE;
+      NewP = (P == CmpInst::ICMP_SLE) ? CmpInst::ICMP_SLT : CmpInst::ICMP_SGE;
       C += 1;
       break;
     case CmpInst::ICMP_ULE:
@@ -4118,7 +4126,7 @@ MachineInstr *AArch64InstructionSelector::tryOptArithImmedIntegerCompare(
       if ((Size == 32 && static_cast<uint32_t>(C) == UINT32_MAX) ||
           (Size == 64 && C == UINT64_MAX))
         return nullptr;
-      P = (P == CmpInst::ICMP_ULE) ? CmpInst::ICMP_ULT : CmpInst::ICMP_UGE;
+      NewP = (P == CmpInst::ICMP_ULE) ? CmpInst::ICMP_ULT : CmpInst::ICMP_UGE;
       C += 1;
       break;
     }
@@ -4129,7 +4137,7 @@ MachineInstr *AArch64InstructionSelector::tryOptArithImmedIntegerCompare(
     ImmFns = select12BitValueWithLeftShift(C);
     if (!ImmFns)
       return nullptr;
-    Predicate.setPredicate(P);
+    P = NewP;
   }
 
   // At this point, we know we can select an immediate form. Go ahead and do

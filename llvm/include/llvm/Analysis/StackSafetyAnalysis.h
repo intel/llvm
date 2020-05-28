@@ -18,25 +18,42 @@
 
 namespace llvm {
 
+class AllocaInst;
+
 /// Interface to access stack safety analysis results for single function.
 class StackSafetyInfo {
 public:
-  struct FunctionInfo;
+  struct InfoTy;
 
 private:
-  std::unique_ptr<FunctionInfo> Info;
+  std::unique_ptr<InfoTy> Info;
 
 public:
-  StackSafetyInfo();
-  StackSafetyInfo(FunctionInfo &&Info);
+  StackSafetyInfo(InfoTy Info);
   StackSafetyInfo(StackSafetyInfo &&);
   StackSafetyInfo &operator=(StackSafetyInfo &&);
   ~StackSafetyInfo();
 
-  FunctionInfo *getInfo() const { return Info.get(); }
+  const InfoTy &getInfo() const { return *Info; }
 
   // TODO: Add useful for client methods.
+  void print(raw_ostream &O, const GlobalValue &F) const;
+};
+
+class StackSafetyGlobalInfo {
+public:
+  using GVToSSI = std::map<const GlobalValue *, StackSafetyInfo>;
+
+private:
+  GVToSSI SSGI;
+
+public:
+  StackSafetyGlobalInfo() = default;
+  StackSafetyGlobalInfo(GVToSSI SSGI) : SSGI(std::move(SSGI)) {}
+
+  bool setMetadata(Module &M) const;
   void print(raw_ostream &O) const;
+  void dump() const;
 };
 
 /// StackSafetyInfo wrapper for the new pass manager.
@@ -60,21 +77,20 @@ public:
 
 /// StackSafetyInfo wrapper for the legacy pass manager
 class StackSafetyInfoWrapperPass : public FunctionPass {
-  StackSafetyInfo SSI;
+  Optional<StackSafetyInfo> SSI;
+  const Function *F = nullptr;
 
 public:
   static char ID;
   StackSafetyInfoWrapperPass();
 
-  const StackSafetyInfo &getResult() const { return SSI; }
+  const StackSafetyInfo &getResult() const { return *SSI; }
 
   void print(raw_ostream &O, const Module *M) const override;
   void getAnalysisUsage(AnalysisUsage &AU) const override;
 
   bool runOnFunction(Function &F) override;
 };
-
-using StackSafetyGlobalInfo = std::map<const GlobalValue *, StackSafetyInfo>;
 
 /// This pass performs the global (interprocedural) stack safety analysis (new
 /// pass manager).

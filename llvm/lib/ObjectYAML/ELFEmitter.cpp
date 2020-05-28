@@ -218,6 +218,8 @@ template <class ELFT> class ELFState {
 
   void assignSectionAddress(Elf_Shdr &SHeader, ELFYAML::Section *YAMLSec);
 
+  DenseMap<StringRef, size_t> buildSectionHeaderReorderMap();
+
   BumpPtrAllocator StringAlloc;
   uint64_t alignToOffset(ContiguousBlobAccumulator &CBA, uint64_t Align,
                          llvm::Optional<llvm::yaml::Hex64> Offset);
@@ -318,19 +320,42 @@ void ELFState<ELFT>::writeELFHeader(ContiguousBlobAccumulator &CBA, raw_ostream 
   // other sections to the end of the file.
   uint64_t SHOff =
       alignToOffset(CBA, sizeof(typename ELFT::uint), /*Offset=*/None);
-  Header.e_shoff =
-      Doc.Header.SHOff ? typename ELFT::uint(*Doc.Header.SHOff) : SHOff;
-  Header.e_shnum =
-      Doc.Header.SHNum ? (uint16_t)*Doc.Header.SHNum : Doc.getSections().size();
-  Header.e_shstrndx = Doc.Header.SHStrNdx ? (uint16_t)*Doc.Header.SHStrNdx
-                                          : SN2I.get(".shstrtab");
+
+  if (Doc.Header.SHOff)
+    Header.e_shoff = *Doc.Header.SHOff;
+  else if (Doc.SectionHeaders && Doc.SectionHeaders->Sections.empty())
+    Header.e_shoff = 0;
+  else
+    Header.e_shoff = SHOff;
+
+  if (Doc.Header.SHNum)
+    Header.e_shnum = *Doc.Header.SHNum;
+  else if (!Doc.SectionHeaders)
+    Header.e_shnum = Doc.getSections().size();
+  else if (Doc.SectionHeaders->Sections.empty())
+    Header.e_shnum = 0;
+  else
+    Header.e_shnum = Doc.SectionHeaders->Sections.size() + /*Null section*/ 1;
+
+  if (Doc.Header.SHStrNdx)
+    Header.e_shstrndx = *Doc.Header.SHStrNdx;
+  else if (!Doc.SectionHeaders || !Doc.SectionHeaders->Sections.empty())
+    Header.e_shstrndx = SN2I.get(".shstrtab");
+  else
+    Header.e_shstrndx = 0;
 
   OS.write((const char *)&Header, sizeof(Header));
 }
 
 template <class ELFT>
 void ELFState<ELFT>::initProgramHeaders(std::vector<Elf_Phdr> &PHeaders) {
-  for (const auto &YamlPhdr : Doc.ProgramHeaders) {
+  DenseMap<StringRef, ELFYAML::Fill *> NameToFill;
+  for (const std::unique_ptr<ELFYAML::Chunk> &D : Doc.Chunks)
+    if (auto S = dyn_cast<ELFYAML::Fill>(D.get()))
+      NameToFill[S->Name] = S;
+
+  std::vector<ELFYAML::Section *> Sections = Doc.getSections();
+  for (ELFYAML::ProgramHeader &YamlPhdr : Doc.ProgramHeaders) {
     Elf_Phdr Phdr;
     zero(Phdr);
     Phdr.p_type = YamlPhdr.Type;
@@ -338,6 +363,23 @@ void ELFState<ELFT>::initProgramHeaders(std::vector<Elf_Phdr> &PHeaders) {
     Phdr.p_vaddr = YamlPhdr.VAddr;
     Phdr.p_paddr = YamlPhdr.PAddr;
     PHeaders.push_back(Phdr);
+
+    // Map Sections list to corresponding chunks.
+    for (const ELFYAML::SectionName &SecName : YamlPhdr.Sections) {
+      if (ELFYAML::Fill *Fill = NameToFill.lookup(SecName.Section)) {
+        YamlPhdr.Chunks.push_back(Fill);
+        continue;
+      }
+
+      unsigned Index;
+      if (SN2I.lookup(SecName.Section, Index)) {
+        YamlPhdr.Chunks.push_back(Sections[Index]);
+        continue;
+      }
+
+      reportError("unknown section or fill referenced: '" + SecName.Section +
+                  "' by program header");
+    }
   }
 }
 
@@ -757,31 +799,19 @@ template <class ELFT> void ELFState<ELFT>::reportError(const Twine &Msg) {
 template <class ELFT>
 std::vector<Fragment>
 ELFState<ELFT>::getPhdrFragments(const ELFYAML::ProgramHeader &Phdr,
-                                 ArrayRef<typename ELFT::Shdr> SHeaders) {
-  DenseMap<StringRef, ELFYAML::Fill *> NameToFill;
-  for (const std::unique_ptr<ELFYAML::Chunk> &D : Doc.Chunks)
-    if (auto S = dyn_cast<ELFYAML::Fill>(D.get()))
-      NameToFill[S->Name] = S;
-
+                                 ArrayRef<Elf_Shdr> SHeaders) {
   std::vector<Fragment> Ret;
-  for (const ELFYAML::SectionName &SecName : Phdr.Sections) {
-    unsigned Index;
-    if (SN2I.lookup(SecName.Section, Index)) {
-      const typename ELFT::Shdr &H = SHeaders[Index];
-      Ret.push_back({H.sh_offset, H.sh_size, H.sh_type, H.sh_addralign});
-      continue;
-    }
-
-    if (ELFYAML::Fill *Fill = NameToFill.lookup(SecName.Section)) {
-      Ret.push_back({*Fill->Offset, Fill->Size, llvm::ELF::SHT_PROGBITS,
+  for (const ELFYAML::Chunk *C : Phdr.Chunks) {
+    if (const ELFYAML::Fill *F = dyn_cast<ELFYAML::Fill>(C)) {
+      Ret.push_back({*F->Offset, F->Size, llvm::ELF::SHT_PROGBITS,
                      /*ShAddrAlign=*/1});
       continue;
     }
 
-    reportError("unknown section or fill referenced: '" + SecName.Section +
-                "' by program header");
+    const ELFYAML::Section *S = cast<ELFYAML::Section>(C);
+    const Elf_Shdr &H = SHeaders[SN2I.get(S->Name)];
+    Ret.push_back({H.sh_offset, H.sh_size, H.sh_type, H.sh_addralign});
   }
-
   return Ret;
 }
 
@@ -1436,14 +1466,50 @@ void ELFState<ELFT>::writeFill(ELFYAML::Fill &Fill,
   Fill.Pattern->writeAsBinary(OS, Fill.Size - Written);
 }
 
+template <class ELFT>
+DenseMap<StringRef, size_t> ELFState<ELFT>::buildSectionHeaderReorderMap() {
+  if (!Doc.SectionHeaders || Doc.SectionHeaders->Sections.empty())
+    return DenseMap<StringRef, size_t>();
+
+  DenseMap<StringRef, size_t> Ret;
+  size_t SecNdx = 0;
+  StringSet<> Seen;
+  for (const ELFYAML::SectionHeader &Hdr : Doc.SectionHeaders->Sections) {
+    if (!Ret.try_emplace(Hdr.Name, ++SecNdx).second)
+      reportError("repeated section name: '" + Hdr.Name +
+                  "' in the section header description");
+    Seen.insert(Hdr.Name);
+  }
+
+  for (const ELFYAML::Section *S : Doc.getSections()) {
+    // Ignore special first SHT_NULL section.
+    if (S == Doc.getSections().front())
+      continue;
+    if (!Seen.count(S->Name))
+      reportError("section '" + S->Name +
+                  "' should be present in the 'Sections' list");
+    Seen.erase(S->Name);
+  }
+
+  for (const auto &It : Seen)
+    reportError("section header contains undefined section '" + It.getKey() +
+                "'");
+  return Ret;
+}
+
 template <class ELFT> void ELFState<ELFT>::buildSectionIndex() {
+  // A YAML description can have an explicit section header declaration that allows
+  // to change the order of section headers.
+  DenseMap<StringRef, size_t> ReorderMap = buildSectionHeaderReorderMap();
+
   size_t SecNdx = -1;
   for (const std::unique_ptr<ELFYAML::Chunk> &C : Doc.Chunks) {
     if (!isa<ELFYAML::Section>(C.get()))
       continue;
     ++SecNdx;
 
-    if (!SN2I.addName(C->Name, SecNdx))
+    size_t Index = ReorderMap.empty() ? SecNdx : ReorderMap.lookup(C->Name);
+    if (!SN2I.addName(C->Name, Index))
       llvm_unreachable("buildSectionIndex() failed");
     DotShStrtab.add(ELFYAML::dropUniqueSuffix(C->Name));
   }
