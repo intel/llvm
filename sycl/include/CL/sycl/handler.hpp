@@ -8,8 +8,8 @@
 
 #pragma once
 
-#include <CL/sycl/accessor.hpp>
 #include <CL/sycl/access/access.hpp>
+#include <CL/sycl/accessor.hpp>
 #include <CL/sycl/atomic.hpp>
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/cg.hpp>
@@ -713,7 +713,7 @@ public:
   require(accessor<DataT, Dims, AccMode, AccTarget, access::placeholder::true_t>
               Acc) {
 #ifndef __SYCL_DEVICE_ONLY__
-    associateWithHandler(/*(detail::AccessorBaseHost *)*/&Acc, AccTarget);
+    associateWithHandler(&Acc, AccTarget);
 #else
     (void)Acc;
 #endif
@@ -1694,8 +1694,9 @@ private:
             access::mode AccMode, access::placeholder IsPlaceholder>
   friend class intel::detail::reduction_impl;
 
-  friend void detail::associateWithHandler(
-      handler &, detail::AccessorBaseHost *, access::target);
+  friend void detail::associateWithHandler(handler &,
+                                           detail::AccessorBaseHost *,
+                                           access::target);
 };
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

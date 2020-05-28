@@ -1,7 +1,7 @@
 #pragma once
 
-#include <CL/sycl/detail/kernel_desc.hpp>
 #include <CL/sycl/detail/host_profiling_info.hpp>
+#include <CL/sycl/detail/kernel_desc.hpp>
 #include <CL/sycl/group.hpp>
 #include <CL/sycl/id.hpp>
 #include <CL/sycl/interop_handler.hpp>
