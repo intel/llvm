@@ -1864,16 +1864,20 @@ static void printArguments(ASTContext &Ctx, raw_ostream &ArgOS,
                            const PrintingPolicy &P);
 
 static void printArgument(ASTContext &Ctx, raw_ostream &ArgOS,
-                          TemplateArgument Arg, const PrintingPolicy &P) {
+                          TemplateArgument Arg, const PrintingPolicy &P,
+                          bool FirstArg) {
   switch (Arg.getKind()) {
   case TemplateArgument::ArgKind::Pack: {
+    if (Arg.pack_size() && !FirstArg)
+      ArgOS << ", ";
     printArguments(Ctx, ArgOS, Arg.getPackAsArray(), P);
     break;
   }
   case TemplateArgument::ArgKind::Integral: {
     QualType T = Arg.getIntegralType();
     const EnumType *ET = T->getAs<EnumType>();
-
+    if (!FirstArg)
+      ArgOS << ", ";
     if (ET) {
       const llvm::APSInt &Val = Arg.getAsIntegral();
       ArgOS << "(" << ET->getDecl()->getQualifiedNameAsString() << ")" << Val;
@@ -1889,10 +1893,14 @@ static void printArgument(ASTContext &Ctx, raw_ostream &ArgOS,
     TypePolicy.SuppressTagKeyword = true;
     QualType T = Arg.getAsType();
     QualType FullyQualifiedType = TypeName::getFullyQualifiedType(T, Ctx, true);
+    if (!FirstArg)
+      ArgOS << ", ";
     ArgOS << FullyQualifiedType.getAsString(TypePolicy);
     break;
   }
   default:
+    if (!FirstArg)
+      ArgOS << ", ";
     Arg.print(P, ArgOS);
   }
 }
@@ -1900,13 +1908,12 @@ static void printArgument(ASTContext &Ctx, raw_ostream &ArgOS,
 static void printArguments(ASTContext &Ctx, raw_ostream &ArgOS,
                            ArrayRef<TemplateArgument> Args,
                            const PrintingPolicy &P) {
+  bool FirstArg = true;
+
   for (unsigned I = 0; I < Args.size(); I++) {
     const TemplateArgument &Arg = Args[I];
-
-    if (I != 0)
-      ArgOS << ", ";
-
-    printArgument(Ctx, ArgOS, Arg, P);
+    printArgument(Ctx, ArgOS, Arg, P, FirstArg);
+    FirstArg = false;
   }
 }
 
