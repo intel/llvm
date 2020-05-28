@@ -5,7 +5,7 @@
 // RUN: env SYCL_PI_TRACE=2 %ACC_RUN_PLACEHOLDER %t.out 2>&1 %ACC_CHECK_PLACEHOLDER
 // TODO: re-enable after CI drivers are updated to newer which support spec
 // constants:
-// XFAIL: linux
+// XFAIL: linux && opencl
 // UNSUPPORTED: cuda
 //
 //==----------- spec_const_redefine.cpp ------------------------------------==//

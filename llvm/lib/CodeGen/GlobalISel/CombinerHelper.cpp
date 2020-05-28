@@ -919,9 +919,6 @@ static Register getMemsetValue(Register Val, LLT Ty, MachineIRBuilder &MIB) {
     APInt SplatVal = APInt::getSplat(NumBits, Scalar);
     return MIB.buildConstant(Ty, SplatVal).getReg(0);
   }
-  // FIXME: for vector types create a G_BUILD_VECTOR.
-  if (Ty.isVector())
-    return Register();
 
   // Extend the byte value to the larger type, and then multiply by a magic
   // value 0x010101... in order to replicate it across every byte.
@@ -933,7 +930,10 @@ static Register getMemsetValue(Register Val, LLT Ty, MachineIRBuilder &MIB) {
     Val = MIB.buildMul(ExtType, ZExt, MagicMI).getReg(0);
   }
 
-  assert(ExtType == Ty && "Vector memset value type not supported yet");
+  // For vector types create a G_BUILD_VECTOR.
+  if (Ty.isVector())
+    Val = MIB.buildSplatVector(Ty, Val).getReg(0);
+
   return Val;
 }
 
@@ -1512,6 +1512,17 @@ bool CombinerHelper::matchUndefShuffleVectorMask(MachineInstr &MI) {
   return all_of(Mask, [](int Elt) { return Elt < 0; });
 }
 
+bool CombinerHelper::matchUndefStore(MachineInstr &MI) {
+  assert(MI.getOpcode() == TargetOpcode::G_STORE);
+  return getOpcodeDef(TargetOpcode::G_IMPLICIT_DEF, MI.getOperand(0).getReg(),
+                      MRI);
+}
+
+bool CombinerHelper::eraseInst(MachineInstr &MI) {
+  MI.eraseFromParent();
+  return true;
+}
+
 bool CombinerHelper::matchEqualDefs(const MachineOperand &MOP1,
                                     const MachineOperand &MOP2) {
   if (!MOP1.isReg() || !MOP2.isReg())
@@ -1584,6 +1595,12 @@ bool CombinerHelper::matchSelectSameVal(MachineInstr &MI) {
 bool CombinerHelper::matchBinOpSameVal(MachineInstr &MI) {
   return matchEqualDefs(MI.getOperand(1), MI.getOperand(2)) &&
          canReplaceReg(MI.getOperand(0).getReg(), MI.getOperand(1).getReg(),
+                       MRI);
+}
+
+bool CombinerHelper::matchOperandIsZero(MachineInstr &MI, unsigned OpIdx) {
+  return matchConstantOp(MI.getOperand(OpIdx), 0) &&
+         canReplaceReg(MI.getOperand(0).getReg(), MI.getOperand(OpIdx).getReg(),
                        MRI);
 }
 

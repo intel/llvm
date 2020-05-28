@@ -43,8 +43,7 @@ class __SYCL_EXPORT buffer_impl final : public SYCLMemObjT {
   using typename BaseT::MemObjType;
 
 public:
-  buffer_impl(size_t SizeInBytes, size_t RequiredAlign,
-              const property_list &Props,
+  buffer_impl(size_t SizeInBytes, size_t, const property_list &Props,
               unique_ptr_class<SYCLMemObjAllocator> Allocator)
       : BaseT(SizeInBytes, Props, std::move(Allocator)) {}
 
@@ -114,6 +113,8 @@ public:
     } catch (...) {
     }
   }
+
+  void resize(size_t size) { BaseT::MSizeInBytes = size; }
 };
 
 } // namespace detail

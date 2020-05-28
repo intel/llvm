@@ -99,6 +99,12 @@ static cl::opt<bool> VGPRReserveforSGPRSpill(
     "amdgpu-reserve-vgpr-for-sgpr-spill",
     cl::desc("Allocates one VGPR for future SGPR Spill"), cl::init(true));
 
+static cl::opt<bool> UseDivergentRegisterIndexing(
+  "amdgpu-use-divergent-register-indexing",
+  cl::Hidden,
+  cl::desc("Use indirect register addressing for divergent indexes"),
+  cl::init(false));
+
 static bool hasFP32Denormals(const MachineFunction &MF) {
   const SIMachineFunctionInfo *Info = MF.getInfo<SIMachineFunctionInfo>();
   return Info->getMode().allFP32Denormals();
@@ -4708,15 +4714,9 @@ SDValue SITargetLowering::LowerBRCOND(SDValue BRCOND,
   } else {
     // Get the target from BR if we don't negate the condition
     BR = findUser(BRCOND, ISD::BR);
+    assert(BR && "brcond missing unconditional branch user");
     Target = BR->getOperand(1);
   }
-
-  // FIXME: This changes the types of the intrinsics instead of introducing new
-  // nodes with the correct types.
-  // e.g. llvm.amdgcn.loop
-
-  // eg: i1,ch = llvm.amdgcn.loop t0, TargetConstant:i32<6271>, t3
-  // =>     t9: ch = llvm.amdgcn.loop t0, TargetConstant:i32<6271>, t3, BasicBlock:ch<bb1 0x7fee5286d088>
 
   unsigned CFNode = isCFIntrinsic(Intr);
   if (CFNode == 0) {
@@ -9475,6 +9475,39 @@ SDValue SITargetLowering::performCvtPkRTZCombine(SDNode *N,
   return SDValue();
 }
 
+// Check if EXTRACT_VECTOR_ELT/INSERT_VECTOR_ELT (<n x e>, var-idx) should be
+// expanded into a set of cmp/select instructions.
+static bool shouldExpandVectorDynExt(SDNode *N) {
+  SDValue Idx = N->getOperand(N->getNumOperands() - 1);
+  if (UseDivergentRegisterIndexing || isa<ConstantSDNode>(Idx))
+    return false;
+
+  SDValue Vec = N->getOperand(0);
+  EVT VecVT = Vec.getValueType();
+  EVT EltVT = VecVT.getVectorElementType();
+  unsigned VecSize = VecVT.getSizeInBits();
+  unsigned EltSize = EltVT.getSizeInBits();
+  unsigned NumElem = VecVT.getVectorNumElements();
+
+  // Sub-dword vectors of size 2 dword or less have better implementation.
+  if (VecSize <= 64 && EltSize < 32)
+    return false;
+
+  // Always expand the rest of sub-dword instructions, otherwise it will be
+  // lowered via memory.
+  if (EltSize < 32)
+    return true;
+
+  // Always do this if var-idx is divergent, otherwise it will become a loop.
+  if (Idx->isDivergent())
+    return true;
+
+  // Large vectors would yield too many compares and v_cndmask_b32 instructions.
+  unsigned NumInsts = NumElem /* Number of compares */ +
+                      ((EltSize + 31) / 32) * NumElem /* Number of cndmasks */;
+  return NumInsts <= 16;
+}
+
 SDValue SITargetLowering::performExtractVectorEltCombine(
   SDNode *N, DAGCombinerInfo &DCI) const {
   SDValue Vec = N->getOperand(0);
@@ -9536,12 +9569,7 @@ SDValue SITargetLowering::performExtractVectorEltCombine(
   unsigned EltSize = EltVT.getSizeInBits();
 
   // EXTRACT_VECTOR_ELT (<n x e>, var-idx) => n x select (e, const-idx)
-  // This elminates non-constant index and subsequent movrel or scratch access.
-  // Sub-dword vectors of size 2 dword or less have better implementation.
-  // Vectors of size bigger than 8 dwords would yield too many v_cndmask_b32
-  // instructions.
-  if (VecSize <= 256 && (VecSize > 64 || EltSize >= 32) &&
-      !isa<ConstantSDNode>(N->getOperand(1))) {
+  if (shouldExpandVectorDynExt(N)) {
     SDLoc SL(N);
     SDValue Idx = N->getOperand(1);
     SDValue V;
@@ -9601,17 +9629,10 @@ SITargetLowering::performInsertVectorEltCombine(SDNode *N,
   SDValue Idx = N->getOperand(2);
   EVT VecVT = Vec.getValueType();
   EVT EltVT = VecVT.getVectorElementType();
-  unsigned VecSize = VecVT.getSizeInBits();
-  unsigned EltSize = EltVT.getSizeInBits();
 
   // INSERT_VECTOR_ELT (<n x e>, var-idx)
   // => BUILD_VECTOR n x select (e, const-idx)
-  // This elminates non-constant index and subsequent movrel or scratch access.
-  // Sub-dword vectors of size 2 dword or less have better implementation.
-  // Vectors of size bigger than 8 dwords would yield too many v_cndmask_b32
-  // instructions.
-  if (isa<ConstantSDNode>(Idx) ||
-      VecSize > 256 || (VecSize <= 64 && EltSize < 32))
+  if (!shouldExpandVectorDynExt(N))
     return SDValue();
 
   SelectionDAG &DAG = DCI.DAG;
@@ -11033,30 +11054,19 @@ bool SITargetLowering::isSDNodeSourceOfDivergence(const SDNode * N,
     case ISD::CopyFromReg:
     {
       const RegisterSDNode *R = cast<RegisterSDNode>(N->getOperand(1));
-      const MachineFunction * MF = FLI->MF;
-      const GCNSubtarget &ST = MF->getSubtarget<GCNSubtarget>();
-      const MachineRegisterInfo &MRI = MF->getRegInfo();
-      const SIRegisterInfo &TRI = ST.getInstrInfo()->getRegisterInfo();
+      const MachineRegisterInfo &MRI = FLI->MF->getRegInfo();
+      const SIRegisterInfo *TRI = Subtarget->getRegisterInfo();
       Register Reg = R->getReg();
-      if (Reg.isPhysical())
-        return !TRI.isSGPRReg(MRI, Reg);
 
-      if (MRI.isLiveIn(Reg)) {
-        // workitem.id.x workitem.id.y workitem.id.z
-        // Any VGPR formal argument is also considered divergent
-        if (!TRI.isSGPRReg(MRI, Reg))
-          return true;
-        // Formal arguments of non-entry functions
-        // are conservatively considered divergent
-        else if (!AMDGPU::isEntryFunctionCC(FLI->Fn->getCallingConv()))
-          return true;
-        return false;
-      }
-      const Value *V = FLI->getValueFromVirtualReg(Reg);
-      if (V)
+      // FIXME: Why does this need to consider isLiveIn?
+      if (Reg.isPhysical() || MRI.isLiveIn(Reg))
+        return !TRI->isSGPRReg(MRI, Reg);
+
+      if (const Value *V = FLI->getValueFromVirtualReg(R->getReg()))
         return KDA->isDivergent(V);
+
       assert(Reg == FLI->DemoteRegister || isCopyFromRegOfInlineAsm(N));
-      return !TRI.isSGPRReg(MRI, Reg);
+      return !TRI->isSGPRReg(MRI, Reg);
     }
     break;
     case ISD::LOAD: {

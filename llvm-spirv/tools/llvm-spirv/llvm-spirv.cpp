@@ -163,6 +163,19 @@ static cl::opt<bool> SpecConstInfo(
     cl::desc("Display id of constants available for specializaion and their "
              "size in bytes"));
 
+static cl::opt<SPIRV::FPContractMode> FPCMode(
+    "spirv-fp-contract", cl::desc("Set FP Contraction mode:"),
+    cl::init(SPIRV::FPContractMode::On),
+    cl::values(
+        clEnumValN(SPIRV::FPContractMode::On, "on",
+                   "choose a mode according to presence of llvm.fmuladd "
+                   "intrinsic or `contract' flag on fp operations"),
+        clEnumValN(SPIRV::FPContractMode::Off, "off",
+                   "disable FP contraction for all entry points"),
+        clEnumValN(
+            SPIRV::FPContractMode::Fast, "fast",
+            "allow all operations to be contracted for all entry points")));
+
 static std::string removeExt(const std::string &FileName) {
   size_t Pos = FileName.find_last_of(".");
   if (Pos != std::string::npos)
@@ -526,6 +539,8 @@ int main(int Ac, char **Av) {
       Opts.setDesiredBIsRepresentation(BIsRepresentation);
     }
   }
+
+  Opts.setFPContractMode(FPCMode);
 
   if (SPIRVMemToReg)
     Opts.setMemToRegEnabled(SPIRVMemToReg);

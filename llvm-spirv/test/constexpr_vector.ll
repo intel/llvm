@@ -43,9 +43,11 @@
 ; CHECK-LLVM-NEXT:   ret void
 ; CHECK-LLVM-NEXT: }
 
-; RUN: llvm-as < %s | llvm-spirv -spirv-text | FileCheck %s --check-prefix=CHECK-SPIRV
+; RUN: llvm-as < %s | llvm-spirv -spirv-text --spirv-ext=+SPV_INTEL_function_pointers | FileCheck %s --check-prefix=CHECK-SPIRV
 
-; CHECK-SPIRV: 4 Name [[Funcs:[0-9]+]] "Funcs"
+; CHECK-SPIRV-DAG: 4 Name [[Funcs:[0-9]+]] "Funcs"
+; CHECK-SPIRV-DAG: 6 Name [[F1:[0-9+]]] "_Z2f1u2CMvb32_j"
+; CHECK-SPIRV-DAG: 6 Name [[F2:[0-9+]]] "_Z2f2u2CMvb32_j"
 
 ; CHECK-SPIRV-DAG: 4 TypeInt [[TypeInt8:[0-9]+]] 8 0
 ; CHECK-SPIRV-DAG: 4 TypeInt [[TypeInt32:[0-9]+]] 32 0
@@ -55,7 +57,8 @@
 ; CHECK-SPIRV-DAG: 4 TypePointer [[StorePtr:[0-9]+]] 7 [[TypeVec16]]
 ; CHECK-SPIRV-DAG: 3 Undef [[TypeVec16]] [[TypeUndef:[0-9]+]]
 
-; CHECK-SPIRV: 4 ConvertPtrToU [[TypeInt64]] [[Ptr1:[0-9]+]] {{[0-9]+}}
+; CHECK-SPIRV: 4 FunctionPointerINTEL [[FuncPtrTy:[0-9]+]] [[F1Ptr:[0-9]+]] [[F1]]
+; CHECK-SPIRV-NEXT: 4 ConvertPtrToU [[TypeInt64]] [[Ptr1:[0-9]+]] [[F1Ptr]]
 ; CHECK-SPIRV-NEXT: 4 Bitcast [[TypeVec8]] [[Vec1:[0-9]+]] [[Ptr1]]
 ; CHECK-SPIRV-NEXT: 5 CompositeExtract [[TypeInt8]] [[v00:[0-9]+]] [[Vec1]] 0
 ; CHECK-SPIRV-NEXT: 5 CompositeExtract [[TypeInt8]] [[v01:[0-9]+]] [[Vec1]] 1
@@ -65,7 +68,8 @@
 ; CHECK-SPIRV-NEXT: 5 CompositeExtract [[TypeInt8]] [[v05:[0-9]+]] [[Vec1]] 5
 ; CHECK-SPIRV-NEXT: 5 CompositeExtract [[TypeInt8]] [[v06:[0-9]+]] [[Vec1]] 6
 ; CHECK-SPIRV-NEXT: 5 CompositeExtract [[TypeInt8]] [[v07:[0-9]+]] [[Vec1]] 7
-; CHECK-SPIRV-NEXT: 4 ConvertPtrToU [[TypeInt64]] [[Ptr2:[0-9]+]] {{[0-9]+}}
+; CHECK-SPIRV-NEXT: 4 FunctionPointerINTEL [[FuncPtrTy]] [[F2Ptr:[0-9]+]] [[F2]]
+; CHECK-SPIRV-NEXT: 4 ConvertPtrToU [[TypeInt64]] [[Ptr2:[0-9]+]] [[F2Ptr]]
 ; CHECK-SPIRV-NEXT: 4 Bitcast [[TypeVec8]] [[Vec2:[0-9]+]] [[Ptr2]]
 ; CHECK-SPIRV-NEXT: 5 CompositeExtract [[TypeInt8]] [[v10:[0-9]+]] [[Vec2]] 0
 ; CHECK-SPIRV-NEXT: 5 CompositeExtract [[TypeInt8]] [[v11:[0-9]+]] [[Vec2]] 1

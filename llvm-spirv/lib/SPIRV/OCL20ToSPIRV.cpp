@@ -810,29 +810,13 @@ void OCL20ToSPIRV::transAtomicBuiltin(CallInst *CI, OCLBuiltinTransInfo &Info) {
         const size_t ArgsCount = Args.size();
         const size_t ScopeIdx = ArgsCount - 1;
         const size_t OrderIdx = ScopeIdx - NumOrder;
-        if (auto ScopeInt = dyn_cast_or_null<ConstantInt>(Args[ScopeIdx])) {
-          Args[ScopeIdx] = mapUInt(M, ScopeInt, [](unsigned I) {
-            return map<Scope>(static_cast<OCLScopeKind>(I));
-          });
-        } else {
-          Args[ScopeIdx] =
-              getOrCreateSwitchFunc(kSPIRVName::TranslateOCLMemScope,
-                                    Args[ScopeIdx], OCLMemScopeMap::getMap(),
-                                    false /*IsReverse*/, OCLMS_device, CI, M);
-        }
+
+        Args[ScopeIdx] =
+            transOCLMemScopeIntoSPIRVScope(Args[ScopeIdx], OCLMS_device, CI);
+
         for (size_t I = 0; I < NumOrder; ++I) {
-          if (auto OrderInt =
-                  dyn_cast_or_null<ConstantInt>(Args[OrderIdx + I])) {
-            Args[OrderIdx + I] = mapUInt(M, OrderInt, [](unsigned Ord) {
-              return mapOCLMemSemanticToSPIRV(
-                  0, static_cast<OCLMemOrderKind>(Ord));
-            });
-          } else {
-            Args[OrderIdx + I] = getOrCreateSwitchFunc(
-                kSPIRVName::TranslateOCLMemOrder, Args[OrderIdx + I],
-                OCLMemOrderMap::getMap(), false /*IsReverse*/, OCLMO_seq_cst,
-                CI, M);
-          }
+          Args[OrderIdx + I] = transOCLMemOrderIntoSPIRVMemorySemantics(
+              Args[OrderIdx + I], OCLMO_seq_cst, CI);
         }
         // Order of args in SPIR-V:
         // object, scope, 1-2 order, 0-2 other args

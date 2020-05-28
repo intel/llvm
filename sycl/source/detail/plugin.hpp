@@ -34,6 +34,11 @@ public:
   plugin(RT::PiPlugin Plugin, backend UseBackend)
       : MPlugin(Plugin), MBackend(UseBackend) {}
 
+  plugin &operator=(const plugin &) = default;
+  plugin(const plugin &) = default;
+  plugin &operator=(plugin &&other) noexcept = default;
+  plugin(plugin &&other) noexcept = default;
+
   ~plugin() = default;
 
   const RT::PiPlugin &getPiPlugin() const { return MPlugin; }
@@ -97,7 +102,7 @@ public:
 
 private:
   RT::PiPlugin MPlugin;
-  const backend MBackend;
+  backend MBackend;
 }; // class plugin
 } // namespace detail
 } // namespace sycl

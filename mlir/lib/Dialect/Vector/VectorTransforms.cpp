@@ -39,37 +39,10 @@
 using namespace mlir;
 using llvm::dbgs;
 
-/// Given a shape with sizes greater than 0 along all dimensions,
-/// returns the distance, in number of elements, between a slice in a dimension
-/// and the next slice in the same dimension.
-///   e.g. shape[3, 4, 5] -> linearization_basis[20, 5, 1]
-static SmallVector<int64_t, 8> computeStrides(ArrayRef<int64_t> shape) {
-  if (shape.empty())
-    return {};
-  SmallVector<int64_t, 8> tmp;
-  tmp.reserve(shape.size());
-  int64_t running = 1;
-  for (auto size : llvm::reverse(shape)) {
-    assert(size > 0 && "size must be nonnegative");
-    tmp.push_back(running);
-    running *= size;
-  }
-  return SmallVector<int64_t, 8>(tmp.rbegin(), tmp.rend());
-}
-
-static int64_t computeMaxLinearIndex(ArrayRef<int64_t> basis) {
-  if (basis.empty())
-    return 0;
-  int64_t res = 1;
-  for (auto b : basis)
-    res *= b;
-  return res;
-}
-
 // Clones `op` into a new operations that takes `operands` and returns
 // `resultTypes`.
-static Operation *cloneOpWithOperandsAndTypes(PatternRewriter &builder,
-                                              Location loc, Operation *op,
+static Operation *cloneOpWithOperandsAndTypes(OpBuilder &builder, Location loc,
+                                              Operation *op,
                                               ArrayRef<Value> operands,
                                               ArrayRef<Type> resultTypes) {
   OperationState res(loc, op->getName().getStringRef(), operands, resultTypes,
@@ -98,7 +71,7 @@ static void getMappedElements(const DenseMap<int64_t, int64_t> &indexMap,
 static TupleType generateExtractSlicesOpResultType(VectorType vectorType,
                                                    ArrayRef<int64_t> sizes,
                                                    ArrayRef<int64_t> strides,
-                                                   PatternRewriter &builder) {
+                                                   OpBuilder &builder) {
   assert(llvm::all_of(strides, [](int64_t s) { return s == 1; }));
   assert(static_cast<int64_t>(sizes.size()) == vectorType.getRank());
   assert(static_cast<int64_t>(strides.size()) == vectorType.getRank());
@@ -140,7 +113,7 @@ static void initUnrolledVectorState(VectorType vectorType, Value initValue,
                                     const DenseMap<int64_t, int64_t> &indexMap,
                                     ArrayRef<int64_t> targetShape,
                                     UnrolledVectorState &state,
-                                    PatternRewriter &builder) {
+                                    OpBuilder &builder) {
   // Compute unrolled shape of 'vectorType'.
   state.unrolledShape.resize(vectorType.getRank());
   getMappedElements(indexMap, targetShape, state.unrolledShape);
@@ -183,7 +156,7 @@ getUnrolledVectorLinearIndex(UnrolledVectorState &state,
 static Value getOrCreateUnrolledVectorSlice(
     Location loc, UnrolledVectorState &state, ArrayRef<int64_t> vectorOffsets,
     ArrayRef<int64_t> offsets, DenseMap<int64_t, int64_t> &indexMap,
-    Value initValue, SmallVectorImpl<Value> &cache, PatternRewriter &builder) {
+    Value initValue, SmallVectorImpl<Value> &cache, OpBuilder &builder) {
   // Compute slice offsets.
   SmallVector<int64_t, 4> sliceOffsets(state.unrolledShape.size());
   getMappedElements(indexMap, offsets, sliceOffsets);
@@ -275,7 +248,7 @@ static Value unrollSingleResultStructuredOp(Operation *op,
                                             std::vector<VectorState> &vectors,
                                             unsigned resultIndex,
                                             ArrayRef<int64_t> targetShape,
-                                            PatternRewriter &builder) {
+                                            OpBuilder &builder) {
   auto shapedType = op->getResult(0).getType().dyn_cast_or_null<ShapedType>();
   if (!shapedType || !shapedType.hasStaticShape())
     assert(false && "Expected a statically shaped result type");
@@ -426,7 +399,7 @@ getVectorElementwiseOpUnrollState(Operation *op, ArrayRef<int64_t> targetShape,
 
 // Entry point for unrolling declarative pattern rewrites.
 SmallVector<Value, 1> mlir::vector::unrollSingleResultOpMatchingType(
-    PatternRewriter &builder, Operation *op, ArrayRef<int64_t> targetShape) {
+    OpBuilder &builder, Operation *op, ArrayRef<int64_t> targetShape) {
   assert(op->getNumResults() == 1 && "Expected single result operation");
 
   // Populate 'iterationBounds', 'vectors' and 'resultIndex' to unroll 'op'.
@@ -451,12 +424,10 @@ SmallVector<Value, 1> mlir::vector::unrollSingleResultOpMatchingType(
 
 /// Generates slices of 'vectorType' according to 'sizes' and 'strides, and
 /// calls 'fn' with linear index and indices for each slice.
-static void
-generateTransferOpSlices(Type memrefElementType, VectorType vectorType,
-                         TupleType tupleType, ArrayRef<int64_t> sizes,
-                         ArrayRef<int64_t> strides, ArrayRef<Value> indices,
-                         PatternRewriter &rewriter,
-                         function_ref<void(unsigned, ArrayRef<Value>)> fn) {
+static void generateTransferOpSlices(
+    Type memrefElementType, VectorType vectorType, TupleType tupleType,
+    ArrayRef<int64_t> sizes, ArrayRef<int64_t> strides, ArrayRef<Value> indices,
+    OpBuilder &builder, function_ref<void(unsigned, ArrayRef<Value>)> fn) {
   // Compute strides w.r.t. to slice counts in each dimension.
   auto maybeDimSliceCounts = shapeRatio(vectorType.getShape(), sizes);
   assert(maybeDimSliceCounts.hasValue());
@@ -484,7 +455,7 @@ generateTransferOpSlices(Type memrefElementType, VectorType vectorType,
   }
   unsigned indexOffset = numSliceIndices - vectorRank;
 
-  auto *ctx = rewriter.getContext();
+  auto *ctx = builder.getContext();
   for (unsigned i = 0; i < numSlices; ++i) {
     auto vectorOffsets = delinearize(sliceStrides, i);
     auto elementOffsets =
@@ -498,7 +469,7 @@ generateTransferOpSlices(Type memrefElementType, VectorType vectorType,
         auto expr = getAffineDimExpr(0, ctx) +
                     getAffineConstantExpr(elementOffsets[j - indexOffset], ctx);
         auto map = AffineMap::get(/*dimCount=*/1, /*symbolCount=*/0, expr);
-        sliceIndices[j] = rewriter.create<AffineApplyOp>(
+        sliceIndices[j] = builder.create<AffineApplyOp>(
             indices[j].getLoc(), map, ArrayRef<Value>(indices[j]));
       }
     }
@@ -566,9 +537,12 @@ struct SplitTransferReadOp : public OpRewritePattern<vector::TransferReadOp> {
       // Get VectorType for slice 'i'.
       auto sliceVectorType = resultTupleType.getType(index);
       // Create split TransferReadOp for 'sliceUser'.
+      // `masked` attribute propagates conservatively: if the coarse op didn't
+      // need masking, the fine op doesn't either.
       vectorTupleValues[index] = rewriter.create<vector::TransferReadOp>(
           loc, sliceVectorType, xferReadOp.memref(), sliceIndices,
-          xferReadOp.permutation_map(), xferReadOp.padding());
+          xferReadOp.permutation_map(), xferReadOp.padding(),
+          xferReadOp.masked() ? *xferReadOp.masked() : ArrayAttr());
     };
     generateTransferOpSlices(memrefElementType, sourceVectorType,
                              resultTupleType, sizes, strides, indices, rewriter,
@@ -622,9 +596,12 @@ struct SplitTransferWriteOp : public OpRewritePattern<vector::TransferWriteOp> {
                                   xferWriteOp.indices().end());
     auto createSlice = [&](unsigned index, ArrayRef<Value> sliceIndices) {
       // Create split TransferWriteOp for source vector 'tupleOp.operand[i]'.
+      // `masked` attribute propagates conservatively: if the coarse op didn't
+      // need masking, the fine op doesn't either.
       rewriter.create<vector::TransferWriteOp>(
           loc, tupleOp.getOperand(index), xferWriteOp.memref(), sliceIndices,
-          xferWriteOp.permutation_map());
+          xferWriteOp.permutation_map(),
+          xferWriteOp.masked() ? *xferWriteOp.masked() : ArrayAttr());
     };
     generateTransferOpSlices(memrefElementType, resultVectorType,
                              sourceTupleType, sizes, strides, indices, rewriter,
@@ -1683,8 +1660,13 @@ public:
 // TODO(andydavis) Add this as DRR pattern.
 void mlir::vector::populateVectorToVectorTransformationPatterns(
     OwningRewritePatternList &patterns, MLIRContext *context) {
-  patterns.insert<ShapeCastOpDecomposer, ShapeCastOpFolder, SplitTransferReadOp,
-                  SplitTransferWriteOp, TupleGetFolderOp>(context);
+  // clang-format off
+  patterns.insert<ShapeCastOpDecomposer,
+                  ShapeCastOpFolder,
+                  SplitTransferReadOp,
+                  SplitTransferWriteOp,
+                  TupleGetFolderOp>(context);
+  // clang-format on
 }
 
 void mlir::vector::populateVectorSlicesLoweringPatterns(
@@ -1695,9 +1677,14 @@ void mlir::vector::populateVectorSlicesLoweringPatterns(
 void mlir::vector::populateVectorContractLoweringPatterns(
     OwningRewritePatternList &patterns, MLIRContext *context,
     VectorTransformsOptions parameters) {
-  patterns.insert<ShapeCastOp2DDownCastRewritePattern,
-                  ShapeCastOp2DUpCastRewritePattern, BroadcastOpLowering,
-                  TransposeOpLowering, OuterProductOpLowering,
-                  ConstantMaskOpLowering, CreateMaskOpLowering>(context);
+  // clang-format off
+  patterns.insert<BroadcastOpLowering,
+                  CreateMaskOpLowering,
+                  ConstantMaskOpLowering,
+                  OuterProductOpLowering,
+                  ShapeCastOp2DDownCastRewritePattern,
+                  ShapeCastOp2DUpCastRewritePattern,
+                  TransposeOpLowering>(context);
+  // clang-format on
   patterns.insert<ContractionOpLowering>(parameters, context);
 }

@@ -1711,12 +1711,13 @@ bool CastExpr::CastConsistency() const {
     auto Ty = getType();
     auto SETy = getSubExpr()->getType();
     assert(getValueKindForType(Ty) == Expr::getValueKindForType(SETy));
-    if (isRValue()) {
+    if (isRValue() && !Ty->isDependentType() && !SETy->isDependentType()) {
       Ty = Ty->getPointeeType();
       SETy = SETy->getPointeeType();
     }
-    assert(!Ty.isNull() && !SETy.isNull() &&
-           Ty.getAddressSpace() != SETy.getAddressSpace());
+    assert((Ty->isDependentType() || SETy->isDependentType()) ||
+           (!Ty.isNull() && !SETy.isNull() &&
+            Ty.getAddressSpace() != SETy.getAddressSpace()));
     goto CheckNoBasePath;
   }
   // These should not have an inheritance path.
@@ -2908,13 +2909,16 @@ Expr *Expr::IgnoreUnlessSpelledInSource() {
   Expr *LastE = nullptr;
   while (E != LastE) {
     LastE = E;
-    E = IgnoreExprNodes(E, IgnoreImplicitSingleStep, IgnoreImpCastsSingleStep,
+    E = IgnoreExprNodes(E, IgnoreImplicitSingleStep,
+                        IgnoreImpCastsExtraSingleStep,
                         IgnoreParensOnlySingleStep);
 
     auto SR = E->getSourceRange();
 
     if (auto *C = dyn_cast<CXXConstructExpr>(E)) {
-      if (C->getNumArgs() == 1) {
+      auto NumArgs = C->getNumArgs();
+      if (NumArgs == 1 ||
+          (NumArgs > 1 && isa<CXXDefaultArgExpr>(C->getArg(1)))) {
         Expr *A = C->getArg(0);
         if (A->getSourceRange() == SR || !isa<CXXTemporaryObjectExpr>(C))
           E = A;
@@ -2922,7 +2926,18 @@ Expr *Expr::IgnoreUnlessSpelledInSource() {
     }
 
     if (auto *C = dyn_cast<CXXMemberCallExpr>(E)) {
-      Expr *ExprNode = C->getImplicitObjectArgument()->IgnoreParenImpCasts();
+      Expr *ExprNode = C->getImplicitObjectArgument();
+      if (ExprNode->getSourceRange() == SR) {
+        E = ExprNode;
+        continue;
+      }
+      if (auto *PE = dyn_cast<ParenExpr>(ExprNode)) {
+        if (PE->getSourceRange() == C->getSourceRange()) {
+          E = PE;
+          continue;
+        }
+      }
+      ExprNode = ExprNode->IgnoreParenImpCasts();
       if (ExprNode->getSourceRange() == SR)
         E = ExprNode;
     }
@@ -3205,6 +3220,7 @@ bool Expr::isConstantInitializer(ASTContext &Ctx, bool IsForRef,
   case ObjCBridgedCastExprClass:
   case CXXDynamicCastExprClass:
   case CXXReinterpretCastExprClass:
+  case CXXAddrspaceCastExprClass:
   case CXXConstCastExprClass: {
     const CastExpr *CE = cast<CastExpr>(this);
 
@@ -3496,6 +3512,7 @@ bool Expr::HasSideEffects(const ASTContext &Ctx,
   case CXXStaticCastExprClass:
   case CXXReinterpretCastExprClass:
   case CXXConstCastExprClass:
+  case CXXAddrspaceCastExprClass:
   case CXXFunctionalCastExprClass:
   case BuiltinBitCastExprClass: {
     // While volatile reads are side-effecting in both C and C++, we treat them

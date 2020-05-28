@@ -640,7 +640,7 @@ namespace llvm {
     /// then the VPERM for the shuffle. All in all a very slow sequence.
     TargetLoweringBase::LegalizeTypeAction getPreferredVectorAction(MVT VT)
       const override {
-      if (VT.getScalarSizeInBits() % 8 == 0)
+      if (VT.getVectorNumElements() != 1 && VT.getScalarSizeInBits() % 8 == 0)
         return TypeWidenVector;
       return TargetLoweringBase::getPreferredVectorAction(VT);
     }
@@ -949,6 +949,11 @@ namespace llvm {
     /// exception typeid on entry to a landing pad.
     Register
     getExceptionSelectorRegister(const Constant *PersonalityFn) const override;
+
+    /// isMulhCheaperThanMulShift - Return true if a mulh[s|u] node for a
+    /// specific type is cheaper than a multiply followed by a shift.
+    /// This is true for words and doublewords on 64-bit PowerPC.
+    bool isMulhCheaperThanMulShift(EVT Type) const override;
 
     /// Override to support customized stack guard loading.
     bool useLoadStackGuardNode() const override;

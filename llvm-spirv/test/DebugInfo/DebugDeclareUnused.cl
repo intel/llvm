@@ -10,7 +10,6 @@ void foo() {
   int a;
 }
 
-// CHECK-SPIRV: ExtInst {{[0-9]+}} [[None:[0-9]+]] {{[0-9]+}} DebugInfoNone
-// CHECK-SPIRV: ExtInst {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} DebugDeclare {{[0-9]+}} [[None]] {{[0-9]+}}
-// CHECK-LLVM: call void @llvm.dbg.declare(metadata ![[VarAddr:[0-9]+]], metadata !{{[0-9]+}}, metadata !DIExpression())
-// CHECK-LLVM: ![[VarAddr]] = !{}
+// CHECK-SPIRV: Undef [[#]] [[#Undef:]]
+// CHECK-SPIRV: ExtInst [[#]] [[#]] [[#]] DebugDeclare [[#]] [[#Undef]] [[#]]
+// CHECK-LLVM: call void @llvm.dbg.declare(metadata i32* undef, metadata ![[#]], metadata !DIExpression())
