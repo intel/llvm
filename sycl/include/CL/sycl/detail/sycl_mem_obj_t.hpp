@@ -104,7 +104,9 @@ public:
     return MAllocator->getAllocator<AllocatorT>();
   }
 
-  DLL_LOCAL void *allocateHostMem() override { return MAllocator->allocate(get_count()); }
+  DLL_LOCAL void *allocateHostMem() override {
+    return MAllocator->allocate(get_count());
+  }
 
   DLL_LOCAL void releaseHostMem(void *Ptr) override {
     if (Ptr)
@@ -117,9 +119,13 @@ public:
     return MOpenCLInterop ? static_cast<void *>(MInteropMemObject) : MUserPtr;
   }
 
-  DLL_LOCAL void set_write_back(bool NeedWriteBack) { MNeedWriteBack = NeedWriteBack; }
+  DLL_LOCAL void set_write_back(bool NeedWriteBack) {
+    MNeedWriteBack = NeedWriteBack;
+  }
 
-  DLL_LOCAL void set_final_data(std::nullptr_t) { MUploadDataFunctor = nullptr; }
+  DLL_LOCAL void set_final_data(std::nullptr_t) {
+    MUploadDataFunctor = nullptr;
+  }
 
   template <template <typename T> class PtrT, typename T>
   DLL_LOCAL enable_if_t<std::is_convertible<PtrT<T>, weak_ptr_class<T>>::value>
@@ -128,7 +134,8 @@ public:
     set_final_data(TempFinalData);
   }
 
-  template <typename T> DLL_LOCAL void set_final_data(weak_ptr_class<T> FinalData) {
+  template <typename T>
+  DLL_LOCAL void set_final_data(weak_ptr_class<T> FinalData) {
     MUploadDataFunctor = [this, FinalData]() {
       if (shared_ptr_class<T> LockedFinalData = FinalData.lock()) {
         updateHostMemory(LockedFinalData.get());
@@ -146,7 +153,8 @@ public:
   }
 
   template <typename Destination>
-  DLL_LOCAL EnableIfOutputPointerT<Destination> set_final_data(Destination FinalData) {
+  DLL_LOCAL EnableIfOutputPointerT<Destination>
+  set_final_data(Destination FinalData) {
     if (!FinalData)
       MUploadDataFunctor = nullptr;
     else
@@ -156,7 +164,8 @@ public:
   }
 
   template <typename Destination>
-  DLL_LOCAL EnableIfOutputIteratorT<Destination> set_final_data(Destination FinalData) {
+  DLL_LOCAL EnableIfOutputIteratorT<Destination>
+  set_final_data(Destination FinalData) {
     MUploadDataFunctor = [this, FinalData]() {
       using DestinationValueT = iterator_value_type_t<Destination>;
       // TODO if Destination is ContiguousIterator then don't create
@@ -204,14 +213,15 @@ public:
     }
   }
 
-  DLL_LOCAL void handleHostData(const void *HostPtr, const size_t RequiredAlign) {
+  DLL_LOCAL void handleHostData(const void *HostPtr,
+                                const size_t RequiredAlign) {
     MHostPtrReadOnly = true;
     handleHostData(const_cast<void *>(HostPtr), RequiredAlign);
   }
 
   template <typename T>
   DLL_LOCAL void handleHostData(const shared_ptr_class<T> &HostPtr,
-                      const size_t RequiredAlign) {
+                                const size_t RequiredAlign) {
     MSharedPtrStorage = HostPtr;
     MHostPtrReadOnly = std::is_const<T>::value;
     if (HostPtr) {
@@ -231,7 +241,7 @@ public:
 
   template <class InputIterator>
   DLL_LOCAL void handleHostData(InputIterator First, InputIterator Last,
-                      const size_t RequiredAlign) {
+                                const size_t RequiredAlign) {
     MHostPtrReadOnly = iterator_to_const_type_t<InputIterator>::value;
     setAlign(RequiredAlign);
     if (useHostPtr())
@@ -262,7 +272,8 @@ public:
                                      cl_mem MemObject);
 
   DLL_LOCAL void *allocateMem(ContextImplPtr Context, bool InitFromUserData,
-                    void *HostPtr, RT::PiEvent &InteropEvent) override {
+                              void *HostPtr,
+                              RT::PiEvent &InteropEvent) override {
     (void)Context;
     (void)InitFromUserData;
     (void)HostPtr;
