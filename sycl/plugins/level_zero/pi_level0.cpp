@@ -500,7 +500,7 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
       std::call_once(OnceFlag, [&ZeResult]() {
         ZeResult = ZE_CALL_NOCHECK(zeInit(ZE_INIT_FLAG_NONE));
       });
-    } catch (std::system_error &err) {
+    } catch (...) {
       // if any condition prevents calls to call_once from executing as
       // specified
       ZeResult = ZE_RESULT_ERROR_UNINITIALIZED;
