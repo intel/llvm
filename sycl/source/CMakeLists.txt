@@ -101,7 +101,6 @@ set(SYCL_SOURCES
     "detail/builtins_integer.cpp"
     "detail/builtins_math.cpp"
     "detail/builtins_relational.cpp"
-    "detail/cg.cpp"
     "detail/pi.cpp"
     "detail/common.cpp"
     "detail/config.cpp"
