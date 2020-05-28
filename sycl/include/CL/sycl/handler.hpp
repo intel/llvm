@@ -290,12 +290,8 @@ private:
 
   bool is_host() { return MIsHost; }
 
-//  template <typename T, int Dims, access::mode AccMode,
-//            access::target AccTarget, access::placeholder IsPH>
-//  void associateWithHandler(accessor<T, Dims, AccMode, AccTarget, IsPH> Acc) {
   void associateWithHandler(detail::AccessorBaseHost *AccBase,
                             access::target AccTarget) {
-//    detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Acc;
     detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
     detail::Requirement *Req = AccImpl.get();
     // Add accessor to the list of requirements.
