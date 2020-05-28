@@ -45,7 +45,7 @@ template <int dim>
 struct id {
 };
 
-template <typename dataT, int dim>
+template <int dim>
 struct _ImplT {
   range<dim> AccessRange;
   range<dim> MemRange;
@@ -78,13 +78,10 @@ class accessor {
 public:
   void use(void) const {}
   void use(void *) const {}
+  _ImplT<dimensions> impl;
 
 private:
   using PtrType = typename DeviceValueType<dataT, accessTarget>::type *;
-
-  _ImplT<dataT, dimensions> impl;
-  PtrType MData;
-
   void __init(PtrType Ptr, range<dimensions> AccessRange,
               range<dimensions> MemRange, id<dimensions> Offset) {}
 };

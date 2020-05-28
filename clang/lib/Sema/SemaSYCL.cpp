@@ -206,31 +206,9 @@ static bool isZeroSizedArray(QualType Ty) {
   return false;
 }
 
-static Sema::DeviceDiagBuilder
-emitDeferredDiagnosticAndNote(Sema &S, SourceRange Loc, unsigned DiagID,
-                              bool DiagImmediately, SourceRange UsedAtLoc) {
-  FunctionDecl *FD = dyn_cast<FunctionDecl>(S.getCurLexicalContext());
-  auto builder =
-      DiagImmediately
-          ? Sema::DeviceDiagBuilder(Sema::DeviceDiagBuilder::K_Immediate,
-                                    Loc.getBegin(), DiagID, FD, S)
-          : S.SYCLDiagIfDeviceCode(Loc.getBegin(), DiagID);
-  if (UsedAtLoc.isValid()) {
-    if (DiagImmediately)
-      Sema::DeviceDiagBuilder(Sema::DeviceDiagBuilder::K_Immediate,
-                              UsedAtLoc.getBegin(), diag::note_sycl_used_here,
-                              FD, S);
-    else
-      S.SYCLDiagIfDeviceCode(UsedAtLoc.getBegin(), diag::note_sycl_used_here);
-  }
-
-  return builder;
-}
-
-static void checkSYCLVarType(Sema &S, QualType Ty, SourceRange Loc,
-                             llvm::DenseSet<QualType> Visited,
-                             bool DiagImmediately,
-                             SourceRange UsedAtLoc = SourceRange()) {
+static void checkSYCLType(Sema &S, QualType Ty, SourceRange Loc,
+                          llvm::DenseSet<QualType> Visited,
+                          SourceRange UsedAtLoc = SourceRange()) {
   // Not all variable types are supported inside SYCL kernels,
   // for example the quad type __float128 will cause errors in the
   // SPIR-V translation phase.
@@ -241,17 +219,21 @@ static void checkSYCLVarType(Sema &S, QualType Ty, SourceRange Loc,
   // different location than the variable declaration and we need to
   // inform the user of both, e.g. struct member usage vs declaration.
 
+  bool EmitMaybe = false;
+
   //--- check types ---
 
   // zero length arrays
-  if (isZeroSizedArray(Ty))
-    emitDeferredDiagnosticAndNote(S, Loc, diag::err_typecheck_zero_array_size,
-                                  DiagImmediately, UsedAtLoc);
+  if (isZeroSizedArray(Ty)) {
+    S.SYCLDiagIfDeviceCode(Loc.getBegin(), diag::err_typecheck_zero_array_size);
+    EmitMaybe = true;
+  }
 
   // variable length arrays
-  if (Ty->isVariableArrayType())
-    emitDeferredDiagnosticAndNote(S, Loc, diag::err_vla_unsupported,
-                                  DiagImmediately, UsedAtLoc);
+  if (Ty->isVariableArrayType()) {
+    S.SYCLDiagIfDeviceCode(Loc.getBegin(), diag::err_vla_unsupported);
+    EmitMaybe = true;
+  }
 
   // Sub-reference array or pointer, then proceed with that type.
   while (Ty->isAnyPointerType() || Ty->isArrayType())
@@ -262,10 +244,14 @@ static void checkSYCLVarType(Sema &S, QualType Ty, SourceRange Loc,
       Ty->isSpecificBuiltinType(BuiltinType::UInt128) ||
       Ty->isSpecificBuiltinType(BuiltinType::LongDouble) ||
       (Ty->isSpecificBuiltinType(BuiltinType::Float128) &&
-       !S.Context.getTargetInfo().hasFloat128Type()))
-    emitDeferredDiagnosticAndNote(S, Loc, diag::err_type_unsupported,
-                                  DiagImmediately, UsedAtLoc)
+       !S.Context.getTargetInfo().hasFloat128Type())) {
+    S.SYCLDiagIfDeviceCode(Loc.getBegin(), diag::err_type_unsupported)
         << Ty.getUnqualifiedType().getCanonicalType();
+    EmitMaybe = true;
+  }
+
+  if (EmitMaybe && UsedAtLoc.isValid())
+    S.SYCLDiagIfDeviceCode(UsedAtLoc.getBegin(), diag::note_used_here);
 
   //--- now recurse ---
   // Pointers complicate recursion. Add this type to Visited.
@@ -274,17 +260,15 @@ static void checkSYCLVarType(Sema &S, QualType Ty, SourceRange Loc,
     return;
 
   if (const auto *ATy = dyn_cast<AttributedType>(Ty))
-    return checkSYCLVarType(S, ATy->getModifiedType(), Loc, Visited,
-                            DiagImmediately);
+    return checkSYCLType(S, ATy->getModifiedType(), Loc, Visited);
 
   if (const auto *RD = Ty->getAsRecordDecl()) {
     for (const auto &Field : RD->fields())
-      checkSYCLVarType(S, Field->getType(), Field->getSourceRange(), Visited,
-                       DiagImmediately, Loc);
+      checkSYCLType(S, Field->getType(), Field->getSourceRange(), Visited, Loc);
   } else if (const auto *FPTy = dyn_cast<FunctionProtoType>(Ty)) {
     for (const auto &ParamTy : FPTy->param_types())
-      checkSYCLVarType(S, ParamTy, Loc, Visited, DiagImmediately);
-    checkSYCLVarType(S, FPTy->getReturnType(), Loc, Visited, DiagImmediately);
+      checkSYCLType(S, ParamTy, Loc, Visited);
+    checkSYCLType(S, FPTy->getReturnType(), Loc, Visited);
   }
 }
 
@@ -295,27 +279,7 @@ void Sema::checkSYCLDeviceVarDecl(VarDecl *Var) {
   SourceRange Loc = Var->getLocation();
   llvm::DenseSet<QualType> Visited;
 
-  checkSYCLVarType(*this, Ty, Loc, Visited, false);
-}
-
-static void checkAccessorVarType(Sema &S, QualType Ty, SourceRange Loc) {
-  assert(Util::isSyclAccessorType(Ty) &&
-         "Should only be called on SYCL accessor types.");
-
-  llvm::DenseSet<QualType> Visited;
-  const RecordDecl *RecTy = Ty->getAsRecordDecl();
-  for (const auto &Field : RecTy->fields()) {
-    if (Field->getName().compare("MData") == 0) {
-      QualType FTy = Field->getType();
-      // Sub-reference array or pointer, then proceed with that type.
-      while (FTy->isAnyPointerType() || FTy->isArrayType())
-        FTy = QualType{FTy->getPointeeOrArrayElementType(), 0};
-      FTy = FTy.getUnqualifiedType().getCanonicalType();
-
-      checkSYCLVarType(S, FTy, Loc, Visited, true);
-      return;
-    }
-  }
+  checkSYCLType(*this, Ty, Loc, Visited);
 }
 
 class MarkDeviceFunction : public RecursiveASTVisitor<MarkDeviceFunction> {
@@ -836,6 +800,22 @@ class SyclKernelFieldChecker
   bool IsInvalid = false;
   DiagnosticsEngine &Diag;
 
+  void checkAccessorVarType(QualType Ty, SourceRange Loc) {
+    assert(Util::isSyclAccessorType(Ty) &&
+           "Should only be called on SYCL accessor types.");
+
+    const RecordDecl *RecD = Ty->getAsRecordDecl();
+    if (const ClassTemplateSpecializationDecl *CTSD =
+            dyn_cast<ClassTemplateSpecializationDecl>(RecD)) {
+      const TemplateArgumentList &TAL = CTSD->getTemplateArgs();
+      auto TA = TAL.get(0);
+      const QualType TemplateArgTy = TA.getAsType();
+
+      llvm::DenseSet<QualType> Visited;
+      checkSYCLType(SemaRef, TemplateArgTy, Loc, Visited);
+    }
+  }
+
 public:
   SyclKernelFieldChecker(Sema &S)
       : SyclKernelFieldHandler(S), Diag(S.getASTContext().getDiagnostics()) {}
@@ -869,11 +849,11 @@ public:
 
   void handleSyclAccessorType(const CXXBaseSpecifier &BS,
                               QualType FieldTy) final {
-    checkAccessorVarType(SemaRef, FieldTy, BS.getBeginLoc());
+    checkAccessorVarType(FieldTy, BS.getBeginLoc());
   }
 
   void handleSyclAccessorType(FieldDecl *FD, QualType FieldTy) final {
-    checkAccessorVarType(SemaRef, FieldTy, FD->getLocation());
+    checkAccessorVarType(FieldTy, FD->getLocation());
   }
 
   // We should be able to handle this, so we made it part of the visitor, but
@@ -1584,7 +1564,9 @@ Sema::DeviceDiagBuilder Sema::SYCLDiagIfDeviceCode(SourceLocation Loc,
          "Should only be called during SYCL compilation");
   FunctionDecl *FD = dyn_cast<FunctionDecl>(getCurLexicalContext());
   DeviceDiagBuilder::Kind DiagKind = [this, FD] {
-    if (ConstructingOpenCLKernel || !FD)
+    if (ConstructingOpenCLKernel)
+      return DeviceDiagBuilder::K_ImmediateWithCallStack;
+    if (!FD)
       return DeviceDiagBuilder::K_Nop;
     if (getEmissionStatus(FD) == Sema::FunctionEmissionStatus::Emitted)
       return DeviceDiagBuilder::K_ImmediateWithCallStack;
