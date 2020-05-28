@@ -1997,13 +1997,26 @@ pi_result cuda_piKernelCreate(pi_program program, const char *kernel_name,
 
   try {
     ScopedContext active(program->get_context());
+
     CUfunction cuFunc;
     retErr = PI_CHECK_ERROR(
         cuModuleGetFunction(&cuFunc, program->get(), kernel_name));
 
-    retKernel = std::unique_ptr<_pi_kernel>(
-        new _pi_kernel{cuFunc, kernel_name, program, program->get_context()});
+    std::string kernel_name_woffset = std::string(kernel_name) + "_with_offset";
+    CUfunction cuFuncWithOffsetParam;
+    CUresult offsetRes = cuModuleGetFunction(
+        &cuFuncWithOffsetParam, program->get(), kernel_name_woffset.c_str());
 
+    // If there is no kernel with global offset parameter we mark it as missing
+    if (offsetRes == CUDA_ERROR_NOT_FOUND) {
+      cuFuncWithOffsetParam = nullptr;
+    } else {
+      retErr = PI_CHECK_ERROR(offsetRes);
+    }
+
+    retKernel = std::unique_ptr<_pi_kernel>(
+        new _pi_kernel{cuFunc, cuFuncWithOffsetParam, kernel_name, program,
+                       program->get_context()});
   } catch (pi_result err) {
     retErr = err;
   } catch (...) {
@@ -2070,6 +2083,22 @@ pi_result cuda_piEnqueueKernelLaunch(
 
     retError = cuda_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
                                         event_wait_list, nullptr);
+
+    // Set the implicit global offset parameter if kernel has offset variant
+    if (kernel->get_with_offset_parameter()) {
+      std::uint32_t cuda_implicit_offset[3] = {0, 0, 0};
+      if (global_work_offset) {
+        for (size_t i = 0; i < work_dim; i++) {
+          cuda_implicit_offset[i] =
+              static_cast<std::uint32_t>(global_work_offset[i]);
+          if (global_work_offset[i] != 0) {
+            cuFunc = kernel->get_with_offset_parameter();
+          }
+        }
+      }
+      kernel->set_implicit_offset_arg(sizeof(cuda_implicit_offset),
+                                      cuda_implicit_offset);
+    }
 
     // Set the number of threads per block to the number of threads per warp
     // by default unless user has provided a better number
