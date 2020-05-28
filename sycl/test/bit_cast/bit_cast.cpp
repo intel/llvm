@@ -24,7 +24,7 @@ To doBitCast(const From &ValueToConvert) {
     Queue.submit([&](sycl::handler &cgh) {
       auto acc = Buf.template get_access<sycl_write>(cgh);
       cgh.single_task<class BitCastKernel<To, From>>([=]() {
-        acc[0] = sycl::bit_cast<To>(ValueToConvert);
+        acc[0] = sycl::intel::bit_cast<To>(ValueToConvert);
       });
     });
   }
@@ -38,10 +38,9 @@ int test(const From &ValueToConvert, const To &Expected) {
   if (std::is_integral<To>::value) {
     isActualEqualsToExpected = Actual == Expected;
   } else if ((std::is_floating_point<To>::value) || std::is_same<To, cl::sycl::half>::value) {
-      static const float Epsilon = 0.0000001f;
-      isActualEqualsToExpected = fabs(Actual - Expected) < Epsilon;
-    }
-  else {
+    static const float Epsilon = 0.0000001f;
+    isActualEqualsToExpected = fabs(Actual - Expected) < Epsilon;
+  } else {
     std::cerr << "Type " << typeid(To).name() << " neither integral nor floating point\n";
     return 1;
   }

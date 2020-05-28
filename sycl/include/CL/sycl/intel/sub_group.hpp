@@ -17,7 +17,6 @@
 #include <CL/sycl/detail/spirv.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/id.hpp>
-#include <CL/sycl/intel/bit_cast.hpp>
 #include <CL/sycl/intel/functional.hpp>
 #include <CL/sycl/range.hpp>
 #include <CL/sycl/types.hpp>
@@ -81,7 +80,7 @@ T load(const multi_ptr<T, Space> src) {
   BlockT Ret =
       __spirv_SubgroupBlockReadINTEL<BlockT>(reinterpret_cast<PtrT>(src.get()));
 
-  return sycl::bit_cast<T>(Ret);
+  return sycl::detail::bit_cast<T>(Ret);
 }
 
 template <int N, typename T, access::address_space Space>
@@ -94,7 +93,7 @@ vec<T, N> load(const multi_ptr<T, Space> src) {
   VecT Ret =
       __spirv_SubgroupBlockReadINTEL<VecT>(reinterpret_cast<PtrT>(src.get()));
 
-  return sycl::bit_cast<typename vec<T, N>::vector_t>(Ret);
+  return sycl::detail::bit_cast<typename vec<T, N>::vector_t>(Ret);
 }
 
 template <typename T, access::address_space Space>
@@ -103,7 +102,7 @@ void store(multi_ptr<T, Space> dst, const T &x) {
   using PtrT = sycl::detail::ConvertToOpenCLType_t<multi_ptr<BlockT, Space>>;
 
   __spirv_SubgroupBlockWriteINTEL(reinterpret_cast<PtrT>(dst.get()),
-                                  sycl::bit_cast<BlockT>(x));
+                                  sycl::detail::bit_cast<BlockT>(x));
 }
 
 template <int N, typename T, access::address_space Space>
@@ -114,7 +113,7 @@ void store(multi_ptr<T, Space> dst, const vec<T, N> &x) {
       sycl::detail::ConvertToOpenCLType_t<const multi_ptr<BlockT, Space>>;
 
   __spirv_SubgroupBlockWriteINTEL(reinterpret_cast<PtrT>(dst.get()),
-                                  sycl::bit_cast<VecT>(x));
+                                  sycl::detail::bit_cast<VecT>(x));
 }
 
 } // namespace sub_group
