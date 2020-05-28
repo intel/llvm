@@ -77,7 +77,7 @@ else()
   )
 endif()
 
-if (l0-loader)
+if (TARGET l0-loader)
   add_dependencies(pi_level0 l0-loader)
 endif()
   add_dependencies(sycl-toolchain pi_level0)
