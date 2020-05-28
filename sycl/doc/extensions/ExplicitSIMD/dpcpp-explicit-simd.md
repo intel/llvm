@@ -105,98 +105,96 @@ namespace sycl {
 namespace intel {
 namespace gpu {
 
-// __vector_type, using clang vector type extension.
-template <typename __Ty, int __N> struct __vector_type {
-  static_assert(!std::is_const<__Ty>::value, "const element type not supported");
-  static_assert(__is_vectorizable_v<__Ty>::value, "element type not supported");
-  static_assert(__N > 0, "zero-element vector not supported");
+// vector_type, using clang vector type extension.
+template <typename Ty, int N> struct vector_type {
+  static_assert(!std::is_const<Ty>::value, "const element type not supported");
+  static_assert(is_vectorizable_v<Ty>::value, "element type not supported");
+  static_assert(N > 0, "zero-element vector not supported");
 
-  static constexpr int length = __N;
-  using type = __Ty __attribute__((ext_vector_type(__N)));
+  static constexpr int length = N;
+  using type = Ty attribute((ext_vector_type(N)));
 };
 
-template <int __N>
-using __mask_type_t = typename __vector_type<uint16_t, __N>::type;
+template <int N>
+using mask_type_t = typename vector_type<uint16_t, N>::type;
 
-template <typename __Ty, int __N> class simd {
+template <typename Ty, int N> class simd {
 public:
-  using value_type = simd<__Ty, __N, 0>;
-  using element_type = __Ty;
-  using vector_type = __vector_type_t<__Ty, __N>;
-  using type = simd<__Ty, __N>;
-  static constexpr int length = __N;
+  using value_type = simd<Ty, N, 0>;
+  using element_type = Ty;
+  using vector_type = vector_type_t<Ty, N>;
+  static constexpr int length = N;
 
   // Constructors.
   constexpr simd();
   constexpr simd(const simd &other);
   constexpr simd(simd &&other);
-  constexpr simd(const vector_type &__Val);
-  constexpr simd(std::initializer_list<__Ty> __Ilist) noexcept;
-  constexpr simd(__Ty __Val, __Ty __Step = __Ty()) noexcept;
+  constexpr simd(const vector_type &Val);
+  constexpr simd(std::initializer_list<Ty> Ilist) noexcept;
+  constexpr simd(Ty Val, Ty Step = Ty()) noexcept;
 
   // Assignment operators.
-  constexpr type &operator=(const type &) &;
-  constexpr type &operator=(type &&) &;
+  constexpr simd &operator=(const simd &) &;
+  constexpr simd &operator=(simd &&) &;
 
   // Subscript operators.
-  __Ty operator[](int __i);
-  __Ty operator[](int __i) const;
+  Ty operator[](int i) const;
 
   // Unary operators.
-  type &operator++();
-  type operator++(int);
-  type &operator--();
-  type operator--(int);
+  simd &operator++();
+  simd operator++(int);
+  simd &operator--();
+  simd operator--(int);
 
   // Binary operators.
-  auto operator +(const type &__RHS) const;
-  auto operator -(const type &__RHS) const;
-  auto operator *(const type &__RHS) const;
-  auto operator /(const type &__RHS) const;
-  type operator &(const type &__RHS) const;
-  type operator |(const type &__RHS) const;
-  type operator ^(const type &__RHS) const;
+  auto operator +(const simd &RHS) const;
+  auto operator -(const simd &RHS) const;
+  auto operator *(const simd &RHS) const;
+  auto operator /(const simd &RHS) const;
+  simd operator &(const simd &RHS) const;
+  simd operator |(const simd &RHS) const;
+  simd operator ^(const simd &RHS) const;
 
   // Compound assignment.
-  type &operator +=(const type &__RHS);
-  type &operator -=(const type &__RHS);
-  type &operator *=(const type &__RHS);
-  type &operator /=(const type &__RHS);
-  type &operator &=(const type &__RHS);
-  type &operator |=(const type &__RHS);
-  type &operator ^=(const type &__RHS);
+  simd &operator +=(const simd &RHS);
+  simd &operator -=(const simd &RHS);
+  simd &operator *=(const simd &RHS);
+  simd &operator /=(const simd &RHS);
+  simd &operator &=(const simd &RHS);
+  simd &operator |=(const simd &RHS);
+  simd &operator ^=(const simd &RHS);
 
   // Compare operators.
-  simd<uint16_t, __N> operator >(const type &__RHS) const;
-  simd<uint16_t, __N> operator >=(const type &__RHS) const;
-  simd<uint16_t, __N> operator <(const type &__RHS) const;
-  simd<uint16_t, __N> operator <=(const type &__RHS) const;
-  simd<uint16_t, __N> operator ==(const type &__RHS) const;
-  simd<uint16_t, __N> operator !=(const type &__RHS) const;
+  simd<uint16_t, N> operator >(const simd &RHS) const;
+  simd<uint16_t, N> operator >=(const simd &RHS) const;
+  simd<uint16_t, N> operator <(const simd &RHS) const;
+  simd<uint16_t, N> operator <=(const simd &RHS) const;
+  simd<uint16_t, N> operator ==(const simd &RHS) const;
+  simd<uint16_t, N> operator !=(const simd &RHS) const;
 
   // Select operations.
-  template <int __Size, int __Stride>
-  simd<__Ty, __Size> select(uint16_t __Offset = 0) &&;
-  template <int __Size, int __Stride>
-  simd_view<type, region1d_t<__Ty, __Size, __Stride>>
-  select(uint16_t __i = 0) &;
+  template <int Size, int Stride>
+  simd<Ty, Size> select(uint16_t Offset = 0) &&;
+  template <int Size, int Stride>
+  simd_view<simd, region1d_t<Ty, Size, Stride>>
+  select(uint16_t i = 0) &;
 
   // Replicate operations.
-  template <int Rep> simd<__Ty, Rep * __N> replicate();
-  template <int Rep, int W> simd<__Ty, Rep * W> replicate(uint16_t __i);
+  template <int Rep> simd<Ty, Rep * N> replicate();
+  template <int Rep, int W> simd<Ty, Rep * W> replicate(uint16_t i);
   template <int Rep, int VS, int W>
-  simd<__Ty, Rep * W> replicate(uint16_t __i);
+  simd<Ty, Rep * W> replicate(uint16_t i);
   template <int Rep, int VS, int W, int HS>
-  simd<__Ty, Rep * W> replicate(uint16_t __i);
+  simd<Ty, Rep * W> replicate(uint16_t i);
 
   // Format operations.
-  template <typename __EltTy> auto format() &;
-  template <typename __EltTy, int __Height, int __Width> auto format() &;
+  template <typename EltTy> auto format() &;
+  template <typename EltTy, int Height, int Width> auto format() &;
 
   // Merge operations.
-  void merge(const value_type &__Val, const __mask_type_t<__N> &__Mask);
-  void merge(const value_type &__Val1, value_type __Val2,
-             const __mask_type_t<__N> &__Mask);
+  void merge(const value_type &Val, const mask_type_t<N> &Mask);
+  void merge(const value_type &Val1, value_type Val2,
+             const mask_type_t<N> &Mask);
 } // namespace gpu
 } // namespace intel
 } // namespace sycl
@@ -221,8 +219,8 @@ unsequenced with respect to the others.
 To reference a subset of the elements in simd vector object, Explicit SIMD provides ```select```
 function, which returns a `simd` or `simd_view` object (*described below*) representing
 the selected sub-vector starting from the i-th element. The number of selected
-elements is specified by the template parameter **__Size**, while the distance
-between two adjacent elements is specified by the template parameter **__Stride**.
+elements is specified by the template parameter **Size**, while the distance
+between two adjacent elements is specified by the template parameter **Stride**.
 
 ```cpp
   simd<int, 8> a;
@@ -266,10 +264,10 @@ Selected blocks of **W** elements will overlap if **VS** < **W**.
 To avoid explicit type cast and the resulting move instructions for large vectors, Explicit SIMD allows
 programmer to reinterpret the fundamental data element type of a simd vector object and change
 its shape to 1D or 2D object through the ```format``` function:
-- ```format<__EltTy>( )```: returns a reference to the calling simd object interpreted as a new
-simd vector with the size determined by the template **__EltTy** parameter.
-- ```format<__EltTy, __Height, __Width>( )```: returns a reference to the calling simd object interpreted
-as a new 2D simd_view object with the shape determined by the template parameters **__Height** and**__Width**. The size of the new 2D block must not exceed the size of the original object.
+- ```format<EltTy>( )```: returns a reference to the calling simd object interpreted as a new
+simd vector with the size determined by the template **EltTy** parameter.
+- ```format<EltTy, Height, Width>( )```: returns a reference to the calling simd object interpreted
+as a new 2D simd_view object with the shape determined by the template parameters **Height** and**Width**. The size of the new 2D block must not exceed the size of the original object.
 
 ```cpp
   simd<int, 16> v1;
@@ -288,7 +286,7 @@ as a new 2D simd_view object with the shape determined by the template parameter
 ```
 
 To model predicated move, Explicit SIMD provides the following merge functions:
-- ```merge(value_type __Val, __mask_type __Mask)```: this merge operation takes one source operand **__Val** and a mask **__Mask** defined as unsigned short vector of the same length. The semantic is that if the LSB of an element of **__Mask** is set, then the corresponding data element of **__Val** is copied to the corresponding position in the calling simd object.
+- ```merge(value_type Val, mask_type Mask)```: this merge operation takes one source operand **Val** and a mask **Mask** defined as unsigned short vector of the same length. The semantic is that if the LSB of an element of **Mask** is set, then the corresponding data element of **Val** is copied to the corresponding position in the calling simd object.
 
 ```cpp
   simd<int, 4>   m, src;
@@ -299,7 +297,7 @@ To model predicated move, Explicit SIMD provides the following merge functions:
   // 2 2 2 2     4 4 4 4     1 1 0 1         4 4 2 4
 ```
 
-- ```merge(value_type __Val1, value_type __Val2, __mask_type __Mask)```: this merge operation takes two source operands **__Val1** and **__Val2** as well as a simd mask. The semantic is that if the LSB of an element of **__Mask** is set, then the corresponding data element of **__Val1** is copied to the corresponding position in the calling simd object. Otherwise the corresponding data element of **__Val2** is copied to the corresponding position in the calling simd object.
+- ```merge(value_type Val1, value_type Val2, mask_type Mask)```: this merge operation takes two source operands **Val1** and **Val2** as well as a simd mask. The semantic is that if the LSB of an element of **Mask** is set, then the corresponding data element of **Val1** is copied to the corresponding position in the calling simd object. Otherwise the corresponding data element of **Val2** is copied to the corresponding position in the calling simd object.
 
 ```cpp
   simd<int,4>   m, src1, src2;
@@ -314,8 +312,8 @@ To model predicated move, Explicit SIMD provides the following merge functions:
 The ```sycl::intel::gpu::simd_view``` represents a "window" into existing simd object,
 through which a part of the original object can be read or modified. This is a
 syntactic convenience feature to reduce verbosity when accessing sub-regions of
-simd objects. **__RegionTy** describes the window shape and can be 1D or 2D,
-**__BaseTy** is the original simd object type, which can be a ```simd_view```
+simd objects. **RegionTy** describes the window shape and can be 1D or 2D,
+**BaseTy** is the original simd object type, which can be a ```simd_view```
 itself.
 
 ```simd_view``` allows to model hierarchical "views" of the parent ```simd```
@@ -331,26 +329,24 @@ different shapes and dimensions as illustrated below (`auto` resolves to a
 namespace sycl {
 namespace intel {
 namespace gpu {
-template <typename __BaseTy, typename __RegionTy> class simd_view {
+template <typename BaseTy, typename RegionTy> class simd_view {
 public:
-  using __ShapeTy = typename __shape_type<__RegionTy>::type;
-  static constexpr int length = __ShapeTy::__Size_x * __ShapeTy::__Size_y;
-  using type = simd_view<__BaseTy, __RegionTy>;
-  using value_type = simd<typename __ShapeTy::element_type, length>;
-  using vector_type = __vector_type_t<typename __ShapeTy::element_type, length>;
-  using region_type = __RegionTy;
-  using base_type = typename __compute_base_type<__BaseTy, __RegionTy>::type;
-  using element_type = typename __ShapeTy::element_type;
+  using ShapeTy = typename shape_type<RegionTy>::type;
+  static constexpr int length = ShapeTy::Size_x * ShapeTy::Size_y;
+  using value_type = simd<typename ShapeTy::element_type, length>;
+  using vector_type = vector_type_t<typename ShapeTy::element_type, length>;
+  using region_type = RegionTy;
+  using element_type = typename ShapeTy::element_type;
 
   // Constructors.
-  simd_view(__BaseTy &__Base, __RegionTy __Region);
-  simd_view(__BaseTy &&__Base, __RegionTy __Region);
-  simd_view(type &__Other);
-  simd_view(type &&__Other);
+  simd_view(BaseTy &Base, RegionTy Region);
+  simd_view(BaseTy &&Base, RegionTy Region);
+  simd_view(simd_view &Other);
+  simd_view(simd_view &&Other);
 
   // Assignment operators.
-  type &operator=(const type &__Other);
-  type &operator=(const value_type &__Val);
+  simd_view &operator=(const simd_view &Other);
+  simd_view &operator=(const value_type &Val);
 
   // Region accessors.
   static constexpr bool is1D();
@@ -361,65 +357,64 @@ public:
   static constexpr int getStrideY();
   constexpr uint16_t getOffsetX();
   constexpr uint16_t getOffsetY();
-  template <int __Dim = 0> static constexpr int getSize();
-  template <int __Dim = 0> static constexpr int getStride();
-  template <int __Dim = 0> constexpr uint16_t getOffset() const;
+  template <int Dim = 0> static constexpr int getSize();
+  template <int Dim = 0> static constexpr int getStride();
+  template <int Dim = 0> constexpr uint16_t getOffset() const;
 
   // Subscript operators.
-  element_type operator[](int __i);
-  element_type operator[](int __i) const;
+  element_type operator[](int i) const;
 
   // Row/column operator.
-  template <typename __T = type, typename = std::enable_if_t<__T::is2D()>>
-  auto row(int __i);
-  template <typename __T = type, typename = std::enable_if_t<__T::is2D()>>
-  auto column(int __i);
+  template <typename T = simd_view, typename = std::enable_if_t<T::is2D()>>
+  auto row(int i);
+  template <typename T = simd_view, typename = std::enable_if_t<T::is2D()>>
+  auto column(int i);
 
   // Unary operators.
-  type &operator++();
-  type operator++(int);
-  type &operator--();
-  type operator--(int);
+  simd_view &operator++();
+  simd_view operator++(int);
+  simd_view &operator--();
+  simd_view operator--(int);
 
   // Binary operators.
-  auto operator +(const type &__RHS) const;
-  auto operator -(const type &__RHS) const;
-  auto operator *(const type &__RHS) const;
-  auto operator /(const type &__RHS) const;
-  type operator &(const type &__RHS) const;
-  type operator |(const type &__RHS) const;
-  type operator ^(const type &__RHS) const;
+  auto operator +(const simd_view &RHS) const;
+  auto operator -(const simd_view &RHS) const;
+  auto operator *(const simd_view &RHS) const;
+  auto operator /(const simd_view &RHS) const;
+  simd_view operator &(const simd_view &RHS) const;
+  simd_view operator |(const simd_view &RHS) const;
+  simd_view operator ^(const simd_view &RHS) const;
 
   // Compound assignment.
-  type &operator +=(const type &__RHS);
-  type &operator -=(const type &__RHS);
-  type &operator *=(const type &__RHS);
-  type &operator /=(const type &__RHS);
-  type &operator &=(const type &__RHS);
-  type &operator |=(const type &__RHS);
-  type &operator ^=(const type &__RHS);
+  simd_view &operator +=(const simd_view &RHS);
+  simd_view &operator -=(const simd_view &RHS);
+  simd_view &operator *=(const simd_view &RHS);
+  simd_view &operator /=(const simd_view &RHS);
+  simd_view &operator &=(const simd_view &RHS);
+  simd_view &operator |=(const simd_view &RHS);
+  simd_view &operator ^=(const simd_view &RHS);
 
   // Compare operators.
-  simd<uint16_t, __N> operator >(const type &__RHS) const;
-  simd<uint16_t, __N> operator >=(const type &__RHS) const;
-  simd<uint16_t, __N> operator <(const type &__RHS) const;
-  simd<uint16_t, __N> operator <=(const type &__RHS) const;
-  simd<uint16_t, __N> operator ==(const type &__RHS) const;
-  simd<uint16_t, __N> operator !=(const type &__RHS) const;
+  simd<uint16_t, N> operator >(const simd_view &RHS) const;
+  simd<uint16_t, N> operator >=(const simd_view &RHS) const;
+  simd<uint16_t, N> operator <(const simd_view &RHS) const;
+  simd<uint16_t, N> operator <=(const simd_view &RHS) const;
+  simd<uint16_t, N> operator ==(const simd_view &RHS) const;
+  simd<uint16_t, N> operator !=(const simd_view &RHS) const;
 
   // Select operations.
-  template <int __Size, int __Stride, typename __T = type,
-            typename = std::enable_if_t<__T::is1D()>>
-  auto select(uint16_t __Offset = 0) &;
-  template <int __Size, int __Stride, typename __T = type,
-            typename = std::enable_if_t<__T::is1D()>>
-  auto select(uint16_t __Offset = 0) &&;
-  template <int __SizeY, int __StrideY, int __SizeX, int __StrideX,
-            typename __T = type, typename = std::enable_if_t<__T::is2D()>>
-  auto select(uint16_t __OffsetY = 0, uint16_t __OffsetX = 0) &;
-  template <int __SizeY, int __StrideY, int __SizeX, int __StrideX,
-            typename __T = type, typename = std::enable_if_t<__T::is2D()>>
-  auto select(uint16_t __OffsetY = 0, uint16_t __OffsetX = 0) &&;
+  template <int Size, int Stride, typename T = simd_view,
+            typename = std::enable_if_t<T::is1D()>>
+  auto select(uint16_t Offset = 0) &;
+  template <int Size, int Stride, typename T = simd_view,
+            typename = std::enable_if_t<T::is1D()>>
+  auto select(uint16_t Offset = 0) &&;
+  template <int SizeY, int StrideY, int SizeX, int StrideX,
+            typename T = simd_view, typename = std::enable_if_t<T::is2D()>>
+  auto select(uint16_t OffsetY = 0, uint16_t OffsetX = 0) &;
+  template <int SizeY, int StrideY, int SizeX, int StrideX,
+            typename T = simd_view, typename = std::enable_if_t<T::is2D()>>
+  auto select(uint16_t OffsetY = 0, uint16_t OffsetX = 0) &&;
 
   // Replicate operations.
   template <int Rep> simd<element_type, Rep> replicate();
@@ -440,15 +435,15 @@ public:
                                         uint16_t OffsetX);
 
   // Format operations.
-  template <typename __EltTy> auto format();
-  template <typename __EltTy> auto format() &&;
-  template <typename __EltTy, int __Height, int __Width> auto format() &;
-  template <typename __EltTy, int __Height, int __Width> auto format() &&;
+  template <typename EltTy> auto format();
+  template <typename EltTy> auto format() &&;
+  template <typename EltTy, int Height, int Width> auto format() &;
+  template <typename EltTy, int Height, int Width> auto format() &&;
 
   // Merge operations.
-  void merge(const value_type &__Val, const __mask_type_t<length> &__Mask);
-  void merge(const value_type &__Val1, value_type __Val2,
-             const __mask_type_t<length> &__Mask);
+  void merge(const value_type &Val, const mask_type_t<length> &Mask);
+  void merge(const value_type &Val1, value_type Val2,
+             const mask_type_t<length> &Mask);
 } // namespace gpu
 } // namespace intel
 } // namespace sycl
@@ -575,14 +570,14 @@ template <typename T, int n, ChannelMaskType Mask,
           CacheHint L1H = CacheHint::Default,
           CacheHint L3H = CacheHint::Default>
     typename std::enable_if<(n == 16 || n == 32),
-                            simd<T, n * __NumChannels(Mask)>>::type
+                            simd<T, n * NumChannels(Mask)>>::type
     flat_load4(T *p, simd<uint32_t, n> offsets, simd<uint16_t, n> pred = 1);
 
 template <typename T, int n, ChannelMaskType Mask,
           CacheHint L1H = CacheHint::Default,
           CacheHint L3H = CacheHint::Default>
 typename std::enable_if<(n == 16 || n == 32), void>::type
-    flat_store4(T *p, simd<T, n * __NumChannels(Mask)> vals,
+    flat_store4(T *p, simd<T, n * NumChannels(Mask)> vals,
             simd<uint32_t, n> offsets, simd<uint16_t, n> pred = 1);
 ```
 
@@ -593,7 +588,7 @@ perform atomic memory access operation with zero source operand.
 template <CmAtomicOpType Op, typename T, int n,
           CacheHint L1H = CacheHint::Default,
           CacheHint L3H = CacheHint::Default>
-    typename std::enable_if<__check_atomic<Op, T, n, 0>(), simd<T, n>>::type
+    typename std::enable_if<check_atomic<Op, T, n, 0>(), simd<T, n>>::type
     flat_atomic(T *p, simd<unsigned, n> offset, simd<ushort, n> pred);
 ```
 
@@ -604,7 +599,7 @@ access operation with one source operand.
 template <CmAtomicOpType Op, typename T, int n,
           CacheHint L1H = CacheHint::Default,
           CacheHint L3H = CacheHint::Default>
-    typename std::enable_if<__check_atomic<Op, T, n, 1>(), simd<T, n>>::type
+    typename std::enable_if<check_atomic<Op, T, n, 1>(), simd<T, n>>::type
     flat_atomic(T *p, simd<unsigned, n> offset, simd<T, n> src0,
                 simd<ushort, n> pred);
 ```
@@ -617,7 +612,7 @@ with two source operands.
 template <CmAtomicOpType Op, typename T, int n,
           CacheHint L1H = CacheHint::Default,
           CacheHint L3H = CacheHint::Default>
-    typename std::enable_if<__check_atomic<Op, T, n, 2>(), simd<T, n>>::type
+    typename std::enable_if<check_atomic<Op, T, n, 2>(), simd<T, n>>::type
     flat_atomic(T *p, simd<unsigned, n> offset, simd<T, n> src0,
                 simd<T, n> src1, simd<ushort, n> pred);
 ```
