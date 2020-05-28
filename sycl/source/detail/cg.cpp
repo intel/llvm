@@ -22,24 +22,5 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
-pi_native_handle interop_handler::GetNativeQueue() const {
-  return MQueue->getNative();
-}
-
-pi_native_handle interop_handler::GetNativeMem(detail::Requirement *Req) const {
-  auto Iter = std::find_if(std::begin(MMemObjs), std::end(MMemObjs),
-                           [=](ReqToMem Elem) { return (Elem.first == Req); });
-
-  if (Iter == std::end(MMemObjs)) {
-    throw("Invalid memory object used inside interop");
-  }
-
-  auto Plugin = MQueue->getPlugin();
-  pi_native_handle Handle;
-  Plugin.call<detail::PiApiKind::piextMemGetNativeHandle>(Iter->second,
-                                                          &Handle);
-  return Handle;
-}
-
 }  // sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

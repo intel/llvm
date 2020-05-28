@@ -144,6 +144,7 @@ set(SYCL_SOURCES
     "function_pointer.cpp"
     "half_type.cpp"
     "handler.cpp"
+    "interop_handler.cpp"
     "kernel.cpp"
     "platform.cpp"
     "program.cpp"
