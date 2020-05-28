@@ -42,8 +42,8 @@ endfunction(add_libclc_alias alias target)
 macro(add_libclc_builtin_set arch_suffix)
   cmake_parse_arguments(ARG
     ""
-    "TRIPLE;TARGET_ENV;LIB_DEP;GENERATE_TARGET;PARENT_TARGET"
-    "FILES;ALIASES;COMPILE_OPT"
+    "TRIPLE;TARGET_ENV;LIB_DEP;PARENT_TARGET"
+    "FILES;ALIASES;GENERATE_TARGET;COMPILE_OPT"
     ${ARGN})
 
   if (DEFINED ${ARG_LIB_DEP})
