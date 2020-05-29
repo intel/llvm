@@ -432,39 +432,6 @@ void _pi_event::deleteZeEventList(ze_event_handle_t *ZeEventList) {
   delete[] ZeEventList;
 }
 
-#ifndef _WIN32
-// Recover from Linux SIGSEGV signal.
-// We can't reliably catch C++ exceptions thrown from signal
-// handler so use setjmp/longjmp.
-#include <setjmp.h>
-#include <signal.h>
-jmp_buf ReturnHere;
-static void piSignalHandler(int SigNum) {
-  // We are somewhere the signall was raised, so go back to
-  // where we started tracking.
-  longjmp(ReturnHere, 0);
-}
-// Only handle segfault now, but can be extended.
-#define __TRY()                                                                \
-  signal(SIGSEGV, &piSignalHandler);                                           \
-  if (!setjmp(ReturnHere)) {
-#define __CATCH()                                                              \
-  }                                                                            \
-  else {
-#define __FINALLY()                                                            \
-  }                                                                            \
-  signal(SIGSEGV, SIG_DFL);
-
-#else // _WIN32
-// TODO: on Windows we could use structured exception handling.
-// Just dummy implementation now (meaning no error handling).
-#define __TRY() if (true) {
-#define __CATCH()                                                              \
-  }                                                                            \
-  else {
-#define __FINALLY() }
-#endif // _WIN32
-
 extern "C" {
 
 // Forward declararitons
@@ -491,27 +458,12 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
     return PI_INVALID_VALUE;
   }
 
-  ze_result_t ZeResult;
   // This is a good time to initialize L0.
-  // We can still safely recover if something goes wrong during the init.
-  __TRY() {
-    // We should not call zeInit multiple times ever.
-    try {
-      std::call_once(OnceFlag, [&ZeResult]() {
-        ZeResult = ZE_CALL_NOCHECK(zeInit(ZE_INIT_FLAG_NONE));
-      });
-    } catch (...) {
-      // if any condition prevents calls to call_once from executing as
-      // specified
-      ZeResult = ZE_RESULT_ERROR_UNINITIALIZED;
-    }
-  }
-  __CATCH() {
-    // SegFault = true;
-    zePrint("L0 raised segfault: assume no Platforms\n");
-    ZeResult = ZE_RESULT_ERROR_UNINITIALIZED;
-  }
-  __FINALLY()
+  // TODO: We can still safely recover if something goes wrong during the init.
+  // Implement handling segfault using sigaction.
+  // TODO: We should not call zeInit multiples times ever, so
+  // this code should be changed.
+  ze_result_t ZeResult = ZE_CALL_NOCHECK(zeInit(ZE_INIT_FLAG_NONE));
 
   // Absorb the ZE_RESULT_ERROR_UNINITIALIZED and just return 0 Platforms.
   if (ZeResult == ZE_RESULT_ERROR_UNINITIALIZED) {
