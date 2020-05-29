@@ -219,20 +219,20 @@ static void checkSYCLType(Sema &S, QualType Ty, SourceRange Loc,
   // different location than the variable declaration and we need to
   // inform the user of both, e.g. struct member usage vs declaration.
 
-  bool EmitMaybe = false;
+  bool Emitting = false;
 
   //--- check types ---
 
   // zero length arrays
   if (isZeroSizedArray(Ty)) {
     S.SYCLDiagIfDeviceCode(Loc.getBegin(), diag::err_typecheck_zero_array_size);
-    EmitMaybe = true;
+    Emitting = true;
   }
 
   // variable length arrays
   if (Ty->isVariableArrayType()) {
     S.SYCLDiagIfDeviceCode(Loc.getBegin(), diag::err_vla_unsupported);
-    EmitMaybe = true;
+    Emitting = true;
   }
 
   // Sub-reference array or pointer, then proceed with that type.
@@ -247,10 +247,10 @@ static void checkSYCLType(Sema &S, QualType Ty, SourceRange Loc,
        !S.Context.getTargetInfo().hasFloat128Type())) {
     S.SYCLDiagIfDeviceCode(Loc.getBegin(), diag::err_type_unsupported)
         << Ty.getUnqualifiedType().getCanonicalType();
-    EmitMaybe = true;
+    Emitting = true;
   }
 
-  if (EmitMaybe && UsedAtLoc.isValid())
+  if (Emitting && UsedAtLoc.isValid())
     S.SYCLDiagIfDeviceCode(UsedAtLoc.getBegin(), diag::note_used_here);
 
   //--- now recurse ---
@@ -800,7 +800,7 @@ class SyclKernelFieldChecker
   bool IsInvalid = false;
   DiagnosticsEngine &Diag;
 
-  void checkAccessorVarType(QualType Ty, SourceRange Loc) {
+  void checkAccessorType(QualType Ty, SourceRange Loc) {
     assert(Util::isSyclAccessorType(Ty) &&
            "Should only be called on SYCL accessor types.");
 
@@ -808,7 +808,7 @@ class SyclKernelFieldChecker
     if (const ClassTemplateSpecializationDecl *CTSD =
             dyn_cast<ClassTemplateSpecializationDecl>(RecD)) {
       const TemplateArgumentList &TAL = CTSD->getTemplateArgs();
-      auto TA = TAL.get(0);
+      TemplateArgument TA = TAL.get(0);
       const QualType TemplateArgTy = TA.getAsType();
 
       llvm::DenseSet<QualType> Visited;
@@ -849,11 +849,11 @@ public:
 
   void handleSyclAccessorType(const CXXBaseSpecifier &BS,
                               QualType FieldTy) final {
-    checkAccessorVarType(FieldTy, BS.getBeginLoc());
+    checkAccessorType(FieldTy, BS.getBeginLoc());
   }
 
   void handleSyclAccessorType(FieldDecl *FD, QualType FieldTy) final {
-    checkAccessorVarType(FieldTy, FD->getLocation());
+    checkAccessorType(FieldTy, FD->getLocation());
   }
 
   // We should be able to handle this, so we made it part of the visitor, but
