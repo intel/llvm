@@ -69,6 +69,8 @@ config.substitutions.append( ('%sycl_tools_src_dir',  config.sycl_tools_src_dir 
 config.substitutions.append( ('%llvm_build_lib_dir',  config.llvm_build_lib_dir ) )
 config.substitutions.append( ('%llvm_build_bin_dir',  config.llvm_build_bin_dir ) )
 
+llvm_config.with_environment('LD_PRELOAD', '/usr/lib/x86_64-linux-gnu/libasan.so.4')
+llvm_config.with_environment('ASAN_OPTIONS', 'detect_leaks=0')
 llvm_config.use_clang()
 
 llvm_config.add_tool_substitutions(['llvm-spirv'], [config.sycl_tools_dir])

@@ -187,6 +187,11 @@ install(DIRECTORY ${OPENCL_INCLUDE}/CL
 option(SYCL_BUILD_PI_CUDA
   "Enables the CUDA backend for the Plugin Interface" OFF)
 
+option(SYCL_USE_SANITIZER "Use address sanitizer" OFF)
+if (NOT MSVC AND SYCL_USE_SANITIZER)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -fno-omit-frame-pointer")
+endif()
+
 # Configure SYCL version macro
 set(sycl_inc_dir ${CMAKE_CURRENT_SOURCE_DIR}/include)
 set(sycl_src_dir ${CMAKE_CURRENT_SOURCE_DIR}/source)
