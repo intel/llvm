@@ -485,24 +485,25 @@ Compiler will produce optimal code sequence on the target device to apply the
 specified operation to all scalar elements in the input simd vector. Note that
 the order of element-wise operations is not guaranteed and the correctness of
 result should not depend on a particular computation order.
-- ```cm_sum(simd<T1, SZ> v)```: returns a scalar value of type **T0** that's
-equal to the sum of all data elements of type **T1** in simd vector **v** of
-length **SZ**.
-- ```cm_prod(simd<T1, SZ> v)```: returns a scalar value of type **T0** that's
-equal to the product of all data elements of type **T1** in simd vector **v** of
-length **SZ**.
-- ```cm_reduced_max(simd<T1, SZ> v)```: returns a scalar value of type **T0**
+- ```reduce(simd<T1, SZ> v, std::plus<>())```: returns a scalar value of type
+**T0** that's equal to the sum of all data elements of type **T1** in simd vector
+**v** of length **SZ**.
+- ```reduce(simd<T1, SZ> v, std::multiplies<>())```: returns a scalar value of
+type **T0** that's equal to the product of all data elements of type **T1** in simd
+vector **v** of length **SZ**.
+- ```hmax(simd<T1, SZ> v)```: returns a scalar value of type **T0**
 that's equal to the maximum value of all data elements of type **T1** in simd
 vector **v** of length **SZ**.
-- ```cm_reduced_min(simd<T1, SZ> v)```: returns a scalar value of type **T0**
+- ```hmin(simd<T1, SZ> v)```: returns a scalar value of type **T0**
 that's equal to the minimum value of all data elements of type **T1** in simd
 vector **v** of length **SZ**.
 
 ```cpp
-template <typename T0, typename T1, int SZ> T0 cm_sum(simd<T1, SZ> v);
-template <typename T0, typename T1, int SZ> T0 cm_prod(simd<T1, SZ> v);
-template <typename T0, typename T1, int SZ> T0 cm_reduced_max(simd<T1, SZ> v);
-template <typename T0, typename T1, int SZ> T0 cm_reduced_min(simd<T1, SZ> v);
+template <typename T0, typename T1, int SZ, typename BinaryOperation>
+T0 reduce(simd<T1, SZ> v, BinaryOperation op);
+
+template <typename T0, typename T1, int SZ> T0 hmax(simd<T1, SZ> v);
+template <typename T0, typename T1, int SZ> T0 hmin(simd<T1, SZ> v);
 ```
 
 ### Memory access APIs
