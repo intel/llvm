@@ -54,6 +54,8 @@ enum KernelInvocationKind {
 const static std::string InitMethodName = "__init";
 const static std::string FinalizeMethodName = "__finalize";
 
+namespace {
+
 /// Various utilities.
 class Util {
 public:
@@ -90,6 +92,8 @@ public:
   static bool matchQualifiedTypeName(const QualType &Ty,
                                      ArrayRef<Util::DeclContextDesc> Scopes);
 };
+
+} // anonymous namespace
 
 // This information is from Section 4.13 of the SYCL spec
 // https://www.khronos.org/registry/SYCL/specs/sycl-1.2.1.pdf
