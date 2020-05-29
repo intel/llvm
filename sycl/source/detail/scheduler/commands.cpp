@@ -257,6 +257,8 @@ void Command::waitForEvents(QueueImplPtr Queue,
 
       for (const EventImplPtr &Event : EventImpls) {
         ContextImplPtr Context = Event->getContextImpl();
+        assert(Context.get() &&
+               "Only non-host events are expected to be waited for here");
         RequiredEventsPerContext[Context.get()].push_back(Event);
       }
 
@@ -266,6 +268,12 @@ void Command::waitForEvents(QueueImplPtr Queue,
             RawEvents.size(), RawEvents.data());
       }
     } else {
+#ifndef NDEBUG
+      for (const EventImplPtr &Event : EventImpls)
+        assert(Event->getContextImpl().get() &&
+               "Only non-host events are expected to be waited for here");
+#endif
+
       std::vector<RT::PiEvent> RawEvents = getPiEvents(EventImpls);
       const detail::plugin &Plugin = Queue->getPlugin();
       Plugin.call<PiApiKind::piEnqueueEventsWait>(
