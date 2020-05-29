@@ -338,7 +338,7 @@ def SYCLSimdDocs : Documentation {
     in the explicit SIMD mode. In this mode subgroup size is always 1 and
     explicit SIMD extensions - such as manual vectorization using wide vector
     data types and operations can be used. Compiler may decide to compile such
-    functions using different different optimization and code generation
+    functions using different optimization and code generation
     pipeline.
   }];
 }
