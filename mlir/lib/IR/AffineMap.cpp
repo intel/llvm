@@ -109,7 +109,7 @@ bool AffineMap::isMinorIdentity(AffineMap map) {
     return false;
   return map == getMinorIdentityMap(map.getNumDims(), map.getNumResults(),
                                     map.getContext());
-};
+}
 
 /// Returns an AffineMap representing a permutation.
 AffineMap AffineMap::getPermutationMap(ArrayRef<unsigned> permutation,
@@ -296,7 +296,7 @@ void AffineMap::walkExprs(std::function<void(AffineExpr)> callback) const {
 AffineMap AffineMap::replaceDimsAndSymbols(ArrayRef<AffineExpr> dimReplacements,
                                            ArrayRef<AffineExpr> symReplacements,
                                            unsigned numResultDims,
-                                           unsigned numResultSyms) {
+                                           unsigned numResultSyms) const {
   SmallVector<AffineExpr, 8> results;
   results.reserve(getNumResults());
   for (auto expr : getResults())

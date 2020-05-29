@@ -160,7 +160,14 @@ endif()
 
 find_program( PYTHON python )
 file( TO_CMAKE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/generic/lib/gen_convert.py clc_script_loc )
+file( TO_CMAKE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/generic/libspirv/gen_core_convert.py core_script_loc )
 file( TO_CMAKE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/generic/libspirv/gen_convert.py spirv_script_loc )
+
+add_custom_command(
+	OUTPUT convert-core.cl
+	COMMAND ${PYTHON} ${core_script_loc} > convert-core.cl
+	DEPENDS ${core_script_loc} )
+add_custom_target( "generate_convert_core.cl" DEPENDS convert-core.cl )
 
 add_custom_command(
 	OUTPUT convert-spirv.cl
@@ -211,7 +218,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 	libclc_configure_lib_source(libspirv_files
 		LIB_DIR libspirv
 		DIRS ${dirs} ${DARCH} ${DARCH}-${OS} ${DARCH}-${VENDOR}-${OS}
-		DEPS convert-spirv.cl )
+		DEPS convert-spirv.cl convert-core.cl)
 
 	foreach( d ${${t}_devices} )
 		# Some targets don't have a specific GPU to target
@@ -230,7 +237,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 			COMPILE_OPT ${mcpu}
 			FILES ${libspirv_files}
 			ALIASES ${${d}_aliases}
-			GENERATE_TARGET "generate_convert_clc.cl"
+			GENERATE_TARGET "generate_convert_spirv.cl" "generate_convert_core.cl"
 			PARENT_TARGET libspirv-builtins)
 
 		add_libclc_builtin_set(clc-${arch_suffix}
@@ -240,7 +247,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 			FILES ${lib_files}
 			LIB_DEP libspirv-${arch_suffix}
 			ALIASES ${${d}_aliases}
-			GENERATE_TARGET "generate_convert_spirv.cl"
+			GENERATE_TARGET "generate_convert_clc.cl"
 			PARENT_TARGET libclc-builtins)
 	endforeach( d )
 endforeach( t )

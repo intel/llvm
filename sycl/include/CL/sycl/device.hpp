@@ -25,6 +25,11 @@ class device_selector;
 namespace detail {
 class device_impl;
 }
+
+/// The SYCL device class encapsulates a single SYCL device on which kernels
+/// may be executed.
+///
+/// \ingroup sycl_api
 class __SYCL_EXPORT device {
 public:
   /// Constructs a SYCL device instance as a host device.

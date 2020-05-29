@@ -20,7 +20,6 @@
 #include "llvm/Analysis/OptimizationRemarkEmitter.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/CodeGen/Analysis.h"
-#include "llvm/CodeGen/FunctionLoweringInfo.h"
 #include "llvm/CodeGen/GlobalISel/CallLowering.h"
 #include "llvm/CodeGen/GlobalISel/GISelChangeObserver.h"
 #include "llvm/CodeGen/GlobalISel/InlineAsmLowering.h"
@@ -247,7 +246,7 @@ Align IRTranslator::getMemOpAlign(const Instruction &I) {
   if (const StoreInst *SI = dyn_cast<StoreInst>(&I))
     return SI->getAlign();
   if (const LoadInst *LI = dyn_cast<LoadInst>(&I)) {
-    return DL->getValueOrABITypeAlignment(LI->getAlign(), LI->getType());
+    return LI->getAlign();
   }
   if (const AtomicCmpXchgInst *AI = dyn_cast<AtomicCmpXchgInst>(&I)) {
     // TODO(PR27168): This instruction has no alignment attribute, but unlike
@@ -1008,10 +1007,9 @@ bool IRTranslator::translateSelect(const User &U,
   ArrayRef<Register> Op0Regs = getOrCreateVRegs(*U.getOperand(1));
   ArrayRef<Register> Op1Regs = getOrCreateVRegs(*U.getOperand(2));
 
-  const SelectInst &SI = cast<SelectInst>(U);
   uint16_t Flags = 0;
-  if (const CmpInst *Cmp = dyn_cast<CmpInst>(SI.getCondition()))
-    Flags = MachineInstr::copyFlagsFromInstruction(*Cmp);
+  if (const SelectInst *SI = dyn_cast<SelectInst>(&U))
+    Flags = MachineInstr::copyFlagsFromInstruction(*SI);
 
   for (unsigned i = 0; i < ResRegs.size(); ++i) {
     MIRBuilder.buildSelect(ResRegs[i], Tst, Op0Regs[i], Op1Regs[i], Flags);

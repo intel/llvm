@@ -420,7 +420,7 @@ void ModuloScheduleExpander::generateExistingPhis(
     unsigned NewReg = 0;
     unsigned AccessStage = (LoopValStage != -1) ? LoopValStage : StageScheduled;
     // In the epilog, we may need to look back one stage to get the correct
-    // Phi name because the epilog and prolog blocks execute the same stage.
+    // Phi name, because the epilog and prolog blocks execute the same stage.
     // The correct name is from the previous block only when the Phi has
     // been completely scheduled prior to the epilog, and Phi value is not
     // needed in multiple stages.
@@ -1658,8 +1658,8 @@ void PeelingModuloScheduleExpander::moveStageBetweenBlocks(
     // we don't need the phi anymore.
     if (getStage(Def) == Stage) {
       Register PhiReg = MI.getOperand(0).getReg();
-      MRI.replaceRegWith(MI.getOperand(0).getReg(),
-                         Def->getOperand(0).getReg());
+      assert(Def->findRegisterDefOperandIdx(MI.getOperand(1).getReg()) != -1);
+      MRI.replaceRegWith(MI.getOperand(0).getReg(), MI.getOperand(1).getReg());
       MI.getOperand(0).setReg(PhiReg);
       PhiToDelete.push_back(&MI);
     }

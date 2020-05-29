@@ -330,8 +330,8 @@ convertImpl(T Value) {
   detail::enable_if_t<is_sint_to_sint<T, R>::value &&                          \
                           !std::is_same<OpenCLT, OpenCLR>::value &&            \
                           (std::is_same<OpenCLR, DestType>::value ||           \
-                           std::is_same<OpenCLR, signed char>::value &&        \
-                               std::is_same<DestType, char>::value),           \
+                           (std::is_same<OpenCLR, signed char>::value &&       \
+                            std::is_same<DestType, char>::value)),             \
                       R>                                                       \
   convertImpl(T Value) {                                                       \
     OpenCLT OpValue = cl::sycl::detail::convertDataToType<T, OpenCLT>(Value);  \
@@ -382,8 +382,8 @@ convertImpl(T Value) {
             typename OpenCLT, typename OpenCLR>                                \
   detail::enable_if_t<is_sint_to_float<T, R>::value &&                         \
                           (std::is_same<OpenCLR, DestType>::value ||           \
-                           std::is_same<OpenCLR, _Float16>::value &&           \
-                               std::is_same<DestType, half>::value),           \
+                           (std::is_same<OpenCLR, _Float16>::value &&          \
+                            std::is_same<DestType, half>::value)),             \
                       R>                                                       \
   convertImpl(T Value) {                                                       \
     OpenCLT OpValue = cl::sycl::detail::convertDataToType<T, OpenCLT>(Value);  \
@@ -402,8 +402,8 @@ __SYCL_GENERATE_CONVERT_IMPL(SToF, double)
             typename OpenCLT, typename OpenCLR>                                \
   detail::enable_if_t<is_uint_to_float<T, R>::value &&                         \
                           (std::is_same<OpenCLR, DestType>::value ||           \
-                           std::is_same<OpenCLR, _Float16>::value &&           \
-                               std::is_same<DestType, half>::value),           \
+                           (std::is_same<OpenCLR, _Float16>::value &&          \
+                            std::is_same<DestType, half>::value)),             \
                       R>                                                       \
   convertImpl(T Value) {                                                       \
     OpenCLT OpValue = cl::sycl::detail::convertDataToType<T, OpenCLT>(Value);  \
@@ -424,8 +424,8 @@ __SYCL_GENERATE_CONVERT_IMPL(UToF, double)
   detail::enable_if_t<is_float_to_float<T, R>::value &&                        \
                           !std::is_same<OpenCLT, OpenCLR>::value &&            \
                           (std::is_same<OpenCLR, DestType>::value ||           \
-                           std::is_same<OpenCLR, _Float16>::value &&           \
-                               std::is_same<DestType, half>::value) &&         \
+                           (std::is_same<OpenCLR, _Float16>::value &&          \
+                            std::is_same<DestType, half>::value)) &&           \
                           RoundingModeCondition<roundingMode>::value,          \
                       R>                                                       \
   convertImpl(T Value) {                                                       \
@@ -523,6 +523,10 @@ Applied default alignment.")
 #define SYCL_ALIGNAS(N) alignas(N)
 #endif
 
+/// Provides a cross-patform vector class template that works efficiently on
+/// SYCL devices as well as in host C++ code.
+///
+/// \ingroup sycl_api
 template <typename Type, int NumElements> class vec {
   using DataT = Type;
 
@@ -662,7 +666,7 @@ public:
     *this = Rhs.template as<vec>();
     return *this;
   }
-  
+
 #ifdef __SYCL_USE_EXT_VECTOR_TYPE__
   template <typename T = void>
   using EnableIfNotHostHalf = typename std::enable_if<

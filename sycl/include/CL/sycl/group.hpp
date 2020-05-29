@@ -84,6 +84,10 @@ private:
 #endif // #ifdef __SYCL_DEVICE_ONLY__
 };
 
+/// Encapsulates all functionality required to represent a particular work-group
+/// within a parallel execution.
+///
+/// \ingroup sycl_api
 template <int Dimensions = 1> class group {
 public:
 #ifndef __DISABLE_SYCL_INTEL_GROUP_ALGORITHMS__

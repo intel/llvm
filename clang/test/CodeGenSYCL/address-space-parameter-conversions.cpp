@@ -1,10 +1,10 @@
 // RUN: %clang_cc1 -fsycl -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
 void bar(int & Data) {}
-// CHECK-DAG: define spir_func void @[[RAW_REF:[a-zA-Z0-9_]+]](i32 addrspace(4)* dereferenceable(4) %
+// CHECK-DAG: define spir_func void @[[RAW_REF:[a-zA-Z0-9_]+]](i32 addrspace(4)* align 4 dereferenceable(4) %
 void bar2(int & Data) {}
-// CHECK-DAG: define spir_func void @[[RAW_REF2:[a-zA-Z0-9_]+]](i32 addrspace(4)* dereferenceable(4) %
+// CHECK-DAG: define spir_func void @[[RAW_REF2:[a-zA-Z0-9_]+]](i32 addrspace(4)* align 4 dereferenceable(4) %
 void bar(__attribute__((opencl_local)) int &Data) {}
-// CHECK-DAG: define spir_func void [[LOC_REF:@[a-zA-Z0-9_]+]](i32 addrspace(3)* dereferenceable(4) %
+// CHECK-DAG: define spir_func void [[LOC_REF:@[a-zA-Z0-9_]+]](i32 addrspace(3)* align 4 dereferenceable(4) %
 void foo(int * Data) {}
 // CHECK-DAG: define spir_func void @[[RAW_PTR:[a-zA-Z0-9_]+]](i32 addrspace(4)* %
 void foo2(int * Data) {}
@@ -29,26 +29,26 @@ void usages() {
   bar(*GLOB);
   // CHECK-DAG: [[GLOB_LOAD:%[a-zA-Z0-9]+]] = load i32 addrspace(1)*, i32 addrspace(1)** [[GLOB]]
   // CHECK-DAG: [[GLOB_CAST:%[a-zA-Z0-9]+]] = addrspacecast i32 addrspace(1)* [[GLOB_LOAD]] to i32 addrspace(4)*
-  // CHECK-DAG: call spir_func void @[[RAW_REF]](i32 addrspace(4)* dereferenceable(4) [[GLOB_CAST]])
+  // CHECK-DAG: call spir_func void @[[RAW_REF]](i32 addrspace(4)* align 4 dereferenceable(4) [[GLOB_CAST]])
   bar2(*GLOB);
   // CHECK-DAG: [[GLOB_LOAD2:%[a-zA-Z0-9]+]] = load i32 addrspace(1)*, i32 addrspace(1)** [[GLOB]]
   // CHECK-DAG: [[GLOB_CAST2:%[a-zA-Z0-9]+]] = addrspacecast i32 addrspace(1)* [[GLOB_LOAD2]] to i32 addrspace(4)*
-  // CHECK-DAG: call spir_func void @[[RAW_REF2]](i32 addrspace(4)* dereferenceable(4) [[GLOB_CAST2]])
+  // CHECK-DAG: call spir_func void @[[RAW_REF2]](i32 addrspace(4)* align 4 dereferenceable(4) [[GLOB_CAST2]])
 
   bar(*LOC);
   // CHECK-DAG: [[LOC_LOAD:%[a-zA-Z0-9]+]] = load i32 addrspace(3)*, i32 addrspace(3)** [[LOC]]
-  // CHECK-DAG: call spir_func void [[LOC_REF]](i32 addrspace(3)* dereferenceable(4) [[LOC_LOAD]])
+  // CHECK-DAG: call spir_func void [[LOC_REF]](i32 addrspace(3)* align 4 dereferenceable(4) [[LOC_LOAD]])
   bar2(*LOC);
   // CHECK-DAG: [[LOC_LOAD2:%[a-zA-Z0-9]+]] = load i32 addrspace(3)*, i32 addrspace(3)** [[LOC]]
   // CHECK-DAG: [[LOC_CAST2:%[a-zA-Z0-9]+]] = addrspacecast i32 addrspace(3)* [[LOC_LOAD2]] to i32 addrspace(4)*
-  // CHECK-DAG: call spir_func void @[[RAW_REF2]](i32 addrspace(4)* dereferenceable(4) [[LOC_CAST2]])
+  // CHECK-DAG: call spir_func void @[[RAW_REF2]](i32 addrspace(4)* align 4 dereferenceable(4) [[LOC_CAST2]])
 
   bar(*NoAS);
   // CHECK-DAG: [[NoAS_LOAD:%[a-zA-Z0-9]+]] = load i32 addrspace(4)*, i32 addrspace(4)** [[NoAS]]
-  // CHECK-DAG: call spir_func void @[[RAW_REF]](i32 addrspace(4)* dereferenceable(4) [[NoAS_LOAD]])
+  // CHECK-DAG: call spir_func void @[[RAW_REF]](i32 addrspace(4)* align 4 dereferenceable(4) [[NoAS_LOAD]])
   bar2(*NoAS);
   // CHECK-DAG: [[NoAS_LOAD2:%[a-zA-Z0-9]+]] = load i32 addrspace(4)*, i32 addrspace(4)** [[NoAS]]
-  // CHECK-DAG: call spir_func void @[[RAW_REF2]](i32 addrspace(4)* dereferenceable(4) [[NoAS_LOAD2]])
+  // CHECK-DAG: call spir_func void @[[RAW_REF2]](i32 addrspace(4)* align 4 dereferenceable(4) [[NoAS_LOAD2]])
 
   foo(GLOB);
   // CHECK-DAG: [[GLOB_LOAD3:%[a-zA-Z0-9]+]] = load i32 addrspace(1)*, i32 addrspace(1)** [[GLOB]]
@@ -105,15 +105,15 @@ void usages2() {
   bar(*PRIV);
   // CHECK-DAG: [[PRIV_LOAD:%[a-zA-Z0-9]+]] = load i32*, i32** [[PRIV]]
   // CHECK-DAG: [[PRIV_ASCAST:%[a-zA-Z0-9]+]] = addrspacecast i32* [[PRIV_LOAD]] to i32 addrspace(4)*
-  // CHECK-DAG: call spir_func void @[[RAW_REF]](i32 addrspace(4)* dereferenceable(4) [[PRIV_ASCAST]])
+  // CHECK-DAG: call spir_func void @[[RAW_REF]](i32 addrspace(4)* align 4 dereferenceable(4) [[PRIV_ASCAST]])
   bar(*GLOB);
   // CHECK-DAG: [[GLOB_LOAD:%[a-zA-Z0-9]+]] = load i32 addrspace(1)*, i32 addrspace(1)** [[GLOB]]
   // CHECK-DAG: [[GLOB_CAST:%[a-zA-Z0-9]+]] = addrspacecast i32 addrspace(1)* [[GLOB_LOAD]] to i32 addrspace(4)*
-  // CHECK-DAG: call spir_func void @[[RAW_REF]](i32 addrspace(4)* dereferenceable(4) [[GLOB_CAST]])
+  // CHECK-DAG: call spir_func void @[[RAW_REF]](i32 addrspace(4)* align 4 dereferenceable(4) [[GLOB_CAST]])
   bar2(*LOCAL);
   // CHECK-DAG: [[LOCAL_LOAD:%[a-zA-Z0-9]+]] = load i32 addrspace(3)*, i32 addrspace(3)** [[LOCAL]]
   // CHECK-DAG: [[LOCAL_CAST:%[a-zA-Z0-9]+]] = addrspacecast i32 addrspace(3)* [[LOCAL_LOAD]] to i32 addrspace(4)*
-  // CHECK-DAG: call spir_func void @[[RAW_REF2]](i32 addrspace(4)* dereferenceable(4) [[LOCAL_CAST]])
+  // CHECK-DAG: call spir_func void @[[RAW_REF2]](i32 addrspace(4)* align 4 dereferenceable(4) [[LOCAL_CAST]])
 }
 
 template <typename name, typename Func>
