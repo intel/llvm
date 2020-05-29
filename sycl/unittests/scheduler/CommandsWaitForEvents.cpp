@@ -25,7 +25,7 @@ struct TestCtx {
 std::unique_ptr<TestCtx> TestContext;
 
 pi_result waitFunc(pi_uint32 N, const pi_event *List) {
-  EXPECT_EQ(N, 1u) << "piEventsWait valled for different contexts\n";
+  EXPECT_EQ(N, 1u) << "piEventsWait called for different contexts\n";
 
   EXPECT_TRUE((TestContext->EventCtx1 == *List) ||
               (TestContext->EventCtx2 == *List))
