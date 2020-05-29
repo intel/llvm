@@ -1,3 +1,154 @@
+# May'20 release notes
+
+Release notes for the commit range ba404be..67d3d9e
+
+## New features
+  - Implemented [reduction extension](doc/extensions/Reduction/Reduction.md)
+    for `sycl::handler::parallel_for` accepting a `sycl::nd_range` object
+    [bb73d926] [04a360a] [05625f1]
+  - XPTI instrumentation has been added to the runtime to capture semantic and
+    execution trace information for constructing the task graphs for offline
+    graph and performance analysis [9bf81eb] [cece82e]
+
+## Improvements
+### SYCL Frontend and driver changes
+  - Added a diagnostic for implicit declaration of kernel function type
+    [20e8cde]
+  - Added a diagnostic on attempt to set C compilation together with `-fsycl`
+    [4cf1610]
+  - Improved diagnostics on attempt to use not supported on device types (such
+    as `__int128`, zero length arrays) to catch cases when they are used as
+    `typedef` or `auto` [808c5c8]
+  - Reduced possibility to load incorrect version of the OpenCL headers by
+    reording default include paths.
+  - Treat `.lo` file extension as a static archive [82b93be]
+  - Added a diagnostic on attempt to use `long double` in the device code
+    [62f841d]
+  - Improved handling of AOCX based archives on Windows [f117aa4]
+  - Removed object format designator used for Windows device binaries [0052d08]
+  - Improved `-Xsycl-target` option parsing [f62de21]
+  - `-g` and `-O0` options are now imply `-g` and `-cl-opt-disable` for the
+    device compilation [779a601]
+
+### SYCL headers and runtime
+  - Improved handling of host accessors with read-only type of access. Now they
+    do not trigger redundant memory copy operation [de85c35e]
+  - Default selector doesn't select devices of accelerator type anymore
+    [b217bc5]
+  - Added more user friendly diagnostics on errors during kernel submission
+    [be42ff7]
+  - Implemented `get_native` for CUDA backend which allows querying native
+    handles of SYCL objects: `sycl::queue`, `sycl::event`, `sycl::context`,
+    `sycl::device` [2d71c8e]
+  - Added support for 0-dim `sycl::accessor` in `sycl::handler::copy`
+    [5666107] [aedd449]
+  - Added support for various rounding modes for non-host devices in
+    `sycl::vec::convert` method [7e3cca4]
+  - Added support for more image channel types for `half4` data type on the host
+    device [9b1d8b8]
+  - Changed logic of `SYCL_BE` environment variable which now forces the SYCL RT
+    to consider only devices of the specified backend during the device
+    selection [937fec1]
+  - `libsycl.so` library is now versioned [4370630]
+  - [fd14167]
+  - Added a diagnostic on attempt to construct a `sycl::queue` passing a
+    `sycl::context` which is not bound to a passed `sycl::device`[9e79d31]
+
+### Misc
+  - `opencl-aot` tool is now included in the `sycl-toolchain` target [ccc0c27]
+  - [cece82e]
+  - Added `sycl-ls` utility for listing devices discovered/selected by SYCL RT
+    [cc0c33b]
+
+### Documentation
+  - Improved [contribution guidelines](../CONTRIBUTING.md) [2f5cd28]
+  - Updated prerequisites in GetStartedGuide(doc/GetStartedGuide.md) [5d0d034]
+  - Published a [proposal](doc/extensions/KernelRHSAttributes/SYCL_INTEL_attribute_style.asciidoc)
+    for function-type attributes (right-sided) for kernel attributes [5d5351b]
+  - The [compiler and runtime design doc](doc/CompilerAndRuntimeDesign.md) has
+    been updated to describe the CUDA target and reflect changed action graphs
+    [91b597b] [212a26c]
+  - [ExtendedAtomics documentation](doc/extensions/ExtendedAtomics/README.md)
+    has been updated [1084685]
+  - Published [sycl_bitcast extension](doc/extensions/Bitcast/SYCL_INTEL_bitcast.asciidoc)
+  - Published a [proposal](doc/extensions/StaticLocalMemoryQuery/SYCL_INTEL_static_local_memory_query.asciidoc)
+    which adds ability to query max local size which is used by a specific
+    kernel and a specific device.
+  - Published [device_specific_kernel_queries](doc/extensions/DeviceSpecificKernelQueries/SYCL_INTEL_device_specific_kernel_queries.asciidoc)
+    extension which rephrases work group queries as device-specific kernel
+    queries [4c07ff8]
+  - Added more information about the [plugin interface (PI)](doc/PluginInterface.md)
+    [0614e9a]
+  - [Contribution guidelines](../CONTRIBUTING.md) were simplified, now sign-off
+    line is not required [7886fd8]
+  - Added missing constructors and member functions in
+    [reduction extension proposal](doc/extensions/Reduction/Reduction.md)
+    [f695479]
+  - Published [parallel_for simplification extension](doc/extensions/ParallelForSimpification/SYCL_INTEL_parallel_for_simplification.asciidoc) [856a777]
+  - Added memory scope to [ExtendedAtomics extension](doc/extensions/ExtendedAtomics/SYCL_INTEL_extended_atomics.asciidoc) [f8e11e0]
+  - Published [math array extension](doc/extensions/MathArray/SYCL_INTEL_math_array.asciidoc) [36c5041]
+  - Added more comments that describe Scheduler design [ad441a0]
+  - Published [extension mechanism proposal](doc/extensions/ExtensionMechanism/SYCL_INTEL_extension_api.asciidoc) [cf65794]
+
+## Bug fixes
+### SYCL Frontend and driver changes
+  - Fixed bug in hierarchical parallelism implementation related to using a
+    private address of the `parallel_for_work_group` lambda object by all work
+    items in the work group [16f64b8]
+  - Fixed a problem with errors that are reported when `-fsycl-device-only`
+    option is used [7f924a8]
+  - Fixed a crash which happened when a specialization constant is referenced
+    twice [ce020c9]
+  - Fixed a possible filename collision when `-save-temps` is used [99fa86f]
+  - Fixed a hang which could happen on CUDA backend when
+    `sycl::group::async_work_group_copy` is used [f836604]
+
+### SYCL headers and runtime
+  - Ignore exceptions that could happen during sycl objects destruction to avoid
+    terminates [cbd8a72]
+  - Fixed an issue with dependency vector invalidation in some cases [2551b19]
+  - Resolved a conflict with `min`/`max` macro that can be defined by
+    `windows.h` [e7d4537]
+  - Fixed an issue with using wrong CUDA context when creating an event
+    [6788713]
+  - Fixed a crash which happened when no plugin is available [d15de0b]
+  - Fixed float to half-type conversion for small numbers [3a9a1a22]
+  - Fixed `sycl::intel::sub_group::broadcast` which was incorrectly mapped to
+    SPIRV intrinsic [24471bc]
+  - Fixed an issue when a sub-buffer was accessing incorrect memory [4c4054b]
+  - Fixed race which could happen when `sycl::program` API is used from multiple
+    threads [e88a611]
+  - [686e32b]
+  - Make `cl::sycl::event::get` method to be constant [03208c0]
+  - Fixed a crash which could happen when host accessors are created in
+    multiple threads [1d13f84]
+  - Fixed a problem with `sycl::program::set_spec_constant` which set a value
+    for all `sycl::program` objects rather than for an object it was called for
+    only [c22e34b]
+
+### Misc
+  - Fixed an issue with gdb xmethod not working when `run` command is issued
+    multiple times without terminating the session [042d981]
+  - Fixed an issue with platform selection in opencl-aot tool that was caused
+    by an identical supported platform name for CPU and GPU.
+
+## Known issues
+  - [new] A crash can happen in a multithreaded application if two threads call
+    an API which implies waiting for an event. No known workaround.
+  - The format of the object files produced by the compiler can change between
+    versions. The workaround is to rebuild the application.
+  - The SYCL library doesn't guarantee stable API/ABI, so applications compiled
+    with older version of the SYCL library may not work with new one.
+    The workaround is to rebuild the application.
+    [ABI policy guide](doc/ABIPolicyGuide.md)
+  - Using `cl::sycl::program` API to refer to a kernel defined in another
+    translation unit leads to undefined behavior
+  - Linkage errors with the following message:
+    `error LNK2005: "bool const std::_Is_integral<bool>" (??$_Is_integral@_N@std@@3_NB) already defined`
+    can happen when a SYCL application is built using MS Visual Studio 2019
+    version below 16.3.0
+    The workaround is to enable `-std=c++17` for the failing MSVC version.
+
 # March'20 release notes
 
 Release notes for the commit range e8f1f29..ba404be

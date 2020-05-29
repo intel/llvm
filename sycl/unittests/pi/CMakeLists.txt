@@ -6,7 +6,6 @@ add_sycl_unittest(PiTests OBJECT
   EnqueueMemTest.cpp
   PiMock.cpp
   PlatformTest.cpp
-  EventTest.cpp
 )
 
 add_dependencies(PiTests sycl)

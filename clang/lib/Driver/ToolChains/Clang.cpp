@@ -7467,8 +7467,7 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         AL += " ";
         AL += A;
       }
-      WrapperArgs.push_back(C.getArgs().MakeArgString(
-          Twine(Opt) + Twine("\"") + AL + Twine("\"")));
+      WrapperArgs.push_back(C.getArgs().MakeArgString(Twine(Opt) + AL));
     };
     const toolchains::SYCLToolChain &TC =
               static_cast<const toolchains::SYCLToolChain &>(getToolChain());

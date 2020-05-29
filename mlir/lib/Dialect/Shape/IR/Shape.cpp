@@ -108,6 +108,50 @@ AnyOp::inferReturnTypes(MLIRContext *context, Optional<Location> location,
 }
 
 //===----------------------------------------------------------------------===//
+// AssumingOp
+//===----------------------------------------------------------------------===//
+
+static ParseResult parseAssumingOp(OpAsmParser &parser,
+                                   OperationState &result) {
+  result.regions.reserve(1);
+  Region *doRegion = result.addRegion();
+
+  auto &builder = parser.getBuilder();
+  OpAsmParser::OperandType cond;
+  if (parser.parseOperand(cond) ||
+      parser.resolveOperand(cond, builder.getType<WitnessType>(),
+                            result.operands))
+    return failure();
+
+  // Parse optional results type list.
+  if (parser.parseOptionalArrowTypeList(result.types))
+    return failure();
+
+  // Parse the region and add a terminator if elided.
+  if (parser.parseRegion(*doRegion, /*arguments=*/{}, /*argTypes=*/{}))
+    return failure();
+  AssumingOp::ensureTerminator(*doRegion, parser.getBuilder(), result.location);
+
+  // Parse the optional attribute list.
+  if (parser.parseOptionalAttrDict(result.attributes))
+    return failure();
+  return success();
+}
+
+static void print(OpAsmPrinter &p, AssumingOp op) {
+  bool yieldsResults = !op.results().empty();
+
+  p << AssumingOp::getOperationName() << " " << op.witness();
+  if (yieldsResults) {
+    p << " -> (" << op.getResultTypes() << ")";
+  }
+  p.printRegion(op.doRegion(),
+                /*printEntryBlockArgs=*/false,
+                /*printBlockTerminators=*/yieldsResults);
+  p.printOptionalAttrDict(op.getAttrs());
+}
+
+//===----------------------------------------------------------------------===//
 // BroadcastOp
 //===----------------------------------------------------------------------===//
 
@@ -199,6 +243,28 @@ ConstSizeOp::inferReturnTypes(MLIRContext *context, Optional<Location> location,
                               SmallVectorImpl<Type> &inferredReturnTypes) {
   inferredReturnTypes.push_back(SizeType::get(context));
   return success();
+}
+
+//===----------------------------------------------------------------------===//
+// FromExtentsOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult FromExtentsOp::inferReturnTypes(
+    MLIRContext *context, Optional<Location> location, ValueRange operands,
+    DictionaryAttr attributes, RegionRange regions,
+    SmallVectorImpl<Type> &inferredReturnTypes) {
+  inferredReturnTypes.push_back(ShapeType::get(context));
+  return success();
+}
+
+OpFoldResult FromExtentsOp::fold(ArrayRef<Attribute> operands) {
+  if (llvm::any_of(operands, [](Attribute a) { return !a; }))
+    return nullptr;
+  SmallVector<int64_t, 6> extents;
+  for (auto attr : operands)
+    extents.push_back(attr.cast<IntegerAttr>().getInt());
+  Builder builder(getContext());
+  return builder.getI64TensorAttr(extents);
 }
 
 //===----------------------------------------------------------------------===//

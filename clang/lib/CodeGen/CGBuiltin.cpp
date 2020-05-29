@@ -8046,6 +8046,9 @@ Value *CodeGenFunction::EmitAArch64SVEBuiltinExpr(unsigned BuiltinID,
     if (TypeFlags.isReverseCompare())
       std::swap(Ops[1], Ops[2]);
 
+    if (TypeFlags.isReverseUSDOT())
+      std::swap(Ops[1], Ops[2]);
+
     // Predicated intrinsics with _z suffix need a select w/ zeroinitializer.
     if (TypeFlags.getMergeType() == SVETypeFlags::MergeZero) {
       llvm::Type *OpndTy = Ops[1]->getType();
@@ -15151,7 +15154,7 @@ CodeGenFunction::EmitNVPTXBuiltinExpr(unsigned BuiltinID, const CallExpr *E) {
   auto MakeLdg = [&](unsigned IntrinsicID) {
     Value *Ptr = EmitScalarExpr(E->getArg(0));
     clang::CharUnits Align =
-        getNaturalPointeeTypeAlignment(E->getArg(0)->getType());
+        CGM.getNaturalPointeeTypeAlignment(E->getArg(0)->getType());
     return Builder.CreateCall(
         CGM.getIntrinsic(IntrinsicID, {Ptr->getType()->getPointerElementType(),
                                        Ptr->getType()}),

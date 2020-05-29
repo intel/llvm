@@ -20,6 +20,7 @@
  * THE SOFTWARE.
  */
 
+#include <core/clc_core.h>
 #include <spirv/spirv.h>
 
 #include "sincos_helpers.h"
@@ -186,11 +187,11 @@ _CLC_DEF int __clc_argReductionSmallS(float *r, float *rr, float x) {
 
 #define FULL_MUL(A, B, HI, LO)                                                 \
   LO = A * B;                                                                  \
-  HI = __spirv_ocl_u_mul_hi(A, B)
+  HI = __clc_mul_hi(A, B)
 
 #define FULL_MAD(A, B, C, HI, LO)                                              \
   LO = ((A) * (B) + (C));                                                      \
-  HI = __spirv_ocl_u_mul_hi(A, B);                                             \
+  HI = __clc_mul_hi(A, B);                                                     \
   HI += LO < C
 
 _CLC_DEF int __clc_argReductionLargeS(float *r, float *rr, float x) {
@@ -399,7 +400,7 @@ _CLC_DEF void __clc_remainder_piby2_large(double x, double *r, double *rr,
 
   long ux = as_long(x);
   int e = (int)(ux >> 52) - 1023;
-  int i = __spirv_ocl_u_max(23, (e >> 3) + 17);
+  int i = __clc_max(23, (e >> 3) + 17);
   int j = 150 - i;
   int j16 = j & ~0xf;
   double fract_temp;

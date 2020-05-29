@@ -20,6 +20,14 @@ class handler;
 class queue;
 template <int dimensions> class range;
 
+/// Defines a shared array that can be used by kernels in queues.
+///
+/// Buffers can be 1-, 2-, and 3-dimensional. They have to be accessed using
+/// accessor classes.
+///
+/// \sa sycl_api_acc
+///
+/// \ingroup sycl_api
 template <typename T, int dimensions = 1,
           typename AllocatorT = cl::sycl::buffer_allocator,
           typename = typename std::enable_if<(dimensions > 0) &&
@@ -337,8 +345,7 @@ private:
     return outOfBounds;
   }
 
-  bool isContiguousRegion(const id<1> &offset, const range<1> &newRange,
-                          const range<1> &parentRange) {
+  bool isContiguousRegion(const id<1> &, const range<1> &, const range<1> &) {
     // 1D sub buffer always has contiguous region
     return true;
   }

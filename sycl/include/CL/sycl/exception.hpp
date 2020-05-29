@@ -25,6 +25,7 @@ class context;
 
 // Derive from std::exception so uncaught exceptions are printed in c++ default
 // exception handler.
+/// \ingroup sycl_api
 class __SYCL_EXPORT exception : public std::exception {
 public:
   exception() = default;

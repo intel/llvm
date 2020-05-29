@@ -15,6 +15,7 @@
 #include <cassert>
 #include <numeric>
 
+#include "mlir/ExecutionEngine/CRunnerUtils.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -29,15 +30,15 @@ int32_t reportErrorIfAny(CUresult result, const char *where) {
 }
 } // anonymous namespace
 
-extern "C" int32_t mcuModuleLoad(void **module, void *data) {
+extern "C" int32_t mgpuModuleLoad(void **module, void *data) {
   int32_t err = reportErrorIfAny(
       cuModuleLoadData(reinterpret_cast<CUmodule *>(module), data),
       "ModuleLoad");
   return err;
 }
 
-extern "C" int32_t mcuModuleGetFunction(void **function, void *module,
-                                        const char *name) {
+extern "C" int32_t mgpuModuleGetFunction(void **function, void *module,
+                                         const char *name) {
   return reportErrorIfAny(
       cuModuleGetFunction(reinterpret_cast<CUfunction *>(function),
                           reinterpret_cast<CUmodule>(module), name),
@@ -47,11 +48,11 @@ extern "C" int32_t mcuModuleGetFunction(void **function, void *module,
 // The wrapper uses intptr_t instead of CUDA's unsigned int to match
 // the type of MLIR's index type. This avoids the need for casts in the
 // generated MLIR code.
-extern "C" int32_t mcuLaunchKernel(void *function, intptr_t gridX,
-                                   intptr_t gridY, intptr_t gridZ,
-                                   intptr_t blockX, intptr_t blockY,
-                                   intptr_t blockZ, int32_t smem, void *stream,
-                                   void **params, void **extra) {
+extern "C" int32_t mgpuLaunchKernel(void *function, intptr_t gridX,
+                                    intptr_t gridY, intptr_t gridZ,
+                                    intptr_t blockX, intptr_t blockY,
+                                    intptr_t blockZ, int32_t smem, void *stream,
+                                    void **params, void **extra) {
   return reportErrorIfAny(
       cuLaunchKernel(reinterpret_cast<CUfunction>(function), gridX, gridY,
                      gridZ, blockX, blockY, blockZ, smem,
@@ -59,13 +60,13 @@ extern "C" int32_t mcuLaunchKernel(void *function, intptr_t gridX,
       "LaunchKernel");
 }
 
-extern "C" void *mcuGetStreamHelper() {
+extern "C" void *mgpuGetStreamHelper() {
   CUstream stream;
   reportErrorIfAny(cuStreamCreate(&stream, CU_STREAM_DEFAULT), "StreamCreate");
   return stream;
 }
 
-extern "C" int32_t mcuStreamSynchronize(void *stream) {
+extern "C" int32_t mgpuStreamSynchronize(void *stream) {
   return reportErrorIfAny(
       cuStreamSynchronize(reinterpret_cast<CUstream>(stream)), "StreamSync");
 }
@@ -74,19 +75,10 @@ extern "C" int32_t mcuStreamSynchronize(void *stream) {
 
 // Allows to register byte array with the CUDA runtime. Helpful until we have
 // transfer functions implemented.
-extern "C" void mcuMemHostRegister(void *ptr, uint64_t sizeBytes) {
+extern "C" void mgpuMemHostRegister(void *ptr, uint64_t sizeBytes) {
   reportErrorIfAny(cuMemHostRegister(ptr, sizeBytes, /*flags=*/0),
                    "MemHostRegister");
 }
-
-// A struct that corresponds to how MLIR represents memrefs.
-template <typename T, int N> struct MemRefType {
-  T *basePtr;
-  T *data;
-  int64_t offset;
-  int64_t sizes[N];
-  int64_t strides[N];
-};
 
 // Allows to register a MemRef with the CUDA runtime. Initializes array with
 // value. Helpful until we have transfer functions implemented.
@@ -107,55 +99,19 @@ void mcuMemHostRegisterMemRef(T *pointer, llvm::ArrayRef<int64_t> sizes,
   assert(strides == llvm::makeArrayRef(denseStrides));
 
   std::fill_n(pointer, count, value);
-  mcuMemHostRegister(pointer, count * sizeof(T));
+  mgpuMemHostRegister(pointer, count * sizeof(T));
 }
 
-extern "C" void mcuMemHostRegisterMemRef1dFloat(float *allocated,
-                                                float *aligned, int64_t offset,
-                                                int64_t size, int64_t stride) {
-  mcuMemHostRegisterMemRef(aligned + offset, {size}, {stride}, 1.23f);
+extern "C" void mcuMemHostRegisterFloat(int64_t rank, void *ptr) {
+  auto *desc = static_cast<StridedMemRefType<float, 1> *>(ptr);
+  auto sizes = llvm::ArrayRef<int64_t>(desc->sizes, rank);
+  auto strides = llvm::ArrayRef<int64_t>(desc->sizes + rank, rank);
+  mcuMemHostRegisterMemRef(desc->data + desc->offset, sizes, strides, 1.23f);
 }
 
-extern "C" void mcuMemHostRegisterMemRef2dFloat(float *allocated,
-                                                float *aligned, int64_t offset,
-                                                int64_t size0, int64_t size1,
-                                                int64_t stride0,
-                                                int64_t stride1) {
-  mcuMemHostRegisterMemRef(aligned + offset, {size0, size1}, {stride0, stride1},
-                           1.23f);
-}
-
-extern "C" void mcuMemHostRegisterMemRef3dFloat(float *allocated,
-                                                float *aligned, int64_t offset,
-                                                int64_t size0, int64_t size1,
-                                                int64_t size2, int64_t stride0,
-                                                int64_t stride1,
-                                                int64_t stride2) {
-  mcuMemHostRegisterMemRef(aligned + offset, {size0, size1, size2},
-                           {stride0, stride1, stride2}, 1.23f);
-}
-
-extern "C" void mcuMemHostRegisterMemRef1dInt32(int32_t *allocated,
-                                                int32_t *aligned,
-                                                int64_t offset, int64_t size,
-                                                int64_t stride) {
-  mcuMemHostRegisterMemRef(aligned + offset, {size}, {stride}, 123);
-}
-
-extern "C" void mcuMemHostRegisterMemRef2dInt32(int32_t *allocated,
-                                                int32_t *aligned,
-                                                int64_t offset, int64_t size0,
-                                                int64_t size1, int64_t stride0,
-                                                int64_t stride1) {
-  mcuMemHostRegisterMemRef(aligned + offset, {size0, size1}, {stride0, stride1},
-                           123);
-}
-
-extern "C" void
-mcuMemHostRegisterMemRef3dInt32(int32_t *allocated, int32_t *aligned,
-                                int64_t offset, int64_t size0, int64_t size1,
-                                int64_t size2, int64_t stride0, int64_t stride1,
-                                int64_t stride2) {
-  mcuMemHostRegisterMemRef(aligned + offset, {size0, size1, size2},
-                           {stride0, stride1, stride2}, 123);
+extern "C" void mcuMemHostRegisterInt32(int64_t rank, void *ptr) {
+  auto *desc = static_cast<StridedMemRefType<int32_t, 1> *>(ptr);
+  auto sizes = llvm::ArrayRef<int64_t>(desc->sizes, rank);
+  auto strides = llvm::ArrayRef<int64_t>(desc->sizes + rank, rank);
+  mcuMemHostRegisterMemRef(desc->data + desc->offset, sizes, strides, 123);
 }
