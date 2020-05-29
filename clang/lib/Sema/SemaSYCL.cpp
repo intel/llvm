@@ -1458,7 +1458,6 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
 }
 
 void Sema::MarkDevice(void) {
-  // Let's mark all called functions with SYCL Device attribute.
   // Create the call graph so we can detect recursion and check the validity
   // of new operator overrides. Add the kernel function itself in case
   // it is recursive.
