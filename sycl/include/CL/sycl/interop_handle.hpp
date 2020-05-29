@@ -36,7 +36,7 @@ class accessor;
 
 class interop_handle {
 public:
-  /// Receives a SYCL accessor that has been defined is a requirement for the
+  /// Receives a SYCL accessor that has been defined as a requirement for the
   /// command group, and returns the underlying OpenCL memory object that is
   /// used by the SYCL runtime. If the accessor passed as parameter is not part
   /// of the command group requirements (e.g. it is an unregistered placeholder
