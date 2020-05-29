@@ -1521,7 +1521,15 @@ pi_result cuda_piMemBufferCreate(pi_context context, pi_mem_flags flags,
       if (piMemObj != nullptr) {
         retMemObj = piMemObj.release();
         if (performInitialCopy) {
+          // Operates on the default stream of the current CUDA context.
           retErr = PI_CHECK_ERROR(cuMemcpyHtoD(ptr, host_ptr, size));
+          // Synchronize with default stream implicitly used by cuMemcpyHtoD
+          // to make buffer data available on device before any other PI call
+          // uses it.
+          if (retErr == PI_SUCCESS) {
+            CUstream defaultStream = 0;
+            retErr = PI_CHECK_ERROR(cuStreamSynchronize(defaultStream));
+          }
         }
       } else {
         retErr = PI_OUT_OF_HOST_MEMORY;
