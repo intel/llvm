@@ -128,7 +128,7 @@ The instruction allows the optimizer to assume that the provided _Condition_ is
 always true whenever the control flow reaches the instruction. If the
 _Condition_ is violated during execution, the behavior is undefined.
 
-The type of _Condition_ shall be _Boolean_.
+The type of _Condition_ must be _Boolean_.
 | Capability:
 *OptimizationHintsINTEL*
 
@@ -144,7 +144,7 @@ _ExpectedValue_. This instruction can be safely replaced with an entity
 referenced by _Value_.
 
 The type of _Value_ and _ExpectedValue_ must be the same as _Result Type_,
-which shall be of _Integer_ or _Boolean_ type.
+which must be of _Integer_ or _Boolean_ type.
 
 | Capability:
 *OptimizationHintsINTEL*
