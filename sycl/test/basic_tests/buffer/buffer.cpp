@@ -183,7 +183,7 @@ int main() {
   }
   {
     int data[10] = {0};
-    std::shared_ptr<int> result(new int[10]());
+    std::shared_ptr<int> result(new int[10](), [](int *p) { delete[] p; });
     {
       buffer<int, 1> Buffer(data, range<1>(10));
       std::weak_ptr<int> resultWeak = result;
@@ -200,7 +200,7 @@ int main() {
 
   {
     int data[10] = {0};
-    std::shared_ptr<int> result(new int[10]());
+    std::shared_ptr<int> result(new int[10](), [](int *p) { delete[] p; });
     {
       buffer<int, 1> Buffer(data, range<1>(10));
       Buffer.set_final_data(result);
@@ -284,7 +284,7 @@ int main() {
   }
   {
     int data[10] = {0};
-    std::shared_ptr<int> result(new int[10]());
+    std::shared_ptr<int> result(new int[10](), [](int *p) { delete[] p; });
     {
       buffer<int, 1> Buffer(data, range<1>(10),
                             {property::buffer::use_host_ptr()});
@@ -579,7 +579,7 @@ int main() {
 
   {
     std::allocator<float8> buf_alloc;
-    cl::sycl::shared_ptr_class<float8> data(new float8[8]);
+    cl::sycl::shared_ptr_class<float8> data(new float8[8], [](float8 *p) { delete[] p; });
     cl::sycl::buffer<float8, 1, std::allocator<float8>>
         b(data, cl::sycl::range<1>(8), buf_alloc);
   }
