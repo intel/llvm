@@ -939,7 +939,8 @@ pi_result piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr, size_t size,
 /// \param event is the event that represents this operation
 // USM memadvise API to govern behavior of automatic migration mechanisms
 pi_result piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
-                                   size_t length, int advice, pi_event *event) {
+                                   size_t length, pi_mem_advice advice,
+                                   pi_event *event) {
 
   return cast<pi_result>(
       clEnqueueMarkerWithWaitList(cast<cl_command_queue>(queue), 0, nullptr,

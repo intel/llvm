@@ -107,6 +107,7 @@ def output: Separate<["-", "--"], "o">,
   HelpText<"Specify the output file. Defaults to <input file>.dwarf">,
   Group<grp_general>;
 def: Separate<["--", "-"], "out">,
+  MetaVarName<"<filename>">,
   Alias<output>,
   HelpText<"Alias for -o">,
   Group<grp_general>;
@@ -159,9 +160,19 @@ def threads: Separate<["--", "-"], "num-threads">,
   HelpText<"Specifies the maximum number of simultaneous threads to use when linking multiple architectures.">,
   Group<grp_general>;
 def: Separate<["-"], "j">,
-  Alias<threads>,
+  MetaVarName<"<threads>">,
   HelpText<"Alias for --num-threads">,
   Group<grp_general>;
+
+def gen_reproducer: F<"gen-reproducer">,
+  HelpText<"Generate a reproducer consisting of the input object files.">,
+  Group<grp_general>;
+
+def use_reproducer: Separate<["--", "-"], "use-reproducer">,
+  MetaVarName<"<path>">,
+  HelpText<"Use the object files from the given reproducer path.">,
+  Group<grp_general>;
+def: Joined<["--", "-"], "use-reproducer=">, Alias<use_reproducer>;
 
 def remarks_prepend_path: Separate<["--", "-"], "remarks-prepend-path">,
   MetaVarName<"<path>">,

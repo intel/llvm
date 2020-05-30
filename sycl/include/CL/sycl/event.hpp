@@ -24,6 +24,10 @@ namespace detail {
 class event_impl;
 }
 
+/// An event object can be used to synchronize memory transfers, enqueues of
+/// kernels and signaling barriers.
+///
+/// \ingroup sycl_api
 class __SYCL_EXPORT event {
 public:
   /// Constructs a ready SYCL event.

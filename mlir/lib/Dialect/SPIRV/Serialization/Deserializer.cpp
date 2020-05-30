@@ -62,10 +62,12 @@ namespace {
 struct BlockMergeInfo {
   Block *mergeBlock;
   Block *continueBlock; // nullptr for spv.selection
+  Location loc;
 
-  BlockMergeInfo() : mergeBlock(nullptr), continueBlock(nullptr) {}
-  BlockMergeInfo(Block *m, Block *c = nullptr)
-      : mergeBlock(m), continueBlock(c) {}
+  BlockMergeInfo(Location location)
+      : mergeBlock(nullptr), continueBlock(nullptr), loc(location) {}
+  BlockMergeInfo(Location location, Block *m, Block *c = nullptr)
+      : mergeBlock(m), continueBlock(c), loc(location) {}
 };
 
 /// A struct for containing OpLine instruction information.
@@ -214,6 +216,8 @@ private:
   LogicalResult processType(spirv::Opcode opcode, ArrayRef<uint32_t> operands);
 
   LogicalResult processArrayType(ArrayRef<uint32_t> operands);
+
+  LogicalResult processCooperativeMatrixType(ArrayRef<uint32_t> operands);
 
   LogicalResult processFunctionType(ArrayRef<uint32_t> operands);
 
@@ -1158,6 +1162,8 @@ LogicalResult Deserializer::processType(spirv::Opcode opcode,
   } break;
   case spirv::Opcode::OpTypeArray:
     return processArrayType(operands);
+  case spirv::Opcode::OpTypeCooperativeMatrixNV:
+    return processCooperativeMatrixType(operands);
   case spirv::Opcode::OpTypeFunction:
     return processFunctionType(operands);
   case spirv::Opcode::OpTypeRuntimeArray:
@@ -1224,6 +1230,35 @@ LogicalResult Deserializer::processFunctionType(ArrayRef<uint32_t> operands) {
     returnTypes = llvm::makeArrayRef(returnType);
   }
   typeMap[operands[0]] = FunctionType::get(argTypes, returnTypes, context);
+  return success();
+}
+
+LogicalResult
+Deserializer::processCooperativeMatrixType(ArrayRef<uint32_t> operands) {
+  if (operands.size() != 5) {
+    return emitError(unknownLoc, "OpTypeCooperativeMatrix must have element "
+                                 "type and row x column parameters");
+  }
+
+  Type elementTy = getType(operands[1]);
+  if (!elementTy) {
+    return emitError(unknownLoc,
+                     "OpTypeCooperativeMatrix references undefined <id> ")
+           << operands[1];
+  }
+
+  auto scope = spirv::symbolizeScope(operands[2]);
+  if (!scope) {
+    return emitError(unknownLoc,
+                     "OpTypeCooperativeMatrix references undefined scope <id> ")
+           << operands[2];
+  }
+
+  unsigned rows = operands[3];
+  unsigned columns = operands[4];
+
+  typeMap[operands[0]] = spirv::CooperativeMatrixNVType::get(
+      elementTy, scope.getValue(), rows, columns);
   return success();
 }
 
@@ -1539,7 +1574,11 @@ LogicalResult Deserializer::processBranch(ArrayRef<uint32_t> operands) {
   }
 
   auto *target = getOrCreateBlock(operands[0]);
-  opBuilder.create<spirv::BranchOp>(unknownLoc, target);
+  auto loc = createFileLineColLoc(opBuilder);
+  // The preceding instruction for the OpBranch instruction could be an
+  // OpLoopMerge or an OpSelectionMerge instruction, in this case they will have
+  // the same OpLine information.
+  opBuilder.create<spirv::BranchOp>(loc, target);
 
   clearDebugLine();
   return success();
@@ -1566,9 +1605,12 @@ Deserializer::processBranchConditional(ArrayRef<uint32_t> operands) {
   if (operands.size() == 5) {
     weights = std::make_pair(operands[3], operands[4]);
   }
-
+  // The preceding instruction for the OpBranchConditional instruction could be
+  // an OpSelectionMerge instruction, in this case they will have the same
+  // OpLine information.
+  auto loc = createFileLineColLoc(opBuilder);
   opBuilder.create<spirv::BranchConditionalOp>(
-      unknownLoc, condition, trueBlock,
+      loc, condition, trueBlock,
       /*trueArguments=*/ArrayRef<Value>(), falseBlock,
       /*falseArguments=*/ArrayRef<Value>(), weights);
 
@@ -1616,8 +1658,9 @@ LogicalResult Deserializer::processSelectionMerge(ArrayRef<uint32_t> operands) {
   }
 
   auto *mergeBlock = getOrCreateBlock(operands[0]);
+  auto loc = createFileLineColLoc(opBuilder);
 
-  if (!blockMergeInfo.try_emplace(curBlock, mergeBlock).second) {
+  if (!blockMergeInfo.try_emplace(curBlock, loc, mergeBlock).second) {
     return emitError(
         unknownLoc,
         "a block cannot have more than one OpSelectionMerge instruction");
@@ -1643,8 +1686,10 @@ LogicalResult Deserializer::processLoopMerge(ArrayRef<uint32_t> operands) {
 
   auto *mergeBlock = getOrCreateBlock(operands[0]);
   auto *continueBlock = getOrCreateBlock(operands[1]);
+  auto loc = createFileLineColLoc(opBuilder);
 
-  if (!blockMergeInfo.try_emplace(curBlock, mergeBlock, continueBlock).second) {
+  if (!blockMergeInfo.try_emplace(curBlock, loc, mergeBlock, continueBlock)
+           .second) {
     return emitError(
         unknownLoc,
         "a block cannot have more than one OpLoopMerge instruction");
@@ -1832,7 +1877,6 @@ LogicalResult ControlFlowStructurizer::structurizeImpl() {
       LLVM_DEBUG(llvm::dbgs()
                  << "[cf] block " << block << " is a function entry block\n");
     }
-
     for (auto &op : *block)
       newBlock->push_back(op.clone(mapper));
   }
@@ -1913,10 +1957,12 @@ LogicalResult ControlFlowStructurizer::structurizeImpl() {
       if (Block *mappedTo = mapper.lookupOrNull(newMerge))
         newMerge = mappedTo;
 
+      // Keep original location for nested selection/loop ops.
+      Location loc = it->second.loc;
       // The iterator should be erased before adding a new entry into
       // blockMergeInfo to avoid iterator invalidation.
       blockMergeInfo.erase(it);
-      blockMergeInfo.try_emplace(newHeader, newMerge, newContinue);
+      blockMergeInfo.try_emplace(newHeader, loc, newMerge, newContinue);
     }
 
     // The structured selection/loop's entry block does not have arguments.
@@ -2017,13 +2063,12 @@ LogicalResult Deserializer::structurizeControlFlow() {
                  << "[cf] continue block " << continueBlock << ":\n");
       LLVM_DEBUG(continueBlock->print(llvm::dbgs()));
     }
-
     // Erase this case before calling into structurizer, who will update
     // blockMergeInfo.
     blockMergeInfo.erase(blockMergeInfo.begin());
-    if (failed(ControlFlowStructurizer::structurize(unknownLoc, blockMergeInfo,
-                                                    headerBlock, mergeBlock,
-                                                    continueBlock)))
+    if (failed(ControlFlowStructurizer::structurize(mergeInfo.loc,
+                                                    blockMergeInfo, headerBlock,
+                                                    mergeBlock, continueBlock)))
       return failure();
   }
 
@@ -2198,6 +2243,7 @@ LogicalResult Deserializer::processInstruction(spirv::Opcode opcode,
   case spirv::Opcode::OpTypeRuntimeArray:
   case spirv::Opcode::OpTypeStruct:
   case spirv::Opcode::OpTypePointer:
+  case spirv::Opcode::OpTypeCooperativeMatrixNV:
     return processType(opcode, operands);
   case spirv::Opcode::OpConstant:
     return processConstant(operands, /*isSpec=*/false);

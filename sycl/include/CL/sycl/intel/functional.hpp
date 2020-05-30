@@ -85,7 +85,7 @@ struct GroupOpTag<T, detail::enable_if_t<detail::is_sgenfloat<T>::value>> {
 
 #define __SYCL_CALC_OVERLOAD(GroupTag, SPIRVOperation, BinaryOperation)        \
   template <typename T, __spv::GroupOperation O, __spv::Scope::Flag S>         \
-  static T calc(GroupTag, T x, BinaryOperation op) {                           \
+  static T calc(GroupTag, T x, BinaryOperation) {                              \
     using OCLT = detail::ConvertToOpenCLType_t<T>;                             \
     OCLT Arg = x;                                                              \
     OCLT Ret =                                                                 \

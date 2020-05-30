@@ -4836,11 +4836,16 @@ static void emitPrivatesInit(CodeGenFunction &CGF,
                       C.getDeclAlign(OriginalVD)),
               SharedRefLValue.getType(), LValueBaseInfo(AlignmentSource::Decl),
               SharedRefLValue.getTBAAInfo());
+        } else if (CGF.LambdaCaptureFields.count(
+                       Pair.second.Original->getCanonicalDecl()) > 0 ||
+                   dyn_cast_or_null<BlockDecl>(CGF.CurCodeDecl)) {
+          SharedRefLValue = CGF.EmitLValue(Pair.second.OriginalRef);
         } else {
+          // Processing for implicitly captured variables.
           InlinedOpenMPRegionRAII Region(
               CGF, [](CodeGenFunction &, PrePostActionTy &) {}, OMPD_unknown,
               /*HasCancel=*/false);
-          SharedRefLValue =  CGF.EmitLValue(Pair.second.OriginalRef);
+          SharedRefLValue = CGF.EmitLValue(Pair.second.OriginalRef);
         }
         if (Type->isArrayType()) {
           // Initialize firstprivate array.
@@ -4973,7 +4978,7 @@ emitTaskDupFunction(CodeGenModule &CGM, SourceLocation Loc,
                                  Base, *std::next(KmpTaskTQTyRD->field_begin(),
                                                   KmpTaskTShareds)),
                              Loc),
-        CGF.getNaturalTypeAlignment(SharedsTy));
+        CGM.getNaturalTypeAlignment(SharedsTy));
   }
   emitPrivatesInit(CGF, D, KmpTaskSharedsPtr, TDBase, KmpTaskTWithPrivatesQTyRD,
                    SharedsTy, SharedsPtrTy, Data, Privates, /*ForDup=*/true);
@@ -5186,7 +5191,7 @@ CGOpenMPRuntime::emitTaskInit(CodeGenFunction &CGF, SourceLocation Loc,
                         TDBase, *std::next(KmpTaskTQTyRD->field_begin(),
                                            KmpTaskTShareds)),
                     Loc),
-                CGF.getNaturalTypeAlignment(SharedsTy));
+                CGM.getNaturalTypeAlignment(SharedsTy));
     LValue Dest = CGF.MakeAddrLValue(KmpTaskSharedsPtr, SharedsTy);
     LValue Src = CGF.MakeAddrLValue(Shareds, SharedsTy);
     CGF.EmitAggregateCopy(Dest, Src, SharedsTy, AggValueSlot::DoesNotOverlap);

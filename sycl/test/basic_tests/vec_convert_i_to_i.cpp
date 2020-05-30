@@ -1,4 +1,3 @@
-// XFAIL: cuda
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
@@ -47,5 +46,14 @@ int main() {
   test<ulong, int, 8, rounding_mode::automatic>(
       ulong8{3000000000, 2147483647, 100, 150, 2147483648, 1000, 0, 1},
       int8{-1294967296, 2147483647, 100, 150, -2147483648, 1000, 0, 1});
+
+  test<longlong, ulonglong, 1, rounding_mode::automatic>(
+      longlong{1},
+      ulonglong{1});
+
+    test<ulonglong, longlong, 1, rounding_mode::automatic>(
+      ulonglong{1},
+      longlong{1});
+
   return 0;
 }

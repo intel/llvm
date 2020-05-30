@@ -1401,6 +1401,16 @@ bool PPCTargetLowering::preferIncOfAddToSubOfNot(EVT VT) const {
   return VT.isScalarInteger();
 }
 
+/// isMulhCheaperThanMulShift - Return true if a mulh[s|u] node for a specific
+/// type is cheaper than a multiply followed by a shift.
+/// This is true for words and doublewords on 64-bit PowerPC.
+bool PPCTargetLowering::isMulhCheaperThanMulShift(EVT Type) const {
+  if (Subtarget.isPPC64() && (isOperationLegal(ISD::MULHS, Type) ||
+                              isOperationLegal(ISD::MULHU, Type)))
+    return true;
+  return TargetLowering::isMulhCheaperThanMulShift(Type);
+}
+
 const char *PPCTargetLowering::getTargetNodeName(unsigned Opcode) const {
   switch ((PPCISD::NodeType)Opcode) {
   case PPCISD::FIRST_NUMBER:    break;
@@ -10755,6 +10765,7 @@ SDValue PPCTargetLowering::LowerFP_EXTEND(SDValue Op, SelectionDAG &DAG) const {
   assert(Op.getOpcode() == ISD::FP_EXTEND &&
          "Should only be called for ISD::FP_EXTEND");
 
+  // FIXME: handle extends from half precision float vectors on P9.
   // We only want to custom lower an extend from v2f32 to v2f64.
   if (Op.getValueType() != MVT::v2f64 ||
       Op.getOperand(0).getValueType() != MVT::v2f32)
@@ -10967,6 +10978,11 @@ void PPCTargetLowering::ReplaceNodeResults(SDNode *N,
   }
   case ISD::BITCAST:
     // Don't handle bitcast here.
+    return;
+  case ISD::FP_EXTEND:
+    SDValue Lowered = LowerFP_EXTEND(SDValue(N, 0), DAG);
+    if (Lowered)
+      Results.push_back(Lowered);
     return;
   }
 }

@@ -1080,6 +1080,22 @@ def LegalOpA : TEST_Op<"legal_op_a">,
   Arguments<(ins Test_LegalizerEnum:$status)>, Results<(outs I32)>;
 def LegalOpB : TEST_Op<"legal_op_b">, Results<(outs I32)>;
 
+// Check that the conversion infrastructure can properly undo the creation of
+// operations where an operation was created before its parent, in this case,
+// in the parent's builder.
+def IllegalOpTerminator : TEST_Op<"illegal_op_terminator", [Terminator]>;
+def IllegalOpWithRegion : TEST_Op<"illegal_op_with_region"> {
+  let skipDefaultBuilders = 1;
+  let builders = [OpBuilder<"OpBuilder &builder, OperationState &state",
+                  [{ Region *bodyRegion = state.addRegion();
+                     OpBuilder::InsertionGuard g(builder);
+                     Block *body = builder.createBlock(bodyRegion);
+                     builder.setInsertionPointToEnd(body);
+                     builder.create<IllegalOpTerminator>(state.location);
+                  }]>];
+}
+def IllegalOpWithRegionAnchor : TEST_Op<"illegal_op_with_region_anchor">;
+
 // Check that smaller pattern depths are chosen, i.e. prioritize more direct
 // mappings.
 def : Pat<(ILLegalOpA), (LegalOpA Test_LegalizerEnum_Success)>;
@@ -1214,9 +1230,15 @@ def FormatAttrOp : TEST_Op<"format_attr_op"> {
   let assemblyFormat = "$attr attr-dict";
 }
 
+// Test that we elide optional attributes that are within the syntax.
+def FormatOptAttrOp : TEST_Op<"format_opt_attr_op"> {
+  let arguments = (ins OptionalAttr<I64Attr>:$opt_attr);
+  let assemblyFormat = "(`(`$opt_attr^`)`)? attr-dict";
+}
+
 // Test that we elide attributes that are within the syntax.
 def FormatAttrDictWithKeywordOp : TEST_Op<"format_attr_dict_w_keyword"> {
-  let arguments = (ins I64Attr:$attr);
+  let arguments = (ins I64Attr:$attr, OptionalAttr<I64Attr>:$opt_attr);
   let assemblyFormat = "attr-dict-with-keyword";
 }
 

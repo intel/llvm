@@ -6,6 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-_CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE __spirv_ocl_u_mad24(__CLC_GENTYPE x, __CLC_GENTYPE y, __CLC_GENTYPE z) {
-  return __spirv_ocl_u_mul24(x, y) + z;
+#ifdef __CLC_GEN_S
+#define DECL __spirv_ocl_s_mad24
+#else
+#define DECL __spirv_ocl_u_mad24
+#endif
+
+_CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE DECL(__CLC_GENTYPE x, __CLC_GENTYPE y,
+                                          __CLC_GENTYPE z) {
+  return __clc_mad24(x, y, z);
 }
+
+#undef DECL

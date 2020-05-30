@@ -233,29 +233,6 @@ public:
 private:
   vector_class<device> getDevices(const ContextImplPtr Context);
 
-  template <info::device Param>
-  bool checkImageValueRange(const ContextImplPtr Context, const size_t Value) {
-    const auto &Devices = getDevices(Context);
-    return Value >= 1 && std::all_of(Devices.cbegin(), Devices.cend(),
-                                     [Value](const device &Dev) {
-                                       return Value <= Dev.get_info<Param>();
-                                     });
-  }
-
-  template <typename T, typename... Args> bool checkAnyImpl(T Value) {
-    return false;
-  }
-
-  template <typename ValT, typename VarT, typename... Args>
-  bool checkAnyImpl(ValT Value, VarT Variant, Args... Arguments) {
-    return (Value == Variant) ? true : checkAnyImpl(Value, Arguments...);
-  }
-
-  template <typename T, typename... Args>
-  bool checkAny(const T Value, Args... Arguments) {
-    return checkAnyImpl(Value, Arguments...);
-  }
-
   RT::PiMemObjectType getImageType() {
     if (Dimensions == 1)
       return (MIsArrayImage ? PI_MEM_TYPE_IMAGE1D_ARRAY : PI_MEM_TYPE_IMAGE1D);

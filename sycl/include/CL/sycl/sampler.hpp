@@ -40,6 +40,11 @@ template <typename DataT, int Dimensions, access::mode AccessMode,
 class image_accessor;
 }
 
+/// Encapsulates a configuration for sampling an image accessor.
+///
+/// \sa sycl_api_acc
+///
+/// \ingroup sycl_api
 class __SYCL_EXPORT sampler {
 public:
   sampler(coordinate_normalization_mode normalizationMode,
@@ -91,6 +96,7 @@ namespace std {
 template <> struct hash<cl::sycl::sampler> {
   size_t operator()(const cl::sycl::sampler &s) const {
 #ifdef __SYCL_DEVICE_ONLY__
+    (void)s;
     return 0;
 #else
     return hash<std::shared_ptr<cl::sycl::detail::sampler_impl>>()(

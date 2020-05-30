@@ -53,6 +53,83 @@ bool HardwareLoopInfo::canAnalyze(LoopInfo &LI) {
   return true;
 }
 
+IntrinsicCostAttributes::IntrinsicCostAttributes(const IntrinsicInst &I) :
+    II(&I), RetTy(I.getType()), IID(I.getIntrinsicID()) {
+
+ FunctionType *FTy = I.getCalledFunction()->getFunctionType();
+ ParamTys.insert(ParamTys.begin(), FTy->param_begin(), FTy->param_end());
+ Arguments.insert(Arguments.begin(), I.arg_begin(), I.arg_end());
+ if (auto *FPMO = dyn_cast<FPMathOperator>(&I))
+   FMF = FPMO->getFastMathFlags();
+}
+
+IntrinsicCostAttributes::IntrinsicCostAttributes(Intrinsic::ID Id, CallInst &CI,
+                                                 unsigned Factor) :
+    RetTy(CI.getType()), IID(Id), VF(Factor) {
+
+  if (auto *FPMO = dyn_cast<FPMathOperator>(&CI))
+    FMF = FPMO->getFastMathFlags();
+
+  Arguments.insert(Arguments.begin(), CI.arg_begin(), CI.arg_end());
+  FunctionType *FTy =
+    CI.getCalledFunction()->getFunctionType();
+  ParamTys.insert(ParamTys.begin(), FTy->param_begin(), FTy->param_end());
+}
+
+IntrinsicCostAttributes::IntrinsicCostAttributes(Intrinsic::ID Id, CallInst &CI,
+                                                 unsigned Factor,
+                                                 unsigned ScalarCost) :
+    RetTy(CI.getType()), IID(Id), VF(Factor), ScalarizationCost(ScalarCost) {
+
+  if (auto *FPMO = dyn_cast<FPMathOperator>(&CI))
+    FMF = FPMO->getFastMathFlags();
+
+  Arguments.insert(Arguments.begin(), CI.arg_begin(), CI.arg_end());
+  FunctionType *FTy =
+    CI.getCalledFunction()->getFunctionType();
+  ParamTys.insert(ParamTys.begin(), FTy->param_begin(), FTy->param_end());
+}
+
+IntrinsicCostAttributes::IntrinsicCostAttributes(Intrinsic::ID Id, Type *RTy,
+                                                 ArrayRef<Type *> Tys,
+                                                 FastMathFlags Flags) :
+    RetTy(RTy), IID(Id), FMF(Flags) {
+  ParamTys.insert(ParamTys.begin(), Tys.begin(), Tys.end());
+}
+
+IntrinsicCostAttributes::IntrinsicCostAttributes(Intrinsic::ID Id, Type *RTy,
+                                                 ArrayRef<Type *> Tys,
+                                                 FastMathFlags Flags,
+                                                 unsigned ScalarCost) :
+    RetTy(RTy), IID(Id), FMF(Flags), ScalarizationCost(ScalarCost) {
+  ParamTys.insert(ParamTys.begin(), Tys.begin(), Tys.end());
+}
+
+IntrinsicCostAttributes::IntrinsicCostAttributes(Intrinsic::ID Id, Type *RTy,
+                                                 ArrayRef<Type *> Tys,
+                                                 FastMathFlags Flags,
+                                                 unsigned ScalarCost,
+                                                 const IntrinsicInst *I) :
+    II(I), RetTy(RTy), IID(Id), FMF(Flags), ScalarizationCost(ScalarCost) {
+  ParamTys.insert(ParamTys.begin(), Tys.begin(), Tys.end());
+}
+
+IntrinsicCostAttributes::IntrinsicCostAttributes(Intrinsic::ID Id, Type *RTy,
+                                                 ArrayRef<Type *> Tys) :
+    RetTy(RTy), IID(Id) {
+  ParamTys.insert(ParamTys.begin(), Tys.begin(), Tys.end());
+}
+
+IntrinsicCostAttributes::IntrinsicCostAttributes(Intrinsic::ID Id, Type *Ty,
+                                                 ArrayRef<Value *> Args) :
+    RetTy(Ty), IID(Id) {
+
+  Arguments.insert(Arguments.begin(), Args.begin(), Args.end());
+  ParamTys.reserve(Arguments.size());
+  for (unsigned Idx = 0, Size = Arguments.size(); Idx != Size; ++Idx)
+    ParamTys.push_back(Arguments[Idx]->getType());
+}
+
 bool HardwareLoopInfo::isHardwareLoopCandidate(ScalarEvolution &SE,
                                                LoopInfo &LI, DominatorTree &DT,
                                                bool ForceNestedLoop,
@@ -157,11 +234,6 @@ int TargetTransformInfo::getGEPCost(Type *PointeeType, const Value *Ptr,
                                     ArrayRef<const Value *> Operands,
                                     TTI::TargetCostKind CostKind) const {
   return TTIImpl->getGEPCost(PointeeType, Ptr, Operands, CostKind);
-}
-
-int TargetTransformInfo::getExtCost(const Instruction *I,
-                                    const Value *Src) const {
-  return TTIImpl->getExtCost(I, Src);
 }
 
 int TargetTransformInfo::getIntrinsicCost(Intrinsic::ID IID, Type *RetTy,
@@ -285,12 +357,12 @@ bool TargetTransformInfo::shouldFavorBackedgeIndex(const Loop *L) const {
 }
 
 bool TargetTransformInfo::isLegalMaskedStore(Type *DataType,
-                                             MaybeAlign Alignment) const {
+                                             Align Alignment) const {
   return TTIImpl->isLegalMaskedStore(DataType, Alignment);
 }
 
 bool TargetTransformInfo::isLegalMaskedLoad(Type *DataType,
-                                            MaybeAlign Alignment) const {
+                                            Align Alignment) const {
   return TTIImpl->isLegalMaskedLoad(DataType, Alignment);
 }
 
@@ -304,12 +376,12 @@ bool TargetTransformInfo::isLegalNTLoad(Type *DataType, Align Alignment) const {
 }
 
 bool TargetTransformInfo::isLegalMaskedGather(Type *DataType,
-                                              MaybeAlign Alignment) const {
+                                              Align Alignment) const {
   return TTIImpl->isLegalMaskedGather(DataType, Alignment);
 }
 
 bool TargetTransformInfo::isLegalMaskedScatter(Type *DataType,
-                                               MaybeAlign Alignment) const {
+                                               Align Alignment) const {
   return TTIImpl->isLegalMaskedScatter(DataType, Alignment);
 }
 
@@ -658,8 +730,7 @@ int TargetTransformInfo::getVectorInstrCost(unsigned Opcode, Type *Val,
 }
 
 int TargetTransformInfo::getMemoryOpCost(unsigned Opcode, Type *Src,
-                                         MaybeAlign Alignment,
-                                         unsigned AddressSpace,
+                                         Align Alignment, unsigned AddressSpace,
                                          TTI::TargetCostKind CostKind,
                                          const Instruction *I) const {
   assert((I == nullptr || I->getOpcode() == Opcode) &&
@@ -703,26 +774,10 @@ int TargetTransformInfo::getInterleavedMemoryOpCost(
   return Cost;
 }
 
-int TargetTransformInfo::getIntrinsicInstrCost(Intrinsic::ID ID, Type *RetTy,
-                                               ArrayRef<Type *> Tys,
-                                               FastMathFlags FMF,
-                                               unsigned ScalarizationCostPassed,
-                                               TTI::TargetCostKind CostKind,
-                                               const Instruction *I) const {
-  int Cost = TTIImpl->getIntrinsicInstrCost(ID, RetTy, Tys, FMF,
-                                            ScalarizationCostPassed, CostKind,
-                                            I);
-  assert(Cost >= 0 && "TTI should not produce negative costs!");
-  return Cost;
-}
-
-int TargetTransformInfo::getIntrinsicInstrCost(Intrinsic::ID ID, Type *RetTy,
-                                               ArrayRef<Value *> Args,
-                                               FastMathFlags FMF, unsigned VF,
-                                               TTI::TargetCostKind CostKind,
-                                               const Instruction *I) const {
-  int Cost = TTIImpl->getIntrinsicInstrCost(ID, RetTy, Args, FMF, VF,
-                                            CostKind, I);
+int
+TargetTransformInfo::getIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
+                                           TTI::TargetCostKind CostKind) const {
+  int Cost = TTIImpl->getIntrinsicInstrCost(ICA, CostKind);
   assert(Cost >= 0 && "TTI should not produce negative costs!");
   return Cost;
 }
@@ -1245,14 +1300,12 @@ int TargetTransformInfo::getInstructionThroughput(const Instruction *I) const {
   case Instruction::Store: {
     const StoreInst *SI = cast<StoreInst>(I);
     Type *ValTy = SI->getValueOperand()->getType();
-    return getMemoryOpCost(I->getOpcode(), ValTy,
-                           MaybeAlign(SI->getAlignment()),
+    return getMemoryOpCost(I->getOpcode(), ValTy, SI->getAlign(),
                            SI->getPointerAddressSpace(), CostKind, I);
   }
   case Instruction::Load: {
     const LoadInst *LI = cast<LoadInst>(I);
-    return getMemoryOpCost(I->getOpcode(), I->getType(),
-                           MaybeAlign(LI->getAlignment()),
+    return getMemoryOpCost(I->getOpcode(), I->getType(), LI->getAlign(),
                            LI->getPointerAddressSpace(), CostKind, I);
   }
   case Instruction::ZExt:
@@ -1364,14 +1417,8 @@ int TargetTransformInfo::getInstructionThroughput(const Instruction *I) const {
   }
   case Instruction::Call:
     if (const IntrinsicInst *II = dyn_cast<IntrinsicInst>(I)) {
-      SmallVector<Value *, 4> Args(II->arg_operands());
-
-      FastMathFlags FMF;
-      if (auto *FPMO = dyn_cast<FPMathOperator>(II))
-        FMF = FPMO->getFastMathFlags();
-
-      return getIntrinsicInstrCost(II->getIntrinsicID(), II->getType(), Args,
-                                   FMF, 1, CostKind, II);
+      IntrinsicCostAttributes CostAttrs(*II);
+      return getIntrinsicInstrCost(CostAttrs, CostKind);
     }
     return -1;
   default:

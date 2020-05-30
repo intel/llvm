@@ -67,6 +67,8 @@ enum class ExtensionID : uint32_t {
 
 enum class BIsRepresentation : uint32_t { OpenCL12, OpenCL20, SPIRVFriendlyIR };
 
+enum class FPContractMode : uint32_t { On, Off, Fast };
+
 /// \brief Helper class to manage SPIR-V translation
 class TranslatorOpts {
 public:
@@ -129,6 +131,10 @@ public:
     return DesiredRepresentationOfBIs;
   }
 
+  void setFPContractMode(FPContractMode Mode) { FPCMode = Mode; }
+
+  FPContractMode getFPContractMode() const { return FPCMode; }
+
 private:
   // Common translation options
   VersionNumber MaxVersion = VersionNumber::MaximumVersion;
@@ -141,6 +147,16 @@ private:
   // Representation of built-ins, which should be used while translating from
   // SPIR-V to back to LLVM IR
   BIsRepresentation DesiredRepresentationOfBIs = BIsRepresentation::OpenCL12;
+  // Controls floating point contraction.
+  //
+  // - FPContractMode::On allows to choose a mode according to
+  //   presence of fused LLVM intrinsics
+  //
+  // - FPContractMode::Off disables contratction for all entry points
+  //
+  // - FPContractMode::Fast allows *all* operations to be contracted
+  //   for all entry points
+  FPContractMode FPCMode = FPContractMode::On;
 };
 
 } // namespace SPIRV

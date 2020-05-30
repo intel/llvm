@@ -9,6 +9,8 @@
 #ifndef CLC_SPIRV_TYPES
 #define CLC_SPIRV_TYPES
 
+#include <lp64_types.h>
+
 enum Scope {
   CrossDevice = 0,
   Device = 1,
@@ -29,6 +31,13 @@ enum MemorySemanticsMask {
   CrossWorkgroupMemory = 0x200,
   AtomicCounterMemory = 0x400,
   ImageMemory = 0x800,
+};
+
+enum FPRoundingMode {
+  SPV_RTE = 0,
+  SPV_RTZ = 1,
+  SPV_RTP = 2,
+  SPV_RTN = 3,
 };
 
 #endif // CLC_SPIRV_TYPES

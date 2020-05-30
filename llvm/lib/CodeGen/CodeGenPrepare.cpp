@@ -391,6 +391,7 @@ class TypePromotionTransaction;
     bool optimizeExtUses(Instruction *I);
     bool optimizeLoadExt(LoadInst *Load);
     bool optimizeShiftInst(BinaryOperator *BO);
+    bool optimizeFunnelShift(IntrinsicInst *Fsh);
     bool optimizeSelectInst(SelectInst *SI);
     bool optimizeShuffleVectorInst(ShuffleVectorInst *SVI);
     bool optimizeSwitchInst(SwitchInst *SI);
@@ -594,7 +595,7 @@ bool CodeGenPrepare::runOnFunction(Function &F) {
 }
 
 // Verify BFI has been updated correctly by recomputing BFI and comparing them.
-void CodeGenPrepare::verifyBFIUpdates(Function &F) {
+void LLVM_ATTRIBUTE_UNUSED CodeGenPrepare::verifyBFIUpdates(Function &F) {
   DominatorTree NewDT(F);
   LoopInfo NewLI(NewDT);
   BranchProbabilityInfo NewBPI(F, NewLI, TLInfo);
@@ -1958,7 +1959,7 @@ bool CodeGenPrepare::optimizeCallInst(CallInst *CI, bool &ModifiedDT) {
       AllocaInst *AI;
       if ((AI = dyn_cast<AllocaInst>(Val)) && AI->getAlignment() < PrefAlign &&
           DL->getTypeAllocSize(AI->getAllocatedType()) >= MinSize + Offset2)
-        AI->setAlignment(MaybeAlign(PrefAlign));
+        AI->setAlignment(Align(PrefAlign));
       // Global variables can only be aligned if they are defined in this
       // object (i.e. they are uniquely initialized in this object), and
       // over-aligning global variables that have an explicit section is
@@ -2061,6 +2062,9 @@ bool CodeGenPrepare::optimizeCallInst(CallInst *CI, bool &ModifiedDT) {
     case Intrinsic::ctlz:
       // If counting zeros is expensive, try to avoid it.
       return despeculateCountZeros(II, TLI, DL, ModifiedDT);
+    case Intrinsic::fshl:
+    case Intrinsic::fshr:
+      return optimizeFunnelShift(II);
     case Intrinsic::dbg_value:
       return fixupDbgValue(II);
     case Intrinsic::vscale: {
@@ -4508,11 +4512,13 @@ bool AddressingModeMatcher::matchAddr(Value *Addr, unsigned Depth) {
   TypePromotionTransaction::ConstRestorationPt LastKnownGood =
       TPT.getRestorationPoint();
   if (ConstantInt *CI = dyn_cast<ConstantInt>(Addr)) {
-    // Fold in immediates if legal for the target.
-    AddrMode.BaseOffs += CI->getSExtValue();
-    if (TLI.isLegalAddressingMode(DL, AddrMode, AccessTy, AddrSpace))
-      return true;
-    AddrMode.BaseOffs -= CI->getSExtValue();
+    if (CI->getValue().isSignedIntN(64)) {
+      // Fold in immediates if legal for the target.
+      AddrMode.BaseOffs += CI->getSExtValue();
+      if (TLI.isLegalAddressingMode(DL, AddrMode, AccessTy, AddrSpace))
+        return true;
+      AddrMode.BaseOffs -= CI->getSExtValue();
+    }
   } else if (GlobalValue *GV = dyn_cast<GlobalValue>(Addr)) {
     // If this is a global variable, try to fold it into the addressing mode.
     if (!AddrMode.BaseGV) {
@@ -6240,6 +6246,41 @@ bool CodeGenPrepare::optimizeShiftInst(BinaryOperator *Shift) {
   return true;
 }
 
+bool CodeGenPrepare::optimizeFunnelShift(IntrinsicInst *Fsh) {
+  Intrinsic::ID Opcode = Fsh->getIntrinsicID();
+  assert((Opcode == Intrinsic::fshl || Opcode == Intrinsic::fshr) &&
+         "Expected a funnel shift");
+
+  // If this is (1) a vector funnel shift, (2) shifts by scalars are cheaper
+  // than general vector shifts, and (3) the shift amount is select-of-splatted
+  // values, hoist the funnel shifts before the select:
+  //   fsh Op0, Op1, (select Cond, TVal, FVal) -->
+  //   select Cond, (fsh Op0, Op1, TVal), (fsh Op0, Op1, FVal)
+  //
+  // This is inverting a generic IR transform when we know that the cost of a
+  // general vector shift is more than the cost of 2 shift-by-scalars.
+  // We can't do this effectively in SDAG because we may not be able to
+  // determine if the select operands are splats from within a basic block.
+  Type *Ty = Fsh->getType();
+  if (!Ty->isVectorTy() || !TLI->isVectorShiftByScalarCheap(Ty))
+    return false;
+  Value *Cond, *TVal, *FVal;
+  if (!match(Fsh->getOperand(2),
+             m_OneUse(m_Select(m_Value(Cond), m_Value(TVal), m_Value(FVal)))))
+    return false;
+  if (!isSplatValue(TVal) || !isSplatValue(FVal))
+    return false;
+
+  IRBuilder<> Builder(Fsh);
+  Value *X = Fsh->getOperand(0), *Y = Fsh->getOperand(1);
+  Value *NewTVal = Builder.CreateIntrinsic(Opcode, Ty, { X, Y, TVal });
+  Value *NewFVal = Builder.CreateIntrinsic(Opcode, Ty, { X, Y, FVal });
+  Value *NewSel = Builder.CreateSelect(Cond, NewTVal, NewFVal);
+  Fsh->replaceAllUsesWith(NewSel);
+  Fsh->eraseFromParent();
+  return true;
+}
+
 /// If we have a SelectInst that will likely profit from branch prediction,
 /// turn it into a branch.
 bool CodeGenPrepare::optimizeSelectInst(SelectInst *SI) {
@@ -6419,9 +6460,8 @@ bool CodeGenPrepare::optimizeSelectInst(SelectInst *SI) {
 /// in MVE takes a GPR (integer) register, and the instruction that incorporate
 /// a VDUP (such as a VADD qd, qm, rm) also require a gpr register.
 bool CodeGenPrepare::optimizeShuffleVectorInst(ShuffleVectorInst *SVI) {
-  if (!match(SVI,
-             m_ShuffleVector(m_InsertElement(m_Undef(), m_Value(), m_ZeroInt()),
-                             m_Undef(), m_ZeroMask())))
+  if (!match(SVI, m_Shuffle(m_InsertElt(m_Undef(), m_Value(), m_ZeroInt()),
+                            m_Undef(), m_ZeroMask())))
     return false;
   Type *NewType = TLI->shouldConvertSplatType(SVI);
   if (!NewType)
