@@ -13,6 +13,7 @@
 // - specialization constant intrinsic transformation
 //===----------------------------------------------------------------------===//
 
+#include "DeviceLibFunctions.h"
 #include "SpecConstants.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/Bitcode/BitcodeWriterPass.h"
@@ -295,15 +296,95 @@ saveResultModules(std::vector<std::unique_ptr<Module>> &ResModules) {
   return Res;
 }
 
-static string_vector
-saveSpecConstantIDMaps(const std::vector<SpecIDMapTy> &Maps) {
-  string_vector Res;
+// Each fallback device library corresponds to one bit in "require mask" which
+// is an unsigned int32. getDeviceLibBit checks which fallback device library
+// is required for FuncName and returns the corresponding bit. The corresponding
+// mask for each fallback device library is:
+// fallback-cassert:      0x1
+// fallback-cmath:        0x2
+// fallback-cmath-fp64:   0x4
+// fallback-complex:      0x8
+// fallback-complex-fp64: 0x10
+static uint32_t getDeviceLibBits(const std::string &FuncName) {
 
-  for (size_t I = 0; I < Maps.size(); ++I) {
+  static constexpr uint32_t DeviceLibAssert = 0x1;
+  static constexpr uint32_t DeviceLibCmath = 0x2;
+  static constexpr uint32_t DeviceLibCmath64 = 0x4;
+  static constexpr uint32_t DeviceLibComplex = 0x8;
+  static constexpr uint32_t DeviceLibComplex64 = 0x10;
+  if (FuncName == "__devicelib_assert_fail") {
+    return DeviceLibAssert;
+  }
+  size_t Len =
+      sizeof(CmathDeviceLibFunctions) / sizeof(CmathDeviceLibFunctions[0]);
+  if (std::binary_search(CmathDeviceLibFunctions, CmathDeviceLibFunctions + Len,
+                         FuncName)) {
+    return DeviceLibCmath;
+  }
+  Len =
+      sizeof(Cmath64DeviceLibFunctions) / sizeof(Cmath64DeviceLibFunctions[0]);
+  if (std::binary_search(Cmath64DeviceLibFunctions,
+                         Cmath64DeviceLibFunctions + Len, FuncName)) {
+    return DeviceLibCmath64;
+  }
+  Len =
+      sizeof(ComplexDeviceLibFunctions) / sizeof(ComplexDeviceLibFunctions[0]);
+  if (std::binary_search(ComplexDeviceLibFunctions,
+                         ComplexDeviceLibFunctions + Len, FuncName)) {
+    return DeviceLibComplex;
+  }
+  Len = sizeof(Complex64DeviceLibFunctions) /
+        sizeof(Complex64DeviceLibFunctions[0]);
+  if (std::binary_search(Complex64DeviceLibFunctions,
+                         Complex64DeviceLibFunctions + Len, FuncName)) {
+    return DeviceLibComplex64;
+  }
+  return 0;
+}
+
+// For each device image module, we go through all functions which meets
+// 1. The function name has prefix "__devicelib_"
+// 2. The function has SPIR_FUNC calling convention
+// 3. The function is declaration which means it doesn't have function body
+static uint32_t getModuleReqMask(const std::unique_ptr<Module> &MPtr) {
+  uint32_t ReqMask = 0;
+  uint32_t DeviceLibBits = 0;
+  for (const Function &SF : *MPtr) {
+    if (SF.getName().startswith("__devicelib_") &&
+        (SF.getCallingConv() == CallingConv::SPIR_FUNC) && SF.isDeclaration()) {
+      DeviceLibBits = getDeviceLibBits(SF.getName().str());
+      ReqMask |= DeviceLibBits;
+    }
+  }
+  return ReqMask;
+}
+
+static void
+getDeviceLibReqMasks(const std::vector<std::unique_ptr<Module>> &ResModules,
+                     std::vector<uint32_t> &DeviceLibReqMaskVec) {
+  for (auto &MPtr : ResModules) {
+    uint32_t ModuleReqMask = getModuleReqMask(MPtr);
+    DeviceLibReqMaskVec.push_back(ModuleReqMask);
+  }
+}
+
+static string_vector
+saveDeviceImageProperty(const std::vector<uint32_t> ReqMaskVec,
+                        const std::vector<SpecIDMapTy> &Maps) {
+  string_vector Res;
+  bool saveSpecIDMaps =
+      (Maps.size() != 0) && (ReqMaskVec.size() == Maps.size());
+  for (size_t I = 0; I < ReqMaskVec.size(); ++I) {
     std::string SCFile = makeResultFileName(".prop", I);
     llvm::util::PropertySetRegistry PropSet;
-    PropSet.add(llvm::util::PropertySetRegistry::SYCL_SPECIALIZATION_CONSTANTS,
-                Maps[I]);
+    std::map<StringRef, uint32_t> reqMaskEntry;
+    reqMaskEntry["devicelib_req_mask"] = ReqMaskVec[I];
+    PropSet.add(llvm::util::PropertySetRegistry::SYCL_DEVICELIB_REQ_MASK,
+                reqMaskEntry);
+    if (saveSpecIDMaps)
+      PropSet.add(
+          llvm::util::PropertySetRegistry::SYCL_SPECIALIZATION_CONSTANTS,
+          Maps[I]);
     std::error_code EC;
     raw_fd_ostream SCOut(SCFile, EC);
     PropSet.write(SCOut);
@@ -456,15 +537,23 @@ int main(int argc, char **argv) {
     Error Err = Table.addColumn(COL_CODE, Files);
     CHECK_AND_EXIT(Err);
   }
-  if (DoSpecConst && SetSpecConstAtRT) {
-    // extract spec constant maps per each module
-    for (auto &MUptr : ResultModules) {
-      ResultSpecIDMaps.emplace_back(SpecIDMapTy());
-      if (SpecConstsMet)
-        SpecConstantsPass::collectSpecConstantMetadata(*MUptr.get(),
-                                                       ResultSpecIDMaps.back());
+  {
+    // Device library req mask is collected and stored in device image property
+    // as default and each device image module will have one req mask.
+    std::vector<uint32_t> DeviceLibReqMaskVec;
+    getDeviceLibReqMasks(ResultModules, DeviceLibReqMaskVec);
+    if (DoSpecConst && SetSpecConstAtRT) {
+      // extract spec constant maps per each module
+      for (auto &MUptr : ResultModules) {
+        ResultSpecIDMaps.emplace_back(SpecIDMapTy());
+        if (SpecConstsMet)
+          SpecConstantsPass::collectSpecConstantMetadata(
+              *MUptr.get(), ResultSpecIDMaps.back());
+      }
+      assert(DeviceLibReqMaskVec.size() == ResultSpecIDMaps.size());
     }
-    string_vector Files = saveSpecConstantIDMaps(ResultSpecIDMaps);
+    string_vector Files =
+        saveDeviceImageProperty(DeviceLibReqMaskVec, ResultSpecIDMaps);
     Error Err = Table.addColumn(COL_PROPS, Files);
     CHECK_AND_EXIT(Err);
   }

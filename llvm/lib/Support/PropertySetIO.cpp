@@ -112,5 +112,6 @@ template <> PropertyValue::Type PropertyValue::getTypeTag<uint32_t>() {
 }
 
 constexpr char PropertySetRegistry::SYCL_SPECIALIZATION_CONSTANTS[];
+constexpr char PropertySetRegistry::SYCL_DEVICELIB_REQ_MASK[];
 } // namespace util
 } // namespace llvm

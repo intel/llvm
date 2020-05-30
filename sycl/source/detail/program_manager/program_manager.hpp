@@ -102,6 +102,7 @@ public:
   void flushSpecConstants(const program_impl &Prg,
                           pi::PiProgram NativePrg = nullptr,
                           const RTDeviceBinaryImage *Img = nullptr);
+  uint32_t getDeviceLibReqMask(const RTDeviceBinaryImage &Img);
 
 private:
   ProgramManager();
@@ -118,7 +119,7 @@ private:
                    const string_class &LinkOptions,
                    const std::vector<RT::PiDevice> &Devices,
                    std::map<DeviceLibExt, RT::PiProgram> &CachedLibPrograms,
-                   bool LinkDeviceLibs = false);
+                   uint32_t DeviceLibReqMask);
   /// Provides a new kernel set id for grouping kernel names together
   KernelSetId getNextKernelSetId() const;
   /// Returns the kernel set associated with the kernel, handles some special

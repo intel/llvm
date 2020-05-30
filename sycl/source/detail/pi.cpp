@@ -510,6 +510,7 @@ void DeviceBinaryImage::init(pi_device_binary Bin) {
     Format = getBinaryImageFormat(Bin->BinaryStart, getSize());
 
   SpecConstIDMap.init(Bin, PI_PROPERTY_SET_SPEC_CONST_MAP);
+  DeviceLibReqMask.init(Bin, PI_PROPERTY_SET_DEVICELIB_REQ_MASK);
 }
 
 } // namespace pi
