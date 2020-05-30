@@ -10815,7 +10815,7 @@ def err_sycl_non_trivially_copy_ctor_dtor_type
 def err_sycl_non_std_layout_type : Error<
   "kernel parameter has non-standard layout class/struct type %0">;
 def err_conflicting_sycl_kernel_attributes : Error<
-  "conflicting attributes applied to a SYCL kernel">;
+  "conflicting attributes applied to a SYCL kernel or SYCL_EXTERNAL function">;
 def err_conflicting_sycl_function_attributes : Error<
    "%0 attribute conflicts with '%1' attribute">;
 def err_sycl_x_y_z_arguments_must_be_one : Error<
