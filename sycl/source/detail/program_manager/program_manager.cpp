@@ -92,14 +92,15 @@ static RT::PiProgram createBinaryProgram(const ContextImplPtr Context,
   if (Backend == backend::cuda) {
     // TODO: Reemplace CreateWithSource with CreateWithBinary in CUDA backend
     const char *SignedData = reinterpret_cast<const char *>(Data);
-    Plugin.call<PiApiKind::piclProgramCreateWithSource>(Context->getHandleRef(), 1 /*one binary*/, &SignedData,
-                                         &DataLen, &Program);
+    Plugin.call<PiApiKind::piclProgramCreateWithSource>(
+        Context->getHandleRef(), 1 /*one binary*/, &SignedData, &DataLen,
+        &Program);
   } else {
     RT::PiDevice Device = getFirstDevice(Context);
     pi_int32 BinaryStatus = CL_SUCCESS;
-    Plugin.call<PiApiKind::piclProgramCreateWithBinary>(Context->getHandleRef(), 1 /*one binary*/, &Device,
-                                         &DataLen, &Data, &BinaryStatus,
-                                         &Program);
+    Plugin.call<PiApiKind::piclProgramCreateWithBinary>(
+        Context->getHandleRef(), 1 /*one binary*/, &Device, &DataLen, &Data,
+        &BinaryStatus, &Program);
   }
 
   return Program;
@@ -189,7 +190,7 @@ RetT *getOrBuild(KernelProgramCache &KPCache, KeyT &&CacheKey,
       RetT *Result = waitUntilBuilt<ExceptionT>(KPCache, BuildResult);
 
       if (Result)
-          return Result;
+        return Result;
 
       // Previous build is failed. There was no SYCL exception though.
       // We might try to build once more.
@@ -360,7 +361,7 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(OSModuleHandle M,
   auto AcquireF = [](KernelProgramCache &Cache) {
     return Cache.acquireCachedPrograms();
   };
-  auto GetF = [](const Locked<ProgramCacheT> &LockedCache) -> ProgramCacheT& {
+  auto GetF = [](const Locked<ProgramCacheT> &LockedCache) -> ProgramCacheT & {
     return LockedCache.get();
   };
   auto BuildF = [this, &M, &KSId, &Context, Prg] {
@@ -381,9 +382,10 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(OSModuleHandle M,
 
     const std::vector<device> &Devices = ContextImpl->getDevices();
     std::vector<RT::PiDevice> PiDevices(Devices.size());
-    std::transform(
-        Devices.begin(), Devices.end(), PiDevices.begin(),
-        [](const device Dev) { return getRawSyclObjImpl(Dev)->getHandleRef(); });
+    std::transform(Devices.begin(), Devices.end(), PiDevices.begin(),
+                   [](const device Dev) {
+                     return getRawSyclObjImpl(Dev)->getHandleRef();
+                   });
 
     ProgramPtr BuiltProgram =
         build(std::move(ProgramManaged), ContextImpl, Img.getCompileOptions(),
@@ -420,10 +422,11 @@ RT::PiKernel ProgramManager::getOrCreateKernel(OSModuleHandle M,
 
   KernelProgramCache &Cache = Ctx->getKernelProgramCache();
 
-  auto AcquireF = [] (KernelProgramCache &Cache) {
+  auto AcquireF = [](KernelProgramCache &Cache) {
     return Cache.acquireKernelsPerProgramCache();
   };
-  auto GetF = [&Program] (const Locked<KernelCacheT> &LockedCache) -> KernelByNameT& {
+  auto GetF =
+      [&Program](const Locked<KernelCacheT> &LockedCache) -> KernelByNameT & {
     return LockedCache.get()[Program];
   };
   auto BuildF = [this, &Program, &KernelName, &Ctx] {
@@ -438,8 +441,8 @@ RT::PiKernel ProgramManager::getOrCreateKernel(OSModuleHandle M,
     return Result;
   };
 
-  return getOrBuild<PiKernelT, invalid_object_error>(
-        Cache, KernelName, AcquireF, GetF, BuildF);
+  return getOrBuild<PiKernelT, invalid_object_error>(Cache, KernelName,
+                                                     AcquireF, GetF, BuildF);
 }
 
 RT::PiProgram
@@ -506,7 +509,7 @@ static bool loadDeviceLib(const ContextImplPtr Context, const char *Name,
   return Prog != nullptr;
 }
 
-static const char* getDeviceLibFilename(DeviceLibExt Extension) {
+static const char *getDeviceLibFilename(DeviceLibExt Extension) {
   switch (Extension) {
   case cl_intel_devicelib_assert:
     return "libsycl-fallback-cassert.spv";
@@ -523,7 +526,7 @@ static const char* getDeviceLibFilename(DeviceLibExt Extension) {
                               PI_INVALID_OPERATION);
 }
 
-static const char* getDeviceLibExtensionStr(DeviceLibExt Extension) {
+static const char *getDeviceLibExtensionStr(DeviceLibExt Extension) {
   switch (Extension) {
   case cl_intel_devicelib_assert:
     return "cl_intel_devicelib_assert";
@@ -673,18 +676,17 @@ getDeviceLibPrograms(const ContextImplPtr Context,
       {cl_intel_devicelib_math, false},
       {cl_intel_devicelib_math_fp64, false},
       {cl_intel_devicelib_complex, false},
-      {cl_intel_devicelib_complex_fp64, false}
-  };
+      {cl_intel_devicelib_complex_fp64, false}};
 
   // Disable all devicelib extensions requiring fp64 support if at least
   // one underlying device doesn't support cl_khr_fp64.
   bool fp64Support = true;
   for (RT::PiDevice Dev : Devices) {
     std::string DevExtList =
-	get_device_info<std::string, info::device::extensions>::get(
+        get_device_info<std::string, info::device::extensions>::get(
             Dev, Context->getPlugin());
-    fp64Support = fp64Support &&
-	          (DevExtList.npos != DevExtList.find("cl_khr_fp64"));
+    fp64Support =
+        fp64Support && (DevExtList.npos != DevExtList.find("cl_khr_fp64"));
   }
 
   // Load a fallback library for an extension if at least one device does not
@@ -702,11 +704,12 @@ getDeviceLibPrograms(const ContextImplPtr Context,
       }
 
       if ((Ext == cl_intel_devicelib_math_fp64 ||
-	  Ext == cl_intel_devicelib_complex_fp64) && !fp64Support) {
+           Ext == cl_intel_devicelib_complex_fp64) &&
+          !fp64Support) {
         continue;
       }
 
-      const char* ExtStr = getDeviceLibExtensionStr(Ext);
+      const char *ExtStr = getDeviceLibExtensionStr(Ext);
 
       bool InhibitNativeImpl = false;
       if (const char *Env = getenv("SYCL_DEVICELIB_INHIBIT_NATIVE")) {
@@ -823,8 +826,7 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
       KernelSetId KSId = getNextKernelSetId();
       for (_pi_offload_entry EntriesIt = EntriesB; EntriesIt != EntriesE;
            ++EntriesIt) {
-        auto Result =
-            KSIdMap.insert(std::make_pair(EntriesIt->name, KSId));
+        auto Result = KSIdMap.insert(std::make_pair(EntriesIt->name, KSId));
         (void)Result;
         assert(Result.second && "Kernel sets are not disjoint");
       }
