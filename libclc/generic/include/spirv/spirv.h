@@ -196,18 +196,6 @@
 #include <spirv/relational/select.h>
 #include <spirv/relational/signbit.h>
 
-/* 6.11.8 Synchronization Functions */
-#include <spirv/synchronization/barrier.h>
-
-/* 6.11.9 Explicit Memory Fence Functions */
-#include <spirv/explicit_fence/explicit_memory_fence.h>
-
-/* 6.11.10 Async Copy and Prefetch Functions */
-/* #include <spirv/async/async_work_group_copy.h> -- Explicitly omitted from SPIR-V interface. */
-#include <spirv/async/async_work_group_strided_copy.h>
-#include <spirv/async/prefetch.h>
-#include <spirv/async/wait_group_events.h>
-
 /* 6.11.11 Atomic Functions */
 #include <spirv/atomic/atomic_add.h>
 #include <spirv/atomic/atomic_and.h>
