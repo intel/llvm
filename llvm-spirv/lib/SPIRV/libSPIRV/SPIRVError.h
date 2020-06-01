@@ -114,18 +114,18 @@ inline bool SPIRVErrorLog::checkError(bool Cond, SPIRVErrorCode ErrCode,
     SS << " [Src: " << FileName << ":" << LineNo << " " << CondString << " ]";
   setError(ErrCode, SS.str());
   switch (SPIRVDbgError) {
-    case SPIRVDbgErrorHandlingKinds::Abort :
-      spvdbgs() << SS.str() << '\n';
-      spvdbgs().flush();
-      abort();
-      break;
-    case SPIRVDbgErrorHandlingKinds::Exit :
-      spvdbgs() << SS.str() << '\n';
-      spvdbgs().flush();
-      std::exit(ErrCode);
-      break;
-    case SPIRVDbgErrorHandlingKinds::Ignore :
-      break;
+  case SPIRVDbgErrorHandlingKinds::Abort:
+    spvdbgs() << SS.str() << '\n';
+    spvdbgs().flush();
+    abort();
+    break;
+  case SPIRVDbgErrorHandlingKinds::Exit:
+    spvdbgs() << SS.str() << '\n';
+    spvdbgs().flush();
+    std::exit(ErrCode);
+    break;
+  case SPIRVDbgErrorHandlingKinds::Ignore:
+    break;
   }
   return Cond;
 }

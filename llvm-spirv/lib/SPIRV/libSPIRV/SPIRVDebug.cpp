@@ -42,5 +42,6 @@
 using namespace SPIRV;
 
 bool SPIRV::SPIRVDbgEnable = false;
-SPIRV::SPIRVDbgErrorHandlingKinds SPIRV::SPIRVDbgError = SPIRVDbgErrorHandlingKinds::Exit;
+SPIRV::SPIRVDbgErrorHandlingKinds SPIRV::SPIRVDbgError =
+    SPIRVDbgErrorHandlingKinds::Exit;
 bool SPIRV::SPIRVDbgErrorMsgIncludesSourceInfo = true;

@@ -60,7 +60,7 @@ extern bool SPIRVDbgEnable;
 extern bool SPIRVDbgErrorMsgIncludesSourceInfo;
 
 // Enable assert or exit on error
-enum class SPIRVDbgErrorHandlingKinds {Abort, Exit, Ignore};
+enum class SPIRVDbgErrorHandlingKinds { Abort, Exit, Ignore };
 extern SPIRVDbgErrorHandlingKinds SPIRVDbgError;
 
 // Output stream for SPIRV debug information.
