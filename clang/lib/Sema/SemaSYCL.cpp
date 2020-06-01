@@ -54,6 +54,8 @@ enum KernelInvocationKind {
 const static std::string InitMethodName = "__init";
 const static std::string FinalizeMethodName = "__finalize";
 
+namespace {
+
 /// Various utilities.
 class Util {
 public:
@@ -90,6 +92,8 @@ public:
   static bool matchQualifiedTypeName(const QualType &Ty,
                                      ArrayRef<Util::DeclContextDesc> Scopes);
 };
+
+} // anonymous namespace
 
 // This information is from Section 4.13 of the SYCL spec
 // https://www.khronos.org/registry/SYCL/specs/sycl-1.2.1.pdf
@@ -1454,7 +1458,6 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
 }
 
 void Sema::MarkDevice(void) {
-  // Let's mark all called functions with SYCL Device attribute.
   // Create the call graph so we can detect recursion and check the validity
   // of new operator overrides. Add the kernel function itself in case
   // it is recursive.
