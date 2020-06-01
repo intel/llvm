@@ -5017,8 +5017,9 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
         EmitNounwindRuntimeCall(Fn);
       }
     }
-
-    EmitUnreachable(Loc);
+    //Do not emit unreachable instruction for Intel NEO driver and Gen "X" GPUs
+    if(getTarget().getTriple().getSubArch() != llvm::Triple::SPIRSubArch_gen)
+      EmitUnreachable(Loc);
     Builder.ClearInsertionPoint();
 
     // FIXME: For now, emit a dummy basic block because expr emitters in
