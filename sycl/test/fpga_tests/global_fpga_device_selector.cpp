@@ -20,7 +20,7 @@
 inline cl::sycl::queue fpga_emu_queue_inlined{
     cl::sycl::intel::fpga_emulator_selector{}};
 
-int main () {
+int main() {
   return 0;
 }
 
