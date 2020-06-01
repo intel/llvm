@@ -16,6 +16,10 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
+/// Defines the iteration domain of both the work-groups and the overall
+/// dispatch.
+///
+/// \ingroup sycl_api
 template <int dimensions = 1> class nd_range {
   range<dimensions> globalSize;
   range<dimensions> localSize;

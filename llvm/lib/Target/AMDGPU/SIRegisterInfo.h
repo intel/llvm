@@ -65,6 +65,9 @@ public:
 
   Register getFrameRegister(const MachineFunction &MF) const override;
 
+  bool hasBasePointer(const MachineFunction &MF) const;
+  Register getBaseRegister() const;
+
   bool canRealignStack(const MachineFunction &MF) const override;
   bool requiresRegisterScavenging(const MachineFunction &Fn) const override;
 
@@ -206,6 +209,8 @@ public:
   bool isVectorRegister(const MachineRegisterInfo &MRI, Register Reg) const {
     return isVGPR(MRI, Reg) || isAGPR(MRI, Reg);
   }
+
+  bool isConstantPhysReg(MCRegister PhysReg) const override;
 
   bool isDivergentRegClass(const TargetRegisterClass *RC) const override {
     return !isSGPRClass(RC);

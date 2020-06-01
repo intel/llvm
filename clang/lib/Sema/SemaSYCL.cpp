@@ -54,6 +54,8 @@ enum KernelInvocationKind {
 const static std::string InitMethodName = "__init";
 const static std::string FinalizeMethodName = "__finalize";
 
+namespace {
+
 /// Various utilities.
 class Util {
 public:
@@ -90,6 +92,8 @@ public:
   static bool matchQualifiedTypeName(const QualType &Ty,
                                      ArrayRef<Util::DeclContextDesc> Scopes);
 };
+
+} // anonymous namespace
 
 // This information is from Section 4.13 of the SYCL spec
 // https://www.khronos.org/registry/SYCL/specs/sycl-1.2.1.pdf
@@ -1454,7 +1458,6 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
 }
 
 void Sema::MarkDevice(void) {
-  // Let's mark all called functions with SYCL Device attribute.
   // Create the call graph so we can detect recursion and check the validity
   // of new operator overrides. Add the kernel function itself in case
   // it is recursive.
@@ -1638,6 +1641,18 @@ static std::string eraseAnonNamespace(std::string S) {
   return S;
 }
 
+static bool checkEnumTemplateParameter(const EnumDecl *ED,
+                                       DiagnosticsEngine &Diag,
+                                       SourceLocation KernelLocation) {
+  if (!ED->isScoped() && !ED->isFixed()) {
+    Diag.Report(KernelLocation, diag::err_sycl_kernel_incorrectly_named) << 2;
+    Diag.Report(ED->getSourceRange().getBegin(), diag::note_entity_declared_at)
+        << ED;
+    return true;
+  }
+  return false;
+}
+
 // Emits a forward declaration
 void SYCLIntegrationHeader::emitFwdDecl(raw_ostream &O, const Decl *D,
                                         SourceLocation KernelLocation) {
@@ -1691,10 +1706,22 @@ void SYCLIntegrationHeader::emitFwdDecl(raw_ostream &O, const Decl *D,
   PrintingPolicy P(D->getASTContext().getLangOpts());
   P.adjustForCPlusPlusFwdDecl();
   P.SuppressTypedefs = true;
+  P.SuppressUnwrittenScope = true;
   std::string S;
   llvm::raw_string_ostream SO(S);
   D->print(SO, P);
-  O << SO.str() << ";\n";
+  O << SO.str();
+
+  if (const auto *ED = dyn_cast<EnumDecl>(D)) {
+    QualType T = ED->getIntegerType();
+    // Backup since getIntegerType() returns null for enum forward
+    // declaration with no fixed underlying type
+    if (T.isNull())
+      T = ED->getPromotionType();
+    O << " : " << T.getAsString();
+  }
+
+  O << ";\n";
 
   // print closing braces for namespaces if needed
   for (unsigned I = 0; I < NamespaceCnt; ++I)
@@ -1763,8 +1790,20 @@ void SYCLIntegrationHeader::emitForwardClassDecls(
 
       switch (Arg.getKind()) {
       case TemplateArgument::ArgKind::Type:
-        emitForwardClassDecls(O, Arg.getAsType(), KernelLocation, Printed);
+      case TemplateArgument::ArgKind::Integral: {
+        QualType T = (Arg.getKind() == TemplateArgument::ArgKind::Type)
+                         ? Arg.getAsType()
+                         : Arg.getIntegralType();
+
+        // Handle Kernel Name Type templated using enum type and value.
+        if (const auto *ET = T->getAs<EnumType>()) {
+          const EnumDecl *ED = ET->getDecl();
+          if (!checkEnumTemplateParameter(ED, Diag, KernelLocation))
+            emitFwdDecl(O, ED, KernelLocation);
+        } else if (Arg.getKind() == TemplateArgument::ArgKind::Type)
+          emitForwardClassDecls(O, T, KernelLocation, Printed);
         break;
+      }
       case TemplateArgument::ArgKind::Pack: {
         ArrayRef<TemplateArgument> Pack = Arg.getPackAsArray();
 
@@ -1821,6 +1860,101 @@ static std::string getCPPTypeString(QualType Ty) {
   PrintingPolicy P(LO);
   P.SuppressTypedefs = true;
   return eraseAnonNamespace(Ty.getAsString(P));
+}
+
+static void printArguments(ASTContext &Ctx, raw_ostream &ArgOS,
+                           ArrayRef<TemplateArgument> Args,
+                           const PrintingPolicy &P);
+
+static void printArgument(ASTContext &Ctx, raw_ostream &ArgOS,
+                          TemplateArgument Arg, const PrintingPolicy &P) {
+  switch (Arg.getKind()) {
+  case TemplateArgument::ArgKind::Pack: {
+    printArguments(Ctx, ArgOS, Arg.getPackAsArray(), P);
+    break;
+  }
+  case TemplateArgument::ArgKind::Integral: {
+    QualType T = Arg.getIntegralType();
+    const EnumType *ET = T->getAs<EnumType>();
+
+    if (ET) {
+      const llvm::APSInt &Val = Arg.getAsIntegral();
+      ArgOS << "(" << ET->getDecl()->getQualifiedNameAsString() << ")" << Val;
+    } else {
+      Arg.print(P, ArgOS);
+    }
+    break;
+  }
+  case TemplateArgument::ArgKind::Type: {
+    LangOptions LO;
+    PrintingPolicy TypePolicy(LO);
+    TypePolicy.SuppressTypedefs = true;
+    TypePolicy.SuppressTagKeyword = true;
+    QualType T = Arg.getAsType();
+    QualType FullyQualifiedType = TypeName::getFullyQualifiedType(T, Ctx, true);
+    ArgOS << FullyQualifiedType.getAsString(TypePolicy);
+    break;
+  }
+  default:
+    Arg.print(P, ArgOS);
+  }
+}
+
+static void printArguments(ASTContext &Ctx, raw_ostream &ArgOS,
+                           ArrayRef<TemplateArgument> Args,
+                           const PrintingPolicy &P) {
+  for (unsigned I = 0; I < Args.size(); I++) {
+    const TemplateArgument &Arg = Args[I];
+
+    // If argument is an empty pack argument, skip printing comma and argument.
+    if (Arg.getKind() == TemplateArgument::ArgKind::Pack && !Arg.pack_size())
+      continue;
+
+    if (I != 0)
+      ArgOS << ", ";
+
+    printArgument(Ctx, ArgOS, Arg, P);
+  }
+}
+
+static void printTemplateArguments(ASTContext &Ctx, raw_ostream &ArgOS,
+                                   ArrayRef<TemplateArgument> Args,
+                                   const PrintingPolicy &P) {
+  ArgOS << "<";
+  printArguments(Ctx, ArgOS, Args, P);
+  ArgOS << ">";
+}
+
+static std::string getKernelNameTypeString(QualType T) {
+
+  const CXXRecordDecl *RD = T->getAsCXXRecordDecl();
+
+  if (!RD)
+    return getCPPTypeString(T);
+
+  // If kernel name type is a template specialization with enum type
+  // template parameters, enumerators in name type string should be
+  // replaced  with their underlying value since the enum definition
+  // is not visible in integration header.
+  if (const auto *TSD = dyn_cast<ClassTemplateSpecializationDecl>(RD)) {
+    LangOptions LO;
+    PrintingPolicy P(LO);
+    P.SuppressTypedefs = true;
+    SmallString<64> Buf;
+    llvm::raw_svector_ostream ArgOS(Buf);
+
+    // Print template class name
+    TSD->printQualifiedName(ArgOS, P, /*WithGlobalNsPrefix*/ true);
+
+    // Print template arguments substituting enumerators
+    ASTContext &Ctx = RD->getASTContext();
+    const TemplateArgumentList &Args = TSD->getTemplateArgs();
+    printTemplateArguments(Ctx, ArgOS, Args.asArray(), P);
+
+    return eraseAnonNamespace(ArgOS.str().str());
+  }
+
+  return getCPPTypeString(T);
 }
 
 void SYCLIntegrationHeader::emit(raw_ostream &O) {
@@ -1939,8 +2073,9 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
         O << "', '" << c;
       O << "'> {\n";
     } else {
-      O << "template <> struct KernelInfo<" << getCPPTypeString(K.NameType)
-        << "> {\n";
+
+      O << "template <> struct KernelInfo<"
+        << getKernelNameTypeString(K.NameType) << "> {\n";
     }
     O << "  DLL_LOCAL\n";
     O << "  static constexpr const char* getName() { return \"" << K.Name

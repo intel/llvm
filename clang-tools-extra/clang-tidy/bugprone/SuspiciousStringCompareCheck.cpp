@@ -135,9 +135,10 @@ void SuspiciousStringCompareCheck::registerMatchers(MatchFinder *Finder) {
 
   // Detect suspicious cast to an inconsistant type (i.e. not integer type).
   Finder->addMatcher(
-      implicitCastExpr(unless(hasType(isInteger())),
-                       hasSourceExpression(StringCompareCallExpr))
-          .bind("invalid-conversion"),
+      traverse(ast_type_traits::TK_AsIs,
+               implicitCastExpr(unless(hasType(isInteger())),
+                                hasSourceExpression(StringCompareCallExpr))
+                   .bind("invalid-conversion")),
       this);
 
   // Detect suspicious operator with string compare function as operand.
@@ -156,11 +157,11 @@ void SuspiciousStringCompareCheck::registerMatchers(MatchFinder *Finder) {
                 has(ignoringParenImpCasts(integerLiteral(unless(equals(0)))))),
             characterLiteral(), cxxBoolLiteral()));
 
-  Finder->addMatcher(binaryOperator(isComparisonOperator(),
-                                    hasEitherOperand(StringCompareCallExpr),
-                                    hasEitherOperand(InvalidLiteral))
-                         .bind("invalid-comparison"),
-                     this);
+  Finder->addMatcher(
+      binaryOperator(isComparisonOperator(),
+                     hasOperands(StringCompareCallExpr, InvalidLiteral))
+          .bind("invalid-comparison"),
+      this);
 }
 
 void SuspiciousStringCompareCheck::check(

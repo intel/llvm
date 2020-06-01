@@ -1,4 +1,4 @@
-//===- MVETailPredication.cpp - MVE Tail Predication ----------------------===//
+//===- MVETailPredication.cpp - MVE Tail Predication ------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -46,18 +46,18 @@
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/LoopPass.h"
 #include "llvm/Analysis/ScalarEvolution.h"
-#include "llvm/Analysis/ScalarEvolutionExpander.h"
 #include "llvm/Analysis/ScalarEvolutionExpressions.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
-#include "llvm/InitializePasses.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicsARM.h"
 #include "llvm/IR/PatternMatch.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/LoopUtils.h"
+#include "llvm/Transforms/Utils/ScalarEvolutionExpander.h"
 
 using namespace llvm;
 
@@ -84,11 +84,11 @@ struct TripCountPattern {
   Value *NumElements = nullptr;
 
   // Other instructions in the icmp chain that calculate the predicate.
-  VectorType *VecTy = nullptr;
+  FixedVectorType *VecTy = nullptr;
   Instruction *Shuffle = nullptr;
   Instruction *Induction = nullptr;
 
-  TripCountPattern(Instruction *P, Value *TC, VectorType *VT)
+  TripCountPattern(Instruction *P, Value *TC, FixedVectorType *VT)
       : Predicate(P), TripCount(TC), VecTy(VT){};
 };
 
@@ -304,12 +304,12 @@ bool MVETailPredication::isTailPredicate(TripCountPattern &TCP) {
   Instruction *Insert = nullptr;
   // The shuffle which broadcasts the index iv into a vector.
   if (!match(BroadcastSplat,
-             m_ShuffleVector(m_Instruction(Insert), m_Undef(), m_ZeroMask())))
+             m_Shuffle(m_Instruction(Insert), m_Undef(), m_ZeroMask())))
     return false;
 
   // The insert element which initialises a vector with the index iv.
   Instruction *IV = nullptr;
-  if (!match(Insert, m_InsertElement(m_Undef(), m_Instruction(IV), m_Zero())))
+  if (!match(Insert, m_InsertElt(m_Undef(), m_Instruction(IV), m_Zero())))
     return false;
 
   // The index iv.
@@ -323,7 +323,7 @@ bool MVETailPredication::isTailPredicate(TripCountPattern &TCP) {
     return false;
 
   Value *InLoop = Phi->getIncomingValueForBlock(L->getLoopLatch());
-  unsigned Lanes = cast<VectorType>(Insert->getType())->getNumElements();
+  unsigned Lanes = cast<FixedVectorType>(Insert->getType())->getNumElements();
 
   Instruction *LHS = nullptr;
   if (!match(InLoop, m_Add(m_Instruction(LHS), m_SpecificInt(Lanes))))
@@ -332,10 +332,10 @@ bool MVETailPredication::isTailPredicate(TripCountPattern &TCP) {
   return LHS == Phi;
 }
 
-static VectorType *getVectorType(IntrinsicInst *I) {
+static FixedVectorType *getVectorType(IntrinsicInst *I) {
   unsigned TypeOp = I->getIntrinsicID() == Intrinsic::masked_load ? 0 : 1;
   auto *PtrTy = cast<PointerType>(I->getOperand(TypeOp)->getType());
-  return cast<VectorType>(PtrTy->getElementType());
+  return cast<FixedVectorType>(PtrTy->getElementType());
 }
 
 bool MVETailPredication::IsPredicatedVectorLoop() {
@@ -345,7 +345,7 @@ bool MVETailPredication::IsPredicatedVectorLoop() {
   for (auto *BB : L->getBlocks()) {
     for (auto &I : *BB) {
       if (IsMasked(&I)) {
-        VectorType *VecTy = getVectorType(cast<IntrinsicInst>(&I));
+        FixedVectorType *VecTy = getVectorType(cast<IntrinsicInst>(&I));
         unsigned Lanes = VecTy->getNumElements();
         unsigned ElementWidth = VecTy->getScalarSizeInBits();
         // MVE vectors are 128-bit, but don't support 128 x i1.
@@ -429,13 +429,13 @@ static bool MatchElemCountLoopSetup(Loop *L, Instruction *Shuffle,
   Instruction *Insert = nullptr;
 
   if (!match(Shuffle,
-             m_ShuffleVector(m_Instruction(Insert), m_Undef(), m_ZeroMask())))
+             m_Shuffle(m_Instruction(Insert), m_Undef(), m_ZeroMask())))
     return false;
 
   // Insert the limit into a vector.
   Instruction *BECount = nullptr;
   if (!match(Insert,
-             m_InsertElement(m_Undef(), m_Instruction(BECount), m_Zero())))
+             m_InsertElt(m_Undef(), m_Instruction(BECount), m_Zero())))
     return false;
 
   // The limit calculation, backedge count.

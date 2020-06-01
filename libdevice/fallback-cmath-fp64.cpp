@@ -8,6 +8,8 @@
 
 #include "device_math.h"
 
+#ifdef __SPIR__
+
 DEVICE_EXTERN_C
 double __devicelib_log(double x) { return __spirv_ocl_log(x); }
 
@@ -138,3 +140,4 @@ double __devicelib_asinh(double x) { return __spirv_ocl_asinh(x); }
 
 DEVICE_EXTERN_C
 double __devicelib_atanh(double x) { return __spirv_ocl_atanh(x); }
+#endif // __SPIR__

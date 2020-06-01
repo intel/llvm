@@ -4,14 +4,15 @@
 // CHECK:template <> struct KernelInfo<class KernelName> {
 // CHECK:template <> struct KernelInfo<::nm1::nm2::KernelName0> {
 // CHECK:template <> struct KernelInfo<::nm1::KernelName1> {
-// CHECK:template <> struct KernelInfo<::nm1::KernelName3< ::nm1::nm2::KernelName0>> {
-// CHECK:template <> struct KernelInfo<::nm1::KernelName3< ::nm1::KernelName1>> {
-// CHECK:template <> struct KernelInfo<::nm1::KernelName4< ::nm1::nm2::KernelName0>> {
-// CHECK:template <> struct KernelInfo<::nm1::KernelName4< ::nm1::KernelName1>> {
+// CHECK:template <> struct KernelInfo<::nm1::KernelName3<::nm1::nm2::KernelName0>> {
+// CHECK:template <> struct KernelInfo<::nm1::KernelName3<::nm1::KernelName1>> {
+// CHECK:template <> struct KernelInfo<::nm1::KernelName4<::nm1::nm2::KernelName0>> {
+// CHECK:template <> struct KernelInfo<::nm1::KernelName4<::nm1::KernelName1>> {
 // CHECK:template <> struct KernelInfo<::nm1::KernelName3<KernelName5>> {
 // CHECK:template <> struct KernelInfo<::nm1::KernelName4<KernelName7>> {
-// CHECK:template <> struct KernelInfo<::nm1::KernelName8< ::nm1::nm2::C>> {
-// CHECK:template <> struct KernelInfo<class TmplClassInAnonNS<class ClassInAnonNS>> {
+// CHECK:template <> struct KernelInfo<::nm1::KernelName8<::nm1::nm2::C>> {
+// CHECK:template <> struct KernelInfo<::TmplClassInAnonNS<ClassInAnonNS>> {
+// CHECK:template <> struct KernelInfo<::nm1::KernelName9<char>> {
 
 // This test checks if the SYCL device compiler is able to generate correct
 // integration header when the kernel name class is expressed in different
@@ -41,6 +42,9 @@ namespace nm1 {
 
   template <> class KernelName4<nm1::nm2::KernelName0> {};
   template <> class KernelName4<KernelName1> {};
+
+  template <typename T, typename...>
+  class KernelName9;
 
 } // namespace nm1
 
@@ -128,6 +132,10 @@ struct MyWrapper {
     kernel_single_task<TmplClassInAnonNS<class ClassInAnonNS>>(
       [=]() { acc.use(); });
 
+    // Kernel name type is a templated specialization class with empty template pack argument
+    kernel_single_task<nm1::KernelName9<char>>(
+        [=]() { acc.use(); });
+
     return 0;
   }
 };
@@ -151,5 +159,6 @@ int main() {
   KernelInfo<class nm1::KernelName4<class KernelName7>>::getName();
   KernelInfo<class nm1::KernelName8<nm1::nm2::C>>::getName();
   KernelInfo<class TmplClassInAnonNS<class ClassInAnonNS>>::getName();
+  KernelInfo<class nm1::KernelName9<char>>::getName();
 #endif //__SYCL_DEVICE_ONLY__
 }
