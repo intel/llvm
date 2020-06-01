@@ -79,6 +79,21 @@ public:
   void operator()() {}
 };
 
+namespace type_argument_template_enum {
+enum class E : int {
+  A,
+  B,
+  C
+};
+}
+
+template <typename T>
+class T1 {};
+template <type_argument_template_enum::E EnumValue>
+class T2 {};
+template <typename EnumType>
+class T3 {};
+
 int main() {
 
   dummy_functor_1<no_namespace_int::val_1> f1;
@@ -124,6 +139,14 @@ int main() {
     cgh.single_task(f8);
   });
 
+  q.submit([&](cl::sycl::handler &cgh) {
+    cgh.single_task<T1<T2<type_argument_template_enum::E::A>>>([=]() {});
+  });
+
+  q.submit([&](cl::sycl::handler &cgh) {
+    cgh.single_task<T1<T3<type_argument_template_enum::E>>>([=]() {});
+  });
+
   return 0;
 }
 
@@ -145,7 +168,11 @@ int main() {
 // CHECK: enum unscoped_enum : int;
 // CHECK: template <unscoped_enum EnumType> class dummy_functor_6;
 // CHECK: template <typename EnumType> class dummy_functor_7;
-
+// CHECK: namespace type_argument_template_enum {
+// CHECK-NEXT: enum class E : int;
+// CHECK-NEXT: }
+// CHECK: template <type_argument_template_enum::E EnumValue> class T2;
+// CHECK: template <typename T> class T1;
 // CHECK: Specializations of KernelInfo for kernel function types:
 // CHECK: template <> struct KernelInfo<::dummy_functor_1<(no_namespace_int)0>>
 // CHECK: template <> struct KernelInfo<::dummy_functor_2<(no_namespace_short)1>>
@@ -155,3 +182,5 @@ int main() {
 // CHECK: template <> struct KernelInfo<::dummy_functor_6<(unscoped_enum)0>>
 // CHECK: template <> struct KernelInfo<::dummy_functor_7<::no_namespace_int>>
 // CHECK: template <> struct KernelInfo<::dummy_functor_7<::internal::namespace_short>>
+// CHECK: template <> struct KernelInfo<::T1<::T2<(type_argument_template_enum::E)0>>>
+// CHECK: template <> struct KernelInfo<::T1<::T3<::type_argument_template_enum::E>>>
