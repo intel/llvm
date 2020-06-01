@@ -1655,6 +1655,29 @@ public:
     }
   }
 
+  /// Prevents any commands submitted afterward to this queue from executing
+  /// until all commands previously submitted to this queue have entered the
+  /// complete state.
+  void barrier() {
+    throwIfActionIsCreated();
+    MCGType = detail::CG::BARRIER;
+  }
+
+  /// Prevents any commands submitted afterward to this queue from executing
+  /// until all events in WaitList have entered the complete state. If WaitList
+  /// is empty, then the barrier has no effect.
+  ///
+  /// \param WaitList is a vector of valid SYCL events that need to complete
+  /// before barrier command can be executed.
+  void barrier(const vector_class<event> &WaitList) {
+    throwIfActionIsCreated();
+    MCGType = detail::CG::BARRIER_WAITLIST;
+    MBarrierWaitListEvents.resize(WaitList.size());
+    std::transform(
+        WaitList.begin(), WaitList.end(), MBarrierWaitListEvents.begin(),
+        [](const event &Event) { return detail::getSyclObjImpl(Event); });
+  }
+
   /// Copies data from one memory region to another, both pointed by
   /// USM pointers.
   ///
@@ -1738,6 +1761,9 @@ private:
   std::unique_ptr<detail::InteropTask> MInteropTask;
   /// The list of events that order this operation.
   vector_class<detail::EventImplPtr> MEvents;
+  /// The list of valid SYCL events that need to complete
+  /// before barrier command can be executed
+  vector_class<detail::EventImplPtr> MBarrierWaitListEvents;
 
   bool MIsHost = false;
 

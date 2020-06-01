@@ -46,7 +46,7 @@ int main() {
 #ifdef _MSC_VER
   check_size<handler, 528>();
 #else
-  check_size<handler, 536>();
+  check_size<handler, 560>();
 #endif
   check_size<image<1>, 16>();
   check_size<kernel, 16>();

@@ -89,6 +89,13 @@ event handler::finalize() {
         std::move(MAccStorage), std::move(MSharedPtrStorage),
         std::move(MRequirements), std::move(MEvents), MCGType, MCodeLoc));
     break;
+  case detail::CG::BARRIER:
+  case detail::CG::BARRIER_WAITLIST:
+    CommandGroup.reset(new detail::CGBarrier(
+        std::move(MBarrierWaitListEvents), std::move(MArgsStorage),
+        std::move(MAccStorage), std::move(MSharedPtrStorage),
+        std::move(MRequirements), std::move(MEvents), MCGType, MCodeLoc));
+    break;
   case detail::CG::NONE:
     throw runtime_error("Command group submitted without a kernel or a "
                         "explicit memory operation.",

@@ -395,6 +395,8 @@ public:
     COPY_ACC_TO_PTR,
     COPY_PTR_TO_ACC,
     COPY_ACC_TO_ACC,
+    BARRIER,
+    BARRIER_WAITLIST,
     FILL,
     UPDATE_HOST,
     RUN_ON_HOST_INTEL,
@@ -658,6 +660,23 @@ public:
            std::move(SharedPtrStorage), std::move(Requirements),
            std::move(Events), std::move(loc)),
         MHostTask(std::move(HostTask)), MArgs(std::move(Args)) {}
+};
+
+class CGBarrier : public CG {
+public:
+  vector_class<detail::EventImplPtr> MBarrierWaitListEvents;
+
+  CGBarrier(vector_class<detail::EventImplPtr> BarrierWaitListEvents,
+            std::vector<std::vector<char>> ArgsStorage,
+            std::vector<detail::AccessorImplPtr> AccStorage,
+            std::vector<std::shared_ptr<const void>> SharedPtrStorage,
+            std::vector<Requirement *> Requirements,
+            std::vector<detail::EventImplPtr> Events, CGTYPE Type,
+            detail::code_location loc = {})
+      : CG(Type, std::move(ArgsStorage), std::move(AccStorage),
+           std::move(SharedPtrStorage), std::move(Requirements),
+           std::move(Events), std::move(loc)),
+        MBarrierWaitListEvents(std::move(BarrierWaitListEvents)) {}
 };
 
 } // namespace detail

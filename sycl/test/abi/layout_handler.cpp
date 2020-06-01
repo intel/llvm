@@ -35,5 +35,6 @@
 // CHECK-NEXT: FieldDecl {{.*}} MOSModuleHandle 'detail::OSModuleHandle':'long'
 // CHECK-NEXT: FieldDecl {{.*}} MInteropTask 'std::unique_ptr<detail::InteropTask>':'std::unique_ptr<cl::sycl::detail::InteropTask, std::default_delete<cl::sycl::detail::InteropTask>>'
 // CHECK-NEXT: FieldDecl {{.*}} MEvents 'vector_class<detail::EventImplPtr>':'std::vector<std::shared_ptr<cl::sycl::detail::event_impl>, std::allocator<std::shared_ptr<cl::sycl::detail::event_impl>>>'
+// CHECK-NEXT: FieldDecl {{.*}} MBarrierWaitListEvents 'vector_class<detail::EventImplPtr>':'std::vector<std::shared_ptr<cl::sycl::detail::event_impl>, std::allocator<std::shared_ptr<cl::sycl::detail::event_impl>>>'
 // CHECK-NEXT: FieldDecl {{.*}} MIsHost 'bool'
 // CHECK-NEXT: CXXBoolLiteralExpr {{.*}} 'bool' false
