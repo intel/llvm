@@ -85,22 +85,14 @@ static RT::PiProgram createBinaryProgram(const ContextImplPtr Context,
 #endif
 
   RT::PiProgram Program;
+  RT::PiDevice Device = getFirstDevice(Context);
+  pi_int32 BinaryStatus = CL_SUCCESS;
+  Plugin.call<PiApiKind::piclProgramCreateWithBinary>(
+      Context->getHandleRef(), 1 /*one binary*/, &Device, &DataLen, &Data,
+      &BinaryStatus, &Program);
 
-  // TODO: Implement `piProgramCreateWithBinary` to not require extra logic for
-  //       the CUDA backend.
-  const auto Backend = Context->getPlugin().getBackend();
-  if (Backend == backend::cuda) {
-    // TODO: Reemplace CreateWithSource with CreateWithBinary in CUDA backend
-    const char *SignedData = reinterpret_cast<const char *>(Data);
-    Plugin.call<PiApiKind::piclProgramCreateWithSource>(
-        Context->getHandleRef(), 1 /*one binary*/, &SignedData, &DataLen,
-        &Program);
-  } else {
-    RT::PiDevice Device = getFirstDevice(Context);
-    pi_int32 BinaryStatus = CL_SUCCESS;
-    Plugin.call<PiApiKind::piclProgramCreateWithBinary>(
-        Context->getHandleRef(), 1 /*one binary*/, &Device, &DataLen, &Data,
-        &BinaryStatus, &Program);
+  if (BinaryStatus != CL_SUCCESS) {
+    throw runtime_error("Creating program with binary failed.", BinaryStatus);
   }
 
   return Program;
