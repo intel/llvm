@@ -2662,7 +2662,7 @@ AST_MATCHER_P(UnaryExprOrTypeTraitExpr, ofKind, UnaryExprOrTypeTrait, Kind) {
 
 /// Same as unaryExprOrTypeTraitExpr, but only matching
 /// alignof.
-inline internal::Matcher<Stmt> alignOfExpr(
+inline internal::BindableMatcher<Stmt> alignOfExpr(
     const internal::Matcher<UnaryExprOrTypeTraitExpr> &InnerMatcher) {
   return stmt(unaryExprOrTypeTraitExpr(
       allOf(anyOf(ofKind(UETT_AlignOf), ofKind(UETT_PreferredAlignOf)),
@@ -2671,7 +2671,7 @@ inline internal::Matcher<Stmt> alignOfExpr(
 
 /// Same as unaryExprOrTypeTraitExpr, but only matching
 /// sizeof.
-inline internal::Matcher<Stmt> sizeOfExpr(
+inline internal::BindableMatcher<Stmt> sizeOfExpr(
     const internal::Matcher<UnaryExprOrTypeTraitExpr> &InnerMatcher) {
   return stmt(unaryExprOrTypeTraitExpr(
       allOf(ofKind(UETT_SizeOf), InnerMatcher)));
@@ -4867,6 +4867,23 @@ AST_POLYMORPHIC_MATCHER_P(hasRHS,
 inline internal::Matcher<BinaryOperator> hasEitherOperand(
     const internal::Matcher<Expr> &InnerMatcher) {
   return anyOf(hasLHS(InnerMatcher), hasRHS(InnerMatcher));
+}
+
+/// Matches if both matchers match with opposite sides of the binary operator.
+///
+/// Example matcher = binaryOperator(hasOperands(integerLiteral(equals(1),
+///                                              integerLiteral(equals(2)))
+/// \code
+///   1 + 2 // Match
+///   2 + 1 // Match
+///   1 + 1 // No match
+///   2 + 2 // No match
+/// \endcode
+inline internal::Matcher<BinaryOperator>
+hasOperands(const internal::Matcher<Expr> &Matcher1,
+            const internal::Matcher<Expr> &Matcher2) {
+  return anyOf(allOf(hasLHS(Matcher1), hasRHS(Matcher2)),
+               allOf(hasLHS(Matcher2), hasRHS(Matcher1)));
 }
 
 /// Matches if the operand of a unary operator matches.

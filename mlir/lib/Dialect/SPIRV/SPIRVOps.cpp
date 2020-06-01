@@ -12,6 +12,7 @@
 
 #include "mlir/Dialect/SPIRV/SPIRVOps.h"
 
+#include "mlir/Dialect/SPIRV/ParserUtils.h"
 #include "mlir/Dialect/SPIRV/SPIRVAttributes.h"
 #include "mlir/Dialect/SPIRV/SPIRVDialect.h"
 #include "mlir/Dialect/SPIRV/SPIRVTypes.h"
@@ -140,25 +141,6 @@ parseEnumStrAttr(EnumClass &value, OpAsmParser &parser, OperationState &state,
   return success();
 }
 
-/// Parses the next keyword in `parser` as an enumerant of the given
-/// `EnumClass`.
-template <typename EnumClass>
-static ParseResult
-parseEnumKeywordAttr(EnumClass &value, OpAsmParser &parser,
-                     StringRef attrName = spirv::attributeName<EnumClass>()) {
-  StringRef keyword;
-  SmallVector<NamedAttribute, 1> attr;
-  auto loc = parser.getCurrentLocation();
-  if (parser.parseKeyword(&keyword))
-    return failure();
-  if (Optional<EnumClass> attr = spirv::symbolizeEnum<EnumClass>(keyword)) {
-    value = attr.getValue();
-    return success();
-  }
-  return parser.emitError(loc, "invalid ")
-         << attrName << " attribute specification: " << keyword;
-}
-
 /// Parses the next keyword in `parser` as an enumerant of the given `EnumClass`
 /// and inserts the enumerant into `state` as an 32-bit integer attribute with
 /// the enum class's name as attribute name.
@@ -229,6 +211,13 @@ static LogicalResult verifyCastOp(Operation *op,
   if (auto vectorType = operandType.dyn_cast<VectorType>()) {
     operandType = vectorType.getElementType();
     resultType = resultType.cast<VectorType>().getElementType();
+  }
+
+  if (auto coopMatrixType =
+          operandType.dyn_cast<spirv::CooperativeMatrixNVType>()) {
+    operandType = coopMatrixType.getElementType();
+    resultType =
+        resultType.cast<spirv::CooperativeMatrixNVType>().getElementType();
   }
 
   auto operandTypeBitWidth = operandType.getIntOrFloatBitWidth();
@@ -429,7 +418,9 @@ getElementType(Type type, ArrayRef<int32_t> indices,
 
   for (auto index : indices) {
     if (auto cType = type.dyn_cast<spirv::CompositeType>()) {
-      if (index < 0 || static_cast<uint64_t>(index) >= cType.getNumElements()) {
+      if (cType.hasCompileTimeKnownNumElements() &&
+          (index < 0 ||
+           static_cast<uint64_t>(index) >= cType.getNumElements())) {
         emitErrorFn("index ") << index << " out of bounds for " << type;
         return nullptr;
       }
@@ -1109,7 +1100,8 @@ static ParseResult parseCompositeConstructOp(OpAsmParser &parser,
            << type;
   }
 
-  if (operands.size() != cType.getNumElements()) {
+  if (cType.hasCompileTimeKnownNumElements() &&
+      operands.size() != cType.getNumElements()) {
     return parser.emitError(loc, "has incorrect number of operands: expected ")
            << cType.getNumElements() << ", but provided " << operands.size();
   }
@@ -1118,8 +1110,8 @@ static ParseResult parseCompositeConstructOp(OpAsmParser &parser,
   // also be vectors with the same component type as the Result Type component
   // type".
   SmallVector<Type, 4> elementTypes;
-  elementTypes.reserve(cType.getNumElements());
-  for (auto index : llvm::seq<uint32_t>(0, cType.getNumElements())) {
+  elementTypes.reserve(operands.size());
+  for (auto index : llvm::seq<uint32_t>(0, operands.size())) {
     elementTypes.push_back(cType.getElementType(index));
   }
   state.addTypes(type);
@@ -1135,13 +1127,19 @@ static void print(spirv::CompositeConstructOp compositeConstructOp,
 
 static LogicalResult verify(spirv::CompositeConstructOp compositeConstructOp) {
   auto cType = compositeConstructOp.getType().cast<spirv::CompositeType>();
-
   SmallVector<Value, 4> constituents(compositeConstructOp.constituents());
-  if (constituents.size() != cType.getNumElements()) {
-    return compositeConstructOp.emitError(
-               "has incorrect number of operands: expected ")
-           << cType.getNumElements() << ", but provided "
-           << constituents.size();
+
+  if (cType.isa<spirv::CooperativeMatrixNVType>()) {
+    if (constituents.size() != 1)
+      return compositeConstructOp.emitError(
+                 "has incorrect number of operands: expected ")
+             << "1, but provided " << constituents.size();
+  } else {
+    if (constituents.size() != cType.getNumElements())
+      return compositeConstructOp.emitError(
+                 "has incorrect number of operands: expected ")
+             << cType.getNumElements() << ", but provided "
+             << constituents.size();
   }
 
   for (auto index : llvm::seq<uint32_t>(0, constituents.size())) {
@@ -2634,6 +2632,181 @@ static LogicalResult verify(spirv::VariableOp varOp) {
              << attr << "' attribute (only allowed in spv.globalVariable)";
   }
 
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// spv.CooperativeMatrixLoadNV
+//===----------------------------------------------------------------------===//
+
+static ParseResult parseCooperativeMatrixLoadNVOp(OpAsmParser &parser,
+                                                  OperationState &state) {
+  spirv::StorageClass storageClass;
+  SmallVector<OpAsmParser::OperandType, 3> operandInfo;
+  Type strideType = parser.getBuilder().getIntegerType(32);
+  Type columnMajorType = parser.getBuilder().getIntegerType(1);
+  Type elementType;
+  if (parseEnumStrAttr(storageClass, parser) ||
+      parser.parseOperandList(operandInfo, 3) ||
+      parseMemoryAccessAttributes(parser, state) || parser.parseColon() ||
+      parser.parseType(elementType)) {
+    return failure();
+  }
+
+  auto ptrType = spirv::PointerType::get(
+      elementType.cast<spirv::CooperativeMatrixNVType>().getElementType(),
+      storageClass);
+  SmallVector<Type, 3> OperandType = {ptrType, strideType, columnMajorType};
+  if (parser.resolveOperands(operandInfo, OperandType, parser.getNameLoc(),
+                             state.operands)) {
+    return failure();
+  }
+
+  state.addTypes(elementType);
+  return success();
+}
+
+static void print(spirv::CooperativeMatrixLoadNVOp M, OpAsmPrinter &printer) {
+  StringRef sc = stringifyStorageClass(
+      M.pointer().getType().cast<spirv::PointerType>().getStorageClass());
+  printer << spirv::CooperativeMatrixLoadNVOp::getOperationName() << " \"" << sc
+          << "\" " << M.pointer() << ", " << M.stride() << ", "
+          << M.columnmajor();
+  // Print optional memory access attribute.
+  if (auto memAccess = M.memory_access())
+    printer << " [\"" << stringifyMemoryAccess(*memAccess) << "\"]";
+  printer << " : " << M.getType();
+}
+
+static LogicalResult verifyPointerAndCoopMatrixType(Operation *op, Type pointer,
+                                                    Type coopMatrix) {
+  if (pointer.cast<spirv::PointerType>().getPointeeType() !=
+      coopMatrix.cast<spirv::CooperativeMatrixNVType>().getElementType())
+    return op->emitError(
+               "expected the same type for pointer and the cooperative matrix"
+               "element, bu provided ")
+           << pointer << " and " << coopMatrix;
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// spv.CooperativeMatrixStoreNV
+//===----------------------------------------------------------------------===//
+
+static ParseResult parseCooperativeMatrixStoreNVOp(OpAsmParser &parser,
+                                                   OperationState &state) {
+  spirv::StorageClass storageClass;
+  SmallVector<OpAsmParser::OperandType, 4> operandInfo;
+  Type strideType = parser.getBuilder().getIntegerType(32);
+  Type columnMajorType = parser.getBuilder().getIntegerType(1);
+  Type elementType;
+  if (parseEnumStrAttr(storageClass, parser) ||
+      parser.parseOperandList(operandInfo, 4) ||
+      parseMemoryAccessAttributes(parser, state) || parser.parseColon() ||
+      parser.parseType(elementType)) {
+    return failure();
+  }
+
+  auto ptrType = spirv::PointerType::get(
+      elementType.cast<spirv::CooperativeMatrixNVType>().getElementType(),
+      storageClass);
+  SmallVector<Type, 4> OperandType = {ptrType, elementType, strideType,
+                                      columnMajorType};
+  if (parser.resolveOperands(operandInfo, OperandType, parser.getNameLoc(),
+                             state.operands)) {
+    return failure();
+  }
+
+  return success();
+}
+
+static void print(spirv::CooperativeMatrixStoreNVOp coopMatrix,
+                  OpAsmPrinter &printer) {
+  StringRef sc = stringifyStorageClass(coopMatrix.pointer()
+                                           .getType()
+                                           .cast<spirv::PointerType>()
+                                           .getStorageClass());
+  printer << spirv::CooperativeMatrixStoreNVOp::getOperationName() << " \""
+          << sc << "\" " << coopMatrix.pointer() << ", " << coopMatrix.object()
+          << ", " << coopMatrix.stride() << ", " << coopMatrix.columnmajor();
+  // Print optional memory access attribute.
+  if (auto memAccess = coopMatrix.memory_access())
+    printer << " [\"" << stringifyMemoryAccess(*memAccess) << "\"]";
+  printer << " : " << coopMatrix.getOperand(1).getType();
+}
+
+//===----------------------------------------------------------------------===//
+// spv.CooperativeMatrixLengthNV
+//===----------------------------------------------------------------------===//
+
+static ParseResult parseCooperativeMatrixLengthNVOp(OpAsmParser &parser,
+                                                    OperationState &state) {
+  OpAsmParser::OperandType operandInfo;
+  Type dstType = parser.getBuilder().getIntegerType(32);
+  Type type;
+  if (parser.parseColonType(type)) {
+    return failure();
+  }
+  state.addAttribute(kTypeAttrName, TypeAttr::get(type));
+  state.addTypes(dstType);
+  return success();
+}
+
+static void print(spirv::CooperativeMatrixLengthNVOp coopMatrix,
+                  OpAsmPrinter &printer) {
+  printer << coopMatrix.getOperationName() << " : " << coopMatrix.type();
+}
+
+//===----------------------------------------------------------------------===//
+// spv.CooperativeMatrixMulAddNV
+//===----------------------------------------------------------------------===//
+
+static ParseResult parseCooperativeMatrixMulAddNVOp(OpAsmParser &parser,
+                                                    OperationState &state) {
+  SmallVector<OpAsmParser::OperandType, 3> ops;
+  SmallVector<Type, 3> types(3);
+  if (parser.parseOperandList(ops, 3) || parser.parseColon() ||
+      parser.parseType(types[0]) || parser.parseComma() ||
+      parser.parseType(types[1]) || parser.parseArrow() ||
+      parser.parseType(types[2]) ||
+      parser.resolveOperands(ops, types, parser.getNameLoc(), state.operands)) {
+    return failure();
+  }
+  state.addTypes(types[2]);
+  return success();
+}
+
+static void print(spirv::CooperativeMatrixMulAddNVOp coopMatrix,
+                  OpAsmPrinter &printer) {
+  printer << coopMatrix.getOperationName() << ' ' << coopMatrix.getOperand(0)
+          << ", " << coopMatrix.getOperand(1) << ", "
+          << coopMatrix.getOperand(2) << ", "
+          << " : " << coopMatrix.getOperand(0).getType() << ", "
+          << coopMatrix.getOperand(1).getType() << " -> "
+          << coopMatrix.getOperand(2).getType();
+}
+
+static LogicalResult
+verifyCoopMatrixMulAdd(spirv::CooperativeMatrixMulAddNVOp op) {
+  if (op.c().getType() != op.result().getType())
+    return op.emitOpError(
+        "result and third operand must have the same type");
+  auto typeA = op.a().getType().cast<spirv::CooperativeMatrixNVType>();
+  auto typeB = op.b().getType().cast<spirv::CooperativeMatrixNVType>();
+  auto typeC = op.c().getType().cast<spirv::CooperativeMatrixNVType>();
+  auto typeR = op.result().getType().cast<spirv::CooperativeMatrixNVType>();
+  if (typeA.getRows() != typeR.getRows() ||
+      typeA.getColumns() != typeB.getRows() ||
+      typeB.getColumns() != typeR.getColumns())
+    return op.emitOpError("matrix size must match");
+  if (typeR.getScope() != typeA.getScope() ||
+      typeR.getScope() != typeB.getScope() ||
+      typeR.getScope() != typeC.getScope())
+    return op.emitOpError("matrix scope must match");
+  if (typeR.getElementType() != typeA.getElementType() ||
+      typeR.getElementType() != typeB.getElementType() ||
+      typeR.getElementType() != typeC.getElementType())
+    return op.emitOpError("matrix element type must match");
   return success();
 }
 

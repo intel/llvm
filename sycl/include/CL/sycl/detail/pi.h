@@ -133,9 +133,16 @@ typedef enum {
 // make the translation to OpenCL transparent.
 //
 typedef enum : pi_uint64 {
-  PI_DEVICE_TYPE_CPU = CL_DEVICE_TYPE_CPU,
-  PI_DEVICE_TYPE_GPU = CL_DEVICE_TYPE_GPU,
-  PI_DEVICE_TYPE_ACC = CL_DEVICE_TYPE_ACCELERATOR
+  PI_DEVICE_TYPE_DEFAULT =
+      CL_DEVICE_TYPE_DEFAULT, ///< The default device available in the PI
+                              ///< plugin.
+  PI_DEVICE_TYPE_ALL =
+      CL_DEVICE_TYPE_ALL, ///< All devices available in the PI plugin.
+  PI_DEVICE_TYPE_CPU =
+      CL_DEVICE_TYPE_CPU, ///< A PI device that is the host processor.
+  PI_DEVICE_TYPE_GPU = CL_DEVICE_TYPE_GPU, ///< A PI device that is a GPU.
+  PI_DEVICE_TYPE_ACC = CL_DEVICE_TYPE_ACCELERATOR ///< A PI device that is a
+                                                  ///< dedicated accelerator.
 } _pi_device_type;
 
 typedef enum {
@@ -1493,9 +1500,9 @@ struct _pi_plugin {
   // Some choices are:
   // - Use of integers to keep major and minor version.
   // - Keeping char* Versions.
-  const char PiVersion[4] = _PI_H_VERSION_STRING;
+  char PiVersion[4];
   // Plugin edits this.
-  char PluginVersion[4] = _PI_H_VERSION_STRING;
+  char PluginVersion[4];
   char *Targets;
   struct FunctionPointers {
 #define _PI_API(api) decltype(::api) *api;

@@ -8,7 +8,6 @@
 
 #include <gtest/gtest.h>
 #include <helpers/PiMock.hpp>
-
 #include <detail/queue_impl.hpp>
 
 using namespace cl::sycl;
@@ -48,12 +47,12 @@ TEST(PiMockTest, ConstructFromQueue) {
 }
 
 TEST(PiMockTest, ConstructFromPlatform) {
-  platform NormalPlatform;
+  platform NormalPlatform(default_selector{});
   if (NormalPlatform.is_host()) {
     std::cerr << "Not run due to host-only environment\n";
     return;
   }
-  platform MockPlatform;
+  platform MockPlatform(default_selector{});
   unittest::PiMock Mock(MockPlatform);
 
   const auto &NormalPiPlugin =

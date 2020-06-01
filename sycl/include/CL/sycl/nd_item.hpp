@@ -28,6 +28,11 @@ namespace sycl {
 namespace detail {
 class Builder;
 }
+
+/// Identifies an instance of the function object executing at each point in an
+/// nd_range.
+///
+/// \ingroup sycl_api
 template <int dimensions = 1> class nd_item {
 public:
   nd_item() = delete;
@@ -122,6 +127,7 @@ public:
                                         accessMode == access::mode::read_write,
                                     access::fence_space>::type accessSpace =
                 access::fence_space::global_and_local) const {
+    (void)accessSpace;
     Group.mem_fence();
   }
 

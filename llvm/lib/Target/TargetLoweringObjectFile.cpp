@@ -19,10 +19,12 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/Mangler.h"
+#include "llvm/IR/Module.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/MCSymbol.h"
+#include "llvm/MC/SectionKind.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
@@ -271,12 +273,21 @@ MCSection *TargetLoweringObjectFile::SectionForGlobal(
   return SelectSectionForGlobal(GO, Kind, TM);
 }
 
+/// This method computes the appropriate section to emit the specified global
+/// variable or function definition. This should not be passed external (or
+/// available externally) globals.
+MCSection *
+TargetLoweringObjectFile::SectionForGlobal(const GlobalObject *GO,
+                                           const TargetMachine &TM) const {
+  return SectionForGlobal(GO, getKindForGlobal(GO, TM), TM);
+}
+
 MCSection *TargetLoweringObjectFile::getSectionForJumpTable(
     const Function &F, const TargetMachine &TM) const {
-  unsigned Align = 0;
+  Align Alignment(1);
   return getSectionForConstant(F.getParent()->getDataLayout(),
                                SectionKind::getReadOnly(), /*C=*/nullptr,
-                               Align);
+                               Alignment);
 }
 
 bool TargetLoweringObjectFile::shouldPutJumpTableInFunctionSection(
@@ -298,7 +309,7 @@ bool TargetLoweringObjectFile::shouldPutJumpTableInFunctionSection(
 /// information, return a section that it should be placed in.
 MCSection *TargetLoweringObjectFile::getSectionForConstant(
     const DataLayout &DL, SectionKind Kind, const Constant *C,
-    unsigned &Align) const {
+    Align &Alignment) const {
   if (Kind.isReadOnly() && ReadOnlySection != nullptr)
     return ReadOnlySection;
 

@@ -51,7 +51,7 @@
 
 ; CHECK-ON: ExecutionMode [[K1]] 31
 ; CHECK-ON-NOT: ExecutionMode [[K2]] 31
-; CHECK-ON-NOT: ExecutionMode [[K3]] 31
+; CHECK-ON: ExecutionMode [[K3]] 31
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir64"

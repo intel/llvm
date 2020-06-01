@@ -235,9 +235,9 @@ __spirv_ocl_prefetch(const __attribute__((opencl_global)) char *Ptr,
 
 template <typename dataT>
 __SYCL_CONVERGENT__ extern __ocl_event_t
-OpGroupAsyncCopyGlobalToLocal(__spv::Scope::Flag Execution, dataT *Dest,
-                              dataT *Src, size_t NumElements, size_t Stride,
-                              __ocl_event_t E) noexcept {
+OpGroupAsyncCopyGlobalToLocal(__spv::Scope::Flag, dataT *Dest, dataT *Src,
+                              size_t NumElements, size_t Stride,
+                              __ocl_event_t) noexcept {
   for (size_t i = 0; i < NumElements; i++) {
     Dest[i] = Src[i * Stride];
   }
@@ -247,9 +247,9 @@ OpGroupAsyncCopyGlobalToLocal(__spv::Scope::Flag Execution, dataT *Dest,
 
 template <typename dataT>
 __SYCL_CONVERGENT__ extern __ocl_event_t
-OpGroupAsyncCopyLocalToGlobal(__spv::Scope::Flag Execution, dataT *Dest,
-                              dataT *Src, size_t NumElements, size_t Stride,
-                              __ocl_event_t E) noexcept {
+OpGroupAsyncCopyLocalToGlobal(__spv::Scope::Flag, dataT *Dest, dataT *Src,
+                              size_t NumElements, size_t Stride,
+                              __ocl_event_t) noexcept {
   for (size_t i = 0; i < NumElements; i++) {
     Dest[i * Stride] = Src[i];
   }

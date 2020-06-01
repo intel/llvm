@@ -57,7 +57,8 @@ X86FrameLowering::X86FrameLowering(const X86Subtarget &STI,
 
 bool X86FrameLowering::hasReservedCallFrame(const MachineFunction &MF) const {
   return !MF.getFrameInfo().hasVarSizedObjects() &&
-         !MF.getInfo<X86MachineFunctionInfo>()->getHasPushSequences();
+         !MF.getInfo<X86MachineFunctionInfo>()->getHasPushSequences() &&
+         !MF.getInfo<X86MachineFunctionInfo>()->hasPreallocatedCall();
 }
 
 /// canSimplifyCallFramePseudos - If there is a reserved call frame, the
@@ -67,6 +68,7 @@ bool X86FrameLowering::hasReservedCallFrame(const MachineFunction &MF) const {
 bool
 X86FrameLowering::canSimplifyCallFramePseudos(const MachineFunction &MF) const {
   return hasReservedCallFrame(MF) ||
+         MF.getInfo<X86MachineFunctionInfo>()->hasPreallocatedCall() ||
          (hasFP(MF) && !TRI->needsStackRealignment(MF)) ||
          TRI->hasBasePointer(MF);
 }
@@ -90,10 +92,10 @@ X86FrameLowering::needsFrameIndexResolution(const MachineFunction &MF) const {
 bool X86FrameLowering::hasFP(const MachineFunction &MF) const {
   const MachineFrameInfo &MFI = MF.getFrameInfo();
   return (MF.getTarget().Options.DisableFramePointerElim(MF) ||
-          TRI->needsStackRealignment(MF) ||
-          MFI.hasVarSizedObjects() ||
+          TRI->needsStackRealignment(MF) || MFI.hasVarSizedObjects() ||
           MFI.isFrameAddressTaken() || MFI.hasOpaqueSPAdjustment() ||
           MF.getInfo<X86MachineFunctionInfo>()->getForceFramePointer() ||
+          MF.getInfo<X86MachineFunctionInfo>()->hasPreallocatedCall() ||
           MF.callsUnwindInit() || MF.hasEHFunclets() || MF.callsEHReturn() ||
           MFI.hasStackMap() || MFI.hasPatchPoint() ||
           MFI.hasCopyImplyingStackAdjustment());
@@ -1311,7 +1313,7 @@ void X86FrameLowering::emitPrologue(MachineFunction &MF,
       // Define the current CFA rule to use the provided offset.
       assert(StackSize);
       BuildCFI(MBB, MBBI, DL,
-               MCCFIInstruction::createDefCfaOffset(nullptr, 2 * stackGrowth));
+               MCCFIInstruction::cfiDefCfaOffset(nullptr, -2 * stackGrowth));
 
       // Change the rule for the FramePtr to be an "offset" rule.
       unsigned DwarfFramePtr = TRI->getDwarfRegNum(MachineFramePtr, true);
@@ -1388,7 +1390,7 @@ void X86FrameLowering::emitPrologue(MachineFunction &MF,
       // Define the current CFA rule to use the provided offset.
       assert(StackSize);
       BuildCFI(MBB, MBBI, DL,
-               MCCFIInstruction::createDefCfaOffset(nullptr, StackOffset));
+               MCCFIInstruction::cfiDefCfaOffset(nullptr, -StackOffset));
       StackOffset += stackGrowth;
     }
 
@@ -1675,8 +1677,9 @@ void X86FrameLowering::emitPrologue(MachineFunction &MF,
     if (!HasFP && NumBytes) {
       // Define the current CFA rule to use the provided offset.
       assert(StackSize);
-      BuildCFI(MBB, MBBI, DL, MCCFIInstruction::createDefCfaOffset(
-                                  nullptr, -StackSize + stackGrowth));
+      BuildCFI(
+          MBB, MBBI, DL,
+          MCCFIInstruction::cfiDefCfaOffset(nullptr, StackSize - stackGrowth));
     }
 
     // Emit DWARF info specifying the offsets of the callee-saved registers.
@@ -1840,8 +1843,8 @@ void X86FrameLowering::emitEpilogue(MachineFunction &MF,
     if (NeedsDwarfCFI) {
       unsigned DwarfStackPtr =
           TRI->getDwarfRegNum(Is64Bit ? X86::RSP : X86::ESP, true);
-      BuildCFI(MBB, MBBI, DL, MCCFIInstruction::createDefCfa(
-                                  nullptr, DwarfStackPtr, -SlotSize));
+      BuildCFI(MBB, MBBI, DL,
+               MCCFIInstruction::cfiDefCfa(nullptr, DwarfStackPtr, SlotSize));
       if (!MBB.succ_empty() && !MBB.isReturnBlock()) {
         unsigned DwarfFramePtr = TRI->getDwarfRegNum(MachineFramePtr, true);
         BuildCFI(MBB, AfterPop, DL,
@@ -1916,8 +1919,8 @@ void X86FrameLowering::emitEpilogue(MachineFunction &MF,
     emitSPUpdate(MBB, MBBI, DL, NumBytes, /*InEpilogue=*/true);
     if (!hasFP(MF) && NeedsDwarfCFI) {
       // Define the current CFA rule to use the provided offset.
-      BuildCFI(MBB, MBBI, DL, MCCFIInstruction::createDefCfaOffset(
-                                  nullptr, -CSSize - SlotSize));
+      BuildCFI(MBB, MBBI, DL,
+               MCCFIInstruction::cfiDefCfaOffset(nullptr, CSSize + SlotSize));
     }
     --MBBI;
   }
@@ -1943,7 +1946,7 @@ void X86FrameLowering::emitEpilogue(MachineFunction &MF,
       if (Opc == X86::POP32r || Opc == X86::POP64r) {
         Offset += SlotSize;
         BuildCFI(MBB, MBBI, DL,
-                 MCCFIInstruction::createDefCfaOffset(nullptr, Offset));
+                 MCCFIInstruction::cfiDefCfaOffset(nullptr, -Offset));
       }
     }
   }

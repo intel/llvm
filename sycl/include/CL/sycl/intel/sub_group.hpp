@@ -63,9 +63,14 @@ using SelectBlockT =
     select_apply_cl_scalar_t<T, uint8_t, uint16_t, uint32_t, void>;
 
 template <typename T, access::address_space Space>
-using AcceptableForLoadStore =
+using AcceptableForGlobalLoadStore =
     bool_constant<!std::is_same<void, SelectBlockT<T>>::value &&
                   Space == access::address_space::global_space>;
+
+template <typename T, access::address_space Space>
+using AcceptableForLocalLoadStore =
+    bool_constant<!std::is_same<void, SelectBlockT<T>>::value &&
+                  Space == access::address_space::local_space>;
 
 // TODO: move this to public cl::sycl::bit_cast as extension?
 template <typename To, typename From> To bit_cast(const From &from) {
@@ -281,14 +286,21 @@ struct sub_group {
 
   template <typename T, access::address_space Space>
   sycl::detail::enable_if_t<
-      sycl::detail::sub_group::AcceptableForLoadStore<T, Space>::value, T>
+      sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value, T>
   load(const multi_ptr<T, Space> src) const {
     return sycl::detail::sub_group::load(src);
   }
 
+  template <typename T, access::address_space Space>
+  sycl::detail::enable_if_t<
+      sycl::detail::sub_group::AcceptableForLocalLoadStore<T, Space>::value, T>
+  load(const multi_ptr<T, Space> src) const {
+    return src.get()[get_local_id()[0]];
+  }
+
   template <int N, typename T, access::address_space Space>
   sycl::detail::enable_if_t<
-      sycl::detail::sub_group::AcceptableForLoadStore<T, Space>::value &&
+      sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value &&
           N != 1,
       vec<T, N>>
   load(const multi_ptr<T, Space> src) const {
@@ -297,7 +309,19 @@ struct sub_group {
 
   template <int N, typename T, access::address_space Space>
   sycl::detail::enable_if_t<
-      sycl::detail::sub_group::AcceptableForLoadStore<T, Space>::value &&
+      sycl::detail::sub_group::AcceptableForLocalLoadStore<T, Space>::value,
+      vec<T, N>>
+  load(const multi_ptr<T, Space> src) const {
+    vec<T, N> res;
+    for (int i = 0; i < N; ++i) {
+      res[i] = *(src.get() + i * get_max_local_range()[0] + get_local_id()[0]);
+    }
+    return res;
+  }
+
+  template <int N, typename T, access::address_space Space>
+  sycl::detail::enable_if_t<
+      sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value &&
           N == 1,
       vec<T, 1>>
   load(const multi_ptr<T, Space> src) const {
@@ -306,14 +330,21 @@ struct sub_group {
 
   template <typename T, access::address_space Space>
   sycl::detail::enable_if_t<
-      sycl::detail::sub_group::AcceptableForLoadStore<T, Space>::value>
+      sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value>
   store(multi_ptr<T, Space> dst, const T &x) const {
     sycl::detail::sub_group::store(dst, x);
   }
 
+  template <typename T, access::address_space Space>
+  sycl::detail::enable_if_t<
+      sycl::detail::sub_group::AcceptableForLocalLoadStore<T, Space>::value>
+  store(multi_ptr<T, Space> dst, const T &x) const {
+    dst.get()[get_local_id()[0]] = x;
+  }
+
   template <int N, typename T, access::address_space Space>
   sycl::detail::enable_if_t<
-      sycl::detail::sub_group::AcceptableForLoadStore<T, Space>::value &&
+      sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value &&
       N == 1>
   store(multi_ptr<T, Space> dst, const vec<T, 1> &x) const {
     store<T, Space>(dst, x);
@@ -321,10 +352,19 @@ struct sub_group {
 
   template <int N, typename T, access::address_space Space>
   sycl::detail::enable_if_t<
-      sycl::detail::sub_group::AcceptableForLoadStore<T, Space>::value &&
+      sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value &&
       N != 1>
   store(multi_ptr<T, Space> dst, const vec<T, N> &x) const {
     sycl::detail::sub_group::store(dst, x);
+  }
+
+  template <int N, typename T, access::address_space Space>
+  sycl::detail::enable_if_t<
+      sycl::detail::sub_group::AcceptableForLocalLoadStore<T, Space>::value>
+  store(multi_ptr<T, Space> dst, const vec<T, N> &x) const {
+    for (int i = 0; i < N; ++i) {
+      *(dst.get() + i * get_max_local_range()[0] + get_local_id()[0]) = x[i];
+    }
   }
 
   /* --- synchronization functions --- */

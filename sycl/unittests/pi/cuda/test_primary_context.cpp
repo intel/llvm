@@ -10,74 +10,32 @@
 
 #include <cuda.h>
 
+#include "TestGetPlatforms.hpp"
 #include <CL/sycl.hpp>
 #include <CL/sycl/backend/cuda.hpp>
-#include <detail/plugin.hpp>
 #include <pi_cuda.hpp>
 
 #include <iostream>
 
 using namespace cl::sycl;
 
-struct DISABLED_CudaPrimaryContextTests : public ::testing::Test {
+struct CudaPrimaryContextTests : public ::testing::TestWithParam<platform> {
 
 protected:
   device deviceA_;
   device deviceB_;
-  context context_;
-
-  static bool isCudaDevice(const device &dev) {
-    const platform platform = dev.get_info<info::device::platform>();
-    const std::string platformVersion =
-        platform.get_info<info::platform::version>();
-    // If using PI_CUDA, don't accept a non-CUDA device
-    return platformVersion.find("CUDA") != std::string::npos;
-  }
-
-  class cuda_device_selector : public device_selector {
-  public:
-    int operator()(const device &dev) const {
-      return isCudaDevice(dev) ? 1 : -1;
-    }
-  };
-
-  class other_cuda_device_selector : public device_selector {
-  public:
-    other_cuda_device_selector(const device &dev) : excludeDevice{dev} {}
-
-    int operator()(const device &dev) const {
-      if (!isCudaDevice(dev)) {
-        return -1;
-      }
-      if (dev.get() == excludeDevice.get()) {
-        // Return only this device if it is the only available
-        return 0;
-      }
-      return 1;
-    }
-
-  private:
-    const device &excludeDevice;
-  };
 
   void SetUp() override {
+    std::vector<device> CudaDevices = GetParam().get_devices();
 
-    try {
-      context context_;
-    } catch (device_error &e) {
-      std::cout << "Failed to create device for context" << std::endl;
-    }
-
-    deviceA_ = cuda_device_selector().select_device();
-    deviceB_ = other_cuda_device_selector(deviceA_).select_device();
-
-    ASSERT_TRUE(isCudaDevice(deviceA_));
+    deviceA_ = CudaDevices[0];
+    deviceB_ = CudaDevices.size() > 1 ? CudaDevices[1] : deviceA_;
   }
 
   void TearDown() override {}
 };
 
-TEST_F(DISABLED_CudaPrimaryContextTests, piSingleContext) {
+TEST_P(CudaPrimaryContextTests, piSingleContext) {
   std::cout << "create single context" << std::endl;
   context Context(deviceA_, async_handler{}, /*UsePrimaryContext=*/true);
 
@@ -92,7 +50,7 @@ TEST_F(DISABLED_CudaPrimaryContextTests, piSingleContext) {
   cuDevicePrimaryCtxRelease(CudaDevice);
 }
 
-TEST_F(DISABLED_CudaPrimaryContextTests, piMultiContextSingleDevice) {
+TEST_P(CudaPrimaryContextTests, piMultiContextSingleDevice) {
   std::cout << "create multiple contexts for one device" << std::endl;
   context ContextA(deviceA_, async_handler{}, /*UsePrimaryContext=*/true);
   context ContextB(deviceA_, async_handler{}, /*UsePrimaryContext=*/true);
@@ -103,18 +61,25 @@ TEST_F(DISABLED_CudaPrimaryContextTests, piMultiContextSingleDevice) {
   ASSERT_EQ(CudaContextA, CudaContextB);
 }
 
-TEST_F(DISABLED_CudaPrimaryContextTests, piMultiContextMultiDevice) {
+TEST_P(CudaPrimaryContextTests, piMultiContextMultiDevice) {
+  if (deviceA_ == deviceB_)
+    return;
+
   CUdevice CudaDeviceA = deviceA_.get_native<backend::cuda>();
   CUdevice CudaDeviceB = deviceB_.get_native<backend::cuda>();
 
-  if (isCudaDevice(deviceB_) && CudaDeviceA != CudaDeviceB) {
-    std::cout << "create multiple contexts for multiple devices" << std::endl;
-    context ContextA(deviceA_, async_handler{}, /*UsePrimaryContext=*/true);
-    context ContextB(deviceB_, async_handler{}, /*UsePrimaryContext=*/true);
+  ASSERT_NE(CudaDeviceA, CudaDeviceB);
 
-    CUcontext CudaContextA = ContextA.get_native<backend::cuda>();
-    CUcontext CudaContextB = ContextB.get_native<backend::cuda>();
+  std::cout << "create multiple contexts for multiple devices" << std::endl;
+  context ContextA(deviceA_, async_handler{}, /*UsePrimaryContext=*/true);
+  context ContextB(deviceB_, async_handler{}, /*UsePrimaryContext=*/true);
 
-    ASSERT_NE(CudaContextA, CudaContextB);
-  }
+  CUcontext CudaContextA = ContextA.get_native<backend::cuda>();
+  CUcontext CudaContextB = ContextB.get_native<backend::cuda>();
+
+  ASSERT_NE(CudaContextA, CudaContextB);
 }
+
+INSTANTIATE_TEST_CASE_P(
+    OnCudaPlatform, CudaPrimaryContextTests,
+    ::testing::ValuesIn(pi::getPlatformsWithName("CUDA BACKEND")), );

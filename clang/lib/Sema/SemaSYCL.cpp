@@ -54,6 +54,8 @@ enum KernelInvocationKind {
 const static std::string InitMethodName = "__init";
 const static std::string FinalizeMethodName = "__finalize";
 
+namespace {
+
 /// Various utilities.
 class Util {
 public:
@@ -90,6 +92,8 @@ public:
   static bool matchQualifiedTypeName(const QualType &Ty,
                                      ArrayRef<Util::DeclContextDesc> Scopes);
 };
+
+} // anonymous namespace
 
 // This information is from Section 4.13 of the SYCL spec
 // https://www.khronos.org/registry/SYCL/specs/sycl-1.2.1.pdf
@@ -1454,7 +1458,6 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
 }
 
 void Sema::MarkDevice(void) {
-  // Let's mark all called functions with SYCL Device attribute.
   // Create the call graph so we can detect recursion and check the validity
   // of new operator overrides. Add the kernel function itself in case
   // it is recursive.
@@ -1863,6 +1866,9 @@ static void printArguments(ASTContext &Ctx, raw_ostream &ArgOS,
                            ArrayRef<TemplateArgument> Args,
                            const PrintingPolicy &P);
 
+static std::string getKernelNameTypeString(QualType T, ASTContext &Ctx,
+                                           const PrintingPolicy &TypePolicy);
+
 static void printArgument(ASTContext &Ctx, raw_ostream &ArgOS,
                           TemplateArgument Arg, const PrintingPolicy &P) {
   switch (Arg.getKind()) {
@@ -1888,8 +1894,7 @@ static void printArgument(ASTContext &Ctx, raw_ostream &ArgOS,
     TypePolicy.SuppressTypedefs = true;
     TypePolicy.SuppressTagKeyword = true;
     QualType T = Arg.getAsType();
-    QualType FullyQualifiedType = TypeName::getFullyQualifiedType(T, Ctx, true);
-    ArgOS << FullyQualifiedType.getAsString(TypePolicy);
+    ArgOS << getKernelNameTypeString(T, Ctx, TypePolicy);
     break;
   }
   default:
@@ -1902,6 +1907,10 @@ static void printArguments(ASTContext &Ctx, raw_ostream &ArgOS,
                            const PrintingPolicy &P) {
   for (unsigned I = 0; I < Args.size(); I++) {
     const TemplateArgument &Arg = Args[I];
+
+    // If argument is an empty pack argument, skip printing comma and argument.
+    if (Arg.getKind() == TemplateArgument::ArgKind::Pack && !Arg.pack_size())
+      continue;
 
     if (I != 0)
       ArgOS << ", ";
@@ -1918,36 +1927,36 @@ static void printTemplateArguments(ASTContext &Ctx, raw_ostream &ArgOS,
   ArgOS << ">";
 }
 
-static std::string getKernelNameTypeString(QualType T) {
+static std::string getKernelNameTypeString(QualType T, ASTContext &Ctx,
+                                           const PrintingPolicy &TypePolicy) {
+
+  QualType FullyQualifiedType = TypeName::getFullyQualifiedType(T, Ctx, true);
 
   const CXXRecordDecl *RD = T->getAsCXXRecordDecl();
 
   if (!RD)
-    return getCPPTypeString(T);
+    return eraseAnonNamespace(FullyQualifiedType.getAsString(TypePolicy));
 
   // If kernel name type is a template specialization with enum type
   // template parameters, enumerators in name type string should be
   // replaced  with their underlying value since the enum definition
   // is not visible in integration header.
   if (const auto *TSD = dyn_cast<ClassTemplateSpecializationDecl>(RD)) {
-    LangOptions LO;
-    PrintingPolicy P(LO);
-    P.SuppressTypedefs = true;
     SmallString<64> Buf;
     llvm::raw_svector_ostream ArgOS(Buf);
 
     // Print template class name
-    TSD->printQualifiedName(ArgOS, P, /*WithGlobalNsPrefix*/ true);
+    TSD->printQualifiedName(ArgOS, TypePolicy, /*WithGlobalNsPrefix*/ true);
 
     // Print template arguments substituting enumerators
     ASTContext &Ctx = RD->getASTContext();
     const TemplateArgumentList &Args = TSD->getTemplateArgs();
-    printTemplateArguments(Ctx, ArgOS, Args.asArray(), P);
+    printTemplateArguments(Ctx, ArgOS, Args.asArray(), TypePolicy);
 
     return eraseAnonNamespace(ArgOS.str().str());
   }
 
-  return getCPPTypeString(T);
+  return eraseAnonNamespace(FullyQualifiedType.getAsString(TypePolicy));
 }
 
 void SYCLIntegrationHeader::emit(raw_ostream &O) {
@@ -2066,9 +2075,11 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
         O << "', '" << c;
       O << "'> {\n";
     } else {
-
+      LangOptions LO;
+      PrintingPolicy P(LO);
+      P.SuppressTypedefs = true;
       O << "template <> struct KernelInfo<"
-        << getKernelNameTypeString(K.NameType) << "> {\n";
+        << getKernelNameTypeString(K.NameType, S.getASTContext(), P) << "> {\n";
     }
     O << "  DLL_LOCAL\n";
     O << "  static constexpr const char* getName() { return \"" << K.Name
@@ -2137,8 +2148,9 @@ void SYCLIntegrationHeader::addSpecConstant(StringRef IDName, QualType IDType) {
 }
 
 SYCLIntegrationHeader::SYCLIntegrationHeader(DiagnosticsEngine &_Diag,
-                                             bool _UnnamedLambdaSupport)
-    : Diag(_Diag), UnnamedLambdaSupport(_UnnamedLambdaSupport) {}
+                                             bool _UnnamedLambdaSupport,
+                                             Sema &_S)
+    : Diag(_Diag), UnnamedLambdaSupport(_UnnamedLambdaSupport), S(_S) {}
 
 // -----------------------------------------------------------------------------
 // Utility class methods

@@ -960,9 +960,9 @@ void ARMExpandPseudo::ExpandMOV32BitImm(MachineBasicBlock &MBB,
 // S0-S31 + FPSCR + 8 more bytes (VPR + pad, or just pad)
 static const int CMSE_FP_SAVE_SIZE = 136;
 
-void determineGPRegsToClear(const MachineInstr &MI,
-                            const std::initializer_list<unsigned> &Regs,
-                            SmallVectorImpl<unsigned> &ClearRegs) {
+static void determineGPRegsToClear(const MachineInstr &MI,
+                                   const std::initializer_list<unsigned> &Regs,
+                                   SmallVectorImpl<unsigned> &ClearRegs) {
   SmallVector<unsigned, 4> OpRegs;
   for (const MachineOperand &Op : MI.operands()) {
     if (!Op.isReg() || !Op.isUse())
@@ -2732,24 +2732,6 @@ bool ARMExpandPseudo::ExpandMI(MachineBasicBlock &MBB,
       }
       MIB.cloneMemRefs(MI);
       for (unsigned i = 1; i < MI.getNumOperands(); ++i) MIB.add(MI.getOperand(i));
-      MI.eraseFromParent();
-      return true;
-    }
-    case ARM::LOADDUAL:
-    case ARM::STOREDUAL: {
-      Register PairReg = MI.getOperand(0).getReg();
-
-      MachineInstrBuilder MIB =
-          BuildMI(MBB, MBBI, MI.getDebugLoc(),
-                  TII->get(Opcode == ARM::LOADDUAL ? ARM::LDRD : ARM::STRD))
-              .addReg(TRI->getSubReg(PairReg, ARM::gsub_0),
-                      Opcode == ARM::LOADDUAL ? RegState::Define : 0)
-              .addReg(TRI->getSubReg(PairReg, ARM::gsub_1),
-                      Opcode == ARM::LOADDUAL ? RegState::Define : 0);
-      for (unsigned i = 1; i < MI.getNumOperands(); i++)
-        MIB.add(MI.getOperand(i));
-      MIB.add(predOps(ARMCC::AL));
-      MIB.cloneMemRefs(MI);
       MI.eraseFromParent();
       return true;
     }

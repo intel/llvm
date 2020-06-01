@@ -65,7 +65,7 @@ public:
   template <
       usm::alloc AllocT = AllocKind,
       typename std::enable_if<AllocT == usm::alloc::device, int>::type = 0>
-  void construct(pointer Ptr, const_reference Val) {
+  void construct(pointer, const_reference) {
     throw feature_not_supported(
         "Device pointers do not support construct on host",
         PI_INVALID_OPERATION);
@@ -86,7 +86,7 @@ public:
   template <
       usm::alloc AllocT = AllocKind,
       typename std::enable_if<AllocT == usm::alloc::device, int>::type = 0>
-  void destroy(pointer Ptr) {
+  void destroy(pointer) {
     // This method must be a NOP for device pointers.
   }
 
@@ -104,7 +104,7 @@ public:
   template <
       usm::alloc AllocT = AllocKind,
       typename std::enable_if<AllocT == usm::alloc::device, int>::type = 0>
-  pointer address(reference Val) const {
+  pointer address(reference) const {
     throw feature_not_supported(
         "Device pointers do not support address on host", PI_INVALID_OPERATION);
   }
@@ -119,7 +119,7 @@ public:
   template <
       usm::alloc AllocT = AllocKind,
       typename std::enable_if<AllocT == usm::alloc::device, int>::type = 0>
-  const_pointer address(const_reference Val) const {
+  const_pointer address(const_reference) const {
     throw feature_not_supported(
         "Device pointers do not support address on host", PI_INVALID_OPERATION);
   }
@@ -142,7 +142,7 @@ public:
   ///
   /// \param Ptr is a pointer to memory being deallocated.
   /// \param Size is a number of elements previously passed to allocate.
-  void deallocate(pointer Ptr, size_t Size) {
+  void deallocate(pointer Ptr, size_t) {
     if (Ptr) {
       free(Ptr, MContext);
     }
