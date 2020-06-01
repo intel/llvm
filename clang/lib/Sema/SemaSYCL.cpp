@@ -1906,6 +1906,10 @@ static void printArguments(ASTContext &Ctx, raw_ostream &ArgOS,
   for (unsigned I = 0; I < Args.size(); I++) {
     const TemplateArgument &Arg = Args[I];
 
+    // If argument is an empty pack argument, skip printing comma and argument.
+    if (Arg.getKind() == TemplateArgument::ArgKind::Pack && !Arg.pack_size())
+      continue;
+
     if (I != 0)
       ArgOS << ", ";
 
