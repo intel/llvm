@@ -1043,6 +1043,12 @@ void JSONBuiltinInterfaceEmitter::ExpandTypes() {
 
 void JSONBuiltinInterfaceEmitter::EmitBuiltins() {
   struct FnDesc {
+    FnDesc(const Record *Rec)
+        : IsPure(Rec->getValueAsBit("IsPure")),
+          IsConst(Rec->getValueAsBit("IsConst")),
+          IsConv(Rec->getValueAsBit("IsConv")),
+          IsVariadic(Rec->getValueAsBit("IsVariadic")) {}
+
     bool IsPure;
     bool IsConst;
     bool IsConv;
@@ -1077,11 +1083,7 @@ void JSONBuiltinInterfaceEmitter::EmitBuiltins() {
           return NbTypes == NbOverload || NbTypes == 1;
         }));
         for (size_t idx = 0; idx < NbOverload; idx++) {
-          FnDesc Proto;
-          Proto.IsPure = Overload.first->getValueAsBit("IsPure");
-          Proto.IsConst = Overload.first->getValueAsBit("IsConst");
-          Proto.IsConv = Overload.first->getValueAsBit("IsConv");
-          Proto.IsVariadic = Overload.first->getValueAsBit("IsVariadic");
+          FnDesc Proto(Overload.first);
           for (llvm::ArrayRef<std::string> Types : SignatureTypesIt) {
             Proto.Args.emplace_back(Types[idx >= Types.size() ? 0 : idx]);
           }
