@@ -254,27 +254,21 @@ class JSONBuiltinInterfaceEmitter : public BuiltinNameEmitter {
     // Return a string representing the "base" type (ignores pointers).
     std::string GetBaseTypeAsStr() const;
 
+    enum UnderlyingType { BOOL, INT, UINT, FLOAT, BUILTIN };
+
     llvm::StringRef Name;
-    // True if the underlying type is compiler opaque type.
-    bool IsOpaque;
     // Size of the vector (if applicable).
     int VecWidth;
     // Size of the element in bits.
     int ElementSize;
-    // Is a integer.
-    bool IsInteger;
-    // Is a signed integer.
-    bool IsSigned;
-    // Is a float.
-    bool IsFloat;
+    // The underlying type represented by the record.
+    UnderlyingType ElementType;
     // Is a pointer.
     bool IsPointer;
     // "const" qualifier.
     bool IsConst;
     // "volatile" qualifier.
     bool IsVolatile;
-    // Is a builtin type.
-    bool IsBuiltin;
     std::string AddrSpace;
   };
 
@@ -922,18 +916,23 @@ void BuiltinNameEmitter::EmitQualTypeFinder() {
   OS << "\n} // Bultin2Qual\n";
 }
 
-JSONBuiltinInterfaceEmitter::TypeDesc::TypeDesc(const Record *T) {
-  Name = T->getValueAsString("Name");
-  IsInteger = T->getValueAsBit("IsInteger");
-  IsSigned = T->getValueAsBit("IsSigned");
-  IsFloat = T->getValueAsBit("IsFloat");
-  ElementSize = T->getValueAsInt("ElementSize");
-  VecWidth = T->getValueAsInt("VecWidth");
-  IsConst = T->getValueAsBit("IsConst");
-  IsVolatile = T->getValueAsBit("IsVolatile");
-  IsPointer = T->getValueAsBit("IsPointer");
-  IsBuiltin =
-      !T->isSubClassOf("FundamentalType") && !T->isSubClassOf("VectorType");
+JSONBuiltinInterfaceEmitter::TypeDesc::TypeDesc(const Record *T)
+    : Name(T->getValueAsString("Name")),
+      VecWidth(T->getValueAsInt("VecWidth")),
+      ElementSize(T->getValueAsInt("ElementSize")),
+      IsPointer(T->getValueAsBit("IsPointer")),
+      IsConst(T->getValueAsBit("IsConst")),
+      IsVolatile(T->getValueAsBit("IsVolatile")) {
+  if (T->getValueAsBit("IsInteger")) {
+    if (ElementSize == 1)
+      ElementType = BOOL;
+    else
+      ElementType = T->getValueAsBit("IsSigned") ? INT : UINT;
+  }
+  if (T->getValueAsBit("IsFloat"))
+    ElementType = FLOAT;
+  if (!T->isSubClassOf("FundamentalType") && !T->isSubClassOf("VectorType"))
+    ElementType = BUILTIN;
 
   AddrSpace = StringSwitch<const char *>(T->getValueAsString("AddrSpace"))
                   .Case("clang::LangAS::Default", "")
@@ -945,31 +944,31 @@ JSONBuiltinInterfaceEmitter::TypeDesc::TypeDesc(const Record *T) {
 }
 
 std::string JSONBuiltinInterfaceEmitter::TypeDesc::GetBaseTypeAsStr() const {
-  if (Name == "void") {
+  if (Name == "void")
     return Name.str();
-  }
 
   llvm::SmallString<32> Buffer;
   {
     llvm::raw_svector_ostream TypeStr(Buffer);
     TypeStr << TypePrefix;
-    if (IsBuiltin) {
+    if (VecWidth != 1)
+      TypeStr << "_vec" << VecWidth;
+    switch (ElementType) {
+    case BOOL:
+      TypeStr << "_bool_t";
+      break;
+    case INT:
+      TypeStr << "_int" << ElementSize << "_t";
+      break;
+    case UINT:
+      TypeStr << "_uint" << ElementSize << "_t";
+      break;
+    case FLOAT:
+      TypeStr << "_fp" << ElementSize << "_t";
+      break;
+    case BUILTIN:
       TypeStr << "_" << Name;
-    } else {
-      if (VecWidth != 1)
-        TypeStr << "_vec" << VecWidth;
-      if (IsInteger) {
-        if (ElementSize == 1)
-          TypeStr << "_bool";
-        else
-          TypeStr << (IsSigned ? "_int" : "_uint") << ElementSize;
-      } else {
-        if (IsFloat)
-          TypeStr << "_fp" << ElementSize;
-        else
-          llvm_unreachable("Unknown type");
-      }
-      TypeStr << "_t";
+      break;
     }
   }
 
