@@ -917,8 +917,7 @@ void BuiltinNameEmitter::EmitQualTypeFinder() {
 }
 
 JSONBuiltinInterfaceEmitter::TypeDesc::TypeDesc(const Record *T)
-    : Name(T->getValueAsString("Name")),
-      VecWidth(T->getValueAsInt("VecWidth")),
+    : Name(T->getValueAsString("Name")), VecWidth(T->getValueAsInt("VecWidth")),
       ElementSize(T->getValueAsInt("ElementSize")),
       IsPointer(T->getValueAsBit("IsPointer")),
       IsConst(T->getValueAsBit("IsConst")),
