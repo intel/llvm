@@ -14,7 +14,6 @@
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/defines.hpp>
 #include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/queue.hpp>
 
 #include <memory>
 
@@ -34,6 +33,10 @@ template <typename DataT, int Dims, access::mode AccMode,
           access::target AccTarget, access::placeholder isPlaceholder>
 class accessor;
 
+class queue;
+class device;
+class context;
+
 class interop_handle {
 public:
   /// Receives a SYCL accessor that has been defined as a requirement for the
@@ -52,8 +55,8 @@ public:
 #ifndef __SYCL_DEVICE_ONLY__
     // employ reinterpret_cast instead of static_cast due to cycle in includes
     // involving CL/sycl/accessor.hpp
-    auto *AccBase = const_cast<detail::AccessorBaseHost *>(
-        reinterpret_cast<const detail::AccessorBaseHost *>(&Acc));
+    const auto *AccBase =
+        reinterpret_cast<const detail::AccessorBaseHost *>(&Acc);
     return getMemImpl<BackendName, DataT, Dims, Mode, Target, IsPlh>(
         detail::getSyclObjImpl(*AccBase).get());
 #else
@@ -69,7 +72,7 @@ public:
       Target == access::target::host_buffer,
       typename interop<BackendName,
                        accessor<DataT, Dims, Mode, Target, IsPlh>>::type>::type
-  get_native_mem(const accessor<DataT, Dims, Mode, Target, IsPlh> &Acc) const {
+  get_native_mem(const accessor<DataT, Dims, Mode, Target, IsPlh> &) const {
     throw invalid_object_error("Getting memory object out of host accessor is "
                                "not allowed",
                                PI_INVALID_MEM_OBJECT);
