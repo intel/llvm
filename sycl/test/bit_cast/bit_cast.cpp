@@ -24,7 +24,7 @@ To doBitCast(const From &ValueToConvert) {
     Queue.submit([&](sycl::handler &cgh) {
       auto acc = Buf.template get_access<sycl_write>(cgh);
       cgh.single_task<class BitCastKernel<To, From>>([=]() {
-        acc[0] = sycl::intel::bit_cast<To>(ValueToConvert);
+        acc[0] = sycl::detail::bit_cast<To>(ValueToConvert);
       });
     });
   }

@@ -56,7 +56,7 @@ products.
 == Version
 
 Built On: {docdate} +
-Revision: 2
+Revision: 1
 
 == Contact
 Felipe de Azevedo Piovezan, Intel (felipe 'dot' de 'dot' azevedo 'dot' piovezan 'at' intel 'dot' com)
@@ -70,8 +70,8 @@ This extension is written against the SYCL 1.2.1 specification, Revision 6.
 It is frequently necessary to reinterpret the bits of an object as an object of
 a different data type. Several methods to achieve this conversion exist but
 most result in undefined behavior according to the {cpp} language. This
-extension defines the function `sycl::intel::bit_cast` to convert between data types
-of the same size. The semantics of `sycl::intel::bit_cast` are aligned with those of
+extension defines the function `sycl::bit_cast` to convert between data types
+of the same size. The semantics of `sycl::bit_cast` are aligned with those of
 `std::bit_cast`, which will be introduced by the {cpp}20 language (p0476r2).
 
 == Modifications of SYCL 1.2.1 Specification
@@ -81,17 +81,15 @@ of the same size. The semantics of `sycl::intel::bit_cast` are aligned with thos
 ==== Add Section 4.14.1 Reinterpreting Data As Another Type
 
 Reinterpreting the bits of an object as an object of a different data type can
-be accomplished with the `sycl::intel::bit_cast` function. This function has the same
+be accomplished with the `sycl::bit_cast` function. This function has the same
 specification as `std::bit_cast`, defined by {cpp}20.
 
-[source,c++,`sycl::intel::bit_cast`,linenums]
+[source,c++,`sycl::bit_cast`,linenums]
 ----
 namespace cl {
 namespace sycl {
-namespace intel {
   template<class To, class From>
   constexpr To bit_cast(const From& from) noexcept;
-}
 }
 }
 ----
@@ -114,7 +112,6 @@ None.
 |========================================
 |Rev|Date|Author|Changes
 |1|2020-04-14|Felipe de Azevedo Piovezan|*Initial public working draft*
-|2|2020-05-28|Dmitry Vodopyanov|*Move extension to `cl::sycl::intel` namespace*
 |========================================
 
 //************************************************************************
