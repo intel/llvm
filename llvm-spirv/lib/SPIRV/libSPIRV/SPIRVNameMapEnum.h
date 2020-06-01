@@ -119,6 +119,7 @@ template <> inline void SPIRVMap<ExecutionMode, std::string>::init() {
   add(ExecutionModeOutputTriangleStrip, "OutputTriangleStrip");
   add(ExecutionModeVecTypeHint, "VecTypeHint");
   add(ExecutionModeContractionOff, "ContractionOff");
+  add(ExecutionModeSubgroupSize, "SubgroupSize");
   add(ExecutionModeMaxWorkgroupSizeINTEL, "MaxWorkgroupSizeINTEL");
   add(ExecutionModeNoGlobalOffsetINTEL, "NoGlobalOffsetINTEL");
   add(ExecutionModeMaxWorkDimINTEL, "MaxWorkDimINTEL");
@@ -495,7 +496,7 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilityStorageImageWriteWithoutFormat,
       "StorageImageWriteWithoutFormat");
   add(CapabilityMultiViewport, "MultiViewport");
-  add(CapabilitySubgroupDispatch, "CapabilitySubgroupDispatch");
+  add(CapabilitySubgroupDispatch, "SubgroupDispatch");
   add(CapabilityDenormPreserve, "DenormPreserve");
   add(CapabilityDenormFlushToZero, "DenormFlushToZero");
   add(CapabilitySignedZeroInfNanPreserve, "SignedZeroInfNanPreserve");
