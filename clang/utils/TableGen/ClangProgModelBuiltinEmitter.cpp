@@ -997,10 +997,10 @@ void JSONBuiltinInterfaceEmitter::ExpandType(const Record *Ty) {
 
   bool IsCompound = Ty->isSubClassOf("CompoundType");
   if (IsCompound) {
-    auto *EltRecord = Ty->getValueAsDef("ElementType");
+    const Record *EltRecord = Ty->getValueAsDef("ElementType");
     ExpandType(EltRecord);
     Expansion = ExpandedTypes[EltRecord];
-    for (auto &TypeStr : Expansion) {
+    for (std::string &TypeStr : Expansion) {
       if (TypeDesc.IsPointer) {
         if (TypeDesc.IsConst)
           TypeStr += " const";
@@ -1017,10 +1017,12 @@ void JSONBuiltinInterfaceEmitter::ExpandType(const Record *Ty) {
 
   if (Ty->isSubClassOf("GenericType")) {
     assert(!Expansion.size() && "Types already expanded");
-    auto NVec = Ty->getValueAsDef("VectorList")->getValueAsListOfInts("List");
-    auto NTypes = Ty->getValueAsDef("TypeList")->getValueAsListOfDefs("List");
-    for (auto SubT : NTypes) {
-      for (auto VecWidth : NVec) {
+    std::vector<long int> NVec =
+        Ty->getValueAsDef("VectorList")->getValueAsListOfInts("List");
+    std::vector<Record *> NTypes =
+        Ty->getValueAsDef("TypeList")->getValueAsListOfDefs("List");
+    for (const Record *SubT : NTypes) {
+      for (long int VecWidth : NVec) {
         JSONBuiltinInterfaceEmitter::TypeDesc TypeDesc(SubT);
         TypeDesc.VecWidth = VecWidth;
         Expansion.emplace_back(TypeDesc.GetBaseTypeAsStr());
@@ -1034,7 +1036,7 @@ void JSONBuiltinInterfaceEmitter::ExpandType(const Record *Ty) {
 }
 
 void JSONBuiltinInterfaceEmitter::ExpandTypes() {
-  for (const auto *T : Records.getAllDerivedDefinitions("Type")) {
+  for (const Record *T : Records.getAllDerivedDefinitions("Type")) {
     ExpandType(T);
   }
 }
@@ -1052,10 +1054,11 @@ void JSONBuiltinInterfaceEmitter::EmitBuiltins() {
   // For each function names, gather the list of overloads
   for (const auto &SLM : SignatureListMap) {
     for (const auto &Name : SLM.second.Names) {
-      auto &PrototypeList = NameToProtoList[Name];
+      SmallVectorImpl<FnDesc> &PrototypeList = NameToProtoList[Name];
 
       for (const auto &Overload : SLM.second.Signatures) {
-        auto Signature = Overload.first->getValueAsListOfDefs("Signature");
+        std::vector<Record *> Signature =
+            Overload.first->getValueAsListOfDefs("Signature");
         auto SignatureTypesIt = llvm::map_range(
             Signature, [this](const Record *Ty) -> llvm::ArrayRef<std::string> {
               return ExpandedTypes[Ty];
@@ -1079,7 +1082,7 @@ void JSONBuiltinInterfaceEmitter::EmitBuiltins() {
           Proto.IsConst = Overload.first->getValueAsBit("IsConst");
           Proto.IsConv = Overload.first->getValueAsBit("IsConv");
           Proto.IsVariadic = Overload.first->getValueAsBit("IsVariadic");
-          for (const auto &Types : SignatureTypesIt) {
+          for (llvm::ArrayRef<std::string> Types : SignatureTypesIt) {
             Proto.Args.emplace_back(Types[idx >= Types.size() ? 0 : idx]);
           }
           PrototypeList.emplace_back(std::move(Proto));
@@ -1093,7 +1096,7 @@ void JSONBuiltinInterfaceEmitter::EmitBuiltins() {
       NameToProtoList.keys(), OS,
       [&](llvm::StringRef FnName) {
         OS << "  \"" << FnName << "\" : [\n";
-        auto &PrototypeList = NameToProtoList[FnName];
+        SmallVectorImpl<FnDesc> &PrototypeList = NameToProtoList[FnName];
         // emit ["ty1", "ty2", "ty3"], ["pure"]
         llvm::interleave(
             PrototypeList, OS,
