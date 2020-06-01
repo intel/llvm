@@ -573,8 +573,9 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
   // Get number of devices supporting L0
   uint32_t ZeDeviceCount = 0;
   const bool AskingForGPU = (DeviceType & PI_DEVICE_TYPE_GPU);
+  const bool AskingForDefault = (DeviceType == PI_DEVICE_TYPE_DEFAULT);
   ZE_CALL(zeDeviceGet(ZeDriver, &ZeDeviceCount, nullptr));
-  if (ZeDeviceCount == 0 || !AskingForGPU) {
+  if (ZeDeviceCount == 0 || !(AskingForGPU || AskingForDefault)) {
     if (NumDevices)
       *NumDevices = 0;
     return PI_SUCCESS;
@@ -2122,15 +2123,18 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   if (auto Res = Queue->Context->Device->createCommandList(&ZeCommandList))
     return Res;
 
-  auto Res = piEventCreate(Kernel->Program->Context, Event);
-  if (Res != PI_SUCCESS)
-    return Res;
+  ze_event_handle_t ZeEvent = nullptr;
+  if (Event) {
+    auto Res = piEventCreate(Kernel->Program->Context, Event);
+    if (Res != PI_SUCCESS)
+      return Res;
 
-  (*Event)->Queue = Queue;
-  (*Event)->CommandType = PI_COMMAND_TYPE_NDRANGE_KERNEL;
-  (*Event)->ZeCommandList = ZeCommandList;
+    (*Event)->Queue = Queue;
+    (*Event)->CommandType = PI_COMMAND_TYPE_NDRANGE_KERNEL;
+    (*Event)->ZeCommandList = ZeCommandList;
 
-  ze_event_handle_t ZeEvent = (*Event)->ZeEvent;
+    ZeEvent = (*Event)->ZeEvent;
+  }
 
   ze_event_handle_t *ZeEventWaitList =
       _pi_event::createZeEventList(NumEventsInWaitList, EventWaitList);
@@ -2176,6 +2180,7 @@ pi_result piEventCreate(pi_context Context, pi_event *RetEvent) {
   ZE_CALL(zeEventCreate(ZeEventPool, &ZeEventDesc, &ZeEvent));
 
   try {
+    assert(RetEvent);
     *RetEvent =
         new _pi_event(ZeEvent, ZeEventPool, Context, PI_COMMAND_TYPE_USER);
   } catch (const std::bad_alloc &) {
@@ -2537,15 +2542,18 @@ enqueueMemCopyHelper(pi_command_type CommandType, pi_queue Queue, void *Dst,
   if (auto Res = Queue->Context->Device->createCommandList(&ZeCommandList))
     return Res;
 
-  auto Res = piEventCreate(Queue->Context, Event);
-  if (Res != PI_SUCCESS)
-    return Res;
+  ze_event_handle_t ZeEvent = nullptr;
+  if (Event) {
+    auto Res = piEventCreate(Queue->Context, Event);
+    if (Res != PI_SUCCESS)
+      return Res;
 
-  (*Event)->Queue = Queue;
-  (*Event)->CommandType = CommandType;
-  (*Event)->ZeCommandList = ZeCommandList;
+    (*Event)->Queue = Queue;
+    (*Event)->CommandType = CommandType;
+    (*Event)->ZeCommandList = ZeCommandList;
 
-  ze_event_handle_t ZeEvent = (*Event)->ZeEvent;
+    ZeEvent = (*Event)->ZeEvent;
+  }
 
   ze_event_handle_t *ZeEventWaitList =
       _pi_event::createZeEventList(NumEventsInWaitList, EventWaitList);
@@ -2592,15 +2600,18 @@ static pi_result enqueueMemCopyRectHelper(
   if (auto Res = Queue->Context->Device->createCommandList(&ZeCommandList))
     return Res;
 
-  auto Res = piEventCreate(Queue->Context, Event);
-  if (Res != PI_SUCCESS)
-    return Res;
+  ze_event_handle_t ZeEvent = nullptr;
+  if (Event) {
+    auto Res = piEventCreate(Queue->Context, Event);
+    if (Res != PI_SUCCESS)
+      return Res;
 
-  (*Event)->Queue = Queue;
-  (*Event)->CommandType = CommandType;
-  (*Event)->ZeCommandList = ZeCommandList;
+    (*Event)->Queue = Queue;
+    (*Event)->CommandType = CommandType;
+    (*Event)->ZeCommandList = ZeCommandList;
 
-  ze_event_handle_t ZeEvent = (*Event)->ZeEvent;
+    ZeEvent = (*Event)->ZeEvent;
+  }
 
   ze_event_handle_t *ZeEventWaitList =
       _pi_event::createZeEventList(NumEventsInWaitList, EventWaitList);
@@ -2749,15 +2760,18 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
   if (auto Res = Queue->Context->Device->createCommandList(&ZeCommandList))
     return Res;
 
-  auto Res = piEventCreate(Queue->Context, Event);
-  if (Res != PI_SUCCESS)
-    return Res;
+  ze_event_handle_t ZeEvent = nullptr;
+  if (Event) {
+    auto Res = piEventCreate(Queue->Context, Event);
+    if (Res != PI_SUCCESS)
+      return Res;
 
-  (*Event)->Queue = Queue;
-  (*Event)->CommandType = CommandType;
-  (*Event)->ZeCommandList = ZeCommandList;
+    (*Event)->Queue = Queue;
+    (*Event)->CommandType = CommandType;
+    (*Event)->ZeCommandList = ZeCommandList;
 
-  ze_event_handle_t ZeEvent = (*Event)->ZeEvent;
+    ZeEvent = (*Event)->ZeEvent;
+  }
 
   ze_event_handle_t *ZeEventWaitList =
       _pi_event::createZeEventList(NumEventsInWaitList, EventWaitList);
@@ -2824,13 +2838,18 @@ piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer, pi_bool BlockingMap,
   if (auto Res = Queue->Context->Device->createCommandList(&ZeCommandList))
     return Res;
 
-  auto Res = piEventCreate(Queue->Context, Event);
-  if (Res != PI_SUCCESS)
-    return Res;
+  ze_event_handle_t ZeEvent = nullptr;
+  if (Event) {
+    auto Res = piEventCreate(Queue->Context, Event);
+    if (Res != PI_SUCCESS)
+      return Res;
 
-  (*Event)->Queue = Queue;
-  (*Event)->CommandType = PI_COMMAND_TYPE_MEM_BUFFER_MAP;
-  (*Event)->ZeCommandList = ZeCommandList;
+    (*Event)->Queue = Queue;
+    (*Event)->CommandType = PI_COMMAND_TYPE_MEM_BUFFER_MAP;
+    (*Event)->ZeCommandList = ZeCommandList;
+
+    ZeEvent = (*Event)->ZeEvent;
+  }
 
   ze_event_handle_t *ZeEventWaitList =
       _pi_event::createZeEventList(NumEventsInWaitList, EventWaitList);
@@ -2865,7 +2884,6 @@ piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer, pi_bool BlockingMap,
                                  RetMap));
   }
 
-  ze_event_handle_t ZeEvent = (*Event)->ZeEvent;
   ZE_CALL(zeCommandListAppendMemoryCopy(
       ZeCommandList, *RetMap, pi_cast<char *>(Buffer->getZeHandle()) + Offset,
       Size, ZeEvent));
@@ -2891,13 +2909,18 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
   // of unmap completion.
   assert(Event);
 
-  auto Res = piEventCreate(Queue->Context, Event);
-  if (Res != PI_SUCCESS)
-    return Res;
+  ze_event_handle_t ZeEvent = nullptr;
+  if (Event) {
+    auto Res = piEventCreate(Queue->Context, Event);
+    if (Res != PI_SUCCESS)
+      return Res;
 
-  (*Event)->Queue = Queue;
-  (*Event)->CommandType = PI_COMMAND_TYPE_MEM_BUFFER_UNMAP;
-  (*Event)->ZeCommandList = ZeCommandList;
+    (*Event)->Queue = Queue;
+    (*Event)->CommandType = PI_COMMAND_TYPE_MEM_BUFFER_UNMAP;
+    (*Event)->ZeCommandList = ZeCommandList;
+
+    ZeEvent = (*Event)->ZeEvent;
+  }
 
   ze_event_handle_t *ZeEventWaitList =
       _pi_event::createZeEventList(NumEventsInWaitList, EventWaitList);
@@ -2914,7 +2937,6 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
   if (pi_result Res = MemObj->removeMapping(MappedPtr, MapInfo))
     return Res;
 
-  ze_event_handle_t ZeEvent = (*Event)->ZeEvent;
   ZE_CALL(zeCommandListAppendMemoryCopy(
       ZeCommandList, pi_cast<char *>(MemObj->getZeHandle()) + MapInfo.Offset,
       MappedPtr, MapInfo.Size, ZeEvent));
@@ -2998,15 +3020,18 @@ enqueueMemImageCommandHelper(pi_command_type CommandType, pi_queue Queue,
   if (auto Res = Queue->Context->Device->createCommandList(&ZeCommandList))
     return Res;
 
-  auto Res = piEventCreate(Queue->Context, Event);
-  if (Res != PI_SUCCESS)
-    return Res;
+  ze_event_handle_t ZeEvent = nullptr;
+  if (Event) {
+    auto Res = piEventCreate(Queue->Context, Event);
+    if (Res != PI_SUCCESS)
+      return Res;
 
-  (*Event)->Queue = Queue;
-  (*Event)->CommandType = CommandType;
-  (*Event)->ZeCommandList = ZeCommandList;
+    (*Event)->Queue = Queue;
+    (*Event)->CommandType = CommandType;
+    (*Event)->ZeCommandList = ZeCommandList;
 
-  ze_event_handle_t ZeEvent = (*Event)->ZeEvent;
+    ZeEvent = (*Event)->ZeEvent;
+  }
 
   ze_event_handle_t *ZeEventWaitList =
       _pi_event::createZeEventList(NumEventsInWaitList, EventWaitList);
@@ -3349,13 +3374,18 @@ pi_result piextUSMEnqueuePrefetch(pi_queue Queue, const void *Ptr, size_t Size,
     return Res;
 
   // TODO: do we need to create a unique command type for this?
-  auto Res = piEventCreate(Queue->Context, Event);
-  if (Res != PI_SUCCESS)
-    return Res;
+  ze_event_handle_t ZeEvent = nullptr;
+  if (Event) {
+    auto Res = piEventCreate(Queue->Context, Event);
+    if (Res != PI_SUCCESS)
+      return Res;
 
-  (*Event)->Queue = Queue;
-  (*Event)->CommandType = PI_COMMAND_TYPE_USER;
-  (*Event)->ZeCommandList = ZeCommandList;
+    (*Event)->Queue = Queue;
+    (*Event)->CommandType = PI_COMMAND_TYPE_USER;
+    (*Event)->ZeCommandList = ZeCommandList;
+
+    ZeEvent = (*Event)->ZeEvent;
+  }
 
   ze_event_handle_t *ZeEventWaitList =
       _pi_event::createZeEventList(NumEventsInWaitlist, EventsWaitlist);
@@ -3368,7 +3398,7 @@ pi_result piextUSMEnqueuePrefetch(pi_queue Queue, const void *Ptr, size_t Size,
 
   // TODO: L0 does not have a completion "event" with the prefetch API,
   // so manually add command to signal our event.
-  ZE_CALL(zeCommandListAppendSignalEvent(ZeCommandList, (*Event)->ZeEvent));
+  ZE_CALL(zeCommandListAppendSignalEvent(ZeCommandList, ZeEvent));
 
   if (auto Res = Queue->executeCommandList(ZeCommandList, false))
     return Res;
@@ -3433,20 +3463,25 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
     return Res;
 
   // TODO: do we need to create a unique command type for this?
-  auto Res = piEventCreate(Queue->Context, Event);
-  if (Res != PI_SUCCESS)
-    return Res;
+  ze_event_handle_t ZeEvent = nullptr;
+  if (Event) {
+    auto Res = piEventCreate(Queue->Context, Event);
+    if (Res != PI_SUCCESS)
+      return Res;
 
-  (*Event)->Queue = Queue;
-  (*Event)->CommandType = PI_COMMAND_TYPE_USER;
-  (*Event)->ZeCommandList = ZeCommandList;
+    (*Event)->Queue = Queue;
+    (*Event)->CommandType = PI_COMMAND_TYPE_USER;
+    (*Event)->ZeCommandList = ZeCommandList;
+
+    ZeEvent = (*Event)->ZeEvent;
+  }
 
   ZE_CALL(zeCommandListAppendMemAdvise(
       ZeCommandList, Queue->Context->Device->ZeDevice, Ptr, Length, ZeAdvice));
 
   // TODO: L0 does not have a completion "event" with the advise API,
   // so manually add command to signal our event.
-  ZE_CALL(zeCommandListAppendSignalEvent(ZeCommandList, (*Event)->ZeEvent));
+  ZE_CALL(zeCommandListAppendSignalEvent(ZeCommandList, ZeEvent));
 
   Queue->executeCommandList(ZeCommandList, false);
   return PI_SUCCESS;

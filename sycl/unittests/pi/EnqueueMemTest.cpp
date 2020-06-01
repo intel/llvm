@@ -50,10 +50,11 @@ protected:
                   _context, _device, 0, &_queue)),
               PI_SUCCESS);
 
-    ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piMemBufferCreate>(
-                  _context, 0, _numElementsX * _numElementsY * sizeof(pi_int32),
-                  nullptr, &_mem)),
-              PI_SUCCESS);
+    ASSERT_EQ(
+        (plugin.call_nocheck<detail::PiApiKind::piMemBufferCreate>(
+            _context, PI_MEM_FLAGS_ACCESS_RW,
+            _numElementsX * _numElementsY * sizeof(pi_int32), nullptr, &_mem)),
+        PI_SUCCESS);
   }
 
   void TearDown() override {
@@ -84,9 +85,12 @@ protected:
                   0, nullptr, nullptr)),
               PI_SUCCESS);
 
+    pi_event event;
     ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piEnqueueMemBufferFill>(
                   _queue, _mem, &pattern, sizeof(T), 0, sizeof(inValues), 0,
-                  nullptr, nullptr)),
+                  nullptr, &event)),
+              PI_SUCCESS);
+    ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piEventsWait>(1, &event)),
               PI_SUCCESS);
 
     T outValues[_numElementsX] = {};
