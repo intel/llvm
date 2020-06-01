@@ -1577,8 +1577,8 @@ void TypePrinter::printAttributedAfter(const AttributedType *T,
 
   case attr::OpenCLPrivateAddressSpace:
   case attr::OpenCLGlobalAddressSpace:
-  case attr::OpenCLUSMDeviceAddressSpace:
-  case attr::OpenCLUSMHostAddressSpace:
+  case attr::OpenCLGlobalDeviceAddressSpace:
+  case attr::OpenCLGlobalHostAddressSpace:
   case attr::OpenCLLocalAddressSpace:
   case attr::OpenCLConstantAddressSpace:
   case attr::OpenCLGenericAddressSpace:
@@ -1882,10 +1882,10 @@ std::string Qualifiers::getAddrSpaceAsString(LangAS AS) {
     return "__constant";
   case LangAS::opencl_generic:
     return "__generic";
-  case LangAS::opencl_usm_device:
-    return "__usm_device";
-  case LangAS::opencl_usm_host:
-    return "__usm_host";
+  case LangAS::opencl_global_device:
+    return "__global_device";
+  case LangAS::opencl_global_host:
+    return "__global_host";
   case LangAS::cuda_device:
     return "__device__";
   case LangAS::cuda_constant:

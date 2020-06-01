@@ -14,8 +14,8 @@ void tmpl(T *t){}
 
 void usages() {
   __attribute__((opencl_global)) int *GLOB;
-  __attribute__((opencl_usm_device)) int *USMDEV;
-  __attribute__((opencl_usm_host)) int *USMHOST;
+  __attribute__((opencl_global_device)) int *GLOBDEV;
+  __attribute__((opencl_global_host)) int *GLOBHOST;
   __attribute__((opencl_private)) int *PRIV;
   __attribute__((opencl_local)) int *LOC;
   int *NoAS;
@@ -23,13 +23,13 @@ void usages() {
   bar(*GLOB);
   bar2(*GLOB);
 
-  bar(*USMDEV);
-  bar2(*USMDEV);
-  bar3(*USMDEV);
+  bar(*GLOBDEV);
+  bar2(*GLOBDEV);
+  bar3(*GLOBDEV);
 
-  bar(*USMHOST);
-  bar2(*USMHOST);
-  bar3(*USMHOST);
+  bar(*GLOBHOST);
+  bar2(*GLOBHOST);
+  bar3(*GLOBHOST);
 
   bar(*PRIV);
   bar2(*PRIV);
@@ -42,12 +42,12 @@ void usages() {
 
   foo(GLOB);
   foo2(GLOB);
-  foo(USMDEV);
-  foo2(USMDEV);
-  foo3(USMDEV);
-  foo(USMDEV);
-  foo2(USMHOST);
-  foo3(USMHOST);
+  foo(GLOBDEV);
+  foo2(GLOBDEV);
+  foo3(GLOBDEV);
+  foo(GLOBDEV);
+  foo2(GLOBHOST);
+  foo3(GLOBHOST);
   foo(PRIV);
   foo2(PRIV);
   foo(NoAS);
@@ -56,18 +56,18 @@ void usages() {
   foo2(LOC);
 
   tmpl(GLOB);
-  tmpl(USMDEV);
-  tmpl(USMHOST);
+  tmpl(GLOBDEV);
+  tmpl(GLOBHOST);
   tmpl(PRIV);
   tmpl(NoAS);
   tmpl(LOC);
 
   (void)static_cast<int*>(GLOB);
   (void)static_cast<void*>(GLOB);
-  (void)static_cast<int *>(USMDEV);
-  (void)static_cast<void *>(USMDEV);
-  (void)static_cast<int *>(USMHOST);
-  (void)static_cast<void *>(USMHOST);
+  (void)static_cast<int *>(GLOBDEV);
+  (void)static_cast<void *>(GLOBDEV);
+  (void)static_cast<int *>(GLOBHOST);
+  (void)static_cast<void *>(GLOBHOST);
   // FIXME: determine if we can warn on the below conversions.
   int *i = GLOB;
   void *v = GLOB;

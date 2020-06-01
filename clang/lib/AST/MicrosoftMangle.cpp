@@ -1823,10 +1823,10 @@ void MicrosoftCXXNameMangler::mangleAddressSpaceType(QualType T,
     case LangAS::opencl_global:
       Extra.mangleSourceName("_ASCLglobal");
       break;
-    case LangAS::opencl_usm_device:
+    case LangAS::opencl_global_device:
       Extra.mangleSourceName("_ASCLUSMDevice");
       break;
-    case LangAS::opencl_usm_host:
+    case LangAS::opencl_global_host:
       Extra.mangleSourceName("_ASCLUSMHost");
       break;
     case LangAS::opencl_local:

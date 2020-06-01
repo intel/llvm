@@ -1294,13 +1294,13 @@ def OpenCLGlobalAddressSpace : TypeAttr {
   let Documentation = [OpenCLAddressSpaceGlobalDocs];
 }
 
-def OpenCLUSMDeviceAddressSpace : TypeAttr {
-  let Spellings = [Clang<"opencl_usm_device">];
+def OpenCLGlobalDeviceAddressSpace : TypeAttr {
+  let Spellings = [Clang<"opencl_global_device">];
   let Documentation = [OpenCLUSMAddressSpacesDocs];
 }
 
-def OpenCLUSMHostAddressSpace : TypeAttr {
-  let Spellings = [Clang<"opencl_usm_host">];
+def OpenCLGlobalHostAddressSpace : TypeAttr {
+  let Spellings = [Clang<"opencl_global_host">];
   let Documentation = [OpenCLUSMAddressSpacesDocs];
 }
 

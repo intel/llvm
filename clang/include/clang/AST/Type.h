@@ -480,10 +480,10 @@ public:
            // Otherwise in OpenCLC v2.0 s6.5.5: every address space except
            // for __constant can be used as __generic.
            (A == LangAS::opencl_generic && B != LangAS::opencl_constant) ||
-           // For USM extension we define usm_device and usm_host address
+           // For USM extension we define global_device and global_host address
            // spaces, which are a subset of __global.
-           (A == LangAS::opencl_global &&
-            (B == LangAS::opencl_usm_device || B == LangAS::opencl_usm_host)) ||
+           (A == LangAS::opencl_global && (B == LangAS::opencl_global_device ||
+                                           B == LangAS::opencl_global_host)) ||
            // Consider pointer size address spaces to be equivalent to default.
            ((isPtrSizeAddressSpace(A) || A == LangAS::Default) &&
             (isPtrSizeAddressSpace(B) || B == LangAS::Default));
@@ -498,8 +498,8 @@ public:
             (other.getAddressSpace() == LangAS::opencl_private ||
              other.getAddressSpace() == LangAS::opencl_local ||
              other.getAddressSpace() == LangAS::opencl_global ||
-             other.getAddressSpace() == LangAS::opencl_usm_device ||
-             other.getAddressSpace() == LangAS::opencl_usm_host));
+             other.getAddressSpace() == LangAS::opencl_global_device ||
+             other.getAddressSpace() == LangAS::opencl_global_host));
   }
 
   /// Determines if these qualifiers compatibly include another set.

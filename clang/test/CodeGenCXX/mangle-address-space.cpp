@@ -43,9 +43,9 @@ void ocl_f0(char __private *p) { }
 
 struct ocl_OpaqueType;
 typedef ocl_OpaqueType __global * ocl_OpaqueTypePtr;
-typedef ocl_OpaqueType __attribute__((opencl_usm_host)) * ocl_OpaqueTypePtrH;
+typedef ocl_OpaqueType __attribute__((opencl_global_host)) * ocl_OpaqueTypePtrH;
 typedef ocl_OpaqueType
-    __attribute__((opencl_usm_device)) *
+    __attribute__((opencl_global_device)) *
     ocl_OpaqueTypePtrD;
 
 // CHECKOCL-LABEL: define {{.*}}void @_Z6ocl_f0PU8CLglobal14ocl_OpaqueType

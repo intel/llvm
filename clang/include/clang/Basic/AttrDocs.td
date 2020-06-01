@@ -3547,12 +3547,12 @@ scope) variables and static local variable as well.
 
 def OpenCLUSMAddressSpacesDocs : Documentation {
   let Category = DocOpenCLAddressSpaces;
-  let Heading = "[[clang::opencl_usm_device]], [[clang::opencl_usm_host]]";
+  let Heading = "[[clang::opencl_global_device]], [[clang::opencl_global_host]]";
   let Content = [{
-The (usm_device) and (usm_host) address space attributes specify that an object
-is allocated in global memory on the device/host. It helps distinguishing USM
-pointers that access device memory and accessors that access global memory from
-those that access host memory.
+The (global_device) and (global_host) address space attributes specify that an
+object is allocated in global memory on the device/host. It helps distinguishing
+USM pointers that access device memory and accessors that access global memory
+from those that access host memory.
   }];
 }
 

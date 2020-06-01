@@ -925,8 +925,8 @@ static const LangASMap *getAddressSpaceMap(const TargetInfo &T,
         2,  // opencl_constant
         0,  // opencl_private
         4,  // opencl_generic
-        11, // opencl_usm_device
-        12, // opencl_usm_host
+        11, // opencl_global_device
+        12, // opencl_global_host
         5,  // cuda_device
         6,  // cuda_constant
         7,  // cuda_shared
