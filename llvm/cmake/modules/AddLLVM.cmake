@@ -821,6 +821,10 @@ macro(add_llvm_executable name)
 
   if(NOT ARG_NO_INSTALL_RPATH)
     llvm_setup_rpath(${name})
+  elseif (LLVM_LOCAL_RPATH)
+    set_target_properties(${name} PROPERTIES
+                          BUILD_WITH_INSTALL_RPATH On
+                          INSTALL_RPATH "${LLVM_LOCAL_RPATH}")
   endif()
 
   if(DEFINED windows_resource_file)
@@ -2114,7 +2118,13 @@ function(find_first_existing_vc_file path out_var)
         get_filename_component(git_dir ${git_output} ABSOLUTE BASE_DIR ${path})
         # Some branchless cases (e.g. 'repo') may not yet have .git/logs/HEAD
         if (NOT EXISTS "${git_dir}/logs/HEAD")
-          file(WRITE "${git_dir}/logs/HEAD" "")
+          execute_process(COMMAND ${CMAKE_COMMAND} -E touch HEAD
+            WORKING_DIRECTORY "${git_dir}/logs"
+            RESULT_VARIABLE touch_head_result
+            ERROR_QUIET)
+          if (NOT touch_head_result EQUAL 0)
+            return()
+          endif()
         endif()
         set(${out_var} "${git_dir}/logs/HEAD" PARENT_SCOPE)
       endif()

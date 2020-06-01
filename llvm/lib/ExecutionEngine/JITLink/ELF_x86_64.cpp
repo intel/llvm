@@ -83,8 +83,6 @@ private:
 
       for (auto SymRef : *Symbols) {
         Optional<StringRef> Name;
-        unsigned char Binding;
-        uint64_t Value;
         uint64_t Size = 0;
 
         // FIXME: Read size.
@@ -95,17 +93,15 @@ private:
         } else {
           return NameOrErr.takeError();
         }
-        Binding = SymRef.getBinding();
-        Value = SymRef.getValue();
         LLVM_DEBUG({
           dbgs() << "  ";
           if (!Name)
             dbgs() << "<anonymous symbol>";
           else
             dbgs() << *Name;
-          dbgs() << ": value = " << formatv("{0:x16}", Value)
+          dbgs() << ": value = " << formatv("{0:x16}", SymRef.getValue())
                  << ", type = " << formatv("{0:x2}", SymRef.getType())
-                 << ", binding = " << Binding
+                 << ", binding = " << SymRef.getBinding()
                  << ", size =" << Size;
           dbgs() << "\n";
         });
@@ -347,6 +343,9 @@ void jitLink_ELF_x86_64(std::unique_ptr<JITLinkContext> Ctx) {
     Config.PrePrunePasses.push_back(std::move(MarkLive));
   else
     Config.PrePrunePasses.push_back(markAllSymbolsLive);
+
+  if (auto Err = Ctx->modifyPassConfig(TT, Config))
+    return Ctx->notifyFailed(std::move(Err));
 
   ELFJITLinker_x86_64::link(std::move(Ctx), std::move(Config));
 }

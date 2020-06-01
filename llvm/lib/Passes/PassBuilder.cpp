@@ -40,6 +40,7 @@
 #include "llvm/Analysis/LoopCacheAnalysis.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/LoopNestAnalysis.h"
+#include "llvm/Analysis/ML/InlineFeaturesAnalysis.h"
 #include "llvm/Analysis/MemoryDependenceAnalysis.h"
 #include "llvm/Analysis/MemorySSA.h"
 #include "llvm/Analysis/ModuleSummaryAnalysis.h"
@@ -1072,11 +1073,11 @@ ModulePassManager PassBuilder::buildModuleOptimizationPipeline(
   if (PTO.Coroutines)
     OptimizePM.addPass(CoroCleanupPass());
 
-  for (auto &C : OptimizerLastEPCallbacks)
-    C(OptimizePM, Level);
-
   // Add the core optimizing pipeline.
   MPM.addPass(createModuleToFunctionPassAdaptor(std::move(OptimizePM)));
+
+  for (auto &C : OptimizerLastEPCallbacks)
+    C(MPM, Level);
 
   if (PTO.CallGraphProfile)
     MPM.addPass(CGProfilePass());

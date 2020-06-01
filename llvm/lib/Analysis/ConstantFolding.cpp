@@ -118,8 +118,8 @@ Constant *FoldBitCast(Constant *C, Type *DestTy, const DataLayout &DL) {
       // to simplify things.
       if (SrcEltTy->isFloatingPointTy()) {
         unsigned FPWidth = SrcEltTy->getPrimitiveSizeInBits();
-        Type *SrcIVTy =
-          VectorType::get(IntegerType::get(C->getContext(), FPWidth), NumSrcElts);
+        auto *SrcIVTy = FixedVectorType::get(
+            IntegerType::get(C->getContext(), FPWidth), NumSrcElts);
         // Ask IR to do the conversion now that #elts line up.
         C = ConstantExpr::getBitCast(C, SrcIVTy);
       }
@@ -175,8 +175,8 @@ Constant *FoldBitCast(Constant *C, Type *DestTy, const DataLayout &DL) {
   if (DstEltTy->isFloatingPointTy()) {
     // Fold to an vector of integers with same size as our FP type.
     unsigned FPWidth = DstEltTy->getPrimitiveSizeInBits();
-    Type *DestIVTy =
-      VectorType::get(IntegerType::get(C->getContext(), FPWidth), NumDstElt);
+    auto *DestIVTy = FixedVectorType::get(
+        IntegerType::get(C->getContext(), FPWidth), NumDstElt);
     // Recursively handle this integer conversion, if possible.
     C = FoldBitCast(C, DestIVTy, DL);
 
@@ -188,8 +188,8 @@ Constant *FoldBitCast(Constant *C, Type *DestTy, const DataLayout &DL) {
   // it to integer first.
   if (SrcEltTy->isFloatingPointTy()) {
     unsigned FPWidth = SrcEltTy->getPrimitiveSizeInBits();
-    Type *SrcIVTy =
-      VectorType::get(IntegerType::get(C->getContext(), FPWidth), NumSrcElt);
+    auto *SrcIVTy = FixedVectorType::get(
+        IntegerType::get(C->getContext(), FPWidth), NumSrcElt);
     // Ask IR to do the conversion now that #elts line up.
     C = ConstantExpr::getBitCast(C, SrcIVTy);
     // If IR wasn't able to fold it, bail out.
@@ -1493,6 +1493,7 @@ bool llvm::canConstantFoldCallTo(const CallBase *Call, const Function *F) {
   case Intrinsic::ceil:
   case Intrinsic::floor:
   case Intrinsic::round:
+  case Intrinsic::roundeven:
   case Intrinsic::trunc:
   case Intrinsic::nearbyint:
   case Intrinsic::rint:
@@ -1501,6 +1502,7 @@ bool llvm::canConstantFoldCallTo(const CallBase *Call, const Function *F) {
   case Intrinsic::experimental_constrained_ceil:
   case Intrinsic::experimental_constrained_floor:
   case Intrinsic::experimental_constrained_round:
+  case Intrinsic::experimental_constrained_roundeven:
   case Intrinsic::experimental_constrained_trunc:
   case Intrinsic::experimental_constrained_nearbyint:
   case Intrinsic::experimental_constrained_rint:
@@ -1782,6 +1784,11 @@ static Constant *ConstantFoldScalarCall1(StringRef Name,
 
     if (IntrinsicID == Intrinsic::round) {
       U.roundToIntegral(APFloat::rmNearestTiesToAway);
+      return ConstantFP::get(Ty->getContext(), U);
+    }
+
+    if (IntrinsicID == Intrinsic::roundeven) {
+      U.roundToIntegral(APFloat::rmNearestTiesToEven);
       return ConstantFP::get(Ty->getContext(), U);
     }
 
