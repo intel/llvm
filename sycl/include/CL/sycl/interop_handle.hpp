@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <CL/sycl/accessor.hpp>
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/detail/accessor_impl.hpp>
