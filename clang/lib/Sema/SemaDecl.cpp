@@ -18135,8 +18135,8 @@ Decl *Sema::getObjCDeclContext() const {
 
 Sema::FunctionEmissionStatus Sema::getEmissionStatus(FunctionDecl *FD,
                                                      bool Final) {
-  // Due to SYCL functions are template we check if they have appropriate
-  // attribute prior to checking if it is a template
+  // SYCL functions can be template, so we check if they have appropriate
+  // attribute prior to checking if it is a template.
   if (LangOpts.SYCLIsDevice &&
       (FD->hasAttr<SYCLDeviceAttr>() || FD->hasAttr<SYCLKernelAttr>()))
     return FunctionEmissionStatus::Emitted;

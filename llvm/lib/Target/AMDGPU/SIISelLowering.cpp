@@ -11,11 +11,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if defined(_MSC_VER) || defined(__MINGW32__)
-// Provide M_PI.
-#define _USE_MATH_DEFINES
-#endif
-
 #include "SIISelLowering.h"
 #include "AMDGPU.h"
 #include "AMDGPUSubtarget.h"
@@ -7977,32 +7972,32 @@ SDValue SITargetLowering::LowerFDIV32(SDValue Op, SelectionDAG &DAG) const {
   const unsigned Denorm32Reg = AMDGPU::Hwreg::ID_MODE |
                                (4 << AMDGPU::Hwreg::OFFSET_SHIFT_) |
                                (1 << AMDGPU::Hwreg::WIDTH_M1_SHIFT_);
-  const SDValue BitField = DAG.getTargetConstant(Denorm32Reg, SL, MVT::i16);
+  const SDValue BitField = DAG.getTargetConstant(Denorm32Reg, SL, MVT::i32);
 
   const bool HasFP32Denormals = hasFP32Denormals(DAG.getMachineFunction());
 
   if (!HasFP32Denormals) {
     SDVTList BindParamVTs = DAG.getVTList(MVT::Other, MVT::Glue);
 
-    SDValue EnableDenorm;
+    SDNode *EnableDenorm;
     if (Subtarget->hasDenormModeInst()) {
       const SDValue EnableDenormValue =
           getSPDenormModeValue(FP_DENORM_FLUSH_NONE, DAG, SL, Subtarget);
 
       EnableDenorm = DAG.getNode(AMDGPUISD::DENORM_MODE, SL, BindParamVTs,
-                                 DAG.getEntryNode(), EnableDenormValue);
+                                 DAG.getEntryNode(), EnableDenormValue).getNode();
     } else {
       const SDValue EnableDenormValue = DAG.getConstant(FP_DENORM_FLUSH_NONE,
                                                         SL, MVT::i32);
-      EnableDenorm = DAG.getNode(AMDGPUISD::SETREG, SL, BindParamVTs,
-                                 DAG.getEntryNode(), EnableDenormValue,
-                                 BitField);
+      EnableDenorm =
+          DAG.getMachineNode(AMDGPU::S_SETREG_B32, SL, BindParamVTs,
+                             {EnableDenormValue, BitField, DAG.getEntryNode()});
     }
 
     SDValue Ops[3] = {
       NegDivScale0,
-      EnableDenorm.getValue(0),
-      EnableDenorm.getValue(1)
+      SDValue(EnableDenorm, 0),
+      SDValue(EnableDenorm, 1)
     };
 
     NegDivScale0 = DAG.getMergeValues(Ops, SL);
@@ -8026,25 +8021,25 @@ SDValue SITargetLowering::LowerFDIV32(SDValue Op, SelectionDAG &DAG) const {
                              NumeratorScaled, Fma3);
 
   if (!HasFP32Denormals) {
-    SDValue DisableDenorm;
+    SDNode *DisableDenorm;
     if (Subtarget->hasDenormModeInst()) {
       const SDValue DisableDenormValue =
           getSPDenormModeValue(FP_DENORM_FLUSH_IN_FLUSH_OUT, DAG, SL, Subtarget);
 
       DisableDenorm = DAG.getNode(AMDGPUISD::DENORM_MODE, SL, MVT::Other,
                                   Fma4.getValue(1), DisableDenormValue,
-                                  Fma4.getValue(2));
+                                  Fma4.getValue(2)).getNode();
     } else {
       const SDValue DisableDenormValue =
           DAG.getConstant(FP_DENORM_FLUSH_IN_FLUSH_OUT, SL, MVT::i32);
 
-      DisableDenorm = DAG.getNode(AMDGPUISD::SETREG, SL, MVT::Other,
-                                  Fma4.getValue(1), DisableDenormValue,
-                                  BitField, Fma4.getValue(2));
+      DisableDenorm = DAG.getMachineNode(
+          AMDGPU::S_SETREG_B32, SL, MVT::Other,
+          {DisableDenormValue, BitField, Fma4.getValue(1), Fma4.getValue(2)});
     }
 
     SDValue OutputChain = DAG.getNode(ISD::TokenFactor, SL, MVT::Other,
-                                      DisableDenorm, DAG.getRoot());
+                                      SDValue(DisableDenorm, 0), DAG.getRoot());
     DAG.setRoot(OutputChain);
   }
 
@@ -8230,7 +8225,7 @@ SDValue SITargetLowering::LowerTrig(SDValue Op, SelectionDAG &DAG) const {
 
   // TODO: Should this propagate fast-math-flags?
 
-  SDValue OneOver2Pi = DAG.getConstantFP(0.5 / M_PI, DL, VT);
+  SDValue OneOver2Pi = DAG.getConstantFP(0.5 * numbers::inv_pi, DL, VT);
 
   if (Subtarget->hasTrigReducedRange()) {
     SDValue MulVal = DAG.getNode(ISD::FMUL, DL, VT, Arg, OneOver2Pi);

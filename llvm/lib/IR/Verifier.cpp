@@ -3429,16 +3429,16 @@ void Verifier::visitGetElementPtrInst(GetElementPtrInst &GEP) {
 
   if (auto *GEPVTy = dyn_cast<VectorType>(GEP.getType())) {
     // Additional checks for vector GEPs.
-    unsigned GEPWidth = GEPVTy->getNumElements();
+    ElementCount GEPWidth = GEPVTy->getElementCount();
     if (GEP.getPointerOperandType()->isVectorTy())
       Assert(
           GEPWidth ==
-              cast<VectorType>(GEP.getPointerOperandType())->getNumElements(),
+              cast<VectorType>(GEP.getPointerOperandType())->getElementCount(),
           "Vector GEP result width doesn't match operand's", &GEP);
     for (Value *Idx : Idxs) {
       Type *IndexTy = Idx->getType();
       if (auto *IndexVTy = dyn_cast<VectorType>(IndexTy)) {
-        unsigned IndexWidth = IndexVTy->getNumElements();
+        ElementCount IndexWidth = IndexVTy->getElementCount();
         Assert(IndexWidth == GEPWidth, "Invalid GEP index vector width", &GEP);
       }
       Assert(IndexTy->isIntOrIntVectorTy(),
@@ -4733,7 +4733,7 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
 
     // Verify rest of the relocate arguments.
     const CallBase &StatepointCall =
-        *cast<CallBase>(cast<GCRelocateInst>(Call).getStatepoint());
+      *cast<GCRelocateInst>(Call).getStatepoint();
 
     // Both the base and derived must be piped through the safepoint.
     Value *Base = Call.getArgOperand(1);
@@ -4810,6 +4810,14 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
   case Intrinsic::eh_exceptionpointer: {
     Assert(isa<CatchPadInst>(Call.getArgOperand(0)),
            "eh.exceptionpointer argument must be a catchpad", Call);
+    break;
+  }
+  case Intrinsic::get_active_lane_mask: {
+    Assert(Call.getType()->isVectorTy(), "get_active_lane_mask: must return a "
+           "vector", Call);
+    auto *ElemTy = Call.getType()->getScalarType();
+    Assert(ElemTy->isIntegerTy(1), "get_active_lane_mask: element type is not "
+           "i1", Call);
     break;
   }
   case Intrinsic::masked_load: {
