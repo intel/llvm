@@ -5017,8 +5017,8 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
         EmitNounwindRuntimeCall(Fn);
       }
     }
-    // Do not emit unreachable instruction for Intel NEO driver and Gen "X" GPUs
-    if (getTarget().getTriple().getSubArch() != llvm::Triple::SPIRSubArch_gen)
+    //Emit unreachable only for non-sycl devices
+    if(getTarget().getTriple().getSubArch() != getLangOpts().SYCLIsDevice)
       EmitUnreachable(Loc);
     Builder.ClearInsertionPoint();
 
