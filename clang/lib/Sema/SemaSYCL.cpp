@@ -1834,7 +1834,7 @@ void SYCLIntegrationHeader::emitForwardClassDecls(
         TemplateParameterList *TemplateParams = TD->getTemplateParameters();
         for (NamedDecl *P : *TemplateParams) {
           // If template template paramter type has an enum value template
-          // paramter, forward declaration of enum type is required. Only enum
+          // parameter, forward declaration of enum type is required. Only enum
           // values (not types) need to be handled. For example, consider the
           // following kernel name type:
           //
@@ -1845,9 +1845,10 @@ void SYCLIntegrationHeader::emitForwardClassDecls(
           // Foo<EnumTypeOut, Baz>, where Baz is a template class.
           //
           // Therefore the forward class declarations generated in the
-          // integration header are: template <EnumValueIn EnumValue, typename
-          // TypeIn> class Baz; template <typename EnumTypeOut, template
-          // <EnumValueIn EnumValue, typename EnumTypeIn> class T> class Foo;
+          // integration header are:
+          // template <EnumValueIn EnumValue, typename TypeIn> class Baz;
+          // template <typename EnumTypeOut, template <EnumValueIn EnumValue,
+          // typename EnumTypeIn> class T> class Foo;
           //
           // This requires the following enum forward declarations:
           // enum class EnumTypeOut : int; (Used to template Foo)
