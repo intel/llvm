@@ -1810,8 +1810,6 @@ cl_int ExecCGCommand::enqueueImp() {
                                                          Arg.MSize, Arg.MPtr);
         break;
       }
-      default:
-        assert(!"Unhandled");
       }
     }
 
@@ -1913,15 +1911,13 @@ cl_int ExecCGCommand::enqueueImp() {
       }
     }
 
-    MQueue->getThreadPool().submit<DispatchHostTask>(
-        std::move(DispatchHostTask(this)));
+    MQueue->getThreadPool().submit<DispatchHostTask>(DispatchHostTask(this));
 
     MShouldCompleteEventIfPossible = false;
 
     return CL_SUCCESS;
   }
   case CG::CGTYPE::NONE:
-  default:
     throw runtime_error("CG type not implemented.", PI_INVALID_OPERATION);
   }
 }

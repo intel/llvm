@@ -165,7 +165,7 @@ public:
   virtual void printDot(std::ostream &Stream) const = 0;
 
   virtual const Requirement *getRequirement() const {
-    assert(!"Internal Error. The command has no stored requirement");
+    assert(false && "Internal Error. The command has no stored requirement");
     return nullptr;
   }
 
@@ -445,7 +445,7 @@ public:
 
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MDstReq; }
-  void emitInstrumentationData();
+  void emitInstrumentationData() override final;
   ContextImplPtr getContext() const override final;
 
 private:
