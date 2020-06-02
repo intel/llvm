@@ -1919,6 +1919,7 @@ cl_int ExecCGCommand::enqueueImp() {
   case CG::CGTYPE::NONE:
     throw runtime_error("CG type not implemented.", PI_INVALID_OPERATION);
   }
+  return PI_INVALID_OPERATION;
 }
 
 } // namespace detail
