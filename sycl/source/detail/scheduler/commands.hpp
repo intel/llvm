@@ -422,8 +422,8 @@ public:
 
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MDstReq; }
-  void emitInstrumentationData();
-  ContextImplPtr getContext() const override final;
+  void emitInstrumentationData() final;
+  ContextImplPtr getContext() const final;
 
 private:
   cl_int enqueueImp() final;
@@ -445,8 +445,8 @@ public:
 
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MDstReq; }
-  void emitInstrumentationData() override final;
-  ContextImplPtr getContext() const override final;
+  void emitInstrumentationData() final;
+  ContextImplPtr getContext() const final;
 
 private:
   cl_int enqueueImp() final;
@@ -467,7 +467,7 @@ public:
   void flushStreams();
 
   void printDot(std::ostream &Stream) const final;
-  void emitInstrumentationData();
+  void emitInstrumentationData() final;
 
   detail::CG &getCG() const { return *MCommandGroup; }
 
@@ -494,7 +494,7 @@ public:
 
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MDstReq; }
-  void emitInstrumentationData();
+  void emitInstrumentationData() final;
 
 private:
   cl_int enqueueImp() final;
