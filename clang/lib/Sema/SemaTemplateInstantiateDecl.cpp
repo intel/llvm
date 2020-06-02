@@ -579,6 +579,17 @@ static void instantiateSYCLIntelPipeIOAttr(
     S.addSYCLIntelPipeIOAttr(New, *Attr, Result.getAs<Expr>());
 }
 
+static void instantiateIntelReqdSubGroupSizeAttr(
+    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
+    const IntelReqdSubGroupSizeAttr *Attr, Decl *New) {
+  // The SubGroupSize expression is a constant expression.
+  EnterExpressionEvaluationContext Unevaluated(
+      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+  ExprResult Result = S.SubstExpr(Attr->getSubGroupSize(), TemplateArgs);
+  if (!Result.isInvalid())
+    S.addIntelReqdSubGroupSizeAttr(New, *Attr, Result.getAs<Expr>());
+}
+
 void Sema::InstantiateAttrsForDecl(
     const MultiLevelTemplateArgumentList &TemplateArgs, const Decl *Tmpl,
     Decl *New, LateInstantiatedAttrVec *LateAttrs,
@@ -721,7 +732,12 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
       instantiateSYCLIntelPipeIOAttr(*this, TemplateArgs, SYCLIntelPipeIO, New);
       continue;
     }
-
+    if (const auto *IntelReqdSubGroupSize =
+            dyn_cast<IntelReqdSubGroupSizeAttr>(TmplAttr)) {
+      instantiateIntelReqdSubGroupSizeAttr(*this, TemplateArgs,
+                                           IntelReqdSubGroupSize, New);
+      continue;
+    }
     // Existing DLL attribute on the instantiation takes precedence.
     if (TmplAttr->getKind() == attr::DLLExport ||
         TmplAttr->getKind() == attr::DLLImport) {
