@@ -24,7 +24,7 @@ protected:
 
   ~PlatformTest() override = default;
 
-  void SetUp() {
+  void SetUp() override {
 
     detail::plugin plugin = GetParam();
 
