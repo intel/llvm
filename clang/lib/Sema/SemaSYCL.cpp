@@ -27,8 +27,11 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include <array>
+#include <functional>
+#include <initializer_list>
 
 using namespace clang;
+using namespace std::placeholders;
 
 using KernelParamKind = SYCLIntegrationHeader::kernel_param_kind_t;
 
@@ -681,14 +684,46 @@ QualType getItemType(const FieldDecl *FD) { return FD->getType(); }
 QualType getItemType(const CXXBaseSpecifier &BS) { return BS.getType(); }
 
 // These enable handler execution only when previous handlers succeed.
-template <typename T>
-static bool handleField(FieldDecl *FD, QualType FDTy, T &t) {
-  return (t.first->*t.second)(FD, FDTy);
+template <typename... Tn>
+static bool handleField(FieldDecl *FD, QualType FDTy, Tn &&... tn) {
+  bool result = true;
+  std::initializer_list<int>{(result = result && tn(FD, FDTy), 0)...};
+  return result;
 }
-template <typename T, typename... Tn>
-static bool handleField(FieldDecl *FD, QualType FDTy, T &t, Tn &... tn) {
-  return (t.first->*t.second)(FD, FDTy) && handleField(FD, FDTy, tn...);
+template <typename... Tn>
+static bool handleField(const CXXBaseSpecifier &BD, QualType BDTy,
+                        Tn &&... tn) {
+  bool result = true;
+  std::initializer_list<int>{(result = result && tn(BD, BDTy), 0)...};
+  return result;
 }
+
+template <typename T> struct bind_param { using type = T; };
+
+template <> struct bind_param<CXXBaseSpecifier &> {
+  using type = const CXXBaseSpecifier &;
+};
+
+template <> struct bind_param<FieldDecl *&> { using type = FieldDecl *; };
+
+template <> struct bind_param<FieldDecl *const &> { using type = FieldDecl *; };
+
+template <typename T> using bind_param_t = typename bind_param<T>::type;
+
+// This definition using std::bind is necessary because of a gcc 7.x bug.
+#define KF_FOR_EACH(FUNC, Item, Qt)                                            \
+  handleField(                                                                 \
+      Item, Qt,                                                                \
+      std::bind(static_cast<bool (std::decay_t<decltype(handlers)>::*)(        \
+                    bind_param_t<decltype(Item)>, QualType)>(                  \
+                    &std::decay_t<decltype(handlers)>::FUNC),                  \
+                std::ref(handlers), _1, _2)...)
+
+// The following simpler definition works with gcc 8.x and later.
+//#define KF_FOR_EACH(FUNC)                                                   \
+//  handleField(Field, FieldTy, ([&](FieldDecl *FD, QualType FDTy) {          \
+//                return handlers.f(FD, FDTy);                                \
+//              })...)
 
 // Implements the 'for-each-visitor'  pattern.
 template <typename ParentTy, typename... Handlers>
@@ -697,14 +732,12 @@ static void VisitAccessorWrapper(CXXRecordDecl *Owner, ParentTy &Parent,
                                  Handlers &... handlers);
 
 template <typename RangeTy, typename... Handlers>
-static void VisitField(CXXRecordDecl *Owner, RangeTy Item, QualType ItemTy,
+static void VisitField(CXXRecordDecl *Owner, RangeTy &&Item, QualType ItemTy,
                        Handlers &... handlers) {
   if (Util::isSyclAccessorType(ItemTy))
-    (void)std::initializer_list<int>{
-        (handlers.handleSyclAccessorType(Item, ItemTy), 0)...};
+    KF_FOR_EACH(handleSyclAccessorType, Item, ItemTy);
   if (Util::isSyclStreamType(ItemTy))
-    (void)std::initializer_list<int>{
-        (handlers.handleSyclStreamType(Item, ItemTy), 0)...};
+    KF_FOR_EACH(handleSyclStreamType, Item, ItemTy);
   if (ItemTy->isStructureOrClassType())
     VisitAccessorWrapper(Owner, Item, ItemTy->getAsCXXRecordDecl(),
                          handlers...);
@@ -757,40 +790,38 @@ template <typename... Handlers>
 static void VisitRecordFields(RecordDecl::field_range Fields,
                               Handlers &... handlers) {
 
-#define KF_FOR_EACH(FUNC) handleField(Field, FieldTy, handlers.FUNC()...)
-
-  for (const auto &Field : Fields) {
+  for (const auto Field : Fields) {
     (void)std::initializer_list<int>{
         (handlers.enterField(nullptr, Field), 0)...};
     QualType FieldTy = Field->getType();
 
     if (Util::isSyclAccessorType(FieldTy))
-      KF_FOR_EACH(processSyclAccessorType);
+      KF_FOR_EACH(handleSyclAccessorType, Field, FieldTy);
     else if (Util::isSyclSamplerType(FieldTy))
-      KF_FOR_EACH(processSyclSamplerType);
+      KF_FOR_EACH(handleSyclSamplerType, Field, FieldTy);
     else if (Util::isSyclSpecConstantType(FieldTy))
-      KF_FOR_EACH(processSyclSpecConstantType);
+      KF_FOR_EACH(handleSyclSpecConstantType, Field, FieldTy);
     else if (Util::isSyclStreamType(FieldTy)) {
       // Stream actually wraps accessors, so do recursion
       CXXRecordDecl *RD = FieldTy->getAsCXXRecordDecl();
       VisitAccessorWrapper(nullptr, Field, RD, handlers...);
-      KF_FOR_EACH(processSyclStreamType);
+      KF_FOR_EACH(handleSyclStreamType, Field, FieldTy);
     } else if (FieldTy->isStructureOrClassType()) {
-      if (KF_FOR_EACH(processStructType)) {
+      if (KF_FOR_EACH(handleStructType, Field, FieldTy)) {
         CXXRecordDecl *RD = FieldTy->getAsCXXRecordDecl();
         VisitAccessorWrapper(nullptr, Field, RD, handlers...);
       }
     } else if (FieldTy->isReferenceType())
-      KF_FOR_EACH(processReferenceType);
+      KF_FOR_EACH(handleReferenceType, Field, FieldTy);
     else if (FieldTy->isPointerType())
-      KF_FOR_EACH(processPointerType);
+      KF_FOR_EACH(handlePointerType, Field, FieldTy);
     else if (FieldTy->isArrayType()) {
-      if (KF_FOR_EACH(processArrayType))
+      if (KF_FOR_EACH(handleArrayType, Field, FieldTy))
         VisitArrayElements(Field, FieldTy, handlers...);
     } else if (FieldTy->isScalarType())
-      KF_FOR_EACH(processScalarType);
+      KF_FOR_EACH(handleScalarType, Field, FieldTy);
     else
-      KF_FOR_EACH(processOtherType);
+      KF_FOR_EACH(handleOtherType, Field, FieldTy);
     (void)std::initializer_list<int>{
         (handlers.leaveField(nullptr, Field), 0)...};
   }
@@ -803,21 +834,6 @@ template <typename Derived> class SyclKernelFieldHandler {
 protected:
   Sema &SemaRef;
   SyclKernelFieldHandler(Sema &S) : SemaRef(S) {}
-
-  // The following capture a handler::function pair.
-
-  typedef bool (SyclKernelFieldHandler::*SMemFn)(FieldDecl *, QualType);
-  using tuple = std::pair<SyclKernelFieldHandler *, SMemFn>;
-  tuple pmfAccessor{this, &SyclKernelFieldHandler::handleSyclAccessorType};
-  tuple pmfSampler{this, &SyclKernelFieldHandler::handleSyclSamplerType};
-  tuple pmfConstant{this, &SyclKernelFieldHandler::handleSyclSpecConstantType};
-  tuple pmfStream{this, &SyclKernelFieldHandler::handleSyclStreamType};
-  tuple pmfStruct{this, &SyclKernelFieldHandler::handleStructType};
-  tuple pmfReference{this, &SyclKernelFieldHandler::handleReferenceType};
-  tuple pmfPointer{this, &SyclKernelFieldHandler::handlePointerType};
-  tuple pmfScalar{this, &SyclKernelFieldHandler::handleScalarType};
-  tuple pmfArray{this, &SyclKernelFieldHandler::handleArrayType};
-  tuple pmfOther{this, &SyclKernelFieldHandler::handleOtherType};
 
 public:
   // Mark these virtual so that we can use override in the implementer classes,
@@ -863,19 +879,6 @@ public:
   virtual void enterArray() {}
   virtual void nextElement(QualType) {}
   virtual void leaveArray(QualType, int64_t) {}
-
-  // The following return prebuilt handler::function pairs.
-
-  virtual tuple &processSyclAccessorType() { return pmfAccessor; }
-  virtual tuple &processSyclSamplerType() { return pmfSampler; }
-  virtual tuple &processSyclSpecConstantType() { return pmfConstant; }
-  virtual tuple &processSyclStreamType() { return pmfStream; }
-  virtual tuple &processStructType() { return pmfStruct; }
-  virtual tuple &processReferenceType() { return pmfReference; }
-  virtual tuple &processPointerType() { return pmfPointer; }
-  virtual tuple &processScalarType() { return pmfScalar; }
-  virtual tuple &processArrayType() { return pmfArray; }
-  virtual tuple &processOtherType() { return pmfOther; }
 };
 
 // A type to check the validity of all of the argument types.
