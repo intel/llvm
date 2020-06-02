@@ -269,7 +269,7 @@ class JSONBuiltinInterfaceEmitter : public BuiltinNameEmitter {
     bool IsConst;
     // "volatile" qualifier.
     bool IsVolatile;
-    std::string AddrSpace;
+    llvm::StringRef AddrSpace;
   };
 
 public:
@@ -935,11 +935,11 @@ JSONBuiltinInterfaceEmitter::TypeDesc::TypeDesc(const Record *T)
 
   AddrSpace = StringSwitch<const char *>(T->getValueAsString("AddrSpace"))
                   .Case("clang::LangAS::Default", "")
-                  .Case("clang::LangAS::opencl_private", "__private")
-                  .Case("clang::LangAS::opencl_global", "__global")
-                  .Case("clang::LangAS::opencl_constant", "__constant")
-                  .Case("clang::LangAS::opencl_local", "__local")
-                  .Default("__generic");
+                  .Case("clang::LangAS::opencl_private", " __private")
+                  .Case("clang::LangAS::opencl_global", " __global")
+                  .Case("clang::LangAS::opencl_constant", " __constant")
+                  .Case("clang::LangAS::opencl_local", " __local")
+                  .Default(" __generic");
 }
 
 std::string JSONBuiltinInterfaceEmitter::TypeDesc::GetBaseTypeAsStr() const {
@@ -1005,7 +1005,6 @@ void JSONBuiltinInterfaceEmitter::ExpandType(const Record *Ty) {
           TypeStr += " const";
         if (TypeDesc.IsVolatile)
           TypeStr += " volatile";
-        TypeStr += " ";
         TypeStr += TypeDesc.AddrSpace;
         TypeStr += " *";
       }
@@ -1057,11 +1056,13 @@ void JSONBuiltinInterfaceEmitter::EmitBuiltins() {
   StringMap<SmallVector<FnDesc, 16>> NameToProtoList;
 
   // For each function names, gather the list of overloads
-  for (const auto &SLM : SignatureListMap) {
-    for (const auto &Name : SLM.second.Names) {
+  for (const MapVector<BuiltinIndexListTy *, BuiltinTableEntries>::value_type
+           &SLM : SignatureListMap) {
+    for (StringRef Name : SLM.second.Names) {
       SmallVectorImpl<FnDesc> &PrototypeList = NameToProtoList[Name];
 
-      for (const auto &Overload : SLM.second.Signatures) {
+      for (const std::pair<const Record *, unsigned> &Overload :
+           SLM.second.Signatures) {
         std::vector<Record *> Signature =
             Overload.first->getValueAsListOfDefs("Signature");
         auto SignatureTypesIt = llvm::map_range(
