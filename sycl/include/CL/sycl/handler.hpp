@@ -1537,7 +1537,7 @@ public:
     detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
 
     MRequirements.push_back(AccImpl.get());
-    MSrcPtr = const_cast<void *>(Src);
+    MSrcPtr = const_cast<T_Src *>(Src);
     MDstPtr = static_cast<void *>(AccImpl.get());
     // Store copy of accessor to the local storage to make sure it is alive
     // until we finish
