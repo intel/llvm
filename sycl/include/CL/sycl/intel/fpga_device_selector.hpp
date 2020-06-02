@@ -32,9 +32,9 @@ public:
   }
 };
 
-static constexpr char const *EMULATION_PLATFORM_NAME =
+static constexpr auto EMULATION_PLATFORM_NAME =
     "Intel(R) FPGA Emulation Platform for OpenCL(TM)";
-static constexpr char const *HARDWARE_PLATFORM_NAME =
+static constexpr auto HARDWARE_PLATFORM_NAME =
     "Intel(R) FPGA SDK for OpenCL(TM)";
 
 class fpga_selector : public platform_selector {
