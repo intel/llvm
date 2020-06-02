@@ -33,20 +33,20 @@ To doBitCast(const From &ValueToConvert) {
 }
 
 template <typename To, typename From>
-int test(const From &ValueToConvert, const To &Expected) {
-  auto Actual = doBitCast<To>(ValueToConvert);
-  bool isActualEqualsToExpected = false;
-  if (std::is_integral<To>::value) {
-    isActualEqualsToExpected = Actual == Expected;
-  } else if ((std::is_floating_point<To>::value) || std::is_same<To, cl::sycl::half>::value) {
+int test(const From &Value) {
+  auto ValueConvertedTwoTimes = doBitCast<From>(doBitCast<To>(Value));
+  bool isOriginalValueEqualsToConvertedTwoTimes = false;
+  if (std::is_integral<From>::value) {
+    isOriginalValueEqualsToConvertedTwoTimes = Value == ValueConvertedTwoTimes;
+  } else if ((std::is_floating_point<From>::value) || std::is_same<From, cl::sycl::half>::value) {
     static const float Epsilon = 0.0000001f;
-    isActualEqualsToExpected = fabs(Actual - Expected) < Epsilon;
+    isOriginalValueEqualsToConvertedTwoTimes = fabs(Value - ValueConvertedTwoTimes) < Epsilon;
   } else {
-    std::cerr << "Type " << typeid(To).name() << " neither integral nor floating point\n";
+    std::cerr << "Type " << typeid(From).name() << " neither integral nor floating point nor cl::sycl::half\n";
     return 1;
   }
-  if (!isActualEqualsToExpected) {
-    std::cerr << "FAIL: Actual which is " << Actual << " != expected which is " << Expected << "\n";
+  if (!isOriginalValueEqualsToConvertedTwoTimes) {
+    std::cerr << "FAIL: Original value which is " << Value << " != value converted two times which is " << ValueConvertedTwoTimes << "\n";
     return 1;
   }
   std::cout << "PASS\n";
@@ -57,28 +57,28 @@ int main() {
   int ReturnCode = 0;
 
   std::cout << "cl::sycl::half to unsigned short ...\n";
-  ReturnCode += test(cl::sycl::half(1.0f), static_cast<unsigned short>(15360));
+  ReturnCode += test<unsigned short>(cl::sycl::half(1.0f));
 
   std::cout << "unsigned short to cl::sycl::half ...\n";
-  ReturnCode += test(static_cast<unsigned short>(16384), cl::sycl::half(2.0f));
+  ReturnCode += test<cl::sycl::half>(static_cast<unsigned short>(16384));
 
   std::cout << "cl::sycl::half to short ...\n";
-  ReturnCode += test(cl::sycl::half(1.0f), static_cast<short>(15360));
+  ReturnCode += test<short>(cl::sycl::half(1.0f));
 
   std::cout << "short to cl::sycl::half ...\n";
-  ReturnCode += test(static_cast<short>(16384), cl::sycl::half(2.0f));
+  ReturnCode += test<cl::sycl::half>(static_cast<short>(16384));
 
   std::cout << "int to float ...\n";
-  ReturnCode += test(static_cast<int>(2), static_cast<float>(2.8026e-45f));
+  ReturnCode += test<float>(static_cast<int>(2));
 
   std::cout << "float to int ...\n";
-  ReturnCode += test(static_cast<float>(-2.4f), static_cast<int>(-1072064102));
+  ReturnCode += test<int>(static_cast<float>(-2.4f));
 
   std::cout << "unsigned int to float ...\n";
-  ReturnCode += test(static_cast<unsigned int>(6), static_cast<float>(8.40779e-45f));
+  ReturnCode += test<float>(static_cast<unsigned int>(6));
 
   std::cout << "float to unsigned int ...\n";
-  ReturnCode += test(static_cast<float>(-2.4f), static_cast<unsigned int>(3222903194));
+  ReturnCode += test<unsigned int>(static_cast<float>(-2.4f));
 
   return ReturnCode;
 }
