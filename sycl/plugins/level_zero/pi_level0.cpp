@@ -239,7 +239,7 @@ constexpr char ZE_SUPPORTED_EXTENSIONS[] =
 static pi_result mapError(ze_result_t ZeResult) {
   // TODO: these mapping need to be clarified and synced with the PI API return
   // values, which is TBD.
-  std::unordered_map<ze_result_t, pi_result> ErrorMapping = {
+  static std::unordered_map<ze_result_t, pi_result> ErrorMapping = {
       {ZE_RESULT_SUCCESS, PI_SUCCESS},
       {ZE_RESULT_ERROR_DEVICE_LOST, PI_DEVICE_NOT_FOUND},
       {ZE_RESULT_ERROR_INSUFFICIENT_PERMISSIONS, PI_INVALID_OPERATION},
