@@ -12,9 +12,9 @@
 
 using namespace cl::sycl;
 
-pi_result
-piProgramBuildRedefine(pi_program, pi_uint32,const pi_device *, const char *,
-                       void (*)(pi_program, void *), void *) {
+pi_result piProgramBuildRedefine(pi_program, pi_uint32, const pi_device *,
+                                 const char *, void (*)(pi_program, void *),
+                                 void *) {
   return PI_INVALID_BINARY;
 }
 

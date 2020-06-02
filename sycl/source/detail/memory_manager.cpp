@@ -203,7 +203,7 @@ void *MemoryManager::allocateMemSubBuffer(ContextImplPtr TargetContext,
   return NewMem;
 }
 
-void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr ,
+void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr,
              unsigned int DimSrc, sycl::range<3> SrcSize,
              sycl::range<3> SrcAccessRange, sycl::id<3> SrcOffset,
              unsigned int SrcElemSize, RT::PiMem DstMem, QueueImplPtr TgtQueue,
@@ -255,11 +255,11 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr ,
 void copyD2H(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
              unsigned int DimSrc, sycl::range<3> SrcSize,
              sycl::range<3> SrcAccessRange, sycl::id<3> SrcOffset,
-             unsigned int SrcElemSize, char *DstMem, QueueImplPtr ,
+             unsigned int SrcElemSize, char *DstMem, QueueImplPtr,
              unsigned int DimDst, sycl::range<3> DstSize,
              sycl::range<3> DstAccessRange, sycl::id<3> DstOffset,
              unsigned int DstElemSize, std::vector<RT::PiEvent> DepEvents,
-              RT::PiEvent &OutEvent) {
+             RT::PiEvent &OutEvent) {
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
 
   const RT::PiQueue Queue = SrcQueue->getHandleRef();
@@ -303,10 +303,9 @@ void copyD2D(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
              unsigned int DimSrc, sycl::range<3> SrcSize,
              sycl::range<3> SrcAccessRange, sycl::id<3> SrcOffset,
              unsigned int SrcElemSize, RT::PiMem DstMem, QueueImplPtr,
-             unsigned int DimDst, sycl::range<3> DstSize,
-             sycl::range<3>, sycl::id<3> DstOffset,
-             unsigned int DstElemSize, std::vector<RT::PiEvent> DepEvents,
-             RT::PiEvent &OutEvent) {
+             unsigned int DimDst, sycl::range<3> DstSize, sycl::range<3>,
+             sycl::id<3> DstOffset, unsigned int DstElemSize,
+             std::vector<RT::PiEvent> DepEvents, RT::PiEvent &OutEvent) {
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
 
   const RT::PiQueue Queue = SrcQueue->getHandleRef();
@@ -341,14 +340,14 @@ void copyD2D(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
   }
 }
 
-static void copyH2H(SYCLMemObjI *, char *SrcMem,
-                    QueueImplPtr, unsigned int DimSrc,
-                    sycl::range<3> SrcSize, sycl::range<3> SrcAccessRange,
-                    sycl::id<3> SrcOffset, unsigned int SrcElemSize,
-                    char *DstMem, QueueImplPtr , unsigned int DimDst,
-                    sycl::range<3> DstSize, sycl::range<3> DstAccessRange,
-                    sycl::id<3> DstOffset, unsigned int DstElemSize,
-                    std::vector<RT::PiEvent> , RT::PiEvent &) {
+static void copyH2H(SYCLMemObjI *, char *SrcMem, QueueImplPtr,
+                    unsigned int DimSrc, sycl::range<3> SrcSize,
+                    sycl::range<3> SrcAccessRange, sycl::id<3> SrcOffset,
+                    unsigned int SrcElemSize, char *DstMem, QueueImplPtr,
+                    unsigned int DimDst, sycl::range<3> DstSize,
+                    sycl::range<3> DstAccessRange, sycl::id<3> DstOffset,
+                    unsigned int DstElemSize, std::vector<RT::PiEvent>,
+                    RT::PiEvent &) {
   if ((DimSrc != 1 || DimDst != 1) &&
       (SrcOffset != id<3>{0, 0, 0} || DstOffset != id<3>{0, 0, 0} ||
        SrcSize != SrcAccessRange || DstSize != DstAccessRange)) {
@@ -411,9 +410,8 @@ void MemoryManager::copy(SYCLMemObjI *SYCLMemObj, void *SrcMem,
 
 void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
                          size_t PatternSize, const char *Pattern,
-                         unsigned int Dim, sycl::range<3> ,
-                         sycl::range<3> Range, sycl::id<3> Offset,
-                         unsigned int ElementSize,
+                         unsigned int Dim, sycl::range<3>, sycl::range<3> Range,
+                         sycl::id<3> Offset, unsigned int ElementSize,
                          std::vector<RT::PiEvent> DepEvents,
                          RT::PiEvent &OutEvent) {
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
@@ -437,9 +435,9 @@ void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
 }
 
 void *MemoryManager::map(SYCLMemObjI *, void *Mem, QueueImplPtr Queue,
-                         access::mode AccessMode, unsigned int ,
-                         sycl::range<3>, sycl::range<3> AccessRange,
-                         sycl::id<3> AccessOffset, unsigned int ElementSize,
+                         access::mode AccessMode, unsigned int, sycl::range<3>,
+                         sycl::range<3> AccessRange, sycl::id<3> AccessOffset,
+                         unsigned int ElementSize,
                          std::vector<RT::PiEvent> DepEvents,
                          RT::PiEvent &OutEvent) {
   if (Queue->is_host()) {
@@ -482,9 +480,8 @@ void *MemoryManager::map(SYCLMemObjI *, void *Mem, QueueImplPtr Queue,
   return MappedPtr;
 }
 
-void MemoryManager::unmap(SYCLMemObjI *, void *Mem,
-                          QueueImplPtr Queue, void *MappedPtr,
-                          std::vector<RT::PiEvent> DepEvents,
+void MemoryManager::unmap(SYCLMemObjI *, void *Mem, QueueImplPtr Queue,
+                          void *MappedPtr, std::vector<RT::PiEvent> DepEvents,
                           RT::PiEvent &OutEvent) {
 
   // Host queue is not supported here.
