@@ -35,7 +35,7 @@ architecture devices and the host device for now. Attempt to run such code on
 other devices will result in error. 
 
 Kernels and `SYCL_EXTERNAL` functions using ESP must be explicitly marked with
-the `[[sycl_explicit_simd]]` attribute. Subgroup size query within such
+the `[[intel::sycl_explicit_simd]]` attribute. Subgroup size query within such
 functions will always return `1`.
 
 *Functor kernel*
@@ -46,7 +46,7 @@ class Functor {
 public:
   Functor(int X, AccTy &Acc) : X(X), Acc(Acc) {}
 
-  [[sycl_explicit_simd]] void operator()() { Acc[0] += X; }
+  void operator()() [[intel::sycl_explicit_simd]] { Acc[0] += X; }
 
 private:
   int X;
@@ -56,8 +56,8 @@ private:
 
 *Lambda kernel and function*
 ```cpp
-[[sycl_explicit_simd]] SYCL_EXTERNAL
-void sycl_device_f(cl::sycl::global_ptr<int> ptr, sycl::intel::gpu::simd<float, 8> X) {
+SYCL_EXTERNAL
+void sycl_device_f(cl::sycl::global_ptr<int> ptr, sycl::intel::gpu::simd<float, 8> X) [[intel::sycl_explicit_simd]] {
   sycl::intel::gpu::flat_block_write(*ptr.get(), X);
 }
 ...
@@ -65,7 +65,7 @@ void sycl_device_f(cl::sycl::global_ptr<int> ptr, sycl::intel::gpu::simd<float, 
     auto Acc1 = Buf1.get_access<cl::sycl::access::mode::read>(Cgh);
     auto Acc2 = Buf2.get_access<cl::sycl::access::mode::read_write>(Cgh);
 
-    Cgh.single_task<class KernelID>([=] () [[sycl_explicit_simd]] {
+    Cgh.single_task<class KernelID>([=] () [[intel::sycl_explicit_simd]] {
       sycl::intel::gpu::simd<float, 8> Val = sycl::intel::gpu::flat_block_read(Acc1.get_pointer());
       sycl_device_f(Acc2, Val);
     });
@@ -77,7 +77,7 @@ void sycl_device_f(cl::sycl::global_ptr<int> ptr, sycl::intel::gpu::simd<float, 
 Current ESP implementation does not support using certain standard SYCL features
 inside explicit SIMD kernels and functions. Most of them will be eventually
 dropped. What's not supported today:
-- Mixing `[[sycl_explicit_simd]]` kernels with SYCL kernels in a single source
+- Mixing `[[intel::sycl_explicit_simd]]` kernels with SYCL kernels in a single source
 - Local accessors. Local memory is allocated and accessed via explicit
 device-side API
 - 2D and 3D accessors
@@ -696,7 +696,7 @@ int main(void) {
 
   auto e = q.submit([&](handler &cgh) {
     cgh.parallel_for<class Test>(
-      Range, [=](nd_item<1> i) [[sycl_explicit_simd]] {
+      Range, [=](nd_item<1> i) [[intel::sycl_explicit_simd]] {
 
       auto offset = i.get_global_id(0) * VL;
       sycl::intel::gpu<float, VL> va = sycl::intel::gpu::flat_block_load<float, VL>(A + offset);
@@ -738,7 +738,39 @@ int main(void) {
 - Section covering 2D use cases
 - A bridge from `std::simd` to `sycl::intel::gpu::simd`
 - Describe `simd_view` class restrictions
-- Consider auto-inclusion of sycl_explicit_simd.hpp under -fsycl-esimd option
+
+
+Address review comments:
+- Consider auto-inclusion of sycl_explicit_simd.hpp under -fsycl-explicit-simd option
 - Add example showing the mapping between an ND-range and the number of
 thread-groups and EU threads, and showing the usage of explicit SIMD together
 with work-group barriers and SLM.
+
+- (@Pennycook)
+1. A user providing cache hints has to provide a lot more template arguments than required. Could we make this nicer by providing the hints as tag-type arguments?
+
+```cpp
+// This works
+float* p;
+simd<uint32_t, 16> offsets;
+auto result = flat_load(p, offsets);
+
+// Adding cache hints makes it much more complex
+float* p;
+simd<uint32_t, 16> offsets;
+auto result = flat_load<uint32_t, 16, 1, CacheHint::Foo, CacheHint::Bar>(p, offsets);
+```
+
+2. I find the existing names quite confusing. I'd much prefer that the names were more obvious (e.g. flat_load could be called gather if that's all it does) and/or used overloading where appropriate to minimize the number of times a reader of code has to check documentation to figure out what a function is supposed to be doing.
+
+- (@rolandschulz)
+1. I suggest that replicate return an (implementation defined) replicate expression. And that allows to add the extra info (width, vstride, hstride). The replicate expression would have those 3 methods (each taking one template-arg) and the implicit conversion to the simd class. The simd class would only have the 1 replicate method taking the single REP template-arg and the i arg.
+The user would use (any of the extra method calls are optional)
+
+```cpp
+s.replicate<R>(i).width<W>().vstride<VS>().hstride<HS>()
+```
+2. The mask should also be a wrapper around the clang-vector type rather than the clang-vector type itself.
+The internal storage should be implementation defined. uint16_t is a bad choice for some HW.
+Nor is it how clang-vector types works (using the same size int as the corresponding vector
+type used for comparison (e.g. long for double and int for float)).
