@@ -1608,7 +1608,6 @@ cl_int ExecCGCommand::enqueueImp() {
   switch (MCommandGroup->getType()) {
 
   case CG::CGTYPE::UPDATE_HOST: {
-    assert(!"Update host should be handled by the Scheduler.");
     throw runtime_error("Update host should be handled by the Scheduler.",
                         PI_INVALID_OPERATION);
   }
