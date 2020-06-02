@@ -922,17 +922,23 @@ JSONBuiltinInterfaceEmitter::TypeDesc::TypeDesc(const Record *T)
       IsPointer(T->getValueAsBit("IsPointer")),
       IsConst(T->getValueAsBit("IsConst")),
       IsVolatile(T->getValueAsBit("IsVolatile")) {
+  assert((!T->getValueAsBit("IsInteger") || !T->getValueAsBit("IsFloat")) &&
+         "A type can't be both an int and a float");
   if (T->getValueAsBit("IsInteger")) {
     if (ElementSize == 1)
       ElementType = BOOL;
     else
       ElementType = T->getValueAsBit("IsSigned") ? INT : UINT;
+  } else {
+    if (T->getValueAsBit("IsFloat"))
+      ElementType = FLOAT;
+    else {
+      if (!T->isSubClassOf("FundamentalType") && !T->isSubClassOf("VectorType"))
+        ElementType = BUILTIN;
+      else
+        llvm_unreachable("Invalid type");
+    }
   }
-  if (T->getValueAsBit("IsFloat"))
-    ElementType = FLOAT;
-  if (!T->isSubClassOf("FundamentalType") && !T->isSubClassOf("VectorType"))
-    ElementType = BUILTIN;
-
   AddrSpace = StringSwitch<const char *>(T->getValueAsString("AddrSpace"))
                   .Case("clang::LangAS::Default", "")
                   .Case("clang::LangAS::opencl_private", " __private")
