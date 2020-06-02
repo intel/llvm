@@ -5018,7 +5018,7 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
       }
     }
     // Emit unreachable only for non-sycl devices
-    if (getTarget().getTriple().getSubArch() != getLangOpts().SYCLIsDevice)
+    if (!getLangOpts().SYCLIsDevice)
       EmitUnreachable(Loc);
     Builder.ClearInsertionPoint();
 
