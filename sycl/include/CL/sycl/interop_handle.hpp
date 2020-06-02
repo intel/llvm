@@ -50,8 +50,7 @@ public:
                        accessor<DataT, Dims, Mode, Target, IsPlh>>::type>::type
   get_native_mem(const accessor<DataT, Dims, Mode, Target, IsPlh> &Acc) const {
 #ifndef __SYCL_DEVICE_ONLY__
-    const auto *AccBase =
-        static_cast<const detail::AccessorBaseHost *>(&Acc);
+    const auto *AccBase = static_cast<const detail::AccessorBaseHost *>(&Acc);
     return getMemImpl<BackendName, DataT, Dims, Mode, Target, IsPlh>(
         detail::getSyclObjImpl(*AccBase).get());
 #else
