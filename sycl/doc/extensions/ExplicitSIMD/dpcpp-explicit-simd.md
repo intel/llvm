@@ -14,7 +14,7 @@ additional features:
 Here are some future directions in which this API is intended to evolve:
 - enabling this extension for other architectures, such as x86, with extracting
   and clearly marking generic and target-dependent API portions
-- aligning with `std::simd` and maybe providing `std::simd` implemenation atop
+- aligning with `std::simd` and maybe providing `std::simd` implementation atop
   `sycl::intel::gpu`
 
 ## Explicit SIMD execution model
@@ -738,7 +738,7 @@ int main(void) {
 - Section covering 2D use cases
 - A bridge from `std::simd` to `sycl::intel::gpu::simd`
 - Describe `simd_view` class restrictions
-- Consider auto-inclusion of sycl_[[sycl_explicit_simd]].hpp under -fsycl-esimd option
+- Consider auto-inclusion of sycl_explicit_simd.hpp under -fsycl-esimd option
 - Add example showing the mapping between an ND-range and the number of
 thread-groups and EU threads, and showing the usage of explicit SIMD together
 with work-group barriers and SLM.
