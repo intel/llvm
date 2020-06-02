@@ -9,6 +9,7 @@
 #pragma once
 
 #include <CL/sycl/access/access.hpp>
+#include <CL/sycl/accessor.hpp>
 #include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/detail/accessor_impl.hpp>
 #include <CL/sycl/detail/common.hpp>
@@ -28,10 +29,6 @@ class queue_impl;
 class device_impl;
 class context_impl;
 } // namespace detail
-
-template <typename DataT, int Dims, access::mode AccMode,
-          access::target AccTarget, access::placeholder isPlaceholder>
-class accessor;
 
 class queue;
 class device;
@@ -53,10 +50,8 @@ public:
                        accessor<DataT, Dims, Mode, Target, IsPlh>>::type>::type
   get_native_mem(const accessor<DataT, Dims, Mode, Target, IsPlh> &Acc) const {
 #ifndef __SYCL_DEVICE_ONLY__
-    // employ reinterpret_cast instead of static_cast due to cycle in includes
-    // involving CL/sycl/accessor.hpp
     const auto *AccBase =
-        reinterpret_cast<const detail::AccessorBaseHost *>(&Acc);
+        static_cast<const detail::AccessorBaseHost *>(&Acc);
     return getMemImpl<BackendName, DataT, Dims, Mode, Target, IsPlh>(
         detail::getSyclObjImpl(*AccBase).get());
 #else
