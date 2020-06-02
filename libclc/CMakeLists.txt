@@ -45,8 +45,13 @@ set( LIBCLC_TARGETS_ALL
   nvptx--nvidiacl
   nvptx64--nvidiacl
 )
+set( LIBCLC_TEST_TARGETS_ALL
+  nvptx--nvidiacl
+  nvptx64--nvidiacl
+)
 
 set( LIBCLC_ROOT_DIR ${CMAKE_CURRENT_SOURCE_DIR} )
+set( LIBCLC_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR} )
 
 set( LIBCLC_TARGETS_TO_BUILD "all"
     CACHE STRING "Semicolon-separated list of targets to build, or 'all'." )
@@ -64,6 +69,14 @@ if( LIBCLC_TARGETS_TO_BUILD STREQUAL "all" )
 endif()
 
 list( SORT LIBCLC_TARGETS_TO_BUILD )
+
+set(LIBCLC_TARGET_TO_TEST)
+
+foreach ( t ${LIBCLC_TEST_TARGETS_ALL})
+	if( ${t} IN_LIST LIBCLC_TARGETS_TO_BUILD )
+		list( APPEND LIBCLC_TARGET_TO_TEST "${t}" )
+	endif(t)
+endforeach(t)
 
 execute_process( COMMAND ${LLVM_CONFIG} "--system-libs"
 	OUTPUT_VARIABLE LLVM_SYSTEM_LIBS
@@ -261,3 +274,5 @@ install(DIRECTORY ${LIBCLC_LIBRARY_OUTPUT_INTDIR}
 				DESTINATION lib${LLVM_LIBDIR_SUFFIX}
 				COMPONENT clc-builtins
 				FILES_MATCHING PATTERN "clc-*")
+
+add_subdirectory(test)
