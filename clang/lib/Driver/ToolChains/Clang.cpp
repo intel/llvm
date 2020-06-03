@@ -4124,6 +4124,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-fsycl");
     CmdArgs.push_back("-fsycl-is-device");
     CmdArgs.push_back("-fdeclare-spirv-builtins");
+
+    if (Args.hasFlag(options::OPT_fsycl_esimd, options::OPT_fno_sycl_esimd,
+                     false))
+      CmdArgs.push_back("-fsycl-explicit-simd");
     // Pass the triple of host when doing SYCL
     auto AuxT = llvm::Triple(llvm::sys::getProcessTriple());
     std::string NormalizedTriple = AuxT.normalize();
@@ -6153,6 +6157,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       // doing the host pass.
       CmdArgs.push_back("-fsycl");
       CmdArgs.push_back("-fsycl-is-host");
+
+      if (Args.hasFlag(options::OPT_fsycl_esimd, options::OPT_fno_sycl_esimd,
+                       false))
+        CmdArgs.push_back("-fsycl-explicit-simd");
     }
     if (IsSYCLOffloadDevice && JA.getType() == types::TY_SYCL_Header) {
       // Generating a SYCL Header
