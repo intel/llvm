@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014,2015 Advanced Micro Devices, Inc.
+ * Copyright (c) 2015 Advanced Micro Devices, Inc.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,33 +21,12 @@
  */
 
 #include <clc/clc.h>
-#include <spirv/spirv.h>
+#include <config.h>
 
-#include <clcmacro.h>
+_CLC_DEF bool __clc_fp16_subnormals_supported() { return false; }
 
-#define STEP_DEF(edge_type, x_type)                                            \
-  _CLC_OVERLOAD _CLC_DEF x_type step(edge_type edge, x_type x) {               \
-    return __spirv_ocl_step((x_type)edge, x);                                  \
-  }
+_CLC_DEF bool __clc_fp32_subnormals_supported() { return false; }
 
-STEP_DEF(float, float);
-
-_CLC_BINARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, step, float, float);
-
-_CLC_V_S_V_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, step, float, float);
-
-#ifdef cl_khr_fp64
-#pragma OPENCL EXTENSION cl_khr_fp64 : enable
-
-STEP_DEF(double, double);
-
-_CLC_BINARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, step, double, double);
-_CLC_V_S_V_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, step, double, double);
-
-STEP_DEF(float, double);
-STEP_DEF(double, float);
-
-_CLC_V_S_V_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, step, float, double);
-_CLC_V_S_V_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, step, double, float);
-
-#endif
+_CLC_DEF bool __clc_fp64_subnormals_supported() {
+  return !__clc_subnormals_disabled();
+}

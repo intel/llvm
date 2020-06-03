@@ -10,31 +10,25 @@
 
 #include "../../lib/clcmacro.h"
 
-_CLC_OVERLOAD _CLC_DEF float __spirv_ocl_step(float edge, float x) {
-  return x < edge ? 0.0f : 1.0f;
-}
+#define STEP_DEF(TYPE, TYPOSTFIX)                                              \
+  _CLC_OVERLOAD _CLC_DEF TYPE __spirv_ocl_step(TYPE edge, TYPE x) {            \
+    return x < edge ? 0.0##TYPOSTFIX : 1.0##TYPOSTFIX;                         \
+  }                                                                            \
+  _CLC_BINARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, TYPE, __spirv_ocl_step, TYPE,  \
+                        TYPE)
 
-_CLC_BINARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, __spirv_ocl_step, float, float);
-
-_CLC_V_S_V_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, __spirv_ocl_step, float, float);
+STEP_DEF(float, f)
 
 #ifdef cl_khr_fp64
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
 
-#define STEP_DEF(edge_type, x_type) \
-  _CLC_OVERLOAD _CLC_DEF x_type __spirv_ocl_step(edge_type edge, x_type x) { \
-    return x < edge ? 0.0 : 1.0; \
- }
+STEP_DEF(double, )
 
-STEP_DEF(double, double);
+#endif
 
-_CLC_BINARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, __spirv_ocl_step, double, double);
-_CLC_V_S_V_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, __spirv_ocl_step, double, double);
+#ifdef cl_khr_fp16
+#pragma OPENCL EXTENSION cl_khr_fp16 : enable
 
-STEP_DEF(float, double);
-STEP_DEF(double, float);
-
-_CLC_V_S_V_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, __spirv_ocl_step, float, double);
-_CLC_V_S_V_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, __spirv_ocl_step, double, float);
+STEP_DEF(half, h)
 
 #endif

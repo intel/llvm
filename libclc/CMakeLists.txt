@@ -164,9 +164,9 @@ install( DIRECTORY generic/include/clc DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} )
 
 if( ENABLE_RUNTIME_SUBNORMAL )
 	add_library( subnormal_use_default STATIC
-		generic/lib/subnormal_use_default.ll )
+		generic/libspirv/subnormal_use_default.ll )
 	add_library( subnormal_disable STATIC
-		generic/lib/subnormal_disable.ll )
+		generic/libspirv/subnormal_disable.ll )
 	install( TARGETS subnormal_use_default subnormal_disable ARCHIVE
 		DESTINATION ${CMAKE_INSTALL_DATADIR}/clc )
 endif()

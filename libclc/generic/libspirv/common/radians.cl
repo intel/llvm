@@ -26,6 +26,19 @@ _CLC_OVERLOAD _CLC_DEF double __spirv_ocl_radians(double degrees) {
   return 0x1.1df46a2529d39p-6 * degrees;
 }
 
-_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, __spirv_ocl_radians, double);
+_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, __spirv_ocl_radians,
+                     double);
+
+#endif
+
+#ifdef cl_khr_fp16
+#pragma OPENCL EXTENSION cl_khr_fp16 : enable
+
+_CLC_OVERLOAD _CLC_DEF half __spirv_ocl_radians(half degrees) {
+  // pi/180 = ~0.01745329251994329577 or 0x1.1df46a2529d39p-6 or 0x1.1df46ap-6F
+  return M_PI_OVER_180_H * degrees;
+}
+
+_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, half, __spirv_ocl_radians, half);
 
 #endif

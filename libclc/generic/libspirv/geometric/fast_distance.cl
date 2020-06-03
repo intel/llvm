@@ -8,8 +8,7 @@
 
 #include <spirv/spirv.h>
 
-#include <math/clc_sqrt.h>
-
-#define __CLC_BUILTIN __clc_sqrt
-#define __CLC_FUNCTION __spirv_ocl_sqrt
-#include "unary_builtin.inc"
+#define __CLC_BODY <fast_distance.inc>
+#define __FLOAT_ONLY
+#include <clc/geometric/floatn.inc>
+#undef __FLOAT_ONLY
