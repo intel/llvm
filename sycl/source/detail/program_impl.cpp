@@ -232,7 +232,7 @@ void program_impl::build_with_kernel_name(string_class KernelName,
       MProgramAndKernelCachingAllowed = true;
       MProgram = ProgramManager::getInstance().getBuiltPIProgram(
           Module, get_context(), KernelName, this,
-          /*FromProgramApi=*/true);
+          /*CheckThatCompiled=*/true);
       const detail::plugin &Plugin = getPlugin();
       Plugin.call<PiApiKind::piProgramRetain>(MProgram);
     } else {
@@ -442,7 +442,7 @@ void program_impl::create_pi_program_with_kernel_name(
   ProgramManager &PM = ProgramManager::getInstance();
   RTDeviceBinaryImage &Img =
       PM.getDeviceImage(Module, KernelName, get_context(),
-                        /*FromProgramApi=*/true);
+                        /*CheckThatCompiled=*/true);
   MProgram = PM.createPIProgram(Img, get_context());
 }
 

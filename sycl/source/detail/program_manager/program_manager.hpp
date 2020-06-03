@@ -62,7 +62,7 @@ public:
   RTDeviceBinaryImage &getDeviceImage(OSModuleHandle M,
                                       const string_class &KernelName,
                                       const context &Context,
-                                      bool FromProgramApi = false);
+                                      bool CheckThatCompiled = false);
   RT::PiProgram createPIProgram(const RTDeviceBinaryImage &Img,
                                 const context &Context);
   /// Builds or retrieves from cache a program defining the kernel with given
@@ -75,7 +75,8 @@ public:
   ///        current specialization constants settings; can be nullptr.
   ///        Passing as a raw pointer is OK, since it is not captured anywhere
   ///        once the function returns.
-  /// \param FromProgramApi indicates that call comes from a public program API.
+  /// \param CheckThatCompiled If CheckThatCompiled is true
+  ///        add a check that kernel is compiled, otherwise don't add the check.
   RT::PiProgram getBuiltPIProgram(OSModuleHandle M, const context &Context,
                                   const string_class &KernelName,
                                   const program_impl *Prg = nullptr,
@@ -114,7 +115,7 @@ private:
 
   RTDeviceBinaryImage &getDeviceImage(OSModuleHandle M, KernelSetId KSId,
                                       const context &Context,
-                                      bool FromProgramApi = false);
+                                      bool CheckThatCompiled = false);
   using ProgramPtr = unique_ptr_class<remove_pointer_t<RT::PiProgram>,
                                       decltype(&::piProgramRelease)>;
   ProgramPtr build(ProgramPtr Program, const ContextImplPtr Context,
