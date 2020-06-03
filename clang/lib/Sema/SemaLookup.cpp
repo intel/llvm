@@ -910,7 +910,7 @@ bool Sema::LookupBuiltin(LookupResult &R) {
                      FunctionDecl &NewBuiltin) {
                 if (!this->getLangOpts().CPlusPlus)
                   NewBuiltin.addAttr(OverloadableAttr::CreateImplicit(Context));
-                if (this->getLangOpts().SYCL)
+                if (this->getLangOpts().SYCLIsDevice)
                   NewBuiltin.addAttr(
                       SYCLDeviceAttr::CreateImplicit(this->Context));
               });
