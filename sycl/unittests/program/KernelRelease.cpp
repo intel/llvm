@@ -72,7 +72,9 @@ TEST(KernelReleaseTest, GetKernelRelease) {
   unittest::PiMock Mock;
   platform Plt = Mock.getPlatform();
   if (Plt.is_host()) {
-    std::cerr << "The program/kernel methods are mostly no-op on the host device, the test is not run." << std::endl;
+    std::cerr << "The program/kernel methods are mostly no-op on the host "
+                 "device, the test is not run."
+              << std::endl;
     return;
   }
 
