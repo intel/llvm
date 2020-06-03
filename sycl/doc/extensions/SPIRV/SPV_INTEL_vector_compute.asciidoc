@@ -44,8 +44,8 @@ Version
 
 [width="40%",cols="25,25"]
 |========================================
-| Last Modified Date | 2020-05-06
-| Revision           | 3
+| Last Modified Date | 2020-06-03
+| Revision           | 4
 |========================================
 
 Dependencies
@@ -91,6 +91,8 @@ See the client API specification for more detail.
 | *VectorComputeINTEL* | <<Literal, 'Literal'>> _Size_
 |====
 --
+Modify Section 3.7, Storage Class: +
+Add *VectorComputeINTEL* to the list of enabling capabilities for the *Private* storage class.
 
 Modify Section 3.20, Decoration, add the following rows to the Decoration table:
 
@@ -99,7 +101,12 @@ Modify Section 3.20, Decoration, add the following rows to the Decoration table:
 |====
   2+^| Decoration  | Enabling Capabilities | Extra Operands
 | 5626 | *VectorComputeFunctionINTEL* +
-Apply to a function definition to specify that this function is a vector compute function.
+Apply to a function definition to specify that the function is a vector compute function.
+
+See the client API specification for more detail.
+| *VectorComputeINTEL* |
+| 5624 | *VectorComputeVariableINTEL* +
+Apply to a variable to specify that the variable is a vector compute variable.
 
 See the client API specification for more detail.
 | *VectorComputeINTEL* |
@@ -108,18 +115,37 @@ Apply to a function definition to specify that this function is a stack call fun
 
 See the client API specification for more detail.
 | *VectorComputeINTEL* |
+| 5625 | *FuncParamIOKindINTEL* +
+Apply to a function parameter to specify properties of the register file corresponding to the parameter.
+
+'Kind' is an unsigned 32-bit integer.
+
+See the client API specification for more detail.
+| *VectorComputeINTEL* | <<Literal, 'Literal'>> _Kind_
+| 5628 | *GlobalVariableOffsetINTEL* +
+Apply to a variable to specify byte offset in general register file.
+
+'Offset' is an unsigned 32-bit integer.
+
+See the client API specification for more detail.
+| *VectorComputeINTEL* | <<Literal, 'Literal'>> _Offset_
 |====
+
+Modify the description of *Volatile* decoration, add the following text: +
+If the *VectorComputeINTEL* capability is declared *Volatile* may be applied to memory object declarations or members of a structure type in *Private* or *Workgroup* storage class.
+
 --
 
-Modify Section 3.31, Capability, add the following row the 'Capability' table:
+Modify Section 3.31, Capability, add the following rows the 'Capability' table:
 --
 [cols="1,20,10,10",options="header",width = "80%"]
 |====
   2+^| Capability      |     Implicitly Declares    | Enabled by Extension
 | 5617 | *VectorComputeINTEL* +
-Enables the use of *SharedLocalMemorySizeINTEL* execution mode and *VectorComputeFunctionINTEL* and *StackCallINTEL* decorations.
-
-See the client API specification for more detail.
+Enables the use of *Private* storage class, *SharedLocalMemorySizeINTEL* execution mode and *VectorComputeFunctionINTEL*, *VectorComputeVariableINTEL*, *StackCallINTEL*, *FuncParamIOKindINTEL* and *GlobalVariableOffsetINTEL* decorations.
+|*VectorAnyINTEL* | *SPV_INTEL_vector_compute*
+| 5619 | *VectorAnyINTEL* +
+Uses OpTypeVector to declare vectors with any number of components.
 || *SPV_INTEL_vector_compute*
 |====
 --
@@ -137,6 +163,7 @@ Revision History
 |========================================
 |Rev|Date|Author|Changes
 |1|2020-04-17|Mariusz Merecki|Initial revision
-|2|2020-04-24|Mariusz Merecki|Assigned token number to *VectorComputeKernelINTEL*
+|2|2020-04-24|Mariusz Merecki|Assigned token number to *VectorComputeFunctionINTEL*
 |3|2020-05-06|Mariusz Merecki|Removed *VectorComputeKernelINTEL*, *KernelArgumentTypeINTEL* and *KernelArgumentDescINTEL*. Added *VectorComputeFunctionINTEL*.
+|4|2020-06-03|Mariusz Merecki|Added *VectorAnyINTEL*, *VectorComputeVariableINTEL*, *FuncParamIOKindINTEL* and *GlobalVariableOffsetINTEL*. Added updates for the *Volatile* decoration and *Private* storage class descriptions.
 |========================================
