@@ -19,7 +19,7 @@ Here are some future directions in which this API is intended to evolve:
 
 ## Explicit SIMD execution model
 
-Explicit SIMD execution model is a basically an equivalent of the base SYCL
+Explicit SIMD execution model is basically an equivalent of the base SYCL
 execution model with subgroup size restricted to 1. Which means each subgroup
 maps to a single hardware thread. All standard SYCL APIs continue to work,
 including `sycl::intel::sub_group` ones, which become either a no-op or
@@ -97,8 +97,8 @@ efficient mapping to SIMD vector operations on Intel GPU architectures.
 
 The `sycl::intel::gpu::simd` class is a vector templated on some element type. The element type must be vectorizable type. The set of vectorizable types is the set of fundamental SYCL arithmetic types (C++ arithmetic types or `half` type) excluding `bool`. The length of the vector is the second template parameter.
 
-Each simd class object is mapped to a consecutive block of general register
-files (GRF).
+ESIMD compiler back-end does the best it can to map each `simd` class object to a consecutive block
+of registers in the general register file (GRF).
 
 ```cpp
 namespace sycl {
