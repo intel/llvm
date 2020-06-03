@@ -3559,7 +3559,7 @@ scope) variables and static local variable as well.
   }];
 }
 
-def OpenCLUSMAddressSpacesDocs : Documentation {
+def OpenCLGlobalAddressSpacesDocs : Documentation {
   let Category = DocOpenCLAddressSpaces;
   let Heading = "[[clang::opencl_global_device]], [[clang::opencl_global_host]]";
   let Content = [{

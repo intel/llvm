@@ -2393,10 +2393,10 @@ void CXXNameMangler::mangleQualifiers(Qualifiers Quals, const DependentAddressSp
         ASString = "CLglobal";
         break;
       case LangAS::opencl_global_device:
-        ASString = "CLUSMDevice";
+        ASString = "CLDevice";
         break;
       case LangAS::opencl_global_host:
-        ASString = "CLUSMHost";
+        ASString = "CLHost";
         break;
       case LangAS::opencl_local:
         ASString = "CLlocal";
