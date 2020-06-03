@@ -931,19 +931,19 @@ DataT ReadPixelDataLinearFiltMode(const cl_int8 CoordValues,
 
   // Get Color Values at each Coordinate.
   cl_float4 Ci0j0k0 = getColorInFloat(cl_int4{i0, j0, k0, 0});
-
+  
   cl_float4 Ci1j0k0 = getColorInFloat(cl_int4{i1, j0, k0, 0});
-
+  
   cl_float4 Ci0j1k0 = getColorInFloat(cl_int4{i0, j1, k0, 0});
-
+  
   cl_float4 Ci1j1k0 = getColorInFloat(cl_int4{i1, j1, k0, 0});
-
+  
   cl_float4 Ci0j0k1 = getColorInFloat(cl_int4{i0, j0, k1, 0});
-
+  
   cl_float4 Ci1j0k1 = getColorInFloat(cl_int4{i1, j0, k1, 0});
-
+  
   cl_float4 Ci0j1k1 = getColorInFloat(cl_int4{i0, j1, k1, 0});
-
+  
   cl_float4 Ci1j1k1 = getColorInFloat(cl_int4{i1, j1, k1, 0});
 
   cl_float a = abc.x();
