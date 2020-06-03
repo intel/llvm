@@ -40,6 +40,13 @@ public:
 
   cl_int MRetVal = CL_SUCCESS;
 
+  void waitForEventsCall(
+      std::shared_ptr<cl::sycl::detail::queue_impl> Queue,
+      std::vector<std::shared_ptr<cl::sycl::detail::event_impl>> &RawEvents,
+      pi_event &Event) {
+    Command::waitForEvents(Queue, RawEvents, Event);
+  }
+
 protected:
   cl::sycl::detail::Requirement MRequirement;
 };
