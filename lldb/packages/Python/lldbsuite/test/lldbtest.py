@@ -668,7 +668,7 @@ class Base(unittest2.TestCase):
 
     def getBuildDir(self):
         """Return the full path to the current test."""
-        return os.path.join(os.environ["LLDB_BUILD"], self.mydir,
+        return os.path.join(configuration.test_build_dir, self.mydir,
                             self.getBuildDirBasename())
 
     def getReproducerDir(self):
@@ -682,7 +682,6 @@ class Base(unittest2.TestCase):
     def makeBuildDir(self):
         """Create the test-specific working directory, deleting any previous
         contents."""
-        # See also dotest.py which sets up ${LLDB_BUILD}.
         bdir = self.getBuildDir()
         if os.path.isdir(bdir):
             shutil.rmtree(bdir)
@@ -884,8 +883,10 @@ class Base(unittest2.TestCase):
         del self.subprocesses[:]
         # Ensure any forked processes are cleaned up
         for pid in self.forkedProcessPids:
-            if os.path.exists("/proc/" + str(pid)):
+            try:
                 os.kill(pid, signal.SIGTERM)
+            except OSError:
+                pass
 
     def spawnSubprocess(self, executable, args=[], install_remote=True):
         """ Creates a subprocess.Popen object with the specified executable and arguments,

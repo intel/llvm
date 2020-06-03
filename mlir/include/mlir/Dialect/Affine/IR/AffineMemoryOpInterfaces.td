@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef MLIR_AFFINEMEMORYOPINTERFACES
-#define MLIR_AFFINEMEMORYOPINTERFACES
+#ifndef AFFINEMEMORYOPINTERFACES
+#define AFFINEMEMORYOPINTERFACES
 
 include "mlir/IR/OpBase.td"
 
@@ -23,7 +23,7 @@ def AffineReadOpInterface : OpInterface<"AffineReadOpInterface"> {
 
   let methods = [
     InterfaceMethod<
-      /*desc=*/[{ Returns the memref operand to read from. }],
+      /*desc=*/"Returns the memref operand to read from.",
       /*retTy=*/"Value",
       /*methodName=*/"getMemRef",
       /*args=*/(ins),
@@ -34,7 +34,7 @@ def AffineReadOpInterface : OpInterface<"AffineReadOpInterface"> {
       }]
     >,
     InterfaceMethod<
-      /*desc=*/[{ Returns the type of the memref operand. }],
+      /*desc=*/"Returns the type of the memref operand.",
       /*retTy=*/"MemRefType",
       /*methodName=*/"getMemRefType",
       /*args=*/(ins),
@@ -45,7 +45,7 @@ def AffineReadOpInterface : OpInterface<"AffineReadOpInterface"> {
       }]
     >,
     InterfaceMethod<
-      /*desc=*/[{ Returns affine map operands. }],
+      /*desc=*/"Returns affine map operands.",
       /*retTy=*/"Operation::operand_range",
       /*methodName=*/"getMapOperands",
       /*args=*/(ins),
@@ -56,8 +56,9 @@ def AffineReadOpInterface : OpInterface<"AffineReadOpInterface"> {
       }]
     >,
     InterfaceMethod<
-      /*desc=*/[{ Returns the affine map used to index the memref for this
-                  operation. }],
+      /*desc=*/[{
+        Returns the affine map used to index the memref for this operation.
+      }],
       /*retTy=*/"AffineMap",
       /*methodName=*/"getAffineMap",
       /*args=*/(ins),
@@ -65,6 +66,19 @@ def AffineReadOpInterface : OpInterface<"AffineReadOpInterface"> {
       /*defaultImplementation=*/[{
         ConcreteOp op = cast<ConcreteOp>(this->getOperation());
         return op.getAffineMapAttr().getValue();
+      }]
+    >,
+    InterfaceMethod<
+      /*desc=*/"Returns the AffineMapAttr associated with 'memref'.",
+      /*retTy=*/"NamedAttribute",
+      /*methodName=*/"getAffineMapAttrForMemRef",
+      /*args=*/(ins "Value":$memref),
+      /*methodBody=*/[{}],
+      /*defaultImplementation=*/[{
+        ConcreteOp op = cast<ConcreteOp>(this->getOperation());
+        assert(memref == getMemRef());
+        return {Identifier::get(op.getMapAttrName(), op.getContext()),
+                op.getAffineMapAttr()};
       }]
     >,
   ];
@@ -78,7 +92,7 @@ def AffineWriteOpInterface : OpInterface<"AffineWriteOpInterface"> {
 
   let methods = [
     InterfaceMethod<
-      /*desc=*/[{ Returns the memref operand to write to. }],
+      /*desc=*/"Returns the memref operand to write to.",
       /*retTy=*/"Value",
       /*methodName=*/"getMemRef",
       /*args=*/(ins),
@@ -89,7 +103,7 @@ def AffineWriteOpInterface : OpInterface<"AffineWriteOpInterface"> {
       }]
     >,
     InterfaceMethod<
-      /*desc=*/[{ Returns the type of the memref operand. }],
+      /*desc=*/"Returns the type of the memref operand.",
       /*retTy=*/"MemRefType",
       /*methodName=*/"getMemRefType",
       /*args=*/(ins),
@@ -100,7 +114,7 @@ def AffineWriteOpInterface : OpInterface<"AffineWriteOpInterface"> {
       }]
     >,
     InterfaceMethod<
-      /*desc=*/[{ Returns affine map operands. }],
+      /*desc=*/"Returns affine map operands.",
       /*retTy=*/"Operation::operand_range",
       /*methodName=*/"getMapOperands",
       /*args=*/(ins),
@@ -111,8 +125,9 @@ def AffineWriteOpInterface : OpInterface<"AffineWriteOpInterface"> {
       }]
     >,
     InterfaceMethod<
-      /*desc=*/[{ Returns the affine map used to index the memref for this
-                  operation. }],
+      /*desc=*/[{
+        Returns the affine map used to index the memref for this operation.
+      }],
       /*retTy=*/"AffineMap",
       /*methodName=*/"getAffineMap",
       /*args=*/(ins),
@@ -122,7 +137,20 @@ def AffineWriteOpInterface : OpInterface<"AffineWriteOpInterface"> {
         return op.getAffineMapAttr().getValue();
       }]
     >,
+    InterfaceMethod<
+      /*desc=*/"Returns the AffineMapAttr associated with 'memref'.",
+      /*retTy=*/"NamedAttribute",
+      /*methodName=*/"getAffineMapAttrForMemRef",
+      /*args=*/(ins "Value":$memref),
+      /*methodBody=*/[{}],
+      /*defaultImplementation=*/[{
+        ConcreteOp op = cast<ConcreteOp>(this->getOperation());
+        assert(memref == getMemRef());
+        return {Identifier::get(op.getMapAttrName(), op.getContext()),
+                op.getAffineMapAttr()};
+      }]
+    >,
   ];
 }
 
-#endif // MLIR_AFFINEMEMORYOPINTERFACES
+#endif // AFFINEMEMORYOPINTERFACES

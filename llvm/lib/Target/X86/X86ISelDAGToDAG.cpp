@@ -40,6 +40,10 @@ static cl::opt<bool> AndImmShrink("x86-and-imm-shrink", cl::init(true),
     cl::desc("Enable setting constant bits to reduce size of mask immediates"),
     cl::Hidden);
 
+static cl::opt<bool> EnablePromoteAnyextLoad(
+    "x86-promote-anyext-load", cl::init(true),
+    cl::desc("Enable promoting aligned anyext load to wider load"), cl::Hidden);
+
 //===----------------------------------------------------------------------===//
 //                      Pattern Matcher Implementation
 //===----------------------------------------------------------------------===//
@@ -803,6 +807,7 @@ static bool isCalleeLoad(SDValue Callee, SDValue &Chain, bool HasCallSeq) {
 }
 
 void X86DAGToDAGISel::PreprocessISelDAG() {
+  bool MadeChange = false;
   for (SelectionDAG::allnodes_iterator I = CurDAG->allnodes_begin(),
        E = CurDAG->allnodes_end(); I != E; ) {
     SDNode *N = &*I++; // Preincrement iterator to avoid invalidation issues.
@@ -815,7 +820,7 @@ void X86DAGToDAGISel::PreprocessISelDAG() {
       --I;
       CurDAG->ReplaceAllUsesOfValueWith(SDValue(N, 0), Res);
       ++I;
-      CurDAG->DeleteNode(N);
+      MadeChange = true;
       continue;
     }
 
@@ -846,7 +851,7 @@ void X86DAGToDAGISel::PreprocessISelDAG() {
         --I;
         CurDAG->ReplaceAllUsesWith(N, Res.getNode());
         ++I;
-        CurDAG->DeleteNode(N);
+        MadeChange = true;
         continue;
       }
     }
@@ -870,7 +875,8 @@ void X86DAGToDAGISel::PreprocessISelDAG() {
         --I;
         CurDAG->ReplaceAllUsesWith(N, Res.getNode());
         ++I;
-        CurDAG->DeleteNode(N);
+        MadeChange = true;
+        continue;
       }
 
       break;
@@ -898,7 +904,8 @@ void X86DAGToDAGISel::PreprocessISelDAG() {
         SDValue To[] = {Res, NarrowBCast.getValue(1)};
         CurDAG->ReplaceAllUsesWith(N, To);
         ++I;
-        CurDAG->DeleteNode(N);
+        MadeChange = true;
+        continue;
       }
 
       break;
@@ -915,7 +922,7 @@ void X86DAGToDAGISel::PreprocessISelDAG() {
       --I;
       CurDAG->ReplaceAllUsesWith(N, Blendv.getNode());
       ++I;
-      CurDAG->DeleteNode(N);
+      MadeChange = true;
       continue;
     }
     case ISD::FP_ROUND:
@@ -951,7 +958,7 @@ void X86DAGToDAGISel::PreprocessISelDAG() {
       --I;
       CurDAG->ReplaceAllUsesWith(N, Res.getNode());
       ++I;
-      CurDAG->DeleteNode(N);
+      MadeChange = true;
       continue;
     }
     case ISD::SHL:
@@ -974,7 +981,7 @@ void X86DAGToDAGISel::PreprocessISelDAG() {
       --I;
       CurDAG->ReplaceAllUsesOfValueWith(SDValue(N, 0), Res);
       ++I;
-      CurDAG->DeleteNode(N);
+      MadeChange = true;
       continue;
     }
     case ISD::ANY_EXTEND:
@@ -1000,7 +1007,7 @@ void X86DAGToDAGISel::PreprocessISelDAG() {
       --I;
       CurDAG->ReplaceAllUsesOfValueWith(SDValue(N, 0), Res);
       ++I;
-      CurDAG->DeleteNode(N);
+      MadeChange = true;
       continue;
     }
     case ISD::FCEIL:
@@ -1044,7 +1051,7 @@ void X86DAGToDAGISel::PreprocessISelDAG() {
       --I;
       CurDAG->ReplaceAllUsesWith(N, Res.getNode());
       ++I;
-      CurDAG->DeleteNode(N);
+      MadeChange = true;
       continue;
     }
     case X86ISD::FANDN:
@@ -1087,7 +1094,7 @@ void X86DAGToDAGISel::PreprocessISelDAG() {
       --I;
       CurDAG->ReplaceAllUsesOfValueWith(SDValue(N, 0), Res);
       ++I;
-      CurDAG->DeleteNode(N);
+      MadeChange = true;
       continue;
     }
     }
@@ -1126,6 +1133,7 @@ void X86DAGToDAGISel::PreprocessISelDAG() {
         continue;
       moveBelowOrigChain(CurDAG, Load, SDValue(N, 0), Chain);
       ++NumLoadMoved;
+      MadeChange = true;
       continue;
     }
 
@@ -1284,13 +1292,12 @@ void X86DAGToDAGISel::PreprocessISelDAG() {
     // Now that we did that, the node is dead.  Increment the iterator to the
     // next node to process, then delete N.
     ++I;
-    CurDAG->DeleteNode(N);
+    MadeChange = true;
   }
 
-  // The load+call transform above can leave some dead nodes in the graph. Make
-  // sure we remove them. Its possible some of the other transforms do to so
-  // just remove dead nodes unconditionally.
-  CurDAG->RemoveDeadNodes();
+  // Remove any dead nodes that may have been left behind.
+  if (MadeChange)
+    CurDAG->RemoveDeadNodes();
 }
 
 // Look for a redundant movzx/movsx that can occur after an 8-bit divrem.
@@ -4759,20 +4766,25 @@ void X86DAGToDAGISel::Select(SDNode *Node) {
     unsigned LoReg, HiReg;
     bool IsSigned = Opcode == ISD::SMUL_LOHI;
     bool UseMULX = !IsSigned && Subtarget->hasBMI2();
+    bool UseMULXHi = UseMULX && SDValue(Node, 0).use_empty();
     switch (NVT.SimpleTy) {
     default: llvm_unreachable("Unsupported VT!");
     case MVT::i32:
-      Opc  = UseMULX ? X86::MULX32rr :
+      Opc  = UseMULXHi ? X86::MULX32Hrr :
+             UseMULX ? X86::MULX32rr :
              IsSigned ? X86::IMUL32r : X86::MUL32r;
-      MOpc = UseMULX ? X86::MULX32rm :
+      MOpc = UseMULXHi ? X86::MULX32Hrm :
+             UseMULX ? X86::MULX32rm :
              IsSigned ? X86::IMUL32m : X86::MUL32m;
       LoReg = UseMULX ? X86::EDX : X86::EAX;
       HiReg = X86::EDX;
       break;
     case MVT::i64:
-      Opc  = UseMULX ? X86::MULX64rr :
+      Opc  = UseMULXHi ? X86::MULX64Hrr :
+             UseMULX ? X86::MULX64rr :
              IsSigned ? X86::IMUL64r : X86::MUL64r;
-      MOpc = UseMULX ? X86::MULX64rm :
+      MOpc = UseMULXHi ? X86::MULX64Hrm :
+             UseMULX ? X86::MULX64rm :
              IsSigned ? X86::IMUL64m : X86::MUL64m;
       LoReg = UseMULX ? X86::RDX : X86::RAX;
       HiReg = X86::RDX;
@@ -4796,7 +4808,12 @@ void X86DAGToDAGISel::Select(SDNode *Node) {
       MachineSDNode *CNode = nullptr;
       SDValue Ops[] = { Tmp0, Tmp1, Tmp2, Tmp3, Tmp4, N1.getOperand(0),
                         InFlag };
-      if (UseMULX) {
+      if (UseMULXHi) {
+        SDVTList VTs = CurDAG->getVTList(NVT, MVT::Other);
+        CNode = CurDAG->getMachineNode(MOpc, dl, VTs, Ops);
+        ResHi = SDValue(CNode, 0);
+        Chain = SDValue(CNode, 1);
+      } else if (UseMULX) {
         SDVTList VTs = CurDAG->getVTList(NVT, NVT, MVT::Other);
         CNode = CurDAG->getMachineNode(MOpc, dl, VTs, Ops);
         ResHi = SDValue(CNode, 0);
@@ -4815,7 +4832,11 @@ void X86DAGToDAGISel::Select(SDNode *Node) {
       CurDAG->setNodeMemRefs(CNode, {cast<LoadSDNode>(N1)->getMemOperand()});
     } else {
       SDValue Ops[] = { N1, InFlag };
-      if (UseMULX) {
+      if (UseMULXHi) {
+        SDVTList VTs = CurDAG->getVTList(NVT);
+        SDNode *CNode = CurDAG->getMachineNode(Opc, dl, VTs, Ops);
+        ResHi = SDValue(CNode, 0);
+      } else if (UseMULX) {
         SDVTList VTs = CurDAG->getVTList(NVT, NVT);
         SDNode *CNode = CurDAG->getMachineNode(Opc, dl, VTs, Ops);
         ResHi = SDValue(CNode, 0);

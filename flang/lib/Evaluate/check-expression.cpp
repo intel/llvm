@@ -59,7 +59,9 @@ public:
     }
     return true;
   }
-
+  bool operator()(const Component &component) const {
+    return (*this)(component.base());
+  }
   // Forbid integer division by zero in constants.
   template <int KIND>
   bool operator()(
@@ -208,7 +210,7 @@ public:
       return "derived type component or type parameter value not allowed to "
              "reference variable '"s +
           symbol.name().ToString() + "'";
-    } else if (symbol.IsDummy()) {
+    } else if (IsDummy(symbol)) {
       if (symbol.attrs().test(semantics::Attr::OPTIONAL)) {
         return "reference to OPTIONAL dummy argument '"s +
             symbol.name().ToString() + "'";

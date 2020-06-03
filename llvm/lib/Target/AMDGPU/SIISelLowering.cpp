@@ -220,6 +220,12 @@ SITargetLowering::SITargetLowering(const TargetMachine &TM,
   setTruncStoreAction(MVT::v16i16, MVT::v16i8, Expand);
   setTruncStoreAction(MVT::v32i16, MVT::v32i8, Expand);
 
+  setTruncStoreAction(MVT::v4i64, MVT::v4i8, Expand);
+  setTruncStoreAction(MVT::v8i64, MVT::v8i8, Expand);
+  setTruncStoreAction(MVT::v8i64, MVT::v8i16, Expand);
+  setTruncStoreAction(MVT::v8i64, MVT::v8i32, Expand);
+  setTruncStoreAction(MVT::v16i64, MVT::v16i32, Expand);
+
   setOperationAction(ISD::GlobalAddress, MVT::i32, Custom);
   setOperationAction(ISD::GlobalAddress, MVT::i64, Custom);
 
@@ -3120,9 +3126,12 @@ SDValue SITargetLowering::lowerDYNAMIC_STACKALLOCImpl(
 
   unsigned StackAlign = TFL->getStackAlignment();
   Tmp1 = DAG.getNode(Opc, dl, VT, SP, ScaledSize); // Value
-  if (Align > StackAlign)
-    Tmp1 = DAG.getNode(ISD::AND, dl, VT, Tmp1,
-                       DAG.getConstant(-(uint64_t)Align, dl, VT));
+  if (Align > StackAlign) {
+    Tmp1 = DAG.getNode(
+      ISD::AND, dl, VT, Tmp1,
+      DAG.getConstant(-(uint64_t)Align << ST.getWavefrontSizeLog2(), dl, VT));
+  }
+
   Chain = DAG.getCopyToReg(Chain, dl, SPReg, Tmp1);    // Output chain
   Tmp2 = DAG.getCALLSEQ_END(
       Chain, DAG.getIntPtrConstant(0, dl, true),
@@ -3716,16 +3725,6 @@ MachineBasicBlock *SITargetLowering::EmitInstrWithCustomInserter(
   MachineFunction *MF = BB->getParent();
   SIMachineFunctionInfo *MFI = MF->getInfo<SIMachineFunctionInfo>();
 
-  if (TII->isMIMG(MI)) {
-    if (MI.memoperands_empty() && MI.mayLoadOrStore()) {
-      report_fatal_error("missing mem operand from MIMG instruction");
-    }
-    // Add a memoperand for mimg instructions so that they aren't assumed to
-    // be ordered memory instuctions.
-
-    return BB;
-  }
-
   switch (MI.getOpcode()) {
   case AMDGPU::S_UADDO_PSEUDO:
   case AMDGPU::S_USUBO_PSEUDO: {
@@ -4129,6 +4128,75 @@ MachineBasicBlock *SITargetLowering::EmitInstrWithCustomInserter(
     }
 
     return emitGWSMemViolTestLoop(MI, BB);
+  case AMDGPU::S_SETREG_B32: {
+    if (!getSubtarget()->hasDenormModeInst())
+      return BB;
+
+    // Try to optimize cases that only set the denormal mode or rounding mode.
+    //
+    // If the s_setreg_b32 fully sets all of the bits in the rounding mode or
+    // denormal mode to a constant, we can use s_round_mode or s_denorm_mode
+    // instead.
+    //
+    // FIXME: This could be predicates on the immediate, but tablegen doesn't
+    // allow you to have a no side effect instruction in the output of a
+    // sideeffecting pattern.
+
+    // TODO: Should also emit a no side effects pseudo if only FP bits are
+    // touched, even if not all of them or to a variable.
+    unsigned ID, Offset, Width;
+    AMDGPU::Hwreg::decodeHwreg(MI.getOperand(1).getImm(), ID, Offset, Width);
+    if (ID != AMDGPU::Hwreg::ID_MODE)
+      return BB;
+
+    const unsigned WidthMask = maskTrailingOnes<unsigned>(Width);
+    const unsigned SetMask = WidthMask << Offset;
+    unsigned SetDenormOp = 0;
+    unsigned SetRoundOp = 0;
+
+    // The dedicated instructions can only set the whole denorm or round mode at
+    // once, not a subset of bits in either.
+    if (Width == 8 && (SetMask & (AMDGPU::Hwreg::FP_ROUND_MASK |
+                                  AMDGPU::Hwreg::FP_DENORM_MASK)) == SetMask) {
+      // If this fully sets both the round and denorm mode, emit the two
+      // dedicated instructions for these.
+      assert(Offset == 0);
+      SetRoundOp = AMDGPU::S_ROUND_MODE;
+      SetDenormOp = AMDGPU::S_DENORM_MODE;
+    } else if (Width == 4) {
+      if ((SetMask & AMDGPU::Hwreg::FP_ROUND_MASK) == SetMask) {
+        SetRoundOp = AMDGPU::S_ROUND_MODE;
+        assert(Offset == 0);
+      } else if ((SetMask & AMDGPU::Hwreg::FP_DENORM_MASK) == SetMask) {
+        SetDenormOp = AMDGPU::S_DENORM_MODE;
+        assert(Offset == 4);
+      }
+    }
+
+    if (SetRoundOp || SetDenormOp) {
+      MachineRegisterInfo &MRI = BB->getParent()->getRegInfo();
+      MachineInstr *Def = MRI.getVRegDef(MI.getOperand(0).getReg());
+      if (Def && Def->isMoveImmediate() && Def->getOperand(1).isImm()) {
+        unsigned ImmVal = Def->getOperand(1).getImm();
+        if (SetRoundOp) {
+          BuildMI(*BB, MI, MI.getDebugLoc(), TII->get(SetRoundOp))
+            .addImm(ImmVal & 0xf);
+
+          // If we also have the denorm mode, get just the denorm mode bits.
+          ImmVal >>= 4;
+        }
+
+        if (SetDenormOp) {
+          BuildMI(*BB, MI, MI.getDebugLoc(), TII->get(SetDenormOp))
+            .addImm(ImmVal & 0xf);
+        }
+
+        MI.eraseFromParent();
+      }
+    }
+
+    return BB;
+  }
   default:
     return AMDGPUTargetLowering::EmitInstrWithCustomInserter(MI, BB);
   }
@@ -7839,9 +7907,10 @@ SDValue SITargetLowering::lowerFastUnsafeFDIV(SDValue Op,
 }
 
 static SDValue getFPBinOp(SelectionDAG &DAG, unsigned Opcode, const SDLoc &SL,
-                          EVT VT, SDValue A, SDValue B, SDValue GlueChain) {
+                          EVT VT, SDValue A, SDValue B, SDValue GlueChain,
+                          SDNodeFlags Flags) {
   if (GlueChain->getNumValues() <= 1) {
-    return DAG.getNode(Opcode, SL, VT, A, B);
+    return DAG.getNode(Opcode, SL, VT, A, B, Flags);
   }
 
   assert(GlueChain->getNumValues() == 3);
@@ -7854,15 +7923,16 @@ static SDValue getFPBinOp(SelectionDAG &DAG, unsigned Opcode, const SDLoc &SL,
     break;
   }
 
-  return DAG.getNode(Opcode, SL, VTList, GlueChain.getValue(1), A, B,
-                     GlueChain.getValue(2));
+  return DAG.getNode(Opcode, SL, VTList,
+                     {GlueChain.getValue(1), A, B, GlueChain.getValue(2)},
+                     Flags);
 }
 
 static SDValue getFPTernOp(SelectionDAG &DAG, unsigned Opcode, const SDLoc &SL,
                            EVT VT, SDValue A, SDValue B, SDValue C,
-                           SDValue GlueChain) {
+                           SDValue GlueChain, SDNodeFlags Flags) {
   if (GlueChain->getNumValues() <= 1) {
-    return DAG.getNode(Opcode, SL, VT, A, B, C);
+    return DAG.getNode(Opcode, SL, VT, {A, B, C}, Flags);
   }
 
   assert(GlueChain->getNumValues() == 3);
@@ -7875,8 +7945,9 @@ static SDValue getFPTernOp(SelectionDAG &DAG, unsigned Opcode, const SDLoc &SL,
     break;
   }
 
-  return DAG.getNode(Opcode, SL, VTList, GlueChain.getValue(1), A, B, C,
-                     GlueChain.getValue(2));
+  return DAG.getNode(Opcode, SL, VTList,
+                     {GlueChain.getValue(1), A, B, C, GlueChain.getValue(2)},
+                     Flags);
 }
 
 SDValue SITargetLowering::LowerFDIV16(SDValue Op, SelectionDAG &DAG) const {
@@ -7950,6 +8021,13 @@ SDValue SITargetLowering::LowerFDIV32(SDValue Op, SelectionDAG &DAG) const {
   if (SDValue FastLowered = lowerFastUnsafeFDIV(Op, DAG))
     return FastLowered;
 
+  // The selection matcher assumes anything with a chain selecting to a
+  // mayRaiseFPException machine instruction. Since we're introducing a chain
+  // here, we need to explicitly report nofpexcept for the regular fdiv
+  // lowering.
+  SDNodeFlags Flags = Op->getFlags();
+  Flags.setNoFPExcept(true);
+
   SDLoc SL(Op);
   SDValue LHS = Op.getOperand(0);
   SDValue RHS = Op.getOperand(1);
@@ -7959,15 +8037,15 @@ SDValue SITargetLowering::LowerFDIV32(SDValue Op, SelectionDAG &DAG) const {
   SDVTList ScaleVT = DAG.getVTList(MVT::f32, MVT::i1);
 
   SDValue DenominatorScaled = DAG.getNode(AMDGPUISD::DIV_SCALE, SL, ScaleVT,
-                                          RHS, RHS, LHS);
+                                          {RHS, RHS, LHS}, Flags);
   SDValue NumeratorScaled = DAG.getNode(AMDGPUISD::DIV_SCALE, SL, ScaleVT,
-                                        LHS, RHS, LHS);
+                                        {LHS, RHS, LHS}, Flags);
 
   // Denominator is scaled to not be denormal, so using rcp is ok.
   SDValue ApproxRcp = DAG.getNode(AMDGPUISD::RCP, SL, MVT::f32,
-                                  DenominatorScaled);
+                                  DenominatorScaled, Flags);
   SDValue NegDivScale0 = DAG.getNode(ISD::FNEG, SL, MVT::f32,
-                                     DenominatorScaled);
+                                     DenominatorScaled, Flags);
 
   const unsigned Denorm32Reg = AMDGPU::Hwreg::ID_MODE |
                                (4 << AMDGPU::Hwreg::OFFSET_SHIFT_) |
@@ -7977,6 +8055,10 @@ SDValue SITargetLowering::LowerFDIV32(SDValue Op, SelectionDAG &DAG) const {
   const bool HasFP32Denormals = hasFP32Denormals(DAG.getMachineFunction());
 
   if (!HasFP32Denormals) {
+    // Note we can't use the STRICT_FMA/STRICT_FMUL for the non-strict FDIV
+    // lowering. The chain dependence is insufficient, and we need glue. We do
+    // not need the glue variants in a strictfp function.
+
     SDVTList BindParamVTs = DAG.getVTList(MVT::Other, MVT::Glue);
 
     SDNode *EnableDenorm;
@@ -8004,21 +8086,22 @@ SDValue SITargetLowering::LowerFDIV32(SDValue Op, SelectionDAG &DAG) const {
   }
 
   SDValue Fma0 = getFPTernOp(DAG, ISD::FMA, SL, MVT::f32, NegDivScale0,
-                             ApproxRcp, One, NegDivScale0);
+                             ApproxRcp, One, NegDivScale0, Flags);
 
   SDValue Fma1 = getFPTernOp(DAG, ISD::FMA, SL, MVT::f32, Fma0, ApproxRcp,
-                             ApproxRcp, Fma0);
+                             ApproxRcp, Fma0, Flags);
 
   SDValue Mul = getFPBinOp(DAG, ISD::FMUL, SL, MVT::f32, NumeratorScaled,
-                           Fma1, Fma1);
+                           Fma1, Fma1, Flags);
 
   SDValue Fma2 = getFPTernOp(DAG, ISD::FMA, SL, MVT::f32, NegDivScale0, Mul,
-                             NumeratorScaled, Mul);
+                             NumeratorScaled, Mul, Flags);
 
-  SDValue Fma3 = getFPTernOp(DAG, ISD::FMA, SL, MVT::f32, Fma2, Fma1, Mul, Fma2);
+  SDValue Fma3 = getFPTernOp(DAG, ISD::FMA, SL, MVT::f32,
+                             Fma2, Fma1, Mul, Fma2, Flags);
 
   SDValue Fma4 = getFPTernOp(DAG, ISD::FMA, SL, MVT::f32, NegDivScale0, Fma3,
-                             NumeratorScaled, Fma3);
+                             NumeratorScaled, Fma3, Flags);
 
   if (!HasFP32Denormals) {
     SDNode *DisableDenorm;
@@ -8045,9 +8128,9 @@ SDValue SITargetLowering::LowerFDIV32(SDValue Op, SelectionDAG &DAG) const {
 
   SDValue Scale = NumeratorScaled.getValue(1);
   SDValue Fmas = DAG.getNode(AMDGPUISD::DIV_FMAS, SL, MVT::f32,
-                             Fma4, Fma1, Fma3, Scale);
+                             {Fma4, Fma1, Fma3, Scale}, Flags);
 
-  return DAG.getNode(AMDGPUISD::DIV_FIXUP, SL, MVT::f32, Fmas, RHS, LHS);
+  return DAG.getNode(AMDGPUISD::DIV_FIXUP, SL, MVT::f32, Fmas, RHS, LHS, Flags);
 }
 
 SDValue SITargetLowering::LowerFDIV64(SDValue Op, SelectionDAG &DAG) const {
@@ -8223,22 +8306,24 @@ SDValue SITargetLowering::LowerTrig(SDValue Op, SelectionDAG &DAG) const {
   SDValue Arg = Op.getOperand(0);
   SDValue TrigVal;
 
-  // TODO: Should this propagate fast-math-flags?
+  // Propagate fast-math flags so that the multiply we introduce can be folded
+  // if Arg is already the result of a multiply by constant.
+  auto Flags = Op->getFlags();
 
   SDValue OneOver2Pi = DAG.getConstantFP(0.5 * numbers::inv_pi, DL, VT);
 
   if (Subtarget->hasTrigReducedRange()) {
-    SDValue MulVal = DAG.getNode(ISD::FMUL, DL, VT, Arg, OneOver2Pi);
-    TrigVal = DAG.getNode(AMDGPUISD::FRACT, DL, VT, MulVal);
+    SDValue MulVal = DAG.getNode(ISD::FMUL, DL, VT, Arg, OneOver2Pi, Flags);
+    TrigVal = DAG.getNode(AMDGPUISD::FRACT, DL, VT, MulVal, Flags);
   } else {
-    TrigVal = DAG.getNode(ISD::FMUL, DL, VT, Arg, OneOver2Pi);
+    TrigVal = DAG.getNode(ISD::FMUL, DL, VT, Arg, OneOver2Pi, Flags);
   }
 
   switch (Op.getOpcode()) {
   case ISD::FCOS:
-    return DAG.getNode(AMDGPUISD::COS_HW, SDLoc(Op), VT, TrigVal);
+    return DAG.getNode(AMDGPUISD::COS_HW, SDLoc(Op), VT, TrigVal, Flags);
   case ISD::FSIN:
-    return DAG.getNode(AMDGPUISD::SIN_HW, SDLoc(Op), VT, TrigVal);
+    return DAG.getNode(AMDGPUISD::SIN_HW, SDLoc(Op), VT, TrigVal, Flags);
   default:
     llvm_unreachable("Wrong trig opcode");
   }
