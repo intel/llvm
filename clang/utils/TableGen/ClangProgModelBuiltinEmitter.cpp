@@ -939,7 +939,7 @@ JSONBuiltinInterfaceEmitter::TypeDesc::TypeDesc(const Record *T)
         llvm_unreachable("Invalid type");
     }
   }
-  AddrSpace = StringSwitch<const char *>(T->getValueAsString("AddrSpace"))
+  AddrSpace = StringSwitch<StringRef>(T->getValueAsString("AddrSpace"))
                   .Case("clang::LangAS::Default", "")
                   .Case("clang::LangAS::opencl_private", " __private")
                   .Case("clang::LangAS::opencl_global", " __global")
@@ -1062,8 +1062,8 @@ void JSONBuiltinInterfaceEmitter::EmitBuiltins() {
   StringMap<SmallVector<FnDesc, 16>> NameToProtoList;
 
   // For each function names, gather the list of overloads
-  for (const MapVector<BuiltinIndexListTy *, BuiltinTableEntries>::value_type
-           &SLM : SignatureListMap) {
+  for (const std::pair<BuiltinIndexListTy *, BuiltinTableEntries> &SLM :
+       SignatureListMap) {
     for (StringRef Name : SLM.second.Names) {
       SmallVectorImpl<FnDesc> &PrototypeList = NameToProtoList[Name];
 
