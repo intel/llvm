@@ -161,16 +161,18 @@ which contains all the symbols required.
 To run DPC++ applications on OpenCL devices, OpenCL implementation(s) must be
 present in the system.
 
-The `GPU` and `CPU` runtimes as well as TBB runtime which are needed to run
-DPC++ application on Intel `GPU` or Intel `CPU` devices can be downloaded using
-links in [the dependency configuration file](../../buildbot/dependency.conf)
-and installed following the instructions below. The same versions are used in PR testing.
+The OpenCL RT for `GPU`, OpenCL RT for `CPU` and TBB runtime which are needed
+to run DPC++ application on Intel `GPU` or Intel `CPU` devices can be
+downloaded using links in
+[the dependency configuration file](../../buildbot/dependency.conf)
+and installed following the instructions below. The same versions are used in
+PR testing.
 
-Intel `CPU` runtime for OpenCL devices can be switched into Intel FPGA
-Emulation device for OpenCL. The following parameter should be set in `cl.cfg`
-file (available in directory containing CPU runtime for OpenCL) or environment
-variable with the same name. The following value should be set to switch OpenCL device
-mode:
+Intel OpenCL RT for `CPU` devices can be switched into OpenCL runtime for
+Intel FPGA Emulation. The following parameter should be set in `cl.cfg` file
+(available in directory containing CPU runtime for OpenCL) or environment
+variable with the same name. The following value should be set to switch
+OpenCL device mode:
 
 ```bash
 CL_CONFIG_DEVICES = fpga-emu
@@ -226,18 +228,25 @@ folder:
 
 **Windows (64-bit)**:
 
-1) If you need `GPU` as well, then update/install it first. Do it **before**
-installing `CPU` runtime as `GPU` runtime installer may re-write some important
-files or settings and make existing `CPU` runtime not working properly.
+1) If you need OpenCL runtime for Intel `GPU` as well, then update/install it
+first. Do it **before** installing OpenCL runtime for Intel `CPU` runtime as
+OpenCL runtime for Intel `GPU` installer may re-write some important
+files or settings and make existing OpenCL runtime for Intel `CPU` runtime
+not working properly.
 
-2) Extract the archive to some folder. For example, to
-`c:\oclcpu_rt_<cpu_version>` and `c:\tbb_<tbb_version>`.
+2) Extract the archive with OpenCL runtime for Intel `CPU` using links in
+[the dependency configuration file](../../buildbot/dependency.conf).  For
+example, to `c:\oclcpu_rt_<cpu_version>`.
 
-3) Run `Command Prompt` as `Administrator`. To do that click `Start` button,
+3) Extract the archive with TBB runtime using links in
+[the dependency configuration file](../../buildbot/dependency.conf).  For
+example, to `c:\tbb_<tbb_version>`.
+
+4) Run `Command Prompt` as `Administrator`. To do that click `Start` button,
 type `Command Prompt`, click the Right mouse button on it, then click
 `Run As Administrator`, then click `Yes` to confirm.
 
-4) In the opened windows run `install.bat` provided with the extracted files
+5) In the opened windows run `install.bat` provided with the extracted files
 to install runtime to the system and setup environment variables. So, if the
 extracted files are in `c:\oclcpu_rt_<cpu_version>\` folder, then type the
 command:
