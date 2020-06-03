@@ -481,7 +481,7 @@ public:
            // for __constant can be used as __generic.
            (A == LangAS::opencl_generic && B != LangAS::opencl_constant) ||
            // We also define global_device and global_host address spaces,
-           // to distinguish global pointers allocated on host to pointers
+           // to distinguish global pointers allocated on host from pointers
            // allocated on device, which are a subset of __global.
            // FIXME: add a reference to spec when ready
            (A == LangAS::opencl_global && (B == LangAS::opencl_global_device ||
