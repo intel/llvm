@@ -191,7 +191,7 @@ OSModuleHandle OSUtil::getOSModuleHandle(const void *VirtAddr) {
     return 0;
   }
   if (PhModule == GetModuleHandleA(nullptr))
-    return OSUtil::ExeModuleHandle;
+    return 0;
   return reinterpret_cast<OSModuleHandle>(PhModule);
 }
 

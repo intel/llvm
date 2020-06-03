@@ -59,7 +59,7 @@ public:
 
   /// Module handle for the executable module - it is assumed there is always
   /// single one at most.
-  static constexpr OSModuleHandle ExeModuleHandle = 0;
+  static constexpr OSModuleHandle ExeModuleHandle = -1;
 
   /// Dummy module handle to designate non-existing module for a device binary
   /// image loaded from file e.g. via SYCL_USE_KERNEL_SPV env var.
