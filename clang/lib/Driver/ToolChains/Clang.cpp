@@ -6150,8 +6150,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-fsycl");
       CmdArgs.push_back("-fsycl-is-host");
 
-      // TODO add support to specify options shared between host and device
-      // compilation only once.
       if (Args.hasFlag(options::OPT_fsycl_esimd, options::OPT_fno_sycl_esimd,
                        false))
         CmdArgs.push_back("-fsycl-explicit-simd");
