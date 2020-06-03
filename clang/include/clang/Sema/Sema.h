@@ -319,7 +319,8 @@ public:
   };
 
 public:
-  SYCLIntegrationHeader(DiagnosticsEngine &Diag, bool UnnamedLambdaSupport);
+  SYCLIntegrationHeader(DiagnosticsEngine &Diag, bool UnnamedLambdaSupport,
+                        Sema &S);
 
   /// Emits contents of the header into given stream.
   void emit(raw_ostream &Out);
@@ -424,6 +425,8 @@ private:
 
   /// Whether header is generated with unnamed lambda support
   bool UnnamedLambdaSupport;
+
+  Sema &S;
 };
 
 /// Keeps track of expected type during expression parsing. The type is tied to
@@ -12588,7 +12591,7 @@ public:
   SYCLIntegrationHeader &getSyclIntegrationHeader() {
     if (SyclIntHeader == nullptr)
       SyclIntHeader = std::make_unique<SYCLIntegrationHeader>(
-          getDiagnostics(), getLangOpts().SYCLUnnamedLambda);
+          getDiagnostics(), getLangOpts().SYCLUnnamedLambda, *this);
     return *SyclIntHeader.get();
   }
 
