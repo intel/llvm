@@ -254,7 +254,7 @@ class JSONBuiltinInterfaceEmitter : public BuiltinNameEmitter {
     // Return a string representing the "base" type (ignores pointers).
     std::string GetBaseTypeAsStr() const;
 
-    enum UnderlyingType { BOOL, INT, UINT, FLOAT, BUILTIN };
+    enum class UnderlyingType { BOOL, INT, UINT, FLOAT, BUILTIN };
 
     llvm::StringRef Name;
     // Size of the vector (if applicable).
@@ -926,15 +926,16 @@ JSONBuiltinInterfaceEmitter::TypeDesc::TypeDesc(const Record *T)
          "A type can't be both an int and a float");
   if (T->getValueAsBit("IsInteger")) {
     if (ElementSize == 1)
-      ElementType = BOOL;
+      ElementType = UnderlyingType::BOOL;
     else
-      ElementType = T->getValueAsBit("IsSigned") ? INT : UINT;
+      ElementType = T->getValueAsBit("IsSigned") ? UnderlyingType::INT
+                                                 : UnderlyingType::UINT;
   } else {
     if (T->getValueAsBit("IsFloat"))
-      ElementType = FLOAT;
+      ElementType = UnderlyingType::FLOAT;
     else {
       if (!T->isSubClassOf("FundamentalType") && !T->isSubClassOf("VectorType"))
-        ElementType = BUILTIN;
+        ElementType = UnderlyingType::BUILTIN;
       else
         llvm_unreachable("Invalid type");
     }
@@ -959,19 +960,19 @@ std::string JSONBuiltinInterfaceEmitter::TypeDesc::GetBaseTypeAsStr() const {
     if (VecWidth != 1)
       TypeStr << "_vec" << VecWidth;
     switch (ElementType) {
-    case BOOL:
+    case UnderlyingType::BOOL:
       TypeStr << "_bool_t";
       break;
-    case INT:
+    case UnderlyingType::INT:
       TypeStr << "_int" << ElementSize << "_t";
       break;
-    case UINT:
+    case UnderlyingType::UINT:
       TypeStr << "_uint" << ElementSize << "_t";
       break;
-    case FLOAT:
+    case UnderlyingType::FLOAT:
       TypeStr << "_fp" << ElementSize << "_t";
       break;
-    case BUILTIN:
+    case UnderlyingType::BUILTIN:
       TypeStr << "_" << Name;
       break;
     }
