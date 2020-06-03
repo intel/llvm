@@ -22,7 +22,7 @@ public:
   platform_selector(const std::string &platform_name)
       : device_platform_name(platform_name){}
 
-  virtual int operator()(const device &device) const {
+  int operator()(const device &device) const override {
     const platform &pf = device.get_platform();
     const std::string &platform_name = pf.get_info<info::platform::name>();
     if (platform_name == device_platform_name) {
@@ -32,9 +32,10 @@ public:
   }
 };
 
-const std::string EMULATION_PLATFORM_NAME =
+static constexpr auto EMULATION_PLATFORM_NAME =
     "Intel(R) FPGA Emulation Platform for OpenCL(TM)";
-const std::string HARDWARE_PLATFORM_NAME = "Intel(R) FPGA SDK for OpenCL(TM)";
+static constexpr auto HARDWARE_PLATFORM_NAME =
+    "Intel(R) FPGA SDK for OpenCL(TM)";
 
 class fpga_selector : public platform_selector {
 public:
