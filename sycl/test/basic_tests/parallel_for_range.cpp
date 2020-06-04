@@ -209,7 +209,7 @@ int main() {
     // Local Size larger than Global.
     // CL_INVALID_WORK_GROUP_SIZE if local_work_size is specified as larger
     // than the global size, then a different error string is used.
-    // This is a sub-case of the more general 'non-uniform work group' 
+    // This is a sub-case of the more general 'non-uniform work group'
     try {
       // parallel_for, 16 global, 17 local -> fail
       Q.submit([&](handler &CGH) {
@@ -245,10 +245,10 @@ int main() {
     }
 
     // Local Size larger than Global, multi-dimensional
-    // This is a sub-case of the more general 'non-uniform work group' 
+    // This is a sub-case of the more general 'non-uniform work group'
     try {
       // parallel_for, 6, 6, 6 global, 2, 2, 7 local -> fail
-     Q.submit([&](handler &CGH) {
+      Q.submit([&](handler &CGH) {
         CGH.parallel_for<class OpenCL1XNegativeB2>(
             nd_range<3>(range<3>(6, 6, 6), range<3>(2, 2, 7)),
             [=](nd_item<3>) {});
@@ -502,9 +502,9 @@ int main() {
       }
 
       // Local Size larger than Global, multi-dimensional
-      // This is a sub-case of the more general 'non-uniform work group' 
+      // This is a sub-case of the more general 'non-uniform work group'
       try {
-         // parallel_for, 6, 6, 6 global, 2, 2, 7 local -> fail
+        // parallel_for, 6, 6, 6 global, 2, 2, 7 local -> fail
         Q.submit([&](handler &CGH) {
           CGH.parallel_for<class OpenCL2XNegativeC2>(
               nd_range<3>(range<3>(6, 6, 6), range<3>(2, 2, 7)),
@@ -705,7 +705,7 @@ int main() {
         return 1;
       }
     }
-  
+
     // Local Size larger than Global, -cl-std=CL2.0 -cl-uniform-work-group-size flag used
     // CL_INVALID_WORK_GROUP_SIZE if local_work_size is specified as larger
     // than the global size, then a different error string is used.
@@ -717,7 +717,7 @@ int main() {
 
       kernel K = P.get_kernel<class OpenCL2XNegativeD2>();
       try {
-         // parallel_for, 16 global, 17 local -> fail
+        // parallel_for, 16 global, 17 local -> fail
         Q.submit([&](handler &CGH) {
           CGH.parallel_for<class OpenCL2XNegativeD2>(
               K, nd_range<1>(range<1>(16), range<1>(17)), [=](nd_item<1>) {});
