@@ -209,8 +209,6 @@ public:
   MicrosoftX86_32SPIRTargetInfo(const llvm::Triple &Triple,
                             const TargetOptions &Opts)
       : WindowsX86_32SPIRTargetInfo(Triple, Opts) {
-    LongDoubleWidth = LongDoubleAlign = 64;
-    LongDoubleFormat = &llvm::APFloat::IEEEdouble();
     assert(DataLayout->getPointerSizeInBits() == 32);
   }
 
@@ -261,8 +259,6 @@ public:
   MicrosoftX86_64_SPIR64TargetInfo(const llvm::Triple &Triple,
                             const TargetOptions &Opts)
       : WindowsX86_64_SPIR64TargetInfo(Triple, Opts) {
-    LongDoubleWidth = LongDoubleAlign = 64;
-    LongDoubleFormat = &llvm::APFloat::IEEEdouble();
     assert(DataLayout->getPointerSizeInBits() == 64);
   }
 
