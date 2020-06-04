@@ -56,5 +56,6 @@ endfunction()
 
 add_subdirectory(misc)
 add_subdirectory(pi)
-add_subdirectory(thread_safety)
+add_subdirectory(program)
 add_subdirectory(scheduler)
+add_subdirectory(thread_safety)
