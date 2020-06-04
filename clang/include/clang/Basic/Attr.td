@@ -1269,6 +1269,7 @@ def IntelReqdSubGroupSize: InheritableAttr {
   let Subjects = SubjectList<[Function, CXXMethod], ErrorDiag>;
   let Documentation = [IntelReqdSubGroupSizeDocs];
   let LangOpts = [OpenCL, SYCLIsDevice, SYCLIsHost];
+  let PragmaAttributeSupport = 0;
 }
 
 // This attribute is both a type attribute, and a declaration attribute (for
@@ -2553,6 +2554,7 @@ def ReqdWorkGroupSize : InheritableAttr {
               DefaultUnsignedArgument<"ZDim", 1>];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [ReqdWorkGroupSizeAttrDocs];
+  let PragmaAttributeSupport = 0;
 }
 
 def WorkGroupSizeHint :  InheritableAttr {
