@@ -210,19 +210,9 @@ static bool isZeroSizedArray(QualType Ty) {
   return false;
 }
 
-static Sema::DeviceDiagBuilder
-emitDeferredDiagnosticAndNote(Sema &S, SourceRange Loc, unsigned DiagID,
-                              SourceRange UsedAtLoc) {
-  Sema::DeviceDiagBuilder builder =
-      S.SYCLDiagIfDeviceCode(Loc.getBegin(), DiagID);
-  if (UsedAtLoc.isValid())
-    S.SYCLDiagIfDeviceCode(UsedAtLoc.getBegin(), diag::note_sycl_used_here);
-  return builder;
-}
-
-static void checkSYCLVarType(Sema &S, QualType Ty, SourceRange Loc,
-                             llvm::DenseSet<QualType> Visited,
-                             SourceRange UsedAtLoc = SourceRange()) {
+static void checkSYCLType(Sema &S, QualType Ty, SourceRange Loc,
+                          llvm::DenseSet<QualType> Visited,
+                          SourceRange UsedAtLoc = SourceRange()) {
   // Not all variable types are supported inside SYCL kernels,
   // for example the quad type __float128 will cause errors in the
   // SPIR-V translation phase.
@@ -233,16 +223,21 @@ static void checkSYCLVarType(Sema &S, QualType Ty, SourceRange Loc,
   // different location than the variable declaration and we need to
   // inform the user of both, e.g. struct member usage vs declaration.
 
+  bool Emitting = false;
+
   //--- check types ---
 
   // zero length arrays
-  if (isZeroSizedArray(Ty))
-    emitDeferredDiagnosticAndNote(S, Loc, diag::err_typecheck_zero_array_size,
-                                  UsedAtLoc);
+  if (isZeroSizedArray(Ty)) {
+    S.SYCLDiagIfDeviceCode(Loc.getBegin(), diag::err_typecheck_zero_array_size);
+    Emitting = true;
+  }
 
   // variable length arrays
-  if (Ty->isVariableArrayType())
-    emitDeferredDiagnosticAndNote(S, Loc, diag::err_vla_unsupported, UsedAtLoc);
+  if (Ty->isVariableArrayType()) {
+    S.SYCLDiagIfDeviceCode(Loc.getBegin(), diag::err_vla_unsupported);
+    Emitting = true;
+  }
 
   // Sub-reference array or pointer, then proceed with that type.
   while (Ty->isAnyPointerType() || Ty->isArrayType())
@@ -253,9 +248,14 @@ static void checkSYCLVarType(Sema &S, QualType Ty, SourceRange Loc,
       Ty->isSpecificBuiltinType(BuiltinType::UInt128) ||
       Ty->isSpecificBuiltinType(BuiltinType::LongDouble) ||
       (Ty->isSpecificBuiltinType(BuiltinType::Float128) &&
-       !S.Context.getTargetInfo().hasFloat128Type()))
-    emitDeferredDiagnosticAndNote(S, Loc, diag::err_type_unsupported, UsedAtLoc)
+       !S.Context.getTargetInfo().hasFloat128Type())) {
+    S.SYCLDiagIfDeviceCode(Loc.getBegin(), diag::err_type_unsupported)
         << Ty.getUnqualifiedType().getCanonicalType();
+    Emitting = true;
+  }
+
+  if (Emitting && UsedAtLoc.isValid())
+    S.SYCLDiagIfDeviceCode(UsedAtLoc.getBegin(), diag::note_used_here);
 
   //--- now recurse ---
   // Pointers complicate recursion. Add this type to Visited.
@@ -264,16 +264,15 @@ static void checkSYCLVarType(Sema &S, QualType Ty, SourceRange Loc,
     return;
 
   if (const auto *ATy = dyn_cast<AttributedType>(Ty))
-    return checkSYCLVarType(S, ATy->getModifiedType(), Loc, Visited);
+    return checkSYCLType(S, ATy->getModifiedType(), Loc, Visited);
 
   if (const auto *RD = Ty->getAsRecordDecl()) {
     for (const auto &Field : RD->fields())
-      checkSYCLVarType(S, Field->getType(), Field->getSourceRange(), Visited,
-                       Loc);
+      checkSYCLType(S, Field->getType(), Field->getSourceRange(), Visited, Loc);
   } else if (const auto *FPTy = dyn_cast<FunctionProtoType>(Ty)) {
     for (const auto &ParamTy : FPTy->param_types())
-      checkSYCLVarType(S, ParamTy, Loc, Visited);
-    checkSYCLVarType(S, FPTy->getReturnType(), Loc, Visited);
+      checkSYCLType(S, ParamTy, Loc, Visited);
+    checkSYCLType(S, FPTy->getReturnType(), Loc, Visited);
   }
 }
 
@@ -284,7 +283,7 @@ void Sema::checkSYCLDeviceVarDecl(VarDecl *Var) {
   SourceRange Loc = Var->getLocation();
   llvm::DenseSet<QualType> Visited;
 
-  checkSYCLVarType(*this, Ty, Loc, Visited);
+  checkSYCLType(*this, Ty, Loc, Visited);
 }
 
 class MarkDeviceFunction : public RecursiveASTVisitor<MarkDeviceFunction> {
@@ -805,6 +804,22 @@ class SyclKernelFieldChecker
   bool IsInvalid = false;
   DiagnosticsEngine &Diag;
 
+  void checkAccessorType(QualType Ty, SourceRange Loc) {
+    assert(Util::isSyclAccessorType(Ty) &&
+           "Should only be called on SYCL accessor types.");
+
+    const RecordDecl *RecD = Ty->getAsRecordDecl();
+    if (const ClassTemplateSpecializationDecl *CTSD =
+            dyn_cast<ClassTemplateSpecializationDecl>(RecD)) {
+      const TemplateArgumentList &TAL = CTSD->getTemplateArgs();
+      TemplateArgument TA = TAL.get(0);
+      const QualType TemplateArgTy = TA.getAsType();
+
+      llvm::DenseSet<QualType> Visited;
+      checkSYCLType(SemaRef, TemplateArgTy, Loc, Visited);
+    }
+  }
+
 public:
   SyclKernelFieldChecker(Sema &S)
       : SyclKernelFieldHandler(S), Diag(S.getASTContext().getDiagnostics()) {}
@@ -834,6 +849,15 @@ public:
                         diag::err_sycl_non_trivially_copy_ctor_dtor_type)
             << 1 << FieldTy;
     }
+  }
+
+  void handleSyclAccessorType(const CXXBaseSpecifier &BS,
+                              QualType FieldTy) final {
+    checkAccessorType(FieldTy, BS.getBeginLoc());
+  }
+
+  void handleSyclAccessorType(FieldDecl *FD, QualType FieldTy) final {
+    checkAccessorType(FieldTy, FD->getLocation());
   }
 
   // We should be able to handle this, so we made it part of the visitor, but
@@ -1543,7 +1567,9 @@ Sema::DeviceDiagBuilder Sema::SYCLDiagIfDeviceCode(SourceLocation Loc,
          "Should only be called during SYCL compilation");
   FunctionDecl *FD = dyn_cast<FunctionDecl>(getCurLexicalContext());
   DeviceDiagBuilder::Kind DiagKind = [this, FD] {
-    if (ConstructingOpenCLKernel || !FD)
+    if (ConstructingOpenCLKernel)
+      return DeviceDiagBuilder::K_ImmediateWithCallStack;
+    if (!FD)
       return DeviceDiagBuilder::K_Nop;
     if (getEmissionStatus(FD) == Sema::FunctionEmissionStatus::Emitted)
       return DeviceDiagBuilder::K_ImmediateWithCallStack;
@@ -1831,6 +1857,38 @@ void SYCLIntegrationHeader::emitForwardClassDecls(
         // template class Foo specialized by class Baz<Bar>, not a template
         // class template <template <typename> class> class T as it should.
         TemplateDecl *TD = Arg.getAsTemplate().getAsTemplateDecl();
+        TemplateParameterList *TemplateParams = TD->getTemplateParameters();
+        for (NamedDecl *P : *TemplateParams) {
+          // If template template paramter type has an enum value template
+          // parameter, forward declaration of enum type is required. Only enum
+          // values (not types) need to be handled. For example, consider the
+          // following kernel name type:
+          //
+          // template <typename EnumTypeOut, template <EnumValueIn EnumValue,
+          // typename TypeIn> class T> class Foo;
+          //
+          // The correct specialization for Foo (with enum type) is:
+          // Foo<EnumTypeOut, Baz>, where Baz is a template class.
+          //
+          // Therefore the forward class declarations generated in the
+          // integration header are:
+          // template <EnumValueIn EnumValue, typename TypeIn> class Baz;
+          // template <typename EnumTypeOut, template <EnumValueIn EnumValue,
+          // typename EnumTypeIn> class T> class Foo;
+          //
+          // This requires the following enum forward declarations:
+          // enum class EnumTypeOut : int; (Used to template Foo)
+          // enum class EnumValueIn : int; (Used to template Baz)
+          if (NonTypeTemplateParmDecl *TemplateParam =
+                  dyn_cast<NonTypeTemplateParmDecl>(P)) {
+            QualType T = TemplateParam->getType();
+            if (const auto *ET = T->getAs<EnumType>()) {
+              const EnumDecl *ED = ET->getDecl();
+              if (!checkEnumTemplateParameter(ED, Diag, KernelLocation))
+                emitFwdDecl(O, ED, KernelLocation);
+            }
+          }
+        }
         if (Printed.insert(TD).second) {
           emitFwdDecl(O, TD, KernelLocation);
         }
@@ -1866,6 +1924,9 @@ static void printArguments(ASTContext &Ctx, raw_ostream &ArgOS,
                            ArrayRef<TemplateArgument> Args,
                            const PrintingPolicy &P);
 
+static std::string getKernelNameTypeString(QualType T, ASTContext &Ctx,
+                                           const PrintingPolicy &TypePolicy);
+
 static void printArgument(ASTContext &Ctx, raw_ostream &ArgOS,
                           TemplateArgument Arg, const PrintingPolicy &P) {
   switch (Arg.getKind()) {
@@ -1891,8 +1952,12 @@ static void printArgument(ASTContext &Ctx, raw_ostream &ArgOS,
     TypePolicy.SuppressTypedefs = true;
     TypePolicy.SuppressTagKeyword = true;
     QualType T = Arg.getAsType();
-    QualType FullyQualifiedType = TypeName::getFullyQualifiedType(T, Ctx, true);
-    ArgOS << FullyQualifiedType.getAsString(TypePolicy);
+    ArgOS << getKernelNameTypeString(T, Ctx, TypePolicy);
+    break;
+  }
+  case TemplateArgument::ArgKind::Template: {
+    TemplateDecl *TD = Arg.getAsTemplate().getAsTemplateDecl();
+    ArgOS << TD->getQualifiedNameAsString();
     break;
   }
   default:
@@ -1905,6 +1970,10 @@ static void printArguments(ASTContext &Ctx, raw_ostream &ArgOS,
                            const PrintingPolicy &P) {
   for (unsigned I = 0; I < Args.size(); I++) {
     const TemplateArgument &Arg = Args[I];
+
+    // If argument is an empty pack argument, skip printing comma and argument.
+    if (Arg.getKind() == TemplateArgument::ArgKind::Pack && !Arg.pack_size())
+      continue;
 
     if (I != 0)
       ArgOS << ", ";
@@ -1921,36 +1990,36 @@ static void printTemplateArguments(ASTContext &Ctx, raw_ostream &ArgOS,
   ArgOS << ">";
 }
 
-static std::string getKernelNameTypeString(QualType T) {
+static std::string getKernelNameTypeString(QualType T, ASTContext &Ctx,
+                                           const PrintingPolicy &TypePolicy) {
+
+  QualType FullyQualifiedType = TypeName::getFullyQualifiedType(T, Ctx, true);
 
   const CXXRecordDecl *RD = T->getAsCXXRecordDecl();
 
   if (!RD)
-    return getCPPTypeString(T);
+    return eraseAnonNamespace(FullyQualifiedType.getAsString(TypePolicy));
 
   // If kernel name type is a template specialization with enum type
   // template parameters, enumerators in name type string should be
   // replaced  with their underlying value since the enum definition
   // is not visible in integration header.
   if (const auto *TSD = dyn_cast<ClassTemplateSpecializationDecl>(RD)) {
-    LangOptions LO;
-    PrintingPolicy P(LO);
-    P.SuppressTypedefs = true;
     SmallString<64> Buf;
     llvm::raw_svector_ostream ArgOS(Buf);
 
     // Print template class name
-    TSD->printQualifiedName(ArgOS, P, /*WithGlobalNsPrefix*/ true);
+    TSD->printQualifiedName(ArgOS, TypePolicy, /*WithGlobalNsPrefix*/ true);
 
     // Print template arguments substituting enumerators
     ASTContext &Ctx = RD->getASTContext();
     const TemplateArgumentList &Args = TSD->getTemplateArgs();
-    printTemplateArguments(Ctx, ArgOS, Args.asArray(), P);
+    printTemplateArguments(Ctx, ArgOS, Args.asArray(), TypePolicy);
 
     return eraseAnonNamespace(ArgOS.str().str());
   }
 
-  return getCPPTypeString(T);
+  return eraseAnonNamespace(FullyQualifiedType.getAsString(TypePolicy));
 }
 
 void SYCLIntegrationHeader::emit(raw_ostream &O) {
@@ -2069,9 +2138,11 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
         O << "', '" << c;
       O << "'> {\n";
     } else {
-
+      LangOptions LO;
+      PrintingPolicy P(LO);
+      P.SuppressTypedefs = true;
       O << "template <> struct KernelInfo<"
-        << getKernelNameTypeString(K.NameType) << "> {\n";
+        << getKernelNameTypeString(K.NameType, S.getASTContext(), P) << "> {\n";
     }
     O << "  DLL_LOCAL\n";
     O << "  static constexpr const char* getName() { return \"" << K.Name
@@ -2140,8 +2211,9 @@ void SYCLIntegrationHeader::addSpecConstant(StringRef IDName, QualType IDType) {
 }
 
 SYCLIntegrationHeader::SYCLIntegrationHeader(DiagnosticsEngine &_Diag,
-                                             bool _UnnamedLambdaSupport)
-    : Diag(_Diag), UnnamedLambdaSupport(_UnnamedLambdaSupport) {}
+                                             bool _UnnamedLambdaSupport,
+                                             Sema &_S)
+    : Diag(_Diag), UnnamedLambdaSupport(_UnnamedLambdaSupport), S(_S) {}
 
 // -----------------------------------------------------------------------------
 // Utility class methods

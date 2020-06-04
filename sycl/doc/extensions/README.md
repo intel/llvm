@@ -7,7 +7,7 @@ DPC++ extensions status:
 
 |  Extension  |    Status   |   Comment   |
 |-------------|:------------|:------------|
-| [SYCL_INTEL_bitcast](Bitcast/SYCL_INTEL_bitcast.asciidoc)                                                                   | Proposal                                  | |
+| [SYCL_INTEL_bitcast](Bitcast/SYCL_INTEL_bitcast.asciidoc)                                                                   | Supported                                 | As sycl::detail::bit_cast |
 | [C and C++ Standard libraries support](C-CXX-StandardLibrary/C-CXX-StandardLibrary.rst)                                     | Partially supported(OpenCL: CPU, GPU)     | |
 | [SYCL_INTEL_data_flow_pipes](DataFlowPipes/data_flow_pipes.asciidoc)                                                        | Partially supported(OpenCL: ACCELERATOR)  | kernel_host_pipe_support part is not implemented |
 | [SYCL_INTEL_deduction_guides](deduction_guides/SYCL_INTEL_deduction_guides.asciidoc)                                        | Supported                                 | |
