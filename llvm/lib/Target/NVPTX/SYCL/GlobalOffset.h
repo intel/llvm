@@ -1,4 +1,4 @@
-//===--------- GlobalOffset.cpp - Global Offset Support for CUDA --------- ===//
+//===---------- GlobalOffset.h - Global Offset Support for CUDA ---------- ===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -15,7 +15,6 @@
 #ifndef LLVM_SYCL_GLOBALOFFSET_H
 #define LLVM_SYCL_GLOBALOFFSET_H
 
-#include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
 
 namespace llvm {

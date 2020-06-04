@@ -45,6 +45,11 @@ public:
 
     llvm::Function *ImplicitOffsetIntrinsic =
         M.getFunction(Intrinsic::getName(Intrinsic::nvvm_implicit_offset));
+
+    if (!ImplicitOffsetIntrinsic || ImplicitOffsetIntrinsic->use_empty()) {
+      return false;
+    }
+
     KernelImplicitArgumentType =
         ArrayType::get(Type::getInt32Ty(M.getContext()), 3);
     ImplicitOffsetPtrType = Type::getInt32Ty(M.getContext())->getPointerTo();
@@ -54,15 +59,11 @@ public:
         "Intrinsic::nvvm_implicit_offset does not return the expected "
         "type");
 
-    if (!ImplicitOffsetIntrinsic || ImplicitOffsetIntrinsic->use_empty()) {
-      return false;
-    }
-
     // Find all entry points.
     EntryPointMetadata = getEntryPointMetadata(M);
 
     // Add implicit parameters to all direct and indirect users of the offset
-    this->addImplicitParameterToCallers(M, ImplicitOffsetIntrinsic, nullptr);
+    addImplicitParameterToCallers(M, ImplicitOffsetIntrinsic, nullptr);
 
     // Assert that all uses of `ImplicitOffsetIntrinsic` are removed and delete
     // it.
@@ -80,7 +81,7 @@ public:
     LLVMContext &Ctx = M.getContext();
     MDNode *FuncMetadata = EntryPointMetadata[Func];
 
-    bool AlreadyProcessed = this->ProcessedFunctions.count(Func) == 1;
+    bool AlreadyProcessed = ProcessedFunctions.count(Func) == 1;
     if (AlreadyProcessed)
       return;
 
@@ -89,9 +90,9 @@ public:
     auto NvvmMetadata = M.getNamedMetadata("nvvm.annotations");
     assert(NvvmMetadata && "IR compiled to PTX must have nvvm.annotations");
 
-    auto NewFunc = this->addOffsetArgumentToFunction(
-                           M, Func, KernelImplicitArgumentType->getPointerTo(),
-                           /*KeepOriginal=*/true)
+    auto NewFunc = addOffsetArgumentToFunction(
+                       M, Func, KernelImplicitArgumentType->getPointerTo(),
+                       /*KeepOriginal=*/true)
                        .first;
     Argument *NewArgument = NewFunc->arg_begin() + (NewFunc->arg_size() - 1);
     // Pass the values by value to the kernel
@@ -118,7 +119,7 @@ public:
                              ImplicitOffset->getAlign());
     MemsetCall->addParamAttr(0, Attribute::NonNull);
     MemsetCall->addDereferenceableAttr(1, AllocByteSize);
-    this->ProcessedFunctions[Func] = Builder.CreateConstInBoundsGEP2_32(
+    ProcessedFunctions[Func] = Builder.CreateConstInBoundsGEP2_32(
         ImplicitOffsetType, ImplicitOffset, 0, 0);
   }
 
@@ -170,13 +171,13 @@ public:
       // Determine if `Caller` needs processed or if this is another callsite
       // from an already-processed function.
       Function *NewFunc;
-      Value *ImplicitOffset = this->ProcessedFunctions[Caller];
+      Value *ImplicitOffset = ProcessedFunctions[Caller];
       bool AlreadyProcessed = ImplicitOffset != nullptr;
       if (AlreadyProcessed) {
         NewFunc = Caller;
       } else {
         std::tie(NewFunc, ImplicitOffset) =
-            this->addOffsetArgumentToFunction(M, Caller);
+            addOffsetArgumentToFunction(M, Caller);
       }
 
       if (!CalleeWithImplicitParam) {
@@ -211,7 +212,7 @@ public:
 
       if (!AlreadyProcessed) {
         // Process callers of the old function.
-        this->addImplicitParameterToCallers(M, Caller, NewFunc);
+        addImplicitParameterToCallers(M, Caller, NewFunc);
 
         // Now that the old function is dead, delete it.
         Caller->dropAllReferences();
@@ -259,6 +260,7 @@ public:
                                          Func->getAddressSpace());
 
     if (KeepOriginal) {
+      // TODO: Are there better naming alternatives that allow for unmangling?
       NewFunc->setName(Func->getName() + "_with_offset");
 
       ValueToValueMapTy VMap;
@@ -308,7 +310,7 @@ public:
           Builder.CreateBitCast(ImplicitOffset, ImplicitOffsetPtrType);
     }
 
-    this->ProcessedFunctions[NewFunc] = ImplicitOffset;
+    ProcessedFunctions[NewFunc] = ImplicitOffset;
 
     // Return the new function and the offset argument.
     return {NewFunc, ImplicitOffset};
