@@ -29,7 +29,6 @@
 #include <array>
 #include <functional>
 #include <initializer_list>
-#include <iostream>
 
 using namespace clang;
 using namespace std::placeholders;
@@ -930,29 +929,25 @@ public:
   bool isValid() { return !IsInvalid; }
 
   bool handleReferenceType(FieldDecl *FD, QualType FieldTy) final {
-    bool bad = Diag.Report(FD->getLocation(), diag::err_bad_kernel_param_type)
-               << FieldTy;
-    IsInvalid |= bad;
-    return !bad;
+    Diag.Report(FD->getLocation(), diag::err_bad_kernel_param_type) << FieldTy;
+    IsInvalid = true;
+    return isValid();
   }
 
   bool handleStructType(FieldDecl *FD, QualType FieldTy) final {
-    bool bad = checkNotCopyableToKernel(FD, FieldTy);
-    IsInvalid |= bad;
-    return !bad;
+    IsInvalid |= checkNotCopyableToKernel(FD, FieldTy);
+    return isValid();
   }
 
   bool handleArrayType(FieldDecl *FD, QualType FieldTy) final {
-    bool bad = checkNotCopyableToKernel(FD, FieldTy);
-    IsInvalid |= bad;
-    return !bad;
+    IsInvalid |= checkNotCopyableToKernel(FD, FieldTy);
+    return isValid();
   }
 
   bool handleOtherType(FieldDecl *FD, QualType FieldTy) final {
-    bool bad = Diag.Report(FD->getLocation(), diag::err_bad_kernel_param_type)
-               << FieldTy;
-    IsInvalid |= bad;
-    return !bad;
+    Diag.Report(FD->getLocation(), diag::err_bad_kernel_param_type) << FieldTy;
+    IsInvalid = true;
+    return isValid();
   }
 };
 
@@ -2278,13 +2273,7 @@ SYCLIntegrationHeader::SYCLIntegrationHeader(DiagnosticsEngine &_Diag,
 // -----------------------------------------------------------------------------
 
 bool Util::isSyclAccessorType(const QualType &Ty) {
-  std::cerr << "isSyclAccessorType:Ty\n";
-  Ty->dump();
-  bool b = isSyclType(Ty, "accessor", true /*Tmpl*/) || isSyclType(Ty, "accessor_common", true /*Tmpl*/);
-  std::cerr << (b ? "IS"
-                 : "NOT")
-                       << " an accessor\n\n";
-  return b;
+  return isSyclType(Ty, "accessor", true /*Tmpl*/);
 }
 
 bool Util::isSyclSamplerType(const QualType &Ty) {
