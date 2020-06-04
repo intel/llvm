@@ -289,6 +289,31 @@ void Sema::checkSYCLDeviceVarDecl(VarDecl *Var) {
   checkSYCLType(*this, Ty, Loc, Visited);
 }
 
+// Tests whether given function is a lambda function or '()' operator used as
+// SYCL kernel body function (e.g. in parallel_for).
+//
+// TODO this test should involve checking the caller and matching function types
+// of the caller's parameter and the type of 'this' of this function. But the
+// information about the original caller (e.g. kernel_parallel_for) is
+// unavailable at this point - kernel creation infrastructure must be enhanced.
+// For now the check is only if FD is '()' operator. Works OK for today's
+// handler::kernel_parallel_for/... implementations as no other '()' operators
+// are invoked except the kernel body.
+static bool isSYCLKernelBodyFunction(FunctionDecl *FD) {
+  return FD->getOverloadedOperator() == OO_Call;
+}
+
+// Helper function to report conflicting function attributes.
+// F - the function, A1 - function attribute, A2 - the attribute it conflicts
+// with.
+static void reportConflictingAttrs(Sema &S, FunctionDecl *F, const Attr *A1,
+                                   const Attr *A2) {
+  S.Diag(F->getLocation(), diag::err_conflicting_sycl_kernel_attributes);
+  S.Diag(A1->getLocation(), diag::note_conflicting_attribute);
+  S.Diag(A2->getLocation(), diag::note_conflicting_attribute);
+  F->setInvalidDecl();
+}
+
 class MarkDeviceFunction : public RecursiveASTVisitor<MarkDeviceFunction> {
 public:
   MarkDeviceFunction(Sema &S)
@@ -397,15 +422,23 @@ public:
   // to be propagated down to callers and applied to SYCL kernels.
   // For example, reqd_work_group_size, vec_len_hint, reqd_sub_group_size
   // Attributes applied to SYCLKernel are also included
-  void CollectPossibleKernelAttributes(FunctionDecl *SYCLKernel,
-                                       llvm::SmallPtrSet<Attr *, 4> &Attrs) {
+  // Returns the kernel body function found during traversal.
+  FunctionDecl *
+  CollectPossibleKernelAttributes(FunctionDecl *SYCLKernel,
+                                  llvm::SmallPtrSet<Attr *, 4> &Attrs) {
     typedef std::pair<FunctionDecl *, FunctionDecl *> ChildParentPair;
     llvm::SmallPtrSet<FunctionDecl *, 16> Visited;
     llvm::SmallVector<ChildParentPair, 16> WorkList;
     WorkList.push_back({SYCLKernel, nullptr});
+    FunctionDecl *KernelBody = nullptr;
 
     while (!WorkList.empty()) {
       FunctionDecl *FD = WorkList.back().first;
+      if (isSYCLKernelBodyFunction(FD)) {
+        assert(!KernelBody && "inconsistent call graph - only one kernel body "
+                              "function can be called");
+        KernelBody = FD;
+      }
       FunctionDecl *ParentFD = WorkList.back().second;
       WorkList.pop_back();
       if (!Visited.insert(FD).second)
@@ -461,6 +494,11 @@ public:
       }
       if (auto *A = FD->getAttr<SYCLSimdAttr>())
         Attrs.insert(A);
+      // Propagate the explicit SIMD attribute through call graph - it is used
+      // to distinguish ESIMD code in ESIMD LLVM passes.
+      if (KernelBody && KernelBody->hasAttr<SYCLSimdAttr>() &&
+          (KernelBody != FD) && !FD->hasAttr<SYCLSimdAttr>())
+        FD->addAttr(SYCLSimdAttr::CreateImplicit(SemaRef.getASTContext()));
 
       // TODO: vec_len_hint should be handled here
 
@@ -476,6 +514,7 @@ public:
         }
       }
     }
+    return KernelBody;
   }
 
 private:
@@ -1643,11 +1682,14 @@ void Sema::MarkDevice(void) {
       // This function collects all kernel attributes which might be applied to
       // a device functions, but need to be propagated down to callers, i.e.
       // SYCL kernels
-      Marker.CollectPossibleKernelAttributes(SYCLKernel, Attrs);
+      FunctionDecl *KernelBody =
+          Marker.CollectPossibleKernelAttributes(SYCLKernel, Attrs);
+
       for (auto *A : Attrs) {
         switch (A->getKind()) {
         case attr::Kind::IntelReqdSubGroupSize: {
           auto *Attr = cast<IntelReqdSubGroupSizeAttr>(A);
+          const auto *KBSimdAttr = KernelBody->getAttr<SYCLSimdAttr>();
           if (auto *Existing =
                   SYCLKernel->getAttr<IntelReqdSubGroupSizeAttr>()) {
             if (Existing->getSubGroupSize() != Attr->getSubGroupSize()) {
@@ -1657,6 +1699,9 @@ void Sema::MarkDevice(void) {
               Diag(Attr->getLocation(), diag::note_conflicting_attribute);
               SYCLKernel->setInvalidDecl();
             }
+          } else if (KBSimdAttr && (Attr->getSubGroupSize() != 1)) {
+            // ESIMD kernel can't call functions with reqd_subg_group_size != 1.
+            reportConflictingAttrs(*this, KernelBody, KBSimdAttr, Attr);
           } else {
             SYCLKernel->addAttr(A);
           }
@@ -1685,7 +1730,16 @@ void Sema::MarkDevice(void) {
         case attr::Kind::SYCLIntelMaxWorkGroupSize:
         case attr::Kind::SYCLIntelNoGlobalWorkOffset:
         case attr::Kind::SYCLSimd: {
-          SYCLKernel->addAttr(A);
+          if ((A->getKind() == attr::Kind::SYCLSimd) &&
+              !KernelBody->getAttr<SYCLSimdAttr>()) {
+            // Usual kernel can't call ESIMD functions.
+            Diag(KernelBody->getLocation(),
+                 diag::err_sycl_function_attribute_mismatch)
+                << A;
+            Diag(A->getLocation(), diag::note_sycl_function_attribute_mismatch);
+            KernelBody->setInvalidDecl();
+          } else
+            SYCLKernel->addAttr(A);
           break;
         }
         // TODO: vec_len_hint should be handled here
