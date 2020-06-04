@@ -1276,12 +1276,8 @@ void CodeGenModule::EmitCtorList(CtorList &Fns, const char *GlobalName) {
     ctor.addInt(Int32Ty, I.Priority);
     ctor.add(llvm::ConstantExpr::getBitCast(I.Initializer, CtorPFTy));
     if (I.AssociatedData)
-      if (I.AssociatedData->getType()->getPointerAddressSpace() !=
-          VoidPtrTy->getAddressSpace())
-        ctor.add(
-            llvm::ConstantExpr::getAddrSpaceCast(I.AssociatedData, VoidPtrTy));
-      else
-        ctor.add(llvm::ConstantExpr::getBitCast(I.AssociatedData, VoidPtrTy));
+      ctor.add(llvm::ConstantExpr::getPointerBitCastOrAddrSpaceCast(
+               I.AssociatedData, VoidPtrTy));
     else
       ctor.addNullPointer(VoidPtrTy);
     ctor.finishAndAddTo(ctors);
