@@ -11,9 +11,35 @@
 #include <CL/sycl/image.hpp>
 #include <detail/context_impl.hpp>
 
+#include <algorithm>
+#include <vector>
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
+
+template <info::device Param>
+static bool checkImageValueRange(const std::vector<device> &Devices,
+                                 const size_t Value) {
+  return Value >= 1 && std::all_of(Devices.cbegin(), Devices.cend(),
+                                   [Value](const device &Dev) {
+                                     return Value <= Dev.get_info<Param>();
+                                   });
+}
+
+template <typename T, typename... Args> static bool checkAnyImpl(T) {
+  return false;
+}
+
+template <typename ValT, typename VarT, typename... Args>
+static bool checkAnyImpl(ValT Value, VarT Variant, Args... Arguments) {
+  return (Value == Variant) ? true : checkAnyImpl(Value, Arguments...);
+}
+
+template <typename T, typename... Args>
+static bool checkAny(const T Value, Args... Arguments) {
+  return checkAnyImpl(Value, Arguments...);
+}
 
 uint8_t getImageNumberChannels(image_channel_order Order) {
   switch (Order) {
@@ -308,16 +334,16 @@ bool image_impl<Dimensions>::checkImageDesc(const RT::PiMemImageDesc &Desc,
                                             void *UserPtr) {
   if (checkAny(Desc.image_type, PI_MEM_TYPE_IMAGE1D, PI_MEM_TYPE_IMAGE1D_ARRAY,
                PI_MEM_TYPE_IMAGE2D_ARRAY, PI_MEM_TYPE_IMAGE2D) &&
-      !checkImageValueRange<info::device::image2d_max_width>(Context,
-                                                             Desc.image_width))
+      !checkImageValueRange<info::device::image2d_max_width>(
+          getDevices(Context), Desc.image_width))
     throw invalid_parameter_error(
         "For a 1D/2D image/image array, the width must be a Value >= 1 and "
         "<= CL_DEVICE_IMAGE2D_MAX_WIDTH.",
         PI_INVALID_VALUE);
 
   if (checkAny(Desc.image_type, PI_MEM_TYPE_IMAGE3D) &&
-      !checkImageValueRange<info::device::image3d_max_width>(Context,
-                                                             Desc.image_width))
+      !checkImageValueRange<info::device::image3d_max_width>(
+          getDevices(Context), Desc.image_width))
     throw invalid_parameter_error(
         "For a 3D image, the width must be a Value >= 1 and <= "
         "CL_DEVICE_IMAGE3D_MAX_WIDTH",
@@ -326,7 +352,7 @@ bool image_impl<Dimensions>::checkImageDesc(const RT::PiMemImageDesc &Desc,
   if (checkAny(Desc.image_type, PI_MEM_TYPE_IMAGE2D,
                PI_MEM_TYPE_IMAGE2D_ARRAY) &&
       !checkImageValueRange<info::device::image2d_max_height>(
-          Context, Desc.image_height))
+          getDevices(Context), Desc.image_height))
     throw invalid_parameter_error("For a 2D image or image array, the height "
                                   "must be a Value >= 1 and <= "
                                   "CL_DEVICE_IMAGE2D_MAX_HEIGHT",
@@ -334,15 +360,15 @@ bool image_impl<Dimensions>::checkImageDesc(const RT::PiMemImageDesc &Desc,
 
   if (checkAny(Desc.image_type, PI_MEM_TYPE_IMAGE3D) &&
       !checkImageValueRange<info::device::image3d_max_height>(
-          Context, Desc.image_height))
+          getDevices(Context), Desc.image_height))
     throw invalid_parameter_error(
         "For a 3D image, the heightmust be a Value >= 1 and <= "
         "CL_DEVICE_IMAGE3D_MAX_HEIGHT",
         PI_INVALID_VALUE);
 
   if (checkAny(Desc.image_type, PI_MEM_TYPE_IMAGE3D) &&
-      !checkImageValueRange<info::device::image3d_max_depth>(Context,
-                                                             Desc.image_depth))
+      !checkImageValueRange<info::device::image3d_max_depth>(
+          getDevices(Context), Desc.image_depth))
     throw invalid_parameter_error(
         "For a 3D image, the depth must be a Value >= 1 and <= "
         "CL_DEVICE_IMAGE3D_MAX_DEPTH",
@@ -351,7 +377,7 @@ bool image_impl<Dimensions>::checkImageDesc(const RT::PiMemImageDesc &Desc,
   if (checkAny(Desc.image_type, PI_MEM_TYPE_IMAGE1D_ARRAY,
                PI_MEM_TYPE_IMAGE2D_ARRAY) &&
       !checkImageValueRange<info::device::image_max_array_size>(
-          Context, Desc.image_array_size))
+          getDevices(Context), Desc.image_array_size))
     throw invalid_parameter_error(
         "For a 1D and 2D image array, the array_size must be a "
         "Value >= 1 and <= CL_DEVICE_IMAGE_MAX_ARRAY_SIZE.",

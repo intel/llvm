@@ -10245,8 +10245,8 @@ def err_omp_invariant_or_linear_dependency : Error<
   "expected loop invariant expression or '<invariant1> * %0 + <invariant2>' kind of expression">;
 def err_omp_wrong_dependency_iterator_type : Error<
   "expected an integer or a pointer type of the outer loop counter '%0' for non-rectangular nests">;
-def err_omp_unsupported_type : Error <
-  "host requires %0 bit size %1 type support, but device '%2' does not support it">;
+def err_device_unsupported_type : Error <
+  "%0 requires %1 bit size %2 type support, but device '%3' does not support it">;
 def err_omp_lambda_capture_in_declare_target_not_to : Error<
   "variable captured in declare target region must appear in a to clause">;
 def err_omp_device_type_mismatch : Error<
@@ -10816,7 +10816,6 @@ def err_sycl_restrict : Error<
   "}0">;
 def err_sycl_virtual_types : Error<
   "No class with a vtable can be used in a SYCL kernel or any code included in the kernel">;
-def note_sycl_used_here : Note<"used here">;
 def note_sycl_recursive_function_declared_here: Note<"function implemented using recursion declared here">;
 def err_sycl_non_trivially_copy_ctor_dtor_type
     : Error<"kernel parameter has non-trivially %select{copy "

@@ -56,8 +56,9 @@ endfunction()
 
 add_subdirectory(misc)
 add_subdirectory(pi)
-add_subdirectory(thread_safety)
+add_subdirectory(program)
 add_subdirectory(scheduler)
+add_subdirectory(thread_safety)
 
 function(add_device_enabled_unittest)
 cmake_parse_arguments(ARG "" "TESTNAME" "HOST_SOURCES;TARGET_FLAGS;DEVICE_SOURCES" ${ARGN})

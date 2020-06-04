@@ -40,6 +40,11 @@ template <typename DataT, int Dimensions, access::mode AccessMode,
 class image_accessor;
 }
 
+/// Encapsulates a configuration for sampling an image accessor.
+///
+/// \sa sycl_api_acc
+///
+/// \ingroup sycl_api
 class __SYCL_EXPORT sampler {
 public:
   sampler(coordinate_normalization_mode normalizationMode,

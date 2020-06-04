@@ -27,6 +27,10 @@ namespace detail {
 class context_impl;
 }
 
+/// The context class represents a SYCL context on which kernel functions may
+/// be executed.
+///
+/// \ingroup sycl_api
 class __SYCL_EXPORT context {
 public:
   /// Constructs a SYCL context instance using an instance of default_selector.

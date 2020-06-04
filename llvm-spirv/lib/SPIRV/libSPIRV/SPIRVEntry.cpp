@@ -482,6 +482,11 @@ void SPIRVExecutionMode::decode(std::istream &I) {
   case ExecutionModeInvocations:
   case ExecutionModeOutputVertices:
   case ExecutionModeVecTypeHint:
+  case ExecutionModeDenormPreserve:
+  case ExecutionModeDenormFlushToZero:
+  case ExecutionModeSignedZeroInfNanPreserve:
+  case ExecutionModeRoundingModeRTE:
+  case ExecutionModeRoundingModeRTZ:
   case ExecutionModeSubgroupSize:
   case ExecutionModeMaxWorkDimINTEL:
   case ExecutionModeNumSIMDWorkitemsINTEL:

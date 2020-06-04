@@ -4,6 +4,7 @@
 #endif
 
 EXT(SPV_KHR_no_integer_wrap_decoration)
+EXT(SPV_KHR_float_controls)
 EXT(SPV_INTEL_subgroups)
 EXT(SPV_INTEL_media_block_io)
 EXT(SPV_INTEL_device_side_avc_motion_estimation)

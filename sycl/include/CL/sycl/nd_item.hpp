@@ -28,6 +28,11 @@ namespace sycl {
 namespace detail {
 class Builder;
 }
+
+/// Identifies an instance of the function object executing at each point in an
+/// nd_range.
+///
+/// \ingroup sycl_api
 template <int dimensions = 1> class nd_item {
 public:
   nd_item() = delete;
