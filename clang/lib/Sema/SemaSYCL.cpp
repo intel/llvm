@@ -29,6 +29,7 @@
 #include <array>
 #include <functional>
 #include <initializer_list>
+#include <iostream>
 
 using namespace clang;
 using namespace std::placeholders;
@@ -2277,7 +2278,13 @@ SYCLIntegrationHeader::SYCLIntegrationHeader(DiagnosticsEngine &_Diag,
 // -----------------------------------------------------------------------------
 
 bool Util::isSyclAccessorType(const QualType &Ty) {
-  return isSyclType(Ty, "accessor", true /*Tmpl*/);
+  std::cerr << "isSyclAccessorType:Ty\n";
+  Ty->dump();
+  bool b = isSyclType(Ty, "accessor", true /*Tmpl*/) || isSyclType(Ty, "accessor_common", true /*Tmpl*/);
+  std::cerr << (b ? "IS"
+                 : "NOT")
+                       << " an accessor\n\n";
+  return b;
 }
 
 bool Util::isSyclSamplerType(const QualType &Ty) {
