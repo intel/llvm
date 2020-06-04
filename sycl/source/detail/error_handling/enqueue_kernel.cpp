@@ -165,6 +165,7 @@ bool oclHandleInvalidWorkGroupSize(const device_impl &DeviceImpl,
               "OpenCL 2.x implementation supports this feature, but it is being "
               "disabled by -cl-uniform-work-group-size build flag"),
               PI_INVALID_WORK_GROUP_SIZE);
+        //else unknown.  fallback (below)
       }
     }
   }
