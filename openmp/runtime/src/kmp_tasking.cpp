@@ -298,6 +298,7 @@ static bool __kmp_task_is_allowed(int gtid, const kmp_int32 is_constrained,
 static void __kmp_realloc_task_deque(kmp_info_t *thread,
                                      kmp_thread_data_t *thread_data) {
   kmp_int32 size = TASK_DEQUE_SIZE(thread_data->td);
+  KMP_DEBUG_ASSERT(TCR_4(thread_data->td.td_deque_ntasks) == size);
   kmp_int32 new_size = 2 * size;
 
   KE_TRACE(10, ("__kmp_realloc_task_deque: T#%d reallocating deque[from %d to "
@@ -381,8 +382,11 @@ static kmp_int32 __kmp_push_task(kmp_int32 gtid, kmp_task_t *task) {
     } else {
       __kmp_acquire_bootstrap_lock(&thread_data->td.td_deque_lock);
       locked = 1;
-      // expand deque to push the task which is not allowed to execute
-      __kmp_realloc_task_deque(thread, thread_data);
+      if (TCR_4(thread_data->td.td_deque_ntasks) >=
+          TASK_DEQUE_SIZE(thread_data->td)) {
+        // expand deque to push the task which is not allowed to execute
+        __kmp_realloc_task_deque(thread, thread_data);
+      }
     }
   }
   // Lock the deque for the task push operation
@@ -3659,7 +3663,11 @@ static bool __kmp_give_task(kmp_info_t *thread, kmp_int32 tid, kmp_task_t *task,
       return result;
 
     __kmp_acquire_bootstrap_lock(&thread_data->td.td_deque_lock);
-    __kmp_realloc_task_deque(thread, thread_data);
+    if (TCR_4(thread_data->td.td_deque_ntasks) >=
+        TASK_DEQUE_SIZE(thread_data->td)) {
+      // expand deque to push the task which is not allowed to execute
+      __kmp_realloc_task_deque(thread, thread_data);
+    }
 
   } else {
 
@@ -3890,14 +3898,13 @@ void __kmp_fulfill_event(kmp_event_t *event) {
 kmp_task_t *__kmp_task_dup_alloc(kmp_info_t *thread, kmp_task_t *task_src) {
   kmp_task_t *task;
   kmp_taskdata_t *taskdata;
-  kmp_taskdata_t *taskdata_src;
-  kmp_taskdata_t *parent_task = thread->th.th_current_task;
+  kmp_taskdata_t *taskdata_src = KMP_TASK_TO_TASKDATA(task_src);
+  kmp_taskdata_t *parent_task = taskdata_src->td_parent; // same parent task
   size_t shareds_offset;
   size_t task_size;
 
   KA_TRACE(10, ("__kmp_task_dup_alloc(enter): Th %p, source task %p\n", thread,
                 task_src));
-  taskdata_src = KMP_TASK_TO_TASKDATA(task_src);
   KMP_DEBUG_ASSERT(taskdata_src->td_flags.proxy ==
                    TASK_FULL); // it should not be proxy task
   KMP_DEBUG_ASSERT(taskdata_src->td_flags.tasktype == TASK_EXPLICIT);
@@ -4272,7 +4279,6 @@ void __kmp_taskloop_recur(ident_t *loc, int gtid, kmp_task_t *task,
                           void *codeptr_ra,
 #endif
                           void *task_dup) {
-#if KMP_DEBUG
   kmp_taskdata_t *taskdata = KMP_TASK_TO_TASKDATA(task);
   KMP_DEBUG_ASSERT(task != NULL);
   KMP_DEBUG_ASSERT(num_tasks > num_t_min);
@@ -4280,7 +4286,6 @@ void __kmp_taskloop_recur(ident_t *loc, int gtid, kmp_task_t *task,
                 " %lld, extras %lld, i=%lld,%lld(%d), dup %p\n",
                 gtid, taskdata, num_tasks, grainsize, extras, *lb, *ub, st,
                 task_dup));
-#endif
   p_task_dup_t ptask_dup = (p_task_dup_t)task_dup;
   kmp_uint64 lower = *lb;
   kmp_info_t *thread = __kmp_threads[gtid];
@@ -4324,9 +4329,14 @@ void __kmp_taskloop_recur(ident_t *loc, int gtid, kmp_task_t *task,
   *ub = ub0; // adjust upper bound for the 1st half
 
   // create auxiliary task for 2nd half of the loop
+  // make sure new task has same parent task as the pattern task
+  kmp_taskdata_t *current_task = thread->th.th_current_task;
+  thread->th.th_current_task = taskdata->td_parent;
   kmp_task_t *new_task =
       __kmpc_omp_task_alloc(loc, gtid, 1, 3 * sizeof(void *),
                             sizeof(__taskloop_params_t), &__kmp_taskloop_task);
+  // restore current task
+  thread->th.th_current_task = current_task;
   __taskloop_params_t *p = (__taskloop_params_t *)new_task->shareds;
   p->task = next_task;
   p->lb = (kmp_uint64 *)((char *)next_task + lower_offset);

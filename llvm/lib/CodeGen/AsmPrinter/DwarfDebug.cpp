@@ -1291,9 +1291,11 @@ void DwarfDebug::finalizeModuleInfo() {
     // attribute.
     if (CUNode->getMacros()) {
       if (getDwarfVersion() >= 5) {
-        // FIXME: Add support for DWARFv5 DW_AT_macros attribute for split
-        // case.
-        if (!useSplitDwarf())
+        if (useSplitDwarf())
+          TheCU.addSectionDelta(
+              TheCU.getUnitDie(), dwarf::DW_AT_macros, U.getMacroLabelBegin(),
+              TLOF.getDwarfMacroDWOSection()->getBeginSymbol());
+        else
           U.addSectionLabel(U.getUnitDie(), dwarf::DW_AT_macros,
                             U.getMacroLabelBegin(),
                             TLOF.getDwarfMacroSection()->getBeginSymbol());
@@ -2399,14 +2401,11 @@ void DwarfDebug::emitDebugLocValue(const AsmPrinter &AP, const DIBasicType *BT,
       DwarfExpr.addUnsignedConstant(Value.getInt());
   } else if (Value.isLocation()) {
     MachineLocation Location = Value.getLoc();
-    if (Location.isIndirect())
-      DwarfExpr.setMemoryLocationKind();
+    DwarfExpr.setLocation(Location, DIExpr);
     DIExpressionCursor Cursor(DIExpr);
 
-    if (DIExpr->isEntryValue()) {
-      DwarfExpr.setEntryValueFlag();
+    if (DIExpr->isEntryValue())
       DwarfExpr.beginEntryValueExpression(Cursor);
-    }
 
     const TargetRegisterInfo &TRI = *AP.MF->getSubtarget().getRegisterInfo();
     if (!DwarfExpr.addMachineRegExpression(TRI, Cursor, Location.getReg()))
@@ -2927,26 +2926,23 @@ void DwarfDebug::emitMacro(DIMacro &M) {
 
   if (UseMacro) {
     unsigned Type = M.getMacinfoType() == dwarf::DW_MACINFO_define
-                        ? dwarf::DW_MACRO_define_strp
-                        : dwarf::DW_MACRO_undef_strp;
+                        ? dwarf::DW_MACRO_define_strx
+                        : dwarf::DW_MACRO_undef_strx;
     Asm->OutStreamer->AddComment(dwarf::MacroString(Type));
     Asm->emitULEB128(Type);
     Asm->OutStreamer->AddComment("Line Number");
     Asm->emitULEB128(M.getLine());
     Asm->OutStreamer->AddComment("Macro String");
     if (!Value.empty())
-      Asm->OutStreamer->emitSymbolValue(
-          this->InfoHolder.getStringPool()
-              .getEntry(*Asm, (Name + " " + Value).str())
-              .getSymbol(),
-          4);
+      Asm->emitULEB128(this->InfoHolder.getStringPool()
+                           .getIndexedEntry(*Asm, (Name + " " + Value).str())
+                           .getIndex());
     else
-      // DW_MACRO_undef_strp doesn't have a value, so just emit the macro
+      // DW_MACRO_undef_strx doesn't have a value, so just emit the macro
       // string.
-      Asm->OutStreamer->emitSymbolValue(this->InfoHolder.getStringPool()
-                                            .getEntry(*Asm, (Name).str())
-                                            .getSymbol(),
-                                        4);
+      Asm->emitULEB128(this->InfoHolder.getStringPool()
+                           .getIndexedEntry(*Asm, (Name).str())
+                           .getIndex());
   } else {
     Asm->OutStreamer->AddComment(dwarf::MacinfoString(M.getMacinfoType()));
     Asm->emitULEB128(M.getMacinfoType());
@@ -3020,10 +3016,10 @@ void DwarfDebug::emitDebugMacinfo() {
 }
 
 void DwarfDebug::emitDebugMacinfoDWO() {
-  // FIXME: Add support for macro.dwo section.
-  if (getDwarfVersion() >= 5)
-    return;
-  emitDebugMacinfoImpl(Asm->getObjFileLowering().getDwarfMacinfoDWOSection());
+  auto &ObjLower = Asm->getObjFileLowering();
+  emitDebugMacinfoImpl(getDwarfVersion() >= 5
+                           ? ObjLower.getDwarfMacroDWOSection()
+                           : ObjLower.getDwarfMacinfoDWOSection());
 }
 
 // DWARF5 Experimental Separate Dwarf emitters.

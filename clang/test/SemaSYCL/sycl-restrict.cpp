@@ -123,10 +123,12 @@ typedef __int128 tricky128Type;
 typedef long double trickyLDType;
 
 //templated return type
+// expected-note@+2 2{{'bar<__float128>' defined here}}
 template <typename T>
 T bar() { return T(); };
 
 //variable template
+// expected-note@+2 2{{solutionToEverything<__float128>' defined here}}
 template <class T>
 constexpr T solutionToEverything = T(42);
 
@@ -213,22 +215,28 @@ void usage(myFuncDef functionPtr) {
   });
 
   // ======= Float128 Not Allowed in Kernel ==========
+  // expected-note@+2 {{'malFloat' defined here}}
   // expected-error@+1 {{'__float128' is not supported on this target}}
   __float128 malFloat = 40;
   // expected-error@+1 {{'__float128' is not supported on this target}}
   trickyFloatType malFloatTrick = 41;
   // expected-error@+1 {{'__float128' is not supported on this target}}
   floatDef malFloatDef = 44;
+  // expected-error@+2 {{'malFloat' requires 128 bit size '__float128' type support, but device 'spir64' does not support it}}
   // expected-error@+1 {{'__float128' is not supported on this target}}
   auto whatFloat = malFloat;
+  // expected-error@+2 {{'bar<__float128>' requires 128 bit size '__float128' type support, but device 'spir64' does not support it}}
   // expected-error@+1 {{'__float128' is not supported on this target}}
   auto malAutoTemp5 = bar<__float128>();
+  // expected-error@+2 {{'bar<__float128>' requires 128 bit size '__float128' type support, but device 'spir64' does not support it}}
   // expected-error@+1 {{'__float128' is not supported on this target}}
   auto malAutoTemp6 = bar<trickyFloatType>();
   // expected-error@+1 {{'__float128' is not supported on this target}}
   decltype(malFloat) malDeclFloat = 42;
+  // expected-error@+2 {{'solutionToEverything<__float128>' requires 128 bit size 'const __float128' type support, but device 'spir64' does not support it}}
   // expected-error@+1 {{'__float128' is not supported on this target}}
   auto malFloatTemplateVar = solutionToEverything<__float128>;
+  // expected-error@+2 {{'solutionToEverything<__float128>' requires 128 bit size 'const __float128' type support, but device 'spir64' does not support it}}
   // expected-error@+1 {{'__float128' is not supported on this target}}
   auto malTrifectaFloat = solutionToEverything<trickyFloatType>;
   // expected-error@+1 {{'__float128' is not supported on this target}}
