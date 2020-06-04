@@ -245,6 +245,7 @@ public:
     ConstIterator begin() const { return ConstIterator(Begin); }
     ConstIterator end() const { return ConstIterator(End); }
     friend class DeviceBinaryImage;
+    bool isAvailable() const { return !(Begin == nullptr); }
 
   private:
     PropertyRange() : Begin(nullptr), End(nullptr) {}
