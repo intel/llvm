@@ -23,17 +23,20 @@ namespace sycl {
 namespace detail {
 
 context_impl::context_impl(const device &Device, async_handler AsyncHandler,
+                           const property_list &PropList,
                            bool UseCUDAPrimaryContext)
-    : MAsyncHandler(AsyncHandler), MDevices(1, Device), MContext(nullptr),
-      MPlatform(), MPluginInterop(false), MHostContext(true),
+    : MAsyncHandler(AsyncHandler), MPropList(PropList), MDevices(1, Device),
+      MContext(nullptr), MPlatform(), MPluginInterop(false), MHostContext(true),
       MUseCUDAPrimaryContext(UseCUDAPrimaryContext) {
   MKernelProgramCache.setContextPtr(this);
 }
 
 context_impl::context_impl(const vector_class<cl::sycl::device> Devices,
-                           async_handler AsyncHandler, bool UseCUDAPrimaryContext)
-    : MAsyncHandler(AsyncHandler), MDevices(Devices), MContext(nullptr),
-      MPlatform(), MPluginInterop(true), MHostContext(false),
+                           async_handler AsyncHandler,
+                           const property_list &PropList,
+                           bool UseCUDAPrimaryContext)
+    : MAsyncHandler(AsyncHandler), MPropList(PropList), MDevices(Devices),
+      MContext(nullptr), MPlatform(), MPluginInterop(true), MHostContext(false),
       MUseCUDAPrimaryContext(UseCUDAPrimaryContext) {
   MPlatform = detail::getSyclObjImpl(MDevices[0].get_platform());
   vector_class<RT::PiDevice> DeviceIds;
@@ -63,8 +66,8 @@ context_impl::context_impl(const vector_class<cl::sycl::device> Devices,
 
 context_impl::context_impl(RT::PiContext PiContext, async_handler AsyncHandler,
                            const plugin &Plugin)
-    : MAsyncHandler(AsyncHandler), MDevices(), MContext(PiContext), MPlatform(),
-      MPluginInterop(true), MHostContext(false) {
+    : MAsyncHandler(AsyncHandler), MPropList(), MDevices(), MContext(PiContext),
+      MPlatform(), MPluginInterop(true), MHostContext(false) {
 
   vector_class<RT::PiDevice> DeviceIds;
   size_t DevicesNum = 0;
