@@ -66,7 +66,7 @@ macro(add_libclc_builtin_set arch_suffix)
   target_compile_definitions( builtins.link.${arch_suffix} PRIVATE
     "__CLC_INTERNAL" )
   target_compile_options( builtins.link.${arch_suffix} PRIVATE
-    -target ${ARG_TRIPLE} ${ARG_COMPILE_OPT} -fno-builtin )
+    -target ${ARG_TRIPLE} ${ARG_COMPILE_OPT} -fno-builtin -nostdlib )
   set_target_properties( builtins.link.${arch_suffix} PROPERTIES
     LINKER_LANGUAGE CLC )
   set_output_directory(builtins.link.${arch_suffix} LIBRARY_DIR ${LIBCLC_LIBRARY_OUTPUT_INTDIR})

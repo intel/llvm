@@ -173,7 +173,8 @@ private:
                                SPIRVWord *EntryPoint = nullptr,
                                SmallVectorImpl<std::string> *Dec = nullptr);
   bool oclIsKernel(Function *F);
-  bool transOCLKernelMetadata();
+  bool transMetadata();
+  bool transOCLMetadata();
   SPIRVInstruction *transBuiltinToInst(StringRef DemangledName, CallInst *CI,
                                        SPIRVBasicBlock *BB);
   SPIRVValue *transBuiltinToConstant(StringRef DemangledName, CallInst *CI);
