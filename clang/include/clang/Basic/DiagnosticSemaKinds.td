@@ -8162,6 +8162,8 @@ def warn_bad_function_cast : Warning<
   InGroup<BadFunctionCast>, DefaultIgnore;
 def err_cast_pointer_to_non_pointer_int : Error<
   "pointer cannot be cast to type %0">;
+def err_cast_to_bfloat16 : Error<"cannot type-cast to __bf16">;
+def err_cast_from_bfloat16 : Error<"cannot type-cast from __bf16">;
 def err_typecheck_expect_scalar_operand : Error<
   "operand of type %0 where arithmetic or pointer type is required">;
 def err_typecheck_cond_incompatible_operands : Error<
@@ -10808,6 +10810,12 @@ def err_matrix_separate_incomplete_index: Error<
   "matrix row and column subscripts cannot be separated by any expression">;
 def err_matrix_subscript_comma: Error<
   "comma expressions are not allowed as indices in matrix subscript expressions">;
+
+def warn_mismatched_import : Warning<
+  "import %select{module|name}0 (%1) does not match the import %select{module|name}0 (%2) of the "
+  "previous declaration">;
+def warn_import_on_definition : Warning<
+  "import %select{module|name}0 cannot be applied to a function with a definition">;
 
 // SYCL-specific diagnostics
 def err_sycl_kernel_incorrectly_named : Error<

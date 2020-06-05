@@ -11,6 +11,7 @@
 #include "llvm/Analysis/StackSafetyAnalysis.h"
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/ScalarEvolutionExpressions.h"
 #include "llvm/IR/ConstantRange.h"
 #include "llvm/IR/DerivedTypes.h"
@@ -30,32 +31,19 @@ using namespace llvm;
 
 #define DEBUG_TYPE "stack-safety"
 
+STATISTIC(NumAllocaStackSafe, "Number of safe allocas");
+STATISTIC(NumAllocaTotal, "Number of total allocas");
+
 static cl::opt<int> StackSafetyMaxIterations("stack-safety-max-iterations",
                                              cl::init(20), cl::Hidden);
 
-static cl::opt<int> StackSafetyPrint("stack-safety-print", cl::init(0),
-                                     cl::Hidden);
+static cl::opt<bool> StackSafetyPrint("stack-safety-print", cl::init(false),
+                                      cl::Hidden);
+
+static cl::opt<bool> StackSafetyRun("stack-safety-run", cl::init(false),
+                                    cl::Hidden);
 
 namespace {
-
-/// Rewrite an SCEV expression for a memory access address to an expression that
-/// represents offset from the given alloca.
-class AllocaOffsetRewriter : public SCEVRewriteVisitor<AllocaOffsetRewriter> {
-  const Value *AllocaPtr;
-
-public:
-  AllocaOffsetRewriter(ScalarEvolution &SE, const Value *AllocaPtr)
-      : SCEVRewriteVisitor(SE), AllocaPtr(AllocaPtr) {}
-
-  const SCEV *visitUnknown(const SCEVUnknown *Expr) {
-    // FIXME: look through one or several levels of definitions?
-    // This can be inttoptr(AllocaPtr) and SCEV would not unwrap
-    // it for us.
-    if (Expr->getValue() == AllocaPtr)
-      return SE.getZero(Expr->getType());
-    return Expr;
-  }
-};
 
 /// Describes use of address in as a function call argument.
 template <typename CalleeTy> struct CallInfo {
@@ -222,12 +210,15 @@ public:
 };
 
 ConstantRange StackSafetyLocalAnalysis::offsetFrom(Value *Addr, Value *Base) {
-  if (!SE.isSCEVable(Addr->getType()))
+  if (!SE.isSCEVable(Addr->getType()) || !SE.isSCEVable(Base->getType()))
     return UnknownRange;
 
-  AllocaOffsetRewriter Rewriter(SE, Base);
-  const SCEV *Expr = Rewriter.visit(SE.getSCEV(Addr));
-  ConstantRange Offset = SE.getSignedRange(Expr);
+  auto *PtrTy = IntegerType::getInt8PtrTy(SE.getContext());
+  const SCEV *AddrExp = SE.getTruncateOrZeroExtend(SE.getSCEV(Addr), PtrTy);
+  const SCEV *BaseExp = SE.getTruncateOrZeroExtend(SE.getSCEV(Base), PtrTy);
+  const SCEV *Diff = SE.getMinusSCEV(AddrExp, BaseExp);
+
+  ConstantRange Offset = SE.getSignedRange(Diff);
   if (isUnsafe(Offset))
     return UnknownRange;
   return Offset.sextOrTrunc(PointerSize);
@@ -552,7 +543,7 @@ StackSafetyDataFlowAnalysis<CalleeTy>::run() {
 
 const Function *findCalleeInModule(const GlobalValue *GV) {
   while (GV) {
-    if (GV->isInterposable() || !GV->isDSOLocal())
+    if (GV->isDeclaration() || GV->isInterposable() || !GV->isDSOLocal())
       return nullptr;
     if (const Function *F = dyn_cast<Function>(GV))
       return F;
@@ -660,9 +651,12 @@ const StackSafetyGlobalInfo::InfoTy &StackSafetyGlobalInfo::getInfo() const {
         new InfoTy{createGlobalStackSafetyInfo(std::move(Functions)), {}});
     for (auto &FnKV : Info->Info) {
       for (auto &KV : FnKV.second.Allocas) {
+        ++NumAllocaTotal;
         const AllocaInst *AI = KV.first;
-        if (getStaticAllocaSizeRange(*AI).contains(KV.second.Range))
+        if (getStaticAllocaSizeRange(*AI).contains(KV.second.Range)) {
           Info->SafeAllocas.insert(AI);
+          ++NumAllocaStackSafe;
+        }
       }
     }
     if (StackSafetyPrint)
@@ -676,7 +670,7 @@ StackSafetyGlobalInfo::StackSafetyGlobalInfo() = default;
 StackSafetyGlobalInfo::StackSafetyGlobalInfo(
     Module *M, std::function<const StackSafetyInfo &(Function &F)> GetSSI)
     : M(M), GetSSI(GetSSI) {
-  if (StackSafetyPrint > 1)
+  if (StackSafetyRun)
     getInfo();
 }
 

@@ -4561,7 +4561,7 @@ inline bool IsEnumDeclScoped(EnumDecl *ED) {
 /// The new name looks likes this:
 ///  <name> + OpenMPVariantManglingSeparatorStr + <mangled OpenMP context>
 static constexpr StringRef getOpenMPVariantManglingSeparatorStr() {
-  return ".ompvariant";
+  return "$ompvariant";
 }
 
 } // namespace clang

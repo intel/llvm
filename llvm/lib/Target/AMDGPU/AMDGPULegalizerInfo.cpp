@@ -347,6 +347,12 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
       .clampMaxNumElements(0, S32, 16);
 
   setAction({G_FRAME_INDEX, PrivatePtr}, Legal);
+
+  // If the amount is divergent, we have to do a wave reduction to get the
+  // maximum value, so this is expanded during RegBankSelect.
+  getActionDefinitionsBuilder(G_DYN_STACKALLOC)
+    .legalFor({{PrivatePtr, S32}});
+
   getActionDefinitionsBuilder(G_GLOBAL_VALUE)
     .unsupportedFor({PrivatePtr})
     .custom();
@@ -1022,8 +1028,10 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
     Atomics.legalFor({{S32, FlatPtr}, {S64, FlatPtr}});
   }
 
-  getActionDefinitionsBuilder(G_ATOMICRMW_FADD)
-    .legalFor({{S32, LocalPtr}});
+  if (ST.hasLDSFPAtomics()) {
+    getActionDefinitionsBuilder(G_ATOMICRMW_FADD)
+      .legalFor({{S32, LocalPtr}});
+  }
 
   // BUFFER/FLAT_ATOMIC_CMP_SWAP on GCN GPUs needs input marshalling, and output
   // demarshalling
@@ -1324,7 +1332,7 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
     }).lower();
 
   getActionDefinitionsBuilder({G_VASTART, G_VAARG, G_BRJT, G_JUMP_TABLE,
-        G_DYN_STACKALLOC, G_INDEXED_LOAD, G_INDEXED_SEXTLOAD,
+        G_INDEXED_LOAD, G_INDEXED_SEXTLOAD,
         G_INDEXED_ZEXTLOAD, G_INDEXED_STORE})
     .unsupported();
 
