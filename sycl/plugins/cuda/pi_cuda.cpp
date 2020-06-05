@@ -619,7 +619,7 @@ pi_result cuda_piPlatformGetInfo(pi_platform platform,
   switch (param_name) {
   case PI_PLATFORM_INFO_NAME:
     return getInfo(param_value_size, param_value, param_value_size_ret,
-                   "NVIDIA CUDA BACKEND");
+                   "NVIDIA CUDA");
   case PI_PLATFORM_INFO_VENDOR:
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    "NVIDIA Corporation");

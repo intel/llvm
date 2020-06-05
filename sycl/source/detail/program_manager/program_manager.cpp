@@ -86,10 +86,29 @@ static RT::PiProgram createBinaryProgram(const ContextImplPtr Context,
 
   RT::PiProgram Program;
 
+  bool IsCUDA = false;
+
   // TODO: Implement `piProgramCreateWithBinary` to not require extra logic for
   //       the CUDA backend.
-  const auto Backend = Context->getPlugin().getBackend();
-  if (Backend == backend::cuda) {
+#if USE_PI_CUDA
+  // All devices in a context are from the same platform.
+  RT::PiDevice Device = getFirstDevice(Context);
+  RT::PiPlatform Platform = nullptr;
+  Plugin.call<PiApiKind::piDeviceGetInfo>(Device, PI_DEVICE_INFO_PLATFORM, sizeof(Platform),
+                           &Platform, nullptr);
+  size_t PlatformNameSize = 0u;
+  Plugin.call<PiApiKind::piPlatformGetInfo>(Platform, PI_PLATFORM_INFO_NAME, 0u, nullptr,
+                             &PlatformNameSize);
+  std::vector<char> PlatformName(PlatformNameSize, '\0');
+  Plugin.call<PiApiKind::piPlatformGetInfo>(Platform, PI_PLATFORM_INFO_NAME,
+                             PlatformName.size(), PlatformName.data(), nullptr);
+  if (PlatformNameSize > 0u &&
+      std::strncmp(PlatformName.data(), "NVIDIA CUDA", PlatformNameSize) == 0) {
+    IsCUDA = true;
+  }
+#endif // USE_PI_CUDA
+
+  if (IsCUDA) {
     // TODO: Reemplace CreateWithSource with CreateWithBinary in CUDA backend
     const char *SignedData = reinterpret_cast<const char *>(Data);
     Plugin.call<PiApiKind::piclProgramCreateWithSource>(Context->getHandleRef(), 1 /*one binary*/, &SignedData,
@@ -240,13 +259,6 @@ RetT *getOrBuild(KernelProgramCache &KPCache, KeyT &&CacheKey,
 
 static bool isDeviceBinaryTypeSupported(const context &C,
                                         RT::PiDeviceBinaryType Format) {
-  const backend ContextBackend =
-      detail::getSyclObjImpl(C)->getPlugin().getBackend();
-
-  // The CUDA backend cannot use SPIRV
-  if (ContextBackend == backend::cuda && Format == PI_DEVICE_BINARY_TYPE_SPIRV)
-    return false;
-
   // All formats except PI_DEVICE_BINARY_TYPE_SPIRV are supported.
   if (Format != PI_DEVICE_BINARY_TYPE_SPIRV)
     return true;
@@ -260,7 +272,8 @@ static bool isDeviceBinaryTypeSupported(const context &C,
   }
 
   // OpenCL 2.1 and greater require clCreateProgramWithIL
-  if ((ContextBackend == backend::opencl) &&
+  backend CBackend = (detail::getSyclObjImpl(C)->getPlugin()).getBackend();
+  if ((CBackend == backend::opencl) &&
       C.get_platform().get_info<info::platform::version>() >= "2.1")
     return true;
 
@@ -324,7 +337,7 @@ RT::PiProgram ProgramManager::createPIProgram(const RTDeviceBinaryImage &Img,
 
   if (!isDeviceBinaryTypeSupported(Context, Format))
     throw feature_not_supported(
-        "SPIR-V online compilation is not supported in this context",
+        "Online compilation is not supported in this context",
         PI_INVALID_OPERATION);
 
   // Load the image

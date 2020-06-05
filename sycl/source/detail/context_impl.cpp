@@ -41,8 +41,7 @@ context_impl::context_impl(const vector_class<cl::sycl::device> Devices,
     DeviceIds.push_back(getSyclObjImpl(D)->getHandleRef());
   }
 
-  const auto Backend = getPlugin().getBackend();
-  if (Backend == backend::cuda) {
+  if (MPlatform->is_cuda()) {
 #if USE_PI_CUDA
     const pi_context_properties props[] = {
         static_cast<pi_context_properties>(PI_CONTEXT_PROPERTIES_CUDA_PRIMARY),
