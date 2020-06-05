@@ -255,7 +255,13 @@ bool trace(TraceLevel Level) {
 }
 
 // Initializes all available Plugins.
-vector_class<plugin> initialize() {
+// The returned reference lifetime is through the end of the process.
+//
+// TODO: make sure that the global Plugins is destroyed last, at least
+// after other tear-down relying on plugins (like destructors of global
+// buffers) is completed.
+//
+const vector_class<plugin> &initialize() {
   static bool PluginsInitDone = false;
   static vector_class<plugin> Plugins;
   if (PluginsInitDone) {
