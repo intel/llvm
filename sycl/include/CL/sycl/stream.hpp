@@ -90,6 +90,10 @@ inline __width_manipulator__ setw(int Width) {
   return __width_manipulator__(Width);
 }
 
+/// A buffered output stream that allows outputting the values of built-in,
+/// vector and SYCL types to the console.
+///
+/// \ingroup sycl_api
 class __SYCL_EXPORT stream {
 public:
   stream(size_t BufferSize, size_t MaxStatementSize, handler &CGH);

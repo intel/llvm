@@ -3549,12 +3549,21 @@ class OffloadingActionBuilder final {
           for (auto SDA : SYCLDeviceActions)
             SYCLLinkBinaryList.push_back(SDA);
           if (WrapDeviceOnlyBinary) {
-            auto *DeviceLinkAction =
-              C.MakeAction<LinkJobAction>(SYCLLinkBinaryList, types::TY_Image);
-            // Wrap the binary when -fsycl-link is given
-            SYCLLinkBinary =
-                C.MakeAction<OffloadWrapperJobAction>(DeviceLinkAction,
-                                                      types::TY_Object);
+            // -fsycl-link behavior does the following to the unbundled device
+            // binaries:
+            //   1) Link them together using llvm-link
+            //   2) Pass the linked binary through sycl-post-link
+            //   3) Translate final .bc file to .spv
+            //   4) Wrap the binary with the offload wrapper which can be used
+            //      by any compilation link step.
+            auto *DeviceLinkAction = C.MakeAction<LinkJobAction>(
+                SYCLLinkBinaryList, types::TY_Image);
+            auto *PostLinkAction = C.MakeAction<SYCLPostLinkJobAction>(
+                DeviceLinkAction, types::TY_LLVM_BC);
+            auto *TranslateAction = C.MakeAction<SPIRVTranslatorJobAction>(
+                PostLinkAction, types::TY_Image);
+            SYCLLinkBinary = C.MakeAction<OffloadWrapperJobAction>(
+                TranslateAction, types::TY_Object);
           } else {
             auto *Link = C.MakeAction<LinkJobAction>(SYCLLinkBinaryList,
                                                          types::TY_Image);

@@ -1,0 +1,21 @@
+/// \defgroup sycl_api DPC++ User API
+///
+/// \todo a more specific intro
+///
+/// A sample DPC++ application:
+/// \include simple-dpcpp-app.cpp
+
+/// \defgroup sycl_api_dev_sel Device selectors
+///
+/// Device selectors enable DPC++ runtime to choose the best devices based on
+/// heuristics specified by the user, or by one of the built-in selectors.
+///
+/// \ingroup sycl_api
+
+/// \defgroup sycl_api_acc Accessors
+/// Specify aquisition and release of buffer and image data structures.
+///
+/// \sa buffer
+/// \sa image
+/// \ingroup sycl_api
+

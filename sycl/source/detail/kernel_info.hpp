@@ -85,7 +85,7 @@ get_kernel_work_group_info_host(const cl::sycl::device &Device);
 template <>
 inline cl::sycl::range<3>
 get_kernel_work_group_info_host<info::kernel_work_group::global_work_size>(
-    const cl::sycl::device &Dev) {
+    const cl::sycl::device &) {
   throw invalid_object_error("This instance of kernel is a host instance",
                              PI_INVALID_KERNEL);
 }
@@ -100,7 +100,7 @@ get_kernel_work_group_info_host<info::kernel_work_group::work_group_size>(
 template <>
 inline cl::sycl::range<3> get_kernel_work_group_info_host<
     info::kernel_work_group::compile_work_group_size>(
-    const cl::sycl::device &Dev) {
+    const cl::sycl::device &) {
   return {0, 0, 0};
 }
 
@@ -115,7 +115,7 @@ inline size_t get_kernel_work_group_info_host<
 template <>
 inline cl_ulong
 get_kernel_work_group_info_host<info::kernel_work_group::private_mem_size>(
-    const cl::sycl::device &Dev) {
+    const cl::sycl::device &) {
   return 0;
 }
 // The kernel sub-group methods

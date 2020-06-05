@@ -85,6 +85,10 @@ device device_selector::select_device() const {
                                 PI_DEVICE_NOT_FOUND);
 }
 
+/// Devices of different kinds are prioritized in the following order:
+/// 1. GPU
+/// 2. CPU
+/// 3. Host
 int default_selector::operator()(const device &dev) const {
 
   int Score = REJECT_DEVICE_SCORE;

@@ -107,7 +107,7 @@ void *MemoryManager::allocateInteropMemObject(
     return UserPtr;
   }
   // Allocate new cl_mem and initialize from user provided one.
-  assert(!"Not implemented");
+  assert(false && "Not implemented");
   return nullptr;
 }
 
@@ -203,7 +203,7 @@ void *MemoryManager::allocateMemSubBuffer(ContextImplPtr TargetContext,
   return NewMem;
 }
 
-void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr SrcQueue,
+void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr,
              unsigned int DimSrc, sycl::range<3> SrcSize,
              sycl::range<3> SrcAccessRange, sycl::id<3> SrcOffset,
              unsigned int SrcElemSize, RT::PiMem DstMem, QueueImplPtr TgtQueue,
@@ -255,11 +255,11 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr SrcQueue,
 void copyD2H(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
              unsigned int DimSrc, sycl::range<3> SrcSize,
              sycl::range<3> SrcAccessRange, sycl::id<3> SrcOffset,
-             unsigned int SrcElemSize, char *DstMem, QueueImplPtr TgtQueue,
+             unsigned int SrcElemSize, char *DstMem, QueueImplPtr,
              unsigned int DimDst, sycl::range<3> DstSize,
              sycl::range<3> DstAccessRange, sycl::id<3> DstOffset,
              unsigned int DstElemSize, std::vector<RT::PiEvent> DepEvents,
-              RT::PiEvent &OutEvent) {
+             RT::PiEvent &OutEvent) {
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
 
   const RT::PiQueue Queue = SrcQueue->getHandleRef();
@@ -302,11 +302,10 @@ void copyD2H(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
 void copyD2D(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
              unsigned int DimSrc, sycl::range<3> SrcSize,
              sycl::range<3> SrcAccessRange, sycl::id<3> SrcOffset,
-             unsigned int SrcElemSize, RT::PiMem DstMem, QueueImplPtr TgtQueue,
-             unsigned int DimDst, sycl::range<3> DstSize,
-             sycl::range<3> DstAccessRange, sycl::id<3> DstOffset,
-             unsigned int DstElemSize, std::vector<RT::PiEvent> DepEvents,
-             RT::PiEvent &OutEvent) {
+             unsigned int SrcElemSize, RT::PiMem DstMem, QueueImplPtr,
+             unsigned int DimDst, sycl::range<3> DstSize, sycl::range<3>,
+             sycl::id<3> DstOffset, unsigned int DstElemSize,
+             std::vector<RT::PiEvent> DepEvents, RT::PiEvent &OutEvent) {
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
 
   const RT::PiQueue Queue = SrcQueue->getHandleRef();
@@ -341,18 +340,17 @@ void copyD2D(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
   }
 }
 
-static void copyH2H(SYCLMemObjI *SYCLMemObj, char *SrcMem,
-                    QueueImplPtr SrcQueue, unsigned int DimSrc,
-                    sycl::range<3> SrcSize, sycl::range<3> SrcAccessRange,
-                    sycl::id<3> SrcOffset, unsigned int SrcElemSize,
-                    char *DstMem, QueueImplPtr TgtQueue, unsigned int DimDst,
-                    sycl::range<3> DstSize, sycl::range<3> DstAccessRange,
-                    sycl::id<3> DstOffset, unsigned int DstElemSize,
-                    std::vector<RT::PiEvent> DepEvents, RT::PiEvent &OutEvent) {
+static void copyH2H(SYCLMemObjI *, char *SrcMem, QueueImplPtr,
+                    unsigned int DimSrc, sycl::range<3> SrcSize,
+                    sycl::range<3> SrcAccessRange, sycl::id<3> SrcOffset,
+                    unsigned int SrcElemSize, char *DstMem, QueueImplPtr,
+                    unsigned int DimDst, sycl::range<3> DstSize,
+                    sycl::range<3> DstAccessRange, sycl::id<3> DstOffset,
+                    unsigned int DstElemSize, std::vector<RT::PiEvent>,
+                    RT::PiEvent &) {
   if ((DimSrc != 1 || DimDst != 1) &&
       (SrcOffset != id<3>{0, 0, 0} || DstOffset != id<3>{0, 0, 0} ||
        SrcSize != SrcAccessRange || DstSize != DstAccessRange)) {
-    assert(!"Not supported configuration of memcpy requested");
     throw runtime_error("Not supported configuration of memcpy requested",
                         PI_INVALID_OPERATION);
   }
@@ -412,9 +410,8 @@ void MemoryManager::copy(SYCLMemObjI *SYCLMemObj, void *SrcMem,
 
 void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
                          size_t PatternSize, const char *Pattern,
-                         unsigned int Dim, sycl::range<3> Size,
-                         sycl::range<3> Range, sycl::id<3> Offset,
-                         unsigned int ElementSize,
+                         unsigned int Dim, sycl::range<3>, sycl::range<3> Range,
+                         sycl::id<3> Offset, unsigned int ElementSize,
                          std::vector<RT::PiEvent> DepEvents,
                          RT::PiEvent &OutEvent) {
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
@@ -428,7 +425,6 @@ void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
           &DepEvents[0], &OutEvent);
       return;
     }
-    assert(!"Not supported configuration of fill requested");
     throw runtime_error("Not supported configuration of fill requested",
                         PI_INVALID_OPERATION);
   } else {
@@ -438,14 +434,13 @@ void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
   }
 }
 
-void *MemoryManager::map(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
-                         access::mode AccessMode, unsigned int Dim,
-                         sycl::range<3> Size, sycl::range<3> AccessRange,
-                         sycl::id<3> AccessOffset, unsigned int ElementSize,
+void *MemoryManager::map(SYCLMemObjI *, void *Mem, QueueImplPtr Queue,
+                         access::mode AccessMode, unsigned int, sycl::range<3>,
+                         sycl::range<3> AccessRange, sycl::id<3> AccessOffset,
+                         unsigned int ElementSize,
                          std::vector<RT::PiEvent> DepEvents,
                          RT::PiEvent &OutEvent) {
   if (Queue->is_host()) {
-    assert(!"Not supported configuration of map requested");
     throw runtime_error("Not supported configuration of map requested",
                         PI_INVALID_OPERATION);
   }
@@ -485,13 +480,12 @@ void *MemoryManager::map(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
   return MappedPtr;
 }
 
-void MemoryManager::unmap(SYCLMemObjI *SYCLMemObj, void *Mem,
-                          QueueImplPtr Queue, void *MappedPtr,
-                          std::vector<RT::PiEvent> DepEvents,
+void MemoryManager::unmap(SYCLMemObjI *, void *Mem, QueueImplPtr Queue,
+                          void *MappedPtr, std::vector<RT::PiEvent> DepEvents,
                           RT::PiEvent &OutEvent) {
 
   // Host queue is not supported here.
-  // All DepEvents are to the same Context. 
+  // All DepEvents are to the same Context.
   // Using the plugin of the Queue.
 
   const detail::plugin &Plugin = Queue->getPlugin();

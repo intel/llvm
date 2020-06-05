@@ -276,13 +276,13 @@ _pi_event::_pi_event(pi_command_type type, pi_context context, pi_queue queue)
       isStarted_{false}, evEnd_{nullptr}, evStart_{nullptr}, evQueued_{nullptr},
       queue_{queue}, context_{context} {
 
-  if (is_native_event()) {
-    PI_CHECK_ERROR(cuEventCreate(&evEnd_, CU_EVENT_DEFAULT));
+  assert(type != PI_COMMAND_TYPE_USER);
 
-    if (queue_->properties_ & PI_QUEUE_PROFILING_ENABLE) {
-      PI_CHECK_ERROR(cuEventCreate(&evQueued_, CU_EVENT_DEFAULT));
-      PI_CHECK_ERROR(cuEventCreate(&evStart_, CU_EVENT_DEFAULT));
-    }
+  PI_CHECK_ERROR(cuEventCreate(&evEnd_, CU_EVENT_DEFAULT));
+
+  if (queue_->properties_ & PI_QUEUE_PROFILING_ENABLE) {
+    PI_CHECK_ERROR(cuEventCreate(&evQueued_, CU_EVENT_DEFAULT));
+    PI_CHECK_ERROR(cuEventCreate(&evStart_, CU_EVENT_DEFAULT));
   }
 
   if (queue_ != nullptr) {
@@ -303,7 +303,7 @@ pi_result _pi_event::start() {
   pi_result result;
 
   try {
-    if (is_native_event() && queue_->properties_ & PI_QUEUE_PROFILING_ENABLE) {
+    if (queue_->properties_ & PI_QUEUE_PROFILING_ENABLE) {
       // NOTE: This relies on the default stream to be unused.
       result = PI_CHECK_ERROR(cuEventRecord(evQueued_, 0));
       result = PI_CHECK_ERROR(cuEventRecord(evStart_, queue_->get()));
@@ -313,8 +313,6 @@ pi_result _pi_event::start() {
   }
 
   isStarted_ = true;
-  // let observers know that the event is "submitted"
-  trigger_callback(get_execution_status());
   return result;
 }
 
@@ -351,37 +349,16 @@ pi_result _pi_event::record() {
 
   pi_result result = PI_INVALID_OPERATION;
 
-  if (is_native_event()) {
+  if (!queue_) {
+    return PI_INVALID_QUEUE;
+  }
 
-    if (!queue_) {
-      return PI_INVALID_QUEUE;
-    }
+  CUstream cuStream = queue_->get();
 
-    CUstream cuStream = queue_->get();
-
-    try {
-      result = PI_CHECK_ERROR(cuEventRecord(evEnd_, cuStream));
-
-      result = cuda_piEventRetain(this);
-      try {
-        result = PI_CHECK_ERROR(cuLaunchHostFunc(
-            cuStream,
-            [](void *userData) {
-              pi_event event = reinterpret_cast<pi_event>(userData);
-              event->set_event_complete();
-              cuda_piEventRelease(event);
-            },
-            this));
-      } catch (...) {
-        // If host function fails to enqueue we must release the event here
-        result = cuda_piEventRelease(this);
-        throw;
-      }
-    } catch (pi_result error) {
-      result = error;
-    }
-  } else {
-    result = PI_SUCCESS;
+  try {
+    result = PI_CHECK_ERROR(cuEventRecord(evEnd_, cuStream));
+  } catch (pi_result error) {
+    result = error;
   }
 
   if (result == PI_SUCCESS) {
@@ -392,65 +369,23 @@ pi_result _pi_event::record() {
 }
 
 pi_result _pi_event::wait() {
-
   pi_result retErr;
-  if (is_native_event()) {
-    try {
-      retErr = PI_CHECK_ERROR(cuEventSynchronize(evEnd_));
-      isCompleted_ = true;
-    } catch (pi_result error) {
-      retErr = error;
-    }
-  } else {
-
-    while (!is_completed()) {
-      // wait for user event to complete
-    }
-    retErr = PI_SUCCESS;
+  try {
+    retErr = PI_CHECK_ERROR(cuEventSynchronize(evEnd_));
+    isCompleted_ = true;
+  } catch (pi_result error) {
+    retErr = error;
   }
-
-  auto is_success = retErr == PI_SUCCESS;
-  auto status = is_success ? get_execution_status() : pi_int32(retErr);
-
-  trigger_callback(status);
 
   return retErr;
 }
 
 // makes all future work submitted to queue wait for all work captured in event.
 pi_result enqueueEventWait(pi_queue queue, pi_event event) {
-  if (event->is_native_event()) {
-
-    // for native events, the cuStreamWaitEvent call is used.
-    // This makes all future work submitted to stream wait for all
-    // work captured in event.
-
-    return PI_CHECK_ERROR(cuStreamWaitEvent(queue->get(), event->get(), 0));
-
-  } else {
-
-    // for user events, we enqueue a callback. When invoked, the
-    // callback will block until the user event is marked as
-    // completed.
-
-    static auto user_wait_func = [](void *user_data) {
-      // The host function must not make any CUDA API calls.
-      auto event = static_cast<pi_event>(user_data);
-
-      // busy wait for user event to complete
-      event->wait();
-
-      // this function does not need the event to be kept alive
-      // anymore
-      cuda_piEventRelease(event);
-    };
-
-    // retain event to ensure it is still alive when the
-    // user_wait_func callback is invoked
-    cuda_piEventRetain(event);
-
-    return PI_CHECK_ERROR(cuLaunchHostFunc(queue->get(), user_wait_func, event));
-  }
+  // for native events, the cuStreamWaitEvent call is used.
+  // This makes all future work submitted to stream wait for all
+  // work captured in event.
+  return PI_CHECK_ERROR(cuStreamWaitEvent(queue->get(), event->get(), 0));
 }
 
 _pi_program::_pi_program(pi_context ctxt)
@@ -1586,7 +1521,15 @@ pi_result cuda_piMemBufferCreate(pi_context context, pi_mem_flags flags,
       if (piMemObj != nullptr) {
         retMemObj = piMemObj.release();
         if (performInitialCopy) {
+          // Operates on the default stream of the current CUDA context.
           retErr = PI_CHECK_ERROR(cuMemcpyHtoD(ptr, host_ptr, size));
+          // Synchronize with default stream implicitly used by cuMemcpyHtoD
+          // to make buffer data available on device before any other PI call
+          // uses it.
+          if (retErr == PI_SUCCESS) {
+            CUstream defaultStream = 0;
+            retErr = PI_CHECK_ERROR(cuStreamSynchronize(defaultStream));
+          }
         }
       } else {
         retErr = PI_OUT_OF_HOST_MEMORY;
@@ -2685,24 +2628,7 @@ pi_result cuda_piextKernelSetArgPointer(pi_kernel kernel, pi_uint32 arg_index,
 // Events
 //
 pi_result cuda_piEventCreate(pi_context context, pi_event *event) {
-  assert(context != nullptr);
-  assert(event != nullptr);
-  pi_result retErr = PI_SUCCESS;
-  pi_event retEvent = nullptr;
-
-  try {
-    retEvent = _pi_event::make_user(context);
-    if (retEvent == nullptr) {
-      retErr = PI_OUT_OF_HOST_MEMORY;
-    }
-  } catch (pi_result err) {
-    retErr = err;
-  } catch (...) {
-    retErr = PI_OUT_OF_RESOURCES;
-  }
-
-  *event = retEvent;
-  return retErr;
+  cl::sycl::detail::pi::die("PI Event Create not implemented in CUDA backend");
 }
 
 pi_result cuda_piEventGetInfo(pi_event event, pi_event_info param_name,
@@ -2766,37 +2692,13 @@ pi_result cuda_piEventSetCallback(pi_event event,
                                   pi_int32 command_exec_callback_type,
                                   pfn_notify notify, void *user_data) {
 
-  assert(event);
-  assert(notify);
-  assert(command_exec_callback_type == PI_EVENT_SUBMITTED ||
-         command_exec_callback_type == PI_EVENT_RUNNING ||
-         command_exec_callback_type == PI_EVENT_COMPLETE);
-  event_callback callback(pi_event_status(command_exec_callback_type), notify,
-                          user_data);
-
-  event->set_event_callback(callback);
-
+  cl::sycl::detail::pi::die("Event Callback not implemented in CUDA backend");
   return PI_SUCCESS;
 }
 
 pi_result cuda_piEventSetStatus(pi_event event, pi_int32 execution_status) {
 
-  assert(execution_status >= PI_EVENT_COMPLETE &&
-         execution_status <= PI_EVENT_QUEUED);
-
-  if (!event || event->is_native_event()) {
-    return PI_INVALID_EVENT;
-  }
-
-  if (execution_status == PI_EVENT_COMPLETE) {
-    return event->set_event_complete();
-  } else if (execution_status < 0) {
-    // TODO: A negative integer value causes all enqueued commands that wait
-    // on this user event to be terminated.
-    cl::sycl::detail::pi::die("cuda_piEventSetStatus support for negative execution_status not "
-                              "implemented.");
-  }
-
+  cl::sycl::detail::pi::die("Event Set Status not implemented in CUDA backend");
   return PI_INVALID_VALUE;
 }
 
@@ -2824,19 +2726,13 @@ pi_result cuda_piEventRelease(pi_event event) {
   if (event->decrement_reference_count() == 0) {
     std::unique_ptr<_pi_event> event_ptr{event};
     pi_result result = PI_INVALID_EVENT;
-
-    if (event->is_native_event()) {
-      try {
-        ScopedContext active(event->get_context());
-        auto cuEvent = event->get();
-        result = PI_CHECK_ERROR(cuEventDestroy(cuEvent));
-      } catch (...) {
-        result = PI_OUT_OF_RESOURCES;
-      }
-    } else {
-      result = PI_SUCCESS;
+    try {
+      ScopedContext active(event->get_context());
+      auto cuEvent = event->get();
+      result = PI_CHECK_ERROR(cuEventDestroy(cuEvent));
+    } catch (...) {
+      result = PI_OUT_OF_RESOURCES;
     }
-
     return result;
   }
 
@@ -2891,9 +2787,6 @@ pi_result cuda_piEnqueueEventsWait(pi_queue command_queue,
 /// \return PI_SUCCESS on success. PI_INVALID_EVENT if given a user event.
 pi_result cuda_piextEventGetNativeHandle(pi_event event,
                                          pi_native_handle *nativeHandle) {
-  if (event->is_user_event()) {
-    return PI_INVALID_EVENT;
-  }
   *nativeHandle = reinterpret_cast<pi_native_handle>(event->get());
   return PI_SUCCESS;
 }
