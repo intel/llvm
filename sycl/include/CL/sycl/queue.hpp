@@ -712,7 +712,7 @@ private:
   /// A template-free version of submit.
   event submit_impl(function_class<void(handler &)> CGH, queue secondQueue,
                     const detail::code_location &CodeLoc);
-}; // namespace sycl
+};
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
