@@ -115,7 +115,6 @@ AtomicCompareExchange(multi_ptr<T, AddressSpace> mptr,
                                        spirv_failure, desired, expected);
 }
 
-// TODO: Use sycl::bit_cast in place of memcpy when supported
 template <typename T, access::address_space AddressSpace>
 inline typename detail::enable_if_t<std::is_floating_point<T>::value, T>
 AtomicCompareExchange(multi_ptr<T, AddressSpace> mptr,
@@ -128,16 +127,12 @@ AtomicCompareExchange(multi_ptr<T, AddressSpace> mptr,
   auto *ptr_int =
       reinterpret_cast<typename multi_ptr<I, AddressSpace>::pointer_t>(
           mptr.get());
-  I desired_int;
-  cl::sycl::detail::memcpy(&desired_int, &desired, sizeof(desired));
-  I expected_int;
-  cl::sycl::detail::memcpy(&expected_int, &expected, sizeof(expected));
+  I desired_int = detail::bit_cast<I>(desired);
+  I expected_int = detail::bit_cast<I>(expected);
   I result_int =
       __spirv_AtomicCompareExchange(ptr_int, spirv_scope, spirv_success,
                                     spirv_failure, desired_int, expected_int);
-  T result;
-  cl::sycl::detail::memcpy(&result, &result_int, sizeof(result));
-  return result;
+  return detail::bit_cast<T>(result_int);
 }
 
 template <typename T, access::address_space AddressSpace>
@@ -150,7 +145,6 @@ AtomicLoad(multi_ptr<T, AddressSpace> mptr, intel::memory_scope scope,
   return __spirv_AtomicLoad(ptr, spirv_scope, spirv_order);
 }
 
-// TODO: Use sycl::bit_cast in place of memcpy when supported
 template <typename T, access::address_space AddressSpace>
 inline typename detail::enable_if_t<std::is_floating_point<T>::value, T>
 AtomicLoad(multi_ptr<T, AddressSpace> mptr, intel::memory_scope scope,
@@ -162,9 +156,7 @@ AtomicLoad(multi_ptr<T, AddressSpace> mptr, intel::memory_scope scope,
   auto spirv_order = getMemorySemanticsMask(order);
   auto spirv_scope = getScope(scope);
   I result_int = __spirv_AtomicLoad(ptr_int, spirv_scope, spirv_order);
-  T result;
-  cl::sycl::detail::memcpy(&result, &result_int, sizeof(result));
-  return result;
+  return detail::bit_cast<T>(result_int);
 }
 
 template <typename T, access::address_space AddressSpace>
@@ -177,7 +169,6 @@ AtomicStore(multi_ptr<T, AddressSpace> mptr, intel::memory_scope scope,
   __spirv_AtomicStore(ptr, spirv_scope, spirv_order, value);
 }
 
-// TODO: Use sycl::bit_cast in place of memcpy when supported
 template <typename T, access::address_space AddressSpace>
 inline typename detail::enable_if_t<std::is_floating_point<T>::value>
 AtomicStore(multi_ptr<T, AddressSpace> mptr, intel::memory_scope scope,
@@ -188,8 +179,7 @@ AtomicStore(multi_ptr<T, AddressSpace> mptr, intel::memory_scope scope,
           mptr.get());
   auto spirv_order = getMemorySemanticsMask(order);
   auto spirv_scope = getScope(scope);
-  I value_int;
-  cl::sycl::detail::memcpy(&value_int, &value, sizeof(value));
+  I value_int = detail::bit_cast<I>(value);
   __spirv_AtomicStore(ptr_int, spirv_scope, spirv_order, value_int);
 }
 
@@ -203,7 +193,6 @@ AtomicExchange(multi_ptr<T, AddressSpace> mptr, intel::memory_scope scope,
   return __spirv_AtomicExchange(ptr, spirv_scope, spirv_order, value);
 }
 
-// TODO: Use sycl::bit_cast in place of memcpy when supported
 template <typename T, access::address_space AddressSpace>
 inline typename detail::enable_if_t<std::is_floating_point<T>::value, T>
 AtomicExchange(multi_ptr<T, AddressSpace> mptr, intel::memory_scope scope,
@@ -214,13 +203,10 @@ AtomicExchange(multi_ptr<T, AddressSpace> mptr, intel::memory_scope scope,
           mptr.get());
   auto spirv_order = getMemorySemanticsMask(order);
   auto spirv_scope = getScope(scope);
-  I value_int;
-  cl::sycl::detail::memcpy(&value_int, &value, sizeof(value));
+  I value_int = detail::bit_cast<I>(value);
   I result_int =
       __spirv_AtomicExchange(ptr_int, spirv_scope, spirv_order, value_int);
-  T result;
-  cl::sycl::detail::memcpy(&result, &result_int, sizeof(result));
-  return result;
+  return detail::bit_cast<T>(result_int);
 }
 
 template <typename T, access::address_space AddressSpace>

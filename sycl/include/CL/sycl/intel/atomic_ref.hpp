@@ -97,28 +97,23 @@ inline constexpr memory_order getLoadOrder(memory_order order) {
 
 template <typename T, typename = void> struct bit_equal;
 
-// TODO: All operator()s here should be constexpr with sycl::bit_cast
 template <typename T>
 struct bit_equal<T, typename detail::enable_if_t<std::is_integral<T>::value>> {
   bool operator()(const T &lhs, const T &rhs) { return lhs == rhs; }
 };
 
 template <> struct bit_equal<float> {
-  // TODO: Use sycl::bit_cast in place of memcpy when supported
   bool operator()(const float &lhs, const float &rhs) {
-    uint32_t lhs_int, rhs_int;
-    detail::memcpy(&lhs_int, &lhs, sizeof(lhs));
-    detail::memcpy(&rhs_int, &rhs, sizeof(rhs));
+    auto lhs_int = detail::bit_cast<uint32_t>(lhs);
+    auto rhs_int = detail::bit_cast<uint32_t>(rhs);
     return lhs_int == rhs_int;
   }
 };
 
 template <> struct bit_equal<double> {
-  // TODO: Use sycl::bit_cast in place of memcpy when supported
   bool operator()(const double &lhs, const double &rhs) {
-    uint64_t lhs_int, rhs_int;
-    detail::memcpy(&lhs_int, &lhs, sizeof(lhs));
-    detail::memcpy(&rhs_int, &rhs, sizeof(rhs));
+    auto lhs_int = detail::bit_cast<uint64_t>(lhs);
+    auto rhs_int = detail::bit_cast<uint64_t>(rhs);
     return lhs_int == rhs_int;
   }
 };
