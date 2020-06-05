@@ -70,24 +70,29 @@ T GroupBroadcast(T x, id<Dimensions> local_id) {
   return __spirv_GroupBroadcast(group_scope<Group>::value, ocl_x, ocl_id);
 }
 
+// Single happens-before means semantics should always apply to all spaces
 static inline constexpr __spv::MemorySemanticsMask::Flag
 getMemorySemanticsMask(intel::memory_order order) {
+  __spv::MemorySemanticsMask::Flag spv_order;
   switch (order) {
   case intel::memory_order::relaxed:
-    return __spv::MemorySemanticsMask::None;
+    spv_order = __spv::MemorySemanticsMask::None;
   case intel::memory_order::acquire:
-    return __spv::MemorySemanticsMask::Acquire;
+    spv_order = __spv::MemorySemanticsMask::Acquire;
   case intel::memory_order::release:
-    return __spv::MemorySemanticsMask::Release;
+    spv_order = __spv::MemorySemanticsMask::Release;
   case intel::memory_order::acq_rel:
-    return __spv::MemorySemanticsMask::AcquireRelease;
+    spv_order = __spv::MemorySemanticsMask::AcquireRelease;
   case intel::memory_order::seq_cst:
-    return __spv::MemorySemanticsMask::SequentiallyConsistent;
+    spv_order = __spv::MemorySemanticsMask::SequentiallyConsistent;
   }
+  return static_cast<__spv::MemorySemanticsMask::Flag>(
+      spv_order | __spv::MemorySemanticsMask::SubgroupMemory |
+      __spv::MemorySemanticsMask::WorkgroupMemory |
+      __spv::MemorySemanticsMask::CrossWorkgroupMemory);
 }
 
-static inline constexpr __spv::Scope::Flag
-getScope(intel::memory_scope scope) {
+static inline constexpr __spv::Scope::Flag getScope(intel::memory_scope scope) {
   switch (scope) {
   case intel::memory_scope::work_item:
     return __spv::Scope::Invocation;
