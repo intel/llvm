@@ -118,12 +118,9 @@ bool oclHandleInvalidWorkGroupSize(const device_impl &DeviceImpl,
     // Is the local size of the workgroup greater than the global range size in
     // any dimension? This is a sub-case of NonUniformWGs.
     const bool LocalExceedsGlobal =
-        (NDRDesc.LocalSize[0] != 0 &&
-         NDRDesc.LocalSize[0] > NDRDesc.GlobalSize[0]) ||
-        (NDRDesc.LocalSize[1] != 0 &&
-         NDRDesc.LocalSize[1] > NDRDesc.GlobalSize[1]) ||
-        (NDRDesc.LocalSize[2] != 0 &&
-         NDRDesc.LocalSize[2] > NDRDesc.GlobalSize[2]);
+        NonUniformWGs && (NDRDesc.LocalSize[0] > NDRDesc.GlobalSize[0] ||
+                          NDRDesc.LocalSize[1] > NDRDesc.GlobalSize[1] ||
+                          NDRDesc.LocalSize[2] > NDRDesc.GlobalSize[2]);
 
     if (NonUniformWGs) {
       if (Ver[0] == '1') {
