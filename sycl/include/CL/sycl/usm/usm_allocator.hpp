@@ -47,6 +47,9 @@ public:
       : MContext(Q.get_context()), MDevice(Q.get_device()) {}
   usm_allocator(const usm_allocator &Other)
       : MContext(Other.MContext), MDevice(Other.MDevice) {}
+  template <class U>
+  usm_allocator(const usm_allocator<U, AllocKind, Alignment> &Other) noexcept
+      : MContext(Other.MContext), MDevice(Other.MDevice) {}
 
   /// Constructs an object on memory pointed by Ptr.
   ///
@@ -66,9 +69,7 @@ public:
       usm::alloc AllocT = AllocKind,
       typename std::enable_if<AllocT == usm::alloc::device, int>::type = 0>
   void construct(pointer, const_reference) {
-    throw feature_not_supported(
-        "Device pointers do not support construct on host",
-        PI_INVALID_OPERATION);
+    // This method must be a NOP for device pointers.
   }
 
   /// Destroys an object.
@@ -159,6 +160,9 @@ private:
     */
     return Alignment;
   }
+  
+  template <class U, usm::alloc AllocKindU, size_t AlignmentU>
+  friend class usm_allocator;
 
   const context MContext;
   const device MDevice;
