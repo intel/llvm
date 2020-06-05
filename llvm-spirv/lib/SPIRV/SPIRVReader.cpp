@@ -688,7 +688,7 @@ void SPIRVToLLVM::setLLVMLoopMetadata(const LoopInstType *LM,
     assert(NumParam <= LoopControlParameters.size() &&
            "Missing loop control parameter!");
   }
-  if (LC & LoopControlInitiationIntervalINTEL) {
+  if (LC & LoopControlInitiationIntervalINTELMask) {
     Metadata.push_back(llvm::MDNode::get(
         *Context, getMetadataFromNameAndParameter(
                       "llvm.loop.ii.count", LoopControlParameters[NumParam])));
@@ -696,7 +696,7 @@ void SPIRVToLLVM::setLLVMLoopMetadata(const LoopInstType *LM,
     assert(NumParam <= LoopControlParameters.size() &&
            "Missing loop control parameter!");
   }
-  if (LC & LoopControlMaxConcurrencyINTEL) {
+  if (LC & LoopControlMaxConcurrencyINTELMask) {
     Metadata.push_back(llvm::MDNode::get(
         *Context,
         getMetadataFromNameAndParameter("llvm.loop.max_concurrency.count",
@@ -705,7 +705,7 @@ void SPIRVToLLVM::setLLVMLoopMetadata(const LoopInstType *LM,
     assert(NumParam <= LoopControlParameters.size() &&
            "Missing loop control parameter!");
   }
-  if (LC & LoopControlDependencyArrayINTEL) {
+  if (LC & LoopControlDependencyArrayINTELMask) {
     // Collect array variable <-> safelen information
     std::map<Value *, unsigned> ArraySflnMap;
     unsigned NumOperandPairs = LoopControlParameters[NumParam];
@@ -787,7 +787,7 @@ void SPIRVToLLVM::setLLVMLoopMetadata(const LoopInstType *LM,
       Metadata.push_back(llvm::MDNode::get(*Context, Parameters));
     }
   }
-  if (LC & LoopControlPipelineEnableINTEL) {
+  if (LC & LoopControlPipelineEnableINTELMask) {
     Metadata.push_back(llvm::MDNode::get(
         *Context,
         getMetadataFromNameAndParameter("llvm.loop.intel.pipelining.enable",
@@ -795,7 +795,7 @@ void SPIRVToLLVM::setLLVMLoopMetadata(const LoopInstType *LM,
     assert(NumParam <= LoopControlParameters.size() &&
            "Missing loop control parameter!");
   }
-  if (LC & LoopControlLoopCoalesceINTEL) {
+  if (LC & LoopControlLoopCoalesceINTELMask) {
     // If LoopCoalesce has no parameters
     if (LoopControlParameters.empty()) {
       Metadata.push_back(llvm::MDNode::get(
@@ -809,7 +809,7 @@ void SPIRVToLLVM::setLLVMLoopMetadata(const LoopInstType *LM,
     assert(NumParam <= LoopControlParameters.size() &&
            "Missing loop control parameter!");
   }
-  if (LC & LoopControlMaxInterleavingINTEL) {
+  if (LC & LoopControlMaxInterleavingINTELMask) {
     Metadata.push_back(llvm::MDNode::get(
         *Context,
         getMetadataFromNameAndParameter("llvm.loop.max_interleaving.count",
@@ -817,7 +817,7 @@ void SPIRVToLLVM::setLLVMLoopMetadata(const LoopInstType *LM,
     assert(NumParam <= LoopControlParameters.size() &&
            "Missing loop control parameter!");
   }
-  if (LC & LoopControlSpeculatedIterationsINTEL) {
+  if (LC & LoopControlSpeculatedIterationsINTELMask) {
     Metadata.push_back(llvm::MDNode::get(
         *Context, getMetadataFromNameAndParameter(
                       "llvm.loop.intel.speculated.iterations.count",

@@ -1101,13 +1101,13 @@ inline bool isValidLoopControlMask(SPIRVWord Mask) {
   ValidMask |= LoopControlPartialCountMask;
   ValidMask |= LoopControlDependencyInfiniteMask;
   ValidMask |= LoopControlDependencyLengthMask;
-  ValidMask |= LoopControlInitiationIntervalINTEL;
-  ValidMask |= LoopControlMaxConcurrencyINTEL;
-  ValidMask |= LoopControlDependencyArrayINTEL;
-  ValidMask |= LoopControlPipelineEnableINTEL;
-  ValidMask |= LoopControlLoopCoalesceINTEL;
-  ValidMask |= LoopControlMaxInterleavingINTEL;
-  ValidMask |= LoopControlSpeculatedIterationsINTEL;
+  ValidMask |= LoopControlInitiationIntervalINTELMask;
+  ValidMask |= LoopControlMaxConcurrencyINTELMask;
+  ValidMask |= LoopControlDependencyArrayINTELMask;
+  ValidMask |= LoopControlPipelineEnableINTELMask;
+  ValidMask |= LoopControlLoopCoalesceINTELMask;
+  ValidMask |= LoopControlMaxInterleavingINTELMask;
+  ValidMask |= LoopControlSpeculatedIterationsINTELMask;
 
   return (Mask & ~ValidMask) == 0;
 }

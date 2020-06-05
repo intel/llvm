@@ -645,13 +645,13 @@ enum LoopControlMask {
     LoopControlIterationMultipleMask = 0x00000040,
     LoopControlPeelCountMask = 0x00000080,
     LoopControlPartialCountMask = 0x00000100,
-    LoopControlInitiationIntervalINTEL = 0x10000,
-    LoopControlMaxConcurrencyINTEL = 0x20000,
-    LoopControlDependencyArrayINTEL = 0x40000,
-    LoopControlPipelineEnableINTEL = 0x80000,
-    LoopControlLoopCoalesceINTEL = 0x100000,
-    LoopControlMaxInterleavingINTEL = 0x200000,
-    LoopControlSpeculatedIterationsINTEL = 0x400000,
+    LoopControlInitiationIntervalINTELMask = 0x10000,
+    LoopControlMaxConcurrencyINTELMask = 0x20000,
+    LoopControlDependencyArrayINTELMask = 0x40000,
+    LoopControlPipelineEnableINTELMask = 0x80000,
+    LoopControlLoopCoalesceINTELMask = 0x100000,
+    LoopControlMaxInterleavingINTELMask = 0x200000,
+    LoopControlSpeculatedIterationsINTELMask = 0x400000,
 };
 
 enum FunctionControlShift {
