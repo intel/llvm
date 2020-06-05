@@ -227,7 +227,12 @@ SPIRVToLLVMDbgTran::transTypeComposite(const SPIRVExtInst *DebugInst) {
   DIFile *File = getFile(Ops[SourceIdx]);
   unsigned LineNo = Ops[LineIdx];
   DIScope *ParentScope = getScope(BM->getEntry(Ops[ParentIdx]));
-  uint64_t Size = BM->get<SPIRVConstant>(Ops[SizeIdx])->getZExtIntValue();
+
+  uint64_t Size = 0;
+  SPIRVEntry *SizeEntry = BM->getEntry(Ops[SizeIdx]);
+  if (!SizeEntry->isExtInst(SPIRVEIS_Debug, SPIRVDebug::DebugInfoNone)) {
+    Size = BM->get<SPIRVConstant>(Ops[SizeIdx])->getZExtIntValue();
+  }
 
   uint64_t Align = 0;
   DIType *DerivedFrom = nullptr;
