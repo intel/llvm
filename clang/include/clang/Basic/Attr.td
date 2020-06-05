@@ -1294,6 +1294,16 @@ def OpenCLGlobalAddressSpace : TypeAttr {
   let Documentation = [OpenCLAddressSpaceGlobalDocs];
 }
 
+def OpenCLGlobalDeviceAddressSpace : TypeAttr {
+  let Spellings = [Clang<"opencl_global_device">];
+  let Documentation = [OpenCLGlobalAddressSpacesDocs];
+}
+
+def OpenCLGlobalHostAddressSpace : TypeAttr {
+  let Spellings = [Clang<"opencl_global_host">];
+  let Documentation = [OpenCLGlobalAddressSpacesDocs];
+}
+
 def OpenCLLocalAddressSpace : TypeAttr {
   let Spellings = [Keyword<"__local">, Keyword<"local">, Clang<"opencl_local">];
   let Documentation = [OpenCLAddressSpaceLocalDocs];
