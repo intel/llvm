@@ -1857,6 +1857,38 @@ void SYCLIntegrationHeader::emitForwardClassDecls(
         // template class Foo specialized by class Baz<Bar>, not a template
         // class template <template <typename> class> class T as it should.
         TemplateDecl *TD = Arg.getAsTemplate().getAsTemplateDecl();
+        TemplateParameterList *TemplateParams = TD->getTemplateParameters();
+        for (NamedDecl *P : *TemplateParams) {
+          // If template template paramter type has an enum value template
+          // parameter, forward declaration of enum type is required. Only enum
+          // values (not types) need to be handled. For example, consider the
+          // following kernel name type:
+          //
+          // template <typename EnumTypeOut, template <EnumValueIn EnumValue,
+          // typename TypeIn> class T> class Foo;
+          //
+          // The correct specialization for Foo (with enum type) is:
+          // Foo<EnumTypeOut, Baz>, where Baz is a template class.
+          //
+          // Therefore the forward class declarations generated in the
+          // integration header are:
+          // template <EnumValueIn EnumValue, typename TypeIn> class Baz;
+          // template <typename EnumTypeOut, template <EnumValueIn EnumValue,
+          // typename EnumTypeIn> class T> class Foo;
+          //
+          // This requires the following enum forward declarations:
+          // enum class EnumTypeOut : int; (Used to template Foo)
+          // enum class EnumValueIn : int; (Used to template Baz)
+          if (NonTypeTemplateParmDecl *TemplateParam =
+                  dyn_cast<NonTypeTemplateParmDecl>(P)) {
+            QualType T = TemplateParam->getType();
+            if (const auto *ET = T->getAs<EnumType>()) {
+              const EnumDecl *ED = ET->getDecl();
+              if (!checkEnumTemplateParameter(ED, Diag, KernelLocation))
+                emitFwdDecl(O, ED, KernelLocation);
+            }
+          }
+        }
         if (Printed.insert(TD).second) {
           emitFwdDecl(O, TD, KernelLocation);
         }
@@ -1921,6 +1953,11 @@ static void printArgument(ASTContext &Ctx, raw_ostream &ArgOS,
     TypePolicy.SuppressTagKeyword = true;
     QualType T = Arg.getAsType();
     ArgOS << getKernelNameTypeString(T, Ctx, TypePolicy);
+    break;
+  }
+  case TemplateArgument::ArgKind::Template: {
+    TemplateDecl *TD = Arg.getAsTemplate().getAsTemplateDecl();
+    ArgOS << TD->getQualifiedNameAsString();
     break;
   }
   default:

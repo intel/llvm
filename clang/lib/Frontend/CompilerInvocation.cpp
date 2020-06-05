@@ -2553,6 +2553,7 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
             << A->getAsString(Args) << A->getValue();
       }
     }
+    Opts.SYCLExplicitSIMD = Args.hasArg(options::OPT_fsycl_esimd);
   }
 
   Opts.IncludeDefaultHeader = Args.hasArg(OPT_finclude_default_header);

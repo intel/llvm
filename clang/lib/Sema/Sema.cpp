@@ -1753,7 +1753,12 @@ void Sema::checkDeviceDecl(const ValueDecl *D, SourceLocation Loc) {
     if (Ty->isDependentType())
       return;
 
-    if ((Ty->isFloat16Type() && !Context.getTargetInfo().hasFloat16Type()) ||
+    auto IsSYCLDeviceCuda = getLangOpts().SYCLIsDevice &&
+                            Context.getTargetInfo().getTriple().isNVPTX();
+    if ((Ty->isFloat16Type() && !Context.getTargetInfo().hasFloat16Type() &&
+         // Disable check for SYCL CUDA BE until FP16 support is properly
+         // reported there (issue#1799)
+         !IsSYCLDeviceCuda) ||
         ((Ty->isFloat128Type() ||
           (Ty->isRealFloatingType() && Context.getTypeSize(Ty) == 128)) &&
          !Context.getTargetInfo().hasFloat128Type()) ||
