@@ -80,7 +80,7 @@ public:
   RT::PiProgram getBuiltPIProgram(OSModuleHandle M, const context &Context,
                                   const string_class &KernelName,
                                   const program_impl *Prg = nullptr,
-                                  bool FromProgramApi = false);
+                                  bool CheckThatCompiled = false);
   RT::PiKernel getOrCreateKernel(OSModuleHandle M, const context &Context,
                                  const string_class &KernelName,
                                  const program_impl *Prg);
