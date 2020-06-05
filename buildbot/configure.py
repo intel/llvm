@@ -74,7 +74,8 @@ def do_configure(args):
         "-DLLVM_ENABLE_DOXYGEN={}".format(llvm_enable_doxygen),
         "-DLLVM_ENABLE_SPHINX={}".format(llvm_enable_sphinx),
         "-DBUILD_SHARED_LIBS={}".format(llvm_build_shared_libs),
-        "-DSYCL_ENABLE_XPTI_TRACING=ON" # Explicitly turn on XPTI tracing
+        "-DSYCL_ENABLE_XPTI_TRACING=ON", # Explicitly turn on XPTI tracing
+        "-DSYCL_USE_SANITIZER=ON"
     ]
 
     if args.system_ocl:
