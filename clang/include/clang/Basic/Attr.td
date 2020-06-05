@@ -2554,7 +2554,6 @@ def ReqdWorkGroupSize : InheritableAttr {
               DefaultUnsignedArgument<"ZDim", 1>];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [ReqdWorkGroupSizeAttrDocs];
-  let PragmaAttributeSupport = 0;
 }
 
 def WorkGroupSizeHint :  InheritableAttr {
