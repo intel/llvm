@@ -14,6 +14,7 @@
 #include <CL/sycl/exception_list.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/platform.hpp>
+#include <CL/sycl/property/context_properties.hpp>
 #include <CL/sycl/stl.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/context_info.hpp>
@@ -23,21 +24,19 @@ namespace sycl {
 namespace detail {
 
 context_impl::context_impl(const device &Device, async_handler AsyncHandler,
-                           const property_list &PropList,
-                           bool UseCUDAPrimaryContext)
+                           const property_list &PropList)
     : MAsyncHandler(AsyncHandler), MPropList(PropList), MDevices(1, Device),
-      MContext(nullptr), MPlatform(), MPluginInterop(false), MHostContext(true),
-      MUseCUDAPrimaryContext(UseCUDAPrimaryContext) {
+      MContext(nullptr), MPlatform(), MPluginInterop(false),
+      MHostContext(true) {
   MKernelProgramCache.setContextPtr(this);
 }
 
 context_impl::context_impl(const vector_class<cl::sycl::device> Devices,
                            async_handler AsyncHandler,
-                           const property_list &PropList,
-                           bool UseCUDAPrimaryContext)
+                           const property_list &PropList)
     : MAsyncHandler(AsyncHandler), MPropList(PropList), MDevices(Devices),
-      MContext(nullptr), MPlatform(), MPluginInterop(true), MHostContext(false),
-      MUseCUDAPrimaryContext(UseCUDAPrimaryContext) {
+      MContext(nullptr), MPlatform(), MPluginInterop(true),
+      MHostContext(false) {
   MPlatform = detail::getSyclObjImpl(MDevices[0].get_platform());
   vector_class<RT::PiDevice> DeviceIds;
   for (const auto &D : MDevices) {
@@ -47,12 +46,14 @@ context_impl::context_impl(const vector_class<cl::sycl::device> Devices,
   const auto Backend = getPlugin().getBackend();
   if (Backend == backend::cuda) {
 #if USE_PI_CUDA
-    const pi_context_properties props[] = {
+    bool UseCudaPrimaryContext =
+        has_property<property::context::cuda::use_primary_context>();
+    const pi_context_properties Props[] = {
         static_cast<pi_context_properties>(PI_CONTEXT_PROPERTIES_CUDA_PRIMARY),
-        static_cast<pi_context_properties>(UseCUDAPrimaryContext), 0};
+        static_cast<pi_context_properties>(UseCudaPrimaryContext), 0};
 
-    getPlugin().call<PiApiKind::piContextCreate>(props, DeviceIds.size(), 
-	  	  DeviceIds.data(), nullptr, nullptr, &MContext);
+    getPlugin().call<PiApiKind::piContextCreate>(
+        Props, DeviceIds.size(), DeviceIds.data(), nullptr, nullptr, &MContext);
 #else
     cl::sycl::detail::pi::die("CUDA support was not enabled at compilation time");
 #endif

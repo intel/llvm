@@ -38,6 +38,7 @@
 #include <CL/sycl/program.hpp>
 #include <CL/sycl/property/accessor_properties.hpp>
 #include <CL/sycl/property/buffer_properties.hpp>
+#include <CL/sycl/property/context_properties.hpp>
 #include <CL/sycl/property/image_properties.hpp>
 #include <CL/sycl/property/queue_properties.hpp>
 #include <CL/sycl/property_list.hpp>

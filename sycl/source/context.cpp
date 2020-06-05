@@ -24,41 +24,33 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-context::context(const property_list &PropList, bool UsePrimaryContext)
-    : context(default_selector().select_device(), PropList,
-              UsePrimaryContext) {}
+context::context(const property_list &PropList)
+    : context(default_selector().select_device(), PropList) {}
 
 context::context(const async_handler &AsyncHandler,
-                 const property_list &PropList, bool UsePrimaryContext)
-    : context(default_selector().select_device(), AsyncHandler, PropList,
-              UsePrimaryContext) {}
+                 const property_list &PropList)
+    : context(default_selector().select_device(), AsyncHandler, PropList) {}
 
-context::context(const device &Device, const property_list &PropList,
-                 bool UsePrimaryContext)
-    : context(vector_class<device>(1, Device), PropList,
-              UsePrimaryContext) {}
+context::context(const device &Device, const property_list &PropList)
+    : context(vector_class<device>(1, Device), PropList) {}
 
 context::context(const device &Device, async_handler AsyncHandler,
-                 const property_list &PropList, bool UsePrimaryContext)
-    : context(vector_class<device>(1, Device), AsyncHandler, PropList,
-              UsePrimaryContext) {}
+                 const property_list &PropList)
+    : context(vector_class<device>(1, Device), AsyncHandler, PropList) {}
 
-context::context(const platform &Platform, const property_list &PropList,
-                 bool UsePrimaryContext)
-    : context(Platform.get_devices(), PropList, UsePrimaryContext) {}
+context::context(const platform &Platform, const property_list &PropList)
+    : context(Platform.get_devices(), PropList) {}
 
 context::context(const platform &Platform, async_handler AsyncHandler,
-                 const property_list &PropList, bool UsePrimaryContext)
-    : context(Platform.get_devices(), AsyncHandler, PropList,
-              UsePrimaryContext) {}
+                 const property_list &PropList)
+    : context(Platform.get_devices(), AsyncHandler, PropList) {}
 
 context::context(const vector_class<device> &DeviceList,
-                 const property_list &PropList, bool UsePrimaryContext)
-    : context(DeviceList, async_handler{}, PropList, UsePrimaryContext) {}
+                 const property_list &PropList)
+    : context(DeviceList, async_handler{}, PropList) {}
 
 context::context(const vector_class<device> &DeviceList,
-                 async_handler AsyncHandler, const property_list &PropList,
-                 bool UsePrimaryContext) {
+                 async_handler AsyncHandler, const property_list &PropList) {
   if (DeviceList.empty()) {
     throw invalid_parameter_error("DeviceList is empty.", PI_INVALID_VALUE);
   }
@@ -67,7 +59,7 @@ context::context(const vector_class<device> &DeviceList,
       [&](const device &CurrentDevice) { return CurrentDevice.is_host(); });
   if (NonHostDeviceIter == DeviceList.end())
     impl = std::make_shared<detail::context_impl>(DeviceList[0], AsyncHandler,
-                                                  PropList, UsePrimaryContext);
+                                                  PropList);
   else {
     const device &NonHostDevice = *NonHostDeviceIter;
     const auto &NonHostPlatform = NonHostDevice.get_platform().get();
@@ -81,8 +73,8 @@ context::context(const vector_class<device> &DeviceList,
           "Can't add devices across platforms to a single context.",
           PI_INVALID_DEVICE);
     else
-      impl = std::make_shared<detail::context_impl>(
-          DeviceList, AsyncHandler, PropList, UsePrimaryContext);
+      impl = std::make_shared<detail::context_impl>(DeviceList, AsyncHandler,
+                                                    PropList);
   }
 }
 context::context(cl_context ClContext, async_handler AsyncHandler) {

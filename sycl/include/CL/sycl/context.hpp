@@ -42,10 +42,7 @@ public:
   /// PropList.
   ///
   /// \param PropList is an instance of property_list.
-  /// \param UseCUDAPrimaryContext is a bool determining whether to use the
-  ///        primary context in the CUDA backend.
-  explicit context(const property_list &PropList = {},
-                   bool UseCUDAPrimaryContext = false);
+  explicit context(const property_list &PropList = {});
 
   /// Constructs a SYCL context instance using an instance of default_selector.
   ///
@@ -58,11 +55,8 @@ public:
   ///
   /// \param AsyncHandler is an instance of async_handler.
   /// \param PropList is an instance of property_list.
-  /// \param UseCUDAPrimaryContext is a bool determining whether to use the
-  ///        primary context in the CUDA backend.
   explicit context(const async_handler &AsyncHandler,
-                   const property_list &PropList = {},
-                   bool UseCUDAPrimaryContext = false);
+                   const property_list &PropList = {});
 
   /// Constructs a SYCL context instance using the provided device.
   ///
@@ -73,10 +67,7 @@ public:
   ///
   /// \param Device is an instance of SYCL device.
   /// \param PropList is an instance of property_list.
-  /// \param UseCUDAPrimaryContext is a bool determining whether to use the
-  ///        primary context in the CUDA backend.
-  explicit context(const device &Device, const property_list &PropList = {},
-                   bool UseCUDAPrimaryContext = false);
+  explicit context(const device &Device, const property_list &PropList = {});
 
   /// Constructs a SYCL context instance using the provided device.
   ///
@@ -90,11 +81,8 @@ public:
   /// \param Device is an instance of SYCL device.
   /// \param AsyncHandler is an instance of async_handler.
   /// \param PropList is an instance of property_list.
-  /// \param UseCUDAPrimaryContext is a bool determining whether to use the
-  ///        primary context in the CUDA backend.
   explicit context(const device &Device, async_handler AsyncHandler,
-                   const property_list &PropList = {},
-                   bool UseCUDAPrimaryContext = false);
+                   const property_list &PropList = {});
 
   /// Constructs a SYCL context instance using the provided platform.
   ///
@@ -105,10 +93,8 @@ public:
   ///
   /// \param Platform is an instance of SYCL platform.
   /// \param PropList is an instance of property_list.
-  /// \param UseCUDAPrimaryContext is a bool determining whether to use the
-  ///        primary context in the CUDA backend.
-  explicit context(const platform &Platform, const property_list &PropList = {},
-                   bool UseCUDAPrimaryContext = false);
+  explicit context(const platform &Platform,
+                   const property_list &PropList = {});
 
   /// Constructs a SYCL context instance using the provided platform.
   ///
@@ -122,11 +108,8 @@ public:
   /// \param Platform is an instance of SYCL platform.
   /// \param AsyncHandler is an instance of async_handler.
   /// \param PropList is an instance of property_list.
-  /// \param UseCUDAPrimaryContext is a bool determining whether to use the
-  ///        primary context in the CUDA backend.
   explicit context(const platform &Platform, async_handler AsyncHandler,
-                   const property_list &PropList = {},
-                   bool UseCUDAPrimaryContext = false);
+                   const property_list &PropList = {});
 
   /// Constructs a SYCL context instance using list of devices.
   ///
@@ -138,11 +121,8 @@ public:
   ///
   /// \param DeviceList is a list of SYCL device instances.
   /// \param PropList is an instance of property_list.
-  /// \param UseCUDAPrimaryContext is a bool determining whether to use the
-  ///        primary context in the CUDA backend.
   explicit context(const vector_class<device> &DeviceList,
-                   const property_list &PropList = {},
-                   bool UseCUDAPrimaryContext = false);
+                   const property_list &PropList = {});
 
   /// Constructs a SYCL context instance using list of devices.
   ///
@@ -157,12 +137,9 @@ public:
   /// \param DeviceList is a list of SYCL device instances.
   /// \param AsyncHandler is an instance of async_handler.
   /// \param PropList is an instance of property_list.
-  /// \param UseCUDAPrimaryContext is a bool determining whether to use the
-  ///        primary context in the CUDA backend.
   explicit context(const vector_class<device> &DeviceList,
                    async_handler AsyncHandler,
-                   const property_list &PropList = {},
-                   bool UseCUDAPrimaryContext = false);
+                   const property_list &PropList = {});
 
   /// Constructs a SYCL context instance from OpenCL cl_context.
   ///
