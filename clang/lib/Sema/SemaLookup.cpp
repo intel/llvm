@@ -908,8 +908,11 @@ bool Sema::LookupBuiltin(LookupResult &R) {
               *this, 0, R, II, Index.first - 1, Index.second,
               [this](const SPIRVBuiltin::BuiltinStruct &,
                      FunctionDecl &NewBuiltin) {
-                NewBuiltin.addAttr(
-                    SYCLDeviceAttr::CreateImplicit(this->Context));
+                if (!this->getLangOpts().CPlusPlus)
+                  NewBuiltin.addAttr(OverloadableAttr::CreateImplicit(Context));
+                if (this->getLangOpts().SYCLIsDevice)
+                  NewBuiltin.addAttr(
+                      SYCLDeviceAttr::CreateImplicit(this->Context));
               });
           return true;
         }
