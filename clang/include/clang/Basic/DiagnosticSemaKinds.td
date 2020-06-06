@@ -10811,6 +10811,14 @@ def err_matrix_separate_incomplete_index: Error<
 def err_matrix_subscript_comma: Error<
   "comma expressions are not allowed as indices in matrix subscript expressions">;
 
+def warn_mismatched_import : Warning<
+  "import %select{module|name}0 (%1) does not match the import %select{module|name}0 (%2) of the "
+  "previous declaration">,
+  InGroup<IgnoredAttributes>;
+def warn_import_on_definition : Warning<
+  "import %select{module|name}0 cannot be applied to a function with a definition">,
+  InGroup<IgnoredAttributes>;
+
 // SYCL-specific diagnostics
 def err_sycl_kernel_incorrectly_named : Error<
   "kernel %select{name is missing"
