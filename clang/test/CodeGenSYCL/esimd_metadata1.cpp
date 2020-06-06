@@ -9,12 +9,12 @@
 // 3. Proper module !spirv.Source metadata is generated
 
 template <typename name, typename Func>
-void kernel(Func f) __attribute__((sycl_kernel)) __attribute__((sycl_explicit_simd)) {
+void kernel(Func f) __attribute__((sycl_kernel)) {
   f();
 }
 
 void bar() {
-  kernel<class MyKernel>([=]() {});
+  kernel<class MyKernel>([=]() __attribute__((sycl_explicit_simd)){});
   // CHECK: define spir_kernel void @_ZTSZ3barvE8MyKernel() {{.*}} !sycl_explicit_simd ![[EMPTY:[0-9]+]] !intel_reqd_sub_group_size ![[REQD_SIZE:[0-9]+]]
 }
 

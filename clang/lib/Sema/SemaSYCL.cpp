@@ -434,12 +434,13 @@ public:
 
     while (!WorkList.empty()) {
       FunctionDecl *FD = WorkList.back().first;
-      if (isSYCLKernelBodyFunction(FD)) {
+      FunctionDecl *ParentFD = WorkList.back().second;
+
+      if ((ParentFD == SYCLKernel) && isSYCLKernelBodyFunction(FD)) {
         assert(!KernelBody && "inconsistent call graph - only one kernel body "
                               "function can be called");
         KernelBody = FD;
       }
-      FunctionDecl *ParentFD = WorkList.back().second;
       WorkList.pop_back();
       if (!Visited.insert(FD).second)
         continue; // We've already seen this Decl
