@@ -27,7 +27,7 @@ protected:
     syclQueue_ = std::unique_ptr<queue>{new queue{syclDevice_}};
   }
 
-  void TearDown() override { syclQueue_.release(); }
+  void TearDown() override { syclQueue_.reset(); }
 };
 
 TEST_P(CudaInteropGetNativeTests, getNativeDevice) {
