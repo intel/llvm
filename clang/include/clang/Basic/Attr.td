@@ -1145,6 +1145,7 @@ def SYCLRegisterNum : InheritableAttr {
   // for the host device as well
   let LangOpts = [SYCLExplicitSIMD];
   let Documentation = [SYCLRegisterNumDocs];
+  let PragmaAttributeSupport = 0;
 }
 
 def SYCLScope : Attr {
