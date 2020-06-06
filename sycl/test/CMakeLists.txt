@@ -77,6 +77,13 @@ add_lit_target(check-sycl-inline-asm
   DEPENDS ${SYCL_TEST_DEPS}
   )
 
+add_lit_testsuite(check-level0 "Running the SYCL regression tests for Level Zero"
+  ${CMAKE_CURRENT_BINARY_DIR}
+  ARGS ${RT_TEST_ARGS}
+  PARAMS "SYCL_BE=PI_LEVEL0"
+  DEPENDS ${SYCL_TEST_DEPS}
+  )
+
 if(SYCL_BUILD_PI_CUDA)
   add_lit_testsuite(check-sycl-cuda "Running the SYCL regression tests for CUDA"
     ${CMAKE_CURRENT_BINARY_DIR}
