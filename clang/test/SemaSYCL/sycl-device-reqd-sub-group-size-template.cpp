@@ -1,4 +1,3 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsyntax-only -verify -pedantic %s
 // RUN: %clang_cc1 -fsycl -fsycl-is-device -fsyntax-only -ast-dump -verify -pedantic %s | FileCheck %s
 
 // Test that checkes template parameter support for 'intel_reqd_sub_group_size' attribute on sycl device.

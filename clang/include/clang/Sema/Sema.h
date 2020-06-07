@@ -9917,8 +9917,7 @@ public:
 
   bool checkNSReturnsRetainedReturnType(SourceLocation loc, QualType type);
 
-  // addIntelReqdSubGroupSizeAttr - Adds an intel_reqd_sub_group_size attribute
-  // to a particular declaration.
+  // Adds an intel_reqd_sub_group_size attribute to a particular declaration.
   void addIntelReqdSubGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
                                     Expr *E);
 
