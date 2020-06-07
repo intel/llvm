@@ -244,6 +244,8 @@ public:
   /// Get the flags to be applied to created floating point ops
   FastMathFlags getFastMathFlags() const { return FMF; }
 
+  FastMathFlags &getFastMathFlags() { return FMF; }
+
   /// Clear the fast-math flags.
   void clearFastMathFlags() { FMF.clear(); }
 
@@ -332,10 +334,16 @@ public:
     IRBuilderBase &Builder;
     FastMathFlags FMF;
     MDNode *FPMathTag;
+    bool IsFPConstrained;
+    fp::ExceptionBehavior DefaultConstrainedExcept;
+    RoundingMode DefaultConstrainedRounding;
 
   public:
     FastMathFlagGuard(IRBuilderBase &B)
-        : Builder(B), FMF(B.FMF), FPMathTag(B.DefaultFPMathTag) {}
+        : Builder(B), FMF(B.FMF), FPMathTag(B.DefaultFPMathTag),
+          IsFPConstrained(B.IsFPConstrained),
+          DefaultConstrainedExcept(B.DefaultConstrainedExcept),
+          DefaultConstrainedRounding(B.DefaultConstrainedRounding) {}
 
     FastMathFlagGuard(const FastMathFlagGuard &) = delete;
     FastMathFlagGuard &operator=(const FastMathFlagGuard &) = delete;
@@ -343,6 +351,9 @@ public:
     ~FastMathFlagGuard() {
       Builder.FMF = FMF;
       Builder.DefaultFPMathTag = FPMathTag;
+      Builder.IsFPConstrained = IsFPConstrained;
+      Builder.DefaultConstrainedExcept = DefaultConstrainedExcept;
+      Builder.DefaultConstrainedRounding = DefaultConstrainedRounding;
     }
   };
 
@@ -464,6 +475,11 @@ public:
   /// Fetch the type representing a 16-bit floating point value.
   Type *getHalfTy() {
     return Type::getHalfTy(Context);
+  }
+
+  /// Fetch the type representing a 16-bit brain floating point value.
+  Type *getBFloatTy() {
+    return Type::getBFloatTy(Context);
   }
 
   /// Fetch the type representing a 32-bit floating point value.
@@ -773,7 +789,7 @@ public:
   CallInst *CreateGCStatepointCall(uint64_t ID, uint32_t NumPatchBytes,
                                    Value *ActualCallee,
                                    ArrayRef<Value *> CallArgs,
-                                   ArrayRef<Value *> DeoptArgs,
+                                   Optional<ArrayRef<Value *>> DeoptArgs,
                                    ArrayRef<Value *> GCArgs,
                                    const Twine &Name = "");
 
@@ -782,8 +798,8 @@ public:
   CallInst *CreateGCStatepointCall(uint64_t ID, uint32_t NumPatchBytes,
                                    Value *ActualCallee, uint32_t Flags,
                                    ArrayRef<Use> CallArgs,
-                                   ArrayRef<Use> TransitionArgs,
-                                   ArrayRef<Use> DeoptArgs,
+                                   Optional<ArrayRef<Use>> TransitionArgs,
+                                   Optional<ArrayRef<Use>> DeoptArgs,
                                    ArrayRef<Value *> GCArgs,
                                    const Twine &Name = "");
 
@@ -792,7 +808,7 @@ public:
   /// .get()'ed to get the Value pointer.
   CallInst *CreateGCStatepointCall(uint64_t ID, uint32_t NumPatchBytes,
                                    Value *ActualCallee, ArrayRef<Use> CallArgs,
-                                   ArrayRef<Value *> DeoptArgs,
+                                   Optional<ArrayRef<Value *>> DeoptArgs,
                                    ArrayRef<Value *> GCArgs,
                                    const Twine &Name = "");
 
@@ -802,7 +818,7 @@ public:
   CreateGCStatepointInvoke(uint64_t ID, uint32_t NumPatchBytes,
                            Value *ActualInvokee, BasicBlock *NormalDest,
                            BasicBlock *UnwindDest, ArrayRef<Value *> InvokeArgs,
-                           ArrayRef<Value *> DeoptArgs,
+                           Optional<ArrayRef<Value *>> DeoptArgs,
                            ArrayRef<Value *> GCArgs, const Twine &Name = "");
 
   /// Create an invoke to the experimental.gc.statepoint intrinsic to
@@ -810,8 +826,8 @@ public:
   InvokeInst *CreateGCStatepointInvoke(
       uint64_t ID, uint32_t NumPatchBytes, Value *ActualInvokee,
       BasicBlock *NormalDest, BasicBlock *UnwindDest, uint32_t Flags,
-      ArrayRef<Use> InvokeArgs, ArrayRef<Use> TransitionArgs,
-      ArrayRef<Use> DeoptArgs, ArrayRef<Value *> GCArgs,
+      ArrayRef<Use> InvokeArgs, Optional<ArrayRef<Use>> TransitionArgs,
+      Optional<ArrayRef<Use>> DeoptArgs, ArrayRef<Value *> GCArgs,
       const Twine &Name = "");
 
   // Convenience function for the common case when CallArgs are filled in using
@@ -821,7 +837,7 @@ public:
   CreateGCStatepointInvoke(uint64_t ID, uint32_t NumPatchBytes,
                            Value *ActualInvokee, BasicBlock *NormalDest,
                            BasicBlock *UnwindDest, ArrayRef<Use> InvokeArgs,
-                           ArrayRef<Value *> DeoptArgs,
+                           Optional<ArrayRef<Value *>> DeoptArgs,
                            ArrayRef<Value *> GCArgs, const Twine &Name = "");
 
   /// Create a call to the experimental.gc.result intrinsic to extract
@@ -1709,7 +1725,7 @@ public:
       const DataLayout &DL = BB->getModule()->getDataLayout();
       Align = DL.getABITypeAlign(Val->getType());
     }
-    return Insert(new StoreInst(Val, Ptr, isVolatile, Align));
+    return Insert(new StoreInst(Val, Ptr, isVolatile, *Align));
   }
   FenceInst *CreateFence(AtomicOrdering Ordering,
                          SyncScope::ID SSID = SyncScope::System,
@@ -2377,8 +2393,10 @@ public:
     return CreateShuffleVector(V1, V2, IntMask, Name);
   }
 
-  Value *CreateShuffleVector(Value *V1, Value *V2, ArrayRef<uint32_t> Mask,
-                             const Twine &Name = "") {
+  LLVM_ATTRIBUTE_DEPRECATED(Value *CreateShuffleVector(Value *V1, Value *V2,
+                                                       ArrayRef<uint32_t> Mask,
+                                                       const Twine &Name = ""),
+                            "Pass indices as 'int' instead") {
     SmallVector<int, 16> IntMask;
     IntMask.assign(Mask.begin(), Mask.end());
     return CreateShuffleVector(V1, V2, IntMask, Name);

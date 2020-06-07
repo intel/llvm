@@ -95,6 +95,7 @@ void DAGTypeLegalizer::ScalarizeVectorResult(SDNode *N, unsigned ResNo) {
   case ISD::FP_TO_UINT:
   case ISD::FRINT:
   case ISD::FROUND:
+  case ISD::FROUNDEVEN:
   case ISD::FSIN:
   case ISD::FSQRT:
   case ISD::FTRUNC:
@@ -888,6 +889,7 @@ void DAGTypeLegalizer::SplitVectorResult(SDNode *N, unsigned ResNo) {
   case ISD::FP_TO_UINT:
   case ISD::FRINT:
   case ISD::FROUND:
+  case ISD::FROUNDEVEN:
   case ISD::FSIN:
   case ISD::FSQRT:
   case ISD::FTRUNC:
@@ -1143,41 +1145,42 @@ void DAGTypeLegalizer::SplitVecRes_INSERT_SUBVECTOR(SDNode *N, SDValue &Lo,
   // boundary between the halves, we can avoid spilling the vector, and insert
   // into the lower half of the split vector directly.
   // TODO: The IdxVal == 0 constraint is artificial, we could do this whenever
-  // the index is constant and there is no boundary crossing. But those cases
-  // don't seem to get hit in practice.
-  if (ConstantSDNode *ConstIdx = dyn_cast<ConstantSDNode>(Idx)) {
-    unsigned IdxVal = ConstIdx->getZExtValue();
-    if ((IdxVal == 0) && (IdxVal + SubElems <= VecElems / 2)) {
-      EVT LoVT, HiVT;
-      std::tie(LoVT, HiVT) = DAG.GetSplitDestVTs(N->getValueType(0));
-      Lo = DAG.getNode(ISD::INSERT_SUBVECTOR, dl, LoVT, Lo, SubVec, Idx);
-      return;
-    }
+  // there is no boundary crossing. But those cases don't seem to get hit in
+  // practice.
+  unsigned IdxVal = cast<ConstantSDNode>(Idx)->getZExtValue();
+  if ((IdxVal == 0) && (IdxVal + SubElems <= VecElems / 2)) {
+    EVT LoVT, HiVT;
+    std::tie(LoVT, HiVT) = DAG.GetSplitDestVTs(N->getValueType(0));
+    Lo = DAG.getNode(ISD::INSERT_SUBVECTOR, dl, LoVT, Lo, SubVec, Idx);
+    return;
   }
 
   // Spill the vector to the stack.
   SDValue StackPtr = DAG.CreateStackTemporary(VecVT);
+  auto &MF = DAG.getMachineFunction();
+  auto FrameIndex = cast<FrameIndexSDNode>(StackPtr.getNode())->getIndex();
+  auto PtrInfo = MachinePointerInfo::getFixedStack(MF, FrameIndex);
+  Type *VecType = VecVT.getTypeForEVT(*DAG.getContext());
+  Align Alignment = DAG.getDataLayout().getPrefTypeAlign(VecType);
+
   SDValue Store =
-      DAG.getStore(DAG.getEntryNode(), dl, Vec, StackPtr, MachinePointerInfo());
+      DAG.getStore(DAG.getEntryNode(), dl, Vec, StackPtr, PtrInfo, Alignment);
 
   // Store the new subvector into the specified index.
   SDValue SubVecPtr = TLI.getVectorElementPointer(DAG, StackPtr, VecVT, Idx);
-  Type *VecType = VecVT.getTypeForEVT(*DAG.getContext());
-  Align Alignment = DAG.getDataLayout().getPrefTypeAlign(VecType);
-  Store = DAG.getStore(Store, dl, SubVec, SubVecPtr, MachinePointerInfo());
+  Store = DAG.getStore(Store, dl, SubVec, SubVecPtr,
+                       MachinePointerInfo::getUnknownStack(MF));
 
   // Load the Lo part from the stack slot.
-  Lo =
-      DAG.getLoad(Lo.getValueType(), dl, Store, StackPtr, MachinePointerInfo());
+  Lo = DAG.getLoad(Lo.getValueType(), dl, Store, StackPtr, PtrInfo, Alignment);
 
   // Increment the pointer to the other part.
   unsigned IncrementSize = Lo.getValueSizeInBits() / 8;
   StackPtr = DAG.getMemBasePlusOffset(StackPtr, IncrementSize, dl);
 
   // Load the Hi part from the stack slot.
-  Hi =
-      DAG.getLoad(Hi.getValueType(), dl, Store, StackPtr,
-                  MachinePointerInfo().getWithOffset(IncrementSize), Alignment);
+  Hi = DAG.getLoad(Hi.getValueType(), dl, Store, StackPtr,
+                   PtrInfo.getWithOffset(IncrementSize), Alignment);
 }
 
 void DAGTypeLegalizer::SplitVecRes_FPOWI(SDNode *N, SDValue &Lo,
@@ -1453,13 +1456,15 @@ void DAGTypeLegalizer::SplitVecRes_INSERT_VECTOR_ELT(SDNode *N, SDValue &Lo,
   auto &MF = DAG.getMachineFunction();
   auto FrameIndex = cast<FrameIndexSDNode>(StackPtr.getNode())->getIndex();
   auto PtrInfo = MachinePointerInfo::getFixedStack(MF, FrameIndex);
-  SDValue Store = DAG.getStore(DAG.getEntryNode(), dl, Vec, StackPtr, PtrInfo);
+  Type *VecType = VecVT.getTypeForEVT(*DAG.getContext());
+  Align Alignment = DAG.getDataLayout().getPrefTypeAlign(VecType);
+
+  SDValue Store =
+      DAG.getStore(DAG.getEntryNode(), dl, Vec, StackPtr, PtrInfo, Alignment);
 
   // Store the new element.  This may be larger than the vector element type,
   // so use a truncating store.
   SDValue EltPtr = TLI.getVectorElementPointer(DAG, StackPtr, VecVT, Idx);
-  Type *VecType = VecVT.getTypeForEVT(*DAG.getContext());
-  Align Alignment = DAG.getDataLayout().getPrefTypeAlign(VecType);
   Store = DAG.getTruncStore(Store, dl, Elt, EltPtr,
                             MachinePointerInfo::getUnknownStack(MF), EltVT);
 
@@ -1467,13 +1472,11 @@ void DAGTypeLegalizer::SplitVecRes_INSERT_VECTOR_ELT(SDNode *N, SDValue &Lo,
   std::tie(LoVT, HiVT) = DAG.GetSplitDestVTs(VecVT);
 
   // Load the Lo part from the stack slot.
-  Lo = DAG.getLoad(LoVT, dl, Store, StackPtr, PtrInfo);
+  Lo = DAG.getLoad(LoVT, dl, Store, StackPtr, PtrInfo, Alignment);
 
   // Increment the pointer to the other part.
   unsigned IncrementSize = LoVT.getSizeInBits() / 8;
-  StackPtr = DAG.getNode(ISD::ADD, dl, StackPtr.getValueType(), StackPtr,
-                         DAG.getConstant(IncrementSize, dl,
-                                         StackPtr.getValueType()));
+  StackPtr = DAG.getMemBasePlusOffset(StackPtr, IncrementSize, dl);
 
   // Load the Hi part from the stack slot.
   Hi = DAG.getLoad(HiVT, dl, Store, StackPtr,
@@ -1571,7 +1574,9 @@ void DAGTypeLegalizer::SplitVecRes_MLOAD(MaskedLoadSDNode *MLD,
 
   EVT MemoryVT = MLD->getMemoryVT();
   EVT LoMemVT, HiMemVT;
-  std::tie(LoMemVT, HiMemVT) = DAG.GetSplitDestVTs(MemoryVT);
+  bool HiIsEmpty = false;
+  std::tie(LoMemVT, HiMemVT) =
+      DAG.GetDependentSplitDestVTs(MemoryVT, LoVT, &HiIsEmpty);
 
   SDValue PassThruLo, PassThruHi;
   if (getTypeAction(PassThru.getValueType()) == TargetLowering::TypeSplitVector)
@@ -1587,17 +1592,25 @@ void DAGTypeLegalizer::SplitVecRes_MLOAD(MaskedLoadSDNode *MLD,
                          MMO, MLD->getAddressingMode(), ExtType,
                          MLD->isExpandingLoad());
 
-  Ptr = TLI.IncrementMemoryAddress(Ptr, MaskLo, dl, LoMemVT, DAG,
-                                   MLD->isExpandingLoad());
-  unsigned HiOffset = LoMemVT.getStoreSize();
+  if (HiIsEmpty) {
+    // The hi masked load has zero storage size. We therefore simply set it to
+    // the low masked load and rely on subsequent removal from the chain.
+    Hi = Lo;
+  } else {
+    // Generate hi masked load.
+    Ptr = TLI.IncrementMemoryAddress(Ptr, MaskLo, dl, LoMemVT, DAG,
+                                     MLD->isExpandingLoad());
+    unsigned HiOffset = LoMemVT.getStoreSize();
 
-  MMO = DAG.getMachineFunction().getMachineMemOperand(
-      MLD->getPointerInfo().getWithOffset(HiOffset), MachineMemOperand::MOLoad,
-      HiMemVT.getStoreSize(), Alignment, MLD->getAAInfo(), MLD->getRanges());
+    MMO = DAG.getMachineFunction().getMachineMemOperand(
+        MLD->getPointerInfo().getWithOffset(HiOffset),
+        MachineMemOperand::MOLoad, HiMemVT.getStoreSize(), Alignment,
+        MLD->getAAInfo(), MLD->getRanges());
 
-  Hi = DAG.getMaskedLoad(HiVT, dl, Ch, Ptr, Offset, MaskHi, PassThruHi, HiMemVT,
-                         MMO, MLD->getAddressingMode(), ExtType,
-                         MLD->isExpandingLoad());
+    Hi = DAG.getMaskedLoad(HiVT, dl, Ch, Ptr, Offset, MaskHi, PassThruHi,
+                           HiMemVT, MMO, MLD->getAddressingMode(), ExtType,
+                           MLD->isExpandingLoad());
+  }
 
   // Build a factor node to remember that this load is independent of the
   // other one.
@@ -2278,16 +2291,13 @@ SDValue DAGTypeLegalizer::SplitVecOp_MGATHER(MaskedGatherSDNode *MGT,
     std::tie(IndexLo, IndexHi) = DAG.SplitVector(Index, dl);
 
   MachineMemOperand *MMO = DAG.getMachineFunction().getMachineMemOperand(
-      MGT->getPointerInfo(), MachineMemOperand::MOLoad, LoMemVT.getStoreSize(),
-      Alignment, MGT->getAAInfo(), MGT->getRanges());
+      MGT->getPointerInfo(), MachineMemOperand::MOLoad,
+      MemoryLocation::UnknownSize, Alignment, MGT->getAAInfo(),
+      MGT->getRanges());
 
   SDValue OpsLo[] = {Ch, PassThruLo, MaskLo, Ptr, IndexLo, Scale};
   SDValue Lo = DAG.getMaskedGather(DAG.getVTList(LoVT, MVT::Other), LoVT, dl,
                                    OpsLo, MMO, MGT->getIndexType());
-
-  MMO = DAG.getMachineFunction().getMachineMemOperand(
-      MGT->getPointerInfo(), MachineMemOperand::MOLoad, HiMemVT.getStoreSize(),
-      Alignment, MGT->getAAInfo(), MGT->getRanges());
 
   SDValue OpsHi[] = {Ch, PassThruHi, MaskHi, Ptr, IndexHi, Scale};
   SDValue Hi = DAG.getMaskedGather(DAG.getVTList(HiVT, MVT::Other), HiVT, dl,
@@ -2317,12 +2327,8 @@ SDValue DAGTypeLegalizer::SplitVecOp_MSTORE(MaskedStoreSDNode *N,
   assert(Offset.isUndef() && "Unexpected indexed masked store offset");
   SDValue Mask = N->getMask();
   SDValue Data = N->getValue();
-  EVT MemoryVT = N->getMemoryVT();
   Align Alignment = N->getOriginalAlign();
   SDLoc DL(N);
-
-  EVT LoMemVT, HiMemVT;
-  std::tie(LoMemVT, HiMemVT) = DAG.GetSplitDestVTs(MemoryVT);
 
   SDValue DataLo, DataHi;
   if (getTypeAction(Data.getValueType()) == TargetLowering::TypeSplitVector)
@@ -2342,7 +2348,13 @@ SDValue DAGTypeLegalizer::SplitVecOp_MSTORE(MaskedStoreSDNode *N,
       std::tie(MaskLo, MaskHi) = DAG.SplitVector(Mask, DL);
   }
 
-  SDValue Lo, Hi;
+  EVT MemoryVT = N->getMemoryVT();
+  EVT LoMemVT, HiMemVT;
+  bool HiIsEmpty = false;
+  std::tie(LoMemVT, HiMemVT) =
+      DAG.GetDependentSplitDestVTs(MemoryVT, DataLo.getValueType(), &HiIsEmpty);
+
+  SDValue Lo, Hi, Res;
   MachineMemOperand *MMO = DAG.getMachineFunction().getMachineMemOperand(
       N->getPointerInfo(), MachineMemOperand::MOStore, LoMemVT.getStoreSize(),
       Alignment, N->getAAInfo(), N->getRanges());
@@ -2351,21 +2363,30 @@ SDValue DAGTypeLegalizer::SplitVecOp_MSTORE(MaskedStoreSDNode *N,
                           N->getAddressingMode(), N->isTruncatingStore(),
                           N->isCompressingStore());
 
-  Ptr = TLI.IncrementMemoryAddress(Ptr, MaskLo, DL, LoMemVT, DAG,
-                                   N->isCompressingStore());
-  unsigned HiOffset = LoMemVT.getStoreSize();
+  if (HiIsEmpty) {
+    // The hi masked store has zero storage size.
+    // Only the lo masked store is needed.
+    Res = Lo;
+  } else {
 
-  MMO = DAG.getMachineFunction().getMachineMemOperand(
-      N->getPointerInfo().getWithOffset(HiOffset), MachineMemOperand::MOStore,
-      HiMemVT.getStoreSize(), Alignment, N->getAAInfo(), N->getRanges());
+    Ptr = TLI.IncrementMemoryAddress(Ptr, MaskLo, DL, LoMemVT, DAG,
+                                     N->isCompressingStore());
+    unsigned HiOffset = LoMemVT.getStoreSize();
 
-  Hi = DAG.getMaskedStore(Ch, DL, DataHi, Ptr, Offset, MaskHi, HiMemVT, MMO,
-                          N->getAddressingMode(), N->isTruncatingStore(),
-                          N->isCompressingStore());
+    MMO = DAG.getMachineFunction().getMachineMemOperand(
+        N->getPointerInfo().getWithOffset(HiOffset), MachineMemOperand::MOStore,
+        HiMemVT.getStoreSize(), Alignment, N->getAAInfo(), N->getRanges());
 
-  // Build a factor node to remember that this store is independent of the
-  // other one.
-  return DAG.getNode(ISD::TokenFactor, DL, MVT::Other, Lo, Hi);
+    Hi = DAG.getMaskedStore(Ch, DL, DataHi, Ptr, Offset, MaskHi, HiMemVT, MMO,
+                            N->getAddressingMode(), N->isTruncatingStore(),
+                            N->isCompressingStore());
+
+    // Build a factor node to remember that this store is independent of the
+    // other one.
+    Res = DAG.getNode(ISD::TokenFactor, DL, MVT::Other, Lo, Hi);
+  }
+
+  return Res;
 }
 
 SDValue DAGTypeLegalizer::SplitVecOp_MSCATTER(MaskedScatterSDNode *N,
@@ -2806,6 +2827,7 @@ void DAGTypeLegalizer::WidenVectorResult(SDNode *N, unsigned ResNo) {
   case ISD::FNEARBYINT:
   case ISD::FRINT:
   case ISD::FROUND:
+  case ISD::FROUNDEVEN:
   case ISD::FSIN:
   case ISD::FSQRT:
   case ISD::FTRUNC: {

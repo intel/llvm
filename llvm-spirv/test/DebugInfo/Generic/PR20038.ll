@@ -9,6 +9,9 @@
 
 ; RUN: llc -mtriple=%triple -O0 -filetype=obj -dwarf-linkage-names=All < %t.ll | llvm-dwarfdump -v -debug-info - | FileCheck %s
 
+target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
+target triple = "spir64-unknown-unknown"
+
 ; IR generated from clang -O0 with:
 ; struct C {
 ;   ~C();
@@ -173,5 +176,3 @@ attributes #2 = { nounwind readnone }
 !39 = !DILocation(line: 0, scope: !16, inlinedAt: !37)
 !40 = !DILocation(line: 0, scope: !16)
 !41 = !DILocation(line: 6, scope: !16)
-target triple = "spir64-unknown-unknown"
-target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"

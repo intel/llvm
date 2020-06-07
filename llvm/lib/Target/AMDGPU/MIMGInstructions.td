@@ -1,4 +1,4 @@
-//===-- MIMGInstructions.td - MIMG Instruction Defintions -----------------===//
+//===-- MIMGInstructions.td - MIMG Instruction Definitions ----------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -132,7 +132,6 @@ class MIMG_Base <dag outs, string dns = "">
 
   let DecoderNamespace = dns;
   let isAsmParserOnly = !if(!eq(dns,""), 1, 0);
-  let usesCustomInserter = 1;
 }
 
 class MIMG <dag outs, string dns = "">

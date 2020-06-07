@@ -15,7 +15,7 @@ def OpA : NS_Op<"one_normal_operand_op", []> {
 // CHECK-LABEL: OpA definitions
 
 // CHECK:      OpAOperandAdaptor::OpAOperandAdaptor
-// CHECK-NEXT: tblgen_operands = values
+// CHECK-SAME: odsOperands(values), odsAttrs(attrs)
 
 // CHECK:      void OpA::build
 // CHECK:        Value input
@@ -39,13 +39,13 @@ def OpD : NS_Op<"mix_variadic_and_normal_inputs_op", [SameVariadicOperandSize]> 
   let arguments = (ins Variadic<AnyTensor>:$input1, AnyTensor:$input2, Variadic<AnyTensor>:$input3);
 }
 
-// CHECK-LABEL: ArrayRef<Value> OpDOperandAdaptor::input1
+// CHECK-LABEL: ValueRange OpDOperandAdaptor::input1
 // CHECK-NEXT:    return getODSOperands(0);
 
 // CHECK-LABEL: Value OpDOperandAdaptor::input2
 // CHECK-NEXT:    return *getODSOperands(1).begin();
 
-// CHECK-LABEL: ArrayRef<Value> OpDOperandAdaptor::input3
+// CHECK-LABEL: ValueRange OpDOperandAdaptor::input3
 // CHECK-NEXT:    return getODSOperands(2);
 
 // CHECK-LABEL: Operation::operand_range OpD::input1
@@ -58,23 +58,3 @@ def OpD : NS_Op<"mix_variadic_and_normal_inputs_op", [SameVariadicOperandSize]> 
 // CHECK-NEXT: odsState.addOperands(input1);
 // CHECK-NEXT: odsState.addOperands(input2);
 // CHECK-NEXT: odsState.addOperands(input3);
-// CHECK-NOT: odsState.setOperandListToResizable
-
-// Check that resizable operand list flag is set up correctly in all generated
-// builders and in the parser.
-def OpE : NS_Op<"resizable_operand_list", [ResizableOperandList]> {
-  let arguments = (ins Variadic<AnyType>:$input);
-  let assemblyFormat = "$input attr-dict `:` type($input)";
-}
-
-// CHECK-LABEL: OpE::build(Builder *odsBuilder, OperationState &odsState, ValueRange
-// CHECK: odsState.setOperandListToResizable()
-
-// CHECK-LABEL: OpE::build(Builder *odsBuilder, OperationState &odsState, ArrayRef<Type>
-// CHECK: odsState.setOperandListToResizable()
-
-// CHECK-LABEL: OpE::build(Builder *, OperationState
-// CHECK: odsState.setOperandListToResizable()
-
-// CHECK-LABEL: OpE::parse
-// CHECK: result.setOperandListToResizable()

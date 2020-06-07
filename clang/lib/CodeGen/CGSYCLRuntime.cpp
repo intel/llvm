@@ -20,6 +20,8 @@
 using namespace clang;
 using namespace CodeGen;
 
+namespace {
+
 /// Various utilities.
 /// TODO partially duplicates functionality from SemaSYCL.cpp, can be shared.
 class Util {
@@ -51,6 +53,8 @@ static bool isPFWI(const FunctionDecl &FD) {
 const char *WG_SCOPE_MD_ID = "work_group_scope";
 const char *WI_SCOPE_MD_ID = "work_item_scope";
 const char *PFWI_MD_ID = "parallel_for_work_item";
+
+} // anonymous namespace
 
 bool CGSYCLRuntime::actOnFunctionStart(const FunctionDecl &FD,
                                        llvm::Function &F) {

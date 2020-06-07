@@ -181,15 +181,18 @@ public:
                                int64_t &Offset1,
                                int64_t &Offset2) const override;
 
-  bool
-  getMemOperandsWithOffset(const MachineInstr &LdSt,
-                           SmallVectorImpl<const MachineOperand *> &BaseOps,
-                           int64_t &Offset, bool &OffsetIsScalable,
-                           const TargetRegisterInfo *TRI) const final;
+  unsigned getOperandSizeInBytes(const MachineInstr &LdSt,
+                                 const MachineOperand *MOp) const;
+
+  bool getMemOperandsWithOffsetWidth(
+      const MachineInstr &LdSt,
+      SmallVectorImpl<const MachineOperand *> &BaseOps, int64_t &Offset,
+      bool &OffsetIsScalable, unsigned &Width,
+      const TargetRegisterInfo *TRI) const final;
 
   bool shouldClusterMemOps(ArrayRef<const MachineOperand *> BaseOps1,
                            ArrayRef<const MachineOperand *> BaseOps2,
-                           unsigned NumLoads) const override;
+                           unsigned NumLoads, unsigned NumBytes) const override;
 
   bool shouldScheduleLoadsNear(SDNode *Load0, SDNode *Load1, int64_t Offset0,
                                int64_t Offset1, unsigned NumLoads) const override;
@@ -827,11 +830,7 @@ public:
     const MachineOperand &MO = MI.getOperand(OpNo);
     if (MO.isReg()) {
       if (unsigned SubReg = MO.getSubReg()) {
-        assert(RI.getRegSizeInBits(*RI.getSubClassWithSubReg(
-                                   MI.getParent()->getParent()->getRegInfo().
-                                     getRegClass(MO.getReg()), SubReg)) >= 32 &&
-               "Sub-dword subregs are not supported");
-        return RI.getNumChannelsFromSubReg(SubReg) * 4;
+        return RI.getSubRegIdxSize(SubReg) / 8;
       }
     }
     return RI.getRegSizeInBits(*getOpRegClass(MI, OpNo)) / 8;

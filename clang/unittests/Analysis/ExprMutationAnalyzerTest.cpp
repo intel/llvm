@@ -54,6 +54,7 @@ StmtMatcher withEnclosingCompound(ExprMatcher Matcher) {
 bool isMutated(const SmallVectorImpl<BoundNodes> &Results, ASTUnit *AST) {
   const auto *const S = selectFirst<Stmt>("stmt", Results);
   const auto *const E = selectFirst<Expr>("expr", Results);
+  TraversalKindScope RAII(AST->getASTContext(), ast_type_traits::TK_AsIs);
   return ExprMutationAnalyzer(*S, AST->getASTContext()).isMutated(E);
 }
 
@@ -75,7 +76,7 @@ mutatedBy(const SmallVectorImpl<BoundNodes> &Results, ASTUnit *AST) {
 
 std::string removeSpace(std::string s) {
   s.erase(std::remove_if(s.begin(), s.end(),
-                         [](char c) { return std::isspace(c); }),
+                         [](char c) { return llvm::isSpace(c); }),
           s.end());
   return s;
 }

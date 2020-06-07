@@ -1,13 +1,13 @@
-// UNSUPPORTED: windows
+// REQUIRES: cpu, linux
 // RUN: %clangxx -fsycl -c %s -o %t.o
 // RUN: %clangxx -fsycl %t.o %sycl_libs_dir/libsycl-cmath-fp64.o -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
+#include "math_utils.hpp"
 #include <CL/sycl.hpp>
 #include <iostream>
 #include <math.h>
-#include "math_utils.hpp"
 
 namespace s = cl::sycl;
 constexpr s::access::mode sycl_read = s::access::mode::read;
@@ -15,11 +15,11 @@ constexpr s::access::mode sycl_write = s::access::mode::write;
 
 #define TEST_NUM 38
 
-double ref[TEST_NUM] = {
-1, 0, 0, 0, 0, 0, 0, 1, 1, 0.5,
-0, 2, 0, 0, 1, 0, 2, 0, 0, 0,
-0, 0, 1, 0, 1, 2, 0, 1, 2, 5,
-0, 0, 0, 0, 0.5, 0.5, NAN, NAN,};
+double ref_val[TEST_NUM] = {
+    1, 0, 0, 0, 0, 0, 0, 1, 1, 0.5,
+    0, 2, 0, 0, 1, 0, 2, 0, 0, 0,
+    0, 0, 1, 0, 1, 2, 0, 1, 2, 5,
+    0, 0, 0, 0, 0.5, 0.5, NAN, NAN};
 
 double refIptr = 1;
 
@@ -46,53 +46,53 @@ void device_math_test(s::queue &deviceQueue) {
       auto iptr_access = buffer3.template get_access<sycl_write>(cgh);
       auto quo_access = buffer4.template get_access<sycl_write>(cgh);
       cgh.single_task<class DeviceMathTest>([=]() {
-	int i = 0;
-        res_access[i++] = std::cos(0.0);
-        res_access[i++] = std::sin(0.0);
-        res_access[i++] = std::log(1.0);
-        res_access[i++] = std::acos(1.0);
-        res_access[i++] = std::asin(0.0);
-        res_access[i++] = std::atan(0.0);
-        res_access[i++] = std::atan2(0.0, 1.0);
-        res_access[i++] = std::cosh(0.0);
-        res_access[i++] = std::exp(0.0);
-        res_access[i++] = std::fmod(1.5, 1.0);
-        res_access[i++] = std::frexp(0.0, &exp_access[0]);
-        res_access[i++] = std::ldexp(1.0, 1);
-        res_access[i++] = std::log10(1.0);
-        res_access[i++] = std::modf(1.0, &iptr_access[0]);
-        res_access[i++] = std::pow(1.0, 1.0);
-        res_access[i++] = std::sinh(0.0);
-        res_access[i++] = std::sqrt(4.0);
-        res_access[i++] = std::tan(0.0);
-        res_access[i++] = std::tanh(0.0);
-        res_access[i++] = std::acosh(1.0);
-        res_access[i++] = std::asinh(0.0);
-        res_access[i++] = std::atanh(0.0);
-        res_access[i++] = std::cbrt(1.0);
-        res_access[i++] = std::erf(0.0);
-        res_access[i++] = std::erfc(0.0);
-        res_access[i++] = std::exp2(1.0);
-        res_access[i++] = std::expm1(0.0);
-        res_access[i++] = std::fdim(1.0, 0.0);
-        res_access[i++] = std::fma(1.0, 1.0, 1.0);
-        res_access[i++] = std::hypot(3.0, 4.0);
-        res_access[i++] = std::ilogb(1.0);
-        res_access[i++] = std::log1p(0.0);
-        res_access[i++] = std::log2(1.0);
-        res_access[i++] = std::logb(1.0);
-        res_access[i++] = std::remainder(0.5, 1.0);
-        res_access[i++] = std::remquo(0.5, 1.0, &quo_access[0]);
+        int i = 0;
+        res_access[i++] = cos(0.0);
+        res_access[i++] = sin(0.0);
+        res_access[i++] = log(1.0);
+        res_access[i++] = acos(1.0);
+        res_access[i++] = asin(0.0);
+        res_access[i++] = atan(0.0);
+        res_access[i++] = atan2(0.0, 1.0);
+        res_access[i++] = cosh(0.0);
+        res_access[i++] = exp(0.0);
+        res_access[i++] = fmod(1.5, 1.0);
+        res_access[i++] = frexp(0.0, &exp_access[0]);
+        res_access[i++] = ldexp(1.0, 1);
+        res_access[i++] = log10(1.0);
+        res_access[i++] = modf(1.0, &iptr_access[0]);
+        res_access[i++] = pow(1.0, 1.0);
+        res_access[i++] = sinh(0.0);
+        res_access[i++] = sqrt(4.0);
+        res_access[i++] = tan(0.0);
+        res_access[i++] = tanh(0.0);
+        res_access[i++] = acosh(1.0);
+        res_access[i++] = asinh(0.0);
+        res_access[i++] = atanh(0.0);
+        res_access[i++] = cbrt(1.0);
+        res_access[i++] = erf(0.0);
+        res_access[i++] = erfc(0.0);
+        res_access[i++] = exp2(1.0);
+        res_access[i++] = expm1(0.0);
+        res_access[i++] = fdim(1.0, 0.0);
+        res_access[i++] = fma(1.0, 1.0, 1.0);
+        res_access[i++] = hypot(3.0, 4.0);
+        res_access[i++] = ilogb(1.0);
+        res_access[i++] = log1p(0.0);
+        res_access[i++] = log2(1.0);
+        res_access[i++] = logb(1.0);
+        res_access[i++] = remainder(0.5, 1.0);
+        res_access[i++] = remquo(0.5, 1.0, &quo_access[0]);
         double a = NAN;
-        res_access[i++] = std::tgamma(a);
-        res_access[i++] = std::lgamma(a);
+        res_access[i++] = tgamma(a);
+        res_access[i++] = lgamma(a);
       });
     });
   }
 
   // Compare result with reference
   for (int i = 0; i < TEST_NUM; ++i) {
-    assert(approx_equal_fp(result[i], ref[i]));
+    assert(approx_equal_fp(result[i], ref_val[i]));
   }
 
   // Test modf integral part

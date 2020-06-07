@@ -1,20 +1,87 @@
-.. _amdgpu-dwarf-6-proposal-for-heterogeneous-debugging:
+.. _amdgpu-dwarf-proposal-for-heterogeneous-debugging:
 
-====================================================
-DWARF Version 6 Proposal For Heterogeneous Debugging
-====================================================
+******************************************
+DWARF Proposal For Heterogeneous Debugging
+******************************************
 
 .. contents::
    :local:
 
 .. warning::
 
-   This section describes a **provisional proposal** for DWARF Version 6
+   This document describes a **provisional proposal** for DWARF Version 6
    [:ref:`DWARF <amdgpu-dwarf-DWARF>`] to support heterogeneous debugging. It is
    not currently fully implemented and is subject to change.
 
+.. _amdgpu-dwarf-introduction:
+
 Introduction
-------------
+============
+
+AMD [:ref:`AMD <amdgpu-dwarf-AMD>`] has been working on supporting heterogeneous
+computing through the AMD Radeon Open Compute Platform (ROCm) [:ref:`AMD-ROCm
+<amdgpu-dwarf-AMD-ROCm>`]. A heterogeneous computing program can be written in a
+high level language such as C++ or Fortran with OpenMP pragmas, OpenCL, or HIP
+(a portable C++ programming environment for heterogeneous computing [:ref:`HIP
+<amdgpu-dwarf-HIP>`]). A heterogeneous compiler and runtime allows a program to
+execute on multiple devices within the same native process. Devices could
+include CPUs, GPUs, DSPs, FPGAs, or other special purpose accelerators.
+Currently HIP programs execute on systems with CPUs and GPUs.
+
+ROCm is fully open sourced and includes contributions to open source projects
+such as LLVM for compilation [:ref:`LLVM <amdgpu-dwarf-LLVM>`] and GDB for
+debugging [:ref:`GDB <amdgpu-dwarf-GDB>`], as well as collaboration with other
+third party projects such as the GCC compiler [:ref:`GCC <amdgpu-dwarf-GCC>`]
+and the Perforce TotalView HPC debugger [:ref:`Perforce-TotalView
+<amdgpu-dwarf-Perforce-TotalView>`].
+
+To support debugging heterogeneous programs several features that are not
+provided by current DWARF Version 5 [:ref:`DWARF <amdgpu-dwarf-DWARF>`] have
+been identified. This document contains a collection of proposals to address
+providing those features.
+
+The :ref:`amdgpu-dwarf-motivation` section describes the issues that are being
+addressed for heterogeneous computing. That is followed by the
+:ref:`amdgpu-dwarf-proposed-changes-relative-to-dwarf-version-5` section
+containing the proposed textual changes relative to the DWARF Version 5
+standard. Then there is an :ref:`amdgpu-dwarf-examples` section that links to
+the AMD GPU specific usage of the features in the proposal that includes an
+example. Finally, there is a :ref:`amdgpu-dwarf-references` section. There are a
+number of notes included that raise open questions, or provide alternative
+approaches considered. The draft proposal seeks to be general in nature and
+backwards compatible with DWARF Version 5. Its goal is to be applicable to
+meeting the needs of any heterogeneous system and not be vendor or architecture
+specific.
+
+A fundamental aspect of the draft proposal is that it allows DWARF expression
+location descriptions as stack elements. The draft proposal is based on DWARF
+Version 5 and maintains compatibility with DWARF Version 5. After attempting
+several alternatives, the current thinking is that such an addition to DWARF
+Version 5 is the simplest and cleanest way to support debugging optimized GPU
+code. It also appears to be generally useful and may be able to address other
+reported DWARF issues, as well as being helpful in providing better optimization
+support for non-GPU code.
+
+General feedback on this draft proposal is sought, together with suggestions on
+how to clarify, simplify, or organize it before submitting it as a formal DWARF
+proposal. The current draft proposal is large and may need to be split into
+separate proposals before formal submission. Any suggestions on how best to do
+that are appreciated. However, at the initial review stage it is believed there
+is value in presenting a unified proposal as there are mutual dependencies
+between the various parts that would not be as apparent if it was broken up into
+separate independent proposals.
+
+We are in the process of modifying LLVM and GDB to support this draft proposal
+which is providing experience and insights. We plan to upstream the changes to
+those projects for any final form of the proposal.
+
+The author very much appreciates the input provided so far by many others which
+has been incorporated into this current version.
+
+.. _amdgpu-dwarf-motivation:
+
+Motivation
+==========
 
 This document proposes a set of backwards compatible extensions to DWARF Version
 5 [:ref:`DWARF <amdgpu-dwarf-DWARF>`] for consideration of inclusion into a
@@ -100,7 +167,7 @@ denote the current lane, much like ``DW_OP_push_object_address`` denotes the
 current object. The ``DW_OP_*piece`` operations only allow literal indices.
 Therefore, a way to use a computed offset of an arbitrary location description
 (such as a vector register) is required. See ``DW_OP_LLVM_push_lane``,
-``DW_OP_LLVM_offset``, ``DW_OP_LLVM_offset_constu``, and
+``DW_OP_LLVM_offset``, ``DW_OP_LLVM_offset_uconst``, and
 ``DW_OP_LLVM_bit_offset``.
 
 If the source language is mapped onto the AMDGPU wavefronts in a SIMT manner
@@ -173,16 +240,26 @@ allowing current DWARF expressions to remain legal. See
 
 The ``DW_OP_plus`` and ``DW_OP_minus`` can be defined to operate on a memory
 location description in the default target architecture specific address space
-and a generic type value to produce an updated memory location description.
-This allows them to continue to be used to offset an address. To generalize
+and a generic type value to produce an updated memory location description. This
+allows them to continue to be used to offset an address. To generalize
 offsetting to any location description, including location descriptions that
-describe when bytes are in registers, are implicit, or a composite of these,
-the ``DW_OP_LLVM_offset``, ``DW_OP_LLVM_offset_constu`` and
-``DW_OP_LLVM_bit_offset`` operations are added. These do not perform wrapping
-which would be hard to define for location descriptions of non-memory kinds.
-This allows ``DW_OP_push_object_address`` to push a location description that
-may be in a register, or be an implicit value, and the DWARF expression of
-``DW_TAG_ptr_to_member_type`` can contain ``DW_OP_LLVM_offset`` to offset
+describe when bytes are in registers, are implicit, or a composite of these, the
+``DW_OP_LLVM_offset``, ``DW_OP_LLVM_offset_uconst``, and
+``DW_OP_LLVM_bit_offset`` offset operations are added. Unlike ``DW_OP_plus``,
+``DW_OP_plus_uconst``, and ``DW_OP_minus`` arithmetic operations, these do not
+define that integer overflow causes wrap-around. The offset operations can
+operate on location storage of any size. For example, implicit location storage
+could be any number of bits in size. It is simpler to define offsets that exceed
+the size of the location storage as being ill-formed, than having to force an
+implementation to support potentially infinite precision offsets to allow it to
+correctly track a series of positive and negative offsets that may transiently
+overflow or underflow, but end up in range. This is simple for the arithmetic
+operations as they are defined in terms of two's compliment arithmetic on a base
+type of a fixed size.
+
+Having the offset operations allows ``DW_OP_push_object_address`` to push a
+location description that may be in a register, or be an implicit value, and the
+DWARF expression of ``DW_TAG_ptr_to_member_type`` can contain them to offset
 within it. ``DW_OP_LLVM_bit_offset`` generalizes DWARF to work with bit fields
 which is not possible in DWARF Version 5.
 
@@ -340,10 +417,17 @@ implemented as an LLVM vendor extension to DWARF Version 5. If accepted these
 names would not include the "\ ``LLVM``\ " and would not use encodings in the
 vendor range.
 
-The proposal is organized to follow the section ordering of DWARF Version 5.
-It includes notes to indicate the corresponding DWARF Version 5 sections to
-which they pertain. Other notes describe additional changes that may be worth
-considering, and to raise questions.
+The proposal is described in
+:ref:`amdgpu-dwarf-proposed-changes-relative-to-dwarf-version-5` and is
+organized to follow the section ordering of DWARF Version 5. It includes notes
+to indicate the corresponding DWARF Version 5 sections to which they pertain.
+Other notes describe additional changes that may be worth considering, and to
+raise questions.
+
+.. _amdgpu-dwarf-proposed-changes-relative-to-dwarf-version-5:
+
+Proposed Changes Relative to DWARF Version 5
+============================================
 
 General Description
 -------------------
@@ -648,7 +732,9 @@ stack assume that the top of the stack (most recently added entry) has index 0.
 They allow the stack entries to be either a value or location description.
 
 If any stack entry accessed by a stack operation is an incomplete composite
-location description, then the DWARF expression is ill-formed.
+location description (see
+:ref:`amdgpu-dwarf-composite-location-description-operations`), then the DWARF
+expression is ill-formed.
 
 .. note::
 
@@ -753,13 +839,20 @@ expression.
     unsigned offset, respectively, of a debugging information entry D in the
     current compilation unit.
 
-    ``DW_OP_LLVM_call_ref`` has one operand that is a 4-byte unsigned value in
-    the 32-bit DWARF format, or an 8-byte unsigned value in the 64-bit DWARF
-    format, that represents an offset of a debugging information entry D in a
+    ``DW_OP_call_ref`` has one operand that is a 4-byte unsigned value in the
+    32-bit DWARF format, or an 8-byte unsigned value in the 64-bit DWARF format,
+    that represents an offset of a debugging information entry D in a
     ``.debug_info`` section, which may be contained in an executable or shared
-    object file other than that containing the operation. For references from one
-    executable or shared object file to another, the relocation must be
+    object file other than that containing the operation. For references from
+    one executable or shared object file to another, the relocation must be
     performed by the consumer.
+
+    .. note:
+
+      It is unclear how crossing from one executable or shared object file to
+      another can work. How would a consumer know which executable or shared
+      object file is being referenced? In an ELF file the DWARF is in a
+      non-ALLOC segment so standard dynamic relocations cannot be used.
 
     *Operand interpretation of* ``DW_OP_call2``\ *,* ``DW_OP_call4``\ *, and*
     ``DW_OP_call_ref`` *is exactly like that for* ``DW_FORM_ref2``\ *,
@@ -1161,7 +1254,7 @@ There are these special value operations currently defined:
     on the stack with the generic type.
 
     *This operation is deprecated as the* ``DW_OP_LLVM_form_aspace_address``
-    operation can be used and provides greater expressiveness.*
+    *operation can be used and provides greater expressiveness.*
 
 6.  ``DW_OP_xderef_size`` *Deprecated*
 
@@ -1177,7 +1270,7 @@ There are these special value operations currently defined:
     value V retrieved is left on the stack with the generic type.
 
     *This operation is deprecated as the* ``DW_OP_LLVM_form_aspace_address``
-    operation can be used and provides greater expressiveness.*
+    *operation can be used and provides greater expressiveness.*
 
 7.  ``DW_OP_xderef_type`` *Deprecated*
 
@@ -1195,7 +1288,7 @@ There are these special value operations currently defined:
     retrieved is left on the stack with the type D.
 
     *This operation is deprecated as the* ``DW_OP_LLVM_form_aspace_address``
-    operation can be used and provides greater expressiveness.*
+    *operation can be used and provides greater expressiveness.*
 
 8.  ``DW_OP_entry_value`` *Deprecated*
 
@@ -1304,9 +1397,9 @@ General Location Description Operations
     to the size of the location storage specified by SL, then the DWARF
     expression is ill-formed.
 
-2.  ``DW_OP_LLVM_offset_constu`` *New*
+2.  ``DW_OP_LLVM_offset_uconst`` *New*
 
-    ``DW_OP_LLVM_offset_constu`` has a single unsigned LEB128 integer operand
+    ``DW_OP_LLVM_offset_uconst`` has a single unsigned LEB128 integer operand
     that represents a byte displacement B.
 
     The operation is equivalent to performing ``DW_OP_constu B;
@@ -1315,6 +1408,12 @@ General Location Description Operations
     *This operation is supplied specifically to be able to encode more field
     displacements in two bytes than can be done with* ``DW_OP_lit*;
     DW_OP_LLVM_offset``\ *.*
+
+    .. note::
+
+      Should this be named ``DW_OP_LLVM_offset_uconst`` to match
+      ``DW_OP_plus_uconst``, or ``DW_OP_LLVM_offset_constu`` to match
+      ``DW_OP_constu``?
 
 3.  ``DW_OP_LLVM_bit_offset`` *New*
 
@@ -1582,7 +1681,7 @@ type.
     entry corresponding to the current subprogram as described in
     :ref:`amdgpu-dwarf-debugging-information-entry-attributes`.
 
-    The location description L is updated as if the ``DW_OP_LLVM_offset_constu
+    The location description L is updated as if the ``DW_OP_LLVM_offset_uconst
     B`` operation was applied. The updated L is pushed on the stack.
 
 7.  ``DW_OP_breg0``, ``DW_OP_breg1``, ..., ``DW_OP_breg31``
@@ -1818,7 +1917,7 @@ implicit storage value starting at the bit offset.
 
     * Otherwise the DWARF expression is ill-formed.
 
-    The bit offset of RL is updated as if the ``DW_OP_LLVM_offset_constu B``
+    The bit offset of RL is updated as if the ``DW_OP_LLVM_offset_uconst B``
     operation was applied.
 
     If a ``DW_OP_stack_value`` operation pops a value that is the same as IPV,
@@ -1867,6 +1966,8 @@ object pointed to by that pointer object.*
 reconstruct the value of the object when asked to dereference the pointer
 described by E*\ :sub:`1` *which contains the* ``DW_OP_implicit_pointer`` or
 ``DW_OP_LLVM_aspace_implicit_pointer`` *operation.*
+
+.. _amdgpu-dwarf-composite-location-description-operations:
 
 Composite Location Description Operations
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -2773,7 +2874,7 @@ Debugging Information Entry Attributes
 
     The format for the augmentation string is:
 
-      | ``[``\ *vendor*\ ``v``\ *X*\ ``.``\ *Y*\ [\ ``:``\ *options*\ ]\ ``]``\ *
+      | ``[``\ *vendor*\ ``:v``\ *X*\ ``.``\ *Y*\ [\ ``:``\ *options*\ ]\ ``]``\ *
 
     Where *vendor* is the producer, ``vX.Y`` specifies the major X and minor Y
     version number of the extensions used, and *options* is an optional string
@@ -2861,7 +2962,7 @@ A null-terminated UTF-8 vendor specific augmentation string, which provides
 additional information about the contents of this index. If provided, the
 recommended format for augmentation string is:
 
-  | ``[``\ *vendor*\ ``v``\ *X*\ ``.``\ *Y*\ [\ ``:``\ *options*\ ]\ ``]``\ *
+  | ``[``\ *vendor*\ ``:v``\ *X*\ ``.``\ *Y*\ [\ ``:``\ *options*\ ]\ ``]``\ *
 
 Where *vendor* is the producer, ``vX.Y`` specifies the major X and minor Y
 version number of the extensions used in the DWARF of the compilation unit, and
@@ -3089,7 +3190,7 @@ Description Entries. There is at least one CIE in every non-empty
 
     The recommended format for the augmentation string is:
 
-      | ``[``\ *vendor*\ ``v``\ *X*\ ``.``\ *Y*\ [\ ``:``\ *options*\ ]\ ``]``\ *
+      | ``[``\ *vendor*\ ``:v``\ *X*\ ``.``\ *Y*\ [\ ``:``\ *options*\ ]\ ``]``\ *
 
     Where *vendor* is the producer, ``vX.Y`` specifies the major X and minor Y
     version number of the extensions used, and *options* is an optional string
@@ -3541,15 +3642,15 @@ entry attributes.
 .. table:: Attribute encodings
    :name: amdgpu-dwarf-attribute-encodings-table
 
-   ================================== ===== ====================================
-   Attribute Name                     Value Classes
-   ================================== ===== ====================================
-   DW_AT_LLVM_active_lane             *TBD* exprloc, loclist
-   DW_AT_LLVM_augmentation            *TBD* string
-   DW_AT_LLVM_lanes                   *TBD* constant
-   DW_AT_LLVM_lane_pc                 *TBD* exprloc, loclist
-   DW_AT_LLVM_vector_size             *TBD* constant
-   ================================== ===== ====================================
+   ================================== ====== ===================================
+   Attribute Name                     Value  Classes
+   ================================== ====== ===================================
+   DW_AT_LLVM_active_lane             0x3e08 exprloc, loclist
+   DW_AT_LLVM_augmentation            0x3e09 string
+   DW_AT_LLVM_lanes                   0x3e0a constant
+   DW_AT_LLVM_lane_pc                 0x3e0b exprloc, loclist
+   DW_AT_LLVM_vector_size             0x3e0c constant
+   ================================== ====== ===================================
 
 DWARF Expressions
 ~~~~~~~~~~~~~~~~~
@@ -3583,7 +3684,7 @@ operations.
    DW_OP_LLVM_form_aspace_address     0xe1     0
    DW_OP_LLVM_push_lane               0xe2     0
    DW_OP_LLVM_offset                  0xe3     0
-   DW_OP_LLVM_offset_constu           0xe4     1     ULEB128 byte displacement
+   DW_OP_LLVM_offset_uconst           0xe4     1     ULEB128 byte displacement
    DW_OP_LLVM_bit_offset              0xe5     0
    DW_OP_LLVM_call_frame_entry_reg    0xe6     1     ULEB128 register number
    DW_OP_LLVM_undefined               0xe7     0
@@ -3686,8 +3787,8 @@ instructions.
    Instruction              High 2 Low 6  Operand 1        Operand 2        Operand 3
                             Bits   Bits
    ======================== ====== ====== ================ ================ ================
-   DW_CFA_def_aspace_cfa    0      0x2f   ULEB128 register ULEB128 offset   ULEB128 address space
-   DW_CFA_def_aspace_cfa_sf 0      0x30   ULEB128 register SLEB128 offset   ULEB128 address space
+   DW_CFA_def_aspace_cfa    0      0x30   ULEB128 register ULEB128 offset   ULEB128 address space
+   DW_CFA_def_aspace_cfa_sf 0      0x31   ULEB128 register SLEB128 offset   ULEB128 address space
    ======================== ====== ====== ================ ================ ================
 
 Attributes by Tag Value (Informative)
@@ -3719,8 +3820,18 @@ debugger information entries.
                                  * ``DW_AT_LLVM_lanes``
    ============================= =============================
 
+.. _amdgpu-dwarf-examples:
+
+Examples
+========
+
+The AMD GPU specific usage of the features in the proposal, including examples,
+is available at :ref:`amdgpu-dwarf-debug-information`.
+
+.. _amdgpu-dwarf-references:
+
 References
-----------
+==========
 
     .. _amdgpu-dwarf-AMD:
 

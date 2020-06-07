@@ -21,9 +21,6 @@ def SDTX86CmpTest : SDTypeProfile<1, 2, [SDTCisVT<0, i32>, SDTCisInt<1>,
 def SDTX86FCmp    : SDTypeProfile<1, 2, [SDTCisVT<0, i32>, SDTCisFP<1>,
                                          SDTCisSameAs<1, 2>]>;
 
-def SDTX86Cmps : SDTypeProfile<1, 3, [SDTCisFP<0>, SDTCisSameAs<1, 2>, SDTCisVT<3, i8>]>;
-//def SDTX86Cmpss : SDTypeProfile<1, 3, [SDTCisVT<0, f32>, SDTCisSameAs<1, 2>, SDTCisVT<3, i8>]>;
-
 def SDTX86Cmov    : SDTypeProfile<1, 4,
                                   [SDTCisSameAs<0, 1>, SDTCisSameAs<1, 2>,
                                    SDTCisVT<3, i8>, SDTCisVT<4, i32>]>;
@@ -289,6 +286,9 @@ def X86lock_and  : SDNode<"X86ISD::LAND",  SDTLockBinaryArithWithFlags,
 def X86bextr  : SDNode<"X86ISD::BEXTR",  SDTIntBinOp>;
 
 def X86bzhi   : SDNode<"X86ISD::BZHI",   SDTIntBinOp>;
+
+def X86pdep   : SDNode<"X86ISD::PDEP",   SDTIntBinOp>;
+def X86pext   : SDNode<"X86ISD::PEXT",   SDTIntBinOp>;
 
 def X86mul_imm : SDNode<"X86ISD::MUL_IMM", SDTIntBinOp>;
 
@@ -2589,27 +2589,27 @@ let Predicates = [HasBMI2, NoTBM] in {
 }
 
 multiclass bmi_pdep_pext<string mnemonic, RegisterClass RC,
-                         X86MemOperand x86memop, Intrinsic Int,
+                         X86MemOperand x86memop, SDNode OpNode,
                          PatFrag ld_frag> {
   def rr : I<0xF5, MRMSrcReg, (outs RC:$dst), (ins RC:$src1, RC:$src2),
              !strconcat(mnemonic, "\t{$src2, $src1, $dst|$dst, $src1, $src2}"),
-             [(set RC:$dst, (Int RC:$src1, RC:$src2))]>,
+             [(set RC:$dst, (OpNode RC:$src1, RC:$src2))]>,
              VEX_4V, Sched<[WriteALU]>;
   def rm : I<0xF5, MRMSrcMem, (outs RC:$dst), (ins RC:$src1, x86memop:$src2),
              !strconcat(mnemonic, "\t{$src2, $src1, $dst|$dst, $src1, $src2}"),
-             [(set RC:$dst, (Int RC:$src1, (ld_frag addr:$src2)))]>,
+             [(set RC:$dst, (OpNode RC:$src1, (ld_frag addr:$src2)))]>,
              VEX_4V, Sched<[WriteALU.Folded, WriteALU.ReadAfterFold]>;
 }
 
 let Predicates = [HasBMI2] in {
   defm PDEP32 : bmi_pdep_pext<"pdep{l}", GR32, i32mem,
-                               int_x86_bmi_pdep_32, loadi32>, T8XD;
+                               X86pdep, loadi32>, T8XD;
   defm PDEP64 : bmi_pdep_pext<"pdep{q}", GR64, i64mem,
-                               int_x86_bmi_pdep_64, loadi64>, T8XD, VEX_W;
+                               X86pdep, loadi64>, T8XD, VEX_W;
   defm PEXT32 : bmi_pdep_pext<"pext{l}", GR32, i32mem,
-                               int_x86_bmi_pext_32, loadi32>, T8XS;
+                               X86pext, loadi32>, T8XS;
   defm PEXT64 : bmi_pdep_pext<"pext{q}", GR64, i64mem,
-                               int_x86_bmi_pext_64, loadi64>, T8XS, VEX_W;
+                               X86pext, loadi64>, T8XS, VEX_W;
 }
 
 //===----------------------------------------------------------------------===//

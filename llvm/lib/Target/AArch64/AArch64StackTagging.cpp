@@ -256,8 +256,8 @@ public:
       Type *EltTy = VecTy->getElementType();
       if (EltTy->isPointerTy()) {
         uint32_t EltSize = DL->getTypeSizeInBits(EltTy);
-        Type *NewTy = VectorType::get(IntegerType::get(Ctx, EltSize),
-                                      VecTy->getNumElements());
+        auto *NewTy = FixedVectorType::get(IntegerType::get(Ctx, EltSize),
+                                           VecTy->getNumElements());
         V = IRB.CreatePointerCast(V, NewTy);
       }
     }
@@ -484,7 +484,7 @@ void AArch64StackTagging::alignAndPadAlloca(AllocaInfo &Info) {
   auto *NewAI = new AllocaInst(
       TypeWithPadding, Info.AI->getType()->getAddressSpace(), nullptr, "", Info.AI);
   NewAI->takeName(Info.AI);
-  NewAI->setAlignment(MaybeAlign(Info.AI->getAlignment()));
+  NewAI->setAlignment(Info.AI->getAlign());
   NewAI->setUsedWithInAlloca(Info.AI->isUsedWithInAlloca());
   NewAI->setSwiftError(Info.AI->isSwiftError());
   NewAI->copyMetadata(*Info.AI);

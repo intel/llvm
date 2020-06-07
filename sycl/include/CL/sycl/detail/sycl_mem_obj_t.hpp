@@ -86,49 +86,56 @@ public:
 
   const plugin &getPlugin() const;
 
-  size_t getSize() const override { return MSizeInBytes; }
-  size_t get_count() const {
+  DLL_LOCAL size_t getSize() const override { return MSizeInBytes; }
+  DLL_LOCAL size_t get_count() const {
     size_t AllocatorValueSize = MAllocator->getValueSize();
     return (getSize() + AllocatorValueSize - 1) / AllocatorValueSize;
   }
 
-  template <typename propertyT> bool has_property() const {
+  template <typename propertyT> DLL_LOCAL bool has_property() const {
     return MProps.has_property<propertyT>();
   }
 
-  template <typename propertyT> propertyT get_property() const {
+  template <typename propertyT> DLL_LOCAL propertyT get_property() const {
     return MProps.get_property<propertyT>();
   }
 
-  template <typename AllocatorT> AllocatorT get_allocator() const {
+  template <typename AllocatorT> DLL_LOCAL AllocatorT get_allocator() const {
     return MAllocator->getAllocator<AllocatorT>();
   }
 
-  void *allocateHostMem() override { return MAllocator->allocate(get_count()); }
+  DLL_LOCAL void *allocateHostMem() override {
+    return MAllocator->allocate(get_count());
+  }
 
-  void releaseHostMem(void *Ptr) override {
+  DLL_LOCAL void releaseHostMem(void *Ptr) override {
     if (Ptr)
       MAllocator->deallocate(Ptr, get_count());
   }
 
   void releaseMem(ContextImplPtr Context, void *MemAllocation) override;
 
-  void *getUserPtr() const {
+  DLL_LOCAL void *getUserPtr() const {
     return MOpenCLInterop ? static_cast<void *>(MInteropMemObject) : MUserPtr;
   }
 
-  void set_write_back(bool NeedWriteBack) { MNeedWriteBack = NeedWriteBack; }
+  DLL_LOCAL void set_write_back(bool NeedWriteBack) {
+    MNeedWriteBack = NeedWriteBack;
+  }
 
-  void set_final_data(std::nullptr_t) { MUploadDataFunctor = nullptr; }
+  DLL_LOCAL void set_final_data(std::nullptr_t) {
+    MUploadDataFunctor = nullptr;
+  }
 
   template <template <typename T> class PtrT, typename T>
-  enable_if_t<std::is_convertible<PtrT<T>, weak_ptr_class<T>>::value>
+  DLL_LOCAL enable_if_t<std::is_convertible<PtrT<T>, weak_ptr_class<T>>::value>
   set_final_data(PtrT<T> FinalData) {
     weak_ptr_class<T> TempFinalData(FinalData);
     set_final_data(TempFinalData);
   }
 
-  template <typename T> void set_final_data(weak_ptr_class<T> FinalData) {
+  template <typename T>
+  DLL_LOCAL void set_final_data(weak_ptr_class<T> FinalData) {
     MUploadDataFunctor = [this, FinalData]() {
       if (shared_ptr_class<T> LockedFinalData = FinalData.lock()) {
         updateHostMemory(LockedFinalData.get());
@@ -136,7 +143,7 @@ public:
     };
   }
 
-  void set_final_data_from_storage() {
+  DLL_LOCAL void set_final_data_from_storage() {
     MUploadDataFunctor = [this]() {
       if (!MSharedPtrStorage.unique()) {
         void *FinalData = const_cast<void *>(MSharedPtrStorage.get());
@@ -146,7 +153,8 @@ public:
   }
 
   template <typename Destination>
-  EnableIfOutputPointerT<Destination> set_final_data(Destination FinalData) {
+  DLL_LOCAL EnableIfOutputPointerT<Destination>
+  set_final_data(Destination FinalData) {
     if (!FinalData)
       MUploadDataFunctor = nullptr;
     else
@@ -156,7 +164,8 @@ public:
   }
 
   template <typename Destination>
-  EnableIfOutputIteratorT<Destination> set_final_data(Destination FinalData) {
+  DLL_LOCAL EnableIfOutputIteratorT<Destination>
+  set_final_data(Destination FinalData) {
     MUploadDataFunctor = [this, FinalData]() {
       using DestinationValueT = iterator_value_type_t<Destination>;
       // TODO if Destination is ContiguousIterator then don't create
@@ -179,18 +188,18 @@ public:
   // members must be alive.
   void updateHostMemory();
 
-  bool useHostPtr() {
+  DLL_LOCAL bool useHostPtr() {
     return has_property<property::buffer::use_host_ptr>() ||
            has_property<property::image::use_host_ptr>();
   }
 
-  bool canReuseHostPtr(void *HostPtr, const size_t RequiredAlign) {
+  DLL_LOCAL bool canReuseHostPtr(void *HostPtr, const size_t RequiredAlign) {
     bool Aligned =
         (reinterpret_cast<std::uintptr_t>(HostPtr) % RequiredAlign) == 0;
     return Aligned || useHostPtr();
   }
 
-  void handleHostData(void *HostPtr, const size_t RequiredAlign) {
+  DLL_LOCAL void handleHostData(void *HostPtr, const size_t RequiredAlign) {
     if (!MHostPtrReadOnly)
       set_final_data(reinterpret_cast<char *>(HostPtr));
 
@@ -204,14 +213,15 @@ public:
     }
   }
 
-  void handleHostData(const void *HostPtr, const size_t RequiredAlign) {
+  DLL_LOCAL void handleHostData(const void *HostPtr,
+                                const size_t RequiredAlign) {
     MHostPtrReadOnly = true;
     handleHostData(const_cast<void *>(HostPtr), RequiredAlign);
   }
 
   template <typename T>
-  void handleHostData(const shared_ptr_class<T> &HostPtr,
-                      const size_t RequiredAlign) {
+  DLL_LOCAL void handleHostData(const shared_ptr_class<T> &HostPtr,
+                                const size_t RequiredAlign) {
     MSharedPtrStorage = HostPtr;
     MHostPtrReadOnly = std::is_const<T>::value;
     if (HostPtr) {
@@ -230,8 +240,8 @@ public:
   }
 
   template <class InputIterator>
-  void handleHostData(InputIterator First, InputIterator Last,
-                      const size_t RequiredAlign) {
+  DLL_LOCAL void handleHostData(InputIterator First, InputIterator Last,
+                                const size_t RequiredAlign) {
     MHostPtrReadOnly = iterator_to_const_type_t<InputIterator>::value;
     setAlign(RequiredAlign);
     if (useHostPtr())
@@ -254,12 +264,24 @@ public:
               static_cast<IteratorPointerToNonConstValueType>(MUserPtr));
   }
 
-  void setAlign(size_t RequiredAlign) {
+  DLL_LOCAL void setAlign(size_t RequiredAlign) {
     MAllocator->setAlignment(RequiredAlign);
   }
 
   static size_t getBufSizeForContext(const ContextImplPtr &Context,
                                      cl_mem MemObject);
+
+  DLL_LOCAL void *allocateMem(ContextImplPtr Context, bool InitFromUserData,
+                              void *HostPtr,
+                              RT::PiEvent &InteropEvent) override {
+    (void)Context;
+    (void)InitFromUserData;
+    (void)HostPtr;
+    (void)InteropEvent;
+    throw runtime_error("Not implemented", PI_INVALID_OPERATION);
+  }
+
+  DLL_LOCAL MemObjType getType() const override { return UNDEFINED; }
 
 protected:
   // Allocator used for allocation memory on host.

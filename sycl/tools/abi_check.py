@@ -21,7 +21,7 @@ def match_symbol(sym_binding, sym_type, sym_section):
     return False
   if not sym_type.group() == "Function":
     return False
-  if not sym_binding.group() == "Global":
+  if not (sym_binding.group() == "Global" or sym_binding.group() == "Weak"):
     return False
   if not sym_section.group() == ".text":
     return False

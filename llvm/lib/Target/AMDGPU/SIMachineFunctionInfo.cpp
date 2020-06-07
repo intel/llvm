@@ -55,11 +55,10 @@ SIMachineFunctionInfo::SIMachineFunctionInfo(const MachineFunction &MF)
 
   Occupancy = ST.computeOccupancy(MF, getLDSSize());
   CallingConv::ID CC = F.getCallingConv();
-  const MachineFrameInfo &FrameInfo = MF.getFrameInfo();
 
   // FIXME: Should have analysis or something rather than attribute to detect
   // calls.
-  const bool HasCalls = FrameInfo.hasCalls() || F.hasFnAttribute("amdgpu-calls");
+  const bool HasCalls = F.hasFnAttribute("amdgpu-calls");
 
   // Enable all kernel inputs if we have the fixed ABI. Don't bother if we don't
   // have any calls.
@@ -125,8 +124,7 @@ SIMachineFunctionInfo::SIMachineFunctionInfo(const MachineFunction &MF)
       WorkItemIDZ = true;
   }
 
-  bool HasStackObjects = FrameInfo.hasStackObjects();
-
+  bool HasStackObjects = F.hasFnAttribute("amdgpu-stack-objects");
   if (isEntryFunction()) {
     // X, XY, and XYZ are the only supported combinations, so make sure Y is
     // enabled if Z is.
@@ -170,20 +168,10 @@ SIMachineFunctionInfo::SIMachineFunctionInfo(const MachineFunction &MF)
     KernargSegmentPtr = true;
 
   if (ST.hasFlatAddressSpace() && isEntryFunction() && isAmdHsaOrMesa) {
-    auto hasNonSpillStackObjects = [&]() {
-      // Avoid expensive checking if there's no stack objects.
-      if (!HasStackObjects)
-        return false;
-      for (auto OI = FrameInfo.getObjectIndexBegin(),
-                OE = FrameInfo.getObjectIndexEnd(); OI != OE; ++OI)
-        if (!FrameInfo.isSpillSlotObjectIndex(OI))
-          return true;
-      // All stack objects are spill slots.
-      return false;
-    };
     // TODO: This could be refined a lot. The attribute is a poor way of
-    // detecting calls that may require it before argument lowering.
-    if (HasCalls || hasNonSpillStackObjects())
+    // detecting calls or stack objects that may require it before argument
+    // lowering.
+    if (HasCalls || HasStackObjects)
       FlatScratchInit = true;
   }
 
@@ -261,7 +249,8 @@ Register SIMachineFunctionInfo::addImplicitBufferPtr(const SIRegisterInfo &TRI) 
   return ArgInfo.ImplicitBufferPtr.getRegister();
 }
 
-static bool isCalleeSavedReg(const MCPhysReg *CSRegs, MCPhysReg Reg) {
+bool SIMachineFunctionInfo::isCalleeSavedReg(const MCPhysReg *CSRegs,
+                                             MCPhysReg Reg) {
   for (unsigned I = 0; CSRegs[I]; ++I) {
     if (CSRegs[I] == Reg)
       return true;
@@ -295,22 +284,26 @@ bool SIMachineFunctionInfo::allocateSGPRSpillToVGPR(MachineFunction &MF,
   MachineFrameInfo &FrameInfo = MF.getFrameInfo();
   MachineRegisterInfo &MRI = MF.getRegInfo();
   unsigned WaveSize = ST.getWavefrontSize();
+  SIMachineFunctionInfo *FuncInfo = MF.getInfo<SIMachineFunctionInfo>();
 
   unsigned Size = FrameInfo.getObjectSize(FI);
-  assert(Size >= 4 && Size <= 64 && "invalid sgpr spill size");
-  assert(TRI->spillSGPRToVGPR() && "not spilling SGPRs to VGPRs");
+  unsigned NumLanes = Size / 4;
 
-  int NumLanes = Size / 4;
+  if (NumLanes > WaveSize)
+    return false;
+
+  assert(Size >= 4 && "invalid sgpr spill size");
+  assert(TRI->spillSGPRToVGPR() && "not spilling SGPRs to VGPRs");
 
   const MCPhysReg *CSRegs = MRI.getCalleeSavedRegs();
 
   // Make sure to handle the case where a wide SGPR spill may span between two
   // VGPRs.
-  for (int I = 0; I < NumLanes; ++I, ++NumVGPRSpillLanes) {
+  for (unsigned I = 0; I < NumLanes; ++I, ++NumVGPRSpillLanes) {
     Register LaneVGPR;
     unsigned VGPRIndex = (NumVGPRSpillLanes % WaveSize);
 
-    if (VGPRIndex == 0) {
+    if (VGPRIndex == 0 && !FuncInfo->VGPRReservedForSGPRSpill) {
       LaneVGPR = TRI->findUnusedRegister(MRI, &AMDGPU::VGPR_32RegClass, MF);
       if (LaneVGPR == AMDGPU::NoRegister) {
         // We have no VGPRs left for spilling SGPRs. Reset because we will not
@@ -339,6 +332,19 @@ bool SIMachineFunctionInfo::allocateSGPRSpillToVGPR(MachineFunction &MF,
     SpillLanes.push_back(SpilledReg(LaneVGPR, VGPRIndex));
   }
 
+  return true;
+}
+
+/// Reserve a VGPR for spilling of SGPRs
+bool SIMachineFunctionInfo::reserveVGPRforSGPRSpills(MachineFunction &MF) {
+  const GCNSubtarget &ST = MF.getSubtarget<GCNSubtarget>();
+  const SIRegisterInfo *TRI = ST.getRegisterInfo();
+  SIMachineFunctionInfo *FuncInfo = MF.getInfo<SIMachineFunctionInfo>();
+
+  Register LaneVGPR = TRI->findUnusedRegister(
+      MF.getRegInfo(), &AMDGPU::VGPR_32RegClass, MF, true);
+  SpillVGPRs.push_back(SGPRSpillVGPRCSR(LaneVGPR, None));
+  FuncInfo->VGPRReservedForSGPRSpill = LaneVGPR;
   return true;
 }
 
@@ -411,9 +417,9 @@ bool SIMachineFunctionInfo::allocateVGPRSpillToAGPR(MachineFunction &MF,
 }
 
 void SIMachineFunctionInfo::removeDeadFrameIndices(MachineFrameInfo &MFI) {
-  // The FP spill hasn't been inserted yet, so keep it around.
+  // The FP & BP spills haven't been inserted yet, so keep them around.
   for (auto &R : SGPRToVGPRSpills) {
-    if (R.first != FramePointerSaveIndex)
+    if (R.first != FramePointerSaveIndex && R.first != BasePointerSaveIndex)
       MFI.RemoveStackObject(R.first);
   }
 
@@ -421,7 +427,7 @@ void SIMachineFunctionInfo::removeDeadFrameIndices(MachineFrameInfo &MFI) {
   // ID.
   for (int i = MFI.getObjectIndexBegin(), e = MFI.getObjectIndexEnd(); i != e;
        ++i)
-    if (i != FramePointerSaveIndex)
+    if (i != FramePointerSaveIndex && i != BasePointerSaveIndex)
       MFI.setStackID(i, TargetStackID::Default);
 
   for (auto &R : VGPRToAGPRSpills) {
@@ -437,6 +443,27 @@ MCPhysReg SIMachineFunctionInfo::getNextUserSGPR() const {
 
 MCPhysReg SIMachineFunctionInfo::getNextSystemSGPR() const {
   return AMDGPU::SGPR0 + NumUserSGPRs + NumSystemSGPRs;
+}
+
+Register
+SIMachineFunctionInfo::getGITPtrLoReg(const MachineFunction &MF) const {
+  const GCNSubtarget &ST = MF.getSubtarget<GCNSubtarget>();
+  if (!ST.isAmdPalOS())
+    return Register();
+  Register GitPtrLo = AMDGPU::SGPR0; // Low GIT address passed in
+  if (ST.hasMergedShaders()) {
+    switch (MF.getFunction().getCallingConv()) {
+    case CallingConv::AMDGPU_HS:
+    case CallingConv::AMDGPU_GS:
+      // Low GIT address is passed in s8 rather than s0 for an LS+HS or
+      // ES+GS merged shader on gfx9+.
+      GitPtrLo = AMDGPU::SGPR8;
+      return GitPtrLo;
+    default:
+      return GitPtrLo;
+    }
+  }
+  return GitPtrLo;
 }
 
 static yaml::StringValue regToString(Register Reg,
@@ -531,5 +558,23 @@ bool SIMachineFunctionInfo::initializeBaseYamlFields(
   NoSignedZerosFPMath = YamlMFI.NoSignedZerosFPMath;
   MemoryBound = YamlMFI.MemoryBound;
   WaveLimiter = YamlMFI.WaveLimiter;
+  return false;
+}
+
+// Remove VGPR which was reserved for SGPR spills if there are no spilled SGPRs
+bool SIMachineFunctionInfo::removeVGPRForSGPRSpill(Register ReservedVGPR,
+                                                   MachineFunction &MF) {
+  for (auto *i = SpillVGPRs.begin(); i < SpillVGPRs.end(); i++) {
+    if (i->VGPR == ReservedVGPR) {
+      SpillVGPRs.erase(i);
+
+      for (MachineBasicBlock &MBB : MF) {
+        MBB.removeLiveIn(ReservedVGPR);
+        MBB.sortUniqueLiveIns();
+      }
+      this->VGPRReservedForSGPRSpill = AMDGPU::NoRegister;
+      return true;
+    }
+  }
   return false;
 }

@@ -12,6 +12,7 @@
 #include "mlir/Dialect/Linalg/IR/LinalgTypes.h"
 #include "mlir/Dialect/Utils/StructuredOpsUtils.h"
 #include "mlir/IR/AffineMap.h"
+#include "mlir/IR/Function.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/Support/LLVM.h"
@@ -119,7 +120,8 @@ public:
       return it - getInputs().begin();
     return llvm::None;
   }
-  /// Return the `i`-th input buffer type.
+  /// Return the `i`-th input shaped type, irrespective of buffer or tensor
+  /// type.
   ShapedType getInputShapedType(unsigned i) {
     return getInput(i).getType().template cast<ShapedType>();
   }
@@ -215,6 +217,18 @@ public:
     return getOutputTensorTypes()[i - getNumInputsAndOutputBuffers()]
         .template cast<ShapedType>();
   }
+  /// Return the shaped types for all the inputs and outputs
+  SmallVector<ShapedType, 4> getInputOutputShapedTypes() {
+    SmallVector<Type, 4> inputOutputTypes(
+        this->getOperation()->operand_type_begin(),
+        this->getOperation()->operand_type_end());
+    inputOutputTypes.append(this->getOperation()->result_type_begin(),
+                            this->getOperation()->result_type_end());
+    return llvm::to_vector<4>(
+        llvm::map_range(inputOutputTypes, [](Type type) -> ShapedType {
+          return type.cast<ShapedType>();
+        }));
+  }
 
   //==========================================================================//
   // Other interface methods.
@@ -293,6 +307,13 @@ public:
     return attr;
   }
 
+  SmallVector<AffineMap, 4> getIndexingMaps() {
+    return llvm::to_vector<4>(
+        llvm::map_range(indexing_maps(), [](Attribute attr) -> AffineMap {
+          return attr.cast<AffineMapAttr>().getValue();
+        }));
+  }
+
   AffineMap getIndexingMap(unsigned i) {
     assert(i < getNumInputsAndOutputs());
     return indexing_maps()
@@ -342,6 +363,18 @@ public:
       return failure();
     return success();
   }
+};
+
+/// This class provides the API for named Linalg StructuredOps.
+template <typename ConcreteType>
+class NamedStructuredOpTraits
+    : public OpTrait::TraitBase<ConcreteType, NamedStructuredOpTraits> {
+public:
+  static SmallVector<StringRef, 8> referenceIterators(TypeRange inputTypes,
+                                                      TypeRange outputTypes);
+
+  static SmallVector<AffineMap, 8> referenceIndexingMaps(TypeRange inputTypes,
+                                                         TypeRange outputTypes);
 };
 
 } // namespace linalg

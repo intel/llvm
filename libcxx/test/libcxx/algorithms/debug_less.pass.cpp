@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: libcpp-no-exceptions
+// UNSUPPORTED: no-exceptions
 
 // <algorithm>
 
@@ -14,8 +14,13 @@
 
 // __debug_less checks that a comparator actually provides a strict-weak ordering.
 
+#include <chrono> // Include before defining _LIBCPP_ASSERT: cannot throw in a function marked noexcept.
+
 struct DebugException {};
 
+#ifdef _LIBCPP_ASSERT
+#undef _LIBCPP_ASSERT
+#endif
 #define _LIBCPP_DEBUG 0
 #define _LIBCPP_ASSERT(x, m) ((x) ? (void)0 : throw ::DebugException())
 
@@ -183,6 +188,7 @@ inline bool operator<(FooImp<T> const& x, Tag<0> y) {
 template <class T>
 inline bool operator<(Tag<0>, FooImp<T> const&) {
     static_assert(sizeof(FooImp<T>) != sizeof(FooImp<T>), "should not be instantiated");
+    return false;
 }
 
 template <class T>
@@ -193,6 +199,7 @@ inline bool operator<(Tag<1> x, FooImp<T> const& y) {
 template <class T>
 inline bool operator<(FooImp<T> const&, Tag<1>) {
     static_assert(sizeof(FooImp<T>) != sizeof(FooImp<T>), "should not be instantiated");
+    return false;
 }
 
 typedef FooImp<> Foo;

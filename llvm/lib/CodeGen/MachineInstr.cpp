@@ -1220,6 +1220,10 @@ bool MachineInstr::mayAlias(AAResults *AA, const MachineInstr &Other,
   if (!mayStore() && !Other.mayStore())
     return false;
 
+  // Both instructions must be memory operations to be able to alias.
+  if (!mayLoadOrStore() || !Other.mayLoadOrStore())
+    return false;
+
   // Let the target decide if memory accesses cannot possibly overlap.
   if (TII->areMemAccessesTriviallyDisjoint(*this, Other))
     return false;
@@ -1591,6 +1595,8 @@ void MachineInstr::print(raw_ostream &OS, ModuleSlotTracker &MST,
     OS << "exact ";
   if (getFlag(MachineInstr::NoFPExcept))
     OS << "nofpexcept ";
+  if (getFlag(MachineInstr::NoMerge))
+    OS << "nomerge ";
 
   // Print the opcode name.
   if (TII)

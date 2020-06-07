@@ -37,17 +37,23 @@ template <typename T, int N> void check(queue &Queue) {
     Queue.submit([&](handler &cgh) {
       auto acc = syclbuf.template get_access<access::mode::read_write>(cgh);
       auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>(cgh);
+      accessor<T, 1, access::mode::read_write, access::target::local> LocalMem(
+          {L}, cgh);
       cgh.parallel_for<sycl_subgr<T, N>>(NdRange, [=](nd_item<1> NdItem) {
         intel::sub_group SG = NdItem.get_sub_group();
         if (SG.get_group_id().get(0) % N == 0) {
-          size_t WGSGoffset =
-              NdItem.get_group(0) * L +
+          size_t SGOffset =
               SG.get_group_id().get(0) * SG.get_max_local_range().get(0);
+          size_t WGSGoffset = NdItem.get_group(0) * L + SGOffset;
           multi_ptr<T, access::address_space::global_space> mp(
               &acc[WGSGoffset]);
+          multi_ptr<T, access::address_space::local_space> MPL(
+              &LocalMem[SGOffset]);
           // Add all values in read block
           vec<T, N> v(utils<T, N>::add_vec(SG.load<N, T>(mp)));
-          SG.store<N, T>(mp, v);
+          SG.store<N, T>(MPL, v);
+          vec<T, N> t(utils<T, N>::add_vec(SG.load<N, T>(MPL)));
+          SG.store<N, T>(mp, t);
         }
         if (NdItem.get_global_id(0) == 0)
           sgsizeacc[0] = SG.get_max_local_range()[0];
@@ -72,6 +78,7 @@ template <typename T, int N> void check(queue &Queue) {
         for (int i = 0; i < N; i++) {
           ref += (T)(j + i * sg_size) + 0.1;
         }
+        ref *= N;
       }
       /* There is no defined out-of-range behavior for these functions. */
       if ((SGid + N) * sg_size < L) {
@@ -104,16 +111,22 @@ template <typename T> void check(queue &Queue) {
     Queue.submit([&](handler &cgh) {
       auto acc = syclbuf.template get_access<access::mode::read_write>(cgh);
       auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>(cgh);
+      accessor<T, 1, access::mode::read_write, access::target::local> LocalMem(
+          {L}, cgh);
       cgh.parallel_for<sycl_subgr<T, 0>>(NdRange, [=](nd_item<1> NdItem) {
         intel::sub_group SG = NdItem.get_sub_group();
         if (NdItem.get_global_id(0) == 0)
           sgsizeacc[0] = SG.get_max_local_range()[0];
-        size_t WGSGoffset =
-            NdItem.get_group(0) * L +
+        size_t SGOffset =
             SG.get_group_id().get(0) * SG.get_max_local_range().get(0);
+        size_t WGSGoffset = NdItem.get_group(0) * L + SGOffset;
         multi_ptr<T, access::address_space::global_space> mp(&acc[WGSGoffset]);
+        multi_ptr<T, access::address_space::local_space> MPL(
+            &LocalMem[SGOffset]);
         T s = SG.load<T>(mp) + (T)SG.get_local_id().get(0);
-        SG.store<T>(mp, s);
+        SG.store<T>(MPL, s);
+        T t = SG.load<T>(MPL) + (T)SG.get_local_id().get(0);
+        SG.store<T>(mp, t);
       });
     });
     auto acc = syclbuf.template get_access<access::mode::read_write>();
@@ -132,7 +145,8 @@ template <typename T> void check(queue &Queue) {
       s += std::string(typeid(acc[j]).name()) + std::string(">[") +
            std::to_string(j) + std::string("]");
 
-      exit_if_not_equal<T>(acc[j], (T)(j + j % L % sg_size) + 0.1, s.c_str());
+      exit_if_not_equal<T>(acc[j], (T)(j + 2 * (j % L % sg_size)) + 0.1,
+                           s.c_str());
     }
 
   } catch (exception e) {

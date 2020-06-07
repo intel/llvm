@@ -485,23 +485,16 @@ foreach name = ["half_cos",
                 "half_exp", "half_exp2", "half_exp10",
                 "half_log", "half_log2", "half_log10",
                 "half_recip", "half_rsqrt",
-                "half_sin", "half_sqrt", "half_tan"] in {
-  def : ConstOCLSPVBuiltin<name, [GenTypeFloatVecAndScalar, GenTypeFloatVecAndScalar]>;
-}
-
-foreach name = ["half_divide", "half_powr"] in {
-  def : ConstOCLSPVBuiltin<name, [GenTypeFloatVecAndScalar, GenTypeFloatVecAndScalar, GenTypeFloatVecAndScalar]>;
-}
-
-foreach name = ["native_cos", "native_exp", "native_exp2", "native_exp10",
+                "half_sin", "half_sqrt", "half_tan",
+                "native_cos", "native_exp", "native_exp2", "native_exp10",
                 "native_log", "native_log2", "native_log10",
                 "native_recip", "native_rsqrt",
                 "native_sin", "native_sqrt", "native_tan"] in {
-  def : ConstOCLSPVBuiltin<name, [FGenTypeN, FGenTypeN]>;
+  def : ConstOCLSPVBuiltin<name, [GenTypeFloatVecAndScalar, GenTypeFloatVecAndScalar]>;
 }
 
-foreach name = ["native_divide", "native_powr"] in {
-  def : ConstOCLSPVBuiltin<name, [FGenTypeN, FGenTypeN, FGenTypeN]>;
+foreach name = ["half_divide", "half_powr", "native_divide", "native_powr"] in {
+  def : ConstOCLSPVBuiltin<name, [GenTypeFloatVecAndScalar, GenTypeFloatVecAndScalar, GenTypeFloatVecAndScalar]>;
 }
 
 // 2.2. Integer instructions
@@ -635,20 +628,22 @@ foreach VSize = [2, 3, 4, 8, 16] in {
       }
     }
     foreach name = ["vloada_halfn", "vload_halfn"] in {
-      def : OCLSPVBuiltin<name, [VectorType<Float, VSize>, Size, PointerType<ConstType<Half>, AS>]>;
+      def : OCLSPVBuiltin<name # "_Rfloat" # VSize, [VectorType<Float, VSize>, Size, PointerType<ConstType<Half>, AS>]>;
     }
   }
   foreach AS = [GlobalAS, LocalAS, PrivateAS, GenericAS, DefaultAS] in {
     foreach Ty = TLAll.List in {
       foreach name = ["vstoren"] in {
-        def : OCLSPVBuiltin<name, [Void, VectorType<Ty, VSize>, Size, PointerType<ConstType<Ty>, AS>]>;
+        def : OCLSPVBuiltin<name, [Void, VectorType<Ty, VSize>, Size, PointerType<Ty, AS>]>;
       }
     }
-    foreach rnd = ["", "_rte", "_rtz", "_rtp", "_rtn"] in {
-      foreach name = ["vstore_halfn" # rnd, "vstorea_halfn" # rnd] in {
-        def : OCLSPVBuiltin<name, [Void, VectorType<Float, VSize>, Size, PointerType<Half, AS>]>;
-        def : OCLSPVBuiltin<name, [Void, VectorType<Double, VSize>, Size, PointerType<Half, AS>]>;
-      }
+    foreach name = ["vstore_halfn", "vstorea_halfn"] in {
+      def : OCLSPVBuiltin<name, [Void, VectorType<Float, VSize>, Size, PointerType<Half, AS>]>;
+      def : OCLSPVBuiltin<name, [Void, VectorType<Double, VSize>, Size, PointerType<Half, AS>]>;
+    }
+    foreach name = ["vstore_halfn_r", "vstorea_halfn_r"] in {
+      def : OCLSPVBuiltin<name, [Void, VectorType<Float, VSize>, Size, PointerType<Half, AS>, UInt]>;
+      def : OCLSPVBuiltin<name, [Void, VectorType<Double, VSize>, Size, PointerType<Half, AS>, UInt]>;
     }
   }
 }
@@ -660,11 +655,13 @@ foreach AS = [GlobalAS, LocalAS, PrivateAS, ConstantAS, GenericAS, DefaultAS] in
 }
 
 foreach AS = [GlobalAS, LocalAS, PrivateAS, GenericAS, DefaultAS] in {
-  foreach rnd = ["", "_rte", "_rtz", "_rtp", "_rtn"] in {
-    foreach name = ["vstore_half" # rnd] in {
-      def : OCLSPVBuiltin<name, [Void, Float, Size, PointerType<Half, AS>]>;
-      def : OCLSPVBuiltin<name, [Void, Double, Size, PointerType<Half, AS>]>;
-    }
+  foreach name = ["vstore_half"] in {
+    def : OCLSPVBuiltin<name, [Void, Float, Size, PointerType<Half, AS>]>;
+    def : OCLSPVBuiltin<name, [Void, Double, Size, PointerType<Half, AS>]>;
+  }
+  foreach name = ["vstore_half_r"] in {
+    def : OCLSPVBuiltin<name, [Void, Float, Size, PointerType<Half, AS>, UInt]>;
+    def : OCLSPVBuiltin<name, [Void, Double, Size, PointerType<Half, AS>, UInt]>;
   }
 }
 
@@ -710,72 +707,79 @@ foreach name = ["GenericPtrMemSemantics"] in {
 }
 
 // 3.32.11. Conversion Instructions
-
-foreach IType = [UChar, UShort, UInt, ULong] in {
-  foreach FType = [Float, Double, Half] in {
-    def : SPVBuiltin<"ConvertUToF_R" # FType.Name, [FType, IType], Attr.Const>;
-    foreach rnd = ["", "_rte", "_rtz", "_rtp", "_rtn"] in {
-      def : SPVBuiltin<"ConvertFToU_R" # IType.Name # rnd, [IType, FType], Attr.Const>;
-    }
-    foreach v = [2, 3, 4, 8, 16] in {
-      def : SPVBuiltin<"ConvertFToU_R" # IType.Name # v,
-                       [VectorType<IType, v>, VectorType<FType, v>],
-                       Attr.Const>;
-      def : SPVBuiltin<"ConvertUToF_R" # FType.Name # v,
-                       [VectorType<FType, v>, VectorType<IType, v>],
-                       Attr.Const>;
-    }
-  }
-}
-
-foreach IType = [Char, Short, Int, Long] in {
-  foreach FType = [Float, Double, Half] in {
-    def : SPVBuiltin<"ConvertSToF_R" # FType.Name, [FType, IType], Attr.Const>;
-    foreach rnd = ["", "_rte", "_rtz", "_rtp", "_rtn"] in {
-      def : SPVBuiltin<"ConvertFToS_R" # IType.Name # rnd, [IType, FType], Attr.Const>;
-    }
-    foreach v = [2, 3, 4, 8, 16] in {
-      def : SPVBuiltin<"ConvertFToS_R" # IType.Name # v,
-                       [VectorType<IType, v>, VectorType<FType, v>],
-                       Attr.Const>;
-      def : SPVBuiltin<"ConvertSToF_R" # FType.Name # v,
-                       [VectorType<FType, v>, VectorType<IType, v>],
-                       Attr.Const>;
-    }
-  }
-}
-
-foreach InType = TLAll.List in {
-  foreach OutType = TLUnsignedInts.List in {
-    if !ne(OutType.ElementSize, InType.ElementSize) then {
-      def : SPVBuiltin<"UConvert_R" # OutType.Name, [OutType, InType], Attr.Const>;
+foreach rnd = ["", "_rte", "_rtn", "_rtp", "_rtz"] in {
+  foreach IType = TLUnsignedInts.List in {
+    foreach FType = TLFloat.List in {
+      foreach sat = ["", "_sat"] in {
+        def : SPVBuiltin<"ConvertFToU_R" # IType.Name # sat # rnd, [IType, FType], Attr.Const>;
+      }
+      def : SPVBuiltin<"ConvertUToF_R" # FType.Name # rnd, [FType, IType], Attr.Const>;
       foreach v = [2, 3, 4, 8, 16] in {
-        def : SPVBuiltin<"UConvert_R" # OutType.Name # v,
-                         [VectorType<OutType, v>, VectorType<InType, v>],
+        foreach sat = ["", "_sat"] in {
+          def : SPVBuiltin<"ConvertFToU_R" # IType.Name # v # sat # rnd,
+                           [VectorType<IType, v>, VectorType<FType, v>],
+                           Attr.Const>;
+        }
+        def : SPVBuiltin<"ConvertUToF_R" # FType.Name # v # rnd,
+                         [VectorType<FType, v>, VectorType<IType, v>],
                          Attr.Const>;
       }
     }
   }
-  foreach OutType = TLSignedInts.List in {
-    if !ne(OutType.ElementSize, InType.ElementSize) then {
-      def : SPVBuiltin<"SConvert_R" # OutType.Name, [OutType, InType], Attr.Const>;
+
+  foreach IType = TLSignedInts.List in {
+    foreach FType = TLFloat.List in {
+      foreach sat = ["", "_sat"] in {
+        def : SPVBuiltin<"ConvertFToS_R" # IType.Name # sat # rnd, [IType, FType], Attr.Const>;
+      }
+      def : SPVBuiltin<"ConvertSToF_R" # FType.Name # rnd, [FType, IType], Attr.Const>;
       foreach v = [2, 3, 4, 8, 16] in {
-        def : SPVBuiltin<"SConvert_R" # OutType.Name # v,
-                         [VectorType<OutType, v>, VectorType<InType, v>],
+        foreach sat = ["", "_sat"] in {
+          def : SPVBuiltin<"ConvertFToS_R" # IType.Name # v # sat # rnd,
+                           [VectorType<IType, v>, VectorType<FType, v>],
+                           Attr.Const>;
+        }
+        def : SPVBuiltin<"ConvertSToF_R" # FType.Name # v # rnd,
+                         [VectorType<FType, v>, VectorType<IType, v>],
                          Attr.Const>;
+      }
+    }
+  }
+
+  foreach InType = TLFloat.List in {
+    foreach OutType = TLFloat.List in {
+      if !ne(OutType.ElementSize, InType.ElementSize) then {
+        def : SPVBuiltin<"FConvert_R" # OutType.Name # rnd, [OutType, InType], Attr.Const>;
+        foreach v = [2, 3, 4, 8, 16] in {
+          def : SPVBuiltin<"FConvert_R" # OutType.Name # v # rnd,
+                           [VectorType<OutType, v>, VectorType<InType, v>],
+                           Attr.Const>;
+        }
       }
     }
   }
 }
 
-foreach InType = TLFloat.List in {
-  foreach OutType = TLFloat.List in {
-    if !ne(OutType.ElementSize, InType.ElementSize) then {
-      def : SPVBuiltin<"FConvert_R" # OutType.Name, [OutType, InType], Attr.Const>;
-      foreach v = [2, 3, 4, 8, 16] in {
-        def : SPVBuiltin<"FConvert_R" # OutType.Name # v,
-                         [VectorType<OutType, v>, VectorType<InType, v>],
-                         Attr.Const>;
+foreach sat = ["", "_sat"] in {
+  foreach InType = TLAllInts.List in {
+    foreach OutType = TLUnsignedInts.List in {
+      if !ne(OutType.ElementSize, InType.ElementSize) then {
+        def : SPVBuiltin<"UConvert_R" # OutType.Name # sat, [OutType, InType], Attr.Const>;
+        foreach v = [2, 3, 4, 8, 16] in {
+          def : SPVBuiltin<"UConvert_R" # OutType.Name # v # sat,
+                           [VectorType<OutType, v>, VectorType<InType, v>],
+                           Attr.Const>;
+        }
+      }
+    }
+    foreach OutType = TLSignedInts.List in {
+      if !ne(OutType.ElementSize, InType.ElementSize) then {
+        def : SPVBuiltin<"SConvert_R" # OutType.Name # sat, [OutType, InType], Attr.Const>;
+        foreach v = [2, 3, 4, 8, 16] in {
+          def : SPVBuiltin<"SConvert_R" # OutType.Name # v # sat,
+                           [VectorType<OutType, v>, VectorType<InType, v>],
+                           Attr.Const>;
+        }
       }
     }
   }
@@ -809,7 +813,7 @@ foreach AS = [GlobalAS, LocalAS, PrivateAS] in {
 
 foreach Type = TLFloat.List in {
   foreach v = [2, 3, 4, 8, 16] in {
-    def : SPVBuiltin<"VectorTimesScalar", [VectorType<Type, v>, VectorType<Type, v>, Type]>;
+    def : SPVBuiltin<"VectorTimesScalar", [VectorType<Type, v>, VectorType<Type, v>, Type], Attr.Const>;
   }
 }
 
@@ -820,7 +824,6 @@ foreach name = ["Dot"] in {
 }
 
 foreach name = ["Any", "All"] in {
-  def : SPVBuiltin<name, [Bool, Bool], Attr.Const>;
   def : SPVBuiltin<name, [Bool, GenTypeSCharVecNoScalar], Attr.Const>;
 }
 

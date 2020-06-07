@@ -39,7 +39,7 @@ protected:
     // physical cores, which is currently only supported/tested for
     // x86_64 Linux and Darwin.
     return (Host.isOSWindows() && llvm_is_multithreaded()) ||
-           (Host.getArch() == Triple::x86_64 &&
+           (Host.isX86() &&
             (Host.isOSDarwin() || Host.getOS() == Triple::Linux));
   }
 
@@ -100,6 +100,10 @@ TEST(getLinuxHostCPUName, AArch64) {
   EXPECT_EQ(sys::detail::getHostCPUNameForARM("CPU implementer : 0x41\n"
                                               "CPU part        : 0xd03"),
             "cortex-a53");
+
+  EXPECT_EQ(sys::detail::getHostCPUNameForARM("CPU implementer : 0x41\n"
+                                              "CPU part        : 0xd0c"),
+            "neoverse-n1");
   // Verify that both CPU implementer and CPU part are checked:
   EXPECT_EQ(sys::detail::getHostCPUNameForARM("CPU implementer : 0x40\n"
                                               "CPU part        : 0xd03"),
@@ -262,6 +266,21 @@ CPU part        : 0x001
 )";
 
   EXPECT_EQ(sys::detail::getHostCPUNameForARM(A64FXProcCpuInfo), "a64fx");
+
+  // Verify Nvidia Carmel.
+  const std::string CarmelProcCpuInfo = R"(
+processor       : 0
+model name      : ARMv8 Processor rev 0 (v8l)
+BogoMIPS        : 62.50
+Features        : fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm dcpop
+CPU implementer : 0x4e
+CPU architecture: 8
+CPU variant     : 0x0
+CPU part        : 0x004
+CPU revision    : 0
+)";
+
+  EXPECT_EQ(sys::detail::getHostCPUNameForARM(CarmelProcCpuInfo), "carmel");
 }
 
 #if defined(__APPLE__) || defined(_AIX)

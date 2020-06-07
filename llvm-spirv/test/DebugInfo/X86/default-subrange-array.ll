@@ -9,6 +9,9 @@
 ; RUN:     -o - < %s | llvm-dwarfdump -v - --debug-info \
 ; RUN:     | FileCheck %s -check-prefixes=CHECK,DWARF5
 
+target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
+target triple = "spir64-unknown-unknown"
+
 ; Check that we can omit default array lower-bounds.
 ; DW_LANG_C_plus_plus_11 is new in DWARF v5, so if we use that with
 ; DWARF v4, we should get the DW_AT_lower_bound attribute.
@@ -28,7 +31,7 @@ source_filename = "test/DebugInfo/X86/default-subrange-array.ll"
 ; CHECK-NEXT:         DW_AT_type
 ; CHECK:            DW_TAG_subrange_type
 ; CHECK-NEXT:         DW_AT_type
-; DWARF4-NEXT:        DW_AT_lower_bound [DW_FORM_data1] (0x00)
+; DWARF4-NEXT:        DW_AT_lower_bound [DW_FORM_sdata] (0)
 ; CHECK-NEXT:         DW_AT_count [DW_FORM_data1]       (0x2a)
 ; DWARF5-NOT:         DW_AT_lower_bound
 
@@ -55,5 +58,3 @@ source_filename = "test/DebugInfo/X86/default-subrange-array.ll"
 !16 = !{!0}
 !17 = !{i32 1, !"Debug Info Version", i32 3}
 
-target triple = "spir64-unknown-unknown"
-target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"

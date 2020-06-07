@@ -13,6 +13,7 @@
 #include "flang/Common/Fortran.h"
 #include "flang/Common/enum-set.h"
 #include "flang/Common/reference.h"
+#include "llvm/ADT/DenseMapInfo.h"
 #include <array>
 #include <list>
 #include <optional>
@@ -35,6 +36,8 @@ class ProgramTree;
 
 using SymbolRef = common::Reference<const Symbol>;
 using SymbolVector = std::vector<SymbolRef>;
+using MutableSymbolRef = common::Reference<Symbol>;
+using MutableSymbolVector = std::vector<MutableSymbolRef>;
 
 // A module or submodule.
 class ModuleDetails {
@@ -145,9 +148,12 @@ public:
   AssocEntityDetails &operator=(const AssocEntityDetails &) = default;
   AssocEntityDetails &operator=(AssocEntityDetails &&) = default;
   const MaybeExpr &expr() const { return expr_; }
+  void set_rank(int rank);
+  std::optional<int> rank() const { return rank_; }
 
 private:
   MaybeExpr expr_;
+  std::optional<int> rank_;
 };
 
 // An entity known to be an object.
@@ -213,7 +219,13 @@ public:
 
   const ProcInterface &interface() const { return interface_; }
   ProcInterface &interface() { return interface_; }
-  void set_interface(const ProcInterface &interface) { interface_ = interface; }
+  void set_interface(const ProcInterface &interface) {
+    CHECK(!IsInterfaceSet());
+    interface_ = interface;
+  }
+  bool IsInterfaceSet() {
+    return interface_.symbol() != nullptr || interface_.type() != nullptr;
+  }
   inline bool HasExplicitInterface() const;
 
   // Be advised: !init().has_value() => uninitialized pointer,
@@ -299,14 +311,18 @@ private:
 
 class CommonBlockDetails {
 public:
-  const SymbolVector &objects() const { return objects_; }
-  void add_object(const Symbol &object) { objects_.emplace_back(object); }
+  MutableSymbolVector &objects() { return objects_; }
+  const MutableSymbolVector &objects() const { return objects_; }
+  void add_object(Symbol &object) { objects_.emplace_back(object); }
   MaybeExpr bindName() const { return bindName_; }
   void set_bindName(MaybeExpr &&expr) { bindName_ = std::move(expr); }
+  std::size_t alignment() const { return alignment_; }
+  void set_alignment(std::size_t alignment) { alignment_ = alignment; }
 
 private:
-  SymbolVector objects_;
+  MutableSymbolVector objects_;
   MaybeExpr bindName_;
+  std::size_t alignment_{0}; // required alignment in bytes
 };
 
 class FinalProcDetails {}; // TODO
@@ -314,8 +330,8 @@ class FinalProcDetails {}; // TODO
 class MiscDetails {
 public:
   ENUM_CLASS(Kind, None, ConstructName, ScopeName, PassName, ComplexPartRe,
-      ComplexPartIm, KindParamInquiry, LenParamInquiry, SelectTypeAssociateName,
-      TypeBoundDefinedOp);
+      ComplexPartIm, KindParamInquiry, LenParamInquiry, SelectRankAssociateName,
+      SelectTypeAssociateName, TypeBoundDefinedOp);
   MiscDetails(Kind kind) : kind_{kind} {}
   Kind kind() const { return kind_; }
 
@@ -349,7 +365,6 @@ public:
       : location_{location}, symbol_{symbol} {}
   const SourceName &location() const { return location_; }
   const Symbol &symbol() const { return symbol_; }
-  const Symbol &module() const;
 
 private:
   SourceName location_;
@@ -499,6 +514,10 @@ public:
   Scope *scope() { return scope_; }
   const Scope *scope() const { return scope_; }
   void set_scope(Scope *scope) { scope_ = scope; }
+  std::size_t size() const { return size_; }
+  void set_size(std::size_t size) { size_ = size; }
+  std::size_t offset() const { return offset_; }
+  void set_offset(std::size_t offset) { offset_ = offset; }
   // Give the symbol a name with a different source location but same chars.
   void ReplaceName(const SourceName &);
 
@@ -533,52 +552,13 @@ public:
   bool CanReplaceDetails(const Details &details) const;
 
   // Follow use-associations and host-associations to get the ultimate entity.
-  Symbol &GetUltimate() {
-    return const_cast<Symbol &>(
-        const_cast<const Symbol *>(this)->GetUltimate());
-  }
-  const Symbol &GetUltimate() const {
-    if (const auto *details{detailsIf<UseDetails>()}) {
-      return details->symbol().GetUltimate();
-    } else if (const auto *details{detailsIf<HostAssocDetails>()}) {
-      return details->symbol().GetUltimate();
-    } else {
-      return *this;
-    }
-  }
+  inline Symbol &GetUltimate();
+  inline const Symbol &GetUltimate() const;
 
-  DeclTypeSpec *GetType() {
-    return const_cast<DeclTypeSpec *>(
-        const_cast<const Symbol *>(this)->GetType());
-  }
-  const DeclTypeSpec *GetType() const {
-    return std::visit(
-        common::visitors{
-            [](const EntityDetails &x) { return x.type(); },
-            [](const ObjectEntityDetails &x) { return x.type(); },
-            [](const AssocEntityDetails &x) { return x.type(); },
-            [](const SubprogramDetails &x) {
-              return x.isFunction() ? x.result().GetType() : nullptr;
-            },
-            [](const ProcEntityDetails &x) {
-              if (const Symbol * symbol{x.interface().symbol()}) {
-                return symbol->GetType();
-              } else {
-                return x.interface().type();
-              }
-            },
-            [&](const ProcBindingDetails &x) { return x.symbol().GetType(); },
-            [](const TypeParamDetails &x) { return x.type(); },
-            [](const UseDetails &x) { return x.symbol().GetType(); },
-            [](const HostAssocDetails &x) { return x.symbol().GetType(); },
-            [](const auto &) -> const DeclTypeSpec * { return nullptr; },
-        },
-        details_);
-  }
+  inline DeclTypeSpec *GetType();
+  inline const DeclTypeSpec *GetType() const;
 
   void SetType(const DeclTypeSpec &);
-
-  bool IsDummy() const;
   bool IsFuncResult() const;
   bool IsObjectArray() const;
   bool IsSubprogram() const;
@@ -627,7 +607,11 @@ public:
             [](const ObjectEntityDetails &oed) { return oed.shape().Rank(); },
             [](const AssocEntityDetails &aed) {
               if (const auto &expr{aed.expr()}) {
-                return expr->Rank();
+                if (auto assocRank{aed.rank()}) {
+                  return *assocRank;
+                } else {
+                  return expr->Rank();
+                }
               } else {
                 return 0;
               }
@@ -659,15 +643,14 @@ public:
   // for a parameterized derived type instantiation with the instance's scope.
   const DerivedTypeSpec *GetParentTypeSpec(const Scope * = nullptr) const;
 
-  // Clones the Symbol into a parameterized derived type instance.
-  Symbol &InstantiateComponent(Scope &, SemanticsContext &) const;
-
 private:
   const Scope *owner_;
   SourceName name_;
   Attrs attrs_;
   Flags flags_;
   Scope *scope_{nullptr};
+  std::size_t size_{0}; // size in bytes
+  std::size_t offset_{0}; // byte offset in scope or common block
   Details details_;
 
   Symbol() {} // only created in class Symbols
@@ -732,8 +715,76 @@ inline bool ProcEntityDetails::HasExplicitInterface() const {
   return false;
 }
 
+inline Symbol &Symbol::GetUltimate() {
+  return const_cast<Symbol &>(const_cast<const Symbol *>(this)->GetUltimate());
+}
+inline const Symbol &Symbol::GetUltimate() const {
+  if (const auto *details{detailsIf<UseDetails>()}) {
+    return details->symbol().GetUltimate();
+  } else if (const auto *details{detailsIf<HostAssocDetails>()}) {
+    return details->symbol().GetUltimate();
+  } else {
+    return *this;
+  }
+}
+
+inline DeclTypeSpec *Symbol::GetType() {
+  return const_cast<DeclTypeSpec *>(
+      const_cast<const Symbol *>(this)->GetType());
+}
+inline const DeclTypeSpec *Symbol::GetType() const {
+  return std::visit(
+      common::visitors{
+          [](const EntityDetails &x) { return x.type(); },
+          [](const ObjectEntityDetails &x) { return x.type(); },
+          [](const AssocEntityDetails &x) { return x.type(); },
+          [](const SubprogramDetails &x) {
+            return x.isFunction() ? x.result().GetType() : nullptr;
+          },
+          [](const ProcEntityDetails &x) {
+            const Symbol *symbol{x.interface().symbol()};
+            return symbol ? symbol->GetType() : x.interface().type();
+          },
+          [](const ProcBindingDetails &x) { return x.symbol().GetType(); },
+          [](const TypeParamDetails &x) { return x.type(); },
+          [](const UseDetails &x) { return x.symbol().GetType(); },
+          [](const HostAssocDetails &x) { return x.symbol().GetType(); },
+          [](const auto &) -> const DeclTypeSpec * { return nullptr; },
+      },
+      details_);
+}
+
 inline bool operator<(SymbolRef x, SymbolRef y) { return *x < *y; }
+inline bool operator<(MutableSymbolRef x, MutableSymbolRef y) {
+  return *x < *y;
+}
 using SymbolSet = std::set<SymbolRef>;
 
 } // namespace Fortran::semantics
+
+// Define required  info so that SymbolRef can be used inside llvm::DenseMap.
+namespace llvm {
+template <> struct DenseMapInfo<Fortran::semantics::SymbolRef> {
+  static inline Fortran::semantics::SymbolRef getEmptyKey() {
+    auto ptr = DenseMapInfo<const Fortran::semantics::Symbol *>::getEmptyKey();
+    return *reinterpret_cast<Fortran::semantics::SymbolRef *>(&ptr);
+  }
+
+  static inline Fortran::semantics::SymbolRef getTombstoneKey() {
+    auto ptr =
+        DenseMapInfo<const Fortran::semantics::Symbol *>::getTombstoneKey();
+    return *reinterpret_cast<Fortran::semantics::SymbolRef *>(&ptr);
+  }
+
+  static unsigned getHashValue(const Fortran::semantics::SymbolRef &sym) {
+    return DenseMapInfo<const Fortran::semantics::Symbol *>::getHashValue(
+        &sym.get());
+  }
+
+  static bool isEqual(const Fortran::semantics::SymbolRef &LHS,
+      const Fortran::semantics::SymbolRef &RHS) {
+    return LHS == RHS;
+  }
+};
+} // namespace llvm
 #endif // FORTRAN_SEMANTICS_SYMBOL_H_

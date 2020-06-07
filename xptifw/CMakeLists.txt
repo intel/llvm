@@ -24,6 +24,7 @@ include_directories(${CMAKE_SOURCE_DIR}/include ${XPTI_DIR}/include)
 add_subdirectory(src)
 add_subdirectory(unit_test)
 add_subdirectory(samples/basic_collector)
+add_subdirectory(samples/syclpi_collector)
 # The tests in basic_test are written using TBB, so these tests are enabled
 # only if TBB has been enabled.
 if (XPTI_ENABLE_TBB)

@@ -11,7 +11,6 @@
 #include "CopyConfig.h"
 #include "Object.h"
 #include "llvm-objcopy.h"
-
 #include "llvm/ADT/BitmaskEnum.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/Optional.h"
@@ -32,6 +31,7 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/ErrorOr.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Memory.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
@@ -288,7 +288,7 @@ static Error dumpSectionToFile(StringRef SecName, StringRef Filename,
                                Object &Obj) {
   for (auto &Sec : Obj.sections()) {
     if (Sec.Name == SecName) {
-      if (Sec.OriginalData.empty())
+      if (Sec.Type == SHT_NOBITS)
         return createStringError(object_error::parse_failed,
                                  "cannot dump section '%s': it has no contents",
                                  SecName.str().c_str());
@@ -418,6 +418,9 @@ static Error updateAndRemoveSymbols(const CopyConfig &Config, Object &Obj) {
       return true;
 
     if (Config.StripAll || Config.StripAllGNU)
+      return true;
+
+    if (Config.StripDebug && Sym.Type == STT_FILE)
       return true;
 
     if (Config.SymbolsToRemove.matches(Sym.Name))
@@ -601,7 +604,9 @@ static Error replaceAndRemoveSections(const CopyConfig &Config, Object &Obj) {
 // system. The only priority is that keeps/copies overrule removes.
 static Error handleArgs(const CopyConfig &Config, Object &Obj,
                         const Reader &Reader, ElfType OutputElfType) {
-
+  if (Config.StripSwiftSymbols)
+    return createStringError(llvm::errc::invalid_argument,
+                             "option not supported by llvm-objcopy for ELF");
   if (!Config.SplitDWO.empty())
     if (Error E =
             splitDWOToFile(Config, Reader, Config.SplitDWO, OutputElfType))

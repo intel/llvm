@@ -43,7 +43,6 @@
 #include "lld/Common/Memory.h"
 #include "lld/Common/Strings.h"
 #include "lld/Common/TargetOptionsCommandFlags.h"
-#include "lld/Common/Threads.h"
 #include "lld/Common/Version.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/StringExtras.h"
@@ -53,6 +52,7 @@
 #include "llvm/Support/Compression.h"
 #include "llvm/Support/GlobPattern.h"
 #include "llvm/Support/LEB128.h"
+#include "llvm/Support/Parallel.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/TarWriter.h"
 #include "llvm/Support/TargetSelect.h"
@@ -66,18 +66,17 @@ using namespace llvm::ELF;
 using namespace llvm::object;
 using namespace llvm::sys;
 using namespace llvm::support;
+using namespace lld;
+using namespace lld::elf;
 
-namespace lld {
-namespace elf {
-
-Configuration *config;
-LinkerDriver *driver;
+Configuration *elf::config;
+LinkerDriver *elf::driver;
 
 static void setConfigs(opt::InputArgList &args);
 static void readConfigs(opt::InputArgList &args);
 
-bool link(ArrayRef<const char *> args, bool canExitEarly, raw_ostream &stdoutOS,
-          raw_ostream &stderrOS) {
+bool elf::link(ArrayRef<const char *> args, bool canExitEarly,
+               raw_ostream &stdoutOS, raw_ostream &stderrOS) {
   lld::stdoutOS = &stdoutOS;
   lld::stderrOS = &stderrOS;
 
@@ -90,8 +89,10 @@ bool link(ArrayRef<const char *> args, bool canExitEarly, raw_ostream &stdoutOS,
 
   inputSections.clear();
   outputSections.clear();
+  archiveFiles.clear();
   binaryFiles.clear();
   bitcodeFiles.clear();
+  lazyObjFiles.clear();
   objectFiles.clear();
   sharedFiles.clear();
   backwardReferences.clear();
@@ -421,11 +422,11 @@ static bool isKnownZFlag(StringRef s) {
          s == "nodelete" || s == "nodlopen" || s == "noexecstack" ||
          s == "nognustack" || s == "nokeep-text-section-prefix" ||
          s == "norelro" || s == "noseparate-code" || s == "notext" ||
-         s == "now" || s == "origin" || s == "pac-plt" || s == "relro" ||
-         s == "retpolineplt" || s == "rodynamic" || s == "shstk" ||
-         s == "text" || s == "undefs" || s == "wxneeded" ||
-         s.startswith("common-page-size=") || s.startswith("max-page-size=") ||
-         s.startswith("stack-size=");
+         s == "now" || s == "origin" || s == "pac-plt" || s == "rel" ||
+         s == "rela" || s == "relro" || s == "retpolineplt" ||
+         s == "rodynamic" || s == "shstk" || s == "text" || s == "undefs" ||
+         s == "wxneeded" || s.startswith("common-page-size=") ||
+         s.startswith("max-page-size=") || s.startswith("stack-size=");
 }
 
 // Report an error for an unknown -z option.
@@ -609,9 +610,6 @@ static bool isOutputFormatBinary(opt::InputArgList &args) {
 }
 
 static DiscardPolicy getDiscard(opt::InputArgList &args) {
-  if (args.hasArg(OPT_relocatable))
-    return DiscardPolicy::None;
-
   auto *arg =
       args.getLastArg(OPT_discard_all, OPT_discard_locals, OPT_discard_none);
   if (!arg)
@@ -844,6 +842,22 @@ static std::vector<StringRef> getSymbolOrderingFile(MemoryBufferRef mb) {
   return names.takeVector();
 }
 
+static bool getIsRela(opt::InputArgList &args) {
+  // If -z rel or -z rela is specified, use the last option.
+  for (auto *arg : args.filtered_reverse(OPT_z)) {
+    StringRef s(arg->getValue());
+    if (s == "rel")
+      return false;
+    if (s == "rela")
+      return true;
+  }
+
+  // Otherwise use the psABI defined relocation entry format.
+  uint16_t m = config->emachine;
+  return m == EM_AARCH64 || m == EM_AMDGPU || m == EM_HEXAGON || m == EM_PPC ||
+         m == EM_PPC64 || m == EM_RISCV || m == EM_X86_64;
+}
+
 static void parseClangOption(StringRef opt, const Twine &msg) {
   std::string err;
   raw_string_ostream os(err);
@@ -920,6 +934,7 @@ static void readConfigs(opt::InputArgList &args) {
   config->ltoCSProfileGenerate = args.hasArg(OPT_lto_cs_profile_generate);
   config->ltoCSProfileFile = args.getLastArgValue(OPT_lto_cs_profile_file);
   config->ltoDebugPassManager = args.hasArg(OPT_lto_debug_pass_manager);
+  config->ltoEmitAsm = args.hasArg(OPT_lto_emit_asm);
   config->ltoNewPassManager = args.hasArg(OPT_lto_new_pass_manager);
   config->ltoNewPmPasses = args.getLastArgValue(OPT_lto_newpm_passes);
   config->ltoWholeProgramVisibility =
@@ -956,6 +971,7 @@ static void readConfigs(opt::InputArgList &args) {
       args.hasFlag(OPT_print_icf_sections, OPT_no_print_icf_sections, false);
   config->printGcSections =
       args.hasFlag(OPT_print_gc_sections, OPT_no_print_gc_sections, false);
+  config->printArchiveStats = args.getLastArgValue(OPT_print_archive_stats);
   config->printSymbolOrder =
       args.getLastArgValue(OPT_print_symbol_order);
   config->rpath = getRpath(args);
@@ -966,7 +982,7 @@ static void readConfigs(opt::InputArgList &args) {
   config->searchPaths = args::getStrings(args, OPT_library_path);
   config->sectionStartMap = getSectionStartMap(args);
   config->shared = args.hasArg(OPT_shared);
-  config->singleRoRx = args.hasArg(OPT_no_rosegment);
+  config->singleRoRx = !args.hasFlag(OPT_rosegment, OPT_no_rosegment, true);
   config->soName = args.getLastArgValue(OPT_soname);
   config->sortSection = getSortSection(args);
   config->splitStackAdjustSize = args::getInteger(args, OPT_split_stack_adjust_size, 16384);
@@ -1148,6 +1164,14 @@ static void readConfigs(opt::InputArgList &args) {
             {s, /*isExternCpp=*/false, /*hasWildcard=*/false});
   }
 
+  for (opt::Arg *arg : args.filtered(OPT_warn_backrefs_exclude)) {
+    StringRef pattern(arg->getValue());
+    if (Expected<GlobPattern> pat = GlobPattern::create(pattern))
+      config->warnBackrefsExclude.push_back(std::move(*pat));
+    else
+      error(arg->getSpelling() + ": " + toString(pat.takeError()));
+  }
+
   // Parses -dynamic-list and -export-dynamic-symbol. They make some
   // symbols private. Note that -export-dynamic takes precedence over them
   // as it says all symbols should be exported.
@@ -1196,20 +1220,19 @@ static void setConfigs(opt::InputArgList &args) {
 
   // ELF defines two different ways to store relocation addends as shown below:
   //
-  //  Rel:  Addends are stored to the location where relocations are applied.
+  //  Rel: Addends are stored to the location where relocations are applied. It
+  //  cannot pack the full range of addend values for all relocation types, but
+  //  this only affects relocation types that we don't support emitting as
+  //  dynamic relocations (see getDynRel).
   //  Rela: Addends are stored as part of relocation entry.
   //
   // In other words, Rela makes it easy to read addends at the price of extra
-  // 4 or 8 byte for each relocation entry. We don't know why ELF defined two
-  // different mechanisms in the first place, but this is how the spec is
-  // defined.
+  // 4 or 8 byte for each relocation entry.
   //
-  // You cannot choose which one, Rel or Rela, you want to use. Instead each
-  // ABI defines which one you need to use. The following expression expresses
-  // that.
-  config->isRela = m == EM_AARCH64 || m == EM_AMDGPU || m == EM_HEXAGON ||
-                   m == EM_PPC || m == EM_PPC64 || m == EM_RISCV ||
-                   m == EM_X86_64;
+  // We pick the format for dynamic relocations according to the psABI for each
+  // processor, but a contrary choice can be made if the dynamic loader
+  // supports.
+  config->isRela = getIsRela(args);
 
   // If the output uses REL relocations we must store the dynamic relocation
   // addends to the output sections. We also store addends for RELA relocations
@@ -1944,13 +1967,10 @@ template <class ELFT> void LinkerDriver::link(opt::InputArgList &args) {
   // If -thinlto-index-only is given, we should create only "index
   // files" and not object files. Index file creation is already done
   // in addCombinedLTOObject, so we are done if that's the case.
-  if (config->thinLTOIndexOnly)
-    return;
-
-  // Likewise, --plugin-opt=emit-llvm is an option to make LTO create
-  // an output file in bitcode and exit, so that you can just get a
-  // combined bitcode file.
-  if (config->emitLLVM)
+  // Likewise, --plugin-opt=emit-llvm and --plugin-opt=emit-asm are the
+  // options to create output files in bitcode or assembly code
+  // repsectively. No object files are generated.
+  if (config->thinLTOIndexOnly || config->emitLLVM || config->ltoEmitAsm)
     return;
 
   // Apply symbol renames for -wrap.
@@ -2090,6 +2110,3 @@ template <class ELFT> void LinkerDriver::link(opt::InputArgList &args) {
   // Write the result to the file.
   writeResult<ELFT>();
 }
-
-} // namespace elf
-} // namespace lld

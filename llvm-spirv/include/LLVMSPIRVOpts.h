@@ -51,10 +51,12 @@ enum class VersionNumber : uint32_t {
   // Instruction
   SPIRV_1_0 = 0x00010000,
   SPIRV_1_1 = 0x00010100,
-  // TODO: populate this enum with the latest versions (up to 1.4) once
-  // translator get support of correponding features
+  SPIRV_1_2 = 0x00010200,
+  SPIRV_1_3 = 0x00010300,
+  // TODO: populate this enum with the latest versions (up to 1.5) once
+  // translator get support of corresponding features
   MinimumVersion = SPIRV_1_0,
-  MaximumVersion = SPIRV_1_1
+  MaximumVersion = SPIRV_1_3
 };
 
 enum class ExtensionID : uint32_t {
@@ -66,6 +68,8 @@ enum class ExtensionID : uint32_t {
 };
 
 enum class BIsRepresentation : uint32_t { OpenCL12, OpenCL20, SPIRVFriendlyIR };
+
+enum class FPContractMode : uint32_t { On, Off, Fast };
 
 /// \brief Helper class to manage SPIR-V translation
 class TranslatorOpts {
@@ -129,6 +133,10 @@ public:
     return DesiredRepresentationOfBIs;
   }
 
+  void setFPContractMode(FPContractMode Mode) { FPCMode = Mode; }
+
+  FPContractMode getFPContractMode() const { return FPCMode; }
+
 private:
   // Common translation options
   VersionNumber MaxVersion = VersionNumber::MaximumVersion;
@@ -141,6 +149,16 @@ private:
   // Representation of built-ins, which should be used while translating from
   // SPIR-V to back to LLVM IR
   BIsRepresentation DesiredRepresentationOfBIs = BIsRepresentation::OpenCL12;
+  // Controls floating point contraction.
+  //
+  // - FPContractMode::On allows to choose a mode according to
+  //   presence of fused LLVM intrinsics
+  //
+  // - FPContractMode::Off disables contratction for all entry points
+  //
+  // - FPContractMode::Fast allows *all* operations to be contracted
+  //   for all entry points
+  FPContractMode FPCMode = FPContractMode::On;
 };
 
 } // namespace SPIRV

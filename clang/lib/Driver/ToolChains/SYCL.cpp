@@ -247,17 +247,16 @@ void SYCL::fpga::BackendCompiler::ConstructJob(Compilation &C,
     if (Ty == types::TY_INVALID)
       continue;
     if (types::isSrcFile(Ty) || Ty == types::TY_Object) {
-      // Dependency files and the project report are created in CWD, so strip
-      // off any directory information if provided with the input file.
-      // TODO - Use temporary files for dependency file creation and
-      // usage with -fintelfpga.
+      // The project report is created in CWD, so strip off any directory
+      // information if provided with the input file.
       ArgName = llvm::sys::path::filename(ArgName);
       if (types::isSrcFile(Ty)) {
-        SmallString<128> DepName(ArgName);
-        llvm::sys::path::replace_extension(DepName, "d");
-        FPGADepFiles.push_back(InputInfo(types::TY_Dependencies,
-                                         Args.MakeArgString(DepName),
-                                         Args.MakeArgString(DepName)));
+        SmallString<128> DepName(
+            C.getDriver().getFPGATempDepFile(std::string(ArgName)));
+        if (!DepName.empty())
+          FPGADepFiles.push_back(InputInfo(types::TY_Dependencies,
+                                           Args.MakeArgString(DepName),
+                                           Args.MakeArgString(DepName)));
       }
       if (createdReportName.empty()) {
         // Project report should be saved into CWD, so strip off any
@@ -472,8 +471,28 @@ void SYCLToolChain::TranslateTargetOpt(const llvm::opt::ArgList &Args,
   }
 }
 
+static void addImpliedArgs(const llvm::Triple &Triple,
+                           const llvm::opt::ArgList &Args,
+                           llvm::opt::ArgStringList &CmdArgs) {
+  // Current implied args are for debug information and disabling of
+  // optimizations.
+  // TODO: Add support for other architectures (gen, x86_64) as those are
+  // being defined.
+  if (Triple.getSubArch() == llvm::Triple::NoSubArch ||
+      Triple.getSubArch() == llvm::Triple::SPIRSubArch_fpga) {
+    if (Arg *A = Args.getLastArg(options::OPT_g_Group, options::OPT__SLASH_Z7))
+      if (!A->getOption().matches(options::OPT_g0))
+        CmdArgs.push_back("-g");
+    if (Args.getLastArg(options::OPT_O0))
+      CmdArgs.push_back("-cl-opt-disable");
+  }
+}
+
 void SYCLToolChain::TranslateBackendTargetArgs(const llvm::opt::ArgList &Args,
     llvm::opt::ArgStringList &CmdArgs) const {
+  // Add any implied arguments before user defined arguments.
+  addImpliedArgs(getTriple(), Args, CmdArgs);
+
   // Handle -Xs flags.
   for (auto *A : Args) {
     // When parsing the target args, the -Xs<opt> type option applies to all

@@ -237,17 +237,14 @@ MachineIRBuilder::materializePtrAdd(Register &Res, Register Op0,
   return buildPtrAdd(Res, Op0, Cst.getReg(0));
 }
 
-MachineInstrBuilder MachineIRBuilder::buildPtrMask(const DstOp &Res,
-                                                   const SrcOp &Op0,
-                                                   uint32_t NumBits) {
-  assert(Res.getLLTTy(*getMRI()).isPointer() &&
-         Res.getLLTTy(*getMRI()) == Op0.getLLTTy(*getMRI()) && "type mismatch");
-
-  auto MIB = buildInstr(TargetOpcode::G_PTR_MASK);
-  Res.addDefToMIB(*getMRI(), MIB);
-  Op0.addSrcToMIB(MIB);
-  MIB.addImm(NumBits);
-  return MIB;
+MachineInstrBuilder MachineIRBuilder::buildMaskLowPtrBits(const DstOp &Res,
+                                                          const SrcOp &Op0,
+                                                          uint32_t NumBits) {
+  LLT PtrTy = Res.getLLTTy(*getMRI());
+  LLT MaskTy = LLT::scalar(PtrTy.getSizeInBits());
+  Register MaskReg = getMRI()->createGenericVirtualRegister(MaskTy);
+  buildConstant(MaskReg, maskTrailingZeros<uint64_t>(NumBits));
+  return buildPtrMask(Res, Op0, MaskReg);
 }
 
 MachineInstrBuilder MachineIRBuilder::buildBr(MachineBasicBlock &Dest) {
@@ -290,6 +287,7 @@ MachineInstrBuilder MachineIRBuilder::buildConstant(const DstOp &Res,
   }
 
   auto Const = buildInstr(TargetOpcode::G_CONSTANT);
+  Const->setDebugLoc(DebugLoc());
   Res.addDefToMIB(*getMRI(), Const);
   Const.addCImm(&Val);
   return Const;
@@ -323,6 +321,7 @@ MachineInstrBuilder MachineIRBuilder::buildFConstant(const DstOp &Res,
   }
 
   auto Const = buildInstr(TargetOpcode::G_FCONSTANT);
+  Const->setDebugLoc(DebugLoc());
   Res.addDefToMIB(*getMRI(), Const);
   Const.addFPImm(&Val);
   return Const;

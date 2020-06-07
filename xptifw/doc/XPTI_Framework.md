@@ -269,7 +269,12 @@ below.
    ```
 
    You can now run a SYCL application that has been linked with a runtime that
-   supports the XPTI instrumentation and inspect the resulting stream.
+   supports the XPTI instrumentation and inspect the resulting stream. An
+   example collector that subscribes to a specific stream is also provided under
+   `xptifw/samples/syclpi_collector`.  This example demonstrates how a tool can
+   selectively subscribe to a known stream and ignore all other traces. All
+   trace notifications for the streams that have no callbacks registered will
+   return immediately.
 
 3. **Running the unit tests:** The unit tests included cover the exported API
    and incorporate some correctness tests.

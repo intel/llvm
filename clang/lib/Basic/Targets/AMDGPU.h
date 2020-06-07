@@ -131,6 +131,11 @@ public:
     });
 
     StringRef S(Name);
+    if (S == "A") {
+      Info.setRequiresImmediate();
+      return true;
+    }
+
     bool HasLeftParen = false;
     if (S.front() == '{') {
       HasLeftParen = true;
@@ -354,6 +359,8 @@ public:
   }
 
   void setAuxTarget(const TargetInfo *Aux) override;
+
+  bool hasExtIntType() const override { return true; }
 };
 
 } // namespace targets

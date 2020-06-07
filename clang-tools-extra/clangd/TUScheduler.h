@@ -11,11 +11,11 @@
 
 #include "Compiler.h"
 #include "Diagnostics.h"
-#include "Function.h"
 #include "GlobalCompilationDatabase.h"
-#include "Path.h"
-#include "Threading.h"
 #include "index/CanonicalIncludes.h"
+#include "support/Function.h"
+#include "support/Path.h"
+#include "support/Threading.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringMap.h"
@@ -191,6 +191,10 @@ public:
 
     /// Determines when to keep idle ASTs in memory for future use.
     ASTRetentionPolicy RetentionPolicy;
+
+    /// Whether to run PreamblePeer asynchronously.
+    /// No-op if AsyncThreadsCount is 0.
+    bool AsyncPreambleBuilds = false;
   };
 
   TUScheduler(const GlobalCompilationDatabase &CDB, const Options &Opts,
@@ -256,11 +260,6 @@ public:
 
   /// Controls whether preamble reads wait for the preamble to be up-to-date.
   enum PreambleConsistency {
-    /// The preamble is generated from the current version of the file.
-    /// If the content was recently updated, we will wait until we have a
-    /// preamble that reflects that update.
-    /// This is the slowest option, and may be delayed by other tasks.
-    Consistent,
     /// The preamble may be generated from an older version of the file.
     /// Reading from locations in the preamble may cause files to be re-read.
     /// This gives callers two options:
@@ -306,7 +305,7 @@ public:
 
 private:
   const GlobalCompilationDatabase &CDB;
-  const bool StorePreamblesInMemory;
+  const Options Opts;
   std::unique_ptr<ParsingCallbacks> Callbacks; // not nullptr
   Semaphore Barrier;
   llvm::StringMap<std::unique_ptr<FileData>> Files;
@@ -315,7 +314,6 @@ private:
   // asynchronously.
   llvm::Optional<AsyncTaskRunner> PreambleTasks;
   llvm::Optional<AsyncTaskRunner> WorkerThreads;
-  DebouncePolicy UpdateDebounce;
 };
 
 } // namespace clangd

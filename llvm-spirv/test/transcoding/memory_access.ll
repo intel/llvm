@@ -14,13 +14,13 @@
 ; CHECK-SPIRV-NOT: 7 Load {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} 1 2 8
 ; CHECK-SPIRV: 6 Load {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} 3 8
 ; CHECK-SPIRV-NOT: 7 Load {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} 1 2 0
-; CHECK-SPIRV: 5 Load {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} 1
+; CHECK-SPIRV: 6 Load {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} 3 8
 ; CHECK-SPIRV-NOT: 7 Load {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} 1 2 8
 ; CHECK-SPIRV: 6 Load {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} 7 8
 ; CHECK-SPIRV-NOT: 5 Store {{[0-9]+}} {{[0-9]+}} 2 4
 ; CHECK-SPIRV: 5 Store {{[0-9]+}} {{[0-9]+}} 6 4
 ; CHECK-SPIRV-NOT: 5 Store {{[0-9]+}} {{[0-9]+}} 2 0
-; CHECK-SPIRV: 3 Store {{[0-9]+}} {{[0-9]+}}
+; CHECK-SPIRV: 5 Store {{[0-9]+}} {{[0-9]+}}
 
 ; CHECK-LLVM: store volatile i32 addrspace(4)* %0, i32 addrspace(4)** %ptr, align 8
 ; CHECK-LLVM: load volatile i32 addrspace(4)*, i32 addrspace(4)** %ptr, align 8

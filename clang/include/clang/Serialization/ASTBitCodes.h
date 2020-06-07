@@ -686,6 +686,9 @@ namespace serialization {
 
       /// Record code for the Decls to be checked for deferred diags.
       DECLS_TO_CHECK_FOR_DEFERRED_DIAGS = 64,
+
+      /// Record code for \#pragma float_control options.
+      FLOAT_CONTROL_PRAGMA_OPTIONS = 65,
     };
 
     /// Record types used within a source manager block.
@@ -1787,6 +1790,9 @@ namespace serialization {
 
       /// A CXXConstCastExpr record.
       EXPR_CXX_CONST_CAST,
+
+      /// A CXXAddrspaceCastExpr record.
+      EXPR_CXX_ADDRSPACE_CAST,
 
       /// A CXXFunctionalCastExpr record.
       EXPR_CXX_FUNCTIONAL_CAST,

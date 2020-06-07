@@ -27,6 +27,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 using namespace llvm;
+using namespace llvm::objdump;
 using namespace llvm::object;
 using namespace llvm::Win64EH;
 
@@ -664,9 +665,10 @@ void objdump::printCOFFSymbolTable(const COFFObjectFile *coff) {
     if (!Symbol)
       reportError(Symbol.takeError(), coff->getFileName());
 
-    StringRef Name;
-    if (std::error_code EC = coff->getSymbolName(*Symbol, Name))
-      reportError(errorCodeToError(EC), coff->getFileName());
+    Expected<StringRef> NameOrErr = coff->getSymbolName(*Symbol);
+    if (!NameOrErr)
+      reportError(NameOrErr.takeError(), coff->getFileName());
+    StringRef Name = *NameOrErr;
 
     outs() << "[" << format("%2d", SI) << "]"
            << "(sec " << format("%2d", int(Symbol->getSectionNumber())) << ")"
@@ -678,11 +680,9 @@ void objdump::printCOFFSymbolTable(const COFFObjectFile *coff) {
            << "0x" << format("%08x", unsigned(Symbol->getValue())) << " "
            << Name;
     if (Demangle && Name.startswith("?")) {
-      char *DemangledSymbol = nullptr;
-      size_t Size = 0;
       int Status = -1;
-      DemangledSymbol =
-          microsoftDemangle(Name.data(), DemangledSymbol, &Size, &Status);
+      char *DemangledSymbol =
+          microsoftDemangle(Name.data(), nullptr, nullptr, nullptr, &Status);
 
       if (Status == 0 && DemangledSymbol) {
         outs() << " (" << StringRef(DemangledSymbol) << ")";

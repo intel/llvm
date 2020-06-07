@@ -1,4 +1,4 @@
-//===-- VOP1Instructions.td - Vector Instruction Defintions ---------------===//
+//===-- VOP1Instructions.td - Vector Instruction Definitions --------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -48,9 +48,14 @@ class VOP1_Pseudo <string opName, VOPProfile P, list<dag> pattern=[], bit VOP1On
   let mayStore = 0;
   let hasSideEffects = 0;
 
+  let ReadsModeReg = !or(isFloatType<P.DstVT>.ret, isFloatType<P.Src0VT>.ret);
+
+  // FIXME
+  // let mayRaiseFPException = ReadsModeReg;
+
   let VOP1 = 1;
   let VALU = 1;
-  let Uses = [EXEC];
+  let Uses = !if(ReadsModeReg, [MODE, EXEC], [EXEC]);
 
   let AsmVariantName = AMDGPUAsmVariants.Default;
 }
@@ -100,8 +105,13 @@ class getVOP1Pat64 <SDPatternOperator node, VOPProfile P> : LetDummies {
 
 multiclass VOP1Inst <string opName, VOPProfile P,
                      SDPatternOperator node = null_frag> {
-  def _e32 : VOP1_Pseudo <opName, P>;
-  def _e64 : VOP3_Pseudo <opName, P, getVOP1Pat64<node, P>.ret>;
+  // We only want to set this on the basic, non-SDWA or DPP forms.
+  defvar should_mov_imm = !eq(opName, "v_mov_b32");
+
+  let isMoveImm = should_mov_imm in {
+    def _e32 : VOP1_Pseudo <opName, P>;
+    def _e64 : VOP3_Pseudo <opName, P, getVOP1Pat64<node, P>.ret>;
+  }
 
   foreach _ = BoolToList<P.HasExtSDWA>.ret in
     def _sdwa : VOP1_SDWA_Pseudo <opName, P>;
@@ -144,7 +154,7 @@ let VOPAsmPrefer32Bit = 1 in {
 defm V_NOP : VOP1Inst <"v_nop", VOP_NONE>;
 }
 
-let isMoveImm = 1, isReMaterializable = 1, isAsCheapAsAMove = 1 in {
+let isReMaterializable = 1, isAsCheapAsAMove = 1 in {
 defm V_MOV_B32 : VOP1Inst <"v_mov_b32", VOP_I32_I32>;
 } // End isMoveImm = 1
 
@@ -181,31 +191,51 @@ def V_READFIRSTLANE_B32 :
 
 let SchedRW = [WriteDoubleCvt] in {
 defm V_CVT_I32_F64 : VOP1Inst <"v_cvt_i32_f64", VOP_I32_F64,  fp_to_sint>;
+
+let mayRaiseFPException = 0 in {
 defm V_CVT_F64_I32 : VOP1Inst <"v_cvt_f64_i32", VOP1_F64_I32, sint_to_fp>;
+}
+
 defm V_CVT_F32_F64 : VOP1Inst <"v_cvt_f32_f64", VOP_F32_F64,  fpround>;
 defm V_CVT_F64_F32 : VOP1Inst <"v_cvt_f64_f32", VOP_F64_F32,  fpextend>;
 defm V_CVT_U32_F64 : VOP1Inst <"v_cvt_u32_f64", VOP_I32_F64,  fp_to_uint>;
+
+let mayRaiseFPException = 0 in {
 defm V_CVT_F64_U32 : VOP1Inst <"v_cvt_f64_u32", VOP1_F64_I32, uint_to_fp>;
+}
+
 } // End SchedRW = [WriteDoubleCvt]
 
 let SchedRW = [WriteFloatCvt] in {
+
+// XXX: Does this really not raise exceptions? The manual claims the
+// 16-bit ones can.
+let mayRaiseFPException = 0 in {
 defm V_CVT_F32_I32 : VOP1Inst <"v_cvt_f32_i32", VOP1_F32_I32, sint_to_fp>;
 defm V_CVT_F32_U32 : VOP1Inst <"v_cvt_f32_u32", VOP1_F32_I32, uint_to_fp>;
+}
+
 defm V_CVT_U32_F32 : VOP1Inst <"v_cvt_u32_f32", VOP_I32_F32, fp_to_uint>;
 defm V_CVT_I32_F32 : VOP1Inst <"v_cvt_i32_f32", VOP_I32_F32, fp_to_sint>;
 let FPDPRounding = 1 in {
 defm V_CVT_F16_F32 : VOP1Inst <"v_cvt_f16_f32", VOP_F16_F32, fpround>;
 } // End FPDPRounding = 1
+
 defm V_CVT_F32_F16 : VOP1Inst <"v_cvt_f32_f16", VOP_F32_F16, fpextend>;
+
+let ReadsModeReg = 0, mayRaiseFPException = 0 in {
 defm V_CVT_RPI_I32_F32 : VOP1Inst <"v_cvt_rpi_i32_f32", VOP_I32_F32, cvt_rpi_i32_f32>;
 defm V_CVT_FLR_I32_F32 : VOP1Inst <"v_cvt_flr_i32_f32", VOP_I32_F32, cvt_flr_i32_f32>;
 defm V_CVT_OFF_F32_I4 : VOP1Inst  <"v_cvt_off_f32_i4", VOP1_F32_I32>;
+} // End ReadsModeReg = 0, mayRaiseFPException = 0
 } // End SchedRW = [WriteFloatCvt]
 
+let ReadsModeReg = 0, mayRaiseFPException = 0 in {
 defm V_CVT_F32_UBYTE0 : VOP1Inst <"v_cvt_f32_ubyte0", VOP1_F32_I32, AMDGPUcvt_f32_ubyte0>;
 defm V_CVT_F32_UBYTE1 : VOP1Inst <"v_cvt_f32_ubyte1", VOP1_F32_I32, AMDGPUcvt_f32_ubyte1>;
 defm V_CVT_F32_UBYTE2 : VOP1Inst <"v_cvt_f32_ubyte2", VOP1_F32_I32, AMDGPUcvt_f32_ubyte2>;
 defm V_CVT_F32_UBYTE3 : VOP1Inst <"v_cvt_f32_ubyte3", VOP1_F32_I32, AMDGPUcvt_f32_ubyte3>;
+} // ReadsModeReg = 0, mayRaiseFPException = 0
 
 defm V_FRACT_F32 : VOP1Inst <"v_fract_f32", VOP_F32_F32, AMDGPUfract>;
 defm V_TRUNC_F32 : VOP1Inst <"v_trunc_f32", VOP_F32_F32, ftrunc>;
@@ -325,7 +355,7 @@ let SubtargetPredicate = isGFX6GFX7 in {
     defm V_RSQ_CLAMP_F32 :
       VOP1Inst<"v_rsq_clamp_f32", VOP_F32_F32, AMDGPUrsq_clamp>;
     defm V_RSQ_LEGACY_F32 :
-      VOP1Inst<"v_rsq_legacy_f32", VOP_F32_F32, AMDGPUrsq_legacy>;
+      VOP1Inst<"v_rsq_legacy_f32", VOP_F32_F32, int_amdgcn_rsq_legacy>;
   } // End SchedRW = [WriteQuarterRate32]
 
   let SchedRW = [WriteDouble] in {
@@ -412,8 +442,11 @@ let SubtargetPredicate = isGFX9Plus in {
   }
 
   defm V_SAT_PK_U8_I16    : VOP1Inst<"v_sat_pk_u8_i16", VOP_I32_I32>;
-  defm V_CVT_NORM_I16_F16 : VOP1Inst<"v_cvt_norm_i16_f16", VOP_I16_F16>;
-  defm V_CVT_NORM_U16_F16 : VOP1Inst<"v_cvt_norm_u16_f16", VOP_I16_F16>;
+
+  let mayRaiseFPException = 0 in {
+    defm V_CVT_NORM_I16_F16 : VOP1Inst<"v_cvt_norm_i16_f16", VOP_I16_F16>;
+    defm V_CVT_NORM_U16_F16 : VOP1Inst<"v_cvt_norm_u16_f16", VOP_I16_F16>;
+  } // End mayRaiseFPException = 0
 } // End SubtargetPredicate = isGFX9Plus
 
 let SubtargetPredicate = isGFX9Only in {

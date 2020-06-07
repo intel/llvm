@@ -1998,7 +1998,8 @@ static void handleCmseNSEntryAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     return;
   }
 
-  if (cast<FunctionDecl>(D)->getStorageClass() == SC_Static) {
+  const auto *FD = cast<FunctionDecl>(D);
+  if (!FD->isExternallyVisible()) {
     S.Diag(AL.getLoc(), diag::warn_attribute_cmse_entry_static);
     return;
   }
@@ -2842,8 +2843,8 @@ static void handleWarnUnusedResult(Sema &S, Decl *D, const ParsedAttr &AL) {
     // extension warning for C2x mode.
     const LangOptions &LO = S.getLangOpts();
     if (AL.getNumArgs() == 1) {
-      if (LO.CPlusPlus && !LO.CPlusPlus2a)
-        S.Diag(AL.getLoc(), diag::ext_cxx2a_attr) << AL;
+      if (LO.CPlusPlus && !LO.CPlusPlus20)
+        S.Diag(AL.getLoc(), diag::ext_cxx20_attr) << AL;
 
       // Since this this is spelled [[nodiscard]], get the optional string
       // literal. If in C++ mode, but not in C++2a mode, diagnose as an
@@ -2980,6 +2981,9 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
 
 // Handles intel_reqd_sub_group_size.
 static void handleSubGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
+  if (S.LangOpts.SYCLIsHost)
+    return;
+
   uint32_t SGSize;
   const Expr *E = AL.getArgAsExpr(0);
   if (!checkUInt32Argument(S, AL, E, SGSize))
@@ -4093,7 +4097,8 @@ bool Sema::checkMSInheritanceAttrOnDefinition(
 /// parseModeAttrArg - Parses attribute mode string and returns parsed type
 /// attribute.
 static void parseModeAttrArg(Sema &S, StringRef Str, unsigned &DestWidth,
-                             bool &IntegerMode, bool &ComplexMode) {
+                             bool &IntegerMode, bool &ComplexMode,
+                             bool &ExplicitIEEE) {
   IntegerMode = true;
   ComplexMode = false;
   switch (Str.size()) {
@@ -4114,7 +4119,12 @@ static void parseModeAttrArg(Sema &S, StringRef Str, unsigned &DestWidth,
     case 'X':
       DestWidth = 96;
       break;
+    case 'K': // KFmode - IEEE quad precision (__float128)
+      ExplicitIEEE = true;
+      DestWidth = Str[1] == 'I' ? 0 : 128;
+      break;
     case 'T':
+      ExplicitIEEE = false;
       DestWidth = 128;
       break;
     }
@@ -4175,6 +4185,7 @@ void Sema::AddModeAttr(Decl *D, const AttributeCommonInfo &CI,
   unsigned DestWidth = 0;
   bool IntegerMode = true;
   bool ComplexMode = false;
+  bool ExplicitIEEE = false;
   llvm::APInt VectorSize(64, 0);
   if (Str.size() >= 4 && Str[0] == 'V') {
     // Minimal length of vector mode is 4: 'V' + NUMBER(>=1) + TYPE(>=2).
@@ -4187,7 +4198,7 @@ void Sema::AddModeAttr(Decl *D, const AttributeCommonInfo &CI,
         !Str.substr(1, VectorStringLength).getAsInteger(10, VectorSize) &&
         VectorSize.isPowerOf2()) {
       parseModeAttrArg(*this, Str.substr(VectorStringLength + 1), DestWidth,
-                       IntegerMode, ComplexMode);
+                       IntegerMode, ComplexMode, ExplicitIEEE);
       // Avoid duplicate warning from template instantiation.
       if (!InInstantiation)
         Diag(AttrLoc, diag::warn_vector_mode_deprecated);
@@ -4197,7 +4208,8 @@ void Sema::AddModeAttr(Decl *D, const AttributeCommonInfo &CI,
   }
 
   if (!VectorSize)
-    parseModeAttrArg(*this, Str, DestWidth, IntegerMode, ComplexMode);
+    parseModeAttrArg(*this, Str, DestWidth, IntegerMode, ComplexMode,
+                     ExplicitIEEE);
 
   // FIXME: Sync this with InitializePredefinedMacros; we need to match int8_t
   // and friends, at least with glibc.
@@ -4263,7 +4275,7 @@ void Sema::AddModeAttr(Decl *D, const AttributeCommonInfo &CI,
     NewElemTy = Context.getIntTypeForBitwidth(DestWidth,
                                               OldElemTy->isSignedIntegerType());
   else
-    NewElemTy = Context.getRealTypeForBitwidth(DestWidth);
+    NewElemTy = Context.getRealTypeForBitwidth(DestWidth, ExplicitIEEE);
 
   if (NewElemTy.isNull()) {
     Diag(AttrLoc, diag::err_machine_mode) << 1 /*Unsupported*/ << Name;
@@ -4543,6 +4555,12 @@ static void handleGlobalAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     S.Diag(FD->getBeginLoc(), diag::warn_kern_is_inline) << FD;
 
   D->addAttr(::new (S.Context) CUDAGlobalAttr(S.Context, AL));
+  // In host compilation the kernel is emitted as a stub function, which is
+  // a helper function for launching the kernel. The instructions in the helper
+  // function has nothing to do with the source code of the kernel. Do not emit
+  // debug info for the stub function to avoid confusing the debugger.
+  if (S.LangOpts.HIP && !S.LangOpts.CUDAIsDevice)
+    D->addAttr(NoDebugAttr::CreateImplicit(S.Context));
 }
 
 static void handleGNUInlineAttr(Sema &S, Decl *D, const ParsedAttr &AL) {

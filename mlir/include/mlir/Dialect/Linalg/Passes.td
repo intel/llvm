@@ -11,6 +11,17 @@
 
 include "mlir/Pass/PassBase.td"
 
+def LinalgFoldUnitExtentDims : FunctionPass<"linalg-fold-unit-extent-dims"> {
+  let summary = "Remove unit-extent dimension in Linalg ops on tensors";
+  let constructor = "mlir::createLinalgFoldUnitExtentDimsPass()";
+  let options = [
+    Option<"foldOneTripLoopsOnly", "fold-one-trip-loops-only", "bool",
+            /*default=*/"false",
+	    "Only folds the one-trip loops from Linalg ops on tensors "
+	    "(for testing purposes only)">
+  ];
+}
+
 def LinalgFusion : FunctionPass<"linalg-fusion"> {
   let summary = "Fuse operations in the linalg dialect";
   let constructor = "mlir::createLinalgFusionPass()";
@@ -30,6 +41,12 @@ def LinalgLowerToAffineLoops : FunctionPass<"convert-linalg-to-affine-loops"> {
 def LinalgLowerToLoops : FunctionPass<"convert-linalg-to-loops"> {
   let summary = "Lower the operations from the linalg dialect into loops";
   let constructor = "mlir::createConvertLinalgToLoopsPass()";
+}
+
+def LinalgOnTensorsToBuffers : Pass<"convert-linalg-on-tensors-to-buffers", "ModuleOp"> {
+  let summary = "Convert the Linalg operations which work on tensor-type "
+                "operands or results to use buffers instead";
+  let constructor = "mlir::createConvertLinalgOnTensorsToBuffersPass()";
 }
 
 def LinalgLowerToParallelLoops

@@ -278,6 +278,7 @@ class SelectionDAG {
   struct CallSiteDbgInfo {
     CallSiteInfo CSInfo;
     MDNode *HeapAllocSite = nullptr;
+    bool NoMerge = false;
   };
 
   DenseMap<const SDNode *, CallSiteDbgInfo> SDCallSiteDbgInfo;
@@ -662,18 +663,19 @@ public:
   SDValue getTargetJumpTable(int JTI, EVT VT, unsigned TargetFlags = 0) {
     return getJumpTable(JTI, VT, true, TargetFlags);
   }
-  SDValue getConstantPool(const Constant *C, EVT VT, unsigned Align = 0,
+  SDValue getConstantPool(const Constant *C, EVT VT, MaybeAlign Align = None,
                           int Offs = 0, bool isT = false,
                           unsigned TargetFlags = 0);
-  SDValue getTargetConstantPool(const Constant *C, EVT VT, unsigned Align = 0,
-                                int Offset = 0, unsigned TargetFlags = 0) {
+  SDValue getTargetConstantPool(const Constant *C, EVT VT,
+                                MaybeAlign Align = None, int Offset = 0,
+                                unsigned TargetFlags = 0) {
     return getConstantPool(C, VT, Align, Offset, true, TargetFlags);
   }
   SDValue getConstantPool(MachineConstantPoolValue *C, EVT VT,
-                          unsigned Align = 0, int Offs = 0, bool isT=false,
-                          unsigned TargetFlags = 0);
+                          MaybeAlign Align = None, int Offs = 0,
+                          bool isT = false, unsigned TargetFlags = 0);
   SDValue getTargetConstantPool(MachineConstantPoolValue *C, EVT VT,
-                                unsigned Align = 0, int Offset = 0,
+                                MaybeAlign Align = None, int Offset = 0,
                                 unsigned TargetFlags = 0) {
     return getConstantPool(C, VT, Align, Offset, true, TargetFlags);
   }
@@ -1546,6 +1548,7 @@ public:
     switch (VT.getScalarType().getSimpleVT().SimpleTy) {
     default: llvm_unreachable("Unknown FP format");
     case MVT::f16:     return APFloat::IEEEhalf();
+    case MVT::bf16:    return APFloat::BFloat();
     case MVT::f32:     return APFloat::IEEEsingle();
     case MVT::f64:     return APFloat::IEEEdouble();
     case MVT::f80:     return APFloat::x87DoubleExtended();
@@ -1593,6 +1596,9 @@ public:
   void salvageDebugInfo(SDNode &N);
 
   void dump() const;
+
+  /// Create a stack temporary based on the size in bytes and the alignment
+  SDValue CreateStackTemporary(TypeSize Bytes, Align Alignment);
 
   /// Create a stack temporary, suitable for holding the specified value type.
   /// If minAlign is specified, the slot size will have at least that alignment.
@@ -1831,6 +1837,12 @@ public:
   /// which is split (or expanded) into two not necessarily identical pieces.
   std::pair<EVT, EVT> GetSplitDestVTs(const EVT &VT) const;
 
+  /// Compute the VTs needed for the low/hi parts of a type, dependent on an
+  /// enveloping VT that has been split into two identical pieces. Sets the
+  /// HisIsEmpty flag when hi type has zero storage size.
+  std::pair<EVT, EVT> GetDependentSplitDestVTs(const EVT &VT, const EVT &EnvVT,
+                                               bool *HiIsEmpty) const;
+
   /// Split the vector with EXTRACT_SUBVECTOR using the provides
   /// VTs and return the low/high part.
   std::pair<SDValue, SDValue> SplitVector(const SDValue &N, const SDLoc &DL,
@@ -1903,6 +1915,18 @@ public:
     if (It == SDCallSiteDbgInfo.end())
       return nullptr;
     return It->second.HeapAllocSite;
+  }
+
+  void addNoMergeSiteInfo(const SDNode *Node, bool NoMerge) {
+    if (NoMerge)
+      SDCallSiteDbgInfo[Node].NoMerge = NoMerge;
+  }
+
+  bool getNoMergeSiteInfo(const SDNode *Node) {
+    auto I = SDCallSiteDbgInfo.find(Node);
+    if (I == SDCallSiteDbgInfo.end())
+      return false;
+    return I->second.NoMerge;
   }
 
   /// Return the current function's default denormal handling kind for the given

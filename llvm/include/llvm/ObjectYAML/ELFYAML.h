@@ -16,6 +16,7 @@
 #define LLVM_OBJECTYAML_ELFYAML_H
 
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ObjectYAML/DWARFYAML.h"
 #include "llvm/ObjectYAML/YAML.h"
 #include "llvm/Support/YAMLTraits.h"
 #include <cstdint>
@@ -26,6 +27,7 @@ namespace llvm {
 namespace ELFYAML {
 
 StringRef dropUniqueSuffix(StringRef S);
+std::string appendUniqueSuffix(StringRef Name, const Twine& Msg);
 
 // These types are invariant across 32/64-bit ELF, so for simplicity just
 // directly give them their exact sizes. We don't need to worry about
@@ -85,20 +87,16 @@ struct FileHeader {
   Optional<llvm::yaml::Hex16> SHStrNdx;
 };
 
-struct SectionName {
-  StringRef Section;
+struct SectionHeader {
+  StringRef Name;
 };
 
-struct ProgramHeader {
-  ELF_PT Type;
-  ELF_PF Flags;
-  llvm::yaml::Hex64 VAddr;
-  llvm::yaml::Hex64 PAddr;
-  Optional<llvm::yaml::Hex64> Align;
-  Optional<llvm::yaml::Hex64> FileSize;
-  Optional<llvm::yaml::Hex64> MemSize;
-  Optional<llvm::yaml::Hex64> Offset;
-  std::vector<SectionName> Sections;
+struct SectionHeaderTable {
+  std::vector<SectionHeader> Sections;
+};
+
+struct SectionName {
+  StringRef Section;
 };
 
 struct Symbol {
@@ -160,6 +158,7 @@ struct Chunk {
 
   ChunkKind Kind;
   StringRef Name;
+  Optional<llvm::yaml::Hex64> Offset;
 
   Chunk(ChunkKind K) : Kind(K) {}
   virtual ~Chunk();
@@ -210,11 +209,6 @@ struct Section : public Chunk {
 struct Fill : Chunk {
   Optional<yaml::BinaryRef> Pattern;
   llvm::yaml::Hex64 Size;
-
-  // We have to remember the offset of the fill, because it does not have
-  // a corresponding section header, unlike a section. We might need this
-  // information when writing the output.
-  uint64_t ShOffset;
 
   Fill() : Chunk(ChunkKind::Fill) {}
 
@@ -506,8 +500,24 @@ struct MipsABIFlags : Section {
   }
 };
 
+struct ProgramHeader {
+  ELF_PT Type;
+  ELF_PF Flags;
+  llvm::yaml::Hex64 VAddr;
+  llvm::yaml::Hex64 PAddr;
+  Optional<llvm::yaml::Hex64> Align;
+  Optional<llvm::yaml::Hex64> FileSize;
+  Optional<llvm::yaml::Hex64> MemSize;
+  Optional<llvm::yaml::Hex64> Offset;
+
+  std::vector<SectionName> Sections;
+  // This vector is parallel to Sections and contains corresponding chunks.
+  std::vector<Chunk *> Chunks;
+};
+
 struct Object {
   FileHeader Header;
+  Optional<SectionHeaderTable> SectionHeaders;
   std::vector<ProgramHeader> ProgramHeaders;
 
   // An object might contain output section descriptions as well as
@@ -520,6 +530,7 @@ struct Object {
   // being a single SHT_SYMTAB section are upheld.
   Optional<std::vector<Symbol>> Symbols;
   Optional<std::vector<Symbol>> DynamicSymbols;
+  Optional<DWARFYAML::Data> DWARF;
 
   std::vector<Section *> getSections() {
     std::vector<Section *> Ret;
@@ -539,6 +550,7 @@ LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::ELFYAML::LinkerOption)
 LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::ELFYAML::CallGraphEntry)
 LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::ELFYAML::NoteEntry)
 LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::ELFYAML::ProgramHeader)
+LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::ELFYAML::SectionHeader)
 LLVM_YAML_IS_SEQUENCE_VECTOR(std::unique_ptr<llvm::ELFYAML::Chunk>)
 LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::ELFYAML::Symbol)
 LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::ELFYAML::VerdefEntry)
@@ -668,6 +680,14 @@ struct ScalarBitSetTraits<ELFYAML::MIPS_AFL_FLAGS1> {
 template <>
 struct MappingTraits<ELFYAML::FileHeader> {
   static void mapping(IO &IO, ELFYAML::FileHeader &FileHdr);
+};
+
+template <> struct MappingTraits<ELFYAML::SectionHeaderTable> {
+  static void mapping(IO &IO, ELFYAML::SectionHeaderTable &SecHdrTable);
+};
+
+template <> struct MappingTraits<ELFYAML::SectionHeader> {
+  static void mapping(IO &IO, ELFYAML::SectionHeader &SHdr);
 };
 
 template <> struct MappingTraits<ELFYAML::ProgramHeader> {

@@ -6,6 +6,9 @@
 
 ; RUN: llc -mtriple=%triple -O0 -filetype=obj < %t.ll | llvm-dwarfdump -debug-info - | FileCheck %s
 
+target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
+target triple = "spir64-unknown-unknown"
+
 ; bool f();
 ; inline __attribute__((always_inline)) int f1() {
 ;   if (bool b = f())
@@ -131,5 +134,3 @@ attributes #2 = { "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "n
 !30 = !DILocation(line: 4, scope: !26, inlinedAt: !28)
 !31 = !DILocation(line: 5, scope: !26, inlinedAt: !28)
 !32 = !DILocation(line: 10, scope: !4)
-target triple = "spir64-unknown-unknown"
-target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"

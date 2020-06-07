@@ -391,6 +391,40 @@ func @correct_type_pass() {
 // -----
 
 //===----------------------------------------------------------------------===//
+// Test StringElementsAttr
+//===----------------------------------------------------------------------===//
+
+func @simple_scalar_example() {
+  "test.string_elements_attr"() {
+    // CHECK: dense<"example">
+    scalar_string_attr = dense<"example"> : tensor<2x!unknown<"">>
+  } : () -> ()
+  return
+}
+
+// -----
+
+func @escape_string_example() {
+  "test.string_elements_attr"() {
+    // CHECK: dense<"new\0Aline">
+    scalar_string_attr = dense<"new\nline"> : tensor<2x!unknown<"">>
+  } : () -> ()
+  return
+}
+
+// -----
+
+func @simple_scalar_example() {
+  "test.string_elements_attr"() {
+    // CHECK: dense<["example1", "example2"]>
+    scalar_string_attr = dense<["example1", "example2"]> : tensor<2x!unknown<"">>
+  } : () -> ()
+  return
+}
+
+// -----
+
+//===----------------------------------------------------------------------===//
 // Test SymbolRefAttr
 //===----------------------------------------------------------------------===//
 
@@ -500,6 +534,26 @@ func @wrong_shape_fail() {
     matrix_i64_attr = dense<6> : tensor<4x8xi64>,
     vector_i32_attr = dense<5> : tensor<i32>
   } : () -> ()
+  return
+}
+
+//===----------------------------------------------------------------------===//
+// Test StructAttr
+//===----------------------------------------------------------------------===//
+
+// -----
+
+func @missing_fields() {
+  // expected-error @+1 {{failed to satisfy constraint: DictionaryAttr with field(s): 'some_field', 'some_other_field' (each field having its own constraints)}}
+  "test.struct_attr"() {the_struct_attr = {}} : () -> ()
+  return
+}
+
+// -----
+
+func @erroneous_fields() {
+  // expected-error @+1 {{failed to satisfy constraint: DictionaryAttr with field(s): 'some_field', 'some_other_field' (each field having its own constraints)}}
+  "test.struct_attr"() {the_struct_attr = {some_field = 1 : i8, some_other_field = 1}} : () -> ()
   return
 }
 

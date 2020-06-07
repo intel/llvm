@@ -19,8 +19,8 @@
 
 #include "Compiler.h"
 #include "ParsedAST.h"
-#include "Path.h"
 #include "index/Index.h"
+#include "support/Path.h"
 #include "llvm/ADT/StringMap.h"
 #include "gtest/gtest.h"
 #include <string>
@@ -68,8 +68,10 @@ struct TestTU {
   // By default, build() will report Error diagnostics as GTest errors.
   // Suppress this behavior by adding an 'error-ok' comment to the code.
   ParsedAST build() const;
+  std::shared_ptr<const PreambleData> preamble() const;
   ParseInputs inputs() const;
   SymbolSlab headerSymbols() const;
+  RefSlab headerRefs() const;
   std::unique_ptr<SymbolIndex> index() const;
 };
 

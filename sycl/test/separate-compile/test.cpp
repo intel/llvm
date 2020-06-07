@@ -1,3 +1,6 @@
+// UNSUPPORTED: cuda
+// CUDA does not support SPIR-V.
+
 // >> ---- compile src1
 // >> device compilation...
 // RUN: %clangxx -fsycl-device-only -Xclang -fsycl-int-header=sycl_ihdr_a.h %s -c -o a_kernel.bc -I %sycl_include -Wno-sycl-strict
@@ -34,10 +37,8 @@
 //
 // >> ---- link the full hetero app
 // RUN: %clangxx wrapper.o a.o b.o -o app.exe -lsycl
-// RUN: ./app.exe | FileCheck %s
+// RUN: env SYCL_BE=%sycl_be ./app.exe | FileCheck %s
 // CHECK: pass
-
-// UNSUPPORTED: cuda
 
 //==----------- test.cpp - Tests SYCL separate compilation -----------------==//
 //

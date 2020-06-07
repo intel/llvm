@@ -42,8 +42,8 @@ endfunction(add_libclc_alias alias target)
 macro(add_libclc_builtin_set arch_suffix)
   cmake_parse_arguments(ARG
     ""
-    "TRIPLE;TARGET_ENV;LIB_DEP;GENERATE_TARGET;PARENT_TARGET"
-    "FILES;ALIASES;COMPILE_OPT"
+    "TRIPLE;TARGET_ENV;LIB_DEP;PARENT_TARGET"
+    "FILES;ALIASES;GENERATE_TARGET;COMPILE_OPT"
     ${ARGN})
 
   if (DEFINED ${ARG_LIB_DEP})
@@ -66,7 +66,7 @@ macro(add_libclc_builtin_set arch_suffix)
   target_compile_definitions( builtins.link.${arch_suffix} PRIVATE
     "__CLC_INTERNAL" )
   target_compile_options( builtins.link.${arch_suffix} PRIVATE
-    -target ${ARG_TRIPLE} ${ARG_COMPILE_OPT} -fno-builtin )
+    -target ${ARG_TRIPLE} ${ARG_COMPILE_OPT} -fno-builtin -nostdlib )
   set_target_properties( builtins.link.${arch_suffix} PROPERTIES
     LINKER_LANGUAGE CLC )
   set_output_directory(builtins.link.${arch_suffix} LIBRARY_DIR ${LIBCLC_LIBRARY_OUTPUT_INTDIR})

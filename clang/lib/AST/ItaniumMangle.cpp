@@ -2079,6 +2079,8 @@ bool CXXNameMangler::mangleUnresolvedTypeOrSimpleId(QualType Ty,
   case Type::DependentSizedExtVector:
   case Type::Vector:
   case Type::ExtVector:
+  case Type::ConstantMatrix:
+  case Type::DependentSizedMatrix:
   case Type::FunctionProto:
   case Type::FunctionNoProto:
   case Type::Paren:
@@ -2385,16 +2387,39 @@ void CXXNameMangler::mangleQualifiers(Qualifiers Quals, const DependentAddressSp
       switch (AS) {
       default: llvm_unreachable("Not a language specific address space");
       //  <OpenCL-addrspace> ::= "CL" [ "global" | "local" | "constant" |
-      //                                "private"| "generic" ]
-      case LangAS::opencl_global:   ASString = "CLglobal";   break;
-      case LangAS::opencl_local:    ASString = "CLlocal";    break;
-      case LangAS::opencl_constant: ASString = "CLconstant"; break;
-      case LangAS::opencl_private:  ASString = "CLprivate";  break;
-      case LangAS::opencl_generic:  ASString = "CLgeneric";  break;
+      //                                "private"| "generic" | "global_device" |
+      //                                "global_host" ]
+      case LangAS::opencl_global:
+        ASString = "CLglobal";
+        break;
+      case LangAS::opencl_global_device:
+        ASString = "CLDevice";
+        break;
+      case LangAS::opencl_global_host:
+        ASString = "CLHost";
+        break;
+      case LangAS::opencl_local:
+        ASString = "CLlocal";
+        break;
+      case LangAS::opencl_constant:
+        ASString = "CLconstant";
+        break;
+      case LangAS::opencl_private:
+        ASString = "CLprivate";
+        break;
+      case LangAS::opencl_generic:
+        ASString = "CLgeneric";
+        break;
       //  <CUDA-addrspace> ::= "CU" [ "device" | "constant" | "shared" ]
-      case LangAS::cuda_device:     ASString = "CUdevice";   break;
-      case LangAS::cuda_constant:   ASString = "CUconstant"; break;
-      case LangAS::cuda_shared:     ASString = "CUshared";   break;
+      case LangAS::cuda_device:
+        ASString = "CUdevice";
+        break;
+      case LangAS::cuda_constant:
+        ASString = "CUconstant";
+        break;
+      case LangAS::cuda_shared:
+        ASString = "CUshared";
+        break;
       //  <ptrsize-addrspace> ::= [ "ptr32_sptr" | "ptr32_uptr" | "ptr64" ]
       case LangAS::ptr32_sptr:
         ASString = "ptr32_sptr";
@@ -3340,6 +3365,31 @@ void CXXNameMangler::mangleType(const DependentSizedExtVectorType *T) {
   Out << "Dv";
   mangleExpression(T->getSizeExpr());
   Out << '_';
+  mangleType(T->getElementType());
+}
+
+void CXXNameMangler::mangleType(const ConstantMatrixType *T) {
+  // Mangle matrix types using a vendor extended type qualifier:
+  // U<Len>matrix_type<Rows><Columns><element type>
+  StringRef VendorQualifier = "matrix_type";
+  Out << "U" << VendorQualifier.size() << VendorQualifier;
+  auto &ASTCtx = getASTContext();
+  unsigned BitWidth = ASTCtx.getTypeSize(ASTCtx.getSizeType());
+  llvm::APSInt Rows(BitWidth);
+  Rows = T->getNumRows();
+  mangleIntegerLiteral(ASTCtx.getSizeType(), Rows);
+  llvm::APSInt Columns(BitWidth);
+  Columns = T->getNumColumns();
+  mangleIntegerLiteral(ASTCtx.getSizeType(), Columns);
+  mangleType(T->getElementType());
+}
+
+void CXXNameMangler::mangleType(const DependentSizedMatrixType *T) {
+  // U<Len>matrix_type<row expr><column expr><element type>
+  StringRef VendorQualifier = "matrix_type";
+  Out << "U" << VendorQualifier.size() << VendorQualifier;
+  mangleTemplateArg(T->getRowExpr());
+  mangleTemplateArg(T->getColumnExpr());
   mangleType(T->getElementType());
 }
 
@@ -4289,6 +4339,9 @@ recurse:
     break;
   case Expr::CXXConstCastExprClass:
     mangleCastExpression(E, "cc");
+    break;
+  case Expr::CXXAddrspaceCastExprClass:
+    mangleCastExpression(E, "ac");
     break;
 
   case Expr::CXXOperatorCallExprClass: {

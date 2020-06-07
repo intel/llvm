@@ -15,6 +15,7 @@
 
 #include "llvm/BinaryFormat/XCOFF.h"
 #include "llvm/Object/ObjectFile.h"
+#include "llvm/Support/Endian.h"
 #include <limits>
 
 namespace llvm {
@@ -268,7 +269,7 @@ public:
 
   // Interface inherited from base classes.
   void moveSymbolNext(DataRefImpl &Symb) const override;
-  uint32_t getSymbolFlags(DataRefImpl Symb) const override;
+  Expected<uint32_t> getSymbolFlags(DataRefImpl Symb) const override;
   basic_symbol_iterator symbol_begin() const override;
   basic_symbol_iterator symbol_end() const override;
 

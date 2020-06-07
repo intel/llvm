@@ -21,11 +21,9 @@
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/OptimizationRemarkEmitter.h"
 #include "llvm/Analysis/ScalarEvolution.h"
-#include "llvm/Analysis/ScalarEvolutionExpander.h"
 #include "llvm/Analysis/ScalarEvolutionExpressions.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/IR/CFG.h"
-#include "llvm/IR/CallSite.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
@@ -33,6 +31,7 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
+#include "llvm/Transforms/Utils/ScalarEvolutionExpander.h"
 #include "llvm/Transforms/Utils/ValueMapper.h"
 using namespace llvm;
 
@@ -237,7 +236,7 @@ struct Prefetch {
   /// The (first seen) prefetched instruction.
   Instruction *MemI;
 
-  /// Constructor to create a new Prefetch for \param I.
+  /// Constructor to create a new Prefetch for \p I.
   Prefetch(const SCEVAddRecExpr *L, Instruction *I)
       : LSCEVAddRec(L), InsertPt(nullptr), Writes(false), MemI(nullptr) {
     addInstruction(I);
@@ -286,8 +285,7 @@ bool LoopDataPrefetch::runOnLoop(Loop *L) {
     // what they are doing and don't add any more.
     for (auto &I : *BB) {
       if (isa<CallInst>(&I) || isa<InvokeInst>(&I)) {
-        ImmutableCallSite CS(&I);
-        if (const Function *F = CS.getCalledFunction()) {
+        if (const Function *F = cast<CallBase>(I).getCalledFunction()) {
           if (F->getIntrinsicID() == Intrinsic::prefetch)
             return MadeChange;
           if (TTI->isLoweredToCall(F))

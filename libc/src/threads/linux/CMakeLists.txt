@@ -8,6 +8,19 @@ add_gen_header(
     ${LIBC_TARGET_MACHINE}/thread_start_args.h.in
 )
 
+add_entrypoint_object(
+  call_once
+  SRCS
+    call_once.cpp
+  HDRS
+    ../call_once.h
+  DEPENDS
+    .threads_utils
+    libc.config.linux.linux_syscall_h
+    libc.include.sys_syscall
+    libc.include.threads
+)
+
 add_header_library(
   threads_utils
   HDRS
@@ -47,7 +60,7 @@ add_entrypoint_object(
     libc.config.linux.linux_syscall_h
     libc.include.sys_syscall
     libc.include.threads
-    libc.src.sys.mman.mmap
+    libc.src.sys.mman.munmap
     libc.src.__support.common
 )
 

@@ -9,12 +9,12 @@
 #include "AST.h"
 #include "FindTarget.h"
 #include "HeaderSourceSwitch.h"
-#include "Logger.h"
 #include "ParsedAST.h"
-#include "Path.h"
 #include "Selection.h"
 #include "SourceCode.h"
 #include "refactor/Tweak.h"
+#include "support/Logger.h"
+#include "support/Path.h"
 #include "clang/AST/ASTTypeTraits.h"
 #include "clang/AST/Attr.h"
 #include "clang/AST/Decl.h"
@@ -317,18 +317,16 @@ SourceRange getDeletionRange(const FunctionDecl *FD,
                              const syntax::TokenBuffer &TokBuf) {
   auto DeletionRange = FD->getBody()->getSourceRange();
   if (auto *CD = llvm::dyn_cast<CXXConstructorDecl>(FD)) {
-    const auto &SM = TokBuf.sourceManager();
     // AST doesn't contain the location for ":" in ctor initializers. Therefore
     // we find it by finding the first ":" before the first ctor initializer.
     SourceLocation InitStart;
     // Find the first initializer.
     for (const auto *CInit : CD->inits()) {
-      // We don't care about in-class initializers.
-      if (CInit->isInClassMemberInitializer())
+      // SourceOrder is -1 for implicit initializers.
+      if (CInit->getSourceOrder() != 0)
         continue;
-      if (InitStart.isInvalid() ||
-          SM.isBeforeInTranslationUnit(CInit->getSourceLocation(), InitStart))
-        InitStart = CInit->getSourceLocation();
+      InitStart = CInit->getSourceLocation();
+      break;
     }
     if (InitStart.isValid()) {
       auto Toks = TokBuf.expandedTokens(CD->getSourceRange());

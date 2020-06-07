@@ -272,8 +272,8 @@ linkage:
     visible, meaning that it participates in linkage and can be used to
     resolve external symbol references.
 
-It is illegal for a function *declaration* to have any linkage type
-other than ``external`` or ``extern_weak``.
+It is illegal for a global variable or function *declaration* to have any
+linkage type other than ``external`` or ``extern_weak``.
 
 .. _callingconv:
 
@@ -615,6 +615,8 @@ Global variable definitions must be initialized.
 Global variables in other translation units can also be declared, in which
 case they don't have an initializer.
 
+Global variables can optionally specify a :ref:`linkage type <linkage>`.
+
 Either global variable definitions or declarations may have an explicit section
 to be placed in and may have an optional explicit alignment specified. If there
 is a mismatch between the explicit or inferred section information for the
@@ -685,6 +687,13 @@ case, the extra alignment could be observable: for example, code could
 assume that the globals are densely packed in their section and try to
 iterate over them as an array, alignment padding would break this
 iteration. The maximum alignment is ``1 << 29``.
+
+For global variables declarations, as well as definitions that may be
+replaced at link time (``linkonce``, ``weak``, ``extern_weak`` and ``common``
+linkage types), LLVM makes no assumptions about the allocation size of the
+variables, except that they may not overlap. The alignment of a global variable
+declaration or replaceable definition must not be greater than the alignment of
+the definition it resolves to.
 
 Globals can also have a :ref:`DLL storage class <dllstorageclass>`,
 an optional :ref:`runtime preemption specifier <runtime_preemption_model>`,
@@ -1052,6 +1061,31 @@ Currently, only the following parameter attributes are defined:
     the same as the pointee type of the argument.
 
     The byval attribute also supports specifying an alignment with the
+    align attribute. It indicates the alignment of the stack slot to
+    form and the known alignment of the pointer specified to the call
+    site. If the alignment is not specified, then the code generator
+    makes a target-specific assumption.
+
+.. _attr_preallocated:
+
+``preallocated(<ty>)``
+    This indicates that the pointer parameter should really be passed by
+    value to the function, and that the pointer parameter's pointee has
+    already been initialized before the call instruction. This attribute
+    is only valid on LLVM pointer arguments. The argument must be the value
+    returned by the appropriate
+    :ref:`llvm.call.preallocated.arg<int_call_preallocated_arg>` on non
+    ``musttail`` calls, or the corresponding caller parameter in ``musttail``
+    calls, although it is ignored during codegen.
+
+    A non ``musttail`` function call with a ``preallocated`` attribute in
+    any parameter must have a ``"preallocated"`` operand bundle. A ``musttail``
+    function call cannot have a ``"preallocated"`` operand bundle.
+
+    The preallocated attribute requires a type argument, which must be
+    the same as the pointee type of the argument.
+
+    The preallocated attribute also supports specifying an alignment with the
     align attribute. It indicates the alignment of the stack slot to
     form and the known alignment of the pointer specified to the call
     site. If the alignment is not specified, then the code generator
@@ -1499,6 +1533,14 @@ example:
     This attribute indicates that the inliner should never inline this
     function in any situation. This attribute may not be used together
     with the ``alwaysinline`` attribute.
+``nomerge``
+    This attribute indicates that calls to this function should never be merged
+    during optimization. For example, it will prevent tail merging otherwise
+    identical code sequences that raise an exception or terminate the program.
+    Tail merging normally reduces the precision of source location information,
+    making stack traces less useful for debugging. This attribute gives the
+    user control over the tradeoff between code size and debug information
+    precision.
 ``nonlazybind``
     This attribute suppresses lazy symbol binding for the function. This
     may make calls to the function faster, at the cost of extra program
@@ -1543,8 +1585,8 @@ example:
     trap or generate asynchronous exceptions. Exception handling schemes
     that are recognized by LLVM to handle asynchronous exceptions, such
     as SEH, will still provide their implementation defined semantics.
-``"null-pointer-is-valid"``
-   If ``"null-pointer-is-valid"`` is set to ``"true"``, then ``null`` address
+``null_pointer_is_valid``
+   If ``null_pointer_is_valid`` is set, then the ``null`` address
    in address-space 0 is considered to be a valid address for memory loads and
    stores. Any analysis or optimization should not treat dereferencing a
    pointer to ``null`` as undefined behavior in this function.
@@ -1828,7 +1870,7 @@ example:
     ``"preserve-sign"``, or ``"positive-zero"``. The first entry
     indicates the flushing mode for the result of floating point
     operations. The second indicates the handling of denormal inputs
-    to floating point instructions. For compatability with older
+    to floating point instructions. For compatibility with older
     bitcode, if the second value is omitted, both input and output
     modes will assume the same mode.
 
@@ -1879,7 +1921,7 @@ example:
 ``shadowcallstack``
     This attribute indicates that the ShadowCallStack checks are enabled for
     the function. The instrumentation checks that the return address for the
-    function has not changed between the function prolog and eiplog. It is
+    function has not changed between the function prolog and epilog. It is
     currently x86_64-specific.
 
 Call Site Attributes
@@ -1952,6 +1994,12 @@ attributes are supported:
         <scalar_name>:= name of the scalar function
 
         <vector_redirection>:= optional, custom name of the vector function
+
+``preallocated(<ty>)``
+    This attribute is required on calls to ``llvm.call.preallocated.arg``
+    and cannot be used on any other call. See
+    :ref:`llvm.call.preallocated.arg<int_call_preallocated_arg>` for more
+    details.
 
 .. _glattrs:
 
@@ -2164,6 +2212,33 @@ benefits:
   use of the value as a use in an :ref:`llvm.assume <int_assume>`. This then
   simplifies and improves heuristics, e.g., for use "use-sensitive"
   optimizations.
+
+.. _ob_preallocated:
+
+Preallocated Operand Bundles
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Preallocated operand bundles are characterized by the ``"preallocated"``
+operand bundle tag.  These operand bundles allow separation of the allocation
+of the call argument memory from the call site.  This is necessary to pass
+non-trivially copyable objects by value in a way that is compatible with MSVC
+on some targets.  There can be at most one ``"preallocated"`` operand bundle
+attached to a call site and it must have exactly one bundle operand, which is
+a token generated by ``@llvm.call.preallocated.setup``.  A call with this
+operand bundle should not adjust the stack before entering the function, as
+that will have been done by one of the ``@llvm.call.preallocated.*`` intrinsics.
+
+.. code-block:: llvm
+
+      %foo = type { i64, i32 }
+
+      ...
+
+      %t = call token @llvm.call.preallocated.setup(i32 1)
+      %a = call i8* @llvm.call.preallocated.arg(token %t, i32 0) preallocated(%foo)
+      %b = bitcast i8* %a to %foo*
+      ; initialize %b
+      call void @bar(i32 42, %foo* preallocated(%foo) %b) ["preallocated"(token %t)]
 
 .. _moduleasm:
 
@@ -2674,7 +2749,8 @@ floating-point transformations.
 
 ``nsz``
    No Signed Zeros - Allow optimizations to treat the sign of a zero
-   argument or result as insignificant.
+   argument or result as insignificant. This does not imply that -0.0
+   is poison and/or guaranteed to not exist in the operation.
 
 ``arcp``
    Allow Reciprocal - Allow optimizations to use the reciprocal of an
@@ -2892,6 +2968,12 @@ Floating-Point Types
    * - ``half``
      - 16-bit floating-point value
 
+   * - ``bfloat``
+     - 16-bit "brain" floating-point value (7-bit significand).  Provides the
+       same number of exponent bits as ``float``, so that it matches its dynamic
+       range, but with greatly reduced precision.  Used in Intel's AVX-512 BF16
+       extensions and Arm's ARMv8.6-A extensions, among others.
+
    * - ``float``
      - 32-bit floating-point value
 
@@ -2899,7 +2981,7 @@ Floating-Point Types
      - 64-bit floating-point value
 
    * - ``fp128``
-     - 128-bit floating-point value (112-bit mantissa)
+     - 128-bit floating-point value (112-bit significand)
 
    * - ``x86_fp80``
      -  80-bit floating-point value (X87)
@@ -3232,20 +3314,20 @@ number of digits. For example, NaN's, infinities, and other special
 values are represented in their IEEE hexadecimal format so that assembly
 and disassembly do not cause any bits to change in the constants.
 
-When using the hexadecimal form, constants of types half, float, and
-double are represented using the 16-digit form shown above (which
-matches the IEEE754 representation for double); half and float values
-must, however, be exactly representable as IEEE 754 half and single
-precision, respectively. Hexadecimal format is always used for long
-double, and there are three forms of long double. The 80-bit format used
-by x86 is represented as ``0xK`` followed by 20 hexadecimal digits. The
-128-bit format used by PowerPC (two adjacent doubles) is represented by
-``0xM`` followed by 32 hexadecimal digits. The IEEE 128-bit format is
-represented by ``0xL`` followed by 32 hexadecimal digits. Long doubles
-will only work if they match the long double format on your target.
-The IEEE 16-bit format (half precision) is represented by ``0xH``
-followed by 4 hexadecimal digits. All hexadecimal formats are big-endian
-(sign bit at the left).
+When using the hexadecimal form, constants of types bfloat, half, float, and
+double are represented using the 16-digit form shown above (which matches the
+IEEE754 representation for double); bfloat, half and float values must, however,
+be exactly representable as bfloat, IEEE 754 half, and IEEE 754 single
+precision respectively. Hexadecimal format is always used for long double, and
+there are three forms of long double. The 80-bit format used by x86 is
+represented as ``0xK`` followed by 20 hexadecimal digits. The 128-bit format
+used by PowerPC (two adjacent doubles) is represented by ``0xM`` followed by 32
+hexadecimal digits. The IEEE 128-bit format is represented by ``0xL`` followed
+by 32 hexadecimal digits. Long doubles will only work if they match the long
+double format on your target.  The IEEE 16-bit format (half precision) is
+represented by ``0xH`` followed by 4 hexadecimal digits. The bfloat 16-bit
+format is represented by ``0xR`` followed by 4 hexadecimal digits. All
+hexadecimal formats are big-endian (sign bit at the left).
 
 There are no constants of type x86_mmx.
 
@@ -4050,7 +4132,8 @@ AMDGPU:
 - ``r``: A 32 or 64-bit integer register.
 - ``[0-9]v``: The 32-bit VGPR register, number 0-9.
 - ``[0-9]s``: The 32-bit SGPR register, number 0-9.
-
+- ``[0-9]a``: The 32-bit AGPR register, number 0-9.
+- ``A``: An integer or a floating-point inline constant.
 
 All ARM modes:
 
@@ -4738,7 +4821,12 @@ The following ``tag:`` values are valid:
 For ``DW_TAG_array_type``, the ``elements:`` should be :ref:`subrange
 descriptors <DISubrange>`, each representing the range of subscripts at that
 level of indexing. The ``DIFlagVector`` flag to ``flags:`` indicates that an
-array type is a native packed vector.
+array type is a native packed vector. The optional ``dataLocation`` is a
+DIExpression that describes how to get from an object's address to the actual
+raw data, if they aren't equivalent. This is only supported for array types,
+particularly to describe Fortran arrays, which have an array descriptor in
+addition to the array data. Alternatively it can also be DIVariable which
+has the address of the actual raw data.
 
 For ``DW_TAG_enumeration_type``, the ``elements:`` should be :ref:`enumerator
 descriptors <DIEnumerator>`, each representing the definition of an enumeration
@@ -5021,15 +5109,20 @@ The current supported opcode vocabulary is limited:
 
   ``DW_OP_LLVM_entry_value`` is only legal in MIR. The operation is introduced
   by the ``LiveDebugValues`` pass; currently only for function parameters that
-  are unmodified throughout a function and that are described as simple
-  register location descriptions. The operation is also introduced by the
-  ``AsmPrinter`` pass when a call site parameter value
+  are unmodified throughout a function. Support is limited to function
+  parameter that are described as simple register location descriptions, or as
+  indirect locations (e.g. when a struct is passed-by-value to a callee via a
+  pointer to a temporary copy made in the caller). The entry value op is also
+  introduced by the ``AsmPrinter`` pass when a call site parameter value
   (``DW_AT_call_site_parameter_value``) is represented as entry value of the
   parameter.
 - ``DW_OP_breg`` (or ``DW_OP_bregx``) represents a content on the provided
   signed offset of the specified register. The opcode is only generated by the
   ``AsmPrinter`` pass to describe call site parameter value which requires an
   expression over two registers.
+- ``DW_OP_push_object_address`` pushes the address of the object which can then
+  serve as a descriptor in subsequent calculation. This opcode can be used to
+  calculate bounds of fortran allocatable array which has array descriptors.
 
 DWARF specifies three kinds of simple location descriptions: Register, memory,
 and implicit location descriptions.  Note that a location description is
@@ -7366,9 +7459,8 @@ instruction in most regards. The primary difference is that it
 establishes an association with additional labels to define where control
 flow goes after the call.
 
-Outputs of a '``callbr``' instruction are valid only on the '``fallthrough``'
-path.  Use of outputs on the '``indirect``' path(s) results in :ref:`poison
-values <poisonvalues>`.
+The output values of a '``callbr``' instruction are available only to
+the '``fallthrough``' block, not to any '``indirect``' blocks(s).
 
 The only use of this today is to implement the "goto" feature of gcc inline
 assembly where additional labels can be provided as locations for the inline
@@ -10547,8 +10639,8 @@ This instruction requires several arguments:
 
    #. The call will not cause unbounded stack growth if it is part of a
       recursive cycle in the call graph.
-   #. Arguments with the :ref:`inalloca <attr_inalloca>` attribute are
-      forwarded in place.
+   #. Arguments with the :ref:`inalloca <attr_inalloca>` or
+      :ref:`preallocated <attr_preallocated>` attribute are forwarded in place.
    #. If the musttail call appears in a function with the ``"thunk"`` attribute
       and the caller and callee both have varargs, than any unprototyped
       arguments in register or memory are forwarded to the callee. Similarly,
@@ -11875,6 +11967,90 @@ call a helper function, read from an alternate memory space, or perform
 other operations necessary to locate the TLS area.  Not all targets support
 this intrinsic.
 
+'``llvm.call.preallocated.setup``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare token @llvm.call.preallocated.setup(i32 %num_args)
+
+Overview:
+"""""""""
+
+The '``llvm.call.preallocated.setup``' intrinsic returns a token which can
+be used with a call's ``"preallocated"`` operand bundle to indicate that
+certain arguments are allocated and initialized before the call.
+
+Semantics:
+""""""""""
+
+The '``llvm.call.preallocated.setup``' intrinsic returns a token which is
+associated with at most one call. The token can be passed to
+'``@llvm.call.preallocated.arg``' to get a pointer to get that
+corresponding argument. The token must be the parameter to a
+``"preallocated"`` operand bundle for the corresponding call.
+
+Nested calls to '``llvm.call.preallocated.setup``' are allowed, but must
+be properly nested. e.g.
+
+:: code-block:: llvm
+
+      %t1 = call token @llvm.call.preallocated.setup(i32 0)
+      %t2 = call token @llvm.call.preallocated.setup(i32 0)
+      call void foo() ["preallocated"(token %t2)]
+      call void foo() ["preallocated"(token %t1)]
+
+is allowed, but not
+
+:: code-block:: llvm
+
+      %t1 = call token @llvm.call.preallocated.setup(i32 0)
+      %t2 = call token @llvm.call.preallocated.setup(i32 0)
+      call void foo() ["preallocated"(token %t1)]
+      call void foo() ["preallocated"(token %t2)]
+
+.. _int_call_preallocated_arg:
+
+'``llvm.call.preallocated.arg``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare i8* @llvm.call.preallocated.arg(token %setup_token, i32 %arg_index)
+
+Overview:
+"""""""""
+
+The '``llvm.call.preallocated.arg``' intrinsic returns a pointer to the
+corresponding preallocated argument for the preallocated call.
+
+Semantics:
+""""""""""
+
+The '``llvm.call.preallocated.arg``' intrinsic returns a pointer to the
+``%arg_index``th argument with the ``preallocated`` attribute for
+the call associated with the ``%setup_token``, which must be from
+'``llvm.call.preallocated.setup``'.
+
+A call to '``llvm.call.preallocated.arg``' must have a call site
+``preallocated`` attribute. The type of the ``preallocated`` attribute must
+match the type used by the ``preallocated`` attribute of the corresponding
+argument at the preallocated call. The type is used in the case that an
+``llvm.call.preallocated.setup`` does not have a corresponding call (e.g. due
+to DCE), where otherwise we cannot know how large the arguments are.
+
+It is undefined behavior if this is called with a token from an
+'``llvm.call.preallocated.setup``' if another
+'``llvm.call.preallocated.setup``' has already been called or if the
+preallocated call corresponding to the '``llvm.call.preallocated.setup``'
+has already been called.
+
 Standard C Library Intrinsics
 -----------------------------
 
@@ -12990,6 +13166,44 @@ Semantics:
 
 This function returns the same values as the libm ``round``
 functions would, and handles error conditions in the same way.
+
+'``llvm.roundeven.*``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+This is an overloaded intrinsic. You can use ``llvm.roundeven`` on any
+floating-point or vector of floating-point type. Not all targets support
+all types however.
+
+::
+
+      declare float     @llvm.roundeven.f32(float  %Val)
+      declare double    @llvm.roundeven.f64(double %Val)
+      declare x86_fp80  @llvm.roundeven.f80(x86_fp80  %Val)
+      declare fp128     @llvm.roundeven.f128(fp128 %Val)
+      declare ppc_fp128 @llvm.roundeven.ppcf128(ppc_fp128  %Val)
+
+Overview:
+"""""""""
+
+The '``llvm.roundeven.*``' intrinsics returns the operand rounded to the nearest
+integer in floating-point format rounding halfway cases to even (that is, to the
+nearest value that is an even integer).
+
+Arguments:
+""""""""""
+
+The argument and return value are floating-point numbers of the same type.
+
+Semantics:
+""""""""""
+
+This function implements IEEE-754 operation ``roundToIntegralTiesToEven``. It
+also behaves in the same way as C standard function ``roundeven``, except that
+it does not raise floating point exceptions.
+
 
 '``llvm.lround.*``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -14657,6 +14871,169 @@ Examples:
       %r2 = call float @llvm.fmuladd.f32(float %a, float %b, float %c) ; yields float:r2 = (a * b) + c
 
 
+Hardware-Loop Intrinsics
+------------------------
+
+LLVM support several intrinsics to mark a loop as a hardware-loop. They are
+hints to the backend which are required to lower these intrinsics further to target
+specific instructions, or revert the hardware-loop to a normal loop if target
+specific restriction are not met and a hardware-loop can't be generated.
+
+These intrinsics may be modified in the future and are not intended to be used
+outside the backend. Thus, front-end and mid-level optimizations should not be
+generating these intrinsics.
+
+
+'``llvm.set.loop.iterations.*``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+This is an overloaded intrinsic.
+
+::
+
+      declare void @llvm.set.loop.iterations.i32(i32)
+      declare void @llvm.set.loop.iterations.i64(i64)
+
+Overview:
+"""""""""
+
+The '``llvm.set.loop.iterations.*``' intrinsics are used to specify the
+hardware-loop trip count. They are placed in the loop preheader basic block and
+are marked as ``IntrNoDuplicate`` to avoid optimizers duplicating these
+instructions.
+
+Arguments:
+""""""""""
+
+The integer operand is the loop trip count of the hardware-loop, and thus
+not e.g. the loop back-edge taken count.
+
+Semantics:
+""""""""""
+
+The '``llvm.set.loop.iterations.*``' intrinsics do not perform any arithmetic
+on their operand. It's a hint to the backend that can use this to set up the
+hardware-loop count with a target specific instruction, usually a move of this
+value to a special register or a hardware-loop instruction.
+
+'``llvm.test.set.loop.iterations.*``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+This is an overloaded intrinsic.
+
+::
+
+      declare void @llvm.test.set.loop.iterations.i32(i32)
+      declare void @llvm.test.set.loop.iterations.i64(i64)
+
+Overview:
+"""""""""
+
+The '``llvm.test.set.loop.iterations.*``' intrinsics are used to specify the
+the loop trip count, and also test that the given count is not zero, allowing
+it to control entry to a while-loop.  They are placed in the loop preheader's
+predecessor basic block, and are marked as ``IntrNoDuplicate`` to avoid
+optimizers duplicating these instructions.
+
+Arguments:
+""""""""""
+
+The integer operand is the loop trip count of the hardware-loop, and thus
+not e.g. the loop back-edge taken count.
+
+Semantics:
+""""""""""
+
+The '``llvm.test.set.loop.iterations.*``' intrinsics do not perform any
+arithmetic on their operand. It's a hint to the backend that can use this to
+set up the hardware-loop count with a target specific instruction, usually a
+move of this value to a special register or a hardware-loop instruction.
+
+'``llvm.loop.decrement.reg.*``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+This is an overloaded intrinsic.
+
+::
+
+      declare i32 @llvm.loop.decrement.reg.i32(i32, i32)
+      declare i64 @llvm.loop.decrement.reg.i64(i64, i64)
+
+Overview:
+"""""""""
+
+The '``llvm.loop.decrement.reg.*``' intrinsics are used to lower the loop
+iteration counter and return an updated value that will be used in the next
+loop test check.
+
+Arguments:
+""""""""""
+
+Both arguments must have identical integer types. The first operand is the
+loop iteration counter. The second operand is the maximum number of elements
+processed in an iteration.
+
+Semantics:
+""""""""""
+
+The '``llvm.loop.decrement.reg.*``' intrinsics do an integer ``SUB`` of its
+two operands, which is not allowed to wrap. They return the remaining number of
+iterations still to be executed, and can be used together with a ``PHI``,
+``ICMP`` and ``BR`` to control the number of loop iterations executed. Any
+optimisations are allowed to treat it is a ``SUB``, and it is supported by
+SCEV, so it's the backends responsibility to handle cases where it may be
+optimised. These intrinsics are marked as ``IntrNoDuplicate`` to avoid
+optimizers duplicating these instructions.
+
+
+'``llvm.loop.decrement.*``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+This is an overloaded intrinsic.
+
+::
+
+      declare i1 @llvm.loop.decrement.i32(i32)
+      declare i1 @llvm.loop.decrement.i64(i64)
+
+Overview:
+"""""""""
+
+The HardwareLoops pass allows the loop decrement value to be specified with an
+option. It defaults to a loop decrement value of 1, but it can be an unsigned
+integer value provided by this option.  The '``llvm.loop.decrement.*``'
+intrinsics decrement the loop iteration counter with this value, and return a
+false predicate if the loop should exit, and true otherwise.
+This is emitted if the loop counter is not updated via a ``PHI`` node, which
+can also be controlled with an option.
+
+Arguments:
+""""""""""
+
+The integer argument is the loop decrement value used to decrement the loop
+iteration counter.
+
+Semantics:
+""""""""""
+
+The '``llvm.loop.decrement.*``' intrinsics do a ``SUB`` of the loop iteration
+counter with the given loop decrement value, and return false if the loop
+should exit, this ``SUB`` is not allowed to wrap. The result is a condition
+that is used by the conditional branch controlling the loop.
+
+
 Experimental Vector Reduction Intrinsics
 ----------------------------------------
 
@@ -15989,6 +16366,81 @@ Examples:
       %also.r = select <4 x i1> %mask, <4 x i32> %t, <4 x i32> undef
 
 
+.. _int_get_active_lane_mask:
+
+'``llvm.get.active.lane.mask.*``' Intrinsics
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+This is an overloaded intrinsic.
+
+::
+
+      declare <4 x i1> @llvm.get.active.lane.mask.v4i1.i32(i32 %base, i32 %n)
+      declare <8 x i1> @llvm.get.active.lane.mask.v8i1.i64(i64 %base, i64 %n)
+      declare <16 x i1> @llvm.get.active.lane.mask.v16i1.i64(i64 %base, i64 %n)
+      declare <vscale x 16 x i1> @llvm.get.active.lane.mask.nxv16i1.i64(i64 %base, i64 %n)
+
+
+Overview:
+"""""""""
+
+Create a mask representing active and inactive vector lanes.
+
+
+Arguments:
+""""""""""
+
+Both operands have the same scalar integer type. The result is a vector with
+the i1 element type.
+
+Semantics:
+""""""""""
+
+The '``llvm.get.active.lane.mask.*``' intrinsics are semantically equivalent
+to:
+
+::
+
+      %m[i] = icmp ule (%base + i), %n
+
+where ``%m`` is a vector (mask) of active/inactive lanes with its elements
+indexed by ``i``,  and ``%base``, ``%n`` are the two arguments to
+``llvm.get.active.lane.mask.*``, ``%imcp`` is an integer compare and ``ule``
+the unsigned less-than-equal comparison operator.  Overflow cannot occur in
+``(%base + i)`` and its comparison against ``%n`` as it is performed in integer
+numbers and not in machine numbers.  The above is equivalent to:
+
+::
+
+      %m = @llvm.get.active.lane.mask(%base, %n)
+
+This can, for example, be emitted by the loop vectorizer. Then, ``%base`` is
+the first element of the vector induction variable (VIV), and ``%n`` is the
+Back-edge Taken Count (BTC). Thus, these intrinsics perform an element-wise
+less than or equal comparison of VIV with BTC, producing a mask of true/false
+values representing active/inactive vector lanes, except if the VIV overflows
+in which case they return false in the lanes where the VIV overflows.  The
+arguments are scalar types to accomodate scalable vector types, for which it is
+unknown what the type of the step vector needs to be that enumerate its
+lanes without overflow.
+
+This mask ``%m`` can e.g. be used in masked load/store instructions. These
+intrinsics provide a hint to the backend. I.e., for a vector loop, the
+back-edge taken count of the original scalar loop is explicit as the second
+argument.
+
+
+Examples:
+"""""""""
+
+.. code-block:: llvm
+
+      %active.lane.mask = call <4 x i1> @llvm.get.active.lane.mask.v4i1.i64(i64 %elem0, i64 429)
+      %wide.masked.load = call <4 x i32> @llvm.masked.load.v4i32.p0v4i32(<4 x i32>* %3, i32 4, <4 x i1> %active.lane.mask, <4 x i32> undef)
+
+
 .. _int_mload_mstore:
 
 Masked Vector Load and Store Intrinsics
@@ -17194,7 +17646,7 @@ The first three arguments to the '``llvm.experimental.constrained.fmuladd``'
 intrinsic must be floating-point or vector of floating-point values.
 All three arguments must have identical types.
 
-The fourth and fifth arguments specifiy the rounding mode and exception behavior
+The fourth and fifth arguments specify the rounding mode and exception behavior
 as described above.
 
 Semantics:
@@ -18005,6 +18457,42 @@ This function returns the same values as the libm ``round`` functions
 would and handles error conditions in the same way.
 
 
+'``llvm.experimental.constrained.roundeven``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type>
+      @llvm.experimental.constrained.roundeven(<type> <op1>,
+                                               metadata <exception behavior>)
+
+Overview:
+"""""""""
+
+The '``llvm.experimental.constrained.roundeven``' intrinsic returns the first
+operand rounded to the nearest integer in floating-point format, rounding
+halfway cases to even (that is, to the nearest value that is an even integer),
+regardless of the current rounding direction.
+
+Arguments:
+""""""""""
+
+The first argument and the return value are floating-point numbers of the same
+type.
+
+The second argument specifies the exception behavior as described above.
+
+Semantics:
+""""""""""
+
+This function implements IEEE-754 operation ``roundToIntegralTiesToEven``. It
+also behaves in the same way as C standard function ``roundeven`` and can signal
+the invalid operation exception for a SNAN operand.
+
+
 '``llvm.experimental.constrained.lround``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -18114,6 +18602,46 @@ Semantics:
 This function returns the same values as the libm ``trunc`` functions
 would and handles error conditions in the same way.
 
+
+Floating Point Environment Manipulation intrinsics
+--------------------------------------------------
+
+These functions read or write floating point environment, such as rounding
+mode or state of floating point exceptions. Altering the floating point
+environment requires special care. See :ref:`Floating Point Environment <floatenv>`.
+
+'``llvm.flt.rounds``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare i32 @llvm.flt.rounds()
+
+Overview:
+"""""""""
+
+The '``llvm.flt.rounds``' intrinsic reads the current rounding mode.
+
+Semantics:
+""""""""""
+
+The '``llvm.flt.rounds``' intrinsic returns the current rounding mode.
+Encoding of the returned values is same as the result of ``FLT_ROUNDS``,
+specified by C standard:
+
+::
+
+    0  - toward zero
+    1  - to nearest, ties to even
+    2  - toward positive infinity
+    3  - toward negative infinity
+    4  - to nearest, ties away from zero
+
+Other values may be used to represent additional rounding modes, supported by a
+target. These values are target-specific.
 
 General Intrinsics
 ------------------

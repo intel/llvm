@@ -8,11 +8,14 @@
 
 #pragma once
 
+#include <CL/sycl/detail/defines.hpp>
 #include <CL/sycl/detail/helpers.hpp>
 #include <CL/sycl/detail/item_base.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/id.hpp>
 #include <CL/sycl/range.hpp>
+
+#include <cstddef>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -22,19 +25,35 @@ class Builder;
 template <int dimensions> class id;
 template <int dimensions> class range;
 
+/// Identifies an instance of the function object executing at each point
+/// in a range.
+///
+/// \ingroup sycl_api
 template <int dimensions = 1, bool with_offset = true> class item {
 public:
   item() = delete;
 
   id<dimensions> get_id() const { return MImpl.MIndex; }
 
-  size_t get_id(int dimension) const { return MImpl.MIndex[dimension]; }
+  size_t ALWAYS_INLINE get_id(int dimension) const {
+    size_t Id = MImpl.MIndex[dimension];
+    __SYCL_ASSUME_INT(Id);
+    return Id;
+  }
 
-  size_t operator[](int dimension) const { return MImpl.MIndex[dimension]; }
+  size_t ALWAYS_INLINE operator[](int dimension) const {
+    size_t Id = MImpl.MIndex[dimension];
+    __SYCL_ASSUME_INT(Id);
+    return Id;
+  }
 
   range<dimensions> get_range() const { return MImpl.MExtent; }
 
-  size_t get_range(int dimension) const { return MImpl.MExtent[dimension]; }
+  size_t ALWAYS_INLINE get_range(int dimension) const {
+    size_t Id = MImpl.MExtent[dimension];
+    __SYCL_ASSUME_INT(Id);
+    return Id;
+  }
 
   template <bool has_offset = with_offset>
   detail::enable_if_t<has_offset, id<dimensions>> get_offset() const {
@@ -42,8 +61,11 @@ public:
   }
 
   template <bool has_offset = with_offset>
-  detail::enable_if_t<has_offset, size_t> get_offset(int dimension) const {
-    return MImpl.MOffset[dimension];
+  detail::enable_if_t<has_offset, size_t>
+      ALWAYS_INLINE get_offset(int dimension) const {
+    size_t Id = MImpl.MOffset[dimension];
+    __SYCL_ASSUME_INT(Id);
+    return Id;
   }
 
   template <bool has_offset = with_offset>
@@ -52,7 +74,11 @@ public:
         MImpl.MExtent, MImpl.MIndex, /*Offset*/ {});
   }
 
-  size_t get_linear_id() const { return MImpl.get_linear_id(); }
+  size_t ALWAYS_INLINE get_linear_id() const {
+    size_t Id = MImpl.get_linear_id();
+    __SYCL_ASSUME_INT(Id);
+    return Id;
+  }
 
   item(const item &rhs) = default;
 

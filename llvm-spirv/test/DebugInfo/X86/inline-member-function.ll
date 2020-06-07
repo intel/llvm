@@ -6,6 +6,9 @@
 
 ; RUN: llc -mtriple=x86_64-linux -O0 -filetype=obj < %t.ll | llvm-dwarfdump -v -debug-info - | FileCheck %s
 
+target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
+target triple = "spir64-unknown-unknown"
+
 ; From source:
 ; struct foo {
 ;   int __attribute__((always_inline)) func(int x) { return x + 2; }
@@ -101,5 +104,3 @@ attributes #1 = { nounwind readnone }
 !26 = !DILocalVariable(name: "x", arg: 2, scope: !22, file: !2, line: 2, type: !3)
 !27 = !DILocation(line: 2, scope: !22, inlinedAt: !20)
 
-target triple = "spir64-unknown-unknown"
-target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"

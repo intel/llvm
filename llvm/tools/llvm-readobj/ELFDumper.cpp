@@ -221,7 +221,7 @@ public:
   void printProgramHeaders(bool PrintProgramHeaders,
                            cl::boolOrDefault PrintSectionMapping) override;
   void printHashTable() override;
-  void printGnuHashTable() override;
+  void printGnuHashTable(const object::ObjectFile *Obj) override;
   void printLoadName() override;
   void printVersionInfo() override;
   void printGroupSections() override;
@@ -230,7 +230,7 @@ public:
 
   void printStackMap() const override;
 
-  void printHashHistogram() override;
+  void printHashHistograms() override;
 
   void printCGProfile() override;
   void printAddrsig() override;
@@ -742,7 +742,7 @@ public:
                                              const Elf_Shdr *Sec) = 0;
   virtual void printVersionDependencySection(const ELFFile<ELFT> *Obj,
                                              const Elf_Shdr *Sec) = 0;
-  virtual void printHashHistogram(const ELFFile<ELFT> *Obj) = 0;
+  virtual void printHashHistograms(const ELFFile<ELFT> *Obj) = 0;
   virtual void printCGProfile(const ELFFile<ELFT> *Obj) = 0;
   virtual void printAddrsig(const ELFFile<ELFT> *Obj) = 0;
   virtual void printNotes(const ELFFile<ELFT> *Obj) = 0;
@@ -767,6 +767,11 @@ public:
   const ELFDumper<ELFT> *dumper() const { return Dumper; }
 
 protected:
+  void printDependentLibsHelper(
+      const ELFFile<ELFT> *Obj,
+      function_ref<void(const Elf_Shdr &)> OnSectionStart,
+      function_ref<void(StringRef, uint64_t)> OnSectionEntry);
+
   void reportUniqueWarning(Error Err) const;
   StringRef FileName;
 
@@ -806,7 +811,7 @@ public:
                                      const Elf_Shdr *Sec) override;
   void printVersionDependencySection(const ELFFile<ELFT> *Obj,
                                      const Elf_Shdr *Sec) override;
-  void printHashHistogram(const ELFFile<ELFT> *Obj) override;
+  void printHashHistograms(const ELFFile<ELFT> *Obj) override;
   void printCGProfile(const ELFFile<ELFT> *Obj) override;
   void printAddrsig(const ELFFile<ELFT> *Obj) override;
   void printNotes(const ELFFile<ELFT> *Obj) override;
@@ -818,6 +823,9 @@ public:
   void printMipsABIFlags(const ELFObjectFile<ELFT> *Obj) override;
 
 private:
+  void printHashHistogram(const Elf_Hash &HashTable);
+  void printGnuHashHistogram(const Elf_GnuHash &GnuHashTable);
+
   struct Field {
     std::string Str;
     unsigned Column;
@@ -882,10 +890,6 @@ private:
   std::string getSymbolSectionNdx(const ELFO *Obj, const Elf_Sym *Symbol,
                                   const Elf_Sym *FirstSym);
   void printDynamicRelocation(const ELFO *Obj, Elf_Rela R, bool IsRela);
-  bool checkTLSSections(const Elf_Phdr &Phdr, const Elf_Shdr &Sec);
-  bool checkoffsets(const Elf_Phdr &Phdr, const Elf_Shdr &Sec);
-  bool checkVMA(const Elf_Phdr &Phdr, const Elf_Shdr &Sec);
-  bool checkPTDynamic(const Elf_Phdr &Phdr, const Elf_Shdr &Sec);
   void printProgramHeaders(const ELFO *Obj);
   void printSectionMapping(const ELFO *Obj);
   void printGNUVersionSectionProlog(const ELFFile<ELFT> *Obj,
@@ -931,7 +935,7 @@ public:
                                      const Elf_Shdr *Sec) override;
   void printVersionDependencySection(const ELFFile<ELFT> *Obj,
                                      const Elf_Shdr *Sec) override;
-  void printHashHistogram(const ELFFile<ELFT> *Obj) override;
+  void printHashHistograms(const ELFFile<ELFT> *Obj) override;
   void printCGProfile(const ELFFile<ELFT> *Obj) override;
   void printAddrsig(const ELFFile<ELFT> *Obj) override;
   void printNotes(const ELFFile<ELFT> *Obj) override;
@@ -1431,6 +1435,8 @@ static const EnumEntry<unsigned> ElfMachineType[] = {
   ENUM_ENT(EM_STXP7X,        "STMicroelectronics STxP7x family"),
   ENUM_ENT(EM_NDS32,         "Andes Technology compact code size embedded RISC processor family"),
   ENUM_ENT(EM_ECOG1,         "Cyan Technology eCOG1 microprocessor"),
+  // FIXME: Following EM_ECOG1X definitions is dead code since EM_ECOG1X has
+  //        an identical number to EM_ECOG1.
   ENUM_ENT(EM_ECOG1X,        "Cyan Technology eCOG1X family"),
   ENUM_ENT(EM_MAXQ30,        "Dallas Semiconductor MAXQ30 Core microcontrollers"),
   ENUM_ENT(EM_XIMO16,        "New Japan Radio (NJR) 16-bit DSP Processor"),
@@ -1465,6 +1471,7 @@ static const EnumEntry<unsigned> ElfMachineType[] = {
   ENUM_ENT(EM_RISCV,         "RISC-V"),
   ENUM_ENT(EM_LANAI,         "EM_LANAI"),
   ENUM_ENT(EM_BPF,           "EM_BPF"),
+  ENUM_ENT(EM_VE,            "NEC SX-Aurora Vector Engine"),
 };
 
 static const EnumEntry<unsigned> ElfSymbolBindings[] = {
@@ -2286,8 +2293,8 @@ template <class ELFT> void ELFDumper<ELFT>::printHashSymbols() {
   ELFDumperStyle->printHashSymbols(ObjF->getELFFile());
 }
 
-template <class ELFT> void ELFDumper<ELFT>::printHashHistogram() {
-  ELFDumperStyle->printHashHistogram(ObjF->getELFFile());
+template <class ELFT> void ELFDumper<ELFT>::printHashHistograms() {
+  ELFDumperStyle->printHashHistograms(ObjF->getELFFile());
 }
 
 template <class ELFT> void ELFDumper<ELFT>::printCGProfile() {
@@ -2343,7 +2350,8 @@ static const EnumEntry<unsigned> ElfDynamicDTFlags1[] = {
   LLVM_READOBJ_DT_FLAG_ENT(DF_1, NORELOC),
   LLVM_READOBJ_DT_FLAG_ENT(DF_1, SYMINTPOSE),
   LLVM_READOBJ_DT_FLAG_ENT(DF_1, GLOBAUDIT),
-  LLVM_READOBJ_DT_FLAG_ENT(DF_1, SINGLETON)
+  LLVM_READOBJ_DT_FLAG_ENT(DF_1, SINGLETON),
+  LLVM_READOBJ_DT_FLAG_ENT(DF_1, PIE),
 };
 
 static const EnumEntry<unsigned> ElfDynamicDTMipsFlags[] = {
@@ -2558,24 +2566,41 @@ std::string ELFDumper<ELFT>::getDynamicEntry(uint64_t Type,
 
 template <class ELFT>
 StringRef ELFDumper<ELFT>::getDynamicString(uint64_t Value) const {
-  auto WarnAndReturn = [this](const Twine &Msg) {
-    reportUniqueWarning(createError(Msg));
+  if (DynamicStringTable.empty() && !DynamicStringTable.data()) {
+    reportUniqueWarning(createError("string table was not found"));
+    return "<?>";
+  }
+
+  auto WarnAndReturn = [this](const Twine &Msg, uint64_t Offset) {
+    reportUniqueWarning(createError("string table at offset 0x" +
+                                    Twine::utohexstr(Offset) + Msg));
     return "<?>";
   };
 
-  if (DynamicStringTable.empty() && !DynamicStringTable.data())
-    return WarnAndReturn("string table was not found");
-
-  if (Value < DynamicStringTable.size())
-    return DynamicStringTable.data() + Value;
-
+  const uint64_t FileSize = ObjF->getELFFile()->getBufSize();
   const uint64_t Offset =
       (const uint8_t *)DynamicStringTable.data() - ObjF->getELFFile()->base();
-  return WarnAndReturn(
-      "string table at offset 0x" + Twine::utohexstr(Offset) +
-      ": unable to read the string at 0x" + Twine::utohexstr(Offset + Value) +
-      ", it goes past the end of the table (0x" +
-      Twine::utohexstr(Offset + DynamicStringTable.size()) + ")");
+  if (DynamicStringTable.size() > FileSize - Offset)
+    return WarnAndReturn(" with size 0x" +
+                             Twine::utohexstr(DynamicStringTable.size()) +
+                             " goes past the end of the file (0x" +
+                             Twine::utohexstr(FileSize) + ")",
+                         Offset);
+
+  if (Value >= DynamicStringTable.size())
+    return WarnAndReturn(
+        ": unable to read the string at 0x" + Twine::utohexstr(Offset + Value) +
+            ": it goes past the end of the table (0x" +
+            Twine::utohexstr(Offset + DynamicStringTable.size()) + ")",
+        Offset);
+
+  if (DynamicStringTable.back() != '\0')
+    return WarnAndReturn(": unable to read the string at 0x" +
+                             Twine::utohexstr(Offset + Value) +
+                             ": the string table is not null-terminated",
+                         Offset);
+
+  return DynamicStringTable.data() + Value;
 }
 
 template <class ELFT> void ELFDumper<ELFT>::printUnwindInfo() {
@@ -2618,49 +2643,95 @@ template <class ELFT> void ELFDumper<ELFT>::printNeededLibraries() {
 }
 
 template <class ELFT>
-static bool checkHashTable(const ELFFile<ELFT> *Obj,
-                           const typename ELFT::Hash *H, StringRef FileName) {
-  auto WarnAndReturn = [&](uint64_t Off, const Twine &Msg = "") {
-    reportWarning(createError("the hash table at offset 0x" +
-                              Twine::utohexstr(Off) +
-                              " goes past the end of the file (0x" +
-                              Twine::utohexstr(Obj->getBufSize()) + ")" + Msg),
-                  FileName);
-    return false;
+static Error checkHashTable(const ELFFile<ELFT> *Obj,
+                            const typename ELFT::Hash *H,
+                            bool *IsHeaderValid = nullptr) {
+  auto MakeError = [&](uint64_t Off, const Twine &Msg = "") {
+    return createError("the hash table at offset 0x" + Twine::utohexstr(Off) +
+                       " goes past the end of the file (0x" +
+                       Twine::utohexstr(Obj->getBufSize()) + ")" + Msg);
   };
 
   // Each SHT_HASH section starts from two 32-bit fields: nbucket and nchain.
   const unsigned HeaderSize = 2 * sizeof(typename ELFT::Word);
   const uint64_t SecOffset = (const uint8_t *)H - Obj->base();
+
+  if (IsHeaderValid)
+    *IsHeaderValid = Obj->getBufSize() - SecOffset >= HeaderSize;
+
   if (Obj->getBufSize() - SecOffset < HeaderSize)
-    return WarnAndReturn(SecOffset);
+    return MakeError(SecOffset);
 
   if (Obj->getBufSize() - SecOffset - HeaderSize <
       ((uint64_t)H->nbucket + H->nchain) * sizeof(typename ELFT::Word))
-    return WarnAndReturn(SecOffset, ", nbucket = " + Twine(H->nbucket) +
-                                        ", nchain = " + Twine(H->nchain));
-  return true;
+    return MakeError(SecOffset, ", nbucket = " + Twine(H->nbucket) +
+                                    ", nchain = " + Twine(H->nchain));
+  return Error::success();
+}
+
+template <class ELFT>
+static Error checkGNUHashTable(const ELFFile<ELFT> *Obj,
+                               const typename ELFT::GnuHash *GnuHashTable,
+                               bool *IsHeaderValid = nullptr) {
+  const uint8_t *TableData = reinterpret_cast<const uint8_t *>(GnuHashTable);
+  assert(TableData >= Obj->base() &&
+         TableData < Obj->base() + Obj->getBufSize() &&
+         "GnuHashTable must always point to a location inside the file");
+
+  uint64_t TableOffset = TableData - Obj->base();
+  if (IsHeaderValid)
+    *IsHeaderValid = TableOffset + /*Header size:*/ 16 < Obj->getBufSize();
+  if (TableOffset + 16 + GnuHashTable->nbuckets * 4 +
+          GnuHashTable->maskwords * sizeof(typename ELFT::Off) >=
+      Obj->getBufSize())
+    return createError("unable to dump the SHT_GNU_HASH "
+                       "section at 0x" +
+                       Twine::utohexstr(TableOffset) +
+                       ": it goes past the end of the file");
+  return Error::success();
 }
 
 template <typename ELFT> void ELFDumper<ELFT>::printHashTable() {
   DictScope D(W, "HashTable");
-  if (!HashTable ||
-      !checkHashTable(ObjF->getELFFile(), HashTable, ObjF->getFileName()))
+  if (!HashTable)
     return;
-  W.printNumber("Num Buckets", HashTable->nbucket);
-  W.printNumber("Num Chains", HashTable->nchain);
+
+  bool IsHeaderValid;
+  Error Err = checkHashTable(ObjF->getELFFile(), HashTable, &IsHeaderValid);
+  if (IsHeaderValid) {
+    W.printNumber("Num Buckets", HashTable->nbucket);
+    W.printNumber("Num Chains", HashTable->nchain);
+  }
+
+  if (Err) {
+    reportUniqueWarning(std::move(Err));
+    return;
+  }
+
   W.printList("Buckets", HashTable->buckets());
   W.printList("Chains", HashTable->chains());
 }
 
-template <typename ELFT> void ELFDumper<ELFT>::printGnuHashTable() {
+template <typename ELFT>
+void ELFDumper<ELFT>::printGnuHashTable(const object::ObjectFile *Obj) {
   DictScope D(W, "GnuHashTable");
   if (!GnuHashTable)
     return;
-  W.printNumber("Num Buckets", GnuHashTable->nbuckets);
-  W.printNumber("First Hashed Symbol Index", GnuHashTable->symndx);
-  W.printNumber("Num Mask Words", GnuHashTable->maskwords);
-  W.printNumber("Shift Count", GnuHashTable->shift2);
+
+  bool IsHeaderValid;
+  Error Err =
+      checkGNUHashTable<ELFT>(ObjF->getELFFile(), GnuHashTable, &IsHeaderValid);
+  if (IsHeaderValid) {
+    W.printNumber("Num Buckets", GnuHashTable->nbuckets);
+    W.printNumber("First Hashed Symbol Index", GnuHashTable->symndx);
+    W.printNumber("Num Mask Words", GnuHashTable->maskwords);
+    W.printNumber("Shift Count", GnuHashTable->shift2);
+  }
+
+  if (Err) {
+    reportUniqueWarning(std::move(Err));
+    return;
+  }
 
   ArrayRef<typename ELFT::Off> BloomFilter = GnuHashTable->filter();
   W.printHexList("Bloom Filter", BloomFilter);
@@ -3968,7 +4039,9 @@ template <class ELFT> void GNUStyle<ELFT>::printHashSymbols(const ELFO *Obj) {
 
   if (const Elf_Hash *SysVHash = this->dumper()->getHashTable()) {
     OS << "\n Symbol table of .hash for image:\n";
-    if (checkHashTable(Obj, SysVHash, this->FileName))
+    if (Error E = checkHashTable<ELFT>(Obj, SysVHash))
+      this->reportUniqueWarning(std::move(E));
+    else
       PrintHashTable(SysVHash);
   }
 
@@ -4005,63 +4078,76 @@ static inline std::string printPhdrFlags(unsigned Flag) {
   return Str;
 }
 
-// SHF_TLS sections are only in PT_TLS, PT_LOAD or PT_GNU_RELRO
-// PT_TLS must only have SHF_TLS sections
 template <class ELFT>
-bool GNUStyle<ELFT>::checkTLSSections(const Elf_Phdr &Phdr,
-                                      const Elf_Shdr &Sec) {
-  return (((Sec.sh_flags & ELF::SHF_TLS) &&
-           ((Phdr.p_type == ELF::PT_TLS) || (Phdr.p_type == ELF::PT_LOAD) ||
-            (Phdr.p_type == ELF::PT_GNU_RELRO))) ||
-          (!(Sec.sh_flags & ELF::SHF_TLS) && Phdr.p_type != ELF::PT_TLS));
+static bool checkTLSSections(const typename ELFT::Phdr &Phdr,
+                             const typename ELFT::Shdr &Sec) {
+  if (Sec.sh_flags & ELF::SHF_TLS) {
+    // .tbss must only be shown in the PT_TLS segment.
+    if (Sec.sh_type == ELF::SHT_NOBITS)
+      return Phdr.p_type == ELF::PT_TLS;
+
+    // SHF_TLS sections are only shown in PT_TLS, PT_LOAD or PT_GNU_RELRO
+    // segments.
+    return (Phdr.p_type == ELF::PT_TLS) || (Phdr.p_type == ELF::PT_LOAD) ||
+           (Phdr.p_type == ELF::PT_GNU_RELRO);
+  }
+
+  // PT_TLS must only have SHF_TLS sections.
+  return Phdr.p_type != ELF::PT_TLS;
 }
 
-// Non-SHT_NOBITS must have its offset inside the segment
-// Only non-zero section can be at end of segment
 template <class ELFT>
-bool GNUStyle<ELFT>::checkoffsets(const Elf_Phdr &Phdr, const Elf_Shdr &Sec) {
+static bool checkOffsets(const typename ELFT::Phdr &Phdr,
+                         const typename ELFT::Shdr &Sec) {
+  // SHT_NOBITS sections don't need to have an offset inside the segment.
   if (Sec.sh_type == ELF::SHT_NOBITS)
     return true;
-  bool IsSpecial =
-      (Sec.sh_type == ELF::SHT_NOBITS) && ((Sec.sh_flags & ELF::SHF_TLS) != 0);
-  // .tbss is special, it only has memory in PT_TLS and has NOBITS properties
-  auto SectionSize =
-      (IsSpecial && Phdr.p_type != ELF::PT_TLS) ? 0 : Sec.sh_size;
-  if (Sec.sh_offset >= Phdr.p_offset)
-    return ((Sec.sh_offset + SectionSize <= Phdr.p_filesz + Phdr.p_offset)
-            /*only non-zero sized sections at end*/
-            && (Sec.sh_offset + 1 <= Phdr.p_offset + Phdr.p_filesz));
-  return false;
+
+  if (Sec.sh_offset < Phdr.p_offset)
+    return false;
+
+  // Only non-empty sections can be at the end of a segment.
+  if (Sec.sh_size == 0)
+    return (Sec.sh_offset + 1 <= Phdr.p_offset + Phdr.p_filesz);
+  return Sec.sh_offset + Sec.sh_size <= Phdr.p_offset + Phdr.p_filesz;
 }
 
-// SHF_ALLOC must have VMA inside segment
-// Only non-zero section can be at end of segment
+// Check that an allocatable section belongs to a virtual address
+// space of a segment.
 template <class ELFT>
-bool GNUStyle<ELFT>::checkVMA(const Elf_Phdr &Phdr, const Elf_Shdr &Sec) {
+static bool checkVMA(const typename ELFT::Phdr &Phdr,
+                     const typename ELFT::Shdr &Sec) {
   if (!(Sec.sh_flags & ELF::SHF_ALLOC))
     return true;
-  bool IsSpecial =
+
+  if (Sec.sh_addr < Phdr.p_vaddr)
+    return false;
+
+  bool IsTbss =
       (Sec.sh_type == ELF::SHT_NOBITS) && ((Sec.sh_flags & ELF::SHF_TLS) != 0);
-  // .tbss is special, it only has memory in PT_TLS and has NOBITS properties
-  auto SectionSize =
-      (IsSpecial && Phdr.p_type != ELF::PT_TLS) ? 0 : Sec.sh_size;
-  if (Sec.sh_addr >= Phdr.p_vaddr)
-    return ((Sec.sh_addr + SectionSize <= Phdr.p_vaddr + Phdr.p_memsz) &&
-            (Sec.sh_addr + 1 <= Phdr.p_vaddr + Phdr.p_memsz));
-  return false;
+  // .tbss is special, it only has memory in PT_TLS and has NOBITS properties.
+  bool IsTbssInNonTLS = IsTbss && Phdr.p_type != ELF::PT_TLS;
+  // Only non-empty sections can be at the end of a segment.
+  if (Sec.sh_size == 0 || IsTbssInNonTLS)
+    return Sec.sh_addr + 1 <= Phdr.p_vaddr + Phdr.p_memsz;
+  return Sec.sh_addr + Sec.sh_size <= Phdr.p_vaddr + Phdr.p_memsz;
 }
 
-// No section with zero size must be at start or end of PT_DYNAMIC
 template <class ELFT>
-bool GNUStyle<ELFT>::checkPTDynamic(const Elf_Phdr &Phdr, const Elf_Shdr &Sec) {
-  if (Phdr.p_type != ELF::PT_DYNAMIC || Sec.sh_size != 0 || Phdr.p_memsz == 0)
+static bool checkPTDynamic(const typename ELFT::Phdr &Phdr,
+                           const typename ELFT::Shdr &Sec) {
+  if (Phdr.p_type != ELF::PT_DYNAMIC || Phdr.p_memsz == 0 || Sec.sh_size != 0)
     return true;
-  // Is section within the phdr both based on offset and VMA ?
-  return ((Sec.sh_type == ELF::SHT_NOBITS) ||
-          (Sec.sh_offset > Phdr.p_offset &&
-           Sec.sh_offset < Phdr.p_offset + Phdr.p_filesz)) &&
-         (!(Sec.sh_flags & ELF::SHF_ALLOC) ||
-          (Sec.sh_addr > Phdr.p_vaddr && Sec.sh_addr < Phdr.p_memsz));
+
+  // We get here when we have an empty section. Only non-empty sections can be
+  // at the start or at the end of PT_DYNAMIC.
+  // Is section within the phdr both based on offset and VMA?
+  bool CheckOffset = (Sec.sh_type == ELF::SHT_NOBITS) ||
+                     (Sec.sh_offset > Phdr.p_offset &&
+                      Sec.sh_offset < Phdr.p_offset + Phdr.p_filesz);
+  bool CheckVA = !(Sec.sh_flags & ELF::SHF_ALLOC) ||
+                 (Sec.sh_addr > Phdr.p_vaddr && Sec.sh_addr < Phdr.p_memsz);
+  return CheckOffset && CheckVA;
 }
 
 template <class ELFT>
@@ -4111,8 +4197,31 @@ void GNUStyle<ELFT>::printProgramHeaders(const ELFO *Obj) {
     for (auto Field : Fields)
       printField(Field);
     if (Phdr.p_type == ELF::PT_INTERP) {
-      OS << "\n      [Requesting program interpreter: ";
-      OS << reinterpret_cast<const char *>(Obj->base()) + Phdr.p_offset << "]";
+      OS << "\n";
+      auto ReportBadInterp = [&](const Twine &Msg) {
+        reportWarning(
+            createError("unable to read program interpreter name at offset 0x" +
+                        Twine::utohexstr(Phdr.p_offset) + ": " + Msg),
+            this->FileName);
+      };
+
+      if (Phdr.p_offset >= Obj->getBufSize()) {
+        ReportBadInterp("it goes past the end of the file (0x" +
+                        Twine::utohexstr(Obj->getBufSize()) + ")");
+        continue;
+      }
+
+      const char *Data =
+          reinterpret_cast<const char *>(Obj->base()) + Phdr.p_offset;
+      size_t MaxSize = Obj->getBufSize() - Phdr.p_offset;
+      size_t Len = strnlen(Data, MaxSize);
+      if (Len == MaxSize) {
+        ReportBadInterp("it is not null-terminated");
+        continue;
+      }
+
+      OS << "      [Requesting program interpreter: ";
+      OS << StringRef(Data, Len) << "]";
     }
     OS << "\n";
   }
@@ -4127,17 +4236,16 @@ void GNUStyle<ELFT>::printSectionMapping(const ELFO *Obj) {
        unwrapOrError(this->FileName, Obj->program_headers())) {
     std::string Sections;
     OS << format("   %2.2d     ", Phnum++);
+    // Check if each section is in a segment and then print mapping.
     for (const Elf_Shdr &Sec : unwrapOrError(this->FileName, Obj->sections())) {
-      // Check if each section is in a segment and then print mapping.
+      if (Sec.sh_type == ELF::SHT_NULL)
+        continue;
+
       // readelf additionally makes sure it does not print zero sized sections
       // at end of segments and for PT_DYNAMIC both start and end of section
       // .tbss must only be shown in PT_TLS section.
-      bool TbssInNonTLS = (Sec.sh_type == ELF::SHT_NOBITS) &&
-                          ((Sec.sh_flags & ELF::SHF_TLS) != 0) &&
-                          Phdr.p_type != ELF::PT_TLS;
-      if (!TbssInNonTLS && checkTLSSections(Phdr, Sec) &&
-          checkoffsets(Phdr, Sec) && checkVMA(Phdr, Sec) &&
-          checkPTDynamic(Phdr, Sec) && (Sec.sh_type != ELF::SHT_NULL)) {
+      if (checkTLSSections<ELFT>(Phdr, Sec) && checkOffsets<ELFT>(Phdr, Sec) &&
+          checkVMA<ELFT>(Phdr, Sec) && checkPTDynamic<ELFT>(Phdr, Sec)) {
         Sections +=
             unwrapOrError(this->FileName, Obj->getSectionName(&Sec)).str() +
             " ";
@@ -4483,119 +4591,131 @@ void GNUStyle<ELFT>::printVersionDependencySection(const ELFFile<ELFT> *Obj,
   OS << '\n';
 }
 
-// Hash histogram shows  statistics of how efficient the hash was for the
-// dynamic symbol table. The table shows number of hash buckets for different
-// lengths of chains as absolute number and percentage of the total buckets.
-// Additionally cumulative coverage of symbols for each set of buckets.
 template <class ELFT>
-void GNUStyle<ELFT>::printHashHistogram(const ELFFile<ELFT> *Obj) {
-  // Print histogram for .hash section
-  if (const Elf_Hash *HashTable = this->dumper()->getHashTable()) {
-    if (!checkHashTable(Obj, HashTable, this->FileName))
-      return;
+void GNUStyle<ELFT>::printHashHistogram(const Elf_Hash &HashTable) {
+  size_t NBucket = HashTable.nbucket;
+  size_t NChain = HashTable.nchain;
+  ArrayRef<Elf_Word> Buckets = HashTable.buckets();
+  ArrayRef<Elf_Word> Chains = HashTable.chains();
+  size_t TotalSyms = 0;
+  // If hash table is correct, we have at least chains with 0 length
+  size_t MaxChain = 1;
+  size_t CumulativeNonZero = 0;
 
-    size_t NBucket = HashTable->nbucket;
-    size_t NChain = HashTable->nchain;
-    ArrayRef<Elf_Word> Buckets = HashTable->buckets();
-    ArrayRef<Elf_Word> Chains = HashTable->chains();
-    size_t TotalSyms = 0;
-    // If hash table is correct, we have at least chains with 0 length
-    size_t MaxChain = 1;
-    size_t CumulativeNonZero = 0;
+  if (NChain == 0 || NBucket == 0)
+    return;
 
-    if (NChain == 0 || NBucket == 0)
-      return;
-
-    std::vector<size_t> ChainLen(NBucket, 0);
-    // Go over all buckets and and note chain lengths of each bucket (total
-    // unique chain lengths).
-    for (size_t B = 0; B < NBucket; B++) {
-      std::vector<bool> Visited(NChain);
-      for (size_t C = Buckets[B]; C < NChain; C = Chains[C]) {
-        if (C == ELF::STN_UNDEF)
-          break;
-        if (Visited[C]) {
-          reportWarning(
-              createError(".hash section is invalid: bucket " + Twine(C) +
-                          ": a cycle was detected in the linked chain"),
-              this->FileName);
-          break;
-        }
-        Visited[C] = true;
-        if (MaxChain <= ++ChainLen[B])
-          MaxChain++;
+  std::vector<size_t> ChainLen(NBucket, 0);
+  // Go over all buckets and and note chain lengths of each bucket (total
+  // unique chain lengths).
+  for (size_t B = 0; B < NBucket; B++) {
+    std::vector<bool> Visited(NChain);
+    for (size_t C = Buckets[B]; C < NChain; C = Chains[C]) {
+      if (C == ELF::STN_UNDEF)
+        break;
+      if (Visited[C]) {
+        reportWarning(createError(".hash section is invalid: bucket " +
+                                  Twine(C) +
+                                  ": a cycle was detected in the linked chain"),
+                      this->FileName);
+        break;
       }
-      TotalSyms += ChainLen[B];
+      Visited[C] = true;
+      if (MaxChain <= ++ChainLen[B])
+        MaxChain++;
     }
-
-    if (!TotalSyms)
-      return;
-
-    std::vector<size_t> Count(MaxChain, 0) ;
-    // Count how long is the chain for each bucket
-    for (size_t B = 0; B < NBucket; B++)
-      ++Count[ChainLen[B]];
-    // Print Number of buckets with each chain lengths and their cumulative
-    // coverage of the symbols
-    OS << "Histogram for bucket list length (total of " << NBucket
-       << " buckets)\n"
-       << " Length  Number     % of total  Coverage\n";
-    for (size_t I = 0; I < MaxChain; I++) {
-      CumulativeNonZero += Count[I] * I;
-      OS << format("%7lu  %-10lu (%5.1f%%)     %5.1f%%\n", I, Count[I],
-                   (Count[I] * 100.0) / NBucket,
-                   (CumulativeNonZero * 100.0) / TotalSyms);
-    }
+    TotalSyms += ChainLen[B];
   }
 
-  // Print histogram for .gnu.hash section
+  if (!TotalSyms)
+    return;
+
+  std::vector<size_t> Count(MaxChain, 0);
+  // Count how long is the chain for each bucket
+  for (size_t B = 0; B < NBucket; B++)
+    ++Count[ChainLen[B]];
+  // Print Number of buckets with each chain lengths and their cumulative
+  // coverage of the symbols
+  OS << "Histogram for bucket list length (total of " << NBucket
+     << " buckets)\n"
+     << " Length  Number     % of total  Coverage\n";
+  for (size_t I = 0; I < MaxChain; I++) {
+    CumulativeNonZero += Count[I] * I;
+    OS << format("%7lu  %-10lu (%5.1f%%)     %5.1f%%\n", I, Count[I],
+                 (Count[I] * 100.0) / NBucket,
+                 (CumulativeNonZero * 100.0) / TotalSyms);
+  }
+}
+
+template <class ELFT>
+void GNUStyle<ELFT>::printGnuHashHistogram(const Elf_GnuHash &GnuHashTable) {
+  size_t NBucket = GnuHashTable.nbuckets;
+  ArrayRef<Elf_Word> Buckets = GnuHashTable.buckets();
+  unsigned NumSyms = this->dumper()->dynamic_symbols().size();
+  if (!NumSyms)
+    return;
+  ArrayRef<Elf_Word> Chains = GnuHashTable.values(NumSyms);
+  size_t Symndx = GnuHashTable.symndx;
+  size_t TotalSyms = 0;
+  size_t MaxChain = 1;
+  size_t CumulativeNonZero = 0;
+
+  if (Chains.empty() || NBucket == 0)
+    return;
+
+  std::vector<size_t> ChainLen(NBucket, 0);
+  for (size_t B = 0; B < NBucket; B++) {
+    if (!Buckets[B])
+      continue;
+    size_t Len = 1;
+    for (size_t C = Buckets[B] - Symndx;
+         C < Chains.size() && (Chains[C] & 1) == 0; C++)
+      if (MaxChain < ++Len)
+        MaxChain++;
+    ChainLen[B] = Len;
+    TotalSyms += Len;
+  }
+  MaxChain++;
+
+  if (!TotalSyms)
+    return;
+
+  std::vector<size_t> Count(MaxChain, 0);
+  for (size_t B = 0; B < NBucket; B++)
+    ++Count[ChainLen[B]];
+  // Print Number of buckets with each chain lengths and their cumulative
+  // coverage of the symbols
+  OS << "Histogram for `.gnu.hash' bucket list length (total of " << NBucket
+     << " buckets)\n"
+     << " Length  Number     % of total  Coverage\n";
+  for (size_t I = 0; I < MaxChain; I++) {
+    CumulativeNonZero += Count[I] * I;
+    OS << format("%7lu  %-10lu (%5.1f%%)     %5.1f%%\n", I, Count[I],
+                 (Count[I] * 100.0) / NBucket,
+                 (CumulativeNonZero * 100.0) / TotalSyms);
+  }
+}
+
+// Hash histogram shows statistics of how efficient the hash was for the
+// dynamic symbol table. The table shows the number of hash buckets for
+// different lengths of chains as an absolute number and percentage of the total
+// buckets, and the cumulative coverage of symbols for each set of buckets.
+template <class ELFT>
+void GNUStyle<ELFT>::printHashHistograms(const ELFFile<ELFT> *Obj) {
+  // Print histogram for the .hash section.
+  if (const Elf_Hash *HashTable = this->dumper()->getHashTable()) {
+    if (Error E = checkHashTable<ELFT>(Obj, HashTable))
+      this->reportUniqueWarning(std::move(E));
+    else
+      printHashHistogram(*HashTable);
+  }
+
+  // Print histogram for the .gnu.hash section.
   if (const Elf_GnuHash *GnuHashTable = this->dumper()->getGnuHashTable()) {
-    size_t NBucket = GnuHashTable->nbuckets;
-    ArrayRef<Elf_Word> Buckets = GnuHashTable->buckets();
-    unsigned NumSyms = this->dumper()->dynamic_symbols().size();
-    if (!NumSyms)
-      return;
-    ArrayRef<Elf_Word> Chains = GnuHashTable->values(NumSyms);
-    size_t Symndx = GnuHashTable->symndx;
-    size_t TotalSyms = 0;
-    size_t MaxChain = 1;
-    size_t CumulativeNonZero = 0;
-
-    if (Chains.empty() || NBucket == 0)
-      return;
-
-    std::vector<size_t> ChainLen(NBucket, 0);
-
-    for (size_t B = 0; B < NBucket; B++) {
-      if (!Buckets[B])
-        continue;
-      size_t Len = 1;
-      for (size_t C = Buckets[B] - Symndx;
-           C < Chains.size() && (Chains[C] & 1) == 0; C++)
-        if (MaxChain < ++Len)
-          MaxChain++;
-      ChainLen[B] = Len;
-      TotalSyms += Len;
-    }
-    MaxChain++;
-
-    if (!TotalSyms)
-      return;
-
-    std::vector<size_t> Count(MaxChain, 0) ;
-    for (size_t B = 0; B < NBucket; B++)
-      ++Count[ChainLen[B]];
-    // Print Number of buckets with each chain lengths and their cumulative
-    // coverage of the symbols
-    OS << "Histogram for `.gnu.hash' bucket list length (total of " << NBucket
-       << " buckets)\n"
-       << " Length  Number     % of total  Coverage\n";
-    for (size_t I = 0; I <MaxChain; I++) {
-      CumulativeNonZero += Count[I] * I;
-      OS << format("%7lu  %-10lu (%5.1f%%)     %5.1f%%\n", I, Count[I],
-                   (Count[I] * 100.0) / NBucket,
-                   (CumulativeNonZero * 100.0) / TotalSyms);
-    }
+    if (Error E = checkGNUHashTable<ELFT>(Obj, GnuHashTable))
+      this->reportUniqueWarning(std::move(E));
+    else
+      printGnuHashHistogram(*GnuHashTable);
   }
 }
 
@@ -5243,8 +5363,87 @@ void GNUStyle<ELFT>::printELFLinkerOptions(const ELFFile<ELFT> *Obj) {
 }
 
 template <class ELFT>
+void DumpStyle<ELFT>::printDependentLibsHelper(
+    const ELFFile<ELFT> *Obj,
+    function_ref<void(const Elf_Shdr &)> OnSectionStart,
+    function_ref<void(StringRef, uint64_t)> OnLibEntry) {
+  auto Warn = [this](unsigned SecNdx, StringRef Msg) {
+    this->reportUniqueWarning(
+        createError("SHT_LLVM_DEPENDENT_LIBRARIES section at index " +
+                    Twine(SecNdx) + " is broken: " + Msg));
+  };
+
+  unsigned I = -1;
+  for (const Elf_Shdr &Shdr : unwrapOrError(this->FileName, Obj->sections())) {
+    ++I;
+    if (Shdr.sh_type != ELF::SHT_LLVM_DEPENDENT_LIBRARIES)
+      continue;
+
+    OnSectionStart(Shdr);
+
+    Expected<ArrayRef<uint8_t>> ContentsOrErr = Obj->getSectionContents(&Shdr);
+    if (!ContentsOrErr) {
+      Warn(I, toString(ContentsOrErr.takeError()));
+      continue;
+    }
+
+    ArrayRef<uint8_t> Contents = *ContentsOrErr;
+    if (!Contents.empty() && Contents.back() != 0) {
+      Warn(I, "the content is not null-terminated");
+      continue;
+    }
+
+    for (const uint8_t *I = Contents.begin(), *E = Contents.end(); I < E;) {
+      StringRef Lib((const char *)I);
+      OnLibEntry(Lib, I - Contents.begin());
+      I += Lib.size() + 1;
+    }
+  }
+}
+
+template <class ELFT>
 void GNUStyle<ELFT>::printDependentLibs(const ELFFile<ELFT> *Obj) {
-  OS << "printDependentLibs not implemented!\n";
+  bool SectionStarted = false;
+  struct NameOffset {
+    StringRef Name;
+    uint64_t Offset;
+  };
+  std::vector<NameOffset> SecEntries;
+  NameOffset Current;
+  auto PrintSection = [&]() {
+    OS << "Dependent libraries section " << Current.Name << " at offset "
+       << format_hex(Current.Offset, 1) << " contains " << SecEntries.size()
+       << " entries:\n";
+    for (NameOffset Entry : SecEntries)
+      OS << "  [" << format("%6tx", Entry.Offset) << "]  " << Entry.Name
+         << "\n";
+    OS << "\n";
+    SecEntries.clear();
+  };
+
+  auto OnSectionStart = [&](const Elf_Shdr &Shdr) {
+    if (SectionStarted)
+      PrintSection();
+    SectionStarted = true;
+    Current.Offset = Shdr.sh_offset;
+    Expected<StringRef> Name = Obj->getSectionName(&Shdr);
+    if (!Name) {
+      Current.Name = "<?>";
+      this->reportUniqueWarning(
+          createError("cannot get section name of "
+                      "SHT_LLVM_DEPENDENT_LIBRARIES section: " +
+                      toString(Name.takeError())));
+    } else {
+      Current.Name = *Name;
+    }
+  };
+  auto OnLibEntry = [&](StringRef Lib, uint64_t Offset) {
+    SecEntries.push_back(NameOffset{Lib, Offset});
+  };
+
+  this->printDependentLibsHelper(Obj, OnSectionStart, OnLibEntry);
+  if (SectionStarted)
+    PrintSection();
 }
 
 // Used for printing section names in places where possible errors can be
@@ -6261,7 +6460,7 @@ void LLVMStyle<ELFT>::printVersionDependencySection(const ELFFile<ELFT> *Obj,
 }
 
 template <class ELFT>
-void LLVMStyle<ELFT>::printHashHistogram(const ELFFile<ELFT> *Obj) {
+void LLVMStyle<ELFT>::printHashHistograms(const ELFFile<ELFT> *Obj) {
   W.startLine() << "Hash Histogram not implemented!\n";
 }
 
@@ -6514,37 +6713,9 @@ void LLVMStyle<ELFT>::printELFLinkerOptions(const ELFFile<ELFT> *Obj) {
 template <class ELFT>
 void LLVMStyle<ELFT>::printDependentLibs(const ELFFile<ELFT> *Obj) {
   ListScope L(W, "DependentLibs");
-
-  auto Warn = [this](unsigned SecNdx, StringRef Msg) {
-    this->reportUniqueWarning(
-        createError("SHT_LLVM_DEPENDENT_LIBRARIES section at index " +
-                    Twine(SecNdx) + " is broken: " + Msg));
-  };
-
-  unsigned I = -1;
-  for (const Elf_Shdr &Shdr : unwrapOrError(this->FileName, Obj->sections())) {
-    ++I;
-    if (Shdr.sh_type != ELF::SHT_LLVM_DEPENDENT_LIBRARIES)
-      continue;
-
-    Expected<ArrayRef<uint8_t>> ContentsOrErr = Obj->getSectionContents(&Shdr);
-    if (!ContentsOrErr) {
-      Warn(I, toString(ContentsOrErr.takeError()));
-      continue;
-    }
-
-    ArrayRef<uint8_t> Contents = *ContentsOrErr;
-    if (!Contents.empty() && Contents.back() != 0) {
-      Warn(I, "the content is not null-terminated");
-      continue;
-    }
-
-    for (const uint8_t *I = Contents.begin(), *E = Contents.end(); I < E;) {
-      StringRef Lib((const char *)I);
-      W.printString(Lib);
-      I += Lib.size() + 1;
-    }
-  }
+  this->printDependentLibsHelper(
+      Obj, [](const Elf_Shdr &) {},
+      [this](StringRef Lib, uint64_t) { W.printString(Lib); });
 }
 
 template <class ELFT>

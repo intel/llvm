@@ -64,7 +64,8 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
       "Operation::operand_range", "getInputs"
     >,
     InterfaceMethod<[{
-        Return the type of the input shape at the given index.
+        Return the `i`-th input shaped type, irrespective of buffer or tensor
+        type.
       }], "ShapedType", "getInputShapedType", (ins "unsigned":$i)>,
     InterfaceMethod<[{
         Return the subset of input operands that are of ranked tensor type.
@@ -89,6 +90,10 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
     InterfaceMethod<[{
         Return the type of the output buffer at the given index.
       }], "MemRefType", "getOutputBufferType", (ins "unsigned":$i)>,
+    InterfaceMethod<[{
+        Return the `i`-th output shaped type, irrespective of buffer or tensor
+        type.
+      }], "ShapedType", "getOutputShapedType", (ins "unsigned":$i)>,
     InterfaceMethod<[{
         Return the results that are of ranked tensor type.
       }], "SmallVector<RankedTensorType, 4>", "getOutputTensorTypes">,
@@ -117,6 +122,10 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
     InterfaceMethod<
       "Return the range over inputs (irrespective of type) and output buffers.",
       "Operation::operand_range", "getInputsAndOutputBuffers"
+    >,
+    InterfaceMethod<
+      "Return the shaped types for all the inputs and outputs",
+      "SmallVector<ShapedType, 4>", "getInputOutputShapedTypes"
     >,
 
     //===------------------------------------------------------------------===//
@@ -147,6 +156,10 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
     InterfaceMethod<
       "Return the indexing maps attribute within the current operation.",
       "ArrayAttr", "indexing_maps"
+    >,
+    InterfaceMethod<
+      "Return the indexing maps within the current operation.",
+      "SmallVector<AffineMap, 4>", "getIndexingMaps"
     >,
     InterfaceMethod<"Return the input or output indexing map at index `i`.",
       "AffineMap", "getIndexingMap", (ins "unsigned":$i)

@@ -30,6 +30,7 @@ public:
         __spirv_ReadPipe(RPipe, &TempData, m_Size, m_Alignment));
     return TempData;
 #else
+    (void)Success;
     assert(!"Pipes are not supported on a host device!");
 #endif // __SYCL_DEVICE_ONLY__
   }
@@ -43,6 +44,8 @@ public:
     Success = !static_cast<bool>(
         __spirv_WritePipe(WPipe, &Data, m_Size, m_Alignment));
 #else
+    (void)Success;
+    (void)Data;
     assert(!"Pipes are not supported on a host device!");
 #endif // __SYCL_DEVICE_ONLY__
   }
@@ -70,6 +73,7 @@ public:
       __spirv_CreatePipeFromPipeStorage_write<dataT>(&m_Storage);
     __spirv_WritePipeBlockingINTEL(WPipe, &Data, m_Size, m_Alignment);
 #else
+    (void)Data;
     assert(!"Pipes are not supported on a host device!");
 #endif // __SYCL_DEVICE_ONLY__
   }
@@ -119,6 +123,7 @@ public:
         __spirv_ReadPipe(RPipe, &TempData, m_Size, m_Alignment));
     return TempData;
 #else
+    (void)Success;
     assert(!"Pipes are not supported on a host device!");
 #endif // __SYCL_DEVICE_ONLY__
   }
@@ -162,6 +167,8 @@ public:
     Success = !static_cast<bool>(
         __spirv_WritePipe(WPipe, &Data, m_Size, m_Alignment));
 #else
+    (void)Data;
+    (void)Success;
     assert(!"Pipes are not supported on a host device!");
 #endif // __SYCL_DEVICE_ONLY__
   }
@@ -175,6 +182,7 @@ public:
         __spirv_CreatePipeFromPipeStorage_write<dataT>(&m_Storage);
     __spirv_WritePipeBlockingINTEL(WPipe, &Data, m_Size, m_Alignment);
 #else
+    (void)Data;
     assert(!"Pipes are not supported on a host device!");
 #endif // __SYCL_DEVICE_ONLY__
   }

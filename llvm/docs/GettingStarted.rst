@@ -340,6 +340,16 @@ If you fail to set rpath, most LLVM binaries will fail on startup with a message
 from the loader similar to ``libstdc++.so.6: version `GLIBCXX_3.4.20' not
 found``. This means you need to tweak the -rpath linker flag.
 
+This method will add an absolute path to the rpath of all executables. That's
+fine for local development. If you want to distribute the binaries you build
+so that they can run on older systems, copy ``libstdc++.so.6`` into the
+``lib/`` directory.  All of LLVM's shipping binaries have an rpath pointing at
+``$ORIGIN/../lib``, so they will find ``libstdc++.so.6`` there.  Non-distributed
+binaries don't have an rpath set and won't find ``libstdc++.so.6``. Pass
+``-DLLVM_LOCAL_RPATH="$HOME/toolchains/lib64"`` to cmake to add an absolute
+path to ``libstdc++.so.6`` as above. Since these binaries are not distributed,
+having an absolute local path is fine for them.
+
 When you build Clang, you will need to give *it* access to modern C++
 standard library in order to use it as your new host in part of a bootstrap.
 There are two easy ways to do this, either build (and install) libc++ along
@@ -496,9 +506,27 @@ required access rights. See `committing a change
 `obtaining commit access <DeveloperPolicy.html#obtaining-commit-access>`_
 for commit access.
 
+Here is an example workflow using git. This workflow assumes you have an
+accepted commit on the branch named `branch-with-change`.
+
+.. code-block:: console
+
+  # Go to the branch with your accepted commit.
+  % git checkout branch-with-change
+  # Rebase your change onto the latest commits on Github.
+  % git pull --rebase origin master
+  # Rerun the appropriate tests if needed.
+  % ninja check-$whatever
+  # Check that the list of commits about to be pushed is correct.
+  % git log origin/master...HEAD --oneline
+  # Push to Github.
+  % git push origin HEAD:master
+
 LLVM currently has a linear-history policy, which means that merge commits are
 not allowed. The `llvm-project` repo on github is configured to reject pushes
 that include merges, so the `git rebase` step above is required.
+
+Please ask for help if you're having trouble with your particular git workflow.
 
 Bisecting commits
 ^^^^^^^^^^^^^^^^^
@@ -1105,25 +1133,33 @@ following options with cmake:
    incremental builds, and improves your memory usage.
 
  * -DLLVM_USE_LINKER
-   Setting this option to either gold or lld will significantly improve
-   performance. In the case that you are compiling lld, you may wish to use the
-   gold linker as a faster alternative.
+   Setting this option to lld will significantly reduce linking time for LLVM
+   executables on ELF-based platforms, such as Linux. If you are building LLVM
+   for the first time and lld is not available to you as a binary package, then
+   you may want to use the gold linker as a faster alternative to GNU ld.
 
  * -DCMAKE_BUILD_TYPE
-   This option defaults to Debug; however, this may consume more memory during
-   the linking phase. So, you may wish to use the build type Release. Another
-   build type you may wish to consider is release-with-asserts which compiles at
-   nearly the same rate as the Release build; however, it may not be as easy
-   to debug. MinSizeRel is another build type you may wish to consider, if you
-   are still having problems with slow build time.
+
+    - Debug --- This is the default build type. This disables optimizations while
+      compiling LLVM and enables debug info. On ELF-based platforms (e.g. Linux)
+      linking with debug info may consume a large amount of memory.
+
+    - Release --- Turns on optimizations and disables debug info. Combining the
+      Release build type with -DLLVM_ENABLE_ASSERTIONS=ON may be a good trade-off
+      between speed and debugability during development, particularly for running
+      the test suite.
+
+ * -DLLVM_ENABLE_ASSERTIONS
+   This option defaults to ON for Debug builds and defaults to OFF for Release
+   builds. As mentioned in the previous option, using the Release build type and
+   enabling assertions may be a good alternative to using the Debug build type.
 
  * -DLLVM_PARALLEL_LINK_JOBS
    Set this equal to number of jobs you wish to run simultaneously. This is
    similar to the -j option used with make, but only for link jobs. This option
-   is of course only meaningful if you plan to build with ninja. You may wish to
-   use a very low number of jobs, as this will greatly reduce the amount memory
-   used during the build process. If you have limited memory, you may wish to
-   set this to 1.
+   can only be used with ninja. You may wish to use a very low number of jobs,
+   as this will greatly reduce the amount of memory used during the build
+   process. If you have limited memory, you may wish to set this to 1.
 
  * -DLLVM_TARGETS_TO_BUILD
    Set this equal to the target you wish to build. You may wish to set this to
@@ -1131,24 +1167,25 @@ following options with cmake:
    llvm-project/llvm/lib/Target directory.
 
  * -DLLVM_OPTIMIZED_TABLEGEN
-   Set this to ON to generate a fully optimized tablegen during build. This will
-   significantly improve your build time.
+   Set this to ON to generate a fully optimized tablegen during your build. This
+   will significantly improve your build time. This is only useful if you are
+   using the Debug build type.
 
  * -DLLVM_ENABLE_PROJECTS
    Set this equal to the projects you wish to compile (e.g. clang, lld, etc.) If
-   compiling more than one project, deliniate the list with a semicolon. Should
+   compiling more than one project, separate the items with a semicolon. Should
    you run into issues with the semicolon, try surrounding it with single quotes.
 
  * -DCLANG_ENABLE_STATIC_ANALYZER
    Set this option to OFF if you do not require the clang static analyzer. This
-   should improve your build time significantly.
+   should improve your build time slightly.
 
  * -DLLVM_USE_SPLIT_DWARF
    Consider setting this to ON if you require a debug build, as this will ease
    memory pressure on the linker. This will make linking much faster, as the
    binaries will not contain any of the debug information; however, this will
    generate the debug information in the form of a DWARF object file (with the
-   extension .dwo).
+   extension .dwo). This only applies to host platforms using ELF, such as Linux.
 
 .. _links:
 

@@ -1,15 +1,18 @@
+set(LLVM_LINK_COMPONENTS
+  Support
+  )
 add_flang_tool(f18
   dump.cpp
   f18.cpp
-)
+  )
 
 target_link_libraries(f18
   PRIVATE
+  FortranCommon
   FortranParser
   FortranEvaluate
   FortranSemantics
   FortranLower
-  LLVMSupport
 )
 
 set(MODULES

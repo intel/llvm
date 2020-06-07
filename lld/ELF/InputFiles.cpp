@@ -36,10 +36,23 @@ using namespace llvm::object;
 using namespace llvm::sys;
 using namespace llvm::sys::fs;
 using namespace llvm::support::endian;
+using namespace lld;
+using namespace lld::elf;
 
-namespace lld {
+bool InputFile::isInGroup;
+uint32_t InputFile::nextGroupId;
+
+std::vector<ArchiveFile *> elf::archiveFiles;
+std::vector<BinaryFile *> elf::binaryFiles;
+std::vector<BitcodeFile *> elf::bitcodeFiles;
+std::vector<LazyObjFile *> elf::lazyObjFiles;
+std::vector<InputFile *> elf::objectFiles;
+std::vector<SharedFile *> elf::sharedFiles;
+
+std::unique_ptr<TarWriter> elf::tar;
+
 // Returns "<internal>", "foo.a(bar.o)" or "baz.o".
-std::string toString(const elf::InputFile *f) {
+std::string lld::toString(const InputFile *f) {
   if (!f)
     return "<internal>";
 
@@ -51,17 +64,6 @@ std::string toString(const elf::InputFile *f) {
   }
   return f->toStringCache;
 }
-
-namespace elf {
-bool InputFile::isInGroup;
-uint32_t InputFile::nextGroupId;
-std::vector<BinaryFile *> binaryFiles;
-std::vector<BitcodeFile *> bitcodeFiles;
-std::vector<LazyObjFile *> lazyObjFiles;
-std::vector<InputFile *> objectFiles;
-std::vector<SharedFile *> sharedFiles;
-
-std::unique_ptr<TarWriter> tar;
 
 static ELFKind getELFKind(MemoryBufferRef mb, StringRef archiveName) {
   unsigned char size;
@@ -101,7 +103,7 @@ InputFile::InputFile(Kind k, MemoryBufferRef m)
     ++nextGroupId;
 }
 
-Optional<MemoryBufferRef> readFile(StringRef path) {
+Optional<MemoryBufferRef> elf::readFile(StringRef path) {
   // The --chroot option changes our virtual root directory.
   // This is useful when you are dealing with files created by --reproduce.
   if (!config->chroot.empty() && path.startswith("/"))
@@ -173,6 +175,7 @@ template <class ELFT> static void doParseFile(InputFile *file) {
 
   // .a file
   if (auto *f = dyn_cast<ArchiveFile>(file)) {
+    archiveFiles.push_back(f);
     f->parse();
     return;
   }
@@ -206,7 +209,7 @@ template <class ELFT> static void doParseFile(InputFile *file) {
 }
 
 // Add symbols in File to the symbol table.
-void parseFile(InputFile *file) {
+void elf::parseFile(InputFile *file) {
   switch (config->ekind) {
   case ELF32LEKind:
     doParseFile<ELF32LE>(file);
@@ -1159,10 +1162,22 @@ void ArchiveFile::fetch(const Archive::Symbol &sym) {
   if (tar && c.getParent()->isThin())
     tar->append(relativeToRoot(CHECK(c.getFullName(), this)), mb.getBuffer());
 
-  InputFile *file = createObjectFile(
-      mb, getName(), c.getParent()->isThin() ? 0 : c.getChildOffset());
+  InputFile *file = createObjectFile(mb, getName(), c.getChildOffset());
   file->groupId = groupId;
   parseFile(file);
+}
+
+size_t ArchiveFile::getMemberCount() const {
+  size_t count = 0;
+  Error err = Error::success();
+  for (const Archive::Child &c : file->children(err)) {
+    (void)c;
+    ++count;
+  }
+  // This function is used by --print-archive-stats=, where an error does not
+  // really matter.
+  consumeError(std::move(err));
+  return count;
 }
 
 unsigned SharedFile::vernauxNum;
@@ -1194,6 +1209,40 @@ static std::vector<const void *> parseVerdefs(const uint8_t *base,
     verdefs[verdefIndex] = curVerdef;
   }
   return verdefs;
+}
+
+// Parse SHT_GNU_verneed to properly set the name of a versioned undefined
+// symbol. We detect fatal issues which would cause vulnerabilities, but do not
+// implement sophisticated error checking like in llvm-readobj because the value
+// of such diagnostics is low.
+template <typename ELFT>
+std::vector<uint32_t> SharedFile::parseVerneed(const ELFFile<ELFT> &obj,
+                                               const typename ELFT::Shdr *sec) {
+  if (!sec)
+    return {};
+  std::vector<uint32_t> verneeds;
+  ArrayRef<uint8_t> data = CHECK(obj.getSectionContents(sec), this);
+  const uint8_t *verneedBuf = data.begin();
+  for (unsigned i = 0; i != sec->sh_info; ++i) {
+    if (verneedBuf + sizeof(typename ELFT::Verneed) > data.end())
+      fatal(toString(this) + " has an invalid Verneed");
+    auto *vn = reinterpret_cast<const typename ELFT::Verneed *>(verneedBuf);
+    const uint8_t *vernauxBuf = verneedBuf + vn->vn_aux;
+    for (unsigned j = 0; j != vn->vn_cnt; ++j) {
+      if (vernauxBuf + sizeof(typename ELFT::Vernaux) > data.end())
+        fatal(toString(this) + " has an invalid Vernaux");
+      auto *aux = reinterpret_cast<const typename ELFT::Vernaux *>(vernauxBuf);
+      if (aux->vna_name >= this->stringTable.size())
+        fatal(toString(this) + " has a Vernaux with an invalid vna_name");
+      uint16_t version = aux->vna_other & VERSYM_VERSION;
+      if (version >= verneeds.size())
+        verneeds.resize(version + 1);
+      verneeds[version] = aux->vna_name;
+      vernauxBuf += aux->vna_next;
+    }
+    verneedBuf += vn->vn_next;
+  }
+  return verneeds;
 }
 
 // We do not usually care about alignments of data in shared object
@@ -1239,6 +1288,7 @@ template <class ELFT> void SharedFile::parse() {
 
   const Elf_Shdr *versymSec = nullptr;
   const Elf_Shdr *verdefSec = nullptr;
+  const Elf_Shdr *verneedSec = nullptr;
 
   // Search for .dynsym, .dynamic, .symtab, .gnu.version and .gnu.version_d.
   for (const Elf_Shdr &sec : sections) {
@@ -1254,6 +1304,9 @@ template <class ELFT> void SharedFile::parse() {
       break;
     case SHT_GNU_verdef:
       verdefSec = &sec;
+      break;
+    case SHT_GNU_verneed:
+      verneedSec = &sec;
       break;
     }
   }
@@ -1294,12 +1347,13 @@ template <class ELFT> void SharedFile::parse() {
   sharedFiles.push_back(this);
 
   verdefs = parseVerdefs<ELFT>(obj.base(), verdefSec);
+  std::vector<uint32_t> verneeds = parseVerneed<ELFT>(obj, verneedSec);
 
   // Parse ".gnu.version" section which is a parallel array for the symbol
   // table. If a given file doesn't have a ".gnu.version" section, we use
   // VER_NDX_GLOBAL.
   size_t size = numELFSyms - firstGlobal;
-  std::vector<uint32_t> versyms(size, VER_NDX_GLOBAL);
+  std::vector<uint16_t> versyms(size, VER_NDX_GLOBAL);
   if (versymSec) {
     ArrayRef<Elf_Versym> versym =
         CHECK(obj.template getSectionContentsAsArray<Elf_Versym>(versymSec),
@@ -1330,7 +1384,22 @@ template <class ELFT> void SharedFile::parse() {
       continue;
     }
 
+    uint16_t idx = versyms[i] & ~VERSYM_HIDDEN;
     if (sym.isUndefined()) {
+      // For unversioned undefined symbols, VER_NDX_GLOBAL makes more sense but
+      // as of binutils 2.34, GNU ld produces VER_NDX_LOCAL.
+      if (idx != VER_NDX_LOCAL && idx != VER_NDX_GLOBAL) {
+        if (idx >= verneeds.size()) {
+          error("corrupt input file: version need index " + Twine(idx) +
+                " for symbol " + name + " is out of bounds\n>>> defined in " +
+                toString(this));
+          continue;
+        }
+        StringRef verName = this->stringTable.data() + verneeds[idx];
+        versionedNameBuffer.clear();
+        name =
+            saver.save((name + "@" + verName).toStringRef(versionedNameBuffer));
+      }
       Symbol *s = symtab->addSymbol(
           Undefined{this, name, sym.getBinding(), sym.st_other, sym.getType()});
       s->exportDynamic = true;
@@ -1340,7 +1409,6 @@ template <class ELFT> void SharedFile::parse() {
     // MIPS BFD linker puts _gp_disp symbol into DSO files and incorrectly
     // assigns VER_NDX_LOCAL to this section global symbol. Here is a
     // workaround for this bug.
-    uint32_t idx = versyms[i] & ~VERSYM_HIDDEN;
     if (config->emachine == EM_MIPS && idx == VER_NDX_LOCAL &&
         name == "_gp_disp")
       continue;
@@ -1527,8 +1595,8 @@ void BinaryFile::parse() {
                             STV_DEFAULT, STT_OBJECT, data.size(), 0, nullptr});
 }
 
-InputFile *createObjectFile(MemoryBufferRef mb, StringRef archiveName,
-                            uint64_t offsetInArchive) {
+InputFile *elf::createObjectFile(MemoryBufferRef mb, StringRef archiveName,
+                                 uint64_t offsetInArchive) {
   if (isBitcode(mb))
     return make<BitcodeFile>(mb, archiveName, offsetInArchive);
 
@@ -1619,7 +1687,7 @@ template <class ELFT> void LazyObjFile::parse() {
   }
 }
 
-std::string replaceThinLTOSuffix(StringRef path) {
+std::string elf::replaceThinLTOSuffix(StringRef path) {
   StringRef suffix = config->thinLTOObjectSuffixReplace.first;
   StringRef repl = config->thinLTOObjectSuffixReplace.second;
 
@@ -1638,15 +1706,12 @@ template void LazyObjFile::parse<ELF32BE>();
 template void LazyObjFile::parse<ELF64LE>();
 template void LazyObjFile::parse<ELF64BE>();
 
-template class ObjFile<ELF32LE>;
-template class ObjFile<ELF32BE>;
-template class ObjFile<ELF64LE>;
-template class ObjFile<ELF64BE>;
+template class elf::ObjFile<ELF32LE>;
+template class elf::ObjFile<ELF32BE>;
+template class elf::ObjFile<ELF64LE>;
+template class elf::ObjFile<ELF64BE>;
 
 template void SharedFile::parse<ELF32LE>();
 template void SharedFile::parse<ELF32BE>();
 template void SharedFile::parse<ELF64LE>();
 template void SharedFile::parse<ELF64BE>();
-
-} // namespace elf
-} // namespace lld

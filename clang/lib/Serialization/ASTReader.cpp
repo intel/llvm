@@ -3779,6 +3779,29 @@ ASTReader::ReadASTBlock(ModuleFile &F, unsigned ClientLoadCapabilities) {
       break;
     }
 
+    case FLOAT_CONTROL_PRAGMA_OPTIONS: {
+      if (Record.size() < 3) {
+        Error("invalid pragma pack record");
+        return Failure;
+      }
+      FpPragmaCurrentValue = Record[0];
+      FpPragmaCurrentLocation = ReadSourceLocation(F, Record[1]);
+      unsigned NumStackEntries = Record[2];
+      unsigned Idx = 3;
+      // Reset the stack when importing a new module.
+      FpPragmaStack.clear();
+      for (unsigned I = 0; I < NumStackEntries; ++I) {
+        FpPragmaStackEntry Entry;
+        Entry.Value = Record[Idx++];
+        Entry.Location = ReadSourceLocation(F, Record[Idx++]);
+        Entry.PushLocation = ReadSourceLocation(F, Record[Idx++]);
+        FpPragmaStrings.push_back(ReadString(Record, Idx));
+        Entry.SlotLabel = FpPragmaStrings.back();
+        FpPragmaStack.push_back(Entry);
+      }
+      break;
+    }
+
     case DECLS_TO_CHECK_FOR_DEFERRED_DIAGS:
       for (unsigned I = 0, N = Record.size(); I != N; ++I)
         DeclsToCheckForDeferredDiags.push_back(getGlobalDeclID(F, Record[I]));
@@ -4033,8 +4056,8 @@ void ASTReader::makeModuleVisible(Module *Mod,
       continue;
     }
 
-    if (!Mod->isAvailable()) {
-      // Modules that aren't available cannot be made visible.
+    if (Mod->isUnimportable()) {
+      // Modules that aren't importable cannot be made visible.
       continue;
     }
 
@@ -5539,9 +5562,9 @@ ASTReader::ReadSubmoduleBlock(ModuleFile &F, unsigned ClientLoadCapabilities) {
       // imported module file.
       CurrentModule->Requirements.clear();
       CurrentModule->MissingHeaders.clear();
-      CurrentModule->IsMissingRequirement =
-          ParentModule && ParentModule->IsMissingRequirement;
-      CurrentModule->IsAvailable = !CurrentModule->IsMissingRequirement;
+      CurrentModule->IsUnimportable =
+          ParentModule && ParentModule->IsUnimportable;
+      CurrentModule->IsAvailable = !CurrentModule->IsUnimportable;
       break;
     }
 
@@ -6529,6 +6552,21 @@ void TypeLocReader::VisitDependentVectorTypeLoc(
 
 void TypeLocReader::VisitExtVectorTypeLoc(ExtVectorTypeLoc TL) {
   TL.setNameLoc(readSourceLocation());
+}
+
+void TypeLocReader::VisitConstantMatrixTypeLoc(ConstantMatrixTypeLoc TL) {
+  TL.setAttrNameLoc(readSourceLocation());
+  TL.setAttrOperandParensRange(Reader.readSourceRange());
+  TL.setAttrRowOperand(Reader.readExpr());
+  TL.setAttrColumnOperand(Reader.readExpr());
+}
+
+void TypeLocReader::VisitDependentSizedMatrixTypeLoc(
+    DependentSizedMatrixTypeLoc TL) {
+  TL.setAttrNameLoc(readSourceLocation());
+  TL.setAttrOperandParensRange(Reader.readSourceRange());
+  TL.setAttrRowOperand(Reader.readExpr());
+  TL.setAttrColumnOperand(Reader.readExpr());
 }
 
 void TypeLocReader::VisitFunctionTypeLoc(FunctionTypeLoc TL) {
@@ -7851,6 +7889,34 @@ void ASTReader::UpdateSema() {
     } else {
       SemaObj->PackStack.CurrentValue = *PragmaPackCurrentValue;
       SemaObj->PackStack.CurrentPragmaLocation = PragmaPackCurrentLocation;
+    }
+  }
+  if (FpPragmaCurrentValue) {
+    // The bottom of the stack might have a default value. It must be adjusted
+    // to the current value to ensure that fp-pragma state is preserved after
+    // popping entries that were included/imported from a PCH/module.
+    bool DropFirst = false;
+    if (!FpPragmaStack.empty() && FpPragmaStack.front().Location.isInvalid()) {
+      assert(FpPragmaStack.front().Value ==
+                 SemaObj->FpPragmaStack.DefaultValue &&
+             "Expected a default pragma float_control value");
+      SemaObj->FpPragmaStack.Stack.emplace_back(
+          FpPragmaStack.front().SlotLabel, SemaObj->FpPragmaStack.CurrentValue,
+          SemaObj->FpPragmaStack.CurrentPragmaLocation,
+          FpPragmaStack.front().PushLocation);
+      DropFirst = true;
+    }
+    for (const auto &Entry :
+         llvm::makeArrayRef(FpPragmaStack).drop_front(DropFirst ? 1 : 0))
+      SemaObj->FpPragmaStack.Stack.emplace_back(
+          Entry.SlotLabel, Entry.Value, Entry.Location, Entry.PushLocation);
+    if (FpPragmaCurrentLocation.isInvalid()) {
+      assert(*FpPragmaCurrentValue == SemaObj->FpPragmaStack.DefaultValue &&
+             "Expected a default pragma float_control value");
+      // Keep the current values.
+    } else {
+      SemaObj->FpPragmaStack.CurrentValue = *FpPragmaCurrentValue;
+      SemaObj->FpPragmaStack.CurrentPragmaLocation = FpPragmaCurrentLocation;
     }
   }
 }
@@ -11852,6 +11918,15 @@ OMPClause *OMPClauseReader::readClause() {
     C = OMPUseDevicePtrClause::CreateEmpty(Context, Sizes);
     break;
   }
+  case llvm::omp::OMPC_use_device_addr: {
+    OMPMappableExprListSizeTy Sizes;
+    Sizes.NumVars = Record.readInt();
+    Sizes.NumUniqueDeclarations = Record.readInt();
+    Sizes.NumComponentLists = Record.readInt();
+    Sizes.NumComponents = Record.readInt();
+    C = OMPUseDeviceAddrClause::CreateEmpty(Context, Sizes);
+    break;
+  }
   case llvm::omp::OMPC_is_device_ptr: {
     OMPMappableExprListSizeTy Sizes;
     Sizes.NumVars = Record.readInt();
@@ -11881,6 +11956,12 @@ OMPClause *OMPClauseReader::readClause() {
     break;
   case llvm::omp::OMPC_detach:
     C = new (Context) OMPDetachClause();
+    break;
+  case llvm::omp::OMPC_uses_allocators:
+    C = OMPUsesAllocatorsClause::CreateEmpty(Context, Record.readInt());
+    break;
+  case llvm::omp::OMPC_affinity:
+    C = OMPAffinityClause::CreateEmpty(Context, Record.readInt());
     break;
 #define OMP_CLAUSE_NO_CLASS(Enum, Str)                                         \
   case llvm::omp::Enum:                                                        \
@@ -12632,6 +12713,48 @@ void OMPClauseReader::VisitOMPUseDevicePtrClause(OMPUseDevicePtrClause *C) {
   C->setComponents(Components, ListSizes);
 }
 
+void OMPClauseReader::VisitOMPUseDeviceAddrClause(OMPUseDeviceAddrClause *C) {
+  C->setLParenLoc(Record.readSourceLocation());
+  auto NumVars = C->varlist_size();
+  auto UniqueDecls = C->getUniqueDeclarationsNum();
+  auto TotalLists = C->getTotalComponentListNum();
+  auto TotalComponents = C->getTotalComponentsNum();
+
+  SmallVector<Expr *, 16> Vars;
+  Vars.reserve(NumVars);
+  for (unsigned i = 0; i != NumVars; ++i)
+    Vars.push_back(Record.readSubExpr());
+  C->setVarRefs(Vars);
+
+  SmallVector<ValueDecl *, 16> Decls;
+  Decls.reserve(UniqueDecls);
+  for (unsigned i = 0; i < UniqueDecls; ++i)
+    Decls.push_back(Record.readDeclAs<ValueDecl>());
+  C->setUniqueDecls(Decls);
+
+  SmallVector<unsigned, 16> ListsPerDecl;
+  ListsPerDecl.reserve(UniqueDecls);
+  for (unsigned i = 0; i < UniqueDecls; ++i)
+    ListsPerDecl.push_back(Record.readInt());
+  C->setDeclNumLists(ListsPerDecl);
+
+  SmallVector<unsigned, 32> ListSizes;
+  ListSizes.reserve(TotalLists);
+  for (unsigned i = 0; i < TotalLists; ++i)
+    ListSizes.push_back(Record.readInt());
+  C->setComponentListSizes(ListSizes);
+
+  SmallVector<OMPClauseMappableExprCommon::MappableComponent, 32> Components;
+  Components.reserve(TotalComponents);
+  for (unsigned i = 0; i < TotalComponents; ++i) {
+    Expr *AssociatedExpr = Record.readSubExpr();
+    auto *AssociatedDecl = Record.readDeclAs<ValueDecl>();
+    Components.push_back(OMPClauseMappableExprCommon::MappableComponent(
+        AssociatedExpr, AssociatedDecl));
+  }
+  C->setComponents(Components, ListSizes);
+}
+
 void OMPClauseReader::VisitOMPIsDevicePtrClause(OMPIsDevicePtrClause *C) {
   C->setLParenLoc(Record.readSourceLocation());
   auto NumVars = C->varlist_size();
@@ -12708,6 +12831,33 @@ void OMPClauseReader::VisitOMPExclusiveClause(OMPExclusiveClause *C) {
   for (unsigned i = 0; i != NumVars; ++i)
     Vars.push_back(Record.readSubExpr());
   C->setVarRefs(Vars);
+}
+
+void OMPClauseReader::VisitOMPUsesAllocatorsClause(OMPUsesAllocatorsClause *C) {
+  C->setLParenLoc(Record.readSourceLocation());
+  unsigned NumOfAllocators = C->getNumberOfAllocators();
+  SmallVector<OMPUsesAllocatorsClause::Data, 4> Data;
+  Data.reserve(NumOfAllocators);
+  for (unsigned I = 0; I != NumOfAllocators; ++I) {
+    OMPUsesAllocatorsClause::Data &D = Data.emplace_back();
+    D.Allocator = Record.readSubExpr();
+    D.AllocatorTraits = Record.readSubExpr();
+    D.LParenLoc = Record.readSourceLocation();
+    D.RParenLoc = Record.readSourceLocation();
+  }
+  C->setAllocatorsData(Data);
+}
+
+void OMPClauseReader::VisitOMPAffinityClause(OMPAffinityClause *C) {
+  C->setLParenLoc(Record.readSourceLocation());
+  C->setModifier(Record.readSubExpr());
+  C->setColonLoc(Record.readSourceLocation());
+  unsigned NumOfLocators = C->varlist_size();
+  SmallVector<Expr *, 4> Locators;
+  Locators.reserve(NumOfLocators);
+  for (unsigned I = 0; I != NumOfLocators; ++I)
+    Locators.push_back(Record.readSubExpr());
+  C->setVarRefs(Locators);
 }
 
 void OMPClauseReader::VisitOMPOrderClause(OMPOrderClause *C) {

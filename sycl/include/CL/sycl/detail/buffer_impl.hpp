@@ -8,14 +8,12 @@
 
 #pragma once
 
-#include <CL/cl.h>
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/helpers.hpp>
 #include <CL/sycl/detail/sycl_mem_obj_t.hpp>
-#include <CL/sycl/handler.hpp>
 #include <CL/sycl/property_list.hpp>
 #include <CL/sycl/stl.hpp>
 #include <CL/sycl/types.hpp>
@@ -33,7 +31,6 @@ template <typename DataT, int Dimensions, access::mode AccessMode,
 class accessor;
 template <typename T, int Dimensions, typename AllocatorT, typename Enable>
 class buffer;
-class handler;
 
 using buffer_allocator = detail::sycl_memory_object_allocator;
 
@@ -44,8 +41,7 @@ class __SYCL_EXPORT buffer_impl final : public SYCLMemObjT {
   using typename BaseT::MemObjType;
 
 public:
-  buffer_impl(size_t SizeInBytes, size_t RequiredAlign,
-              const property_list &Props,
+  buffer_impl(size_t SizeInBytes, size_t, const property_list &Props,
               unique_ptr_class<SYCLMemObjAllocator> Allocator)
       : BaseT(SizeInBytes, Props, std::move(Allocator)) {}
 
@@ -115,6 +111,8 @@ public:
     } catch (...) {
     }
   }
+
+  void resize(size_t size) { BaseT::MSizeInBytes = size; }
 };
 
 } // namespace detail

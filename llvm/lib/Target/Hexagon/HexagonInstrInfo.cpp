@@ -1758,7 +1758,7 @@ unsigned HexagonInstrInfo::getInlineAsmLength(const char *Str,
     if (*Str == '\n' || strncmp(Str, MAI.getSeparatorString(),
                                 strlen(MAI.getSeparatorString())) == 0)
       atInsnStart = true;
-    if (atInsnStart && !std::isspace(static_cast<unsigned char>(*Str))) {
+    if (atInsnStart && !isSpace(static_cast<unsigned char>(*Str))) {
       Length += MaxInstLength;
       atInsnStart = false;
     }
@@ -2963,12 +2963,12 @@ bool HexagonInstrInfo::addLatencyToSchedule(const MachineInstr &MI1,
 }
 
 /// Get the base register and byte offset of a load/store instr.
-bool HexagonInstrInfo::getMemOperandsWithOffset(
+bool HexagonInstrInfo::getMemOperandsWithOffsetWidth(
     const MachineInstr &LdSt, SmallVectorImpl<const MachineOperand *> &BaseOps,
-    int64_t &Offset, bool &OffsetIsScalable, const TargetRegisterInfo *TRI) const {
-  unsigned AccessSize = 0;
+    int64_t &Offset, bool &OffsetIsScalable, unsigned &Width,
+    const TargetRegisterInfo *TRI) const {
   OffsetIsScalable = false;
-  const MachineOperand *BaseOp = getBaseAndOffset(LdSt, Offset, AccessSize);
+  const MachineOperand *BaseOp = getBaseAndOffset(LdSt, Offset, Width);
   if (!BaseOp || !BaseOp->isReg())
     return false;
   BaseOps.push_back(BaseOp);

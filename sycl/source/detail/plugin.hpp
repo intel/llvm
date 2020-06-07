@@ -12,10 +12,17 @@
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/stl.hpp>
 
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+// Include the headers necessary for emitting traces using the trace framework
+#include "xpti_trace_framework.h"
+#endif
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
-
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+extern xpti::trace_event_data_t *GPICallEvent;
+#endif
 /// The plugin class provides a unified interface to the underlying low-level
 /// runtimes for the device-agnostic SYCL runtime.
 ///
@@ -26,6 +33,11 @@ public:
 
   plugin(RT::PiPlugin Plugin, backend UseBackend)
       : MPlugin(Plugin), MBackend(UseBackend) {}
+
+  plugin &operator=(const plugin &) = default;
+  plugin(const plugin &) = default;
+  plugin &operator=(plugin &&other) noexcept = default;
+  plugin(plugin &&other) noexcept = default;
 
   ~plugin() = default;
 
@@ -53,6 +65,13 @@ public:
   template <PiApiKind PiApiOffset, typename... ArgsT>
   RT::PiResult call_nocheck(ArgsT... Args) const {
     RT::PiFuncInfo<PiApiOffset> PiCallInfo;
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+    // Emit a function_begin trace for the PI API before the call is executed.
+    // If arguments need to be captured, then a data structure can be sent in
+    // the per_instance_user_data field.
+    std::string PIFnName = PiCallInfo.getFuncName();
+    uint64_t CorrelationID = pi::emitFunctionBeginTrace(PIFnName.c_str());
+#endif
     if (pi::trace(pi::TraceLevel::PI_TRACE_CALLS)) {
       std::string FnName = PiCallInfo.getFuncName();
       std::cout << "---> " << FnName << "(" << std::endl;
@@ -63,6 +82,10 @@ public:
       std::cout << ") ---> ";
       RT::printArgs(R);
     }
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+    // Close the function begin with a call to function end
+    pi::emitFunctionEndTrace(CorrelationID, PIFnName.c_str());
+#endif
     return R;
   }
 
@@ -79,7 +102,7 @@ public:
 
 private:
   RT::PiPlugin MPlugin;
-  const backend MBackend;
+  backend MBackend;
 }; // class plugin
 } // namespace detail
 } // namespace sycl

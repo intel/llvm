@@ -12,6 +12,7 @@
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSet.h"
+#include "llvm/ADT/StringSwitch.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/BinaryFormat/Wasm.h"
 #include "llvm/MC/SubtargetFeature.h"
@@ -1266,7 +1267,7 @@ const wasm::WasmObjectHeader &WasmObjectFile::getHeader() const {
 
 void WasmObjectFile::moveSymbolNext(DataRefImpl &Symb) const { Symb.d.b++; }
 
-uint32_t WasmObjectFile::getSymbolFlags(DataRefImpl Symb) const {
+Expected<uint32_t> WasmObjectFile::getSymbolFlags(DataRefImpl Symb) const {
   uint32_t Result = SymbolRef::SF_None;
   const WasmSymbol &Sym = getWasmSymbol(Symb);
 

@@ -17,6 +17,7 @@
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/RegisterScavenging.h"
 #include "llvm/IR/Function.h"
+#include "llvm/Target/TargetMachine.h"
 
 using namespace llvm;
 
@@ -465,7 +466,7 @@ void SystemZFrameLowering::emitPrologue(MachineFunction &MF,
 
     // Add CFI for the allocation.
     unsigned CFIIndex = MF.addFrameInst(
-        MCCFIInstruction::createDefCfaOffset(nullptr, SPOffsetFromCFA + Delta));
+        MCCFIInstruction::cfiDefCfaOffset(nullptr, -SPOffsetFromCFA - Delta));
     BuildMI(MBB, MBBI, DL, ZII->get(TargetOpcode::CFI_INSTRUCTION))
         .addCFIIndex(CFIIndex);
     SPOffsetFromCFA += Delta;

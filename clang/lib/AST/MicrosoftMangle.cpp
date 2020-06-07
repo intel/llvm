@@ -1823,6 +1823,12 @@ void MicrosoftCXXNameMangler::mangleAddressSpaceType(QualType T,
     case LangAS::opencl_global:
       Extra.mangleSourceName("_ASCLglobal");
       break;
+    case LangAS::opencl_global_device:
+      Extra.mangleSourceName("_ASCLDevice");
+      break;
+    case LangAS::opencl_global_host:
+      Extra.mangleSourceName("_ASCLHost");
+      break;
     case LangAS::opencl_local:
       Extra.mangleSourceName("_ASCLlocal");
       break;
@@ -2728,6 +2734,23 @@ void MicrosoftCXXNameMangler::mangleType(const DependentSizedExtVectorType *T,
     "cannot mangle this dependent-sized extended vector type yet");
   Diags.Report(Range.getBegin(), DiagID)
     << Range;
+}
+
+void MicrosoftCXXNameMangler::mangleType(const ConstantMatrixType *T,
+                                         Qualifiers quals, SourceRange Range) {
+  DiagnosticsEngine &Diags = Context.getDiags();
+  unsigned DiagID = Diags.getCustomDiagID(DiagnosticsEngine::Error,
+                                          "Cannot mangle this matrix type yet");
+  Diags.Report(Range.getBegin(), DiagID) << Range;
+}
+
+void MicrosoftCXXNameMangler::mangleType(const DependentSizedMatrixType *T,
+                                         Qualifiers quals, SourceRange Range) {
+  DiagnosticsEngine &Diags = Context.getDiags();
+  unsigned DiagID = Diags.getCustomDiagID(
+      DiagnosticsEngine::Error,
+      "Cannot mangle this dependent-sized matrix type yet");
+  Diags.Report(Range.getBegin(), DiagID) << Range;
 }
 
 void MicrosoftCXXNameMangler::mangleType(const DependentAddressSpaceType *T,

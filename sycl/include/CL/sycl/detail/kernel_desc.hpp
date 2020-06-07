@@ -52,7 +52,7 @@ template <class Name> struct SpecConstantInfo {
 #ifndef __SYCL_UNNAMED_LAMBDA__
 template <class KernelNameType> struct KernelInfo {
   static constexpr unsigned getNumParams() { return 0; }
-  static const kernel_param_desc_t &getParamDesc(int Idx) {
+  static const kernel_param_desc_t &getParamDesc(int) {
     static kernel_param_desc_t Dummy;
     return Dummy;
   }

@@ -462,7 +462,8 @@ static RTLIB::Libcall getRTLibDesc(unsigned Opcode, unsigned Size) {
 /// True if an instruction is in tail position in its caller. Intended for
 /// legalizing libcalls as tail calls when possible.
 static bool isLibCallInTailPosition(MachineInstr &MI) {
-  const Function &F = MI.getParent()->getParent()->getFunction();
+  MachineBasicBlock &MBB = *MI.getParent();
+  const Function &F = MBB.getParent()->getFunction();
 
   // Conservatively require the attributes of the call to match those of
   // the return. Ignore NoAlias and NonNull because they don't affect the
@@ -481,8 +482,8 @@ static bool isLibCallInTailPosition(MachineInstr &MI) {
 
   // Only tail call if the following instruction is a standard return.
   auto &TII = *MI.getMF()->getSubtarget().getInstrInfo();
-  MachineInstr *Next = MI.getNextNode();
-  if (!Next || TII.isTailCall(*Next) || !Next->isReturn())
+  auto Next = next_nodbg(MI.getIterator(), MBB.instr_end());
+  if (Next == MBB.instr_end() || TII.isTailCall(*Next) || !Next->isReturn())
     return false;
 
   return true;
@@ -569,7 +570,7 @@ llvm::createMemLibcall(MachineIRBuilder &MIRBuilder, MachineRegisterInfo &MRI,
   }
   const char *Name = TLI.getLibcallName(RTLibcall);
 
-  MIRBuilder.setInstr(MI);
+  MIRBuilder.setInstrAndDebugLoc(MI);
 
   CallLowering::CallLoweringInfo Info;
   Info.CallConv = TLI.getLibcallCallingConv(RTLibcall);
@@ -584,14 +585,16 @@ llvm::createMemLibcall(MachineIRBuilder &MIRBuilder, MachineRegisterInfo &MRI,
 
   if (Info.LoweredTailCall) {
     assert(Info.IsTailCall && "Lowered tail call when it wasn't a tail call?");
-    // We must have a return following the call to get past
+    // We must have a return following the call (or debug insts) to get past
     // isLibCallInTailPosition.
-    assert(MI.getNextNode() && MI.getNextNode()->isReturn() &&
-           "Expected instr following MI to be a return?");
-
-    // We lowered a tail call, so the call is now the return from the block.
-    // Delete the old return.
-    MI.getNextNode()->eraseFromParent();
+    do {
+      MachineInstr *Next = MI.getNextNode();
+      assert(Next && (Next->isReturn() || Next->isDebugInstr()) &&
+             "Expected instr following MI to be return or debug inst?");
+      // We lowered a tail call, so the call is now the return from the block.
+      // Delete the old return.
+      Next->eraseFromParent();
+    } while (MI.getNextNode());
   }
 
   return LegalizerHelper::Legalized;
@@ -1207,7 +1210,37 @@ LegalizerHelper::LegalizeResult LegalizerHelper::narrowScalar(MachineInstr &MI,
     MI.eraseFromParent();
     return Legalized;
   }
+  case TargetOpcode::G_PTRMASK: {
+    if (TypeIdx != 1)
+      return UnableToLegalize;
+    Observer.changingInstr(MI);
+    narrowScalarSrc(MI, NarrowTy, 2);
+    Observer.changedInstr(MI);
+    return Legalized;
   }
+  }
+}
+
+Register LegalizerHelper::coerceToScalar(Register Val) {
+  LLT Ty = MRI.getType(Val);
+  if (Ty.isScalar())
+    return Val;
+
+  const DataLayout &DL = MIRBuilder.getDataLayout();
+  LLT NewTy = LLT::scalar(Ty.getSizeInBits());
+  if (Ty.isPointer()) {
+    if (DL.isNonIntegralAddressSpace(Ty.getAddressSpace()))
+      return Register();
+    return MIRBuilder.buildPtrToInt(NewTy, Val).getReg(0);
+  }
+
+  Register NewVal = Val;
+
+  assert(Ty.isVector());
+  LLT EltTy = Ty.getElementType();
+  if (EltTy.isPointer())
+    NewVal = MIRBuilder.buildPtrToInt(NewTy, NewVal).getReg(0);
+  return MIRBuilder.buildBitcast(NewTy, NewVal).getReg(0);
 }
 
 void LegalizerHelper::widenScalarSrc(MachineInstr &MI, LLT WideTy,
@@ -2118,6 +2151,14 @@ LegalizerHelper::widenScalar(MachineInstr &MI, unsigned TypeIdx, LLT WideTy) {
     widenScalarDst(MI, WideTy, 0, TargetOpcode::G_TRUNC);
     Observer.changedInstr(MI);
     return Legalized;
+  case TargetOpcode::G_PTRMASK: {
+    if (TypeIdx != 1)
+      return UnableToLegalize;
+    Observer.changingInstr(MI);
+    widenScalarSrc(MI, WideTy, 2, TargetOpcode::G_ZEXT);
+    Observer.changedInstr(MI);
+    return Legalized;
+  }
   }
 }
 
@@ -2541,6 +2582,8 @@ LegalizerHelper::lower(MachineInstr &MI, unsigned TypeIdx, LLT Ty) {
   case G_FMINNUM:
   case G_FMAXNUM:
     return lowerFMinNumMaxNum(MI);
+  case G_MERGE_VALUES:
+    return lowerMergeValues(MI);
   case G_UNMERGE_VALUES:
     return lowerUnmergeValues(MI);
   case TargetOpcode::G_SEXT_INREG: {
@@ -3607,7 +3650,7 @@ LegalizerHelper::moreElementsVectorPhi(MachineInstr &MI, unsigned TypeIdx,
 LegalizerHelper::LegalizeResult
 LegalizerHelper::moreElementsVector(MachineInstr &MI, unsigned TypeIdx,
                                     LLT MoreTy) {
-  MIRBuilder.setInstr(MI);
+  MIRBuilder.setInstrAndDebugLoc(MI);
   unsigned Opc = MI.getOpcode();
   switch (Opc) {
   case TargetOpcode::G_IMPLICIT_DEF:
@@ -4858,36 +4901,74 @@ LegalizerHelper::lowerFFloor(MachineInstr &MI) {
 }
 
 LegalizerHelper::LegalizeResult
-LegalizerHelper::lowerUnmergeValues(MachineInstr &MI) {
-  const unsigned NumDst = MI.getNumOperands() - 1;
-  const Register SrcReg = MI.getOperand(NumDst).getReg();
-  LLT SrcTy = MRI.getType(SrcReg);
+LegalizerHelper::lowerMergeValues(MachineInstr &MI) {
+  const unsigned NumOps = MI.getNumOperands();
+  Register DstReg = MI.getOperand(0).getReg();
+  Register Src0Reg = MI.getOperand(1).getReg();
+  LLT DstTy = MRI.getType(DstReg);
+  LLT SrcTy = MRI.getType(Src0Reg);
+  unsigned PartSize = SrcTy.getSizeInBits();
 
-  Register Dst0Reg = MI.getOperand(0).getReg();
-  LLT DstTy = MRI.getType(Dst0Reg);
+  LLT WideTy = LLT::scalar(DstTy.getSizeInBits());
+  Register ResultReg = MIRBuilder.buildZExt(WideTy, Src0Reg).getReg(0);
 
+  for (unsigned I = 2; I != NumOps; ++I) {
+    const unsigned Offset = (I - 1) * PartSize;
 
-  // Expand scalarizing unmerge as bitcast to integer and shift.
-  if (!DstTy.isVector() && SrcTy.isVector() &&
-      SrcTy.getElementType() == DstTy) {
-    LLT IntTy = LLT::scalar(SrcTy.getSizeInBits());
-    Register Cast = MIRBuilder.buildBitcast(IntTy, SrcReg).getReg(0);
+    Register SrcReg = MI.getOperand(I).getReg();
+    auto ZextInput = MIRBuilder.buildZExt(WideTy, SrcReg);
 
-    MIRBuilder.buildTrunc(Dst0Reg, Cast);
+    Register NextResult = I + 1 == NumOps && WideTy == DstTy ? DstReg :
+      MRI.createGenericVirtualRegister(WideTy);
 
-    const unsigned DstSize = DstTy.getSizeInBits();
-    unsigned Offset = DstSize;
-    for (unsigned I = 1; I != NumDst; ++I, Offset += DstSize) {
-      auto ShiftAmt = MIRBuilder.buildConstant(IntTy, Offset);
-      auto Shift = MIRBuilder.buildLShr(IntTy, Cast, ShiftAmt);
-      MIRBuilder.buildTrunc(MI.getOperand(I), Shift);
-    }
-
-    MI.eraseFromParent();
-    return Legalized;
+    auto ShiftAmt = MIRBuilder.buildConstant(WideTy, Offset);
+    auto Shl = MIRBuilder.buildShl(WideTy, ZextInput, ShiftAmt);
+    MIRBuilder.buildOr(NextResult, ResultReg, Shl);
+    ResultReg = NextResult;
   }
 
-  return UnableToLegalize;
+  if (DstTy.isPointer()) {
+    if (MIRBuilder.getDataLayout().isNonIntegralAddressSpace(
+          DstTy.getAddressSpace())) {
+      LLVM_DEBUG(dbgs() << "Not casting nonintegral address space\n");
+      return UnableToLegalize;
+    }
+
+    MIRBuilder.buildIntToPtr(DstReg, ResultReg);
+  }
+
+  MI.eraseFromParent();
+  return Legalized;
+}
+
+LegalizerHelper::LegalizeResult
+LegalizerHelper::lowerUnmergeValues(MachineInstr &MI) {
+  const unsigned NumDst = MI.getNumOperands() - 1;
+  Register SrcReg = MI.getOperand(NumDst).getReg();
+  Register Dst0Reg = MI.getOperand(0).getReg();
+  LLT DstTy = MRI.getType(Dst0Reg);
+  if (DstTy.isPointer())
+    return UnableToLegalize; // TODO
+
+  SrcReg = coerceToScalar(SrcReg);
+  if (!SrcReg)
+    return UnableToLegalize;
+
+  // Expand scalarizing unmerge as bitcast to integer and shift.
+  LLT IntTy = MRI.getType(SrcReg);
+
+  MIRBuilder.buildTrunc(Dst0Reg, SrcReg);
+
+  const unsigned DstSize = DstTy.getSizeInBits();
+  unsigned Offset = DstSize;
+  for (unsigned I = 1; I != NumDst; ++I, Offset += DstSize) {
+    auto ShiftAmt = MIRBuilder.buildConstant(IntTy, Offset);
+    auto Shift = MIRBuilder.buildLShr(IntTy, SrcReg, ShiftAmt);
+    MIRBuilder.buildTrunc(MI.getOperand(I), Shift);
+  }
+
+  MI.eraseFromParent();
+  return Legalized;
 }
 
 LegalizerHelper::LegalizeResult

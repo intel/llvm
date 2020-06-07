@@ -71,11 +71,11 @@ define <2 x i64> @getsmaxi64(<2 x i64> %a, <2 x i64> %b) {
 ; NOP8VEC-NEXT:    cmpd 4, 3
 ; NOP8VEC-NEXT:    li 3, 0
 ; NOP8VEC-NEXT:    li 4, -1
-; NOP8VEC-NEXT:    isel 5, 4, 3, 1
+; NOP8VEC-NEXT:    iselgt 5, 4, 3
 ; NOP8VEC-NEXT:    std 5, -8(1)
 ; NOP8VEC-NEXT:    ld 5, -32(1)
 ; NOP8VEC-NEXT:    cmpd 6, 5
-; NOP8VEC-NEXT:    isel 3, 4, 3, 1
+; NOP8VEC-NEXT:    iselgt 3, 4, 3
 ; NOP8VEC-NEXT:    std 3, -16(1)
 ; NOP8VEC-NEXT:    addi 3, 1, -16
 ; NOP8VEC-NEXT:    lxvd2x 0, 0, 3
@@ -99,7 +99,7 @@ define <4 x float> @getsmaxf32(<4 x float> %a, <4 x float> %b) {
 ; NOP8VEC-NEXT:    xvmaxsp 34, 34, 35
 ; NOP8VEC-NEXT:    blr
 entry:
-  %0 = fcmp fast oge <4 x float> %a, %b
+  %0 = fcmp nnan nsz oge <4 x float> %a, %b
   %1 = select <4 x i1> %0, <4 x float> %a, <4 x float> %b
   ret <4 x float> %1
 }
@@ -115,7 +115,7 @@ define <2 x double> @getsmaxf64(<2 x double> %a, <2 x double> %b) {
 ; NOP8VEC-NEXT:    xvmaxdp 34, 34, 35
 ; NOP8VEC-NEXT:    blr
 entry:
-  %0 = fcmp fast oge <2 x double> %a, %b
+  %0 = fcmp nnan nsz oge <2 x double> %a, %b
   %1 = select <2 x i1> %0, <2 x double> %a, <2 x double> %b
   ret <2 x double> %1
 }
@@ -188,11 +188,11 @@ define <2 x i64> @getsmini64(<2 x i64> %a, <2 x i64> %b) {
 ; NOP8VEC-NEXT:    cmpd 4, 3
 ; NOP8VEC-NEXT:    li 3, 0
 ; NOP8VEC-NEXT:    li 4, -1
-; NOP8VEC-NEXT:    isel 5, 4, 3, 0
+; NOP8VEC-NEXT:    isellt 5, 4, 3
 ; NOP8VEC-NEXT:    std 5, -8(1)
 ; NOP8VEC-NEXT:    ld 5, -32(1)
 ; NOP8VEC-NEXT:    cmpd 6, 5
-; NOP8VEC-NEXT:    isel 3, 4, 3, 0
+; NOP8VEC-NEXT:    isellt 3, 4, 3
 ; NOP8VEC-NEXT:    std 3, -16(1)
 ; NOP8VEC-NEXT:    addi 3, 1, -16
 ; NOP8VEC-NEXT:    lxvd2x 0, 0, 3
@@ -216,7 +216,7 @@ define <4 x float> @getsminf32(<4 x float> %a, <4 x float> %b) {
 ; NOP8VEC-NEXT:    xvminsp 34, 34, 35
 ; NOP8VEC-NEXT:    blr
 entry:
-  %0 = fcmp fast ole <4 x float> %a, %b
+  %0 = fcmp nnan nsz ole <4 x float> %a, %b
   %1 = select <4 x i1> %0, <4 x float> %a, <4 x float> %b
   ret <4 x float> %1
 }
@@ -232,7 +232,7 @@ define <2 x double> @getsminf64(<2 x double> %a, <2 x double> %b) {
 ; NOP8VEC-NEXT:    xvmindp 34, 34, 35
 ; NOP8VEC-NEXT:    blr
 entry:
-  %0 = fcmp fast ole <2 x double> %a, %b
+  %0 = fcmp nnan nsz ole <2 x double> %a, %b
   %1 = select <2 x i1> %0, <2 x double> %a, <2 x double> %b
   ret <2 x double> %1
 }

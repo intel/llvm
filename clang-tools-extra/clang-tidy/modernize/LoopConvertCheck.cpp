@@ -489,9 +489,12 @@ void LoopConvertCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
 }
 
 void LoopConvertCheck::registerMatchers(MatchFinder *Finder) {
-  Finder->addMatcher(makeArrayLoopMatcher(), this);
-  Finder->addMatcher(makeIteratorLoopMatcher(), this);
-  Finder->addMatcher(makePseudoArrayLoopMatcher(), this);
+  Finder->addMatcher(traverse(ast_type_traits::TK_AsIs, makeArrayLoopMatcher()),
+                     this);
+  Finder->addMatcher(
+      traverse(ast_type_traits::TK_AsIs, makeIteratorLoopMatcher()), this);
+  Finder->addMatcher(
+      traverse(ast_type_traits::TK_AsIs, makePseudoArrayLoopMatcher()), this);
 }
 
 /// Given the range of a single declaration, such as:
@@ -525,13 +528,11 @@ void LoopConvertCheck::doConversion(
     const ValueDecl *MaybeContainer, const UsageResult &Usages,
     const DeclStmt *AliasDecl, bool AliasUseRequired, bool AliasFromForInit,
     const ForStmt *Loop, RangeDescriptor Descriptor) {
-  auto Diag = diag(Loop->getForLoc(), "use range-based for loop instead");
-
   std::string VarName;
   bool VarNameFromAlias = (Usages.size() == 1) && AliasDecl;
   bool AliasVarIsRef = false;
   bool CanCopy = true;
-
+  std::vector<FixItHint> FixIts;
   if (VarNameFromAlias) {
     const auto *AliasVar = cast<VarDecl>(AliasDecl->getSingleDecl());
     VarName = AliasVar->getName().str();
@@ -563,8 +564,8 @@ void LoopConvertCheck::doConversion(
       getAliasRange(Context->getSourceManager(), ReplaceRange);
     }
 
-    Diag << FixItHint::CreateReplacement(
-        CharSourceRange::getTokenRange(ReplaceRange), ReplacementText);
+    FixIts.push_back(FixItHint::CreateReplacement(
+        CharSourceRange::getTokenRange(ReplaceRange), ReplacementText));
     // No further replacements are made to the loop, since the iterator or index
     // was used exactly once - in the initialization of AliasVar.
   } else {
@@ -609,8 +610,8 @@ void LoopConvertCheck::doConversion(
             Usage.Kind == Usage::UK_CaptureByCopy ? "&" + VarName : VarName;
       }
       TUInfo->getReplacedVars().insert(std::make_pair(Loop, IndexVar));
-      Diag << FixItHint::CreateReplacement(
-          CharSourceRange::getTokenRange(Range), ReplaceText);
+      FixIts.push_back(FixItHint::CreateReplacement(
+          CharSourceRange::getTokenRange(Range), ReplaceText));
     }
   }
 
@@ -648,8 +649,9 @@ void LoopConvertCheck::doConversion(
   std::string Range = ("(" + TypeString + " " + VarName + " : " +
                        MaybeDereference + Descriptor.ContainerString + ")")
                           .str();
-  Diag << FixItHint::CreateReplacement(
-      CharSourceRange::getTokenRange(ParenRange), Range);
+  FixIts.push_back(FixItHint::CreateReplacement(
+      CharSourceRange::getTokenRange(ParenRange), Range));
+  diag(Loop->getForLoc(), "use range-based for loop instead") << FixIts;
   TUInfo->getGeneratedDecls().insert(make_pair(Loop, VarName));
 }
 
@@ -898,6 +900,7 @@ void LoopConvertCheck::check(const MatchFinder::MatchResult &Result) {
   }
 
   // Find out which qualifiers we have to use in the loop range.
+  TraversalKindScope RAII(*Context, ast_type_traits::TK_AsIs);
   const UsageResult &Usages = Finder.getUsages();
   determineRangeDescriptor(Context, Nodes, Loop, FixerKind, ContainerExpr,
                            Usages, Descriptor);

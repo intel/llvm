@@ -119,6 +119,7 @@ void EntityDetails::set_type(const DeclTypeSpec &type) {
   type_ = &type;
 }
 
+void AssocEntityDetails::set_rank(int rank) { rank_ = rank; }
 void EntityDetails::ReplaceType(const DeclTypeSpec &type) { type_ = &type; }
 
 void ObjectEntityDetails::set_shape(const ArraySpec &shape) {
@@ -140,13 +141,8 @@ ProcEntityDetails::ProcEntityDetails(EntityDetails &&d) : EntityDetails(d) {
   }
 }
 
-const Symbol &UseDetails::module() const {
-  // owner is a module so it must have a symbol:
-  return *symbol_->owner().symbol();
-}
-
 UseErrorDetails::UseErrorDetails(const UseDetails &useDetails) {
-  add_occurrence(useDetails.location(), *useDetails.module().scope());
+  add_occurrence(useDetails.location(), *GetUsedModule(useDetails).scope());
 }
 UseErrorDetails &UseErrorDetails::add_occurrence(
     const SourceName &location, const Scope &module) {
@@ -286,16 +282,6 @@ void Symbol::SetType(const DeclTypeSpec &type) {
       details_);
 }
 
-bool Symbol::IsDummy() const {
-  return std::visit(
-      common::visitors{[](const EntityDetails &x) { return x.isDummy(); },
-          [](const ObjectEntityDetails &x) { return x.isDummy(); },
-          [](const ProcEntityDetails &x) { return x.isDummy(); },
-          [](const HostAssocDetails &x) { return x.symbol().IsDummy(); },
-          [](const auto &) { return false; }},
-      details_);
-}
-
 bool Symbol::IsFuncResult() const {
   return std::visit(
       common::visitors{[](const EntityDetails &x) { return x.isFuncResult(); },
@@ -353,6 +339,9 @@ llvm::raw_ostream &operator<<(
 llvm::raw_ostream &operator<<(
     llvm::raw_ostream &os, const AssocEntityDetails &x) {
   os << *static_cast<const EntityDetails *>(&x);
+  if (auto assocRank{x.rank()}) {
+    os << " rank: " << *assocRank;
+  }
   DumpExpr(os, "expr", x.expr());
   return os;
 }
@@ -385,7 +374,7 @@ llvm::raw_ostream &operator<<(
 
 llvm::raw_ostream &operator<<(llvm::raw_ostream &os, const Details &details) {
   os << DetailsToString(details);
-  std::visit(
+  std::visit( //
       common::visitors{
           [&](const UnknownDetails &) {},
           [&](const MainProgramDetails &) {},
@@ -409,7 +398,8 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &os, const Details &details) {
             os << ' ' << EnumToString(x.kind());
           },
           [&](const UseDetails &x) {
-            os << " from " << x.symbol().name() << " in " << x.module().name();
+            os << " from " << x.symbol().name() << " in "
+               << GetUsedModule(x).name();
           },
           [&](const UseErrorDetails &x) {
             os << " uses:";
@@ -434,9 +424,12 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &os, const Details &details) {
             DumpSymbolVector(os, x.objects());
           },
           [&](const CommonBlockDetails &x) {
+            if (x.alignment()) {
+              os << " alignment=" << x.alignment();
+            }
             os << ':';
-            for (const Symbol &object : x.objects()) {
-              os << ' ' << object.name();
+            for (const auto &object : x.objects()) {
+              os << ' ' << object->name();
             }
           },
           [&](const FinalProcDetails &) {},
@@ -481,6 +474,9 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &os, const Symbol &symbol) {
   }
   if (!symbol.flags().empty()) {
     os << " (" << symbol.flags() << ')';
+  }
+  if (symbol.size_) {
+    os << " size=" << symbol.size_ << " offset=" << symbol.offset_;
   }
   os << ": " << symbol.details_;
   return os;
@@ -548,124 +544,6 @@ const Symbol *Symbol::GetParentComponent(const Scope *scope) const {
   } else {
     return nullptr;
   }
-}
-
-// Utility routine for InstantiateComponent(): applies type
-// parameter values to an intrinsic type spec.
-static const DeclTypeSpec &InstantiateIntrinsicType(Scope &scope,
-    const DeclTypeSpec &spec, SemanticsContext &semanticsContext) {
-  const IntrinsicTypeSpec &intrinsic{DEREF(spec.AsIntrinsic())};
-  if (evaluate::ToInt64(intrinsic.kind())) {
-    return spec; // KIND is already a known constant
-  }
-  // The expression was not originally constant, but now it must be so
-  // in the context of a parameterized derived type instantiation.
-  KindExpr copy{intrinsic.kind()};
-  evaluate::FoldingContext &foldingContext{semanticsContext.foldingContext()};
-  copy = evaluate::Fold(foldingContext, std::move(copy));
-  int kind{semanticsContext.GetDefaultKind(intrinsic.category())};
-  if (auto value{evaluate::ToInt64(copy)}) {
-    if (evaluate::IsValidKindOfIntrinsicType(intrinsic.category(), *value)) {
-      kind = *value;
-    } else {
-      foldingContext.messages().Say(
-          "KIND parameter value (%jd) of intrinsic type %s "
-          "did not resolve to a supported value"_err_en_US,
-          *value,
-          parser::ToUpperCaseLetters(
-              common::EnumToString(intrinsic.category())));
-    }
-  }
-  switch (spec.category()) {
-  case DeclTypeSpec::Numeric:
-    return scope.MakeNumericType(intrinsic.category(), KindExpr{kind});
-  case DeclTypeSpec::Logical: //
-    return scope.MakeLogicalType(KindExpr{kind});
-  case DeclTypeSpec::Character:
-    return scope.MakeCharacterType(
-        ParamValue{spec.characterTypeSpec().length()}, KindExpr{kind});
-  default:
-    CRASH_NO_CASE;
-  }
-}
-
-Symbol &Symbol::InstantiateComponent(
-    Scope &scope, SemanticsContext &context) const {
-  auto &foldingContext{context.foldingContext()};
-  auto pair{scope.try_emplace(name(), attrs())};
-  Symbol &result{*pair.first->second};
-  if (!pair.second) {
-    // Symbol was already present in the scope, which can only happen
-    // in the case of type parameters.
-    CHECK(has<TypeParamDetails>());
-    return result;
-  }
-  result.attrs() = attrs();
-  result.flags() = flags();
-  result.set_details(common::Clone(details()));
-  if (auto *details{result.detailsIf<ObjectEntityDetails>()}) {
-    if (DeclTypeSpec * origType{result.GetType()}) {
-      if (const DerivedTypeSpec * derived{origType->AsDerived()}) {
-        DerivedTypeSpec newSpec{*derived};
-        newSpec.CookParameters(foldingContext); // enables AddParamValue()
-        if (test(Symbol::Flag::ParentComp)) {
-          // Forward any explicit type parameter values from the
-          // derived type spec under instantiation that define type parameters
-          // of the parent component to the derived type spec of the
-          // parent component.
-          const DerivedTypeSpec &instanceSpec{
-              DEREF(foldingContext.pdtInstance())};
-          for (const auto &[name, value] : instanceSpec.parameters()) {
-            if (scope.find(name) == scope.end()) {
-              newSpec.AddParamValue(name, ParamValue{value});
-            }
-          }
-        }
-        details->ReplaceType(FindOrInstantiateDerivedType(
-            scope, std::move(newSpec), context, origType->category()));
-      } else if (origType->AsIntrinsic()) {
-        details->ReplaceType(
-            InstantiateIntrinsicType(scope, *origType, context));
-      } else if (origType->category() != DeclTypeSpec::ClassStar) {
-        DIE("instantiated component has type that is "
-            "neither intrinsic, derived, nor CLASS(*)");
-      }
-    }
-    details->set_init(
-        evaluate::Fold(foldingContext, std::move(details->init())));
-    for (ShapeSpec &dim : details->shape()) {
-      if (dim.lbound().isExplicit()) {
-        dim.lbound().SetExplicit(
-            Fold(foldingContext, std::move(dim.lbound().GetExplicit())));
-      }
-      if (dim.ubound().isExplicit()) {
-        dim.ubound().SetExplicit(
-            Fold(foldingContext, std::move(dim.ubound().GetExplicit())));
-      }
-    }
-    for (ShapeSpec &dim : details->coshape()) {
-      if (dim.lbound().isExplicit()) {
-        dim.lbound().SetExplicit(
-            Fold(foldingContext, std::move(dim.lbound().GetExplicit())));
-      }
-      if (dim.ubound().isExplicit()) {
-        dim.ubound().SetExplicit(
-            Fold(foldingContext, std::move(dim.ubound().GetExplicit())));
-      }
-    }
-  } else if (!attrs_.test(Attr::NOPASS)) {
-    std::visit(
-        [&result](const auto &x) {
-          using Ty = std::decay_t<decltype(x)>;
-          if constexpr (std::is_base_of_v<WithPassArg, Ty>) {
-            if (auto passName{x.passName()}) {
-              result.get<Ty>().set_passName(*passName);
-            }
-          }
-        },
-        details_);
-  }
-  return result;
 }
 
 void DerivedTypeDetails::add_component(const Symbol &symbol) {

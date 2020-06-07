@@ -102,7 +102,9 @@ static cl::opt<VersionNumber> MaxSPIRVVersion(
     "spirv-max-version",
     cl::desc("Choose maximum SPIR-V version which can be emitted"),
     cl::values(clEnumValN(VersionNumber::SPIRV_1_0, "1.0", "SPIR-V 1.0"),
-               clEnumValN(VersionNumber::SPIRV_1_1, "1.1", "SPIR-V 1.1")),
+               clEnumValN(VersionNumber::SPIRV_1_1, "1.1", "SPIR-V 1.1"),
+               clEnumValN(VersionNumber::SPIRV_1_2, "1.2", "SPIR-V 1.2"),
+               clEnumValN(VersionNumber::SPIRV_1_3, "1.3", "SPIR-V 1.3")),
     cl::init(VersionNumber::MaximumVersion));
 
 static cl::list<std::string>
@@ -162,6 +164,19 @@ static cl::opt<bool> SpecConstInfo(
     "spec-const-info",
     cl::desc("Display id of constants available for specializaion and their "
              "size in bytes"));
+
+static cl::opt<SPIRV::FPContractMode> FPCMode(
+    "spirv-fp-contract", cl::desc("Set FP Contraction mode:"),
+    cl::init(SPIRV::FPContractMode::On),
+    cl::values(
+        clEnumValN(SPIRV::FPContractMode::On, "on",
+                   "choose a mode according to presence of llvm.fmuladd "
+                   "intrinsic or `contract' flag on fp operations"),
+        clEnumValN(SPIRV::FPContractMode::Off, "off",
+                   "disable FP contraction for all entry points"),
+        clEnumValN(
+            SPIRV::FPContractMode::Fast, "fast",
+            "allow all operations to be contracted for all entry points")));
 
 static std::string removeExt(const std::string &FileName) {
   size_t Pos = FileName.find_last_of(".");
@@ -526,6 +541,8 @@ int main(int Ac, char **Av) {
       Opts.setDesiredBIsRepresentation(BIsRepresentation);
     }
   }
+
+  Opts.setFPContractMode(FPCMode);
 
   if (SPIRVMemToReg)
     Opts.setMemToRegEnabled(SPIRVMemToReg);

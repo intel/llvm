@@ -15,6 +15,7 @@
 #ifndef LLVM_OBJECTYAML_DWARFYAML_H
 #define LLVM_OBJECTYAML_DWARFYAML_H
 
+#include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/Support/YAMLTraits.h"
@@ -71,6 +72,20 @@ struct ARange {
   std::vector<ARangeDescriptor> Descriptors;
 };
 
+/// Class that describes a range list entry, or a base address selection entry
+/// within a range list in the .debug_ranges section.
+struct RangeEntry {
+  llvm::yaml::Hex64 LowOffset;
+  llvm::yaml::Hex64 HighOffset;
+};
+
+/// Class that describes a single range list inside the .debug_ranges section.
+struct Ranges {
+  llvm::yaml::Hex32 Offset;
+  llvm::yaml::Hex8 AddrSize;
+  std::vector<RangeEntry> Entries;
+};
+
 struct PubEntry {
   llvm::yaml::Hex32 DieOffset;
   llvm::yaml::Hex8 Descriptor;
@@ -84,6 +99,9 @@ struct PubSection {
   uint32_t UnitSize;
   bool IsGNUStyle = false;
   std::vector<PubEntry> Entries;
+
+  PubSection() = default;
+  PubSection(bool IsGNUStyle) : IsGNUStyle(IsGNUStyle) {}
 };
 
 struct FormValue {
@@ -145,17 +163,20 @@ struct Data {
   std::vector<Abbrev> AbbrevDecls;
   std::vector<StringRef> DebugStrings;
   std::vector<ARange> ARanges;
-  PubSection PubNames;
-  PubSection PubTypes;
+  std::vector<Ranges> DebugRanges;
+  Optional<PubSection> PubNames;
+  Optional<PubSection> PubTypes;
 
-  PubSection GNUPubNames;
-  PubSection GNUPubTypes;
+  Optional<PubSection> GNUPubNames;
+  Optional<PubSection> GNUPubTypes;
 
   std::vector<Unit> CompileUnits;
 
   std::vector<LineTable> DebugLines;
 
   bool isEmpty() const;
+
+  SetVector<StringRef> getUsedSectionNames() const;
 };
 
 } // end namespace DWARFYAML
@@ -165,6 +186,8 @@ LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::DWARFYAML::AttributeAbbrev)
 LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::DWARFYAML::Abbrev)
 LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::DWARFYAML::ARangeDescriptor)
 LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::DWARFYAML::ARange)
+LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::DWARFYAML::RangeEntry)
+LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::DWARFYAML::Ranges)
 LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::DWARFYAML::PubEntry)
 LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::DWARFYAML::Unit)
 LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::DWARFYAML::FormValue)
@@ -193,7 +216,15 @@ template <> struct MappingTraits<DWARFYAML::ARangeDescriptor> {
 };
 
 template <> struct MappingTraits<DWARFYAML::ARange> {
-  static void mapping(IO &IO, DWARFYAML::ARange &Range);
+  static void mapping(IO &IO, DWARFYAML::ARange &ARange);
+};
+
+template <> struct MappingTraits<DWARFYAML::RangeEntry> {
+  static void mapping(IO &IO, DWARFYAML::RangeEntry &Entry);
+};
+
+template <> struct MappingTraits<DWARFYAML::Ranges> {
+  static void mapping(IO &IO, DWARFYAML::Ranges &Ranges);
 };
 
 template <> struct MappingTraits<DWARFYAML::PubEntry> {

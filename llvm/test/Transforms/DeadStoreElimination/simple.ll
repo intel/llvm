@@ -55,7 +55,7 @@ define i32 @test3(i32* %g_addr) nounwind {
 
 define void @test4(i32* %Q) {
 ; CHECK-LABEL: @test4(
-; CHECK-NEXT:    [[A:%.*]] = load i32, i32* [[Q:%.*]]
+; CHECK-NEXT:    [[A:%.*]] = load i32, i32* [[Q:%.*]], align 4
 ; CHECK-NEXT:    store volatile i32 [[A]], i32* [[Q]]
 ; CHECK-NEXT:    ret void
 ;
@@ -66,7 +66,7 @@ define void @test4(i32* %Q) {
 
 define void @test5(i32* %Q) {
 ; CHECK-LABEL: @test5(
-; CHECK-NEXT:    [[A:%.*]] = load volatile i32, i32* [[Q:%.*]]
+; CHECK-NEXT:    [[A:%.*]] = load volatile i32, i32* [[Q:%.*]], align 4
 ; CHECK-NEXT:    ret void
 ;
   %a = load volatile i32, i32* %Q
@@ -162,6 +162,16 @@ define void @test9(%struct.x* byval  %a) nounwind  {
 ; Test for inalloca handling.
 define void @test9_2(%struct.x* inalloca  %a) nounwind  {
 ; CHECK-LABEL: @test9_2(
+; CHECK-NEXT:    ret void
+;
+  %tmp2 = getelementptr %struct.x, %struct.x* %a, i32 0, i32 0
+  store i32 1, i32* %tmp2, align 4
+  ret void
+}
+
+; Test for preallocated handling.
+define void @test9_3(%struct.x* preallocated(%struct.x)  %a) nounwind  {
+; CHECK-LABEL: @test9_3(
 ; CHECK-NEXT:    ret void
 ;
   %tmp2 = getelementptr %struct.x, %struct.x* %a, i32 0, i32 0

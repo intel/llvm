@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Object/XCOFFObjectFile.h"
+#include "llvm/MC/SubtargetFeature.h"
 #include <cstddef>
 #include <cstring>
 
@@ -392,7 +393,7 @@ void XCOFFObjectFile::getRelocationTypeName(
   Result.append(Res.begin(), Res.end());
 }
 
-uint32_t XCOFFObjectFile::getSymbolFlags(DataRefImpl Symb) const {
+Expected<uint32_t> XCOFFObjectFile::getSymbolFlags(DataRefImpl Symb) const {
   uint32_t Result = 0;
   llvm_unreachable("Not yet implemented!");
   return Result;

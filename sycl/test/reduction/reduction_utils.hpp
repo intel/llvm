@@ -52,3 +52,17 @@ struct CustomVecPlus {
     return CV(A.X + B.X, A.Y + B.Y);
   }
 };
+
+template <typename T>
+T getMinimumFPValue() {
+  return std::numeric_limits<T>::has_infinity
+             ? -std::numeric_limits<T>::infinity()
+             : std::numeric_limits<T>::lowest();
+}
+
+template <typename T>
+T getMaximumFPValue() {
+  return std::numeric_limits<T>::has_infinity
+             ? std::numeric_limits<T>::infinity()
+             : (std::numeric_limits<T>::max)();
+}

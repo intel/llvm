@@ -919,18 +919,20 @@ static const LangASMap *getAddressSpaceMap(const TargetInfo &T,
     // The fake address space map must have a distinct entry for each
     // language-specific address space.
     static const unsigned FakeAddrSpaceMap[] = {
-        0, // Default
-        1, // opencl_global
-        3, // opencl_local
-        2, // opencl_constant
-        0, // opencl_private
-        4, // opencl_generic
-        5, // cuda_device
-        6, // cuda_constant
-        7, // cuda_shared
-        8, // ptr32_sptr
-        9, // ptr32_uptr
-        10 // ptr64
+        0,  // Default
+        1,  // opencl_global
+        3,  // opencl_local
+        2,  // opencl_constant
+        0,  // opencl_private
+        4,  // opencl_generic
+        11, // opencl_global_device
+        12, // opencl_global_host
+        5,  // cuda_device
+        6,  // cuda_constant
+        7,  // cuda_shared
+        8,  // ptr32_sptr
+        9,  // ptr32_uptr
+        10  // ptr64
     };
     return &FakeAddrSpaceMap;
   } else {
@@ -1006,9 +1008,6 @@ ASTContext::~ASTContext() {
 
   for (APValue *Value : APValueCleanups)
     Value->~APValue();
-
-  // Destroy the OMPTraitInfo objects that life here.
-  llvm::DeleteContainerPointers(OMPTraitInfoVector);
 }
 
 void ASTContext::setTraversalScope(const std::vector<Decl *> &TopLevelDecls) {
@@ -1935,6 +1934,17 @@ TypeInfo ASTContext::getTypeInfoImpl(const Type *T) const {
     break;
   }
 
+  case Type::ConstantMatrix: {
+    const auto *MT = cast<ConstantMatrixType>(T);
+    TypeInfo ElementInfo = getTypeInfo(MT->getElementType());
+    // The internal layout of a matrix value is implementation defined.
+    // Initially be ABI compatible with arrays with respect to alignment and
+    // size.
+    Width = ElementInfo.Width * MT->getNumRows() * MT->getNumColumns();
+    Align = ElementInfo.Align;
+    break;
+  }
+
   case Type::Builtin:
     switch (cast<BuiltinType>(T)->getKind()) {
     default: llvm_unreachable("Unknown builtin type!");
@@ -2057,7 +2067,9 @@ TypeInfo ASTContext::getTypeInfoImpl(const Type *T) const {
       Align = Target->getDoubleAlign();
       break;
     case BuiltinType::LongDouble:
-      if (getLangOpts().OpenMP && getLangOpts().OpenMPIsDevice &&
+      if (((getLangOpts().SYCL && getLangOpts().SYCLIsDevice) ||
+           (getLangOpts().OpenMP && getLangOpts().OpenMPIsDevice)) &&
+          AuxTarget != nullptr &&
           (Target->getLongDoubleWidth() != AuxTarget->getLongDoubleWidth() ||
            Target->getLongDoubleAlign() != AuxTarget->getLongDoubleAlign())) {
         Width = AuxTarget->getLongDoubleWidth();
@@ -3365,6 +3377,8 @@ QualType ASTContext::getVariableArrayDecayedType(QualType type) const {
   case Type::DependentVector:
   case Type::ExtVector:
   case Type::DependentSizedExtVector:
+  case Type::ConstantMatrix:
+  case Type::DependentSizedMatrix:
   case Type::DependentAddressSpace:
   case Type::ObjCObject:
   case Type::ObjCInterface:
@@ -3694,10 +3708,10 @@ ASTContext::getDependentVectorType(QualType VecType, Expr *SizeExpr,
       (void)CanonCheck;
       DependentVectorTypes.InsertNode(New, InsertPos);
     } else {
-      QualType CanonExtTy = getDependentSizedExtVectorType(CanonVecTy, SizeExpr,
-                                                           SourceLocation());
+      QualType CanonTy = getDependentVectorType(CanonVecTy, SizeExpr,
+                                                SourceLocation(), VecKind);
       New = new (*this, TypeAlignment) DependentVectorType(
-          *this, VecType, CanonExtTy, SizeExpr, AttrLoc, VecKind);
+          *this, VecType, CanonTy, SizeExpr, AttrLoc, VecKind);
     }
   }
 
@@ -3774,6 +3788,78 @@ ASTContext::getDependentSizedExtVectorType(QualType vecType,
     }
   }
 
+  Types.push_back(New);
+  return QualType(New, 0);
+}
+
+QualType ASTContext::getConstantMatrixType(QualType ElementTy, unsigned NumRows,
+                                           unsigned NumColumns) const {
+  llvm::FoldingSetNodeID ID;
+  ConstantMatrixType::Profile(ID, ElementTy, NumRows, NumColumns,
+                              Type::ConstantMatrix);
+
+  assert(MatrixType::isValidElementType(ElementTy) &&
+         "need a valid element type");
+  assert(ConstantMatrixType::isDimensionValid(NumRows) &&
+         ConstantMatrixType::isDimensionValid(NumColumns) &&
+         "need valid matrix dimensions");
+  void *InsertPos = nullptr;
+  if (ConstantMatrixType *MTP = MatrixTypes.FindNodeOrInsertPos(ID, InsertPos))
+    return QualType(MTP, 0);
+
+  QualType Canonical;
+  if (!ElementTy.isCanonical()) {
+    Canonical =
+        getConstantMatrixType(getCanonicalType(ElementTy), NumRows, NumColumns);
+
+    ConstantMatrixType *NewIP = MatrixTypes.FindNodeOrInsertPos(ID, InsertPos);
+    assert(!NewIP && "Matrix type shouldn't already exist in the map");
+    (void)NewIP;
+  }
+
+  auto *New = new (*this, TypeAlignment)
+      ConstantMatrixType(ElementTy, NumRows, NumColumns, Canonical);
+  MatrixTypes.InsertNode(New, InsertPos);
+  Types.push_back(New);
+  return QualType(New, 0);
+}
+
+QualType ASTContext::getDependentSizedMatrixType(QualType ElementTy,
+                                                 Expr *RowExpr,
+                                                 Expr *ColumnExpr,
+                                                 SourceLocation AttrLoc) const {
+  QualType CanonElementTy = getCanonicalType(ElementTy);
+  llvm::FoldingSetNodeID ID;
+  DependentSizedMatrixType::Profile(ID, *this, CanonElementTy, RowExpr,
+                                    ColumnExpr);
+
+  void *InsertPos = nullptr;
+  DependentSizedMatrixType *Canon =
+      DependentSizedMatrixTypes.FindNodeOrInsertPos(ID, InsertPos);
+
+  if (!Canon) {
+    Canon = new (*this, TypeAlignment) DependentSizedMatrixType(
+        *this, CanonElementTy, QualType(), RowExpr, ColumnExpr, AttrLoc);
+#ifndef NDEBUG
+    DependentSizedMatrixType *CanonCheck =
+        DependentSizedMatrixTypes.FindNodeOrInsertPos(ID, InsertPos);
+    assert(!CanonCheck && "Dependent-sized matrix canonical type broken");
+#endif
+    DependentSizedMatrixTypes.InsertNode(Canon, InsertPos);
+    Types.push_back(Canon);
+  }
+
+  // Already have a canonical version of the matrix type
+  //
+  // If it exactly matches the requested type, use it directly.
+  if (Canon->getElementType() == ElementTy && Canon->getRowExpr() == RowExpr &&
+      Canon->getRowExpr() == ColumnExpr)
+    return QualType(Canon, 0);
+
+  // Use Canon as the canonical type for newly-built type.
+  DependentSizedMatrixType *New = new (*this, TypeAlignment)
+      DependentSizedMatrixType(*this, ElementTy, QualType(Canon, 0), RowExpr,
+                               ColumnExpr, AttrLoc);
   Types.push_back(New);
   return QualType(New, 0);
 }
@@ -4898,7 +4984,7 @@ ASTContext::getObjCTypeParamType(const ObjCTypeParamDecl *Decl,
                                  ArrayRef<ObjCProtocolDecl *> protocols) const {
   // Look in the folding set for an existing type.
   llvm::FoldingSetNodeID ID;
-  ObjCTypeParamType::Profile(ID, Decl, protocols);
+  ObjCTypeParamType::Profile(ID, Decl, Decl->getUnderlyingType(), protocols);
   void *InsertPos = nullptr;
   if (ObjCTypeParamType *TypeParam =
       ObjCTypeParamTypes.FindNodeOrInsertPos(ID, InsertPos))
@@ -4922,6 +5008,17 @@ ASTContext::getObjCTypeParamType(const ObjCTypeParamDecl *Decl,
   Types.push_back(newType);
   ObjCTypeParamTypes.InsertNode(newType, InsertPos);
   return QualType(newType, 0);
+}
+
+void ASTContext::adjustObjCTypeParamBoundType(const ObjCTypeParamDecl *Orig,
+                                              ObjCTypeParamDecl *New) const {
+  New->setTypeSourceInfo(getTrivialTypeSourceInfo(Orig->getUnderlyingType()));
+  // Update TypeForDecl after updating TypeSourceInfo.
+  auto NewTypeParamTy = cast<ObjCTypeParamType>(New->getTypeForDecl());
+  SmallVector<ObjCProtocolDecl *, 8> protocols;
+  protocols.append(NewTypeParamTy->qual_begin(), NewTypeParamTy->qual_end());
+  QualType UpdatedTy = getObjCTypeParamType(New, protocols);
+  New->setTypeForDecl(UpdatedTy.getTypePtr());
 }
 
 /// ObjCObjectAdoptsQTypeProtocols - Checks that protocols in IC's
@@ -6770,11 +6867,11 @@ ASTContext::getObjCEncodingForPropertyDecl(const ObjCPropertyDecl *PD,
 
   if (PD->isReadOnly()) {
     S += ",R";
-    if (PD->getPropertyAttributes() & ObjCPropertyDecl::OBJC_PR_copy)
+    if (PD->getPropertyAttributes() & ObjCPropertyAttribute::kind_copy)
       S += ",C";
-    if (PD->getPropertyAttributes() & ObjCPropertyDecl::OBJC_PR_retain)
+    if (PD->getPropertyAttributes() & ObjCPropertyAttribute::kind_retain)
       S += ",&";
-    if (PD->getPropertyAttributes() & ObjCPropertyDecl::OBJC_PR_weak)
+    if (PD->getPropertyAttributes() & ObjCPropertyAttribute::kind_weak)
       S += ",W";
   } else {
     switch (PD->getSetterKind()) {
@@ -6790,15 +6887,15 @@ ASTContext::getObjCEncodingForPropertyDecl(const ObjCPropertyDecl *PD,
   if (Dynamic)
     S += ",D";
 
-  if (PD->getPropertyAttributes() & ObjCPropertyDecl::OBJC_PR_nonatomic)
+  if (PD->getPropertyAttributes() & ObjCPropertyAttribute::kind_nonatomic)
     S += ",N";
 
-  if (PD->getPropertyAttributes() & ObjCPropertyDecl::OBJC_PR_getter) {
+  if (PD->getPropertyAttributes() & ObjCPropertyAttribute::kind_getter) {
     S += ",G";
     S += PD->getGetterName().getAsString();
   }
 
-  if (PD->getPropertyAttributes() & ObjCPropertyDecl::OBJC_PR_setter) {
+  if (PD->getPropertyAttributes() & ObjCPropertyAttribute::kind_setter) {
     S += ",S";
     S += PD->getSetterName().getAsString();
   }
@@ -7326,6 +7423,11 @@ void ASTContext::getObjCEncodingForTypeImpl(QualType T, std::string &S,
   case Type::Vector:
   case Type::ExtVector:
   // Until we have a coherent encoding of these three types, issue warning.
+    if (NotEncodedT)
+      *NotEncodedT = T;
+    return;
+
+  case Type::ConstantMatrix:
     if (NotEncodedT)
       *NotEncodedT = T;
     return;
@@ -8209,6 +8311,16 @@ static bool areCompatVectorTypes(const VectorType *LHS,
          LHS->getNumElements() == RHS->getNumElements();
 }
 
+/// areCompatMatrixTypes - Return true if the two specified matrix types are
+/// compatible.
+static bool areCompatMatrixTypes(const ConstantMatrixType *LHS,
+                                 const ConstantMatrixType *RHS) {
+  assert(LHS->isCanonicalUnqualified() && RHS->isCanonicalUnqualified());
+  return LHS->getElementType() == RHS->getElementType() &&
+         LHS->getNumRows() == RHS->getNumRows() &&
+         LHS->getNumColumns() == RHS->getNumColumns();
+}
+
 bool ASTContext::areCompatibleVectorTypes(QualType FirstVec,
                                           QualType SecondVec) {
   assert(FirstVec->isVectorType() && "FirstVec should be a vector type");
@@ -8491,10 +8603,18 @@ bool ASTContext::canAssignObjCInterfacesInBlockPointer(
                   RHSOPT->isObjCQualifiedIdType());
   }
 
-  if (LHSOPT->isObjCQualifiedIdType() || RHSOPT->isObjCQualifiedIdType())
-    return finish(ObjCQualifiedIdTypesAreCompatible(
-        (BlockReturnType ? LHSOPT : RHSOPT),
-        (BlockReturnType ? RHSOPT : LHSOPT), false));
+  if (LHSOPT->isObjCQualifiedIdType() || RHSOPT->isObjCQualifiedIdType()) {
+    if (getLangOpts().CompatibilityQualifiedIdBlockParamTypeChecking)
+      // Use for block parameters previous type checking for compatibility.
+      return finish(ObjCQualifiedIdTypesAreCompatible(LHSOPT, RHSOPT, false) ||
+                    // Or corrected type checking as in non-compat mode.
+                    (!BlockReturnType &&
+                     ObjCQualifiedIdTypesAreCompatible(RHSOPT, LHSOPT, false)));
+    else
+      return finish(ObjCQualifiedIdTypesAreCompatible(
+          (BlockReturnType ? LHSOPT : RHSOPT),
+          (BlockReturnType ? RHSOPT : LHSOPT), false));
+  }
 
   const ObjCInterfaceType* LHS = LHSOPT->getInterfaceType();
   const ObjCInterfaceType* RHS = RHSOPT->getInterfaceType();
@@ -9404,6 +9524,11 @@ QualType ASTContext::mergeTypes(QualType LHS, QualType RHS,
     // FIXME: The merged type should be an ExtVector!
     if (areCompatVectorTypes(LHSCan->castAs<VectorType>(),
                              RHSCan->castAs<VectorType>()))
+      return LHS;
+    return {};
+  case Type::ConstantMatrix:
+    if (areCompatMatrixTypes(LHSCan->castAs<ConstantMatrixType>(),
+                             RHSCan->castAs<ConstantMatrixType>()))
       return LHS;
     return {};
   case Type::ObjCObject: {
@@ -10325,13 +10450,13 @@ bool ASTContext::DeclMustBeEmitted(const Decl *D) {
   if (D->hasAttr<WeakRefAttr>())
     return false;
 
-  // Aliases and used decls are required.
-  if (D->hasAttr<AliasAttr>() || D->hasAttr<UsedAttr>())
-    return true;
-
   if (LangOpts.SYCLIsDevice && !D->hasAttr<OpenCLKernelAttr>() &&
       !D->hasAttr<SYCLDeviceAttr>())
     return false;
+
+  // Aliases and used decls are required.
+  if (D->hasAttr<AliasAttr>() || D->hasAttr<UsedAttr>())
+    return true;
 
   if (const auto *FD = dyn_cast<FunctionDecl>(D)) {
     // Forward declarations aren't required.
@@ -10541,8 +10666,10 @@ QualType ASTContext::getIntTypeForBitwidth(unsigned DestWidth,
 /// getRealTypeForBitwidth -
 /// sets floating point QualTy according to specified bitwidth.
 /// Returns empty type if there is no appropriate target types.
-QualType ASTContext::getRealTypeForBitwidth(unsigned DestWidth) const {
-  TargetInfo::RealType Ty = getTargetInfo().getRealTypeByWidth(DestWidth);
+QualType ASTContext::getRealTypeForBitwidth(unsigned DestWidth,
+                                            bool ExplicitIEEE) const {
+  TargetInfo::RealType Ty =
+      getTargetInfo().getRealTypeByWidth(DestWidth, ExplicitIEEE);
   switch (Ty) {
   case TargetInfo::Float:
     return FloatTy;
@@ -11018,6 +11145,14 @@ void ASTContext::getFunctionFeatureMap(llvm::StringMap<bool> &FeatureMap,
 }
 
 OMPTraitInfo &ASTContext::getNewOMPTraitInfo() {
-  OMPTraitInfoVector.push_back(new OMPTraitInfo());
+  OMPTraitInfoVector.emplace_back(new OMPTraitInfo());
   return *OMPTraitInfoVector.back();
+}
+
+const DiagnosticBuilder &
+clang::operator<<(const DiagnosticBuilder &DB,
+                  const ASTContext::SectionInfo &Section) {
+  if (Section.Decl)
+    return DB << Section.Decl;
+  return DB << "a prior #pragma section";
 }

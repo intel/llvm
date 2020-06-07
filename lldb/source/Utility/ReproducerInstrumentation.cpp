@@ -8,9 +8,9 @@
 
 #include "lldb/Utility/ReproducerInstrumentation.h"
 #include "lldb/Utility/Reproducer.h"
-#include <thread>
 #include <stdio.h>
 #include <stdlib.h>
+#include <thread>
 
 using namespace lldb_private;
 using namespace lldb_private::repro;
@@ -120,7 +120,7 @@ bool Registry::Replay(Deserializer &deserializer) {
 
   // Add a small artificial delay to ensure that all asynchronous events have
   // completed before we exit.
-  std::this_thread::sleep_for (std::chrono::milliseconds(100));
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
   return true;
 }
@@ -145,6 +145,22 @@ std::string Registry::GetSignature(unsigned id) {
   return m_ids[id].second.ToString();
 }
 
+void Registry::CheckID(unsigned expected, unsigned actual) {
+  if (expected != actual) {
+    llvm::errs() << "Reproducer expected signature " << expected << ": '"
+                 << GetSignature(expected) << "'\n";
+    llvm::errs() << "Reproducer actual signature " << actual << ": '"
+                 << GetSignature(actual) << "'\n";
+    llvm::report_fatal_error(
+        "Detected reproducer replay divergence. Refusing to continue.");
+  }
+
+#ifdef LLDB_REPRO_INSTR_TRACE
+  llvm::errs() << "Replaying " << actual << ": " << GetSignature(actual)
+               << "\n";
+#endif
+}
+
 Replayer *Registry::GetReplayer(unsigned id) {
   assert(m_ids.count(id) != 0 && "ID not in registry");
   return m_ids[id].first;
@@ -163,6 +179,15 @@ unsigned ObjectToIndex::GetIndexForObjectImpl(const void *object) {
   return m_mapping[object];
 }
 
+Recorder::Recorder()
+    : m_serializer(nullptr), m_pretty_func(), m_pretty_args(),
+      m_local_boundary(false), m_result_recorded(true) {
+  if (!g_global_boundary) {
+    g_global_boundary = true;
+    m_local_boundary = true;
+  }
+}
+
 Recorder::Recorder(llvm::StringRef pretty_func, std::string &&pretty_args)
     : m_serializer(nullptr), m_pretty_func(pretty_func),
       m_pretty_args(pretty_args), m_local_boundary(false),
@@ -179,6 +204,27 @@ Recorder::Recorder(llvm::StringRef pretty_func, std::string &&pretty_args)
 Recorder::~Recorder() {
   assert(m_result_recorded && "Did you forget LLDB_RECORD_RESULT?");
   UpdateBoundary();
+}
+
+void InstrumentationData::Initialize(Serializer &serializer,
+                                     Registry &registry) {
+  InstanceImpl().emplace(serializer, registry);
+}
+
+void InstrumentationData::Initialize(Deserializer &deserializer,
+                                     Registry &registry) {
+  InstanceImpl().emplace(deserializer, registry);
+}
+
+InstrumentationData &InstrumentationData::Instance() {
+  if (!InstanceImpl())
+    InstanceImpl().emplace();
+  return *InstanceImpl();
+}
+
+llvm::Optional<InstrumentationData> &InstrumentationData::InstanceImpl() {
+  static llvm::Optional<InstrumentationData> g_instrumentation_data;
+  return g_instrumentation_data;
 }
 
 bool lldb_private::repro::Recorder::g_global_boundary;

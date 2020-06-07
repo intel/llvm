@@ -19,7 +19,7 @@ set up a proper environment. To learn more about using the DPC++ compiler,
 please refer to [Users Manual](UsersManual.md). If using a special compiler
 is not an option for you and/or you would like to experiment without offloading
 code to non-host devices, you can exploit SYCL's host device feature. This
-gives you the ability to use any C++14 compiler. You will need to link your
+gives you the ability to use any C++17 compiler. You will need to link your
 application with the DPC++ Runtime library and provide a path to the SYCL
 headers directory. Please, refer to your compiler manual to learn about
 specific build options.

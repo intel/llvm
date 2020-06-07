@@ -14,6 +14,7 @@
 #ifndef LLVM_CODEGEN_PASSES_H
 #define LLVM_CODEGEN_PASSES_H
 
+#include "llvm/Support/CodeGen.h"
 #include <functional>
 #include <string>
 
@@ -192,11 +193,11 @@ namespace llvm {
   /// register allocation.
   extern char &ExpandPostRAPseudosID;
 
-  /// createPostRAHazardRecognizer - This pass runs the post-ra hazard
+  /// PostRAHazardRecognizer - This pass runs the post-ra hazard
   /// recognizer.
   extern char &PostRAHazardRecognizerID;
 
-  /// createPostRAScheduler - This pass performs post register allocation
+  /// PostRAScheduler - This pass performs post register allocation
   /// scheduling.
   extern char &PostRASchedulerID;
 
@@ -340,7 +341,7 @@ namespace llvm {
 
   /// createDwarfEHPass - This pass mulches exception handling code into a form
   /// adapted to code generation.  Required if using dwarf exception handling.
-  FunctionPass *createDwarfEHPass();
+  FunctionPass *createDwarfEHPass(CodeGenOpt::Level OptLevel);
 
   /// createWinEHPass - Prepares personality functions used by MSVC on Windows,
   /// in addition to the Itanium LSDA based personalities.

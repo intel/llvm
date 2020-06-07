@@ -6597,6 +6597,110 @@ public:
   }
 };
 
+/// This represents clause 'use_device_addr' in the '#pragma omp ...'
+/// directives.
+///
+/// \code
+/// #pragma omp target data use_device_addr(a,b)
+/// \endcode
+/// In this example directive '#pragma omp target data' has clause
+/// 'use_device_addr' with the variables 'a' and 'b'.
+class OMPUseDeviceAddrClause final
+    : public OMPMappableExprListClause<OMPUseDeviceAddrClause>,
+      private llvm::TrailingObjects<
+          OMPUseDeviceAddrClause, Expr *, ValueDecl *, unsigned,
+          OMPClauseMappableExprCommon::MappableComponent> {
+  friend class OMPClauseReader;
+  friend OMPMappableExprListClause;
+  friend OMPVarListClause;
+  friend TrailingObjects;
+
+  /// Build clause with number of variables \a NumVars.
+  ///
+  /// \param Locs Locations needed to build a mappable clause. It includes 1)
+  /// StartLoc: starting location of the clause (the clause keyword); 2)
+  /// LParenLoc: location of '('; 3) EndLoc: ending location of the clause.
+  /// \param Sizes All required sizes to build a mappable clause. It includes 1)
+  /// NumVars: number of expressions listed in this clause; 2)
+  /// NumUniqueDeclarations: number of unique base declarations in this clause;
+  /// 3) NumComponentLists: number of component lists in this clause; and 4)
+  /// NumComponents: total number of expression components in the clause.
+  explicit OMPUseDeviceAddrClause(const OMPVarListLocTy &Locs,
+                                  const OMPMappableExprListSizeTy &Sizes)
+      : OMPMappableExprListClause(llvm::omp::OMPC_use_device_addr, Locs,
+                                  Sizes) {}
+
+  /// Build an empty clause.
+  ///
+  /// \param Sizes All required sizes to build a mappable clause. It includes 1)
+  /// NumVars: number of expressions listed in this clause; 2)
+  /// NumUniqueDeclarations: number of unique base declarations in this clause;
+  /// 3) NumComponentLists: number of component lists in this clause; and 4)
+  /// NumComponents: total number of expression components in the clause.
+  explicit OMPUseDeviceAddrClause(const OMPMappableExprListSizeTy &Sizes)
+      : OMPMappableExprListClause(llvm::omp::OMPC_use_device_addr,
+                                  OMPVarListLocTy(), Sizes) {}
+
+  /// Define the sizes of each trailing object array except the last one. This
+  /// is required for TrailingObjects to work properly.
+  size_t numTrailingObjects(OverloadToken<Expr *>) const {
+    return varlist_size();
+  }
+  size_t numTrailingObjects(OverloadToken<ValueDecl *>) const {
+    return getUniqueDeclarationsNum();
+  }
+  size_t numTrailingObjects(OverloadToken<unsigned>) const {
+    return getUniqueDeclarationsNum() + getTotalComponentListNum();
+  }
+
+public:
+  /// Creates clause with a list of variables \a Vars.
+  ///
+  /// \param C AST context.
+  /// \param Locs Locations needed to build a mappable clause. It includes 1)
+  /// StartLoc: starting location of the clause (the clause keyword); 2)
+  /// LParenLoc: location of '('; 3) EndLoc: ending location of the clause.
+  /// \param Vars The original expression used in the clause.
+  /// \param Declarations Declarations used in the clause.
+  /// \param ComponentLists Component lists used in the clause.
+  static OMPUseDeviceAddrClause *
+  Create(const ASTContext &C, const OMPVarListLocTy &Locs,
+         ArrayRef<Expr *> Vars, ArrayRef<ValueDecl *> Declarations,
+         MappableExprComponentListsRef ComponentLists);
+
+  /// Creates an empty clause with the place for \a NumVars variables.
+  ///
+  /// \param C AST context.
+  /// \param Sizes All required sizes to build a mappable clause. It includes 1)
+  /// NumVars: number of expressions listed in this clause; 2)
+  /// NumUniqueDeclarations: number of unique base declarations in this clause;
+  /// 3) NumComponentLists: number of component lists in this clause; and 4)
+  /// NumComponents: total number of expression components in the clause.
+  static OMPUseDeviceAddrClause *
+  CreateEmpty(const ASTContext &C, const OMPMappableExprListSizeTy &Sizes);
+
+  child_range children() {
+    return child_range(reinterpret_cast<Stmt **>(varlist_begin()),
+                       reinterpret_cast<Stmt **>(varlist_end()));
+  }
+
+  const_child_range children() const {
+    auto Children = const_cast<OMPUseDeviceAddrClause *>(this)->children();
+    return const_child_range(Children.begin(), Children.end());
+  }
+
+  child_range used_children() {
+    return child_range(child_iterator(), child_iterator());
+  }
+  const_child_range used_children() const {
+    return const_child_range(const_child_iterator(), const_child_iterator());
+  }
+
+  static bool classof(const OMPClause *T) {
+    return T->getClauseKind() == llvm::omp::OMPC_use_device_addr;
+  }
+};
+
 /// This represents clause 'is_device_ptr' in the '#pragma omp ...'
 /// directives.
 ///
@@ -7124,6 +7228,232 @@ public:
 
   static bool classof(const OMPClause *T) {
     return T->getClauseKind() == llvm::omp::OMPC_exclusive;
+  }
+};
+
+/// This represents clause 'uses_allocators' in the '#pragma omp target'-based
+/// directives.
+///
+/// \code
+/// #pragma omp target uses_allocators(default_allocator, my_allocator(traits))
+/// \endcode
+/// In this example directive '#pragma omp target' has clause 'uses_allocators'
+/// with the allocators 'default_allocator' and user-defined 'my_allocator'.
+class OMPUsesAllocatorsClause final
+    : public OMPClause,
+      private llvm::TrailingObjects<OMPUsesAllocatorsClause, Expr *,
+                                    SourceLocation> {
+public:
+  /// Data for list of allocators.
+  struct Data {
+    /// Allocator.
+    Expr *Allocator = nullptr;
+    /// Allocator traits.
+    Expr *AllocatorTraits = nullptr;
+    /// Locations of '(' and ')' symbols.
+    SourceLocation LParenLoc, RParenLoc;
+  };
+
+private:
+  friend class OMPClauseReader;
+  friend TrailingObjects;
+
+  enum class ExprOffsets {
+    Allocator,
+    AllocatorTraits,
+    Total,
+  };
+
+  enum class ParenLocsOffsets {
+    LParen,
+    RParen,
+    Total,
+  };
+
+  /// Location of '('.
+  SourceLocation LParenLoc;
+  /// Total number of allocators in the clause.
+  unsigned NumOfAllocators = 0;
+
+  /// Build clause.
+  ///
+  /// \param StartLoc Starting location of the clause.
+  /// \param LParenLoc Location of '('.
+  /// \param EndLoc Ending location of the clause.
+  /// \param N Number of allocators asssociated with the clause.
+  OMPUsesAllocatorsClause(SourceLocation StartLoc, SourceLocation LParenLoc,
+                          SourceLocation EndLoc, unsigned N)
+      : OMPClause(llvm::omp::OMPC_uses_allocators, StartLoc, EndLoc),
+        LParenLoc(LParenLoc), NumOfAllocators(N) {}
+
+  /// Build an empty clause.
+  /// \param N Number of allocators asssociated with the clause.
+  ///
+  explicit OMPUsesAllocatorsClause(unsigned N)
+      : OMPClause(llvm::omp::OMPC_uses_allocators, SourceLocation(),
+                  SourceLocation()),
+        NumOfAllocators(N) {}
+
+  unsigned numTrailingObjects(OverloadToken<Expr *>) const {
+    return NumOfAllocators * static_cast<int>(ExprOffsets::Total);
+  }
+
+  /// Sets the location of '('.
+  void setLParenLoc(SourceLocation Loc) { LParenLoc = Loc; }
+
+  /// Sets the allocators data for the clause.
+  void setAllocatorsData(ArrayRef<OMPUsesAllocatorsClause::Data> Data);
+
+public:
+  /// Creates clause with a list of allocators \p Data.
+  ///
+  /// \param C AST context.
+  /// \param StartLoc Starting location of the clause.
+  /// \param LParenLoc Location of '('.
+  /// \param EndLoc Ending location of the clause.
+  /// \param Data List of allocators.
+  static OMPUsesAllocatorsClause *
+  Create(const ASTContext &C, SourceLocation StartLoc, SourceLocation LParenLoc,
+         SourceLocation EndLoc, ArrayRef<OMPUsesAllocatorsClause::Data> Data);
+
+  /// Creates an empty clause with the place for \p N allocators.
+  ///
+  /// \param C AST context.
+  /// \param N The number of allocators.
+  static OMPUsesAllocatorsClause *CreateEmpty(const ASTContext &C, unsigned N);
+
+  /// Returns the location of '('.
+  SourceLocation getLParenLoc() const { return LParenLoc; }
+
+  /// Returns number of allocators associated with the clause.
+  unsigned getNumberOfAllocators() const { return NumOfAllocators; }
+
+  /// Returns data for the specified allocator.
+  OMPUsesAllocatorsClause::Data getAllocatorData(unsigned I) const;
+
+  // Iterators
+  child_range children() {
+    Stmt **Begin = reinterpret_cast<Stmt **>(getTrailingObjects<Expr *>());
+    return child_range(Begin, Begin + NumOfAllocators *
+                                          static_cast<int>(ExprOffsets::Total));
+  }
+  const_child_range children() const {
+    Stmt *const *Begin =
+        reinterpret_cast<Stmt *const *>(getTrailingObjects<Expr *>());
+    return const_child_range(
+        Begin, Begin + NumOfAllocators * static_cast<int>(ExprOffsets::Total));
+  }
+
+  child_range used_children() {
+    return child_range(child_iterator(), child_iterator());
+  }
+  const_child_range used_children() const {
+    return const_child_range(const_child_iterator(), const_child_iterator());
+  }
+
+  static bool classof(const OMPClause *T) {
+    return T->getClauseKind() == llvm::omp::OMPC_uses_allocators;
+  }
+};
+
+/// This represents clause 'affinity' in the '#pragma omp task'-based
+/// directives.
+///
+/// \code
+/// #pragma omp task affinity(iterator(i = 0:n) : ([3][n])a, b[:n], c[i])
+/// \endcode
+/// In this example directive '#pragma omp task' has clause 'affinity' with the
+/// affinity modifer 'iterator(i = 0:n)' and locator items '([3][n])a', 'b[:n]'
+/// and 'c[i]'.
+class OMPAffinityClause final
+    : public OMPVarListClause<OMPAffinityClause>,
+      private llvm::TrailingObjects<OMPAffinityClause, Expr *> {
+  friend class OMPClauseReader;
+  friend OMPVarListClause;
+  friend TrailingObjects;
+
+  /// Location of ':' symbol.
+  SourceLocation ColonLoc;
+
+  /// Build clause.
+  ///
+  /// \param StartLoc Starting location of the clause.
+  /// \param LParenLoc Location of '('.
+  /// \param ColonLoc Location of ':'.
+  /// \param EndLoc Ending location of the clause.
+  /// \param N Number of locators asssociated with the clause.
+  OMPAffinityClause(SourceLocation StartLoc, SourceLocation LParenLoc,
+                    SourceLocation ColonLoc, SourceLocation EndLoc, unsigned N)
+      : OMPVarListClause<OMPAffinityClause>(llvm::omp::OMPC_affinity, StartLoc,
+                                            LParenLoc, EndLoc, N) {}
+
+  /// Build an empty clause.
+  /// \param N Number of locators asssociated with the clause.
+  ///
+  explicit OMPAffinityClause(unsigned N)
+      : OMPVarListClause<OMPAffinityClause>(llvm::omp::OMPC_affinity,
+                                            SourceLocation(), SourceLocation(),
+                                            SourceLocation(), N) {}
+
+  /// Sets the affinity modifier for the clause, if any.
+  void setModifier(Expr *E) {
+    getTrailingObjects<Expr *>()[varlist_size()] = E;
+  }
+
+  /// Sets the location of ':' symbol.
+  void setColonLoc(SourceLocation Loc) { ColonLoc = Loc; }
+
+public:
+  /// Creates clause with a modifier a list of locator items.
+  ///
+  /// \param C AST context.
+  /// \param StartLoc Starting location of the clause.
+  /// \param LParenLoc Location of '('.
+  /// \param ColonLoc Location of ':'.
+  /// \param EndLoc Ending location of the clause.
+  /// \param Locators List of locator items.
+  static OMPAffinityClause *Create(const ASTContext &C, SourceLocation StartLoc,
+                                   SourceLocation LParenLoc,
+                                   SourceLocation ColonLoc,
+                                   SourceLocation EndLoc, Expr *Modifier,
+                                   ArrayRef<Expr *> Locators);
+
+  /// Creates an empty clause with the place for \p N locator items.
+  ///
+  /// \param C AST context.
+  /// \param N The number of locator items.
+  static OMPAffinityClause *CreateEmpty(const ASTContext &C, unsigned N);
+
+  /// Gets affinity modifier.
+  Expr *getModifier() { return getTrailingObjects<Expr *>()[varlist_size()]; }
+  Expr *getModifier() const {
+    return getTrailingObjects<Expr *>()[varlist_size()];
+  }
+
+  /// Gets the location of ':' symbol.
+  SourceLocation getColonLoc() const { return ColonLoc; }
+
+  // Iterators
+  child_range children() {
+    int Offset = getModifier() ? 1 : 0;
+    return child_range(reinterpret_cast<Stmt **>(varlist_begin()),
+                       reinterpret_cast<Stmt **>(varlist_end() + Offset));
+  }
+
+  const_child_range children() const {
+    auto Children = const_cast<OMPAffinityClause *>(this)->children();
+    return const_child_range(Children.begin(), Children.end());
+  }
+
+  child_range used_children() {
+    return child_range(child_iterator(), child_iterator());
+  }
+  const_child_range used_children() const {
+    return const_child_range(const_child_iterator(), const_child_iterator());
+  }
+
+  static bool classof(const OMPClause *T) {
+    return T->getClauseKind() == llvm::omp::OMPC_affinity;
   }
 };
 

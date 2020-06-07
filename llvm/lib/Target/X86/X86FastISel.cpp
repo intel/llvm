@@ -3245,7 +3245,7 @@ bool X86FastISel::fastLowerCall(CallLoweringInfo &CLI) {
     return false;
 
   for (auto Flag : CLI.OutFlags)
-    if (Flag.isSwiftError())
+    if (Flag.isSwiftError() || Flag.isPreallocated())
       return false;
 
   SmallVector<MVT, 16> OutVTs;
@@ -3784,10 +3784,11 @@ unsigned X86FastISel::X86MaterializeFP(const ConstantFP *CFP, MVT VT) {
     PICBase = X86::RIP;
 
   // Create the load from the constant pool.
-  unsigned CPI = MCP.getConstantPoolIndex(CFP, Alignment.value());
+  unsigned CPI = MCP.getConstantPoolIndex(CFP, Alignment);
   unsigned ResultReg = createResultReg(TLI.getRegClassFor(VT.SimpleTy));
 
-  if (CM == CodeModel::Large) {
+  // Large code model only applies to 64-bit mode.
+  if (Subtarget->is64Bit() && CM == CodeModel::Large) {
     unsigned AddrReg = createResultReg(&X86::GR64RegClass);
     BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DbgLoc, TII.get(X86::MOV64ri),
             AddrReg)
@@ -3930,14 +3931,12 @@ bool X86FastISel::tryToFoldLoadIntoMI(MachineInstr *MI, unsigned OpNo,
   const X86InstrInfo &XII = (const X86InstrInfo &)TII;
 
   unsigned Size = DL.getTypeAllocSize(LI->getType());
-  Align Alignment =
-      DL.getValueOrABITypeAlignment(LI->getAlign(), LI->getType());
 
   SmallVector<MachineOperand, 8> AddrOps;
   AM.getFullAddress(AddrOps);
 
   MachineInstr *Result = XII.foldMemoryOperandImpl(
-      *FuncInfo.MF, *MI, OpNo, AddrOps, FuncInfo.InsertPt, Size, Alignment,
+      *FuncInfo.MF, *MI, OpNo, AddrOps, FuncInfo.InsertPt, Size, LI->getAlign(),
       /*AllowCommute=*/true);
   if (!Result)
     return false;

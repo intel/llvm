@@ -115,7 +115,7 @@ static bool isOpenCLKernel(SPIRVFunction *BF) {
 static void dumpLLVM(Module *M, const std::string &FName) {
   std::error_code EC;
   raw_fd_ostream FS(FName, EC, sys::fs::F_None);
-  if (EC) {
+  if (!EC) {
     FS << *M;
     FS.close();
   }
@@ -835,6 +835,10 @@ void SPIRVToLLVM::transLLVMLoopMetadata(const Function *F) {
   assert(F);
 
   if (FuncLoopMetadataMap.empty())
+    return;
+
+  // Function declaration doesn't contain loop metadata.
+  if (F->isDeclaration())
     return;
 
   DominatorTree DomTree(*(const_cast<Function *>(F)));
@@ -1661,10 +1665,15 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
   case OpStore: {
     SPIRVStore *BS = static_cast<SPIRVStore *>(BV);
-    StoreInst *SI = new StoreInst(
-        transValue(BS->getSrc(), F, BB), transValue(BS->getDst(), F, BB),
-        BS->SPIRVMemoryAccess::isVolatile(),
-        MaybeAlign(BS->SPIRVMemoryAccess::getAlignment()), BB);
+    StoreInst *SI = nullptr;
+    auto *Src = transValue(BS->getSrc(), F, BB);
+    auto *Dst = transValue(BS->getDst(), F, BB);
+    bool isVolatile = BS->SPIRVMemoryAccess::isVolatile();
+    uint64_t AlignValue = BS->SPIRVMemoryAccess::getAlignment();
+    if (0 == AlignValue)
+      SI = new StoreInst(Src, Dst, isVolatile, BB);
+    else
+      SI = new StoreInst(Src, Dst, isVolatile, Align(AlignValue), BB);
     if (BS->SPIRVMemoryAccess::isNonTemporal())
       transNonTemporalMetadata(SI);
     return mapValue(BV, SI);
@@ -1673,10 +1682,17 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
   case OpLoad: {
     SPIRVLoad *BL = static_cast<SPIRVLoad *>(BV);
     auto V = transValue(BL->getSrc(), F, BB);
-    LoadInst *LI =
-        new LoadInst(V->getType()->getPointerElementType(), V, BV->getName(),
-                     BL->SPIRVMemoryAccess::isVolatile(),
-                     MaybeAlign(BL->SPIRVMemoryAccess::getAlignment()), BB);
+    Type *Ty = V->getType()->getPointerElementType();
+    LoadInst *LI = nullptr;
+    uint64_t AlignValue = BL->SPIRVMemoryAccess::getAlignment();
+    if (0 == AlignValue) {
+      LI = new LoadInst(Ty, V, BV->getName(),
+                        BL->SPIRVMemoryAccess::isVolatile(), BB);
+    } else {
+      LI = new LoadInst(Ty, V, BV->getName(),
+                        BL->SPIRVMemoryAccess::isVolatile(), Align(AlignValue),
+                        BB);
+    }
     if (BL->SPIRVMemoryAccess::isNonTemporal())
       transNonTemporalMetadata(LI);
     return mapValue(BV, LI);
@@ -2185,6 +2201,23 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     SPIRVFunction *F = BC->getFunction();
     BV->setName(F->getName());
     return mapValue(BV, transFunction(F));
+  }
+
+  case OpAssumeTrueINTEL: {
+    IRBuilder<> Builder(BB);
+    SPIRVAssumeTrueINTEL *BC = static_cast<SPIRVAssumeTrueINTEL *>(BV);
+    Value *Condition = transValue(BC->getCondition(), F, BB);
+    return mapValue(BV, Builder.CreateAssumption(Condition));
+  }
+
+  case OpExpectINTEL: {
+    IRBuilder<> Builder(BB);
+    SPIRVExpectINTELInstBase *BC = static_cast<SPIRVExpectINTELInstBase *>(BV);
+    Type *RetTy = transType(BC->getType());
+    Value *Val = transValue(BC->getOperand(0), F, BB);
+    Value *ExpVal = transValue(BC->getOperand(1), F, BB);
+    return mapValue(
+        BV, Builder.CreateIntrinsic(Intrinsic::expect, RetTy, {Val, ExpVal}));
   }
 
   case OpExtInst: {
@@ -2921,7 +2954,7 @@ bool SPIRVToLLVM::translate() {
     transFunction(BM->getFunction(I));
   }
 
-  if (!transKernelMetadata())
+  if (!transMetadata())
     return false;
   if (!transFPContractMetadata())
     return false;
@@ -3256,89 +3289,17 @@ static bool transKernelArgTypeMedataFromString(LLVMContext *Ctx,
   return true;
 }
 
-bool SPIRVToLLVM::transKernelMetadata() {
+bool SPIRVToLLVM::transMetadata() {
   for (unsigned I = 0, E = BM->getNumFunctions(); I != E; ++I) {
     SPIRVFunction *BF = BM->getFunction(I);
     Function *F = static_cast<Function *>(getTranslatedValue(BF));
     assert(F && "Invalid translated function");
+
+    transOCLMetadata(BF);
+
     if (F->getCallingConv() != CallingConv::SPIR_KERNEL)
       continue;
 
-    // Generate metadata for kernel_arg_address_spaces
-    addOCLKernelArgumentMetadata(
-        Context, SPIR_MD_KERNEL_ARG_ADDR_SPACE, BF, F,
-        [=](SPIRVFunctionParameter *Arg) {
-          SPIRVType *ArgTy = Arg->getType();
-          SPIRAddressSpace AS = SPIRAS_Private;
-          if (ArgTy->isTypePointer())
-            AS = SPIRSPIRVAddrSpaceMap::rmap(ArgTy->getPointerStorageClass());
-          else if (ArgTy->isTypeOCLImage() || ArgTy->isTypePipe())
-            AS = SPIRAS_Global;
-          return ConstantAsMetadata::get(
-              ConstantInt::get(Type::getInt32Ty(*Context), AS));
-        });
-    // Generate metadata for kernel_arg_access_qual
-    addOCLKernelArgumentMetadata(Context, SPIR_MD_KERNEL_ARG_ACCESS_QUAL, BF, F,
-                                 [=](SPIRVFunctionParameter *Arg) {
-                                   std::string Qual;
-                                   auto T = Arg->getType();
-                                   if (T->isTypeOCLImage()) {
-                                     auto ST = static_cast<SPIRVTypeImage *>(T);
-                                     Qual =
-                                         transOCLImageTypeAccessQualifier(ST);
-                                   } else if (T->isTypePipe()) {
-                                     auto PT = static_cast<SPIRVTypePipe *>(T);
-                                     Qual = transOCLPipeTypeAccessQualifier(PT);
-                                   } else
-                                     Qual = "none";
-                                   return MDString::get(*Context, Qual);
-                                 });
-    // Generate metadata for kernel_arg_type
-    if (!transKernelArgTypeMedataFromString(Context, BM, F))
-      addOCLKernelArgumentMetadata(Context, SPIR_MD_KERNEL_ARG_TYPE, BF, F,
-                                   [=](SPIRVFunctionParameter *Arg) {
-                                     return transOCLKernelArgTypeName(Arg);
-                                   });
-    // Generate metadata for kernel_arg_type_qual
-    addOCLKernelArgumentMetadata(
-        Context, SPIR_MD_KERNEL_ARG_TYPE_QUAL, BF, F,
-        [=](SPIRVFunctionParameter *Arg) {
-          std::string Qual;
-          if (Arg->hasDecorate(DecorationVolatile))
-            Qual = kOCLTypeQualifierName::Volatile;
-          Arg->foreachAttr([&](SPIRVFuncParamAttrKind Kind) {
-            Qual += Qual.empty() ? "" : " ";
-            switch (Kind) {
-            case FunctionParameterAttributeNoAlias:
-              Qual += kOCLTypeQualifierName::Restrict;
-              break;
-            case FunctionParameterAttributeNoWrite:
-              Qual += kOCLTypeQualifierName::Const;
-              break;
-            default:
-              // do nothing.
-              break;
-            }
-          });
-          if (Arg->getType()->isTypePipe()) {
-            Qual += Qual.empty() ? "" : " ";
-            Qual += kOCLTypeQualifierName::Pipe;
-          }
-          return MDString::get(*Context, Qual);
-        });
-    // Generate metadata for kernel_arg_base_type
-    addOCLKernelArgumentMetadata(Context, SPIR_MD_KERNEL_ARG_BASE_TYPE, BF, F,
-                                 [=](SPIRVFunctionParameter *Arg) {
-                                   return transOCLKernelArgTypeName(Arg);
-                                 });
-    // Generate metadata for kernel_arg_name
-    if (BM->isGenArgNameMDEnabled()) {
-      addOCLKernelArgumentMetadata(Context, SPIR_MD_KERNEL_ARG_NAME, BF, F,
-                                   [=](SPIRVFunctionParameter *Arg) {
-                                     return MDString::get(*Context,
-                                                          Arg->getName());
-                                   });
-    }
     // Generate metadata for reqd_work_group_size
     if (auto EM = BF->getExecutionMode(ExecutionModeLocalSize)) {
       F->setMetadata(kSPIR2MD::WGSize,
@@ -3384,6 +3345,94 @@ bool SPIRVToLLVM::transKernelMetadata() {
                      getMDNodeStringIntVec(Context, EM->getLiterals()));
     }
   }
+  NamedMDNode *MemoryModelMD =
+      M->getOrInsertNamedMetadata(kSPIRVMD::MemoryModel);
+  MemoryModelMD->addOperand(
+      getMDTwoInt(Context, static_cast<unsigned>(BM->getAddressingModel()),
+                  static_cast<unsigned>(BM->getMemoryModel())));
+  return true;
+}
+
+bool SPIRVToLLVM::transOCLMetadata(SPIRVFunction *BF) {
+  Function *F = static_cast<Function *>(getTranslatedValue(BF));
+  assert(F && "Invalid translated function");
+  if (F->getCallingConv() != CallingConv::SPIR_KERNEL)
+    return true;
+
+  // Generate metadata for kernel_arg_address_spaces
+  addOCLKernelArgumentMetadata(
+      Context, SPIR_MD_KERNEL_ARG_ADDR_SPACE, BF, F,
+      [=](SPIRVFunctionParameter *Arg) {
+        SPIRVType *ArgTy = Arg->getType();
+        SPIRAddressSpace AS = SPIRAS_Private;
+        if (ArgTy->isTypePointer())
+          AS = SPIRSPIRVAddrSpaceMap::rmap(ArgTy->getPointerStorageClass());
+        else if (ArgTy->isTypeOCLImage() || ArgTy->isTypePipe())
+          AS = SPIRAS_Global;
+        return ConstantAsMetadata::get(
+            ConstantInt::get(Type::getInt32Ty(*Context), AS));
+      });
+  // Generate metadata for kernel_arg_access_qual
+  addOCLKernelArgumentMetadata(Context, SPIR_MD_KERNEL_ARG_ACCESS_QUAL, BF, F,
+                               [=](SPIRVFunctionParameter *Arg) {
+                                 std::string Qual;
+                                 auto T = Arg->getType();
+                                 if (T->isTypeOCLImage()) {
+                                   auto ST = static_cast<SPIRVTypeImage *>(T);
+                                   Qual = transOCLImageTypeAccessQualifier(ST);
+                                 } else if (T->isTypePipe()) {
+                                   auto PT = static_cast<SPIRVTypePipe *>(T);
+                                   Qual = transOCLPipeTypeAccessQualifier(PT);
+                                 } else
+                                   Qual = "none";
+                                 return MDString::get(*Context, Qual);
+                               });
+  // Generate metadata for kernel_arg_type
+  if (!transKernelArgTypeMedataFromString(Context, BM, F))
+    addOCLKernelArgumentMetadata(Context, SPIR_MD_KERNEL_ARG_TYPE, BF, F,
+                                 [=](SPIRVFunctionParameter *Arg) {
+                                   return transOCLKernelArgTypeName(Arg);
+                                 });
+  // Generate metadata for kernel_arg_type_qual
+  addOCLKernelArgumentMetadata(
+      Context, SPIR_MD_KERNEL_ARG_TYPE_QUAL, BF, F,
+      [=](SPIRVFunctionParameter *Arg) {
+        std::string Qual;
+        if (Arg->hasDecorate(DecorationVolatile))
+          Qual = kOCLTypeQualifierName::Volatile;
+        Arg->foreachAttr([&](SPIRVFuncParamAttrKind Kind) {
+          Qual += Qual.empty() ? "" : " ";
+          switch (Kind) {
+          case FunctionParameterAttributeNoAlias:
+            Qual += kOCLTypeQualifierName::Restrict;
+            break;
+          case FunctionParameterAttributeNoWrite:
+            Qual += kOCLTypeQualifierName::Const;
+            break;
+          default:
+            // do nothing.
+            break;
+          }
+        });
+        if (Arg->getType()->isTypePipe()) {
+          Qual += Qual.empty() ? "" : " ";
+          Qual += kOCLTypeQualifierName::Pipe;
+        }
+        return MDString::get(*Context, Qual);
+      });
+  // Generate metadata for kernel_arg_base_type
+  addOCLKernelArgumentMetadata(Context, SPIR_MD_KERNEL_ARG_BASE_TYPE, BF, F,
+                               [=](SPIRVFunctionParameter *Arg) {
+                                 return transOCLKernelArgTypeName(Arg);
+                               });
+  // Generate metadata for kernel_arg_name
+  if (BM->isGenArgNameMDEnabled()) {
+    addOCLKernelArgumentMetadata(Context, SPIR_MD_KERNEL_ARG_NAME, BF, F,
+                                 [=](SPIRVFunctionParameter *Arg) {
+                                   return MDString::get(*Context,
+                                                        Arg->getName());
+                                 });
+  }
   return true;
 }
 
@@ -3391,7 +3440,7 @@ bool SPIRVToLLVM::transAlign(SPIRVValue *BV, Value *V) {
   if (auto AL = dyn_cast<AllocaInst>(V)) {
     SPIRVWord Align = 0;
     if (BV->hasAlignment(&Align))
-      AL->setAlignment(MaybeAlign(Align));
+      AL->setAlignment(llvm::Align(Align));
     return true;
   }
   if (auto GV = dyn_cast<GlobalVariable>(V)) {

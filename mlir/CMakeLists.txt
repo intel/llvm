@@ -12,8 +12,13 @@ include(AddMLIR)
 
 # Installing the headers and docs needs to depend on generating any public
 # tablegen'd targets.
+# mlir-generic-headers are dialect-independent.
+add_custom_target(mlir-generic-headers)
+set_target_properties(mlir-generic-headers PROPERTIES FOLDER "Misc")
+# mlir-headers may be dialect-dependent.
 add_custom_target(mlir-headers)
 set_target_properties(mlir-headers PROPERTIES FOLDER "Misc")
+add_dependencies(mlir-headers mlir-generic-headers)
 add_custom_target(mlir-doc)
 
 # Build the CUDA conversions and run according tests if the NVPTX backend
@@ -26,8 +31,21 @@ endif()
 # TODO: we should use a config.h file like LLVM does
 add_definitions(-DMLIR_CUDA_CONVERSIONS_ENABLED=${MLIR_CUDA_CONVERSIONS_ENABLED})
 
+# Build the ROCm conversions and run according tests if the AMDGPU backend
+# is available
+if ("AMDGPU" IN_LIST LLVM_TARGETS_TO_BUILD)
+  set(MLIR_ROCM_CONVERSIONS_ENABLED 1)
+else()
+  set(MLIR_ROCM_CONVERSIONS_ENABLED 0)
+endif()
+add_definitions(-DMLIR_ROCM_CONVERSIONS_ENABLED=${MLIR_ROCM_CONVERSIONS_ENABLED})
+
 set(MLIR_CUDA_RUNNER_ENABLED 0 CACHE BOOL "Enable building the mlir CUDA runner")
 set(MLIR_VULKAN_RUNNER_ENABLED 0 CACHE BOOL "Enable building the mlir Vulkan runner")
+
+option(MLIR_INCLUDE_TESTS
+       "Generate build targets for the MLIR unit tests."
+       ${LLVM_INCLUDE_TESTS})
 
 include_directories( "include")
 include_directories( ${MLIR_INCLUDE_DIR})
@@ -39,8 +57,11 @@ add_subdirectory(tools/mlir-tblgen)
 
 add_subdirectory(include/mlir)
 add_subdirectory(lib)
-add_subdirectory(unittests)
-add_subdirectory(test)
+if (MLIR_INCLUDE_TESTS)
+  add_definitions(-DMLIR_INCLUDE_TESTS)
+  add_subdirectory(unittests)
+  add_subdirectory(test)
+endif()
 # Tools needs to come late to ensure that MLIR_ALL_LIBS is populated.
 # Generally things after this point may depend on MLIR_ALL_LIBS or libMLIR.so.
 add_subdirectory(tools)

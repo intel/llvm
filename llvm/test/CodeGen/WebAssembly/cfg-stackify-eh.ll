@@ -1,5 +1,6 @@
 ; REQUIRES: asserts
 ; RUN: llc < %s -disable-wasm-fallthrough-return-opt -wasm-disable-explicit-locals -wasm-keep-registers -disable-block-placement -verify-machineinstrs -fast-isel=false -machine-sink-split-probability-threshold=0 -cgp-freq-ratio-to-skip-merge=1000 -exception-model=wasm -mattr=+exception-handling | FileCheck %s
+; RUN: llc < %s -disable-wasm-fallthrough-return-opt -disable-block-placement -verify-machineinstrs -fast-isel=false -machine-sink-split-probability-threshold=0 -cgp-freq-ratio-to-skip-merge=1000 -exception-model=wasm -mattr=+exception-handling
 ; RUN: llc < %s -O0 -disable-wasm-fallthrough-return-opt -wasm-disable-explicit-locals -wasm-keep-registers -verify-machineinstrs -exception-model=wasm -mattr=+exception-handling | FileCheck %s --check-prefix=NOOPT
 ; RUN: llc < %s -disable-wasm-fallthrough-return-opt -wasm-disable-explicit-locals -wasm-keep-registers -disable-block-placement -verify-machineinstrs -fast-isel=false -machine-sink-split-probability-threshold=0 -cgp-freq-ratio-to-skip-merge=1000 -exception-model=wasm -mattr=+exception-handling -wasm-disable-ehpad-sort | FileCheck %s --check-prefix=NOSORT
 ; RUN: llc < %s -disable-wasm-fallthrough-return-opt -wasm-disable-explicit-locals -wasm-keep-registers -disable-block-placement -verify-machineinstrs -fast-isel=false -machine-sink-split-probability-threshold=0 -cgp-freq-ratio-to-skip-merge=1000 -exception-model=wasm -mattr=+exception-handling -wasm-disable-ehpad-sort -stats 2>&1 | FileCheck %s --check-prefix=NOSORT-STAT
@@ -850,8 +851,91 @@ terminate7:                                       ; preds = %ehcleanup
   unreachable
 }
 
+; We don't need to call placeBlockMarker after fixUnwindMismatches unless the
+; destination is the appendix BB at the very end. This should not crash.
+define void @test16(i32* %p, i32 %a, i32 %b) personality i8* bitcast (i32 (...)* @__gxx_wasm_personality_v0 to i8*) {
+entry:
+  br label %loop
+
+loop:                                             ; preds = %try.cont, %entry
+  invoke void @foo()
+          to label %bb0 unwind label %catch.dispatch0
+
+bb0:                                              ; preds = %loop
+  %cmp = icmp ne i32 %a, %b
+  br i1 %cmp, label %bb1, label %last
+
+bb1:                                              ; preds = %bb0
+  invoke void @bar()
+          to label %try.cont unwind label %catch.dispatch1
+
+catch.dispatch0:                                  ; preds = %loop
+  %0 = catchswitch within none [label %catch.start0] unwind to caller
+
+catch.start0:                                     ; preds = %catch.dispatch0
+  %1 = catchpad within %0 [i8* null]
+  %2 = call i8* @llvm.wasm.get.exception(token %1)
+  %3 = call i32 @llvm.wasm.get.ehselector(token %1)
+  catchret from %1 to label %try.cont
+
+catch.dispatch1:                                  ; preds = %bb1
+  %4 = catchswitch within none [label %catch.start1] unwind to caller
+
+catch.start1:                                     ; preds = %catch.dispatch1
+  %5 = catchpad within %4 [i8* null]
+  %6 = call i8* @llvm.wasm.get.exception(token %5)
+  %7 = call i32 @llvm.wasm.get.ehselector(token %5)
+  catchret from %5 to label %try.cont
+
+try.cont:                                         ; preds = %catch.start1, %catch.start0, %bb1
+  br label %loop
+
+last:                                             ; preds = %bb0
+  ret void
+}
+
+; Tests if CFGStackify's removeUnnecessaryInstrs() removes unnecessary branches
+; correctly.
+; CHECK-LABEL: test17
+define void @test17(i32 %n) personality i8* bitcast (i32 (...)* @__gxx_wasm_personality_v0 to i8*) {
+entry:
+  invoke void @foo()
+          to label %for.body unwind label %catch.dispatch
+
+for.body:                                         ; preds = %for.end, %entry
+  %i = phi i32 [ %inc, %for.end ], [ 0, %entry ]
+  invoke void @foo()
+          to label %for.end unwind label %catch.dispatch
+
+; Before going to CFGStackify, this BB will have a conditional branch followed
+; by an unconditional branch. CFGStackify should remove only the unconditional
+; one.
+for.end:                                          ; preds = %for.body
+  %inc = add nuw nsw i32 %i, 1
+  %exitcond = icmp eq i32 %inc, %n
+  br i1 %exitcond, label %try.cont, label %for.body
+; CHECK: br_if
+; CHECK-NOT: br
+; CHECK: end_loop
+; CHECK: catch
+
+catch.dispatch:                                   ; preds = %for.body, %entry
+  %0 = catchswitch within none [label %catch.start] unwind to caller
+
+catch.start:                                      ; preds = %catch.dispatch
+  %1 = catchpad within %0 [i8* null]
+  %2 = call i8* @llvm.wasm.get.exception(token %1)
+  %3 = call i32 @llvm.wasm.get.ehselector(token %1)
+  %4 = call i8* @__cxa_begin_catch(i8* %2) #2 [ "funclet"(token %1) ]
+  call void @__cxa_end_catch() [ "funclet"(token %1) ]
+  catchret from %1 to label %try.cont
+
+try.cont:                                         ; preds = %catch.start, %for.end
+  ret void
+}
+
 ; Check if the unwind destination mismatch stats are correct
-; NOSORT-STAT: 15 wasm-cfg-stackify    - Number of EH pad unwind mismatches found
+; NOSORT-STAT: 16 wasm-cfg-stackify    - Number of EH pad unwind mismatches found
 
 declare void @foo()
 declare void @bar()

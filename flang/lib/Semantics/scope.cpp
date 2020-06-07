@@ -60,6 +60,25 @@ Scope &Scope::MakeScope(Kind kind, Symbol *symbol) {
   return children_.emplace_back(*this, kind, symbol);
 }
 
+template <typename T>
+static std::vector<common::Reference<T>> GetSortedSymbols(
+    std::map<SourceName, MutableSymbolRef> symbols) {
+  std::vector<common::Reference<T>> result;
+  result.reserve(symbols.size());
+  for (auto &pair : symbols) {
+    result.push_back(*pair.second);
+  }
+  std::sort(result.begin(), result.end());
+  return result;
+}
+
+MutableSymbolVector Scope::GetSymbols() {
+  return GetSortedSymbols<Symbol>(symbols_);
+}
+SymbolVector Scope::GetSymbols() const {
+  return GetSortedSymbols<const Symbol>(symbols_);
+}
+
 Scope::iterator Scope::find(const SourceName &name) {
   return symbols_.find(name);
 }
@@ -126,9 +145,6 @@ Symbol *Scope::CopySymbol(const Symbol &symbol) {
   }
 }
 
-const std::list<EquivalenceSet> &Scope::equivalenceSets() const {
-  return equivalenceSets_;
-}
 void Scope::add_equivalenceSet(EquivalenceSet &&set) {
   equivalenceSets_.emplace_back(std::move(set));
 }
@@ -292,6 +308,9 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &os, const Scope &scope) {
   if (auto *symbol{scope.symbol()}) {
     os << *symbol << ' ';
   }
+  if (scope.derivedTypeSpec_) {
+    os << "instantiation of " << *scope.derivedTypeSpec_ << ' ';
+  }
   os << scope.children_.size() << " children\n";
   for (const auto &pair : scope.symbols_) {
     const Symbol &symbol{*pair.second};
@@ -341,16 +360,6 @@ const DeclTypeSpec *Scope::FindInstantiatedDerivedType(
   } else {
     return parent().FindInstantiatedDerivedType(spec, category);
   }
-}
-
-const Symbol *Scope::GetSymbol() const {
-  if (symbol_) {
-    return symbol_;
-  }
-  if (derivedTypeSpec_) {
-    return &derivedTypeSpec_->typeSymbol();
-  }
-  return nullptr;
 }
 
 const Scope *Scope::GetDerivedTypeParent() const {

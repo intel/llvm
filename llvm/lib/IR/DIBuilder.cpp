@@ -246,7 +246,8 @@ DIMacroFile *DIBuilder::createTempMacroFile(DIMacroFile *Parent,
 DIEnumerator *DIBuilder::createEnumerator(StringRef Name, int64_t Val,
                                           bool IsUnsigned) {
   assert(!Name.empty() && "Unable to create enumerator without name");
-  return DIEnumerator::get(VMContext, Val, IsUnsigned, Name);
+  return DIEnumerator::get(VMContext, APInt(64, Val, !IsUnsigned), IsUnsigned,
+                           Name);
 }
 
 DIBasicType *DIBuilder::createUnspecifiedType(StringRef Name) {
@@ -624,11 +625,22 @@ DITypeRefArray DIBuilder::getOrCreateTypeArray(ArrayRef<Metadata *> Elements) {
 }
 
 DISubrange *DIBuilder::getOrCreateSubrange(int64_t Lo, int64_t Count) {
-  return DISubrange::get(VMContext, Count, Lo);
+  auto *LB = ConstantAsMetadata::get(
+      ConstantInt::getSigned(Type::getInt64Ty(VMContext), Lo));
+  auto *CountNode = ConstantAsMetadata::get(
+      ConstantInt::getSigned(Type::getInt64Ty(VMContext), Count));
+  return DISubrange::get(VMContext, CountNode, LB, nullptr, nullptr);
 }
 
 DISubrange *DIBuilder::getOrCreateSubrange(int64_t Lo, Metadata *CountNode) {
-  return DISubrange::get(VMContext, CountNode, Lo);
+  auto *LB = ConstantAsMetadata::get(
+      ConstantInt::getSigned(Type::getInt64Ty(VMContext), Lo));
+  return DISubrange::get(VMContext, CountNode, LB, nullptr, nullptr);
+}
+
+DISubrange *DIBuilder::getOrCreateSubrange(Metadata *CountNode, Metadata *LB,
+                                           Metadata *UB, Metadata *Stride) {
+  return DISubrange::get(VMContext, CountNode, LB, UB, Stride);
 }
 
 static void checkGlobalVariableScope(DIScope *Context) {
@@ -831,10 +843,10 @@ DINamespace *DIBuilder::createNameSpace(DIScope *Scope, StringRef Name,
 
 DIModule *DIBuilder::createModule(DIScope *Scope, StringRef Name,
                                   StringRef ConfigurationMacros,
-                                  StringRef IncludePath,
-                                  StringRef APINotesFile) {
-  return DIModule::get(VMContext, getNonCompileUnitScope(Scope), Name,
-                       ConfigurationMacros, IncludePath, APINotesFile);
+                                  StringRef IncludePath, StringRef APINotesFile,
+                                  DIFile *File, unsigned LineNo) {
+  return DIModule::get(VMContext, File, getNonCompileUnitScope(Scope), Name,
+                       ConfigurationMacros, IncludePath, APINotesFile, LineNo);
 }
 
 DILexicalBlockFile *DIBuilder::createLexicalBlockFile(DIScope *Scope,

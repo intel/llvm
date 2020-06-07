@@ -7,10 +7,97 @@
 #===----------------------------------------------------------------------===##
 
 import lit
+import lit.formats
 import os
 import pipes
 import re
 import subprocess
+
+def _supportsVerify(config):
+    """
+    Determine whether clang-verify is supported by the given configuration.
+
+    This is done by checking whether the %{cxx} substitution in that
+    configuration supports certain compiler flags.
+    """
+    command = "%{{cxx}} -xc++ {} -Werror -fsyntax-only -Xclang -verify-ignore-unexpected".format(os.devnull)
+    command = lit.TestRunner.applySubstitutions([command], config.substitutions,
+                                                recursion_limit=config.recursiveExpansionLimit)[0]
+    devNull = open(os.devnull, 'w')
+    result = subprocess.call(command, shell=True, stdout=devNull, stderr=devNull)
+    return result == 0
+
+def parseScript(test, preamble, fileDependencies):
+    """
+    Extract the script from a test, with substitutions applied.
+
+    Returns a list of commands ready to be executed.
+
+    - test
+        The lit.Test to parse.
+
+    - preamble
+        A list of commands to perform before any command in the test.
+        These commands can contain unexpanded substitutions, but they
+        must not be of the form 'RUN:' -- they must be proper commands
+        once substituted.
+
+    - fileDependencies
+        A list of additional file dependencies for the test.
+    """
+
+    # Get the default substitutions
+    tmpDir, tmpBase = lit.TestRunner.getTempPaths(test)
+    useExternalSh = True
+    substitutions = lit.TestRunner.getDefaultSubstitutions(test, tmpDir, tmpBase,
+                                                           normalize_slashes=useExternalSh)
+
+    # Add the %{build} and %{run} convenience substitutions
+    substitutions.append(('%{build}', '%{cxx} %s %{flags} %{compile_flags} %{link_flags} -o %t.exe'))
+    substitutions.append(('%{run}', '%{exec} %t.exe'))
+
+    # Parse the test file, including custom directives
+    additionalCompileFlags = []
+    fileDependencies = list(fileDependencies)
+    parsers = [
+        lit.TestRunner.IntegratedTestKeywordParser('FILE_DEPENDENCIES:',
+                                                   lit.TestRunner.ParserKind.LIST,
+                                                   initial_value=fileDependencies),
+        lit.TestRunner.IntegratedTestKeywordParser('ADDITIONAL_COMPILE_FLAGS:',
+                                                   lit.TestRunner.ParserKind.LIST,
+                                                   initial_value=additionalCompileFlags)
+    ]
+
+    script = list(preamble)
+    parsed = lit.TestRunner.parseIntegratedTestScript(test, additional_parsers=parsers,
+                                                            require_script=not script)
+    if isinstance(parsed, lit.Test.Result):
+        return parsed
+    script += parsed
+
+    # Add compile flags specified with ADDITIONAL_COMPILE_FLAGS.
+    substitutions = [(s, x + ' ' + ' '.join(additionalCompileFlags)) if s == '%{compile_flags}'
+                            else (s, x) for (s, x) in substitutions]
+
+    # Perform substitutions inside FILE_DEPENDENCIES lines (or injected dependencies).
+    # This allows using variables like %t in file dependencies. Also note that we really
+    # need to resolve %{file_dependencies} now, because otherwise we won't be able to
+    # make all paths absolute below.
+    fileDependencies = lit.TestRunner.applySubstitutions(fileDependencies, substitutions,
+                                                         recursion_limit=test.config.recursiveExpansionLimit)
+
+    # Add the %{file_dependencies} substitution before we perform substitutions
+    # inside the script.
+    testDir = os.path.dirname(test.getSourcePath())
+    fileDependencies = [f if os.path.isabs(f) else os.path.join(testDir, f) for f in fileDependencies]
+    substitutions.append(('%{file_dependencies}', ' '.join(map(pipes.quote, fileDependencies))))
+
+    # Perform substitutions in the script itself.
+    script = lit.TestRunner.applySubstitutions(script, substitutions,
+                                               recursion_limit=test.config.recursiveExpansionLimit)
+
+    return script
+
 
 class CxxStandardLibraryTest(lit.formats.TestFormat):
     """
@@ -33,7 +120,9 @@ class CxxStandardLibraryTest(lit.formats.TestFormat):
 
     FOO.sh.<anything>       - A builtin Lit Shell test
 
-    FOO.verify.cpp          - Compiles with clang-verify
+    FOO.verify.cpp          - Compiles with clang-verify. This type of test is
+                              automatically marked as UNSUPPORTED if the compiler
+                              does not support Clang-verify.
 
     FOO.fail.cpp            - Compiled with clang-verify if clang-verify is
                               supported, and equivalent to a .compile.fail.cpp
@@ -84,19 +173,7 @@ class CxxStandardLibraryTest(lit.formats.TestFormat):
 
     Additional provided substitutions and features
     ==============================================
-    The test format will define the following substitutions for use inside
-    tests:
-
-        %{verify}
-
-            This expands to the set of flags that must be passed to the
-            compiler in order to use Clang-verify, if that is supported.
-
-        verify-support
-
-            This Lit feature will be made available when the compiler supports
-            Clang-verify. This can be used to disable tests that require that
-            feature, such as `.verify.cpp` tests.
+    The test format will define the following substitutions for use inside tests:
 
         %{file_dependencies}
 
@@ -111,18 +188,6 @@ class CxxStandardLibraryTest(lit.formats.TestFormat):
         %{run}
             Equivalent to `%{exec} %t.exe`. This is intended to be used
             in conjunction with the %{build} substitution.
-
-
-    Design notes
-    ============
-    This test format never implicitly disables a type of test. For example,
-    we could be tempted to automatically mark `.verify.cpp` tests as
-    UNSUPPORTED when clang-verify isn't supported by the compiler. However,
-    this sort of logic has been known to cause tests to be ignored in the
-    past, so we favour having tests mark themselves as unsupported explicitly.
-
-    This test format still needs work in the following areas:
-        - It is unknown how well it works on Windows yet.
     """
     def getTestsInDirectory(self, testSuite, pathInSuite, litConfig, localConfig):
         SUPPORTED_SUFFIXES = ['[.]pass[.]cpp$', '[.]pass[.]mm$', '[.]run[.]fail[.]cpp$',
@@ -147,22 +212,15 @@ class CxxStandardLibraryTest(lit.formats.TestFormat):
         for s in ['%{cxx}', '%{compile_flags}', '%{link_flags}', '%{flags}', '%{exec}']:
             assert s in substitutions, "Required substitution {} was not provided".format(s)
 
-    # Determine whether clang-verify is supported.
-    def _supportsVerify(self, test, litConfig):
-        command = "echo | %{cxx} -xc++ - -Werror -fsyntax-only -Xclang -verify-ignore-unexpected"
-        command = lit.TestRunner.applySubstitutions([command], test.config.substitutions,
-                                                    recursion_limit=test.config.recursiveExpansionLimit)[0]
-        devNull = open(os.devnull, 'w')
-        result = subprocess.call(command, shell=True, stdout=devNull, stderr=devNull)
-        return result == 0
-
-    def _disableWithModules(self, test, litConfig):
+    def _disableWithModules(self, test):
         with open(test.getSourcePath(), 'rb') as f:
             contents = f.read()
         return b'#define _LIBCPP_ASSERT' in contents
 
     def execute(self, test, litConfig):
         self._checkBaseSubstitutions(test.config.substitutions)
+        VERIFY_FLAGS = '-Xclang -verify -Xclang -verify-ignore-unexpected=note -ferror-limit=0'
+        supportsVerify = _supportsVerify(test.config)
         filename = test.path_in_suite[-1]
 
         # TODO(ldionne): We currently disable tests that re-define _LIBCPP_ASSERT
@@ -170,7 +228,7 @@ class CxxStandardLibraryTest(lit.formats.TestFormat):
         #                split the part that does a death test outside of the
         #                test, and only disable that part when modules are
         #                enabled.
-        if '-fmodules' in test.config.available_features and self._disableWithModules(test, litConfig):
+        if '-fmodules' in test.config.available_features and self._disableWithModules(test):
             return lit.Test.Result(lit.Test.UNSUPPORTED, 'Test {} is unsupported when modules are enabled')
 
         if re.search('[.]sh[.][^.]+$', filename):
@@ -204,8 +262,13 @@ class CxxStandardLibraryTest(lit.formats.TestFormat):
             ]
             return self._executeShTest(test, litConfig, steps, fileDependencies=['%t.exe'])
         elif filename.endswith('.verify.cpp'):
+            if not supportsVerify:
+                return lit.Test.Result(lit.Test.UNSUPPORTED,
+                    "Test {} requires support for Clang-verify, which isn't supported by the compiler".format(test.getFullName()))
             steps = [
-                "%dbg(COMPILED WITH) %{cxx} %s %{flags} %{compile_flags} -fsyntax-only %{verify}"
+                # Note: Use -Wno-error to make sure all diagnostics are not treated as errors,
+                #       which doesn't make sense for clang-verify tests.
+                "%dbg(COMPILED WITH) %{{cxx}} %s %{{flags}} %{{compile_flags}} -fsyntax-only -Wno-error {}".format(VERIFY_FLAGS)
             ]
             return self._executeShTest(test, litConfig, steps)
         # Make sure to check these ones last, since they will match other
@@ -220,9 +283,9 @@ class CxxStandardLibraryTest(lit.formats.TestFormat):
         # otherwise it's like a .compile.fail.cpp test. This is only provided
         # for backwards compatibility with the test suite.
         elif filename.endswith('.fail.cpp'):
-            if self._supportsVerify(test, litConfig):
+            if supportsVerify:
                 steps = [
-                    "%dbg(COMPILED WITH) %{cxx} %s %{flags} %{compile_flags} -fsyntax-only %{verify}"
+                    "%dbg(COMPILED WITH) %{{cxx}} %s %{{flags}} %{{compile_flags}} -fsyntax-only -Wno-error {}".format(VERIFY_FLAGS)
                 ]
             else:
                 steps = [
@@ -237,67 +300,17 @@ class CxxStandardLibraryTest(lit.formats.TestFormat):
         string = ' '.join(flags)
         config.substitutions = [(s, x + ' ' + string) if s == '%{compile_flags}' else (s, x) for (s, x) in config.substitutions]
 
-    # Modified version of lit.TestRunner.executeShTest to handle custom parsers correctly.
     def _executeShTest(self, test, litConfig, steps, fileDependencies=None):
         if test.config.unsupported:
             return lit.Test.Result(lit.Test.UNSUPPORTED, 'Test is unsupported')
 
-        # Get the default substitutions
-        tmpDir, tmpBase = lit.TestRunner.getTempPaths(test)
-        useExternalSh = True
-        substitutions = lit.TestRunner.getDefaultSubstitutions(test, tmpDir, tmpBase,
-                                                               normalize_slashes=useExternalSh)
-
-        # Add the %{build} and %{run} convenience substitutions
-        substitutions.append(('%{build}', '%{cxx} %s %{flags} %{compile_flags} %{link_flags} -o %t.exe'))
-        substitutions.append(('%{run}', '%{exec} %t.exe'))
-
-        # Add the %{verify} substitution and the verify-support feature if Clang-verify is supported
-        if self._supportsVerify(test, litConfig):
-            test.config.available_features.add('verify-support')
-            substitutions.append(('%{verify}', '-Xclang -verify -Xclang -verify-ignore-unexpected=note -ferror-limit=0'))
-
-        # Parse the test file, including custom directives
-        additionalCompileFlags = []
-        fileDependencies = fileDependencies or []
-        parsers = [
-            lit.TestRunner.IntegratedTestKeywordParser('FILE_DEPENDENCIES:',
-                                                       lit.TestRunner.ParserKind.LIST,
-                                                       initial_value=fileDependencies),
-            lit.TestRunner.IntegratedTestKeywordParser('ADDITIONAL_COMPILE_FLAGS:',
-                                                       lit.TestRunner.ParserKind.LIST,
-                                                       initial_value=additionalCompileFlags)
-        ]
-
-        script = list(steps)
-        parsed = lit.TestRunner.parseIntegratedTestScript(test, additional_parsers=parsers,
-                                                                require_script=not script)
-        if isinstance(parsed, lit.Test.Result):
-            return parsed
-        script += parsed
-
-        # Add compile flags specified with ADDITIONAL_COMPILE_FLAGS.
-        substitutions = [(s, x + ' ' + ' '.join(additionalCompileFlags)) if s == '%{compile_flags}'
-                                else (s, x) for (s, x) in substitutions]
-
-        # Perform substitutions inside FILE_DEPENDENCIES lines (or injected dependencies).
-        # This allows using variables like %t in file dependencies. Also note that we really
-        # need to resolve %{file_dependencies} now, because otherwise we won't be able to
-        # make all paths absolute below.
-        fileDependencies = lit.TestRunner.applySubstitutions(fileDependencies, substitutions,
-                                                             recursion_limit=test.config.recursiveExpansionLimit)
-
-        # Add the %{file_dependencies} substitution before we perform substitutions
-        # inside the script.
-        testDir = os.path.dirname(test.getSourcePath())
-        fileDependencies = [f if os.path.isabs(f) else os.path.join(testDir, f) for f in fileDependencies]
-        substitutions.append(('%{file_dependencies}', ' '.join(map(pipes.quote, fileDependencies))))
-
-        # Perform substitution in the script itself.
-        script = lit.TestRunner.applySubstitutions(script, substitutions,
-                                                   recursion_limit=test.config.recursiveExpansionLimit)
+        script = parseScript(test, steps, fileDependencies or [])
+        if isinstance(script, lit.Test.Result):
+            return script
 
         if litConfig.noExecute:
-            return lit.Test.Result(lit.Test.PASS)
+            return lit.Test.Result(lit.Test.XFAIL if test.isExpectedToFail() else lit.Test.PASS)
         else:
+            _, tmpBase = lit.TestRunner.getTempPaths(test)
+            useExternalSh = True
             return lit.TestRunner._runShTest(test, litConfig, useExternalSh, script, tmpBase)

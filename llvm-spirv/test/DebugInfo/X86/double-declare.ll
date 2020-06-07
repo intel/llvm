@@ -3,6 +3,9 @@
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 
 ; RUN: llc -mtriple=x86_64-apple-darwin -O0 -filetype=obj -o - < %t.ll | llvm-dwarfdump -v -debug-info - | FileCheck %s
+
+target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
+target triple = "spir64-unknown-unknown"
 ; PR33157. Don't crash on duplicate dbg.declare.
 ; CHECK: DW_TAG_formal_parameter
 ; CHECK: DW_AT_location [DW_FORM_exprloc]
@@ -46,5 +49,3 @@ done:
 !98 = distinct !DISubprogram(name: "NSMaxX", scope: !1, file: !1, line: 27, isLocal: true, isDefinition: true, scopeLine: 27, flags: DIFlagPrototyped, isOptimized: true, unit: !0, retainedNodes: !62, type: !99)
 !99 = !DISubroutineType(types: !100)
 !100 = !{null}
-target triple = "spir64-unknown-unknown"
-target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"

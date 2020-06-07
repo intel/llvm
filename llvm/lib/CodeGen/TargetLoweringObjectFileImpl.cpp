@@ -611,15 +611,19 @@ getELFSectionNameForGlobal(const GlobalObject *GO, SectionKind Kind,
     Name = getSectionPrefixForGlobal(Kind);
   }
 
+  bool HasPrefix = false;
   if (const auto *F = dyn_cast<Function>(GO)) {
-    if (Optional<StringRef> Prefix = F->getSectionPrefix())
+    if (Optional<StringRef> Prefix = F->getSectionPrefix()) {
       Name += *Prefix;
+      HasPrefix = true;
+    }
   }
 
   if (UniqueSectionName) {
     Name.push_back('.');
     TM.getNameWithPrefix(Name, GO, Mang, /*MayAlwaysUsePrivate*/true);
-  }
+  } else if (HasPrefix)
+    Name.push_back('.');
   return Name;
 }
 
@@ -838,7 +842,7 @@ bool TargetLoweringObjectFileELF::shouldPutJumpTableInFunctionSection(
 /// information, return a section that it should be placed in.
 MCSection *TargetLoweringObjectFileELF::getSectionForConstant(
     const DataLayout &DL, SectionKind Kind, const Constant *C,
-    unsigned &Align) const {
+    Align &Alignment) const {
   if (Kind.isMergeableConst4() && MergeableConst4Section)
     return MergeableConst4Section;
   if (Kind.isMergeableConst8() && MergeableConst8Section)
@@ -859,28 +863,28 @@ MCSection *TargetLoweringObjectFileELF::getSectionForMachineBasicBlock(
     const Function &F, const MachineBasicBlock &MBB,
     const TargetMachine &TM) const {
   assert(MBB.isBeginSection() && "Basic block does not start a section!");
-  SmallString<128> Name;
-  Name =
-      (static_cast<MCSectionELF *>(MBB.getParent()->getSection()))->getName();
   unsigned UniqueID = MCContext::GenericSectionID;
 
-  switch (MBB.getSectionID().Type) {
-    // Append suffixes to represent special cold and exception sections.
-  case MBBSectionID::SectionType::Exception:
-    Name += ".eh";
-    break;
-  case MBBSectionID::SectionType::Cold:
-    Name += ".unlikely";
-    break;
-  // For regular sections, either use a unique name, or a unique ID for the
-  // section.
-  default:
+  // For cold sections use the .text.unlikely prefix along with the parent
+  // function name. All cold blocks for the same function go to the same
+  // section. Similarly all exception blocks are grouped by symbol name
+  // under the .text.eh prefix. For regular sections, we either use a unique
+  // name, or a unique ID for the section.
+  SmallString<128> Name;
+  if (MBB.getSectionID() == MBBSectionID::ColdSectionID) {
+    Name += ".text.unlikely.";
+    Name += MBB.getParent()->getName();
+  } else if (MBB.getSectionID() == MBBSectionID::ExceptionSectionID) {
+    Name += ".text.eh.";
+    Name += MBB.getParent()->getName();
+  } else {
+    Name += MBB.getParent()->getSection()->getName();
     if (TM.getUniqueBBSectionNames()) {
       Name += ".";
       Name += MBB.getSymbol()->getName();
-    } else
+    } else {
       UniqueID = NextUniqueID++;
-    break;
+    }
   }
 
   unsigned Flags = ELF::SHF_ALLOC | ELF::SHF_EXECINSTR;
@@ -1190,7 +1194,7 @@ MCSection *TargetLoweringObjectFileMachO::SelectSectionForGlobal(
 
 MCSection *TargetLoweringObjectFileMachO::getSectionForConstant(
     const DataLayout &DL, SectionKind Kind, const Constant *C,
-    unsigned &Align) const {
+    Align &Alignment) const {
   // If this constant requires a relocation, we have to put it in the data
   // segment, not in the text segment.
   if (Kind.isData() || Kind.isReadOnlyWithRel())
@@ -1742,7 +1746,7 @@ const MCExpr *TargetLoweringObjectFileCOFF::lowerRelativeReference(
 static std::string APIntToHexString(const APInt &AI) {
   unsigned Width = (AI.getBitWidth() / 8) * 2;
   std::string HexString = AI.toString(16, /*Signed=*/false);
-  transform(HexString.begin(), HexString.end(), HexString.begin(), tolower);
+  llvm::transform(HexString, HexString.begin(), tolower);
   unsigned Size = HexString.size();
   assert(Width >= Size && "hex string is too large!");
   HexString.insert(HexString.begin(), Width - Size, '0');
@@ -1773,7 +1777,7 @@ static std::string scalarConstantToHexString(const Constant *C) {
 
 MCSection *TargetLoweringObjectFileCOFF::getSectionForConstant(
     const DataLayout &DL, SectionKind Kind, const Constant *C,
-    unsigned &Align) const {
+    Align &Alignment) const {
   if (Kind.isMergeableConst() && C &&
       getContext().getAsmInfo()->hasCOFFComdatConstants()) {
     // This creates comdat sections with the given symbol name, but unless
@@ -1785,25 +1789,25 @@ MCSection *TargetLoweringObjectFileCOFF::getSectionForConstant(
                                      COFF::IMAGE_SCN_LNK_COMDAT;
     std::string COMDATSymName;
     if (Kind.isMergeableConst4()) {
-      if (Align <= 4) {
+      if (Alignment <= 4) {
         COMDATSymName = "__real@" + scalarConstantToHexString(C);
-        Align = 4;
+        Alignment = Align(4);
       }
     } else if (Kind.isMergeableConst8()) {
-      if (Align <= 8) {
+      if (Alignment <= 8) {
         COMDATSymName = "__real@" + scalarConstantToHexString(C);
-        Align = 8;
+        Alignment = Align(8);
       }
     } else if (Kind.isMergeableConst16()) {
       // FIXME: These may not be appropriate for non-x86 architectures.
-      if (Align <= 16) {
+      if (Alignment <= 16) {
         COMDATSymName = "__xmm@" + scalarConstantToHexString(C);
-        Align = 16;
+        Alignment = Align(16);
       }
     } else if (Kind.isMergeableConst32()) {
-      if (Align <= 32) {
+      if (Alignment <= 32) {
         COMDATSymName = "__ymm@" + scalarConstantToHexString(C);
-        Align = 32;
+        Alignment = Align(32);
       }
     }
 
@@ -1813,9 +1817,9 @@ MCSection *TargetLoweringObjectFileCOFF::getSectionForConstant(
                                          COFF::IMAGE_COMDAT_SELECT_ANY);
   }
 
-  return TargetLoweringObjectFile::getSectionForConstant(DL, Kind, C, Align);
+  return TargetLoweringObjectFile::getSectionForConstant(DL, Kind, C,
+                                                         Alignment);
 }
-
 
 //===----------------------------------------------------------------------===//
 //                                  Wasm
@@ -1979,7 +1983,7 @@ TargetLoweringObjectFileXCOFF::getTargetSymbol(const GlobalValue *GV,
   // function entry point. We choose to always return a function descriptor
   // here.
   if (const GlobalObject *GO = dyn_cast<GlobalObject>(GV)) {
-    if (GO->isDeclaration())
+    if (GO->isDeclarationForLinker())
       return cast<MCSectionXCOFF>(getSectionForExternalReference(GO, TM))
           ->getQualNameSymbol();
 
@@ -2007,7 +2011,7 @@ MCSection *TargetLoweringObjectFileXCOFF::getExplicitSectionGlobal(
 
 MCSection *TargetLoweringObjectFileXCOFF::getSectionForExternalReference(
     const GlobalObject *GO, const TargetMachine &TM) const {
-  assert(GO->isDeclaration() &&
+  assert(GO->isDeclarationForLinker() &&
          "Tried to get ER section for a defined global.");
 
   SmallString<128> Name;
@@ -2092,7 +2096,7 @@ bool TargetLoweringObjectFileXCOFF::shouldPutJumpTableInFunctionSection(
 /// information, return a section that it should be placed in.
 MCSection *TargetLoweringObjectFileXCOFF::getSectionForConstant(
     const DataLayout &DL, SectionKind Kind, const Constant *C,
-    unsigned &Align) const {
+    Align &Alignment) const {
   //TODO: Enable emiting constant pool to unique sections when we support it.
   return ReadOnlySection;
 }
@@ -2129,17 +2133,27 @@ XCOFF::StorageClass TargetLoweringObjectFileXCOFF::getStorageClassForGlobal(
     return XCOFF::C_HIDEXT;
   case GlobalValue::ExternalLinkage:
   case GlobalValue::CommonLinkage:
+  case GlobalValue::AvailableExternallyLinkage:
     return XCOFF::C_EXT;
   case GlobalValue::ExternalWeakLinkage:
+  case GlobalValue::LinkOnceAnyLinkage:
   case GlobalValue::LinkOnceODRLinkage:
+  case GlobalValue::WeakAnyLinkage:
+  case GlobalValue::WeakODRLinkage:
     return XCOFF::C_WEAKEXT;
   case GlobalValue::AppendingLinkage:
     report_fatal_error(
         "There is no mapping that implements AppendingLinkage for XCOFF.");
-  default:
-    report_fatal_error(
-        "Unhandled linkage when mapping linkage to StorageClass.");
   }
+  llvm_unreachable("Unknown linkage type!");
+}
+
+MCSymbol *TargetLoweringObjectFileXCOFF::getFunctionEntryPointSymbol(
+    const Function *F, const TargetMachine &TM) const {
+  SmallString<128> NameStr;
+  NameStr.push_back('.');
+  getNameWithPrefix(NameStr, F, TM);
+  return getContext().getOrCreateSymbol(NameStr);
 }
 
 MCSection *TargetLoweringObjectFileXCOFF::getSectionForFunctionDescriptor(

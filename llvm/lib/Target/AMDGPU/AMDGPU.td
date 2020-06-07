@@ -500,12 +500,6 @@ def FeatureNoDataDepHazard : SubtargetFeature<"no-data-dep-hazard",
 // Subtarget Features (options and debugging)
 //===------------------------------------------------------------===//
 
-def FeatureFPExceptions : SubtargetFeature<"fp-exceptions",
-  "FPExceptions",
-  "true",
-  "Enable floating point exceptions"
->;
-
 class FeatureMaxPrivateElementSize<int size> : SubtargetFeature<
   "max-private-element-size-"#size,
   "MaxPrivateElementSize",
@@ -1062,6 +1056,9 @@ def Has16BitInsts : Predicate<"Subtarget->has16BitInsts()">,
   AssemblerPredicate<(all_of Feature16BitInsts)>;
 def HasVOP3PInsts : Predicate<"Subtarget->hasVOP3PInsts()">,
   AssemblerPredicate<(all_of FeatureVOP3P)>;
+
+def HasMinMaxDenormModes : Predicate<"Subtarget->supportsMinMaxDenormModes()">;
+def NotHasMinMaxDenormModes : Predicate<"!Subtarget->supportsMinMaxDenormModes()">;
 
 def HasSDWA : Predicate<"Subtarget->hasSDWA()">,
   AssemblerPredicate<(all_of FeatureSDWA, FeatureVolcanicIslands)>;

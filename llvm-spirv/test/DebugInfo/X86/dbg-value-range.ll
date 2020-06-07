@@ -4,6 +4,9 @@
 
 ; RUN: llc -mtriple=x86_64-apple-darwin10 < %t.ll | FileCheck %s
 
+target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
+target triple = "spir64-unknown-unknown"
+
 %struct.a = type { i32 }
 
 define i32 @bar(%struct.a* nocapture %b) nounwind ssp !dbg !0 {
@@ -63,5 +66,3 @@ declare void @llvm.dbg.value(metadata, metadata, metadata) nounwind readnone
 ;CHECK:	.quad	0
 ;CHECK-NEXT:	.quad	0
 !24 = !{i32 1, !"Debug Info Version", i32 3}
-target triple = "spir64-unknown-unknown"
-target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"

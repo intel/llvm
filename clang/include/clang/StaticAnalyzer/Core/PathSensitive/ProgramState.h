@@ -39,7 +39,7 @@ class CallEvent;
 class CallEventManager;
 
 typedef std::unique_ptr<ConstraintManager>(*ConstraintManagerCreator)(
-    ProgramStateManager &, SubEngine *);
+    ProgramStateManager &, ExprEngine *);
 typedef std::unique_ptr<StoreManager>(*StoreManagerCreator)(
     ProgramStateManager &);
 
@@ -298,6 +298,9 @@ public:
   LLVM_NODISCARD ProgramStateRef enterStackFrame(
       const CallEvent &Call, const StackFrameContext *CalleeCtx) const;
 
+  /// Return the value of 'self' if available in the given context.
+  SVal getSelfSVal(const LocationContext *LC) const;
+
   /// Get the lvalue for a base class object reference.
   Loc getLValue(const CXXBaseSpecifier &BaseSpec, const SubRegion *Super) const;
 
@@ -457,8 +460,8 @@ class ProgramStateManager {
   friend class ProgramState;
   friend void ProgramStateRelease(const ProgramState *state);
 private:
-  /// Eng - The SubEngine that owns this state manager.
-  SubEngine *Eng; /* Can be null. */
+  /// Eng - The ExprEngine that owns this state manager.
+  ExprEngine *Eng; /* Can be null. */
 
   EnvironmentManager                   EnvMgr;
   std::unique_ptr<StoreManager>        StoreMgr;
@@ -490,7 +493,7 @@ public:
                  StoreManagerCreator CreateStoreManager,
                  ConstraintManagerCreator CreateConstraintManager,
                  llvm::BumpPtrAllocator& alloc,
-                 SubEngine *subeng);
+                 ExprEngine *expreng);
 
   ~ProgramStateManager();
 
@@ -531,7 +534,7 @@ public:
 
   StoreManager &getStoreManager() { return *StoreMgr; }
   ConstraintManager &getConstraintManager() { return *ConstraintMgr; }
-  SubEngine &getOwningEngine() { return *Eng; }
+  ExprEngine &getOwningEngine() { return *Eng; }
 
   ProgramStateRef
   removeDeadBindingsFromEnvironmentAndStore(ProgramStateRef St,

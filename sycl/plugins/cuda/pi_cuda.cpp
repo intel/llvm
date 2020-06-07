@@ -276,13 +276,13 @@ _pi_event::_pi_event(pi_command_type type, pi_context context, pi_queue queue)
       isStarted_{false}, evEnd_{nullptr}, evStart_{nullptr}, evQueued_{nullptr},
       queue_{queue}, context_{context} {
 
-  if (is_native_event()) {
-    PI_CHECK_ERROR(cuEventCreate(&evEnd_, CU_EVENT_DEFAULT));
+  assert(type != PI_COMMAND_TYPE_USER);
 
-    if (queue_->properties_ & PI_QUEUE_PROFILING_ENABLE) {
-      PI_CHECK_ERROR(cuEventCreate(&evQueued_, CU_EVENT_DEFAULT));
-      PI_CHECK_ERROR(cuEventCreate(&evStart_, CU_EVENT_DEFAULT));
-    }
+  PI_CHECK_ERROR(cuEventCreate(&evEnd_, CU_EVENT_DEFAULT));
+
+  if (queue_->properties_ & PI_QUEUE_PROFILING_ENABLE) {
+    PI_CHECK_ERROR(cuEventCreate(&evQueued_, CU_EVENT_DEFAULT));
+    PI_CHECK_ERROR(cuEventCreate(&evStart_, CU_EVENT_DEFAULT));
   }
 
   if (queue_ != nullptr) {
@@ -303,7 +303,7 @@ pi_result _pi_event::start() {
   pi_result result;
 
   try {
-    if (is_native_event() && queue_->properties_ & PI_QUEUE_PROFILING_ENABLE) {
+    if (queue_->properties_ & PI_QUEUE_PROFILING_ENABLE) {
       // NOTE: This relies on the default stream to be unused.
       result = PI_CHECK_ERROR(cuEventRecord(evQueued_, 0));
       result = PI_CHECK_ERROR(cuEventRecord(evStart_, queue_->get()));
@@ -313,8 +313,6 @@ pi_result _pi_event::start() {
   }
 
   isStarted_ = true;
-  // let observers know that the event is "submitted"
-  trigger_callback(get_execution_status());
   return result;
 }
 
@@ -351,37 +349,16 @@ pi_result _pi_event::record() {
 
   pi_result result = PI_INVALID_OPERATION;
 
-  if (is_native_event()) {
+  if (!queue_) {
+    return PI_INVALID_QUEUE;
+  }
 
-    if (!queue_) {
-      return PI_INVALID_QUEUE;
-    }
+  CUstream cuStream = queue_->get();
 
-    CUstream cuStream = queue_->get();
-
-    try {
-      result = PI_CHECK_ERROR(cuEventRecord(evEnd_, cuStream));
-
-      result = cuda_piEventRetain(this);
-      try {
-        result = PI_CHECK_ERROR(cuLaunchHostFunc(
-            cuStream,
-            [](void *userData) {
-              pi_event event = reinterpret_cast<pi_event>(userData);
-              event->set_event_complete();
-              cuda_piEventRelease(event);
-            },
-            this));
-      } catch (...) {
-        // If host function fails to enqueue we must release the event here
-        result = cuda_piEventRelease(this);
-        throw;
-      }
-    } catch (pi_result error) {
-      result = error;
-    }
-  } else {
-    result = PI_SUCCESS;
+  try {
+    result = PI_CHECK_ERROR(cuEventRecord(evEnd_, cuStream));
+  } catch (pi_result error) {
+    result = error;
   }
 
   if (result == PI_SUCCESS) {
@@ -392,65 +369,23 @@ pi_result _pi_event::record() {
 }
 
 pi_result _pi_event::wait() {
-
   pi_result retErr;
-  if (is_native_event()) {
-    try {
-      retErr = PI_CHECK_ERROR(cuEventSynchronize(evEnd_));
-      isCompleted_ = true;
-    } catch (pi_result error) {
-      retErr = error;
-    }
-  } else {
-
-    while (!is_completed()) {
-      // wait for user event to complete
-    }
-    retErr = PI_SUCCESS;
+  try {
+    retErr = PI_CHECK_ERROR(cuEventSynchronize(evEnd_));
+    isCompleted_ = true;
+  } catch (pi_result error) {
+    retErr = error;
   }
-
-  auto is_success = retErr == PI_SUCCESS;
-  auto status = is_success ? get_execution_status() : pi_int32(retErr);
-
-  trigger_callback(status);
 
   return retErr;
 }
 
 // makes all future work submitted to queue wait for all work captured in event.
 pi_result enqueueEventWait(pi_queue queue, pi_event event) {
-  if (event->is_native_event()) {
-
-    // for native events, the cuStreamWaitEvent call is used.
-    // This makes all future work submitted to stream wait for all
-    // work captured in event.
-
-    return PI_CHECK_ERROR(cuStreamWaitEvent(queue->get(), event->get(), 0));
-
-  } else {
-
-    // for user events, we enqueue a callback. When invoked, the
-    // callback will block until the user event is marked as
-    // completed.
-
-    static auto user_wait_func = [](void *user_data) {
-      // The host function must not make any CUDA API calls.
-      auto event = static_cast<pi_event>(user_data);
-
-      // busy wait for user event to complete
-      event->wait();
-
-      // this function does not need the event to be kept alive
-      // anymore
-      cuda_piEventRelease(event);
-    };
-
-    // retain event to ensure it is still alive when the
-    // user_wait_func callback is invoked
-    cuda_piEventRetain(event);
-
-    return PI_CHECK_ERROR(cuLaunchHostFunc(queue->get(), user_wait_func, event));
-  }
+  // for native events, the cuStreamWaitEvent call is used.
+  // This makes all future work submitted to stream wait for all
+  // work captured in event.
+  return PI_CHECK_ERROR(cuStreamWaitEvent(queue->get(), event->get(), 0));
 }
 
 _pi_program::_pi_program(pi_context ctxt)
@@ -684,7 +619,7 @@ pi_result cuda_piPlatformGetInfo(pi_platform platform,
   switch (param_name) {
   case PI_PLATFORM_INFO_NAME:
     return getInfo(param_value_size, param_value, param_value_size_ret,
-                   "NVIDIA CUDA");
+                   "NVIDIA CUDA BACKEND");
   case PI_PLATFORM_INFO_VENDOR:
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    "NVIDIA Corporation");
@@ -716,15 +651,18 @@ pi_result cuda_piDevicesGet(pi_platform platform, pi_device_type device_type,
                             pi_uint32 *num_devices) {
 
   pi_result err = PI_SUCCESS;
-  const bool askingForGPU = (device_type & PI_DEVICE_TYPE_GPU);
-  size_t numDevices = askingForGPU ? platform->devices_.size() : 0;
+  const bool askingForDefault = device_type == PI_DEVICE_TYPE_DEFAULT;
+  const bool askingForGPU = device_type & PI_DEVICE_TYPE_GPU;
+  const bool returnDevices = askingForDefault || askingForGPU;
+
+  size_t numDevices = returnDevices ? platform->devices_.size() : 0;
 
   try {
     if (num_devices) {
       *num_devices = numDevices;
     }
 
-    if (askingForGPU && devices) {
+    if (returnDevices && devices) {
       for (size_t i = 0; i < std::min(size_t(num_entries), numDevices); ++i) {
         devices[i] = platform->devices_[i].get();
       }
@@ -1029,15 +967,15 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   }
   case PI_DEVICE_INFO_SINGLE_FP_CONFIG: {
     // TODO: is this config consistent across all NVIDIA GPUs?
-    auto config = CL_FP_DENORM | CL_FP_INF_NAN | CL_FP_ROUND_TO_NEAREST |
-                  CL_FP_ROUND_TO_ZERO | CL_FP_ROUND_TO_INF | CL_FP_FMA |
-                  CL_FP_CORRECTLY_ROUNDED_DIVIDE_SQRT;
+    auto config = PI_FP_DENORM | PI_FP_INF_NAN | PI_FP_ROUND_TO_NEAREST |
+                  PI_FP_ROUND_TO_ZERO | PI_FP_ROUND_TO_INF | PI_FP_FMA |
+                  PI_FP_CORRECTLY_ROUNDED_DIVIDE_SQRT;
     return getInfo(param_value_size, param_value, param_value_size_ret, config);
   }
   case PI_DEVICE_INFO_DOUBLE_FP_CONFIG: {
     // TODO: is this config consistent across all NVIDIA GPUs?
-    auto config = CL_FP_DENORM | CL_FP_INF_NAN | CL_FP_ROUND_TO_NEAREST |
-                  CL_FP_ROUND_TO_ZERO | CL_FP_ROUND_TO_INF | CL_FP_FMA;
+    auto config = PI_FP_DENORM | PI_FP_INF_NAN | PI_FP_ROUND_TO_NEAREST |
+                  PI_FP_ROUND_TO_ZERO | PI_FP_ROUND_TO_INF | PI_FP_FMA;
     return getInfo(param_value_size, param_value, param_value_size_ret, config);
   }
   case PI_DEVICE_INFO_GLOBAL_MEM_CACHE_TYPE: {
@@ -1583,7 +1521,15 @@ pi_result cuda_piMemBufferCreate(pi_context context, pi_mem_flags flags,
       if (piMemObj != nullptr) {
         retMemObj = piMemObj.release();
         if (performInitialCopy) {
+          // Operates on the default stream of the current CUDA context.
           retErr = PI_CHECK_ERROR(cuMemcpyHtoD(ptr, host_ptr, size));
+          // Synchronize with default stream implicitly used by cuMemcpyHtoD
+          // to make buffer data available on device before any other PI call
+          // uses it.
+          if (retErr == PI_SUCCESS) {
+            CUstream defaultStream = 0;
+            retErr = PI_CHECK_ERROR(cuStreamSynchronize(defaultStream));
+          }
         }
       } else {
         retErr = PI_OUT_OF_HOST_MEMORY;
@@ -1674,7 +1620,7 @@ pi_result cuda_piMemBufferPartition(pi_mem parent_buffer, pi_mem_flags flags,
   assert(memObj != nullptr);
 
   const auto bufferRegion =
-      *reinterpret_cast<const cl_buffer_region *>(buffer_create_info);
+      *reinterpret_cast<const pi_buffer_region>(buffer_create_info);
   assert((bufferRegion.size != 0u) && "PI_INVALID_BUFFER_SIZE");
 
   assert((bufferRegion.origin <= (bufferRegion.origin + bufferRegion.size)) &&
@@ -2682,24 +2628,7 @@ pi_result cuda_piextKernelSetArgPointer(pi_kernel kernel, pi_uint32 arg_index,
 // Events
 //
 pi_result cuda_piEventCreate(pi_context context, pi_event *event) {
-  assert(context != nullptr);
-  assert(event != nullptr);
-  pi_result retErr = PI_SUCCESS;
-  pi_event retEvent = nullptr;
-
-  try {
-    retEvent = _pi_event::make_user(context);
-    if (retEvent == nullptr) {
-      retErr = PI_OUT_OF_HOST_MEMORY;
-    }
-  } catch (pi_result err) {
-    retErr = err;
-  } catch (...) {
-    retErr = PI_OUT_OF_RESOURCES;
-  }
-
-  *event = retEvent;
-  return retErr;
+  cl::sycl::detail::pi::die("PI Event Create not implemented in CUDA backend");
 }
 
 pi_result cuda_piEventGetInfo(pi_event event, pi_event_info param_name,
@@ -2763,37 +2692,13 @@ pi_result cuda_piEventSetCallback(pi_event event,
                                   pi_int32 command_exec_callback_type,
                                   pfn_notify notify, void *user_data) {
 
-  assert(event);
-  assert(notify);
-  assert(command_exec_callback_type == PI_EVENT_SUBMITTED ||
-         command_exec_callback_type == PI_EVENT_RUNNING ||
-         command_exec_callback_type == PI_EVENT_COMPLETE);
-  event_callback callback(pi_event_status(command_exec_callback_type), notify,
-                          user_data);
-
-  event->set_event_callback(callback);
-
+  cl::sycl::detail::pi::die("Event Callback not implemented in CUDA backend");
   return PI_SUCCESS;
 }
 
 pi_result cuda_piEventSetStatus(pi_event event, pi_int32 execution_status) {
 
-  assert(execution_status >= PI_EVENT_COMPLETE &&
-         execution_status <= PI_EVENT_QUEUED);
-
-  if (!event || event->is_native_event()) {
-    return PI_INVALID_EVENT;
-  }
-
-  if (execution_status == PI_EVENT_COMPLETE) {
-    return event->set_event_complete();
-  } else if (execution_status < 0) {
-    // TODO: A negative integer value causes all enqueued commands that wait
-    // on this user event to be terminated.
-    cl::sycl::detail::pi::die("cuda_piEventSetStatus support for negative execution_status not "
-                              "implemented.");
-  }
-
+  cl::sycl::detail::pi::die("Event Set Status not implemented in CUDA backend");
   return PI_INVALID_VALUE;
 }
 
@@ -2821,19 +2726,13 @@ pi_result cuda_piEventRelease(pi_event event) {
   if (event->decrement_reference_count() == 0) {
     std::unique_ptr<_pi_event> event_ptr{event};
     pi_result result = PI_INVALID_EVENT;
-
-    if (event->is_native_event()) {
-      try {
-        ScopedContext active(event->get_context());
-        auto cuEvent = event->get();
-        result = PI_CHECK_ERROR(cuEventDestroy(cuEvent));
-      } catch (...) {
-        result = PI_OUT_OF_RESOURCES;
-      }
-    } else {
-      result = PI_SUCCESS;
+    try {
+      ScopedContext active(event->get_context());
+      auto cuEvent = event->get();
+      result = PI_CHECK_ERROR(cuEventDestroy(cuEvent));
+    } catch (...) {
+      result = PI_OUT_OF_RESOURCES;
     }
-
     return result;
   }
 
@@ -2867,11 +2766,9 @@ pi_result cuda_piEnqueueEventsWait(pi_queue command_queue,
     }
 
     if (event) {
-      auto new_event =
-          _pi_event::make_native(PI_COMMAND_TYPE_MARKER, command_queue);
-      new_event->start();
-      new_event->record();
-      *event = new_event;
+      *event = _pi_event::make_native(PI_COMMAND_TYPE_MARKER, command_queue);
+      (*event)->start();
+      (*event)->record();
     }
 
     return PI_SUCCESS;
@@ -2890,9 +2787,6 @@ pi_result cuda_piEnqueueEventsWait(pi_queue command_queue,
 /// \return PI_SUCCESS on success. PI_INVALID_EVENT if given a user event.
 pi_result cuda_piextEventGetNativeHandle(pi_event event,
                                          pi_native_handle *nativeHandle) {
-  if (event->is_user_event()) {
-    return PI_INVALID_EVENT;
-  }
   *nativeHandle = reinterpret_cast<pi_native_handle>(event->get());
   return PI_SUCCESS;
 }
@@ -3281,7 +3175,6 @@ pi_result cuda_piEnqueueMemBufferFill(pi_queue command_queue, pi_mem buffer,
     return PI_ERROR_UNKNOWN;
   }
 }
-
 /// \TODO Not implemented in CUDA, requires untie from OpenCL
 pi_result cuda_piEnqueueMemImageRead(
     pi_queue command_queue, pi_mem image, pi_bool blocking_read,
@@ -3340,6 +3233,7 @@ pi_result cuda_piEnqueueMemBufferMap(pi_queue command_queue, pi_mem buffer,
                                      pi_event *retEvent, void **ret_map) {
 
   assert(ret_map != nullptr);
+  assert(command_queue != nullptr);
 
   pi_result ret_err = PI_INVALID_OPERATION;
 
@@ -3359,6 +3253,18 @@ pi_result cuda_piEnqueueMemBufferMap(pi_queue command_queue, pi_mem buffer,
     ret_err = cuda_piEnqueueMemBufferRead(
         command_queue, buffer, blocking_map, offset, size, hostPtr,
         num_events_in_wait_list, event_wait_list, retEvent);
+  } else {
+    if (retEvent) {
+      try {
+        ScopedContext active(command_queue->get_context());
+
+        *retEvent = _pi_event::make_native(PI_COMMAND_TYPE_MEM_BUFFER_MAP,
+                                           command_queue);
+        (*retEvent)->record();
+      } catch (pi_result error) {
+        ret_err = error;
+      }
+    }
   }
 
   return ret_err;
@@ -3372,8 +3278,9 @@ pi_result cuda_piEnqueueMemUnmap(pi_queue command_queue, pi_mem memobj,
                                  pi_uint32 num_events_in_wait_list,
                                  const pi_event *event_wait_list,
                                  pi_event *retEvent) {
-  pi_result ret_err = PI_INVALID_OPERATION;
+  pi_result ret_err = PI_SUCCESS;
 
+  assert(command_queue != nullptr);
   assert(mapped_ptr != nullptr);
   assert(memobj != nullptr);
   assert(memobj->get_map_ptr() != nullptr);
@@ -3385,6 +3292,18 @@ pi_result cuda_piEnqueueMemUnmap(pi_queue command_queue, pi_mem memobj,
       command_queue, memobj, true, memobj->get_map_offset(mapped_ptr),
       memobj->get_size(), mapped_ptr, num_events_in_wait_list, event_wait_list,
       retEvent);
+  } else {
+    if (retEvent) {
+      try {
+        ScopedContext active(command_queue->get_context());
+
+        *retEvent = _pi_event::make_native(PI_COMMAND_TYPE_MEM_BUFFER_UNMAP,
+                                           command_queue);
+        (*retEvent)->record();
+      } catch (pi_result error) {
+        ret_err = error;
+      }
+    }
   }
 
   memobj->unmap(mapped_ptr);
@@ -3587,7 +3506,7 @@ pi_result cuda_piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr,
 
 /// USM: memadvise API to govern behavior of automatic migration mechanisms
 pi_result cuda_piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
-                                        size_t length, int advice,
+                                        size_t length, pi_mem_advice advice,
                                         pi_event *event) {
   assert(queue != nullptr);
   assert(ptr != nullptr);

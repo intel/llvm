@@ -1006,6 +1006,17 @@ DEF_TRAVERSE_TYPE(VectorType, { TRY_TO(TraverseType(T->getElementType())); })
 
 DEF_TRAVERSE_TYPE(ExtVectorType, { TRY_TO(TraverseType(T->getElementType())); })
 
+DEF_TRAVERSE_TYPE(ConstantMatrixType,
+                  { TRY_TO(TraverseType(T->getElementType())); })
+
+DEF_TRAVERSE_TYPE(DependentSizedMatrixType, {
+  if (T->getRowExpr())
+    TRY_TO(TraverseStmt(T->getRowExpr()));
+  if (T->getColumnExpr())
+    TRY_TO(TraverseStmt(T->getColumnExpr()));
+  TRY_TO(TraverseType(T->getElementType()));
+})
+
 DEF_TRAVERSE_TYPE(FunctionNoProtoType,
                   { TRY_TO(TraverseType(T->getReturnType())); })
 
@@ -1255,6 +1266,18 @@ DEF_TRAVERSE_TYPELOC(DependentVectorType, {
 // FIXME: size and attributes
 // FIXME: base VectorTypeLoc is unfinished
 DEF_TRAVERSE_TYPELOC(ExtVectorType, {
+  TRY_TO(TraverseType(TL.getTypePtr()->getElementType()));
+})
+
+DEF_TRAVERSE_TYPELOC(ConstantMatrixType, {
+  TRY_TO(TraverseStmt(TL.getAttrRowOperand()));
+  TRY_TO(TraverseStmt(TL.getAttrColumnOperand()));
+  TRY_TO(TraverseType(TL.getTypePtr()->getElementType()));
+})
+
+DEF_TRAVERSE_TYPELOC(DependentSizedMatrixType, {
+  TRY_TO(TraverseStmt(TL.getAttrRowOperand()));
+  TRY_TO(TraverseStmt(TL.getAttrColumnOperand()));
   TRY_TO(TraverseType(TL.getTypePtr()->getElementType()));
 })
 
@@ -2080,11 +2103,11 @@ bool RecursiveASTVisitor<Derived>::TraverseFunctionHelper(FunctionDecl *D) {
     }
   }
 
-  bool VisitBody = D->isThisDeclarationADefinition();
-  // If a method is set to default outside the class definition the compiler
-  // generates the method body and adds it to the AST.
-  if (const auto *MD = dyn_cast<CXXMethodDecl>(D))
-    VisitBody &= !MD->isDefaulted() || getDerived().shouldVisitImplicitCode();
+  bool VisitBody =
+      D->isThisDeclarationADefinition() &&
+      // Don't visit the function body if the function definition is generated
+      // by clang.
+      (!D->isDefaulted() || getDerived().shouldVisitImplicitCode());
 
   if (VisitBody) {
     TRY_TO(TraverseStmt(D->getBody())); // Function body.
@@ -2329,6 +2352,10 @@ DEF_TRAVERSE_STMT(CStyleCastExpr, {
 })
 
 DEF_TRAVERSE_STMT(CXXFunctionalCastExpr, {
+  TRY_TO(TraverseTypeLoc(S->getTypeInfoAsWritten()->getTypeLoc()));
+})
+
+DEF_TRAVERSE_STMT(CXXAddrspaceCastExpr, {
   TRY_TO(TraverseTypeLoc(S->getTypeInfoAsWritten()->getTypeLoc()));
 })
 
@@ -3495,6 +3522,13 @@ bool RecursiveASTVisitor<Derived>::VisitOMPUseDevicePtrClause(
 }
 
 template <typename Derived>
+bool RecursiveASTVisitor<Derived>::VisitOMPUseDeviceAddrClause(
+    OMPUseDeviceAddrClause *C) {
+  TRY_TO(VisitOMPClauseList(C));
+  return true;
+}
+
+template <typename Derived>
 bool RecursiveASTVisitor<Derived>::VisitOMPIsDevicePtrClause(
     OMPIsDevicePtrClause *C) {
   TRY_TO(VisitOMPClauseList(C));
@@ -3519,6 +3553,26 @@ bool RecursiveASTVisitor<Derived>::VisitOMPOrderClause(OMPOrderClause *) {
 template <typename Derived>
 bool RecursiveASTVisitor<Derived>::VisitOMPDetachClause(OMPDetachClause *C) {
   TRY_TO(TraverseStmt(C->getEventHandler()));
+  return true;
+}
+
+template <typename Derived>
+bool RecursiveASTVisitor<Derived>::VisitOMPUsesAllocatorsClause(
+    OMPUsesAllocatorsClause *C) {
+  for (unsigned I = 0, E = C->getNumberOfAllocators(); I < E; ++I) {
+    const OMPUsesAllocatorsClause::Data Data = C->getAllocatorData(I);
+    TRY_TO(TraverseStmt(Data.Allocator));
+    TRY_TO(TraverseStmt(Data.AllocatorTraits));
+  }
+  return true;
+}
+
+template <typename Derived>
+bool RecursiveASTVisitor<Derived>::VisitOMPAffinityClause(
+    OMPAffinityClause *C) {
+  TRY_TO(TraverseStmt(C->getModifier()));
+  for (Expr *E : C->varlists())
+    TRY_TO(TraverseStmt(E));
   return true;
 }
 

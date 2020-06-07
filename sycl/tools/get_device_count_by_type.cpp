@@ -6,6 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+// Suppress a compiler warning about undefined CL_TARGET_OPENCL_VERSION
+// and define all symbols up to OpenCL 2.2
+#ifndef CL_TARGET_OPENCL_VERSION
+#define CL_TARGET_OPENCL_VERSION 220
+#endif
+
 #include <CL/cl.h>
 #include <CL/cl_ext.h>
 
@@ -15,6 +21,7 @@
 
 #include <algorithm>
 #include <cstdlib>
+#include <cstring>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -82,6 +89,17 @@ static bool queryOpenCL(cl_device_type deviceType, cl_uint &deviceCount,
   }
 
   for (cl_uint i = 0; i < platformCount; i++) {
+    const size_t MAX_PLATFORM_VENDOR = 100u;
+    char info[MAX_PLATFORM_VENDOR];
+    // get platform attribute value
+    clGetPlatformInfo(platforms[i], CL_PLATFORM_VENDOR, MAX_PLATFORM_VENDOR,
+                      info, NULL);
+    const auto IsNVIDIAOpenCL = strstr(info, "NVIDIA") != NULL;
+    if (IsNVIDIAOpenCL) {
+      // Ignore NVIDIA OpenCL platform for testing
+      continue;
+    }
+
     cl_uint deviceCountPart = 0;
     iRet =
         clGetDeviceIDs(platforms[i], deviceType, 0, nullptr, &deviceCountPart);

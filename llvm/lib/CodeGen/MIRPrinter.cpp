@@ -517,7 +517,7 @@ void MIRPrinter::convert(yaml::MachineFunction &MF,
     yaml::MachineConstantPoolValue YamlConstant;
     YamlConstant.ID = ID++;
     YamlConstant.Value = StrOS.str();
-    YamlConstant.Alignment = MaybeAlign(Constant.getAlignment());
+    YamlConstant.Alignment = Constant.getAlign();
     YamlConstant.IsTargetSpecific = Constant.isMachineConstantPoolEntry();
 
     MF.Constants.push_back(YamlConstant);
@@ -778,6 +778,8 @@ void MIPrinter::print(const MachineInstr &MI) {
     OS << "exact ";
   if (MI.getFlag(MachineInstr::NoFPExcept))
     OS << "nofpexcept ";
+  if (MI.getFlag(MachineInstr::NoMerge))
+    OS << "nomerge ";
 
   OS << TII->getName(MI.getOpcode());
   if (I < E)

@@ -28,7 +28,6 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/Analysis/ProfileSummaryInfo.h"
 #include "llvm/CodeGen/DAGCombine.h"
 #include "llvm/CodeGen/ISDOpcodes.h"
 #include "llvm/CodeGen/RuntimeLibcalls.h"
@@ -46,14 +45,11 @@
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Type.h"
-#include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/Support/Alignment.h"
 #include "llvm/Support/AtomicOrdering.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MachineValueType.h"
-#include "llvm/Target/TargetMachine.h"
-#include "llvm/Transforms/Utils/SizeOpts.h"
 #include <algorithm>
 #include <cassert>
 #include <climits>
@@ -87,9 +83,12 @@ class MachineRegisterInfo;
 class MCContext;
 class MCExpr;
 class Module;
-class TargetRegisterClass;
+class ProfileSummaryInfo;
 class TargetLibraryInfo;
+class TargetMachine;
+class TargetRegisterClass;
 class TargetRegisterInfo;
+class TargetTransformInfo;
 class Value;
 
 namespace Sched {
@@ -273,17 +272,20 @@ public:
     bool IsNest : 1;
     bool IsByVal : 1;
     bool IsInAlloca : 1;
+    bool IsPreallocated : 1;
     bool IsReturned : 1;
     bool IsSwiftSelf : 1;
     bool IsSwiftError : 1;
     bool IsCFGuardTarget : 1;
     MaybeAlign Alignment = None;
     Type *ByValType = nullptr;
+    Type *PreallocatedType = nullptr;
 
     ArgListEntry()
         : IsSExt(false), IsZExt(false), IsInReg(false), IsSRet(false),
-          IsNest(false), IsByVal(false), IsInAlloca(false), IsReturned(false),
-          IsSwiftSelf(false), IsSwiftError(false), IsCFGuardTarget(false) {}
+          IsNest(false), IsByVal(false), IsInAlloca(false),
+          IsPreallocated(false), IsReturned(false), IsSwiftSelf(false),
+          IsSwiftError(false), IsCFGuardTarget(false) {}
 
     void setAttributes(const CallBase *Call, unsigned ArgIdx);
   };
@@ -1648,9 +1650,11 @@ public:
   /// Zero if no limit.
   unsigned getMaximumJumpTableSize() const;
 
-  virtual bool isJumpTableRelative() const {
-    return TM.isPositionIndependent();
-  }
+  virtual bool isJumpTableRelative() const;
+
+  /// Return true if a mulh[s|u] node for a specific type is cheaper than
+  /// a multiply followed by a shift. This is false by default.
+  virtual bool isMulhCheaperThanMulShift(EVT Type) const { return false; }
 
   /// If a physical register, this specifies the register that
   /// llvm.savestack/llvm.restorestack should save and restore.
@@ -2336,11 +2340,21 @@ public:
   }
 
   /// Return true if it's significantly cheaper to shift a vector by a uniform
-  /// scalar than by an amount which will vary across each lane. On x86, for
-  /// example, there is a "psllw" instruction for the former case, but no simple
-  /// instruction for a general "a << b" operation on vectors.
+  /// scalar than by an amount which will vary across each lane. On x86 before
+  /// AVX2 for example, there is a "psllw" instruction for the former case, but
+  /// no simple instruction for a general "a << b" operation on vectors.
+  /// This should also apply to lowering for vector funnel shifts (rotates).
   virtual bool isVectorShiftByScalarCheap(Type *Ty) const {
     return false;
+  }
+
+  /// Given a shuffle vector SVI representing a vector splat, return a new
+  /// scalar type of size equal to SVI's scalar type if the new type is more
+  /// profitable. Returns nullptr otherwise. For example under MVE float splats
+  /// are converted to integer to prevent the need to move from SPR to GPR
+  /// registers.
+  virtual Type* shouldConvertSplatType(ShuffleVectorInst* SVI) const {
+    return nullptr;
   }
 
   /// Returns true if the opcode is a commutative binary operation.
@@ -3535,17 +3549,37 @@ public:
     llvm_unreachable("Not Implemented");
   }
 
-  /// Returns whether computing the negated form of the specified expression is
-  /// more expensive, the same cost or cheaper.
-  virtual NegatibleCost getNegatibleCost(SDValue Op, SelectionDAG &DAG,
-                                         bool LegalOperations, bool ForCodeSize,
-                                         unsigned Depth = 0) const;
-
-  /// If getNegatibleCost returns Neutral/Cheaper, return the newly negated
-  /// expression.
+  /// Return the newly negated expression if the cost is not expensive and
+  /// set the cost in \p Cost to indicate that if it is cheaper or neutral to
+  /// do the negation.
   virtual SDValue getNegatedExpression(SDValue Op, SelectionDAG &DAG,
-                                       bool LegalOperations, bool ForCodeSize,
+                                       bool LegalOps, bool OptForSize,
+                                       NegatibleCost &Cost,
                                        unsigned Depth = 0) const;
+
+  /// This is the helper function to return the newly negated expression only
+  /// when the cost is cheaper.
+  SDValue getCheaperNegatedExpression(SDValue Op, SelectionDAG &DAG,
+                                      bool LegalOps, bool OptForSize,
+                                      unsigned Depth = 0) const {
+    NegatibleCost Cost = NegatibleCost::Expensive;
+    SDValue Neg =
+        getNegatedExpression(Op, DAG, LegalOps, OptForSize, Cost, Depth);
+    if (Neg && Cost == NegatibleCost::Cheaper)
+      return Neg;
+    // Remove the new created node to avoid the side effect to the DAG.
+    if (Neg && Neg.getNode()->use_empty())
+      DAG.RemoveDeadNode(Neg.getNode());
+    return SDValue();
+  }
+
+  /// This is the helper function to return the newly negated expression if
+  /// the cost is not expensive.
+  SDValue getNegatedExpression(SDValue Op, SelectionDAG &DAG, bool LegalOps,
+                               bool OptForSize, unsigned Depth = 0) const {
+    NegatibleCost Cost = NegatibleCost::Expensive;
+    return getNegatedExpression(Op, DAG, LegalOps, OptForSize, Cost, Depth);
+  }
 
   //===--------------------------------------------------------------------===//
   // Lowering methods - These methods must be implemented by targets so that
@@ -3578,6 +3612,8 @@ public:
     bool IsReturnValueUsed : 1;
     bool IsConvergent      : 1;
     bool IsPatchPoint      : 1;
+    bool IsPreallocated : 1;
+    bool NoMerge           : 1;
 
     // IsTailCall should be modified by implementations of
     // TargetLowering::LowerCall that perform tail call conversions.
@@ -3601,7 +3637,8 @@ public:
     CallLoweringInfo(SelectionDAG &DAG)
         : RetSExt(false), RetZExt(false), IsVarArg(false), IsInReg(false),
           DoesNotReturn(false), IsReturnValueUsed(true), IsConvergent(false),
-          IsPatchPoint(false), DAG(DAG) {}
+          IsPatchPoint(false), IsPreallocated(false), NoMerge(false),
+          DAG(DAG) {}
 
     CallLoweringInfo &setDebugLoc(const SDLoc &dl) {
       DL = dl;
@@ -3650,7 +3687,8 @@ public:
       IsReturnValueUsed = !Call.use_empty();
       RetSExt = Call.hasRetAttr(Attribute::SExt);
       RetZExt = Call.hasRetAttr(Attribute::ZExt);
-
+      NoMerge = Call.hasFnAttr(Attribute::NoMerge);
+      
       Callee = Target;
 
       CallConv = Call.getCallingConv();
@@ -3704,6 +3742,11 @@ public:
 
     CallLoweringInfo &setIsPatchPoint(bool Value = true) {
       IsPatchPoint = Value;
+      return *this;
+    }
+
+    CallLoweringInfo &setIsPreallocated(bool Value = true) {
+      IsPreallocated = Value;
       return *this;
     }
 

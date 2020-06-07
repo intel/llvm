@@ -10,11 +10,7 @@
 #define LLVM_CLANG_TOOLS_EXTRA_CLANGD_CLANGDSERVER_H
 
 #include "../clang-tidy/ClangTidyOptions.h"
-#include "Cancellation.h"
 #include "CodeComplete.h"
-#include "FSProvider.h"
-#include "FormattedString.h"
-#include "Function.h"
 #include "GlobalCompilationDatabase.h"
 #include "Hover.h"
 #include "Protocol.h"
@@ -26,6 +22,9 @@
 #include "index/Index.h"
 #include "refactor/Rename.h"
 #include "refactor/Tweak.h"
+#include "support/Cancellation.h"
+#include "support/FSProvider.h"
+#include "support/Function.h"
 #include "clang/Tooling/CompilationDatabase.h"
 #include "clang/Tooling/Core/Replacement.h"
 #include "llvm/ADT/FunctionExtras.h"
@@ -98,6 +97,9 @@ public:
 
     /// Cached preambles are potentially large. If false, store them on disk.
     bool StorePreamblesInMemory = true;
+    /// Reuse even stale preambles, and rebuild them in the background.
+    /// This improves latency at the cost of accuracy.
+    bool AsyncPreambleBuilds = false;
 
     /// If true, ClangdServer builds a dynamic in-memory index for symbols in
     /// opened files and uses the index to augment code completion results.
@@ -120,6 +122,9 @@ public:
 
     /// If true, turn on the `-frecovery-ast` clang flag.
     bool BuildRecoveryAST = false;
+
+    /// If true, turn on the `-frecovery-ast-type` clang flag.
+    bool PreserveRecoveryASTType = false;
 
     /// Clangd's workspace root. Relevant for "workspace" operations not bound
     /// to a particular file.
@@ -350,6 +355,8 @@ private:
 
   // If true, preserve expressions in AST for broken code.
   bool BuildRecoveryAST = false;
+  // If true, preserve the type for recovery AST.
+  bool PreserveRecoveryASTType = false;
 
   std::function<bool(const Tweak &)> TweakFilter;
 

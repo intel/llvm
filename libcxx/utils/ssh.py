@@ -15,7 +15,6 @@ conformance test suite.
 
 import argparse
 import os
-import pipes
 import posixpath
 import subprocess
 import sys
@@ -38,7 +37,7 @@ def main():
     commandLine = remaining[1:] # Skip the '--'
 
     ssh = lambda command: ['ssh', '-oBatchMode=yes', args.host, command]
-    scp = lambda src, dst: ['scp', '-oBatchMode=yes', src, '{}:{}'.format(args.host, dst)]
+    scp = lambda src, dst: ['scp', '-q', '-oBatchMode=yes', src, '{}:{}'.format(args.host, dst)]
 
     # Create a temporary directory where the test will be run.
     tmp = subprocess.check_output(ssh('mktemp -d /tmp/libcxx.XXXXXXXXXX'), universal_newlines=True).strip()
@@ -99,11 +98,10 @@ def main():
         # temporary directory, where we know they have been copied when we handled
         # test dependencies above.
         commandLine = (pathOnRemote(x) if isTestExe(x) else x for x in commandLine)
-        remoteCommands += [
-            'cd {}'.format(tmp),
-            'export {}'.format(' '.join(args.env)),
-            ' '.join(pipes.quote(x) for x in commandLine)
-        ]
+        remoteCommands.append('cd {}'.format(tmp))
+        if args.env:
+            remoteCommands.append('export {}'.format(' '.join(args.env)))
+        remoteCommands.append(subprocess.list2cmdline(commandLine))
 
         # Finally, SSH to the remote host and execute all the commands.
         rc = subprocess.call(ssh(' && '.join(remoteCommands)))

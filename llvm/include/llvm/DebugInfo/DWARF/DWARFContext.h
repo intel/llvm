@@ -72,6 +72,7 @@ class DWARFContext : public DIContext {
   DWARFUnitVector DWOUnits;
   std::unique_ptr<DWARFDebugAbbrev> AbbrevDWO;
   std::unique_ptr<DWARFDebugMacro> MacinfoDWO;
+  std::unique_ptr<DWARFDebugMacro> MacroDWO;
 
   /// The maximum DWARF version of all units.
   unsigned MaxVersion = 0;
@@ -110,8 +111,8 @@ class DWARFContext : public DIContext {
   enum MacroSecType {
     MacinfoSection,
     MacinfoDwoSection,
-    MacroSection
-    // FIXME: Add support for.debug_macro.dwo section.
+    MacroSection,
+    MacroDwoSection
   };
 
 public:
@@ -277,10 +278,10 @@ public:
   const DWARFDebugAranges *getDebugAranges();
 
   /// Get a pointer to the parsed frame information object.
-  const DWARFDebugFrame *getDebugFrame();
+  Expected<const DWARFDebugFrame *> getDebugFrame();
 
   /// Get a pointer to the parsed eh frame information object.
-  const DWARFDebugFrame *getEHFrame();
+  Expected<const DWARFDebugFrame *> getEHFrame();
 
   /// Get a pointer to the parsed DebugMacinfo information object.
   const DWARFDebugMacro *getDebugMacinfo();
@@ -290,6 +291,9 @@ public:
 
   /// Get a pointer to the parsed DebugMacro information object.
   const DWARFDebugMacro *getDebugMacro();
+
+  /// Get a pointer to the parsed DebugMacroDWO information object.
+  const DWARFDebugMacro *getDebugMacroDWO();
 
   /// Get a reference to the parsed accelerator table object.
   const DWARFDebugNames &getDebugNames();
@@ -318,6 +322,9 @@ public:
 
   DataExtractor getStringExtractor() const {
     return DataExtractor(DObj->getStrSection(), false, 0);
+  }
+  DataExtractor getStringDWOExtractor() const {
+    return DataExtractor(DObj->getStrDWOSection(), false, 0);
   }
   DataExtractor getLineStringExtractor() const {
     return DataExtractor(DObj->getLineStrSection(), false, 0);
@@ -394,16 +401,17 @@ public:
     return getDWARFObj().getFile()->getArch();
   }
 
-private:
-  /// Parse a macro[.dwo] or macinfo[.dwo] section.
-  std::unique_ptr<DWARFDebugMacro>
-  parseMacroOrMacinfo(MacroSecType SectionType);
-
   /// Return the compile unit which contains instruction with provided
   /// address.
   /// TODO: change input parameter from "uint64_t Address"
   ///       into "SectionedAddress Address"
   DWARFCompileUnit *getCompileUnitForAddress(uint64_t Address);
+
+private:
+  /// Parse a macro[.dwo] or macinfo[.dwo] section.
+  std::unique_ptr<DWARFDebugMacro>
+  parseMacroOrMacinfo(MacroSecType SectionType);
+
   void addLocalsForDie(DWARFCompileUnit *CU, DWARFDie Subprogram, DWARFDie Die,
                        std::vector<DILocal> &Result);
 };

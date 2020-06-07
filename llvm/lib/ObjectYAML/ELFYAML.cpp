@@ -221,6 +221,7 @@ void ScalarEnumerationTraits<ELFYAML::ELF_EM>::enumeration(
   ECase(EM_RISCV);
   ECase(EM_LANAI);
   ECase(EM_BPF);
+  ECase(EM_VE);
 #undef ECase
   IO.enumFallback<Hex16>(Value);
 }
@@ -662,6 +663,9 @@ void ScalarEnumerationTraits<ELFYAML::ELF_REL>::enumeration(
   case ELF::EM_BPF:
 #include "llvm/BinaryFormat/ELFRelocs/BPF.def"
     break;
+  case ELF::EM_VE:
+#include "llvm/BinaryFormat/ELFRelocs/VE.def"
+    break;
   case ELF::EM_PPC64:
 #include "llvm/BinaryFormat/ELFRelocs/PowerPC64.def"
     break;
@@ -826,6 +830,16 @@ void ScalarBitSetTraits<ELFYAML::MIPS_AFL_FLAGS1>::bitset(
 #define BCase(X) IO.bitSetCase(Value, #X, Mips::AFL_FLAGS1_##X)
   BCase(ODDSPREG);
 #undef BCase
+}
+
+void MappingTraits<ELFYAML::SectionHeader>::mapping(
+    IO &IO, ELFYAML::SectionHeader &SHdr) {
+  IO.mapRequired("Name", SHdr.Name);
+}
+
+void MappingTraits<ELFYAML::SectionHeaderTable>::mapping(
+    IO &IO, ELFYAML::SectionHeaderTable &SectionHeader) {
+  IO.mapRequired("Sections", SectionHeader.Sections);
 }
 
 void MappingTraits<ELFYAML::FileHeader>::mapping(IO &IO,
@@ -1052,6 +1066,7 @@ static void commonSectionMapping(IO &IO, ELFYAML::Section &Section) {
   IO.mapOptional("Link", Section.Link, StringRef());
   IO.mapOptional("AddressAlign", Section.AddressAlign, Hex64(0));
   IO.mapOptional("EntSize", Section.EntSize);
+  IO.mapOptional("Offset", Section.Offset);
 
   // obj2yaml does not dump these fields. They are expected to be empty when we
   // are producing YAML, because yaml2obj sets appropriate values for them
@@ -1173,6 +1188,7 @@ static void sectionMapping(IO &IO, ELFYAML::AddrsigSection &Section) {
 static void fillMapping(IO &IO, ELFYAML::Fill &Fill) {
   IO.mapOptional("Name", Fill.Name, StringRef());
   IO.mapOptional("Pattern", Fill.Pattern);
+  IO.mapOptional("Offset", Fill.Offset);
   IO.mapRequired("Size", Fill.Size);
 }
 
@@ -1632,10 +1648,12 @@ void MappingTraits<ELFYAML::Object>::mapping(IO &IO, ELFYAML::Object &Object) {
   IO.setContext(&Object);
   IO.mapTag("!ELF", true);
   IO.mapRequired("FileHeader", Object.Header);
+  IO.mapOptional("SectionHeaderTable", Object.SectionHeaders);
   IO.mapOptional("ProgramHeaders", Object.ProgramHeaders);
   IO.mapOptional("Sections", Object.Chunks);
   IO.mapOptional("Symbols", Object.Symbols);
   IO.mapOptional("DynamicSymbols", Object.DynamicSymbols);
+  IO.mapOptional("DWARF", Object.DWARF);
   IO.setContext(nullptr);
 }
 

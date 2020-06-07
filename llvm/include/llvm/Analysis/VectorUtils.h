@@ -63,7 +63,7 @@ struct VFParameter {
   unsigned ParamPos;         // Parameter Position in Scalar Function.
   VFParamKind ParamKind;     // Kind of Parameter.
   int LinearStepOrPos = 0;   // Step or Position of the Parameter.
-  Align Alignment = Align(); // Optional aligment in bytes, defaulted to 1.
+  Align Alignment = Align(); // Optional alignment in bytes, defaulted to 1.
 
   // Comparison operator.
   bool operator==(const VFParameter &Other) const {
@@ -82,7 +82,7 @@ struct VFParameter {
 struct VFShape {
   unsigned VF;     // Vectorization factor.
   bool IsScalable; // True if the function is a scalable function.
-  SmallVector<VFParameter, 8> Parameters; // List of parameter informations.
+  SmallVector<VFParameter, 8> Parameters; // List of parameter information.
   // Comparison operator.
   bool operator==(const VFShape &Other) const {
     return std::tie(VF, IsScalable, Parameters) ==
@@ -94,6 +94,12 @@ struct VFShape {
     assert(P.ParamPos < Parameters.size() && "Invalid parameter position.");
     Parameters[P.ParamPos] = P;
     assert(hasValidParameterList() && "Invalid parameter list");
+  }
+
+  // Retrieve the VFShape that can be used to map a (scalar) function to itself,
+  // with VF = 1.
+  static VFShape getScalarShape(const CallInst &CI) {
+    return VFShape::get(CI, /*EC*/ {1, false}, /*HasGlobalPredicate*/ false);
   }
 
   // Retrieve the basic vectorization shape of the function, where all
@@ -139,14 +145,14 @@ static constexpr char const *_LLVM_ = "_LLVM_";
 /// it once vectorization is done.
 static constexpr char const *_LLVM_Scalarize_ = "_LLVM_Scalarize_";
 
-/// Function to contruct a VFInfo out of a mangled names in the
+/// Function to construct a VFInfo out of a mangled names in the
 /// following format:
 ///
 /// <VFABI_name>{(<redirection>)}
 ///
 /// where <VFABI_name> is the name of the vector function, mangled according
 /// to the rules described in the Vector Function ABI of the target vector
-/// extentsion (or <isa> from now on). The <VFABI_name> is in the following
+/// extension (or <isa> from now on). The <VFABI_name> is in the following
 /// format:
 ///
 /// _ZGV<isa><mask><vlen><parameters>_<scalarname>[(<redirection>)]
@@ -160,12 +166,31 @@ static constexpr char const *_LLVM_Scalarize_ = "_LLVM_Scalarize_";
 ///
 /// \param MangledName -> input string in the format
 /// _ZGV<isa><mask><vlen><parameters>_<scalarname>[(<redirection>)].
-/// \param M -> Module used to retrive informations about the vector
+/// \param M -> Module used to retrieve informations about the vector
 /// function that are not possible to retrieve from the mangled
-/// name. At the moment, this parameter is needed only to retrive the
+/// name. At the moment, this parameter is needed only to retrieve the
 /// Vectorization Factor of scalable vector functions from their
 /// respective IR declarations.
 Optional<VFInfo> tryDemangleForVFABI(StringRef MangledName, const Module &M);
+
+/// This routine mangles the given VectorName according to the LangRef
+/// specification for vector-function-abi-variant attribute and is specific to
+/// the TLI mappings. It is the responsibility of the caller to make sure that
+/// this is only used if all parameters in the vector function are vector type.
+/// This returned string holds scalar-to-vector mapping:
+///    _ZGV<isa><mask><vlen><vparams>_<scalarname>(<vectorname>)
+///
+/// where:
+///
+/// <isa> = "_LLVM_"
+/// <mask> = "N". Note: TLI does not support masked interfaces.
+/// <vlen> = Number of concurrent lanes, stored in the `VectorizationFactor`
+///          field of the `VecDesc` struct.
+/// <vparams> = "v", as many as are the numArgs.
+/// <scalarname> = the name of the scalar function.
+/// <vectorname> = the name of the vector function.
+std::string mangleTLIVectorName(StringRef VectorName, StringRef ScalarName,
+                                unsigned numArgs, unsigned VF);
 
 /// Retrieve the `VFParamKind` from a string token.
 VFParamKind getVFParamKindFromString(const StringRef Token);
@@ -174,7 +199,10 @@ VFParamKind getVFParamKindFromString(const StringRef Token);
 static constexpr char const *MappingsAttrName = "vector-function-abi-variant";
 
 /// Populates a set of strings representing the Vector Function ABI variants
-/// associated to the CallInst CI.
+/// associated to the CallInst CI. If the CI does not contain the
+/// vector-function-abi-variant attribute, we return without populating
+/// VariantMappings, i.e. callers of getVectorVariantNames need not check for
+/// the presence of the attribute (see InjectTLIMappings).
 void getVectorVariantNames(const CallInst &CI,
                            SmallVectorImpl<std::string> &VariantMappings);
 } // end namespace VFABI
@@ -186,23 +214,24 @@ void getVectorVariantNames(const CallInst &CI,
 class VFDatabase {
   /// The Module of the CallInst CI.
   const Module *M;
-  /// List of vector functions descritors associated to the call
+  /// The CallInst instance being queried for scalar to vector mappings.
+  const CallInst &CI;
+  /// List of vector functions descriptors associated to the call
   /// instruction.
   const SmallVector<VFInfo, 8> ScalarToVectorMappings;
 
-  /// Retreive the scalar-to-vector mappings associated to the rule of
+  /// Retrieve the scalar-to-vector mappings associated to the rule of
   /// a vector Function ABI.
   static void getVFABIMappings(const CallInst &CI,
                                SmallVectorImpl<VFInfo> &Mappings) {
     const StringRef ScalarName = CI.getCalledFunction()->getName();
-    const StringRef S =
-        CI.getAttribute(AttributeList::FunctionIndex, VFABI::MappingsAttrName)
-            .getValueAsString();
-    if (S.empty())
-      return;
 
     SmallVector<std::string, 8> ListOfStrings;
+    // The check for the vector-function-abi-variant attribute is done when
+    // retrieving the vector variant names here.
     VFABI::getVectorVariantNames(CI, ListOfStrings);
+    if (ListOfStrings.empty())
+      return;
     for (const auto &MangledName : ListOfStrings) {
       const Optional<VFInfo> Shape =
           VFABI::tryDemangleForVFABI(MangledName, *(CI.getModule()));
@@ -233,13 +262,16 @@ public:
 
   /// Constructor, requires a CallInst instance.
   VFDatabase(CallInst &CI)
-      : M(CI.getModule()), ScalarToVectorMappings(VFDatabase::getMappings(CI)) {
-  }
+      : M(CI.getModule()), CI(CI),
+        ScalarToVectorMappings(VFDatabase::getMappings(CI)) {}
   /// \defgroup VFDatabase query interface.
   ///
   /// @{
   /// Retrieve the Function with VFShape \p Shape.
   Function *getVectorizedFunction(const VFShape &Shape) const {
+    if (Shape == VFShape::getScalarShape(CI))
+      return CI.getCalledFunction();
+
     for (const auto &Info : ScalarToVectorMappings)
       if (Info.Shape == Shape)
         return M->getFunction(Info.VectorName);
@@ -698,7 +730,7 @@ public:
                         const LoopAccessInfo *LAI)
       : PSE(PSE), TheLoop(L), DT(DT), LI(LI), LAI(LAI) {}
 
-  ~InterleavedAccessInfo() { reset(); }
+  ~InterleavedAccessInfo() { invalidateGroups(); }
 
   /// Analyze the interleaved accesses and collect them in interleave
   /// groups. Substitute symbolic strides using \p Strides.
@@ -709,15 +741,23 @@ public:
   /// Invalidate groups, e.g., in case all blocks in loop will be predicated
   /// contrary to original assumption. Although we currently prevent group
   /// formation for predicated accesses, we may be able to relax this limitation
-  /// in the future once we handle more complicated blocks.
-  void reset() {
+  /// in the future once we handle more complicated blocks. Returns true if any
+  /// groups were invalidated.
+  bool invalidateGroups() {
+    if (InterleaveGroups.empty()) {
+      assert(
+          !RequiresScalarEpilogue &&
+          "RequiresScalarEpilog should not be set without interleave groups");
+      return false;
+    }
+
     InterleaveGroupMap.clear();
     for (auto *Ptr : InterleaveGroups)
       delete Ptr;
     InterleaveGroups.clear();
     RequiresScalarEpilogue = false;
+    return true;
   }
-
 
   /// Check if \p Instr belongs to any interleave group.
   bool isInterleaved(Instruction *Instr) const {

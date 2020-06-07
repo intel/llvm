@@ -9,15 +9,15 @@
 #include "ClangdLSPServer.h"
 #include "CodeComplete.h"
 #include "Features.inc"
-#include "Path.h"
 #include "PathMapping.h"
 #include "Protocol.h"
-#include "Shutdown.h"
-#include "Trace.h"
 #include "Transport.h"
 #include "index/Background.h"
 #include "index/Serialization.h"
 #include "refactor/Rename.h"
+#include "support/Path.h"
+#include "support/Shutdown.h"
+#include "support/Trace.h"
 #include "clang/Basic/Version.h"
 #include "clang/Format/Format.h"
 #include "llvm/ADT/Optional.h"
@@ -274,17 +274,22 @@ list<std::string> TweakList{
 opt<bool> CrossFileRename{
     "cross-file-rename",
     cat(Features),
-    desc("Enable cross-file rename feature. Note that this feature is "
-         "experimental and may lead to broken code or incomplete rename "
-         "results"),
-    init(false),
-    Hidden,
+    desc("Enable cross-file rename feature."),
+    init(true),
 };
 
 opt<bool> RecoveryAST{
     "recovery-ast",
     cat(Features),
     desc("Preserve expressions in AST for broken code (C++ only). Note that "
+         "this feature is experimental and may lead to crashes"),
+    init(false),
+    Hidden,
+};
+opt<bool> RecoveryASTType{
+    "recovery-ast-type",
+    cat(Features),
+    desc("Preserve the type for recovery AST. Note that "
          "this feature is experimental and may lead to crashes"),
     init(false),
     Hidden,
@@ -412,6 +417,15 @@ opt<bool> PrettyPrint{
     init(false),
 };
 
+opt<bool> AsyncPreamble{
+    "async-preamble",
+    cat(Misc),
+    desc("Reuse even stale preambles, and rebuild them in the background. This "
+         "improves latency at the cost of accuracy."),
+    init(ClangdServer::Options().AsyncPreambleBuilds),
+    Hidden,
+};
+
 /// Supports a test URI scheme with relaxed constraints for lit tests.
 /// The path in a test URI will be combined with a platform-specific fake
 /// directory to form an absolute path. For example, test:///a.cpp is resolved
@@ -482,7 +496,7 @@ int main(int argc, char *argv[]) {
       R"(clangd is a language server that provides IDE-like features to editors.
 
 It should be used via an editor plugin rather than invoked directly. For more information, see:
-	https://clang.llvm.org/extra/clangd/
+	https://clangd.llvm.org/
 	https://microsoft.github.io/language-server-protocol/
 
 clangd accepts flags on the commandline, and in the CLANGD_FLAGS environment variable.
@@ -539,18 +553,23 @@ clangd accepts flags on the commandline, and in the CLANGD_FLAGS environment var
   // Setup tracing facilities if CLANGD_TRACE is set. In practice enabling a
   // trace flag in your editor's config is annoying, launching with
   // `CLANGD_TRACE=trace.json vim` is easier.
-  llvm::Optional<llvm::raw_fd_ostream> TraceStream;
+  llvm::Optional<llvm::raw_fd_ostream> TracerStream;
   std::unique_ptr<trace::EventTracer> Tracer;
-  if (auto *TraceFile = getenv("CLANGD_TRACE")) {
+  const char *JSONTraceFile = getenv("CLANGD_TRACE");
+  const char *MetricsCSVFile = getenv("CLANGD_METRICS");
+  const char *TracerFile = JSONTraceFile ? JSONTraceFile : MetricsCSVFile;
+  if (TracerFile) {
     std::error_code EC;
-    TraceStream.emplace(TraceFile, /*ref*/ EC,
-                        llvm::sys::fs::FA_Read | llvm::sys::fs::FA_Write);
+    TracerStream.emplace(TracerFile, /*ref*/ EC,
+                         llvm::sys::fs::FA_Read | llvm::sys::fs::FA_Write);
     if (EC) {
-      TraceStream.reset();
-      llvm::errs() << "Error while opening trace file " << TraceFile << ": "
+      TracerStream.reset();
+      llvm::errs() << "Error while opening trace file " << TracerFile << ": "
                    << EC.message();
     } else {
-      Tracer = trace::createJSONTracer(*TraceStream, PrettyPrint);
+      Tracer = (TracerFile == JSONTraceFile)
+                   ? trace::createJSONTracer(*TracerStream, PrettyPrint)
+                   : trace::createCSVMetricTracer(*TracerStream);
     }
   }
 
@@ -636,6 +655,7 @@ clangd accepts flags on the commandline, and in the CLANGD_FLAGS environment var
   Opts.StaticIndex = StaticIdx.get();
   Opts.AsyncThreadsCount = WorkerThreadsCount;
   Opts.BuildRecoveryAST = RecoveryAST;
+  Opts.PreserveRecoveryASTType = RecoveryASTType;
 
   clangd::CodeCompleteOptions CCOpts;
   CCOpts.IncludeIneligibleResults = IncludeIneligibleResults;

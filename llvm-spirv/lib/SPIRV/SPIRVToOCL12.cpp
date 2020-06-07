@@ -131,26 +131,9 @@ void SPIRVToOCL12::visitCallSPIRVMemoryBarrier(CallInst *CI) {
   mutateCallInstOCL(
       M, CI,
       [=](CallInst *, std::vector<Value *> &Args) {
-        if (auto Arg = dyn_cast<ConstantInt>(Args[1])) {
-          auto Sema = mapSPIRVMemSemanticToOCL(Arg->getZExtValue());
-          Args.resize(1);
-          Args[0] = getInt32(M, Sema.first);
-        } else {
-          CallInst *TransCall = dyn_cast<CallInst>(Args[1]);
-          Function *F = TransCall ? TransCall->getCalledFunction() : nullptr;
-          if (F && F->getName().equals(kSPIRVName::TranslateOCLMemScope)) {
-            Args[0] = TransCall->getArgOperand(0);
-          } else {
-            int ClMemFenceMask = MemorySemanticsWorkgroupMemoryMask |
-                                 MemorySemanticsCrossWorkgroupMemoryMask |
-                                 MemorySemanticsImageMemoryMask;
-            Args[0] = getOrCreateSwitchFunc(
-                kSPIRVName::TranslateSPIRVMemFence, Args[1],
-                OCLMemFenceExtendedMap::getRMap(), true /*IsReverse*/, None, CI,
-                M, ClMemFenceMask);
-          }
-          Args.resize(1);
-        }
+        Value *MemFenceFlags =
+            transSPIRVMemorySemanticsIntoOCLMemFenceFlags(Args[1], CI);
+        Args.assign(1, MemFenceFlags);
         return kOCLBuiltinName::MemFence;
       },
       &Attrs);
@@ -163,26 +146,9 @@ void SPIRVToOCL12::visitCallSPIRVControlBarrier(CallInst *CI) {
   mutateCallInstOCL(
       M, CI,
       [=](CallInst *, std::vector<Value *> &Args) {
-        if (auto Arg = dyn_cast<ConstantInt>(Args[2])) {
-          auto Sema = mapSPIRVMemSemanticToOCL(Arg->getZExtValue());
-          Args.resize(1);
-          Args[0] = getInt32(M, Sema.first);
-        } else {
-          CallInst *TransCall = dyn_cast<CallInst>(Args[2]);
-          Function *F = TransCall ? TransCall->getCalledFunction() : nullptr;
-          if (F && F->getName().equals(kSPIRVName::TranslateOCLMemScope)) {
-            Args[0] = TransCall->getArgOperand(0);
-          } else {
-            int ClMemFenceMask = MemorySemanticsWorkgroupMemoryMask |
-                                 MemorySemanticsCrossWorkgroupMemoryMask |
-                                 MemorySemanticsImageMemoryMask;
-            Args[0] = getOrCreateSwitchFunc(
-                kSPIRVName::TranslateSPIRVMemFence, Args[2],
-                OCLMemFenceExtendedMap::getRMap(), true /*IsReverse*/, None, CI,
-                M, ClMemFenceMask);
-          }
-          Args.resize(1);
-        }
+        auto *MemFenceFlags =
+            transSPIRVMemorySemanticsIntoOCLMemFenceFlags(Args[2], CI);
+        Args.assign(1, MemFenceFlags);
         return kOCLBuiltinName::Barrier;
       },
       &Attrs);

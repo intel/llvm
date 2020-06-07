@@ -58,6 +58,7 @@ elif platform.system() == "Darwin":
 
 llvm_config.with_environment('PATH', config.sycl_tools_dir, append_path=True)
 
+config.substitutions.append( ('%threads_lib', config.sycl_threads_lib) )
 config.substitutions.append( ('%sycl_libs_dir',  config.sycl_libs_dir ) )
 config.substitutions.append( ('%sycl_include',  config.sycl_include ) )
 config.substitutions.append( ('%sycl_source_dir', config.sycl_source_dir) )
@@ -73,7 +74,8 @@ llvm_config.use_clang()
 llvm_config.add_tool_substitutions(['llvm-spirv'], [config.sycl_tools_dir])
 
 backend=lit_config.params.get('SYCL_BE', "PI_OPENCL")
-lit_config.note("Backend: {BACKEND}".format(BACKEND=backend))
+lit_config.note("Backend (SYCL_BE): {}".format(backend))
+config.substitutions.append( ('%sycl_be', backend) )
 
 get_device_count_by_type_path = os.path.join(config.llvm_tools_dir, "get_device_count_by_type")
 

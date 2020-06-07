@@ -113,10 +113,10 @@ public:
   /// Hint that pairing the given load or store is unprofitable.
   static void suppressLdStPair(MachineInstr &MI);
 
-  bool getMemOperandsWithOffset(
+  bool getMemOperandsWithOffsetWidth(
       const MachineInstr &MI, SmallVectorImpl<const MachineOperand *> &BaseOps,
-      int64_t &Offset, bool &OffsetIsScalable, const TargetRegisterInfo *TRI)
-      const override;
+      int64_t &Offset, bool &OffsetIsScalable, unsigned &Width,
+      const TargetRegisterInfo *TRI) const override;
 
   /// If \p OffsetIsScalable is set to 'true', the offset is scaled by `vscale`.
   /// This is true for some SVE instructions like ldr/str that have a
@@ -140,7 +140,7 @@ public:
 
   bool shouldClusterMemOps(ArrayRef<const MachineOperand *> BaseOps1,
                            ArrayRef<const MachineOperand *> BaseOps2,
-                           unsigned NumLoads) const override;
+                           unsigned NumLoads, unsigned NumBytes) const override;
 
   void copyPhysRegTuple(MachineBasicBlock &MBB, MachineBasicBlock::iterator I,
                         const DebugLoc &DL, MCRegister DestReg,
@@ -315,6 +315,12 @@ private:
   /// constructing an outlined call if one exists. Returns 0 otherwise.
   unsigned findRegisterToSaveLRTo(const outliner::Candidate &C) const;
 };
+
+/// Return true if there is an instruction /after/ \p DefMI and before \p UseMI
+/// which either reads or clobbers NZCV.
+bool isNZCVTouchedInInstructionRange(const MachineInstr &DefMI,
+                                     const MachineInstr &UseMI,
+                                     const TargetRegisterInfo *TRI);
 
 /// emitFrameOffset - Emit instructions as needed to set DestReg to SrcReg
 /// plus Offset.  This is intended to be used from within the prolog/epilog

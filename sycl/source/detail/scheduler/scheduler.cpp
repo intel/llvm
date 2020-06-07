@@ -66,16 +66,24 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
   Command *NewCmd = nullptr;
   const bool IsKernel = CommandGroup->getType() == CG::KERNEL;
   {
-    std::lock_guard<std::shared_timed_mutex> Lock(MGraphLock);
+    std::unique_lock<std::shared_timed_mutex> Lock(MGraphLock, std::defer_lock);
+    lockSharedTimedMutex(Lock);
 
     switch (CommandGroup->getType()) {
     case CG::UPDATE_HOST:
       NewCmd = MGraphBuilder.addCGUpdateHost(std::move(CommandGroup),
                                              DefaultHostQueue);
       break;
+    case CG::CODEPLAY_HOST_TASK:
+      NewCmd = MGraphBuilder.addCG(std::move(CommandGroup), DefaultHostQueue);
+      break;
     default:
       NewCmd = MGraphBuilder.addCG(std::move(CommandGroup), std::move(Queue));
     }
+  }
+
+  {
+    std::shared_lock<std::shared_timed_mutex> Lock(MGraphLock);
 
     // TODO: Check if lazy mode.
     EnqueueResultT Res;
@@ -91,7 +99,8 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
 }
 
 EventImplPtr Scheduler::addCopyBack(Requirement *Req) {
-  std::lock_guard<std::shared_timed_mutex> Lock(MGraphLock);
+  std::unique_lock<std::shared_timed_mutex> Lock(MGraphLock, std::defer_lock);
+  lockSharedTimedMutex(Lock);
   Command *NewCmd = MGraphBuilder.addCopyBack(Req);
   // Command was not creted because there were no operations with
   // buffer.
@@ -147,12 +156,14 @@ void Scheduler::cleanupFinishedCommands(EventImplPtr FinishedEvent) {
 }
 
 void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
-  std::lock_guard<std::shared_timed_mutex> Lock(MGraphLock);
+  std::unique_lock<std::shared_timed_mutex> Lock(MGraphLock, std::defer_lock);
+  lockSharedTimedMutex(Lock);
 
   MemObjRecord *Record = MGraphBuilder.getMemObjRecord(MemObj);
   if (!Record)
     // No operations were performed on the mem object
     return;
+
   waitForRecordToFinish(Record);
   MGraphBuilder.decrementLeafCountersForRecord(Record);
   MGraphBuilder.cleanupCommandsForRecord(Record);
@@ -161,7 +172,8 @@ void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
 
 EventImplPtr Scheduler::addHostAccessor(Requirement *Req,
                                         const bool destructor) {
-  std::lock_guard<std::shared_timed_mutex> Lock(MGraphLock);
+  std::unique_lock<std::shared_timed_mutex> Lock(MGraphLock, std::defer_lock);
+  lockSharedTimedMutex(Lock);
 
   Command *NewCmd = MGraphBuilder.addHostAccessor(Req, destructor);
 
@@ -175,8 +187,19 @@ EventImplPtr Scheduler::addHostAccessor(Requirement *Req,
 }
 
 void Scheduler::releaseHostAccessor(Requirement *Req) {
-  Req->MBlockedCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
+  Command *const BlockedCmd = Req->MBlockedCmd;
+
   std::shared_lock<std::shared_timed_mutex> Lock(MGraphLock);
+
+  assert(BlockedCmd && "Can't find appropriate command to unblock");
+
+  BlockedCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
+
+  enqueueLeavesOfReqUnlocked(Req);
+}
+
+// static
+void Scheduler::enqueueLeavesOfReqUnlocked(const Requirement *const Req) {
   MemObjRecord *Record = Req->MSYCLMemObj->MRecord.get();
   auto EnqueueLeaves = [](CircularBuffer<Command *> &Leaves) {
     for (Command *Cmd : Leaves) {
@@ -195,6 +218,25 @@ Scheduler::Scheduler() {
   DefaultHostQueue = QueueImplPtr(
       new queue_impl(detail::getSyclObjImpl(HostDevice), /*AsyncHandler=*/{},
                      QueueOrder::Ordered, /*PropList=*/{}));
+}
+
+void Scheduler::lockSharedTimedMutex(
+    std::unique_lock<std::shared_timed_mutex> &Lock) {
+#ifdef _WIN32
+  // Avoiding deadlock situation for MSVC. std::shared_timed_mutex specification
+  // does not specify a priority for shared and exclusive accesses. It will be a
+  // deadlock in MSVC's std::shared_timed_mutex implementation, if exclusive
+  // access occurs after shared access.
+  // TODO: after switching to C++17, change std::shared_timed_mutex to
+  // std::shared_mutex and use std::lock_guard here both for Windows and Linux.
+  while (!Lock.owns_lock()) {
+    Lock.try_lock();
+  }
+#else
+  // It is a deadlock on UNIX in implementation of lock and lock_shared, if
+  // try_lock in the loop above will be executed, so using a single lock here
+  Lock.lock();
+#endif // _WIN32
 }
 
 } // namespace detail

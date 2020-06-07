@@ -20,11 +20,8 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/FloatingPointMode.h"
 #include "llvm/ADT/GraphTraits.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/ilist.h"
 #include "llvm/ADT/iterator.h"
 #include "llvm/Analysis/EHPersonalities.h"
@@ -35,7 +32,6 @@
 #include "llvm/Support/ArrayRecycler.h"
 #include "llvm/Support/AtomicOrdering.h"
 #include "llvm/Support/Compiler.h"
-#include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/Recycler.h"
 #include "llvm/Target/TargetOptions.h"
 #include <cassert>
@@ -50,10 +46,12 @@ class BasicBlock;
 class BlockAddress;
 class DataLayout;
 class DebugLoc;
+struct DenormalMode;
 class DIExpression;
 class DILocalVariable;
 class DILocation;
 class Function;
+class GISelChangeObserver;
 class GlobalValue;
 class LLVMTargetMachine;
 class MachineConstantPool;
@@ -70,11 +68,11 @@ class Pass;
 class PseudoSourceValueManager;
 class raw_ostream;
 class SlotIndexes;
+class StringRef;
 class TargetRegisterClass;
 class TargetSubtargetInfo;
 struct WasmEHFuncInfo;
 struct WinEHFuncInfo;
-class GISelChangeObserver;
 
 template <> struct ilist_alloc_traits<MachineBasicBlock> {
   void deleteNode(MachineBasicBlock *MBB);
@@ -399,9 +397,9 @@ public:
   /// For now we support only cases when argument is transferred through one
   /// register.
   struct ArgRegPair {
-    unsigned Reg;
+    Register Reg;
     uint16_t ArgNo;
-    ArgRegPair(unsigned R, unsigned Arg) : Reg(R), ArgNo(Arg) {
+    ArgRegPair(Register R, unsigned Arg) : Reg(R), ArgNo(Arg) {
       assert(Arg < (1 << 16) && "Arg out of range");
     }
   };
@@ -692,7 +690,7 @@ public:
 
   /// addLiveIn - Add the specified physical register as a live-in value and
   /// create a corresponding virtual register for it.
-  unsigned addLiveIn(unsigned PReg, const TargetRegisterClass *RC);
+  Register addLiveIn(MCRegister PReg, const TargetRegisterClass *RC);
 
   //===--------------------------------------------------------------------===//
   // BasicBlock accessor functions.

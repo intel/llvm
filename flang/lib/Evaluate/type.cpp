@@ -23,6 +23,7 @@
 // IsDescriptor() predicate
 // TODO there's probably a better place for this predicate than here
 namespace Fortran::semantics {
+
 static bool IsDescriptor(const ObjectEntityDetails &details) {
   if (const auto *type{details.type()}) {
     if (auto dynamicType{evaluate::DynamicType::From(*type)}) {
@@ -31,12 +32,14 @@ static bool IsDescriptor(const ObjectEntityDetails &details) {
       }
     }
   }
-  if (details.IsAssumedShape() || details.IsDeferredShape() ||
-      details.IsAssumedRank()) {
-    return true;
-  }
-  // TODO: Explicit shape component array dependent on length parameter
   // TODO: Automatic (adjustable) arrays - are they descriptors?
+  for (const ShapeSpec &shapeSpec : details.shape()) {
+    const auto &lb{shapeSpec.lbound().GetExplicit()};
+    const auto &ub{shapeSpec.ubound().GetExplicit()};
+    if (!lb || !ub || !IsConstantExpr(*lb) || !IsConstantExpr(*ub)) {
+      return true;
+    }
+  }
   return false;
 }
 
@@ -431,28 +434,8 @@ DynamicType DynamicType::ResultTypeForMultiply(const DynamicType &that) const {
 }
 
 bool DynamicType::RequiresDescriptor() const {
-  if (IsPolymorphic() || IsUnknownLengthCharacter()) {
-    return true;
-  }
-  if (derived_) {
-    // Any length type parameter?
-    if (const auto *scope{derived_->scope()}) {
-      if (const auto *symbol{scope->symbol()}) {
-        if (const auto *details{
-                symbol->detailsIf<semantics::DerivedTypeDetails>()}) {
-          for (const Symbol &param : details->paramDecls()) {
-            if (const auto *details{
-                    param.detailsIf<semantics::TypeParamDetails>()}) {
-              if (details->attr() == common::TypeParamAttr::Len) {
-                return true;
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-  return false;
+  return IsPolymorphic() || IsUnknownLengthCharacter() ||
+      (derived_ && CountLenParameters(*derived_) > 0);
 }
 
 bool DynamicType::HasDeferredTypeParameter() const {

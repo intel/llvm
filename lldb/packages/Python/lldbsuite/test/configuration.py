@@ -160,3 +160,18 @@ def get_filecheck_path():
     """
     if filecheck and os.path.lexists(filecheck):
         return filecheck
+
+def is_reproducer_replay():
+    """
+    Returns true when dotest is being replayed from a reproducer. Never use
+    this method to guard SB API calls as it will cause a divergence between
+    capture and replay.
+    """
+    return replay_path is not None
+
+def is_reproducer():
+    """
+    Returns true when dotest is capturing a reproducer or is being replayed
+    from a reproducer. Use this method to guard SB API calls.
+    """
+    return capture_path or replay_path

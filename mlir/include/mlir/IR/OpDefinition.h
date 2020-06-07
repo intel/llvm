@@ -25,6 +25,7 @@
 
 namespace mlir {
 class Builder;
+class OpBuilder;
 
 namespace OpTrait {
 template <typename ConcreteType> class OneResult;
@@ -77,17 +78,13 @@ namespace impl {
 /// region's only block if it does not have a terminator already. If the region
 /// is empty, insert a new block first. `buildTerminatorOp` should return the
 /// terminator operation to insert.
-void ensureRegionTerminator(Region &region, Location loc,
-                            function_ref<Operation *()> buildTerminatorOp);
-/// Templated version that fills the generates the provided operation type.
-template <typename OpTy>
-void ensureRegionTerminator(Region &region, Builder &builder, Location loc) {
-  ensureRegionTerminator(region, loc, [&] {
-    OperationState state(loc, OpTy::getOperationName());
-    OpTy::build(&builder, state);
-    return Operation::create(state);
-  });
-}
+void ensureRegionTerminator(
+    Region &region, OpBuilder &builder, Location loc,
+    function_ref<Operation *(OpBuilder &, Location)> buildTerminatorOp);
+void ensureRegionTerminator(
+    Region &region, Builder &builder, Location loc,
+    function_ref<Operation *(OpBuilder &, Location)> buildTerminatorOp);
+
 } // namespace impl
 
 /// This is the concrete base class that holds the operation pointer and has
@@ -176,7 +173,7 @@ public:
   void setAttrs(ArrayRef<NamedAttribute> attributes) {
     state->setAttrs(attributes);
   }
-  void setAttrs(NamedAttributeList newAttrs) { state->setAttrs(newAttrs); }
+  void setAttrs(MutableDictionaryAttr newAttrs) { state->setAttrs(newAttrs); }
 
   /// Set the dialect attributes for this operation, and preserve all dependent.
   template <typename DialectAttrs> void setDialectAttrs(DialectAttrs &&attrs) {
@@ -185,10 +182,10 @@ public:
 
   /// Remove the attribute with the specified name if it exists.  The return
   /// value indicates whether the attribute was present or not.
-  NamedAttributeList::RemoveResult removeAttr(Identifier name) {
+  MutableDictionaryAttr::RemoveResult removeAttr(Identifier name) {
     return state->removeAttr(name);
   }
-  NamedAttributeList::RemoveResult removeAttr(StringRef name) {
+  MutableDictionaryAttr::RemoveResult removeAttr(StringRef name) {
     return state->removeAttr(Identifier::get(name, getContext()));
   }
 
@@ -580,6 +577,13 @@ template <typename ConcreteType>
 class OneRegion : public TraitBase<ConcreteType, OneRegion> {
 public:
   Region &getRegion() { return this->getOperation()->getRegion(0); }
+
+  /// Returns a range of operations within the region of this operation.
+  auto getOps() { return getRegion().getOps(); }
+  template <typename OpT>
+  auto getOps() {
+    return getRegion().template getOps<OpT>();
+  }
 
   static LogicalResult verifyTrait(Operation *op) {
     return impl::verifyOneRegion(op);
@@ -1032,6 +1036,21 @@ public:
   }
 };
 
+/// A trait of region holding operations that defines a new scope for polyhedral
+/// optimization purposes. Any SSA values of 'index' type that either dominate
+/// such an operation or are used at the top-level of such an operation
+/// automatically become valid symbols for the polyhedral scope defined by that
+/// operation. For more details, see `Traits.md#AffineScope`.
+template <typename ConcreteType>
+class AffineScope : public TraitBase<ConcreteType, AffineScope> {
+public:
+  static LogicalResult verifyTrait(Operation *op) {
+    static_assert(!ConcreteType::template hasTrait<ZeroRegion>(),
+                  "expected operation to have one or more regions");
+    return success();
+  }
+};
+
 /// A trait of region holding operations that define a new scope for automatic
 /// allocations, i.e., allocations that are freed when control is transferred
 /// back from the operation's region. Any operations performing such allocations
@@ -1053,6 +1072,15 @@ public:
 template <typename TerminatorOpType> struct SingleBlockImplicitTerminator {
   template <typename ConcreteType>
   class Impl : public TraitBase<ConcreteType, Impl> {
+  private:
+    /// Builds a terminator operation without relying on OpBuilder APIs to avoid
+    /// cyclic header inclusion.
+    static Operation *buildTerminator(OpBuilder &builder, Location loc) {
+      OperationState state(loc, TerminatorOpType::getOperationName());
+      TerminatorOpType::build(builder, state);
+      return Operation::create(state);
+    }
+
   public:
     static LogicalResult verifyTrait(Operation *op) {
       for (unsigned i = 0, e = op->getNumRegions(); i < e; ++i) {
@@ -1088,10 +1116,25 @@ template <typename TerminatorOpType> struct SingleBlockImplicitTerminator {
     }
 
     /// Ensure that the given region has the terminator required by this trait.
+    /// If OpBuilder is provided, use it to build the terminator and notify the
+    /// OpBuilder litsteners accoridngly. If only a Builder is provided, locally
+    /// construct an OpBuilder with no listeners; this should only be used if no
+    /// OpBuilder is available at the call site, e.g., in the parser.
     static void ensureTerminator(Region &region, Builder &builder,
                                  Location loc) {
-      ::mlir::impl::template ensureRegionTerminator<TerminatorOpType>(
-          region, builder, loc);
+      ::mlir::impl::ensureRegionTerminator(region, builder, loc,
+                                           buildTerminator);
+    }
+    static void ensureTerminator(Region &region, OpBuilder &builder,
+                                 Location loc) {
+      ::mlir::impl::ensureRegionTerminator(region, builder, loc,
+                                           buildTerminator);
+    }
+
+    Block *getBody(unsigned idx = 0) {
+      Region &region = this->getOperation()->getRegion(idx);
+      assert(!region.empty() && "unexpected empty region");
+      return &region.front();
     }
   };
 };
@@ -1192,7 +1235,10 @@ public:
   static bool classof(Operation *op) {
     if (auto *abstractOp = op->getAbstractOperation())
       return TypeID::get<ConcreteType>() == abstractOp->typeID;
-    return op->getName().getStringRef() == ConcreteType::getOperationName();
+    assert(op->getContext()->isOperationRegistered(
+               ConcreteType::getOperationName()) &&
+           "Casting attempt to an unregistered operation");
+    return false;
   }
 
   /// This is the hook used by the AsmParser to parse the custom form of this
@@ -1353,6 +1399,7 @@ class OpInterface : public Op<ConcreteType> {
 public:
   using Concept = typename Traits::Concept;
   template <typename T> using Model = typename Traits::template Model<T>;
+  using Base = OpInterface<ConcreteType, Traits>;
 
   OpInterface(Operation *op = nullptr)
       : Op<ConcreteType>(op), impl(op ? getInterfaceFor(op) : nullptr) {
@@ -1415,7 +1462,7 @@ namespace impl {
 ParseResult parseOneResultOneOperandTypeOp(OpAsmParser &parser,
                                            OperationState &result);
 
-void buildBinaryOp(Builder *builder, OperationState &result, Value lhs,
+void buildBinaryOp(OpBuilder &builder, OperationState &result, Value lhs,
                    Value rhs);
 ParseResult parseOneResultSameOperandTypeOp(OpAsmParser &parser,
                                             OperationState &result);
@@ -1429,7 +1476,7 @@ void printOneResultOp(Operation *op, OpAsmPrinter &p);
 // These functions are out-of-line implementations of the methods in CastOp,
 // which avoids them being template instantiated/duplicated.
 namespace impl {
-void buildCastOp(Builder *builder, OperationState &result, Value source,
+void buildCastOp(OpBuilder &builder, OperationState &result, Value source,
                  Type destType);
 ParseResult parseCastOp(OpAsmParser &parser, OperationState &result);
 void printCastOp(Operation *op, OpAsmPrinter &p);

@@ -6,6 +6,9 @@
 
 ; RUN: llc -mtriple=%triple -O0 -filetype=obj -dwarf-linkage-names=All < %t.ll | llvm-dwarfdump -v -debug-info - | FileCheck %s
 
+target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
+target triple = "spir64-unknown-unknown"
+
 ; Generate from clang with the following source. Note that the definition of
 ; the inline function follows its use to workaround another bug that should be
 ; fixed soon.
@@ -96,5 +99,3 @@ attributes #2 = { nounwind readnone }
 
 !18 = !DILocation(line: 6, scope: !9, inlinedAt: !16)
 !19 = !DILocation(line: 6, scope: !9)
-target triple = "spir64-unknown-unknown"
-target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"

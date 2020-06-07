@@ -24,7 +24,6 @@ namespace llvm {
 
 class GCNSubtarget;
 class LiveIntervals;
-class MachineRegisterInfo;
 class SIMachineFunctionInfo;
 
 class SIRegisterInfo final : public AMDGPUGenRegisterInfo {
@@ -33,6 +32,13 @@ private:
   bool SpillSGPRToVGPR;
   bool isWave32;
   BitVector RegPressureIgnoredUnits;
+
+  /// Sub reg indexes for getRegSplitParts.
+  /// First index represents subreg size from 1 to 16 DWORDs.
+  /// The inner vector is sorted by bit offset.
+  /// Provided a register can be fully split with given subregs,
+  /// all elements of the inner vector combined give a full lane mask.
+  static std::array<std::vector<int16_t>, 16> RegSplitParts;
 
   void reserveRegisterTuples(BitVector &, MCRegister Reg) const;
 
@@ -65,6 +71,9 @@ public:
   }
 
   Register getFrameRegister(const MachineFunction &MF) const override;
+
+  bool hasBasePointer(const MachineFunction &MF) const;
+  Register getBaseRegister() const;
 
   bool canRealignStack(const MachineFunction &MF) const override;
   bool requiresRegisterScavenging(const MachineFunction &Fn) const override;
@@ -116,6 +125,10 @@ public:
     return getEncodingValue(Reg) & 0xff;
   }
 
+  static const TargetRegisterClass *getVGPRClassForBitWidth(unsigned BitWidth);
+  static const TargetRegisterClass *getAGPRClassForBitWidth(unsigned BitWidth);
+  static const TargetRegisterClass *getSGPRClassForBitWidth(unsigned BitWidth);
+
   /// Return the 'base' register class for this register.
   /// e.g. SGPR0 => SReg_32, VGPR => VGPR_32 SGPR0_SGPR1 -> SReg_32, etc.
   const TargetRegisterClass *getPhysRegClass(MCRegister Reg) const;
@@ -130,9 +143,9 @@ public:
     return isSGPRClass(getRegClass(RCID));
   }
 
-  bool isSGPRReg(const MachineRegisterInfo &MRI, unsigned Reg) const {
+  bool isSGPRReg(const MachineRegisterInfo &MRI, Register Reg) const {
     const TargetRegisterClass *RC;
-    if (Register::isVirtualRegister(Reg))
+    if (Reg.isVirtual())
       RC = MRI.getRegClass(Reg);
     else
       RC = getPhysRegClass(Reg);
@@ -193,7 +206,8 @@ public:
 
   MCRegister findUnusedRegister(const MachineRegisterInfo &MRI,
                                 const TargetRegisterClass *RC,
-                                const MachineFunction &MF) const;
+                                const MachineFunction &MF,
+                                bool ReserveHighestVGPR = false) const;
 
   const TargetRegisterClass *getRegClassForReg(const MachineRegisterInfo &MRI,
                                                Register Reg) const;
@@ -202,6 +216,8 @@ public:
   bool isVectorRegister(const MachineRegisterInfo &MRI, Register Reg) const {
     return isVGPR(MRI, Reg) || isAGPR(MRI, Reg);
   }
+
+  bool isConstantPhysReg(MCRegister PhysReg) const override;
 
   bool isDivergentRegClass(const TargetRegisterClass *RC) const override {
     return !isSGPRClass(RC);
@@ -280,13 +296,17 @@ public:
 
   // \returns a DWORD offset of a \p SubReg
   unsigned getChannelFromSubReg(unsigned SubReg) const {
-    return SubReg ? divideCeil(getSubRegIdxOffset(SubReg), 32) : 0;
+    return SubReg ? (getSubRegIdxOffset(SubReg) + 31) / 32 : 0;
   }
 
   // \returns a DWORD size of a \p SubReg
   unsigned getNumChannelsFromSubReg(unsigned SubReg) const {
     return getNumCoveredRegs(getSubRegIndexLaneMask(SubReg));
   }
+
+  // For a given 16 bit \p Reg \returns a 32 bit register holding it.
+  // \returns \p Reg otherwise.
+  MCPhysReg get32BitRegister(MCPhysReg Reg) const;
 
 private:
   void buildSpillLoadStore(MachineBasicBlock::iterator MI,

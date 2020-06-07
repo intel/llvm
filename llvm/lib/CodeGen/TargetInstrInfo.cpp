@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/CodeGen/TargetInstrInfo.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineMemOperand.h"
@@ -104,14 +105,14 @@ unsigned TargetInstrInfo::getInlineAsmLength(
       AtInsnStart = false;
     }
 
-    if (AtInsnStart && !std::isspace(static_cast<unsigned char>(*Str))) {
+    if (AtInsnStart && !isSpace(static_cast<unsigned char>(*Str))) {
       unsigned AddLength = MaxInstLength;
       if (strncmp(Str, ".space", 6) == 0) {
         char *EStr;
         int SpaceSize;
         SpaceSize = strtol(Str + 6, &EStr, 10);
         SpaceSize = SpaceSize < 0 ? 0 : SpaceSize;
-        while (*EStr != '\n' && std::isspace(static_cast<unsigned char>(*EStr)))
+        while (*EStr != '\n' && isSpace(static_cast<unsigned char>(*EStr)))
           ++EStr;
         if (*EStr == '\0' || *EStr == '\n' ||
             isAsmComment(EStr, MAI)) // Successfully parsed .space argument
@@ -1036,7 +1037,9 @@ bool TargetInstrInfo::getMemOperandWithOffset(
     const MachineInstr &MI, const MachineOperand *&BaseOp, int64_t &Offset,
     bool &OffsetIsScalable, const TargetRegisterInfo *TRI) const {
   SmallVector<const MachineOperand *, 4> BaseOps;
-  if (!getMemOperandsWithOffset(MI, BaseOps, Offset, OffsetIsScalable, TRI) ||
+  unsigned Width;
+  if (!getMemOperandsWithOffsetWidth(MI, BaseOps, Offset, OffsetIsScalable,
+                                     Width, TRI) ||
       BaseOps.size() != 1)
     return false;
   BaseOp = BaseOps.front();

@@ -9,37 +9,43 @@
 #pragma once
 
 #include <CL/sycl/detail/defines.hpp>
+#include <CL/sycl/detail/util.hpp>
+#include <CL/sycl/stl.hpp>
 
 #include <iostream>
+#include <map>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
-// Represents a specialization constant in SYCL runtime.
+// Represents a specialization constant value in SYCL runtime.
 class spec_constant_impl {
 public:
-  spec_constant_impl(unsigned int ID) : ID(ID), Size(0), Bytes{0} {}
+  spec_constant_impl() : Size(0), Bytes{0} {};
 
-  spec_constant_impl(unsigned int ID, size_t Size, const void *Val) : ID(ID) {
-    set(Size, Val);
-  }
+  spec_constant_impl(size_t Size, const void *Val) { set(Size, Val); }
 
   void set(size_t Size, const void *Val);
 
-  unsigned int getID() const { return ID; }
   size_t getSize() const { return Size; }
   const unsigned char *getValuePtr() const { return Bytes; }
   bool isSet() const { return Size != 0; }
 
 private:
-  unsigned int ID; // specialization constant's ID (equals to SPIRV ID)
-  size_t Size;     // size of its value
+  size_t Size; // the size of the spec constant value
   // TODO invent more flexible approach to support values of arbitrary type:
   unsigned char Bytes[8]; // memory to hold the value bytes
 };
 
 std::ostream &operator<<(std::ostream &Out, const spec_constant_impl &V);
+
+// Used to define specialization constant registry. Must be ordered map, since
+// the order of entries matters in stableSerializeSpecConstRegistry.
+using SpecConstRegistryT = std::map<string_class, spec_constant_impl>;
+
+void stableSerializeSpecConstRegistry(const SpecConstRegistryT &Reg,
+                                      SerializedObj &Dst);
 
 } // namespace detail
 } // namespace sycl

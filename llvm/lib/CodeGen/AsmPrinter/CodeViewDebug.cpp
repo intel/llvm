@@ -343,18 +343,6 @@ static std::string formatNestedName(ArrayRef<StringRef> QualifiedNameComponents,
   return FullyQualifiedName;
 }
 
-std::string CodeViewDebug::getFullyQualifiedName(const DIScope *Scope,
-                                                 StringRef Name) {
-  SmallVector<StringRef, 5> QualifiedNameComponents;
-  collectParentScopeNames(Scope, QualifiedNameComponents);
-  return formatNestedName(QualifiedNameComponents, Name);
-}
-
-std::string CodeViewDebug::getFullyQualifiedName(const DIScope *Ty) {
-  const DIScope *Scope = Ty->getScope();
-  return getFullyQualifiedName(Scope, getPrettyScopeName(Ty));
-}
-
 struct CodeViewDebug::TypeLoweringScope {
   TypeLoweringScope(CodeViewDebug &CVD) : CVD(CVD) { ++CVD.TypeEmissionLevel; }
   ~TypeLoweringScope() {
@@ -366,6 +354,22 @@ struct CodeViewDebug::TypeLoweringScope {
   }
   CodeViewDebug &CVD;
 };
+
+std::string CodeViewDebug::getFullyQualifiedName(const DIScope *Scope,
+                                                 StringRef Name) {
+  // Ensure types in the scope chain are emitted as soon as possible.
+  // This can create otherwise a situation where S_UDTs are emitted while
+  // looping in emitDebugInfoForUDTs.
+  TypeLoweringScope S(*this);
+  SmallVector<StringRef, 5> QualifiedNameComponents;
+  collectParentScopeNames(Scope, QualifiedNameComponents);
+  return formatNestedName(QualifiedNameComponents, Name);
+}
+
+std::string CodeViewDebug::getFullyQualifiedName(const DIScope *Ty) {
+  const DIScope *Scope = Ty->getScope();
+  return getFullyQualifiedName(Scope, getPrettyScopeName(Ty));
+}
 
 TypeIndex CodeViewDebug::getScopeIndex(const DIScope *Scope) {
   // No scope means global scope and that uses the zero index.
@@ -559,7 +563,7 @@ void CodeViewDebug::maybeRecordLocation(const DebugLoc &DL,
     addLocIfNotPresent(CurFn->ChildSites, Loc);
   }
 
-  OS.EmitCVLocDirective(FuncId, FileId, DL.getLine(), DL.getCol(),
+  OS.emitCVLocDirective(FuncId, FileId, DL.getLine(), DL.getCol(),
                         /*PrologueEnd=*/false, /*IsStmt=*/false,
                         DL->getFilename(), SMLoc());
 }
@@ -616,11 +620,11 @@ void CodeViewDebug::endModule() {
 
   // This subsection holds a file index to offset in string table table.
   OS.AddComment("File index to string table offset subsection");
-  OS.EmitCVFileChecksumsDirective();
+  OS.emitCVFileChecksumsDirective();
 
   // This subsection holds the string table.
   OS.AddComment("String table");
-  OS.EmitCVStringTableDirective();
+  OS.emitCVStringTableDirective();
 
   // Emit S_BUILDINFO, which points to LF_BUILDINFO. Put this in its own symbol
   // subsection in the generic .debug$S section at the end. There is no
@@ -888,7 +892,7 @@ void CodeViewDebug::emitInlineeLinesSubsection() {
     OS.AddComment("Type index of inlined function");
     OS.emitInt32(InlineeIdx.getIndex());
     OS.AddComment("Offset into filechecksum table");
-    OS.EmitCVFileChecksumOffsetDirective(FileId);
+    OS.emitCVFileChecksumOffsetDirective(FileId);
     OS.AddComment("Starting line number");
     OS.emitInt32(SP->getLine());
   }
@@ -915,7 +919,7 @@ void CodeViewDebug::emitInlinedCallSite(const FunctionInfo &FI,
   unsigned FileId = maybeRecordFile(Site.Inlinee->getFile());
   unsigned StartLineNum = Site.Inlinee->getLine();
 
-  OS.EmitCVInlineLinetableDirective(Site.SiteFuncId, FileId, StartLineNum,
+  OS.emitCVInlineLinetableDirective(Site.SiteFuncId, FileId, StartLineNum,
                                     FI.Begin, FI.End);
 
   endSymbolRecord(InlineEnd);
@@ -1141,7 +1145,7 @@ void CodeViewDebug::emitDebugInfoForFunction(const Function *GV,
   endCVSubsection(SymbolsEnd);
 
   // We have an assembler directive that takes care of the whole line table.
-  OS.EmitCVLinetableDirective(FI.FuncId, Fn, FI.End);
+  OS.emitCVLinetableDirective(FI.FuncId, Fn, FI.End);
 }
 
 CodeViewDebug::LocalVarDefRange
@@ -1588,7 +1592,7 @@ TypeIndex CodeViewDebug::lowerTypeArray(const DICompositeType *Ty) {
     assert(Element->getTag() == dwarf::DW_TAG_subrange_type);
 
     const DISubrange *Subrange = cast<DISubrange>(Element);
-    assert(Subrange->getLowerBound() == 0 &&
+    assert(!Subrange->getRawLowerBound() &&
            "codeview doesn't support subranges with lower bounds");
     int64_t Count = -1;
     if (auto *CI = Subrange->getCount().dyn_cast<ConstantInt*>())
@@ -1784,11 +1788,12 @@ translatePtrToMemberRep(unsigned SizeInBytes, bool IsPMF, unsigned Flags) {
 TypeIndex CodeViewDebug::lowerTypeMemberPointer(const DIDerivedType *Ty,
                                                 PointerOptions PO) {
   assert(Ty->getTag() == dwarf::DW_TAG_ptr_to_member_type);
+  bool IsPMF = isa<DISubroutineType>(Ty->getBaseType());
   TypeIndex ClassTI = getTypeIndex(Ty->getClassType());
-  TypeIndex PointeeTI = getTypeIndex(Ty->getBaseType(), Ty->getClassType());
+  TypeIndex PointeeTI =
+      getTypeIndex(Ty->getBaseType(), IsPMF ? Ty->getClassType() : nullptr);
   PointerKind PK = getPointerSizeInBytes() == 8 ? PointerKind::Near64
                                                 : PointerKind::Near32;
-  bool IsPMF = isa<DISubroutineType>(Ty->getBaseType());
   PointerMode PM = IsPMF ? PointerMode::PointerToMemberFunction
                          : PointerMode::PointerToDataMember;
 
@@ -2080,7 +2085,7 @@ TypeIndex CodeViewDebug::lowerTypeEnum(const DICompositeType *Ty) {
       // order, which is what MSVC does.
       if (auto *Enumerator = dyn_cast_or_null<DIEnumerator>(Element)) {
         EnumeratorRecord ER(MemberAccess::Public,
-                            APSInt::getUnsigned(Enumerator->getValue()),
+                            APSInt(Enumerator->getValue(), true),
                             Enumerator->getName());
         ContinuationBuilder.writeMemberType(ER);
         EnumeratorCount++;
@@ -2677,7 +2682,7 @@ void CodeViewDebug::emitLocalVariable(const FunctionInfo &FI,
                : (EncFP == FI.EncodedLocalFramePtrReg))) {
         DefRangeFramePointerRelHeader DRHdr;
         DRHdr.Offset = Offset;
-        OS.EmitCVDefRangeDirective(DefRange.Ranges, DRHdr);
+        OS.emitCVDefRangeDirective(DefRange.Ranges, DRHdr);
       } else {
         uint16_t RegRelFlags = 0;
         if (DefRange.IsSubfield) {
@@ -2689,7 +2694,7 @@ void CodeViewDebug::emitLocalVariable(const FunctionInfo &FI,
         DRHdr.Register = Reg;
         DRHdr.Flags = RegRelFlags;
         DRHdr.BasePointerOffset = Offset;
-        OS.EmitCVDefRangeDirective(DefRange.Ranges, DRHdr);
+        OS.emitCVDefRangeDirective(DefRange.Ranges, DRHdr);
       }
     } else {
       assert(DefRange.DataOffset == 0 && "unexpected offset into register");
@@ -2698,12 +2703,12 @@ void CodeViewDebug::emitLocalVariable(const FunctionInfo &FI,
         DRHdr.Register = DefRange.CVRegister;
         DRHdr.MayHaveNoName = 0;
         DRHdr.OffsetInParent = DefRange.StructOffset;
-        OS.EmitCVDefRangeDirective(DefRange.Ranges, DRHdr);
+        OS.emitCVDefRangeDirective(DefRange.Ranges, DRHdr);
       } else {
         DefRangeRegisterHeader DRHdr;
         DRHdr.Register = DefRange.CVRegister;
         DRHdr.MayHaveNoName = 0;
-        OS.EmitCVDefRangeDirective(DefRange.Ranges, DRHdr);
+        OS.emitCVDefRangeDirective(DefRange.Ranges, DRHdr);
       }
     }
   }
@@ -2981,14 +2986,18 @@ void CodeViewDebug::emitEndSymbolRecord(SymbolKind EndKind) {
 }
 
 void CodeViewDebug::emitDebugInfoForUDTs(
-    ArrayRef<std::pair<std::string, const DIType *>> UDTs) {
+    const std::vector<std::pair<std::string, const DIType *>> &UDTs) {
+#ifndef NDEBUG
+  size_t OriginalSize = UDTs.size();
+#endif
   for (const auto &UDT : UDTs) {
     const DIType *T = UDT.second;
     assert(shouldEmitUdt(T));
-
     MCSymbol *UDTRecordEnd = beginSymbolRecord(SymbolKind::S_UDT);
     OS.AddComment("Type");
     OS.emitInt32(getCompleteTypeIndex(T).getIndex());
+    assert(OriginalSize == UDTs.size() &&
+           "getCompleteTypeIndex found new UDTs!");
     emitNullTerminatedSymbolName(OS, UDT.first);
     endSymbolRecord(UDTRecordEnd);
   }
@@ -3092,6 +3101,14 @@ void CodeViewDebug::emitGlobalVariableList(ArrayRef<CVGlobalVariable> Globals) {
 
 void CodeViewDebug::emitDebugInfoForGlobal(const CVGlobalVariable &CVGV) {
   const DIGlobalVariable *DIGV = CVGV.DIGV;
+
+  const DIScope *Scope = DIGV->getScope();
+  // For static data members, get the scope from the declaration.
+  if (const auto *MemberDecl = dyn_cast_or_null<DIDerivedType>(
+          DIGV->getRawStaticDataMemberDeclaration()))
+    Scope = MemberDecl->getScope();
+  std::string QualifiedName = getFullyQualifiedName(Scope, DIGV->getName());
+
   if (const GlobalVariable *GV =
           CVGV.GVInfo.dyn_cast<const GlobalVariable *>()) {
     // DataSym record, see SymbolRecord.h for more info. Thread local data
@@ -3111,11 +3128,9 @@ void CodeViewDebug::emitDebugInfoForGlobal(const CVGlobalVariable &CVGV) {
     OS.EmitCOFFSectionIndex(GVSym);
     OS.AddComment("Name");
     const unsigned LengthOfDataRecord = 12;
-    emitNullTerminatedSymbolName(OS, DIGV->getName(), LengthOfDataRecord);
+    emitNullTerminatedSymbolName(OS, QualifiedName, LengthOfDataRecord);
     endSymbolRecord(DataEnd);
   } else {
-    // FIXME: Currently this only emits the global variables in the IR metadata.
-    // This should also emit enums and static data members.
     const DIExpression *DIE = CVGV.GVInfo.get<const DIExpression *>();
     assert(DIE->isConstant() &&
            "Global constant variables must contain a constant expression.");
@@ -3135,13 +3150,7 @@ void CodeViewDebug::emitDebugInfoForGlobal(const CVGlobalVariable &CVGV) {
     OS.emitBinaryData(SRef);
 
     OS.AddComment("Name");
-    const DIScope *Scope = DIGV->getScope();
-    // For static data members, get the scope from the declaration.
-    if (const auto *MemberDecl = dyn_cast_or_null<DIDerivedType>(
-            DIGV->getRawStaticDataMemberDeclaration()))
-      Scope = MemberDecl->getScope();
-    emitNullTerminatedSymbolName(OS,
-                                 getFullyQualifiedName(Scope, DIGV->getName()));
+    emitNullTerminatedSymbolName(OS, QualifiedName);
     endSymbolRecord(SConstantEnd);
   }
 }

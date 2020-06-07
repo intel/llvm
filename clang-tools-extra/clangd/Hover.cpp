@@ -11,12 +11,12 @@
 #include "AST.h"
 #include "CodeCompletionStrings.h"
 #include "FindTarget.h"
-#include "FormattedString.h"
-#include "Logger.h"
 #include "ParsedAST.h"
 #include "Selection.h"
 #include "SourceCode.h"
 #include "index/SymbolCollector.h"
+#include "support/Logger.h"
+#include "support/Markup.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/ASTTypeTraits.h"
 #include "clang/AST/Decl.h"
@@ -376,8 +376,7 @@ llvm::Optional<StringRef> fieldName(const Expr *E) {
   const auto *ME = llvm::dyn_cast<MemberExpr>(E->IgnoreCasts());
   if (!ME || !llvm::isa<CXXThisExpr>(ME->getBase()->IgnoreCasts()))
     return llvm::None;
-  const auto *Field =
-      llvm::dyn_cast<FieldDecl>(ME->getMemberDecl());
+  const auto *Field = llvm::dyn_cast<FieldDecl>(ME->getMemberDecl());
   if (!Field || !Field->getDeclName().isIdentifier())
     return llvm::None;
   return Field->getDeclName().getAsIdentifierInfo()->getName();
@@ -468,6 +467,7 @@ HoverInfo getHoverContents(const NamedDecl *D, const SymbolIndex *Index) {
   HoverInfo HI;
   const ASTContext &Ctx = D->getASTContext();
 
+  HI.AccessSpecifier = getAccessSpelling(D->getAccess()).str();
   HI.NamespaceScope = getNamespaceScope(D);
   if (!HI.NamespaceScope->empty())
     HI.NamespaceScope->append("::");
@@ -555,7 +555,14 @@ HoverInfo getHoverContents(const DefinedMacro &Macro, ParsedAST &AST) {
   // Try to get the full definition, not just the name
   SourceLocation StartLoc = Macro.Info->getDefinitionLoc();
   SourceLocation EndLoc = Macro.Info->getDefinitionEndLoc();
-  if (EndLoc.isValid()) {
+  // Ensure that EndLoc is a valid offset. For example it might come from
+  // preamble, and source file might've changed, in such a scenario EndLoc still
+  // stays valid, but getLocForEndOfToken will fail as it is no longer a valid
+  // offset.
+  // Note that this check is just to ensure there's text data inside the range.
+  // It will still succeed even when the data inside the range is irrelevant to
+  // macro definition.
+  if (SM.getPresumedLoc(EndLoc, /*UseLineDirectives=*/false).isValid()) {
     EndLoc = Lexer::getLocForEndOfToken(EndLoc, 0, SM, AST.getLangOpts());
     bool Invalid;
     StringRef Buffer = SM.getBufferData(SM.getFileID(StartLoc), &Invalid);
@@ -648,6 +655,7 @@ bool isHardLineBreakIndicator(llvm::StringRef Rest) {
 }
 
 bool isHardLineBreakAfter(llvm::StringRef Line, llvm::StringRef Rest) {
+  // Should we also consider whether Line is short?
   return punctuationIndicatesLineBreak(Line) || isHardLineBreakIndicator(Rest);
 }
 
@@ -661,7 +669,9 @@ void addLayoutInfo(const NamedDecl &ND, HoverInfo &HI) {
   }
 
   if (const auto *FD = llvm::dyn_cast<FieldDecl>(&ND)) {
-    const auto *Record = FD->getParent()->getDefinition();
+    const auto *Record = FD->getParent();
+    if (Record)
+      Record = Record->getDefinition();
     if (Record && !Record->isDependentType()) {
       uint64_t OffsetBits = Ctx.getFieldOffset(FD);
       if (auto Size = Ctx.getTypeSizeInCharsIfKnown(FD->getType())) {
@@ -772,7 +782,7 @@ markup::Document HoverInfo::present() const {
   // https://github.com/microsoft/vscode/issues/88417 for details.
   markup::Paragraph &Header = Output.addHeading(3);
   if (Kind != index::SymbolKind::Unknown)
-    Header.appendText(std::string(index::getSymbolKindString(Kind)));
+    Header.appendText(index::getSymbolKindString(Kind)).appendSpace();
   assert(!Name.empty() && "hover triggered on a nameless symbol");
   Header.appendCode(Name);
 
@@ -786,9 +796,9 @@ markup::Document HoverInfo::present() const {
     // Parameters:
     // - `bool param1`
     // - `int param2 = 5`
-    Output.addParagraph().appendText("→").appendCode(*ReturnType);
+    Output.addParagraph().appendText("→ ").appendCode(*ReturnType);
     if (Parameters && !Parameters->empty()) {
-      Output.addParagraph().appendText("Parameters:");
+      Output.addParagraph().appendText("Parameters: ");
       markup::BulletList &L = Output.addBulletList();
       for (const auto &Param : *Parameters) {
         std::string Buffer;
@@ -803,16 +813,17 @@ markup::Document HoverInfo::present() const {
 
   if (Value) {
     markup::Paragraph &P = Output.addParagraph();
-    P.appendText("Value =");
+    P.appendText("Value = ");
     P.appendCode(*Value);
   }
 
   if (Offset)
     Output.addParagraph().appendText(
-        llvm::formatv("Offset: {0} byte{1}", *Offset, *Offset == 1 ? "" : "s"));
+        llvm::formatv("Offset: {0} byte{1}", *Offset, *Offset == 1 ? "" : "s")
+            .str());
   if (Size)
     Output.addParagraph().appendText(
-        llvm::formatv("Size: {0} byte{1}", *Size, *Size == 1 ? "" : "s"));
+        llvm::formatv("Size: {0} byte{1}", *Size, *Size == 1 ? "" : "s").str());
 
   if (!Documentation.empty())
     parseDocumentation(Documentation, Output);
@@ -831,11 +842,60 @@ markup::Document HoverInfo::present() const {
       ScopeComment = "// In namespace " +
                      llvm::StringRef(*NamespaceScope).rtrim(':').str() + '\n';
     }
+    std::string DefinitionWithAccess = !AccessSpecifier.empty()
+                                           ? AccessSpecifier + ": " + Definition
+                                           : Definition;
     // Note that we don't print anything for global namespace, to not annoy
     // non-c++ projects or projects that are not making use of namespaces.
-    Output.addCodeBlock(ScopeComment + Definition);
+    Output.addCodeBlock(ScopeComment + DefinitionWithAccess);
   }
   return Output;
+}
+
+// If the backtick at `Offset` starts a probable quoted range, return the range
+// (including the quotes).
+llvm::Optional<llvm::StringRef> getBacktickQuoteRange(llvm::StringRef Line,
+                                                      unsigned Offset) {
+  assert(Line[Offset] == '`');
+
+  // The open-quote is usually preceded by whitespace.
+  llvm::StringRef Prefix = Line.substr(0, Offset);
+  constexpr llvm::StringLiteral BeforeStartChars = " \t(=";
+  if (!Prefix.empty() && !BeforeStartChars.contains(Prefix.back()))
+    return llvm::None;
+
+  // The quoted string must be nonempty and usually has no leading/trailing ws.
+  auto Next = Line.find('`', Offset + 1);
+  if (Next == llvm::StringRef::npos)
+    return llvm::None;
+  llvm::StringRef Contents = Line.slice(Offset + 1, Next);
+  if (Contents.empty() || isWhitespace(Contents.front()) ||
+      isWhitespace(Contents.back()))
+    return llvm::None;
+
+  // The close-quote is usually followed by whitespace or punctuation.
+  llvm::StringRef Suffix = Line.substr(Next + 1);
+  constexpr llvm::StringLiteral AfterEndChars = " \t)=.,;:";
+  if (!Suffix.empty() && !AfterEndChars.contains(Suffix.front()))
+    return llvm::None;
+
+  return Line.slice(Offset, Next + 1);
+}
+
+void parseDocumentationLine(llvm::StringRef Line, markup::Paragraph &Out) {
+  // Probably this is appendText(Line), but scan for something interesting.
+  for (unsigned I = 0; I < Line.size(); ++I) {
+    switch (Line[I]) {
+    case '`':
+      if (auto Range = getBacktickQuoteRange(Line, I)) {
+        Out.appendText(Line.substr(0, I));
+        Out.appendCode(Range->trim("`"), /*Preserve=*/true);
+        return parseDocumentationLine(Line.substr(I + Range->size()), Out);
+      }
+      break;
+    }
+  }
+  Out.appendText(Line).appendSpace();
 }
 
 void parseDocumentation(llvm::StringRef Input, markup::Document &Output) {
@@ -845,7 +905,7 @@ void parseDocumentation(llvm::StringRef Input, markup::Document &Output) {
       return;
     auto &P = Output.addParagraph();
     for (llvm::StringRef Line : ParagraphLines)
-      P.appendText(Line.str());
+      parseDocumentationLine(Line, P);
     ParagraphLines.clear();
   };
 

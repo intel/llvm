@@ -42,7 +42,6 @@
 #include "SPIRVInternal.h"
 #include "llvm/IR/InstVisitor.h"
 #include "llvm/Pass.h"
-#include "llvm/PassSupport.h"
 
 #include <cstring>
 
@@ -97,10 +96,6 @@ public:
   /// Transform __spirv_* builtins to OCL 2.0 builtins.
   /// No change with arguments.
   void visitCallSPIRVBuiltin(CallInst *CI, Op OC);
-
-  /// Translate mangled atomic type name: "atomic_" =>
-  ///   MangledAtomicTypeNamePrefix
-  void translateMangledAtomicTypeName();
 
   /// Get prefix work_/sub_ for OCL group builtin functions.
   /// Assuming the first argument of \param CI is a constant integer for

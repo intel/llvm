@@ -667,8 +667,10 @@ parseObjcopyOptions(ArrayRef<const char *> ArgsArr,
   Config.KeepFileSymbols = InputArgs.hasArg(OBJCOPY_keep_file_symbols);
   Config.DecompressDebugSections =
       InputArgs.hasArg(OBJCOPY_decompress_debug_sections);
-  if (Config.DiscardMode == DiscardType::All)
+  if (Config.DiscardMode == DiscardType::All) {
     Config.StripDebug = true;
+    Config.KeepFileSymbols = true;
+  }
   for (auto Arg : InputArgs.filtered(OBJCOPY_localize_symbol))
     if (Error E = Config.SymbolsToLocalize.addMatcher(NameOrPattern::create(
             Arg->getValue(), SymbolMatchStyle, ErrorCallback)))
@@ -910,6 +912,7 @@ parseStripOptions(ArrayRef<const char *> ArgsArr,
   if (auto Arg = InputArgs.getLastArg(STRIP_strip_all, STRIP_no_strip_all))
     Config.StripAll = Arg->getOption().getID() == STRIP_strip_all;
   Config.StripAllGNU = InputArgs.hasArg(STRIP_strip_all_gnu);
+  Config.StripSwiftSymbols = InputArgs.hasArg(STRIP_strip_swift_symbols);
   Config.OnlyKeepDebug = InputArgs.hasArg(STRIP_only_keep_debug);
   Config.KeepFileSymbols = InputArgs.hasArg(STRIP_keep_file_symbols);
 
@@ -938,8 +941,10 @@ parseStripOptions(ArrayRef<const char *> ArgsArr,
       !Config.StripAllGNU && Config.SymbolsToRemove.empty())
     Config.StripAll = true;
 
-  if (Config.DiscardMode == DiscardType::All)
+  if (Config.DiscardMode == DiscardType::All) {
     Config.StripDebug = true;
+    Config.KeepFileSymbols = true;
+  }
 
   Config.DeterministicArchives =
       InputArgs.hasFlag(STRIP_enable_deterministic_archives,

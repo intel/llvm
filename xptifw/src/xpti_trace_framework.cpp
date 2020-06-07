@@ -593,7 +593,7 @@ private:
         Event->reserved.payload = &MPayloads[UId];
         Event->data_id = Event->source_id = Event->target_id = 0;
         Event->instance_id = 1;
-        Event->user_data = nullptr;
+        Event->global_user_data = nullptr;
         Event->event_type = (uint16_t)xpti::trace_event_type_t::unknown_event;
         Event->activity_type =
             (uint16_t)xpti::trace_activity_type_t::unknown_activity;
@@ -1008,8 +1008,17 @@ public:
                                    uint64_t InstanceNo, const void *UserData) {
     if (!MTraceEnabled)
       return xpti::result_t::XPTI_RESULT_FALSE;
-    if (!Object)
-      return xpti::result_t::XPTI_RESULT_INVALIDARG;
+    if (!Object) {
+      // We have relaxed the rules for notifications: Notifications can now have
+      // 'nullptr' for both the Parent and Object only if UserData is provided
+      // and the trace_point_type is function_begin/function_end. This allows us
+      // to trace function calls without too much effort.
+      if (!(UserData &&
+            (TraceType == (uint16_t)trace_point_type_t::function_begin ||
+             TraceType == (uint16_t)trace_point_type_t::function_end))) {
+        return xpti::result_t::XPTI_RESULT_INVALIDARG;
+      }
+    }
     //
     //  Notify all subscribers for the stream 'StreamID'
     //

@@ -177,6 +177,17 @@ static cl::opt<bool> ProfileGuidedSectionPrefix(
     "profile-guided-section-prefix", cl::Hidden, cl::init(true), cl::ZeroOrMore,
     cl::desc("Use profile info to add section prefix for hot/cold functions"));
 
+static cl::opt<bool> ProfileUnknownInSpecialSection(
+    "profile-unknown-in-special-section", cl::Hidden, cl::init(false),
+    cl::ZeroOrMore,
+    cl::desc("In profiling mode like sampleFDO, if a function doesn't have "
+             "profile, we cannot tell the function is cold for sure because "
+             "it may be a function newly added without ever being sampled. "
+             "With the flag enabled, compiler can put such profile unknown "
+             "functions into a special section, so runtime system can choose "
+             "to handle it in a different way than .text section, to save "
+             "RAM for example. "));
+
 static cl::opt<unsigned> FreqRatioToSkipMerge(
     "cgp-freq-ratio-to-skip-merge", cl::Hidden, cl::init(2),
     cl::desc("Skip merging empty blocks if (frequency of empty block) / "
@@ -228,6 +239,11 @@ static cl::opt<bool>
 static cl::opt<bool> EnableICMP_EQToICMP_ST(
     "cgp-icmp-eq2icmp-st", cl::Hidden, cl::init(false),
     cl::desc("Enable ICMP_EQ to ICMP_S(L|G)T conversion."));
+
+static cl::opt<bool>
+    VerifyBFIUpdates("cgp-verify-bfi-updates", cl::Hidden, cl::init(false),
+                     cl::desc("Enable BFI update verification for "
+                              "CodeGenPrepare."));
 
 namespace {
 
@@ -375,6 +391,7 @@ class TypePromotionTransaction;
     bool optimizeExtUses(Instruction *I);
     bool optimizeLoadExt(LoadInst *Load);
     bool optimizeShiftInst(BinaryOperator *BO);
+    bool optimizeFunnelShift(IntrinsicInst *Fsh);
     bool optimizeSelectInst(SelectInst *SI);
     bool optimizeShuffleVectorInst(ShuffleVectorInst *SVI);
     bool optimizeSwitchInst(SwitchInst *SI);
@@ -405,6 +422,7 @@ class TypePromotionTransaction;
     bool optimizeCmp(CmpInst *Cmp, bool &ModifiedDT);
     bool combineToUSubWithOverflow(CmpInst *Cmp, bool &ModifiedDT);
     bool combineToUAddWithOverflow(CmpInst *Cmp, bool &ModifiedDT);
+    void verifyBFIUpdates(Function &F);
   };
 
 } // end anonymous namespace
@@ -446,6 +464,9 @@ bool CodeGenPrepare::runOnFunction(Function &F) {
       F.setSectionPrefix(".hot");
     else if (PSI->isFunctionColdInCallGraph(&F, *BFI))
       F.setSectionPrefix(".unlikely");
+    else if (ProfileUnknownInSpecialSection && PSI->hasPartialSampleProfile() &&
+             PSI->isFunctionHotnessUnknown(F))
+      F.setSectionPrefix(".unknown");
   }
 
   /// This optimization identifies DIV instructions that can be
@@ -555,7 +576,7 @@ bool CodeGenPrepare::runOnFunction(Function &F) {
     SmallVector<Instruction *, 2> Statepoints;
     for (BasicBlock &BB : F)
       for (Instruction &I : BB)
-        if (isStatepoint(I))
+        if (isa<GCStatepointInst>(I))
           Statepoints.push_back(&I);
     for (auto &I : Statepoints)
       EverMadeChange |= simplifyOffsetableRelocate(*I);
@@ -565,7 +586,21 @@ bool CodeGenPrepare::runOnFunction(Function &F) {
   // preparatory transforms.
   EverMadeChange |= placeDbgValues(F);
 
+#ifndef NDEBUG
+  if (VerifyBFIUpdates)
+    verifyBFIUpdates(F);
+#endif
+
   return EverMadeChange;
+}
+
+// Verify BFI has been updated correctly by recomputing BFI and comparing them.
+void LLVM_ATTRIBUTE_UNUSED CodeGenPrepare::verifyBFIUpdates(Function &F) {
+  DominatorTree NewDT(F);
+  LoopInfo NewLI(NewDT);
+  BranchProbabilityInfo NewBPI(F, NewLI, TLInfo);
+  BlockFrequencyInfo NewBFI(F, NewBPI, NewLI);
+  NewBFI.verifyMatch(*BFI);
 }
 
 /// Merge basic blocks which are connected by a single edge, where one of the
@@ -1889,7 +1924,7 @@ bool CodeGenPrepare::optimizeCallInst(CallInst *CI, bool &ModifiedDT) {
   // Lower inline assembly if we can.
   // If we found an inline asm expession, and if the target knows how to
   // lower it to normal LLVM code, do so now.
-  if (isa<InlineAsm>(CI->getCalledValue())) {
+  if (CI->isInlineAsm()) {
     if (TLI->ExpandInlineAsm(CI)) {
       // Avoid invalidating the iterator.
       CurInstIterator = BB->begin();
@@ -1924,7 +1959,7 @@ bool CodeGenPrepare::optimizeCallInst(CallInst *CI, bool &ModifiedDT) {
       AllocaInst *AI;
       if ((AI = dyn_cast<AllocaInst>(Val)) && AI->getAlignment() < PrefAlign &&
           DL->getTypeAllocSize(AI->getAllocatedType()) >= MinSize + Offset2)
-        AI->setAlignment(MaybeAlign(PrefAlign));
+        AI->setAlignment(Align(PrefAlign));
       // Global variables can only be aligned if they are defined in this
       // object (i.e. they are uniquely initialized in this object), and
       // over-aligning global variables that have an explicit section is
@@ -1939,12 +1974,14 @@ bool CodeGenPrepare::optimizeCallInst(CallInst *CI, bool &ModifiedDT) {
     // If this is a memcpy (or similar) then we may be able to improve the
     // alignment
     if (MemIntrinsic *MI = dyn_cast<MemIntrinsic>(CI)) {
-      unsigned DestAlign = getKnownAlignment(MI->getDest(), *DL);
-      if (DestAlign > MI->getDestAlignment())
+      Align DestAlign = getKnownAlignment(MI->getDest(), *DL);
+      MaybeAlign MIDestAlign = MI->getDestAlign();
+      if (!MIDestAlign || DestAlign > *MIDestAlign)
         MI->setDestAlignment(DestAlign);
       if (MemTransferInst *MTI = dyn_cast<MemTransferInst>(MI)) {
-        unsigned SrcAlign = getKnownAlignment(MTI->getSource(), *DL);
-        if (SrcAlign > MTI->getSourceAlignment())
+        MaybeAlign MTISrcAlign = MTI->getSourceAlign();
+        Align SrcAlign = getKnownAlignment(MTI->getSource(), *DL);
+        if (!MTISrcAlign || SrcAlign > *MTISrcAlign)
           MTI->setSourceAlignment(SrcAlign);
       }
     }
@@ -2025,6 +2062,9 @@ bool CodeGenPrepare::optimizeCallInst(CallInst *CI, bool &ModifiedDT) {
     case Intrinsic::ctlz:
       // If counting zeros is expensive, try to avoid it.
       return despeculateCountZeros(II, TLI, DL, ModifiedDT);
+    case Intrinsic::fshl:
+    case Intrinsic::fshr:
+      return optimizeFunnelShift(II);
     case Intrinsic::dbg_value:
       return fixupDbgValue(II);
     case Intrinsic::vscale: {
@@ -2202,6 +2242,11 @@ bool CodeGenPrepare::dupRetToEnableTailCallOpts(BasicBlock *BB, bool &ModifiedDT
 
     // Duplicate the return into TailCallBB.
     (void)FoldReturnIntoUncondBranch(RetI, BB, TailCallBB);
+    assert(!VerifyBFIUpdates ||
+           BFI->getBlockFreq(BB) >= BFI->getBlockFreq(TailCallBB));
+    BFI->setBlockFreq(
+        BB,
+        (BFI->getBlockFreq(BB) - BFI->getBlockFreq(TailCallBB)).getFrequency());
     ModifiedDT = Changed = true;
     ++NumRetsDup;
   }
@@ -3670,10 +3715,11 @@ bool AddressingModeMatcher::matchScaledValue(Value *ScaleReg, int64_t Scale,
   // X*Scale + C*Scale to addr mode.
   ConstantInt *CI = nullptr; Value *AddLHS = nullptr;
   if (isa<Instruction>(ScaleReg) &&  // not a constant expr.
-      match(ScaleReg, m_Add(m_Value(AddLHS), m_ConstantInt(CI)))) {
+      match(ScaleReg, m_Add(m_Value(AddLHS), m_ConstantInt(CI))) &&
+      CI->getValue().isSignedIntN(64)) {
     TestAddrMode.InBounds = false;
     TestAddrMode.ScaledReg = AddLHS;
-    TestAddrMode.BaseOffs += CI->getSExtValue()*TestAddrMode.Scale;
+    TestAddrMode.BaseOffs += CI->getSExtValue() * TestAddrMode.Scale;
 
     // If this addressing mode is legal, commit it and remember that we folded
     // this instruction.
@@ -4467,11 +4513,13 @@ bool AddressingModeMatcher::matchAddr(Value *Addr, unsigned Depth) {
   TypePromotionTransaction::ConstRestorationPt LastKnownGood =
       TPT.getRestorationPoint();
   if (ConstantInt *CI = dyn_cast<ConstantInt>(Addr)) {
-    // Fold in immediates if legal for the target.
-    AddrMode.BaseOffs += CI->getSExtValue();
-    if (TLI.isLegalAddressingMode(DL, AddrMode, AccessTy, AddrSpace))
-      return true;
-    AddrMode.BaseOffs -= CI->getSExtValue();
+    if (CI->getValue().isSignedIntN(64)) {
+      // Fold in immediates if legal for the target.
+      AddrMode.BaseOffs += CI->getSExtValue();
+      if (TLI.isLegalAddressingMode(DL, AddrMode, AccessTy, AddrSpace))
+        return true;
+      AddrMode.BaseOffs -= CI->getSExtValue();
+    }
   } else if (GlobalValue *GV = dyn_cast<GlobalValue>(Addr)) {
     // If this is a global variable, try to fold it into the addressing mode.
     if (!AddrMode.BaseGV) {
@@ -4634,7 +4682,7 @@ static bool FindAllMemoryUses(
           continue;
       }
 
-      InlineAsm *IA = dyn_cast<InlineAsm>(CI->getCalledValue());
+      InlineAsm *IA = dyn_cast<InlineAsm>(CI->getCalledOperand());
       if (!IA) return true;
 
       // If this is a memory operand, we're cool, otherwise bail out.
@@ -6101,7 +6149,8 @@ static bool sinkSelectOperand(const TargetTransformInfo *TTI, Value *V) {
   // If it's safe to speculatively execute, then it should not have side
   // effects; therefore, it's safe to sink and possibly *not* execute.
   return I && I->hasOneUse() && isSafeToSpeculativelyExecute(I) &&
-         TTI->getUserCost(I) >= TargetTransformInfo::TCC_Expensive;
+         TTI->getUserCost(I, TargetTransformInfo::TCK_SizeAndLatency) >=
+         TargetTransformInfo::TCC_Expensive;
 }
 
 /// Returns true if a SelectInst should be turned into an explicit branch.
@@ -6195,6 +6244,41 @@ bool CodeGenPrepare::optimizeShiftInst(BinaryOperator *Shift) {
   Value *NewSel = Builder.CreateSelect(Cond, NewTVal, NewFVal);
   Shift->replaceAllUsesWith(NewSel);
   Shift->eraseFromParent();
+  return true;
+}
+
+bool CodeGenPrepare::optimizeFunnelShift(IntrinsicInst *Fsh) {
+  Intrinsic::ID Opcode = Fsh->getIntrinsicID();
+  assert((Opcode == Intrinsic::fshl || Opcode == Intrinsic::fshr) &&
+         "Expected a funnel shift");
+
+  // If this is (1) a vector funnel shift, (2) shifts by scalars are cheaper
+  // than general vector shifts, and (3) the shift amount is select-of-splatted
+  // values, hoist the funnel shifts before the select:
+  //   fsh Op0, Op1, (select Cond, TVal, FVal) -->
+  //   select Cond, (fsh Op0, Op1, TVal), (fsh Op0, Op1, FVal)
+  //
+  // This is inverting a generic IR transform when we know that the cost of a
+  // general vector shift is more than the cost of 2 shift-by-scalars.
+  // We can't do this effectively in SDAG because we may not be able to
+  // determine if the select operands are splats from within a basic block.
+  Type *Ty = Fsh->getType();
+  if (!Ty->isVectorTy() || !TLI->isVectorShiftByScalarCheap(Ty))
+    return false;
+  Value *Cond, *TVal, *FVal;
+  if (!match(Fsh->getOperand(2),
+             m_OneUse(m_Select(m_Value(Cond), m_Value(TVal), m_Value(FVal)))))
+    return false;
+  if (!isSplatValue(TVal) || !isSplatValue(FVal))
+    return false;
+
+  IRBuilder<> Builder(Fsh);
+  Value *X = Fsh->getOperand(0), *Y = Fsh->getOperand(1);
+  Value *NewTVal = Builder.CreateIntrinsic(Opcode, Ty, { X, Y, TVal });
+  Value *NewFVal = Builder.CreateIntrinsic(Opcode, Ty, { X, Y, FVal });
+  Value *NewSel = Builder.CreateSelect(Cond, NewTVal, NewFVal);
+  Fsh->replaceAllUsesWith(NewSel);
+  Fsh->eraseFromParent();
   return true;
 }
 
@@ -6373,72 +6457,46 @@ bool CodeGenPrepare::optimizeSelectInst(SelectInst *SI) {
   return true;
 }
 
-static bool isBroadcastShuffle(ShuffleVectorInst *SVI) {
-  ArrayRef<int> Mask(SVI->getShuffleMask());
-  int SplatElem = -1;
-  for (unsigned i = 0; i < Mask.size(); ++i) {
-    if (SplatElem != -1 && Mask[i] != -1 && Mask[i] != SplatElem)
-      return false;
-    SplatElem = Mask[i];
-  }
+/// Some targets only accept certain types for splat inputs. For example a VDUP
+/// in MVE takes a GPR (integer) register, and the instruction that incorporate
+/// a VDUP (such as a VADD qd, qm, rm) also require a gpr register.
+bool CodeGenPrepare::optimizeShuffleVectorInst(ShuffleVectorInst *SVI) {
+  if (!match(SVI, m_Shuffle(m_InsertElt(m_Undef(), m_Value(), m_ZeroInt()),
+                            m_Undef(), m_ZeroMask())))
+    return false;
+  Type *NewType = TLI->shouldConvertSplatType(SVI);
+  if (!NewType)
+    return false;
+
+  VectorType *SVIVecType = cast<VectorType>(SVI->getType());
+  assert(!NewType->isVectorTy() && "Expected a scalar type!");
+  assert(NewType->getScalarSizeInBits() == SVIVecType->getScalarSizeInBits() &&
+         "Expected a type of the same size!");
+  Type *NewVecType = VectorType::get(NewType, SVIVecType->getNumElements());
+
+  // Create a bitcast (shuffle (insert (bitcast(..))))
+  IRBuilder<> Builder(SVI->getContext());
+  Builder.SetInsertPoint(SVI);
+  Value *BC1 = Builder.CreateBitCast(
+      cast<Instruction>(SVI->getOperand(0))->getOperand(1), NewType);
+  Value *Insert = Builder.CreateInsertElement(UndefValue::get(NewVecType), BC1,
+                                              (uint64_t)0);
+  Value *Shuffle = Builder.CreateShuffleVector(
+      Insert, UndefValue::get(NewVecType), SVI->getShuffleMask());
+  Value *BC2 = Builder.CreateBitCast(Shuffle, SVIVecType);
+
+  SVI->replaceAllUsesWith(BC2);
+  RecursivelyDeleteTriviallyDeadInstructions(SVI);
+
+  // Also hoist the bitcast up to its operand if it they are not in the same
+  // block.
+  if (auto *BCI = dyn_cast<Instruction>(BC1))
+    if (auto *Op = dyn_cast<Instruction>(BCI->getOperand(0)))
+      if (BCI->getParent() != Op->getParent() && !isa<PHINode>(Op) &&
+          !Op->isTerminator() && !Op->isEHPad())
+        BCI->moveAfter(Op);
 
   return true;
-}
-
-/// Some targets have expensive vector shifts if the lanes aren't all the same
-/// (e.g. x86 only introduced "vpsllvd" and friends with AVX2). In these cases
-/// it's often worth sinking a shufflevector splat down to its use so that
-/// codegen can spot all lanes are identical.
-bool CodeGenPrepare::optimizeShuffleVectorInst(ShuffleVectorInst *SVI) {
-  BasicBlock *DefBB = SVI->getParent();
-
-  // Only do this xform if variable vector shifts are particularly expensive.
-  if (!TLI->isVectorShiftByScalarCheap(SVI->getType()))
-    return false;
-
-  // We only expect better codegen by sinking a shuffle if we can recognise a
-  // constant splat.
-  if (!isBroadcastShuffle(SVI))
-    return false;
-
-  // InsertedShuffles - Only insert a shuffle in each block once.
-  DenseMap<BasicBlock*, Instruction*> InsertedShuffles;
-
-  bool MadeChange = false;
-  for (User *U : SVI->users()) {
-    Instruction *UI = cast<Instruction>(U);
-
-    // Figure out which BB this ext is used in.
-    BasicBlock *UserBB = UI->getParent();
-    if (UserBB == DefBB) continue;
-
-    // For now only apply this when the splat is used by a shift instruction.
-    if (!UI->isShift()) continue;
-
-    // Everything checks out, sink the shuffle if the user's block doesn't
-    // already have a copy.
-    Instruction *&InsertedShuffle = InsertedShuffles[UserBB];
-
-    if (!InsertedShuffle) {
-      BasicBlock::iterator InsertPt = UserBB->getFirstInsertionPt();
-      assert(InsertPt != UserBB->end());
-      InsertedShuffle =
-          new ShuffleVectorInst(SVI->getOperand(0), SVI->getOperand(1),
-                                SVI->getShuffleMask(), "", &*InsertPt);
-      InsertedShuffle->setDebugLoc(SVI->getDebugLoc());
-    }
-
-    UI->replaceUsesOfWith(SVI, InsertedShuffle);
-    MadeChange = true;
-  }
-
-  // If we removed all uses, nuke the shuffle.
-  if (SVI->use_empty()) {
-    SVI->eraseFromParent();
-    MadeChange = true;
-  }
-
-  return MadeChange;
 }
 
 bool CodeGenPrepare::tryToSinkFreeOperands(Instruction *I) {
@@ -6649,6 +6707,8 @@ class VectorPromoteHelper {
     uint64_t ScalarCost =
         TTI.getVectorInstrCost(Transition->getOpcode(), PromotedType, Index);
     uint64_t VectorCost = StoreExtractCombineCost;
+    enum TargetTransformInfo::TargetCostKind CostKind =
+      TargetTransformInfo::TCK_RecipThroughput;
     for (const auto &Inst : InstsToBePromoted) {
       // Compute the cost.
       // By construction, all instructions being promoted are arithmetic ones.
@@ -6664,8 +6724,9 @@ class VectorPromoteHelper {
           !IsArg0Constant ? TargetTransformInfo::OK_UniformConstantValue
                           : TargetTransformInfo::OK_AnyValue;
       ScalarCost += TTI.getArithmeticInstrCost(
-          Inst->getOpcode(), Inst->getType(), Arg0OVK, Arg1OVK);
+          Inst->getOpcode(), Inst->getType(), CostKind, Arg0OVK, Arg1OVK);
       VectorCost += TTI.getArithmeticInstrCost(Inst->getOpcode(), PromotedType,
+                                               CostKind,
                                                Arg0OVK, Arg1OVK);
     }
     LLVM_DEBUG(
@@ -6957,7 +7018,7 @@ static bool splitMergedValStore(StoreInst &SI, const DataLayout &DL,
   // whereas scalable vectors would have to be shifted by
   // <2log(vscale) + number of bits> in order to store the
   // low/high parts. Bailing out for now.
-  if (StoreType->isVectorTy() && cast<VectorType>(StoreType)->isScalable())
+  if (isa<ScalableVectorType>(StoreType))
     return false;
 
   if (!DL.typeSizeEqualsStoreSize(StoreType) ||
@@ -7124,7 +7185,8 @@ static bool tryUnmergingGEPsAcrossIndirectBr(GetElementPtrInst *GEPI,
     return false;
   ConstantInt *GEPIIdx = cast<ConstantInt>(GEPI->getOperand(1));
   // Check that GEPI is a cheap one.
-  if (TTI->getIntImmCost(GEPIIdx->getValue(), GEPIIdx->getType())
+  if (TTI->getIntImmCost(GEPIIdx->getValue(), GEPIIdx->getType(),
+                         TargetTransformInfo::TCK_SizeAndLatency)
       > TargetTransformInfo::TCC_Basic)
     return false;
   Value *GEPIOp = GEPI->getOperand(0);
@@ -7173,7 +7235,8 @@ static bool tryUnmergingGEPsAcrossIndirectBr(GetElementPtrInst *GEPI,
         cast<ConstantInt>(UGEPI->getOperand(1))->getType())
       return false;
     ConstantInt *UGEPIIdx = cast<ConstantInt>(UGEPI->getOperand(1));
-    if (TTI->getIntImmCost(UGEPIIdx->getValue(), UGEPIIdx->getType())
+    if (TTI->getIntImmCost(UGEPIIdx->getValue(), UGEPIIdx->getType(),
+                           TargetTransformInfo::TCK_SizeAndLatency)
         > TargetTransformInfo::TCC_Basic)
       return false;
     UGEPIs.push_back(UGEPI);
@@ -7184,7 +7247,9 @@ static bool tryUnmergingGEPsAcrossIndirectBr(GetElementPtrInst *GEPI,
   for (GetElementPtrInst *UGEPI : UGEPIs) {
     ConstantInt *UGEPIIdx = cast<ConstantInt>(UGEPI->getOperand(1));
     APInt NewIdx = UGEPIIdx->getValue() - GEPIIdx->getValue();
-    unsigned ImmCost = TTI->getIntImmCost(NewIdx, GEPIIdx->getType());
+    unsigned ImmCost =
+      TTI->getIntImmCost(NewIdx, GEPIIdx->getType(),
+                         TargetTransformInfo::TCK_SizeAndLatency);
     if (ImmCost > TargetTransformInfo::TCC_Basic)
       return false;
   }

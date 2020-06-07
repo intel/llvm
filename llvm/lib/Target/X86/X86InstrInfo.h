@@ -24,8 +24,6 @@
 #include "X86GenInstrInfo.inc"
 
 namespace llvm {
-class MachineInstrBuilder;
-class X86RegisterInfo;
 class X86Subtarget;
 
 namespace X86 {
@@ -307,7 +305,6 @@ public:
                                  const X86InstrFMA3Group &FMA3Group) const;
 
   // Branch analysis.
-  bool isUnpredicatedTerminator(const MachineInstr &MI) const override;
   bool isUnconditionalTailCall(const MachineInstr &MI) const override;
   bool canMakeTailCallConditional(SmallVectorImpl<MachineOperand> &Cond,
                                   const MachineInstr &TailCall) const override;
@@ -320,11 +317,11 @@ public:
                      SmallVectorImpl<MachineOperand> &Cond,
                      bool AllowModify) const override;
 
-  bool
-  getMemOperandsWithOffset(const MachineInstr &LdSt,
-                           SmallVectorImpl<const MachineOperand *> &BaseOps,
-                           int64_t &Offset, bool &OffsetIsScalable,
-                           const TargetRegisterInfo *TRI) const override;
+  bool getMemOperandsWithOffsetWidth(
+      const MachineInstr &LdSt,
+      SmallVectorImpl<const MachineOperand *> &BaseOps, int64_t &Offset,
+      bool &OffsetIsScalable, unsigned &Width,
+      const TargetRegisterInfo *TRI) const override;
   bool analyzeBranchPredicate(MachineBasicBlock &MBB,
                               TargetInstrInfo::MachineBranchPredicate &MBP,
                               bool AllowModify = false) const override;

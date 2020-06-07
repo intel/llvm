@@ -36,8 +36,6 @@ CodeGenTypes::CodeGenTypes(CodeGenModule &cgm)
 }
 
 CodeGenTypes::~CodeGenTypes() {
-  llvm::DeleteContainerSeconds(CGRecordLayouts);
-
   for (llvm::FoldingSet<CGFunctionInfo>::iterator
        I = FunctionInfos.begin(), E = FunctionInfos.end(); I != E; )
     delete &*I++;
@@ -98,6 +96,13 @@ void CodeGenTypes::addRecordTypeName(const RecordDecl *RD,
 /// a type.  For example, the scalar representation for _Bool is i1, but the
 /// memory representation is usually i8 or i32, depending on the target.
 llvm::Type *CodeGenTypes::ConvertTypeForMem(QualType T, bool ForBitField) {
+  if (T->isConstantMatrixType()) {
+    const Type *Ty = Context.getCanonicalType(T).getTypePtr();
+    const ConstantMatrixType *MT = cast<ConstantMatrixType>(Ty);
+    return llvm::ArrayType::get(ConvertType(MT->getElementType()),
+                                MT->getNumRows() * MT->getNumColumns());
+  }
+
   llvm::Type *R = ConvertType(T);
 
   // If this is a bool type, or an ExtIntType in a bitfield representation,
@@ -658,8 +663,15 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
   case Type::ExtVector:
   case Type::Vector: {
     const VectorType *VT = cast<VectorType>(Ty);
-    ResultType = llvm::VectorType::get(ConvertType(VT->getElementType()),
-                                       VT->getNumElements());
+    ResultType = llvm::FixedVectorType::get(ConvertType(VT->getElementType()),
+                                            VT->getNumElements());
+    break;
+  }
+  case Type::ConstantMatrix: {
+    const ConstantMatrixType *MT = cast<ConstantMatrixType>(Ty);
+    ResultType =
+        llvm::FixedVectorType::get(ConvertType(MT->getElementType()),
+                                   MT->getNumRows() * MT->getNumColumns());
     break;
   }
   case Type::FunctionNoProto:
@@ -807,8 +819,8 @@ llvm::StructType *CodeGenTypes::ConvertRecordDeclType(const RecordDecl *RD) {
   }
 
   // Layout fields.
-  CGRecordLayout *Layout = ComputeRecordLayout(RD, Ty);
-  CGRecordLayouts[Key] = Layout;
+  std::unique_ptr<CGRecordLayout> Layout = ComputeRecordLayout(RD, Ty);
+  CGRecordLayouts[Key] = std::move(Layout);
 
   // We're done laying out this struct.
   bool EraseResult = RecordsBeingLaidOut.erase(Key); (void)EraseResult;
@@ -834,17 +846,18 @@ const CGRecordLayout &
 CodeGenTypes::getCGRecordLayout(const RecordDecl *RD) {
   const Type *Key = Context.getTagDeclType(RD).getTypePtr();
 
-  const CGRecordLayout *Layout = CGRecordLayouts.lookup(Key);
-  if (!Layout) {
-    // Compute the type information.
-    ConvertRecordDeclType(RD);
+  auto I = CGRecordLayouts.find(Key);
+  if (I != CGRecordLayouts.end())
+    return *I->second;
+  // Compute the type information.
+  ConvertRecordDeclType(RD);
 
-    // Now try again.
-    Layout = CGRecordLayouts.lookup(Key);
-  }
+  // Now try again.
+  I = CGRecordLayouts.find(Key);
 
-  assert(Layout && "Unable to find record layout information for type");
-  return *Layout;
+  assert(I != CGRecordLayouts.end() &&
+         "Unable to find record layout information for type");
+  return *I->second;
 }
 
 bool CodeGenTypes::isPointerZeroInitializable(QualType T) {

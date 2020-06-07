@@ -1358,7 +1358,8 @@ CallExpr *CallExpr::CreateTemporary(void *Mem, Expr *Fn, QualType Ty,
   assert(!(reinterpret_cast<uintptr_t>(Mem) % alignof(CallExpr)) &&
          "Misaligned memory in CallExpr::CreateTemporary!");
   return new (Mem) CallExpr(CallExprClass, Fn, /*PreArgs=*/{}, /*Args=*/{}, Ty,
-                            VK, RParenLoc, /*MinNumArgs=*/0, UsesADL);
+                            VK, RParenLoc,
+                            /*MinNumArgs=*/0, UsesADL);
 }
 
 CallExpr *CallExpr::CreateEmpty(const ASTContext &Ctx, unsigned NumArgs,
@@ -1710,12 +1711,13 @@ bool CastExpr::CastConsistency() const {
     auto Ty = getType();
     auto SETy = getSubExpr()->getType();
     assert(getValueKindForType(Ty) == Expr::getValueKindForType(SETy));
-    if (isRValue()) {
+    if (isRValue() && !Ty->isDependentType() && !SETy->isDependentType()) {
       Ty = Ty->getPointeeType();
       SETy = SETy->getPointeeType();
     }
-    assert(!Ty.isNull() && !SETy.isNull() &&
-           Ty.getAddressSpace() != SETy.getAddressSpace());
+    assert((Ty->isDependentType() || SETy->isDependentType()) ||
+           (!Ty.isNull() && !SETy.isNull() &&
+            Ty.getAddressSpace() != SETy.getAddressSpace()));
     goto CheckNoBasePath;
   }
   // These should not have an inheritance path.
@@ -2265,6 +2267,64 @@ Stmt *BlockExpr::getBody() {
 // Generic Expression Routines
 //===----------------------------------------------------------------------===//
 
+bool Expr::isReadIfDiscardedInCPlusPlus11() const {
+  // In C++11, discarded-value expressions of a certain form are special,
+  // according to [expr]p10:
+  //   The lvalue-to-rvalue conversion (4.1) is applied only if the
+  //   expression is an lvalue of volatile-qualified type and it has
+  //   one of the following forms:
+  if (!isGLValue() || !getType().isVolatileQualified())
+    return false;
+
+  const Expr *E = IgnoreParens();
+
+  //   - id-expression (5.1.1),
+  if (isa<DeclRefExpr>(E))
+    return true;
+
+  //   - subscripting (5.2.1),
+  if (isa<ArraySubscriptExpr>(E))
+    return true;
+
+  //   - class member access (5.2.5),
+  if (isa<MemberExpr>(E))
+    return true;
+
+  //   - indirection (5.3.1),
+  if (auto *UO = dyn_cast<UnaryOperator>(E))
+    if (UO->getOpcode() == UO_Deref)
+      return true;
+
+  if (auto *BO = dyn_cast<BinaryOperator>(E)) {
+    //   - pointer-to-member operation (5.5),
+    if (BO->isPtrMemOp())
+      return true;
+
+    //   - comma expression (5.18) where the right operand is one of the above.
+    if (BO->getOpcode() == BO_Comma)
+      return BO->getRHS()->isReadIfDiscardedInCPlusPlus11();
+  }
+
+  //   - conditional expression (5.16) where both the second and the third
+  //     operands are one of the above, or
+  if (auto *CO = dyn_cast<ConditionalOperator>(E))
+    return CO->getTrueExpr()->isReadIfDiscardedInCPlusPlus11() &&
+           CO->getFalseExpr()->isReadIfDiscardedInCPlusPlus11();
+  // The related edge case of "*x ?: *x".
+  if (auto *BCO =
+          dyn_cast<BinaryConditionalOperator>(E)) {
+    if (auto *OVE = dyn_cast<OpaqueValueExpr>(BCO->getTrueExpr()))
+      return OVE->getSourceExpr()->isReadIfDiscardedInCPlusPlus11() &&
+             BCO->getFalseExpr()->isReadIfDiscardedInCPlusPlus11();
+  }
+
+  // Objective-C++ extensions to the rule.
+  if (isa<PseudoObjectExpr>(E) || isa<ObjCIvarRefExpr>(E))
+    return true;
+
+  return false;
+}
+
 /// isUnusedResultAWarning - Return true if this immediate expression should
 /// be warned about if the result is unused.  If so, fill in Loc and Ranges
 /// with location to warn on and the source range[s] to report with the
@@ -2553,20 +2613,31 @@ bool Expr::isUnusedResultAWarning(const Expr *&WarnE, SourceLocation &Loc,
   }
   case CXXFunctionalCastExprClass:
   case CStyleCastExprClass: {
-    // Ignore an explicit cast to void unless the operand is a non-trivial
-    // volatile lvalue.
+    // Ignore an explicit cast to void, except in C++98 if the operand is a
+    // volatile glvalue for which we would trigger an implicit read in any
+    // other language mode. (Such an implicit read always happens as part of
+    // the lvalue conversion in C, and happens in C++ for expressions of all
+    // forms where it seems likely the user intended to trigger a volatile
+    // load.)
     const CastExpr *CE = cast<CastExpr>(this);
+    const Expr *SubE = CE->getSubExpr()->IgnoreParens();
     if (CE->getCastKind() == CK_ToVoid) {
-      if (CE->getSubExpr()->isGLValue() &&
-          CE->getSubExpr()->getType().isVolatileQualified()) {
-        const DeclRefExpr *DRE =
-            dyn_cast<DeclRefExpr>(CE->getSubExpr()->IgnoreParens());
-        if (!(DRE && isa<VarDecl>(DRE->getDecl()) &&
-              cast<VarDecl>(DRE->getDecl())->hasLocalStorage()) &&
-            !isa<CallExpr>(CE->getSubExpr()->IgnoreParens())) {
-          return CE->getSubExpr()->isUnusedResultAWarning(WarnE, Loc,
-                                                          R1, R2, Ctx);
-        }
+      if (Ctx.getLangOpts().CPlusPlus && !Ctx.getLangOpts().CPlusPlus11 &&
+          SubE->isReadIfDiscardedInCPlusPlus11()) {
+        // Suppress the "unused value" warning for idiomatic usage of
+        // '(void)var;' used to suppress "unused variable" warnings.
+        if (auto *DRE = dyn_cast<DeclRefExpr>(SubE))
+          if (auto *VD = dyn_cast<VarDecl>(DRE->getDecl()))
+            if (!VD->isExternallyVisible())
+              return false;
+
+        // The lvalue-to-rvalue conversion would have no effect for an array.
+        // It's implausible that the programmer expected this to result in a
+        // volatile array load, so don't warn.
+        if (SubE->getType()->isArrayType())
+          return false;
+
+        return SubE->isUnusedResultAWarning(WarnE, Loc, R1, R2, Ctx);
       }
       return false;
     }
@@ -2907,13 +2978,16 @@ Expr *Expr::IgnoreUnlessSpelledInSource() {
   Expr *LastE = nullptr;
   while (E != LastE) {
     LastE = E;
-    E = IgnoreExprNodes(E, IgnoreImplicitSingleStep, IgnoreImpCastsSingleStep,
+    E = IgnoreExprNodes(E, IgnoreImplicitSingleStep,
+                        IgnoreImpCastsExtraSingleStep,
                         IgnoreParensOnlySingleStep);
 
     auto SR = E->getSourceRange();
 
     if (auto *C = dyn_cast<CXXConstructExpr>(E)) {
-      if (C->getNumArgs() == 1) {
+      auto NumArgs = C->getNumArgs();
+      if (NumArgs == 1 ||
+          (NumArgs > 1 && isa<CXXDefaultArgExpr>(C->getArg(1)))) {
         Expr *A = C->getArg(0);
         if (A->getSourceRange() == SR || !isa<CXXTemporaryObjectExpr>(C))
           E = A;
@@ -2921,7 +2995,18 @@ Expr *Expr::IgnoreUnlessSpelledInSource() {
     }
 
     if (auto *C = dyn_cast<CXXMemberCallExpr>(E)) {
-      Expr *ExprNode = C->getImplicitObjectArgument()->IgnoreParenImpCasts();
+      Expr *ExprNode = C->getImplicitObjectArgument();
+      if (ExprNode->getSourceRange() == SR) {
+        E = ExprNode;
+        continue;
+      }
+      if (auto *PE = dyn_cast<ParenExpr>(ExprNode)) {
+        if (PE->getSourceRange() == C->getSourceRange()) {
+          E = PE;
+          continue;
+        }
+      }
+      ExprNode = ExprNode->IgnoreParenImpCasts();
       if (ExprNode->getSourceRange() == SR)
         E = ExprNode;
     }
@@ -3204,6 +3289,7 @@ bool Expr::isConstantInitializer(ASTContext &Ctx, bool IsForRef,
   case ObjCBridgedCastExprClass:
   case CXXDynamicCastExprClass:
   case CXXReinterpretCastExprClass:
+  case CXXAddrspaceCastExprClass:
   case CXXConstCastExprClass: {
     const CastExpr *CE = cast<CastExpr>(this);
 
@@ -3269,6 +3355,26 @@ namespace {
         IncludePossibleEffects(IncludePossible), HasSideEffects(false) { }
 
     bool hasSideEffects() const { return HasSideEffects; }
+
+    void VisitDecl(const Decl *D) {
+      if (!D)
+        return;
+
+      // We assume the caller checks subexpressions (eg, the initializer, VLA
+      // bounds) for side-effects on our behalf.
+      if (auto *VD = dyn_cast<VarDecl>(D)) {
+        // Registering a destructor is a side-effect.
+        if (IncludePossibleEffects && VD->isThisDeclarationADefinition() &&
+            VD->needsDestruction(Context))
+          HasSideEffects = true;
+      }
+    }
+
+    void VisitDeclStmt(const DeclStmt *DS) {
+      for (auto *D : DS->decls())
+        VisitDecl(D);
+      Inherited::VisitDeclStmt(DS);
+    }
 
     void VisitExpr(const Expr *E) {
       if (!HasSideEffects &&
@@ -3475,6 +3581,7 @@ bool Expr::HasSideEffects(const ASTContext &Ctx,
   case CXXStaticCastExprClass:
   case CXXReinterpretCastExprClass:
   case CXXConstCastExprClass:
+  case CXXAddrspaceCastExprClass:
   case CXXFunctionalCastExprClass:
   case BuiltinBitCastExprClass: {
     // While volatile reads are side-effecting in both C and C++, we treat them
@@ -4425,6 +4532,38 @@ CompoundAssignOperator *CompoundAssignOperator::Create(
                              CompLHSType, CompResultType);
 }
 
+UnaryOperator *UnaryOperator::CreateEmpty(const ASTContext &C,
+                                          bool hasFPFeatures) {
+  void *Mem = C.Allocate(totalSizeToAlloc<FPOptions>(hasFPFeatures),
+                         alignof(UnaryOperator));
+  return new (Mem) UnaryOperator(hasFPFeatures, EmptyShell());
+}
+
+UnaryOperator::UnaryOperator(const ASTContext &Ctx, Expr *input, Opcode opc,
+                             QualType type, ExprValueKind VK, ExprObjectKind OK,
+                             SourceLocation l, bool CanOverflow,
+                             FPOptions FPFeatures)
+    : Expr(UnaryOperatorClass, type, VK, OK), Val(input) {
+  UnaryOperatorBits.Opc = opc;
+  UnaryOperatorBits.CanOverflow = CanOverflow;
+  UnaryOperatorBits.Loc = l;
+  UnaryOperatorBits.HasFPFeatures =
+      FPFeatures.requiresTrailingStorage(Ctx.getLangOpts());
+  setDependence(computeDependence(this));
+}
+
+UnaryOperator *UnaryOperator::Create(const ASTContext &C, Expr *input,
+                                     Opcode opc, QualType type,
+                                     ExprValueKind VK, ExprObjectKind OK,
+                                     SourceLocation l, bool CanOverflow,
+                                     FPOptions FPFeatures) {
+  bool HasFPFeatures = FPFeatures.requiresTrailingStorage(C.getLangOpts());
+  unsigned Size = totalSizeToAlloc<FPOptions>(HasFPFeatures);
+  void *Mem = C.Allocate(Size, alignof(UnaryOperator));
+  return new (Mem)
+      UnaryOperator(C, input, opc, type, VK, OK, l, CanOverflow, FPFeatures);
+}
+
 const OpaqueValueExpr *OpaqueValueExpr::findInCopyConstruct(const Expr *e) {
   if (const ExprWithCleanups *ewc = dyn_cast<ExprWithCleanups>(e))
     e = ewc->getSubExpr();
@@ -4628,25 +4767,24 @@ QualType OMPArraySectionExpr::getBaseOriginalType(const Expr *Base) {
   return OriginalTy;
 }
 
-RecoveryExpr::RecoveryExpr(ASTContext &Ctx, SourceLocation BeginLoc,
+RecoveryExpr::RecoveryExpr(ASTContext &Ctx, QualType T, SourceLocation BeginLoc,
                            SourceLocation EndLoc, ArrayRef<Expr *> SubExprs)
-    : Expr(RecoveryExprClass, Ctx.DependentTy, VK_LValue, OK_Ordinary),
-      BeginLoc(BeginLoc), EndLoc(EndLoc), NumExprs(SubExprs.size()) {
-#ifndef NDEBUG
-  for (auto *E : SubExprs)
-    assert(E != nullptr);
-#endif
+    : Expr(RecoveryExprClass, T, VK_LValue, OK_Ordinary), BeginLoc(BeginLoc),
+      EndLoc(EndLoc), NumExprs(SubExprs.size()) {
+  assert(!T.isNull());
+  assert(llvm::all_of(SubExprs, [](Expr* E) { return E != nullptr; }));
 
   llvm::copy(SubExprs, getTrailingObjects<Expr *>());
   setDependence(computeDependence(this));
 }
 
-RecoveryExpr *RecoveryExpr::Create(ASTContext &Ctx, SourceLocation BeginLoc,
+RecoveryExpr *RecoveryExpr::Create(ASTContext &Ctx, QualType T,
+                                   SourceLocation BeginLoc,
                                    SourceLocation EndLoc,
                                    ArrayRef<Expr *> SubExprs) {
   void *Mem = Ctx.Allocate(totalSizeToAlloc<Expr *>(SubExprs.size()),
                            alignof(RecoveryExpr));
-  return new (Mem) RecoveryExpr(Ctx, BeginLoc, EndLoc, SubExprs);
+  return new (Mem) RecoveryExpr(Ctx, T, BeginLoc, EndLoc, SubExprs);
 }
 
 RecoveryExpr *RecoveryExpr::CreateEmpty(ASTContext &Ctx, unsigned NumSubExprs) {

@@ -638,42 +638,44 @@ void TargetPassConfig::addMachinePostPasses(const std::string &Banner,
 /// Add common target configurable passes that perform LLVM IR to IR transforms
 /// following machine independent optimization.
 void TargetPassConfig::addIRPasses() {
-  switch (UseCFLAA) {
-  case CFLAAType::Steensgaard:
-    addPass(createCFLSteensAAWrapperPass());
-    break;
-  case CFLAAType::Andersen:
-    addPass(createCFLAndersAAWrapperPass());
-    break;
-  case CFLAAType::Both:
-    addPass(createCFLAndersAAWrapperPass());
-    addPass(createCFLSteensAAWrapperPass());
-    break;
-  default:
-    break;
-  }
-
-  // Basic AliasAnalysis support.
-  // Add TypeBasedAliasAnalysis before BasicAliasAnalysis so that
-  // BasicAliasAnalysis wins if they disagree. This is intended to help
-  // support "obvious" type-punning idioms.
-  addPass(createTypeBasedAAWrapperPass());
-  addPass(createScopedNoAliasAAWrapperPass());
-  addPass(createBasicAAWrapperPass());
-
   // Before running any passes, run the verifier to determine if the input
   // coming from the front-end and/or optimizer is valid.
   if (!DisableVerify)
     addPass(createVerifierPass());
 
-  // Run loop strength reduction before anything else.
-  if (getOptLevel() != CodeGenOpt::None && !DisableLSR) {
-    addPass(createLoopStrengthReducePass());
-    if (PrintLSR)
-      addPass(createPrintFunctionPass(dbgs(), "\n\n*** Code after LSR ***\n"));
-  }
-
   if (getOptLevel() != CodeGenOpt::None) {
+    switch (UseCFLAA) {
+    case CFLAAType::Steensgaard:
+      addPass(createCFLSteensAAWrapperPass());
+      break;
+    case CFLAAType::Andersen:
+      addPass(createCFLAndersAAWrapperPass());
+      break;
+    case CFLAAType::Both:
+      addPass(createCFLAndersAAWrapperPass());
+      addPass(createCFLSteensAAWrapperPass());
+      break;
+    default:
+      break;
+    }
+
+    // Basic AliasAnalysis support.
+    // Add TypeBasedAliasAnalysis before BasicAliasAnalysis so that
+    // BasicAliasAnalysis wins if they disagree. This is intended to help
+    // support "obvious" type-punning idioms.
+    addPass(createTypeBasedAAWrapperPass());
+    addPass(createScopedNoAliasAAWrapperPass());
+    addPass(createBasicAAWrapperPass());
+
+    // Run loop strength reduction before anything else.
+    if (!DisableLSR) {
+      addPass(createCanonicalizeFreezeInLoopsPass());
+      addPass(createLoopStrengthReducePass());
+      if (PrintLSR)
+        addPass(createPrintFunctionPass(dbgs(),
+                                        "\n\n*** Code after LSR ***\n"));
+    }
+
     // The MergeICmpsPass tries to create memcmp calls by grouping sequences of
     // loads and compares. ExpandMemCmpPass then tries to expand those calls
     // into optimally-sized loads and compares. The transforms are enabled by a
@@ -728,14 +730,14 @@ void TargetPassConfig::addPassesToHandleExceptions() {
     LLVM_FALLTHROUGH;
   case ExceptionHandling::DwarfCFI:
   case ExceptionHandling::ARM:
-    addPass(createDwarfEHPass());
+    addPass(createDwarfEHPass(getOptLevel()));
     break;
   case ExceptionHandling::WinEH:
     // We support using both GCC-style and MSVC-style exceptions on Windows, so
     // add both preparation passes. Each pass will only actually run if it
     // recognizes the personality function.
     addPass(createWinEHPass());
-    addPass(createDwarfEHPass());
+    addPass(createDwarfEHPass(getOptLevel()));
     break;
   case ExceptionHandling::Wasm:
     // Wasm EH uses Windows EH instructions, but it does not need to demote PHIs
@@ -934,7 +936,7 @@ void TargetPassConfig::addMachinePasses() {
   } else {
     // If the target requests it, assign local variables to stack slots relative
     // to one another and simplify frame index references where possible.
-    addPass(&LocalStackSlotAllocationID, false);
+    addPass(&LocalStackSlotAllocationID);
   }
 
   if (TM->Options.EnableIPRA)
@@ -1006,10 +1008,10 @@ void TargetPassConfig::addMachinePasses() {
     addBlockPlacement();
 
   // Insert before XRay Instrumentation.
-  addPass(&FEntryInserterID, false);
+  addPass(&FEntryInserterID);
 
-  addPass(&XRayInstrumentationID, false);
-  addPass(&PatchableFunctionID, false);
+  addPass(&XRayInstrumentationID);
+  addPass(&PatchableFunctionID);
 
   addPreEmitPass();
 
@@ -1018,6 +1020,8 @@ void TargetPassConfig::addMachinePasses() {
     // clobbered registers, to be used to optimize call sites.
     addPass(createRegUsageInfoCollector());
 
+  // FIXME: Some backends are incompatible with running the verifier after
+  // addPreEmitPass.  Maybe only pass "false" here for those targets?
   addPass(&FuncletLayoutID, false);
 
   addPass(&StackMapLivenessID, false);
@@ -1048,15 +1052,15 @@ void TargetPassConfig::addMachineSSAOptimization() {
 
   // Optimize PHIs before DCE: removing dead PHI cycles may make more
   // instructions dead.
-  addPass(&OptimizePHIsID, false);
+  addPass(&OptimizePHIsID);
 
   // This pass merges large allocas. StackSlotColoring is a different pass
   // which merges spill slots.
-  addPass(&StackColoringID, false);
+  addPass(&StackColoringID);
 
   // If the target requests it, assign local variables to stack slots relative
   // to one another and simplify frame index references where possible.
-  addPass(&LocalStackSlotAllocationID, false);
+  addPass(&LocalStackSlotAllocationID);
 
   // With optimization, dead code should already be eliminated. However
   // there is one known exception: lowered code for arguments that are only
@@ -1069,8 +1073,8 @@ void TargetPassConfig::addMachineSSAOptimization() {
   // loop info, just like LICM and CSE below.
   addILPOpts();
 
-  addPass(&EarlyMachineLICMID, false);
-  addPass(&MachineCSEID, false);
+  addPass(&EarlyMachineLICMID);
+  addPass(&MachineCSEID);
 
   addPass(&MachineSinkingID);
 

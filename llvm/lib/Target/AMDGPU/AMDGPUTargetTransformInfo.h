@@ -184,6 +184,7 @@ public:
 
   int getArithmeticInstrCost(
       unsigned Opcode, Type *Ty,
+      TTI::TargetCostKind CostKind = TTI::TCK_RecipThroughput,
       TTI::OperandValueKind Opd1Info = TTI::OK_AnyValue,
       TTI::OperandValueKind Opd2Info = TTI::OK_AnyValue,
       TTI::OperandValueProperties Opd1PropInfo = TTI::OP_None,
@@ -191,7 +192,7 @@ public:
       ArrayRef<const Value *> Args = ArrayRef<const Value *>(),
       const Instruction *CxtI = nullptr);
 
-  unsigned getCFInstrCost(unsigned Opcode);
+  unsigned getCFInstrCost(unsigned Opcode, TTI::TargetCostKind CostKind);
 
   bool isInlineAsmSourceOfDivergence(const CallInst *CI,
                                      ArrayRef<unsigned> Indices = {}) const;
@@ -210,13 +211,13 @@ public:
 
   bool collectFlatAddressOperands(SmallVectorImpl<int> &OpIndexes,
                                   Intrinsic::ID IID) const;
-  bool rewriteIntrinsicWithAddressSpace(IntrinsicInst *II,
-                                        Value *OldV, Value *NewV) const;
+  Value *rewriteIntrinsicWithAddressSpace(IntrinsicInst *II, Value *OldV,
+                                          Value *NewV) const;
 
   unsigned getVectorSplitCost() { return 0; }
 
-  unsigned getShuffleCost(TTI::ShuffleKind Kind, Type *Tp, int Index,
-                          Type *SubTp);
+  unsigned getShuffleCost(TTI::ShuffleKind Kind, VectorType *Tp, int Index,
+                          VectorType *SubTp);
 
   bool areInlineCompatible(const Function *Caller,
                            const Function *Callee) const;
@@ -225,24 +226,20 @@ public:
 
   int getInlinerVectorBonusPercent() { return 0; }
 
-  int getArithmeticReductionCost(unsigned Opcode,
-                                 Type *Ty,
-                                 bool IsPairwise);
-  template <typename T>
-  int getIntrinsicInstrCost(Intrinsic::ID IID, Type *RetTy, ArrayRef<T *> Args,
-                            FastMathFlags FMF, unsigned VF,
-                            const Instruction *I = nullptr);
-  int getIntrinsicInstrCost(Intrinsic::ID IID, Type *RetTy,
-                            ArrayRef<Type *> Tys, FastMathFlags FMF,
-                            unsigned ScalarizationCostPassed = UINT_MAX,
-                            const Instruction *I = nullptr);
-  int getIntrinsicInstrCost(Intrinsic::ID IID, Type *RetTy,
-                            ArrayRef<Value *> Args, FastMathFlags FMF,
-                            unsigned VF = 1, const Instruction *I = nullptr);
-  int getMinMaxReductionCost(Type *Ty, Type *CondTy,
-                             bool IsPairwiseForm,
-                             bool IsUnsigned);
-  unsigned getUserCost(const User *U, ArrayRef<const Value *> Operands);
+  int getArithmeticReductionCost(
+      unsigned Opcode,
+      VectorType *Ty,
+      bool IsPairwise,
+      TTI::TargetCostKind CostKind = TTI::TCK_RecipThroughput);
+
+  int getIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
+                            TTI::TargetCostKind CostKind);
+  int getMinMaxReductionCost(
+    VectorType *Ty, VectorType *CondTy, bool IsPairwiseForm, bool IsUnsigned,
+    TTI::TargetCostKind CostKind = TTI::TCK_RecipThroughput);
+
+  unsigned getUserCost(const User *U, ArrayRef<const Value *> Operands,
+                       TTI::TargetCostKind CostKind);
 };
 
 class R600TTIImpl final : public BasicTTIImplBase<R600TTIImpl> {
@@ -281,7 +278,7 @@ public:
                                     unsigned Alignment,
                                     unsigned AddrSpace) const;
   unsigned getMaxInterleaveFactor(unsigned VF);
-  unsigned getCFInstrCost(unsigned Opcode);
+  unsigned getCFInstrCost(unsigned Opcode, TTI::TargetCostKind CostKind);
   int getVectorInstrCost(unsigned Opcode, Type *ValTy, unsigned Index);
 };
 

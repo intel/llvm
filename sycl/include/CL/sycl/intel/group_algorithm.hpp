@@ -42,7 +42,7 @@ typename Group::linear_id_type get_local_linear_id(Group g);
 #ifdef __SYCL_DEVICE_ONLY__
 #define __SYCL_GROUP_GET_LOCAL_LINEAR_ID(D)                                    \
   template <>                                                                  \
-  group<D>::linear_id_type get_local_linear_id<group<D>>(group<D> g) {         \
+  group<D>::linear_id_type get_local_linear_id<group<D>>(group<D>) {           \
     nd_item<D> it = cl::sycl::detail::Builder::getNDItem<D>();                 \
     return it.get_local_linear_id();                                           \
   }
@@ -60,7 +60,7 @@ get_local_linear_id<intel::sub_group>(intel::sub_group g) {
 
 template <int Dimensions>
 id<Dimensions> linear_id_to_id(range<Dimensions>, size_t linear_id);
-template <> inline id<1> linear_id_to_id(range<1> r, size_t linear_id) {
+template <> inline id<1> linear_id_to_id(range<1>, size_t linear_id) {
   return id<1>(linear_id);
 }
 template <> inline id<2> linear_id_to_id(range<2> r, size_t linear_id) {
@@ -115,6 +115,10 @@ Function for_each(Group g, Ptr first, Ptr last, Function f) {
   }
   return f;
 #else
+  (void)g;
+  (void)first;
+  (void)last;
+  (void)f;
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
 #endif
@@ -136,13 +140,14 @@ template <typename Ptr, typename T>
 using EnableIfIsPointer =
     cl::sycl::detail::enable_if_t<cl::sycl::detail::is_pointer<Ptr>::value, T>;
 
-template <typename Group> bool all_of(Group g, bool pred) {
+template <typename Group> bool all_of(Group, bool pred) {
   static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
 #ifdef __SYCL_DEVICE_ONLY__
   return sycl::detail::spirv::GroupAll<Group>(pred);
 #else
+  (void)pred;
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
 #endif
@@ -169,18 +174,23 @@ EnableIfIsPointer<Ptr, bool> all_of(Group g, Ptr first, Ptr last,
       [&](const typename Ptr::element_type &x) { partial &= pred(x); });
   return all_of(g, partial);
 #else
+  (void)g;
+  (void)first;
+  (void)last;
+  (void)pred;
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
 #endif
 }
 
-template <typename Group> bool any_of(Group g, bool pred) {
+template <typename Group> bool any_of(Group, bool pred) {
   static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
 #ifdef __SYCL_DEVICE_ONLY__
   return sycl::detail::spirv::GroupAny<Group>(pred);
 #else
+  (void)pred;
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
 #endif
@@ -207,18 +217,23 @@ EnableIfIsPointer<Ptr, bool> any_of(Group g, Ptr first, Ptr last,
       [&](const typename Ptr::element_type &x) { partial |= pred(x); });
   return any_of(g, partial);
 #else
+  (void)g;
+  (void)first;
+  (void)last;
+  (void)pred;
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
 #endif
 }
 
-template <typename Group> bool none_of(Group g, bool pred) {
+template <typename Group> bool none_of(Group, bool pred) {
   static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
 #ifdef __SYCL_DEVICE_ONLY__
   return sycl::detail::spirv::GroupAll<Group>(!pred);
 #else
+  (void)pred;
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
 #endif
@@ -241,13 +256,17 @@ EnableIfIsPointer<Ptr, bool> none_of(Group g, Ptr first, Ptr last,
                 "intel::sub_group class.");
   return !any_of(g, first, last, pred);
 #else
+  (void)g;
+  (void)first;
+  (void)last;
+  (void)pred;
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
 #endif
 }
 
 template <typename Group, typename T>
-EnableIfIsScalarArithmetic<T> broadcast(Group g, T x,
+EnableIfIsScalarArithmetic<T> broadcast(Group, T x,
                                         typename Group::id_type local_id) {
   static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
@@ -255,6 +274,8 @@ EnableIfIsScalarArithmetic<T> broadcast(Group g, T x,
 #ifdef __SYCL_DEVICE_ONLY__
   return sycl::detail::spirv::GroupBroadcast<Group>(x, local_id);
 #else
+  (void)x;
+  (void)local_id;
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
 #endif
@@ -273,6 +294,9 @@ EnableIfIsVectorArithmetic<T> broadcast(Group g, T x,
   }
   return result;
 #else
+  (void)g;
+  (void)x;
+  (void)local_id;
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
 #endif
@@ -289,6 +313,9 @@ broadcast(Group g, T x, typename Group::linear_id_type linear_local_id) {
       g, x,
       sycl::detail::linear_id_to_id(g.get_local_range(), linear_local_id));
 #else
+  (void)g;
+  (void)x;
+  (void)linear_local_id;
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
 #endif
@@ -307,6 +334,9 @@ broadcast(Group g, T x, typename Group::linear_id_type linear_local_id) {
   }
   return result;
 #else
+  (void)g;
+  (void)x;
+  (void)linear_local_id;
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
 #endif
@@ -320,6 +350,8 @@ EnableIfIsScalarArithmetic<T> broadcast(Group g, T x) {
 #ifdef __SYCL_DEVICE_ONLY__
   return broadcast(g, x, 0);
 #else
+  (void)g;
+  (void)x;
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
 #endif
@@ -337,13 +369,15 @@ EnableIfIsVectorArithmetic<T> broadcast(Group g, T x) {
   }
   return result;
 #else
+  (void)g;
+  (void)x;
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
 #endif
 }
 
 template <typename Group, typename T, class BinaryOperation>
-EnableIfIsScalarArithmetic<T> reduce(Group g, T x, BinaryOperation binary_op) {
+EnableIfIsScalarArithmetic<T> reduce(Group, T x, BinaryOperation binary_op) {
   static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
@@ -397,6 +431,7 @@ EnableIfIsScalarArithmetic<T> reduce(Group g, V x, T init,
 #ifdef __SYCL_DEVICE_ONLY__
   return binary_op(init, reduce(g, x, binary_op));
 #else
+  (void)g;
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
 #endif
@@ -422,6 +457,7 @@ EnableIfIsVectorArithmetic<T> reduce(Group g, V x, T init,
   }
   return result;
 #else
+  (void)g;
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
 #endif
@@ -450,6 +486,9 @@ reduce(Group g, Ptr first, Ptr last, BinaryOperation binary_op) {
                          });
   return reduce(g, partial, binary_op);
 #else
+  (void)g;
+  (void)last;
+  (void)binary_op;
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
 #endif
@@ -476,13 +515,15 @@ EnableIfIsPointer<Ptr, T> reduce(Group g, Ptr first, Ptr last, T init,
                          });
   return reduce(g, partial, init, binary_op);
 #else
+  (void)g;
+  (void)last;
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
 #endif
 }
 
 template <typename Group, typename T, class BinaryOperation>
-EnableIfIsScalarArithmetic<T> exclusive_scan(Group g, T x,
+EnableIfIsScalarArithmetic<T> exclusive_scan(Group, T x,
                                              BinaryOperation binary_op) {
   static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
@@ -565,6 +606,7 @@ EnableIfIsScalarArithmetic<T> exclusive_scan(Group g, V x, T init,
   }
   return scan;
 #else
+  (void)g;
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
 #endif
@@ -607,6 +649,10 @@ exclusive_scan(Group g, InPtr first, InPtr last, OutPtr result, T init,
   }
   return result + N;
 #else
+  (void)g;
+  (void)last;
+  (void)result;
+  (void)init;
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
 #endif
@@ -651,7 +697,7 @@ EnableIfIsVectorArithmetic<T> inclusive_scan(Group g, T x,
 }
 
 template <typename Group, typename T, class BinaryOperation>
-EnableIfIsScalarArithmetic<T> inclusive_scan(Group g, T x,
+EnableIfIsScalarArithmetic<T> inclusive_scan(Group, T x,
                                              BinaryOperation binary_op) {
   static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
@@ -688,6 +734,7 @@ inclusive_scan(Group g, V x, BinaryOperation binary_op, T init) {
   }
   return inclusive_scan(g, x, binary_op);
 #else
+  (void)g;
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
 #endif
@@ -749,6 +796,9 @@ inclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
   }
   return result + N;
 #else
+  (void)g;
+  (void)last;
+  (void)result;
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
 #endif
@@ -780,6 +830,7 @@ template <typename Group> bool leader(Group g) {
       sycl::detail::get_local_linear_id(g);
   return (linear_id == 0);
 #else
+  (void)g;
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
 #endif

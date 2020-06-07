@@ -17,6 +17,7 @@
 #include <CL/sycl/detail/type_traits.hpp>
 
 #include <memory>
+#include <numeric> // std::bit_cast
 #include <stdexcept>
 #include <type_traits>
 #include <vector>
@@ -40,6 +41,31 @@ inline void memcpy(void *Dst, const void *Src, size_t Size) {
   for (size_t I = 0; I < Size; ++I) {
     Destination[I] = Source[I];
   }
+}
+
+template <typename To, typename From>
+constexpr To bit_cast(const From &from) noexcept {
+  static_assert(sizeof(To) == sizeof(From),
+                "Sizes of To and From must be equal");
+  static_assert(std::is_trivially_copyable<From>::value,
+                "From must be trivially copyable");
+  static_assert(std::is_trivially_copyable<To>::value,
+                "To must be trivially copyable");
+#if __cpp_lib_bit_cast
+  return std::bit_cast<To>(from);
+#else // __cpp_lib_bit_cast
+
+#if __has_builtin(__builtin_bit_cast)
+  return __builtin_bit_cast(To, from);
+#else  // __has_builtin(__builtin_bit_cast)
+  static_assert(std::is_trivially_default_constructible<To>::value,
+                "To must be trivially default constructible");
+  To to;
+  sycl::detail::memcpy(&to, &from, sizeof(To));
+  return to;
+#endif // __has_builtin(__builtin_bit_cast)
+
+#endif // __cpp_lib_bit_cast
 }
 
 class context_impl;

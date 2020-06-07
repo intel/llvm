@@ -59,9 +59,10 @@ PPCTTIImpl::getPopcntSupport(unsigned TyWidth) {
   return TTI::PSK_Software;
 }
 
-int PPCTTIImpl::getIntImmCost(const APInt &Imm, Type *Ty) {
+int PPCTTIImpl::getIntImmCost(const APInt &Imm, Type *Ty,
+                              TTI::TargetCostKind CostKind) {
   if (DisablePPCConstHoist)
-    return BaseT::getIntImmCost(Imm, Ty);
+    return BaseT::getIntImmCost(Imm, Ty, CostKind);
 
   assert(Ty->isIntegerTy());
 
@@ -89,9 +90,10 @@ int PPCTTIImpl::getIntImmCost(const APInt &Imm, Type *Ty) {
 }
 
 int PPCTTIImpl::getIntImmCostIntrin(Intrinsic::ID IID, unsigned Idx,
-                                    const APInt &Imm, Type *Ty) {
+                                    const APInt &Imm, Type *Ty,
+                                    TTI::TargetCostKind CostKind) {
   if (DisablePPCConstHoist)
-    return BaseT::getIntImmCostIntrin(IID, Idx, Imm, Ty);
+    return BaseT::getIntImmCostIntrin(IID, Idx, Imm, Ty, CostKind);
 
   assert(Ty->isIntegerTy());
 
@@ -119,13 +121,14 @@ int PPCTTIImpl::getIntImmCostIntrin(Intrinsic::ID IID, unsigned Idx,
       return TTI::TCC_Free;
     break;
   }
-  return PPCTTIImpl::getIntImmCost(Imm, Ty);
+  return PPCTTIImpl::getIntImmCost(Imm, Ty, CostKind);
 }
 
 int PPCTTIImpl::getIntImmCostInst(unsigned Opcode, unsigned Idx,
-                                  const APInt &Imm, Type *Ty) {
+                                  const APInt &Imm, Type *Ty,
+                                  TTI::TargetCostKind CostKind) {
   if (DisablePPCConstHoist)
-    return BaseT::getIntImmCostInst(Opcode, Idx, Imm, Ty);
+    return BaseT::getIntImmCostInst(Opcode, Idx, Imm, Ty, CostKind);
 
   assert(Ty->isIntegerTy());
 
@@ -203,18 +206,20 @@ int PPCTTIImpl::getIntImmCostInst(unsigned Opcode, unsigned Idx,
       return TTI::TCC_Free;
   }
 
-  return PPCTTIImpl::getIntImmCost(Imm, Ty);
+  return PPCTTIImpl::getIntImmCost(Imm, Ty, CostKind);
 }
 
-unsigned PPCTTIImpl::getUserCost(const User *U,
-                                 ArrayRef<const Value *> Operands) {
-  if (U->getType()->isVectorTy()) {
+unsigned
+PPCTTIImpl::getUserCost(const User *U, ArrayRef<const Value *> Operands,
+                        TTI::TargetCostKind CostKind) {
+  // We already implement getCastInstrCost and perform the vector adjustment there.
+  if (!isa<CastInst>(U) && U->getType()->isVectorTy()) {
     // Instructions that need to be split should cost more.
     std::pair<int, MVT> LT = TLI->getTypeLegalizationCost(DL, U->getType());
-    return LT.first * BaseT::getUserCost(U, Operands);
+    return LT.first * BaseT::getUserCost(U, Operands, CostKind);
   }
 
-  return BaseT::getUserCost(U, Operands);
+  return BaseT::getUserCost(U, Operands, CostKind);
 }
 
 bool PPCTTIImpl::mightUseCTR(BasicBlock *BB, TargetLibraryInfo *LibInfo,
@@ -271,7 +276,7 @@ bool PPCTTIImpl::mightUseCTR(BasicBlock *BB, TargetLibraryInfo *LibInfo,
        J != JE; ++J) {
     if (CallInst *CI = dyn_cast<CallInst>(J)) {
       // Inline ASM is okay, unless it clobbers the ctr register.
-      if (InlineAsm *IA = dyn_cast<InlineAsm>(CI->getCalledValue())) {
+      if (InlineAsm *IA = dyn_cast<InlineAsm>(CI->getCalledOperand())) {
         if (asmClobbersCTR(IA))
           return true;
         continue;
@@ -315,6 +320,7 @@ bool PPCTTIImpl::mightUseCTR(BasicBlock *BB, TargetLibraryInfo *LibInfo,
               return true;
             else
               continue; // ISD::FCOPYSIGN is never a library call.
+          case Intrinsic::fma:                Opcode = ISD::FMA;        break;
           case Intrinsic::sqrt:               Opcode = ISD::FSQRT;      break;
           case Intrinsic::floor:              Opcode = ISD::FFLOOR;     break;
           case Intrinsic::ceil:               Opcode = ISD::FCEIL;      break;
@@ -645,11 +651,12 @@ unsigned PPCTTIImpl::getCacheLineSize() const {
   if (CacheLineSize.getNumOccurrences() > 0)
     return CacheLineSize;
 
-  // On P7, P8 or P9 we have a cache line size of 128.
+  // Starting with P7 we have a cache line size of 128.
   unsigned Directive = ST->getCPUDirective();
   // Assume that Future CPU has the same cache line size as the others.
   if (Directive == PPC::DIR_PWR7 || Directive == PPC::DIR_PWR8 ||
-      Directive == PPC::DIR_PWR9 || Directive == PPC::DIR_PWR_FUTURE)
+      Directive == PPC::DIR_PWR9 || Directive == PPC::DIR_PWR10 ||
+      Directive == PPC::DIR_PWR_FUTURE)
     return 128;
 
   // On other processors return a default of 64 bytes.
@@ -681,9 +688,11 @@ unsigned PPCTTIImpl::getMaxInterleaveFactor(unsigned VF) {
   // For P7 and P8, floating-point instructions have a 6-cycle latency and
   // there are two execution units, so unroll by 12x for latency hiding.
   // FIXME: the same for P9 as previous gen until POWER9 scheduling is ready
+  // FIXME: the same for P10 as previous gen until POWER10 scheduling is ready
   // Assume that future is the same as the others.
   if (Directive == PPC::DIR_PWR7 || Directive == PPC::DIR_PWR8 ||
-      Directive == PPC::DIR_PWR9 || Directive == PPC::DIR_PWR_FUTURE)
+      Directive == PPC::DIR_PWR9 || Directive == PPC::DIR_PWR10 ||
+      Directive == PPC::DIR_PWR_FUTURE)
     return 12;
 
   // For most things, modern systems have two execution units (and
@@ -719,6 +728,7 @@ int PPCTTIImpl::vectorCostAdjustment(int Cost, unsigned Opcode, Type *Ty1,
 }
 
 int PPCTTIImpl::getArithmeticInstrCost(unsigned Opcode, Type *Ty,
+                                       TTI::TargetCostKind CostKind,
                                        TTI::OperandValueKind Op1Info,
                                        TTI::OperandValueKind Op2Info,
                                        TTI::OperandValueProperties Opd1PropInfo,
@@ -728,7 +738,8 @@ int PPCTTIImpl::getArithmeticInstrCost(unsigned Opcode, Type *Ty,
   assert(TLI->InstructionOpcodeToISD(Opcode) && "Invalid opcode");
 
   // Fallback to the default implementation.
-  int Cost = BaseT::getArithmeticInstrCost(Opcode, Ty, Op1Info, Op2Info,
+  int Cost = BaseT::getArithmeticInstrCost(Opcode, Ty, CostKind, Op1Info,
+                                           Op2Info,
                                            Opd1PropInfo, Opd2PropInfo);
   return vectorCostAdjustment(Cost, Opcode, Ty, nullptr);
 }
@@ -748,16 +759,22 @@ int PPCTTIImpl::getShuffleCost(TTI::ShuffleKind Kind, Type *Tp, int Index,
 }
 
 int PPCTTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst, Type *Src,
+                                 TTI::TargetCostKind CostKind,
                                  const Instruction *I) {
   assert(TLI->InstructionOpcodeToISD(Opcode) && "Invalid opcode");
 
-  int Cost = BaseT::getCastInstrCost(Opcode, Dst, Src);
-  return vectorCostAdjustment(Cost, Opcode, Dst, Src);
+  int Cost = BaseT::getCastInstrCost(Opcode, Dst, Src, CostKind, I);
+  Cost = vectorCostAdjustment(Cost, Opcode, Dst, Src);
+  // TODO: Allow non-throughput costs that aren't binary.
+  if (CostKind != TTI::TCK_RecipThroughput)
+    return Cost == 0 ? 0 : 1;
+  return Cost;
 }
 
 int PPCTTIImpl::getCmpSelInstrCost(unsigned Opcode, Type *ValTy, Type *CondTy,
+                                   TTI::TargetCostKind CostKind,
                                    const Instruction *I) {
-  int Cost = BaseT::getCmpSelInstrCost(Opcode, ValTy, CondTy, I);
+  int Cost = BaseT::getCmpSelInstrCost(Opcode, ValTy, CondTy, CostKind, I);
   return vectorCostAdjustment(Cost, Opcode, ValTy, nullptr);
 }
 
@@ -836,13 +853,15 @@ int PPCTTIImpl::getVectorInstrCost(unsigned Opcode, Type *Val, unsigned Index) {
 
 int PPCTTIImpl::getMemoryOpCost(unsigned Opcode, Type *Src,
                                 MaybeAlign Alignment, unsigned AddressSpace,
+                                TTI::TargetCostKind CostKind,
                                 const Instruction *I) {
   // Legalize the type.
   std::pair<int, MVT> LT = TLI->getTypeLegalizationCost(DL, Src);
   assert((Opcode == Instruction::Load || Opcode == Instruction::Store) &&
          "Invalid Opcode");
 
-  int Cost = BaseT::getMemoryOpCost(Opcode, Src, Alignment, AddressSpace);
+  int Cost = BaseT::getMemoryOpCost(Opcode, Src, Alignment, AddressSpace,
+                                    CostKind);
   Cost = vectorCostAdjustment(Cost, Opcode, Src, nullptr);
 
   bool IsAltivecType = ST->hasAltivec() &&
@@ -864,7 +883,7 @@ int PPCTTIImpl::getMemoryOpCost(unsigned Opcode, Type *Src,
 
   // Aligned loads and stores are easy.
   unsigned SrcBytes = LT.second.getStoreSize();
-  if (!SrcBytes || !Alignment || Alignment >= SrcBytes)
+  if (!SrcBytes || !Alignment || *Alignment >= SrcBytes)
     return Cost;
 
   // If we can use the permutation-based load sequence, then this is also
@@ -876,7 +895,7 @@ int PPCTTIImpl::getMemoryOpCost(unsigned Opcode, Type *Src,
   // longer true.
   if (Opcode == Instruction::Load &&
       ((!ST->hasP8Vector() && IsAltivecType) || IsQPXType) &&
-      Alignment >= LT.second.getScalarType().getStoreSize())
+      *Alignment >= LT.second.getScalarType().getStoreSize())
     return Cost + LT.first; // Add the cost of the permutations.
 
   // For VSX, we can do unaligned loads and stores on Altivec/VSX types. On the
@@ -901,7 +920,8 @@ int PPCTTIImpl::getMemoryOpCost(unsigned Opcode, Type *Src,
   // stores, loads are expanded using the vector-load + permutation sequence,
   // which is much less expensive).
   if (Src->isVectorTy() && Opcode == Instruction::Store)
-    for (int i = 0, e = cast<VectorType>(Src)->getNumElements(); i < e; ++i)
+    for (int i = 0, e = cast<FixedVectorType>(Src)->getNumElements(); i < e;
+         ++i)
       Cost += getVectorInstrCost(Instruction::ExtractElement, Src, i);
 
   return Cost;
@@ -912,11 +932,12 @@ int PPCTTIImpl::getInterleavedMemoryOpCost(unsigned Opcode, Type *VecTy,
                                            ArrayRef<unsigned> Indices,
                                            unsigned Alignment,
                                            unsigned AddressSpace,
+                                           TTI::TargetCostKind CostKind,
                                            bool UseMaskForCond,
                                            bool UseMaskForGaps) {
   if (UseMaskForCond || UseMaskForGaps)
     return BaseT::getInterleavedMemoryOpCost(Opcode, VecTy, Factor, Indices,
-                                             Alignment, AddressSpace,
+                                             Alignment, AddressSpace, CostKind,
                                              UseMaskForCond, UseMaskForGaps);
 
   assert(isa<VectorType>(VecTy) &&
@@ -927,7 +948,8 @@ int PPCTTIImpl::getInterleavedMemoryOpCost(unsigned Opcode, Type *VecTy,
 
   // Firstly, the cost of load/store operation.
   int Cost =
-      getMemoryOpCost(Opcode, VecTy, MaybeAlign(Alignment), AddressSpace);
+      getMemoryOpCost(Opcode, VecTy, MaybeAlign(Alignment), AddressSpace,
+                      CostKind);
 
   // PPC, for both Altivec/VSX and QPX, support cheap arbitrary permutations
   // (at least in the sense that there need only be one non-loop-invariant
@@ -939,22 +961,9 @@ int PPCTTIImpl::getInterleavedMemoryOpCost(unsigned Opcode, Type *VecTy,
   return Cost;
 }
 
-unsigned PPCTTIImpl::getIntrinsicInstrCost(Intrinsic::ID ID, Type *RetTy,
-                                           ArrayRef<Value *> Args,
-                                           FastMathFlags FMF, unsigned VF,
-                                           const Instruction *I) {
-  return BaseT::getIntrinsicInstrCost(ID, RetTy, Args, FMF, VF, I);
-}
-
-unsigned PPCTTIImpl::getIntrinsicInstrCost(Intrinsic::ID ID, Type *RetTy,
-                                           ArrayRef<Type *> Tys,
-                                           FastMathFlags FMF,
-                                           unsigned ScalarizationCostPassed,
-                                           const Instruction *I) {
-  if (ID == Intrinsic::bswap && ST->hasP9Vector())
-    return TLI->getTypeLegalizationCost(DL, RetTy).first;
-  return BaseT::getIntrinsicInstrCost(ID, RetTy, Tys, FMF,
-                                      ScalarizationCostPassed, I);
+unsigned PPCTTIImpl::getIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
+                                           TTI::TargetCostKind CostKind) {
+  return BaseT::getIntrinsicInstrCost(ICA, CostKind);
 }
 
 bool PPCTTIImpl::canSaveCmp(Loop *L, BranchInst **BI, ScalarEvolution *SE,

@@ -323,6 +323,9 @@ BUILTIN(__builtin_truncf, "ff", "Fnc")
 BUILTIN(__builtin_truncl, "LdLd", "Fnc")
 BUILTIN(__builtin_truncf16, "hh", "Fnc")
 
+// Access to floating point environment
+BUILTIN(__builtin_flt_rounds, "i", "n")
+
 // C99 complex builtins
 BUILTIN(__builtin_cabs, "dXd", "Fne")
 BUILTIN(__builtin_cabsf, "fXf", "Fne")
@@ -517,7 +520,6 @@ BUILTIN(__builtin_return_address, "v*IUi", "n")
 BUILTIN(__builtin_extract_return_addr, "v*v*", "n")
 BUILTIN(__builtin_frame_address, "v*IUi", "n")
 BUILTIN(__builtin___clear_cache, "vc*c*", "n")
-BUILTIN(__builtin_flt_rounds, "i", "nc")
 BUILTIN(__builtin_setjmp, "iv**", "j")
 BUILTIN(__builtin_longjmp, "vv**i", "r")
 BUILTIN(__builtin_unwind_init, "v", "")
@@ -724,7 +726,7 @@ ATOMIC_BUILTIN(__c11_atomic_fetch_max, "v.", "t")
 ATOMIC_BUILTIN(__c11_atomic_fetch_min, "v.", "t")
 BUILTIN(__c11_atomic_thread_fence, "vi", "n")
 BUILTIN(__c11_atomic_signal_fence, "vi", "n")
-BUILTIN(__c11_atomic_is_lock_free, "iz", "n")
+BUILTIN(__c11_atomic_is_lock_free, "bz", "n")
 
 // GNU atomic builtins.
 ATOMIC_BUILTIN(__atomic_load, "v.", "t")
@@ -753,8 +755,8 @@ BUILTIN(__atomic_test_and_set, "bvD*i", "n")
 BUILTIN(__atomic_clear, "vvD*i", "n")
 BUILTIN(__atomic_thread_fence, "vi", "n")
 BUILTIN(__atomic_signal_fence, "vi", "n")
-BUILTIN(__atomic_always_lock_free, "izvCD*", "n")
-BUILTIN(__atomic_is_lock_free, "izvCD*", "n")
+BUILTIN(__atomic_always_lock_free, "bzvCD*", "n")
+BUILTIN(__atomic_is_lock_free, "bzvCD*", "n")
 
 // OpenCL 2.0 atomic builtins.
 ATOMIC_BUILTIN(__opencl_atomic_init, "v.", "t")

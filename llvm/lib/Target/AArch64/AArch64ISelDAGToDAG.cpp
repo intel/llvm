@@ -1321,6 +1321,8 @@ bool AArch64DAGToDAGISel::tryIndexedLoad(SDNode *N) {
     }
   } else if (VT == MVT::f16) {
     Opcode = IsPre ? AArch64::LDRHpre : AArch64::LDRHpost;
+  } else if (VT == MVT::bf16) {
+    Opcode = IsPre ? AArch64::LDRHpre : AArch64::LDRHpost;
   } else if (VT == MVT::f32) {
     Opcode = IsPre ? AArch64::LDRSpre : AArch64::LDRSpost;
   } else if (VT == MVT::f64 || VT.is64BitVector()) {
@@ -3092,7 +3094,7 @@ bool AArch64DAGToDAGISel::SelectSVESignedArithImm(SDValue N, SDValue &Imm) {
   if (auto CNode = dyn_cast<ConstantSDNode>(N)) {
     int64_t ImmVal = CNode->getSExtValue();
     SDLoc DL(N);
-    if (ImmVal >= -127 && ImmVal < 127) {
+    if (ImmVal >= -128 && ImmVal < 128) {
       Imm = CurDAG->getTargetConstant(ImmVal, DL, MVT::i32);
       return true;
     }
@@ -4646,9 +4648,13 @@ static EVT getMemVTFromNode(LLVMContext &Ctx, SDNode *Root) {
   // For custom ISD nodes, we have to look at them individually to extract the
   // type of the data moved to/from memory.
   switch (Opcode) {
+  case AArch64ISD::LD1:
+  case AArch64ISD::LD1S:
   case AArch64ISD::LDNF1:
   case AArch64ISD::LDNF1S:
     return cast<VTSDNode>(Root->getOperand(3))->getVT();
+  case AArch64ISD::ST1:
+    return cast<VTSDNode>(Root->getOperand(4))->getVT();
   default:
     break;
   }

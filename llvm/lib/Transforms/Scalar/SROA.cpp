@@ -1202,7 +1202,7 @@ static bool isSafePHIToSpeculate(PHINode &PN) {
   // TODO: Allow recursive phi users.
   // TODO: Allow stores.
   BasicBlock *BB = PN.getParent();
-  MaybeAlign MaxAlign;
+  Align MaxAlign;
   uint64_t APWidth = DL.getIndexTypeSizeInBits(PN.getType());
   APInt MaxSize(APWidth, 0);
   bool HaveLoad = false;
@@ -1224,7 +1224,7 @@ static bool isSafePHIToSpeculate(PHINode &PN) {
         return false;
 
     uint64_t Size = DL.getTypeStoreSize(LI->getType()).getFixedSize();
-    MaxAlign = std::max(MaxAlign, MaybeAlign(LI->getAlignment()));
+    MaxAlign = std::max(MaxAlign, LI->getAlign());
     MaxSize = MaxSize.ult(Size) ? APInt(APWidth, Size) : MaxSize;
     HaveLoad = true;
   }
@@ -1275,7 +1275,7 @@ static void speculatePHINodeLoads(PHINode &PN) {
   // matter which one we get and if any differ.
   AAMDNodes AATags;
   SomeLoad->getAAMetadata(AATags);
-  const MaybeAlign Align = MaybeAlign(SomeLoad->getAlignment());
+  Align Alignment = SomeLoad->getAlign();
 
   // Rewrite all loads of the PN to use the new PHI.
   while (!PN.use_empty()) {
@@ -1302,11 +1302,10 @@ static void speculatePHINodeLoads(PHINode &PN) {
     Instruction *TI = Pred->getTerminator();
     IRBuilderTy PredBuilder(TI);
 
-    LoadInst *Load = PredBuilder.CreateLoad(
-        LoadTy, InVal,
+    LoadInst *Load = PredBuilder.CreateAlignedLoad(
+        LoadTy, InVal, Alignment,
         (PN.getName() + ".sroa.speculate.load." + Pred->getName()));
     ++NumLoadsSpeculated;
-    Load->setAlignment(Align);
     if (AATags)
       Load->setAAMetadata(AATags);
     NewPN->addIncoming(Load, Pred);
@@ -1344,10 +1343,10 @@ static bool isSafeSelectToSpeculate(SelectInst &SI) {
     // absolutely (e.g. allocas) or at this point because we can see other
     // accesses to it.
     if (!isSafeToLoadUnconditionally(TValue, LI->getType(),
-                                     MaybeAlign(LI->getAlignment()), DL, LI))
+                                     LI->getAlign(), DL, LI))
       return false;
     if (!isSafeToLoadUnconditionally(FValue, LI->getType(),
-                                     MaybeAlign(LI->getAlignment()), DL, LI))
+                                     LI->getAlign(), DL, LI))
       return false;
   }
 
@@ -1686,20 +1685,8 @@ static Value *getAdjustedPtr(IRBuilderTy &IRB, const DataLayout &DL, Value *Ptr,
 }
 
 /// Compute the adjusted alignment for a load or store from an offset.
-static Align getAdjustedAlignment(Instruction *I, uint64_t Offset,
-                                  const DataLayout &DL) {
-  MaybeAlign Alignment;
-  Type *Ty;
-  if (auto *LI = dyn_cast<LoadInst>(I)) {
-    Alignment = MaybeAlign(LI->getAlignment());
-    Ty = LI->getType();
-  } else if (auto *SI = dyn_cast<StoreInst>(I)) {
-    Alignment = MaybeAlign(SI->getAlignment());
-    Ty = SI->getValueOperand()->getType();
-  } else {
-    llvm_unreachable("Only loads and stores are allowed!");
-  }
-  return commonAlignment(DL.getValueOrABITypeAlignment(Alignment, Ty), Offset);
+static Align getAdjustedAlignment(Instruction *I, uint64_t Offset) {
+  return commonAlignment(getLoadStoreAlignment(I), Offset);
 }
 
 /// Test whether we can convert a value from the old to the new type.
@@ -2445,14 +2432,9 @@ private:
   ///
   /// You can optionally pass a type to this routine and if that type's ABI
   /// alignment is itself suitable, this will return zero.
-  MaybeAlign getSliceAlign(Type *Ty = nullptr) {
-    const MaybeAlign NewAIAlign = DL.getValueOrABITypeAlignment(
-        MaybeAlign(NewAI.getAlignment()), NewAI.getAllocatedType());
-    const MaybeAlign Align =
-        commonAlignment(NewAIAlign, NewBeginOffset - NewAllocaBeginOffset);
-    return (Ty && Align && Align->value() == DL.getABITypeAlignment(Ty))
-               ? None
-               : Align;
+  Align getSliceAlign() {
+    return commonAlignment(NewAI.getAlign(),
+                           NewBeginOffset - NewAllocaBeginOffset);
   }
 
   unsigned getIndex(uint64_t Offset) {
@@ -2568,9 +2550,9 @@ private:
           }
     } else {
       Type *LTy = TargetTy->getPointerTo(AS);
-      LoadInst *NewLI = IRB.CreateAlignedLoad(
-          TargetTy, getNewAllocaSlicePtr(IRB, LTy), getSliceAlign(TargetTy),
-          LI.isVolatile(), LI.getName());
+      LoadInst *NewLI =
+          IRB.CreateAlignedLoad(TargetTy, getNewAllocaSlicePtr(IRB, LTy),
+                                getSliceAlign(), LI.isVolatile(), LI.getName());
       if (AATags)
         NewLI->setAAMetadata(AATags);
       if (LI.isVolatile())
@@ -2596,7 +2578,8 @@ private:
       // the computed value, and then replace the placeholder with LI, leaving
       // LI only used for this computation.
       Value *Placeholder = new LoadInst(
-          LI.getType(), UndefValue::get(LI.getType()->getPointerTo(AS)));
+          LI.getType(), UndefValue::get(LI.getType()->getPointerTo(AS)), "",
+          false, Align(1));
       V = insertInteger(DL, IRB, Placeholder, V, NewBeginOffset - BeginOffset,
                         "insert");
       LI.replaceAllUsesWith(V);
@@ -2721,8 +2704,8 @@ private:
     } else {
       unsigned AS = SI.getPointerAddressSpace();
       Value *NewPtr = getNewAllocaSlicePtr(IRB, V->getType()->getPointerTo(AS));
-      NewSI = IRB.CreateAlignedStore(V, NewPtr, getSliceAlign(V->getType()),
-                                     SI.isVolatile());
+      NewSI =
+          IRB.CreateAlignedStore(V, NewPtr, getSliceAlign(), SI.isVolatile());
     }
     NewSI->copyMetadata(SI, {LLVMContext::MD_mem_parallel_loop_access,
                              LLVMContext::MD_access_group});
@@ -3140,17 +3123,12 @@ private:
       Instruction *I = Uses.pop_back_val();
 
       if (LoadInst *LI = dyn_cast<LoadInst>(I)) {
-        MaybeAlign LoadAlign = DL.getValueOrABITypeAlignment(
-            MaybeAlign(LI->getAlignment()), LI->getType());
-        LI->setAlignment(std::min(LoadAlign, getSliceAlign()));
+        LI->setAlignment(std::min(LI->getAlign(), getSliceAlign()));
         continue;
       }
       if (StoreInst *SI = dyn_cast<StoreInst>(I)) {
-          Value *Op = SI->getOperand(0);
-          MaybeAlign StoreAlign = DL.getValueOrABITypeAlignment(
-              MaybeAlign(SI->getAlignment()), Op->getType());
-          SI->setAlignment(std::min(StoreAlign, getSliceAlign()));
-          continue;
+        SI->setAlignment(std::min(SI->getAlign(), getSliceAlign()));
+        continue;
       }
 
       assert(isa<BitCastInst>(I) || isa<AddrSpaceCastInst>(I) ||
@@ -3400,7 +3378,7 @@ private:
     AAMDNodes AATags;
     LI.getAAMetadata(AATags);
     LoadOpSplitter Splitter(&LI, *U, LI.getType(), AATags,
-                            getAdjustedAlignment(&LI, 0, DL), DL);
+                            getAdjustedAlignment(&LI, 0), DL);
     Value *V = UndefValue::get(LI.getType());
     Splitter.emitSplitOps(LI.getType(), V, LI.getName() + ".fca");
     LI.replaceAllUsesWith(V);
@@ -3447,7 +3425,7 @@ private:
     AAMDNodes AATags;
     SI.getAAMetadata(AATags);
     StoreOpSplitter Splitter(&SI, *U, V->getType(), AATags,
-                             getAdjustedAlignment(&SI, 0, DL), DL);
+                             getAdjustedAlignment(&SI, 0), DL);
     Splitter.emitSplitOps(V->getType(), V, V->getName() + ".fca");
     SI.eraseFromParent();
     return true;
@@ -3463,7 +3441,107 @@ private:
     return false;
   }
 
+  // Fold gep (select cond, ptr1, ptr2) => select cond, gep(ptr1), gep(ptr2)
+  bool foldGEPSelect(GetElementPtrInst &GEPI) {
+    if (!GEPI.hasAllConstantIndices())
+      return false;
+
+    SelectInst *Sel = cast<SelectInst>(GEPI.getPointerOperand());
+
+    LLVM_DEBUG(dbgs() << "  Rewriting gep(select) -> select(gep):"
+                      << "\n    original: " << *Sel
+                      << "\n              " << GEPI);
+
+    IRBuilderTy Builder(&GEPI);
+    SmallVector<Value *, 4> Index(GEPI.idx_begin(), GEPI.idx_end());
+    bool IsInBounds = GEPI.isInBounds();
+
+    Value *True = Sel->getTrueValue();
+    Value *NTrue =
+        IsInBounds
+            ? Builder.CreateInBoundsGEP(True, Index,
+                                        True->getName() + ".sroa.gep")
+            : Builder.CreateGEP(True, Index, True->getName() + ".sroa.gep");
+
+    Value *False = Sel->getFalseValue();
+
+    Value *NFalse =
+        IsInBounds
+            ? Builder.CreateInBoundsGEP(False, Index,
+                                        False->getName() + ".sroa.gep")
+            : Builder.CreateGEP(False, Index, False->getName() + ".sroa.gep");
+
+    Value *NSel = Builder.CreateSelect(Sel->getCondition(), NTrue, NFalse,
+                                       Sel->getName() + ".sroa.sel");
+    GEPI.replaceAllUsesWith(NSel);
+    GEPI.eraseFromParent();
+    Instruction *NSelI = cast<Instruction>(NSel);
+    Visited.insert(NSelI);
+    enqueueUsers(*NSelI);
+
+    LLVM_DEBUG(dbgs() << "\n          to: " << *NTrue
+                      << "\n              " << *NFalse
+                      << "\n              " << *NSel << '\n');
+
+    return true;
+  }
+
+  // Fold gep (phi ptr1, ptr2) => phi gep(ptr1), gep(ptr2)
+  bool foldGEPPhi(GetElementPtrInst &GEPI) {
+    if (!GEPI.hasAllConstantIndices())
+      return false;
+
+    PHINode *PHI = cast<PHINode>(GEPI.getPointerOperand());
+    if (GEPI.getParent() != PHI->getParent() ||
+        llvm::any_of(PHI->incoming_values(), [](Value *In)
+          { Instruction *I = dyn_cast<Instruction>(In);
+            return !I || isa<GetElementPtrInst>(I) || isa<PHINode>(I) ||
+                   !I->getParent()->isLegalToHoistInto();
+          }))
+      return false;
+
+    LLVM_DEBUG(dbgs() << "  Rewriting gep(phi) -> phi(gep):"
+                      << "\n    original: " << *PHI
+                      << "\n              " << GEPI
+                      << "\n          to: ");
+
+    SmallVector<Value *, 4> Index(GEPI.idx_begin(), GEPI.idx_end());
+    bool IsInBounds = GEPI.isInBounds();
+    IRBuilderTy PHIBuilder(GEPI.getParent()->getFirstNonPHI());
+    PHINode *NewPN = PHIBuilder.CreatePHI(GEPI.getType(),
+                                          PHI->getNumIncomingValues(),
+                                          PHI->getName() + ".sroa.phi");
+    for (unsigned I = 0, E = PHI->getNumIncomingValues(); I != E; ++I) {
+      Instruction *In = cast<Instruction>(PHI->getIncomingValue(I));
+
+      IRBuilderTy B(In->getParent(), std::next(In->getIterator()));
+      Value *NewVal = IsInBounds
+          ? B.CreateInBoundsGEP(In, Index, In->getName() + ".sroa.gep")
+          : B.CreateGEP(In, Index, In->getName() + ".sroa.gep");
+      NewPN->addIncoming(NewVal, PHI->getIncomingBlock(I));
+    }
+
+    GEPI.replaceAllUsesWith(NewPN);
+    GEPI.eraseFromParent();
+    Visited.insert(NewPN);
+    enqueueUsers(*NewPN);
+
+    LLVM_DEBUG(for (Value *In : NewPN->incoming_values())
+                 dbgs() << "\n              " << *In;
+               dbgs() << "\n              " << *NewPN << '\n');
+
+    return true;
+  }
+
   bool visitGetElementPtrInst(GetElementPtrInst &GEPI) {
+    if (isa<SelectInst>(GEPI.getPointerOperand()) &&
+        foldGEPSelect(GEPI))
+      return true;
+
+    if (isa<PHINode>(GEPI.getPointerOperand()) &&
+        foldGEPPhi(GEPI))
+      return true;
+
     enqueueUsers(GEPI);
     return false;
   }
@@ -3896,7 +3974,7 @@ bool SROA::presplitLoadsAndStores(AllocaInst &AI, AllocaSlices &AS) {
           getAdjustedPtr(IRB, DL, BasePtr,
                          APInt(DL.getIndexSizeInBits(AS), PartOffset),
                          PartPtrTy, BasePtr->getName() + "."),
-          getAdjustedAlignment(LI, PartOffset, DL),
+          getAdjustedAlignment(LI, PartOffset),
           /*IsVolatile*/ false, LI->getName());
       PLoad->copyMetadata(*LI, {LLVMContext::MD_mem_parallel_loop_access,
                                 LLVMContext::MD_access_group});
@@ -3954,7 +4032,7 @@ bool SROA::presplitLoadsAndStores(AllocaInst &AI, AllocaSlices &AS) {
             getAdjustedPtr(IRB, DL, StoreBasePtr,
                            APInt(DL.getIndexSizeInBits(AS), PartOffset),
                            PartPtrTy, StoreBasePtr->getName() + "."),
-            getAdjustedAlignment(SI, PartOffset, DL),
+            getAdjustedAlignment(SI, PartOffset),
             /*IsVolatile*/ false);
         PStore->copyMetadata(*LI, {LLVMContext::MD_mem_parallel_loop_access,
                                    LLVMContext::MD_access_group});
@@ -4039,7 +4117,7 @@ bool SROA::presplitLoadsAndStores(AllocaInst &AI, AllocaSlices &AS) {
             getAdjustedPtr(IRB, DL, LoadBasePtr,
                            APInt(DL.getIndexSizeInBits(AS), PartOffset),
                            LoadPartPtrTy, LoadBasePtr->getName() + "."),
-            getAdjustedAlignment(LI, PartOffset, DL),
+            getAdjustedAlignment(LI, PartOffset),
             /*IsVolatile*/ false, LI->getName());
       }
 
@@ -4051,7 +4129,7 @@ bool SROA::presplitLoadsAndStores(AllocaInst &AI, AllocaSlices &AS) {
           getAdjustedPtr(IRB, DL, StoreBasePtr,
                          APInt(DL.getIndexSizeInBits(AS), PartOffset),
                          StorePartPtrTy, StoreBasePtr->getName() + "."),
-          getAdjustedAlignment(SI, PartOffset, DL),
+          getAdjustedAlignment(SI, PartOffset),
           /*IsVolatile*/ false);
 
       // Now build a new slice for the alloca.
@@ -4187,19 +4265,14 @@ AllocaInst *SROA::rewritePartition(AllocaInst &AI, AllocaSlices &AS,
     // FIXME: We might want to defer PHI speculation until after here.
     // FIXME: return nullptr;
   } else {
-    // If alignment is unspecified we fallback on the one required by the ABI
-    // for this type. We also make sure the alignment is compatible with
-    // P.beginOffset().
-    const Align Alignment = commonAlignment(
-        DL.getValueOrABITypeAlignment(MaybeAlign(AI.getAlignment()),
-                                      AI.getAllocatedType()),
-        P.beginOffset());
+    // Make sure the alignment is compatible with P.beginOffset().
+    const Align Alignment = commonAlignment(AI.getAlign(), P.beginOffset());
     // If we will get at least this much alignment from the type alone, leave
     // the alloca's alignment unconstrained.
     const bool IsUnconstrained = Alignment <= DL.getABITypeAlignment(SliceTy);
     NewAI = new AllocaInst(
         SliceTy, AI.getType()->getAddressSpace(), nullptr,
-        IsUnconstrained ? MaybeAlign() : Alignment,
+        IsUnconstrained ? DL.getPrefTypeAlign(SliceTy) : Alignment,
         AI.getName() + ".sroa." + Twine(P.begin() - AS.begin()), &AI);
     // Copy the old AI debug location over to the new one.
     NewAI->setDebugLoc(AI.getDebugLoc());
@@ -4482,8 +4555,7 @@ bool SROA::runOnAlloca(AllocaInst &AI) {
 
   // Skip alloca forms that this analysis can't handle.
   auto *AT = AI.getAllocatedType();
-  if (AI.isArrayAllocation() || !AT->isSized() ||
-      (isa<VectorType>(AT) && cast<VectorType>(AT)->isScalable()) ||
+  if (AI.isArrayAllocation() || !AT->isSized() || isa<ScalableVectorType>(AT) ||
       DL.getTypeAllocSize(AT).getFixedSize() == 0)
     return false;
 
@@ -4605,8 +4677,7 @@ PreservedAnalyses SROA::runImpl(Function &F, DominatorTree &RunDT,
   for (BasicBlock::iterator I = EntryBB.begin(), E = std::prev(EntryBB.end());
        I != E; ++I) {
     if (AllocaInst *AI = dyn_cast<AllocaInst>(I)) {
-      if (isa<VectorType>(AI->getAllocatedType()) &&
-          cast<VectorType>(AI->getAllocatedType())->isScalable()) {
+      if (isa<ScalableVectorType>(AI->getAllocatedType())) {
         if (isAllocaPromotable(AI))
           PromotableAllocas.push_back(AI);
       } else {
