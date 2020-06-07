@@ -44,8 +44,8 @@ Version
 
 [width="40%",cols="25,25"]
 |========================================
-| Last Modified Date | 2020-05-12
-| Revision           | G
+| Last Modified Date | 2020-06-07
+| Revision           | H
 |========================================
 
 Dependencies
@@ -128,7 +128,7 @@ The instruction allows the optimizer to assume that the provided _Condition_ is
 always true whenever the control flow reaches the instruction. If the
 _Condition_ is violated during execution, the behavior is undefined.
 
-The type of _Condition_ must be _Boolean_.
+The type of _Condition_ must be a scalar _Boolean_.
 | Capability:
 *OptimizationHintsINTEL*
 
@@ -140,8 +140,9 @@ The type of _Condition_ must be _Boolean_.
 5+^|*OpExpectINTEL* +
 
 Provides information for optimizers that the most probable value of _Value_ is
-_ExpectedValue_. This instruction can be safely replaced with an entity
-referenced by _Value_.
+_ExpectedValue_ and makes a copy of _Value_.
+
+This instruction can be safely replaced with an entityi referenced by _Value_.
 
 The type of _Value_ and _ExpectedValue_ must be the same as _Result Type_,
 which must be of _Integer_ or _Boolean_ type.
@@ -180,5 +181,6 @@ Revision History
 |E|2020-04-08|Dmitry Sidorov|Assign reserved values
 |F|2020-04-30|Dmitry Sidorov|Switch AssumeTrue from Decoration to instruction
 |G|2020-05-12|Dmitry Sidorov|Fix typos
+|H|2020-06-07|Dmitry Sidorov|Update instructions' descriptions
 |========================================
 
