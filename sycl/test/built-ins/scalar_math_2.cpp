@@ -4,7 +4,7 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
-// TODO: ptxas fatal   : Unresolved extern function '_Z16__spirv_ocl_acosf'
+// TODO: ptxas fatal   : Unresolved extern function '_Z18__spirv_ocl_acospif'
 // XFAIL: cuda
 
 #include <CL/sycl.hpp>
