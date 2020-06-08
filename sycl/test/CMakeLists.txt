@@ -82,7 +82,10 @@ add_lit_testsuite(check-level0 "Running the SYCL regression tests for Level Zero
   ARGS ${RT_TEST_ARGS}
   PARAMS "SYCL_BE=PI_LEVEL0"
   DEPENDS ${SYCL_TEST_DEPS}
+  EXCLUDE_FROM_CHECK_ALL
   )
+
+add_dependencies(check-sycl check-level0)
 
 if(SYCL_BUILD_PI_CUDA)
   add_lit_testsuite(check-sycl-cuda "Running the SYCL regression tests for CUDA"
