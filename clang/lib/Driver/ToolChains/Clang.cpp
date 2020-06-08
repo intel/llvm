@@ -2069,57 +2069,10 @@ void Clang::AddSystemZTargetArgs(const ArgList &Args,
   }
 }
 
-static void addX86AlignBranchArgs(const Driver &D, const ArgList &Args,
-                                  ArgStringList &CmdArgs) {
-  if (Args.hasArg(options::OPT_mbranches_within_32B_boundaries)) {
-    CmdArgs.push_back("-mllvm");
-    CmdArgs.push_back("-x86-branches-within-32B-boundaries");
-  }
-  if (const Arg *A = Args.getLastArg(options::OPT_malign_branch_boundary_EQ)) {
-    StringRef Value = A->getValue();
-    unsigned Boundary;
-    if (Value.getAsInteger(10, Boundary) || Boundary < 16 ||
-        !llvm::isPowerOf2_64(Boundary)) {
-      D.Diag(diag::err_drv_invalid_argument_to_option)
-          << Value << A->getOption().getName();
-    } else {
-      CmdArgs.push_back("-mllvm");
-      CmdArgs.push_back(
-          Args.MakeArgString("-x86-align-branch-boundary=" + Twine(Boundary)));
-    }
-  }
-  if (const Arg *A = Args.getLastArg(options::OPT_malign_branch_EQ)) {
-    std::string AlignBranch;
-    for (StringRef T : A->getValues()) {
-      if (T != "fused" && T != "jcc" && T != "jmp" && T != "call" &&
-          T != "ret" && T != "indirect")
-        D.Diag(diag::err_drv_invalid_malign_branch_EQ)
-            << T << "fused, jcc, jmp, call, ret, indirect";
-      if (!AlignBranch.empty())
-        AlignBranch += '+';
-      AlignBranch += T;
-    }
-    CmdArgs.push_back("-mllvm");
-    CmdArgs.push_back(Args.MakeArgString("-x86-align-branch=" + AlignBranch));
-  }
-  if (const Arg *A = Args.getLastArg(options::OPT_mpad_max_prefix_size_EQ)) {
-    StringRef Value = A->getValue();
-    unsigned PrefixSize;
-    if (Value.getAsInteger(10, PrefixSize)) {
-      D.Diag(diag::err_drv_invalid_argument_to_option)
-          << Value << A->getOption().getName();
-    } else {
-      CmdArgs.push_back("-mllvm");
-      CmdArgs.push_back(
-          Args.MakeArgString("-x86-pad-max-prefix-size=" + Twine(PrefixSize)));
-    }
-  }
-}
-
 void Clang::AddX86TargetArgs(const ArgList &Args,
                              ArgStringList &CmdArgs) const {
   const Driver &D = getToolChain().getDriver();
-  addX86AlignBranchArgs(D, Args, CmdArgs);
+  addX86AlignBranchArgs(D, Args, CmdArgs, /*IsLTO=*/false);
 
   if (!Args.hasFlag(options::OPT_mred_zone, options::OPT_mno_red_zone, true) ||
       Args.hasArg(options::OPT_mkernel) ||
@@ -4124,6 +4077,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-fsycl");
     CmdArgs.push_back("-fsycl-is-device");
     CmdArgs.push_back("-fdeclare-spirv-builtins");
+
+    if (Args.hasFlag(options::OPT_fsycl_esimd, options::OPT_fno_sycl_esimd,
+                     false))
+      CmdArgs.push_back("-fsycl-explicit-simd");
     // Pass the triple of host when doing SYCL
     auto AuxT = llvm::Triple(llvm::sys::getProcessTriple());
     std::string NormalizedTriple = AuxT.normalize();
@@ -4569,10 +4526,12 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back(A->getValue());
   }
 
-  if (Args.hasFlag(options::OPT_fsemantic_interposition,
-                   options::OPT_fno_semantic_interposition, false) &&
-      RelocationModel != llvm::Reloc::Static && !IsPIE)
-    CmdArgs.push_back("-fsemantic-interposition");
+  // The default is -fno-semantic-interposition. We render it just because we
+  // require explicit -fno-semantic-interposition to infer dso_local.
+  if (Arg *A = Args.getLastArg(options::OPT_fsemantic_interposition,
+                               options::OPT_fno_semantic_interposition))
+    if (RelocationModel != llvm::Reloc::Static && !IsPIE)
+      A->render(Args, CmdArgs);
 
   CmdArgs.push_back("-mthread-model");
   if (Arg *A = Args.getLastArg(options::OPT_mthread_model)) {
@@ -6153,6 +6112,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       // doing the host pass.
       CmdArgs.push_back("-fsycl");
       CmdArgs.push_back("-fsycl-is-host");
+
+      if (Args.hasFlag(options::OPT_fsycl_esimd, options::OPT_fno_sycl_esimd,
+                       false))
+        CmdArgs.push_back("-fsycl-explicit-simd");
     }
     if (IsSYCLOffloadDevice && JA.getType() == types::TY_SYCL_Header) {
       // Generating a SYCL Header
@@ -6920,7 +6883,8 @@ void ClangAs::AddMIPSTargetArgs(const ArgList &Args,
 
 void ClangAs::AddX86TargetArgs(const ArgList &Args,
                                ArgStringList &CmdArgs) const {
-  addX86AlignBranchArgs(getToolChain().getDriver(), Args, CmdArgs);
+  addX86AlignBranchArgs(getToolChain().getDriver(), Args, CmdArgs,
+                        /*IsLTO=*/false);
 
   if (Arg *A = Args.getLastArg(options::OPT_masm_EQ)) {
     StringRef Value = A->getValue();

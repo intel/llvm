@@ -475,9 +475,13 @@ public:
   /// Associates reduction accessor with the given handler and saves reduction
   /// buffer so that it is alive until the command group finishes the work.
   void associateWithHandler(handler &CGH) {
+#ifndef __SYCL_DEVICE_ONLY__
     if (MUSMBufPtr != nullptr)
       CGH.addReduction(MUSMBufPtr);
-    CGH.associateWithHandler(MAcc);
+    CGH.associateWithHandler(&MAcc, access::target::global_buffer);
+#else
+    (void)CGH;
+#endif
   }
 
   accessor<T, buffer_dim, access::mode::discard_read_write,

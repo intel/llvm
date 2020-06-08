@@ -19,17 +19,15 @@ using namespace cl::sycl;
 struct CudaInteropGetNativeTests : public ::testing::TestWithParam<platform> {
 
 protected:
-  queue syclQueue_;
-  context syclContext_;
+  std::unique_ptr<queue> syclQueue_;
   device syclDevice_;
 
   void SetUp() override {
     syclDevice_ = GetParam().get_devices()[0];
-    syclQueue_ = queue{syclDevice_};
-    syclContext_ = syclQueue_.get_context();
+    syclQueue_ = std::unique_ptr<queue>{new queue{syclDevice_}};
   }
 
-  void TearDown() override {}
+  void TearDown() override { syclQueue_.reset(); }
 };
 
 TEST_P(CudaInteropGetNativeTests, getNativeDevice) {
@@ -41,31 +39,32 @@ TEST_P(CudaInteropGetNativeTests, getNativeDevice) {
 }
 
 TEST_P(CudaInteropGetNativeTests, getNativeContext) {
-  CUcontext cudaContext = get_native<backend::cuda>(syclContext_);
+  CUcontext cudaContext = get_native<backend::cuda>(syclQueue_->get_context());
   ASSERT_NE(cudaContext, nullptr);
 }
 
 TEST_P(CudaInteropGetNativeTests, getNativeQueue) {
-  CUstream cudaStream = get_native<backend::cuda>(syclQueue_);
+  CUstream cudaStream = get_native<backend::cuda>(*syclQueue_);
   ASSERT_NE(cudaStream, nullptr);
 
   CUcontext streamContext = nullptr;
   CUresult result = cuStreamGetCtx(cudaStream, &streamContext);
   ASSERT_EQ(result, CUDA_SUCCESS);
 
-  CUcontext cudaContext = get_native<backend::cuda>(syclContext_);
+  CUcontext cudaContext = get_native<backend::cuda>(syclQueue_->get_context());
   ASSERT_EQ(streamContext, cudaContext);
 }
 
 TEST_P(CudaInteropGetNativeTests, interopTaskGetMem) {
   buffer<int, 1> syclBuffer(range<1>{1});
-  syclQueue_.submit([&](handler &cgh) {
+  syclQueue_->submit([&](handler &cgh) {
     auto syclAccessor = syclBuffer.get_access<access::mode::read>(cgh);
     cgh.interop_task([=](interop_handler ih) {
       CUdeviceptr cudaPtr = ih.get_mem<backend::cuda>(syclAccessor);
       CUdeviceptr cudaPtrBase;
       size_t cudaPtrSize = 0;
-      CUcontext cudaContext = get_native<backend::cuda>(syclContext_);
+      CUcontext cudaContext =
+          get_native<backend::cuda>(syclQueue_->get_context());
       ASSERT_EQ(CUDA_SUCCESS, cuCtxPushCurrent(cudaContext));
       ASSERT_EQ(CUDA_SUCCESS,
                 cuMemGetAddressRange(&cudaPtrBase, &cudaPtrSize, cudaPtr));
@@ -76,8 +75,8 @@ TEST_P(CudaInteropGetNativeTests, interopTaskGetMem) {
 }
 
 TEST_P(CudaInteropGetNativeTests, interopTaskGetBufferMem) {
-  CUstream cudaStream = get_native<backend::cuda>(syclQueue_);
-  syclQueue_.submit([&](handler &cgh) {
+  CUstream cudaStream = get_native<backend::cuda>(*syclQueue_);
+  syclQueue_->submit([&](handler &cgh) {
     cgh.interop_task([=](interop_handler ih) {
       CUstream cudaInteropStream = ih.get_queue<backend::cuda>();
       ASSERT_EQ(cudaInteropStream, cudaStream);

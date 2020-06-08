@@ -3559,6 +3559,17 @@ scope) variables and static local variable as well.
   }];
 }
 
+def OpenCLGlobalAddressSpacesDocs : Documentation {
+  let Category = DocOpenCLAddressSpaces;
+  let Heading = "[[clang::opencl_global_device]], [[clang::opencl_global_host]]";
+  let Content = [{
+The (global_device) and (global_host) address space attributes specify that an
+object is allocated in global memory on the device/host. It helps distinguishing
+USM pointers that access device memory and accessors that access global memory
+from those that access host memory.
+  }];
+}
+
 def OpenCLAddressSpaceLocalDocs : Documentation {
   let Category = DocOpenCLAddressSpaces;
   let Heading = "__local, local, [[clang::opencl_local]]";

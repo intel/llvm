@@ -49,8 +49,11 @@ void bar() {
 }
 
 // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name1
-// CHECK: IntelReqdSubGroupSizeAttr {{.*}} 16
+// CHECK: IntelReqdSubGroupSizeAttr {{.*}}
+// CHECK-NEXT: IntegerLiteral{{.*}}16{{$}}
 // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name2
-// CHECK: IntelReqdSubGroupSizeAttr {{.*}} 4
+// CHECK: IntelReqdSubGroupSizeAttr {{.*}}
+// CHECK-NEXT: IntegerLiteral{{.*}}4{{$}}
 // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name5
-// CHECK: IntelReqdSubGroupSizeAttr {{.*}} 2
+// CHECK: IntelReqdSubGroupSizeAttr {{.*}}
+// CHECK-NEXT: IntegerLiteral{{.*}}2{{$}}

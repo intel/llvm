@@ -144,6 +144,11 @@ inline bool isValid(spv::ExecutionMode V) {
   case ExecutionModeNoGlobalOffsetINTEL:
   case ExecutionModeMaxWorkDimINTEL:
   case ExecutionModeNumSIMDWorkitemsINTEL:
+  case ExecutionModeDenormPreserve:
+  case ExecutionModeDenormFlushToZero:
+  case ExecutionModeSignedZeroInfNanPreserve:
+  case ExecutionModeRoundingModeRTE:
+  case ExecutionModeRoundingModeRTZ:
     return true;
   default:
     return false;
@@ -459,6 +464,11 @@ inline bool isValid(spv::BuiltIn V) {
   case BuiltInNumEnqueuedSubgroups:
   case BuiltInSubgroupId:
   case BuiltInSubgroupLocalInvocationId:
+  case BuiltInSubgroupEqMask:
+  case BuiltInSubgroupGeMask:
+  case BuiltInSubgroupGtMask:
+  case BuiltInSubgroupLeMask:
+  case BuiltInSubgroupLtMask:
   case BuiltInVertexIndex:
   case BuiltInInstanceIndex:
     return true;
@@ -563,6 +573,19 @@ inline bool isValid(spv::Capability V) {
   case CapabilitySubgroupDispatch:
   case CapabilityNamedBarrier:
   case CapabilityPipeStorage:
+  case CapabilityGroupNonUniform:
+  case CapabilityGroupNonUniformVote:
+  case CapabilityGroupNonUniformArithmetic:
+  case CapabilityGroupNonUniformBallot:
+  case CapabilityGroupNonUniformShuffle:
+  case CapabilityGroupNonUniformShuffleRelative:
+  case CapabilityGroupNonUniformClustered:
+  case CapabilityGroupNonUniformQuad:
+  case CapabilityDenormPreserve:
+  case CapabilityDenormFlushToZero:
+  case CapabilitySignedZeroInfNanPreserve:
+  case CapabilityRoundingModeRTE:
+  case CapabilityRoundingModeRTZ:
   case CapabilityFPGAMemoryAttributesINTEL:
   case CapabilityArbitraryPrecisionIntegersINTEL:
   case CapabilityFPGALoopControlsINTEL:

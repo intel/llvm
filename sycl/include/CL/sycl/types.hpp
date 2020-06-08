@@ -10,6 +10,8 @@
 
 #pragma once
 
+#include <CL/sycl/detail/generic_type_traits.hpp>
+
 // Define __NO_EXT_VECTOR_TYPE_ON_HOST__ to avoid using ext_vector_type
 // extension even if the host compiler supports it. The same can be
 // accomplished by -D__NO_EXT_VECTOR_TYPE_ON_HOST__ command line option.

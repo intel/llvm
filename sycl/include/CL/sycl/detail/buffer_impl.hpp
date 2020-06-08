@@ -14,7 +14,6 @@
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/helpers.hpp>
 #include <CL/sycl/detail/sycl_mem_obj_t.hpp>
-#include <CL/sycl/handler.hpp>
 #include <CL/sycl/property_list.hpp>
 #include <CL/sycl/stl.hpp>
 #include <CL/sycl/types.hpp>
@@ -32,7 +31,6 @@ template <typename DataT, int Dimensions, access::mode AccessMode,
 class accessor;
 template <typename T, int Dimensions, typename AllocatorT, typename Enable>
 class buffer;
-class handler;
 
 using buffer_allocator = detail::sycl_memory_object_allocator;
 

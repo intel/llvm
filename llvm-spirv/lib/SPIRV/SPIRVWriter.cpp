@@ -105,6 +105,22 @@ static void foreachKernelArgMD(
   }
 }
 
+static SPIRVMemoryModelKind getMemoryModel(Module &M) {
+  auto *MemoryModelMD = M.getNamedMetadata(kSPIRVMD::MemoryModel);
+  if (MemoryModelMD && (MemoryModelMD->getNumOperands() > 0)) {
+    auto *Ref0 = MemoryModelMD->getOperand(0);
+    if (Ref0 && Ref0->getNumOperands() > 1) {
+      auto &&ModelOp = Ref0->getOperand(1);
+      auto *ModelCI = mdconst::dyn_extract<ConstantInt>(ModelOp);
+      if (ModelCI && (ModelCI->getValue().getActiveBits() <= 64)) {
+        auto Model = static_cast<SPIRVMemoryModelKind>(ModelCI->getZExtValue());
+        return Model;
+      }
+    }
+  }
+  return SPIRVMemoryModelKind::MemoryModelMax;
+}
+
 LLVMToSPIRV::LLVMToSPIRV(SPIRVModule *SMod)
     : ModulePass(ID), M(nullptr), Ctx(nullptr), BM(SMod), SrcLang(0),
       SrcLangVer(0) {
@@ -1079,11 +1095,30 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
     return mapValue(V, BI);
   }
 
-  if (SelectInst *Sel = dyn_cast<SelectInst>(V))
+  if (SelectInst *Sel = dyn_cast<SelectInst>(V)) {
+    SPIRVValue *TrueValue = nullptr;
+    SPIRVValue *FalseValue = nullptr;
+    if (isa<Function>(Sel->getTrueValue())) {
+      if (!BM->checkExtension(ExtensionID::SPV_INTEL_function_pointers,
+                              SPIRVEC_FunctionPointers, toString(Sel)))
+        return nullptr;
+
+      // select with function pointers
+      auto *TrueF = cast<Function>(Sel->getTrueValue());
+      TrueValue = BM->addFunctionPointerINTELInst(
+          transType(TrueF->getType()),
+          static_cast<SPIRVFunction *>(transValue(TrueF, BB)), BB);
+      auto *FalseF = cast<Function>(Sel->getFalseValue());
+      FalseValue = BM->addFunctionPointerINTELInst(
+          transType(FalseF->getType()),
+          static_cast<SPIRVFunction *>(transValue(FalseF, BB)), BB);
+    } else {
+      TrueValue = transValue(Sel->getTrueValue(), BB);
+      FalseValue = transValue(Sel->getFalseValue(), BB);
+    }
     return mapValue(V, BM->addSelectInst(transValue(Sel->getCondition(), BB),
-                                         transValue(Sel->getTrueValue(), BB),
-                                         transValue(Sel->getFalseValue(), BB),
-                                         BB));
+                                         TrueValue, FalseValue, BB));
+  }
 
   if (AllocaInst *Alc = dyn_cast<AllocaInst>(V))
     return mapValue(
@@ -1904,6 +1939,9 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
   case Intrinsic::invariant_start:
   case Intrinsic::invariant_end:
   case Intrinsic::dbg_label:
+  case Intrinsic::trap:
+    // llvm.trap intrinsic is not implemented. But for now don't crash. This
+    // change is pending the trap/abort intrisinc implementation.
     return nullptr;
   default:
     if (SPIRVAllowUnknownIntrinsics)
@@ -2340,7 +2378,7 @@ bool LLVMToSPIRV::translate() {
   for (auto I : Defs)
     transFunction(I);
 
-  if (!transOCLKernelMetadata())
+  if (!transMetadata())
     return false;
   if (!transExecutionMode())
     return false;
@@ -2481,6 +2519,19 @@ bool LLVMToSPIRV::transExecutionMode() {
           BM->addCapability(CapabilityFPGAKernelAttributesINTEL);
         }
       } break;
+
+      case spv::ExecutionModeDenormPreserve:
+      case spv::ExecutionModeDenormFlushToZero:
+      case spv::ExecutionModeSignedZeroInfNanPreserve:
+      case spv::ExecutionModeRoundingModeRTE:
+      case spv::ExecutionModeRoundingModeRTZ: {
+        if (!BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_float_controls))
+          break;
+        unsigned TargetWidth;
+        N.get(TargetWidth);
+        BF->addExecutionMode(BM->add(new SPIRVExecutionMode(
+            BF, static_cast<ExecutionMode>(EMode), TargetWidth)));
+      } break;
       default:
         llvm_unreachable("invalid execution mode");
       }
@@ -2530,7 +2581,18 @@ void LLVMToSPIRV::transFPContract() {
   }
 }
 
-bool LLVMToSPIRV::transOCLKernelMetadata() {
+bool LLVMToSPIRV::transMetadata() {
+  if (!transOCLMetadata())
+    return false;
+
+  auto Model = getMemoryModel(*M);
+  if (Model != SPIRVMemoryModelKind::MemoryModelMax)
+    BM->setMemoryModel(static_cast<SPIRVMemoryModelKind>(Model));
+
+  return true;
+}
+
+bool LLVMToSPIRV::transOCLMetadata() {
   for (auto &F : *M) {
     if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
       continue;
@@ -2764,6 +2826,7 @@ bool LLVMToSPIRV::joinFPContract(Function *F, FPContract C) {
   case FPContract::DISABLED:
     return false;
   }
+  llvm_unreachable("Unhandled FPContract value.");
 }
 
 } // namespace SPIRV

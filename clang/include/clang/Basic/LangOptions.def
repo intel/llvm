@@ -248,6 +248,7 @@ LANGOPT(SYCLStdLayoutKernelParams, 1, 0, "Enable standard layout requirement for
 LANGOPT(SYCLUnnamedLambda , 1, 0, "Allow unnamed lambda SYCL kernels")
 LANGOPT(SYCLVersion       , 32, 0, "Version of the SYCL standard used")
 LANGOPT(DeclareSPIRVBuiltins, 1, 0, "Declare SPIR-V builtin functions")
+LANGOPT(SYCLExplicitSIMD  , 1, 0, "SYCL compilation with explicit SIMD extension")
 
 LANGOPT(HIPUseNewLaunchAPI, 1, 0, "Use new kernel launching API for HIP")
 
@@ -306,6 +307,7 @@ ENUM_LANGOPT(TypeVisibilityMode, Visibility, 3, DefaultVisibility,
 LANGOPT(SetVisibilityForExternDecls, 1, 0,
         "apply global symbol visibility to external declarations without an explicit visibility")
 BENIGN_LANGOPT(SemanticInterposition        , 1, 0, "semantic interposition")
+BENIGN_LANGOPT(ExplicitNoSemanticInterposition, 1, 0, "explicitly no semantic interposition")
 ENUM_LANGOPT(StackProtector, StackProtectorMode, 2, SSPOff,
              "stack protector mode")
 ENUM_LANGOPT(TrivialAutoVarInit, TrivialAutoVarInitKind, 2, TrivialAutoVarInitKind::Uninitialized,
