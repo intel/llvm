@@ -1262,10 +1262,7 @@ public:
     MemberExprBases.push_back(BuildMemberExpr(MemberExprBases.back(), FD));
   }
 
-  void leaveStruct(const CXXRecordDecl *, FieldDecl *FD) final {
-
-    const CXXRecordDecl *RD = FD->getType()->getAsCXXRecordDecl();
-
+  void addStructInit(const CXXRecordDecl *RD) {
     if (!RD)
       return;
 
@@ -1284,26 +1281,22 @@ public:
     ILE->setType(QualType(RD->getTypeForDecl(), 0));
     InitExprs.push_back(ILE);
 
+    //MemberExprBases.pop_back();
+
+  }
+
+  void leaveStruct(const CXXRecordDecl *, FieldDecl *FD) final {
+
+    const CXXRecordDecl *RD = FD->getType()->getAsCXXRecordDecl();
+
+    addStructInit(RD);
+
   }
 
   void leaveStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS) final {
 
     const CXXRecordDecl *BaseClass = BS.getType()->getAsCXXRecordDecl();
-    int NumberOfFields = getFieldNumber(BaseClass);
-    llvm::SmallVector<Expr *, 16> BaseInitExprs;
-    for (int I = 0; I < NumberOfFields; I++) {
-      BaseInitExprs.push_back(InitExprs.back());
-      InitExprs.pop_back();
-    }
-    std::reverse(BaseInitExprs.begin(), BaseInitExprs.end());
-
-    Expr *ILE = new (SemaRef.getASTContext())
-        InitListExpr(SemaRef.getASTContext(), SourceLocation(), BaseInitExprs,
-                     SourceLocation());
-    ILE->setType(QualType(BaseClass->getTypeForDecl(), 0));
-    InitExprs.push_back(ILE);
-
-    MemberExprBases.pop_back();
+    addStructInit(BaseClass);
   }
 
   using SyclKernelFieldHandler::enterStruct;
