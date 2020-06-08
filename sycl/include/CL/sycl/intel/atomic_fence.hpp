@@ -29,6 +29,7 @@ static inline void atomic_fence(memory_order order, memory_scope scope) {
   auto spirv_scope = detail::spirv::getScope(scope);
   __spirv_MemoryBarrier(spirv_scope, static_cast<uint32_t>(spirv_order));
 #else
+  (void)scope;
   auto std_order = detail::getStdMemoryOrder(order);
   atomic_thread_fence(std_order);
 #endif

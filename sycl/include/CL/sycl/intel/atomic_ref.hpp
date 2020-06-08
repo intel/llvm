@@ -177,6 +177,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     detail::spirv::AtomicStore(ptr, scope, order, operand);
 #else
+    (void)scope;
     ptr->store(operand, detail::getStdMemoryOrder(order));
 #endif
   }
@@ -191,6 +192,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return detail::spirv::AtomicLoad(ptr, scope, order);
 #else
+    (void)scope;
     return ptr->load(detail::getStdMemoryOrder(order));
 #endif
   }
@@ -202,6 +204,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return detail::spirv::AtomicExchange(ptr, scope, order, operand);
 #else
+    (void)scope;
     return ptr->exchange(operand, detail::getStdMemoryOrder(order));
 #endif
   }
@@ -219,6 +222,7 @@ public:
     }
     return succeeded;
 #else
+    (void)scope;
     return ptr->compare_exchange_strong(expected, desired,
                                         detail::getStdMemoryOrder(success),
                                         detail::getStdMemoryOrder(failure));
@@ -242,6 +246,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return compare_exchange_strong(expected, desired, success, failure, scope);
 #else
+    (void)scope;
     return ptr->compare_exchange_weak(expected, desired,
                                       detail::getStdMemoryOrder(success),
                                       detail::getStdMemoryOrder(failure));
@@ -304,6 +309,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return detail::spirv::AtomicIAdd(ptr, scope, order, operand);
 #else
+    (void)scope;
     return ptr->fetch_add(operand, detail::getStdMemoryOrder(order));
 #endif
   }
@@ -327,6 +333,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return detail::spirv::AtomicISub(ptr, scope, order, operand);
 #else
+    (void)scope;
     return ptr->fetch_sub(operand, detail::getStdMemoryOrder(order));
 #endif
   }
@@ -350,6 +357,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return detail::spirv::AtomicAnd(ptr, scope, order, operand);
 #else
+    (void)scope;
     return ptr->fetch_and(operand, detail::getStdMemoryOrder(order));
 #endif
   }
@@ -363,6 +371,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return detail::spirv::AtomicOr(ptr, scope, order, operand);
 #else
+    (void)scope;
     return ptr->fetch_or(operand, detail::getStdMemoryOrder(order));
 #endif
   }
@@ -374,6 +383,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return detail::spirv::AtomicXor(ptr, scope, order, operand);
 #else
+    (void)scope;
     return ptr->fetch_xor(operand, detail::getStdMemoryOrder(order));
 #endif
   }
