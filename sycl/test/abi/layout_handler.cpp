@@ -152,7 +152,7 @@ void foo() {
 // CHECK-NEXT: 440 |             struct std::_Head_base<1, struct std::default_delete<class cl::sycl::detail::InteropTask>, true> (base) (empty)
 // CHECK-NEXT: 440 |               struct std::default_delete<class cl::sycl::detail::InteropTask> (base) (empty)
 // CHECK-NEXT: 440 |           struct std::_Head_base<0, class cl::sycl::detail::InteropTask *, false> (base)
-// CHECK-NEXT: 440 |             class cl::sycl::detail::InteropTask * _M_head_implMEvents
+// CHECK-NEXT: 440 |             class cl::sycl::detail::InteropTask * _M_head_impl
 // CHECK-NEXT: 448 |   class std::vector<class std::shared_ptr<class cl::sycl::detail::event_impl>, class std::allocator<class std::shared_ptr<class cl::sycl::detail::event_impl> > > MEvents
 // CHECK-NEXT: 448 |     struct std::_Vector_base<class std::shared_ptr<class cl::sycl::detail::event_impl>, class std::allocator<class std::shared_ptr<class cl::sycl::detail::event_impl> > > (base)
 // CHECK-NEXT: 448 |       struct std::_Vector_base<class std::shared_ptr<class cl::sycl::detail::event_impl>, class std::allocator<class std::shared_ptr<class cl::sycl::detail::event_impl> > >::_Vector_impl _M_impl
