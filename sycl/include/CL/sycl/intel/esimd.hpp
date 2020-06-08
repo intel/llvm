@@ -10,6 +10,9 @@
 
 #pragma once
 
+#include <CL/sycl/intel/esimd/esimd.hpp>
+#include <CL/sycl/intel/esimd/esimd_view.hpp>
+
 #ifdef __SYCL_DEVICE_ONLY__
 #define SYCL_ESIMD_KERNEL __attribute__((sycl_explicit_simd))
 #define SYCL_ESIMD_FUNCTION __attribute__((sycl_explicit_simd))
