@@ -11,6 +11,7 @@
 #pragma once
 
 #include <CL/sycl/intel/esimd/esimd.hpp>
+#include <CL/sycl/intel/esimd/esimd_math.hpp>
 #include <CL/sycl/intel/esimd/esimd_view.hpp>
 
 #ifdef __SYCL_DEVICE_ONLY__
