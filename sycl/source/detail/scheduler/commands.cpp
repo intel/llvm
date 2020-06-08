@@ -1969,7 +1969,8 @@ cl_int ExecCGCommand::enqueueImp() {
     }
     std::vector<RT::PiEvent> PiEvents = getPiEvents(Events);
     const detail::plugin &Plugin = MQueue->getPlugin();
-    Plugin.call<PiApiKind::piEnqueueBarrierWait>(MQueue->getHandleRef(), PiEvents.size(), &PiEvents[0], &Event);
+    Plugin.call<PiApiKind::piEnqueueBarrierWait>(
+        MQueue->getHandleRef(), PiEvents.size(), &PiEvents[0], &Event);
 
     return PI_SUCCESS;
   }
