@@ -77,7 +77,7 @@ enum class address_space : int {
   local_space
 };
 
-}  // namespace access
+} // namespace access
 
 namespace detail {
 
