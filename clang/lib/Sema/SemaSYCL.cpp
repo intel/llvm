@@ -677,31 +677,26 @@ constructKernelName(Sema &S, FunctionDecl *KernelCallerFunc,
 // anonymous namespace so these don't get linkage.
 namespace {
 
-QualType getItemType(const FieldDecl *FD) { return FD->getType(); }
-QualType getItemType(const CXXBaseSpecifier &BS) { return BS.getType(); }
-
 // Implements the 'for-each-visitor'  pattern.
 template <typename ParentTy, typename... Handlers>
-static void VisitAccessorWrapper(CXXRecordDecl *Owner, ParentTy &Parent,
-                                 CXXRecordDecl *Wrapper,
-                                 Handlers &... handlers);
+static void VisitRecord(CXXRecordDecl *Owner, ParentTy &Parent,
+                        CXXRecordDecl *Wrapper, Handlers &... handlers);
 
-template <typename RangeTy, typename... Handlers>
-static void VisitAccessorWrapperHelper(CXXRecordDecl *Owner, RangeTy Range,
-                                       Handlers &... handlers) {
-  for (const auto &Item : Range) {
-    QualType ItemTy = getItemType(Item);
-    if (Util::isSyclAccessorType(ItemTy))
-      (void)std::initializer_list<int>{
-          (handlers.handleSyclAccessorType(Item, ItemTy), 0)...};
-    else if (ItemTy->isStructureOrClassType()) {
-      VisitAccessorWrapper(Owner, Item, ItemTy->getAsCXXRecordDecl(),
-                           handlers...);
-      if (Util::isSyclStreamType(ItemTy))
-        (void)std::initializer_list<int>{
-            (handlers.handleSyclStreamType(Item, ItemTy), 0)...};
-    }
+template <typename... Handlers>
+static void VisitRecordHelper(CXXRecordDecl *Owner,
+                              clang::CXXRecordDecl::base_class_range Range,
+                              Handlers &... handlers) {
+  for (const auto &Base : Range) {
+    QualType BaseTy = Base.getType();
+    VisitRecord(Owner, Base, BaseTy->getAsCXXRecordDecl(), handlers...);
   }
+}
+
+template <typename... Handlers>
+static void VisitRecordHelper(CXXRecordDecl *Owner,
+                              clang::RecordDecl::field_range Range,
+                              Handlers &... handlers) {
+  VisitRecordFields(Owner, handlers...);
 }
 
 // Parent contains the FieldDecl or CXXBaseSpecifier that was used to enter
@@ -709,41 +704,56 @@ static void VisitAccessorWrapperHelper(CXXRecordDecl *Owner, RangeTy Range,
 // (which doesn't exist in cases where it is a FieldDecl in the 'root'), and
 // Wrapper is the current struct being unwrapped.
 template <typename ParentTy, typename... Handlers>
-static void VisitAccessorWrapper(CXXRecordDecl *Owner, ParentTy &Parent,
-                                 CXXRecordDecl *Wrapper,
-                                 Handlers &... handlers) {
+static void VisitRecord(CXXRecordDecl *Owner, ParentTy &Parent,
+                        CXXRecordDecl *Wrapper, Handlers &... handlers) {
   (void)std::initializer_list<int>{(handlers.enterStruct(Owner, Parent), 0)...};
-  VisitAccessorWrapperHelper(Wrapper, Wrapper->bases(), handlers...);
-  VisitAccessorWrapperHelper(Wrapper, Wrapper->fields(), handlers...);
+  VisitRecordHelper(Wrapper, Wrapper->bases(), handlers...);
+  VisitRecordHelper(Wrapper, Wrapper->fields(), handlers...);
   (void)std::initializer_list<int>{(handlers.leaveStruct(Owner, Parent), 0)...};
+}
+
+int getFieldNumber(const CXXRecordDecl *BaseDecl) {
+  int Members = 0;
+  for (const auto *Field : BaseDecl->fields())
+    ++Members;
+
+  return Members;
+}
+
+template <typename... Handlers>
+static void VisitFunctorBases(CXXRecordDecl *KernelFunctor,
+                              Handlers &... handlers) {
+  VisitRecordHelper(KernelFunctor, KernelFunctor->bases(), handlers...);
 }
 
 // A visitor function that dispatches to functions as defined in
 // SyclKernelFieldHandler for the purposes of kernel generation.
 template <typename... Handlers>
-static void VisitRecordFields(RecordDecl::field_range Fields,
-                              Handlers &... handlers) {
+static void VisitRecordFields(CXXRecordDecl *Owner, Handlers &... handlers) {
 #define KF_FOR_EACH(FUNC)                                                      \
   (void)std::initializer_list<int> { (handlers.FUNC(Field, FieldTy), 0)... }
 
-  for (const auto &Field : Fields) {
+  for (const auto &Field : Owner->fields()) {
     QualType FieldTy = Field->getType();
 
     if (Util::isSyclAccessorType(FieldTy))
+      // FIXME: Does this still work? Check
       KF_FOR_EACH(handleSyclAccessorType);
     else if (Util::isSyclSamplerType(FieldTy))
+      // FIXME: Does this still work? Check
       KF_FOR_EACH(handleSyclSamplerType);
     else if (Util::isSyclSpecConstantType(FieldTy))
+      // FIXME: Does this still work? Check
       KF_FOR_EACH(handleSyclSpecConstantType);
     else if (Util::isSyclStreamType(FieldTy)) {
       // Stream actually wraps accessors, so do recursion
+      // FIXME: Does this still work? Check
       CXXRecordDecl *RD = FieldTy->getAsCXXRecordDecl();
-      VisitAccessorWrapper(nullptr, Field, RD, handlers...);
+      VisitRecord(nullptr, Field, RD, handlers...);
       KF_FOR_EACH(handleSyclStreamType);
     } else if (FieldTy->isStructureOrClassType()) {
-      KF_FOR_EACH(handleStructType);
       CXXRecordDecl *RD = FieldTy->getAsCXXRecordDecl();
-      VisitAccessorWrapper(nullptr, Field, RD, handlers...);
+      VisitRecord(Owner, Field, RD, handlers...);
     } else if (FieldTy->isReferenceType())
       KF_FOR_EACH(handleReferenceType);
     else if (FieldTy->isPointerType())
@@ -1169,16 +1179,16 @@ class SyclKernelBodyCreator
   void handleSpecialType(FieldDecl *FD, QualType Ty) {
     const auto *RecordDecl = Ty->getAsCXXRecordDecl();
     // Perform initialization only if it is field of kernel object
-    if (MemberExprBases.size() == 1) {
-      InitializedEntity Entity =
-          InitializedEntity::InitializeMember(FD, &VarEntity);
-      // Initialize with the default constructor.
-      InitializationKind InitKind =
-          InitializationKind::CreateDefault(SourceLocation());
-      InitializationSequence InitSeq(SemaRef, Entity, InitKind, None);
-      ExprResult MemberInit = InitSeq.Perform(SemaRef, Entity, InitKind, None);
-      InitExprs.push_back(MemberInit.get());
-    }
+    // if (MemberExprBases.size() == 1) {
+    InitializedEntity Entity =
+        InitializedEntity::InitializeMember(FD, &VarEntity);
+    // Initialize with the default constructor.
+    InitializationKind InitKind =
+        InitializationKind::CreateDefault(SourceLocation());
+    InitializationSequence InitSeq(SemaRef, Entity, InitKind, None);
+    ExprResult MemberInit = InitSeq.Perform(SemaRef, Entity, InitKind, None);
+    InitExprs.push_back(MemberInit.get());
+    // }
     createSpecialMethodCall(RecordDecl, MemberExprBases.back(), InitMethodName,
                             FD);
   }
@@ -1253,6 +1263,46 @@ public:
   }
 
   void leaveStruct(const CXXRecordDecl *, FieldDecl *FD) final {
+
+    const CXXRecordDecl *RD = FD->getType()->getAsCXXRecordDecl();
+
+    if (!RD)
+      return;
+
+    int NumberOfFields = getFieldNumber(RD);
+    int popOut = NumberOfFields + RD->getNumBases();
+    llvm::SmallVector<Expr *, 16> BaseInitExprs;
+    for (int I = 0; I < popOut; I++) {
+      BaseInitExprs.push_back(InitExprs.back());
+      InitExprs.pop_back();
+    }
+    std::reverse(BaseInitExprs.begin(), BaseInitExprs.end());
+
+    Expr *ILE = new (SemaRef.getASTContext())
+        InitListExpr(SemaRef.getASTContext(), SourceLocation(), BaseInitExprs,
+                     SourceLocation());
+    ILE->setType(QualType(RD->getTypeForDecl(), 0));
+    InitExprs.push_back(ILE);
+
+  }
+
+  void leaveStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS) final {
+
+    const CXXRecordDecl *BaseClass = BS.getType()->getAsCXXRecordDecl();
+    int NumberOfFields = getFieldNumber(BaseClass);
+    llvm::SmallVector<Expr *, 16> BaseInitExprs;
+    for (int I = 0; I < NumberOfFields; I++) {
+      BaseInitExprs.push_back(InitExprs.back());
+      InitExprs.pop_back();
+    }
+    std::reverse(BaseInitExprs.begin(), BaseInitExprs.end());
+
+    Expr *ILE = new (SemaRef.getASTContext())
+        InitListExpr(SemaRef.getASTContext(), SourceLocation(), BaseInitExprs,
+                     SourceLocation());
+    ILE->setType(QualType(BaseClass->getTypeForDecl(), 0));
+    InitExprs.push_back(ILE);
+
     MemberExprBases.pop_back();
   }
 
@@ -1447,7 +1497,9 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
       StableName);
 
   ConstructingOpenCLKernel = true;
-  VisitRecordFields(KernelLambda->fields(), checker, kernel_decl, kernel_body,
+  VisitFunctorBases(KernelLambda, checker, kernel_decl, kernel_body,
+                    int_header);
+  VisitRecordFields(KernelLambda, checker, kernel_decl, kernel_body,
                     int_header);
   ConstructingOpenCLKernel = false;
 }
