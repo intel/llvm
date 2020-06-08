@@ -19,14 +19,14 @@ int main() {
 
   // acospi
   {
-    s::cl_float r{ 0 };
+    s::cl_float r{0};
     {
       s::buffer<s::cl_float, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class acospiF1>([=]() {
-          AccR[0] = s::acospi(s::cl_float{ 0.5 });
+          AccR[0] = s::acospi(s::cl_float{0.5});
         });
       });
     }
@@ -35,14 +35,14 @@ int main() {
 
   // asinpi
   {
-    s::cl_float r{ 0 };
+    s::cl_float r{0};
     {
       s::buffer<s::cl_float, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class asinpiF1>([=]() {
-          AccR[0] = s::asinpi(s::cl_float{ 0.5 });
+          AccR[0] = s::asinpi(s::cl_float{0.5});
         });
       });
     }
@@ -51,14 +51,14 @@ int main() {
 
   // atan2
   {
-    s::cl_float r{ 0 };
+    s::cl_float r{0};
     {
       s::buffer<s::cl_float, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class atan2F1F1>([=]() {
-          AccR[0] = s::atan2(s::cl_float{ 0.5 }, s::cl_float{ 0.5 });
+          AccR[0] = s::atan2(s::cl_float{0.5}, s::cl_float{0.5});
         });
       });
     }
@@ -67,14 +67,14 @@ int main() {
 
   // atanpi
   {
-    s::cl_float r{ 0 };
+    s::cl_float r{0};
     {
       s::buffer<s::cl_float, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class atanpiF1>([=]() {
-          AccR[0] = s::atanpi(s::cl_float{ 0.5 });
+          AccR[0] = s::atanpi(s::cl_float{0.5});
         });
       });
     }
@@ -83,14 +83,14 @@ int main() {
 
   // atan2pi
   {
-    s::cl_float r{ 0 };
+    s::cl_float r{0};
     {
       s::buffer<s::cl_float, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class atan2piF1F1>([=]() {
-          AccR[0] = s::atan2pi(s::cl_float{ 0.5 }, s::cl_float{ 0.5 });
+          AccR[0] = s::atan2pi(s::cl_float{0.5}, s::cl_float{0.5});
         });
       });
     }
@@ -99,14 +99,14 @@ int main() {
 
   // copysign
   {
-    s::cl_float r{ 0 };
+    s::cl_float r{0};
     {
       s::buffer<s::cl_float, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class copysignF1F1>([=]() {
-          AccR[0] = s::copysign(s::cl_float{ 1 }, s::cl_float{ -0.5 });
+          AccR[0] = s::copysign(s::cl_float{1}, s::cl_float{-0.5});
         });
       });
     }
@@ -115,14 +115,14 @@ int main() {
 
   // fdim
   {
-    s::cl_float r{ 0 };
+    s::cl_float r{0};
     {
       s::buffer<s::cl_float, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class fdimF1F1>([=]() {
-          AccR[0] = s::fdim(s::cl_float{ 1.6 }, s::cl_float{ 0.6 });
+          AccR[0] = s::fdim(s::cl_float{1.6}, s::cl_float{0.6});
         });
       });
     }
@@ -131,15 +131,15 @@ int main() {
 
   // fma
   {
-    s::cl_float r{ 0 };
+    s::cl_float r{0};
     {
       s::buffer<s::cl_float, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class fmaF1F1F1>([=]() {
-          AccR[0] = s::fma(s::cl_float{ 0.5 }, s::cl_float{ 10.0 },
-                           s::cl_float{ 3.0 });
+          AccR[0] = s::fma(s::cl_float{0.5}, s::cl_float{10.0},
+                           s::cl_float{3.0});
         });
       });
     }
@@ -148,19 +148,19 @@ int main() {
 
   // fract with global memory
   {
-    s::cl_float r{ 0 };
-    s::cl_float i{ 999 };
+    s::cl_float r{0};
+    s::cl_float i{999};
     {
       s::buffer<s::cl_float, 1> BufR(&r, s::range<1>(1));
       s::buffer<s::cl_float, 1> BufI(&i, s::range<1>(1),
-                                     { s::property::buffer::use_host_ptr() });
+                                     {s::property::buffer::use_host_ptr()});
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::read_write>(cgh);
         auto AccI = BufI.get_access<s::access::mode::read_write>(cgh);
         cgh.single_task<class fractF1GF1>([=]() {
           s::global_ptr<s::cl_float> Iptr(AccI);
-          AccR[0] = s::fract(s::cl_float{ 1.5 }, Iptr);
+          AccR[0] = s::fract(s::cl_float{1.5}, Iptr);
         });
       });
     }
@@ -170,12 +170,12 @@ int main() {
 
   // fract with private memory
   {
-    s::cl_float r{ 0 };
-    s::cl_float i{ 999 };
+    s::cl_float r{0};
+    s::cl_float i{999};
     {
       s::buffer<s::cl_float, 1> BufR(&r, s::range<1>(1));
       s::buffer<s::cl_float, 1> BufI(&i, s::range<1>(1),
-                                     { s::property::buffer::use_host_ptr() });
+                                     {s::property::buffer::use_host_ptr()});
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::read_write>(cgh);
@@ -183,7 +183,7 @@ int main() {
         cgh.single_task<class fractF1PF1>([=]() {
           s::cl_float temp(0.0);
           s::private_ptr<s::cl_float> Iptr(&temp);
-          AccR[0] = s::fract(s::cl_float{ 1.5f }, Iptr);
+          AccR[0] = s::fract(s::cl_float{1.5f}, Iptr);
           AccI[0] = *Iptr;
         });
       });
@@ -194,12 +194,12 @@ int main() {
 
   // lgamma_r with private memory
   {
-    s::cl_float r{ 0 };
-    s::cl_int i{ 999 };
+    s::cl_float r{0};
+    s::cl_int i{999};
     {
       s::buffer<s::cl_float, 1> BufR(&r, s::range<1>(1));
       s::buffer<s::cl_int, 1> BufI(&i, s::range<1>(1),
-                                   { s::property::buffer::use_host_ptr() });
+                                   {s::property::buffer::use_host_ptr()});
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::read_write>(cgh);
@@ -207,7 +207,7 @@ int main() {
         cgh.single_task<class lgamma_rF1PI1>([=]() {
           s::cl_int temp(0.0);
           s::private_ptr<s::cl_int> Iptr(&temp);
-          AccR[0] = s::lgamma_r(s::cl_float{ 10.f }, Iptr);
+          AccR[0] = s::lgamma_r(s::cl_float{10.f}, Iptr);
           AccI[0] = *Iptr;
         });
       });
@@ -218,12 +218,12 @@ int main() {
 
   // lgamma_r with private memory
   {
-    s::cl_float r{ 0 };
-    s::cl_int i{ 999 };
+    s::cl_float r{0};
+    s::cl_int i{999};
     {
       s::buffer<s::cl_float, 1> BufR(&r, s::range<1>(1));
       s::buffer<s::cl_int, 1> BufI(&i, s::range<1>(1),
-                                   { s::property::buffer::use_host_ptr() });
+                                   {s::property::buffer::use_host_ptr()});
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::read_write>(cgh);
@@ -231,13 +231,13 @@ int main() {
         cgh.single_task<class lgamma_rF1PI1_neg>([=]() {
           s::cl_int temp(0.0);
           s::private_ptr<s::cl_int> Iptr(&temp);
-          AccR[0] = s::lgamma_r(s::cl_float{ -2.4f }, Iptr);
+          AccR[0] = s::lgamma_r(s::cl_float{-2.4f}, Iptr);
           AccI[0] = *Iptr;
         });
       });
     }
     assert(r > 0.1024f && r < 0.1026f); // ~0.102583
-    assert(i == -1); // tgamma of -2.4 is ~-1.1080299470333461
+    assert(i == -1);                    // tgamma of -2.4 is ~-1.1080299470333461
   }
 
   return 0;

@@ -6,9 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <spirv/spirv.h>
-#include "../../include/libdevice.h"
 #include "../../../generic/lib/clcmacro.h"
+#include "../../include/libdevice.h"
+#include <spirv/spirv.h>
 
 #define __CLC_FUNCTION __spirv_ocl_acos
 #define __CLC_BUILTIN __nv_acos
