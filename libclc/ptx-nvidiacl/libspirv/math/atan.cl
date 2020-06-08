@@ -21,4 +21,3 @@
 #define __CLC_FUNCTION __spirv_ocl_atanh
 #define __CLC_BUILTIN __nv_atanh
 #include "unary_builtin.inc"
-

@@ -17,4 +17,3 @@
 #define __CLC_FUNCTION __spirv_ocl_asinh
 #define __CLC_BUILTIN __nv_asinh
 #include "unary_builtin.inc"
-
