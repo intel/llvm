@@ -741,6 +741,22 @@ public:
       }
     }
 
+    if (Ops.Ty->isConstantMatrixType()) {
+      llvm::MatrixBuilder<CGBuilderTy> MB(Builder);
+      // We need to check the types of the operands of the operator to get the
+      // correct matrix dimensions.
+      auto *BO = cast<BinaryOperator>(Ops.E);
+      auto *LHSMatTy = dyn_cast<ConstantMatrixType>(
+          BO->getLHS()->getType().getCanonicalType());
+      auto *RHSMatTy = dyn_cast<ConstantMatrixType>(
+          BO->getRHS()->getType().getCanonicalType());
+      if (LHSMatTy && RHSMatTy)
+        return MB.CreateMatrixMultiply(Ops.LHS, Ops.RHS, LHSMatTy->getNumRows(),
+                                       LHSMatTy->getNumColumns(),
+                                       RHSMatTy->getNumColumns());
+      return MB.CreateScalarMultiply(Ops.LHS, Ops.RHS);
+    }
+
     if (Ops.Ty->isUnsignedIntegerType() &&
         CGF.SanOpts.has(SanitizerKind::UnsignedIntegerOverflow) &&
         !CanElideOverflowCheck(CGF.getContext(), Ops))
@@ -2081,15 +2097,11 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
       }
     }
 
-    // Update heapallocsite metadata when there is an explicit pointer cast.
-    if (auto *CI = dyn_cast<llvm::CallBase>(Src)) {
-      if (CI->getMetadata("heapallocsite") && isa<ExplicitCastExpr>(CE)) {
-        QualType PointeeType = DestTy->getPointeeType();
-        if (!PointeeType.isNull())
-          CGF.getDebugInfo()->addHeapAllocSiteMetadata(CI, PointeeType,
-                                                       CE->getExprLoc());
-      }
-    }
+    // Update heapallocsite metadata when there is an explicit cast.
+    if (llvm::CallInst *CI = dyn_cast<llvm::CallInst>(Src))
+      if (CI->getMetadata("heapallocsite") && isa<ExplicitCastExpr>(CE))
+          CGF.getDebugInfo()->
+              addHeapAllocSiteMetadata(CI, CE->getType(), CE->getExprLoc());
 
     if (NeedAddrspaceCast) {
       llvm::Type *SrcPointeeTy = Src->getType()->getPointerElementType();
