@@ -1,6 +1,7 @@
 // UNSUPPORTED: cuda
 // CUDA does not support SPIR-V.
-
+// XFAIL: windows && level0
+//
 // >> ---- compile src1
 // >> device compilation...
 // RUN: %clangxx -fsycl-device-only -Xclang -fsycl-int-header=sycl_ihdr_a.h %s -c -o a_kernel.bc -I %sycl_include -Wno-sycl-strict
