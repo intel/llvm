@@ -1949,7 +1949,7 @@ cl_int ExecCGCommand::enqueueImp() {
 
     return CL_SUCCESS;
   }
-  case CG::CGTYPE::BARRIER: { 
+  case CG::CGTYPE::BARRIER: {
     if (MQueue->get_device().is_host()) {
       // NOP for host device.
       return PI_SUCCESS;
@@ -1959,7 +1959,7 @@ cl_int ExecCGCommand::enqueueImp() {
 
     return PI_SUCCESS;
   }
-  case CG::CGTYPE::BARRIER_WAITLIST: { 
+  case CG::CGTYPE::BARRIER_WAITLIST: {
     CGBarrier *Barrier = static_cast<CGBarrier *>(MCommandGroup.get());
     std::vector<detail::EventImplPtr> Events = Barrier->MBarrierWaitListEvents;
     if (MQueue->get_device().is_host() || Events.empty()) {
