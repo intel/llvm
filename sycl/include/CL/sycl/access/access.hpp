@@ -11,7 +11,6 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace access {
 
 enum class target {
   global_buffer = 2014,
@@ -23,6 +22,12 @@ enum class target {
   image_array
 };
 
+// Backward compatibility namespace nesting
+namespace access {
+using sycl::target;
+}
+
+namespace access {
 enum class mode {
   read = 1024,
   write,
@@ -31,14 +36,39 @@ enum class mode {
   discard_read_write,
   atomic
 };
+}
+
+using access_mode = access::mode;
+
+namespace access {
+enum class placeholder { false_t, true_t };
+}
+
+#if __cplusplus > 201402L
+
+template <access_mode mode> struct mode_tag_t {
+  explicit mode_tag_t() = default;
+};
+
+template <access_mode mode, target trgt> struct mode_target_tag_t {
+  explicit mode_target_tag_t() = default;
+};
+
+inline constexpr mode_tag_t<access_mode::read> read_only{};
+inline constexpr mode_tag_t<access_mode::read_write> read_write{};
+inline constexpr mode_tag_t<access_mode::write> write_only{};
+inline constexpr mode_target_tag_t<access_mode::read, target::constant_buffer>
+    read_constant{};
+
+#endif
+
+namespace access {
 
 enum class fence_space {
   local_space,
   global_space,
   global_and_local
 };
-
-enum class placeholder { false_t, true_t };
 
 enum class address_space : int {
   private_space = 0,

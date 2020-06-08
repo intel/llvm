@@ -42,6 +42,8 @@ class enable_profiling;
 class in_order;
 } // namespace queue
 
+class noinit;
+
 namespace detail {
 
 // List of all properties' IDs.
@@ -59,6 +61,9 @@ enum PropKind {
   // Queue properties
   QueueEnableProfiling,
   InOrder,
+
+  // Accessor
+  NoInit,
 
   PropKindSize
 };
@@ -147,6 +152,9 @@ RegisterProp(PropKind::BufferContextBound, buffer::context_bound);
 RegisterProp(PropKind::QueueEnableProfiling, queue::enable_profiling);
 RegisterProp(PropKind::InOrder, queue::in_order);
 
+// Buffer
+RegisterProp(PropKind::NoInit, noinit);
+
 // Sentinel, needed for automatic build of tuple in property_list.
 RegisterProp(PropKind::PropKindSize, PropBase);
 
@@ -212,7 +220,15 @@ class enable_profiling
 class in_order : public detail::Prop<detail::PropKind::InOrder> {};
 } // namespace queue
 
+class noinit : public detail::Prop<detail::PropKind::NoInit> {};
+
 } // namespace property
+
+#if __cplusplus > 201402L
+
+inline constexpr property::noinit noinit;
+
+#endif
 
 class property_list {
 
