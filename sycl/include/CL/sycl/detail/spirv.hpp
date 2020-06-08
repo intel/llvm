@@ -73,10 +73,11 @@ T GroupBroadcast(T x, id<Dimensions> local_id) {
 // Single happens-before means semantics should always apply to all spaces
 static inline constexpr __spv::MemorySemanticsMask::Flag
 getMemorySemanticsMask(intel::memory_order order) {
-  __spv::MemorySemanticsMask::Flag spv_order;
+  __spv::MemorySemanticsMask::Flag spv_order = __spv::MemorySemanticsMask::None;
   switch (order) {
   case intel::memory_order::relaxed:
     spv_order = __spv::MemorySemanticsMask::None;
+  case intel::memory_order::__consume_unsupported:
   case intel::memory_order::acquire:
     spv_order = __spv::MemorySemanticsMask::Acquire;
   case intel::memory_order::release:
