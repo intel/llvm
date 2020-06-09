@@ -22,4 +22,4 @@ int main() {
 }
 
 // TODO: Address a Windows-specific issue with integration header filenames
-// XFAIL: system-windows && !level0
+// XFAIL: system-windows

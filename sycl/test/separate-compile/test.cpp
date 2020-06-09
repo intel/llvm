@@ -1,6 +1,5 @@
 // UNSUPPORTED: cuda
 // CUDA does not support SPIR-V.
-// XFAIL: windows && level0
 //
 // >> ---- compile src1
 // >> device compilation...
