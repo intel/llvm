@@ -627,6 +627,16 @@ template <> inline void SPIRVMap<std::string, SPIRVGroupOperationKind>::init() {
   add("reduce", GroupOperationReduce);
   add("scan_inclusive", GroupOperationInclusiveScan);
   add("scan_exclusive", GroupOperationExclusiveScan);
+  add("ballot_bit_count", GroupOperationReduce);
+  add("ballot_inclusive_scan", GroupOperationInclusiveScan);
+  add("ballot_exclusive_scan", GroupOperationExclusiveScan);
+  add("non_uniform_reduce", GroupOperationReduce);
+  add("non_uniform_scan_inclusive", GroupOperationInclusiveScan);
+  add("non_uniform_scan_exclusive", GroupOperationExclusiveScan);
+  add("non_uniform_reduce_logical", GroupOperationReduce);
+  add("non_uniform_scan_inclusive_logical", GroupOperationInclusiveScan);
+  add("non_uniform_scan_exclusive_logical", GroupOperationExclusiveScan);
+  add("clustered_reduce", GroupOperationClusteredReduce);
 }
 
 template <> inline void SPIRVMap<std::string, SPIRVFPRoundingModeKind>::init() {
@@ -690,12 +700,19 @@ inline void SPIRVMap<std::string, SPIRVBuiltinVariableKind>::init() {
   add("get_group_id", BuiltInWorkgroupId);
   add("get_global_linear_id", BuiltInGlobalLinearId);
   add("get_local_linear_id", BuiltInLocalInvocationIndex);
+  // cl_khr_subgroups
   add("get_sub_group_size", BuiltInSubgroupSize);
   add("get_max_sub_group_size", BuiltInSubgroupMaxSize);
   add("get_num_sub_groups", BuiltInNumSubgroups);
   add("get_enqueued_num_sub_groups", BuiltInNumEnqueuedSubgroups);
   add("get_sub_group_id", BuiltInSubgroupId);
   add("get_sub_group_local_id", BuiltInSubgroupLocalInvocationId);
+  // cl_khr_subgroup_ballot
+  add("get_sub_group_eq_mask", BuiltInSubgroupEqMask);
+  add("get_sub_group_ge_mask", BuiltInSubgroupGeMask);
+  add("get_sub_group_gt_mask", BuiltInSubgroupGtMask);
+  add("get_sub_group_le_mask", BuiltInSubgroupLeMask);
+  add("get_sub_group_lt_mask", BuiltInSubgroupLtMask);
 }
 
 // Maps uniqued OCL builtin function name to SPIR-V op code.
@@ -719,7 +736,7 @@ template <> inline void SPIRVMap<std::string, Op, SPIRVInstruction>::init() {
   _SPIRV_OP(max, SMax)
   _SPIRV_OP(and, And)
   _SPIRV_OP(or, Or)
-  _SPIRV_OP (xor, Xor)
+  _SPIRV_OP(xor, Xor)
 #undef _SPIRV_OP
 #define _SPIRV_OP(x, y) add("atomic_" #x, Op##y);
   // CL 2.0 atomic builtins
@@ -839,6 +856,43 @@ template <> inline void SPIRVMap<std::string, Op, SPIRVInstruction>::init() {
   _SPIRV_OP(intel_sub_group_media_block_read, SubgroupImageMediaBlockReadINTEL)
   _SPIRV_OP(intel_sub_group_media_block_write,
             SubgroupImageMediaBlockWriteINTEL)
+  // cl_khr_subgroup_non_uniform_vote
+  _SPIRV_OP(group_elect, GroupNonUniformElect)
+  _SPIRV_OP(group_non_uniform_all, GroupNonUniformAll)
+  _SPIRV_OP(group_non_uniform_any, GroupNonUniformAny)
+  _SPIRV_OP(group_non_uniform_all_equal, GroupNonUniformAllEqual)
+  // cl_khr_subgroup_ballot
+  _SPIRV_OP(group_non_uniform_broadcast, GroupNonUniformBroadcast)
+  _SPIRV_OP(group_broadcast_first, GroupNonUniformBroadcastFirst)
+  _SPIRV_OP(group_ballot, GroupNonUniformBallot)
+  _SPIRV_OP(group_inverse_ballot, GroupNonUniformInverseBallot)
+  _SPIRV_OP(group_ballot_bit_extract, GroupNonUniformBallotBitExtract)
+  _SPIRV_OP(group_ballot_bit_count_iadd, GroupNonUniformBallotBitCount)
+  _SPIRV_OP(group_ballot_find_lsb, GroupNonUniformBallotFindLSB)
+  _SPIRV_OP(group_ballot_find_msb, GroupNonUniformBallotFindMSB)
+  // cl_khr_subgroup_non_uniform_arithmetic
+  _SPIRV_OP(group_non_uniform_iadd, GroupNonUniformIAdd)
+  _SPIRV_OP(group_non_uniform_fadd, GroupNonUniformFAdd)
+  _SPIRV_OP(group_non_uniform_imul, GroupNonUniformIMul)
+  _SPIRV_OP(group_non_uniform_fmul, GroupNonUniformFMul)
+  _SPIRV_OP(group_non_uniform_smin, GroupNonUniformSMin)
+  _SPIRV_OP(group_non_uniform_umin, GroupNonUniformUMin)
+  _SPIRV_OP(group_non_uniform_fmin, GroupNonUniformFMin)
+  _SPIRV_OP(group_non_uniform_smax, GroupNonUniformSMax)
+  _SPIRV_OP(group_non_uniform_umax, GroupNonUniformUMax)
+  _SPIRV_OP(group_non_uniform_fmax, GroupNonUniformFMax)
+  _SPIRV_OP(group_non_uniform_iand, GroupNonUniformBitwiseAnd)
+  _SPIRV_OP(group_non_uniform_ior, GroupNonUniformBitwiseOr)
+  _SPIRV_OP(group_non_uniform_ixor, GroupNonUniformBitwiseXor)
+  _SPIRV_OP(group_non_uniform_logical_iand, GroupNonUniformLogicalAnd)
+  _SPIRV_OP(group_non_uniform_logical_ior, GroupNonUniformLogicalOr)
+  _SPIRV_OP(group_non_uniform_logical_ixor, GroupNonUniformLogicalXor)
+  // cl_khr_subgroup_shuffle
+  _SPIRV_OP(group_shuffle, GroupNonUniformShuffle)
+  _SPIRV_OP(group_shuffle_xor, GroupNonUniformShuffleXor)
+  // cl_khr_subgroup_shuffle_relative
+  _SPIRV_OP(group_shuffle_up, GroupNonUniformShuffleUp)
+  _SPIRV_OP(group_shuffle_down, GroupNonUniformShuffleDown)
 #undef _SPIRV_OP
 }
 

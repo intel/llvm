@@ -10245,8 +10245,8 @@ def err_omp_invariant_or_linear_dependency : Error<
   "expected loop invariant expression or '<invariant1> * %0 + <invariant2>' kind of expression">;
 def err_omp_wrong_dependency_iterator_type : Error<
   "expected an integer or a pointer type of the outer loop counter '%0' for non-rectangular nests">;
-def err_omp_unsupported_type : Error <
-  "host requires %0 bit size %1 type support, but device '%2' does not support it">;
+def err_device_unsupported_type : Error <
+  "%0 requires %1 bit size %2 type support, but device '%3' does not support it">;
 def err_omp_lambda_capture_in_declare_target_not_to : Error<
   "variable captured in declare target region must appear in a to clause">;
 def err_omp_device_type_mismatch : Error<
@@ -10822,8 +10822,10 @@ def err_sycl_non_trivially_copy_ctor_dtor_type
             "constructible|destructible}0 class/struct type %1">;
 def err_sycl_non_std_layout_type : Error<
   "kernel parameter has non-standard layout class/struct type %0">;
+def err_sycl_non_constant_array_type : Error<
+  "kernel parameter is not a constant size array %0">;
 def err_conflicting_sycl_kernel_attributes : Error<
-  "conflicting attributes applied to a SYCL kernel">;
+  "conflicting attributes applied to a SYCL kernel or SYCL_EXTERNAL function">;
 def err_conflicting_sycl_function_attributes : Error<
    "%0 attribute conflicts with '%1' attribute">;
 def err_sycl_x_y_z_arguments_must_be_one : Error<
