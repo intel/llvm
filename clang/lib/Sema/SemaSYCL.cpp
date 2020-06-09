@@ -1035,6 +1035,23 @@ class SyclKernelDeclCreator
     return true;
   }
 
+  // Create a new class around a field - used to wrap arrays.
+  RecordDecl *wrapAnArray(const QualType ArgTy, FieldDecl *Field) {
+    RecordDecl *NewClass =
+      SemaRef.getASTContext().buildImplicitRecord("wrapped_array");
+    NewClass->startDefinition();
+    Field = FieldDecl::Create(
+      SemaRef.getASTContext(), NewClass, SourceLocation(), SourceLocation(),
+      /*Id=*/nullptr, ArgTy,
+      SemaRef.getASTContext().getTrivialTypeSourceInfo(ArgTy,
+        SourceLocation()),
+      /*BW=*/nullptr, /*Mutable=*/false, /*InitStyle=*/ICIS_NoInit);
+    Field->setAccess(AS_public);
+    NewClass->addDecl(Field);
+    NewClass->completeDefinition();
+    return NewClass;
+  };
+
   static void setKernelImplicitAttrs(ASTContext &Context, FunctionDecl *FD,
                                      StringRef Name) {
     // Set implicit attributes.
@@ -1125,23 +1142,10 @@ public:
   }
 
   bool handleArrayType(FieldDecl *FD, QualType FieldTy) final {
-    // if (!Util::isArrayOfSpecialSyclType(FieldTy)) {
     if (!cast<ConstantArrayType>(FieldTy)
              ->getElementType()
              ->isStructureOrClassType()) {
-      // Wrap the array in a struct.
-      RecordDecl *NewClass =
-          SemaRef.getASTContext().buildImplicitRecord("wrapped_array");
-      NewClass->startDefinition();
-      FieldDecl *Field = FieldDecl::Create(
-          SemaRef.getASTContext(), NewClass, SourceLocation(), SourceLocation(),
-          /*Id=*/nullptr, FieldTy,
-          SemaRef.getASTContext().getTrivialTypeSourceInfo(FieldTy,
-                                                           SourceLocation()),
-          /*BW=*/nullptr, /*Mutable=*/false, /*InitStyle=*/ICIS_NoInit);
-      Field->setAccess(AS_public);
-      NewClass->addDecl(Field);
-      NewClass->completeDefinition();
+      RecordDecl *NewClass = wrapAnArray(FieldTy, FD);
       QualType ST = SemaRef.getASTContext().getRecordType(NewClass);
       addParam(FD, ST);
     }
@@ -1290,15 +1294,9 @@ class SyclKernelBodyCreator
     CXXRecordDecl *WrapperStruct = ParamType->getAsCXXRecordDecl();
     // The first and only field of the wrapper struct is the array
     FieldDecl *Array = *(WrapperStruct->field_begin());
-    auto DRE = DeclRefExpr::Create(SemaRef.Context, NestedNameSpecifierLoc(),
-                                   SourceLocation(), KernelParameter, false,
-                                   DeclarationNameInfo(), ParamType, VK_LValue);
-    DeclAccessPair ArrayDAP = DeclAccessPair::make(Array, AS_none);
-    Expr *InitExpr = MemberExpr::Create(
-        SemaRef.Context, DRE, false, SourceLocation(), NestedNameSpecifierLoc(),
-        SourceLocation(), Array, ArrayDAP,
-        DeclarationNameInfo(Array->getDeclName(), SourceLocation()), nullptr,
-        Array->getType(), VK_LValue, OK_Ordinary, NOUR_None);
+    Expr *DRE = SemaRef.BuildDeclRefExpr(KernelParameter, ParamType, VK_LValue,
+      SourceLocation());
+    Expr *InitExpr = BuildMemberExpr(DRE, Array);
     InitializationKind InitKind = InitializationKind::CreateDirect(
         SourceLocation(), SourceLocation(), SourceLocation());
     InitializedEntity Entity = InitializedEntity::InitializeLambdaCapture(
@@ -1602,7 +1600,6 @@ public:
   }
 
   bool handleArrayType(FieldDecl *FD, QualType FieldTy) final {
-    // if (!Util::isArrayOfSpecialSyclType(FieldTy))
     if (!cast<ConstantArrayType>(FieldTy)
              ->getElementType()
              ->isStructureOrClassType())
