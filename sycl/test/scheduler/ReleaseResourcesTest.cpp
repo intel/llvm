@@ -1,12 +1,13 @@
+// UNSUPPORTED: cuda
+// CUDA does not support SPIR-V and the runtime therefore does not emit
+// `---> piProgramCreate` but `--->piclProgramCreateWithBinary` which fails
+// the otherwise passing test.
+//
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -I %sycl_source_dir %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: env SYCL_PI_TRACE=2 %CPU_RUN_PLACEHOLDER %t.out 2>&1 %CPU_CHECK_PLACEHOLDER
 // RUN: env SYCL_PI_TRACE=2 %GPU_RUN_PLACEHOLDER %t.out 2>&1 %GPU_CHECK_PLACEHOLDER
 // RUN: env SYCL_PI_TRACE=2 %ACC_RUN_PLACEHOLDER %t.out 2>&1 %ACC_CHECK_PLACEHOLDER
-
-// TODO: error: expected string not found in input
-// TODO: PI ---> pi::piProgramCreate(Context, Data, DataLen, &Program)
-// XFAIL: cuda
 
 //==------------------- ReleaseResourcesTests.cpp --------------------------==//
 //
