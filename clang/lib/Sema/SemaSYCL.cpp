@@ -1617,6 +1617,15 @@ void Sema::MarkDevice(void) {
   // it is recursive.
   MarkDeviceFunction Marker(*this);
   Marker.SYCLCG.addToCallGraph(getASTContext().getTranslationUnitDecl());
+
+  // Iterate through SYCL_EXTERNAL functions and add them to the device decls.
+  for (const auto &entry : *Marker.SYCLCG.getRoot()) {
+    if (auto *FD = dyn_cast<FunctionDecl>(entry.Callee->getDecl())) {
+      if (FD->hasAttr<SYCLDeviceAttr>() && !FD->hasAttr<SYCLKernelAttr>())
+        addSyclDeviceDecl(FD);
+    }
+  }
+
   for (Decl *D : syclDeviceDecls()) {
     if (auto SYCLKernel = dyn_cast<FunctionDecl>(D)) {
       llvm::SmallPtrSet<FunctionDecl *, 10> VisitedSet;

@@ -410,7 +410,7 @@ public:
   /// \param Req is the requirement to be updated.
   /// \return an event which indicates when these nodes are completed
   /// and host accessor is ready for use.
-  EventImplPtr addHostAccessor(Requirement *Req, const bool Destructor = false);
+  EventImplPtr addHostAccessor(Requirement *Req);
 
   /// Unblocks operations with the memory object.
   ///
@@ -472,7 +472,7 @@ protected:
     /// Enqueues a command to create a host accessor.
     ///
     /// \param Req points to memory being accessed.
-    Command *addHostAccessor(Requirement *Req, const bool destructor = false);
+    Command *addHostAccessor(Requirement *Req);
 
     /// [Provisional] Optimizes the whole graph.
     void optimize();

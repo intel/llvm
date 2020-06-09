@@ -170,12 +170,11 @@ void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
   MGraphBuilder.removeRecordForMemObj(MemObj);
 }
 
-EventImplPtr Scheduler::addHostAccessor(Requirement *Req,
-                                        const bool destructor) {
+EventImplPtr Scheduler::addHostAccessor(Requirement *Req) {
   std::unique_lock<std::shared_timed_mutex> Lock(MGraphLock, std::defer_lock);
   lockSharedTimedMutex(Lock);
 
-  Command *NewCmd = MGraphBuilder.addHostAccessor(Req, destructor);
+  Command *NewCmd = MGraphBuilder.addHostAccessor(Req);
 
   if (!NewCmd)
     return nullptr;

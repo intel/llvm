@@ -48,6 +48,17 @@ void bar() {
   kernel<class kernel_name5>([]() [[cl::intel_reqd_sub_group_size(2)]] { });
 }
 
+#ifdef TRIGGER_ERROR
+// expected-note@+1 {{conflicting attribute is here}}
+[[cl::intel_reqd_sub_group_size(2)]] void sg_size2() {}
+
+// expected-note@+2 {{conflicting attribute is here}}
+// expected-error@+1 {{conflicting attributes applied to a SYCL kernel}}
+[[cl::intel_reqd_sub_group_size(4)]] __attribute__((sycl_device)) void sg_size4() {
+  sg_size2();
+}
+#endif
+
 // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name1
 // CHECK: IntelReqdSubGroupSizeAttr {{.*}}
 // CHECK-NEXT: IntegerLiteral{{.*}}16{{$}}
