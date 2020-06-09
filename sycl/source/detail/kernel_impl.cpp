@@ -59,10 +59,25 @@ kernel_impl::~kernel_impl() {
 
 template <info::kernel param>
 typename info::param_traits<info::kernel, param>::return_type
+get_host_kernel_info() {
+  throw invalid_object_error{};
+}
+
+template <> string_class get_host_kernel_info<info::kernel::function_name>() {
+  return "Host kernel";
+}
+
+template <> cl_uint get_host_kernel_info<info::kernel::num_args>() { return 0; }
+
+template <> string_class get_host_kernel_info<info::kernel::attributes>() {
+  return "";
+}
+
+template <info::kernel param>
+typename info::param_traits<info::kernel, param>::return_type
 kernel_impl::get_info() const {
   if (is_host()) {
-    // TODO implement
-    assert(0 && "Not implemented");
+    return get_host_kernel_info<param>();
   }
   return get_kernel_info<
       typename info::param_traits<info::kernel, param>::return_type,
