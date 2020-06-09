@@ -343,11 +343,12 @@ private:
   ///
   /// \param Module is an OS handle to user code module.
   /// \param KernelName is a name of kernel to be created.
-  /// \param CheckThatCompiled If CheckThatCompiled is true
+  /// \param JITCompilationIsRequired If JITCompilationIsRequired is true
   ///        add a check that kernel is compiled, otherwise don't add the check.
-  void create_pi_program_with_kernel_name(OSModuleHandle Module,
-                                          const string_class &KernelName,
-                                          bool CheckThatCompiled = false);
+  void
+  create_pi_program_with_kernel_name(OSModuleHandle Module,
+                                     const string_class &KernelName,
+                                     bool JITCompilationIsRequired = false);
 
   /// Creates an OpenCL program from OpenCL C source code.
   ///

@@ -204,7 +204,7 @@ void program_impl::compile_with_kernel_name(string_class KernelName,
   if (!is_host()) {
     create_pi_program_with_kernel_name(
         M, KernelName,
-        /*CheckThatCompiled=*/(!CompileOptions.empty()));
+        /*JITCompilationIsRequired=*/(!CompileOptions.empty()));
     compile(CompileOptions);
   }
   MState = program_state::compiled;
@@ -234,13 +234,13 @@ void program_impl::build_with_kernel_name(string_class KernelName,
       MProgramAndKernelCachingAllowed = true;
       MProgram = ProgramManager::getInstance().getBuiltPIProgram(
           Module, get_context(), KernelName, this,
-          /*CheckThatCompiled=*/(!BuildOptions.empty()));
+          /*JITCompilationIsRequired=*/(!BuildOptions.empty()));
       const detail::plugin &Plugin = getPlugin();
       Plugin.call<PiApiKind::piProgramRetain>(MProgram);
     } else {
       create_pi_program_with_kernel_name(
           Module, KernelName,
-          /*CheckThatCompiled=*/(!BuildOptions.empty()));
+          /*JITCompilationIsRequired=*/(!BuildOptions.empty()));
       build(BuildOptions);
     }
   }
@@ -443,11 +443,11 @@ void program_impl::throw_if_state_is_not(program_state State) const {
 
 void program_impl::create_pi_program_with_kernel_name(
     OSModuleHandle Module, const string_class &KernelName,
-    bool CheckThatCompiled) {
+    bool JITCompilationIsRequired) {
   assert(!MProgram && "This program already has an encapsulated PI program");
   ProgramManager &PM = ProgramManager::getInstance();
-  RTDeviceBinaryImage &Img =
-      PM.getDeviceImage(Module, KernelName, get_context(), CheckThatCompiled);
+  RTDeviceBinaryImage &Img = PM.getDeviceImage(
+      Module, KernelName, get_context(), JITCompilationIsRequired);
   MProgram = PM.createPIProgram(Img, get_context());
 }
 
