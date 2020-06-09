@@ -2505,12 +2505,23 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
                                          pi_event *Event) {
 
   assert(Queue);
+
   // Get a new command list to be used on this call
   ze_command_list_handle_t ZeCommandList = nullptr;
   if (auto Res = Queue->Context->Device->createCommandList(&ZeCommandList))
     return Res;
 
-  ze_event_handle_t ZeEvent = (*Event)->ZeEvent;
+  ze_event_handle_t ZeEvent = nullptr;
+  if (Event) {
+    auto Res = piEventCreate(Queue->Context, Event);
+    if (Res != PI_SUCCESS)
+      return Res;
+
+    (*Event)->Queue = Queue;
+    (*Event)->ZeCommandList = ZeCommandList;
+
+    ZeEvent = (*Event)->ZeEvent;
+  }
 
   // TODO: use unique_ptr with custom deleter in the whole Level Zero plugin for
   // wrapping ze_event_handle_t *ZeEventWaitList to avoid memory leaks in case
