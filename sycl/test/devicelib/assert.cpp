@@ -134,7 +134,7 @@ void simple_vadd(const std::array<T, N> &VA, const std::array<T, N> &VB,
   }
   if (unsupported && getenv("SKIP_IF_NO_EXT")) {
     fprintf(stderr, "Device has no support for cl_intel_devicelib_assert, "
-                    "skipping the test \n");
+                    "skipping the test\n");
     exit(EXIT_SKIP_TEST);
   }
 
