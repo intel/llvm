@@ -4486,8 +4486,9 @@ Value *CodeGenFunction::EmitTargetBuiltinExpr(unsigned BuiltinID,
 
 static llvm::VectorType *GetNeonType(CodeGenFunction *CGF,
                                      NeonTypeFlags TypeFlags,
-                                     bool HasLegalHalfType=true,
-                                     bool V1Ty=false) {
+                                     bool HasLegalHalfType = true,
+                                     bool V1Ty = false,
+                                     bool AllowBFloatArgsAndRet = true) {
   int IsQuad = TypeFlags.isQuad();
   switch (TypeFlags.getEltType()) {
   case NeonTypeFlags::Int8:
@@ -4496,6 +4497,11 @@ static llvm::VectorType *GetNeonType(CodeGenFunction *CGF,
   case NeonTypeFlags::Int16:
   case NeonTypeFlags::Poly16:
     return llvm::FixedVectorType::get(CGF->Int16Ty, V1Ty ? 1 : (4 << IsQuad));
+  case NeonTypeFlags::BFloat16:
+    if (AllowBFloatArgsAndRet)
+      return llvm::FixedVectorType::get(CGF->BFloatTy, V1Ty ? 1 : (4 << IsQuad));
+    else
+      return llvm::FixedVectorType::get(CGF->Int16Ty, V1Ty ? 1 : (4 << IsQuad));
   case NeonTypeFlags::Float16:
     if (HasLegalHalfType)
       return llvm::FixedVectorType::get(CGF->HalfTy, V1Ty ? 1 : (4 << IsQuad));
@@ -5511,8 +5517,11 @@ Value *CodeGenFunction::EmitCommonNeonBuiltinExpr(
   bool Usgn = Type.isUnsigned();
   bool Quad = Type.isQuad();
   const bool HasLegalHalfType = getTarget().hasLegalHalfType();
+  const bool AllowBFloatArgsAndRet =
+      getTargetHooks().getABIInfo().allowBFloatArgsAndRet();
 
-  llvm::VectorType *VTy = GetNeonType(this, Type, HasLegalHalfType);
+  llvm::VectorType *VTy = GetNeonType(this, Type, HasLegalHalfType, false,
+                                      AllowBFloatArgsAndRet);
   llvm::Type *Ty = VTy;
   if (!Ty)
     return nullptr;
@@ -6981,7 +6990,9 @@ Value *CodeGenFunction::EmitARMBuiltinExpr(unsigned BuiltinID,
   bool rightShift = false;
 
   llvm::VectorType *VTy = GetNeonType(this, Type,
-                                      getTarget().hasLegalHalfType());
+                                      getTarget().hasLegalHalfType(),
+                                      false,
+                                      getTarget().hasBFloat16Type());
   llvm::Type *Ty = VTy;
   if (!Ty)
     return nullptr;
@@ -8642,7 +8653,27 @@ Value *CodeGenFunction::EmitAArch64BuiltinExpr(unsigned BuiltinID,
   assert(Error == ASTContext::GE_None && "Should not codegen an error");
 
   llvm::SmallVector<Value*, 4> Ops;
+  Address PtrOp0 = Address::invalid();
   for (unsigned i = 0, e = E->getNumArgs() - 1; i != e; i++) {
+    if (i == 0) {
+      switch (BuiltinID) {
+      case NEON::BI__builtin_neon_vld1_v:
+      case NEON::BI__builtin_neon_vld1q_v:
+      case NEON::BI__builtin_neon_vld1_dup_v:
+      case NEON::BI__builtin_neon_vld1q_dup_v:
+      case NEON::BI__builtin_neon_vld1_lane_v:
+      case NEON::BI__builtin_neon_vld1q_lane_v:
+      case NEON::BI__builtin_neon_vst1_v:
+      case NEON::BI__builtin_neon_vst1q_v:
+      case NEON::BI__builtin_neon_vst1_lane_v:
+      case NEON::BI__builtin_neon_vst1q_lane_v:
+        // Get the alignment for the argument in addition to the value;
+        // we'll use it later.
+        PtrOp0 = EmitPointerWithAlignment(E->getArg(0));
+        Ops.push_back(PtrOp0.getPointer());
+        continue;
+      }
+    }
     if ((ICEArguments & (1 << i)) == 0) {
       Ops.push_back(EmitScalarExpr(E->getArg(i)));
     } else {
@@ -9343,10 +9374,12 @@ Value *CodeGenFunction::EmitAArch64BuiltinExpr(unsigned BuiltinID,
                           : Intrinsic::aarch64_neon_sqsub;
     return EmitNeonCall(CGM.getIntrinsic(AccInt, Int64Ty), Ops, "vqdmlXl");
   }
+  case NEON::BI__builtin_neon_vduph_lane_bf16:
   case NEON::BI__builtin_neon_vduph_lane_f16: {
     return Builder.CreateExtractElement(Ops[0], EmitScalarExpr(E->getArg(1)),
                                         "vget_lane");
   }
+  case NEON::BI__builtin_neon_vduph_laneq_bf16:
   case NEON::BI__builtin_neon_vduph_laneq_f16: {
     return Builder.CreateExtractElement(Ops[0], EmitScalarExpr(E->getArg(1)),
                                         "vgetq_lane");
@@ -10343,24 +10376,20 @@ Value *CodeGenFunction::EmitAArch64BuiltinExpr(unsigned BuiltinID,
   case NEON::BI__builtin_neon_vld1_v:
   case NEON::BI__builtin_neon_vld1q_v: {
     Ops[0] = Builder.CreateBitCast(Ops[0], llvm::PointerType::getUnqual(VTy));
-    auto Alignment = CharUnits::fromQuantity(
-        BuiltinID == NEON::BI__builtin_neon_vld1_v ? 8 : 16);
-    return Builder.CreateAlignedLoad(VTy, Ops[0], Alignment);
+    return Builder.CreateAlignedLoad(VTy, Ops[0], PtrOp0.getAlignment());
   }
   case NEON::BI__builtin_neon_vst1_v:
   case NEON::BI__builtin_neon_vst1q_v:
     Ops[0] = Builder.CreateBitCast(Ops[0], llvm::PointerType::getUnqual(VTy));
     Ops[1] = Builder.CreateBitCast(Ops[1], VTy);
-    return Builder.CreateDefaultAlignedStore(Ops[1], Ops[0]);
+    return Builder.CreateAlignedStore(Ops[1], Ops[0], PtrOp0.getAlignment());
   case NEON::BI__builtin_neon_vld1_lane_v:
   case NEON::BI__builtin_neon_vld1q_lane_v: {
     Ops[1] = Builder.CreateBitCast(Ops[1], Ty);
     Ty = llvm::PointerType::getUnqual(VTy->getElementType());
     Ops[0] = Builder.CreateBitCast(Ops[0], Ty);
-    auto Alignment = CharUnits::fromQuantity(
-        BuiltinID == NEON::BI__builtin_neon_vld1_lane_v ? 8 : 16);
-    Ops[0] =
-        Builder.CreateAlignedLoad(VTy->getElementType(), Ops[0], Alignment);
+    Ops[0] = Builder.CreateAlignedLoad(VTy->getElementType(), Ops[0],
+                                       PtrOp0.getAlignment());
     return Builder.CreateInsertElement(Ops[1], Ops[0], Ops[2], "vld1_lane");
   }
   case NEON::BI__builtin_neon_vld1_dup_v:
@@ -10368,10 +10397,8 @@ Value *CodeGenFunction::EmitAArch64BuiltinExpr(unsigned BuiltinID,
     Value *V = UndefValue::get(Ty);
     Ty = llvm::PointerType::getUnqual(VTy->getElementType());
     Ops[0] = Builder.CreateBitCast(Ops[0], Ty);
-    auto Alignment = CharUnits::fromQuantity(
-        BuiltinID == NEON::BI__builtin_neon_vld1_dup_v ? 8 : 16);
-    Ops[0] =
-        Builder.CreateAlignedLoad(VTy->getElementType(), Ops[0], Alignment);
+    Ops[0] = Builder.CreateAlignedLoad(VTy->getElementType(), Ops[0],
+                                       PtrOp0.getAlignment());
     llvm::Constant *CI = ConstantInt::get(Int32Ty, 0);
     Ops[0] = Builder.CreateInsertElement(V, Ops[0], CI);
     return EmitNeonSplat(Ops[0], CI);
@@ -10381,8 +10408,8 @@ Value *CodeGenFunction::EmitAArch64BuiltinExpr(unsigned BuiltinID,
     Ops[1] = Builder.CreateBitCast(Ops[1], Ty);
     Ops[1] = Builder.CreateExtractElement(Ops[1], Ops[2]);
     Ty = llvm::PointerType::getUnqual(Ops[1]->getType());
-    return Builder.CreateDefaultAlignedStore(Ops[1],
-                                             Builder.CreateBitCast(Ops[0], Ty));
+    return Builder.CreateAlignedStore(Ops[1], Builder.CreateBitCast(Ops[0], Ty),
+                                      PtrOp0.getAlignment());
   case NEON::BI__builtin_neon_vld2_v:
   case NEON::BI__builtin_neon_vld2q_v: {
     llvm::Type *PTy = llvm::PointerType::getUnqual(VTy);
@@ -11367,8 +11394,8 @@ Value *CodeGenFunction::EmitX86CpuIs(StringRef CPUStr) {
   std::tie(Index, Value) = StringSwitch<std::pair<unsigned, unsigned>>(CPUStr)
 #define X86_VENDOR(ENUM, STRING)                                               \
   .Case(STRING, {0u, static_cast<unsigned>(llvm::X86::ENUM)})
-#define X86_CPU_TYPE_COMPAT_WITH_ALIAS(ARCHNAME, ENUM, STR, ALIAS)             \
-  .Cases(STR, ALIAS, {1u, static_cast<unsigned>(llvm::X86::ENUM)})
+#define X86_CPU_TYPE_COMPAT_ALIAS(ENUM, ALIAS)             \
+  .Case(ALIAS, {1u, static_cast<unsigned>(llvm::X86::ENUM)})
 #define X86_CPU_TYPE_COMPAT(ARCHNAME, ENUM, STR)                               \
   .Case(STR, {1u, static_cast<unsigned>(llvm::X86::ENUM)})
 #define X86_CPU_SUBTYPE_COMPAT(ARCHNAME, ENUM, STR)                            \
@@ -14048,7 +14075,6 @@ Value *CodeGenFunction::EmitPPCBuiltinExpr(unsigned BuiltinID,
     Value *X = EmitScalarExpr(E->getArg(0));
     Value *Y = EmitScalarExpr(E->getArg(1));
     Value *Z = EmitScalarExpr(E->getArg(2));
-    Value *Zero = llvm::ConstantFP::getZeroValueForNegation(ResultType);
     llvm::Function *F = CGM.getIntrinsic(Intrinsic::fma, ResultType);
     switch (BuiltinID) {
       case PPC::BI__builtin_vsx_xvmaddadp:
@@ -14056,17 +14082,14 @@ Value *CodeGenFunction::EmitPPCBuiltinExpr(unsigned BuiltinID,
         return Builder.CreateCall(F, {X, Y, Z});
       case PPC::BI__builtin_vsx_xvnmaddadp:
       case PPC::BI__builtin_vsx_xvnmaddasp:
-        return Builder.CreateFSub(Zero,
-                                  Builder.CreateCall(F, {X, Y, Z}), "sub");
+        return Builder.CreateFNeg(Builder.CreateCall(F, {X, Y, Z}), "neg");
       case PPC::BI__builtin_vsx_xvmsubadp:
       case PPC::BI__builtin_vsx_xvmsubasp:
-        return Builder.CreateCall(F,
-                                  {X, Y, Builder.CreateFSub(Zero, Z, "sub")});
+        return Builder.CreateCall(F, {X, Y, Builder.CreateFNeg(Z, "neg")});
       case PPC::BI__builtin_vsx_xvnmsubadp:
       case PPC::BI__builtin_vsx_xvnmsubasp:
-        Value *FsubRes =
-          Builder.CreateCall(F, {X, Y, Builder.CreateFSub(Zero, Z, "sub")});
-        return Builder.CreateFSub(Zero, FsubRes, "sub");
+        return Builder.CreateFNeg(
+            Builder.CreateCall(F, {X, Y, Builder.CreateFNeg(Z, "neg")}), "neg");
     }
     llvm_unreachable("Unknown FMA operation");
     return nullptr; // Suppress no-return warning

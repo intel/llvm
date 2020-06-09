@@ -1368,6 +1368,8 @@ LValue CodeGenFunction::EmitLValue(const Expr *E) {
     return EmitUnaryOpLValue(cast<UnaryOperator>(E));
   case Expr::ArraySubscriptExprClass:
     return EmitArraySubscriptExpr(cast<ArraySubscriptExpr>(E));
+  case Expr::MatrixSubscriptExprClass:
+    return EmitMatrixSubscriptExpr(cast<MatrixSubscriptExpr>(E));
   case Expr::OMPArraySectionExprClass:
     return EmitOMPArraySectionExpr(cast<OMPArraySectionExpr>(E));
   case Expr::ExtVectorElementExprClass:
@@ -1895,12 +1897,20 @@ RValue CodeGenFunction::EmitLoadOfLValue(LValue LV, SourceLocation Loc) {
 
   // If this is a reference to a subset of the elements of a vector, either
   // shuffle the input or extract/insert them as appropriate.
-  if (LV.isExtVectorElt())
+  if (LV.isExtVectorElt()) {
     return EmitLoadOfExtVectorElementLValue(LV);
+  }
 
   // Global Register variables always invoke intrinsics
   if (LV.isGlobalReg())
     return EmitLoadOfGlobalRegLValue(LV);
+
+  if (LV.isMatrixElt()) {
+    llvm::LoadInst *Load =
+        Builder.CreateLoad(LV.getMatrixAddress(), LV.isVolatileQualified());
+    return RValue::get(
+        Builder.CreateExtractElement(Load, LV.getMatrixIdx(), "matrixext"));
+  }
 
   assert(LV.isBitField() && "Unknown LValue type!");
   return EmitLoadOfBitfieldLValue(LV, Loc);
@@ -2007,7 +2017,6 @@ RValue CodeGenFunction::EmitLoadOfGlobalRegLValue(LValue LV) {
   return RValue::get(Call);
 }
 
-
 /// EmitStoreThroughLValue - Store the specified rvalue into the specified
 /// lvalue, where both are guaranteed to the have the same type, and that type
 /// is 'Ty'.
@@ -2032,6 +2041,15 @@ void CodeGenFunction::EmitStoreThroughLValue(RValue Src, LValue Dst,
 
     if (Dst.isGlobalReg())
       return EmitStoreThroughGlobalRegLValue(Src, Dst);
+
+    if (Dst.isMatrixElt()) {
+      llvm::Value *Vec = Builder.CreateLoad(Dst.getMatrixAddress());
+      Vec = Builder.CreateInsertElement(Vec, Src.getScalarVal(),
+                                        Dst.getMatrixIdx(), "matins");
+      Builder.CreateStore(Vec, Dst.getMatrixAddress(),
+                          Dst.isVolatileQualified());
+      return;
+    }
 
     assert(Dst.isBitField() && "Unknown LValue type");
     return EmitStoreThroughBitfieldLValue(Src, Dst);
@@ -3779,6 +3797,23 @@ LValue CodeGenFunction::EmitArraySubscriptExpr(const ArraySubscriptExpr *E,
     setObjCGCLValueClass(getContext(), E, LV);
   }
   return LV;
+}
+
+LValue CodeGenFunction::EmitMatrixSubscriptExpr(const MatrixSubscriptExpr *E) {
+  assert(
+      !E->isIncomplete() &&
+      "incomplete matrix subscript expressions should be rejected during Sema");
+  LValue Base = EmitLValue(E->getBase());
+  llvm::Value *RowIdx = EmitScalarExpr(E->getRowIdx());
+  llvm::Value *ColIdx = EmitScalarExpr(E->getColumnIdx());
+  llvm::Value *NumRows = Builder.getIntN(
+      RowIdx->getType()->getScalarSizeInBits(),
+      E->getBase()->getType()->getAs<ConstantMatrixType>()->getNumRows());
+  llvm::Value *FinalIdx =
+      Builder.CreateAdd(Builder.CreateMul(ColIdx, NumRows), RowIdx);
+  return LValue::MakeMatrixElt(
+      MaybeConvertMatrixAddress(Base.getAddress(*this), *this), FinalIdx,
+      E->getBase()->getType(), Base.getBaseInfo(), TBAAAccessInfo());
 }
 
 static Address emitOMPArraySectionBase(CodeGenFunction &CGF, const Expr *Base,

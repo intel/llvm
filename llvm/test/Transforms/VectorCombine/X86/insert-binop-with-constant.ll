@@ -24,6 +24,19 @@ define <2 x i64> @add_constant_not_undef_lane(i64 %x) {
   ret <2 x i64> %bo
 }
 
+define <2 x i64> @add_constant_load(i64* %p) {
+; CHECK-LABEL: @add_constant_load(
+; CHECK-NEXT:    [[LD:%.*]] = load i64, i64* [[P:%.*]], align 4
+; CHECK-NEXT:    [[INS:%.*]] = insertelement <2 x i64> undef, i64 [[LD]], i32 0
+; CHECK-NEXT:    [[BO:%.*]] = add <2 x i64> [[INS]], <i64 42, i64 -42>
+; CHECK-NEXT:    ret <2 x i64> [[BO]]
+;
+  %ld = load i64, i64* %p
+  %ins = insertelement <2 x i64> undef, i64 %ld, i32 0
+  %bo = add <2 x i64> %ins, <i64 42, i64 -42>
+  ret <2 x i64> %bo
+}
+
 ; IR flags are not required, but they should propagate.
 
 define <4 x i32> @sub_constant_op0(i32 %x) {
@@ -92,6 +105,21 @@ define <3 x i64> @mul_constant_not_undef_lane(i64 %x) {
   ret <3 x i64> %bo
 }
 
+define <16 x i8> @mul_constant_multiuse(i8 %a0, <16 x i8> %a1) {
+; CHECK-LABEL: @mul_constant_multiuse(
+; CHECK-NEXT:    [[INS:%.*]] = insertelement <16 x i8> <i8 undef, i8 1, i8 2, i8 3, i8 4, i8 5, i8 6, i8 7, i8 8, i8 9, i8 10, i8 11, i8 12, i8 13, i8 14, i8 15>, i8 [[A0:%.*]], i32 0
+; CHECK-NEXT:    [[MUL:%.*]] = mul <16 x i8> [[INS]], <i8 3, i8 7, i8 9, i8 11, i8 13, i8 15, i8 17, i8 19, i8 21, i8 23, i8 25, i8 27, i8 29, i8 31, i8 33, i8 35>
+; CHECK-NEXT:    [[AND:%.*]] = and <16 x i8> [[INS]], [[A1:%.*]]
+; CHECK-NEXT:    [[XOR:%.*]] = xor <16 x i8> [[AND]], [[MUL]]
+; CHECK-NEXT:    ret <16 x i8> [[XOR]]
+;
+  %ins = insertelement <16 x i8> <i8 undef, i8 1, i8 2, i8 3, i8 4, i8 5, i8 6, i8 7, i8 8, i8 9, i8 10, i8 11, i8 12, i8 13, i8 14, i8 15>, i8 %a0, i32 0
+  %mul = mul <16 x i8> %ins, <i8 3, i8 7, i8 9, i8 11, i8 13, i8 15, i8 17, i8 19, i8 21, i8 23, i8 25, i8 27, i8 29, i8 31, i8 33, i8 35>
+  %and = and <16 x i8> %ins, %a1
+  %xor = xor <16 x i8> %and, %mul
+  ret <16 x i8> %xor
+}
+
 define <2 x i64> @shl_constant_op0(i64 %x) {
 ; CHECK-LABEL: @shl_constant_op0(
 ; CHECK-NEXT:    [[INS:%.*]] = insertelement <2 x i64> undef, i64 [[X:%.*]], i32 1
@@ -114,6 +142,34 @@ define <2 x i64> @shl_constant_op0_not_undef_lane(i64 %x) {
   ret <2 x i64> %bo
 }
 
+define <2 x i64> @shl_constant_op0_load(i64* %p) {
+; CHECK-LABEL: @shl_constant_op0_load(
+; CHECK-NEXT:    [[LD:%.*]] = load i64, i64* [[P:%.*]], align 4
+; CHECK-NEXT:    [[INS:%.*]] = insertelement <2 x i64> undef, i64 [[LD]], i32 1
+; CHECK-NEXT:    [[BO:%.*]] = shl <2 x i64> <i64 undef, i64 2>, [[INS]]
+; CHECK-NEXT:    ret <2 x i64> [[BO]]
+;
+  %ld = load i64, i64* %p
+  %ins = insertelement <2 x i64> undef, i64 %ld, i32 1
+  %bo = shl <2 x i64> <i64 undef, i64 2>, %ins
+  ret <2 x i64> %bo
+}
+
+define <4 x i32> @shl_constant_op0_multiuse(i32 %a0, <4 x i32> %a1) {
+; CHECK-LABEL: @shl_constant_op0_multiuse(
+; CHECK-NEXT:    [[INS:%.*]] = insertelement <4 x i32> <i32 undef, i32 1, i32 2, i32 3>, i32 [[A0:%.*]], i32 0
+; CHECK-NEXT:    [[MUL:%.*]] = shl <4 x i32> [[INS]], <i32 3, i32 4, i32 5, i32 6>
+; CHECK-NEXT:    [[AND:%.*]] = and <4 x i32> [[INS]], [[A1:%.*]]
+; CHECK-NEXT:    [[XOR:%.*]] = xor <4 x i32> [[AND]], [[MUL]]
+; CHECK-NEXT:    ret <4 x i32> [[XOR]]
+;
+  %ins = insertelement <4 x i32> <i32 undef, i32 1, i32 2, i32 3>, i32 %a0, i32 0
+  %mul = shl <4 x i32> %ins, <i32 3, i32 4, i32 5, i32 6>
+  %and = and <4 x i32> %ins, %a1
+  %xor = xor <4 x i32> %and, %mul
+  ret <4 x i32> %xor
+}
+
 define <2 x i64> @shl_constant_op1(i64 %x) {
 ; CHECK-LABEL: @shl_constant_op1(
 ; CHECK-NEXT:    [[INS:%.*]] = insertelement <2 x i64> undef, i64 [[X:%.*]], i32 0
@@ -132,6 +188,19 @@ define <2 x i64> @shl_constant_op1_not_undef_lane(i64 %x) {
 ; CHECK-NEXT:    ret <2 x i64> [[BO]]
 ;
   %ins = insertelement <2 x i64> undef, i64 %x, i32 0
+  %bo = shl nuw <2 x i64> %ins, <i64 5, i64 2>
+  ret <2 x i64> %bo
+}
+
+define <2 x i64> @shl_constant_op1_load(i64* %p) {
+; CHECK-LABEL: @shl_constant_op1_load(
+; CHECK-NEXT:    [[LD:%.*]] = load i64, i64* [[P:%.*]], align 4
+; CHECK-NEXT:    [[INS:%.*]] = insertelement <2 x i64> undef, i64 [[LD]], i32 0
+; CHECK-NEXT:    [[BO:%.*]] = shl nuw <2 x i64> [[INS]], <i64 5, i64 2>
+; CHECK-NEXT:    ret <2 x i64> [[BO]]
+;
+  %ld = load i64, i64* %p
+  %ins = insertelement <2 x i64> undef, i64 %ld, i32 0
   %bo = shl nuw <2 x i64> %ins, <i64 5, i64 2>
   ret <2 x i64> %bo
 }

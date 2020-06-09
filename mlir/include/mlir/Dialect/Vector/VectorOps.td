@@ -1061,6 +1061,8 @@ def Vector_TransferReadOp :
         return impl::getTransferMinorIdentityMap(memRefType, vectorType);
       }
   }];
+
+  let hasFolder = 1;
 }
 
 def Vector_TransferWriteOp :
@@ -1150,6 +1152,8 @@ def Vector_TransferWriteOp :
         return impl::getTransferMinorIdentityMap(memRefType, vectorType);
       }
   }];
+
+  let hasFolder = 1;
 }
 
 def Vector_ShapeCastOp :
@@ -1206,6 +1210,7 @@ def Vector_ShapeCastOp :
     }
   }];
   let assemblyFormat = "$source attr-dict `:` type($source) `to` type($result)";
+  let hasFolder = 1;
 }
 
 def Vector_TypeCastOp :
