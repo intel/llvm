@@ -13116,6 +13116,19 @@ public:
   /// Adds Callee to DeviceCallGraph if we don't know if its caller will be
   /// codegen'ed yet.
   bool checkSYCLDeviceFunction(SourceLocation Loc, FunctionDecl *Callee);
+
+private:
+  /// Contains generated OpenCL kernel functions for SYCL.
+  SmallVector<Decl *, 4> SYCLKernels;
+
+public:
+  void addSYCLKernel(Decl *D) { SYCLKernels.push_back(D); }
+  /// Access to SYCL kernels.
+  SmallVectorImpl<Decl *> &getSYCLKernels() { return SYCLKernels; }
+
+  /// Constructs an OpenCL kernel using the KernelCaller function and adds it to
+  /// the SYCL device code.
+  void constructOpenCLKernel(FunctionDecl *KernelCallerFunc, MangleContext &MC);
 };
 
 /// RAII object that enters a new expression evaluation context.

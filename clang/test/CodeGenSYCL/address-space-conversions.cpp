@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -triple spir64 -fsycl-is-device -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -I%S/Inputs -triple spir64 -fsycl-is-device -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
 void bar(int &Data) {}
 // CHECK-DAG: define{{.*}} spir_func void @[[RAW_REF:[a-zA-Z0-9_]+]](i32 addrspace(4)* align 4 dereferenceable(4) %
 void bar2(int &Data) {}
@@ -136,3 +136,15 @@ void usages() {
 // CHECK-DAG: define linkonce_odr spir_func void @_Z4tmplIPU3AS3iEvT_(i32 addrspace(3)* %
 // CHECK-DAG: define linkonce_odr spir_func void @_Z4tmplIPU3AS0iEvT_(i32* %
 // CHECK-DAG: define linkonce_odr spir_func void @_Z4tmplIPiEvT_(i32 addrspace(4)* %
+
+#include "sycl.hpp"
+
+int main() {
+  cl::sycl::queue Q;
+  Q.submit([&](cl::sycl::handler &cgh) {
+    cgh.single_task<class test_kernel>([=]() {
+      usages();
+    });
+  });
+  return 0;
+}

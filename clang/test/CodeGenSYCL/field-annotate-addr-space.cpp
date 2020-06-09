@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -triple spir64 -fsycl-is-device -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -I%S/Inputs -triple spir64 -fsycl-is-device -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
 
 // CHECK: [[ANNOT:.+]] = private unnamed_addr constant {{.*}}c"my_annotation\00"
 
@@ -16,4 +16,16 @@ void foo(int *b) {
   // CHECK: %[[CALL:.+]] = call i8 addrspace(4)* @llvm.ptr.annotation.p4i8(i8 addrspace(4)* %[[BITCAST]], i8* getelementptr inbounds ([14 x i8], [14 x i8]* [[ANNOT]]
   // CHECK: bitcast i8 addrspace(4)* %[[CALL]] to i32 addrspace(4)* addrspace(4)*
   f.a = b;
+}
+
+#include "sycl.hpp"
+
+int main() {
+  cl::sycl::queue Q;
+  Q.submit([&](cl::sycl::handler &cgh) {
+    cgh.single_task<class test_kernel>([=]() {
+      foo(nullptr);
+    });
+  });
+  return 0;
 }

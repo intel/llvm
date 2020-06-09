@@ -18,6 +18,7 @@
 #include "clang/AST/DependentDiagnostic.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
+#include "clang/AST/Mangle.h"
 #include "clang/AST/PrettyDeclStackTrace.h"
 #include "clang/AST/TypeLoc.h"
 #include "clang/Basic/SourceManager.h"
@@ -6270,6 +6271,8 @@ NamedDecl *Sema::FindInstantiatedDecl(SourceLocation Loc, NamedDecl *D,
 /// instantiations we have seen until this point.
 void Sema::PerformPendingInstantiations(bool LocalOnly) {
   std::deque<PendingImplicitInstantiation> delayedPCHInstantiations;
+  std::unique_ptr<MangleContext> MangleCtx(
+      getASTContext().createMangleContext());
   while (!PendingLocalImplicitInstantiations.empty() ||
          (!LocalOnly && !PendingInstantiations.empty())) {
     PendingImplicitInstantiation Inst;
@@ -6288,17 +6291,25 @@ void Sema::PerformPendingInstantiations(bool LocalOnly) {
                                 TSK_ExplicitInstantiationDefinition;
       if (Function->isMultiVersion()) {
         getASTContext().forEachMultiversionedFunctionVersion(
-            Function, [this, Inst, DefinitionRequired](FunctionDecl *CurFD) {
+            Function, [this, Inst, DefinitionRequired,
+                       MangleCtx = move(MangleCtx)](FunctionDecl *CurFD) {
               InstantiateFunctionDefinition(/*FIXME:*/ Inst.second, CurFD, true,
                                             DefinitionRequired, true);
-              if (CurFD->isDefined())
+              if (CurFD->isDefined()) {
                 CurFD->setInstantiationIsPending(false);
+                if (getLangOpts().SYCLIsDevice &&
+                    CurFD->hasAttr<SYCLKernelAttr>())
+                  constructOpenCLKernel(CurFD, *MangleCtx);
+              }
             });
       } else {
         InstantiateFunctionDefinition(/*FIXME:*/ Inst.second, Function, true,
                                       DefinitionRequired, true);
-        if (Function->isDefined())
+        if (Function->isDefined()) {
+          if (getLangOpts().SYCLIsDevice && Function->hasAttr<SYCLKernelAttr>())
+            constructOpenCLKernel(Function, *MangleCtx);
           Function->setInstantiationIsPending(false);
+        }
       }
       // Definition of a PCH-ed template declaration may be available only in the TU.
       if (!LocalOnly && LangOpts.PCHInstantiateTemplates &&
