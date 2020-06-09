@@ -688,7 +688,14 @@ static void VisitRecordHelper(CXXRecordDecl *Owner,
                               Handlers &... handlers) {
   for (const auto &Base : Range) {
     QualType BaseTy = Base.getType();
-    VisitRecord(Owner, Base, BaseTy->getAsCXXRecordDecl(), handlers...);
+    if (Util::isSyclAccessorType(BaseTy))
+      (void)std::initializer_list<int>{
+	      (handlers.handleSyclAccessorType(Base, BaseTy), 0)...};
+    else if (Util::isSyclStreamType(BaseTy))
+      (void)std::initializer_list<int>{
+	      (handlers.handleSyclStreamType(Base, BaseTy), 0)...};
+    else 
+      VisitRecord(Owner, Base, BaseTy->getAsCXXRecordDecl(), handlers...);
   }
 }
 
