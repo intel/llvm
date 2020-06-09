@@ -1700,7 +1700,8 @@ void Sema::MarkDevice(void) {
               Diag(Attr->getLocation(), diag::note_conflicting_attribute);
               SYCLKernel->setInvalidDecl();
             }
-          } else if (KBSimdAttr && (Attr->getSubGroupSize() != 1)) {
+          } else if ((KBSimdAttr != nullptr) &&
+                     (Attr->getSubGroupSize() != (unsigned)1)) {
             // ESIMD kernel can't call functions with reqd_subg_group_size != 1.
             reportConflictingAttrs(*this, KernelBody, KBSimdAttr, Attr);
           } else {
