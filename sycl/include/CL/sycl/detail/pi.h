@@ -1222,15 +1222,14 @@ __SYCL_EXPORT pi_result piEnqueueNativeKernel(
     const void **args_mem_loc, pi_uint32 num_events_in_wait_list,
     const pi_event *event_wait_list, pi_event *event);
 
-__SYCL_EXPORT pi_result piEnqueueBarrierWait(pi_queue command_queue,
-                                             pi_uint32 num_events_in_wait_list,
-                                             const pi_event *event_wait_list,
-                                             pi_event *event);
-
 __SYCL_EXPORT pi_result piEnqueueEventsWait(pi_queue command_queue,
                                             pi_uint32 num_events_in_wait_list,
                                             const pi_event *event_wait_list,
                                             pi_event *event);
+
+__SYCL_EXPORT pi_result piEnqueueEventsWaitWithBarrier(
+    pi_queue command_queue, pi_uint32 num_events_in_wait_list,
+    const pi_event *event_wait_list, pi_event *event);
 
 __SYCL_EXPORT pi_result piEnqueueMemBufferRead(
     pi_queue queue, pi_mem buffer, pi_bool blocking_read, size_t offset,

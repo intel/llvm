@@ -92,7 +92,7 @@ event handler::finalize() {
   case detail::CG::BARRIER:
   case detail::CG::BARRIER_WAITLIST:
     CommandGroup.reset(new detail::CGBarrier(
-        std::move(MBarrierWaitListEvents), std::move(MArgsStorage),
+        std::move(MEventsWaitWithBarrier), std::move(MArgsStorage),
         std::move(MAccStorage), std::move(MSharedPtrStorage),
         std::move(MRequirements), std::move(MEvents), MCGType, MCodeLoc));
     break;

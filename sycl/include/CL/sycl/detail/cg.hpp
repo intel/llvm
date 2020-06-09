@@ -323,9 +323,9 @@ public:
 
 class CGBarrier : public CG {
 public:
-  vector_class<detail::EventImplPtr> MBarrierWaitListEvents;
+  vector_class<detail::EventImplPtr> MEventsWaitWithBarrier;
 
-  CGBarrier(vector_class<detail::EventImplPtr> BarrierWaitListEvents,
+  CGBarrier(vector_class<detail::EventImplPtr> EventsWaitWithBarrier,
             std::vector<std::vector<char>> ArgsStorage,
             std::vector<detail::AccessorImplPtr> AccStorage,
             std::vector<std::shared_ptr<const void>> SharedPtrStorage,
@@ -335,7 +335,7 @@ public:
       : CG(Type, std::move(ArgsStorage), std::move(AccStorage),
            std::move(SharedPtrStorage), std::move(Requirements),
            std::move(Events), std::move(loc)),
-        MBarrierWaitListEvents(std::move(BarrierWaitListEvents)) {}
+        MEventsWaitWithBarrier(std::move(EventsWaitWithBarrier)) {}
 };
 
 } // namespace detail

@@ -72,7 +72,7 @@ int main() {
   return 0;
 }
 
-// CHECK:---> piEnqueueBarrierWait
-// CHECK:---> piEnqueueBarrierWait
-// CHECK:---> piEnqueueBarrierWait
-// CHECK:---> piEnqueueBarrierWait
+// CHECK:---> piEnqueueEventsWaitWithBarrier
+// CHECK:---> piEnqueueEventsWaitWithBarrier
+// CHECK:---> piEnqueueEventsWaitWithBarrier
+// CHECK:---> piEnqueueEventsWaitWithBarrier

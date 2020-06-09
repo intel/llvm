@@ -161,7 +161,7 @@ void foo() {
 // CHECK-NEXT: 448 |         std::_Vector_base<class std::shared_ptr<class cl::sycl::detail::event_impl>, class std::allocator<class std::shared_ptr<class cl::sycl::detail::event_impl> > >::pointer _M_start
 // CHECK-NEXT: 456 |         std::_Vector_base<class std::shared_ptr<class cl::sycl::detail::event_impl>, class std::allocator<class std::shared_ptr<class cl::sycl::detail::event_impl> > >::pointer _M_finish
 // CHECK-NEXT: 464 |         std::_Vector_base<class std::shared_ptr<class cl::sycl::detail::event_impl>, class std::allocator<class std::shared_ptr<class cl::sycl::detail::event_impl> > >::pointer _M_end_of_storage
-// CHECK-NEXT: 472 |   class std::vector<class std::shared_ptr<class cl::sycl::detail::event_impl>, class std::allocator<class std::shared_ptr<class cl::sycl::detail::event_impl> > > MBarrierWaitListEvents
+// CHECK-NEXT: 472 |   class std::vector<class std::shared_ptr<class cl::sycl::detail::event_impl>, class std::allocator<class std::shared_ptr<class cl::sycl::detail::event_impl> > > MEventsWaitWithBarrier
 // CHECK-NEXT: 472 |     struct std::_Vector_base<class std::shared_ptr<class cl::sycl::detail::event_impl>, class std::allocator<class std::shared_ptr<class cl::sycl::detail::event_impl> > > (base)
 // CHECK-NEXT: 472 |       struct std::_Vector_base<class std::shared_ptr<class cl::sycl::detail::event_impl>, class std::allocator<class std::shared_ptr<class cl::sycl::detail::event_impl> > >::_Vector_impl _M_impl
 // CHECK-NEXT: 472 |         class std::allocator<class std::shared_ptr<class cl::sycl::detail::event_impl> > (base) (empty)

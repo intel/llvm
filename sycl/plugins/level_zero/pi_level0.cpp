@@ -2499,6 +2499,39 @@ pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
   return {};
 }
 
+pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
+                                         pi_uint32 NumEventsInWaitList,
+                                         const pi_event *EventWaitList,
+                                         pi_event *Event) {
+
+  assert(Queue);
+  // Get a new command list to be used on this call
+  ze_command_list_handle_t ZeCommandList = nullptr;
+  if (auto Res = Queue->Context->Device->createCommandList(&ZeCommandList))
+    return Res;
+
+  ze_event_handle_t ZeEvent = (*Event)->ZeEvent;
+
+  ze_event_handle_t *ZeEventWaitList =
+      _pi_event::createZeEventList(NumEventsInWaitList, EventWaitList);
+
+  ZE_CALL(zeCommandListAppendBarrier(ZeCommandList, ZeEvent,
+                                     NumEventsInWaitList, ZeEventWaitList));
+
+  zePrint("calling zeCommandListAppendBarrier() with\n"
+          "  Event %lx,\n"
+          "  NumEventsInWaitList %d\n",
+          pi_cast<std::uintptr_t>(ZeEvent));
+  for (pi_uint32 I = 0; I < NumEventsInWaitList; I++) {
+    zePrint(" %lx", pi_cast<std::uintptr_t>(ZeEventWaitList[I]));
+  }
+  zePrint("\n");
+
+  _pi_event::deleteZeEventList(ZeEventWaitList);
+
+  return PI_SUCCESS;
+}
+
 pi_result piEnqueueMemBufferRead(pi_queue Queue, pi_mem Src,
                                  pi_bool BlockingRead, size_t Offset,
                                  size_t Size, void *Dst,

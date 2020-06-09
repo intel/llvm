@@ -1679,9 +1679,9 @@ public:
   void barrier(const vector_class<event> &WaitList) {
     throwIfActionIsCreated();
     MCGType = detail::CG::BARRIER_WAITLIST;
-    MBarrierWaitListEvents.resize(WaitList.size());
+    MEventsWaitWithBarrier.resize(WaitList.size());
     std::transform(
-        WaitList.begin(), WaitList.end(), MBarrierWaitListEvents.begin(),
+        WaitList.begin(), WaitList.end(), MEventsWaitWithBarrier.begin(),
         [](const event &Event) { return detail::getSyclObjImpl(Event); });
   }
 
@@ -1770,7 +1770,7 @@ private:
   vector_class<detail::EventImplPtr> MEvents;
   /// The list of valid SYCL events that need to complete
   /// before barrier command can be executed
-  vector_class<detail::EventImplPtr> MBarrierWaitListEvents;
+  vector_class<detail::EventImplPtr> MEventsWaitWithBarrier;
 
   bool MIsHost = false;
 
