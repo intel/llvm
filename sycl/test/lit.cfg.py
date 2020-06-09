@@ -101,14 +101,10 @@ def getDeviceCount(device_type):
             TYPE=device_type, BACKEND=backend, OUT=result[0]))
 
     # if we have found gpu and there is additional information, let's check
-    # whether this is CUDA device or not
+    # whether this is CUDA device or Level Zero device or none of these.
     if device_type == "gpu" and value > 0 and len(result[1]):
         if re.match(r".*cuda", result[1]):
             is_cuda = True;
-
-    # if we have found gpu and there is additional information, let's check
-    # whether this is CUDA device or not
-    if device_type == "gpu" and value > 0 and len(result[1]):
         if re.match(r".*level zero", result[1]):
             is_level0 = True;
 
@@ -192,7 +188,7 @@ else:
 config.substitutions.append( ('%ACC_RUN_PLACEHOLDER',  acc_run_substitute) )
 config.substitutions.append( ('%ACC_CHECK_PLACEHOLDER',  acc_check_substitute) )
 
-# PI API either supports OpenCL or CUDA.
+# PI API either supports OpenCL or CUDA or Level Zero.
 if not cuda and not level0 and found_at_least_one_device:
     config.available_features.add('opencl')
 
