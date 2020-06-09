@@ -1192,7 +1192,6 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   // Queue commands
   _PI_CL(piEnqueueKernelLaunch, clEnqueueNDRangeKernel)
   _PI_CL(piEnqueueNativeKernel, clEnqueueNativeKernel)
-  _PI_CL(piEnqueueBarrier, clEnqueueBarrier)
   _PI_CL(piEnqueueBarrierWait, clEnqueueBarrierWithWaitList)
   _PI_CL(piEnqueueEventsWait, clEnqueueMarkerWithWaitList)
   _PI_CL(piEnqueueMemBufferRead, clEnqueueReadBuffer)

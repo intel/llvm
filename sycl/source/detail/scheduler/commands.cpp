@@ -1955,7 +1955,8 @@ cl_int ExecCGCommand::enqueueImp() {
       return PI_SUCCESS;
     }
     const detail::plugin &Plugin = MQueue->getPlugin();
-    Plugin.call<PiApiKind::piEnqueueBarrier>(MQueue->getHandleRef());
+    Plugin.call<PiApiKind::piEnqueueBarrierWait>(MQueue->getHandleRef(), 0,
+                                                 nullptr, &Event);
 
     return PI_SUCCESS;
   }
