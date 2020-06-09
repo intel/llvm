@@ -798,8 +798,6 @@ ProgramManager::build(ProgramPtr Program, const ContextImplPtr Context,
   const detail::plugin &Plugin = Context->getPlugin();
   if (LinkPrograms.empty()) {
     std::string Opts(CompileOpts);
-    Opts += " ";
-    Opts += LinkOpts;
 
     RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piProgramBuild>(
         Program.get(), Devices.size(), Devices.data(), Opts.c_str(), nullptr,
