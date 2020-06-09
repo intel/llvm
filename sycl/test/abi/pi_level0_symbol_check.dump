@@ -61,6 +61,7 @@ piMemRetain
 piextUSMEnqueuePrefetch
 piextKernelSetArgPointer
 piEnqueueEventsWait
+piEnqueueEventsWaitWithBarrier
 piEnqueueMemBufferCopy
 piQueueGetInfo
 piDevicePartition
