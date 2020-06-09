@@ -777,8 +777,7 @@ SPIRV::SPIRVInstruction *LLVMToSPIRV::transUnaryInst(UnaryInstruction *U,
       if (!BM->checkExtension(ExtensionID::SPV_INTEL_function_pointers,
                               SPIRVEC_FunctionPointers, toString(U)))
         return nullptr;
-      assert(BOC == OpConvertPtrToU &&
-             "Illegal unary operation on function pointer");
+      assert(isa<CastInst>(U) && "Illegal unary operation on function pointer");
       Op = BM->addFunctionPointerINTELInst(
           transType(F->getType()),
           static_cast<SPIRVFunction *>(transValue(F, BB)), BB);
