@@ -17,6 +17,8 @@
 // Platform
 _PI_API(piPlatformsGet)
 _PI_API(piPlatformGetInfo)
+_PI_API(piextPlatformGetNativeHandle)
+_PI_API(piextPlatformCreateWithNativeHandle)
 // Device
 _PI_API(piDevicesGet)
 _PI_API(piDeviceGetInfo)
