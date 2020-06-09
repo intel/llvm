@@ -4511,6 +4511,22 @@ static void handleSYCLDeviceIndirectlyCallableAttr(Sema &S, Decl *D,
   handleSimpleAttribute<SYCLDeviceIndirectlyCallableAttr>(S, D, AL);
 }
 
+static void handleSYCLRegisterNumAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
+  auto *VD = cast<VarDecl>(D);
+  if (!VD->hasGlobalStorage()) {
+    S.Diag(AL.getLoc(), diag::err_sycl_attibute_cannot_be_applied_here)
+        << AL << 0;
+    return;
+  }
+  if (!checkAttributeNumArgs(S, AL, 1))
+    return;
+  uint32_t RegNo = 0;
+  const Expr *E = AL.getArgAsExpr(0);
+  if (!checkUInt32Argument(S, AL, E, RegNo, 0, /*StrictlyUnsigned=*/true))
+    return;
+  D->addAttr(::new (S.Context) SYCLRegisterNumAttr(S.Context, AL, RegNo));
+}
+
 static void handleConstantAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (checkAttrMutualExclusion<CUDASharedAttr>(S, D, AL))
     return;
@@ -7549,6 +7565,9 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     break;
   case ParsedAttr::AT_SYCLDeviceIndirectlyCallable:
     handleSYCLDeviceIndirectlyCallableAttr(S, D, AL);
+    break;
+  case ParsedAttr::AT_SYCLRegisterNum:
+    handleSYCLRegisterNumAttr(S, D, AL);
     break;
   case ParsedAttr::AT_Format:
     handleFormatAttr(S, D, AL);
