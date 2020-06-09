@@ -90,11 +90,11 @@
 // WHOLE_STATIC_LIB_1: ld{{.*}} "[[INPUTO]]" "--whole-archive" "[[INPUTA]]" "[[INPUTB]]" "--no-whole-archive"
 // WHOLE_STATIC_LIB_2: ld{{.*}} "[[INPUTO]]" "@[[ARGFILE]]"
 
-/// test -Wl,<arg> behaviors for special case handling of -z and -rpath
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -L/dummy/dir %t.o -Wl,-rpath,nopass -Wl,-z,nopass %t.a %t_2.a -### 2>&1 \
+/// test behaviors for special case handling of -z and -rpath
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -z anystring -L/dummy/dir %t.o -Wl,-rpath,nopass -Wl,-z,nopass %t.a %t_2.a -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefixes=WL_CHECK
-// WL_CHECK-NOT: ld{{(.exe)?}}" "-r" {{.*}} "{{.*}}crt1.o" "{{.*}}crti.o" "-L/dummy/dir" {{.*}} "nopass" {{.*}} "{{.*}}crtn.o"
-// WL_CHECK: ld{{.*}}" "-rpath" "nopass" "-z" "nopass"
+// WL_CHECK-NOT: ld{{(.exe)?}} "-r" {{.*}} "{{.*}}crt1.o" "{{.*}}crti.o" "-L/dummy/dir" {{.*}}"anystring" {{.*}}"nopass" {{.*}} "{{.*}}crtn.o"
+// WL_CHECK: ld{{.*}} "-z" "anystring" {{.*}} "-rpath" "nopass" "-z" "nopass"
 
 /// ###########################################################################
 
