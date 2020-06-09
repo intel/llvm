@@ -7,12 +7,11 @@
 
 #include "include/asmhelper.h"
 #include <CL/sycl.hpp>
-#include <cmath>
 #include <iostream>
 #include <vector>
 
-constexpr double IMM_ARGUMENT = 0.5;
-using dataType = cl::sycl::cl_double;
+constexpr int CONST_ARGUMENT = 0xabc;
+using dataType = cl::sycl::cl_int;
 
 template <typename T = dataType>
 struct KernelFunctor : WithInputBuffers<T, 1>, WithOutputBuffer<T> {
@@ -23,13 +22,14 @@ struct KernelFunctor : WithInputBuffers<T, 1>, WithOutputBuffer<T> {
     auto B = this->getOutputBuffer().template get_access<cl::sycl::access::mode::write>(cgh);
 
     cgh.parallel_for<KernelFunctor<T>>(
-        cl::sycl::range<1>{this->getOutputBufferSize()}, [=](cl::sycl::id<1> wiID) [[cl::intel_reqd_sub_group_size(8)]] {
+        cl::sycl::range<1>{this->getOutputBufferSize()}, [=
+    ](cl::sycl::id<1> wiID) [[cl::intel_reqd_sub_group_size(8)]] {
 #if defined(INLINE_ASM) && defined(__SYCL_DEVICE_ONLY__)
-          asm("mul (M1, 8) %0(0, 0)<1> %1(0, 0)<1;1,0> %2"
+          asm("add (M1, 8) %0(0, 0)<1> %1(0, 0)<1;1,0> %2"
               : "=rw"(B[wiID])
-              : "rw"(A[wiID]), "rw"(IMM_ARGUMENT));
+              : "rw"(A[wiID]), "i"(CONST_ARGUMENT));
 #else
-          B[wiID] = A[wiID] * IMM_ARGUMENT;
+          B[wiID] = A[wiID] + CONST_ARGUMENT;
 #endif
         });
   }
@@ -38,7 +38,7 @@ struct KernelFunctor : WithInputBuffers<T, 1>, WithOutputBuffer<T> {
 int main() {
   std::vector<dataType> input(DEFAULT_PROBLEM_SIZE);
   for (int i = 0; i < DEFAULT_PROBLEM_SIZE; i++)
-    input[i] = (double)1 / std::pow(2, i);
+    input[i] = i;
 
   KernelFunctor<> f(input);
   if (!launchInlineASMTest(f))
@@ -46,9 +46,9 @@ int main() {
 
   auto &B = f.getOutputBufferData();
   for (int i = 0; i < DEFAULT_PROBLEM_SIZE; ++i) {
-    if (B[i] != input[i] * IMM_ARGUMENT) {
+    if (B[i] != input[i] + CONST_ARGUMENT) {
       std::cerr << "At index: " << i << ". ";
-      std::cerr << B[i] << " != " << input[i] * IMM_ARGUMENT << "\n";
+      std::cerr << B[i] << " != " << input[i] + CONST_ARGUMENT << "\n";
       return 1;
     }
   }
