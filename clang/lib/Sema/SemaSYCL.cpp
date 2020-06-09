@@ -690,11 +690,11 @@ static void VisitRecordHelper(CXXRecordDecl *Owner,
     QualType BaseTy = Base.getType();
     if (Util::isSyclAccessorType(BaseTy))
       (void)std::initializer_list<int>{
-	      (handlers.handleSyclAccessorType(Base, BaseTy), 0)...};
+          (handlers.handleSyclAccessorType(Base, BaseTy), 0)...};
     else if (Util::isSyclStreamType(BaseTy))
       (void)std::initializer_list<int>{
-	      (handlers.handleSyclStreamType(Base, BaseTy), 0)...};
-    else 
+          (handlers.handleSyclStreamType(Base, BaseTy), 0)...};
+    else
       VisitRecord(Owner, Base, BaseTy->getAsCXXRecordDecl(), handlers...);
   }
 }
@@ -1009,7 +1009,7 @@ public:
   }
 
   void handleStructType(FieldDecl *FD, QualType FieldTy) final {
-    //addParam(FD, FieldTy);
+    // addParam(FD, FieldTy);
   }
 
   void handleSyclStreamType(FieldDecl *FD, QualType FieldTy) final {
@@ -1260,7 +1260,7 @@ public:
   }
 
   void handleStructType(FieldDecl *FD, QualType FieldTy) final {
-    //createExprForStructOrScalar(FD);
+    // createExprForStructOrScalar(FD);
   }
 
   void handleScalarType(FieldDecl *FD, QualType FieldTy) final {
@@ -1408,7 +1408,7 @@ public:
     addParam(FD, FieldTy, SYCLIntegrationHeader::kind_pointer);
   }
   void handleStructType(FieldDecl *FD, QualType FieldTy) final {
-    //addParam(FD, FieldTy, SYCLIntegrationHeader::kind_std_layout);
+    // addParam(FD, FieldTy, SYCLIntegrationHeader::kind_std_layout);
   }
   void handleScalarType(FieldDecl *FD, QualType FieldTy) final {
     addParam(FD, FieldTy, SYCLIntegrationHeader::kind_std_layout);
