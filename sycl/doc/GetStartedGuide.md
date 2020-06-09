@@ -161,8 +161,12 @@ which contains all the symbols required.
 To run DPC++ applications on OpenCL devices, OpenCL implementation(s) must be
 present in the system.
 
-The OpenCL RT for `GPU`, OpenCL RT for `CPU` and TBB runtime which are needed
-to run DPC++ application on Intel `GPU` or Intel `CPU` devices can be
+To run DPC++ applications on Level Zero devices, Level Zero implementation(s)
+must be present in the system. You can find the link to the Level Zero spec in
+the following section [Find More](#find-more).
+
+The Level Zero RT for `GPU`, OpenCL RT for `GPU`, OpenCL RT for `CPU` and TBB runtime
+which are needed to run DPC++ application on Intel `GPU` or Intel `CPU` devices can be
 downloaded using links in
 [the dependency configuration file](../../buildbot/dependency.conf)
 and installed following the instructions below. The same versions are used in
@@ -551,5 +555,7 @@ class CUDASelector : public cl::sycl::device_selector {
 [https://spec.oneapi.com/versions/latest/elements/dpcpp/source/index.html](https://spec.oneapi.com/versions/latest/elements/dpcpp/source/index.html)
 * SYCL\* 1.2.1 specification:
 [www.khronos.org/registry/SYCL/specs/sycl-1.2.1.pdf](https://www.khronos.org/registry/SYCL/specs/sycl-1.2.1.pdf)
+* oneAPI Level Zero specification:
+[https://spec.oneapi.com/versions/latest/oneL0/index.html](https://spec.oneapi.com/versions/latest/oneL0/index.html)
 
 \*Other names and brands may be claimed as the property of others.
