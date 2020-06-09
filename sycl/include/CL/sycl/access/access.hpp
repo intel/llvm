@@ -11,6 +11,7 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+namespace access {
 
 enum class target {
   global_buffer = 2014,
@@ -22,12 +23,6 @@ enum class target {
   image_array
 };
 
-// Backward compatibility namespace nesting
-namespace access {
-using sycl::target;
-}
-
-namespace access {
 enum class mode {
   read = 1024,
   write,
@@ -36,13 +31,26 @@ enum class mode {
   discard_read_write,
   atomic
 };
-}
 
-using access_mode = access::mode;
+enum class fence_space {
+  local_space,
+  global_space,
+  global_and_local
+};
 
-namespace access {
 enum class placeholder { false_t, true_t };
-}
+
+enum class address_space : int {
+  private_space = 0,
+  global_space,
+  constant_space,
+  local_space
+};
+
+} // namespace access
+
+using access::target;
+using access_mode = access::mode;
 
 #if __cplusplus > 201402L
 
@@ -61,23 +69,6 @@ inline constexpr mode_target_tag_t<access_mode::read, target::constant_buffer>
     read_constant{};
 
 #endif
-
-namespace access {
-
-enum class fence_space {
-  local_space,
-  global_space,
-  global_and_local
-};
-
-enum class address_space : int {
-  private_space = 0,
-  global_space,
-  constant_space,
-  local_space
-};
-
-} // namespace access
 
 namespace detail {
 
