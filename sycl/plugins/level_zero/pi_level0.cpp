@@ -2512,20 +2512,15 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
 
   ze_event_handle_t ZeEvent = (*Event)->ZeEvent;
 
+  // TODO: use unique_ptr with custom deleter in the whole Level Zero plugin for
+  // wrapping ze_event_handle_t *ZeEventWaitList to avoid memory leaks in case
+  // return will be called in ZE_CALL(ze***(...)), and thus
+  // _pi_event::deleteZeEventList(ZeEventWaitList) won't be called.
   ze_event_handle_t *ZeEventWaitList =
       _pi_event::createZeEventList(NumEventsInWaitList, EventWaitList);
 
   ZE_CALL(zeCommandListAppendBarrier(ZeCommandList, ZeEvent,
                                      NumEventsInWaitList, ZeEventWaitList));
-
-  zePrint("calling zeCommandListAppendBarrier() with\n"
-          "  Event %lx,\n"
-          "  NumEventsInWaitList %d\n",
-          pi_cast<std::uintptr_t>(ZeEvent));
-  for (pi_uint32 I = 0; I < NumEventsInWaitList; I++) {
-    zePrint(" %lx", pi_cast<std::uintptr_t>(ZeEventWaitList[I]));
-  }
-  zePrint("\n");
 
   _pi_event::deleteZeEventList(ZeEventWaitList);
 
