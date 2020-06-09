@@ -23,9 +23,9 @@
 #include <core/clc_core.h>
 #include <spirv/spirv.h>
 
-#include "../../lib/clcmacro.h"
-#include "../../lib/math/math.h"
-#include "config.h"
+#include <clcmacro.h>
+#include <config.h>
+#include <math/math.h>
 
 struct fp {
   ulong mantissa;

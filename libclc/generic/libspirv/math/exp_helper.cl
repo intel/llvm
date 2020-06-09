@@ -22,8 +22,8 @@
 
 #include <spirv/spirv.h>
 
-#include "../../lib/math/math.h"
 #include "tables.h"
+#include <math/math.h>
 
 #ifdef cl_khr_fp64
 
