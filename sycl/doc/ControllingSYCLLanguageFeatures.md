@@ -15,7 +15,7 @@ SYCL language standard to compile for.
 
 Possible values:
 
-- `2017`, '121', `1.2.1`, `sycl-1.2.1`: corresponds to SYCL 1.2.1
+- `2017`, `121`, `1.2.1`, `sycl-1.2.1`: corresponds to SYCL 1.2.1
   specification, see [SYCL Registry] for more details and the specification
   text.
 
