@@ -64,6 +64,8 @@
 #include "llvm/Support/MD5.h"
 #include "llvm/Support/TimeProfiler.h"
 
+#include <algorithm>
+
 using namespace clang;
 using namespace CodeGen;
 
@@ -650,11 +652,12 @@ void CodeGenModule::Release() {
     // 4 - OpenCL_CPP, 100000 - OpenCL C++ version 1.0
     // 6 - ESIMD, if any kernel or function is an explicit SIMD one
     int Lang = 4;
-    for (auto &F : TheModule.functions())
-      if (F.getMetadata("sycl_explicit_simd") != nullptr) {
-        Lang = 6;
-        break;
-      }
+
+    if (std::find_if(TheModule.begin(), TheModule.end(),
+                     [](const llvm::Function &F) -> bool {
+                       return F.getMetadata("sycl_explicit_simd") != nullptr;
+                     }) != TheModule.end())
+      Lang = 6;
 
     llvm::Metadata *SPIRVSourceElts[] = {
         llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(Int32Ty, Lang)),

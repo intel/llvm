@@ -291,14 +291,8 @@ void Sema::checkSYCLDeviceVarDecl(VarDecl *Var) {
 
 // Tests whether given function is a lambda function or '()' operator used as
 // SYCL kernel body function (e.g. in parallel_for).
-//
-// TODO this test should involve checking the caller and matching function types
-// of the caller's parameter and the type of 'this' of this function. But the
-// information about the original caller (e.g. kernel_parallel_for) is
-// unavailable at this point - kernel creation infrastructure must be enhanced.
-// For now the check is only if FD is '()' operator. Works OK for today's
-// handler::kernel_parallel_for/... implementations as no other '()' operators
-// are invoked except the kernel body.
+// NOTE: This is incomplete implemenation. See TODO in the FE TODO list for the
+// ESIMD extension.
 static bool isSYCLKernelBodyFunction(FunctionDecl *FD) {
   return FD->getOverloadedOperator() == OO_Call;
 }
@@ -312,6 +306,14 @@ static void reportConflictingAttrs(Sema &S, FunctionDecl *F, const Attr *A1,
   S.Diag(A1->getLocation(), diag::note_conflicting_attribute);
   S.Diag(A2->getLocation(), diag::note_conflicting_attribute);
   F->setInvalidDecl();
+}
+
+// Returns the signed constant integer value represented by given expression.
+static int64_t getIntExprValue(Sema &S, const Expr *E) {
+  llvm::APSInt Val(32);
+  bool IsValid = E->isIntegerConstantExpr(Val, S.getASTContext());
+  assert(IsValid && "expression must be constant integer");
+  return Val.getSExtValue();
 }
 
 class MarkDeviceFunction : public RecursiveASTVisitor<MarkDeviceFunction> {
@@ -1690,7 +1692,8 @@ void Sema::MarkDevice(void) {
         switch (A->getKind()) {
         case attr::Kind::IntelReqdSubGroupSize: {
           auto *Attr = cast<IntelReqdSubGroupSizeAttr>(A);
-          const auto *KBSimdAttr = KernelBody->getAttr<SYCLSimdAttr>();
+          const auto *KBSimdAttr =
+              KernelBody ? KernelBody->getAttr<SYCLSimdAttr>() : nullptr;
           if (auto *Existing =
                   SYCLKernel->getAttr<IntelReqdSubGroupSizeAttr>()) {
             if (Existing->getSubGroupSize() != Attr->getSubGroupSize()) {
@@ -1700,9 +1703,8 @@ void Sema::MarkDevice(void) {
               Diag(Attr->getLocation(), diag::note_conflicting_attribute);
               SYCLKernel->setInvalidDecl();
             }
-          } else if ((KBSimdAttr != nullptr) &&
-                     (Attr->getSubGroupSize() != (unsigned)1)) {
-            // ESIMD kernel can't call functions with reqd_subg_group_size != 1.
+          } else if (KBSimdAttr &&
+                     (getIntExprValue(*this, Attr->getSubGroupSize()) != 1)) {
             reportConflictingAttrs(*this, KernelBody, KBSimdAttr, Attr);
           } else {
             SYCLKernel->addAttr(A);
