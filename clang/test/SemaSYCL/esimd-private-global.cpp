@@ -9,7 +9,7 @@ __attribute__((opencl_private)) __attribute__((register_num())) int privGlob1;
 // expected-error@+1{{'register_num' attribute takes one argument}}
 __attribute__((opencl_private)) __attribute__((register_num(10, 11))) int privGlob2;
 
-// expected-error@+1{{(SYCL explicit SIMD) private global variable cannot have an initializer}}
+// expected-error@+1{{SYCL explicit SIMD does not permit private global variable to have an initializer}}
 __attribute__((opencl_private)) int privGlob3 = 10;
 
 void foo() {
