@@ -1740,7 +1740,7 @@ void Sema::MarkDevice(void) {
             Diag(KernelBody->getLocation(),
                  diag::err_sycl_function_attribute_mismatch)
                 << A;
-            Diag(A->getLocation(), diag::note_sycl_function_attribute_mismatch);
+            Diag(A->getLocation(), diag::note_attribute);
             KernelBody->setInvalidDecl();
           } else
             SYCLKernel->addAttr(A);

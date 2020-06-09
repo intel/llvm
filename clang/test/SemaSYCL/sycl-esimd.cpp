@@ -31,7 +31,7 @@ void kernel1(F f) __attribute__((sycl_kernel)) {
   f();
 }
 
-// expected-note@+1{{function attribute is here}}
+// expected-note@+1{{attribute is here}}
 __attribute__((sycl_explicit_simd)) void g1() {}
 
 void test1() {

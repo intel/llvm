@@ -4427,12 +4427,8 @@ void CodeGenModule::EmitGlobalVarDefinition(const VarDecl *D,
     if (getCodeGenOpts().hasReducedDebugInfo())
       DI->EmitGlobalVariable(GV, D);
 
-  if (LangOpts.SYCLIsDevice) {
+  if (LangOpts.SYCLIsDevice)
     maybeEmitPipeStorageMetadata(D, GV, *this);
-    // Notify SYCL code generation infrastructure that a global variable is
-    // being generated.
-    getSYCLRuntime().actOnGlobalVarEmit(*this, *D, GV);
-  }
 }
 
 void CodeGenModule::EmitExternalVarDeclaration(const VarDecl *D) {
