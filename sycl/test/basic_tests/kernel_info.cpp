@@ -3,7 +3,8 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 //
-// XFAIL: level0
+// Fail is flaky for level0, enable when fixed.
+// UNSUPPORTED: level0
 
 //==--- kernel_info.cpp - SYCL kernel info test ----------------------------==//
 //
