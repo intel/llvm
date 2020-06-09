@@ -752,6 +752,8 @@ static void VisitRecordFields(CXXRecordDecl *Owner, Handlers &... handlers) {
       VisitRecord(nullptr, Field, RD, handlers...);
       KF_FOR_EACH(handleSyclStreamType);
     } else if (FieldTy->isStructureOrClassType()) {
+      // Handle diagnostics for non-standard layout
+      KF_FOR_EACH(handleStructType);
       CXXRecordDecl *RD = FieldTy->getAsCXXRecordDecl();
       VisitRecord(Owner, Field, RD, handlers...);
     } else if (FieldTy->isReferenceType())
@@ -1000,7 +1002,7 @@ public:
   }
 
   void handleStructType(FieldDecl *FD, QualType FieldTy) final {
-    addParam(FD, FieldTy);
+    //addParam(FD, FieldTy);
   }
 
   void handleSyclStreamType(FieldDecl *FD, QualType FieldTy) final {
@@ -1251,7 +1253,7 @@ public:
   }
 
   void handleStructType(FieldDecl *FD, QualType FieldTy) final {
-    createExprForStructOrScalar(FD);
+    //createExprForStructOrScalar(FD);
   }
 
   void handleScalarType(FieldDecl *FD, QualType FieldTy) final {
@@ -1399,7 +1401,7 @@ public:
     addParam(FD, FieldTy, SYCLIntegrationHeader::kind_pointer);
   }
   void handleStructType(FieldDecl *FD, QualType FieldTy) final {
-    addParam(FD, FieldTy, SYCLIntegrationHeader::kind_std_layout);
+    //addParam(FD, FieldTy, SYCLIntegrationHeader::kind_std_layout);
   }
   void handleScalarType(FieldDecl *FD, QualType FieldTy) final {
     addParam(FD, FieldTy, SYCLIntegrationHeader::kind_std_layout);
