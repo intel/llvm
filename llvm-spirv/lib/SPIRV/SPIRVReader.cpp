@@ -837,6 +837,10 @@ void SPIRVToLLVM::transLLVMLoopMetadata(const Function *F) {
   if (FuncLoopMetadataMap.empty())
     return;
 
+  // Function declaration doesn't contain loop metadata.
+  if (F->isDeclaration())
+    return;
+
   DominatorTree DomTree(*(const_cast<Function *>(F)));
   LoopInfo LI(DomTree);
 
@@ -3341,6 +3345,11 @@ bool SPIRVToLLVM::transMetadata() {
                      getMDNodeStringIntVec(Context, EM->getLiterals()));
     }
   }
+  NamedMDNode *MemoryModelMD =
+      M->getOrInsertNamedMetadata(kSPIRVMD::MemoryModel);
+  MemoryModelMD->addOperand(
+      getMDTwoInt(Context, static_cast<unsigned>(BM->getAddressingModel()),
+                  static_cast<unsigned>(BM->getMemoryModel())));
   return true;
 }
 

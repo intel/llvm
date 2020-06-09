@@ -212,10 +212,9 @@ bool findPlugins(vector_class<std::pair<std::string, backend>> &PluginNames) {
   // search is done for libpi_opencl.so/pi_opencl.dll file in LD_LIBRARY_PATH
   // env only.
   //
-  PluginNames.push_back(std::make_pair<std::string, backend>(OPENCL_PLUGIN_NAME,
-                                                             backend::opencl));
-  PluginNames.push_back(
-      std::make_pair<std::string, backend>(CUDA_PLUGIN_NAME, backend::cuda));
+  PluginNames.emplace_back(OPENCL_PLUGIN_NAME, backend::opencl);
+  PluginNames.emplace_back(LEVEL0_PLUGIN_NAME, backend::level0);
+  PluginNames.emplace_back(CUDA_PLUGIN_NAME, backend::cuda);
   return true;
 }
 

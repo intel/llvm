@@ -12,16 +12,13 @@
 
 using namespace cl::sycl;
 
-pi_result
-piProgramBuildRedefine(pi_program program, pi_uint32 num_devices,
-                       const pi_device *device_list, const char *options,
-                       void (*pfn_notify)(pi_program program, void *user_data),
-                       void *user_data) {
+pi_result piProgramBuildRedefine(pi_program, pi_uint32, const pi_device *,
+                                 const char *, void (*)(pi_program, void *),
+                                 void *) {
   return PI_INVALID_BINARY;
 }
 
-pi_result piKernelCreateRedefine(pi_program program, const char *kernel_name,
-                                 pi_kernel *ret_kernel) {
+pi_result piKernelCreateRedefine(pi_program, const char *, pi_kernel *) {
   return PI_INVALID_DEVICE;
 }
 
@@ -91,7 +88,7 @@ TEST(PiMockTest, RedefineAPI) {
   // Pass a captureless lambda
   auto *OldFuncPtr = Table.piProgramRetain;
   Mock.redefine<detail::PiApiKind::piProgramRetain>(
-      [](pi_program program) -> pi_result { return PI_SUCCESS; });
+      [](pi_program) -> pi_result { return PI_SUCCESS; });
   EXPECT_FALSE(Table.piProgramRetain == OldFuncPtr)
       << "Passing a lambda didn't change the function table entry";
   ASSERT_FALSE(Table.piProgramRetain == nullptr)

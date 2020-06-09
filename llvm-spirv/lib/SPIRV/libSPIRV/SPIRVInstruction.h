@@ -2275,7 +2275,6 @@ protected:
       return;
     assert(getValueType(Vector1) == getValueType(Vector2));
     assert(Components.size() == Type->getVectorComponentCount());
-    assert(Components.size() > 1);
   }
   SPIRVId Vector1;
   SPIRVId Vector2;
@@ -2516,6 +2515,123 @@ _SPIRV_OP(GroupReserveReadPipePackets, true, 8)
 _SPIRV_OP(GroupReserveWritePipePackets, true, 8)
 _SPIRV_OP(GroupCommitReadPipe, false, 6)
 _SPIRV_OP(GroupCommitWritePipe, false, 6)
+#undef _SPIRV_OP
+
+class SPIRVGroupNonUniformElectInst : public SPIRVInstTemplateBase {
+public:
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(CapabilityGroupNonUniform);
+  }
+};
+
+#define _SPIRV_OP(x, ...)                                                      \
+  typedef SPIRVInstTemplate<SPIRVGroupNonUniformElectInst, Op##x, __VA_ARGS__> \
+      SPIRV##x;
+_SPIRV_OP(GroupNonUniformElect, true, 4)
+#undef _SPIRV_OP
+
+class SPIRVGroupNonUniformVoteInst : public SPIRVInstTemplateBase {
+public:
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(CapabilityGroupNonUniformVote);
+  }
+};
+
+#define _SPIRV_OP(x, ...)                                                      \
+  typedef SPIRVInstTemplate<SPIRVGroupNonUniformVoteInst, Op##x, __VA_ARGS__>  \
+      SPIRV##x;
+_SPIRV_OP(GroupNonUniformAll, true, 5)
+_SPIRV_OP(GroupNonUniformAny, true, 5)
+_SPIRV_OP(GroupNonUniformAllEqual, true, 5)
+#undef _SPIRV_OP
+
+class SPIRVGroupNonUniformBallotInst : public SPIRVInstTemplateBase {
+public:
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(CapabilityGroupNonUniformBallot);
+  }
+};
+
+#define _SPIRV_OP(x, ...)                                                      \
+  typedef SPIRVInstTemplate<SPIRVGroupNonUniformBallotInst, Op##x,             \
+                            __VA_ARGS__>                                       \
+      SPIRV##x;
+_SPIRV_OP(GroupNonUniformBroadcast, true, 6)
+_SPIRV_OP(GroupNonUniformBroadcastFirst, true, 5)
+_SPIRV_OP(GroupNonUniformBallot, true, 5)
+_SPIRV_OP(GroupNonUniformInverseBallot, true, 5)
+_SPIRV_OP(GroupNonUniformBallotBitExtract, true, 6)
+_SPIRV_OP(GroupNonUniformBallotBitCount, true, 6, false, 1)
+_SPIRV_OP(GroupNonUniformBallotFindLSB, true, 5)
+_SPIRV_OP(GroupNonUniformBallotFindMSB, true, 5)
+#undef _SPIRV_OP
+
+class SPIRVGroupNonUniformArithmeticInst : public SPIRVInstTemplateBase {
+public:
+  void setOpWords(const std::vector<SPIRVWord> &Ops) override {
+    SPIRVInstTemplateBase::setOpWords(Ops);
+    SPIRVGroupOperationKind GroupOp;
+    if (getSPIRVGroupOperation(GroupOp)) {
+      if (GroupOp == GroupOperationClusteredReduce)
+        Module->addCapability(CapabilityGroupNonUniformClustered);
+      else
+        Module->addCapability(CapabilityGroupNonUniformArithmetic);
+    } else
+      llvm_unreachable(
+          "GroupNonUniformArithmeticInst has no group operation operand!");
+  }
+};
+
+#define _SPIRV_OP(x, ...)                                                      \
+  typedef SPIRVInstTemplate<SPIRVGroupNonUniformArithmeticInst, Op##x,         \
+                            __VA_ARGS__>                                       \
+      SPIRV##x;
+_SPIRV_OP(GroupNonUniformIAdd, true, 6, true, 1)
+_SPIRV_OP(GroupNonUniformFAdd, true, 6, true, 1)
+_SPIRV_OP(GroupNonUniformIMul, true, 6, true, 1)
+_SPIRV_OP(GroupNonUniformFMul, true, 6, true, 1)
+_SPIRV_OP(GroupNonUniformSMin, true, 6, true, 1)
+_SPIRV_OP(GroupNonUniformUMin, true, 6, true, 1)
+_SPIRV_OP(GroupNonUniformFMin, true, 6, true, 1)
+_SPIRV_OP(GroupNonUniformSMax, true, 6, true, 1)
+_SPIRV_OP(GroupNonUniformUMax, true, 6, true, 1)
+_SPIRV_OP(GroupNonUniformFMax, true, 6, true, 1)
+_SPIRV_OP(GroupNonUniformBitwiseAnd, true, 6, true, 1)
+_SPIRV_OP(GroupNonUniformBitwiseOr, true, 6, true, 1)
+_SPIRV_OP(GroupNonUniformBitwiseXor, true, 6, true, 1)
+_SPIRV_OP(GroupNonUniformLogicalAnd, true, 6, true, 1)
+_SPIRV_OP(GroupNonUniformLogicalOr, true, 6, true, 1)
+_SPIRV_OP(GroupNonUniformLogicalXor, true, 6, true, 1)
+#undef _SPIRV_OP
+
+class SPIRVGroupNonUniformShuffleInst : public SPIRVInstTemplateBase {
+public:
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(CapabilityGroupNonUniformShuffle);
+  }
+};
+
+#define _SPIRV_OP(x, ...)                                                      \
+  typedef SPIRVInstTemplate<SPIRVGroupNonUniformShuffleInst, Op##x,            \
+                            __VA_ARGS__>                                       \
+      SPIRV##x;
+_SPIRV_OP(GroupNonUniformShuffle, true, 6)
+_SPIRV_OP(GroupNonUniformShuffleXor, true, 6)
+#undef _SPIRV_OP
+
+class SPIRVGroupNonUniformShuffleRelativeInst : public SPIRVInstTemplateBase {
+public:
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(CapabilityGroupNonUniformShuffleRelative);
+  }
+};
+
+#define _SPIRV_OP(x, ...)                                                      \
+  typedef SPIRVInstTemplate<SPIRVGroupNonUniformShuffleRelativeInst, Op##x,    \
+                            __VA_ARGS__>                                       \
+      SPIRV##x;
+_SPIRV_OP(GroupNonUniformShuffleUp, true, 6)
+_SPIRV_OP(GroupNonUniformShuffleDown, true, 6)
 #undef _SPIRV_OP
 
 class SPIRVBlockingPipesIntelInst : public SPIRVInstTemplateBase {

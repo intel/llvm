@@ -196,9 +196,6 @@ vec<T, 4> readPixel(T *Ptr, const image_channel_order ChannelOrder,
     Pixel.y() = Ptr[2]; // g
     Pixel.x() = Ptr[3]; // r
     break;
-  default:
-    throw cl::sycl::invalid_parameter_error("Unhandled image channel order",
-                                            PI_INVALID_VALUE);
   }
 
   return Pixel;
@@ -269,9 +266,6 @@ void writePixel(const vec<T, 4> Pixel, T *Ptr,
     Ptr[2] = Pixel.y(); // g
     Ptr[3] = Pixel.x(); // r
     break;
-  default:
-    throw cl::sycl::invalid_parameter_error("Unhandled image channel order",
-                                            PI_INVALID_VALUE);
   }
 }
 
@@ -413,8 +407,6 @@ void convertReadData(const vec<ChannelType, 4> PixelData,
   case image_channel_type::fp32:
     RetData = PixelData.template convert<cl_float>();
     break;
-  default:
-    break;
   }
 }
 
@@ -471,8 +463,6 @@ void convertReadData(const vec<ChannelType, 4> PixelData,
         "Datatype to read - cl_half4 is incompatible with the "
         "image_channel_type of the image.",
         PI_INVALID_VALUE);
-  default:
-    break;
   }
   RetData = RetDataFloat.template convert<cl_half>();
 }
@@ -634,8 +624,6 @@ convertWriteData(const vec<cl_float, 4> WriteData,
     return WriteData.convert<ChannelType>();
   case image_channel_type::fp32:
     return WriteData.convert<ChannelType>();
-  default:
-    break;
   }
 }
 
@@ -685,8 +673,6 @@ convertWriteData(const vec<cl_half, 4> WriteData,
         "Datatype of data to write - cl_float4 is incompatible with the "
         "image_channel_type of the image.",
         PI_INVALID_VALUE);
-  default:
-    break;
   }
 }
 

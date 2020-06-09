@@ -22,7 +22,12 @@ namespace detail {
 kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr Context)
     : kernel_impl(Kernel, Context,
                   std::make_shared<program_impl>(Context, Kernel),
-                  /*IsCreatedFromSource*/ true) {}
+                  /*IsCreatedFromSource*/ true) {
+  // This constructor is only called in the interoperability kernel constructor.
+  // Let the runtime caller handle native kernel retaining in other cases if
+  // it's needed.
+  getPlugin().call<PiApiKind::piKernelRetain>(MKernel);
+}
 
 kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr ContextImpl,
                          ProgramImplPtr ProgramImpl,
@@ -39,7 +44,6 @@ kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr ContextImpl,
     throw cl::sycl::invalid_parameter_error(
         "Input context must be the same as the context of cl_kernel",
         PI_INVALID_CONTEXT);
-  getPlugin().call<PiApiKind::piKernelRetain>(MKernel);
 }
 
 kernel_impl::kernel_impl(ContextImplPtr Context,
