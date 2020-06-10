@@ -57,7 +57,9 @@ enum class address_space : int {
   private_space = 0,
   global_space,
   constant_space,
-  local_space
+  local_space,
+  device_space,
+  host_space
 };
 } // namespace access
 
@@ -139,8 +141,9 @@ public:
   _ImplT<dimensions> impl;
 
 private:
-  void __init(__attribute__((opencl_global)) dataT *Ptr, range<dimensions> AccessRange,
-              range<dimensions> MemRange, id<dimensions> Offset) {}
+  void __init(__attribute__((opencl_global_device)) dataT *Ptr,
+              range<dimensions> AccessRange, range<dimensions> MemRange,
+              id<dimensions> Offset) {}
 };
 
 template <int dimensions, access::mode accessmode, access::target accesstarget>

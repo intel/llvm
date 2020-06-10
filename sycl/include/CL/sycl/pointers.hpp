@@ -20,6 +20,12 @@ template <typename ElementType>
 using global_ptr = multi_ptr<ElementType, access::address_space::global_space>;
 
 template <typename ElementType>
+using device_ptr = multi_ptr<ElementType, access::address_space::device_space>;
+
+template <typename ElementType>
+using host_ptr = multi_ptr<ElementType, access::address_space::host_space>;
+
+template <typename ElementType>
 using local_ptr = multi_ptr<ElementType, access::address_space::local_space>;
 
 template <typename ElementType>

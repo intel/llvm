@@ -82,6 +82,7 @@ template <typename T> void testMultPtr() {
         auto local_ptr = make_ptr<T, access::address_space::local_space>(
           localAccessor.get_pointer());
 
+        // General conversions in multi_ptr class
         T *RawPtr = nullptr;
         global_ptr<T> ptr_4(RawPtr);
         ptr_4 = RawPtr;
@@ -91,6 +92,12 @@ template <typename T> void testMultPtr() {
         global_ptr<void> ptr_6((void *)RawPtr);
 
         ptr_6 = (void *)RawPtr;
+
+        // Explicit conversions for device_ptr/host_ptr to global_ptr
+        device_ptr<void> ptr_7((void *)RawPtr);
+        global_ptr<void> ptr_8 = global_ptr<void>(ptr_7);
+        host_ptr<void> ptr_9((void *)RawPtr);
+        global_ptr<void> ptr_10 = global_ptr<void>(ptr_9);
 
         innerFunc<T>(wiID.get(0), ptr_1, ptr_2, local_ptr);
       });
@@ -109,12 +116,14 @@ void testMultPtrArrowOperator() {
   point<T> data_1[1] = {1};
   point<T> data_2[1] = {2};
   point<T> data_3[1] = {3};
+  point<T> data_4[1] = {4};
 
   {
     range<1> numOfItems{1};
     buffer<point<T>, 1> bufferData_1(data_1, numOfItems);
     buffer<point<T>, 1> bufferData_2(data_2, numOfItems);
     buffer<point<T>, 1> bufferData_3(data_3, numOfItems);
+    buffer<point<T>, 1> bufferData_4(data_4, numOfItems);
     queue myQueue;
     myQueue.submit([&](handler &cgh) {
       accessor<point<T>, 1, access::mode::read, access::target::global_buffer,
@@ -126,6 +135,9 @@ void testMultPtrArrowOperator() {
       accessor<point<T>, 1, access::mode::read_write, access::target::local,
                access::placeholder::false_t>
           accessorData_3(1, cgh);
+      accessor<point<T>, 1, access::mode::read, access::target::global_buffer,
+               access::placeholder::false_t>
+          accessorData_4(bufferData_4, cgh);
 
       cgh.single_task<class testMultPtrArrowOperatorKernel<T>>([=]() {
         auto ptr_1 = make_ptr<point<T>, access::address_space::global_space>(
@@ -134,10 +146,13 @@ void testMultPtrArrowOperator() {
             accessorData_2.get_pointer());
         auto ptr_3 = make_ptr<point<T>, access::address_space::local_space>(
             accessorData_3.get_pointer());
+        auto ptr_4 = make_ptr<point<T>, access::address_space::device_space>(
+            accessorData_4.get_pointer());
 
         auto x1 = ptr_1->x;
         auto x2 = ptr_2->x;
         auto x3 = ptr_3->x;
+        auto x4 = ptr_4 -> x;
 
         static_assert(std::is_same<decltype(x1), T>::value,
                       "Expected decltype(ptr_1->x) == T");
@@ -145,6 +160,8 @@ void testMultPtrArrowOperator() {
                       "Expected decltype(ptr_2->x) == T");
         static_assert(std::is_same<decltype(x3), T>::value,
                       "Expected decltype(ptr_3->x) == T");
+        static_assert(std::is_same<decltype(x4), T>::value,
+                      "Expected decltype(ptr_4->x) == T");
       });
     });
   }

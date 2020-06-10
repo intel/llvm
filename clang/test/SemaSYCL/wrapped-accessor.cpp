@@ -23,11 +23,11 @@ int main() {
 }
 
 // Check declaration of the kernel
-// CHECK: wrapped_access{{.*}} 'void (AccWrapper<cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::global_buffer, cl::sycl::access::placeholder::false_t>>, __global int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>)'
+// CHECK: wrapped_access{{.*}} 'void (AccWrapper<cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::global_buffer, cl::sycl::access::placeholder::false_t>>, __global_device int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>)'
 
 // Check parameters of the kernel
 // CHECK: ParmVarDecl {{.*}} used _arg_ 'AccWrapper<cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::global_buffer, cl::sycl::access::placeholder::false_t>>':'AccWrapper<cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::global_buffer, cl::sycl::access::placeholder::false_t>>'
-// CHECK: ParmVarDecl {{.*}} used _arg_accessor '__global int *'
+// CHECK: ParmVarDecl {{.*}} used _arg_accessor '__global_device int *'
 // CHECK: ParmVarDecl {{.*}} used [[_arg_AccessRange:[0-9a-zA-Z_]+]] 'cl::sycl::range<1>'
 // CHECK: ParmVarDecl {{.*}} used [[_arg_MemRange:[0-9a-zA-Z_]+]] 'cl::sycl::range<1>'
 // CHECK: ParmVarDecl {{.*}} used [[_arg_Offset:[0-9a-zA-Z_]+]] 'cl::sycl::id<1>'
@@ -49,7 +49,7 @@ int main() {
 
 // Parameters of the _init method
 // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
-// CHECK-NEXT: DeclRefExpr {{.*}} '__global int *' lvalue ParmVar {{.*}} '_arg_accessor' '__global int *'
+// CHECK-NEXT: DeclRefExpr {{.*}} '__global_device int *' lvalue ParmVar {{.*}} '_arg_accessor' '__global_device int *'
 
 // CHECK-NEXT: CXXConstructExpr {{.*}} 'range<1>':'cl::sycl::range<1>'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'const cl::sycl::range<1>' lvalue <NoOp>
