@@ -119,11 +119,11 @@ typedef CL_API_ENTRY void *(CL_API_CALL *clSharedMemAllocINTEL_fn)(
 
 extern CL_API_ENTRY cl_int CL_API_CALL
 clMemFreeINTEL(cl_context context,
-               const void *ptr); // TBD: const?
+               void *ptr); // TBD: const?
 
 typedef CL_API_ENTRY
 cl_int(CL_API_CALL *clMemFreeINTEL_fn)(cl_context context,
-                                       const void *ptr); // TBD: const?
+                                       void *ptr); // TBD: const?
 
 extern CL_API_ENTRY cl_int CL_API_CALL clGetMemAllocInfoINTEL(
     cl_context context, const void *ptr, cl_mem_info_intel param_name,
