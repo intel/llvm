@@ -1125,6 +1125,7 @@ def SYCLDevice : InheritableAttr {
   let Subjects = SubjectList<[Function]>;
   let LangOpts = [SYCLIsDevice];
   let Documentation = [SYCLDeviceDocs];
+  let PragmaAttributeSupport = 0;
 }
 
 def SYCLKernel : InheritableAttr {
@@ -1132,6 +1133,19 @@ def SYCLKernel : InheritableAttr {
   let Subjects = SubjectList<[FunctionTmpl]>;
   let LangOpts = [SYCLIsDevice];
   let Documentation = [SYCLKernelDocs];
+}
+
+// Available in SYCL explicit SIMD extension. Binds a file scope private
+// variable to a specific register.
+def SYCLRegisterNum : InheritableAttr {
+  let Spellings = [GNU<"register_num">, Declspec<"register_num">];
+  let Args = [UnsignedArgument<"Number">];
+  let Subjects = SubjectList<[GlobalVar]>;
+  // This attribute is applied to file-scope variables and must be compilable
+  // for the host device as well
+  let LangOpts = [SYCLExplicitSIMD];
+  let Documentation = [SYCLRegisterNumDocs];
+  let PragmaAttributeSupport = 0;
 }
 
 def SYCLScope : Attr {
@@ -1160,6 +1174,7 @@ def SYCLDeviceIndirectlyCallable : InheritableAttr {
   let Subjects = SubjectList<[Function]>;
   let LangOpts = [SYCLIsDevice];
   let Documentation = [SYCLDeviceIndirectlyCallableDocs];
+  let PragmaAttributeSupport = 0;
 }
 
 def SYCLIntelKernelArgsRestrict : InheritableAttr {
@@ -1168,6 +1183,7 @@ def SYCLIntelKernelArgsRestrict : InheritableAttr {
   let LangOpts = [ SYCLIsDevice, SYCLIsHost ];
   let Documentation = [ SYCLIntelKernelArgsRestrictDocs ];
   let SimpleHandler = 1;
+  let PragmaAttributeSupport = 0;
 }
 
 def SYCLIntelNumSimdWorkItems : InheritableAttr {
@@ -1262,10 +1278,11 @@ def LoopUnrollHint : InheritableAttr {
 
 def IntelReqdSubGroupSize: InheritableAttr {
   let Spellings = [GNU<"intel_reqd_sub_group_size">, CXX11<"cl", "intel_reqd_sub_group_size">];
-  let Args = [UnsignedArgument<"SubGroupSize">];
+  let Args = [ExprArgument<"SubGroupSize">];
   let Subjects = SubjectList<[Function, CXXMethod], ErrorDiag>;
   let Documentation = [IntelReqdSubGroupSizeDocs];
   let LangOpts = [OpenCL, SYCLIsDevice, SYCLIsHost];
+  let PragmaAttributeSupport = 0;
 }
 
 // This attribute is both a type attribute, and a declaration attribute (for
@@ -1292,6 +1309,16 @@ def OpenCLPrivateAddressSpace : TypeAttr {
 def OpenCLGlobalAddressSpace : TypeAttr {
   let Spellings = [Keyword<"__global">, Keyword<"global">, Clang<"opencl_global">];
   let Documentation = [OpenCLAddressSpaceGlobalDocs];
+}
+
+def OpenCLGlobalDeviceAddressSpace : TypeAttr {
+  let Spellings = [Clang<"opencl_global_device">];
+  let Documentation = [OpenCLGlobalAddressSpacesDocs];
+}
+
+def OpenCLGlobalHostAddressSpace : TypeAttr {
+  let Spellings = [Clang<"opencl_global_host">];
+  let Documentation = [OpenCLGlobalAddressSpacesDocs];
 }
 
 def OpenCLLocalAddressSpace : TypeAttr {

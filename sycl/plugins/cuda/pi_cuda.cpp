@@ -1521,7 +1521,15 @@ pi_result cuda_piMemBufferCreate(pi_context context, pi_mem_flags flags,
       if (piMemObj != nullptr) {
         retMemObj = piMemObj.release();
         if (performInitialCopy) {
+          // Operates on the default stream of the current CUDA context.
           retErr = PI_CHECK_ERROR(cuMemcpyHtoD(ptr, host_ptr, size));
+          // Synchronize with default stream implicitly used by cuMemcpyHtoD
+          // to make buffer data available on device before any other PI call
+          // uses it.
+          if (retErr == PI_SUCCESS) {
+            CUstream defaultStream = 0;
+            retErr = PI_CHECK_ERROR(cuStreamSynchronize(defaultStream));
+          }
         }
       } else {
         retErr = PI_OUT_OF_HOST_MEMORY;
@@ -3602,11 +3610,6 @@ pi_result cuda_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
       pi_device device = platform->devices_[value].get();
       return getInfo(param_value_size, param_value, param_value_size_ret,
                      device);
-    }
-    // not documented/implemented yet
-    case PI_MEM_ALLOC_INFO_TBD0:
-    case PI_MEM_ALLOC_INFO_TBD1: {
-      return PI_INVALID_VALUE;
     }
     }
   } catch (pi_result error) {

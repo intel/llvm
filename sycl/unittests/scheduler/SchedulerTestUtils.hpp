@@ -29,7 +29,7 @@ public:
       : Command{cl::sycl::detail::Command::EMPTY_TASK, Queue},
         MRequirement{std::move(getMockRequirement())} {}
 
-  void printDot(std::ostream &Stream) const override {}
+  void printDot(std::ostream &) const override {}
   void emitInstrumentationData() override {}
 
   const cl::sycl::detail::Requirement *getRequirement() const final {

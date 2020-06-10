@@ -1279,7 +1279,8 @@ void CodeGenModule::EmitCtorList(CtorList &Fns, const char *GlobalName) {
     ctor.addInt(Int32Ty, I.Priority);
     ctor.add(llvm::ConstantExpr::getBitCast(I.Initializer, CtorPFTy));
     if (I.AssociatedData)
-      ctor.add(llvm::ConstantExpr::getBitCast(I.AssociatedData, VoidPtrTy));
+      ctor.add(llvm::ConstantExpr::getPointerBitCastOrAddrSpaceCast(
+          I.AssociatedData, VoidPtrTy));
     else
       ctor.addNullPointer(VoidPtrTy);
     ctor.finishAndAddTo(ctors);
@@ -1363,10 +1364,18 @@ static void removeImageAccessQualifier(std::string& TyName) {
 // (basically all single AS CPUs).
 static unsigned ArgInfoAddressSpace(LangAS AS) {
   switch (AS) {
-  case LangAS::opencl_global:   return 1;
-  case LangAS::opencl_constant: return 2;
-  case LangAS::opencl_local:    return 3;
-  case LangAS::opencl_generic:  return 4; // Not in SPIR 2.0 specs.
+  case LangAS::opencl_global:
+    return 1;
+  case LangAS::opencl_constant:
+    return 2;
+  case LangAS::opencl_local:
+    return 3;
+  case LangAS::opencl_generic:
+    return 4; // Not in SPIR 2.0 specs.
+  case LangAS::opencl_global_device:
+    return 11;
+  case LangAS::opencl_global_host:
+    return 12;
   default:
     return 0; // Assume private.
   }
@@ -3861,6 +3870,8 @@ LangAS CodeGenModule::GetGlobalVarAddressSpace(const VarDecl *D) {
   if (LangOpts.OpenCL) {
     AddrSpace = D ? D->getType().getAddressSpace() : LangAS::opencl_global;
     assert(AddrSpace == LangAS::opencl_global ||
+           AddrSpace == LangAS::opencl_global_device ||
+           AddrSpace == LangAS::opencl_global_host ||
            AddrSpace == LangAS::opencl_constant ||
            AddrSpace == LangAS::opencl_local ||
            AddrSpace >= LangAS::FirstTargetAddressSpace);
@@ -4405,8 +4416,12 @@ void CodeGenModule::EmitGlobalVarDefinition(const VarDecl *D,
     if (getCodeGenOpts().hasReducedDebugInfo())
       DI->EmitGlobalVariable(GV, D);
 
-  if (LangOpts.SYCLIsDevice)
+  if (LangOpts.SYCLIsDevice) {
     maybeEmitPipeStorageMetadata(D, GV, *this);
+    // Notify SYCL code generation infrastructure that a global variable is
+    // being generated.
+    getSYCLRuntime().actOnGlobalVarEmit(*this, *D, GV);
+  }
 }
 
 void CodeGenModule::EmitExternalVarDeclaration(const VarDecl *D) {

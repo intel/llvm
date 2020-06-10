@@ -10822,8 +10822,10 @@ def err_sycl_non_trivially_copy_ctor_dtor_type
             "constructible|destructible}0 class/struct type %1">;
 def err_sycl_non_std_layout_type : Error<
   "kernel parameter has non-standard layout class/struct type %0">;
+def err_sycl_non_constant_array_type : Error<
+  "kernel parameter is not a constant size array %0">;
 def err_conflicting_sycl_kernel_attributes : Error<
-  "conflicting attributes applied to a SYCL kernel">;
+  "conflicting attributes applied to a SYCL kernel or SYCL_EXTERNAL function">;
 def err_conflicting_sycl_function_attributes : Error<
    "%0 attribute conflicts with '%1' attribute">;
 def err_sycl_x_y_z_arguments_must_be_one : Error<
@@ -10888,4 +10890,6 @@ def err_ext_int_bad_size : Error<"%select{signed|unsigned}0 _ExtInt must "
                                  "have a bit size of at least %select{2|1}0">;
 def err_ext_int_max_size : Error<"%select{signed|unsigned}0 _ExtInt of bit "
                                  "sizes greater than %1 not supported">;
+def err_esimd_glob_cant_init : Error<
+  "SYCL explicit SIMD does not permit private global variable to have an initializer">;
 } // end of sema component.

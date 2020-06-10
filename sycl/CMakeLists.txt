@@ -305,6 +305,7 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      sycl-headers-extras
      sycl
      pi_opencl
+     pi_level0
      libsycldevice
 )
 if(OpenCL_INSTALL_KHRONOS_ICD_LOADER AND TARGET ocl-icd)
