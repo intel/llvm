@@ -5280,16 +5280,21 @@ void Sema::InstantiateVariableDefinition(SourceLocation PointOfInstantiation,
 
   // Make sure to pass the instantiated variable to the consumer at the end.
   struct PassToConsumerRAII {
+    Sema &SemaRef;
     ASTConsumer &Consumer;
     VarDecl *Var;
 
-    PassToConsumerRAII(ASTConsumer &Consumer, VarDecl *Var)
-      : Consumer(Consumer), Var(Var) { }
+    PassToConsumerRAII(Sema &SemaRef, ASTConsumer &Consumer, VarDecl *Var)
+        : SemaRef(SemaRef), Consumer(Consumer), Var(Var) {}
 
     ~PassToConsumerRAII() {
-      Consumer.HandleCXXStaticMemberVarInstantiation(Var);
+      // Do not explicitly emit non-const static data member definitions
+      // on SYCL device.
+      if (!SemaRef.getLangOpts().SYCLIsDevice || !Var->isStaticDataMember() ||
+          Var->isConstexpr() || Var->getType().isConstQualified())
+        Consumer.HandleCXXStaticMemberVarInstantiation(Var);
     }
-  } PassToConsumerRAII(Consumer, Var);
+  } PassToConsumerRAII(*this, Consumer, Var);
 
   // If we already have a definition, we're done.
   if (VarDecl *Def = Var->getDefinition()) {

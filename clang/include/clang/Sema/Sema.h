@@ -12582,7 +12582,7 @@ public:
 private:
   // We store SYCL Kernels here and handle separately -- which is a hack.
   // FIXME: It would be best to refactor this.
-  SmallVector<Decl*, 4> SyclDeviceDecls;
+  llvm::SetVector<Decl *> SyclDeviceDecls;
   // SYCL integration header instance for current compilation unit this Sema
   // is associated with.
   std::unique_ptr<SYCLIntegrationHeader> SyclIntHeader;
@@ -12593,8 +12593,8 @@ private:
   bool ConstructingOpenCLKernel = false;
 
 public:
-  void addSyclDeviceDecl(Decl *d) { SyclDeviceDecls.push_back(d); }
-  SmallVectorImpl<Decl *> &syclDeviceDecls() { return SyclDeviceDecls; }
+  void addSyclDeviceDecl(Decl *d) { SyclDeviceDecls.insert(d); }
+  llvm::SetVector<Decl *> &syclDeviceDecls() { return SyclDeviceDecls; }
 
   /// Lazily creates and returns SYCL integration header instance.
   SYCLIntegrationHeader &getSyclIntegrationHeader() {
@@ -12664,6 +12664,14 @@ public:
   void finalizeSYCLDelayedAnalysis(const FunctionDecl *Caller,
                                    const FunctionDecl *Callee,
                                    SourceLocation Loc);
+
+  /// Tells whether given variable is a SYCL explicit SIMD extension's "private
+  /// global" variable - global variable in the private address space.
+  bool isSYCLEsimdPrivateGlobal(VarDecl *VDecl) {
+    return getLangOpts().SYCLIsDevice && getLangOpts().SYCLExplicitSIMD &&
+           VDecl->hasGlobalStorage() &&
+           (VDecl->getType().getAddressSpace() != LangAS::opencl_constant);
+  }
 };
 
 template <typename AttrType>
