@@ -446,8 +446,8 @@ public:
 #endif
     return submit(
         [&](handler &CGH) {
-          CGH.template parallel_for<KernelName, KernelType, Dims>(NumWorkItems,
-                                                                  KernelFunc);
+          CGH.template parallel_for<KernelName, KernelType>(NumWorkItems,
+                                                            KernelFunc);
         },
         CodeLoc);
   }
@@ -474,8 +474,8 @@ public:
     return submit(
         [&](handler &CGH) {
           CGH.depends_on(DepEvent);
-          CGH.template parallel_for<KernelName, KernelType, Dims>(NumWorkItems,
-                                                                  KernelFunc);
+          CGH.template parallel_for<KernelName, KernelType>(NumWorkItems,
+                                                            KernelFunc);
         },
         CodeLoc);
   }
@@ -504,8 +504,8 @@ public:
     return submit(
         [&](handler &CGH) {
           CGH.depends_on(DepEvents);
-          CGH.template parallel_for<KernelName, KernelType, Dims>(NumWorkItems,
-                                                                  KernelFunc);
+          CGH.template parallel_for<KernelName, KernelType>(NumWorkItems,
+                                                            KernelFunc);
         },
         CodeLoc);
   }
@@ -531,7 +531,7 @@ public:
 #endif
     return submit(
         [&](handler &CGH) {
-          CGH.template parallel_for<KernelName, KernelType, Dims>(
+          CGH.template parallel_for<KernelName, KernelType>(
               NumWorkItems, WorkItemOffset, KernelFunc);
         },
         CodeLoc);
@@ -561,7 +561,7 @@ public:
     return submit(
         [&](handler &CGH) {
           CGH.depends_on(DepEvent);
-          CGH.template parallel_for<KernelName, KernelType, Dims>(
+          CGH.template parallel_for<KernelName, KernelType>(
               NumWorkItems, WorkItemOffset, KernelFunc);
         },
         CodeLoc);
@@ -592,7 +592,7 @@ public:
     return submit(
         [&](handler &CGH) {
           CGH.depends_on(DepEvents);
-          CGH.template parallel_for<KernelName, KernelType, Dims>(
+          CGH.template parallel_for<KernelName, KernelType>(
               NumWorkItems, WorkItemOffset, KernelFunc);
         },
         CodeLoc);
@@ -619,8 +619,8 @@ public:
 #endif
     return submit(
         [&](handler &CGH) {
-          CGH.template parallel_for<KernelName, KernelType, Dims>(
-              ExecutionRange, KernelFunc);
+          CGH.template parallel_for<KernelName, KernelType>(ExecutionRange,
+                                                            KernelFunc);
         },
         CodeLoc);
   }
@@ -648,8 +648,8 @@ public:
     return submit(
         [&](handler &CGH) {
           CGH.depends_on(DepEvent);
-          CGH.template parallel_for<KernelName, KernelType, Dims>(
-              ExecutionRange, KernelFunc);
+          CGH.template parallel_for<KernelName, KernelType>(ExecutionRange,
+                                                            KernelFunc);
         },
         CodeLoc);
   }
@@ -679,8 +679,8 @@ public:
     return submit(
         [&](handler &CGH) {
           CGH.depends_on(DepEvents);
-          CGH.template parallel_for<KernelName, KernelType, Dims>(
-              ExecutionRange, KernelFunc);
+          CGH.template parallel_for<KernelName, KernelType>(ExecutionRange,
+                                                            KernelFunc);
         },
         CodeLoc);
   }

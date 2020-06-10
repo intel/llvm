@@ -11979,6 +11979,13 @@ void Sema::AddInitializerToDecl(Decl *RealDecl, Expr *Init, bool DirectInit) {
     VDecl->setInvalidDecl();
     return;
   }
+  // In the SYCL explicit SIMD extension non constant "private globals" can't
+  // be explicitly initialized in the declaration.
+  if (isSYCLEsimdPrivateGlobal(VDecl)) {
+    Diag(VDecl->getLocation(), diag::err_esimd_glob_cant_init);
+    VDecl->setInvalidDecl();
+    return;
+  }
 
   // The LoaderUninitialized attribute acts as a definition (of undef).
   if (VDecl->hasAttr<LoaderUninitializedAttr>()) {
@@ -12578,6 +12585,11 @@ void Sema::ActOnUninitializedDecl(Decl *RealDecl) {
     if (getLangOpts().OpenCL &&
         Var->getType().getAddressSpace() == LangAS::opencl_local)
       return;
+    // In SYCL explicit SIMD extension "private global" variables can't be
+    // initialized even implicitly, so don't synthesize an implicit initializer.
+    if (isSYCLEsimdPrivateGlobal(Var))
+      return;
+
     // C++03 [dcl.init]p9:
     //   If no initializer is specified for an object, and the
     //   object is of (possibly cv-qualified) non-POD class type (or

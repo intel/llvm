@@ -330,6 +330,17 @@ The SYCL kernel in the previous code sample meets these expectations.
   }];
 }
 
+def SYCLRegisterNumDocs : Documentation {
+  let Category = DocCatVariable;
+  let Content = [{
+    The ``__attribute__((register_num(n)))`` attribute can be used to bind
+    "private globals" (SYCL private address space variables declared in the file
+    scope) to a particular register with number 'n'. Actual mapping of registers
+    to numbers is target-specific. For Intel GPUs 'n' is a byte offset in the
+    GRF.
+  }];
+}
+
 def C11NoReturnDocs : Documentation {
   let Category = DocCatFunction;
   let Content = [{

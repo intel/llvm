@@ -10890,4 +10890,6 @@ def err_ext_int_bad_size : Error<"%select{signed|unsigned}0 _ExtInt must "
                                  "have a bit size of at least %select{2|1}0">;
 def err_ext_int_max_size : Error<"%select{signed|unsigned}0 _ExtInt of bit "
                                  "sizes greater than %1 not supported">;
+def err_esimd_glob_cant_init : Error<
+  "SYCL explicit SIMD does not permit private global variable to have an initializer">;
 } // end of sema component.
