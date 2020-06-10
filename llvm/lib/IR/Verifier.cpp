@@ -1278,7 +1278,9 @@ void Verifier::visitDIGlobalVariable(const DIGlobalVariable &N) {
 
   AssertDI(N.getTag() == dwarf::DW_TAG_variable, "invalid tag", &N);
   AssertDI(isType(N.getRawType()), "invalid type ref", &N, N.getRawType());
-  AssertDI(N.getType(), "missing global variable type", &N);
+  // Assert only if the global variable is not an extern
+  if (N.isDefinition())
+    AssertDI(N.getType(), "missing global variable type", &N);
   if (auto *Member = N.getRawStaticDataMemberDeclaration()) {
     AssertDI(isa<DIDerivedType>(Member),
              "invalid static data member declaration", &N, Member);
@@ -2613,8 +2615,7 @@ void Verifier::visitCallBrInst(CallBrInst &CBI) {
       if (auto *BA = dyn_cast<BlockAddress>(V))
         ArgBBs.insert(BA->getBasicBlock());
     for (BasicBlock *BB : CBI.getIndirectDests())
-      Assert(ArgBBs.find(BB) != ArgBBs.end(),
-             "Indirect label missing from arglist.", &CBI);
+      Assert(ArgBBs.count(BB), "Indirect label missing from arglist.", &CBI);
   }
 
   visitTerminator(CBI);
@@ -4856,8 +4857,8 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
            "masked_load: return must match pointer type", Call);
     Assert(PassThru->getType() == DataTy,
            "masked_load: pass through and data type must match", Call);
-    Assert(cast<VectorType>(Mask->getType())->getNumElements() ==
-               cast<VectorType>(DataTy)->getNumElements(),
+    Assert(cast<VectorType>(Mask->getType())->getElementCount() ==
+               cast<VectorType>(DataTy)->getElementCount(),
            "masked_load: vector mask must be same length as data", Call);
     break;
   }
@@ -4875,8 +4876,8 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
     Type *DataTy = cast<PointerType>(Ptr->getType())->getElementType();
     Assert(DataTy == Val->getType(),
            "masked_store: storee must match pointer type", Call);
-    Assert(cast<VectorType>(Mask->getType())->getNumElements() ==
-               cast<VectorType>(DataTy)->getNumElements(),
+    Assert(cast<VectorType>(Mask->getType())->getElementCount() ==
+               cast<VectorType>(DataTy)->getElementCount(),
            "masked_store: vector mask must be same length as data", Call);
     break;
   }
