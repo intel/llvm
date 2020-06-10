@@ -160,8 +160,7 @@ if gpu_count > 0:
     config.available_features.add('gpu')
     if cuda:
        config.available_features.add('cuda')
-
-    if level0:
+    elif level0:
        config.available_features.add('level0')
 
     if platform.system() == "Linux":
