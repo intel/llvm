@@ -131,7 +131,9 @@ inline bool hasExecScope(Op OpCode) {
 
 inline bool hasGroupOperation(Op OpCode) {
   unsigned OC = OpCode;
-  return OpGroupIAdd <= OC && OC <= OpGroupSMax;
+  return (OpGroupIAdd <= OC && OC <= OpGroupSMax) ||
+         (OpGroupNonUniformBallotBitCount == OC) ||
+         (OpGroupNonUniformIAdd <= OC && OC <= OpGroupNonUniformLogicalXor);
 }
 
 inline bool isGroupOpCode(Op OpCode) {

@@ -162,6 +162,7 @@ static void dumpStringOffsetsSection(raw_ostream &OS, DIDumpOptions DumpOpts,
     }
 
     dwarf::DwarfFormat Format = Contribution->getFormat();
+    int OffsetDumpWidth = 2 * dwarf::getDwarfOffsetByteSize(Format);
     uint16_t Version = Contribution->getVersion();
     uint64_t ContributionHeader = Contribution->Base;
     // In DWARF v5 there is a contribution header that immediately precedes
@@ -198,7 +199,7 @@ static void dumpStringOffsetsSection(raw_ostream &OS, DIDumpOptions DumpOpts,
       OS << format("0x%8.8" PRIx64 ": ", Offset);
       uint64_t StringOffset =
           StrOffsetExt.getRelocatedValue(EntrySize, &Offset);
-      OS << format("%8.8" PRIx64 " ", StringOffset);
+      OS << format("%0*" PRIx64 " ", OffsetDumpWidth, StringOffset);
       const char *S = StrData.getCStr(&StringOffset);
       if (S)
         OS << format("\"%s\"", S);
@@ -263,9 +264,13 @@ std::unique_ptr<DWARFDebugMacro>
 DWARFContext::parseMacroOrMacinfo(MacroSecType SectionType) {
   auto Macro = std::make_unique<DWARFDebugMacro>();
   auto ParseAndDump = [&](DWARFDataExtractor &Data, bool IsMacro) {
-    // FIXME: Add support for debug_macro.dwo section.
-    if (Error Err = IsMacro ? Macro->parseMacro(compile_units(),
-                                                getStringExtractor(), Data)
+    if (Error Err = IsMacro ? Macro->parseMacro(SectionType == MacroSection
+                                                    ? compile_units()
+                                                    : dwo_compile_units(),
+                                                SectionType == MacroSection
+                                                    ? getStringExtractor()
+                                                    : getStringDWOExtractor(),
+                                                Data)
                             : Macro->parseMacinfo(Data)) {
       RecoverableErrorHandler(std::move(Err));
       Macro = nullptr;
@@ -285,6 +290,11 @@ DWARFContext::parseMacroOrMacinfo(MacroSecType SectionType) {
   case MacroSection: {
     DWARFDataExtractor Data(*DObj, DObj->getMacroSection(), isLittleEndian(),
                             0);
+    ParseAndDump(Data, /*IsMacro=*/true);
+    break;
+  }
+  case MacroDwoSection: {
+    DWARFDataExtractor Data(DObj->getMacroDWOSection(), isLittleEndian(), 0);
     ParseAndDump(Data, /*IsMacro=*/true);
     break;
   }
@@ -458,6 +468,12 @@ void DWARFContext::dump(
                  DObj->getMacroSection().Data)) {
     if (auto Macro = getDebugMacro())
       Macro->dump(OS);
+  }
+
+  if (shouldDump(Explicit, ".debug_macro.dwo", DIDT_ID_DebugMacro,
+                 DObj->getMacroDWOSection())) {
+    if (auto MacroDWO = getDebugMacroDWO())
+      MacroDWO->dump(OS);
   }
 
   if (shouldDump(Explicit, ".debug_macinfo", DIDT_ID_DebugMacro,
@@ -842,6 +858,12 @@ const DWARFDebugMacro *DWARFContext::getDebugMacro() {
   if (!Macro)
     Macro = parseMacroOrMacinfo(MacroSection);
   return Macro.get();
+}
+
+const DWARFDebugMacro *DWARFContext::getDebugMacroDWO() {
+  if (!MacroDWO)
+    MacroDWO = parseMacroOrMacinfo(MacroDwoSection);
+  return MacroDWO.get();
 }
 
 const DWARFDebugMacro *DWARFContext::getDebugMacinfo() {
@@ -1533,6 +1555,7 @@ class DWARFObjInMemory final : public DWARFObject {
   StringRef StrSection;
   StringRef MacinfoSection;
   StringRef MacinfoDWOSection;
+  StringRef MacroDWOSection;
   StringRef AbbrevDWOSection;
   StringRef StrDWOSection;
   StringRef CUIndexSection;
@@ -1553,6 +1576,7 @@ class DWARFObjInMemory final : public DWARFObject {
         .Case("debug_str", &StrSection)
         .Case("debug_macinfo", &MacinfoSection)
         .Case("debug_macinfo.dwo", &MacinfoDWOSection)
+        .Case("debug_macro.dwo", &MacroDWOSection)
         .Case("debug_abbrev.dwo", &AbbrevDWOSection)
         .Case("debug_str.dwo", &StrDWOSection)
         .Case("debug_cu_index", &CUIndexSection)
@@ -1871,6 +1895,7 @@ public:
     return RnglistsSection;
   }
   const DWARFSection &getMacroSection() const override { return MacroSection; }
+  StringRef getMacroDWOSection() const override { return MacroDWOSection; }
   StringRef getMacinfoSection() const override { return MacinfoSection; }
   StringRef getMacinfoDWOSection() const override { return MacinfoDWOSection; }
   const DWARFSection &getPubnamesSection() const override { return PubnamesSection; }

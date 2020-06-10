@@ -206,6 +206,81 @@ int main() {
       return 1;
     }
 
+    // Local Size larger than Global.
+    // CL_INVALID_WORK_GROUP_SIZE if local_work_size is specified as larger
+    // than the global size, then a different error string is used.
+    // This is a sub-case of the more general 'non-uniform work group'
+    try {
+      // parallel_for, 16 global, 17 local -> fail
+      Q.submit([&](handler &CGH) {
+        CGH.parallel_for<class OpenCL1XNegativeA2>(
+            nd_range<1>(range<1>(16), range<1>(17)), [=](nd_item<1>) {});
+      });
+      Q.wait_and_throw();
+      // FIXME: some Intel runtimes contain bug and don't return expected
+      // error code
+      if (info::device_type::accelerator != DeviceType ||
+          DeviceVendorName.find("Intel") == string_class::npos) {
+        std::cerr
+            << "Test case OpenCL1XNegativeA2 failed: no exception has been "
+               "thrown\n";
+        return 1; // We shouldn't be here, exception is expected
+      }
+    } catch (nd_range_error &E) {
+      if (string_class(E.what()).find("Local workgroup size cannot be greater than global range in any dimension") == string_class::npos) {
+        std::cerr
+            << "Test case OpenCL1XNegativeA2 failed: unexpected exception: "
+            << E.what() << std::endl;
+        return 1;
+      }
+    } catch (runtime_error &E) {
+      std::cerr << "Test case OpenCL1XNegativeA2 failed: unexpected exception: "
+                << E.what() << std::endl;
+      return 1;
+    } catch (...) {
+      std::cerr << "Test case OpenCL1XNegativeA2 failed: something unexpected "
+                   "has been caught"
+                << std::endl;
+      return 1;
+    }
+
+    // Local Size larger than Global, multi-dimensional
+    // This is a sub-case of the more general 'non-uniform work group'
+    try {
+      // parallel_for, 6, 6, 6 global, 2, 2, 7 local -> fail
+      Q.submit([&](handler &CGH) {
+        CGH.parallel_for<class OpenCL1XNegativeB2>(
+            nd_range<3>(range<3>(6, 6, 6), range<3>(2, 2, 7)),
+            [=](nd_item<3>) {});
+      });
+      Q.wait_and_throw();
+      // FIXME: some Intel runtimes contain bug and don't return expected
+      // error code
+      if (info::device_type::accelerator != DeviceType ||
+          DeviceVendorName.find("Intel") == string_class::npos) {
+        std::cerr
+            << "Test case OpenCL1XNegativeB2 failed: no exception has been "
+               "thrown\n";
+        return 1; // We shouldn't be here, exception is expected
+      }
+    } catch (nd_range_error &E) {
+      if (string_class(E.what()).find("Local workgroup size cannot be greater than global range in any dimension") == string_class::npos) {
+        std::cerr
+            << "Test case OpenCL1XNegativeB2 failed: unexpected exception: "
+            << E.what() << std::endl;
+        return 1;
+      }
+    } catch (runtime_error &E) {
+      std::cerr << "Test case OpenCL1XNegativeB2 failed: unexpected exception: "
+                << E.what() << std::endl;
+      return 1;
+    } catch (...) {
+      std::cerr << "Test case OpenCL1XNegativeB2 failed: something unexpected "
+                   "has been caught"
+                << std::endl;
+      return 1;
+    }
+
     // CL_INVALID_WORK_GROUP_SIZE if local_work_size is specified and the
     // total number of work-items in the work-group computed as
     // local_work_size[0] * ... * local_work_size[work_dim – 1] is greater
@@ -382,6 +457,94 @@ int main() {
       }
     }
 
+    // Local Size larger than Global.
+    // CL_INVALID_WORK_GROUP_SIZE if local_work_size is specified as larger
+    // than the global size, then a different error string is used.
+    // This is a sub-case of the more general 'non-uniform work group'
+    {
+      try {
+        // parallel_for, 16 global, 17 local -> fail
+        Q.submit([&](handler &CGH) {
+          CGH.parallel_for<class OpenCL2XNegativeB2>(
+              nd_range<1>(range<1>(16), range<1>(17)), [=](nd_item<1>) {});
+        });
+        Q.wait_and_throw();
+        // FIXME: some Intel runtimes contain bug and don't return expected
+        // error code
+        if (info::device_type::cpu != DeviceType ||
+            DeviceVendorName.find("Intel") == string_class::npos) {
+          std::cerr
+              << "Test case OpenCL2XNegativeB2 failed: no exception has been "
+                 "thrown\n";
+          return 1; // We shouldn't be here, exception is expected
+        }
+      } catch (nd_range_error &E) {
+        if (string_class(E.what()).find(
+                "Local workgroup size greater than global range size. "
+                "Non-uniform work-groups are not allowed by default. Underlying "
+                "OpenCL 2.x implementation supports this feature and to enable "
+                "it, build device program with -cl-std=CL2.0") == string_class::npos) {
+          std::cerr
+              << "Test case OpenCL2XNegativeB2 failed: unexpected exception: "
+              << E.what() << std::endl;
+          return 1;
+        }
+      } catch (runtime_error &E) {
+        std::cerr
+            << "Test case OpenCL2XNegativeB2 failed: unexpected exception: "
+            << E.what() << std::endl;
+        return 1;
+      } catch (...) {
+        std::cerr << "Test case OpenCL2XNegativeB2 failed: something unexpected "
+                     "has been caught"
+                  << std::endl;
+        return 1;
+      }
+
+      // Local Size larger than Global, multi-dimensional
+      // This is a sub-case of the more general 'non-uniform work group'
+      try {
+        // parallel_for, 6, 6, 6 global, 2, 2, 7 local -> fail
+        Q.submit([&](handler &CGH) {
+          CGH.parallel_for<class OpenCL2XNegativeC2>(
+              nd_range<3>(range<3>(6, 6, 6), range<3>(2, 2, 7)),
+              [=](nd_item<3>) {});
+        });
+        Q.wait_and_throw();
+        // FIXME: some Intel runtimes contain bug and don't return expected
+        // error code
+        if (info::device_type::cpu != DeviceType ||
+            DeviceVendorName.find("Intel") == string_class::npos) {
+          std::cerr
+              << "Test case OpenCL2XNegativeC2 failed: no exception has been "
+                 "thrown\n";
+          return 1; // We shouldn't be here, exception is expected
+        }
+      } catch (nd_range_error &E) {
+        if (string_class(E.what()).find(
+                "Local workgroup size greater than global range size. "
+                "Non-uniform work-groups are not allowed by default. "
+                "Underlying OpenCL 2.x implementation supports this feature "
+                "and to enable it, build device program with -cl-std=CL2.0") ==
+            string_class::npos) {
+          std::cerr
+              << "Test case OpenCL2XNegativeC2 failed: unexpected exception: "
+              << E.what() << std::endl;
+          return 1;
+        }
+      } catch (runtime_error &E) {
+        std::cerr
+            << "Test case OpenCL2XNegativeC2 failed: unexpected exception: "
+            << E.what() << std::endl;
+        return 1;
+      } catch (...) {
+        std::cerr << "Test case OpenCL2XNegativeC2 failed: something unexpected "
+                     "has been caught"
+                  << std::endl;
+        return 1;
+      }
+    }
+
     // Enable non-uniform work-groups by passing -cl-std=CL2.0
     {
       program P(Q.get_context());
@@ -412,7 +575,7 @@ int main() {
         return 1;
       }
     }
-
+    // Multi-dimensional nd_range.
     {
       program P(Q.get_context());
       P.build_with_kernel_type<class OpenCL2XPositiveB>("-cl-std=CL2.0");
@@ -474,10 +637,10 @@ int main() {
         }
       } catch (nd_range_error &E) {
         if (string_class(E.what()).find(
-                "Non-uniform work-groups are not allowed by default. "
-                "Underlying OpenCL 2.x implementation supports this feature, "
-                "but it is disabled by -cl-uniform-work-group-size build "
-                "flag") == string_class::npos) {
+                "Global_work_size not evenly divisible by local_work_size. "
+                "Non-uniform work-groups are not allowed by when -cl-uniform-work-group-size flag is used. Underlying "
+                "OpenCL 2.x implementation supports this feature, but it is being "
+                "disabled by -cl-uniform-work-group-size build flag") == string_class::npos) {
           std::cerr
               << "Test case OpenCL2XNegativeD failed: unexpected exception: "
               << E.what() << std::endl;
@@ -495,7 +658,7 @@ int main() {
         return 1;
       }
     }
-
+    // Multi-dimensional nd_range.
     {
       program P(Q.get_context());
       P.build_with_kernel_type<class OpenCL2XNegativeE>(
@@ -521,10 +684,10 @@ int main() {
         }
       } catch (nd_range_error &E) {
         if (string_class(E.what()).find(
-                "Non-uniform work-groups are not allowed by default. "
-                "Underlying OpenCL 2.x implementation supports this feature, "
-                "but it is disabled by -cl-uniform-work-group-size build "
-                "flag") == string_class::npos) {
+                "Global_work_size not evenly divisible by local_work_size. "
+                "Non-uniform work-groups are not allowed by when -cl-uniform-work-group-size flag is used. Underlying "
+                "OpenCL 2.x implementation supports this feature, but it is being "
+                "disabled by -cl-uniform-work-group-size build flag") == string_class::npos) {
           std::cerr
               << "Test case OpenCL2XNegativeE failed: unexpected exception: "
               << E.what() << std::endl;
@@ -537,6 +700,103 @@ int main() {
         return 1;
       } catch (...) {
         std::cerr << "Test case OpenCL2XNegativeE failed: something unexpected "
+                     "has been caught"
+                  << std::endl;
+        return 1;
+      }
+    }
+
+    // Local Size larger than Global, -cl-std=CL2.0 -cl-uniform-work-group-size flag used
+    // CL_INVALID_WORK_GROUP_SIZE if local_work_size is specified as larger
+    // than the global size, then a different error string is used.
+    // This is a sub-case of the more general 'non-uniform work group'
+    {
+      program P(Q.get_context());
+      P.build_with_kernel_type<class OpenCL2XNegativeD2>(
+          "-cl-std=CL2.0 -cl-uniform-work-group-size");
+
+      kernel K = P.get_kernel<class OpenCL2XNegativeD2>();
+      try {
+        // parallel_for, 16 global, 17 local -> fail
+        Q.submit([&](handler &CGH) {
+          CGH.parallel_for<class OpenCL2XNegativeD2>(
+              K, nd_range<1>(range<1>(16), range<1>(17)), [=](nd_item<1>) {});
+        });
+        Q.wait_and_throw();
+        // FIXME: some Intel runtimes contain bug and don't return expected
+        // error code
+        if (info::device_type::cpu != DeviceType ||
+            DeviceVendorName.find("Intel") == string_class::npos) {
+          std::cerr
+              << "Test case OpenCL2XNegativeD2 failed: no exception has been "
+                 "thrown\n";
+          return 1; // We shouldn't be here, exception is expected
+        }
+      } catch (nd_range_error &E) {
+        if (string_class(E.what()).find(
+                "Local workgroup size greater than global range size. "
+                "Non-uniform work-groups are not allowed by when -cl-uniform-work-group-size flag is used. Underlying "
+                "OpenCL 2.x implementation supports this feature, but it is being "
+                "disabled by -cl-uniform-work-group-size build flag") == string_class::npos) {
+          std::cerr
+              << "Test case OpenCL2XNegativeD2 failed: unexpected exception: "
+              << E.what() << std::endl;
+          return 1;
+        }
+      } catch (runtime_error &E) {
+        std::cerr
+            << "Test case OpenCL2XNegativeD2 failed: unexpected exception: "
+            << E.what() << std::endl;
+        return 1;
+      } catch (...) {
+        std::cerr << "Test case OpenCL2XNegativeD2 failed: something unexpected "
+                     "has been caught"
+                  << std::endl;
+        return 1;
+      }
+    }
+    // Multi-dimensional nd_range.
+    {
+      program P(Q.get_context());
+      P.build_with_kernel_type<class OpenCL2XNegativeE2>(
+          "-cl-std=CL2.0 -cl-uniform-work-group-size");
+
+      kernel K = P.get_kernel<class OpenCL2XNegativeE2>();
+      try {
+        // parallel_for, 6, 6, 6 global, 2, 2, 7 local -> fail
+        Q.submit([&](handler &CGH) {
+          CGH.parallel_for<class OpenCL2XNegativeE2>(
+              K, nd_range<3>(range<3>(6, 6, 6), range<3>(2, 2, 7)),
+              [=](nd_item<3>) {});
+        });
+        Q.wait_and_throw();
+        // FIXME: some Intel runtimes contain bug and don't return expected
+        // error code
+        if (info::device_type::cpu != DeviceType ||
+            DeviceVendorName.find("Intel") == string_class::npos) {
+          std::cerr
+              << "Test case OpenCL2XNegativeE2 failed: no exception has been "
+                 "thrown\n";
+          return 1; // We shouldn't be here, exception is expected
+        }
+      } catch (nd_range_error &E) {
+        if (string_class(E.what()).find(
+                "Local workgroup size greater than global range size. "
+                "Non-uniform work-groups are not allowed by when -cl-uniform-work-group-size flag is used. Underlying "
+                "OpenCL 2.x implementation supports this feature, but it is being "
+                "disabled by -cl-uniform-work-group-size build flag") == string_class::npos) {
+          std::cerr
+              << "Test case OpenCL2XNegativeE2 failed: unexpected exception: "
+              << E.what() << std::endl;
+          return 1;
+        }
+      } catch (runtime_error &E) {
+        std::cerr
+            << "Test case OpenCL2XNegativeE2 failed: unexpected exception: "
+            << E.what() << std::endl;
+        return 1;
+      } catch (...) {
+        std::cerr << "Test case OpenCL2XNegativeE2 failed: something unexpected "
                      "has been caught"
                   << std::endl;
         return 1;

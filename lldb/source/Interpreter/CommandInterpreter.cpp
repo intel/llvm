@@ -356,7 +356,7 @@ void CommandInterpreter::Initialize() {
     AddAlias("p", cmd_obj_sp, "--")->SetHelpLong("");
     AddAlias("print", cmd_obj_sp, "--")->SetHelpLong("");
     AddAlias("call", cmd_obj_sp, "--")->SetHelpLong("");
-    if (auto po = AddAlias("po", cmd_obj_sp, "-O --")) {
+    if (auto *po = AddAlias("po", cmd_obj_sp, "-O --")) {
       po->SetHelp("Evaluate an expression on the current thread.  Displays any "
                   "returned value with formatting "
                   "controlled by the type's author.");
@@ -1619,6 +1619,11 @@ Status CommandInterpreter::PreprocessCommand(std::string &command) {
                                        "for debugging for the "
                                        "expression '%s'",
                                        expr_str.c_str());
+        break;
+      case eExpressionThreadVanished:
+        error.SetErrorStringWithFormat(
+            "expression thread vanished for the expression '%s'",
+            expr_str.c_str());
         break;
       }
     }

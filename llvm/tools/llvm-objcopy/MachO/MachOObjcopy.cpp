@@ -21,7 +21,9 @@ using namespace object;
 using SectionPred = std::function<bool(const std::unique_ptr<Section> &Sec)>;
 
 static Error removeSections(const CopyConfig &Config, Object &Obj) {
-  SectionPred RemovePred = [](const std::unique_ptr<Section> &) { return false; };
+  SectionPred RemovePred = [](const std::unique_ptr<Section> &) {
+    return false;
+  };
 
   if (!Config.ToRemove.empty()) {
     RemovePred = [&Config, RemovePred](const std::unique_ptr<Section> &Sec) {
@@ -63,12 +65,16 @@ static void updateAndRemoveSymbols(const CopyConfig &Config, Object &Obj) {
       Sym.Name = std::string(I->getValue());
   }
 
-  auto RemovePred = [Config](const std::unique_ptr<SymbolEntry> &N) {
+  auto RemovePred = [Config, &Obj](const std::unique_ptr<SymbolEntry> &N) {
     if (N->Referenced)
       return false;
     if (Config.StripAll)
       return true;
     if (Config.DiscardMode == DiscardType::All && !(N->n_type & MachO::N_EXT))
+      return true;
+    // This behavior is consistent with cctools' strip.
+    if (Config.StripSwiftSymbols && (Obj.Header.Flags & MachO::MH_DYLDLINK) &&
+        Obj.SwiftVersion && *Obj.SwiftVersion && N->isSwiftSymbol())
       return true;
     return false;
   };

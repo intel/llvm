@@ -257,14 +257,29 @@ void SPIRVToOCL::visitCallSPIRVGroupBuiltin(CallInst *CI, Op OC) {
   if (!HasGroupOperation) {
     DemangledName = Prefix + DemangledName;
   } else {
-    auto GO = getArgAs<spv::GroupOperation>(CI, 1);
     StringRef Op = DemangledName;
     Op = Op.drop_front(strlen(kSPIRVName::GroupPrefix));
     bool Unsigned = Op.front() == 'u';
     if (!Unsigned)
       Op = Op.drop_front(1);
-    DemangledName = Prefix + kSPIRVName::GroupPrefix +
-                    SPIRSPIRVGroupOperationMap::rmap(GO) + '_' + Op.str();
+
+    auto GO = getArgAs<spv::GroupOperation>(CI, 1);
+    std::string GroupOp = "";
+    switch (GO) {
+    case GroupOperationReduce:
+      GroupOp = "reduce";
+      break;
+    case GroupOperationInclusiveScan:
+      GroupOp = "scan_inclusive";
+      break;
+    case GroupOperationExclusiveScan:
+      GroupOp = "scan_exclusive";
+      break;
+    default:
+      assert(!"Unsupported group operation");
+      break;
+    }
+    DemangledName = Prefix + kSPIRVName::GroupPrefix + GroupOp + '_' + Op.str();
   }
   assert(CI->getCalledFunction() && "Unexpected indirect call");
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();

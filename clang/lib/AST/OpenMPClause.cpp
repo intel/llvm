@@ -136,6 +136,7 @@ const OMPClauseWithPreInit *OMPClauseWithPreInit::get(const OMPClause *C) {
   case OMPC_to:
   case OMPC_from:
   case OMPC_use_device_ptr:
+  case OMPC_use_device_addr:
   case OMPC_is_device_ptr:
   case OMPC_unified_address:
   case OMPC_unified_shared_memory:
@@ -151,6 +152,7 @@ const OMPClauseWithPreInit *OMPClauseWithPreInit::get(const OMPClause *C) {
   case OMPC_inclusive:
   case OMPC_exclusive:
   case OMPC_uses_allocators:
+  case OMPC_affinity:
     break;
   }
 
@@ -226,6 +228,7 @@ const OMPClauseWithPostUpdate *OMPClauseWithPostUpdate::get(const OMPClause *C) 
   case OMPC_to:
   case OMPC_from:
   case OMPC_use_device_ptr:
+  case OMPC_use_device_addr:
   case OMPC_is_device_ptr:
   case OMPC_unified_address:
   case OMPC_unified_shared_memory:
@@ -241,6 +244,7 @@ const OMPClauseWithPostUpdate *OMPClauseWithPostUpdate::get(const OMPClause *C) 
   case OMPC_inclusive:
   case OMPC_exclusive:
   case OMPC_uses_allocators:
+  case OMPC_affinity:
     break;
   }
 
@@ -1196,6 +1200,53 @@ OMPUseDevicePtrClause::CreateEmpty(const ASTContext &C,
   return new (Mem) OMPUseDevicePtrClause(Sizes);
 }
 
+OMPUseDeviceAddrClause *
+OMPUseDeviceAddrClause::Create(const ASTContext &C, const OMPVarListLocTy &Locs,
+                               ArrayRef<Expr *> Vars,
+                               ArrayRef<ValueDecl *> Declarations,
+                               MappableExprComponentListsRef ComponentLists) {
+  OMPMappableExprListSizeTy Sizes;
+  Sizes.NumVars = Vars.size();
+  Sizes.NumUniqueDeclarations = getUniqueDeclarationsTotalNumber(Declarations);
+  Sizes.NumComponentLists = ComponentLists.size();
+  Sizes.NumComponents = getComponentsTotalNumber(ComponentLists);
+
+  // We need to allocate:
+  // 3 x NumVars x Expr* - we have an original list expression for each clause
+  // list entry and an equal number of private copies and inits.
+  // NumUniqueDeclarations x ValueDecl* - unique base declarations associated
+  // with each component list.
+  // (NumUniqueDeclarations + NumComponentLists) x unsigned - we specify the
+  // number of lists for each unique declaration and the size of each component
+  // list.
+  // NumComponents x MappableComponent - the total of all the components in all
+  // the lists.
+  void *Mem = C.Allocate(
+      totalSizeToAlloc<Expr *, ValueDecl *, unsigned,
+                       OMPClauseMappableExprCommon::MappableComponent>(
+          Sizes.NumVars, Sizes.NumUniqueDeclarations,
+          Sizes.NumUniqueDeclarations + Sizes.NumComponentLists,
+          Sizes.NumComponents));
+
+  auto *Clause = new (Mem) OMPUseDeviceAddrClause(Locs, Sizes);
+
+  Clause->setVarRefs(Vars);
+  Clause->setClauseInfo(Declarations, ComponentLists);
+  return Clause;
+}
+
+OMPUseDeviceAddrClause *
+OMPUseDeviceAddrClause::CreateEmpty(const ASTContext &C,
+                                    const OMPMappableExprListSizeTy &Sizes) {
+  void *Mem = C.Allocate(
+      totalSizeToAlloc<Expr *, ValueDecl *, unsigned,
+                       OMPClauseMappableExprCommon::MappableComponent>(
+          Sizes.NumVars, Sizes.NumUniqueDeclarations,
+          Sizes.NumUniqueDeclarations + Sizes.NumComponentLists,
+          Sizes.NumComponents));
+  return new (Mem) OMPUseDeviceAddrClause(Sizes);
+}
+
 OMPIsDevicePtrClause *
 OMPIsDevicePtrClause::Create(const ASTContext &C, const OMPVarListLocTy &Locs,
                              ArrayRef<Expr *> Vars,
@@ -1366,6 +1417,25 @@ OMPUsesAllocatorsClause::CreateEmpty(const ASTContext &C, unsigned N) {
       static_cast<int>(ExprOffsets::Total) * N,
       static_cast<int>(ParenLocsOffsets::Total) * N));
   return new (Mem) OMPUsesAllocatorsClause(N);
+}
+
+OMPAffinityClause *
+OMPAffinityClause::Create(const ASTContext &C, SourceLocation StartLoc,
+                          SourceLocation LParenLoc, SourceLocation ColonLoc,
+                          SourceLocation EndLoc, Expr *Modifier,
+                          ArrayRef<Expr *> Locators) {
+  void *Mem = C.Allocate(totalSizeToAlloc<Expr *>(Locators.size() + 1));
+  auto *Clause = new (Mem)
+      OMPAffinityClause(StartLoc, LParenLoc, ColonLoc, EndLoc, Locators.size());
+  Clause->setModifier(Modifier);
+  Clause->setVarRefs(Locators);
+  return Clause;
+}
+
+OMPAffinityClause *OMPAffinityClause::CreateEmpty(const ASTContext &C,
+                                                  unsigned N) {
+  void *Mem = C.Allocate(totalSizeToAlloc<Expr *>(N + 1));
+  return new (Mem) OMPAffinityClause(N);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1913,6 +1983,15 @@ void OMPClausePrinter::VisitOMPUseDevicePtrClause(OMPUseDevicePtrClause *Node) {
   }
 }
 
+void OMPClausePrinter::VisitOMPUseDeviceAddrClause(
+    OMPUseDeviceAddrClause *Node) {
+  if (!Node->varlist_empty()) {
+    OS << "use_device_addr";
+    VisitOMPClauseList(Node, '(');
+    OS << ")";
+  }
+}
+
 void OMPClausePrinter::VisitOMPIsDevicePtrClause(OMPIsDevicePtrClause *Node) {
   if (!Node->varlist_empty()) {
     OS << "is_device_ptr";
@@ -1966,6 +2045,21 @@ void OMPClausePrinter::VisitOMPUsesAllocatorsClause(
     if (I < E - 1)
       OS << ",";
   }
+  OS << ")";
+}
+
+void OMPClausePrinter::VisitOMPAffinityClause(OMPAffinityClause *Node) {
+  if (Node->varlist_empty())
+    return;
+  OS << "affinity";
+  char StartSym = '(';
+  if (Expr *Modifier = Node->getModifier()) {
+    OS << "(";
+    Modifier->printPretty(OS, nullptr, Policy);
+    OS << " :";
+    StartSym = ' ';
+  }
+  VisitOMPClauseList(Node, StartSym);
   OS << ")";
 }
 

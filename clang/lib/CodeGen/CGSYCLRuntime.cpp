@@ -20,6 +20,8 @@
 using namespace clang;
 using namespace CodeGen;
 
+namespace {
+
 /// Various utilities.
 /// TODO partially duplicates functionality from SemaSYCL.cpp, can be shared.
 class Util {
@@ -48,9 +50,13 @@ static bool isPFWI(const FunctionDecl &FD) {
   return FD.getName() == "parallel_for_work_item";
 }
 
-const char *WG_SCOPE_MD_ID = "work_group_scope";
-const char *WI_SCOPE_MD_ID = "work_item_scope";
-const char *PFWI_MD_ID = "parallel_for_work_item";
+constexpr char WG_SCOPE_MD_ID[] = "work_group_scope";
+constexpr char WI_SCOPE_MD_ID[] = "work_item_scope";
+constexpr char PFWI_MD_ID[] = "parallel_for_work_item";
+constexpr char ATTR_GENX_VOLATILE[] = "genx_volatile";
+constexpr char ATTR_GENX_BYTE_OFFSET[] = "genx_byte_offset";
+
+} // anonymous namespace
 
 bool CGSYCLRuntime::actOnFunctionStart(const FunctionDecl &FD,
                                        llvm::Function &F) {
@@ -94,6 +100,19 @@ bool CGSYCLRuntime::actOnAutoVarEmit(CodeGenFunction &CGF, const VarDecl &D,
   auto *AI = dyn_cast<llvm::AllocaInst>(Addr);
   assert(AI && "AllocaInst expected as local var address");
   AI->setMetadata(WI_SCOPE_MD_ID, llvm::MDNode::get(AI->getContext(), {}));
+  return true;
+}
+
+bool CGSYCLRuntime::actOnGlobalVarEmit(CodeGenModule &CGM, const VarDecl &D,
+                                       llvm::Value *Addr) {
+  SYCLRegisterNumAttr *RegAttr = D.getAttr<SYCLRegisterNumAttr>();
+  if (!RegAttr)
+    return false;
+  auto *GlobVar = cast<llvm::GlobalVariable>(Addr);
+  GlobVar->addAttribute(ATTR_GENX_VOLATILE);
+  GlobVar->addAttribute(ATTR_GENX_BYTE_OFFSET,
+                        Twine(RegAttr->getNumber()).str());
+  // TODO consider reversing the error/success return values
   return true;
 }
 

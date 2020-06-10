@@ -1831,6 +1831,24 @@ unsigned AArch64InstrInfo::getLoadStoreImmIdx(unsigned Opc) {
   case AArch64::ST1H_IMM:
   case AArch64::ST1W_IMM:
   case AArch64::ST1D_IMM:
+  case AArch64::LD1B_H_IMM:
+  case AArch64::LD1SB_H_IMM:
+  case AArch64::LD1H_S_IMM:
+  case AArch64::LD1SH_S_IMM:
+  case AArch64::LD1W_D_IMM:
+  case AArch64::LD1SW_D_IMM:
+  case AArch64::ST1B_H_IMM:
+  case AArch64::ST1H_S_IMM:
+  case AArch64::ST1W_D_IMM:
+  case AArch64::LD1B_S_IMM:
+  case AArch64::LD1SB_S_IMM:
+  case AArch64::LD1H_D_IMM:
+  case AArch64::LD1SH_D_IMM:
+  case AArch64::ST1B_S_IMM:
+  case AArch64::ST1H_D_IMM:
+  case AArch64::LD1B_D_IMM:
+  case AArch64::LD1SB_D_IMM:
+  case AArch64::ST1B_D_IMM:
     return 3;
   case AArch64::ADDG:
   case AArch64::STGOffset:
@@ -2015,15 +2033,14 @@ bool AArch64InstrInfo::isCandidateToMergeOrPair(const MachineInstr &MI) const {
   return true;
 }
 
-bool AArch64InstrInfo::getMemOperandsWithOffset(
+bool AArch64InstrInfo::getMemOperandsWithOffsetWidth(
     const MachineInstr &LdSt, SmallVectorImpl<const MachineOperand *> &BaseOps,
-    int64_t &Offset, bool &OffsetIsScalable, const TargetRegisterInfo *TRI)
-    const {
+    int64_t &Offset, bool &OffsetIsScalable, unsigned &Width,
+    const TargetRegisterInfo *TRI) const {
   if (!LdSt.mayLoadOrStore())
     return false;
 
   const MachineOperand *BaseOp;
-  unsigned Width;
   if (!getMemOperandWithOffsetWidth(LdSt, BaseOp, Offset, OffsetIsScalable,
                                     Width, TRI))
     return false;
@@ -2260,6 +2277,27 @@ bool AArch64InstrInfo::getMemOpInfo(unsigned Opcode, TypeSize &Scale,
     MinOffset = -256;
     MaxOffset = 255;
     break;
+  case AArch64::STR_ZZZZXI:
+  case AArch64::LDR_ZZZZXI:
+    Scale = TypeSize::Scalable(16);
+    Width = SVEMaxBytesPerVector * 4;
+    MinOffset = -256;
+    MaxOffset = 252;
+    break;
+  case AArch64::STR_ZZZXI:
+  case AArch64::LDR_ZZZXI:
+    Scale = TypeSize::Scalable(16);
+    Width = SVEMaxBytesPerVector * 3;
+    MinOffset = -256;
+    MaxOffset = 253;
+    break;
+  case AArch64::STR_ZZXI:
+  case AArch64::LDR_ZZXI:
+    Scale = TypeSize::Scalable(16);
+    Width = SVEMaxBytesPerVector * 2;
+    MinOffset = -256;
+    MaxOffset = 254;
+    break;
   case AArch64::LDR_PXI:
   case AArch64::STR_PXI:
     Scale = TypeSize::Scalable(2);
@@ -2286,6 +2324,45 @@ bool AArch64InstrInfo::getMemOpInfo(unsigned Opcode, TypeSize &Scale,
     // Width = mbytes * elements
     Scale = TypeSize::Scalable(16);
     Width = SVEMaxBytesPerVector;
+    MinOffset = -8;
+    MaxOffset = 7;
+    break;
+  case AArch64::LD1B_H_IMM:
+  case AArch64::LD1SB_H_IMM:
+  case AArch64::LD1H_S_IMM:
+  case AArch64::LD1SH_S_IMM:
+  case AArch64::LD1W_D_IMM:
+  case AArch64::LD1SW_D_IMM:
+  case AArch64::ST1B_H_IMM:
+  case AArch64::ST1H_S_IMM:
+  case AArch64::ST1W_D_IMM:
+    // A half vector worth of data
+    // Width = mbytes * elements
+    Scale = TypeSize::Scalable(8);
+    Width = SVEMaxBytesPerVector / 2;
+    MinOffset = -8;
+    MaxOffset = 7;
+    break;
+  case AArch64::LD1B_S_IMM:
+  case AArch64::LD1SB_S_IMM:
+  case AArch64::LD1H_D_IMM:
+  case AArch64::LD1SH_D_IMM:
+  case AArch64::ST1B_S_IMM:
+  case AArch64::ST1H_D_IMM:
+    // A quarter vector worth of data
+    // Width = mbytes * elements
+    Scale = TypeSize::Scalable(4);
+    Width = SVEMaxBytesPerVector / 4;
+    MinOffset = -8;
+    MaxOffset = 7;
+    break;
+  case AArch64::LD1B_D_IMM:
+  case AArch64::LD1SB_D_IMM:
+  case AArch64::ST1B_D_IMM:
+    // A eighth vector worth of data
+    // Width = mbytes * elements
+    Scale = TypeSize::Scalable(2);
+    Width = SVEMaxBytesPerVector / 8;
     MinOffset = -8;
     MaxOffset = 7;
     break;
@@ -2435,7 +2512,8 @@ static bool shouldClusterFI(const MachineFrameInfo &MFI, int FI1,
 /// Only called for LdSt for which getMemOperandWithOffset returns true.
 bool AArch64InstrInfo::shouldClusterMemOps(
     ArrayRef<const MachineOperand *> BaseOps1,
-    ArrayRef<const MachineOperand *> BaseOps2, unsigned NumLoads) const {
+    ArrayRef<const MachineOperand *> BaseOps2, unsigned NumLoads,
+    unsigned NumBytes) const {
   assert(BaseOps1.size() == 1 && BaseOps2.size() == 1);
   const MachineOperand &BaseOp1 = *BaseOps1.front();
   const MachineOperand &BaseOp2 = *BaseOps2.front();
@@ -2927,6 +3005,7 @@ void AArch64InstrInfo::storeRegToStackSlot(
                               MFI.getObjectSize(FI), MFI.getObjectAlign(FI));
   unsigned Opc = 0;
   bool Offset = true;
+  unsigned StackID = TargetStackID::Default;
   switch (TRI->getSpillSize(*RC)) {
   case 1:
     if (AArch64::FPR8RegClass.hasSubClassEq(RC))
@@ -2935,6 +3014,11 @@ void AArch64InstrInfo::storeRegToStackSlot(
   case 2:
     if (AArch64::FPR16RegClass.hasSubClassEq(RC))
       Opc = AArch64::STRHui;
+    else if (AArch64::PPRRegClass.hasSubClassEq(RC)) {
+      assert(Subtarget.hasSVE() && "Unexpected register store without SVE");
+      Opc = AArch64::STR_PXI;
+      StackID = TargetStackID::SVEVector;
+    }
     break;
   case 4:
     if (AArch64::GPR32allRegClass.hasSubClassEq(RC)) {
@@ -2974,6 +3058,10 @@ void AArch64InstrInfo::storeRegToStackSlot(
                               get(AArch64::STPXi), SrcReg, isKill,
                               AArch64::sube64, AArch64::subo64, FI, MMO);
       return;
+    } else if (AArch64::ZPRRegClass.hasSubClassEq(RC)) {
+      assert(Subtarget.hasSVE() && "Unexpected register store without SVE");
+      Opc = AArch64::STR_ZXI;
+      StackID = TargetStackID::SVEVector;
     }
     break;
   case 24:
@@ -2992,6 +3080,10 @@ void AArch64InstrInfo::storeRegToStackSlot(
       assert(Subtarget.hasNEON() && "Unexpected register store without NEON");
       Opc = AArch64::ST1Twov2d;
       Offset = false;
+    } else if (AArch64::ZPR2RegClass.hasSubClassEq(RC)) {
+      assert(Subtarget.hasSVE() && "Unexpected register store without SVE");
+      Opc = AArch64::STR_ZZXI;
+      StackID = TargetStackID::SVEVector;
     }
     break;
   case 48:
@@ -2999,6 +3091,10 @@ void AArch64InstrInfo::storeRegToStackSlot(
       assert(Subtarget.hasNEON() && "Unexpected register store without NEON");
       Opc = AArch64::ST1Threev2d;
       Offset = false;
+    } else if (AArch64::ZPR3RegClass.hasSubClassEq(RC)) {
+      assert(Subtarget.hasSVE() && "Unexpected register store without SVE");
+      Opc = AArch64::STR_ZZZXI;
+      StackID = TargetStackID::SVEVector;
     }
     break;
   case 64:
@@ -3006,18 +3102,12 @@ void AArch64InstrInfo::storeRegToStackSlot(
       assert(Subtarget.hasNEON() && "Unexpected register store without NEON");
       Opc = AArch64::ST1Fourv2d;
       Offset = false;
+    } else if (AArch64::ZPR4RegClass.hasSubClassEq(RC)) {
+      assert(Subtarget.hasSVE() && "Unexpected register store without SVE");
+      Opc = AArch64::STR_ZZZZXI;
+      StackID = TargetStackID::SVEVector;
     }
     break;
-  }
-  unsigned StackID = TargetStackID::Default;
-  if (AArch64::PPRRegClass.hasSubClassEq(RC)) {
-    assert(Subtarget.hasSVE() && "Unexpected register store without SVE");
-    Opc = AArch64::STR_PXI;
-    StackID = TargetStackID::SVEVector;
-  } else if (AArch64::ZPRRegClass.hasSubClassEq(RC)) {
-    assert(Subtarget.hasSVE() && "Unexpected register store without SVE");
-    Opc = AArch64::STR_ZXI;
-    StackID = TargetStackID::SVEVector;
   }
   assert(Opc && "Unknown register class");
   MFI.setStackID(FI, StackID);
@@ -3069,6 +3159,7 @@ void AArch64InstrInfo::loadRegFromStackSlot(
 
   unsigned Opc = 0;
   bool Offset = true;
+  unsigned StackID = TargetStackID::Default;
   switch (TRI->getSpillSize(*RC)) {
   case 1:
     if (AArch64::FPR8RegClass.hasSubClassEq(RC))
@@ -3077,6 +3168,11 @@ void AArch64InstrInfo::loadRegFromStackSlot(
   case 2:
     if (AArch64::FPR16RegClass.hasSubClassEq(RC))
       Opc = AArch64::LDRHui;
+    else if (AArch64::PPRRegClass.hasSubClassEq(RC)) {
+      assert(Subtarget.hasSVE() && "Unexpected register load without SVE");
+      Opc = AArch64::LDR_PXI;
+      StackID = TargetStackID::SVEVector;
+    }
     break;
   case 4:
     if (AArch64::GPR32allRegClass.hasSubClassEq(RC)) {
@@ -3116,6 +3212,10 @@ void AArch64InstrInfo::loadRegFromStackSlot(
                                get(AArch64::LDPXi), DestReg, AArch64::sube64,
                                AArch64::subo64, FI, MMO);
       return;
+    } else if (AArch64::ZPRRegClass.hasSubClassEq(RC)) {
+      assert(Subtarget.hasSVE() && "Unexpected register load without SVE");
+      Opc = AArch64::LDR_ZXI;
+      StackID = TargetStackID::SVEVector;
     }
     break;
   case 24:
@@ -3134,6 +3234,10 @@ void AArch64InstrInfo::loadRegFromStackSlot(
       assert(Subtarget.hasNEON() && "Unexpected register load without NEON");
       Opc = AArch64::LD1Twov2d;
       Offset = false;
+    } else if (AArch64::ZPR2RegClass.hasSubClassEq(RC)) {
+      assert(Subtarget.hasSVE() && "Unexpected register load without SVE");
+      Opc = AArch64::LDR_ZZXI;
+      StackID = TargetStackID::SVEVector;
     }
     break;
   case 48:
@@ -3141,6 +3245,10 @@ void AArch64InstrInfo::loadRegFromStackSlot(
       assert(Subtarget.hasNEON() && "Unexpected register load without NEON");
       Opc = AArch64::LD1Threev2d;
       Offset = false;
+    } else if (AArch64::ZPR3RegClass.hasSubClassEq(RC)) {
+      assert(Subtarget.hasSVE() && "Unexpected register load without SVE");
+      Opc = AArch64::LDR_ZZZXI;
+      StackID = TargetStackID::SVEVector;
     }
     break;
   case 64:
@@ -3148,20 +3256,14 @@ void AArch64InstrInfo::loadRegFromStackSlot(
       assert(Subtarget.hasNEON() && "Unexpected register load without NEON");
       Opc = AArch64::LD1Fourv2d;
       Offset = false;
+    } else if (AArch64::ZPR4RegClass.hasSubClassEq(RC)) {
+      assert(Subtarget.hasSVE() && "Unexpected register load without SVE");
+      Opc = AArch64::LDR_ZZZZXI;
+      StackID = TargetStackID::SVEVector;
     }
     break;
   }
 
-  unsigned StackID = TargetStackID::Default;
-  if (AArch64::PPRRegClass.hasSubClassEq(RC)) {
-    assert(Subtarget.hasSVE() && "Unexpected register load without SVE");
-    Opc = AArch64::LDR_PXI;
-    StackID = TargetStackID::SVEVector;
-  } else if (AArch64::ZPRRegClass.hasSubClassEq(RC)) {
-    assert(Subtarget.hasSVE() && "Unexpected register load without SVE");
-    Opc = AArch64::LDR_ZXI;
-    StackID = TargetStackID::SVEVector;
-  }
   assert(Opc && "Unknown register class");
   MFI.setStackID(FI, StackID);
 
@@ -3230,6 +3332,10 @@ static void emitFrameOffsetAdj(MachineBasicBlock &MBB,
   //  assert(Offset < (1 << 24) && "unimplemented reg plus immediate");
 
   const unsigned MaxEncodableValue = MaxEncoding << ShiftSize;
+  Register TmpReg = DestReg;
+  if (TmpReg == AArch64::XZR)
+    TmpReg = MBB.getParent()->getRegInfo().createVirtualRegister(
+        &AArch64::GPR64RegClass);
   do {
     uint64_t ThisVal = std::min<uint64_t>(Offset, MaxEncodableValue);
     unsigned LocalShiftSize = 0;
@@ -3239,7 +3345,11 @@ static void emitFrameOffsetAdj(MachineBasicBlock &MBB,
     }
     assert((ThisVal >> ShiftSize) <= MaxEncoding &&
            "Encoding cannot handle value that big");
-    auto MBI = BuildMI(MBB, MBBI, DL, TII->get(Opc), DestReg)
+
+    Offset -= ThisVal << LocalShiftSize;
+    if (Offset == 0)
+      TmpReg = DestReg;
+    auto MBI = BuildMI(MBB, MBBI, DL, TII->get(Opc), TmpReg)
                    .addReg(SrcReg)
                    .addImm(Sign * (int)ThisVal);
     if (ShiftSize)
@@ -3260,8 +3370,8 @@ static void emitFrameOffsetAdj(MachineBasicBlock &MBB,
           BuildMI(MBB, MBBI, DL, TII->get(AArch64::SEH_AddFP))
               .addImm(Imm)
               .setMIFlag(Flag);
-        assert((Offset - Imm) == 0 && "Expected remaining offset to be zero to "
-                                      "emit a single SEH directive");
+        assert(Offset == 0 && "Expected remaining offset to be zero to "
+                              "emit a single SEH directive");
       } else if (DestReg == AArch64::SP) {
         if (HasWinCFI)
           *HasWinCFI = true;
@@ -3274,8 +3384,7 @@ static void emitFrameOffsetAdj(MachineBasicBlock &MBB,
         *HasWinCFI = true;
     }
 
-    SrcReg = DestReg;
-    Offset -= ThisVal << LocalShiftSize;
+    SrcReg = TmpReg;
   } while (Offset);
 }
 
@@ -6106,6 +6215,10 @@ bool AArch64InstrInfo::isFunctionSafeToOutlineFrom(
   if (!AFI || AFI->hasRedZone().getValueOr(true))
     return false;
 
+  // FIXME: Teach the outliner to generate/handle Windows unwind info.
+  if (MF.getTarget().getMCAsmInfo()->usesWindowsCFI())
+    return false;
+
   // It's safe to outline from MF.
   return true;
 }
@@ -6483,7 +6596,7 @@ void AArch64InstrInfo::buildOutlinedFrame(
 
     // Add a CFI saying the stack was moved 16 B down.
     int64_t StackPosEntry =
-        MF.addFrameInst(MCCFIInstruction::createDefCfaOffset(nullptr, 16));
+        MF.addFrameInst(MCCFIInstruction::cfiDefCfaOffset(nullptr, 16));
     BuildMI(MBB, It, DebugLoc(), get(AArch64::CFI_INSTRUCTION))
         .addCFIIndex(StackPosEntry)
         .setMIFlags(MachineInstr::FrameSetup);
@@ -6491,7 +6604,7 @@ void AArch64InstrInfo::buildOutlinedFrame(
     // Add a CFI saying that the LR that we want to find is now 16 B higher than
     // before.
     int64_t LRPosEntry =
-        MF.addFrameInst(MCCFIInstruction::createOffset(nullptr, DwarfReg, 16));
+        MF.addFrameInst(MCCFIInstruction::createOffset(nullptr, DwarfReg, -16));
     BuildMI(MBB, It, DebugLoc(), get(AArch64::CFI_INSTRUCTION))
         .addCFIIndex(LRPosEntry)
         .setMIFlags(MachineInstr::FrameSetup);

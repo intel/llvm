@@ -81,7 +81,7 @@ const char *SelectInst::areInvalidOperands(Value *Op0, Value *Op1, Value *Op2) {
     VectorType *ET = dyn_cast<VectorType>(Op1->getType());
     if (!ET)
       return "selected values for vector select must be vectors";
-    if (ET->getNumElements() != VT->getNumElements())
+    if (ET->getElementCount() != VT->getElementCount())
       return "vector select requires selected vectors to have "
                    "the same vector length as select condition";
   } else if (Op0->getType() != Type::getInt1Ty(Op0->getContext())) {
@@ -1246,12 +1246,12 @@ static Value *getAISize(LLVMContext &Context, Value *Amt) {
   return Amt;
 }
 
-Align computeAllocaDefaultAlign(Type *Ty, BasicBlock *BB) {
+static Align computeAllocaDefaultAlign(Type *Ty, BasicBlock *BB) {
   const DataLayout &DL = BB->getModule()->getDataLayout();
   return DL.getPrefTypeAlign(Ty);
 }
 
-Align computeAllocaDefaultAlign(Type *Ty, Instruction *I) {
+static Align computeAllocaDefaultAlign(Type *Ty, Instruction *I) {
   return computeAllocaDefaultAlign(Ty, I->getParent());
 }
 
@@ -1333,12 +1333,12 @@ void LoadInst::AssertOK() {
          "Alignment required for atomic load");
 }
 
-Align computeLoadStoreDefaultAlign(Type *Ty, BasicBlock *BB) {
+static Align computeLoadStoreDefaultAlign(Type *Ty, BasicBlock *BB) {
   const DataLayout &DL = BB->getModule()->getDataLayout();
   return DL.getABITypeAlign(Ty);
 }
 
-Align computeLoadStoreDefaultAlign(Type *Ty, Instruction *I) {
+static Align computeLoadStoreDefaultAlign(Type *Ty, Instruction *I) {
   return computeLoadStoreDefaultAlign(Ty, I->getParent());
 }
 

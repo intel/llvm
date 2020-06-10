@@ -73,14 +73,6 @@ public:
   /// \return true if this SYCL platform is a host platform.
   bool is_host() const { return MHostPlatform; };
 
-  bool is_cuda() const {
-    const string_class CUDA_PLATFORM_STRING = "NVIDIA CUDA";
-    const string_class PlatformName =
-        get_platform_info<string_class, info::platform::name>::get(MPlatform,
-                                                                   getPlugin());
-    return PlatformName == CUDA_PLATFORM_STRING;
-  }
-
   /// \return an instance of OpenCL cl_platform_id.
   cl_platform_id get() const {
     if (is_host())

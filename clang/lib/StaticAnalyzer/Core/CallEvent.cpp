@@ -564,7 +564,7 @@ RuntimeDefinition AnyFunctionCall::getRuntimeDefinition() const {
     return RuntimeDefinition(Decl);
   }
 
-  SubEngine &Engine = getState()->getStateManager().getOwningEngine();
+  ExprEngine &Engine = getState()->getStateManager().getOwningEngine();
   AnalyzerOptions &Opts = Engine.getAnalysisManager().options;
 
   // Try to get CTU definition only if CTUDir is provided.
@@ -1202,7 +1202,7 @@ template <> struct DenseMapInfo<PrivateMethodKey> {
 };
 } // end namespace llvm
 
-const ObjCMethodDecl *
+static const ObjCMethodDecl *
 lookupRuntimeDefinition(const ObjCInterfaceDecl *Interface,
                         Selector LookupSelector, bool InstanceMethod) {
   // Repeatedly calling lookupPrivateMethod() is expensive, especially

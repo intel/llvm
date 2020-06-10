@@ -373,7 +373,11 @@ def Vector_ExtractOp :
   }];
   let builders = [OpBuilder<
     "OpBuilder &builder, OperationState &result, Value source,"
-    "ArrayRef<int64_t>">];
+    "ArrayRef<int64_t> position">,
+    // Convenience builder which assumes the values in `position` are defined by
+    // ConstantIndexOp.
+    OpBuilder<"OpBuilder &builder, OperationState &result, Value source,"
+    "ValueRange position">];
   let extraClassDeclaration = [{
     static StringRef getPositionAttrName() { return "position"; }
     VectorType getVectorType() {
@@ -535,8 +539,12 @@ def Vector_InsertOp :
   }];
 
   let builders = [OpBuilder<
-    "OpBuilder &builder, OperationState &result, Value source, " #
-    "Value dest, ArrayRef<int64_t>">];
+    "OpBuilder &builder, OperationState &result, Value source, "
+    "Value dest, ArrayRef<int64_t> position">,
+    // Convenience builder which assumes all values are constant indices.
+    OpBuilder<
+    "OpBuilder &builder, OperationState &result, Value source, "
+    "Value dest, ValueRange position">];
   let extraClassDeclaration = [{
     static StringRef getPositionAttrName() { return "position"; }
     Type getSourceType() { return source().getType(); }
@@ -678,6 +686,11 @@ def Vector_OuterProductOp :
     return %3: vector<4x8xf32>
     ```
   }];
+  let builders = [
+    // Build an op without mask, use the type of `acc` as the return type.
+    OpBuilder<
+    "OpBuilder &builder, OperationState &result, Value lhs, Value rhs, "
+    "Value acc">];
   let extraClassDeclaration = [{
     VectorType getOperandVectorTypeLHS() {
       return lhs().getType().cast<VectorType>();
@@ -863,17 +876,35 @@ def Vector_ExtractStridedSliceOp :
   let assemblyFormat = "$vector attr-dict `:` type($vector) `to` type(results)";
 }
 
+def Vector_TransferOpUtils {
+  code extraTransferDeclaration = [{
+    static StringRef getMaskedAttrName() { return "masked"; }
+    static StringRef getPermutationMapAttrName() { return "permutation_map"; }
+    bool isMaskedDim(unsigned dim) {
+      return !masked() ||
+        masked()->cast<ArrayAttr>()[dim].cast<BoolAttr>().getValue();
+    }
+    MemRefType getMemRefType() {
+      return memref().getType().cast<MemRefType>();
+    }
+    VectorType getVectorType() {
+      return vector().getType().cast<VectorType>();
+    }
+  }];
+}
+
 def Vector_TransferReadOp :
   Vector_Op<"transfer_read">,
     Arguments<(ins AnyMemRef:$memref, Variadic<Index>:$indices,
-               AffineMapAttr:$permutation_map, AnyType:$padding)>,
+               AffineMapAttr:$permutation_map, AnyType:$padding,
+               OptionalAttr<BoolArrayAttr>:$masked)>,
     Results<(outs AnyVector:$vector)> {
 
   let summary = "Reads a supervector from memory into an SSA vector value.";
 
   let description = [{
-    The `vector.transfer_read` op performs a blocking read from a slice within
-    a [MemRef](../LangRef.md#memref-type) supplied as its first operand
+    The `vector.transfer_read` op performs a read from a slice within a
+    [MemRef](../LangRef.md#memref-type) supplied as its first operand
     into a [vector](../LangRef.md#vector-type) of the same base elemental type.
 
     A memref operand with vector element type, must have its vector element
@@ -881,18 +912,31 @@ def Vector_TransferReadOp :
     memref<3x2x6x4x3xf32>, vector<1x1x4x3xf32>).
 
     The slice is further defined by a full-rank index within the MemRef,
-    supplied as the operands `2 .. 1 + rank(memref)`. The permutation_map
-    [attribute](../LangRef.md#attributes) is an
+    supplied as the operands `2 .. 1 + rank(memref)`.
+
+    The permutation_map [attribute](../LangRef.md#attributes) is an
     [affine-map](Affine.md#affine-maps) which specifies the transposition on the
-    slice to match the vector shape. The size of the slice is specified by the
-    size of the vector, given as the return type. An `ssa-value` of the same
-    elemental type as the MemRef is provided as the last operand to specify
-    padding in the case of out-of-bounds accesses. This operation is called
-    'read' by opposition to 'load' because the super-vector granularity is
-    generally not representable with a single hardware register.
-    A `vector.transfer_read` is thus a mid-level
-    abstraction that supports super-vectorization with non-effecting padding for
-    full-tile-only code.
+    slice to match the vector shape. The permutation map may be implicit and
+    ommitted from parsing and printing if it is the canonical minor identity map
+    (i.e. if it does not permute or broadcast any dimension).
+
+    The size of the slice is specified by the size of the vector, given as the
+    return type.
+
+    An `ssa-value` of the same elemental type as the MemRef is provided as the
+    last operand to specify padding in the case of out-of-bounds accesses.
+
+    An optional boolean array attribute is provided to specify which dimensions
+    of the transfer need masking. When a dimension is specified as not requiring
+    masking, the `vector.transfer_read` may be lowered to simple loads. The
+    absence of this `masked` attribute signifies that all dimensions of the
+    transfer need to be masked.
+
+    This operation is called 'read' by opposition to 'load' because the
+    super-vector granularity is generally not representable with a single
+    hardware register. A `vector.transfer_read` is thus a mid-level abstraction
+    that supports super-vectorization with non-effecting padding for full-tile
+    only operations.
 
     More precisely, let's dive deeper into the permutation_map for the following
     MLIR:
@@ -995,19 +1039,27 @@ def Vector_TransferReadOp :
   }];
 
   let builders = [
-    // Builder that sets permutation map and padding to 'getMinorIdentityMap'
-    // and zero, respectively, by default.
+    // Builder that sets padding to zero.
     OpBuilder<"OpBuilder &builder, OperationState &result, VectorType vector, "
-              "Value memref, ValueRange indices">
+              "Value memref, ValueRange indices, AffineMap permutationMap, "
+              "ArrayRef<bool> maybeMasked = {}">,
+    // Builder that sets permutation map (resp. padding) to
+    // 'getMinorIdentityMap' (resp. zero).
+    OpBuilder<"OpBuilder &builder, OperationState &result, VectorType vector, "
+              "Value memref, ValueRange indices, "
+              "ArrayRef<bool> maybeMasked = {}">
   ];
 
-  let extraClassDeclaration = [{
-    MemRefType getMemRefType() {
-      return memref().getType().cast<MemRefType>();
-    }
-    VectorType getVectorType() {
-      return vector().getType().cast<VectorType>();
-    }
+  let extraClassDeclaration = Vector_TransferOpUtils.extraTransferDeclaration #
+  [{
+    /// Build the default minor identity map suitable for a vector transfer.
+    /// This also handles the case memref<... x vector<...>> -> vector<...> in
+    /// which the rank of the identity map must take the vector element type
+    /// into account.
+    static AffineMap getTransferMinorIdentityMap(
+      MemRefType memRefType, VectorType vectorType) {
+        return impl::getTransferMinorIdentityMap(memRefType, vectorType);
+      }
   }];
 }
 
@@ -1015,12 +1067,13 @@ def Vector_TransferWriteOp :
   Vector_Op<"transfer_write">,
     Arguments<(ins AnyVector:$vector, AnyMemRef:$memref,
                Variadic<Index>:$indices,
-               AffineMapAttr:$permutation_map)> {
+               AffineMapAttr:$permutation_map,
+               OptionalAttr<BoolArrayAttr>:$masked)> {
 
   let summary = "The vector.transfer_write op writes a supervector to memory.";
 
   let description = [{
-    The `vector.transfer_write` performs a blocking write from a
+    The `vector.transfer_write` op performs a write from a
     [vector](../LangRef.md#vector-type), supplied as its first operand, into a
     slice within a [MemRef](../LangRef.md#memref-type) of the same base
     elemental type, supplied as its second operand.
@@ -1031,12 +1084,24 @@ def Vector_TransferWriteOp :
 
     The slice is further defined by a full-rank index within the MemRef,
     supplied as the operands `3 .. 2 + rank(memref)`.
+
     The permutation_map [attribute](../LangRef.md#attributes) is an
     [affine-map](Affine.md#affine-maps) which specifies the transposition on the
-    slice to match the vector shape. The size of the slice is specified by the
-    size of the vector. This operation is called 'write' by opposition to
-    'store' because the super-vector granularity is generally not representable
-    with a single hardware register. A `vector.transfer_write` is thus a
+    slice to match the vector shape. The permutation map may be implicit and
+    ommitted from parsing and printing if it is the canonical minor identity map
+    (i.e. if it does not permute or broadcast any dimension).
+
+    The size of the slice is specified by the size of the vector.
+
+    An optional boolean array attribute is provided to specify which dimensions
+    of the transfer need masking. When a dimension is specified as not requiring
+    masking, the `vector.transfer_write` may be lowered to simple stores. The
+    absence of this `mask` attribute signifies that all dimensions of the
+    transfer need to be masked.
+
+    This operation is called 'write' by opposition to 'store' because the
+    super-vector granularity is generally not representable with a single
+    hardware register. A `vector.transfer_write` is thus a
     mid-level abstraction that supports super-vectorization with non-effecting
     padding for full-tile-only code. It is the responsibility of
     `vector.transfer_write`'s implementation to ensure the memory writes are
@@ -1066,23 +1131,24 @@ def Vector_TransferWriteOp :
   }];
 
   let builders = [
-    // Builder that sets permutation map and padding to 'getMinorIdentityMap'
-    // by default.
+    // Builder that sets permutation map to 'getMinorIdentityMap'.
     OpBuilder<"OpBuilder &builder, OperationState &result, Value vector, "
-              "Value memref, ValueRange indices">
+              "Value memref, ValueRange indices, "
+              "ArrayRef<bool> maybeMasked = {}">,
+    OpBuilder<"OpBuilder &builder, OperationState &result, Value vector, "
+              "Value memref, ValueRange indices, AffineMap permutationMap">,
   ];
 
-  let extraClassDeclaration = [{
-    VectorType getVectorType() {
-      return vector().getType().cast<VectorType>();
-    }
-    MemRefType getMemRefType() {
-      return memref().getType().cast<MemRefType>();
-    }
-  }];
-  let assemblyFormat = [{
-    $vector `,` $memref `[` $indices `]` attr-dict `:` type($vector) `,`
-    type($memref)
+  let extraClassDeclaration = Vector_TransferOpUtils.extraTransferDeclaration #
+  [{
+    /// Build the default minor identity map suitable for a vector transfer.
+    /// This also handles the case memref<... x vector<...>> -> vector<...> in
+    /// which the rank of the identity map must take the vector element type
+    /// into account.
+    static AffineMap getTransferMinorIdentityMap(
+      MemRefType memRefType, VectorType vectorType) {
+        return impl::getTransferMinorIdentityMap(memRefType, vectorType);
+      }
   }];
 }
 
@@ -1324,6 +1390,9 @@ def Vector_TransposeOp :
                           [c, f] ]
     ```
   }];
+  let builders = [OpBuilder<
+    "OpBuilder &builder, OperationState &result, Value vector, "
+    "ArrayRef<int64_t> transp">];
   let extraClassDeclaration = [{
     VectorType getVectorType() {
       return vector().getType().cast<VectorType>();
@@ -1332,6 +1401,7 @@ def Vector_TransposeOp :
       return result().getType().cast<VectorType>();
     }
     void getTransp(SmallVectorImpl<int64_t> &results);
+    static StringRef getTranspAttrName() { return "transp"; }
   }];
   let assemblyFormat = [{
     $vector `,` $transp attr-dict `:` type($vector) `to` type($result)
@@ -1412,6 +1482,9 @@ def Vector_PrintOp :
 
 //===----------------------------------------------------------------------===//
 // Ops used for supporting progressive lowering and conversion type changes.
+// The Ops are typically not used directly by higher level dialects, but are
+// used by intra-dialect rewriting rules to bring vector operations closer
+// to the hardware ISA.
 //===----------------------------------------------------------------------===//
 
 /// Vector dialect matrix multiplication op that operates on flattened 1-D
@@ -1440,11 +1513,19 @@ def Vector_MatmulOp : Vector_Op<"matrix_multiply", [NoSideEffect,
   let description = [{
     This is the counterpart of llvm.matrix.multiply in MLIR. It serves the
     purposes of more progressive lowering and localized type conversion.
+    Higher levels typically lower matrix multiplications into 'vector.contract'
+    operations. Subsequent rewriting rule progressively lower these operations
+    into 'vector.matrix_multiply' operations to bring the operations closer
+    to the hardware ISA.
 
     The ‘vector.matrix_multiply’ op treats `lhs` as matrix with <lhs_rows> rows
     and <lhs_columns> columns, `rhs` as matrix with <lhs_columns> rows and
     <rhs_columns> and multiplies them. The result matrix is returned embedded in
     the result vector.
+
+    Also see:
+
+    http://llvm.org/docs/LangRef.html#llvm-matrix-multiply-intrinsic
 
     Example:
 
@@ -1469,6 +1550,50 @@ def Vector_MatmulOp : Vector_Op<"matrix_multiply", [NoSideEffect,
   let verifier = ?;
   let assemblyFormat = "$lhs `,` $rhs attr-dict "
     "`:` `(` type($lhs) `,` type($rhs) `)` `->` type($res)";
+}
+
+/// Vector dialect matrix tranposition op that operates on flattened 1-D
+/// MLIR vectors. This is the counterpart of llvm.matrix.transpose in MLIR.
+/// This may seem redundant with vector.transpose but it serves the purposes of
+/// more progressive lowering and localized type conversion on the path:
+///   `vector<...x...xf32> -> vector<...xf32> -> !llvm<... x float>`.
+def Vector_FlatTransposeOp : Vector_Op<"flat_transpose", [NoSideEffect,
+  PredOpTrait<"source operand and result have same element type",
+                 TCresVTEtIsSameAsOpBase<0, 0>>]>,
+    Arguments<(
+      // TODO(ntv, fhahn, ajcbik): tighten vector element types that make sense.
+      ins VectorOfRankAndType<[1],
+            [AnySignlessInteger, AnySignedInteger, AnyFloat]>:$matrix,
+          I32Attr:$rows, I32Attr:$columns)>,
+    Results<(
+      outs VectorOfRankAndType<[1],
+             [AnySignlessInteger, AnySignedInteger, AnyFloat]>:$res)> {
+  let summary = "Vector matrix transposition on flattened 1-D MLIR vectors";
+  let description = [{
+    This is the counterpart of llvm.matrix.transpose in MLIR. It serves
+    the purposes of more progressive lowering and localized type conversion.
+    Higher levels typically lower matrix tranpositions into 'vector.transpose'
+    operations. Subsequent rewriting rule progressively lower these operations
+    into 'vector.flat_transpose' operations to bring the operations closer
+    to the hardware ISA.
+
+    The ‘vector.flat_transpose’ op treats the 1-D input `matrix` as
+    a 2-D matrix with <rows> rows and <columns> columns, and returns the
+    transposed matrix in flattened form in 'res'.
+
+    Also see:
+
+    http://llvm.org/docs/LangRef.html#llvm-matrix-transpose-intrinsic
+
+    Example:
+
+    ```mlir
+    %1 = vector.flat_transpose %0 { rows = 4: i32, columns = 4: i32 }
+       : (vector<16xf32>) -> vector<16xf32>
+    ```
+  }];
+  let verifier = ?;
+  let assemblyFormat = "$matrix attr-dict `:` type($matrix) `->` type($res)";
 }
 
 #endif // VECTOR_OPS

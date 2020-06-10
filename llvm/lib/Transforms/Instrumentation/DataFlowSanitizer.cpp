@@ -1409,7 +1409,7 @@ void DFSanFunction::storeShadow(Value *Addr, uint64_t Size, Align Alignment,
   const unsigned ShadowVecSize = 128 / DFS.ShadowWidthBits;
   uint64_t Offset = 0;
   if (Size >= ShadowVecSize) {
-    VectorType *ShadowVecTy = VectorType::get(DFS.ShadowTy, ShadowVecSize);
+    auto *ShadowVecTy = FixedVectorType::get(DFS.ShadowTy, ShadowVecSize);
     Value *ShadowVec = UndefValue::get(ShadowVecTy);
     for (unsigned i = 0; i != ShadowVecSize; ++i) {
       ShadowVec = IRB.CreateInsertElement(
@@ -1441,17 +1441,14 @@ void DFSanVisitor::visitStoreInst(StoreInst &SI) {
   if (Size == 0)
     return;
 
-  const Align Alignement =
-      ClPreserveAlignment ? DL.getValueOrABITypeAlignment(
-                                SI.getAlign(), SI.getValueOperand()->getType())
-                          : Align(1);
+  const Align Alignment = ClPreserveAlignment ? SI.getAlign() : Align(1);
 
   Value* Shadow = DFSF.getShadow(SI.getValueOperand());
   if (ClCombinePointerLabelsOnStore) {
     Value *PtrShadow = DFSF.getShadow(SI.getPointerOperand());
     Shadow = DFSF.combineShadows(Shadow, PtrShadow, &SI);
   }
-  DFSF.storeShadow(SI.getPointerOperand(), Size, Alignement, Shadow, &SI);
+  DFSF.storeShadow(SI.getPointerOperand(), Size, Alignment, Shadow, &SI);
   if (ClEventCallbacks) {
     IRBuilder<> IRB(&SI);
     IRB.CreateCall(DFSF.DFS.DFSanStoreCallbackFn, Shadow);

@@ -348,6 +348,14 @@ AMDGPUTargetLowering::AMDGPUTargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::EXTRACT_SUBVECTOR, MVT::v16i32, Custom);
   setOperationAction(ISD::EXTRACT_SUBVECTOR, MVT::v32f32, Custom);
   setOperationAction(ISD::EXTRACT_SUBVECTOR, MVT::v32i32, Custom);
+  setOperationAction(ISD::EXTRACT_SUBVECTOR, MVT::v2f64, Custom);
+  setOperationAction(ISD::EXTRACT_SUBVECTOR, MVT::v2i64, Custom);
+  setOperationAction(ISD::EXTRACT_SUBVECTOR, MVT::v4f64, Custom);
+  setOperationAction(ISD::EXTRACT_SUBVECTOR, MVT::v4i64, Custom);
+  setOperationAction(ISD::EXTRACT_SUBVECTOR, MVT::v8f64, Custom);
+  setOperationAction(ISD::EXTRACT_SUBVECTOR, MVT::v8i64, Custom);
+  setOperationAction(ISD::EXTRACT_SUBVECTOR, MVT::v16f64, Custom);
+  setOperationAction(ISD::EXTRACT_SUBVECTOR, MVT::v16i64, Custom);
 
   setOperationAction(ISD::FP16_TO_FP, MVT::f64, Expand);
   setOperationAction(ISD::FP_TO_FP16, MVT::f64, Custom);
@@ -803,24 +811,24 @@ bool AMDGPUTargetLowering::isSDNodeAlwaysUniform(const SDNode * N) const {
   }
 }
 
-TargetLowering::NegatibleCost
-AMDGPUTargetLowering::getNegatibleCost(SDValue Op, SelectionDAG &DAG,
-                                       bool LegalOperations, bool ForCodeSize,
-                                       unsigned Depth) const {
+SDValue AMDGPUTargetLowering::getNegatedExpression(
+    SDValue Op, SelectionDAG &DAG, bool LegalOperations, bool ForCodeSize,
+    NegatibleCost &Cost, unsigned Depth) const {
+
   switch (Op.getOpcode()) {
   case ISD::FMA:
   case ISD::FMAD: {
     // Negating a fma is not free if it has users without source mods.
     if (!allUsesHaveSourceMods(Op.getNode()))
-      return NegatibleCost::Expensive;
+      return SDValue();
     break;
   }
   default:
     break;
   }
 
-  return TargetLowering::getNegatibleCost(Op, DAG, LegalOperations, ForCodeSize,
-                                          Depth);
+  return TargetLowering::getNegatedExpression(Op, DAG, LegalOperations,
+                                              ForCodeSize, Cost, Depth);
 }
 
 //===---------------------------------------------------------------------===//
@@ -1232,7 +1240,7 @@ SDValue AMDGPUTargetLowering::LowerOperation(SDValue Op,
   case ISD::FROUND: return LowerFROUND(Op, DAG);
   case ISD::FFLOOR: return LowerFFLOOR(Op, DAG);
   case ISD::FLOG:
-    return LowerFLOG(Op, DAG, 1.0F / numbers::log2ef);
+    return LowerFLOG(Op, DAG, numbers::ln2f);
   case ISD::FLOG10:
     return LowerFLOG(Op, DAG, numbers::ln2f / numbers::ln10f);
   case ISD::FEXP:
@@ -2912,7 +2920,7 @@ SDValue AMDGPUTargetLowering::performLoadCombine(SDNode *N,
     return SDValue();
 
   LoadSDNode *LN = cast<LoadSDNode>(N);
-  if (LN->isVolatile() || !ISD::isNormalLoad(LN) || hasVolatileUser(LN))
+  if (!LN->isSimple() || !ISD::isNormalLoad(LN) || hasVolatileUser(LN))
     return SDValue();
 
   SDLoc SL(N);
@@ -2966,7 +2974,7 @@ SDValue AMDGPUTargetLowering::performStoreCombine(SDNode *N,
     return SDValue();
 
   StoreSDNode *SN = cast<StoreSDNode>(N);
-  if (SN->isVolatile() || !ISD::isNormalStore(SN))
+  if (!SN->isSimple() || !ISD::isNormalStore(SN))
     return SDValue();
 
   EVT VT = SN->getMemoryVT();

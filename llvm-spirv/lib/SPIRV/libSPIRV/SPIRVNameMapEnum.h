@@ -123,6 +123,11 @@ template <> inline void SPIRVMap<ExecutionMode, std::string>::init() {
   add(ExecutionModeNoGlobalOffsetINTEL, "NoGlobalOffsetINTEL");
   add(ExecutionModeMaxWorkDimINTEL, "MaxWorkDimINTEL");
   add(ExecutionModeNumSIMDWorkitemsINTEL, "NumSIMDWorkitemsINTEL");
+  add(ExecutionModeDenormPreserve, "DenormPreserve");
+  add(ExecutionModeDenormFlushToZero, "DenormFlushToZero");
+  add(ExecutionModeSignedZeroInfNanPreserve, "SignedZeroInfNanPreserve");
+  add(ExecutionModeRoundingModeRTE, "RoundingModeRTE");
+  add(ExecutionModeRoundingModeRTZ, "RoundingModeRTZ");
 }
 SPIRV_DEF_NAMEMAP(ExecutionMode, SPIRVExecutionModeNameMap)
 
@@ -394,6 +399,11 @@ template <> inline void SPIRVMap<BuiltIn, std::string>::init() {
   add(BuiltInNumEnqueuedSubgroups, "BuiltInNumEnqueuedSubgroups");
   add(BuiltInSubgroupId, "BuiltInSubgroupId");
   add(BuiltInSubgroupLocalInvocationId, "BuiltInSubgroupLocalInvocationId");
+  add(BuiltInSubgroupEqMask, "BuiltInSubgroupEqMask");
+  add(BuiltInSubgroupGeMask, "BuiltInSubgroupGeMask");
+  add(BuiltInSubgroupGtMask, "BuiltInSubgroupGtMask");
+  add(BuiltInSubgroupLeMask, "BuiltInSubgroupLeMask");
+  add(BuiltInSubgroupLtMask, "BuiltInSubgroupLtMask");
   add(BuiltInVertexIndex, "BuiltInVertexIndex");
   add(BuiltInInstanceIndex, "BuiltInInstanceIndex");
 }
@@ -485,6 +495,12 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilityStorageImageWriteWithoutFormat,
       "StorageImageWriteWithoutFormat");
   add(CapabilityMultiViewport, "MultiViewport");
+  add(CapabilitySubgroupDispatch, "CapabilitySubgroupDispatch");
+  add(CapabilityDenormPreserve, "DenormPreserve");
+  add(CapabilityDenormFlushToZero, "DenormFlushToZero");
+  add(CapabilitySignedZeroInfNanPreserve, "SignedZeroInfNanPreserve");
+  add(CapabilityRoundingModeRTE, "RoundingModeRTE");
+  add(CapabilityRoundingModeRTZ, "RoundingModeRTZ");
   add(CapabilitySubgroupShuffleINTEL, "SubgroupShuffleINTEL");
   add(CapabilitySubgroupBufferBlockIOINTEL, "SubgroupBufferBlockIOINTEL");
   add(CapabilitySubgroupImageBlockIOINTEL, "SubgroupImageBlockIOINTEL");
@@ -510,6 +526,14 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilityFPGAKernelAttributesINTEL, "FPGAKernelAttributesINTEL");
   add(CapabilityIOPipeINTEL, "IOPipeINTEL");
   add(CapabilityOptimizationHintsINTEL, "OptimizationHintsINTEL");
+  add(CapabilityGroupNonUniform, "GroupNonUniform");
+  add(CapabilityGroupNonUniformVote, "GroupNonUniformVote");
+  add(CapabilityGroupNonUniformArithmetic, "GroupNonUniformArithmetic");
+  add(CapabilityGroupNonUniformBallot, "GroupNonUniformBallot");
+  add(CapabilityGroupNonUniformShuffle, "GroupNonUniformShuffle");
+  add(CapabilityGroupNonUniformShuffleRelative,
+      "GroupNonUniformShuffleRelative");
+  add(CapabilityGroupNonUniformClustered, "GroupNonUniformClustered");
 }
 SPIRV_DEF_NAMEMAP(Capability, SPIRVCapabilityNameMap)
 

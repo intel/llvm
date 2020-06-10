@@ -177,3 +177,7 @@ void InitializerForAuto() {
   // CHECK: `-VarDecl {{.*}} invalid unresolved_typo 'auto'
   auto unresolved_typo = gned.*[] {};
 }
+
+// Verified that the generated call operator is invalid.
+// CHECK: |-CXXMethodDecl {{.*}} invalid operator() 'auto () const -> auto'
+using Escape = decltype([] { return undef(); }());

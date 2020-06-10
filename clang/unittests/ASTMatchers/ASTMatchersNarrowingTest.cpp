@@ -302,12 +302,18 @@ TEST(DeclarationMatcher, MatchNot) {
 }
 
 TEST(CastExpression, HasCastKind) {
-  EXPECT_TRUE(matches("char *p = 0;",
-              castExpr(hasCastKind(CK_NullToPointer))));
-  EXPECT_TRUE(notMatches("char *p = 0;",
-              castExpr(hasCastKind(CK_DerivedToBase))));
-  EXPECT_TRUE(matches("char *p = 0;",
-              implicitCastExpr(hasCastKind(CK_NullToPointer))));
+  EXPECT_TRUE(
+      matches("char *p = 0;",
+              traverse(ast_type_traits::TK_AsIs,
+                       varDecl(has(castExpr(hasCastKind(CK_NullToPointer)))))));
+  EXPECT_TRUE(notMatches(
+      "char *p = 0;",
+      traverse(ast_type_traits::TK_AsIs,
+               varDecl(has(castExpr(hasCastKind(CK_DerivedToBase)))))));
+  EXPECT_TRUE(matches(
+      "char *p = 0;",
+      traverse(ast_type_traits::TK_AsIs,
+               varDecl(has(implicitCastExpr(hasCastKind(CK_NullToPointer)))))));
 }
 
 TEST(DeclarationMatcher, HasDescendant) {
@@ -1380,8 +1386,9 @@ TEST(Matcher, MatchesOverridingMethod) {
 }
 
 TEST(Matcher, ConstructorArgument) {
-  StatementMatcher Constructor = cxxConstructExpr(
-    hasArgument(0, declRefExpr(to(varDecl(hasName("y"))))));
+  auto Constructor = traverse(
+      ast_type_traits::TK_AsIs,
+      cxxConstructExpr(hasArgument(0, declRefExpr(to(varDecl(hasName("y")))))));
 
   EXPECT_TRUE(
     matches("class X { public: X(int); }; void x() { int y; X x(y); }",
@@ -1396,15 +1403,18 @@ TEST(Matcher, ConstructorArgument) {
     notMatches("class X { public: X(int); }; void x() { int z; X x(z); }",
                Constructor));
 
-  StatementMatcher WrongIndex = cxxConstructExpr(
-    hasArgument(42, declRefExpr(to(varDecl(hasName("y"))))));
+  StatementMatcher WrongIndex =
+      traverse(ast_type_traits::TK_AsIs,
+               cxxConstructExpr(
+                   hasArgument(42, declRefExpr(to(varDecl(hasName("y")))))));
   EXPECT_TRUE(
     notMatches("class X { public: X(int); }; void x() { int y; X x(y); }",
                WrongIndex));
 }
 
 TEST(Matcher, ConstructorArgumentCount) {
-  StatementMatcher Constructor1Arg = cxxConstructExpr(argumentCountIs(1));
+  auto Constructor1Arg =
+      traverse(ast_type_traits::TK_AsIs, cxxConstructExpr(argumentCountIs(1)));
 
   EXPECT_TRUE(
     matches("class X { public: X(int); }; void x() { X x(0); }",
@@ -1421,8 +1431,9 @@ TEST(Matcher, ConstructorArgumentCount) {
 }
 
 TEST(Matcher, ConstructorListInitialization) {
-  StatementMatcher ConstructorListInit =
-    cxxConstructExpr(isListInitialization());
+  auto ConstructorListInit =
+      traverse(ast_type_traits::TK_AsIs,
+               varDecl(has(cxxConstructExpr(isListInitialization()))));
 
   EXPECT_TRUE(
     matches("class X { public: X(int); }; void x() { X x{0}; }",
@@ -2632,6 +2643,45 @@ TEST(HasDefaultArgument, Basic) {
                       parmVarDecl(hasDefaultArgument())));
 }
 
+TEST(IsAtPosition, Basic) {
+  EXPECT_TRUE(matches("void x(int a, int b) {}", parmVarDecl(isAtPosition(1))));
+  EXPECT_TRUE(matches("void x(int a, int b) {}", parmVarDecl(isAtPosition(0))));
+  EXPECT_TRUE(matches("void x(int a, int b) {}", parmVarDecl(isAtPosition(1))));
+  EXPECT_TRUE(notMatches("void x(int val) {}", parmVarDecl(isAtPosition(1))));
+}
+
+TEST(IsAtPosition, FunctionDecl) {
+  EXPECT_TRUE(matches("void x(int a);", parmVarDecl(isAtPosition(0))));
+  EXPECT_TRUE(matches("void x(int a, int b);", parmVarDecl(isAtPosition(0))));
+  EXPECT_TRUE(matches("void x(int a, int b);", parmVarDecl(isAtPosition(1))));
+  EXPECT_TRUE(notMatches("void x(int val);", parmVarDecl(isAtPosition(1))));
+}
+
+TEST(IsAtPosition, Lambda) {
+  EXPECT_TRUE(
+      matches("void x() { [](int a) {};  }", parmVarDecl(isAtPosition(0))));
+  EXPECT_TRUE(matches("void x() { [](int a, int b) {}; }",
+                      parmVarDecl(isAtPosition(0))));
+  EXPECT_TRUE(matches("void x() { [](int a, int b) {}; }",
+                      parmVarDecl(isAtPosition(1))));
+  EXPECT_TRUE(
+      notMatches("void x() { [](int val) {}; }", parmVarDecl(isAtPosition(1))));
+}
+
+TEST(IsAtPosition, BlockDecl) {
+  EXPECT_TRUE(matchesObjC(
+      "void func()  { void (^my_block)(int arg) = ^void(int arg) {}; } ",
+      parmVarDecl(isAtPosition(0))));
+
+  EXPECT_TRUE(matchesObjC("void func()  { void (^my_block)(int x, int y) = "
+                          "^void(int x, int y) {}; } ",
+                          parmVarDecl(isAtPosition(1))));
+
+  EXPECT_TRUE(notMatchesObjC(
+      "void func()  { void (^my_block)(int arg) = ^void(int arg) {}; } ",
+      parmVarDecl(isAtPosition(1))));
+}
+
 TEST(IsArray, Basic) {
   EXPECT_TRUE(matches("struct MyClass {}; MyClass *p1 = new MyClass[10];",
                       cxxNewExpr(isArray())));
@@ -2954,6 +3004,127 @@ void x() {
 ;
 })";
   EXPECT_TRUE(matchesWithOpenMP(Source6, Matcher));
+}
+
+TEST(HasAnyBase, DirectBase) {
+  EXPECT_TRUE(matches(
+      "struct Base {};"
+      "struct ExpectedMatch : Base {};",
+      cxxRecordDecl(hasName("ExpectedMatch"),
+                    hasAnyBase(hasType(cxxRecordDecl(hasName("Base")))))));
+}
+
+TEST(HasAnyBase, IndirectBase) {
+  EXPECT_TRUE(matches(
+      "struct Base {};"
+      "struct Intermediate : Base {};"
+      "struct ExpectedMatch : Intermediate {};",
+      cxxRecordDecl(hasName("ExpectedMatch"),
+                    hasAnyBase(hasType(cxxRecordDecl(hasName("Base")))))));
+}
+
+TEST(HasAnyBase, NoBase) {
+  EXPECT_TRUE(notMatches("struct Foo {};"
+                         "struct Bar {};",
+                         cxxRecordDecl(hasAnyBase(hasType(cxxRecordDecl())))));
+}
+
+TEST(IsPublicBase, Public) {
+  EXPECT_TRUE(matches("class Base {};"
+                      "class Derived : public Base {};",
+                      cxxRecordDecl(hasAnyBase(isPublic()))));
+}
+
+TEST(IsPublicBase, DefaultAccessSpecifierPublic) {
+  EXPECT_TRUE(matches("class Base {};"
+                      "struct Derived : Base {};",
+                      cxxRecordDecl(hasAnyBase(isPublic()))));
+}
+
+TEST(IsPublicBase, Private) {
+  EXPECT_TRUE(notMatches("class Base {};"
+                         "class Derived : private Base {};",
+                         cxxRecordDecl(hasAnyBase(isPublic()))));
+}
+
+TEST(IsPublicBase, DefaultAccessSpecifierPrivate) {
+  EXPECT_TRUE(notMatches("class Base {};"
+                         "class Derived : Base {};",
+                         cxxRecordDecl(hasAnyBase(isPublic()))));
+}
+
+TEST(IsPublicBase, Protected) {
+  EXPECT_TRUE(notMatches("class Base {};"
+                         "class Derived : protected Base {};",
+                         cxxRecordDecl(hasAnyBase(isPublic()))));
+}
+
+TEST(IsPrivateBase, Private) {
+  EXPECT_TRUE(matches("class Base {};"
+                      "class Derived : private Base {};",
+                      cxxRecordDecl(hasAnyBase(isPrivate()))));
+}
+
+TEST(IsPrivateBase, DefaultAccessSpecifierPrivate) {
+  EXPECT_TRUE(matches("struct Base {};"
+                      "class Derived : Base {};",
+                      cxxRecordDecl(hasAnyBase(isPrivate()))));
+}
+
+TEST(IsPrivateBase, Public) {
+  EXPECT_TRUE(notMatches("class Base {};"
+                         "class Derived : public Base {};",
+                         cxxRecordDecl(hasAnyBase(isPrivate()))));
+}
+
+TEST(IsPrivateBase, DefaultAccessSpecifierPublic) {
+  EXPECT_TRUE(notMatches("class Base {};"
+                         "struct Derived : Base {};",
+                         cxxRecordDecl(hasAnyBase(isPrivate()))));
+}
+
+TEST(IsPrivateBase, Protected) {
+  EXPECT_TRUE(notMatches("class Base {};"
+                         "class Derived : protected Base {};",
+                         cxxRecordDecl(hasAnyBase(isPrivate()))));
+}
+
+TEST(IsProtectedBase, Protected) {
+  EXPECT_TRUE(matches("class Base {};"
+                      "class Derived : protected Base {};",
+                      cxxRecordDecl(hasAnyBase(isProtected()))));
+}
+
+TEST(IsProtectedBase, Public) {
+  EXPECT_TRUE(notMatches("class Base {};"
+                         "class Derived : public Base {};",
+                         cxxRecordDecl(hasAnyBase(isProtected()))));
+}
+
+TEST(IsProtectedBase, Private) {
+  EXPECT_TRUE(notMatches("class Base {};"
+                         "class Derived : private Base {};",
+                         cxxRecordDecl(hasAnyBase(isProtected()))));
+}
+
+TEST(IsVirtual, Directly) {
+  EXPECT_TRUE(matches("class Base {};"
+                      "class Derived : virtual Base {};",
+                      cxxRecordDecl(hasAnyBase(isVirtual()))));
+}
+
+TEST(IsVirtual, Indirectly) {
+  EXPECT_TRUE(
+      matches("class Base {};"
+              "class Intermediate : virtual Base {};"
+              "class Derived : Intermediate {};",
+              cxxRecordDecl(hasName("Derived"), hasAnyBase(isVirtual()))));
+}
+
+TEST(IsVirtual, NoVirtualBase) {
+  EXPECT_TRUE(notMatches("class Base {};"
+                         "class Derived : Base {};",
+                         cxxRecordDecl(hasAnyBase(isVirtual()))));
 }
 
 } // namespace ast_matchers

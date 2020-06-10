@@ -265,7 +265,7 @@ static LogicalResult verify(IndexedGenericOp op) { return verifyGenericOp(op); }
 static ArrayAttr collapseReassociationMaps(ArrayRef<AffineMap> mapsProducer,
                                            ArrayRef<AffineMap> mapsConsumer,
                                            MLIRContext *context) {
-  if (mapsProducer.size() == 0 || mapsConsumer.size() == 0 ||
+  if (mapsProducer.empty() || mapsConsumer.empty() ||
       mapsProducer[0].getNumDims() < mapsConsumer[0].getNumDims() ||
       mapsProducer.size() != mapsConsumer[0].getNumDims())
     return nullptr;
@@ -277,7 +277,7 @@ static ArrayAttr collapseReassociationMaps(ArrayRef<AffineMap> mapsProducer,
     for (AffineExpr rhsExpr : rhs.getResults()) {
       AffineDimExpr dimExpr = rhsExpr.cast<AffineDimExpr>();
       for (int i = 0, e = mapsProducer[dimExpr.getPosition()].getNumResults();
-           i != e; ++i) {
+           i < e; ++i) {
         reassociations.push_back(getAffineDimExpr(currDim++, context));
       }
     }
@@ -345,7 +345,7 @@ static OpFoldResult foldReshapeOp(ReshapeOpTy reshapeOp) {
       reshapeSrcOp.getSrcType() == reshapeOp.getResultType())
     return reshapeSrcOp.src();
   return nullptr;
-};
+}
 
 /// Return true if the reassociation specification is valid, false otherwise.
 /// When false, the `invalidIndex` integer pointer is optionally filled with the
@@ -1129,8 +1129,6 @@ OpFoldResult SliceOp::fold(ArrayRef<Attribute>) {
   return {};
 }
 OpFoldResult TensorReshapeOp::fold(ArrayRef<Attribute>) {
-  if (succeeded(foldMemRefCast(*this)))
-    return getResult();
   return foldReshapeOp(*this);
 }
 OpFoldResult TransposeOp::fold(ArrayRef<Attribute>) {

@@ -64,6 +64,16 @@ Changes to the LLVM IR
   provided by the attribute is interfaced via the API provided by the
   ``VFDatabase`` class.
 
+* `dereferenceable` attributes and metadata on pointers no longer imply
+  anything about the alignment of the pointer in question. Previously, some
+  optimizations would make assumptions based on the type of the pointer. This
+  behavior was undocumented. To preserve optimizations, frontends may need to
+  be updated to generate appropriate `align` attributes and metadata.
+
+* The DIModule metadata is extended to contain file and line number
+  information. This information is used to represent Fortran modules debug
+  info at IR level.
+
 Changes to building LLVM
 ------------------------
 

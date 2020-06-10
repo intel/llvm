@@ -13,6 +13,7 @@
 #ifndef MLIR_DIALECT_VECTOR_VECTOROPS_H
 #define MLIR_DIALECT_VECTOR_VECTOROPS_H
 
+#include "mlir/IR/AffineMap.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/OpDefinition.h"
@@ -23,13 +24,6 @@ namespace mlir {
 class MLIRContext;
 class OwningRewritePatternList;
 namespace vector {
-
-/// Structure to control the behavior of vector transform patterns.
-struct VectorTransformsOptions {
-  /// Let vector.contract lower to vector.matrix_multiply and LLVM matrix
-  /// intrinsics.
-  bool lowerToLLVMMatrixIntrinsics = false;
-};
 
 /// Collect a set of vector-to-vector canonicalization patterns.
 void populateVectorToVectorCanonicalizationPatterns(
@@ -49,6 +43,25 @@ void populateVectorToVectorTransformationPatterns(
 /// "leak" coming in, however, some tuple related ops will remain.
 void populateVectorSlicesLoweringPatterns(OwningRewritePatternList &patterns,
                                           MLIRContext *context);
+
+/// Enum to control the lowering of `vector.contract` operations.
+enum class VectorContractLowering {
+  /// Progressively lower to finer grained `vector.contract` and `vector.fma`.
+  FMA = 0,
+  /// Lower to `vector.matrix_multiply`, maps 1-1 to LLVM matrix intrinsics.
+  Matmul = 1,
+  /// Lower to `vector.outerproduct`.
+  OuterProduct = 2,
+};
+/// Structure to control the behavior of vector transform patterns.
+struct VectorTransformsOptions {
+  VectorContractLowering vectorContractLowering = VectorContractLowering::FMA;
+  VectorTransformsOptions &
+  setVectorTransformsOptions(VectorContractLowering opt) {
+    vectorContractLowering = opt;
+    return *this;
+  }
+};
 
 /// Collect a set of transformation patterns that are related to contracting
 /// or expanding vector operations:
@@ -70,6 +83,14 @@ IntegerType getVectorSubscriptType(Builder &builder);
 /// Returns an integer array attribute containing the given values using
 /// the integer type required for subscripts in the vector dialect.
 ArrayAttr getVectorSubscriptAttr(Builder &b, ArrayRef<int64_t> values);
+
+namespace impl {
+/// Build the default minor identity map suitable for a vector transfer. This
+/// also handles the case memref<... x vector<...>> -> vector<...> in which the
+/// rank of the identity map must take the vector element type into account.
+AffineMap getTransferMinorIdentityMap(MemRefType memRefType,
+                                      VectorType vectorType);
+} // namespace impl
 
 #define GET_OP_CLASSES
 #include "mlir/Dialect/Vector/VectorOps.h.inc"

@@ -61,19 +61,17 @@ static SmallVector<Value, 4> permuteIvs(ArrayRef<Value> ivs,
 // Creates a number of ranges equal to the number of results in `map`.
 // The returned ranges correspond to the loop ranges, in the proper order, for
 // which new loops will be created.
-static SmallVector<Value, 4> emitLoopRanges(OpBuilder &b, Location loc,
-                                            AffineMap map,
-                                            ArrayRef<Value> allViewSizes);
-SmallVector<Value, 4> emitLoopRanges(OpBuilder &b, Location loc, AffineMap map,
-                                     ArrayRef<Value> allViewSizes) {
+static SmallVector<SubViewOp::Range, 4>
+emitLoopRanges(OpBuilder &b, Location loc, AffineMap map,
+               ArrayRef<Value> allViewSizes) {
   // Apply `map` to get view sizes in loop order.
   auto sizes = applyMapToValues(b, loc, map, allViewSizes);
   // Create a new range with the applied tile sizes.
   ScopedContext scope(b, loc);
-  SmallVector<Value, 4> res;
+  SmallVector<SubViewOp::Range, 4> res;
   for (unsigned idx = 0, e = map.getNumResults(); idx < e; ++idx) {
-    res.push_back(
-        linalg_range(std_constant_index(0), sizes[idx], std_constant_index(1)));
+    res.push_back(SubViewOp::Range{std_constant_index(0), sizes[idx],
+                                   std_constant_index(1)});
   }
   return res;
 }
@@ -489,80 +487,9 @@ public:
   }
 };
 
-namespace {
-/// Helper struct to generate the loop nest for the op. This factored out here
-/// to be able to partially specialize this for different LoopTy.
-template <typename LoopTy, typename ConcreteOpTy>
-class GenerateLoopNest {
-public:
-  using IndexedValueTy =
-      typename std::conditional<std::is_same<LoopTy, AffineForOp>::value,
-                                AffineIndexedValue, StdIndexedValue>::type;
-  static void doit(ConcreteOpTy linalgOp, ArrayRef<Value> loopRanges,
-                   MutableArrayRef<Value> allIvs) {
-    GenericLoopNestRangeBuilder<LoopTy>(allIvs, loopRanges)([&] {
-      SmallVector<Value, 4> allIvValues(allIvs.begin(), allIvs.end());
-      LinalgScopedEmitter<IndexedValueTy,
-                          ConcreteOpTy>::emitScalarImplementation(allIvValues,
-                                                                  linalgOp);
-    });
-  }
-};
-
-/// Generates loop nest using scf.parallel. scf.parallel is only used for the
-/// outer parallel loops. All other loops are generated using scf.for
-/// operation.
-template <typename ConcreteOpTy>
-class GenerateLoopNest<scf::ParallelOp, ConcreteOpTy> {
-public:
-  using IndexedValueTy = StdIndexedValue;
-
-  static void doit(ConcreteOpTy linalgOp, ArrayRef<Value> loopRanges,
-                   MutableArrayRef<Value> allIvs) {
-    // Only generate scf.parallel for outer consecutive "parallel"
-    // iterator_types.
-    // TODO(ravishankarm): Generate scf.parallel for all "parallel" iterator
-    // types, not just the outer most ones. Also handle "reduction" iterator
-    // types.
-    auto nOuterPar = linalgOp.iterator_types()
-                         .getValue()
-                         .take_while([](Attribute attr) {
-                           return attr.cast<StringAttr>().getValue() ==
-                                  getParallelIteratorTypeName();
-                         })
-                         .size();
-    // If there are no outer parallel loops, then number of loop ops is same as
-    // the number of loops, and they are all scf.for ops.
-    if (nOuterPar) {
-      GenericLoopNestRangeBuilder<scf::ParallelOp>(
-          allIvs.take_front(nOuterPar), loopRanges.take_front(nOuterPar))([&] {
-        GenericLoopNestRangeBuilder<scf::ForOp>(
-            allIvs.drop_front(nOuterPar),
-            loopRanges.drop_front(nOuterPar))([&] {
-          SmallVector<Value, 4> allIvValues(allIvs.begin(), allIvs.end());
-          LinalgScopedEmitter<StdIndexedValue, ConcreteOpTy>::
-              emitScalarImplementation(allIvValues, linalgOp);
-        });
-      });
-    } else {
-      // If there are no parallel loops then fallback to generating all scf.for
-      // operations.
-      GenericLoopNestRangeBuilder<scf::ForOp>(allIvs, loopRanges)([&] {
-        SmallVector<Value, 4> allIvValues(allIvs.begin(), allIvs.end());
-        LinalgScopedEmitter<StdIndexedValue,
-                            ConcreteOpTy>::emitScalarImplementation(allIvValues,
-                                                                    linalgOp);
-      });
-    }
-  }
-};
-} // namespace
-
 template <typename LoopTy, typename ConcreteOpTy>
 Optional<LinalgLoops> linalgOpToLoopsImpl(Operation *op, OpBuilder &builder) {
-  using Impl = GenerateLoopNest<LoopTy, ConcreteOpTy>;
-  using IndexedValueTy =
-      typename GenerateLoopNest<LoopTy, ConcreteOpTy>::IndexedValueTy;
+  using IndexedValueTy = typename GenerateLoopNest<LoopTy>::IndexedValueTy;
 
   ScopedContext scope(builder, op->getLoc());
 
@@ -593,7 +520,13 @@ Optional<LinalgLoops> linalgOpToLoopsImpl(Operation *op, OpBuilder &builder) {
       emitLoopRanges(scope.getBuilderRef(), scope.getLocation(), invertedMap,
                      getViewSizes(builder, linalgOp));
   assert(loopRanges.size() == allIvs.size());
-  Impl::doit(linalgOp, loopRanges, allIvs);
+  GenerateLoopNest<LoopTy>::doit(
+      allIvs, loopRanges, linalgOp.iterator_types().getValue(), [&] {
+        SmallVector<Value, 4> allIvValues(allIvs.begin(), allIvs.end());
+        LinalgScopedEmitter<IndexedValueTy,
+                            ConcreteOpTy>::emitScalarImplementation(allIvValues,
+                                                                    linalgOp);
+      });
   // Number of loop ops might be different from the number of ivs since some
   // loops like affine.parallel and scf.parallel have multiple ivs.
   llvm::SetVector<Operation *> loopSet;

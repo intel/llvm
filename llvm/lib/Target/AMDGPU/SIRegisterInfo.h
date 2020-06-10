@@ -33,6 +33,13 @@ private:
   bool isWave32;
   BitVector RegPressureIgnoredUnits;
 
+  /// Sub reg indexes for getRegSplitParts.
+  /// First index represents subreg size from 1 to 16 DWORDs.
+  /// The inner vector is sorted by bit offset.
+  /// Provided a register can be fully split with given subregs,
+  /// all elements of the inner vector combined give a full lane mask.
+  static std::array<std::vector<int16_t>, 16> RegSplitParts;
+
   void reserveRegisterTuples(BitVector &, MCRegister Reg) const;
 
 public:
@@ -64,6 +71,9 @@ public:
   }
 
   Register getFrameRegister(const MachineFunction &MF) const override;
+
+  bool hasBasePointer(const MachineFunction &MF) const;
+  Register getBaseRegister() const;
 
   bool canRealignStack(const MachineFunction &MF) const override;
   bool requiresRegisterScavenging(const MachineFunction &Fn) const override;
@@ -206,6 +216,8 @@ public:
   bool isVectorRegister(const MachineRegisterInfo &MRI, Register Reg) const {
     return isVGPR(MRI, Reg) || isAGPR(MRI, Reg);
   }
+
+  bool isConstantPhysReg(MCRegister PhysReg) const override;
 
   bool isDivergentRegClass(const TargetRegisterClass *RC) const override {
     return !isSGPRClass(RC);

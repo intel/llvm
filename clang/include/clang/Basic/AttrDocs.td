@@ -330,6 +330,17 @@ The SYCL kernel in the previous code sample meets these expectations.
   }];
 }
 
+def SYCLRegisterNumDocs : Documentation {
+  let Category = DocCatVariable;
+  let Content = [{
+    The ``__attribute__((register_num(n)))`` attribute can be used to bind
+    "private globals" (SYCL private address space variables declared in the file
+    scope) to a particular register with number 'n'. Actual mapping of registers
+    to numbers is target-specific. For Intel GPUs 'n' is a byte offset in the
+    GRF.
+  }];
+}
+
 def C11NoReturnDocs : Documentation {
   let Category = DocCatFunction;
   let Content = [{
@@ -347,6 +358,20 @@ def CXX11NoReturnDocs : Documentation {
 A function declared as ``[[noreturn]]`` shall not return to its caller. The
 compiler will generate a diagnostic for a function declared as ``[[noreturn]]``
 that appears to be capable of returning to its caller.
+  }];
+}
+
+def NoMergeDocs : Documentation {
+  let Category = DocCatFunction;
+  let Content = [{
+If a statement is marked ``nomerge`` and contains call experessions, those call
+expressions inside the statement will not be merged during optimization. This 
+attribute can be used to prevent the optimizer from obscuring the source
+location of certain calls. For example, it will prevent tail merging otherwise
+identical code sequences that raise an exception or terminate the program. Tail
+merging normally reduces the precision of source location information, making
+stack traces less useful for debugging. This attribute gives the user control
+over the tradeoff between code size and debug information precision.
   }];
 }
 
@@ -3542,6 +3567,17 @@ memory area persists between kernel executions. Pointer types to the global
 address space are allowed as function parameters or local variables. Starting
 with OpenCL v2.0, the global address space can be used with global (program
 scope) variables and static local variable as well.
+  }];
+}
+
+def OpenCLGlobalAddressSpacesDocs : Documentation {
+  let Category = DocOpenCLAddressSpaces;
+  let Heading = "[[clang::opencl_global_device]], [[clang::opencl_global_host]]";
+  let Content = [{
+The (global_device) and (global_host) address space attributes specify that an
+object is allocated in global memory on the device/host. It helps distinguishing
+USM pointers that access device memory and accessors that access global memory
+from those that access host memory.
   }];
 }
 

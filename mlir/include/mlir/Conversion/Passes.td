@@ -79,12 +79,18 @@ def ConvertAVX512ToLLVM : Pass<"convert-avx512-to-llvm", "ModuleOp"> {
 }
 
 //===----------------------------------------------------------------------===//
-// GPUToCUDA
+// GPUCommon
 //===----------------------------------------------------------------------===//
 
-def ConvertGpuLaunchFuncToCudaCalls : Pass<"launch-func-to-cuda", "ModuleOp"> {
-  let summary = "Convert all launch_func ops to CUDA runtime calls";
-  let constructor = "mlir::createConvertGpuLaunchFuncToCudaCallsPass()";
+def ConvertGpuLaunchFuncToGpuRuntimeCalls : Pass<"launch-func-to-gpu-runtime",
+                                                 "ModuleOp"> {
+  let summary = "Convert all launch_func ops to GPU runtime calls";
+  let constructor = "mlir::createConvertGpuLaunchFuncToGpuRuntimeCallsPass()";
+  let options = [
+    Option<"gpuBinaryAnnotation", "gpu-binary-annotation", "std::string",
+           "\"nvvm.cubin\"",
+           "Annotation attribute string for GPU binary">,
+  ];
 }
 
 //===----------------------------------------------------------------------===//
@@ -263,6 +269,20 @@ def LegalizeStandardForSPIRV : Pass<"legalize-std-for-spirv"> {
 def ConvertStandardToSPIRV : Pass<"convert-std-to-spirv", "ModuleOp"> {
   let summary = "Convert Standard Ops to SPIR-V dialect";
   let constructor = "mlir::createConvertStandardToSPIRVPass()";
+}
+
+//===----------------------------------------------------------------------===//
+// VectorToSCF
+//===----------------------------------------------------------------------===//
+
+def ConvertVectorToSCF : FunctionPass<"convert-vector-to-scf"> {
+  let summary = "Lower the operations from the vector dialect into the SCF "
+                "dialect";
+  let constructor = "mlir::createConvertVectorToSCFPass()";
+  let options = [
+    Option<"fullUnroll", "full-unroll", "bool", /*default=*/"false",
+           "Perform full unrolling when converting vector transfers to SCF">,
+  ];
 }
 
 //===----------------------------------------------------------------------===//

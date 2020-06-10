@@ -894,7 +894,8 @@ static void postSplitCleanup(Function &F) {
   // For now, we do a mandatory verification step because we don't
   // entirely trust this pass.  Note that we don't want to add a verifier
   // pass to FPM below because it will also verify all the global data.
-  verifyFunction(F);
+  if (verifyFunction(F, &errs()))
+    report_fatal_error("Broken function");
 
   legacy::FunctionPassManager FPM(F.getParent());
 
@@ -1014,9 +1015,9 @@ static bool shouldBeMustTail(const CallInst &CI, const Function &F) {
 
   // CI should not has any ABI-impacting function attributes.
   static const Attribute::AttrKind ABIAttrs[] = {
-      Attribute::StructRet, Attribute::ByVal,    Attribute::InAlloca,
-      Attribute::InReg,     Attribute::Returned, Attribute::SwiftSelf,
-      Attribute::SwiftError};
+      Attribute::StructRet,    Attribute::ByVal,     Attribute::InAlloca,
+      Attribute::Preallocated, Attribute::InReg,     Attribute::Returned,
+      Attribute::SwiftSelf,    Attribute::SwiftError};
   AttributeList Attrs = CI.getAttributes();
   for (auto AK : ABIAttrs)
     if (Attrs.hasParamAttribute(0, AK))

@@ -454,6 +454,10 @@ def I32ElementsAttrOp : TEST_Op<"i32ElementsAttr"> {
   let arguments = (ins I32ElementsAttr:$attr);
 }
 
+def IndexElementsAttrOp : TEST_Op<"indexElementsAttr"> {
+  let arguments = (ins IndexElementsAttr:$attr);
+}
+
 def OpWithInferTypeInterfaceOp : TEST_Op<"op_with_infer_type_if", [
     DeclareOpInterfaceMethods<InferTypeOpInterface>]> {
   let arguments = (ins AnyTensor, AnyTensor);
@@ -756,15 +760,6 @@ def OpSymbolBindingA : TEST_Op<"symbol_binding_a", []> {
 def OpSymbolBindingB : TEST_Op<"symbol_binding_b", []> {
   let arguments = (ins I32:$operand);
   let results = (outs I32);
-
-  let builders = [
-    OpBuilder<
-      "OpBuilder &builder, OperationState &state, Value operand",
-      [{
-        state.types.assign({builder.getIntegerType(32)});
-        state.addOperands({operand});
-      }]>
-  ];
 }
 def OpSymbolBindingC : TEST_Op<"symbol_binding_c", []> {
   let arguments = (ins I32:$operand);
@@ -868,17 +863,6 @@ def AnotherThreeResultOp : TEST_Op<"another_three_result"> {
 def TwoResultOp : TEST_Op<"two_result"> {
   let arguments = (ins MultiResultOpEnum:$kind);
   let results = (outs I32:$result1, F32:$result2);
-
-  let builders = [
-    OpBuilder<
-      "OpBuilder &builder, OperationState &state, IntegerAttr kind",
-      [{
-        auto i32 = builder.getIntegerType(32);
-        auto f32 = builder.getF32Type();
-        state.types.assign({i32, f32});
-        state.addAttribute("kind", kind);
-      }]>
-  ];
 }
 
 def AnotherTwoResultOp : TEST_Op<"another_two_result"> {
@@ -1080,6 +1064,22 @@ def LegalOpA : TEST_Op<"legal_op_a">,
   Arguments<(ins Test_LegalizerEnum:$status)>, Results<(outs I32)>;
 def LegalOpB : TEST_Op<"legal_op_b">, Results<(outs I32)>;
 
+// Check that the conversion infrastructure can properly undo the creation of
+// operations where an operation was created before its parent, in this case,
+// in the parent's builder.
+def IllegalOpTerminator : TEST_Op<"illegal_op_terminator", [Terminator]>;
+def IllegalOpWithRegion : TEST_Op<"illegal_op_with_region"> {
+  let skipDefaultBuilders = 1;
+  let builders = [OpBuilder<"OpBuilder &builder, OperationState &state",
+                  [{ Region *bodyRegion = state.addRegion();
+                     OpBuilder::InsertionGuard g(builder);
+                     Block *body = builder.createBlock(bodyRegion);
+                     builder.setInsertionPointToEnd(body);
+                     builder.create<IllegalOpTerminator>(state.location);
+                  }]>];
+}
+def IllegalOpWithRegionAnchor : TEST_Op<"illegal_op_with_region_anchor">;
+
 // Check that smaller pattern depths are chosen, i.e. prioritize more direct
 // mappings.
 def : Pat<(ILLegalOpA), (LegalOpA Test_LegalizerEnum_Success)>;
@@ -1214,9 +1214,15 @@ def FormatAttrOp : TEST_Op<"format_attr_op"> {
   let assemblyFormat = "$attr attr-dict";
 }
 
+// Test that we elide optional attributes that are within the syntax.
+def FormatOptAttrOp : TEST_Op<"format_opt_attr_op"> {
+  let arguments = (ins OptionalAttr<I64Attr>:$opt_attr);
+  let assemblyFormat = "(`(`$opt_attr^`)`)? attr-dict";
+}
+
 // Test that we elide attributes that are within the syntax.
 def FormatAttrDictWithKeywordOp : TEST_Op<"format_attr_dict_w_keyword"> {
-  let arguments = (ins I64Attr:$attr);
+  let arguments = (ins I64Attr:$attr, OptionalAttr<I64Attr>:$opt_attr);
   let assemblyFormat = "attr-dict-with-keyword";
 }
 

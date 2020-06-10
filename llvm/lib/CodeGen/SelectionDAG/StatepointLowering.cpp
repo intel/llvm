@@ -229,7 +229,8 @@ static void reservePreviousStackSlotForValue(const Value *IncomingValue,
                                              SelectionDAGBuilder &Builder) {
   SDValue Incoming = Builder.getValue(IncomingValue);
 
-  if (isa<ConstantSDNode>(Incoming) || isa<FrameIndexSDNode>(Incoming)) {
+  if (isa<ConstantSDNode>(Incoming) || isa<ConstantFPSDNode>(Incoming) ||
+      isa<FrameIndexSDNode>(Incoming)) {
     // We won't need to spill this, so no need to check for previously
     // allocated stack slots
     return;
@@ -387,13 +388,16 @@ lowerIncomingStatepointValue(SDValue Incoming, bool RequireSpillSlot,
   // doing it here would be a small compile time win at most.
   SDValue Chain = Builder.getRoot();
 
-  if (ConstantSDNode *C = dyn_cast<ConstantSDNode>(Incoming)) {
-    // If the original value was a constant, make sure it gets recorded as
-    // such in the stackmap.  This is required so that the consumer can
-    // parse any internal format to the deopt state.  It also handles null
-    // pointers and other constant pointers in GC states.  Note the constant
-    // vectors do not appear to actually hit this path and that anything larger
-    // than an i64 value (not type!) will fail asserts here.
+  // If the original value was a constant, make sure it gets recorded as
+  // such in the stackmap.  This is required so that the consumer can
+  // parse any internal format to the deopt state.  It also handles null
+  // pointers and other constant pointers in GC states.  Note the constant
+  // vectors do not appear to actually hit this path and that anything larger
+  // than an i64 value (not type!) will fail asserts here.
+  if (ConstantFPSDNode *C = dyn_cast<ConstantFPSDNode>(Incoming)) {
+    pushStackMapConstant(Ops, Builder,
+                         C->getValueAPF().bitcastToAPInt().getZExtValue());
+  } else if (ConstantSDNode *C = dyn_cast<ConstantSDNode>(Incoming)) {
     pushStackMapConstant(Ops, Builder, C->getSExtValue());
   } else if (FrameIndexSDNode *FI = dyn_cast<FrameIndexSDNode>(Incoming)) {
     // This handles allocas as arguments to the statepoint (this is only
@@ -800,9 +804,10 @@ SDValue SelectionDAGBuilder::LowerAsSTATEPOINT(
 }
 
 void
-SelectionDAGBuilder::LowerStatepoint(ImmutableStatepoint ISP,
+SelectionDAGBuilder::LowerStatepoint(const GCStatepointInst &I,
                                      const BasicBlock *EHPadBB /*= nullptr*/) {
-  assert(ISP.getCall()->getCallingConv() != CallingConv::AnyReg &&
+  ImmutableStatepoint ISP(&I);
+  assert(I.getCallingConv() != CallingConv::AnyReg &&
          "anyregcc is not supported on statepoints!");
 
 #ifndef NDEBUG
@@ -817,9 +822,9 @@ SelectionDAGBuilder::LowerStatepoint(ImmutableStatepoint ISP,
 #endif
 
   SDValue ActualCallee;
-  SDValue Callee = getValue(ISP.getCalledValue());
+  SDValue Callee = getValue(I.getActualCalledOperand());
 
-  if (ISP.getNumPatchBytes() > 0) {
+  if (I.getNumPatchBytes() > 0) {
     // If we've been asked to emit a nop sequence instead of a call instruction
     // for this statepoint then don't lower the call target, but use a constant
     // `undef` instead.  Not lowering the call target lets statepoint clients
@@ -831,10 +836,9 @@ SelectionDAGBuilder::LowerStatepoint(ImmutableStatepoint ISP,
   }
 
   StatepointLoweringInfo SI(DAG);
-  populateCallLoweringInfo(SI.CLI, ISP.getCall(),
-                           ImmutableStatepoint::CallArgsBeginPos,
-                           ISP.getNumCallArgs(), ActualCallee,
-                           ISP.getActualReturnType(), false /* IsPatchPoint */);
+  populateCallLoweringInfo(SI.CLI, &I, GCStatepointInst::CallArgsBeginPos,
+                           I.getNumCallArgs(), ActualCallee,
+                           I.getActualReturnType(), false /* IsPatchPoint */);
 
   // There may be duplication in the gc.relocate list; such as two copies of
   // each relocation on normal and exceptional path for an invoke.  We only
@@ -850,7 +854,7 @@ SelectionDAGBuilder::LowerStatepoint(ImmutableStatepoint ISP,
   // separately with half the space. This would require a format rev and a
   // fairly major rework of the STATEPOINT node though.
   SmallSet<SDValue, 8> Seen;
-  for (const GCRelocateInst *Relocate : ISP.getRelocates()) {
+  for (const GCRelocateInst *Relocate : I.getGCRelocates()) {
     SI.GCRelocates.push_back(Relocate);
 
     SDValue DerivedSD = getValue(Relocate->getDerivedPtr());
@@ -860,23 +864,39 @@ SelectionDAGBuilder::LowerStatepoint(ImmutableStatepoint ISP,
     }
   }
 
-  SI.GCArgs = ArrayRef<const Use>(ISP.gc_args_begin(), ISP.gc_args_end());
-  SI.StatepointInstr = ISP.getInstruction();
-  SI.GCTransitionArgs = ArrayRef<const Use>(ISP.gc_transition_args_begin(),
-                                            ISP.gc_transition_args_end());
-  SI.ID = ISP.getID();
-  SI.DeoptState = ArrayRef<const Use>(ISP.deopt_begin(), ISP.deopt_end());
-  SI.StatepointFlags = ISP.getFlags();
-  SI.NumPatchBytes = ISP.getNumPatchBytes();
+  SI.GCArgs = ArrayRef<const Use>(I.gc_args_begin(), I.gc_args_end());
+  SI.StatepointInstr = &I;
+  SI.ID = I.getID();
+
+  if (auto Opt = I.getOperandBundle(LLVMContext::OB_deopt)) {
+    assert(ISP.deopt_operands().empty() &&
+           "can't list both deopt operands and deopt bundle");
+    auto &Inputs = Opt->Inputs;
+    SI.DeoptState = ArrayRef<const Use>(Inputs.begin(), Inputs.end());
+  } else {
+    SI.DeoptState = ArrayRef<const Use>(ISP.deopt_begin(), ISP.deopt_end());
+  }
+  if (auto Opt = I.getOperandBundle(LLVMContext::OB_gc_transition)) {
+    assert(ISP.gc_transition_args().empty() &&
+           "can't list both gc_transition operands and bundle");
+    auto &Inputs = Opt->Inputs;
+    SI.GCTransitionArgs = ArrayRef<const Use>(Inputs.begin(), Inputs.end());
+  } else {
+    SI.GCTransitionArgs = ArrayRef<const Use>(ISP.gc_transition_args_begin(),
+                                              ISP.gc_transition_args_end());
+  }
+
+  SI.StatepointFlags = I.getFlags();
+  SI.NumPatchBytes = I.getNumPatchBytes();
   SI.EHPadBB = EHPadBB;
 
   SDValue ReturnValue = LowerAsSTATEPOINT(SI);
 
   // Export the result value if needed
-  const GCResultInst *GCResult = ISP.getGCResult();
-  Type *RetTy = ISP.getActualReturnType();
+  const GCResultInst *GCResult = I.getGCResult();
+  Type *RetTy = I.getActualReturnType();
   if (!RetTy->isVoidTy() && GCResult) {
-    if (GCResult->getParent() != ISP.getCall()->getParent()) {
+    if (GCResult->getParent() != I.getParent()) {
       // Result value will be used in a different basic block so we need to
       // export it now.  Default exporting mechanism will not work here because
       // statepoint call has a different type than the actual call. It means
@@ -888,22 +908,22 @@ SelectionDAGBuilder::LowerStatepoint(ImmutableStatepoint ISP,
       unsigned Reg = FuncInfo.CreateRegs(RetTy);
       RegsForValue RFV(*DAG.getContext(), DAG.getTargetLoweringInfo(),
                        DAG.getDataLayout(), Reg, RetTy,
-                       ISP.getCall()->getCallingConv());
+                       I.getCallingConv());
       SDValue Chain = DAG.getEntryNode();
 
       RFV.getCopyToRegs(ReturnValue, DAG, getCurSDLoc(), Chain, nullptr);
       PendingExports.push_back(Chain);
-      FuncInfo.ValueMap[ISP.getInstruction()] = Reg;
+      FuncInfo.ValueMap[&I] = Reg;
     } else {
       // Result value will be used in a same basic block. Don't export it or
       // perform any explicit register copies.
       // We'll replace the actuall call node shortly. gc_result will grab
       // this value.
-      setValue(ISP.getInstruction(), ReturnValue);
+      setValue(&I, ReturnValue);
     }
   } else {
     // The token value is never used from here on, just generate a poison value
-    setValue(ISP.getInstruction(), DAG.getIntPtrConstant(-1, getCurSDLoc()));
+    setValue(&I, DAG.getIntPtrConstant(-1, getCurSDLoc()));
   }
 }
 
@@ -950,7 +970,7 @@ void SelectionDAGBuilder::LowerCallSiteWithDeoptBundle(
 void SelectionDAGBuilder::visitGCResult(const GCResultInst &CI) {
   // The result value of the gc_result is simply the result of the actual
   // call.  We've already emitted this, so just grab the value.
-  const Instruction *I = CI.getStatepoint();
+  const GCStatepointInst *I = CI.getStatepoint();
 
   if (I->getParent() != CI.getParent()) {
     // Statepoint is in different basic block so we should have stored call
@@ -959,10 +979,7 @@ void SelectionDAGBuilder::visitGCResult(const GCResultInst &CI) {
     // register because statepoint and actual call return types can be
     // different, and getValue() will use CopyFromReg of the wrong type,
     // which is always i32 in our case.
-    PointerType *CalleeType = cast<PointerType>(
-        ImmutableStatepoint(I).getCalledValue()->getType());
-    Type *RetTy =
-        cast<FunctionType>(CalleeType->getElementType())->getReturnType();
+    Type *RetTy = I->getActualReturnType();
     SDValue CopyFromReg = getCopyFromRegs(I, RetTy);
 
     assert(CopyFromReg.getNode());

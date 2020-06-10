@@ -2489,6 +2489,10 @@ void OMPClauseEnqueue::VisitOMPUseDevicePtrClause(
     const OMPUseDevicePtrClause *C) {
   VisitOMPClauseList(C);
 }
+void OMPClauseEnqueue::VisitOMPUseDeviceAddrClause(
+    const OMPUseDeviceAddrClause *C) {
+  VisitOMPClauseList(C);
+}
 void OMPClauseEnqueue::VisitOMPIsDevicePtrClause(
     const OMPIsDevicePtrClause *C) {
   VisitOMPClauseList(C);
@@ -2507,6 +2511,11 @@ void OMPClauseEnqueue::VisitOMPUsesAllocatorsClause(
     Visitor->AddStmt(D.Allocator);
     Visitor->AddStmt(D.AllocatorTraits);
   }
+}
+void OMPClauseEnqueue::VisitOMPAffinityClause(const OMPAffinityClause *C) {
+  Visitor->AddStmt(C->getModifier());
+  for (const Expr *E : C->varlists())
+    Visitor->AddStmt(E);
 }
 } // namespace
 
@@ -5239,6 +5248,8 @@ CXString clang_getCursorKindSpelling(enum CXCursorKind Kind) {
     return cxstring::createRef("CXXConstCastExpr");
   case CXCursor_CXXFunctionalCastExpr:
     return cxstring::createRef("CXXFunctionalCastExpr");
+  case CXCursor_CXXAddrspaceCastExpr:
+    return cxstring::createRef("CXXAddrspaceCastExpr");
   case CXCursor_CXXTypeidExpr:
     return cxstring::createRef("CXXTypeidExpr");
   case CXCursor_CXXBoolLiteralExpr:

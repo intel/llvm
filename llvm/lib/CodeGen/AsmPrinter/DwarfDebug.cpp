@@ -1271,8 +1271,7 @@ void DwarfDebug::finalizeModuleInfo() {
 
     // We don't keep track of which addresses are used in which CU so this
     // is a bit pessimistic under LTO.
-    if ((!AddrPool.isEmpty() || TheCU.hasRangeLists()) &&
-        (getDwarfVersion() >= 5 || HasSplitUnit))
+    if ((HasSplitUnit || getDwarfVersion() >= 5) && !AddrPool.isEmpty())
       U.addAddrTableBase();
 
     if (getDwarfVersion() >= 5) {
@@ -1292,9 +1291,11 @@ void DwarfDebug::finalizeModuleInfo() {
     // attribute.
     if (CUNode->getMacros()) {
       if (getDwarfVersion() >= 5) {
-        // FIXME: Add support for DWARFv5 DW_AT_macros attribute for split
-        // case.
-        if (!useSplitDwarf())
+        if (useSplitDwarf())
+          TheCU.addSectionDelta(
+              TheCU.getUnitDie(), dwarf::DW_AT_macros, U.getMacroLabelBegin(),
+              TLOF.getDwarfMacroDWOSection()->getBeginSymbol());
+        else
           U.addSectionLabel(U.getUnitDie(), dwarf::DW_AT_macros,
                             U.getMacroLabelBegin(),
                             TLOF.getDwarfMacroSection()->getBeginSymbol());
@@ -1480,10 +1481,6 @@ static bool validThroughout(LexicalScopes &LScopes,
   if (LSRange.size() == 0)
     return false;
 
-  // If this range is neither open ended nor a constant, then it is not a
-  // candidate for being validThroughout.
-  if (RangeEnd && !DbgValue->getOperand(0).isImm())
-    return false;
 
   // Determine if the DBG_VALUE is valid at the beginning of its lexical block.
   const MachineInstr *LScopeBegin = LSRange.front().first;
@@ -1525,7 +1522,28 @@ static bool validThroughout(LexicalScopes &LScopes,
   if (DbgValue->getOperand(0).isImm() && MBB->pred_empty())
     return true;
 
-  return false;
+  // Now check for situations where an "open-ended" DBG_VALUE isn't enough to
+  // determine eligibility for a single location, e.g. nested scopes, inlined
+  // functions.
+  // FIXME: For now we just handle a simple (but common) case where the scope
+  // is contained in MBB. We could be smarter here.
+  //
+  // At this point we know that our scope ends in MBB. So, if RangeEnd exists
+  // outside of the block we can ignore it; the location is just leaking outside
+  // its scope.
+  assert(LScopeEnd->getParent() == MBB && "Scope ends outside MBB");
+  if (RangeEnd->getParent() != DbgValue->getParent())
+    return true;
+
+  // The location range and variable's enclosing scope are both contained within
+  // MBB, test if location terminates before end of scope.
+  for (auto I = RangeEnd->getIterator(); I != MBB->end(); ++I)
+    if (&*I == LScopeEnd)
+      return false;
+
+  // There's a single location which starts at the scope start, and ends at or
+  // after the scope end.
+  return true;
 }
 
 /// Build the location list for all DBG_VALUEs in the function that
@@ -2383,14 +2401,11 @@ void DwarfDebug::emitDebugLocValue(const AsmPrinter &AP, const DIBasicType *BT,
       DwarfExpr.addUnsignedConstant(Value.getInt());
   } else if (Value.isLocation()) {
     MachineLocation Location = Value.getLoc();
-    if (Location.isIndirect())
-      DwarfExpr.setMemoryLocationKind();
+    DwarfExpr.setLocation(Location, DIExpr);
     DIExpressionCursor Cursor(DIExpr);
 
-    if (DIExpr->isEntryValue()) {
-      DwarfExpr.setEntryValueFlag();
+    if (DIExpr->isEntryValue())
       DwarfExpr.beginEntryValueExpression(Cursor);
-    }
 
     const TargetRegisterInfo &TRI = *AP.MF->getSubtarget().getRegisterInfo();
     if (!DwarfExpr.addMachineRegExpression(TRI, Cursor, Location.getReg()))
@@ -2911,26 +2926,23 @@ void DwarfDebug::emitMacro(DIMacro &M) {
 
   if (UseMacro) {
     unsigned Type = M.getMacinfoType() == dwarf::DW_MACINFO_define
-                        ? dwarf::DW_MACRO_define_strp
-                        : dwarf::DW_MACRO_undef_strp;
+                        ? dwarf::DW_MACRO_define_strx
+                        : dwarf::DW_MACRO_undef_strx;
     Asm->OutStreamer->AddComment(dwarf::MacroString(Type));
     Asm->emitULEB128(Type);
     Asm->OutStreamer->AddComment("Line Number");
     Asm->emitULEB128(M.getLine());
     Asm->OutStreamer->AddComment("Macro String");
     if (!Value.empty())
-      Asm->OutStreamer->emitSymbolValue(
-          this->InfoHolder.getStringPool()
-              .getEntry(*Asm, (Name + " " + Value).str())
-              .getSymbol(),
-          4);
+      Asm->emitULEB128(this->InfoHolder.getStringPool()
+                           .getIndexedEntry(*Asm, (Name + " " + Value).str())
+                           .getIndex());
     else
-      // DW_MACRO_undef_strp doesn't have a value, so just emit the macro
+      // DW_MACRO_undef_strx doesn't have a value, so just emit the macro
       // string.
-      Asm->OutStreamer->emitSymbolValue(this->InfoHolder.getStringPool()
-                                            .getEntry(*Asm, (Name).str())
-                                            .getSymbol(),
-                                        4);
+      Asm->emitULEB128(this->InfoHolder.getStringPool()
+                           .getIndexedEntry(*Asm, (Name).str())
+                           .getIndex());
   } else {
     Asm->OutStreamer->AddComment(dwarf::MacinfoString(M.getMacinfoType()));
     Asm->emitULEB128(M.getMacinfoType());
@@ -3004,10 +3016,10 @@ void DwarfDebug::emitDebugMacinfo() {
 }
 
 void DwarfDebug::emitDebugMacinfoDWO() {
-  // FIXME: Add support for macro.dwo section.
-  if (getDwarfVersion() >= 5)
-    return;
-  emitDebugMacinfoImpl(Asm->getObjFileLowering().getDwarfMacinfoDWOSection());
+  auto &ObjLower = Asm->getObjFileLowering();
+  emitDebugMacinfoImpl(getDwarfVersion() >= 5
+                           ? ObjLower.getDwarfMacroDWOSection()
+                           : ObjLower.getDwarfMacinfoDWOSection());
 }
 
 // DWARF5 Experimental Separate Dwarf emitters.
@@ -3271,5 +3283,7 @@ const MCSymbol *DwarfDebug::getSectionLabel(const MCSection *S) {
   return SectionLabels.find(S)->second;
 }
 void DwarfDebug::insertSectionLabel(const MCSymbol *S) {
-  SectionLabels.insert(std::make_pair(&S->getSection(), S));
+  if (SectionLabels.insert(std::make_pair(&S->getSection(), S)).second)
+    if (useSplitDwarf() || getDwarfVersion() >= 5)
+      AddrPool.getIndex(S);
 }

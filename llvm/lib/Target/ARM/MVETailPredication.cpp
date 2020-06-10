@@ -46,18 +46,18 @@
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/LoopPass.h"
 #include "llvm/Analysis/ScalarEvolution.h"
-#include "llvm/Analysis/ScalarEvolutionExpander.h"
 #include "llvm/Analysis/ScalarEvolutionExpressions.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
-#include "llvm/InitializePasses.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicsARM.h"
 #include "llvm/IR/PatternMatch.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/LoopUtils.h"
+#include "llvm/Transforms/Utils/ScalarEvolutionExpander.h"
 
 using namespace llvm;
 
@@ -304,12 +304,12 @@ bool MVETailPredication::isTailPredicate(TripCountPattern &TCP) {
   Instruction *Insert = nullptr;
   // The shuffle which broadcasts the index iv into a vector.
   if (!match(BroadcastSplat,
-             m_ShuffleVector(m_Instruction(Insert), m_Undef(), m_ZeroMask())))
+             m_Shuffle(m_Instruction(Insert), m_Undef(), m_ZeroMask())))
     return false;
 
   // The insert element which initialises a vector with the index iv.
   Instruction *IV = nullptr;
-  if (!match(Insert, m_InsertElement(m_Undef(), m_Instruction(IV), m_Zero())))
+  if (!match(Insert, m_InsertElt(m_Undef(), m_Instruction(IV), m_Zero())))
     return false;
 
   // The index iv.
@@ -429,13 +429,13 @@ static bool MatchElemCountLoopSetup(Loop *L, Instruction *Shuffle,
   Instruction *Insert = nullptr;
 
   if (!match(Shuffle,
-             m_ShuffleVector(m_Instruction(Insert), m_Undef(), m_ZeroMask())))
+             m_Shuffle(m_Instruction(Insert), m_Undef(), m_ZeroMask())))
     return false;
 
   // Insert the limit into a vector.
   Instruction *BECount = nullptr;
   if (!match(Insert,
-             m_InsertElement(m_Undef(), m_Instruction(BECount), m_Zero())))
+             m_InsertElt(m_Undef(), m_Instruction(BECount), m_Zero())))
     return false;
 
   // The limit calculation, backedge count.

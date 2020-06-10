@@ -46,6 +46,7 @@ void registerTestLoopPermutationPass();
 void registerTestCallGraphPass();
 void registerTestConstantFold();
 void registerTestConvertGPUKernelToCubinPass();
+void registerTestConvertGPUKernelToHsacoPass();
 void registerTestDominancePass();
 void registerTestFunc();
 void registerTestGpuMemoryPromotionPass();
@@ -60,8 +61,8 @@ void registerTestMemRefStrideCalculation();
 void registerTestOpaqueLoc();
 void registerTestParallelismDetection();
 void registerTestGpuParallelLoopMappingPass();
+void registerTestSCFUtilsPass();
 void registerTestVectorConversions();
-void registerTestVectorToSCFPass();
 void registerVectorizerTestPass();
 } // namespace mlir
 
@@ -93,6 +94,7 @@ static cl::opt<bool> allowUnregisteredDialects(
     "allow-unregistered-dialect",
     cl::desc("Allow operation with no registered dialects"), cl::init(false));
 
+#ifdef MLIR_INCLUDE_TESTS
 void registerTestPasses() {
   registerConvertToTargetEnvPass();
   registerInliner();
@@ -112,6 +114,9 @@ void registerTestPasses() {
 #if MLIR_CUDA_CONVERSIONS_ENABLED
   registerTestConvertGPUKernelToCubinPass();
 #endif
+#if MLIR_ROCM_CONVERSIONS_ENABLED
+  registerTestConvertGPUKernelToHsacoPass();
+#endif
   registerTestBufferPlacementPreparationPass();
   registerTestDominancePass();
   registerTestFunc();
@@ -127,10 +132,11 @@ void registerTestPasses() {
   registerTestOpaqueLoc();
   registerTestParallelismDetection();
   registerTestGpuParallelLoopMappingPass();
+  registerTestSCFUtilsPass();
   registerTestVectorConversions();
-  registerTestVectorToSCFPass();
   registerVectorizerTestPass();
 }
+#endif
 
 static cl::opt<bool>
     showDialects("show-dialects",
@@ -140,7 +146,9 @@ static cl::opt<bool>
 int main(int argc, char **argv) {
   registerAllDialects();
   registerAllPasses();
+#ifdef MLIR_INCLUDE_TESTS
   registerTestPasses();
+#endif
   InitLLVM y(argc, argv);
 
   // Register any command line options.

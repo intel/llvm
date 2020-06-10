@@ -483,7 +483,7 @@ static Instruction *foldVecTruncToExtElt(TruncInst &Trunc, InstCombiner &IC) {
   // bitcast it to a vector type that we can extract from.
   unsigned NumVecElts = VecWidth / DestWidth;
   if (VecType->getElementType() != DestType) {
-    VecType = VectorType::get(DestType, NumVecElts);
+    VecType = FixedVectorType::get(DestType, NumVecElts);
     VecInput = IC.Builder.CreateBitCast(VecInput, VecType, "bc");
   }
 
@@ -854,8 +854,7 @@ Instruction *InstCombiner::visitTrunc(TruncInst &CI) {
   //   --->
   //   extractelement <8 x i32> (bitcast <4 x i64> %X to <8 x i32>), i32 0
   Value *VecOp;
-  if (match(Src,
-            m_OneUse(m_ExtractElement(m_Value(VecOp), m_ConstantInt(Cst))))) {
+  if (match(Src, m_OneUse(m_ExtractElt(m_Value(VecOp), m_ConstantInt(Cst))))) {
     auto *VecOpTy = cast<VectorType>(VecOp->getType());
     unsigned DestScalarSize = DestTy->getScalarSizeInBits();
     unsigned VecOpScalarSize = VecOpTy->getScalarSizeInBits();
@@ -871,7 +870,7 @@ Instruction *InstCombiner::visitTrunc(TruncInst &CI) {
       assert(BitCastNumElts <= std::numeric_limits<uint32_t>::max() &&
              "overflow 32-bits");
 
-      Type *BitCastTo = VectorType::get(DestTy, BitCastNumElts);
+      auto *BitCastTo = FixedVectorType::get(DestTy, BitCastNumElts);
       Value *BitCast = Builder.CreateBitCast(VecOp, BitCastTo);
       return ExtractElementInst::Create(BitCast, Builder.getInt32(NewIdx));
     }
@@ -1537,7 +1536,7 @@ static Type *shrinkFPConstantVector(Value *V) {
   }
 
   // Make a vector type from the minimal type.
-  return VectorType::get(MinType, NumElts);
+  return FixedVectorType::get(MinType, NumElts);
 }
 
 /// Find the minimum FP type we can safely truncate to.
@@ -1557,6 +1556,48 @@ static Type *getMinimumFPType(Value *V) {
     return T;
 
   return V->getType();
+}
+
+/// Return true if the cast from integer to FP can be proven to be exact for all
+/// possible inputs (the conversion does not lose any precision).
+static bool isKnownExactCastIntToFP(CastInst &I) {
+  CastInst::CastOps Opcode = I.getOpcode();
+  assert((Opcode == CastInst::SIToFP || Opcode == CastInst::UIToFP) &&
+         "Unexpected cast");
+  Value *Src = I.getOperand(0);
+  Type *SrcTy = Src->getType();
+  Type *FPTy = I.getType();
+  bool IsSigned = Opcode == Instruction::SIToFP;
+  int SrcSize = (int)SrcTy->getScalarSizeInBits() - IsSigned;
+
+  // Easy case - if the source integer type has less bits than the FP mantissa,
+  // then the cast must be exact.
+  int DestNumSigBits = FPTy->getFPMantissaWidth();
+  if (SrcSize <= DestNumSigBits)
+    return true;
+
+  // Cast from FP to integer and back to FP is independent of the intermediate
+  // integer width because of poison on overflow.
+  Value *F;
+  if (match(Src, m_FPToSI(m_Value(F))) || match(Src, m_FPToUI(m_Value(F)))) {
+    // If this is uitofp (fptosi F), the source needs an extra bit to avoid
+    // potential rounding of negative FP input values.
+    int SrcNumSigBits = F->getType()->getFPMantissaWidth();
+    if (!IsSigned && match(Src, m_FPToSI(m_Value())))
+      SrcNumSigBits++;
+
+    // [su]itofp (fpto[su]i F) --> exact if the source type has less or equal
+    // significant bits than the destination (and make sure neither type is
+    // weird -- ppc_fp128).
+    if (SrcNumSigBits > 0 && DestNumSigBits > 0 &&
+        SrcNumSigBits <= DestNumSigBits)
+      return true;
+  }
+
+  // TODO:
+  // Try harder to find if the source integer type has less significant bits.
+  // For example, compute number of sign bits or compute low bit mask.
+  return false;
 }
 
 Instruction *InstCombiner::visitFPTrunc(FPTruncInst &FPT) {
@@ -1700,6 +1741,7 @@ Instruction *InstCombiner::visitFPTrunc(FPTruncInst &FPT) {
     case Intrinsic::nearbyint:
     case Intrinsic::rint:
     case Intrinsic::round:
+    case Intrinsic::roundeven:
     case Intrinsic::trunc: {
       Value *Src = II->getArgOperand(0);
       if (!Src->hasOneUse())
@@ -1732,29 +1774,14 @@ Instruction *InstCombiner::visitFPTrunc(FPTruncInst &FPT) {
   if (Instruction *I = shrinkInsertElt(FPT, Builder))
     return I;
 
+  Value *Src = FPT.getOperand(0);
+  if (isa<SIToFPInst>(Src) || isa<UIToFPInst>(Src)) {
+    auto *FPCast = cast<CastInst>(Src);
+    if (isKnownExactCastIntToFP(*FPCast))
+      return CastInst::Create(FPCast->getOpcode(), FPCast->getOperand(0), Ty);
+  }
+
   return nullptr;
-}
-
-/// Return true if the cast from integer to FP can be proven to be exact for all
-/// possible inputs (the conversion does not lose any precision).
-static bool isKnownExactCastIntToFP(CastInst &I) {
-  CastInst::CastOps Opcode = I.getOpcode();
-  assert((Opcode == CastInst::SIToFP || Opcode == CastInst::UIToFP) &&
-         "Unexpected cast");
-  Value *Src = I.getOperand(0);
-  Type *SrcTy = Src->getType();
-  Type *FPTy = I.getType();
-  bool IsSigned = Opcode == Instruction::SIToFP;
-  int SrcSize = (int)SrcTy->getScalarSizeInBits() - IsSigned;
-
-  // Easy case - if the source integer type has less bits than the FP mantissa,
-  // then the cast must be exact.
-  if (SrcSize <= FPTy->getFPMantissaWidth())
-    return true;
-
-  // TODO:
-  // Try harder to find if the source integer type has less significant bits.
-  return false;
 }
 
 Instruction *InstCombiner::visitFPExt(CastInst &FPExt) {
@@ -1894,8 +1921,11 @@ Instruction *InstCombiner::visitPtrToInt(PtrToIntInst &CI) {
     return commonPointerCastTransforms(CI);
 
   Type *PtrTy = DL.getIntPtrType(CI.getContext(), AS);
-  if (auto *VTy = dyn_cast<VectorType>(Ty)) // Handle vectors of pointers.
-    PtrTy = VectorType::get(PtrTy, VTy->getNumElements());
+  if (auto *VTy = dyn_cast<VectorType>(Ty)) {
+    // Handle vectors of pointers.
+    // FIXME: what should happen for scalable vectors?
+    PtrTy = FixedVectorType::get(PtrTy, VTy->getNumElements());
+  }
 
   Value *P = Builder.CreatePtrToInt(CI.getOperand(0), PtrTy);
   return CastInst::CreateIntegerCast(P, Ty, /*isSigned=*/false);
@@ -1934,7 +1964,8 @@ static Instruction *optimizeVectorResizeWithIntegerBitCasts(Value *InVal,
         DestTy->getElementType()->getPrimitiveSizeInBits())
       return nullptr;
 
-    SrcTy = VectorType::get(DestTy->getElementType(), SrcTy->getNumElements());
+    SrcTy =
+        FixedVectorType::get(DestTy->getElementType(), SrcTy->getNumElements());
     InVal = IC.Builder.CreateBitCast(InVal, SrcTy);
   }
 
@@ -2160,7 +2191,7 @@ static Instruction *canonicalizeBitCastExtElt(BitCastInst &BitCast,
     return nullptr;
 
   unsigned NumElts = ExtElt->getVectorOperandType()->getNumElements();
-  auto *NewVecType = VectorType::get(DestType, NumElts);
+  auto *NewVecType = FixedVectorType::get(DestType, NumElts);
   auto *NewBC = IC.Builder.CreateBitCast(ExtElt->getVectorOperand(),
                                          NewVecType, "bc");
   return ExtractElementInst::Create(NewBC, ExtElt->getIndexOperand());
@@ -2507,7 +2538,7 @@ Instruction *InstCombiner::visitBitCast(BitCastInst &CI) {
     }
   }
 
-  if (VectorType *DestVTy = dyn_cast<VectorType>(DestTy)) {
+  if (FixedVectorType *DestVTy = dyn_cast<FixedVectorType>(DestTy)) {
     // Beware: messing with this target-specific oddity may cause trouble.
     if (DestVTy->getNumElements() == 1 && SrcTy->isX86_MMXTy()) {
       Value *Elem = Builder.CreateBitCast(Src, DestVTy->getElementType());
@@ -2536,7 +2567,7 @@ Instruction *InstCombiner::visitBitCast(BitCastInst &CI) {
     }
   }
 
-  if (VectorType *SrcVTy = dyn_cast<VectorType>(SrcTy)) {
+  if (FixedVectorType *SrcVTy = dyn_cast<FixedVectorType>(SrcTy)) {
     if (SrcVTy->getNumElements() == 1) {
       // If our destination is not a vector, then make this a straight
       // scalar-scalar cast.
@@ -2631,7 +2662,8 @@ Instruction *InstCombiner::visitAddrSpaceCast(AddrSpaceCastInst &CI) {
     Type *MidTy = PointerType::get(DestElemTy, SrcTy->getAddressSpace());
     if (VectorType *VT = dyn_cast<VectorType>(CI.getType())) {
       // Handle vectors of pointers.
-      MidTy = VectorType::get(MidTy, VT->getNumElements());
+      // FIXME: what should happen for scalable vectors?
+      MidTy = FixedVectorType::get(MidTy, VT->getNumElements());
     }
 
     Value *NewBitCast = Builder.CreateBitCast(Src, MidTy);

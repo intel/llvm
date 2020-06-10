@@ -1218,6 +1218,13 @@ class IntElementsAttrBase<Pred condition, string description> :
   let convertFromStorage = "$_self";
 }
 
+def IndexElementsAttr
+    : IntElementsAttrBase<CPred<[{$_self.cast<DenseIntElementsAttr>()
+                                      .getType()
+                                      .getElementType()
+                                      .isIndex()}]>,
+                          "index elements attribute">;
+
 class AnyIntElementsAttr<int width> : IntElementsAttrBase<
   CPred<"$_self.cast<DenseIntElementsAttr>().getType()."
         "getElementType().isInteger(" # width # ")">,
@@ -1346,6 +1353,10 @@ class TypedArrayAttrBase<Attr element, string description>: ArrayAttrBase<
   Attr elementAttr = element;
 }
 
+def BoolArrayAttr : TypedArrayAttrBase<BoolAttr,
+                                      "1-bit boolean array attribute"> {
+  let constBuilderCall = "$_builder.getBoolArrayAttr($0)";
+}
 def I32ArrayAttr : TypedArrayAttrBase<I32Attr,
                                       "32-bit integer array attribute"> {
   let constBuilderCall = "$_builder.getI32ArrayAttr($0)";

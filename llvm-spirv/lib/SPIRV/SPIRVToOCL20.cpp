@@ -37,6 +37,7 @@
 //===----------------------------------------------------------------------===//
 #define DEBUG_TYPE "spvtocl20"
 
+#include "OCLUtil.h"
 #include "SPIRVToOCL.h"
 #include "llvm/IR/Verifier.h"
 
@@ -106,20 +107,25 @@ bool SPIRVToOCL20::runOnModule(Module &Module) {
 
 void SPIRVToOCL20::visitCallSPIRVMemoryBarrier(CallInst *CI) {
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
-  mutateCallInstOCL(M, CI,
-                    [=](CallInst *, std::vector<Value *> &Args) {
-                      auto GetArg = [=](unsigned I) {
-                        return cast<ConstantInt>(Args[I])->getZExtValue();
-                      };
-                      auto MScope = static_cast<Scope>(GetArg(0));
-                      auto Sema = mapSPIRVMemSemanticToOCL(GetArg(1));
-                      Args.resize(3);
-                      Args[0] = getInt32(M, Sema.first);
-                      Args[1] = getInt32(M, Sema.second);
-                      Args[2] = getInt32(M, rmap<OCLScopeKind>(MScope));
-                      return kOCLBuiltinName::AtomicWorkItemFence;
-                    },
-                    &Attrs);
+  mutateCallInstOCL(
+      M, CI,
+      [=](CallInst *, std::vector<Value *> &Args) {
+        Value *MemScope =
+            getInt32(M, rmap<OCLScopeKind>(static_cast<Scope>(
+                            cast<ConstantInt>(Args[0])->getZExtValue())));
+        Value *MemFenceFlags =
+            SPIRV::transSPIRVMemorySemanticsIntoOCLMemFenceFlags(Args[1], CI);
+        Value *MemOrder =
+            SPIRV::transSPIRVMemorySemanticsIntoOCLMemoryOrder(Args[1], CI);
+
+        Args.resize(3);
+        Args[0] = MemFenceFlags;
+        Args[1] = MemOrder;
+        Args[2] = MemScope;
+
+        return kOCLBuiltinName::AtomicWorkItemFence;
+      },
+      &Attrs);
 }
 
 void SPIRVToOCL20::visitCallSPIRVControlBarrier(CallInst *CI) {
@@ -133,22 +139,14 @@ void SPIRVToOCL20::visitCallSPIRVControlBarrier(CallInst *CI) {
           return cast<ConstantInt>(Args[I])->getZExtValue();
         };
         auto ExecScope = static_cast<Scope>(GetArg(0));
-        auto MemScope = static_cast<Scope>(GetArg(1));
+        Value *MemScope =
+            getInt32(M, rmap<OCLScopeKind>(static_cast<Scope>(GetArg(1))));
+        Value *MemFenceFlags =
+            SPIRV::transSPIRVMemorySemanticsIntoOCLMemFenceFlags(Args[2], CI);
 
-        if (auto Arg = dyn_cast<ConstantInt>(Args[2])) {
-          auto Sema = mapSPIRVMemSemanticToOCL(Arg->getZExtValue());
-          Args[0] = getInt32(M, Sema.first);
-        } else {
-          int ClMemFenceMask = MemorySemanticsWorkgroupMemoryMask |
-                               MemorySemanticsCrossWorkgroupMemoryMask |
-                               MemorySemanticsImageMemoryMask;
-          Args[0] = getOrCreateSwitchFunc(
-              kSPIRVName::TranslateSPIRVMemFence, Args[2],
-              OCLMemFenceExtendedMap::getRMap(), true /*IsReverse*/, None, CI,
-              M, ClMemFenceMask);
-        }
-        Args[1] = getInt32(M, rmap<OCLScopeKind>(MemScope));
         Args.resize(2);
+        Args[0] = MemFenceFlags;
+        Args[1] = MemScope;
 
         return (ExecScope == ScopeWorkgroup) ? kOCLBuiltinName::WorkGroupBarrier
                                              : kOCLBuiltinName::SubGroupBarrier;
@@ -231,46 +229,13 @@ CallInst *SPIRVToOCL20::mutateCommonAtomicArguments(CallInst *CI, Op OC) {
         auto NumOrder = getSPIRVAtomicBuiltinNumMemoryOrderArgs(OC);
         auto ScopeIdx = Ptr + 1;
         auto OrderIdx = Ptr + 2;
-        if (auto *ScopeInt = dyn_cast_or_null<ConstantInt>(Args[ScopeIdx])) {
-          Args[ScopeIdx] = mapUInt(M, ScopeInt, [](unsigned I) {
-            return rmap<OCLScopeKind>(static_cast<Scope>(I));
-          });
-        } else {
-          CallInst *TransCall = dyn_cast<CallInst>(Args[ScopeIdx]);
-          Function *F = TransCall ? TransCall->getCalledFunction() : nullptr;
-          if (F && F->getName().equals(kSPIRVName::TranslateOCLMemScope)) {
-            // In case the SPIR-V module was created from an OpenCL program by
-            // *this* SPIR-V generator, we know that the value passed to
-            // __translate_ocl_memory_scope is what we should pass to the OpenCL
-            // builtin now.
-            Args[ScopeIdx] = TransCall->getArgOperand(0);
-          } else {
-            Args[ScopeIdx] = getOrCreateSwitchFunc(
-                kSPIRVName::TranslateSPIRVMemScope, Args[ScopeIdx],
-                OCLMemScopeMap::getRMap(), true /*IsReverse*/, None, CI, M);
-          }
-        }
+
+        Args[ScopeIdx] =
+            SPIRV::transSPIRVMemoryScopeIntoOCLMemoryScope(Args[ScopeIdx], CI);
         for (size_t I = 0; I < NumOrder; ++I) {
-          if (auto OrderInt =
-                  dyn_cast_or_null<ConstantInt>(Args[OrderIdx + I])) {
-            Args[OrderIdx + I] = mapUInt(M, OrderInt, [](unsigned Ord) {
-              return mapSPIRVMemOrderToOCL(Ord);
-            });
-          } else {
-            CallInst *TransCall = dyn_cast<CallInst>(Args[OrderIdx + I]);
-            Function *F = TransCall ? TransCall->getCalledFunction() : nullptr;
-            if (F && F->getName().equals(kSPIRVName::TranslateOCLMemOrder)) {
-              // In case the SPIR-V module was created from an OpenCL program by
-              // *this* SPIR-V generator, we know that the value passed to
-              // __translate_ocl_memory_order is what we should pass to the
-              // OpenCL builtin now.
-              Args[OrderIdx + I] = TransCall->getArgOperand(0);
-            } else {
-              Args[OrderIdx + I] = getOrCreateSwitchFunc(
-                  kSPIRVName::TranslateSPIRVMemOrder, Args[OrderIdx + I],
-                  OCLMemOrderMap::getRMap(), true /*IsReverse*/, None, CI, M);
-            }
-          }
+          Args[OrderIdx + I] =
+              SPIRV::transSPIRVMemorySemanticsIntoOCLMemoryOrder(
+                  Args[OrderIdx + I], CI);
         }
         std::swap(Args[ScopeIdx], Args.back());
         return Name;

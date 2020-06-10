@@ -237,11 +237,44 @@ void Command::waitForEvents(QueueImplPtr Queue,
                             RT::PiEvent &Event) {
 
   if (!EventImpls.empty()) {
-    std::vector<RT::PiEvent> RawEvents = getPiEvents(EventImpls);
     if (Queue->is_host()) {
-      const detail::plugin &Plugin = EventImpls[0]->getPlugin();
-      Plugin.call<PiApiKind::piEventsWait>(RawEvents.size(), &RawEvents[0]);
+      // Host queue can wait for events from different contexts, i.e. it may
+      // contain events with different contexts in its MPreparedDepsEvents.
+      // OpenCL 2.1 spec says that clWaitForEvents will return
+      // CL_INVALID_CONTEXT if events specified in the list do not belong to
+      // the same context. Thus we split all the events into per-context map.
+      // An example. We have two queues for the same CPU device: Q1, Q2. Thus
+      // we will have two different contexts for the same CPU device: C1, C2.
+      // Also we have default host queue. This queue is accessible via
+      // Scheduler. Now, let's assume we have three different events: E1(C1),
+      // E2(C1), E3(C2). Also, we have an EmptyCommand which is to be executed
+      // on host queue. The command's MPreparedDepsEvents will contain all three
+      // events (E1, E2, E3). Now, if piEventsWait is called for all three
+      // events we'll experience failure with CL_INVALID_CONTEXT 'cause these
+      // events refer to different contexts.
+      std::map<context_impl *, std::vector<EventImplPtr>>
+          RequiredEventsPerContext;
+
+      for (const EventImplPtr &Event : EventImpls) {
+        ContextImplPtr Context = Event->getContextImpl();
+        assert(Context.get() &&
+               "Only non-host events are expected to be waited for here");
+        RequiredEventsPerContext[Context.get()].push_back(Event);
+      }
+
+      for (auto &CtxWithEvents : RequiredEventsPerContext) {
+        std::vector<RT::PiEvent> RawEvents = getPiEvents(CtxWithEvents.second);
+        CtxWithEvents.first->getPlugin().call<PiApiKind::piEventsWait>(
+            RawEvents.size(), RawEvents.data());
+      }
     } else {
+#ifndef NDEBUG
+      for (const EventImplPtr &Event : EventImpls)
+        assert(Event->getContextImpl().get() &&
+               "Only non-host events are expected to be waited for here");
+#endif
+
+      std::vector<RT::PiEvent> RawEvents = getPiEvents(EventImpls);
       const detail::plugin &Plugin = Queue->getPlugin();
       Plugin.call<PiApiKind::piEnqueueEventsWait>(
           Queue->getHandleRef(), RawEvents.size(), &RawEvents[0], &Event);
@@ -1608,7 +1641,6 @@ cl_int ExecCGCommand::enqueueImp() {
   switch (MCommandGroup->getType()) {
 
   case CG::CGTYPE::UPDATE_HOST: {
-    assert(!"Update host should be handled by the Scheduler.");
     throw runtime_error("Update host should be handled by the Scheduler.",
                         PI_INVALID_OPERATION);
   }
@@ -1810,8 +1842,6 @@ cl_int ExecCGCommand::enqueueImp() {
                                                          Arg.MSize, Arg.MPtr);
         break;
       }
-      default:
-        assert(!"Unhandled");
       }
     }
 
@@ -1913,17 +1943,16 @@ cl_int ExecCGCommand::enqueueImp() {
       }
     }
 
-    MQueue->getThreadPool().submit<DispatchHostTask>(
-        std::move(DispatchHostTask(this)));
+    MQueue->getThreadPool().submit<DispatchHostTask>(DispatchHostTask(this));
 
     MShouldCompleteEventIfPossible = false;
 
     return CL_SUCCESS;
   }
   case CG::CGTYPE::NONE:
-  default:
     throw runtime_error("CG type not implemented.", PI_INVALID_OPERATION);
   }
+  return PI_INVALID_OPERATION;
 }
 
 } // namespace detail

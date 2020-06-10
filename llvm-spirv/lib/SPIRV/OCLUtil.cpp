@@ -876,31 +876,56 @@ bool isKernelQueryBI(const StringRef MangledName) {
          MangledName == "__get_kernel_preferred_work_group_size_multiple_impl";
 }
 
-// Checks if we have the following (most common for fp contranction) pattern
-// in LLVM IR:
-// %mul = fmul float %a, %b
-// %add = fadd float %mul, %c
+// isUnfusedMulAdd checks if we have the following (most common for fp
+// contranction) pattern in LLVM IR:
+//
+//   %mul = fmul float %a, %b
+//   %add = fadd float %mul, %c
+//
 // This pattern indicates that fp contraction could have been disabled by
-// // #pragma OPENCL FP_CONTRACT OFF. Otherwise the current version of clang
-// would generate:
-// %0 = call float @llvm.fmuladd.f32(float %a, float %b, float %c)
-// TODO We need a more reliable mechanism to expres the FP_CONTRACT pragma
-// in LLVM IR. Fox example adding the 'contract' attribute to fp operations
-// by default (according the OpenCL spec fp contraction is enabled by default).
-void checkFpContract(BinaryOperator *B, SPIRVBasicBlock *BB) {
+// #pragma OPENCL FP_CONTRACT OFF. When contraction is enabled (by a pragma or
+// by clang's -ffp-contract=fast), clang would generate:
+//
+//   %0 = call float @llvm.fmuladd.f32(float %a, float %b, float %c)
+//
+// or
+//
+//   %mul = fmul contract float %a, %b
+//   %add = fadd contract float %mul, %c
+//
+// Note that optimizations may form an unfused fmuladd from fadd+load or
+// fadd+call, so this check is quite restrictive (see the comment below).
+//
+bool isUnfusedMulAdd(BinaryOperator *B) {
   if (B->getOpcode() != Instruction::FAdd &&
       B->getOpcode() != Instruction::FSub)
-    return;
-  // Ok, this is fadd or fsub. Now check its operands.
-  for (auto *Op : B->operand_values()) {
-    if (auto *I = dyn_cast<Instruction>(Op)) {
-      if (I->getOpcode() == Instruction::FMul) {
-        SPIRVFunction *BF = BB->getParent();
-        BF->setUncontractedFMulAddFound();
-        break;
-      }
-    }
+    return false;
+
+  if (B->hasAllowContract()) {
+    // If this fadd or fsub itself has a contract flag, the operation can be
+    // contracted regardless of the operands.
+    return false;
   }
+
+  // Otherwise, we cannot easily tell if the operation can be a candidate for
+  // contraction or not. Consider the following cases:
+  //
+  //   %mul = alloca float
+  //   %t1 = fmul float %a, %b
+  //   store float* %mul, float %t
+  //   %t2 = load %mul
+  //   %r = fadd float %t2, %c
+  //
+  // LLVM IR does not allow %r to be contracted. However, after an optimization
+  // it becomes a candidate for contraction if ContractionOFF is not set in
+  // SPIR-V:
+  //
+  //   %t1 = fmul float %a, %b
+  //   %r = fadd float %t1, %c
+  //
+  // To be on a safe side, we disallow everything that is even remotely similar
+  // to fmul + fadd.
+  return true;
 }
 
 std::string getIntelSubgroupBlockDataPostfix(unsigned ElementBitSize,
@@ -943,6 +968,105 @@ std::string getIntelSubgroupBlockDataPostfix(unsigned ElementBitSize,
   return OSS.str();
 }
 } // namespace OCLUtil
+
+Value *SPIRV::transOCLMemScopeIntoSPIRVScope(Value *MemScope,
+                                             Optional<int> DefaultCase,
+                                             Instruction *InsertBefore) {
+  if (auto *C = dyn_cast<ConstantInt>(MemScope)) {
+    return ConstantInt::get(
+        C->getType(), map<Scope>(static_cast<OCLScopeKind>(C->getZExtValue())));
+  }
+
+  // If memory_scope is not a constant, then we have to insert dynamic mapping:
+  return getOrCreateSwitchFunc(kSPIRVName::TranslateOCLMemScope, MemScope,
+                               OCLMemScopeMap::getMap(), /* IsReverse */ false,
+                               DefaultCase, InsertBefore);
+}
+
+Value *SPIRV::transOCLMemOrderIntoSPIRVMemorySemantics(
+    Value *MemOrder, Optional<int> DefaultCase, Instruction *InsertBefore) {
+  if (auto *C = dyn_cast<ConstantInt>(MemOrder)) {
+    return ConstantInt::get(
+        C->getType(), mapOCLMemSemanticToSPIRV(
+                          0, static_cast<OCLMemOrderKind>(C->getZExtValue())));
+  }
+
+  return getOrCreateSwitchFunc(kSPIRVName::TranslateOCLMemOrder, MemOrder,
+                               OCLMemOrderMap::getMap(), /* IsReverse */ false,
+                               DefaultCase, InsertBefore);
+}
+
+Value *
+SPIRV::transSPIRVMemoryScopeIntoOCLMemoryScope(Value *MemScope,
+                                               Instruction *InsertBefore) {
+  if (auto *C = dyn_cast<ConstantInt>(MemScope)) {
+    return ConstantInt::get(C->getType(), rmap<OCLScopeKind>(static_cast<Scope>(
+                                              C->getZExtValue())));
+  }
+
+  if (auto *CI = dyn_cast<CallInst>(MemScope)) {
+    Function *F = CI->getCalledFunction();
+    if (F && F->getName().equals(kSPIRVName::TranslateOCLMemScope)) {
+      // In case the SPIR-V module was created from an OpenCL program by
+      // *this* SPIR-V generator, we know that the value passed to
+      // __translate_ocl_memory_scope is what we should pass to the
+      // OpenCL builtin now.
+      return CI->getArgOperand(0);
+    }
+  }
+
+  return getOrCreateSwitchFunc(kSPIRVName::TranslateSPIRVMemScope, MemScope,
+                               OCLMemScopeMap::getRMap(),
+                               /* IsReverse */ true, None, InsertBefore);
+}
+
+Value *
+SPIRV::transSPIRVMemorySemanticsIntoOCLMemoryOrder(Value *MemorySemantics,
+                                                   Instruction *InsertBefore) {
+  if (auto *C = dyn_cast<ConstantInt>(MemorySemantics)) {
+    return ConstantInt::get(C->getType(),
+                            mapSPIRVMemSemanticToOCL(C->getZExtValue()).second);
+  }
+
+  if (auto *CI = dyn_cast<CallInst>(MemorySemantics)) {
+    Function *F = CI->getCalledFunction();
+    if (F && F->getName().equals(kSPIRVName::TranslateOCLMemOrder)) {
+      // In case the SPIR-V module was created from an OpenCL program by
+      // *this* SPIR-V generator, we know that the value passed to
+      // __translate_ocl_memory_order is what we should pass to the
+      // OpenCL builtin now.
+      return CI->getArgOperand(0);
+    }
+  }
+
+  // SPIR-V MemorySemantics contains both OCL mem_fence_flags and mem_order and
+  // therefore, we need to apply mask
+  int Mask = MemorySemanticsMaskNone | MemorySemanticsAcquireMask |
+             MemorySemanticsReleaseMask | MemorySemanticsAcquireReleaseMask |
+             MemorySemanticsSequentiallyConsistentMask;
+  return getOrCreateSwitchFunc(kSPIRVName::TranslateSPIRVMemOrder,
+                               MemorySemantics, OCLMemOrderMap::getRMap(),
+                               /* IsReverse */ true, None, InsertBefore, Mask);
+}
+
+Value *SPIRV::transSPIRVMemorySemanticsIntoOCLMemFenceFlags(
+    Value *MemorySemantics, Instruction *InsertBefore) {
+  if (auto *C = dyn_cast<ConstantInt>(MemorySemantics)) {
+    return ConstantInt::get(C->getType(),
+                            mapSPIRVMemSemanticToOCL(C->getZExtValue()).first);
+  }
+
+  // TODO: any possible optimizations?
+  // SPIR-V MemorySemantics contains both OCL mem_fence_flags and mem_order and
+  // therefore, we need to apply mask
+  int Mask = MemorySemanticsWorkgroupMemoryMask |
+             MemorySemanticsCrossWorkgroupMemoryMask |
+             MemorySemanticsImageMemoryMask;
+  return getOrCreateSwitchFunc(kSPIRVName::TranslateSPIRVMemFence,
+                               MemorySemantics,
+                               OCLMemFenceExtendedMap::getRMap(),
+                               /* IsReverse */ true, None, InsertBefore, Mask);
+}
 
 void llvm::mangleOpenClBuiltin(const std::string &UniqName,
                                ArrayRef<Type *> ArgTypes,

@@ -69,6 +69,8 @@ public:
   IndexType getIndexType();
 
   IntegerType getI1Type();
+  IntegerType getI32Type();
+  IntegerType getI64Type();
   IntegerType getIntegerType(unsigned width);
   IntegerType getIntegerType(unsigned width, bool isSigned);
   FunctionType getFunctionType(ArrayRef<Type> inputs, ArrayRef<Type> results);
@@ -126,8 +128,10 @@ public:
   /// as attributes.
   DenseIntElementsAttr getI32TensorAttr(ArrayRef<int32_t> values);
   DenseIntElementsAttr getI64TensorAttr(ArrayRef<int64_t> values);
+  DenseIntElementsAttr getIndexTensorAttr(ArrayRef<int64_t> values);
 
   ArrayAttr getAffineMapArrayAttr(ArrayRef<AffineMap> values);
+  ArrayAttr getBoolArrayAttr(ArrayRef<bool> values);
   ArrayAttr getI32ArrayAttr(ArrayRef<int32_t> values);
   ArrayAttr getI64ArrayAttr(ArrayRef<int64_t> values);
   ArrayAttr getIndexArrayAttr(ArrayRef<int64_t> values);
@@ -370,6 +374,10 @@ public:
   template <typename OpTy, typename... Args>
   OpTy create(Location location, Args &&... args) {
     OperationState state(location, OpTy::getOperationName());
+    if (!state.name.getAbstractOperation())
+      llvm::report_fatal_error("Building op `" +
+                               state.name.getStringRef().str() +
+                               "` but it isn't registered in this MLIRContext");
     OpTy::build(*this, state, std::forward<Args>(args)...);
     auto *op = createOperation(state);
     auto result = dyn_cast<OpTy>(op);
@@ -386,6 +394,10 @@ public:
     // Create the operation without using 'createOperation' as we don't want to
     // insert it yet.
     OperationState state(location, OpTy::getOperationName());
+    if (!state.name.getAbstractOperation())
+      llvm::report_fatal_error("Building op `" +
+                               state.name.getStringRef().str() +
+                               "` but it isn't registered in this MLIRContext");
     OpTy::build(*this, state, std::forward<Args>(args)...);
     Operation *op = Operation::create(state);
 

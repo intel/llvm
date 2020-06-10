@@ -57,9 +57,11 @@ bool trace(TraceLevel level);
 
 #ifdef SYCL_RT_OS_WINDOWS
 #define OPENCL_PLUGIN_NAME "pi_opencl.dll"
+#define LEVEL0_PLUGIN_NAME "pi_level0.dll"
 #define CUDA_PLUGIN_NAME "pi_cuda.dll"
 #else
 #define OPENCL_PLUGIN_NAME "libpi_opencl.so"
+#define LEVEL0_PLUGIN_NAME "libpi_level0.so"
 #define CUDA_PLUGIN_NAME "libpi_cuda.so"
 #endif
 

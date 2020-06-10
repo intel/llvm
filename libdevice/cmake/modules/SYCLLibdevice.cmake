@@ -26,7 +26,7 @@ if (WIN32)
                              ${CMAKE_CURRENT_SOURCE_DIR}/msvc_wrapper.cpp
                              -o ${devicelib-obj-file}
                      MAIN_DEPENDENCY msvc_wrapper.cpp
-                     DEPENDS wrapper.h device.h clang
+                     DEPENDS wrapper.h device.h spirv_vars.h clang
                      VERBATIM)
 else()
   set(devicelib-obj-file ${binary_dir}/libsycl-glibc.o)
@@ -36,7 +36,7 @@ else()
                              ${CMAKE_CURRENT_SOURCE_DIR}/glibc_wrapper.cpp
                              -o ${devicelib-obj-file}
                      MAIN_DEPENDENCY glibc_wrapper.cpp
-                     DEPENDS wrapper.h device.h clang
+                     DEPENDS wrapper.h device.h spirv_vars.h clang
                      VERBATIM)
 endif()
 
@@ -86,7 +86,7 @@ add_custom_command(OUTPUT ${binary_dir}/libsycl-fallback-cassert.spv
                            ${CMAKE_CURRENT_SOURCE_DIR}/fallback-cassert.cpp
                            -o ${binary_dir}/libsycl-fallback-cassert.spv
                    MAIN_DEPENDENCY fallback-cassert.cpp
-                   DEPENDS wrapper.h device.h clang llvm-spirv
+                   DEPENDS wrapper.h device.h clang spirv_vars.h llvm-spirv
                    VERBATIM)
 
 add_custom_command(OUTPUT ${binary_dir}/libsycl-fallback-complex.spv

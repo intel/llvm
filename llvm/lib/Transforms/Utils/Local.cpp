@@ -1698,13 +1698,14 @@ DIExpression *llvm::salvageDebugInfoImpl(Instruction &I,
   };
 
   if (auto *CI = dyn_cast<CastInst>(&I)) {
-    // No-op casts and zexts are irrelevant for debug info.
-    if (CI->isNoopCast(DL) || isa<ZExtInst>(&I))
+    // No-op casts are irrelevant for debug info.
+    if (CI->isNoopCast(DL))
       return SrcDIExpr;
 
     Type *Type = CI->getType();
-    // Casts other than Trunc or SExt to scalar types cannot be salvaged.
-    if (Type->isVectorTy() || (!isa<TruncInst>(&I) && !isa<SExtInst>(&I)))
+    // Casts other than Trunc, SExt, or ZExt to scalar types cannot be salvaged.
+    if (Type->isVectorTy() ||
+        !(isa<TruncInst>(&I) || isa<SExtInst>(&I) || isa<ZExtInst>(&I)))
       return nullptr;
 
     Value *FromValue = CI->getOperand(0);
@@ -3052,31 +3053,26 @@ Value *llvm::invertCondition(Value *Condition) {
   if (match(Condition, m_Not(m_Value(NotCondition))))
     return NotCondition;
 
-  if (Instruction *Inst = dyn_cast<Instruction>(Condition)) {
-    // Third: Check all the users for an invert
-    BasicBlock *Parent = Inst->getParent();
-    for (User *U : Condition->users())
-      if (Instruction *I = dyn_cast<Instruction>(U))
-        if (I->getParent() == Parent && match(I, m_Not(m_Specific(Condition))))
-          return I;
+  BasicBlock *Parent = nullptr;
+  Instruction *Inst = dyn_cast<Instruction>(Condition);
+  if (Inst)
+    Parent = Inst->getParent();
+  else if (Argument *Arg = dyn_cast<Argument>(Condition))
+    Parent = &Arg->getParent()->getEntryBlock();
+  assert(Parent && "Unsupported condition to invert");
 
-    // Last option: Create a new instruction
-    auto Inverted = BinaryOperator::CreateNot(Inst, "");
-    if (isa<PHINode>(Inst)) {
-      // FIXME: This fails if the inversion is to be used in a
-      // subsequent PHINode in the same basic block.
-      Inverted->insertBefore(&*Parent->getFirstInsertionPt());
-    } else {
-      Inverted->insertAfter(Inst);
-    }
-    return Inverted;
-  }
+  // Third: Check all the users for an invert
+  for (User *U : Condition->users())
+    if (Instruction *I = dyn_cast<Instruction>(U))
+      if (I->getParent() == Parent && match(I, m_Not(m_Specific(Condition))))
+        return I;
 
-  if (Argument *Arg = dyn_cast<Argument>(Condition)) {
-    BasicBlock &EntryBlock = Arg->getParent()->getEntryBlock();
-    return BinaryOperator::CreateNot(Condition, Arg->getName() + ".inv",
-                                     &*EntryBlock.getFirstInsertionPt());
-  }
-
-  llvm_unreachable("Unhandled condition to invert");
+  // Last option: Create a new instruction
+  auto *Inverted =
+      BinaryOperator::CreateNot(Condition, Condition->getName() + ".inv");
+  if (Inst && !isa<PHINode>(Inst))
+    Inverted->insertAfter(Inst);
+  else
+    Inverted->insertBefore(&*Parent->getFirstInsertionPt());
+  return Inverted;
 }

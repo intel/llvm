@@ -810,29 +810,13 @@ void OCL20ToSPIRV::transAtomicBuiltin(CallInst *CI, OCLBuiltinTransInfo &Info) {
         const size_t ArgsCount = Args.size();
         const size_t ScopeIdx = ArgsCount - 1;
         const size_t OrderIdx = ScopeIdx - NumOrder;
-        if (auto ScopeInt = dyn_cast_or_null<ConstantInt>(Args[ScopeIdx])) {
-          Args[ScopeIdx] = mapUInt(M, ScopeInt, [](unsigned I) {
-            return map<Scope>(static_cast<OCLScopeKind>(I));
-          });
-        } else {
-          Args[ScopeIdx] =
-              getOrCreateSwitchFunc(kSPIRVName::TranslateOCLMemScope,
-                                    Args[ScopeIdx], OCLMemScopeMap::getMap(),
-                                    false /*IsReverse*/, OCLMS_device, CI, M);
-        }
+
+        Args[ScopeIdx] =
+            transOCLMemScopeIntoSPIRVScope(Args[ScopeIdx], OCLMS_device, CI);
+
         for (size_t I = 0; I < NumOrder; ++I) {
-          if (auto OrderInt =
-                  dyn_cast_or_null<ConstantInt>(Args[OrderIdx + I])) {
-            Args[OrderIdx + I] = mapUInt(M, OrderInt, [](unsigned Ord) {
-              return mapOCLMemSemanticToSPIRV(
-                  0, static_cast<OCLMemOrderKind>(Ord));
-            });
-          } else {
-            Args[OrderIdx + I] = getOrCreateSwitchFunc(
-                kSPIRVName::TranslateOCLMemOrder, Args[OrderIdx + I],
-                OCLMemOrderMap::getMap(), false /*IsReverse*/, OCLMO_seq_cst,
-                CI, M);
-          }
+          Args[OrderIdx + I] = transOCLMemOrderIntoSPIRVMemorySemantics(
+              Args[OrderIdx + I], OCLMO_seq_cst, CI);
         }
         // Order of args in SPIR-V:
         // object, scope, 1-2 order, 0-2 other args
@@ -947,25 +931,46 @@ void OCL20ToSPIRV::visitCallGroupBuiltin(CallInst *CI,
     return;
 
   if (DemangledName != kOCLBuiltinName::WaitGroupEvent) {
-    StringRef GroupOp = DemangledName;
-    GroupOp = GroupOp.drop_front(strlen(kSPIRVName::GroupPrefix));
+    StringRef FuncName = DemangledName;
+    FuncName = FuncName.drop_front(strlen(kSPIRVName::GroupPrefix));
     SPIRSPIRVGroupOperationMap::foreachConditional(
         [&](const std::string &S, SPIRVGroupOperationKind G) {
-          if (!GroupOp.startswith(S))
+          if (!FuncName.startswith(S))
             return true; // continue
           PreOps.push_back(G);
-          StringRef Op = GroupOp.drop_front(S.size() + 1);
-          assert(!Op.empty() && "Invalid OpenCL group builtin function");
+          StringRef Op =
+              StringSwitch<StringRef>(FuncName)
+                  .StartsWith("ballot", "group_ballot_bit_count_")
+                  .StartsWith("non_uniform", kSPIRVName::GroupNonUniformPrefix)
+                  .Default(kSPIRVName::GroupPrefix);
+          // clustered functions are handled with non uniform group opcodes
+          StringRef ClusteredOp =
+              FuncName.contains("clustered_") ? "non_uniform_" : "";
+          StringRef LogicalOp = FuncName.contains("logical_") ? "logical_" : "";
+          StringRef GroupOp = StringSwitch<StringRef>(FuncName)
+                                  .Case("ballot_bit_count", "add")
+                                  .Case("ballot_inclusive_scan", "add")
+                                  .Case("ballot_exclusive_scan", "add")
+                                  .Default(FuncName.take_back(
+                                      3)); // assumes op is three characters
+          GroupOp.consume_front("_");      // when op is two characters
+          assert(!GroupOp.empty() && "Invalid OpenCL group builtin function");
           char OpTyC = 0;
-          auto NeedSign = Op == "max" || Op == "min";
           auto OpTy = F->getReturnType();
           if (OpTy->isFloatingPointTy())
             OpTyC = 'f';
           else if (OpTy->isIntegerTy()) {
+            auto NeedSign = GroupOp == "max" || GroupOp == "min";
             if (!NeedSign)
               OpTyC = 'i';
             else {
-              if (isLastFuncParamSigned(F->getName()))
+              // clustered reduce args are (type, uint)
+              // other operation args are (type)
+              auto MangledName = F->getName();
+              auto MangledTyC = ClusteredOp.empty()
+                                    ? MangledName.back()
+                                    : MangledName.take_back(2).front();
+              if (isMangledTypeSigned(MangledTyC))
                 OpTyC = 's';
               else
                 OpTyC = 'u';
@@ -973,22 +978,33 @@ void OCL20ToSPIRV::visitCallGroupBuiltin(CallInst *CI,
           } else
             llvm_unreachable("Invalid OpenCL group builtin argument type");
 
-          DemangledName =
-              std::string(kSPIRVName::GroupPrefix) + OpTyC + Op.str();
+          DemangledName = Op.str() + ClusteredOp.str() + LogicalOp.str() +
+                          OpTyC + GroupOp.str();
           return false; // break out of loop
         });
   }
 
-  bool IsGroupAllAny = (DemangledName.find("_all") != std::string::npos ||
-                        DemangledName.find("_any") != std::string::npos);
+  const bool IsElect = DemangledName == "group_elect";
+  const bool IsAllOrAny = (DemangledName.find("_all") != std::string::npos ||
+                           DemangledName.find("_any") != std::string::npos);
+  const bool IsAllEqual = DemangledName.find("_all_equal") != std::string::npos;
+  const bool IsBallot = DemangledName == "group_ballot";
+  const bool IsInverseBallot = DemangledName == "group_inverse_ballot";
+  const bool IsBallotBitExtract = DemangledName == "group_ballot_bit_extract";
+  const bool IsLogical = DemangledName.find("_logical") != std::string::npos;
+
+  const bool HasBoolReturnType = IsElect || IsAllOrAny || IsAllEqual ||
+                                 IsInverseBallot || IsBallotBitExtract ||
+                                 IsLogical;
+  const bool HasBoolArg = (IsAllOrAny && !IsAllEqual) || IsBallot || IsLogical;
 
   auto Consts = getInt32(M, PreOps);
   OCLBuiltinTransInfo Info;
-  if (IsGroupAllAny)
+  if (HasBoolReturnType)
     Info.RetTy = Type::getInt1Ty(*Ctx);
   Info.UniqName = DemangledName;
   Info.PostProc = [=](std::vector<Value *> &Ops) {
-    if (IsGroupAllAny) {
+    if (HasBoolArg) {
       IRBuilder<> IRB(CI);
       Ops[0] =
           IRB.CreateICmpNE(Ops[0], ConstantInt::get(Type::getInt32Ty(*Ctx), 0));
