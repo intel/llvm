@@ -20,6 +20,7 @@
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/group.hpp>
 #include <CL/sycl/id.hpp>
+#include <CL/sycl/interop_handle.hpp>
 #include <CL/sycl/interop_handler.hpp>
 #include <CL/sycl/kernel.hpp>
 #include <CL/sycl/nd_item.hpp>

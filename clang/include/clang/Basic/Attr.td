@@ -1135,6 +1135,19 @@ def SYCLKernel : InheritableAttr {
   let Documentation = [SYCLKernelDocs];
 }
 
+// Available in SYCL explicit SIMD extension. Binds a file scope private
+// variable to a specific register.
+def SYCLRegisterNum : InheritableAttr {
+  let Spellings = [GNU<"register_num">, Declspec<"register_num">];
+  let Args = [UnsignedArgument<"Number">];
+  let Subjects = SubjectList<[GlobalVar]>;
+  // This attribute is applied to file-scope variables and must be compilable
+  // for the host device as well
+  let LangOpts = [SYCLExplicitSIMD];
+  let Documentation = [SYCLRegisterNumDocs];
+  let PragmaAttributeSupport = 0;
+}
+
 def SYCLScope : Attr {
   // No spelling, as this attribute can't be created in the source code.
   let Spellings = [];
