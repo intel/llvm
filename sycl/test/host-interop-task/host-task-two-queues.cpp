@@ -3,7 +3,8 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 //
-// XFAIL: level0
+// TODO: Flaky fail on Level Zero that is why mark as unsupported temporarily.
+// UNSUPPORTED: level0
 
 #include <CL/sycl.hpp>
 #include <vector>
