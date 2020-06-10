@@ -1637,11 +1637,11 @@ pi_result piProgramCreate(pi_context Context, const void *IL, size_t Length,
 }
 
 pi_result piProgramCreateWithBinary(pi_context Context, pi_uint32 NumDevices,
-                                      const pi_device *DeviceList,
-                                      const size_t *Lengths,
-                                      const unsigned char **Binaries,
-                                      pi_int32 *BinaryStatus,
-                                      pi_program *RetProgram) {
+                                    const pi_device *DeviceList,
+                                    const size_t *Lengths,
+                                    const unsigned char **Binaries,
+                                    pi_int32 *BinaryStatus,
+                                    pi_program *RetProgram) {
 
   // This must be for the single device in this context.
   assert(NumDevices == 1);
