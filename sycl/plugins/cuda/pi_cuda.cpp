@@ -1510,6 +1510,9 @@ pi_result cuda_piMemBufferCreate(pi_context context, pi_mem_flags flags,
       allocMode = _pi_mem::alloc_mode::use_host_ptr;
     } else {
       retErr = PI_CHECK_ERROR(cuMemAlloc(&ptr, size));
+      if (flags & PI_MEM_FLAGS_HOST_PTR_COPY) {
+        allocMode = _pi_mem::alloc_mode::copy_in;
+      }
     }
 
     if (retErr == PI_SUCCESS) {
@@ -1569,6 +1572,7 @@ pi_result cuda_piMemRelease(pi_mem memObj) {
       ScopedContext active(uniqueMemObj->get_context());
 
       switch (uniqueMemObj->allocMode_) {
+      case _pi_mem::alloc_mode::copy_in:
       case _pi_mem::alloc_mode::classic:
         ret = PI_CHECK_ERROR(cuMemFree(uniqueMemObj->ptr_));
         break;
