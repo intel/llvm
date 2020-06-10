@@ -188,7 +188,7 @@ else:
 config.substitutions.append( ('%ACC_RUN_PLACEHOLDER',  acc_run_substitute) )
 config.substitutions.append( ('%ACC_CHECK_PLACEHOLDER',  acc_check_substitute) )
 
-# PI API either supports OpenCL or CUDA or Level Zero.
+# LIT testing either supports OpenCL or CUDA or Level Zero.
 if not cuda and not level0 and found_at_least_one_device:
     config.available_features.add('opencl')
 
