@@ -19,25 +19,26 @@ Possible values:
   specification, see [SYCL Registry] for more details and the specification
   text.
 
-  Note: setting `-sycl-std` option automatically implies a particular C++
-  standard version to be set.
+- `dpcpp-0.8`: corresponds to DPC++ version documented in oneAPI 0.8
 
-  **TODO**: do we need to specify which exact version is implied by which
-  `-sycl-std` value? AFAIK, SYCL spec only specifies minimum required C++
-  version, which is C++11 and we set C++17 in our implementation
-
-- `dpcpp-0.7`: corresponds to DPC++ 0.7.
-
-  Basically, `-sycl-std=dpcpp-0.7` implies support for SYCL 1.2.1 specification,
-  bunch of extension enabled and `-std=c++17`
+  Basically, `-sycl-std=dpcpp-0.8` implies support for SYCL 1.2.1 specification
+  and bunch of extension enabled.
 
   See [oneAPI Specification] for more details and the specification text.
 
 [SYCL Registry]: https://www.khronos.org/registry/SYCL/
 [oneAPI Specification]: https://spec.oneapi.com/
 
-Note: it is possible to change C++ version independently of SYCL/DPC++ standard
-version if that is needed: `-sycl-std=1.2.1 -std=c++14`, for example.
+Note: `-sycl-std` **doesn't** imply any C++ standard version to be set,
+which means that some default value will be selected. If by some reason, that
+default version is not a desired one,  it is possible to change C++ version
+independently of SYCL/DPC++ standard version via specifying additional option:
+`-sycl-std=1.2.1 -std=c++14`, for example.
+
+If SYCL/DPC++ standard version and C++ standard version (either default value
+for the compiler or one which was explicitly set via `-std`) are incompatible,
+then it is expected to see compilation errors. Incompatible means that C++
+standard version is less than minimum required by SYCL/DPC++ standard.
 
 `-std=<value>`, `--std=<value>`, `--std <value>`
 
@@ -47,7 +48,12 @@ option which allows to specify language standard to compile for.
 Supported values (besides listed in clang documentation/help):
 
 - `sycl-1.2.1`, `sycl-2017`: corresponds to `-sycl-std=1.2.1`
-- `dpcpp-0.7`: corresponds to `-sycl-std=dpcpp-0.7`
+- `dpcpp-0.8`: corresponds to `-sycl-std=dpcpp-0.8`
+
+Note: setting SYCL or DPC++ standard version via `-std` option automatically
+implies some C++ standard version to be set, according to requirements of
+corresponding SYCL/DPC++ specification. For example, for SYCL 1.2.1 it would be
+at least C++11, while for DPC++ 0.8 it would be C++17.
 
 Please note that if you specify `-std` flag several times, only the latest
 value takes effect. This means, that if you want to specifiy particular C++
