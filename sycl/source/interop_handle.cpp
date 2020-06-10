@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl/detail/accessor_impl.hpp>
-#include <CL/sycl/interop_handle.hpp>
 #include <CL/sycl/exception.hpp>
 #include <CL/sycl/interop_handle.hpp>
 #include <detail/context_impl.hpp>
