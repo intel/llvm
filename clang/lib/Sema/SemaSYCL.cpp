@@ -1299,7 +1299,10 @@ class SyclKernelBodyCreator
                                               VK_LValue, SourceLocation());
     }
 
-    MemberExpr *SpecialObjME = BuildMemberExpr(Base, Field);
+    Expr *SpecialObjME = Base;
+    if (Field)
+      SpecialObjME = BuildMemberExpr(Base, Field);
+
     MemberExpr *MethodME = BuildMemberExpr(SpecialObjME, Method);
 
     QualType ResultTy = Method->getReturnType();
@@ -1334,7 +1337,8 @@ class SyclKernelBodyCreator
 
   bool handleSpecialType(FieldDecl *FD, QualType Ty) {
     const auto *RecordDecl = Ty->getAsCXXRecordDecl();
-    // Perform initialization only if it is field of kernel object
+    // TODO: VarEntity is initialized entity for KernelObjClone, I guess we need
+    // to create new one when enter new struct.
     InitializedEntity Entity =
         InitializedEntity::InitializeMember(FD, &VarEntity);
     // Initialize with the default constructor.
@@ -1345,6 +1349,24 @@ class SyclKernelBodyCreator
     InitExprs.push_back(MemberInit.get());
     createSpecialMethodCall(RecordDecl, MemberExprBases.back(), InitMethodName,
                             FD);
+    return true;
+  }
+
+  bool handleSpecialType(const CXXBaseSpecifier &BS, QualType Ty) {
+    const auto *RecordDecl = Ty->getAsCXXRecordDecl();
+    // TODO: VarEntity is initialized entity for KernelObjClone, I guess we need
+    // to create new one when enter new struct.
+    InitializedEntity Entity = InitializedEntity::InitializeBase(
+        SemaRef.Context, &BS, /*IsInheritedVirtualBase*/ false, &VarEntity);
+    // Initialize with the default constructor.
+    InitializationKind InitKind =
+        InitializationKind::CreateDefault(SourceLocation());
+    InitializationSequence InitSeq(SemaRef, Entity, InitKind, None);
+    ExprResult MemberInit = InitSeq.Perform(SemaRef, Entity, InitKind, None);
+    InitExprs.push_back(MemberInit.get());
+
+    createSpecialMethodCall(RecordDecl, MemberExprBases.back(), InitMethodName,
+                            nullptr);
     return true;
   }
 
@@ -1379,9 +1401,7 @@ public:
   }
 
   bool handleSyclAccessorType(const CXXBaseSpecifier &BS, QualType Ty) final {
-    // FIXME SYCL accessor should be usable as a base type
-    // See https://github.com/intel/llvm/issues/28.
-    return true;
+    return handleSpecialType(BS, Ty);
   }
 
   bool handleSyclSamplerType(FieldDecl *FD, QualType Ty) final {
@@ -1415,13 +1435,25 @@ public:
   }
 
   bool handleScalarType(FieldDecl *FD, QualType FieldTy) final {
-    FieldTy->dump();
     createExprForStructOrScalar(FD);
     return true;
   }
 
   void enterStruct(const CXXRecordDecl *, FieldDecl *FD) final {
     MemberExprBases.push_back(BuildMemberExpr(MemberExprBases.back(), FD));
+  }
+
+  void enterStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS) final {
+    CXXCastPath BasePath;
+    QualType DerivedTy(RD->getTypeForDecl(), 0);
+    QualType BaseTy = BS.getType();
+    SemaRef.CheckDerivedToBaseConversion(DerivedTy, BaseTy, SourceLocation(),
+                                         SourceRange(), &BasePath,
+                                         /*IgnoreBaseAccess*/ true);
+    auto Cast = ImplicitCastExpr::Create(
+        SemaRef.Context, BaseTy, CK_DerivedToBase, MemberExprBases.back(),
+        /* CXXCastPath=*/&BasePath, VK_LValue);
+    MemberExprBases.push_back(Cast);
   }
 
   void addStructInit(const CXXRecordDecl *RD){
@@ -1443,6 +1475,7 @@ public:
     ILE->setType(QualType(RD->getTypeForDecl(), 0));
     InitExprs.push_back(ILE);
 
+    MemberExprBases.pop_back();
   }
 
   void leaveStruct(const CXXRecordDecl *, FieldDecl *FD) final {
@@ -1455,8 +1488,6 @@ public:
     addStructInit(BaseClass);
   }
 
-  using SyclKernelFieldHandler::enterStruct;
-  using SyclKernelFieldHandler::leaveStruct;
 };
 
 class SyclKernelIntHeaderCreator
