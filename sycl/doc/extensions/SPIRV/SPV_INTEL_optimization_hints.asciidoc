@@ -138,15 +138,13 @@ The type of _Condition_ must be a scalar _Boolean_.
 [cols="6", width="100%"]
 |=====
 5+^|*OpExpectINTEL* +
+This instruction behaves the same as _OpCopyObject_ by making a copy of _Value_,
+except it also provides information to the optimizer that the most probable
+value of _Value_ is _ExpectedValue_.
 
-Provides information for optimizers that the most probable value of _Value_ is
-_ExpectedValue_ and makes a copy of _Value_.
+_Result Type_ must be a scalar or vector of _Integer type_ or _Boolean type_.
 
-This instruction can be safely replaced with an entityi referenced by _Value_.
-
-The type of _Value_ and _ExpectedValue_ must be the same as _Result Type_,
-which must be of _Integer_ or _Boolean_ type.
-
+The type of _Value_ and _ExpectedValue_ must be the same as _Result Type_.
 | Capability:
 *OptimizationHintsINTEL*
 
