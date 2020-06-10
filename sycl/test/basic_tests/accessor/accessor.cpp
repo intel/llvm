@@ -34,13 +34,6 @@ struct IdxID3 {
   operator sycl::id<3>() { return sycl::id<3>(x, y, z); }
 };
 
-struct IdxSzT {
-  int x;
-
-  IdxSzT(int x) : x(x) {}
-  operator size_t() { return x; }
-};
-
 template <typename Acc> struct AccWrapper { Acc accessor; };
 
 template <typename Acc1, typename Acc2> struct AccsWrapper {
@@ -85,10 +78,10 @@ int main() {
     // Make sure that operator[] is defined for both size_t and id<1>.
     // Implicit conversion from IdxSzT to size_t guarantees that no
     // implicit conversion from size_t to id<1> will happen.
-    assert(acc_src[IdxSzT(0)] + acc_src[IdxID1(1)] == 10);
+    assert(acc_src[0] + acc_src[IdxID1(1)] == 10);
 
     acc_dst[0] = acc_src[0] + acc_src[IdxID1(0)];
-    acc_dst[id1] = acc_src[1] + acc_src[IdxSzT(1)];
+    acc_dst[id1] = acc_src[1] + acc_src[1];
     assert(dst[0] == 6 && dst[1] == 14);
   }
 
@@ -130,7 +123,7 @@ int main() {
       assert(acc.get_count() == 1);
       assert(acc.get_range() == sycl::range<1>(1));
       cgh.single_task<class kernel>(
-          [=]() { acc[IdxSzT(0)] += acc[IdxID1(0)]; });
+          [=]() { acc[0] += acc[IdxID1(0)]; });
     });
     Queue.wait();
   }
