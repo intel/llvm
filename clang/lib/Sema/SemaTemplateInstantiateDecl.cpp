@@ -508,10 +508,10 @@ static void instantiateIntelFPGAMemoryAttr(
   if (!Result.isInvalid()) {
     if (std::is_same<AttrName, IntelFPGABankWidthAttr>::value ||
         std::is_same<AttrName, IntelFPGANumBanksAttr>::value)
-      return S.AddOneConstantPowerTwoValueAttr<AttrName>(
-          New, *Attr, Result.getAs<Expr>());
-    return S.AddOneConstantValueAttr<AttrName>(
-        New, *Attr, Result.getAs<Expr>());
+      return S.AddOneConstantPowerTwoValueAttr<AttrName>(New, *Attr,
+                                                         Result.getAs<Expr>());
+    return S.AddOneConstantValueAttr<AttrName>(New, *Attr,
+                                               Result.getAs<Expr>());
   }
 }
 
