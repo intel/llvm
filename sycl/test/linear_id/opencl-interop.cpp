@@ -58,8 +58,8 @@ int main(int argc, char *argv[]) {
                          "-cl-std=CL2.0");
   kernel sum = prog.get_kernel("sum");
   {
-    buffer<int, 2> input_buf(input.data(), range<2>(dimA, dimB)),
-        output_buf(output.data(), range<2>(dimA, dimB));
+    buffer<int, 2> input_buf(input.data(), range<2>(dimA, dimB));
+    buffer<int, 1> output_buf(output.data(), range<1>(dimA));
     q.submit([&](handler &cgh) {
       auto input = input_buf.get_access<access::mode::read>(cgh);
       auto output = output_buf.get_access<access::mode::discard_write>(cgh);

@@ -4988,10 +4988,10 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
 
   // 4. Finish the call.
 
-  // If the call doesn't return, finish the basic block and clear the
-  // insertion point; this allows the rest of IRGen to discard
+  // If the call doesn't return for non-sycl devices, finish the basic block and
+  // clear the insertion point; this allows the rest of IRGen to discard
   // unreachable code.
-  if (CI->doesNotReturn()) {
+  if (CI->doesNotReturn() && !getLangOpts().SYCLIsDevice) {
     if (UnusedReturnSizePtr)
       PopCleanupBlock();
 

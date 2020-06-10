@@ -967,13 +967,6 @@ public:
   }
 
   template <int Dims = Dimensions,
-            typename = detail::enable_if_t<Dims == 1 && IsAccessAnyWrite>>
-  RefType operator[](size_t Index) const {
-    const size_t LinearIndex = getLinearIndex(id<Dimensions>(Index));
-    return getQualifiedPtr()[LinearIndex];
-  }
-
-  template <int Dims = Dimensions,
             typename = detail::enable_if_t<Dims == 0 && IsAccessReadOnly>>
   operator DataT() const {
     const size_t LinearIndex = getLinearIndex(id<AdjustedDim>());
@@ -984,13 +977,6 @@ public:
             typename = detail::enable_if_t<(Dims > 0) && IsAccessReadOnly>>
   DataT operator[](id<Dimensions> Index) const {
     const size_t LinearIndex = getLinearIndex(Index);
-    return getQualifiedPtr()[LinearIndex];
-  }
-
-  template <int Dims = Dimensions,
-            typename = detail::enable_if_t<Dims == 1 && IsAccessReadOnly>>
-  DataT operator[](size_t Index) const {
-    const size_t LinearIndex = getLinearIndex(id<Dimensions>(Index));
     return getQualifiedPtr()[LinearIndex];
   }
 
