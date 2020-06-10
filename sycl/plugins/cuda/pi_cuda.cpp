@@ -3611,11 +3611,6 @@ pi_result cuda_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
       return getInfo(param_value_size, param_value, param_value_size_ret,
                      device);
     }
-    // not documented/implemented yet
-    case PI_MEM_ALLOC_INFO_TBD0:
-    case PI_MEM_ALLOC_INFO_TBD1: {
-      return PI_INVALID_VALUE;
-    }
     }
   } catch (pi_result error) {
     result = error;
