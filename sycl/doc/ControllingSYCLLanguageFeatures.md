@@ -42,8 +42,8 @@ standard version is less than minimum required by SYCL/DPC++ standard.
 
 `-std=<value>`, `--std=<value>`, `--std <value>`
 
-One more way to specify SYCL/DPC++ standard version is to use general clang
-option which allows to specify language standard to compile for.
+One more way to specify SYCL/DPC++ standard version is to use a general clang
+option, which allows to specify language standard to compile for.
 
 Supported values (besides listed in clang documentation/help):
 
@@ -55,9 +55,9 @@ implies some C++ standard version to be set, according to requirements of
 corresponding SYCL/DPC++ specification. For example, for SYCL 1.2.1 it would be
 at least C++11, while for DPC++ 0.8 it would be C++17.
 
-Please note that if you specify `-std` flag several times, only the latest
-value takes effect. This means, that if you want to specifiy particular C++
-standard version instead of some default one implied by SYCL/DPC++ standard,
+Please note that if you specify `-std` flag several times, only the last
+value takes effect. This means, that if you want to specify a particular C++
+standard version instead of some default one implied by the SYCL/DPC++ standard,
 you have to use two separate options: `-sycl-std` and `-std`.
 
 **TODO**. Please let me know if we don't want to go with this approach at all.
