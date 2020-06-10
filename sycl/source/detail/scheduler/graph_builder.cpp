@@ -559,7 +559,9 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
 
       const Requirement FullReq(/*Offset*/ {0, 0, 0}, Req->MMemoryRange,
                                 Req->MMemoryRange, access::mode::read_write,
-                                Req->MSYCLMemObj, Req->MDims, Req->MElemSize);
+                                Req->MSYCLMemObj, Req->MDims, Req->MElemSize,
+                                0 /*ReMOffsetInBytes*/, false /*MIsSubBuffer*/,
+                                Req->MIsESIMDAcc);
       // Can reuse user data for the first allocation
       const bool InitFromUserData = Record->MAllocaCommands.empty();
 
