@@ -60,11 +60,6 @@ value takes effect. This means, that if you want to specify a particular C++
 standard version instead of some default one implied by the SYCL/DPC++ standard,
 you have to use two separate options: `-sycl-std` and `-std`.
 
-**TODO**. Please let me know if we don't want to go with this approach at all.
-Note on motivation: clang accepts OpenCL standards via `-std` option,
-as well as `cuda` and `hip`. So, values mentioned above were added for
-consistency and for providing some additional aliases.
-
 ## Controlling SYCL/DPC++ language extensions
 
 Both SYCL and DPC++ has several extensions or proposals about how to expand
