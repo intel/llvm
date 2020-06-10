@@ -64,8 +64,6 @@
 #include "llvm/Support/MD5.h"
 #include "llvm/Support/TimeProfiler.h"
 
-#include <algorithm>
-
 using namespace clang;
 using namespace CodeGen;
 
@@ -651,13 +649,12 @@ void CodeGenModule::Release() {
     // We are trying to look like OpenCL C++ for SPIR-V translator.
     // 4 - OpenCL_CPP, 100000 - OpenCL C++ version 1.0
     // 6 - ESIMD, if any kernel or function is an explicit SIMD one
-    int Lang = 4;
-
-    if (std::find_if(TheModule.begin(), TheModule.end(),
-                     [](const llvm::Function &F) -> bool {
-                       return F.getMetadata("sycl_explicit_simd") != nullptr;
-                     }) != TheModule.end())
-      Lang = 6;
+    int Lang = llvm::any_of(TheModule,
+                            [](const auto &F) {
+                              return F.getMetadata("sycl_explicit_simd");
+                            })
+                   ? 6
+                   : 4;
 
     llvm::Metadata *SPIRVSourceElts[] = {
         llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(Int32Ty, Lang)),
@@ -4427,8 +4424,12 @@ void CodeGenModule::EmitGlobalVarDefinition(const VarDecl *D,
     if (getCodeGenOpts().hasReducedDebugInfo())
       DI->EmitGlobalVariable(GV, D);
 
-  if (LangOpts.SYCLIsDevice)
+  if (LangOpts.SYCLIsDevice) {
     maybeEmitPipeStorageMetadata(D, GV, *this);
+    // Notify SYCL code generation infrastructure that a global variable is
+    // being generated.
+    getSYCLRuntime().actOnGlobalVarEmit(*this, *D, GV);
+  }
 }
 
 void CodeGenModule::EmitExternalVarDeclaration(const VarDecl *D) {
