@@ -1636,7 +1636,7 @@ pi_result piProgramCreate(pi_context Context, const void *IL, size_t Length,
   return PI_SUCCESS;
 }
 
-pi_result piclProgramCreateWithBinary(pi_context Context, pi_uint32 NumDevices,
+pi_result piProgramCreateWithBinary(pi_context Context, pi_uint32 NumDevices,
                                       const pi_device *DeviceList,
                                       const size_t *Lengths,
                                       const unsigned char **Binaries,

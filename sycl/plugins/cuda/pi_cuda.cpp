@@ -2225,7 +2225,7 @@ pi_result cuda_piProgramCreate(pi_context context, const void *il,
 ///
 /// Note: Only supports one device
 ///
-pi_result cuda_piclProgramCreateWithBinary(
+pi_result cuda_piProgramCreateWithBinary(
     pi_context context, pi_uint32 num_devices, const pi_device *device_list,
     const size_t *lengths, const unsigned char **binaries,
     pi_int32 *binary_status, pi_program *program) {
@@ -3688,7 +3688,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   // Program
   _PI_CL(piProgramCreate, cuda_piProgramCreate)
   _PI_CL(piclProgramCreateWithSource, cuda_piclProgramCreateWithSource)
-  _PI_CL(piclProgramCreateWithBinary, cuda_piclProgramCreateWithBinary)
+  _PI_CL(piProgramCreateWithBinary, cuda_piProgramCreateWithBinary)
   _PI_CL(piProgramGetInfo, cuda_piProgramGetInfo)
   _PI_CL(piProgramCompile, cuda_piProgramCompile)
   _PI_CL(piProgramBuild, cuda_piProgramBuild)

@@ -84,7 +84,7 @@ piKernelSetArg
 piEnqueueMemBufferCopyRect
 piEnqueueKernelLaunch
 piextContextCreateWithNativeHandle
-piclProgramCreateWithBinary
+piProgramCreateWithBinary
 piKernelGetGroupInfo
 piextEventCreateWithNativeHandle
 piEventsWait

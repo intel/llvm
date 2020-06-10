@@ -56,7 +56,7 @@ _PI_API(piextMemCreateWithNativeHandle)
 // Program
 _PI_API(piProgramCreate)
 _PI_API(piclProgramCreateWithSource)
-_PI_API(piclProgramCreateWithBinary)
+_PI_API(piProgramCreateWithBinary)
 _PI_API(piProgramGetInfo)
 _PI_API(piProgramCompile)
 _PI_API(piProgramBuild)
