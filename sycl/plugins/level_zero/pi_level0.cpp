@@ -2518,6 +2518,7 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
       return Res;
 
     (*Event)->Queue = Queue;
+    (*Event)->CommandType = PI_COMMAND_TYPE_USER;
     (*Event)->ZeCommandList = ZeCommandList;
 
     ZeEvent = (*Event)->ZeEvent;
