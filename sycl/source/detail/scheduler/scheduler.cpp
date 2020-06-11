@@ -63,13 +63,12 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record) {
 
 EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
                               QueueImplPtr Queue) {
-  EventImplPtr NewEvent = nullptr;
+  Command *NewCmd = nullptr;
   const bool IsKernel = CommandGroup->getType() == CG::KERNEL;
   {
     std::unique_lock<std::shared_timed_mutex> Lock(MGraphLock, std::defer_lock);
     lockSharedTimedMutex(Lock);
 
-    Command *NewCmd = nullptr;
     switch (CommandGroup->getType()) {
     case CG::UPDATE_HOST:
       NewCmd = MGraphBuilder.addCGUpdateHost(std::move(CommandGroup),
@@ -81,28 +80,18 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
     default:
       NewCmd = MGraphBuilder.addCG(std::move(CommandGroup), std::move(Queue));
     }
-    NewEvent = NewCmd->getEvent();
+
+    // TODO: Check if lazy mode.
+    EnqueueResultT Res;
+    bool Enqueued = GraphProcessor::enqueueCommand(NewCmd, Res);
+    if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
+      throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
   }
 
-  {
-    std::unique_lock<std::shared_timed_mutex> Lock(MGraphLockEnqueue,
-                                                   std::defer_lock);
-    lockSharedTimedMutex(Lock);
+  if (IsKernel)
+    ((ExecCGCommand *)NewCmd)->flushStreams();
 
-    Command *Cmd = static_cast<Command *>(NewEvent->getCommand());
-    if (Cmd) {
-      // TODO: Check if lazy mode.
-      EnqueueResultT Res;
-      bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res);
-      if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
-        throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
-
-      if (IsKernel)
-        ((ExecCGCommand *)Cmd)->flushStreams();
-    }
-  }
-
-  return NewEvent;
+  return NewCmd->getEvent();
 }
 
 EventImplPtr Scheduler::addCopyBack(Requirement *Req) {
@@ -144,7 +133,8 @@ std::vector<EventImplPtr> Scheduler::getWaitList(EventImplPtr Event) {
 }
 
 void Scheduler::waitForEvent(EventImplPtr Event) {
-  std::shared_lock<std::shared_timed_mutex> Lock(MGraphLock);
+  std::unique_lock<std::shared_timed_mutex> Lock(MGraphLock, std::defer_lock);
+  lockSharedTimedMutex(Lock);
   GraphProcessor::waitForEvent(std::move(Event));
 }
 
@@ -195,7 +185,8 @@ EventImplPtr Scheduler::addHostAccessor(Requirement *Req) {
 void Scheduler::releaseHostAccessor(Requirement *Req) {
   Command *const BlockedCmd = Req->MBlockedCmd;
 
-  std::shared_lock<std::shared_timed_mutex> Lock(MGraphLock);
+  std::unique_lock<std::shared_timed_mutex> Lock(MGraphLock, std::defer_lock);
+  lockSharedTimedMutex(Lock);
 
   assert(BlockedCmd && "Can't find appropriate command to unblock");
 
