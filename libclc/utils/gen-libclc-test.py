@@ -13,7 +13,6 @@ from spirv_common import ignore_overload, emit_guards, close_guards, clang_forma
 
 def ignore_function(fun):
     blacklist = [
-        "Convert",
         "GenericCastToPtrExplicit",
         "GenericPtrMemSemantics",
         "GroupAll",
@@ -27,9 +26,7 @@ def ignore_function(fun):
         "GroupSMin",
         "GroupUMax",
         "GroupUMin",
-        "printf",
-        "VectorTimesScalar",
-        "shuffle"
+        "printf"
     ]
     return any([fun.find(b) != -1 for b in blacklist])
 

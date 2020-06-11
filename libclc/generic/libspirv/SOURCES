@@ -182,6 +182,8 @@ math/tanh.cl
 math/tanpi.cl
 math/tgamma.cl
 math/trunc.cl
+misc/shuffle.cl
+misc/shuffle2.cl
 relational/all.cl
 relational/any.cl
 relational/bitselect.cl
