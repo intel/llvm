@@ -102,6 +102,11 @@ public:
   /// \return a vector of all available SYCL platforms.
   static vector_class<platform> get_platforms();
 
+  /// Returns the backend associated with this platform.
+  ///
+  /// \return the backend associated with this platform
+  backend get_backend() const;
+
 private:
   shared_ptr_class<detail::platform_impl> impl;
   platform(shared_ptr_class<detail::platform_impl> impl) : impl(impl) {}
