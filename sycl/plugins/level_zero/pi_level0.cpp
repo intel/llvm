@@ -2503,6 +2503,46 @@ pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
   return {};
 }
 
+pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
+                                         pi_uint32 NumEventsInWaitList,
+                                         const pi_event *EventWaitList,
+                                         pi_event *Event) {
+
+  assert(Queue);
+
+  // Get a new command list to be used on this call
+  ze_command_list_handle_t ZeCommandList = nullptr;
+  if (auto Res = Queue->Context->Device->createCommandList(&ZeCommandList))
+    return Res;
+
+  ze_event_handle_t ZeEvent = nullptr;
+  if (Event) {
+    auto Res = piEventCreate(Queue->Context, Event);
+    if (Res != PI_SUCCESS)
+      return Res;
+
+    (*Event)->Queue = Queue;
+    (*Event)->CommandType = PI_COMMAND_TYPE_USER;
+    (*Event)->ZeCommandList = ZeCommandList;
+
+    ZeEvent = (*Event)->ZeEvent;
+  }
+
+  // TODO: use unique_ptr with custom deleter in the whole Level Zero plugin for
+  // wrapping ze_event_handle_t *ZeEventWaitList to avoid memory leaks in case
+  // return will be called in ZE_CALL(ze***(...)), and thus
+  // _pi_event::deleteZeEventList(ZeEventWaitList) won't be called.
+  ze_event_handle_t *ZeEventWaitList =
+      _pi_event::createZeEventList(NumEventsInWaitList, EventWaitList);
+
+  ZE_CALL(zeCommandListAppendBarrier(ZeCommandList, ZeEvent,
+                                     NumEventsInWaitList, ZeEventWaitList));
+
+  _pi_event::deleteZeEventList(ZeEventWaitList);
+
+  return PI_SUCCESS;
+}
+
 pi_result piEnqueueMemBufferRead(pi_queue Queue, pi_mem Src,
                                  pi_bool BlockingRead, size_t Offset,
                                  size_t Size, void *Dst,
