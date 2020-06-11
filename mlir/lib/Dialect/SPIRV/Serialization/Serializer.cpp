@@ -672,8 +672,9 @@ LogicalResult Serializer::processDecoration(Location loc, uint32_t resultID,
   }
   SmallVector<uint32_t, 1> args;
   switch (decoration.getValue()) {
-  case spirv::Decoration::DescriptorSet:
   case spirv::Decoration::Binding:
+  case spirv::Decoration::DescriptorSet:
+  case spirv::Decoration::Location:
     if (auto intAttr = attr.second.dyn_cast<IntegerAttr>()) {
       args.push_back(intAttr.getValue().getZExtValue());
       break;
@@ -690,6 +691,13 @@ LogicalResult Serializer::processDecoration(Location loc, uint32_t resultID,
              << attrName << " attribute " << strAttr.getValue();
     }
     return emitError(loc, "expected string attribute for ") << attrName;
+  case spirv::Decoration::Flat:
+  case spirv::Decoration::NoPerspective:
+    if (auto unitAttr = attr.second.dyn_cast<UnitAttr>()) {
+      // For unit attributes, the args list has no values so we do nothing
+      break;
+    }
+    return emitError(loc, "expected unit attribute for ") << attrName;
   default:
     return emitError(loc, "unhandled decoration ") << decorationName;
   }
@@ -1104,10 +1112,26 @@ Serializer::prepareBasicType(Location loc, Type type, uint32_t resultID,
       return failure();
     }
     typeEnum = spirv::Opcode::OpTypeCooperativeMatrixNV;
+    auto getConstantOp = [&](uint32_t id) {
+      auto attr = IntegerAttr::get(IntegerType::get(32, type.getContext()), id);
+      return prepareConstantInt(loc, attr);
+    };
     operands.push_back(elementTypeID);
-    operands.push_back(static_cast<uint32_t>(cooperativeMatrixType.getScope()));
-    operands.push_back(cooperativeMatrixType.getRows());
-    operands.push_back(cooperativeMatrixType.getColumns());
+    operands.push_back(
+        getConstantOp(static_cast<uint32_t>(cooperativeMatrixType.getScope())));
+    operands.push_back(getConstantOp(cooperativeMatrixType.getRows()));
+    operands.push_back(getConstantOp(cooperativeMatrixType.getColumns()));
+    return success();
+  }
+
+  if (auto matrixType = type.dyn_cast<spirv::MatrixType>()) {
+    uint32_t elementTypeID = 0;
+    if (failed(processType(loc, matrixType.getElementType(), elementTypeID))) {
+      return failure();
+    }
+    typeEnum = spirv::Opcode::OpTypeMatrix;
+    operands.push_back(elementTypeID);
+    operands.push_back(matrixType.getNumElements());
     return success();
   }
 
@@ -1253,11 +1277,11 @@ uint32_t Serializer::prepareConstantScalar(Location loc, Attribute valueAttr,
   if (auto floatAttr = valueAttr.dyn_cast<FloatAttr>()) {
     return prepareConstantFp(loc, floatAttr, isSpec);
   }
-  if (auto intAttr = valueAttr.dyn_cast<IntegerAttr>()) {
-    return prepareConstantInt(loc, intAttr, isSpec);
-  }
   if (auto boolAttr = valueAttr.dyn_cast<BoolAttr>()) {
     return prepareConstantBool(loc, boolAttr, isSpec);
+  }
+  if (auto intAttr = valueAttr.dyn_cast<IntegerAttr>()) {
+    return prepareConstantInt(loc, intAttr, isSpec);
   }
 
   return 0;

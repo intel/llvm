@@ -447,9 +447,9 @@ func @corner_cases() {
 
 
   // CHECK: spv.constant false
-  %9 = constant 0 : i1
+  %9 = constant false
   // CHECK: spv.constant true
-  %10 = constant 1 : i1
+  %10 = constant true
 
   return
 }
@@ -562,6 +562,15 @@ func @zexti2(%arg0 : i32) -> i64 {
   // CHECK: spv.UConvert %{{.*}} : i32 to i64
   %0 = std.zexti %arg0 : i32 to i64
   return %0 : i64
+}
+
+// CHECK-LABEL: @zexti3
+func @zexti3(%arg0 : i1) -> i32 {
+  // CHECK: %[[ZERO:.+]] = spv.constant 0 : i32
+  // CHECK: %[[ONE:.+]] = spv.constant 1 : i32
+  // CHECK: spv.Select %{{.*}}, %[[ONE]], %[[ZERO]] : i1, i32
+  %0 = std.zexti %arg0 : i1 to i32
+  return %0 : i32
 }
 
 // CHECK-LABEL: @trunci1

@@ -75,7 +75,8 @@ public:
         continue;
 
       if (auto *MemberCXXRD = MemberType->getPointeeCXXRecordDecl()) {
-        if (isRefCountable(MemberCXXRD))
+        // If we don't see the definition we just don't know.
+        if (MemberCXXRD->hasDefinition() && isRefCountable(MemberCXXRD))
           reportBug(Member, MemberType, MemberCXXRD, RD);
       }
     }
@@ -108,7 +109,11 @@ public:
 
     // Ref-counted smartpointers actually have raw-pointer to uncounted type as
     // a member but we trust them to handle it correctly.
-    return isRefCounted(llvm::dyn_cast_or_null<CXXRecordDecl>(RD));
+    auto CXXRD = llvm::dyn_cast_or_null<CXXRecordDecl>(RD);
+    if (CXXRD)
+      return isRefCounted(CXXRD);
+
+    return false;
   }
 
   void reportBug(const FieldDecl *Member, const Type *MemberType,
