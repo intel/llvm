@@ -22,7 +22,7 @@ Possible values:
 - `dpcpp-0.8`: corresponds to DPC++ version documented in oneAPI 0.8
 
   Basically, `-sycl-std=dpcpp-0.8` implies support for SYCL 1.2.1 specification
-  and bunch of extension enabled.
+  plus several extensions.
 
   See [oneAPI Specification] for more details and the specification text.
 
@@ -30,10 +30,10 @@ Possible values:
 [oneAPI Specification]: https://spec.oneapi.com/
 
 Note: `-sycl-std` **doesn't** imply any C++ standard version to be set,
-which means that some default value will be selected. If by some reason, that
-default version is not a desired one,  it is possible to change C++ version
-independently of SYCL/DPC++ standard version via specifying additional option:
-`-sycl-std=1.2.1 -std=c++14`, for example.
+which means that the same default value as for C++ source is used. If by some
+reason, that default version is not a desired one, it is possible to change C++
+version independently of SYCL/DPC++ standard version via specifying additional
+option: `-sycl-std=1.2.1 -std=c++14`, for example.
 
 If SYCL/DPC++ standard version and C++ standard version (either default value
 for the compiler or one which was explicitly set via `-std`) are incompatible,
@@ -51,9 +51,10 @@ Supported values (besides listed in clang documentation/help):
 - `dpcpp-0.8`: corresponds to `-sycl-std=dpcpp-0.8`
 
 Note: setting SYCL or DPC++ standard version via `-std` option automatically
-implies some C++ standard version to be set, according to requirements of
-corresponding SYCL/DPC++ specification. For example, for SYCL 1.2.1 it would be
-at least C++11, while for DPC++ 0.8 it would be C++17.
+implies some C++ standard version to be set: it is the larger of the default C++
+version of a compiler and the minimum required version by SYCL/DPC++ spec.
+For example, for SYCL 1.2.1 it would be C++14 with current clang version, while
+for DPC++ 0.8 it would be C++17.
 
 Please note that if you specify `-std` flag several times, only the last
 value takes effect. This means, that if you want to specify a particular C++
