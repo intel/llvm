@@ -2089,6 +2089,9 @@ static TryCastResult TryReinterpretCast(Sema &Self, ExprResult &SrcExpr,
       return TC_NotApplicable;
       // FIXME: Use a specific diagnostic for the rest of these cases.
     case OK_VectorComponent: inappropriate = "vector element";      break;
+    case OK_MatrixComponent:
+      inappropriate = "matrix element";
+      break;
     case OK_ObjCProperty:    inappropriate = "property expression"; break;
     case OK_ObjCSubscript:   inappropriate = "container subscripting expression";
                              break;
@@ -2782,6 +2785,20 @@ void CastOperation::CheckCStyleCast() {
 
   if (isa<ObjCSelectorExpr>(SrcExpr.get())) {
     Self.Diag(SrcExpr.get()->getExprLoc(), diag::err_cast_selector_expr);
+    SrcExpr = ExprError();
+    return;
+  }
+
+  // Can't cast to or from bfloat
+  if (DestType->isBFloat16Type() && !SrcType->isBFloat16Type()) {
+    Self.Diag(SrcExpr.get()->getExprLoc(), diag::err_cast_to_bfloat16)
+        << SrcExpr.get()->getSourceRange();
+    SrcExpr = ExprError();
+    return;
+  }
+  if (SrcType->isBFloat16Type() && !DestType->isBFloat16Type()) {
+    Self.Diag(SrcExpr.get()->getExprLoc(), diag::err_cast_from_bfloat16)
+        << SrcExpr.get()->getSourceRange();
     SrcExpr = ExprError();
     return;
   }

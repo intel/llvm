@@ -110,6 +110,7 @@ void DWARFDebugLine::Prologue::dump(raw_ostream &OS,
   OS << "Line table prologue:\n"
      << format("    total_length: 0x%0*" PRIx64 "\n", OffsetDumpWidth,
                TotalLength)
+     << "          format: " << dwarf::FormatString(FormParams.Format) << "\n"
      << format("         version: %u\n", getVersion());
   if (!versionIsSupported(getVersion()))
     return;
@@ -459,10 +460,12 @@ void DWARFDebugLine::Row::reset(bool DefaultIsStmt) {
   EpilogueBegin = false;
 }
 
-void DWARFDebugLine::Row::dumpTableHeader(raw_ostream &OS) {
-  OS << "Address            Line   Column File   ISA Discriminator Flags\n"
-     << "------------------ ------ ------ ------ --- ------------- "
-        "-------------\n";
+void DWARFDebugLine::Row::dumpTableHeader(raw_ostream &OS, unsigned Indent) {
+  OS.indent(Indent)
+      << "Address            Line   Column File   ISA Discriminator Flags\n";
+  OS.indent(Indent)
+      << "------------------ ------ ------ ------ --- ------------- "
+         "-------------\n";
 }
 
 void DWARFDebugLine::Row::dump(raw_ostream &OS) const {
@@ -493,7 +496,7 @@ void DWARFDebugLine::LineTable::dump(raw_ostream &OS,
 
   if (!Rows.empty()) {
     OS << '\n';
-    Row::dumpTableHeader(OS);
+    Row::dumpTableHeader(OS, 0);
     for (const Row &R : Rows) {
       R.dump(OS);
     }
@@ -736,6 +739,10 @@ Error DWARFDebugLine::LineTable::parse(
   ParsingState State(this, DebugLineOffset, RecoverableErrorHandler);
 
   *OffsetPtr = DebugLineOffset + Prologue.getLength();
+  if (OS && *OffsetPtr < EndOffset) {
+    *OS << '\n';
+    Row::dumpTableHeader(*OS, 12);
+  }
   while (*OffsetPtr < EndOffset) {
     if (OS)
       *OS << format("0x%08.08" PRIx64 ": ", *OffsetPtr);
@@ -1230,13 +1237,17 @@ bool DWARFDebugLine::Prologue::getFileNameByIndex(
   StringRef IncludeDir;
   // Be defensive about the contents of Entry.
   if (getVersion() >= 5) {
-    if (Entry.DirIdx < IncludeDirectories.size())
+    // DirIdx 0 is the compilation directory, so don't include it for
+    // relative names.
+    if ((Entry.DirIdx != 0 || Kind != FileLineInfoKind::RelativeFilePath) &&
+        Entry.DirIdx < IncludeDirectories.size())
       IncludeDir = IncludeDirectories[Entry.DirIdx].getAsCString().getValue();
   } else {
     if (0 < Entry.DirIdx && Entry.DirIdx <= IncludeDirectories.size())
       IncludeDir =
           IncludeDirectories[Entry.DirIdx - 1].getAsCString().getValue();
   }
+
   // For absolute paths only, include the compilation directory of compile unit.
   // We know that FileName is not absolute, the only way to have an absolute
   // path at this point would be if IncludeDir is absolute.

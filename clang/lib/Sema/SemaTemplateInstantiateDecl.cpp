@@ -498,48 +498,21 @@ static void instantiateDependentAMDGPUWavesPerEUAttr(
   S.addAMDGPUWavesPerEUAttr(New, Attr, MinExpr, MaxExpr);
 }
 
-static void instantiateIntelFPGABankWidthAttr(
+template <typename AttrName>
+static void instantiateIntelFPGAMemoryAttr(
     Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
-    const IntelFPGABankWidthAttr *Attr, Decl *New) {
+    const AttrName *Attr, Decl *New) {
   EnterExpressionEvaluationContext Unevaluated(
       S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
   ExprResult Result = S.SubstExpr(Attr->getValue(), TemplateArgs);
-  if (!Result.isInvalid())
-    return S.AddOneConstantPowerTwoValueAttr<IntelFPGABankWidthAttr>(
-        New, *Attr, Result.getAs<Expr>());
-}
-
-static void instantiateIntelFPGANumBanksAttr(
-    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
-    const IntelFPGANumBanksAttr *Attr, Decl *New) {
-  EnterExpressionEvaluationContext Unevaluated(
-      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
-  ExprResult Result = S.SubstExpr(Attr->getValue(), TemplateArgs);
-  if (!Result.isInvalid())
-    return S.AddOneConstantPowerTwoValueAttr<IntelFPGANumBanksAttr>(
-        New, *Attr, Result.getAs<Expr>());
-}
-
-static void instantiateIntelFPGAPrivateCopiesAttr(
-    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
-    const IntelFPGAPrivateCopiesAttr *Attr, Decl *New) {
-  EnterExpressionEvaluationContext Unevaluated(
-      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
-  ExprResult Result = S.SubstExpr(Attr->getValue(), TemplateArgs);
-  if (!Result.isInvalid())
-    return S.AddOneConstantValueAttr<IntelFPGAPrivateCopiesAttr>(
-        New, *Attr, Result.getAs<Expr>());
-}
-
-static void instantiateIntelFPGAMaxReplicatesAttr(
-    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
-    const IntelFPGAMaxReplicatesAttr *Attr, Decl *New) {
-  EnterExpressionEvaluationContext Unevaluated(
-      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
-  ExprResult Result = S.SubstExpr(Attr->getValue(), TemplateArgs);
-  if (!Result.isInvalid())
-    return S.AddOneConstantValueAttr<IntelFPGAMaxReplicatesAttr>(
-        New, *Attr, Result.getAs<Expr>());
+  if (!Result.isInvalid()) {
+    if (std::is_same<AttrName, IntelFPGABankWidthAttr>::value ||
+        std::is_same<AttrName, IntelFPGANumBanksAttr>::value)
+      return S.AddOneConstantPowerTwoValueAttr<AttrName>(New, *Attr,
+                                                         Result.getAs<Expr>());
+    return S.AddOneConstantValueAttr<AttrName>(New, *Attr,
+                                               Result.getAs<Expr>());
+  }
 }
 
 static void instantiateIntelFPGABankBitsAttr(
@@ -557,17 +530,6 @@ static void instantiateIntelFPGABankBitsAttr(
   S.AddIntelFPGABankBitsAttr(New, *Attr, Args.data(), Args.size());
 }
 
-static void instantiateIntelFPGAForcePow2DepthAttr(
-    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
-    const IntelFPGAForcePow2DepthAttr *Attr, Decl *New) {
-  EnterExpressionEvaluationContext Unevaluated(
-      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
-  ExprResult Result = S.SubstExpr(Attr->getValue(), TemplateArgs);
-  if (!Result.isInvalid())
-    S.AddOneConstantValueAttr<IntelFPGAForcePow2DepthAttr>(
-        New, *Attr, Result.getAs<Expr>());
-}
-
 static void instantiateSYCLIntelPipeIOAttr(
     Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
     const SYCLIntelPipeIOAttr *Attr, Decl *New) {
@@ -577,6 +539,17 @@ static void instantiateSYCLIntelPipeIOAttr(
   ExprResult Result = S.SubstExpr(Attr->getID(), TemplateArgs);
   if (!Result.isInvalid())
     S.addSYCLIntelPipeIOAttr(New, *Attr, Result.getAs<Expr>());
+}
+
+static void instantiateIntelReqdSubGroupSizeAttr(
+    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
+    const IntelReqdSubGroupSizeAttr *Attr, Decl *New) {
+  // The SubGroupSize expression is a constant expression.
+  EnterExpressionEvaluationContext Unevaluated(
+      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+  ExprResult Result = S.SubstExpr(Attr->getSubGroupSize(), TemplateArgs);
+  if (!Result.isInvalid())
+    S.addIntelReqdSubGroupSizeAttr(New, *Attr, Result.getAs<Expr>());
 }
 
 void Sema::InstantiateAttrsForDecl(
@@ -689,23 +662,24 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
 
     if (const auto *IntelFPGABankWidth =
             dyn_cast<IntelFPGABankWidthAttr>(TmplAttr)) {
-      instantiateIntelFPGABankWidthAttr(*this, TemplateArgs, IntelFPGABankWidth,
-                                        New);
+      instantiateIntelFPGAMemoryAttr<IntelFPGABankWidthAttr>(
+          *this, TemplateArgs, IntelFPGABankWidth, New);
     }
+
     if (const auto *IntelFPGANumBanks =
             dyn_cast<IntelFPGANumBanksAttr>(TmplAttr)) {
-      instantiateIntelFPGANumBanksAttr(*this, TemplateArgs, IntelFPGANumBanks,
-                                       New);
+      instantiateIntelFPGAMemoryAttr<IntelFPGANumBanksAttr>(
+          *this, TemplateArgs, IntelFPGANumBanks, New);
     }
     if (const auto *IntelFPGAPrivateCopies =
             dyn_cast<IntelFPGAPrivateCopiesAttr>(TmplAttr)) {
-      instantiateIntelFPGAPrivateCopiesAttr(*this, TemplateArgs,
-                                            IntelFPGAPrivateCopies, New);
+      instantiateIntelFPGAMemoryAttr<IntelFPGAPrivateCopiesAttr>(
+          *this, TemplateArgs, IntelFPGAPrivateCopies, New);
     }
     if (const auto *IntelFPGAMaxReplicates =
             dyn_cast<IntelFPGAMaxReplicatesAttr>(TmplAttr)) {
-      instantiateIntelFPGAMaxReplicatesAttr(*this, TemplateArgs,
-                                            IntelFPGAMaxReplicates, New);
+      instantiateIntelFPGAMemoryAttr<IntelFPGAMaxReplicatesAttr>(
+          *this, TemplateArgs, IntelFPGAMaxReplicates, New);
     }
     if (const auto *IntelFPGABankBits =
             dyn_cast<IntelFPGABankBitsAttr>(TmplAttr)) {
@@ -714,14 +688,19 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
     }
     if (const auto *IntelFPGAForcePow2Depth =
             dyn_cast<IntelFPGAForcePow2DepthAttr>(TmplAttr)) {
-      instantiateIntelFPGAForcePow2DepthAttr(*this, TemplateArgs,
-                                             IntelFPGAForcePow2Depth, New);
+      instantiateIntelFPGAMemoryAttr<IntelFPGAForcePow2DepthAttr>(
+          *this, TemplateArgs, IntelFPGAForcePow2Depth, New);
     }
     if (const auto *SYCLIntelPipeIO = dyn_cast<SYCLIntelPipeIOAttr>(TmplAttr)) {
       instantiateSYCLIntelPipeIOAttr(*this, TemplateArgs, SYCLIntelPipeIO, New);
       continue;
     }
-
+    if (const auto *IntelReqdSubGroupSize =
+            dyn_cast<IntelReqdSubGroupSizeAttr>(TmplAttr)) {
+      instantiateIntelReqdSubGroupSizeAttr(*this, TemplateArgs,
+                                           IntelReqdSubGroupSize, New);
+      continue;
+    }
     // Existing DLL attribute on the instantiation takes precedence.
     if (TmplAttr->getKind() == attr::DLLExport ||
         TmplAttr->getKind() == attr::DLLImport) {
@@ -4958,6 +4937,7 @@ void Sema::BuildVariableInstantiation(
   NewVar->setCXXForRangeDecl(OldVar->isCXXForRangeDecl());
   NewVar->setObjCForDecl(OldVar->isObjCForDecl());
   NewVar->setConstexpr(OldVar->isConstexpr());
+  MaybeAddCUDAConstantAttr(NewVar);
   NewVar->setInitCapture(OldVar->isInitCapture());
   NewVar->setPreviousDeclInSameBlockScope(
       OldVar->isPreviousDeclInSameBlockScope());
@@ -5264,16 +5244,21 @@ void Sema::InstantiateVariableDefinition(SourceLocation PointOfInstantiation,
 
   // Make sure to pass the instantiated variable to the consumer at the end.
   struct PassToConsumerRAII {
+    Sema &SemaRef;
     ASTConsumer &Consumer;
     VarDecl *Var;
 
-    PassToConsumerRAII(ASTConsumer &Consumer, VarDecl *Var)
-      : Consumer(Consumer), Var(Var) { }
+    PassToConsumerRAII(Sema &SemaRef, ASTConsumer &Consumer, VarDecl *Var)
+        : SemaRef(SemaRef), Consumer(Consumer), Var(Var) {}
 
     ~PassToConsumerRAII() {
-      Consumer.HandleCXXStaticMemberVarInstantiation(Var);
+      // Do not explicitly emit non-const static data member definitions
+      // on SYCL device.
+      if (!SemaRef.getLangOpts().SYCLIsDevice || !Var->isStaticDataMember() ||
+          Var->isConstexpr() || Var->getType().isConstQualified())
+        Consumer.HandleCXXStaticMemberVarInstantiation(Var);
     }
-  } PassToConsumerRAII(Consumer, Var);
+  } PassToConsumerRAII(*this, Consumer, Var);
 
   // If we already have a definition, we're done.
   if (VarDecl *Def = Var->getDefinition()) {

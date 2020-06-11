@@ -1498,6 +1498,30 @@ static LogicalResult verify(TransferReadOp op) {
                               [&op](Twine t) { return op.emitOpError(t); });
 }
 
+/// This is a common class used for patterns of the form
+/// ```
+///    someop(memrefcast) -> someop
+/// ```
+/// It folds the source of the memref_cast into the root operation directly.
+static LogicalResult foldMemRefCast(Operation *op) {
+  bool folded = false;
+  for (OpOperand &operand : op->getOpOperands()) {
+    auto castOp = operand.get().getDefiningOp<MemRefCastOp>();
+    if (castOp && canFoldIntoConsumerOp(castOp)) {
+      operand.set(castOp.getOperand());
+      folded = true;
+    }
+  }
+  return success(folded);
+}
+
+OpFoldResult TransferReadOp::fold(ArrayRef<Attribute>) {
+  /// transfer_read(memrefcast) -> transfer_read
+  if (succeeded(foldMemRefCast(*this)))
+    return getResult();
+  return OpFoldResult();
+}
+
 //===----------------------------------------------------------------------===//
 // TransferWriteOp
 //===----------------------------------------------------------------------===//
@@ -1583,6 +1607,11 @@ static LogicalResult verify(TransferWriteOp op) {
                               [&op](Twine t) { return op.emitOpError(t); });
 }
 
+LogicalResult TransferWriteOp::fold(ArrayRef<Attribute>,
+                                    SmallVectorImpl<OpFoldResult> &) {
+  return foldMemRefCast(*this);
+}
+
 //===----------------------------------------------------------------------===//
 // ShapeCastOp
 //===----------------------------------------------------------------------===//
@@ -1665,6 +1694,19 @@ static LogicalResult verify(ShapeCastOp op) {
       return failure();
 
   return success();
+}
+
+OpFoldResult ShapeCastOp::fold(ArrayRef<Attribute> operands) {
+  // Nop shape cast.
+  if (source().getType() == result().getType())
+    return source();
+
+  // Canceling shape casts.
+  if (auto otherOp = source().getDefiningOp<ShapeCastOp>())
+    if (result().getType() == otherOp.source().getType())
+      return otherOp.source();
+
+  return {};
 }
 
 //===----------------------------------------------------------------------===//

@@ -138,6 +138,7 @@ bool Sema::isSimpleTypeSpecifier(tok::TokenKind Kind) const {
   case tok::kw_half:
   case tok::kw_float:
   case tok::kw_double:
+  case tok::kw___bf16:
   case tok::kw__Float16:
   case tok::kw___float128:
   case tok::kw_wchar_t:
@@ -2597,6 +2598,10 @@ static bool mergeDeclAttribute(Sema &S, NamedDecl *D,
     NewAttr = S.mergeSpeculativeLoadHardeningAttr(D, *SLHA);
   else if (const auto *SLHA = dyn_cast<NoSpeculativeLoadHardeningAttr>(Attr))
     NewAttr = S.mergeNoSpeculativeLoadHardeningAttr(D, *SLHA);
+  else if (const auto *IMA = dyn_cast<WebAssemblyImportModuleAttr>(Attr))
+    NewAttr = S.mergeImportModuleAttr(D, *IMA);
+  else if (const auto *INA = dyn_cast<WebAssemblyImportNameAttr>(Attr))
+    NewAttr = S.mergeImportNameAttr(D, *INA);
   else if (Attr->shouldInheritEvenIfAlreadyPresent() || !DeclHasAttr(D, Attr))
     NewAttr = cast<InheritableAttr>(Attr->clone(S.Context));
 
@@ -7071,19 +7076,12 @@ NamedDecl *Sema::ActOnVariableDeclarator(
            diag::err_thread_non_global)
         << DeclSpec::getSpecifierName(TSCS);
     else if (!Context.getTargetInfo().isTLSSupported()) {
-      if (getLangOpts().CUDA || getLangOpts().OpenMPIsDevice) {
+      if (getLangOpts().CUDA || getLangOpts().OpenMPIsDevice ||
+          getLangOpts().SYCLIsDevice) {
         // Postpone error emission until we've collected attributes required to
         // figure out whether it's a host or device variable and whether the
         // error should be ignored.
         EmitTLSUnsupportedError = true;
-        // We still need to mark the variable as TLS so it shows up in AST with
-        // proper storage class for other tools to use even if we're not going
-        // to emit any code for it.
-        NewVD->setTSCSpec(TSCS);
-      } else if (getLangOpts().SYCLIsDevice) {
-        // While SYCL does not support TLS, emitting the diagnostic here
-        // prevents the compilation of header files with TLS declarations.
-        // When TLS objects are used in kernel code, they are diagnosed.
         // We still need to mark the variable as TLS so it shows up in AST with
         // proper storage class for other tools to use even if we're not going
         // to emit any code for it.
@@ -7097,13 +7095,10 @@ NamedDecl *Sema::ActOnVariableDeclarator(
 
   // Static variables declared inside SYCL device code must be const or
   // constexpr
-  if (getLangOpts().SYCLIsDevice) {
+  if (getLangOpts().SYCLIsDevice)
     if (SCSpec == DeclSpec::SCS_static && !R.isConstant(Context))
       SYCLDiagIfDeviceCode(D.getIdentifierLoc(), diag::err_sycl_restrict)
           << Sema::KernelNonConstStaticDataVariable;
-    else if (NewVD->getTSCSpec() == DeclSpec::TSCS_thread_local)
-      SYCLDiagIfDeviceCode(D.getIdentifierLoc(), diag::err_thread_unsupported);
-  }
 
   switch (D.getDeclSpec().getConstexprSpecifier()) {
   case CSK_unspecified:
@@ -7117,6 +7112,7 @@ NamedDecl *Sema::ActOnVariableDeclarator(
 
   case CSK_constexpr:
     NewVD->setConstexpr(true);
+    MaybeAddCUDAConstantAttr(NewVD);
     // C++1z [dcl.spec.constexpr]p1:
     //   A static data member declared with the constexpr specifier is
     //   implicitly an inline variable.
@@ -7190,13 +7186,18 @@ NamedDecl *Sema::ActOnVariableDeclarator(
   // Handle attributes prior to checking for duplicates in MergeVarDecl
   ProcessDeclAttributes(S, NewVD, D);
 
-  if (getLangOpts().CUDA || getLangOpts().OpenMPIsDevice) {
+  if (getLangOpts().CUDA || getLangOpts().OpenMPIsDevice ||
+      getLangOpts().SYCLIsDevice) {
     if (EmitTLSUnsupportedError &&
         ((getLangOpts().CUDA && DeclAttrsMatchCUDAMode(getLangOpts(), NewVD)) ||
          (getLangOpts().OpenMPIsDevice &&
           OMPDeclareTargetDeclAttr::isDeclareTargetDeclaration(NewVD))))
       Diag(D.getDeclSpec().getThreadStorageClassSpecLoc(),
            diag::err_thread_unsupported);
+
+    if (EmitTLSUnsupportedError && getLangOpts().SYCLIsDevice)
+      SYCLDiagIfDeviceCode(D.getIdentifierLoc(), diag::err_thread_unsupported);
+
     // CUDA B.2.5: "__shared__ and __constant__ variables have implied static
     // storage [duration]."
     if (SC == SC_None && S->getFnParent() != nullptr &&
@@ -11979,6 +11980,13 @@ void Sema::AddInitializerToDecl(Decl *RealDecl, Expr *Init, bool DirectInit) {
     VDecl->setInvalidDecl();
     return;
   }
+  // In the SYCL explicit SIMD extension non constant "private globals" can't
+  // be explicitly initialized in the declaration.
+  if (isSYCLEsimdPrivateGlobal(VDecl)) {
+    Diag(VDecl->getLocation(), diag::err_esimd_glob_cant_init);
+    VDecl->setInvalidDecl();
+    return;
+  }
 
   // The LoaderUninitialized attribute acts as a definition (of undef).
   if (VDecl->hasAttr<LoaderUninitializedAttr>()) {
@@ -12578,6 +12586,11 @@ void Sema::ActOnUninitializedDecl(Decl *RealDecl) {
     if (getLangOpts().OpenCL &&
         Var->getType().getAddressSpace() == LangAS::opencl_local)
       return;
+    // In SYCL explicit SIMD extension "private global" variables can't be
+    // initialized even implicitly, so don't synthesize an implicit initializer.
+    if (isSYCLEsimdPrivateGlobal(Var))
+      return;
+
     // C++03 [dcl.init]p9:
     //   If no initializer is specified for an object, and the
     //   object is of (possibly cv-qualified) non-POD class type (or

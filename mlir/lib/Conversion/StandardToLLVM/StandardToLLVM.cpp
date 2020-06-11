@@ -150,6 +150,24 @@ LLVMTypeConverter::LLVMTypeConverter(
 
   // LLVMType is legal, so add a pass-through conversion.
   addConversion([](LLVM::LLVMType type) { return type; });
+
+  // Materialization for memrefs creates descriptor structs from individual
+  // values constituting them, when descriptors are used, i.e. more than one
+  // value represents a memref.
+  addMaterialization([&](PatternRewriter &rewriter,
+                         UnrankedMemRefType resultType, ValueRange inputs,
+                         Location loc) -> Optional<Value> {
+    if (inputs.size() == 1)
+      return llvm::None;
+    return UnrankedMemRefDescriptor::pack(rewriter, loc, *this, resultType,
+                                          inputs);
+  });
+  addMaterialization([&](PatternRewriter &rewriter, MemRefType resultType,
+                         ValueRange inputs, Location loc) -> Optional<Value> {
+    if (inputs.size() == 1)
+      return llvm::None;
+    return MemRefDescriptor::pack(rewriter, loc, *this, resultType, inputs);
+  });
 }
 
 /// Returns the MLIR context.
@@ -183,9 +201,7 @@ Type LLVMTypeConverter::convertFloatType(FloatType type) {
   case mlir::StandardTypes::F16:
     return LLVM::LLVMType::getHalfTy(llvmDialect);
   case mlir::StandardTypes::BF16: {
-    auto *mlirContext = llvmDialect->getContext();
-    return emitError(UnknownLoc::get(mlirContext), "unsupported type: BF16"),
-           Type();
+    return LLVM::LLVMType::getBFloatTy(llvmDialect);
   }
   default:
     llvm_unreachable("non-float type in convertFloatType");
@@ -295,22 +311,6 @@ LLVMTypeConverter::convertFunctionTypeCWrapper(FunctionType type) {
     return {};
 
   return LLVM::LLVMType::getFunctionTy(resultType, inputs, false);
-}
-
-/// Creates descriptor structs from individual values constituting them.
-Operation *LLVMTypeConverter::materializeConversion(PatternRewriter &rewriter,
-                                                    Type type,
-                                                    ArrayRef<Value> values,
-                                                    Location loc) {
-  if (auto unrankedMemRefType = type.dyn_cast<UnrankedMemRefType>())
-    return UnrankedMemRefDescriptor::pack(rewriter, loc, *this,
-                                          unrankedMemRefType, values)
-        .getDefiningOp();
-
-  auto memRefType = type.dyn_cast<MemRefType>();
-  assert(memRefType && "1->N conversion is only supported for memrefs");
-  return MemRefDescriptor::pack(rewriter, loc, *this, memRefType, values)
-      .getDefiningOp();
 }
 
 // Convert a MemRef to an LLVM type. The result is a MemRef descriptor which

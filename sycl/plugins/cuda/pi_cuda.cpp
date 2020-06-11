@@ -389,9 +389,8 @@ pi_result enqueueEventWait(pi_queue queue, pi_event event) {
 }
 
 _pi_program::_pi_program(pi_context ctxt)
-    : module_{nullptr}, source_{}, sourceLength_{0}
-    , refCount_{1}, context_{ctxt} 
-{
+    : module_{nullptr}, binary_{},
+      binarySizeInBytes_{0}, refCount_{1}, context_{ctxt} {
   cuda_piContextRetain(context_);
 }
 
@@ -399,9 +398,11 @@ _pi_program::~_pi_program() {
   cuda_piContextRelease(context_);
 }
 
-pi_result _pi_program::create_from_source(const char *source, size_t length) {
-  source_ = source;
-  sourceLength_ = length;
+pi_result _pi_program::set_binary(const char *source, size_t length) {
+  assert((binary_ == nullptr && binarySizeInBytes_ == 0) &&
+         "Re-setting program binary data which has already been set");
+  binary_ = source;
+  binarySizeInBytes_ = length;
   return PI_SUCCESS;
 }
 
@@ -427,9 +428,9 @@ pi_result _pi_program::build_program(const char *build_options) {
   options[3] = CU_JIT_ERROR_LOG_BUFFER_SIZE_BYTES;
   optionVals[3] = (void *)(long)MAX_LOG_SIZE;
 
-  auto result = PI_CHECK_ERROR(cuModuleLoadDataEx(
-      &module_, static_cast<const void *>(source_), numberOfOptions, options,
-      optionVals));
+  auto result = PI_CHECK_ERROR(
+      cuModuleLoadDataEx(&module_, static_cast<const void *>(binary_),
+                         numberOfOptions, options, optionVals));
 
   const auto success = (result == PI_SUCCESS);
 
@@ -446,8 +447,8 @@ pi_result _pi_program::build_program(const char *build_options) {
 ///       has_kernel method, so an alternative would be to move the has_kernel
 ///       query to PI and use cuModuleGetFunction to check for a kernel.
 std::string getKernelNames(pi_program program) {
-  std::string source(program->source_,
-                     program->source_ + program->sourceLength_);
+  std::string source(program->binary_,
+                     program->binary_ + program->binarySizeInBytes_);
   std::regex entries_pattern(".entry\\s+([^\\([:s:]]*)");
   std::string names("");
   std::smatch match;
@@ -2172,41 +2173,15 @@ pi_result cuda_piMemRetain(pi_mem mem) {
   return PI_SUCCESS;
 }
 
-/// Constructs a PI program from a list of PTX or CUBIN binaries.
-/// Note: No calls to CUDA driver API in this function, only store binaries
-/// for later.
-///
-/// \TODO Implement more than one input image
-/// \TODO SYCL RT should use cuda_piclprogramCreateWithBinary instead
+/// Not used as CUDA backend only creates programs from binary.
+/// See \ref cuda_piclProgramCreateWithBinary.
 ///
 pi_result cuda_piclProgramCreateWithSource(pi_context context, pi_uint32 count,
                                            const char **strings,
                                            const size_t *lengths,
                                            pi_program *program) {
-
-  assert(context != nullptr);
-  assert(strings != nullptr);
-  assert(program != nullptr);
-
-  pi_result retErr = PI_SUCCESS;
-
-  if (count == 0) {
-    retErr = PI_INVALID_PROGRAM;
-    return retErr;
-  }
-
-  assert(count == 1);
-
-  std::unique_ptr<_pi_program> retProgram{new _pi_program{context}};
-
-  auto has_length = (lengths != nullptr);
-  size_t length = has_length ? lengths[0] : strlen(strings[0]) + 1;
-
-  retProgram->create_from_source(strings[0], length);
-
-  *program = retProgram.release();
-
-  return retErr;
+  cl::sycl::detail::pi::die("cuda_piclProgramCreateWithSource not implemented");
+  return {};
 }
 
 /// Loads the images from a PI program into a CUmodule that can be
@@ -2244,13 +2219,41 @@ pi_result cuda_piProgramCreate(pi_context context, const void *il,
   return {};
 }
 
-/// \TODO Not implemented. See \ref cuda_piclProgramCreateWithSource
+/// Loads images from a list of PTX or CUBIN binaries.
+/// Note: No calls to CUDA driver API in this function, only store binaries
+/// for later.
+///
+/// Note: Only supports one device
+///
 pi_result cuda_piclProgramCreateWithBinary(
     pi_context context, pi_uint32 num_devices, const pi_device *device_list,
     const size_t *lengths, const unsigned char **binaries,
-    pi_int32 *binary_status, pi_program *errcode_ret) {
-  cl::sycl::detail::pi::die("cuda_piclProgramCreateWithBinary not implemented");
-  return {};
+    pi_int32 *binary_status, pi_program *program) {
+  assert(context != nullptr);
+  assert(binaries != nullptr);
+  assert(program != nullptr);
+  assert(device_list != nullptr);
+  assert(num_devices == 1 && "CUDA contexts are for a single device");
+  assert((context->get_device()->get() == device_list[0]->get()) &&
+         "Mismatch between devices context and passed context when creating "
+         "program from binary");
+
+  pi_result retError = PI_SUCCESS;
+
+  std::unique_ptr<_pi_program> retProgram{new _pi_program{context}};
+
+  const bool has_length = (lengths != nullptr);
+  size_t length = has_length
+                      ? lengths[0]
+                      : strlen(reinterpret_cast<const char *>(binaries[0])) + 1;
+
+  assert(length != 0);
+
+  retProgram->set_binary(reinterpret_cast<const char *>(binaries[0]), length);
+
+  *program = retProgram.release();
+
+  return retError;
 }
 
 pi_result cuda_piProgramGetInfo(pi_program program, pi_program_info param_name,
@@ -2272,13 +2275,13 @@ pi_result cuda_piProgramGetInfo(pi_program program, pi_program_info param_name,
                         &program->context_->deviceId_);
   case PI_PROGRAM_INFO_SOURCE:
     return getInfo(param_value_size, param_value, param_value_size_ret,
-                   program->source_);
+                   program->binary_);
   case PI_PROGRAM_INFO_BINARY_SIZES:
     return getInfoArray(1, param_value_size, param_value, param_value_size_ret,
-                        &program->sourceLength_);
+                        &program->binarySizeInBytes_);
   case PI_PROGRAM_INFO_BINARIES:
     return getInfoArray(1, param_value_size, param_value, param_value_size_ret,
-                        &program->source_);
+                        &program->binary_);
   case PI_PROGRAM_INFO_KERNEL_NAMES: {
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    getKernelNames(program).c_str());
@@ -2320,15 +2323,15 @@ pi_result cuda_piProgramLink(pi_context context, pi_uint32 num_devices,
       for (size_t i = 0; i < num_input_programs; ++i) {
         pi_program program = input_programs[i];
         retError = PI_CHECK_ERROR(cuLinkAddData(
-            state, CU_JIT_INPUT_PTX, const_cast<char *>(program->source_),
-            program->sourceLength_, nullptr, 0, nullptr, nullptr));
+            state, CU_JIT_INPUT_PTX, const_cast<char *>(program->binary_),
+            program->binarySizeInBytes_, nullptr, 0, nullptr, nullptr));
       }
       void *cubin = nullptr;
       size_t cubinSize = 0;
       retError = PI_CHECK_ERROR(cuLinkComplete(state, &cubin, &cubinSize));
 
-      retError = retProgram->create_from_source(
-          static_cast<const char *>(cubin), cubinSize);
+      retError =
+          retProgram->set_binary(static_cast<const char *>(cubin), cubinSize);
 
       if (retError != PI_SUCCESS) {
         return retError;
@@ -3610,11 +3613,6 @@ pi_result cuda_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
       pi_device device = platform->devices_[value].get();
       return getInfo(param_value_size, param_value, param_value_size_ret,
                      device);
-    }
-    // not documented/implemented yet
-    case PI_MEM_ALLOC_INFO_TBD0:
-    case PI_MEM_ALLOC_INFO_TBD1: {
-      return PI_INVALID_VALUE;
     }
     }
   } catch (pi_result error) {

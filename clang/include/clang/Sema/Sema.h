@@ -3153,6 +3153,10 @@ public:
                                                 const InternalLinkageAttr &AL);
   CommonAttr *mergeCommonAttr(Decl *D, const ParsedAttr &AL);
   CommonAttr *mergeCommonAttr(Decl *D, const CommonAttr &AL);
+  WebAssemblyImportNameAttr *mergeImportNameAttr(
+      Decl *D, const WebAssemblyImportNameAttr &AL);
+  WebAssemblyImportModuleAttr *mergeImportModuleAttr(
+      Decl *D, const WebAssemblyImportModuleAttr &AL);
 
   void mergeDeclAttributes(NamedDecl *New, Decl *Old,
                            AvailabilityMergeKind AMK = AMK_Redeclaration);
@@ -3849,7 +3853,7 @@ private:
   /// Creates a new TypoExpr AST node.
   TypoExpr *createDelayedTypo(std::unique_ptr<TypoCorrectionConsumer> TCC,
                               TypoDiagnosticGenerator TDG,
-                              TypoRecoveryCallback TRC);
+                              TypoRecoveryCallback TRC, SourceLocation TypoLoc);
 
   // The set of known/encountered (unique, canonicalized) NamespaceDecls.
   //
@@ -5059,6 +5063,11 @@ public:
                                      Expr *Idx, SourceLocation RLoc);
   ExprResult CreateBuiltinArraySubscriptExpr(Expr *Base, SourceLocation LLoc,
                                              Expr *Idx, SourceLocation RLoc);
+
+  ExprResult CreateBuiltinMatrixSubscriptExpr(Expr *Base, Expr *RowIdx,
+                                              Expr *ColumnIdx,
+                                              SourceLocation RBLoc);
+
   ExprResult ActOnOMPArraySectionExpr(Expr *Base, SourceLocation LBLoc,
                                       Expr *LowerBound, SourceLocation ColonLoc,
                                       Expr *Length, SourceLocation RBLoc);
@@ -9918,6 +9927,10 @@ public:
 
   bool checkNSReturnsRetainedReturnType(SourceLocation loc, QualType type);
 
+  // Adds an intel_reqd_sub_group_size attribute to a particular declaration.
+  void addIntelReqdSubGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
+                                    Expr *E);
+
   //===--------------------------------------------------------------------===//
   // C++ Coroutines TS
   //
@@ -11379,6 +11392,8 @@ public:
   QualType CheckMatrixElementwiseOperands(ExprResult &LHS, ExprResult &RHS,
                                           SourceLocation Loc,
                                           bool IsCompAssign);
+  QualType CheckMatrixMultiplyOperands(ExprResult &LHS, ExprResult &RHS,
+                                       SourceLocation Loc, bool IsCompAssign);
 
   bool areLaxCompatibleVectorTypes(QualType srcType, QualType destType);
   bool isLaxVectorConversion(QualType srcType, QualType destType);
@@ -11851,6 +11866,8 @@ public:
     return IdentifyCUDATarget(dyn_cast<FunctionDecl>(CurContext));
   }
 
+  static bool IsCUDAImplicitHostDeviceFunction(const FunctionDecl *D);
+
   // CUDA function call preference. Must be ordered numerically from
   // worst to best.
   enum CUDAFunctionPreference {
@@ -11888,6 +11905,10 @@ public:
   /// depending on FD and the current compilation settings.
   void maybeAddCUDAHostDeviceAttrs(FunctionDecl *FD,
                                    const LookupResult &Previous);
+
+  /// May add implicit CUDAConstantAttr attribute to VD, depending on VD
+  /// and current compilation settings.
+  void MaybeAddCUDAConstantAttr(VarDecl *VD);
 
 public:
   /// Check whether we're allowed to call Callee from the current context.
@@ -12578,7 +12599,7 @@ public:
 private:
   // We store SYCL Kernels here and handle separately -- which is a hack.
   // FIXME: It would be best to refactor this.
-  SmallVector<Decl*, 4> SyclDeviceDecls;
+  llvm::SetVector<Decl *> SyclDeviceDecls;
   // SYCL integration header instance for current compilation unit this Sema
   // is associated with.
   std::unique_ptr<SYCLIntegrationHeader> SyclIntHeader;
@@ -12589,8 +12610,8 @@ private:
   bool ConstructingOpenCLKernel = false;
 
 public:
-  void addSyclDeviceDecl(Decl *d) { SyclDeviceDecls.push_back(d); }
-  SmallVectorImpl<Decl *> &syclDeviceDecls() { return SyclDeviceDecls; }
+  void addSyclDeviceDecl(Decl *d) { SyclDeviceDecls.insert(d); }
+  llvm::SetVector<Decl *> &syclDeviceDecls() { return SyclDeviceDecls; }
 
   /// Lazily creates and returns SYCL integration header instance.
   SYCLIntegrationHeader &getSyclIntegrationHeader() {
@@ -12660,6 +12681,14 @@ public:
   void finalizeSYCLDelayedAnalysis(const FunctionDecl *Caller,
                                    const FunctionDecl *Callee,
                                    SourceLocation Loc);
+
+  /// Tells whether given variable is a SYCL explicit SIMD extension's "private
+  /// global" variable - global variable in the private address space.
+  bool isSYCLEsimdPrivateGlobal(VarDecl *VDecl) {
+    return getLangOpts().SYCLIsDevice && getLangOpts().SYCLExplicitSIMD &&
+           VDecl->hasGlobalStorage() &&
+           (VDecl->getType().getAddressSpace() != LangAS::opencl_constant);
+  }
 };
 
 template <typename AttrType>

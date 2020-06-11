@@ -1302,13 +1302,22 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
 
   if (auto Ins = dyn_cast<InsertElementInst>(V)) {
     auto Index = Ins->getOperand(2);
-    if (auto Const = dyn_cast<ConstantInt>(Index))
+    if (auto Const = dyn_cast<ConstantInt>(Index)) {
+      SPIRVValue *InsVal = nullptr;
+      if (auto *F = dyn_cast<Function>(Ins->getOperand(1))) {
+        if (!BM->checkExtension(ExtensionID::SPV_INTEL_function_pointers,
+                                SPIRVEC_FunctionPointers, toString(V)))
+          return nullptr;
+        InsVal = BM->addFunctionPointerINTELInst(
+            transType(F->getType()),
+            static_cast<SPIRVFunction *>(transValue(F, BB)), BB);
+      } else
+        InsVal = transValue(Ins->getOperand(1), BB);
       return mapValue(V, BM->addCompositeInsertInst(
-                             transValue(Ins->getOperand(1), BB),
-                             transValue(Ins->getOperand(0), BB),
+                             InsVal, transValue(Ins->getOperand(0), BB),
                              std::vector<SPIRVWord>(1, Const->getZExtValue()),
                              BB));
-    else
+    } else
       return mapValue(
           V, BM->addVectorInsertDynamicInst(transValue(Ins->getOperand(0), BB),
                                             transValue(Ins->getOperand(1), BB),

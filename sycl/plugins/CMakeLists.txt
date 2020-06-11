@@ -5,3 +5,4 @@ if(SYCL_BUILD_PI_CUDA)
 endif()
 
 add_subdirectory(opencl)
+add_subdirectory(level_zero)

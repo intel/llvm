@@ -12,7 +12,7 @@ DPC++ extensions status:
 | [SYCL_INTEL_data_flow_pipes](DataFlowPipes/data_flow_pipes.asciidoc)                                                        | Partially supported(OpenCL: ACCELERATOR)  | kernel_host_pipe_support part is not implemented |
 | [SYCL_INTEL_deduction_guides](deduction_guides/SYCL_INTEL_deduction_guides.asciidoc)                                        | Supported                                 | |
 | [SYCL_INTEL_device_specific_kernel_queries](DeviceSpecificKernelQueries/SYCL_INTEL_device_specific_kernel_queries.asciidoc) | Proposal                                  | |
-| [SYCL_INTEL_enqueue_barrier](EnqueueBarrier/enqueue_barrier.asciidoc)                                                       | Proposal                                  | |
+| [SYCL_INTEL_enqueue_barrier](EnqueueBarrier/enqueue_barrier.asciidoc)                                                       | Supported(OpenCL, Level Zero)             | |
 | [SYCL_INTEL_extended_atomics](ExtendedAtomics/SYCL_INTEL_extended_atomics.asciidoc)                                         | Partially supported(OpenCL: CPU, GPU)     | Not supported: pointer types |
 | [SYCL_INTEL_group_algorithms](GroupAlgorithms/SYCL_INTEL_group_algorithms.asciidoc)                                         | Supported(OpenCL)                         | |
 | [SYCL_INTEL_group_mask](./GroupMask/SYCL_INTEL_group_mask.asciidoc)                                                         | Proposal                                  | |

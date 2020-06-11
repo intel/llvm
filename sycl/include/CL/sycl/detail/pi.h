@@ -46,7 +46,6 @@
 // elsewhere, e.g. in the pi_opencl, but constants/enums mapping is now
 // done here, for efficiency and simplicity.
 #include <CL/cl_ext_intel.h>
-#include <CL/cl_usm_ext.h>
 #include <CL/sycl/detail/cl.h>
 #include <CL/sycl/detail/export.hpp>
 #include <cstdint>
@@ -1227,6 +1226,10 @@ __SYCL_EXPORT pi_result piEnqueueEventsWait(pi_queue command_queue,
                                             const pi_event *event_wait_list,
                                             pi_event *event);
 
+__SYCL_EXPORT pi_result piEnqueueEventsWaitWithBarrier(
+    pi_queue command_queue, pi_uint32 num_events_in_wait_list,
+    const pi_event *event_wait_list, pi_event *event);
+
 __SYCL_EXPORT pi_result piEnqueueMemBufferRead(
     pi_queue queue, pi_mem buffer, pi_bool blocking_read, size_t offset,
     size_t size, void *ptr, pi_uint32 num_events_in_wait_list,
@@ -1340,8 +1343,6 @@ typedef enum {
   PI_MEM_ALLOC_BASE_PTR = CL_MEM_ALLOC_BASE_PTR_INTEL,
   PI_MEM_ALLOC_SIZE = CL_MEM_ALLOC_SIZE_INTEL,
   PI_MEM_ALLOC_DEVICE = CL_MEM_ALLOC_DEVICE_INTEL,
-  PI_MEM_ALLOC_INFO_TBD0 = CL_MEM_ALLOC_INFO_TBD0_INTEL,
-  PI_MEM_ALLOC_INFO_TBD1 = CL_MEM_ALLOC_INFO_TBD1_INTEL,
 } _pi_mem_info;
 
 typedef enum {
