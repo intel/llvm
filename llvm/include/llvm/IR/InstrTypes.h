@@ -36,6 +36,7 @@
 #include "llvm/IR/Value.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/IR/GlobalAlias.h"
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
@@ -1292,7 +1293,11 @@ public:
   /// Returns the function called, or null if this is an
   /// indirect function invocation.
   Function *getCalledFunction() const {
-    return dyn_cast_or_null<Function>(getCalledOperand());
+    if (auto Alias = dyn_cast_or_null<llvm::GlobalAlias>(getCalledOperand())) {
+      return dyn_cast_or_null<Function>(Alias->getAliasee());
+    } else {
+      return dyn_cast_or_null<Function>(getCalledOperand());
+    }
   }
 
   /// Return true if the callsite is an indirect call.
