@@ -843,7 +843,7 @@ static void VisitRecordFields(CXXRecordDecl *Owner, Handlers &... handlers) {
     else if (FieldTy->isArrayType()) {
       if (KF_FOR_EACH(handleArrayType, Field, FieldTy))
         VisitArrayElements(Field, FieldTy, handlers...);
-    } else if (FieldTy->isScalarType())
+    } else if (FieldTy->isScalarType() || FieldTy->isVectorType())
       KF_FOR_EACH(handleScalarType, Field, FieldTy);
     else
       KF_FOR_EACH(handleOtherType, Field, FieldTy);
