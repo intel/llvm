@@ -146,7 +146,9 @@ private:
 pi_result _pi_mem::addMapping(void *MappedTo, size_t Offset, size_t Size) {
   std::lock_guard<std::mutex> Lock(MappingsMutex);
   auto Res = Mappings.insert({MappedTo, {Offset, Size}});
-  if (Res.second) {
+  // False as the second value in pair means that mapping was not inserted
+  // because mapping already exists.
+  if (!Res.second) {
     zePrint("piEnqueueMemBufferMap: duplicate mapping detected\n");
     return PI_INVALID_VALUE;
   }

@@ -5,6 +5,8 @@
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
+//
+// XFAIL: level0
 //==------------------- image_accessor_readsampler.cpp ---------------------==//
 //==-----------------image_accessor read API test with sampler--------------==//
 //
