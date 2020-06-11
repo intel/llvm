@@ -17,10 +17,3 @@
 #define __CLC_FUNCTION __spirv_ocl_cosh
 #define __CLC_BUILTIN __nv_cosh
 #include "unary_builtin.inc"
-
-/*
-Linking globals named '_Z17__spirv_ocl_cospif': symbol multiply defined!
-#define __CLC_FUNCTION __spirv_ocl_cospi
-#define __CLC_BUILTIN __nv_cospi
-#include "unary_builtin.inc"
-*/

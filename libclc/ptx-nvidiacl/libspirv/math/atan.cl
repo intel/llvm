@@ -14,13 +14,6 @@
 #define __CLC_BUILTIN __nv_atan
 #include "unary_builtin.inc"
 
-/*
-TBD
-#define __CLC_FUNCTION __spirv_ocl_atan2
-#define __CLC_BUILTIN __nv_atan2
-#include "binary_builtin.inc"
-*/
-
 #define __CLC_FUNCTION __spirv_ocl_atanh
 #define __CLC_BUILTIN __nv_atanh
 #include "unary_builtin.inc"
