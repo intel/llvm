@@ -63,12 +63,13 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record) {
 
 EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
                               QueueImplPtr Queue) {
-  Command *NewCmd = nullptr;
+  EventImplPtr NewEvent = nullptr;
   const bool IsKernel = CommandGroup->getType() == CG::KERNEL;
   {
     std::unique_lock<std::shared_timed_mutex> Lock(MGraphLock, std::defer_lock);
     lockSharedTimedMutex(Lock);
 
+    Command *NewCmd = nullptr;
     switch (CommandGroup->getType()) {
     case CG::UPDATE_HOST:
       NewCmd = MGraphBuilder.addCGUpdateHost(std::move(CommandGroup),
@@ -80,23 +81,27 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
     default:
       NewCmd = MGraphBuilder.addCG(std::move(CommandGroup), std::move(Queue));
     }
+    NewEvent = NewCmd->getEvent();
   }
 
   {
     std::unique_lock<std::shared_timed_mutex> Lock(MGraphLock, std::defer_lock);
     lockSharedTimedMutex(Lock);
 
-    // TODO: Check if lazy mode.
-    EnqueueResultT Res;
-    bool Enqueued = GraphProcessor::enqueueCommand(NewCmd, Res);
-    if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
-      throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
+    Command *Cmd = static_cast<Command *>(NewEvent->getCommand());
+    if (Cmd) {
+      // TODO: Check if lazy mode.
+      EnqueueResultT Res;
+      bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res);
+      if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
+        throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
+
+      if (IsKernel)
+        ((ExecCGCommand *)Cmd)->flushStreams();
+    }
   }
 
-  if (IsKernel)
-    ((ExecCGCommand *)NewCmd)->flushStreams();
-
-  return NewCmd->getEvent();
+  return NewEvent;
 }
 
 EventImplPtr Scheduler::addCopyBack(Requirement *Req) {
