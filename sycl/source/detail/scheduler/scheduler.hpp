@@ -698,6 +698,8 @@ protected:
   // std::shared_mutex
   std::shared_timed_mutex MGraphLock;
 
+  std::shared_timed_mutex MGraphLockEnqueue;
+
   QueueImplPtr DefaultHostQueue;
 
   friend class Command;
