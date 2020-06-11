@@ -87,7 +87,7 @@ static RT::PiProgram createBinaryProgram(const ContextImplPtr Context,
   RT::PiProgram Program;
   RT::PiDevice Device = getFirstDevice(Context);
   pi_int32 BinaryStatus = CL_SUCCESS;
-  Plugin.call<PiApiKind::piclProgramCreateWithBinary>(
+  Plugin.call<PiApiKind::piProgramCreateWithBinary>(
       Context->getHandleRef(), 1 /*one binary*/, &Device, &DataLen, &Data,
       &BinaryStatus, &Program);
 
