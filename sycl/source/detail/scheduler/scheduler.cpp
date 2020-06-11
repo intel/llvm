@@ -83,7 +83,8 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
   }
 
   {
-    std::shared_lock<std::shared_timed_mutex> Lock(MGraphLock);
+    std::unique_lock<std::shared_timed_mutex> Lock(MGraphLock, std::defer_lock);
+    lockSharedTimedMutex(Lock);
 
     // TODO: Check if lazy mode.
     EnqueueResultT Res;
