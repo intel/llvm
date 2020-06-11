@@ -85,7 +85,8 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
   }
 
   {
-    std::unique_lock<std::shared_timed_mutex> Lock(MGraphLockEnqueue, std::defer_lock);
+    std::unique_lock<std::shared_timed_mutex> Lock(MGraphLockEnqueue,
+                                                   std::defer_lock);
     lockSharedTimedMutex(Lock);
 
     Command *Cmd = static_cast<Command *>(NewEvent->getCommand());
