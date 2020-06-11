@@ -6,12 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-_CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE __spirv_ocl_u_min(__CLC_GENTYPE a, __CLC_GENTYPE b) {
-  return (b < a ? b : a);
+#ifdef __CLC_GEN_S
+#define DECL __spirv_ocl_s_min
+#else
+#define DECL __spirv_ocl_u_min
+#endif
+
+_CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE DECL(__CLC_GENTYPE x, __CLC_GENTYPE y) {
+  return __clc_min(x, y);
 }
 
-#ifndef __CLC_SCALAR
-_CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE __spirv_ocl_u_min(__CLC_GENTYPE a, __CLC_SCALAR_GENTYPE b) {
-  return (b < (__CLC_GENTYPE)a ? (__CLC_GENTYPE)b : a);
-}
-#endif
+#undef DECL

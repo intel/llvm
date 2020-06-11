@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// RUN: %clangxx -fsycl %s -o %t1.out -L %opencl_libs_dir -lOpenCL
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t1.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t1.out
 // RUN: %CPU_RUN_PLACEHOLDER %t1.out
 
@@ -62,28 +62,6 @@ int main() {
 
       for (int i = 0; i < count; i++) {
         assert(dest[i] == i * 3);
-      }
-    }
-
-    // Test ordered_queue::prefetch
-    {
-      ordered_queue oq([](exception_list el) {
-        for (auto &e : el)
-          throw e;
-      });
-      event init_prefetch = oq.prefetch(src, sizeof(float) * count);
-
-      oq.submit([&](handler &cgh) {
-        cgh.depends_on(init_prefetch);
-        cgh.single_task<class double_dest4>([=]() {
-          for (int i = 0; i < count; i++)
-            dest[i] = 4 * src[i];
-        });
-      });
-      oq.wait_and_throw();
-
-      for (int i = 0; i < count; i++) {
-        assert(dest[i] == i * 4);
       }
     }
   }

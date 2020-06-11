@@ -33,6 +33,7 @@
 #include <sstream>
 #include <set>
 #include <cctype>
+#include <tuple>
 
 using namespace llvm;
 
@@ -45,6 +46,22 @@ enum ClassKind {
 using TypeSpec = std::string;
 
 namespace {
+
+class ImmCheck {
+  unsigned Arg;
+  unsigned Kind;
+  unsigned ElementSizeInBits;
+
+public:
+  ImmCheck(unsigned Arg, unsigned Kind, unsigned ElementSizeInBits = 0)
+      : Arg(Arg), Kind(Kind), ElementSizeInBits(ElementSizeInBits) {}
+  ImmCheck(const ImmCheck &Other) = default;
+  ~ImmCheck() = default;
+
+  unsigned getArg() const { return Arg; }
+  unsigned getKind() const { return Kind; }
+  unsigned getElementSizeInBits() const { return ElementSizeInBits; }
+};
 
 class SVEType {
   TypeSpec TS;
@@ -65,9 +82,6 @@ public:
     applyModifier(CharMod);
   }
 
-  /// Return the value in SVETypeFlags for this type.
-  unsigned getTypeFlags() const;
-
   bool isPointer() const { return Pointer; }
   bool isVoidPointer() const { return Pointer && Void; }
   bool isSigned() const { return Signed; }
@@ -80,7 +94,9 @@ public:
   bool isDefault() const { return DefaultType; }
   bool isFloat() const { return Float; }
   bool isInteger() const { return !Float && !Predicate; }
-  bool isScalarPredicate() const { return !Float && ElementBitwidth == 1; }
+  bool isScalarPredicate() const {
+    return !Float && Predicate && NumVectors == 0;
+  }
   bool isPredicateVector() const { return Predicate; }
   bool isPredicatePattern() const { return PredicatePattern; }
   bool isPrefetchOp() const { return PrefetchOp; }
@@ -138,36 +154,24 @@ class Intrinsic {
   /// The architectural #ifdef guard.
   std::string Guard;
 
+  // The merge suffix such as _m, _x or _z.
+  std::string MergeSuffix;
+
   /// The types of return value [0] and parameters [1..].
   std::vector<SVEType> Types;
 
   /// The "base type", which is VarType('d', BaseTypeSpec).
   SVEType BaseType;
 
-  unsigned Flags;
+  uint64_t Flags;
+
+  SmallVector<ImmCheck, 2> ImmChecks;
 
 public:
-  /// The type of predication.
-  enum MergeType {
-    MergeNone,
-    MergeAny,
-    MergeOp1,
-    MergeZero,
-    MergeAnyExp,
-    MergeZeroExp,
-    MergeInvalid
-  } Merge;
-
-  Intrinsic(StringRef Name, StringRef Proto, int64_t MT, StringRef LLVMName,
-            unsigned Flags, TypeSpec BT, ClassKind Class, SVEEmitter &Emitter,
-            StringRef Guard)
-      : Name(Name.str()), LLVMName(LLVMName), Proto(Proto.str()),
-        BaseTypeSpec(BT), Class(Class), Guard(Guard.str()), BaseType(BT, 'd'),
-        Flags(Flags), Merge(MergeType(MT)) {
-    // Types[0] is the return value.
-    for (unsigned I = 0; I < Proto.size(); ++I)
-      Types.emplace_back(BaseTypeSpec, Proto[I]);
-  }
+  Intrinsic(StringRef Name, StringRef Proto, uint64_t MergeTy,
+            StringRef MergeSuffix, uint64_t MemoryElementTy, StringRef LLVMName,
+            uint64_t Flags, ArrayRef<ImmCheck> ImmChecks, TypeSpec BT,
+            ClassKind Class, SVEEmitter &Emitter, StringRef Guard);
 
   ~Intrinsic()=default;
 
@@ -179,15 +183,16 @@ public:
 
   StringRef getGuard() const { return Guard; }
   ClassKind getClassKind() const { return Class; }
-  MergeType getMergeType() const { return Merge; }
 
   SVEType getReturnType() const { return Types[0]; }
   ArrayRef<SVEType> getTypes() const { return Types; }
   SVEType getParamType(unsigned I) const { return Types[I + 1]; }
   unsigned getNumParams() const { return Proto.size() - 1; }
 
-  unsigned getFlags() const { return Flags; }
+  uint64_t getFlags() const { return Flags; }
   bool isFlagSet(uint64_t Flag) const { return Flags & Flag;}
+
+  ArrayRef<ImmCheck> getImmChecks() const { return ImmChecks; }
 
   /// Return the type string for a BUILTIN() macro in Builtins.def.
   std::string getBuiltinTypeStr();
@@ -205,11 +210,26 @@ public:
     return BrOpen != std::string::npos && BrClose != std::string::npos;
   }
 
+  /// Return true if the intrinsic takes a splat operand.
+  bool hasSplat() const {
+    // These prototype modifiers are described in arm_sve.td.
+    return Proto.find_first_of("ajfrKLR@") != std::string::npos;
+  }
+
+  /// Return the parameter index of the splat operand.
+  unsigned getSplatIdx() const {
+    // These prototype modifiers are described in arm_sve.td.
+    auto Idx = Proto.find_first_of("ajfrKLR@");
+    assert(Idx != std::string::npos && Idx > 0 &&
+           "Prototype has no splat operand");
+    return Idx - 1;
+  }
+
   /// Emits the intrinsic declaration to the ostream.
   void emitIntrinsic(raw_ostream &OS) const;
 
 private:
-  std::string getMergeSuffix() const;
+  std::string getMergeSuffix() const { return MergeSuffix; }
   std::string mangleName(ClassKind LocalCK) const;
   std::string replaceTemplatedArgs(std::string Name, TypeSpec TS,
                                    std::string Proto) const;
@@ -217,12 +237,30 @@ private:
 
 class SVEEmitter {
 private:
+  // The reinterpret builtins are generated separately because they
+  // need the cross product of all types (121 functions in total),
+  // which is inconvenient to specify in the arm_sve.td file or
+  // generate in CGBuiltin.cpp.
+  struct ReinterpretTypeInfo {
+    const char *Suffix;
+    const char *Type;
+    const char *BuiltinType;
+  };
+  SmallVector<ReinterpretTypeInfo, 11> Reinterprets = {
+      {"s8", "svint8_t", "q16Sc"},   {"s16", "svint16_t", "q8Ss"},
+      {"s32", "svint32_t", "q4Si"},  {"s64", "svint64_t", "q2SWi"},
+      {"u8", "svuint8_t", "q16Uc"},  {"u16", "svuint16_t", "q8Us"},
+      {"u32", "svuint32_t", "q4Ui"}, {"u64", "svuint64_t", "q2UWi"},
+      {"f16", "svfloat16_t", "q8h"}, {"f32", "svfloat32_t", "q4f"},
+      {"f64", "svfloat64_t", "q2d"}};
+
   RecordKeeper &Records;
   llvm::StringMap<uint64_t> EltTypes;
   llvm::StringMap<uint64_t> MemEltTypes;
   llvm::StringMap<uint64_t> FlagTypes;
+  llvm::StringMap<uint64_t> MergeTypes;
+  llvm::StringMap<uint64_t> ImmCheckTypes;
 
-  unsigned getTypeFlags(const SVEType &T);
 public:
   SVEEmitter(RecordKeeper &R) : Records(R) {
     for (auto *RV : Records.getAllDerivedDefinitions("EltType"))
@@ -231,7 +269,65 @@ public:
       MemEltTypes[RV->getNameInitAsString()] = RV->getValueAsInt("Value");
     for (auto *RV : Records.getAllDerivedDefinitions("FlagType"))
       FlagTypes[RV->getNameInitAsString()] = RV->getValueAsInt("Value");
+    for (auto *RV : Records.getAllDerivedDefinitions("MergeType"))
+      MergeTypes[RV->getNameInitAsString()] = RV->getValueAsInt("Value");
+    for (auto *RV : Records.getAllDerivedDefinitions("ImmCheckType"))
+      ImmCheckTypes[RV->getNameInitAsString()] = RV->getValueAsInt("Value");
   }
+
+  /// Returns the enum value for the immcheck type
+  unsigned getEnumValueForImmCheck(StringRef C) const {
+    auto It = ImmCheckTypes.find(C);
+    if (It != ImmCheckTypes.end())
+      return It->getValue();
+    llvm_unreachable("Unsupported imm check");
+  }
+
+  /// Returns the enum value for the flag type
+  uint64_t getEnumValueForFlag(StringRef C) const {
+    auto Res = FlagTypes.find(C);
+    if (Res != FlagTypes.end())
+      return Res->getValue();
+    llvm_unreachable("Unsupported flag");
+  }
+
+  // Returns the SVETypeFlags for a given value and mask.
+  uint64_t encodeFlag(uint64_t V, StringRef MaskName) const {
+    auto It = FlagTypes.find(MaskName);
+    if (It != FlagTypes.end()) {
+      uint64_t Mask = It->getValue();
+      unsigned Shift = llvm::countTrailingZeros(Mask);
+      return (V << Shift) & Mask;
+    }
+    llvm_unreachable("Unsupported flag");
+  }
+
+  // Returns the SVETypeFlags for the given element type.
+  uint64_t encodeEltType(StringRef EltName) {
+    auto It = EltTypes.find(EltName);
+    if (It != EltTypes.end())
+      return encodeFlag(It->getValue(), "EltTypeMask");
+    llvm_unreachable("Unsupported EltType");
+  }
+
+  // Returns the SVETypeFlags for the given memory element type.
+  uint64_t encodeMemoryElementType(uint64_t MT) {
+    return encodeFlag(MT, "MemEltTypeMask");
+  }
+
+  // Returns the SVETypeFlags for the given merge type.
+  uint64_t encodeMergeType(uint64_t MT) {
+    return encodeFlag(MT, "MergeTypeMask");
+  }
+
+  // Returns the SVETypeFlags for the given splat operand.
+  unsigned encodeSplatOperand(unsigned SplatIdx) {
+    assert(SplatIdx < 7 && "SplatIdx out of encodable range");
+    return encodeFlag(SplatIdx + 1, "SplatOperandMask");
+  }
+
+  // Returns the SVETypeFlags value for the given SVEType.
+  uint64_t encodeTypeFlags(const SVEType &T);
 
   /// Emit arm_sve.h.
   void createHeader(raw_ostream &o);
@@ -241,6 +337,9 @@ public:
 
   /// Emit all the information needed to map builtin -> LLVM IR intrinsic.
   void createCodeGenMap(raw_ostream &o);
+
+  /// Emit all the range checks for the immediates.
+  void createRangeChecks(raw_ostream &o);
 
   /// Create the SVETypeFlags used in CGBuiltins
   void createTypeFlags(raw_ostream &o);
@@ -255,36 +354,6 @@ public:
 //===----------------------------------------------------------------------===//
 // Type implementation
 //===----------------------------------------------------------------------===//
-
-unsigned SVEEmitter::getTypeFlags(const SVEType &T) {
-  unsigned FirstEltType = EltTypes["FirstEltType"];
-  if (T.isFloat()) {
-    switch (T.getElementSizeInBits()) {
-    case 16: return FirstEltType + EltTypes["EltTyFloat16"];
-    case 32: return FirstEltType + EltTypes["EltTyFloat32"];
-    case 64: return FirstEltType + EltTypes["EltTyFloat64"];
-    default: llvm_unreachable("Unhandled float element bitwidth!");
-    }
-  }
-
-  if (T.isPredicateVector()) {
-    switch (T.getElementSizeInBits()) {
-    case 8:  return FirstEltType + EltTypes["EltTyBool8"];
-    case 16: return FirstEltType + EltTypes["EltTyBool16"];
-    case 32: return FirstEltType + EltTypes["EltTyBool32"];
-    case 64: return FirstEltType + EltTypes["EltTyBool64"];
-    default: llvm_unreachable("Unhandled predicate element bitwidth!");
-    }
-  }
-
-  switch (T.getElementSizeInBits()) {
-  case 8:  return FirstEltType + EltTypes["EltTyInt8"];
-  case 16: return FirstEltType + EltTypes["EltTyInt16"];
-  case 32: return FirstEltType + EltTypes["EltTyInt32"];
-  case 64: return FirstEltType + EltTypes["EltTyInt64"];
-  default: llvm_unreachable("Unhandled integer element bitwidth!");
-  }
-}
 
 std::string SVEType::builtin_str() const {
   std::string S;
@@ -357,12 +426,12 @@ std::string SVEType::str() const {
 
     if (Float)
       S += "float";
-    else if (isScalarPredicate())
+    else if (isScalarPredicate() || isPredicateVector())
       S += "bool";
     else
       S += "int";
 
-    if (!isScalarPredicate())
+    if (!isScalarPredicate() && !isPredicateVector())
       S += utostr(ElementBitwidth);
     if (!isScalableVector() && isVector())
       S += "x" + utostr(getNumElements());
@@ -383,7 +452,6 @@ void SVEType::applyTypespec() {
     switch (I) {
     case 'P':
       Predicate = true;
-      ElementBitwidth = 1;
       break;
     case 'U':
       Signed = false;
@@ -435,12 +503,257 @@ void SVEType::applyModifier(char Mod) {
     Bitwidth = ElementBitwidth;
     NumVectors = 0;
     break;
+  case 'e':
+    Signed = false;
+    ElementBitwidth /= 2;
+    break;
+  case 'h':
+    ElementBitwidth /= 2;
+    break;
+  case 'q':
+    ElementBitwidth /= 4;
+    break;
+  case 'b':
+    Signed = false;
+    Float = false;
+    ElementBitwidth /= 4;
+    break;
+  case 'o':
+    ElementBitwidth *= 4;
+    break;
   case 'P':
     Signed = true;
     Float = false;
     Predicate = true;
     Bitwidth = 16;
     ElementBitwidth = 1;
+    break;
+  case 's':
+  case 'a':
+    Bitwidth = ElementBitwidth;
+    NumVectors = 0;
+    break;
+  case 'R':
+    ElementBitwidth /= 2;
+    NumVectors = 0;
+    break;
+  case 'r':
+    ElementBitwidth /= 4;
+    NumVectors = 0;
+    break;
+  case '@':
+    Signed = false;
+    Float = false;
+    ElementBitwidth /= 4;
+    NumVectors = 0;
+    break;
+  case 'K':
+    Signed = true;
+    Float = false;
+    Bitwidth = ElementBitwidth;
+    NumVectors = 0;
+    break;
+  case 'L':
+    Signed = false;
+    Float = false;
+    Bitwidth = ElementBitwidth;
+    NumVectors = 0;
+    break;
+  case 'u':
+    Predicate = false;
+    Signed = false;
+    Float = false;
+    break;
+  case 'x':
+    Predicate = false;
+    Signed = true;
+    Float = false;
+    break;
+  case 'i':
+    Predicate = false;
+    Float = false;
+    ElementBitwidth = Bitwidth = 64;
+    NumVectors = 0;
+    Signed = false;
+    Immediate = true;
+    break;
+  case 'I':
+    Predicate = false;
+    Float = false;
+    ElementBitwidth = Bitwidth = 32;
+    NumVectors = 0;
+    Signed = true;
+    Immediate = true;
+    PredicatePattern = true;
+    break;
+  case 'J':
+    Predicate = false;
+    Float = false;
+    ElementBitwidth = Bitwidth = 32;
+    NumVectors = 0;
+    Signed = true;
+    Immediate = true;
+    PrefetchOp = true;
+    break;
+  case 'k':
+    Predicate = false;
+    Signed = true;
+    Float = false;
+    ElementBitwidth = Bitwidth = 32;
+    NumVectors = 0;
+    break;
+  case 'l':
+    Predicate = false;
+    Signed = true;
+    Float = false;
+    ElementBitwidth = Bitwidth = 64;
+    NumVectors = 0;
+    break;
+  case 'm':
+    Predicate = false;
+    Signed = false;
+    Float = false;
+    ElementBitwidth = Bitwidth = 32;
+    NumVectors = 0;
+    break;
+  case 'n':
+    Predicate = false;
+    Signed = false;
+    Float = false;
+    ElementBitwidth = Bitwidth = 64;
+    NumVectors = 0;
+    break;
+  case 'w':
+    ElementBitwidth = 64;
+    break;
+  case 'j':
+    ElementBitwidth = Bitwidth = 64;
+    NumVectors = 0;
+    break;
+  case 'f':
+    Signed = false;
+    ElementBitwidth = Bitwidth = 64;
+    NumVectors = 0;
+    break;
+  case 'g':
+    Signed = false;
+    Float = false;
+    ElementBitwidth = 64;
+    break;
+  case 't':
+    Signed = true;
+    Float = false;
+    ElementBitwidth = 32;
+    break;
+  case 'z':
+    Signed = false;
+    Float = false;
+    ElementBitwidth = 32;
+    break;
+  case 'O':
+    Predicate = false;
+    Float = true;
+    ElementBitwidth = 16;
+    break;
+  case 'M':
+    Predicate = false;
+    Float = true;
+    ElementBitwidth = 32;
+    break;
+  case 'N':
+    Predicate = false;
+    Float = true;
+    ElementBitwidth = 64;
+    break;
+  case 'Q':
+    Constant = true;
+    Pointer = true;
+    Void = true;
+    NumVectors = 0;
+    break;
+  case 'S':
+    Constant = true;
+    Pointer = true;
+    ElementBitwidth = Bitwidth = 8;
+    NumVectors = 0;
+    Signed = true;
+    break;
+  case 'W':
+    Constant = true;
+    Pointer = true;
+    ElementBitwidth = Bitwidth = 8;
+    NumVectors = 0;
+    Signed = false;
+    break;
+  case 'T':
+    Constant = true;
+    Pointer = true;
+    ElementBitwidth = Bitwidth = 16;
+    NumVectors = 0;
+    Signed = true;
+    break;
+  case 'X':
+    Constant = true;
+    Pointer = true;
+    ElementBitwidth = Bitwidth = 16;
+    NumVectors = 0;
+    Signed = false;
+    break;
+  case 'Y':
+    Constant = true;
+    Pointer = true;
+    ElementBitwidth = Bitwidth = 32;
+    NumVectors = 0;
+    Signed = false;
+    break;
+  case 'U':
+    Constant = true;
+    Pointer = true;
+    ElementBitwidth = Bitwidth = 32;
+    NumVectors = 0;
+    Signed = true;
+    break;
+  case 'A':
+    Pointer = true;
+    ElementBitwidth = Bitwidth = 8;
+    NumVectors = 0;
+    Signed = true;
+    break;
+  case 'B':
+    Pointer = true;
+    ElementBitwidth = Bitwidth = 16;
+    NumVectors = 0;
+    Signed = true;
+    break;
+  case 'C':
+    Pointer = true;
+    ElementBitwidth = Bitwidth = 32;
+    NumVectors = 0;
+    Signed = true;
+    break;
+  case 'D':
+    Pointer = true;
+    ElementBitwidth = Bitwidth = 64;
+    NumVectors = 0;
+    Signed = true;
+    break;
+  case 'E':
+    Pointer = true;
+    ElementBitwidth = Bitwidth = 8;
+    NumVectors = 0;
+    Signed = false;
+    break;
+  case 'F':
+    Pointer = true;
+    ElementBitwidth = Bitwidth = 16;
+    NumVectors = 0;
+    Signed = false;
+    break;
+  case 'G':
+    Pointer = true;
+    ElementBitwidth = Bitwidth = 32;
+    NumVectors = 0;
+    Signed = false;
     break;
   default:
     llvm_unreachable("Unhandled character!");
@@ -451,6 +764,40 @@ void SVEType::applyModifier(char Mod) {
 //===----------------------------------------------------------------------===//
 // Intrinsic implementation
 //===----------------------------------------------------------------------===//
+
+Intrinsic::Intrinsic(StringRef Name, StringRef Proto, uint64_t MergeTy,
+                     StringRef MergeSuffix, uint64_t MemoryElementTy,
+                     StringRef LLVMName, uint64_t Flags,
+                     ArrayRef<ImmCheck> Checks, TypeSpec BT, ClassKind Class,
+                     SVEEmitter &Emitter, StringRef Guard)
+    : Name(Name.str()), LLVMName(LLVMName), Proto(Proto.str()),
+      BaseTypeSpec(BT), Class(Class), Guard(Guard.str()),
+      MergeSuffix(MergeSuffix.str()), BaseType(BT, 'd'), Flags(Flags),
+      ImmChecks(Checks.begin(), Checks.end()) {
+
+  // Types[0] is the return value.
+  for (unsigned I = 0; I < Proto.size(); ++I) {
+    SVEType T(BaseTypeSpec, Proto[I]);
+    Types.push_back(T);
+
+    // Add range checks for immediates
+    if (I > 0) {
+      if (T.isPredicatePattern())
+        ImmChecks.emplace_back(
+            I - 1, Emitter.getEnumValueForImmCheck("ImmCheck0_31"));
+      else if (T.isPrefetchOp())
+        ImmChecks.emplace_back(
+            I - 1, Emitter.getEnumValueForImmCheck("ImmCheck0_13"));
+    }
+  }
+
+  // Set flags based on properties
+  this->Flags |= Emitter.encodeTypeFlags(BaseType);
+  this->Flags |= Emitter.encodeMemoryElementType(MemoryElementTy);
+  this->Flags |= Emitter.encodeMergeType(MergeTy);
+  if (hasSplat())
+    this->Flags |= Emitter.encodeSplatOperand(getSplatIdx());
+}
 
 std::string Intrinsic::getBuiltinTypeStr() {
   std::string S;
@@ -510,20 +857,6 @@ std::string Intrinsic::replaceTemplatedArgs(std::string Name, TypeSpec TS,
   return Ret;
 }
 
-// ACLE function names have a merge style postfix.
-std::string Intrinsic::getMergeSuffix() const {
-  switch (getMergeType()) {
-    default:
-      llvm_unreachable("Unknown predication specifier");
-    case MergeNone:    return "";
-    case MergeAny:
-    case MergeAnyExp:  return "_x";
-    case MergeOp1:     return "_m";
-    case MergeZero:
-    case MergeZeroExp: return "_z";
-  }
-}
-
 std::string Intrinsic::mangleName(ClassKind LocalCK) const {
   std::string S = getName();
 
@@ -577,6 +910,49 @@ void Intrinsic::emitIntrinsic(raw_ostream &OS) const {
 //===----------------------------------------------------------------------===//
 // SVEEmitter implementation
 //===----------------------------------------------------------------------===//
+uint64_t SVEEmitter::encodeTypeFlags(const SVEType &T) {
+  if (T.isFloat()) {
+    switch (T.getElementSizeInBits()) {
+    case 16:
+      return encodeEltType("EltTyFloat16");
+    case 32:
+      return encodeEltType("EltTyFloat32");
+    case 64:
+      return encodeEltType("EltTyFloat64");
+    default:
+      llvm_unreachable("Unhandled float element bitwidth!");
+    }
+  }
+
+  if (T.isPredicateVector()) {
+    switch (T.getElementSizeInBits()) {
+    case 8:
+      return encodeEltType("EltTyBool8");
+    case 16:
+      return encodeEltType("EltTyBool16");
+    case 32:
+      return encodeEltType("EltTyBool32");
+    case 64:
+      return encodeEltType("EltTyBool64");
+    default:
+      llvm_unreachable("Unhandled predicate element bitwidth!");
+    }
+  }
+
+  switch (T.getElementSizeInBits()) {
+  case 8:
+    return encodeEltType("EltTyInt8");
+  case 16:
+    return encodeEltType("EltTyInt16");
+  case 32:
+    return encodeEltType("EltTyInt32");
+  case 64:
+    return encodeEltType("EltTyInt64");
+  default:
+    llvm_unreachable("Unhandled integer element bitwidth!");
+  }
+}
+
 void SVEEmitter::createIntrinsic(
     Record *R, SmallVectorImpl<std::unique_ptr<Intrinsic>> &Out) {
   StringRef Name = R->getValueAsString("Name");
@@ -584,13 +960,22 @@ void SVEEmitter::createIntrinsic(
   StringRef Types = R->getValueAsString("Types");
   StringRef Guard = R->getValueAsString("ArchGuard");
   StringRef LLVMName = R->getValueAsString("LLVMIntrinsic");
-  int64_t Merge = R->getValueAsInt("Merge");
+  uint64_t Merge = R->getValueAsInt("Merge");
+  StringRef MergeSuffix = R->getValueAsString("MergeSuffix");
+  uint64_t MemEltType = R->getValueAsInt("MemEltType");
   std::vector<Record*> FlagsList = R->getValueAsListOfDefs("Flags");
+  std::vector<Record*> ImmCheckList = R->getValueAsListOfDefs("ImmChecks");
 
   int64_t Flags = 0;
   for (auto FlagRec : FlagsList)
     Flags |= FlagRec->getValueAsInt("Value");
-  Flags |= R->getValueAsInt("MemEltType") + MemEltTypes["FirstMemEltType"];
+
+  // Create a dummy TypeSpec for non-overloaded builtins.
+  if (Types.empty()) {
+    assert((Flags & getEnumValueForFlag("IsOverloadNone")) &&
+           "Expect TypeSpec for overloaded builtin!");
+    Types = "i";
+  }
 
   // Extract type specs from string
   SmallVector<TypeSpec, 8> TypeSpecs;
@@ -604,20 +989,37 @@ void SVEEmitter::createIntrinsic(
   }
 
   // Remove duplicate type specs.
-  std::sort(TypeSpecs.begin(), TypeSpecs.end());
+  llvm::sort(TypeSpecs);
   TypeSpecs.erase(std::unique(TypeSpecs.begin(), TypeSpecs.end()),
                   TypeSpecs.end());
 
   // Create an Intrinsic for each type spec.
   for (auto TS : TypeSpecs) {
-    Out.push_back(std::make_unique<Intrinsic>(Name, Proto, Merge,
-                                              LLVMName, Flags, TS, ClassS,
-                                              *this, Guard));
+    // Collate a list of range/option checks for the immediates.
+    SmallVector<ImmCheck, 2> ImmChecks;
+    for (auto *R : ImmCheckList) {
+      int64_t Arg = R->getValueAsInt("Arg");
+      int64_t EltSizeArg = R->getValueAsInt("EltSizeArg");
+      int64_t Kind = R->getValueAsDef("Kind")->getValueAsInt("Value");
+      assert(Arg >= 0 && Kind >= 0 && "Arg and Kind must be nonnegative");
+
+      unsigned ElementSizeInBits = 0;
+      if (EltSizeArg >= 0)
+        ElementSizeInBits =
+            SVEType(TS, Proto[EltSizeArg + /* offset by return arg */ 1])
+                .getElementSizeInBits();
+      ImmChecks.push_back(ImmCheck(Arg, Kind, ElementSizeInBits));
+    }
+
+    Out.push_back(std::make_unique<Intrinsic>(
+        Name, Proto, Merge, MergeSuffix, MemEltType, LLVMName, Flags, ImmChecks,
+        TS, ClassS, *this, Guard));
 
     // Also generate the short-form (e.g. svadd_m) for the given type-spec.
     if (Intrinsic::isOverloadedIntrinsic(Name))
       Out.push_back(std::make_unique<Intrinsic>(
-          Name, Proto, Merge, LLVMName, Flags, TS, ClassG, *this, Guard));
+          Name, Proto, Merge, MergeSuffix, MemEltType, LLVMName, Flags,
+          ImmChecks, TS, ClassG, *this, Guard));
   }
 }
 
@@ -641,6 +1043,10 @@ void SVEEmitter::createHeader(raw_ostream &OS) {
   OS << "#if !defined(__ARM_FEATURE_SVE)\n";
   OS << "#error \"SVE support not enabled\"\n";
   OS << "#else\n\n";
+
+  OS << "#if !defined(__LITTLE_ENDIAN__)\n";
+  OS << "#error \"Big endian is currently not supported for arm_sve.h\"\n";
+  OS << "#endif\n";
 
   OS << "#include <stdint.h>\n\n";
   OS << "#ifdef  __cplusplus\n";
@@ -667,9 +1073,62 @@ void SVEEmitter::createHeader(raw_ostream &OS) {
   OS << "typedef __SVFloat64_t svfloat64_t;\n";
   OS << "typedef __SVBool_t  svbool_t;\n\n";
 
+  OS << "typedef enum\n";
+  OS << "{\n";
+  OS << "  SV_POW2 = 0,\n";
+  OS << "  SV_VL1 = 1,\n";
+  OS << "  SV_VL2 = 2,\n";
+  OS << "  SV_VL3 = 3,\n";
+  OS << "  SV_VL4 = 4,\n";
+  OS << "  SV_VL5 = 5,\n";
+  OS << "  SV_VL6 = 6,\n";
+  OS << "  SV_VL7 = 7,\n";
+  OS << "  SV_VL8 = 8,\n";
+  OS << "  SV_VL16 = 9,\n";
+  OS << "  SV_VL32 = 10,\n";
+  OS << "  SV_VL64 = 11,\n";
+  OS << "  SV_VL128 = 12,\n";
+  OS << "  SV_VL256 = 13,\n";
+  OS << "  SV_MUL4 = 29,\n";
+  OS << "  SV_MUL3 = 30,\n";
+  OS << "  SV_ALL = 31\n";
+  OS << "} sv_pattern;\n\n";
+
+  OS << "typedef enum\n";
+  OS << "{\n";
+  OS << "  SV_PLDL1KEEP = 0,\n";
+  OS << "  SV_PLDL1STRM = 1,\n";
+  OS << "  SV_PLDL2KEEP = 2,\n";
+  OS << "  SV_PLDL2STRM = 3,\n";
+  OS << "  SV_PLDL3KEEP = 4,\n";
+  OS << "  SV_PLDL3STRM = 5,\n";
+  OS << "  SV_PSTL1KEEP = 8,\n";
+  OS << "  SV_PSTL1STRM = 9,\n";
+  OS << "  SV_PSTL2KEEP = 10,\n";
+  OS << "  SV_PSTL2STRM = 11,\n";
+  OS << "  SV_PSTL3KEEP = 12,\n";
+  OS << "  SV_PSTL3STRM = 13\n";
+  OS << "} sv_prfop;\n\n";
+
   OS << "/* Function attributes */\n";
   OS << "#define __aio static inline __attribute__((__always_inline__, "
         "__nodebug__, __overloadable__))\n\n";
+
+  // Add reinterpret functions.
+  for (auto ShortForm : { false, true } )
+    for (const ReinterpretTypeInfo &From : Reinterprets)
+      for (const ReinterpretTypeInfo &To : Reinterprets) {
+        if (ShortForm) {
+          OS << "__aio " << From.Type << " svreinterpret_" << From.Suffix;
+          OS << "(" << To.Type << " op) {\n";
+          OS << "  return __builtin_sve_reinterpret_" << From.Suffix << "_"
+             << To.Suffix << "(op);\n";
+          OS << "}\n\n";
+        } else
+          OS << "#define svreinterpret_" << From.Suffix << "_" << To.Suffix
+             << "(...) __builtin_sve_reinterpret_" << From.Suffix << "_"
+             << To.Suffix << "(__VA_ARGS__)\n";
+      }
 
   SmallVector<std::unique_ptr<Intrinsic>, 128> Defs;
   std::vector<Record *> RV = Records.getAllDerivedDefinitions("Inst");
@@ -683,9 +1142,10 @@ void SVEEmitter::createHeader(raw_ostream &OS) {
   std::stable_sort(
       Defs.begin(), Defs.end(), [](const std::unique_ptr<Intrinsic> &A,
                                    const std::unique_ptr<Intrinsic> &B) {
-        return A->getGuard() < B->getGuard() ||
-               (unsigned)A->getClassKind() < (unsigned)B->getClassKind() ||
-               A->getName() < B->getName();
+        auto ToTuple = [](const std::unique_ptr<Intrinsic> &I) {
+          return std::make_tuple(I->getGuard(), (unsigned)I->getClassKind(), I->getName());
+        };
+        return ToTuple(A) < ToTuple(B);
       });
 
   StringRef InGuard = "";
@@ -705,6 +1165,17 @@ void SVEEmitter::createHeader(raw_ostream &OS) {
 
   if (!InGuard.empty())
     OS << "#endif  //" << InGuard << "\n";
+
+  OS << "#if defined(__ARM_FEATURE_SVE2)\n";
+  OS << "#define svcvtnt_f16_x      svcvtnt_f16_m\n";
+  OS << "#define svcvtnt_f16_f32_x  svcvtnt_f16_f32_m\n";
+  OS << "#define svcvtnt_f32_x      svcvtnt_f32_m\n";
+  OS << "#define svcvtnt_f32_f64_x  svcvtnt_f32_f64_m\n\n";
+
+  OS << "#define svcvtxnt_f32_x     svcvtxnt_f32_m\n";
+  OS << "#define svcvtxnt_f32_f64_x svcvtxnt_f32_f64_m\n\n";
+
+  OS << "#endif /*__ARM_FEATURE_SVE2 */\n\n";
 
   OS << "#ifdef __cplusplus\n";
   OS << "} // extern \"C\"\n";
@@ -733,8 +1204,16 @@ void SVEEmitter::createBuiltins(raw_ostream &OS) {
       OS << "BUILTIN(__builtin_sve_" << Def->getMangledName() << ", \""
          << Def->getBuiltinTypeStr() << "\", \"n\")\n";
   }
+
+  // Add reinterpret builtins
+  for (const ReinterpretTypeInfo &From : Reinterprets)
+    for (const ReinterpretTypeInfo &To : Reinterprets)
+      OS << "BUILTIN(__builtin_sve_reinterpret_" << From.Suffix << "_"
+         << To.Suffix << +", \"" << From.BuiltinType << To.BuiltinType
+         << "\", \"n\")\n";
+
   OS << "#endif\n\n";
-}
+  }
 
 void SVEEmitter::createCodeGenMap(raw_ostream &OS) {
   std::vector<Record *> RV = Records.getAllDerivedDefinitions("Inst");
@@ -755,7 +1234,7 @@ void SVEEmitter::createCodeGenMap(raw_ostream &OS) {
     if (Def->getClassKind() == ClassG)
       continue;
 
-    uint64_t Flags = Def->getFlags() | getTypeFlags(Def->getBaseType());
+    uint64_t Flags = Def->getFlags();
     auto FlagString = std::to_string(Flags);
 
     std::string LLVMName = Def->getLLVMName();
@@ -766,6 +1245,41 @@ void SVEEmitter::createCodeGenMap(raw_ostream &OS) {
     else
       OS << "SVEMAP2(" << Builtin << ", " << FlagString << "),\n";
   }
+  OS << "#endif\n\n";
+}
+
+void SVEEmitter::createRangeChecks(raw_ostream &OS) {
+  std::vector<Record *> RV = Records.getAllDerivedDefinitions("Inst");
+  SmallVector<std::unique_ptr<Intrinsic>, 128> Defs;
+  for (auto *R : RV)
+    createIntrinsic(R, Defs);
+
+  // The mappings must be sorted based on BuiltinID.
+  llvm::sort(Defs, [](const std::unique_ptr<Intrinsic> &A,
+                      const std::unique_ptr<Intrinsic> &B) {
+    return A->getMangledName() < B->getMangledName();
+  });
+
+
+  OS << "#ifdef GET_SVE_IMMEDIATE_CHECK\n";
+
+  // Ensure these are only emitted once.
+  std::set<std::string> Emitted;
+
+  for (auto &Def : Defs) {
+    if (Emitted.find(Def->getMangledName()) != Emitted.end() ||
+        Def->getImmChecks().empty())
+      continue;
+
+    OS << "case SVE::BI__builtin_sve_" << Def->getMangledName() << ":\n";
+    for (auto &Check : Def->getImmChecks())
+      OS << "ImmChecks.push_back(std::make_tuple(" << Check.getArg() << ", "
+         << Check.getKind() << ", " << Check.getElementSizeInBits() << "));\n";
+    OS << "  break;\n";
+
+    Emitted.insert(Def->getMangledName());
+  }
+
   OS << "#endif\n\n";
 }
 
@@ -785,6 +1299,16 @@ void SVEEmitter::createTypeFlags(raw_ostream &OS) {
   for (auto &KV : MemEltTypes)
     OS << "  " << KV.getKey() << " = " << KV.getValue() << ",\n";
   OS << "#endif\n\n";
+
+  OS << "#ifdef LLVM_GET_SVE_MERGETYPES\n";
+  for (auto &KV : MergeTypes)
+    OS << "  " << KV.getKey() << " = " << KV.getValue() << ",\n";
+  OS << "#endif\n\n";
+
+  OS << "#ifdef LLVM_GET_SVE_IMMCHECKTYPES\n";
+  for (auto &KV : ImmCheckTypes)
+    OS << "  " << KV.getKey() << " = " << KV.getValue() << ",\n";
+  OS << "#endif\n\n";
 }
 
 namespace clang {
@@ -799,6 +1323,11 @@ void EmitSveBuiltins(RecordKeeper &Records, raw_ostream &OS) {
 void EmitSveBuiltinCG(RecordKeeper &Records, raw_ostream &OS) {
   SVEEmitter(Records).createCodeGenMap(OS);
 }
+
+void EmitSveRangeChecks(RecordKeeper &Records, raw_ostream &OS) {
+  SVEEmitter(Records).createRangeChecks(OS);
+}
+
 void EmitSveTypeFlags(RecordKeeper &Records, raw_ostream &OS) {
   SVEEmitter(Records).createTypeFlags(OS);
 }

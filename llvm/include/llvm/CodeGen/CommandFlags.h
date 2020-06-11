@@ -12,20 +12,19 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "llvm/ADT/FloatingPointMode.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Intrinsics.h"
-#include "llvm/IR/Module.h"
 #include "llvm/MC/MCTargetOptionsCommandFlags.h"
-#include "llvm/MC/SubtargetFeature.h"
 #include "llvm/Support/CodeGen.h"
-#include "llvm/Support/CommandLine.h"
-#include "llvm/Support/Host.h"
-#include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
 #include <string>
+#include <vector>
 
 namespace llvm {
+
+class Module;
 
 namespace codegen {
 
@@ -62,7 +61,8 @@ bool getEnableNoSignedZerosFPMath();
 
 bool getEnableNoTrappingFPMath();
 
-llvm::FPDenormal::DenormalMode getDenormalFPMath();
+DenormalMode::DenormalModeKind getDenormalFPMath();
+DenormalMode::DenormalModeKind getDenormalFP32Math();
 
 bool getEnableHonorSignDependentRoundingFPMath();
 

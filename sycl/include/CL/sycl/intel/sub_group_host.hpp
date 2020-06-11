@@ -59,55 +59,55 @@ struct sub_group {
 
   /* --- vote / ballot functions --- */
 
-  bool any(bool predicate) const {
+  bool any(bool) const {
     throw runtime_error("Subgroups are not supported on host device. ",
                         PI_INVALID_DEVICE);
   }
 
-  bool all(bool predicate) const {
+  bool all(bool) const {
     throw runtime_error("Subgroups are not supported on host device. ",
                         PI_INVALID_DEVICE);
   }
 
   /* --- collectives --- */
 
-  template <typename T> T broadcast(T x, id<1> local_id) const {
+  template <typename T> T broadcast(T, id<1>) const {
     throw runtime_error("Subgroups are not supported on host device. ",
                         PI_INVALID_DEVICE);
   }
 
   template <typename T, class BinaryOperation>
-  T reduce(T x, BinaryOperation op) const {
+  T reduce(T, BinaryOperation) const {
     throw runtime_error("Subgroups are not supported on host device. ",
                         PI_INVALID_DEVICE);
   }
 
   template <typename T, class BinaryOperation>
-  T reduce(T x, T init, BinaryOperation op) const {
+  T reduce(T, T, BinaryOperation) const {
     throw runtime_error("Subgroups are not supported on host device. ",
                         PI_INVALID_DEVICE);
   }
 
   template <typename T, class BinaryOperation>
-  T exclusive_scan(T x, BinaryOperation op) const {
+  T exclusive_scan(T, BinaryOperation) const {
     throw runtime_error("Subgroups are not supported on host device. ",
                         PI_INVALID_DEVICE);
   }
 
   template <typename T, class BinaryOperation>
-  T exclusive_scan(T x, T init, BinaryOperation op) const {
+  T exclusive_scan(T, T, BinaryOperation) const {
     throw runtime_error("Subgroups are not supported on host device. ",
                         PI_INVALID_DEVICE);
   }
 
   template <typename T, class BinaryOperation>
-  T inclusive_scan(T x, BinaryOperation op) const {
+  T inclusive_scan(T, BinaryOperation) const {
     throw runtime_error("Subgroups are not supported on host device. ",
                         PI_INVALID_DEVICE);
   }
 
   template <typename T, class BinaryOperation>
-  T inclusive_scan(T x, BinaryOperation op, T init) const {
+  T inclusive_scan(T, BinaryOperation, T) const {
     throw runtime_error("Subgroups are not supported on host device. ",
                         PI_INVALID_DEVICE);
   }
@@ -115,38 +115,36 @@ struct sub_group {
   /* --- one - input shuffles --- */
   /* indices in [0 , sub - group size ) */
 
-  template <typename T> T shuffle(T x, id<1> local_id) const {
+  template <typename T> T shuffle(T, id<1>) const {
     throw runtime_error("Subgroups are not supported on host device. ",
                         PI_INVALID_DEVICE);
   }
 
-  template <typename T> T shuffle_down(T x, uint32_t delta) const {
+  template <typename T> T shuffle_down(T, uint32_t) const {
     throw runtime_error("Subgroups are not supported on host device. ",
                         PI_INVALID_DEVICE);
   }
-  template <typename T> T shuffle_up(T x, uint32_t delta) const {
+  template <typename T> T shuffle_up(T, uint32_t) const {
     throw runtime_error("Subgroups are not supported on host device. ",
                         PI_INVALID_DEVICE);
   }
 
-  template <typename T> T shuffle_xor(T x, id<1> value) const {
+  template <typename T> T shuffle_xor(T, id<1>) const {
     throw runtime_error("Subgroups are not supported on host device. ",
                         PI_INVALID_DEVICE);
   }
 
   /* --- two - input shuffles --- */
   /* indices in [0 , 2* sub - group size ) */
-  template <typename T> T shuffle(T x, T y, id<1> local_id) const {
+  template <typename T> T shuffle(T, T, id<1>) const {
     throw runtime_error("Subgroups are not supported on host device. ",
                         PI_INVALID_DEVICE);
   }
-  template <typename T>
-  T shuffle_down(T current, T next, uint32_t delta) const {
+  template <typename T> T shuffle_down(T, T, uint32_t) const {
     throw runtime_error("Subgroups are not supported on host device. ",
                         PI_INVALID_DEVICE);
   }
-  template <typename T>
-  T shuffle_up(T previous, T current, uint32_t delta) const {
+  template <typename T> T shuffle_up(T, T, uint32_t) const {
     throw runtime_error("Subgroups are not supported on host device. ",
                         PI_INVALID_DEVICE);
   }
@@ -154,25 +152,25 @@ struct sub_group {
   /* --- sub - group load / stores --- */
   /* these can map to SIMD or block read / write hardware where available */
   template <typename T, access::address_space Space>
-  T load(const multi_ptr<T, Space> src) const {
+  T load(const multi_ptr<T, Space>) const {
     throw runtime_error("Subgroups are not supported on host device. ",
                         PI_INVALID_DEVICE);
   }
 
   template <int N, typename T, access::address_space Space>
-  vec<T, N> load(const multi_ptr<T, Space> src) const {
+  vec<T, N> load(const multi_ptr<T, Space>) const {
     throw runtime_error("Subgroups are not supported on host device. ",
                         PI_INVALID_DEVICE);
   }
 
   template <typename T, access::address_space Space>
-  void store(multi_ptr<T, Space> dst, const T &x) const {
+  void store(multi_ptr<T, Space>, const T &) const {
     throw runtime_error("Subgroups are not supported on host device. ",
                         PI_INVALID_DEVICE);
   }
 
   template <int N, typename T, access::address_space Space>
-  void store(multi_ptr<T, Space> dst, const vec<T, N> &x) const {
+  void store(multi_ptr<T, Space>, const vec<T, N> &) const {
     throw runtime_error("Subgroups are not supported on host device. ",
                         PI_INVALID_DEVICE);
   }
@@ -180,6 +178,7 @@ struct sub_group {
   /* --- synchronization functions --- */
   void barrier(access::fence_space accessSpace =
                    access::fence_space::global_and_local) const {
+    (void)accessSpace;
     throw runtime_error("Subgroups are not supported on host device. ",
                         PI_INVALID_DEVICE);
   }

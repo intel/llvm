@@ -8,9 +8,14 @@
 
 #pragma once
 
+#include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/detail/defines.hpp>
+#include <CL/sycl/detail/pi.hpp>
 
+#include <algorithm>
+#include <array>
 #include <cstdlib>
+#include <utility>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -48,6 +53,9 @@ constexpr const char *getStrOrNullptr(const char *Str) {
   return (Str[0] == '_' && Str[1] == '_') ? nullptr : Str;
 }
 
+// Intializes configs from the configuration file
+void readConfig();
+
 template <ConfigID Config> class SYCLConfigBase;
 
 #define CONFIG(Name, MaxSize, CompileTimeDef)                                  \
@@ -55,7 +63,7 @@ template <ConfigID Config> class SYCLConfigBase;
   public:                                                                      \
     /*Preallocated storage for config value which is extracted from a config   \
      * file*/                                                                  \
-    static char MStorage[MaxSize];                                             \
+    static char MStorage[MaxSize + 1];                                         \
     /*Points to the storage if config is set in the file, nullptr otherwise*/  \
     static const char *MValueFromFile;                                         \
     /*The name of the config*/                                                 \
@@ -65,38 +73,91 @@ template <ConfigID Config> class SYCLConfigBase;
      * beginning of the string, if it starts with double underscore(__) the    \
      * value is not set.*/                                                     \
     static const char *const MCompileTimeDef;                                  \
+                                                                               \
+    static const char *getRawValue() {                                         \
+      if (ConfigFromEnvEnabled)                                                \
+        if (const char *ValStr = getenv(MConfigName))                          \
+          return ValStr;                                                       \
+                                                                               \
+      if (ConfigFromFileEnabled) {                                             \
+        readConfig();                                                          \
+        if (MValueFromFile)                                                    \
+          return MValueFromFile;                                               \
+      }                                                                        \
+                                                                               \
+      if (ConfigFromCompileDefEnabled && MCompileTimeDef)                      \
+        return MCompileTimeDef;                                                \
+                                                                               \
+      return nullptr;                                                          \
+    }                                                                          \
   };
 #include "config.def"
 #undef CONFIG
-
-// Intializes configs from the configuration file
-void readConfig();
 
 template <ConfigID Config> class SYCLConfig {
   using BaseT = SYCLConfigBase<Config>;
 
 public:
   static const char *get() {
-    const char *ValStr = getRawValue();
+    static const char *ValStr = BaseT::getRawValue();
     return ValStr;
   }
+};
 
-private:
-  static const char *getRawValue() {
-    if (ConfigFromEnvEnabled)
-      if (const char *ValStr = getenv(BaseT::MConfigName))
-        return ValStr;
+template <> class SYCLConfig<SYCL_BE> {
+  using BaseT = SYCLConfigBase<SYCL_BE>;
 
-    if (ConfigFromFileEnabled) {
-      readConfig();
-      if (BaseT::MValueFromFile)
-        return BaseT::MValueFromFile;
+public:
+  static backend *get() {
+    static bool Initialized = false;
+    static backend *BackendPtr = nullptr;
+
+    // Configuration parameters are processed only once, like reading a string
+    // from environment and converting it into a typed object.
+    if (Initialized)
+      return BackendPtr;
+
+    const char *ValStr = BaseT::getRawValue();
+    const std::array<std::pair<std::string, backend>, 3> SyclBeMap = {
+        {{"PI_OPENCL", backend::opencl},
+         {"PI_LEVEL0", backend::level0},
+         {"PI_CUDA", backend::cuda}}};
+    if (ValStr) {
+      auto It = std::find_if(
+          std::begin(SyclBeMap), std::end(SyclBeMap),
+          [&ValStr](const std::pair<std::string, backend> &element) {
+            return element.first == ValStr;
+          });
+      if (It == SyclBeMap.end())
+        pi::die("Invalid backend. "
+                "Valid values are PI_OPENCL/PI_LEVEL0/PI_CUDA");
+      static backend Backend = It->second;
+      BackendPtr = &Backend;
     }
+    Initialized = true;
+    return BackendPtr;
+  }
+};
 
-    if (ConfigFromCompileDefEnabled && BaseT::MCompileTimeDef)
-      return BaseT::MCompileTimeDef;
+template <> class SYCLConfig<SYCL_PI_TRACE> {
+  using BaseT = SYCLConfigBase<SYCL_PI_TRACE>;
 
-    return nullptr;
+public:
+  static int get() {
+    static bool Initialized = false;
+    // We don't use TraceLevel enum here because user can provide any bitmask
+    // which can correspond to several enum values.
+    static int Level = 0; // No tracing by default
+
+    // Configuration parameters are processed only once, like reading a string
+    // from environment and converting it into a typed object.
+    if (Initialized)
+      return Level;
+
+    const char *ValStr = BaseT::getRawValue();
+    Level = (ValStr ? std::atoi(ValStr) : 0);
+    Initialized = true;
+    return Level;
   }
 };
 

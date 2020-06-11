@@ -134,11 +134,7 @@ extern const short *_tolower_tab_;
 
 // Platform-specific options.
 #if SANITIZER_MAC
-namespace __sanitizer {
-bool PlatformHasDifferentMemcpyAndMemmove();
-}
-#define PLATFORM_HAS_DIFFERENT_MEMCPY_AND_MEMMOVE \
-  (__sanitizer::PlatformHasDifferentMemcpyAndMemmove())
+#define PLATFORM_HAS_DIFFERENT_MEMCPY_AND_MEMMOVE false
 #elif SANITIZER_WINDOWS64
 #define PLATFORM_HAS_DIFFERENT_MEMCPY_AND_MEMMOVE false
 #else
@@ -9748,6 +9744,10 @@ INTERCEPTOR(int, sigaltstack, void *ss, void *oss) {
 
 #if SANITIZER_INTERCEPT_UNAME
 INTERCEPTOR(int, uname, struct utsname *utsname) {
+#if SANITIZER_LINUX
+  if (COMMON_INTERCEPTOR_NOTHING_IS_INITIALIZED)
+    return internal_uname(utsname);
+#endif
   void *ctx;
   COMMON_INTERCEPTOR_ENTER(ctx, uname, utsname);
   int res = REAL(uname)(utsname);

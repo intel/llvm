@@ -12,7 +12,6 @@
 #include "AMDGPU.h"
 #include "AMDKernelCodeT.h"
 #include "SIDefines.h"
-#include "llvm/ADT/StringRef.h"
 #include "llvm/IR/CallingConv.h"
 #include "llvm/MC/MCInstrDesc.h"
 #include "llvm/Support/AMDHSAKernelDescriptor.h"
@@ -26,17 +25,13 @@
 namespace llvm {
 
 class Argument;
-class AMDGPUSubtarget;
-class FeatureBitset;
 class Function;
 class GCNSubtarget;
 class GlobalValue;
-class MCContext;
 class MCRegisterClass;
 class MCRegisterInfo;
-class MCSection;
 class MCSubtargetInfo;
-class MachineMemOperand;
+class StringRef;
 class Triple;
 
 namespace AMDGPU {
@@ -87,15 +82,6 @@ unsigned getEUsPerCU(const MCSubtargetInfo *STI);
 unsigned getMaxWorkGroupsPerCU(const MCSubtargetInfo *STI,
                                unsigned FlatWorkGroupSize);
 
-/// \returns Maximum number of waves per compute unit for given subtarget \p
-/// STI without any kind of limitation.
-unsigned getMaxWavesPerCU(const MCSubtargetInfo *STI);
-
-/// \returns Maximum number of waves per compute unit for given subtarget \p
-/// STI and limited by given \p FlatWorkGroupSize.
-unsigned getMaxWavesPerCU(const MCSubtargetInfo *STI,
-                          unsigned FlatWorkGroupSize);
-
 /// \returns Minimum number of waves per execution unit for given subtarget \p
 /// STI.
 unsigned getMinWavesPerEU(const MCSubtargetInfo *STI);
@@ -104,10 +90,10 @@ unsigned getMinWavesPerEU(const MCSubtargetInfo *STI);
 /// STI without any kind of limitation.
 unsigned getMaxWavesPerEU(const MCSubtargetInfo *STI);
 
-/// \returns Maximum number of waves per execution unit for given subtarget \p
-/// STI and limited by given \p FlatWorkGroupSize.
-unsigned getMaxWavesPerEU(const MCSubtargetInfo *STI,
-                          unsigned FlatWorkGroupSize);
+/// \returns Number of waves per execution unit required to support the given \p
+/// FlatWorkGroupSize.
+unsigned getWavesPerEUForWorkGroup(const MCSubtargetInfo *STI,
+                                   unsigned FlatWorkGroupSize);
 
 /// \returns Minimum flat work group size for given subtarget \p STI.
 unsigned getMinFlatWorkGroupSize(const MCSubtargetInfo *STI);
@@ -116,7 +102,7 @@ unsigned getMinFlatWorkGroupSize(const MCSubtargetInfo *STI);
 unsigned getMaxFlatWorkGroupSize(const MCSubtargetInfo *STI);
 
 /// \returns Number of waves per work group for given subtarget \p STI and
-/// limited by given \p FlatWorkGroupSize.
+/// \p FlatWorkGroupSize.
 unsigned getWavesPerWorkGroup(const MCSubtargetInfo *STI,
                               unsigned FlatWorkGroupSize);
 
@@ -306,6 +292,9 @@ bool getMUBUFHasSrsrc(unsigned Opc);
 
 LLVM_READONLY
 bool getMUBUFHasSoffset(unsigned Opc);
+
+LLVM_READONLY
+bool getSMEMIsBuffer(unsigned Opc);
 
 LLVM_READONLY
 const GcnBufferFormatInfo *getGcnBufferFormatInfo(uint8_t BitsPerComp,
@@ -649,14 +638,25 @@ bool isInlinableLiteralV216(int32_t Literal, bool HasInv2Pi);
 
 bool isArgPassedInSGPR(const Argument *Arg);
 
+LLVM_READONLY
+bool isLegalSMRDEncodedUnsignedOffset(const MCSubtargetInfo &ST,
+                                      int64_t EncodedOffset);
+
+LLVM_READONLY
+bool isLegalSMRDEncodedSignedOffset(const MCSubtargetInfo &ST,
+                                    int64_t EncodedOffset,
+                                    bool IsBuffer);
+
 /// Convert \p ByteOffset to dwords if the subtarget uses dword SMRD immediate
 /// offsets.
 uint64_t convertSMRDOffsetUnits(const MCSubtargetInfo &ST, uint64_t ByteOffset);
 
-/// \returns The encoding that will be used for \p ByteOffset in the SMRD offset
-/// field, or None if it won't fit. This is useful on all subtargets.
+/// \returns The encoding that will be used for \p ByteOffset in the
+/// SMRD offset field, or None if it won't fit. On GFX9 and GFX10
+/// S_LOAD instructions have a signed offset, on other subtargets it is
+/// unsigned. S_BUFFER has an unsigned offset for all subtargets.
 Optional<int64_t> getSMRDEncodedOffset(const MCSubtargetInfo &ST,
-                                       int64_t ByteOffset);
+                                       int64_t ByteOffset, bool IsBuffer);
 
 /// \return The encoding that can be used for a 32-bit literal offset in an SMRD
 /// instruction. This is only useful on CI.s
@@ -704,19 +704,13 @@ struct SIModeRegisterDefaults {
     FP64FP16InputDenormals(true),
     FP64FP16OutputDenormals(true) {}
 
-  // FIXME: Should not depend on the subtarget
-  SIModeRegisterDefaults(const Function &F, const GCNSubtarget &ST);
+  SIModeRegisterDefaults(const Function &F);
 
   static SIModeRegisterDefaults getDefaultForCallingConv(CallingConv::ID CC) {
     const bool IsCompute = AMDGPU::isCompute(CC);
 
     SIModeRegisterDefaults Mode;
-    Mode.DX10Clamp = true;
     Mode.IEEE = IsCompute;
-    Mode.FP32InputDenormals = false; // FIXME: Should be on by default.
-    Mode.FP32OutputDenormals = false; // FIXME: Should be on by default.
-    Mode.FP64FP16InputDenormals = true;
-    Mode.FP64FP16OutputDenormals = true;
     return Mode;
   }
 
@@ -763,7 +757,7 @@ struct SIModeRegisterDefaults {
   /// Returns true if a flag is compatible if it's enabled in the callee, but
   /// disabled in the caller.
   static bool oneWayCompatible(bool CallerMode, bool CalleeMode) {
-    return CallerMode == CalleeMode || (CallerMode && !CalleeMode);
+    return CallerMode == CalleeMode || (!CallerMode && CalleeMode);
   }
 
   // FIXME: Inlining should be OK for dx10-clamp, since the caller's mode should
@@ -781,6 +775,9 @@ struct SIModeRegisterDefaults {
            oneWayCompatible(FP32OutputDenormals, CalleeMode.FP32OutputDenormals);
   }
 };
+
+LLVM_READNONE
+bool isInlinableIntLiteral(int64_t Literal);
 
 } // end namespace AMDGPU
 } // end namespace llvm

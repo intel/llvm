@@ -21,6 +21,7 @@
 #include <detail/event_impl.hpp>
 #include <detail/plugin.hpp>
 #include <detail/scheduler/scheduler.hpp>
+#include <detail/thread_pool.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -31,6 +32,13 @@ using DeviceImplPtr = shared_ptr_class<detail::device_impl>;
 
 /// Sets max number of queues supported by FPGA RT.
 const size_t MaxNumQueues = 256;
+
+//// Possible CUDA context types supported by PI CUDA backend
+/// TODO: Implement this as a property once there is an extension document
+enum class cuda_context_type : char { primary, custom };
+
+/// Default context type created for CUDA backend
+constexpr cuda_context_type DefaultContextType = cuda_context_type::custom;
 
 enum QueueOrder { Ordered, OOO };
 
@@ -49,7 +57,8 @@ public:
              const property_list &PropList)
       : queue_impl(Device,
                    detail::getSyclObjImpl(context(
-                       createSyclObjFromImpl<device>(Device), {}, true)),
+                       createSyclObjFromImpl<device>(Device), {},
+                       (DefaultContextType == cuda_context_type::primary))),
                    AsyncHandler, Order, PropList){};
 
   /// Constructs a SYCL queue with an async_handler and property_list provided
@@ -69,14 +78,14 @@ public:
       : MDevice(Device), MContext(Context), MAsyncHandler(AsyncHandler),
         MPropList(PropList), MHostQueue(MDevice->is_host()),
         MOpenCLInterop(!MHostQueue) {
-    if (!MHostQueue) {
-      MCommandQueue = createQueue(Order);
-    }
     if (!Context->hasDevice(Device))
       throw cl::sycl::invalid_parameter_error(
           "Queue cannot be constructed with the given context and device "
           "as the context does not contain the given device.",
           PI_INVALID_DEVICE);
+    if (!MHostQueue) {
+      MCommandQueue = createQueue(Order);
+    }
   }
 
   /// Constructs a SYCL queue from plugin interoperability handle.
@@ -240,6 +249,8 @@ public:
     RT::PiContext Context = MContext->getHandleRef();
     RT::PiDevice Device = MDevice->getHandleRef();
     const detail::plugin &Plugin = getPlugin();
+
+    assert(Plugin.getBackend() == MDevice->getPlugin().getBackend());
     RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piQueueCreate>(
         Context, Device, CreationFlags, &Queue);
 
@@ -346,6 +357,18 @@ public:
     MExceptions.PushBack(ExceptionPtr);
   }
 
+  ThreadPool &getThreadPool() {
+    if (!MHostTaskThreadPool)
+      initHostTaskAndEventCallbackThreadPool();
+
+    return *MHostTaskThreadPool;
+  }
+
+  /// Gets the native handle of the SYCL queue.
+  ///
+  /// \return a native handle.
+  pi_native_handle getNative() const;
+
 private:
   /// Performs command group submission to the queue.
   ///
@@ -357,8 +380,9 @@ private:
                     shared_ptr_class<queue_impl> Self,
                     const detail::code_location &Loc) {
     handler Handler(std::move(Self), MHostQueue);
+    Handler.saveCodeLoc(Loc);
     CGF(Handler);
-    event Event = Handler.finalize(Loc);
+    event Event = Handler.finalize();
     addEvent(Event);
     return Event;
   }
@@ -372,6 +396,13 @@ private:
   void instrumentationEpilog(void *TelementryEvent, string_class &Name,
                              int32_t StreamID, uint64_t IId);
 
+  void initHostTaskAndEventCallbackThreadPool();
+
+  /// Stores a USM operation event that should be associated with the queue
+  ///
+  /// \param Event is the event to be stored
+  void addUSMEvent(event Event);
+
   /// Stores an event that should be associated with the queue
   ///
   /// \param Event is the event to be stored
@@ -382,7 +413,10 @@ private:
 
   DeviceImplPtr MDevice;
   const ContextImplPtr MContext;
-  vector_class<event> MEvents;
+  vector_class<std::weak_ptr<event_impl>> MEvents;
+  // USM operations are not added to the scheduler command graph,
+  // queue is the only owner on the runtime side.
+  vector_class<event> MUSMEvents;
   exception_list MExceptions;
   const async_handler MAsyncHandler;
   const property_list MPropList;
@@ -398,6 +432,10 @@ private:
   const bool MOpenCLInterop = false;
   // Assume OOO support by default.
   bool MSupportOOO = true;
+
+  // Thread pool for host task and event callbacks execution.
+  // The thread pool is instantiated upon the very first call to getThreadPool()
+  std::unique_ptr<ThreadPool> MHostTaskThreadPool;
 };
 
 } // namespace detail

@@ -1,6 +1,6 @@
 * @bader
 
-clang/ @erichkeane @Fznamznon
+clang/ @Fznamznon @premanandrao @elizabethandrews
 
 clang/**/Driver @mdtoguchi @AGindinson
 
@@ -10,10 +10,79 @@ opencl-aot/ @dm-vodopyanov @AlexeySachkov @romanovvlad
 
 libdevice/ @asavonic @vzakhari
 
-sycl/ @romanovvlad @bader
+sycl/ @intel/llvm-reviewers-runtime
+
+sycl/ReleaseNotes.md @pvchupin
+
+# USM
+sycl/include/CL/sycl/detail/clusm.hpp @jbrodman
+sycl/include/CL/sycl/detail/usm_impl.hpp @jbrodman
+sycl/include/CL/sycl/usm/ @jbrodman
+sycl/include/CL/sycl/ordered_queue.hpp @jbrodman
+sycl/include/CL/sycl/usm.hpp @jbrodman
+sycl/include/CL/cl_usm_ext.h @jbrodman
+sycl/source/detail/usm/ @jbrodman
+sycl/source/ordered_queue.cpp @jbrodman
+
+# Sub-groups
+sycl/include/CL/sycl/detail/spirv.hpp @Pennycook @AlexeySachkov
+sycl/include/CL/sycl/intel/group_algorithm.hpp @Pennycook @AlexeySachkov
+sycl/include/CL/sycl/intel/sub_group.hpp @Pennycook @AlexeySachkov
+sycl/include/CL/sycl/intel/sub_group_host.hpp @Pennycook @AlexeySachkov
+
+# PI API
+sycl/include/CL/sycl/detail/pi.def @smaslov-intel
+sycl/include/CL/sycl/detail/pi.h   @smaslov-intel
+sycl/include/CL/sycl/detail/pi.hpp @smaslov-intel
+sycl/include/CL/sycl/detail/pi* @smaslov-intel
+sycl/plugins/ @smaslov-intel
+sycl/source/detail/pi.cpp @smaslov-intel
+sycl/source/detail/plugin.hpp @smaslov-intel
+sycl/source/detail/posix_pi.cpp @smaslov-intel
+sycl/source/detail/windows_pi.cpp @smaslov-intel
+
+# Stream
+sycl/include/CL/sycl/detail/stream_impl.hpp @againull
+sycl/include/CL/sycl/stream.hpp @againull
+sycl/source/detail/stream_impl.cpp @againull
+sycl/source/stream.cpp @againull
+
+# Specialization constant
+sycl/include/CL/sycl/detail/sycl_fe_intrins.hpp @kbobrovs
+sycl/include/CL/sycl/detail/spec_constant_impl.hpp @kbobrovs
+sycl/include/CL/sycl/experimental/spec_constant.hpp @kbobrovs
+
+# Program manager
+sycl/source/detail/program_manager @kbobrovs
+sycl/source/detail/spec_constant_impl.cpp @kbobrovs
+
+# FPGA extensions
+sycl/include/CL/sycl/intel/fpga_device_selector.hpp @MrSidims
+sycl/include/CL/sycl/intel/fpga_extensions.hpp @MrSidims
+sycl/include/CL/sycl/intel/fpga_reg.hpp @MrSidims
+sycl/include/CL/sycl/intel/pipes.hpp @MrSidims
+sycl/include/CL/sycl/pipes.hpp @MrSidims
+
+# Reduction extension
+sycl/include/CL/sycl/intel/reduction.hpp @v-klochkov
+
+# Function pointers
+sycl/include/CL/sycl/intel/function_pointer.hpp @AlexeySachkov
+sycl/source/function_pointer.cpp @AlexeySachkov
+
+# Half Type
+sycl/include/CL/sycl/half_type.hpp @AlexeySachkov
+sycl/source/half_type.cpp @AlexeySachkov
+
+# vec and swizzles
+sycl/include/CL/sycl/swizzles.def @turinevgeny
+sycl/include/CL/sycl/types.hpp @turinevgeny
+
+sycl/plugins/cuda/ @intel/llvm-reviewers-cuda
 
 sycl/doc/ @pvchupin @kbobrovs
 
 sycl/doc/extensions/ @mkinsner @jbrodman
 
 xpti/ @tovinkere @andykaylor
+xptifw/ @tovinkere  @andykaylor

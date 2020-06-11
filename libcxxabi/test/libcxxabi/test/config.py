@@ -39,12 +39,9 @@ class Configuration(LibcxxConfiguration):
     def configure_features(self):
         super(Configuration, self).configure_features()
         if not self.get_lit_bool('enable_exceptions', True):
-            self.config.available_features.add('libcxxabi-no-exceptions')
+            self.config.available_features.add('no-exceptions')
         if not self.has_cpp_feature('noexcept_function_type', 201510):
             self.config.available_features.add('libcxxabi-no-noexcept-function-type')
-        # test_exception_storage_nodynmem.pass.cpp fails under this specific configuration
-        if self.get_lit_bool('cxx_ext_threads', False) and self.get_lit_bool('libcxxabi_shared', False):
-            self.config.available_features.add('libcxxabi-shared-externally-threaded')
         if not self.get_lit_bool('llvm_unwinder', False):
             self.config.available_features.add('libcxxabi-has-system-unwinder')
 
@@ -61,7 +58,7 @@ class Configuration(LibcxxConfiguration):
             self.cxx.compile_flags += ['-D_LIBCXXABI_HAS_NO_THREADS']
             self.config.available_features.add('libcxxabi-no-threads')
         super(Configuration, self).configure_compile_flags()
-    
+
     def configure_compile_flags_header_includes(self):
         self.configure_config_site_header()
         cxx_headers = self.get_lit_conf(

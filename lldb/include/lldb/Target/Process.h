@@ -37,6 +37,7 @@
 #include "lldb/Target/Memory.h"
 #include "lldb/Target/QueueList.h"
 #include "lldb/Target/ThreadList.h"
+#include "lldb/Target/ThreadPlanStack.h"
 #include "lldb/Utility/ArchSpec.h"
 #include "lldb/Utility/Broadcaster.h"
 #include "lldb/Utility/Event.h"
@@ -57,7 +58,11 @@ namespace lldb_private {
 
 template <typename B, typename S> struct Range;
 
-// ProcessProperties
+class ProcessExperimentalProperties : public Properties {
+public:
+  ProcessExperimentalProperties();
+};
+
 class ProcessProperties : public Properties {
 public:
   // Pass nullptr for "process" if the ProcessProperties are to be the global
@@ -81,11 +86,15 @@ public:
   bool GetDetachKeepsStopped() const;
   void SetDetachKeepsStopped(bool keep_stopped);
   bool GetWarningsOptimization() const;
+  bool GetWarningsUnsupportedLanguage() const;
   bool GetStopOnExec() const;
   std::chrono::seconds GetUtilityExpressionTimeout() const;
+  bool GetOSPluginReportsAllThreads() const;
+  void SetOSPluginReportsAllThreads(bool does_report);
 
 protected:
   Process *m_process; // Can be nullptr for global ProcessProperties
+  std::unique_ptr<ProcessExperimentalProperties> m_experimental_properties_up;
 };
 
 typedef std::shared_ptr<ProcessProperties> ProcessPropertiesSP;
@@ -382,7 +391,7 @@ public:
   };
 
   /// Process warning types.
-  enum Warnings { eWarningsOptimization = 1 };
+  enum Warnings { eWarningsOptimization = 1, eWarningsUnsupportedLanguage = 2 };
 
   typedef Range<lldb::addr_t, lldb::addr_t> LoadRange;
   // We use a read/write lock to allow on or more clients to access the process
@@ -1311,6 +1320,12 @@ public:
   ///     pre-computed.
   void PrintWarningOptimization(const SymbolContext &sc);
 
+  /// Print a user-visible warning about a function written in a
+  /// language that this version of LLDB doesn't support.
+  ///
+  /// \see PrintWarningOptimization
+  void PrintWarningUnsupportedLanguage(const SymbolContext &sc);
+
   virtual bool GetProcessInfo(ProcessInstanceInfo &info);
 
 public:
@@ -2198,6 +2213,75 @@ public:
 
   void SetDynamicCheckers(DynamicCheckerFunctions *dynamic_checkers);
 
+/// Prune ThreadPlanStacks for unreported threads.
+///
+/// \param[in] tid
+///     The tid whose Plan Stack we are seeking to prune.
+///
+/// \return
+///     \b true if the TID is found or \b false if not.
+bool PruneThreadPlansForTID(lldb::tid_t tid);
+
+/// Prune ThreadPlanStacks for all unreported threads.
+void PruneThreadPlans();
+
+  /// Find the thread plan stack associated with thread with \a tid.
+  ///
+  /// \param[in] tid
+  ///     The tid whose Plan Stack we are seeking.
+  ///
+  /// \return
+  ///     Returns a ThreadPlan if the TID is found or nullptr if not.
+  ThreadPlanStack *FindThreadPlans(lldb::tid_t tid);
+
+  /// Dump the thread plans associated with thread with \a tid.
+  ///
+  /// \param[in/out] strm
+  ///     The stream to which to dump the output
+  ///
+  /// \param[in] tid
+  ///     The tid whose Plan Stack we are dumping
+  ///
+  /// \param[in] desc_level
+  ///     How much detail to dump
+  ///
+  /// \param[in] internal
+  ///     If \b true dump all plans, if false only user initiated plans
+  ///
+  /// \param[in] condense_trivial
+  ///     If true, only dump a header if the plan stack is just the base plan.
+  ///
+  /// \param[in] skip_unreported_plans
+  ///     If true, only dump a plan if it is currently backed by an
+  ///     lldb_private::Thread *.
+  ///
+  /// \return
+  ///     Returns \b true if TID was found, \b false otherwise
+  bool DumpThreadPlansForTID(Stream &strm, lldb::tid_t tid,
+                             lldb::DescriptionLevel desc_level, bool internal,
+                             bool condense_trivial, bool skip_unreported_plans);
+
+  /// Dump all the thread plans for this process.
+  ///
+  /// \param[in/out] strm
+  ///     The stream to which to dump the output
+  ///
+  /// \param[in] desc_level
+  ///     How much detail to dump
+  ///
+  /// \param[in] internal
+  ///     If \b true dump all plans, if false only user initiated plans
+  ///
+  /// \param[in] condense_trivial
+  ///     If true, only dump a header if the plan stack is just the base plan.
+  ///
+  /// \param[in] skip_unreported_plans
+  ///     If true, skip printing all thread plan stacks that don't currently
+  ///     have a backing lldb_private::Thread *.
+  void DumpThreadPlans(Stream &strm, lldb::DescriptionLevel desc_level,
+                       bool internal, bool condense_trivial,
+                       bool skip_unreported_plans);
+
   /// Call this to set the lldb in the mode where it breaks on new thread
   /// creations, and then auto-restarts.  This is useful when you are trying
   /// to run only one thread, but either that thread or the kernel is creating
@@ -2667,6 +2751,10 @@ protected:
                             ///see them. This is usually the same as
   ///< m_thread_list_real, but might be different if there is an OS plug-in
   ///creating memory threads
+  ThreadPlanStackMap m_thread_plans; ///< This is the list of thread plans for
+                                     /// threads in m_thread_list, as well as
+                                     /// threads we knew existed, but haven't
+                                     /// determined that they have died yet.
   ThreadList m_extended_thread_list; ///< Owner for extended threads that may be
                                      ///generated, cleared on natural stops
   uint32_t m_extended_thread_stop_id; ///< The natural stop id when
@@ -2848,7 +2936,7 @@ private:
   DISALLOW_COPY_AND_ASSIGN(Process);
 };
 
-/// RAII guard that should be aquired when an utility function is called within
+/// RAII guard that should be acquired when an utility function is called within
 /// a given process.
 class UtilityFunctionScope {
   Process *m_process;

@@ -50,14 +50,22 @@ def warn_drv_avr_stdlib_not_linked: Warning<
   InGroup<AVRRtlibLinkingQuirks>;
 def err_drv_cuda_bad_gpu_arch : Error<"Unsupported CUDA gpu architecture: %0">;
 def err_drv_no_cuda_installation : Error<
-  "cannot find CUDA installation.  Provide its path via --cuda-path, or pass "
+  "cannot find CUDA installation. Provide its path via --cuda-path, or pass "
   "-nocudainc to build without CUDA includes.">;
 def err_drv_no_cuda_libdevice : Error<
   "cannot find libdevice for %0. Provide path to different CUDA installation "
   "via --cuda-path, or pass -nocudalib to build without linking with libdevice.">;
+
+def err_drv_no_rocm_installation : Error<
+  "cannot find ROCm installation.  Provide its path via --rocm-path, or pass "
+  "-nogpulib.">;
+def err_drv_no_rocm_device_lib : Error<
+  "cannot find device library for %0. Provide path to different ROCm installation "
+  "via --rocm-path, or pass -nogpulib to build without linking default libraries.">;
+
 def err_drv_cuda_version_unsupported : Error<
   "GPU arch %0 is supported by CUDA versions between %1 and %2 (inclusive), "
-  "but installation at %3 is %4.  Use --cuda-path to specify a different CUDA "
+  "but installation at %3 is %4. Use --cuda-path to specify a different CUDA "
   "install, pass a different GPU arch with --cuda-gpu-arch, or pass "
   "--no-cuda-version-check.">;
 def warn_drv_unknown_cuda_version: Warning<
@@ -159,6 +167,10 @@ def err_drv_invalid_argument_to_option : Error<
   "invalid argument '%0' to -%1">;
 def err_drv_malformed_sanitizer_blacklist : Error<
   "malformed sanitizer blacklist: '%0'">;
+def err_drv_malformed_sanitizer_coverage_whitelist : Error<
+  "malformed sanitizer coverage whitelist: '%0'">;
+def err_drv_malformed_sanitizer_coverage_blacklist : Error<
+  "malformed sanitizer coverage blacklist: '%0'">;
 def err_drv_duplicate_config : Error<
   "no more than one option '--config' is allowed">;
 def err_drv_config_file_not_exist : Error<
@@ -366,6 +378,8 @@ def err_analyzer_checker_option_unknown : Error<
   "checker '%0' has no option called '%1'">;
 def err_analyzer_checker_option_invalid_input : Error<
   "invalid input for checker option '%0', that expects %1">;
+def err_analyzer_checker_incompatible_analyzer_option : Error<
+  "checker cannot be enabled with analyzer option '%0' == %1">;
 
 def err_drv_invalid_hvx_length : Error<
   "-mhvx-length is not supported without a -mhvx/-mhvx= flag">;
@@ -472,13 +486,13 @@ def note_drv_verify_prefix_spelling : Note<
   "-verify prefixes must start with a letter and contain only alphanumeric"
   " characters, hyphens, and underscores">;
 
-def warn_drv_experimental_isel_incomplete : Warning<
-  "-fexperimental-isel support for the '%0' architecture is incomplete">,
-  InGroup<ExperimentalISel>;
+def warn_drv_global_isel_incomplete : Warning<
+  "-fglobal-isel support for the '%0' architecture is incomplete">,
+  InGroup<GlobalISel>;
 
-def warn_drv_experimental_isel_incomplete_opt : Warning<
-  "-fexperimental-isel support is incomplete for this architecture at the current optimization level">,
-  InGroup<ExperimentalISel>;
+def warn_drv_global_isel_incomplete_opt : Warning<
+  "-fglobal-isel support is incomplete for this architecture at the current optimization level">,
+  InGroup<GlobalISel>;
 
 def warn_drv_moutline_unsupported_opt : Warning<
   "The '%0' architecture does not support -moutline; flag ignored">,

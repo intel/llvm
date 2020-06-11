@@ -27,7 +27,7 @@ NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are tradema
 
 NOTE: This document is better viewed when rendered as html with asciidoctor.  GitHub does not render image icons.
 
-This document describes an extension that replaces the +cl::sycl::atomic+ class with the `cl::sycl::intel::atomic` class, which exposes additional functionality aligned with the +std::atomic+ class from {cpp}11 and {cpp}20.
+This document describes an extension that introduces the `cl::sycl::intel::atomic_ref` class, which exposes additional functionality aligned with the +std::atomic_ref+ class from {cpp}20.
 
 == Name Strings
 
@@ -55,56 +55,62 @@ John Pennycook, Intel (john 'dot' pennycook 'at' intel 'dot' com)
 
 == Dependencies
 
-This extension is written against the SYCL 1.2.1 specification, Revision v1.2.1-6.
+This extension is written against the SYCL 1.2.1 specification, Revision 6 and the following extensions:
+
+- Unified Shared Memory
+- SYCL_INTEL_sub_groups
 
 == Overview
 
-The SYCL atomic library (+cl::sycl::atomic+) defined in SYCL 1.2.1 is based on the standard atomic libary (+std::atomic+) but has some differences.  This extension introduces an alternative atomic class (+cl::sycl::intel::atomic+) including additional features from {cpp}11 and {cpp}20:
+The SYCL atomic library (+cl::sycl::atomic+) defined in SYCL 1.2.1 is based on the standard atomic libary (+std::atomic+) but has some differences.  This extension introduces a new fence function (+cl::sycl::intel::atomic_fence+) and an alternative atomic class (+cl::sycl::intel::atomic_ref+) including additional features from {cpp}20:
 
 - Overloaded operators to reduce the verbosity of using atomics
+- Missing functions (e.g. `is_lock_free()`)
 - Support for floating-point types
+- Support for additional memory orderings besides `relaxed`
+- Support for scopes denoting the set of work-items and devices to which memory ordering applies
+
+This extension deprecates the SYCL 1.2.1 +cl::sycl::atomic+ class and accessors created with mode +access::mode::atomic+.
 
 The extension can be enabled using the `-fsycl-extended-atomics` flag, and applications can check whether the extension is enabled using `__has_extension(sycl_extended_atomics)`.
 
 === Overloaded Operators
 
-In SYCL 1.2.1, the +cl::sycl::atomic+ class provides atomic operations by way of member functions (e.g. +fetch_add+) without defining the corresponding operators (e.g. `+=`).  This increases the verbosity of simple uses of atomics, and requires developers to change their kernel code when switching between +read_write+ and +atomic+ accessors:
+In SYCL 1.2.1, the +cl::sycl::atomic+ class provides atomic operations by way of member functions (e.g. +fetch_add+) without defining the corresponding operators (e.g. `+=`).  This increases the verbosity of simple uses of atomics.
 
-[source,c++]
-----
-q.submit([&](handler& cgh)
-{
-  auto acc = buf.get_access<access::mode::atomic>(cgh);
-  cgh.parallel_for(..., [=](id<1> i)
-  {
-    acc[i].fetch_add(1); // developer cannot write acc[i]++ without this extension
-  });
-});
-----
-
-The operators defined by this extension match those defined for +std::atomic+ in {cpp}11.  The functionality of each operator is equivalent to calling a corresponding member function of the atomic class -- the operators do not expose any new functionality of the class, but act as shorthands for common use-cases.
+The operators defined by this extension match those defined for +std::atomic_ref+ in {cpp}20.  The functionality of each operator is equivalent to calling a corresponding member function of the +atomic_ref+ class -- the operators do not expose any new functionality of the class, but act as shorthands for common use-cases.
 
 ==== Operators for All Supported Types
 
 [source,c++]
 ----
-  operator T();
-  T operator=(T desired);
-  T operator+=(T operand);
-  T operator-=(T operand);
+operator T();            // equivalent to load()
+T operator=(T desired);  // equivalent to store(desired)
+T operator+=(T operand); // equivalent to fetch_add(operand)
+T operator-=(T operand); // equivalent to fetch_sub(operand)
 ----
 
 ==== Operators for Integral Types
 
 [source,c++]
 ----
-  T operator++(int operand);
-  T operator--(int operand);
-  T operator++();
-  T operator--();
-  T operator&=(T operand);
-  T operator|=(T operand);
-  T operator^=(T operand);
+T operator++(int);         // equivalent to fetch_add(1)
+T operator--(int);         // equivalent to fetch_sub(1)
+T operator++();            // equivalent to fetch_add(1) + 1
+T operator--();            // equivalent to fetch_sub(1) - 1
+T operator&=(T operand);   // equivalent to fetch_and(operand)
+T operator|=(T operand);   // equivalent to fetch_or(operand)
+T operator^=(T operand);   // equivalent to fetch_xor(operand)
+----
+
+==== Operators for Pointer Types
+
+[source,c++]
+----
+T operator++(int); // equivalent to fetch_add(1)
+T operator--(int); // equivalent to fetch_sub(1)
+T operator++();    // equivalent to fetch_add(1) + 1
+T operator--();    // equivalent to fetch_sub(1) - 1
 ----
 
 === Support for Floating-point Types
@@ -113,389 +119,469 @@ In SYCL 1.2.1, support for floating-point types is limited to the +load+, +store
 
 This extension extends support for floating-point types to the +compare_exchange+, +fetch_add+ and +fetch_sub+ functions in line with {cpp}20, as well as the +fetch_min+ and +fetch_max+ functions.  These new functions do not require dedicated floating-point atomic instructions and can be emulated using integer operations, giving compilers the freedom to choose the best implementation for the target device.
 
-== Modifications of SYCL 1.2.1 Specification
+=== Support for Additional Memory Orderings
 
-=== Modify Sentence in Section 3.5.1
+The atomic operations in SYCL 1.2.1 default to +memory_order_relaxed+, which is inconsistent with the default of +memory_order_seq_cst+ used by the +std::atomic+ class.  Defaulting to +memory_order_relaxed+ may improve the performance and portability of SYCL 1.2.1 code across multiple target devices, but may also lead to unexpected behavior when code is migrated between {cpp} and SYCL.  Different users have different understandings of which memory orders are the most common or useful, and the performance difference between memory orders is also expected to vary between devices.  This extension therefore makes the default memory order of +cl::sycl::intel::atomic_ref+ dependent upon a template argument that must be specified by the user.
 
-==== From:
+All devices must support +memory_order_relaxed+, and the host device must support all {cpp} memory orders.  These changes bring the SYCL memory model in line with modern {cpp} while allowing a device/compiler to implement only a subset of {cpp} memory orders.  Supporting the standard {cpp} memory model in SYCL requires that disjoint address spaces (e.g. local and global memory) are treated as though they are part of a single address space (i.e. there must be a single happens-before relationship for all addresses).
 
-Atomic access can also be requested on an accessor which allows +cl::sycl::atomic+ classes to be used via the accessor.
+=== Support for Memory Scopes
 
-==== To:
+The fact that atomic operations in SYCL 1.2.1 obey separate happens-before relationships for global and local memory enables implementations to improve performance by limiting the scope of fences and other visibility operations (e.g. cache flushes) based on the address space to which an atomic operation is applied.  The single happens-before relationship adopted by this proposal for consistency with {cpp} prevents this optimization, which may degrade performance on some architectures in some specific cases.
 
-Atomic access can also be requested on an accessor which allows +cl::sycl::intel::atomic+ classes to be used via the accessor.
+To address this, we introduce an additional concept of memory scope to SYCL atomics, denoting the set of work-items and devices to which the memory ordering constraint of an atomic operation must be applied.  These scopes are defined by a new enumeration class:
 
-=== Modify Paragraph in Section 3.5.2.3
+- +memory_scope::work_item+  
+  The ordering constraint applies only to the calling work-item.  
+  This is only useful for image operations, as all other operations within a work-item are guaranteed to execute in program order.
 
-==== From:
+- +memory_scope::sub_group+  
+  The ordering constraint applies only to work-items in the same sub-group as the calling work-item.
 
-Atomic operations can be performed on memory in buffers. The range of atomic operations available on a specific OpenCL device is limited by the atomic capabilities of that device. The +cl::sycl::atomic<T>+ must be used for elements of a buffer to provide safe atomic access to the buffer from device code.
+- +memory_scope::work_group+  
+  The ordering constraint applies only to work-items in the same work-group as the calling work-item.  
+  This is the broadest scope that can be applied to atomic operations in work-group local memory.  Using any broader scope for atomic operations in work-group local memory is treated as though +memory_scope::work_group+ was specified.
 
-==== To:
+- +memory_scope::device+  
+  The ordering constraint applies only to work-items executing on the same device as the calling work-item.
 
-Atomic operations can be performed on memory. The range of atomic operations available on a specific OpenCL device is limited by the atomic capabilities of that device.  The +cl::sycl::intel::atomic+ class may be used to provide safe atomic access to any memory location, in host or device code.
+- +memory_scope::system+  
+  The ordering constraint applies to any device work-item or host thread in the system that is currently permitted to access the memory allocation containing the referenced object, as defined by the capabilities of buffers and USM.  
+  This scope is equivalent to +memory_scope::device+ if a device does not support Concurrent or System USM.
 
-=== Modify Paragraph in Section 4.2
+All devices must support +memory_scope::work_group+, and the host device must support all memory scopes.
 
-==== From:
+=== The +atomic_ref+ Class
 
-Each of the following SYCL runtime classes: +accessor+, +sampler+, +stream+, +vec+, +multi_ptr+, +device_event+, +id+, +range+, +item+, +nd_item+, +h_item+, +group+ and +atomic+ must be available within a SYCL kernel function.
+The +cl::sycl::intel::atomic_ref+ class is constructed from a reference, and enables atomic operations to the referenced object.  If any non-atomic access to the referenced object is made during the lifetime of the +cl::sycl::intel::atomic_ref+ class then the behavior is undefined.  No subobject of the object referenced by an +atomic_ref+ shall be concurrently referenced by any other +atomic_ref+ object.
 
-==== To:
+The address space specified by the template argument +Space+ must be +access::address_space::global_space+ or +access::address_space::local_space+.  It is illegal for an +atomic_ref+ to reference an object in +access::address_space::constant_space+ or +access::address_space::private_space+.
 
-Each of the following SYCL runtime classes: +accessor+, +sampler+, +stream+, +vec+, +multi_ptr+, +device_event+, +id+, +range+, +item+, +nd_item+, +h_item+, +group+ and +intel::atomic+ must be available within a SYCL kernel function.
+The static member +required_alignment+ describes the minimum required alignment in bytes of an object that can be referenced by an +atomic_ref<T>+, which must be at least +alignof(T)+.
 
-=== Modify Paragraph in Section 4.7.6.5
+The static member +is_always_lock_free+ is true if all atomic operations for type +T+ are always lock-free.  A SYCL implementation is not guaranteed to support atomic operations that are not lock-free.
 
-==== From:
+The static members +default_read_order+, +default_write_order+ and +default_read_modify_write_order+ reflect the default memory order values for each type of atomic operation, consistent with the +DefaultOrder+ template argument.
 
-A buffer accessor with access target +access::target::global_buffer+ can optionally provide atomic access to a SYCL buffer, using the access mode +access::mode::atomic+, in which case all operators which return an element of the SYCL buffer return an instance of the SYCL atomic class.
+The static member +default_scope+ reflects the +DefaultScope+ template argument.
 
-==== To:
+The member functions below are common to atomic references for any type +T+:
 
-A buffer accessor with access target +access::target::global_buffer+ can optionally provide atomic access to a SYCL buffer, using the access mode +access::mode::atomic+, in which case all operators which return an element of the SYCL buffer return an instance of the +cl::sycl::intel::atomic+ class.
+|===
+|Member Functions|Description
 
-=== Modify Listing 4.1
+| `atomic_ref(T& ref)`
+| Constructs an instance of +atomic_ref+ which is associated with the object referenced by _ref_.
 
-==== From:
+| `atomic_ref(const atomic_ref& ref) noexcept`
+| Constructs an instance of +atomic_ref+ which is associated with the same object as _ref_.
 
-[source,c++]
-----
-/* Available only when: accessMode == access::mode::atomic && dimensions == 0 */
-operator atomic<dataT, access::address_space::global_space> () const;
+| `bool is_lock_free() const noexcept`
+| Return +true+ if the atomic operations provided by this +atomic_ref+ are lock-free.
 
-/* Available only when: accessMode == access::mode::atomic && dimensions > 0 */
-atomic<dataT, access::address_space::global_space> operator[](id<dimensions> index) const;
+| `void store(T operand, memory_order order = default_write_order, memory_scope scope = default_scope) const noexcept`
+| Atomically stores _operand_ to the object referenced by this +atomic_ref+.  The memory order of this atomic operation must be +memory_order::relaxed+, +memory_order::release+ or +memory_order::seq_cst+.
 
-/* Available only when: accessMode == access::mode::atomic && dimensions == 1 */
-atomic<dataT, access::address_space::global_space> operator[](size_t index) const;
-----
+| `T operator=(T desired) const noexcept`
+| Equivalent to +store(desired)+.  Returns _desired_.
 
-==== To:
+| `T load(memory_order order = default_read_order, memory_scope scope = default_scope) const noexcept`
+| Atomically loads the value of the object referenced by this +atomic_ref+.  The memory order of this atomic operation must be +memory_order::relaxed+, +memory_order::acquire+, or +memory_order::seq_cst+.
 
-[source,c++]
-----
-/* Available only when: accessMode == access::mode::atomic && dimensions == 0 */
-operator intel::atomic<dataT, access::address_space::global_space> () const;
+| `operator T() const noexcept`
+| Equivalent to +load()+.
 
-/* Available only when: accessMode == access::mode::atomic && dimensions > 0 */
-intel::atomic<dataT, access::address_space::global_space> operator[](id<dimensions> index) const;
+| `T exchange(T operand, memory_order order = default_read_modify_write_order, memory_scope scope = default_scope) const noexcept`
+| Atomically replaces the value of the object referenced by this +atomic_ref+ with _operand_ and returns the original value of the referenced object.
 
-/* Available only when: accessMode == access::mode::atomic && dimensions == 1 */
-intel::atomic<dataT, access::address_space::global_space> operator[](size_t index) const;
-----
+| `bool compare_exchange_weak(T &expected, T desired, memory_order success, memory_order failure, memory_scope scope = default_scope) const noexcept`
+| Atomically compares the value of the object referenced by this +atomic_ref+ against the value of _expected_. If the values are equal attempts to replace the value of the referenced object with the value of +desired+, otherwise assigns the original value of the referenced object to _expected_. Returns +true+ if the comparison operation and replacement operation were successful. The _failure_ memory order of this atomic operation must be +memory_order::relaxed+, +memory_order::acquire+ or +memory_order::seq_cst+.
 
-=== Modify Table 4.46
+| `bool compare_exchange_weak(T &expected, T desired, memory_order order = default_read_modify_write_order, memory_scope scope = default_scope) const noexcept`
+| Equivalent to +compare_exchange_weak(expected, desired, order, order, scope)+.
 
-==== Replace each instance of:
+| `bool compare_exchange_strong(T &expected, T desired, memory_order success, memory_order failure, memory_scope scope = default_scope) const noexcept`
+| Atomically compares the value of the object referenced by this +atomic_ref+ against the value of _expected_. If the values are equal replaces the value of the referenced object with the value of +desired+, otherwise assigns the original value of the referenced object to _expected_. Returns +true+ if the comparison operation was successful. The _failure_ memory order of this atomic operation must be +memory_order::relaxed+, +memory_order::acquire+ or +memory_order::seq_cst+.
 
-+atomic+
+| `bool compare_exchange_strong(T &expected, T desired, memory_order order = default_read_modify_write_order, memory_scope scope = default_scope) const noexcept`
+| Equivalent to +compare_exchange_strong(expected, desired, order, order, scope)+.
 
-==== With:
+|===
 
-+intel::atomic+
+The additional member functions below are available for atomic references to integral types:
 
-=== Modify Paragraph in Section 4.7.6.7
+|===
+|Member Functions|Description
 
-==== From:
+| `T fetch_add(T operand, memory_order order = default_read_modify_write_order, memory_scope scope = default_scope) const noexcept`
+| Atomically adds _operand_ to the value of the object referenced by this +atomic_ref+ and assigns the result to the value of the referenced object.  Returns the original value of the referenced object.
 
-A local accessor can optionally provide atomic access to allocated memory, using the access mode +access::mode::atomic+, in which case all operators which return an element of the allocated memory return an instance of the SYCL atomic class.
+| `T operator+=(T operand) const noexcept`
+| Equivalent to +fetch_add(operand)+.
 
-==== To:
+| `T operator++(int) const noexcept`
+| Equivalent to +fetch_add(1)+.
 
-A local accessor can optionally provide atomic access to allocated memory, using the access mode +access::mode::atomic+, in which case all operators which return an element of the allocated memory return an instance of the +cl::sycl::intel::atomic+ class.
+| `T operator++() const noexcept`
+| Equivalent to +fetch_add(1) + 1+.
 
-=== Modify Listing 4.2
+| `T fetch_sub(T operand, memory_order order = default_read_modify_write_order, memory_scope scope = default_scope) const noexcept`
+| Atomically subtracts _operand_ from the value of the object referenced by this +atomic_ref+ and assigns the result to the value of the referenced object.  Returns the original  value of the referenced object.
 
-==== From:
+| `T operator-=(T operand) const noexcept`
+| Equivalent to +fetch_sub(operand)+.
 
-[source,c++]
-----
-/* Available only when: accessMode == access::mode::atomic && dimensions == 0 */
-operator atomic<dataT, access::address_space::local_space> () const;
+| `T operator--(int) const noexcept`
+| Equivalent to +fetch_sub(1)+.
 
-/* Available only when: accessMode == access::mode::atomic && dimensions > 0 */
-atomic<dataT, access::address_space::local_space> operator[](id<dimensions> index) const;
+| `T operator--() const noexcept`
+| Equivalent to +fetch_sub(1) - 1+.
 
-/* Available only when: accessMode == access::mode::atomic && dimensions == 1 */
-atomic<dataT, access::address_space::local_space> operator[](size_t index) const;
-----
+| `T fetch_and(T operand, memory_order order = default_read_modify_write_order, memory_scope scope = default_scope) const noexcept`
+| Atomically performs a bitwise AND between _operand_ and the value of the object referenced by this +atomic_ref+, and assigns the result to the value of the referenced object. Returns the original value of the referenced object.
 
-===== To:
+| `T operator&=(T operand) const noexcept`
+| Equivalent to +fetch_and(operand)+.
 
-[source,c++]
-----
-/* Available only when: accessMode == access::mode::atomic && dimensions == 0 */
-operator intel::atomic<dataT, access::address_space::local_space> () const;
+| `T fetch_or(T operand, memory_order order = default_read_modify_write_order, memory_scope scope = default_scope) const noexcept`
+| Atomically performs a bitwise OR between _operand_ and the value of the object referenced by this +atomic_ref+, and assigns the result to the value of the referenced object. Returns the original value of the referenced object.
 
-/* Available only when: accessMode == access::mode::atomic && dimensions > 0 */
-intel::atomic<dataT, access::address_space::local_space> operator[](id<dimensions> index) const;
+| `T operator\|=(T operand) const noexcept`
+| Equivalent to +fetch_or(operand)+.
 
-/* Available only when: accessMode == access::mode::atomic && dimensions == 1 */
-intel::atomic<dataT, access::address_space::local_space> operator[](size_t index) const;
-----
+| `T fetch_xor(T operand, memory_order order = default_read_modify_write_order, memory_scope scope = default_scope) const noexcept`
+| Atomically performs a bitwise XOR between the value +operand+ and the value of the object referenced by this +atomic_ref+, and assigns the result to the value of the referenced object. Returns the original value of the referenced object.
 
-=== Modify Table 4.49
+| `T operator^=(T operand) const noexcept`
+| Equivalent to +fetch_xor(operand)+.
 
-==== Replace each instance of:
+| `T fetch_min(T operand, memory_order order = default_read_modify_write_order, memory_scope scope = default_scope) const noexcept`
+| Atomically computes the minimum of _operand_ and the value of the object referenced by this +atomic_ref+, and assigns the result to the value of the referenced object. Returns the original value of the referenced object.
 
-+atomic+
+| `T fetch_max(T operand, memory_order order = default_read_modify_write_order, memory_scope scope = default_scope) const noexcept`
+| Atomically computes the maximum of _operand_ and the value of the object referenced by this +atomic_ref+, and assigns the result to the value of the referenced object. Returns the original value of the referenced object.
 
-==== With:
+|===
 
-+intel::atomic+
+The additional member functions below are available for atomic references to floating-point types:
 
-=== Modify Section 4.11
+|===
+| Member Function | Description
 
-==== From:
+| `T fetch_add(T operand, memory_order order = default_read_modify_write_order, memory_scope scope = default_scope) const noexcept`
+| Atomically adds _operand_ to the value of the object referenced by this +atomic_ref+ and assigns the result to the value of the referenced object.  Returns the original value of the referenced object.
 
-The SYCL specification provides atomic operations based on the {cpp}11 library syntax. The only available ordering, due to constraints of the OpenCL 1.2 memory model, is +memory_order_relaxed+. No default order is supported because a default order would imply sequential consistency. The SYCL atomic library may map directly to the underlying {cpp}11 library in host code, and must interact safely with the host {cpp}11 atomic library when used in host code. The SYCL library must be used in device code to ensure that only the limited subset of functionality is available. SYCL 1.2.1 device compilers should give a compilation error on use of the +std::atomic+ classes and functions in device code.
+| `T operator+=(T operand) const noexcept`
+| Equivalent to +fetch_add(operand)+.
 
-The template parameter +addressSpace+ is permitted to be +access::address_space::global_space+ or +access::address_space::local_space+.
+| `T fetch_sub(T operand, memory_order order = default_read_modify_write_order, memory_scope scope = default_scope) const noexcept`
+| Atomically subtracts _operand_ from the value of the object referenced by this +atomic_ref+ and assigns the result to the value of the referenced object.  Returns the original  value of the referenced object.
 
-The data type +T+ is permitted to be +int+, +unsigned int+, +long+, +unsigned long+, +long long+, +unsigned long long+ and +float+. Though +float+ is only available for the +store+, +load+ and +exchange+ member functions. For any data type +T+ which is 64 bit, the member functions of the atomic class are required to compile however are only guaranteed to execute if the 64 bit atomic extension +cl_khr_int64_base_atomics+ or +cl_khr_int64_extended_atomics+ (depending on which extension provides support for each given member function) is supported by the SYCL device which is executing the SYCL kernel function. If a member function is called with a 64 bit data type and the necessary extension is not supported by the SYCL device which is executing the SYCL kernel function, the SYCL runtime must throw a SYCL feature_not_supported exception. For more detail see Section 5.2.
+| `T operator-=(T operand) const noexcept`
+| Equivalent to +fetch_sub(operand)+.
 
-==== To:
+| `T fetch_min(T operand, memory_order order = default_read_modify_write_order, memory_scope scope = default_scope) const noexcept`
+| Atomically computes the minimum of _operand_ and the value of the object referenced by this +atomic_ref+, and assigns the result to the value of the referenced object. Returns the original value of the referenced object.
 
-The SYCL specification provides atomic operations based on the {cpp}11 library syntax. The only available ordering, due to constraints of the OpenCL 1.2 memory model, is +memory_order_relaxed+. No default order is supported because a default order would imply sequential consistency. The SYCL atomic library may map directly to the underlying {cpp}11 library in host code, and must interact safely with the host {cpp}11 atomic library when used in host code. The SYCL library must be used in device code to ensure that only the limited subset of functionality is available. SYCL 1.2.1 device compilers should give a compilation error on use of the +std::atomic+ classes and functions in device code.
+| `T fetch_max(T operand, memory_order order = default_read_modify_write_order, memory_scope scope = default_scope) const noexcept`
+| Atomically computes the maximum of _operand_ and the value of the object referenced by this +atomic_ref+, and assigns the result to the value of the referenced object. Returns the original value of the referenced object.
 
-The template parameter +addressSpace+ is permitted to be +access::address_space::global_space+ or +access::address_space::local_space+.
+|===
 
-The data type +T+ is permitted to be +int+, +unsigned int+, +long+, +unsigned long+, +long long+, +unsigned long long+, +float+ or +double+.  For any data type +T+ which is 64 bit, the member functions of the atomic class are required to compile however are only guaranteed to execute if the 64 bit atomic extension +cl_khr_int64_base_atomics+ or +cl_khr_int64_extended_atomics+ (depending on which extension provides support for each given member function) is supported by the SYCL device which is executing the SYCL kernel function.  For +float+ and +double+, the member functions of the atomic class may be emulated, and may use a different floating-point environment to those defined by +info::device::single_fp_config+ and +info::device::double_fp_config+ (i.e. floating-point atomics may use different rounding modes and may have different exception behavior).  If a member function is called with a 64 bit data type and the necessary extension is not supported by the SYCL device which is executing the SYCL kernel function, the SYCL runtime must throw a SYCL +feature_not_supported+ exception.  For more detail see Section 5.2.
+The additional member functions below are available for atomic references to pointer types:
 
-==== From:
+|===
+| Member Function | Description
+
+| `T* fetch_add(difference_type operand, memory_order order = default_read_modify_write_order, memory_scope scope = default_scope) const noexcept`
+| Atomically adds _operand_ to the value of the object referenced by this +atomic_ref+ and assigns the result to the value of the referenced object.  Returns the original value of the referenced object.
+
+| `T* operator+=(difference_type operand) const noexcept`
+| Equivalent to +fetch_add(operand)+.
+
+| `T* operator++(int) const noexcept`
+| Equivalent to +fetch_add(1)+.
+
+| `T* operator++() const noexcept`
+| Equivalent to +fetch_add(1) + 1+.
+
+| `T* fetch_sub(difference_type operand, memory_order order = default_read_modify_write_order, memory_scope scope = default_scope) const noexcept`
+| Atomically subtracts _operand_ from the value of the object referenced by this +atomic_ref+ and assigns the result to the value of the referenced object.  Returns the original  value of the referenced object.
+
+| `T* operator-=(difference_type operand) const noexcept`
+| Equivalent to +fetch_sub(operand)+.
+
+| `T* operator--(int) const noexcept`
+| Equivalent to +fetch_sub(1)+.
+
+| `T* operator--() const noexcept`
+| Equivalent to +fetch_sub(1) - 1+.
+
+|===
+
+==== Atomic Fence
+
+The +atomic_fence+ function corresponds to the +std::atomic_thread_fence+ function, and performs a memory fence ordering accesses to any memory space across the specified +memory_scope+.
+
+The effects of a call to +atomic_fence+ depend on the value of the +order+ parameter:
+
+- `relaxed`: No effect
+- `acquire`: Acquire fence
+- `release`: Release fence
+- `acq_rel`: Both an acquire fence and a release fence
+- `seq_cst`: A sequentially consistent acquire and release fence
+
+==== Sample  Header
 
 [source,c++]
 ----
 namespace cl {
 namespace sycl {
-enum class memory_order : int {
-  relaxed
-};
-template <typename T, access::address_space addressSpace =
-  access::address_space::global_space>
-class atomic {
- public:
-  template <typename pointerT>
-  atomic(multi_ptr<pointerT, addressSpace> ptr);
-
-  void store(T operand, memory_order memoryOrder =
-  memory_order::relaxed);
-
-  T load(memory_order memoryOrder = memory_order::relaxed) const;
-
-  T exchange(T operand, memory_order memoryOrder =
-    memory_order::relaxed);
-
-  /* Available only when: T != float */
-  bool compare_exchange_strong(T &expected, T desired,
-    memory_order successMemoryOrder = memory_order::relaxed,
-    memory_order failMemoryOrder = memory_order::relaxed);
-
-  /* Available only when: T != float */
-  T fetch_add(T operand, memory_order memoryOrder =
-    memory_order::relaxed);
-
-  /* Available only when: T != float */
-  T fetch_sub(T operand, memory_order memoryOrder =
-    memory_order::relaxed);
-
-  /* Available only when: T != float */
-  T fetch_and(T operand, memory_order memoryOrder =
-    memory_order::relaxed);
-
-  /* Available only when: T != float */
-  T fetch_or(T operand, memory_order memoryOrder =
-    memory_order::relaxed);
-
-  /* Available only when: T != float */
-  T fetch_xor(T operand, memory_order memoryOrder =
-    memory_order::relaxed);
-
-  /* Available only when: T != float */
-  T fetch_min(T operand, memory_order memoryOrder =
-    memory_order::relaxed);
-
-  /* Available only when: T != float */
-  T fetch_max(T operand, memory_order memoryOrder =
-    memory_order::relaxed);
-};
-} // namespace sycl
-} // namespace cl
-----
-
-==== To:
-
-[source,c++]
-----
-namespace cl {
-namespace sycl {
-enum class memory_order : int {
-  relaxed
-};
 namespace intel {
-template <typename T, access::address_space addressSpace =
-  access::address_space::global_space>
-class atomic {
+enum class memory_order : /* unspecified */ {
+  relaxed, acquire, release, acq_rel, seq_cst
+};
+inline constexpr memory_order memory_order_relaxed = memory_order::relaxed;
+inline constexpr memory_order memory_order_acquire = memory_order::acquire;
+inline constexpr memory_order memory_order_release = memory_order::release;
+inline constexpr memory_order memory_order_acq_rel = memory_order::acq_rel;
+inline constexpr memory_order memory_order_seq_cst = memory_order::seq_cst;
+
+enum class memory_scope : /* unspecified */ {
+  work_item, sub_group, work_group, device, system
+};
+inline constexpr memory_scope memory_scope_work_item = memory_scope::work_item;
+inline constexpr memory_scope memory_scope_sub_group = memory_scope::sub_group;
+inline constexpr memory_scope memory_scope_work_group = memory_scope::work_group;
+inline constexpr memory_scope memory_scope_device = memory_scope::device;
+inline constexpr memory_scope memory_scope_system = memory_scope::system;
+
+// Exposition only
+template <memory_order ReadModifyWriteOrder>
+struct memory_order_traits;
+
+template <>
+struct memory_order_traits<memory_order::relaxed> {
+  static constexpr memory_order read_order = memory_order::relaxed;
+  static constexpr memory_order write_order = memory_order::relaxed;
+};
+
+template <>
+struct memory_order_traits<memory_order::acq_rel> {
+  static constexpr memory_order read_order = memory_order::acquire;
+  static constexpr memory_order write_order = memory_order::release;
+};
+
+template <>
+struct memory_order_traits<memory_order::seq_cst> {
+  static constexpr memory_order read_order = memory_order::seq_cst;
+  static constexpr memory_order write_order = memory_order::seq_cst;
+};
+
+template <typename T, memory_order DefaultOrder, memory_scope DefaultScope, access::address_space Space>
+class atomic_ref {
  public:
 
-  atomic(multi_ptr<T, addressSpace> ptr);
-  atomic(const atomic&);
-  atomic& operator=(const atomic&) = delete;
+  using value_type = T;
+  static constexpr size_t required_alignment = /* implementation-defined */;
+  static constexpr bool is_always_lock_free = /* implementation-defined */;
+  static constexpr memory_order default_read_order = memory_order_traits<DefaultOrder>::read_order;
+  static constexpr memory_order default_write_order = memory_order_traits<DefaultOrder>::write_order;
+  static constexpr memory_order default_read_modify_write_order = DefaultOrder;
+  static constexpr memory_scope default_scope = DefaultScope;
 
-  bool is_lock_free() const;
+  bool is_lock_free() const noexcept;
 
-  void store(T operand, memory_order order =
-    memory_order::relaxed);
+  explicit atomic_ref(T&);
+  atomic_ref(const atomic_ref&) noexcept;
+  atomic_ref& operator=(const atomic_ref&) = delete;
 
-  T operator=(T desired);
+  void store(T operand,
+    memory_order order = default_write_order,
+    memory_scope scope = default_scope) const noexcept;
 
-  T load(memory_order order = memory_order::relaxed) const;
+  T operator=(T desired) const noexcept;
 
-  operator T() const;
+  T load(memory_order order = default_read_order,
+    memory_scope scope = default_scope) const noexcept;
 
-  T exchange(T operand, memory_order order =
-    memory_order::relaxed);
+  operator T() const noexcept;
+
+  T exchange(T operand,
+    memory_order order = default_read_modify_write_order,
+    memory_scope scope = default_scope) const noexcept;
 
   bool compare_exchange_weak(T &expected, T desired,
-    memory_order success = memory_order::relaxed,
-    memory_order failure = memory_order::relaxed);
+    memory_order success,
+    memory_order failure,
+    memory_scope scope = default_scope) const noexcept;
 
   bool compare_exchange_weak(T &expected, T desired,
-    memory_order order = memory_order::relaxed);
+    memory_order order = default_read_modify_write_order,
+    memory_scope scope = default_scope) const noexcept;
 
   bool compare_exchange_strong(T &expected, T desired,
-    memory_order success = memory_order::relaxed,
-    memory_order failure = memory_order::relaxed);
+    memory_order success,
+    memory_order failure,
+    memory_scope scope = default_scope) const noexcept;
 
   bool compare_exchange_strong(T &expected, T desired,
-    memory_order order = memory_order::relaxed);
-
-  T fetch_add(T operand, memory_order order =
-    memory_order::relaxed);
-
-  T fetch_sub(T operand, memory_order order =
-    memory_order::relaxed);
-
-  T fetch_min(T operand, memory_order order =
-    memory_order::relaxed);
-
-  T fetch_max(T operand, memory_order order =
-    memory_order::relaxed);
-
-  T operator+=(T operand);
-  T operator-=(T operand);
-
-  /* Available only when T is Integral */
-  T fetch_and(T operand, memory_order order =
-    memory_order::relaxed);
-
-  T fetch_or(T operand, memory_order order =
-    memory_order::relaxed);
-
-  T fetch_xor(T operand, memory_order order =
-    memory_order::relaxed);
-
-  T operator++(int operand);
-  T operator--(int operand);
-  T operator++();
-  T operator--();
-  T operator&= (T operand);
-  T operator|= (T operand);
-  T operator^= (T operand);
+    memory_order order = default_read_modify_write_order,
+    memory_scope scope = default_scope) const noexcept;
 };
+
+// Partial specialization for integral types
+template <memory_order DefaultOrder, memory_scope DefaultScope, access::address_space Space>
+class atomic_ref<Integral, DefaultOrder, DefaultScope, Space> {
+
+  /* All other members from atomic_ref<T> are available */
+
+  using difference_type = value_type;
+
+  Integral fetch_add(Integral operand,
+    memory_order order = default_read_modify_write_order,
+    memory_scope scope = default_scope) const noexcept;
+
+  Integral fetch_sub(Integral operand,
+    memory_order order = default_read_modify_write_order,
+    memory_scope scope = default_scope) const noexcept;
+
+  Integral fetch_and(Integral operand,
+    memory_order order = default_read_modify_write_order,
+    memory_scope scope = default_scope) const noexcept;
+
+  Integral fetch_or(Integral operand,
+    memory_order order = default_read_modify_write_order,
+    memory_scope scope = default_scope) const noexcept;
+
+  Integral fetch_min(Integral operand,
+    memory_order order = default_read_modify_write_order,
+    memory_scope scope = default_scope) const noexcept;
+
+  Integral fetch_max(Integral operand,
+    memory_order order = default_read_modify_write_order,
+    memory_scope scope = default_scope) const noexcept;
+
+  Integral operator++(int) const noexcept;
+  Integral operator--(int) const noexcept;
+  Integral operator++() const noexcept;
+  Integral operator--() const noexcept;
+  Integral operator+=(Integral) const noexcept;
+  Integral operator-=(Integral) const noexcept;
+  Integral operator&=(Integral) const noexcept;
+  Integral operator|=(Integral) const noexcept;
+  Integral operator^=(Integral) const noexcept;
+
+};
+
+// Partial specialization for floating-point types
+template <memory_order DefaultOrder, memory_scope DefaultScope, access::address_space Space>
+class atomic_ref<Floating, DefaultOrder, DefaultScope, Space> {
+
+  /* All other members from atomic_ref<T> are available */
+
+  using difference_type = value_type;
+
+  Floating fetch_add(Floating operand,
+    memory_order order = default_read_modify_write_order,
+    memory_scope scope = default_scope) const noexcept;
+
+  Floating fetch_sub(Floating operand,
+    memory_order order = default_read_modify_write_order,
+    memory_scope scope = default_scope) const noexcept;
+
+  Floating fetch_min(Floating operand,
+    memory_order order = default_read_modify_write_order,
+    memory_scope scope = default_scope) const noexcept;
+
+  Floating fetch_max(Floating operand,
+    memory_order order = default_read_modify_write_order,
+    memory_scope scope = default_scope) const noexcept;
+
+  Floating operator++(int) const noexcept;
+  Floating operator--(int) const noexcept;
+  Floating operator++() const noexcept;
+  Floating operator--() const noexcept;
+  Floating operator+=(Floating) const noexcept;
+  Floating operator-=(Floating) const noexcept;
+
+};
+
+// Partial specialization for pointers
+template <typename T, memory_order DefaultOrder, memory_scope DefaultScope, access::address_space Space>
+class atomic_ref<T*, DefaultOrder, DefaultScope, Space> {
+
+  using value_type = T*;
+  using difference_type = ptrdiff_t;
+  static constexpr size_t required_alignment = /* implementation-defined */;
+  static constexpr bool is_always_lock_free = /* implementation-defined */;
+  static constexpr memory_order default_read_order = memory_order_traits<DefaultOrder>::read_order;
+  static constexpr memory_order default_write_order = memory_order_traits<DefaultOrder>::write_order;
+  static constexpr memory_order default_read_modify_write_order = DefaultOrder;
+  static constexpr memory_scope default_scope = DefaultScope;
+
+  bool is_lock_free() const noexcept;
+
+  explicit atomic_ref(T*&);
+  atomic_ref(const atomic_ref&) noexcept;
+  atomic_ref& operator=(const atomic_ref&) = delete;
+
+  void store(T* operand,
+    memory_order order = default_write_order,
+    memory_scope scope = default_scope) const noexcept;
+
+  T* operator=(T* desired) const noexcept;
+
+  T* load(memory_order order = default_read_order,
+    memory_scope scope = default_scope) const noexcept;
+
+  operator T*() const noexcept;
+
+  T* exchange(T* operand,
+    memory_order order = default_read_modify_write_order,
+    memory_scope scope = default_scope) const noexcept;
+
+  bool compare_exchange_weak(T* &expected, T* desired,
+    memory_order success,
+    memory_order failure,
+    memory_scope scope = default_scope) const noexcept;
+
+  bool compare_exchange_weak(T* &expected, T* desired,
+    memory_order order = default_read_modify_write_order,
+    memory_scope scope = default_scope) const noexcept;
+
+  bool compare_exchange_strong(T* &expected, T* desired,
+    memory_order success,
+    memory_order failure,
+    memory_scope scope = default_scope) const noexcept;
+
+  bool compare_exchange_strong(T* &expected, T* desired,
+    memory_order order = default_read_modify_write_order,
+    memory_scope scope = default_scope) const noexcept;
+
+  T* fetch_add(difference_type,
+    memory_order order = default_read_modify_write_order,
+    memory_scope scope = default_scope) const noexcept;
+
+  T* fetch_sub(difference_type,
+    memory_order order = default_read_modify_write_order,
+    memory_scope scope = default_scope) const noexcept;
+
+  T* operator++(int) const noexcept;
+  T* operator--(int) const noexcept;
+  T* operator++() const noexcept;
+  T* operator--() const noexcept;
+  T* operator+=(difference_type) const noexcept;
+  T* operator-=(difference_type) const noexcept;
+
+};
+
+void atomic_fence(memory_order order, memory_scope scope):
+
 } // namespace intel
 } // namespace sycl
 } // namespace cl
 ----
-
-=== Modify Table 4.100
-
-==== From:
-
-|===
-|Constructor|Description
-
-|+template <typename pointerT> atomic(multi_ptr<pointerT, addressSpace> ptr)+
-|Permitted data types for +pointerT+ are any valid scalar data type which is the same size in bytes as +T+.  Constructs an instance of SYCL +atomic+ which is associated with the pointer +ptr+, converted to a pointer of data type +T+.
-|===
-
-==== To:
-
-|===
-|Constructor|Description
-
-|+atomic(multi_ptr<T, addressSpace> ptr)+
-|Constructs an instance of SYCL +atomic+ which is associated with the pointer +ptr+.
-|===
-
-=== Modify Table 4.101
-
-==== Add:
-
-|===
-|Member function|Description
-|+bool is_lock_free() const+
-|Return +true+ if the atomic operations provided by this SYCL +atomic+ are lock-free.
-
-|+bool compare_exchange_weak(T &expected, T desired, memory_order order = memory_order::relaxed)+
-|Atomically compares the value at the address of the +multi_ptr+ associated with this SYCL +atomic+ against the value of +expected+.  If the values are equal attempts to replaces value at address of the +multi_ptr+ associated with this SYCL +atomic+ with the value of +desired+, otherwise assigns the original value at the address of the +multi_ptr+ associated with this SYCL +atomic+ to +expected+.  Returns +true+ if the comparison operation and replacement operation were successful.  The memory order of this atomic operation must be +memory_order::relaxed+ for both success and fail.
-
-|+bool compare_exchange_weak(T &expected, T desired, memory_order order = memory_order::relaxed)+
-|Equivalent to +compare_exchange_weak(expected, desired, order, order)+.
-
-|+bool compare_exchange_strong(T &expected, T desired, memory_order order = memory_order::relaxed)+
-|Equivalent to +compare_exchange_strong(expected, desired, order, order)+.
-
-|+operator T() const+
-|Equivalent to +load()+.
-
-|+T operator=(T desired)+
-|Equivalent to +store(desired)+.  Returns +desired+.
-
-|`operator+=(T operand)`
-|Equivalent to +fetch_add(operand)+.
-
-|+operator-=(T operand)+
-|Equivalent to +fetch_sub(operand)+.
-
-|`T operator++(int operand)`
-|Available only when: +T+ != +float+.  Equivalent to +fetch_add(operand)+.
-
-|+T operator--(int operand)+
-|Available only when: +T+ != +float+.  Equivalent to +fetch_sub(operand)+.
-
-|`T operator++()`
-|Available only when: +T+ != +float+.  Equivalent to `fetch_add(1) + 1`.
-
-|+T operator--()+
-|Available only when: +T+ != +float+.  Equivalent to `fetch_sub(1) - 1`.
-
-|`T operator&=(T operand)`
-|Available only when: +T+ != +float+.  Equivalent to +fetch_and(operand)+.
-
-|`T operator\|= (T operand)`
-|Available only when: +T+ != +float+.  Equivalent to +fetch_or(operand)+.
-
-|`T operator^= (T operand)`
-|Available only when: +T+ != +float+.  Equivalent to +fetch_xor(operand)+.
-
-|
-|===
-
-==== Remove:
-
-"Available only when: +T+ != +float+" from definitions of +compare_exchange_strong+, +fetch_add+ and +fetch_sub+.
-
-=== Modify Section 5.2
-
-==== From:
-
-The SYCL +atomic+ class can support 64 bit data types...
-
-==== To:
-
-The +intel::atomic+ class can support 64 bit data types...
 
 == Issues
 
@@ -515,6 +601,10 @@ None.
 |========================================
 |Rev|Date|Author|Changes
 |1|2020-01-30|John Pennycook|*Initial public working draft*
+|2|2020-04-07|John Pennycook|*Rename class, remove accessor usage, adjust memory orders*
+|3|2020-04-09|John Pennycook|*Add atomic_fence*
+|4|2020-04-24|John Pennycook|*Add memory scope*
+|5|2020-04-29|John Pennycook|*Fix ambiguous overloads of compare_exchange and typo in fetch_sub*
 |========================================
 
 //************************************************************************

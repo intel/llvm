@@ -36,9 +36,9 @@
 #include "llvm/ADT/Twine.h"
 
 using namespace llvm;
+using namespace lld;
+using namespace lld::elf;
 
-namespace lld {
-namespace elf {
 // Returns a whole line containing the current token.
 StringRef ScriptLexer::getLine() {
   StringRef s = getCurrentMB().getBuffer();
@@ -187,7 +187,7 @@ static std::vector<StringRef> tokenizeExpr(StringRef s) {
       break;
     }
 
-    // Get a token before the opreator.
+    // Get a token before the operator.
     if (e != 0)
       ret.push_back(s.substr(0, e));
 
@@ -298,6 +298,3 @@ MemoryBufferRef ScriptLexer::getCurrentMB() {
       return mb;
   llvm_unreachable("getCurrentMB: failed to find a token");
 }
-
-} // namespace elf
-} // namespace lld

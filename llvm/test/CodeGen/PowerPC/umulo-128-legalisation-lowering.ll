@@ -3,7 +3,6 @@
 ; RUN: llc < %s -mtriple=powerpc-unknown-linux-gnu | FileCheck %s --check-prefixes=PPC32
 
 define { i128, i8 } @muloti_test(i128 %l, i128 %r) unnamed_addr #0 {
-; PPC64-LABEL muloti_test:
 ; PPC64-LABEL: muloti_test:
 ; PPC64:       # %bb.0: # %start
 ; PPC64-NEXT:    mulld 8, 5, 4
@@ -30,7 +29,7 @@ define { i128, i8 } @muloti_test(i128 %l, i128 %r) unnamed_addr #0 {
 ; PPC64-NEXT:    ori 5, 7, 0
 ; PPC64-NEXT:    blr
 ; PPC64-NEXT:  .LBB0_2: # %start
-; PPC64-NEXT:    addi 5, 0, 0
+; PPC64-NEXT:    li 5, 0
 ; PPC64-NEXT:    blr
 ;
 ; PPC32-LABEL: muloti_test:
@@ -131,7 +130,7 @@ define { i128, i8 } @muloti_test(i128 %l, i128 %r) unnamed_addr #0 {
 ; PPC32-NEXT:    ori 7, 3, 0
 ; PPC32-NEXT:    b .LBB0_3
 ; PPC32-NEXT:  .LBB0_2: # %start
-; PPC32-NEXT:    addi 7, 0, 0
+; PPC32-NEXT:    li 7, 0
 ; PPC32-NEXT:  .LBB0_3: # %start
 ; PPC32-NEXT:    mr 3, 8
 ; PPC32-NEXT:    mtcrf 32, 12 # cr2
@@ -151,7 +150,6 @@ define { i128, i8 } @muloti_test(i128 %l, i128 %r) unnamed_addr #0 {
 ; PPC32-NEXT:    addi 1, 1, 80
 ; PPC32-NEXT:    mtlr 0
 ; PPC32-NEXT:    blr
-; PPC32-LABEL muloti_test:
 start:
   %0 = tail call { i128, i1 } @llvm.umul.with.overflow.i128(i128 %l, i128 %r) #2
   %1 = extractvalue { i128, i1 } %0, 0

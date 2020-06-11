@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/device.hpp>
@@ -31,6 +32,17 @@ namespace detail {
 class queue_impl;
 }
 
+/// Encapsulates a single SYCL queue which schedules kernels on a SYCL device.
+///
+/// A SYCL queue can be used to submit command groups to be executed by the SYCL
+/// runtime.
+///
+/// \sa device
+/// \sa handler
+/// \sa event
+/// \sa kernel
+///
+/// \ingroup sycl_api
 class __SYCL_EXPORT queue {
 public:
   /// Constructs a SYCL queue instance using the device returned by an instance
@@ -299,7 +311,7 @@ public:
   ///
   /// \param Ptr is a USM pointer to the memory to be prefetched to the device.
   /// \param Count is a number of bytes to be prefetched.
-  event prefetch(const void* Ptr, size_t Count) {
+  event prefetch(const void *Ptr, size_t Count) {
     return submit([=](handler &CGH) { CGH.prefetch(Ptr, Count); });
   }
 
@@ -394,8 +406,8 @@ public:
 #endif
     return submit(
         [&](handler &CGH) {
-          CGH.template parallel_for<KernelName, KernelType, Dims>(NumWorkItems,
-                                                                  KernelFunc);
+          CGH.template parallel_for<KernelName, KernelType>(NumWorkItems,
+                                                            KernelFunc);
         },
         CodeLoc);
   }
@@ -422,8 +434,8 @@ public:
     return submit(
         [&](handler &CGH) {
           CGH.depends_on(DepEvent);
-          CGH.template parallel_for<KernelName, KernelType, Dims>(NumWorkItems,
-                                                                  KernelFunc);
+          CGH.template parallel_for<KernelName, KernelType>(NumWorkItems,
+                                                            KernelFunc);
         },
         CodeLoc);
   }
@@ -452,8 +464,8 @@ public:
     return submit(
         [&](handler &CGH) {
           CGH.depends_on(DepEvents);
-          CGH.template parallel_for<KernelName, KernelType, Dims>(NumWorkItems,
-                                                                  KernelFunc);
+          CGH.template parallel_for<KernelName, KernelType>(NumWorkItems,
+                                                            KernelFunc);
         },
         CodeLoc);
   }
@@ -479,7 +491,7 @@ public:
 #endif
     return submit(
         [&](handler &CGH) {
-          CGH.template parallel_for<KernelName, KernelType, Dims>(
+          CGH.template parallel_for<KernelName, KernelType>(
               NumWorkItems, WorkItemOffset, KernelFunc);
         },
         CodeLoc);
@@ -509,7 +521,7 @@ public:
     return submit(
         [&](handler &CGH) {
           CGH.depends_on(DepEvent);
-          CGH.template parallel_for<KernelName, KernelType, Dims>(
+          CGH.template parallel_for<KernelName, KernelType>(
               NumWorkItems, WorkItemOffset, KernelFunc);
         },
         CodeLoc);
@@ -540,7 +552,7 @@ public:
     return submit(
         [&](handler &CGH) {
           CGH.depends_on(DepEvents);
-          CGH.template parallel_for<KernelName, KernelType, Dims>(
+          CGH.template parallel_for<KernelName, KernelType>(
               NumWorkItems, WorkItemOffset, KernelFunc);
         },
         CodeLoc);
@@ -567,8 +579,8 @@ public:
 #endif
     return submit(
         [&](handler &CGH) {
-          CGH.template parallel_for<KernelName, KernelType, Dims>(
-              ExecutionRange, KernelFunc);
+          CGH.template parallel_for<KernelName, KernelType>(ExecutionRange,
+                                                            KernelFunc);
         },
         CodeLoc);
   }
@@ -596,8 +608,8 @@ public:
     return submit(
         [&](handler &CGH) {
           CGH.depends_on(DepEvent);
-          CGH.template parallel_for<KernelName, KernelType, Dims>(
-              ExecutionRange, KernelFunc);
+          CGH.template parallel_for<KernelName, KernelType>(ExecutionRange,
+                                                            KernelFunc);
         },
         CodeLoc);
   }
@@ -627,8 +639,8 @@ public:
     return submit(
         [&](handler &CGH) {
           CGH.depends_on(DepEvents);
-          CGH.template parallel_for<KernelName, KernelType, Dims>(
-              ExecutionRange, KernelFunc);
+          CGH.template parallel_for<KernelName, KernelType>(ExecutionRange,
+                                                            KernelFunc);
         },
         CodeLoc);
   }
@@ -638,7 +650,18 @@ public:
   /// Equivalent to has_property<property::queue::in_order>()
   bool is_in_order() const;
 
+  /// Gets the native handle of the SYCL queue.
+  ///
+  /// \return a native handle, the type of which defined by the backend.
+  template <backend BackendName>
+  auto get_native() const -> typename interop<BackendName, queue>::type {
+    return reinterpret_cast<typename interop<BackendName, queue>::type>(
+        getNative());
+  }
+
 private:
+  pi_native_handle getNative() const;
+
   shared_ptr_class<detail::queue_impl> impl;
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);

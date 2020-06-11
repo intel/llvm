@@ -29,6 +29,12 @@ class program_impl;
 
 enum class program_state { none, compiled, linked };
 
+/// Provides an abstraction of a SYCL program.
+///
+/// \sa kernel
+/// \sa queue
+///
+/// \ingroup sycl_api
 class __SYCL_EXPORT program {
 public:
   program() = delete;
@@ -307,6 +313,8 @@ public:
                       std::is_floating_point<T>::value,
                   "unsupported specialization constant type");
 #ifdef __SYCL_DEVICE_ONLY__
+    (void)Cst;
+    (void)Name;
     return experimental::spec_constant<T, ID>();
 #else
     set_spec_constant_impl(Name, &Cst, sizeof(T));

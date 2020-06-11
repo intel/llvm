@@ -280,8 +280,35 @@ int main() {
           range<1>(2), [=](id<1> i) { Out << "aaaaaaaaa" << endl; });
     });
     Queue.wait();
-  }
 // CHECK-NEXT: aaaaaaaaa
+
+    // Use a big statement size to verify the stream internal implementation can create
+    // a big enough flush buffer in global memory to handle this case.
+    range<1> global = 16;
+    range<1> local = 16;
+    Queue.submit([&](handler &cgh) {
+      stream ostream(198, 8192, cgh);
+      cgh.parallel_for<class test_stream>(nd_range<1>(global, local), [=](nd_item<1> it) {
+        ostream << "global id " << it.get_global_id(0) << stream_manipulator::endl;
+      });
+    });
+    // CHECK: global id {{[0-9]+}}
+    // CHECK: global id {{[0-9]+}}
+    // CHECK: global id {{[0-9]+}}
+    // CHECK: global id {{[0-9]+}}
+    // CHECK: global id {{[0-9]+}}
+    // CHECK: global id {{[0-9]+}}
+    // CHECK: global id {{[0-9]+}}
+    // CHECK: global id {{[0-9]+}}
+    // CHECK: global id {{[0-9]+}}
+    // CHECK: global id {{[0-9]+}}
+    // CHECK: global id {{[0-9]+}}
+    // CHECK: global id {{[0-9]+}}
+    // CHECK: global id {{[0-9]+}}
+    // CHECK: global id {{[0-9]+}}
+    // CHECK: global id {{[0-9]+}}
+    // CHECK: global id {{[0-9]+}}
+  }
 
   return 0;
 }

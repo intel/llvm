@@ -6,9 +6,8 @@
 //
 // ===--------------------------------------------------------------------=== //
 
-#include <CL/sycl/backend/cuda.hpp>
-#include <CL/sycl/detail/clusm.hpp>
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/cuda_definitions.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/exception.hpp>
@@ -42,10 +41,12 @@ context_impl::context_impl(const vector_class<cl::sycl::device> Devices,
     DeviceIds.push_back(getSyclObjImpl(D)->getHandleRef());
   }
 
-  if (MPlatform->is_cuda()) {
+  const auto Backend = getPlugin().getBackend();
+  if (Backend == backend::cuda) {
 #if USE_PI_CUDA
-    const pi_context_properties props[] = {PI_CONTEXT_PROPERTIES_CUDA_PRIMARY,
-                                           UseCUDAPrimaryContext, 0};
+    const pi_context_properties props[] = {
+        static_cast<pi_context_properties>(PI_CONTEXT_PROPERTIES_CUDA_PRIMARY),
+        static_cast<pi_context_properties>(UseCUDAPrimaryContext), 0};
 
     getPlugin().call<PiApiKind::piContextCreate>(props, DeviceIds.size(), 
 	  	  DeviceIds.data(), nullptr, nullptr, &MContext);
@@ -149,6 +150,13 @@ context_impl::hasDevice(shared_ptr_class<detail::device_impl> Device) const {
     if (getSyclObjImpl(D) == Device)
       return true;
   return false;
+}
+
+pi_native_handle context_impl::getNative() const {
+  auto Plugin = getPlugin();
+  pi_native_handle Handle;
+  Plugin.call<PiApiKind::piextContextGetNativeHandle>(getHandleRef(), &Handle);
+  return Handle;
 }
 
 } // namespace detail

@@ -4,6 +4,13 @@
 // REQUIRES: clang-driver
 // REQUIRES: x86-registered-target
 
+/// test behaviors of passing a fat static lib
+// Build a fat static lib that will be used for all tests
+// RUN: echo "void foo(void) {}" > %t1.cpp
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl %t1.cpp -c -o %t1_bundle.o
+// RUN: llvm-ar cr %t.a %t1_bundle.o
+// RUN: llvm-ar cr %t_2.a %t1_bundle.o
+
 /// ###########################################################################
 
 /// test behaviors of -foffload-static-lib=<lib>

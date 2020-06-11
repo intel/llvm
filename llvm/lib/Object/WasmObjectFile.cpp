@@ -12,6 +12,7 @@
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSet.h"
+#include "llvm/ADT/StringSwitch.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/BinaryFormat/Wasm.h"
 #include "llvm/MC/SubtargetFeature.h"
@@ -302,10 +303,10 @@ Error WasmObjectFile::parseSection(WasmSection &Sec) {
     return parseTableSection(Ctx);
   case wasm::WASM_SEC_MEMORY:
     return parseMemorySection(Ctx);
-  case wasm::WASM_SEC_GLOBAL:
-    return parseGlobalSection(Ctx);
   case wasm::WASM_SEC_EVENT:
     return parseEventSection(Ctx);
+  case wasm::WASM_SEC_GLOBAL:
+    return parseGlobalSection(Ctx);
   case wasm::WASM_SEC_EXPORT:
     return parseExportSection(Ctx);
   case wasm::WASM_SEC_START:
@@ -798,6 +799,11 @@ Error WasmObjectFile::parseRelocSection(StringRef Name, ReadContext &Ctx) {
         return make_error<GenericBinaryError>("Bad relocation global index",
                                               object_error::parse_failed);
       break;
+    case wasm::R_WASM_GLOBAL_INDEX_I32:
+      if (!isValidGlobalSymbol(Reloc.Index))
+        return make_error<GenericBinaryError>("Bad relocation global index",
+                                              object_error::parse_failed);
+      break;
     case wasm::R_WASM_EVENT_INDEX_LEB:
       if (!isValidEventSymbol(Reloc.Index))
         return make_error<GenericBinaryError>("Bad relocation event index",
@@ -837,7 +843,8 @@ Error WasmObjectFile::parseRelocSection(StringRef Name, ReadContext &Ctx) {
     if (Reloc.Type == wasm::R_WASM_TABLE_INDEX_I32 ||
         Reloc.Type == wasm::R_WASM_MEMORY_ADDR_I32 ||
         Reloc.Type == wasm::R_WASM_SECTION_OFFSET_I32 ||
-        Reloc.Type == wasm::R_WASM_FUNCTION_OFFSET_I32)
+        Reloc.Type == wasm::R_WASM_FUNCTION_OFFSET_I32 ||
+        Reloc.Type == wasm::R_WASM_GLOBAL_INDEX_I32)
       Size = 4;
     if (Reloc.Offset + Size > EndOffset)
       return make_error<GenericBinaryError>("Bad relocation offset",
@@ -993,6 +1000,24 @@ Error WasmObjectFile::parseMemorySection(ReadContext &Ctx) {
   return Error::success();
 }
 
+Error WasmObjectFile::parseEventSection(ReadContext &Ctx) {
+  EventSection = Sections.size();
+  uint32_t Count = readVarint32(Ctx);
+  Events.reserve(Count);
+  while (Count--) {
+    wasm::WasmEvent Event;
+    Event.Index = NumImportedEvents + Events.size();
+    Event.Type.Attribute = readVaruint32(Ctx);
+    Event.Type.SigIndex = readVarint32(Ctx);
+    Events.push_back(Event);
+  }
+
+  if (Ctx.Ptr != Ctx.End)
+    return make_error<GenericBinaryError>("Event section ended prematurely",
+                                          object_error::parse_failed);
+  return Error::success();
+}
+
 Error WasmObjectFile::parseGlobalSection(ReadContext &Ctx) {
   GlobalSection = Sections.size();
   uint32_t Count = readVaruint32(Ctx);
@@ -1008,24 +1033,6 @@ Error WasmObjectFile::parseGlobalSection(ReadContext &Ctx) {
   }
   if (Ctx.Ptr != Ctx.End)
     return make_error<GenericBinaryError>("Global section ended prematurely",
-                                          object_error::parse_failed);
-  return Error::success();
-}
-
-Error WasmObjectFile::parseEventSection(ReadContext &Ctx) {
-  EventSection = Sections.size();
-  uint32_t Count = readVarint32(Ctx);
-  Events.reserve(Count);
-  while (Count--) {
-    wasm::WasmEvent Event;
-    Event.Index = NumImportedEvents + Events.size();
-    Event.Type.Attribute = readVaruint32(Ctx);
-    Event.Type.SigIndex = readVarint32(Ctx);
-    Events.push_back(Event);
-  }
-
-  if (Ctx.Ptr != Ctx.End)
-    return make_error<GenericBinaryError>("Event section ended prematurely",
                                           object_error::parse_failed);
   return Error::success();
 }
@@ -1260,7 +1267,7 @@ const wasm::WasmObjectHeader &WasmObjectFile::getHeader() const {
 
 void WasmObjectFile::moveSymbolNext(DataRefImpl &Symb) const { Symb.d.b++; }
 
-uint32_t WasmObjectFile::getSymbolFlags(DataRefImpl Symb) const {
+Expected<uint32_t> WasmObjectFile::getSymbolFlags(DataRefImpl Symb) const {
   uint32_t Result = SymbolRef::SF_None;
   const WasmSymbol &Sym = getWasmSymbol(Symb);
 
@@ -1469,8 +1476,6 @@ bool WasmObjectFile::isSectionBSS(DataRefImpl Sec) const { return false; }
 
 bool WasmObjectFile::isSectionVirtual(DataRefImpl Sec) const { return false; }
 
-bool WasmObjectFile::isSectionBitcode(DataRefImpl Sec) const { return false; }
-
 relocation_iterator WasmObjectFile::section_rel_begin(DataRefImpl Ref) const {
   DataRefImpl RelocRef;
   RelocRef.d.a = Ref.d.a;
@@ -1622,30 +1627,50 @@ int WasmSectionOrderChecker::getSectionOrder(unsigned ID,
 // Represents the edges in a directed graph where any node B reachable from node
 // A is not allowed to appear before A in the section ordering, but may appear
 // afterward.
-int WasmSectionOrderChecker::DisallowedPredecessors[WASM_NUM_SEC_ORDERS][WASM_NUM_SEC_ORDERS] = {
-  {}, // WASM_SEC_ORDER_NONE
-  {WASM_SEC_ORDER_TYPE, WASM_SEC_ORDER_IMPORT}, // WASM_SEC_ORDER_TYPE,
-  {WASM_SEC_ORDER_IMPORT, WASM_SEC_ORDER_FUNCTION}, // WASM_SEC_ORDER_IMPORT,
-  {WASM_SEC_ORDER_FUNCTION, WASM_SEC_ORDER_TABLE}, // WASM_SEC_ORDER_FUNCTION,
-  {WASM_SEC_ORDER_TABLE, WASM_SEC_ORDER_MEMORY}, // WASM_SEC_ORDER_TABLE,
-  {WASM_SEC_ORDER_MEMORY, WASM_SEC_ORDER_GLOBAL}, // WASM_SEC_ORDER_MEMORY,
-  {WASM_SEC_ORDER_GLOBAL, WASM_SEC_ORDER_EVENT}, // WASM_SEC_ORDER_GLOBAL,
-  {WASM_SEC_ORDER_EVENT, WASM_SEC_ORDER_EXPORT}, // WASM_SEC_ORDER_EVENT,
-  {WASM_SEC_ORDER_EXPORT, WASM_SEC_ORDER_START}, // WASM_SEC_ORDER_EXPORT,
-  {WASM_SEC_ORDER_START, WASM_SEC_ORDER_ELEM}, // WASM_SEC_ORDER_START,
-  {WASM_SEC_ORDER_ELEM, WASM_SEC_ORDER_DATACOUNT}, // WASM_SEC_ORDER_ELEM,
-  {WASM_SEC_ORDER_DATACOUNT, WASM_SEC_ORDER_CODE}, // WASM_SEC_ORDER_DATACOUNT,
-  {WASM_SEC_ORDER_CODE, WASM_SEC_ORDER_DATA}, // WASM_SEC_ORDER_CODE,
-  {WASM_SEC_ORDER_DATA, WASM_SEC_ORDER_LINKING}, // WASM_SEC_ORDER_DATA,
+int WasmSectionOrderChecker::DisallowedPredecessors
+    [WASM_NUM_SEC_ORDERS][WASM_NUM_SEC_ORDERS] = {
+        // WASM_SEC_ORDER_NONE
+        {},
+        // WASM_SEC_ORDER_TYPE
+        {WASM_SEC_ORDER_TYPE, WASM_SEC_ORDER_IMPORT},
+        // WASM_SEC_ORDER_IMPORT
+        {WASM_SEC_ORDER_IMPORT, WASM_SEC_ORDER_FUNCTION},
+        // WASM_SEC_ORDER_FUNCTION
+        {WASM_SEC_ORDER_FUNCTION, WASM_SEC_ORDER_TABLE},
+        // WASM_SEC_ORDER_TABLE
+        {WASM_SEC_ORDER_TABLE, WASM_SEC_ORDER_MEMORY},
+        // WASM_SEC_ORDER_MEMORY
+        {WASM_SEC_ORDER_MEMORY, WASM_SEC_ORDER_EVENT},
+        // WASM_SEC_ORDER_EVENT
+        {WASM_SEC_ORDER_EVENT, WASM_SEC_ORDER_GLOBAL},
+        // WASM_SEC_ORDER_GLOBAL
+        {WASM_SEC_ORDER_GLOBAL, WASM_SEC_ORDER_EXPORT},
+        // WASM_SEC_ORDER_EXPORT
+        {WASM_SEC_ORDER_EXPORT, WASM_SEC_ORDER_START},
+        // WASM_SEC_ORDER_START
+        {WASM_SEC_ORDER_START, WASM_SEC_ORDER_ELEM},
+        // WASM_SEC_ORDER_ELEM
+        {WASM_SEC_ORDER_ELEM, WASM_SEC_ORDER_DATACOUNT},
+        // WASM_SEC_ORDER_DATACOUNT
+        {WASM_SEC_ORDER_DATACOUNT, WASM_SEC_ORDER_CODE},
+        // WASM_SEC_ORDER_CODE
+        {WASM_SEC_ORDER_CODE, WASM_SEC_ORDER_DATA},
+        // WASM_SEC_ORDER_DATA
+        {WASM_SEC_ORDER_DATA, WASM_SEC_ORDER_LINKING},
 
-  // Custom Sections
-  {WASM_SEC_ORDER_DYLINK, WASM_SEC_ORDER_TYPE}, // WASM_SEC_ORDER_DYLINK,
-  {WASM_SEC_ORDER_LINKING, WASM_SEC_ORDER_RELOC, WASM_SEC_ORDER_NAME}, // WASM_SEC_ORDER_LINKING,
-  {}, // WASM_SEC_ORDER_RELOC (can be repeated),
-  {WASM_SEC_ORDER_NAME, WASM_SEC_ORDER_PRODUCERS}, // WASM_SEC_ORDER_NAME,
-  {WASM_SEC_ORDER_PRODUCERS, WASM_SEC_ORDER_TARGET_FEATURES}, // WASM_SEC_ORDER_PRODUCERS,
-  {WASM_SEC_ORDER_TARGET_FEATURES}  // WASM_SEC_ORDER_TARGET_FEATURES
-};
+        // Custom Sections
+        // WASM_SEC_ORDER_DYLINK
+        {WASM_SEC_ORDER_DYLINK, WASM_SEC_ORDER_TYPE},
+        // WASM_SEC_ORDER_LINKING
+        {WASM_SEC_ORDER_LINKING, WASM_SEC_ORDER_RELOC, WASM_SEC_ORDER_NAME},
+        // WASM_SEC_ORDER_RELOC (can be repeated)
+        {},
+        // WASM_SEC_ORDER_NAME
+        {WASM_SEC_ORDER_NAME, WASM_SEC_ORDER_PRODUCERS},
+        // WASM_SEC_ORDER_PRODUCERS
+        {WASM_SEC_ORDER_PRODUCERS, WASM_SEC_ORDER_TARGET_FEATURES},
+        // WASM_SEC_ORDER_TARGET_FEATURES
+        {WASM_SEC_ORDER_TARGET_FEATURES}};
 
 bool WasmSectionOrderChecker::isValidSectionOrder(unsigned ID,
                                                   StringRef CustomSectionName) {

@@ -26,35 +26,32 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace __host_std {
 namespace {
 
-template <typename T> __SYCL_EXPORT inline T __fclamp(T x, T minval, T maxval) {
+template <typename T> inline T __fclamp(T x, T minval, T maxval) {
   return std::fmin(std::fmax(x, minval), maxval);
 }
 
-template <typename T> __SYCL_EXPORT inline T __degrees(T radians) {
+template <typename T> inline T __degrees(T radians) {
   return (180 / M_PI) * radians;
 }
 
-template <typename T> __SYCL_EXPORT inline T __mix(T x, T y, T a) {
-  return x + (y - x) * a;
-}
+template <typename T> inline T __mix(T x, T y, T a) { return x + (y - x) * a; }
 
-template <typename T> __SYCL_EXPORT inline T __radians(T degrees) {
+template <typename T> inline T __radians(T degrees) {
   return (M_PI / 180) * degrees;
 }
 
-template <typename T> __SYCL_EXPORT inline T __step(T edge, T x) {
+template <typename T> inline T __step(T edge, T x) {
   return (x < edge) ? 0.0 : 1.0;
 }
 
-template <typename T>
-__SYCL_EXPORT inline T __smoothstep(T edge0, T edge1, T x) {
+template <typename T> inline T __smoothstep(T edge0, T edge1, T x) {
   T t;
   T v = (x - edge0) / (edge1 - edge0);
   t = __fclamp(v, T(0), T(1));
   return t * t * (3 - 2 * t);
 }
 
-template <typename T> __SYCL_EXPORT inline T __sign(T x) {
+template <typename T> inline T __sign(T x) {
   if (std::isnan(d::cast_if_host_half(x)))
     return T(0.0);
   if (x > 0)

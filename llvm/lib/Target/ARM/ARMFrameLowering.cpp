@@ -71,14 +71,6 @@ static cl::opt<bool>
 SpillAlignedNEONRegs("align-neon-spills", cl::Hidden, cl::init(true),
                      cl::desc("Align ARM NEON spills in prolog and epilog"));
 
-static cl::opt<bool> EnableExtraSpills(
-    "arm-extra-spills", cl::Hidden, cl::init(false),
-    cl::desc("Preserve extra registers when useful for IPRA"));
-
-// Testing option to bypass some profitability checks.
-static cl::opt<bool> ForceExtraSpills("arm-extra-spills-force", cl::Hidden,
-                                      cl::init(false));
-
 static MachineBasicBlock::iterator
 skipAlignedDPRCS2Spills(MachineBasicBlock::iterator MI,
                         unsigned NumAlignedDPRCS2Regs);
@@ -243,9 +235,9 @@ struct StackAdjustingInsts {
       if (HasFP && !Info.BeforeFPSet)
         return;
 
-      CFAOffset -= Info.SPAdjust;
+      CFAOffset += Info.SPAdjust;
       unsigned CFIIndex = MF.addFrameInst(
-          MCCFIInstruction::createDefCfaOffset(nullptr, CFAOffset));
+          MCCFIInstruction::cfiDefCfaOffset(nullptr, CFAOffset));
       BuildMI(MBB, std::next(Info.I), dl,
               TII.get(TargetOpcode::CFI_INSTRUCTION))
               .addCFIIndex(CFIIndex)
@@ -330,14 +322,15 @@ static void emitAligningInstructions(MachineFunction &MF, ARMFunctionInfo *AFI,
 /// Unfortunately we cannot determine this value in determineCalleeSaves() yet
 /// as assignCalleeSavedSpillSlots() hasn't run at this point. Instead we use
 /// this to produce a conservative estimate that we check in an assert() later.
-static int getMaxFPOffset(const Function &F, const ARMFunctionInfo &AFI) {
+static int getMaxFPOffset(const ARMSubtarget &STI, const ARMFunctionInfo &AFI) {
   // For Thumb1, push.w isn't available, so the first push will always push
   // r7 and lr onto the stack first.
   if (AFI.isThumb1OnlyFunction())
     return -AFI.getArgRegsSaveSize() - (2 * 4);
   // This is a conservative estimation: Assume the frame pointer being r7 and
   // pc("r15") up to r8 getting spilled before (= 8 registers).
-  return -AFI.getArgRegsSaveSize() - (8 * 4);
+  int FPCXTSaveSize = (STI.hasV8_1MMainlineOps() && AFI.isCmseNSEntryFunction()) ? 4 : 0;
+  return - FPCXTSaveSize - AFI.getArgRegsSaveSize() - (8 * 4);
 }
 
 void ARMFrameLowering::emitPrologue(MachineFunction &MF,
@@ -358,6 +351,7 @@ void ARMFrameLowering::emitPrologue(MachineFunction &MF,
   unsigned ArgRegsSaveSize = AFI->getArgRegsSaveSize();
   unsigned NumBytes = MFI.getStackSize();
   const std::vector<CalleeSavedInfo> &CSI = MFI.getCalleeSavedInfo();
+  int FPCXTSaveSize = 0;
 
   // Debug location must be unknown since the first debug location is used
   // to determine the end of the prologue.
@@ -426,6 +420,9 @@ void ARMFrameLowering::emitPrologue(MachineFunction &MF,
         FramePtrSpillFI = FI;
       GPRCS1Size += 4;
       break;
+    case ARM::FPCXTNS:
+      FPCXTSaveSize = 4;
+      break;
     default:
       // This is a DPR. Exclude the aligned DPRCS2 spills.
       if (Reg == ARM::D8)
@@ -435,26 +432,35 @@ void ARMFrameLowering::emitPrologue(MachineFunction &MF,
     }
   }
 
-  // Move past area 1.
+  // Move past FPCXT area.
   MachineBasicBlock::iterator LastPush = MBB.end(), GPRCS1Push, GPRCS2Push;
+  if (FPCXTSaveSize > 0) {
+    LastPush = MBBI++;
+    DefCFAOffsetCandidates.addInst(LastPush, FPCXTSaveSize, true);
+  }
+
+  // Move past area 1.
   if (GPRCS1Size > 0) {
     GPRCS1Push = LastPush = MBBI++;
     DefCFAOffsetCandidates.addInst(LastPush, GPRCS1Size, true);
   }
 
   // Determine starting offsets of spill areas.
-  unsigned GPRCS1Offset = NumBytes - ArgRegsSaveSize - GPRCS1Size;
+  unsigned FPCXTOffset = NumBytes - ArgRegsSaveSize - FPCXTSaveSize;
+  unsigned GPRCS1Offset = FPCXTOffset - GPRCS1Size;
   unsigned GPRCS2Offset = GPRCS1Offset - GPRCS2Size;
   Align DPRAlign = DPRCSSize ? std::min(Align(8), Alignment) : Align(4);
   unsigned DPRGapSize =
-      (GPRCS1Size + GPRCS2Size + ArgRegsSaveSize) % DPRAlign.value();
+      (GPRCS1Size + GPRCS2Size + FPCXTSaveSize + ArgRegsSaveSize) %
+      DPRAlign.value();
+
   unsigned DPRCSOffset = GPRCS2Offset - DPRGapSize - DPRCSSize;
   int FramePtrOffsetInPush = 0;
   if (HasFP) {
     int FPOffset = MFI.getObjectOffset(FramePtrSpillFI);
-    assert(getMaxFPOffset(MF.getFunction(), *AFI) <= FPOffset &&
+    assert(getMaxFPOffset(STI, *AFI) <= FPOffset &&
            "Max FP estimation is wrong");
-    FramePtrOffsetInPush = FPOffset + ArgRegsSaveSize;
+    FramePtrOffsetInPush = FPOffset + ArgRegsSaveSize + FPCXTSaveSize;
     AFI->setFramePtrSpillOffset(MFI.getObjectOffset(FramePtrSpillFI) +
                                 NumBytes);
   }
@@ -587,9 +593,9 @@ void ARMFrameLowering::emitPrologue(MachineFunction &MF,
                          PushSize + FramePtrOffsetInPush,
                          MachineInstr::FrameSetup);
     if (FramePtrOffsetInPush + PushSize != 0) {
-      unsigned CFIIndex = MF.addFrameInst(MCCFIInstruction::createDefCfa(
+      unsigned CFIIndex = MF.addFrameInst(MCCFIInstruction::cfiDefCfa(
           nullptr, MRI->getDwarfRegNum(FramePtr, true),
-          -(ArgRegsSaveSize - FramePtrOffsetInPush)));
+          FPCXTSaveSize + ArgRegsSaveSize - FramePtrOffsetInPush));
       BuildMI(MBB, AfterPush, dl, TII.get(TargetOpcode::CFI_INSTRUCTION))
           .addCFIIndex(CFIIndex)
           .setMIFlags(MachineInstr::FrameSetup);
@@ -695,6 +701,7 @@ void ARMFrameLowering::emitPrologue(MachineFunction &MF,
     MFI.setOffsetAdjustment(MFI.getOffsetAdjustment() -
                             AFI->getFramePtrSpillOffset());
 
+  AFI->setFPCXTSaveAreaSize(FPCXTSaveSize);
   AFI->setGPRCalleeSavedArea1Size(GPRCS1Size);
   AFI->setGPRCalleeSavedArea2Size(GPRCS2Size);
   AFI->setDPRCalleeSavedGapSize(DPRGapSize);
@@ -796,6 +803,7 @@ void ARMFrameLowering::emitEpilogue(MachineFunction &MF,
 
     // Move SP to start of FP callee save spill area.
     NumBytes -= (ArgRegsSaveSize +
+                 AFI->getFPCXTSaveAreaSize() +
                  AFI->getGPRCalleeSavedArea1Size() +
                  AFI->getGPRCalleeSavedArea2Size() +
                  AFI->getDPRCalleeSavedGapSize() +
@@ -863,6 +871,7 @@ void ARMFrameLowering::emitEpilogue(MachineFunction &MF,
 
     if (AFI->getGPRCalleeSavedArea2Size()) MBBI++;
     if (AFI->getGPRCalleeSavedArea1Size()) MBBI++;
+    if (AFI->getFPCXTSaveAreaSize()) MBBI++;
   }
 
   if (ArgRegsSaveSize)
@@ -874,16 +883,14 @@ void ARMFrameLowering::emitEpilogue(MachineFunction &MF,
 /// debug info.  It's the same as what we use for resolving the code-gen
 /// references for now.  FIXME: This can go wrong when references are
 /// SP-relative and simple call frames aren't used.
-int
-ARMFrameLowering::getFrameIndexReference(const MachineFunction &MF, int FI,
-                                         unsigned &FrameReg) const {
+int ARMFrameLowering::getFrameIndexReference(const MachineFunction &MF, int FI,
+                                             Register &FrameReg) const {
   return ResolveFrameIndexReference(MF, FI, FrameReg, 0);
 }
 
-int
-ARMFrameLowering::ResolveFrameIndexReference(const MachineFunction &MF,
-                                             int FI, unsigned &FrameReg,
-                                             int SPAdj) const {
+int ARMFrameLowering::ResolveFrameIndexReference(const MachineFunction &MF,
+                                                 int FI, Register &FrameReg,
+                                                 int SPAdj) const {
   const MachineFrameInfo &MFI = MF.getFrameInfo();
   const ARMBaseRegisterInfo *RegInfo = static_cast<const ARMBaseRegisterInfo *>(
       MF.getSubtarget().getRegisterInfo());
@@ -1055,6 +1062,7 @@ void ARMFrameLowering::emitPopInst(MachineBasicBlock &MBB,
   bool isTailCall = false;
   bool isInterrupt = false;
   bool isTrap = false;
+  bool isCmseEntry = false;
   if (MBB.end() != MI) {
     DL = MI->getDebugLoc();
     unsigned RetOpcode = MI->getOpcode();
@@ -1064,6 +1072,7 @@ void ARMFrameLowering::emitPopInst(MachineBasicBlock &MBB,
     isTrap =
         RetOpcode == ARM::TRAP || RetOpcode == ARM::TRAPNaCl ||
         RetOpcode == ARM::tTRAP;
+    isCmseEntry = (RetOpcode == ARM::tBXNS || RetOpcode == ARM::tBXNS_RET);
   }
 
   SmallVector<unsigned, 4> Regs;
@@ -1081,7 +1090,7 @@ void ARMFrameLowering::emitPopInst(MachineBasicBlock &MBB,
         continue;
 
       if (Reg == ARM::LR && !isTailCall && !isVarArg && !isInterrupt &&
-          !isTrap && STI.hasV5TOps()) {
+          !isCmseEntry && !isTrap && STI.hasV5TOps()) {
         if (MBB.succ_empty()) {
           Reg = ARM::PC;
           // Fold the return instruction into the LDM.
@@ -1433,6 +1442,16 @@ bool ARMFrameLowering::spillCalleeSavedRegisters(
     ARM::t2STR_PRE : ARM::STR_PRE_IMM;
   unsigned FltOpc = ARM::VSTMDDB_UPD;
   unsigned NumAlignedDPRCS2Regs = AFI->getNumAlignedDPRCS2Regs();
+  // Save the non-secure floating point context.
+  if (llvm::any_of(CSI, [](const CalleeSavedInfo &C) {
+        return C.getReg() == ARM::FPCXTNS;
+      })) {
+    BuildMI(MBB, MI, DebugLoc(), STI.getInstrInfo()->get(ARM::VSTR_FPCXTNS_pre),
+            ARM::SP)
+        .addReg(ARM::SP)
+        .addImm(-4)
+        .add(predOps(ARMCC::AL));
+  }
   emitPushInst(MBB, MI, CSI, PushOpc, PushOneOpc, false, &isARMArea1Register, 0,
                MachineInstr::FrameSetup);
   emitPushInst(MBB, MI, CSI, PushOpc, PushOneOpc, false, &isARMArea2Register, 0,
@@ -1596,7 +1615,7 @@ checkNumAlignedDPRCS2Regs(MachineFunction &MF, BitVector &SavedRegs) {
     return;
 
   // Don't bother if the default stack alignment is sufficiently high.
-  if (MF.getSubtarget().getFrameLowering()->getStackAlignment() >= 8)
+  if (MF.getSubtarget().getFrameLowering()->getStackAlign() >= Align(8))
     return;
 
   // Aligned spills require stack realignment.
@@ -1625,249 +1644,14 @@ checkNumAlignedDPRCS2Regs(MachineFunction &MF, BitVector &SavedRegs) {
   SavedRegs.set(ARM::R4);
 }
 
-// Compute the set of registers which cannot be preserved, because they are
-// either modified outside the PUSH/POP instructions, or are live at the point
-// where the POP will be inserted. This only considers r0-r3, which are
-// currently the only registers we voluntatrily save when the PCS doesn't
-// require it.
-void ARMFrameLowering::findRegDefsOutsideSaveRestore(
-    MachineFunction &MF, BitVector &UnsaveableRegs) const {
-  const TargetRegisterInfo *TRI = MF.getSubtarget().getRegisterInfo();
-  MachineFrameInfo &MFI = MF.getFrameInfo();
-
-  SmallSet<MachineBasicBlock *, 2> SaveBlocks;
-  SmallSet<MachineBasicBlock *, 2> RestoreBlocks;
-
-  if (MFI.getSavePoint()) {
-    SaveBlocks.insert(MFI.getSavePoint());
-    RestoreBlocks.insert(MFI.getRestorePoint());
-  } else {
-    SaveBlocks.insert(&MF.front());
-    for (MachineBasicBlock &MBB : MF)
-      if (MBB.isReturnBlock())
-        RestoreBlocks.insert(&MBB);
-  }
-
-  // Walk blocks from the function entry and exits (following control flow both
-  // ways), stopping when we get to a save/restore block. Check for
-  // instructions which modify any of the registers we care about.
-  SmallVector<MachineBasicBlock *, 4> WorkList;
-  SmallSet<MachineBasicBlock *, 4> VisitedBlocks;
-  LLVM_DEBUG(dbgs() << "Entry block: " << MF.front().getName() << "\n");
-  WorkList.push_back(&MF.front());
-  for (MachineBasicBlock &MBB : MF) {
-    if (MBB.isReturnBlock()) {
-      LLVM_DEBUG(dbgs() << "Return block: " << MBB.getName() << "\n");
-      WorkList.push_back(&MBB);
-    }
-  }
-
-  auto CheckOutsideInst = [&UnsaveableRegs, TRI](MachineInstr &MI) {
-    for (Register Reg : {ARM::R0, ARM::R1, ARM::R2, ARM::R3}) {
-      if (MI.modifiesRegister(Reg, TRI)) {
-        UnsaveableRegs.set(Reg);
-        LLVM_DEBUG(dbgs() << "Register " << TRI->getName(Reg)
-                          << " modified by instruction " << MI << "\n");
-      }
-    }
-  };
-
-  while (!WorkList.empty()) {
-    MachineBasicBlock *MBB = WorkList.pop_back_val();
-
-    if (VisitedBlocks.count(MBB))
-      continue;
-    VisitedBlocks.insert(MBB);
-
-    bool IsSave = SaveBlocks.count(MBB);
-    bool IsRestore = RestoreBlocks.count(MBB);
-
-    LLVM_DEBUG(dbgs() << "Visiting block " << MBB->getName() << ", IsSave="
-                      << IsSave << ", IsRestore=" << IsRestore << "\n");
-
-    // If this is a restore block, the POP instruction will be inserted just
-    // before the terminator, so we need to consider any terminator
-    // instructions to be outside the preserved region. We also need to check
-    // for registers which are live at the POP insertion point, because these
-    // can't be restored without changing their value.
-    if (IsRestore) {
-      LivePhysRegs LPR(*TRI);
-      LPR.addLiveOuts(*MBB);
-      for (auto &Term : reverse(MBB->terminators())) {
-        LPR.stepBackward(Term);
-        CheckOutsideInst(Term);
-      }
-
-      for (Register Reg : {ARM::R0, ARM::R1, ARM::R2, ARM::R3}) {
-        if (LPR.contains(Reg)) {
-          UnsaveableRegs.set(Reg);
-          LLVM_DEBUG(dbgs() << "Register " << TRI->getName(Reg)
-                            << " live-out of restore block " << MBB->getName()
-                            << "\n");
-        }
-      }
-    }
-
-    // If this block is completely outside the save/restore region, then any
-    // modified registers can't be preserved. A save block counts as being
-    // inside the saved region, with the possible exception of the last few
-    // instructions if it's also a restore block, handled above. We don't visit
-    // blocks which are completely inside the saved region and don't have any
-    // save/restore instructions, so don't need to check that here.
-    if (!IsSave && !IsRestore)
-      for (auto &MI : *MBB)
-        CheckOutsideInst(MI);
-
-    // Walk the control flow graph in both directions, except for blocks which
-    // are inside the PUSH/POP region.
-    if (IsSave || !IsRestore)
-      for (auto Pred : MBB->predecessors())
-        WorkList.push_back(Pred);
-    if (!IsSave || IsRestore)
-      for (auto Succ : MBB->successors())
-        WorkList.push_back(Succ);
-  }
-}
-
 bool ARMFrameLowering::enableShrinkWrapping(const MachineFunction &MF) const {
-  // Shrink wrapping is detrimental to code size because it prevents merging
-  // the CSR restore and function return into one POP instruction. It also
-  // conflicts with saving extra registers for IPRA, because it makes more
-  // registers live at the PUSH/POP.
-  if (MF.getFunction().hasMinSize())
+  // For CMSE entry functions, we want to save the FPCXT_NS immediately
+  // upon function entry (resp. restore it immmediately before return)
+  if (STI.hasV8_1MMainlineOps() &&
+      MF.getInfo<ARMFunctionInfo>()->isCmseNSEntryFunction())
     return false;
 
   return true;
-}
-
-// When doing inter-procedural register allocation, saving extra registers in
-// [r0,r3] will allow us to keep live values in them in any callers. The extra
-// saves and restores don't cost us any code-size if we are already emitting
-// PUSH and POP instructions.
-unsigned ARMFrameLowering::spillExtraRegsForIPRA(MachineFunction &MF,
-                                                 BitVector &SavedRegs,
-                                                 bool HasFPRegSaves) const {
-  const TargetRegisterInfo *TRI = MF.getSubtarget().getRegisterInfo();
-  MachineRegisterInfo &MRI = MF.getRegInfo();
-  MachineFrameInfo &MFI = MF.getFrameInfo();
-
-  LLVM_DEBUG(dbgs() << "Extra spills for " << MF.getName() << ": ");
-
-  if (!EnableExtraSpills) {
-    LLVM_DEBUG(dbgs() << "optimisation not enabled\n");
-    return 0;
-  }
-
-  // If IPRA is not enabled, nothing will be able to take advantage of the
-  // extra saved registers.
-  if (!MF.getTarget().Options.EnableIPRA) {
-    LLVM_DEBUG(dbgs() << "IPRA disabled\n");
-    return 0;
-  }
-
-  // These registers will take extra time to save and restore, and will often
-  // go unused, so only to this at -Oz.
-  if (!MF.getFunction().hasMinSize()) {
-    LLVM_DEBUG(dbgs() << "not minsize\n");
-    return 0;
-  }
-
-  // If we are not currently spilling any registers, we'd need to add an extra
-  // PUSH/POP pair, so this isn't worth it.
-  if (!SavedRegs.any()) {
-    LLVM_DEBUG(dbgs() << "no existing push/pop\n");
-    return 0;
-  }
-
-  // If we can't guarantee that this definition of the function is the one
-  // which will be picked by the linker, then IPRA can't make use of any extra
-  // saved registers.
-  if (!MF.getFunction().isDefinitionExact()) {
-    LLVM_DEBUG(dbgs() << "inexact definition\n");
-    return 0;
-  }
-
-  int NumVisibleCallers = 0;
-  for (const User *U : MF.getFunction().users()) {
-    if (const CallBase *Call = dyn_cast<CallBase>(U)) {
-      if (Call->getCalledOperand() == &MF.getFunction()) {
-        ++NumVisibleCallers;
-      }
-    }
-  }
-
-  // If we don't have any direct callers in the current translation unit,
-  // nothing will be able to take advantage of the extra saved registers.
-  if (NumVisibleCallers == 0 && !ForceExtraSpills) {
-    LLVM_DEBUG(dbgs() << "no visible callers\n");
-    return 0;
-  }
-
-  // If we need to emit unwind tables, these will be longer if we need to
-  // preserve r0-r3, so we need a lot of visible calls to make this worthwhile.
-  if (MF.getFunction().needsUnwindTableEntry() && NumVisibleCallers <= 8 &&
-      !ForceExtraSpills) {
-    LLVM_DEBUG(dbgs() << "needs unwind table\n");
-    return 0;
-  }
-
-  // Ok, we've decided we are going to try the optimisation.
-  LLVM_DEBUG(dbgs() << "enabled\n");
-
-  // Compute the registers which can't be preserved because they are either
-  // modified before the PUSH or after the POP, or are live at the point where
-  // the POP will be inserted.
-  BitVector NonPreserveableRegisters;
-  NonPreserveableRegisters.resize(TRI->getNumRegs());
-  findRegDefsOutsideSaveRestore(MF, NonPreserveableRegisters);
-
-  unsigned NumExtraRegs = 0;
-
-  // We'd also like to leave some registers free so that we can use them to
-  // fold a small SP update into the PUSH/POP. We can't know exactly what this
-  // optimisation can do, because stack layout isn't finalised, but we can make
-  // a good enough estimate.
-  unsigned StackSize = MFI.estimateStackSize(MF);
-
-  // If the stack space is large, we probably won't be able to fold the SP
-  // update into the push/pop, so we should use all the registers we want. If
-  // we have FP register saves, then the SP update will be folded into the
-  // VPUSH/VPOP instead, and we can use the GPRs freely.
-  if (StackSize > 16 || HasFPRegSaves)
-    StackSize = 0;
-
-  LLVM_DEBUG(dbgs() << "Estimated " << StackSize
-                    << " bytes of SP update being folded into push/pop\n");
-
-  for (Register Reg : {ARM::R0, ARM::R1, ARM::R2, ARM::R3}) {
-    if (StackSize) {
-      StackSize -= 4;
-      LLVM_DEBUG(dbgs() << "not saving " << TRI->getName(Reg)
-                        << ", wanted for SP update\n");
-      continue;
-    }
-
-    // If we don't modify the register anywhere in this function, IPRA will
-    // already know that it is preserved, and there's no point in saving it.
-    if (!MRI.isPhysRegModified(Reg)) {
-      LLVM_DEBUG(dbgs() << "not saving " << TRI->getName(Reg)
-                        << ", not modified\n");
-      continue;
-    }
-
-    if (NonPreserveableRegisters[Reg]) {
-      LLVM_DEBUG(dbgs() << "not saving " << TRI->getName(Reg)
-                        << ", modified outide save region\n");
-      continue;
-    }
-
-    LLVM_DEBUG(dbgs() << "also saving " << TRI->getName(Reg) << " for IPRA\n");
-    SavedRegs.set(Reg);
-    MRI.enableCalleeSavedRegister(Reg);
-    ++NumExtraRegs;
-  }
-
-  return NumExtraRegs;
 }
 
 void ARMFrameLowering::determineCalleeSaves(MachineFunction &MF,
@@ -1938,6 +1722,10 @@ void ARMFrameLowering::determineCalleeSaves(MachineFunction &MF,
   // Spill the BasePtr if it's used.
   if (RegInfo->hasBasePointer(MF))
     SavedRegs.set(RegInfo->getBaseRegister());
+
+  // On v8.1-M.Main CMSE entry functions save/restore FPCXT.
+  if (STI.hasV8_1MMainlineOps() && AFI->isCmseNSEntryFunction())
+    CanEliminateFrame = false;
 
   // Don't spill FP if the frame can be eliminated. This is determined
   // by scanning the callee-save registers to see if any is modified.
@@ -2097,7 +1885,7 @@ void ARMFrameLowering::determineCalleeSaves(MachineFunction &MF,
   //
   // We could do slightly better on Thumb1; in some cases, an sp-relative
   // offset would be legal even though an fp-relative offset is not.
-  int MaxFPOffset = getMaxFPOffset(MF.getFunction(), *AFI);
+  int MaxFPOffset = getMaxFPOffset(STI, *AFI);
   bool HasLargeArgumentList =
       HasFP && (MaxFixedOffset - MaxFPOffset) > (int)EstimatedRSFixedSizeLimit;
 
@@ -2260,14 +2048,6 @@ void ARMFrameLowering::determineCalleeSaves(MachineFunction &MF,
                         << "\n");
     }
 
-    // When using IPRA, we might want to preserve some of r0-r3, to reduce
-    // register pressure in our callers.
-    unsigned ExtraIPRASpills =
-        spillExtraRegsForIPRA(MF, SavedRegs, NumFPRSpills != 0);
-    NumGPRSpills += ExtraIPRASpills;
-    if (ExtraIPRASpills)
-      CS1Spilled = true;
-
     // Avoid spilling LR in Thumb1 if there's a tail call: it's expensive to
     // restore LR in that case.
     bool ExpensiveLRRestore = AFI->isThumb1OnlyFunction() && MFI.hasTailCall();
@@ -2292,8 +2072,8 @@ void ARMFrameLowering::determineCalleeSaves(MachineFunction &MF,
     // of GPRs, spill one extra callee save GPR so we won't have to pad between
     // the integer and double callee save areas.
     LLVM_DEBUG(dbgs() << "NumGPRSpills = " << NumGPRSpills << "\n");
-    unsigned TargetAlign = getStackAlignment();
-    if (TargetAlign >= 8 && (NumGPRSpills & 1)) {
+    const Align TargetAlign = getStackAlign();
+    if (TargetAlign >= Align(8) && (NumGPRSpills & 1)) {
       if (CS1Spilled && !UnspilledCS1GPRs.empty()) {
         for (unsigned i = 0, e = UnspilledCS1GPRs.size(); i != e; ++i) {
           unsigned Reg = UnspilledCS1GPRs[i];
@@ -2330,7 +2110,7 @@ void ARMFrameLowering::determineCalleeSaves(MachineFunction &MF,
     if (BigFrameOffsets && !ExtraCSSpill) {
       // If any non-reserved CS register isn't spilled, just spill one or two
       // extra. That should take care of it!
-      unsigned NumExtras = TargetAlign / 4;
+      unsigned NumExtras = TargetAlign.value() / 4;
       SmallVector<unsigned, 2> Extras;
       while (NumExtras && !UnspilledCS1GPRs.empty()) {
         unsigned Reg = UnspilledCS1GPRs.back();
@@ -2385,6 +2165,27 @@ void ARMFrameLowering::getCalleeSaves(const MachineFunction &MF,
   const ARMFunctionInfo *AFI = MF.getInfo<ARMFunctionInfo>();
   if (AFI->getPreservesR0())
     SavedRegs.set(ARM::R0);
+}
+
+bool ARMFrameLowering::assignCalleeSavedSpillSlots(
+    MachineFunction &MF, const TargetRegisterInfo *TRI,
+    std::vector<CalleeSavedInfo> &CSI) const {
+  // For CMSE entry functions, handle floating-point context as if it was a
+  // callee-saved register.
+  if (STI.hasV8_1MMainlineOps() &&
+      MF.getInfo<ARMFunctionInfo>()->isCmseNSEntryFunction()) {
+    CSI.emplace_back(ARM::FPCXTNS);
+    CSI.back().setRestored(false);
+  }
+
+  return false;
+}
+
+const TargetFrameLowering::SpillSlot *
+ARMFrameLowering::getCalleeSavedSpillSlots(unsigned &NumEntries) const {
+  static const SpillSlot FixedSpillOffsets[] = {{ARM::FPCXTNS, -4}};
+  NumEntries = array_lengthof(FixedSpillOffsets);
+  return FixedSpillOffsets;
 }
 
 MachineBasicBlock::iterator ARMFrameLowering::eliminateCallFramePseudoInstr(
@@ -2609,8 +2410,7 @@ void ARMFrameLowering::adjustForSegmentedStacks(
 
   // Emit the relevant DWARF information about the change in stack pointer as
   // well as where to find both r4 and r5 (the callee-save registers)
-  CFIIndex =
-      MF.addFrameInst(MCCFIInstruction::createDefCfaOffset(nullptr, -8));
+  CFIIndex = MF.addFrameInst(MCCFIInstruction::cfiDefCfaOffset(nullptr, 8));
   BuildMI(PrevStackMBB, DL, TII.get(TargetOpcode::CFI_INSTRUCTION))
       .addCFIIndex(CFIIndex);
   CFIIndex = MF.addFrameInst(MCCFIInstruction::createOffset(
@@ -2654,7 +2454,7 @@ void ARMFrameLowering::adjustForSegmentedStacks(
     ARMConstantPoolValue *NewCPV = ARMConstantPoolSymbol::Create(
         MF.getFunction().getContext(), "__STACK_LIMIT", PCLabelId, 0);
     MachineConstantPool *MCP = MF.getConstantPool();
-    unsigned CPI = MCP->getConstantPoolIndex(NewCPV, 4);
+    unsigned CPI = MCP->getConstantPoolIndex(NewCPV, Align(4));
 
     // ldr SR0, [pc, offset(STACK_LIMIT)]
     BuildMI(GetMBB, DL, TII.get(ARM::tLDRpci), ScratchReg0)
@@ -2752,8 +2552,7 @@ void ARMFrameLowering::adjustForSegmentedStacks(
 
   // Emit the DWARF info about the change in stack as well as where to find the
   // previous link register
-  CFIIndex =
-      MF.addFrameInst(MCCFIInstruction::createDefCfaOffset(nullptr, -12));
+  CFIIndex = MF.addFrameInst(MCCFIInstruction::cfiDefCfaOffset(nullptr, 12));
   BuildMI(AllocMBB, DL, TII.get(TargetOpcode::CFI_INSTRUCTION))
       .addCFIIndex(CFIIndex);
   CFIIndex = MF.addFrameInst(MCCFIInstruction::createOffset(
@@ -2815,7 +2614,7 @@ void ARMFrameLowering::adjustForSegmentedStacks(
   }
 
   // Update the CFA offset now that we've popped
-  CFIIndex = MF.addFrameInst(MCCFIInstruction::createDefCfaOffset(nullptr, 0));
+  CFIIndex = MF.addFrameInst(MCCFIInstruction::cfiDefCfaOffset(nullptr, 0));
   BuildMI(AllocMBB, DL, TII.get(TargetOpcode::CFI_INSTRUCTION))
       .addCFIIndex(CFIIndex);
 
@@ -2839,7 +2638,7 @@ void ARMFrameLowering::adjustForSegmentedStacks(
   }
 
   // Update the CFA offset now that we've popped
-  CFIIndex = MF.addFrameInst(MCCFIInstruction::createDefCfaOffset(nullptr, 0));
+  CFIIndex = MF.addFrameInst(MCCFIInstruction::cfiDefCfaOffset(nullptr, 0));
   BuildMI(PostStackMBB, DL, TII.get(TargetOpcode::CFI_INSTRUCTION))
       .addCFIIndex(CFIIndex);
 

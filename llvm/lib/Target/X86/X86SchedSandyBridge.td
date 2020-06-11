@@ -367,8 +367,10 @@ defm : X86WriteRes<WriteVecStoreX,       [SBPort23,SBPort4], 1, [1,1], 1>;
 defm : X86WriteRes<WriteVecStoreY,       [SBPort23,SBPort4], 1, [1,1], 1>;
 defm : X86WriteRes<WriteVecStoreNT,      [SBPort23,SBPort4], 1, [1,1], 1>;
 defm : X86WriteRes<WriteVecStoreNTY,     [SBPort23,SBPort4], 1, [1,1], 1>;
-defm : X86WriteRes<WriteVecMaskedStore,  [SBPort4,SBPort01,SBPort23], 5, [1,1,1], 3>;
-defm : X86WriteRes<WriteVecMaskedStoreY, [SBPort4,SBPort01,SBPort23], 5, [1,1,1], 3>;
+defm : X86WriteRes<WriteVecMaskedStore32,  [SBPort4,SBPort01,SBPort23], 5, [1,1,1], 3>;
+defm : X86WriteRes<WriteVecMaskedStore32Y, [SBPort4,SBPort01,SBPort23], 5, [1,1,1], 3>;
+defm : X86WriteRes<WriteVecMaskedStore64,  [SBPort4,SBPort01,SBPort23], 5, [1,1,1], 3>;
+defm : X86WriteRes<WriteVecMaskedStore64Y, [SBPort4,SBPort01,SBPort23], 5, [1,1,1], 3>;
 defm : X86WriteRes<WriteVecMove,         [SBPort05], 1, [1], 1>;
 defm : X86WriteRes<WriteVecMoveX,        [SBPort015], 1, [1], 1>;
 defm : X86WriteRes<WriteVecMoveY,        [SBPort05], 1, [1], 1>;
@@ -1106,7 +1108,7 @@ def: InstRW<[SBWriteResGroupVzeroupper], (instrs VZEROUPPER)>;
 
 def: InstRW<[WriteZero], (instrs CLC)>;
 
-// Intruction variants handled by the renamer. These might not need execution
+// Instruction variants handled by the renamer. These might not need execution
 // ports in certain conditions.
 // See Agner's Fog "The microarchitecture of Intel, AMD and VIA CPUs",
 // section "Sandy Bridge and Ivy Bridge Pipeline" > "Register allocation and

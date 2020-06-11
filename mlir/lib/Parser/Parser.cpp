@@ -12,7 +12,6 @@
 
 #include "mlir/Parser.h"
 #include "Lexer.h"
-#include "mlir/Analysis/Verifier.h"
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/Attributes.h"
@@ -25,7 +24,7 @@
 #include "mlir/IR/Module.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/StandardTypes.h"
-#include "mlir/Support/STLExtras.h"
+#include "mlir/IR/Verifier.h"
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/StringExtras.h"
@@ -227,6 +226,9 @@ public:
   ParseResult parseTypeListNoParens(SmallVectorImpl<Type> &elements);
   ParseResult parseTypeListParens(SmallVectorImpl<Type> &elements);
 
+  /// Optionally parse a type.
+  OptionalParseResult parseOptionalType(Type &type);
+
   /// Parse an arbitrary type.
   Type parseType();
 
@@ -273,7 +275,7 @@ public:
   Attribute parseAttribute(Type type = {});
 
   /// Parse an attribute dictionary.
-  ParseResult parseAttributeDict(SmallVectorImpl<NamedAttribute> &attributes);
+  ParseResult parseAttributeDict(NamedAttrList &attributes);
 
   /// Parse an extended attribute.
   Attribute parseExtendedAttr(Type type);
@@ -898,6 +900,31 @@ ParseResult Parser::parseToken(Token::Kind expectedToken,
 //===----------------------------------------------------------------------===//
 // Type Parsing
 //===----------------------------------------------------------------------===//
+
+/// Optionally parse a type.
+OptionalParseResult Parser::parseOptionalType(Type &type) {
+  // There are many different starting tokens for a type, check them here.
+  switch (getToken().getKind()) {
+  case Token::l_paren:
+  case Token::kw_memref:
+  case Token::kw_tensor:
+  case Token::kw_complex:
+  case Token::kw_tuple:
+  case Token::kw_vector:
+  case Token::inttype:
+  case Token::kw_bf16:
+  case Token::kw_f16:
+  case Token::kw_f32:
+  case Token::kw_f64:
+  case Token::kw_index:
+  case Token::kw_none:
+  case Token::exclamation_identifier:
+    return failure(!(type = parseType()));
+
+  default:
+    return llvm::None;
+  }
+}
 
 /// Parse an arbitrary type.
 ///
@@ -1542,10 +1569,10 @@ Attribute Parser::parseAttribute(Type type) {
 
   // Parse a dictionary attribute.
   case Token::l_brace: {
-    SmallVector<NamedAttribute, 4> elements;
+    NamedAttrList elements;
     if (parseAttributeDict(elements))
       return nullptr;
-    return builder.getDictionaryAttr(elements);
+    return elements.getDictionary(getContext());
   }
 
   // Parse an extended attribute, i.e. alias or dialect attribute.
@@ -1644,11 +1671,11 @@ Attribute Parser::parseAttribute(Type type) {
 ///                    | `{` attribute-entry (`,` attribute-entry)* `}`
 ///   attribute-entry ::= (bare-id | string-literal) `=` attribute-value
 ///
-ParseResult
-Parser::parseAttributeDict(SmallVectorImpl<NamedAttribute> &attributes) {
+ParseResult Parser::parseAttributeDict(NamedAttrList &attributes) {
   if (parseToken(Token::l_brace, "expected '{' in attribute dictionary"))
     return failure();
 
+  llvm::SmallDenseSet<Identifier> seenKeys;
   auto parseElt = [&]() -> ParseResult {
     // The name of an attribute can either be a bare identifier, or a string.
     Optional<Identifier> nameId;
@@ -1659,6 +1686,8 @@ Parser::parseAttributeDict(SmallVectorImpl<NamedAttribute> &attributes) {
       nameId = builder.getIdentifier(getTokenSpelling());
     else
       return emitError("expected attribute name");
+    if (!seenKeys.insert(*nameId).second)
+      return emitError("duplicate key in dictionary attribute");
     consumeToken();
 
     // Try to parse the '=' for the attribute value.
@@ -1671,7 +1700,6 @@ Parser::parseAttributeDict(SmallVectorImpl<NamedAttribute> &attributes) {
     auto attr = parseAttribute();
     if (!attr)
       return failure();
-
     attributes.push_back({*nameId, attr});
     return success();
   };
@@ -1759,13 +1787,49 @@ static Optional<APFloat> buildHexadecimalFloatLiteral(Parser *p, FloatType type,
   return APFloat(type.getFloatSemantics(), apInt);
 }
 
+/// Construct an APint from a parsed value, a known attribute type and
+/// sign.
+static Optional<APInt> buildAttributeAPInt(Type type, bool isNegative,
+                                           StringRef spelling) {
+  // Parse the integer value into an APInt that is big enough to hold the value.
+  APInt result;
+  bool isHex = spelling.size() > 1 && spelling[1] == 'x';
+  if (spelling.getAsInteger(isHex ? 0 : 10, result))
+    return llvm::None;
+
+  // Extend or truncate the bitwidth to the right size.
+  unsigned width = type.isIndex() ? IndexType::kInternalStorageBitWidth
+                                  : type.getIntOrFloatBitWidth();
+  if (width > result.getBitWidth()) {
+    result = result.zext(width);
+  } else if (width < result.getBitWidth()) {
+    // The parser can return an unnecessarily wide result with leading zeros.
+    // This isn't a problem, but truncating off bits is bad.
+    if (result.countLeadingZeros() < result.getBitWidth() - width)
+      return llvm::None;
+
+    result = result.trunc(width);
+  }
+
+  if (isNegative) {
+    // The value is negative, we have an overflow if the sign bit is not set
+    // in the negated apInt.
+    result.negate();
+    if (!result.isSignBitSet())
+      return llvm::None;
+  } else if ((type.isSignedInteger() || type.isIndex()) &&
+             result.isSignBitSet()) {
+    // The value is a positive signed integer or index,
+    // we have an overflow if the sign bit is set.
+    return llvm::None;
+  }
+
+  return result;
+}
+
 /// Parse a decimal or a hexadecimal literal, which can be either an integer
 /// or a float attribute.
 Attribute Parser::parseDecOrHexAttr(Type type, bool isNegative) {
-  auto val = getToken().getUInt64IntegerValue();
-  if (!val.hasValue())
-    return (emitError("integer constant out of range for attribute"), nullptr);
-
   // Remember if the literal is hexadecimal.
   StringRef spelling = getToken().getSpelling();
   auto loc = state.curToken.getLoc();
@@ -1793,6 +1857,10 @@ Attribute Parser::parseDecOrHexAttr(Type type, bool isNegative) {
       return nullptr;
     }
 
+    auto val = Token::getUInt64IntegerValue(spelling);
+    if (!val.hasValue())
+      return emitError("integer constant out of range for attribute"), nullptr;
+
     // Construct a float attribute bitwise equivalent to the integer literal.
     Optional<APFloat> apVal =
         buildHexadecimalFloatLiteral(this, floatType, *val);
@@ -1809,19 +1877,11 @@ Attribute Parser::parseDecOrHexAttr(Type type, bool isNegative) {
     return nullptr;
   }
 
-  // Parse the integer literal.
-  int width = type.isIndex() ? 64 : type.getIntOrFloatBitWidth();
-  APInt apInt(width, *val, isNegative);
-  if (apInt != *val)
+  Optional<APInt> apInt = buildAttributeAPInt(type, isNegative, spelling);
+  if (!apInt)
     return emitError(loc, "integer constant out of range for attribute"),
            nullptr;
-
-  // Otherwise construct an integer attribute.
-  if (isNegative ? (int64_t)-val.getValue() >= 0 : (int64_t)val.getValue() < 0)
-    return emitError(loc, "integer constant out of range for attribute"),
-           nullptr;
-
-  return builder.getIntegerAttr(type, isNegative ? -apInt : apInt);
+  return builder.getIntegerAttr(type, *apInt);
 }
 
 /// Parse elements values stored within a hex etring. On success, the values are
@@ -1894,28 +1954,16 @@ public:
   ArrayRef<int64_t> getShape() const { return shape; }
 
 private:
-  enum class ElementKind { Boolean, Integer, Float };
+  /// Get the parsed elements for an integer attribute.
+  ParseResult getIntAttrElements(llvm::SMLoc loc, Type eltTy,
+                                 std::vector<APInt> &intValues);
 
-  /// Return a string to represent the given element kind.
-  const char *getElementKindStr(ElementKind kind) {
-    switch (kind) {
-    case ElementKind::Boolean:
-      return "'boolean'";
-    case ElementKind::Integer:
-      return "'integer'";
-    case ElementKind::Float:
-      return "'float'";
-    }
-    llvm_unreachable("unknown element kind");
-  }
+  /// Get the parsed elements for a float attribute.
+  ParseResult getFloatAttrElements(llvm::SMLoc loc, FloatType eltTy,
+                                   std::vector<APFloat> &floatValues);
 
-  /// Build a Dense Integer attribute for the given type.
-  DenseElementsAttr getIntAttr(llvm::SMLoc loc, ShapedType type,
-                               IntegerType eltTy);
-
-  /// Build a Dense Float attribute for the given type.
-  DenseElementsAttr getFloatAttr(llvm::SMLoc loc, ShapedType type,
-                                 FloatType eltTy);
+  /// Build a Dense String attribute for the given type.
+  DenseElementsAttr getStringAttr(llvm::SMLoc loc, ShapedType type, Type eltTy);
 
   /// Build a Dense attribute with hex data for the given type.
   DenseElementsAttr getHexAttr(llvm::SMLoc loc, ShapedType type);
@@ -1945,9 +1993,6 @@ private:
   /// Storage used when parsing elements, this is a pair of <is_negated, token>.
   std::vector<std::pair<bool, Token>> storage;
 
-  /// A flag that indicates the type of elements that have been parsed.
-  Optional<ElementKind> knownEltKind;
-
   /// Storage used when parsing elements that were stored as hex values.
   Optional<Token> hexStorage;
 };
@@ -1972,8 +2017,11 @@ ParseResult TensorLiteralParser::parse(bool allowHex) {
 /// shaped type.
 DenseElementsAttr TensorLiteralParser::getAttr(llvm::SMLoc loc,
                                                ShapedType type) {
-  // Check to see if we parsed the literal from a hex string.
-  if (hexStorage.hasValue())
+  Type eltType = type.getElementType();
+
+  // Check to see if we parse the literal from a hex string.
+  if (hexStorage.hasValue() &&
+      (eltType.isIntOrFloat() || eltType.isa<ComplexType>()))
     return getHexAttr(loc, type);
 
   // Check that the parsed storage size has the same number of elements to the
@@ -1984,80 +2032,94 @@ DenseElementsAttr TensorLiteralParser::getAttr(llvm::SMLoc loc,
     return nullptr;
   }
 
-  // If the type is an integer, build a set of APInt values from the storage
-  // with the correct bitwidth.
-  if (auto intTy = type.getElementType().dyn_cast<IntegerType>())
-    return getIntAttr(loc, type, intTy);
-
-  // Otherwise, this must be a floating point type.
-  auto floatTy = type.getElementType().dyn_cast<FloatType>();
-  if (!floatTy) {
-    p.emitError(loc) << "expected floating-point or integer element type, got "
-                     << type.getElementType();
-    return nullptr;
+  // Handle complex types in the specific element type cases below.
+  bool isComplex = false;
+  if (ComplexType complexTy = eltType.dyn_cast<ComplexType>()) {
+    eltType = complexTy.getElementType();
+    isComplex = true;
   }
-  return getFloatAttr(loc, type, floatTy);
+
+  // Handle integer and index types.
+  if (eltType.isIntOrIndex()) {
+    std::vector<APInt> intValues;
+    if (failed(getIntAttrElements(loc, eltType, intValues)))
+      return nullptr;
+    if (isComplex) {
+      // If this is a complex, treat the parsed values as complex values.
+      auto complexData = llvm::makeArrayRef(
+          reinterpret_cast<std::complex<APInt> *>(intValues.data()),
+          intValues.size() / 2);
+      return DenseElementsAttr::get(type, complexData);
+    }
+    return DenseElementsAttr::get(type, intValues);
+  }
+  // Handle floating point types.
+  if (FloatType floatTy = eltType.dyn_cast<FloatType>()) {
+    std::vector<APFloat> floatValues;
+    if (failed(getFloatAttrElements(loc, floatTy, floatValues)))
+      return nullptr;
+    if (isComplex) {
+      // If this is a complex, treat the parsed values as complex values.
+      auto complexData = llvm::makeArrayRef(
+          reinterpret_cast<std::complex<APFloat> *>(floatValues.data()),
+          floatValues.size() / 2);
+      return DenseElementsAttr::get(type, complexData);
+    }
+    return DenseElementsAttr::get(type, floatValues);
+  }
+
+  // Other types are assumed to be string representations.
+  return getStringAttr(loc, type, type.getElementType());
 }
 
 /// Build a Dense Integer attribute for the given type.
-DenseElementsAttr TensorLiteralParser::getIntAttr(llvm::SMLoc loc,
-                                                  ShapedType type,
-                                                  IntegerType eltTy) {
-  std::vector<APInt> intElements;
-  intElements.reserve(storage.size());
-  auto isUintType = type.getElementType().isUnsignedInteger();
+ParseResult
+TensorLiteralParser::getIntAttrElements(llvm::SMLoc loc, Type eltTy,
+                                        std::vector<APInt> &intValues) {
+  intValues.reserve(storage.size());
+  bool isUintType = eltTy.isUnsignedInteger();
   for (const auto &signAndToken : storage) {
     bool isNegative = signAndToken.first;
     const Token &token = signAndToken.second;
     auto tokenLoc = token.getLoc();
 
     if (isNegative && isUintType) {
-      p.emitError(tokenLoc)
-          << "expected unsigned integer elements, but parsed negative value";
-      return nullptr;
+      return p.emitError(tokenLoc)
+             << "expected unsigned integer elements, but parsed negative value";
     }
 
     // Check to see if floating point values were parsed.
     if (token.is(Token::floatliteral)) {
-      p.emitError(tokenLoc)
-          << "expected integer elements, but parsed floating-point";
-      return nullptr;
+      return p.emitError(tokenLoc)
+             << "expected integer elements, but parsed floating-point";
     }
 
     assert(token.isAny(Token::integer, Token::kw_true, Token::kw_false) &&
            "unexpected token type");
     if (token.isAny(Token::kw_true, Token::kw_false)) {
-      if (!eltTy.isInteger(1))
-        p.emitError(tokenLoc)
-            << "expected i1 type for 'true' or 'false' values";
-      APInt apInt(eltTy.getWidth(), token.is(Token::kw_true),
-                  /*isSigned=*/false);
-      intElements.push_back(apInt);
+      if (!eltTy.isInteger(1)) {
+        return p.emitError(tokenLoc)
+               << "expected i1 type for 'true' or 'false' values";
+      }
+      APInt apInt(1, token.is(Token::kw_true), /*isSigned=*/false);
+      intValues.push_back(apInt);
       continue;
     }
 
     // Create APInt values for each element with the correct bitwidth.
-    auto val = token.getUInt64IntegerValue();
-    if (!val.hasValue() || (isNegative ? (int64_t)-val.getValue() >= 0
-                                       : (int64_t)val.getValue() < 0)) {
-      p.emitError(tokenLoc, "integer constant out of range for attribute");
-      return nullptr;
-    }
-    APInt apInt(eltTy.getWidth(), val.getValue(), isNegative);
-    if (apInt != val.getValue())
-      return (p.emitError(tokenLoc, "integer constant out of range for type"),
-              nullptr);
-    intElements.push_back(isNegative ? -apInt : apInt);
+    Optional<APInt> apInt =
+        buildAttributeAPInt(eltTy, isNegative, token.getSpelling());
+    if (!apInt)
+      return p.emitError(tokenLoc, "integer constant out of range for type");
+    intValues.push_back(*apInt);
   }
-
-  return DenseElementsAttr::get(type, intElements);
+  return success();
 }
 
 /// Build a Dense Float attribute for the given type.
-DenseElementsAttr TensorLiteralParser::getFloatAttr(llvm::SMLoc loc,
-                                                    ShapedType type,
-                                                    FloatType eltTy) {
-  std::vector<APFloat> floatValues;
+ParseResult
+TensorLiteralParser::getFloatAttrElements(llvm::SMLoc loc, FloatType eltTy,
+                                          std::vector<APFloat> &floatValues) {
   floatValues.reserve(storage.size());
   for (const auto &signAndToken : storage) {
     bool isNegative = signAndToken.first;
@@ -2066,34 +2128,31 @@ DenseElementsAttr TensorLiteralParser::getFloatAttr(llvm::SMLoc loc,
     // Handle hexadecimal float literals.
     if (token.is(Token::integer) && token.getSpelling().startswith("0x")) {
       if (isNegative) {
-        p.emitError(token.getLoc())
-            << "hexadecimal float literal should not have a leading minus";
-        return nullptr;
+        return p.emitError(token.getLoc())
+               << "hexadecimal float literal should not have a leading minus";
       }
       auto val = token.getUInt64IntegerValue();
       if (!val.hasValue()) {
-        p.emitError("hexadecimal float constant out of range for attribute");
-        return nullptr;
+        return p.emitError(
+            "hexadecimal float constant out of range for attribute");
       }
       Optional<APFloat> apVal = buildHexadecimalFloatLiteral(&p, eltTy, *val);
       if (!apVal)
-        return nullptr;
+        return failure();
       floatValues.push_back(*apVal);
       continue;
     }
 
     // Check to see if any decimal integers or booleans were parsed.
-    if (!token.is(Token::floatliteral)) {
-      p.emitError() << "expected floating-point elements, but parsed integer";
-      return nullptr;
-    }
+    if (!token.is(Token::floatliteral))
+      return p.emitError()
+             << "expected floating-point elements, but parsed integer";
 
     // Build the float values from tokens.
     auto val = token.getFloatingPointValue();
-    if (!val.hasValue()) {
-      p.emitError("floating point value too large for attribute");
-      return nullptr;
-    }
+    if (!val.hasValue())
+      return p.emitError("floating point value too large for attribute");
+
     // Treat BF16 as double because it is not supported in LLVM's APFloat.
     APFloat apVal(isNegative ? -*val : *val);
     if (!eltTy.isBF16() && !eltTy.isF64()) {
@@ -2103,17 +2162,39 @@ DenseElementsAttr TensorLiteralParser::getFloatAttr(llvm::SMLoc loc,
     }
     floatValues.push_back(apVal);
   }
+  return success();
+}
 
-  return DenseElementsAttr::get(type, floatValues);
+/// Build a Dense String attribute for the given type.
+DenseElementsAttr TensorLiteralParser::getStringAttr(llvm::SMLoc loc,
+                                                     ShapedType type,
+                                                     Type eltTy) {
+  if (hexStorage.hasValue()) {
+    auto stringValue = hexStorage.getValue().getStringValue();
+    return DenseStringElementsAttr::get(type, {stringValue});
+  }
+
+  std::vector<std::string> stringValues;
+  std::vector<StringRef> stringRefValues;
+  stringValues.reserve(storage.size());
+  stringRefValues.reserve(storage.size());
+
+  for (auto val : storage) {
+    stringValues.push_back(val.second.getStringValue());
+    stringRefValues.push_back(stringValues.back());
+  }
+
+  return DenseStringElementsAttr::get(type, stringRefValues);
 }
 
 /// Build a Dense attribute with hex data for the given type.
 DenseElementsAttr TensorLiteralParser::getHexAttr(llvm::SMLoc loc,
                                                   ShapedType type) {
   Type elementType = type.getElementType();
-  if (!elementType.isa<FloatType>() && !elementType.isa<IntegerType>()) {
-    p.emitError(loc) << "expected floating-point or integer element type, got "
-                     << elementType;
+  if (!elementType.isIntOrIndexOrFloat() && !elementType.isa<ComplexType>()) {
+    p.emitError(loc)
+        << "expected floating-point, integer, or complex element type, got "
+        << elementType;
     return nullptr;
   }
 
@@ -2121,21 +2202,15 @@ DenseElementsAttr TensorLiteralParser::getHexAttr(llvm::SMLoc loc,
   if (parseElementAttrHexValues(p, hexStorage.getValue(), data))
     return nullptr;
 
-  // Check that the size of the hex data correpsonds to the size of the type, or
-  // a splat of the type.
-  // TODO: bf16 is currently stored as a double, this should be removed when
-  // APFloat properly supports it.
-  int64_t elementWidth =
-      elementType.isBF16() ? 64 : elementType.getIntOrFloatBitWidth();
-  if (static_cast<int64_t>(data.size() * CHAR_BIT) !=
-      (type.getNumElements() * elementWidth)) {
+  ArrayRef<char> rawData(data.data(), data.size());
+  bool detectedSplat = false;
+  if (!DenseElementsAttr::isValidRawBuffer(type, rawData, detectedSplat)) {
     p.emitError(loc) << "elements hex data size is invalid for provided type: "
                      << type;
     return nullptr;
   }
 
-  return DenseElementsAttr::getFromRawBuffer(
-      type, ArrayRef<char>(data.data(), data.size()), /*isSplatBuffer=*/false);
+  return DenseElementsAttr::getFromRawBuffer(type, rawData, detectedSplat);
 }
 
 ParseResult TensorLiteralParser::parseElement() {
@@ -2156,6 +2231,21 @@ ParseResult TensorLiteralParser::parseElement() {
       return p.emitError("expected integer or floating point literal");
     storage.emplace_back(/*isNegative=*/true, p.getToken());
     p.consumeToken();
+    break;
+
+  case Token::string:
+    storage.emplace_back(/*isNegative=*/ false, p.getToken());
+    p.consumeToken();
+    break;
+
+  // Parse a complex element of the form '(' element ',' element ')'.
+  case Token::l_paren:
+    p.consumeToken(Token::l_paren);
+    if (parseElement() ||
+        p.parseToken(Token::comma, "expected ',' between complex elements") ||
+        parseElement() ||
+        p.parseToken(Token::r_paren, "expected ')' after complex elements"))
+      return failure();
     break;
 
   default:
@@ -3079,12 +3169,8 @@ AffineParser::parseAffineMapOfSSAIds(AffineMap &map,
                                    /*allowEmptyList=*/true))
     return failure();
   // Parsed a valid affine map.
-  if (exprs.empty())
-    map = AffineMap::get(numDimOperands, dimsAndSymbols.size() - numDimOperands,
-                         getContext());
-  else
-    map = AffineMap::get(numDimOperands, dimsAndSymbols.size() - numDimOperands,
-                         exprs);
+  map = AffineMap::get(numDimOperands, dimsAndSymbols.size() - numDimOperands,
+                       exprs, getContext());
   return success();
 }
 
@@ -3113,11 +3199,8 @@ AffineMap AffineParser::parseAffineMapRange(unsigned numDims,
   if (parseCommaSeparatedListUntil(Token::r_paren, parseElt, true))
     return AffineMap();
 
-  if (exprs.empty())
-    return AffineMap::get(numDims, numSymbols, getContext());
-
   // Parsed a valid affine map.
-  return AffineMap::get(numDims, numSymbols, exprs);
+  return AffineMap::get(numDims, numSymbols, exprs, getContext());
 }
 
 /// Parse an affine constraint.
@@ -3459,14 +3542,14 @@ ParseResult OperationParser::finalize() {
   // Check for any forward references that are left.  If we find any, error
   // out.
   if (!forwardRefPlaceholders.empty()) {
-    SmallVector<std::pair<const char *, Value>, 4> errors;
+    SmallVector<const char *, 4> errors;
     // Iteration over the map isn't deterministic, so sort by source location.
     for (auto entry : forwardRefPlaceholders)
-      errors.push_back({entry.second.getPointer(), entry.first});
+      errors.push_back(entry.second.getPointer());
     llvm::array_pod_sort(errors.begin(), errors.end());
 
     for (auto entry : errors) {
-      auto loc = SMLoc::getFromPointer(entry.first);
+      auto loc = SMLoc::getFromPointer(entry);
       emitError(loc, "use of undeclared SSA value name");
     }
     return failure();
@@ -3538,6 +3621,14 @@ ParseResult OperationParser::addDefinition(SSAUseInfo useInfo, Value value) {
           .append("redefinition of SSA value '", useInfo.name, "'")
           .attachNote(getEncodedSourceLocation(entries[useInfo.number].second))
           .append("previously defined here");
+    }
+
+    if (existing.getType() != value.getType()) {
+      return emitError(useInfo.loc)
+          .append("definition of SSA value '", useInfo.name, "#",
+                  useInfo.number, "' has type ", value.getType())
+          .attachNote(getEncodedSourceLocation(entries[useInfo.number].second))
+          .append("previously used here with type ", existing.getType());
     }
 
     // If it was a forward reference, update everything that used it to use
@@ -3709,8 +3800,7 @@ Value OperationParser::createForwardRefPlaceholder(SMLoc loc, Type type) {
   auto name = OperationName("placeholder", getContext());
   auto *op = Operation::create(
       getEncodedSourceLocation(loc), name, type, /*operands=*/{},
-      /*attributes=*/llvm::None, /*successors=*/{}, /*numRegions=*/0,
-      /*resizableOperandList=*/false);
+      /*attributes=*/llvm::None, /*successors=*/{}, /*numRegions=*/0);
   forwardRefPlaceholders[op->getResult(0)] = loc;
   return op->getResult(0);
 }
@@ -3870,9 +3960,6 @@ Operation *OperationParser::parseGenericOperation() {
   consumeToken(Token::string);
 
   OperationState result(srcLocation, name);
-
-  // Generic operations have a resizable operation list.
-  result.setOperandListToResizable();
 
   // Parse the operand list.
   SmallVector<SSAUseInfo, 8> operandInfos;
@@ -4139,7 +4226,7 @@ public:
   /// also adds the attribute to the specified attribute list with the specified
   /// name.
   ParseResult parseAttribute(Attribute &result, Type type, StringRef attrName,
-                             SmallVectorImpl<NamedAttribute> &attrs) override {
+                             NamedAttrList &attrs) override {
     result = parser.parseAttribute(type);
     if (!result)
       return failure();
@@ -4149,8 +4236,7 @@ public:
   }
 
   /// Parse a named dictionary into 'result' if it is present.
-  ParseResult
-  parseOptionalAttrDict(SmallVectorImpl<NamedAttribute> &result) override {
+  ParseResult parseOptionalAttrDict(NamedAttrList &result) override {
     if (parser.getToken().isNot(Token::l_brace))
       return success();
     return parser.parseAttributeDict(result);
@@ -4158,8 +4244,7 @@ public:
 
   /// Parse a named dictionary into 'result' if the `attributes` keyword is
   /// present.
-  ParseResult parseOptionalAttrDictWithKeyword(
-      SmallVectorImpl<NamedAttribute> &result) override {
+  ParseResult parseOptionalAttrDictWithKeyword(NamedAttrList &result) override {
     if (failed(parseOptionalKeyword("attributes")))
       return success();
     return parser.parseAttributeDict(result);
@@ -4207,9 +4292,8 @@ public:
 
   /// Parse an optional @-identifier and store it (without the '@' symbol) in a
   /// string attribute named 'attrName'.
-  ParseResult
-  parseOptionalSymbolName(StringAttr &result, StringRef attrName,
-                          SmallVectorImpl<NamedAttribute> &attrs) override {
+  ParseResult parseOptionalSymbolName(StringAttr &result, StringRef attrName,
+                                      NamedAttrList &attrs) override {
     Token atToken = parser.getToken();
     if (atToken.isNot(Token::at_identifier))
       return failure();
@@ -4232,6 +4316,13 @@ public:
 
     result = {useInfo.loc, useInfo.name, useInfo.number};
     return success();
+  }
+
+  /// Parse a single operand if present.
+  OptionalParseResult parseOptionalOperand(OperandType &result) override {
+    if (parser.getToken().is(Token::percent_identifier))
+      return parseOperand(result);
+    return llvm::None;
   }
 
   /// Parse zero or more SSA comma-separated operand references with a specified
@@ -4350,7 +4441,7 @@ public:
   /// Parse an AffineMap of SSA ids.
   ParseResult parseAffineMapOfSSAIds(SmallVectorImpl<OperandType> &operands,
                                      Attribute &mapAttr, StringRef attrName,
-                                     SmallVectorImpl<NamedAttribute> &attrs,
+                                     NamedAttrList &attrs,
                                      Delimiter delimiter) override {
     SmallVector<OperandType, 2> dimOperands;
     SmallVector<OperandType, 1> symOperands;
@@ -4481,6 +4572,11 @@ public:
   /// Parse a type.
   ParseResult parseType(Type &result) override {
     return failure(!(result = parser.parseType()));
+  }
+
+  /// Parse an optional type.
+  OptionalParseResult parseOptionalType(Type &result) override {
+    return parser.parseOptionalType(result);
   }
 
   /// Parse an arrow followed by a type list.
@@ -4940,7 +5036,7 @@ ParseResult ModuleParser::parseModule(ModuleOp module) {
       if (nested && std::next(operations.begin(), 2) == operations.end()) {
         // Merge the data of the nested module operation into 'module'.
         module.setLoc(nested.getLoc());
-        module.setAttrs(nested.getOperation()->getAttrList());
+        module.setAttrs(nested.getOperation()->getMutableAttrDict());
         bodyBlocks.splice(bodyBlocks.end(), nested.getBodyRegion().getBlocks());
 
         // Erase the original module body.

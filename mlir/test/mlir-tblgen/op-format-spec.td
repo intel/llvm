@@ -1,4 +1,4 @@
-// RUN: mlir-tblgen -gen-op-decls -asmformat-error-is-fatal=false -I %S/../../include %s 2>&1 | FileCheck %s --dump-input-on-failure
+// RUN: mlir-tblgen -gen-op-decls -asmformat-error-is-fatal=false -I %S/../../include %s -o=%t 2>&1 | FileCheck %s --dump-input-on-failure
 
 // This file contains tests for the specification of the declarative op format.
 
@@ -19,7 +19,7 @@ class TestFormat_Op<string name, string fmt, list<OpTrait> traits = []>
 //===----------------------------------------------------------------------===//
 // attr-dict
 
-// CHECK: error: format missing 'attr-dict' directive
+// CHECK: error: 'attr-dict' directive not found
 def DirectiveAttrDictInvalidA : TestFormat_Op<"attrdict_invalid_a", [{
 }]>;
 // CHECK: error: 'attr-dict' directive has already been seen
@@ -222,7 +222,7 @@ def OptionalInvalidF : TestFormat_Op<"optional_invalid_f", [{
 def OptionalInvalidG : TestFormat_Op<"optional_invalid_g", [{
   ($attr^) attr-dict
 }]>, Arguments<(ins I64Attr:$attr)>;
-// CHECK: error: only variadic operands can be used within an optional group
+// CHECK: error: only variable length operands can be used within an optional group
 def OptionalInvalidH : TestFormat_Op<"optional_invalid_h", [{
   ($arg^) attr-dict
 }]>, Arguments<(ins I64:$arg)>;
@@ -243,7 +243,7 @@ def OptionalInvalidK : TestFormat_Op<"optional_invalid_k", [{
 // Variables
 //===----------------------------------------------------------------------===//
 
-// CHECK: error: expected variable to refer to a argument, result, or successor
+// CHECK: error: expected variable to refer to an argument, result, or successor
 def VariableInvalidA : TestFormat_Op<"variable_invalid_a", [{
   $unknown_arg attr-dict
 }]>;
@@ -275,31 +275,69 @@ def VariableInvalidG : TestFormat_Op<"variable_invalid_g", [{
 }]> {
   let successors = (successor AnySuccessor:$successor);
 }
+// CHECK: error: format ambiguity caused by `:` literal found after attribute `attr` which does not have a buildable type
+def VariableInvalidH : TestFormat_Op<"variable_invalid_h", [{
+  $attr `:` attr-dict
+}]>, Arguments<(ins ElementsAttr:$attr)>;
+// CHECK: error: format ambiguity caused by `:` literal found after attribute `attr` which does not have a buildable type
+def VariableInvalidI : TestFormat_Op<"variable_invalid_i", [{
+  (`foo` $attr^)? `:` attr-dict
+}]>, Arguments<(ins OptionalAttr<ElementsAttr>:$attr)>;
+// CHECK-NOT: error:
+def VariableInvalidJ : TestFormat_Op<"variable_invalid_j", [{
+  $attr `:` attr-dict
+}]>, Arguments<(ins OptionalAttr<I1Attr>:$attr)>;
+def VariableInvalidK : TestFormat_Op<"variable_invalid_k", [{
+  (`foo` $attr^)? `:` attr-dict
+}]>, Arguments<(ins OptionalAttr<I1Attr>:$attr)>;
 
 //===----------------------------------------------------------------------===//
 // Coverage Checks
 //===----------------------------------------------------------------------===//
 
-// CHECK: error: format missing instance of result #0('result') type
+// CHECK: error: type of result #0, named 'result', is not buildable and a buildable type cannot be inferred
+// CHECK: note: suggest adding a type constraint to the operation or adding a 'type($result)' directive to the custom assembly format
 def ZCoverageInvalidA : TestFormat_Op<"variable_invalid_a", [{
   attr-dict
 }]>, Arguments<(ins AnyMemRef:$operand)>, Results<(outs AnyMemRef:$result)>;
-// CHECK: error: format missing instance of operand #0('operand')
+// CHECK: error: operand #0, named 'operand', not found
+// CHECK: note: suggest adding a '$operand' directive to the custom assembly format
 def ZCoverageInvalidB : TestFormat_Op<"variable_invalid_b", [{
   type($result) attr-dict
 }]>, Arguments<(ins AnyMemRef:$operand)>, Results<(outs AnyMemRef:$result)>;
-// CHECK: error: format missing instance of operand #0('operand') type
+// CHECK: error: type of operand #0, named 'operand', is not buildable and a buildable type cannot be inferred
+// CHECK: note: suggest adding a type constraint to the operation or adding a 'type($operand)' directive to the custom assembly format
 def ZCoverageInvalidC : TestFormat_Op<"variable_invalid_c", [{
   $operand type($result) attr-dict
 }]>, Arguments<(ins AnyMemRef:$operand)>, Results<(outs AnyMemRef:$result)>;
-// CHECK: error: format missing instance of operand #0('operand') type
+// CHECK: error: type of operand #0, named 'operand', is not buildable and a buildable type cannot be inferred
+// CHECK: note: suggest adding a type constraint to the operation or adding a 'type($operand)' directive to the custom assembly format
 def ZCoverageInvalidD : TestFormat_Op<"variable_invalid_d", [{
   operands attr-dict
 }]>, Arguments<(ins Variadic<I64>:$operand)>;
-// CHECK: error: format missing instance of result #0('result') type
+// CHECK: error: type of result #0, named 'result', is not buildable and a buildable type cannot be inferred
+// CHECK: note: suggest adding a type constraint to the operation or adding a 'type($result)' directive to the custom assembly format
 def ZCoverageInvalidE : TestFormat_Op<"variable_invalid_e", [{
   attr-dict
 }]>, Results<(outs Variadic<I64>:$result)>;
+// CHECK: error: successor #0, named 'successor', not found
+// CHECK: note: suggest adding a '$successor' directive to the custom assembly format
+def ZCoverageInvalidF : TestFormat_Op<"variable_invalid_f", [{
+	 attr-dict
+}]> {
+  let successors = (successor AnySuccessor:$successor);
+}
+// CHECK: error: type of operand #0, named 'operand', is not buildable and a buildable type cannot be inferred
+// CHECK: note: suggest adding a type constraint to the operation or adding a 'type($operand)' directive to the custom assembly format
+def ZCoverageInvalidG : TestFormat_Op<"variable_invalid_g", [{
+  operands attr-dict
+}]>, Arguments<(ins Optional<I64>:$operand)>;
+// CHECK: error: type of result #0, named 'result', is not buildable and a buildable type cannot be inferred
+// CHECK: note: suggest adding a type constraint to the operation or adding a 'type($result)' directive to the custom assembly format
+def ZCoverageInvalidH : TestFormat_Op<"variable_invalid_h", [{
+  attr-dict
+}]>, Results<(outs Optional<I64>:$result)>;
+
 // CHECK-NOT: error
 def ZCoverageValidA : TestFormat_Op<"variable_valid_a", [{
   $operand type($operand) type($result) attr-dict

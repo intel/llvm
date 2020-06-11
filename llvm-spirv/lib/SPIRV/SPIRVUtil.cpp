@@ -143,7 +143,7 @@ std::string mapLLVMTypeToOCLType(const Type *Ty, bool Signed) {
   }
   if (auto VecTy = dyn_cast<VectorType>(Ty)) {
     Type *EleTy = VecTy->getElementType();
-    unsigned Size = VecTy->getVectorNumElements();
+    unsigned Size = VecTy->getNumElements();
     std::stringstream Ss;
     Ss << mapLLVMTypeToOCLType(EleTy, Signed) << Size;
     return Ss.str();
@@ -743,10 +743,10 @@ void makeVector(Instruction *InsPos, std::vector<Value *> &Ops,
 void expandVector(Instruction *InsPos, std::vector<Value *> &Ops,
                   size_t VecPos) {
   auto Vec = Ops[VecPos];
-  auto VT = Vec->getType();
-  if (!VT->isVectorTy())
+  auto *VT = dyn_cast<VectorType>(Vec->getType());
+  if (!VT)
     return;
-  size_t N = VT->getVectorNumElements();
+  size_t N = VT->getNumElements();
   IRBuilder<> Builder(InsPos);
   for (size_t I = 0; I != N; ++I)
     Ops.insert(Ops.begin() + VecPos + I,
@@ -1050,10 +1050,9 @@ static SPIR::RefParamType transTypeDesc(Type *Ty,
     return SPIR::RefParamType(new SPIR::PrimitiveType(SPIR::PRIMITIVE_FLOAT));
   if (Ty->isDoubleTy())
     return SPIR::RefParamType(new SPIR::PrimitiveType(SPIR::PRIMITIVE_DOUBLE));
-  if (Ty->isVectorTy()) {
-    return SPIR::RefParamType(
-        new SPIR::VectorType(transTypeDesc(Ty->getVectorElementType(), Info),
-                             Ty->getVectorNumElements()));
+  if (auto *VecTy = dyn_cast<VectorType>(Ty)) {
+    return SPIR::RefParamType(new SPIR::VectorType(
+        transTypeDesc(VecTy->getElementType(), Info), VecTy->getNumElements()));
   }
   if (Ty->isArrayTy()) {
     return transTypeDesc(PointerType::get(Ty->getArrayElementType(), 0), Info);
@@ -1154,15 +1153,12 @@ static SPIR::RefParamType transTypeDesc(Type *Ty,
 Value *getScalarOrArray(Value *V, unsigned Size, Instruction *Pos) {
   if (!V->getType()->isPointerTy())
     return V;
-  assert((isa<ConstantExpr>(V) || isa<GetElementPtrInst>(V)) &&
-         "unexpected value type");
-  auto GEP = cast<User>(V);
+  auto GEP = cast<GEPOperator>(V);
   assert(GEP->getNumOperands() == 3 && "must be a GEP from an array");
-  auto P = GEP->getOperand(0);
-  assert(P->getType()->getPointerElementType()->getArrayNumElements() == Size);
+  assert(GEP->getSourceElementType()->getArrayNumElements() == Size);
   assert(dyn_cast<ConstantInt>(GEP->getOperand(1))->getZExtValue() == 0);
   assert(dyn_cast<ConstantInt>(GEP->getOperand(2))->getZExtValue() == 0);
-  return new LoadInst(P, "", Pos);
+  return new LoadInst(GEP->getSourceElementType(), GEP->getOperand(0), "", Pos);
 }
 
 Constant *getScalarOrVectorConstantInt(Type *T, uint64_t V, bool IsSigned) {
@@ -1170,8 +1166,8 @@ Constant *getScalarOrVectorConstantInt(Type *T, uint64_t V, bool IsSigned) {
     return ConstantInt::get(IT, V);
   if (auto VT = dyn_cast<VectorType>(T)) {
     std::vector<Constant *> EV(
-        VT->getVectorNumElements(),
-        getScalarOrVectorConstantInt(VT->getVectorElementType(), V, IsSigned));
+        VT->getNumElements(),
+        getScalarOrVectorConstantInt(VT->getElementType(), V, IsSigned));
     return ConstantVector::get(EV);
   }
   llvm_unreachable("Invalid type");
@@ -1522,14 +1518,14 @@ bool checkTypeForSPIRVExtendedInstLowering(IntrinsicInst *II, SPIRVModule *BM) {
     if (II->getArgOperand(0)->getType() != Ty)
       return false;
     int NumElems = 1;
-    if (Ty->isVectorTy()) {
-      NumElems = Ty->getVectorNumElements();
-      Ty = cast<VectorType>(Ty)->getElementType();
+    if (auto *VecTy = dyn_cast<VectorType>(Ty)) {
+      NumElems = VecTy->getNumElements();
+      Ty = VecTy->getElementType();
     }
     if ((!Ty->isFloatTy() && !Ty->isDoubleTy()) ||
         ((NumElems > 4) && (NumElems != 8) && (NumElems != 16))) {
       BM->getErrorLog().checkError(false, SPIRVEC_InvalidFunctionCall,
-                                   II->getCalledValue()->getName().str(), "",
+                                   II->getCalledOperand()->getName().str(), "",
                                    __FILE__, __LINE__);
       return false;
     }

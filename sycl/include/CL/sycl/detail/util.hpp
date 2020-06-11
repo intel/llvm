@@ -11,6 +11,7 @@
 #ifndef __SYCL_DEVICE_ONLY
 
 #include <CL/sycl/detail/defines.hpp>
+#include <CL/sycl/stl.hpp>
 
 #include <cstring>
 #include <mutex>
@@ -52,12 +53,7 @@ struct CmpCStr {
   }
 };
 
-// Interface to iterate via C strings.
-class CStringIterator {
-public:
-  // Get the next string. Returns next string's pointer or nullptr.
-  virtual const char *next() = 0;
-};
+using SerializedObj = sycl::vector_class<unsigned char>;
 
 } // namespace detail
 } // namespace sycl

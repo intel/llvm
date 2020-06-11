@@ -10,11 +10,7 @@
 #define LLVM_CLANG_TOOLS_EXTRA_CLANGD_CLANGDSERVER_H
 
 #include "../clang-tidy/ClangTidyOptions.h"
-#include "Cancellation.h"
 #include "CodeComplete.h"
-#include "FSProvider.h"
-#include "FormattedString.h"
-#include "Function.h"
 #include "GlobalCompilationDatabase.h"
 #include "Hover.h"
 #include "Protocol.h"
@@ -26,6 +22,9 @@
 #include "index/Index.h"
 #include "refactor/Rename.h"
 #include "refactor/Tweak.h"
+#include "support/Cancellation.h"
+#include "support/FSProvider.h"
+#include "support/Function.h"
 #include "clang/Tooling/CompilationDatabase.h"
 #include "clang/Tooling/Core/Replacement.h"
 #include "llvm/ADT/FunctionExtras.h"
@@ -98,6 +97,9 @@ public:
 
     /// Cached preambles are potentially large. If false, store them on disk.
     bool StorePreamblesInMemory = true;
+    /// Reuse even stale preambles, and rebuild them in the background.
+    /// This improves latency at the cost of accuracy.
+    bool AsyncPreambleBuilds = false;
 
     /// If true, ClangdServer builds a dynamic in-memory index for symbols in
     /// opened files and uses the index to augment code completion results.
@@ -117,6 +119,12 @@ public:
     /// (Checks, CheckOptions) are about which clang-tidy checks will be
     /// enabled.
     ClangTidyOptionsBuilder GetClangTidyOptions;
+
+    /// If true, turn on the `-frecovery-ast` clang flag.
+    bool BuildRecoveryAST = false;
+
+    /// If true, turn on the `-frecovery-ast-type` clang flag.
+    bool PreserveRecoveryASTType = false;
 
     /// Clangd's workspace root. Relevant for "workspace" operations not bound
     /// to a particular file.
@@ -142,7 +150,7 @@ public:
     /// fetch system include path.
     std::vector<std::string> QueryDriverGlobs;
 
-    /// Enable semantic highlighting features.
+    /// Enable notification-based semantic highlighting.
     bool TheiaSemanticHighlighting = false;
 
     /// Returns true if the tweak should be enabled.
@@ -292,20 +300,23 @@ public:
                   Callback<std::vector<SymbolDetails>> CB);
 
   /// Get semantic ranges around a specified position in a file.
-  void semanticRanges(PathRef File, Position Pos,
-                      Callback<std::vector<Range>> CB);
+  void semanticRanges(PathRef File, const std::vector<Position> &Pos,
+                      Callback<std::vector<SelectionRange>> CB);
 
   /// Get all document links in a file.
   void documentLinks(PathRef File, Callback<std::vector<DocumentLink>> CB);
- 
-  /// Returns estimated memory usage for each of the currently open files.
-  /// The order of results is unspecified.
+
+  void semanticHighlights(PathRef File,
+                          Callback<std::vector<HighlightingToken>>);
+
+  /// Returns estimated memory usage and other statistics for each of the
+  /// currently open files.
   /// Overall memory usage of clangd may be significantly more than reported
   /// here, as this metric does not account (at least) for:
   ///   - memory occupied by static and dynamic index,
   ///   - memory required for in-flight requests,
   /// FIXME: those metrics might be useful too, we should add them.
-  std::vector<std::pair<Path, std::size_t>> getUsedBytesPerFile() const;
+  llvm::StringMap<TUScheduler::FileStats> fileStats() const;
 
   // Blocks the main thread until the server is idle. Only for use in tests.
   // Returns false if the timeout expires.
@@ -341,6 +352,11 @@ private:
   // If this is true, suggest include insertion fixes for diagnostic errors that
   // can be caused by missing includes (e.g. member access in incomplete type).
   bool SuggestMissingIncludes = false;
+
+  // If true, preserve expressions in AST for broken code.
+  bool BuildRecoveryAST = false;
+  // If true, preserve the type for recovery AST.
+  bool PreserveRecoveryASTType = false;
 
   std::function<bool(const Tweak &)> TweakFilter;
 

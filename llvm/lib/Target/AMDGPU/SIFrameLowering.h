@@ -32,7 +32,7 @@ public:
   void emitEpilogue(MachineFunction &MF,
                     MachineBasicBlock &MBB) const override;
   int getFrameIndexReference(const MachineFunction &MF, int FI,
-                             unsigned &FrameReg) const override;
+                             Register &FrameReg) const override;
 
   void determineCalleeSaves(MachineFunction &MF, BitVector &SavedRegs,
                             RegScavenger *RS = nullptr) const override;
@@ -61,9 +61,7 @@ private:
                                         const DebugLoc &DL,
                                         Register ScratchWaveOffsetReg) const;
 
-  Register
-  getEntryFunctionReservedScratchRsrcReg(MachineFunction &MF,
-                                         Register ScratchWaveOffsetReg) const;
+  Register getEntryFunctionReservedScratchRsrcReg(MachineFunction &MF) const;
 
   void emitEntryFunctionScratchRsrcRegSetup(
       MachineFunction &MF, MachineBasicBlock &MBB,

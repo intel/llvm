@@ -13,6 +13,7 @@
 #include "clang/Driver/Driver.h"
 #include "clang/Driver/DriverDiagnostic.h"
 #include "clang/Driver/Options.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
 
@@ -246,17 +247,16 @@ void SYCL::fpga::BackendCompiler::ConstructJob(Compilation &C,
     if (Ty == types::TY_INVALID)
       continue;
     if (types::isSrcFile(Ty) || Ty == types::TY_Object) {
-      // Dependency files and the project report are created in CWD, so strip
-      // off any directory information if provided with the input file.
-      // TODO - Use temporary files for dependency file creation and
-      // usage with -fintelfpga.
+      // The project report is created in CWD, so strip off any directory
+      // information if provided with the input file.
       ArgName = llvm::sys::path::filename(ArgName);
       if (types::isSrcFile(Ty)) {
-        SmallString<128> DepName(ArgName);
-        llvm::sys::path::replace_extension(DepName, "d");
-        FPGADepFiles.push_back(InputInfo(types::TY_Dependencies,
-                                         Args.MakeArgString(DepName),
-                                         Args.MakeArgString(DepName)));
+        SmallString<128> DepName(
+            C.getDriver().getFPGATempDepFile(std::string(ArgName)));
+        if (!DepName.empty())
+          FPGADepFiles.push_back(InputInfo(types::TY_Dependencies,
+                                           Args.MakeArgString(DepName),
+                                           Args.MakeArgString(DepName)));
       }
       if (createdReportName.empty()) {
         // Project report should be saved into CWD, so strip off any
@@ -421,6 +421,17 @@ SYCLToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
   return DAL;
 }
 
+static void parseTargetOpts(StringRef ArgString, const llvm::opt::ArgList &Args,
+                            llvm::opt::ArgStringList &CmdArgs) {
+  // Tokenize the string.
+  SmallVector<const char *, 8> TargetArgs;
+  llvm::BumpPtrAllocator A;
+  llvm::StringSaver S(A);
+  llvm::cl::TokenizeGNUCommandLine(ArgString, S, TargetArgs);
+  for (StringRef TA : TargetArgs)
+    CmdArgs.push_back(Args.MakeArgString(TA));
+}
+
 // Expects a specific type of option (e.g. -Xsycl-target-backend) and will
 // extract the arguments.
 void SYCLToolChain::TranslateTargetOpt(const llvm::opt::ArgList &Args,
@@ -455,19 +466,33 @@ void SYCLToolChain::TranslateTargetOpt(const llvm::opt::ArgList &Args,
       // Triple found, add the next argument in line.
       ArgString = A->getValue(1);
 
-    // Do a simple parse of the args to pass back
-    SmallVector<StringRef, 16> TargetArgs;
-    // TODO: Improve parsing, as this only handles arguments separated by
-    // spaces.
-    ArgString.split(TargetArgs, ' ', -1, false);
-    for (const auto &TA : TargetArgs)
-      CmdArgs.push_back(Args.MakeArgString(TA));
+    parseTargetOpts(ArgString, Args, CmdArgs);
     A->claim();
+  }
+}
+
+static void addImpliedArgs(const llvm::Triple &Triple,
+                           const llvm::opt::ArgList &Args,
+                           llvm::opt::ArgStringList &CmdArgs) {
+  // Current implied args are for debug information and disabling of
+  // optimizations.
+  // TODO: Add support for other architectures (gen, x86_64) as those are
+  // being defined.
+  if (Triple.getSubArch() == llvm::Triple::NoSubArch ||
+      Triple.getSubArch() == llvm::Triple::SPIRSubArch_fpga) {
+    if (Arg *A = Args.getLastArg(options::OPT_g_Group, options::OPT__SLASH_Z7))
+      if (!A->getOption().matches(options::OPT_g0))
+        CmdArgs.push_back("-g");
+    if (Args.getLastArg(options::OPT_O0))
+      CmdArgs.push_back("-cl-opt-disable");
   }
 }
 
 void SYCLToolChain::TranslateBackendTargetArgs(const llvm::opt::ArgList &Args,
     llvm::opt::ArgStringList &CmdArgs) const {
+  // Add any implied arguments before user defined arguments.
+  addImpliedArgs(getTriple(), Args, CmdArgs);
+
   // Handle -Xs flags.
   for (auto *A : Args) {
     // When parsing the target args, the -Xs<opt> type option applies to all
@@ -485,13 +510,7 @@ void SYCLToolChain::TranslateBackendTargetArgs(const llvm::opt::ArgList &Args,
     }
     if (A->getOption().matches(options::OPT_Xs_separate)) {
       StringRef ArgString(A->getValue());
-      // Do a simple parse of the args to pass back
-      SmallVector<StringRef, 16> TargetArgs;
-      // TODO: Improve parsing, as this only handles arguments separated by
-      // spaces.
-      ArgString.split(TargetArgs, ' ', -1, false);
-      for (const auto &TA : TargetArgs)
-        CmdArgs.push_back(Args.MakeArgString(TA));
+      parseTargetOpts(ArgString, Args, CmdArgs);
       A->claim();
       continue;
     }
@@ -545,7 +564,6 @@ void SYCLToolChain::AddSYCLIncludeArgs(const clang::driver::Driver &Driver,
 
 void SYCLToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
                                               ArgStringList &CC1Args) const {
-  AddSYCLIncludeArgs(getDriver(), DriverArgs, CC1Args);
   HostTC.AddClangSystemIncludeArgs(DriverArgs, CC1Args);
 }
 

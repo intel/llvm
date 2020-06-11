@@ -1,11 +1,13 @@
-// RUN: %clangxx -Xclang -fsycl-allow-func-ptr -std=c++14 -fsycl %s -o %t.out -L %opencl_libs_dir -lOpenCL
+// UNSUPPORTED: windows
+// UNSUPPORTED: cuda
+// CUDA does not support the function pointer as kernel argument extension.
+
+// RUN: %clangxx -Xclang -fsycl-allow-func-ptr -std=c++14 -fsycl %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // FIXME: This test should use runtime early exit once correct check for
 // corresponding extension is implemented
-// UNSUPPORTED: windows
-// XFAIL: cuda
 
 #include <CL/sycl.hpp>
 

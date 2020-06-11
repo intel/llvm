@@ -9,6 +9,8 @@
 #include "../ClangTidy.h"
 #include "../ClangTidyModule.h"
 #include "../ClangTidyModuleRegistry.h"
+#include "CalleeNamespaceCheck.h"
+#include "ImplementationInNamespaceCheck.h"
 #include "RestrictSystemLibcHeadersCheck.h"
 
 namespace clang {
@@ -18,6 +20,10 @@ namespace llvm_libc {
 class LLVMLibcModule : public ClangTidyModule {
 public:
   void addCheckFactories(ClangTidyCheckFactories &CheckFactories) override {
+    CheckFactories.registerCheck<CalleeNamespaceCheck>(
+        "llvmlibc-callee-namespace");
+    CheckFactories.registerCheck<ImplementationInNamespaceCheck>(
+        "llvmlibc-implementation-in-namespace");
     CheckFactories.registerCheck<RestrictSystemLibcHeadersCheck>(
         "llvmlibc-restrict-system-libc-headers");
   }

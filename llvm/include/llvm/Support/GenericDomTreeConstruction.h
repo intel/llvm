@@ -37,7 +37,6 @@
 #ifndef LLVM_SUPPORT_GENERICDOMTREECONSTRUCTION_H
 #define LLVM_SUPPORT_GENERICDOMTREECONSTRUCTION_H
 
-#include <queue>
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/DepthFirstIterator.h"
@@ -45,6 +44,7 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/GenericDomTree.h"
+#include <queue>
 
 #define DEBUG_TYPE "dom-tree-builder"
 
@@ -599,8 +599,6 @@ struct SemiNCAInfo {
     // Loop over all of the discovered blocks in the function...
     for (size_t i = 1, e = NumToNode.size(); i != e; ++i) {
       NodePtr W = NumToNode[i];
-      LLVM_DEBUG(dbgs() << "\tdiscovered a new reachable node "
-                        << BlockNamePrinter(W) << "\n");
 
       // Don't replace this with 'count', the insertion side effect is important
       if (DT.DomTreeNodes[W]) continue;  // Haven't calculated this node yet?

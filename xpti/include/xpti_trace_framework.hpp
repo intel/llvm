@@ -285,7 +285,7 @@ public:
                 const void *user_data = nullptr)
       : m_object(object), m_parent(parent), m_stream_id(0),
         m_trace_type(trace_type), m_user_data(user_data), m_instance(instance) {
-    if (xptiTraceEnabled() && object) {
+    if (xptiTraceEnabled()) {
       uint16_t open = m_trace_type & 0xfffe;
       m_stream_id = xptiRegisterStream(stream);
       xptiNotifySubscribers(m_stream_id, open, parent, object, instance,
@@ -294,7 +294,7 @@ public:
   }
 
   ~scoped_notify() {
-    if (xptiTraceEnabled() && m_object) {
+    if (xptiTraceEnabled()) {
       switch (m_trace_type) {
       case signal:
       case graph_create:

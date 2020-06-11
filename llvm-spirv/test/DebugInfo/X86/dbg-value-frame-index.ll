@@ -1,10 +1,13 @@
 ; RUN: llvm-as < %s -o %t.bc
-; RUN: llvm-spirv %t.bc -o %t.spv -spirv-mem2reg=false
+; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 
 ; RUN: llc -mtriple=x86_64-unknown-unknown -o - %t.ll | FileCheck %s
 ; RUN: llc -mtriple=x86_64-unknown-unknown -filetype=obj < %t.ll \
 ; RUN:   | llvm-dwarfdump -v - | FileCheck %s --check-prefix=DWARF
+
+target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
+target triple = "spir64-unknown-unknown"
 
 define i1 @test() !dbg !4 {
 entry:
@@ -45,5 +48,3 @@ declare void @llvm.dbg.value(metadata, metadata, metadata)
 !8 = !{!9}
 !9 = !DIBasicType(name: "bool", size: 8, encoding: DW_ATE_boolean)
 !10 = !DISubroutineType(types: !8)
-target triple = "spir64-unknown-unknown"
-target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"

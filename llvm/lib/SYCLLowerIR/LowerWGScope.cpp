@@ -389,9 +389,7 @@ static void copyBetweenPrivateAndShadow(Value *L, GlobalVariable *Shadow,
       Module &M = *Shadow->getParent();
       LocAlign = M.getDataLayout().getValueOrABITypeAlignment(
           MaybeAlign(cast<Argument>(L)->getParamAlignment()), Ty);
-      auto PtrTy = dyn_cast<PointerType>(cast<Argument>(L)->getType());
-      assert(PtrTy && "Expected pointer type");
-      T = PtrTy->getElementType();
+      T = cast<Argument>(L)->getType()->getPointerElementType();
     }
   }
 
@@ -722,8 +720,8 @@ static void sharePFWGPrivateObjects(Function &F, const Triple &TT) {
     Builder.SetInsertPoint(&LeaderBB->front());
 
     // 2) create the shared copy - "shadow" - for current arg
-    GlobalVariable *Shadow;
-    Value *RepVal;
+    GlobalVariable *Shadow = nullptr;
+    Value *RepVal = nullptr;
     if (Arg.hasByValAttr()) {
       assert(Arg.getType()->getPointerAddressSpace() ==
              asUInt(spirv::AddrSpace::Private));
@@ -753,6 +751,9 @@ static void sharePFWGPrivateObjects(Function &F, const Triple &TT) {
       RepVal =
           Builder.CreatePointerBitCastOrAddrSpaceCast(Shadow, Arg.getType());
     }
+
+    if (!Shadow || !RepVal)
+      continue;
 
     // 3) replace argument with shadow in all uses
     for (auto *U : Arg.users())
@@ -963,7 +964,7 @@ Value *spirv::genPseudoLocalID(Instruction &Before, const Triple &TT) {
       unsigned Align = M.getDataLayout().getPreferredAlignment(G);
       G->setAlignment(MaybeAlign(Align));
     }
-    Value *Res = new LoadInst(G, "", &Before);
+    Value *Res = new LoadInst(G->getType()->getElementType(), G, "", &Before);
     return Res;
   }
 }

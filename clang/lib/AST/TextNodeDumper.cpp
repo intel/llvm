@@ -17,6 +17,7 @@
 #include "clang/AST/LocInfoType.h"
 #include "clang/Basic/Module.h"
 #include "clang/Basic/SourceManager.h"
+#include "clang/Basic/Specifiers.h"
 
 using namespace clang;
 
@@ -314,7 +315,7 @@ void TextNodeDumper::Visit(const OMPClause *C) {
   }
   {
     ColorScope Color(OS, ShowColors, AttrColor);
-    StringRef ClauseName(getOpenMPClauseName(C->getClauseKind()));
+    StringRef ClauseName(llvm::omp::getOpenMPClauseName(C->getClauseKind()));
     OS << "OMP" << ClauseName.substr(/*Start=*/0, /*N=*/1).upper()
        << ClauseName.drop_front() << "Clause";
   }
@@ -436,19 +437,10 @@ void TextNodeDumper::dumpName(const NamedDecl *ND) {
 }
 
 void TextNodeDumper::dumpAccessSpecifier(AccessSpecifier AS) {
-  switch (AS) {
-  case AS_none:
-    break;
-  case AS_public:
-    OS << "public";
-    break;
-  case AS_protected:
-    OS << "protected";
-    break;
-  case AS_private:
-    OS << "private";
-    break;
-  }
+  const auto AccessSpelling = getAccessSpelling(AS);
+  if (AccessSpelling.empty())
+    return;
+  OS << AccessSpelling;
 }
 
 void TextNodeDumper::dumpCleanupObject(
@@ -1086,6 +1078,23 @@ void TextNodeDumper::VisitObjCBoolLiteralExpr(const ObjCBoolLiteralExpr *Node) {
   OS << " " << (Node->getValue() ? "__objc_yes" : "__objc_no");
 }
 
+void TextNodeDumper::VisitOMPIteratorExpr(const OMPIteratorExpr *Node) {
+  OS << " ";
+  for (unsigned I = 0, E = Node->numOfIterators(); I < E; ++I) {
+    Visit(Node->getIteratorDecl(I));
+    OS << " = ";
+    const OMPIteratorExpr::IteratorRange Range = Node->getIteratorRange(I);
+    OS << " begin ";
+    Visit(Range.Begin);
+    OS << " end ";
+    Visit(Range.End);
+    if (Range.Step) {
+      OS << " step ";
+      Visit(Range.Step);
+    }
+  }
+}
+
 void TextNodeDumper::VisitRValueReferenceType(const ReferenceType *T) {
   if (T->isSpelledAsLValue())
     OS << " written as lvalue reference";
@@ -1517,7 +1526,8 @@ void TextNodeDumper::VisitOMPRequiresDecl(const OMPRequiresDecl *D) {
       }
       {
         ColorScope Color(OS, ShowColors, AttrColor);
-        StringRef ClauseName(getOpenMPClauseName(C->getClauseKind()));
+        StringRef ClauseName(
+            llvm::omp::getOpenMPClauseName(C->getClauseKind()));
         OS << "OMP" << ClauseName.substr(/*Start=*/0, /*N=*/1).upper()
            << ClauseName.drop_front() << "Clause";
       }
@@ -1940,35 +1950,35 @@ void TextNodeDumper::VisitObjCPropertyDecl(const ObjCPropertyDecl *D) {
   else if (D->getPropertyImplementation() == ObjCPropertyDecl::Optional)
     OS << " optional";
 
-  ObjCPropertyDecl::PropertyAttributeKind Attrs = D->getPropertyAttributes();
-  if (Attrs != ObjCPropertyDecl::OBJC_PR_noattr) {
-    if (Attrs & ObjCPropertyDecl::OBJC_PR_readonly)
+  ObjCPropertyAttribute::Kind Attrs = D->getPropertyAttributes();
+  if (Attrs != ObjCPropertyAttribute::kind_noattr) {
+    if (Attrs & ObjCPropertyAttribute::kind_readonly)
       OS << " readonly";
-    if (Attrs & ObjCPropertyDecl::OBJC_PR_assign)
+    if (Attrs & ObjCPropertyAttribute::kind_assign)
       OS << " assign";
-    if (Attrs & ObjCPropertyDecl::OBJC_PR_readwrite)
+    if (Attrs & ObjCPropertyAttribute::kind_readwrite)
       OS << " readwrite";
-    if (Attrs & ObjCPropertyDecl::OBJC_PR_retain)
+    if (Attrs & ObjCPropertyAttribute::kind_retain)
       OS << " retain";
-    if (Attrs & ObjCPropertyDecl::OBJC_PR_copy)
+    if (Attrs & ObjCPropertyAttribute::kind_copy)
       OS << " copy";
-    if (Attrs & ObjCPropertyDecl::OBJC_PR_nonatomic)
+    if (Attrs & ObjCPropertyAttribute::kind_nonatomic)
       OS << " nonatomic";
-    if (Attrs & ObjCPropertyDecl::OBJC_PR_atomic)
+    if (Attrs & ObjCPropertyAttribute::kind_atomic)
       OS << " atomic";
-    if (Attrs & ObjCPropertyDecl::OBJC_PR_weak)
+    if (Attrs & ObjCPropertyAttribute::kind_weak)
       OS << " weak";
-    if (Attrs & ObjCPropertyDecl::OBJC_PR_strong)
+    if (Attrs & ObjCPropertyAttribute::kind_strong)
       OS << " strong";
-    if (Attrs & ObjCPropertyDecl::OBJC_PR_unsafe_unretained)
+    if (Attrs & ObjCPropertyAttribute::kind_unsafe_unretained)
       OS << " unsafe_unretained";
-    if (Attrs & ObjCPropertyDecl::OBJC_PR_class)
+    if (Attrs & ObjCPropertyAttribute::kind_class)
       OS << " class";
-    if (Attrs & ObjCPropertyDecl::OBJC_PR_direct)
+    if (Attrs & ObjCPropertyAttribute::kind_direct)
       OS << " direct";
-    if (Attrs & ObjCPropertyDecl::OBJC_PR_getter)
+    if (Attrs & ObjCPropertyAttribute::kind_getter)
       dumpDeclRef(D->getGetterMethodDecl(), "getter");
-    if (Attrs & ObjCPropertyDecl::OBJC_PR_setter)
+    if (Attrs & ObjCPropertyAttribute::kind_setter)
       dumpDeclRef(D->getSetterMethodDecl(), "setter");
   }
 }

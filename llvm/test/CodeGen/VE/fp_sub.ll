@@ -55,9 +55,27 @@ define double @func8(double %a) {
 ; CHECK:       .LBB{{[0-9]+}}_2:
 ; CHECK-NEXT:    lea %s1, -1
 ; CHECK-NEXT:    and %s1, %s1, (32)0
-; CHECK-NEXT:    lea.sl %s1, -1048577(%s1)
+; CHECK-NEXT:    lea.sl %s1, -1048577(, %s1)
 ; CHECK-NEXT:    fadd.d %s0, %s0, %s1
 ; CHECK-NEXT:    or %s11, 0, %s9
   %r = fadd double %a, 0xFFEFFFFFFFFFFFFF
   ret double %r
+}
+
+define float @fsubs_ir(float %a) {
+; CHECK-LABEL: fsubs_ir:
+; CHECK:       .LBB{{[0-9]+}}_2:
+; CHECK-NEXT:    fsub.s %s0, 0, %s0
+; CHECK-NEXT:    or %s11, 0, %s9
+  %r = fsub float 0.e+00, %a
+  ret float %r
+}
+
+define float @fsubs_ri(float %a) {
+; CHECK-LABEL: fsubs_ri:
+; CHECK:       .LBB{{[0-9]+}}_2:
+; CHECK-NEXT:    fadd.s %s0, %s0, (2)1
+; CHECK-NEXT:    or %s11, 0, %s9
+  %r = fsub float %a, 2.0e+00
+  ret float %r
 }

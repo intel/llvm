@@ -6,12 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-_CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE __spirv_ocl_u_max(__CLC_GENTYPE a, __CLC_GENTYPE b) {
-  return (a > b ? a : b);
+#ifdef __CLC_GEN_S
+#define DECL __spirv_ocl_s_max
+#else
+#define DECL __spirv_ocl_u_max
+#endif
+
+_CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE DECL(__CLC_GENTYPE x, __CLC_GENTYPE y) {
+  return __clc_max(x, y);
 }
 
-#ifndef __CLC_SCALAR
-_CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE __spirv_ocl_u_max(__CLC_GENTYPE a, __CLC_SCALAR_GENTYPE b) {
-  return (a > (__CLC_GENTYPE)b ? a : (__CLC_GENTYPE)b);
-}
-#endif
+#undef DECL

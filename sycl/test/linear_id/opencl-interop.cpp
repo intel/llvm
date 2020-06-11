@@ -4,8 +4,9 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
-// UNSUPPORTED: cuda
+
 //==---------------- opencl-interop.cpp - SYCL linear id test --------------==//
+//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -57,8 +58,8 @@ int main(int argc, char *argv[]) {
                          "-cl-std=CL2.0");
   kernel sum = prog.get_kernel("sum");
   {
-    buffer<int, 2> input_buf(input.data(), range<2>(dimA, dimB)),
-        output_buf(output.data(), range<2>(dimA, dimB));
+    buffer<int, 2> input_buf(input.data(), range<2>(dimA, dimB));
+    buffer<int, 1> output_buf(output.data(), range<1>(dimA));
     q.submit([&](handler &cgh) {
       auto input = input_buf.get_access<access::mode::read>(cgh);
       auto output = output_buf.get_access<access::mode::discard_write>(cgh);

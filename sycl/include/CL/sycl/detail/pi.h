@@ -45,9 +45,9 @@
 // TODO: we need a mapping of PI to OpenCL somewhere, and this can be done
 // elsewhere, e.g. in the pi_opencl, but constants/enums mapping is now
 // done here, for efficiency and simplicity.
-//
-#include <CL/cl_usm_ext.h>
-#include <CL/opencl.h>
+#include <CL/cl_ext_intel.h>
+#include <CL/sycl/detail/cl.h>
+#include <CL/sycl/detail/export.hpp>
 #include <cstdint>
 
 #ifdef __cplusplus
@@ -59,6 +59,7 @@ using pi_uint32 = uint32_t;
 using pi_uint64 = uint64_t;
 using pi_bool = pi_uint32;
 using pi_bitfield = pi_uint64;
+using pi_native_handle = uintptr_t;
 
 //
 // NOTE: prefer to map 1:1 to OpenCL so that no translation is needed
@@ -69,7 +70,7 @@ using pi_bitfield = pi_uint64;
 //
 typedef enum {
   PI_SUCCESS = CL_SUCCESS,
-  PI_RESULT_INVALID_KERNEL_NAME = CL_INVALID_KERNEL_NAME,
+  PI_INVALID_KERNEL_NAME = CL_INVALID_KERNEL_NAME,
   PI_INVALID_OPERATION = CL_INVALID_OPERATION,
   PI_INVALID_KERNEL = CL_INVALID_KERNEL,
   PI_INVALID_QUEUE_PROPERTIES = CL_INVALID_QUEUE_PROPERTIES,
@@ -91,6 +92,11 @@ typedef enum {
   PI_COMPILER_NOT_AVAILABLE = CL_COMPILER_NOT_AVAILABLE,
   PI_PROFILING_INFO_NOT_AVAILABLE = CL_PROFILING_INFO_NOT_AVAILABLE,
   PI_DEVICE_NOT_FOUND = CL_DEVICE_NOT_FOUND,
+  PI_INVALID_WORK_ITEM_SIZE = CL_INVALID_WORK_ITEM_SIZE,
+  PI_INVALID_KERNEL_ARGS = CL_INVALID_KERNEL_ARGS,
+  PI_INVALID_IMAGE_SIZE = CL_INVALID_IMAGE_SIZE,
+  PI_IMAGE_FORMAT_NOT_SUPPORTED = CL_IMAGE_FORMAT_NOT_SUPPORTED,
+  PI_MEM_OBJECT_ALLOCATION_FAILURE = CL_MEM_OBJECT_ALLOCATION_FAILURE,
   PI_ERROR_UNKNOWN = -999
 } _pi_result;
 
@@ -106,7 +112,7 @@ typedef enum {
   PI_PLATFORM_INFO_NAME = CL_PLATFORM_NAME,
   PI_PLATFORM_INFO_PROFILE = CL_PLATFORM_PROFILE,
   PI_PLATFORM_INFO_VENDOR = CL_PLATFORM_VENDOR,
-  PI_PLATFORM_INFO_VERSION = CL_PLATFORM_VERSION,
+  PI_PLATFORM_INFO_VERSION = CL_PLATFORM_VERSION
 } _pi_platform_info;
 
 typedef enum {
@@ -126,9 +132,16 @@ typedef enum {
 // make the translation to OpenCL transparent.
 //
 typedef enum : pi_uint64 {
-  PI_DEVICE_TYPE_CPU = CL_DEVICE_TYPE_CPU,
-  PI_DEVICE_TYPE_GPU = CL_DEVICE_TYPE_GPU,
-  PI_DEVICE_TYPE_ACC = CL_DEVICE_TYPE_ACCELERATOR
+  PI_DEVICE_TYPE_DEFAULT =
+      CL_DEVICE_TYPE_DEFAULT, ///< The default device available in the PI
+                              ///< plugin.
+  PI_DEVICE_TYPE_ALL =
+      CL_DEVICE_TYPE_ALL, ///< All devices available in the PI plugin.
+  PI_DEVICE_TYPE_CPU =
+      CL_DEVICE_TYPE_CPU, ///< A PI device that is the host processor.
+  PI_DEVICE_TYPE_GPU = CL_DEVICE_TYPE_GPU, ///< A PI device that is a GPU.
+  PI_DEVICE_TYPE_ACC = CL_DEVICE_TYPE_ACCELERATOR ///< A PI device that is a
+                                                  ///< dedicated accelerator.
 } _pi_device_type;
 
 typedef enum {
@@ -217,6 +230,7 @@ typedef enum {
   PI_DEVICE_INFO_BUILT_IN_KERNELS = CL_DEVICE_BUILT_IN_KERNELS,
   PI_DEVICE_INFO_PLATFORM = CL_DEVICE_PLATFORM,
   PI_DEVICE_INFO_REFERENCE_COUNT = CL_DEVICE_REFERENCE_COUNT,
+  PI_DEVICE_INFO_IL_VERSION = CL_DEVICE_IL_VERSION_KHR,
   PI_DEVICE_INFO_NAME = CL_DEVICE_NAME,
   PI_DEVICE_INFO_VENDOR = CL_DEVICE_VENDOR,
   PI_DEVICE_INFO_DRIVER_VERSION = CL_DRIVER_VERSION,
@@ -234,6 +248,10 @@ typedef enum {
   PI_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN =
       CL_DEVICE_PARTITION_AFFINITY_DOMAIN,
   PI_DEVICE_INFO_PARTITION_TYPE = CL_DEVICE_PARTITION_TYPE,
+  PI_DEVICE_INFO_MAX_NUM_SUB_GROUPS = CL_DEVICE_MAX_NUM_SUB_GROUPS,
+  PI_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS =
+      CL_DEVICE_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS,
+  PI_DEVICE_INFO_SUB_GROUP_SIZES_INTEL = CL_DEVICE_SUB_GROUP_SIZES_INTEL,
   PI_DEVICE_INFO_USM_HOST_SUPPORT = CL_DEVICE_HOST_MEM_CAPABILITIES_INTEL,
   PI_DEVICE_INFO_USM_DEVICE_SUPPORT = CL_DEVICE_DEVICE_MEM_CAPABILITIES_INTEL,
   PI_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT =
@@ -293,6 +311,16 @@ typedef enum {
 } _pi_kernel_group_info;
 
 typedef enum {
+  PI_FP_CORRECTLY_ROUNDED_DIVIDE_SQRT = CL_FP_CORRECTLY_ROUNDED_DIVIDE_SQRT,
+  PI_FP_ROUND_TO_NEAREST = CL_FP_ROUND_TO_NEAREST,
+  PI_FP_ROUND_TO_ZERO = CL_FP_ROUND_TO_ZERO,
+  PI_FP_ROUND_TO_INF = CL_FP_ROUND_TO_INF,
+  PI_FP_INF_NAN = CL_FP_INF_NAN,
+  PI_FP_DENORM = CL_FP_DENORM,
+  PI_FP_FMA = CL_FP_FMA
+} _pi_fp_capabilities;
+
+typedef enum {
   PI_IMAGE_INFO_FORMAT = CL_IMAGE_FORMAT,
   PI_IMAGE_INFO_ELEMENT_SIZE = CL_IMAGE_ELEMENT_SIZE,
   PI_IMAGE_INFO_ROW_PITCH = CL_IMAGE_ROW_PITCH,
@@ -301,6 +329,14 @@ typedef enum {
   PI_IMAGE_INFO_HEIGHT = CL_IMAGE_HEIGHT,
   PI_IMAGE_INFO_DEPTH = CL_IMAGE_DEPTH
 } _pi_image_info;
+
+typedef enum {
+  PI_KERNEL_MAX_SUB_GROUP_SIZE = CL_KERNEL_MAX_SUB_GROUP_SIZE_FOR_NDRANGE,
+  PI_KERNEL_MAX_NUM_SUB_GROUPS = CL_KERNEL_MAX_NUM_SUB_GROUPS,
+  PI_KERNEL_COMPILE_NUM_SUB_GROUPS = CL_KERNEL_COMPILE_NUM_SUB_GROUPS,
+  PI_KERNEL_COMPILE_SUB_GROUP_SIZE_INTEL =
+      CL_KERNEL_COMPILE_SUB_GROUP_SIZE_INTEL
+} _pi_kernel_sub_group_info;
 
 typedef enum {
   PI_EVENT_INFO_COMMAND_QUEUE = CL_EVENT_COMMAND_QUEUE,
@@ -496,6 +532,8 @@ using pi_queue_info = _pi_queue_info;
 using pi_image_info = _pi_image_info;
 using pi_kernel_info = _pi_kernel_info;
 using pi_kernel_group_info = _pi_kernel_group_info;
+using pi_kernel_sub_group_info = _pi_kernel_sub_group_info;
+using pi_fp_capabilities = _pi_fp_capabilities;
 using pi_event_info = _pi_event_info;
 using pi_command_type = _pi_command_type;
 using pi_mem_type = _pi_mem_type;
@@ -662,6 +700,13 @@ struct pi_device_binary_struct {
 };
 using pi_device_binary = pi_device_binary_struct *;
 
+// pi_buffer_region structure repeats cl_buffer_region
+struct pi_buffer_region_struct {
+  size_t origin;
+  size_t size;
+};
+using pi_buffer_region = pi_buffer_region_struct *;
+
 // Offload binaries descriptor version supported by this library.
 static const uint16_t PI_DEVICE_BINARIES_VERSION = 1;
 
@@ -745,54 +790,62 @@ using pi_plugin = _pi_plugin;
 // populate the PI Version it supports, update targets field and populate
 // PiFunctionTable with Supported APIs. The pointers are in a predetermined
 // order in pi.def file.
-pi_result piPluginInit(pi_plugin *plugin_info);
+__SYCL_EXPORT pi_result piPluginInit(pi_plugin *plugin_info);
 
 //
 // Platform
 //
-pi_result piPlatformsGet(pi_uint32 num_entries, pi_platform *platforms,
-                         pi_uint32 *num_platforms);
+__SYCL_EXPORT pi_result piPlatformsGet(pi_uint32 num_entries,
+                                       pi_platform *platforms,
+                                       pi_uint32 *num_platforms);
 
-pi_result piPlatformGetInfo(pi_platform platform, pi_platform_info param_name,
-                            size_t param_value_size, void *param_value,
-                            size_t *param_value_size_ret);
+__SYCL_EXPORT pi_result piPlatformGetInfo(pi_platform platform,
+                                          pi_platform_info param_name,
+                                          size_t param_value_size,
+                                          void *param_value,
+                                          size_t *param_value_size_ret);
 
-//
-// Device
-//
+__SYCL_EXPORT pi_result piDevicesGet(pi_platform platform,
+                                     pi_device_type device_type,
+                                     pi_uint32 num_entries, pi_device *devices,
+                                     pi_uint32 *num_devices);
+
+__SYCL_EXPORT pi_result piDeviceGetInfo(pi_device device,
+                                        pi_device_info param_name,
+                                        size_t param_value_size,
+                                        void *param_value,
+                                        size_t *param_value_size_ret);
+
+__SYCL_EXPORT pi_result piDeviceRetain(pi_device device);
+
+__SYCL_EXPORT pi_result piDeviceRelease(pi_device device);
+
+__SYCL_EXPORT pi_result piDevicePartition(
+    pi_device device, const pi_device_partition_property *properties,
+    pi_uint32 num_devices, pi_device *out_devices, pi_uint32 *out_num_devices);
+
+/// Gets the native handle of a PI device object.
 ///
-/// Create PI device from the given raw device handle (if the "device"
-/// points to null), or, vice versa, extract the raw device handle into
-/// the "handle" (if it was pointing to a null) from the given PI device.
-/// NOTE: The instance of the PI device created is retained.
+/// \param device is the PI device to get the native handle of.
+/// \param nativeHandle is the native handle of device.
+__SYCL_EXPORT pi_result
+piextDeviceGetNativeHandle(pi_device device, pi_native_handle *nativeHandle);
+
+/// Creates PI device object from a native handle.
+/// NOTE: The created PI object takes ownership of the native handle.
 ///
-pi_result piextDeviceConvert(
-    pi_device *device, ///< [in,out] the pointer to PI device
-    void **handle);    ///< [in,out] the pointer to the raw device handle
-
-pi_result piDevicesGet(pi_platform platform, pi_device_type device_type,
-                       pi_uint32 num_entries, pi_device *devices,
-                       pi_uint32 *num_devices);
-
-pi_result piDeviceGetInfo(pi_device device, pi_device_info param_name,
-                          size_t param_value_size, void *param_value,
-                          size_t *param_value_size_ret);
-
-pi_result piDeviceRetain(pi_device device);
-
-pi_result piDeviceRelease(pi_device device);
-
-pi_result piDevicePartition(pi_device device,
-                            const pi_device_partition_property *properties,
-                            pi_uint32 num_devices, pi_device *out_devices,
-                            pi_uint32 *out_num_devices);
+/// \param nativeHandle is the native handle to create PI device from.
+/// \param device is the PI device created from the native handle.
+__SYCL_EXPORT pi_result piextDeviceCreateWithNativeHandle(
+    pi_native_handle nativeHandle, pi_device *device);
 
 /// Selects the most appropriate device binary based on runtime information
 /// and the IR characteristics.
 ///
-pi_result piextDeviceSelectBinary(pi_device device, pi_device_binary *binaries,
-                                  pi_uint32 num_binaries,
-                                  pi_uint32 *selected_binary_ind);
+__SYCL_EXPORT pi_result piextDeviceSelectBinary(pi_device device,
+                                                pi_device_binary *binaries,
+                                                pi_uint32 num_binaries,
+                                                pi_uint32 *selected_binary_ind);
 
 /// Retrieves a device function pointer to a user-defined function
 /// \arg \c function_name. \arg \c function_pointer_ret is set to 0 if query
@@ -802,131 +855,180 @@ pi_result piextDeviceSelectBinary(pi_device device, pi_device_binary *binaries,
 /// must present in the list of devices returned by \c get_device method for
 /// \arg \c program.
 ///
-pi_result piextGetDeviceFunctionPointer(pi_device device, pi_program program,
-                                        const char *function_name,
-                                        pi_uint64 *function_pointer_ret);
+__SYCL_EXPORT pi_result piextGetDeviceFunctionPointer(
+    pi_device device, pi_program program, const char *function_name,
+    pi_uint64 *function_pointer_ret);
 
 //
 // Context
 //
-pi_result piContextCreate(const pi_context_properties *properties,
-                          pi_uint32 num_devices, const pi_device *devices,
-                          void (*pfn_notify)(const char *errinfo,
-                                             const void *private_info,
-                                             size_t cb, void *user_data),
-                          void *user_data, pi_context *ret_context);
+__SYCL_EXPORT pi_result piContextCreate(
+    const pi_context_properties *properties, pi_uint32 num_devices,
+    const pi_device *devices,
+    void (*pfn_notify)(const char *errinfo, const void *private_info, size_t cb,
+                       void *user_data),
+    void *user_data, pi_context *ret_context);
 
-pi_result piContextGetInfo(pi_context context, pi_context_info param_name,
-                           size_t param_value_size, void *param_value,
-                           size_t *param_value_size_ret);
+__SYCL_EXPORT pi_result piContextGetInfo(pi_context context,
+                                         pi_context_info param_name,
+                                         size_t param_value_size,
+                                         void *param_value,
+                                         size_t *param_value_size_ret);
 
-pi_result piContextRetain(pi_context context);
+__SYCL_EXPORT pi_result piContextRetain(pi_context context);
 
-pi_result piContextRelease(pi_context context);
+__SYCL_EXPORT pi_result piContextRelease(pi_context context);
+
+typedef void (*pi_context_extended_deleter)(void *user_data);
+
+__SYCL_EXPORT pi_result piextContextSetExtendedDeleter(
+    pi_context context, pi_context_extended_deleter func, void *user_data);
+
+/// Gets the native handle of a PI context object.
+///
+/// \param context is the PI context to get the native handle of.
+/// \param nativeHandle is the native handle of context.
+__SYCL_EXPORT pi_result
+piextContextGetNativeHandle(pi_context context, pi_native_handle *nativeHandle);
+
+/// Creates PI context object from a native handle.
+/// NOTE: The created PI object takes ownership of the native handle.
+///
+/// \param nativeHandle is the native handle to create PI context from.
+/// \param context is the PI context created from the native handle.
+__SYCL_EXPORT pi_result piextContextCreateWithNativeHandle(
+    pi_native_handle nativeHandle, pi_context *context);
 
 //
 // Queue
 //
-pi_result piQueueCreate(pi_context context, pi_device device,
-                        pi_queue_properties properties, pi_queue *queue);
+__SYCL_EXPORT pi_result piQueueCreate(pi_context context, pi_device device,
+                                      pi_queue_properties properties,
+                                      pi_queue *queue);
 
-pi_result piQueueGetInfo(pi_queue command_queue, pi_queue_info param_name,
-                         size_t param_value_size, void *param_value,
-                         size_t *param_value_size_ret);
+__SYCL_EXPORT pi_result piQueueGetInfo(pi_queue command_queue,
+                                       pi_queue_info param_name,
+                                       size_t param_value_size,
+                                       void *param_value,
+                                       size_t *param_value_size_ret);
 
-pi_result piQueueRetain(pi_queue command_queue);
+__SYCL_EXPORT pi_result piQueueRetain(pi_queue command_queue);
 
-pi_result piQueueRelease(pi_queue command_queue);
+__SYCL_EXPORT pi_result piQueueRelease(pi_queue command_queue);
 
-pi_result piQueueFinish(pi_queue command_queue);
+__SYCL_EXPORT pi_result piQueueFinish(pi_queue command_queue);
+
+/// Gets the native handle of a PI queue object.
+///
+/// \param queue is the PI queue to get the native handle of.
+/// \param nativeHandle is the native handle of queue.
+__SYCL_EXPORT pi_result
+piextQueueGetNativeHandle(pi_queue queue, pi_native_handle *nativeHandle);
+
+/// Creates PI queue object from a native handle.
+/// NOTE: The created PI object takes ownership of the native handle.
+///
+/// \param nativeHandle is the native handle to create PI queue from.
+/// \param queue is the PI queue created from the native handle.
+__SYCL_EXPORT pi_result piextQueueCreateWithNativeHandle(
+    pi_native_handle nativeHandle, pi_queue *queue);
 
 //
 // Memory
 //
-pi_result piMemBufferCreate(pi_context context, pi_mem_flags flags, size_t size,
-                            void *host_ptr, pi_mem *ret_mem);
+__SYCL_EXPORT pi_result piMemBufferCreate(pi_context context,
+                                          pi_mem_flags flags, size_t size,
+                                          void *host_ptr, pi_mem *ret_mem);
 
-pi_result piMemImageCreate(pi_context context, pi_mem_flags flags,
-                           const pi_image_format *image_format,
-                           const pi_image_desc *image_desc, void *host_ptr,
-                           pi_mem *ret_mem);
+__SYCL_EXPORT pi_result piMemImageCreate(pi_context context, pi_mem_flags flags,
+                                         const pi_image_format *image_format,
+                                         const pi_image_desc *image_desc,
+                                         void *host_ptr, pi_mem *ret_mem);
 
-pi_result piMemGetInfo(pi_mem mem,
-                       cl_mem_info param_name, // TODO: untie from OpenCL
-                       size_t param_value_size, void *param_value,
-                       size_t *param_value_size_ret);
+__SYCL_EXPORT pi_result piMemGetInfo(
+    pi_mem mem,
+    cl_mem_info param_name, // TODO: untie from OpenCL
+    size_t param_value_size, void *param_value, size_t *param_value_size_ret);
 
-pi_result piMemImageGetInfo(pi_mem image, pi_image_info param_name,
-                            size_t param_value_size, void *param_value,
-                            size_t *param_value_size_ret);
+__SYCL_EXPORT pi_result piMemImageGetInfo(pi_mem image,
+                                          pi_image_info param_name,
+                                          size_t param_value_size,
+                                          void *param_value,
+                                          size_t *param_value_size_ret);
 
-pi_result piMemRetain(pi_mem mem);
+__SYCL_EXPORT pi_result piMemRetain(pi_mem mem);
 
-pi_result piMemRelease(pi_mem mem);
+__SYCL_EXPORT pi_result piMemRelease(pi_mem mem);
 
-pi_result piMemBufferPartition(pi_mem buffer, pi_mem_flags flags,
-                               pi_buffer_create_type buffer_create_type,
-                               void *buffer_create_info, pi_mem *ret_mem);
+__SYCL_EXPORT pi_result piMemBufferPartition(
+    pi_mem buffer, pi_mem_flags flags, pi_buffer_create_type buffer_create_type,
+    void *buffer_create_info, pi_mem *ret_mem);
+
+/// Gets the native handle of a PI mem object.
+///
+/// \param mem is the PI mem to get the native handle of.
+/// \param nativeHandle is the native handle of mem.
+__SYCL_EXPORT pi_result piextMemGetNativeHandle(pi_mem mem,
+                                                pi_native_handle *nativeHandle);
+
+/// Creates PI mem object from a native handle.
+/// NOTE: The created PI object takes ownership of the native handle.
+///
+/// \param nativeHandle is the native handle to create PI mem from.
+/// \param mem is the PI mem created from the native handle.
+__SYCL_EXPORT pi_result
+piextMemCreateWithNativeHandle(pi_native_handle nativeHandle, pi_mem *mem);
+
 //
 // Program
 //
-///
-/// Create PI program from the given raw program handle (if the "program"
-/// points to null), or, vice versa, extract the raw program handle into
-/// the "handle" (if it was pointing to a null) from the given PI program.
-/// NOTE: The instance of the PI program created is retained.
-///
-pi_result piextProgramConvert(
-    pi_context context,  ///< [in] the PI context of the program
-    pi_program *program, ///< [in,out] the pointer to PI program
-    void **handle);      ///< [in,out] the pointer to the raw program handle
 
-pi_result piProgramCreate(pi_context context, const void *il, size_t length,
-                          pi_program *res_program);
+__SYCL_EXPORT pi_result piProgramCreate(pi_context context, const void *il,
+                                        size_t length, pi_program *res_program);
 
-pi_result piclProgramCreateWithSource(pi_context context, pi_uint32 count,
-                                      const char **strings,
-                                      const size_t *lengths,
-                                      pi_program *ret_program);
+__SYCL_EXPORT pi_result piclProgramCreateWithSource(pi_context context,
+                                                    pi_uint32 count,
+                                                    const char **strings,
+                                                    const size_t *lengths,
+                                                    pi_program *ret_program);
 
-pi_result piclProgramCreateWithBinary(pi_context context, pi_uint32 num_devices,
-                                      const pi_device *device_list,
-                                      const size_t *lengths,
-                                      const unsigned char **binaries,
-                                      pi_int32 *binary_status,
-                                      pi_program *ret_program);
+__SYCL_EXPORT pi_result piclProgramCreateWithBinary(
+    pi_context context, pi_uint32 num_devices, const pi_device *device_list,
+    const size_t *lengths, const unsigned char **binaries,
+    pi_int32 *binary_status, pi_program *ret_program);
 
-pi_result piProgramGetInfo(pi_program program, pi_program_info param_name,
-                           size_t param_value_size, void *param_value,
-                           size_t *param_value_size_ret);
+__SYCL_EXPORT pi_result piProgramGetInfo(pi_program program,
+                                         pi_program_info param_name,
+                                         size_t param_value_size,
+                                         void *param_value,
+                                         size_t *param_value_size_ret);
 
-pi_result piProgramLink(pi_context context, pi_uint32 num_devices,
-                        const pi_device *device_list, const char *options,
-                        pi_uint32 num_input_programs,
-                        const pi_program *input_programs,
-                        void (*pfn_notify)(pi_program program, void *user_data),
-                        void *user_data, pi_program *ret_program);
+__SYCL_EXPORT pi_result
+piProgramLink(pi_context context, pi_uint32 num_devices,
+              const pi_device *device_list, const char *options,
+              pi_uint32 num_input_programs, const pi_program *input_programs,
+              void (*pfn_notify)(pi_program program, void *user_data),
+              void *user_data, pi_program *ret_program);
 
-pi_result piProgramCompile(
+__SYCL_EXPORT pi_result piProgramCompile(
     pi_program program, pi_uint32 num_devices, const pi_device *device_list,
     const char *options, pi_uint32 num_input_headers,
     const pi_program *input_headers, const char **header_include_names,
     void (*pfn_notify)(pi_program program, void *user_data), void *user_data);
 
-pi_result piProgramBuild(pi_program program, pi_uint32 num_devices,
-                         const pi_device *device_list, const char *options,
-                         void (*pfn_notify)(pi_program program,
-                                            void *user_data),
-                         void *user_data);
+__SYCL_EXPORT pi_result piProgramBuild(
+    pi_program program, pi_uint32 num_devices, const pi_device *device_list,
+    const char *options,
+    void (*pfn_notify)(pi_program program, void *user_data), void *user_data);
 
-pi_result piProgramGetBuildInfo(
+__SYCL_EXPORT pi_result piProgramGetBuildInfo(
     pi_program program, pi_device device,
     cl_program_build_info param_name, // TODO: untie from OpenCL
     size_t param_value_size, void *param_value, size_t *param_value_size_ret);
 
-pi_result piProgramRetain(pi_program program);
+__SYCL_EXPORT pi_result piProgramRetain(pi_program program);
 
-pi_result piProgramRelease(pi_program program);
+__SYCL_EXPORT pi_result piProgramRelease(pi_program program);
 
 /// Sets a specialization constant to a specific value.
 ///
@@ -934,10 +1036,24 @@ pi_result piProgramRelease(pi_program program);
 /// \param spec_id integer ID of the constant
 /// \param spec_size size of the value
 /// \param spec_value bytes of the value
-pi_result piextProgramSetSpecializationConstant(pi_program prog,
-                                                pi_uint32 spec_id,
-                                                size_t spec_size,
-                                                const void *spec_value);
+__SYCL_EXPORT pi_result
+piextProgramSetSpecializationConstant(pi_program prog, pi_uint32 spec_id,
+                                      size_t spec_size, const void *spec_value);
+
+/// Gets the native handle of a PI program object.
+///
+/// \param program is the PI program to get the native handle of.
+/// \param nativeHandle is the native handle of program.
+__SYCL_EXPORT pi_result
+piextProgramGetNativeHandle(pi_program program, pi_native_handle *nativeHandle);
+
+/// Creates PI program object from a native handle.
+/// NOTE: The created PI object takes ownership of the native handle.
+///
+/// \param nativeHandle is the native handle to create PI program from.
+/// \param program is the PI program created from the native handle.
+__SYCL_EXPORT pi_result piextProgramCreateWithNativeHandle(
+    pi_native_handle nativeHandle, pi_program *program);
 
 //
 // Kernel
@@ -952,30 +1068,51 @@ typedef enum {
 
 using pi_kernel_exec_info = _pi_kernel_exec_info;
 
-pi_result piKernelCreate(pi_program program, const char *kernel_name,
-                         pi_kernel *ret_kernel);
+__SYCL_EXPORT pi_result piKernelCreate(pi_program program,
+                                       const char *kernel_name,
+                                       pi_kernel *ret_kernel);
 
-pi_result piKernelSetArg(pi_kernel kernel, pi_uint32 arg_index, size_t arg_size,
-                         const void *arg_value);
+__SYCL_EXPORT pi_result piKernelSetArg(pi_kernel kernel, pi_uint32 arg_index,
+                                       size_t arg_size, const void *arg_value);
 
-pi_result piKernelGetInfo(pi_kernel kernel, pi_kernel_info param_name,
-                          size_t param_value_size, void *param_value,
-                          size_t *param_value_size_ret);
+__SYCL_EXPORT pi_result piKernelGetInfo(pi_kernel kernel,
+                                        pi_kernel_info param_name,
+                                        size_t param_value_size,
+                                        void *param_value,
+                                        size_t *param_value_size_ret);
 
-pi_result piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
-                               pi_kernel_group_info param_name,
-                               size_t param_value_size, void *param_value,
-                               size_t *param_value_size_ret);
+__SYCL_EXPORT pi_result piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
+                                             pi_kernel_group_info param_name,
+                                             size_t param_value_size,
+                                             void *param_value,
+                                             size_t *param_value_size_ret);
 
-pi_result piKernelGetSubGroupInfo(
-    pi_kernel kernel, pi_device device,
-    cl_kernel_sub_group_info param_name, // TODO: untie from OpenCL
+/// API to query information from the sub-group from a kernel
+///
+/// \param kernel is the pi_kernel to query
+/// \param device is the device the kernel is executed on
+/// \param param_name is a pi_kernel_sub_group_info enum value that
+///        specifies the informtation queried for.
+/// \param input_value_size is the size of input value passed in
+///        ptr input_value param
+/// \param input_value is the ptr to the input value passed.
+/// \param param_value_size is the size of the value in bytes.
+/// \param param_value is a pointer to the value to set.
+/// \param param_value_size_ret is a pointer to return the size of data in
+///        param_value ptr.
+///
+/// All queries expect a return of 4 bytes in param_value_size,
+/// param_value_size_ret, and a uint32_t value should to be written in
+/// param_value ptr.
+/// Note: This behaviour differs from OpenCL. OpenCL returns size_t.
+__SYCL_EXPORT pi_result piKernelGetSubGroupInfo(
+    pi_kernel kernel, pi_device device, pi_kernel_sub_group_info param_name,
     size_t input_value_size, const void *input_value, size_t param_value_size,
     void *param_value, size_t *param_value_size_ret);
 
-pi_result piKernelRetain(pi_kernel kernel);
+__SYCL_EXPORT pi_result piKernelRetain(pi_kernel kernel);
 
-pi_result piKernelRelease(pi_kernel kernel);
+__SYCL_EXPORT pi_result piKernelRelease(pi_kernel kernel);
 
 /// Sets up pointer arguments for CL kernels. An extra indirection
 /// is required due to CL argument conventions.
@@ -984,8 +1121,10 @@ pi_result piKernelRelease(pi_kernel kernel);
 /// \param arg_index is the index of the kernel argument
 /// \param arg_size is the size in bytes of the argument (ignored in CL)
 /// \param arg_value is the pointer argument
-pi_result piextKernelSetArgPointer(pi_kernel kernel, pi_uint32 arg_index,
-                                   size_t arg_size, const void *arg_value);
+__SYCL_EXPORT pi_result piextKernelSetArgPointer(pi_kernel kernel,
+                                                 pi_uint32 arg_index,
+                                                 size_t arg_size,
+                                                 const void *arg_value);
 
 /// API to set attributes controlling kernel execution
 ///
@@ -998,168 +1137,181 @@ pi_result piextKernelSetArgPointer(pi_kernel kernel, pi_uint32 arg_index,
 /// If param_name is PI_USM_INDIRECT_ACCESS, the value will be a ptr to
 ///    the pi_bool value PI_TRUE
 /// If param_name is PI_USM_PTRS, the value will be an array of ptrs
-pi_result piKernelSetExecInfo(pi_kernel kernel, pi_kernel_exec_info value_name,
-                              size_t param_value_size, const void *param_value);
+__SYCL_EXPORT pi_result piKernelSetExecInfo(pi_kernel kernel,
+                                            pi_kernel_exec_info value_name,
+                                            size_t param_value_size,
+                                            const void *param_value);
 
 //
 // Events
 //
-pi_result piEventCreate(pi_context context, pi_event *ret_event);
+__SYCL_EXPORT pi_result piEventCreate(pi_context context, pi_event *ret_event);
 
-pi_result piEventGetInfo(pi_event event,
-                         cl_event_info param_name, // TODO: untie from OpenCL
-                         size_t param_value_size, void *param_value,
-                         size_t *param_value_size_ret);
+__SYCL_EXPORT pi_result piEventGetInfo(pi_event event, pi_event_info param_name,
+                                       size_t param_value_size,
+                                       void *param_value,
+                                       size_t *param_value_size_ret);
 
-pi_result piEventGetProfilingInfo(pi_event event, pi_profiling_info param_name,
-                                  size_t param_value_size, void *param_value,
-                                  size_t *param_value_size_ret);
+__SYCL_EXPORT pi_result piEventGetProfilingInfo(pi_event event,
+                                                pi_profiling_info param_name,
+                                                size_t param_value_size,
+                                                void *param_value,
+                                                size_t *param_value_size_ret);
 
-pi_result piEventsWait(pi_uint32 num_events, const pi_event *event_list);
+__SYCL_EXPORT pi_result piEventsWait(pi_uint32 num_events,
+                                     const pi_event *event_list);
 
-pi_result piEventSetCallback(pi_event event,
-                             pi_int32 command_exec_callback_type,
-                             void (*pfn_notify)(pi_event event,
-                                                pi_int32 event_command_status,
-                                                void *user_data),
-                             void *user_data);
+__SYCL_EXPORT pi_result piEventSetCallback(
+    pi_event event, pi_int32 command_exec_callback_type,
+    void (*pfn_notify)(pi_event event, pi_int32 event_command_status,
+                       void *user_data),
+    void *user_data);
 
-pi_result piEventSetStatus(pi_event event, pi_int32 execution_status);
+__SYCL_EXPORT pi_result piEventSetStatus(pi_event event,
+                                         pi_int32 execution_status);
 
-pi_result piEventRetain(pi_event event);
+__SYCL_EXPORT pi_result piEventRetain(pi_event event);
 
-pi_result piEventRelease(pi_event event);
+__SYCL_EXPORT pi_result piEventRelease(pi_event event);
+
+/// Gets the native handle of a PI event object.
+///
+/// \param event is the PI event to get the native handle of.
+/// \param nativeHandle is the native handle of event.
+__SYCL_EXPORT pi_result
+piextEventGetNativeHandle(pi_event event, pi_native_handle *nativeHandle);
+
+/// Creates PI event object from a native handle.
+/// NOTE: The created PI object takes ownership of the native handle.
+///
+/// \param nativeHandle is the native handle to create PI event from.
+/// \param event is the PI event created from the native handle.
+__SYCL_EXPORT pi_result piextEventCreateWithNativeHandle(
+    pi_native_handle nativeHandle, pi_event *event);
 
 //
 // Sampler
 //
-pi_result piSamplerCreate(pi_context context,
-                          const pi_sampler_properties *sampler_properties,
-                          pi_sampler *result_sampler);
+__SYCL_EXPORT pi_result piSamplerCreate(
+    pi_context context, const pi_sampler_properties *sampler_properties,
+    pi_sampler *result_sampler);
 
-pi_result piSamplerGetInfo(pi_sampler sampler, pi_sampler_info param_name,
-                           size_t param_value_size, void *param_value,
-                           size_t *param_value_size_ret);
+__SYCL_EXPORT pi_result piSamplerGetInfo(pi_sampler sampler,
+                                         pi_sampler_info param_name,
+                                         size_t param_value_size,
+                                         void *param_value,
+                                         size_t *param_value_size_ret);
 
-pi_result piSamplerRetain(pi_sampler sampler);
+__SYCL_EXPORT pi_result piSamplerRetain(pi_sampler sampler);
 
-pi_result piSamplerRelease(pi_sampler sampler);
+__SYCL_EXPORT pi_result piSamplerRelease(pi_sampler sampler);
 
 //
 // Queue Commands
 //
-pi_result piEnqueueKernelLaunch(
+__SYCL_EXPORT pi_result piEnqueueKernelLaunch(
     pi_queue queue, pi_kernel kernel, pi_uint32 work_dim,
     const size_t *global_work_offset, const size_t *global_work_size,
     const size_t *local_work_size, pi_uint32 num_events_in_wait_list,
     const pi_event *event_wait_list, pi_event *event);
 
-pi_result
-piEnqueueNativeKernel(pi_queue queue, void (*user_func)(void *), void *args,
-                      size_t cb_args, pi_uint32 num_mem_objects,
-                      const pi_mem *mem_list, const void **args_mem_loc,
-                      pi_uint32 num_events_in_wait_list,
-                      const pi_event *event_wait_list, pi_event *event);
+__SYCL_EXPORT pi_result piEnqueueNativeKernel(
+    pi_queue queue, void (*user_func)(void *), void *args, size_t cb_args,
+    pi_uint32 num_mem_objects, const pi_mem *mem_list,
+    const void **args_mem_loc, pi_uint32 num_events_in_wait_list,
+    const pi_event *event_wait_list, pi_event *event);
 
-pi_result piEnqueueEventsWait(pi_queue command_queue,
-                              pi_uint32 num_events_in_wait_list,
-                              const pi_event *event_wait_list, pi_event *event);
+__SYCL_EXPORT pi_result piEnqueueEventsWait(pi_queue command_queue,
+                                            pi_uint32 num_events_in_wait_list,
+                                            const pi_event *event_wait_list,
+                                            pi_event *event);
 
-pi_result piEnqueueMemBufferRead(pi_queue queue, pi_mem buffer,
-                                 pi_bool blocking_read, size_t offset,
-                                 size_t size, void *ptr,
-                                 pi_uint32 num_events_in_wait_list,
-                                 const pi_event *event_wait_list,
-                                 pi_event *event);
+__SYCL_EXPORT pi_result piEnqueueMemBufferRead(
+    pi_queue queue, pi_mem buffer, pi_bool blocking_read, size_t offset,
+    size_t size, void *ptr, pi_uint32 num_events_in_wait_list,
+    const pi_event *event_wait_list, pi_event *event);
 
-pi_result
-piEnqueueMemBufferReadRect(pi_queue command_queue, pi_mem buffer,
-                           pi_bool blocking_read, const size_t *buffer_offset,
-                           const size_t *host_offset, const size_t *region,
-                           size_t buffer_row_pitch, size_t buffer_slice_pitch,
-                           size_t host_row_pitch, size_t host_slice_pitch,
-                           void *ptr, pi_uint32 num_events_in_wait_list,
-                           const pi_event *event_wait_list, pi_event *event);
+__SYCL_EXPORT pi_result piEnqueueMemBufferReadRect(
+    pi_queue command_queue, pi_mem buffer, pi_bool blocking_read,
+    const size_t *buffer_offset, const size_t *host_offset,
+    const size_t *region, size_t buffer_row_pitch, size_t buffer_slice_pitch,
+    size_t host_row_pitch, size_t host_slice_pitch, void *ptr,
+    pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
+    pi_event *event);
 
-pi_result piEnqueueMemBufferWrite(pi_queue command_queue, pi_mem buffer,
-                                  pi_bool blocking_write, size_t offset,
-                                  size_t size, const void *ptr,
-                                  pi_uint32 num_events_in_wait_list,
-                                  const pi_event *event_wait_list,
-                                  pi_event *event);
+__SYCL_EXPORT pi_result
+piEnqueueMemBufferWrite(pi_queue command_queue, pi_mem buffer,
+                        pi_bool blocking_write, size_t offset, size_t size,
+                        const void *ptr, pi_uint32 num_events_in_wait_list,
+                        const pi_event *event_wait_list, pi_event *event);
 
-pi_result
-piEnqueueMemBufferWriteRect(pi_queue command_queue, pi_mem buffer,
-                            pi_bool blocking_write, const size_t *buffer_offset,
-                            const size_t *host_offset, const size_t *region,
-                            size_t buffer_row_pitch, size_t buffer_slice_pitch,
-                            size_t host_row_pitch, size_t host_slice_pitch,
-                            const void *ptr, pi_uint32 num_events_in_wait_list,
-                            const pi_event *event_wait_list, pi_event *event);
+__SYCL_EXPORT pi_result piEnqueueMemBufferWriteRect(
+    pi_queue command_queue, pi_mem buffer, pi_bool blocking_write,
+    const size_t *buffer_offset, const size_t *host_offset,
+    const size_t *region, size_t buffer_row_pitch, size_t buffer_slice_pitch,
+    size_t host_row_pitch, size_t host_slice_pitch, const void *ptr,
+    pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
+    pi_event *event);
 
-pi_result piEnqueueMemBufferCopy(pi_queue command_queue, pi_mem src_buffer,
-                                 pi_mem dst_buffer, size_t src_offset,
-                                 size_t dst_offset, size_t size,
-                                 pi_uint32 num_events_in_wait_list,
-                                 const pi_event *event_wait_list,
-                                 pi_event *event);
+__SYCL_EXPORT pi_result
+piEnqueueMemBufferCopy(pi_queue command_queue, pi_mem src_buffer,
+                       pi_mem dst_buffer, size_t src_offset, size_t dst_offset,
+                       size_t size, pi_uint32 num_events_in_wait_list,
+                       const pi_event *event_wait_list, pi_event *event);
 
-pi_result piEnqueueMemBufferCopyRect(
+__SYCL_EXPORT pi_result piEnqueueMemBufferCopyRect(
     pi_queue command_queue, pi_mem src_buffer, pi_mem dst_buffer,
     const size_t *src_origin, const size_t *dst_origin, const size_t *region,
     size_t src_row_pitch, size_t src_slice_pitch, size_t dst_row_pitch,
     size_t dst_slice_pitch, pi_uint32 num_events_in_wait_list,
     const pi_event *event_wait_list, pi_event *event);
 
-pi_result piEnqueueMemBufferFill(pi_queue command_queue, pi_mem buffer,
-                                 const void *pattern, size_t pattern_size,
-                                 size_t offset, size_t size,
-                                 pi_uint32 num_events_in_wait_list,
-                                 const pi_event *event_wait_list,
-                                 pi_event *event);
+__SYCL_EXPORT pi_result
+piEnqueueMemBufferFill(pi_queue command_queue, pi_mem buffer,
+                       const void *pattern, size_t pattern_size, size_t offset,
+                       size_t size, pi_uint32 num_events_in_wait_list,
+                       const pi_event *event_wait_list, pi_event *event);
 
-pi_result piEnqueueMemImageRead(pi_queue command_queue, pi_mem image,
-                                pi_bool blocking_read, const size_t *origin,
-                                const size_t *region, size_t row_pitch,
-                                size_t slice_pitch, void *ptr,
-                                pi_uint32 num_events_in_wait_list,
-                                const pi_event *event_wait_list,
-                                pi_event *event);
+__SYCL_EXPORT pi_result piEnqueueMemImageRead(
+    pi_queue command_queue, pi_mem image, pi_bool blocking_read,
+    const size_t *origin, const size_t *region, size_t row_pitch,
+    size_t slice_pitch, void *ptr, pi_uint32 num_events_in_wait_list,
+    const pi_event *event_wait_list, pi_event *event);
 
-pi_result piEnqueueMemImageWrite(pi_queue command_queue, pi_mem image,
-                                 pi_bool blocking_write, const size_t *origin,
-                                 const size_t *region, size_t input_row_pitch,
-                                 size_t input_slice_pitch, const void *ptr,
-                                 pi_uint32 num_events_in_wait_list,
-                                 const pi_event *event_wait_list,
-                                 pi_event *event);
+__SYCL_EXPORT pi_result piEnqueueMemImageWrite(
+    pi_queue command_queue, pi_mem image, pi_bool blocking_write,
+    const size_t *origin, const size_t *region, size_t input_row_pitch,
+    size_t input_slice_pitch, const void *ptr,
+    pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
+    pi_event *event);
 
-pi_result piEnqueueMemImageCopy(pi_queue command_queue, pi_mem src_image,
-                                pi_mem dst_image, const size_t *src_origin,
-                                const size_t *dst_origin, const size_t *region,
-                                pi_uint32 num_events_in_wait_list,
-                                const pi_event *event_wait_list,
-                                pi_event *event);
+__SYCL_EXPORT pi_result piEnqueueMemImageCopy(
+    pi_queue command_queue, pi_mem src_image, pi_mem dst_image,
+    const size_t *src_origin, const size_t *dst_origin, const size_t *region,
+    pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
+    pi_event *event);
 
-pi_result piEnqueueMemImageFill(pi_queue command_queue, pi_mem image,
-                                const void *fill_color, const size_t *origin,
-                                const size_t *region,
-                                pi_uint32 num_events_in_wait_list,
-                                const pi_event *event_wait_list,
-                                pi_event *event);
+__SYCL_EXPORT pi_result
+piEnqueueMemImageFill(pi_queue command_queue, pi_mem image,
+                      const void *fill_color, const size_t *origin,
+                      const size_t *region, pi_uint32 num_events_in_wait_list,
+                      const pi_event *event_wait_list, pi_event *event);
 
-pi_result piEnqueueMemBufferMap(
+__SYCL_EXPORT pi_result piEnqueueMemBufferMap(
     pi_queue command_queue, pi_mem buffer, pi_bool blocking_map,
     cl_map_flags map_flags, // TODO: untie from OpenCL
     size_t offset, size_t size, pi_uint32 num_events_in_wait_list,
     const pi_event *event_wait_list, pi_event *event, void **ret_map);
 
-pi_result piEnqueueMemUnmap(pi_queue command_queue, pi_mem memobj,
-                            void *mapped_ptr, pi_uint32 num_events_in_wait_list,
-                            const pi_event *event_wait_list, pi_event *event);
+__SYCL_EXPORT pi_result piEnqueueMemUnmap(pi_queue command_queue, pi_mem memobj,
+                                          void *mapped_ptr,
+                                          pi_uint32 num_events_in_wait_list,
+                                          const pi_event *event_wait_list,
+                                          pi_event *event);
 
-pi_result piextKernelSetArgMemObj(pi_kernel kernel, pi_uint32 arg_index,
-                                  const pi_mem *arg_value);
+__SYCL_EXPORT pi_result piextKernelSetArgMemObj(pi_kernel kernel,
+                                                pi_uint32 arg_index,
+                                                const pi_mem *arg_value);
 
 ///
 // USM
@@ -1187,8 +1339,6 @@ typedef enum {
   PI_MEM_ALLOC_BASE_PTR = CL_MEM_ALLOC_BASE_PTR_INTEL,
   PI_MEM_ALLOC_SIZE = CL_MEM_ALLOC_SIZE_INTEL,
   PI_MEM_ALLOC_DEVICE = CL_MEM_ALLOC_DEVICE_INTEL,
-  PI_MEM_ALLOC_INFO_TBD0 = CL_MEM_ALLOC_INFO_TBD0_INTEL,
-  PI_MEM_ALLOC_INFO_TBD1 = CL_MEM_ALLOC_INFO_TBD1_INTEL,
 } _pi_mem_info;
 
 typedef enum {
@@ -1220,9 +1370,9 @@ using pi_usm_migration_flags = _pi_usm_migration_flags;
 /// \param pi_usm_mem_properties are optional allocation properties
 /// \param size_t is the size of the allocation
 /// \param alignment is the desired alignment of the allocation
-pi_result piextUSMHostAlloc(void **result_ptr, pi_context context,
-                            pi_usm_mem_properties *properties, size_t size,
-                            pi_uint32 alignment);
+__SYCL_EXPORT pi_result piextUSMHostAlloc(void **result_ptr, pi_context context,
+                                          pi_usm_mem_properties *properties,
+                                          size_t size, pi_uint32 alignment);
 
 /// Allocates device memory
 ///
@@ -1232,10 +1382,11 @@ pi_result piextUSMHostAlloc(void **result_ptr, pi_context context,
 /// \param pi_usm_mem_properties are optional allocation properties
 /// \param size_t is the size of the allocation
 /// \param alignment is the desired alignment of the allocation
-pi_result piextUSMDeviceAlloc(void **result_ptr, pi_context context,
-                              pi_device device,
-                              pi_usm_mem_properties *properties, size_t size,
-                              pi_uint32 alignment);
+__SYCL_EXPORT pi_result piextUSMDeviceAlloc(void **result_ptr,
+                                            pi_context context,
+                                            pi_device device,
+                                            pi_usm_mem_properties *properties,
+                                            size_t size, pi_uint32 alignment);
 
 /// Allocates memory accessible on both host and device
 ///
@@ -1245,16 +1396,17 @@ pi_result piextUSMDeviceAlloc(void **result_ptr, pi_context context,
 /// \param pi_usm_mem_properties are optional allocation properties
 /// \param size_t is the size of the allocation
 /// \param alignment is the desired alignment of the allocation
-pi_result piextUSMSharedAlloc(void **result_ptr, pi_context context,
-                              pi_device device,
-                              pi_usm_mem_properties *properties, size_t size,
-                              pi_uint32 alignment);
+__SYCL_EXPORT pi_result piextUSMSharedAlloc(void **result_ptr,
+                                            pi_context context,
+                                            pi_device device,
+                                            pi_usm_mem_properties *properties,
+                                            size_t size, pi_uint32 alignment);
 
 /// Frees allocated USM memory
 ///
 /// \param context is the pi_context of the allocation
 /// \param ptr is the memory to be freed
-pi_result piextUSMFree(pi_context context, void *ptr);
+__SYCL_EXPORT pi_result piextUSMFree(pi_context context, void *ptr);
 
 /// USM Memset API
 ///
@@ -1267,10 +1419,11 @@ pi_result piextUSMFree(pi_context context, void *ptr);
 /// \param num_events_in_waitlist is the number of events to wait on
 /// \param events_waitlist is an array of events to wait on
 /// \param event is the event that represents this operation
-pi_result piextUSMEnqueueMemset(pi_queue queue, void *ptr, pi_int32 value,
-                                size_t count, pi_uint32 num_events_in_waitlist,
-                                const pi_event *events_waitlist,
-                                pi_event *event);
+__SYCL_EXPORT pi_result piextUSMEnqueueMemset(pi_queue queue, void *ptr,
+                                              pi_int32 value, size_t count,
+                                              pi_uint32 num_events_in_waitlist,
+                                              const pi_event *events_waitlist,
+                                              pi_event *event);
 
 /// USM Memcpy API
 ///
@@ -1282,11 +1435,12 @@ pi_result piextUSMEnqueueMemset(pi_queue queue, void *ptr, pi_int32 value,
 /// \param num_events_in_waitlist is the number of events to wait on
 /// \param events_waitlist is an array of events to wait on
 /// \param event is the event that represents this operation
-pi_result piextUSMEnqueueMemcpy(pi_queue queue, pi_bool blocking, void *dst_ptr,
-                                const void *src_ptr, size_t size,
-                                pi_uint32 num_events_in_waitlist,
-                                const pi_event *events_waitlist,
-                                pi_event *event);
+__SYCL_EXPORT pi_result piextUSMEnqueueMemcpy(pi_queue queue, pi_bool blocking,
+                                              void *dst_ptr,
+                                              const void *src_ptr, size_t size,
+                                              pi_uint32 num_events_in_waitlist,
+                                              const pi_event *events_waitlist,
+                                              pi_event *event);
 
 /// Hint to migrate memory to the device
 ///
@@ -1297,11 +1451,10 @@ pi_result piextUSMEnqueueMemcpy(pi_queue queue, pi_bool blocking, void *dst_ptr,
 /// \param num_events_in_waitlist is the number of events to wait on
 /// \param events_waitlist is an array of events to wait on
 /// \param event is the event that represents this operation
-pi_result piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr, size_t size,
-                                  pi_usm_migration_flags flags,
-                                  pi_uint32 num_events_in_waitlist,
-                                  const pi_event *events_waitlist,
-                                  pi_event *event);
+__SYCL_EXPORT pi_result piextUSMEnqueuePrefetch(
+    pi_queue queue, const void *ptr, size_t size, pi_usm_migration_flags flags,
+    pi_uint32 num_events_in_waitlist, const pi_event *events_waitlist,
+    pi_event *event);
 
 /// USM Memadvise API
 ///
@@ -1311,8 +1464,10 @@ pi_result piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr, size_t size,
 /// \param advice is device specific advice
 /// \param event is the event that represents this operation
 // USM memadvise API to govern behavior of automatic migration mechanisms
-pi_result piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
-                                   size_t length, int advice, pi_event *event);
+__SYCL_EXPORT pi_result piextUSMEnqueueMemAdvise(pi_queue queue,
+                                                 const void *ptr, size_t length,
+                                                 pi_mem_advice advice,
+                                                 pi_event *event);
 
 /// API to query information about USM allocated pointers
 /// Valid Queries:
@@ -1330,10 +1485,9 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
 /// \param param_value_size is the size of the result in bytes
 /// \param param_value is the result
 /// \param param_value_ret is how many bytes were written
-pi_result piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
-                                  pi_mem_info param_name,
-                                  size_t param_value_size, void *param_value,
-                                  size_t *param_value_size_ret);
+__SYCL_EXPORT pi_result piextUSMGetMemAllocInfo(
+    pi_context context, const void *ptr, pi_mem_info param_name,
+    size_t param_value_size, void *param_value, size_t *param_value_size_ret);
 
 struct _pi_plugin {
   // PI version supported by host passed to the plugin. The Plugin
@@ -1343,9 +1497,9 @@ struct _pi_plugin {
   // Some choices are:
   // - Use of integers to keep major and minor version.
   // - Keeping char* Versions.
-  const char PiVersion[4] = _PI_H_VERSION_STRING;
+  char PiVersion[4];
   // Plugin edits this.
-  char PluginVersion[4] = _PI_H_VERSION_STRING;
+  char PluginVersion[4];
   char *Targets;
   struct FunctionPointers {
 #define _PI_API(api) decltype(::api) *api;

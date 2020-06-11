@@ -7,6 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
+
+#include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/exception_list.hpp>
@@ -25,6 +27,10 @@ namespace detail {
 class context_impl;
 }
 
+/// The context class represents a SYCL context on which kernel functions may
+/// be executed.
+///
+/// \ingroup sycl_api
 class __SYCL_EXPORT context {
 public:
   /// Constructs a SYCL context instance using an instance of default_selector.
@@ -135,9 +141,20 @@ public:
   /// \return a vector of valid SYCL device instances.
   vector_class<device> get_devices() const;
 
+  /// Gets the native handle of the SYCL context.
+  ///
+  /// \return a native handle, the type of which defined by the backend.
+  template <backend BackendName>
+  auto get_native() const -> typename interop<BackendName, context>::type {
+    return reinterpret_cast<typename interop<BackendName, context>::type>(
+        getNative());
+  }
+
 private:
   /// Constructs a SYCL context object from a valid context_impl instance.
   context(shared_ptr_class<detail::context_impl> Impl);
+
+  pi_native_handle getNative() const;
 
   shared_ptr_class<detail::context_impl> impl;
   template <class Obj>

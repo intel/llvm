@@ -7,38 +7,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "SchedulerTest.hpp"
-
-#include <CL/cl.h>
-#include <CL/sycl.hpp>
-#include <detail/scheduler/scheduler.hpp>
-
-#include <gtest/gtest.h>
+#include "SchedulerTestUtils.hpp"
 
 using namespace cl::sycl;
 
-class MockCommand : public detail::Command {
-public:
-  MockCommand(detail::QueueImplPtr Queue)
-      : Command(detail::Command::ALLOCA, Queue) {}
-  void printDot(std::ostream &Stream) const override {}
-  void emitInstrumentationData() override {}
-  cl_int enqueueImp() override { return CL_SUCCESS; }
-};
-
-class MockScheduler : public detail::Scheduler {
-public:
-  static bool enqueueCommand(detail::Command *Cmd,
-                             detail::EnqueueResultT &EnqueueResult,
-                             detail::BlockingT Blocking) {
-    return GraphProcessor::enqueueCommand(Cmd, EnqueueResult, Blocking);
-  }
-};
-
 TEST_F(SchedulerTest, FailedDependency) {
-  detail::Requirement MockReq(/*Offset*/ {0, 0, 0}, /*AccessRange*/ {1, 1, 1},
-                              /*MemoryRange*/ {1, 1, 1},
-                              access::mode::read_write, /*SYCLMemObjT*/ nullptr,
-                              /*Dims*/ 1, /*ElementSize*/ 1);
+  detail::Requirement MockReq = getMockRequirement();
   MockCommand MDep(detail::getSyclObjImpl(MQueue));
   MockCommand MUser(detail::getSyclObjImpl(MQueue));
   MDep.addUser(&MUser);

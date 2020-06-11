@@ -165,9 +165,11 @@ namespace llvm {
 
     /// CALL - A direct function call.
     /// CALL_NOP is a call with the special NOP which follows 64-bit
+    /// CALL_NOTOC the caller does not use the TOC.
     /// SVR4 calls and 32-bit/64-bit AIX calls.
     CALL,
     CALL_NOP,
+    CALL_NOTOC,
 
     /// CHAIN,FLAG = MTCTR(VAL, CHAIN[, INFLAG]) - Directly corresponds to a
     /// MTCTR instruction.
@@ -426,6 +428,11 @@ namespace llvm {
     /// lower (IDX=1) half of v4f32 to v2f64.
     FP_EXTEND_HALF,
 
+    /// MAT_PCREL_ADDR = Materialize a PC Relative address. This can be done
+    /// either through an add like PADDI or through a PC Relative load like
+    /// PLD.
+    MAT_PCREL_ADDR,
+
     /// CHAIN = STBRX CHAIN, GPRC, Ptr, Type - This is a
     /// byte-swapping store instruction.  It byte-swaps the low "Type" bits of
     /// the GPRC input, then stores it through Ptr.  Type can be either i16 or
@@ -633,7 +640,7 @@ namespace llvm {
     /// then the VPERM for the shuffle. All in all a very slow sequence.
     TargetLoweringBase::LegalizeTypeAction getPreferredVectorAction(MVT VT)
       const override {
-      if (VT.getScalarSizeInBits() % 8 == 0)
+      if (VT.getVectorNumElements() != 1 && VT.getScalarSizeInBits() % 8 == 0)
         return TypeWidenVector;
       return TargetLoweringBase::getPreferredVectorAction(VT);
     }
@@ -671,18 +678,6 @@ namespace llvm {
     bool convertSetCCLogicToBitwiseLogic(EVT VT) const override {
       return VT.isScalarInteger();
     }
-
-    bool supportSplitCSR(MachineFunction *MF) const override {
-      return
-        MF->getFunction().getCallingConv() == CallingConv::CXX_FAST_TLS &&
-        MF->getFunction().hasFnAttribute(Attribute::NoUnwind);
-    }
-
-    void initializeSplitCSR(MachineBasicBlock *Entry) const override;
-
-    void insertCopiesSplitCSR(
-      MachineBasicBlock *Entry,
-      const SmallVectorImpl<MachineBasicBlock *> &Exits) const override;
 
     /// getSetCCResultType - Return the ISD::SETCC ValueType
     EVT getSetCCResultType(const DataLayout &DL, LLVMContext &Context,
@@ -727,6 +722,10 @@ namespace llvm {
     /// represented as an indexed [r+r] operation.
     bool SelectAddressRegRegOnly(SDValue N, SDValue &Base, SDValue &Index,
                                  SelectionDAG &DAG) const;
+
+    /// SelectAddressPCRel - Represent the specified address as pc relative to
+    /// be represented as [pc+imm]
+    bool SelectAddressPCRel(SDValue N, SDValue &Base) const;
 
     Sched::Preference getSchedulingPreference(SDNode *N) const override;
 
@@ -875,7 +874,7 @@ namespace llvm {
       if (VT != MVT::f32 && VT != MVT::f64)
         return false;
 
-      return true; 
+      return true;
     }
 
     // Returns true if the address of the global is stored in TOC entry.
@@ -943,13 +942,18 @@ namespace llvm {
 
     /// If a physical register, this returns the register that receives the
     /// exception address on entry to an EH pad.
-    unsigned
+    Register
     getExceptionPointerRegister(const Constant *PersonalityFn) const override;
 
     /// If a physical register, this returns the register that receives the
     /// exception typeid on entry to a landing pad.
-    unsigned
+    Register
     getExceptionSelectorRegister(const Constant *PersonalityFn) const override;
+
+    /// isMulhCheaperThanMulShift - Return true if a mulh[s|u] node for a
+    /// specific type is cheaper than a multiply followed by a shift.
+    /// This is true for words and doublewords on 64-bit PowerPC.
+    bool isMulhCheaperThanMulShift(EVT Type) const override;
 
     /// Override to support customized stack guard loading.
     bool useLoadStackGuardNode() const override;
@@ -975,12 +979,13 @@ namespace llvm {
       const bool IsPatchPoint : 1;
       const bool IsIndirect : 1;
       const bool HasNest : 1;
+      const bool NoMerge : 1;
 
       CallFlags(CallingConv::ID CC, bool IsTailCall, bool IsVarArg,
-                bool IsPatchPoint, bool IsIndirect, bool HasNest)
+                bool IsPatchPoint, bool IsIndirect, bool HasNest, bool NoMerge)
           : CallConv(CC), IsTailCall(IsTailCall), IsVarArg(IsVarArg),
             IsPatchPoint(IsPatchPoint), IsIndirect(IsIndirect),
-            HasNest(HasNest) {}
+            HasNest(HasNest), NoMerge(NoMerge) {}
     };
 
   private:
@@ -991,7 +996,7 @@ namespace llvm {
       MachinePointerInfo MPI;
       bool IsDereferenceable = false;
       bool IsInvariant = false;
-      unsigned Alignment = 0;
+      Align Alignment;
       AAMDNodes AAInfo;
       const MDNode *Ranges = nullptr;
 
@@ -1042,15 +1047,10 @@ namespace llvm {
                                       const SmallVectorImpl<ISD::InputArg> &Ins,
                                       SelectionDAG& DAG) const;
 
-    bool
-    IsEligibleForTailCallOptimization_64SVR4(
-                                    SDValue Callee,
-                                    CallingConv::ID CalleeCC,
-                                    ImmutableCallSite CS,
-                                    bool isVarArg,
-                                    const SmallVectorImpl<ISD::OutputArg> &Outs,
-                                    const SmallVectorImpl<ISD::InputArg> &Ins,
-                                    SelectionDAG& DAG) const;
+    bool IsEligibleForTailCallOptimization_64SVR4(
+        SDValue Callee, CallingConv::ID CalleeCC, const CallBase *CB,
+        bool isVarArg, const SmallVectorImpl<ISD::OutputArg> &Outs,
+        const SmallVectorImpl<ISD::InputArg> &Ins, SelectionDAG &DAG) const;
 
     SDValue EmitTailCallLoadFPAndRetAddr(SelectionDAG &DAG, int SPDiff,
                                          SDValue Chain, SDValue &LROpOut,
@@ -1117,7 +1117,7 @@ namespace llvm {
                        SDValue &Callee, int SPDiff, unsigned NumBytes,
                        const SmallVectorImpl<ISD::InputArg> &Ins,
                        SmallVectorImpl<SDValue> &InVals,
-                       ImmutableCallSite CS) const;
+                       const CallBase *CB) const;
 
     SDValue
     LowerFormalArguments(SDValue Chain, CallingConv::ID CallConv, bool isVarArg,
@@ -1170,28 +1170,28 @@ namespace llvm {
                              const SmallVectorImpl<ISD::InputArg> &Ins,
                              const SDLoc &dl, SelectionDAG &DAG,
                              SmallVectorImpl<SDValue> &InVals,
-                             ImmutableCallSite CS) const;
+                             const CallBase *CB) const;
     SDValue LowerCall_64SVR4(SDValue Chain, SDValue Callee, CallFlags CFlags,
                              const SmallVectorImpl<ISD::OutputArg> &Outs,
                              const SmallVectorImpl<SDValue> &OutVals,
                              const SmallVectorImpl<ISD::InputArg> &Ins,
                              const SDLoc &dl, SelectionDAG &DAG,
                              SmallVectorImpl<SDValue> &InVals,
-                             ImmutableCallSite CS) const;
+                             const CallBase *CB) const;
     SDValue LowerCall_32SVR4(SDValue Chain, SDValue Callee, CallFlags CFlags,
                              const SmallVectorImpl<ISD::OutputArg> &Outs,
                              const SmallVectorImpl<SDValue> &OutVals,
                              const SmallVectorImpl<ISD::InputArg> &Ins,
                              const SDLoc &dl, SelectionDAG &DAG,
                              SmallVectorImpl<SDValue> &InVals,
-                             ImmutableCallSite CS) const;
+                             const CallBase *CB) const;
     SDValue LowerCall_AIX(SDValue Chain, SDValue Callee, CallFlags CFlags,
                           const SmallVectorImpl<ISD::OutputArg> &Outs,
                           const SmallVectorImpl<SDValue> &OutVals,
                           const SmallVectorImpl<ISD::InputArg> &Ins,
                           const SDLoc &dl, SelectionDAG &DAG,
                           SmallVectorImpl<SDValue> &InVals,
-                          ImmutableCallSite CS) const;
+                          const CallBase *CB) const;
 
     SDValue lowerEH_SJLJ_SETJMP(SDValue Op, SelectionDAG &DAG) const;
     SDValue lowerEH_SJLJ_LONGJMP(SDValue Op, SelectionDAG &DAG) const;

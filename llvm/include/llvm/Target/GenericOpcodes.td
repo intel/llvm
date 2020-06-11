@@ -203,6 +203,12 @@ def G_DYN_STACKALLOC : GenericInstruction {
   let hasSideEffects = 1;
 }
 
+def G_FREEZE : GenericInstruction {
+  let OutOperandList = (outs type0:$dst);
+  let InOperandList = (ins type0:$src);
+  let hasSideEffects = 0;
+}
+
 //------------------------------------------------------------------------------
 // Binary ops.
 //------------------------------------------------------------------------------
@@ -308,6 +314,22 @@ def G_ASHR : GenericInstruction {
   let hasSideEffects = 0;
 }
 
+/// Funnel 'double' shifts take 3 operands, 2 inputs and the shift amount.
+/// fshl(X,Y,Z): (X << (Z % bitwidth)) | (Y >> (bitwidth - (Z % bitwidth)))
+def G_FSHL : GenericInstruction {
+  let OutOperandList = (outs type0:$dst);
+  let InOperandList = (ins type0:$src1, type0:$src2, type1:$src3);
+  let hasSideEffects = 0;
+}
+
+/// Funnel 'double' shifts take 3 operands, 2 inputs and the shift amount.
+/// fshr(X,Y,Z): (X << (bitwidth - (Z % bitwidth))) | (Y >> (Z % bitwidth))
+def G_FSHR : GenericInstruction {
+  let OutOperandList = (outs type0:$dst);
+  let InOperandList = (ins type0:$src1, type0:$src2, type1:$src3);
+  let hasSideEffects = 0;
+}
+
 // Generic integer comparison.
 def G_ICMP : GenericInstruction {
   let OutOperandList = (outs type0:$dst);
@@ -336,9 +358,11 @@ def G_PTR_ADD : GenericInstruction {
   let hasSideEffects = 0;
 }
 
-def G_PTR_MASK : GenericInstruction {
-  let OutOperandList = (outs type0:$dst);
-  let InOperandList = (ins type0:$src, unknown:$bits);
+// Generic pointer mask. type1 should be an integer with the same
+// bitwidth as the pointer type.
+def G_PTRMASK : GenericInstruction {
+  let OutOperandList = (outs ptype0:$dst);
+  let InOperandList = (ins ptype0:$src, type1:$bits);
   let hasSideEffects = 0;
 }
 

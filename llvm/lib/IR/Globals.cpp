@@ -101,6 +101,12 @@ bool GlobalValue::isInterposable() const {
          !isDSOLocal();
 }
 
+bool GlobalValue::canBenefitFromLocalAlias() const {
+  // See AsmPrinter::getSymbolPreferLocal().
+  return GlobalObject::isExternalLinkage(getLinkage()) && !isDeclaration() &&
+         !isa<GlobalIFunc>(this) && !hasComdat();
+}
+
 unsigned GlobalValue::getAlignment() const {
   if (auto *GA = dyn_cast<GlobalAlias>(this)) {
     // In general we cannot compute this at the IR level, but we try.
@@ -120,12 +126,8 @@ unsigned GlobalValue::getAddressSpace() const {
   return PtrTy->getAddressSpace();
 }
 
-void GlobalObject::setAlignment(unsigned Align) {
-  setAlignment(MaybeAlign(Align));
-}
-
 void GlobalObject::setAlignment(MaybeAlign Align) {
-  assert((!Align || Align <= MaximumAlignment) &&
+  assert((!Align || *Align <= MaximumAlignment) &&
          "Alignment is greater than MaximumAlignment!");
   unsigned AlignmentData = encode(Align);
   unsigned OldData = getGlobalValueSubClassData();

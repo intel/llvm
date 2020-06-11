@@ -64,7 +64,8 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
       "Operation::operand_range", "getInputs"
     >,
     InterfaceMethod<[{
-        Return the type of the input shape at the given index.
+        Return the `i`-th input shaped type, irrespective of buffer or tensor
+        type.
       }], "ShapedType", "getInputShapedType", (ins "unsigned":$i)>,
     InterfaceMethod<[{
         Return the subset of input operands that are of ranked tensor type.
@@ -90,6 +91,10 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
         Return the type of the output buffer at the given index.
       }], "MemRefType", "getOutputBufferType", (ins "unsigned":$i)>,
     InterfaceMethod<[{
+        Return the `i`-th output shaped type, irrespective of buffer or tensor
+        type.
+      }], "ShapedType", "getOutputShapedType", (ins "unsigned":$i)>,
+    InterfaceMethod<[{
         Return the results that are of ranked tensor type.
       }], "SmallVector<RankedTensorType, 4>", "getOutputTensorTypes">,
     InterfaceMethod<
@@ -100,6 +105,10 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
     //===------------------------------------------------------------------===//
     // Input and Output arguments handling.
     //===------------------------------------------------------------------===//
+    InterfaceMethod<
+      "Return one single buffer at position `$i`.",
+      "Value", "getBuffer", (ins "unsigned":$i)
+    >,
     InterfaceMethod<
       "Return the number of inputs and outputs, irrespective of their buffer "
       "or tensor type.",
@@ -114,17 +123,22 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
       "Return the range over inputs (irrespective of type) and output buffers.",
       "Operation::operand_range", "getInputsAndOutputBuffers"
     >,
+    InterfaceMethod<
+      "Return the shaped types for all the inputs and outputs",
+      "SmallVector<ShapedType, 4>", "getInputOutputShapedTypes"
+    >,
 
     //===------------------------------------------------------------------===//
     // Other interface methods.
     //===------------------------------------------------------------------===//
     InterfaceMethod<
-      "Return the reference iterators for this named op (if any are specied). "
-      "These reference iterators are used to specify the default behavior of "
-      "the op. Typically this would be a static method but in order to allow "
-      "rank-polymorphic ops, this needs to be per object instance. Named ops "
-      "must define referenceIterators, even if empty for the 0-D case. "
-      "Generic ops on the other hand have a None `referenceIterators`",
+      "Return the reference iterators for this named op (if any are "
+      "specified). These reference iterators are used to specify the default "
+      "behavior of the op. Typically this would be a static method but in "
+      "order to allow rank-polymorphic ops, this needs to be per object "
+      "instance. Named ops must define referenceIterators, even if empty for "
+      "the 0-D case. Generic ops on the other hand have a None "
+      "`referenceIterators`",
       "llvm::Optional<SmallVector<StringRef, 8>>", "referenceIterators"
     >,
     InterfaceMethod<
@@ -142,6 +156,10 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
     InterfaceMethod<
       "Return the indexing maps attribute within the current operation.",
       "ArrayAttr", "indexing_maps"
+    >,
+    InterfaceMethod<
+      "Return the indexing maps within the current operation.",
+      "SmallVector<AffineMap, 4>", "getIndexingMaps"
     >,
     InterfaceMethod<"Return the input or output indexing map at index `i`.",
       "AffineMap", "getIndexingMap", (ins "unsigned":$i)

@@ -100,6 +100,18 @@ static DecodeStatus decodeSoppBrTarget(MCInst &Inst, unsigned Imm,
   return addOperand(Inst, MCOperand::createImm(Imm));
 }
 
+static DecodeStatus decodeSMEMOffset(MCInst &Inst, unsigned Imm,
+                                     uint64_t Addr, const void *Decoder) {
+  auto DAsm = static_cast<const AMDGPUDisassembler*>(Decoder);
+  int64_t Offset;
+  if (DAsm->isVI()) {         // VI supports 20-bit unsigned offsets.
+    Offset = Imm & 0xFFFFF;
+  } else {                    // GFX9+ supports 21-bit signed offsets.
+    Offset = SignExtend64<21>(Imm);
+  }
+  return addOperand(Inst, MCOperand::createImm(Offset));
+}
+
 static DecodeStatus decodeBoolReg(MCInst &Inst, unsigned Val,
                                   uint64_t Addr, const void *Decoder) {
   auto DAsm = static_cast<const AMDGPUDisassembler*>(Decoder);
@@ -349,13 +361,6 @@ DecodeStatus AMDGPUDisassembler::getInstruction(MCInst &MI, uint64_t &Size,
 
     Res = tryDecodeInst(DecoderTableGFX1064, MI, QW, Address);
   } while (false);
-
-  if (Res && (MaxInstBytesNum - Bytes.size()) == 12 && (!HasLiteral ||
-        !(MCII->get(MI.getOpcode()).TSFlags & SIInstrFlags::VOP3))) {
-    MaxInstBytesNum = 8;
-    Bytes = Bytes_.slice(0, MaxInstBytesNum);
-    eatBytes<uint64_t>(Bytes);
-  }
 
   if (Res && (MI.getOpcode() == AMDGPU::V_MAC_F32_e64_vi ||
               MI.getOpcode() == AMDGPU::V_MAC_F32_e64_gfx6_gfx7 ||
@@ -930,6 +935,7 @@ unsigned AMDGPUDisassembler::getAgprClassId(const OpWidthTy Width) const {
     return AGPR_32RegClassID;
   case OPW64: return AReg_64RegClassID;
   case OPW128: return AReg_128RegClassID;
+  case OPW256: return AReg_256RegClassID;
   case OPW512: return AReg_512RegClassID;
   case OPW1024: return AReg_1024RegClassID;
   }

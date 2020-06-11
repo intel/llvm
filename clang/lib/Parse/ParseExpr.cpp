@@ -1428,6 +1428,7 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
   case tok::kw_dynamic_cast:
   case tok::kw_reinterpret_cast:
   case tok::kw_static_cast:
+  case tok::kw_addrspace_cast:
     if (NotPrimaryExpression)
       *NotPrimaryExpression = true;
     Res = ParseCXXCasts();
@@ -1455,7 +1456,7 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
     break;
   case tok::annot_typename:
     if (isStartOfObjCClassMessageMissingOpenBracket()) {
-      ParsedType Type = getTypeAnnotation(Tok);
+      TypeResult Type = getTypeAnnotation(Tok);
 
       // Fake up a Declarator to use with ActOnTypeName.
       DeclSpec DS(AttrFactory);
@@ -1492,6 +1493,7 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
   case tok::kw_long:
   case tok::kw___int64:
   case tok::kw___int128:
+  case tok::kw__ExtInt:
   case tok::kw_signed:
   case tok::kw_unsigned:
   case tok::kw_half:
@@ -2018,12 +2020,19 @@ Parser::ParsePostfixExpressionSuffix(ExprResult LHS) {
           return ParsePostfixExpressionSuffix(Base);
         }
 
-        LHS = Actions.ActOnStartCXXMemberReference(getCurScope(), Base,
-                                                   OpLoc, OpKind, ObjectType,
+        LHS = Actions.ActOnStartCXXMemberReference(getCurScope(), Base, OpLoc,
+                                                   OpKind, ObjectType,
                                                    MayBePseudoDestructor);
-        if (LHS.isInvalid())
+        if (LHS.isInvalid()) {
+          // Clang will try to perform expression based completion as a
+          // fallback, which is confusing in case of member references. So we
+          // stop here without any completions.
+          if (Tok.is(tok::code_completion)) {
+            cutOffParsing();
+            return ExprError();
+          }
           break;
-
+        }
         ParseOptionalCXXScopeSpecifier(
             SS, ObjectType, LHS.get() && LHS.get()->containsErrors(),
             /*EnteringContext=*/false, &MayBePseudoDestructor);
@@ -2102,8 +2111,14 @@ Parser::ParsePostfixExpressionSuffix(ExprResult LHS) {
                                             OpKind, SS, TemplateKWLoc, Name,
                                  CurParsedObjCImpl ? CurParsedObjCImpl->Dcl
                                                    : nullptr);
-      if (!LHS.isInvalid() && Tok.is(tok::less))
-        checkPotentialAngleBracket(LHS);
+      if (!LHS.isInvalid()) {
+        if (Tok.is(tok::less))
+          checkPotentialAngleBracket(LHS);
+      } else if (OrigLHS && Name.isValid()) {
+        // Preserve the LHS if the RHS is an invalid member.
+        LHS = Actions.CreateRecoveryExpr(OrigLHS->getBeginLoc(),
+                                         Name.getEndLoc(), {OrigLHS});
+      }
       break;
     }
     case tok::plusplus:    // postfix-expression: postfix-expression '++'
@@ -2642,6 +2657,33 @@ ExprResult Parser::ParseBuiltinPrimaryExpression() {
   return ParsePostfixExpressionSuffix(Res.get());
 }
 
+bool Parser::tryParseOpenMPArrayShapingCastPart() {
+  assert(Tok.is(tok::l_square) && "Expected open bracket");
+  bool ErrorFound = true;
+  TentativeParsingAction TPA(*this);
+  do {
+    if (Tok.isNot(tok::l_square))
+      break;
+    // Consume '['
+    ConsumeBracket();
+    // Skip inner expression.
+    while (!SkipUntil(tok::r_square, tok::annot_pragma_openmp_end,
+                      StopAtSemi | StopBeforeMatch))
+      ;
+    if (Tok.isNot(tok::r_square))
+      break;
+    // Consume ']'
+    ConsumeBracket();
+    // Found ')' - done.
+    if (Tok.is(tok::r_paren)) {
+      ErrorFound = false;
+      break;
+    }
+  } while (Tok.isNot(tok::annot_pragma_openmp_end));
+  TPA.Revert();
+  return !ErrorFound;
+}
+
 /// ParseParenExpression - This parses the unit that starts with a '(' token,
 /// based on what is allowed by ExprType.  The actual thing parsed is returned
 /// in ExprType. If stopIfCastExpr is true, it will only return the parsed type,
@@ -2666,6 +2708,8 @@ ExprResult Parser::ParseBuiltinPrimaryExpression() {
 ///         '(' '...' fold-operator cast-expression ')'
 ///         '(' cast-expression fold-operator '...'
 ///                 fold-operator cast-expression ')'
+/// [OPENMP] Array shaping operation
+///       '(' '[' expression ']' { '[' expression ']' } cast-expression
 /// \endverbatim
 ExprResult
 Parser::ParseParenExpression(ParenParseOption &ExprType, bool stopIfCastExpr,
@@ -2942,6 +2986,38 @@ Parser::ParseParenExpression(ParenParseOption &ExprType, bool stopIfCastExpr,
       Result = Actions.ActOnParenListExpr(OpenLoc, Tok.getLocation(),
                                           ArgExprs);
     }
+  } else if (getLangOpts().OpenMP >= 50 && OpenMPDirectiveParsing &&
+             ExprType == CastExpr && Tok.is(tok::l_square) &&
+             tryParseOpenMPArrayShapingCastPart()) {
+    bool ErrorFound = false;
+    SmallVector<Expr *, 4> OMPDimensions;
+    SmallVector<SourceRange, 4> OMPBracketsRanges;
+    do {
+      BalancedDelimiterTracker TS(*this, tok::l_square);
+      TS.consumeOpen();
+      ExprResult NumElements =
+          Actions.CorrectDelayedTyposInExpr(ParseExpression());
+      if (!NumElements.isUsable()) {
+        ErrorFound = true;
+        while (!SkipUntil(tok::r_square, tok::r_paren,
+                          StopAtSemi | StopBeforeMatch))
+          ;
+      }
+      TS.consumeClose();
+      OMPDimensions.push_back(NumElements.get());
+      OMPBracketsRanges.push_back(TS.getRange());
+    } while (Tok.isNot(tok::r_paren));
+    // Match the ')'.
+    T.consumeClose();
+    RParenLoc = T.getCloseLocation();
+    Result = Actions.CorrectDelayedTyposInExpr(ParseAssignmentExpression());
+    if (ErrorFound) {
+      Result = ExprError();
+    } else if (!Result.isInvalid()) {
+      Result = Actions.ActOnOMPArrayShapingExpr(
+          Result.get(), OpenLoc, RParenLoc, OMPDimensions, OMPBracketsRanges);
+    }
+    return Result;
   } else {
     InMessageExpressionRAIIObject InMessage(*this, false);
 

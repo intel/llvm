@@ -54,6 +54,7 @@ SmallVector<Capability, 0> getRecursiveImpliedCapabilities(Capability cap);
 
 namespace detail {
 struct ArrayTypeStorage;
+struct CooperativeMatrixTypeStorage;
 struct ImageTypeStorage;
 struct PointerTypeStorage;
 struct RuntimeArrayTypeStorage;
@@ -63,6 +64,7 @@ struct StructTypeStorage;
 namespace TypeKind {
 enum Kind {
   Array = Type::FIRST_SPIRV_TYPE,
+  CooperativeMatrix,
   Image,
   Pointer,
   RuntimeArray,
@@ -132,9 +134,15 @@ public:
   /// Returns true if the given vector type is valid for the SPIR-V dialect.
   static bool isValid(VectorType);
 
+  /// Return the number of elements of the type. This should only be called if
+  /// hasCompileTimeKnownNumElements is true.
   unsigned getNumElements() const;
 
   Type getElementType(unsigned) const;
+
+  /// Return true if the number of elements is known at compile time and is not
+  /// implementation dependent.
+  bool hasCompileTimeKnownNumElements() const;
 
   void getExtensions(SPIRVType::ExtensionArrayRefVector &extensions,
                      Optional<spirv::StorageClass> storage = llvm::None);
@@ -147,23 +155,22 @@ class ArrayType : public Type::TypeBase<ArrayType, CompositeType,
                                         detail::ArrayTypeStorage> {
 public:
   using Base::Base;
-  // Zero layout specifies that is no layout
-  using LayoutInfo = uint64_t;
 
   static bool kindof(unsigned kind) { return kind == TypeKind::Array; }
 
   static ArrayType get(Type elementType, unsigned elementCount);
 
+  /// Returns an array type with the given stride in bytes.
   static ArrayType get(Type elementType, unsigned elementCount,
-                       LayoutInfo layoutInfo);
+                       unsigned stride);
 
   unsigned getNumElements() const;
 
   Type getElementType() const;
 
-  bool hasLayout() const;
-
-  uint64_t getArrayStride() const;
+  /// Returns the array stride in bytes. 0 means no stride decorated on this
+  /// type.
+  unsigned getArrayStride() const;
 
   void getExtensions(SPIRVType::ExtensionArrayRefVector &extensions,
                      Optional<spirv::StorageClass> storage = llvm::None);
@@ -243,7 +250,14 @@ public:
 
   static RuntimeArrayType get(Type elementType);
 
+  /// Returns a runtime array type with the given stride in bytes.
+  static RuntimeArrayType get(Type elementType, unsigned stride);
+
   Type getElementType() const;
+
+  /// Returns the array stride in bytes. 0 means no stride decorated on this
+  /// type.
+  unsigned getArrayStride() const;
 
   void getExtensions(SPIRVType::ExtensionArrayRefVector &extensions,
                      Optional<spirv::StorageClass> storage = llvm::None);
@@ -284,16 +298,16 @@ public:
 
   /// Range class for element types.
   class ElementTypeRange
-      : public ::mlir::detail::indexed_accessor_range_base<
+      : public ::llvm::detail::indexed_accessor_range_base<
             ElementTypeRange, const Type *, Type, Type, Type> {
   private:
     using RangeBaseT::RangeBaseT;
 
-    /// See `mlir::detail::indexed_accessor_range_base` for details.
+    /// See `llvm::detail::indexed_accessor_range_base` for details.
     static const Type *offset_base(const Type *object, ptrdiff_t index) {
       return object + index;
     }
-    /// See `mlir::detail::indexed_accessor_range_base` for details.
+    /// See `llvm::detail::indexed_accessor_range_base` for details.
     static Type dereference_iterator(const Type *object, ptrdiff_t index) {
       return object[index];
     }
@@ -317,6 +331,34 @@ public:
   // Offset) associated with the `i`-th member of the StructType.
   void getMemberDecorations(
       unsigned i, SmallVectorImpl<spirv::Decoration> &memberDecorations) const;
+
+  void getExtensions(SPIRVType::ExtensionArrayRefVector &extensions,
+                     Optional<spirv::StorageClass> storage = llvm::None);
+  void getCapabilities(SPIRVType::CapabilityArrayRefVector &capabilities,
+                       Optional<spirv::StorageClass> storage = llvm::None);
+};
+
+// SPIR-V cooperative matrix type
+class CooperativeMatrixNVType
+    : public Type::TypeBase<CooperativeMatrixNVType, CompositeType,
+                            detail::CooperativeMatrixTypeStorage> {
+public:
+  using Base::Base;
+
+  static bool kindof(unsigned kind) {
+    return kind == TypeKind::CooperativeMatrix;
+  }
+
+  static CooperativeMatrixNVType get(Type elementType, spirv::Scope scope,
+                                     unsigned rows, unsigned columns);
+  Type getElementType() const;
+
+  /// Return the scope of the cooperative matrix.
+  spirv::Scope getScope() const;
+  /// return the number of rows of the matrix.
+  unsigned getRows() const;
+  /// return the number of columns of the matrix.
+  unsigned getColumns() const;
 
   void getExtensions(SPIRVType::ExtensionArrayRefVector &extensions,
                      Optional<spirv::StorageClass> storage = llvm::None);

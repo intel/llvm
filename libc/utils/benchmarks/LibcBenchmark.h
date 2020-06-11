@@ -1,4 +1,4 @@
-//===-------- `Benchmark` function ------------------------------*- C++ -*-===//
+//===-- Benchmark function --------------------------------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -174,7 +174,7 @@ public:
 //
 // Note: The benchmark is not responsible for serializing the executions of
 // `foo`. It is not suitable for measuring, very small & side effect free
-// functions, as the processor is free to execute serveral executions in
+// functions, as the processor is free to execute several executions in
 // parallel.
 //
 // - Options: A set of parameters controlling the stopping conditions for the

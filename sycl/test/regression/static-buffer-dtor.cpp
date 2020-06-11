@@ -14,9 +14,6 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
-// TODO: terminate called after throwing an instance of 'cl::sycl::runtime_error'
-// TODO: what():  OpenCL API failed. OpenCL API returns: -999 (Unknown OpenCL error code) -999 (Unknown OpenCL error code)
-
 #include <CL/sycl.hpp>
 
 int main() {

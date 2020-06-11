@@ -12,21 +12,38 @@ DPC++ application compilation flow:
 
 ![High level component diagram for DPC++ Compiler](images/Compiler-HLD.svg)
 
+*Diagram 1. Application build flow.*  
+
 DPC++ compiler logically can be split into the host compiler and a number of
 device compilers—one per each supported target. Clang driver orchestrates the
 compilation process, it will invoke the device compiler once per each requested
 target, then it will invoke the host compiler to compile the host part of a
-SYCL source. The result of compilation is a set of so-called "fat objects" -
-one fat object per SYCL source file. A fat object contains compiled host code
-and a number of compiled device code instances—one per each target. Fat
-objects can be linked into "fat binary".
+SYCL source. In the simplest case, when compilation and linkage are done in one
+compiler driver invocation, once compilation is finished, the device object
+files (which are really LLVM IR files) are linked with the `llvm-link` tool.
+The resulting LLVM IR module is then translated into a SPIRV module using the
+`llvm-spirv` tool and wrapped in a host object file using the
+`clang-offload-wrapper` tool. Once all the host object files and the wrapped
+object with device code are ready, the driver invokes the usual platform linker
+and the final executable called "fat binary" is produced. This is a host
+executable or library with embedded linked images for each target specified at the command
+line.
+
+There are many variations of the compilation process depending on whether user
+chose to do one or more of the following:
+- perform compilation separately from linkage
+- compile the device SPIRV module ahead-of-time for one or more targets
+- perform device code splitting so that device code is distributed across
+  multiple modules rather than enclosed in a single one
+- perform linkage of static device libraries
+Sections below provide more details on some of those scenarios.
 
 SYCL sources can be also compiled as a regular C++ code, in this mode there is
-no "device part" of the code—everything is executed on the host.
+no "device part" of the code — everything is executed on the host.
 
 Device compiler is further split into the following major components:
 
-- **Front-end** - parses input source, outlines "device part" of the code,
+- **Front-end** - parses input source, "outlines" device part of the code,
 applies additional restrictions on the device code (e.g. no exceptions or
 virtual calls), generates LLVM IR for the device code only and "integration
 header" which provides information like kernel name, parameters order and data
@@ -38,8 +55,17 @@ back-end. Today middle-end transformations include just a couple of passes:
   transformation with only one limitation: back-end compiler should be able to
   handle transformed LLVM IR.
   - Optionally: LLVM IR → SPIR-V translator.
-- **Back-end** - produces native "device" code in ahead-of-time compilation
-mode.
+- **Back-end** - produces native "device" code. It is shown as
+"Target-specific LLVM compiler" box on Diagram 1. It is invoked either at
+compile time (in ahead-of-time compilatin scenario) or at runtime
+(in just-in-time compilation scenario).
+
+*Design note: in current design we use SYCL device front-end compiler to produce the
+integration header for two reasons. First, it must be possible to use any host
+compiler to produce SYCL heterogeneous applications. Second, even if the
+same clang compiler is used for the host compilation, information provided in the
+integration header is used (included) by the SYCL runtime implementation, so the
+header must be available before the host compilation starts.*
 
 ### SYCL support in Clang front-end
 
@@ -102,17 +128,17 @@ pointers to the device memory. As there is no way in OpenCL to pass structures
 with pointers inside as kernel arguments all memory objects shared between host
 and device must be passed to the kernel as raw pointers.
 SYCL also has a special mechanism for passing kernel arguments from host to
-the device. In OpenCL kernel arguments are set by calling `clSetKernelArg` function
-for each kernel argument, meanwhile in SYCL all the kernel arguments are fields of
-"SYCL kernel function" which can be defined as a lambda function or a named function
-object and passed as an argument to SYCL function for invoking kernels (such as
-`parallel_for` or `single_task`). For example, in the previous code snippet above
-`accessor` `A` is one such captured kernel argument.
+the device. In OpenCL kernel arguments are set by calling `clSetKernelArg`
+function for each kernel argument, meanwhile in SYCL all the kernel arguments
+are fields of "SYCL kernel function" which can be defined as a lambda function
+or a named function object and passed as an argument to SYCL function for
+invoking kernels (such as `parallel_for` or `single_task`). For example, in the
+previous code snippet above `accessor` `A` is one such captured kernel argument.
 
 To facilitate the mapping of SYCL kernel data members to OpenCL
-kernel arguments and overcome OpenCL limitations we added the generation of an OpenCL
-kernel function inside the compiler. An OpenCL kernel function contains the
-body of the SYCL kernel function, receives OpenCL-like parameters and
+kernel arguments and overcome OpenCL limitations we added the generation of an
+OpenCL kernel function inside the compiler. An OpenCL kernel function contains
+the body of the SYCL kernel function, receives OpenCL-like parameters and
 additionally does some manipulation to initialize SYCL kernel data members
 with these parameters. In some pseudo code the OpenCL kernel function for the
 previous code snippet above looks like this:
@@ -141,7 +167,8 @@ __kernel KernelName(global int* a) {
 
 ```
 
-OpenCL kernel function is generated by the compiler inside the Sema using AST nodes.
+OpenCL kernel function is generated by the compiler inside the Sema using AST
+nodes.
 
 ### SYCL support in the driver
 
@@ -150,7 +177,69 @@ defines:
 
 - target triple and a native tool chain for each target (including "virtual"
 targets like SPIR-V).
-- SYCL offload action based on generic offload action
+- SYCL offload action based on generic offload action.
+
+SYCL compilation pipeline has a peculiarity compared to other compilation
+scenarios - some of the actions in the pipeline may output multiple "clusters"
+of files, consumed later by other actions. For example, each device binary maybe
+accompanied by a symbol table and a specialization constant map - additional
+information used by the SYCL runtime library - and it needs to be stored into
+the device binary descriptor by the offload wrapper tool. With device code
+splitting feature enabled, there can be multiple such sets (clusters) of files -
+one per each separate device binary.
+
+Current design of clang driver doesn't allow to model that, namely:
+1. Multiple inputs/outputs in the action graph.
+2. Logical grouping of multiple inputs/outputs. For example, an input or output can consist of multiple pairs of files, where each pair represents information for a single device code module:  [a file with device code, a file with exported symbols].
+
+To support this, SYCL introduces the `file-table-tform` tool. This tool can
+transform file tables following commands passed as input arguments. Each row
+in the table represents a file cluster, each column - a type of data associated
+with a cluster. The tool can replace and extract columns. For example, the
+`sycl-post-link` tool can output two file clusters and the following file
+table referencing all the files in the clusters:
+```
+  [Code|Symbols|Properties]
+  a_0.bc|a_0.sym|a_0.props
+  a_1.bc|a_1.sym|a_1.props
+```
+
+When participating in the action graph this tool inputs a file table
+(`TY_Tempfiletable` clang input type) and/or a file list (`TY_Tempfilelist`),
+performs requested transformations and outputs a file table or list. From the
+clang design standpoint there is still single input and output, even though in
+reality there are multiple.
+
+For example, depending on compilation options, files from the "Code" column
+above may need to undergo AOT compilation after the device code splitting step,
+performed as a part of the code transformation sequence done by the
+`sycl-post-link` tool. The driver will then:
+- Use the `file-table-tform` to extract the code files and produce a file
+  list:
+```
+a_0.bc
+a_1.bc
+```
+- Pass this file list to the `llvm-foreach` tool along with AOT compilation
+command to invoke it on every file in the list. This will result in another
+file list
+```
+a_0.bin
+a_1.bin
+```
+- Then `file-table-tform` is invoked again to replace `.bc` with `.bin` in
+the filetable to get a new filetable:
+```
+  [Code|Symbols|Properties]
+  a_0.bin|a_0.sym|a_0.props
+  a_1.bin|a_1.sym|a_1.props
+```
+- Finally, this filetable is passed to the `clang-offfload-wrapper` tool to
+construct a wrapper object which embeds all those files.
+
+Note that the graph does not change when more rows (clusters) or columns
+(e.g. a "manifest" file) are added to the table.
+
 
 #### Enable SYCL offload
 
@@ -188,14 +277,8 @@ a set of target architectures for which to compile device code. By default the
 compiler generates SPIR-V and OpenCL device JIT compiler produces native target
 binary.
 
-There are existing options for OpenMP\* offload:
-
-`-fopenmp-targets=triple1,triple2`
-
-would produce binaries for target architectures identified by target triples
-`triple1` and `triple2`.
-
-A similar approach is used for SYCL:
+To produce binaries for target architectures identified by target triples
+`triple1` and `triple2`, the following SYCL compiler options are used:
 
 `-fsycl-targets=triple1,triple2`
 
@@ -215,12 +298,13 @@ option mechanism, similar to OpenMP.
 
 `-Xsycl-target-backend=<triple> "arg1 arg2 ..."`
 
-For example, to support offload to Gen9/vISA3.3, the following options would be used:
+For example, to support offload to Gen9/vISA3.3, the following options would be
+used:
 
 `-fsycl -fsycl-targets=spir64_gen-unknown-unknown-sycldevice -Xsycl-target-backend "-device skl"`
 
-The driver passes the `-device skl` parameter directly to the Gen device backend compiler
-without parsing it.
+The driver passes the `-device skl` parameter directly to the Gen device backend
+compiler without parsing it.
 
 **TBD:** Having multiple code forms for the same target in the fat binary might
 mean invoking device compiler multiple times. Multiple invocations are not
@@ -232,54 +316,29 @@ generation?
 
 #### Separate Compilation and Linking
 
-The compiler supports linking of device code obtained from different source
-files before generating the final SPIR-V to be fed to the back-end. The basic
-mechanism is to produce "fat objects" as a result of compilation—object files
-containing both host and device code for all targets—then break fat objects
-into their constituents before linking and link host code and device code
-(per-target) separately and finally produce a "fat binary" - a host executable
-with embedded linked images for each target specified at the command line.
+The compiler supports such features as
+- linking of device code obtained from different source files before generating
+  the final SPIR-V to be fed to the back-end.
+- splitting application build into separate compile and link steps.
 
-![Multi source compilation flow](Multi-source-compilation-flow.png)
+Overall build flow changes compared to the one shown on the Diagram 1
+above in the following way.  
+**Compilation step** ends with engaging the offload
+bundler to generate so-called "fat object" for each
+<host object, device code IR> pair produced from the same heterogeneous source.
+The fat object files become the result of compilation similar to object
+files with usual non-offload compiler.  
+**Link step** starts with breaking the input fat objects back into their
+constituents, then continue the same way as on the Diagram 1 - link host code
+and device code separately and finally produce a "fat binary".
 
-The clang driver orchestrates compilation and linking process based on a
-SYCL-specific offload action builder and invokes external tools as needed. On
-the diagram above, every dark-blue box is a tool invoked as a separate process
-by the clang driver.
+The diagram below illustrates the changes in the build flow. The offload
+bundler/unbundler actions are basically inserted between the `llvm-link` and
+the `linker` invocations as shown on the Diagram 1.
 
-Compilation starts with compiling the input source `a.cpp` for one of the
-targets requested via the command line - `T2`. When doing this first
-compilation, the driver requests the device compiler to generate an
-"integration header" via a special option. Device compilation for other targets
-\- `T1` - don't need to generate the integration header, as it must be the same
-for all the targets.
+![Multi source compilation flow](images/SplitCompileAndLink.svg)
+*Diagram 2. Split compilation and linkage.*  
 
-*Design note: Current design does not use the host compiler to produce the
-integration header for two reasons: first, it must be possible to use any host
-compiler to produce SYCL heterogeneous application, and second, even if the
-same clang is used for the host compilation, information provided in the
-integration header is used (included) by the SYCL runtime implementation so it
-must be ready before host compilation starts.*
-
-Now, after all the device compilations are completed resulting in `a_T2.bin`
-and `a_T1.bin`, and the integration header `a.h` is generated, the driver
-invokes the host compiler passing it the integration header via `-include`
-option to produce the host object `a.obj`. Then the offload bundler tool is
-invoked to pack `a_T2.bin`, `a_T1.bin` and `a.obj` into `a_fat.obj` - the fat
-object file for the source `a.cpp`.
-
-The compilation process is repeated for all the sources in the application
-(maybe on different machines).
-
-Device linking starts with breaking the fat objects back into constituents with
-the unbundler tool (bundler invoked with `-unbundle` option). For each fat
-object the unbundler produces a target list file which contains pairs
-"`<target-triple>, <filename>`" each representing a device object extracted
-from the fat object and its target. Once all the fat objects are unbundled, the
-driver uses the target list files to construct a list of targets available for
-linking and a list of corresponding object files for each: "`<T1: a_T1.bin>,
-<T2: a_T2.bin, b_T2.bin>, <T3: b_T3.bin>`". Then the driver invokes linkers for
-each of the targets to produce device binary images for those targets.
 
 *Current implementation uses LLVM IR as a default device binary format for `fat
 objects` and translates "linked LLVM IR" to SPIR-V. One of the reasons for this
@@ -288,68 +347,35 @@ be defined in multiple modules and linker must resolve multiple definitions.
 LLVM IR uses function attributes to satisfy "one definition rule", which have
 no counterparts in SPIR-V.*
 
-Host linking starts after all device images are produced - with invocation of
-the offload wrapper tool. Its main function is to create a host object file
-wrapping all the device images and provide the runtime with access to that
-information. So when creating the host wrapper object the offload wrapper tool
-does the following:
+#### Fat binary creation details
 
-- creates a `.sycl_offloading.descriptor` symbol which is a structure
-containing the number of device images and the array of the device images
-themselves
+"Fat binary" is a result of the final host linking step - this is a host binary
+with device binary(s) embedded. When run, it automatically registers
+all available device binaries within the SYCL runtime library. This section
+describes how this is achieved.
 
-```C++
-struct __tgt_device_image {
-  void *ImageStart;
-  void *ImageEnd;
-};
-struct __tgt_bin_desc {
-  int32_t NumDeviceImages;
-  __tgt_device_image *DeviceImages;
-};
-__tgt_bin_desc .sycl_offloading.descriptor;
-```
+The output fat binary is created with usual linker - e.g. `ld` on Linux and
+`link.exe` on Windows. For the linker to be able to embed the device binaries,
+they are first "wrapped" into a host object file called "wrapper object". Then
+this wrapper object is linked normally with the rest of host objects and/or
+libraries.
 
-- creates a `void .sycl_offloading.descriptor_reg()` function and registers it
-for execution at module loading; this function invokes the `__tgt_register_lib`
-registration function (the name can also be specified via an option) which must
-be implemented by the runtime and which registers the device images with the
-runtime:
+The wrapper object is created by the `clang-offload-wrapper` tool, or simply
+"offload wrapper". The created wrapper object has two main components:
+1. Global symbol - offload descriptor - pointing to a special data structure
+put into in the object's data section. It encompasses all needed information
+about the wrapped device binaries - number of binaries, symbols each binary
+defines, etc. - as well as the binaries themselves.
+2. Registration/unregistration functions. The first one is put into a special
+section so that it is invoked when the parent fat binary is loaded into a
+process at runtime, the second one is put into another section to be invoked
+when the parent fat binary is unloaded. The registration function basically
+takes the pointer to the offload descriptor and invokes SYCL runtime library's
+registration function passing it as a parameter.
 
-```C++
-void __tgt_register_lib(__tgt_bin_desc *desc);
-```
+The offload descriptor type hierarchy is described in the `pi.h` header. The
+top level structure is `pi_device_binaries_struct`.
 
-- creates a `void .sycl_offloading.descriptor_unreg()` function and registers
-it for execution at module unloading; this function calls the
-`__tgt_unregister_lib` function (the name can also be specified via an option)
-which must be implemented by the runtime and which unregisters the device
-images with the runtime:
-
-```C++
-void __tgt_unregister_lib(__tgt_bin_desc *desc);
-```
-
-Once the offload wrapper object file is ready, the driver finally invokes the
-host linker giving it the following input:
-
-- all the application host objects (result of compilation or unbundling)
-- the offload wrapper object file
-- all the host libraries needed by the application
-- the SYCL runtime library
-
-The result is so-called "fat binary image" containing the host code, code for
-all the targets plus the registration/unregistration functions and the
-information about the device binary images.
-
-When compilation and linking is done in single compiler driver invocation, the
-bundling and unbundling steps are skipped.
-
-*Design note: the described scheme differs from current llvm.org
-implementation.  Current design uses Linux-specific linker script approach and
-requires that all the linked fat objects are compiled for the same set of
-targets. The described design uses OS-neutral offload-wrapper tool and does not
-impose restrictions on fat objects.*
 
 #### Device Link
 The -fsycl-link flag instructs the compiler to fully link device code without
@@ -359,27 +385,28 @@ is to allow users to save re-compile time when making changes that only affect
 their host code.  In the case where device image generation takes a long time
 (e.g. FPGA), this savings can be significant.
 
-For example, if the user separated source code into four files: dev_a.cpp, dev_b.cpp,
-host_a.cpp and host_b.cpp where only dev_a.cpp and dev_b.cpp contain device code,
-they can divide the compilation process into three steps:
+For example, if the user separated source code into four files: dev_a.cpp,
+dev_b.cpp, host_a.cpp and host_b.cpp where only dev_a.cpp and dev_b.cpp contain
+device code, they can divide the compilation process into three steps:
 1.  Device link: dev_a.cpp dev_b.cpp -> dev_image.o (contain device image)
 2.  Host Compile (c): host_a.cpp -> host_a.o; host_b.cpp -> host_b.o
 3.  Linking: dev_image.o host_a.o host_b.o -> executable
 
 Step 1 can take hours for some targets.  But if the user wish to recompile after
-modifying only host_a.cpp and host_b.cpp, they can simply run steps 2 and 3 without
-rerunning the expensive step 1.  
+modifying only host_a.cpp and host_b.cpp, they can simply run steps 2 and 3
+without rerunning the expensive step 1.
 
-The compiler is responsible for verifying that the user provided all the relevant
-files to the device link step.  There are 2 cases that have to be checked:
+The compiler is responsible for verifying that the user provided all the
+relevant files to the device link step.  There are 2 cases that have to be
+checked:
 
 1.  Missing symbols referenced by the kernels present in the device link step
 (e.g. functions called by or global variables used by the known kernels).
 2.  Missing kernels.
 
-Case 1 can be identified in the device binary generation stage (step 1) by scanning
-the known kernels.  Case 2 must be verified by the driver by checking for newly
-introduced kernels in the final link stage (step 3).
+Case 1 can be identified in the device binary generation stage (step 1) by
+scanning the known kernels.  Case 2 must be verified by the driver by checking
+for newly introduced kernels in the final link stage (step 3).
 
 The llvm-no-spir-kernel tool was introduced to facilitate checking for case 2 in
 the driver.  It detects if a module includes kernels and is invoked as follows:
@@ -388,7 +415,39 @@ llvm-no-spir-kernel host.bc
 
 It returns 0 if no kernels are present and 1 otherwise.
 
-#### Device code split
+#### Device code post-link step
+
+At link time all the device code is always linked into a single LLVM IR module.
+`sycl-post-link` tool performs a number of final transformations on this LLVM IR module before handing it off to
+the offload wrapper. Those include:
+- device code splitting
+- symbol table generation
+- specialization constants lowering
+
+Depending on options, `sycl-post-link` can output either a single LLVM IR file,
+or multiple files plus a file table referencing all of them. See the
+"SYCL support in the driver" section for overall description of file table. The
+diagram below shows possible clang action graphs which compilation process will
+follow from the single linked LLVM IR module to creating the wrapper object.
+There are multiple possible variants of the graph depending on:
+- specific target requirements
+- device code splitting
+- AOT compilation
+
+![Multi source compilation flow](images/DeviceLinkAndWrap.svg)
+
+*Diagram 3. Device code link flows.*  
+
+Colors of the graph's edges show which paths are taken depending on the above
+factors. Each edge is also annotated with the input/output file type.
+The diagram does not show the `llvm-foreach` tool invocations for clarity.
+This tool invokes given command line over each file in a file list. In this
+diagram the tool is applied to `llvm-spirv` and AOT backend whenever the
+input/output type is `TY_tempfilelist`. The second invocation of the
+`file-table-tform` takes two inputs - the file table and a file list coming
+either from `llvm-spirv` or from the AOT backend.
+
+##### Device code splitting
 
 Putting all device code into a single SPIRV module does not work well in the
 following cases:
@@ -434,6 +493,108 @@ unit)
 * `per_kernel` - enables emitting a separate module for each kernel
 * `off` - disables device code split
 
+##### Symbol table generation
+TBD
+
+##### Specialization constants lowering
+TBD
+
+#### CUDA support
+
+The driver supports compilation to NVPTX when the
+`nvptx64-nvidia-cuda-sycldevice` is passed to `-fsycl-targets`.
+
+Unlike other AOT targets, the bitcode module linked from intermediate compiled
+objects never goes through SPIR-V. Instead it is passed directly in bitcode form
+down to the NVPTX Back End. All produced bitcode depends on two libraries,
+`libdevice.bc` (provided by the CUDA SDK) and `libspirv-nvptx64--nvidiacl.bc`
+(built by the libclc project).
+
+During the device linking step (device linker box in the
+[Separate Compilation and Linking](#separate-compilation-and-linking)
+illustration), llvm bitcode objects for the CUDA target are linked together
+alongside `libspirv-nvptx64--nvidiacl.bc` and `libdevice.bc`, compiled to PTX
+using the NVPTX backend, and assembled into a cubin using the `ptxas` tool (part
+of the CUDA SDK). The PTX file and cubin are assembled together using
+`fatbinary` to produce a CUDA fatbin. The CUDA fatbin is then passed to the
+offload wrapper tool.
+
+##### Checking if the compiler is targeting NVPTX
+
+When the SYCL compiler is in device mode and targeting the NVPTX backend,
+compiler defines the macro `__SYCL_NVPTX__`.
+This macro can safely be used to enable NVPTX specific code path in SYCL
+kernels.
+
+*Note: this macro is only define during the device compilation phase.*
+
+##### NVPTX Builtins
+
+When the SYCL compiler is in device mode and targeting the NVPTX backend, the
+compiler exposes NVPTX builtins supported by clang.
+
+*Note: this enable NVPTX specific features which cannot be supported by other
+targets or the host.*
+
+Example:
+```cpp
+double my_min(double x, double y) {
+#ifdef __SYCL_NVPTX__
+  // Only available if in device mode and
+  // while compiling for the NVPTX target.
+  return __nvvm_fmin_d(x, y);
+#else
+  return x < y ? x : y;
+#endif
+}
+```
+
+##### Local memory support
+
+In CUDA, users can only allocate one chunk of host allocated shared memory
+(which maps to SYCL's local accessors). This chunk of memory is allocated as an
+array `extern __shared__ <type> <name>[];` which LLVM represents as an external
+global symbol to the CUDA shared memory address space. The NVPTX backend then
+lowers this into a `.extern .shared .align 4 .b8` PTX instruction.
+
+In SYCL, users can allocate multiple local accessors and pass them as kernel
+parameters. When the SYCL frontend lowers the SYCL kernel invocation into an
+OpenCL compliant kernel entry, it lowers local accessors into a pointer to
+OpenCL local memory (CUDA shared memory) but this is not legal for CUDA kernels.
+
+To legalize the SYCL lowering for CUDA, a SYCL for CUDA specific pass will do
+the following:
+- Create a global symbol to the CUDA shared memory address space
+- Transform all pointers to CUDA shared memory into a 32 bit integer
+  representing the offset in bytes to use with the global symbol
+- Replace all uses of the transformed pointers by the address to global symbol
+  offset by the value of the integer passed as parameter
+
+As an example, the following kernel:
+```
+define void @SYCL_generated_kernel(i64 addrspace(3)* nocapture %local_ptr, i32 %arg, i64 addrspace(3)* nocapture %local_ptr2) {
+  %0 = load i64, i64 addrspace(3)* %local_ptr
+  %1 = load i64, i64 addrspace(3)* %local_ptr2
+}
+```
+
+Is transformed into this kernel when targeting CUDA:
+```
+@SYCL_generated_kernel.shared_mem = external dso_local local_unnamed_addr addrspace(3) global [0 x i8], align 4
+
+define void @SYCL_generated_kernel(i32 %local_ptr_offset, i32 %arg, i32 %local_ptr_offset2) {
+  %new_local_ptr = getelementptr inbounds [0 x i8], [0 x i8] addrspace(3)* @SYCL_generated_kernel.shared_mem, i32 0, i32 %local_ptr_offset
+  %new_local_ptr2 = getelementptr inbounds [0 x i8], [0 x i8] addrspace(3)* @SYCL_generated_kernel.shared_mem, i32 0, i32 %local_ptr_offset2
+  %0 = load i32, i32 addrspace(3)* %new_local_ptr
+  %1 = load i64, i64 addrspace(3)* %new_local_ptr2
+}
+```
+
+On the runtime side, when setting local memory arguments, the CUDA PI
+implementation will internally set the argument as the offset with respect to
+the accumulated size of used local memory. This approach preserves the exisiting
+PI interface.
+
 ### Integration with SPIR-V format
 
 This section explains how to generate SPIR-V specific types and operations from
@@ -467,8 +628,8 @@ Translation from LLVM IR to SPIR-V for special types is also supported, but
 such LLVM IR must comply to some special requirements. Unfortunately there is
 no canonical form of special built-in types and operations in LLVM IR, moreover
 we can't re-use existing representation generated by OpenCL C front-end
-compiler.  For instance here is how `OpGroupAsyncCopy` operation looks in LLVM IR
-produced by OpenCL C front-end compiler.
+compiler.  For instance here is how `OpGroupAsyncCopy` operation looks in LLVM
+IR produced by OpenCL C front-end compiler.
 
 ```LLVM
 @_Z21async_work_group_copyPU3AS3fPU3AS1Kfjj(float addrspace(3)*, float addrspace(1)*, i32, i32)
@@ -553,4 +714,3 @@ compiler:
 ## DPC++ Language extensions to SYCL
 
 List of language extensions can be found at [extensions](extensions)
-

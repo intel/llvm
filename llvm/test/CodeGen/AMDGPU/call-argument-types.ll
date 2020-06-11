@@ -534,7 +534,7 @@ define amdgpu_kernel void @test_call_external_void_func_v4i32_imm() #0 {
 ; GCN-DAG: v_mov_b32_e32 v2, 3
 ; GCN-DAG: v_mov_b32_e32 v3, 4
 ; GCN-DAG: v_mov_b32_e32 v4, 5
-; GCN-NOT v5,
+; GCN-NOT: v5,
 ; GCN: s_swappc_b64
 define amdgpu_kernel void @test_call_external_void_func_v5i32_imm() #0 {
   call void @external_void_func_v5i32(<5 x i32> <i32 1, i32 2, i32 3, i32 4, i32 5>)
@@ -744,17 +744,13 @@ entry:
 
 ; GCN-LABEL: {{^}}tail_call_byval_align16:
 ; GCN-NOT: s32
-; GCN: buffer_store_dword v32, off, s[0:3], s32 offset:12 ; 4-byte Folded Spill
-; GCN: buffer_store_dword v33, off, s[0:3], s32 offset:8 ; 4-byte Folded Spill
-; GCN: buffer_load_dword v32, off, s[0:3], s32 offset:20
-; GCN: buffer_load_dword v33, off, s[0:3], s32 offset:16
+; GCN: buffer_load_dword v32, off, s[0:3], s32 offset:12
+; GCN: buffer_load_dword v33, off, s[0:3], s32 offset:8
 
 ; GCN: s_getpc_b64
 
 ; GCN: buffer_store_dword v32, off, s[0:3], s32 offset:4
 ; GCN: buffer_store_dword v33, off, s[0:3], s32{{$}}
-; GCN: buffer_load_dword v33, off, s[0:3], s32 offset:8 ; 4-byte Folded Reload
-; GCN: buffer_load_dword v32, off, s[0:3], s32 offset:12 ; 4-byte Folded Reload
 ; GCN-NOT: s32
 ; GCN: s_setpc_b64
 define void @tail_call_byval_align16(<32 x i32> %val, double %tmp) #0 {
@@ -766,15 +762,11 @@ entry:
 
 ; GCN-LABEL: {{^}}tail_call_stack_passed_arg_alignment_v32i32_f64:
 ; GCN-NOT: s32
-; GCN: buffer_store_dword v32, off, s[0:3], s32 offset:12 ; 4-byte Folded Spill
-; GCN: buffer_store_dword v33, off, s[0:3], s32 offset:8 ; 4-byte Folded Spill
 ; GCN: buffer_load_dword v32, off, s[0:3], s32 offset:4
 ; GCN: buffer_load_dword v33, off, s[0:3], s32{{$}}
 ; GCN: s_getpc_b64
 ; GCN: buffer_store_dword v33, off, s[0:3], s32{{$}}
 ; GCN: buffer_store_dword v32, off, s[0:3], s32 offset:4
-; GCN: buffer_load_dword v33, off, s[0:3], s32 offset:8 ; 4-byte Folded Reload
-; GCN: buffer_load_dword v32, off, s[0:3], s32 offset:12 ; 4-byte Folded Reload
 ; GCN-NOT: s32
 ; GCN: s_setpc_b64
 define void @tail_call_stack_passed_arg_alignment_v32i32_f64(<32 x i32> %val, double %tmp) #0 {

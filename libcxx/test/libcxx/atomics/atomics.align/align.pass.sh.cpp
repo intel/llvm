@@ -8,8 +8,9 @@
 //
 // UNSUPPORTED: libcpp-has-no-threads, c++98, c++03
 // REQUIRES: libatomic
-// RUN: %build -latomic
-// RUN: %run
+// FILE_DEPENDENCIES: %t.exe
+// RUN: %{build} -latomic
+// RUN: %{run}
 //
 // GCC currently fails because it needs -fabi-version=6 to fix mangling of
 // std::atomic when used with __attribute__((vector(X))).
@@ -27,11 +28,14 @@
 #include <atomic>
 #include <cassert>
 
-template <typename T> struct atomic_test : public std::__atomic_base<T> {
+template <typename T>
+struct atomic_test : public std::__atomic_base<T> {
   atomic_test() {
-    if (this->is_lock_free())
-      assert(alignof(this->__a_) >= sizeof(this->__a_) &&
+    if (this->is_lock_free()) {
+      using AtomicImpl = decltype(this->__a_);
+      assert(alignof(AtomicImpl) >= sizeof(AtomicImpl) &&
              "expected natural alignment for lock-free type");
+    }
   }
 };
 

@@ -25,6 +25,7 @@
 
 namespace mlir {
 class Builder;
+class OpBuilder;
 
 namespace OpTrait {
 template <typename ConcreteType> class OneResult;
@@ -77,17 +78,13 @@ namespace impl {
 /// region's only block if it does not have a terminator already. If the region
 /// is empty, insert a new block first. `buildTerminatorOp` should return the
 /// terminator operation to insert.
-void ensureRegionTerminator(Region &region, Location loc,
-                            function_ref<Operation *()> buildTerminatorOp);
-/// Templated version that fills the generates the provided operation type.
-template <typename OpTy>
-void ensureRegionTerminator(Region &region, Builder &builder, Location loc) {
-  ensureRegionTerminator(region, loc, [&] {
-    OperationState state(loc, OpTy::getOperationName());
-    OpTy::build(&builder, state);
-    return Operation::create(state);
-  });
-}
+void ensureRegionTerminator(
+    Region &region, OpBuilder &builder, Location loc,
+    function_ref<Operation *(OpBuilder &, Location)> buildTerminatorOp);
+void ensureRegionTerminator(
+    Region &region, Builder &builder, Location loc,
+    function_ref<Operation *(OpBuilder &, Location)> buildTerminatorOp);
+
 } // namespace impl
 
 /// This is the concrete base class that holds the operation pointer and has
@@ -114,6 +111,12 @@ public:
   /// Return the closest surrounding parent operation that is of type 'OpTy'.
   template <typename OpTy> OpTy getParentOfType() {
     return getOperation()->getParentOfType<OpTy>();
+  }
+
+  /// Returns the closest surrounding parent operation with trait `Trait`.
+  template <template <typename T> class Trait>
+  Operation *getParentWithTrait() {
+    return getOperation()->getParentWithTrait<Trait>();
   }
 
   /// Return the context this operation belongs to.
@@ -170,7 +173,7 @@ public:
   void setAttrs(ArrayRef<NamedAttribute> attributes) {
     state->setAttrs(attributes);
   }
-  void setAttrs(NamedAttributeList newAttrs) { state->setAttrs(newAttrs); }
+  void setAttrs(MutableDictionaryAttr newAttrs) { state->setAttrs(newAttrs); }
 
   /// Set the dialect attributes for this operation, and preserve all dependent.
   template <typename DialectAttrs> void setDialectAttrs(DialectAttrs &&attrs) {
@@ -179,10 +182,10 @@ public:
 
   /// Remove the attribute with the specified name if it exists.  The return
   /// value indicates whether the attribute was present or not.
-  NamedAttributeList::RemoveResult removeAttr(Identifier name) {
+  MutableDictionaryAttr::RemoveResult removeAttr(Identifier name) {
     return state->removeAttr(name);
   }
-  NamedAttributeList::RemoveResult removeAttr(StringRef name) {
+  MutableDictionaryAttr::RemoveResult removeAttr(StringRef name) {
     return state->removeAttr(Identifier::get(name, getContext()));
   }
 
@@ -368,6 +371,10 @@ LogicalResult verifyAtLeastNOperands(Operation *op, unsigned numOperands);
 LogicalResult verifyOperandsAreFloatLike(Operation *op);
 LogicalResult verifyOperandsAreSignlessIntegerLike(Operation *op);
 LogicalResult verifySameTypeOperands(Operation *op);
+LogicalResult verifyZeroRegion(Operation *op);
+LogicalResult verifyOneRegion(Operation *op);
+LogicalResult verifyNRegions(Operation *op, unsigned numRegions);
+LogicalResult verifyAtLeastNRegions(Operation *op, unsigned numRegions);
 LogicalResult verifyZeroResult(Operation *op);
 LogicalResult verifyOneResult(Operation *op);
 LogicalResult verifyNResults(Operation *op, unsigned numOperands);
@@ -528,6 +535,96 @@ public:
 template <typename ConcreteType>
 class VariadicOperands
     : public detail::MultiOperandTraitBase<ConcreteType, VariadicOperands> {};
+
+//===----------------------------------------------------------------------===//
+// Region Traits
+
+/// This class provides verification for ops that are known to have zero
+/// regions.
+template <typename ConcreteType>
+class ZeroRegion : public TraitBase<ConcreteType, ZeroRegion> {
+public:
+  static LogicalResult verifyTrait(Operation *op) {
+    return impl::verifyZeroRegion(op);
+  }
+};
+
+namespace detail {
+/// Utility trait base that provides accessors for derived traits that have
+/// multiple regions.
+template <typename ConcreteType, template <typename> class TraitType>
+struct MultiRegionTraitBase : public TraitBase<ConcreteType, TraitType> {
+  using region_iterator = MutableArrayRef<Region>;
+  using region_range = RegionRange;
+
+  /// Return the number of regions.
+  unsigned getNumRegions() { return this->getOperation()->getNumRegions(); }
+
+  /// Return the region at `index`.
+  Region &getRegion(unsigned i) { return this->getOperation()->getRegion(i); }
+
+  /// Region iterator access.
+  region_iterator region_begin() {
+    return this->getOperation()->region_begin();
+  }
+  region_iterator region_end() { return this->getOperation()->region_end(); }
+  region_range getRegions() { return this->getOperation()->getRegions(); }
+};
+} // end namespace detail
+
+/// This class provides APIs for ops that are known to have a single region.
+template <typename ConcreteType>
+class OneRegion : public TraitBase<ConcreteType, OneRegion> {
+public:
+  Region &getRegion() { return this->getOperation()->getRegion(0); }
+
+  /// Returns a range of operations within the region of this operation.
+  auto getOps() { return getRegion().getOps(); }
+  template <typename OpT>
+  auto getOps() {
+    return getRegion().template getOps<OpT>();
+  }
+
+  static LogicalResult verifyTrait(Operation *op) {
+    return impl::verifyOneRegion(op);
+  }
+};
+
+/// This class provides the API for ops that are known to have a specified
+/// number of regions.
+template <unsigned N> class NRegions {
+public:
+  static_assert(N > 1, "use ZeroRegion/OneRegion for N < 2");
+
+  template <typename ConcreteType>
+  class Impl
+      : public detail::MultiRegionTraitBase<ConcreteType, NRegions<N>::Impl> {
+  public:
+    static LogicalResult verifyTrait(Operation *op) {
+      return impl::verifyNRegions(op, N);
+    }
+  };
+};
+
+/// This class provides APIs for ops that are known to have at least a specified
+/// number of regions.
+template <unsigned N> class AtLeastNRegions {
+public:
+  template <typename ConcreteType>
+  class Impl : public detail::MultiRegionTraitBase<ConcreteType,
+                                                   AtLeastNRegions<N>::Impl> {
+  public:
+    static LogicalResult verifyTrait(Operation *op) {
+      return impl::verifyAtLeastNRegions(op, N);
+    }
+  };
+};
+
+/// This class provides the API for ops which have an unknown number of
+/// regions.
+template <typename ConcreteType>
+class VariadicRegions
+    : public detail::MultiRegionTraitBase<ConcreteType, VariadicRegions> {};
 
 //===----------------------------------------------------------------------===//
 // Result Traits
@@ -939,11 +1036,51 @@ public:
   }
 };
 
+/// A trait of region holding operations that defines a new scope for polyhedral
+/// optimization purposes. Any SSA values of 'index' type that either dominate
+/// such an operation or are used at the top-level of such an operation
+/// automatically become valid symbols for the polyhedral scope defined by that
+/// operation. For more details, see `Traits.md#AffineScope`.
+template <typename ConcreteType>
+class AffineScope : public TraitBase<ConcreteType, AffineScope> {
+public:
+  static LogicalResult verifyTrait(Operation *op) {
+    static_assert(!ConcreteType::template hasTrait<ZeroRegion>(),
+                  "expected operation to have one or more regions");
+    return success();
+  }
+};
+
+/// A trait of region holding operations that define a new scope for automatic
+/// allocations, i.e., allocations that are freed when control is transferred
+/// back from the operation's region. Any operations performing such allocations
+/// (for eg. std.alloca) will have their allocations automatically freed at
+/// their closest enclosing operation with this trait.
+template <typename ConcreteType>
+class AutomaticAllocationScope
+    : public TraitBase<ConcreteType, AutomaticAllocationScope> {
+public:
+  static LogicalResult verifyTrait(Operation *op) {
+    if (op->hasTrait<ZeroRegion>())
+      return op->emitOpError("is expected to have regions");
+    return success();
+  }
+};
+
 /// This class provides APIs and verifiers for ops with regions having a single
 /// block that must terminate with `TerminatorOpType`.
 template <typename TerminatorOpType> struct SingleBlockImplicitTerminator {
   template <typename ConcreteType>
   class Impl : public TraitBase<ConcreteType, Impl> {
+  private:
+    /// Builds a terminator operation without relying on OpBuilder APIs to avoid
+    /// cyclic header inclusion.
+    static Operation *buildTerminator(OpBuilder &builder, Location loc) {
+      OperationState state(loc, TerminatorOpType::getOperationName());
+      TerminatorOpType::build(builder, state);
+      return Operation::create(state);
+    }
+
   public:
     static LogicalResult verifyTrait(Operation *op) {
       for (unsigned i = 0, e = op->getNumRegions(); i < e; ++i) {
@@ -979,10 +1116,25 @@ template <typename TerminatorOpType> struct SingleBlockImplicitTerminator {
     }
 
     /// Ensure that the given region has the terminator required by this trait.
+    /// If OpBuilder is provided, use it to build the terminator and notify the
+    /// OpBuilder litsteners accoridngly. If only a Builder is provided, locally
+    /// construct an OpBuilder with no listeners; this should only be used if no
+    /// OpBuilder is available at the call site, e.g., in the parser.
     static void ensureTerminator(Region &region, Builder &builder,
                                  Location loc) {
-      ::mlir::impl::template ensureRegionTerminator<TerminatorOpType>(
-          region, builder, loc);
+      ::mlir::impl::ensureRegionTerminator(region, builder, loc,
+                                           buildTerminator);
+    }
+    static void ensureTerminator(Region &region, OpBuilder &builder,
+                                 Location loc) {
+      ::mlir::impl::ensureRegionTerminator(region, builder, loc,
+                                           buildTerminator);
+    }
+
+    Block *getBody(unsigned idx = 0) {
+      Region &region = this->getOperation()->getRegion(idx);
+      assert(!region.empty() && "unexpected empty region");
+      return &region.front();
     }
   };
 };
@@ -1082,8 +1234,11 @@ public:
   /// Return true if this "op class" can match against the specified operation.
   static bool classof(Operation *op) {
     if (auto *abstractOp = op->getAbstractOperation())
-      return ClassID::getID<ConcreteType>() == abstractOp->classID;
-    return op->getName().getStringRef() == ConcreteType::getOperationName();
+      return TypeID::get<ConcreteType>() == abstractOp->typeID;
+    assert(op->getContext()->isOperationRegistered(
+               ConcreteType::getOperationName()) &&
+           "Casting attempt to an unregistered operation");
+    return false;
   }
 
   /// This is the hook used by the AsmParser to parse the custom form of this
@@ -1175,15 +1330,15 @@ private:
     }
   };
 
-  /// Returns true if this operation contains the trait for the given classID.
-  static bool hasTrait(ClassID *traitID) {
-    return llvm::is_contained(llvm::makeArrayRef({ClassID::getID<Traits>()...}),
+  /// Returns true if this operation contains the trait for the given typeID.
+  static bool hasTrait(TypeID traitID) {
+    return llvm::is_contained(llvm::makeArrayRef({TypeID::get<Traits>()...}),
                               traitID);
   }
 
   /// Returns an opaque pointer to a concept instance of the interface with the
   /// given ID if one was registered to this operation.
-  static void *getRawInterface(ClassID *id) {
+  static void *getRawInterface(TypeID id) {
     return InterfaceLookup::template lookup<Traits<ConcreteType>...>(id);
   }
 
@@ -1195,22 +1350,22 @@ private:
     /// If 'T' is the same interface as 'interfaceID' return the concept
     /// instance.
     template <typename T>
-    static typename std::enable_if<is_detected<has_get_interface_id, T>::value,
-                                   void *>::type
-    lookup(ClassID *interfaceID) {
+    static typename std::enable_if<
+        llvm::is_detected<has_get_interface_id, T>::value, void *>::type
+    lookup(TypeID interfaceID) {
       return (T::getInterfaceID() == interfaceID) ? &T::instance() : nullptr;
     }
 
     /// 'T' is known to not be an interface, return nullptr.
     template <typename T>
-    static typename std::enable_if<!is_detected<has_get_interface_id, T>::value,
-                                   void *>::type
-    lookup(ClassID *) {
+    static typename std::enable_if<
+        !llvm::is_detected<has_get_interface_id, T>::value, void *>::type
+    lookup(TypeID) {
       return nullptr;
     }
 
     template <typename T, typename T2, typename... Ts>
-    static void *lookup(ClassID *interfaceID) {
+    static void *lookup(TypeID interfaceID) {
       auto *concept = lookup<T>(interfaceID);
       return concept ? concept : lookup<T2, Ts...>(interfaceID);
     }
@@ -1244,6 +1399,7 @@ class OpInterface : public Op<ConcreteType> {
 public:
   using Concept = typename Traits::Concept;
   template <typename T> using Model = typename Traits::template Model<T>;
+  using Base = OpInterface<ConcreteType, Traits>;
 
   OpInterface(Operation *op = nullptr)
       : Op<ConcreteType>(op), impl(op ? getInterfaceFor(op) : nullptr) {
@@ -1256,14 +1412,14 @@ public:
   static bool classof(Operation *op) { return getInterfaceFor(op); }
 
   /// Define an accessor for the ID of this interface.
-  static ClassID *getInterfaceID() { return ClassID::getID<ConcreteType>(); }
+  static TypeID getInterfaceID() { return TypeID::get<ConcreteType>(); }
 
   /// This is a special trait that registers a given interface with an
   /// operation.
   template <typename ConcreteOp>
   struct Trait : public OpTrait::TraitBase<ConcreteOp, Trait> {
     /// Define an accessor for the ID of this interface.
-    static ClassID *getInterfaceID() { return ClassID::getID<ConcreteType>(); }
+    static TypeID getInterfaceID() { return TypeID::get<ConcreteType>(); }
 
     /// Provide an accessor to a static instance of the interface model for the
     /// concrete operation type.
@@ -1306,7 +1462,7 @@ namespace impl {
 ParseResult parseOneResultOneOperandTypeOp(OpAsmParser &parser,
                                            OperationState &result);
 
-void buildBinaryOp(Builder *builder, OperationState &result, Value lhs,
+void buildBinaryOp(OpBuilder &builder, OperationState &result, Value lhs,
                    Value rhs);
 ParseResult parseOneResultSameOperandTypeOp(OpAsmParser &parser,
                                             OperationState &result);
@@ -1320,7 +1476,7 @@ void printOneResultOp(Operation *op, OpAsmPrinter &p);
 // These functions are out-of-line implementations of the methods in CastOp,
 // which avoids them being template instantiated/duplicated.
 namespace impl {
-void buildCastOp(Builder *builder, OperationState &result, Value source,
+void buildCastOp(OpBuilder &builder, OperationState &result, Value source,
                  Type destType);
 ParseResult parseCastOp(OpAsmParser &parser, OperationState &result);
 void printCastOp(Operation *op, OpAsmPrinter &p);

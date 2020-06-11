@@ -10,6 +10,7 @@
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/device_selector.hpp>
 #include <CL/sycl/info/info_desc.hpp>
+#include <detail/config.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/force_device.hpp>
 
@@ -30,8 +31,11 @@ device::device() : impl(std::make_shared<detail::device_impl>()) {}
 
 device::device(cl_device_id deviceId)
     : impl(std::make_shared<detail::device_impl>(
-          detail::pi::cast<detail::device_interop_handle_t>(deviceId),
-          *RT::GlobalPlugin)) {}
+          detail::pi::cast<pi_native_handle>(deviceId), *RT::GlobalPlugin)) {
+  // The implementation constructor takes ownership of the native handle so we
+  // must retain it in order to adhere to SYCL 1.2.1 spec (Rev6, section 4.3.1.)
+  clRetainDevice(deviceId);
+}
 
 device::device(const device_selector &deviceSelector) {
   *this = deviceSelector.select_device();
@@ -47,6 +51,14 @@ vector_class<device> device::get_devices(info::device_type deviceType) {
   if (detail::match_types(deviceType, forced_type)) {
     detail::force_type(deviceType, forced_type);
     for (const auto &plt : platform::get_platforms()) {
+      // If SYCL_BE is set then skip platforms which doesn't have specified
+      // backend.
+      backend *ForcedBackend = detail::SYCLConfig<detail::SYCL_BE>::get();
+      if (ForcedBackend)
+        if (!plt.is_host() &&
+            (detail::getSyclObjImpl(plt)->getPlugin().getBackend() !=
+             *ForcedBackend))
+          continue;
       if (includeHost && plt.is_host()) {
         vector_class<device> host_device(
             plt.get_devices(info::device_type::host));
@@ -60,6 +72,7 @@ vector_class<device> device::get_devices(info::device_type deviceType) {
       }
     }
   }
+
   return devices;
 }
 
@@ -121,6 +134,8 @@ device::get_info() const {
 #include <CL/sycl/info/device_traits.def>
 
 #undef PARAM_TRAITS_SPEC
+
+pi_native_handle device::getNative() const { return impl->getNative(); }
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

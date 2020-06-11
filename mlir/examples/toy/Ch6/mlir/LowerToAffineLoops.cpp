@@ -72,7 +72,8 @@ static void lowerOpToLoops(Operation *op, ArrayRef<Value> operands,
   SmallVector<Value, 4> loopIvs;
   for (auto dim : tensorType.getShape()) {
     auto loop = rewriter.create<AffineForOp>(loc, /*lb=*/0, dim, /*step=*/1);
-    loop.getBody()->clear();
+    for (Operation &nested : *loop.getBody())
+      rewriter.eraseOp(&nested);
     loopIvs.push_back(loop.getInductionVar());
 
     // Terminate the loop body and update the rewriter insertion point to the
@@ -155,10 +156,15 @@ struct ConstantOpLowering : public OpRewritePattern<toy::ConstantOp> {
     // operations.
     auto valueShape = memRefType.getShape();
     SmallVector<Value, 8> constantIndices;
-    for (auto i : llvm::seq<int64_t>(
-             0, *std::max_element(valueShape.begin(), valueShape.end())))
-      constantIndices.push_back(rewriter.create<ConstantIndexOp>(loc, i));
 
+    if (!valueShape.empty()) {
+      for (auto i : llvm::seq<int64_t>(
+              0, *std::max_element(valueShape.begin(), valueShape.end())))
+       constantIndices.push_back(rewriter.create<ConstantIndexOp>(loc, i));
+    } else {
+      // This is the case of a tensor of rank 0.
+      constantIndices.push_back(rewriter.create<ConstantIndexOp>(loc, 0));
+    }
     // The constant operation represents a multi-dimensional constant, so we
     // will need to generate a store for each of the elements. The following
     // functor recursively walks the dimensions of the constant shape,
@@ -254,7 +260,8 @@ struct TransposeOpLowering : public ConversionPattern {
 /// computationally intensive (like matmul for example...) while keeping the
 /// rest of the code in the Toy dialect.
 namespace {
-struct ToyToAffineLoweringPass : public FunctionPass<ToyToAffineLoweringPass> {
+struct ToyToAffineLoweringPass
+    : public PassWrapper<ToyToAffineLoweringPass, FunctionPass> {
   void runOnFunction() final;
 };
 } // end anonymous namespace.

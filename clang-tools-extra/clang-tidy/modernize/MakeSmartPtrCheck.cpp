@@ -41,12 +41,12 @@ std::string GetNewExprName(const CXXNewExpr *NewExpr,
 
 const char MakeSmartPtrCheck::PointerType[] = "pointerType";
 
-MakeSmartPtrCheck::MakeSmartPtrCheck(StringRef Name,
-                                     ClangTidyContext* Context,
+MakeSmartPtrCheck::MakeSmartPtrCheck(StringRef Name, ClangTidyContext *Context,
                                      StringRef MakeSmartPtrFunctionName)
     : ClangTidyCheck(Name, Context),
-      IncludeStyle(utils::IncludeSorter::parseIncludeStyle(
-          Options.getLocalOrGlobal("IncludeStyle", "llvm"))),
+      IncludeStyle(Options.getLocalOrGlobal("IncludeStyle",
+                                            utils::IncludeSorter::getMapping(),
+                                            utils::IncludeSorter::IS_LLVM)),
       MakeSmartPtrFunctionHeader(
           Options.get("MakeSmartPtrFunctionHeader", StdMemoryHeader)),
       MakeSmartPtrFunctionName(
@@ -54,7 +54,8 @@ MakeSmartPtrCheck::MakeSmartPtrCheck(StringRef Name,
       IgnoreMacros(Options.getLocalOrGlobal("IgnoreMacros", true)) {}
 
 void MakeSmartPtrCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
-  Options.store(Opts, "IncludeStyle", utils::IncludeSorter::toString(IncludeStyle));
+  Options.store(Opts, "IncludeStyle", IncludeStyle,
+                utils::IncludeSorter::getMapping());
   Options.store(Opts, "MakeSmartPtrFunctionHeader", MakeSmartPtrFunctionHeader);
   Options.store(Opts, "MakeSmartPtrFunction", MakeSmartPtrFunctionName);
   Options.store(Opts, "IgnoreMacros", IgnoreMacros);
@@ -82,27 +83,29 @@ void MakeSmartPtrCheck::registerMatchers(ast_matchers::MatchFinder *Finder) {
   auto IsPlacement = hasAnyPlacementArg(anything());
 
   Finder->addMatcher(
-      cxxBindTemporaryExpr(has(ignoringParenImpCasts(
-          cxxConstructExpr(
-              hasType(getSmartPointerTypeMatcher()), argumentCountIs(1),
-              hasArgument(0,
-                          cxxNewExpr(hasType(pointsTo(qualType(hasCanonicalType(
-                                         equalsBoundNode(PointerType))))),
-                                     CanCallCtor, unless(IsPlacement))
-                              .bind(NewExpression)),
-              unless(isInTemplateInstantiation()))
-              .bind(ConstructorCall)))),
+      traverse(
+          ast_type_traits::TK_AsIs,
+          cxxBindTemporaryExpr(has(ignoringParenImpCasts(
+              cxxConstructExpr(
+                  hasType(getSmartPointerTypeMatcher()), argumentCountIs(1),
+                  hasArgument(
+                      0, cxxNewExpr(hasType(pointsTo(qualType(hasCanonicalType(
+                                        equalsBoundNode(PointerType))))),
+                                    CanCallCtor, unless(IsPlacement))
+                             .bind(NewExpression)),
+                  unless(isInTemplateInstantiation()))
+                  .bind(ConstructorCall))))),
       this);
 
   Finder->addMatcher(
-      cxxMemberCallExpr(
-          thisPointerType(getSmartPointerTypeMatcher()),
-          callee(cxxMethodDecl(hasName("reset"))),
-          hasArgument(
-              0,
-              cxxNewExpr(CanCallCtor, unless(IsPlacement)).bind(NewExpression)),
-          unless(isInTemplateInstantiation()))
-          .bind(ResetCall),
+      traverse(ast_type_traits::TK_AsIs,
+               cxxMemberCallExpr(
+                   thisPointerType(getSmartPointerTypeMatcher()),
+                   callee(cxxMethodDecl(hasName("reset"))),
+                   hasArgument(0, cxxNewExpr(CanCallCtor, unless(IsPlacement))
+                                      .bind(NewExpression)),
+                   unless(isInTemplateInstantiation()))
+                   .bind(ResetCall)),
       this);
 }
 
@@ -123,7 +126,7 @@ void MakeSmartPtrCheck::check(const MatchFinder::MatchResult &Result) {
     return;
 
   // Be conservative for cases where we construct an array without any
-  // initalization.
+  // initialization.
   // For example,
   //    P.reset(new int[5]) // check fix: P = std::make_unique<int []>(5)
   //
@@ -254,6 +257,8 @@ bool MakeSmartPtrCheck::replaceNew(DiagnosticBuilder &Diag,
                                    const CXXNewExpr *New, SourceManager &SM,
                                    ASTContext *Ctx) {
   auto SkipParensParents = [&](const Expr *E) {
+    TraversalKindScope RAII(*Ctx, ast_type_traits::TK_AsIs);
+
     for (const Expr *OldE = nullptr; E != OldE;) {
       OldE = E;
       for (const auto &Node : Ctx->getParents(*E)) {

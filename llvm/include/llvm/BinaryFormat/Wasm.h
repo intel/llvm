@@ -77,8 +77,8 @@ struct WasmInitExpr {
   union {
     int32_t Int32;
     int64_t Int64;
-    int32_t Float32;
-    int64_t Float64;
+    uint32_t Float32;
+    uint64_t Float64;
     uint32_t Global;
   } Value;
 };
@@ -132,7 +132,7 @@ struct WasmFunction {
   uint32_t CodeSectionOffset;
   uint32_t Size;
   uint32_t CodeOffset;  // start of Locals and Body
-  StringRef ExportName; // from the "export" section
+  Optional<StringRef> ExportName; // from the "export" section
   StringRef SymbolName; // from the "linking" section
   StringRef DebugName;  // from the "name" section
   uint32_t Comdat;      // from the "comdat info" section

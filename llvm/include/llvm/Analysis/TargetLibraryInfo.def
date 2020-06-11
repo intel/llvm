@@ -434,7 +434,7 @@ TLI_DEFINE_STRING_INTERNAL("__strlcat_chk")
 ///                      size_t dstsize);
 TLI_DEFINE_ENUM_INTERNAL(strlcpy_chk)
 TLI_DEFINE_STRING_INTERNAL("__strlcpy_chk")
-/// char *__strlen_chk(const char *s1, size_t s1size);
+/// size_t __strlen_chk(const char *s1, size_t s1size);
 TLI_DEFINE_ENUM_INTERNAL(strlen_chk)
 TLI_DEFINE_STRING_INTERNAL("__strlen_chk")
 /// char *strncat_chk(char *s1, const char *s2, size_t n, size_t s1size);
@@ -481,6 +481,9 @@ TLI_DEFINE_STRING_INTERNAL("acoshl")
 /// long double acosl(long double x);
 TLI_DEFINE_ENUM_INTERNAL(acosl)
 TLI_DEFINE_STRING_INTERNAL("acosl")
+/// void *aligned_alloc(size_t alignment, size_t size);
+TLI_DEFINE_ENUM_INTERNAL(aligned_alloc)
+TLI_DEFINE_STRING_INTERNAL("aligned_alloc")
 /// double asin(double x);
 TLI_DEFINE_ENUM_INTERNAL(asin)
 TLI_DEFINE_STRING_INTERNAL("asin")
@@ -1155,6 +1158,15 @@ TLI_DEFINE_STRING_INTERNAL("rmdir")
 /// double round(double x);
 TLI_DEFINE_ENUM_INTERNAL(round)
 TLI_DEFINE_STRING_INTERNAL("round")
+/// double roundeven(double x);
+TLI_DEFINE_ENUM_INTERNAL(roundeven)
+TLI_DEFINE_STRING_INTERNAL("roundeven")
+/// float roundevenf(float x);
+TLI_DEFINE_ENUM_INTERNAL(roundevenf)
+TLI_DEFINE_STRING_INTERNAL("roundevenf")
+/// long double roundevenl(long double x);
+TLI_DEFINE_ENUM_INTERNAL(roundevenl)
+TLI_DEFINE_STRING_INTERNAL("roundevenl")
 /// float roundf(float x);
 TLI_DEFINE_ENUM_INTERNAL(roundf)
 TLI_DEFINE_STRING_INTERNAL("roundf")

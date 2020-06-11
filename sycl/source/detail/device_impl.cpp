@@ -19,27 +19,29 @@ device_impl::device_impl()
     : MIsHostDevice(true),
       MPlatform(std::make_shared<platform_impl>(platform_impl())) {}
 
-device_impl::device_impl(device_interop_handle_t InteropDeviceHandle,
+device_impl::device_impl(pi_native_handle InteropDeviceHandle,
                          const plugin &Plugin)
     : device_impl(InteropDeviceHandle, nullptr, nullptr, Plugin) {}
 
 device_impl::device_impl(RT::PiDevice Device, PlatformImplPtr Platform)
-    : device_impl(nullptr, Device, Platform, Platform->getPlugin()) {}
+    : device_impl(reinterpret_cast<pi_native_handle>(nullptr), Device, Platform,
+                  Platform->getPlugin()) {}
 
 device_impl::device_impl(RT::PiDevice Device, const plugin &Plugin)
-    : device_impl(nullptr, Device, nullptr, Plugin) {}
+    : device_impl(reinterpret_cast<pi_native_handle>(nullptr), Device, nullptr,
+                  Plugin) {}
 
-device_impl::device_impl(device_interop_handle_t InteropDeviceHandle,
+device_impl::device_impl(pi_native_handle InteropDeviceHandle,
                          RT::PiDevice Device, PlatformImplPtr Platform,
                          const plugin &Plugin)
     : MDevice(Device), MIsHostDevice(false) {
 
   bool InteroperabilityConstructor = false;
   if (Device == nullptr) {
-    assert(InteropDeviceHandle != nullptr);
+    assert(InteropDeviceHandle);
     // Get PI device from the raw device handle.
-    Plugin.call<PiApiKind::piextDeviceConvert>(&MDevice,
-                                               (void **)&InteropDeviceHandle);
+    Plugin.call<PiApiKind::piextDeviceCreateWithNativeHandle>(
+        InteropDeviceHandle, &MDevice);
     InteroperabilityConstructor = true;
   }
 
@@ -56,7 +58,7 @@ device_impl::device_impl(device_interop_handle_t InteropDeviceHandle,
   if (!MIsRootDevice && !InteroperabilityConstructor) {
     // TODO catch an exception and put it to list of asynchronous exceptions
     // Interoperability Constructor already calls DeviceRetain in
-    // piextDeviceConvert.
+    // piextDeviceFromNative.
     Plugin.call<PiApiKind::piDeviceRetain>(MDevice);
   }
 
@@ -97,10 +99,7 @@ cl_device_id device_impl::get() const {
     // TODO catch an exception and put it to list of asynchronous exceptions
     Plugin.call<PiApiKind::piDeviceRetain>(MDevice);
   }
-  void *handle = nullptr;
-  Plugin.call<PiApiKind::piextDeviceConvert>(
-      const_cast<RT::PiDevice *>(&MDevice), &handle);
-  return pi::cast<cl_device_id>(handle);
+  return pi::cast<cl_device_id>(getNative());
 }
 
 platform device_impl::get_platform() const {
@@ -212,6 +211,13 @@ vector_class<device> device_impl::create_sub_devices(
   size_t SubDevicesCount =
       get_info<info::device::partition_max_sub_devices>();
   return create_sub_devices(Properties, SubDevicesCount);
+}
+
+pi_native_handle device_impl::getNative() const {
+  auto Plugin = getPlugin();
+  pi_native_handle Handle;
+  Plugin.call<PiApiKind::piextDeviceGetNativeHandle>(getHandleRef(), &Handle);
+  return Handle;
 }
 
 } // namespace detail

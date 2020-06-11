@@ -11,6 +11,7 @@
 #define HEADER
 
 typedef void **omp_allocator_handle_t;
+extern const omp_allocator_handle_t omp_null_allocator;
 extern const omp_allocator_handle_t omp_default_mem_alloc;
 extern const omp_allocator_handle_t omp_large_cap_mem_alloc;
 extern const omp_allocator_handle_t omp_const_mem_alloc;
@@ -44,15 +45,17 @@ int main(int argc, char **argv) {
 #pragma omp task in_reduction(+:a) in_reduction(-:d) allocate(omp_high_bw_mem_alloc: d)
     a += d[a];
   }
+#pragma omp task in_reduction(+:a)
+  ++a;
   return 0;
 }
 
 // CHECK-LABEL: @main
 // CHECK:       void @__kmpc_taskgroup(%struct.ident_t* @0, i32 [[GTID:%.+]])
-// CHECK:       [[TD1:%.+]] = call i8* @__kmpc_task_reduction_init(i32 [[GTID]], i32 3, i8* %
+// CHECK:       [[TD1:%.+]] = call i8* @__kmpc_taskred_init(i32 [[GTID]], i32 3, i8* %
 // CHECK-NEXT:  store i8* [[TD1]], i8** [[TD1_ADDR:%[^,]+]],
 // CHECK-NEXT:  call void @__kmpc_taskgroup(%struct.ident_t* @0, i32 [[GTID]])
-// CHECK:       [[TD2:%.+]] = call i8* @__kmpc_task_reduction_init(i32 [[GTID]], i32 2, i8* %
+// CHECK:       [[TD2:%.+]] = call i8* @__kmpc_taskred_init(i32 [[GTID]], i32 2, i8* %
 // CHECK-NEXT:  store i8* [[TD2]], i8** [[TD2_ADDR:%[^,]+]],
 // CHECK-NEXT:  call void (%struct.ident_t*, i32, void (i32*, i32*, ...)*, ...) @__kmpc_fork_call(%struct.ident_t* @0, i32 5, void (i32*, i32*, ...)* bitcast (void (i32*, i32*, i32*, i64, i16*, i8**, i8**)* [[OMP_PARALLEL:@.+]] to void (i32*, i32*, ...)*), i32* %{{.+}}, i64 %{{.+}}, i16* %{{.+}}, i8** [[TD1_ADDR]], i8** [[TD2_ADDR]])
 // CHECK-NEXT:  call void @__kmpc_end_taskgroup(%struct.ident_t* @0, i32 [[GTID]])
@@ -91,4 +94,10 @@ int main(int argc, char **argv) {
 // CHECK:       add nsw i32
 // CHECK:       store i32 %
 // CHECK-NOT:   call i8* @__kmpc_threadprivate_cached(
+
+// CHECK: [[A_PTR:%.+]] = call i8* @__kmpc_task_reduction_get_th_data(i32 %{{.+}}, i8* null, i8* %{{.+}})
+// CHECK-NEXT: [[A_ADDR:%.+]] = bitcast i8* [[A_PTR]] to i32*
+// CHECK-NEXT: [[A:%.+]] = load i32, i32* [[A_ADDR]],
+// CHECK-NEXT: [[NEW:%.+]] = add nsw i32 [[A]], 1
+// CHECK-NEXT: store i32 [[NEW]], i32* [[A_ADDR]],
 #endif

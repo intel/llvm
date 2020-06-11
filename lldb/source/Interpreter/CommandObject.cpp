@@ -18,6 +18,7 @@
 #include "lldb/Core/Address.h"
 #include "lldb/Interpreter/Options.h"
 #include "lldb/Utility/ArchSpec.h"
+#include "llvm/ADT/ScopeExit.h"
 
 // These are for the Sourcename completers.
 // FIXME: Make a separate file for the completers.
@@ -269,6 +270,7 @@ void CommandObject::Cleanup() {
 void CommandObject::HandleCompletion(CompletionRequest &request) {
 
   m_exe_ctx = m_interpreter.GetExecutionContext();
+  auto reset_ctx = llvm::make_scope_exit([this]() { Cleanup(); });
 
   // Default implementation of WantsCompletion() is !WantsRawCommandString().
   // Subclasses who want raw command string but desire, for example, argument
@@ -296,8 +298,6 @@ void CommandObject::HandleCompletion(CompletionRequest &request) {
     // If we got here, the last word is not an option or an option argument.
     HandleArgumentCompletion(request, opt_element_vector);
   }
-
-  m_exe_ctx.Clear();
 }
 
 bool CommandObject::HelpTextContainsWord(llvm::StringRef search_word,
@@ -1080,7 +1080,7 @@ CommandObject::ArgumentTableEntry CommandObject::g_arguments_data[] = {
     { eArgTypePermissionsNumber, "perms-numeric", CommandCompletions::eNoCompletion, { nullptr, false }, "Permissions given as an octal number (e.g. 755)." },
     { eArgTypePermissionsString, "perms=string", CommandCompletions::eNoCompletion, { nullptr, false }, "Permissions given as a string value (e.g. rw-r-xr--)." },
     { eArgTypePid, "pid", CommandCompletions::eNoCompletion, { nullptr, false }, "The process ID number." },
-    { eArgTypePlugin, "plugin", CommandCompletions::eNoCompletion, { nullptr, false }, "Help text goes here." },
+    { eArgTypePlugin, "plugin", CommandCompletions::eProcessPluginCompletion, { nullptr, false }, "Help text goes here." },
     { eArgTypeProcessName, "process-name", CommandCompletions::eNoCompletion, { nullptr, false }, "The name of the process." },
     { eArgTypePythonClass, "python-class", CommandCompletions::eNoCompletion, { nullptr, false }, "The name of a Python class." },
     { eArgTypePythonFunction, "python-function", CommandCompletions::eNoCompletion, { nullptr, false }, "The name of a Python function." },
@@ -1091,7 +1091,7 @@ CommandObject::ArgumentTableEntry CommandObject::g_arguments_data[] = {
     { eArgTypeRunArgs, "run-args", CommandCompletions::eNoCompletion, { nullptr, false }, "Arguments to be passed to the target program when it starts executing." },
     { eArgTypeRunMode, "run-mode", CommandCompletions::eNoCompletion, { nullptr, false }, "Help text goes here." },
     { eArgTypeScriptedCommandSynchronicity, "script-cmd-synchronicity", CommandCompletions::eNoCompletion, { nullptr, false }, "The synchronicity to use to run scripted commands with regard to LLDB event system." },
-    { eArgTypeScriptLang, "script-language", CommandCompletions::eNoCompletion, { nullptr, false }, "The scripting language to be used for script-based commands.  Currently only Python is valid." },
+    { eArgTypeScriptLang, "script-language", CommandCompletions::eNoCompletion, { nullptr, false }, "The scripting language to be used for script-based commands.  Supported languages are python and lua." },
     { eArgTypeSearchWord, "search-word", CommandCompletions::eNoCompletion, { nullptr, false }, "Any word of interest for search purposes." },
     { eArgTypeSelector, "selector", CommandCompletions::eNoCompletion, { nullptr, false }, "An Objective-C selector name." },
     { eArgTypeSettingIndex, "setting-index", CommandCompletions::eNoCompletion, { nullptr, false }, "An index into a settings variable that is an array (try 'settings list' to see all the possible settings variables and their types)." },

@@ -194,6 +194,12 @@ public:
   }
 };
 
+namespace experimental {
+
+template <typename T, typename ID = T>
+class spec_constant {};
+} // namespace experimental
+
 } // namespace sycl
 } // namespace cl
 

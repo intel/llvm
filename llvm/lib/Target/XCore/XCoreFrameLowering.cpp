@@ -73,7 +73,7 @@ static void EmitDefCfaOffset(MachineBasicBlock &MBB,
                              int Offset) {
   MachineFunction &MF = *MBB.getParent();
   unsigned CFIIndex =
-      MF.addFrameInst(MCCFIInstruction::createDefCfaOffset(nullptr, -Offset));
+      MF.addFrameInst(MCCFIInstruction::cfiDefCfaOffset(nullptr, Offset));
   BuildMI(MBB, MBBI, dl, TII.get(TargetOpcode::CFI_INSTRUCTION))
       .addCFIIndex(CFIIndex);
 }
@@ -179,7 +179,7 @@ static MachineMemOperand *getFrameIndexMMO(MachineBasicBlock &MBB,
   const MachineFrameInfo &MFI = MF->getFrameInfo();
   MachineMemOperand *MMO = MF->getMachineMemOperand(
       MachinePointerInfo::getFixedStack(*MF, FrameIndex), flags,
-      MFI.getObjectSize(FrameIndex), MFI.getObjectAlignment(FrameIndex));
+      MFI.getObjectSize(FrameIndex), MFI.getObjectAlign(FrameIndex));
   return MMO;
 }
 

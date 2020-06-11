@@ -30,6 +30,7 @@
 #include "sanitizer_placement_new.h"
 #include "sanitizer_platform_limits_posix.h"
 #include "sanitizer_procmaps.h"
+#include "sanitizer_ptrauth.h"
 
 #if !SANITIZER_IOS
 #include <crt_externs.h>  // for _NSGetEnviron
@@ -628,19 +629,13 @@ MacosVersion GetMacosVersionInternal() {
   if (*p != '.') return MACOS_VERSION_UNKNOWN;
 
   switch (major) {
-    case 9: return MACOS_VERSION_LEOPARD;
-    case 10: return MACOS_VERSION_SNOW_LEOPARD;
     case 11: return MACOS_VERSION_LION;
     case 12: return MACOS_VERSION_MOUNTAIN_LION;
     case 13: return MACOS_VERSION_MAVERICKS;
     case 14: return MACOS_VERSION_YOSEMITE;
     case 15: return MACOS_VERSION_EL_CAPITAN;
     case 16: return MACOS_VERSION_SIERRA;
-    case 17:
-      // Not a typo, 17.5 Darwin Kernel Version maps to High Sierra 10.13.4.
-      if (minor >= 5)
-        return MACOS_VERSION_HIGH_SIERRA_DOT_RELEASE_4;
-      return MACOS_VERSION_HIGH_SIERRA;
+    case 17: return MACOS_VERSION_HIGH_SIERRA;
     case 18: return MACOS_VERSION_MOJAVE;
     case 19: return MACOS_VERSION_CATALINA;
     default:
@@ -661,13 +656,21 @@ MacosVersion GetMacosVersion() {
   return result;
 }
 
-bool PlatformHasDifferentMemcpyAndMemmove() {
-  // On OS X 10.7 memcpy() and memmove() are both resolved
-  // into memmove$VARIANT$sse42.
-  // See also https://github.com/google/sanitizers/issues/34.
-  // TODO(glider): need to check dynamically that memcpy() and memmove() are
-  // actually the same function.
-  return GetMacosVersion() == MACOS_VERSION_SNOW_LEOPARD;
+DarwinKernelVersion GetDarwinKernelVersion() {
+  char buf[100];
+  size_t len = sizeof(buf);
+  int res = internal_sysctlbyname("kern.osrelease", buf, &len, nullptr, 0);
+  CHECK_EQ(res, 0);
+
+  // Format: <major>.<minor>.<patch>\0
+  CHECK_GE(len, 6);
+  const char *p = buf;
+  u16 major = internal_simple_strtoll(p, &p, /*base=*/10);
+  CHECK_EQ(*p, '.');
+  p += 1;
+  u16 minor = internal_simple_strtoll(p, &p, /*base=*/10);
+
+  return DarwinKernelVersion(major, minor);
 }
 
 uptr GetRSS() {
@@ -765,16 +768,24 @@ bool SignalContext::IsTrueFaultingAddress() const {
   return si->si_signo == SIGSEGV && si->si_code != 0;
 }
 
+#if defined(__aarch64__) && defined(arm_thread_state64_get_sp)
+  #define AARCH64_GET_REG(r) \
+    (uptr)ptrauth_strip(     \
+        (void *)arm_thread_state64_get_##r(ucontext->uc_mcontext->__ss), 0)
+#else
+  #define AARCH64_GET_REG(r) ucontext->uc_mcontext->__ss.__##r
+#endif
+
 static void GetPcSpBp(void *context, uptr *pc, uptr *sp, uptr *bp) {
   ucontext_t *ucontext = (ucontext_t*)context;
 # if defined(__aarch64__)
-  *pc = ucontext->uc_mcontext->__ss.__pc;
+  *pc = AARCH64_GET_REG(pc);
 #   if defined(__IPHONE_8_0) && __IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_8_0
-  *bp = ucontext->uc_mcontext->__ss.__fp;
+  *bp = AARCH64_GET_REG(fp);
 #   else
-  *bp = ucontext->uc_mcontext->__ss.__lr;
+  *bp = AARCH64_GET_REG(lr);
 #   endif
-  *sp = ucontext->uc_mcontext->__ss.__sp;
+  *sp = AARCH64_GET_REG(sp);
 # elif defined(__x86_64__)
   *pc = ucontext->uc_mcontext->__ss.__rip;
   *bp = ucontext->uc_mcontext->__ss.__rbp;
@@ -792,13 +803,16 @@ static void GetPcSpBp(void *context, uptr *pc, uptr *sp, uptr *bp) {
 # endif
 }
 
-void SignalContext::InitPcSpBp() { GetPcSpBp(context, &pc, &sp, &bp); }
+void SignalContext::InitPcSpBp() {
+  addr = (uptr)ptrauth_strip((void *)addr, 0);
+  GetPcSpBp(context, &pc, &sp, &bp);
+}
 
 void InitializePlatformEarly() {
-  // Only use xnu_fast_mmap when on x86_64 and the OS supports it.
+  // Only use xnu_fast_mmap when on x86_64 and the kernel supports it.
   use_xnu_fast_mmap =
 #if defined(__x86_64__)
-      GetMacosVersion() >= MACOS_VERSION_HIGH_SIERRA_DOT_RELEASE_4;
+      GetDarwinKernelVersion() >= DarwinKernelVersion(17, 5);
 #else
       false;
 #endif
@@ -1128,6 +1142,8 @@ void SignalContext::DumpAllRegisters(void *context) {
   ucontext_t *ucontext = (ucontext_t*)context;
 # define DUMPREG64(r) \
     Printf("%s = 0x%016llx  ", #r, ucontext->uc_mcontext->__ss.__ ## r);
+# define DUMPREGA64(r) \
+    Printf("   %s = 0x%016llx  ", #r, AARCH64_GET_REG(r));
 # define DUMPREG32(r) \
     Printf("%s = 0x%08x  ", #r, ucontext->uc_mcontext->__ss.__ ## r);
 # define DUMPREG_(r)   Printf(" "); DUMPREG(r);
@@ -1153,7 +1169,7 @@ void SignalContext::DumpAllRegisters(void *context) {
   DUMPREG(x[16]); DUMPREG(x[17]); DUMPREG(x[18]); DUMPREG(x[19]); Printf("\n");
   DUMPREG(x[20]); DUMPREG(x[21]); DUMPREG(x[22]); DUMPREG(x[23]); Printf("\n");
   DUMPREG(x[24]); DUMPREG(x[25]); DUMPREG(x[26]); DUMPREG(x[27]); Printf("\n");
-  DUMPREG(x[28]); DUMPREG___(fp); DUMPREG___(lr); DUMPREG___(sp); Printf("\n");
+  DUMPREG(x[28]); DUMPREGA64(fp); DUMPREGA64(lr); DUMPREGA64(sp); Printf("\n");
 # elif defined(__arm__)
 #  define DUMPREG(r) DUMPREG32(r)
   DUMPREG_(r[0]); DUMPREG_(r[1]); DUMPREG_(r[2]); DUMPREG_(r[3]); Printf("\n");

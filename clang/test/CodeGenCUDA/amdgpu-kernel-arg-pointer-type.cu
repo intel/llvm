@@ -18,8 +18,8 @@ __global__ void kernel1(int *x) {
   x[0]++;
 }
 
-// CHECK: define amdgpu_kernel void  @_Z7kernel2Ri(i32 addrspace(1)* dereferenceable(4) %x.coerce)
-// HOST: define void @_Z22__device_stub__kernel2Ri(i32* dereferenceable(4) %x)
+// CHECK: define amdgpu_kernel void  @_Z7kernel2Ri(i32 addrspace(1)* nonnull align 4 dereferenceable(4) %x.coerce)
+// HOST: define void @_Z22__device_stub__kernel2Ri(i32* nonnull align 4 dereferenceable(4) %x)
 __global__ void kernel2(int &x) {
   x++;
 }
@@ -66,4 +66,11 @@ struct T {
 __global__ void kernel6(struct T t) {
   t.x[0][0] += 1.f;
   t.x[1][0] += 2.f;
+}
+
+// Check that coerced pointers retain the noalias attribute when qualified with __restrict.
+// CHECK: define amdgpu_kernel void @_Z7kernel7Pi(i32 addrspace(1)* noalias %x.coerce)
+// HOST: define void @_Z22__device_stub__kernel7Pi(i32* noalias %x)
+__global__ void kernel7(int *__restrict x) {
+  x[0]++;
 }

@@ -16,12 +16,12 @@
 #include "toy/Passes.h"
 
 #include "mlir/Conversion/AffineToStandard/AffineToStandard.h"
-#include "mlir/Conversion/LoopToStandard/ConvertLoopToStandard.h"
+#include "mlir/Conversion/SCFToStandard/SCFToStandard.h"
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVM.h"
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVMPass.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
-#include "mlir/Dialect/LoopOps/LoopOps.h"
+#include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
@@ -68,18 +68,19 @@ public:
       auto upperBound = rewriter.create<ConstantIndexOp>(loc, memRefShape[i]);
       auto step = rewriter.create<ConstantIndexOp>(loc, 1);
       auto loop =
-          rewriter.create<loop::ForOp>(loc, lowerBound, upperBound, step);
-      loop.getBody()->clear();
+          rewriter.create<scf::ForOp>(loc, lowerBound, upperBound, step);
+      for (Operation &nested : *loop.getBody())
+        rewriter.eraseOp(&nested);
       loopIvs.push_back(loop.getInductionVar());
 
       // Terminate the loop body.
-      rewriter.setInsertionPointToStart(loop.getBody());
+      rewriter.setInsertionPointToEnd(loop.getBody());
 
       // Insert a newline after each of the inner dimensions of the shape.
       if (i != e - 1)
         rewriter.create<CallOp>(loc, printfRef, rewriter.getIntegerType(32),
                                 newLineCst);
-      rewriter.create<loop::YieldOp>(loc);
+      rewriter.create<scf::YieldOp>(loc);
       rewriter.setInsertionPointToStart(loop.getBody());
     }
 
@@ -153,12 +154,13 @@ private:
 //===----------------------------------------------------------------------===//
 
 namespace {
-struct ToyToLLVMLoweringPass : public ModulePass<ToyToLLVMLoweringPass> {
-  void runOnModule() final;
+struct ToyToLLVMLoweringPass
+    : public PassWrapper<ToyToLLVMLoweringPass, OperationPass<ModuleOp>> {
+  void runOnOperation() final;
 };
 } // end anonymous namespace
 
-void ToyToLLVMLoweringPass::runOnModule() {
+void ToyToLLVMLoweringPass::runOnOperation() {
   // The first thing to define is the conversion target. This will define the
   // final target for this lowering. For this lowering, we are only targeting
   // the LLVM dialect.
@@ -166,7 +168,7 @@ void ToyToLLVMLoweringPass::runOnModule() {
   target.addLegalOp<ModuleOp, ModuleTerminatorOp>();
 
   // During this lowering, we will also be lowering the MemRef types, that are
-  // currently being operated on, to a representation in LLVM. Do perform this
+  // currently being operated on, to a representation in LLVM. To perform this
   // conversion we use a TypeConverter as part of the lowering. This converter
   // details how one type maps to another. This is necessary now that we will be
   // doing more complicated lowerings, involving loop region arguments.
@@ -191,7 +193,7 @@ void ToyToLLVMLoweringPass::runOnModule() {
 
   // We want to completely lower to LLVM, so we use a `FullConversion`. This
   // ensures that only legal operations will remain after the conversion.
-  auto module = getModule();
+  auto module = getOperation();
   if (failed(applyFullConversion(module, target, patterns, &typeConverter)))
     signalPassFailure();
 }

@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
@@ -48,7 +48,7 @@ int main() {
 
     vector_class<char> Expected{'x', 'x', '0', '1', '2', '3', 'x', 'x'};
     if (DataRaw != Expected)
-      throw std::runtime_error("Check of hadler.copy(ptr, acc) was failed");
+      throw std::runtime_error("Check of handler.copy(ptr, acc) was failed");
   }
 
   {
@@ -71,7 +71,7 @@ int main() {
     }
     vector_class<char> Expected{'2', '3', '4', '5', 'x', 'x', 'x', 'x'};
     if (DataRaw != Expected)
-      throw std::runtime_error("Check of hadler.copy(acc, ptr) was failed");
+      throw std::runtime_error("Check of handler.copy(acc, ptr) was failed");
   }
   return 0;
 }

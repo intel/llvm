@@ -92,10 +92,8 @@ classes by purpose(e.g. <math.h> for mathematical operations and
 transformations) and device library infrastructure uses this as
 a baseline.
 NOTE: Only the GNU glibc, Microsoft C libraries are currently
-supported. The device libraries for <math.h> and <complex.h> are
-ready for Linux and Windows support will be added in the future.
-Not all functions from <math.h> are supported right now, following
-math functions are not supported now:
+supported. Not all functions from <math.h> are supported right now,
+following math functions are not supported now:
  - abs
  - ceilf, ceil
  - copysignf, copysign
@@ -114,6 +112,9 @@ math functions are not supported now:
  - nanf, nan
 Device libraries can't support both single and double precision as some
 underlying device may not support double precision.
+'ldexpf' and 'frexpf' from MSVC <math.h> are implemented using corresponding
+double precision version, they can be used only when double precision is
+supported by underlying device.
 
 Example of usage
 ================

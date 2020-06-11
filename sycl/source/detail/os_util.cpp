@@ -200,10 +200,10 @@ std::string OSUtil::getCurrentDSODir() {
   char Path[MAX_PATH];
   Path[0] = '\0';
   Path[sizeof(Path) - 1] = '\0';
+  auto Handle = getOSModuleHandle(&getCurrentDSODir);
   DWORD Ret = GetModuleFileNameA(
-    reinterpret_cast<HMODULE>(getOSModuleHandle(&getCurrentDSODir)),
-    reinterpret_cast<LPSTR>(&Path),
-    sizeof(Path));
+      reinterpret_cast<HMODULE>(OSUtil::ExeModuleHandle == Handle ? 0 : Handle),
+      reinterpret_cast<LPSTR>(&Path), sizeof(Path));
   assert(Ret < sizeof(Path) && "Path is longer than PATH_MAX?");
   assert(Ret > 0 && "GetModuleFileNameA failed");
   (void)Ret;

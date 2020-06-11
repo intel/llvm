@@ -9,8 +9,6 @@
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
 
-#include <CL/sycl.hpp>
-
 #include <algorithm>
 #include <cstddef>
 #include <memory>
@@ -19,36 +17,29 @@
 using namespace cl::sycl;
 
 TEST_F(SchedulerTest, LeafLimit) {
-  TestScheduler TS;
+  MockScheduler MS;
 
   buffer<int, 1> Buf(range<1>(1));
-  detail::Requirement FakeReq{{0, 0, 0},
-                              {0, 0, 0},
-                              {0, 0, 0},
-                              access::mode::read_write,
-                              detail::getSyclObjImpl(Buf).get(),
-                              0,
-                              0,
-                              0};
-  FakeCommand *FakeDepCmd =
-      new FakeCommand(detail::getSyclObjImpl(MQueue), FakeReq);
+  detail::Requirement MockReq = getMockRequirement(Buf);
+  MockCommand *MockDepCmd =
+      new MockCommand(detail::getSyclObjImpl(MQueue), MockReq);
   detail::MemObjRecord *Rec =
-      TS.getOrInsertMemObjRecord(detail::getSyclObjImpl(MQueue), &FakeReq);
+      MS.getOrInsertMemObjRecord(detail::getSyclObjImpl(MQueue), &MockReq);
 
   // Create commands that will be added as leaves exceeding the limit by 1
-  std::vector<FakeCommand *> LeavesToAdd;
+  std::vector<MockCommand *> LeavesToAdd;
   for (std::size_t i = 0; i < Rec->MWriteLeaves.capacity() + 1; ++i) {
     LeavesToAdd.push_back(
-        new FakeCommand(detail::getSyclObjImpl(MQueue), FakeReq));
+        new MockCommand(detail::getSyclObjImpl(MQueue), MockReq));
   }
-  // Create edges: all soon-to-be leaves are direct users of FakeDep
+  // Create edges: all soon-to-be leaves are direct users of MockDep
   for (auto Leaf : LeavesToAdd) {
-    FakeDepCmd->addUser(Leaf);
-    Leaf->addDep(detail::DepDesc{FakeDepCmd, Leaf->getRequirement(), nullptr});
+    MockDepCmd->addUser(Leaf);
+    Leaf->addDep(detail::DepDesc{MockDepCmd, Leaf->getRequirement(), nullptr});
   }
   // Add edges as leaves and exceed the leaf limit
   for (auto LeafPtr : LeavesToAdd) {
-    TS.addNodeToLeaves(Rec, LeafPtr);
+    MS.addNodeToLeaves(Rec, LeafPtr);
   }
   // Check that the oldest leaf has been removed from the leaf list
   // and added as a dependency of the newest one instead
@@ -59,8 +50,8 @@ TEST_F(SchedulerTest, LeafLimit) {
     assert(std::find(Leaves.begin(), Leaves.end(), LeavesToAdd[i]) !=
            Leaves.end());
   }
-  FakeCommand *OldestLeaf = LeavesToAdd.front();
-  FakeCommand *NewestLeaf = LeavesToAdd.back();
+  MockCommand *OldestLeaf = LeavesToAdd.front();
+  MockCommand *NewestLeaf = LeavesToAdd.back();
   ASSERT_EQ(OldestLeaf->MUsers.size(), 1U);
   EXPECT_GT(OldestLeaf->MUsers.count(NewestLeaf), 0U);
   ASSERT_EQ(NewestLeaf->MDeps.size(), 2U);

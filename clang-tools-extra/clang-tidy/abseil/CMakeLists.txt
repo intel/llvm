@@ -1,4 +1,7 @@
-set(LLVM_LINK_COMPONENTS support)
+set(LLVM_LINK_COMPONENTS
+  support
+  FrontendOpenMP
+  )
 
 add_clang_library(clangTidyAbseilModule
   AbseilTidyModule.cpp
@@ -17,6 +20,7 @@ add_clang_library(clangTidyAbseilModule
   RedundantStrcatCallsCheck.cpp
   StrCatAppendCheck.cpp
   StringFindStartswithCheck.cpp
+  StringFindStrContainsCheck.cpp
   TimeComparisonCheck.cpp
   TimeSubtractionCheck.cpp
   UpgradeDurationConversionsCheck.cpp
@@ -29,4 +33,5 @@ add_clang_library(clangTidyAbseilModule
   clangTidy
   clangTidyUtils
   clangTooling
+  clangTransformer
   )

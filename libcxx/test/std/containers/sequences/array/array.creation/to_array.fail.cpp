@@ -14,13 +14,14 @@
 #include "test_macros.h"
 #include "MoveOnly.h"
 
+// expected-warning@array:* 0-1 {{suggest braces around initialization of subobject}}
+
 int main(int, char**) {
   {
     char source[3][6] = {"hi", "world"};
     // expected-error@array:* {{to_array does not accept multidimensional arrays}}
     // expected-error@array:* {{to_array requires copy constructible elements}}
     // expected-error@array:* 3 {{cannot initialize}}
-    // expected-error@array:* 0+ {{suggest braces}}
     std::to_array(source); // expected-note {{requested here}}
   }
 

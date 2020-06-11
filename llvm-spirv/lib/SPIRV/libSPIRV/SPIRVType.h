@@ -155,13 +155,28 @@ public:
     case 16:
       CV.push_back(CapabilityInt16);
       break;
+    case 32:
+      break;
     case 64:
       CV.push_back(CapabilityInt64);
       break;
     default:
-      break;
+      if (Module->isAllowedToUseExtension(
+              ExtensionID::SPV_INTEL_arbitrary_precision_integers))
+        CV.push_back(CapabilityArbitraryPrecisionIntegersINTEL);
     }
     return CV;
+  }
+  SPIRVExtSet getRequiredExtensions() const override {
+    switch (BitWidth) {
+    case 8:
+    case 16:
+    case 32:
+    case 64:
+      return SPIRVExtSet();
+    default:
+      return getSet(ExtensionID::SPV_INTEL_arbitrary_precision_integers);
+    }
   }
 
 protected:
@@ -290,7 +305,7 @@ public:
     SPIRVCapVec V(getComponentType()->getRequiredCapability());
     // Even though the capability name is "Vector16", it describes
     // usage of 8-component or 16-component vectors.
-    if (CompCount >= 8)
+    if (CompCount == 8 || CompCount == 16)
       V.push_back(CapabilityVector16);
     return V;
   }

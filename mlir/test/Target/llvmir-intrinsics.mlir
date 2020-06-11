@@ -27,6 +27,15 @@ llvm.func @exp_test(%arg0: !llvm.float, %arg1: !llvm<"<8 x float>">) {
   llvm.return
 }
 
+// CHECK-LABEL: @exp2_test
+llvm.func @exp2_test(%arg0: !llvm.float, %arg1: !llvm<"<8 x float>">) {
+  // CHECK: call float @llvm.exp2.f32
+  "llvm.intr.exp2"(%arg0) : (!llvm.float) -> !llvm.float
+  // CHECK: call <8 x float> @llvm.exp2.v8f32
+  "llvm.intr.exp2"(%arg1) : (!llvm<"<8 x float>">) -> !llvm<"<8 x float>">
+  llvm.return
+}
+
 // CHECK-LABEL: @log_test
 llvm.func @log_test(%arg0: !llvm.float, %arg1: !llvm<"<8 x float>">) {
   // CHECK: call float @llvm.log.f32
@@ -96,6 +105,15 @@ llvm.func @copysign_test(%arg0: !llvm.float, %arg1: !llvm.float, %arg2: !llvm<"<
   "llvm.intr.copysign"(%arg0, %arg1) : (!llvm.float, !llvm.float) -> !llvm.float
   // CHECK: call <8 x float> @llvm.copysign.v8f32
   "llvm.intr.copysign"(%arg2, %arg3) : (!llvm<"<8 x float>">, !llvm<"<8 x float>">) -> !llvm<"<8 x float>">
+  llvm.return
+}
+
+// CHECK-LABEL: @pow_test
+llvm.func @pow_test(%arg0: !llvm.float, %arg1: !llvm.float, %arg2: !llvm<"<8 x float>">, %arg3: !llvm<"<8 x float>">) {
+  // CHECK: call float @llvm.pow.f32
+  "llvm.intr.pow"(%arg0, %arg1) : (!llvm.float, !llvm.float) -> !llvm.float
+  // CHECK: call <8 x float> @llvm.pow.v8f32
+  "llvm.intr.pow"(%arg2, %arg3) : (!llvm<"<8 x float>">, !llvm<"<8 x float>">) -> !llvm<"<8 x float>">
   llvm.return
 }
 

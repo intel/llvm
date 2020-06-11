@@ -29,7 +29,7 @@ class SYCLMemObjI {
 public:
   virtual ~SYCLMemObjI() = default;
 
-  enum MemObjType { BUFFER, IMAGE };
+  enum MemObjType { BUFFER, IMAGE, UNDEFINED };
 
   virtual MemObjType getType() const = 0;
 

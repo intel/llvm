@@ -140,7 +140,8 @@ def NoEscapeDocs : Documentation {
 the compiler that the pointer cannot escape: that is, no reference to the object
 the pointer points to that is derived from the parameter value will survive
 after the function returns. Users are responsible for making sure parameters
-annotated with ``noescape`` do not actuallly escape.
+annotated with ``noescape`` do not actually escape. Calling ``free()`` on such
+a parameter does not constitute an escape.
 
 For example:
 
@@ -329,6 +330,17 @@ The SYCL kernel in the previous code sample meets these expectations.
   }];
 }
 
+def SYCLRegisterNumDocs : Documentation {
+  let Category = DocCatVariable;
+  let Content = [{
+    The ``__attribute__((register_num(n)))`` attribute can be used to bind
+    "private globals" (SYCL private address space variables declared in the file
+    scope) to a particular register with number 'n'. Actual mapping of registers
+    to numbers is target-specific. For Intel GPUs 'n' is a byte offset in the
+    GRF.
+  }];
+}
+
 def C11NoReturnDocs : Documentation {
   let Category = DocCatFunction;
   let Content = [{
@@ -346,6 +358,20 @@ def CXX11NoReturnDocs : Documentation {
 A function declared as ``[[noreturn]]`` shall not return to its caller. The
 compiler will generate a diagnostic for a function declared as ``[[noreturn]]``
 that appears to be capable of returning to its caller.
+  }];
+}
+
+def NoMergeDocs : Documentation {
+  let Category = DocCatFunction;
+  let Content = [{
+If a statement is marked ``nomerge`` and contains call experessions, those call
+expressions inside the statement will not be merged during optimization. This 
+attribute can be used to prevent the optimizer from obscuring the source
+location of certain calls. For example, it will prevent tail merging otherwise
+identical code sequences that raise an exception or terminate the program. Tail
+merging normally reduces the precision of source location information, making
+stack traces less useful for debugging. This attribute gives the user control
+over the tradeoff between code size and debug information precision.
   }];
 }
 
@@ -484,7 +510,7 @@ parameter.
 Note that this attribute merely informs the compiler that a function always
 returns a sufficiently aligned pointer. It does not cause the compiler to
 emit code to enforce that alignment.  The behavior is undefined if the returned
-poitner is not sufficiently aligned.
+pointer is not sufficiently aligned.
   }];
 }
 
@@ -942,11 +968,11 @@ The behavior of a function with respect to reference counting for Foundation
 convention (e.g. functions starting with "get" are assumed to return at
 ``+0``).
 
-It can be overriden using a family of the following attributes.  In
+It can be overridden using a family of the following attributes.  In
 Objective-C, the annotation ``__attribute__((ns_returns_retained))`` applied to
 a function communicates that the object is returned at ``+1``, and the caller
 is responsible for freeing it.
-Similiarly, the annotation ``__attribute__((ns_returns_not_retained))``
+Similarly, the annotation ``__attribute__((ns_returns_not_retained))``
 specifies that the object is returned at ``+0`` and the ownership remains with
 the callee.
 The annotation ``__attribute__((ns_consumes_self))`` specifies that
@@ -1290,7 +1316,7 @@ correspond to different platforms. For most platforms, the availability
 attribute with the platform corresponding to the target platform will be used;
 any others will be ignored. However, the availability for ``watchOS`` and
 ``tvOS`` can be implicitly inferred from an ``iOS`` availability attribute.
-Any explicit availability attributes for those platforms are still prefered over
+Any explicit availability attributes for those platforms are still preferred over
 the implicitly inferred availability attributes. If no availability attribute
 specifies availability for the current target platform, the availability
 attributes are ignored. Supported platforms are:
@@ -1398,7 +1424,7 @@ pragma rather than using the inferred ``iOS`` availability from the declaration:
   void getsThePragmaTVOSAvailabilityAttribute(void) __attribute__((availability(iOS,introduced=11.0)));
   #pragma clang attribute pop
 
-The compiler is also able to apply implicly inferred attributes from a pragma
+The compiler is also able to apply implicitly inferred attributes from a pragma
 as well. For example, when targeting ``tvOS``, the function below will receive
 a ``tvOS`` availability attribute that is implicitly inferred from the ``iOS``
 availability attribute applied by the pragma:
@@ -1716,7 +1742,7 @@ def BPFPreserveAccessIndexDocs : Documentation {
 Clang supports the ``__attribute__((preserve_access_index))``
 attribute for the BPF target. This attribute may be attached to a
 struct or union declaration, where if -g is specified, it enables
-preserving struct or union member access debuginfo indicies of this
+preserving struct or union member access debuginfo indices of this
 struct or union, similar to clang ``__builtin_preserve_acceess_index()``.
   }];
 }
@@ -1732,7 +1758,7 @@ directly as an interrupt service routine.
 
 By default, the compiler will produce a function prologue and epilogue suitable for
 an interrupt service routine that handles an External Interrupt Controller (eic)
-generated interrupt. This behaviour can be explicitly requested with the "eic"
+generated interrupt. This behavior can be explicitly requested with the "eic"
 argument.
 
 Otherwise, for use with vectored interrupt mode, the argument passed should be
@@ -3544,6 +3570,17 @@ scope) variables and static local variable as well.
   }];
 }
 
+def OpenCLGlobalAddressSpacesDocs : Documentation {
+  let Category = DocOpenCLAddressSpaces;
+  let Heading = "[[clang::opencl_global_device]], [[clang::opencl_global_host]]";
+  let Content = [{
+The (global_device) and (global_host) address space attributes specify that an
+object is allocated in global memory on the device/host. It helps distinguishing
+USM pointers that access device memory and accessors that access global memory
+from those that access host memory.
+  }];
+}
+
 def OpenCLAddressSpaceLocalDocs : Documentation {
   let Category = DocOpenCLAddressSpaces;
   let Heading = "__local, local, [[clang::opencl_local]]";
@@ -3832,6 +3869,20 @@ where clause is one of the following:
 and where `variant-func-id` is the name of a function variant that is either a
 base language identifier or, for C++, a template-id.
 
+Clang provides the following context selector extensions, used via `implementation={extension(EXTENSION)}`:
+
+  .. code-block:: none
+
+    match_all
+    match_any
+    match_none
+
+The match extensions change when the *entire* context selector is considered a
+match for an OpenMP context. The default is `all`, with `none` no trait in the
+selector is allowed to be in the OpenMP context, with `any` a single trait in
+both the selector and OpenMP context is sufficient. Only a single match
+extension trait is allowed per context selector.
+
   }];
 }
 
@@ -4118,7 +4169,7 @@ using the Swift calling convention for a function or function pointer.
 The lowering for the Swift calling convention, as described by the Swift
 ABI documentation, occurs in multiple phases.  The first, "high-level"
 phase breaks down the formal parameters and results into innately direct
-and indirect components, adds implicit paraameters for the generic
+and indirect components, adds implicit parameters for the generic
 signature, and assigns the context and error ABI treatments to parameters
 where applicable.  The second phase breaks down the direct parameters
 and results from the first phase and assigns them to registers or the
@@ -4160,7 +4211,7 @@ of the first phase, as follows:
 ``swiftcall`` does not support variadic arguments or unprototyped functions.
 
 The parameter ABI treatment attributes are aspects of the function type.
-A function type which which applies an ABI treatment attribute to a
+A function type which applies an ABI treatment attribute to a
 parameter is a different type from an otherwise-identical function type
 that does not.  A single parameter may not have multiple ABI treatment
 attributes.
@@ -4289,7 +4340,7 @@ with different ABI versions supported. For example, a newer version of a class
 could have a different set of data members and thus have a different size. Using
 the ``abi_tag`` attribute, it is possible to have different mangled names for
 a global variable of the class type. Therefore, the old code could keep using
-the old manged name and the new code will use the new mangled name with tags.
+the old mangled name and the new code will use the new mangled name with tags.
   }];
 }
 
@@ -4443,9 +4494,9 @@ takes precedence over the command line option ``-fpatchable-function-entry=N,M``
 def TransparentUnionDocs : Documentation {
   let Category = DocCatDecl;
   let Content = [{
-This attribute can be applied to a union to change the behaviour of calls to
+This attribute can be applied to a union to change the behavior of calls to
 functions that have an argument with a transparent union type. The compiler
-behaviour is changed in the following manner:
+behavior is changed in the following manner:
 
 - A value whose type is any member of the transparent union can be passed as an
   argument without the need to cast that value.
@@ -4977,7 +5028,7 @@ When applied to the definition of a function, method, or block, every parameter
 of the function with implicit strong retainable object pointer type is
 considered externally-retained, and becomes ``const``. By explicitly annotating
 a parameter with ``__strong``, you can opt back into the default
-non-externally-retained behaviour for that parameter. For instance,
+non-externally-retained behavior for that parameter. For instance,
 ``first_param`` is externally-retained below, but not ``second_param``:
 
 .. code-block:: objc
@@ -4999,7 +5050,7 @@ def MIGConventionDocs : Documentation {
   The Mach Interface Generator release-on-success convention dictates
 functions that follow it to only release arguments passed to them when they
 return "success" (a ``kern_return_t`` error code that indicates that
-no errors have occured). Otherwise the release is performed by the MIG client
+no errors have occurred). Otherwise the release is performed by the MIG client
 that called the function. The annotation ``__attribute__((mig_server_routine))``
 is applied in order to specify which functions are expected to follow the
 convention. This allows the Static Analyzer to find bugs caused by violations of
@@ -5051,15 +5102,25 @@ only call one function.
 }];
 }
 
-def HIPPinnedShadowDocs : Documentation {
+def CUDADeviceBuiltinSurfaceTypeDocs : Documentation {
   let Category = DocCatType;
   let Content = [{
-The GNU style attribute __attribute__((hip_pinned_shadow)) or MSVC style attribute
-__declspec(hip_pinned_shadow) can be added to the definition of a global variable
-to indicate it is a HIP pinned shadow variable. A HIP pinned shadow variable can
-be accessed on both device side and host side. It has external linkage and is
-not initialized on device side. It has internal linkage and is initialized by
-the initializer on host side.
+The ``device_builtin_surface_type`` attribute can be applied to a class
+template when declaring the surface reference. A surface reference variable
+could be accessed on the host side and, on the device side, might be translated
+into an internal surface object, which is established through surface bind and
+unbind runtime APIs.
+  }];
+}
+
+def CUDADeviceBuiltinTextureTypeDocs : Documentation {
+  let Category = DocCatType;
+  let Content = [{
+The ``device_builtin_texture_type`` attribute can be applied to a class
+template when declaring the texture reference. A texture reference variable
+could be accessed on the host side and, on the device side, might be translated
+into an internal texture object, which is established through texture bind and
+unbind runtime APIs.
   }];
 }
 

@@ -1,12 +1,16 @@
+# For a better template to copy, see examples/standalone
+include_directories(include)
 add_subdirectory(include)
 
 set(LLVM_LINK_COMPONENTS
   Core
   Support
+  nativecodegen
+  OrcJIT
   )
 
 set(LLVM_TARGET_DEFINITIONS mlir/ToyCombine.td)
-mlir_tablegen(ToyCombine.inc -gen-rewriters "-I${CMAKE_CURRENT_SOURCE_DIR}/include")
+mlir_tablegen(ToyCombine.inc -gen-rewriters)
 add_public_tablegen_target(ToyCh7CombineIncGen)
 
 add_toy_chapter(toyc-ch7
@@ -25,7 +29,6 @@ add_toy_chapter(toyc-ch7
   ToyCh7CombineIncGen
   )
 
-include_directories(include/)
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/include/)
 get_property(dialect_libs GLOBAL PROPERTY MLIR_DIALECT_LIBS)
@@ -40,7 +43,7 @@ target_link_libraries(toyc-ch7
     MLIRIR
     MLIRParser
     MLIRPass
-    MLIRSideEffects
+    MLIRSideEffectInterfaces
     MLIRTargetLLVMIR
     MLIRTransforms
     )

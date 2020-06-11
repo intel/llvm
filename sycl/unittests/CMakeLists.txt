@@ -1,6 +1,12 @@
 add_custom_target(SYCLUnitTests)
 set_target_properties(SYCLUnitTests PROPERTIES FOLDER "SYCL tests")
 
+foreach(flag_var
+    CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
+    CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINFO)
+string(REGEX REPLACE "/MT" "/MD" ${flag_var} "${${flag_var}}")
+endforeach()
+
 # add_sycl_unittest(test_dirname SHARED|OBJECT file1.cpp, file2.cpp ...)
 #
 # Will compile the list of files together and link against SYCL.
@@ -37,6 +43,7 @@ function(add_sycl_unittest test_dirname link_variant)
   target_include_directories(${test_dirname} PRIVATE SYSTEM
       ${sycl_inc_dir}
       ${SYCL_SOURCE_DIR}/source/
+      ${SYCL_SOURCE_DIR}/unittests/
     )
   # LLVM gtest uses LLVM utilities that require C++-14
   # CXX_STANDARD_REQUIRED makes CXX_STANDARD a hard requirement.
@@ -47,7 +54,8 @@ function(add_sycl_unittest test_dirname link_variant)
     )
 endfunction()
 
-add_subdirectory(pi)
 add_subdirectory(misc)
-add_subdirectory(thread_safety)
+add_subdirectory(pi)
+add_subdirectory(program)
 add_subdirectory(scheduler)
+add_subdirectory(thread_safety)

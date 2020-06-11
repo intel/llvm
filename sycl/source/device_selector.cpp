@@ -6,85 +6,156 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/device_selector.hpp>
 #include <CL/sycl/exception.hpp>
 #include <CL/sycl/stl.hpp>
+#include <detail/device_impl.hpp>
 #include <detail/force_device.hpp>
 // 4.6.1 Device selection class
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+
+// Utility function to check if device is of the preferred backend.
+// Currently preference is given to the opencl backend.
+static bool isDeviceOfPreferredSyclBe(const device &Device) {
+  if (Device.is_host())
+    return false;
+
+  return detail::getSyclObjImpl(Device)->getPlugin().getBackend() ==
+         backend::opencl;
+}
+
 device device_selector::select_device() const {
   vector_class<device> devices = device::get_devices();
-  int score = -1;
+  int score = REJECT_DEVICE_SCORE;
   const device *res = nullptr;
-  for (const auto &dev : devices)
-    if (score < operator()(dev)) {
-      res = &dev;
-      score = operator()(dev);
+
+  for (const auto &dev : devices) {
+    int dev_score = (*this)(dev);
+
+    if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL)) {
+      string_class PlatformVersion = dev.get_info<info::device::platform>()
+                                         .get_info<info::platform::version>();
+      string_class DeviceName = dev.get_info<info::device::name>();
+      std::cout << "SYCL_PI_TRACE[all]: "
+                << "select_device(): -> score = " << score
+                << ((score == REJECT_DEVICE_SCORE) ? "(REJECTED)" : " ")
+                << std::endl
+                << "SYCL_PI_TRACE[all]: "
+                << "  platform: " << PlatformVersion << std::endl
+                << "SYCL_PI_TRACE[all]: "
+                << "  device: " << DeviceName << std::endl;
     }
 
-  if (res != nullptr)
+    // Device is discarded if is marked with REJECT_DEVICE_SCORE
+    if (dev_score == REJECT_DEVICE_SCORE)
+      continue;
+
+    // SYCL spec says: "If more than one device receives the high score then
+    // one of those tied devices will be returned, but which of the devices
+    // from the tied set is to be returned is not defined". Here we give a
+    // preference to the device of the preferred BE.
+    //
+    if ((score < dev_score) ||
+        (score == dev_score && isDeviceOfPreferredSyclBe(dev))) {
+      res = &dev;
+      score = dev_score;
+    }
+  }
+
+  if (res != nullptr) {
+    if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_BASIC)) {
+      string_class PlatformVersion = res->get_info<info::device::platform>()
+                                         .get_info<info::platform::version>();
+      string_class DeviceName = res->get_info<info::device::name>();
+      std::cout << "SYCL_PI_TRACE[all]: "
+                << "Selected device ->" << std::endl
+                << "SYCL_PI_TRACE[all]: "
+                << "  platform: " << PlatformVersion << std::endl
+                << "SYCL_PI_TRACE[all]: "
+                << "  device: " << DeviceName << std::endl;
+    }
     return *res;
+  }
 
   throw cl::sycl::runtime_error("No device of requested type available.",
                                 PI_DEVICE_NOT_FOUND);
 }
 
+/// Devices of different kinds are prioritized in the following order:
+/// 1. GPU
+/// 2. CPU
+/// 3. Host
 int default_selector::operator()(const device &dev) const {
 
-  // Take note of the SYCL_BE environment variable when doing default selection
-  const char *SYCL_BE = std::getenv("SYCL_BE");
-  if (SYCL_BE) {
-    std::string backend = (SYCL_BE ? SYCL_BE : "");
-    // Taking the version information from the platform gives us more useful
-    // information than the driver_version of the device.
-    const platform platform = dev.get_info<info::device::platform>();
-    const std::string platformVersion =
-        platform.get_info<info::platform::version>();;
-    // If using PI_CUDA, don't accept a non-CUDA device
-    if (platformVersion.find("CUDA") == std::string::npos &&
-        backend == "PI_CUDA") {
-      return -1;
-    }
-    // If using PI_OPENCL, don't accept a non-OpenCL device
-    if (platformVersion.find("OpenCL") == std::string::npos &&
-        backend == "PI_OPENCL") {
-      return -1;
-    }
-  }
+  int Score = REJECT_DEVICE_SCORE;
+
+  // Give preference to device of SYCL BE.
+  if (isDeviceOfPreferredSyclBe(dev))
+    Score = 50;
 
   // override always wins
   if (dev.get_info<info::device::device_type>() == detail::get_forced_type())
-    return 1000;
+    Score += 1000;
 
   if (dev.is_gpu())
-    return 500;
+    Score += 500;
 
   if (dev.is_cpu())
-    return 300;
+    Score += 300;
 
   if (dev.is_host())
-    return 100;
+    Score += 100;
 
-  return -1;
+  return Score;
 }
 
 int gpu_selector::operator()(const device &dev) const {
-  return dev.is_gpu() ? 1000 : -1;
+  int Score = REJECT_DEVICE_SCORE;
+
+  if (dev.is_gpu()) {
+    Score = 1000;
+    // Give preference to device of SYCL BE.
+    if (isDeviceOfPreferredSyclBe(dev))
+      Score += 50;
+  }
+  return Score;
 }
 
 int cpu_selector::operator()(const device &dev) const {
-  return dev.is_cpu() ? 1000 : -1;
+  int Score = REJECT_DEVICE_SCORE;
+  if (dev.is_cpu()) {
+    Score = 1000;
+    // Give preference to device of SYCL BE.
+    if (isDeviceOfPreferredSyclBe(dev))
+      Score += 50;
+  }
+  return Score;
 }
 
 int accelerator_selector::operator()(const device &dev) const {
-  return dev.is_accelerator() ? 1000 : -1;
+  int Score = REJECT_DEVICE_SCORE;
+  if (dev.is_accelerator()) {
+    Score = 1000;
+    // Give preference to device of SYCL BE.
+    if (isDeviceOfPreferredSyclBe(dev))
+      Score += 50;
+  }
+  return Score;
 }
 
 int host_selector::operator()(const device &dev) const {
-  return dev.is_host() ? 1000 : -1;
+  int Score = REJECT_DEVICE_SCORE;
+  if (dev.is_host()) {
+    Score = 1000;
+    // Give preference to device of SYCL BE.
+    if (isDeviceOfPreferredSyclBe(dev))
+      Score += 50;
+  }
+  return Score;
 }
 
 } // namespace sycl

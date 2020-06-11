@@ -7,14 +7,14 @@ add_entrypoint_object(
     signal.h
     ../raise.h
   DEPENDS
-    sys_syscall_h
-    linux_syscall_h
-    signal_h
+    libc.config.linux.linux_syscall_h
+    libc.include.signal
+    libc.include.sys_syscall
 )
 
-add_object(
+add_object_library(
   __restore
-  SRC
+  SRCS
     __restore.cpp
   COMPILE_OPTIONS
     -fomit-frame-pointer
@@ -22,11 +22,11 @@ add_object(
     -Wframe-larger-than=0
     -Werror
     -Wno-attributes
-    # asan creates asan.module_ctor which uses stack space, causing warinngs.
+    # asan creates asan.module_ctor which uses stack space, causing warnings.
     -fno-sanitize=address
   DEPENDS
-    linux_syscall_h
-    sys_syscall_h
+    libc.config.linux.linux_syscall_h
+    libc.include.sys_syscall
 )
 
 add_entrypoint_object(
@@ -37,12 +37,11 @@ add_entrypoint_object(
     signal.h
     ../sigaction.h
   DEPENDS
-    __restore
-    sys_syscall_h
-    linux_syscall_h
-    signal_h
-  SPECIAL_OBJECTS
-    __restore
+    .__restore
+    libc.config.linux.linux_syscall_h
+    libc.include.signal
+    libc.include.sys_syscall
+    libc.src.errno.__errno_location
 )
 
 add_entrypoint_object(
@@ -53,10 +52,10 @@ add_entrypoint_object(
     signal.h
     ../sigprocmask.h
   DEPENDS
-    sys_syscall_h
-    linux_syscall_h
-    __errno_location
-    signal_h
+    libc.config.linux.linux_syscall_h
+    libc.include.signal
+    libc.include.sys_syscall
+    libc.src.errno.__errno_location
 )
 
 add_entrypoint_object(
@@ -67,9 +66,9 @@ add_entrypoint_object(
     signal.h
     ../sigemptyset.h
   DEPENDS
-    __errno_location
-    errno_h
-    signal_h
+    libc.include.errno
+    libc.include.signal
+    libc.src.errno.__errno_location
 )
 
 add_entrypoint_object(
@@ -80,9 +79,9 @@ add_entrypoint_object(
     signal.h
     ../sigaddset.h
   DEPENDS
-    __errno_location
-    errno_h
-    signal_h
+    libc.include.errno
+    libc.include.signal
+    libc.src.errno.__errno_location
 )
 
 add_entrypoint_object(
@@ -93,6 +92,32 @@ add_entrypoint_object(
     signal.h
     ../signal.h
   DEPENDS
-    sigaction
-    signal_h
+    .sigaction
+    libc.include.signal
+)
+
+add_entrypoint_object(
+  sigfillset
+  SRCS
+    sigfillset.cpp
+  HDRS
+    signal.h
+    ../sigfillset.h
+  DEPENDS
+    libc.include.errno
+    libc.include.signal
+    libc.src.errno.__errno_location
+)
+
+add_entrypoint_object(
+  sigdelset
+  SRCS
+    sigdelset.cpp
+  HDRS
+    signal.h
+    ../sigdelset.h
+  DEPENDS
+    libc.include.errno
+    libc.include.signal
+    libc.src.errno.__errno_location
 )

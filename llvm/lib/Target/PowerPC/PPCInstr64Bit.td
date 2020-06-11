@@ -140,6 +140,15 @@ let isCall = 1, PPC970_Unit = 7, Defs = [LR8] in {
                              (outs), (ins abscalltarget:$func),
                              "bla $func\n\tnop", IIC_BrB,
                              [(PPCcall_nop (i64 imm:$func))]>;
+    let Predicates = [PCRelativeMemops] in {
+      // BL8_NOTOC means that the caller does not use the TOC pointer and if
+      // it does use R2 then it is just a caller saved register. Therefore it is
+      // safe to emit only the bl and not the nop for this instruction. The
+      // linker will not try to restore R2 after the call.
+      def BL8_NOTOC : IForm_and_DForm_4_zero<18, 0, 1, 24, (outs),
+                                             (ins calltarget:$func),
+                                             "bl $func", IIC_BrB, []>;
+    }
   }
   let Uses = [CTR8, RM] in {
     let isPredicable = 1 in
@@ -193,6 +202,11 @@ def : Pat<(PPCcall (i64 texternalsym:$dst)),
           (BL8 texternalsym:$dst)>;
 def : Pat<(PPCcall_nop (i64 texternalsym:$dst)),
           (BL8_NOP texternalsym:$dst)>;
+
+def : Pat<(PPCcall_notoc (i64 tglobaladdr:$dst)),
+          (BL8_NOTOC tglobaladdr:$dst)>;
+def : Pat<(PPCcall_notoc (i64 texternalsym:$dst)),
+          (BL8_NOTOC texternalsym:$dst)>;
 
 // Calls for AIX
 def : Pat<(PPCcall (i64 mcsym:$dst)),
@@ -772,8 +786,9 @@ def POPCNTW : XForm_11<31, 378, (outs gprc:$rA), (ins gprc:$rS),
                        "popcntw $rA, $rS", IIC_IntGeneral,
                        [(set i32:$rA, (ctpop i32:$rS))]>;
 
-def POPCNTB : XForm_11<31, 122, (outs gprc:$rA), (ins gprc:$rS),
-                       "popcntb $rA, $rS", IIC_IntGeneral, []>;
+def POPCNTB : XForm_11<31, 122, (outs g8rc:$rA), (ins g8rc:$rS),
+                       "popcntb $rA, $rS", IIC_IntGeneral,
+                       [(set i64:$rA, (int_ppc_popcntb i64:$rS))]>;
 
 defm DIVD  : XOForm_1rcr<31, 489, 0, (outs g8rc:$rT), (ins g8rc:$rA, g8rc:$rB),
                           "divd", "$rT, $rA, $rB", IIC_IntDivD,
@@ -909,6 +924,9 @@ def ISEL8   : AForm_4<31, 15,
 }  // hasSideEffects = 0
 }  // End FXU Operations.
 
+def : InstAlias<"li $rD, $imm", (ADDI8 g8rc:$rD, ZERO8, s16imm64:$imm)>;
+def : InstAlias<"lis $rD, $imm", (ADDIS8 g8rc:$rD, ZERO8, s17imm64:$imm)>;
+
 def : InstAlias<"mr $rA, $rB", (OR8 g8rc:$rA, g8rc:$rB, g8rc:$rB)>;
 def : InstAlias<"mr. $rA, $rB", (OR8_rec g8rc:$rA, g8rc:$rB, g8rc:$rB)>;
 
@@ -926,6 +944,21 @@ def : InstAlias<"rotlwi $rA, $rS, $n", (RLWINM8 g8rc:$rA, g8rc:$rS, u5imm:$n, 0,
 def : InstAlias<"rotlwi. $rA, $rS, $n", (RLWINM8_rec g8rc:$rA, g8rc:$rS, u5imm:$n, 0, 31)>;
 def : InstAlias<"rotlw $rA, $rS, $rB", (RLWNM8 g8rc:$rA, g8rc:$rS, g8rc:$rB, 0, 31)>;
 def : InstAlias<"rotlw. $rA, $rS, $rB", (RLWNM8_rec g8rc:$rA, g8rc:$rS, g8rc:$rB, 0, 31)>;
+def : InstAlias<"clrlwi $rA, $rS, $n", (RLWINM8 g8rc:$rA, g8rc:$rS, 0, u5imm:$n, 31)>;
+def : InstAlias<"clrlwi. $rA, $rS, $n", (RLWINM8_rec g8rc:$rA, g8rc:$rS, 0, u5imm:$n, 31)>;
+
+def : InstAlias<"isellt $rT, $rA, $rB",
+                (ISEL8 g8rc:$rT, g8rc_nox0:$rA, g8rc:$rB, CR0LT)>;
+def : InstAlias<"iselgt $rT, $rA, $rB",
+                (ISEL8 g8rc:$rT, g8rc_nox0:$rA, g8rc:$rB, CR0GT)>;
+def : InstAlias<"iseleq $rT, $rA, $rB",
+                (ISEL8 g8rc:$rT, g8rc_nox0:$rA, g8rc:$rB, CR0EQ)>;
+
+def : InstAlias<"nop", (ORI8 X0, X0, 0)>;
+def : InstAlias<"xnop", (XORI8 X0, X0, 0)>;
+
+def : InstAlias<"cntlzw $rA, $rS", (CNTLZW8 g8rc:$rA, g8rc:$rS)>;
+def : InstAlias<"cntlzw. $rA, $rS", (CNTLZW8_rec g8rc:$rA, g8rc:$rS)>;
 
 //===----------------------------------------------------------------------===//
 // Load/Store instructions.
@@ -1127,7 +1160,7 @@ def ADDISgotTprelHA: PPCEmitTimePseudo<(outs g8rc:$rD), (ins g8rc_nox0:$reg, s16
                            (PPCaddisGotTprelHA i64:$reg,
                                                tglobaltlsaddr:$disp))]>,
                   isPPC64;
-def LDgotTprelL: PPCEmitTimePseudo<(outs g8rc:$rD), (ins s16imm64:$disp, g8rc_nox0:$reg),
+def LDgotTprelL: PPCEmitTimePseudo<(outs g8rc_nox0:$rD), (ins s16imm64:$disp, g8rc_nox0:$reg),
                         "#LDgotTprelL",
                         [(set i64:$rD,
                           (PPCldGotTprelL tglobaltlsaddr:$disp, i64:$reg))]>,

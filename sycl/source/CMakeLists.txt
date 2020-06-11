@@ -4,6 +4,11 @@
 #cmake_policy(SET CMP0057 NEW)
 #include(AddLLVM)
 
+configure_file(
+  ${CMAKE_CURRENT_SOURCE_DIR}/version.rc.in
+  ${CMAKE_CURRENT_BINARY_DIR}/version.rc
+  @ONLY)
+
 if (SYCL_ENABLE_XPTI_TRACING)
   if (NOT EXISTS ${LLVM_EXTERNAL_XPTI_SOURCE_DIR})
     message (FATAL_ERROR "Undefined LLVM_EXTERNAL_XPTI_SOURCE_DIR variable: Must be set when XPTI tracing is set to ON")
@@ -19,7 +24,10 @@ function(add_sycl_rt_library LIB_NAME)
   set(LIB_OBJ_NAME ${LIB_NAME}_object)
 
   add_library(${LIB_OBJ_NAME} OBJECT ${ARG_SOURCES})
-  add_library(${LIB_NAME} SHARED $<TARGET_OBJECTS:${LIB_OBJ_NAME}>)
+  add_library(${LIB_NAME} SHARED 
+              $<TARGET_OBJECTS:${LIB_OBJ_NAME}>
+              ${CMAKE_CURRENT_BINARY_DIR}/version.rc)
+    
   if (ARG_COMPILE_OPTIONS)
     target_compile_options(${LIB_OBJ_NAME} PRIVATE ${ARG_COMPILE_OPTIONS})
   endif()
@@ -54,16 +62,20 @@ function(add_sycl_rt_library LIB_NAME)
   endif()
 
   target_include_directories(
-      ${LIB_OBJ_NAME} 
-      PRIVATE 
-        ${CMAKE_CURRENT_SOURCE_DIR} 
+      ${LIB_OBJ_NAME}
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
         "${sycl_inc_dir}"
         ${OpenCL_INCLUDE_DIRS}
   )
+
+  find_package(Threads REQUIRED)
+
   target_link_libraries(${LIB_NAME}
       PRIVATE
         ${OpenCL_LIBRARIES}
         ${CMAKE_DL_LIBS}
+        ${CMAKE_THREAD_LIBS_INIT}
       PUBLIC
         $<$<BOOL:${SYCL_BUILD_PI_CUDA}>:pi_cuda>
   )
@@ -73,6 +85,10 @@ function(add_sycl_rt_library LIB_NAME)
       $<$<BOOL:${SYCL_BUILD_PI_CUDA}>:USE_PI_CUDA>)
 
   add_common_options(${LIB_NAME})
+
+  set_target_properties(${LIB_NAME} PROPERTIES
+                        VERSION ${SYCL_VERSION_STRING}
+                        SOVERSION ${SYCL_MAJOR_VERSION})
 
 endfunction(add_sycl_rt_library)
 
@@ -85,25 +101,23 @@ set(SYCL_SOURCES
     "detail/builtins_integer.cpp"
     "detail/builtins_math.cpp"
     "detail/builtins_relational.cpp"
-    "detail/cg.cpp"
     "detail/pi.cpp"
     "detail/common.cpp"
     "detail/config.cpp"
     "detail/context_impl.cpp"
+    "detail/device_binary_image.cpp"
     "detail/device_impl.cpp"
-    "detail/device_info.cpp"
     "detail/error_handling/enqueue_kernel.cpp"
     "detail/event_impl.cpp"
     "detail/force_device.cpp"
     "detail/helpers.cpp"
+    "detail/handler_proxy.cpp"
     "detail/image_accessor_util.cpp"
     "detail/image_impl.cpp"
     "detail/kernel_impl.cpp"
-    "detail/kernel_info.cpp"
     "detail/kernel_program_cache.cpp"
     "detail/memory_manager.cpp"
     "detail/platform_impl.cpp"
-    "detail/platform_info.cpp"
     "detail/program_impl.cpp"
     "detail/program_manager/program_manager.cpp"
     "detail/queue_impl.cpp"
@@ -129,11 +143,12 @@ set(SYCL_SOURCES
     "function_pointer.cpp"
     "half_type.cpp"
     "handler.cpp"
+    "interop_handle.cpp"
+    "interop_handler.cpp"
     "kernel.cpp"
     "platform.cpp"
     "program.cpp"
     "queue.cpp"
-    "ordered_queue.cpp"
     "sampler.cpp"
     "stream.cpp"
     "spirv_ops.cpp"
@@ -148,10 +163,10 @@ if (MSVC)
   foreach(flag_var
       CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
       CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINFO)
-    string(REGEX REPLACE "/MD" "" ${flag_var} "${${flag_var}}")
-    string(REGEX REPLACE "/MT" "" ${flag_var} "${${flag_var}}")
     string(REGEX REPLACE "/MDd" "" ${flag_var} "${${flag_var}}")
     string(REGEX REPLACE "/MTd" "" ${flag_var} "${${flag_var}}")
+    string(REGEX REPLACE "/MD" "" ${flag_var} "${${flag_var}}")
+    string(REGEX REPLACE "/MT" "" ${flag_var} "${${flag_var}}")
   endforeach()
 
   if (SYCL_ENABLE_XPTI_TRACING)

@@ -1,4 +1,4 @@
-//===-------- `Benchmark` function ----------------------------------------===//
+//===-- Benchmark function -----------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "LibcBenchmark.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Host.h"
 
 namespace llvm {

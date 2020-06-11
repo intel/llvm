@@ -73,14 +73,6 @@ public:
   /// \return true if this SYCL platform is a host platform.
   bool is_host() const { return MHostPlatform; };
 
-  bool is_cuda() const {
-    const string_class CUDA_PLATFORM_STRING = "NVIDIA CUDA";
-    const string_class PlatformName =
-        get_platform_info<string_class, info::platform::name>::get(MPlatform,
-                                                                   getPlugin());
-    return PlatformName == CUDA_PLATFORM_STRING;
-  }
-
   /// \return an instance of OpenCL cl_platform_id.
   cl_platform_id get() const {
     if (is_host())
@@ -118,6 +110,14 @@ public:
   const plugin &getPlugin() const {
     assert(!MHostPlatform && "Plugin is not available for Host.");
     return *MPlugin;
+  }
+
+  /// Sets the platform implementation to use another plugin.
+  ///
+  /// \param PluginPtr is a pointer to a plugin instance
+  void setPlugin(std::shared_ptr<plugin> PluginPtr) {
+    assert(!MHostPlatform && "Plugin is not available for Host");
+    MPlugin = std::move(PluginPtr);
   }
 
 private:

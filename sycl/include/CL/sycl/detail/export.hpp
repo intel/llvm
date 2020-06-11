@@ -8,7 +8,7 @@
 
 #pragma once
 
-#ifndef SYCL_DEVICE_ONLY
+#ifndef __SYCL_DEVICE_ONLY__
 #ifndef __SYCL_EXPORT
 #ifdef _WIN32
 
@@ -25,14 +25,20 @@
 #else
 #define __SYCL_EXPORT __declspec(dllimport)
 #define __SYCL_EXPORT_DEPRECATED(x) __declspec(dllimport, deprecated(x))
-#endif
-#else
+#endif //__SYCL_BUILD_SYCL_DLL
+#else  // _WIN32
 
 #define DLL_LOCAL __attribute__((visibility("hidden")))
 
 #define __SYCL_EXPORT __attribute__((visibility("default")))
 #define __SYCL_EXPORT_DEPRECATED(x)                                            \
   __attribute__((visibility("default"), deprecated(x)))
+#endif // _WIN32
+#endif // __SYCL_EXPORT
+#else
+#ifndef __SYCL_EXPORT
+#define __SYCL_EXPORT
+#define __SYCL_EXPORT_DEPRECATED(x)
+#define DLL_LOCAL
 #endif
-#endif
-#endif
+#endif // __SYCL_DEVICE_ONLY__

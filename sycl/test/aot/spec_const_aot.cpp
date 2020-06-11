@@ -2,14 +2,7 @@
 //
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64-unknown-unknown-sycldevice %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
-// XFAIL: *
-//==----------- spec_const_aot.cpp -----------------------------------------==//
 //
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-//
-//===----------------------------------------------------------------------===//
 // The test checks that the specialization constant feature works with ahead
 // of time compilation.
 

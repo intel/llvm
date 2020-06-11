@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "HIP.h"
+#include "AMDGPU.h"
 #include "CommonArgs.h"
 #include "InputInfo.h"
 #include "clang/Basic/Cuda.h"
@@ -16,6 +17,7 @@
 #include "clang/Driver/Options.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/TargetParser.h"
 
 using namespace clang::driver;
 using namespace clang::driver::toolchains;
@@ -190,8 +192,9 @@ void AMDGCN::Linker::constructLldCommand(Compilation &C, const JobAction &JA,
                                           const char *InputFileName) const {
   // Construct lld command.
   // The output from ld.lld is an HSA code object file.
-  ArgStringList LldArgs{
-      "-flavor", "gnu", "-shared", "-o", Output.getFilename(), InputFileName};
+  ArgStringList LldArgs{"-flavor",    "gnu", "--no-undefined",
+                        "-shared",    "-o",  Output.getFilename(),
+                        InputFileName};
   const char *Lld = Args.MakeArgString(getToolChain().GetProgramPath("lld"));
   C.addCommand(std::make_unique<Command>(JA, *this, Lld, LldArgs, Inputs));
 }
@@ -266,7 +269,7 @@ void AMDGCN::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
 HIPToolChain::HIPToolChain(const Driver &D, const llvm::Triple &Triple,
                              const ToolChain &HostTC, const ArgList &Args)
-    : ToolChain(D, Triple, Args), HostTC(HostTC) {
+    : ROCMToolChain(D, Triple, Args), HostTC(HostTC) {
   // Lookup binaries into the driver directory, this is used to
   // discover the clang-offload-bundler executable.
   getProgramPaths().push_back(getDriver().Dir);
@@ -283,6 +286,8 @@ void HIPToolChain::addClangTargetOptions(
   (void) GpuArch;
   assert(DeviceOffloadingKind == Action::OFK_HIP &&
          "Only HIP offloading kinds are supported for GPUs.");
+  auto Kind = llvm::AMDGPU::parseArchAMDGCN(GpuArch);
+  const StringRef CanonArch = llvm::AMDGPU::getArchNameAMDGCN(Kind);
 
   CC1Args.push_back("-target-cpu");
   CC1Args.push_back(DriverArgs.MakeArgStringRef(GpuArch));
@@ -329,41 +334,45 @@ void HIPToolChain::addClangTargetOptions(
 
   addDirectoryList(DriverArgs, LibraryPaths, "", "HIP_DEVICE_LIB_PATH");
 
-  llvm::SmallVector<std::string, 10> BCLibs;
+  // Maintain compatability with --hip-device-lib.
+  auto BCLibs = DriverArgs.getAllArgValues(options::OPT_hip_device_lib_EQ);
+  if (!BCLibs.empty()) {
+    for (auto Lib : BCLibs)
+      addBCLib(getDriver(), DriverArgs, CC1Args, LibraryPaths, Lib);
+  } else {
+    if (!RocmInstallation.isValid()) {
+      getDriver().Diag(diag::err_drv_no_rocm_installation);
+      return;
+    }
 
-  // Add bitcode library in --hip-device-lib.
-  for (auto Lib : DriverArgs.getAllArgValues(options::OPT_hip_device_lib_EQ)) {
-    BCLibs.push_back(DriverArgs.MakeArgString(Lib));
+    std::string LibDeviceFile = RocmInstallation.getLibDeviceFile(CanonArch);
+    if (LibDeviceFile.empty()) {
+      getDriver().Diag(diag::err_drv_no_rocm_device_lib) << GpuArch;
+      return;
+    }
+
+    // If --hip-device-lib is not set, add the default bitcode libraries.
+    // TODO: There are way too many flags that change this. Do we need to check
+    // them all?
+    bool DAZ = DriverArgs.hasFlag(options::OPT_fcuda_flush_denormals_to_zero,
+                                  options::OPT_fno_cuda_flush_denormals_to_zero,
+                                  getDefaultDenormsAreZeroForTarget(Kind));
+    // TODO: Check standard C++ flags?
+    bool FiniteOnly = false;
+    bool UnsafeMathOpt = false;
+    bool FastRelaxedMath = false;
+    bool CorrectSqrt = true;
+    bool Wave64 = isWave64(DriverArgs, Kind);
+
+    // Add the HIP specific bitcode library.
+    CC1Args.push_back("-mlink-builtin-bitcode");
+    CC1Args.push_back(DriverArgs.MakeArgString(RocmInstallation.getHIPPath()));
+
+    // Add the generic set of libraries.
+    RocmInstallation.addCommonBitcodeLibCC1Args(
+      DriverArgs, CC1Args, LibDeviceFile, Wave64, DAZ, FiniteOnly,
+      UnsafeMathOpt, FastRelaxedMath, CorrectSqrt);
   }
-
-  // If --hip-device-lib is not set, add the default bitcode libraries.
-  if (BCLibs.empty()) {
-    // Get the bc lib file name for ISA version. For example,
-    // gfx803 => oclc_isa_version_803.amdgcn.bc.
-    std::string GFXVersion = GpuArch.drop_front(3).str();
-    std::string ISAVerBC = "oclc_isa_version_" + GFXVersion + ".amdgcn.bc";
-
-    llvm::StringRef FlushDenormalControlBC;
-    if (DriverArgs.hasArg(options::OPT_fcuda_flush_denormals_to_zero))
-      FlushDenormalControlBC = "oclc_daz_opt_on.amdgcn.bc";
-    else
-      FlushDenormalControlBC = "oclc_daz_opt_off.amdgcn.bc";
-
-    llvm::StringRef WaveFrontSizeBC;
-    if (stoi(GFXVersion) < 1000)
-      WaveFrontSizeBC = "oclc_wavefrontsize64_on.amdgcn.bc";
-    else
-      WaveFrontSizeBC = "oclc_wavefrontsize64_off.amdgcn.bc";
-
-    BCLibs.append({"hip.amdgcn.bc", "ocml.amdgcn.bc", "ockl.amdgcn.bc",
-                   "oclc_finite_only_off.amdgcn.bc",
-                   std::string(FlushDenormalControlBC),
-                   "oclc_correctly_rounded_sqrt_on.amdgcn.bc",
-                   "oclc_unsafe_math_off.amdgcn.bc", ISAVerBC,
-                   std::string(WaveFrontSizeBC)});
-  }
-  for (auto Lib : BCLibs)
-    addBCLib(getDriver(), DriverArgs, CC1Args, LibraryPaths, Lib);
 }
 
 llvm::opt::DerivedArgList *

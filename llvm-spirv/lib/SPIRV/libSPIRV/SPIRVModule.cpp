@@ -417,6 +417,11 @@ public:
                                         SPIRVBasicBlock *) override;
   SPIRVInstruction *addSampledImageInst(SPIRVType *, SPIRVValue *, SPIRVValue *,
                                         SPIRVBasicBlock *) override;
+  SPIRVInstruction *addAssumeTrueINTELInst(SPIRVValue *Condition,
+                                           SPIRVBasicBlock *BB) override;
+  SPIRVInstruction *addExpectINTELInst(SPIRVType *ResultTy, SPIRVValue *Value,
+                                       SPIRVValue *ExpectedValue,
+                                       SPIRVBasicBlock *BB) override;
 
   virtual SPIRVId getExtInstSetId(SPIRVExtInstSetKind Kind) const override;
 
@@ -595,7 +600,16 @@ void SPIRVModuleImpl::addCapability(SPIRVCapabilityKind Cap) {
   if (hasCapability(Cap))
     return;
 
-  CapMap.insert(std::make_pair(Cap, new SPIRVCapability(this, Cap)));
+  auto *CapObj = new SPIRVCapability(this, Cap);
+  if (AutoAddExtensions) {
+    // While we are reading existing SPIR-V we need to read it as-is and don't
+    // add required extensions for each entry automatically
+    for (auto &E : CapObj->getRequiredExtensions()) {
+      addExtension(E);
+    }
+  }
+
+  CapMap.insert(std::make_pair(Cap, CapObj));
 }
 
 void SPIRVModuleImpl::addCapabilityInternal(SPIRVCapabilityKind Cap) {
@@ -1477,6 +1491,22 @@ SPIRVInstruction *SPIRVModuleImpl::addSampledImageInst(SPIRVType *ResultTy,
                         BB);
 }
 
+SPIRVInstruction *SPIRVModuleImpl::addAssumeTrueINTELInst(SPIRVValue *Condition,
+                                                          SPIRVBasicBlock *BB) {
+  return addInstruction(new SPIRVAssumeTrueINTEL(Condition->getId(), BB), BB);
+}
+
+SPIRVInstruction *SPIRVModuleImpl::addExpectINTELInst(SPIRVType *ResultTy,
+                                                      SPIRVValue *Value,
+                                                      SPIRVValue *ExpectedValue,
+                                                      SPIRVBasicBlock *BB) {
+  return addInstruction(SPIRVInstTemplateBase::create(
+                            OpExpectINTEL, ResultTy, getId(),
+                            getVec(Value->getId(), ExpectedValue->getId()), BB,
+                            this),
+                        BB);
+}
+
 SPIRVInstruction *SPIRVModuleImpl::addVariable(
     SPIRVType *Type, bool IsConstant, SPIRVLinkageTypeKind LinkageType,
     SPIRVValue *Initializer, const std::string &Name,
@@ -1736,6 +1766,12 @@ static std::string to_string(uint32_t Version) {
     break;
   case static_cast<uint32_t>(VersionNumber::SPIRV_1_1):
     Res = "1.1";
+    break;
+  case static_cast<uint32_t>(VersionNumber::SPIRV_1_2):
+    Res = "1.2";
+    break;
+  case static_cast<uint32_t>(VersionNumber::SPIRV_1_3):
+    Res = "1.3";
     break;
   default:
     Res = "unknown";

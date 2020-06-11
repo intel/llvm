@@ -865,8 +865,8 @@ public:
   /// Get the address of the RTTI descriptor for the given type.
   llvm::Constant *GetAddrOfRTTIDescriptor(QualType Ty, bool ForEH = false);
 
-  /// Get the address of a uuid descriptor .
-  ConstantAddress GetAddrOfUuidDescriptor(const CXXUuidofExpr* E);
+  /// Get the address of a GUID.
+  ConstantAddress GetAddrOfMSGuidDecl(const MSGuidDecl *GD);
 
   /// Get the address of the thunk for the given global decl.
   llvm::Constant *GetAddrOfThunk(StringRef Name, llvm::Type *FnTy,
@@ -1050,7 +1050,7 @@ public:
   void MaybeHandleStaticInExternC(const SomeDecl *D, llvm::GlobalValue *GV);
 
   /// Add a global to a list to be added to the llvm.used metadata.
-  void addUsedGlobal(llvm::GlobalValue *GV, bool SkipCheck = false);
+  void addUsedGlobal(llvm::GlobalValue *GV);
 
   /// Add a global to a list to be added to the llvm.compiler.used metadata.
   void addCompilerUsedGlobal(llvm::GlobalValue *GV);
@@ -1183,7 +1183,11 @@ public:
   /// on the function more conservative.  But it's unsafe to call this on a
   /// function which relies on particular fast-math attributes for correctness.
   /// It's up to you to ensure that this is safe.
-  void AddDefaultFnAttrs(llvm::Function &F);
+  void addDefaultFunctionDefinitionAttributes(llvm::Function &F);
+
+  /// Like the overload taking a `Function &`, but intended specifically
+  /// for frontends that want to build on Clang's target-configuration logic.
+  void addDefaultFunctionDefinitionAttributes(llvm::AttrBuilder &attrs);
 
   StringRef getMangledName(GlobalDecl GD);
   StringRef getBlockMangledName(GlobalDecl GD, const BlockDecl *BD);
@@ -1310,11 +1314,6 @@ public:
   /// \param D Requires declaration
   void EmitOMPRequiresDecl(const OMPRequiresDecl *D);
 
-  /// Emits the definition of \p OldGD function with body from \p NewGD.
-  /// Required for proper handling of declare variant directive on the GPU.
-  void emitOpenMPDeviceFunctionRedefinition(GlobalDecl OldGD, GlobalDecl NewGD,
-                                            llvm::GlobalValue *GV);
-
   /// Returns whether the given record has hidden LTO visibility and therefore
   /// may participate in (single-module) CFI and whole-program vtable
   /// optimization.
@@ -1399,6 +1398,14 @@ public:
   /// \param T is the LLVM type of the null pointer.
   /// \param QT is the clang QualType of the null pointer.
   llvm::Constant *getNullPointer(llvm::PointerType *T, QualType QT);
+
+  CharUnits getNaturalTypeAlignment(QualType T,
+                                    LValueBaseInfo *BaseInfo = nullptr,
+                                    TBAAAccessInfo *TBAAInfo = nullptr,
+                                    bool forPointeeType = false);
+  CharUnits getNaturalPointeeTypeAlignment(QualType T,
+                                           LValueBaseInfo *BaseInfo = nullptr,
+                                           TBAAAccessInfo *TBAAInfo = nullptr);
 
 private:
   llvm::Constant *GetOrCreateLLVMFunction(
@@ -1536,9 +1543,6 @@ private:
   /// .gcda files in a way that persists in .bc files.
   void EmitCoverageFile();
 
-  /// Emits the initializer for a uuidof string.
-  llvm::Constant *EmitUuidofInitializer(StringRef uuidstr);
-
   /// Determine whether the definition must be emitted; if this returns \c
   /// false, the definition can be emitted lazily if it's used.
   bool MustBeEmitted(const ValueDecl *D);
@@ -1553,11 +1557,12 @@ private:
   /// function.
   void SimplifyPersonality();
 
-  /// Helper function for ConstructAttributeList and AddDefaultFnAttrs.
-  /// Constructs an AttrList for a function with the given properties.
-  void ConstructDefaultFnAttrList(StringRef Name, bool HasOptnone,
-                                  bool AttrOnCallSite,
-                                  llvm::AttrBuilder &FuncAttrs);
+  /// Helper function for ConstructAttributeList and
+  /// addDefaultFunctionDefinitionAttributes.  Builds a set of function
+  /// attributes to add to a function with the given properties.
+  void getDefaultFunctionAttributes(StringRef Name, bool HasOptnone,
+                                    bool AttrOnCallSite,
+                                    llvm::AttrBuilder &FuncAttrs);
 
   llvm::Metadata *CreateMetadataIdentifierImpl(QualType T, MetadataTypeMap &Map,
                                                StringRef Suffix);

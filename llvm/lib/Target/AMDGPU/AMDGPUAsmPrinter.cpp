@@ -49,6 +49,22 @@ using namespace llvm;
 using namespace llvm::AMDGPU;
 using namespace llvm::AMDGPU::HSAMD;
 
+// We need to tell the runtime some amount ahead of time if we don't know the
+// true stack size. Assume a smaller number if this is only due to dynamic /
+// non-entry block allocas.
+static cl::opt<uint32_t> AssumedStackSizeForExternalCall(
+  "amdgpu-assume-external-call-stack-size",
+  cl::desc("Assumed stack use of any external call (in bytes)"),
+  cl::Hidden,
+  cl::init(16384));
+
+static cl::opt<uint32_t> AssumedStackSizeForDynamicSizeObjects(
+  "amdgpu-assume-dynamic-stack-object-size",
+  cl::desc("Assumed extra stack use if there are any "
+           "variable sized objects (in bytes)"),
+  cl::Hidden,
+  cl::init(4096));
+
 // This should get the default rounding mode from the kernel. We just set the
 // default here, but this could change if the OpenCL rounding mode pragmas are
 // used.
@@ -637,8 +653,13 @@ AMDGPUAsmPrinter::SIFunctionResourceInfo AMDGPUAsmPrinter::analyzeResourceUsage(
     Info.UsesFlatScratch = false;
   }
 
-  Info.HasDynamicallySizedStack = FrameInfo.hasVarSizedObjects();
   Info.PrivateSegmentSize = FrameInfo.getStackSize();
+
+  // Assume a big number if there are any unknown sized objects.
+  Info.HasDynamicallySizedStack = FrameInfo.hasVarSizedObjects();
+  if (Info.HasDynamicallySizedStack)
+    Info.PrivateSegmentSize += AssumedStackSizeForDynamicSizeObjects;
+
   if (MFI->isStackRealigned())
     Info.PrivateSegmentSize += FrameInfo.getMaxAlign().value();
 
@@ -715,6 +736,7 @@ AMDGPUAsmPrinter::SIFunctionResourceInfo AMDGPUAsmPrinter::analyzeResourceUsage(
         case AMDGPU::SRC_PRIVATE_BASE:
         case AMDGPU::SRC_PRIVATE_LIMIT:
         case AMDGPU::SGPR_NULL:
+        case AMDGPU::MODE:
           continue;
 
         case AMDGPU::SRC_POPS_EXITING_WAVE_ID:
@@ -727,6 +749,10 @@ AMDGPUAsmPrinter::SIFunctionResourceInfo AMDGPUAsmPrinter::analyzeResourceUsage(
         case AMDGPU::VCC:
         case AMDGPU::VCC_LO:
         case AMDGPU::VCC_HI:
+        case AMDGPU::VCC_LO_LO16:
+        case AMDGPU::VCC_LO_HI16:
+        case AMDGPU::VCC_HI_LO16:
+        case AMDGPU::VCC_HI_HI16:
           Info.UsesVCC = true;
           continue;
 
@@ -764,15 +790,20 @@ AMDGPUAsmPrinter::SIFunctionResourceInfo AMDGPUAsmPrinter::analyzeResourceUsage(
           break;
         }
 
-        if (AMDGPU::SReg_32RegClass.contains(Reg)) {
+        if (AMDGPU::SReg_32RegClass.contains(Reg) ||
+            AMDGPU::SReg_LO16RegClass.contains(Reg) ||
+            AMDGPU::SGPR_HI16RegClass.contains(Reg)) {
           assert(!AMDGPU::TTMP_32RegClass.contains(Reg) &&
                  "trap handler registers should not be used");
           IsSGPR = true;
           Width = 1;
-        } else if (AMDGPU::VGPR_32RegClass.contains(Reg)) {
+        } else if (AMDGPU::VGPR_32RegClass.contains(Reg) ||
+                   AMDGPU::VGPR_LO16RegClass.contains(Reg) ||
+                   AMDGPU::VGPR_HI16RegClass.contains(Reg)) {
           IsSGPR = false;
           Width = 1;
-        } else if (AMDGPU::AGPR_32RegClass.contains(Reg)) {
+        } else if (AMDGPU::AGPR_32RegClass.contains(Reg) ||
+                   AMDGPU::AGPR_LO16RegClass.contains(Reg)) {
           IsSGPR = false;
           IsAGPR = true;
           Width = 1;
@@ -794,6 +825,10 @@ AMDGPUAsmPrinter::SIFunctionResourceInfo AMDGPUAsmPrinter::analyzeResourceUsage(
         } else if (AMDGPU::SReg_96RegClass.contains(Reg)) {
           IsSGPR = true;
           Width = 3;
+        } else if (AMDGPU::AReg_96RegClass.contains(Reg)) {
+          IsSGPR = false;
+          IsAGPR = true;
+          Width = 3;
         } else if (AMDGPU::SReg_128RegClass.contains(Reg)) {
           assert(!AMDGPU::TTMP_128RegClass.contains(Reg) &&
             "trap handler registers should not be used");
@@ -812,6 +847,20 @@ AMDGPUAsmPrinter::SIFunctionResourceInfo AMDGPUAsmPrinter::analyzeResourceUsage(
         } else if (AMDGPU::SReg_160RegClass.contains(Reg)) {
           IsSGPR = true;
           Width = 5;
+        } else if (AMDGPU::AReg_160RegClass.contains(Reg)) {
+          IsSGPR = false;
+          IsAGPR = true;
+          Width = 5;
+        } else if (AMDGPU::VReg_192RegClass.contains(Reg)) {
+          IsSGPR = false;
+          Width = 6;
+        } else if (AMDGPU::SReg_192RegClass.contains(Reg)) {
+          IsSGPR = true;
+          Width = 6;
+        } else if (AMDGPU::AReg_192RegClass.contains(Reg)) {
+          IsSGPR = false;
+          IsAGPR = true;
+          Width = 6;
         } else if (AMDGPU::SReg_256RegClass.contains(Reg)) {
           assert(!AMDGPU::TTMP_256RegClass.contains(Reg) &&
             "trap handler registers should not be used");
@@ -819,6 +868,10 @@ AMDGPUAsmPrinter::SIFunctionResourceInfo AMDGPUAsmPrinter::analyzeResourceUsage(
           Width = 8;
         } else if (AMDGPU::VReg_256RegClass.contains(Reg)) {
           IsSGPR = false;
+          Width = 8;
+        } else if (AMDGPU::AReg_256RegClass.contains(Reg)) {
+          IsSGPR = false;
+          IsAGPR = true;
           Width = 8;
         } else if (AMDGPU::SReg_512RegClass.contains(Reg)) {
           assert(!AMDGPU::TTMP_512RegClass.contains(Reg) &&
@@ -875,7 +928,9 @@ AMDGPUAsmPrinter::SIFunctionResourceInfo AMDGPUAsmPrinter::analyzeResourceUsage(
           MaxVGPR = std::max(MaxVGPR, 23);
           MaxAGPR = std::max(MaxAGPR, 23);
 
-          CalleeFrameSize = std::max(CalleeFrameSize, UINT64_C(16384));
+          CalleeFrameSize = std::max(CalleeFrameSize,
+            static_cast<uint64_t>(AssumedStackSizeForExternalCall));
+
           Info.UsesVCC = true;
           Info.UsesFlatScratch = ST.hasFlatAddressSpace();
           Info.HasDynamicallySizedStack = true;
@@ -1307,7 +1362,18 @@ bool AMDGPUAsmPrinter::PrintAsmOperand(const MachineInstr *MI, unsigned OpNo,
     AMDGPUInstPrinter::printRegOperand(MO.getReg(), O,
                                        *MF->getSubtarget().getRegisterInfo());
     return false;
+  } else if (MO.isImm()) {
+    int64_t Val = MO.getImm();
+    if (AMDGPU::isInlinableIntLiteral(Val)) {
+      O << Val;
+    } else if (isUInt<16>(Val)) {
+      O << format("0x%" PRIx64, static_cast<uint16_t>(Val));
+    } else if (isUInt<32>(Val)) {
+      O << format("0x%" PRIx64, static_cast<uint32_t>(Val));
+    } else {
+      O << format("0x%" PRIx64, static_cast<uint64_t>(Val));
+    }
+    return false;
   }
-
   return true;
 }

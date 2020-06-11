@@ -68,25 +68,25 @@
 # CHECK-NEXT: --
 # CHECK-NEXT: true
 # CHECK-NEXT: --
-# CHECK: Testing Time
-
-# CHECK: Unexpected Passing Tests (1)
-# CHECK: shtest-format :: xpass.txt
 
 # CHECK: Failing Tests (3)
 # CHECK: shtest-format :: external_shell/fail.txt
 # CHECK: shtest-format :: external_shell/fail_with_bad_encoding.txt
 # CHECK: shtest-format :: fail.txt
 
+# CHECK: Unexpected Passing Tests (1)
+# CHECK: shtest-format :: xpass.txt
+
+# CHECK: Testing Time:
+# CHECK: Unsupported Tests  : 4
 # CHECK: Expected Passes    : 7
 # CHECK: Expected Failures  : 4
-# CHECK: Unsupported Tests  : 4
 # CHECK: Unresolved Tests   : 3
-# CHECK: Unexpected Passes  : 1
 # CHECK: Unexpected Failures: 3
+# CHECK: Unexpected Passes  : 1
 
 
-# XUNIT: <?xml version="1.0" encoding="UTF-8" ?>
+# XUNIT: <?xml version="1.0" encoding="UTF-8"?>
 # XUNIT-NEXT: <testsuites>
 # XUNIT-NEXT: <testsuite name="shtest-format" tests="22" failures="7" skipped="4">
 
@@ -118,7 +118,7 @@
 # XUNIT: <testcase classname="shtest-format.shtest-format" name="pass.txt" time="{{[0-9]+\.[0-9]+}}"/>
 
 # XUNIT: <testcase classname="shtest-format.shtest-format" name="requires-missing.txt" time="{{[0-9]+\.[0-9]+}}">
-# XUNIT-NEXT:<skipped message="Skipping because of: a-missing-feature" />
+# XUNIT-NEXT:<skipped message="Missing required feature(s): a-missing-feature"/>
 
 # XUNIT: <testcase classname="shtest-format.shtest-format" name="requires-present.txt" time="{{[0-9]+\.[0-9]+}}"/>
 
@@ -129,12 +129,12 @@
 
 
 # XUNIT: <testcase classname="shtest-format.shtest-format" name="requires-triple.txt" time="{{[0-9]+\.[0-9]+}}">
-# XUNIT-NEXT:<skipped message="Skipping because of: x86_64" />
+# XUNIT-NEXT:<skipped message="Missing required feature(s): x86_64"/>
 
 # XUNIT: <testcase classname="shtest-format.shtest-format" name="unsupported-expr-false.txt" time="{{[0-9]+\.[0-9]+}}"/>
 
 # XUNIT: <testcase classname="shtest-format.shtest-format" name="unsupported-expr-true.txt" time="{{[0-9]+\.[0-9]+}}">
-# XUNIT-NEXT:<skipped message="Skipping because of configuration." />
+# XUNIT-NEXT:<skipped message="Skipping because of configuration"/>
 
 # XUNIT: <testcase classname="shtest-format.shtest-format" name="unsupported-star.txt" time="{{[0-9]+\.[0-9]+}}">
 # XUNIT-NEXT: <failure{{[ ]*}}>
@@ -142,7 +142,7 @@
 # XUNIT-NEXT: </testcase>
 
 # XUNIT: <testcase classname="shtest-format.unsupported_dir" name="some-test.txt" time="{{[0-9]+\.[0-9]+}}">
-# XUNIT-NEXT:<skipped message="Skipping because of configuration." />
+# XUNIT-NEXT:<skipped message="Skipping because of configuration"/>
 
 # XUNIT: <testcase classname="shtest-format.shtest-format" name="xfail-expr-false.txt" time="{{[0-9]+\.[0-9]+}}"/>
 

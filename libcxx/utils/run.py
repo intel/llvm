@@ -14,26 +14,27 @@ program's error code.
 
 import argparse
 import os
+import shutil
 import subprocess
 import sys
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--codesign_identity', type=str, required=False)
-    parser.add_argument('--working_directory', type=str, required=True)
-    parser.add_argument('--dependencies', type=str, nargs='*', required=True)
-    parser.add_argument('--env', type=str, nargs='*', required=True)
+    parser.add_argument('--execdir', type=str, required=True)
+    parser.add_argument('--codesign_identity', type=str, required=False, default=None)
+    parser.add_argument('--dependencies', type=str, nargs='*', required=False, default=[])
+    parser.add_argument('--env', type=str, nargs='*', required=False, default=dict())
     (args, remaining) = parser.parse_known_args(sys.argv[1:])
 
     if len(remaining) < 2:
         sys.stderr.write('Missing actual commands to run')
         exit(1)
-    remaining = remaining[1:] # Skip the '--'
+    commandLine = remaining[1:] # Skip the '--'
 
     # Do any necessary codesigning.
     if args.codesign_identity:
-        exe = remaining[0]
+        exe = commandLine[0]
         rc = subprocess.call(['xcrun', 'codesign', '-f', '-s', args.codesign_identity, exe], env={})
         if rc != 0:
             sys.stderr.write('Failed to codesign: ' + exe)
@@ -42,14 +43,25 @@ def main():
     # Extract environment variables into a dictionary
     env = {k : v  for (k, v) in map(lambda s: s.split('=', 1), args.env)}
 
-    # Ensure the file dependencies exist
-    for file in args.dependencies:
-        if not os.path.exists(file):
-            sys.stderr.write('Missing file {} marked as a dependency of a test'.format(file))
-            exit(1)
+    # Create the execution directory, and make sure we remove it at the end.
+    try:
+        os.makedirs(args.execdir)
 
-    # Run the executable with the given environment in the given working directory
-    return subprocess.call(remaining, cwd=args.working_directory, env=env)
+        # Ensure the file dependencies exist and copy them to the execution directory.
+        for dep in args.dependencies:
+            if not os.path.exists(dep):
+                sys.stderr.write('Missing file or directory "{}" marked as a dependency of a test'.format(dep))
+                exit(1)
+            if os.path.isdir(dep):
+                shutil.copytree(dep, os.path.join(args.execdir, os.path.basename(dep)), symlinks=True)
+            else:
+                shutil.copy2(dep, args.execdir)
+
+        # Run the command line with the given environment in the execution directory.
+        return subprocess.call(subprocess.list2cmdline(commandLine), cwd=args.execdir, env=env, shell=True)
+    finally:
+        shutil.rmtree(args.execdir)
+
 
 if __name__ == '__main__':
     exit(main())

@@ -1,4 +1,4 @@
-# Table-driven Operation Definition Specification (ODS)
+# Operation Definition Specification (ODS)
 
 In addition to specializing the `mlir::Op` C++ template, MLIR also supports
 defining operations in a table-driven manner. This is achieved via
@@ -10,7 +10,7 @@ equivalent `mlir::Op` C++ template specialization at compiler build time.
 This manual explains in detail all the available mechanisms for defining
 operations in such a table-driven manner. It aims to be a specification instead
 of a tutorial. Please refer to [Quickstart tutorial to adding MLIR graph
-rewrite](QuickstartRewrites.md) for the latter.
+rewrite](Tutorials/QuickstartRewrites.md) for the latter.
 
 In addition to detailing each mechanism, this manual also tries to capture
 best practices. They are rendered as quoted bullet points.
@@ -146,7 +146,7 @@ template parameter to the `Op` class.
 
 ### Operation documentation
 
-This includes both an one-line `summary` and a longer human-readable
+This includes both a one-line `summary` and a longer human-readable
 `description`. They will be used to drive automatic generation of dialect
 documentation. They need to be provided in the operation's definition body:
 
@@ -221,11 +221,28 @@ To declare a variadic operand, wrap the `TypeConstraint` for the operand with
 
 Normally operations have no variadic operands or just one variadic operand. For
 the latter case, it is easy to deduce which dynamic operands are for the static
-variadic operand definition. But if an operation has more than one variadic
-operands, it would be impossible to attribute dynamic operands to the
-corresponding static variadic operand definitions without further information
-from the operation. Therefore, the `SameVariadicOperandSize` trait is needed to
-indicate that all variadic operands have the same number of dynamic values.
+variadic operand definition. Though, if an operation has more than one variable
+length operands (either optional or variadic), it would be impossible to
+attribute dynamic operands to the corresponding static variadic operand
+definitions without further information from the operation. Therefore, either
+the `SameVariadicOperandSize` or `AttrSizedOperandSegments` trait is needed to
+indicate that all variable length operands have the same number of dynamic
+values.
+
+#### Optional operands
+
+To declare an optional operand, wrap the `TypeConstraint` for the operand with
+`Optional<...>`.
+
+Normally operations have no optional operands or just one optional operand. For
+the latter case, it is easy to deduce which dynamic operands are for the static
+operand definition. Though, if an operation has more than one variable length
+operands (either optional or variadic), it would be impossible to attribute
+dynamic operands to the corresponding static variadic operand definitions
+without further information from the operation. Therefore, either the
+`SameVariadicOperandSize` or `AttrSizedOperandSegments` trait is needed to
+indicate that all variable length operands have the same number of dynamic
+values.
 
 #### Optional attributes
 
@@ -264,6 +281,24 @@ Right now, the following primitive constraints are supported:
     `I`-th element to be greater than or equal to `N`
 
 TODO: Design and implement more primitive constraints
+
+### Operation regions
+
+The regions of an operation are specified inside of the `dag`-typed `regions`,
+led by `region`:
+
+```tablegen
+let regions = (region
+  <region-constraint>:$<region-name>,
+  ...
+);
+```
+
+#### Variadic regions
+
+Similar to the `Variadic` class used for variadic operands and results,
+`VariadicRegion<...>` can be used for regions. Variadic regions can currently
+only be specified as the last region in the regions list.
 
 ### Operation results
 
@@ -313,13 +348,14 @@ class. See [Constraints](#constraints) for more information.
 
 ### Operation interfaces
 
-[Operation interfaces](Interfaces.md#operation-interfaces) are a mechanism by
-which to opaquely call methods and access information on an *Op instance*,
-without knowing the exact operation type. Operation interfaces defined in C++
-can be accessed in the ODS framework via the `OpInterfaceTrait` class. Aside
-from using pre-existing interfaces in the C++ API, the ODS framework also
-provides a simplified mechanism for defining such interfaces; that removes much
-of the boilerplate necessary.
+[Operation interfaces](Interfaces.md#operation-interfaces) allow
+operations to expose method calls without the
+caller needing to know the exact operation type. Operation interfaces
+defined in C++ can be accessed in the ODS framework via the
+`OpInterfaceTrait` class. Aside from using pre-existing interfaces in
+the C++ API, the ODS framework also provides a simplified mechanism
+for defining such interfaces which removes much of the boilerplate
+necessary.
 
 Providing a definition of the `OpInterface` class will auto-generate the C++
 classes for the interface. An `OpInterface` includes a name, for the C++ class,
@@ -407,7 +443,7 @@ def MyInterface : OpInterface<"MyInterface"> {
     // Provide only a default definition of the method.
     // Note: `ConcreteOp` corresponds to the derived operation typename.
     InterfaceMethod<"/*insert doc here*/",
-      "unsigned", "getNumInputsAndOutputs", (ins), /*methodBody=*/[{}], [{
+      "unsigned", "getNumWithDefault", (ins), /*methodBody=*/[{}], [{
         ConcreteOp op = cast<ConcreteOp>(getOperation());
         return op.getNumInputs() + op.getNumOutputs();
     }]>,
@@ -420,6 +456,13 @@ def MyInterface : OpInterface<"MyInterface"> {
 // declaration but instead handled by the op interface trait directly.
 def OpWithInferTypeInterfaceOp : Op<...
     [DeclareOpInterfaceMethods<MyInterface>]> { ... }
+
+// Methods that have a default implementation do not have declarations
+// generated. If an operation wishes to override the default behavior, it can
+// explicitly specify the method that it wishes to override. This will force
+// the generation of a declaration for those methods.
+def OpWithOverrideInferTypeInterfaceOp : Op<...
+    [DeclareOpInterfaceMethods<MyInterface, ["getNumWithDefault"]>]> { ... }
 ```
 
 A verification method can also be specified on the `OpInterface` by setting
@@ -455,14 +498,14 @@ The following builders are generated:
 
 ```c++
 // All result-types/operands/attributes have one aggregate parameter.
-static void build(Builder *odsBuilder, OperationState &odsState,
+static void build(OpBuilder &odsBuilder, OperationState &odsState,
                   ArrayRef<Type> resultTypes,
                   ValueRange operands,
                   ArrayRef<NamedAttribute> attributes);
 
 // Each result-type/operand/attribute has a separate parameter. The parameters
 // for attributes are of mlir::Attribute types.
-static void build(Builder *odsBuilder, OperationState &odsState,
+static void build(OpBuilder &odsBuilder, OperationState &odsState,
                   Type i32_result, Type f32_result, ...,
                   Value i32_operand, Value f32_operand, ...,
                   IntegerAttr i32_attr, FloatAttr f32_attr, ...);
@@ -471,22 +514,21 @@ static void build(Builder *odsBuilder, OperationState &odsState,
 // for attributes are raw values unwrapped with mlir::Attribute instances.
 // (Note that this builder will not always be generated. See the following
 // explanation for more details.)
-static void build(Builder *odsBuilder, OperationState &odsState,
+static void build(OpBuilder &odsBuilder, OperationState &odsState,
                   Type i32_result, Type f32_result, ...,
                   Value i32_operand, Value f32_operand, ...,
                   APInt i32_attr, StringRef f32_attr, ...);
 
 // Each operand/attribute has a separate parameter but result type is aggregate.
-static void build(Builder *odsBuilder, OperationState &odsState,
+static void build(OpBuilder &odsBuilder, OperationState &odsState,
                   ArrayRef<Type> resultTypes,
                   Value i32_operand, Value f32_operand, ...,
                   IntegerAttr i32_attr, FloatAttr f32_attr, ...);
 
 // All operands/attributes have aggregate parameters.
-// Generated if InferTypeOpInterface interface is specified.
-static void build(Builder *odsBuilder, OperationState &odsState,
-                  ValueRange operands,
-                  ArrayRef<NamedAttribute> attributes);
+// Generated if return type can be inferred.
+static void build(OpBuilder &odsBuilder, OperationState &odsState,
+                  ValueRange operands, ArrayRef<NamedAttribute> attributes);
 
 // (And manually specified builders depending on the specific op.)
 ```
@@ -510,6 +552,12 @@ behavior is essentially due to C++ function parameter default value placement
 restrictions.) Otherwise, the builder of the third form will still be generated
 but default values for the attributes not at the end of the `arguments` list
 will not be supplied in the builder's signature.
+
+ODS will generate a builder that doesn't require return type specified if
+
+*   Op implements InferTypeOpInterface interface;
+*   All return types are either buildable types or are the same as a given
+    operand (e.g., `AllTypesMatch` constraint between operand and result);
 
 And there may potentially exist other builders depending on the specific op;
 please refer to the
@@ -546,8 +594,8 @@ def MyOp : ... {
   ...
 
   let builders = [
-    OpBuilder<"Builder *builder, OperationState &state, float val = 0.5f", [{
-      state.addAttribute("attr", builder->getF32FloatAttr(val));
+    OpBuilder<"OpBuilder &builder, OperationState &state, float val = 0.5f", [{
+      state.addAttribute("attr", builder.getF32FloatAttr(val));
     }]>
   ];
 }
@@ -556,8 +604,8 @@ def MyOp : ... {
 The generated builder will look like:
 
 ```c++
-static void build(Builder *builder, OperationState &state, float val = 0.5f) {
-  state.addAttribute("attr", builder->getF32FloatAttr(val));
+static void build(OpBuilder &builder, OperationState &state, float val = 0.5f) {
+  state.addAttribute("attr", builder.getF32FloatAttr(val));
 }
 ```
 
@@ -675,7 +723,7 @@ information. An optional group is defined by wrapping a set of elements within
     the group.
     -   Any attribute variable may be used, but only optional attributes can be
         marked as the anchor.
-    -   Only variadic, i.e. optional, operand arguments can be used.
+    -   Only variadic or optional operand arguments can be used.
     -   The operands to a type directive must be defined within the optional
         group.
 
@@ -710,7 +758,7 @@ to:
    -  Note that `attr-dict` does not overlap with individual attributes. These
       attributes will simply be elided when printing the attribute dictionary.
 
-##### Type Inferrence
+##### Type Inference
 
 One requirement of the format is that the types of operands and results must
 always be present. In certain instances, the type of a variable may be deduced
@@ -828,7 +876,7 @@ significantly involve writing constraints. We have the `Constraint` class in
 
 An operation's constraint can cover different range; it may
 
-* Only concern a single attribute (e.g. being an 32-bit integer greater than 5),
+* Only concern a single attribute (e.g. being a 32-bit integer greater than 5),
 * Multiple operands and results (e.g., the 1st result's shape must be the same
   as the 1st operand), or
 * Intrinsic to the operation itself (e.g., having no side effect).
@@ -981,9 +1029,36 @@ duplication, which is being worked on right now.
 
 ## Attribute Definition
 
+An attribute is a compile-time known constant of an operation.
+
+ODS provides attribute wrappers over C++ attribute classes. There are a few
+common C++ [attribute classes][AttrClasses] defined in MLIR's core IR library
+and one is free to define dialect-specific attribute classes. ODS allows one
+to use these attributes in TableGen to define operations, potentially with
+more fine-grained constraints. For example, `StrAttr` directly maps to
+`StringAttr`; `F32Attr`/`F64Attr` requires the `FloatAttr` to additionally
+be of a certain bitwidth.
+
+ODS attributes are defined as having a storage type (corresponding to a backing
+`mlir::Attribute` that _stores_ the attribute), a return type (corresponding to
+the C++ _return_ type of the generated of the helper getters) as well as method
+to convert between the internal storage and the helper method.
+
+### Attribute decorators
+
+There are a few important attribute adapters/decorators/modifers that can be
+applied to ODS attributes to specify common additional properties like
+optionality, default values, etc.:
+
+*   `DefaultValuedAttr`: specifies the
+    [default value](#attributes-with-default-values) for an attribute.
+*   `OptionalAttr`: specifies an attribute as [optional](#optional-attributes).
+*   `Confined`: adapts an attribute with
+    [further constraints](#confining-attributes).
+
 ### Enum attributes
 
-Some attributes can only take values from an predefined enum, e.g., the
+Some attributes can only take values from a predefined enum, e.g., the
 comparison kind of a comparison op. To define such attributes, ODS provides
 several mechanisms: `StrEnumAttr`, `IntEnumAttr`, and `BitEnumAttr`.
 
@@ -1193,19 +1268,6 @@ llvm::Optional<MyBitEnum> symbolizeMyBitEnum(uint32_t value) {
 }
 ```
 
-TODO(b/132506080): This following is outdated. Update it.
-
-An attribute is a compile time known constant of an operation. Attributes are
-required to be known to construct an operation (e.g., the padding behavior is
-required to fully define the `conv2d` op).
-
-Attributes are defined as having a storage type (corresponding to a derived
-class of `mlir::Attribute`), a return type (that corresponds to the C++ type to
-use in the generation of the helper accessors) as well as method to convert
-between the internal storage and the helper method. Derived attributes are a
-special class of attributes that do not have storage but are instead calculated
-based on the operation and its attributes.
-
 ## Debugging Tips
 
 ### Run `mlir-tblgen` to see the generated content
@@ -1304,8 +1366,9 @@ requirements that were desirable:
 [TableGenIntro]: https://llvm.org/docs/TableGen/LangIntro.html
 [TableGenRef]: https://llvm.org/docs/TableGen/LangRef.html
 [TableGenBackend]: https://llvm.org/docs/TableGen/BackEnds.html#introduction
-[OpBase]: ../include/mlir/IR/OpBase.td
-[OpDefinitionsGen]: ../tools/mlir-tblgen/OpDefinitionsGen.cpp
-[EnumsGen]: ../tools/mlir-tblgen/EnumsGen.cpp
+[OpBase]: https://github.com/llvm/llvm-project/blob/master/mlir/include/mlir/IR/OpBase.td
+[OpDefinitionsGen]: https://github.com/llvm/llvm-project/blob/master/mlir/tools/mlir-tblgen/OpDefinitionsGen.cpp
+[EnumsGen]: https://github.com/llvm/llvm-project/blob/master/mlir/tools/mlir-tblgen/EnumsGen.cpp
 [StringAttr]: LangRef.md#string-attribute
 [IntegerAttr]: LangRef.md#integer-attribute
+[AttrClasses]: https://github.com/llvm/llvm-project/blob/master/mlir/include/mlir/IR/Attributes.h

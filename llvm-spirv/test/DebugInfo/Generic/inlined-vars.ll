@@ -1,9 +1,12 @@
 ; RUN: llvm-as < %s -o %t.bc
-; RUN: llvm-spirv %t.bc -o %t.spv -spirv-mem2reg=false
+; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 
 ; RUN: llc -mtriple=%triple -O0 < %t.ll | FileCheck %s -check-prefix ARGUMENT
 ; RUN: llc -mtriple=%triple -O0 < %t.ll | FileCheck %s -check-prefix VARIABLE
+
+target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
+target triple = "spir64-unknown-unknown"
 ; PR 13202
 
 define i32 @main() uwtable !dbg !5 {
@@ -57,5 +60,3 @@ declare void @llvm.dbg.value(metadata, metadata, metadata) nounwind readnone
 !25 = !DILocation(line: 6, column: 3, scope: !10, inlinedAt: !19)
 !26 = !DIFile(filename: "inline-bug.cc", directory: "/tmp/dbginfo/pr13202")
 !27 = !{i32 1, !"Debug Info Version", i32 3}
-target triple = "spir64-unknown-unknown"
-target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"

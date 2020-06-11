@@ -75,6 +75,7 @@ enum ActionType {
   GenArmSveBuiltins,
   GenArmSveBuiltinCG,
   GenArmSveTypeFlags,
+  GenArmSveRangeChecks,
   GenArmCdeHeader,
   GenArmCdeBuiltinDef,
   GenArmCdeBuiltinSema,
@@ -200,6 +201,8 @@ cl::opt<ActionType> Action(
                    "Generate arm_sve_builtin_cg_map.inc for clang"),
         clEnumValN(GenArmSveTypeFlags, "gen-arm-sve-typeflags",
                    "Generate arm_sve_typeflags.inc for clang"),
+        clEnumValN(GenArmSveRangeChecks, "gen-arm-sve-sema-rangechecks",
+                   "Generate arm_sve_sema_rangechecks.inc for clang"),
         clEnumValN(GenArmMveHeader, "gen-arm-mve-header",
                    "Generate arm_mve.h for clang"),
         clEnumValN(GenArmMveBuiltinDef, "gen-arm-mve-builtin-def",
@@ -395,6 +398,9 @@ bool ClangTableGenMain(raw_ostream &OS, RecordKeeper &Records) {
     break;
   case GenArmSveTypeFlags:
     EmitSveTypeFlags(Records, OS);
+    break;
+  case GenArmSveRangeChecks:
+    EmitSveRangeChecks(Records, OS);
     break;
   case GenArmCdeHeader:
     EmitCdeHeader(Records, OS);

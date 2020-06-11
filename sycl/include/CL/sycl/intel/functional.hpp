@@ -53,6 +53,9 @@ template <> struct maximum<void> {
 #endif
 
 template <typename T = void> using plus = std::plus<T>;
+template <typename T = void> using bit_or = std::bit_or<T>;
+template <typename T = void> using bit_xor = std::bit_xor<T>;
+template <typename T = void> using bit_and = std::bit_and<T>;
 
 } // namespace intel
 
@@ -82,7 +85,7 @@ struct GroupOpTag<T, detail::enable_if_t<detail::is_sgenfloat<T>::value>> {
 
 #define __SYCL_CALC_OVERLOAD(GroupTag, SPIRVOperation, BinaryOperation)        \
   template <typename T, __spv::GroupOperation O, __spv::Scope::Flag S>         \
-  static T calc(GroupTag, T x, BinaryOperation op) {                           \
+  static T calc(GroupTag, T x, BinaryOperation) {                              \
     using OCLT = detail::ConvertToOpenCLType_t<T>;                             \
     OCLT Arg = x;                                                              \
     OCLT Ret =                                                                 \

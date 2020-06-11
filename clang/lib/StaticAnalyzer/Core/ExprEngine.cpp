@@ -1413,6 +1413,8 @@ void ExprEngine::Visit(const Stmt *S, ExplodedNode *Pred,
     case Stmt::SubstNonTypeTemplateParmExprClass:
     case Stmt::CXXNullPtrLiteralExprClass:
     case Stmt::OMPArraySectionExprClass:
+    case Stmt::OMPArrayShapingExprClass:
+    case Stmt::OMPIteratorExprClass:
     case Stmt::TypeTraitExprClass: {
       Bldr.takeNodes(Pred);
       ExplodedNodeSet preVisit;
@@ -1647,8 +1649,10 @@ void ExprEngine::Visit(const Stmt *S, ExplodedNode *Pred,
       ExplodedNodeSet PreVisit;
       const auto *CDE = cast<CXXDeleteExpr>(S);
       getCheckerManager().runCheckersForPreStmt(PreVisit, Pred, S, *this);
+      ExplodedNodeSet PostVisit;
+      getCheckerManager().runCheckersForPostStmt(PostVisit, PreVisit, S, *this);
 
-      for (const auto i : PreVisit)
+      for (const auto i : PostVisit)
         VisitCXXDeleteExpr(CDE, i, Dst);
 
       Bldr.addNodes(Dst);
@@ -1714,7 +1718,8 @@ void ExprEngine::Visit(const Stmt *S, ExplodedNode *Pred,
     case Stmt::CXXConstCastExprClass:
     case Stmt::CXXFunctionalCastExprClass:
     case Stmt::BuiltinBitCastExprClass:
-    case Stmt::ObjCBridgedCastExprClass: {
+    case Stmt::ObjCBridgedCastExprClass:
+    case Stmt::CXXAddrspaceCastExprClass: {
       Bldr.takeNodes(Pred);
       const auto *C = cast<CastExpr>(S);
       ExplodedNodeSet dstExpr;
@@ -3173,9 +3178,10 @@ std::string ExprEngine::DumpGraph(bool trim, StringRef Filename) {
                             /*Title=*/"Exploded Graph",
                             /*Filename=*/std::string(Filename));
   }
-#endif
+#else
   llvm::errs() << "Warning: dumping graph requires assertions" << "\n";
   return "";
+#endif
 }
 
 std::string ExprEngine::DumpGraph(ArrayRef<const ExplodedNode*> Nodes,
@@ -3200,3 +3206,5 @@ void *ProgramStateTrait<ReplayWithoutInlining>::GDMIndex() {
   static int index = 0;
   return &index;
 }
+
+void ExprEngine::anchor() { }

@@ -10,6 +10,8 @@
 
 #include <CL/sycl/accessor.hpp>
 #include <CL/sycl/atomic.hpp>
+#include <CL/sycl/backend.hpp>
+#include <CL/sycl/backend/opencl.hpp>
 #include <CL/sycl/buffer.hpp>
 #include <CL/sycl/builtins.hpp>
 #include <CL/sycl/context.hpp>
@@ -24,13 +26,13 @@
 #include <CL/sycl/intel/builtins.hpp>
 #include <CL/sycl/intel/function_pointer.hpp>
 #include <CL/sycl/intel/group_algorithm.hpp>
+#include <CL/sycl/intel/reduction.hpp>
 #include <CL/sycl/intel/sub_group.hpp>
 #include <CL/sycl/item.hpp>
 #include <CL/sycl/kernel.hpp>
 #include <CL/sycl/multi_ptr.hpp>
 #include <CL/sycl/nd_item.hpp>
 #include <CL/sycl/nd_range.hpp>
-#include <CL/sycl/ordered_queue.hpp>
 #include <CL/sycl/pipes.hpp>
 #include <CL/sycl/platform.hpp>
 #include <CL/sycl/pointers.hpp>

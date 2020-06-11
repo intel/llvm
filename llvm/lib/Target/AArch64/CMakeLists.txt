@@ -8,8 +8,10 @@ tablegen(LLVM AArch64GenDAGISel.inc -gen-dag-isel)
 tablegen(LLVM AArch64GenDisassemblerTables.inc -gen-disassembler)
 tablegen(LLVM AArch64GenFastISel.inc -gen-fast-isel)
 tablegen(LLVM AArch64GenGlobalISel.inc -gen-global-isel)
-tablegen(LLVM AArch64GenGICombiner.inc -gen-global-isel-combiner
+tablegen(LLVM AArch64GenPreLegalizeGICombiner.inc -gen-global-isel-combiner
               -combiners="AArch64PreLegalizerCombinerHelper")
+tablegen(LLVM AArch64GenPostLegalizeGICombiner.inc -gen-global-isel-combiner
+              -combiners="AArch64PostLegalizerCombinerHelper")
 tablegen(LLVM AArch64GenInstrInfo.inc -gen-instr-info)
 tablegen(LLVM AArch64GenMCCodeEmitter.inc -gen-emitter)
 tablegen(LLVM AArch64GenMCPseudoLowering.inc -gen-pseudo-lowering)
@@ -48,9 +50,11 @@ add_llvm_target(AArch64CodeGen
   AArch64InstructionSelector.cpp
   AArch64LegalizerInfo.cpp
   AArch64LoadStoreOptimizer.cpp
+  AArch64MachineFunctionInfo.cpp
   AArch64MacroFusion.cpp
   AArch64MCInstLower.cpp
   AArch64PreLegalizerCombiner.cpp
+  AArch64PostLegalizerCombiner.cpp
   AArch64PromoteConstant.cpp
   AArch64PBQPRegAlloc.cpp
   AArch64RegisterBankInfo.cpp
@@ -64,6 +68,7 @@ add_llvm_target(AArch64CodeGen
   AArch64TargetMachine.cpp
   AArch64TargetObjectFile.cpp
   AArch64TargetTransformInfo.cpp
+  SVEIntrinsicOpts.cpp
   AArch64SIMDInstrOpt.cpp
 
   DEPENDS

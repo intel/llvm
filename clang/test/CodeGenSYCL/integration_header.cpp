@@ -1,4 +1,4 @@
-// RUN: %clang -I %S/Inputs -fsycl-device-only -Xclang -fsycl-int-header=%t.h %s -c -o %T/kernel.spv
+// RUN: %clang_cc1 -I %S/Inputs -fsycl -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -fsycl-int-header=%t.h %s -fsyntax-only
 // RUN: FileCheck -input-file=%t.h %s
 //
 // CHECK: #include <CL/sycl/detail/kernel_desc.hpp>
@@ -21,6 +21,7 @@
 // CHECK-NEXT:   "_ZTSN16second_namespace13second_kernelIcEE",
 // CHECK-NEXT:   "_ZTS12third_kernelILi1Ei5pointIZ4mainE1XEE"
 // CHECK-NEXT:   "_ZTS13fourth_kernelIJN15template_arg_ns14namespaced_argILi1EEEEE"
+// CHECK-NEXT:   "_ZTSZ4mainE16accessor_in_base"
 // CHECK-NEXT: };
 //
 // CHECK: static constexpr
@@ -45,12 +46,19 @@
 // CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 0 },
 // CHECK-NEXT:   { kernel_param_kind_t::kind_accessor, 6112, 4 },
 // CHECK-EMPTY:
+// CHECK-NEXT:   //--- _ZTSZ4mainE16accessor_in_base
+// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 64, 0 },
+// CHECK-NEXT:   { kernel_param_kind_t::kind_accessor, 4062, 8 },
+// CHECK-NEXT:   { kernel_param_kind_t::kind_accessor, 4062, 24 },
+// CHECK-NEXT:   { kernel_param_kind_t::kind_accessor, 4062, 40 },
+// CHECK-NEXT:   { kernel_param_kind_t::kind_accessor, 4062, 52 },
+// CHECK-EMPTY:
 // CHECK-NEXT: };
 //
 // CHECK: template <> struct KernelInfo<class first_kernel> {
 // CHECK: template <> struct KernelInfo<::second_namespace::second_kernel<char>> {
-// CHECK: template <> struct KernelInfo<::third_kernel<1, int, ::point<X> >> {
-// CHECK: template <> struct KernelInfo<::fourth_kernel< ::template_arg_ns::namespaced_arg<1> >> {
+// CHECK: template <> struct KernelInfo<::third_kernel<1, int, ::point<X>>> {
+// CHECK: template <> struct KernelInfo<::fourth_kernel<::template_arg_ns::namespaced_arg<1>>> {
 
 #include "sycl.hpp"
 
@@ -76,6 +84,28 @@ struct namespaced_arg {};
 
 template <typename... Ts>
 class fourth_kernel;
+
+namespace accessor_in_base {
+struct other_base {
+  int i;
+};
+struct base {
+  int i, j;
+  cl::sycl::accessor<char, 1, cl::sycl::access::mode::read> acc;
+};
+
+struct base2 : other_base,
+               cl::sycl::accessor<char, 1, cl::sycl::access::mode::read> {
+  int i;
+  cl::sycl::accessor<char, 1, cl::sycl::access::mode::read> acc;
+};
+
+struct captured : base, base2 {
+  cl::sycl::accessor<char, 1, cl::sycl::access::mode::read> acc;
+  void use() const {}
+};
+
+}; // namespace accessor_in_base
 
 int main() {
 
@@ -119,6 +149,12 @@ int main() {
       if (i == 13) {
         acc2.use();
       }
+  });
+
+  // FIXME: We cannot use the member-capture because all the handlers except the
+  // integration header handler in SemaSYCL don't handle base types right.
+  accessor_in_base::captured c;
+  kernel_single_task<class accessor_in_base>([c]() {
   });
 
   return 0;
