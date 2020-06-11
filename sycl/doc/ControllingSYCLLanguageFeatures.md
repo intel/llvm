@@ -72,11 +72,19 @@ standard version.
 
 Enabling/disabling extensions is done via single `-sycl-ext` option. It accepts
 comma-separated list of extension names prefixed with `+` or `-` to indicate
-whether particular extension should be enabled or disabled.
+whether particular extension should be enabled or disabled. It is possible to
+specify that option several times: value from each next occurrence will be added
+to already specified ones, forming single extensions string.
 
 Example: `-sycl-ext=+EXTENSION_NAME1,-EXTENSION_NAME2` - this option specifies
 that `EXTENSION_NAME1` extension should be enabled and `EXTENSION_NAME2` should
-be disabled.
+be disabled. `-sycl-ext=+EXTENSION_NAME1 -sycl-ext=-EXTENSION_NAME2` gives the
+same result.
+
+When the same extension is mentioned several times within single (or several)
+`-sycl-ext` options, the last occurrence overrides all previous ones, i.e.
+`-sycl-ext=+EXTENSION_NAME1,-EXTENSION_NAME1,+EXTENSION_NAME1` will leave
+`EXTENSION_NAME1` enabled.
 
 When particular extension is enabled, the compiler automatically defines a macro
 with the same name, i.e. if `-sycl-ext=EXTENSION_NAME1` command line option was
