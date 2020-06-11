@@ -1755,6 +1755,7 @@ pi_result piProgramLink(pi_context Context, pi_uint32 NumDevices,
                         const pi_program *InputPrograms,
                         void (*PFnNotify)(pi_program Program, void *UserData),
                         void *UserData, pi_program *RetProgram) {
+  die("piProgramLink: Program Linking is not supported yet in Level0");
 
   // TODO: L0 builds the program at the time of piProgramCreate.
   // But build options are not available at that time, so we must
@@ -1836,6 +1837,7 @@ pi_result piProgramRetain(pi_program Program) {
 
 pi_result piProgramRelease(pi_program Program) {
   assert(Program);
+  assert((Program->RefCount > 0) && "Program is already released.");
   if (--(Program->RefCount) == 0) {
     // TODO: call zeModuleDestroy for non-interop L0 modules
     delete Program;
