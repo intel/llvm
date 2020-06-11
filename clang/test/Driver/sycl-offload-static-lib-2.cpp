@@ -93,7 +93,7 @@
 /// test behaviors for special case handling of -z and -rpath
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -z anystring -L/dummy/dir %t.o -Wl,-rpath,nopass -Wl,-z,nopass %t.a %t_2.a -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefixes=WL_CHECK
-// WL_CHECK-NOT: ld{{(.exe)?}} "-r" {{.*}} "{{.*}}crt1.o" "{{.*}}crti.o" "-L/dummy/dir" {{.*}}"anystring" {{.*}}"nopass" {{.*}} "{{.*}}crtn.o"
+// WL_CHECK-NOT: ld{{.*}} "-r" {{.*}} "anystring"
 // WL_CHECK: ld{{.*}} "-z" "anystring" {{.*}} "-rpath" "nopass" "-z" "nopass"
 
 /// ###########################################################################
