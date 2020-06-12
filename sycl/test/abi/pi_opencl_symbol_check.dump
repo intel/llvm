@@ -17,7 +17,7 @@ piProgramCreate
 piProgramLink
 piQueueCreate
 piSamplerCreate
-piclProgramCreateWithBinary
+piProgramCreateWithBinary
 piclProgramCreateWithSource
 piextContextCreateWithNativeHandle
 piextContextGetNativeHandle

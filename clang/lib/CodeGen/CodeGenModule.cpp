@@ -113,6 +113,7 @@ CodeGenModule::CodeGenModule(ASTContext &C, const HeaderSearchOptions &HSO,
   Int32Ty = llvm::Type::getInt32Ty(LLVMContext);
   Int64Ty = llvm::Type::getInt64Ty(LLVMContext);
   HalfTy = llvm::Type::getHalfTy(LLVMContext);
+  BFloatTy = llvm::Type::getBFloatTy(LLVMContext);
   FloatTy = llvm::Type::getFloatTy(LLVMContext);
   DoubleTy = llvm::Type::getDoubleTy(LLVMContext);
   PointerWidthInBits = C.getTargetInfo().getPointerWidth(0);
@@ -648,8 +649,16 @@ void CodeGenModule::Release() {
     SPIRVerMD->addOperand(llvm::MDNode::get(Ctx, SPIRVerElts));
     // We are trying to look like OpenCL C++ for SPIR-V translator.
     // 4 - OpenCL_CPP, 100000 - OpenCL C++ version 1.0
+    // 6 - ESIMD, if any kernel or function is an explicit SIMD one
+    int Lang = llvm::any_of(TheModule,
+                            [](const auto &F) {
+                              return F.getMetadata("sycl_explicit_simd");
+                            })
+                   ? 6
+                   : 4;
+
     llvm::Metadata *SPIRVSourceElts[] = {
-        llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(Int32Ty, 4)),
+        llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(Int32Ty, Lang)),
         llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(Int32Ty, 100000))};
     llvm::NamedMDNode *SPIRVSourceMD =
         TheModule.getOrInsertNamedMetadata("spirv.Source");

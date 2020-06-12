@@ -525,11 +525,11 @@ CallInst *IRBuilderBase::CreateMaskedGather(Value *Ptrs, Align Alignment,
   auto PtrsTy = cast<VectorType>(Ptrs->getType());
   auto PtrTy = cast<PointerType>(PtrsTy->getElementType());
   unsigned NumElts = PtrsTy->getNumElements();
-  Type *DataTy = VectorType::get(PtrTy->getElementType(), NumElts);
+  auto *DataTy = FixedVectorType::get(PtrTy->getElementType(), NumElts);
 
   if (!Mask)
-    Mask = Constant::getAllOnesValue(VectorType::get(Type::getInt1Ty(Context),
-                                     NumElts));
+    Mask = Constant::getAllOnesValue(
+        FixedVectorType::get(Type::getInt1Ty(Context), NumElts));
 
   if (!PassThru)
     PassThru = UndefValue::get(DataTy);
@@ -564,8 +564,8 @@ CallInst *IRBuilderBase::CreateMaskedScatter(Value *Data, Value *Ptrs,
 #endif
 
   if (!Mask)
-    Mask = Constant::getAllOnesValue(VectorType::get(Type::getInt1Ty(Context),
-                                     NumElts));
+    Mask = Constant::getAllOnesValue(
+        FixedVectorType::get(Type::getInt1Ty(Context), NumElts));
 
   Type *OverloadedTypes[] = {DataTy, PtrsTy};
   Value *Ops[] = {Data, Ptrs, getInt32(Alignment.value()), Mask};
@@ -575,11 +575,10 @@ CallInst *IRBuilderBase::CreateMaskedScatter(Value *Data, Value *Ptrs,
   return CreateMaskedIntrinsic(Intrinsic::masked_scatter, Ops, OverloadedTypes);
 }
 
-template <typename T0, typename T1>
+template <typename T0>
 static std::vector<Value *>
 getStatepointArgs(IRBuilderBase &B, uint64_t ID, uint32_t NumPatchBytes,
-                  Value *ActualCallee, uint32_t Flags, ArrayRef<T0> CallArgs,
-                  ArrayRef<T1> GCArgs) {
+                  Value *ActualCallee, uint32_t Flags, ArrayRef<T0> CallArgs) {
   std::vector<Value *> Args;
   Args.push_back(B.getInt64(ID));
   Args.push_back(B.getInt32(NumPatchBytes));
@@ -591,15 +590,15 @@ getStatepointArgs(IRBuilderBase &B, uint64_t ID, uint32_t NumPatchBytes,
   // They will be removed from the signature of gc.statepoint shortly.
   Args.push_back(B.getInt32(0));
   Args.push_back(B.getInt32(0));
-  Args.insert(Args.end(), GCArgs.begin(), GCArgs.end());
-
+  // GC args are now encoded in the gc-live operand bundle
   return Args;
 }
 
-template<typename T1, typename T2>
+template<typename T1, typename T2, typename T3>
 static std::vector<OperandBundleDef>
 getStatepointBundles(Optional<ArrayRef<T1>> TransitionArgs,
-                     Optional<ArrayRef<T2>> DeoptArgs) {
+                     Optional<ArrayRef<T2>> DeoptArgs,
+                     ArrayRef<T3> GCArgs) {
   std::vector<OperandBundleDef> Rval;
   if (DeoptArgs) {
     SmallVector<Value*, 16> DeoptValues;
@@ -611,6 +610,11 @@ getStatepointBundles(Optional<ArrayRef<T1>> TransitionArgs,
     TransitionValues.insert(TransitionValues.end(),
                             TransitionArgs->begin(), TransitionArgs->end());
     Rval.emplace_back("gc-transition", TransitionValues);
+  }
+  if (GCArgs.size()) {
+    SmallVector<Value*, 16> LiveValues;
+    LiveValues.insert(LiveValues.end(), GCArgs.begin(), GCArgs.end());
+    Rval.emplace_back("gc-live", LiveValues);
   }
   return Rval;
 }
@@ -636,10 +640,11 @@ static CallInst *CreateGCStatepointCallCommon(
 
   std::vector<Value *> Args =
       getStatepointArgs(*Builder, ID, NumPatchBytes, ActualCallee, Flags,
-                        CallArgs, GCArgs);
+                        CallArgs);
 
   return Builder->CreateCall(FnStatepoint, Args,
-                             getStatepointBundles(TransitionArgs, DeoptArgs),
+                             getStatepointBundles(TransitionArgs, DeoptArgs,
+                                                  GCArgs),
                              Name);
 }
 
@@ -690,10 +695,11 @@ static InvokeInst *CreateGCStatepointInvokeCommon(
 
   std::vector<Value *> Args =
       getStatepointArgs(*Builder, ID, NumPatchBytes, ActualInvokee, Flags,
-                        InvokeArgs, GCArgs);
+                        InvokeArgs);
 
   return Builder->CreateInvoke(FnStatepoint, NormalDest, UnwindDest, Args,
-                               getStatepointBundles(TransitionArgs, DeoptArgs),
+                               getStatepointBundles(TransitionArgs, DeoptArgs,
+                                                    GCArgs),
                                Name);
 }
 
@@ -994,12 +1000,13 @@ Value *IRBuilderBase::CreateVectorSplat(unsigned NumElts, Value *V,
 
   // First insert it into an undef vector so we can shuffle it.
   Type *I32Ty = getInt32Ty();
-  Value *Undef = UndefValue::get(VectorType::get(V->getType(), NumElts));
+  Value *Undef = UndefValue::get(FixedVectorType::get(V->getType(), NumElts));
   V = CreateInsertElement(Undef, V, ConstantInt::get(I32Ty, 0),
                           Name + ".splatinsert");
 
   // Shuffle the value across the desired number of elements.
-  Value *Zeros = ConstantAggregateZero::get(VectorType::get(I32Ty, NumElts));
+  Value *Zeros =
+      ConstantAggregateZero::get(FixedVectorType::get(I32Ty, NumElts));
   return CreateShuffleVector(V, Undef, Zeros, Name + ".splat");
 }
 

@@ -61,7 +61,8 @@ public:
   static ProgramManager &getInstance();
   RTDeviceBinaryImage &getDeviceImage(OSModuleHandle M,
                                       const string_class &KernelName,
-                                      const context &Context);
+                                      const context &Context,
+                                      bool JITCompilationIsRequired = false);
   RT::PiProgram createPIProgram(const RTDeviceBinaryImage &Img,
                                 const context &Context);
   /// Builds or retrieves from cache a program defining the kernel with given
@@ -74,9 +75,12 @@ public:
   ///        current specialization constants settings; can be nullptr.
   ///        Passing as a raw pointer is OK, since it is not captured anywhere
   ///        once the function returns.
+  /// \param JITCompilationIsRequired If JITCompilationIsRequired is true
+  ///        add a check that kernel is compiled, otherwise don't add the check.
   RT::PiProgram getBuiltPIProgram(OSModuleHandle M, const context &Context,
                                   const string_class &KernelName,
-                                  const program_impl *Prg = nullptr);
+                                  const program_impl *Prg = nullptr,
+                                  bool JITCompilationIsRequired = false);
   RT::PiKernel getOrCreateKernel(OSModuleHandle M, const context &Context,
                                  const string_class &KernelName,
                                  const program_impl *Prg);
@@ -111,7 +115,8 @@ private:
   ProgramManager &operator=(ProgramManager const &) = delete;
 
   RTDeviceBinaryImage &getDeviceImage(OSModuleHandle M, KernelSetId KSId,
-                                      const context &Context);
+                                      const context &Context,
+                                      bool JITCompilationIsRequired = false);
   using ProgramPtr = unique_ptr_class<remove_pointer_t<RT::PiProgram>,
                                       decltype(&::piProgramRelease)>;
   ProgramPtr build(ProgramPtr Program, const ContextImplPtr Context,
