@@ -25,23 +25,24 @@ int main() {
 
 // Check kernel_A parameters
 // CHECK: define spir_kernel void @{{.*}}kernel_A
-// CHECK-SAME: i32 addrspace(1)* [[MEM_ARG1:%[a-zA-Z0-9_]+]],
-// CHECK-SAME: %"struct.{{.*}}.cl::sycl::range"* byval{{.*}}align 4 [[ACC_RANGE1:%[a-zA-Z0-9_]+_1]],
-// CHECK-SAME: %"struct.{{.*}}.cl::sycl::range"* byval{{.*}}align 4 [[MEM_RANGE1:%[a-zA-Z0-9_]+_2]],
-// CHECK-SAME: %"struct.{{.*}}.cl::sycl::id"* byval{{.*}}align 4 [[OFFSET1:%[a-zA-Z0-9_]+_3]],
-// CHECK-SAME: i32 addrspace(1)* [[MEM_ARG2:%[a-zA-Z0-9_]+_4]],
-// CHECK-SAME: %"struct.{{.*}}.cl::sycl::range"* byval{{.*}}align 4 [[ACC_RANGE2:%[a-zA-Z0-9_]+_6]],
-// CHECK-SAME: %"struct.{{.*}}.cl::sycl::range"* byval{{.*}}align 4 [[MEM_RANGE2:%[a-zA-Z0-9_]+_7]],
-// CHECK-SAME: %"struct.{{.*}}.cl::sycl::id"* byval{{.*}}align 4 [[OFFSET2:%[a-zA-Z0-9_]+_8]])
+// CHECK-SAME: %struct.{{.*}}.wrapped_array* byval{{.*}}align 4 %_arg_,
+// CHECK-SAME: i32 addrspace(1)* [[MEM_ARG1:%[a-zA-Z0-9_]+_1]],
+// CHECK-SAME: %"struct.{{.*}}.cl::sycl::range"* byval{{.*}}align 4 [[ACC_RANGE1:%[a-zA-Z0-9_]+_2]],
+// CHECK-SAME: %"struct.{{.*}}.cl::sycl::range"* byval{{.*}}align 4 [[MEM_RANGE1:%[a-zA-Z0-9_]+_3]],
+// CHECK-SAME: %"struct.{{.*}}.cl::sycl::id"* byval{{.*}}align 4 [[OFFSET1:%[a-zA-Z0-9_]+_4]],
+// CHECK-SAME: i32 addrspace(1)* [[MEM_ARG2:%[a-zA-Z0-9_]+_5]],
+// CHECK-SAME: %"struct.{{.*}}.cl::sycl::range"* byval{{.*}}align 4 [[ACC_RANGE2:%[a-zA-Z0-9_]+_7]],
+// CHECK-SAME: %"struct.{{.*}}.cl::sycl::range"* byval{{.*}}align 4 [[MEM_RANGE2:%[a-zA-Z0-9_]+_8]],
+// CHECK-SAME: %"struct.{{.*}}.cl::sycl::id"* byval{{.*}}align 4 [[OFFSET2:%[a-zA-Z0-9_]+_9]])
 
-// Check alloca for pointer arguments
-// CHECK: [[MEM_ARG1]].addr{{[0-9]*}} = alloca i32 addrspace(1)*, align 8
-// CHECK: [[MEM_ARG1]].addr{{[0-9]*}} = alloca i32 addrspace(1)*, align 8
+// CHECK alloca for pointer arguments
+// CHECK: [[MEM_ARG1:%[a-zA-Z0-9_.]+]] = alloca i32 addrspace(1)*, align 8
+// CHECK: [[MEM_ARG2:%[a-zA-Z0-9_.]+]] = alloca i32 addrspace(1)*, align 8
 
-// Check lambda object alloca
+// CHECK lambda object alloca
 // CHECK: [[LOCAL_OBJECT:%0]] = alloca %"class.{{.*}}.anon", align 4
 
-// Check allocas for ranges
+// CHECK allocas for ranges
 // CHECK: [[ACC_RANGE1:%[a-zA-Z0-9_.]+]] = alloca %"struct.{{.*}}.cl::sycl::range"
 // CHECK: [[MEM_RANGE1:%[a-zA-Z0-9_.]+]] = alloca %"struct.{{.*}}.cl::sycl::range"
 // CHECK: [[OFFSET1:%[a-zA-Z0-9_.]+]] = alloca %"struct.{{.*}}.cl::sycl::id"
@@ -49,26 +50,30 @@ int main() {
 // CHECK: [[MEM_RANGE2:%[a-zA-Z0-9_.]+]] = alloca %"struct.{{.*}}.cl::sycl::range"
 // CHECK: [[OFFSET2:%[a-zA-Z0-9_.]+]] = alloca %"struct.{{.*}}.cl::sycl::id"
 
-// Check accessor array GEP for acc[0]
-// CHECK: [[ACCESSOR_ARRAY1:%[a-zA-Z0-9_]+]] = getelementptr inbounds %"class.{{.*}}.anon", %"class.{{.*}}.anon"* [[LOCAL_OBJECT]], i32 0, i32 0
-// CHECK: [[Z0:%[a-zA-Z0-9_]*]] = getelementptr inbounds{{.*}}[[ACCESSOR_ARRAY1]], i64 0, i64 0
+// Check array initialization
+// CHECK: arrayinit.body:
+// CHECK: arrayinit.end:
 
-// Check load from kernel pointer argument alloca
-// CHECK: [[MEM_LOAD1:%[a-zA-Z0-9_]+]] = load i32 addrspace(1)*, i32 addrspace(1)** [[MEM_ARG1]].addr{{[0-9]*}}
+//  CHECK accessor array GEP for acc[0]
+//  CHECK: [[ACCESSOR_ARRAY1:%[a-zA-Z0-9_]+]] = getelementptr inbounds %"class.{{.*}}.anon", %"class.{{.*}}.anon"* [[LOCAL_OBJECT]], i32 0, i32 0
+//  CHECK: [[Z0:%[a-zA-Z0-9_]*]] = getelementptr inbounds{{.*}}[[ACCESSOR_ARRAY1]], i64 0, i64 0
 
-// Check acc[0] __init method call
-// CHECK: [[ACC_CAST1:%[0-9]+]] = addrspacecast %"class{{.*}}accessor"* [[Z0]] to %"class{{.*}}accessor" addrspace(4)*
+//  CHECK load from kernel pointer argument alloca
+//  CHECK: [[MEM_LOAD1:%[a-zA-Z0-9_]+]] = load i32 addrspace(1)*, i32 addrspace(1)** [[MEM_ARG1]]
 
-// CHECK: call spir_func void @{{.*}}__init{{.*}}(%"class.{{.*}}.cl::sycl::accessor" addrspace(4)* [[ACC_CAST1]], i32 addrspace(1)* [[MEM_LOAD1]], %"struct.{{.*}}.cl::sycl::range"* byval({{.*}}) align 4 [[ACC_RANGE1]], %"struct.{{.*}}.cl::sycl::range"* byval({{.*}}) align 4 [[MEM_RANGE1]], %"struct.{{.*}}.cl::sycl::id"* byval({{.*}}) align 4 [[OFFSET1]])
+//  CHECK acc[0] __init method call
+//  CHECK: [[ACC_CAST1:%[0-9]+]] = addrspacecast %"class{{.*}}accessor"* [[Z0]] to %"class{{.*}}accessor" addrspace(4)*
 
-// Check accessor array GEP for acc[1]
-// CHECK: [[ACCESSOR_ARRAY2:%[a-zA-Z0-9_]+]] = getelementptr inbounds %"class.{{.*}}.anon", %"class.{{.*}}.anon"* [[LOCAL_OBJECT]], i32 0, i32 0
-// CHECK: [[Z1:%[a-zA-Z0-9_]*]] = getelementptr inbounds{{.*}}[[ACCESSOR_ARRAY2]], i64 0, i64 1
+//  CHECK: call spir_func void @{{.*}}__init{{.*}}(%"class.{{.*}}.cl::sycl::accessor" addrspace(4)* [[ACC_CAST1]], i32 addrspace(1)* [[MEM_LOAD1]], %"struct.{{.*}}.cl::sycl::range"* byval({{.*}}) align 4 [[ACC_RANGE1]], %"struct.{{.*}}.cl::sycl::range"* byval({{.*}}) align 4 [[MEM_RANGE1]], %"struct.{{.*}}.cl::sycl::id"* byval({{.*}}) align 4 [[OFFSET1]])
 
-// Check load from kernel pointer argument alloca
-// CHECK: [[MEM_LOAD2:%[a-zA-Z0-9_]+]] = load i32 addrspace(1)*, i32 addrspace(1)** [[MEM_ARG1]].addr{{[0-9]*}}
+//  CHECK accessor array GEP for acc[1]
+//  CHECK: [[ACCESSOR_ARRAY2:%[a-zA-Z0-9_]+]] = getelementptr inbounds %"class.{{.*}}.anon", %"class.{{.*}}.anon"* [[LOCAL_OBJECT]], i32 0, i32 0
+//  CHECK: [[Z1:%[a-zA-Z0-9_]*]] = getelementptr inbounds{{.*}}[[ACCESSOR_ARRAY2]], i64 0, i64 1
 
-// Check acc[1] __init method call
-// CHECK: [[ACC_CAST2:%[0-9]+]] = addrspacecast %"class{{.*}}accessor"* [[Z1]] to %"class{{.*}}accessor" addrspace(4)*
+//  CHECK load from kernel pointer argument alloca
+//  CHECK: [[MEM_LOAD2:%[a-zA-Z0-9_]+]] = load i32 addrspace(1)*, i32 addrspace(1)** [[MEM_ARG2]]
 
-// CHECK: call spir_func void @{{.*}}__init{{.*}}(%"class.{{.*}}.cl::sycl::accessor" addrspace(4)* [[ACC_CAST2]], i32 addrspace(1)* [[MEM_LOAD2]], %"struct.{{.*}}.cl::sycl::range"* byval({{.*}}) align 4 [[ACC_RANGE2]], %"struct.{{.*}}.cl::sycl::range"* byval({{.*}}) align 4 [[MEM_RANGE2]], %"struct.{{.*}}.cl::sycl::id"* byval({{.*}}) align 4 [[OFFSET2]])
+//  CHECK acc[1] __init method call
+//  CHECK: [[ACC_CAST2:%[0-9]+]] = addrspacecast %"class{{.*}}accessor"* [[Z1]] to %"class{{.*}}accessor" addrspace(4)*
+
+//  CHECK: call spir_func void @{{.*}}__init{{.*}}(%"class.{{.*}}.cl::sycl::accessor" addrspace(4)* [[ACC_CAST2]], i32 addrspace(1)* [[MEM_LOAD2]], %"struct.{{.*}}.cl::sycl::range"* byval({{.*}}) align 4 [[ACC_RANGE2]], %"struct.{{.*}}.cl::sycl::range"* byval({{.*}}) align 4 [[MEM_RANGE2]], %"struct.{{.*}}.cl::sycl::id"* byval({{.*}}) align 4 [[OFFSET2]])

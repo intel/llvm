@@ -40,7 +40,8 @@ int main() {
 }
 
 // Check kernel_A parameters
-// CHECK: FunctionDecl {{.*}}kernel_A{{.*}} 'void (__global int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>, __global int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>)'
+// CHECK: FunctionDecl {{.*}}kernel_A{{.*}} 'void (wrapped_array, __global int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>, __global int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>)'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ 'wrapped_array'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ '__global int *'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ 'cl::sycl::range<1>'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ 'cl::sycl::range<1>'
@@ -54,7 +55,7 @@ int main() {
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
 // CHECK-NEXT: MemberExpr {{.*}}__init
 
-// Check kernel_B parameters
+// CHECK kernel_B parameters
 // CHECK: FunctionDecl {{.*}}kernel_B{{.*}} 'void (wrapped_array)'
 // CHECK-NEXT: ParmVarDecl {{.*}} 'wrapped_array'
 // CHECK-NEXT: CompoundStmt
@@ -63,7 +64,7 @@ int main() {
 // CHECK-NEXT: InitListExpr
 // CHECK-NEXT: ArrayInitLoopExpr {{.*}} 'int [100]'
 
-// Check kernel_C parameters
+// CHECK kernel_C parameters
 // CHECK: FunctionDecl {{.*}}kernel_C{{.*}} 'void (struct {{.*}}, __global int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>, __global int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>, __global int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>, __global int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>)'
 // CHECK-NEXT: ParmVarDecl {{.*}} 'struct {{.*}}'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc '__global int *'
@@ -83,7 +84,7 @@ int main() {
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::range<1>'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::id<1>'
 
-// Check that four accessor init functions are called
+// CHECK that four accessor init functions are called
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
 // CHECK-NEXT: MemberExpr {{.*}}__init
 // CHECK: CXXMemberCallExpr {{.*}} 'void'

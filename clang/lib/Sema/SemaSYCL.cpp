@@ -644,6 +644,22 @@ static ParamDesc makeParamDesc(ASTContext &Ctx, const CXXBaseSpecifier &Src,
                          Ctx.getTrivialTypeSourceInfo(Ty));
 }
 
+// Create a new class around a field - used to wrap arrays.
+static RecordDecl *wrapAnArray(ASTContext &Ctx, const QualType ArgTy,
+                               FieldDecl *&Field) {
+  RecordDecl *NewClass = Ctx.buildImplicitRecord("wrapped_array");
+  NewClass->startDefinition();
+  Field = FieldDecl::Create(
+      Ctx, NewClass, SourceLocation(), SourceLocation(),
+      /*Id=*/nullptr, ArgTy,
+      Ctx.getTrivialTypeSourceInfo(ArgTy, SourceLocation()),
+      /*BW=*/nullptr, /*Mutable=*/false, /*InitStyle=*/ICIS_NoInit);
+  Field->setAccess(AS_public);
+  NewClass->addDecl(Field);
+  NewClass->completeDefinition();
+  return NewClass;
+}
+
 /// \return the target of given SYCL accessor type
 static target getAccessTarget(const ClassTemplateSpecializationDecl *AccTy) {
   return static_cast<target>(
@@ -1035,23 +1051,6 @@ class SyclKernelDeclCreator
     return true;
   }
 
-  // Create a new class around a field - used to wrap arrays.
-  RecordDecl *wrapAnArray(const QualType ArgTy, FieldDecl *Field) {
-    RecordDecl *NewClass =
-      SemaRef.getASTContext().buildImplicitRecord("wrapped_array");
-    NewClass->startDefinition();
-    Field = FieldDecl::Create(
-      SemaRef.getASTContext(), NewClass, SourceLocation(), SourceLocation(),
-      /*Id=*/nullptr, ArgTy,
-      SemaRef.getASTContext().getTrivialTypeSourceInfo(ArgTy,
-        SourceLocation()),
-      /*BW=*/nullptr, /*Mutable=*/false, /*InitStyle=*/ICIS_NoInit);
-    Field->setAccess(AS_public);
-    NewClass->addDecl(Field);
-    NewClass->completeDefinition();
-    return NewClass;
-  };
-
   static void setKernelImplicitAttrs(ASTContext &Context, FunctionDecl *FD,
                                      StringRef Name) {
     // Set implicit attributes.
@@ -1142,13 +1141,9 @@ public:
   }
 
   bool handleArrayType(FieldDecl *FD, QualType FieldTy) final {
-    if (!cast<ConstantArrayType>(FieldTy)
-             ->getElementType()
-             ->isStructureOrClassType()) {
-      RecordDecl *NewClass = wrapAnArray(FieldTy, FD);
-      QualType ST = SemaRef.getASTContext().getRecordType(NewClass);
-      addParam(FD, ST);
-    }
+    RecordDecl *NewClass = wrapAnArray(SemaRef.getASTContext(), FieldTy, FD);
+    QualType ST = SemaRef.getASTContext().getRecordType(NewClass);
+    addParam(FD, ST);
     return true;
   }
 
@@ -1295,7 +1290,7 @@ class SyclKernelBodyCreator
     // The first and only field of the wrapper struct is the array
     FieldDecl *Array = *(WrapperStruct->field_begin());
     Expr *DRE = SemaRef.BuildDeclRefExpr(KernelParameter, ParamType, VK_LValue,
-      SourceLocation());
+                                         SourceLocation());
     Expr *InitExpr = BuildMemberExpr(DRE, Array);
     InitializationKind InitKind = InitializationKind::CreateDirect(
         SourceLocation(), SourceLocation(), SourceLocation());
@@ -1305,15 +1300,6 @@ class SyclKernelBodyCreator
     ExprResult MemberInit =
         InitSeq.Perform(SemaRef, Entity, InitKind, InitExpr);
     InitExprs.push_back(MemberInit.get());
-  }
-
-  void createExprForArrayElement(size_t ArrayIndex) {
-    Expr *ArrayBase = MemberExprBases.back();
-    ExprResult IndexExpr =
-        SemaRef.ActOnIntegerConstant(SourceLocation(), ArrayIndex);
-    ExprResult ElementBase = SemaRef.CreateBuiltinArraySubscriptExpr(
-        ArrayBase, SourceLocation(), IndexExpr.get(), SourceLocation());
-    MemberExprBases.push_back(ElementBase.get());
   }
 
   void createSpecialMethodCall(const CXXRecordDecl *SpecialClass, Expr *Base,
@@ -1455,11 +1441,7 @@ public:
   }
 
   bool handleArrayType(FieldDecl *FD, QualType FieldTy) final {
-    if (!cast<ConstantArrayType>(FieldTy)
-             ->getElementType()
-             ->isStructureOrClassType()) {
-      createExprForArray(FD);
-    }
+    createExprForArray(FD);
     return true;
   }
 
@@ -1600,10 +1582,8 @@ public:
   }
 
   bool handleArrayType(FieldDecl *FD, QualType FieldTy) final {
-    if (!cast<ConstantArrayType>(FieldTy)
-             ->getElementType()
-             ->isStructureOrClassType())
-      addParam(FD, FieldTy, SYCLIntegrationHeader::kind_std_layout);
+    wrapAnArray(SemaRef.getASTContext(), FieldTy, FD);
+    addParam(FD, FD->getType(), SYCLIntegrationHeader::kind_std_layout);
     return true;
   }
 
