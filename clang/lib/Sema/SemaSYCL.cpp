@@ -795,6 +795,21 @@ static void VisitRecord(CXXRecordDecl *Owner, ParentTy &Parent,
   (void)std::initializer_list<int>{(handlers.leaveStruct(Owner, Parent), 0)...};
 }
 
+// FIXME: Can this be refactored/handled some other way?
+template <typename ParentTy, typename... Handlers>
+static void VisitStreamRecord(CXXRecordDecl *Owner, ParentTy &Parent,
+                              CXXRecordDecl *Wrapper, Handlers &... handlers) {
+  (void)std::initializer_list<int>{(handlers.enterStruct(Owner, Parent), 0)...};
+  for (const auto &Field : Wrapper->fields()) {
+    QualType FieldTy = Field->getType();
+    // Required to initialize accessors inside streams.
+    if (Util::isSyclAccessorType(FieldTy))
+      (void)std::initializer_list<int>{
+          (handlers.handleSyclAccessorType(Field, FieldTy), 0)...};
+  }
+  (void)std::initializer_list<int>{(handlers.leaveStruct(Owner, Parent), 0)...};
+}
+
 int getFieldNumber(const CXXRecordDecl *BaseDecl) {
   int Members = 0;
   for (const auto *Field : BaseDecl->fields())
@@ -827,9 +842,9 @@ static void VisitRecordFields(CXXRecordDecl *Owner, Handlers &... handlers) {
     else if (Util::isSyclSpecConstantType(FieldTy))
       KF_FOR_EACH(handleSyclSpecConstantType, Field, FieldTy);
     else if (Util::isSyclStreamType(FieldTy)) {
-      // Stream actually wraps accessors, so do recursion
       CXXRecordDecl *RD = FieldTy->getAsCXXRecordDecl();
-      VisitRecord(nullptr, Field, RD, handlers...);
+      // Handle accessors in stream class.
+      VisitStreamRecord(Owner, Field, RD, handlers...);
       KF_FOR_EACH(handleSyclStreamType, Field, FieldTy);
     } else if (FieldTy->isStructureOrClassType()) {
       if (KF_FOR_EACH(handleStructType, Field, FieldTy)) {
@@ -1480,7 +1495,18 @@ public:
 
   void leaveStruct(const CXXRecordDecl *, FieldDecl *FD) final {
     const CXXRecordDecl *RD = FD->getType()->getAsCXXRecordDecl();
-    addStructInit(RD);
+
+    // Initializers for accessors inside stream not added.
+    if (!Util::isSyclStreamType(FD->getType()))
+      addStructInit(RD);
+    // Pop out unused initializers created in handleSyclAccesorType
+    else {
+      for (const auto &Field : RD->fields()) {
+        QualType FieldTy = Field->getType();
+        if (Util::isSyclAccessorType(FieldTy))
+          InitExprs.pop_back();
+      }
+    }
   }
 
   void leaveStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS) final {
