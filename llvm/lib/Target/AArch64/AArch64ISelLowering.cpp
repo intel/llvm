@@ -901,6 +901,9 @@ AArch64TargetLowering::AArch64TargetLowering(const TargetMachine &TM,
         setOperationAction(ISD::SRA, VT, Custom);
         if (VT.getScalarType() == MVT::i1)
           setOperationAction(ISD::SETCC, VT, Custom);
+      } else {
+        for (auto VT : { MVT::nxv8i8, MVT::nxv4i16, MVT::nxv2i32 })
+          setOperationAction(ISD::EXTRACT_SUBVECTOR, VT, Custom);
       }
     }
     setOperationAction(ISD::INTRINSIC_WO_CHAIN, MVT::i8, Custom);
@@ -1463,6 +1466,7 @@ const char *AArch64TargetLowering::getTargetNodeName(unsigned Opcode) const {
   case AArch64ISD::LDFF1:             return "AArch64ISD::LDFF1";
   case AArch64ISD::LDFF1S:            return "AArch64ISD::LDFF1S";
   case AArch64ISD::LD1RQ:             return "AArch64ISD::LD1RQ";
+  case AArch64ISD::LD1RO:             return "AArch64ISD::LD1RO";
   case AArch64ISD::GLD1:              return "AArch64ISD::GLD1";
   case AArch64ISD::GLD1_SCALED:       return "AArch64ISD::GLD1_SCALED";
   case AArch64ISD::GLD1_SXTW:         return "AArch64ISD::GLD1_SXTW";
@@ -8559,6 +8563,9 @@ AArch64TargetLowering::LowerEXTRACT_VECTOR_ELT(SDValue Op,
 
 SDValue AArch64TargetLowering::LowerEXTRACT_SUBVECTOR(SDValue Op,
                                                       SelectionDAG &DAG) const {
+  assert(!Op.getValueType().isScalableVector() &&
+         "Unexpected scalable type for custom lowering EXTRACT_SUBVECTOR");
+
   EVT VT = Op.getOperand(0).getValueType();
   SDLoc dl(Op);
   // Just in case...
@@ -10661,7 +10668,45 @@ static SDValue performSVEAndCombine(SDNode *N,
   if (DCI.isBeforeLegalizeOps())
     return SDValue();
 
+  SelectionDAG &DAG = DCI.DAG;
   SDValue Src = N->getOperand(0);
+  unsigned Opc = Src->getOpcode();
+
+  // Zero/any extend of an unsigned unpack
+  if (Opc == AArch64ISD::UUNPKHI || Opc == AArch64ISD::UUNPKLO) {
+    SDValue UnpkOp = Src->getOperand(0);
+    SDValue Dup = N->getOperand(1);
+
+    if (Dup.getOpcode() != AArch64ISD::DUP)
+      return SDValue();
+
+    SDLoc DL(N);
+    ConstantSDNode *C = dyn_cast<ConstantSDNode>(Dup->getOperand(0));
+    uint64_t ExtVal = C->getZExtValue();
+
+    // If the mask is fully covered by the unpack, we don't need to push
+    // a new AND onto the operand
+    EVT EltTy = UnpkOp->getValueType(0).getVectorElementType();
+    if ((ExtVal == 0xFF && EltTy == MVT::i8) ||
+        (ExtVal == 0xFFFF && EltTy == MVT::i16) ||
+        (ExtVal == 0xFFFFFFFF && EltTy == MVT::i32))
+      return Src;
+
+    // Truncate to prevent a DUP with an over wide constant
+    APInt Mask = C->getAPIntValue().trunc(EltTy.getSizeInBits());
+
+    // Otherwise, make sure we propagate the AND to the operand
+    // of the unpack
+    Dup = DAG.getNode(AArch64ISD::DUP, DL,
+                      UnpkOp->getValueType(0),
+                      DAG.getConstant(Mask.zextOrTrunc(32), DL, MVT::i32));
+
+    SDValue And = DAG.getNode(ISD::AND, DL,
+                              UnpkOp->getValueType(0), UnpkOp, Dup);
+
+    return DAG.getNode(Opc, DL, N->getValueType(0), And);
+  }
+
   SDValue Mask = N->getOperand(1);
 
   if (!Src.hasOneUse())
@@ -10671,7 +10716,7 @@ static SDValue performSVEAndCombine(SDNode *N,
 
   // SVE load instructions perform an implicit zero-extend, which makes them
   // perfect candidates for combining.
-  switch (Src->getOpcode()) {
+  switch (Opc) {
   case AArch64ISD::LD1:
   case AArch64ISD::LDNF1:
   case AArch64ISD::LDFF1:
@@ -11885,7 +11930,10 @@ static SDValue performLDNT1Combine(SDNode *N, SelectionDAG &DAG) {
   return L;
 }
 
-static SDValue performLD1RQCombine(SDNode *N, SelectionDAG &DAG) {
+template <unsigned Opcode>
+static SDValue performLD1ReplicateCombine(SDNode *N, SelectionDAG &DAG) {
+  static_assert(Opcode == AArch64ISD::LD1RQ || Opcode == AArch64ISD::LD1RO,
+                "Unsupported opcode.");
   SDLoc DL(N);
   EVT VT = N->getValueType(0);
 
@@ -11894,13 +11942,13 @@ static SDValue performLD1RQCombine(SDNode *N, SelectionDAG &DAG) {
     LoadVT = VT.changeTypeToInteger();
 
   SDValue Ops[] = {N->getOperand(0), N->getOperand(2), N->getOperand(3)};
-  SDValue Load = DAG.getNode(AArch64ISD::LD1RQ, DL, {LoadVT, MVT::Other}, Ops);
+  SDValue Load = DAG.getNode(Opcode, DL, {LoadVT, MVT::Other}, Ops);
   SDValue LoadChain = SDValue(Load.getNode(), 1);
 
   if (VT.isFloatingPoint())
     Load = DAG.getNode(ISD::BITCAST, DL, VT, Load.getValue(0));
 
-  return DAG.getMergeValues({ Load, LoadChain }, DL);
+  return DAG.getMergeValues({Load, LoadChain}, DL);
 }
 
 static SDValue performST1Combine(SDNode *N, SelectionDAG &DAG) {
@@ -13252,8 +13300,41 @@ performSignExtendInRegCombine(SDNode *N, TargetLowering::DAGCombinerInfo &DCI,
   if (DCI.isBeforeLegalizeOps())
     return SDValue();
 
+  SDLoc DL(N);
   SDValue Src = N->getOperand(0);
   unsigned Opc = Src->getOpcode();
+
+  // Sign extend of an unsigned unpack -> signed unpack
+  if (Opc == AArch64ISD::UUNPKHI || Opc == AArch64ISD::UUNPKLO) {
+
+    unsigned SOpc = Opc == AArch64ISD::UUNPKHI ? AArch64ISD::SUNPKHI
+                                               : AArch64ISD::SUNPKLO;
+
+    // Push the sign extend to the operand of the unpack
+    // This is necessary where, for example, the operand of the unpack
+    // is another unpack:
+    // 4i32 sign_extend_inreg (4i32 uunpklo(8i16 uunpklo (16i8 opnd)), from 4i8)
+    // ->
+    // 4i32 sunpklo (8i16 sign_extend_inreg(8i16 uunpklo (16i8 opnd), from 8i8)
+    // ->
+    // 4i32 sunpklo(8i16 sunpklo(16i8 opnd))
+    SDValue ExtOp = Src->getOperand(0);
+    auto VT = cast<VTSDNode>(N->getOperand(1))->getVT();
+    EVT EltTy = VT.getVectorElementType();
+    (void)EltTy;
+
+    assert((EltTy == MVT::i8 || EltTy == MVT::i16 || EltTy == MVT::i32) &&
+           "Sign extending from an invalid type");
+
+    EVT ExtVT = EVT::getVectorVT(*DAG.getContext(),
+                                 VT.getVectorElementType(),
+                                 VT.getVectorElementCount() * 2);
+
+    SDValue Ext = DAG.getNode(ISD::SIGN_EXTEND_INREG, DL, ExtOp.getValueType(),
+                              ExtOp, DAG.getValueType(ExtVT));
+
+    return DAG.getNode(SOpc, DL, N->getValueType(0), Ext);
+  }
 
   // SVE load nodes (e.g. AArch64ISD::GLD1) are straightforward candidates
   // for DAG Combine with SIGN_EXTEND_INREG. Bail out for all other nodes.
@@ -13493,7 +13574,9 @@ SDValue AArch64TargetLowering::PerformDAGCombine(SDNode *N,
     case Intrinsic::aarch64_sve_ldnt1:
       return performLDNT1Combine(N, DAG);
     case Intrinsic::aarch64_sve_ld1rq:
-      return performLD1RQCombine(N, DAG);
+      return performLD1ReplicateCombine<AArch64ISD::LD1RQ>(N, DAG);
+    case Intrinsic::aarch64_sve_ld1ro:
+      return performLD1ReplicateCombine<AArch64ISD::LD1RO>(N, DAG);
     case Intrinsic::aarch64_sve_ldnt1_gather_scalar_offset:
       return performGatherLoadCombine(N, DAG, AArch64ISD::GLDNT1);
     case Intrinsic::aarch64_sve_ldnt1_gather:
@@ -13741,6 +13824,40 @@ static std::pair<SDValue, SDValue> splitInt128(SDValue N, SelectionDAG &DAG) {
   return std::make_pair(Lo, Hi);
 }
 
+void AArch64TargetLowering::ReplaceExtractSubVectorResults(
+    SDNode *N, SmallVectorImpl<SDValue> &Results, SelectionDAG &DAG) const {
+  SDValue In = N->getOperand(0);
+  EVT InVT = In.getValueType();
+
+  // Common code will handle these just fine.
+  if (!InVT.isScalableVector() || !InVT.isInteger())
+    return;
+
+  SDLoc DL(N);
+  EVT VT = N->getValueType(0);
+
+  // The following checks bail if this is not a halving operation.
+
+  ElementCount ResEC = VT.getVectorElementCount();
+
+  if (InVT.getVectorElementCount().Min != (ResEC.Min * 2))
+    return;
+
+  auto *CIndex = dyn_cast<ConstantSDNode>(N->getOperand(1));
+  if (!CIndex)
+    return;
+
+  unsigned Index = CIndex->getZExtValue();
+  if ((Index != 0) && (Index != ResEC.Min))
+    return;
+
+  unsigned Opcode = (Index == 0) ? AArch64ISD::UUNPKLO : AArch64ISD::UUNPKHI;
+  EVT ExtendedHalfVT = VT.widenIntegerVectorElementType(*DAG.getContext());
+
+  SDValue Half = DAG.getNode(Opcode, DL, ExtendedHalfVT, N->getOperand(0));
+  Results.push_back(DAG.getNode(ISD::TRUNCATE, DL, VT, Half));
+}
+
 // Create an even/odd pair of X registers holding integer value V.
 static SDValue createGPRPairNode(SelectionDAG &DAG, SDValue V) {
   SDLoc dl(V.getNode());
@@ -13893,6 +14010,9 @@ void AArch64TargetLowering::ReplaceNodeResults(
     Results.append({Pair, Result.getValue(2) /* Chain */});
     return;
   }
+  case ISD::EXTRACT_SUBVECTOR:
+    ReplaceExtractSubVectorResults(N, Results, DAG);
+    return;
   case ISD::INTRINSIC_WO_CHAIN: {
     EVT VT = N->getValueType(0);
     assert((VT == MVT::i8 || VT == MVT::i16) &&
@@ -14003,7 +14123,7 @@ AArch64TargetLowering::shouldExpandAtomicCmpXchgInIR(
   // on the stack and close enough to the spill slot, this can lead to a
   // situation where the monitor always gets cleared and the atomic operation
   // can never succeed. So at -O0 we need a late-expanded pseudo-inst instead.
-  if (getTargetMachine().getOptLevel() == 0)
+  if (getTargetMachine().getOptLevel() == CodeGenOpt::None)
     return AtomicExpansionKind::None;
   return AtomicExpansionKind::LLSC;
 }
@@ -14296,13 +14416,23 @@ bool AArch64TargetLowering::needsFixedCatchObjects() const {
 
 bool AArch64TargetLowering::shouldLocalize(
     const MachineInstr &MI, const TargetTransformInfo *TTI) const {
-  if (MI.getOpcode() == TargetOpcode::G_GLOBAL_VALUE) {
+  switch (MI.getOpcode()) {
+  case TargetOpcode::G_GLOBAL_VALUE: {
     // On Darwin, TLS global vars get selected into function calls, which
     // we don't want localized, as they can get moved into the middle of a
     // another call sequence.
     const GlobalValue &GV = *MI.getOperand(1).getGlobal();
     if (GV.isThreadLocal() && Subtarget->isTargetMachO())
       return false;
+    break;
+  }
+  // If we legalized G_GLOBAL_VALUE into ADRP + G_ADD_LOW, mark both as being
+  // localizable.
+  case AArch64::ADRP:
+  case AArch64::G_ADD_LOW:
+    return true;
+  default:
+    break;
   }
   return TargetLoweringBase::shouldLocalize(MI, TTI);
 }

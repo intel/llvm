@@ -167,9 +167,6 @@ private:
   std::vector<const SPIRVValue *> Variables;
   typedef std::vector<SPIRVBasicBlock *> SPIRVLBasicBlockVector;
   SPIRVLBasicBlockVector BBVec;
-
-  bool FoundUncontractedFMulAdd = false;
-  bool FoundContractedFMulAdd = false;
 };
 
 typedef SPIRVEntryOpCodeOnly<OpFunctionEnd> SPIRVFunctionEnd;

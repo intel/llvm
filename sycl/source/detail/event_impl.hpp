@@ -133,10 +133,14 @@ public:
 
   /// Returns command that is associated with the event.
   ///
+  /// Scheduler mutex must be locked in read mode when this is called.
+  ///
   /// @return a generic pointer to Command object instance.
   void *getCommand() { return MCommand; }
 
   /// Associates this event with the command.
+  ///
+  /// Scheduler mutex must be locked in write mode when this is called.
   ///
   /// @param Command is a generic pointer to Command object instance.
   void setCommand(void *Command) { MCommand = Command; }

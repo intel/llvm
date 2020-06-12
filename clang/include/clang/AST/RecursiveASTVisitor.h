@@ -2588,6 +2588,7 @@ DEF_TRAVERSE_STMT(CXXMemberCallExpr, {})
 // over the children.
 DEF_TRAVERSE_STMT(AddrLabelExpr, {})
 DEF_TRAVERSE_STMT(ArraySubscriptExpr, {})
+DEF_TRAVERSE_STMT(MatrixSubscriptExpr, {})
 DEF_TRAVERSE_STMT(OMPArraySectionExpr, {})
 DEF_TRAVERSE_STMT(OMPArrayShapingExpr, {})
 DEF_TRAVERSE_STMT(OMPIteratorExpr, {})
@@ -3361,6 +3362,17 @@ RecursiveASTVisitor<Derived>::VisitOMPReductionClause(OMPReductionClause *C) {
   }
   for (auto *E : C->reduction_ops()) {
     TRY_TO(TraverseStmt(E));
+  }
+  if (C->getModifier() == OMPC_REDUCTION_inscan) {
+    for (auto *E : C->copy_ops()) {
+      TRY_TO(TraverseStmt(E));
+    }
+    for (auto *E : C->copy_array_temps()) {
+      TRY_TO(TraverseStmt(E));
+    }
+    for (auto *E : C->copy_array_elems()) {
+      TRY_TO(TraverseStmt(E));
+    }
   }
   return true;
 }

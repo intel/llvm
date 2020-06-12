@@ -20,6 +20,6 @@
 
 ; Test that we gracefully reject an unimplemented opcode such as OpDPdx.
 
-; RUN: not --crash llvm-spirv %s -to-binary -o %t.spv 2>&1 | FileCheck %s
+; RUN: not llvm-spirv %s -to-binary -o %t.spv 2>&1 | FileCheck %s
 
 ; CHECK: UnimplementedOpCode: Unimplemented opcode 207
