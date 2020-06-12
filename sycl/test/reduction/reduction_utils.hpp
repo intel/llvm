@@ -66,3 +66,17 @@ T getMaximumFPValue() {
              ? std::numeric_limits<T>::infinity()
              : (std::numeric_limits<T>::max)();
 }
+
+template <typename T>
+bool isSupportedType(device D) {
+  if (D.is_host())
+    return true;
+
+  if (std::is_same<T, half>::value)
+    return D.has_extension("cl_khr_fp16");
+
+  if (std::is_same<T, double>::value)
+    return D.has_extension("cl_khr_double");
+
+  return true;
+}

@@ -1,14 +1,10 @@
 // UNSUPPORTED: cuda
 // Reductions use work-group builtins not yet supported by CUDA.
 
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
-
-// TODO: enable all checks for CPU/ACC when CPU/ACC RT supports intel::reduce()
-// for 'cl::sycl::half' type.
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -DSKIP_FOR_HALF -o %t.no_half.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.no_half.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.no_half.out
+// RUN: %CPU_RUN_PLACEHOLDER %t.out
+// RUN: %ACC_RUN_PLACEHOLDER %t.out
 
 // RUNx: env SYCL_DEVICE_TYPE=HOST %t.out
 // TODO: Enable the test for HOST when it supports intel::reduce() and barrier()
@@ -31,6 +27,10 @@ class SomeNoIdClass;
 // identity value.
 template <typename T, int Dim, class BinaryOperation>
 void testId(T Identity, size_t WGSize, size_t NWItems) {
+  queue Q;
+  if (!isSupportedType<T>(Q.get_device()))
+    return;
+
   buffer<T, 1> InBuf(NWItems);
   buffer<T, 1> OutBuf(1);
 
@@ -40,7 +40,6 @@ void testId(T Identity, size_t WGSize, size_t NWItems) {
   initInputData(InBuf, CorrectOut, Identity, BOp, NWItems);
 
   // Compute.
-  queue Q;
   Q.submit([&](handler &CGH) {
     auto In = InBuf.template get_access<access::mode::read>(CGH);
     accessor<T, Dim, access::mode::discard_write, access::target::global_buffer>
@@ -71,6 +70,10 @@ void testId(T Identity, size_t WGSize, size_t NWItems) {
 // only to pre-initialize input data correctly.
 template <typename T, int Dim, class BinaryOperation>
 void testNoId(T Identity, size_t WGSize, size_t NWItems) {
+  queue Q;
+  if (!isSupportedType<T>(Q.get_device()))
+    return;
+
   buffer<T, 1> InBuf(NWItems);
   buffer<T, 1> OutBuf(1);
 
@@ -80,7 +83,6 @@ void testNoId(T Identity, size_t WGSize, size_t NWItems) {
   initInputData(InBuf, CorrectOut, Identity, BOp, NWItems);
 
   // Compute.
-  queue Q;
   Q.submit([&](handler &CGH) {
     auto In = InBuf.template get_access<access::mode::read>(CGH);
     accessor<T, Dim, access::mode::discard_write, access::target::global_buffer>
@@ -117,10 +119,9 @@ int main() {
   test<double, 0, intel::maximum<>>(getMinimumFPValue<double>(), 7, 7 * 5);
   test<signed char, 0, intel::plus<>>(0, 7, 49);
   test<unsigned char, 1, std::multiplies<>>(1, 4, 16);
-#ifndef SKIP_FOR_HALF
+
   test<half, 1, intel::plus<>>(0, 4, 8);
   test<half, 1, intel::minimum<>>(getMaximumFPValue<half>(), 8, 32);
-#endif // SKIP_FOR_HALF
 #endif // __cplusplus >= 201402L
 
   std::cout << "Test passed\n";

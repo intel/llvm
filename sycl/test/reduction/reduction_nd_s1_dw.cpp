@@ -1,7 +1,7 @@
 // UNSUPPORTED: cuda
 // Reductions use work-group builtins not yet supported by CUDA.
 //
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -fsycl-device-code-split=per_kernel -o %t.out
 // RUNx: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
@@ -22,6 +22,10 @@ class SomeClass;
 
 template <typename T, int Dim, class BinaryOperation>
 void test(T Identity, size_t WGSize, size_t NWItems) {
+  queue Q;
+  if (!isSupportedType<T>(Q.get_device()))
+    return;
+
   buffer<T, 1> InBuf(NWItems);
   buffer<T, 1> OutBuf(1);
 
@@ -31,7 +35,6 @@ void test(T Identity, size_t WGSize, size_t NWItems) {
   initInputData(InBuf, CorrectOut, Identity, BOp, NWItems);
 
   // Compute.
-  queue Q;
   Q.submit([&](handler &CGH) {
     auto In = InBuf.template get_access<access::mode::read>(CGH);
     accessor<T, Dim, access::mode::discard_write, access::target::global_buffer>
