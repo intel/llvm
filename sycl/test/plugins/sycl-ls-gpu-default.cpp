@@ -1,10 +1,10 @@
-// REQUIRES: gpu, opencl
+// REQUIRES: gpu, level0
 
-// RUN: env SYCL_BE=PI_OPENCL sycl-ls --verbose >%t.opencl.out
-// RUN: FileCheck %s --check-prefixes=CHECK-GPU-BUILTIN,CHECK-GPU-CUSTOM --input-file %t.opencl.out
+// RUN: sycl-ls --verbose >%t.default.out
+// RUN: FileCheck %s --check-prefixes=CHECK-GPU-BUILTIN,CHECK-GPU-CUSTOM --input-file %t.default.out
 
-// CHECK-GPU-BUILTIN: gpu_selector(){{.*}}GPU : OpenCL
-// CHECK-GPU-CUSTOM: custom_selector(gpu){{.*}}GPU : OpenCL
+// CHECK-GPU-BUILTIN: gpu_selector(){{.*}}GPU : 0.91
+// CHECK-GPU-CUSTOM: custom_selector(gpu){{.*}}GPU : 0.91
 
 //==-- sycl-ls-gpu-opencl.cpp - SYCL test for discovered/selected devices -===//
 //
