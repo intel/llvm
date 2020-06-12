@@ -307,14 +307,11 @@ saveResultModules(std::vector<std::unique_ptr<Module>> &ResModules) {
 // fallback-complex-fp64: 0x10
 static uint32_t getDeviceLibBits(const std::string &FuncName) {
 
-  static constexpr uint32_t DeviceLibAssert = 0x1;
+  // static constexpr uint32_t DeviceLibAssert = 0x1;
   static constexpr uint32_t DeviceLibCmath = 0x2;
   static constexpr uint32_t DeviceLibCmath64 = 0x4;
   static constexpr uint32_t DeviceLibComplex = 0x8;
   static constexpr uint32_t DeviceLibComplex64 = 0x10;
-  if (FuncName == "__devicelib_assert_fail") {
-    return DeviceLibAssert;
-  }
   size_t Len =
       sizeof(CmathDeviceLibFunctions) / sizeof(CmathDeviceLibFunctions[0]);
   if (std::binary_search(CmathDeviceLibFunctions, CmathDeviceLibFunctions + Len,
@@ -347,7 +344,12 @@ static uint32_t getDeviceLibBits(const std::string &FuncName) {
 // 2. The function has SPIR_FUNC calling convention
 // 3. The function is declaration which means it doesn't have function body
 static uint32_t getModuleReqMask(const std::unique_ptr<Module> &MPtr) {
-  uint32_t ReqMask = 0;
+  // 0x1 means sycl runtime will link and load libsycl-fallback-assert.spv as
+  // default. In fact, default link assert spv is not necessary but dramatic
+  // perf regression is observed if we don't link any device libraries even
+  // those device libraries are not used at all. This should be some issue in
+  // underlying runtime.
+  uint32_t ReqMask = 0x1;
   uint32_t DeviceLibBits = 0;
   for (const Function &SF : *MPtr) {
     if (SF.getName().startswith("__devicelib_") &&

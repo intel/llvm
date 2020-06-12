@@ -108,9 +108,9 @@ int main(int argc, char **argv) {
 }
 
 // --- Check that only two JIT compilation happened:
-// CHECK-NOT: ---> piProgramBuild
-// CHECK: ---> piProgramBuild
-// CHECK: ---> piProgramBuild
-// CHECK-NOT: ---> piProgramBuild
+// CHECK-NOT: ---> piProgramLink
+// CHECK: ---> piProgramLink
+// CHECK: ---> piProgramLink
+// CHECK-NOT: ---> piProgramLink
 // --- Check that the test completed with expected results:
 // CHECK: passed
