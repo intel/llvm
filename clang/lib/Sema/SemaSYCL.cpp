@@ -834,7 +834,7 @@ static void VisitRecordFields(CXXRecordDecl *Owner, Handlers &... handlers) {
     } else if (FieldTy->isStructureOrClassType()) {
       if (KF_FOR_EACH(handleStructType, Field, FieldTy)) {
         CXXRecordDecl *RD = FieldTy->getAsCXXRecordDecl();
-        VisitRecord(nullptr, Field, RD, handlers...);
+        VisitRecord(Owner, Field, RD, handlers...);
       }
     } else if (FieldTy->isReferenceType())
       KF_FOR_EACH(handleReferenceType, Field, FieldTy);
