@@ -46,8 +46,17 @@ if (NOT DEFINED L0_LIBRARY OR NOT DEFINED L0_INCLUDE_DIR)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS l0-loader)
 else()
   include_directories("${L0_INCLUDE_DIR}")
-  add_custom_target(l0-loader
-    DEPENDS ${L0_LIBRARY} COMMENT "Using provided L0 Loader")
+  include_directories("${L0_INCLUDE_DIR}")
+  file(GLOB L0_LIBRARY_SRC "${L0_LIBRARY}*")
+  file(COPY ${L0_LIBRARY_SRC} DESTINATION ${LLVM_LIBRARY_OUTPUT_INTDIR})
+  add_custom_target(l0-loader DEPENDS ${L0_LIBRARY} COMMENT "Copying Level Zero Loader ...")
+  if(MSVC)
+    set(L0_LIBRARY
+        "${LLVM_LIBRARY_OUTPUT_INTDIR}/${CMAKE_STATIC_LIBRARY_PREFIX}ze_loader${CMAKE_STATIC_LIBRARY_SUFFIX}")
+  else()
+    set(L0_LIBRARY
+        "${LLVM_LIBRARY_OUTPUT_INTDIR}/${CMAKE_SHARED_LIBRARY_PREFIX}ze_loader${CMAKE_SHARED_LIBRARY_SUFFIX}")
+  endif()
 endif()
 
 add_library (L0Loader-Headers INTERFACE)
