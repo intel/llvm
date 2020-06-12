@@ -34,6 +34,9 @@ public:
 FunctionPass *createSYCLLowerESIMDPass();
 void initializeSYCLLowerESIMDLegacyPassPass(PassRegistry &);
 
+FunctionPass *createESIMDLowerLoadStorePass();
+void initializeESIMDLowerLoadStorePass(PassRegistry &);
+
 } // namespace llvm
 
 #endif // LLVM_SYCLLOWERIR_LOWERESIMD_H
