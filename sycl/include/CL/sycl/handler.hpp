@@ -1056,9 +1056,9 @@ public:
       handler AuxHandler(QueueCopy, MIsHost);
       AuxHandler.saveCodeLoc(MCodeLoc);
 
-      // The last kernel DOES write to reduction's accessor.
+      // The last kernel DOES write to user's accessor passed to reduction.
       // Associate it with handler manually.
-      if (NWorkGroups == 1)
+      if (NWorkGroups == 1 && !Reduction::is_usm)
         Redu.associateWithHandler(AuxHandler);
       intel::detail::reduAuxCGFunc<KernelName, KernelType>(AuxHandler, Range,
                                                            NWorkItems, Redu);

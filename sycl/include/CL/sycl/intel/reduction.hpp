@@ -379,21 +379,30 @@ public:
   }
 
   /// Constructs reduction_impl when the identity value is statically known.
+  // Note that aliasing constructor was used to initialize MAcc to avoid
+  // destruction of the object reference by the parameter Acc.
   template <
       typename _T = T, class _BinaryOperation = BinaryOperation,
       enable_if_t<IsKnownIdentityOp<_T, _BinaryOperation>::value> * = nullptr>
-  reduction_impl(accessor_type &Acc) : MAcc(Acc), MIdentity(getIdentity()) {
+  reduction_impl(accessor_type &Acc)
+      : MAcc(shared_ptr_class<accessor_type>(shared_ptr_class<accessor_type>{},
+                                             &Acc)),
+        MIdentity(getIdentity()) {
     assert(Acc.get_count() == 1 &&
            "Only scalar/1-element reductions are supported now.");
   }
 
   /// Constructs reduction_impl when the identity value is statically known,
   /// and user still passed the identity value.
+  // Note that aliasing constructor was used to initialize MAcc to avoid
+  // destruction of the object reference by the parameter Acc.
   template <
       typename _T = T, class _BinaryOperation = BinaryOperation,
       enable_if_t<IsKnownIdentityOp<_T, _BinaryOperation>::value> * = nullptr>
   reduction_impl(accessor_type &Acc, const T &Identity)
-      : MAcc(Acc), MIdentity(getIdentity()) {
+      : MAcc(shared_ptr_class<accessor_type>(shared_ptr_class<accessor_type>{},
+                                             &Acc)),
+        MIdentity(getIdentity()) {
     (void)Identity;
     assert(Acc.get_count() == 1 &&
            "Only scalar/1-element reductions are supported now.");
@@ -411,11 +420,15 @@ public:
   }
 
   /// Constructs reduction_impl when the identity value is unknown.
+  // Note that aliasing constructor was used to initialize MAcc to avoid
+  // destruction of the object reference by the parameter Acc.
   template <
       typename _T = T, class _BinaryOperation = BinaryOperation,
       enable_if_t<!IsKnownIdentityOp<_T, _BinaryOperation>::value> * = nullptr>
   reduction_impl(accessor_type &Acc, const T &Identity)
-      : MAcc(Acc), MIdentity(Identity) {
+      : MAcc(shared_ptr_class<accessor_type>(shared_ptr_class<accessor_type>{},
+                                             &Acc)),
+        MIdentity(Identity) {
     assert(Acc.get_count() == 1 &&
            "Only scalar/1-element reductions are supported now.");
   }
@@ -427,12 +440,7 @@ public:
   template <
       typename _T = T, class _BinaryOperation = BinaryOperation,
       enable_if_t<IsKnownIdentityOp<_T, _BinaryOperation>::value> * = nullptr>
-  reduction_impl(T *VarPtr)
-      : MIdentity(getIdentity()),
-        // Buffer destruction must not cause a write to 'VarPtr'
-        MUSMBufPtr(std::make_shared<buffer<T, buffer_dim>>(
-            reinterpret_cast<const T *>(VarPtr), range<1>(1))),
-        MAcc(accessor_type(*MUSMBufPtr)), MUSMPointer(VarPtr) {}
+  reduction_impl(T *VarPtr) : MIdentity(getIdentity()), MUSMPointer(VarPtr) {}
 
   /// Constructs reduction_impl when the identity value is statically known,
   /// and user still passed the identity value.
@@ -443,19 +451,18 @@ public:
       typename _T = T, class _BinaryOperation = BinaryOperation,
       enable_if_t<IsKnownIdentityOp<_T, _BinaryOperation>::value> * = nullptr>
   reduction_impl(T *VarPtr, const T &Identity)
-      : MIdentity(Identity),
-        // Buffer destruction must not cause a write to 'VarPtr'
-        MUSMBufPtr(std::make_shared<buffer<T, buffer_dim>>(
-            reinterpret_cast<const T *>(VarPtr), range<1>(1))),
-        MAcc(accessor_type(*MUSMBufPtr)), MUSMPointer(VarPtr) {
-    // For operations with known identity value the operator == is defined.
-    // It is sort of dilemma here: from one point of view - user may set
-    // such identity that would be enough for his data, i.e. identity=100 for
-    // min operation if user knows all data elements are less than 100.
-    // From another point of view - it is the source of unexpected errors,
-    // when the input data changes.
-    // Let's be strict for now and emit an error if identity is not proper.
-    assert(Identity == getIdentity() && "Unexpected Identity parameter value.");
+      : MIdentity(Identity), MUSMPointer(VarPtr) {
+    // For now the implementation ignores the identity value given by user
+    // when the implementation knows the identity.
+    // The SPEC could prohibit passing identity parameter to operations with
+    // known identity, but that could have some bad consequences too.
+    // For example, at some moment the implementation may NOT know the identity
+    // for COMPLEX-PLUS reduction. User may create a program that would pass
+    // COMPLEX value (0,0) as identity for PLUS reduction. At some later moment
+    // when the implementation starts handling COMPLEX-PLUS as known operation
+    // the existing user's program remains compilable and working correctly.
+    // I.e. with this constructor here, adding more reduction operations to the
+    // list of known operations does not break the existing programs.
   }
 
   /// Constructs reduction_impl when the identity value is unknown.
@@ -466,19 +473,13 @@ public:
       typename _T = T, class _BinaryOperation = BinaryOperation,
       enable_if_t<!IsKnownIdentityOp<_T, _BinaryOperation>::value> * = nullptr>
   reduction_impl(T *VarPtr, const T &Identity)
-      : MIdentity(Identity),
-        // Buffer destruction must not cause a write to 'VarPtr'
-        MUSMBufPtr(std::make_shared<buffer<T, buffer_dim>>(
-            reinterpret_cast<const T *>(VarPtr), range<1>(1))),
-        MAcc(accessor_type(*MUSMBufPtr)), MUSMPointer(VarPtr) {}
+      : MIdentity(Identity), MUSMPointer(VarPtr) {}
 
   /// Associates reduction accessor with the given handler and saves reduction
   /// buffer so that it is alive until the command group finishes the work.
   void associateWithHandler(handler &CGH) {
 #ifndef __SYCL_DEVICE_ONLY__
-    if (MUSMBufPtr != nullptr)
-      CGH.addReduction(MUSMBufPtr);
-    CGH.associateWithHandler(&MAcc, access::target::global_buffer);
+    CGH.associateWithHandler(MAcc.get(), access::target::global_buffer);
 #else
     (void)CGH;
 #endif
@@ -501,7 +502,7 @@ public:
   enable_if_t<_IsPlaceholder == access::placeholder::false_t, accessor_type>
   getWriteAccForPartialReds(size_t Size, handler &CGH) {
     if (Size == 1)
-      return this->MAcc;
+      return *MAcc;
 
     // Create a new output buffer and return an accessor to it.
     MOutBufPtr = std::make_shared<buffer<T, buffer_dim>>(range<1>(Size));
@@ -513,7 +514,7 @@ public:
   enable_if_t<_IsPlaceholder == access::placeholder::true_t, accessor_type>
   getWriteAccForPartialReds(size_t Size, handler &CGH) {
     if (Size == 1)
-      return this->MAcc;
+      return *MAcc;
 
     // Create a new output buffer and return an accessor to it.
     MOutBufPtr = std::make_shared<buffer<T, buffer_dim>>(range<1>(Size));
@@ -536,7 +537,7 @@ public:
                     access::target::global_buffer>(*RWReduBuf, CGH);
   }
 
-  accessor_type &getUserAccessor() { return MAcc; }
+  accessor_type &getUserAccessor() { return *MAcc; }
 
   T *getUSMPointer() {
     assert(is_usm && "Unexpected call of getUSMPointer().");
@@ -561,12 +562,8 @@ private:
   /// The result of BinaryOperation(X, MIdentity) is equal to X for any X.
   const T MIdentity;
 
-  /// Buffer that is automatically created for reduction USM variable passed
-  /// as a regular C++ type, not as sycl::accessor.
-  shared_ptr_class<buffer<T, buffer_dim>> MUSMBufPtr;
-
   /// User's accessor to where the reduction must be written.
-  accessor_type MAcc;
+  shared_ptr_class<accessor_type> MAcc;
 
   shared_ptr_class<buffer<T, buffer_dim>> MOutBufPtr;
 
@@ -646,7 +643,6 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
                Reduction &Redu, OutputT Out) {
   size_t NWorkItems = Range.get_global_range().size();
   size_t WGSize = Range.get_local_range().size();
-  size_t NWorkGroups = Range.get_group_range().size();
 
   // Use local memory to reduce elements in work-groups into zero-th element.
   // If WGSize is not power of two, then WGSize+1 elements are allocated.
@@ -729,7 +725,7 @@ template <typename KernelName, typename KernelType, int Dims, class Reduction,
           bool UniformWG, typename OutputT>
 enable_if_t<Reduction::has_fast_reduce && !Reduction::has_fast_atomics>
 reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
-               Reduction &Redu, OutputT Out) {
+               Reduction &, OutputT Out) {
 
   size_t NWorkItems = Range.get_global_range().size();
   size_t NWorkGroups = Range.get_group_range().size();
@@ -876,7 +872,7 @@ template <typename KernelName, typename KernelType, int Dims, class Reduction,
           bool UniformWG, typename InputT, typename OutputT>
 enable_if_t<Reduction::has_fast_reduce && !Reduction::has_fast_atomics>
 reduAuxCGFuncImpl(handler &CGH, const nd_range<Dims> &Range, size_t NWorkItems,
-                  Reduction &Redu, InputT In, OutputT Out) {
+                  Reduction &, InputT In, OutputT Out) {
   size_t NWorkGroups = Range.get_group_range().size();
   bool IsUpdateOfUserAcc =
       Reduction::accessor_mode == access::mode::read_write && NWorkGroups == 1;
