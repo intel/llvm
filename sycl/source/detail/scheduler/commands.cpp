@@ -209,11 +209,10 @@ public:
     // process. Thus we'll copy deps prior to completing of event and unblocking
     // of empty command.
     // Also, it's possible to have record deallocated prior to enqueue process.
+    // Thus we employ read-lock of graph.
     {
       Scheduler &Sched = Scheduler::getInstance();
-      std::unique_lock<std::shared_timed_mutex> Lock(Sched.MGraphLock,
-                                                     std::defer_lock);
-      Sched.lockSharedTimedMutex(Lock);
+      std::shared_lock<std::shared_timed_mutex> Lock(Sched.MGraphLock);
 
       std::vector<DepDesc> Deps = MThisCmd->MDeps;
 

@@ -133,8 +133,7 @@ std::vector<EventImplPtr> Scheduler::getWaitList(EventImplPtr Event) {
 }
 
 void Scheduler::waitForEvent(EventImplPtr Event) {
-  std::unique_lock<std::shared_timed_mutex> Lock(MGraphLock, std::defer_lock);
-  lockSharedTimedMutex(Lock);
+  std::shared_lock<std::shared_timed_mutex> Lock(MGraphLock);
   GraphProcessor::waitForEvent(std::move(Event));
 }
 
