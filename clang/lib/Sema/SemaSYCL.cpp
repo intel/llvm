@@ -2079,7 +2079,7 @@ static void printArgument(ASTContext &Ctx, raw_ostream &ArgOS,
 
     if (ET) {
       const llvm::APSInt &Val = Arg.getAsIntegral();
-      ArgOS << "(" << ET->getDecl()->getQualifiedNameAsString() << ")" << Val;
+      ArgOS << "static_cast<" << ET->getDecl()->getQualifiedNameAsString() << ">" << "(" << Val << ")";
     } else {
       Arg.print(P, ArgOS);
     }
