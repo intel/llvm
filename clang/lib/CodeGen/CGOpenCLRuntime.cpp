@@ -47,6 +47,15 @@ llvm::Type *CGOpenCLRuntime::convertOpenCLSpecificType(const Type *T) {
         llvm::StructType::create(Ctx, "opencl." #ImgType "_" #Suffix "_t"), \
         AddrSpc);
 #include "clang/Basic/OpenCLImageTypes.def"
+#define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix)                   \
+  case BuiltinType::Sampled##Id:                                               \
+    return llvm::PointerType::get(                                             \
+        llvm::StructType::create(Ctx, "spirv.SampledImage." #ImgType           \
+                                      "_" #Suffix "_t"),                       \
+        AddrSpc);
+#define IMAGE_WRITE_TYPE(Type, Id, Ext)
+#define IMAGE_READ_WRITE_TYPE(Type, Id, Ext)
+#include "clang/Basic/OpenCLImageTypes.def"
   case BuiltinType::OCLSampler:
     return getSamplerType(T);
   case BuiltinType::OCLEvent:

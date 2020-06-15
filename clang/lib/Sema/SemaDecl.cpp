@@ -6674,7 +6674,7 @@ static bool diagnoseOpenCLTypes(Scope *S, Sema &Se, Declarator &D,
   // OpenCL v2.0 s6.9.b - Image type can only be used as a function argument.
   // OpenCL v2.0 s6.13.16.1 - Pipe type can only be used as a function
   // argument.
-  if (R->isImageType() || R->isPipeType()) {
+  if (!R->isSampledImageType() && (R->isImageType() || R->isPipeType())) {
     Se.Diag(D.getIdentifierLoc(),
             diag::err_opencl_type_can_only_be_used_as_function_parameter)
         << R;

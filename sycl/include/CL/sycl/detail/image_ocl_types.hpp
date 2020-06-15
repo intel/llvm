@@ -33,6 +33,17 @@
 
 #include <CL/__spirv/spirv_ops.hpp>
 
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+namespace detail {
+
+// Type trait to get the associated sampled image type for a given image type.
+template <typename ImageType> struct sampled_opencl_image_type;
+
+} // namespace detail
+} // namespace sycl
+} // __SYCL_INLINE_NAMESPACE(cl)
+
 #define INVOKE_SPIRV_CALL_ARG1(call)                                           \
   template <typename R, typename T1> inline R __invoke_##call(T1 ParT1) {      \
     using Ret = cl::sycl::detail::ConvertToOpenCLType_t<R>;                    \
@@ -79,7 +90,8 @@ static RetType __invoke__ImageReadSampler(ImageT Img, CoordT Coords,
   // Convert from sycl types to builtin types to get correct function mangling.
   using TempRetT = cl::sycl::detail::ConvertToOpenCLType_t<RetType>;
   using TempArgT = cl::sycl::detail::ConvertToOpenCLType_t<CoordT>;
-  using SampledT = void*;
+  using SampledT =
+      typename cl::sycl::detail::sampled_opencl_image_type<ImageT>::type;
 
   TempArgT TmpCoords =
       cl::sycl::detail::convertDataToType<CoordT, TempArgT>(Coords);
@@ -191,6 +203,9 @@ struct opencl_image_type<Dimensions, AccessMode, access::target::host_image> {
   using type =
       opencl_image_type<Dimensions, AccessMode, access::target::host_image> *;
 };
+template <typename T> struct sampled_opencl_image_type<T *> {
+  using type = void *;
+};
 
 #define IMAGETY_DEFINE(Dim, AccessMode, AMSuffix, Target, Ifarray_)            \
   template <>                                                                  \
@@ -198,11 +213,19 @@ struct opencl_image_type<Dimensions, AccessMode, access::target::host_image> {
                            access::target::Target> {                           \
     using type = __ocl_image##Dim##d_##Ifarray_##AMSuffix##_t;                 \
   };
+#define SAMPLED_AND_IMAGETY_DEFINE(Dim, AccessMode, AMSuffix, Target,          \
+                                   Ifarray_)                                   \
+  IMAGETY_DEFINE(Dim, AccessMode, AMSuffix, Target, Ifarray_)                  \
+  template <>                                                                  \
+  struct sampled_opencl_image_type<typename opencl_image_type<                 \
+      Dim, access::mode::AccessMode, access::target::Target>::type> {          \
+    using type = __ocl_sampled_image##Dim##d_##Ifarray_##AMSuffix##_t;         \
+  };
 
 #define IMAGETY_READ_3_DIM_IMAGE                                               \
-  IMAGETY_DEFINE(1, read, ro, image, )                                         \
-  IMAGETY_DEFINE(2, read, ro, image, )                                         \
-  IMAGETY_DEFINE(3, read, ro, image, )
+  SAMPLED_AND_IMAGETY_DEFINE(1, read, ro, image, )                             \
+  SAMPLED_AND_IMAGETY_DEFINE(2, read, ro, image, )                             \
+  SAMPLED_AND_IMAGETY_DEFINE(3, read, ro, image, )
 
 #define IMAGETY_WRITE_3_DIM_IMAGE                                              \
   IMAGETY_DEFINE(1, write, wo, image, )                                        \
@@ -215,8 +238,8 @@ struct opencl_image_type<Dimensions, AccessMode, access::target::host_image> {
   IMAGETY_DEFINE(3, discard_write, wo, image, )
 
 #define IMAGETY_READ_2_DIM_IARRAY                                              \
-  IMAGETY_DEFINE(1, read, ro, image_array, array_)                             \
-  IMAGETY_DEFINE(2, read, ro, image_array, array_)
+  SAMPLED_AND_IMAGETY_DEFINE(1, read, ro, image_array, array_)                 \
+  SAMPLED_AND_IMAGETY_DEFINE(2, read, ro, image_array, array_)
 
 #define IMAGETY_WRITE_2_DIM_IARRAY                                             \
   IMAGETY_DEFINE(1, write, wo, image_array, array_)                            \
