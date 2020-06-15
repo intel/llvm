@@ -1,14 +1,15 @@
 # PI Level0 plugin library
 
+if(MSVC)
+  set(L0_LOADER
+      "${LLVM_LIBRARY_OUTPUT_INTDIR}/${CMAKE_STATIC_LIBRARY_PREFIX}ze_loader${CMAKE_STATIC_LIBRARY_SUFFIX}")
+else()
+  set(L0_LOADER
+      "${LLVM_LIBRARY_OUTPUT_INTDIR}/${CMAKE_SHARED_LIBRARY_PREFIX}ze_loader${CMAKE_SHARED_LIBRARY_SUFFIX}")
+endif()
+
 if (NOT DEFINED L0_LIBRARY OR NOT DEFINED L0_INCLUDE_DIR)
   message(STATUS "Download Level Zero loader and headers from github.com")
-  if(MSVC)
-    set(L0_LIBRARY
-        "${LLVM_LIBRARY_OUTPUT_INTDIR}/${CMAKE_STATIC_LIBRARY_PREFIX}ze_loader${CMAKE_STATIC_LIBRARY_SUFFIX}")
-  else()
-    set(L0_LIBRARY
-        "${LLVM_LIBRARY_OUTPUT_INTDIR}/${CMAKE_SHARED_LIBRARY_PREFIX}ze_loader${CMAKE_SHARED_LIBRARY_SUFFIX}")
-  endif()
   if (CMAKE_C_COMPILER)
       list(APPEND AUX_CMAKE_FLAGS -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER})
   endif()
@@ -30,7 +31,7 @@ if (NOT DEFINED L0_LIBRARY OR NOT DEFINED L0_INCLUDE_DIR)
                ${AUX_CMAKE_FLAGS}
     STEP_TARGETS      configure,build,install
     DEPENDS           ocl-headers
-    BUILD_BYPRODUCTS ${L0_LIBRARY}
+    BUILD_BYPRODUCTS ${L0_LOADER}
   )
   ExternalProject_Add_Step(l0-loader llvminstall
     COMMAND ${CMAKE_COMMAND} -E copy_directory <INSTALL_DIR>/ ${LLVM_BINARY_DIR}
@@ -46,8 +47,9 @@ if (NOT DEFINED L0_LIBRARY OR NOT DEFINED L0_INCLUDE_DIR)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS l0-loader)
 else()
   include_directories("${L0_INCLUDE_DIR}")
-  add_custom_target(l0-loader
-    DEPENDS ${L0_LIBRARY} COMMENT "Using provided L0 Loader")
+  file(GLOB L0_LIBRARY_SRC "${L0_LIBRARY}*")
+  file(COPY ${L0_LIBRARY_SRC} DESTINATION ${LLVM_LIBRARY_OUTPUT_INTDIR})
+  add_custom_target(l0-loader DEPENDS ${L0_LIBRARY} COMMENT "Copying Level Zero Loader ...")
 endif()
 
 add_library (L0Loader-Headers INTERFACE)
@@ -90,7 +92,7 @@ if (TARGET l0-loader)
 endif()
   add_dependencies(sycl-toolchain pi_level0)
 
-target_link_libraries(pi_level0 PRIVATE "${L0_LIBRARY}")
+  target_link_libraries(pi_level0 PRIVATE "${L0_LOADER}")
 if (UNIX)
   target_link_libraries(pi_level0 PRIVATE pthread)
 endif()
