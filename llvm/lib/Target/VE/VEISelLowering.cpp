@@ -49,9 +49,9 @@ static bool allocateFloat(unsigned ValNo, MVT ValVT, MVT LocVT,
     //    | empty| float|
     //    +------+------+
     // Use align=8 for dummy area to align the beginning of these 2 area.
-    State.AllocateStack(4, 8); // for empty area
+    State.AllocateStack(4, Align(8)); // for empty area
     // Use align=4 for value to place it at just after the dummy area.
-    unsigned Offset = State.AllocateStack(4, 4); // for float value area
+    unsigned Offset = State.AllocateStack(4, Align(4)); // for float value area
     State.addLoc(CCValAssign::getMem(ValNo, ValVT, Offset, LocVT, LocInfo));
     return true;
   }
@@ -147,7 +147,7 @@ SDValue VETargetLowering::LowerFormalArguments(
   CCState CCInfo(CallConv, IsVarArg, DAG.getMachineFunction(), ArgLocs,
                  *DAG.getContext());
   // Allocate the preserved area first.
-  CCInfo.AllocateStack(ArgsPreserved, 8);
+  CCInfo.AllocateStack(ArgsPreserved, Align(8));
   // We already allocated the preserved area, so the stack offset computed
   // by CC_VE would be correct now.
   CCInfo.AnalyzeFormalArguments(Ins, CC_VE);
@@ -267,7 +267,7 @@ SDValue VETargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   CCState CCInfo(CLI.CallConv, CLI.IsVarArg, DAG.getMachineFunction(), ArgLocs,
                  *DAG.getContext());
   // Allocate the preserved area first.
-  CCInfo.AllocateStack(ArgsPreserved, 8);
+  CCInfo.AllocateStack(ArgsPreserved, Align(8));
   // We already allocated the preserved area, so the stack offset computed
   // by CC_VE would be correct now.
   CCInfo.AnalyzeCallOperands(CLI.Outs, CC_VE);
@@ -528,6 +528,30 @@ bool VETargetLowering::allowsMisalignedMemoryAccesses(EVT VT,
     // It's fast anytime on VE
     *Fast = true;
   }
+  return true;
+}
+
+bool VETargetLowering::hasAndNot(SDValue Y) const {
+  EVT VT = Y.getValueType();
+
+  // VE doesn't have vector and not instruction.
+  if (VT.isVector())
+    return false;
+
+  // VE allows different immediate values for X and Y where ~X & Y.
+  // Only simm7 works for X, and only mimm works for Y on VE.  However, this
+  // function is used to check whether an immediate value is OK for and-not
+  // instruction as both X and Y.  Generating additional instruction to
+  // retrieve an immediate value is no good since the purpose of this
+  // function is to convert a series of 3 instructions to another series of
+  // 3 instructions with better parallelism.  Therefore, we return false
+  // for all immediate values now.
+  // FIXME: Change hasAndNot function to have two operands to make it work
+  //        correctly with Aurora VE.
+  if (auto *C = dyn_cast<ConstantSDNode>(Y))
+    return false;
+
+  // It's ok for generic registers.
   return true;
 }
 

@@ -3442,6 +3442,7 @@ def warn_expecting_lock_held_on_loop : Warning<
   "expecting %0 '%1' to be held at start of each loop">,
   InGroup<ThreadSafetyAnalysis>, DefaultIgnore;
 def note_locked_here : Note<"%0 acquired here">;
+def note_unlocked_here : Note<"%0 released here">;
 def warn_lock_exclusive_and_shared : Warning<
   "%0 '%1' is acquired exclusively and shared in the same scope">,
   InGroup<ThreadSafetyAnalysis>, DefaultIgnore;
@@ -10887,6 +10888,8 @@ def err_ivdep_declrefexpr_arg : Error<
 def warn_ivdep_redundant : Warning <"ignoring redundant Intel FPGA loop "
   "attribute 'ivdep': safelen %select{INF|%1}0 >= safelen %select{INF|%3}2">,
   InGroup<IgnoredAttributes>;
+def err_builtin_matrix_arg: Error<
+  "%select{first|second}0 argument must be a matrix">;
 
 def err_preserve_field_info_not_field : Error<
   "__builtin_preserve_field_info argument %0 not a field access">;

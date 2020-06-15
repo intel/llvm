@@ -1628,7 +1628,7 @@ static MetadataAsValue *wrapValueInMetadata(LLVMContext &C, Value *V) {
   return MetadataAsValue::get(C, ValueAsMetadata::get(V));
 }
 
-bool llvm::salvageDebugInfo(Instruction &I) {
+static bool attemptToSalvageDebugInfo(Instruction &I) {
   SmallVector<DbgVariableIntrinsic *, 1> DbgUsers;
   findDbgUsers(DbgUsers, &I);
   if (DbgUsers.empty())
@@ -1637,8 +1637,8 @@ bool llvm::salvageDebugInfo(Instruction &I) {
   return salvageDebugInfoForDbgValues(I, DbgUsers);
 }
 
-void llvm::salvageDebugInfoOrMarkUndef(Instruction &I) {
-  if (!salvageDebugInfo(I))
+void llvm::salvageDebugInfo(Instruction &I) {
+  if (!attemptToSalvageDebugInfo(I))
     replaceDbgUsesWithUndef(&I);
 }
 
@@ -1822,7 +1822,7 @@ static bool rewriteDebugUsers(
 
   if (!UndefOrSalvage.empty()) {
     // Try to salvage the remaining debug users.
-    salvageDebugInfoOrMarkUndef(From);
+    salvageDebugInfo(From);
     Changed = true;
   }
 
@@ -2260,7 +2260,7 @@ bool llvm::removeUnreachableBlocks(Function &F, DomTreeUpdater *DTU,
   SmallSetVector<BasicBlock *, 8> DeadBlockSet;
   for (BasicBlock &BB : F) {
     // Skip reachable basic blocks
-    if (Reachable.find(&BB) != Reachable.end())
+    if (Reachable.count(&BB))
       continue;
     DeadBlockSet.insert(&BB);
   }

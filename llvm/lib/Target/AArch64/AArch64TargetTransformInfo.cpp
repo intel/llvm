@@ -620,6 +620,9 @@ int AArch64TTIImpl::getCmpSelInstrCost(unsigned Opcode, Type *ValTy,
                                        Type *CondTy,
                                        TTI::TargetCostKind CostKind,
                                        const Instruction *I) {
+  // TODO: Handle other cost kinds.
+  if (CostKind != TTI::TCK_RecipThroughput)
+    return BaseT::getCmpSelInstrCost(Opcode, ValTy, CondTy, CostKind, I);
 
   int ISD = TLI->InstructionOpcodeToISD(Opcode);
   // We don't lower some vector selects well that are wider than the register
@@ -674,6 +677,11 @@ int AArch64TTIImpl::getMemoryOpCost(unsigned Opcode, Type *Ty,
   // TODO: Handle other cost kinds.
   if (CostKind != TTI::TCK_RecipThroughput)
     return 1;
+
+  // Type legalization can't handle structs
+  if (TLI->getValueType(DL, Ty,  true) == MVT::Other)
+    return BaseT::getMemoryOpCost(Opcode, Ty, Alignment, AddressSpace,
+                                  CostKind);
 
   auto LT = TLI->getTypeLegalizationCost(DL, Ty);
 
