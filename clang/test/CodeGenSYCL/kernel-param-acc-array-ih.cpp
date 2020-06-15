@@ -1,4 +1,4 @@
-// RUN: %clang -I %S/Inputs -fsycl-device-only -Xclang -fsycl-int-header=/iusers/rdeodhar/work/dpcc/jira/7004/t.h %s -c -o %T/kernel.spv
+// RUN: %clang -I %S/Inputs -fsycl-device-only -Xclang -fsycl-int-header=%t.h %s -c -o %T/kernel.spv
 // RUN: FileCheck -input-file=%t.h %s
 
 // This test checks the integration header generated when
