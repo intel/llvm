@@ -922,8 +922,31 @@ Instruction *InstCombiner::FoldOpIntoSelect(Instruction &Op, SelectInst *SI) {
   if (auto *CI = dyn_cast<CmpInst>(SI->getCondition())) {
     if (CI->hasOneUse()) {
       Value *Op0 = CI->getOperand(0), *Op1 = CI->getOperand(1);
-      if ((SI->getOperand(1) == Op0 && SI->getOperand(2) == Op1) ||
-          (SI->getOperand(2) == Op0 && SI->getOperand(1) == Op1))
+
+      // FIXME: This is a hack to avoid infinite looping with min/max patterns.
+      //        We have to ensure that vector constants that only differ with
+      //        undef elements are treated as equivalent.
+      auto areLooselyEqual = [](Value *A, Value *B) {
+        if (A == B)
+          return true;
+
+        // Test for vector constants.
+        Constant *ConstA, *ConstB;
+        if (!match(A, m_Constant(ConstA)) || !match(B, m_Constant(ConstB)))
+          return false;
+
+        // TODO: Deal with FP constants?
+        if (!A->getType()->isIntOrIntVectorTy() || A->getType() != B->getType())
+          return false;
+
+        // Compare for equality including undefs as equal.
+        auto *Cmp = ConstantExpr::getCompare(ICmpInst::ICMP_EQ, ConstA, ConstB);
+        const APInt *C;
+        return match(Cmp, m_APIntAllowUndef(C)) && C->isOneValue();
+      };
+
+      if ((areLooselyEqual(TV, Op0) && areLooselyEqual(FV, Op1)) ||
+          (areLooselyEqual(FV, Op0) && areLooselyEqual(TV, Op1)))
         return nullptr;
     }
   }
@@ -2714,6 +2737,10 @@ Instruction *InstCombiner::visitReturnInst(ReturnInst &RI) {
 }
 
 Instruction *InstCombiner::visitBranchInst(BranchInst &BI) {
+  // Nothing to do about unconditional branches.
+  if (BI.isUnconditional())
+    return nullptr;
+
   // Change br (not X), label True, label False to: br X, label False, True
   Value *X = nullptr;
   if (match(&BI, m_Br(m_Not(m_Value(X)), m_BasicBlock(), m_BasicBlock())) &&
@@ -2725,7 +2752,7 @@ Instruction *InstCombiner::visitBranchInst(BranchInst &BI) {
 
   // If the condition is irrelevant, remove the use so that other
   // transforms on the condition become more effective.
-  if (BI.isConditional() && !isa<ConstantInt>(BI.getCondition()) &&
+  if (!isa<ConstantInt>(BI.getCondition()) &&
       BI.getSuccessor(0) == BI.getSuccessor(1))
     return replaceOperand(
         BI, 0, ConstantInt::getFalse(BI.getCondition()->getType()));
@@ -3338,46 +3365,42 @@ static bool TryToSinkInstruction(Instruction *I, BasicBlock *DestBlock) {
   // here, but that computation has been sunk.
   SmallVector<DbgVariableIntrinsic *, 2> DbgUsers;
   findDbgUsers(DbgUsers, I);
-  for (auto *DII : reverse(DbgUsers)) {
-    if (DII->getParent() == SrcBlock) {
-      if (isa<DbgDeclareInst>(DII)) {
-        // A dbg.declare instruction should not be cloned, since there can only be
-        // one per variable fragment. It should be left in the original place since
-        // sunk instruction is not an alloca(otherwise we could not be here).
-        // But we need to update arguments of dbg.declare instruction, so that it
-        // would not point into sunk instruction.
-        if (!isa<CastInst>(I))
-          continue; // dbg.declare points at something it shouldn't
 
-        DII->setOperand(
-            0, MetadataAsValue::get(I->getContext(),
-                                    ValueAsMetadata::get(I->getOperand(0))));
-        continue;
-      }
+  // Update the arguments of a dbg.declare instruction, so that it
+  // does not point into a sunk instruction.
+  auto updateDbgDeclare = [&I](DbgVariableIntrinsic *DII) {
+    if (!isa<DbgDeclareInst>(DII))
+      return false;
 
-      // dbg.value is in the same basic block as the sunk inst, see if we can
-      // salvage it. Clone a new copy of the instruction: on success we need
-      // both salvaged and unsalvaged copies.
-      SmallVector<DbgVariableIntrinsic *, 1> TmpUser{
-          cast<DbgVariableIntrinsic>(DII->clone())};
+    if (isa<CastInst>(I))
+      DII->setOperand(
+          0, MetadataAsValue::get(I->getContext(),
+                                  ValueAsMetadata::get(I->getOperand(0))));
+    return true;
+  };
 
-      if (!salvageDebugInfoForDbgValues(*I, TmpUser)) {
-        // We are unable to salvage: sink the cloned dbg.value, and mark the
-        // original as undef, terminating any earlier variable location.
-        LLVM_DEBUG(dbgs() << "SINK: " << *DII << '\n');
-        TmpUser[0]->insertBefore(&*InsertPos);
-        Value *Undef = UndefValue::get(I->getType());
-        DII->setOperand(0, MetadataAsValue::get(DII->getContext(),
-                                                ValueAsMetadata::get(Undef)));
-      } else {
-        // We successfully salvaged: place the salvaged dbg.value in the
-        // original location, and move the unmodified dbg.value to sink with
-        // the sunk inst.
-        TmpUser[0]->insertBefore(DII);
-        DII->moveBefore(&*InsertPos);
-      }
+  SmallVector<DbgVariableIntrinsic *, 2> DIIClones;
+  for (auto User : DbgUsers) {
+    // A dbg.declare instruction should not be cloned, since there can only be
+    // one per variable fragment. It should be left in the original place
+    // because the sunk instruction is not an alloca (otherwise we could not be
+    // here).
+    if (User->getParent() != SrcBlock || updateDbgDeclare(User))
+      continue;
+
+    DIIClones.emplace_back(cast<DbgVariableIntrinsic>(User->clone()));
+    LLVM_DEBUG(dbgs() << "CLONE: " << *DIIClones.back() << '\n');
+  }
+
+  // Perform salvaging without the clones, then sink the clones.
+  if (!DIIClones.empty()) {
+    salvageDebugInfoForDbgValues(*I, DbgUsers);
+    for (auto &DIIClone : DIIClones) {
+      DIIClone->insertBefore(&*InsertPos);
+      LLVM_DEBUG(dbgs() << "SINK: " << *DIIClone << '\n');
     }
   }
+
   return true;
 }
 

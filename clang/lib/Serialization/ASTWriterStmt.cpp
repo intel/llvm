@@ -1589,12 +1589,12 @@ void ASTStmtWriter::VisitCXXTemporaryObjectExpr(CXXTemporaryObjectExpr *E) {
 
 void ASTStmtWriter::VisitLambdaExpr(LambdaExpr *E) {
   VisitExpr(E);
-  Record.push_back(E->NumCaptures);
+  Record.push_back(E->LambdaExprBits.NumCaptures);
   Record.AddSourceRange(E->IntroducerRange);
-  Record.push_back(E->CaptureDefault); // FIXME: stable encoding
+  Record.push_back(E->LambdaExprBits.CaptureDefault); // FIXME: stable encoding
   Record.AddSourceLocation(E->CaptureDefaultLoc);
-  Record.push_back(E->ExplicitParams);
-  Record.push_back(E->ExplicitResultType);
+  Record.push_back(E->LambdaExprBits.ExplicitParams);
+  Record.push_back(E->LambdaExprBits.ExplicitResultType);
   Record.AddSourceLocation(E->ClosingBrace);
 
   // Add capture initializers.
@@ -1655,6 +1655,7 @@ void ASTStmtWriter::VisitBuiltinBitCastExpr(BuiltinBitCastExpr *E) {
   VisitExplicitCastExpr(E);
   Record.AddSourceLocation(E->getBeginLoc());
   Record.AddSourceLocation(E->getEndLoc());
+  Code = serialization::EXPR_BUILTIN_BIT_CAST;
 }
 
 void ASTStmtWriter::VisitUserDefinedLiteral(UserDefinedLiteral *E) {

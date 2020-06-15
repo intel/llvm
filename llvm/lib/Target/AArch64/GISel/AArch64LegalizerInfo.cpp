@@ -108,7 +108,7 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
     .minScalarSameAs(1, 0);
 
   getActionDefinitionsBuilder(G_PTR_ADD)
-      .legalFor({{p0, s64}})
+      .legalFor({{p0, s64}, {v2p0, v2s64}})
       .clampScalar(1, s64, s64);
 
   getActionDefinitionsBuilder(G_PTRMASK).legalFor({{p0, s64}});
@@ -661,7 +661,6 @@ bool AArch64LegalizerInfo::legalizeSmallCMGlobalValue(MachineInstr &MI,
   if (GV->isThreadLocal())
     return true; // Don't want to modify TLS vars.
 
-  MIRBuilder.setInstrAndDebugLoc(MI);
   auto &TM = ST->getTargetLowering()->getTargetMachine();
   unsigned OpFlags = ST->ClassifyGlobalReference(GV, TM);
 
@@ -717,7 +716,6 @@ bool AArch64LegalizerInfo::legalizeShlAshrLshr(
   if (Amount > 31)
     return true; // This will have to remain a register variant.
   assert(MRI.getType(AmtReg).getSizeInBits() == 32);
-  MIRBuilder.setInstrAndDebugLoc(MI);
   auto ExtCst = MIRBuilder.buildZExt(LLT::scalar(64), AmtReg);
   MI.getOperand(2).setReg(ExtCst.getReg(0));
   return true;
@@ -746,7 +744,6 @@ bool AArch64LegalizerInfo::legalizeLoadStore(
     return false;
   }
 
-  MIRBuilder.setInstrAndDebugLoc(MI);
   unsigned PtrSize = ValTy.getElementType().getSizeInBits();
   const LLT NewTy = LLT::vector(ValTy.getNumElements(), PtrSize);
   auto &MMO = **MI.memoperands_begin();
@@ -764,7 +761,6 @@ bool AArch64LegalizerInfo::legalizeLoadStore(
 bool AArch64LegalizerInfo::legalizeVaArg(MachineInstr &MI,
                                          MachineRegisterInfo &MRI,
                                          MachineIRBuilder &MIRBuilder) const {
-  MIRBuilder.setInstrAndDebugLoc(MI);
   MachineFunction &MF = MIRBuilder.getMF();
   Align Alignment(MI.getOperand(2).getImm());
   Register Dst = MI.getOperand(0).getReg();

@@ -17,6 +17,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/ObjectYAML/DWARFYAML.h"
+#include "llvm/Support/Errc.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/Host.h"
 #include "llvm/Support/LEB128.h"
@@ -69,6 +70,15 @@ static void writeInitialLength(const DWARFYAML::InitialLength &Length,
     writeInteger((uint64_t)Length.TotalLength64, OS, IsLittleEndian);
 }
 
+static void writeInitialLength(const dwarf::DwarfFormat Format,
+                               const uint64_t Length, raw_ostream &OS,
+                               bool IsLittleEndian) {
+  bool IsDWARF64 = Format == dwarf::DWARF64;
+  if (IsDWARF64)
+    writeVariableSizedInteger(dwarf::DW_LENGTH_DWARF64, 4, OS, IsLittleEndian);
+  writeVariableSizedInteger(Length, IsDWARF64 ? 8 : 4, OS, IsLittleEndian);
+}
+
 Error DWARFYAML::emitDebugStr(raw_ostream &OS, const DWARFYAML::Data &DI) {
   for (auto Str : DI.DebugStrings) {
     OS.write(Str.data(), Str.size());
@@ -99,13 +109,12 @@ Error DWARFYAML::emitDebugAbbrev(raw_ostream &OS, const DWARFYAML::Data &DI) {
 Error DWARFYAML::emitDebugAranges(raw_ostream &OS, const DWARFYAML::Data &DI) {
   for (auto Range : DI.ARanges) {
     auto HeaderStart = OS.tell();
-    if (Range.Format == dwarf::DWARF64) {
-      writeInteger((uint32_t)dwarf::DW_LENGTH_DWARF64, OS, DI.IsLittleEndian);
-      writeInteger((uint64_t)Range.Length, OS, DI.IsLittleEndian);
-    } else
-      writeInteger((uint32_t)Range.Length, OS, DI.IsLittleEndian);
+    writeInitialLength(Range.Format, Range.Length, OS, DI.IsLittleEndian);
     writeInteger((uint16_t)Range.Version, OS, DI.IsLittleEndian);
-    writeInteger((uint32_t)Range.CuOffset, OS, DI.IsLittleEndian);
+    if (Range.Format == dwarf::DWARF64)
+      writeInteger((uint64_t)Range.CuOffset, OS, DI.IsLittleEndian);
+    else
+      writeInteger((uint32_t)Range.CuOffset, OS, DI.IsLittleEndian);
     writeInteger((uint8_t)Range.AddrSize, OS, DI.IsLittleEndian);
     writeInteger((uint8_t)Range.SegSize, OS, DI.IsLittleEndian);
 
@@ -127,20 +136,32 @@ Error DWARFYAML::emitDebugAranges(raw_ostream &OS, const DWARFYAML::Data &DI) {
 
 Error DWARFYAML::emitDebugRanges(raw_ostream &OS, const DWARFYAML::Data &DI) {
   const size_t RangesOffset = OS.tell();
+  uint64_t EntryIndex = 0;
   for (auto DebugRanges : DI.DebugRanges) {
     const size_t CurrOffset = OS.tell() - RangesOffset;
-    assert(DebugRanges.Offset >= CurrOffset &&
-           "Offset should be greater than or equal to the bytes that we have "
-           "written");
-    if (DebugRanges.Offset > CurrOffset)
-      ZeroFillBytes(OS, DebugRanges.Offset - CurrOffset);
+    if (DebugRanges.Offset && (uint64_t)*DebugRanges.Offset < CurrOffset)
+      return createStringError(errc::invalid_argument,
+                               "'Offset' for 'debug_ranges' with index " +
+                                   Twine(EntryIndex) +
+                                   " must be greater than or equal to the "
+                                   "number of bytes written already (0x" +
+                                   Twine::utohexstr(CurrOffset) + ")");
+    if (DebugRanges.Offset)
+      ZeroFillBytes(OS, *DebugRanges.Offset - CurrOffset);
+
+    uint8_t AddrSize;
+    if (DebugRanges.AddrSize)
+      AddrSize = *DebugRanges.AddrSize;
+    else
+      AddrSize = DI.Is64bit ? 8 : 4;
     for (auto Entry : DebugRanges.Entries) {
-      writeVariableSizedInteger(Entry.LowOffset, DebugRanges.AddrSize, OS,
+      writeVariableSizedInteger(Entry.LowOffset, AddrSize, OS,
                                 DI.IsLittleEndian);
-      writeVariableSizedInteger(Entry.HighOffset, DebugRanges.AddrSize, OS,
+      writeVariableSizedInteger(Entry.HighOffset, AddrSize, OS,
                                 DI.IsLittleEndian);
     }
-    ZeroFillBytes(OS, DebugRanges.AddrSize * 2);
+    ZeroFillBytes(OS, AddrSize * 2);
+    ++EntryIndex;
   }
 
   return Error::success();
@@ -247,8 +268,9 @@ static void emitFileEntry(raw_ostream &OS, const DWARFYAML::File &File) {
 
 Error DWARFYAML::emitDebugLine(raw_ostream &OS, const DWARFYAML::Data &DI) {
   for (const auto &LineTable : DI.DebugLines) {
-    writeInitialLength(LineTable.Length, OS, DI.IsLittleEndian);
-    uint64_t SizeOfPrologueLength = LineTable.Length.isDWARF64() ? 8 : 4;
+    writeInitialLength(LineTable.Format, LineTable.Length, OS,
+                       DI.IsLittleEndian);
+    uint64_t SizeOfPrologueLength = LineTable.Format == dwarf::DWARF64 ? 8 : 4;
     writeInteger((uint16_t)LineTable.Version, OS, DI.IsLittleEndian);
     writeVariableSizedInteger(LineTable.PrologueLength, SizeOfPrologueLength,
                               OS, DI.IsLittleEndian);

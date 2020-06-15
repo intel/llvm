@@ -24,30 +24,184 @@
 
 using namespace mlir;
 
+//===----------------------------------------------------------------------===//
+// Utility functions
+//===----------------------------------------------------------------------===//
+
+/// Returns true if the given type is an unsigned integer or vector type
+static bool isUnsignedIntegerOrVector(Type type) {
+  if (type.isUnsignedInteger())
+    return true;
+  if (auto vecType = type.dyn_cast<VectorType>())
+    return vecType.getElementType().isUnsignedInteger();
+  return false;
+}
+
+//===----------------------------------------------------------------------===//
+// Operation conversion
+//===----------------------------------------------------------------------===//
+
 namespace {
 
-class BitwiseAndOpConversion : public ConvertToLLVMPattern {
+/// Converts SPIR-V operations that have straightforward LLVM equivalent
+/// into LLVM dialect operations.
+template <typename SPIRVOp, typename LLVMOp>
+class DirectConversionPattern : public SPIRVToLLVMConversion<SPIRVOp> {
 public:
-  explicit BitwiseAndOpConversion(MLIRContext *context,
-                                  LLVMTypeConverter &typeConverter)
-      : ConvertToLLVMPattern(spirv::BitwiseAndOp::getOperationName(), context,
-                             typeConverter) {}
+  using SPIRVToLLVMConversion<SPIRVOp>::SPIRVToLLVMConversion;
 
   LogicalResult
-  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+  matchAndRewrite(SPIRVOp operation, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
-    auto bitwiseAndOp = cast<spirv::BitwiseAndOp>(op);
-    auto dstType = typeConverter.convertType(bitwiseAndOp.getType());
+    auto dstType = this->typeConverter.convertType(operation.getType());
     if (!dstType)
       return failure();
-    rewriter.replaceOpWithNewOp<LLVM::AndOp>(bitwiseAndOp, dstType, operands);
+    rewriter.template replaceOpWithNewOp<LLVMOp>(operation, dstType, operands);
+    return success();
+  }
+};
+
+/// Converts SPIR-V floating-point comparisons to llvm.fcmp "predicate"
+template <typename SPIRVOp, LLVM::FCmpPredicate predicate>
+class FComparePattern : public SPIRVToLLVMConversion<SPIRVOp> {
+public:
+  using SPIRVToLLVMConversion<SPIRVOp>::SPIRVToLLVMConversion;
+
+  LogicalResult
+  matchAndRewrite(SPIRVOp operation, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+
+    auto dstType = this->typeConverter.convertType(operation.getType());
+    if (!dstType)
+      return failure();
+
+    rewriter.template replaceOpWithNewOp<LLVM::FCmpOp>(
+        operation, dstType,
+        rewriter.getI64IntegerAttr(static_cast<int64_t>(predicate)),
+        operation.operand1(), operation.operand2());
+    return success();
+  }
+};
+
+/// Converts SPIR-V integer comparisons to llvm.icmp "predicate"
+template <typename SPIRVOp, LLVM::ICmpPredicate predicate>
+class IComparePattern : public SPIRVToLLVMConversion<SPIRVOp> {
+public:
+  using SPIRVToLLVMConversion<SPIRVOp>::SPIRVToLLVMConversion;
+
+  LogicalResult
+  matchAndRewrite(SPIRVOp operation, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+
+    auto dstType = this->typeConverter.convertType(operation.getType());
+    if (!dstType)
+      return failure();
+
+    rewriter.template replaceOpWithNewOp<LLVM::ICmpOp>(
+        operation, dstType,
+        rewriter.getI64IntegerAttr(static_cast<int64_t>(predicate)),
+        operation.operand1(), operation.operand2());
+    return success();
+  }
+};
+
+/// Converts SPIR-V shift ops to LLVM shift ops. Since LLVM dialect
+/// puts a restriction on `Shift` and `Base` to have the same bit width,
+/// `Shift` is zero or sign extended to match this specification. Cases when
+/// `Shift` bit width > `Base` bit width are considered to be illegal.
+template <typename SPIRVOp, typename LLVMOp>
+class ShiftPattern : public SPIRVToLLVMConversion<SPIRVOp> {
+public:
+  using SPIRVToLLVMConversion<SPIRVOp>::SPIRVToLLVMConversion;
+
+  LogicalResult
+  matchAndRewrite(SPIRVOp operation, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+
+    auto dstType = this->typeConverter.convertType(operation.getType());
+    if (!dstType)
+      return failure();
+
+    Type op1Type = operation.operand1().getType();
+    Type op2Type = operation.operand2().getType();
+
+    if (op1Type == op2Type) {
+      rewriter.template replaceOpWithNewOp<LLVMOp>(operation, dstType,
+                                                   operands);
+      return success();
+    }
+
+    Location loc = operation.getLoc();
+    Value extended;
+    if (isUnsignedIntegerOrVector(op2Type)) {
+      extended = rewriter.template create<LLVM::ZExtOp>(loc, dstType,
+                                                        operation.operand2());
+    } else {
+      extended = rewriter.template create<LLVM::SExtOp>(loc, dstType,
+                                                        operation.operand2());
+    }
+    Value result = rewriter.template create<LLVMOp>(
+        loc, dstType, operation.operand1(), extended);
+    rewriter.replaceOp(operation, result);
     return success();
   }
 };
 } // namespace
 
+//===----------------------------------------------------------------------===//
+// Pattern population
+//===----------------------------------------------------------------------===//
+
 void mlir::populateSPIRVToLLVMConversionPatterns(
     MLIRContext *context, LLVMTypeConverter &typeConverter,
     OwningRewritePatternList &patterns) {
-  patterns.insert<BitwiseAndOpConversion>(context, typeConverter);
+  patterns.insert<
+      // Arithmetic ops
+      DirectConversionPattern<spirv::IAddOp, LLVM::AddOp>,
+      DirectConversionPattern<spirv::IMulOp, LLVM::MulOp>,
+      DirectConversionPattern<spirv::ISubOp, LLVM::SubOp>,
+      DirectConversionPattern<spirv::FAddOp, LLVM::FAddOp>,
+      DirectConversionPattern<spirv::FDivOp, LLVM::FDivOp>,
+      DirectConversionPattern<spirv::FNegateOp, LLVM::FNegOp>,
+      DirectConversionPattern<spirv::FRemOp, LLVM::FRemOp>,
+      DirectConversionPattern<spirv::FSubOp, LLVM::FSubOp>,
+      DirectConversionPattern<spirv::SDivOp, LLVM::SDivOp>,
+      DirectConversionPattern<spirv::SRemOp, LLVM::SRemOp>,
+      DirectConversionPattern<spirv::UDivOp, LLVM::UDivOp>,
+
+      // Bitwise ops
+      DirectConversionPattern<spirv::BitwiseAndOp, LLVM::AndOp>,
+      DirectConversionPattern<spirv::BitwiseOrOp, LLVM::OrOp>,
+      DirectConversionPattern<spirv::BitwiseXorOp, LLVM::XOrOp>,
+
+      // Comparison ops
+      IComparePattern<spirv::IEqualOp, LLVM::ICmpPredicate::eq>,
+      IComparePattern<spirv::INotEqualOp, LLVM::ICmpPredicate::ne>,
+      FComparePattern<spirv::FOrdEqualOp, LLVM::FCmpPredicate::oeq>,
+      FComparePattern<spirv::FOrdGreaterThanOp, LLVM::FCmpPredicate::ogt>,
+      FComparePattern<spirv::FOrdGreaterThanEqualOp, LLVM::FCmpPredicate::oge>,
+      FComparePattern<spirv::FOrdLessThanEqualOp, LLVM::FCmpPredicate::ole>,
+      FComparePattern<spirv::FOrdLessThanOp, LLVM::FCmpPredicate::olt>,
+      FComparePattern<spirv::FOrdNotEqualOp, LLVM::FCmpPredicate::one>,
+      FComparePattern<spirv::FUnordEqualOp, LLVM::FCmpPredicate::ueq>,
+      FComparePattern<spirv::FUnordGreaterThanOp, LLVM::FCmpPredicate::ugt>,
+      FComparePattern<spirv::FUnordGreaterThanEqualOp,
+                      LLVM::FCmpPredicate::uge>,
+      FComparePattern<spirv::FUnordLessThanEqualOp, LLVM::FCmpPredicate::ule>,
+      FComparePattern<spirv::FUnordLessThanOp, LLVM::FCmpPredicate::ult>,
+      FComparePattern<spirv::FUnordNotEqualOp, LLVM::FCmpPredicate::une>,
+      IComparePattern<spirv::SGreaterThanOp, LLVM::ICmpPredicate::sgt>,
+      IComparePattern<spirv::SGreaterThanEqualOp, LLVM::ICmpPredicate::sge>,
+      IComparePattern<spirv::SLessThanEqualOp, LLVM::ICmpPredicate::sle>,
+      IComparePattern<spirv::SLessThanOp, LLVM::ICmpPredicate::slt>,
+      IComparePattern<spirv::UGreaterThanOp, LLVM::ICmpPredicate::ugt>,
+      IComparePattern<spirv::UGreaterThanEqualOp, LLVM::ICmpPredicate::uge>,
+      IComparePattern<spirv::ULessThanEqualOp, LLVM::ICmpPredicate::ule>,
+      IComparePattern<spirv::ULessThanOp, LLVM::ICmpPredicate::ult>,
+
+      // Shift ops
+      ShiftPattern<spirv::ShiftRightArithmeticOp, LLVM::AShrOp>,
+      ShiftPattern<spirv::ShiftRightLogicalOp, LLVM::LShrOp>,
+      ShiftPattern<spirv::ShiftLeftLogicalOp, LLVM::ShlOp>>(context,
+                                                            typeConverter);
 }

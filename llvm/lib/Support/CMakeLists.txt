@@ -160,6 +160,7 @@ add_llvm_component_library(LLVMSupport
   VersionTuple.cpp
   VirtualFileSystem.cpp
   WithColor.cpp
+  X86TargetParser.cpp
   YAMLParser.cpp
   YAMLTraits.cpp
   raw_os_ostream.cpp

@@ -370,6 +370,7 @@ AArch64TargetLowering::AArch64TargetLowering(const TargetMachine &TM,
 
   setOperationAction(ISD::CTPOP, MVT::i32, Custom);
   setOperationAction(ISD::CTPOP, MVT::i64, Custom);
+  setOperationAction(ISD::CTPOP, MVT::i128, Custom);
 
   setOperationAction(ISD::SDIVREM, MVT::i32, Expand);
   setOperationAction(ISD::SDIVREM, MVT::i64, Expand);
@@ -1256,7 +1257,7 @@ bool AArch64TargetLowering::allowsMisalignedMemoryAccesses(
 
 // Same as above but handling LLTs instead.
 bool AArch64TargetLowering::allowsMisalignedMemoryAccesses(
-    LLT Ty, unsigned AddrSpace, unsigned Align, MachineMemOperand::Flags Flags,
+    LLT Ty, unsigned AddrSpace, Align Alignment, MachineMemOperand::Flags Flags,
     bool *Fast) const {
   if (Subtarget->requiresStrictAlign())
     return false;
@@ -1271,7 +1272,7 @@ bool AArch64TargetLowering::allowsMisalignedMemoryAccesses(
             // Code that uses clang vector extensions can mark that it
             // wants unaligned accesses to be treated as fast by
             // underspecifying alignment to be 1 or 2.
-            Align <= 2 ||
+            Alignment <= 2 ||
 
             // Disregard v2i64. Memcpy lowering produces those and splitting
             // them regresses performance on micro-benchmarks and olden/bh.
@@ -5423,6 +5424,15 @@ SDValue AArch64TargetLowering::LowerCTPOP(SDValue Op, SelectionDAG &DAG) const {
     if (VT == MVT::i64)
       UaddLV = DAG.getNode(ISD::ZERO_EXTEND, DL, MVT::i64, UaddLV);
     return UaddLV;
+  } else if (VT == MVT::i128) {
+    Val = DAG.getNode(ISD::BITCAST, DL, MVT::v16i8, Val);
+
+    SDValue CtPop = DAG.getNode(ISD::CTPOP, DL, MVT::v16i8, Val);
+    SDValue UaddLV = DAG.getNode(
+        ISD::INTRINSIC_WO_CHAIN, DL, MVT::i32,
+        DAG.getConstant(Intrinsic::aarch64_neon_uaddlv, DL, MVT::i32), CtPop);
+
+    return DAG.getNode(ISD::ZERO_EXTEND, DL, MVT::i128, UaddLV);
   }
 
   assert((VT == MVT::v1i64 || VT == MVT::v2i64 || VT == MVT::v2i32 ||
@@ -12069,6 +12079,10 @@ static SDValue replaceZeroVectorStore(SelectionDAG &DAG, StoreSDNode &St) {
   SDValue StVal = St.getValue();
   EVT VT = StVal.getValueType();
 
+  // Avoid scalarizing zero splat stores for scalable vectors.
+  if (VT.isScalableVector())
+    return SDValue();
+
   // It is beneficial to scalarize a zero splat store for 2 or 3 i64 elements or
   // 2, 3 or 4 i32 elements.
   int NumVecElts = VT.getVectorNumElements();
@@ -14101,6 +14115,9 @@ void AArch64TargetLowering::ReplaceNodeResults(
     Results.push_back(LowerVECREDUCE(SDValue(N, 0), DAG));
     return;
 
+  case ISD::CTPOP:
+    Results.push_back(LowerCTPOP(SDValue(N, 0), DAG));
+    return;
   case AArch64ISD::SADDV:
     ReplaceReductionResults(N, Results, DAG, ISD::ADD, AArch64ISD::SADDV);
     return;
@@ -14520,8 +14537,7 @@ bool AArch64TargetLowering::isIntDivCheap(EVT VT, AttributeList Attr) const {
   // integer division, leaving the division as-is is a loss even in terms of
   // size, because it will have to be scalarized, while the alternative code
   // sequence can be performed in vector form.
-  bool OptSize =
-      Attr.hasAttribute(AttributeList::FunctionIndex, Attribute::MinSize);
+  bool OptSize = Attr.hasFnAttribute(Attribute::MinSize);
   return OptSize && !VT.isVector();
 }
 

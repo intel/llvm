@@ -1197,7 +1197,9 @@ TEST(SignatureHelpTest, OpeningParen) {
     int foo(int a, int b, int c);
     int main() {
     #define ID(X) X
-      ID(foo $p^( foo(10), ^ ))
+      // FIXME: figure out why ID(foo (foo(10), )) doesn't work when preserving
+      // the recovery expression.
+      ID(foo $p^( 10, ^ ))
     })cpp"};
 
   for (auto Test : Tests) {
@@ -2873,6 +2875,56 @@ TEST(AllowImplicitCompletion, All) {
     llvm::Annotations A(Test);
     EXPECT_FALSE(allowImplicitCompletion(A.code(), A.point())) << Test;
   }
+}
+
+TEST(CompletionTest, FunctionArgsExist) {
+  clangd::CodeCompleteOptions Opts;
+  Opts.EnableSnippets = true;
+  std::string Context = R"cpp(
+    int foo(int A);
+    int bar();
+    struct Object {
+      Object(int B) {}
+    };
+    template <typename T>
+    struct Container {
+      Container(int Size) {}
+    };
+  )cpp";
+  EXPECT_THAT(completions(Context + "int y = fo^", {}, Opts).Completions,
+              UnorderedElementsAre(
+                  AllOf(Labeled("foo(int A)"), SnippetSuffix("(${1:int A})"))));
+  EXPECT_THAT(
+      completions(Context + "int y = fo^(42)", {}, Opts).Completions,
+      UnorderedElementsAre(AllOf(Labeled("foo(int A)"), SnippetSuffix(""))));
+  // FIXME(kirillbobyrev): No snippet should be produced here.
+  EXPECT_THAT(completions(Context + "int y = fo^o(42)", {}, Opts).Completions,
+              UnorderedElementsAre(
+                  AllOf(Labeled("foo(int A)"), SnippetSuffix("(${1:int A})"))));
+  EXPECT_THAT(
+      completions(Context + "int y = ba^", {}, Opts).Completions,
+      UnorderedElementsAre(AllOf(Labeled("bar()"), SnippetSuffix("()"))));
+  EXPECT_THAT(completions(Context + "int y = ba^()", {}, Opts).Completions,
+              UnorderedElementsAre(AllOf(Labeled("bar()"), SnippetSuffix(""))));
+  EXPECT_THAT(
+      completions(Context + "Object o = Obj^", {}, Opts).Completions,
+      Contains(AllOf(Labeled("Object(int B)"), SnippetSuffix("(${1:int B})"),
+                     Kind(CompletionItemKind::Constructor))));
+  EXPECT_THAT(completions(Context + "Object o = Obj^()", {}, Opts).Completions,
+              Contains(AllOf(Labeled("Object(int B)"), SnippetSuffix(""),
+                             Kind(CompletionItemKind::Constructor))));
+  EXPECT_THAT(
+      completions(Context + "Container c = Cont^", {}, Opts).Completions,
+      Contains(AllOf(Labeled("Container<typename T>(int Size)"),
+                     SnippetSuffix("<${1:typename T}>(${2:int Size})"),
+                     Kind(CompletionItemKind::Constructor))));
+  // FIXME(kirillbobyrev): It would be nice to still produce the template
+  // snippet part: in this case it should be "<${1:typename T}>".
+  EXPECT_THAT(
+      completions(Context + "Container c = Cont^()", {}, Opts).Completions,
+      Contains(AllOf(Labeled("Container<typename T>(int Size)"),
+                     SnippetSuffix(""),
+                     Kind(CompletionItemKind::Constructor))));
 }
 
 } // namespace
