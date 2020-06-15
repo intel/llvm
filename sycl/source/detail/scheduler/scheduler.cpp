@@ -184,8 +184,7 @@ EventImplPtr Scheduler::addHostAccessor(Requirement *Req) {
 void Scheduler::releaseHostAccessor(Requirement *Req) {
   Command *const BlockedCmd = Req->MBlockedCmd;
 
-  std::unique_lock<std::shared_timed_mutex> Lock(MGraphLock, std::defer_lock);
-  lockSharedTimedMutex(Lock);
+  std::shared_lock<std::shared_timed_mutex> Lock(MGraphLock);
 
   assert(BlockedCmd && "Can't find appropriate command to unblock");
 
