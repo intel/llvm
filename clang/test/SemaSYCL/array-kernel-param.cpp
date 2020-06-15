@@ -1,0 +1,95 @@
+// RUN: %clang_cc1 -I %S/Inputs -fsycl -fsycl-is-device -ast-dump %s | FileCheck %s
+
+// This test checks that compiler generates correct kernel arguments for
+// arrays, Accessor arrays, and structs containing Accessors.
+
+#include <sycl.hpp>
+
+using namespace cl::sycl;
+
+template <typename name, typename Func>
+__attribute__((sycl_kernel)) void a_kernel(Func kernelFunc) {
+  kernelFunc();
+}
+
+int main() {
+
+  using Accessor =
+      accessor<int, 1, access::mode::read_write, access::target::global_buffer>;
+
+  Accessor acc[2];
+  int a[100];
+  struct struct_acc_t {
+    Accessor member_acc[4];
+  } struct_acc;
+
+  a_kernel<class kernel_A>(
+      [=]() {
+        acc[1].use();
+      });
+
+  a_kernel<class kernel_B>(
+      [=]() {
+        int local = a[3];
+      });
+
+  a_kernel<class kernel_C>(
+      [=]() {
+        struct_acc.member_acc[2].use();
+      });
+}
+
+// Check kernel_A parameters
+// CHECK: FunctionDecl {{.*}}kernel_A{{.*}} 'void (wrapped_array, __global int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>, __global int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>)'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ 'wrapped_array'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ '__global int *'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ 'cl::sycl::range<1>'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ 'cl::sycl::range<1>'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ 'cl::sycl::id<1>'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ '__global int *'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ 'cl::sycl::range<1>'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ 'cl::sycl::range<1>'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ 'cl::sycl::id<1>'
+// CHECK: CXXMemberCallExpr {{.*}} 'void'
+// CHECK-NEXT: MemberExpr {{.*}}__init
+// CHECK: CXXMemberCallExpr {{.*}} 'void'
+// CHECK-NEXT: MemberExpr {{.*}}__init
+
+// CHECK kernel_B parameters
+// CHECK: FunctionDecl {{.*}}kernel_B{{.*}} 'void (wrapped_array)'
+// CHECK-NEXT: ParmVarDecl {{.*}} 'wrapped_array'
+// CHECK-NEXT: CompoundStmt
+// CHECK-NEXT: DeclStmt
+// CHECK-NEXT: VarDecl
+// CHECK-NEXT: InitListExpr
+// CHECK-NEXT: ArrayInitLoopExpr {{.*}} 'int [100]'
+
+// CHECK kernel_C parameters
+// CHECK: FunctionDecl {{.*}}kernel_C{{.*}} 'void (struct {{.*}}, __global int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>, __global int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>, __global int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>, __global int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>)'
+// CHECK-NEXT: ParmVarDecl {{.*}} 'struct {{.*}}'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc '__global int *'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::range<1>'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::range<1>'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::id<1>'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc '__global int *'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::range<1>'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::range<1>'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::id<1>'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc '__global int *'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::range<1>'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::range<1>'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::id<1>'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc '__global int *'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::range<1>'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::range<1>'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::id<1>'
+
+// CHECK that four accessor init functions are called
+// CHECK: CXXMemberCallExpr {{.*}} 'void'
+// CHECK-NEXT: MemberExpr {{.*}}__init
+// CHECK: CXXMemberCallExpr {{.*}} 'void'
+// CHECK-NEXT: MemberExpr {{.*}}__init
+// CHECK: CXXMemberCallExpr {{.*}} 'void'
+// CHECK-NEXT: MemberExpr {{.*}}__init
+// CHECK: CXXMemberCallExpr {{.*}} 'void'
+// CHECK-NEXT: MemberExpr {{.*}}__init

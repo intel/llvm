@@ -139,12 +139,12 @@ public:
   template <int N>
   using is_valid_dimensions = std::integral_constant<bool, (N > 0) && (N < 4)>;
 
-  template <int Dims> static const id<Dims> getId() {
+  template <int Dims> static const id<Dims> getElement(id<Dims> *) {
     static_assert(is_valid_dimensions<Dims>::value, "invalid dimensions");
     return __spirv::initGlobalInvocationId<Dims, id<Dims>>();
   }
 
-  template <int Dims> static const group<Dims> getGroup() {
+  template <int Dims> static const group<Dims> getElement(group<Dims> *) {
     static_assert(is_valid_dimensions<Dims>::value, "invalid dimensions");
     range<Dims> GlobalSize{__spirv::initGlobalSize<Dims, range<Dims>>()};
     range<Dims> LocalSize{__spirv::initWorkgroupSize<Dims, range<Dims>>()};
@@ -172,7 +172,7 @@ public:
     return createItem<Dims, false>(GlobalSize, GlobalId);
   }
 
-  template <int Dims> static const nd_item<Dims> getNDItem() {
+  template <int Dims> static const nd_item<Dims> getElement(nd_item<Dims> *) {
     static_assert(is_valid_dimensions<Dims>::value, "invalid dimensions");
     range<Dims> GlobalSize{__spirv::initGlobalSize<Dims, range<Dims>>()};
     range<Dims> LocalSize{__spirv::initWorkgroupSize<Dims, range<Dims>>()};
@@ -188,6 +188,19 @@ public:
     item<Dims, false> LocalItem = createItem<Dims, false>(LocalSize, LocalId);
     return createNDItem<Dims>(GlobalItem, LocalItem, Group);
   }
+
+  template <int Dims, bool WithOffset>
+  static auto getElement(item<Dims, WithOffset> *)
+      -> decltype(getItem<Dims, WithOffset>()) {
+    return getItem<Dims, WithOffset>();
+  }
+
+  template <int Dims>
+  static auto getNDItem()
+      -> decltype(getElement(static_cast<nd_item<Dims> *>(nullptr))) {
+    return getElement(static_cast<nd_item<Dims> *>(nullptr));
+  }
+
 #endif // __SYCL_DEVICE_ONLY__
 };
 

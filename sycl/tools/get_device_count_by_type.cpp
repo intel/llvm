@@ -14,6 +14,7 @@
 
 #include <CL/cl.h>
 #include <CL/cl_ext.h>
+#include <level_zero/zet_api.h>
 
 #ifdef USE_PI_CUDA
 #include <cuda.h>
@@ -31,7 +32,7 @@ static const std::string help =
     "   Help\n"
     "   Example: ./get_device_count_by_type cpu opencl\n"
     "   Supported device types: cpu/gpu/accelerator/default/all\n"
-    "   Supported backends: PI_CUDA/PI_OPENCL \n"
+    "   Supported backends: PI_CUDA/PI_OPENCL/PI_LEVEL0 \n"
     "   Output format: <number_of_devices>:<additional_Information>";
 
 // Return the string with all characters translated to lower case.
@@ -111,6 +112,56 @@ static bool queryOpenCL(cl_device_type deviceType, cl_uint &deviceCount,
   msg = "opencl ";
   msg += deviceTypeToString(deviceType);
   return true;
+}
+
+static bool queryLevelZero(cl_device_type deviceType, cl_uint &deviceCount,
+                           std::string &msg) {
+  deviceCount = 0u;
+  ze_result_t zeResult = zeInit(ZE_INIT_FLAG_NONE);
+  if (zeResult != ZE_RESULT_SUCCESS) {
+    msg = "ERROR: Level Zero initialization error";
+    return false;
+  }
+
+  uint32_t zeDriverCount = 0;
+  zeResult = zeDriverGet(&zeDriverCount, nullptr);
+  if (zeResult != ZE_RESULT_SUCCESS) {
+    msg = "ERROR: Level Zero error querying driver count";
+    return false;
+  }
+
+  if (zeDriverCount == 0) {
+    msg = "ERROR: Level Zero no driver found";
+    return false;
+  }
+
+  ze_driver_handle_t zeDriver;
+  zeResult = zeDriverGet(&zeDriverCount, &zeDriver);
+  if (zeResult != ZE_RESULT_SUCCESS) {
+    msg = "ERROR: Level Zero error querying driver";
+    return false;
+  }
+
+  switch (deviceType) {
+  case CL_DEVICE_TYPE_DEFAULT: // Fall through.
+  case CL_DEVICE_TYPE_ALL:     // Fall through.
+  case CL_DEVICE_TYPE_GPU: {
+    uint32_t zeDeviceCount = 0;
+    zeResult = zeDeviceGet(zeDriver, &zeDeviceCount, nullptr);
+    if (zeResult != ZE_RESULT_SUCCESS) {
+      msg = "ERROR: Level Zero error querying device count";
+      return false;
+    }
+    deviceCount = static_cast<cl_uint>(zeDeviceCount);
+    msg = "level zero ";
+    msg += deviceTypeToString(deviceType);
+    return true;
+  } break;
+  default:
+    msg = "WARNING: Level Zero unsupported device type ";
+    msg += deviceTypeToString(deviceType);
+    return true;
+  }
 }
 
 static bool queryCUDA(cl_device_type deviceType, cl_uint &deviceCount,
@@ -208,6 +259,8 @@ int main(int argc, char *argv[]) {
 
   if (backend == "opencl" || backend == "pi_opencl") {
     querySuccess = queryOpenCL(deviceType, deviceCount, msg);
+  } else if (backend == "level0" || backend == "pi_level0") {
+    querySuccess = queryLevelZero(deviceType, deviceCount, msg);
   } else if (backend == "cuda" || backend == "pi_cuda") {
     querySuccess = queryCUDA(deviceType, deviceCount, msg);
   } else {

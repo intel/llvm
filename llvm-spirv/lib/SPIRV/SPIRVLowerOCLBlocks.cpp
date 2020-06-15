@@ -79,7 +79,7 @@ public:
     return "Lower OpenCL Blocks For SPIR-V";
   }
 
-  bool runOnModule(Module &M) {
+  bool runOnModule(Module &M) override {
     bool Changed = false;
     for (Function &F : M) {
       if (!isBlockInvoke(F))

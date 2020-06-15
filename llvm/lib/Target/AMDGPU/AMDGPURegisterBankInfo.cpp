@@ -1154,6 +1154,56 @@ bool AMDGPURegisterBankInfo::applyMappingWideLoad(MachineInstr &MI,
   return true;
 }
 
+bool AMDGPURegisterBankInfo::applyMappingDynStackAlloc(
+  MachineInstr &MI,
+  const AMDGPURegisterBankInfo::OperandsMapper &OpdMapper,
+  MachineRegisterInfo &MRI) const {
+  const MachineFunction &MF = *MI.getMF();
+  const GCNSubtarget &ST = MF.getSubtarget<GCNSubtarget>();
+  const auto &TFI = *ST.getFrameLowering();
+
+  // Guard in case the stack growth direction ever changes with scratch
+  // instructions.
+  if (TFI.getStackGrowthDirection() == TargetFrameLowering::StackGrowsDown)
+    return false;
+
+  Register Dst = MI.getOperand(0).getReg();
+  Register AllocSize = MI.getOperand(1).getReg();
+  Align Alignment = assumeAligned(MI.getOperand(2).getImm());
+
+  const RegisterBank *SizeBank = getRegBank(AllocSize, MRI, *TRI);
+
+  // TODO: Need to emit a wave reduction to get the maximum size.
+  if (SizeBank != &AMDGPU::SGPRRegBank)
+    return false;
+
+  LLT PtrTy = MRI.getType(Dst);
+  LLT IntPtrTy = LLT::scalar(PtrTy.getSizeInBits());
+
+  const SIMachineFunctionInfo *Info = MF.getInfo<SIMachineFunctionInfo>();
+  Register SPReg = Info->getStackPtrOffsetReg();
+  ApplyRegBankMapping ApplyBank(*this, MRI, &AMDGPU::SGPRRegBank);
+  GISelObserverWrapper Observer(&ApplyBank);
+
+  MachineIRBuilder B(MI);
+  B.setChangeObserver(Observer);
+
+  auto WaveSize = B.buildConstant(LLT::scalar(32), ST.getWavefrontSizeLog2());
+  auto ScaledSize = B.buildShl(IntPtrTy, AllocSize, WaveSize);
+
+  auto SPCopy = B.buildCopy(PtrTy, SPReg);
+  if (Alignment > TFI.getStackAlign()) {
+    auto PtrAdd = B.buildPtrAdd(PtrTy, SPCopy, ScaledSize);
+    B.buildMaskLowPtrBits(Dst, PtrAdd,
+                          Log2(Alignment) + ST.getWavefrontSizeLog2());
+  } else {
+    B.buildPtrAdd(Dst, SPCopy, ScaledSize);
+  }
+
+  MI.eraseFromParent();
+  return true;
+}
+
 bool AMDGPURegisterBankInfo::applyMappingImage(
     MachineInstr &MI, const AMDGPURegisterBankInfo::OperandsMapper &OpdMapper,
     MachineRegisterInfo &MRI, int RsrcIdx) const {
@@ -1806,6 +1856,88 @@ static void extendLow32IntoHigh32(MachineIRBuilder &B,
   }
 }
 
+bool AMDGPURegisterBankInfo::foldExtractEltToCmpSelect(
+  MachineInstr &MI, MachineRegisterInfo &MRI,
+  const OperandsMapper &OpdMapper) const {
+
+  Register VecReg = MI.getOperand(1).getReg();
+  Register Idx = MI.getOperand(2).getReg();
+
+  const RegisterBank &IdxBank =
+    *OpdMapper.getInstrMapping().getOperandMapping(2).BreakDown[0].RegBank;
+
+  bool IsDivergentIdx = IdxBank == AMDGPU::VGPRRegBank;
+
+  LLT VecTy = MRI.getType(VecReg);
+  unsigned EltSize = VecTy.getScalarSizeInBits();
+  unsigned NumElem = VecTy.getNumElements();
+
+  if (!SITargetLowering::shouldExpandVectorDynExt(EltSize, NumElem,
+                                                  IsDivergentIdx))
+    return false;
+
+  MachineIRBuilder B(MI);
+  LLT S32 = LLT::scalar(32);
+
+  const RegisterBank &DstBank =
+    *OpdMapper.getInstrMapping().getOperandMapping(0).BreakDown[0].RegBank;
+  const RegisterBank &SrcBank =
+    *OpdMapper.getInstrMapping().getOperandMapping(1).BreakDown[0].RegBank;
+
+  const RegisterBank &CCBank =
+    (DstBank == AMDGPU::SGPRRegBank &&
+     SrcBank == AMDGPU::SGPRRegBank &&
+     IdxBank == AMDGPU::SGPRRegBank) ? AMDGPU::SGPRRegBank
+                                     : AMDGPU::VCCRegBank;
+  LLT CCTy = (CCBank == AMDGPU::SGPRRegBank) ? S32 : LLT::scalar(1);
+
+  if (CCBank == AMDGPU::VCCRegBank && IdxBank == AMDGPU::SGPRRegBank) {
+    Idx = B.buildCopy(S32, Idx)->getOperand(0).getReg();
+    MRI.setRegBank(Idx, AMDGPU::VGPRRegBank);
+  }
+
+  LLT EltTy = VecTy.getScalarType();
+  SmallVector<Register, 2> DstRegs(OpdMapper.getVRegs(0));
+  unsigned NumLanes = DstRegs.size();
+  if (!NumLanes)
+    NumLanes = 1;
+  else
+    EltTy = MRI.getType(DstRegs[0]);
+
+  auto UnmergeToEltTy = B.buildUnmerge(EltTy, VecReg);
+  SmallVector<Register, 2> Res(NumLanes);
+  for (unsigned L = 0; L < NumLanes; ++L)
+    Res[L] = UnmergeToEltTy.getReg(L);
+
+  for (unsigned I = 1; I < NumElem; ++I) {
+    auto IC = B.buildConstant(S32, I);
+    MRI.setRegBank(IC->getOperand(0).getReg(), AMDGPU::SGPRRegBank);
+    auto Cmp = B.buildICmp(CmpInst::ICMP_EQ, CCTy, Idx, IC);
+    MRI.setRegBank(Cmp->getOperand(0).getReg(), CCBank);
+
+    for (unsigned L = 0; L < NumLanes; ++L) {
+      auto S = B.buildSelect(EltTy, Cmp,
+                             UnmergeToEltTy.getReg(I * NumLanes + L), Res[L]);
+
+      for (unsigned N : { 0, 2, 3 })
+        MRI.setRegBank(S->getOperand(N).getReg(), DstBank);
+
+      Res[L] = S->getOperand(0).getReg();
+    }
+  }
+
+  for (unsigned L = 0; L < NumLanes; ++L) {
+    Register DstReg = (NumLanes == 1) ? MI.getOperand(0).getReg() : DstRegs[L];
+    B.buildCopy(DstReg, Res[L]);
+    MRI.setRegBank(DstReg, DstBank);
+  }
+
+  MRI.setRegBank(MI.getOperand(0).getReg(), DstBank);
+  MI.eraseFromParent();
+
+  return true;
+}
+
 void AMDGPURegisterBankInfo::applyMappingImpl(
     const OperandsMapper &OpdMapper) const {
   MachineInstr &MI = OpdMapper.getMI();
@@ -2400,6 +2532,9 @@ void AMDGPURegisterBankInfo::applyMappingImpl(
     LLT DstTy = MRI.getType(DstReg);
     LLT SrcTy = MRI.getType(SrcReg);
 
+    if (foldExtractEltToCmpSelect(MI, MRI, OpdMapper))
+      return;
+
     MachineIRBuilder B(MI);
 
     const ValueMapping &DstMapping
@@ -2811,6 +2946,9 @@ void AMDGPURegisterBankInfo::applyMappingImpl(
       return;
     break;
   }
+  case AMDGPU::G_DYN_STACKALLOC:
+    applyMappingDynStackAlloc(MI, OpdMapper, MRI);
+    return;
   default:
     break;
   }
@@ -3313,6 +3451,13 @@ AMDGPURegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
     // currently assumes VALU uses.
     unsigned Size = MRI.getType(MI.getOperand(0).getReg()).getSizeInBits();
     OpdsMapping[0] = AMDGPU::getValueMapping(AMDGPU::VGPRRegBankID, Size);
+    break;
+  }
+  case AMDGPU::G_DYN_STACKALLOC: {
+    // Result is always uniform, and a wave reduction is needed for the source.
+    OpdsMapping[0] = AMDGPU::getValueMapping(AMDGPU::SGPRRegBankID, 32);
+    unsigned SrcBankID = getRegBankID(MI.getOperand(1).getReg(), MRI, *TRI);
+    OpdsMapping[1] = AMDGPU::getValueMapping(SrcBankID, 32);
     break;
   }
   case AMDGPU::G_INSERT: {

@@ -35,3 +35,7 @@ _CLC_DEFINE_BINARY_BUILTIN(half, __CLC_FUNCTION, __CLC_BUILTIN, half, half)
 #endif
 
 #endif
+
+#undef __CLC_BUILTIN
+#undef __CLC_BUILTIN_F
+#undef __CLC_FUNCTION

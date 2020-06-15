@@ -46,7 +46,15 @@ if (NOT DEFINED L0_LIBRARY OR NOT DEFINED L0_INCLUDE_DIR)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS l0-loader)
 else()
   include_directories("${L0_INCLUDE_DIR}")
+  add_custom_target(l0-loader
+    DEPENDS ${L0_LIBRARY} COMMENT "Using provided L0 Loader")
 endif()
+
+add_library (L0Loader-Headers INTERFACE)
+add_library (L0Loader::Headers ALIAS L0Loader-Headers)
+target_include_directories(L0Loader-Headers
+  INTERFACE "${L0_INCLUDE_DIR}"
+)
 
 include_directories("${sycl_inc_dir}")
 include_directories(${OPENCL_INCLUDE})

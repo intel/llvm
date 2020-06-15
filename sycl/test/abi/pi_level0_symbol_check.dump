@@ -61,6 +61,7 @@ piMemRetain
 piextUSMEnqueuePrefetch
 piextKernelSetArgPointer
 piEnqueueEventsWait
+piEnqueueEventsWaitWithBarrier
 piEnqueueMemBufferCopy
 piQueueGetInfo
 piDevicePartition
@@ -84,7 +85,7 @@ piKernelSetArg
 piEnqueueMemBufferCopyRect
 piEnqueueKernelLaunch
 piextContextCreateWithNativeHandle
-piclProgramCreateWithBinary
+piProgramCreateWithBinary
 piKernelGetGroupInfo
 piextEventCreateWithNativeHandle
 piEventsWait

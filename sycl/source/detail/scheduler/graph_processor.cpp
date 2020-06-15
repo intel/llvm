@@ -38,7 +38,11 @@ Scheduler::GraphProcessor::getWaitList(EventImplPtr Event) {
 
 void Scheduler::GraphProcessor::waitForEvent(EventImplPtr Event) {
   Command *Cmd = getCommand(Event);
-  assert(Cmd && "Event has no associated command?");
+  // Command can be nullptr if user creates cl::sycl::event explicitly or the
+  // event has been waited on by another thread
+  if (!Cmd)
+    return;
+
   EnqueueResultT Res;
   bool Enqueued = enqueueCommand(Cmd, Res, BLOCKING);
   if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
