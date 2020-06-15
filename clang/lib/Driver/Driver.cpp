@@ -2605,12 +2605,10 @@ static SmallVector<const char *, 16> getLinkerArgs(Compilation &C,
         continue;
       }
     }
-    if (A->getOption().hasFlag(options::LinkerInput)) {
-      // Do not add any libraries that are not fully named static libs
-      if (A->getOption().matches(options::OPT_l) ||
-          A->getOption().matches(options::OPT_reserved_lib_Group) ||
-          A->getOption().hasFlag(options::NoArgumentUnused))
-        continue;
+    if (A->getOption().matches(options::OPT_Wl_COMMA) ||
+        A->getOption().matches(options::OPT_Xlinker)) {
+      // Parse through additional linker arguments that are meant to go
+      // directly to the linker.
       std::string PrevArg;
       for (const std::string &Value : A->getValues()) {
         auto addKnownValues = [&](const StringRef &V) {

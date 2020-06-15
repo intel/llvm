@@ -110,13 +110,14 @@ static RT::PiProgram createSpirvProgram(const ContextImplPtr Context,
 
 RTDeviceBinaryImage &
 ProgramManager::getDeviceImage(OSModuleHandle M, const string_class &KernelName,
-                               const context &Context) {
+                               const context &Context,
+                               bool JITCompilationIsRequired) {
   if (DbgProgMgr > 0)
     std::cerr << ">>> ProgramManager::getDeviceImage(" << M << ", \""
               << KernelName << "\", " << getRawSyclObjImpl(Context) << ")\n";
 
   KernelSetId KSId = getKernelSetId(M, KernelName);
-  return getDeviceImage(M, KSId, Context);
+  return getDeviceImage(M, KSId, Context, JITCompilationIsRequired);
 }
 
 template <typename ExceptionT, typename RetT>
@@ -340,7 +341,8 @@ RT::PiProgram ProgramManager::createPIProgram(const RTDeviceBinaryImage &Img,
 RT::PiProgram ProgramManager::getBuiltPIProgram(OSModuleHandle M,
                                                 const context &Context,
                                                 const string_class &KernelName,
-                                                const program_impl *Prg) {
+                                                const program_impl *Prg,
+                                                bool JITCompilationIsRequired) {
   KernelSetId KSId = getKernelSetId(M, KernelName);
 
   const ContextImplPtr Ctx = getSyclObjImpl(Context);
@@ -356,8 +358,9 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(OSModuleHandle M,
   auto GetF = [](const Locked<ProgramCacheT> &LockedCache) -> ProgramCacheT & {
     return LockedCache.get();
   };
-  auto BuildF = [this, &M, &KSId, &Context, Prg] {
-    const RTDeviceBinaryImage &Img = getDeviceImage(M, KSId, Context);
+  auto BuildF = [this, &M, &KSId, &Context, Prg, &JITCompilationIsRequired] {
+    const RTDeviceBinaryImage &Img =
+        getDeviceImage(M, KSId, Context, JITCompilationIsRequired);
 
     ContextImplPtr ContextImpl = getSyclObjImpl(Context);
     const detail::plugin &Plugin = ContextImpl->getPlugin();
@@ -614,9 +617,10 @@ ProgramManager::ProgramManager() {
   }
 }
 
-RTDeviceBinaryImage &ProgramManager::getDeviceImage(OSModuleHandle M,
-                                                    KernelSetId KSId,
-                                                    const context &Context) {
+RTDeviceBinaryImage &
+ProgramManager::getDeviceImage(OSModuleHandle M, KernelSetId KSId,
+                               const context &Context,
+                               bool JITCompilationIsRequired) {
   if (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::getDeviceImage(" << M << ", \"" << KSId
               << "\", " << getRawSyclObjImpl(Context) << ")\n";
@@ -642,6 +646,21 @@ RTDeviceBinaryImage &ProgramManager::getDeviceImage(OSModuleHandle M,
 
   Ctx->getPlugin().call<PiApiKind::piextDeviceSelectBinary>(
       getFirstDevice(Ctx), RawImgs.data(), (cl_uint)RawImgs.size(), &ImgInd);
+
+  if (JITCompilationIsRequired) {
+    // If the image is already compiled with AOT, throw an exception.
+    const pi_device_binary_struct &RawImg = Imgs[ImgInd]->getRawData();
+    if ((strcmp(RawImg.DeviceTargetSpec,
+                PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64) == 0) ||
+        (strcmp(RawImg.DeviceTargetSpec, PI_DEVICE_BINARY_TARGET_SPIRV64_GEN) ==
+         0) ||
+        (strcmp(RawImg.DeviceTargetSpec,
+                PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0)) {
+      throw feature_not_supported("Recompiling AOT image is not supported",
+                                  PI_INVALID_OPERATION);
+    }
+  }
+
   Img = Imgs[ImgInd].get();
 
   if (DbgProgMgr > 0) {
