@@ -804,8 +804,7 @@ static void VisitStreamRecord(CXXRecordDecl *Owner, ParentTy &Parent,
     QualType FieldTy = Field->getType();
     // Required to initialize accessors inside streams.
     if (Util::isSyclAccessorType(FieldTy))
-      (void)std::initializer_list<int>{
-          (handlers.handleSyclAccessorType(Field, FieldTy), 0)...};
+      KF_FOR_EACH(handleSyclAccessorType, Field, FieldTy);
   }
   (void)std::initializer_list<int>{(handlers.leaveStruct(Owner, Parent), 0)...};
 }
@@ -1490,7 +1489,6 @@ public:
     ILE->setType(QualType(RD->getTypeForDecl(), 0));
     InitExprs.push_back(ILE);
 
-    MemberExprBases.pop_back();
   }
 
   void leaveStruct(const CXXRecordDecl *, FieldDecl *FD) final {
@@ -1507,11 +1505,13 @@ public:
           InitExprs.pop_back();
       }
     }
+    MemberExprBases.pop_back();
   }
 
   void leaveStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS) final {
     const CXXRecordDecl *BaseClass = BS.getType()->getAsCXXRecordDecl();
     addStructInit(BaseClass);
+    MemberExprBases.pop_back();
   }
 
 };
