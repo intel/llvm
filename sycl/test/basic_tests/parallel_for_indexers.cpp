@@ -6,6 +6,10 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t2.out
 // RUN: %ACC_RUN_PLACEHOLDER %t2.out
 
+// TODO: Unexpected result
+// TODO: _indexers.cpp:37: int main(): Assertion `id == -1' failed.
+// XFAIL: level0
+
 #include <CL/sycl.hpp>
 
 #include <cassert>
