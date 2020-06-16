@@ -593,33 +593,6 @@ static void CheckForIncompatibleSYCLLoopAttributes(
   CheckRedundantSYCLIntelFPGAIVDepAttrs(S, Attrs);
 }
 
-void CheckForIncompatibleUnrollHintAttributes(
-    Sema &S, const SmallVectorImpl<const Attr *> &Attrs, SourceRange Range) {
-
-  // This check is entered after it was analyzed that there are no duplicating
-  // pragmas and loop attributes. So, let's perform check that there are no
-  // conflicting pragma unroll and unroll attribute for the loop.
-  const LoopUnrollHintAttr *AttrUnroll = nullptr;
-  const LoopHintAttr *PragmaUnroll = nullptr;
-  for (const auto *I : Attrs) {
-    if (auto *LH = dyn_cast<LoopUnrollHintAttr>(I))
-      AttrUnroll = LH;
-    if (auto *LH = dyn_cast<LoopHintAttr>(I)) {
-      LoopHintAttr::OptionType Opt = LH->getOption();
-      if (Opt == LoopHintAttr::Unroll || Opt == LoopHintAttr::UnrollCount)
-        PragmaUnroll = LH;
-    }
-  }
-
-  if (AttrUnroll && PragmaUnroll) {
-    PrintingPolicy Policy(S.Context.getLangOpts());
-    SourceLocation Loc = Range.getBegin();
-    S.Diag(Loc, diag::err_loop_unroll_compatibility)
-        << PragmaUnroll->getDiagnosticName(Policy)
-        << AttrUnroll->getDiagnosticName(Policy);
-  }
-}
-
 static bool CheckLoopUnrollAttrExpr(Sema &S, Expr *E,
                                     const AttributeCommonInfo &A,
                                     unsigned *UnrollFactor = nullptr) {
@@ -736,7 +709,6 @@ StmtResult Sema::ProcessStmtAttributes(Stmt *S,
 
   CheckForIncompatibleAttributes(*this, Attrs);
   CheckForIncompatibleSYCLLoopAttributes(*this, Attrs, Range);
-  CheckForIncompatibleUnrollHintAttributes(*this, Attrs, Range);
 
   if (Attrs.empty())
     return S;
