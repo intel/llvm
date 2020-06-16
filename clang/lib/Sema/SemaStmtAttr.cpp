@@ -148,8 +148,8 @@ static IVDepExprResult HandleFPGAIVDepAttrExpr(Sema &S, Expr *E,
     return IVDepExprResult::SafeLen;
   }
 
-  if (isa<DeclRefExpr>(E)) {
-    if (!cast<DeclRefExpr>(E)->getType()->isArrayType()) {
+  if (isa<DeclRefExpr>(E) | isa<MemberExpr>(E)) {
+    if (!E->getType()->isArrayType() && !E->getType()->isPointerType()) {
       S.Diag(E->getExprLoc(), diag::err_ivdep_declrefexpr_arg);
       return IVDepExprResult::Invalid;
     }
@@ -249,7 +249,7 @@ CheckRedundantSYCLIntelFPGAIVDepAttrs(Sema &S, ArrayRef<const Attr *> Attrs) {
     if (!A->getArrayExpr())
       continue;
 
-    const VarDecl *ArrayDecl = A->getArrayDecl();
+    const ValueDecl *ArrayDecl = A->getArrayDecl();
     auto Other = llvm::find_if(SortedAttrs,
                                [ArrayDecl](const SYCLIntelFPGAIVDepAttr *A) {
                                  return ArrayDecl == A->getArrayDecl();
