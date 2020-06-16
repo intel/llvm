@@ -147,11 +147,10 @@ void ivdep_mul_arrays_and_global() {
 
 // CHECK: define spir_func void @_Z{{[0-9]+}}ivdep_ptrv()
 void ivdep_ptr() {
-  int * ptr;
+  int *ptr;
   // CHECK: %[[PTR:[0-9a-z]+]] = alloca i32 addrspace(4)*
-  [[intelfpga::ivdep(ptr, 5)]]
-  for (int i = 0; i != 10; ++i)
-    ptr[i] = 0;
+  [[intelfpga::ivdep(ptr, 5)]] for (int i = 0; i != 10; ++i)
+      ptr[i] = 0;
   // CHECK: %[[PTR_LOAD:[0-9a-z]+]] = load i32 addrspace(4)*, i32 addrspace(4)** %[[PTR]]
   // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds i32, i32 addrspace(4)* %[[PTR_LOAD]], i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_PTR:[0-9]+]]
   // CHECK: br label %for.cond, !llvm.loop ![[MD_LOOP_PTR:[0-9]+]]
@@ -159,24 +158,24 @@ void ivdep_ptr() {
 
 // CHECK: define spir_func void @_Z{{[0-9]+}}ivdep_structv()
 void ivdep_struct() {
-  struct S { int *ptr; int  arr[10]; } s;
+  struct S {
+    int *ptr;
+    int arr[10];
+  } s;
   // CHECK: %[[STRUCT:[0-9a-z]+]] = alloca %struct.{{.+}}.S
-  [[intelfpga::ivdep(s.arr, 5)]]
-  for (int i = 0; i != 10; ++i)
-    s.arr[i] = 0;
+  [[intelfpga::ivdep(s.arr, 5)]] for (int i = 0; i != 10; ++i)
+      s.arr[i] = 0;
   // CHECK: %[[STRUCT_ARR:[0-9a-z]+]] = getelementptr inbounds %struct.{{.+}}.S, %struct.{{.+}}.S* %[[STRUCT]], i32 0, i32 1
   // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[STRUCT_ARR]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_STRUCT_ARR:[0-9]+]]
   // CHECK: br label %for.cond, !llvm.loop ![[MD_LOOP_STRUCT_ARR:[0-9]+]]
 
-  [[intelfpga::ivdep(s.ptr, 5)]]
-  for (int i = 0; i != 10; ++i)
-    s.ptr[i] = 0;
+  [[intelfpga::ivdep(s.ptr, 5)]] for (int i = 0; i != 10; ++i)
+      s.ptr[i] = 0;
   // CHECK: %[[STRUCT_PTR:[0-9a-z]+]] = getelementptr inbounds %struct.{{.+}}.S, %struct.{{.+}}.S* %[[STRUCT]], i32 0, i32 0
   // CHECK: %[[LOAD_STRUCT_PTR:[0-9a-z]+]] = load i32 addrspace(4)*, i32 addrspace(4)** %[[STRUCT_PTR]]
   // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds i32, i32 addrspace(4)* %[[LOAD_STRUCT_PTR]], i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_STRUCT_PTR:[0-9]+]]
   // CHECK: br label %for.cond{{[0-9]*}}, !llvm.loop ![[MD_LOOP_STRUCT_PTR:[0-9]+]]
 }
-
 
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
