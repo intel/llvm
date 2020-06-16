@@ -23,7 +23,7 @@
 ;
 ; Check that translator is able to reject SPIR-V if extension is disallowed
 ;
-; RUN: not --crash llvm-spirv -r %t.spv --spirv-ext=-SPV_KHR_no_integer_wrap_decoration -o - 2>&1 | FileCheck %s --check-prefix=CHECK-INVALID-SPIRV
+; RUN: not llvm-spirv -r %t.spv --spirv-ext=-SPV_KHR_no_integer_wrap_decoration -o - 2>&1 | FileCheck %s --check-prefix=CHECK-INVALID-SPIRV
 ;
 ; Check that translator is able to skip nsw/nuw attributes if extension is disabled implicitly or explicitly
 ;

@@ -59,8 +59,9 @@ extern bool SPIRVDbgEnable;
 // Include source file and line number in error message.
 extern bool SPIRVDbgErrorMsgIncludesSourceInfo;
 
-// Enable assert on error
-extern bool SPIRVDbgAbortOnError;
+// Enable assert or exit on error
+enum class SPIRVDbgErrorHandlingKinds { Abort, Exit, Ignore };
+extern SPIRVDbgErrorHandlingKinds SPIRVDbgError;
 
 // Output stream for SPIRV debug information.
 inline spv_ostream &spvdbgs() {

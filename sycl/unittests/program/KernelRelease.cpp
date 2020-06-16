@@ -69,15 +69,15 @@ pi_result redefinedKernelGetInfo(pi_kernel kernel, pi_kernel_info param_name,
 }
 
 TEST(KernelReleaseTest, GetKernelRelease) {
-  unittest::PiMock Mock;
-  platform Plt = Mock.getPlatform();
+  platform Plt{default_selector()};
   if (Plt.is_host()) {
-    std::cerr << "The program/kernel methods are mostly no-op on the host "
+    std::cout << "The program/kernel methods are mostly no-op on the host "
                  "device, the test is not run."
               << std::endl;
     return;
   }
 
+  unittest::PiMock Mock{Plt};
   Mock.redefine<detail::PiApiKind::piclProgramCreateWithSource>(
       redefinedProgramCreateWithSource);
   Mock.redefine<detail::PiApiKind::piProgramBuild>(redefinedProgramBuild);

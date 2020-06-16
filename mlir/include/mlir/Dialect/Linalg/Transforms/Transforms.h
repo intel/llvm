@@ -11,6 +11,7 @@
 
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
 #include "mlir/Dialect/Vector/VectorOps.h"
+#include "mlir/IR/Identifier.h"
 #include "mlir/IR/PatternMatch.h"
 #include "llvm/ADT/SmallBitVector.h"
 
@@ -105,8 +106,8 @@ struct LinalgPromotionOptions {
   /// If true all operands unspecified by `useFullTileBuffers` will use the full
   /// view, otherwise the partial view.
   bool useFullTileBuffersDefault = false;
-  LinalgPromotionOptions &useFullTileBuffersByDefault() {
-    useFullTileBuffersDefault = true;
+  LinalgPromotionOptions &setUseFullTileBuffersByDefault(bool use) {
+    useFullTileBuffersDefault = use;
     return *this;
   }
   /// Allow the use of dynamicaly-sized buffers.
@@ -206,15 +207,16 @@ struct LinalgTransforms {
 
 /// Helper class to control common attribute matching and setting behavior.
 struct LinalgMarker {
-  LinalgMarker(ArrayRef<StringRef> matchDisjunction = {},
-               Optional<StringRef> replacement = None);
-  LinalgMarker(ArrayRef<StringRef> matchDisjunction, StringRef replacement);
+  explicit LinalgMarker(ArrayRef<Identifier> matchDisjunction = {},
+                        Optional<Identifier> replacement = None);
+  LinalgMarker(LinalgMarker &&) = default;
+  LinalgMarker(const LinalgMarker &) = default;
   LogicalResult checkAndNotify(PatternRewriter &rewriter, Operation *op) const;
   void replaceLinalgMarker(PatternRewriter &rewriter, Operation *op) const;
 
 private:
-  SmallVector<StringRef, 4> matchDisjunction;
-  Optional<StringRef> replacement;
+  SmallVector<Identifier, 4> matchDisjunction;
+  Optional<Identifier> replacement;
 };
 
 ///
@@ -398,8 +400,7 @@ enum class LinalgLoweringType {
   AffineLoops = 2,
   ParallelLoops = 3
 };
-template <typename OpTy>
-struct LinalgLoweringPattern : public RewritePattern {
+template <typename OpTy> struct LinalgLoweringPattern : public RewritePattern {
   LinalgLoweringPattern(MLIRContext *context, LinalgLoweringType loweringType,
                         LinalgMarker marker = LinalgMarker(),
                         PatternBenefit benefit = 1)

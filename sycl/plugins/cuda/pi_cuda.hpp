@@ -404,8 +404,8 @@ private:
 struct _pi_program {
   using native_type = CUmodule;
   native_type module_;
-  const char *source_;
-  size_t sourceLength_;
+  const char *binary_;
+  size_t binarySizeInBytes_;
   std::atomic_uint32_t refCount_;
   _pi_context *context_;
 
@@ -418,7 +418,7 @@ struct _pi_program {
   _pi_program(pi_context ctxt);
   ~_pi_program();
 
-  pi_result create_from_source(const char *source, size_t length);
+  pi_result set_binary(const char *binary, size_t binarySizeInBytes);
 
   pi_result build_program(const char* build_options);
 

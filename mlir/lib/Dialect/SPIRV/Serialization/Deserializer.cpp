@@ -225,6 +225,8 @@ private:
 
   LogicalResult processStructType(ArrayRef<uint32_t> operands);
 
+  LogicalResult processMatrixType(ArrayRef<uint32_t> operands);
+
   //===--------------------------------------------------------------------===//
   // Constant
   //===--------------------------------------------------------------------===//
@@ -715,6 +717,8 @@ LogicalResult Deserializer::processDecoration(ArrayRef<uint32_t> words) {
     break;
   case spirv::Decoration::Block:
   case spirv::Decoration::BufferBlock:
+  case spirv::Decoration::Flat:
+  case spirv::Decoration::NoPerspective:
     if (words.size() != 2) {
       return emitError(unknownLoc, "OpDecoration with ")
              << decorationName << "needs a single target <id>";
@@ -725,6 +729,7 @@ LogicalResult Deserializer::processDecoration(ArrayRef<uint32_t> words) {
     // it is needed for many validation rules.
     decorations[words[0]].set(symbol, opBuilder.getUnitAttr());
     break;
+  case spirv::Decoration::Location:
   case spirv::Decoration::SpecId:
     if (words.size() != 3) {
       return emitError(unknownLoc, "OpDecoration with ")
@@ -1170,6 +1175,8 @@ LogicalResult Deserializer::processType(spirv::Opcode opcode,
     return processRuntimeArrayType(operands);
   case spirv::Opcode::OpTypeStruct:
     return processStructType(operands);
+  case spirv::Opcode::OpTypeMatrix:
+    return processMatrixType(operands);
   default:
     return emitError(unknownLoc, "unhandled type instruction");
   }
@@ -1247,15 +1254,15 @@ Deserializer::processCooperativeMatrixType(ArrayRef<uint32_t> operands) {
            << operands[1];
   }
 
-  auto scope = spirv::symbolizeScope(operands[2]);
+  auto scope = spirv::symbolizeScope(getConstantInt(operands[2]).getInt());
   if (!scope) {
     return emitError(unknownLoc,
                      "OpTypeCooperativeMatrix references undefined scope <id> ")
            << operands[2];
   }
 
-  unsigned rows = operands[3];
-  unsigned columns = operands[4];
+  unsigned rows = getConstantInt(operands[3]).getInt();
+  unsigned columns = getConstantInt(operands[4]).getInt();
 
   typeMap[operands[0]] = spirv::CooperativeMatrixNVType::get(
       elementTy, scope.getValue(), rows, columns);
@@ -1330,6 +1337,25 @@ LogicalResult Deserializer::processStructType(ArrayRef<uint32_t> operands) {
       spirv::StructType::get(memberTypes, layoutInfo, memberDecorationsInfo);
   // TODO(ravishankarm): Update StructType to have member name as attribute as
   // well.
+  return success();
+}
+
+LogicalResult Deserializer::processMatrixType(ArrayRef<uint32_t> operands) {
+  if (operands.size() != 3) {
+    // Three operands are needed: result_id, column_type, and column_count
+    return emitError(unknownLoc, "OpTypeMatrix must have 3 operands"
+                                 " (result_id, column_type, and column_count)");
+  }
+  // Matrix columns must be of vector type
+  Type elementTy = getType(operands[1]);
+  if (!elementTy) {
+    return emitError(unknownLoc,
+                     "OpTypeMatrix references undefined column type.")
+           << operands[1];
+  }
+
+  uint32_t colsCount = operands[2];
+  typeMap[operands[0]] = spirv::MatrixType::get(elementTy, colsCount);
   return success();
 }
 
@@ -2238,6 +2264,7 @@ LogicalResult Deserializer::processInstruction(spirv::Opcode opcode,
   case spirv::Opcode::OpTypeInt:
   case spirv::Opcode::OpTypeFloat:
   case spirv::Opcode::OpTypeVector:
+  case spirv::Opcode::OpTypeMatrix:
   case spirv::Opcode::OpTypeArray:
   case spirv::Opcode::OpTypeFunction:
   case spirv::Opcode::OpTypeRuntimeArray:
