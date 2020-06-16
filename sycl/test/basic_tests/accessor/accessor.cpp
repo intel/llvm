@@ -496,4 +496,68 @@ int main() {
     assert(acc5[0] == 4);
     assert(acc6[0] == 6);
   }
+
+#ifdef simplification_test
+  // Constant buffer accessor
+  {
+    try {
+      int data = -1;
+      int cnst = 399;
+
+      {
+        sycl::buffer<int, 1> d(&data, sycl::range<1>(1));
+        sycl::buffer<int, 1> c(&cnst, sycl::range<1>(1));
+
+        sycl::queue queue;
+        queue.submit([&](sycl::handler &cgh) {
+          sycl::accessor D(d, cgh, sycl::write_only);
+          sycl::accessor C(c, cgh, sycl::read_constant);
+
+          cgh.single_task<class acc_with_const>([=]() {
+            D[0] = C[0];
+          });
+        });
+
+        assert(data == 399);
+      }
+
+    } catch (sycl::exception e) {
+      std::cout << "SYCL exception caught: " << e.what();
+      return 1;
+    }
+  }
+
+  // Placeholder accessor
+  {
+    try {
+      int data = -1;
+      int cnst = 399;
+
+      {
+        sycl::buffer<int, 1> d(&data, sycl::range<1>(1));
+        sycl::buffer<int, 1> c(&cnst, sycl::range<1>(1));
+
+        sycl::accessor D(d, sycl::write_only);
+        sycl::accessor C(c, sycl::read_constant);
+
+        sycl::queue queue;
+        queue.submit([&](sycl::handler &cgh) {
+          cgh.require(D);
+          cgh.require(C);
+
+          cgh.single_task<class placeholder_acc>([=]() {
+            D[0] = C[0];
+          });
+        });
+
+        assert(data == 399);
+      }
+
+    } catch (sycl::exception e) {
+      std::cout << "SYCL exception caught: " << e.what();
+      return 1;
+    }
+  }
+#endif
+
 }
