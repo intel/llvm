@@ -84,9 +84,12 @@ int main() {
     assert(acc_src.get_count() == 2);
     assert(acc_src.get_range() == sycl::range<1>(2));
 
-    // Make sure that operator[] is defined for both size_t and id<1>.
+    // operator[] overload for size_t was intentionally removed
+    // to remove ambiguity, when passing item to operator[].
     // Implicit conversion from IdxSzT to size_t guarantees that no
-    // implicit conversion from size_t to id<1> will happen.
+    // implicit conversion from size_t to id<1> will happen,
+    // thus `acc_src[IdxSzT(0)]` will no longer compile.
+    // Replaced with acc_src[0].
     assert(acc_src[0] + acc_src[IdxID1(1)] == 10);
 
     acc_dst[0] = acc_src[0] + acc_src[IdxID1(0)];
