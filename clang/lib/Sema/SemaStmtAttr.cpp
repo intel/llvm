@@ -148,7 +148,7 @@ static IVDepExprResult HandleFPGAIVDepAttrExpr(Sema &S, Expr *E,
     return IVDepExprResult::SafeLen;
   }
 
-  if (isa<DeclRefExpr>(E) | isa<MemberExpr>(E)) {
+  if (isa<DeclRefExpr>(E) || isa<MemberExpr>(E)) {
     if (!E->getType()->isArrayType() && !E->getType()->isPointerType()) {
       S.Diag(E->getExprLoc(), diag::err_ivdep_declrefexpr_arg);
       return IVDepExprResult::Invalid;

@@ -263,14 +263,11 @@ int main() {
 // CHECK-DAG: ![[IDX_GROUP_PTR]] = distinct !{}
 // CHECK-DAG: ![[MD_LOOP_PTR]] = distinct !{![[MD_LOOP_PTR]], ![[IVDEP_PTR:[0-9]+]]}
 // CHECK-DAG: ![[IVDEP_PTR]] = !{!"llvm.loop.parallel_access_indices", ![[IDX_GROUP_PTR]], i32 5}
-// TODO: ERICH: FIGURE OUT THESE VALUES
 
 // CHECK-DAG: ![[IDX_GROUP_STRUCT_ARR]] = distinct !{}
 // CHECK-DAG: ![[MD_LOOP_STRUCT_ARR]] = distinct !{![[MD_LOOP_STRUCT_ARR]], ![[IVDEP_STRUCT_ARR:[0-9]+]]}
 // CHECK-DAG: ![[IVDEP_STRUCT_ARR]] = !{!"llvm.loop.parallel_access_indices", ![[IDX_GROUP_STRUCT_ARR]], i32 5}
-// TODO: ERICH: FIGURE OUT THESE VALUES
 
 // CHECK-DAG: ![[IDX_GROUP_STRUCT_PTR]] = distinct !{}
 // CHECK-DAG: ![[MD_LOOP_STRUCT_PTR]] = distinct !{![[MD_LOOP_STRUCT_PTR]], ![[IVDEP_STRUCT_PTR:[0-9]+]]}
 // CHECK-DAG: ![[IVDEP_STRUCT_PTR]] = !{!"llvm.loop.parallel_access_indices", ![[IDX_GROUP_STRUCT_PTR]], i32 5}
-// TODO: ERICH: FIGURE OUT THESE VALUES
