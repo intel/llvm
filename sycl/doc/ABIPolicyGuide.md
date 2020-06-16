@@ -84,7 +84,7 @@ There is a set of tests to help identifying ABI changes:
   ```shell
   python3 sycl/tools/abi_check.py --mode dump_symbols --output path/to/output.dump path/to/sycl.so(.dll)
   ```
-  Please, prefere updating the test files with the above command. The checker
+  Please, prefer updating the test files with the above command. The checker
   script automatically sorts symbols. This would allow developers to avoid
   large diffs and help maintainers identify the nature of ABI changes.
 * `test/abi/layout*` and `test/abi/symbol_size*` are a group of tests to check
