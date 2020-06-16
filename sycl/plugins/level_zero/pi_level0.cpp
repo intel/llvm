@@ -2177,7 +2177,7 @@ pi_result piEventCreate(pi_context Context, pi_event *RetEvent) {
   ze_event_handle_t ZeEvent;
   ze_event_desc_t ZeEventDesc = {};
   ZeEventDesc.signal = ZE_EVENT_SCOPE_FLAG_NONE;
-  ZeEventDesc.wait = ZE_EVENT_SCOPE_FLAG_NONE;
+  ZeEventDesc.wait = ZE_EVENT_SCOPE_FLAG_HOST;
   ZeEventDesc.version = ZE_EVENT_DESC_VERSION_CURRENT;
   ZeEventDesc.index = Index;
 
