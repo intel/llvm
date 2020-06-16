@@ -152,7 +152,7 @@ RegisterProp(PropKind::BufferContextBound, buffer::context_bound);
 RegisterProp(PropKind::QueueEnableProfiling, queue::enable_profiling);
 RegisterProp(PropKind::InOrder, queue::in_order);
 
-// Buffer
+// Accessor
 RegisterProp(PropKind::NoInit, noinit);
 
 // Sentinel, needed for automatic build of tuple in property_list.
