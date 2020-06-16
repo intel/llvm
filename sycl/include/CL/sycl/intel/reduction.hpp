@@ -380,7 +380,7 @@ public:
 
   /// Constructs reduction_impl when the identity value is statically known.
   // Note that aliasing constructor was used to initialize MAcc to avoid
-  // destruction of the object reference by the parameter Acc.
+  // destruction of the object referenced by the parameter Acc.
   template <
       typename _T = T, class _BinaryOperation = BinaryOperation,
       enable_if_t<IsKnownIdentityOp<_T, _BinaryOperation>::value> * = nullptr>
@@ -395,7 +395,7 @@ public:
   /// Constructs reduction_impl when the identity value is statically known,
   /// and user still passed the identity value.
   // Note that aliasing constructor was used to initialize MAcc to avoid
-  // destruction of the object reference by the parameter Acc.
+  // destruction of the object referenced by the parameter Acc.
   template <
       typename _T = T, class _BinaryOperation = BinaryOperation,
       enable_if_t<IsKnownIdentityOp<_T, _BinaryOperation>::value> * = nullptr>
@@ -421,7 +421,7 @@ public:
 
   /// Constructs reduction_impl when the identity value is unknown.
   // Note that aliasing constructor was used to initialize MAcc to avoid
-  // destruction of the object reference by the parameter Acc.
+  // destruction of the object referenced by the parameter Acc.
   template <
       typename _T = T, class _BinaryOperation = BinaryOperation,
       enable_if_t<!IsKnownIdentityOp<_T, _BinaryOperation>::value> * = nullptr>
@@ -733,7 +733,7 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
   // This additional check is needed for 'read_write' accessor case only.
   // It does not slow-down the kernel writing to 'discard_write' accessor as
   // the condition seems to be resolved at compile time for 'discard_write'.
-  bool IsUpdateOfUserAcc =
+  bool IsUpdateOfUserVar =
       Reduction::accessor_mode == access::mode::read_write && NWorkGroups == 1;
 
   using Name = typename get_reduction_main_kernel_name_t<
@@ -752,7 +752,7 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
     typename Reduction::binary_operation BOp;
     PSum = intel::reduce(NDIt.get_group(), PSum, BOp);
     if (NDIt.get_local_linear_id() == 0) {
-      if (IsUpdateOfUserAcc)
+      if (IsUpdateOfUserVar)
         PSum = BOp(*(Reduction::getOutPointer(Out)), PSum);
       Reduction::getOutPointer(Out)[WGID] = PSum;
     }
@@ -776,7 +776,7 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
   size_t WGSize = Range.get_local_range().size();
   size_t NWorkGroups = Range.get_group_range().size();
 
-  bool IsUpdateOfUserAcc =
+  bool IsUpdateOfUserVar =
       Reduction::accessor_mode == access::mode::read_write && NWorkGroups == 1;
 
   // Use local memory to reduce elements in work-groups into 0-th element.
@@ -821,7 +821,7 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
       size_t GrID = NDIt.get_group_linear_id();
       typename Reduction::result_type PSum =
           UniformPow2WG ? LocalReds[0] : BOp(LocalReds[0], LocalReds[WGSize]);
-      if (IsUpdateOfUserAcc)
+      if (IsUpdateOfUserVar)
         PSum = BOp(*(Reduction::getOutPointer(Out)), PSum);
       Reduction::getOutPointer(Out)[GrID] = PSum;
     }
@@ -874,7 +874,7 @@ enable_if_t<Reduction::has_fast_reduce && !Reduction::has_fast_atomics>
 reduAuxCGFuncImpl(handler &CGH, const nd_range<Dims> &Range, size_t NWorkItems,
                   Reduction &, InputT In, OutputT Out) {
   size_t NWorkGroups = Range.get_group_range().size();
-  bool IsUpdateOfUserAcc =
+  bool IsUpdateOfUserVar =
       Reduction::accessor_mode == access::mode::read_write && NWorkGroups == 1;
 
   using Name = typename get_reduction_aux_kernel_name_t<
@@ -889,7 +889,7 @@ reduAuxCGFuncImpl(handler &CGH, const nd_range<Dims> &Range, size_t NWorkItems,
             : Reduction::reducer_type::getIdentity();
     PSum = intel::reduce(NDIt.get_group(), PSum, BOp);
     if (NDIt.get_local_linear_id() == 0) {
-      if (IsUpdateOfUserAcc)
+      if (IsUpdateOfUserVar)
         PSum = BOp(*(Reduction::getOutPointer(Out)), PSum);
       Reduction::getOutPointer(Out)[WGID] = PSum;
     }
@@ -911,7 +911,7 @@ reduAuxCGFuncImpl(handler &CGH, const nd_range<Dims> &Range, size_t NWorkItems,
   size_t WGSize = Range.get_local_range().size();
   size_t NWorkGroups = Range.get_group_range().size();
 
-  bool IsUpdateOfUserAcc =
+  bool IsUpdateOfUserVar =
       Reduction::accessor_mode == access::mode::read_write && NWorkGroups == 1;
 
   // Use local memory to reduce elements in work-groups into 0-th element.
@@ -955,7 +955,7 @@ reduAuxCGFuncImpl(handler &CGH, const nd_range<Dims> &Range, size_t NWorkItems,
       size_t GrID = NDIt.get_group_linear_id();
       typename Reduction::result_type PSum =
           UniformPow2WG ? LocalReds[0] : BOp(LocalReds[0], LocalReds[WGSize]);
-      if (IsUpdateOfUserAcc)
+      if (IsUpdateOfUserVar)
         PSum = BOp(*(Reduction::getOutPointer(Out)), PSum);
       Reduction::getOutPointer(Out)[GrID] = PSum;
     }
