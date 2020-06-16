@@ -585,25 +585,26 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
 
   if (NumDevices)
     *NumDevices = ZeDeviceCount;
+  if (NumEntries > 0) {
+    try {
+      // TODO: Delete array at teardown
+      ze_device_handle_t *ZeDevices = new ze_device_handle_t[ZeDeviceCount];
+      ZE_CALL(zeDeviceGet(ZeDriver, &ZeDeviceCount, ZeDevices));
 
-  try {
-    // TODO: Delete array at teardown
-    ze_device_handle_t *ZeDevices = new ze_device_handle_t[ZeDeviceCount];
-    ZE_CALL(zeDeviceGet(ZeDriver, &ZeDeviceCount, ZeDevices));
-
-    for (uint32_t I = 0; I < ZeDeviceCount; ++I) {
-      if (I < NumEntries) {
-        Devices[I] = new _pi_device(ZeDevices[I], Platform);
-        pi_result Result = Devices[I]->initialize();
-        if (Result != PI_SUCCESS) {
-          return Result;
+      for (uint32_t I = 0; I < ZeDeviceCount; ++I) {
+        if (I < NumEntries) {
+          Devices[I] = new _pi_device(ZeDevices[I], Platform);
+          pi_result Result = Devices[I]->initialize();
+          if (Result != PI_SUCCESS) {
+            return Result;
+          }
         }
       }
+    } catch (const std::bad_alloc &) {
+      return PI_OUT_OF_HOST_MEMORY;
+    } catch (...) {
+      return PI_ERROR_UNKNOWN;
     }
-  } catch (const std::bad_alloc &) {
-    return PI_OUT_OF_HOST_MEMORY;
-  } catch (...) {
-    return PI_ERROR_UNKNOWN;
   }
   return PI_SUCCESS;
 }
