@@ -512,10 +512,10 @@ int main() {
 #ifdef simplification_test
           sycl::accessor<int, 1, sycl::access::mode::write,
                          sycl::access::target::global_buffer>
-            D(d, cgh);
+              D(d, cgh);
           sycl::accessor<int, 1, sycl::access::mode::read,
                          sycl::access::target::constant_buffer>
-            C(c, cgh);
+              C(c, cgh);
 #else
           sycl::accessor D(d, cgh, sycl::write_only);
           sycl::accessor C(c, cgh, sycl::read_constant);
@@ -546,13 +546,13 @@ int main() {
         sycl::buffer<int, 1> c(&cnst, sycl::range<1>(1));
 
 #ifdef simplification_test
-          sycl::accessor<int, 1, sycl::access::mode::write,
-                         sycl::access::target::global_buffer,
-                         sycl::access::placeholder::true_t>
+        sycl::accessor<int, 1, sycl::access::mode::write,
+                       sycl::access::target::global_buffer,
+                       sycl::access::placeholder::true_t>
             D(d);
-          sycl::accessor<int, 1, sycl::access::mode::read,
-                         sycl::access::target::constant_buffer,
-                         sycl::access::placeholder::true_t>
+        sycl::accessor<int, 1, sycl::access::mode::read,
+                       sycl::access::target::constant_buffer,
+                       sycl::access::placeholder::true_t>
             C(c);
 #else
         sycl::accessor D(d, sycl::write_only);

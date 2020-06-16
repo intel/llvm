@@ -1619,7 +1619,6 @@ public:
 
 #endif
 
-
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>()>>
   host_accessor(buffer<DataT, Dimensions, AllocatorT> &BufferRef,

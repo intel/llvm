@@ -311,8 +311,7 @@ template <typename T> struct InlineVariableHelper {
   static constexpr T value{};
 };
 
-template <typename T>
-constexpr T InlineVariableHelper<T>::value;
+template <typename T> constexpr T InlineVariableHelper<T>::value;
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

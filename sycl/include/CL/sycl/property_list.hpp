@@ -233,8 +233,8 @@ inline constexpr property::noinit noinit;
 
 namespace {
 
-constexpr const auto& noinit =
-  sycl::detail::InlineVariableHelper<property::noinit>::value;
+constexpr const auto &noinit =
+    sycl::detail::InlineVariableHelper<property::noinit>::value;
 
 }
 
