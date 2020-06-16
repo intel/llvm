@@ -166,7 +166,7 @@ void foo() {
 // CHECK-NEXT: 472 |       struct std::_Vector_base<class std::shared_ptr<class cl::sycl::detail::event_impl>, class std::allocator<class std::shared_ptr<class cl::sycl::detail::event_impl> > >::_Vector_impl _M_impl
 // CHECK-NEXT: 472 |         class std::allocator<class std::shared_ptr<class cl::sycl::detail::event_impl> > (base) (empty)
 // CHECK-NEXT: 472 |           class __gnu_cxx::new_allocator<class std::shared_ptr<class cl::sycl::detail::event_impl> > (base) (empty)
-// CHECK-NEXT: 472 |         std::_Vector_base<class std::shared_ptr<class cl::sycl::detail::event_impl>, class std::allocator<class std::shared_ptr<class cl::sycl::detail::event_impl> > >::pointer _M_start
+// CHECK: 472 |         std::_Vector_base<class std::shared_ptr<class cl::sycl::detail::event_impl>, class std::allocator<class std::shared_ptr<class cl::sycl::detail::event_impl> > >::pointer _M_start
 // CHECK-NEXT: 480 |         std::_Vector_base<class std::shared_ptr<class cl::sycl::detail::event_impl>, class std::allocator<class std::shared_ptr<class cl::sycl::detail::event_impl> > >::pointer _M_finish
 // CHECK-NEXT: 488 |         std::_Vector_base<class std::shared_ptr<class cl::sycl::detail::event_impl>, class std::allocator<class std::shared_ptr<class cl::sycl::detail::event_impl> > >::pointer _M_end_of_storage
 // CHECK-NEXT: 496 |   _Bool MIsHost
