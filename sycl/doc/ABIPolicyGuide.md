@@ -39,8 +39,9 @@ version `X-1`. `MINOR` indicates a non-breaking change. The development version
 of the library has a postfix `-V` that indicates breaking changes between
 releases. Every time a pull request introduces a breaking change, it must also
 uplift `V`. It is pull request author responsibility to accordingly update
-this version. If `V > 0` on release date, then `MAJOR_VERSION` is uplifted and
-`V` is set to zero.
+`V` part of librayr version. If `V > 0` on release date, then `MAJOR_VERSION`
+is uplifted and `V` is set to zero. `MAJOR`, `MINOR`, and `PATCH` versions are
+not updated between releases.
 
 ## `__SYCL_EXPORT` Macro
 
@@ -83,10 +84,13 @@ There is a set of tests to help identifying ABI changes:
   ```shell
   python3 sycl/tools/abi_check.py --mode dump_symbols --output path/to/output.dump path/to/sycl.so(.dll)
   ```
+  Please, prefere updating the test files with the above command. The checker
+  script automatically sorts symbols. This would allow developers to avoid
+  large diffs and help maintainers identify the nature of ABI changes.
 * `test/abi/layout*` and `test/abi/symbol_size*` are a group of tests to check
-  the internal layout of some classes. The layout tests check Clang AST for
-  changes, while symbol_size check `sizeof` for objects. Changing the class
-  layout is a breaking change.
+  the internal layout of some classes. The `layout*` tests check some of API
+  classes for layout changes, while `symbol_size` only checks `sizeof` for API
+  classes. Changing the class layout is a breaking change.
 
 ## Breaking ABI
 
@@ -96,4 +100,5 @@ Whenever you need to change the existing ABI, please, follow these steps:
    it is clear, why breaking ABI is necessary.
 2. Fix failing ABI tests in your Pull Request. Use aforementioned techniques to
    update test files.
-3. Update the library version according to the policies.
+3. If Pull Request introduces a breaking change, update the library version
+   according to the policies.
