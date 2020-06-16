@@ -110,6 +110,11 @@ struct _pi_device : _pi_object {
   // Cache of the immutable device properties.
   ze_device_properties_t ZeDeviceProperties;
   ze_device_compute_properties_t ZeDeviceComputeProperties;
+  uint32_t ZeAvailMemCount = 0;
+  ze_device_memory_properties_t *ZeDeviceMemoryProperties = nullptr;
+  ze_device_image_properties_t ZeDeviceImageProperties;
+  ze_device_kernel_properties_t ZeDeviceKernelProperties;
+  ze_device_cache_properties_t ZeDeviceCacheProperties;
 };
 
 struct _pi_context : _pi_object {

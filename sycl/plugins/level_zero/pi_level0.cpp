@@ -363,6 +363,38 @@ pi_result _pi_device::initialize() {
   ZeDeviceComputeProperties.version =
       ZE_DEVICE_COMPUTE_PROPERTIES_VERSION_CURRENT;
   ZE_CALL(zeDeviceGetComputeProperties(ZeDevice, &ZeDeviceComputeProperties));
+
+  ZeAvailMemCount = 0;
+  ZE_CALL(zeDeviceGetMemoryProperties(ZeDevice, &ZeAvailMemCount, nullptr));
+  // Confirm at least one memory is available in the device
+  assert(ZeAvailMemCount > 0);
+
+  try {
+    ZeDeviceMemoryProperties =
+        new ze_device_memory_properties_t[ZeAvailMemCount]();
+  } catch (const std::bad_alloc &) {
+    return PI_OUT_OF_HOST_MEMORY;
+  } catch (...) {
+    return PI_ERROR_UNKNOWN;
+  }
+
+  for (uint32_t I = 0; I < ZeAvailMemCount; I++) {
+    ZeDeviceMemoryProperties[I].version =
+        ZE_DEVICE_MEMORY_PROPERTIES_VERSION_CURRENT;
+  }
+  ZE_CALL(zeDeviceGetMemoryProperties(ZeDevice, &ZeAvailMemCount,
+                                      ZeDeviceMemoryProperties));
+
+  ZeDeviceImageProperties.version = ZE_DEVICE_IMAGE_PROPERTIES_VERSION_CURRENT;
+  ZE_CALL(zeDeviceGetImageProperties(ZeDevice, &ZeDeviceImageProperties));
+
+  ZeDeviceKernelProperties.version =
+      ZE_DEVICE_KERNEL_PROPERTIES_VERSION_CURRENT;
+  ZE_CALL(zeDeviceGetKernelProperties(ZeDevice, &ZeDeviceKernelProperties));
+
+  ZeDeviceCacheProperties.version = ZE_DEVICE_CACHE_PROPERTIES_VERSION_CURRENT;
+  ZE_CALL(zeDeviceGetCacheProperties(ZeDevice, &ZeDeviceCacheProperties));
+
   return PI_SUCCESS;
 }
 
@@ -640,43 +672,6 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
 
   ze_device_handle_t ZeDevice = Device->ZeDevice;
 
-  uint32_t ZeAvailMemCount = 0;
-  ZE_CALL(zeDeviceGetMemoryProperties(ZeDevice, &ZeAvailMemCount, nullptr));
-  // Confirm at least one memory is available in the device
-  assert(ZeAvailMemCount > 0);
-
-  ze_device_memory_properties_t *ZeDeviceMemoryProperties;
-  try {
-    ZeDeviceMemoryProperties =
-        new ze_device_memory_properties_t[ZeAvailMemCount]();
-  } catch (const std::bad_alloc &) {
-    return PI_OUT_OF_HOST_MEMORY;
-  } catch (...) {
-    return PI_ERROR_UNKNOWN;
-  }
-
-  for (uint32_t I = 0; I < ZeAvailMemCount; I++) {
-    ZeDeviceMemoryProperties[I].version =
-        ZE_DEVICE_MEMORY_PROPERTIES_VERSION_CURRENT;
-  }
-  // TODO: cache various device properties in the PI device object,
-  // and initialize them only upon they are first requested.
-  ZE_CALL(zeDeviceGetMemoryProperties(ZeDevice, &ZeAvailMemCount,
-                                      ZeDeviceMemoryProperties));
-
-  ze_device_image_properties_t ZeDeviceImageProperties;
-  ZeDeviceImageProperties.version = ZE_DEVICE_IMAGE_PROPERTIES_VERSION_CURRENT;
-  ZE_CALL(zeDeviceGetImageProperties(ZeDevice, &ZeDeviceImageProperties));
-
-  ze_device_kernel_properties_t ZeDeviceKernelProperties;
-  ZeDeviceKernelProperties.version =
-      ZE_DEVICE_KERNEL_PROPERTIES_VERSION_CURRENT;
-  ZE_CALL(zeDeviceGetKernelProperties(ZeDevice, &ZeDeviceKernelProperties));
-
-  ze_device_cache_properties_t ZeDeviceCacheProperties;
-  ZeDeviceCacheProperties.version = ZE_DEVICE_CACHE_PROPERTIES_VERSION_CURRENT;
-  ZE_CALL(zeDeviceGetCacheProperties(ZeDevice, &ZeDeviceCacheProperties));
-
   ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
 
   switch (ParamName) {
@@ -726,15 +721,15 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     //
     // Hardcoding some extensions we know are supported by all Level0 devices.
     SupportedExtensions += (ZE_SUPPORTED_EXTENSIONS);
-    if (ZeDeviceKernelProperties.fp16Supported)
+    if (Device->ZeDeviceKernelProperties.fp16Supported)
       SupportedExtensions += ("cl_khr_fp16 ");
-    if (ZeDeviceKernelProperties.fp64Supported)
+    if (Device->ZeDeviceKernelProperties.fp64Supported)
       SupportedExtensions += ("cl_khr_fp64 ");
-    if (ZeDeviceKernelProperties.int64AtomicsSupported)
+    if (Device->ZeDeviceKernelProperties.int64AtomicsSupported)
       // int64AtomicsSupported indicates support for both.
       SupportedExtensions +=
           ("cl_khr_int64_base_atomics cl_khr_int64_extended_atomics ");
-    if (ZeDeviceImageProperties.supported)
+    if (Device->ZeDeviceImageProperties.supported)
       // Supports reading and writing of images.
       SupportedExtensions += ("cl_khr_3d_image_writes ");
 
@@ -776,15 +771,15 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   case PI_DEVICE_INFO_MAX_MEM_ALLOC_SIZE: {
     // TODO: To confirm with spec.
     uint32_t MaxMemAllocSize = 0;
-    for (uint32_t I = 0; I < ZeAvailMemCount; I++) {
-      MaxMemAllocSize += ZeDeviceMemoryProperties[I].totalSize;
+    for (uint32_t I = 0; I < Device->ZeAvailMemCount; I++) {
+      MaxMemAllocSize += Device->ZeDeviceMemoryProperties[I].totalSize;
     }
     return ReturnValue(pi_uint64{MaxMemAllocSize});
   }
   case PI_DEVICE_INFO_GLOBAL_MEM_SIZE: {
     uint32_t GlobalMemSize = 0;
-    for (uint32_t I = 0; I < ZeAvailMemCount; I++) {
-      GlobalMemSize += ZeDeviceMemoryProperties[I].totalSize;
+    for (uint32_t I = 0; I < Device->ZeAvailMemCount; I++) {
+      GlobalMemSize += Device->ZeDeviceMemoryProperties[I].totalSize;
     }
     return ReturnValue(pi_uint64{GlobalMemSize});
   }
@@ -792,7 +787,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     return ReturnValue(
         pi_uint64{Device->ZeDeviceComputeProperties.maxSharedLocalMemory});
   case PI_DEVICE_INFO_IMAGE_SUPPORT:
-    return ReturnValue(pi_bool{ZeDeviceImageProperties.supported});
+    return ReturnValue(pi_bool{Device->ZeDeviceImageProperties.supported});
   case PI_DEVICE_INFO_HOST_UNIFIED_MEMORY:
     return ReturnValue(
         pi_bool{Device->ZeDeviceProperties.unifiedMemorySupported});
@@ -847,7 +842,8 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   case PI_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC:
     return ReturnValue(pi_bool{true});
   case PI_DEVICE_INFO_PRINTF_BUFFER_SIZE:
-    return ReturnValue(size_t{ZeDeviceKernelProperties.printfBufferSize});
+    return ReturnValue(
+        size_t{Device->ZeDeviceKernelProperties.printfBufferSize});
   case PI_DEVICE_INFO_PROFILE:
     return ReturnValue("FULL_PROFILE");
   case PI_DEVICE_INFO_BUILT_IN_KERNELS:
@@ -870,16 +866,19 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   case PI_DEVICE_INFO_MAX_CONSTANT_ARGS:
     return ReturnValue(pi_uint32{64});
   case PI_DEVICE_INFO_MAX_CONSTANT_BUFFER_SIZE:
-    return ReturnValue(pi_uint64{ZeDeviceImageProperties.maxImageBufferSize});
+    return ReturnValue(
+        pi_uint64{Device->ZeDeviceImageProperties.maxImageBufferSize});
   case PI_DEVICE_INFO_GLOBAL_MEM_CACHE_TYPE:
     return ReturnValue(PI_DEVICE_MEM_CACHE_TYPE_READ_WRITE_CACHE);
   case PI_DEVICE_INFO_GLOBAL_MEM_CACHELINE_SIZE:
     return ReturnValue(
-        pi_uint32{ZeDeviceCacheProperties.lastLevelCachelineSize});
+        pi_uint32{Device->ZeDeviceCacheProperties.lastLevelCachelineSize});
   case PI_DEVICE_INFO_GLOBAL_MEM_CACHE_SIZE:
-    return ReturnValue(pi_uint64{ZeDeviceCacheProperties.lastLevelCacheSize});
+    return ReturnValue(
+        pi_uint64{Device->ZeDeviceCacheProperties.lastLevelCacheSize});
   case PI_DEVICE_INFO_MAX_PARAMETER_SIZE:
-    return ReturnValue(size_t{ZeDeviceKernelProperties.maxArgumentsSize});
+    return ReturnValue(
+        size_t{Device->ZeDeviceKernelProperties.maxArgumentsSize});
   case PI_DEVICE_INFO_MEM_BASE_ADDR_ALIGN:
     // SYCL/OpenCL spec is vague on what this means exactly, but seems to
     // be for "alignment requirement (in bits) for sub-buffer offsets."
@@ -887,15 +886,17 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     // meaning unaligned access for values of types larger than 8 bits.
     return ReturnValue(pi_uint32{8});
   case PI_DEVICE_INFO_MAX_SAMPLERS:
-    return ReturnValue(pi_uint32{ZeDeviceImageProperties.maxSamplers});
+    return ReturnValue(pi_uint32{Device->ZeDeviceImageProperties.maxSamplers});
   case PI_DEVICE_INFO_MAX_READ_IMAGE_ARGS:
-    return ReturnValue(pi_uint32{ZeDeviceImageProperties.maxReadImageArgs});
+    return ReturnValue(
+        pi_uint32{Device->ZeDeviceImageProperties.maxReadImageArgs});
   case PI_DEVICE_INFO_MAX_WRITE_IMAGE_ARGS:
-    return ReturnValue(pi_uint32{ZeDeviceImageProperties.maxWriteImageArgs});
+    return ReturnValue(
+        pi_uint32{Device->ZeDeviceImageProperties.maxWriteImageArgs});
   case PI_DEVICE_INFO_SINGLE_FP_CONFIG: {
     uint64_t SingleFPValue = 0;
     ze_fp_capabilities_t ZeSingleFPCapabilities =
-        ZeDeviceKernelProperties.singleFpCapabilities;
+        Device->ZeDeviceKernelProperties.singleFpCapabilities;
     if (ZE_FP_CAPS_DENORM & ZeSingleFPCapabilities) {
       SingleFPValue |= PI_FP_DENORM;
     }
@@ -919,7 +920,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   case PI_DEVICE_INFO_HALF_FP_CONFIG: {
     uint64_t HalfFPValue = 0;
     ze_fp_capabilities_t ZeHalfFPCapabilities =
-        ZeDeviceKernelProperties.halfFpCapabilities;
+        Device->ZeDeviceKernelProperties.halfFpCapabilities;
     if (ZE_FP_CAPS_DENORM & ZeHalfFPCapabilities) {
       HalfFPValue |= PI_FP_DENORM;
     }
@@ -943,7 +944,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   case PI_DEVICE_INFO_DOUBLE_FP_CONFIG: {
     uint64_t DoubleFPValue = 0;
     ze_fp_capabilities_t ZeDoubleFPCapabilities =
-        ZeDeviceKernelProperties.doubleFpCapabilities;
+        Device->ZeDeviceKernelProperties.doubleFpCapabilities;
     if (ZE_FP_CAPS_DENORM & ZeDoubleFPCapabilities) {
       DoubleFPValue |= PI_FP_DENORM;
     }
@@ -985,9 +986,11 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     // by the SYCL specification.
     return ReturnValue(size_t{2048});
   case PI_DEVICE_INFO_IMAGE_MAX_BUFFER_SIZE:
-    return ReturnValue(size_t{ZeDeviceImageProperties.maxImageBufferSize});
+    return ReturnValue(
+        size_t{Device->ZeDeviceImageProperties.maxImageBufferSize});
   case PI_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE:
-    return ReturnValue(size_t{ZeDeviceImageProperties.maxImageArraySlices});
+    return ReturnValue(
+        size_t{Device->ZeDeviceImageProperties.maxImageArraySlices});
   // Handle SIMD widths.
   // TODO: can we do better than this?
   case PI_DEVICE_INFO_NATIVE_VECTOR_WIDTH_CHAR:
@@ -1039,7 +1042,8 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     // <IL_Prefix>_<Major_version>.<Minor_version>.
     // "SPIR-V" is a required IL prefix when cl_khr_il_progam extension is
     // reported.
-    uint32_t SpirvVersion = ZeDeviceKernelProperties.spirvVersionSupported;
+    uint32_t SpirvVersion =
+        Device->ZeDeviceKernelProperties.spirvVersionSupported;
     uint32_t SpirvVersionMajor = ZE_MAJOR_VERSION(SpirvVersion);
     uint32_t SpirvVersionMinor = ZE_MINOR_VERSION(SpirvVersion);
 
@@ -1976,11 +1980,6 @@ pi_result piKernelGetGroupInfo(pi_kernel Kernel, pi_device Device,
                                size_t *ParamValueSizeRet) {
   assert(Kernel);
   assert(Device);
-  ze_device_handle_t ZeDevice = Device->ZeDevice;
-  ze_device_compute_properties_t ZeDeviceComputeProperties;
-  ZeDeviceComputeProperties.version =
-      ZE_DEVICE_COMPUTE_PROPERTIES_VERSION_CURRENT;
-  ZE_CALL(zeDeviceGetComputeProperties(ZeDevice, &ZeDeviceComputeProperties));
 
   ze_kernel_properties_t ZeKernelProperties;
   ZeKernelProperties.version = ZE_KERNEL_PROPERTIES_VERSION_CURRENT;
@@ -1992,9 +1991,9 @@ pi_result piKernelGetGroupInfo(pi_kernel Kernel, pi_device Device,
     // TODO: To revisit after level_zero/issues/262 is resolved
     struct {
       size_t Arr[3];
-    } WorkSize = {{ZeDeviceComputeProperties.maxGroupSizeX,
-                   ZeDeviceComputeProperties.maxGroupSizeY,
-                   ZeDeviceComputeProperties.maxGroupSizeZ}};
+    } WorkSize = {{Device->ZeDeviceComputeProperties.maxGroupSizeX,
+                   Device->ZeDeviceComputeProperties.maxGroupSizeY,
+                   Device->ZeDeviceComputeProperties.maxGroupSizeZ}};
     return ReturnValue(WorkSize);
   }
   case PI_KERNEL_GROUP_INFO_WORK_GROUP_SIZE: {
@@ -2016,13 +2015,8 @@ pi_result piKernelGetGroupInfo(pi_kernel Kernel, pi_device Device,
     // once released in RT.
     return ReturnValue(pi_uint32{0});
   }
-  case PI_KERNEL_GROUP_INFO_PREFERRED_WORK_GROUP_SIZE_MULTIPLE: {
-    ze_device_properties_t ZeDeviceProperties;
-    ZeDeviceProperties.version = ZE_DEVICE_PROPERTIES_VERSION_CURRENT;
-    ZE_CALL(zeDeviceGetProperties(ZeDevice, &ZeDeviceProperties));
-
-    return ReturnValue(size_t{ZeDeviceProperties.physicalEUSimdWidth});
-  }
+  case PI_KERNEL_GROUP_INFO_PREFERRED_WORK_GROUP_SIZE_MULTIPLE:
+    return ReturnValue(size_t{Device->ZeDeviceProperties.physicalEUSimdWidth});
   case PI_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE:
     // TODO: Assume 0 for now, replace with
     // ze_kernel_properties_t::privateMemSize once released in RT.
