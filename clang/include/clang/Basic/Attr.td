@@ -1289,11 +1289,28 @@ def LoopUnrollHint : InheritableAttr {
 
 def IntelReqdSubGroupSize: InheritableAttr {
   let Spellings = [GNU<"intel_reqd_sub_group_size">, CXX11<"cl", "intel_reqd_sub_group_size">];
-  let Args = [ExprArgument<"SubGroupSize">];
+  let Args = [ExprArgument<"SubGroupSizeExpr">];
   let Subjects = SubjectList<[Function, CXXMethod], ErrorDiag>;
   let Documentation = [IntelReqdSubGroupSizeDocs];
   let LangOpts = [OpenCL, SYCLIsDevice, SYCLIsHost];
   let PragmaAttributeSupport = 0;
+  let AdditionalMembers = [{
+  private:
+    int SubGroupSize = 0;
+
+  public:
+    int getSubGroupSizeEvaluated(ASTContext &Ctx) {
+      if (SubGroupSize != 0)
+        return SubGroupSize;
+      llvm::APSInt Val(32);
+      bool Succeedded =
+          this->getSubGroupSizeExpr()->isIntegerConstantExpr(Val, Ctx);
+      assert(Succeedded && "expression must be constant integer");
+      SubGroupSize = Val.getSExtValue();
+      assert(SubGroupSize >= 0 && "invalid value of the attribute");
+      return SubGroupSize;
+    }
+  }];
 }
 
 // This attribute is both a type attribute, and a declaration attribute (for

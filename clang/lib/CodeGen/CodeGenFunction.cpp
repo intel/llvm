@@ -565,16 +565,10 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
     Fn->setMetadata("reqd_work_group_size", llvm::MDNode::get(Context, AttrMDArgs));
   }
 
-  if (const IntelReqdSubGroupSizeAttr *A =
-          FD->getAttr<IntelReqdSubGroupSizeAttr>()) {
-    llvm::APSInt ArgVal(32);
+  if (IntelReqdSubGroupSizeAttr *A = FD->getAttr<IntelReqdSubGroupSizeAttr>()) {
     llvm::LLVMContext &Context = getLLVMContext();
-    bool IsValid = A->getSubGroupSize()->isIntegerConstantExpr(
-        ArgVal, FD->getASTContext());
-    assert(IsValid && "Not an integer constant expression");
-    (void)IsValid;
-    llvm::Metadata *AttrMDArgs[] = {
-        llvm::ConstantAsMetadata::get(Builder.getInt32(ArgVal.getSExtValue()))};
+    llvm::Metadata *AttrMDArgs[] = {llvm::ConstantAsMetadata::get(
+        Builder.getInt32(A->getSubGroupSizeEvaluated(FD->getASTContext())))};
     Fn->setMetadata("intel_reqd_sub_group_size",
                     llvm::MDNode::get(Context, AttrMDArgs));
   }

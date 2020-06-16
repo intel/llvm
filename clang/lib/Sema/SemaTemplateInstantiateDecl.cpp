@@ -547,7 +547,7 @@ static void instantiateIntelReqdSubGroupSizeAttr(
   // The SubGroupSize expression is a constant expression.
   EnterExpressionEvaluationContext Unevaluated(
       S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
-  ExprResult Result = S.SubstExpr(Attr->getSubGroupSize(), TemplateArgs);
+  ExprResult Result = S.SubstExpr(Attr->getSubGroupSizeExpr(), TemplateArgs);
   if (!Result.isInvalid())
     S.addIntelReqdSubGroupSizeAttr(New, *Attr, Result.getAs<Expr>());
 }
