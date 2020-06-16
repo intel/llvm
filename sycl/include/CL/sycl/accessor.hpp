@@ -1593,6 +1593,8 @@ public:
   // buffer | handler | range | id |          | property_list
   // buffer | handler | range | id | mode_tag | property_list
   // -------+---------+-------+----+----------+--------------
+  // host_accessor with handler argument will be added later
+  // to facilitate non-blocking accessor use case
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename = typename detail::enable_if_t<
@@ -1600,16 +1602,6 @@ public:
   host_accessor(buffer<T, 1, AllocatorT> &BufferRef,
                 const property_list &PropertyList = {})
       : AccessorT(BufferRef, PropertyList) {}
-
-  template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
-            typename = typename detail::enable_if_t<
-                std::is_same<T, DataT>::value && Dims == 0>>
-  host_accessor(buffer<T, 1, AllocatorT> &BufferRef,
-                handler &CommandGroupHandler,
-                const property_list &PropertyList = {})
-      : AccessorT(BufferRef, PropertyList) {
-    (void)CommandGroupHandler;
-  }
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>()>>
@@ -1627,25 +1619,6 @@ public:
 
 #endif
 
-  template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
-            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>()>>
-  host_accessor(buffer<T, Dims, AllocatorT> &BufferRef,
-                handler &CommandGroupHandler,
-                const property_list &PropertyList = {})
-      : AccessorT(BufferRef, PropertyList) {
-    (void)CommandGroupHandler;
-  }
-
-#if __cplusplus > 201402L
-
-  template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
-            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>()>>
-  host_accessor(buffer<DataT, Dimensions, AllocatorT> &BufferRef,
-                handler &CommandGroupHandler, mode_tag_t<AccessMode>,
-                const property_list &PropertyList = {})
-      : host_accessor(BufferRef, CommandGroupHandler, PropertyList) {}
-
-#endif
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>()>>
@@ -1668,27 +1641,6 @@ public:
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>()>>
   host_accessor(buffer<DataT, Dimensions, AllocatorT> &BufferRef,
-                handler &CommandGroupHandler, range<Dimensions> AccessRange,
-                const property_list &PropertyList = {})
-      : AccessorT(BufferRef, AccessRange, {}, PropertyList) {
-    (void)CommandGroupHandler;
-  }
-
-#if __cplusplus > 201402L
-
-  template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
-            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>()>>
-  host_accessor(buffer<DataT, Dimensions, AllocatorT> &BufferRef,
-                handler &CommandGroupHandler, range<Dimensions> AccessRange,
-                mode_tag_t<AccessMode>, const property_list &PropertyList = {})
-      : host_accessor(BufferRef, CommandGroupHandler, AccessRange, {},
-                      PropertyList) {}
-
-#endif
-
-  template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
-            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>()>>
-  host_accessor(buffer<DataT, Dimensions, AllocatorT> &BufferRef,
                 range<Dimensions> AccessRange, id<Dimensions> AccessOffset,
                 const property_list &PropertyList = {})
       : AccessorT(BufferRef, AccessRange, AccessOffset, PropertyList) {}
@@ -1701,29 +1653,6 @@ public:
                 range<Dimensions> AccessRange, id<Dimensions> AccessOffset,
                 mode_tag_t<AccessMode>, const property_list &PropertyList = {})
       : host_accessor(BufferRef, AccessRange, AccessOffset, PropertyList) {}
-
-#endif
-
-  template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
-            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>()>>
-  host_accessor(buffer<DataT, Dimensions, AllocatorT> &BufferRef,
-                handler &CommandGroupHandler, range<Dimensions> AccessRange,
-                id<Dimensions> AccessOffset,
-                const property_list &PropertyList = {})
-      : AccessorT(BufferRef, AccessRange, AccessOffset, PropertyList) {
-    (void)CommandGroupHandler;
-  }
-
-#if __cplusplus > 201402L
-
-  template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
-            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>()>>
-  host_accessor(buffer<DataT, Dimensions, AllocatorT> &BufferRef,
-                handler &CommandGroupHandler, range<Dimensions> AccessRange,
-                id<Dimensions> AccessOffset, mode_tag_t<AccessMode>,
-                const property_list &PropertyList = {})
-      : host_accessor(BufferRef, CommandGroupHandler, AccessRange, AccessOffset,
-                      PropertyList) {}
 
 #endif
 };

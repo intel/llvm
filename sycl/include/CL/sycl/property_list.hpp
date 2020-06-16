@@ -9,6 +9,7 @@
 #pragma once
 
 #include <CL/sycl/context.hpp>
+#include <CL/sycl/detail/common.hpp>
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -227,6 +228,15 @@ class noinit : public detail::Prop<detail::PropKind::NoInit> {};
 #if __cplusplus > 201402L
 
 inline constexpr property::noinit noinit;
+
+#else
+
+namespace {
+
+constexpr const auto& noinit =
+  sycl::detail::InlineVariableHelper<property::noinit>::value;
+
+}
 
 #endif
 

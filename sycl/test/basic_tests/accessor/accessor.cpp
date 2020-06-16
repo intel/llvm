@@ -497,7 +497,6 @@ int main() {
     assert(acc6[0] == 6);
   }
 
-#ifdef simplification_test
   // Constant buffer accessor
   {
     try {
@@ -510,8 +509,17 @@ int main() {
 
         sycl::queue queue;
         queue.submit([&](sycl::handler &cgh) {
+#ifdef simplification_test
+          sycl::accessor<int, 1, sycl::access::mode::write,
+                         sycl::access::target::global_buffer>
+            D(d, cgh);
+          sycl::accessor<int, 1, sycl::access::mode::read,
+                         sycl::access::target::constant_buffer>
+            C(c, cgh);
+#else
           sycl::accessor D(d, cgh, sycl::write_only);
           sycl::accessor C(c, cgh, sycl::read_constant);
+#endif
 
           cgh.single_task<class acc_with_const>([=]() {
             D[0] = C[0];
@@ -537,8 +545,19 @@ int main() {
         sycl::buffer<int, 1> d(&data, sycl::range<1>(1));
         sycl::buffer<int, 1> c(&cnst, sycl::range<1>(1));
 
+#ifdef simplification_test
+          sycl::accessor<int, 1, sycl::access::mode::write,
+                         sycl::access::target::global_buffer,
+                         sycl::access::placeholder::true_t>
+            D(d);
+          sycl::accessor<int, 1, sycl::access::mode::read,
+                         sycl::access::target::constant_buffer,
+                         sycl::access::placeholder::true_t>
+            C(c);
+#else
         sycl::accessor D(d, sycl::write_only);
         sycl::accessor C(c, sycl::read_constant);
+#endif
 
         sycl::queue queue;
         queue.submit([&](sycl::handler &cgh) {
@@ -558,5 +577,4 @@ int main() {
       return 1;
     }
   }
-#endif
 }
