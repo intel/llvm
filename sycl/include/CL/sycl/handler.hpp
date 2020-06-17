@@ -875,7 +875,7 @@ public:
   typename std::enable_if<
       detail::check_fn_signature<typename std::remove_reference<FuncT>::type,
                                  void(interop_handle)>::value>::type
-  codeplay_host_task(FuncT &&Func) {
+  codeplay_host_task(FuncT Func) {
     throwIfActionIsCreated();
 
     MNDRDesc.set(range<1>(1));

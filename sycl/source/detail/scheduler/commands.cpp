@@ -8,8 +8,9 @@
 
 #include <detail/error_handling/error_handling.hpp>
 
-#include "CL/sycl/access/access.hpp"
+#include <CL/sycl/access/access.hpp>
 #include <CL/sycl/backend_types.hpp>
+#include <CL/sycl/detail/cg_types.hpp>
 #include <CL/sycl/detail/cl.h>
 #include <CL/sycl/detail/kernel_desc.hpp>
 #include <CL/sycl/detail/memory_manager.hpp>
@@ -190,7 +191,7 @@ class DispatchHostTask {
 public:
   DispatchHostTask(ExecCGCommand *ThisCmd,
                    std::vector<interop_handle::ReqToMem> ReqToMem)
-      : MThisCmd{ThisCmd} {}
+      : MThisCmd{ThisCmd}, MReqToMem(std::move(ReqToMem)) {}
 
   void operator()() const {
     waitForEvents();
@@ -201,11 +202,9 @@ public:
 
     // we're ready to call the user-defined lambda now
     if (HostTask.MHostTask->isInteropTask()) {
-      auto Queue = HostTask.MQueue->get();
-      auto DeviceId = HostTask.MQueue->get_device().get();
-      auto Context = HostTask.MQueue->get_context().get();
-
-      interop_handle IH{MReqToMem, Queue, DeviceId, Context};
+      interop_handle IH{MReqToMem, HostTask.MQueue,
+                        getSyclObjImpl(HostTask.MQueue->get_device()),
+                        HostTask.MQueue->getContextImplPtr()};
 
       HostTask.MHostTask->call(IH);
     } else
@@ -1955,6 +1954,32 @@ cl_int ExecCGCommand::enqueueImp() {
         throw runtime_error("Unsupported arg type", PI_INVALID_VALUE);
       }
     }
+
+    std::vector<interop_handle::ReqToMem> ReqToMem;
+    // Extract the Mem Objects for all Requirements, to ensure they are
+    // available if a user ask for them inside the interop task scope
+    const std::vector<Requirement *> &HandlerReq = HostTask->MRequirements;
+    auto ReqToMemConv = [&ReqToMem, this](Requirement *Req) {
+      AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
+
+      if (AllocaCmd->getQueue()->is_host()) {
+        if (!AllocaCmd->MLinkedAllocaCmd)
+          throw runtime_error(
+              "Can't get memory object for host-only allocation",
+              PI_INVALID_MEM_OBJECT);
+
+        AllocaCmd = AllocaCmd->MLinkedAllocaCmd;
+      }
+
+      assert(!AllocaCmd->getQueue()->is_host() &&
+             "Can't get memory object for host-only allocation");
+
+      auto MemArg = reinterpret_cast<pi_mem>(AllocaCmd->getMemAllocation());
+      interop_handle::ReqToMem ReqToMemEl = std::make_pair(Req, MemArg);
+      ReqToMem.emplace_back(ReqToMemEl);
+    };
+    std::for_each(std::begin(HandlerReq), std::end(HandlerReq), ReqToMemConv);
+    std::sort(std::begin(ReqToMem), std::end(ReqToMem));
 
     MQueue->getThreadPool().submit<DispatchHostTask>(DispatchHostTask(
         this, std::move(ReqToMem)));
