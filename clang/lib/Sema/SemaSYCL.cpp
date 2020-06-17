@@ -824,13 +824,21 @@ static void VisitRecordHelper(CXXRecordDecl *Owner,
                               Handlers &... handlers) {
   for (const auto &Base : Range) {
     QualType BaseTy = Base.getType();
-    if (Util::isSyclAccessorType(BaseTy))
+    if (Util::isSyclAccessorType(BaseTy)) {
+      (void)std::initializer_list<int>{
+          (handlers.enterField(Owner, Base), 0)...};
       (void)std::initializer_list<int>{
           (handlers.handleSyclAccessorType(Base, BaseTy), 0)...};
-    else if (Util::isSyclStreamType(BaseTy))
+      (void)std::initializer_list<int>{
+          (handlers.leaveField(Owner, Base), 0)...};
+    } else if (Util::isSyclStreamType(BaseTy)) {
+      (void)std::initializer_list<int>{
+          (handlers.enterField(Owner, Base), 0)...};
       (void)std::initializer_list<int>{
           (handlers.handleSyclStreamType(Base, BaseTy), 0)...};
-    else
+      (void)std::initializer_list<int>{
+          (handlers.leaveField(Owner, Base), 0)...};
+    } else
       VisitRecord(Owner, Base, BaseTy->getAsCXXRecordDecl(), handlers...);
   }
 }
@@ -862,9 +870,13 @@ static void VisitStreamRecord(CXXRecordDecl *Owner, ParentTy &Parent,
   (void)std::initializer_list<int>{(handlers.enterStruct(Owner, Parent), 0)...};
   for (const auto &Field : Wrapper->fields()) {
     QualType FieldTy = Field->getType();
+    (void)std::initializer_list<int>{
+        (handlers.enterField(Wrapper, Field), 0)...};
     // Required to initialize accessors inside streams.
     if (Util::isSyclAccessorType(FieldTy))
       KF_FOR_EACH(handleSyclAccessorType, Field, FieldTy);
+    (void)std::initializer_list<int>{
+        (handlers.leaveField(Wrapper, Field), 0)...};
   }
   (void)std::initializer_list<int>{(handlers.leaveStruct(Owner, Parent), 0)...};
 }
@@ -890,8 +902,7 @@ template <typename... Handlers>
 static void VisitRecordFields(CXXRecordDecl *Owner, Handlers &... handlers) {
 
   for (const auto Field : Owner->fields()) {
-    (void)std::initializer_list<int>{
-        (handlers.enterField(nullptr, Field), 0)...};
+    (void)std::initializer_list<int>{(handlers.enterField(Owner, Field), 0)...};
     QualType FieldTy = Field->getType();
 
     if (Util::isSyclAccessorType(FieldTy))
@@ -921,8 +932,7 @@ static void VisitRecordFields(CXXRecordDecl *Owner, Handlers &... handlers) {
       KF_FOR_EACH(handleScalarType, Field, FieldTy);
     else
       KF_FOR_EACH(handleOtherType, Field, FieldTy);
-    (void)std::initializer_list<int>{
-        (handlers.leaveField(nullptr, Field), 0)...};
+    (void)std::initializer_list<int>{(handlers.leaveField(Owner, Field), 0)...};
   }
 #undef KF_FOR_EACH
 } // namespace
@@ -1404,11 +1414,12 @@ class SyclKernelBodyCreator
                                               VK_LValue, SourceLocation());
     }
 
-    Expr *SpecialObjME = Base;
+    /*Expr *SpecialObjME = Base;
     if (Field)
       SpecialObjME = BuildMemberExpr(Base, Field);
 
-    MemberExpr *MethodME = BuildMemberExpr(SpecialObjME, Method);
+    MemberExpr *MethodME = BuildMemberExpr(SpecialObjME, Method);*/
+    MemberExpr *MethodME = BuildMemberExpr(Base, Method);
     QualType ResultTy = Method->getReturnType();
     ExprValueKind VK = Expr::getValueKindForType(ResultTy);
     ResultTy = ResultTy.getNonLValueExprType(SemaRef.Context);
@@ -1550,7 +1561,7 @@ public:
   }
 
   void enterStruct(const CXXRecordDecl *, FieldDecl *FD) final {
-     MemberExprBases.push_back(BuildMemberExpr(MemberExprBases.back(), FD));
+    // MemberExprBases.push_back(BuildMemberExpr(MemberExprBases.back(), FD));
   }
 
   void enterStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS) final {
@@ -1601,7 +1612,7 @@ public:
           InitExprs.pop_back();
       }
     }
-    MemberExprBases.pop_back();
+    // MemberExprBases.pop_back();
   }
 
   void leaveStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS) final {
