@@ -1161,6 +1161,36 @@ namespace {
     void writeHasChildren(raw_ostream &OS) const override { OS << "true"; }
   };
 
+  class IntegerExprArgument : public ExprArgument {
+  private:
+    int UndefValue;
+
+  public:
+    IntegerExprArgument(const Record &Arg, StringRef Attr)
+        : ExprArgument(Arg, Attr),
+          UndefValue(Arg.getValueAsInt("UndefValue")) {}
+
+    void writeAccessors(raw_ostream &OS) const override {
+      OS << "  " << getType() << " get" << getUpperName() << "() const {\n";
+      OS << "    return " << getLowerName() << ";\n";
+      OS << "  }\n";
+      OS << "private:\n";
+      OS << "  int " << getLowerName() << "Value = " << UndefValue << ";\n";
+      OS << "public:\n";
+      OS << "  int get" << getUpperName() << "Evaluated(ASTContext &Ctx) {\n";
+      OS << "    if (" << getLowerName() << "Value != " << UndefValue << ")\n";
+      OS << "      return " << getLowerName() << "Value;\n";
+      OS << "    llvm::APSInt Val(32);\n";
+      OS << "    bool Succeedded = " << getLowerName()
+         << "->isIntegerConstantExpr(Val, Ctx);\n";
+      OS << "    assert(Succeedded && \"expression must be constant "
+            "integer\");\n";
+      OS << "    " << getLowerName() << "Value = Val.getSExtValue();\n";
+      OS << "    return " << getLowerName() << "Value;\n";
+      OS << "  }";
+    }
+  };
+
   class VariadicExprArgument : public VariadicArgument {
   public:
     VariadicExprArgument(const Record &Arg, StringRef Attr)
@@ -1299,6 +1329,8 @@ createArgument(const Record &Arg, StringRef Attr,
     Ptr = std::make_unique<EnumArgument>(Arg, Attr);
   else if (ArgName == "ExprArgument")
     Ptr = std::make_unique<ExprArgument>(Arg, Attr);
+  else if (ArgName == "IntegerExprArgument")
+    Ptr = std::make_unique<IntegerExprArgument>(Arg, Attr);
   else if (ArgName == "DeclArgument")
     Ptr = std::make_unique<SimpleArgument>(
         Arg, Attr, (Arg.getValueAsDef("Kind")->getName() + "Decl *").str());
