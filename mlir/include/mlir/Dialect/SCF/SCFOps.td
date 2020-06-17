@@ -137,10 +137,15 @@ def ForOp : SCF_Op<"for",
   let builders = [
     OpBuilder<"OpBuilder &builder, OperationState &result, "
               "Value lowerBound, Value upperBound, Value step, "
-              "ValueRange iterArgs = llvm::None">
+              "ValueRange iterArgs = llvm::None, "
+              "function_ref<void(OpBuilder &, Location, Value, ValueRange)>"
+              "    = nullptr">
   ];
 
   let extraClassDeclaration = [{
+    using BodyBuilderFn =
+        function_ref<void(OpBuilder &, Location, Value, ValueRange)>;
+
     Value getInductionVar() { return getBody()->getArgument(0); }
     Block::BlockArgListType getRegionIterArgs() {
       return getBody()->getArguments().drop_front();
@@ -233,7 +238,18 @@ def IfOp : SCF_Op<"if",
     OpBuilder<"OpBuilder &builder, OperationState &result, "
               "Value cond, bool withElseRegion">,
     OpBuilder<"OpBuilder &builder, OperationState &result, "
-              "TypeRange resultTypes, Value cond, bool withElseRegion">
+              "TypeRange resultTypes, Value cond, bool withElseRegion">,
+    OpBuilder<
+        "OpBuilder &builder, OperationState &result, TypeRange resultTypes, "
+        "Value cond, "
+        "function_ref<void(OpBuilder &, Location)> thenBuilder "
+        "    = buildTerminatedBody, "
+        "function_ref<void(OpBuilder &, Location)> elseBuilder = nullptr">,
+    OpBuilder<
+        "OpBuilder &builder, OperationState &result, Value cond, "
+        "function_ref<void(OpBuilder &, Location)> thenBuilder "
+        "    = buildTerminatedBody, "
+        "function_ref<void(OpBuilder &, Location)> elseBuilder = nullptr">
   ];
 
   let extraClassDeclaration = [{

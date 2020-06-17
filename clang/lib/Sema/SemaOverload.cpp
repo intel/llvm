@@ -1870,6 +1870,10 @@ static bool IsStandardConversion(Sema &S, Expr* From, QualType ToType,
     // FIXME: disable conversions between long double and __float128 if
     // their representation is different until there is back end support
     // We of course allow this conversion if long double is really double.
+
+    // Conversions between bfloat and other floats are not permitted.
+    if (FromType == S.Context.BFloat16Ty || ToType == S.Context.BFloat16Ty)
+      return false;
     if (&S.Context.getFloatTypeSemantics(FromType) !=
         &S.Context.getFloatTypeSemantics(ToType)) {
       bool Float128AndLongDouble = ((FromType == S.Context.Float128Ty &&
@@ -1888,6 +1892,10 @@ static bool IsStandardConversion(Sema &S, Expr* From, QualType ToType,
               ToType->isIntegralType(S.Context)) ||
              (FromType->isIntegralOrUnscopedEnumerationType() &&
               ToType->isRealFloatingType())) {
+    // Conversions between bfloat and int are not permitted.
+    if (FromType->isBFloat16Type() || ToType->isBFloat16Type())
+      return false;
+
     // Floating-integral conversions (C++ 4.9).
     SCS.Second = ICK_Floating_Integral;
     FromType = ToType.getUnqualifiedType();
@@ -6356,7 +6364,8 @@ void Sema::AddOverloadCandidate(
     }
   }
 
-  if (EnableIfAttr *FailedAttr = CheckEnableIf(Function, Args)) {
+  if (EnableIfAttr *FailedAttr =
+          CheckEnableIf(Function, CandidateSet.getLocation(), Args)) {
     Candidate.Viable = false;
     Candidate.FailureKind = ovl_fail_enable_if;
     Candidate.DeductionFailure.Data = FailedAttr;
@@ -6462,11 +6471,10 @@ Sema::SelectBestMethod(Selector Sel, MultiExprArg Args, bool IsInstance,
   return nullptr;
 }
 
-static bool
-convertArgsForAvailabilityChecks(Sema &S, FunctionDecl *Function, Expr *ThisArg,
-                                 ArrayRef<Expr *> Args, Sema::SFINAETrap &Trap,
-                                 bool MissingImplicitThis, Expr *&ConvertedThis,
-                                 SmallVectorImpl<Expr *> &ConvertedArgs) {
+static bool convertArgsForAvailabilityChecks(
+    Sema &S, FunctionDecl *Function, Expr *ThisArg, SourceLocation CallLoc,
+    ArrayRef<Expr *> Args, Sema::SFINAETrap &Trap, bool MissingImplicitThis,
+    Expr *&ConvertedThis, SmallVectorImpl<Expr *> &ConvertedArgs) {
   if (ThisArg) {
     CXXMethodDecl *Method = cast<CXXMethodDecl>(Function);
     assert(!isa<CXXConstructorDecl>(Method) &&
@@ -6511,17 +6519,9 @@ convertArgsForAvailabilityChecks(Sema &S, FunctionDecl *Function, Expr *ThisArg,
   if (!Function->isVariadic() && Args.size() < Function->getNumParams()) {
     for (unsigned i = Args.size(), e = Function->getNumParams(); i != e; ++i) {
       ParmVarDecl *P = Function->getParamDecl(i);
-      Expr *DefArg = P->hasUninstantiatedDefaultArg()
-                         ? P->getUninstantiatedDefaultArg()
-                         : P->getDefaultArg();
-      // This can only happen in code completion, i.e. when PartialOverloading
-      // is true.
-      if (!DefArg)
+      if (!P->hasDefaultArg())
         return false;
-      ExprResult R =
-          S.PerformCopyInitialization(InitializedEntity::InitializeParameter(
-                                          S.Context, Function->getParamDecl(i)),
-                                      SourceLocation(), DefArg);
+      ExprResult R = S.BuildCXXDefaultArgExpr(CallLoc, Function, P);
       if (R.isInvalid())
         return false;
       ConvertedArgs.push_back(R.get());
@@ -6533,7 +6533,9 @@ convertArgsForAvailabilityChecks(Sema &S, FunctionDecl *Function, Expr *ThisArg,
   return true;
 }
 
-EnableIfAttr *Sema::CheckEnableIf(FunctionDecl *Function, ArrayRef<Expr *> Args,
+EnableIfAttr *Sema::CheckEnableIf(FunctionDecl *Function,
+                                  SourceLocation CallLoc,
+                                  ArrayRef<Expr *> Args,
                                   bool MissingImplicitThis) {
   auto EnableIfAttrs = Function->specific_attrs<EnableIfAttr>();
   if (EnableIfAttrs.begin() == EnableIfAttrs.end())
@@ -6544,7 +6546,7 @@ EnableIfAttr *Sema::CheckEnableIf(FunctionDecl *Function, ArrayRef<Expr *> Args,
   // FIXME: We should look into making enable_if late-parsed.
   Expr *DiscardedThis;
   if (!convertArgsForAvailabilityChecks(
-          *this, Function, /*ThisArg=*/nullptr, Args, Trap,
+          *this, Function, /*ThisArg=*/nullptr, CallLoc, Args, Trap,
           /*MissingImplicitThis=*/true, DiscardedThis, ConvertedArgs))
     return *EnableIfAttrs.begin();
 
@@ -6874,7 +6876,8 @@ Sema::AddMethodCandidate(CXXMethodDecl *Method, DeclAccessPair FoundDecl,
     }
   }
 
-  if (EnableIfAttr *FailedAttr = CheckEnableIf(Method, Args, true)) {
+  if (EnableIfAttr *FailedAttr =
+          CheckEnableIf(Method, CandidateSet.getLocation(), Args, true)) {
     Candidate.Viable = false;
     Candidate.FailureKind = ovl_fail_enable_if;
     Candidate.DeductionFailure.Data = FailedAttr;
@@ -7327,7 +7330,8 @@ void Sema::AddConversionCandidate(
            "Can only end up with a standard conversion sequence or failure");
   }
 
-  if (EnableIfAttr *FailedAttr = CheckEnableIf(Conversion, None)) {
+  if (EnableIfAttr *FailedAttr =
+          CheckEnableIf(Conversion, CandidateSet.getLocation(), None)) {
     Candidate.Viable = false;
     Candidate.FailureKind = ovl_fail_enable_if;
     Candidate.DeductionFailure.Data = FailedAttr;
@@ -7497,7 +7501,8 @@ void Sema::AddSurrogateCandidate(CXXConversionDecl *Conversion,
     }
   }
 
-  if (EnableIfAttr *FailedAttr = CheckEnableIf(Conversion, None)) {
+  if (EnableIfAttr *FailedAttr =
+          CheckEnableIf(Conversion, CandidateSet.getLocation(), None)) {
     Candidate.Viable = false;
     Candidate.FailureKind = ovl_fail_enable_if;
     Candidate.DeductionFailure.Data = FailedAttr;
@@ -7687,6 +7692,10 @@ class BuiltinCandidateTypeSet  {
   /// candidates.
   TypeSet VectorTypes;
 
+  /// The set of matrix types that will be used in the built-in
+  /// candidates.
+  TypeSet MatrixTypes;
+
   /// A flag indicating non-record types are viable candidates
   bool HasNonRecordTypes;
 
@@ -7744,9 +7753,11 @@ public:
   /// enumeration_end - Past the last enumeration type found;
   iterator enumeration_end() { return EnumerationTypes.end(); }
 
-  iterator vector_begin() { return VectorTypes.begin(); }
-  iterator vector_end() { return VectorTypes.end(); }
+  llvm::iterator_range<iterator> vector_types() { return VectorTypes; }
 
+  llvm::iterator_range<iterator> matrix_types() { return MatrixTypes; }
+
+  bool containsMatrixType(QualType Ty) const { return MatrixTypes.count(Ty); }
   bool hasNonRecordTypes() { return HasNonRecordTypes; }
   bool hasArithmeticOrEnumeralTypes() { return HasArithmeticOrEnumeralTypes; }
   bool hasNullPtrType() const { return HasNullPtrType; }
@@ -7921,6 +7932,11 @@ BuiltinCandidateTypeSet::AddTypesConvertedFrom(QualType Ty,
     // extension.
     HasArithmeticOrEnumeralTypes = true;
     VectorTypes.insert(Ty);
+  } else if (Ty->isMatrixType()) {
+    // Similar to vector types, we treat vector types as arithmetic types in
+    // many contexts as an extension.
+    HasArithmeticOrEnumeralTypes = true;
+    MatrixTypes.insert(Ty);
   } else if (Ty->isNullPtrType()) {
     HasNullPtrType = true;
   } else if (AllowUserConversions && TyRec) {
@@ -8149,6 +8165,13 @@ class BuiltinOperatorOverloadBuilder {
 
   }
 
+  /// Helper to add an overload candidate for a binary builtin with types \p L
+  /// and \p R.
+  void AddCandidate(QualType L, QualType R) {
+    QualType LandR[2] = {L, R};
+    S.AddBuiltinCandidate(LandR, Args, CandidateSet);
+  }
+
 public:
   BuiltinOperatorOverloadBuilder(
     Sema &S, ArrayRef<Expr *> Args,
@@ -8276,13 +8299,8 @@ public:
     }
 
     // Extension: We also add these operators for vector types.
-    for (BuiltinCandidateTypeSet::iterator
-              Vec = CandidateTypes[0].vector_begin(),
-           VecEnd = CandidateTypes[0].vector_end();
-         Vec != VecEnd; ++Vec) {
-      QualType VecTy = *Vec;
+    for (QualType VecTy : CandidateTypes[0].vector_types())
       S.AddBuiltinCandidate(&VecTy, Args, CandidateSet);
-    }
   }
 
   // C++ [over.built]p8:
@@ -8316,13 +8334,8 @@ public:
     }
 
     // Extension: We also add this operator for vector types.
-    for (BuiltinCandidateTypeSet::iterator
-              Vec = CandidateTypes[0].vector_begin(),
-           VecEnd = CandidateTypes[0].vector_end();
-         Vec != VecEnd; ++Vec) {
-      QualType VecTy = *Vec;
+    for (QualType VecTy : CandidateTypes[0].vector_types())
       S.AddBuiltinCandidate(&VecTy, Args, CandidateSet);
-    }
   }
 
   // C++ [over.match.oper]p16:
@@ -8553,17 +8566,31 @@ public:
 
     // Extension: Add the binary operators ==, !=, <, <=, >=, >, *, /, and the
     // conditional operator for vector types.
-    for (BuiltinCandidateTypeSet::iterator
-              Vec1 = CandidateTypes[0].vector_begin(),
-           Vec1End = CandidateTypes[0].vector_end();
-         Vec1 != Vec1End; ++Vec1) {
-      for (BuiltinCandidateTypeSet::iterator
-                Vec2 = CandidateTypes[1].vector_begin(),
-             Vec2End = CandidateTypes[1].vector_end();
-           Vec2 != Vec2End; ++Vec2) {
-        QualType LandR[2] = { *Vec1, *Vec2 };
+    for (QualType Vec1Ty : CandidateTypes[0].vector_types())
+      for (QualType Vec2Ty : CandidateTypes[1].vector_types()) {
+        QualType LandR[2] = {Vec1Ty, Vec2Ty};
         S.AddBuiltinCandidate(LandR, Args, CandidateSet);
       }
+  }
+
+  /// Add binary operator overloads for each candidate matrix type M1, M2:
+  ///  * (M1, M1) -> M1
+  ///  * (M1, M1.getElementType()) -> M1
+  ///  * (M2.getElementType(), M2) -> M2
+  ///  * (M2, M2) -> M2 // Only if M2 is not part of CandidateTypes[0].
+  void addMatrixBinaryArithmeticOverloads() {
+    if (!HasArithmeticOrEnumeralCandidateType)
+      return;
+
+    for (QualType M1 : CandidateTypes[0].matrix_types()) {
+      AddCandidate(M1, cast<MatrixType>(M1)->getElementType());
+      AddCandidate(M1, M1);
+    }
+
+    for (QualType M2 : CandidateTypes[1].matrix_types()) {
+      AddCandidate(cast<MatrixType>(M2)->getElementType(), M2);
+      if (!CandidateTypes[0].containsMatrixType(M2))
+        AddCandidate(M2, M2);
     }
   }
 
@@ -8824,30 +8851,23 @@ public:
     }
 
     // Extension: Add the binary operators =, +=, -=, *=, /= for vector types.
-    for (BuiltinCandidateTypeSet::iterator
-              Vec1 = CandidateTypes[0].vector_begin(),
-           Vec1End = CandidateTypes[0].vector_end();
-         Vec1 != Vec1End; ++Vec1) {
-      for (BuiltinCandidateTypeSet::iterator
-                Vec2 = CandidateTypes[1].vector_begin(),
-             Vec2End = CandidateTypes[1].vector_end();
-           Vec2 != Vec2End; ++Vec2) {
+    for (QualType Vec1Ty : CandidateTypes[0].vector_types())
+      for (QualType Vec2Ty : CandidateTypes[0].vector_types()) {
         QualType ParamTypes[2];
-        ParamTypes[1] = *Vec2;
+        ParamTypes[1] = Vec2Ty;
         // Add this built-in operator as a candidate (VQ is empty).
-        ParamTypes[0] = S.Context.getLValueReferenceType(*Vec1);
+        ParamTypes[0] = S.Context.getLValueReferenceType(Vec1Ty);
         S.AddBuiltinCandidate(ParamTypes, Args, CandidateSet,
                               /*IsAssignmentOperator=*/isEqualOp);
 
         // Add this built-in operator as a candidate (VQ is 'volatile').
         if (VisibleTypeConversionsQuals.hasVolatile()) {
-          ParamTypes[0] = S.Context.getVolatileType(*Vec1);
+          ParamTypes[0] = S.Context.getVolatileType(Vec1Ty);
           ParamTypes[0] = S.Context.getLValueReferenceType(ParamTypes[0]);
           S.AddBuiltinCandidate(ParamTypes, Args, CandidateSet,
                                 /*IsAssignmentOperator=*/isEqualOp);
         }
       }
-    }
   }
 
   // C++ [over.built]p22:
@@ -9140,14 +9160,17 @@ void Sema::AddBuiltinOperatorCandidates(OverloadedOperatorKind Op,
     } else {
       OpBuilder.addBinaryPlusOrMinusPointerOverloads(Op);
       OpBuilder.addGenericBinaryArithmeticOverloads();
+      OpBuilder.addMatrixBinaryArithmeticOverloads();
     }
     break;
 
   case OO_Star: // '*' is either unary or binary
     if (Args.size() == 1)
       OpBuilder.addUnaryStarPointerOverloads();
-    else
+    else {
       OpBuilder.addGenericBinaryArithmeticOverloads();
+      OpBuilder.addMatrixBinaryArithmeticOverloads();
+    }
     break;
 
   case OO_Slash:
@@ -9485,66 +9508,6 @@ bool clang::isBetterOverloadCandidate(
   else if (!Cand1.Viable)
     return false;
 
-  // [CUDA] A function with 'never' preference is marked not viable, therefore
-  // is never shown up here. The worst preference shown up here is 'wrong side',
-  // e.g. a host function called by a device host function in device
-  // compilation. This is valid AST as long as the host device function is not
-  // emitted, e.g. it is an inline function which is called only by a host
-  // function. A deferred diagnostic will be triggered if it is emitted.
-  // However a wrong-sided function is still a viable candidate here.
-  //
-  // If Cand1 can be emitted and Cand2 cannot be emitted in the current
-  // context, Cand1 is better than Cand2. If Cand1 can not be emitted and Cand2
-  // can be emitted, Cand1 is not better than Cand2. This rule should have
-  // precedence over other rules.
-  //
-  // If both Cand1 and Cand2 can be emitted, or neither can be emitted, then
-  // other rules should be used to determine which is better. This is because
-  // host/device based overloading resolution is mostly for determining
-  // viability of a function. If two functions are both viable, other factors
-  // should take precedence in preference, e.g. the standard-defined preferences
-  // like argument conversion ranks or enable_if partial-ordering. The
-  // preference for pass-object-size parameters is probably most similar to a
-  // type-based-overloading decision and so should take priority.
-  //
-  // If other rules cannot determine which is better, CUDA preference will be
-  // used again to determine which is better.
-  //
-  // TODO: Currently IdentifyCUDAPreference does not return correct values
-  // for functions called in global variable initializers due to missing
-  // correct context about device/host. Therefore we can only enforce this
-  // rule when there is a caller. We should enforce this rule for functions
-  // in global variable initializers once proper context is added.
-  if (S.getLangOpts().CUDA && Cand1.Function && Cand2.Function) {
-    if (FunctionDecl *Caller = dyn_cast<FunctionDecl>(S.CurContext)) {
-      bool IsCallerImplicitHD = Sema::IsCUDAImplicitHostDeviceFunction(Caller);
-      bool IsCand1ImplicitHD =
-          Sema::IsCUDAImplicitHostDeviceFunction(Cand1.Function);
-      bool IsCand2ImplicitHD =
-          Sema::IsCUDAImplicitHostDeviceFunction(Cand2.Function);
-      auto P1 = S.IdentifyCUDAPreference(Caller, Cand1.Function);
-      auto P2 = S.IdentifyCUDAPreference(Caller, Cand2.Function);
-      assert(P1 != Sema::CFP_Never && P2 != Sema::CFP_Never);
-      // The implicit HD function may be a function in a system header which
-      // is forced by pragma. In device compilation, if we prefer HD candidates
-      // over wrong-sided candidates, overloading resolution may change, which
-      // may result in non-deferrable diagnostics. As a workaround, we let
-      // implicit HD candidates take equal preference as wrong-sided candidates.
-      // This will preserve the overloading resolution.
-      auto EmitThreshold =
-          (S.getLangOpts().CUDAIsDevice && IsCallerImplicitHD &&
-           (IsCand1ImplicitHD || IsCand2ImplicitHD))
-              ? Sema::CFP_HostDevice
-              : Sema::CFP_WrongSide;
-      auto Cand1Emittable = P1 > EmitThreshold;
-      auto Cand2Emittable = P2 > EmitThreshold;
-      if (Cand1Emittable && !Cand2Emittable)
-        return true;
-      if (!Cand1Emittable && Cand2Emittable)
-        return false;
-    }
-  }
-
   // C++ [over.match.best]p1:
   //
   //   -- if F is a static member function, ICS1(F) is defined such
@@ -9779,6 +9742,12 @@ bool clang::isBetterOverloadCandidate(
       return Cmp == Comparison::Better;
   }
 
+  if (S.getLangOpts().CUDA && Cand1.Function && Cand2.Function) {
+    FunctionDecl *Caller = dyn_cast<FunctionDecl>(S.CurContext);
+    return S.IdentifyCUDAPreference(Caller, Cand1.Function) >
+           S.IdentifyCUDAPreference(Caller, Cand2.Function);
+  }
+
   bool HasPS1 = Cand1.Function != nullptr &&
                 functionHasPassObjectSizeParams(Cand1.Function);
   bool HasPS2 = Cand2.Function != nullptr &&
@@ -9786,21 +9755,8 @@ bool clang::isBetterOverloadCandidate(
   if (HasPS1 != HasPS2 && HasPS1)
     return true;
 
-  auto MV = isBetterMultiversionCandidate(Cand1, Cand2);
-  if (MV == Comparison::Better)
-    return true;
-  if (MV == Comparison::Worse)
-    return false;
-
-  // If other rules cannot determine which is better, CUDA preference is used
-  // to determine which is better.
-  if (S.getLangOpts().CUDA && Cand1.Function && Cand2.Function) {
-    FunctionDecl *Caller = dyn_cast<FunctionDecl>(S.CurContext);
-    return S.IdentifyCUDAPreference(Caller, Cand1.Function) >
-           S.IdentifyCUDAPreference(Caller, Cand2.Function);
-  }
-
-  return false;
+  Comparison MV = isBetterMultiversionCandidate(Cand1, Cand2);
+  return MV == Comparison::Better;
 }
 
 /// Determine whether two declarations are "equivalent" for the purposes of
@@ -9885,6 +9841,33 @@ OverloadCandidateSet::BestViableFunction(Sema &S, SourceLocation Loc,
   llvm::SmallVector<OverloadCandidate *, 16> Candidates;
   std::transform(begin(), end(), std::back_inserter(Candidates),
                  [](OverloadCandidate &Cand) { return &Cand; });
+
+  // [CUDA] HD->H or HD->D calls are technically not allowed by CUDA but
+  // are accepted by both clang and NVCC. However, during a particular
+  // compilation mode only one call variant is viable. We need to
+  // exclude non-viable overload candidates from consideration based
+  // only on their host/device attributes. Specifically, if one
+  // candidate call is WrongSide and the other is SameSide, we ignore
+  // the WrongSide candidate.
+  if (S.getLangOpts().CUDA) {
+    const FunctionDecl *Caller = dyn_cast<FunctionDecl>(S.CurContext);
+    bool ContainsSameSideCandidate =
+        llvm::any_of(Candidates, [&](OverloadCandidate *Cand) {
+          // Check viable function only.
+          return Cand->Viable && Cand->Function &&
+                 S.IdentifyCUDAPreference(Caller, Cand->Function) ==
+                     Sema::CFP_SameSide;
+        });
+    if (ContainsSameSideCandidate) {
+      auto IsWrongSideCandidate = [&](OverloadCandidate *Cand) {
+        // Check viable function only to avoid unnecessary data copying/moving.
+        return Cand->Viable && Cand->Function &&
+               S.IdentifyCUDAPreference(Caller, Cand->Function) ==
+                   Sema::CFP_WrongSide;
+      };
+      llvm::erase_if(Candidates, IsWrongSideCandidate);
+    }
+  }
 
   // Find the best viable function.
   Best = end();
@@ -14181,7 +14164,8 @@ Sema::BuildCallToMemberFunction(Scope *S, Expr *MemExprE,
   // resolution process, we still need to handle the enable_if attribute. Do
   // that here, so it will not hide previous -- and more relevant -- errors.
   if (auto *MemE = dyn_cast<MemberExpr>(NakedMemExpr)) {
-    if (const EnableIfAttr *Attr = CheckEnableIf(Method, Args, true)) {
+    if (const EnableIfAttr *Attr =
+            CheckEnableIf(Method, LParenLoc, Args, true)) {
       Diag(MemE->getMemberLoc(),
            diag::err_ovl_no_viable_member_function_in_call)
           << Method << Method->getSourceRange();

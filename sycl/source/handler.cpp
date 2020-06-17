@@ -90,6 +90,13 @@ event handler::finalize() {
         std::move(MSharedPtrStorage), std::move(MRequirements),
         std::move(MEvents), MCGType, MCodeLoc));
     break;
+  case detail::CG::BARRIER:
+  case detail::CG::BARRIER_WAITLIST:
+    CommandGroup.reset(new detail::CGBarrier(
+        std::move(MEventsWaitWithBarrier), std::move(MArgsStorage),
+        std::move(MAccStorage), std::move(MSharedPtrStorage),
+        std::move(MRequirements), std::move(MEvents), MCGType, MCodeLoc));
+    break;
   case detail::CG::NONE:
     throw runtime_error("Command group submitted without a kernel or a "
                         "explicit memory operation.",
@@ -125,6 +132,14 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
     case access::target::global_buffer:
     case access::target::constant_buffer: {
       detail::Requirement *AccImpl = static_cast<detail::Requirement *>(Ptr);
+
+      // Stream implementation creates an accessor with initial size for
+      // work item. Number of work items is not available during
+      // stream construction, that is why size of the accessor is updated here
+      // using information about number of work items.
+      if (AccImpl->PerWI) {
+        AccImpl->resize(MNDRDesc.GlobalSize.size());
+      }
       MArgs.emplace_back(Kind, AccImpl, Size, Index + IndexShift);
       if (!IsKernelCreatedFromSource) {
         // Dimensionality of the buffer is 1 when dimensionality of the
@@ -149,12 +164,7 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
     case access::target::local: {
       detail::LocalAccessorImplHost *LAcc =
           static_cast<detail::LocalAccessorImplHost *>(Ptr);
-      // Stream implementation creates local accessor with size per work item
-      // in work group. Number of work items is not available during stream
-      // construction, that is why size of the accessor is updated here using
-      // information about number of work items in the work group.
-      if (LAcc->PerWI)
-        LAcc->resize(MNDRDesc.LocalSize.size(), MNDRDesc.GlobalSize.size());
+
       range<3> &Size = LAcc->MSize;
       const int Dims = LAcc->MDims;
       int SizeInBytes = LAcc->MElemSize;

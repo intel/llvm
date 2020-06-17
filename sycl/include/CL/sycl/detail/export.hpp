@@ -39,5 +39,6 @@
 #ifndef __SYCL_EXPORT
 #define __SYCL_EXPORT
 #define __SYCL_EXPORT_DEPRECATED(x)
+#define DLL_LOCAL
 #endif
 #endif // __SYCL_DEVICE_ONLY__

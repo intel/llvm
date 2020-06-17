@@ -97,8 +97,18 @@ namespace llvm {
       MVT EltTy = getSimpleVT().getVectorElementType();
       unsigned BitWidth = EltTy.getSizeInBits();
       MVT IntTy = MVT::getIntegerVT(BitWidth);
-      MVT VecTy = MVT::getVectorVT(IntTy, getVectorNumElements(),
-                                   isScalableVector());
+      MVT VecTy = MVT::getVectorVT(IntTy, getVectorElementCount());
+      assert(VecTy.SimpleTy != MVT::INVALID_SIMPLE_VALUE_TYPE &&
+             "Simple vector VT not representable by simple integer vector VT!");
+      return VecTy;
+    }
+
+    /// Return a VT for a vector type whose attributes match ourselves
+    /// with the exception of the element type that is chosen by the caller.
+    EVT changeVectorElementType(EVT EltVT) const {
+      if (!isSimple())
+        return changeExtendedVectorElementType(EltVT);
+      MVT VecTy = MVT::getVectorVT(EltVT.V, getVectorElementCount());
       assert(VecTy.SimpleTy != MVT::INVALID_SIMPLE_VALUE_TYPE &&
              "Simple vector VT not representable by simple integer vector VT!");
       return VecTy;
@@ -292,6 +302,11 @@ namespace llvm {
       return {getExtendedVectorNumElements(), isExtendedScalableVector()};
     }
 
+    /// Given a vector type, return the minimum number of elements it contains.
+    unsigned getVectorMinNumElements() const {
+      return getVectorElementCount().Min;
+    }
+
     /// Return the size of the specified value type in bits.
     ///
     /// If the value type is a scalable vector type, the scalable property will
@@ -428,6 +443,7 @@ namespace llvm {
     // These are all out-of-line to prevent users of this header file
     // from having a dependency on Type.h.
     EVT changeExtendedTypeToInteger() const;
+    EVT changeExtendedVectorElementType(EVT EltVT) const;
     EVT changeExtendedVectorElementTypeToInteger() const;
     static EVT getExtendedIntegerVT(LLVMContext &C, unsigned BitWidth);
     static EVT getExtendedVectorVT(LLVMContext &C, EVT VT, unsigned NumElements,

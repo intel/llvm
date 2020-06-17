@@ -67,21 +67,26 @@ public:
   /// get_image_width returning scalar result.
   void visitCallSPRIVImageQuerySize(CallInst *CI);
 
-  /// Transform __spirv_Group* to {work_group|sub_group}_*.
+  /// Transform __spirv_(NonUniform)Group* to {work_group|sub_group}_*.
   ///
   /// Special handling of work_group_broadcast.
   ///   __spirv_GroupBroadcast(a, vec3(x, y, z))
   ///     =>
   ///   work_group_broadcast(a, x, y, z)
   ///
-  /// Transform OpenCL group builtin function names from group_
-  /// to workgroup_ and sub_group_.
-  /// Insert group operation part: reduce_/inclusive_scan_/exclusive_scan_
-  /// Transform the operation part:
-  ///    fadd/iadd/sadd => add
-  ///    fmax/smax => max
-  ///    fmin/smin => min
-  /// Keep umax/umin unchanged.
+  /// Special handling of sub_group_all, sub_group_any,
+  /// sub_group_non_uniform_all, sub_group_non_uniform_any, sub_group_ballot,
+  /// sub_group_clustered_logical_[and/or/xor].
+  ///   retTy func(i1 arg)
+  ///     =>
+  ///   retTy func(i32 arg)
+  ///
+  /// Special handling of sub_group_all, sub_group_any,
+  /// sub_group_non_uniform_all,
+  /// sub_group_non_uniform_any, sub_group_non_uniform_all_equal.
+  ///   i1 func
+  ///     =>
+  ///   i32 func
   void visitCallSPIRVGroupBuiltin(CallInst *CI, Op OC);
 
   /// Transform __spirv_{PipeOpName} to OCL pipe builtin functions.
@@ -133,6 +138,22 @@ public:
   /// Transform __spirv_Opcode to ocl-version specific builtin name
   /// using separate maps for OpenCL 1.2 and OpenCL 2.0
   virtual Instruction *mutateAtomicName(CallInst *CI, Op OC) = 0;
+
+private:
+  /// Transform uniform group opcode to corresponding OpenCL function name,
+  /// example: GroupIAdd(Reduce) => group_iadd => work_group_reduce_add |
+  /// sub_group_reduce_add
+  std::string getUniformArithmeticBuiltinName(CallInst *CI, Op OC);
+  /// Transform non-uniform group opcode to corresponding OpenCL function name,
+  /// example: GroupNonUniformIAdd(Reduce) => group_non_uniform_iadd =>
+  /// sub_group_non_uniform_reduce_add
+  std::string getNonUniformArithmeticBuiltinName(CallInst *CI, Op OC);
+  /// Transform ballot bit count opcode to corresponding OpenCL function name,
+  /// example: GroupNonUniformBallotBitCount(Reduce) =>
+  /// group_ballot_bit_count_iadd => sub_​group_​ballot_​bit_​count
+  std::string getBallotBuiltinName(CallInst *CI, Op OC);
+  /// Transform group opcode to corresponding OpenCL function name
+  std::string groupOCToOCLBuiltinName(CallInst *CI, Op OC);
 
 protected:
   Module *M;

@@ -4,6 +4,7 @@
 #endif
 
 EXT(SPV_KHR_no_integer_wrap_decoration)
+EXT(SPV_KHR_float_controls)
 EXT(SPV_INTEL_subgroups)
 EXT(SPV_INTEL_media_block_io)
 EXT(SPV_INTEL_device_side_avc_motion_estimation)
@@ -18,3 +19,5 @@ EXT(SPV_INTEL_io_pipes)
 EXT(SPV_INTEL_inline_assembly)
 EXT(SPV_INTEL_arbitrary_precision_integers)
 EXT(SPV_INTEL_optimization_hints)
+EXT(SPV_INTEL_float_controls2)
+EXT(SPV_INTEL_vector_compute)

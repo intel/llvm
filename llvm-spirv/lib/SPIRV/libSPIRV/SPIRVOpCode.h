@@ -131,12 +131,35 @@ inline bool hasExecScope(Op OpCode) {
 
 inline bool hasGroupOperation(Op OpCode) {
   unsigned OC = OpCode;
-  return OpGroupIAdd <= OC && OC <= OpGroupSMax;
+  return (OpGroupIAdd <= OC && OC <= OpGroupSMax) ||
+         (OpGroupNonUniformBallotBitCount == OC) ||
+         (OpGroupNonUniformIAdd <= OC && OC <= OpGroupNonUniformLogicalXor);
+}
+
+inline bool isUniformArithmeticOpCode(Op OpCode) {
+  unsigned OC = OpCode;
+  return (OpGroupIAdd <= OC && OC <= OpGroupSMax);
+}
+
+inline bool isNonUniformArithmeticOpCode(Op OpCode) {
+  unsigned OC = OpCode;
+  return (OpGroupNonUniformIAdd <= OC && OC <= OpGroupNonUniformLogicalXor);
+}
+
+inline bool isGroupLogicalOpCode(Op OpCode) {
+  unsigned OC = OpCode;
+  return OC == OpGroupNonUniformLogicalAnd ||
+         OC == OpGroupNonUniformLogicalOr || OC == OpGroupNonUniformLogicalXor;
 }
 
 inline bool isGroupOpCode(Op OpCode) {
   unsigned OC = OpCode;
   return OpGroupAll <= OC && OC <= OpGroupSMax;
+}
+
+inline bool isGroupNonUniformOpcode(Op OpCode) {
+  unsigned OC = OpCode;
+  return OpGroupNonUniformElect <= OC && OC <= OpGroupNonUniformQuadSwap;
 }
 
 inline bool isMediaBlockINTELOpcode(Op OpCode) {

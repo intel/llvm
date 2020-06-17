@@ -97,6 +97,9 @@ public:
 
     /// Cached preambles are potentially large. If false, store them on disk.
     bool StorePreamblesInMemory = true;
+    /// Reuse even stale preambles, and rebuild them in the background.
+    /// This improves latency at the cost of accuracy.
+    bool AsyncPreambleBuilds = false;
 
     /// If true, ClangdServer builds a dynamic in-memory index for symbols in
     /// opened files and uses the index to augment code completion results.
@@ -119,6 +122,9 @@ public:
 
     /// If true, turn on the `-frecovery-ast` clang flag.
     bool BuildRecoveryAST = false;
+
+    /// If true, turn on the `-frecovery-ast-type` clang flag.
+    bool PreserveRecoveryASTType = false;
 
     /// Clangd's workspace root. Relevant for "workspace" operations not bound
     /// to a particular file.
@@ -349,6 +355,8 @@ private:
 
   // If true, preserve expressions in AST for broken code.
   bool BuildRecoveryAST = false;
+  // If true, preserve the type for recovery AST.
+  bool PreserveRecoveryASTType = false;
 
   std::function<bool(const Tweak &)> TweakFilter;
 

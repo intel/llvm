@@ -37,11 +37,19 @@ endif()
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
 include(AddFlang)
 
+if (MSVC)
+  set(_FLANG_ENABLE_WERROR_DEFAULT OFF)
+else ()
+  set(_FLANG_ENABLE_WERROR_DEFAULT ON)
+endif()
+option(FLANG_ENABLE_WERROR "Fail and stop building flang if a warning is triggered."
+       "${_FLANG_ENABLE_WERROR_DEFAULT}")
+
 # Check for a standalone build and configure as appropriate from
 # there.
 if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
-message("Building Flang as a standalone project.")
-project(Flang)
+  message("Building Flang as a standalone project.")
+  project(Flang)
 
   set(FLANG_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
   if (NOT MSVC_IDE)
@@ -59,6 +67,8 @@ project(Flang)
   if(LLVM_ENABLE_ZLIB)
     find_package(ZLIB REQUIRED)
   endif()
+  option(LLVM_ENABLE_WARNINGS "Enable compiler warnings." ON)
+  option(LLVM_ENABLE_PEDANTIC "Compile with pedantic enabled." ON)
 
   include(CMakeParseArguments)
   include(AddLLVM)
@@ -76,7 +86,6 @@ project(Flang)
       NO_DEFAULT_PATH)
   endif()
 
-  option(LLVM_ENABLE_WARNINGS "Enable compiler warnings." ON)
   option(LLVM_INSTALL_TOOLCHAIN_ONLY
     "Only include toolchain files in the 'install' target." OFF)
   option(LLVM_FORCE_USE_OLD_HOST_TOOLCHAIN
@@ -239,8 +248,20 @@ configure_file(
   ${FLANG_SOURCE_DIR}/include/flang/Config/config.h.cmake
   ${FLANG_BINARY_DIR}/include/flang/Config/config.h)
 
-# Add global F18 flags.
-set(CMAKE_CXX_FLAGS "-fno-rtti -fno-exceptions -pedantic -Wall -Wextra -Werror -Wcast-qual -Wimplicit-fallthrough -Wdelete-non-virtual-dtor ${CMAKE_CXX_FLAGS}")
+if (FLANG_ENABLE_WERROR)
+  # The following is taken from llvm/cmake/modules/HandleLLVMOptions.cmake
+  # Keep this up-to-date with that file
+  if( MSVC )
+    append("/WX" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
+  endif()
+  if ( LLVM_COMPILER_IS_GCC_COMPATIBLE )
+    append("-Werror" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
+    append("-Wno-error" CMAKE_REQUIRED_FLAGS)
+  endif( LLVM_COMPILER_IS_GCC_COMPATIBLE )
+  if (NOT LLVM_ENABLE_WERROR)
+      message(WARNING "FLANG_ENABLE_WERROR setting is different from LLVM_ENABLE_WERROR.")
+  endif()
+endif()
 
 # Builtin check_cxx_compiler_flag doesn't seem to work correctly
 macro(check_compiler_flag flag resultVar)
@@ -250,11 +271,11 @@ endmacro()
 
 check_compiler_flag("-Werror -Wno-deprecated-copy" CXX_SUPPORTS_NO_DEPRECATED_COPY_FLAG)
 if (CXX_SUPPORTS_NO_DEPRECATED_COPY_FLAG)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated-copy")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated-copy")
 endif()
 check_compiler_flag("-Wstring-conversion" CXX_SUPPORTS_NO_STRING_CONVERSION_FLAG)
 if (CXX_SUPPORTS_NO_STRING_CONVERSION_FLAG)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-string-conversion")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-string-conversion")
 endif()
 
 # Add appropriate flags for GCC
@@ -272,19 +293,9 @@ if (LLVM_COMPILER_IS_GCC_COMPATIBLE)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-nested-anon-types")
   endif()
 
-  # Add to or adjust build type flags.
-  #
-  # TODO: This needs some extra thought.  CMake's default for release builds
-  # is -O3, which can cause build failures on certain platforms (and compilers)
-  # with the current code base -- some templated functions are inlined and don't
-  # become available at link time when using -O3 (with Clang under MacOS/darwin).
-  # If we reset CMake's default flags we also clobber any user provided settings;
-  # make it difficult to customize a build in this regard...   The setup below
-  # has this side effect but enables successful builds across multiple platforms
-  # in release mode...
+  # Add to build type flags.
   set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DDEBUGF18")
-  set(CMAKE_CXX_FLAGS_MINSIZEREL "${CMAKE_CXX_FLAGS_MINSIZEREL} -DCHECK=\"(void)\"")  # do we need -O2 here?
-  set(CMAKE_CXX_FLAGS_RELEASE "-O2")
+  set(CMAKE_CXX_FLAGS_MINSIZEREL "${CMAKE_CXX_FLAGS_MINSIZEREL} -DCHECK=\"(void)\"")
 
   # Building shared libraries is bad for performance with GCC by default
   # due to the need to preserve the right to override external entry points

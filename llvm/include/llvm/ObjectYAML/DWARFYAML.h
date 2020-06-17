@@ -15,6 +15,7 @@
 #ifndef LLVM_OBJECTYAML_DWARFYAML_H
 #define LLVM_OBJECTYAML_DWARFYAML_H
 
+#include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/Support/YAMLTraits.h"
@@ -63,7 +64,8 @@ struct ARangeDescriptor {
 };
 
 struct ARange {
-  InitialLength Length;
+  dwarf::DwarfFormat Format;
+  uint64_t Length;
   uint16_t Version;
   uint32_t CuOffset;
   uint8_t AddrSize;
@@ -80,8 +82,8 @@ struct RangeEntry {
 
 /// Class that describes a single range list inside the .debug_ranges section.
 struct Ranges {
-  llvm::yaml::Hex32 Offset;
-  llvm::yaml::Hex8 AddrSize;
+  Optional<llvm::yaml::Hex64> Offset;
+  Optional<llvm::yaml::Hex8> AddrSize;
   std::vector<RangeEntry> Entries;
 };
 
@@ -98,6 +100,9 @@ struct PubSection {
   uint32_t UnitSize;
   bool IsGNUStyle = false;
   std::vector<PubEntry> Entries;
+
+  PubSection() = default;
+  PubSection(bool IsGNUStyle) : IsGNUStyle(IsGNUStyle) {}
 };
 
 struct FormValue {
@@ -139,7 +144,8 @@ struct LineTableOpcode {
 };
 
 struct LineTable {
-  InitialLength Length;
+  dwarf::DwarfFormat Format;
+  uint64_t Length;
   uint16_t Version;
   uint64_t PrologueLength;
   uint8_t MinInstLength;
@@ -156,21 +162,24 @@ struct LineTable {
 
 struct Data {
   bool IsLittleEndian;
+  bool Is64bit;
   std::vector<Abbrev> AbbrevDecls;
   std::vector<StringRef> DebugStrings;
   std::vector<ARange> ARanges;
   std::vector<Ranges> DebugRanges;
-  PubSection PubNames;
-  PubSection PubTypes;
+  Optional<PubSection> PubNames;
+  Optional<PubSection> PubTypes;
 
-  PubSection GNUPubNames;
-  PubSection GNUPubTypes;
+  Optional<PubSection> GNUPubNames;
+  Optional<PubSection> GNUPubTypes;
 
   std::vector<Unit> CompileUnits;
 
   std::vector<LineTable> DebugLines;
 
   bool isEmpty() const;
+
+  SetVector<StringRef> getUsedSectionNames() const;
 };
 
 } // end namespace DWARFYAML
@@ -210,7 +219,7 @@ template <> struct MappingTraits<DWARFYAML::ARangeDescriptor> {
 };
 
 template <> struct MappingTraits<DWARFYAML::ARange> {
-  static void mapping(IO &IO, DWARFYAML::ARange &Range);
+  static void mapping(IO &IO, DWARFYAML::ARange &ARange);
 };
 
 template <> struct MappingTraits<DWARFYAML::RangeEntry> {
@@ -255,6 +264,13 @@ template <> struct MappingTraits<DWARFYAML::LineTable> {
 
 template <> struct MappingTraits<DWARFYAML::InitialLength> {
   static void mapping(IO &IO, DWARFYAML::InitialLength &DWARF);
+};
+
+template <> struct ScalarEnumerationTraits<dwarf::DwarfFormat> {
+  static void enumeration(IO &IO, dwarf::DwarfFormat &Format) {
+    IO.enumCase(Format, "DWARF32", dwarf::DWARF32);
+    IO.enumCase(Format, "DWARF64", dwarf::DWARF64);
+  }
 };
 
 #define HANDLE_DW_TAG(unused, name, unused2, unused3, unused4)                 \

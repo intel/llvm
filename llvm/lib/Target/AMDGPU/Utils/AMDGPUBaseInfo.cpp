@@ -108,6 +108,7 @@ namespace AMDGPU {
 #define GET_MIMGInfoTable_IMPL
 #define GET_MIMGLZMappingTable_IMPL
 #define GET_MIMGMIPMappingTable_IMPL
+#define GET_MIMGG16MappingTable_IMPL
 #include "AMDGPUGenSearchableTables.inc"
 
 int getMIMGOpcode(unsigned BaseOpcode, unsigned MIMGEncoding,
@@ -943,6 +944,10 @@ bool hasGFX10A16(const MCSubtargetInfo &STI) {
   return STI.getFeatureBits()[AMDGPU::FeatureGFX10A16];
 }
 
+bool hasG16(const MCSubtargetInfo &STI) {
+  return STI.getFeatureBits()[AMDGPU::FeatureG16];
+}
+
 bool hasPackedD16(const MCSubtargetInfo &STI) {
   return !STI.getFeatureBits()[AMDGPU::FeatureUnpackedD16VMem];
 }
@@ -1169,8 +1174,12 @@ unsigned getRegOperandSize(const MCRegisterInfo *MRI, const MCInstrDesc &Desc,
   return getRegBitWidth(MRI->getRegClass(RCID)) / 8;
 }
 
+bool isInlinableIntLiteral(int64_t Literal) {
+  return Literal >= -16 && Literal <= 64;
+}
+
 bool isInlinableLiteral64(int64_t Literal, bool HasInv2Pi) {
-  if (Literal >= -16 && Literal <= 64)
+  if (isInlinableIntLiteral(Literal))
     return true;
 
   uint64_t Val = static_cast<uint64_t>(Literal);
@@ -1187,7 +1196,7 @@ bool isInlinableLiteral64(int64_t Literal, bool HasInv2Pi) {
 }
 
 bool isInlinableLiteral32(int32_t Literal, bool HasInv2Pi) {
-  if (Literal >= -16 && Literal <= 64)
+  if (isInlinableIntLiteral(Literal))
     return true;
 
   // The actual type of the operand does not seem to matter as long
@@ -1216,7 +1225,7 @@ bool isInlinableLiteral16(int16_t Literal, bool HasInv2Pi) {
   if (!HasInv2Pi)
     return false;
 
-  if (Literal >= -16 && Literal <= 64)
+  if (isInlinableIntLiteral(Literal))
     return true;
 
   uint16_t Val = static_cast<uint16_t>(Literal);

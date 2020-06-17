@@ -16,6 +16,7 @@
 #include "clang/Basic/MacroBuilder.h"
 #include "clang/Basic/TargetBuiltins.h"
 #include "llvm/ADT/StringSwitch.h"
+#include "llvm/Frontend/OpenMP/OMPGridValues.h"
 
 using namespace clang;
 using namespace clang::targets;
@@ -63,7 +64,10 @@ NVPTXTargetInfo::NVPTXTargetInfo(const llvm::Triple &Triple,
   TLSSupported = Triple.getEnvironment() == llvm::Triple::SYCLDevice;
   VLASupported = false;
   AddrSpaceMap = &NVPTXAddrSpaceMap;
+  GridValues = llvm::omp::NVPTXGpuGridValues;
   UseAddrSpaceMapMangling = true;
+  HasLegalHalfType = true;
+  HasFloat16 = true;
 
   // Define available target features
   // These must be defined in sorted order!

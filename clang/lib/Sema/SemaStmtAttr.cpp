@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "clang/AST/EvaluatedExprVisitor.h"
 #include "clang/Sema/SemaInternal.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/Basic/SourceManager.h"
@@ -147,8 +148,8 @@ static IVDepExprResult HandleFPGAIVDepAttrExpr(Sema &S, Expr *E,
     return IVDepExprResult::SafeLen;
   }
 
-  if (isa<DeclRefExpr>(E)) {
-    if (!cast<DeclRefExpr>(E)->getType()->isArrayType()) {
+  if (isa<DeclRefExpr>(E) || isa<MemberExpr>(E)) {
+    if (!E->getType()->isArrayType() && !E->getType()->isPointerType()) {
       S.Diag(E->getExprLoc(), diag::err_ivdep_declrefexpr_arg);
       return IVDepExprResult::Invalid;
     }
@@ -248,7 +249,7 @@ CheckRedundantSYCLIntelFPGAIVDepAttrs(Sema &S, ArrayRef<const Attr *> Attrs) {
     if (!A->getArrayExpr())
       continue;
 
-    const VarDecl *ArrayDecl = A->getArrayDecl();
+    const ValueDecl *ArrayDecl = A->getArrayDecl();
     auto Other = llvm::find_if(SortedAttrs,
                                [ArrayDecl](const SYCLIntelFPGAIVDepAttr *A) {
                                  return ArrayDecl == A->getArrayDecl();
@@ -372,6 +373,44 @@ static Attr *handleLoopHintAttr(Sema &S, Stmt *St, const ParsedAttr &A,
   }
 
   return LoopHintAttr::CreateImplicit(S.Context, Option, State, ValueExpr, A);
+}
+
+namespace {
+class CallExprFinder : public ConstEvaluatedExprVisitor<CallExprFinder> {
+  bool FoundCallExpr = false;
+
+public:
+  typedef ConstEvaluatedExprVisitor<CallExprFinder> Inherited;
+
+  CallExprFinder(Sema &S, const Stmt *St) : Inherited(S.Context) { Visit(St); }
+
+  bool foundCallExpr() { return FoundCallExpr; }
+
+  void VisitCallExpr(const CallExpr *E) { FoundCallExpr = true; }
+
+  void Visit(const Stmt *St) {
+    if (!St)
+      return;
+    ConstEvaluatedExprVisitor<CallExprFinder>::Visit(St);
+  }
+};
+} // namespace
+
+static Attr *handleNoMergeAttr(Sema &S, Stmt *St, const ParsedAttr &A,
+                               SourceRange Range) {
+  NoMergeAttr NMA(S.Context, A);
+  if (S.CheckAttrNoArgs(A))
+    return nullptr;
+
+  CallExprFinder CEF(S, St);
+
+  if (!CEF.foundCallExpr()) {
+    S.Diag(St->getBeginLoc(), diag::warn_nomerge_attribute_ignored_in_stmt)
+        << NMA.getSpelling();
+    return nullptr;
+  }
+
+  return ::new (S.Context) NoMergeAttr(S.Context, A);
 }
 
 static void
@@ -675,6 +714,8 @@ static Attr *ProcessStmtAttribute(Sema &S, Stmt *St, const ParsedAttr &A,
     return handleLoopUnrollHint(S, St, A, Range);
   case ParsedAttr::AT_Suppress:
     return handleSuppressAttr(S, St, A, Range);
+  case ParsedAttr::AT_NoMerge:
+    return handleNoMergeAttr(S, St, A, Range);
   default:
     // if we're here, then we parsed a known attribute, but didn't recognize
     // it as a statement attribute => it is declaration attribute

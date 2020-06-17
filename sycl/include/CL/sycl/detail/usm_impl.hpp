@@ -7,8 +7,6 @@
 // ===--------------------------------------------------------------------=== //
 #pragma once
 
-#include <CL/cl_usm_ext.h>
-#include <CL/sycl/detail/cl.h>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/usm/usm_enums.hpp>
 

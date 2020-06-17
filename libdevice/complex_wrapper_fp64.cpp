@@ -6,8 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "device.h"
 #include "device_complex.h"
+
+#ifdef __SPIR__
 
 DEVICE_EXTERN_C
 double cimag(double __complex__ z) { return __devicelib_cimag(z); }
@@ -98,3 +99,4 @@ DEVICE_EXTERN_C
 double __complex__ __divdc3(double __a, double __b, double __c, double __d) {
   return __devicelib___divdc3(__a, __b, __c, __d);
 }
+#endif // __SPIR__

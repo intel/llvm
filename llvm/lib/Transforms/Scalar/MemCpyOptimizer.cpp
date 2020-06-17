@@ -143,23 +143,6 @@ bool MemsetRange::isProfitableToUseMemset(const DataLayout &DL) const {
   return TheStores.size() > NumPointerStores+NumByteStores;
 }
 
-
-static Align findStoreAlignment(const DataLayout &DL, const StoreInst *SI) {
-  return DL.getValueOrABITypeAlignment(SI->getAlign(),
-                                       SI->getOperand(0)->getType());
-}
-
-static Align findLoadAlignment(const DataLayout &DL, const LoadInst *LI) {
-  return DL.getValueOrABITypeAlignment(LI->getAlign(), LI->getType());
-}
-
-static Align findCommonAlignment(const DataLayout &DL, const StoreInst *SI,
-                                 const LoadInst *LI) {
-  Align StoreAlign = findStoreAlignment(DL, SI);
-  Align LoadAlign = findLoadAlignment(DL, LI);
-  return commonAlignment(StoreAlign, LoadAlign);
-}
-
 namespace {
 
 class MemsetRanges {
@@ -190,7 +173,7 @@ public:
     int64_t StoreSize = DL.getTypeStoreSize(SI->getOperand(0)->getType());
 
     addRange(OffsetFromFirst, StoreSize, SI->getPointerOperand(),
-             findStoreAlignment(DL, SI).value(), SI);
+             SI->getAlign().value(), SI);
   }
 
   void addMemSet(int64_t OffsetFromFirst, MemSetInst *MSI) {
@@ -579,12 +562,12 @@ bool MemCpyOptPass::processStore(StoreInst *SI, BasicBlock::iterator &BBI) {
           Instruction *M;
           if (UseMemMove)
             M = Builder.CreateMemMove(
-                SI->getPointerOperand(), findStoreAlignment(DL, SI),
-                LI->getPointerOperand(), findLoadAlignment(DL, LI), Size);
+                SI->getPointerOperand(), SI->getAlign(),
+                LI->getPointerOperand(), LI->getAlign(), Size);
           else
             M = Builder.CreateMemCpy(
-                SI->getPointerOperand(), findStoreAlignment(DL, SI),
-                LI->getPointerOperand(), findLoadAlignment(DL, LI), Size);
+                SI->getPointerOperand(), SI->getAlign(),
+                LI->getPointerOperand(), LI->getAlign(), Size);
 
           LLVM_DEBUG(dbgs() << "Promoting " << *LI << " to " << *SI << " => "
                             << *M << "\n");
@@ -636,7 +619,7 @@ bool MemCpyOptPass::processStore(StoreInst *SI, BasicBlock::iterator &BBI) {
             LI, SI->getPointerOperand()->stripPointerCasts(),
             LI->getPointerOperand()->stripPointerCasts(),
             DL.getTypeStoreSize(SI->getOperand(0)->getType()),
-            findCommonAlignment(DL, SI, LI), C);
+            commonAlignment(SI->getAlign(), LI->getAlign()), C);
         if (changed) {
           MD->removeInstruction(SI);
           SI->eraseFromParent();
@@ -669,11 +652,9 @@ bool MemCpyOptPass::processStore(StoreInst *SI, BasicBlock::iterator &BBI) {
     auto *T = V->getType();
     if (T->isAggregateType()) {
       uint64_t Size = DL.getTypeStoreSize(T);
-      const Align MA =
-          DL.getValueOrABITypeAlignment(MaybeAlign(SI->getAlignment()), T);
       IRBuilder<> Builder(SI);
-      auto *M =
-          Builder.CreateMemSet(SI->getPointerOperand(), ByteVal, Size, MA);
+      auto *M = Builder.CreateMemSet(SI->getPointerOperand(), ByteVal, Size,
+                                     SI->getAlign());
 
       LLVM_DEBUG(dbgs() << "Promoting " << *SI << " to " << *M << "\n");
 
@@ -1116,15 +1097,16 @@ bool MemCpyOptPass::performMemCpyToMemSetOptzn(MemCpyInst *MemCpy,
 /// B to be a memcpy from X to Z (or potentially a memmove, depending on
 /// circumstances). This allows later passes to remove the first memcpy
 /// altogether.
-bool MemCpyOptPass::processMemCpy(MemCpyInst *M) {
+bool MemCpyOptPass::processMemCpy(MemCpyInst *M, BasicBlock::iterator &BBI) {
   // We can only optimize non-volatile memcpy's.
   if (M->isVolatile()) return false;
 
   // If the source and destination of the memcpy are the same, then zap it.
   if (M->getSource() == M->getDest()) {
+    ++BBI;
     MD->removeInstruction(M);
     M->eraseFromParent();
-    return false;
+    return true;
   }
 
   // If copying from a constant, try to turn the memcpy into a memset.
@@ -1270,9 +1252,10 @@ bool MemCpyOptPass::processByValArgument(CallBase &CB, unsigned ArgNo) {
   // source of the memcpy to the alignment we need.  If we fail, we bail out.
   AssumptionCache &AC = LookupAssumptionCache();
   DominatorTree &DT = LookupDomTree();
-  if (MDep->getSourceAlign() < ByValAlign &&
+  MaybeAlign MemDepAlign = MDep->getSourceAlign();
+  if ((!MemDepAlign || *MemDepAlign < *ByValAlign) &&
       getOrEnforceKnownAlignment(MDep->getSource(), ByValAlign, DL, &CB, &AC,
-                                 &DT) < ByValAlign)
+                                 &DT) < *ByValAlign)
     return false;
 
   // The address space of the memcpy source must match the byval argument
@@ -1340,7 +1323,7 @@ bool MemCpyOptPass::iterateOnFunction(Function &F) {
       else if (MemSetInst *M = dyn_cast<MemSetInst>(I))
         RepeatInstruction = processMemSet(M, BI);
       else if (MemCpyInst *M = dyn_cast<MemCpyInst>(I))
-        RepeatInstruction = processMemCpy(M);
+        RepeatInstruction = processMemCpy(M, BI);
       else if (MemMoveInst *M = dyn_cast<MemMoveInst>(I))
         RepeatInstruction = processMemMove(M);
       else if (auto *CB = dyn_cast<CallBase>(I)) {

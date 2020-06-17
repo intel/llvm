@@ -40,6 +40,11 @@ enum class NodeKind : uint16_t {
 
   // Expressions.
   UnknownExpression,
+  PrefixUnaryOperatorExpression,
+  PostfixUnaryOperatorExpression,
+  BinaryOperatorExpression,
+  CxxNullPtrExpression,
+  IntegerLiteralExpression,
 
   // Statements.
   UnknownStatement,
@@ -86,6 +91,23 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, NodeKind K);
 
 /// A relation between a parent and child node, e.g. 'left-hand-side of
 /// a binary expression'. Used for implementing accessors.
+///
+/// Some roles describe parent/child relations that occur multiple times in
+/// language grammar. We define only one role to describe all instances of such
+/// recurring relations. For example, grammar for both "if" and "while"
+/// statements requires an opening paren and a closing paren. The opening
+/// paren token is assigned the OpenParen role regardless of whether it appears
+/// as a child of IfStatement or WhileStatement node. More generally, when
+/// grammar requires a certain fixed token (like a specific keyword, or an
+/// opening paren), we define a role for this token and use it across all
+/// grammar rules with the same requirement. Names of such reusable roles end
+/// with a ~Token or a ~Keyword suffix.
+///
+/// Some roles are assigned only to child nodes of one specific parent syntax
+/// node type. Names of such roles start with the name of the parent syntax tree
+/// node type. For example, a syntax node with a role
+/// BinaryOperatorExpression_leftHandSide can only appear as a child of a
+/// BinaryOperatorExpression node.
 enum class NodeRole : uint8_t {
   // Roles common to multiple node kinds.
   /// A node without a parent
@@ -98,12 +120,21 @@ enum class NodeRole : uint8_t {
   CloseParen,
   /// A keywords that introduces some grammar construct, e.g. 'if', 'try', etc.
   IntroducerKeyword,
+  /// A token that represents a literal, e.g. 'nullptr', '1', 'true', etc.
+  LiteralToken,
+  /// Tokens or Keywords
+  ArrowToken,
+  ExternKeyword,
   /// An inner statement for those that have only a single child of kind
   /// statement, e.g. loop body for while, for, etc; inner statement for case,
   /// default, etc.
   BodyStatement,
 
   // Roles specific to particular node kinds.
+  OperatorExpression_operatorToken,
+  UnaryOperatorExpression_operand,
+  BinaryOperatorExpression_leftHandSide,
+  BinaryOperatorExpression_rightHandSide,
   CaseStatement_value,
   IfStatement_thenStatement,
   IfStatement_elseKeyword,
@@ -115,10 +146,8 @@ enum class NodeRole : uint8_t {
   StaticAssertDeclaration_message,
   SimpleDeclaration_declarator,
   TemplateDeclaration_declaration,
-  ExplicitTemplateInstantiation_externKeyword,
   ExplicitTemplateInstantiation_declaration,
   ArraySubscript_sizeExpression,
-  TrailingReturnType_arrow,
   TrailingReturnType_declarator,
   ParametersAndQualifiers_parameter,
   ParametersAndQualifiers_trailingReturn
@@ -156,6 +185,88 @@ public:
   static bool classof(const Node *N) {
     return N->kind() == NodeKind::UnknownExpression;
   }
+};
+
+/// C++11 'nullptr' expression.
+class CxxNullPtrExpression final : public Expression {
+public:
+  CxxNullPtrExpression() : Expression(NodeKind::CxxNullPtrExpression) {}
+  static bool classof(const Node *N) {
+    return N->kind() == NodeKind::CxxNullPtrExpression;
+  }
+  syntax::Leaf *nullPtrKeyword();
+};
+
+/// Expression for integer literals.
+class IntegerLiteralExpression final : public Expression {
+public:
+  IntegerLiteralExpression() : Expression(NodeKind::IntegerLiteralExpression) {}
+  static bool classof(const Node *N) {
+    return N->kind() == NodeKind::IntegerLiteralExpression;
+  }
+  syntax::Leaf *literalToken();
+};
+
+/// An abstract class for prefix and postfix unary operators.
+class UnaryOperatorExpression : public Expression {
+public:
+  UnaryOperatorExpression(NodeKind K) : Expression(K) {}
+  static bool classof(const Node *N) {
+    return N->kind() == NodeKind::PrefixUnaryOperatorExpression ||
+           N->kind() == NodeKind::PostfixUnaryOperatorExpression;
+  }
+  syntax::Leaf *operatorToken();
+  syntax::Expression *operand();
+};
+
+/// <operator> <operand>
+///
+/// For example:
+///   +a          -b
+///   !c          not c
+///   ~d          compl d
+///   *e          &f
+///   ++h         --h
+///   __real i    __imag i
+class PrefixUnaryOperatorExpression final : public UnaryOperatorExpression {
+public:
+  PrefixUnaryOperatorExpression()
+      : UnaryOperatorExpression(NodeKind::PrefixUnaryOperatorExpression) {}
+  static bool classof(const Node *N) {
+    return N->kind() == NodeKind::PrefixUnaryOperatorExpression;
+  }
+};
+
+/// <operand> <operator>
+///
+/// For example:
+///   a++
+///   b--
+class PostfixUnaryOperatorExpression final : public UnaryOperatorExpression {
+public:
+  PostfixUnaryOperatorExpression()
+      : UnaryOperatorExpression(NodeKind::PostfixUnaryOperatorExpression) {}
+  static bool classof(const Node *N) {
+    return N->kind() == NodeKind::PostfixUnaryOperatorExpression;
+  }
+};
+
+/// <lhs> <operator> <rhs>
+///
+/// For example:
+///   a + b
+///   a bitor 1
+///   a |= b
+///   a and_eq b
+class BinaryOperatorExpression final : public Expression {
+public:
+  BinaryOperatorExpression() : Expression(NodeKind::BinaryOperatorExpression) {}
+  static bool classof(const Node *N) {
+    return N->kind() == NodeKind::BinaryOperatorExpression;
+  }
+  syntax::Expression *lhs();
+  syntax::Leaf *operatorToken();
+  syntax::Expression *rhs();
 };
 
 /// An abstract node for C++ statements, e.g. 'while', 'if', etc.
@@ -545,7 +656,7 @@ public:
     return N->kind() == NodeKind::TrailingReturnType;
   }
   // TODO: add accessors for specifiers.
-  syntax::Leaf *arrow();
+  syntax::Leaf *arrowToken();
   syntax::SimpleDeclarator *declarator();
 };
 

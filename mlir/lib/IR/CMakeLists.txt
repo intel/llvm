@@ -31,10 +31,9 @@ add_mlir_library(MLIRIR
 
   DEPENDS
   MLIRCallInterfacesIncGen
-  MLIROpAsmInterfacesIncGen
+  MLIROpAsmInterfaceIncGen
   MLIRSymbolInterfacesIncGen
 
   LINK_LIBS PUBLIC
   MLIRSupport
-  LLVMSupport
   )

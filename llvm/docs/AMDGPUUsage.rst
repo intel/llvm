@@ -1095,6 +1095,60 @@ the ``mesa3d`` OS, which does not support ``R_AMDGPU_ABS64``.
 There is no current OS loader support for 32-bit programs and so
 ``R_AMDGPU_ABS32`` is not used.
 
+.. _amdgpu-loaded-code-object-path-uniform-resource-identifier:
+
+Loaded Code Object Path Uniform Resource Identifier (URI)
+---------------------------------------------------------
+
+The AMD GPU code object loader represents the path of the ELF shared object from
+which the code object was loaded as a textual Unifom Resource Identifier (URI).
+Note that the code object is the in memory loaded relocated form of the ELF
+shared object.  Multiple code objects may be loaded at different memory
+addresses in the same process from the same ELF shared object.
+
+The loaded code object path URI syntax is defined by the following BNF syntax:
+
+.. code::
+
+  code_object_uri ::== file_uri | memory_uri
+  file_uri        ::== "file://" file_path [ range_specifier ]
+  memory_uri      ::== "memory://" process_id range_specifier
+  range_specifier ::== [ "#" | "?" ] "offset=" number "&" "size=" number
+  file_path       ::== URI_ENCODED_OS_FILE_PATH
+  process_id      ::== DECIMAL_NUMBER
+  number          ::== HEX_NUMBER | DECIMAL_NUMBER | OCTAL_NUMBER
+
+**number**
+  Is a C integral literal where hexadecimal values are prefixed by "0x" or "0X",
+  and octal values by "0".
+
+**file_path**
+  Is the file's path specified as a URI encoded UTF-8 string. In URI encoding,
+  every character that is not in the regular expression ``[a-zA-Z0-9/_.~-]`` is
+  encoded as two uppercase hexidecimal digits proceeded by "%".  Directories in
+  the path are separated by "/".
+
+**offset**
+  Is a 0-based byte offset to the start of the code object.  For a file URI, it
+  is from the start of the file specified by the ``file_path``, and if omitted
+  defaults to 0. For a memory URI, it is the memory address and is required.
+
+**size**
+  Is the number of bytes in the code object.  For a file URI, if omitted it
+  defaults to the size of the file.  It is required for a memory URI.
+
+**process_id**
+  Is the identity of the process owning the memory.  For Linux it is the C
+  unsigned integral decimal literal for the process ID (PID).
+
+For example:
+
+.. code::
+
+  file:///dir1/dir2/file1
+  file:///dir3/dir4/file2#offset=0x2000&size=3000
+  memory://1234#offset=0x20000&size=3000
+
 .. _amdgpu-dwarf-debug-information:
 
 DWARF Debug Information
@@ -3797,7 +3851,7 @@ The setting of registers is done by GPU CP/ADC/SPI hardware as follows:
 4. The VGPRs are set by SPI which only supports specifying either (X), (X, Y)
    or (X, Y, Z).
 
-Flat Scratch register pair are adjacent SGRRs so they can be moved as a 64-bit
+Flat Scratch register pair are adjacent SGPRs so they can be moved as a 64-bit
 value to the hardware required SGPRn-3 and SGPRn-4 respectively.
 
 The global segment can be accessed either using buffer instructions (GFX6 which
@@ -6522,6 +6576,7 @@ On exit from a function:
       VGPR216-223
       VGPR232-239
       VGPR248-255
+
         *Except the argument registers, the VGPR cloberred and the preserved
         registers are intermixed at regular intervals in order to
         get a better occupancy.*
@@ -6673,12 +6728,12 @@ after the source language arguments in the following order:
 
 The input and result arguments are assigned in order in the following manner:
 
-..note::
+.. note::
 
   There are likely some errors and omissions in the following description that
   need correction.
 
-  ..TODO::
+  .. TODO::
 
     Check the clang source code to decipher how function arguments and return
     results are handled. Also see the AMDGPU specific values used.
@@ -6717,19 +6772,16 @@ describes how the AMDGPU implements function calls:
 1.  SGPR33 is used as a frame pointer (FP) if necessary. Like the SP it is an
     unswizzled scratch address. It is only needed if runtime sized ``alloca``
     are used, or for the reasons defined in ``SIFrameLowering``.
-2.  Runtime stack alignment is not currently supported.
+2.  Runtime stack alignment is supported. SGPR34 is used as a base pointer (BP)
+    to access the incoming stack arguments in the function. The BP is needed
+    only when the function requires the runtime stack alignment.
 
-    .. TODO::
+3.  Allocating SGPR arguments on the stack are not supported.
 
-      - If runtime stack alignment is supported, then will an extra argument
-        pointer register be used?
-
-2.  Allocating SGPR arguments on the stack are not supported.
-
-3.  No CFI is currently generated. See
+4.  No CFI is currently generated. See
     :ref:`amdgpu-dwarf-call-frame-information`.
 
-    ..note::
+    .. note::
 
       CFI will be generated that defines the CFA as the unswizzled address
       relative to the wave scratch base in the unswizzled private address space
@@ -6745,25 +6797,25 @@ describes how the AMDGPU implements function calls:
       local variables and register spill slots are accessed as positive offsets
       relative to ``DW_AT_frame_base``.
 
-4.  Function argument passing is implemented by copying the input physical
+5.  Function argument passing is implemented by copying the input physical
     registers to virtual registers on entry. The register allocator can spill if
     necessary. These are copied back to physical registers at call sites. The
     net effect is that each function call can have these values in entirely
     distinct locations. The IPRA can help avoid shuffling argument registers.
-5.  Call sites are implemented by setting up the arguments at positive offsets
+6.  Call sites are implemented by setting up the arguments at positive offsets
     from SP. Then SP is incremented to account for the known frame size before
     the call and decremented after the call.
 
-    ..note::
+    .. note::
 
       The CFI will reflect the changed calculation needed to compute the CFA
       from SP.
 
-6.  4 byte spill slots are used in the stack frame. One slot is allocated for an
+7.  4 byte spill slots are used in the stack frame. One slot is allocated for an
     emergency spill slot. Buffer instructions are used for stack accesses and
     not the ``flat_scratch`` instruction.
 
-    ..TODO::
+    .. TODO::
 
       Explain when the emergency spill slot is used.
 

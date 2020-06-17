@@ -348,6 +348,14 @@ AMDGPUTargetLowering::AMDGPUTargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::EXTRACT_SUBVECTOR, MVT::v16i32, Custom);
   setOperationAction(ISD::EXTRACT_SUBVECTOR, MVT::v32f32, Custom);
   setOperationAction(ISD::EXTRACT_SUBVECTOR, MVT::v32i32, Custom);
+  setOperationAction(ISD::EXTRACT_SUBVECTOR, MVT::v2f64, Custom);
+  setOperationAction(ISD::EXTRACT_SUBVECTOR, MVT::v2i64, Custom);
+  setOperationAction(ISD::EXTRACT_SUBVECTOR, MVT::v4f64, Custom);
+  setOperationAction(ISD::EXTRACT_SUBVECTOR, MVT::v4i64, Custom);
+  setOperationAction(ISD::EXTRACT_SUBVECTOR, MVT::v8f64, Custom);
+  setOperationAction(ISD::EXTRACT_SUBVECTOR, MVT::v8i64, Custom);
+  setOperationAction(ISD::EXTRACT_SUBVECTOR, MVT::v16f64, Custom);
+  setOperationAction(ISD::EXTRACT_SUBVECTOR, MVT::v16i64, Custom);
 
   setOperationAction(ISD::FP16_TO_FP, MVT::f64, Expand);
   setOperationAction(ISD::FP_TO_FP16, MVT::f64, Custom);
@@ -803,24 +811,24 @@ bool AMDGPUTargetLowering::isSDNodeAlwaysUniform(const SDNode * N) const {
   }
 }
 
-TargetLowering::NegatibleCost
-AMDGPUTargetLowering::getNegatibleCost(SDValue Op, SelectionDAG &DAG,
-                                       bool LegalOperations, bool ForCodeSize,
-                                       unsigned Depth) const {
+SDValue AMDGPUTargetLowering::getNegatedExpression(
+    SDValue Op, SelectionDAG &DAG, bool LegalOperations, bool ForCodeSize,
+    NegatibleCost &Cost, unsigned Depth) const {
+
   switch (Op.getOpcode()) {
   case ISD::FMA:
   case ISD::FMAD: {
     // Negating a fma is not free if it has users without source mods.
     if (!allUsesHaveSourceMods(Op.getNode()))
-      return NegatibleCost::Expensive;
+      return SDValue();
     break;
   }
   default:
     break;
   }
 
-  return TargetLowering::getNegatibleCost(Op, DAG, LegalOperations, ForCodeSize,
-                                          Depth);
+  return TargetLowering::getNegatedExpression(Op, DAG, LegalOperations,
+                                              ForCodeSize, Cost, Depth);
 }
 
 //===---------------------------------------------------------------------===//
@@ -1232,7 +1240,7 @@ SDValue AMDGPUTargetLowering::LowerOperation(SDValue Op,
   case ISD::FROUND: return LowerFROUND(Op, DAG);
   case ISD::FFLOOR: return LowerFFLOOR(Op, DAG);
   case ISD::FLOG:
-    return LowerFLOG(Op, DAG, 1.0F / numbers::log2ef);
+    return LowerFLOG(Op, DAG, numbers::ln2f);
   case ISD::FLOG10:
     return LowerFLOG(Op, DAG, numbers::ln2f / numbers::ln10f);
   case ISD::FEXP:
@@ -1983,10 +1991,15 @@ SDValue AMDGPUTargetLowering::LowerUDIVREM(SDValue Op,
   SDValue NEG_RCP_LO = DAG.getNode(ISD::SUB, DL, VT, DAG.getConstant(0, DL, VT),
                                                      RCP_LO);
 
+  const SDValue Zero = DAG.getConstant(0, DL, VT);
+  const EVT CCVT = getSetCCResultType(DAG.getDataLayout(),
+                                      *DAG.getContext(), VT);
+
   // ABS_RCP_LO = (RCP_HI == 0 ? NEG_RCP_LO : RCP_LO)
-  SDValue ABS_RCP_LO = DAG.getSelectCC(DL, RCP_HI, DAG.getConstant(0, DL, VT),
-                                           NEG_RCP_LO, RCP_LO,
-                                           ISD::SETEQ);
+  SDValue CmpRcpHiZero = DAG.getSetCC(DL, CCVT, RCP_HI, Zero, ISD::SETEQ);
+  SDValue ABS_RCP_LO = DAG.getNode(ISD::SELECT,
+                                   DL, VT, CmpRcpHiZero, NEG_RCP_LO, RCP_LO);
+
   // Calculate the rounding error from the URECIP instruction
   // E = mulhu(ABS_RCP_LO, RCP)
   SDValue E = DAG.getNode(ISD::MULHU, DL, VT, ABS_RCP_LO, RCP);
@@ -1998,9 +2011,9 @@ SDValue AMDGPUTargetLowering::LowerUDIVREM(SDValue Op,
   SDValue RCP_S_E = DAG.getNode(ISD::SUB, DL, VT, RCP, E);
 
   // Tmp0 = (RCP_HI == 0 ? RCP_A_E : RCP_SUB_E)
-  SDValue Tmp0 = DAG.getSelectCC(DL, RCP_HI, DAG.getConstant(0, DL, VT),
-                                     RCP_A_E, RCP_S_E,
-                                     ISD::SETEQ);
+  SDValue Tmp0 = DAG.getNode(ISD::SELECT, DL, VT,
+                             CmpRcpHiZero, RCP_A_E, RCP_S_E);
+
   // Quotient = mulhu(Tmp0, Num)
   SDValue Quotient = DAG.getNode(ISD::MULHU, DL, VT, Tmp0, Num);
 
@@ -2010,20 +2023,16 @@ SDValue AMDGPUTargetLowering::LowerUDIVREM(SDValue Op,
   // Remainder = Num - Num_S_Remainder
   SDValue Remainder = DAG.getNode(ISD::SUB, DL, VT, Num, Num_S_Remainder);
 
-  // Remainder_GE_Den = (Remainder >= Den ? -1 : 0)
-  SDValue Remainder_GE_Den = DAG.getSelectCC(DL, Remainder, Den,
-                                                 DAG.getConstant(-1, DL, VT),
-                                                 DAG.getConstant(0, DL, VT),
-                                                 ISD::SETUGE);
-  // Remainder_GE_Zero = (Num >= Num_S_Remainder ? -1 : 0)
-  SDValue Remainder_GE_Zero = DAG.getSelectCC(DL, Num,
-                                                  Num_S_Remainder,
-                                                  DAG.getConstant(-1, DL, VT),
-                                                  DAG.getConstant(0, DL, VT),
-                                                  ISD::SETUGE);
+  // Remainder_GE_Den = (Remainder >= Den)
+  SDValue Remainder_GE_Den = DAG.getSetCC(DL, CCVT, Remainder, Den, ISD::SETUGE);
+
+  // Remainder_GE_Zero = (Num >= Num_S_Remainder)
+  SDValue Remainder_GE_Zero = DAG.getSetCC(DL, CCVT, Num, Num_S_Remainder,
+                                           ISD::SETUGE);
+
   // Tmp1 = Remainder_GE_Den & Remainder_GE_Zero
-  SDValue Tmp1 = DAG.getNode(ISD::AND, DL, VT, Remainder_GE_Den,
-                                               Remainder_GE_Zero);
+  SDValue Tmp1 = DAG.getNode(ISD::AND, DL, CCVT, Remainder_GE_Den,
+                             Remainder_GE_Zero);
 
   // Calculate Division result:
 
@@ -2035,13 +2044,13 @@ SDValue AMDGPUTargetLowering::LowerUDIVREM(SDValue Op,
   SDValue Quotient_S_One = DAG.getNode(ISD::SUB, DL, VT, Quotient,
                                        DAG.getConstant(1, DL, VT));
 
-  // Div = (Tmp1 == 0 ? Quotient : Quotient_A_One)
-  SDValue Div = DAG.getSelectCC(DL, Tmp1, DAG.getConstant(0, DL, VT),
-                                     Quotient, Quotient_A_One, ISD::SETEQ);
+  // Div = (Tmp1 ? Quotient_A_One : Quotient)
+  SDValue Div = DAG.getNode(ISD::SELECT, DL, VT, Tmp1,
+                            Quotient_A_One, Quotient);
 
-  // Div = (Remainder_GE_Zero == 0 ? Quotient_S_One : Div)
-  Div = DAG.getSelectCC(DL, Remainder_GE_Zero, DAG.getConstant(0, DL, VT),
-                            Quotient_S_One, Div, ISD::SETEQ);
+  // Div = (Remainder_GE_Zero ? Div : Quotient_S_One)
+  Div = DAG.getNode(ISD::SELECT, DL, VT, Remainder_GE_Zero,
+                    Div, Quotient_S_One);
 
   // Calculate Rem result:
 
@@ -2051,13 +2060,13 @@ SDValue AMDGPUTargetLowering::LowerUDIVREM(SDValue Op,
   // Remainder_A_Den = Remainder + Den
   SDValue Remainder_A_Den = DAG.getNode(ISD::ADD, DL, VT, Remainder, Den);
 
-  // Rem = (Tmp1 == 0 ? Remainder : Remainder_S_Den)
-  SDValue Rem = DAG.getSelectCC(DL, Tmp1, DAG.getConstant(0, DL, VT),
-                                    Remainder, Remainder_S_Den, ISD::SETEQ);
+  // Rem = (Tmp1 ? Remainder_S_Den : Remainder)
+  SDValue Rem = DAG.getNode(ISD::SELECT, DL, VT, Tmp1,
+                            Remainder_S_Den, Remainder);
 
-  // Rem = (Remainder_GE_Zero == 0 ? Remainder_A_Den : Rem)
-  Rem = DAG.getSelectCC(DL, Remainder_GE_Zero, DAG.getConstant(0, DL, VT),
-                            Remainder_A_Den, Rem, ISD::SETEQ);
+  // Rem = (Remainder_GE_Zero ? Rem : Remainder_A_Den)
+  Rem = DAG.getNode(ISD::SELECT, DL, VT,
+                    Remainder_GE_Zero, Rem, Remainder_A_Den);
   SDValue Ops[2] = {
     Div,
     Rem
@@ -2912,7 +2921,7 @@ SDValue AMDGPUTargetLowering::performLoadCombine(SDNode *N,
     return SDValue();
 
   LoadSDNode *LN = cast<LoadSDNode>(N);
-  if (LN->isVolatile() || !ISD::isNormalLoad(LN) || hasVolatileUser(LN))
+  if (!LN->isSimple() || !ISD::isNormalLoad(LN) || hasVolatileUser(LN))
     return SDValue();
 
   SDLoc SL(N);
@@ -2966,7 +2975,7 @@ SDValue AMDGPUTargetLowering::performStoreCombine(SDNode *N,
     return SDValue();
 
   StoreSDNode *SN = cast<StoreSDNode>(N);
-  if (SN->isVolatile() || !ISD::isNormalStore(SN))
+  if (!SN->isSimple() || !ISD::isNormalStore(SN))
     return SDValue();
 
   EVT VT = SN->getMemoryVT();

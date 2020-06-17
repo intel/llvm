@@ -89,9 +89,6 @@ set(LIBCXXABI_LINK_TESTS_WITH_SHARED_LIBCXX    OFF CACHE BOOL "")
 set(LIBCXX_LINK_TESTS_WITH_SHARED_LIBCXXABI    OFF CACHE BOOL "")
 set(LIBCXX_LINK_TESTS_WITH_SHARED_LIBCXX       OFF CACHE BOOL "")
 
-# FIXME: Remove this when https://reviews.llvm.org/D78200 is merged.
-set(LIBCXX_ENABLE_FILESYSTEM OFF CACHE BOOL "") 
-
 set(LIBCXX_USE_COMPILER_RT                  ON CACHE BOOL "")
 set(LIBCXX_TARGET_TRIPLE                    "${CMAKE_C_COMPILER_TARGET}" CACHE STRING "")
 set(LIBCXX_SYSROOT                          "${DEFAULT_SYSROOT}" CACHE STRING "")
@@ -105,7 +102,7 @@ set(RUNTIMES_CMAKE_ARGS                     "-DCMAKE_SYSTEM_NAME=Linux;-DCMAKE_A
 
 # Remote test configuration.
 if(DEFINED REMOTE_TEST_HOST)
-  set(DEFAULT_TEST_EXECUTOR                 "SSHExecutor('${REMOTE_TEST_HOST}', '${REMOTE_TEST_USER}')")
+  set(DEFAULT_TEST_EXECUTOR                 "${LLVM_PROJECT_DIR}/libcxx/utils/ssh.py --host='${REMOTE_TEST_USER}@${REMOTE_TEST_HOST}'")
   set(DEFAULT_TEST_TARGET_INFO              "libcxx.test.target_info.LinuxRemoteTI")
 
   # Allow override with the custom values.

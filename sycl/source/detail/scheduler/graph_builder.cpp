@@ -393,8 +393,7 @@ Command *Scheduler::GraphBuilder::addCopyBack(Requirement *Req) {
 
 // The function implements SYCL host accessor logic: host accessor
 // should provide access to the buffer in user space.
-Command *Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
-                                                  const bool destructor) {
+Command *Scheduler::GraphBuilder::addHostAccessor(Requirement *Req) {
 
   const QueueImplPtr &HostQueue = getInstance().getDefaultHostQueue();
 

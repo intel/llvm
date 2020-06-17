@@ -12,7 +12,7 @@ subject to change. Do not rely on these variables in production code.
 | Environment variable | Values | Description |
 | -------------------- | ------ | ----------- |
 | SYCL_PI_TRACE | Described [below](#sycl_pi_trace-options)  | Enable specified level of tracing for PI. |
-| SYCL_BE | PI_OPENCL, PI_CUDA | Force SYCL RT to consider only devices of the specified backend during the device selection. |
+| SYCL_BE | PI_OPENCL, PI_LEVEL0, PI_CUDA | Force SYCL RT to consider only devices of the specified backend during the device selection. |
 | SYCL_DEVICE_TYPE | One of: CPU, GPU, ACC, HOST | Force SYCL to use the specified device type. If unset, default selection rules are applied. If set to any unlisted value, this control has no effect. If the requested device type is not found, a `cl::sycl::runtime_error` exception is thrown. If a non-default device selector is used, a device must satisfy both the selector and this control to be chosen. This control only has effect on devices created with a selector. |
 | SYCL_PROGRAM_COMPILE_OPTIONS | String of valid OpenCL compile options | Override compile options for all programs. |
 | SYCL_PROGRAM_LINK_OPTIONS | String of valid OpenCL link options | Override link options for all programs. |

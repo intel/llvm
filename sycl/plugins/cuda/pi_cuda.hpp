@@ -302,37 +302,6 @@ struct _pi_queue {
 
 typedef void (*pfn_notify)(pi_event event, pi_int32 eventCommandStatus,
                            void *userData);
-
-class event_callback {
-public:
-  void trigger_callback(pi_event event, pi_int32 currentEventStatus) const {
-
-    auto validParameters = callback_ && event;
-
-    // As a pi_event_status value approaches 0, it gets closer to completion.
-    // If the calling pi_event's status is less than or equal to the event
-    // status the user is interested in, invoke the callback anyway. The event
-    // will have passed through that state anyway.
-    auto validStatus = currentEventStatus <= observedEventStatus_;
-
-    if (validParameters && validStatus) {
-
-      callback_(event, currentEventStatus, userData_);
-    }
-  }
-
-  event_callback(pi_event_status status, pfn_notify callback, void *userData)
-      : observedEventStatus_{status}, callback_{callback}, userData_{userData} {
-  }
-
-  pi_event_status get_status() const noexcept { return observedEventStatus_; }
-
-private:
-  pi_event_status observedEventStatus_;
-  pfn_notify callback_;
-  void *userData_;
-};
-
 /// PI Event mapping to CUevent
 ///
 class _pi_event {
@@ -347,41 +316,6 @@ public:
 
   native_type get() const noexcept { return evEnd_; };
 
-  pi_result set_event_complete() noexcept {
-
-    if (isCompleted_) {
-      return PI_INVALID_OPERATION;
-    }
-
-    isRecorded_ = true;
-    isCompleted_ = true;
-
-    trigger_callback(get_execution_status());
-
-    return PI_SUCCESS;
-  }
-
-  void trigger_callback(pi_int32 status) {
-
-    std::vector<event_callback> callbacks;
-
-    // Here we move all callbacks into local variable before we call them.
-    // This is a defensive maneuver; if any of the callbacks attempt to
-    // add additional callbacks, we will end up in a bad spot. Our mutex
-    // will be locked twice and the vector will be modified as it is being
-    // iterated over! By moving everything locally, we can call all of these
-    // callbacks and let them modify the original vector without much worry.
-
-    {
-      std::lock_guard<std::mutex> lock(mutex_);
-      event_callbacks_.swap(callbacks);
-    }
-
-    for (auto &event_callback : callbacks) {
-      event_callback.trigger_callback(this, status);
-    }
-  }
-
   pi_queue get_queue() const noexcept { return queue_; }
 
   pi_command_type get_command_type() const noexcept { return commandType_; }
@@ -390,9 +324,9 @@ public:
 
   bool is_recorded() const noexcept { return isRecorded_; }
 
-  bool is_completed() const noexcept { return isCompleted_; }
-
   bool is_started() const noexcept { return isStarted_; }
+
+  bool is_completed() const noexcept { return isCompleted_; };
 
   pi_int32 get_execution_status() const noexcept {
 
@@ -406,23 +340,7 @@ public:
     return PI_EVENT_COMPLETE;
   }
 
-  void set_event_callback(const event_callback &callback) {
-    auto current_status = get_execution_status();
-    if (current_status <= callback.get_status()) {
-      callback.trigger_callback(this, current_status);
-    } else {
-      std::lock_guard<std::mutex> lock(mutex_);
-      event_callbacks_.emplace_back(callback);
-    }
-  }
-
   pi_context get_context() const noexcept { return context_; };
-
-  bool is_user_event() const noexcept {
-    return get_command_type() == PI_COMMAND_TYPE_USER;
-  }
-
-  bool is_native_event() const noexcept { return !is_user_event(); }
 
   pi_uint32 increment_reference_count() { return ++refCount_; }
 
@@ -440,12 +358,6 @@ public:
   //
   pi_uint64 get_end_time() const;
 
-  // make a user event. CUDA has no concept of user events, so this
-  // functionality is implemented by the CUDA PI implementation.
-  static pi_event make_user(pi_context context) {
-    return new _pi_event(PI_COMMAND_TYPE_USER, context, nullptr);
-  }
-
   // construct a native CUDA. This maps closely to the underlying CUDA event.
   static pi_event make_native(pi_command_type type, pi_queue queue) {
     return new _pi_event(type, queue->get_context(), queue);
@@ -462,13 +374,14 @@ private:
 
   std::atomic_uint32_t refCount_; // Event reference count.
 
-  std::atomic_bool isCompleted_; // Atomic bool used by user events. Can be
-                                 // used to wait for a user event's completion.
+  bool isCompleted_; // Signifies whether the operations have completed
+                     //
 
   bool isRecorded_; // Signifies wether a native CUDA event has been recorded
                     // yet.
-  bool isStarted_; // Signifies wether the operation associated with the
-                   // PI event has started or not
+  bool isStarted_;  // Signifies wether the operation associated with the
+                    // PI event has started or not
+                    //
 
   native_type evEnd_; // CUDA event handle. If this _pi_event represents a user
                       // event, this will be nullptr.
@@ -484,12 +397,6 @@ private:
   pi_context context_; // pi_context associated with the event. If this is a
                        // native event, this will be the same context associated
                        // with the queue_ member.
-
-  std::mutex mutex_; // Protect access to event_callbacks_. TODO: There might be
-                     // a lock-free data structure we can use here.
-  std::vector<event_callback>
-      event_callbacks_; // Callbacks that can be triggered when an event's state
-                        // changes.
 };
 
 /// Implementation of PI Program on CUDA Module object
@@ -497,8 +404,8 @@ private:
 struct _pi_program {
   using native_type = CUmodule;
   native_type module_;
-  const char *source_;
-  size_t sourceLength_;
+  const char *binary_;
+  size_t binarySizeInBytes_;
   std::atomic_uint32_t refCount_;
   _pi_context *context_;
 
@@ -511,7 +418,7 @@ struct _pi_program {
   _pi_program(pi_context ctxt);
   ~_pi_program();
 
-  pi_result create_from_source(const char *source, size_t length);
+  pi_result set_binary(const char *binary, size_t binarySizeInBytes);
 
   pi_result build_program(const char* build_options);
 

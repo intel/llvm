@@ -881,7 +881,7 @@ Constant *llvm::ConstantFoldShuffleVectorInstruction(Constant *V1, Constant *V2,
 
   // Undefined shuffle mask -> undefined value.
   if (all_of(Mask, [](int Elt) { return Elt == UndefMaskElem; })) {
-    return UndefValue::get(VectorType::get(EltTy, MaskNumElts));
+    return UndefValue::get(FixedVectorType::get(EltTy, MaskNumElts));
   }
 
   // If the mask is all zeros this is a splat, no need to go through all
@@ -1210,7 +1210,8 @@ Constant *llvm::ConstantFoldBinaryInstruction(unsigned Opcode, Constant *C1,
           MaybeAlign GVAlign;
 
           if (Module *TheModule = GV->getParent()) {
-            GVAlign = GV->getPointerAlignment(TheModule->getDataLayout());
+            const DataLayout &DL = TheModule->getDataLayout();
+            GVAlign = GV->getPointerAlignment(DL);
 
             // If the function alignment is not specified then assume that it
             // is 4.
@@ -1221,7 +1222,7 @@ Constant *llvm::ConstantFoldBinaryInstruction(unsigned Opcode, Constant *C1,
             // increased code size (see https://reviews.llvm.org/D55115)
             // FIXME: This code should be deleted once existing targets have
             // appropriate defaults
-            if (!GVAlign && isa<Function>(GV))
+            if (isa<Function>(GV) && !DL.getFunctionPtrAlign())
               GVAlign = Align(4);
           } else if (isa<Function>(GV)) {
             // Without a datalayout we have to assume the worst case: that the
@@ -2286,13 +2287,13 @@ Constant *llvm::ConstantFoldGetElementPtr(Type *PointeeTy, Constant *C,
       Type *OrigGEPTy = PointerType::get(Ty, PtrTy->getAddressSpace());
       Type *GEPTy = PointerType::get(Ty, PtrTy->getAddressSpace());
       if (VectorType *VT = dyn_cast<VectorType>(C->getType()))
-        GEPTy = VectorType::get(OrigGEPTy, VT->getNumElements());
+        GEPTy = FixedVectorType::get(OrigGEPTy, VT->getNumElements());
 
       // The GEP returns a vector of pointers when one of more of
       // its arguments is a vector.
       for (unsigned i = 0, e = Idxs.size(); i != e; ++i) {
         if (auto *VT = dyn_cast<VectorType>(Idxs[i]->getType())) {
-          GEPTy = VectorType::get(OrigGEPTy, VT->getNumElements());
+          GEPTy = FixedVectorType::get(OrigGEPTy, VT->getNumElements());
           break;
         }
       }
@@ -2527,7 +2528,7 @@ Constant *llvm::ConstantFoldGetElementPtr(Type *PointeeTy, Constant *C,
     // overflow trouble.
     Type *ExtendedTy = Type::getIntNTy(Div->getContext(), CommonExtendedWidth);
     if (UseVector)
-      ExtendedTy = VectorType::get(
+      ExtendedTy = FixedVectorType::get(
           ExtendedTy,
           IsPrevIdxVector
               ? cast<VectorType>(PrevIdx->getType())->getNumElements()

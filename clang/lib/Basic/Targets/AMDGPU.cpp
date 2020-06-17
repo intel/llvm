@@ -17,6 +17,7 @@
 #include "clang/Basic/MacroBuilder.h"
 #include "clang/Basic/TargetBuiltins.h"
 #include "llvm/ADT/StringSwitch.h"
+#include "llvm/Frontend/OpenMP/OMPGridValues.h"
 #include "llvm/IR/DataLayout.h"
 
 using namespace clang;
@@ -45,6 +46,8 @@ const LangASMap AMDGPUTargetInfo::AMDGPUDefIsGenMap = {
     Constant, // opencl_constant
     Private,  // opencl_private
     Generic,  // opencl_generic
+    Global,   // opencl_global_device
+    Global,   // opencl_global_host
     Global,   // cuda_device
     Constant, // cuda_constant
     Local,    // cuda_shared
@@ -60,6 +63,8 @@ const LangASMap AMDGPUTargetInfo::AMDGPUDefIsPrivMap = {
     Constant, // opencl_constant
     Private,  // opencl_private
     Generic,  // opencl_generic
+    Global,   // opencl_global_device
+    Global,   // opencl_global_host
     Global,   // cuda_device
     Constant, // cuda_constant
     Local,    // cuda_shared
@@ -285,6 +290,7 @@ AMDGPUTargetInfo::AMDGPUTargetInfo(const llvm::Triple &Triple,
   resetDataLayout(isAMDGCN(getTriple()) ? DataLayoutStringAMDGCN
                                         : DataLayoutStringR600);
   assert(DataLayout->getAllocaAddrSpace() == Private);
+  GridValues = llvm::omp::AMDGPUGpuGridValues;
 
   setAddressSpaceMap(Triple.getOS() == llvm::Triple::Mesa3D ||
                      !isAMDGCN(Triple));

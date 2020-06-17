@@ -69,9 +69,13 @@ class VOP2_Pseudo <string opName, VOPProfile P, list<dag> pattern=[], string suf
   let mayStore = 0;
   let hasSideEffects = 0;
 
+  let ReadsModeReg = !or(isFloatType<P.DstVT>.ret, isFloatType<P.Src0VT>.ret);
+
+  let mayRaiseFPException = ReadsModeReg;
+
   let VOP2 = 1;
   let VALU = 1;
-  let Uses = [EXEC];
+  let Uses = !if(ReadsModeReg, [MODE, EXEC], [EXEC]);
 
   let AsmVariantName = AMDGPUAsmVariants.Default;
 }
@@ -462,14 +466,14 @@ defm V_CNDMASK_B32 : VOP2eInst <"v_cndmask_b32", VOP2e_I32_I32_I32_I1>;
 def V_MADMK_F32 : VOP2_Pseudo <"v_madmk_f32", VOP_MADMK_F32, []>;
 
 let isCommutable = 1 in {
-defm V_ADD_F32 : VOP2Inst <"v_add_f32", VOP_F32_F32_F32, fadd>;
+defm V_ADD_F32 : VOP2Inst <"v_add_f32", VOP_F32_F32_F32, any_fadd>;
 defm V_SUB_F32 : VOP2Inst <"v_sub_f32", VOP_F32_F32_F32, fsub>;
 defm V_SUBREV_F32 : VOP2Inst <"v_subrev_f32", VOP_F32_F32_F32, null_frag, "v_sub_f32">;
 defm V_MUL_LEGACY_F32 : VOP2Inst <"v_mul_legacy_f32", VOP_F32_F32_F32, AMDGPUfmul_legacy>;
-defm V_MUL_F32 : VOP2Inst <"v_mul_f32", VOP_F32_F32_F32, fmul>;
-defm V_MUL_I32_I24 : VOP2Inst <"v_mul_i32_i24", VOP_I32_I32_I32, AMDGPUmul_i24>;
+defm V_MUL_F32 : VOP2Inst <"v_mul_f32", VOP_F32_F32_F32, any_fmul>;
+defm V_MUL_I32_I24 : VOP2Inst <"v_mul_i32_i24", VOP_I32_I32_I32_ARITH, AMDGPUmul_i24>;
 defm V_MUL_HI_I32_I24 : VOP2Inst <"v_mul_hi_i32_i24", VOP_PAT_GEN<VOP_I32_I32_I32, 2>, AMDGPUmulhi_i24>;
-defm V_MUL_U32_U24 : VOP2Inst <"v_mul_u32_u24", VOP_I32_I32_I32, AMDGPUmul_u24>;
+defm V_MUL_U32_U24 : VOP2Inst <"v_mul_u32_u24", VOP_I32_I32_I32_ARITH, AMDGPUmul_u24>;
 defm V_MUL_HI_U32_U24 : VOP2Inst <"v_mul_hi_u32_u24", VOP_PAT_GEN<VOP_I32_I32_I32, 2>, AMDGPUmulhi_u24>;
 defm V_MIN_F32 : VOP2Inst <"v_min_f32", VOP_F32_F32_F32, fminnum_like>;
 defm V_MAX_F32 : VOP2Inst <"v_max_f32", VOP_F32_F32_F32, fmaxnum_like>;
@@ -484,12 +488,14 @@ defm V_AND_B32 : VOP2Inst <"v_and_b32", VOP_PAT_GEN<VOP_I32_I32_I32>, and>;
 defm V_OR_B32 : VOP2Inst <"v_or_b32", VOP_PAT_GEN<VOP_I32_I32_I32>, or>;
 defm V_XOR_B32 : VOP2Inst <"v_xor_b32", VOP_PAT_GEN<VOP_I32_I32_I32>, xor>;
 
+let mayRaiseFPException = 0 in {
 let Constraints = "$vdst = $src2", DisableEncoding="$src2",
     isConvertibleToThreeAddress = 1 in {
 defm V_MAC_F32 : VOP2Inst <"v_mac_f32", VOP_MAC_F32>;
 }
 
 def V_MADAK_F32 : VOP2_Pseudo <"v_madak_f32", VOP_MADAK_F32, []>;
+}
 
 // No patterns so that the scalar instructions are always selected.
 // The scalar versions will be replaced with vector when needed later.
@@ -529,8 +535,12 @@ defm V_MBCNT_LO_U32_B32 : VOP2Inst <"v_mbcnt_lo_u32_b32", VOP_NO_EXT<VOP_I32_I32
 defm V_MBCNT_HI_U32_B32 : VOP2Inst <"v_mbcnt_hi_u32_b32", VOP_NO_EXT<VOP_I32_I32_I32>, int_amdgcn_mbcnt_hi>;
 defm V_LDEXP_F32 : VOP2Inst <"v_ldexp_f32", VOP_NO_EXT<VOP_F32_F32_I32>, AMDGPUldexp>;
 defm V_CVT_PKACCUM_U8_F32 : VOP2Inst <"v_cvt_pkaccum_u8_f32", VOP_NO_EXT<VOP_I32_F32_I32>>; // TODO: set "Uses = dst"
+
+let ReadsModeReg = 0, mayRaiseFPException = 0 in {
 defm V_CVT_PKNORM_I16_F32 : VOP2Inst <"v_cvt_pknorm_i16_f32", VOP_NO_EXT<VOP_V2I16_F32_F32>, AMDGPUpknorm_i16_f32>;
 defm V_CVT_PKNORM_U16_F32 : VOP2Inst <"v_cvt_pknorm_u16_f32", VOP_NO_EXT<VOP_V2I16_F32_F32>, AMDGPUpknorm_u16_f32>;
+}
+
 defm V_CVT_PKRTZ_F16_F32 : VOP2Inst <"v_cvt_pkrtz_f16_f32", VOP_NO_EXT<VOP_V2F16_F32_F32>, AMDGPUpkrtz_f16_f32>;
 defm V_CVT_PK_U16_U32 : VOP2Inst <"v_cvt_pk_u16_u32", VOP_NO_EXT<VOP_V2I16_I32_I32>, AMDGPUpk_u16_u32>;
 defm V_CVT_PK_I16_I32 : VOP2Inst <"v_cvt_pk_i16_i32", VOP_NO_EXT<VOP_V2I16_I32_I32>, AMDGPUpk_i16_i32>;
@@ -620,15 +630,19 @@ defm V_ASHRREV_I16 : VOP2Inst <"v_ashrrev_i16", VOP_I16_I16_I16, ashr_rev>;
 
 let isCommutable = 1 in {
 let FPDPRounding = 1 in {
-defm V_ADD_F16 : VOP2Inst <"v_add_f16", VOP_F16_F16_F16, fadd>;
+defm V_ADD_F16 : VOP2Inst <"v_add_f16", VOP_F16_F16_F16, any_fadd>;
 defm V_SUB_F16 : VOP2Inst <"v_sub_f16", VOP_F16_F16_F16, fsub>;
 defm V_SUBREV_F16 : VOP2Inst <"v_subrev_f16", VOP_F16_F16_F16, null_frag, "v_sub_f16">;
-defm V_MUL_F16 : VOP2Inst <"v_mul_f16", VOP_F16_F16_F16, fmul>;
+defm V_MUL_F16 : VOP2Inst <"v_mul_f16", VOP_F16_F16_F16, any_fmul>;
+
+let mayRaiseFPException = 0 in {
 def V_MADAK_F16 : VOP2_Pseudo <"v_madak_f16", VOP_MADAK_F16, [], "">;
+}
+
 } // End FPDPRounding = 1
-defm V_ADD_U16 : VOP2Inst <"v_add_u16", VOP_I16_I16_I16, add>;
-defm V_SUB_U16 : VOP2Inst <"v_sub_u16" , VOP_I16_I16_I16, sub>;
-defm V_SUBREV_U16 : VOP2Inst <"v_subrev_u16", VOP_I16_I16_I16, null_frag, "v_sub_u16">;
+defm V_ADD_U16 : VOP2Inst <"v_add_u16", VOP_I16_I16_I16_ARITH, add>;
+defm V_SUB_U16 : VOP2Inst <"v_sub_u16" , VOP_I16_I16_I16_ARITH, sub>;
+defm V_SUBREV_U16 : VOP2Inst <"v_subrev_u16", VOP_I16_I16_I16_ARITH, null_frag, "v_sub_u16">;
 defm V_MUL_LO_U16 : VOP2Inst <"v_mul_lo_u16", VOP_I16_I16_I16, mul>;
 defm V_MAX_F16 : VOP2Inst <"v_max_f16", VOP_F16_F16_F16, fmaxnum_like>;
 defm V_MIN_F16 : VOP2Inst <"v_min_f16", VOP_F16_F16_F16, fminnum_like>;
@@ -1253,9 +1267,9 @@ defm V_SUBBREV_U32        : VOP2be_Real_gfx6_gfx7<0x02a>;
 
 defm V_READLANE_B32 : VOP2Only_Real_gfx6_gfx7<0x001>;
 
-let InOperandList = (ins SSrcOrLds_b32:$src0, SCSrc_b32:$src1, VSrc_b32:$vdst_in) in {
+let InOperandList = (ins SSrcOrLds_b32:$src0, SCSrc_b32:$src1, VGPR_32:$vdst_in) in {
   defm V_WRITELANE_B32 : VOP2Only_Real_gfx6_gfx7<0x002>;
-} // End InOperandList = (ins SSrcOrLds_b32:$src0, SCSrc_b32:$src1, VSrc_b32:$vdst_in)
+} // End InOperandList = (ins SSrcOrLds_b32:$src0, SCSrc_b32:$src1, VGPR_32:$vdst_in)
 
 let SubtargetPredicate = isGFX6GFX7 in {
   defm : VOP2eInstAliases<V_CNDMASK_B32_e32, V_CNDMASK_B32_e32_gfx6_gfx7>;

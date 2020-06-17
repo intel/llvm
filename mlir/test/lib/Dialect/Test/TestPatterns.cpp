@@ -281,6 +281,23 @@ struct TestUndoBlockArgReplace : public ConversionPattern {
   }
 };
 
+/// A rewrite pattern that tests the undo mechanism when erasing a block.
+struct TestUndoBlockErase : public ConversionPattern {
+  TestUndoBlockErase(MLIRContext *ctx)
+      : ConversionPattern("test.undo_block_erase", /*benefit=*/1, ctx) {}
+
+  LogicalResult
+  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const final {
+    Block *secondBlock = &*std::next(op->getRegion(0).begin());
+    rewriter.setInsertionPointToStart(secondBlock);
+    rewriter.create<ILLegalOpF>(op->getLoc(), rewriter.getF32Type());
+    rewriter.eraseBlock(secondBlock);
+    rewriter.updateRootInPlace(op, [] {});
+    return success();
+  }
+};
+
 //===----------------------------------------------------------------------===//
 // Type-Conversion Rewrite Testing
 
@@ -443,12 +460,28 @@ struct TestBoundedRecursiveRewrite
   /// The conversion target handles bounding the recursion of this pattern.
   bool hasBoundedRewriteRecursion() const final { return true; }
 };
+
+struct TestNestedOpCreationUndoRewrite
+    : public OpRewritePattern<IllegalOpWithRegionAnchor> {
+  using OpRewritePattern<IllegalOpWithRegionAnchor>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(IllegalOpWithRegionAnchor op,
+                                PatternRewriter &rewriter) const final {
+    // rewriter.replaceOpWithNewOp<IllegalOpWithRegion>(op);
+    rewriter.replaceOpWithNewOp<IllegalOpWithRegion>(op);
+    return success();
+  };
+};
 } // namespace
 
 namespace {
 struct TestTypeConverter : public TypeConverter {
   using TypeConverter::TypeConverter;
-  TestTypeConverter() { addConversion(convertType); }
+  TestTypeConverter() {
+    addConversion(convertType);
+    addMaterialization(materializeCast);
+    addMaterialization(materializeOneToOneCast);
+  }
 
   static LogicalResult convertType(Type t, SmallVectorImpl<Type> &results) {
     // Drop I16 types.
@@ -458,6 +491,12 @@ struct TestTypeConverter : public TypeConverter {
     // Convert I64 to F64.
     if (t.isSignlessInteger(64)) {
       results.push_back(FloatType::getF64(t.getContext()));
+      return success();
+    }
+
+    // Convert I42 to I43.
+    if (t.isInteger(42)) {
+      results.push_back(IntegerType::get(43, t.getContext()));
       return success();
     }
 
@@ -472,12 +511,24 @@ struct TestTypeConverter : public TypeConverter {
     return success();
   }
 
-  /// Override the hook to materialize a conversion. This is necessary because
-  /// we generate 1->N type mappings.
-  Operation *materializeConversion(PatternRewriter &rewriter, Type resultType,
-                                   ArrayRef<Value> inputs,
-                                   Location loc) override {
-    return rewriter.create<TestCastOp>(loc, resultType, inputs);
+  /// Hook for materializing a conversion. This is necessary because we generate
+  /// 1->N type mappings.
+  static Optional<Value> materializeCast(PatternRewriter &rewriter,
+                                         Type resultType, ValueRange inputs,
+                                         Location loc) {
+    if (inputs.size() == 1)
+      return inputs[0];
+    return rewriter.create<TestCastOp>(loc, resultType, inputs).getResult();
+  }
+
+  /// Materialize the cast for one-to-one conversion from i64 to f64.
+  static Optional<Value> materializeOneToOneCast(PatternRewriter &rewriter,
+                                                 IntegerType resultType,
+                                                 ValueRange inputs,
+                                                 Location loc) {
+    if (resultType.getWidth() == 42 && inputs.size() == 1)
+      return rewriter.create<TestCastOp>(loc, resultType, inputs).getResult();
+    return llvm::None;
   }
 };
 
@@ -492,14 +543,14 @@ struct TestLegalizePatternDriver
     TestTypeConverter converter;
     mlir::OwningRewritePatternList patterns;
     populateWithGenerated(&getContext(), &patterns);
-    patterns.insert<TestRegionRewriteBlockMovement, TestRegionRewriteUndo,
-                    TestCreateBlock, TestCreateIllegalBlock,
-                    TestUndoBlockArgReplace, TestPassthroughInvalidOp,
-                    TestSplitReturnType, TestChangeProducerTypeI32ToF32,
-                    TestChangeProducerTypeF32ToF64,
-                    TestChangeProducerTypeF32ToInvalid, TestUpdateConsumerType,
-                    TestNonRootReplacement, TestBoundedRecursiveRewrite>(
-        &getContext());
+    patterns.insert<
+        TestRegionRewriteBlockMovement, TestRegionRewriteUndo, TestCreateBlock,
+        TestCreateIllegalBlock, TestUndoBlockArgReplace, TestUndoBlockErase,
+        TestPassthroughInvalidOp, TestSplitReturnType,
+        TestChangeProducerTypeI32ToF32, TestChangeProducerTypeF32ToF64,
+        TestChangeProducerTypeF32ToInvalid, TestUpdateConsumerType,
+        TestNonRootReplacement, TestBoundedRecursiveRewrite,
+        TestNestedOpCreationUndoRewrite>(&getContext());
     patterns.insert<TestDropOpSignatureConversion>(&getContext(), converter);
     mlir::populateFuncOpTypeConversionPattern(patterns, &getContext(),
                                               converter);

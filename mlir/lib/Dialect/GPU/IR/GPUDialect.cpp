@@ -457,22 +457,22 @@ static LogicalResult verify(LaunchFuncOp op) {
 // GPUFuncOp
 //===----------------------------------------------------------------------===//
 
-/// Adds a workgroup attribution to "op" of the MemRef type with the given shape
-/// and element type.
-Value GPUFuncOp::addWorkgroupAttribution(ArrayRef<int64_t> shape,
-                                         Type elementType) {
-  unsigned pos = getNumFuncArguments() + getNumWorkgroupAttributions();
-  Block &bodyBlock = body().front();
-  Value attribution = bodyBlock.insertArgument(
-      std::next(bodyBlock.args_begin(), pos),
-      MemRefType::get(shape, elementType, /*affineMapComposition=*/{},
-                      GPUDialect::getWorkgroupAddressSpace()));
-  auto numWorkgroupBuffersAttr =
-      getAttrOfType<IntegerAttr>(getNumWorkgroupAttributionsAttrName());
-  setAttr(getNumWorkgroupAttributionsAttrName(),
-          IntegerAttr::get(numWorkgroupBuffersAttr.getType(),
-                           numWorkgroupBuffersAttr.getValue() + 1));
-  return attribution;
+/// Adds a new block argument that corresponds to buffers located in
+/// workgroup memory.
+BlockArgument GPUFuncOp::addWorkgroupAttribution(Type type) {
+  auto attrName = getNumWorkgroupAttributionsAttrName();
+  auto attr = getAttrOfType<IntegerAttr>(attrName);
+  setAttr(attrName, IntegerAttr::get(attr.getType(), attr.getValue() + 1));
+  return getBody().front().insertArgument(
+      getType().getNumInputs() + attr.getInt(), type);
+}
+
+/// Adds a new block argument that corresponds to buffers located in
+/// private memory.
+BlockArgument GPUFuncOp::addPrivateAttribution(Type type) {
+  // Buffers on the private memory always come after buffers on the workgroup
+  // memory.
+  return getBody().front().addArgument(type);
 }
 
 void GPUFuncOp::build(OpBuilder &builder, OperationState &result,

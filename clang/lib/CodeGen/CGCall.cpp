@@ -326,7 +326,7 @@ CodeGenTypes::arrangeCXXStructorDeclaration(GlobalDecl GD) {
   if (PassParams)
     appendParameterTypes(*this, argTypes, paramInfos, FTP);
 
-  CGCXXABI::AddedStructorArgs AddedArgs =
+  CGCXXABI::AddedStructorArgCounts AddedArgs =
       TheCXXABI.buildStructorSignature(GD, argTypes);
   if (!paramInfos.empty()) {
     // Note: prefix implies after the first param.
@@ -1763,7 +1763,8 @@ void CodeGenModule::getDefaultFunctionAttributes(StringRef Name,
     }
 
     FuncAttrs.addAttribute("no-trapping-math",
-                           llvm::toStringRef(CodeGenOpts.NoTrappingMath));
+                           llvm::toStringRef(LangOpts.getFPExceptionMode() ==
+                                             LangOptions::FPE_Ignore));
 
     // Strict (compliant) code is the default, so only add this attribute to
     // indicate that we are trying to workaround a problem case.
@@ -1773,17 +1774,17 @@ void CodeGenModule::getDefaultFunctionAttributes(StringRef Name,
     // TODO: Are these all needed?
     // unsafe/inf/nan/nsz are handled by instruction-level FastMathFlags.
     FuncAttrs.addAttribute("no-infs-fp-math",
-                           llvm::toStringRef(CodeGenOpts.NoInfsFPMath));
+                           llvm::toStringRef(LangOpts.NoHonorInfs));
     FuncAttrs.addAttribute("no-nans-fp-math",
-                           llvm::toStringRef(CodeGenOpts.NoNaNsFPMath));
+                           llvm::toStringRef(LangOpts.NoHonorNaNs));
     FuncAttrs.addAttribute("unsafe-fp-math",
-                           llvm::toStringRef(CodeGenOpts.UnsafeFPMath));
+                           llvm::toStringRef(LangOpts.UnsafeFPMath));
     FuncAttrs.addAttribute("use-soft-float",
                            llvm::toStringRef(CodeGenOpts.SoftFloat));
     FuncAttrs.addAttribute("stack-protector-buffer-size",
                            llvm::utostr(CodeGenOpts.SSPBufferSize));
     FuncAttrs.addAttribute("no-signed-zeros-fp-math",
-                           llvm::toStringRef(CodeGenOpts.NoSignedZeros));
+                           llvm::toStringRef(LangOpts.NoSignedZero));
     FuncAttrs.addAttribute(
         "correctly-rounded-divide-sqrt-fp-math",
         llvm::toStringRef(CodeGenOpts.CorrectlyRoundedDivSqrt));
@@ -2115,9 +2116,14 @@ void CodeGenModule::ConstructAttributeList(
     if (!PTy->isIncompleteType() && PTy->isConstantSizeType())
       RetAttrs.addDereferenceableAttr(
           getMinimumObjectSize(PTy).getQuantity());
-    else if (getContext().getTargetAddressSpace(PTy) == 0 &&
-             !CodeGenOpts.NullPointerIsValid)
+    if (getContext().getTargetAddressSpace(PTy) == 0 &&
+        !CodeGenOpts.NullPointerIsValid)
       RetAttrs.addAttribute(llvm::Attribute::NonNull);
+    if (PTy->isObjectType()) {
+      llvm::Align Alignment =
+          getNaturalPointeeTypeAlignment(RetTy).getAsAlign();
+      RetAttrs.addAlignmentAttr(Alignment);
+    }
   }
 
   bool hasUsedSRet = false;
@@ -2226,9 +2232,14 @@ void CodeGenModule::ConstructAttributeList(
       if (!PTy->isIncompleteType() && PTy->isConstantSizeType())
         Attrs.addDereferenceableAttr(
             getMinimumObjectSize(PTy).getQuantity());
-      else if (getContext().getTargetAddressSpace(PTy) == 0 &&
-               !CodeGenOpts.NullPointerIsValid)
+      if (getContext().getTargetAddressSpace(PTy) == 0 &&
+          !CodeGenOpts.NullPointerIsValid)
         Attrs.addAttribute(llvm::Attribute::NonNull);
+      if (PTy->isObjectType()) {
+        llvm::Align Alignment =
+            getNaturalPointeeTypeAlignment(ParamType).getAsAlign();
+        Attrs.addAlignmentAttr(Alignment);
+      }
     }
 
     switch (FI.getExtParameterInfo(ArgNo).getABI()) {
@@ -2251,8 +2262,7 @@ void CodeGenModule::ConstructAttributeList(
       if (!PTy->isIncompleteType() && PTy->isConstantSizeType()) {
         auto info = getContext().getTypeInfoInChars(PTy);
         Attrs.addDereferenceableAttr(info.first.getQuantity());
-        Attrs.addAttribute(llvm::Attribute::getWithAlignment(
-            getLLVMContext(), info.second.getAsAlign()));
+        Attrs.addAlignmentAttr(info.second.getAsAlign());
       }
       break;
     }
@@ -2528,12 +2538,15 @@ void CodeGenFunction::EmitFunctionProlog(const CGFunctionInfo &FI,
             // If alignment-assumption sanitizer is enabled, we do *not* add
             // alignment attribute here, but emit normal alignment assumption,
             // so the UBSAN check could function.
-            llvm::Value *AlignmentValue =
-              EmitScalarExpr(AVAttr->getAlignment());
             llvm::ConstantInt *AlignmentCI =
-              cast<llvm::ConstantInt>(AlignmentValue);
-            AI->addAttrs(llvm::AttrBuilder().addAlignmentAttr(llvm::MaybeAlign(
-                AlignmentCI->getLimitedValue(llvm::Value::MaximumAlignment))));
+                cast<llvm::ConstantInt>(EmitScalarExpr(AVAttr->getAlignment()));
+            unsigned AlignmentInt =
+                AlignmentCI->getLimitedValue(llvm::Value::MaximumAlignment);
+            if (AI->getParamAlign().valueOrOne() < AlignmentInt) {
+              AI->removeAttr(llvm::Attribute::AttrKind::Alignment);
+              AI->addAttrs(llvm::AttrBuilder().addAlignmentAttr(
+                  llvm::Align(AlignmentInt)));
+            }
           }
         }
 
@@ -4844,6 +4857,12 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
         Attrs.addAttribute(getLLVMContext(), llvm::AttributeList::FunctionIndex,
                            llvm::Attribute::StrictFP);
 
+  // Add call-site nomerge attribute if exists.
+  if (InNoMergeAttributedStmt)
+    Attrs =
+      Attrs.addAttribute(getLLVMContext(), llvm::AttributeList::FunctionIndex,
+                         llvm::Attribute::NoMerge);
+
   // Apply some call-site-specific attributes.
   // TODO: work this into building the attribute set.
 
@@ -4876,8 +4895,7 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
     CannotThrow = true;
   } else {
     // Otherwise, nounwind call sites will never throw.
-    CannotThrow = Attrs.hasAttribute(llvm::AttributeList::FunctionIndex,
-                                     llvm::Attribute::NoUnwind);
+    CannotThrow = Attrs.hasFnAttribute(llvm::Attribute::NoUnwind);
   }
 
   // If we made a temporary, be sure to clean up after ourselves. Note that we
@@ -4966,14 +4984,14 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
   // Add metadata for calls to MSAllocator functions
   if (getDebugInfo() && TargetDecl &&
       TargetDecl->hasAttr<MSAllocatorAttr>())
-    getDebugInfo()->addHeapAllocSiteMetadata(CI, RetTy, Loc);
+    getDebugInfo()->addHeapAllocSiteMetadata(CI, RetTy->getPointeeType(), Loc);
 
   // 4. Finish the call.
 
-  // If the call doesn't return, finish the basic block and clear the
-  // insertion point; this allows the rest of IRGen to discard
+  // If the call doesn't return for non-sycl devices, finish the basic block and
+  // clear the insertion point; this allows the rest of IRGen to discard
   // unreachable code.
-  if (CI->doesNotReturn()) {
+  if (CI->doesNotReturn() && !getLangOpts().SYCLIsDevice) {
     if (UnusedReturnSizePtr)
       PopCleanupBlock();
 

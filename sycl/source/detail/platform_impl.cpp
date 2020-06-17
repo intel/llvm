@@ -20,9 +20,36 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
+static bool IsBannedPlatform(platform Platform) {
+  // The NVIDIA OpenCL platform is currently not compatible with DPC++
+  // since it is only 1.2 but gets selected by default in many systems
+  // There is also no support on the PTX backend for OpenCL consumption,
+  // and there have been some internal reports.
+  // To avoid problems on default users and deployment of DPC++ on platforms
+  // where CUDA is available, the OpenCL support is disabled.
+  //
+  auto IsNVIDIAOpenCL = [](platform Platform) {
+    if (Platform.is_host())
+      return false;
+
+    const bool HasCUDA = Platform.get_info<info::platform::name>().find(
+                             "NVIDIA CUDA") != std::string::npos;
+    const auto Backend =
+        detail::getSyclObjImpl(Platform)->getPlugin().getBackend();
+    const bool IsCUDAOCL = (HasCUDA && Backend == backend::opencl);
+    if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL) && IsCUDAOCL) {
+      std::cout << "SYCL_PI_TRACE[all]: "
+                << "NVIDIA CUDA OpenCL platform found but is not compatible."
+                << std::endl;
+    }
+    return IsCUDAOCL;
+  };
+  return IsNVIDIAOpenCL(Platform);
+}
+
 vector_class<platform> platform_impl::get_platforms() {
   vector_class<platform> Platforms;
-  vector_class<plugin> Plugins = RT::initialize();
+  const vector_class<plugin> &Plugins = RT::initialize();
 
   info::device_type ForcedType = detail::get_forced_type();
   for (unsigned int i = 0; i < Plugins.size(); i++) {
@@ -39,7 +66,8 @@ vector_class<platform> platform_impl::get_platforms() {
         platform Platform = detail::createSyclObjFromImpl<platform>(
             std::make_shared<platform_impl>(PiPlatform, Plugins[i]));
         // Skip platforms which do not contain requested device types
-        if (!Platform.get_devices(ForcedType).empty())
+        if (!Platform.get_devices(ForcedType).empty() &&
+            !IsBannedPlatform(Platform))
           Platforms.push_back(Platform);
       }
     }
@@ -246,6 +274,13 @@ bool platform_impl::has_extension(const string_class &ExtensionName) const {
       get_platform_info<string_class, info::platform::extensions>::get(
           MPlatform, getPlugin());
   return (AllExtensionNames.find(ExtensionName) != std::string::npos);
+}
+
+pi_native_handle platform_impl::getNative() const {
+  const auto &Plugin = getPlugin();
+  pi_native_handle Handle;
+  Plugin.call<PiApiKind::piextPlatformGetNativeHandle>(getHandleRef(), &Handle);
+  return Handle;
 }
 
 template <info::platform param>

@@ -767,11 +767,9 @@ bool LoopVectorizationLegality::canVectorizeInstrs() {
         // supported on the target.
         if (ST->getMetadata(LLVMContext::MD_nontemporal)) {
           // Arbitrarily try a vector of 2 elements.
-          Type *VecTy = VectorType::get(T, /*NumElements=*/2);
+          auto *VecTy = FixedVectorType::get(T, /*NumElements=*/2);
           assert(VecTy && "did not find vectorized version of stored type");
-          const MaybeAlign Alignment = getLoadStoreAlignment(ST);
-          assert(Alignment && "Alignment should be set");
-          if (!TTI->isLegalNTStore(VecTy, *Alignment)) {
+          if (!TTI->isLegalNTStore(VecTy, ST->getAlign())) {
             reportVectorizationFailure(
                 "nontemporal store instruction cannot be vectorized",
                 "nontemporal store instruction cannot be vectorized",
@@ -784,11 +782,9 @@ bool LoopVectorizationLegality::canVectorizeInstrs() {
         if (LD->getMetadata(LLVMContext::MD_nontemporal)) {
           // For nontemporal loads, check that a nontemporal vector version is
           // supported on the target (arbitrarily try a vector of 2 elements).
-          Type *VecTy = VectorType::get(I.getType(), /*NumElements=*/2);
+          auto *VecTy = FixedVectorType::get(I.getType(), /*NumElements=*/2);
           assert(VecTy && "did not find vectorized version of load type");
-          const MaybeAlign Alignment = getLoadStoreAlignment(LD);
-          assert(Alignment && "Alignment should be set");
-          if (!TTI->isLegalNTLoad(VecTy, *Alignment)) {
+          if (!TTI->isLegalNTLoad(VecTy, LD->getAlign())) {
             reportVectorizationFailure(
                 "nontemporal load instruction cannot be vectorized",
                 "nontemporal load instruction cannot be vectorized",

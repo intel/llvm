@@ -811,16 +811,25 @@ bool DataFlowSanitizer::runOnModule(Module &M) {
   if (ABIList.isIn(M, "skip"))
     return false;
 
+  const unsigned InitialGlobalSize = M.global_size();
+  const unsigned InitialModuleSize = M.size();
+
+  bool Changed = false;
+
   if (!GetArgTLSPtr) {
     Type *ArgTLSTy = ArrayType::get(ShadowTy, 64);
     ArgTLS = Mod->getOrInsertGlobal("__dfsan_arg_tls", ArgTLSTy);
-    if (GlobalVariable *G = dyn_cast<GlobalVariable>(ArgTLS))
+    if (GlobalVariable *G = dyn_cast<GlobalVariable>(ArgTLS)) {
+      Changed |= G->getThreadLocalMode() != GlobalVariable::InitialExecTLSModel;
       G->setThreadLocalMode(GlobalVariable::InitialExecTLSModel);
+    }
   }
   if (!GetRetvalTLSPtr) {
     RetvalTLS = Mod->getOrInsertGlobal("__dfsan_retval_tls", ShadowTy);
-    if (GlobalVariable *G = dyn_cast<GlobalVariable>(RetvalTLS))
+    if (GlobalVariable *G = dyn_cast<GlobalVariable>(RetvalTLS)) {
+      Changed |= G->getThreadLocalMode() != GlobalVariable::InitialExecTLSModel;
       G->setThreadLocalMode(GlobalVariable::InitialExecTLSModel);
+    }
   }
 
   ExternalShadowMask =
@@ -1044,7 +1053,8 @@ bool DataFlowSanitizer::runOnModule(Module &M) {
     }
   }
 
-  return false;
+  return Changed || !FnsToInstrument.empty() ||
+         M.global_size() != InitialGlobalSize || M.size() != InitialModuleSize;
 }
 
 Value *DFSanFunction::getArgTLSPtr() {
@@ -1409,7 +1419,7 @@ void DFSanFunction::storeShadow(Value *Addr, uint64_t Size, Align Alignment,
   const unsigned ShadowVecSize = 128 / DFS.ShadowWidthBits;
   uint64_t Offset = 0;
   if (Size >= ShadowVecSize) {
-    VectorType *ShadowVecTy = VectorType::get(DFS.ShadowTy, ShadowVecSize);
+    auto *ShadowVecTy = FixedVectorType::get(DFS.ShadowTy, ShadowVecSize);
     Value *ShadowVec = UndefValue::get(ShadowVecTy);
     for (unsigned i = 0; i != ShadowVecSize; ++i) {
       ShadowVec = IRB.CreateInsertElement(
@@ -1441,17 +1451,14 @@ void DFSanVisitor::visitStoreInst(StoreInst &SI) {
   if (Size == 0)
     return;
 
-  const Align Alignement =
-      ClPreserveAlignment ? DL.getValueOrABITypeAlignment(
-                                SI.getAlign(), SI.getValueOperand()->getType())
-                          : Align(1);
+  const Align Alignment = ClPreserveAlignment ? SI.getAlign() : Align(1);
 
   Value* Shadow = DFSF.getShadow(SI.getValueOperand());
   if (ClCombinePointerLabelsOnStore) {
     Value *PtrShadow = DFSF.getShadow(SI.getPointerOperand());
     Shadow = DFSF.combineShadows(Shadow, PtrShadow, &SI);
   }
-  DFSF.storeShadow(SI.getPointerOperand(), Size, Alignement, Shadow, &SI);
+  DFSF.storeShadow(SI.getPointerOperand(), Size, Alignment, Shadow, &SI);
   if (ClEventCallbacks) {
     IRBuilder<> IRB(&SI);
     IRB.CreateCall(DFSF.DFS.DFSanStoreCallbackFn, Shadow);

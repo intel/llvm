@@ -43,13 +43,12 @@
 // The current implementation does not support loops and the resulting code will
 // be invalid with respect to program semantics. The only thing that is
 // currently missing is a high-level loop analysis that allows us to move allocs
-// and deallocs outside of the loop blocks.
+// and deallocs outside of the loop blocks. Furthermore, it doesn't also accept
+// functions which return buffers already.
 //
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Transforms/BufferPlacement.h"
-#include "mlir/IR/Function.h"
-#include "mlir/IR/Operation.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/Passes.h"
 
@@ -388,7 +387,13 @@ struct BufferPlacementPass
 
       // If there is an existing dealloc, move it to the right place.
       Operation *nextOp = positions.getDeallocPosition()->getNextNode();
-      assert(nextOp && "Invalid Dealloc operation position");
+      // If the Dealloc position is at the terminator operation of the block,
+      // then the value should escape from a deallocation.
+      if (!nextOp) {
+        assert(deallocs.empty() &&
+               "There should be no dealloc for the returned buffer");
+        continue;
+      }
       if (deallocs.size()) {
         (*deallocs.begin())->moveBefore(nextOp);
       } else {
@@ -417,37 +422,6 @@ BufferAssignmentPlacer::computeAllocPosition(OpResult result) {
 }
 
 //===----------------------------------------------------------------------===//
-// FunctionAndBlockSignatureConverter
-//===----------------------------------------------------------------------===//
-
-// Performs the actual signature rewriting step.
-LogicalResult FunctionAndBlockSignatureConverter::matchAndRewrite(
-    FuncOp funcOp, ArrayRef<Value> operands,
-    ConversionPatternRewriter &rewriter) const {
-  if (!converter) {
-    funcOp.emitError("The type converter has not been defined for "
-                     "FunctionAndBlockSignatureConverter");
-    return failure();
-  }
-  // Converting shaped type arguments to memref type.
-  auto funcType = funcOp.getType();
-  TypeConverter::SignatureConversion conversion(funcType.getNumInputs());
-  for (auto argType : llvm::enumerate(funcType.getInputs()))
-    conversion.addInputs(argType.index(),
-                         converter->convertType(argType.value()));
-  // Adding function results to the arguments of the converted function as
-  // memref type. The converted function will be a void function.
-  for (Type resType : funcType.getResults())
-    conversion.addInputs(converter->convertType((resType)));
-  rewriter.updateRootInPlace(funcOp, [&] {
-    funcOp.setType(
-        rewriter.getFunctionType(conversion.getConvertedTypes(), llvm::None));
-    rewriter.applySignatureConversion(&funcOp.getBody(), conversion);
-  });
-  return success();
-}
-
-//===----------------------------------------------------------------------===//
 // BufferAssignmentTypeConverter
 //===----------------------------------------------------------------------===//
 
@@ -459,6 +433,11 @@ BufferAssignmentTypeConverter::BufferAssignmentTypeConverter() {
   addConversion([](RankedTensorType type) {
     return (Type)MemRefType::get(type.getShape(), type.getElementType());
   });
+}
+
+/// Checks if `type` has been converted from non-memref type to memref.
+bool BufferAssignmentTypeConverter::isConvertedMemref(Type type, Type before) {
+  return type.isa<MemRefType>() && !before.isa<MemRefType>();
 }
 
 //===----------------------------------------------------------------------===//

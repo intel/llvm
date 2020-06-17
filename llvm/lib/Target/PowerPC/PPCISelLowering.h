@@ -89,11 +89,6 @@ namespace llvm {
     FRE,
     FRSQRTE,
 
-    // VMADDFP, VNMSUBFP - The VMADDFP and VNMSUBFP instructions, taking
-    // three v4f32 operands and producing a v4f32 result.
-    VMADDFP,
-    VNMSUBFP,
-
     /// VPERM - The PPC VPERM Instruction.
     ///
     VPERM,
@@ -152,6 +147,9 @@ namespace llvm {
     SRL,
     SRA,
     SHL,
+
+    /// FNMSUB - Negated multiply-subtract instruction.
+    FNMSUB,
 
     /// EXTSWSLI = The PPC extswsli instruction, which does an extend-sign
     /// word and shift left immediate.
@@ -640,7 +638,7 @@ namespace llvm {
     /// then the VPERM for the shuffle. All in all a very slow sequence.
     TargetLoweringBase::LegalizeTypeAction getPreferredVectorAction(MVT VT)
       const override {
-      if (VT.getScalarSizeInBits() % 8 == 0)
+      if (VT.getVectorNumElements() != 1 && VT.getScalarSizeInBits() % 8 == 0)
         return TypeWidenVector;
       return TargetLoweringBase::getPreferredVectorAction(VT);
     }
@@ -678,6 +676,10 @@ namespace llvm {
     bool convertSetCCLogicToBitwiseLogic(EVT VT) const override {
       return VT.isScalarInteger();
     }
+
+    SDValue getNegatedExpression(SDValue Op, SelectionDAG &DAG, bool LegalOps,
+                                 bool OptForSize, NegatibleCost &Cost,
+                                 unsigned Depth = 0) const override;
 
     /// getSetCCResultType - Return the ISD::SETCC ValueType
     EVT getSetCCResultType(const DataLayout &DL, LLVMContext &Context,
@@ -950,6 +952,11 @@ namespace llvm {
     Register
     getExceptionSelectorRegister(const Constant *PersonalityFn) const override;
 
+    /// isMulhCheaperThanMulShift - Return true if a mulh[s|u] node for a
+    /// specific type is cheaper than a multiply followed by a shift.
+    /// This is true for words and doublewords on 64-bit PowerPC.
+    bool isMulhCheaperThanMulShift(EVT Type) const override;
+
     /// Override to support customized stack guard loading.
     bool useLoadStackGuardNode() const override;
     void insertSSPDeclarations(Module &M) const override;
@@ -974,12 +981,13 @@ namespace llvm {
       const bool IsPatchPoint : 1;
       const bool IsIndirect : 1;
       const bool HasNest : 1;
+      const bool NoMerge : 1;
 
       CallFlags(CallingConv::ID CC, bool IsTailCall, bool IsVarArg,
-                bool IsPatchPoint, bool IsIndirect, bool HasNest)
+                bool IsPatchPoint, bool IsIndirect, bool HasNest, bool NoMerge)
           : CallConv(CC), IsTailCall(IsTailCall), IsVarArg(IsVarArg),
             IsPatchPoint(IsPatchPoint), IsIndirect(IsIndirect),
-            HasNest(HasNest) {}
+            HasNest(HasNest), NoMerge(NoMerge) {}
     };
 
   private:
@@ -1201,6 +1209,7 @@ namespace llvm {
     SDValue combineSRL(SDNode *N, DAGCombinerInfo &DCI) const;
     SDValue combineMUL(SDNode *N, DAGCombinerInfo &DCI) const;
     SDValue combineADD(SDNode *N, DAGCombinerInfo &DCI) const;
+    SDValue combineFMALike(SDNode *N, DAGCombinerInfo &DCI) const;
     SDValue combineTRUNCATE(SDNode *N, DAGCombinerInfo &DCI) const;
     SDValue combineSetCC(SDNode *N, DAGCombinerInfo &DCI) const;
     SDValue combineABS(SDNode *N, DAGCombinerInfo &DCI) const;

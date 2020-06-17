@@ -2103,11 +2103,11 @@ bool RecursiveASTVisitor<Derived>::TraverseFunctionHelper(FunctionDecl *D) {
     }
   }
 
-  bool VisitBody = D->isThisDeclarationADefinition();
-  // If a method is set to default outside the class definition the compiler
-  // generates the method body and adds it to the AST.
-  if (const auto *MD = dyn_cast<CXXMethodDecl>(D))
-    VisitBody &= !MD->isDefaulted() || getDerived().shouldVisitImplicitCode();
+  bool VisitBody =
+      D->isThisDeclarationADefinition() &&
+      // Don't visit the function body if the function definition is generated
+      // by clang.
+      (!D->isDefaulted() || getDerived().shouldVisitImplicitCode());
 
   if (VisitBody) {
     TRY_TO(TraverseStmt(D->getBody())); // Function body.
@@ -2355,6 +2355,10 @@ DEF_TRAVERSE_STMT(CXXFunctionalCastExpr, {
   TRY_TO(TraverseTypeLoc(S->getTypeInfoAsWritten()->getTypeLoc()));
 })
 
+DEF_TRAVERSE_STMT(CXXAddrspaceCastExpr, {
+  TRY_TO(TraverseTypeLoc(S->getTypeInfoAsWritten()->getTypeLoc()));
+})
+
 DEF_TRAVERSE_STMT(CXXConstCastExpr, {
   TRY_TO(TraverseTypeLoc(S->getTypeInfoAsWritten()->getTypeLoc()));
 })
@@ -2584,6 +2588,7 @@ DEF_TRAVERSE_STMT(CXXMemberCallExpr, {})
 // over the children.
 DEF_TRAVERSE_STMT(AddrLabelExpr, {})
 DEF_TRAVERSE_STMT(ArraySubscriptExpr, {})
+DEF_TRAVERSE_STMT(MatrixSubscriptExpr, {})
 DEF_TRAVERSE_STMT(OMPArraySectionExpr, {})
 DEF_TRAVERSE_STMT(OMPArrayShapingExpr, {})
 DEF_TRAVERSE_STMT(OMPIteratorExpr, {})
@@ -3358,6 +3363,17 @@ RecursiveASTVisitor<Derived>::VisitOMPReductionClause(OMPReductionClause *C) {
   for (auto *E : C->reduction_ops()) {
     TRY_TO(TraverseStmt(E));
   }
+  if (C->getModifier() == OMPC_REDUCTION_inscan) {
+    for (auto *E : C->copy_ops()) {
+      TRY_TO(TraverseStmt(E));
+    }
+    for (auto *E : C->copy_array_temps()) {
+      TRY_TO(TraverseStmt(E));
+    }
+    for (auto *E : C->copy_array_elems()) {
+      TRY_TO(TraverseStmt(E));
+    }
+  }
   return true;
 }
 
@@ -3518,6 +3534,13 @@ bool RecursiveASTVisitor<Derived>::VisitOMPUseDevicePtrClause(
 }
 
 template <typename Derived>
+bool RecursiveASTVisitor<Derived>::VisitOMPUseDeviceAddrClause(
+    OMPUseDeviceAddrClause *C) {
+  TRY_TO(VisitOMPClauseList(C));
+  return true;
+}
+
+template <typename Derived>
 bool RecursiveASTVisitor<Derived>::VisitOMPIsDevicePtrClause(
     OMPIsDevicePtrClause *C) {
   TRY_TO(VisitOMPClauseList(C));
@@ -3553,6 +3576,15 @@ bool RecursiveASTVisitor<Derived>::VisitOMPUsesAllocatorsClause(
     TRY_TO(TraverseStmt(Data.Allocator));
     TRY_TO(TraverseStmt(Data.AllocatorTraits));
   }
+  return true;
+}
+
+template <typename Derived>
+bool RecursiveASTVisitor<Derived>::VisitOMPAffinityClause(
+    OMPAffinityClause *C) {
+  TRY_TO(TraverseStmt(C->getModifier()));
+  for (Expr *E : C->varlists())
+    TRY_TO(TraverseStmt(E));
   return true;
 }
 

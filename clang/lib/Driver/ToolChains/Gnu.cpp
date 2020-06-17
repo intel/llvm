@@ -486,10 +486,9 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-export-dynamic");
 
     if (!Args.hasArg(options::OPT_shared) && !IsStaticPIE) {
-      const std::string Loader =
-          D.DyldPrefix + ToolChain.getDynamicLinker(Args);
       CmdArgs.push_back("-dynamic-linker");
-      CmdArgs.push_back(Args.MakeArgString(Loader));
+      CmdArgs.push_back(Args.MakeArgString(Twine(D.DyldPrefix) +
+                                           ToolChain.getDynamicLinker(Args)));
     }
   }
 
@@ -695,6 +694,8 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   // Add HIP offloading linker script args if required.
   AddHIPLinkerScript(getToolChain(), C, Output, Inputs, Args, CmdArgs, JA,
                      *this);
+
+  Args.AddAllArgs(CmdArgs, options::OPT_T);
 
   const char *Exec = Args.MakeArgString(ToolChain.GetLinkerPath());
   C.addCommand(std::make_unique<Command>(JA, *this, Exec, CmdArgs, Inputs));
@@ -2643,7 +2644,7 @@ bool Generic_GCC::GCCInstallationDetector::ScanGentooGccConfig(
 Generic_GCC::Generic_GCC(const Driver &D, const llvm::Triple &Triple,
                          const ArgList &Args)
     : ToolChain(D, Triple, Args), GCCInstallation(D),
-      CudaInstallation(D, Triple, Args) {
+      CudaInstallation(D, Triple, Args), RocmInstallation(D, Triple, Args) {
   getProgramPaths().push_back(getDriver().getInstalledDir());
   if (getDriver().getInstalledDir() != getDriver().Dir)
     getProgramPaths().push_back(getDriver().Dir);

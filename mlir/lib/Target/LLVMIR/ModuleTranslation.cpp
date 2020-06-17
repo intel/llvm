@@ -109,8 +109,6 @@ llvm::Constant *ModuleTranslation::getLLVMConstant(llvm::Type *llvmType,
     return llvm::ConstantInt::get(
         llvmType,
         intAttr.getValue().sextOrTrunc(llvmType->getIntegerBitWidth()));
-  if (auto boolAttr = attr.dyn_cast<BoolAttr>())
-    return llvm::ConstantInt::get(llvmType, boolAttr.getValue());
   if (auto floatAttr = attr.dyn_cast<FloatAttr>())
     return llvm::ConstantFP::get(llvmType, floatAttr.getValue());
   if (auto funcAttr = attr.dyn_cast<FlatSymbolRefAttr>())
@@ -328,6 +326,18 @@ ModuleTranslation::convertOmpOperation(Operation &opInst,
       })
       .Case([&](omp::TaskyieldOp) {
         ompBuilder->CreateTaskyield(builder.saveIP());
+        return success();
+      })
+      .Case([&](omp::FlushOp) {
+        // No support in Openmp runtime funciton (__kmpc_flush) to accept
+        // the argument list.
+        // OpenMP standard states the following:
+        //  "An implementation may implement a flush with a list by ignoring
+        //   the list, and treating it the same as a flush without a list."
+        //
+        // The argument list is discarded so that, flush with a list is treated
+        // same as a flush without a list.
+        ompBuilder->CreateFlush(builder.saveIP());
         return success();
       })
       .Default([&](Operation *inst) {

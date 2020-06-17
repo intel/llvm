@@ -19,6 +19,7 @@
     __cpp_lib_any                                  201606L [C++17]
     __cpp_lib_apply                                201603L [C++17]
     __cpp_lib_array_constexpr                      201603L [C++17]
+                                                   201811L [C++2a]
     __cpp_lib_as_const                             201510L [C++17]
     __cpp_lib_atomic_is_always_lock_free           201603L [C++17]
     __cpp_lib_atomic_ref                           201806L [C++2a]
@@ -1074,11 +1075,17 @@
 #   error "__cpp_lib_generic_unordered_lookup should not be defined before c++2a"
 # endif
 
-# ifndef __cpp_lib_hardware_interference_size
-#   error "__cpp_lib_hardware_interference_size should be defined in c++17"
-# endif
-# if __cpp_lib_hardware_interference_size != 201703L
-#   error "__cpp_lib_hardware_interference_size should have the value 201703L in c++17"
+# if !defined(_LIBCPP_VERSION)
+#   ifndef __cpp_lib_hardware_interference_size
+#     error "__cpp_lib_hardware_interference_size should be defined in c++17"
+#   endif
+#   if __cpp_lib_hardware_interference_size != 201703L
+#     error "__cpp_lib_hardware_interference_size should have the value 201703L in c++17"
+#   endif
+# else // _LIBCPP_VERSION
+#   ifdef __cpp_lib_hardware_interference_size
+#     error "__cpp_lib_hardware_interference_size should not be defined because it is unimplemented in libc++!"
+#   endif
 # endif
 
 # if TEST_HAS_BUILTIN_IDENTIFIER(__has_unique_object_representations) || TEST_GCC_VER >= 700
@@ -1531,8 +1538,8 @@
 # ifndef __cpp_lib_array_constexpr
 #   error "__cpp_lib_array_constexpr should be defined in c++2a"
 # endif
-# if __cpp_lib_array_constexpr != 201603L
-#   error "__cpp_lib_array_constexpr should have the value 201603L in c++2a"
+# if __cpp_lib_array_constexpr != 201811L
+#   error "__cpp_lib_array_constexpr should have the value 201811L in c++2a"
 # endif
 
 # ifndef __cpp_lib_as_const
@@ -1789,11 +1796,17 @@
 #   endif
 # endif
 
-# ifndef __cpp_lib_hardware_interference_size
-#   error "__cpp_lib_hardware_interference_size should be defined in c++2a"
-# endif
-# if __cpp_lib_hardware_interference_size != 201703L
-#   error "__cpp_lib_hardware_interference_size should have the value 201703L in c++2a"
+# if !defined(_LIBCPP_VERSION)
+#   ifndef __cpp_lib_hardware_interference_size
+#     error "__cpp_lib_hardware_interference_size should be defined in c++2a"
+#   endif
+#   if __cpp_lib_hardware_interference_size != 201703L
+#     error "__cpp_lib_hardware_interference_size should have the value 201703L in c++2a"
+#   endif
+# else // _LIBCPP_VERSION
+#   ifdef __cpp_lib_hardware_interference_size
+#     error "__cpp_lib_hardware_interference_size should not be defined because it is unimplemented in libc++!"
+#   endif
 # endif
 
 # if TEST_HAS_BUILTIN_IDENTIFIER(__has_unique_object_representations) || TEST_GCC_VER >= 700

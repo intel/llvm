@@ -10,6 +10,7 @@
 #include "Config.h"
 #include "ExportTrie.h"
 #include "InputFiles.h"
+#include "MachOStructs.h"
 #include "OutputSegment.h"
 #include "SymbolTable.h"
 #include "Symbols.h"
@@ -28,7 +29,7 @@ namespace lld {
 namespace macho {
 
 SyntheticSection::SyntheticSection(const char *segname, const char *name)
-    : OutputSection(name) {
+    : OutputSection(SyntheticKind, name) {
   // Synthetic sections always know which segment they belong to so hook
   // them up when they're made
   getOrCreateOutputSegment(segname)->addOutputSection(this);
@@ -281,7 +282,7 @@ SymtabSection::SymtabSection(StringTableSection &stringTableSection)
 }
 
 size_t SymtabSection::getSize() const {
-  return symbols.size() * sizeof(nlist_64);
+  return symbols.size() * sizeof(structs::nlist_64);
 }
 
 void SymtabSection::finalizeContents() {
@@ -292,7 +293,7 @@ void SymtabSection::finalizeContents() {
 }
 
 void SymtabSection::writeTo(uint8_t *buf) const {
-  auto *nList = reinterpret_cast<nlist_64 *>(buf);
+  auto *nList = reinterpret_cast<structs::nlist_64 *>(buf);
   for (const SymtabEntry &entry : symbols) {
     nList->n_strx = entry.strx;
     // TODO support other symbol types

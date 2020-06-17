@@ -261,7 +261,6 @@ class VariadicEnumArgument<string name, string type, list<string> values,
 class Spelling<string name, string variety> {
   string Name = name;
   string Variety = variety;
-  bit KnownToGCC;
 }
 
 class GNU<string name> : Spelling<name, "GNU">;
@@ -281,11 +280,11 @@ class Pragma<string namespace, string name> : Spelling<name, "Pragma"> {
   string Namespace = namespace;
 }
 
-// The GCC spelling implies GNU<name> and CXX11<"gnu", name> and also sets
-// KnownToGCC to 1. This spelling should be used for any GCC-compatible
+// The GCC spelling implies GNU<name>, CXX11<"gnu", name>, and optionally,
+// C2x<"gnu", name>. This spelling should be used for any GCC-compatible
 // attributes.
-class GCC<string name> : Spelling<name, "GCC"> {
-  let KnownToGCC = 1;
+class GCC<string name, bit allowInC = 1> : Spelling<name, "GCC"> {
+  bit AllowInC = allowInC;
 }
 
 // The Clang spelling implies GNU<name>, CXX11<"clang", name>, and optionally,
@@ -327,6 +326,7 @@ def CUDA : LangOpt<"CUDA">;
 def SYCLIsDevice : LangOpt<"SYCLIsDevice">;
 def SYCL : LangOpt<"SYCLIsDevice">;
 def SYCLIsHost : LangOpt<"SYCLIsHost">;
+def SYCLExplicitSIMD : LangOpt<"SYCLExplicitSIMD">;
 def HIP : LangOpt<"HIP">;
 def COnly : LangOpt<"", "!LangOpts.CPlusPlus">;
 def CPlusPlus : LangOpt<"CPlusPlus">;
@@ -615,7 +615,7 @@ class IgnoredAttr : Attr {
 //
 
 def AbiTag : Attr {
-  let Spellings = [GCC<"abi_tag">];
+  let Spellings = [GCC<"abi_tag", /*AllowInC*/0>];
   let Args = [VariadicStringArgument<"Tags">];
   let Subjects = SubjectList<[Struct, Var, Function, Namespace], ErrorDiag>;
   let MeaningfulToClassTemplateDefinition = 1;
@@ -1125,6 +1125,7 @@ def SYCLDevice : InheritableAttr {
   let Subjects = SubjectList<[Function]>;
   let LangOpts = [SYCLIsDevice];
   let Documentation = [SYCLDeviceDocs];
+  let PragmaAttributeSupport = 0;
 }
 
 def SYCLKernel : InheritableAttr {
@@ -1132,6 +1133,30 @@ def SYCLKernel : InheritableAttr {
   let Subjects = SubjectList<[FunctionTmpl]>;
   let LangOpts = [SYCLIsDevice];
   let Documentation = [SYCLKernelDocs];
+}
+
+// Marks functions which must not be vectorized via horizontal SIMT widening,
+// e.g. because the function is already vectorized. Used to mark SYCL
+// explicit SIMD kernels and functions.
+def SYCLSimd : InheritableAttr {
+  let Spellings = [GNU<"sycl_explicit_simd">];
+  let Subjects = SubjectList<[Function]>;
+  let LangOpts = [SYCLExplicitSIMD];
+  let Documentation = [SYCLSimdDocs];
+  let PragmaAttributeSupport = 0;
+}
+
+// Available in SYCL explicit SIMD extension. Binds a file scope private
+// variable to a specific register.
+def SYCLRegisterNum : InheritableAttr {
+  let Spellings = [GNU<"register_num">, Declspec<"register_num">];
+  let Args = [UnsignedArgument<"Number">];
+  let Subjects = SubjectList<[GlobalVar]>;
+  // This attribute is applied to file-scope variables and must be compilable
+  // for the host device as well
+  let LangOpts = [SYCLExplicitSIMD];
+  let Documentation = [SYCLRegisterNumDocs];
+  let PragmaAttributeSupport = 0;
 }
 
 def SYCLScope : Attr {
@@ -1160,6 +1185,7 @@ def SYCLDeviceIndirectlyCallable : InheritableAttr {
   let Subjects = SubjectList<[Function]>;
   let LangOpts = [SYCLIsDevice];
   let Documentation = [SYCLDeviceIndirectlyCallableDocs];
+  let PragmaAttributeSupport = 0;
 }
 
 def SYCLIntelKernelArgsRestrict : InheritableAttr {
@@ -1168,6 +1194,7 @@ def SYCLIntelKernelArgsRestrict : InheritableAttr {
   let LangOpts = [ SYCLIsDevice, SYCLIsHost ];
   let Documentation = [ SYCLIntelKernelArgsRestrictDocs ];
   let SimpleHandler = 1;
+  let PragmaAttributeSupport = 0;
 }
 
 def SYCLIntelNumSimdWorkItems : InheritableAttr {
@@ -1262,10 +1289,11 @@ def LoopUnrollHint : InheritableAttr {
 
 def IntelReqdSubGroupSize: InheritableAttr {
   let Spellings = [GNU<"intel_reqd_sub_group_size">, CXX11<"cl", "intel_reqd_sub_group_size">];
-  let Args = [UnsignedArgument<"SubGroupSize">];
+  let Args = [ExprArgument<"SubGroupSize">];
   let Subjects = SubjectList<[Function, CXXMethod], ErrorDiag>;
   let Documentation = [IntelReqdSubGroupSizeDocs];
   let LangOpts = [OpenCL, SYCLIsDevice, SYCLIsHost];
+  let PragmaAttributeSupport = 0;
 }
 
 // This attribute is both a type attribute, and a declaration attribute (for
@@ -1292,6 +1320,16 @@ def OpenCLPrivateAddressSpace : TypeAttr {
 def OpenCLGlobalAddressSpace : TypeAttr {
   let Spellings = [Keyword<"__global">, Keyword<"global">, Clang<"opencl_global">];
   let Documentation = [OpenCLAddressSpaceGlobalDocs];
+}
+
+def OpenCLGlobalDeviceAddressSpace : TypeAttr {
+  let Spellings = [Clang<"opencl_global_device">];
+  let Documentation = [OpenCLGlobalAddressSpacesDocs];
+}
+
+def OpenCLGlobalHostAddressSpace : TypeAttr {
+  let Spellings = [Clang<"opencl_global_host">];
+  let Documentation = [OpenCLGlobalAddressSpacesDocs];
 }
 
 def OpenCLLocalAddressSpace : TypeAttr {
@@ -1388,6 +1426,11 @@ def FallThrough : StmtAttr {
                    CXX11<"clang", "fallthrough">, GCC<"fallthrough">];
 //  let Subjects = [NullStmt];
   let Documentation = [FallthroughDocs];
+}
+
+def NoMerge : StmtAttr {
+  let Spellings = [Clang<"nomerge">];
+  let Documentation = [NoMergeDocs];
 }
 
 def FastCall : DeclOrTypeAttr {
@@ -1639,11 +1682,15 @@ def SYCLIntelFPGAIVDep : Attr {
              (getArrayExpr() && getArrayExpr()->isInstantiationDependent());
     }
 
-    const VarDecl *getArrayDecl() const {
-      return getArrayExpr()
-                 ? cast<VarDecl>(cast<DeclRefExpr>(getArrayExpr())->getDecl())
-                       ->getCanonicalDecl()
-                 : nullptr;
+    const ValueDecl *getArrayDecl() const {
+      const Expr* E = getArrayExpr();
+      if (!E) return nullptr;
+
+      if (const auto *DRE = dyn_cast<DeclRefExpr>(E))
+        return cast<ValueDecl>(DRE->getDecl()->getCanonicalDecl());
+
+      return cast<ValueDecl>(
+          cast<MemberExpr>(E)->getMemberDecl()->getCanonicalDecl());
     }
 
     bool isInf() const {
@@ -2539,8 +2586,8 @@ def NoDeref : TypeAttr {
 // intel::reqd_work_group_size spelling.
 def ReqdWorkGroupSize : InheritableAttr {
   let Spellings = [GNU<"reqd_work_group_size">,
-                   CXX11<"intel","reqd_work_group_size">, 
-                   CXX11<"cl","reqd_work_group_size">]; 
+                   CXX11<"intel","reqd_work_group_size">,
+                   CXX11<"cl","reqd_work_group_size">];
   let Args = [UnsignedArgument<"XDim">, DefaultUnsignedArgument<"YDim", 1>,
               DefaultUnsignedArgument<"ZDim", 1>];
   let Subjects = SubjectList<[Function], ErrorDiag>;
@@ -2558,7 +2605,7 @@ def WorkGroupSizeHint :  InheritableAttr {
 }
 
 def InitPriority : InheritableAttr {
-  let Spellings = [GCC<"init_priority">];
+  let Spellings = [GCC<"init_priority", /*AllowInC*/0>];
   let Args = [UnsignedArgument<"Priority">];
   let Subjects = SubjectList<[Var], ErrorDiag>;
   let Documentation = [Undocumented];

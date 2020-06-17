@@ -503,7 +503,8 @@ public:
   SPIRVEntryPoint(SPIRVModule *TheModule, SPIRVExecutionModelKind,
                   SPIRVId TheId, const std::string &TheName,
                   std::vector<SPIRVId> Variables);
-  SPIRVEntryPoint() : ExecModel(ExecutionModelKernel) {}
+  SPIRVEntryPoint() {}
+
   _SPIRV_DCL_ENCDEC
 protected:
   SPIRVExecutionModelKind ExecModel;
@@ -665,18 +666,70 @@ protected:
 };
 
 class SPIRVComponentExecutionModes {
-  typedef std::map<SPIRVExecutionModeKind, SPIRVExecutionMode *>
+  typedef std::multimap<SPIRVExecutionModeKind, SPIRVExecutionMode *>
       SPIRVExecutionModeMap;
+  typedef std::pair<SPIRVExecutionModeMap::const_iterator,
+                    SPIRVExecutionModeMap::const_iterator>
+      SPIRVExecutionModeRange;
 
 public:
   void addExecutionMode(SPIRVExecutionMode *ExecMode) {
-    ExecModes[ExecMode->getExecutionMode()] = ExecMode;
+    // There should not be more than 1 execution mode kind except the ones
+    // mentioned in SPV_KHR_float_controls and SPV_INTEL_float_controls2.
+#ifndef NDEBUG
+    auto IsDenorm = [](auto EMK) {
+      return EMK == ExecutionModeDenormPreserve ||
+             EMK == ExecutionModeDenormFlushToZero;
+    };
+    auto IsRoundingMode = [](auto EMK) {
+      return EMK == ExecutionModeRoundingModeRTE ||
+             EMK == ExecutionModeRoundingModeRTZ ||
+             EMK == ExecutionModeRoundingModeRTPINTEL ||
+             EMK == ExecutionModeRoundingModeRTNINTEL;
+    };
+    auto IsFPMode = [](auto EMK) {
+      return EMK == ExecutionModeFloatingPointModeALTINTEL ||
+             EMK == ExecutionModeFloatingPointModeIEEEINTEL;
+    };
+    auto IsOtherFP = [](auto EMK) {
+      return EMK == ExecutionModeSignedZeroInfNanPreserve;
+    };
+    auto IsFloatControl = [&](auto EMK) {
+      return IsDenorm(EMK) || IsRoundingMode(EMK) || IsFPMode(EMK) ||
+             IsOtherFP(EMK);
+    };
+    auto IsCompatible = [&](SPIRVExecutionMode *EM0, SPIRVExecutionMode *EM1) {
+      if (EM0->getTargetId() != EM1->getTargetId())
+        return true;
+      auto EMK0 = EM0->getExecutionMode();
+      auto EMK1 = EM1->getExecutionMode();
+      if (!IsFloatControl(EMK0) || !IsFloatControl(EMK1))
+        return EMK0 != EMK1;
+      auto TW0 = EM0->getLiterals().at(0);
+      auto TW1 = EM1->getLiterals().at(0);
+      if (TW0 != TW1)
+        return true;
+      return !(IsDenorm(EMK0) && IsDenorm(EMK1)) &&
+             !(IsRoundingMode(EMK0) && IsRoundingMode(EMK1)) &&
+             !(IsFPMode(EMK0) && IsFPMode(EMK1));
+    };
+    for (auto I = ExecModes.begin(); I != ExecModes.end(); ++I) {
+      assert(IsCompatible(ExecMode, (*I).second) &&
+             "Found incompatible execution modes");
+    }
+#endif // !NDEBUG
+    SPIRVExecutionModeKind EMK = ExecMode->getExecutionMode();
+    ExecModes.emplace(EMK, ExecMode);
   }
   SPIRVExecutionMode *getExecutionMode(SPIRVExecutionModeKind EMK) const {
     auto Loc = ExecModes.find(EMK);
     if (Loc == ExecModes.end())
       return nullptr;
     return Loc->second;
+  }
+  SPIRVExecutionModeRange
+  getExecutionModeRange(SPIRVExecutionModeKind EMK) const {
+    return ExecModes.equal_range(EMK);
   }
 
 protected:
@@ -743,6 +796,15 @@ public:
 
   SPIRVWord getRequiredSPIRVVersion() const override {
     switch (Kind) {
+    case CapabilityGroupNonUniform:
+    case CapabilityGroupNonUniformVote:
+    case CapabilityGroupNonUniformArithmetic:
+    case CapabilityGroupNonUniformBallot:
+    case CapabilityGroupNonUniformShuffle:
+    case CapabilityGroupNonUniformShuffleRelative:
+    case CapabilityGroupNonUniformClustered:
+      return static_cast<SPIRVWord>(VersionNumber::SPIRV_1_3);
+
     case CapabilityNamedBarrier:
     case CapabilitySubgroupDispatch:
     case CapabilityPipeStorage:
@@ -750,6 +812,25 @@ public:
 
     default:
       return static_cast<SPIRVWord>(VersionNumber::SPIRV_1_0);
+    }
+  }
+
+  SPIRVExtSet getRequiredExtensions() const override {
+    switch (Kind) {
+    case CapabilityDenormPreserve:
+    case CapabilityDenormFlushToZero:
+    case CapabilitySignedZeroInfNanPreserve:
+    case CapabilityRoundingModeRTE:
+    case CapabilityRoundingModeRTZ:
+      return getSet(ExtensionID::SPV_KHR_float_controls);
+    case CapabilityRoundToInfinityINTEL:
+    case CapabilityFloatingPointModeINTEL:
+      return getSet(ExtensionID::SPV_INTEL_float_controls2);
+    case CapabilityVectorComputeINTEL:
+    case CapabilityVectorAnyINTEL:
+      return getSet(ExtensionID::SPV_INTEL_vector_compute);
+    default:
+      return SPIRVExtSet();
     }
   }
 

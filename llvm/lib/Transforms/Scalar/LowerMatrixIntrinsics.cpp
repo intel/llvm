@@ -148,7 +148,7 @@ Value *computeVectorAddr(Value *BasePtr, Value *VecIdx, Value *Stride,
 
   // Cast elementwise vector start pointer to a pointer to a vector
   // (EltType x NumElements)*.
-  Type *VecType = VectorType::get(EltType, NumElements);
+  auto *VecType = FixedVectorType::get(EltType, NumElements);
   Type *VecPtrType = PointerType::get(VecType, AS);
   return Builder.CreatePointerCast(VecStart, VecPtrType, "vec.cast");
 }
@@ -223,8 +223,8 @@ class LowerMatrixIntrinsics {
 
       unsigned D = isColumnMajor() ? NumColumns : NumRows;
       for (unsigned J = 0; J < D; ++J)
-        addVector(UndefValue::get(
-            VectorType::get(EltTy, isColumnMajor() ? NumRows : NumColumns)));
+        addVector(UndefValue::get(FixedVectorType::get(
+            EltTy, isColumnMajor() ? NumRows : NumColumns)));
     }
 
     Value *getVector(unsigned i) const { return Vectors[i]; }
@@ -705,7 +705,7 @@ public:
 
     // Third, lower remaining instructions with shape information.
     for (Instruction *Inst : MatrixInsts) {
-      if (FusedInsts.find(Inst) != FusedInsts.end())
+      if (FusedInsts.count(Inst))
         continue;
 
       IRBuilder<> Builder(Inst);
@@ -806,8 +806,8 @@ public:
     Value *EltPtr =
         Builder.CreatePointerCast(MatrixPtr, PointerType::get(EltTy, AS));
     Value *TileStart = Builder.CreateGEP(EltTy, EltPtr, Offset);
-    Type *TileTy =
-        VectorType::get(EltTy, ResultShape.NumRows * ResultShape.NumColumns);
+    auto *TileTy = FixedVectorType::get(EltTy, ResultShape.NumRows *
+                                                   ResultShape.NumColumns);
     Type *TilePtrTy = PointerType::get(TileTy, AS);
     Value *TilePtr =
         Builder.CreatePointerCast(TileStart, TilePtrTy, "col.cast");
@@ -850,8 +850,8 @@ public:
     Value *EltPtr =
         Builder.CreatePointerCast(MatrixPtr, PointerType::get(EltTy, AS));
     Value *TileStart = Builder.CreateGEP(EltTy, EltPtr, Offset);
-    Type *TileTy = VectorType::get(EltTy, StoreVal.getNumRows() *
-                                              StoreVal.getNumColumns());
+    auto *TileTy = FixedVectorType::get(EltTy, StoreVal.getNumRows() *
+                                                   StoreVal.getNumColumns());
     Type *TilePtrTy = PointerType::get(TileTy, AS);
     Value *TilePtr =
         Builder.CreatePointerCast(TileStart, TilePtrTy, "col.cast");
@@ -1170,7 +1170,7 @@ public:
 
   MatrixTy getZeroMatrix(Type *EltType, unsigned R, unsigned C) {
     MatrixTy Res;
-    Type *ColumType = VectorType::get(EltType, R);
+    auto *ColumType = FixedVectorType::get(EltType, R);
     for (unsigned I = 0; I < C; ++I)
       Res.addVector(ConstantAggregateZero::get(ColumType));
     return Res;
@@ -1294,24 +1294,24 @@ public:
     VectorType *VectorTy = cast<VectorType>(InputVal->getType());
     ShapeInfo ArgShape(Inst->getArgOperand(1), Inst->getArgOperand(2));
     MatrixTy InputMatrix = getMatrix(InputVal, ArgShape, Builder);
-    assert(InputMatrix.isColumnMajor() &&
-           "Row-major code-gen not supported yet!");
 
-    for (unsigned Row = 0; Row < ArgShape.NumRows; ++Row) {
-      // Build a single column vector for this row. First initialize it.
-      Value *ResultColumn = UndefValue::get(
-          VectorType::get(VectorTy->getElementType(), ArgShape.NumColumns));
+    const unsigned NewNumVecs =
+        InputMatrix.isColumnMajor() ? ArgShape.NumRows : ArgShape.NumColumns;
+    const unsigned NewNumElts =
+        InputMatrix.isColumnMajor() ? ArgShape.NumColumns : ArgShape.NumRows;
 
-      // Go through the elements of this row and insert it into the resulting
-      // column vector.
-      for (auto C : enumerate(InputMatrix.columns())) {
-        Value *Elt = Builder.CreateExtractElement(C.value(), Row);
-        // We insert at index Column since that is the row index after the
-        // transpose.
-        ResultColumn =
-            Builder.CreateInsertElement(ResultColumn, Elt, C.index());
+    for (unsigned I = 0; I < NewNumVecs; ++I) {
+      // Build a single result vector. First initialize it.
+      Value *ResultVector = UndefValue::get(
+          FixedVectorType::get(VectorTy->getElementType(), NewNumElts));
+      // Go through the old elements and insert it into the resulting vector.
+      for (auto J : enumerate(InputMatrix.vectors())) {
+        Value *Elt = Builder.CreateExtractElement(J.value(), I);
+        // Row and column indices are transposed.
+        ResultVector =
+            Builder.CreateInsertElement(ResultVector, Elt, J.index());
       }
-      Result.addVector(ResultColumn);
+      Result.addVector(ResultVector);
     }
 
     // TODO: Improve estimate of operations needed for transposes. Currently we
@@ -1593,7 +1593,7 @@ public:
       // Deal with shared subtrees. Mark them as shared, if required.
       if (!ParentShared) {
         auto SI = Shared.find(Expr);
-        assert(SI != Shared.end() && SI->second.find(Leaf) != SI->second.end());
+        assert(SI != Shared.end() && SI->second.count(Leaf));
 
         for (Value *S : SI->second) {
           if (S == Leaf)

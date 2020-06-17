@@ -58,7 +58,7 @@ def err_drv_no_cuda_libdevice : Error<
 
 def err_drv_no_rocm_installation : Error<
   "cannot find ROCm installation.  Provide its path via --rocm-path, or pass "
-  "-nogpulib.">;
+  "-nogpulib and -nogpuinc to build without ROCm device library and HIP includes.">;
 def err_drv_no_rocm_device_lib : Error<
   "cannot find device library for %0. Provide path to different ROCm installation "
   "via --rocm-path, or pass -nogpulib to build without linking default libraries.">;
@@ -505,6 +505,12 @@ def warn_drv_darwin_sdk_invalid_settings : Warning<
 def err_drv_trivial_auto_var_init_zero_disabled : Error<
   "-ftrivial-auto-var-init=zero hasn't been enabled. Enable it at your own peril for benchmarking purpose only with "
   "-enable-trivial-auto-var-init-zero-knowing-it-will-be-removed-from-clang">;
+
+def err_drv_trivial_auto_var_init_stop_after_missing_dependency : Error<
+  "-ftrivial-auto-var-init-stop-after=* is used without -ftrivial-auto-var-init=zero or -ftrivial-auto-var-init=pattern.">;
+
+def err_drv_trivial_auto_var_init_stop_after_invalid_value : Error<
+  "-ftrivial-auto-var-init-stop-after=* only accepts positive integers.">;
 
 def warn_drv_msp430_hwmult_unsupported : Warning<"the given MCU does not "
   "support hardware multiply, but -mhwmult is set to %0.">,

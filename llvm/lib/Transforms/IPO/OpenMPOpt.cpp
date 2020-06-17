@@ -39,6 +39,8 @@ static cl::opt<bool> DisableOpenMPOptimizations(
 
 STATISTIC(NumOpenMPRuntimeCallsDeduplicated,
           "Number of OpenMP runtime calls deduplicated");
+STATISTIC(NumOpenMPParallelRegionsDeleted,
+          "Number of OpenMP parallel regions deleted");
 STATISTIC(NumOpenMPRuntimeFunctionsIdentified,
           "Number of OpenMP runtime functions identified");
 STATISTIC(NumOpenMPRuntimeFunctionUsesIdentified,
@@ -194,6 +196,7 @@ private:
       CGUpdater.removeCallSite(*CI);
       CI->eraseFromParent();
       Changed = true;
+      ++NumOpenMPParallelRegionsDeleted;
       return true;
     };
 
@@ -224,7 +227,7 @@ private:
         OMPRTL_omp_get_partition_num_places,
         OMPRTL_omp_get_partition_place_nums};
 
-    // Global-tid is handled separatly.
+    // Global-tid is handled separately.
     SmallSetVector<Value *, 16> GTIdArgs;
     collectGlobalThreadIdArguments(GTIdArgs);
     LLVM_DEBUG(dbgs() << TAG << "Found " << GTIdArgs.size()
@@ -556,7 +559,7 @@ private:
     auto &ORE = OREGetter(F);
 
     ORE.emit([&]() {
-      return RemarkCB(RemarkKind(DEBUG_TYPE, RemarkName, Inst)); 
+      return RemarkCB(RemarkKind(DEBUG_TYPE, RemarkName, Inst));
     });
   }
 

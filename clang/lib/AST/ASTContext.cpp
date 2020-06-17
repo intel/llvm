@@ -100,7 +100,7 @@
 using namespace clang;
 
 enum FloatingRank {
-  Float16Rank, HalfRank, FloatRank, DoubleRank, LongDoubleRank, Float128Rank
+  BFloat16Rank, Float16Rank, HalfRank, FloatRank, DoubleRank, LongDoubleRank, Float128Rank
 };
 
 /// \returns location that is relevant when searching for Doc comments related
@@ -919,18 +919,20 @@ static const LangASMap *getAddressSpaceMap(const TargetInfo &T,
     // The fake address space map must have a distinct entry for each
     // language-specific address space.
     static const unsigned FakeAddrSpaceMap[] = {
-        0, // Default
-        1, // opencl_global
-        3, // opencl_local
-        2, // opencl_constant
-        0, // opencl_private
-        4, // opencl_generic
-        5, // cuda_device
-        6, // cuda_constant
-        7, // cuda_shared
-        8, // ptr32_sptr
-        9, // ptr32_uptr
-        10 // ptr64
+        0,  // Default
+        1,  // opencl_global
+        3,  // opencl_local
+        2,  // opencl_constant
+        0,  // opencl_private
+        4,  // opencl_generic
+        11, // opencl_global_device
+        12, // opencl_global_host
+        5,  // cuda_device
+        6,  // cuda_constant
+        7,  // cuda_shared
+        8,  // ptr32_sptr
+        9,  // ptr32_uptr
+        10  // ptr64
     };
     return &FakeAddrSpaceMap;
   } else {
@@ -1388,6 +1390,8 @@ void ASTContext::InitBuiltinTypes(const TargetInfo &Target,
     InitBuiltinType(OMPArrayShapingTy, BuiltinType::OMPArrayShaping);
     InitBuiltinType(OMPIteratorTy, BuiltinType::OMPIterator);
   }
+  if (LangOpts.MatrixTypes)
+    InitBuiltinType(IncompleteMatrixIdxTy, BuiltinType::IncompleteMatrixIdx);
 
   // C99 6.2.5p11.
   FloatComplexTy      = getComplexType(FloatTy);
@@ -1445,6 +1449,8 @@ void ASTContext::InitBuiltinTypes(const TargetInfo &Target,
 
   // half type (OpenCL 6.1.1.1) / ARM NEON __fp16
   InitBuiltinType(HalfTy, BuiltinType::Half);
+
+  InitBuiltinType(BFloat16Ty, BuiltinType::BFloat16);
 
   // Builtin type used to help define __builtin_va_list.
   VaListTagDecl = nullptr;
@@ -1649,6 +1655,8 @@ const llvm::fltSemantics &ASTContext::getFloatTypeSemantics(QualType T) const {
   switch (T->castAs<BuiltinType>()->getKind()) {
   default:
     llvm_unreachable("Not a floating point type!");
+  case BuiltinType::BFloat16:
+    return Target->getBFloat16Format();
   case BuiltinType::Float16:
   case BuiltinType::Half:
     return Target->getHalfFormat();
@@ -2043,6 +2051,10 @@ TypeInfo ASTContext::getTypeInfoImpl(const Type *T) const {
       Width = Target->getLongFractWidth();
       Align = Target->getLongFractAlign();
       break;
+    case BuiltinType::BFloat16:
+      Width = Target->getBFloat16Width();
+      Align = Target->getBFloat16Align();
+      break;
     case BuiltinType::Float16:
     case BuiltinType::Half:
       if (Target->hasFloat16Type() || !getLangOpts().OpenMP ||
@@ -2065,7 +2077,9 @@ TypeInfo ASTContext::getTypeInfoImpl(const Type *T) const {
       Align = Target->getDoubleAlign();
       break;
     case BuiltinType::LongDouble:
-      if (getLangOpts().OpenMP && getLangOpts().OpenMPIsDevice &&
+      if (((getLangOpts().SYCL && getLangOpts().SYCLIsDevice) ||
+           (getLangOpts().OpenMP && getLangOpts().OpenMPIsDevice)) &&
+          AuxTarget != nullptr &&
           (Target->getLongDoubleWidth() != AuxTarget->getLongDoubleWidth() ||
            Target->getLongDoubleAlign() != AuxTarget->getLongDoubleAlign())) {
         Width = AuxTarget->getLongDoubleWidth();
@@ -2121,12 +2135,13 @@ TypeInfo ASTContext::getTypeInfoImpl(const Type *T) const {
     // Because the length is only known at runtime, we use a dummy value
     // of 0 for the static length.  The alignment values are those defined
     // by the Procedure Call Standard for the Arm Architecture.
-#define SVE_VECTOR_TYPE(Name, Id, SingletonId, NumEls, ElBits, IsSigned, IsFP) \
+#define SVE_VECTOR_TYPE(Name, MangledName, Id, SingletonId, NumEls, ElBits,    \
+                        IsSigned, IsFP)                                        \
   case BuiltinType::Id:                                                        \
     Width = 0;                                                                 \
     Align = 128;                                                               \
     break;
-#define SVE_PREDICATE_TYPE(Name, Id, SingletonId, NumEls)                      \
+#define SVE_PREDICATE_TYPE(Name, MangledName, Id, SingletonId, NumEls)         \
   case BuiltinType::Id:                                                        \
     Width = 0;                                                                 \
     Align = 16;                                                                \
@@ -3630,14 +3645,15 @@ QualType ASTContext::getScalableVectorType(QualType EltTy,
                                            unsigned NumElts) const {
   if (Target->hasAArch64SVETypes()) {
     uint64_t EltTySize = getTypeSize(EltTy);
-#define SVE_VECTOR_TYPE(Name, Id, SingletonId, NumEls, ElBits, IsSigned, IsFP) \
+#define SVE_VECTOR_TYPE(Name, MangledName, Id, SingletonId, NumEls, ElBits,    \
+                        IsSigned, IsFP)                                        \
   if (!EltTy->isBooleanType() &&                                               \
       ((EltTy->hasIntegerRepresentation() &&                                   \
         EltTy->hasSignedIntegerRepresentation() == IsSigned) ||                \
        (EltTy->hasFloatingRepresentation() && IsFP)) &&                        \
       EltTySize == ElBits && NumElts == NumEls)                                \
     return SingletonId;
-#define SVE_PREDICATE_TYPE(Name, Id, SingletonId, NumEls)                      \
+#define SVE_PREDICATE_TYPE(Name, MangledName, Id, SingletonId, NumEls)         \
   if (EltTy->isBooleanType() && NumElts == NumEls)                             \
     return SingletonId;
 #include "clang/Basic/AArch64SVEACLETypes.def"
@@ -5982,6 +5998,7 @@ static FloatingRank getFloatingRank(QualType T) {
   case BuiltinType::Double:     return DoubleRank;
   case BuiltinType::LongDouble: return LongDoubleRank;
   case BuiltinType::Float128:   return Float128Rank;
+  case BuiltinType::BFloat16:   return BFloat16Rank;
   }
 }
 
@@ -5994,6 +6011,7 @@ QualType ASTContext::getFloatingTypeOfSizeWithinDomain(QualType Size,
   FloatingRank EltRank = getFloatingRank(Size);
   if (Domain->isComplexType()) {
     switch (EltRank) {
+    case BFloat16Rank: llvm_unreachable("Complex bfloat16 is not supported");
     case Float16Rank:
     case HalfRank: llvm_unreachable("Complex half is not supported");
     case FloatRank:      return FloatComplexTy;
@@ -6006,6 +6024,7 @@ QualType ASTContext::getFloatingTypeOfSizeWithinDomain(QualType Size,
   assert(Domain->isRealFloatingType() && "Unknown domain!");
   switch (EltRank) {
   case Float16Rank:    return HalfTy;
+  case BFloat16Rank:   return BFloat16Ty;
   case HalfRank:       return HalfTy;
   case FloatRank:      return FloatTy;
   case DoubleRank:     return DoubleTy;
@@ -6983,6 +7002,7 @@ static char getObjCEncodingForPrimitiveType(const ASTContext *C,
     case BuiltinType::LongDouble: return 'D';
     case BuiltinType::NullPtr:    return '*'; // like char*
 
+    case BuiltinType::BFloat16:
     case BuiltinType::Float16:
     case BuiltinType::Float128:
     case BuiltinType::Half:
@@ -9890,6 +9910,11 @@ static QualType DecodeTypeFromStr(const char *&Str, const ASTContext &Context,
   // Read the base type.
   switch (*Str++) {
   default: llvm_unreachable("Unknown builtin type letter!");
+  case 'y':
+    assert(HowLong == 0 && !Signed && !Unsigned &&
+           "Bad modifiers used with 'y'!");
+    Type = Context.BFloat16Ty;
+    break;
   case 'v':
     assert(HowLong == 0 && !Signed && !Unsigned &&
            "Bad modifiers used with 'v'!");
@@ -10599,10 +10624,15 @@ bool ASTContext::isNearlyEmpty(const CXXRecordDecl *RD) const {
 
 VTableContextBase *ASTContext::getVTableContext() {
   if (!VTContext.get()) {
-    if (Target->getCXXABI().isMicrosoft())
+    auto ABI = Target->getCXXABI();
+    if (ABI.isMicrosoft())
       VTContext.reset(new MicrosoftVTableContext(*this));
-    else
-      VTContext.reset(new ItaniumVTableContext(*this));
+    else {
+      auto ComponentLayout = getLangOpts().RelativeCXXABIVTables
+                                 ? ItaniumVTableContext::Relative
+                                 : ItaniumVTableContext::Pointer;
+      VTContext.reset(new ItaniumVTableContext(*this, ComponentLayout));
+    }
   }
   return VTContext.get();
 }
@@ -10662,8 +10692,10 @@ QualType ASTContext::getIntTypeForBitwidth(unsigned DestWidth,
 /// getRealTypeForBitwidth -
 /// sets floating point QualTy according to specified bitwidth.
 /// Returns empty type if there is no appropriate target types.
-QualType ASTContext::getRealTypeForBitwidth(unsigned DestWidth) const {
-  TargetInfo::RealType Ty = getTargetInfo().getRealTypeByWidth(DestWidth);
+QualType ASTContext::getRealTypeForBitwidth(unsigned DestWidth,
+                                            bool ExplicitIEEE) const {
+  TargetInfo::RealType Ty =
+      getTargetInfo().getRealTypeByWidth(DestWidth, ExplicitIEEE);
   switch (Ty) {
   case TargetInfo::Float:
     return FloatTy;

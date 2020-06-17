@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// RUN: mlir-edsc-builder-api-test | FileCheck %s -dump-input-on-failure
+// RUN: mlir-edsc-builder-api-test | FileCheck %s
 
 #include "mlir/Dialect/Affine/EDSC/Intrinsics.h"
 #include "mlir/Dialect/Linalg/EDSC/Builders.h"
@@ -139,10 +139,10 @@ TEST_FUNC(builder_loop_for) {
 
   OpBuilder builder(f.getBody());
   ScopedContext scope(builder, f.getLoc());
-  Value i, a(f.getArgument(0)), b(f.getArgument(1)), c(f.getArgument(2)),
+  Value a(f.getArgument(0)), b(f.getArgument(1)), c(f.getArgument(2)),
       d(f.getArgument(3));
   using namespace edsc::op;
-  LoopNestBuilder(&i, a - b, c + d, a)();
+  loopNestBuilder(a - b, c + d, a);
 
   // clang-format off
   // CHECK-LABEL: func @builder_loop_for(%{{.*}}: index, %{{.*}}: index, %{{.*}}: index, %{{.*}}: index) {
@@ -510,7 +510,7 @@ TEST_FUNC(operator_and) {
   // CHECK-LABEL: @operator_and
   //       CHECK: [[ARG0:%.*]]: i1, [[ARG1:%.*]]: i1
   //       CHECK: [[AND:%.*]] = and [[ARG0]], [[ARG1]]
-  //       CHECK: [[TRUE:%.*]] = constant 1 : i1
+  //       CHECK: [[TRUE:%.*]] = constant true
   //       CHECK: subi [[TRUE]], [[AND]] : i1
   f.print(llvm::outs());
   f.erase();
@@ -663,9 +663,9 @@ TEST_FUNC(tile_2d) {
   // clang-format off
   // CHECK-LABEL: func @tile_2d
   //       CHECK: %[[ZERO:.*]] = constant 0 : index
-  //       CHECK: %[[M:[0-9]+]] = dim %arg2, 0 : memref<?x?x?xf32>
-  //  CHECK-NEXT: %[[N:[0-9]+]] = dim %arg2, 1 : memref<?x?x?xf32>
-  //  CHECK-NEXT: %[[P:[0-9]+]] = dim %arg2, 2 : memref<?x?x?xf32>
+  //       CHECK: %[[M:[0-9]+]] = dim %arg2, %c0{{[_0-9]*}} : memref<?x?x?xf32>
+  //       CHECK: %[[N:[0-9]+]] = dim %arg2, %c1{{[_0-9]*}} : memref<?x?x?xf32>
+  //       CHECK: %[[P:[0-9]+]] = dim %arg2, %c2{{[_0-9]*}} : memref<?x?x?xf32>
   //       CHECK:   affine.for %{{.*}} = affine_map<(d0) -> (d0)>(%[[ZERO]]) to affine_map<(d0) -> (d0)>(%[[M]]) step 512 {
   //  CHECK-NEXT:     affine.for %{{.*}} = affine_map<(d0) -> (d0)>(%[[ZERO]]) to affine_map<(d0) -> (d0)>(%[[N]]) step 1024 {
   //  CHECK-NEXT:       affine.for %{{.*}} = affine_map<(d0) -> (d0)>(%[[ZERO]]) to affine_map<(d0) -> (d0)>(%[[P]]) {
@@ -941,6 +941,8 @@ TEST_FUNC(linalg_generic_dilated_conv_nhwc) {
 //       CHECK: linalg.reshape {{.*}} [affine_map<(d0, d1, d2) -> (d0, d1)>, affine_map<(d0, d1, d2) -> (d2)>] : memref<32x16xf32> into memref<4x8x16xf32>
 // clang-format on
 TEST_FUNC(linalg_metadata_ops) {
+  using linalg::ReassociationExprs;
+
   auto f32Type = FloatType::getF32(&globalContext());
   auto memrefType = MemRefType::get({4, 8, 16}, f32Type, {}, 0);
   auto f = makeFunction("linalg_metadata_ops", {}, {memrefType});
@@ -950,9 +952,10 @@ TEST_FUNC(linalg_metadata_ops) {
   AffineExpr i, j, k;
   bindDims(&globalContext(), i, j, k);
   Value v(f.getArgument(0));
-  auto reshaped = linalg_reshape(v, ArrayRef<ArrayRef<AffineExpr>>{{i, j}, k});
-  linalg_reshape(memrefType, reshaped,
-                 ArrayRef<ArrayRef<AffineExpr>>{{i, j}, k});
+  SmallVector<ReassociationExprs, 2> maps = {ReassociationExprs({i, j}),
+                                             ReassociationExprs({k})};
+  auto reshaped = linalg_reshape(v, maps);
+  linalg_reshape(memrefType, reshaped, maps);
 
   f.print(llvm::outs());
   f.erase();
@@ -1076,16 +1079,14 @@ TEST_FUNC(builder_loop_for_yield) {
   ScopedContext scope(builder, f.getLoc());
   Value init0 = std_constant_float(llvm::APFloat(1.0f), f32Type);
   Value init1 = std_constant_float(llvm::APFloat(2.0f), f32Type);
-  Value i, a(f.getArgument(0)), b(f.getArgument(1)), c(f.getArgument(2)),
+  Value a(f.getArgument(0)), b(f.getArgument(1)), c(f.getArgument(2)),
       d(f.getArgument(3));
-  Value args01[2];
-  Value &arg0 = args01[0], &arg1 = args01[1];
   using namespace edsc::op;
-  auto results =
-      LoopNestBuilder(&i, a - b, c + d, a, args01, {init0, init1})([&] {
-        auto sum = arg0 + arg1;
-        loop_yield(ArrayRef<Value>{arg1, sum});
-      });
+  auto results = loopNestBuilder(a - b, c + d, a, {init0, init1},
+                                 [&](Value iv, ValueRange args) {
+                                   Value sum = args[0] + args[1];
+                                   return scf::ValueVector{args[1], sum};
+                                 });
   results[0] + results[1];
 
   // clang-format off

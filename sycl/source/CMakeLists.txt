@@ -94,6 +94,7 @@ endfunction(add_sycl_rt_library)
 
 set(SYCL_SOURCES
     "${sycl_inc_dir}/CL/sycl.hpp"
+    "backend/opencl.cpp"
     "detail/accessor_impl.cpp"
     "detail/buffer_impl.cpp"
     "detail/builtins_common.cpp"
@@ -101,7 +102,6 @@ set(SYCL_SOURCES
     "detail/builtins_integer.cpp"
     "detail/builtins_math.cpp"
     "detail/builtins_relational.cpp"
-    "detail/cg.cpp"
     "detail/pi.cpp"
     "detail/common.cpp"
     "detail/config.cpp"
@@ -112,6 +112,7 @@ set(SYCL_SOURCES
     "detail/event_impl.cpp"
     "detail/force_device.cpp"
     "detail/helpers.cpp"
+    "detail/handler_proxy.cpp"
     "detail/image_accessor_util.cpp"
     "detail/image_impl.cpp"
     "detail/kernel_impl.cpp"
@@ -143,6 +144,8 @@ set(SYCL_SOURCES
     "function_pointer.cpp"
     "half_type.cpp"
     "handler.cpp"
+    "interop_handle.cpp"
+    "interop_handler.cpp"
     "kernel.cpp"
     "platform.cpp"
     "program.cpp"

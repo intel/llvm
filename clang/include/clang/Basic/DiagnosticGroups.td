@@ -60,6 +60,7 @@ def UndefinedBoolConversion : DiagGroup<"undefined-bool-conversion">;
 def BoolConversion : DiagGroup<"bool-conversion", [PointerBoolConversion,
                                                    UndefinedBoolConversion]>;
 def IntConversion : DiagGroup<"int-conversion">;
+def ClassConversion: DiagGroup<"class-conversion">;
 def DeprecatedEnumCompareConditional :
   DiagGroup<"deprecated-enum-compare-conditional">;
 def EnumCompareConditional : DiagGroup<"enum-compare-conditional",
@@ -624,8 +625,10 @@ def Unicode  : DiagGroup<"unicode">;
 def UninitializedMaybe : DiagGroup<"conditional-uninitialized">;
 def UninitializedSometimes : DiagGroup<"sometimes-uninitialized">;
 def UninitializedStaticSelfInit : DiagGroup<"static-self-init">;
+def UninitializedConstReference : DiagGroup<"uninitialized-const-reference">;
 def Uninitialized  : DiagGroup<"uninitialized", [UninitializedSometimes,
-                                                 UninitializedStaticSelfInit]>;
+                                                 UninitializedStaticSelfInit,
+                                                 UninitializedConstReference]>;
 def IgnoredPragmaIntrinsic : DiagGroup<"ignored-pragma-intrinsic">;
 // #pragma optimize is often used to avoid to work around MSVC codegen bugs or
 // to disable inlining. It's not completely clear what alternative to suggest
@@ -1210,5 +1213,10 @@ the token limit, which can be set in three ways:
 These limits can be helpful in limiting code growth through included files.
 
 Setting a token limit of zero means no limit.
+
+Note that the warning is disabled by default, so -Wmax-tokens must be used
+in addition with the pragmas or -fmax-tokens flag to get any warnings.
 }];
 }
+
+def WebAssemblyExceptionSpec : DiagGroup<"wasm-exception-spec">;

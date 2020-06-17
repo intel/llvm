@@ -668,14 +668,18 @@ InlinerPass::~InlinerPass() {
 
 InlineAdvisor &
 InlinerPass::getAdvisor(const ModuleAnalysisManagerCGSCCProxy::Result &MAM,
-                        Module &M) {
+                        FunctionAnalysisManager &FAM, Module &M) {
   auto *IAA = MAM.getCachedResult<InlineAdvisorAnalysis>(M);
   if (!IAA) {
     // It should still be possible to run the inliner as a stand-alone SCC pass,
     // for test scenarios. In that case, we default to the
     // DefaultInlineAdvisor, which doesn't need to keep state between SCC pass
     // runs. It also uses just the default InlineParams.
-    OwnedDefaultAdvisor.emplace(getInlineParams());
+    // In this case, we need to use the provided FAM, which is valid for the
+    // duration of the inliner pass, and thus the lifetime of the owned advisor.
+    // The one we would get from the MAM can be invalidated as a result of the
+    // inliner's activity.
+    OwnedDefaultAdvisor.emplace(FAM, getInlineParams());
     return *OwnedDefaultAdvisor;
   }
   assert(IAA->getAdvisor() &&
@@ -695,10 +699,14 @@ PreservedAnalyses InlinerPass::run(LazyCallGraph::SCC &InitialC,
   Module &M = *InitialC.begin()->getFunction().getParent();
   ProfileSummaryInfo *PSI = MAMProxy.getCachedResult<ProfileSummaryAnalysis>(M);
 
-  InlineAdvisor &Advisor = getAdvisor(MAMProxy, M);
-  Advisor.OnPassEntry();
+  FunctionAnalysisManager &FAM =
+      AM.getResult<FunctionAnalysisManagerCGSCCProxy>(InitialC, CG)
+          .getManager();
 
-  auto AdvisorOnExit = make_scope_exit([&] { Advisor.OnPassExit(); });
+  InlineAdvisor &Advisor = getAdvisor(MAMProxy, FAM, M);
+  Advisor.onPassEntry();
+
+  auto AdvisorOnExit = make_scope_exit([&] { Advisor.onPassExit(); });
 
   if (!ImportedFunctionsStats &&
       InlinerFunctionImportStats != InlinerFunctionImportStatsOpts::No) {
@@ -732,10 +740,6 @@ PreservedAnalyses InlinerPass::run(LazyCallGraph::SCC &InitialC,
   // and eventually they all become too large to inline, rather than
   // incrementally maknig a single function grow in a super linear fashion.
   SmallVector<std::pair<CallBase *, int>, 16> Calls;
-
-  FunctionAnalysisManager &FAM =
-      AM.getResult<FunctionAnalysisManagerCGSCCProxy>(InitialC, CG)
-          .getManager();
 
   // Populate the initial list of calls in this SCC.
   for (auto &N : InitialC) {
@@ -808,7 +812,7 @@ PreservedAnalyses InlinerPass::run(LazyCallGraph::SCC &InitialC,
       return FAM.getResult<AssumptionAnalysis>(F);
     };
 
-    // Now process as many calls as we have within this caller in the sequnece.
+    // Now process as many calls as we have within this caller in the sequence.
     // We bail out as soon as the caller has to change so we can update the
     // call graph and prepare the context of that new caller.
     bool DidInline = false;
@@ -838,7 +842,7 @@ PreservedAnalyses InlinerPass::run(LazyCallGraph::SCC &InitialC,
         continue;
       }
 
-      auto Advice = Advisor.getAdvice(*CB, FAM);
+      auto Advice = Advisor.getAdvice(*CB);
       // Check whether we want to inline this callsite.
       if (!Advice->isInliningRecommended()) {
         Advice->recordUnattemptedInlining();

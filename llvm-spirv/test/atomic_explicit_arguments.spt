@@ -67,7 +67,8 @@
 
 ; CHECK: define private spir_func i32 @__translate_spirv_memory_order(i32 %key) {
 ; CHECK: entry:
-; CHECK:   switch i32 %key, label %default [
+; CHECK:   %key.masked = and i32 30, %key
+; CHECK:   switch i32 %key.masked, label %default [
 ; CHECK:     i32 0, label %case.0
 ; CHECK:     i32 2, label %case.2
 ; CHECK:     i32 4, label %case.4

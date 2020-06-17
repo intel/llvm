@@ -58,6 +58,15 @@ using byte = unsigned char;
 
 using image_allocator = detail::aligned_allocator<byte>;
 
+/// Defines a shared image data.
+///
+/// Images can be 1-, 2-, and 3-dimensional. They have to be accessed using the
+/// accessor class.
+///
+/// \sa sycl_api_acc
+/// \sa sampler
+///
+/// \ingroup sycl_api
 template <int Dimensions = 1, typename AllocatorT = cl::sycl::image_allocator>
 class image {
 public:

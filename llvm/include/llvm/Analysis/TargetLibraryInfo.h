@@ -12,7 +12,6 @@
 #include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/Optional.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Module.h"
@@ -21,6 +20,7 @@
 
 namespace llvm {
 template <typename T> class ArrayRef;
+class Triple;
 
 /// Describes a possible vectorization of a function.
 /// Function 'VectorFnName' is equivalent to 'ScalarFnName' vectorized
@@ -350,6 +350,7 @@ public:
     case LibFunc_trunc:        case LibFunc_truncf:     case LibFunc_truncl:
     case LibFunc_log2:         case LibFunc_log2f:      case LibFunc_log2l:
     case LibFunc_exp2:         case LibFunc_exp2f:      case LibFunc_exp2l:
+    case LibFunc_memcpy:       case LibFunc_memset:     case LibFunc_memmove:
     case LibFunc_memcmp:       case LibFunc_bcmp:       case LibFunc_strcmp:
     case LibFunc_strcpy:       case LibFunc_stpcpy:     case LibFunc_strlen:
     case LibFunc_strnlen:      case LibFunc_memchr:     case LibFunc_mempcpy:

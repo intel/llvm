@@ -1009,7 +1009,7 @@ tokenizeWindowsCommandLineImpl(StringRef Src, StringSaver &Saver,
     }
   }
 
-  if (!Token.empty())
+  if (State == UNQUOTED)
     AddToken(Saver.save(Token.str()));
 }
 
@@ -1778,9 +1778,10 @@ void basic_parser_impl::printOptionInfo(const Option &O,
   if (!ValName.empty()) {
     if (O.getMiscFlags() & PositionalEatsArgs) {
       outs() << " <" << getValueStr(O, ValName) << ">...";
-    } else {
+    } else if (O.getValueExpectedFlag() == ValueOptional)
+      outs() << "[=<" << getValueStr(O, ValName) << ">]";
+    else
       outs() << "=<" << getValueStr(O, ValName) << '>';
-    }
   }
 
   Option::printHelpStr(O.HelpStr, GlobalWidth, getOptionWidth(O));

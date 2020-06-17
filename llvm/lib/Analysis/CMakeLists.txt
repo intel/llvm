@@ -1,3 +1,5 @@
+add_subdirectory(ML)
+
 add_llvm_component_library(LLVMAnalysis
   AliasAnalysis.cpp
   AliasAnalysisEvaluator.cpp
@@ -85,7 +87,6 @@ add_llvm_component_library(LLVMAnalysis
   RegionPrinter.cpp
   ScalarEvolution.cpp
   ScalarEvolutionAliasAnalysis.cpp
-  ScalarEvolutionExpander.cpp
   ScalarEvolutionNormalization.cpp
   StackSafetyAnalysis.cpp
   SyncDependenceAnalysis.cpp

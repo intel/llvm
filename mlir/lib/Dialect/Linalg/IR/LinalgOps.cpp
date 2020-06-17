@@ -265,7 +265,7 @@ static LogicalResult verify(IndexedGenericOp op) { return verifyGenericOp(op); }
 static ArrayAttr collapseReassociationMaps(ArrayRef<AffineMap> mapsProducer,
                                            ArrayRef<AffineMap> mapsConsumer,
                                            MLIRContext *context) {
-  if (mapsProducer.size() == 0 || mapsConsumer.size() == 0 ||
+  if (mapsProducer.empty() || mapsConsumer.empty() ||
       mapsProducer[0].getNumDims() < mapsConsumer[0].getNumDims() ||
       mapsProducer.size() != mapsConsumer[0].getNumDims())
     return nullptr;
@@ -277,7 +277,7 @@ static ArrayAttr collapseReassociationMaps(ArrayRef<AffineMap> mapsProducer,
     for (AffineExpr rhsExpr : rhs.getResults()) {
       AffineDimExpr dimExpr = rhsExpr.cast<AffineDimExpr>();
       for (int i = 0, e = mapsProducer[dimExpr.getPosition()].getNumResults();
-           i != e; ++i) {
+           i < e; ++i) {
         reassociations.push_back(getAffineDimExpr(currDim++, context));
       }
     }
@@ -345,7 +345,7 @@ static OpFoldResult foldReshapeOp(ReshapeOpTy reshapeOp) {
       reshapeSrcOp.getSrcType() == reshapeOp.getResultType())
     return reshapeSrcOp.src();
   return nullptr;
-};
+}
 
 /// Return true if the reassociation specification is valid, false otherwise.
 /// When false, the `invalidIndex` integer pointer is optionally filled with the
@@ -476,9 +476,9 @@ static SmallVector<AffineMap, 4> getAffineMaps(ArrayAttr attrs) {
 }
 
 template <typename AffineExprTy>
-unsigned getMaxPosOfType(ArrayRef<ArrayRef<AffineExpr>> exprArrays) {
+unsigned getMaxPosOfType(ArrayRef<ReassociationExprs> exprArrays) {
   unsigned pos = 0;
-  for (auto exprs : exprArrays) {
+  for (const auto &exprs : exprArrays) {
     for (auto expr : exprs) {
       expr.walk([&pos](AffineExpr e) {
         if (auto d = e.dyn_cast<AffineExprTy>())
@@ -490,23 +490,37 @@ unsigned getMaxPosOfType(ArrayRef<ArrayRef<AffineExpr>> exprArrays) {
 }
 
 static SmallVector<AffineMap, 4>
-getSymbolLessAffineMaps(ArrayRef<ArrayRef<AffineExpr>> reassociation) {
+getSymbolLessAffineMaps(ArrayRef<ReassociationExprs> reassociation) {
   unsigned maxDim = getMaxPosOfType<AffineDimExpr>(reassociation);
   assert(getMaxPosOfType<AffineSymbolExpr>(reassociation) == 0 &&
          "Expected symbol-less expressions");
   SmallVector<AffineMap, 4> maps;
   maps.reserve(reassociation.size());
-  for (auto exprs : reassociation) {
-    assert(exprs.size() != 0);
+  for (const auto &exprs : reassociation) {
+    assert(!exprs.empty());
     maps.push_back(AffineMap::get(maxDim + 1, 0, exprs, exprs[0].getContext()));
   }
   return maps;
 }
 
-void mlir::linalg::ReshapeOp::build(
-    OpBuilder &b, OperationState &result, Value src,
-    ArrayRef<ArrayRef<AffineExpr>> reassociation,
-    ArrayRef<NamedAttribute> attrs) {
+static SmallVector<SmallVector<AffineExpr, 2>, 2>
+convertReassociationIndicesToMaps(
+    OpBuilder &b, ArrayRef<ReassociationIndices> reassociationIndices) {
+  SmallVector<SmallVector<AffineExpr, 2>, 2> reassociationMaps;
+  for (const auto &indicies : reassociationIndices) {
+    SmallVector<AffineExpr, 2> reassociationMap;
+    reassociationMap.reserve(indicies.size());
+    for (int64_t index : indicies)
+      reassociationMap.push_back(b.getAffineDimExpr(index));
+    reassociationMaps.push_back(std::move(reassociationMap));
+  }
+  return reassociationMaps;
+}
+
+void mlir::linalg::ReshapeOp::build(OpBuilder &b, OperationState &result,
+                                    Value src,
+                                    ArrayRef<ReassociationExprs> reassociation,
+                                    ArrayRef<NamedAttribute> attrs) {
   auto maps = getSymbolLessAffineMaps(reassociation);
   auto memRefType = src.getType().cast<MemRefType>();
   auto resultType = computeReshapeCollapsedType(memRefType, maps);
@@ -515,10 +529,10 @@ void mlir::linalg::ReshapeOp::build(
                       b.getAffineMapArrayAttr(maps));
 }
 
-void mlir::linalg::ReshapeOp::build(
-    OpBuilder &b, OperationState &result, Type resultType, Value src,
-    ArrayRef<ArrayRef<AffineExpr>> reassociation,
-    ArrayRef<NamedAttribute> attrs) {
+void mlir::linalg::ReshapeOp::build(OpBuilder &b, OperationState &result,
+                                    Type resultType, Value src,
+                                    ArrayRef<ReassociationExprs> reassociation,
+                                    ArrayRef<NamedAttribute> attrs) {
   auto maps = getSymbolLessAffineMaps(reassociation);
   build(b, result, resultType, src, attrs);
   result.addAttribute(ReshapeOp::getReassociationAttrName(),
@@ -622,7 +636,7 @@ computeTensorReshapeCollapsedType(RankedTensorType type,
 
 void mlir::linalg::TensorReshapeOp::build(
     OpBuilder &b, OperationState &result, Value src,
-    ArrayRef<ArrayRef<AffineExpr>> reassociation,
+    ArrayRef<ReassociationExprs> reassociation,
     ArrayRef<NamedAttribute> attrs) {
   auto maps = getSymbolLessAffineMaps(reassociation);
   auto resultType = computeTensorReshapeCollapsedType(
@@ -634,7 +648,7 @@ void mlir::linalg::TensorReshapeOp::build(
 
 void mlir::linalg::TensorReshapeOp::build(
     OpBuilder &b, OperationState &result, Type resultType, Value src,
-    ArrayRef<ArrayRef<AffineExpr>> reassociation,
+    ArrayRef<ReassociationExprs> reassociation,
     ArrayRef<NamedAttribute> attrs) {
   auto maps = getSymbolLessAffineMaps(reassociation);
   build(b, result, resultType, src, attrs);
@@ -1129,8 +1143,6 @@ OpFoldResult SliceOp::fold(ArrayRef<Attribute>) {
   return {};
 }
 OpFoldResult TensorReshapeOp::fold(ArrayRef<Attribute>) {
-  if (succeeded(foldMemRefCast(*this)))
-    return getResult();
   return foldReshapeOp(*this);
 }
 OpFoldResult TransposeOp::fold(ArrayRef<Attribute>) {

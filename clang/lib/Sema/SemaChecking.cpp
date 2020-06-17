@@ -1380,9 +1380,9 @@ CheckBuiltinTargetSupport(Sema &S, unsigned BuiltinID, CallExpr *TheCall,
 static void CheckNonNullArgument(Sema &S, const Expr *ArgExpr,
                                  SourceLocation CallSiteLoc);
 
-bool Sema::CheckTSBuiltinFunctionCall(llvm::Triple::ArchType Arch,
-                                      unsigned BuiltinID, CallExpr *TheCall) {
-  switch (Arch) {
+bool Sema::CheckTSBuiltinFunctionCall(const TargetInfo &TI, unsigned BuiltinID,
+                                      CallExpr *TheCall) {
+  switch (TI.getTriple().getArch()) {
   default:
     // Some builtins don't require additional checking, so just consider these
     // acceptable.
@@ -1391,11 +1391,11 @@ bool Sema::CheckTSBuiltinFunctionCall(llvm::Triple::ArchType Arch,
   case llvm::Triple::armeb:
   case llvm::Triple::thumb:
   case llvm::Triple::thumbeb:
-    return CheckARMBuiltinFunctionCall(BuiltinID, TheCall);
+    return CheckARMBuiltinFunctionCall(TI, BuiltinID, TheCall);
   case llvm::Triple::aarch64:
   case llvm::Triple::aarch64_32:
   case llvm::Triple::aarch64_be:
-    return CheckAArch64BuiltinFunctionCall(BuiltinID, TheCall);
+    return CheckAArch64BuiltinFunctionCall(TI, BuiltinID, TheCall);
   case llvm::Triple::bpfeb:
   case llvm::Triple::bpfel:
     return CheckBPFBuiltinFunctionCall(BuiltinID, TheCall);
@@ -1405,16 +1405,16 @@ bool Sema::CheckTSBuiltinFunctionCall(llvm::Triple::ArchType Arch,
   case llvm::Triple::mipsel:
   case llvm::Triple::mips64:
   case llvm::Triple::mips64el:
-    return CheckMipsBuiltinFunctionCall(BuiltinID, TheCall);
+    return CheckMipsBuiltinFunctionCall(TI, BuiltinID, TheCall);
   case llvm::Triple::systemz:
     return CheckSystemZBuiltinFunctionCall(BuiltinID, TheCall);
   case llvm::Triple::x86:
   case llvm::Triple::x86_64:
-    return CheckX86BuiltinFunctionCall(BuiltinID, TheCall);
+    return CheckX86BuiltinFunctionCall(TI, BuiltinID, TheCall);
   case llvm::Triple::ppc:
   case llvm::Triple::ppc64:
   case llvm::Triple::ppc64le:
-    return CheckPPCBuiltinFunctionCall(BuiltinID, TheCall);
+    return CheckPPCBuiltinFunctionCall(TI, BuiltinID, TheCall);
   case llvm::Triple::amdgcn:
     return CheckAMDGCNBuiltinFunctionCall(BuiltinID, TheCall);
   }
@@ -1916,7 +1916,7 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
       return ExprError();
     break;
   case Builtin::BI__builtin_frame_address:
-  case Builtin::BI__builtin_return_address:
+  case Builtin::BI__builtin_return_address: {
     if (SemaBuiltinConstantArgRange(TheCall, 0, 0, 0xFFFF))
       return ExprError();
 
@@ -1933,6 +1933,10 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
     break;
   }
 
+  case Builtin::BI__builtin_matrix_transpose:
+    return SemaBuiltinMatrixTranspose(TheCall, TheCallResult);
+  }
+
   // Since the target specific builtins for each arch overlap, only check those
   // of the arch we are compiling for.
   if (Context.BuiltinInfo.isTSBuiltin(BuiltinID)) {
@@ -1941,7 +1945,7 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
              "Aux Target Builtin, but not an aux target?");
 
       if (CheckTSBuiltinFunctionCall(
-              Context.getAuxTargetInfo()->getTriple().getArch(),
+              *Context.getAuxTargetInfo(),
               Context.BuiltinInfo.getAuxBuiltinID(BuiltinID), TheCall))
         return ExprError();
 
@@ -1950,9 +1954,8 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
         SYCLDiagIfDeviceCode(TheCall->getBeginLoc(),
                              diag::err_builtin_target_unsupported);
     } else {
-      if (CheckTSBuiltinFunctionCall(
-              Context.getTargetInfo().getTriple().getArch(), BuiltinID,
-              TheCall))
+      if (CheckTSBuiltinFunctionCall(Context.getTargetInfo(), BuiltinID,
+                                     TheCall))
         return ExprError();
     }
   }
@@ -1987,6 +1990,9 @@ static unsigned RFT(unsigned t, bool shift = false, bool ForceQuad = false) {
   case NeonTypeFlags::Float64:
     assert(!shift && "cannot shift float types!");
     return (1 << IsQuad) - 1;
+  case NeonTypeFlags::BFloat16:
+    assert(!shift && "cannot shift float types!");
+    return (4 << IsQuad) - 1;
   }
   llvm_unreachable("Invalid NeonTypeFlag!");
 }
@@ -2026,6 +2032,8 @@ static QualType getNeonEltType(NeonTypeFlags Flags, ASTContext &Context,
     return Context.FloatTy;
   case NeonTypeFlags::Float64:
     return Context.DoubleTy;
+  case NeonTypeFlags::BFloat16:
+    return Context.BFloat16Ty;
   }
   llvm_unreachable("Invalid NeonTypeFlag!");
 }
@@ -2139,7 +2147,8 @@ bool Sema::CheckSVEBuiltinFunctionCall(unsigned BuiltinID, CallExpr *TheCall) {
   return HasError;
 }
 
-bool Sema::CheckNeonBuiltinFunctionCall(unsigned BuiltinID, CallExpr *TheCall) {
+bool Sema::CheckNeonBuiltinFunctionCall(const TargetInfo &TI,
+                                        unsigned BuiltinID, CallExpr *TheCall) {
   llvm::APSInt Result;
   uint64_t mask = 0;
   unsigned TV = 0;
@@ -2173,12 +2182,11 @@ bool Sema::CheckNeonBuiltinFunctionCall(unsigned BuiltinID, CallExpr *TheCall) {
     ExprResult RHS = DefaultFunctionArrayLvalueConversion(Arg);
     QualType RHSTy = RHS.get()->getType();
 
-    llvm::Triple::ArchType Arch = Context.getTargetInfo().getTriple().getArch();
+    llvm::Triple::ArchType Arch = TI.getTriple().getArch();
     bool IsPolyUnsigned = Arch == llvm::Triple::aarch64 ||
                           Arch == llvm::Triple::aarch64_32 ||
                           Arch == llvm::Triple::aarch64_be;
-    bool IsInt64Long =
-        Context.getTargetInfo().getInt64Type() == TargetInfo::SignedLong;
+    bool IsInt64Long = TI.getInt64Type() == TargetInfo::SignedLong;
     QualType EltTy =
         getNeonEltType(NeonTypeFlags(TV), Context, IsPolyUnsigned, IsInt64Long);
     if (HasConstPtr)
@@ -2216,7 +2224,8 @@ bool Sema::CheckMVEBuiltinFunctionCall(unsigned BuiltinID, CallExpr *TheCall) {
   }
 }
 
-bool Sema::CheckCDEBuiltinFunctionCall(unsigned BuiltinID, CallExpr *TheCall) {
+bool Sema::CheckCDEBuiltinFunctionCall(const TargetInfo &TI, unsigned BuiltinID,
+                                       CallExpr *TheCall) {
   bool Err = false;
   switch (BuiltinID) {
   default:
@@ -2227,10 +2236,11 @@ bool Sema::CheckCDEBuiltinFunctionCall(unsigned BuiltinID, CallExpr *TheCall) {
   if (Err)
     return true;
 
-  return CheckARMCoprocessorImmediate(TheCall->getArg(0), /*WantCDE*/ true);
+  return CheckARMCoprocessorImmediate(TI, TheCall->getArg(0), /*WantCDE*/ true);
 }
 
-bool Sema::CheckARMCoprocessorImmediate(const Expr *CoprocArg, bool WantCDE) {
+bool Sema::CheckARMCoprocessorImmediate(const TargetInfo &TI,
+                                        const Expr *CoprocArg, bool WantCDE) {
   if (isConstantEvaluated())
     return false;
 
@@ -2245,7 +2255,7 @@ bool Sema::CheckARMCoprocessorImmediate(const Expr *CoprocArg, bool WantCDE) {
   int64_t CoprocNo = CoprocNoAP.getExtValue();
   assert(CoprocNo >= 0 && "Coprocessor immediate must be non-negative");
 
-  uint32_t CDECoprocMask = Context.getTargetInfo().getARMCDECoprocMask();
+  uint32_t CDECoprocMask = TI.getARMCDECoprocMask();
   bool IsCDECoproc = CoprocNo <= 7 && (CDECoprocMask & (1 << CoprocNo));
 
   if (IsCDECoproc != WantCDE)
@@ -2370,7 +2380,8 @@ bool Sema::CheckARMBuiltinExclusiveCall(unsigned BuiltinID, CallExpr *TheCall,
   return false;
 }
 
-bool Sema::CheckARMBuiltinFunctionCall(unsigned BuiltinID, CallExpr *TheCall) {
+bool Sema::CheckARMBuiltinFunctionCall(const TargetInfo &TI, unsigned BuiltinID,
+                                       CallExpr *TheCall) {
   if (BuiltinID == ARM::BI__builtin_arm_ldrex ||
       BuiltinID == ARM::BI__builtin_arm_ldaex ||
       BuiltinID == ARM::BI__builtin_arm_strex ||
@@ -2393,11 +2404,11 @@ bool Sema::CheckARMBuiltinFunctionCall(unsigned BuiltinID, CallExpr *TheCall) {
       BuiltinID == ARM::BI__builtin_arm_wsrp)
     return SemaBuiltinARMSpecialReg(BuiltinID, TheCall, 0, 5, true);
 
-  if (CheckNeonBuiltinFunctionCall(BuiltinID, TheCall))
+  if (CheckNeonBuiltinFunctionCall(TI, BuiltinID, TheCall))
     return true;
   if (CheckMVEBuiltinFunctionCall(BuiltinID, TheCall))
     return true;
-  if (CheckCDEBuiltinFunctionCall(BuiltinID, TheCall))
+  if (CheckCDEBuiltinFunctionCall(TI, BuiltinID, TheCall))
     return true;
 
   // For intrinsics which take an immediate value as part of the instruction,
@@ -2440,12 +2451,14 @@ bool Sema::CheckARMBuiltinFunctionCall(unsigned BuiltinID, CallExpr *TheCall) {
   case ARM::BI__builtin_arm_stc2:
   case ARM::BI__builtin_arm_stc2l:
     return SemaBuiltinConstantArgRange(TheCall, 0, 0, 15) ||
-           CheckARMCoprocessorImmediate(TheCall->getArg(0), /*WantCDE*/ false);
+           CheckARMCoprocessorImmediate(TI, TheCall->getArg(0),
+                                        /*WantCDE*/ false);
   }
 }
 
-bool Sema::CheckAArch64BuiltinFunctionCall(unsigned BuiltinID,
-                                         CallExpr *TheCall) {
+bool Sema::CheckAArch64BuiltinFunctionCall(const TargetInfo &TI,
+                                           unsigned BuiltinID,
+                                           CallExpr *TheCall) {
   if (BuiltinID == AArch64::BI__builtin_arm_ldrex ||
       BuiltinID == AArch64::BI__builtin_arm_ldaex ||
       BuiltinID == AArch64::BI__builtin_arm_strex ||
@@ -2490,7 +2503,7 @@ bool Sema::CheckAArch64BuiltinFunctionCall(unsigned BuiltinID,
   if (BuiltinID == AArch64::BI__getReg)
     return SemaBuiltinConstantArgRange(TheCall, 0, 0, 31);
 
-  if (CheckNeonBuiltinFunctionCall(BuiltinID, TheCall))
+  if (CheckNeonBuiltinFunctionCall(TI, BuiltinID, TheCall))
     return true;
 
   if (CheckSVEBuiltinFunctionCall(BuiltinID, TheCall))
@@ -2801,13 +2814,14 @@ bool Sema::CheckHexagonBuiltinFunctionCall(unsigned BuiltinID,
   return CheckHexagonBuiltinArgument(BuiltinID, TheCall);
 }
 
-bool Sema::CheckMipsBuiltinFunctionCall(unsigned BuiltinID, CallExpr *TheCall) {
-  return CheckMipsBuiltinCpu(BuiltinID, TheCall) ||
+bool Sema::CheckMipsBuiltinFunctionCall(const TargetInfo &TI,
+                                        unsigned BuiltinID, CallExpr *TheCall) {
+  return CheckMipsBuiltinCpu(TI, BuiltinID, TheCall) ||
          CheckMipsBuiltinArgument(BuiltinID, TheCall);
 }
 
-bool Sema::CheckMipsBuiltinCpu(unsigned BuiltinID, CallExpr *TheCall) {
-  const TargetInfo &TI = Context.getTargetInfo();
+bool Sema::CheckMipsBuiltinCpu(const TargetInfo &TI, unsigned BuiltinID,
+                               CallExpr *TheCall) {
 
   if (Mips::BI__builtin_mips_addu_qb <= BuiltinID &&
       BuiltinID <= Mips::BI__builtin_mips_lwx) {
@@ -3017,15 +3031,13 @@ bool Sema::CheckMipsBuiltinArgument(unsigned BuiltinID, CallExpr *TheCall) {
          SemaBuiltinConstantArgMultiple(TheCall, i, m);
 }
 
-bool Sema::CheckPPCBuiltinFunctionCall(unsigned BuiltinID, CallExpr *TheCall) {
+bool Sema::CheckPPCBuiltinFunctionCall(const TargetInfo &TI, unsigned BuiltinID,
+                                       CallExpr *TheCall) {
   unsigned i = 0, l = 0, u = 0;
   bool Is64BitBltin = BuiltinID == PPC::BI__builtin_divde ||
                       BuiltinID == PPC::BI__builtin_divdeu ||
                       BuiltinID == PPC::BI__builtin_bpermd;
-  bool IsTarget64Bit = Context.getTargetInfo()
-                              .getTypeWidth(Context
-                                            .getTargetInfo()
-                                            .getIntPtrType()) == 64;
+  bool IsTarget64Bit = TI.getTypeWidth(TI.getIntPtrType()) == 64;
   bool IsBltinExtDiv = BuiltinID == PPC::BI__builtin_divwe ||
                        BuiltinID == PPC::BI__builtin_divweu ||
                        BuiltinID == PPC::BI__builtin_divde ||
@@ -3035,14 +3047,13 @@ bool Sema::CheckPPCBuiltinFunctionCall(unsigned BuiltinID, CallExpr *TheCall) {
     return Diag(TheCall->getBeginLoc(), diag::err_64_bit_builtin_32_bit_tgt)
            << TheCall->getSourceRange();
 
-  if ((IsBltinExtDiv && !Context.getTargetInfo().hasFeature("extdiv")) ||
-      (BuiltinID == PPC::BI__builtin_bpermd &&
-       !Context.getTargetInfo().hasFeature("bpermd")))
+  if ((IsBltinExtDiv && !TI.hasFeature("extdiv")) ||
+      (BuiltinID == PPC::BI__builtin_bpermd && !TI.hasFeature("bpermd")))
     return Diag(TheCall->getBeginLoc(), diag::err_ppc_builtin_only_on_pwr7)
            << TheCall->getSourceRange();
 
   auto SemaVSXCheck = [&](CallExpr *TheCall) -> bool {
-    if (!Context.getTargetInfo().hasFeature("vsx"))
+    if (!TI.hasFeature("vsx"))
       return Diag(TheCall->getBeginLoc(), diag::err_ppc_builtin_only_on_pwr7)
              << TheCall->getSourceRange();
     return false;
@@ -3084,41 +3095,56 @@ bool Sema::CheckPPCBuiltinFunctionCall(unsigned BuiltinID, CallExpr *TheCall) {
 
 bool Sema::CheckAMDGCNBuiltinFunctionCall(unsigned BuiltinID,
                                           CallExpr *TheCall) {
+  // position of memory order and scope arguments in the builtin
+  unsigned OrderIndex, ScopeIndex;
   switch (BuiltinID) {
-  case AMDGPU::BI__builtin_amdgcn_fence: {
-    ExprResult Arg = TheCall->getArg(0);
-    auto ArgExpr = Arg.get();
-    Expr::EvalResult ArgResult;
-
-    if (!ArgExpr->EvaluateAsInt(ArgResult, Context))
-      return Diag(ArgExpr->getExprLoc(), diag::err_typecheck_expect_int)
-             << ArgExpr->getType();
-    int ord = ArgResult.Val.getInt().getZExtValue();
-
-    // Check valididty of memory ordering as per C11 / C++11's memody model.
-    switch (static_cast<llvm::AtomicOrderingCABI>(ord)) {
-    case llvm::AtomicOrderingCABI::acquire:
-    case llvm::AtomicOrderingCABI::release:
-    case llvm::AtomicOrderingCABI::acq_rel:
-    case llvm::AtomicOrderingCABI::seq_cst:
-      break;
-    default: {
-      return Diag(ArgExpr->getBeginLoc(),
-                  diag::warn_atomic_op_has_invalid_memory_order)
-             << ArgExpr->getSourceRange();
-    }
-    }
-
-    Arg = TheCall->getArg(1);
-    ArgExpr = Arg.get();
-    Expr::EvalResult ArgResult1;
-    // Check that sync scope is a constant literal
-    if (!ArgExpr->EvaluateAsConstantExpr(ArgResult1, Expr::EvaluateForCodeGen,
-                                         Context))
-      return Diag(ArgExpr->getExprLoc(), diag::err_expr_not_string_literal)
-             << ArgExpr->getType();
-  } break;
+  case AMDGPU::BI__builtin_amdgcn_atomic_inc32:
+  case AMDGPU::BI__builtin_amdgcn_atomic_inc64:
+  case AMDGPU::BI__builtin_amdgcn_atomic_dec32:
+  case AMDGPU::BI__builtin_amdgcn_atomic_dec64:
+    OrderIndex = 2;
+    ScopeIndex = 3;
+    break;
+  case AMDGPU::BI__builtin_amdgcn_fence:
+    OrderIndex = 0;
+    ScopeIndex = 1;
+    break;
+  default:
+    return false;
   }
+
+  ExprResult Arg = TheCall->getArg(OrderIndex);
+  auto ArgExpr = Arg.get();
+  Expr::EvalResult ArgResult;
+
+  if (!ArgExpr->EvaluateAsInt(ArgResult, Context))
+    return Diag(ArgExpr->getExprLoc(), diag::err_typecheck_expect_int)
+           << ArgExpr->getType();
+  int ord = ArgResult.Val.getInt().getZExtValue();
+
+  // Check valididty of memory ordering as per C11 / C++11's memody model.
+  switch (static_cast<llvm::AtomicOrderingCABI>(ord)) {
+  case llvm::AtomicOrderingCABI::acquire:
+  case llvm::AtomicOrderingCABI::release:
+  case llvm::AtomicOrderingCABI::acq_rel:
+  case llvm::AtomicOrderingCABI::seq_cst:
+    break;
+  default: {
+    return Diag(ArgExpr->getBeginLoc(),
+                diag::warn_atomic_op_has_invalid_memory_order)
+           << ArgExpr->getSourceRange();
+  }
+  }
+
+  Arg = TheCall->getArg(ScopeIndex);
+  ArgExpr = Arg.get();
+  Expr::EvalResult ArgResult1;
+  // Check that sync scope is a constant literal
+  if (!ArgExpr->EvaluateAsConstantExpr(ArgResult1, Expr::EvaluateForCodeGen,
+                                       Context))
+    return Diag(ArgExpr->getExprLoc(), diag::err_expr_not_string_literal)
+           << ArgExpr->getType();
+
   return false;
 }
 
@@ -3190,7 +3216,8 @@ bool Sema::CheckSystemZBuiltinFunctionCall(unsigned BuiltinID,
 /// SemaBuiltinCpuSupports - Handle __builtin_cpu_supports(char *).
 /// This checks that the target supports __builtin_cpu_supports and
 /// that the string argument is constant and valid.
-static bool SemaBuiltinCpuSupports(Sema &S, CallExpr *TheCall) {
+static bool SemaBuiltinCpuSupports(Sema &S, const TargetInfo &TI,
+                                   CallExpr *TheCall) {
   Expr *Arg = TheCall->getArg(0);
 
   // Check if the argument is a string literal.
@@ -3201,7 +3228,7 @@ static bool SemaBuiltinCpuSupports(Sema &S, CallExpr *TheCall) {
   // Check the contents of the string.
   StringRef Feature =
       cast<StringLiteral>(Arg->IgnoreParenImpCasts())->getString();
-  if (!S.Context.getTargetInfo().validateCpuSupports(Feature))
+  if (!TI.validateCpuSupports(Feature))
     return S.Diag(TheCall->getBeginLoc(), diag::err_invalid_cpu_supports)
            << Arg->getSourceRange();
   return false;
@@ -3210,7 +3237,7 @@ static bool SemaBuiltinCpuSupports(Sema &S, CallExpr *TheCall) {
 /// SemaBuiltinCpuIs - Handle __builtin_cpu_is(char *).
 /// This checks that the target supports __builtin_cpu_is and
 /// that the string argument is constant and valid.
-static bool SemaBuiltinCpuIs(Sema &S, CallExpr *TheCall) {
+static bool SemaBuiltinCpuIs(Sema &S, const TargetInfo &TI, CallExpr *TheCall) {
   Expr *Arg = TheCall->getArg(0);
 
   // Check if the argument is a string literal.
@@ -3221,7 +3248,7 @@ static bool SemaBuiltinCpuIs(Sema &S, CallExpr *TheCall) {
   // Check the contents of the string.
   StringRef Feature =
       cast<StringLiteral>(Arg->IgnoreParenImpCasts())->getString();
-  if (!S.Context.getTargetInfo().validateCpuIs(Feature))
+  if (!TI.validateCpuIs(Feature))
     return S.Diag(TheCall->getBeginLoc(), diag::err_invalid_cpu_is)
            << Arg->getSourceRange();
   return false;
@@ -3546,15 +3573,16 @@ static bool isX86_32Builtin(unsigned BuiltinID) {
   return false;
 }
 
-bool Sema::CheckX86BuiltinFunctionCall(unsigned BuiltinID, CallExpr *TheCall) {
+bool Sema::CheckX86BuiltinFunctionCall(const TargetInfo &TI, unsigned BuiltinID,
+                                       CallExpr *TheCall) {
   if (BuiltinID == X86::BI__builtin_cpu_supports)
-    return SemaBuiltinCpuSupports(*this, TheCall);
+    return SemaBuiltinCpuSupports(*this, TI, TheCall);
 
   if (BuiltinID == X86::BI__builtin_cpu_is)
-    return SemaBuiltinCpuIs(*this, TheCall);
+    return SemaBuiltinCpuIs(*this, TI, TheCall);
 
   // Check for 32-bit only builtins on a 64-bit target.
-  const llvm::Triple &TT = Context.getTargetInfo().getTriple();
+  const llvm::Triple &TT = TI.getTriple();
   if (TT.getArch() != llvm::Triple::x86 && isX86_32Builtin(BuiltinID))
     return Diag(TheCall->getCallee()->getBeginLoc(),
                 diag::err_32_bit_builtin_64_bit_tgt);
@@ -13060,6 +13088,11 @@ public:
   }
 
   void VisitCallExpr(const CallExpr *CE) {
+    // FIXME: CXXNewExpr and CXXDeleteExpr implicitly call functions.
+
+    if (CE->isUnevaluatedBuiltinCall(Context))
+      return;
+
     // C++11 [intro.execution]p15:
     //   When calling a function [...], every value computation and side effect
     //   associated with any argument expression, or with the postfix expression
@@ -13067,10 +13100,41 @@ public:
     //   expression or statement in the body of the function [and thus before
     //   the value computation of its result].
     SequencedSubexpression Sequenced(*this);
-    SemaRef.runWithSufficientStackSpace(CE->getExprLoc(),
-                                        [&] { Base::VisitCallExpr(CE); });
+    SemaRef.runWithSufficientStackSpace(CE->getExprLoc(), [&] {
+      // C++17 [expr.call]p5
+      //   The postfix-expression is sequenced before each expression in the
+      //   expression-list and any default argument. [...]
+      SequenceTree::Seq CalleeRegion;
+      SequenceTree::Seq OtherRegion;
+      if (SemaRef.getLangOpts().CPlusPlus17) {
+        CalleeRegion = Tree.allocate(Region);
+        OtherRegion = Tree.allocate(Region);
+      } else {
+        CalleeRegion = Region;
+        OtherRegion = Region;
+      }
+      SequenceTree::Seq OldRegion = Region;
 
-    // FIXME: CXXNewExpr and CXXDeleteExpr implicitly call functions.
+      // Visit the callee expression first.
+      Region = CalleeRegion;
+      if (SemaRef.getLangOpts().CPlusPlus17) {
+        SequencedSubexpression Sequenced(*this);
+        Visit(CE->getCallee());
+      } else {
+        Visit(CE->getCallee());
+      }
+
+      // Then visit the argument expressions.
+      Region = OtherRegion;
+      for (const Expr *Argument : CE->arguments())
+        Visit(Argument);
+
+      Region = OldRegion;
+      if (SemaRef.getLangOpts().CPlusPlus17) {
+        Tree.merge(CalleeRegion);
+        Tree.merge(OtherRegion);
+      }
+    });
   }
 
   void VisitCXXConstructExpr(const CXXConstructExpr *CCE) {
@@ -15123,4 +15187,33 @@ void Sema::CheckAddressOfPackedMember(Expr *rhs) {
   RefersToMemberWithReducedAlignment(
       rhs, std::bind(&Sema::AddPotentialMisalignedMembers, std::ref(*this), _1,
                      _2, _3, _4));
+}
+
+ExprResult Sema::SemaBuiltinMatrixTranspose(CallExpr *TheCall,
+                                            ExprResult CallResult) {
+  if (checkArgCount(*this, TheCall, 1))
+    return ExprError();
+
+  ExprResult MatrixArg = DefaultLvalueConversion(TheCall->getArg(0));
+  if (MatrixArg.isInvalid())
+    return MatrixArg;
+  Expr *Matrix = MatrixArg.get();
+
+  auto *MType = Matrix->getType()->getAs<ConstantMatrixType>();
+  if (!MType) {
+    Diag(Matrix->getBeginLoc(), diag::err_builtin_matrix_arg) << 0;
+    return ExprError();
+  }
+
+  // Create returned matrix type by swapping rows and columns of the argument
+  // matrix type.
+  QualType ResultType = Context.getConstantMatrixType(
+      MType->getElementType(), MType->getNumColumns(), MType->getNumRows());
+
+  // Change the return type to the type of the returned matrix.
+  TheCall->setType(ResultType);
+
+  // Update call argument to use the possibly converted matrix argument.
+  TheCall->setArg(0, Matrix);
+  return CallResult;
 }

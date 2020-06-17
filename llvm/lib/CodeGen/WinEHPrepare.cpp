@@ -18,6 +18,7 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/Triple.h"
 #include "llvm/Analysis/CFG.h"
 #include "llvm/Analysis/EHPersonalities.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
@@ -1071,10 +1072,10 @@ bool WinEHPrepare::prepareExplicitEH(Function &F) {
                                 DemoteCatchSwitchPHIOnlyOpt);
 
   if (!DisableCleanups) {
-    LLVM_DEBUG(verifyFunction(F));
+    assert(!verifyFunction(F, &dbgs()));
     removeImplausibleInstructions(F);
 
-    LLVM_DEBUG(verifyFunction(F));
+    assert(!verifyFunction(F, &dbgs()));
     cleanupPreparedFunclets(F);
   }
 

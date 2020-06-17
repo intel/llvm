@@ -1621,6 +1621,9 @@ def err_exception_spec_cycle : Error<
   "exception specification of %0 uses itself">;
 def err_exception_spec_incomplete_type : Error<
   "exception specification needed for member of incomplete class %0">;
+def warn_wasm_dynamic_exception_spec_ignored : ExtWarn<
+  "dynamic exception specifications with types are currently ignored in wasm">,
+  InGroup<WebAssemblyExceptionSpec>;
 
 // C++ access checking
 def err_class_redeclared_with_different_access : Error<
@@ -2060,6 +2063,8 @@ def err_reference_bind_to_bitfield : Error<
   "bit-field%select{| %1}2">;
 def err_reference_bind_to_vector_element : Error<
   "%select{non-const|volatile}0 reference cannot bind to vector element">;
+def err_reference_bind_to_matrix_element : Error<
+  "%select{non-const|volatile}0 reference cannot bind to matrix element">;
 def err_reference_var_requires_init : Error<
   "declaration of reference variable %0 requires an initializer">;
 def err_reference_without_init : Error<
@@ -2136,6 +2141,10 @@ def err_init_incomplete_type : Error<"initialization of incomplete type %0">;
 def err_list_init_in_parens : Error<
   "cannot initialize %select{non-class|reference}0 type %1 with a "
   "parenthesized initializer list">;
+
+def warn_uninit_const_reference : Warning<
+  "variable %0 is uninitialized when passed as a const reference argument "
+  "here">, InGroup<UninitializedConstReference>, DefaultIgnore;
 
 def warn_unsequenced_mod_mod : Warning<
   "multiple unsequenced modifications to %0">, InGroup<Unsequenced>;
@@ -2790,6 +2799,10 @@ def warn_auto_var_is_id : Warning<
   InGroup<DiagGroup<"auto-var-id">>;
 
 // Attributes
+def warn_nomerge_attribute_ignored_in_stmt: Warning<
+  "%0 attribute is ignored because there exists no call expression inside the "
+  "statement">,
+  InGroup<IgnoredAttributes>;
 def err_nsobject_attribute : Error<
   "'NSObject' attribute is for pointer types only">;
 def err_attributes_are_not_compatible : Error<
@@ -3329,6 +3342,12 @@ def err_attribute_output_parameter : Error<
 
 def ext_cannot_use_trivial_abi : ExtWarn<
   "'trivial_abi' cannot be applied to %0">, InGroup<IgnoredAttributes>;
+def note_cannot_use_trivial_abi_reason : Note<
+  "'trivial_abi' is disallowed on %0 because %select{"
+  "its copy constructors and move constructors are all deleted|"
+  "it is polymorphic|"
+  "it has a base of a non-trivial class type|it has a virtual base|"
+  "it has a __weak field|it has a field of a non-trivial class type}1">;
 
 // Availability attribute
 def warn_availability_unknown_platform : Warning<
@@ -3429,6 +3448,7 @@ def warn_expecting_lock_held_on_loop : Warning<
   "expecting %0 '%1' to be held at start of each loop">,
   InGroup<ThreadSafetyAnalysis>, DefaultIgnore;
 def note_locked_here : Note<"%0 acquired here">;
+def note_unlocked_here : Note<"%0 released here">;
 def warn_lock_exclusive_and_shared : Warning<
   "%0 '%1' is acquired exclusively and shared in the same scope">,
   InGroup<ThreadSafetyAnalysis>, DefaultIgnore;
@@ -4262,13 +4282,13 @@ def err_ovl_no_conversion_in_cast : Error<
   "cannot convert %1 to %2 without a conversion operator">;
 def err_ovl_no_viable_conversion_in_cast : Error<
   "no matching conversion for %select{|static_cast|reinterpret_cast|"
-  "dynamic_cast|C-style cast|functional-style cast}0 from %1 to %2">;
+  "dynamic_cast|C-style cast|functional-style cast|}0 from %1 to %2">;
 def err_ovl_ambiguous_conversion_in_cast : Error<
   "ambiguous conversion for %select{|static_cast|reinterpret_cast|"
-  "dynamic_cast|C-style cast|functional-style cast}0 from %1 to %2">;
+  "dynamic_cast|C-style cast|functional-style cast|}0 from %1 to %2">;
 def err_ovl_deleted_conversion_in_cast : Error<
   "%select{|static_cast|reinterpret_cast|dynamic_cast|C-style cast|"
-  "functional-style cast}0 from %1 to %2 uses deleted function">;
+  "functional-style cast|}0 from %1 to %2 uses deleted function">;
 def err_ovl_ambiguous_init : Error<"call to constructor of %0 is ambiguous">;
 def err_ref_init_ambiguous : Error<
   "reference initialization of type %0 with initializer of type %1 is ambiguous">;
@@ -6030,24 +6050,16 @@ def err_atomic_specifier_bad_type
             "1 byte of precision|with a non power of 2 precision}0">;
 
 // Expressions.
-def select_unary_expr_or_type_trait_kind : TextSubstitution<
-  "%select{sizeof|alignof|vec_step|__builtin_omp_required_simd_align|"
-  "__alignof}0">;
 def ext_sizeof_alignof_function_type : Extension<
-  "invalid application of '%sub{select_unary_expr_or_type_trait_kind}0' "
-  "to a function type">, InGroup<PointerArith>;
+  "invalid application of '%0' to a function type">, InGroup<PointerArith>;
 def ext_sizeof_alignof_void_type : Extension<
-  "invalid application of '%sub{select_unary_expr_or_type_trait_kind}0' "
-  "to a void type">, InGroup<PointerArith>;
+  "invalid application of '%0' to a void type">, InGroup<PointerArith>;
 def err_opencl_sizeof_alignof_type : Error<
-  "invalid application of '%sub{select_unary_expr_or_type_trait_kind}0' "
-  "to a void type">;
+  "invalid application of '%0' to a void type">;
 def err_sizeof_alignof_incomplete_or_sizeless_type : Error<
-  "invalid application of '%sub{select_unary_expr_or_type_trait_kind}0' "
-  "to %select{an incomplete|sizeless}1 type %2">;
+  "invalid application of '%0' to %select{an incomplete|sizeless}1 type %2">;
 def err_sizeof_alignof_function_type : Error<
-  "invalid application of '%sub{select_unary_expr_or_type_trait_kind}0' "
-  "to a function type">;
+  "invalid application of '%0' to a function type">;
 def err_openmp_default_simd_align_expr : Error<
   "invalid application of '__builtin_omp_required_simd_align' to an expression, only type is allowed">;
 def err_sizeof_alignof_typeof_bitfield : Error<
@@ -6409,7 +6421,7 @@ def err_typecheck_sclass_func : Error<"illegal storage class on function">;
 def err_static_block_func : Error<
   "function declared in block scope cannot have 'static' storage class">;
 def err_typecheck_address_of : Error<"address of %select{bit-field"
-  "|vector element|property expression|register variable}0 requested">;
+  "|vector element|property expression|register variable|matrix element}0 requested">;
 def ext_typecheck_addrof_void : Extension<
   "ISO C forbids taking the address of an expression of type 'void'">;
 def err_unqualified_pointer_member_function : Error<
@@ -6884,34 +6896,34 @@ def err_bad_cstyle_cast_overload : Error<
 
 
 def err_bad_cxx_cast_generic : Error<
-  "%select{const_cast|static_cast|reinterpret_cast|dynamic_cast|C-style cast|"
-  "functional-style cast}0 from %1 to %2 is not allowed">;
+  "%select{const_cast|static_cast|reinterpret_cast|dynamic_cast|"
+  "C-style cast|functional-style cast|addrspace_cast}0 from %1 to %2 is not allowed">;
 def err_bad_cxx_cast_unrelated_class : Error<
   "%select{const_cast|static_cast|reinterpret_cast|dynamic_cast|C-style cast|"
-  "functional-style cast}0 from %1 to %2, which are not related by "
+  "functional-style cast|}0 from %1 to %2, which are not related by "
   "inheritance, is not allowed">;
 def note_type_incomplete : Note<"%0 is incomplete">;
 def err_bad_cxx_cast_rvalue : Error<
   "%select{const_cast|static_cast|reinterpret_cast|dynamic_cast|C-style cast|"
-  "functional-style cast}0 from rvalue to reference type %2">;
+  "functional-style cast|addrspace_cast}0 from rvalue to reference type %2">;
 def err_bad_cxx_cast_bitfield : Error<
   "%select{const_cast|static_cast|reinterpret_cast|dynamic_cast|C-style cast|"
-  "functional-style cast}0 from bit-field lvalue to reference type %2">;
+  "functional-style cast|}0 from bit-field lvalue to reference type %2">;
 def err_bad_cxx_cast_qualifiers_away : Error<
   "%select{const_cast|static_cast|reinterpret_cast|dynamic_cast|C-style cast|"
-  "functional-style cast}0 from %1 to %2 casts away qualifiers">;
+  "functional-style cast|}0 from %1 to %2 casts away qualifiers">;
 def err_bad_cxx_cast_addr_space_mismatch : Error<
-  "%select{const_cast|static_cast|reinterpret_cast|dynamic_cast|C-style cast|"
-  "functional-style cast}0 from %1 to %2 converts between mismatching address"
+  "%select{const_cast|static_cast|reinterpret_cast|dynamic_cast|"
+  "C-style cast|functional-style cast|addrspace_cast}0 from %1 to %2 converts between mismatching address"
   " spaces">;
 def ext_bad_cxx_cast_qualifiers_away_incoherent : ExtWarn<
   "ISO C++ does not allow "
   "%select{const_cast|static_cast|reinterpret_cast|dynamic_cast|C-style cast|"
-  "functional-style cast}0 from %1 to %2 because it casts away qualifiers, "
+  "functional-style cast|}0 from %1 to %2 because it casts away qualifiers, "
   "even though the source and destination types are unrelated">,
   SFINAEFailure, InGroup<DiagGroup<"cast-qual-unrelated">>;
 def err_bad_const_cast_dest : Error<
-  "%select{const_cast||||C-style cast|functional-style cast}0 to %2, "
+  "%select{const_cast||||C-style cast|functional-style cast|}0 to %2, "
   "which is not a reference, pointer-to-object, or pointer-to-data-member">;
 def ext_cast_fn_obj : Extension<
   "cast between pointer-to-function and pointer-to-object is an extension">;
@@ -6924,13 +6936,13 @@ def warn_cxx98_compat_cast_fn_obj : Warning<
 def err_bad_reinterpret_cast_small_int : Error<
   "cast from pointer to smaller type %2 loses information">;
 def err_bad_cxx_cast_vector_to_scalar_different_size : Error<
-  "%select{||reinterpret_cast||C-style cast|}0 from vector %1 "
+  "%select{||reinterpret_cast||C-style cast||}0 from vector %1 "
   "to scalar %2 of different size">;
 def err_bad_cxx_cast_scalar_to_vector_different_size : Error<
-  "%select{||reinterpret_cast||C-style cast|}0 from scalar %1 "
+  "%select{||reinterpret_cast||C-style cast||}0 from scalar %1 "
   "to vector %2 of different size">;
 def err_bad_cxx_cast_vector_to_vector_different_size : Error<
-  "%select{||reinterpret_cast||C-style cast|}0 from vector %1 "
+  "%select{||reinterpret_cast||C-style cast||}0 from vector %1 "
   "to vector %2 of different size">;
 def warn_bad_cxx_cast_nested_pointer_addr_space : Warning<
   "%select{reinterpret_cast|C-style cast}0 from %1 to %2 "
@@ -6947,7 +6959,7 @@ def err_bad_static_cast_pointer_nonpointer : Error<
 def err_bad_static_cast_member_pointer_nonmp : Error<
   "cannot cast from type %1 to member pointer type %2">;
 def err_bad_cxx_cast_member_pointer_size : Error<
-  "cannot %select{||reinterpret_cast||C-style cast|}0 from member pointer "
+  "cannot %select{||reinterpret_cast||C-style cast||}0 from member pointer "
   "type %1 to member pointer type %2 of different size">;
 def err_bad_reinterpret_cast_reference : Error<
   "reinterpret_cast of a %0 to %1 needs its address, which is not allowed">;
@@ -8149,6 +8161,8 @@ def warn_bad_function_cast : Warning<
   InGroup<BadFunctionCast>, DefaultIgnore;
 def err_cast_pointer_to_non_pointer_int : Error<
   "pointer cannot be cast to type %0">;
+def err_cast_to_bfloat16 : Error<"cannot type-cast to __bf16">;
+def err_cast_from_bfloat16 : Error<"cannot type-cast from __bf16">;
 def err_typecheck_expect_scalar_operand : Error<
   "operand of type %0 where arithmetic or pointer type is required">;
 def err_typecheck_cond_incompatible_operands : Error<
@@ -8614,11 +8628,14 @@ def err_conv_function_with_complex_decl : Error<
 def err_conv_function_redeclared : Error<
   "conversion function cannot be redeclared">;
 def warn_conv_to_self_not_used : Warning<
-  "conversion function converting %0 to itself will never be used">;
+  "conversion function converting %0 to itself will never be used">,
+  InGroup<ClassConversion>;
 def warn_conv_to_base_not_used : Warning<
-  "conversion function converting %0 to its base class %1 will never be used">;
+  "conversion function converting %0 to its base class %1 will never be used">,
+  InGroup<ClassConversion>;
 def warn_conv_to_void_not_used : Warning<
-  "conversion function converting %0 to %1 will never be used">;
+  "conversion function converting %0 to %1 will never be used">,
+  InGroup<ClassConversion>;
 
 def warn_not_compound_assign : Warning<
   "use of unary operator that may be intended as compound assignment (%0=)">;
@@ -10238,8 +10255,8 @@ def err_omp_invariant_or_linear_dependency : Error<
   "expected loop invariant expression or '<invariant1> * %0 + <invariant2>' kind of expression">;
 def err_omp_wrong_dependency_iterator_type : Error<
   "expected an integer or a pointer type of the outer loop counter '%0' for non-rectangular nests">;
-def err_omp_unsupported_type : Error <
-  "host requires %0 bit size %1 type support, but device '%2' does not support it">;
+def err_device_unsupported_type : Error <
+  "%0 requires %1 bit size %2 type support, but device '%3' does not support it">;
 def err_omp_lambda_capture_in_declare_target_not_to : Error<
   "variable captured in declare target region must appear in a to clause">;
 def err_omp_device_type_mismatch : Error<
@@ -10785,6 +10802,24 @@ def err_builtin_launder_invalid_arg : Error<
 
 def err_builtin_matrix_disabled: Error<
   "matrix types extension is disabled. Pass -fenable-matrix to enable it">;
+def err_matrix_index_not_integer: Error<
+  "matrix %select{row|column}0 index is not an integer">;
+def err_matrix_index_outside_range: Error<
+  "matrix %select{row|column}0 index is outside the allowed range [0, %1)">;
+def err_matrix_incomplete_index: Error<
+  "single subscript expressions are not allowed for matrix values">;
+def err_matrix_separate_incomplete_index: Error<
+  "matrix row and column subscripts cannot be separated by any expression">;
+def err_matrix_subscript_comma: Error<
+  "comma expressions are not allowed as indices in matrix subscript expressions">;
+
+def warn_mismatched_import : Warning<
+  "import %select{module|name}0 (%1) does not match the import %select{module|name}0 (%2) of the "
+  "previous declaration">,
+  InGroup<IgnoredAttributes>;
+def warn_import_on_definition : Warning<
+  "import %select{module|name}0 cannot be applied to a function with a definition">,
+  InGroup<IgnoredAttributes>;
 
 // SYCL-specific diagnostics
 def err_sycl_kernel_incorrectly_named : Error<
@@ -10809,17 +10844,20 @@ def err_sycl_restrict : Error<
   "}0">;
 def err_sycl_virtual_types : Error<
   "No class with a vtable can be used in a SYCL kernel or any code included in the kernel">;
-def note_sycl_used_here : Note<"used here">;
 def note_sycl_recursive_function_declared_here: Note<"function implemented using recursion declared here">;
 def err_sycl_non_trivially_copy_ctor_dtor_type
     : Error<"kernel parameter has non-trivially %select{copy "
             "constructible|destructible}0 class/struct type %1">;
 def err_sycl_non_std_layout_type : Error<
   "kernel parameter has non-standard layout class/struct type %0">;
+def err_sycl_non_constant_array_type : Error<
+  "kernel parameter is not a constant size array %0">;
 def err_conflicting_sycl_kernel_attributes : Error<
-  "conflicting attributes applied to a SYCL kernel">;
+  "conflicting attributes applied to a SYCL kernel or SYCL_EXTERNAL function">;
 def err_conflicting_sycl_function_attributes : Error<
    "%0 attribute conflicts with '%1' attribute">;
+def err_sycl_function_attribute_mismatch : Error<
+  "SYCL kernel without %0 attribute can't call a function with this attribute">;
 def err_sycl_x_y_z_arguments_must_be_one : Error<
   "%0 X-, Y- and Z- sizes must be 1 when %1 attribute is used with value 0">;
 def err_intel_attribute_argument_is_not_in_range: Error<
@@ -10851,6 +10889,8 @@ def err_ivdep_declrefexpr_arg : Error<
 def warn_ivdep_redundant : Warning <"ignoring redundant Intel FPGA loop "
   "attribute 'ivdep': safelen %select{INF|%1}0 >= safelen %select{INF|%3}2">,
   InGroup<IgnoredAttributes>;
+def err_builtin_matrix_arg: Error<
+  "%select{first|second}0 argument must be a matrix">;
 
 def err_preserve_field_info_not_field : Error<
   "__builtin_preserve_field_info argument %0 not a field access">;
@@ -10882,4 +10922,6 @@ def err_ext_int_bad_size : Error<"%select{signed|unsigned}0 _ExtInt must "
                                  "have a bit size of at least %select{2|1}0">;
 def err_ext_int_max_size : Error<"%select{signed|unsigned}0 _ExtInt of bit "
                                  "sizes greater than %1 not supported">;
+def err_esimd_glob_cant_init : Error<
+  "SYCL explicit SIMD does not permit private global variable to have an initializer">;
 } // end of sema component.

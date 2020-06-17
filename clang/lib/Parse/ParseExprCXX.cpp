@@ -31,10 +31,11 @@ static int SelectDigraphErrorMessage(tok::TokenKind Kind) {
     // template name
     case tok::unknown:             return 0;
     // casts
-    case tok::kw_const_cast:       return 1;
-    case tok::kw_dynamic_cast:     return 2;
-    case tok::kw_reinterpret_cast: return 3;
-    case tok::kw_static_cast:      return 4;
+    case tok::kw_addrspace_cast:   return 1;
+    case tok::kw_const_cast:       return 2;
+    case tok::kw_dynamic_cast:     return 3;
+    case tok::kw_reinterpret_cast: return 4;
+    case tok::kw_static_cast:      return 5;
     default:
       llvm_unreachable("Unknown type for digraph error message.");
   }
@@ -1512,12 +1513,15 @@ ExprResult Parser::ParseLambdaExpressionAfterIntroducer(
 ///         'reinterpret_cast' '<' type-name '>' '(' expression ')'
 ///         'const_cast' '<' type-name '>' '(' expression ')'
 ///
+/// C++ for OpenCL s2.3.1 adds:
+///         'addrspace_cast' '<' type-name '>' '(' expression ')'
 ExprResult Parser::ParseCXXCasts() {
   tok::TokenKind Kind = Tok.getKind();
   const char *CastName = nullptr; // For error messages
 
   switch (Kind) {
   default: llvm_unreachable("Unknown C++ cast!");
+  case tok::kw_addrspace_cast:   CastName = "addrspace_cast";   break;
   case tok::kw_const_cast:       CastName = "const_cast";       break;
   case tok::kw_dynamic_cast:     CastName = "dynamic_cast";     break;
   case tok::kw_reinterpret_cast: CastName = "reinterpret_cast"; break;
@@ -2196,6 +2200,9 @@ void Parser::ParseCXXSimpleTypeSpecifier(DeclSpec &DS) {
     break;
   case tok::kw___int128:
     DS.SetTypeSpecType(DeclSpec::TST_int128, Loc, PrevSpec, DiagID, Policy);
+    break;
+  case tok::kw___bf16:
+    DS.SetTypeSpecType(DeclSpec::TST_BFloat16, Loc, PrevSpec, DiagID, Policy);
     break;
   case tok::kw_half:
     DS.SetTypeSpecType(DeclSpec::TST_half, Loc, PrevSpec, DiagID, Policy);
@@ -3362,7 +3369,6 @@ ExprResult Parser::ParseRequiresExpression() {
       ParsedAttributes FirstArgAttrs(getAttrFactory());
       SourceLocation EllipsisLoc;
       llvm::SmallVector<DeclaratorChunk::ParamInfo, 2> LocalParameters;
-      DiagnosticErrorTrap Trap(Diags);
       ParseParameterDeclarationClause(DeclaratorContext::RequiresExprContext,
                                       FirstArgAttrs, LocalParameters,
                                       EllipsisLoc);
@@ -3370,8 +3376,6 @@ ExprResult Parser::ParseRequiresExpression() {
         Diag(EllipsisLoc, diag::err_requires_expr_parameter_list_ellipsis);
       for (auto &ParamInfo : LocalParameters)
         LocalParameterDecls.push_back(cast<ParmVarDecl>(ParamInfo.Param));
-      if (Trap.hasErrorOccurred())
-        SkipUntil(tok::r_paren, StopBeforeMatch);
     }
     Parens.consumeClose();
   }
@@ -3645,18 +3649,24 @@ case tok::kw_ ## Spelling: return BTT_ ## Name;
 }
 
 static ArrayTypeTrait ArrayTypeTraitFromTokKind(tok::TokenKind kind) {
-  switch(kind) {
-  default: llvm_unreachable("Not a known binary type trait");
-  case tok::kw___array_rank:                 return ATT_ArrayRank;
-  case tok::kw___array_extent:               return ATT_ArrayExtent;
+  switch (kind) {
+  default:
+    llvm_unreachable("Not a known array type trait");
+#define ARRAY_TYPE_TRAIT(Spelling, Name, Key)                                  \
+  case tok::kw_##Spelling:                                                     \
+    return ATT_##Name;
+#include "clang/Basic/TokenKinds.def"
   }
 }
 
 static ExpressionTrait ExpressionTraitFromTokKind(tok::TokenKind kind) {
-  switch(kind) {
-  default: llvm_unreachable("Not a known unary expression trait.");
-  case tok::kw___is_lvalue_expr:             return ET_IsLValueExpr;
-  case tok::kw___is_rvalue_expr:             return ET_IsRValueExpr;
+  switch (kind) {
+  default:
+    llvm_unreachable("Not a known unary expression trait.");
+#define EXPRESSION_TRAIT(Spelling, Name, Key)                                  \
+  case tok::kw_##Spelling:                                                     \
+    return ET_##Name;
+#include "clang/Basic/TokenKinds.def"
   }
 }
 

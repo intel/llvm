@@ -25,7 +25,21 @@ class Builder;
 template <int dimensions> class id;
 template <int dimensions> class range;
 
+/// Identifies an instance of the function object executing at each point
+/// in a range.
+///
+/// \ingroup sycl_api
 template <int dimensions = 1, bool with_offset = true> class item {
+#ifndef __SYCL_DISABLE_ITEM_TO_INT_CONV__
+  /* Helper class for conversion operator. Void type is not suitable. User
+   * cannot even try to get address of the operator __private_class(). User
+   * may try to get an address of operator void() and will get the
+   * compile-time error */
+  class __private_class;
+
+  template <bool B, typename T>
+  using EnableIfT = detail::conditional_t<B, T, __private_class>;
+#endif // __SYCL_DISABLE_ITEM_TO_INT_CONV__
 public:
   item() = delete;
 
@@ -50,7 +64,9 @@ public:
     __SYCL_ASSUME_INT(Id);
     return Id;
   }
-
+#ifndef __SYCL_DISABLE_ITEM_TO_INT_CONV__
+  operator EnableIfT<dimensions == 1, std::size_t>() const { return get_id(0); }
+#endif // __SYCL_DISABLE_ITEM_TO_INT_CONV__
   template <bool has_offset = with_offset>
   detail::enable_if_t<has_offset, id<dimensions>> get_offset() const {
     return MImpl.MOffset;

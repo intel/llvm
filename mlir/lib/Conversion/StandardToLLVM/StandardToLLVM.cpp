@@ -150,6 +150,24 @@ LLVMTypeConverter::LLVMTypeConverter(
 
   // LLVMType is legal, so add a pass-through conversion.
   addConversion([](LLVM::LLVMType type) { return type; });
+
+  // Materialization for memrefs creates descriptor structs from individual
+  // values constituting them, when descriptors are used, i.e. more than one
+  // value represents a memref.
+  addMaterialization([&](PatternRewriter &rewriter,
+                         UnrankedMemRefType resultType, ValueRange inputs,
+                         Location loc) -> Optional<Value> {
+    if (inputs.size() == 1)
+      return llvm::None;
+    return UnrankedMemRefDescriptor::pack(rewriter, loc, *this, resultType,
+                                          inputs);
+  });
+  addMaterialization([&](PatternRewriter &rewriter, MemRefType resultType,
+                         ValueRange inputs, Location loc) -> Optional<Value> {
+    if (inputs.size() == 1)
+      return llvm::None;
+    return MemRefDescriptor::pack(rewriter, loc, *this, resultType, inputs);
+  });
 }
 
 /// Returns the MLIR context.
@@ -183,9 +201,7 @@ Type LLVMTypeConverter::convertFloatType(FloatType type) {
   case mlir::StandardTypes::F16:
     return LLVM::LLVMType::getHalfTy(llvmDialect);
   case mlir::StandardTypes::BF16: {
-    auto *mlirContext = llvmDialect->getContext();
-    return emitError(UnknownLoc::get(mlirContext), "unsupported type: BF16"),
-           Type();
+    return LLVM::LLVMType::getBFloatTy(llvmDialect);
   }
   default:
     llvm_unreachable("non-float type in convertFloatType");
@@ -295,22 +311,6 @@ LLVMTypeConverter::convertFunctionTypeCWrapper(FunctionType type) {
     return {};
 
   return LLVM::LLVMType::getFunctionTy(resultType, inputs, false);
-}
-
-/// Creates descriptor structs from individual values constituting them.
-Operation *LLVMTypeConverter::materializeConversion(PatternRewriter &rewriter,
-                                                    Type type,
-                                                    ArrayRef<Value> values,
-                                                    Location loc) {
-  if (auto unrankedMemRefType = type.dyn_cast<UnrankedMemRefType>())
-    return UnrankedMemRefDescriptor::pack(rewriter, loc, *this,
-                                          unrankedMemRefType, values)
-        .getDefiningOp();
-
-  auto memRefType = type.dyn_cast<MemRefType>();
-  assert(memRefType && "1->N conversion is only supported for memrefs");
-  return MemRefDescriptor::pack(rewriter, loc, *this, memRefType, values)
-      .getDefiningOp();
 }
 
 // Convert a MemRef to an LLVM type. The result is a MemRef descriptor which
@@ -583,7 +583,7 @@ void MemRefDescriptor::setConstantSize(OpBuilder &builder, Location loc,
           createIndexAttrConstant(builder, loc, indexType, size));
 }
 
-/// Builds IR extracting the pos-th size from the descriptor.
+/// Builds IR extracting the pos-th stride from the descriptor.
 Value MemRefDescriptor::stride(OpBuilder &builder, Location loc, unsigned pos) {
   return builder.create<LLVM::ExtractValueOp>(
       loc, indexType, value,
@@ -795,8 +795,8 @@ Value ConvertToLLVMPattern::linearizeSubscripts(
 }
 
 Value ConvertToLLVMPattern::getStridedElementPtr(
-    Location loc, Type elementTypePtr, Value descriptor,
-    ArrayRef<Value> indices, ArrayRef<int64_t> strides, int64_t offset,
+    Location loc, Type elementTypePtr, Value descriptor, ValueRange indices,
+    ArrayRef<int64_t> strides, int64_t offset,
     ConversionPatternRewriter &rewriter) const {
   MemRefDescriptor memRefDescriptor(descriptor);
 
@@ -818,8 +818,7 @@ Value ConvertToLLVMPattern::getStridedElementPtr(
 }
 
 Value ConvertToLLVMPattern::getDataPtr(Location loc, MemRefType type,
-                                       Value memRefDesc,
-                                       ArrayRef<Value> indices,
+                                       Value memRefDesc, ValueRange indices,
                                        ConversionPatternRewriter &rewriter,
                                        llvm::Module &module) const {
   LLVM::LLVMType ptrType = MemRefDescriptor(memRefDesc).getElementType();
@@ -1675,7 +1674,7 @@ struct AllocLikeOpLowering : public ConvertOpToLLVMPattern<AllocLikeOp> {
 
   /// Allocates the underlying buffer using the right call. `allocatedBytePtr`
   /// is set to null for stack allocations. `accessAlignment` is set if
-  /// alignment is neeeded post allocation (for eg. in conjunction with malloc).
+  /// alignment is needed post allocation (for eg. in conjunction with malloc).
   Value allocateBuffer(Location loc, Value cumulativeSize, Operation *op,
                        MemRefType memRefType, Value one, Value &accessAlignment,
                        Value &allocatedBytePtr,
@@ -2115,17 +2114,24 @@ struct DimOpLowering : public ConvertOpToLLVMPattern<DimOp> {
                   ConversionPatternRewriter &rewriter) const override {
     auto dimOp = cast<DimOp>(op);
     OperandAdaptor<DimOp> transformed(operands);
-    MemRefType type = dimOp.getOperand().getType().cast<MemRefType>();
+    MemRefType type = dimOp.memrefOrTensor().getType().cast<MemRefType>();
 
-    int64_t index = dimOp.getIndex();
+    Optional<int64_t> index = dimOp.getConstantIndex();
+    if (!index.hasValue()) {
+      // TODO(frgossen): Implement this lowering.
+      return failure();
+    }
+
+    int64_t i = index.getValue();
     // Extract dynamic size from the memref descriptor.
-    if (type.isDynamicDim(index))
+    if (type.isDynamicDim(i))
       rewriter.replaceOp(op, {MemRefDescriptor(transformed.memrefOrTensor())
-                                  .size(rewriter, op->getLoc(), index)});
+                                  .size(rewriter, op->getLoc(), i)});
     else
       // Use constant for static size.
-      rewriter.replaceOp(op, createIndexConstant(rewriter, op->getLoc(),
-                                                 type.getDimSize(index)));
+      rewriter.replaceOp(
+          op, createIndexConstant(rewriter, op->getLoc(), type.getDimSize(i)));
+
     return success();
   }
 };
@@ -2602,7 +2608,7 @@ struct ViewOpLowering : public ConvertOpToLLVMPattern<ViewOp> {
   // Build and return the value for the idx^th shape dimension, either by
   // returning the constant shape dimension or counting the proper dynamic size.
   Value getSize(ConversionPatternRewriter &rewriter, Location loc,
-                ArrayRef<int64_t> shape, ArrayRef<Value> dynamicSizes,
+                ArrayRef<int64_t> shape, ValueRange dynamicSizes,
                 unsigned idx) const {
     assert(idx < shape.size());
     if (!ShapedType::isDynamic(shape[idx]))

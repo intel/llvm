@@ -44,9 +44,9 @@ int main() {
   check_size<event, 16>();
   check_size<gpu_selector, 8>();
 #ifdef _MSC_VER
-  check_size<handler, 528>();
+  check_size<handler, 552>();
 #else
-  check_size<handler, 536>();
+  check_size<handler, 560>();
 #endif
   check_size<image<1>, 16>();
   check_size<kernel, 16>();
@@ -59,7 +59,7 @@ int main() {
   check_size<program, 16>();
   check_size<range<1>, 8>();
   check_size<sampler, 16>();
-  check_size<stream, 208>();
+  check_size<stream, 144>();
   check_size<queue, 16>();
 
   return 0;

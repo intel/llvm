@@ -303,6 +303,7 @@ private:
   const HeaderSearchOptions &HeaderSearchOpts; // Only used for debug info.
   const PreprocessorOptions &PreprocessorOpts; // Only used for debug info.
   const CodeGenOptions &CodeGenOpts;
+  unsigned NumAutoVarInit = 0;
   llvm::Module &TheModule;
   DiagnosticsEngine &Diags;
   const TargetInfo &Target;
@@ -1398,6 +1399,15 @@ public:
   /// \param T is the LLVM type of the null pointer.
   /// \param QT is the clang QualType of the null pointer.
   llvm::Constant *getNullPointer(llvm::PointerType *T, QualType QT);
+
+  CharUnits getNaturalTypeAlignment(QualType T,
+                                    LValueBaseInfo *BaseInfo = nullptr,
+                                    TBAAAccessInfo *TBAAInfo = nullptr,
+                                    bool forPointeeType = false);
+  CharUnits getNaturalPointeeTypeAlignment(QualType T,
+                                           LValueBaseInfo *BaseInfo = nullptr,
+                                           TBAAAccessInfo *TBAAInfo = nullptr);
+  bool stopAutoInit();
 
 private:
   llvm::Constant *GetOrCreateLLVMFunction(

@@ -23,6 +23,10 @@ def l: Joined<["-"], "l">, MetaVarName<"<libname>">,
 def o: Separate<["-"], "o">, MetaVarName<"<path>">,
   HelpText<"Path to file to write output">;
 
+def order_file: Separate<["-"], "order_file">,
+  HelpText<"Lay out symbols within each section in the order specified by the "
+           "order file">;
+
 def sub_library: Separate<["-"], "sub_library">, MetaVarName<"<libname>">,
   HelpText<"Re-export the specified dylib">;
 
@@ -32,6 +36,7 @@ def v: Flag<["-"], "v">, HelpText<"Display the version number and exit">;
 def: Flag<["-"], "demangle">;
 def: Flag<["-"], "dynamic">;
 def: Flag<["-"], "no_deduplicate">;
+def: Flag<["-"], "search_paths_first">;
 def platform_version: Flag<["-"], "platform_version">;
 def: Separate<["-"], "lto_library">;
 def: Separate<["-"], "macosx_version_min">;

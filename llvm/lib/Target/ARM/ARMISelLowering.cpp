@@ -2542,6 +2542,7 @@ ARMTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
 
   // Returns a chain and a flag for retval copy to use.
   Chain = DAG.getNode(CallOpc, dl, NodeTys, Ops);
+  DAG.addNoMergeSiteInfo(Chain.getNode(), CLI.NoMerge);
   InFlag = Chain.getValue(1);
   DAG.addCallSiteInfo(Chain.getNode(), std::move(CSInfo));
 
@@ -2562,15 +2563,15 @@ ARMTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
 /// and then confiscate the rest of the parameter registers to insure
 /// this.
 void ARMTargetLowering::HandleByVal(CCState *State, unsigned &Size,
-                                    unsigned Align) const {
+                                    Align Alignment) const {
   // Byval (as with any stack) slots are always at least 4 byte aligned.
-  Align = std::max(Align, 4U);
+  Alignment = std::max(Alignment, Align(4));
 
   unsigned Reg = State->AllocateReg(GPRArgRegs);
   if (!Reg)
     return;
 
-  unsigned AlignInRegs = Align / 4;
+  unsigned AlignInRegs = Alignment.value() / 4;
   unsigned Waste = (ARM::R4 - Reg) % AlignInRegs;
   for (unsigned i = 0; i < Waste; ++i)
     Reg = State->AllocateReg(GPRArgRegs);
@@ -6643,8 +6644,6 @@ SDValue ARMTargetLowering::LowerConstantFP(SDValue Op, SelectionDAG &DAG,
       case MVT::f64: {
         SDValue Lo = DAG.getConstant(INTVal.trunc(32), DL, MVT::i32);
         SDValue Hi = DAG.getConstant(INTVal.lshr(32).trunc(32), DL, MVT::i32);
-        if (!ST->isLittle())
-          std::swap(Lo, Hi);
         return DAG.getNode(ARMISD::VMOVDRR, DL, MVT::f64, Lo, Hi);
       }
       case MVT::f32:
@@ -14456,6 +14455,24 @@ static SDValue PerformVMOVNCombine(SDNode *N,
   return SDValue();
 }
 
+static SDValue PerformVQMOVNCombine(SDNode *N,
+                                    TargetLowering::DAGCombinerInfo &DCI) {
+  SDValue Op0 = N->getOperand(0);
+  unsigned IsTop = N->getConstantOperandVal(2);
+
+  unsigned NumElts = N->getValueType(0).getVectorNumElements();
+  APInt Op0DemandedElts =
+      APInt::getSplat(NumElts, IsTop ? APInt::getLowBitsSet(2, 1)
+                                     : APInt::getHighBitsSet(2, 1));
+
+  APInt KnownUndef, KnownZero;
+  const TargetLowering &TLI = DCI.DAG.getTargetLoweringInfo();
+  if (TLI.SimplifyDemandedVectorElts(Op0, Op0DemandedElts, KnownUndef,
+                                     KnownZero, DCI))
+    return SDValue(N, 0);
+  return SDValue();
+}
+
 static SDValue PerformLongShiftCombine(SDNode *N, SelectionDAG &DAG) {
   SDLoc DL(N);
   SDValue Op0 = N->getOperand(0);
@@ -15592,6 +15609,9 @@ SDValue ARMTargetLowering::PerformDAGCombine(SDNode *N,
     return PerformVECREDUCE_ADDCombine(N, DCI.DAG, Subtarget);
   case ARMISD::VMOVN:
     return PerformVMOVNCombine(N, DCI);
+  case ARMISD::VQMOVNs:
+  case ARMISD::VQMOVNu:
+    return PerformVQMOVNCombine(N, DCI);
   case ARMISD::ASRL:
   case ARMISD::LSRL:
   case ARMISD::LSLL:
@@ -15955,8 +15975,8 @@ bool ARMTargetLowering::shouldSinkOperands(Instruction *I,
       Shuffle = dyn_cast<Instruction>(Shuffle->getOperand(0));
     // We are looking for a splat that can be sunk.
     if (!Shuffle ||
-        !match(Shuffle, m_ShuffleVector(
-                            m_InsertElement(m_Undef(), m_Value(), m_ZeroInt()),
+        !match(Shuffle, m_Shuffle(
+                            m_InsertElt(m_Undef(), m_Value(), m_ZeroInt()),
                             m_Undef(), m_ZeroMask())))
       continue;
     if (!IsSinker(I, OpIdx.index()))

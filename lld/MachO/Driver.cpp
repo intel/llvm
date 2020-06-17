@@ -22,10 +22,12 @@
 #include "lld/Common/LLVM.h"
 #include "lld/Common/Memory.h"
 #include "lld/Common/Version.h"
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/BinaryFormat/MachO.h"
 #include "llvm/BinaryFormat/Magic.h"
+#include "llvm/Config/config.h"
 #include "llvm/Object/Archive.h"
 #include "llvm/Option/ArgList.h"
 #include "llvm/Option/Option.h"
@@ -72,22 +74,36 @@ opt::InputArgList MachOOptTable::parse(ArrayRef<const char *> argv) {
   return args;
 }
 
-// This is for -lfoo. We'll look for libfoo.dylib from search paths.
-static Optional<std::string> findDylib(StringRef name) {
+static Optional<std::string> findLibrary(StringRef name) {
+  std::string stub = (llvm::Twine("lib") + name + ".tbd").str();
+  std::string shared = (llvm::Twine("lib") + name + ".dylib").str();
+  std::string archive = (llvm::Twine("lib") + name + ".a").str();
+  llvm::SmallString<260> location;
+
   for (StringRef dir : config->searchPaths) {
-    std::string path = (dir + "/lib" + name + ".dylib").str();
-    if (fs::exists(path))
-      return path;
+    for (StringRef library : {stub, shared, archive}) {
+      location = dir;
+      llvm::sys::path::append(location, library);
+      if (fs::exists(location))
+        return location.str().str();
+    }
   }
-  error("library not found for -l" + name);
-  return None;
+  return {};
 }
 
 static TargetInfo *createTargetInfo(opt::InputArgList &args) {
-  StringRef s = args.getLastArgValue(OPT_arch, "x86_64");
-  if (s != "x86_64")
-    error("missing or unsupported -arch " + s);
-  return createX86_64TargetInfo();
+  // getArchName() returns a reference to a string owned by the triple, so
+  // we must make the triple a local instead of a temporary value.
+  Triple triple(LLVM_DEFAULT_TARGET_TRIPLE);
+  StringRef arch = args.getLastArgValue(OPT_arch, triple.getArchName());
+  config->arch = llvm::MachO::getArchitectureFromName(arch);
+  switch (config->arch) {
+  case llvm::MachO::AK_x86_64:
+  case llvm::MachO::AK_x86_64h:
+    return createX86_64TargetInfo();
+  default:
+    fatal("missing or unsupported -arch " + arch);
+  }
 }
 
 static std::vector<StringRef> getSearchPaths(opt::InputArgList &args) {
@@ -122,8 +138,111 @@ static void addFile(StringRef path) {
   case file_magic::macho_dynamically_linked_shared_lib:
     inputFiles.push_back(make<DylibFile>(mbref));
     break;
+  case file_magic::tapi_file: {
+    llvm::Expected<std::unique_ptr<llvm::MachO::InterfaceFile>> result =
+        TextAPIReader::get(mbref);
+    if (!result)
+      return;
+
+    std::unique_ptr<llvm::MachO::InterfaceFile> interface{std::move(*result)};
+    inputFiles.push_back(make<DylibFile>(std::move(interface)));
+    break;
+  }
   default:
     error(path + ": unhandled file type");
+  }
+}
+
+static std::array<StringRef, 6> archNames{"arm",    "arm64", "i386",
+                                          "x86_64", "ppc",   "ppc64"};
+static bool isArchString(StringRef s) {
+  static DenseSet<StringRef> archNamesSet(archNames.begin(), archNames.end());
+  return archNamesSet.find(s) != archNamesSet.end();
+}
+
+// An order file has one entry per line, in the following format:
+//
+//   <arch>:<object file>:<symbol name>
+//
+// <arch> and <object file> are optional. If not specified, then that entry
+// matches any symbol of that name.
+//
+// If a symbol is matched by multiple entries, then it takes the lowest-ordered
+// entry (the one nearest to the front of the list.)
+//
+// The file can also have line comments that start with '#'.
+void parseOrderFile(StringRef path) {
+  Optional<MemoryBufferRef> buffer = readFile(path);
+  if (!buffer) {
+    error("Could not read order file at " + path);
+    return;
+  }
+
+  MemoryBufferRef mbref = *buffer;
+  size_t priority = std::numeric_limits<size_t>::max();
+  for (StringRef rest : args::getLines(mbref)) {
+    StringRef arch, objectFile, symbol;
+
+    std::array<StringRef, 3> fields;
+    uint8_t fieldCount = 0;
+    while (rest != "" && fieldCount < 3) {
+      std::pair<StringRef, StringRef> p = getToken(rest, ": \t\n\v\f\r");
+      StringRef tok = p.first;
+      rest = p.second;
+
+      // Check if we have a comment
+      if (tok == "" || tok[0] == '#')
+        break;
+
+      fields[fieldCount++] = tok;
+    }
+
+    switch (fieldCount) {
+    case 3:
+      arch = fields[0];
+      objectFile = fields[1];
+      symbol = fields[2];
+      break;
+    case 2:
+      (isArchString(fields[0]) ? arch : objectFile) = fields[0];
+      symbol = fields[1];
+      break;
+    case 1:
+      symbol = fields[0];
+      break;
+    case 0:
+      break;
+    default:
+      llvm_unreachable("too many fields in order file");
+    }
+
+    if (!arch.empty()) {
+      if (!isArchString(arch)) {
+        error("invalid arch \"" + arch + "\" in order file: expected one of " +
+              llvm::join(archNames, ", "));
+        continue;
+      }
+
+      // TODO: Update when we extend support for other archs
+      if (arch != "x86_64")
+        continue;
+    }
+
+    if (!objectFile.empty() && !objectFile.endswith(".o")) {
+      error("invalid object file name \"" + objectFile +
+            "\" in order file: should end with .o");
+      continue;
+    }
+
+    if (!symbol.empty()) {
+      SymbolPriorityEntry &entry = config->priorities[symbol];
+      if (!objectFile.empty())
+        entry.objectFiles.insert(std::make_pair(objectFile, priority));
+      else
+        entry.anyObjectFile = std::max(entry.anyObjectFile, priority);
+    }
+
+    --priority;
   }
 }
 
@@ -192,10 +311,15 @@ bool macho::link(llvm::ArrayRef<const char *> argsArr, bool canExitEarly,
     case OPT_INPUT:
       addFile(arg->getValue());
       break;
-    case OPT_l:
-      if (Optional<std::string> path = findDylib(arg->getValue()))
+    case OPT_l: {
+      StringRef name = arg->getValue();
+      if (Optional<std::string> path = findLibrary(name)) {
         addFile(*path);
+        break;
+      }
+      error("library not found for -l" + name);
       break;
+    }
     case OPT_platform_version: {
       handlePlatformVersion(it, end); // Can advance "it".
       break;
@@ -211,6 +335,10 @@ bool macho::link(llvm::ArrayRef<const char *> argsArr, bool canExitEarly,
     if (!markSubLibrary(searchName))
       error("-sub_library " + searchName + " does not match a supplied dylib");
   }
+
+  StringRef orderFile = args.getLastArgValue(OPT_order_file);
+  if (!orderFile.empty())
+    parseOrderFile(orderFile);
 
   // dyld requires us to load libSystem. Since we may run tests on non-OSX
   // systems which do not have libSystem, we mock it out here.
@@ -228,9 +356,14 @@ bool macho::link(llvm::ArrayRef<const char *> argsArr, bool canExitEarly,
   createSyntheticSections();
 
   // Initialize InputSections.
-  for (InputFile *file : inputFiles)
-    for (InputSection *sec : file->sections)
-      inputSections.push_back(sec);
+  for (InputFile *file : inputFiles) {
+    for (SubsectionMap &map : file->subsections) {
+      for (auto &p : map) {
+        InputSection *isec = p.second;
+        inputSections.push_back(isec);
+      }
+    }
+  }
 
   // Write to an output file.
   writeResult();

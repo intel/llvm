@@ -59,14 +59,16 @@ public:
     }
     return true;
   }
-
+  bool operator()(const Component &component) const {
+    return (*this)(component.base());
+  }
   // Forbid integer division by zero in constants.
   template <int KIND>
   bool operator()(
       const Divide<Type<TypeCategory::Integer, KIND>> &division) const {
     using T = Type<TypeCategory::Integer, KIND>;
     if (const auto divisor{GetScalarConstantValue<T>(division.right())}) {
-      return !divisor->IsZero();
+      return !divisor->IsZero() && (*this)(division.left());
     } else {
       return false;
     }
@@ -208,7 +210,7 @@ public:
       return "derived type component or type parameter value not allowed to "
              "reference variable '"s +
           symbol.name().ToString() + "'";
-    } else if (symbol.IsDummy()) {
+    } else if (IsDummy(symbol)) {
       if (symbol.attrs().test(semantics::Attr::OPTIONAL)) {
         return "reference to OPTIONAL dummy argument '"s +
             symbol.name().ToString() + "'";

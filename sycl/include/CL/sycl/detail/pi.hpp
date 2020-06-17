@@ -57,9 +57,11 @@ bool trace(TraceLevel level);
 
 #ifdef SYCL_RT_OS_WINDOWS
 #define OPENCL_PLUGIN_NAME "pi_opencl.dll"
+#define LEVEL0_PLUGIN_NAME "pi_level0.dll"
 #define CUDA_PLUGIN_NAME "pi_cuda.dll"
 #else
 #define OPENCL_PLUGIN_NAME "libpi_opencl.so"
+#define LEVEL0_PLUGIN_NAME "libpi_level0.so"
 #define CUDA_PLUGIN_NAME "libpi_cuda.so"
 #endif
 
@@ -135,7 +137,10 @@ template <class To, class From> To cast(From value);
 extern std::shared_ptr<plugin> GlobalPlugin;
 
 // Performs PI one-time initialization.
-vector_class<plugin> initialize();
+const vector_class<plugin> &initialize();
+
+// Get the plugin serving given backend.
+template <backend BE> const plugin &getPlugin();
 
 // Utility Functions to get Function Name for a PI Api.
 template <PiApiKind PiApiOffset> struct PiFuncInfo {};

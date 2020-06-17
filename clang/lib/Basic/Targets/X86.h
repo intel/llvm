@@ -18,6 +18,7 @@
 #include "clang/Basic/TargetOptions.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/Support/Compiler.h"
+#include "llvm/Support/X86TargetParser.h"
 
 namespace clang {
 namespace targets {
@@ -29,6 +30,8 @@ static const unsigned X86AddrSpaceMap[] = {
     0,   // opencl_constant
     0,   // opencl_private
     0,   // opencl_generic
+    0,   // opencl_global_device
+    0,   // opencl_global_host
     0,   // cuda_device
     0,   // cuda_constant
     0,   // cuda_shared
@@ -128,19 +131,7 @@ class LLVM_LIBRARY_VISIBILITY X86TargetInfo : public TargetInfo {
   bool HasTSXLDTRK = false;
 
 protected:
-  /// Enumeration of all of the X86 CPUs supported by Clang.
-  ///
-  /// Each enumeration represents a particular CPU supported by Clang. These
-  /// loosely correspond to the options passed to '-march' or '-mtune' flags.
-  enum CPUKind {
-    CK_Generic,
-#define PROC(ENUM, STRING, IS64BIT) CK_##ENUM,
-#include "clang/Basic/X86Target.def"
-  } CPU = CK_Generic;
-
-  bool checkCPUKind(CPUKind Kind) const;
-
-  CPUKind getCPUKind(StringRef CPU) const;
+  llvm::X86::CPUKind CPU = llvm::X86::CK_None;
 
   enum FPMathKind { FP_Default, FP_SSE, FP_387 } FPMath = FP_Default;
 
@@ -313,13 +304,16 @@ public:
   }
 
   bool isValidCPUName(StringRef Name) const override {
-    return checkCPUKind(getCPUKind(Name));
+    bool Only64Bit = getTriple().getArch() != llvm::Triple::x86;
+    return llvm::X86::parseArchX86(Name, Only64Bit) != llvm::X86::CK_None;
   }
 
   void fillValidCPUList(SmallVectorImpl<StringRef> &Values) const override;
 
   bool setCPU(const std::string &Name) override {
-    return checkCPUKind(CPU = getCPUKind(Name));
+    bool Only64Bit = getTriple().getArch() != llvm::Triple::x86;
+    CPU = llvm::X86::parseArchX86(Name, Only64Bit);
+    return CPU != llvm::X86::CK_None;
   }
 
   unsigned multiVersionSortPriority(StringRef Name) const override;

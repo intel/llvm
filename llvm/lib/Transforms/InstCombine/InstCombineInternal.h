@@ -721,7 +721,7 @@ public:
   Instruction *eraseInstFromFunction(Instruction &I) {
     LLVM_DEBUG(dbgs() << "IC: ERASE " << I << '\n');
     assert(I.use_empty() && "Cannot erase instruction that is used!");
-    salvageDebugInfoOrMarkUndef(I);
+    salvageDebugInfo(I);
 
     // Make sure that we reprocess all operands now that we reduced their
     // use counts.
@@ -879,6 +879,7 @@ private:
 
   /// Canonicalize the position of binops relative to shufflevector.
   Instruction *foldVectorBinop(BinaryOperator &Inst);
+  Instruction *foldVectorSelect(SelectInst &Sel);
 
   /// Given a binary operator, cast instruction, or select which has a PHI node
   /// as operand #0, see if we can fold the instruction into the PHI (which is

@@ -33,6 +33,13 @@ private:
   bool isWave32;
   BitVector RegPressureIgnoredUnits;
 
+  /// Sub reg indexes for getRegSplitParts.
+  /// First index represents subreg size from 1 to 16 DWORDs.
+  /// The inner vector is sorted by bit offset.
+  /// Provided a register can be fully split with given subregs,
+  /// all elements of the inner vector combined give a full lane mask.
+  static std::array<std::vector<int16_t>, 16> RegSplitParts;
+
   void reserveRegisterTuples(BitVector &, MCRegister Reg) const;
 
 public:
@@ -65,6 +72,9 @@ public:
 
   Register getFrameRegister(const MachineFunction &MF) const override;
 
+  bool hasBasePointer(const MachineFunction &MF) const;
+  Register getBaseRegister() const;
+
   bool canRealignStack(const MachineFunction &MF) const override;
   bool requiresRegisterScavenging(const MachineFunction &Fn) const override;
 
@@ -92,6 +102,11 @@ public:
 
   const TargetRegisterClass *getPointerRegClass(
     const MachineFunction &MF, unsigned Kind = 0) const override;
+
+  void buildSGPRSpillLoadStore(MachineBasicBlock::iterator MI, int Index,
+                               int Offset, unsigned EltSize, Register VGPR,
+                               int64_t VGPRLanes, RegScavenger *RS,
+                               bool IsLoad) const;
 
   /// If \p OnlyToVGPR is true, this will only succeed if this
   bool spillSGPR(MachineBasicBlock::iterator MI,
@@ -206,6 +221,8 @@ public:
   bool isVectorRegister(const MachineRegisterInfo &MRI, Register Reg) const {
     return isVGPR(MRI, Reg) || isAGPR(MRI, Reg);
   }
+
+  bool isConstantPhysReg(MCRegister PhysReg) const override;
 
   bool isDivergentRegClass(const TargetRegisterClass *RC) const override {
     return !isSGPRClass(RC);

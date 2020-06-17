@@ -135,7 +135,7 @@
 // RUN: %clang -### -S -fno-tree-vectorize -fvectorize %s 2>&1 | FileCheck -check-prefix=CHECK-VECTORIZE %s
 // RUN: %clang -### -S -fno-tree-vectorize %s 2>&1 | FileCheck -check-prefix=CHECK-NO-VECTORIZE %s
 // RUN: %clang -### -S -ftree-vectorize -fno-vectorize %s 2>&1 | FileCheck -check-prefix=CHECK-NO-VECTORIZE %s
-// RUN: %clang -### -S -O %s 2>&1 | FileCheck -check-prefix=CHECK-VECTORIZE %s
+// RUN: %clang -### -S -O %s 2>&1 | FileCheck -check-prefix=CHECK-NO-VECTORIZE %s
 // RUN: %clang -### -S -O2 %s 2>&1 | FileCheck -check-prefix=CHECK-VECTORIZE %s
 // RUN: %clang -### -S -Os %s 2>&1 | FileCheck -check-prefix=CHECK-VECTORIZE %s
 // RUN: %clang -### -S -O3 %s 2>&1 | FileCheck -check-prefix=CHECK-VECTORIZE %s
@@ -157,7 +157,7 @@
 // RUN: %clang -### -S -fno-tree-slp-vectorize -fslp-vectorize %s 2>&1 | FileCheck -check-prefix=CHECK-SLP-VECTORIZE %s
 // RUN: %clang -### -S -fno-tree-slp-vectorize %s 2>&1 | FileCheck -check-prefix=CHECK-NO-SLP-VECTORIZE %s
 // RUN: %clang -### -S -ftree-slp-vectorize -fno-slp-vectorize %s 2>&1 | FileCheck -check-prefix=CHECK-NO-SLP-VECTORIZE %s
-// RUN: %clang -### -S -O %s 2>&1 | FileCheck -check-prefix=CHECK-SLP-VECTORIZE %s
+// RUN: %clang -### -S -O %s 2>&1 | FileCheck -check-prefix=CHECK-NO-SLP-VECTORIZE %s
 // RUN: %clang -### -S -O2 %s 2>&1 | FileCheck -check-prefix=CHECK-SLP-VECTORIZE %s
 // RUN: %clang -### -S -Os %s 2>&1 | FileCheck -check-prefix=CHECK-SLP-VECTORIZE %s
 // RUN: %clang -### -S -Oz %s 2>&1 | FileCheck -check-prefix=CHECK-SLP-VECTORIZE %s
@@ -554,6 +554,19 @@
 // CHECK-TRIVIAL-PATTERN-NOT: hasn't been enabled
 // CHECK-TRIVIAL-ZERO-GOOD-NOT: hasn't been enabled
 // CHECK-TRIVIAL-ZERO-BAD: hasn't been enabled
+
+// RUN: %clang -### -S -ftrivial-auto-var-init=pattern -ftrivial-auto-var-init-stop-after=1 %s 2>&1 | FileCheck -check-prefix=CHECK-TRIVIAL-PATTERN-STOP-AFTER %s
+// RUN: %clang -### -S -ftrivial-auto-var-init=zero -enable-trivial-auto-var-init-zero-knowing-it-will-be-removed-from-clang -ftrivial-auto-var-init-stop-after=1 %s 2>&1 | FileCheck -check-prefix=CHECK-TRIVIAL-ZERO-STOP-AFTER %s
+// RUN: %clang -### -S -ftrivial-auto-var-init-stop-after=0 %s 2>&1 | FileCheck -check-prefix=CHECK-TRIVIAL-STOP-AFTER-MISSING-DEPENDENCY %s
+// RUN: %clang -### -S -ftrivial-auto-var-init=pattern -ftrivial-auto-var-init-stop-after=0 %s 2>&1 | FileCheck -check-prefix=CHECK-TRIVIAL-PATTERN-STOP-AFTER-INVALID-VALUE %s
+// RUN: %clang -### -S -ftrivial-auto-var-init=zero -enable-trivial-auto-var-init-zero-knowing-it-will-be-removed-from-clang -ftrivial-auto-var-init-stop-after=0 %s 2>&1 | FileCheck -check-prefix=CHECK-TRIVIAL-ZERO-STOP-AFTER-INVALID-VALUE %s
+// CHECK-TRIVIAL-PATTERN-STOP-AFTER-NOT: is used without -ftrivial-auto-var-init
+// CHECK-TRIVIAL-PATTERN-STOP-AFTER-NOT: only accepts positive integers
+// CHECK-TRIVIAL-ZERO-STOP-AFTER-NOT: is used without -ftrivial-auto-var-init
+// CHECK-TRIVIAL-ZERO-STOP-AFTER-NOT: only accepts positive integers
+// CHECK-TRIVIAL-STOP-AFTER-MISSING-DEPENDENCY: used without -ftrivial-auto-var-init
+// CHECK-TRIVIAL-PATTERN-STOP-AFTER-INVALID-VALUE: only accepts positive integers
+// CHECK-TRIVIAL-ZERO-STOP-AFTER-INVALID-VALUE: only accepts positive integers
 
 // RUN: %clang -### -S -fno-temp-file %s 2>&1 | FileCheck -check-prefix=CHECK-NO-TEMP-FILE %s
 // CHECK-NO-TEMP-FILE: "-fno-temp-file"
