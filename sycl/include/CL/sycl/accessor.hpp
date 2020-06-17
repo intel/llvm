@@ -1514,7 +1514,7 @@ private:
 
 public:
   // Default constructor for objects later initialized with __init member.
-      accessor() = default;
+  accessor() = default;
 #endif
 public:
   template <typename AllocatorT>
