@@ -1134,9 +1134,7 @@ void SYCLLowerESIMDLegacyPass::generateKernelMetadata(Module &M) {
 
     // Iterate argument list to gather argument kinds and generate argument
     // descriptors.
-    for (auto AI = F.arg_begin(), AE = F.arg_end(); AI != AE; ++AI) {
-      Argument &Arg = *AI;
-
+    for (const Argument &Arg : F.args()) {
       int Kind = AK_NORMAL;
       int IKind = IK_NORMAL;
 
@@ -1177,7 +1175,6 @@ void SYCLLowerESIMDLegacyPass::generateKernelMetadata(Module &M) {
     // Add this kernel to the root.
     Kernels->addOperand(MDNode::get(Ctx, MDArgs));
     F.addFnAttr("oclrt", "1");
-    // F.setDLLStorageClass(llvm::GlobalValue::DLLExportStorageClass);
     F.addFnAttr("CMGenxMain");
   }
 }
