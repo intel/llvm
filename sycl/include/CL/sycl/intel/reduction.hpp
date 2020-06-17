@@ -219,7 +219,7 @@ public:
   static enable_if_t<IsMaximumIdentityOp<_T, _BinaryOperation>::value, _T>
   getIdentity() {
     return std::numeric_limits<_T>::has_infinity
-               ? -std::numeric_limits<_T>::infinity()
+               ? static_cast<_T>(-std::numeric_limits<_T>::infinity())
                : std::numeric_limits<_T>::lowest();
   }
 
