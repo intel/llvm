@@ -71,21 +71,27 @@ T GroupBroadcast(T x, id<Dimensions> local_id) {
 }
 
 // Single happens-before means semantics should always apply to all spaces
+// Although consume is unsupported, forwarding to acquire is valid
 static inline constexpr __spv::MemorySemanticsMask::Flag
 getMemorySemanticsMask(intel::memory_order order) {
   __spv::MemorySemanticsMask::Flag spv_order = __spv::MemorySemanticsMask::None;
   switch (order) {
   case intel::memory_order::relaxed:
     spv_order = __spv::MemorySemanticsMask::None;
+    break;
   case intel::memory_order::__consume_unsupported:
   case intel::memory_order::acquire:
     spv_order = __spv::MemorySemanticsMask::Acquire;
+    break;
   case intel::memory_order::release:
     spv_order = __spv::MemorySemanticsMask::Release;
+    break;
   case intel::memory_order::acq_rel:
     spv_order = __spv::MemorySemanticsMask::AcquireRelease;
+    break;
   case intel::memory_order::seq_cst:
     spv_order = __spv::MemorySemanticsMask::SequentiallyConsistent;
+    break;
   }
   return static_cast<__spv::MemorySemanticsMask::Flag>(
       spv_order | __spv::MemorySemanticsMask::SubgroupMemory |
