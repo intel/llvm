@@ -1682,11 +1682,15 @@ def SYCLIntelFPGAIVDep : Attr {
              (getArrayExpr() && getArrayExpr()->isInstantiationDependent());
     }
 
-    const VarDecl *getArrayDecl() const {
-      return getArrayExpr()
-                 ? cast<VarDecl>(cast<DeclRefExpr>(getArrayExpr())->getDecl())
-                       ->getCanonicalDecl()
-                 : nullptr;
+    const ValueDecl *getArrayDecl() const {
+      const Expr* E = getArrayExpr();
+      if (!E) return nullptr;
+
+      if (const auto *DRE = dyn_cast<DeclRefExpr>(E))
+        return cast<ValueDecl>(DRE->getDecl()->getCanonicalDecl());
+
+      return cast<ValueDecl>(
+          cast<MemberExpr>(E)->getMemberDecl()->getCanonicalDecl());
     }
 
     bool isInf() const {
@@ -2582,8 +2586,8 @@ def NoDeref : TypeAttr {
 // intel::reqd_work_group_size spelling.
 def ReqdWorkGroupSize : InheritableAttr {
   let Spellings = [GNU<"reqd_work_group_size">,
-                   CXX11<"intel","reqd_work_group_size">, 
-                   CXX11<"cl","reqd_work_group_size">]; 
+                   CXX11<"intel","reqd_work_group_size">,
+                   CXX11<"cl","reqd_work_group_size">];
   let Args = [UnsignedArgument<"XDim">, DefaultUnsignedArgument<"YDim", 1>,
               DefaultUnsignedArgument<"ZDim", 1>];
   let Subjects = SubjectList<[Function], ErrorDiag>;
