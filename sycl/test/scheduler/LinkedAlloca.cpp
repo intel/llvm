@@ -78,8 +78,8 @@ int main(void) {
   return 0;
 }
 
-// CHECK: "[[MAP_ON_CPU:0x[0-9a-fA-F]+]]"{{.*}} MAP ON
-// CHECK: "[[MAP_ON_CPU]]" -> "[[MAP_DEP_1:0x[0-9a-fA-F]+]]"
-// CHECK: "[[MAP_ON_CPU]]" -> "[[MAP_DEP_2:0x[0-9a-fA-F]+]]"
-// CHECK: "[[MAP_DEP_2]]"{{.*}}\nEXEC CG ON
-// CHECK: "[[MAP_DEP_1]]"{{.*}}\nALLOCA ON HOST
+// CHECK: {{^}}"[[MAP_OP:0x[0-9a-fA-F]+]]"{{.*}} MAP ON
+// CHECK: "[[MAP_OP]]" -> "[[MAP_DEP_1:0x[0-9a-fA-F]+]]"
+// CHECK: "[[MAP_OP]]" -> "[[MAP_DEP_2:0x[0-9a-fA-F]+]]"
+// CHECK: {{^}}"[[MAP_DEP_2]]"{{.*}}\nEXEC CG ON
+// CHECK: {{^}}"[[MAP_DEP_1]]"{{.*}}\nALLOCA ON HOST
