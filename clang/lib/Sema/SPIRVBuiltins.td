@@ -52,8 +52,9 @@ class FunctionExtension<string _Ext> : AbstractExtension<_Ext>;
 // FunctionExtension definitions.
 def FuncExtNone                          : FunctionExtension<"">;
 
-// Qualified Type.  These map to ASTContext::QualType.
-class QualType<string _Name, bit _IsAbstract=0, bit _IsSigned=0> {
+// Qualified Type.  These map to ASTContext::QualType or
+// a function taking an ASTContext.
+class QualType<string _Name, bit _IsAbstract=0, bit _IsSigned=0, bit _IsFunctionCall=0> {
   // Name of the field or function in a clang::ASTContext
   // E.g. Name="IntTy" for the int type, and "getIntPtrType()" for an intptr_t
   string Name = _Name;
@@ -62,6 +63,7 @@ class QualType<string _Name, bit _IsAbstract=0, bit _IsSigned=0> {
   // without access qualifiers.
   bit IsAbstract = _IsAbstract;
   bit IsSigned = _IsSigned;
+  bit IsFunctionCall = _IsFunctionCall;
 }
 
 // List of integers.
@@ -298,7 +300,7 @@ def Long      : IntType<"long",      QualType<"getIntTypeForBitwidth(64, true)",
 def ULong     : UIntType<"ulong",     QualType<"getIntTypeForBitwidth(64, false)">, 64>;
 def Float     : FPType<"float",     QualType<"FloatTy">, 32>;
 def Double    : FPType<"double",    QualType<"DoubleTy">, 64>;
-def Half      : FPType<"half",      QualType<"Float16Ty">, 16>;
+def Half      : FPType<"half",      QualType<"GetFloat16Type", 0, 0, 1>, 16>;
 def Void      : Type<"void",      QualType<"VoidTy">>;
 // FIXME: ensure this is portable...
 def Size      : Type<"size_t",    QualType<"getSizeType()">>;
