@@ -92,11 +92,10 @@ public:
     return GraphProcessor::enqueueCommand(Cmd, EnqueueResult, Blocking);
   }
 
-  cl::sycl::detail::AllocaCommandBase *getOrCreateAllocaForReq(
-      cl::sycl::detail::MemObjRecord *Record,
-      const cl::sycl::detail::Requirement *Req,
-      cl::sycl::detail::QueueImplPtr Queue
-  ) {
+  cl::sycl::detail::AllocaCommandBase *
+  getOrCreateAllocaForReq(cl::sycl::detail::MemObjRecord *Record,
+                          const cl::sycl::detail::Requirement *Req,
+                          cl::sycl::detail::QueueImplPtr Queue) {
     return MGraphBuilder.getOrCreateAllocaForReq(Record, Req, Queue);
   }
 };

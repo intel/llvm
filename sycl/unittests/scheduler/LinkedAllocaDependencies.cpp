@@ -16,21 +16,22 @@ public:
   using ContextImplPtr = std::shared_ptr<cl::sycl::detail::context_impl>;
 
   MemObjMock(const std::shared_ptr<cl::sycl::detail::MemObjRecord> &Record)
-  : SYCLMemObjI() { MRecord = Record; }
+      : SYCLMemObjI() {
+    MRecord = Record;
+  }
 
-  ~MemObjMock() {};
+  ~MemObjMock(){};
 
   MemObjType getType() const override { return MemObjType::BUFFER; }
 
-  void *allocateMem(ContextImplPtr Context,
-                    bool InitFromUserData, void *HostPtr,
-                    cl::sycl::detail::pi::PiEvent &InteropEvent) {
+  void *allocateMem(ContextImplPtr, bool, void *,
+                    cl::sycl::detail::pi::PiEvent &) {
     return nullptr;
   }
 
   void *allocateHostMem() { return nullptr; }
-  void releaseMem(ContextImplPtr Context, void *Ptr) {}
-  void releaseHostMem(void *Ptr) {}
+  void releaseMem(ContextImplPtr, void *) {}
+  void releaseHostMem(void *) {}
   size_t getSize() const override { return 10; }
 };
 
@@ -65,19 +66,17 @@ TEST_F(SchedulerTest, LinkedAllocaDependencies) {
 
   MockCommand DepCmd(DefaultHostQueue, Req);
   MockCommand DepDepCmd(DefaultHostQueue, Req);
-  DepCmd.MDeps.push_back({
-      &DepDepCmd, DepDepCmd.getRequirement(), &AllocaCmd1 });
+  DepCmd.MDeps.push_back({&DepDepCmd, DepDepCmd.getRequirement(), &AllocaCmd1});
   DepDepCmd.MUsers.insert(&DepCmd);
   Record->MWriteLeaves.push_back(&DepCmd);
 
   MockScheduler MS;
-  cl::sycl::detail::Command *AllocaCmd2 = MS.getOrCreateAllocaForReq(
-      Record.get(), &Req, Q1);
+  cl::sycl::detail::Command *AllocaCmd2 =
+      MS.getOrCreateAllocaForReq(Record.get(), &Req, Q1);
 
   ASSERT_TRUE(!!AllocaCmd1.MLinkedAllocaCmd)
       << "No link appeared in existing command";
-  ASSERT_EQ(AllocaCmd1.MLinkedAllocaCmd, AllocaCmd2)
-      << "Invalid link appeared";
+  ASSERT_EQ(AllocaCmd1.MLinkedAllocaCmd, AllocaCmd2) << "Invalid link appeared";
   ASSERT_GT(AllocaCmd1.MUsers.count(AllocaCmd2), 0u)
       << "New alloca isn't in users of the old one";
   ASSERT_GT(AllocaCmd2->MDeps.size(), 1u)
@@ -85,13 +84,13 @@ TEST_F(SchedulerTest, LinkedAllocaDependencies) {
   ASSERT_GT(DepCmd.MUsers.count(AllocaCmd2), 0u)
       << "No deps appeared for leaves of record (i.e. deps of existing alloca)";
   ASSERT_TRUE(std::find_if(AllocaCmd2->MDeps.begin(), AllocaCmd2->MDeps.end(),
-      [&](const cl::sycl::detail::DepDesc &Dep) -> bool {
-        return Dep.MDepCommand == &AllocaCmd1;
-      }) != AllocaCmd2->MDeps.end())
+                           [&](const cl::sycl::detail::DepDesc &Dep) -> bool {
+                             return Dep.MDepCommand == &AllocaCmd1;
+                           }) != AllocaCmd2->MDeps.end())
       << "No deps for existing alloca appeared in new alloca";
   ASSERT_TRUE(std::find_if(AllocaCmd2->MDeps.begin(), AllocaCmd2->MDeps.end(),
-      [&](const cl::sycl::detail::DepDesc &Dep) -> bool {
-        return Dep.MDepCommand == &DepCmd;
-      }) != AllocaCmd2->MDeps.end())
+                           [&](const cl::sycl::detail::DepDesc &Dep) -> bool {
+                             return Dep.MDepCommand == &DepCmd;
+                           }) != AllocaCmd2->MDeps.end())
       << "No deps for leaves (deps of existing alloca) appeared in new alloca";
 }
