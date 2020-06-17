@@ -370,6 +370,7 @@ AArch64TargetLowering::AArch64TargetLowering(const TargetMachine &TM,
 
   setOperationAction(ISD::CTPOP, MVT::i32, Custom);
   setOperationAction(ISD::CTPOP, MVT::i64, Custom);
+  setOperationAction(ISD::CTPOP, MVT::i128, Custom);
 
   setOperationAction(ISD::SDIVREM, MVT::i32, Expand);
   setOperationAction(ISD::SDIVREM, MVT::i64, Expand);
@@ -1256,7 +1257,7 @@ bool AArch64TargetLowering::allowsMisalignedMemoryAccesses(
 
 // Same as above but handling LLTs instead.
 bool AArch64TargetLowering::allowsMisalignedMemoryAccesses(
-    LLT Ty, unsigned AddrSpace, unsigned Align, MachineMemOperand::Flags Flags,
+    LLT Ty, unsigned AddrSpace, Align Alignment, MachineMemOperand::Flags Flags,
     bool *Fast) const {
   if (Subtarget->requiresStrictAlign())
     return false;
@@ -1271,7 +1272,7 @@ bool AArch64TargetLowering::allowsMisalignedMemoryAccesses(
             // Code that uses clang vector extensions can mark that it
             // wants unaligned accesses to be treated as fast by
             // underspecifying alignment to be 1 or 2.
-            Align <= 2 ||
+            Alignment <= 2 ||
 
             // Disregard v2i64. Memcpy lowering produces those and splitting
             // them regresses performance on micro-benchmarks and olden/bh.
@@ -1467,6 +1468,9 @@ const char *AArch64TargetLowering::getTargetNodeName(unsigned Opcode) const {
   case AArch64ISD::LDFF1S:            return "AArch64ISD::LDFF1S";
   case AArch64ISD::LD1RQ:             return "AArch64ISD::LD1RQ";
   case AArch64ISD::LD1RO:             return "AArch64ISD::LD1RO";
+  case AArch64ISD::SVE_LD2:           return "AArch64ISD::SVE_LD2";
+  case AArch64ISD::SVE_LD3:           return "AArch64ISD::SVE_LD3";
+  case AArch64ISD::SVE_LD4:           return "AArch64ISD::SVE_LD4";
   case AArch64ISD::GLD1:              return "AArch64ISD::GLD1";
   case AArch64ISD::GLD1_SCALED:       return "AArch64ISD::GLD1_SCALED";
   case AArch64ISD::GLD1_SXTW:         return "AArch64ISD::GLD1_SXTW";
@@ -5420,6 +5424,15 @@ SDValue AArch64TargetLowering::LowerCTPOP(SDValue Op, SelectionDAG &DAG) const {
     if (VT == MVT::i64)
       UaddLV = DAG.getNode(ISD::ZERO_EXTEND, DL, MVT::i64, UaddLV);
     return UaddLV;
+  } else if (VT == MVT::i128) {
+    Val = DAG.getNode(ISD::BITCAST, DL, MVT::v16i8, Val);
+
+    SDValue CtPop = DAG.getNode(ISD::CTPOP, DL, MVT::v16i8, Val);
+    SDValue UaddLV = DAG.getNode(
+        ISD::INTRINSIC_WO_CHAIN, DL, MVT::i32,
+        DAG.getConstant(Intrinsic::aarch64_neon_uaddlv, DL, MVT::i32), CtPop);
+
+    return DAG.getNode(ISD::ZERO_EXTEND, DL, MVT::i128, UaddLV);
   }
 
   assert((VT == MVT::v1i64 || VT == MVT::v2i64 || VT == MVT::v2i32 ||
@@ -9796,6 +9809,56 @@ bool AArch64TargetLowering::lowerInterleavedStore(StoreInst *SI,
   return true;
 }
 
+// Lower an SVE structured load intrinsic returning a tuple type to target
+// specific intrinsic taking the same input but returning a multi-result value
+// of the split tuple type.
+//
+// E.g. Lowering an LD3:
+//
+//  call <vscale x 12 x i32> @llvm.aarch64.sve.ld3.nxv12i32(
+//                                                    <vscale x 4 x i1> %pred,
+//                                                    <vscale x 4 x i32>* %addr)
+//
+//  Output DAG:
+//
+//    t0: ch = EntryToken
+//        t2: nxv4i1,ch = CopyFromReg t0, Register:nxv4i1 %0
+//        t4: i64,ch = CopyFromReg t0, Register:i64 %1
+//    t5: nxv4i32,nxv4i32,nxv4i32,ch = AArch64ISD::SVE_LD3 t0, t2, t4
+//    t6: nxv12i32 = concat_vectors t5, t5:1, t5:2
+//
+// This is called pre-legalization to avoid widening/splitting issues with
+// non-power-of-2 tuple types used for LD3, such as nxv12i32.
+SDValue AArch64TargetLowering::LowerSVEStructLoad(unsigned Intrinsic,
+                                                  ArrayRef<SDValue> LoadOps,
+                                                  EVT VT, SelectionDAG &DAG,
+                                                  const SDLoc &DL) const {
+  assert(VT.isScalableVector() && "Can only lower scalable vectors");
+
+  unsigned N, Opcode;
+  static std::map<unsigned, std::pair<unsigned, unsigned>> IntrinsicMap = {
+      {Intrinsic::aarch64_sve_ld2, {2, AArch64ISD::SVE_LD2}},
+      {Intrinsic::aarch64_sve_ld3, {3, AArch64ISD::SVE_LD3}},
+      {Intrinsic::aarch64_sve_ld4, {4, AArch64ISD::SVE_LD4}}};
+
+  std::tie(N, Opcode) = IntrinsicMap[Intrinsic];
+  assert(VT.getVectorElementCount().Min % N == 0 &&
+         "invalid tuple vector type!");
+
+  EVT SplitVT = EVT::getVectorVT(*DAG.getContext(), VT.getVectorElementType(),
+                                 VT.getVectorElementCount() / N);
+  assert(isTypeLegal(SplitVT));
+
+  SmallVector<EVT, 5> VTs(N, SplitVT);
+  VTs.push_back(MVT::Other); // Chain
+  SDVTList NodeTys = DAG.getVTList(VTs);
+
+  SDValue PseudoLoad = DAG.getNode(Opcode, DL, NodeTys, LoadOps);
+  SmallVector<SDValue, 4> PseudoLoadOps;
+  for (unsigned I = 0; I < N; ++I)
+    PseudoLoadOps.push_back(SDValue(PseudoLoad.getNode(), I));
+  return DAG.getNode(ISD::CONCAT_VECTORS, DL, VT, PseudoLoadOps);
+}
 
 EVT AArch64TargetLowering::getOptimalMemOpType(
     const MemOp &Op, const AttributeList &FuncAttributes) const {
@@ -11452,6 +11515,9 @@ static SDValue tryConvertSVEWideCompare(SDNode *N, ISD::CondCode CC,
     }
     }
 
+    if (!Imm)
+      return SDValue();
+
     SDValue Splat = DAG.getNode(ISD::SPLAT_VECTOR, DL, CmpVT, Imm);
     return DAG.getNode(AArch64ISD::SETCC_PRED, DL, VT, Pred, N->getOperand(2),
                        Splat, DAG.getCondCode(CC));
@@ -12013,6 +12079,10 @@ static SDValue replaceZeroVectorStore(SelectionDAG &DAG, StoreSDNode &St) {
   SDValue StVal = St.getValue();
   EVT VT = StVal.getValueType();
 
+  // Avoid scalarizing zero splat stores for scalable vectors.
+  if (VT.isScalableVector())
+    return SDValue();
+
   // It is beneficial to scalarize a zero splat store for 2 or 3 i64 elements or
   // 2, 3 or 4 i32 elements.
   int NumVecElts = VT.getVectorNumElements();
@@ -12135,7 +12205,8 @@ static SDValue splitStores(SDNode *N, TargetLowering::DAGCombinerInfo &DCI,
 
   SDValue StVal = S->getValue();
   EVT VT = StVal.getValueType();
-  if (!VT.isVector())
+
+  if (!VT.isFixedLengthVector())
     return SDValue();
 
   // If we get a splat of zeros, convert this vector store to a store of
@@ -13657,6 +13728,87 @@ SDValue AArch64TargetLowering::PerformDAGCombine(SDNode *N,
                                         /*OnlyPackedOffsets=*/false);
     case Intrinsic::aarch64_sve_st1_scatter_scalar_offset:
       return performScatterStoreCombine(N, DAG, AArch64ISD::SST1_IMM);
+    case Intrinsic::aarch64_sve_tuple_get: {
+      SDLoc DL(N);
+      SDValue Chain = N->getOperand(0);
+      SDValue Src1 = N->getOperand(2);
+      SDValue Idx = N->getOperand(3);
+
+      uint64_t IdxConst = cast<ConstantSDNode>(Idx)->getZExtValue();
+      if (IdxConst > Src1->getNumOperands() - 1)
+        report_fatal_error("index larger than expected");
+
+      EVT ResVT = N->getValueType(0);
+      uint64_t NumLanes = ResVT.getVectorElementCount().Min;
+      SDValue Val =
+          DAG.getNode(ISD::EXTRACT_SUBVECTOR, DL, ResVT, Src1,
+                      DAG.getConstant(IdxConst * NumLanes, DL, MVT::i32));
+      return DAG.getMergeValues({Val, Chain}, DL);
+    }
+    case Intrinsic::aarch64_sve_tuple_set: {
+      SDLoc DL(N);
+      SDValue Chain = N->getOperand(0);
+      SDValue Tuple = N->getOperand(2);
+      SDValue Idx = N->getOperand(3);
+      SDValue Vec = N->getOperand(4);
+
+      EVT TupleVT = Tuple.getValueType();
+      uint64_t TupleLanes = TupleVT.getVectorElementCount().Min;
+
+      uint64_t IdxConst = cast<ConstantSDNode>(Idx)->getZExtValue();
+      uint64_t NumLanes = Vec.getValueType().getVectorElementCount().Min;
+
+      if ((TupleLanes % NumLanes) != 0)
+        report_fatal_error("invalid tuple vector!");
+
+      uint64_t NumVecs = TupleLanes / NumLanes;
+
+      SmallVector<SDValue, 4> Opnds;
+      for (unsigned I = 0; I < NumVecs; ++I) {
+        if (I == IdxConst)
+          Opnds.push_back(Vec);
+        else {
+          Opnds.push_back(
+              DAG.getNode(ISD::EXTRACT_SUBVECTOR, DL, Vec.getValueType(), Tuple,
+                          DAG.getConstant(I * NumLanes, DL, MVT::i32)));
+        }
+      }
+      SDValue Concat =
+          DAG.getNode(ISD::CONCAT_VECTORS, DL, Tuple.getValueType(), Opnds);
+      return DAG.getMergeValues({Concat, Chain}, DL);
+    }
+    case Intrinsic::aarch64_sve_tuple_create2:
+    case Intrinsic::aarch64_sve_tuple_create3:
+    case Intrinsic::aarch64_sve_tuple_create4: {
+      SDLoc DL(N);
+      SDValue Chain = N->getOperand(0);
+
+      SmallVector<SDValue, 4> Opnds;
+      for (unsigned I = 2; I < N->getNumOperands(); ++I)
+        Opnds.push_back(N->getOperand(I));
+
+      EVT VT = Opnds[0].getValueType();
+      EVT EltVT = VT.getVectorElementType();
+      EVT DestVT = EVT::getVectorVT(*DAG.getContext(), EltVT,
+                                    VT.getVectorElementCount() *
+                                        (N->getNumOperands() - 2));
+      SDValue Concat = DAG.getNode(ISD::CONCAT_VECTORS, DL, DestVT, Opnds);
+      return DAG.getMergeValues({Concat, Chain}, DL);
+    }
+    case Intrinsic::aarch64_sve_ld2:
+    case Intrinsic::aarch64_sve_ld3:
+    case Intrinsic::aarch64_sve_ld4: {
+      SDLoc DL(N);
+      SDValue Chain = N->getOperand(0);
+      SDValue Mask = N->getOperand(2);
+      SDValue BasePtr = N->getOperand(3);
+      SDValue LoadOps[] = {Chain, Mask, BasePtr};
+      unsigned IntrinsicID =
+          cast<ConstantSDNode>(N->getOperand(1))->getZExtValue();
+      SDValue Result =
+          LowerSVEStructLoad(IntrinsicID, LoadOps, N->getValueType(0), DAG, DL);
+      return DAG.getMergeValues({Result, Chain}, DL);
+    }
     default:
       break;
     }
@@ -13963,6 +14115,9 @@ void AArch64TargetLowering::ReplaceNodeResults(
     Results.push_back(LowerVECREDUCE(SDValue(N, 0), DAG));
     return;
 
+  case ISD::CTPOP:
+    Results.push_back(LowerCTPOP(SDValue(N, 0), DAG));
+    return;
   case AArch64ISD::SADDV:
     ReplaceReductionResults(N, Results, DAG, ISD::ADD, AArch64ISD::SADDV);
     return;
@@ -14382,8 +14537,7 @@ bool AArch64TargetLowering::isIntDivCheap(EVT VT, AttributeList Attr) const {
   // integer division, leaving the division as-is is a loss even in terms of
   // size, because it will have to be scalarized, while the alternative code
   // sequence can be performed in vector form.
-  bool OptSize =
-      Attr.hasAttribute(AttributeList::FunctionIndex, Attribute::MinSize);
+  bool OptSize = Attr.hasFnAttribute(Attribute::MinSize);
   return OptSize && !VT.isVector();
 }
 

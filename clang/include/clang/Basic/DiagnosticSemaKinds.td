@@ -3342,6 +3342,12 @@ def err_attribute_output_parameter : Error<
 
 def ext_cannot_use_trivial_abi : ExtWarn<
   "'trivial_abi' cannot be applied to %0">, InGroup<IgnoredAttributes>;
+def note_cannot_use_trivial_abi_reason : Note<
+  "'trivial_abi' is disallowed on %0 because %select{"
+  "its copy constructors and move constructors are all deleted|"
+  "it is polymorphic|"
+  "it has a base of a non-trivial class type|it has a virtual base|"
+  "it has a __weak field|it has a field of a non-trivial class type}1">;
 
 // Availability attribute
 def warn_availability_unknown_platform : Warning<
@@ -3442,6 +3448,7 @@ def warn_expecting_lock_held_on_loop : Warning<
   "expecting %0 '%1' to be held at start of each loop">,
   InGroup<ThreadSafetyAnalysis>, DefaultIgnore;
 def note_locked_here : Note<"%0 acquired here">;
+def note_unlocked_here : Note<"%0 released here">;
 def warn_lock_exclusive_and_shared : Warning<
   "%0 '%1' is acquired exclusively and shared in the same scope">,
   InGroup<ThreadSafetyAnalysis>, DefaultIgnore;
@@ -6043,24 +6050,16 @@ def err_atomic_specifier_bad_type
             "1 byte of precision|with a non power of 2 precision}0">;
 
 // Expressions.
-def select_unary_expr_or_type_trait_kind : TextSubstitution<
-  "%select{sizeof|alignof|vec_step|__builtin_omp_required_simd_align|"
-  "__alignof}0">;
 def ext_sizeof_alignof_function_type : Extension<
-  "invalid application of '%sub{select_unary_expr_or_type_trait_kind}0' "
-  "to a function type">, InGroup<PointerArith>;
+  "invalid application of '%0' to a function type">, InGroup<PointerArith>;
 def ext_sizeof_alignof_void_type : Extension<
-  "invalid application of '%sub{select_unary_expr_or_type_trait_kind}0' "
-  "to a void type">, InGroup<PointerArith>;
+  "invalid application of '%0' to a void type">, InGroup<PointerArith>;
 def err_opencl_sizeof_alignof_type : Error<
-  "invalid application of '%sub{select_unary_expr_or_type_trait_kind}0' "
-  "to a void type">;
+  "invalid application of '%0' to a void type">;
 def err_sizeof_alignof_incomplete_or_sizeless_type : Error<
-  "invalid application of '%sub{select_unary_expr_or_type_trait_kind}0' "
-  "to %select{an incomplete|sizeless}1 type %2">;
+  "invalid application of '%0' to %select{an incomplete|sizeless}1 type %2">;
 def err_sizeof_alignof_function_type : Error<
-  "invalid application of '%sub{select_unary_expr_or_type_trait_kind}0' "
-  "to a function type">;
+  "invalid application of '%0' to a function type">;
 def err_openmp_default_simd_align_expr : Error<
   "invalid application of '__builtin_omp_required_simd_align' to an expression, only type is allowed">;
 def err_sizeof_alignof_typeof_bitfield : Error<
@@ -8629,11 +8628,14 @@ def err_conv_function_with_complex_decl : Error<
 def err_conv_function_redeclared : Error<
   "conversion function cannot be redeclared">;
 def warn_conv_to_self_not_used : Warning<
-  "conversion function converting %0 to itself will never be used">;
+  "conversion function converting %0 to itself will never be used">,
+  InGroup<ClassConversion>;
 def warn_conv_to_base_not_used : Warning<
-  "conversion function converting %0 to its base class %1 will never be used">;
+  "conversion function converting %0 to its base class %1 will never be used">,
+  InGroup<ClassConversion>;
 def warn_conv_to_void_not_used : Warning<
-  "conversion function converting %0 to %1 will never be used">;
+  "conversion function converting %0 to %1 will never be used">,
+  InGroup<ClassConversion>;
 
 def warn_not_compound_assign : Warning<
   "use of unary operator that may be intended as compound assignment (%0=)">;
@@ -10887,6 +10889,8 @@ def err_ivdep_declrefexpr_arg : Error<
 def warn_ivdep_redundant : Warning <"ignoring redundant Intel FPGA loop "
   "attribute 'ivdep': safelen %select{INF|%1}0 >= safelen %select{INF|%3}2">,
   InGroup<IgnoredAttributes>;
+def err_builtin_matrix_arg: Error<
+  "%select{first|second}0 argument must be a matrix">;
 
 def err_preserve_field_info_not_field : Error<
   "__builtin_preserve_field_info argument %0 not a field access">;

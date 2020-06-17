@@ -434,7 +434,9 @@ public:
   }
 
   // FIXME: Deprecate this function when transition to Align is over.
-  unsigned AllocateStack(unsigned Size, unsigned Alignment) {
+  LLVM_ATTRIBUTE_DEPRECATED(unsigned AllocateStack(unsigned Size,
+                                                   unsigned Alignment),
+                            "Use the version that takes Align instead.") {
     return AllocateStack(Size, Align(Alignment));
   }
 
@@ -444,9 +446,12 @@ public:
   }
 
   /// Version of AllocateStack with extra register to be shadowed.
-  unsigned AllocateStack(unsigned Size, unsigned Align, unsigned ShadowReg) {
+  LLVM_ATTRIBUTE_DEPRECATED(unsigned AllocateStack(unsigned Size,
+                                                   unsigned Alignment,
+                                                   unsigned ShadowReg),
+                            "Use the version that takes Align instead.") {
     MarkAllocated(ShadowReg);
-    return AllocateStack(Size, Align);
+    return AllocateStack(Size, Align(Alignment));
   }
 
   /// Version of AllocateStack with list of extra registers to be shadowed.
@@ -461,9 +466,9 @@ public:
   // HandleByVal - Allocate a stack slot large enough to pass an argument by
   // value. The size and alignment information of the argument is encoded in its
   // parameter attribute.
-  void HandleByVal(unsigned ValNo, MVT ValVT,
-                   MVT LocVT, CCValAssign::LocInfo LocInfo,
-                   int MinSize, int MinAlign, ISD::ArgFlagsTy ArgFlags);
+  void HandleByVal(unsigned ValNo, MVT ValVT, MVT LocVT,
+                   CCValAssign::LocInfo LocInfo, int MinSize, Align MinAlign,
+                   ISD::ArgFlagsTy ArgFlags);
 
   // Returns count of byval arguments that are to be stored (even partly)
   // in registers.

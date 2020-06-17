@@ -867,8 +867,7 @@ static bool findGISelOptimalMemOpLowering(std::vector<LLT> &MemOps,
     Ty = LLT::scalar(64);
     if (Op.isFixedDstAlign())
       while (Op.getDstAlign() < Ty.getSizeInBytes() &&
-             !TLI.allowsMisalignedMemoryAccesses(Ty, DstAS,
-                                                 Op.getDstAlign().value()))
+             !TLI.allowsMisalignedMemoryAccesses(Ty, DstAS, Op.getDstAlign()))
         Ty = LLT::scalar(Ty.getSizeInBytes());
     assert(Ty.getSizeInBits() > 0 && "Could not find valid type");
     // FIXME: check for the largest legal type we can load/store to.
@@ -918,8 +917,8 @@ static bool findGISelOptimalMemOpLowering(std::vector<LLT> &MemOps,
 
 static Type *getTypeForLLT(LLT Ty, LLVMContext &C) {
   if (Ty.isVector())
-    return VectorType::get(IntegerType::get(C, Ty.getScalarSizeInBits()),
-                           Ty.getNumElements());
+    return FixedVectorType::get(IntegerType::get(C, Ty.getScalarSizeInBits()),
+                                Ty.getNumElements());
   return IntegerType::get(C, Ty.getSizeInBits());
 }
 

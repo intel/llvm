@@ -1578,7 +1578,7 @@ public:
 
   /// LLT handling variant.
   virtual bool allowsMisalignedMemoryAccesses(
-      LLT, unsigned AddrSpace = 0, unsigned Align = 1,
+      LLT, unsigned AddrSpace = 0, Align Alignment = Align(1),
       MachineMemOperand::Flags Flags = MachineMemOperand::MONone,
       bool * /*Fast*/ = nullptr) const {
     return false;
@@ -3837,7 +3837,7 @@ public:
   }
 
   /// Target-specific cleanup for formal ByVal parameters.
-  virtual void HandleByVal(CCState *, unsigned &, unsigned) const {}
+  virtual void HandleByVal(CCState *, unsigned &, Align) const {}
 
   /// This hook should be implemented to check whether the return values
   /// described by the Outs array can fit into the return registers.  If false

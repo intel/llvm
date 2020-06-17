@@ -11,19 +11,28 @@ int global;
 int dyn_init_global = global;
 int __attribute__((no_sanitize("address"))) attributed_global;
 int blacklisted_global;
-int __attribute__ ((section("__DATA, __common"))) sectioned_global;
+
+int __attribute__((section("__DATA, __common"))) sectioned_global; // KASAN - ignore globals in a section
+extern "C" {
+int __special_global; // KASAN - ignore globals with __-prefix
+}
 
 void func() {
   static int static_var = 0;
   const char *literal = "Hello, world!";
 }
 
+// ASAN: sectioned_global{{.*}} global { i32, [60 x i8] }{{.*}}, align 32
+// KASAN: sectioned_global{{.*}} global i32
+// ASAN: @__special_global{{.*}} global { i32, [60 x i8] }{{.*}}, align 32
+// KASAN: @__special_global{{.*}} global i32
+
 // CHECK-LABEL: define internal void @asan.module_ctor
 // ASAN-NEXT: call void @__asan_init
 // ASAN-NEXT: call void @__asan_version_mismatch_check
 // KASAN-NOT: call void @__asan_init
 // KASAN-NOT: call void @__asan_version_mismatch_check
-// ASAN-NEXT: call void @__asan_register_globals({{.*}}, i{{32|64}} 6)
+// ASAN-NEXT: call void @__asan_register_globals({{.*}}, i{{32|64}} 7)
 // KASAN-NEXT: call void @__asan_register_globals({{.*}}, i{{32|64}} 5)
 // CHECK-NEXT: ret void
 
@@ -31,7 +40,7 @@ void func() {
 // CHECK-NEXT: call void @__asan_unregister_globals
 // CHECK-NEXT: ret void
 
-// CHECK: !llvm.asan.globals = !{![[EXTRA_GLOBAL:[0-9]+]], ![[GLOBAL:[0-9]+]], ![[DYN_INIT_GLOBAL:[0-9]+]], ![[ATTR_GLOBAL:[0-9]+]], ![[BLACKLISTED_GLOBAL:[0-9]+]], ![[SECTIONED_GLOBAL:[0-9]+]], ![[STATIC_VAR:[0-9]+]], ![[LITERAL:[0-9]+]]}
+// CHECK: !llvm.asan.globals = !{![[EXTRA_GLOBAL:[0-9]+]], ![[GLOBAL:[0-9]+]], ![[DYN_INIT_GLOBAL:[0-9]+]], ![[ATTR_GLOBAL:[0-9]+]], ![[BLACKLISTED_GLOBAL:[0-9]+]], ![[SECTIONED_GLOBAL:[0-9]+]], ![[SPECIAL_GLOBAL:[0-9]+]], ![[STATIC_VAR:[0-9]+]], ![[LITERAL:[0-9]+]]}
 // CHECK: ![[EXTRA_GLOBAL]] = !{{{.*}} ![[EXTRA_GLOBAL_LOC:[0-9]+]], !"extra_global", i1 false, i1 false}
 // CHECK: ![[EXTRA_GLOBAL_LOC]] = !{!"{{.*}}extra-source.cpp", i32 1, i32 5}
 // CHECK: ![[GLOBAL]] = !{{{.*}} ![[GLOBAL_LOC:[0-9]+]], !"global", i1 false, i1 false}
@@ -41,13 +50,15 @@ void func() {
 // CHECK: ![[ATTR_GLOBAL]] = !{{{.*}}, null, null, i1 false, i1 true}
 // CHECK: ![[BLACKLISTED_GLOBAL]] = !{{{.*}}, null, null, i1 false, i1 true}
 // CHECK: ![[SECTIONED_GLOBAL]] = !{{{.*}} ![[SECTIONED_GLOBAL_LOC:[0-9]+]], !"sectioned_global", i1 false, i1 false}
-// CHECK: ![[SECTIONED_GLOBAL_LOC]] = !{!"{{.*}}asan-globals.cpp", i32 14, i32 51}
+// CHECK: ![[SECTIONED_GLOBAL_LOC]] = !{!"{{.*}}asan-globals.cpp", i32 15, i32 50}
+// CHECK: ![[SPECIAL_GLOBAL]] = !{{{.*}} ![[SPECIAL_GLOBAL_LOC:[0-9]+]], !"__special_global", i1 false, i1 false}
+// CHECK: ![[SPECIAL_GLOBAL_LOC]] = !{!"{{.*}}asan-globals.cpp", i32 17, i32 5}
 // CHECK: ![[STATIC_VAR]] = !{{{.*}} ![[STATIC_LOC:[0-9]+]], !"static_var", i1 false, i1 false}
-// CHECK: ![[STATIC_LOC]] = !{!"{{.*}}asan-globals.cpp", i32 17, i32 14}
+// CHECK: ![[STATIC_LOC]] = !{!"{{.*}}asan-globals.cpp", i32 21, i32 14}
 // CHECK: ![[LITERAL]] = !{{{.*}} ![[LITERAL_LOC:[0-9]+]], !"<string literal>", i1 false, i1 false}
-// CHECK: ![[LITERAL_LOC]] = !{!"{{.*}}asan-globals.cpp", i32 18, i32 25}
+// CHECK: ![[LITERAL_LOC]] = !{!"{{.*}}asan-globals.cpp", i32 22, i32 25}
 
-// BLACKLIST-SRC: !llvm.asan.globals = !{![[EXTRA_GLOBAL:[0-9]+]], ![[GLOBAL:[0-9]+]], ![[DYN_INIT_GLOBAL:[0-9]+]], ![[ATTR_GLOBAL:[0-9]+]], ![[BLACKLISTED_GLOBAL:[0-9]+]], ![[SECTIONED_GLOBAL:[0-9]+]], ![[STATIC_VAR:[0-9]+]], ![[LITERAL:[0-9]+]]}
+// BLACKLIST-SRC: !llvm.asan.globals = !{![[EXTRA_GLOBAL:[0-9]+]], ![[GLOBAL:[0-9]+]], ![[DYN_INIT_GLOBAL:[0-9]+]], ![[ATTR_GLOBAL:[0-9]+]], ![[BLACKLISTED_GLOBAL:[0-9]+]], ![[SECTIONED_GLOBAL:[0-9]+]], ![[SPECIAL_GLOBAL:[0-9]+]], ![[STATIC_VAR:[0-9]+]], ![[LITERAL:[0-9]+]]}
 // BLACKLIST-SRC: ![[EXTRA_GLOBAL]] = !{{{.*}} ![[EXTRA_GLOBAL_LOC:[0-9]+]], !"extra_global", i1 false, i1 false}
 // BLACKLIST-SRC: ![[EXTRA_GLOBAL_LOC]] = !{!"{{.*}}extra-source.cpp", i32 1, i32 5}
 // BLACKLIST-SRC: ![[GLOBAL]] = !{{{.*}} null, null, i1 false, i1 true}
@@ -55,5 +66,6 @@ void func() {
 // BLACKLIST-SRC: ![[ATTR_GLOBAL]] = !{{{.*}}, null, null, i1 false, i1 true}
 // BLACKLIST-SRC: ![[BLACKLISTED_GLOBAL]] = !{{{.*}}, null, null, i1 false, i1 true}
 // BLACKLIST-SRC: ![[SECTIONED_GLOBAL]] = !{{{.*}} null, null, i1 false, i1 true}
+// BLACKLIST-SRC: ![[SPECIAL_GLOBAL]] = !{{{.*}} null, null, i1 false, i1 true}
 // BLACKLIST-SRC: ![[STATIC_VAR]] = !{{{.*}} null, null, i1 false, i1 true}
 // BLACKLIST-SRC: ![[LITERAL]] = !{{{.*}} null, null, i1 false, i1 true}

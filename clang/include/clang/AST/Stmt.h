@@ -775,8 +775,10 @@ protected:
     /// the trait evaluated true or false.
     unsigned Value : 1;
 
-    /// The number of arguments to this type trait.
-    unsigned NumArgs : 32 - 8 - 1 - NumExprBits;
+    /// The number of arguments to this type trait. According to [implimits]
+    /// 8 bits would be enough, but we require (and test for) at least 16 bits
+    /// to mirror FunctionType.
+    unsigned NumArgs;
   };
 
   class DependentScopeDeclRefExprBitfields {
@@ -925,6 +927,28 @@ protected:
     SourceLocation NameLoc;
   };
 
+  class LambdaExprBitfields {
+    friend class ASTStmtReader;
+    friend class ASTStmtWriter;
+    friend class LambdaExpr;
+
+    unsigned : NumExprBits;
+
+    /// The default capture kind, which is a value of type
+    /// LambdaCaptureDefault.
+    unsigned CaptureDefault : 2;
+
+    /// Whether this lambda had an explicit parameter list vs. an
+    /// implicit (and empty) parameter list.
+    unsigned ExplicitParams : 1;
+
+    /// Whether this lambda had the result type explicitly specified.
+    unsigned ExplicitResultType : 1;
+
+    /// The number of captures.
+    unsigned NumCaptures : 16;
+  };
+
   class RequiresExprBitfields {
     friend class ASTStmtReader;
     friend class ASTStmtWriter;
@@ -1037,6 +1061,7 @@ protected:
     UnresolvedMemberExprBitfields UnresolvedMemberExprBits;
     CXXNoexceptExprBitfields CXXNoexceptExprBits;
     SubstNonTypeTemplateParmExprBitfields SubstNonTypeTemplateParmExprBits;
+    LambdaExprBitfields LambdaExprBits;
     RequiresExprBitfields RequiresExprBits;
 
     // C++ Coroutines TS expressions

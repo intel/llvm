@@ -1,24 +1,8 @@
 // RUN: mlir-opt -allow-unregistered-dialect %s -split-input-file -verify-diagnostics
 
-func @dim(tensor<1xf32>) {
-^bb(%0: tensor<1xf32>):
-  "std.dim"(%0){index = "xyz"} : (tensor<1xf32>)->index // expected-error {{attribute 'index' failed to satisfy constraint: arbitrary integer attribute}}
-  return
-}
-
-// -----
-
-func @dim2(tensor<1xf32>) {
-^bb(%0: tensor<1xf32>):
-  "std.dim"(){index = "xyz"} : ()->index // expected-error {{'std.dim' op requires a single operand}}
-  return
-}
-
-// -----
-
-func @dim3(tensor<1xf32>) {
-^bb(%0: tensor<1xf32>):
-  "std.dim"(%0){index = 1} : (tensor<1xf32>)->index // expected-error {{'std.dim' op index is out of range}}
+func @dim(%arg : tensor<1x?xf32>) {
+  %c2 = constant 2 : index
+  dim %arg, %c2 : tensor<1x?xf32> // expected-error {{'std.dim' op index is out of range}}
   return
 }
 
@@ -701,7 +685,7 @@ func @fpext_f32_to_i32(%arg0 : f32) {
 // -----
 
 func @fpext_vec(%arg0 : vector<2xf16>) {
-  // expected-error@+1 {{are cast incompatible}}
+  // expected-error@+1 {{requires the same shape for all operands and results}}
   %0 = fpext %arg0 : vector<2xf16> to vector<3xf32>
   return
 }
@@ -773,7 +757,7 @@ func @fptrunc_f32_to_i32(%arg0 : f32) {
 // -----
 
 func @fptrunc_vec(%arg0 : vector<2xf16>) {
-  // expected-error@+1 {{are cast incompatible}}
+  // expected-error@+1 {{requires the same shape for all operands and results}}
   %0 = fptrunc %arg0 : vector<2xf16> to vector<3xf32>
   return
 }

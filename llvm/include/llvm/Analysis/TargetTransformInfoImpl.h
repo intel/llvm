@@ -376,6 +376,20 @@ public:
                                   TTI::OperandValueProperties Opd2PropInfo,
                                   ArrayRef<const Value *> Args,
                                   const Instruction *CxtI = nullptr) {
+    // FIXME: A number of transformation tests seem to require these values
+    // which seems a little odd for how arbitary there are.
+    switch (Opcode) {
+    default:
+      break;
+    case Instruction::FDiv:
+    case Instruction::FRem:
+    case Instruction::SDiv:
+    case Instruction::SRem:
+    case Instruction::UDiv:
+    case Instruction::URem:
+      // FIXME: Unlikely to be true for CodeSize.
+      return TTI::TCC_Expensive;
+    }
     return 1;
   }
 
@@ -830,14 +844,36 @@ public:
                                    GEP->getPointerOperand(),
                                    Operands.drop_front());
     }
-    case Instruction::FDiv:
-    case Instruction::FRem:
-    case Instruction::SDiv:
-    case Instruction::SRem:
+    case Instruction::Add:
+    case Instruction::FAdd:
+    case Instruction::Sub:
+    case Instruction::FSub:
+    case Instruction::Mul:
+    case Instruction::FMul:
     case Instruction::UDiv:
+    case Instruction::SDiv:
+    case Instruction::FDiv:
     case Instruction::URem:
-      // FIXME: Unlikely to be true for CodeSize.
-      return TTI::TCC_Expensive;
+    case Instruction::SRem:
+    case Instruction::FRem:
+    case Instruction::Shl:
+    case Instruction::LShr:
+    case Instruction::AShr:
+    case Instruction::And:
+    case Instruction::Or:
+    case Instruction::Xor:
+    case Instruction::FNeg: {
+      TTI::OperandValueProperties Op1VP = TTI::OP_None;
+      TTI::OperandValueProperties Op2VP = TTI::OP_None;
+      TTI::OperandValueKind Op1VK =
+        TTI::getOperandInfo(U->getOperand(0), Op1VP);
+      TTI::OperandValueKind Op2VK = Opcode != Instruction::FNeg ?
+        TTI::getOperandInfo(U->getOperand(1), Op2VP) : TTI::OK_AnyValue;
+      SmallVector<const Value *, 2> Operands(U->operand_values());
+      return TargetTTI->getArithmeticInstrCost(Opcode, Ty, CostKind,
+                                               Op1VK, Op2VK,
+                                               Op1VP, Op2VP, Operands, I);
+    }
     case Instruction::IntToPtr:
     case Instruction::PtrToInt:
     case Instruction::SIToFP:
@@ -864,6 +900,100 @@ public:
       return TargetTTI->getMemoryOpCost(Opcode, U->getType(), LI->getAlign(),
                                         LI->getPointerAddressSpace(),
                                         CostKind, I);
+    }
+    case Instruction::Select: {
+      Type *CondTy = U->getOperand(0)->getType();
+      return TargetTTI->getCmpSelInstrCost(Opcode, U->getType(), CondTy,
+                                           CostKind, I);
+    }
+    case Instruction::ICmp:
+    case Instruction::FCmp: {
+      Type *ValTy = U->getOperand(0)->getType();
+      return TargetTTI->getCmpSelInstrCost(Opcode, ValTy, U->getType(),
+                                           CostKind, I);
+    }
+    case Instruction::InsertElement: {
+      auto *IE = cast<InsertElementInst>(U);
+      auto *CI = dyn_cast<ConstantInt>(IE->getOperand(2));
+      unsigned Idx = CI ? CI->getZExtValue() : -1;
+      return TargetTTI->getVectorInstrCost(Opcode, Ty, Idx);
+    }
+    case Instruction::ShuffleVector: {
+      auto *Shuffle = cast<ShuffleVectorInst>(U);
+      auto *VecTy = cast<VectorType>(U->getType());
+      auto *VecSrcTy = cast<VectorType>(U->getOperand(0)->getType());
+
+      // TODO: Identify and add costs for insert subvector, etc.
+      int SubIndex;
+      if (Shuffle->isExtractSubvectorMask(SubIndex))
+        return TargetTTI->getShuffleCost(TTI::SK_ExtractSubvector, VecSrcTy,
+                                         SubIndex, VecTy);
+      else if (Shuffle->changesLength())
+        return CostKind == TTI::TCK_RecipThroughput ? -1 : 1;
+      else if (Shuffle->isIdentity())
+        return 0;
+      else if (Shuffle->isReverse())
+        return TargetTTI->getShuffleCost(TTI::SK_Reverse, VecTy, 0, nullptr);
+      else if (Shuffle->isSelect())
+        return TargetTTI->getShuffleCost(TTI::SK_Select, VecTy, 0, nullptr);
+      else if (Shuffle->isTranspose())
+        return TargetTTI->getShuffleCost(TTI::SK_Transpose, VecTy, 0, nullptr);
+      else if (Shuffle->isZeroEltSplat())
+        return TargetTTI->getShuffleCost(TTI::SK_Broadcast, VecTy, 0, nullptr);
+      else if (Shuffle->isSingleSource())
+        return TargetTTI->getShuffleCost(TTI::SK_PermuteSingleSrc, VecTy, 0,
+                                         nullptr);
+
+      return TargetTTI->getShuffleCost(TTI::SK_PermuteTwoSrc, VecTy, 0,
+                                       nullptr);
+    }
+    case Instruction::ExtractElement: {
+      unsigned Idx = -1;
+      auto *EEI = cast<ExtractElementInst>(U);
+      auto *CI = dyn_cast<ConstantInt>(EEI->getOperand(1));
+      if (CI)
+        Idx = CI->getZExtValue();
+
+      // Try to match a reduction sequence (series of shufflevector and
+      // vector  adds followed by a extractelement).
+      unsigned ReduxOpCode;
+      VectorType *ReduxType;
+
+      switch (TTI::matchVectorSplittingReduction(EEI, ReduxOpCode,
+                                                 ReduxType)) {
+      case TTI::RK_Arithmetic:
+        return TargetTTI->getArithmeticReductionCost(ReduxOpCode, ReduxType,
+                                          /*IsPairwiseForm=*/false,
+                                          CostKind);
+      case TTI::RK_MinMax:
+        return TargetTTI->getMinMaxReductionCost(
+            ReduxType, cast<VectorType>(CmpInst::makeCmpResultType(ReduxType)),
+            /*IsPairwiseForm=*/false, /*IsUnsigned=*/false, CostKind);
+      case TTI::RK_UnsignedMinMax:
+        return TargetTTI->getMinMaxReductionCost(
+            ReduxType, cast<VectorType>(CmpInst::makeCmpResultType(ReduxType)),
+            /*IsPairwiseForm=*/false, /*IsUnsigned=*/true, CostKind);
+      case TTI::RK_None:
+        break;
+      }
+
+      switch (TTI::matchPairwiseReduction(EEI, ReduxOpCode, ReduxType)) {
+      case TTI::RK_Arithmetic:
+        return TargetTTI->getArithmeticReductionCost(ReduxOpCode, ReduxType,
+                                          /*IsPairwiseForm=*/true, CostKind);
+      case TTI::RK_MinMax:
+        return TargetTTI->getMinMaxReductionCost(
+            ReduxType, cast<VectorType>(CmpInst::makeCmpResultType(ReduxType)),
+            /*IsPairwiseForm=*/true, /*IsUnsigned=*/false, CostKind);
+      case TTI::RK_UnsignedMinMax:
+        return TargetTTI->getMinMaxReductionCost(
+            ReduxType, cast<VectorType>(CmpInst::makeCmpResultType(ReduxType)),
+            /*IsPairwiseForm=*/true, /*IsUnsigned=*/true, CostKind);
+      case TTI::RK_None:
+        break;
+      }
+      return TargetTTI->getVectorInstrCost(Opcode, U->getOperand(0)->getType(),
+                                           Idx);
     }
     }
     // By default, just classify everything as 'basic'.
