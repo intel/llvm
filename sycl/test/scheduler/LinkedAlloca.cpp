@@ -79,7 +79,7 @@ int main(void) {
 }
 
 // CHECK: {{^}}"[[MAP_OP:0x[0-9a-fA-F]+]]"{{.*}} MAP ON
-// CHECK: "[[MAP_OP]]" -> "[[MAP_DEP_1:0x[0-9a-fA-F]+]]"
-// CHECK: "[[MAP_OP]]" -> "[[MAP_DEP_2:0x[0-9a-fA-F]+]]"
-// CHECK: {{^}}"[[MAP_DEP_2]]"{{.*}}\nEXEC CG ON
-// CHECK: {{^}}"[[MAP_DEP_1]]"{{.*}}\nALLOCA ON HOST
+// CHECK-DAG: "[[MAP_OP]]" -> "[[MAP_DEP_1:0x[0-9a-fA-F]+]]"
+// CHECK-DAG: "[[MAP_OP]]" -> "[[MAP_DEP_2:0x[0-9a-fA-F]+]]"
+// CHECK-DAG: {{^}}"[[MAP_DEP_1]]"{{.*}}\nEXEC CG ON
+// CHECK-DAG: {{^}}"[[MAP_DEP_2]]"{{.*}}\nALLOCA ON HOST
