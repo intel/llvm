@@ -91,6 +91,14 @@ public:
                              cl::sycl::detail::BlockingT Blocking) {
     return GraphProcessor::enqueueCommand(Cmd, EnqueueResult, Blocking);
   }
+
+  cl::sycl::detail::AllocaCommandBase *getOrCreateAllocaForReq(
+      cl::sycl::detail::MemObjRecord *Record,
+      const cl::sycl::detail::Requirement *Req,
+      cl::sycl::detail::QueueImplPtr Queue
+  ) {
+    return MGraphBuilder.getOrCreateAllocaForReq(Record, Req, Queue);
+  }
 };
 
 void addEdge(cl::sycl::detail::Command *User, cl::sycl::detail::Command *Dep,
