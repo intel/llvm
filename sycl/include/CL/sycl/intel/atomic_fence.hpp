@@ -25,13 +25,13 @@ using namespace cl::sycl::detail;
 
 static inline void atomic_fence(memory_order order, memory_scope scope) {
 #ifdef __SYCL_DEVICE_ONLY__
-  auto spirv_order = detail::spirv::getMemorySemanticsMask(order);
-  auto spirv_scope = detail::spirv::getScope(scope);
-  __spirv_MemoryBarrier(spirv_scope, static_cast<uint32_t>(spirv_order));
+  auto SPIRVOrder = detail::spirv::getMemorySemanticsMask(order);
+  auto SPIRVScope = detail::spirv::getScope(scope);
+  __spirv_MemoryBarrier(SPIRVScope, static_cast<uint32_t>(SPIRVOrder));
 #else
   (void)scope;
-  auto std_order = detail::getStdMemoryOrder(order);
-  atomic_thread_fence(std_order);
+  auto StdOrder = detail::getStdMemoryOrder(order);
+  atomic_thread_fence(StdOrder);
 #endif
 }
 
