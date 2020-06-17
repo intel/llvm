@@ -678,27 +678,8 @@ ProgramManager::getDeviceImage(OSModuleHandle M, KernelSetId KSId,
 }
 
 static bool isDeviceLibRequired(DeviceLibExt Ext, uint32_t DeviceLibReqMask) {
-  static constexpr uint32_t DeviceLibAssert = 0x1;
-  static constexpr uint32_t DeviceLibCmath = 0x2;
-  static constexpr uint32_t DeviceLibCmath64 = 0x4;
-  static constexpr uint32_t DeviceLibComplex = 0x8;
-  static constexpr uint32_t DeviceLibComplex64 = 0x10;
-  switch (Ext) {
-  case cl_intel_devicelib_assert:
-    return (DeviceLibReqMask & DeviceLibAssert) == DeviceLibAssert;
-  case cl_intel_devicelib_math:
-    return (DeviceLibReqMask & DeviceLibCmath) == DeviceLibCmath;
-  case cl_intel_devicelib_math_fp64:
-    return (DeviceLibReqMask & DeviceLibCmath64) == DeviceLibCmath64;
-  case cl_intel_devicelib_complex:
-    return (DeviceLibReqMask & DeviceLibComplex) == DeviceLibComplex;
-  case cl_intel_devicelib_complex_fp64:
-    return (DeviceLibReqMask & DeviceLibComplex64) == DeviceLibComplex64;
-  default:
-    break;
-  }
-
-  return false;
+  uint32_t Mask = 0x1 << (Ext - cl_intel_devicelib_assert);
+  return ((DeviceLibReqMask & Mask) == Mask);
 }
 
 static std::vector<RT::PiProgram>

@@ -13,7 +13,6 @@
 // - specialization constant intrinsic transformation
 //===----------------------------------------------------------------------===//
 
-#include "DeviceLibFunctions.h"
 #include "SpecConstants.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/Bitcode/BitcodeWriterPass.h"
@@ -104,6 +103,72 @@ static cl::opt<SpecConstMode> SpecConstLower{
         clEnumValN(SC_USE_DEFAULT_VAL, "default",
                    "set spec constants to C++ defaults")),
     cl::cat(PostLinkCat)};
+
+static std::map<std::string, uint32_t> DeviceLibFuncMap = {
+    {"__devicelib_acosf", 0x2},     {"__devicelib_acoshf", 0x2},
+    {"__devicelib_asinf", 0x2},     {"__devicelib_asinhf", 0x2},
+    {"__devicelib_atan2f", 0x2},    {"__devicelib_atanf", 0x2},
+    {"__devicelib_atanhf", 0x2},    {"__devicelib_cbrtf", 0x2},
+    {"__devicelib_cosf", 0x2},      {"__devicelib_coshf", 0x2},
+    {"__devicelib_erfcf", 0x2},     {"__devicelib_erff", 0x2},
+    {"__devicelib_exp2f", 0x2},     {"__devicelib_expf", 0x2},
+    {"__devicelib_expm1f", 0x2},    {"__devicelib_fdimf", 0x2},
+    {"__devicelib_fmaf", 0x2},      {"__devicelib_fmodf", 0x2},
+    {"__devicelib_frexpf", 0x2},    {"__devicelib_hypotf", 0x2},
+    {"__devicelib_ilogbf", 0x2},    {"__devicelib_ldexpf", 0x2},
+    {"__devicelib_lgammaf", 0x2},   {"__devicelib_log10f", 0x2},
+    {"__devicelib_log1pf", 0x2},    {"__devicelib_log2f", 0x2},
+    {"__devicelib_logbf", 0x2},     {"__devicelib_logf", 0x2},
+    {"__devicelib_modff", 0x2},     {"__devicelib_nextafterf", 0x2},
+    {"__devicelib_powf", 0x2},      {"__devicelib_remainderf", 0x2},
+    {"__devicelib_remquof", 0x2},   {"__devicelib_sinf", 0x2},
+    {"__devicelib_sinhf", 0x2},     {"__devicelib_sqrtf", 0x2},
+    {"__devicelib_tanf", 0x2},      {"__devicelib_tanhf", 0x2},
+    {"__devicelib_tgammaf", 0x2},   {"__devicelib_acos", 0x4},
+    {"__devicelib_acosh", 0x4},     {"__devicelib_asin", 0x4},
+    {"__devicelib_asinh", 0x4},     {"__devicelib_atan", 0x4},
+    {"__devicelib_atan2", 0x4},     {"__devicelib_atanh", 0x4},
+    {"__devicelib_cbrt", 0x4},      {"__devicelib_cos", 0x4},
+    {"__devicelib_cosh", 0x4},      {"__devicelib_erf", 0x4},
+    {"__devicelib_erfc", 0x4},      {"__devicelib_exp", 0x4},
+    {"__devicelib_exp2", 0x4},      {"__devicelib_expm1", 0x4},
+    {"__devicelib_fdim", 0x4},      {"__devicelib_fma", 0x4},
+    {"__devicelib_fmod", 0x4},      {"__devicelib_frexp", 0x4},
+    {"__devicelib_hypot", 0x4},     {"__devicelib_ilogb", 0x4},
+    {"__devicelib_ldexp", 0x4},     {"__devicelib_lgamma", 0x4},
+    {"__devicelib_log", 0x4},       {"__devicelib_log10", 0x4},
+    {"__devicelib_log1p", 0x4},     {"__devicelib_log2", 0x4},
+    {"__devicelib_logb", 0x4},      {"__devicelib_modf", 0x4},
+    {"__devicelib_nextafter", 0x4}, {"__devicelib_pow", 0x4},
+    {"__devicelib_remainder", 0x4}, {"__devicelib_remquo", 0x4},
+    {"__devicelib_sin", 0x4},       {"__devicelib_sinh", 0x4},
+    {"__devicelib_sqrt", 0x4},      {"__devicelib_tan", 0x4},
+    {"__devicelib_tanh", 0x4},      {"__devicelib_tgamma", 0x4},
+    {"__devicelib___divsc3", 0x8},  {"__devicelib___mulsc3", 0x8},
+    {"__devicelib_cabsf", 0x8},     {"__devicelib_cacosf", 0x8},
+    {"__devicelib_cacoshf", 0x8},   {"__devicelib_cargf", 0x8},
+    {"__devicelib_casinf", 0x8},    {"__devicelib_casinhf", 0x8},
+    {"__devicelib_catanf", 0x8},    {"__devicelib_catanhf", 0x8},
+    {"__devicelib_ccosf", 0x8},     {"__devicelib_ccoshf", 0x8},
+    {"__devicelib_cexpf", 0x8},     {"__devicelib_cimagf", 0x8},
+    {"__devicelib_clogf", 0x8},     {"__devicelib_cpolarf", 0x8},
+    {"__devicelib_cpowf", 0x8},     {"__devicelib_cprojf", 0x8},
+    {"__devicelib_crealf", 0x8},    {"__devicelib_csinf", 0x8},
+    {"__devicelib_csinhf", 0x8},    {"__devicelib_csqrtf", 0x8},
+    {"__devicelib_ctanf", 0x8},     {"__devicelib_ctanhf", 0x8},
+    {"__devicelib___divdc3", 0x10}, {"__devicelib___muldc3", 0x10},
+    {"__devicelib_cabs", 0x10},     {"__devicelib_cacos", 0x10},
+    {"__devicelib_cacosh", 0x10},   {"__devicelib_carg", 0x10},
+    {"__devicelib_casin", 0x10},    {"__devicelib_casinh", 0x10},
+    {"__devicelib_catan", 0x10},    {"__devicelib_catanh", 0x10},
+    {"__devicelib_ccos", 0x10},     {"__devicelib_ccosh", 0x10},
+    {"__devicelib_cexp", 0x10},     {"__devicelib_cimag", 0x10},
+    {"__devicelib_clog", 0x10},     {"__devicelib_cpolar", 0x10},
+    {"__devicelib_cpow", 0x10},     {"__devicelib_cproj", 0x10},
+    {"__devicelib_creal", 0x10},    {"__devicelib_csin", 0x10},
+    {"__devicelib_csinh", 0x10},    {"__devicelib_csqrt", 0x10},
+    {"__devicelib_ctan", 0x10},     {"__devicelib_ctanh", 0x10},
+};
 
 static void error(const Twine &Msg) {
   errs() << "sycl-post-link: " << Msg << '\n';
@@ -307,51 +372,24 @@ saveResultModules(std::vector<std::unique_ptr<Module>> &ResModules) {
 // fallback-complex-fp64: 0x10
 static uint32_t getDeviceLibBits(const std::string &FuncName) {
 
-  // static constexpr uint32_t DeviceLibAssert = 0x1;
-  static constexpr uint32_t DeviceLibCmath = 0x2;
-  static constexpr uint32_t DeviceLibCmath64 = 0x4;
-  static constexpr uint32_t DeviceLibComplex = 0x8;
-  static constexpr uint32_t DeviceLibComplex64 = 0x10;
-  size_t Len =
-      sizeof(CmathDeviceLibFunctions) / sizeof(CmathDeviceLibFunctions[0]);
-  if (std::binary_search(CmathDeviceLibFunctions, CmathDeviceLibFunctions + Len,
-                         FuncName)) {
-    return DeviceLibCmath;
-  }
-  Len =
-      sizeof(Cmath64DeviceLibFunctions) / sizeof(Cmath64DeviceLibFunctions[0]);
-  if (std::binary_search(Cmath64DeviceLibFunctions,
-                         Cmath64DeviceLibFunctions + Len, FuncName)) {
-    return DeviceLibCmath64;
-  }
-  Len =
-      sizeof(ComplexDeviceLibFunctions) / sizeof(ComplexDeviceLibFunctions[0]);
-  if (std::binary_search(ComplexDeviceLibFunctions,
-                         ComplexDeviceLibFunctions + Len, FuncName)) {
-    return DeviceLibComplex;
-  }
-  Len = sizeof(Complex64DeviceLibFunctions) /
-        sizeof(Complex64DeviceLibFunctions[0]);
-  if (std::binary_search(Complex64DeviceLibFunctions,
-                         Complex64DeviceLibFunctions + Len, FuncName)) {
-    return DeviceLibComplex64;
-  }
-  return 0;
+  if (DeviceLibFuncMap.count(FuncName) == 0)
+    return 0;
+  else
+    return DeviceLibFuncMap[FuncName];
 }
 
 // For each device image module, we go through all functions which meets
 // 1. The function name has prefix "__devicelib_"
 // 2. The function has SPIR_FUNC calling convention
 // 3. The function is declaration which means it doesn't have function body
-static uint32_t getModuleReqMask(const std::unique_ptr<Module> &MPtr) {
+static uint32_t getModuleReqMask(const Module &M) {
   // 0x1 means sycl runtime will link and load libsycl-fallback-assert.spv as
   // default. In fact, default link assert spv is not necessary but dramatic
-  // perf regression is observed if we don't link any device libraries even
-  // those device libraries are not used at all. This should be some issue in
-  // underlying runtime.
+  // perf regression is observed if we don't link any device library. The perf
+  // regression is caused by a clang issue.
   uint32_t ReqMask = 0x1;
   uint32_t DeviceLibBits = 0;
-  for (const Function &SF : *MPtr) {
+  for (const Function &SF : M) {
     if (SF.getName().startswith("__devicelib_") &&
         (SF.getCallingConv() == CallingConv::SPIR_FUNC) && SF.isDeclaration()) {
       DeviceLibBits = getDeviceLibBits(SF.getName().str());
@@ -365,7 +403,7 @@ static void
 getDeviceLibReqMasks(const std::vector<std::unique_ptr<Module>> &ResModules,
                      std::vector<uint32_t> &DeviceLibReqMaskVec) {
   for (auto &MPtr : ResModules) {
-    uint32_t ModuleReqMask = getModuleReqMask(MPtr);
+    uint32_t ModuleReqMask = getModuleReqMask(*MPtr);
     DeviceLibReqMaskVec.push_back(ModuleReqMask);
   }
 }
