@@ -608,6 +608,12 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
   if (NumDevices)
     *NumDevices = ZeDeviceCount;
 
+  if (Devices == nullptr) {
+    assert(NumEntries == 0 &&
+           "NumEntries should be zero when querying the number of devices");
+    return PI_SUCCESS;
+  }
+
   try {
     // TODO: Delete array at teardown
     ze_device_handle_t *ZeDevices = new ze_device_handle_t[ZeDeviceCount];
