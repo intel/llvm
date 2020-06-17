@@ -875,8 +875,15 @@ public:
   typename std::enable_if<
       detail::check_fn_signature<typename std::remove_reference<FuncT>::type,
                                  void(interop_handle)>::value>::type
-  codeplay_host_task(FuncT) {
-    throw runtime_error("Not implemented", PI_ERROR_UNKNOWN);
+  codeplay_host_task(FuncT &&Func) {
+    throwIfActionIsCreated();
+
+    MNDRDesc.set(range<1>(1));
+    MArgs = std::move(MAssociatedAccesors);
+
+    MHostTask.reset(new detail::HostTask(std::move(Func)));
+
+    MCGType = detail::CG::CODEPLAY_HOST_TASK;
   }
 
   /// Defines and invokes a SYCL kernel function for the specified range and

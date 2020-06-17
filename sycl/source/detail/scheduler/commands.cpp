@@ -159,6 +159,7 @@ getPiEvents(const std::vector<EventImplPtr> &EventImpls) {
 
 class DispatchHostTask {
   ExecCGCommand *MThisCmd;
+  std::vector<interop_handle::ReqToMem> MReqToMem;
 
   void waitForEvents() const {
     std::map<const detail::plugin *, std::vector<EventImplPtr>>
@@ -187,7 +188,9 @@ class DispatchHostTask {
   }
 
 public:
-  DispatchHostTask(ExecCGCommand *ThisCmd) : MThisCmd{ThisCmd} {}
+  DispatchHostTask(ExecCGCommand *ThisCmd,
+                   std::vector<interop_handle::ReqToMem> ReqToMem)
+      : MThisCmd{ThisCmd} {}
 
   void operator()() const {
     waitForEvents();
@@ -197,7 +200,17 @@ public:
     CGHostTask &HostTask = static_cast<CGHostTask &>(MThisCmd->getCG());
 
     // we're ready to call the user-defined lambda now
-    HostTask.MHostTask->call();
+    if (HostTask.MHostTask->isInteropTask()) {
+      auto Queue = HostTask.MQueue->get();
+      auto DeviceId = HostTask.MQueue->get_device().get();
+      auto Context = HostTask.MQueue->get_context().get();
+
+      interop_handle IH{MReqToMem, Queue, DeviceId, Context};
+
+      HostTask.MHostTask->call(IH);
+    } else
+      HostTask.MHostTask->call();
+
     HostTask.MHostTask.reset();
 
     // unblock user empty command here
@@ -1943,7 +1956,8 @@ cl_int ExecCGCommand::enqueueImp() {
       }
     }
 
-    MQueue->getThreadPool().submit<DispatchHostTask>(DispatchHostTask(this));
+    MQueue->getThreadPool().submit<DispatchHostTask>(DispatchHostTask(
+        this, std::move(ReqToMem)));
 
     MShouldCompleteEventIfPossible = false;
 
