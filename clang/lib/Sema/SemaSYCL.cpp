@@ -289,6 +289,33 @@ void Sema::checkSYCLDeviceVarDecl(VarDecl *Var) {
   checkSYCLType(*this, Ty, Loc, Visited);
 }
 
+// Tests whether given function is a lambda function or '()' operator used as
+// SYCL kernel body function (e.g. in parallel_for).
+// NOTE: This is incomplete implemenation. See TODO in the FE TODO list for the
+// ESIMD extension.
+static bool isSYCLKernelBodyFunction(FunctionDecl *FD) {
+  return FD->getOverloadedOperator() == OO_Call;
+}
+
+// Helper function to report conflicting function attributes.
+// F - the function, A1 - function attribute, A2 - the attribute it conflicts
+// with.
+static void reportConflictingAttrs(Sema &S, FunctionDecl *F, const Attr *A1,
+                                   const Attr *A2) {
+  S.Diag(F->getLocation(), diag::err_conflicting_sycl_kernel_attributes);
+  S.Diag(A1->getLocation(), diag::note_conflicting_attribute);
+  S.Diag(A2->getLocation(), diag::note_conflicting_attribute);
+  F->setInvalidDecl();
+}
+
+// Returns the signed constant integer value represented by given expression.
+static int64_t getIntExprValue(Sema &S, const Expr *E) {
+  llvm::APSInt Val(32);
+  bool IsValid = E->isIntegerConstantExpr(Val, S.getASTContext());
+  assert(IsValid && "expression must be constant integer");
+  return Val.getSExtValue();
+}
+
 class MarkDeviceFunction : public RecursiveASTVisitor<MarkDeviceFunction> {
 public:
   MarkDeviceFunction(Sema &S)
@@ -397,16 +424,25 @@ public:
   // to be propagated down to callers and applied to SYCL kernels.
   // For example, reqd_work_group_size, vec_len_hint, reqd_sub_group_size
   // Attributes applied to SYCLKernel are also included
-  void CollectPossibleKernelAttributes(FunctionDecl *SYCLKernel,
-                                       llvm::SmallPtrSet<Attr *, 4> &Attrs) {
+  // Returns the kernel body function found during traversal.
+  FunctionDecl *
+  CollectPossibleKernelAttributes(FunctionDecl *SYCLKernel,
+                                  llvm::SmallPtrSet<Attr *, 4> &Attrs) {
     typedef std::pair<FunctionDecl *, FunctionDecl *> ChildParentPair;
     llvm::SmallPtrSet<FunctionDecl *, 16> Visited;
     llvm::SmallVector<ChildParentPair, 16> WorkList;
     WorkList.push_back({SYCLKernel, nullptr});
+    FunctionDecl *KernelBody = nullptr;
 
     while (!WorkList.empty()) {
       FunctionDecl *FD = WorkList.back().first;
       FunctionDecl *ParentFD = WorkList.back().second;
+
+      if ((ParentFD == SYCLKernel) && isSYCLKernelBodyFunction(FD)) {
+        assert(!KernelBody && "inconsistent call graph - only one kernel body "
+                              "function can be called");
+        KernelBody = FD;
+      }
       WorkList.pop_back();
       if (!Visited.insert(FD).second)
         continue; // We've already seen this Decl
@@ -459,6 +495,13 @@ public:
           FD->dropAttr<SYCLIntelNoGlobalWorkOffsetAttr>();
         }
       }
+      if (auto *A = FD->getAttr<SYCLSimdAttr>())
+        Attrs.insert(A);
+      // Propagate the explicit SIMD attribute through call graph - it is used
+      // to distinguish ESIMD code in ESIMD LLVM passes.
+      if (KernelBody && KernelBody->hasAttr<SYCLSimdAttr>() &&
+          (KernelBody != FD) && !FD->hasAttr<SYCLSimdAttr>())
+        FD->addAttr(SYCLSimdAttr::CreateImplicit(SemaRef.getASTContext()));
 
       // TODO: vec_len_hint should be handled here
 
@@ -474,6 +517,7 @@ public:
         }
       }
     }
+    return KernelBody;
   }
 
 private:
@@ -1037,15 +1081,18 @@ class SyclKernelDeclCreator
   }
 
   static void setKernelImplicitAttrs(ASTContext &Context, FunctionDecl *FD,
-                                     StringRef Name) {
+                                     StringRef Name, bool IsSIMDKernel) {
     // Set implicit attributes.
     FD->addAttr(OpenCLKernelAttr::CreateImplicit(Context));
     FD->addAttr(AsmLabelAttr::CreateImplicit(Context, Name));
     FD->addAttr(ArtificialAttr::CreateImplicit(Context));
+    if (IsSIMDKernel)
+      FD->addAttr(SYCLSimdAttr::CreateImplicit(Context));
   }
 
   static FunctionDecl *createKernelDecl(ASTContext &Ctx, StringRef Name,
-                                        SourceLocation Loc, bool IsInline) {
+                                        SourceLocation Loc, bool IsInline,
+                                        bool IsSIMDKernel) {
     // Create this with no prototype, and we can fix this up after we've seen
     // all the params.
     FunctionProtoType::ExtProtoInfo Info(CC_OpenCLKernel);
@@ -1055,7 +1102,7 @@ class SyclKernelDeclCreator
         Ctx, Ctx.getTranslationUnitDecl(), Loc, Loc, &Ctx.Idents.get(Name),
         FuncType, Ctx.getTrivialTypeSourceInfo(Ctx.VoidTy), SC_None);
     FD->setImplicitlyInline(IsInline);
-    setKernelImplicitAttrs(Ctx, FD, Name);
+    setKernelImplicitAttrs(Ctx, FD, Name, IsSIMDKernel);
 
     // Add kernel to translation unit to see it in AST-dump.
     Ctx.getTranslationUnitDecl()->addDecl(FD);
@@ -1064,9 +1111,11 @@ class SyclKernelDeclCreator
 
 public:
   SyclKernelDeclCreator(Sema &S, SyclKernelFieldChecker &ArgChecker,
-                        StringRef Name, SourceLocation Loc, bool IsInline)
+                        StringRef Name, SourceLocation Loc, bool IsInline,
+                        bool IsSIMDKernel)
       : SyclKernelFieldHandler(S),
-        KernelDecl(createKernelDecl(S.getASTContext(), Name, Loc, IsInline)),
+        KernelDecl(createKernelDecl(S.getASTContext(), Name, Loc, IsInline,
+                                    IsSIMDKernel)),
         ArgChecker(ArgChecker), FuncContext(SemaRef, KernelDecl) {}
 
   ~SyclKernelDeclCreator() {
@@ -1595,9 +1644,9 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
   StringRef KernelName(getLangOpts().SYCLUnnamedLambda ? StableName
                                                        : CalculatedName);
   SyclKernelFieldChecker checker(*this);
-  SyclKernelDeclCreator kernel_decl(*this, checker, KernelName,
-                                    KernelLambda->getLocation(),
-                                    KernelCallerFunc->isInlined());
+  SyclKernelDeclCreator kernel_decl(
+      *this, checker, KernelName, KernelLambda->getLocation(),
+      KernelCallerFunc->isInlined(), KernelCallerFunc->hasAttr<SYCLSimdAttr>());
   SyclKernelBodyCreator kernel_body(*this, kernel_decl, KernelLambda,
                                     KernelCallerFunc);
   SyclKernelIntHeaderCreator int_header(
@@ -1636,11 +1685,15 @@ void Sema::MarkDevice(void) {
       // This function collects all kernel attributes which might be applied to
       // a device functions, but need to be propagated down to callers, i.e.
       // SYCL kernels
-      Marker.CollectPossibleKernelAttributes(SYCLKernel, Attrs);
+      FunctionDecl *KernelBody =
+          Marker.CollectPossibleKernelAttributes(SYCLKernel, Attrs);
+
       for (auto *A : Attrs) {
         switch (A->getKind()) {
         case attr::Kind::IntelReqdSubGroupSize: {
           auto *Attr = cast<IntelReqdSubGroupSizeAttr>(A);
+          const auto *KBSimdAttr =
+              KernelBody ? KernelBody->getAttr<SYCLSimdAttr>() : nullptr;
           if (auto *Existing =
                   SYCLKernel->getAttr<IntelReqdSubGroupSizeAttr>()) {
             if (Existing->getSubGroupSize() != Attr->getSubGroupSize()) {
@@ -1650,6 +1703,9 @@ void Sema::MarkDevice(void) {
               Diag(Attr->getLocation(), diag::note_conflicting_attribute);
               SYCLKernel->setInvalidDecl();
             }
+          } else if (KBSimdAttr &&
+                     (getIntExprValue(*this, Attr->getSubGroupSize()) != 1)) {
+            reportConflictingAttrs(*this, KernelBody, KBSimdAttr, Attr);
           } else {
             SYCLKernel->addAttr(A);
           }
@@ -1676,8 +1732,18 @@ void Sema::MarkDevice(void) {
         case attr::Kind::SYCLIntelNumSimdWorkItems:
         case attr::Kind::SYCLIntelMaxGlobalWorkDim:
         case attr::Kind::SYCLIntelMaxWorkGroupSize:
-        case attr::Kind::SYCLIntelNoGlobalWorkOffset: {
-          SYCLKernel->addAttr(A);
+        case attr::Kind::SYCLIntelNoGlobalWorkOffset:
+        case attr::Kind::SYCLSimd: {
+          if ((A->getKind() == attr::Kind::SYCLSimd) &&
+              !KernelBody->getAttr<SYCLSimdAttr>()) {
+            // Usual kernel can't call ESIMD functions.
+            Diag(KernelBody->getLocation(),
+                 diag::err_sycl_function_attribute_mismatch)
+                << A;
+            Diag(A->getLocation(), diag::note_attribute);
+            KernelBody->setInvalidDecl();
+          } else
+            SYCLKernel->addAttr(A);
           break;
         }
         // TODO: vec_len_hint should be handled here
@@ -2079,7 +2145,9 @@ static void printArgument(ASTContext &Ctx, raw_ostream &ArgOS,
 
     if (ET) {
       const llvm::APSInt &Val = Arg.getAsIntegral();
-      ArgOS << "(" << ET->getDecl()->getQualifiedNameAsString() << ")" << Val;
+      ArgOS << "static_cast<" << ET->getDecl()->getQualifiedNameAsString()
+            << ">"
+            << "(" << Val << ")";
     } else {
       Arg.print(P, ArgOS);
     }

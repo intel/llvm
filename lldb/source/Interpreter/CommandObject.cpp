@@ -282,7 +282,7 @@ void CommandObject::HandleCompletion(CompletionRequest &request) {
   } else {
     // Can we do anything generic with the options?
     Options *cur_options = GetOptions();
-    CommandReturnObject result;
+    CommandReturnObject result(m_interpreter.GetDebugger().GetUseColor());
     OptionElementVector opt_element_vector;
 
     if (cur_options != nullptr) {
@@ -836,8 +836,8 @@ void CommandObject::FormatLongHelpText(Stream &output_strm,
     }
     std::string whitespace_prefix = line.substr(0, result);
     std::string remainder = line.substr(result);
-    interpreter.OutputFormattedHelpText(output_strm, whitespace_prefix.c_str(),
-                                        remainder.c_str());
+    interpreter.OutputFormattedHelpText(output_strm, whitespace_prefix,
+                                        remainder);
   }
 }
 
@@ -852,8 +852,7 @@ void CommandObject::GenerateHelpText(Stream &output_strm) {
   if (WantsRawCommandString()) {
     std::string help_text(GetHelp());
     help_text.append("  Expects 'raw' input (see 'help raw-input'.)");
-    interpreter.OutputFormattedHelpText(output_strm, "", "", help_text.c_str(),
-                                        1);
+    interpreter.OutputFormattedHelpText(output_strm, "", "", help_text, 1);
   } else
     interpreter.OutputFormattedHelpText(output_strm, "", "", GetHelp(), 1);
   output_strm << "\nSyntax: " << GetSyntax() << "\n";

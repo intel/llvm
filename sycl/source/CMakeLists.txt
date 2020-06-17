@@ -94,6 +94,7 @@ endfunction(add_sycl_rt_library)
 
 set(SYCL_SOURCES
     "${sycl_inc_dir}/CL/sycl.hpp"
+    "backend/opencl.cpp"
     "detail/accessor_impl.cpp"
     "detail/buffer_impl.cpp"
     "detail/builtins_common.cpp"
@@ -143,6 +144,7 @@ set(SYCL_SOURCES
     "function_pointer.cpp"
     "half_type.cpp"
     "handler.cpp"
+    "interop_handle.cpp"
     "interop_handler.cpp"
     "kernel.cpp"
     "platform.cpp"

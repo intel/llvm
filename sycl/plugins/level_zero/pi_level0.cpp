@@ -146,7 +146,9 @@ private:
 pi_result _pi_mem::addMapping(void *MappedTo, size_t Offset, size_t Size) {
   std::lock_guard<std::mutex> Lock(MappingsMutex);
   auto Res = Mappings.insert({MappedTo, {Offset, Size}});
-  if (Res.second) {
+  // False as the second value in pair means that mapping was not inserted
+  // because mapping already exists.
+  if (!Res.second) {
     zePrint("piEnqueueMemBufferMap: duplicate mapping detected\n");
     return PI_INVALID_VALUE;
   }
@@ -560,6 +562,28 @@ pi_result piPlatformGetInfo(pi_platform Platform, pi_platform_info ParamName,
     die("Unsupported ParamName in piPlatformGetInfo");
   }
 
+  return PI_SUCCESS;
+}
+
+pi_result piextPlatformGetNativeHandle(pi_platform Platform,
+                                       pi_native_handle *NativeHandle) {
+  assert(Platform);
+  assert(NativeHandle);
+
+  auto ZeDriver = pi_cast<ze_driver_handle_t *>(NativeHandle);
+  // Extract the L0 driver handle from the given PI platform
+  *ZeDriver = Platform->ZeDriver;
+  return PI_SUCCESS;
+}
+
+pi_result piextPlatformCreateWithNativeHandle(pi_native_handle NativeHandle,
+                                              pi_platform *Platform) {
+  assert(NativeHandle);
+  assert(Platform);
+
+  // Create PI platform from the given L0 driver handle.
+  auto ZeDriver = pi_cast<ze_driver_handle_t>(NativeHandle);
+  *Platform = new _pi_platform(ZeDriver);
   return PI_SUCCESS;
 }
 
@@ -1634,12 +1658,12 @@ pi_result piProgramCreate(pi_context Context, const void *IL, size_t Length,
   return PI_SUCCESS;
 }
 
-pi_result piclProgramCreateWithBinary(pi_context Context, pi_uint32 NumDevices,
-                                      const pi_device *DeviceList,
-                                      const size_t *Lengths,
-                                      const unsigned char **Binaries,
-                                      pi_int32 *BinaryStatus,
-                                      pi_program *RetProgram) {
+pi_result piProgramCreateWithBinary(pi_context Context, pi_uint32 NumDevices,
+                                    const pi_device *DeviceList,
+                                    const size_t *Lengths,
+                                    const unsigned char **Binaries,
+                                    pi_int32 *BinaryStatus,
+                                    pi_program *RetProgram) {
 
   // This must be for the single device in this context.
   assert(NumDevices == 1);
@@ -1753,6 +1777,7 @@ pi_result piProgramLink(pi_context Context, pi_uint32 NumDevices,
                         const pi_program *InputPrograms,
                         void (*PFnNotify)(pi_program Program, void *UserData),
                         void *UserData, pi_program *RetProgram) {
+  die("piProgramLink: Program Linking is not supported yet in Level0");
 
   // TODO: L0 builds the program at the time of piProgramCreate.
   // But build options are not available at that time, so we must
@@ -1834,6 +1859,7 @@ pi_result piProgramRetain(pi_program Program) {
 
 pi_result piProgramRelease(pi_program Program) {
   assert(Program);
+  assert((Program->RefCount > 0) && "Program is already released.");
   if (--(Program->RefCount) == 0) {
     // TODO: call zeModuleDestroy for non-interop L0 modules
     delete Program;
@@ -2173,7 +2199,7 @@ pi_result piEventCreate(pi_context Context, pi_event *RetEvent) {
   ze_event_handle_t ZeEvent;
   ze_event_desc_t ZeEventDesc = {};
   ZeEventDesc.signal = ZE_EVENT_SCOPE_FLAG_NONE;
-  ZeEventDesc.wait = ZE_EVENT_SCOPE_FLAG_NONE;
+  ZeEventDesc.wait = ZE_EVENT_SCOPE_FLAG_HOST;
   ZeEventDesc.version = ZE_EVENT_DESC_VERSION_CURRENT;
   ZeEventDesc.index = Index;
 
@@ -2497,6 +2523,46 @@ pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
 
   die("piEnqueueEventsWait: not implemented");
   return {};
+}
+
+pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
+                                         pi_uint32 NumEventsInWaitList,
+                                         const pi_event *EventWaitList,
+                                         pi_event *Event) {
+
+  assert(Queue);
+
+  // Get a new command list to be used on this call
+  ze_command_list_handle_t ZeCommandList = nullptr;
+  if (auto Res = Queue->Context->Device->createCommandList(&ZeCommandList))
+    return Res;
+
+  ze_event_handle_t ZeEvent = nullptr;
+  if (Event) {
+    auto Res = piEventCreate(Queue->Context, Event);
+    if (Res != PI_SUCCESS)
+      return Res;
+
+    (*Event)->Queue = Queue;
+    (*Event)->CommandType = PI_COMMAND_TYPE_USER;
+    (*Event)->ZeCommandList = ZeCommandList;
+
+    ZeEvent = (*Event)->ZeEvent;
+  }
+
+  // TODO: use unique_ptr with custom deleter in the whole Level Zero plugin for
+  // wrapping ze_event_handle_t *ZeEventWaitList to avoid memory leaks in case
+  // return will be called in ZE_CALL(ze***(...)), and thus
+  // _pi_event::deleteZeEventList(ZeEventWaitList) won't be called.
+  ze_event_handle_t *ZeEventWaitList =
+      _pi_event::createZeEventList(NumEventsInWaitList, EventWaitList);
+
+  ZE_CALL(zeCommandListAppendBarrier(ZeCommandList, ZeEvent,
+                                     NumEventsInWaitList, ZeEventWaitList));
+
+  _pi_event::deleteZeEventList(ZeEventWaitList);
+
+  return PI_SUCCESS;
 }
 
 pi_result piEnqueueMemBufferRead(pi_queue Queue, pi_mem Src,

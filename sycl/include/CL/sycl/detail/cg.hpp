@@ -20,6 +20,7 @@
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/group.hpp>
 #include <CL/sycl/id.hpp>
+#include <CL/sycl/interop_handle.hpp>
 #include <CL/sycl/interop_handler.hpp>
 #include <CL/sycl/kernel.hpp>
 #include <CL/sycl/nd_item.hpp>
@@ -54,6 +55,8 @@ public:
     COPY_ACC_TO_PTR,
     COPY_PTR_TO_ACC,
     COPY_ACC_TO_ACC,
+    BARRIER,
+    BARRIER_WAITLIST,
     FILL,
     UPDATE_HOST,
     RUN_ON_HOST_INTEL,
@@ -317,6 +320,23 @@ public:
            std::move(SharedPtrStorage), std::move(Requirements),
            std::move(Events), std::move(loc)),
         MHostTask(std::move(HostTask)), MArgs(std::move(Args)) {}
+};
+
+class CGBarrier : public CG {
+public:
+  vector_class<detail::EventImplPtr> MEventsWaitWithBarrier;
+
+  CGBarrier(vector_class<detail::EventImplPtr> EventsWaitWithBarrier,
+            std::vector<std::vector<char>> ArgsStorage,
+            std::vector<detail::AccessorImplPtr> AccStorage,
+            std::vector<std::shared_ptr<const void>> SharedPtrStorage,
+            std::vector<Requirement *> Requirements,
+            std::vector<detail::EventImplPtr> Events, CGTYPE Type,
+            detail::code_location loc = {})
+      : CG(Type, std::move(ArgsStorage), std::move(AccStorage),
+           std::move(SharedPtrStorage), std::move(Requirements),
+           std::move(Events), std::move(loc)),
+        MEventsWaitWithBarrier(std::move(EventsWaitWithBarrier)) {}
 };
 
 } // namespace detail

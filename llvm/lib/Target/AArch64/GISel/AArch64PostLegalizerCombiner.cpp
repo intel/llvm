@@ -1,4 +1,4 @@
-//=== lib/CodeGen/GlobalISel/AArch64PostLegalizerCombiner.cpp -------------===//
+ //=== lib/CodeGen/GlobalISel/AArch64PostLegalizerCombiner.cpp -------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -95,6 +95,22 @@ static bool isREVMask(ArrayRef<int> M, unsigned EltSize, unsigned NumElts,
   return true;
 }
 
+/// Determines if \p M is a shuffle vector mask for a TRN of \p NumElts.
+/// Whether or not G_TRN1 or G_TRN2 should be used is stored in \p WhichResult.
+static bool isTRNMask(ArrayRef<int> M, unsigned NumElts,
+                      unsigned &WhichResult) {
+  if (NumElts % 2 != 0)
+    return false;
+  WhichResult = (M[0] == 0 ? 0 : 1);
+  for (unsigned i = 0; i < NumElts; i += 2) {
+    if ((M[i] >= 0 && static_cast<unsigned>(M[i]) != i + WhichResult) ||
+        (M[i + 1] >= 0 &&
+         static_cast<unsigned>(M[i + 1]) != i + NumElts + WhichResult))
+      return false;
+  }
+  return true;
+}
+
 /// Determines if \p M is a shuffle vector mask for a UZP of \p NumElts.
 /// Whether or not G_UZP1 or G_UZP2 should be used is stored in \p WhichResult.
 static bool isUZPMask(ArrayRef<int> M, unsigned NumElts,
@@ -159,10 +175,28 @@ static bool matchREV(MachineInstr &MI, MachineRegisterInfo &MRI,
 }
 
 /// \return true if a G_SHUFFLE_VECTOR instruction \p MI can be replaced with
+/// a G_TRN1 or G_TRN2 instruction.
+static bool matchTRN(MachineInstr &MI, MachineRegisterInfo &MRI,
+                     ShuffleVectorPseudo &MatchInfo) {
+  assert(MI.getOpcode() == TargetOpcode::G_SHUFFLE_VECTOR);
+  unsigned WhichResult;
+  ArrayRef<int> ShuffleMask = MI.getOperand(3).getShuffleMask();
+  Register Dst = MI.getOperand(0).getReg();
+  unsigned NumElts = MRI.getType(Dst).getNumElements();
+  if (!isTRNMask(ShuffleMask, NumElts, WhichResult))
+    return false;
+  unsigned Opc = (WhichResult == 0) ? AArch64::G_TRN1 : AArch64::G_TRN2;
+  Register V1 = MI.getOperand(1).getReg();
+  Register V2 = MI.getOperand(2).getReg();
+  MatchInfo = ShuffleVectorPseudo(Opc, Dst, {V1, V2});
+  return true;
+}
+
+/// \return true if a G_SHUFFLE_VECTOR instruction \p MI can be replaced with
 /// a G_UZP1 or G_UZP2 instruction.
 ///
 /// \param [in] MI - The shuffle vector instruction.
-/// \param [out] Opc - Either G_UZP1 or G_UZP2 on success.
+/// \param [out] MatchInfo - Either G_UZP1 or G_UZP2 on success.
 static bool matchUZP(MachineInstr &MI, MachineRegisterInfo &MRI,
                      ShuffleVectorPseudo &MatchInfo) {
   assert(MI.getOpcode() == TargetOpcode::G_SHUFFLE_VECTOR);
@@ -232,11 +266,6 @@ static bool matchDup(MachineInstr &MI, MachineRegisterInfo &MRI,
     return false;
 
   Register Dst = MI.getOperand(0).getReg();
-  if (MRI.getType(Dst).getScalarSizeInBits() < 32) {
-    LLVM_DEBUG(dbgs() << "Could not optimize splat pattern < 32b elts yet");
-    return false;
-  }
-
   MatchInfo =
       ShuffleVectorPseudo(AArch64::G_DUP, Dst, {InsMI->getOperand(2).getReg()});
   return true;

@@ -33,47 +33,9 @@ void MachineIRBuilder::setMF(MachineFunction &MF) {
   State.Observer = nullptr;
 }
 
-void MachineIRBuilder::setMBB(MachineBasicBlock &MBB) {
-  State.MBB = &MBB;
-  State.II = MBB.end();
-  assert(&getMF() == MBB.getParent() &&
-         "Basic block is in a different function");
-}
-
-void MachineIRBuilder::setInstr(MachineInstr &MI) {
-  assert(MI.getParent() && "Instruction is not part of a basic block");
-  setMBB(*MI.getParent());
-  State.II = MI.getIterator();
-}
-
-void MachineIRBuilder::setCSEInfo(GISelCSEInfo *Info) { State.CSEInfo = Info; }
-
-void MachineIRBuilder::setInsertPt(MachineBasicBlock &MBB,
-                                   MachineBasicBlock::iterator II) {
-  assert(MBB.getParent() == &getMF() &&
-         "Basic block is in a different function");
-  State.MBB = &MBB;
-  State.II = II;
-}
-
-void MachineIRBuilder::recordInsertion(MachineInstr *InsertedInstr) const {
-  if (State.Observer)
-    State.Observer->createdInstr(*InsertedInstr);
-}
-
-void MachineIRBuilder::setChangeObserver(GISelChangeObserver &Observer) {
-  State.Observer = &Observer;
-}
-
-void MachineIRBuilder::stopObservingChanges() { State.Observer = nullptr; }
-
 //------------------------------------------------------------------------------
 // Build instruction variants.
 //------------------------------------------------------------------------------
-
-MachineInstrBuilder MachineIRBuilder::buildInstr(unsigned Opcode) {
-  return insertInstr(buildInstrNoInsert(Opcode));
-}
 
 MachineInstrBuilder MachineIRBuilder::buildInstrNoInsert(unsigned Opcode) {
   MachineInstrBuilder MIB = BuildMI(getMF(), getDL(), getTII().get(Opcode));
@@ -135,7 +97,7 @@ MachineInstrBuilder MachineIRBuilder::buildConstDbgValue(const Constant &C,
   assert(
       cast<DILocalVariable>(Variable)->isValidLocationForIntrinsic(getDL()) &&
       "Expected inlined-at fields to agree");
-  auto MIB = buildInstr(TargetOpcode::DBG_VALUE);
+  auto MIB = buildInstrNoInsert(TargetOpcode::DBG_VALUE);
   if (auto *CI = dyn_cast<ConstantInt>(&C)) {
     if (CI->getBitWidth() > 64)
       MIB.addCImm(CI);
@@ -148,7 +110,8 @@ MachineInstrBuilder MachineIRBuilder::buildConstDbgValue(const Constant &C,
     MIB.addReg(0U);
   }
 
-  return MIB.addImm(0).addMetadata(Variable).addMetadata(Expr);
+  MIB.addImm(0).addMetadata(Variable).addMetadata(Expr);
+  return insertInstr(MIB);
 }
 
 MachineInstrBuilder MachineIRBuilder::buildDbgLabel(const MDNode *Label) {

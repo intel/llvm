@@ -330,6 +330,30 @@ The SYCL kernel in the previous code sample meets these expectations.
   }];
 }
 
+def SYCLSimdDocs : Documentation {
+  let Category = DocCatFunction;
+  let Content = [{
+    The ``__attribute__((sycl_explicit_simd))`` attribute is used by the device
+    compiler front end to mark kernels and functions to be compiled and executed
+    in the explicit SIMD mode. In this mode subgroup size is always 1 and
+    explicit SIMD extensions - such as manual vectorization using wide vector
+    data types and operations can be used. Compiler may decide to compile such
+    functions using different optimization and code generation
+    pipeline.
+  }];
+}
+
+def SYCLRegisterNumDocs : Documentation {
+  let Category = DocCatVariable;
+  let Content = [{
+    The ``__attribute__((register_num(n)))`` attribute can be used to bind
+    "private globals" (SYCL private address space variables declared in the file
+    scope) to a particular register with number 'n'. Actual mapping of registers
+    to numbers is target-specific. For Intel GPUs 'n' is a byte offset in the
+    GRF.
+  }];
+}
+
 def C11NoReturnDocs : Documentation {
   let Category = DocCatFunction;
   let Content = [{
@@ -3210,6 +3234,7 @@ destroy the object before returning.
 Attribute ``trivial_abi`` has no effect in the following cases:
 
 - The class directly declares a virtual base or virtual methods.
+- Copy constructors and move constructors of the class are all deleted.
 - The class has a base class that is non-trivial for the purposes of calls.
 - The class has a non-static data member whose type is non-trivial for the purposes of calls, which includes:
 

@@ -121,9 +121,23 @@ def zero : Operand<i32>, PatLeaf<(imm), [{
   let ParserMatchClass = ZeroAsmOperand;
 }
 
+// uimm0to2 - Special immediate value represents 0, 1, and 2.
+def UImm0to2AsmOperand : AsmOperandClass {
+  let Name = "UImm0to2";
+}
+def uimm0to2 : Operand<i32>, PatLeaf<(imm), [{
+    return N->getZExtValue() < 3; }], ULO7> {
+  let ParserMatchClass = UImm0to2AsmOperand;
+}
+
 // uimm1 - Generic immediate value.
+def UImm1AsmOperand : AsmOperandClass {
+  let Name = "UImm1";
+}
 def uimm1 : Operand<i32>, PatLeaf<(imm), [{
-    return isUInt<1>(N->getZExtValue()); }]>;
+    return isUInt<1>(N->getZExtValue()); }], ULO7> {
+  let ParserMatchClass = UImm1AsmOperand;
+}
 
 // uimm2 - Generic immediate value.
 def UImm2AsmOperand : AsmOperandClass {
@@ -237,6 +251,7 @@ def CCUIOp : PatLeaf<(cond), [{
   }
 }]>;
 
+//===----------------------------------------------------------------------===//
 // Addressing modes.
 // SX-Aurora has following fields.
 //    sz: register or 0
@@ -261,16 +276,19 @@ def CCUIOp : PatLeaf<(cond), [{
 //    MEMrri, MEMrii, MEMzri, MEMzii
 // AS format:
 //    MEMriASX, MEMziASX    : simple AS format
-//    well be added later.
+//    MEMriRRM, MEMziRRM    : AS format in RRM format
+//    MEMriHM, MEMziHM      : AS format in RRM format for host memory access
+//===----------------------------------------------------------------------===//
 
+// DAG selections for both ASX and AS formats.
 def ADDRrri : ComplexPattern<iPTR, 3, "selectADDRrri", [frameindex], []>;
 def ADDRrii : ComplexPattern<iPTR, 3, "selectADDRrii", [frameindex], []>;
 def ADDRzri : ComplexPattern<iPTR, 3, "selectADDRzri", [], []>;
 def ADDRzii : ComplexPattern<iPTR, 3, "selectADDRzii", [], []>;
-// AS format:
 def ADDRri : ComplexPattern<iPTR, 2, "selectADDRri", [frameindex], []>;
-//
-// ASX assembly instruction format:
+def ADDRzi : ComplexPattern<iPTR, 2, "selectADDRzi", [], []>;
+
+// ASX format.
 def VEMEMrriAsmOperand : AsmOperandClass {
   let Name = "MEMrri";
   let ParserMethod = "parseMEMOperand";
@@ -287,6 +305,8 @@ def VEMEMziiAsmOperand : AsmOperandClass {
   let Name = "MEMzii";
   let ParserMethod = "parseMEMOperand";
 }
+
+// ASX format uses single assembly instruction format.
 def MEMrri : Operand<iPTR> {
   let PrintMethod = "printMemASXOperand";
   let MIOperandInfo = (ops ptr_rc, ptr_rc, i32imm);
@@ -307,7 +327,8 @@ def MEMzii : Operand<iPTR> {
   let MIOperandInfo = (ops i32imm /* = 0 */, i32imm, i32imm);
   let ParserMatchClass = VEMEMziiAsmOperand;
 }
-// AS assembly instruction format:
+
+// AS format.
 def VEMEMriAsmOperand : AsmOperandClass {
   let Name = "MEMri";
   let ParserMethod = "parseMEMAsOperand";
@@ -316,7 +337,9 @@ def VEMEMziAsmOperand : AsmOperandClass {
   let Name = "MEMzi";
   let ParserMethod = "parseMEMAsOperand";
 }
-// AS generic assembly instruction format:
+
+// AS format uses multiple assembly instruction formats
+//   1. AS generic assembly instruction format:
 def MEMriASX : Operand<iPTR> {
   let PrintMethod = "printMemASOperandASX";
   let MIOperandInfo = (ops ptr_rc, i32imm);
@@ -327,11 +350,34 @@ def MEMziASX : Operand<iPTR> {
   let MIOperandInfo = (ops i32imm /* = 0 */, i32imm);
   let ParserMatchClass = VEMEMziAsmOperand;
 }
-def MEMASri : Operand<iPTR> {
-  let PrintMethod = "printMemASOperand";
+
+//   2. AS RRM style assembly instruction format:
+def MEMriRRM : Operand<iPTR> {
+  let PrintMethod = "printMemASOperandRRM";
   let MIOperandInfo = (ops ptr_rc, i32imm);
   let ParserMatchClass = VEMEMriAsmOperand;
 }
+def MEMziRRM : Operand<iPTR> {
+  let PrintMethod = "printMemASOperandRRM";
+  let MIOperandInfo = (ops i32imm /* = 0 */, i32imm);
+  let ParserMatchClass = VEMEMziAsmOperand;
+}
+
+//   3. AS HM style assembly instruction format:
+def MEMriHM : Operand<iPTR> {
+  let PrintMethod = "printMemASOperandHM";
+  let MIOperandInfo = (ops ptr_rc, i32imm);
+  let ParserMatchClass = VEMEMriAsmOperand;
+}
+def MEMziHM : Operand<iPTR> {
+  let PrintMethod = "printMemASOperandHM";
+  let MIOperandInfo = (ops i32imm /* = 0 */, i32imm);
+  let ParserMatchClass = VEMEMziAsmOperand;
+}
+
+//===----------------------------------------------------------------------===//
+// Other operands.
+//===----------------------------------------------------------------------===//
 
 // Branch targets have OtherVT type.
 def brtarget32 : Operand<OtherVT> {
@@ -350,9 +396,15 @@ def CCOp : Operand<i32>, ImmLeaf<i32, [{
   let ParserMatchClass = CCOpAsmOperand;
 }
 
-// Operand for printing out a rounding mode code.
+// Operand for a rounding mode code.
+def RDOpAsmOperand : AsmOperandClass {
+  let Name = "RDOp";
+}
 def RDOp : Operand<i32> {
   let PrintMethod = "printRDOperand";
+  let DecoderMethod = "DecodeRDOperand";
+  let EncoderMethod = "getRDOpValue";
+  let ParserMatchClass = RDOpAsmOperand;
 }
 
 def VEhi    : SDNode<"VEISD::Hi", SDTIntUnaryOp>;
@@ -677,6 +729,45 @@ multiclass CVTm<string opcStr, bits<8> opc, RegisterClass RCo, ValueType Tyo,
              !strconcat(opcStr, " $sx, $sy")>;
 }
 
+// Multiclass for PFCH instructions.
+//   e.g. PFCH
+let sx = 0, hasSideEffects = 0 in
+multiclass PFCHm<string opcStr, bits<8>opc> {
+  def rri : RM<opc, (outs), (ins MEMrri:$addr), !strconcat(opcStr, " $addr"),
+               [(prefetch ADDRrri:$addr, imm, imm, (i32 1))]>;
+  let cy = 0 in
+  def rii : RM<opc, (outs), (ins MEMrii:$addr), !strconcat(opcStr, " $addr"),
+               [(prefetch ADDRrii:$addr, imm, imm, (i32 1))]>;
+  let cz = 0 in
+  def zri : RM<opc, (outs), (ins MEMzri:$addr), !strconcat(opcStr, " $addr"),
+               [(prefetch ADDRzri:$addr, imm, imm, (i32 1))]>;
+  let cy = 0, cz = 0 in
+  def zii : RM<opc, (outs), (ins MEMzii:$addr), !strconcat(opcStr, " $addr"),
+               [(prefetch ADDRzii:$addr, imm, imm, (i32 1))]>;
+}
+
+// Multiclass for CAS instructions.
+//   e.g. TS1AML, TS1AMW, TS2AM, and etc.
+let Constraints = "$dest = $sd", DisableEncoding = "$sd",
+    mayStore=1, mayLoad = 1, hasSideEffects = 0 in
+multiclass RRCAStgm<string opcStr, bits<8>opc, RegisterClass RC, ValueType Ty,
+                    Operand immOp, Operand MEM, Operand ADDR,
+                    SDPatternOperator OpNode = null_frag> {
+  def r : RRM<opc, (outs RC:$dest), (ins MEM:$addr, RC:$sy, RC:$sd),
+              !strconcat(opcStr, " $dest, $addr, $sy"),
+              [(set Ty:$dest, (OpNode ADDR:$addr, Ty:$sy, Ty:$sd))]>;
+  let cy = 0 in
+  def i : RRM<opc, (outs RC:$dest), (ins MEM:$addr, immOp:$sy, RC:$sd),
+              !strconcat(opcStr, " $dest, $addr, $sy"),
+              [(set Ty:$dest, (OpNode ADDR:$addr, (Ty immOp:$sy), Ty:$sd))]>;
+}
+multiclass RRCASm<string opcStr, bits<8>opc, RegisterClass RC, ValueType Ty,
+                  Operand immOp, SDPatternOperator OpNode = null_frag> {
+  defm ri : RRCAStgm<opcStr, opc, RC, Ty, immOp, MEMriRRM, ADDRri, OpNode>;
+  let cz = 0 in
+  defm zi : RRCAStgm<opcStr, opc, RC, Ty, immOp, MEMziRRM, ADDRzi, OpNode>;
+}
+
 // Multiclass for branch instructions
 //   e.g. BCFL, BCFW, BCFD, and etc.
 let isBranch = 1, isTerminator = 1, isIndirectBranch = 1, hasSideEffects = 0 in
@@ -773,6 +864,26 @@ multiclass FIDCRm<string opcStr, bits<8>opc, RegisterClass RC> {
               !strconcat(opcStr, " $sx, $sy, $sz")>;
   let cy = 0 in def ii : RR<opc, (outs RC:$sx), (ins simm7:$sy, uimm3:$sz),
                             !strconcat(opcStr, " $sx, $sy, $sz")>;
+}
+
+// Multiclass for LHM instruction.
+let mayLoad = 1, hasSideEffects = 0 in
+multiclass LHMm<string opcStr, bits<8> opc, RegisterClass RC> {
+  def ri : RRMHM<opc, (outs RC:$dest), (ins MEMriHM:$addr),
+                 !strconcat(opcStr, " $dest, $addr")>;
+  let cz = 0 in
+  def zi : RRMHM<opc, (outs RC:$dest), (ins MEMziHM:$addr),
+                 !strconcat(opcStr, " $dest, $addr")>;
+}
+
+// Multiclass for SHM instruction.
+let mayStore = 1, hasSideEffects = 0 in
+multiclass SHMm<string opcStr, bits<8> opc, RegisterClass RC> {
+  def ri : RRMHM<opc, (outs), (ins MEMriHM:$addr, RC:$sx),
+                 !strconcat(opcStr, " $sx, $addr")>;
+  let cz = 0 in
+  def zi : RRMHM<opc, (outs), (ins MEMziHM:$addr, RC:$sx),
+                 !strconcat(opcStr, " $sx, $addr")>;
 }
 
 //===----------------------------------------------------------------------===//
@@ -927,14 +1038,46 @@ let DecoderMethod = "DecodeStoreI32" in
 defm ST1B : STOREm<"st1b", 0x15, I32, i32, truncstorei8>;
 
 // Section 8.2.12 - DLDS
+let DecoderMethod = "DecodeLoadI64" in
+defm DLD : LOADm<"dld", 0x09, I64, i64, load>;
+
 // Section 8.2.13 - DLDU
+let DecoderMethod = "DecodeLoadF32" in
+defm DLDU : LOADm<"dldu", 0x0a, F32, f32, load>;
+
 // Section 8.2.14 - DLDL
+let DecoderMethod = "DecodeLoadI32" in
+defm DLDLSX : LOADm<"dldl.sx", 0x0b, I32, i32, load>;
+let cx = 1, DecoderMethod = "DecodeLoadI32" in
+defm DLDLZX : LOADm<"dldl.zx", 0x0b, I32, i32, load>;
+
 // Section 8.2.15 - PFCH
+let DecoderMethod = "DecodeASX" in
+defm PFCH : PFCHm<"pfch", 0x0c>;
+
 // Section 8.2.16 - TS1AM (Test and Set 1 AM)
+let DecoderMethod = "DecodeTS1AMI64" in
+defm TS1AML : RRCASm<"ts1am.l", 0x42, I64, i64, uimm7>;
+let DecoderMethod = "DecodeTS1AMI32", cx = 1 in
+defm TS1AMW : RRCASm<"ts1am.w", 0x42, I32, i32, uimm7>;
+
 // Section 8.2.17 - TS2AM (Test and Set 2 AM)
+let DecoderMethod = "DecodeTS1AMI64" in
+defm TS2AM : RRCASm<"ts2am", 0x43, I64, i64, uimm7>;
+
 // Section 8.2.18 - TS3AM (Test and Set 3 AM)
+let DecoderMethod = "DecodeTS1AMI64" in
+defm TS3AM : RRCASm<"ts3am", 0x52, I64, i64, uimm1>;
+
 // Section 8.2.19 - ATMAM (Atomic AM)
+let DecoderMethod = "DecodeTS1AMI64" in
+defm ATMAM : RRCASm<"atmam", 0x53, I64, i64, uimm0to2>;
+
 // Section 8.2.20 - CAS (Compare and Swap)
+let DecoderMethod = "DecodeCASI64" in
+defm CASL : RRCASm<"cas.l", 0x62, I64, i64, simm7>;
+let DecoderMethod = "DecodeCASI32", cx = 1 in
+defm CASW : RRCASm<"cas.w", 0x62, I32, i32, simm7>;
 
 //-----------------------------------------------------------------------------
 // Section 8.3 - Transfer Control Instructions
@@ -1196,11 +1339,18 @@ defm CVTDL : CVTm<"cvt.d.l", 0x5F, I64, f64, I64, i64, sint_to_fp>;
 
 // Section 8.7.15 - CVS (Convert to Single-format)
 defm CVTSD : CVTm<"cvt.s.d", 0x1F, F32, f32, I64, f64, fpround>;
+let cx = 1 in
+defm CVTSQ : CVTm<"cvt.s.q", 0x1F, F32, f32, F128, f128>;
 
 // Section 8.7.16 - CVD (Convert to Double-format)
 defm CVTDS : CVTm<"cvt.d.s", 0x0F, I64, f64, F32, f32, fpextend>;
+let cx = 1 in
+defm CVTDQ : CVTm<"cvt.d.q", 0x0F, I64, f64, F128, f128>;
 
 // Section 8.7.17 - CVQ (Convert to Single-format)
+defm CVTQD : CVTm<"cvt.q.d", 0x2D, F128, f128, I64, f64>;
+let cx = 1 in
+defm CVTQS : CVTm<"cvt.q.s", 0x2D, F128, f128, F32, f32>;
 
 //-----------------------------------------------------------------------------
 // Section 8.8 - Branch instructions
@@ -1300,12 +1450,29 @@ defm TSCR : LOADCRm<"tscr", 0x41, I64>;
 // Section 8.19.12 - FIDCR (Fetch & Increment/Decrement CR)
 defm FIDCR : FIDCRm<"fidcr", 0x51, I64>;
 
-let cx = 0, cy = 0, cz = 1, hasSideEffects = 0 in {
-let sy = 3 in
-def SHMri : RM<
-    0x31, (outs), (ins MEMASri:$addr, I64:$sx),
-    "shm.l $sx, $addr">;
-}
+//-----------------------------------------------------------------------------
+// Section 8.20 - Host Memory Access Instructions
+//-----------------------------------------------------------------------------
+
+// Section 8.20.1 - LHM (Load Host Memory)
+let ry = 3, DecoderMethod = "DecodeLoadASI64" in
+defm LHML : LHMm<"lhm.l", 0x21, I64>;
+let ry = 2, DecoderMethod = "DecodeLoadASI64" in
+defm LHMW : LHMm<"lhm.w", 0x21, I64>;
+let ry = 1, DecoderMethod = "DecodeLoadASI64" in
+defm LHMH : LHMm<"lhm.h", 0x21, I64>;
+let ry = 0, DecoderMethod = "DecodeLoadASI64" in
+defm LHMB : LHMm<"lhm.b", 0x21, I64>;
+
+// Section 8.20.2 - SHM (Store Host Memory)
+let ry = 3, DecoderMethod = "DecodeStoreASI64" in
+defm SHML : SHMm<"shm.l", 0x31, I64>;
+let ry = 2, DecoderMethod = "DecodeStoreASI64" in
+defm SHMW : SHMm<"shm.w", 0x31, I64>;
+let ry = 1, DecoderMethod = "DecodeStoreASI64" in
+defm SHMH : SHMm<"shm.h", 0x31, I64>;
+let ry = 0, DecoderMethod = "DecodeStoreASI64" in
+defm SHMB : SHMm<"shm.b", 0x31, I64>;
 
 //===----------------------------------------------------------------------===//
 // Instructions for CodeGenOnly

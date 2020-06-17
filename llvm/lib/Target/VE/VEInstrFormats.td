@@ -67,7 +67,25 @@ class RM<bits<8>opVal, dag outs, dag ins, string asmstr, list<dag> pattern = []>
 
 //-----------------------------------------------------------------------------
 // Section 5.2 RRM Type
+//
+// RRM type is identical to RM, but the effective address is generated
+// by sz + imm32.  The sy field is used by other purposes.
 //-----------------------------------------------------------------------------
+
+class RRM<bits<8>opVal, dag outs, dag ins, string asmstr,
+          list<dag> pattern = []>
+   : RM<opVal, outs, ins, asmstr, pattern>;
+
+// RRMHM type is to load/store host memory
+// It is similar to RRM and not use sy.
+class RRMHM<bits<8>opVal, dag outs, dag ins, string asmstr,
+            list<dag> pattern = []>
+   : RRM<opVal, outs, ins, asmstr, pattern> {
+  bits<2> ry = 0;
+  let cy = 0;
+  let sy{6-2} = 0;
+  let sy{1-0} = ry;
+}
 
 //-----------------------------------------------------------------------------
 // Section 5.3 CF Type

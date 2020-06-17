@@ -992,16 +992,9 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
         !IntelFPGAMaxInterleaving && !IntelFPGASpeculatedIterations)
       continue;
 
-    if (IntelFPGAIVDep) {
-      const ValueDecl *Array = nullptr;
-      if (IntelFPGAIVDep->getArrayExpr())
-        Array =
-            cast<ValueDecl>(cast<DeclRefExpr>(IntelFPGAIVDep->getArrayExpr())
-                                ->getDecl()
-                                ->getCanonicalDecl());
+    if (IntelFPGAIVDep)
       addSYCLIVDepInfo(Header->getContext(), IntelFPGAIVDep->getSafelenValue(),
-                       Array);
-    }
+                       IntelFPGAIVDep->getArrayDecl());
 
     if (IntelFPGAII) {
       llvm::APSInt ArgVal(32);
