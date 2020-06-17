@@ -1514,7 +1514,7 @@ private:
 
 public:
   // Default constructor for objects later initialized with __init member.
-  accessor() = default;
+      accessor() = default;
 #endif
 public:
   template <typename AllocatorT>
@@ -1662,19 +1662,9 @@ template <typename DataT, int Dimensions, typename AllocatorT, typename... Ts>
 host_accessor(buffer<DataT, Dimensions, AllocatorT>, Ts...)
     ->host_accessor<DataT, Dimensions, access::mode::read_write>;
 
-template <typename DataT, int Dimensions, typename AllocatorT, typename... Ts>
-host_accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Ts...)
-    ->host_accessor<DataT, Dimensions, access::mode::read_write>;
-
 template <typename DataT, int Dimensions, typename AllocatorT,
           access_mode AccessMode, typename... Ts>
 host_accessor(buffer<DataT, Dimensions, AllocatorT>, Ts...,
-              mode_tag_t<AccessMode>, property_list = {})
-    ->host_accessor<DataT, Dimensions, AccessMode>;
-
-template <typename DataT, int Dimensions, typename AllocatorT,
-          access_mode AccessMode, typename... Ts>
-host_accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Ts...,
               mode_tag_t<AccessMode>, property_list = {})
     ->host_accessor<DataT, Dimensions, AccessMode>;
 
