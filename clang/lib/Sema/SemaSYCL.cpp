@@ -881,13 +881,6 @@ static void VisitStreamRecord(CXXRecordDecl *Owner, ParentTy &Parent,
   (void)std::initializer_list<int>{(handlers.leaveStruct(Owner, Parent), 0)...};
 }
 
-int getFieldNumber(const CXXRecordDecl *BaseDecl) {
-  int Members = 0;
-  for (const auto *Field : BaseDecl->fields())
-    ++Members;
-
-  return Members;
-}
 
 template <typename... Handlers>
 static void VisitFunctorBases(CXXRecordDecl *KernelFunctor,
@@ -1581,8 +1574,11 @@ public:
     if (!RD)
       return;
 
-    int NumberOfFields = getFieldNumber(RD);
+    const ASTRecordLayout &Info =
+        SemaRef.getASTContext().getASTRecordLayout(RD);
+    int NumberOfFields = Info.getFieldCount();
     int popOut = NumberOfFields + RD->getNumBases();
+
     llvm::SmallVector<Expr *, 16> BaseInitExprs;
     for (int I = 0; I < popOut; I++) {
       BaseInitExprs.push_back(InitExprs.back());
