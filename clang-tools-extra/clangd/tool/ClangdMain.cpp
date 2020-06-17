@@ -585,6 +585,8 @@ clangd accepts flags on the commandline, and in the CLANGD_FLAGS environment var
   // Use buffered stream to stderr (we still flush each log message). Unbuffered
   // stream can cause significant (non-deterministic) latency for the logger.
   llvm::errs().SetBuffered();
+  // Don't flush stdout when logging, this would be both slow and racy!
+  llvm::errs().tie(nullptr);
   StreamLogger Logger(llvm::errs(), LogLevel);
   LoggingSession LoggingSession(Logger);
   // Write some initial logs before we start doing any real work.
@@ -763,6 +765,8 @@ clangd accepts flags on the commandline, and in the CLANGD_FLAGS environment var
   clangd::RenameOptions RenameOpts;
   // Shall we allow to customize the file limit?
   RenameOpts.AllowCrossFile = CrossFileRename;
+
+  Opts.AsyncPreambleBuilds = AsyncPreamble;
 
   ClangdLSPServer LSPServer(
       *TransportLayer, FSProvider, CCOpts, RenameOpts, CompileCommandsDirPath,

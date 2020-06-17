@@ -452,6 +452,8 @@ public:
 
     void Dump(Stream *s) const override;
 
+    virtual bool ShouldStop(Event *event_ptr, bool &found_valid_stopinfo);
+
     void DoOnRemoval(Event *event_ptr) override;
 
     static const Process::ProcessEventData *
@@ -497,7 +499,8 @@ public:
     int m_update_state;
     bool m_interrupted;
 
-    DISALLOW_COPY_AND_ASSIGN(ProcessEventData);
+    ProcessEventData(const ProcessEventData &) = delete;
+    const ProcessEventData &operator=(const ProcessEventData &) = delete;
   };
 
   /// Construct with a shared pointer to a target, and the Process listener.
@@ -2933,7 +2936,8 @@ private:
 
   void ControlPrivateStateThread(uint32_t signal);
 
-  DISALLOW_COPY_AND_ASSIGN(Process);
+  Process(const Process &) = delete;
+  const Process &operator=(const Process &) = delete;
 };
 
 /// RAII guard that should be acquired when an utility function is called within

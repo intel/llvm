@@ -215,47 +215,6 @@ static bool CanElideOverflowCheck(const ASTContext &Ctx, const BinOpInfo &Op) {
          (2 * Ctx.getTypeSize(RHSTy)) < PromotedSize;
 }
 
-/// Update the FastMathFlags of LLVM IR from the FPOptions in LangOptions.
-static void updateFastMathFlags(llvm::FastMathFlags &FMF,
-                                FPOptions FPFeatures) {
-  FMF.setAllowReassoc(FPFeatures.allowAssociativeMath());
-  FMF.setNoNaNs(FPFeatures.noHonorNaNs());
-  FMF.setNoInfs(FPFeatures.noHonorInfs());
-  FMF.setNoSignedZeros(FPFeatures.noSignedZeros());
-  FMF.setAllowReciprocal(FPFeatures.allowReciprocalMath());
-  FMF.setApproxFunc(FPFeatures.allowApproximateFunctions());
-  FMF.setAllowContract(FPFeatures.allowFPContractAcrossStatement());
-}
-
-/// Propagate fast-math flags from \p Op to the instruction in \p V.
-static Value *propagateFMFlags(Value *V, const BinOpInfo &Op) {
-  if (auto *I = dyn_cast<llvm::Instruction>(V)) {
-    llvm::FastMathFlags FMF = I->getFastMathFlags();
-    updateFastMathFlags(FMF, Op.FPFeatures);
-    I->setFastMathFlags(FMF);
-  }
-  return V;
-}
-
-static void setBuilderFlagsFromFPFeatures(CGBuilderTy &Builder,
-                                          CodeGenFunction &CGF,
-                                          FPOptions FPFeatures) {
-  auto NewRoundingBehavior = FPFeatures.getRoundingMode();
-  Builder.setDefaultConstrainedRounding(NewRoundingBehavior);
-  auto NewExceptionBehavior =
-      ToConstrainedExceptMD(FPFeatures.getExceptionMode());
-  Builder.setDefaultConstrainedExcept(NewExceptionBehavior);
-  auto FMF = Builder.getFastMathFlags();
-  updateFastMathFlags(FMF, FPFeatures);
-  Builder.setFastMathFlags(FMF);
-  assert((CGF.CurFuncDecl == nullptr || Builder.getIsFPConstrained() ||
-          isa<CXXConstructorDecl>(CGF.CurFuncDecl) ||
-          isa<CXXDestructorDecl>(CGF.CurFuncDecl) ||
-          (NewExceptionBehavior == llvm::fp::ebIgnore &&
-           NewRoundingBehavior == llvm::RoundingMode::NearestTiesToEven)) &&
-         "FPConstrained should be enabled on entire function");
-}
-
 class ScalarExprEmitter
   : public StmtVisitor<ScalarExprEmitter, Value*> {
   CodeGenFunction &CGF;
@@ -578,6 +537,7 @@ public:
   }
 
   Value *VisitArraySubscriptExpr(ArraySubscriptExpr *E);
+  Value *VisitMatrixSubscriptExpr(MatrixSubscriptExpr *E);
   Value *VisitShuffleVectorExpr(ShuffleVectorExpr *E);
   Value *VisitConvertVectorExpr(ConvertVectorExpr *E);
   Value *VisitMemberExpr(MemberExpr *E);
@@ -764,6 +724,22 @@ public:
       }
     }
 
+    if (Ops.Ty->isConstantMatrixType()) {
+      llvm::MatrixBuilder<CGBuilderTy> MB(Builder);
+      // We need to check the types of the operands of the operator to get the
+      // correct matrix dimensions.
+      auto *BO = cast<BinaryOperator>(Ops.E);
+      auto *LHSMatTy = dyn_cast<ConstantMatrixType>(
+          BO->getLHS()->getType().getCanonicalType());
+      auto *RHSMatTy = dyn_cast<ConstantMatrixType>(
+          BO->getRHS()->getType().getCanonicalType());
+      if (LHSMatTy && RHSMatTy)
+        return MB.CreateMatrixMultiply(Ops.LHS, Ops.RHS, LHSMatTy->getNumRows(),
+                                       LHSMatTy->getNumColumns(),
+                                       RHSMatTy->getNumColumns());
+      return MB.CreateScalarMultiply(Ops.LHS, Ops.RHS);
+    }
+
     if (Ops.Ty->isUnsignedIntegerType() &&
         CGF.SanOpts.has(SanitizerKind::UnsignedIntegerOverflow) &&
         !CanElideOverflowCheck(CGF.getContext(), Ops))
@@ -771,10 +747,8 @@ public:
 
     if (Ops.LHS->getType()->isFPOrFPVectorTy()) {
       //  Preserve the old values
-      llvm::IRBuilder<>::FastMathFlagGuard FMFG(Builder);
-      setBuilderFlagsFromFPFeatures(Builder, CGF, Ops.FPFeatures);
-      Value *V = Builder.CreateFMul(Ops.LHS, Ops.RHS, "mul");
-      return propagateFMFlags(V, Ops);
+      CodeGenFunction::CGFPOptionsRAII FPOptsRAII(CGF, Ops.FPFeatures);
+      return Builder.CreateFMul(Ops.LHS, Ops.RHS, "mul");
     }
     if (Ops.isFixedPointOp())
       return EmitFixedPointBinOp(Ops);
@@ -1809,6 +1783,22 @@ Value *ScalarExprEmitter::VisitArraySubscriptExpr(ArraySubscriptExpr *E) {
   return Builder.CreateExtractElement(Base, Idx, "vecext");
 }
 
+Value *ScalarExprEmitter::VisitMatrixSubscriptExpr(MatrixSubscriptExpr *E) {
+  TestAndClearIgnoreResultAssign();
+
+  // Handle the vector case.  The base must be a vector, the index must be an
+  // integer value.
+  Value *RowIdx = Visit(E->getRowIdx());
+  Value *ColumnIdx = Visit(E->getColumnIdx());
+  Value *Matrix = Visit(E->getBase());
+
+  // TODO: Should we emit bounds checks with SanitizerKind::ArrayBounds?
+  llvm::MatrixBuilder<CGBuilderTy> MB(Builder);
+  return MB.CreateExtractElement(
+      Matrix, RowIdx, ColumnIdx,
+      E->getBase()->getType()->getAs<ConstantMatrixType>()->getNumRows());
+}
+
 static int getMaskElt(llvm::ShuffleVectorInst *SVI, unsigned Idx,
                       unsigned Off) {
   int MV = SVI->getMaskValue(Idx);
@@ -2089,11 +2079,15 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
       }
     }
 
-    // Update heapallocsite metadata when there is an explicit cast.
-    if (llvm::CallInst *CI = dyn_cast<llvm::CallInst>(Src))
-      if (CI->getMetadata("heapallocsite") && isa<ExplicitCastExpr>(CE))
-          CGF.getDebugInfo()->
-              addHeapAllocSiteMetadata(CI, CE->getType(), CE->getExprLoc());
+    // Update heapallocsite metadata when there is an explicit pointer cast.
+    if (auto *CI = dyn_cast<llvm::CallBase>(Src)) {
+      if (CI->getMetadata("heapallocsite") && isa<ExplicitCastExpr>(CE)) {
+        QualType PointeeType = DestTy->getPointeeType();
+        if (!PointeeType.isNull())
+          CGF.getDebugInfo()->addHeapAllocSiteMetadata(CI, PointeeType,
+                                                       CE->getExprLoc());
+      }
+    }
 
     if (NeedAddrspaceCast) {
       llvm::Type *SrcPointeeTy = Src->getType()->getPointerElementType();
@@ -2371,7 +2365,6 @@ Value *ScalarExprEmitter::VisitStmtExpr(const StmtExpr *E) {
 }
 
 Value *ScalarExprEmitter::VisitExprWithCleanups(ExprWithCleanups *E) {
-  CGF.enterFullExpression(E);
   CodeGenFunction::RunCleanupsScope Scope(CGF);
   Value *V = Visit(E->getSubExpr());
   // Defend against dominance problems caused by jumps out of expression
@@ -2773,14 +2766,15 @@ Value *ScalarExprEmitter::VisitUnaryNot(const UnaryOperator *E) {
 
 Value *ScalarExprEmitter::VisitUnaryLNot(const UnaryOperator *E) {
   // Perform vector logical not on comparison with zero vector.
-  if (E->getType()->isExtVectorType()) {
+  if (E->getType()->isVectorType() &&
+      E->getType()->castAs<VectorType>()->getVectorKind() ==
+          VectorType::GenericVector) {
     Value *Oper = Visit(E->getSubExpr());
     Value *Zero = llvm::Constant::getNullValue(Oper->getType());
     Value *Result;
     if (Oper->getType()->isFPOrFPVectorTy()) {
-      llvm::IRBuilder<>::FastMathFlagGuard FMFG(Builder);
-      setBuilderFlagsFromFPFeatures(Builder, CGF,
-                                    E->getFPFeatures(CGF.getLangOpts()));
+      CodeGenFunction::CGFPOptionsRAII FPOptsRAII(
+          CGF, E->getFPFeatures(CGF.getLangOpts()));
       Result = Builder.CreateFCmp(llvm::CmpInst::FCMP_OEQ, Oper, Zero, "cmp");
     } else
       Result = Builder.CreateICmp(llvm::CmpInst::ICMP_EQ, Oper, Zero, "cmp");
@@ -3239,8 +3233,7 @@ Value *ScalarExprEmitter::EmitDiv(const BinOpInfo &Ops) {
 
   if (Ops.LHS->getType()->isFPOrFPVectorTy()) {
     llvm::Value *Val;
-    llvm::IRBuilder<>::FastMathFlagGuard FMFG(Builder);
-    setBuilderFlagsFromFPFeatures(Builder, CGF, Ops.FPFeatures);
+    CodeGenFunction::CGFPOptionsRAII FPOptsRAII(CGF, Ops.FPFeatures);
     Val = Builder.CreateFDiv(Ops.LHS, Ops.RHS, "div");
     if (CGF.getLangOpts().OpenCL &&
         !CGF.CGM.getCodeGenOpts().CorrectlyRoundedDivSqrt) {
@@ -3618,14 +3611,12 @@ Value *ScalarExprEmitter::EmitAdd(const BinOpInfo &op) {
     return EmitOverflowCheckedBinOp(op);
 
   if (op.LHS->getType()->isFPOrFPVectorTy()) {
-    llvm::IRBuilder<>::FastMathFlagGuard FMFG(Builder);
-    setBuilderFlagsFromFPFeatures(Builder, CGF, op.FPFeatures);
+    CodeGenFunction::CGFPOptionsRAII FPOptsRAII(CGF, op.FPFeatures);
     // Try to form an fmuladd.
     if (Value *FMulAdd = tryEmitFMulAdd(op, CGF, Builder))
       return FMulAdd;
 
-    Value *V = Builder.CreateFAdd(op.LHS, op.RHS, "add");
-    return propagateFMFlags(V, op);
+    return Builder.CreateFAdd(op.LHS, op.RHS, "add");
   }
 
   if (op.isFixedPointOp())
@@ -3807,13 +3798,11 @@ Value *ScalarExprEmitter::EmitSub(const BinOpInfo &op) {
       return EmitOverflowCheckedBinOp(op);
 
     if (op.LHS->getType()->isFPOrFPVectorTy()) {
-      llvm::IRBuilder<>::FastMathFlagGuard FMFG(Builder);
-      setBuilderFlagsFromFPFeatures(Builder, CGF, op.FPFeatures);
+      CodeGenFunction::CGFPOptionsRAII FPOptsRAII(CGF, op.FPFeatures);
       // Try to form an fmuladd.
       if (Value *FMulAdd = tryEmitFMulAdd(op, CGF, Builder, true))
         return FMulAdd;
-      Value *V = Builder.CreateFSub(op.LHS, op.RHS, "sub");
-      return propagateFMFlags(V, op);
+      return Builder.CreateFSub(op.LHS, op.RHS, "sub");
     }
 
     if (op.isFixedPointOp())
@@ -4135,8 +4124,7 @@ Value *ScalarExprEmitter::EmitCompare(const BinaryOperator *E,
     if (BOInfo.isFixedPointOp()) {
       Result = EmitFixedPointBinOp(BOInfo);
     } else if (LHS->getType()->isFPOrFPVectorTy()) {
-      llvm::IRBuilder<>::FastMathFlagGuard FMFG(Builder);
-      setBuilderFlagsFromFPFeatures(Builder, CGF, BOInfo.FPFeatures);
+      CodeGenFunction::CGFPOptionsRAII FPOptsRAII(CGF, BOInfo.FPFeatures);
       if (!IsSignaling)
         Result = Builder.CreateFCmp(FCmpOpc, LHS, RHS, "cmp");
       else
@@ -4297,9 +4285,8 @@ Value *ScalarExprEmitter::VisitBinLAnd(const BinaryOperator *E) {
     Value *RHS = Visit(E->getRHS());
     Value *Zero = llvm::ConstantAggregateZero::get(LHS->getType());
     if (LHS->getType()->isFPOrFPVectorTy()) {
-      llvm::IRBuilder<>::FastMathFlagGuard FMFG(Builder);
-      setBuilderFlagsFromFPFeatures(Builder, CGF,
-                                    E->getFPFeatures(CGF.getLangOpts()));
+      CodeGenFunction::CGFPOptionsRAII FPOptsRAII(
+          CGF, E->getFPFeatures(CGF.getLangOpts()));
       LHS = Builder.CreateFCmp(llvm::CmpInst::FCMP_UNE, LHS, Zero, "cmp");
       RHS = Builder.CreateFCmp(llvm::CmpInst::FCMP_UNE, RHS, Zero, "cmp");
     } else {
@@ -4384,9 +4371,8 @@ Value *ScalarExprEmitter::VisitBinLOr(const BinaryOperator *E) {
     Value *RHS = Visit(E->getRHS());
     Value *Zero = llvm::ConstantAggregateZero::get(LHS->getType());
     if (LHS->getType()->isFPOrFPVectorTy()) {
-      llvm::IRBuilder<>::FastMathFlagGuard FMFG(Builder);
-      setBuilderFlagsFromFPFeatures(Builder, CGF,
-                                    E->getFPFeatures(CGF.getLangOpts()));
+      CodeGenFunction::CGFPOptionsRAII FPOptsRAII(
+          CGF, E->getFPFeatures(CGF.getLangOpts()));
       LHS = Builder.CreateFCmp(llvm::CmpInst::FCMP_UNE, LHS, Zero, "cmp");
       RHS = Builder.CreateFCmp(llvm::CmpInst::FCMP_UNE, RHS, Zero, "cmp");
     } else {
@@ -4519,8 +4505,8 @@ VisitAbstractConditionalOperator(const AbstractConditionalOperator *E) {
 
   // OpenCL: If the condition is a vector, we can treat this condition like
   // the select function.
-  if (CGF.getLangOpts().OpenCL
-      && condExpr->getType()->isVectorType()) {
+  if ((CGF.getLangOpts().OpenCL && condExpr->getType()->isVectorType()) ||
+      condExpr->getType()->isExtVectorType()) {
     CGF.incrementProfileCounter(E);
 
     llvm::Value *CondV = CGF.EmitScalarExpr(condExpr);

@@ -49,8 +49,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Transforms/BufferPlacement.h"
-#include "mlir/IR/Function.h"
-#include "mlir/IR/Operation.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/Passes.h"
 
@@ -421,51 +419,6 @@ OpBuilder::InsertPoint
 BufferAssignmentPlacer::computeAllocPosition(OpResult result) {
   Operation *owner = result.getOwner();
   return OpBuilder::InsertPoint(owner->getBlock(), Block::iterator(owner));
-}
-
-//===----------------------------------------------------------------------===//
-// FunctionAndBlockSignatureConverter
-//===----------------------------------------------------------------------===//
-
-// Performs the actual signature rewriting step.
-LogicalResult FunctionAndBlockSignatureConverter::matchAndRewrite(
-    FuncOp funcOp, ArrayRef<Value> operands,
-    ConversionPatternRewriter &rewriter) const {
-  if (!converter) {
-    funcOp.emitError("The type converter has not been defined for "
-                     "FunctionAndBlockSignatureConverter");
-    return failure();
-  }
-  auto funcType = funcOp.getType();
-
-  // Convert function arguments using the provided TypeConverter.
-  TypeConverter::SignatureConversion conversion(funcType.getNumInputs());
-  for (auto argType : llvm::enumerate(funcType.getInputs()))
-    conversion.addInputs(argType.index(),
-                         converter->convertType(argType.value()));
-
-  // If a function result type is not a memref but it would be a memref after
-  // type conversion, a new argument should be appended to the function
-  // arguments list for this result. Otherwise, it remains unchanged as a
-  // function result.
-  SmallVector<Type, 2> newResultTypes;
-  newResultTypes.reserve(funcOp.getNumResults());
-  for (Type resType : funcType.getResults()) {
-    Type convertedType = converter->convertType(resType);
-    if (BufferAssignmentTypeConverter::isConvertedMemref(convertedType,
-                                                         resType))
-      conversion.addInputs(convertedType);
-    else
-      newResultTypes.push_back(convertedType);
-  }
-
-  // Update the signature of the function.
-  rewriter.updateRootInPlace(funcOp, [&] {
-    funcOp.setType(rewriter.getFunctionType(conversion.getConvertedTypes(),
-                                            newResultTypes));
-    rewriter.applySignatureConversion(&funcOp.getBody(), conversion);
-  });
-  return success();
 }
 
 //===----------------------------------------------------------------------===//

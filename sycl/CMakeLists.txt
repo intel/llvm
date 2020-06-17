@@ -79,13 +79,26 @@ endif()
 
 include(ExternalProject)
 
+# By default, whenever cmake is re-run, the external project's sources will be
+# updated, which might be annoying - let's have a possibility to disable that as
+# not every external project which is used here is being updated often
+# Single toggle to control all external projects
+option(SYCL_EXTERNAL_PROJECTS_SKIP_AUTO_UPDATE
+  "Perform automatic update step for external projects (OpenCL Headers, OpenCL ICD, etc.)" OFF)
+# More precise controls for each particular external project are documented
+# near each ExternalProject_Add
+
 if( NOT OpenCL_INCLUDE_DIRS )
   message(STATUS "OpenCL_INCLUDE_DIRS is missing. Will try to download OpenCL headers from github.com")
   set(OpenCL_INCLUDE_DIRS "${CMAKE_CURRENT_BINARY_DIR}/OpenCL/inc")
+  if (NOT DEFINED SYCL_EP_OCL_HEADERS_SKIP_AUTO_UPDATE)
+    set(SYCL_EP_OCL_HEADERS_SKIP_AUTO_UPDATE ${SYCL_EXTERNAL_PROJECTS_SKIP_AUTO_UPDATE})
+  endif()
   ExternalProject_Add(ocl-headers
     GIT_REPOSITORY    https://github.com/KhronosGroup/OpenCL-Headers.git
     GIT_TAG           origin/master
-    SOURCE_DIR        "${CMAKE_CURRENT_BINARY_DIR}/OpenCL/inc"
+    UPDATE_DISCONNECTED ${SYCL_EP_OCL_HEADERS_SKIP_AUTO_UPDATE}
+    SOURCE_DIR        ${OpenCL_INCLUDE_DIRS}
     CONFIGURE_COMMAND ""
     BUILD_COMMAND     ${CMAKE_COMMAND} -E copy_directory ${OpenCL_INCLUDE_DIRS}/CL ${SYCL_INCLUDE_BUILD_DIR}/CL
     INSTALL_COMMAND   ""
@@ -118,10 +131,15 @@ if( NOT OpenCL_LIBRARIES )
       list(APPEND AUX_CMAKE_FLAGS -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER})
   endif()
   file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/icd_build)
+  set(OpenCL_ICD_LOADER_SOURCE_DIR "${CMAKE_CURRENT_BINARY_DIR}/OpenCL/icd")
+  if (NOT DEFINED SYCL_EP_OCL_ICD_SKIP_AUTO_UPDATE)
+    set(SYCL_EP_OCL_ICD_SKIP_AUTO_UPDATE ${SYCL_EXTERNAL_PROJECTS_SKIP_AUTO_UPDATE})
+  endif()
   ExternalProject_Add(ocl-icd
     GIT_REPOSITORY    https://github.com/KhronosGroup/OpenCL-ICD-Loader.git
     GIT_TAG           origin/master
-    SOURCE_DIR        "${CMAKE_CURRENT_BINARY_DIR}/OpenCL/icd"
+    UPDATE_DISCONNECTED ${SYCL_EP_OCL_ICD_SKIP_AUTO_UPDATE}
+    SOURCE_DIR        ${OpenCL_ICD_LOADER_SOURCE_DIR}
     BINARY_DIR        "${CMAKE_CURRENT_BINARY_DIR}/icd_build"
     INSTALL_DIR       "${CMAKE_CURRENT_BINARY_DIR}/icd_install"
     CMAKE_ARGS -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}

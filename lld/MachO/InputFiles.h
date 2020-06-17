@@ -9,11 +9,15 @@
 #ifndef LLD_MACHO_INPUT_FILES_H
 #define LLD_MACHO_INPUT_FILES_H
 
+#include "MachOStructs.h"
+
 #include "lld/Common/LLVM.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/BinaryFormat/MachO.h"
 #include "llvm/Object/Archive.h"
 #include "llvm/Support/MemoryBuffer.h"
+#include "llvm/TextAPI/MachO/InterfaceFile.h"
+#include "llvm/TextAPI/MachO/TextAPIReader.h"
 
 #include <map>
 #include <vector>
@@ -52,7 +56,7 @@ protected:
 
   void parseSections(ArrayRef<llvm::MachO::section_64>);
 
-  void parseSymbols(ArrayRef<llvm::MachO::nlist_64> nList, const char *strtab,
+  void parseSymbols(ArrayRef<lld::structs::nlist_64> nList, const char *strtab,
                     bool subsectionsViaSymbols);
 
   void parseRelocations(const llvm::MachO::section_64 &, SubsectionMap &);
@@ -71,6 +75,9 @@ public:
 // .dylib file
 class DylibFile : public InputFile {
 public:
+  explicit DylibFile(std::shared_ptr<llvm::MachO::InterfaceFile> interface,
+                     DylibFile *umbrella = nullptr);
+
   // Mach-O dylibs can re-export other dylibs as sub-libraries, meaning that the
   // symbols in those sub-libraries will be available under the umbrella
   // library's namespace. Those sub-libraries can also have their own
@@ -79,6 +86,7 @@ public:
   // to the root. On the other hand, if a dylib is being directly loaded
   // (through an -lfoo flag), then `umbrella` should be a nullptr.
   explicit DylibFile(MemoryBufferRef mb, DylibFile *umbrella = nullptr);
+
   static bool classof(const InputFile *f) { return f->kind() == DylibKind; }
 
   // Do not use this constructor!! This is meant only for createLibSystemMock(),

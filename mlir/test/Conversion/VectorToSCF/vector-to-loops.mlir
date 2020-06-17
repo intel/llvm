@@ -45,15 +45,15 @@ func @materialize_read_1d_partially_specialized(%dyn1 : index, %dyn2 : index, %d
     }
   }
   // CHECK: %[[tensor:[0-9]+]] = alloc
-  // CHECK-NOT: {{.*}} dim %[[tensor]], 0
-  // CHECK-NOT: {{.*}} dim %[[tensor]], 3
+  // CHECK-NOT: {{.*}} dim %[[tensor]], %c0
+  // CHECK-NOT: {{.*}} dim %[[tensor]], %c3
   return
 }
 
 // -----
 
-// CHECK: #[[ADD:map[0-9]+]] = affine_map<(d0, d1) -> (d0 + d1)>
-// CHECK: #[[SUB:map[0-9]+]] = affine_map<()[s0] -> (s0 - 1)>
+// CHECK: #[[$ADD:map[0-9]+]] = affine_map<(d0, d1) -> (d0 + d1)>
+// CHECK: #[[$SUB:map[0-9]+]] = affine_map<()[s0] -> (s0 - 1)>
 
 // CHECK-LABEL: func @materialize_read(%{{.*}}: index, %{{.*}}: index, %{{.*}}: index, %{{.*}}: index) {
 func @materialize_read(%M: index, %N: index, %O: index, %P: index) {
@@ -72,27 +72,27 @@ func @materialize_read(%M: index, %N: index, %O: index, %P: index) {
   // CHECK-NEXT:          scf.for %[[I4:.*]] = %[[C0]] to %[[C3]] step %[[C1]] {
   // CHECK-NEXT:            scf.for %[[I5:.*]] = %[[C0]] to %[[C4]] step %[[C1]] {
   // CHECK-NEXT:              scf.for %[[I6:.*]] = %[[C0]] to %[[C5]] step %[[C1]] {
-  // CHECK-NEXT:                {{.*}} = affine.apply #[[ADD]](%[[I0]], %[[I4]])
-  // CHECK-NEXT:                {{.*}} = affine.apply #[[SUB]]()[%{{.*}}]
+  // CHECK-NEXT:                {{.*}} = affine.apply #[[$ADD]](%[[I0]], %[[I4]])
+  // CHECK-NEXT:                {{.*}} = affine.apply #[[$SUB]]()[%{{.*}}]
   // CHECK-NEXT:                {{.*}} = cmpi "slt", {{.*}} : index
   // CHECK-NEXT:                {{.*}} = select
   // CHECK-NEXT:                {{.*}} = cmpi "slt", {{.*}}, %[[C0]] : index
   // CHECK-NEXT:                %[[L0:.*]] = select
   //
-  // CHECK-NEXT:                {{.*}} = affine.apply #[[SUB]]()[%{{.*}}]
+  // CHECK-NEXT:                {{.*}} = affine.apply #[[$SUB]]()[%{{.*}}]
   // CHECK-NEXT:                {{.*}} = cmpi "slt", {{.*}} : index
   // CHECK-NEXT:                {{.*}} = select
   // CHECK-NEXT:                {{.*}} = cmpi "slt", {{.*}}, %[[C0]] : index
   // CHECK-NEXT:                %[[L1:.*]] = select
   //
-  // CHECK-NEXT:                {{.*}} = affine.apply #[[SUB]]()[%{{.*}}]
+  // CHECK-NEXT:                {{.*}} = affine.apply #[[$SUB]]()[%{{.*}}]
   // CHECK-NEXT:                {{.*}} = cmpi "slt", {{.*}} : index
   // CHECK-NEXT:                {{.*}} = select
   // CHECK-NEXT:                {{.*}} = cmpi "slt", {{.*}}, %[[C0]] : index
   // CHECK-NEXT:                %[[L2:.*]] = select
   //
-  // CHECK-NEXT:                {{.*}} = affine.apply #[[ADD]](%[[I3]], %[[I6]])
-  // CHECK-NEXT:                {{.*}} = affine.apply #[[SUB]]()[%{{.*}}]
+  // CHECK-NEXT:                {{.*}} = affine.apply #[[$ADD]](%[[I3]], %[[I6]])
+  // CHECK-NEXT:                {{.*}} = affine.apply #[[$SUB]]()[%{{.*}}]
   // CHECK-NEXT:                {{.*}} = cmpi "slt", {{.*}} : index
   // CHECK-NEXT:                {{.*}} = select
   // CHECK-NEXT:                {{.*}} = cmpi "slt", {{.*}}, %[[C0]] : index
@@ -129,8 +129,8 @@ func @materialize_read(%M: index, %N: index, %O: index, %P: index) {
 
 // -----
 
-// CHECK: #[[ADD:map[0-9]+]] = affine_map<(d0, d1) -> (d0 + d1)>
-// CHECK: #[[SUB:map[0-9]+]] = affine_map<()[s0] -> (s0 - 1)>
+// CHECK: #[[$ADD:map[0-9]+]] = affine_map<(d0, d1) -> (d0 + d1)>
+// CHECK: #[[$SUB:map[0-9]+]] = affine_map<()[s0] -> (s0 - 1)>
 
 // CHECK-LABEL:func @materialize_write(%{{.*}}: index, %{{.*}}: index, %{{.*}}: index, %{{.*}}: index) {
 func @materialize_write(%M: index, %N: index, %O: index, %P: index) {
@@ -151,28 +151,28 @@ func @materialize_write(%M: index, %N: index, %O: index, %P: index) {
   // CHECK-NEXT:          scf.for %[[I4:.*]] = %[[C0]] to %[[C3]] step %[[C1]] {
   // CHECK-NEXT:            scf.for %[[I5:.*]] = %[[C0]] to %[[C4]] step %[[C1]] {
   // CHECK-NEXT:              scf.for %[[I6:.*]] = %[[C0]] to %[[C5]] step %[[C1]] {
-  // CHECK-NEXT:                {{.*}} = affine.apply #[[ADD]](%[[I0]], %[[I4]])
-  // CHECK-NEXT:                {{.*}} = affine.apply #[[SUB]]()[%{{.*}}]
+  // CHECK-NEXT:                {{.*}} = affine.apply #[[$ADD]](%[[I0]], %[[I4]])
+  // CHECK-NEXT:                {{.*}} = affine.apply #[[$SUB]]()[%{{.*}}]
   // CHECK-NEXT:                {{.*}} = cmpi "slt", {{.*}}, {{.*}} : index
   // CHECK-NEXT:                {{.*}} = select {{.*}}, {{.*}}, {{.*}} : index
   // CHECK-NEXT:                {{.*}} = cmpi "slt", {{.*}}, %[[C0]] : index
   // CHECK-NEXT:                %[[S0:.*]] = select {{.*}}, %[[C0]], {{.*}} : index
   //
-  // CHECK-NEXT:                {{.*}} = affine.apply #[[ADD]](%[[I1]], %[[I5]])
-  // CHECK-NEXT:                {{.*}} = affine.apply #[[SUB]]()[%{{.*}}]
+  // CHECK-NEXT:                {{.*}} = affine.apply #[[$ADD]](%[[I1]], %[[I5]])
+  // CHECK-NEXT:                {{.*}} = affine.apply #[[$SUB]]()[%{{.*}}]
   // CHECK-NEXT:                {{.*}} = cmpi "slt", {{.*}}, {{.*}} : index
   // CHECK-NEXT:                {{.*}} = select {{.*}}, {{.*}}, {{.*}} : index
   // CHECK-NEXT:                {{.*}} = cmpi "slt", {{.*}}, %[[C0]] : index
   // CHECK-NEXT:                %[[S1:.*]] = select {{.*}}, %[[C0]], {{.*}} : index
   //
-  // CHECK-NEXT:                {{.*}} = affine.apply #[[SUB]]()[%{{.*}}]
+  // CHECK-NEXT:                {{.*}} = affine.apply #[[$SUB]]()[%{{.*}}]
   // CHECK-NEXT:                {{.*}} = cmpi "slt", %[[I2]], %{{.*}} : index
   // CHECK-NEXT:                {{.*}} = select {{.*}}, %[[I2]], {{.*}} : index
   // CHECK-NEXT:                {{.*}} = cmpi "slt", %[[I2]], %[[C0]] : index
   // CHECK-NEXT:                %[[S2:.*]] = select {{.*}}, %[[C0]], {{.*}} : index
   //
-  // CHECK-NEXT:                {{.*}} = affine.apply #[[ADD]](%[[I3]], %[[I6]])
-  // CHECK-NEXT:                {{.*}} = affine.apply #[[SUB]]()[%{{.*}}]
+  // CHECK-NEXT:                {{.*}} = affine.apply #[[$ADD]](%[[I3]], %[[I6]])
+  // CHECK-NEXT:                {{.*}} = affine.apply #[[$SUB]]()[%{{.*}}]
   // CHECK-NEXT:                {{.*}} = cmpi "slt", {{.*}}, {{.*}} : index
   // CHECK-NEXT:                {{.*}} = select {{.*}}, {{.*}}, {{.*}} : index
   // CHECK-NEXT:                {{.*}} = cmpi "slt", {{.*}}, %[[C0]] : index
@@ -211,12 +211,12 @@ func @materialize_write(%M: index, %N: index, %O: index, %P: index) {
 
 // -----
 
-// CHECK-DAG: #[[MAP0:.*]] = affine_map<(d0)[s0] -> (d0 + s0)>
-// CHECK-DAG: #[[MAP1:.*]] = affine_map<(d0, d1) -> (d1)>
+// CHECK-DAG: #[[$MAP0:.*]] = affine_map<(d0)[s0] -> (d0 + s0)>
+// CHECK-DAG: #[[$MAP1:.*]] = affine_map<(d0, d1) -> (d1)>
 
-// FULL-UNROLL-DAG: #[[MAP0:.*]] = affine_map<(d0, d1) -> (d1)>
-// FULL-UNROLL-DAG: #[[MAP1:.*]] = affine_map<()[s0] -> (s0 + 1)>
-// FULL-UNROLL-DAG: #[[MAP2:.*]] = affine_map<()[s0] -> (s0 + 2)>
+// FULL-UNROLL-DAG: #[[$MAP0:.*]] = affine_map<(d0, d1) -> (d1)>
+// FULL-UNROLL-DAG: #[[$MAP1:.*]] = affine_map<()[s0] -> (s0 + 1)>
+// FULL-UNROLL-DAG: #[[$MAP2:.*]] = affine_map<()[s0] -> (s0 + 2)>
 
 
 // CHECK-LABEL: transfer_read_progressive(
@@ -232,10 +232,10 @@ func @transfer_read_progressive(%A : memref<?x?xf32>, %base: index) -> vector<3x
   %f7 = constant 7.0: f32
 
   // CHECK-DAG: %[[splat:.*]] = constant dense<7.000000e+00> : vector<15xf32>
-  // CHECK-DAG: %[[alloc:.*]] = alloc() : memref<3xvector<15xf32>>
-  // CHECK-DAG: %[[dim:.*]] = dim %[[A]], 0 : memref<?x?xf32>
+  // CHECK-DAG: %[[alloc:.*]] = alloca() {alignment = 128 : i64} : memref<3xvector<15xf32>>
+  // CHECK-DAG: %[[dim:.*]] = dim %[[A]], %c0 : memref<?x?xf32>
   // CHECK: affine.for %[[I:.*]] = 0 to 3 {
-  // CHECK:   %[[add:.*]] = affine.apply #[[MAP0]](%[[I]])[%[[base]]]
+  // CHECK:   %[[add:.*]] = affine.apply #[[$MAP0]](%[[I]])[%[[base]]]
   // CHECK:   %[[cond1:.*]] = cmpi "slt", %[[add]], %[[dim]] : index
   // CHECK:   scf.if %[[cond1]] {
   // CHECK:     %[[vec_1d:.*]] = vector.transfer_read %[[A]][%[[add]], %[[base]]], %[[cst]] : memref<?x?xf32>, vector<15xf32>
@@ -249,7 +249,7 @@ func @transfer_read_progressive(%A : memref<?x?xf32>, %base: index) -> vector<3x
   // FULL-UNROLL: %[[pad:.*]] = constant 7.000000e+00 : f32
   // FULL-UNROLL: %[[VEC0:.*]] = constant dense<7.000000e+00> : vector<3x15xf32>
   // FULL-UNROLL: %[[SPLAT:.*]] = constant dense<7.000000e+00> : vector<15xf32>
-  // FULL-UNROLL: %[[DIM:.*]] = dim %[[A]], 0 : memref<?x?xf32>
+  // FULL-UNROLL: %[[DIM:.*]] = dim %[[A]], %c0 : memref<?x?xf32>
   // FULL-UNROLL: cmpi "slt", %[[base]], %[[DIM]] : index
   // FULL-UNROLL: %[[VEC1:.*]] = scf.if %{{.*}} -> (vector<3x15xf32>) {
   // FULL-UNROLL:   vector.transfer_read %[[A]][%[[base]], %[[base]]], %[[pad]] : memref<?x?xf32>, vector<15xf32>
@@ -259,7 +259,7 @@ func @transfer_read_progressive(%A : memref<?x?xf32>, %base: index) -> vector<3x
   // FULL-UNROLL:   vector.insert %{{.*}}, %[[VEC0]] [0] : vector<15xf32> into vector<3x15xf32>
   // FULL-UNROLL:   scf.yield %{{.*}} : vector<3x15xf32>
   // FULL-UNROLL: }
-  // FULL-UNROLL: affine.apply #[[MAP1]]()[%[[base]]]
+  // FULL-UNROLL: affine.apply #[[$MAP1]]()[%[[base]]]
   // FULL-UNROLL: cmpi "slt", %{{.*}}, %[[DIM]] : index
   // FULL-UNROLL: %[[VEC2:.*]] = scf.if %{{.*}} -> (vector<3x15xf32>) {
   // FULL-UNROLL:   vector.transfer_read %[[A]][%{{.*}}, %[[base]]], %[[pad]] : memref<?x?xf32>, vector<15xf32>
@@ -269,7 +269,7 @@ func @transfer_read_progressive(%A : memref<?x?xf32>, %base: index) -> vector<3x
   // FULL-UNROLL:   vector.insert %{{.*}}, %[[VEC1]] [1] : vector<15xf32> into vector<3x15xf32>
   // FULL-UNROLL:   scf.yield %{{.*}} : vector<3x15xf32>
   // FULL-UNROLL: }
-  // FULL-UNROLL: affine.apply #[[MAP2]]()[%[[base]]]
+  // FULL-UNROLL: affine.apply #[[$MAP2]]()[%[[base]]]
   // FULL-UNROLL: cmpi "slt", %{{.*}}, %[[DIM]] : index
   // FULL-UNROLL: %[[VEC3:.*]] = scf.if %{{.*}} -> (vector<3x15xf32>) {
   // FULL-UNROLL:   vector.transfer_read %[[A]][%{{.*}}, %[[base]]], %[[pad]] : memref<?x?xf32>, vector<15xf32>
@@ -288,12 +288,12 @@ func @transfer_read_progressive(%A : memref<?x?xf32>, %base: index) -> vector<3x
 
 // -----
 
-// CHECK-DAG: #[[MAP0:.*]] = affine_map<(d0)[s0] -> (d0 + s0)>
-// CHECK-DAG: #[[MAP1:.*]] = affine_map<(d0, d1) -> (d1)>
+// CHECK-DAG: #[[$MAP0:.*]] = affine_map<(d0)[s0] -> (d0 + s0)>
+// CHECK-DAG: #[[$MAP1:.*]] = affine_map<(d0, d1) -> (d1)>
 
-// FULL-UNROLL-DAG: #[[MAP0:.*]] = affine_map<(d0, d1) -> (d1)>
-// FULL-UNROLL-DAG: #[[MAP1:.*]] = affine_map<()[s0] -> (s0 + 1)>
-// FULL-UNROLL-DAG: #[[MAP2:.*]] = affine_map<()[s0] -> (s0 + 2)>
+// FULL-UNROLL-DAG: #[[$MAP0:.*]] = affine_map<(d0, d1) -> (d1)>
+// FULL-UNROLL-DAG: #[[$MAP1:.*]] = affine_map<()[s0] -> (s0 + 1)>
+// FULL-UNROLL-DAG: #[[$MAP2:.*]] = affine_map<()[s0] -> (s0 + 2)>
 
 // CHECK-LABEL: transfer_write_progressive(
 //  CHECK-SAME:   %[[A:[a-zA-Z0-9]+]]: memref<?x?xf32>,
@@ -304,31 +304,31 @@ func @transfer_read_progressive(%A : memref<?x?xf32>, %base: index) -> vector<3x
 //  FULL-UNROLL-SAME:   %[[base:[a-zA-Z0-9]+]]: index,
 //  FULL-UNROLL-SAME:   %[[vec:[a-zA-Z0-9]+]]: vector<3x15xf32>
 func @transfer_write_progressive(%A : memref<?x?xf32>, %base: index, %vec: vector<3x15xf32>) {
-  // CHECK: %[[alloc:.*]] = alloc() : memref<3xvector<15xf32>>
+  // CHECK: %[[alloc:.*]] = alloca() {alignment = 128 : i64} : memref<3xvector<15xf32>>
   // CHECK: %[[vmemref:.*]] = vector.type_cast %[[alloc]] : memref<3xvector<15xf32>> to memref<vector<3x15xf32>>
   // CHECK: store %[[vec]], %[[vmemref]][] : memref<vector<3x15xf32>>
-  // CHECK: %[[dim:.*]] = dim %[[A]], 0 : memref<?x?xf32>
+  // CHECK: %[[dim:.*]] = dim %[[A]], %c0 : memref<?x?xf32>
   // CHECK: affine.for %[[I:.*]] = 0 to 3 {
-  // CHECK:   %[[add:.*]] = affine.apply #[[MAP0]](%[[I]])[%[[base]]]
+  // CHECK:   %[[add:.*]] = affine.apply #[[$MAP0]](%[[I]])[%[[base]]]
   // CHECK:   %[[cmp:.*]] = cmpi "slt", %[[add]], %[[dim]] : index
   // CHECK:   scf.if %[[cmp]] {
   // CHECK:     %[[vec_1d:.*]] = load %0[%[[I]]] : memref<3xvector<15xf32>>
   // CHECK:     vector.transfer_write %[[vec_1d]], %[[A]][%[[add]], %[[base]]] : vector<15xf32>, memref<?x?xf32>
   // CHECK:   }
 
-  // FULL-UNROLL: %[[DIM:.*]] = dim %[[A]], 0 : memref<?x?xf32>
+  // FULL-UNROLL: %[[DIM:.*]] = dim %[[A]], %c0 : memref<?x?xf32>
   // FULL-UNROLL: %[[CMP0:.*]] = cmpi "slt", %[[base]], %[[DIM]] : index
   // FULL-UNROLL: scf.if %[[CMP0]] {
   // FULL-UNROLL:   %[[V0:.*]] = vector.extract %[[vec]][0] : vector<3x15xf32>
   // FULL-UNROLL:   vector.transfer_write %[[V0]], %[[A]][%[[base]], %[[base]]] : vector<15xf32>, memref<?x?xf32>
   // FULL-UNROLL: }
-  // FULL-UNROLL: %[[I1:.*]] = affine.apply #[[MAP1]]()[%[[base]]]
+  // FULL-UNROLL: %[[I1:.*]] = affine.apply #[[$MAP1]]()[%[[base]]]
   // FULL-UNROLL: %[[CMP1:.*]] = cmpi "slt", %[[I1]], %[[DIM]] : index
   // FULL-UNROLL: scf.if %[[CMP1]] {
   // FULL-UNROLL:   %[[V1:.*]] = vector.extract %[[vec]][1] : vector<3x15xf32>
   // FULL-UNROLL:   vector.transfer_write %[[V1]], %[[A]][%[[I1]], %[[base]]] : vector<15xf32>, memref<?x?xf32>
   // FULL-UNROLL: }
-  // FULL-UNROLL: %[[I2:.*]] = affine.apply #[[MAP2]]()[%[[base]]]
+  // FULL-UNROLL: %[[I2:.*]] = affine.apply #[[$MAP2]]()[%[[base]]]
   // FULL-UNROLL: %[[CMP2:.*]] = cmpi "slt", %[[I2]], %[[DIM]] : index
   // FULL-UNROLL: scf.if %[[CMP2]] {
   // FULL-UNROLL:   %[[V2:.*]] = vector.extract %[[vec]][2] : vector<3x15xf32>
@@ -342,12 +342,12 @@ func @transfer_write_progressive(%A : memref<?x?xf32>, %base: index, %vec: vecto
 
 // -----
 
-// CHECK-DAG: #[[MAP0:.*]] = affine_map<(d0)[s0] -> (d0 + s0)>
-// CHECK-DAG: #[[MAP1:.*]] = affine_map<(d0, d1) -> (d1)>
+// CHECK-DAG: #[[$MAP0:.*]] = affine_map<(d0)[s0] -> (d0 + s0)>
+// CHECK-DAG: #[[$MAP1:.*]] = affine_map<(d0, d1) -> (d1)>
 
-// FULL-UNROLL-DAG: #[[MAP0:.*]] = affine_map<(d0, d1) -> (d1)>
-// FULL-UNROLL-DAG: #[[MAP1:.*]] = affine_map<()[s0] -> (s0 + 1)>
-// FULL-UNROLL-DAG: #[[MAP2:.*]] = affine_map<()[s0] -> (s0 + 2)>
+// FULL-UNROLL-DAG: #[[$MAP0:.*]] = affine_map<(d0, d1) -> (d1)>
+// FULL-UNROLL-DAG: #[[$MAP1:.*]] = affine_map<()[s0] -> (s0 + 1)>
+// FULL-UNROLL-DAG: #[[$MAP2:.*]] = affine_map<()[s0] -> (s0 + 2)>
 
 // CHECK-LABEL: transfer_write_progressive_not_masked(
 //  CHECK-SAME:   %[[A:[a-zA-Z0-9]+]]: memref<?x?xf32>,
@@ -359,20 +359,20 @@ func @transfer_write_progressive(%A : memref<?x?xf32>, %base: index, %vec: vecto
 //  FULL-UNROLL-SAME:   %[[vec:[a-zA-Z0-9]+]]: vector<3x15xf32>
 func @transfer_write_progressive_not_masked(%A : memref<?x?xf32>, %base: index, %vec: vector<3x15xf32>) {
   // CHECK-NOT:    scf.if
-  // CHECK-NEXT: %[[alloc:.*]] = alloc() : memref<3xvector<15xf32>>
+  // CHECK-NEXT: %[[alloc:.*]] = alloca() {alignment = 128 : i64} : memref<3xvector<15xf32>>
   // CHECK-NEXT: %[[vmemref:.*]] = vector.type_cast %[[alloc]] : memref<3xvector<15xf32>> to memref<vector<3x15xf32>>
   // CHECK-NEXT: store %[[vec]], %[[vmemref]][] : memref<vector<3x15xf32>>
   // CHECK-NEXT: affine.for %[[I:.*]] = 0 to 3 {
-  // CHECK-NEXT:   %[[add:.*]] = affine.apply #[[MAP0]](%[[I]])[%[[base]]]
+  // CHECK-NEXT:   %[[add:.*]] = affine.apply #[[$MAP0]](%[[I]])[%[[base]]]
   // CHECK-NEXT:   %[[vec_1d:.*]] = load %0[%[[I]]] : memref<3xvector<15xf32>>
   // CHECK-NEXT:   vector.transfer_write %[[vec_1d]], %[[A]][%[[add]], %[[base]]] : vector<15xf32>, memref<?x?xf32>
 
   // FULL-UNROLL: %[[VEC0:.*]] = vector.extract %[[vec]][0] : vector<3x15xf32>
   // FULL-UNROLL: vector.transfer_write %[[VEC0]], %[[A]][%[[base]], %[[base]]] : vector<15xf32>, memref<?x?xf32>
-  // FULL-UNROLL: %[[I1:.*]] = affine.apply #[[MAP1]]()[%[[base]]]
+  // FULL-UNROLL: %[[I1:.*]] = affine.apply #[[$MAP1]]()[%[[base]]]
   // FULL-UNROLL: %[[VEC1:.*]] = vector.extract %[[vec]][1] : vector<3x15xf32>
   // FULL-UNROLL: vector.transfer_write %2, %[[A]][%[[I1]], %[[base]]] : vector<15xf32>, memref<?x?xf32>
-  // FULL-UNROLL: %[[I2:.*]] = affine.apply #[[MAP2]]()[%[[base]]]
+  // FULL-UNROLL: %[[I2:.*]] = affine.apply #[[$MAP2]]()[%[[base]]]
   // FULL-UNROLL: %[[VEC2:.*]] = vector.extract %[[vec]][2] : vector<3x15xf32>
   // FULL-UNROLL: vector.transfer_write %[[VEC2:.*]], %[[A]][%[[I2]], %[[base]]] : vector<15xf32>, memref<?x?xf32>
   vector.transfer_write %vec, %A[%base, %base] {masked = [false, false]} :

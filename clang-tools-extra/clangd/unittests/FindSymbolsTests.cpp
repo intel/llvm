@@ -71,9 +71,7 @@ protected:
   }
 
   void addFile(llvm::StringRef FileName, llvm::StringRef Contents) {
-    auto Path = testPath(FileName);
-    FSProvider.Files[Path] = std::string(Contents);
-    Server.addDocument(Path, Contents);
+    Server.addDocument(testPath(FileName), Contents);
   }
 };
 
@@ -324,7 +322,6 @@ protected:
   }
 
   void addFile(llvm::StringRef FilePath, llvm::StringRef Contents) {
-    FSProvider.Files[FilePath] = std::string(Contents);
     Server.addDocument(FilePath, Contents);
   }
 };
@@ -441,7 +438,7 @@ TEST_F(DocumentSymbolsTest, DeclarationDefinition) {
 }
 
 TEST_F(DocumentSymbolsTest, Concepts) {
-  CDB.ExtraClangFlags = {"-std=c++2a"};
+  CDB.ExtraClangFlags = {"-std=c++20"};
   std::string FilePath = testPath("foo.cpp");
   addFile(FilePath,
           "template <typename T> concept C = requires(T t) { t.foo(); };");

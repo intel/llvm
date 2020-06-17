@@ -126,8 +126,8 @@ GCNSubtarget::initializeSubtargetDependencies(const Triple &TT,
   }
 
   // Don't crash on invalid devices.
-  if (WavefrontSize == 0)
-    WavefrontSize = 64;
+  if (WavefrontSizeLog2 == 0)
+    WavefrontSizeLog2 = 5;
 
   HasFminFmaxLegacy = getGeneration() < AMDGPUSubtarget::VOLCANIC_ISLANDS;
 
@@ -163,7 +163,7 @@ AMDGPUSubtarget::AMDGPUSubtarget(const Triple &TT) :
   HasTrigReducedRange(false),
   MaxWavesPerEU(10),
   LocalMemorySize(0),
-  WavefrontSize(0)
+  WavefrontSizeLog2(0)
   { }
 
 GCNSubtarget::GCNSubtarget(const Triple &TT, StringRef GPU, StringRef FS,
@@ -223,6 +223,7 @@ GCNSubtarget::GCNSubtarget(const Triple &TT, StringRef GPU, StringRef FS,
     HasDPP8(false),
     HasR128A16(false),
     HasGFX10A16(false),
+    HasG16(false),
     HasNSAEncoding(false),
     HasDLInsts(false),
     HasDot1Insts(false),

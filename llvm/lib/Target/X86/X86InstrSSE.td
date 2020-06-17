@@ -720,11 +720,7 @@ def MOVHPDmr : PDI<0x17, MRMDestMem, (outs), (ins f64mem:$dst, VR128:$src),
 } // SchedRW
 
 let Predicates = [UseAVX] in {
-  // Also handle an i64 load because that may get selected as a faster way to
-  // load the data.
-  def : Pat<(v2f64 (X86Unpckl VR128:$src1,
-                      (bc_v2f64 (v2i64 (scalar_to_vector (loadi64 addr:$src2)))))),
-            (VMOVHPDrm VR128:$src1, addr:$src2)>;
+  // MOVHPD patterns
   def : Pat<(v2f64 (X86Unpckl VR128:$src1, (X86vzload64 addr:$src2))),
             (VMOVHPDrm VR128:$src1, addr:$src2)>;
 
@@ -754,12 +750,6 @@ let Predicates = [UseSSE1] in {
 
 let Predicates = [UseSSE2] in {
   // MOVHPD patterns
-
-  // Also handle an i64 load because that may get selected as a faster way to
-  // load the data.
-  def : Pat<(v2f64 (X86Unpckl VR128:$src1,
-                      (bc_v2f64 (v2i64 (scalar_to_vector (loadi64 addr:$src2)))))),
-            (MOVHPDrm VR128:$src1, addr:$src2)>;
   def : Pat<(v2f64 (X86Unpckl VR128:$src1, (X86vzload64 addr:$src2))),
             (MOVHPDrm VR128:$src1, addr:$src2)>;
 
@@ -3228,11 +3218,11 @@ def VSTMXCSR : VPSI<0xAE, MRM3m, (outs), (ins i32mem:$dst),
 let mayLoad=1, hasSideEffects=1 in
 def LDMXCSR : I<0xAE, MRM2m, (outs), (ins i32mem:$src),
               "ldmxcsr\t$src", [(int_x86_sse_ldmxcsr addr:$src)]>,
-              TB, Sched<[WriteLDMXCSR]>;
+              PS, Sched<[WriteLDMXCSR]>;
 let mayStore=1, hasSideEffects=1 in
 def STMXCSR : I<0xAE, MRM3m, (outs), (ins i32mem:$dst),
               "stmxcsr\t$dst", [(int_x86_sse_stmxcsr addr:$dst)]>,
-              TB, Sched<[WriteSTMXCSR]>;
+              PS, Sched<[WriteSTMXCSR]>;
 
 //===---------------------------------------------------------------------===//
 // SSE2 - Move Aligned/Unaligned Packed Integer Instructions
@@ -5028,7 +5018,9 @@ multiclass SS41I_pmovx_avx2_patterns<string OpcPrefix, string ExtTy,
 
   def : Pat<(v8i32 (InVecOp (bc_v16i8 (v2i64 (scalar_to_vector (loadi64 addr:$src)))))),
             (!cast<I>(OpcPrefix#BDYrm) addr:$src)>;
-  def : Pat<(v8i32 (InVecOp (v16i8 (X86vzload64 addr:$src)))),
+  def : Pat<(v8i32 (InVecOp (bc_v16i8 (v2f64 (scalar_to_vector (loadf64 addr:$src)))))),
+            (!cast<I>(OpcPrefix#BDYrm) addr:$src)>;
+  def : Pat<(v8i32 (InVecOp (bc_v16i8 (v2i64 (X86vzload64 addr:$src))))),
             (!cast<I>(OpcPrefix#BDYrm) addr:$src)>;
 
   def : Pat<(v4i64 (ExtOp (loadv4i32 addr:$src))),
@@ -5036,12 +5028,14 @@ multiclass SS41I_pmovx_avx2_patterns<string OpcPrefix, string ExtTy,
 
   def : Pat<(v4i64 (InVecOp (bc_v16i8 (v4i32 (scalar_to_vector (loadi32 addr:$src)))))),
             (!cast<I>(OpcPrefix#BQYrm) addr:$src)>;
-  def : Pat<(v4i64 (InVecOp (v16i8 (X86vzload64 addr:$src)))),
+  def : Pat<(v4i64 (InVecOp (bc_v16i8 (v2i64 (X86vzload32 addr:$src))))),
             (!cast<I>(OpcPrefix#BQYrm) addr:$src)>;
 
   def : Pat<(v4i64 (InVecOp (bc_v8i16 (v2i64 (scalar_to_vector (loadi64 addr:$src)))))),
             (!cast<I>(OpcPrefix#WQYrm) addr:$src)>;
-  def : Pat<(v4i64 (InVecOp (v8i16 (X86vzload64 addr:$src)))),
+  def : Pat<(v4i64 (InVecOp (bc_v8i16 (v2f64 (scalar_to_vector (loadf64 addr:$src)))))),
+            (!cast<I>(OpcPrefix#WQYrm) addr:$src)>;
+  def : Pat<(v4i64 (InVecOp (bc_v8i16 (v2i64 (X86vzload64 addr:$src))))),
             (!cast<I>(OpcPrefix#WQYrm) addr:$src)>;
   }
 }
@@ -6629,7 +6623,7 @@ multiclass SHAI_binop<bits<8> Opc, string OpcodeStr, Intrinsic IntId,
              [!if(UsesXMM0,
                   (set VR128:$dst, (IntId VR128:$src1, VR128:$src2, XMM0)),
                   (set VR128:$dst, (IntId VR128:$src1, VR128:$src2)))]>,
-             T8, Sched<[sched]>;
+             T8PS, Sched<[sched]>;
 
   def rm : I<Opc, MRMSrcMem, (outs VR128:$dst),
              (ins VR128:$src1, i128mem:$src2),
@@ -6640,7 +6634,7 @@ multiclass SHAI_binop<bits<8> Opc, string OpcodeStr, Intrinsic IntId,
                   (set VR128:$dst, (IntId VR128:$src1,
                     (memop addr:$src2), XMM0)),
                   (set VR128:$dst, (IntId VR128:$src1,
-                    (memop addr:$src2))))]>, T8,
+                    (memop addr:$src2))))]>, T8PS,
              Sched<[sched.Folded, sched.ReadAfterFold]>;
 }
 
@@ -6650,7 +6644,7 @@ let Constraints = "$src1 = $dst", Predicates = [HasSHA] in {
                          "sha1rnds4\t{$src3, $src2, $dst|$dst, $src2, $src3}",
                          [(set VR128:$dst,
                            (int_x86_sha1rnds4 VR128:$src1, VR128:$src2,
-                            (i8 timm:$src3)))]>, TA,
+                            (i8 timm:$src3)))]>, TAPS,
                          Sched<[SchedWriteVecIMul.XMM]>;
   def SHA1RNDS4rmi : Ii8<0xCC, MRMSrcMem, (outs VR128:$dst),
                          (ins VR128:$src1, i128mem:$src2, u8imm:$src3),
@@ -6658,7 +6652,7 @@ let Constraints = "$src1 = $dst", Predicates = [HasSHA] in {
                          [(set VR128:$dst,
                            (int_x86_sha1rnds4 VR128:$src1,
                             (memop addr:$src2),
-                            (i8 timm:$src3)))]>, TA,
+                            (i8 timm:$src3)))]>, TAPS,
                          Sched<[SchedWriteVecIMul.XMM.Folded,
                                 SchedWriteVecIMul.XMM.ReadAfterFold]>;
 

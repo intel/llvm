@@ -438,7 +438,10 @@ static SDValue getCopyFromPartsVector(SelectionDAG &DAG, const SDLoc &DL,
     // vector widening case (e.g. <2 x float> -> <4 x float>).  Extract the
     // elements we want.
     if (PartEVT.getVectorElementType() == ValueVT.getVectorElementType()) {
-      assert(PartEVT.getVectorNumElements() > ValueVT.getVectorNumElements() &&
+      assert((PartEVT.getVectorElementCount().Min >
+              ValueVT.getVectorElementCount().Min) &&
+             (PartEVT.getVectorElementCount().Scalable ==
+              ValueVT.getVectorElementCount().Scalable) &&
              "Cannot narrow, it would be a lossy transformation");
       return DAG.getNode(ISD::EXTRACT_SUBVECTOR, DL, ValueVT, Val,
                          DAG.getVectorIdxConstant(0, DL));
@@ -448,7 +451,7 @@ static SDValue getCopyFromPartsVector(SelectionDAG &DAG, const SDLoc &DL,
     if (ValueVT.getSizeInBits() == PartEVT.getSizeInBits())
       return DAG.getNode(ISD::BITCAST, DL, ValueVT, Val);
 
-    assert(PartEVT.getVectorNumElements() == ValueVT.getVectorNumElements() &&
+    assert(PartEVT.getVectorElementCount() == ValueVT.getVectorElementCount() &&
       "Cannot handle this kind of promotion");
     // Promoted vector extract
     return DAG.getAnyExtOrTrunc(Val, DL, ValueVT);
@@ -2776,6 +2779,7 @@ void SelectionDAGBuilder::visitInvoke(const InvokeInst &I) {
   // have to do anything here to lower funclet bundles.
   assert(!I.hasOperandBundlesOtherThan({LLVMContext::OB_deopt,
                                         LLVMContext::OB_gc_transition,
+                                        LLVMContext::OB_gc_live,
                                         LLVMContext::OB_funclet,
                                         LLVMContext::OB_cfguardtarget}) &&
          "Cannot lower invokes with arbitrary operand bundles yet!");
@@ -7192,7 +7196,7 @@ static SDValue getMemCmpLoad(const Value *PtrVal, MVT LoadVT,
     Type *LoadTy =
         Type::getIntNTy(PtrVal->getContext(), LoadVT.getScalarSizeInBits());
     if (LoadVT.isVector())
-      LoadTy = VectorType::get(LoadTy, LoadVT.getVectorNumElements());
+      LoadTy = FixedVectorType::get(LoadTy, LoadVT.getVectorNumElements());
 
     LoadInput = ConstantExpr::getBitCast(const_cast<Constant *>(LoadInput),
                                          PointerType::getUnqual(LoadTy));
@@ -9602,6 +9606,10 @@ void SelectionDAGISel::LowerArguments(const Function &F) {
   SDLoc dl = SDB->getCurSDLoc();
   const DataLayout &DL = DAG.getDataLayout();
   SmallVector<ISD::InputArg, 16> Ins;
+
+  // In Naked functions we aren't going to save any registers.
+  if (F.hasFnAttribute(Attribute::Naked))
+    return;
 
   if (!FuncInfo->CanLowerReturn) {
     // Put in an sret pointer parameter before all the other parameters.

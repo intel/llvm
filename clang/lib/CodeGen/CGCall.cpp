@@ -1763,7 +1763,8 @@ void CodeGenModule::getDefaultFunctionAttributes(StringRef Name,
     }
 
     FuncAttrs.addAttribute("no-trapping-math",
-                           llvm::toStringRef(CodeGenOpts.NoTrappingMath));
+                           llvm::toStringRef(LangOpts.getFPExceptionMode() ==
+                                             LangOptions::FPE_Ignore));
 
     // Strict (compliant) code is the default, so only add this attribute to
     // indicate that we are trying to workaround a problem case.
@@ -1773,17 +1774,17 @@ void CodeGenModule::getDefaultFunctionAttributes(StringRef Name,
     // TODO: Are these all needed?
     // unsafe/inf/nan/nsz are handled by instruction-level FastMathFlags.
     FuncAttrs.addAttribute("no-infs-fp-math",
-                           llvm::toStringRef(CodeGenOpts.NoInfsFPMath));
+                           llvm::toStringRef(LangOpts.NoHonorInfs));
     FuncAttrs.addAttribute("no-nans-fp-math",
-                           llvm::toStringRef(CodeGenOpts.NoNaNsFPMath));
+                           llvm::toStringRef(LangOpts.NoHonorNaNs));
     FuncAttrs.addAttribute("unsafe-fp-math",
-                           llvm::toStringRef(CodeGenOpts.UnsafeFPMath));
+                           llvm::toStringRef(LangOpts.UnsafeFPMath));
     FuncAttrs.addAttribute("use-soft-float",
                            llvm::toStringRef(CodeGenOpts.SoftFloat));
     FuncAttrs.addAttribute("stack-protector-buffer-size",
                            llvm::utostr(CodeGenOpts.SSPBufferSize));
     FuncAttrs.addAttribute("no-signed-zeros-fp-math",
-                           llvm::toStringRef(CodeGenOpts.NoSignedZeros));
+                           llvm::toStringRef(LangOpts.NoSignedZero));
     FuncAttrs.addAttribute(
         "correctly-rounded-divide-sqrt-fp-math",
         llvm::toStringRef(CodeGenOpts.CorrectlyRoundedDivSqrt));
@@ -4894,8 +4895,7 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
     CannotThrow = true;
   } else {
     // Otherwise, nounwind call sites will never throw.
-    CannotThrow = Attrs.hasAttribute(llvm::AttributeList::FunctionIndex,
-                                     llvm::Attribute::NoUnwind);
+    CannotThrow = Attrs.hasFnAttribute(llvm::Attribute::NoUnwind);
   }
 
   // If we made a temporary, be sure to clean up after ourselves. Note that we
@@ -4984,7 +4984,7 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
   // Add metadata for calls to MSAllocator functions
   if (getDebugInfo() && TargetDecl &&
       TargetDecl->hasAttr<MSAllocatorAttr>())
-    getDebugInfo()->addHeapAllocSiteMetadata(CI, RetTy, Loc);
+    getDebugInfo()->addHeapAllocSiteMetadata(CI, RetTy->getPointeeType(), Loc);
 
   // 4. Finish the call.
 

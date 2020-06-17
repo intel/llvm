@@ -302,15 +302,19 @@ std::string tools::getCPUName(const ArgList &Args, const llvm::Triple &T,
     std::string TargetCPUName = ppc::getPPCTargetCPU(Args);
     // LLVM may default to generating code for the native CPU,
     // but, like gcc, we default to a more generic option for
-    // each architecture. (except on Darwin)
-    if (TargetCPUName.empty() && !T.isOSDarwin()) {
-      if (T.getArch() == llvm::Triple::ppc64)
-        TargetCPUName = "ppc64";
-      else if (T.getArch() == llvm::Triple::ppc64le)
-        TargetCPUName = "ppc64le";
-      else
-        TargetCPUName = "ppc";
-    }
+    // each architecture. (except on AIX)
+    if (!TargetCPUName.empty())
+      return TargetCPUName;
+
+    if (T.isOSAIX())
+      TargetCPUName = "pwr4";
+    else if (T.getArch() == llvm::Triple::ppc64le)
+      TargetCPUName = "ppc64le";
+    else if (T.getArch() == llvm::Triple::ppc64)
+      TargetCPUName = "ppc64";
+    else
+      TargetCPUName = "ppc";
+
     return TargetCPUName;
   }
 

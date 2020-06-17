@@ -14,6 +14,7 @@
 
 #include "llvm/Transforms/Vectorize/VectorCombine.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/Analysis/BasicAliasAnalysis.h"
 #include "llvm/Analysis/GlobalsModRef.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/Analysis/ValueTracking.h"
@@ -25,8 +26,8 @@
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/CommandLine.h"
-#include "llvm/Transforms/Vectorize.h"
 #include "llvm/Transforms/Utils/Local.h"
+#include "llvm/Transforms/Vectorize.h"
 
 using namespace llvm;
 using namespace llvm::PatternMatch;
@@ -34,6 +35,7 @@ using namespace llvm::PatternMatch;
 #define DEBUG_TYPE "vector-combine"
 STATISTIC(NumVecCmp, "Number of vector compares formed");
 STATISTIC(NumVecBO, "Number of vector binops formed");
+STATISTIC(NumShufOfBitcast, "Number of shuffles moved after bitcast");
 STATISTIC(NumScalarBO, "Number of scalar binops formed");
 
 static cl::opt<bool> DisableVectorCombine(
@@ -158,7 +160,7 @@ static bool isExtractExtractCheap(Instruction *Ext0, Instruction *Ext1,
 /// compares followed by extract.
 /// cmp (ext0 V0, C), (ext1 V1, C)
 static void foldExtExtCmp(Instruction *Ext0, Instruction *Ext1,
-                          Instruction &I, const TargetTransformInfo &TTI) {
+                          Instruction &I) {
   assert(isa<CmpInst>(&I) && "Expected a compare");
 
   // cmp Pred (extelt V0, C), (extelt V1, C) --> extelt (cmp Pred V0, V1), C
@@ -177,7 +179,7 @@ static void foldExtExtCmp(Instruction *Ext0, Instruction *Ext1,
 /// binops followed by extract.
 /// bo (ext0 V0, C), (ext1 V1, C)
 static void foldExtExtBinop(Instruction *Ext0, Instruction *Ext1,
-                            Instruction &I, const TargetTransformInfo &TTI) {
+                            Instruction &I) {
   assert(isa<BinaryOperator>(&I) && "Expected a binary operator");
 
   // bo (extelt V0, C), (extelt V1, C) --> extelt (bo V0, V1), C
@@ -253,9 +255,9 @@ static bool foldExtractExtract(Instruction &I, const TargetTransformInfo &TTI) {
   }
 
   if (Pred != CmpInst::BAD_ICMP_PREDICATE)
-    foldExtExtCmp(Ext0, Ext1, I, TTI);
+    foldExtExtCmp(Ext0, Ext1, I);
   else
-    foldExtExtBinop(Ext0, Ext1, I, TTI);
+    foldExtExtBinop(Ext0, Ext1, I);
 
   return true;
 }
@@ -301,6 +303,7 @@ static bool foldBitcastShuf(Instruction &I, const TargetTransformInfo &TTI) {
       return false;
   }
   // bitcast (shuf V, MaskC) --> shuf (bitcast V), MaskC'
+  ++NumShufOfBitcast;
   IRBuilder<> Builder(&I);
   Value *CastV = Builder.CreateBitCast(V, DestTy);
   Value *Shuf =
@@ -312,23 +315,48 @@ static bool foldBitcastShuf(Instruction &I, const TargetTransformInfo &TTI) {
 /// Match a vector binop instruction with inserted scalar operands and convert
 /// to scalar binop followed by insertelement.
 static bool scalarizeBinop(Instruction &I, const TargetTransformInfo &TTI) {
-  Instruction *Ins0, *Ins1;
-  if (!match(&I, m_BinOp(m_Instruction(Ins0), m_Instruction(Ins1))))
+  Value *Ins0, *Ins1;
+  if (!match(&I, m_BinOp(m_Value(Ins0), m_Value(Ins1))))
     return false;
 
+  // Match against one or both scalar values being inserted into constant
+  // vectors:
+  // vec_bo VecC0, (inselt VecC1, V1, Index)
+  // vec_bo (inselt VecC0, V0, Index), VecC1
+  // vec_bo (inselt VecC0, V0, Index), (inselt VecC1, V1, Index)
   // TODO: Deal with mismatched index constants and variable indexes?
-  Constant *VecC0, *VecC1;
-  Value *V0, *V1;
-  uint64_t Index;
+  Constant *VecC0 = nullptr, *VecC1 = nullptr;
+  Value *V0 = nullptr, *V1 = nullptr;
+  uint64_t Index0 = 0, Index1 = 0;
   if (!match(Ins0, m_InsertElt(m_Constant(VecC0), m_Value(V0),
-                               m_ConstantInt(Index))) ||
-      !match(Ins1, m_InsertElt(m_Constant(VecC1), m_Value(V1),
-                               m_SpecificInt(Index))))
+                               m_ConstantInt(Index0))) &&
+      !match(Ins0, m_Constant(VecC0)))
+    return false;
+  if (!match(Ins1, m_InsertElt(m_Constant(VecC1), m_Value(V1),
+                               m_ConstantInt(Index1))) &&
+      !match(Ins1, m_Constant(VecC1)))
     return false;
 
-  Type *ScalarTy = V0->getType();
+  bool IsConst0 = !V0;
+  bool IsConst1 = !V1;
+  if (IsConst0 && IsConst1)
+    return false;
+  if (!IsConst0 && !IsConst1 && Index0 != Index1)
+    return false;
+
+  // Bail for single insertion if it is a load.
+  // TODO: Handle this once getVectorInstrCost can cost for load/stores.
+  auto *I0 = dyn_cast_or_null<Instruction>(V0);
+  auto *I1 = dyn_cast_or_null<Instruction>(V1);
+  if ((IsConst0 && I1 && I1->mayReadFromMemory()) ||
+      (IsConst1 && I0 && I0->mayReadFromMemory()))
+    return false;
+
+  uint64_t Index = IsConst0 ? Index1 : Index0;
+  Type *ScalarTy = IsConst0 ? V1->getType() : V0->getType();
   Type *VecTy = I.getType();
-  assert(VecTy->isVectorTy() && ScalarTy == V1->getType() &&
+  assert(VecTy->isVectorTy() &&
+         (IsConst0 || IsConst1 || V0->getType() == V1->getType()) &&
          (ScalarTy->isIntegerTy() || ScalarTy->isFloatingPointTy()) &&
          "Unexpected types for insert into binop");
 
@@ -340,10 +368,11 @@ static bool scalarizeBinop(Instruction &I, const TargetTransformInfo &TTI) {
   // both sequences.
   int InsertCost =
       TTI.getVectorInstrCost(Instruction::InsertElement, VecTy, Index);
-  int OldCost = InsertCost + InsertCost + VectorOpCost;
+  int OldCost = (IsConst0 ? 0 : InsertCost) + (IsConst1 ? 0 : InsertCost) +
+                VectorOpCost;
   int NewCost = ScalarOpCost + InsertCost +
-                !Ins0->hasOneUse() * InsertCost +
-                !Ins1->hasOneUse() * InsertCost;
+                (IsConst0 ? 0 : !Ins0->hasOneUse() * InsertCost) +
+                (IsConst1 ? 0 : !Ins1->hasOneUse() * InsertCost);
 
   // We want to scalarize unless the vector variant actually has lower cost.
   if (OldCost < NewCost)
@@ -353,6 +382,13 @@ static bool scalarizeBinop(Instruction &I, const TargetTransformInfo &TTI) {
   // inselt NewVecC, (scalar_bo V0, V1), Index
   ++NumScalarBO;
   IRBuilder<> Builder(&I);
+
+  // For constant cases, extract the scalar element, this should constant fold.
+  if (IsConst0)
+    V0 = ConstantExpr::getExtractElement(VecC0, Builder.getInt64(Index));
+  if (IsConst1)
+    V1 = ConstantExpr::getExtractElement(VecC1, Builder.getInt64(Index));
+
   Value *Scalar = Builder.CreateBinOp(Opcode, V0, V1, I.getName() + ".scalar");
 
   // All IR flags are safe to back-propagate. There is no potential for extra

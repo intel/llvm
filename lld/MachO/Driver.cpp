@@ -27,6 +27,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/BinaryFormat/MachO.h"
 #include "llvm/BinaryFormat/Magic.h"
+#include "llvm/Config/config.h"
 #include "llvm/Object/Archive.h"
 #include "llvm/Option/ArgList.h"
 #include "llvm/Option/Option.h"
@@ -73,22 +74,36 @@ opt::InputArgList MachOOptTable::parse(ArrayRef<const char *> argv) {
   return args;
 }
 
-// This is for -lfoo. We'll look for libfoo.dylib from search paths.
-static Optional<std::string> findDylib(StringRef name) {
+static Optional<std::string> findLibrary(StringRef name) {
+  std::string stub = (llvm::Twine("lib") + name + ".tbd").str();
+  std::string shared = (llvm::Twine("lib") + name + ".dylib").str();
+  std::string archive = (llvm::Twine("lib") + name + ".a").str();
+  llvm::SmallString<260> location;
+
   for (StringRef dir : config->searchPaths) {
-    std::string path = (dir + "/lib" + name + ".dylib").str();
-    if (fs::exists(path))
-      return path;
+    for (StringRef library : {stub, shared, archive}) {
+      location = dir;
+      llvm::sys::path::append(location, library);
+      if (fs::exists(location))
+        return location.str().str();
+    }
   }
-  error("library not found for -l" + name);
-  return None;
+  return {};
 }
 
 static TargetInfo *createTargetInfo(opt::InputArgList &args) {
-  StringRef s = args.getLastArgValue(OPT_arch, "x86_64");
-  if (s != "x86_64")
-    error("missing or unsupported -arch " + s);
-  return createX86_64TargetInfo();
+  // getArchName() returns a reference to a string owned by the triple, so
+  // we must make the triple a local instead of a temporary value.
+  Triple triple(LLVM_DEFAULT_TARGET_TRIPLE);
+  StringRef arch = args.getLastArgValue(OPT_arch, triple.getArchName());
+  config->arch = llvm::MachO::getArchitectureFromName(arch);
+  switch (config->arch) {
+  case llvm::MachO::AK_x86_64:
+  case llvm::MachO::AK_x86_64h:
+    return createX86_64TargetInfo();
+  default:
+    fatal("missing or unsupported -arch " + arch);
+  }
 }
 
 static std::vector<StringRef> getSearchPaths(opt::InputArgList &args) {
@@ -123,6 +138,16 @@ static void addFile(StringRef path) {
   case file_magic::macho_dynamically_linked_shared_lib:
     inputFiles.push_back(make<DylibFile>(mbref));
     break;
+  case file_magic::tapi_file: {
+    llvm::Expected<std::unique_ptr<llvm::MachO::InterfaceFile>> result =
+        TextAPIReader::get(mbref);
+    if (!result)
+      return;
+
+    std::unique_ptr<llvm::MachO::InterfaceFile> interface{std::move(*result)};
+    inputFiles.push_back(make<DylibFile>(std::move(interface)));
+    break;
+  }
   default:
     error(path + ": unhandled file type");
   }
@@ -286,10 +311,15 @@ bool macho::link(llvm::ArrayRef<const char *> argsArr, bool canExitEarly,
     case OPT_INPUT:
       addFile(arg->getValue());
       break;
-    case OPT_l:
-      if (Optional<std::string> path = findDylib(arg->getValue()))
+    case OPT_l: {
+      StringRef name = arg->getValue();
+      if (Optional<std::string> path = findLibrary(name)) {
         addFile(*path);
+        break;
+      }
+      error("library not found for -l" + name);
       break;
+    }
     case OPT_platform_version: {
       handlePlatformVersion(it, end); // Can advance "it".
       break;

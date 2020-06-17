@@ -108,7 +108,10 @@ CodeCompleteResult completions(const TestTU &TU, Position Point,
     Opts.Index = OverrideIndex.get();
   }
 
-  auto Inputs = TU.inputs();
+  MockFSProvider FS;
+  auto Inputs = TU.inputs(FS);
+  Inputs.Opts.BuildRecoveryAST = true;
+  Inputs.Opts.PreserveRecoveryASTType = true;
   IgnoreDiagnostics Diags;
   auto CI = buildCompilerInvocation(Inputs, Diags);
   if (!CI) {
@@ -117,8 +120,8 @@ CodeCompleteResult completions(const TestTU &TU, Position Point,
   }
   auto Preamble = buildPreamble(testPath(TU.Filename), *CI, Inputs,
                                 /*InMemory=*/true, /*Callback=*/nullptr);
-  return codeComplete(testPath(TU.Filename), Inputs.CompileCommand,
-                      Preamble.get(), TU.Code, Point, Inputs.FS, Opts);
+  return codeComplete(testPath(TU.Filename), Point, Preamble.get(), Inputs,
+                      Opts);
 }
 
 // Runs code completion.
@@ -148,8 +151,9 @@ CodeCompleteResult completionsNoCompile(llvm::StringRef Text,
 
   MockFSProvider FS;
   Annotations Test(Text);
-  return codeComplete(FilePath, tooling::CompileCommand(), /*Preamble=*/nullptr,
-                      Test.code(), Test.point(), FS.getFileSystem(), Opts);
+  ParseInputs ParseInput{tooling::CompileCommand(), &FS, Test.code().str()};
+  return codeComplete(FilePath, Test.point(), /*Preamble=*/nullptr, ParseInput,
+                      Opts);
 }
 
 Symbol withReferences(int N, Symbol S) {
@@ -753,8 +757,7 @@ TEST(CompletionTest, CompletionInPreamble) {
   EXPECT_THAT(Results, ElementsAre(Named("ifndef")));
 }
 
-// FIXME: enable it.
-TEST(CompletionTest, DISABLED_CompletionRecoveryASTType) {
+TEST(CompletionTest, CompletionRecoveryASTType) {
   auto Results = completions(R"cpp(
     struct S { int member; };
     S overloaded(int);
@@ -1054,7 +1057,11 @@ SignatureHelp signatures(llvm::StringRef Text, Position Point,
     Index = memIndex(IndexSymbols);
 
   auto TU = TestTU::withCode(Text);
-  auto Inputs = TU.inputs();
+  MockFSProvider FS;
+  auto Inputs = TU.inputs(FS);
+  Inputs.Index = Index.get();
+  Inputs.Opts.BuildRecoveryAST = true;
+  Inputs.Opts.PreserveRecoveryASTType = true;
   IgnoreDiagnostics Diags;
   auto CI = buildCompilerInvocation(Inputs, Diags);
   if (!CI) {
@@ -1067,8 +1074,7 @@ SignatureHelp signatures(llvm::StringRef Text, Position Point,
     ADD_FAILURE() << "Couldn't build Preamble";
     return {};
   }
-  return signatureHelp(testPath(TU.Filename), Inputs.CompileCommand, *Preamble,
-                       Text, Point, Inputs.FS, Index.get());
+  return signatureHelp(testPath(TU.Filename), Point, *Preamble, Inputs);
 }
 
 SignatureHelp signatures(llvm::StringRef Text,
@@ -1191,7 +1197,9 @@ TEST(SignatureHelpTest, OpeningParen) {
     int foo(int a, int b, int c);
     int main() {
     #define ID(X) X
-      ID(foo $p^( foo(10), ^ ))
+      // FIXME: figure out why ID(foo (foo(10), )) doesn't work when preserving
+      // the recovery expression.
+      ID(foo $p^( 10, ^ ))
     })cpp"};
 
   for (auto Test : Tests) {
@@ -1206,7 +1214,8 @@ TEST(SignatureHelpTest, StalePreamble) {
   TestTU TU;
   TU.Code = "";
   IgnoreDiagnostics Diags;
-  auto Inputs = TU.inputs();
+  MockFSProvider FS;
+  auto Inputs = TU.inputs(FS);
   auto CI = buildCompilerInvocation(Inputs, Diags);
   ASSERT_TRUE(CI);
   auto EmptyPreamble = buildPreamble(testPath(TU.Filename), *CI, Inputs,
@@ -1218,10 +1227,8 @@ TEST(SignatureHelpTest, StalePreamble) {
     #include "a.h"
     void bar() { foo(^2); })cpp");
   TU.Code = Test.code().str();
-  Inputs = TU.inputs();
-  auto Results =
-      signatureHelp(testPath(TU.Filename), Inputs.CompileCommand,
-                    *EmptyPreamble, TU.Code, Test.point(), Inputs.FS, nullptr);
+  auto Results = signatureHelp(testPath(TU.Filename), Test.point(),
+                               *EmptyPreamble, TU.inputs(FS));
   EXPECT_THAT(Results.signatures, ElementsAre(Sig("foo([[int x]]) -> int")));
   EXPECT_EQ(0, Results.activeSignature);
   EXPECT_EQ(0, Results.activeParameter);
@@ -2868,6 +2875,56 @@ TEST(AllowImplicitCompletion, All) {
     llvm::Annotations A(Test);
     EXPECT_FALSE(allowImplicitCompletion(A.code(), A.point())) << Test;
   }
+}
+
+TEST(CompletionTest, FunctionArgsExist) {
+  clangd::CodeCompleteOptions Opts;
+  Opts.EnableSnippets = true;
+  std::string Context = R"cpp(
+    int foo(int A);
+    int bar();
+    struct Object {
+      Object(int B) {}
+    };
+    template <typename T>
+    struct Container {
+      Container(int Size) {}
+    };
+  )cpp";
+  EXPECT_THAT(completions(Context + "int y = fo^", {}, Opts).Completions,
+              UnorderedElementsAre(
+                  AllOf(Labeled("foo(int A)"), SnippetSuffix("(${1:int A})"))));
+  EXPECT_THAT(
+      completions(Context + "int y = fo^(42)", {}, Opts).Completions,
+      UnorderedElementsAre(AllOf(Labeled("foo(int A)"), SnippetSuffix(""))));
+  // FIXME(kirillbobyrev): No snippet should be produced here.
+  EXPECT_THAT(completions(Context + "int y = fo^o(42)", {}, Opts).Completions,
+              UnorderedElementsAre(
+                  AllOf(Labeled("foo(int A)"), SnippetSuffix("(${1:int A})"))));
+  EXPECT_THAT(
+      completions(Context + "int y = ba^", {}, Opts).Completions,
+      UnorderedElementsAre(AllOf(Labeled("bar()"), SnippetSuffix("()"))));
+  EXPECT_THAT(completions(Context + "int y = ba^()", {}, Opts).Completions,
+              UnorderedElementsAre(AllOf(Labeled("bar()"), SnippetSuffix(""))));
+  EXPECT_THAT(
+      completions(Context + "Object o = Obj^", {}, Opts).Completions,
+      Contains(AllOf(Labeled("Object(int B)"), SnippetSuffix("(${1:int B})"),
+                     Kind(CompletionItemKind::Constructor))));
+  EXPECT_THAT(completions(Context + "Object o = Obj^()", {}, Opts).Completions,
+              Contains(AllOf(Labeled("Object(int B)"), SnippetSuffix(""),
+                             Kind(CompletionItemKind::Constructor))));
+  EXPECT_THAT(
+      completions(Context + "Container c = Cont^", {}, Opts).Completions,
+      Contains(AllOf(Labeled("Container<typename T>(int Size)"),
+                     SnippetSuffix("<${1:typename T}>(${2:int Size})"),
+                     Kind(CompletionItemKind::Constructor))));
+  // FIXME(kirillbobyrev): It would be nice to still produce the template
+  // snippet part: in this case it should be "<${1:typename T}>".
+  EXPECT_THAT(
+      completions(Context + "Container c = Cont^()", {}, Opts).Completions,
+      Contains(AllOf(Labeled("Container<typename T>(int Size)"),
+                     SnippetSuffix(""),
+                     Kind(CompletionItemKind::Constructor))));
 }
 
 } // namespace

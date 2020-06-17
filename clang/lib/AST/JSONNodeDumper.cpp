@@ -111,7 +111,7 @@ void JSONNodeDumper::Visit(const Decl *D) {
     JOS.attribute("isReferenced", true);
 
   if (const auto *ND = dyn_cast<NamedDecl>(D))
-    attributeOnlyIfTrue("isHidden", ND->isHidden());
+    attributeOnlyIfTrue("isHidden", !ND->isUnconditionallyVisible());
 
   if (D->getLexicalDeclContext() != D->getDeclContext()) {
     // Because of multiple inheritance, a DeclContext pointer does not produce
@@ -386,6 +386,7 @@ static llvm::json::Object
 createCopyAssignmentDefinitionData(const CXXRecordDecl *RD) {
   llvm::json::Object Ret;
 
+  FIELD2("simple", hasSimpleCopyAssignment);
   FIELD2("trivial", hasTrivialCopyAssignment);
   FIELD2("nonTrivial", hasNonTrivialCopyAssignment);
   FIELD2("hasConstParam", hasCopyAssignmentWithConstParam);
@@ -1234,14 +1235,7 @@ void JSONNodeDumper::VisitCallExpr(const CallExpr *CE) {
 
 void JSONNodeDumper::VisitUnaryExprOrTypeTraitExpr(
     const UnaryExprOrTypeTraitExpr *TTE) {
-  switch (TTE->getKind()) {
-  case UETT_SizeOf: JOS.attribute("name", "sizeof"); break;
-  case UETT_AlignOf: JOS.attribute("name", "alignof"); break;
-  case UETT_VecStep:  JOS.attribute("name", "vec_step"); break;
-  case UETT_PreferredAlignOf:  JOS.attribute("name", "__alignof"); break;
-  case UETT_OpenMPRequiredSimdAlign:
-    JOS.attribute("name", "__builtin_omp_required_simd_align"); break;
-  }
+  JOS.attribute("name", getTraitSpelling(TTE->getKind()));
   if (TTE->isArgumentType())
     JOS.attribute("argType", createQualType(TTE->getArgumentType()));
 }

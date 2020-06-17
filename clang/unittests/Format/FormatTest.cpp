@@ -606,6 +606,12 @@ TEST_F(FormatTest, FormatShortBracedStatements) {
   verifyFormat("if CONSTEXPR (true) { f(); }", AllowSimpleBracedStatements);
   verifyFormat("while (true) { f(); }", AllowSimpleBracedStatements);
   verifyFormat("for (;;) { f(); }", AllowSimpleBracedStatements);
+  verifyFormat("if (true) { fffffffffffffffffffffff(); }",
+               AllowSimpleBracedStatements);
+  verifyFormat("if (true) {\n"
+               "  ffffffffffffffffffffffff();\n"
+               "}",
+               AllowSimpleBracedStatements);
   verifyFormat("if (true) {\n"
                "  ffffffffffffffffffffffffffffffffffffffffffffffffffffff();\n"
                "}",
@@ -681,6 +687,13 @@ TEST_F(FormatTest, FormatShortBracedStatements) {
   verifyFormat("if CONSTEXPR (true) { f(); }", AllowSimpleBracedStatements);
   verifyFormat("while (true) { f(); }", AllowSimpleBracedStatements);
   verifyFormat("for (;;) { f(); }", AllowSimpleBracedStatements);
+  verifyFormat("if (true) { fffffffffffffffffffffff(); }",
+               AllowSimpleBracedStatements);
+  verifyFormat("if (true)\n"
+               "{\n"
+               "  ffffffffffffffffffffffff();\n"
+               "}",
+               AllowSimpleBracedStatements);
   verifyFormat("if (true)\n"
                "{\n"
                "  ffffffffffffffffffffffffffffffffffffffffffffffffffffff();\n"
@@ -745,7 +758,9 @@ TEST_F(FormatTest, ShortBlocksInMacrosDontMergeWithCodeAfterMacro) {
   Style.BreakBeforeBraces = FormatStyle::BS_Allman;
   EXPECT_EQ("#define A                                                  \\\n"
             "  if (HANDLEwernufrnuLwrmviferuvnierv)                     \\\n"
-            "  { RET_ERR1_ANUIREUINERUIFNIOAerwfwrvnuier; }\n"
+            "  {                                                        \\\n"
+            "    RET_ERR1_ANUIREUINERUIFNIOAerwfwrvnuier;               \\\n"
+            "  }\n"
             "X;",
             format("#define A \\\n"
                    "   if (HANDLEwernufrnuLwrmviferuvnierv) { \\\n"
@@ -2662,6 +2677,18 @@ TEST_F(FormatTest, FormatTryCatch) {
 
   // Incomplete try-catch blocks.
   verifyIncompleteFormat("try {} catch (");
+}
+
+TEST_F(FormatTest, FormatTryAsAVariable) {
+  verifyFormat("int try;");
+  verifyFormat("int try, size;");
+  verifyFormat("try = foo();");
+  verifyFormat("if (try < size) {\n  return true;\n}");
+
+  verifyFormat("int catch;");
+  verifyFormat("int catch, size;");
+  verifyFormat("catch = foo();");
+  verifyFormat("if (catch < size) {\n  return true;\n}");
 }
 
 TEST_F(FormatTest, FormatSEHTryCatch) {
@@ -16415,6 +16442,17 @@ TEST_F(FormatTest, OperatorSpacing) {
   verifyFormat("Foo::operator&&(void &&);", Style);
   verifyFormat("Foo::operator&&();", Style);
   verifyFormat("operator&&(int(&&)(), class Foo);", Style);
+}
+
+TEST_F(FormatTest, OperatorPassedAsAFunctionPtr) {
+  FormatStyle Style = getLLVMStyle();
+  // PR46157
+  verifyFormat("foo(operator+, -42);", Style);
+  verifyFormat("foo(operator++, -42);", Style);
+  verifyFormat("foo(operator--, -42);", Style);
+  verifyFormat("foo(-42, operator--);", Style);
+  verifyFormat("foo(-42, operator, );", Style);
+  verifyFormat("foo(operator, , -42);", Style);
 }
 
 TEST_F(FormatTest, VeryLongNamespaceCommentSplit) {

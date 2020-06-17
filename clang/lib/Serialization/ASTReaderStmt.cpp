@@ -907,6 +907,14 @@ void ASTStmtReader::VisitArraySubscriptExpr(ArraySubscriptExpr *E) {
   E->setRBracketLoc(readSourceLocation());
 }
 
+void ASTStmtReader::VisitMatrixSubscriptExpr(MatrixSubscriptExpr *E) {
+  VisitExpr(E);
+  E->setBase(Record.readSubExpr());
+  E->setRowIdx(Record.readSubExpr());
+  E->setColumnIdx(Record.readSubExpr());
+  E->setRBracketLoc(readSourceLocation());
+}
+
 void ASTStmtReader::VisitOMPArraySectionExpr(OMPArraySectionExpr *E) {
   VisitExpr(E);
   E->setBase(Record.readSubExpr());
@@ -1679,12 +1687,13 @@ void ASTStmtReader::VisitCXXTemporaryObjectExpr(CXXTemporaryObjectExpr *E) {
 void ASTStmtReader::VisitLambdaExpr(LambdaExpr *E) {
   VisitExpr(E);
   unsigned NumCaptures = Record.readInt();
-  assert(NumCaptures == E->NumCaptures);(void)NumCaptures;
+  (void)NumCaptures;
+  assert(NumCaptures == E->LambdaExprBits.NumCaptures);
   E->IntroducerRange = readSourceRange();
-  E->CaptureDefault = static_cast<LambdaCaptureDefault>(Record.readInt());
+  E->LambdaExprBits.CaptureDefault = Record.readInt();
   E->CaptureDefaultLoc = readSourceLocation();
-  E->ExplicitParams = Record.readInt();
-  E->ExplicitResultType = Record.readInt();
+  E->LambdaExprBits.ExplicitParams = Record.readInt();
+  E->LambdaExprBits.ExplicitResultType = Record.readInt();
   E->ClosingBrace = readSourceLocation();
 
   // Read capture initializers.
@@ -2926,6 +2935,10 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
       S = new (Context) ArraySubscriptExpr(Empty);
       break;
 
+    case EXPR_MATRIX_SUBSCRIPT:
+      S = new (Context) MatrixSubscriptExpr(Empty);
+      break;
+
     case EXPR_OMP_ARRAY_SECTION:
       S = new (Context) OMPArraySectionExpr(Empty);
       break;
@@ -3604,6 +3617,11 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
     case EXPR_CXX_FUNCTIONAL_CAST:
       S = CXXFunctionalCastExpr::CreateEmpty(Context,
                        /*PathSize*/ Record[ASTStmtReader::NumExprFields]);
+      break;
+
+    case EXPR_BUILTIN_BIT_CAST:
+      assert(Record[ASTStmtReader::NumExprFields] == 0 && "Wrong PathSize!");
+      S = new (Context) BuiltinBitCastExpr(Empty);
       break;
 
     case EXPR_USER_DEFINED_LITERAL:

@@ -49,7 +49,7 @@ static bool IsBannedPlatform(platform Platform) {
 
 vector_class<platform> platform_impl::get_platforms() {
   vector_class<platform> Platforms;
-  vector_class<plugin> Plugins = RT::initialize();
+  const vector_class<plugin> &Plugins = RT::initialize();
 
   info::device_type ForcedType = detail::get_forced_type();
   for (unsigned int i = 0; i < Plugins.size(); i++) {
@@ -274,6 +274,13 @@ bool platform_impl::has_extension(const string_class &ExtensionName) const {
       get_platform_info<string_class, info::platform::extensions>::get(
           MPlatform, getPlugin());
   return (AllExtensionNames.find(ExtensionName) != std::string::npos);
+}
+
+pi_native_handle platform_impl::getNative() const {
+  const auto &Plugin = getPlugin();
+  pi_native_handle Handle;
+  Plugin.call<PiApiKind::piextPlatformGetNativeHandle>(getHandleRef(), &Handle);
+  return Handle;
 }
 
 template <info::platform param>

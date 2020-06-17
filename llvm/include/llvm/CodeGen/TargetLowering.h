@@ -210,6 +210,13 @@ public:
     TypeWidenVector,     // This vector should be widened into a larger vector.
     TypePromoteFloat,    // Replace this float with a larger one.
     TypeSoftPromoteHalf, // Soften half to i16 and use float to do arithmetic.
+    TypeScalarizeScalableVector, // This action is explicitly left unimplemented.
+                                 // While it is theoretically possible to
+                                 // legalize operations on scalable types with a
+                                 // loop that handles the vscale * #lanes of the
+                                 // vector, this is non-trivial at SelectionDAG
+                                 // level and these types are better to be
+                                 // widened or promoted.
   };
 
   /// LegalizeKind holds the legalization kind that needs to happen to EVT
@@ -412,7 +419,7 @@ public:
   virtual TargetLoweringBase::LegalizeTypeAction
   getPreferredVectorAction(MVT VT) const {
     // The default action for one element vectors is to scalarize
-    if (VT.getVectorNumElements() == 1)
+    if (VT.getVectorElementCount() == 1)
       return TypeScalarizeVector;
     // The default action for an odd-width vector is to widen.
     if (!VT.isPow2VectorType())
@@ -1571,7 +1578,7 @@ public:
 
   /// LLT handling variant.
   virtual bool allowsMisalignedMemoryAccesses(
-      LLT, unsigned AddrSpace = 0, unsigned Align = 1,
+      LLT, unsigned AddrSpace = 0, Align Alignment = Align(1),
       MachineMemOperand::Flags Flags = MachineMemOperand::MONone,
       bool * /*Fast*/ = nullptr) const {
     return false;
@@ -3341,14 +3348,21 @@ public:
                                               const MachineRegisterInfo &MRI,
                                               unsigned Depth = 0) const;
 
+  /// Determine the known alignment for the pointer value \p R. This is can
+  /// typically be inferred from the number of low known 0 bits. However, for a
+  /// pointer with a non-integral address space, the alignment value may be
+  /// independent from the known low bits.
+  virtual Align computeKnownAlignForTargetInstr(GISelKnownBits &Analysis,
+                                                Register R,
+                                                const MachineRegisterInfo &MRI,
+                                                unsigned Depth = 0) const;
+
   /// Determine which of the bits of FrameIndex \p FIOp are known to be 0.
   /// Default implementation computes low bits based on alignment
   /// information. This should preserve known bits passed into it.
-  virtual void computeKnownBitsForFrameIndex(const SDValue FIOp,
+  virtual void computeKnownBitsForFrameIndex(int FIOp,
                                              KnownBits &Known,
-                                             const APInt &DemandedElts,
-                                             const SelectionDAG &DAG,
-                                             unsigned Depth = 0) const;
+                                             const MachineFunction &MF) const;
 
   /// This method can be implemented by targets that want to expose additional
   /// information about sign bits to the DAG Combiner. The DemandedElts
@@ -3823,7 +3837,7 @@ public:
   }
 
   /// Target-specific cleanup for formal ByVal parameters.
-  virtual void HandleByVal(CCState *, unsigned &, unsigned) const {}
+  virtual void HandleByVal(CCState *, unsigned &, Align) const {}
 
   /// This hook should be implemented to check whether the return values
   /// described by the Outs array can fit into the return registers.  If false

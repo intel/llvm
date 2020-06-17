@@ -58,6 +58,7 @@
 // -------------------
 // prototype: return (arg, arg, ...)
 //
+// 2,3,4: array of default vectors
 // v: void
 // x: vector of signed integers
 // u: vector of unsigned integers
@@ -198,6 +199,7 @@ def IsPrefetch                : FlagType<0x08000000>; // Contiguous prefetches.
 def IsGatherPrefetch          : FlagType<0x10000000>;
 def ReverseCompare            : FlagType<0x20000000>; // Compare operands must be swapped.
 def ReverseUSDOT              : FlagType<0x40000000>; // Unsigned/signed operands must be swapped.
+def IsUndef                   : FlagType<0x80000000>; // Codegen `undef` of given type.
 
 // These must be kept in sync with the flags in include/clang/Basic/TargetBuiltins.h
 class ImmCheckType<int val> {
@@ -470,6 +472,10 @@ def SVLDNT1_VNUM : MInst<"svldnt1_vnum[_{2}]", "dPcl", "csilUcUsUiUlhfd", [IsLoa
 // Load one quadword and replicate (scalar base)
 def SVLD1RQ : SInst<"svld1rq[_{2}]", "dPc", "csilUcUsUiUlhfd", MergeNone, "aarch64_sve_ld1rq">;
 
+// Load one octoword and replicate (scalar base)
+let ArchGuard = "defined(__ARM_FEATURE_SVE_MATMUL_FP64)" in {
+  def SVLD1RO : SInst<"svld1ro[_{2}]", "dPc", "csilUcUsUiUlhfd", MergeNone, "aarch64_sve_ld1ro">;
+}
 ////////////////////////////////////////////////////////////////////////////////
 // Stores
 
@@ -1260,6 +1266,12 @@ let ArchGuard = "defined(__ARM_FEATURE_SVE_MATMUL_FP64)" in {
 def SVMLLA_F64 : SInst<"svmmla[_f64]", "dddd","d", MergeNone, "aarch64_sve_fmmla">;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+// Vector creation
+def SVUNDEF_1 : SInst<"svundef_{d}",  "d", "csilUcUsUiUlhfd", MergeNone, "", [IsUndef]>;
+def SVUNDEF_2 : SInst<"svundef2_{d}", "2", "csilUcUsUiUlhfd", MergeNone, "", [IsUndef]>;
+def SVUNDEF_3 : SInst<"svundef3_{d}", "3", "csilUcUsUiUlhfd", MergeNone, "", [IsUndef]>;
+def SVUNDEF_4 : SInst<"svundef4_{d}", "4", "csilUcUsUiUlhfd", MergeNone, "", [IsUndef]>;
 
 ////////////////////////////////////////////////////////////////////////////////
 // SVE2 WhileGE/GT

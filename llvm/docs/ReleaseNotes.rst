@@ -91,6 +91,12 @@ During this release ...
 
 * Implemented C-language intrinsics ``<arm_cde.h>`` for the CDE instruction set.
 
+* Clang now defaults to ``-fomit-frame-pointer`` when targeting non-Android
+  Linux for arm and thumb when optimizations are enabled. Users that were
+  previously not specifying a value and relying on the implicit compiler
+  default may wish to specify ``-fno-omit-frame-pointer`` to get the old
+  behavior. This improves compatibility with GCC.
+
 Changes to the MIPS Target
 --------------------------
 
@@ -138,8 +144,14 @@ Changes to the AVR Target
 Changes to the WebAssembly Target
 ---------------------------------
 
-During this release ...
+* Programs which don't have a "main" function, called "reactors" are now
+  properly supported, with a new `-mexec-model=reactor` flag. Programs which
+  previously used `-Wl,--no-entry` to avoid having a main function should
+  switch to this new flag, so that static initialization is properly
+  performed.
 
+* `__attribute__((visibility("protected")))` now evokes a warning, as
+  WebAssembly does not support "protected" visibility.
 
 Changes to the OCaml bindings
 -----------------------------

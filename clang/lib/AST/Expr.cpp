@@ -1535,7 +1535,10 @@ UnaryExprOrTypeTraitExpr::UnaryExprOrTypeTraitExpr(
     SourceLocation op, SourceLocation rp)
     : Expr(UnaryExprOrTypeTraitExprClass, resultType, VK_RValue, OK_Ordinary),
       OpLoc(op), RParenLoc(rp) {
+  assert(ExprKind <= UETT_Last && "invalid enum value!");
   UnaryExprOrTypeTraitExprBits.Kind = ExprKind;
+  assert(static_cast<unsigned>(ExprKind) == UnaryExprOrTypeTraitExprBits.Kind &&
+         "UnaryExprOrTypeTraitExprBits.Kind overflow!");
   UnaryExprOrTypeTraitExprBits.IsType = false;
   Argument.Ex = E;
   setDependence(computeDependence(this));
@@ -3508,6 +3511,7 @@ bool Expr::HasSideEffects(const ASTContext &Ctx,
 
   case ParenExprClass:
   case ArraySubscriptExprClass:
+  case MatrixSubscriptExprClass:
   case OMPArraySectionExprClass:
   case OMPArrayShapingExprClass:
   case OMPIteratorExprClass:

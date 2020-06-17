@@ -2240,6 +2240,19 @@ that will have been done by one of the ``@llvm.call.preallocated.*`` intrinsics.
       ; initialize %b
       call void @bar(i32 42, %foo* preallocated(%foo) %b) ["preallocated"(token %t)]
 
+.. _ob_gc_live
+
+GC Live Operand Bundles
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+A "gc-live" operand bundle is only valid on a :ref:`gc.statepoint <gc_statepoint>`
+intrinsic. The operand bundle must contain every pointer to a garbage collected
+object which potentially needs to be updated by the garbage collector.
+
+When lowered, any relocated value will be recorded in the corresponding
+:ref:`stackmap entry <statepoint-stackmap-format>`.  See the intrinsic description
+for further details.
+
 .. _moduleasm:
 
 Module-Level Inline Assembly
@@ -6715,7 +6728,7 @@ If the global value is a function, the ``Summary`` entry will look like:
 
 .. code-block:: text
 
-    function: (module: ^0, flags: (linkage: external, notEligibleToImport: 0, live: 0, dsoLocal: 0), insts: 2[, FuncFlags]?[, Calls]?[, TypeIdInfo]?[, Refs]?
+    function: (module: ^0, flags: (linkage: external, notEligibleToImport: 0, live: 0, dsoLocal: 0), insts: 2[, FuncFlags]?[, Calls]?[, TypeIdInfo]?[, Params]?[, Refs]?
 
 The ``module`` field includes the summary entry id for the module containing
 this definition, and the ``flags`` field contains information such as
@@ -6725,7 +6738,7 @@ to a local definition (the latter two are populated during the thin link).
 The ``insts`` field contains the number of IR instructions in the function.
 Finally, there are several optional fields: :ref:`FuncFlags<funcflags_summary>`,
 :ref:`Calls<calls_summary>`, :ref:`TypeIdInfo<typeidinfo_summary>`,
-:ref:`Refs<refs_summary>`.
+:ref:`Params<params_summary>`, :ref:`Refs<refs_summary>`.
 
 .. _variable_summary:
 
@@ -6792,6 +6805,38 @@ of ``hotness`` (which can take the values ``Unknown``, ``Cold``, ``None``,
 ``Hot``, and ``Critical``), and ``relbf`` (which holds the integer
 branch frequency relative to the entry frequency, scaled down by 2^8)
 may be specified. The defaults are ``Unknown`` and ``0``, respectively.
+
+.. _stacksafety_summary:
+
+Params
+^^^^^^
+
+The optional ``Params`` is used by ``StackSafety`` and looks like:
+
+.. code-block:: text
+
+    Params: ((Param)[, (Param)]*)
+
+where each ``Param`` describes pointer parameter access inside of the
+function and looks like:
+
+.. code-block:: text
+
+    param: 4, offset: [0, 5][, calls: ((Callee)[, (Callee)]*)]?
+
+where the first ``param`` is the number of the parameter it describes,
+``offset`` is the known access range of the paramenter inside of the function.
+
+where each ``Callee`` decribes how parameter is forwared into other
+functions and looks like:
+
+.. code-block:: text
+
+    callee: ^3, param: 5, offset: [-3, 3]
+
+The ``callee`` refers to the summary entry id of the callee,  ``param`` is
+the number of the callee parameter which points into the callers parameter
+with offset known to be inside of the ``offset`` range.
 
 .. _refs_summary:
 
@@ -15402,21 +15447,23 @@ Syntax:
 
 ::
 
-      declare vectorty @llvm.matrix.multiply.*(vectorty %A, vectorty %B, i32 <M>, i32 <N>, i32 <K>)
+      declare vectorty @llvm.matrix.multiply.*(vectorty %A, vectorty %B, i32 <OuterRows>, i32 <Inner>, i32 <OuterColumns>)
 
 Overview:
 """""""""
 
-The '``llvm.matrix.multiply.*``' intrinsic treats %A as matrix with <M> rows and <K> columns, %B as
-matrix with <K> rows and <N> columns and multiplies them. The result matrix is returned embedded in the
+The '``llvm.matrix.multiply.*``' intrinsic treats %A as a matrix with <OuterRows>
+rows and <Inner> columns, %B as a matrix with <Inner> rows and <OuterColumns>
+columns and multiplies them. The result matrix is returned embedded in the
 result vector.
 
 Arguments:
 """"""""""
 
-The <M>, <N> and <K> arguments must be constant integers.  The vector argument %A
-must have <M> * <K> elements, %B must have <K> * <N> elements and the returned
-vector must have <M> * <N> elements.
+The <OuterRows>, <Inner> and <OuterColumns> arguments must be constant
+integers. The vector argument %A must have <OuterRows> * <Inner> elements, %B
+must have <Inner> * <OuterColumns> elements and the returned vector must have
+<OuterRows> * <OuterColumns> elements.
 
 
 '``llvm.matrix.columnwise.load.*``' Intrinsic

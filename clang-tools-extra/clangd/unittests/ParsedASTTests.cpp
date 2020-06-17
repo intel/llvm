@@ -249,9 +249,11 @@ TEST(ParsedASTTest, NoCrashOnTokensWithTidyCheck) {
 }
 
 TEST(ParsedASTTest, CanBuildInvocationWithUnknownArgs) {
+  MockFSProvider FSProvider;
+  FSProvider.Files = {{testPath("foo.cpp"), "void test() {}"}};
   // Unknown flags should not prevent a build of compiler invocation.
   ParseInputs Inputs;
-  Inputs.FS = buildTestFS({{testPath("foo.cpp"), "void test() {}"}});
+  Inputs.FSProvider = &FSProvider;
   Inputs.CompileCommand.CommandLine = {"clang", "-fsome-unknown-flag",
                                        testPath("foo.cpp")};
   IgnoreDiagnostics IgnoreDiags;
@@ -327,6 +329,8 @@ TEST(ParsedASTTest, CollectsMainFileMacroExpansions) {
   EXPECT_THAT(MacroExpansionPositions,
               testing::UnorderedElementsAreArray(TestCase.points()));
 }
+
+MATCHER_P(WithFileName, Inc, "") { return arg.FileName == Inc; }
 
 TEST(ParsedASTTest, ReplayPreambleForTidyCheckers) {
   struct Inclusion {
@@ -439,6 +443,25 @@ TEST(ParsedASTTest, ReplayPreambleForTidyCheckers) {
         Code.substr(FileRange.Begin - 1, FileRange.End - FileRange.Begin + 2));
     EXPECT_EQ(SkippedFiles[I].kind(), tok::header_name);
   }
+
+  // Make sure replay logic works with patched preambles.
+  TU.Code = "";
+  StoreDiags Diags;
+  MockFSProvider FS;
+  auto Inputs = TU.inputs(FS);
+  auto CI = buildCompilerInvocation(Inputs, Diags);
+  auto EmptyPreamble =
+      buildPreamble(testPath(TU.Filename), *CI, Inputs, true, nullptr);
+  ASSERT_TRUE(EmptyPreamble);
+  TU.Code = "#include <a.h>";
+  Includes.clear();
+  auto PatchedAST = ParsedAST::build(testPath(TU.Filename), TU.inputs(FS),
+                                     std::move(CI), {}, EmptyPreamble);
+  ASSERT_TRUE(PatchedAST);
+  // Make sure includes were seen only once.
+  EXPECT_THAT(Includes,
+              ElementsAre(WithFileName(testPath("__preamble_patch__.h")),
+                          WithFileName("a.h")));
 }
 
 TEST(ParsedASTTest, PatchesAdditionalIncludes) {
@@ -464,7 +487,8 @@ TEST(ParsedASTTest, PatchesAdditionalIncludes) {
   // Build preamble with no includes.
   TU.Code = "";
   StoreDiags Diags;
-  auto Inputs = TU.inputs();
+  MockFSProvider FS;
+  auto Inputs = TU.inputs(FS);
   auto CI = buildCompilerInvocation(Inputs, Diags);
   auto EmptyPreamble =
       buildPreamble(testPath("foo.cpp"), *CI, Inputs, true, nullptr);
@@ -473,7 +497,7 @@ TEST(ParsedASTTest, PatchesAdditionalIncludes) {
 
   // Now build an AST using empty preamble and ensure patched includes worked.
   TU.Code = ModifiedContents.str();
-  Inputs = TU.inputs();
+  Inputs = TU.inputs(FS);
   auto PatchedAST = ParsedAST::build(testPath("foo.cpp"), Inputs, std::move(CI),
                                      {}, EmptyPreamble);
   ASSERT_TRUE(PatchedAST);
@@ -506,7 +530,8 @@ TEST(ParsedASTTest, PatchesDeletedIncludes) {
   // Build preamble with no includes.
   TU.Code = R"cpp(#include <foo.h>)cpp";
   StoreDiags Diags;
-  auto Inputs = TU.inputs();
+  MockFSProvider FS;
+  auto Inputs = TU.inputs(FS);
   auto CI = buildCompilerInvocation(Inputs, Diags);
   auto BaselinePreamble =
       buildPreamble(testPath("foo.cpp"), *CI, Inputs, true, nullptr);
@@ -517,7 +542,7 @@ TEST(ParsedASTTest, PatchesDeletedIncludes) {
   // Now build an AST using additional includes and check that locations are
   // correctly parsed.
   TU.Code = "";
-  Inputs = TU.inputs();
+  Inputs = TU.inputs(FS);
   auto PatchedAST = ParsedAST::build(testPath("foo.cpp"), Inputs, std::move(CI),
                                      {}, BaselinePreamble);
   ASSERT_TRUE(PatchedAST);

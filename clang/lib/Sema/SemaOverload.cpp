@@ -1870,6 +1870,10 @@ static bool IsStandardConversion(Sema &S, Expr* From, QualType ToType,
     // FIXME: disable conversions between long double and __float128 if
     // their representation is different until there is back end support
     // We of course allow this conversion if long double is really double.
+
+    // Conversions between bfloat and other floats are not permitted.
+    if (FromType == S.Context.BFloat16Ty || ToType == S.Context.BFloat16Ty)
+      return false;
     if (&S.Context.getFloatTypeSemantics(FromType) !=
         &S.Context.getFloatTypeSemantics(ToType)) {
       bool Float128AndLongDouble = ((FromType == S.Context.Float128Ty &&
@@ -1888,6 +1892,10 @@ static bool IsStandardConversion(Sema &S, Expr* From, QualType ToType,
               ToType->isIntegralType(S.Context)) ||
              (FromType->isIntegralOrUnscopedEnumerationType() &&
               ToType->isRealFloatingType())) {
+    // Conversions between bfloat and int are not permitted.
+    if (FromType->isBFloat16Type() || ToType->isBFloat16Type())
+      return false;
+
     // Floating-integral conversions (C++ 4.9).
     SCS.Second = ICK_Floating_Integral;
     FromType = ToType.getUnqualifiedType();
@@ -6511,6 +6519,8 @@ static bool convertArgsForAvailabilityChecks(
   if (!Function->isVariadic() && Args.size() < Function->getNumParams()) {
     for (unsigned i = Args.size(), e = Function->getNumParams(); i != e; ++i) {
       ParmVarDecl *P = Function->getParamDecl(i);
+      if (!P->hasDefaultArg())
+        return false;
       ExprResult R = S.BuildCXXDefaultArgExpr(CallLoc, Function, P);
       if (R.isInvalid())
         return false;
@@ -7743,12 +7753,9 @@ public:
   /// enumeration_end - Past the last enumeration type found;
   iterator enumeration_end() { return EnumerationTypes.end(); }
 
-  iterator vector_begin() { return VectorTypes.begin(); }
-  iterator vector_end() { return VectorTypes.end(); }
+  llvm::iterator_range<iterator> vector_types() { return VectorTypes; }
 
   llvm::iterator_range<iterator> matrix_types() { return MatrixTypes; }
-  iterator matrix_begin() { return MatrixTypes.begin(); }
-  iterator matrix_end() { return MatrixTypes.end(); }
 
   bool containsMatrixType(QualType Ty) const { return MatrixTypes.count(Ty); }
   bool hasNonRecordTypes() { return HasNonRecordTypes; }
@@ -8292,13 +8299,8 @@ public:
     }
 
     // Extension: We also add these operators for vector types.
-    for (BuiltinCandidateTypeSet::iterator
-              Vec = CandidateTypes[0].vector_begin(),
-           VecEnd = CandidateTypes[0].vector_end();
-         Vec != VecEnd; ++Vec) {
-      QualType VecTy = *Vec;
+    for (QualType VecTy : CandidateTypes[0].vector_types())
       S.AddBuiltinCandidate(&VecTy, Args, CandidateSet);
-    }
   }
 
   // C++ [over.built]p8:
@@ -8332,13 +8334,8 @@ public:
     }
 
     // Extension: We also add this operator for vector types.
-    for (BuiltinCandidateTypeSet::iterator
-              Vec = CandidateTypes[0].vector_begin(),
-           VecEnd = CandidateTypes[0].vector_end();
-         Vec != VecEnd; ++Vec) {
-      QualType VecTy = *Vec;
+    for (QualType VecTy : CandidateTypes[0].vector_types())
       S.AddBuiltinCandidate(&VecTy, Args, CandidateSet);
-    }
   }
 
   // C++ [over.match.oper]p16:
@@ -8569,18 +8566,11 @@ public:
 
     // Extension: Add the binary operators ==, !=, <, <=, >=, >, *, /, and the
     // conditional operator for vector types.
-    for (BuiltinCandidateTypeSet::iterator
-              Vec1 = CandidateTypes[0].vector_begin(),
-           Vec1End = CandidateTypes[0].vector_end();
-         Vec1 != Vec1End; ++Vec1) {
-      for (BuiltinCandidateTypeSet::iterator
-                Vec2 = CandidateTypes[1].vector_begin(),
-             Vec2End = CandidateTypes[1].vector_end();
-           Vec2 != Vec2End; ++Vec2) {
-        QualType LandR[2] = { *Vec1, *Vec2 };
+    for (QualType Vec1Ty : CandidateTypes[0].vector_types())
+      for (QualType Vec2Ty : CandidateTypes[1].vector_types()) {
+        QualType LandR[2] = {Vec1Ty, Vec2Ty};
         S.AddBuiltinCandidate(LandR, Args, CandidateSet);
       }
-    }
   }
 
   /// Add binary operator overloads for each candidate matrix type M1, M2:
@@ -8861,30 +8851,23 @@ public:
     }
 
     // Extension: Add the binary operators =, +=, -=, *=, /= for vector types.
-    for (BuiltinCandidateTypeSet::iterator
-              Vec1 = CandidateTypes[0].vector_begin(),
-           Vec1End = CandidateTypes[0].vector_end();
-         Vec1 != Vec1End; ++Vec1) {
-      for (BuiltinCandidateTypeSet::iterator
-                Vec2 = CandidateTypes[1].vector_begin(),
-             Vec2End = CandidateTypes[1].vector_end();
-           Vec2 != Vec2End; ++Vec2) {
+    for (QualType Vec1Ty : CandidateTypes[0].vector_types())
+      for (QualType Vec2Ty : CandidateTypes[0].vector_types()) {
         QualType ParamTypes[2];
-        ParamTypes[1] = *Vec2;
+        ParamTypes[1] = Vec2Ty;
         // Add this built-in operator as a candidate (VQ is empty).
-        ParamTypes[0] = S.Context.getLValueReferenceType(*Vec1);
+        ParamTypes[0] = S.Context.getLValueReferenceType(Vec1Ty);
         S.AddBuiltinCandidate(ParamTypes, Args, CandidateSet,
                               /*IsAssignmentOperator=*/isEqualOp);
 
         // Add this built-in operator as a candidate (VQ is 'volatile').
         if (VisibleTypeConversionsQuals.hasVolatile()) {
-          ParamTypes[0] = S.Context.getVolatileType(*Vec1);
+          ParamTypes[0] = S.Context.getVolatileType(Vec1Ty);
           ParamTypes[0] = S.Context.getLValueReferenceType(ParamTypes[0]);
           S.AddBuiltinCandidate(ParamTypes, Args, CandidateSet,
                                 /*IsAssignmentOperator=*/isEqualOp);
         }
       }
-    }
   }
 
   // C++ [over.built]p22:
@@ -9184,8 +9167,10 @@ void Sema::AddBuiltinOperatorCandidates(OverloadedOperatorKind Op,
   case OO_Star: // '*' is either unary or binary
     if (Args.size() == 1)
       OpBuilder.addUnaryStarPointerOverloads();
-    else
+    else {
       OpBuilder.addGenericBinaryArithmeticOverloads();
+      OpBuilder.addMatrixBinaryArithmeticOverloads();
+    }
     break;
 
   case OO_Slash:
@@ -9412,16 +9397,22 @@ static Comparison compareEnableIfAttrs(const Sema &S, const FunctionDecl *Cand1,
   return Comparison::Equal;
 }
 
-static bool isBetterMultiversionCandidate(const OverloadCandidate &Cand1,
-                                          const OverloadCandidate &Cand2) {
+static Comparison
+isBetterMultiversionCandidate(const OverloadCandidate &Cand1,
+                              const OverloadCandidate &Cand2) {
   if (!Cand1.Function || !Cand1.Function->isMultiVersion() || !Cand2.Function ||
       !Cand2.Function->isMultiVersion())
-    return false;
+    return Comparison::Equal;
 
-  // If Cand1 is invalid, it cannot be a better match, if Cand2 is invalid, this
-  // is obviously better.
-  if (Cand1.Function->isInvalidDecl()) return false;
-  if (Cand2.Function->isInvalidDecl()) return true;
+  // If both are invalid, they are equal. If one of them is invalid, the other
+  // is better.
+  if (Cand1.Function->isInvalidDecl()) {
+    if (Cand2.Function->isInvalidDecl())
+      return Comparison::Equal;
+    return Comparison::Worse;
+  }
+  if (Cand2.Function->isInvalidDecl())
+    return Comparison::Better;
 
   // If this is a cpu_dispatch/cpu_specific multiversion situation, prefer
   // cpu_dispatch, else arbitrarily based on the identifiers.
@@ -9431,16 +9422,18 @@ static bool isBetterMultiversionCandidate(const OverloadCandidate &Cand1,
   const auto *Cand2CPUSpec = Cand2.Function->getAttr<CPUSpecificAttr>();
 
   if (!Cand1CPUDisp && !Cand2CPUDisp && !Cand1CPUSpec && !Cand2CPUSpec)
-    return false;
+    return Comparison::Equal;
 
   if (Cand1CPUDisp && !Cand2CPUDisp)
-    return true;
+    return Comparison::Better;
   if (Cand2CPUDisp && !Cand1CPUDisp)
-    return false;
+    return Comparison::Worse;
 
   if (Cand1CPUSpec && Cand2CPUSpec) {
     if (Cand1CPUSpec->cpus_size() != Cand2CPUSpec->cpus_size())
-      return Cand1CPUSpec->cpus_size() < Cand2CPUSpec->cpus_size();
+      return Cand1CPUSpec->cpus_size() < Cand2CPUSpec->cpus_size()
+                 ? Comparison::Better
+                 : Comparison::Worse;
 
     std::pair<CPUSpecificAttr::cpus_iterator, CPUSpecificAttr::cpus_iterator>
         FirstDiff = std::mismatch(
@@ -9453,7 +9446,9 @@ static bool isBetterMultiversionCandidate(const OverloadCandidate &Cand1,
     assert(FirstDiff.first != Cand1CPUSpec->cpus_end() &&
            "Two different cpu-specific versions should not have the same "
            "identifier list, otherwise they'd be the same decl!");
-    return (*FirstDiff.first)->getName() < (*FirstDiff.second)->getName();
+    return (*FirstDiff.first)->getName() < (*FirstDiff.second)->getName()
+               ? Comparison::Better
+               : Comparison::Worse;
   }
   llvm_unreachable("No way to get here unless both had cpu_dispatch");
 }
@@ -9760,7 +9755,8 @@ bool clang::isBetterOverloadCandidate(
   if (HasPS1 != HasPS2 && HasPS1)
     return true;
 
-  return isBetterMultiversionCandidate(Cand1, Cand2);
+  Comparison MV = isBetterMultiversionCandidate(Cand1, Cand2);
+  return MV == Comparison::Better;
 }
 
 /// Determine whether two declarations are "equivalent" for the purposes of

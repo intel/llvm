@@ -2605,12 +2605,10 @@ static SmallVector<const char *, 16> getLinkerArgs(Compilation &C,
         continue;
       }
     }
-    if (A->getOption().hasFlag(options::LinkerInput)) {
-      // Do not add any libraries that are not fully named static libs
-      if (A->getOption().matches(options::OPT_l) ||
-          A->getOption().matches(options::OPT_reserved_lib_Group) ||
-          A->getOption().hasFlag(options::NoArgumentUnused))
-        continue;
+    if (A->getOption().matches(options::OPT_Wl_COMMA) ||
+        A->getOption().matches(options::OPT_Xlinker)) {
+      // Parse through additional linker arguments that are meant to go
+      // directly to the linker.
       std::string PrevArg;
       for (const std::string &Value : A->getValues()) {
         auto addKnownValues = [&](const StringRef &V) {
@@ -3161,9 +3159,7 @@ class OffloadingActionBuilder final {
       // backend and assemble phases to output LLVM IR. Except for generating
       // non-relocatable device coee, where we generate fat binary for device
       // code and pass to host in Backend phase.
-      if (CudaDeviceActions.empty() ||
-          (CurPhase == phases::Backend && Relocatable) ||
-          CurPhase == phases::Assemble)
+      if (CudaDeviceActions.empty())
         return ABRT_Success;
 
       assert(((CurPhase == phases::Link && Relocatable) ||
@@ -3237,9 +3233,11 @@ class OffloadingActionBuilder final {
       }
 
       // By default, we produce an action for each device arch.
-      for (Action *&A : CudaDeviceActions)
-        A = C.getDriver().ConstructPhaseAction(C, Args, CurPhase, A,
-                                               AssociatedOffloadKind);
+      if (!Relocatable || CurPhase <= phases::Backend) {
+        for (Action *&A : CudaDeviceActions)
+          A = C.getDriver().ConstructPhaseAction(C, Args, CurPhase, A,
+                                                 AssociatedOffloadKind);
+      }
 
       return (CompileDeviceOnly && CurPhase == FinalPhase) ? ABRT_Ignore_Host
                                                            : ABRT_Success;
@@ -4512,8 +4510,7 @@ void Driver::handleArguments(Compilation &C, DerivedArgList &Args,
     types::ID InputType = I.first;
     const Arg *InputArg = I.second;
 
-    llvm::SmallVector<phases::ID, phases::MaxNumberOfPhases> PL;
-    types::getCompilationPhases(InputType, PL);
+    auto PL = types::getCompilationPhases(InputType);
     LastPLSize = PL.size();
 
     // If the first step comes after the final phase we are doing as part of
@@ -4558,11 +4555,9 @@ void Driver::handleArguments(Compilation &C, DerivedArgList &Args,
       // Add a separate precompile phase for the compile phase.
       if (FinalPhase >= phases::Compile) {
         const types::ID HeaderType = lookupHeaderTypeForSourceType(InputType);
-        llvm::SmallVector<phases::ID, phases::MaxNumberOfPhases> PCHPL;
-        types::getCompilationPhases(HeaderType, PCHPL);
         // Build the pipeline for the pch file.
         Action *ClangClPch = C.MakeAction<InputAction>(*InputArg, HeaderType);
-        for (phases::ID Phase : PCHPL)
+        for (phases::ID Phase : types::getCompilationPhases(HeaderType))
           ClangClPch = ConstructPhaseAction(C, Args, Phase, ClangClPch);
         assert(ClangClPch);
         Actions.push_back(ClangClPch);
@@ -4646,13 +4641,11 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
     types::ID InputType = I.first;
     const Arg *InputArg = I.second;
 
-    PL.clear();
-    types::getCompilationPhases(*this, Args, InputType, PL);
+    PL = types::getCompilationPhases(*this, Args, InputType);
     if (PL.empty())
       continue;
 
-    llvm::SmallVector<phases::ID, phases::MaxNumberOfPhases> FullPL;
-    types::getCompilationPhases(InputType, FullPL);
+    auto FullPL = types::getCompilationPhases(InputType);
 
     // Build the pipeline for this file.
     Action *Current = C.MakeAction<InputAction>(*InputArg, InputType);
@@ -4874,15 +4867,9 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
         C.MakeAction<IfsMergeJobAction>(MergerInputs, types::TY_Image));
 
   if (Args.hasArg(options::OPT_emit_interface_stubs)) {
-    llvm::SmallVector<phases::ID, phases::MaxNumberOfPhases> PhaseList;
-    if (Args.hasArg(options::OPT_c)) {
-      llvm::SmallVector<phases::ID, phases::MaxNumberOfPhases> CompilePhaseList;
-      types::getCompilationPhases(types::TY_IFS_CPP, CompilePhaseList);
-      llvm::copy_if(CompilePhaseList, std::back_inserter(PhaseList),
-                    [&](phases::ID Phase) { return Phase <= phases::Compile; });
-    } else {
-      types::getCompilationPhases(types::TY_IFS_CPP, PhaseList);
-    }
+    auto PhaseList = types::getCompilationPhases(
+        types::TY_IFS_CPP,
+        Args.hasArg(options::OPT_c) ? phases::Compile : phases::LastPhase);
 
     ActionList MergerInputs;
 
@@ -5044,7 +5031,10 @@ Action *Driver::ConstructPhaseAction(
           Args.hasArg(options::OPT_S) ? types::TY_LTO_IR : types::TY_LTO_BC;
       return C.MakeAction<BackendJobAction>(Input, Output);
     }
-    if (Args.hasArg(options::OPT_emit_llvm)) {
+    if (Args.hasArg(options::OPT_emit_llvm) ||
+        (TargetDeviceOffloadKind == Action::OFK_HIP &&
+         Args.hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc,
+                      false))) {
       types::ID Output =
           Args.hasArg(options::OPT_S) ? types::TY_LLVM_IR : types::TY_LLVM_BC;
       return C.MakeAction<BackendJobAction>(Input, Output);
@@ -6075,8 +6065,19 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
     // When using both -save-temps and -emit-llvm, use a ".tmp.bc" suffix for
     // the unoptimized bitcode so that it does not get overwritten by the ".bc"
     // optimized bitcode output.
-    if (!AtTopLevel && C.getArgs().hasArg(options::OPT_emit_llvm) &&
-        JA.getType() == types::TY_LLVM_BC)
+    auto IsHIPRDCInCompilePhase = [](const JobAction &JA,
+                                     const llvm::opt::DerivedArgList &Args) {
+      // The relocatable compilation in HIP implies -emit-llvm. Similarly, use a
+      // ".tmp.bc" suffix for the unoptimized bitcode (generated in the compile
+      // phase.)
+      return isa<CompileJobAction>(JA) &&
+             JA.getOffloadingDeviceKind() == Action::OFK_HIP &&
+             Args.hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc,
+                          false);
+    };
+    if (!AtTopLevel && JA.getType() == types::TY_LLVM_BC &&
+        (C.getArgs().hasArg(options::OPT_emit_llvm) ||
+         IsHIPRDCInCompilePhase(JA, C.getArgs())))
       Suffixed += ".tmp";
     Suffixed += '.';
     Suffixed += Suffix;

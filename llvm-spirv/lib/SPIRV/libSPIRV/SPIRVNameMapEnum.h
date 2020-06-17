@@ -119,6 +119,7 @@ template <> inline void SPIRVMap<ExecutionMode, std::string>::init() {
   add(ExecutionModeOutputTriangleStrip, "OutputTriangleStrip");
   add(ExecutionModeVecTypeHint, "VecTypeHint");
   add(ExecutionModeContractionOff, "ContractionOff");
+  add(ExecutionModeSubgroupSize, "SubgroupSize");
   add(ExecutionModeMaxWorkgroupSizeINTEL, "MaxWorkgroupSizeINTEL");
   add(ExecutionModeNoGlobalOffsetINTEL, "NoGlobalOffsetINTEL");
   add(ExecutionModeMaxWorkDimINTEL, "MaxWorkDimINTEL");
@@ -128,6 +129,11 @@ template <> inline void SPIRVMap<ExecutionMode, std::string>::init() {
   add(ExecutionModeSignedZeroInfNanPreserve, "SignedZeroInfNanPreserve");
   add(ExecutionModeRoundingModeRTE, "RoundingModeRTE");
   add(ExecutionModeRoundingModeRTZ, "RoundingModeRTZ");
+  add(ExecutionModeRoundingModeRTPINTEL, "RoundingModeRTPINTEL");
+  add(ExecutionModeRoundingModeRTNINTEL, "RoundingModeRTNINTEL");
+  add(ExecutionModeFloatingPointModeALTINTEL, "FloatingPointModeALTINTEL");
+  add(ExecutionModeFloatingPointModeIEEEINTEL, "FloatingPointModeIEEEINTEL");
+  add(ExecutionModeSharedLocalMemorySizeINTEL, "SharedLocalMemorySizeINTEL");
 }
 SPIRV_DEF_NAMEMAP(ExecutionMode, SPIRVExecutionModeNameMap)
 
@@ -356,6 +362,11 @@ template <> inline void SPIRVMap<Decoration, std::string>::init() {
   add(DecorationForcePow2DepthINTEL, "ForcePow2DepthINTEL");
   add(DecorationReferencedIndirectlyINTEL, "ReferencedIndirectlyINTEL");
   add(DecorationIOPipeStorageINTEL, "IOPipeStorageINTEL");
+  add(DecorationVectorComputeFunctionINTEL, "VectorComputeFunctionINTEL");
+  add(DecorationStackCallINTEL, "StackCallINTEL");
+  add(DecorationVectorComputeVariableINTEL, "VectorComputeVariableINTEL");
+  add(DecorationGlobalVariableOffsetINTEL, "GlobalVariableOffsetINTEL");
+  add(DecorationFuncParamIOKind, "FuncParamIOKind");
 }
 SPIRV_DEF_NAMEMAP(Decoration, SPIRVDecorationNameMap)
 
@@ -495,7 +506,7 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilityStorageImageWriteWithoutFormat,
       "StorageImageWriteWithoutFormat");
   add(CapabilityMultiViewport, "MultiViewport");
-  add(CapabilitySubgroupDispatch, "CapabilitySubgroupDispatch");
+  add(CapabilitySubgroupDispatch, "SubgroupDispatch");
   add(CapabilityDenormPreserve, "DenormPreserve");
   add(CapabilityDenormFlushToZero, "DenormFlushToZero");
   add(CapabilitySignedZeroInfNanPreserve, "SignedZeroInfNanPreserve");
@@ -507,6 +518,10 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilitySubgroupImageMediaBlockIOINTEL,
       "SubgroupImageMediaBlockIOINTEL");
   add(CapabilityAsmINTEL, "AsmINTEL");
+  add(CapabilityVectorComputeINTEL, "VectorComputeINTEL");
+  add(CapabilityVectorAnyINTEL, "VectorAnyINTEL");
+  add(CapabilityRoundToInfinityINTEL, "RoundToInfinityINTEL");
+  add(CapabilityFloatingPointModeINTEL, "FloatingPointModeINTEL");
   add(CapabilitySubgroupAvcMotionEstimationINTEL,
       "SubgroupAvcMotionEstimationINTEL");
   add(CapabilitySubgroupAvcMotionEstimationIntraINTEL,

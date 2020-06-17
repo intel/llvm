@@ -190,7 +190,7 @@ static void dumpStringOffsetsSection(raw_ostream &OS, DIDumpOptions DumpOpts,
     // version field and the padding, a total of 4 bytes). Add them back in
     // for reporting.
     OS << "Contribution size = " << (Contribution->Size + (Version < 5 ? 0 : 4))
-       << ", Format = " << (Format == DWARF32 ? "DWARF32" : "DWARF64")
+       << ", Format = " << dwarf::FormatString(Format)
        << ", Version = " << Version << "\n";
 
     Offset = Contribution->Base;
@@ -513,15 +513,8 @@ void DWARFContext::dump(
       }
       OS << "debug_line[" << format("0x%8.8" PRIx64, Parser.getOffset())
          << "]\n";
-      OS.flush();
-      if (DumpOpts.Verbose) {
-        Parser.parseNext(DumpOpts.WarningHandler, DumpOpts.WarningHandler, &OS);
-      } else {
-        DWARFDebugLine::LineTable LineTable =
-            Parser.parseNext(DumpOpts.WarningHandler, DumpOpts.WarningHandler);
-        LineTable.dump(OS, DumpOpts);
-      }
-      OS.flush();
+      Parser.parseNext(DumpOpts.WarningHandler, DumpOpts.WarningHandler, &OS,
+                       DumpOpts.Verbose);
     }
   };
 

@@ -66,9 +66,8 @@
 ; RUN: llvm-spirv %t.spv -to-text -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 
-; Change DISABLED to RUN once SPIRV->LLVM translation is implemented
-; DISABLED: llvm-spirv -r %t.spv -o %t.rev.bc
-; DISABLED: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; ModuleID = 'sub_group_non_uniform_vote.cl'
 source_filename = "sub_group_non_uniform_vote.cl"

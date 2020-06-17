@@ -1186,6 +1186,11 @@ class TransposeOpLowering : public OpRewritePattern<vector::TransposeOp> {
 public:
   using OpRewritePattern<vector::TransposeOp>::OpRewritePattern;
 
+  TransposeOpLowering(vector::VectorTransformsOptions vectorTransformsOptions,
+                      MLIRContext *context)
+      : OpRewritePattern<vector::TransposeOp>(context),
+        vectorTransformsOptions(vectorTransformsOptions) {}
+
   LogicalResult matchAndRewrite(vector::TransposeOp op,
                                 PatternRewriter &rewriter) const override {
     auto loc = op.getLoc();
@@ -1196,6 +1201,22 @@ public:
     SmallVector<int64_t, 4> transp;
     for (auto attr : op.transp())
       transp.push_back(attr.cast<IntegerAttr>().getInt());
+
+    // Handle a true 2-D matrix transpose differently when requested.
+    if (vectorTransformsOptions.vectorTransposeLowering ==
+            vector::VectorTransposeLowering::Flat &&
+        resType.getRank() == 2 && transp[0] == 1 && transp[1] == 0) {
+      Type flattenedType =
+          VectorType::get(resType.getNumElements(), resType.getElementType());
+      auto matrix =
+          rewriter.create<vector::ShapeCastOp>(loc, flattenedType, op.vector());
+      auto rows = rewriter.getI32IntegerAttr(resType.getShape()[0]);
+      auto columns = rewriter.getI32IntegerAttr(resType.getShape()[1]);
+      Value trans = rewriter.create<vector::FlatTransposeOp>(
+          loc, flattenedType, matrix, rows, columns);
+      rewriter.replaceOpWithNewOp<vector::ShapeCastOp>(op, resType, trans);
+      return success();
+    }
 
     // Generate fully unrolled extract/insert ops.
     Value result = rewriter.create<ConstantOp>(loc, resType,
@@ -1230,6 +1251,9 @@ private:
     }
     return result;
   }
+
+  /// Options to control the vector patterns.
+  vector::VectorTransformsOptions vectorTransformsOptions;
 };
 
 /// Progressive lowering of OuterProductOp.
@@ -1280,10 +1304,10 @@ public:
 
 /// Progressive lowering of ConstantMaskOp.
 /// One:
-///   %x = vector.constant_mask_op [a,b]
+///   %x = vector.constant_mask [a,b]
 /// is replaced by:
 ///   %z = zero-result
-///   %l = vector.constant_mask_op [b]
+///   %l = vector.constant_mask [b]
 ///   %4 = vector.insert %l, %z[0]
 ///   ..
 ///   %x = vector.insert %l, %..[a-1]
@@ -1327,6 +1351,17 @@ public:
   }
 };
 
+/// Progressive lowering of CreateMaskOp.
+/// One:
+///   %x = vector.create_mask %a, ... : vector<dx...>
+/// is replaced by:
+///   %l = vector.create_mask ... : vector<...>  ; one lower rank
+///   %0 = cmpi "slt", %ci, %a       |
+///   %1 = select %0, %l, %zeroes    |
+///   %r = vector.insert %1, %pr [i] | d-times
+///   %x = ....
+/// When rank == 1, the selection operator is not needed,
+/// and we can assign the true/false value right away.
 class CreateMaskOpLowering : public OpRewritePattern<vector::CreateMaskOp> {
 public:
   using OpRewritePattern<vector::CreateMaskOp>::OpRewritePattern;
@@ -1428,6 +1463,61 @@ public:
     }
     rewriter.replaceOp(op, desc);
     return success();
+  }
+};
+
+// We typically should not lower general shape cast operations into data
+// movement instructions, since the assumption is that these casts are
+// optimized away during progressive lowering. For completeness, however,
+// we fall back to a reference implementation that moves all elements
+// into the right place if we get here.
+class ShapeCastOpRewritePattern : public OpRewritePattern<vector::ShapeCastOp> {
+public:
+  using OpRewritePattern<vector::ShapeCastOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(vector::ShapeCastOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    auto sourceVectorType = op.getSourceVectorType();
+    auto resultVectorType = op.getResultVectorType();
+    // Intended 2D/1D lowerings with better implementations.
+    int64_t srcRank = sourceVectorType.getRank();
+    int64_t resRank = resultVectorType.getRank();
+    if ((srcRank == 2 && resRank == 1) || (srcRank == 1 && resRank == 2))
+      return failure();
+    // Compute number of elements involved in the reshape.
+    int64_t numElts = 1;
+    for (int64_t r = 0; r < srcRank; r++)
+      numElts *= sourceVectorType.getDimSize(r);
+    // Replace with data movement operations:
+    //    x[0,0,0] = y[0,0]
+    //    x[0,0,1] = y[0,1]
+    //    x[0,1,0] = y[0,2]
+    // etc., incrementing the two index vectors "row-major"
+    // within the source and result shape.
+    SmallVector<int64_t, 4> srcIdx(srcRank);
+    SmallVector<int64_t, 4> resIdx(resRank);
+    Value result = rewriter.create<ConstantOp>(
+        loc, resultVectorType, rewriter.getZeroAttr(resultVectorType));
+    for (int64_t i = 0; i < numElts; i++) {
+      if (i != 0) {
+        incIdx(srcIdx, sourceVectorType, srcRank - 1);
+        incIdx(resIdx, resultVectorType, resRank - 1);
+      }
+      Value e = rewriter.create<vector::ExtractOp>(loc, op.source(), srcIdx);
+      result = rewriter.create<vector::InsertOp>(loc, e, result, resIdx);
+    }
+    rewriter.replaceOp(op, result);
+    return success();
+  }
+
+private:
+  static void incIdx(SmallVector<int64_t, 4> &idx, VectorType tp, int64_t r) {
+    assert(0 <= r && r < tp.getRank());
+    if (++idx[r] == tp.getDimSize(r)) {
+      idx[r] = 0;
+      incIdx(idx, tp, r - 1);
+    }
   }
 };
 
@@ -1830,8 +1920,9 @@ void mlir::vector::populateVectorContractLoweringPatterns(
                   OuterProductOpLowering,
                   ShapeCastOp2DDownCastRewritePattern,
                   ShapeCastOp2DUpCastRewritePattern,
-                  TransposeOpLowering>(context);
-  patterns.insert<ContractionOpLowering,
+                  ShapeCastOpRewritePattern>(context);
+  patterns.insert<TransposeOpLowering,
+                  ContractionOpLowering,
                   ContractionOpToMatmulOpLowering,
                   ContractionOpToOuterProductOpLowering>(parameters, context);
   // clang-format on

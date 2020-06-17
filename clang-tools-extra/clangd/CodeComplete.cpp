@@ -36,6 +36,7 @@
 #include "index/Index.h"
 #include "index/Symbol.h"
 #include "index/SymbolOrigin.h"
+#include "support/FSProvider.h"
 #include "support/Logger.h"
 #include "support/Threading.h"
 #include "support/Trace.h"
@@ -44,10 +45,12 @@
 #include "clang/Basic/CharInfo.h"
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/SourceLocation.h"
+#include "clang/Basic/TokenKinds.h"
 #include "clang/Format/Format.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/FrontendActions.h"
 #include "clang/Lex/ExternalPreprocessorSource.h"
+#include "clang/Lex/Lexer.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Lex/PreprocessorOptions.h"
 #include "clang/Sema/CodeCompleteConsumer.h"
@@ -254,10 +257,11 @@ struct CodeCompletionBuilder {
                         const IncludeInserter &Includes,
                         llvm::StringRef FileName,
                         CodeCompletionContext::Kind ContextKind,
-                        const CodeCompleteOptions &Opts, bool GenerateSnippets)
+                        const CodeCompleteOptions &Opts,
+                        bool IsUsingDeclaration, tok::TokenKind NextTokenKind)
       : ASTCtx(ASTCtx), ExtractDocumentation(Opts.IncludeComments),
         EnableFunctionArgSnippets(Opts.EnableFunctionArgSnippets),
-        GenerateSnippets(GenerateSnippets) {
+        IsUsingDeclaration(IsUsingDeclaration), NextTokenKind(NextTokenKind) {
     add(C, SemaCCS);
     if (C.SemaResult) {
       assert(ASTCtx);
@@ -428,7 +432,13 @@ private:
   }
 
   std::string summarizeSnippet() const {
-    if (!GenerateSnippets)
+    if (IsUsingDeclaration)
+      return "";
+    // Suppress function argument snippets if args are already present.
+    if ((Completion.Kind == CompletionItemKind::Function ||
+         Completion.Kind == CompletionItemKind::Method ||
+         Completion.Kind == CompletionItemKind::Constructor) &&
+        NextTokenKind == tok::l_paren)
       return "";
     auto *Snippet = onlyValue<&BundledEntry::SnippetSuffix>();
     if (!Snippet)
@@ -487,8 +497,10 @@ private:
   llvm::SmallVector<BundledEntry, 1> Bundled;
   bool ExtractDocumentation;
   bool EnableFunctionArgSnippets;
-  /// When false, no snippets are generated argument lists.
-  bool GenerateSnippets;
+  // No snippets will be generated for using declarations and when the function
+  // arguments are already present.
+  bool IsUsingDeclaration;
+  tok::TokenKind NextTokenKind;
 };
 
 // Determine the symbol ID for a Sema code completion result, if possible.
@@ -1029,12 +1041,10 @@ private:
 
 struct SemaCompleteInput {
   PathRef FileName;
-  const tooling::CompileCommand &Command;
-  const PreambleData &Preamble;
-  llvm::Optional<const PreamblePatch> Patch;
-  llvm::StringRef Contents;
   size_t Offset;
-  llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> VFS;
+  const PreambleData &Preamble;
+  const llvm::Optional<PreamblePatch> Patch;
+  const ParseInputs &ParseInput;
 };
 
 void loadMainFilePreambleMacros(const Preprocessor &PP,
@@ -1062,17 +1072,9 @@ bool semaCodeComplete(std::unique_ptr<CodeCompleteConsumer> Consumer,
                       const SemaCompleteInput &Input,
                       IncludeStructure *Includes = nullptr) {
   trace::Span Tracer("Sema completion");
-  llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> VFS = Input.VFS;
-  if (Input.Preamble.StatCache)
-    VFS = Input.Preamble.StatCache->getConsumingFS(std::move(VFS));
-  ParseInputs ParseInput;
-  ParseInput.CompileCommand = Input.Command;
-  ParseInput.FS = VFS;
-  ParseInput.Contents = std::string(Input.Contents);
-  // FIXME: setup the recoveryAST and recoveryASTType in ParseInput properly.
 
   IgnoreDiagnostics IgnoreDiags;
-  auto CI = buildCompilerInvocation(ParseInput, IgnoreDiags);
+  auto CI = buildCompilerInvocation(Input.ParseInput, IgnoreDiags);
   if (!CI) {
     elog("Couldn't create CompilerInvocation");
     return false;
@@ -1090,10 +1092,11 @@ bool semaCodeComplete(std::unique_ptr<CodeCompleteConsumer> Consumer,
   FrontendOpts.CodeCompletionAt.FileName = std::string(Input.FileName);
   std::tie(FrontendOpts.CodeCompletionAt.Line,
            FrontendOpts.CodeCompletionAt.Column) =
-      offsetToClangLineColumn(Input.Contents, Input.Offset);
+      offsetToClangLineColumn(Input.ParseInput.Contents, Input.Offset);
 
   std::unique_ptr<llvm::MemoryBuffer> ContentsBuffer =
-      llvm::MemoryBuffer::getMemBufferCopy(Input.Contents, Input.FileName);
+      llvm::MemoryBuffer::getMemBufferCopy(Input.ParseInput.Contents,
+                                           Input.FileName);
   // The diagnostic options must be set before creating a CompilerInstance.
   CI->getDiagnosticOpts().IgnoreWarnings = true;
   // We reuse the preamble whether it's valid or not. This is a
@@ -1109,6 +1112,13 @@ bool semaCodeComplete(std::unique_ptr<CodeCompleteConsumer> Consumer,
     Input.Patch->apply(*CI);
   // NOTE: we must call BeginSourceFile after prepareCompilerInstance. Otherwise
   // the remapped buffers do not get freed.
+  llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> VFS =
+      Input.ParseInput.FSProvider->getFileSystem();
+  if (Input.Preamble.StatCache)
+    VFS = Input.Preamble.StatCache->getConsumingFS(std::move(VFS));
+  if (VFS->setCurrentWorkingDirectory(
+          Input.ParseInput.CompileCommand.Directory))
+    elog("Couldn't set working directory during code completion");
   auto Clang = prepareCompilerInstance(
       std::move(CI), !CompletingInPreamble ? &Input.Preamble.Preamble : nullptr,
       std::move(ContentsBuffer), std::move(VFS), IgnoreDiags);
@@ -1227,6 +1237,10 @@ class CodeCompleteFlow {
   CompletionRecorder *Recorder = nullptr;
   CodeCompletionContext::Kind CCContextKind = CodeCompletionContext::CCC_Other;
   bool IsUsingDeclaration = false;
+  // The snippets will not be generated if the token following completion
+  // location is an opening parenthesis (tok::l_paren) because this would add
+  // extra parenthesis.
+  tok::TokenKind NextTokenKind = tok::eof;
   // Counters for logging.
   int NSema = 0, NIndex = 0, NSemaAndIndex = 0, NIdent = 0;
   bool Incomplete = false; // Would more be available with a higher limit?
@@ -1260,9 +1274,9 @@ public:
 
   CodeCompleteResult run(const SemaCompleteInput &SemaCCInput) && {
     trace::Span Tracer("CodeCompleteFlow");
-    HeuristicPrefix =
-        guessCompletionPrefix(SemaCCInput.Contents, SemaCCInput.Offset);
-    populateContextWords(SemaCCInput.Contents);
+    HeuristicPrefix = guessCompletionPrefix(SemaCCInput.ParseInput.Contents,
+                                            SemaCCInput.Offset);
+    populateContextWords(SemaCCInput.ParseInput.Contents);
     if (Opts.Index && SpecFuzzyFind && SpecFuzzyFind->CachedReq.hasValue()) {
       assert(!SpecFuzzyFind->Result.valid());
       SpecReq = speculativeFuzzyFindRequestForCompletion(
@@ -1279,12 +1293,18 @@ public:
       CCContextKind = Recorder->CCContext.getKind();
       IsUsingDeclaration = Recorder->CCContext.isUsingDeclaration();
       auto Style = getFormatStyleForFile(
-          SemaCCInput.FileName, SemaCCInput.Contents, SemaCCInput.VFS.get());
+          SemaCCInput.FileName, SemaCCInput.ParseInput.Contents,
+          SemaCCInput.ParseInput.FSProvider->getFileSystem().get());
+      const auto NextToken = Lexer::findNextToken(
+          Recorder->CCSema->getPreprocessor().getCodeCompletionLoc(),
+          Recorder->CCSema->getSourceManager(), Recorder->CCSema->LangOpts);
+      if (NextToken)
+        NextTokenKind = NextToken->getKind();
       // If preprocessor was run, inclusions from preprocessor callback should
       // already be added to Includes.
       Inserter.emplace(
-          SemaCCInput.FileName, SemaCCInput.Contents, Style,
-          SemaCCInput.Command.Directory,
+          SemaCCInput.FileName, SemaCCInput.ParseInput.Contents, Style,
+          SemaCCInput.ParseInput.CompileCommand.Directory,
           &Recorder->CCSema->getPreprocessor().getHeaderSearchInfo());
       for (const auto &Inc : Includes.MainFileIncludes)
         Inserter->addExisting(Inc);
@@ -1697,8 +1717,7 @@ private:
       if (!Builder)
         Builder.emplace(Recorder ? &Recorder->CCSema->getASTContext() : nullptr,
                         Item, SemaCCS, QueryScopes, *Inserter, FileName,
-                        CCContextKind, Opts,
-                        /*GenerateSnippets=*/!IsUsingDeclaration);
+                        CCContextKind, Opts, IsUsingDeclaration, NextTokenKind);
       else
         Builder->add(Item, SemaCCS);
     }
@@ -1750,12 +1769,12 @@ CompletionPrefix guessCompletionPrefix(llvm::StringRef Content,
   return Result;
 }
 
-CodeCompleteResult
-codeComplete(PathRef FileName, const tooling::CompileCommand &Command,
-             const PreambleData *Preamble, llvm::StringRef Contents,
-             Position Pos, llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> VFS,
-             CodeCompleteOptions Opts, SpeculativeFuzzyFind *SpecFuzzyFind) {
-  auto Offset = positionToOffset(Contents, Pos);
+CodeCompleteResult codeComplete(PathRef FileName, Position Pos,
+                                const PreambleData *Preamble,
+                                const ParseInputs &ParseInput,
+                                CodeCompleteOptions Opts,
+                                SpeculativeFuzzyFind *SpecFuzzyFind) {
+  auto Offset = positionToOffset(ParseInput.Contents, Pos);
   if (!Offset) {
     elog("Code completion position was invalid {0}", Offset.takeError());
     return CodeCompleteResult();
@@ -1764,21 +1783,19 @@ codeComplete(PathRef FileName, const tooling::CompileCommand &Command,
       FileName, Preamble ? Preamble->Includes : IncludeStructure(),
       SpecFuzzyFind, Opts);
   return (!Preamble || Opts.RunParser == CodeCompleteOptions::NeverParse)
-             ? std::move(Flow).runWithoutSema(Contents, *Offset, VFS)
-             : std::move(Flow).run({FileName, Command, *Preamble,
+             ? std::move(Flow).runWithoutSema(
+                   ParseInput.Contents, *Offset,
+                   ParseInput.FSProvider->getFileSystem())
+             : std::move(Flow).run({FileName, *Offset, *Preamble,
                                     // We want to serve code completions with
                                     // low latency, so don't bother patching.
-                                    /*PreamblePatch=*/llvm::None, Contents,
-                                    *Offset, VFS});
+                                    /*PreamblePatch=*/llvm::None, ParseInput});
 }
 
-SignatureHelp signatureHelp(PathRef FileName,
-                            const tooling::CompileCommand &Command,
+SignatureHelp signatureHelp(PathRef FileName, Position Pos,
                             const PreambleData &Preamble,
-                            llvm::StringRef Contents, Position Pos,
-                            llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> VFS,
-                            const SymbolIndex *Index) {
-  auto Offset = positionToOffset(Contents, Pos);
+                            const ParseInputs &ParseInput) {
+  auto Offset = positionToOffset(ParseInput.Contents, Pos);
   if (!Offset) {
     elog("Signature help position was invalid {0}", Offset.takeError());
     return SignatureHelp();
@@ -1789,16 +1806,12 @@ SignatureHelp signatureHelp(PathRef FileName,
   Options.IncludeMacros = false;
   Options.IncludeCodePatterns = false;
   Options.IncludeBriefComments = false;
-
-  ParseInputs PI;
-  PI.CompileCommand = Command;
-  PI.Contents = Contents.str();
-  PI.FS = std::move(VFS);
   semaCodeComplete(
-      std::make_unique<SignatureHelpCollector>(Options, Index, Result), Options,
-      {FileName, Command, Preamble,
-       PreamblePatch::create(FileName, PI, Preamble), Contents, *Offset,
-       std::move(PI.FS)});
+      std::make_unique<SignatureHelpCollector>(Options, ParseInput.Index,
+                                               Result),
+      Options,
+      {FileName, *Offset, Preamble,
+       PreamblePatch::create(FileName, ParseInput, Preamble), ParseInput});
   return Result;
 }
 

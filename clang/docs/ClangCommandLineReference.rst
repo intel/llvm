@@ -1331,6 +1331,10 @@ Restrict code to those available for App Extensions
 
 .. option:: -fautolink, -fno-autolink
 
+.. option:: -fbasic-block-sections=labels, -fbasic-block-sections=all, -fbasic-block-sections=list=<arg>, -fbasic-block-sections=none
+
+Generate labels for each basic block or place each basic block or a subset of basic blocks in its own section.
+
 .. option:: -fblocks, -fno-blocks
 
 Enable the 'blocks' language feature
@@ -3046,6 +3050,12 @@ WebAssembly
 .. option:: -mtail-call, -mno-tail-call
 
 .. option:: -munimplemented-simd128, -mno-unimplemented-simd128
+
+.. option:: -mexec-model=<arg>
+
+Select between "command" and "reactor" executable models. Commands have a main
+function which scopes the lifetime of the program. Reactors are activated and
+remain active until explicitly terminated.
 
 X86
 ---

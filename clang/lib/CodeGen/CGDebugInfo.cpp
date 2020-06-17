@@ -772,6 +772,7 @@ llvm::DIType *CGDebugInfo::CreateType(const BuiltinType *BT) {
   case BuiltinType::Float:
   case BuiltinType::LongDouble:
   case BuiltinType::Float16:
+  case BuiltinType::BFloat16:
   case BuiltinType::Float128:
   case BuiltinType::Double:
     // FIXME: For targets where long double and __float128 have the same size,
@@ -2145,16 +2146,17 @@ llvm::DIType *CGDebugInfo::getOrCreateStandaloneType(QualType D,
   return T;
 }
 
-void CGDebugInfo::addHeapAllocSiteMetadata(llvm::Instruction *CI,
-                                           QualType D,
+void CGDebugInfo::addHeapAllocSiteMetadata(llvm::CallBase *CI,
+                                           QualType AllocatedTy,
                                            SourceLocation Loc) {
+  if (CGM.getCodeGenOpts().getDebugInfo() <=
+      codegenoptions::DebugLineTablesOnly)
+    return;
   llvm::MDNode *node;
-  if (D.getTypePtr()->isVoidPointerType()) {
+  if (AllocatedTy->isVoidType())
     node = llvm::MDNode::get(CGM.getLLVMContext(), None);
-  } else {
-    QualType PointeeTy = D.getTypePtr()->getPointeeType();
-    node = getOrCreateType(PointeeTy, getOrCreateFile(Loc));
-  }
+  else
+    node = getOrCreateType(AllocatedTy, getOrCreateFile(Loc));
 
   CI->setMetadata("heapallocsite", node);
 }
@@ -2533,10 +2535,14 @@ llvm::DIModule *CGDebugInfo::getOrCreateModuleRef(ASTSourceDescriptor Mod,
     // PCH files don't have a signature field in the control block,
     // but LLVM detects skeleton CUs by looking for a non-zero DWO id.
     // We use the lower 64 bits for debug info.
-    uint64_t Signature =
-        Mod.getSignature()
-            ? (uint64_t)Mod.getSignature()[1] << 32 | Mod.getSignature()[0]
-            : ~1ULL;
+
+    uint64_t Signature = 0;
+    if (const auto &ModSig = Mod.getSignature()) {
+      for (unsigned I = 0; I != sizeof(Signature); ++I)
+        Signature |= (uint64_t)ModSig[I] << (I * 8);
+    } else {
+      Signature = ~1ULL;
+    }
     llvm::DIBuilder DIB(CGM.getModule());
     SmallString<0> PCM;
     if (!llvm::sys::path::is_absolute(Mod.getASTFile()))

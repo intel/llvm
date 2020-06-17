@@ -500,6 +500,12 @@ int AArch64TTIImpl::getArithmeticInstrCost(
     TTI::OperandValueKind Opd2Info, TTI::OperandValueProperties Opd1PropInfo,
     TTI::OperandValueProperties Opd2PropInfo, ArrayRef<const Value *> Args,
     const Instruction *CxtI) {
+  // TODO: Handle more cost kinds.
+  if (CostKind != TTI::TCK_RecipThroughput)
+    return BaseT::getArithmeticInstrCost(Opcode, Ty, CostKind, Opd1Info,
+                                         Opd2Info, Opd1PropInfo,
+                                         Opd2PropInfo, Args, CxtI);
+
   // Legalize the type.
   std::pair<int, MVT> LT = TLI->getTypeLegalizationCost(DL, Ty);
 
@@ -620,6 +626,9 @@ int AArch64TTIImpl::getCmpSelInstrCost(unsigned Opcode, Type *ValTy,
                                        Type *CondTy,
                                        TTI::TargetCostKind CostKind,
                                        const Instruction *I) {
+  // TODO: Handle other cost kinds.
+  if (CostKind != TTI::TCK_RecipThroughput)
+    return BaseT::getCmpSelInstrCost(Opcode, ValTy, CondTy, CostKind, I);
 
   int ISD = TLI->InstructionOpcodeToISD(Opcode);
   // We don't lower some vector selects well that are wider than the register
@@ -671,6 +680,15 @@ int AArch64TTIImpl::getMemoryOpCost(unsigned Opcode, Type *Ty,
                                     MaybeAlign Alignment, unsigned AddressSpace,
                                     TTI::TargetCostKind CostKind,
                                     const Instruction *I) {
+  // TODO: Handle other cost kinds.
+  if (CostKind != TTI::TCK_RecipThroughput)
+    return 1;
+
+  // Type legalization can't handle structs
+  if (TLI->getValueType(DL, Ty,  true) == MVT::Other)
+    return BaseT::getMemoryOpCost(Opcode, Ty, Alignment, AddressSpace,
+                                  CostKind);
+
   auto LT = TLI->getTypeLegalizationCost(DL, Ty);
 
   if (ST->isMisaligned128StoreSlow() && Opcode == Instruction::Store &&

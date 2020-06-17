@@ -478,6 +478,46 @@ TEST_F(FileCheckTest, ExpressionValueSubtraction) {
   expectOperationValueResult(operator-, 10, 11, -1);
 }
 
+TEST_F(FileCheckTest, ExpressionValueEquality) {
+  // Test negative and positive value.
+  EXPECT_FALSE(ExpressionValue(5) == ExpressionValue(-3));
+  EXPECT_TRUE(ExpressionValue(5) != ExpressionValue(-3));
+  EXPECT_FALSE(ExpressionValue(-2) == ExpressionValue(6));
+  EXPECT_TRUE(ExpressionValue(-2) != ExpressionValue(6));
+  EXPECT_FALSE(ExpressionValue(-7) == ExpressionValue(7));
+  EXPECT_TRUE(ExpressionValue(-7) != ExpressionValue(7));
+  EXPECT_FALSE(ExpressionValue(4) == ExpressionValue(-4));
+  EXPECT_TRUE(ExpressionValue(4) != ExpressionValue(-4));
+  EXPECT_FALSE(ExpressionValue(MaxUint64) == ExpressionValue(-1));
+  EXPECT_TRUE(ExpressionValue(MaxUint64) != ExpressionValue(-1));
+
+  // Test both negative values.
+  EXPECT_FALSE(ExpressionValue(-2) == ExpressionValue(-7));
+  EXPECT_TRUE(ExpressionValue(-2) != ExpressionValue(-7));
+  EXPECT_TRUE(ExpressionValue(-3) == ExpressionValue(-3));
+  EXPECT_FALSE(ExpressionValue(-3) != ExpressionValue(-3));
+  EXPECT_FALSE(ExpressionValue(MinInt64) == ExpressionValue(-1));
+  EXPECT_TRUE(ExpressionValue(MinInt64) != ExpressionValue(-1));
+  EXPECT_FALSE(ExpressionValue(MinInt64) == ExpressionValue(-0));
+  EXPECT_TRUE(ExpressionValue(MinInt64) != ExpressionValue(-0));
+
+  // Test both positive values.
+  EXPECT_FALSE(ExpressionValue(8) == ExpressionValue(9));
+  EXPECT_TRUE(ExpressionValue(8) != ExpressionValue(9));
+  EXPECT_TRUE(ExpressionValue(1) == ExpressionValue(1));
+  EXPECT_FALSE(ExpressionValue(1) != ExpressionValue(1));
+
+  // Check the signedness of zero doesn't affect equality.
+  EXPECT_TRUE(ExpressionValue(0) == ExpressionValue(0));
+  EXPECT_FALSE(ExpressionValue(0) != ExpressionValue(0));
+  EXPECT_TRUE(ExpressionValue(0) == ExpressionValue(-0));
+  EXPECT_FALSE(ExpressionValue(0) != ExpressionValue(-0));
+  EXPECT_TRUE(ExpressionValue(-0) == ExpressionValue(0));
+  EXPECT_FALSE(ExpressionValue(-0) != ExpressionValue(0));
+  EXPECT_TRUE(ExpressionValue(-0) == ExpressionValue(-0));
+  EXPECT_FALSE(ExpressionValue(-0) != ExpressionValue(-0));
+}
+
 TEST_F(FileCheckTest, Literal) {
   SourceMgr SM;
 
@@ -772,7 +812,7 @@ private:
 
 public:
   PatternTester() {
-    std::vector<StringRef> GlobalDefines = {"#FOO=42", "BAR=BAZ"};
+    std::vector<StringRef> GlobalDefines = {"#FOO=42", "BAR=BAZ", "#add=7"};
     // An ASSERT_FALSE would make more sense but cannot be used in a
     // constructor.
     EXPECT_THAT_ERROR(Context.defineCmdlineVariables(GlobalDefines, SM),
@@ -862,7 +902,7 @@ TEST_F(FileCheckTest, ParseNumericSubstitutionBlock) {
   Tester.initNextPattern();
 
   // Invalid variable name.
-  expectDiagnosticError("invalid operand format '%VAR'",
+  expectDiagnosticError("invalid matching constraint or operand format",
                         Tester.parseSubst("%VAR").takeError());
 
   expectDiagnosticError("invalid pseudo numeric variable '@FOO'",
@@ -897,6 +937,10 @@ TEST_F(FileCheckTest, ParseNumericSubstitutionBlock) {
   // Valid empty expression.
   EXPECT_THAT_EXPECTED(Tester.parseSubst(""), Succeeded());
 
+  // Invalid equality matching constraint with empty expression.
+  expectDiagnosticError("empty numeric expression should not have a constraint",
+                        Tester.parseSubst("==").takeError());
+
   // Valid single operand expression.
   EXPECT_THAT_EXPECTED(Tester.parseSubst("FOO"), Succeeded());
   EXPECT_THAT_EXPECTED(Tester.parseSubst("18"), Succeeded());
@@ -906,6 +950,13 @@ TEST_F(FileCheckTest, ParseNumericSubstitutionBlock) {
   EXPECT_THAT_EXPECTED(Tester.parseSubst("-30"), Succeeded());
   EXPECT_THAT_EXPECTED(Tester.parseSubst(std::to_string(MinInt64)),
                        Succeeded());
+
+  // Valid optional matching constraint.
+  EXPECT_THAT_EXPECTED(Tester.parseSubst("==FOO"), Succeeded());
+
+  // Invalid matching constraint.
+  expectDiagnosticError("invalid matching constraint or operand format",
+                        Tester.parseSubst("+=FOO").takeError());
 
   // Invalid format.
   expectDiagnosticError("invalid matching format specification in expression",
@@ -928,12 +979,12 @@ TEST_F(FileCheckTest, ParseNumericSubstitutionBlock) {
 
   // Errors in RHS operand are bubbled up by parseBinop() to
   // parseNumericSubstitutionBlock().
-  expectDiagnosticError("invalid operand format '%VAR'",
+  expectDiagnosticError("invalid operand format",
                         Tester.parseSubst("@LINE+%VAR").takeError());
 
   // Invalid legacy @LINE expression with non literal rhs.
   expectDiagnosticError(
-      "invalid operand format '@LINE'",
+      "invalid operand format",
       Tester.parseSubst("@LINE+@LINE", /*IsLegacyNumExpr=*/true).takeError());
 
   // Invalid legacy @LINE expression made of a single literal.
@@ -1006,7 +1057,7 @@ TEST_F(FileCheckTest, ParseNumericSubstitutionBlock) {
 
   // Test more closing than opening parentheses. The diagnostic messages are
   // not ideal, but for now simply check that we reject invalid input.
-  expectDiagnosticError("invalid operand format ')'",
+  expectDiagnosticError("invalid matching constraint or operand format",
                         Tester.parseSubst(")").takeError());
   expectDiagnosticError("unsupported operation ')'",
                         Tester.parseSubst("1)").takeError());
@@ -1016,6 +1067,60 @@ TEST_F(FileCheckTest, ParseNumericSubstitutionBlock) {
                         Tester.parseSubst("(2))").takeError());
   expectDiagnosticError("unsupported operation ')'",
                         Tester.parseSubst("(1))(").takeError());
+
+  // Valid expression with function call.
+  EXPECT_THAT_EXPECTED(Tester.parseSubst("add(FOO,3)"), Succeeded());
+  EXPECT_THAT_EXPECTED(Tester.parseSubst("add (FOO,3)"), Succeeded());
+  // Valid expression with nested function call.
+  EXPECT_THAT_EXPECTED(Tester.parseSubst("add(FOO, min(BAR,10))"), Succeeded());
+  // Valid expression with function call taking expression as argument.
+  EXPECT_THAT_EXPECTED(Tester.parseSubst("add(FOO, (BAR+10) + 3)"),
+                       Succeeded());
+  EXPECT_THAT_EXPECTED(Tester.parseSubst("add(FOO, min (BAR,10) + 3)"),
+                       Succeeded());
+  // Valid expression with variable named the same as a function.
+  EXPECT_THAT_EXPECTED(Tester.parseSubst("add"), Succeeded());
+  EXPECT_THAT_EXPECTED(Tester.parseSubst("add+FOO"), Succeeded());
+  EXPECT_THAT_EXPECTED(Tester.parseSubst("FOO+add"), Succeeded());
+  EXPECT_THAT_EXPECTED(Tester.parseSubst("add(add,add)+add"), Succeeded());
+
+  // Malformed call syntax.
+  expectDiagnosticError("missing ')' at end of call expression",
+                        Tester.parseSubst("add(FOO,(BAR+7)").takeError());
+  expectDiagnosticError("missing ')' at end of call expression",
+                        Tester.parseSubst("add(FOO,min(BAR,7)").takeError());
+  expectDiagnosticError("missing argument",
+                        Tester.parseSubst("add(FOO,)").takeError());
+  expectDiagnosticError("missing argument",
+                        Tester.parseSubst("add(,FOO)").takeError());
+  expectDiagnosticError("missing argument",
+                        Tester.parseSubst("add(FOO,,3)").takeError());
+
+  // Valid call, but to an unknown function.
+  expectDiagnosticError("call to undefined function 'bogus_function'",
+                        Tester.parseSubst("bogus_function(FOO,3)").takeError());
+  expectDiagnosticError("call to undefined function '@add'",
+                        Tester.parseSubst("@add(2,3)").takeError());
+  expectDiagnosticError("call to undefined function '$add'",
+                        Tester.parseSubst("$add(2,3)").takeError());
+  expectDiagnosticError("call to undefined function 'FOO'",
+                        Tester.parseSubst("FOO(2,3)").takeError());
+  expectDiagnosticError("call to undefined function 'FOO'",
+                        Tester.parseSubst("FOO (2,3)").takeError());
+
+  // Valid call, but with incorrect argument count.
+  expectDiagnosticError("function 'add' takes 2 arguments but 1 given",
+                        Tester.parseSubst("add(FOO)").takeError());
+  expectDiagnosticError("function 'add' takes 2 arguments but 3 given",
+                        Tester.parseSubst("add(FOO,3,4)").takeError());
+
+  // Valid call, but not part of a valid expression.
+  expectDiagnosticError("unsupported operation 'a'",
+                        Tester.parseSubst("2add(FOO,2)").takeError());
+  expectDiagnosticError("unsupported operation 'a'",
+                        Tester.parseSubst("FOO add(FOO,2)").takeError());
+  expectDiagnosticError("unsupported operation 'a'",
+                        Tester.parseSubst("add(FOO,2)add(FOO,2)").takeError());
 }
 
 TEST_F(FileCheckTest, ParsePattern) {
@@ -1187,6 +1292,46 @@ TEST_F(FileCheckTest, MatchParen) {
   Tester.initNextPattern();
   ASSERT_FALSE(Tester.parsePattern("[[#(NUMVAR+2)]]"));
   EXPECT_THAT_EXPECTED(Tester.match("20"), Succeeded());
+}
+
+TEST_F(FileCheckTest, MatchBuiltinFunctions) {
+  PatternTester Tester;
+  // Esnure #NUMVAR has the expected value.
+  Tester.initNextPattern();
+  ASSERT_FALSE(Tester.parsePattern("[[#NUMVAR:]]"));
+  expectNotFoundError(Tester.match("FAIL").takeError());
+  expectNotFoundError(Tester.match("").takeError());
+  EXPECT_THAT_EXPECTED(Tester.match("18"), Succeeded());
+
+  // Check each builtin function generates the expected result.
+  Tester.initNextPattern();
+  ASSERT_FALSE(Tester.parsePattern("[[#add(NUMVAR,13)]]"));
+  EXPECT_THAT_EXPECTED(Tester.match("31"), Succeeded());
+  Tester.initNextPattern();
+  ASSERT_FALSE(Tester.parsePattern("[[#sub(NUMVAR,7)]]"));
+  EXPECT_THAT_EXPECTED(Tester.match("11"), Succeeded());
+  Tester.initNextPattern();
+  ASSERT_FALSE(Tester.parsePattern("[[#max(NUMVAR,5)]]"));
+  EXPECT_THAT_EXPECTED(Tester.match("18"), Succeeded());
+  Tester.initNextPattern();
+  ASSERT_FALSE(Tester.parsePattern("[[#max(NUMVAR,99)]]"));
+  EXPECT_THAT_EXPECTED(Tester.match("99"), Succeeded());
+  Tester.initNextPattern();
+  ASSERT_FALSE(Tester.parsePattern("[[#min(NUMVAR,5)]]"));
+  EXPECT_THAT_EXPECTED(Tester.match("5"), Succeeded());
+  Tester.initNextPattern();
+  ASSERT_FALSE(Tester.parsePattern("[[#min(NUMVAR,99)]]"));
+  EXPECT_THAT_EXPECTED(Tester.match("18"), Succeeded());
+
+  // Check nested function calls.
+  Tester.initNextPattern();
+  ASSERT_FALSE(Tester.parsePattern("[[#add(min(7,2),max(4,10))]]"));
+  EXPECT_THAT_EXPECTED(Tester.match("12"), Succeeded());
+
+  // Check function call that uses a variable of the same name.
+  Tester.initNextPattern();
+  ASSERT_FALSE(Tester.parsePattern("[[#add(add,add)+min (add,3)+add]]"));
+  EXPECT_THAT_EXPECTED(Tester.match("24"), Succeeded());
 }
 
 TEST_F(FileCheckTest, Substitution) {

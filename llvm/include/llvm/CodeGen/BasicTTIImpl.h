@@ -608,6 +608,13 @@ public:
     int ISD = TLI->InstructionOpcodeToISD(Opcode);
     assert(ISD && "Invalid opcode");
 
+    // TODO: Handle more cost kinds.
+    if (CostKind != TTI::TCK_RecipThroughput)
+      return BaseT::getArithmeticInstrCost(Opcode, Ty, CostKind,
+                                           Opd1Info, Opd2Info,
+                                           Opd1PropInfo, Opd2PropInfo,
+                                           Args, CxtI);
+
     std::pair<unsigned, MVT> LT = TLI->getTypeLegalizationCost(DL, Ty);
 
     bool IsFloat = Ty->isFPOrFPVectorTy();
@@ -838,6 +845,10 @@ public:
     int ISD = TLI->InstructionOpcodeToISD(Opcode);
     assert(ISD && "Invalid opcode");
 
+    // TODO: Handle other cost kinds.
+    if (CostKind != TTI::TCK_RecipThroughput)
+      return BaseT::getCmpSelInstrCost(Opcode, ValTy, CondTy, CostKind, I);
+
     // Selects on vectors are actually vector selects.
     if (ISD == ISD::SELECT) {
       assert(CondTy && "CondTy must exist");
@@ -884,10 +895,15 @@ public:
                            TTI::TargetCostKind CostKind,
                            const Instruction *I = nullptr) {
     assert(!Src->isVoidTy() && "Invalid type");
+    // Assume types, such as structs, are expensive.
+    if (getTLI()->getValueType(DL, Src,  true) == MVT::Other)
+      return 4;
     std::pair<unsigned, MVT> LT = getTLI()->getTypeLegalizationCost(DL, Src);
 
     // Assuming that all loads of legal types cost 1.
     unsigned Cost = LT.first;
+    if (CostKind != TTI::TCK_RecipThroughput)
+      return Cost;
 
     if (Src->isVectorTy() &&
         Src->getPrimitiveSizeInBits() < LT.second.getSizeInBits()) {

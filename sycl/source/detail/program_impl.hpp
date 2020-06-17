@@ -240,7 +240,7 @@ public:
     return createSyclObjFromImpl<context>(MContext);
   }
 
-  // \return the Plugin associated withh the context of this program.
+  /// \return the Plugin associated with the context of this program.
   const plugin &getPlugin() const {
     assert(!is_host() && "Plugin is not available for Host.");
     return MContext->getPlugin();
@@ -343,8 +343,12 @@ private:
   ///
   /// \param Module is an OS handle to user code module.
   /// \param KernelName is a name of kernel to be created.
-  void create_pi_program_with_kernel_name(OSModuleHandle Module,
-                                          const string_class &KernelName);
+  /// \param JITCompilationIsRequired If JITCompilationIsRequired is true
+  ///        add a check that kernel is compiled, otherwise don't add the check.
+  void
+  create_pi_program_with_kernel_name(OSModuleHandle Module,
+                                     const string_class &KernelName,
+                                     bool JITCompilationIsRequired = false);
 
   /// Creates an OpenCL program from OpenCL C source code.
   ///

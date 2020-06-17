@@ -5,6 +5,8 @@
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
+//
+// XFAIL: windows && level0
 
 //==--------------------image_accessor_readwrite_half.cpp -------------------==//
 //==-image_accessor read (without sampler)& write API test for half datatype-==//

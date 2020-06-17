@@ -253,6 +253,12 @@ enum NodeType : unsigned {
   LDFF1,
   LDFF1S,
   LD1RQ,
+  LD1RO,
+
+  // Structured loads.
+  SVE_LD2,
+  SVE_LD3,
+  SVE_LD4,
 
   // Unsigned gather loads.
   GLD1,
@@ -407,9 +413,10 @@ public:
       MachineMemOperand::Flags Flags = MachineMemOperand::MONone,
       bool *Fast = nullptr) const override;
   /// LLT variant.
-  bool allowsMisalignedMemoryAccesses(
-    LLT Ty, unsigned AddrSpace, unsigned Align, MachineMemOperand::Flags Flags,
-    bool *Fast = nullptr) const override;
+  bool allowsMisalignedMemoryAccesses(LLT Ty, unsigned AddrSpace,
+                                      Align Alignment,
+                                      MachineMemOperand::Flags Flags,
+                                      bool *Fast = nullptr) const override;
 
   /// Provide custom lowering hooks for some operations.
   SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const override;
@@ -834,6 +841,8 @@ private:
   SDValue LowerWindowsDYNAMIC_STACKALLOC(SDValue Op, SDValue Chain,
                                          SDValue &Size,
                                          SelectionDAG &DAG) const;
+  SDValue LowerSVEStructLoad(unsigned Intrinsic, ArrayRef<SDValue> LoadOps,
+                             EVT VT, SelectionDAG &DAG, const SDLoc &DL) const;
 
   SDValue BuildSDIVPow2(SDNode *N, const APInt &Divisor, SelectionDAG &DAG,
                         SmallVectorImpl<SDNode *> &Created) const override;
@@ -888,6 +897,9 @@ private:
 
   void ReplaceNodeResults(SDNode *N, SmallVectorImpl<SDValue> &Results,
                           SelectionDAG &DAG) const override;
+  void ReplaceExtractSubVectorResults(SDNode *N,
+                                      SmallVectorImpl<SDValue> &Results,
+                                      SelectionDAG &DAG) const;
 
   bool shouldNormalizeToSelectSequence(LLVMContext &, EVT) const override;
 

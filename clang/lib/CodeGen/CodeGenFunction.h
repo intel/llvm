@@ -76,6 +76,8 @@ class ObjCAtTryStmt;
 class ObjCAtThrowStmt;
 class ObjCAtSynchronizedStmt;
 class ObjCAutoreleasePoolStmt;
+class OMPUseDevicePtrClause;
+class OMPUseDeviceAddrClause;
 class ReturnsNonNullAttr;
 class SVETypeFlags;
 
@@ -442,6 +444,10 @@ public:
   /// This is invalid if sret is not in use.
   Address ReturnValuePointer = Address::invalid();
 
+  /// If a return statement is being visited, this holds the return statment's
+  /// result expression.
+  const Expr *RetExpr = nullptr;
+
   /// Return true if a label was seen in the current scope.
   bool hasLabelBeenSeenInCurrentScope() const {
     if (CurLexicalScope)
@@ -646,9 +652,6 @@ public:
 
   unsigned NextCleanupDestIndex = 1;
 
-  /// FirstBlockInfo - The head of a singly-linked-list of block layouts.
-  CGBlockInfo *FirstBlockInfo = nullptr;
-
   /// EHResumeBlock - Unified block containing a call to llvm.eh.resume.
   llvm::BasicBlock *EHResumeBlock = nullptr;
 
@@ -673,10 +676,48 @@ public:
 
   llvm::BasicBlock *getInvokeDestImpl();
 
+  /// Parent loop-based directive for scan directive.
+  const OMPExecutableDirective *OMPParentLoopDirectiveForScan = nullptr;
+  llvm::BasicBlock *OMPBeforeScanBlock = nullptr;
+  llvm::BasicBlock *OMPAfterScanBlock = nullptr;
+  llvm::BasicBlock *OMPScanExitBlock = nullptr;
+  llvm::BasicBlock *OMPScanDispatch = nullptr;
+  bool OMPFirstScanLoop = false;
+
+  /// Manages parent directive for scan directives.
+  class ParentLoopDirectiveForScanRegion {
+    CodeGenFunction &CGF;
+    const OMPExecutableDirective *ParentLoopDirectiveForScan;
+
+  public:
+    ParentLoopDirectiveForScanRegion(
+        CodeGenFunction &CGF,
+        const OMPExecutableDirective &ParentLoopDirectiveForScan)
+        : CGF(CGF),
+          ParentLoopDirectiveForScan(CGF.OMPParentLoopDirectiveForScan) {
+      CGF.OMPParentLoopDirectiveForScan = &ParentLoopDirectiveForScan;
+    }
+    ~ParentLoopDirectiveForScanRegion() {
+      CGF.OMPParentLoopDirectiveForScan = ParentLoopDirectiveForScan;
+    }
+  };
+
   template <class T>
   typename DominatingValue<T>::saved_type saveValueInCond(T value) {
     return DominatingValue<T>::save(*this, value);
   }
+
+  class CGFPOptionsRAII {
+  public:
+    CGFPOptionsRAII(CodeGenFunction &CGF, FPOptions FPFeatures);
+    ~CGFPOptionsRAII();
+
+  private:
+    CodeGenFunction &CGF;
+    FPOptions OldFPFeatures;
+    Optional<CGBuilderTy::FastMathFlagGuard> FMFGuard;
+  };
+  FPOptions CurFPFeatures;
 
 public:
   /// ObjCEHValueStack - Stack of Objective-C exception values, used for
@@ -1885,7 +1926,6 @@ public:
   /// information about the block, including the block invoke function, the
   /// captured variables, etc.
   llvm::Value *EmitBlockLiteral(const BlockExpr *);
-  static void destroyBlockInfos(CGBlockInfo *info);
 
   llvm::Function *GenerateBlockFunction(GlobalDecl GD,
                                         const CGBlockInfo &Info,
@@ -3147,7 +3187,10 @@ public:
   void EmitOMPPrivateClause(const OMPExecutableDirective &D,
                             OMPPrivateScope &PrivateScope);
   void EmitOMPUseDevicePtrClause(
-      const OMPClause &C, OMPPrivateScope &PrivateScope,
+      const OMPUseDevicePtrClause &C, OMPPrivateScope &PrivateScope,
+      const llvm::DenseMap<const ValueDecl *, Address> &CaptureDeviceAddrMap);
+  void EmitOMPUseDeviceAddrClause(
+      const OMPUseDeviceAddrClause &C, OMPPrivateScope &PrivateScope,
       const llvm::DenseMap<const ValueDecl *, Address> &CaptureDeviceAddrMap);
   /// Emit code for copyin clause in \a D directive. The next code is
   /// generated at the start of outlined functions for directives:
@@ -3201,7 +3244,8 @@ public:
   /// proper codegen in internal captured statement.
   ///
   void EmitOMPReductionClauseInit(const OMPExecutableDirective &D,
-                                  OMPPrivateScope &PrivateScope);
+                                  OMPPrivateScope &PrivateScope,
+                                  bool ForInscan = false);
   /// Emit final update of reduction values to original variables at
   /// the end of the directive.
   ///
@@ -3260,6 +3304,7 @@ public:
   void EmitOMPTaskgroupDirective(const OMPTaskgroupDirective &S);
   void EmitOMPFlushDirective(const OMPFlushDirective &S);
   void EmitOMPDepobjDirective(const OMPDepobjDirective &S);
+  void EmitOMPScanDirective(const OMPScanDirective &S);
   void EmitOMPOrderedDirective(const OMPOrderedDirective &S);
   void EmitOMPAtomicDirective(const OMPAtomicDirective &S);
   void EmitOMPTargetDirective(const OMPTargetDirective &S);
@@ -3361,8 +3406,8 @@ public:
   /// \param PostIncGen Genrator for post-increment code (required for ordered
   /// loop directvies).
   void EmitOMPInnerLoop(
-      const Stmt &S, bool RequiresCleanup, const Expr *LoopCond,
-      const Expr *IncExpr,
+      const OMPExecutableDirective &S, bool RequiresCleanup,
+      const Expr *LoopCond, const Expr *IncExpr,
       const llvm::function_ref<void(CodeGenFunction &)> BodyGen,
       const llvm::function_ref<void(CodeGenFunction &)> PostIncGen);
 
@@ -3628,6 +3673,7 @@ public:
   LValue EmitUnaryOpLValue(const UnaryOperator *E);
   LValue EmitArraySubscriptExpr(const ArraySubscriptExpr *E,
                                 bool Accessed = false);
+  LValue EmitMatrixSubscriptExpr(const MatrixSubscriptExpr *E);
   LValue EmitOMPArraySectionExpr(const OMPArraySectionExpr *E,
                                  bool IsLowerBound = true);
   LValue EmitExtVectorElementExpr(const ExtVectorElementExpr *E);
@@ -3959,6 +4005,9 @@ public:
   llvm::Value *EmitWebAssemblyBuiltinExpr(unsigned BuiltinID,
                                           const CallExpr *E);
   llvm::Value *EmitHexagonBuiltinExpr(unsigned BuiltinID, const CallExpr *E);
+  bool ProcessOrderScopeAMDGCN(llvm::Value *Order, llvm::Value *Scope,
+                               llvm::AtomicOrdering &AO,
+                               llvm::SyncScope::ID &SSID);
 
   RValue EmitIntelFPGARegBuiltin(const CallExpr *E,
                                  ReturnValueSlot ReturnValue);
@@ -4182,14 +4231,6 @@ public:
 
   void EmitSynthesizedCXXCopyCtor(Address Dest, Address Src, const Expr *Exp);
 
-  void enterFullExpression(const FullExpr *E) {
-    if (const auto *EWC = dyn_cast<ExprWithCleanups>(E))
-      if (EWC->getNumObjects() == 0)
-        return;
-    enterNonTrivialFullExpression(E);
-  }
-  void enterNonTrivialFullExpression(const FullExpr *E);
-
   void EmitCXXThrowExpr(const CXXThrowExpr *E, bool KeepInsertionPoint = true);
 
   RValue EmitAtomicExpr(AtomicExpr *E);
@@ -4350,6 +4391,9 @@ public:
 
   /// SetFPModel - Control floating point behavior via fp-model settings.
   void SetFPModel();
+
+  /// Set the codegen fast-math flags.
+  void SetFastMathFlags(FPOptions FPFeatures);
 
 private:
   llvm::MDNode *getRangeForLoadFromType(QualType Ty);

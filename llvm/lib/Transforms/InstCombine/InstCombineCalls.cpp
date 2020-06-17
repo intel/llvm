@@ -4529,7 +4529,7 @@ static void annotateAnyAllocSite(CallBase &Call, const TargetLibraryInfo *TLI) {
                       Attribute::getWithDereferenceableOrNullBytes(
                           Call.getContext(), Op1C->getZExtValue()));
     // Add alignment attribute if alignment is a power of two constant.
-    if (Op0C) {
+    if (Op0C && Op0C->getValue().ult(llvm::Value::MaximumAlignment)) {
       uint64_t AlignmentVal = Op0C->getZExtValue();
       if (llvm::isPowerOf2_64(AlignmentVal))
         Call.addAttribute(AttributeList::ReturnIndex,
@@ -4955,11 +4955,8 @@ bool InstCombiner::transformConstExprCastCall(CallBase &Call) {
   NewCall->setCallingConv(Call.getCallingConv());
   NewCall->setAttributes(NewCallerPAL);
 
-  // Preserve the weight metadata for the new call instruction. The metadata
-  // is used by SamplePGO to check callsite's hotness.
-  uint64_t W;
-  if (Caller->extractProfTotalWeight(W))
-    NewCall->setProfWeight(W);
+  // Preserve prof metadata if any.
+  NewCall->copyMetadata(*Caller, {LLVMContext::MD_prof});
 
   // Insert a cast of the return type as necessary.
   Instruction *NC = NewCall;

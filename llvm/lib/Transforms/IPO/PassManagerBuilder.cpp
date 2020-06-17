@@ -100,8 +100,8 @@ static cl::opt<bool>
     EnablePerformThinLTO("perform-thinlto", cl::init(false), cl::Hidden,
                          cl::desc("Enable performing ThinLTO."));
 
-cl::opt<bool> EnableHotColdSplit("hot-cold-split", cl::init(false), cl::Hidden,
-    cl::desc("Enable hot-cold splitting pass"));
+cl::opt<bool> EnableHotColdSplit("hot-cold-split", cl::init(false),
+    cl::ZeroOrMore, cl::desc("Enable hot-cold splitting pass"));
 
 static cl::opt<bool> UseLoopVersioningLICM(
     "enable-loop-versioning-licm", cl::init(false), cl::Hidden,
@@ -117,7 +117,7 @@ static cl::opt<int> PreInlineThreshold(
              "(default = 75)"));
 
 static cl::opt<bool> EnableGVNHoist(
-    "enable-gvn-hoist", cl::init(false), cl::Hidden,
+    "enable-gvn-hoist", cl::init(false), cl::ZeroOrMore,
     cl::desc("Enable the GVN hoisting pass (default = off)"));
 
 static cl::opt<bool>
@@ -131,7 +131,7 @@ static cl::opt<bool> EnableSimpleLoopUnswitch(
              "cleanup passes integrated into the loop pass manager pipeline."));
 
 static cl::opt<bool> EnableGVNSink(
-    "enable-gvn-sink", cl::init(false), cl::Hidden,
+    "enable-gvn-sink", cl::init(false), cl::ZeroOrMore,
     cl::desc("Enable the GVN sinking pass (default = off)"));
 
 // This option is used in simplifying testing SampleFDO optimizations for
@@ -759,6 +759,7 @@ void PassManagerBuilder::populateModulePassManager(
     // common computations, hoist loop-invariant aspects out of any outer loop,
     // and unswitch the runtime checks if possible. Once hoisted, we may have
     // dead (or speculatable) control flows or more combining opportunities.
+    MPM.add(createEarlyCSEPass());
     MPM.add(createCorrelatedValuePropagationPass());
     MPM.add(createInstructionCombiningPass());
     MPM.add(createLICMPass(LicmMssaOptCap, LicmMssaNoAccForPromotionCap));

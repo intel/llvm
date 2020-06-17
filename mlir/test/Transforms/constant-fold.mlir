@@ -382,7 +382,8 @@ func @muli_splat_vector() -> vector<4xi32> {
 func @dim(%x : tensor<8x4xf32>) -> index {
 
   // CHECK:[[C4:%.+]] = constant 4 : index
-  %0 = dim %x, 1 : tensor<8x4xf32>
+  %c1 = constant 1 : index
+  %0 = dim %x, %c1 : tensor<8x4xf32>
 
   // CHECK-NEXT: return [[C4]]
   return %0 : index
@@ -394,8 +395,8 @@ func @dim(%x : tensor<8x4xf32>) -> index {
 func @cmpi() -> (i1, i1, i1, i1, i1, i1, i1, i1, i1, i1) {
   %c42 = constant 42 : i32
   %cm1 = constant -1 : i32
-  // CHECK-DAG: [[F:%.+]] = constant 0 : i1
-  // CHECK-DAG: [[T:%.+]] = constant 1 : i1
+  // CHECK-DAG: [[F:%.+]] = constant false
+  // CHECK-DAG: [[T:%.+]] = constant true
   // CHECK-NEXT: return [[F]],
   %0 = cmpi "eq", %c42, %cm1 : i32
   // CHECK-SAME: [[T]],
@@ -425,8 +426,8 @@ func @cmpi() -> (i1, i1, i1, i1, i1, i1, i1, i1, i1, i1) {
 func @cmpf_normal_numbers() -> (i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1) {
   %c42 = constant 42. : f32
   %cm1 = constant -1. : f32
-  // CHECK-DAG: [[F:%.+]] = constant 0 : i1
-  // CHECK-DAG: [[T:%.+]] = constant 1 : i1
+  // CHECK-DAG: [[F:%.+]] = constant false
+  // CHECK-DAG: [[T:%.+]] = constant true
   // CHECK-NEXT: return [[F]],
   %0 = cmpf "false", %c42, %cm1 : f32
   // CHECK-SAME: [[F]],
@@ -468,8 +469,8 @@ func @cmpf_normal_numbers() -> (i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, 
 func @cmpf_nan() -> (i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1) {
   %c42 = constant 42. : f32
   %cqnan = constant 0xFFFFFFFF : f32
-  // CHECK-DAG: [[F:%.+]] = constant 0 : i1
-  // CHECK-DAG: [[T:%.+]] = constant 1 : i1
+  // CHECK-DAG: [[F:%.+]] = constant false
+  // CHECK-DAG: [[T:%.+]] = constant true
   // CHECK-NEXT: return [[F]],
   %0 = cmpf "false", %c42, %cqnan : f32
   // CHECK-SAME: [[F]]
@@ -511,8 +512,8 @@ func @cmpf_nan() -> (i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1,
 func @cmpf_inf() -> (i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1) {
   %c42 = constant 42. : f32
   %cpinf = constant 0x7F800000 : f32
-  // CHECK-DAG: [[F:%.+]] = constant 0 : i1
-  // CHECK-DAG: [[T:%.+]] = constant 1 : i1
+  // CHECK-DAG: [[F:%.+]] = constant false
+  // CHECK-DAG: [[T:%.+]] = constant true
   // CHECK-NEXT: return [[F]],
   %0 = cmpf "false", %c42, %cpinf: f32
   // CHECK-SAME: [[F]]

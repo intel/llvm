@@ -175,7 +175,6 @@ entry:
 define void @NonConstantOffset(i1 zeroext %z) {
 ; CHECK-LABEL: @NonConstantOffset dso_preemptable{{$}}
 ; CHECK-NEXT: args uses:
-; CHECK-NEXT: z[]: full-set{{$}}
 ; CHECK-NEXT: allocas uses:
 ; FIXME: SCEV can't look through selects.
 ; CHECK-NEXT: x[4]: [-4,4){{$}}
@@ -205,7 +204,6 @@ entry:
 define void @PossiblyNegativeOffset(i16 %z) {
 ; CHECK-LABEL: @PossiblyNegativeOffset dso_preemptable{{$}}
 ; CHECK-NEXT: args uses:
-; CHECK-NEXT: z[]: full-set
 ; CHECK-NEXT: allocas uses:
 ; CHECK-NEXT: x[40]: [-131072,131072){{$}}
 ; CHECK-NOT: ]:
@@ -219,7 +217,6 @@ entry:
 define void @NonConstantOffsetOOB(i1 zeroext %z) {
 ; CHECK-LABEL: @NonConstantOffsetOOB dso_preemptable{{$}}
 ; CHECK-NEXT: args uses:
-; CHECK-NEXT: z[]: full-set{{$}}
 ; CHECK-NEXT: allocas uses:
 ; CHECK-NEXT: x[4]: [-8,8){{$}}
 ; CHECK-NOT: ]:
@@ -265,7 +262,6 @@ entry:
 define void @DynamicAllocaUnused(i64 %size) {
 ; CHECK-LABEL: @DynamicAllocaUnused dso_preemptable{{$}}
 ; CHECK-NEXT: args uses:
-; CHECK-NEXT: size[]: empty-set{{$}}
 ; CHECK-NEXT: allocas uses:
 ; CHECK-NEXT: x[0]: empty-set{{$}}
 ; CHECK-NOT: ]:
@@ -278,7 +274,6 @@ entry:
 define void @DynamicAlloca(i64 %size) {
 ; CHECK-LABEL: @DynamicAlloca dso_preemptable{{$}}
 ; CHECK-NEXT: args uses:
-; CHECK-NEXT: size[]: [-9223372036854775808,9223372036854775796){{$}}
 ; CHECK-NEXT: allocas uses:
 ; CHECK-NEXT: x[0]: [0,4){{$}}
 ; CHECK-NOT: ]:
@@ -293,7 +288,6 @@ entry:
 define void @DynamicAllocaFiniteSizeRange(i1 zeroext %z) {
 ; CHECK-LABEL: @DynamicAllocaFiniteSizeRange dso_preemptable{{$}}
 ; CHECK-NEXT: args uses:
-; CHECK-NEXT: z[]: [-9223372036854775808,9223372036854775796){{$}}
 ; CHECK-NEXT: allocas uses:
 ; CHECK-NEXT: x[0]: [0,4){{$}}
 ; CHECK-NOT: ]:
@@ -359,7 +353,6 @@ for.cond.cleanup:
 define dso_local void @SizeCheck(i32 %sz) {
 ; CHECK-LABEL: @SizeCheck{{$}}
 ; CHECK-NEXT: args uses:
-; CHECK-NEXT: sz[]: empty-set{{$}}
 ; CHECK-NEXT: allocas uses:
 ; CHECK-NEXT: x1[128]: [0,4294967295){{$}}
 ; CHECK-NOT: ]:
@@ -384,7 +377,6 @@ define void @Scalable(<vscale x 4 x i32>* %p, <vscale x 4 x i32>* %unused, <vsca
 ; CHECK-NEXT: args uses:
 ; CHECK-NEXT:   p[]: full-set
 ; CHECK-NEXT:   unused[]: empty-set
-; CHECK-NEXT:   v[]: full-set
 ; CHECK-NEXT: allocas uses:
 ; CHECK-NEXT:   x[0]: [0,1){{$}}
 ; CHECK-NOT: ]:
@@ -422,5 +414,74 @@ define void @OperandBundle() {
 entry:
   %a = alloca i32, align 4
   call void @LeakAddress() ["unknown"(i32* %a)]
+  ret void
+}
+
+define void @ByVal(i16* byval %p) {
+  ; CHECK-LABEL: @ByVal dso_preemptable{{$}}
+  ; CHECK-NEXT: args uses:
+  ; CHECK-NEXT: allocas uses:
+  ; CHECK-NOT: ]:
+entry:
+  ret void
+}
+
+define void @TestByVal() {
+; CHECK-LABEL: @TestByVal dso_preemptable{{$}}
+; CHECK-NEXT: args uses:
+; CHECK-NEXT: allocas uses:
+; CHECK-NEXT: x[2]: [0,2)
+; CHECK-NEXT: y[8]: [0,2)
+; CHECK-NOT: ]:
+entry:
+  %x = alloca i16, align 4
+  call void @ByVal(i16* byval %x)
+
+  %y = alloca i64, align 4
+  %y1 = bitcast i64* %y to i16*
+  call void @ByVal(i16* byval %y1)
+  
+  ret void
+}
+
+declare void @ByValArray([100000 x i64]* byval %p)
+
+define void @TestByValArray() {
+; CHECK-LABEL: @TestByValArray dso_preemptable{{$}}
+; CHECK-NEXT: args uses:
+; CHECK-NEXT: allocas uses:
+; CHECK-NEXT: z[800000]: [500000,1300000)
+; CHECK-NOT: ]:
+entry:
+  %z = alloca [100000 x i64], align 4
+  %z1 = bitcast [100000 x i64]* %z to i8*
+  %z2 = getelementptr i8, i8* %z1, i64 500000
+  %z3 = bitcast i8* %z2 to [100000 x i64]*
+  call void @ByValArray([100000 x i64]* byval %z3)
+  ret void
+}
+
+define dso_local i8 @LoadMinInt64(i8* %p) {
+  ; CHECK-LABEL: @LoadMinInt64{{$}}
+  ; CHECK-NEXT: args uses:
+  ; CHECK-NEXT: p[]: [-9223372036854775808,-9223372036854775807){{$}}
+  ; CHECK-NEXT: allocas uses:
+  ; CHECK-NOT: ]:
+  %p2 = getelementptr i8, i8* %p, i64 -9223372036854775808
+  %v = load i8, i8* %p2, align 1
+  ret i8 %v
+}
+
+define void @Overflow() {
+; CHECK-LABEL: @Overflow dso_preemptable{{$}}
+; CHECK-NEXT: args uses:
+; CHECK-NEXT: allocas uses:
+; LOCAL: x[1]: empty-set, @LoadMinInt64(arg0, [-9223372036854775808,-9223372036854775807)){{$}}
+; GLOBAL: x[1]: full-set, @LoadMinInt64(arg0, [-9223372036854775808,-9223372036854775807)){{$}}
+; CHECK-NOT: ]:
+entry:
+  %x = alloca i8, align 4
+  %x2 = getelementptr i8, i8* %x, i64 -9223372036854775808
+  %v = call i8 @LoadMinInt64(i8* %x2)
   ret void
 }
