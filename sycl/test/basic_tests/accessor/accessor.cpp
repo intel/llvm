@@ -509,7 +509,7 @@ int main() {
 
         sycl::queue queue;
         queue.submit([&](sycl::handler &cgh) {
-#ifdef simplification_test
+#ifndef simplification_test
           sycl::accessor<int, 1, sycl::access::mode::write,
                          sycl::access::target::global_buffer>
               D(d, cgh);
@@ -545,7 +545,7 @@ int main() {
         sycl::buffer<int, 1> d(&data, sycl::range<1>(1));
         sycl::buffer<int, 1> c(&cnst, sycl::range<1>(1));
 
-#ifdef simplification_test
+#ifndef simplification_test
         sycl::accessor<int, 1, sycl::access::mode::write,
                        sycl::access::target::global_buffer,
                        sycl::access::placeholder::true_t>
