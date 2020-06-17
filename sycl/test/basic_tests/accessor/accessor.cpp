@@ -526,7 +526,12 @@ int main() {
           });
         });
 
-        assert(data == 399);
+#ifndef simplification_test
+        auto host_acc = d.get_access<sycl::access::mode::read>();
+#else
+        sycl::host_accessor host_acc(d, sycl::read_only);
+#endif
+        assert(host_acc[0] == 399);
       }
 
     } catch (sycl::exception e) {
@@ -569,7 +574,12 @@ int main() {
           });
         });
 
-        assert(data == 399);
+#ifndef simplification_test
+        auto host_acc = d.get_access<sycl::access::mode::read>();
+#else
+        sycl::host_accessor host_acc(d, sycl::read_only);
+#endif
+        assert(host_acc[0] == 399);
       }
 
     } catch (sycl::exception e) {
