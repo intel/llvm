@@ -141,9 +141,8 @@ AtomicCompareExchange(multi_ptr<T, AddressSpace> MPtr,
           MPtr.get());
   I DesiredInt = detail::bit_cast<I>(Desired);
   I ExpectedInt = detail::bit_cast<I>(Expected);
-  I ResultInt =
-      __spirv_AtomicCompareExchange(PtrInt, SPIRVScope, SPIRVSuccess,
-                                    SPIRVFailure, DesiredInt, ExpectedInt);
+  I ResultInt = __spirv_AtomicCompareExchange(
+      PtrInt, SPIRVScope, SPIRVSuccess, SPIRVFailure, DesiredInt, ExpectedInt);
   return detail::bit_cast<T>(ResultInt);
 }
 
