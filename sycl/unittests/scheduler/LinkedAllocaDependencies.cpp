@@ -55,8 +55,8 @@ TEST_F(SchedulerTest, LinkedAllocaDependencies) {
       detail::QueueOrder::Ordered, /*PropList=*/{}));
 
   std::shared_ptr<cl::sycl::detail::MemObjRecord> Record{
-      new cl::sycl::detail::MemObjRecord(
-          DefaultHostQueue->getContextImplPtr(), 10)};
+      new cl::sycl::detail::MemObjRecord(DefaultHostQueue->getContextImplPtr(),
+                                         10)};
 
   MemObjMock MemObj(Record);
   Req.MSYCLMemObj = &MemObj;
