@@ -20,7 +20,7 @@ public:
     MRecord = Record;
   }
 
-  ~MemObjMock(){};
+  ~MemObjMock() = default;
 
   MemObjType getType() const override { return MemObjType::BUFFER; }
 
