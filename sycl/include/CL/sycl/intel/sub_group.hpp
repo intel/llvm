@@ -158,7 +158,7 @@ struct sub_group {
 
   linear_id_type get_local_linear_id() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return static_cast<linear_id_type>(get_local_id());
+    return static_cast<linear_id_type>(get_local_id()[0]);
 #else
     throw runtime_error("Sub-groups are not supported on host device.",
                         PI_INVALID_DEVICE);
@@ -194,7 +194,7 @@ struct sub_group {
 
   linear_id_type get_group_linear_id() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return static_cast<linear_id_type>(get_group_id());
+    return static_cast<linear_id_type>(get_group_id()[0]);
 #else
     throw runtime_error("Sub-groups are not supported on host device.",
                         PI_INVALID_DEVICE);
