@@ -234,6 +234,7 @@ def int_amdgcn_div_fixup : Intrinsic<[llvm_anyfloat_ty],
   [IntrNoMem, IntrSpeculatable]
 >;
 
+// Look Up 2.0 / pi src0 with segment select src1[4:0]
 def int_amdgcn_trig_preop : Intrinsic<
   [llvm_anyfloat_ty], [LLVMMatchType<0>, llvm_i32_ty],
   [IntrNoMem, IntrSpeculatable]
@@ -765,6 +766,11 @@ defset list<AMDGPUImageDimIntrinsic> AMDGPUImageDimIntrinsics = {
               "STORE_MIP", [], [AMDGPUArg<llvm_anyfloat_ty, "vdata">],
               [IntrWriteMem], [SDNPMemOperand], 1>;
 
+  defm int_amdgcn_image_msaa_load
+    : AMDGPUImageDimIntrinsicsAll<"MSAA_LOAD", [llvm_any_ty], [], [IntrReadMem],
+                                  [SDNPMemOperand]>,
+      AMDGPUImageDMaskIntrinsic;
+
   //////////////////////////////////////////////////////////////////////////
   // sample and getlod intrinsics
   //////////////////////////////////////////////////////////////////////////
@@ -1142,6 +1148,7 @@ def int_amdgcn_buffer_atomic_cmpswap : Intrinsic<
   [ImmArg<ArgIndex<5>>], "", [SDNPMemOperand]>,
   AMDGPURsrcIntrinsic<2, 0>;
 
+def int_amdgcn_buffer_atomic_csub : AMDGPUBufferAtomic;
 } // defset AMDGPUBufferIntrinsics
 
 // Uses that do not set the done bit should set IntrWriteMem on the
@@ -1602,6 +1609,14 @@ def int_amdgcn_mov_dpp8 :
 def int_amdgcn_s_get_waveid_in_workgroup :
   GCCBuiltin<"__builtin_amdgcn_s_get_waveid_in_workgroup">,
   Intrinsic<[llvm_i32_ty], [], [IntrReadMem, IntrInaccessibleMemOnly]>;
+
+class AMDGPUGlobalAtomicRtn<LLVMType vt> : Intrinsic <
+  [vt],
+  [llvm_anyptr_ty,    // vaddr
+   vt],               // vdata(VGPR)
+  [IntrArgMemOnly, NoCapture<ArgIndex<0>>], "", [SDNPMemOperand]>;
+
+def int_amdgcn_global_atomic_csub : AMDGPUGlobalAtomicRtn<llvm_i32_ty>;
 
 //===----------------------------------------------------------------------===//
 // Deep learning intrinsics.

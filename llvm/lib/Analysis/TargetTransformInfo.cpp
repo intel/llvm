@@ -313,9 +313,8 @@ bool TargetTransformInfo::preferPredicateOverEpilogue(
   return TTIImpl->preferPredicateOverEpilogue(L, LI, SE, AC, TLI, DT, LAI);
 }
 
-bool TargetTransformInfo::emitGetActiveLaneMask(Loop *L, LoopInfo *LI,
-    ScalarEvolution &SE, bool TailFolded) const {
-  return TTIImpl->emitGetActiveLaneMask(L, LI, SE, TailFolded);
+bool TargetTransformInfo::emitGetActiveLaneMask() const {
+  return TTIImpl->emitGetActiveLaneMask();
 }
 
 void TargetTransformInfo::getUnrollingPreferences(
@@ -1225,13 +1224,9 @@ int TargetTransformInfo::getInstructionThroughput(const Instruction *I) const {
 
   switch (I->getOpcode()) {
   case Instruction::GetElementPtr:
-    return getUserCost(I, CostKind);
-
   case Instruction::Ret:
   case Instruction::PHI:
-  case Instruction::Br: {
-    return getCFInstrCost(I->getOpcode(), CostKind);
-  }
+  case Instruction::Br:
   case Instruction::Add:
   case Instruction::FAdd:
   case Instruction::Sub:
@@ -1251,7 +1246,6 @@ int TargetTransformInfo::getInstructionThroughput(const Instruction *I) const {
   case Instruction::Or:
   case Instruction::Xor:
   case Instruction::FNeg:
-    return getUserCost(I, CostKind);
   case Instruction::Select:
   case Instruction::ICmp:
   case Instruction::FCmp:
