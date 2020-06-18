@@ -126,7 +126,7 @@ struct sub_group {
 
   using id_type = id<1>;
   using range_type = range<1>;
-  using linear_id_type = size_t;
+  using linear_id_type = uint32_t;
   static constexpr int dimensions = 1;
 
   /* --- common interface members --- */
@@ -144,88 +144,10 @@ struct sub_group {
 
   unsigned int get_group_range() const { return __spirv_BuiltInNumSubgroups; }
 
-  unsigned int get_uniform_group_range() const {
-    return __spirv_BuiltInNumEnqueuedSubgroups;
-  }
-
-  /* --- vote / ballot functions --- */
-
-  __SYCL_EXPORT_DEPRECATED("Use sycl::intel::any_of instead.")
-  bool any(bool predicate) const {
-    return __spirv_GroupAny(__spv::Scope::Subgroup, predicate);
-  }
-
-  __SYCL_EXPORT_DEPRECATED("Use sycl::intel::all_of instead.")
-  bool all(bool predicate) const {
-    return __spirv_GroupAll(__spv::Scope::Subgroup, predicate);
-  }
-
   template <typename T>
   using EnableIfIsScalarArithmetic =
       sycl::detail::enable_if_t<sycl::detail::is_scalar_arithmetic<T>::value,
                                 T>;
-
-  /* --- collectives --- */
-
-  template <typename T>
-  __SYCL_EXPORT_DEPRECATED("Use sycl::intel::broadcast instead.")
-  EnableIfIsScalarArithmetic<T> broadcast(T x, id<1> local_id) const {
-    return sycl::detail::spirv::GroupBroadcast<sub_group>(x, local_id);
-  }
-
-  template <typename T, class BinaryOperation>
-  __SYCL_EXPORT_DEPRECATED("Use sycl::intel::reduce instead.")
-  EnableIfIsScalarArithmetic<T> reduce(T x, BinaryOperation op) const {
-    return sycl::detail::calc<T, __spv::GroupOperation::Reduce,
-                              __spv::Scope::Subgroup>(
-        typename sycl::detail::GroupOpTag<T>::type(), x, op);
-  }
-
-  template <typename T, class BinaryOperation>
-  __SYCL_EXPORT_DEPRECATED("Use sycl::intel::reduce instead.")
-  EnableIfIsScalarArithmetic<T> reduce(T x, T init, BinaryOperation op) const {
-    return op(init, reduce(x, op));
-  }
-
-  template <typename T, class BinaryOperation>
-  __SYCL_EXPORT_DEPRECATED("Use sycl::intel::exclusive_scan instead.")
-  EnableIfIsScalarArithmetic<T> exclusive_scan(T x, BinaryOperation op) const {
-    return sycl::detail::calc<T, __spv::GroupOperation::ExclusiveScan,
-                              __spv::Scope::Subgroup>(
-        typename sycl::detail::GroupOpTag<T>::type(), x, op);
-  }
-
-  template <typename T, class BinaryOperation>
-  __SYCL_EXPORT_DEPRECATED("Use sycl::intel::exclusive_scan instead.")
-  EnableIfIsScalarArithmetic<T> exclusive_scan(T x, T init,
-                                               BinaryOperation op) const {
-    if (get_local_id().get(0) == 0) {
-      x = op(init, x);
-    }
-    T scan = exclusive_scan(x, op);
-    if (get_local_id().get(0) == 0) {
-      scan = init;
-    }
-    return scan;
-  }
-
-  template <typename T, class BinaryOperation>
-  __SYCL_EXPORT_DEPRECATED("Use sycl::intel::inclusive_scan instead.")
-  EnableIfIsScalarArithmetic<T> inclusive_scan(T x, BinaryOperation op) const {
-    return sycl::detail::calc<T, __spv::GroupOperation::InclusiveScan,
-                              __spv::Scope::Subgroup>(
-        typename sycl::detail::GroupOpTag<T>::type(), x, op);
-  }
-
-  template <typename T, class BinaryOperation>
-  __SYCL_EXPORT_DEPRECATED("Use sycl::intel::inclusive_scan instead.")
-  EnableIfIsScalarArithmetic<T> inclusive_scan(T x, BinaryOperation op,
-                                               T init) const {
-    if (get_local_id().get(0) == 0) {
-      x = op(init, x);
-    }
-    return inclusive_scan(x, op);
-  }
 
   /* --- one-input shuffles --- */
   /* indices in [0 , sub_group size) */
@@ -249,17 +171,21 @@ struct sub_group {
   /* --- two-input shuffles --- */
   /* indices in [0 , 2 * sub_group size) */
 
-  template <typename T> T shuffle(T x, T y, id<1> local_id) const {
+  template <typename T>
+  __SYCL_EXPORT_DEPRECATED("Two-input sub-group shuffles are deprecated.")
+  T shuffle(T x, T y, id<1> local_id) const {
     return sycl::detail::sub_group::shuffle_down(
         x, y, (local_id - get_local_id()).get(0));
   }
 
   template <typename T>
+  __SYCL_EXPORT_DEPRECATED("Two-input sub-group shuffles are deprecated.")
   T shuffle_down(T current, T next, uint32_t delta) const {
     return sycl::detail::sub_group::shuffle_down(current, next, delta);
   }
 
   template <typename T>
+  __SYCL_EXPORT_DEPRECATED("Two-input sub-group shuffles are deprecated.")
   T shuffle_up(T previous, T current, uint32_t delta) const {
     return sycl::detail::sub_group::shuffle_up(previous, current, delta);
   }
