@@ -103,7 +103,8 @@ static cl::opt<SpecConstMode> SpecConstLower{
         clEnumValN(SC_USE_DEFAULT_VAL, "default",
                    "set spec constants to C++ defaults")),
     cl::cat(PostLinkCat)};
-
+// Please update DeviceLibFuncMap if any item is added to or removed from
+// fallback device libraries in libdevice.
 static std::map<std::string, uint32_t> DeviceLibFuncMap = {
     {"__devicelib_acosf", 0x2},     {"__devicelib_acoshf", 0x2},
     {"__devicelib_asinf", 0x2},     {"__devicelib_asinhf", 0x2},
