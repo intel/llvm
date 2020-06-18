@@ -46,8 +46,8 @@ enum class address_space : int {
   global_space,
   constant_space,
   local_space,
-  device_space = 11,
-  host_space = 12
+  device_space,
+  host_space
 };
 
 } // namespace access
