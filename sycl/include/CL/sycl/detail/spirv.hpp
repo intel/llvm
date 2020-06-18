@@ -290,6 +290,7 @@ AtomicMax(multi_ptr<T, AddressSpace> MPtr, intel::memory_scope Scope,
   return __spirv_AtomicMax(Ptr, SPIRVScope, SPIRVOrder, Value);
 }
 
+// Native shuffles map directly to a SPIR-V SubgroupShuffle intrinsic
 template <typename T>
 using EnableIfNativeShuffle =
     detail::enable_if_t<detail::is_arithmetic<T>::value, T>;
@@ -320,6 +321,58 @@ EnableIfNativeShuffle<T> SubgroupShuffleUp(T x, T y, id<1> local_id) {
   using OCLT = detail::ConvertToOpenCLType_t<T>;
   return __spirv_SubgroupShuffleUpINTEL(OCLT(x), OCLT(y),
                                         static_cast<uint32_t>(local_id.get(0)));
+}
+
+// Bitcast shuffles can be implemented using a single SPIR-V SubgroupShuffle
+// intrinsic, but require type-punning via an appropriate integer type
+template <typename T>
+using EnableIfBitcastShuffle =
+    detail::enable_if_t<!detail::is_arithmetic<T>::value &&
+                            (std::is_trivially_copyable<T>::value &&
+                             (sizeof(T) == 1 || sizeof(T) == 2 ||
+                              sizeof(T) == 4 || sizeof(T) == 8)),
+                        T>;
+
+template <typename T>
+using ConvertToNativeShuffleType_t =
+    select_apply_cl_scalar_t<T, uint8_t, uint16_t, uint32_t, uint64_t>;
+
+template <typename T>
+EnableIfBitcastShuffle<T> SubgroupShuffle(T x, id<1> local_id) {
+  using ShuffleT = ConvertToNativeShuffleType_t<T>;
+  auto ShuffleX = detail::bit_cast<ShuffleT>(x);
+  ShuffleT Result = __spirv_SubgroupShuffleINTEL(
+      ShuffleX, static_cast<uint32_t>(local_id.get(0)));
+  return detail::bit_cast<T>(Result);
+}
+
+template <typename T>
+EnableIfBitcastShuffle<T> SubgroupShuffleXor(T x, id<1> local_id) {
+  using ShuffleT = ConvertToNativeShuffleType_t<T>;
+  auto ShuffleX = detail::bit_cast<ShuffleT>(x);
+  ShuffleT Result = __spirv_SubgroupShuffleXorINTEL(
+      ShuffleX, static_cast<uint32_t>(local_id.get(0)));
+  return detail::bit_cast<T>(Result);
+}
+
+template <typename T>
+EnableIfBitcastShuffle<T> SubgroupShuffleDown(T x, T y, id<1> local_id) {
+  using ShuffleT = ConvertToNativeShuffleType_t<T>;
+  auto ShuffleX = detail::bit_cast<ShuffleT>(x);
+  auto ShuffleY = detail::bit_cast<ShuffleT>(y);
+  ShuffleT Result = __spirv_SubgroupShuffleDownINTEL(
+      ShuffleX, ShuffleY, static_cast<uint32_t>(local_id.get(0)));
+  return detail::bit_cast<T>(Result);
+}
+
+template <typename T>
+EnableIfBitcastShuffle<T> SubgroupShuffleUp(T x, T y, id<1> local_id) {
+  using ShuffleT = ConvertToNativeShuffleType_t<T>;
+  auto ShuffleX = detail::bit_cast<ShuffleT>(x);
+  auto ShuffleY = detail::bit_cast<ShuffleT>(y);
+  ShuffleT Result = __spirv_SubgroupShuffleUpINTEL(
+      ShuffleX, ShuffleY, static_cast<uint32_t>(local_id.get(0)));
+  return detail::bit_cast<T>(Result);
 }
 
 } // namespace spirv
