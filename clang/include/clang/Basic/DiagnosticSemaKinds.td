@@ -10892,8 +10892,25 @@ def err_ivdep_declrefexpr_arg : Error<
 def warn_ivdep_redundant : Warning <"ignoring redundant Intel FPGA loop "
   "attribute 'ivdep': safelen %select{INF|%1}0 >= safelen %select{INF|%3}2">,
   InGroup<IgnoredAttributes>;
-def err_builtin_matrix_arg: Error<
-  "%select{first|second}0 argument must be a matrix">;
+def err_builtin_matrix_arg: Error<"first argument must be a matrix">;
+
+def err_builtin_matrix_scalar_unsigned_arg: Error<
+  "%0 argument must be a constant unsigned integer expression">;
+
+def err_builtin_matrix_pointer_arg: Error<
+  "%0 argument must be a pointer to a valid matrix element type">;
+
+def err_builtin_matrix_pointer_arg_mismatch: Error<
+  "the pointee of the second argument must match the element type of the first argument (%0 != %1)">;
+
+def err_builtin_matrix_store_to_const: Error<
+  "cannot store matrix to read-only pointer">;
+
+def err_builtin_matrix_stride_too_small: Error<
+  "stride must be greater or equal to the number of rows">;
+
+def err_builtin_matrix_invalid_dimension: Error<
+  "%0 dimension is outside the allowed range [1, %1]">;
 
 def err_preserve_field_info_not_field : Error<
   "__builtin_preserve_field_info argument %0 not a field access">;
