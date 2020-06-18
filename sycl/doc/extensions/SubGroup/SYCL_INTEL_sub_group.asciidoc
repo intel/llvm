@@ -207,13 +207,13 @@ parallel_for<class kernel>(..., [&](nd_item item)
 
 ==== Synchronization Functions
 
-A sub-group barrier synchronizes all work-items in a sub-group, and orders memory operations to the specified address space(s).
+A sub-group barrier synchronizes all work-items in a sub-group, and orders memory operations with a memory fence to all address spaces.
 
 |===
 |Member Functions|Description
 
-|+void barrier(access::fence_space accessSpace = access::fence_space::global_and_local) const+
-|Execute a sub-group barrier with an optional memory fence specified by _accessSpace_.
+|+void barrier() const+
+|Execute a sub-group barrier.
 |===
 
 ==== Shuffles
@@ -259,7 +259,7 @@ struct sub_group {
   linear_id_type get_group_linear_id() const;
   range_type get_group_range() const;
 
-  void barrier(access::fence_space accessSpace = access::fence_space::global_and_local) const;
+  void barrier() const;
 
   template <typename T>
   T shuffle(T x, id<1> local_id) const;
