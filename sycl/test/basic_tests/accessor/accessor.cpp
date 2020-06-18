@@ -1,8 +1,13 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -Dsimplification_test -std=c++17 %s -o %t.s.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
+// RUN: env SYCL_DEVICE_TYPE=HOST %t.s.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
+// RUN: %CPU_RUN_PLACEHOLDER %t.s.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %GPU_RUN_PLACEHOLDER %t.s.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %ACC_RUN_PLACEHOLDER %t.s.out
 
 //==----------------accessor.cpp - SYCL accessor basic test ----------------==//
 //
@@ -67,17 +72,24 @@ int main() {
                                  {cl::sycl::property::buffer::use_host_ptr()});
 
     sycl::id<1> id1(1);
+#ifndef simplification_test
     auto acc_src = buf_src.get_access<sycl::access::mode::read>();
     auto acc_dst = buf_dst.get_access<sycl::access::mode::read_write>();
-
+#else
+    sycl::host_accessor acc_src(buf_src, sycl::read_only);
+    sycl::host_accessor acc_dst(buf_dst);
+#endif
     assert(!acc_src.is_placeholder());
     assert(acc_src.get_size() == sizeof(src));
     assert(acc_src.get_count() == 2);
     assert(acc_src.get_range() == sycl::range<1>(2));
 
-    // Make sure that operator[] is defined for both size_t and id<1>.
+    // operator[] overload for size_t was intentionally removed
+    // to remove ambiguity, when passing item to operator[].
     // Implicit conversion from IdxSzT to size_t guarantees that no
-    // implicit conversion from size_t to id<1> will happen.
+    // implicit conversion from size_t to id<1> will happen,
+    // thus `acc_src[IdxSzT(0)]` will no longer compile.
+    // Replaced with acc_src[0].
     assert(acc_src[0] + acc_src[IdxID1(1)] == 10);
 
     acc_dst[0] = acc_src[0] + acc_src[IdxID1(0)];
@@ -92,7 +104,11 @@ int main() {
       data[i] = i;
     {
       sycl::buffer<int, 3> buf(data, sycl::range<3>(2, 3, 4));
+#ifndef simplification_test
       auto acc = buf.get_access<sycl::access::mode::read_write>();
+#else
+      sycl::host_accessor acc(buf);
+#endif
 
       assert(!acc.is_placeholder());
       assert(acc.get_size() == sizeof(data));
@@ -117,7 +133,11 @@ int main() {
                              {cl::sycl::property::buffer::use_host_ptr()});
 
     Queue.submit([&](sycl::handler &cgh) {
+#ifndef simplification_test
       auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+#else
+      sycl::accessor acc(buf, cgh);
+#endif
       assert(!acc.is_placeholder());
       assert(acc.get_size() == sizeof(int));
       assert(acc.get_count() == 1);
@@ -140,7 +160,11 @@ int main() {
                                  {cl::sycl::property::buffer::use_host_ptr()});
 
         Queue.submit([&](sycl::handler &cgh) {
+#ifndef simplification_test
           auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+#else
+          sycl::accessor acc(buf, cgh);
+#endif
           cgh.parallel_for<class dim2_subscr>(Range, [=](sycl::item<2> itemID) {
             acc[itemID.get_id(0)][itemID.get_id(1)] += itemID.get_linear_id();
           });
@@ -168,7 +192,11 @@ int main() {
                                  {cl::sycl::property::buffer::use_host_ptr()});
 
         Queue.submit([&](sycl::handler &cgh) {
+#ifndef simplification_test
           auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+#else
+          sycl::accessor acc(buf, cgh);
+#endif
           cgh.parallel_for<class dim3_subscr>(Range, [=](sycl::item<3> itemID) {
             acc[itemID.get_id(0)][itemID.get_id(1)][itemID.get_id(2)] +=
                 itemID.get_linear_id();
@@ -195,14 +223,22 @@ int main() {
       sycl::buffer<int, 1> buf(sycl::range<1>(3));
 
       Queue.submit([&](sycl::handler& cgh) {
+#ifndef simplification_test
         auto dev_acc = buf.get_access<sycl::access::mode::discard_write>(cgh);
+#else
+        sycl::accessor dev_acc(buf, cgh, sycl::noinit);
+#endif
 
         cgh.parallel_for<class test_discard_write>(
             sycl::range<1>{3},
             [=](sycl::id<1> index) { dev_acc[index] = 42; });
       });
 
+#ifndef simplification_test
       auto host_acc = buf.get_access<sycl::access::mode::read>();
+#else
+      sycl::host_accessor host_acc(buf, sycl::read_only);
+#endif
       for (int i = 0; i != 3; ++i)
         assert(host_acc[i] == 42);
 
@@ -219,15 +255,23 @@ int main() {
       sycl::buffer<int, 1> buf(sycl::range<1>(3));
 
       Queue.submit([&](sycl::handler& cgh) {
+#ifndef simplification_test
         auto dev_acc = buf.get_access<sycl::access::mode::write>(cgh);
+#else
+        sycl::accessor dev_acc(buf, cgh, sycl::write_only);
+#endif
 
         cgh.parallel_for<class test_discard_read_write>(
             sycl::range<1>{3},
             [=](sycl::id<1> index) { dev_acc[index] = 42; });
       });
 
+#ifndef simplification_test
       auto host_acc =
         buf.get_access<sycl::access::mode::discard_read_write>();
+#else
+      sycl::host_accessor host_acc(buf, sycl::noinit);
+#endif
     } catch (cl::sycl::exception e) {
       std::cout << "SYCL exception caught: " << e.what();
       return 1;
@@ -243,7 +287,11 @@ int main() {
         sycl::buffer<int, 1> buf((int *)array, sycl::range<1>(10),
                                  {cl::sycl::property::buffer::use_host_ptr()});
         queue.submit([&](sycl::handler &cgh) {
+#ifndef simplification_test
           auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+#else
+          sycl::accessor acc(buf, cgh);
+#endif
           auto acc_wrapped = AccWrapper<decltype(acc)>{acc};
           cgh.parallel_for<class wrapped_access1>(
               sycl::range<1>(buf.get_count()), [=](sycl::item<1> it) {
@@ -273,8 +321,13 @@ int main() {
         sycl::buffer<int, 1> buf2((int *)array2, sycl::range<1>(10),
                                   {cl::sycl::property::buffer::use_host_ptr()});
         queue.submit([&](sycl::handler &cgh) {
+#ifndef simplification_test
           auto acc1 = buf1.get_access<sycl::access::mode::read_write>(cgh);
           auto acc2 = buf2.get_access<sycl::access::mode::read_write>(cgh);
+#else
+          sycl::accessor acc1(buf1, cgh);
+          sycl::accessor acc2(buf2, cgh);
+#endif
           auto acc_wrapped =
               AccsWrapper<decltype(acc1), decltype(acc2)>{10, acc1, 5, acc2};
           cgh.parallel_for<class wrapped_access2>(
@@ -304,7 +357,11 @@ int main() {
         sycl::buffer<int, 1> buf((int *)array, sycl::range<1>(10),
                                  {cl::sycl::property::buffer::use_host_ptr()});
         queue.submit([&](sycl::handler &cgh) {
+#ifndef simplification_test
           auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+#else
+          sycl::accessor acc(buf, cgh);
+#endif
           auto acc_wrapped = AccWrapper<decltype(acc)>{acc};
           Wrapper1 wr1;
           auto wr2 = Wrapper2<decltype(acc)>{wr1, acc_wrapped};
@@ -332,15 +389,24 @@ int main() {
       sycl::buffer<int, 1> buf(array, sycl::range<1>(3));
 
       queue.submit([&](sycl::handler& cgh) {
+#ifndef simplification_test
         auto acc1 = buf.get_access<sycl::access::mode::read>(cgh);
         auto acc2 = buf.get_access<sycl::access::mode::read_write>(cgh);
+#else
+        sycl::accessor acc1(buf, cgh, sycl::read_only);
+        sycl::accessor acc2(buf, cgh);
+#endif
 
         cgh.parallel_for<class two_accessors_to_buf>(
             sycl::range<1>{3},
             [=](sycl::id<1> index) { acc2[index] = 41 + acc1[index]; });
       });
 
+#ifndef simplification_test
       auto host_acc = buf.get_access<sycl::access::mode::read>();
+#else
+      sycl::host_accessor host_acc(buf, sycl::read_only);
+#endif
       for (int i = 0; i != 3; ++i)
         assert(host_acc[i] == 42);
 
@@ -393,13 +459,17 @@ int main() {
       sycl::accessor<int, 0, sycl::access::mode::read_write,
                      sycl::access::target::global_buffer>
           acc1(buf1, cgh);
+#ifndef simplification_test
       sycl::accessor<int, 1, sycl::access::mode::read_write,
                      sycl::access::target::global_buffer>
           acc2(buf2, cgh);
       sycl::accessor<int, 1, sycl::access::mode::read_write,
                      sycl::access::target::global_buffer>
           acc3(buf3, cgh, sycl::range<1>(1));
-
+#else
+      sycl::accessor acc2(buf2, cgh);
+      sycl::accessor acc3(buf3, cgh, sycl::range<1>(1));
+#endif
       cgh.single_task<class acc_alloc_buf>([=]() {
         acc1 *= 2;
         acc2[0] *= 2;
@@ -410,15 +480,111 @@ int main() {
     sycl::accessor<int, 0, sycl::access::mode::read,
                    sycl::access::target::host_buffer>
         acc4(buf1);
+#ifndef simplification_test
     sycl::accessor<int, 1, sycl::access::mode::read,
                    sycl::access::target::host_buffer>
         acc5(buf2);
     sycl::accessor<int, 1, sycl::access::mode::read,
                    sycl::access::target::host_buffer>
         acc6(buf3, sycl::range<1>(1));
+#else
+    sycl::host_accessor acc5(buf2, sycl::read_only);
+    sycl::host_accessor acc6(buf3, sycl::range<1>(1), sycl::read_only);
+#endif
 
     assert(acc4 == 2);
     assert(acc5[0] == 4);
     assert(acc6[0] == 6);
+  }
+
+  // Constant buffer accessor
+  {
+    try {
+      int data = -1;
+      int cnst = 399;
+
+      {
+        sycl::buffer<int, 1> d(&data, sycl::range<1>(1));
+        sycl::buffer<int, 1> c(&cnst, sycl::range<1>(1));
+
+        sycl::queue queue;
+        queue.submit([&](sycl::handler &cgh) {
+#ifndef simplification_test
+          sycl::accessor<int, 1, sycl::access::mode::write,
+                         sycl::access::target::global_buffer>
+              D(d, cgh);
+          sycl::accessor<int, 1, sycl::access::mode::read,
+                         sycl::access::target::constant_buffer>
+              C(c, cgh);
+#else
+          sycl::accessor D(d, cgh, sycl::write_only);
+          sycl::accessor C(c, cgh, sycl::read_constant);
+#endif
+
+          cgh.single_task<class acc_with_const>([=]() {
+            D[0] = C[0];
+          });
+        });
+
+#ifndef simplification_test
+        auto host_acc = d.get_access<sycl::access::mode::read>();
+#else
+        sycl::host_accessor host_acc(d, sycl::read_only);
+#endif
+        assert(host_acc[0] == 399);
+      }
+
+    } catch (sycl::exception e) {
+      std::cout << "SYCL exception caught: " << e.what();
+      return 1;
+    }
+  }
+
+  // Placeholder accessor
+  {
+    try {
+      int data = -1;
+      int cnst = 399;
+
+      {
+        sycl::buffer<int, 1> d(&data, sycl::range<1>(1));
+        sycl::buffer<int, 1> c(&cnst, sycl::range<1>(1));
+
+#ifndef simplification_test
+        sycl::accessor<int, 1, sycl::access::mode::write,
+                       sycl::access::target::global_buffer,
+                       sycl::access::placeholder::true_t>
+            D(d);
+        sycl::accessor<int, 1, sycl::access::mode::read,
+                       sycl::access::target::constant_buffer,
+                       sycl::access::placeholder::true_t>
+            C(c);
+#else
+        sycl::accessor D(d, sycl::write_only);
+        sycl::accessor C(c, sycl::read_constant);
+#endif
+
+        sycl::queue queue;
+        queue.submit([&](sycl::handler &cgh) {
+          cgh.require(D);
+          cgh.require(C);
+
+          cgh.single_task<class placeholder_acc>([=]() {
+            D[0] = C[0];
+          });
+        });
+
+#ifndef simplification_test
+        auto host_acc = d.get_access<sycl::access::mode::read>();
+#else
+        sycl::host_accessor host_acc(d, sycl::read_only);
+#endif
+        assert(host_acc[0] == 399);
+      }
+
+    } catch (sycl::exception e) {
+      std::cout << "SYCL exception caught: " << e.what();
+      return 1;
+    }
   }
 }
