@@ -204,6 +204,11 @@ int main() {
   };
   check_struct<std::complex<float>>(Queue, ComplexFloatGenerator);
 
+  auto ComplexDoubleGenerator = [state = std::complex<double>(0, 1)]() mutable {
+    return state += std::complex<double>(2, 2);
+  };
+  check_struct<std::complex<double>>(Queue, ComplexDoubleGenerator);
+
   std::cout << "Test passed." << std::endl;
   return 0;
 }
