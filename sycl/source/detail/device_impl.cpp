@@ -74,7 +74,7 @@ device_impl::device_impl(pi_native_handle InteropDeviceHandle,
 }
 
 device_impl::~device_impl() {
-  if (!MIsRootDevice && !MIsHostDevice) {
+  if (!MIsHostDevice) {
     // TODO catch an exception and put it to list of asynchronous exceptions
     const detail::plugin &Plugin = getPlugin();
     RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piDeviceRelease>(MDevice);
