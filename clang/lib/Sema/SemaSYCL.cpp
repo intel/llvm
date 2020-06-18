@@ -701,8 +701,7 @@ static QualType calculateKernelNameType(ASTContext &Ctx,
   const TemplateArgumentList *TAL =
       KernelCallerFunc->getTemplateSpecializationArgs();
   assert(TAL && "No template argument info");
-  return TypeName::getFullyQualifiedType(TAL->get(0).getAsType(), Ctx,
-                                         /*WithGlobalNSPrefix=*/true);
+  return TAL->get(0).getAsType().getCanonicalType();
 }
 
 // Gets a name for the OpenCL kernel function, calculated from the first
@@ -1546,9 +1545,7 @@ public:
     // Get specialization constant ID type, which is the second template
     // argument.
     QualType SpecConstIDTy =
-        TypeName::getFullyQualifiedType(TemplateArgs.get(1).getAsType(),
-                                        SemaRef.getASTContext(), true)
-            .getCanonicalType();
+        TemplateArgs.get(1).getAsType().getCanonicalType();
     const std::string SpecConstName = PredefinedExpr::ComputeName(
         SemaRef.getASTContext(), PredefinedExpr::UniqueStableNameType,
         SpecConstIDTy);
@@ -2200,7 +2197,7 @@ static void printTemplateArguments(ASTContext &Ctx, raw_ostream &ArgOS,
 static std::string getKernelNameTypeString(QualType T, ASTContext &Ctx,
                                            const PrintingPolicy &TypePolicy) {
 
-  QualType FullyQualifiedType = TypeName::getFullyQualifiedType(T, Ctx, true);
+  QualType FullyQualifiedType = T.getCanonicalType();
 
   const CXXRecordDecl *RD = T->getAsCXXRecordDecl();
 
