@@ -202,7 +202,7 @@ struct sub_group {
 
   template <typename T> T shuffle(T x, id_type local_id) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return sycl::detail::sub_group::shuffle(x, local_id);
+    return sycl::detail::spirv::SubgroupShuffle(x, local_id);
 #else
     (void)x;
     (void)local_id;
@@ -213,7 +213,7 @@ struct sub_group {
 
   template <typename T> T shuffle_down(T x, uint32_t delta) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return sycl::detail::sub_group::shuffle_down(x, x, delta);
+    return sycl::detail::spirv::SubgroupShuffleDown(x, x, delta);
 #else
     (void)x;
     (void)delta;
@@ -224,7 +224,7 @@ struct sub_group {
 
   template <typename T> T shuffle_up(T x, uint32_t delta) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return sycl::detail::sub_group::shuffle_up(x, x, delta);
+    return sycl::detail::spirv::SubgroupShuffleUp(x, x, delta);
 #else
     (void)x;
     (void)delta;
@@ -235,7 +235,7 @@ struct sub_group {
 
   template <typename T> T shuffle_xor(T x, id_type value) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return sycl::detail::sub_group::shuffle_xor(x, value);
+    return sycl::detail::spirv::SubgroupShuffleXor(x, value);
 #else
     (void)x;
     (void)value;
@@ -251,7 +251,7 @@ struct sub_group {
   __SYCL_DEPRECATED("Two-input sub-group shuffles are deprecated.")
   T shuffle(T x, T y, id_type local_id) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return sycl::detail::sub_group::shuffle_down(
+    return sycl::detail::spirv::SubgroupShuffleDown(
         x, y, (local_id - get_local_id()).get(0));
 #else
     (void)x;
@@ -266,7 +266,7 @@ struct sub_group {
   __SYCL_DEPRECATED("Two-input sub-group shuffles are deprecated.")
   T shuffle_down(T current, T next, uint32_t delta) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return sycl::detail::sub_group::shuffle_down(current, next, delta);
+    return sycl::detail::spirv::SubgroupShuffleDown(current, next, delta);
 #else
     (void)current;
     (void)next;
@@ -280,7 +280,7 @@ struct sub_group {
   __SYCL_DEPRECATED("Two-input sub-group shuffles are deprecated.")
   T shuffle_up(T previous, T current, uint32_t delta) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return sycl::detail::sub_group::shuffle_up(previous, current, delta);
+    return sycl::detail::spirv::SubgroupShuffleUp(previous, current, delta);
 #else
     (void)previous;
     (void)current;

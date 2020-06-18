@@ -290,6 +290,38 @@ AtomicMax(multi_ptr<T, AddressSpace> MPtr, intel::memory_scope Scope,
   return __spirv_AtomicMax(Ptr, SPIRVScope, SPIRVOrder, Value);
 }
 
+template <typename T>
+using EnableIfNativeShuffle =
+    detail::enable_if_t<detail::is_arithmetic<T>::value, T>;
+
+template <typename T>
+EnableIfNativeShuffle<T> SubgroupShuffle(T x, id<1> local_id) {
+  using OCLT = detail::ConvertToOpenCLType_t<T>;
+  return __spirv_SubgroupShuffleINTEL(OCLT(x),
+                                      static_cast<uint32_t>(local_id.get(0)));
+}
+
+template <typename T>
+EnableIfNativeShuffle<T> SubgroupShuffleXor(T x, id<1> local_id) {
+  using OCLT = detail::ConvertToOpenCLType_t<T>;
+  return __spirv_SubgroupShuffleXorINTEL(
+      OCLT(x), static_cast<uint32_t>(local_id.get(0)));
+}
+
+template <typename T>
+EnableIfNativeShuffle<T> SubgroupShuffleDown(T x, T y, id<1> local_id) {
+  using OCLT = detail::ConvertToOpenCLType_t<T>;
+  return __spirv_SubgroupShuffleDownINTEL(
+      OCLT(x), OCLT(y), static_cast<uint32_t>(local_id.get(0)));
+}
+
+template <typename T>
+EnableIfNativeShuffle<T> SubgroupShuffleUp(T x, T y, id<1> local_id) {
+  using OCLT = detail::ConvertToOpenCLType_t<T>;
+  return __spirv_SubgroupShuffleUpINTEL(OCLT(x), OCLT(y),
+                                        static_cast<uint32_t>(local_id.get(0)));
+}
+
 } // namespace spirv
 } // namespace detail
 } // namespace sycl
