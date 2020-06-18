@@ -460,12 +460,27 @@ struct sub_group {
   }
 
   /* --- synchronization functions --- */
+  void barrier() const {
+#ifdef __SYCL_DEVICE_ONLY__
+    __spirv_ControlBarrier(__spv::Scope::Subgroup, __spv::Scope::Subgroup,
+                           __spv::MemorySemanticsMask::AcquireRelease |
+                           __spv::MemorySemanticsMask::SubgroupMemory |
+                           __spv::MemorySemanticsMask::WorkgroupMemory |
+                           __spv::MemorySemanticsMask::CrossWorkgroupMemory);
+#else
+    throw runtime_error("Sub-groups are not supported on host device.",
+                        PI_INVALID_DEVICE);
+#endif
+  }
+
+  __SYCL_EXPORT_DEPRECATED("Sub-group barrier accepting fence_space is deprecated."
+                           "Use barrier() without a fence_space instead.")
   void barrier(access::fence_space accessSpace =
                    access::fence_space::global_and_local) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    uint32_t flags = sycl::detail::getSPIRVMemorySemanticsMask(accessSpace);
-    __spirv_ControlBarrier(__spv::Scope::Subgroup, __spv::Scope::Subgroup,
-                           flags);
+    int32_t flags = sycl::detail::getSPIRVMemorySemanticsMask(accessSpace);
+     __spirv_ControlBarrier(__spv::Scope::Subgroup, __spv::Scope::Subgroup,
+                            flags);
 #else
     (void)accessSpace;
     throw runtime_error("Sub-groups are not supported on host device.",
