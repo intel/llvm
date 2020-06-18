@@ -147,7 +147,7 @@ struct sub_group {
 
   /* --- common interface members --- */
 
-  id<1> get_local_id() const {
+  id_type get_local_id() const {
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv_BuiltInSubgroupLocalInvocationId;
 #else
@@ -156,7 +156,16 @@ struct sub_group {
 #endif
   }
 
-  range<1> get_local_range() const {
+  linear_id_type get_local_linear_id() const {
+#ifdef __SYCL_DEVICE_ONLY__
+    return static_cast<linear_id_type>(get_local_id());
+#else
+    throw runtime_error("Sub-groups are not supported on host device.",
+                        PI_INVALID_DEVICE);
+#endif
+  }
+
+  range_type get_local_range() const {
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv_BuiltInSubgroupSize;
 #else
@@ -165,7 +174,7 @@ struct sub_group {
 #endif
   }
 
-  range<1> get_max_local_range() const {
+  range_type get_max_local_range() const {
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv_BuiltInSubgroupMaxSize;
 #else
@@ -174,7 +183,7 @@ struct sub_group {
 #endif
   }
 
-  id<1> get_group_id() const {
+  id_type get_group_id() const {
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv_BuiltInSubgroupId;
 #else
@@ -183,7 +192,16 @@ struct sub_group {
 #endif
   }
 
-  unsigned int get_group_range() const {
+  linear_id_type get_group_linear_id() const {
+#ifdef __SYCL_DEVICE_ONLY__
+    return static_cast<linear_id_type>(get_group_id());
+#else
+    throw runtime_error("Sub-groups are not supported on host device.",
+                        PI_INVALID_DEVICE);
+#endif
+  }
+
+  range_type get_group_range() const {
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv_BuiltInNumSubgroups;
 #else
@@ -200,7 +218,7 @@ struct sub_group {
   /* --- one-input shuffles --- */
   /* indices in [0 , sub_group size) */
 
-  template <typename T> T shuffle(T x, id<1> local_id) const {
+  template <typename T> T shuffle(T x, id_type local_id) const {
 #ifdef __SYCL_DEVICE_ONLY__
     return sycl::detail::sub_group::shuffle(x, local_id);
 #else
@@ -233,7 +251,7 @@ struct sub_group {
 #endif
   }
 
-  template <typename T> T shuffle_xor(T x, id<1> value) const {
+  template <typename T> T shuffle_xor(T x, id_type value) const {
 #ifdef __SYCL_DEVICE_ONLY__
     return sycl::detail::sub_group::shuffle_xor(x, value);
 #else
@@ -249,7 +267,7 @@ struct sub_group {
 
   template <typename T>
   __SYCL_EXPORT_DEPRECATED("Two-input sub-group shuffles are deprecated.")
-  T shuffle(T x, T y, id<1> local_id) const {
+  T shuffle(T x, T y, id_type local_id) const {
 #ifdef __SYCL_DEVICE_ONLY__
     return sycl::detail::sub_group::shuffle_down(
         x, y, (local_id - get_local_id()).get(0));
