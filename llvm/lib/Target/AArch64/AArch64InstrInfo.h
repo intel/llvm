@@ -386,8 +386,19 @@ static inline bool isCondBranchOpcode(int Opc) {
 }
 
 static inline bool isIndirectBranchOpcode(int Opc) {
-  return Opc == AArch64::BR;
+  switch (Opc) {
+  case AArch64::BR:
+  case AArch64::BRAA:
+  case AArch64::BRAB:
+  case AArch64::BRAAZ:
+  case AArch64::BRABZ:
+    return true;
+  }
+  return false;
 }
+
+/// Return opcode to be used for indirect calls.
+unsigned getBLRCallOpcode(const MachineFunction &MF);
 
 // struct TSFlags {
 #define TSFLAG_ELEMENT_SIZE_TYPE(X)      (X)       // 3-bits

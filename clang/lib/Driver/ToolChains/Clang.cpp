@@ -3073,6 +3073,21 @@ static void RenderTrivialAutoVarInitOptions(const Driver &D,
     CmdArgs.push_back(
         Args.MakeArgString("-ftrivial-auto-var-init=" + TrivialAutoVarInit));
   }
+
+  if (Arg *A =
+          Args.getLastArg(options::OPT_ftrivial_auto_var_init_stop_after)) {
+    if (!Args.hasArg(options::OPT_ftrivial_auto_var_init) ||
+        StringRef(
+            Args.getLastArg(options::OPT_ftrivial_auto_var_init)->getValue()) ==
+            "uninitialized")
+      D.Diag(diag::err_drv_trivial_auto_var_init_stop_after_missing_dependency);
+    A->claim();
+    StringRef Val = A->getValue();
+    if (std::stoi(Val.str()) <= 0)
+      D.Diag(diag::err_drv_trivial_auto_var_init_stop_after_invalid_value);
+    CmdArgs.push_back(
+        Args.MakeArgString("-ftrivial-auto-var-init-stop-after=" + Val));
+  }
 }
 
 static void RenderOpenCLOptions(const ArgList &Args, ArgStringList &CmdArgs) {
@@ -4546,15 +4561,20 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     if (RelocationModel != llvm::Reloc::Static && !IsPIE)
       A->render(Args, CmdArgs);
 
-  CmdArgs.push_back("-mthread-model");
-  if (Arg *A = Args.getLastArg(options::OPT_mthread_model)) {
-    if (!TC.isThreadModelSupported(A->getValue()))
-      D.Diag(diag::err_drv_invalid_thread_model_for_target)
-          << A->getValue() << A->getAsString(Args);
-    CmdArgs.push_back(A->getValue());
+  {
+    std::string Model;
+    if (Arg *A = Args.getLastArg(options::OPT_mthread_model)) {
+      if (!TC.isThreadModelSupported(A->getValue()))
+        D.Diag(diag::err_drv_invalid_thread_model_for_target)
+            << A->getValue() << A->getAsString(Args);
+      Model = A->getValue();
+    } else
+      Model = TC.getThreadModel();
+    if (Model != "posix") {
+      CmdArgs.push_back("-mthread-model");
+      CmdArgs.push_back(Args.MakeArgString(Model));
+    }
   }
-  else
-    CmdArgs.push_back(Args.MakeArgString(TC.getThreadModel()));
 
   Args.AddLastArg(CmdArgs, options::OPT_fveclib);
 

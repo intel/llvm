@@ -276,6 +276,13 @@ bool platform_impl::has_extension(const string_class &ExtensionName) const {
   return (AllExtensionNames.find(ExtensionName) != std::string::npos);
 }
 
+pi_native_handle platform_impl::getNative() const {
+  const auto &Plugin = getPlugin();
+  pi_native_handle Handle;
+  Plugin.call<PiApiKind::piextPlatformGetNativeHandle>(getHandleRef(), &Handle);
+  return Handle;
+}
+
 template <info::platform param>
 typename info::param_traits<info::platform, param>::return_type
 platform_impl::get_info() const {

@@ -741,7 +741,7 @@ ExprResult Sema::CallExprUnaryConversions(Expr *E) {
   // to function type.
   if (Ty->isFunctionType()) {
     Res = ImpCastExprToType(E, Context.getPointerType(Ty),
-                            CK_FunctionToPointerDecay).get();
+                            CK_FunctionToPointerDecay);
     if (Res.isInvalid())
       return ExprError();
   }
@@ -3988,7 +3988,7 @@ static bool CheckExtensionTraitOperandType(Sema &S, QualType T,
        TraitKind == UETT_PreferredAlignOf)) {
     // sizeof(function)/alignof(function) is allowed as an extension.
     S.Diag(Loc, diag::ext_sizeof_alignof_function_type)
-      << TraitKind << ArgRange;
+        << getTraitSpelling(TraitKind) << ArgRange;
     return false;
   }
 
@@ -3997,7 +3997,7 @@ static bool CheckExtensionTraitOperandType(Sema &S, QualType T,
   if (T->isVoidType()) {
     unsigned DiagID = S.LangOpts.OpenCL ? diag::err_opencl_sizeof_alignof_type
                                         : diag::ext_sizeof_alignof_void_type;
-    S.Diag(Loc, DiagID) << TraitKind << ArgRange;
+    S.Diag(Loc, DiagID) << getTraitSpelling(TraitKind) << ArgRange;
     return false;
   }
 
@@ -4076,13 +4076,13 @@ bool Sema::CheckUnaryExprOrTypeTraitOperand(Expr *E,
   if (ExprKind == UETT_AlignOf || ExprKind == UETT_PreferredAlignOf) {
     if (RequireCompleteSizedType(
             E->getExprLoc(), Context.getBaseElementType(E->getType()),
-            diag::err_sizeof_alignof_incomplete_or_sizeless_type, ExprKind,
-            E->getSourceRange()))
+            diag::err_sizeof_alignof_incomplete_or_sizeless_type,
+            getTraitSpelling(ExprKind), E->getSourceRange()))
       return true;
   } else {
     if (RequireCompleteSizedExprType(
-            E, diag::err_sizeof_alignof_incomplete_or_sizeless_type, ExprKind,
-            E->getSourceRange()))
+            E, diag::err_sizeof_alignof_incomplete_or_sizeless_type,
+            getTraitSpelling(ExprKind), E->getSourceRange()))
       return true;
   }
 
@@ -4092,7 +4092,7 @@ bool Sema::CheckUnaryExprOrTypeTraitOperand(Expr *E,
 
   if (ExprTy->isFunctionType()) {
     Diag(E->getExprLoc(), diag::err_sizeof_alignof_function_type)
-      << ExprKind << E->getSourceRange();
+        << getTraitSpelling(ExprKind) << E->getSourceRange();
     return true;
   }
 
@@ -4181,12 +4181,12 @@ bool Sema::CheckUnaryExprOrTypeTraitOperand(QualType ExprType,
 
   if (RequireCompleteSizedType(
           OpLoc, ExprType, diag::err_sizeof_alignof_incomplete_or_sizeless_type,
-          ExprKind, ExprRange))
+          getTraitSpelling(ExprKind), ExprRange))
     return true;
 
   if (ExprType->isFunctionType()) {
     Diag(OpLoc, diag::err_sizeof_alignof_function_type)
-      << ExprKind << ExprRange;
+        << getTraitSpelling(ExprKind) << ExprRange;
     return true;
   }
 
@@ -14501,9 +14501,16 @@ ExprResult Sema::CreateBuiltinUnaryOp(SourceLocation OpLoc,
       // Vector logical not returns the signed variant of the operand type.
       resultType = GetSignedVectorType(resultType);
       break;
+    } else if (Context.getLangOpts().CPlusPlus && resultType->isVectorType()) {
+      const VectorType *VTy = resultType->castAs<VectorType>();
+      if (VTy->getVectorKind() != VectorType::GenericVector)
+        return ExprError(Diag(OpLoc, diag::err_typecheck_unary_expr)
+                         << resultType << Input.get()->getSourceRange());
+
+      // Vector logical not returns the signed variant of the operand type.
+      resultType = GetSignedVectorType(resultType);
+      break;
     } else {
-      // FIXME: GCC's vector extension permits the usage of '!' with a vector
-      //        type in C++. We should allow that here too.
       return ExprError(Diag(OpLoc, diag::err_typecheck_unary_expr)
         << resultType << Input.get()->getSourceRange());
     }
@@ -17565,7 +17572,7 @@ static ExprResult rebuildPotentialResultsAsNonOdrUsed(Sema &S, Expr *E,
 
   // Mark that this expression does not constitute an odr-use.
   auto MarkNotOdrUsed = [&] {
-    S.MaybeODRUseExprs.erase(E);
+    S.MaybeODRUseExprs.remove(E);
     if (LambdaScopeInfo *LSI = S.getCurLambda())
       LSI->markVariableExprAsNonODRUsed(E);
   };

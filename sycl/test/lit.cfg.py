@@ -90,7 +90,7 @@ def getDeviceCount(device_type):
     if exit_code != 0:
         lit_config.error("getDeviceCount {TYPE} {BACKEND}: Non-zero exit code {CODE}".format(
             TYPE=device_type, BACKEND=backend, CODE=exit_code))
-        return [0,False]
+        return [0,False,False]
 
     result = output.decode().replace('\n', '').split(':', 1)
     try:

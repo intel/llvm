@@ -8,6 +8,7 @@ add_llvm_library(LLVMSPIRVLib
   OCL21ToSPIRV.cpp
   OCLTypeToSPIRV.cpp
   OCLUtil.cpp
+  VectorComputeUtil.cpp
   SPIRVLowerBool.cpp
   SPIRVLowerConstExpr.cpp
   SPIRVLowerMemmove.cpp

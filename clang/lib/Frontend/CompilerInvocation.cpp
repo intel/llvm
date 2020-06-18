@@ -2903,10 +2903,11 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
       !Args.hasArg(OPT_fno_concept_satisfaction_caching);
   if (Args.hasArg(OPT_fconcepts_ts))
     Diags.Report(diag::warn_fe_concepts_ts_flag);
+  // Recovery AST still heavily relies on dependent-type machinery.
   Opts.RecoveryAST =
-      Args.hasFlag(OPT_frecovery_ast, OPT_fno_recovery_ast, false);
+      Args.hasFlag(OPT_frecovery_ast, OPT_fno_recovery_ast, Opts.CPlusPlus);
   Opts.RecoveryASTType =
-+      Args.hasFlag(OPT_frecovery_ast_type, OPT_fno_recovery_ast_type, false);
+      Args.hasFlag(OPT_frecovery_ast_type, OPT_fno_recovery_ast_type, false);
   Opts.HeinousExtensions = Args.hasArg(OPT_fheinous_gnu_extensions);
   Opts.AccessControl = !Args.hasArg(OPT_fno_access_control);
   Opts.ElideConstructors = !Args.hasArg(OPT_fno_elide_constructors);
@@ -3311,6 +3312,11 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
       Diags.Report(diag::err_drv_invalid_value) << A->getAsString(Args) << Val;
   }
 
+  if (Arg *A = Args.getLastArg(OPT_ftrivial_auto_var_init_stop_after)) {
+    int Val = std::stoi(A->getValue());
+    Opts.TrivialAutoVarInitStopAfter = Val;
+  }
+
   // Parse -fsanitize= arguments.
   parseSanitizerKinds("-fsanitize=", Args.getAllArgValues(OPT_fsanitize_EQ),
                       Diags, Opts.Sanitize);
@@ -3423,6 +3429,11 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
 
   Opts.CompatibilityQualifiedIdBlockParamTypeChecking =
       Args.hasArg(OPT_fcompatibility_qualified_id_block_param_type_checking);
+
+  Opts.RelativeCXXABIVTables =
+      Args.hasFlag(OPT_fexperimental_relative_cxx_abi_vtables,
+                   OPT_fno_experimental_relative_cxx_abi_vtables,
+                   /*default=*/false);
 }
 
 static bool isStrictlyPreprocessorAction(frontend::ActionKind Action) {

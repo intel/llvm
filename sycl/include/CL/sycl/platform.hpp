@@ -107,7 +107,18 @@ public:
   /// \return the backend associated with this platform
   backend get_backend() const;
 
+  /// Gets the native handle of the SYCL platform.
+  ///
+  /// \return a native handle, the type of which defined by the backend.
+  template <backend BackendName>
+  auto get_native() const -> typename interop<BackendName, platform>::type {
+    return detail::pi::cast<typename interop<BackendName, platform>::type>(
+        getNative());
+  }
+
 private:
+  pi_native_handle getNative() const;
+
   shared_ptr_class<detail::platform_impl> impl;
   platform(shared_ptr_class<detail::platform_impl> impl) : impl(impl) {}
 

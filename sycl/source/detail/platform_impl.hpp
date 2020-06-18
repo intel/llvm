@@ -123,6 +123,11 @@ public:
     MPlugin = std::move(PluginPtr);
   }
 
+  /// Gets the native handle of the SYCL platform.
+  ///
+  /// \return a native handle.
+  pi_native_handle getNative() const;
+
 private:
   bool MHostPlatform = false;
   RT::PiPlatform MPlatform = 0;

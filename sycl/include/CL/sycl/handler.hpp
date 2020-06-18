@@ -179,33 +179,19 @@ class reduction_impl;
 
 using cl::sycl::detail::enable_if_t;
 
-template <typename KernelName, typename KernelType, int Dims, class Reduction>
-enable_if_t<Reduction::has_fast_reduce && Reduction::has_fast_atomics>
+template <typename KernelName, typename KernelType, int Dims, class Reduction,
+          typename OutputT>
+enable_if_t<Reduction::has_fast_atomics>
 reduCGFunc(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
-           Reduction &Redu, typename Reduction::rw_accessor_type &Out);
+           Reduction &Redu, OutputT Out);
 
 template <typename KernelName, typename KernelType, int Dims, class Reduction>
-enable_if_t<!Reduction::has_fast_reduce && Reduction::has_fast_atomics>
-reduCGFunc(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
-           Reduction &Redu, typename Reduction::rw_accessor_type &Out);
-
-template <typename KernelName, typename KernelType, int Dims, class Reduction>
-enable_if_t<Reduction::has_fast_reduce && !Reduction::has_fast_atomics>
+enable_if_t<!Reduction::has_fast_atomics>
 reduCGFunc(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
            Reduction &Redu);
 
 template <typename KernelName, typename KernelType, int Dims, class Reduction>
-enable_if_t<!Reduction::has_fast_reduce && !Reduction::has_fast_atomics>
-reduCGFunc(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
-           Reduction &Redu);
-
-template <typename KernelName, typename KernelType, int Dims, class Reduction>
-enable_if_t<Reduction::has_fast_reduce && !Reduction::has_fast_atomics>
-reduAuxCGFunc(handler &CGH, const nd_range<Dims> &Range, size_t NWorkItems,
-              Reduction &Redu);
-
-template <typename KernelName, typename KernelType, int Dims, class Reduction>
-enable_if_t<!Reduction::has_fast_reduce && !Reduction::has_fast_atomics>
+enable_if_t<!Reduction::has_fast_atomics>
 reduAuxCGFunc(handler &CGH, const nd_range<Dims> &Range, size_t NWorkItems,
               Reduction &Redu);
 } // namespace detail
@@ -958,24 +944,23 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims, typename Reduction>
   detail::enable_if_t<Reduction::accessor_mode == access::mode::read_write &&
-                      Reduction::has_fast_atomics>
+                      Reduction::has_fast_atomics && !Reduction::is_usm>
   parallel_for(nd_range<Dims> Range, Reduction Redu, KernelType KernelFunc) {
-    if (Reduction::is_usm)
-      Redu.associateWithHandler(*this);
-    shared_ptr_class<detail::queue_impl> QueueCopy = MQueue;
-    auto Acc = Redu.getUserAccessor();
-    intel::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu, Acc);
+    intel::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu,
+                                          Redu.getUserAccessor());
+  }
 
-    // Submit non-blocking copy from reduction accessor to user's reduction
-    // variable.
-    if (Reduction::is_usm) {
-      this->finalize();
-      handler CopyHandler(QueueCopy, MIsHost);
-      CopyHandler.saveCodeLoc(MCodeLoc);
-      Redu.associateWithHandler(CopyHandler);
-      CopyHandler.copy(Acc, Redu.getUSMPointer());
-      MLastEvent = CopyHandler.finalize();
-    }
+  /// Implements parallel_for() accepting nd_range and 1 reduction variable
+  /// having 'read_write' access mode.
+  /// This version uses fast sycl::atomic operations to update user's reduction
+  /// variable at the end of each work-group work.
+  template <typename KernelName = detail::auto_name, typename KernelType,
+            int Dims, typename Reduction>
+  detail::enable_if_t<Reduction::accessor_mode == access::mode::read_write &&
+                      Reduction::has_fast_atomics && Reduction::is_usm>
+  parallel_for(nd_range<Dims> Range, Reduction Redu, KernelType KernelFunc) {
+    intel::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu,
+                                          Redu.getUSMPointer());
   }
 
   /// Implements parallel_for() accepting nd_range and 1 reduction variable
@@ -1045,8 +1030,6 @@ public:
     //    necessary to reduce all partial sums into one final sum.
 
     // 1. Call the kernel that includes user's lambda function.
-    if (Reduction::is_usm && NWorkGroups == 1)
-      Redu.associateWithHandler(*this);
     intel::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu);
     shared_ptr_class<detail::queue_impl> QueueCopy = MQueue;
     this->finalize();
@@ -1073,9 +1056,9 @@ public:
       handler AuxHandler(QueueCopy, MIsHost);
       AuxHandler.saveCodeLoc(MCodeLoc);
 
-      // The last kernel DOES write to reduction's accessor.
+      // The last kernel DOES write to user's accessor passed to reduction.
       // Associate it with handler manually.
-      if (NWorkGroups == 1)
+      if (NWorkGroups == 1 && !Reduction::is_usm)
         Redu.associateWithHandler(AuxHandler);
       intel::detail::reduAuxCGFunc<KernelName, KernelType>(AuxHandler, Range,
                                                            NWorkItems, Redu);
@@ -1083,16 +1066,6 @@ public:
 
       NWorkItems = NWorkGroups;
     } // end while (NWorkItems > 1)
-
-    // Submit non-blocking copy from reduction accessor to user's reduction
-    // variable.
-    if (Reduction::is_usm) {
-      handler CopyHandler(QueueCopy, MIsHost);
-      CopyHandler.saveCodeLoc(MCodeLoc);
-      Redu.associateWithHandler(CopyHandler);
-      CopyHandler.copy(Redu.getUserAccessor(), Redu.getUSMPointer());
-      MLastEvent = CopyHandler.finalize();
-    }
   }
 
   /// Hierarchical kernel invocation method of a kernel defined as a lambda

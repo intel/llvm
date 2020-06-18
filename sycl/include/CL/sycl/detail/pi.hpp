@@ -139,6 +139,9 @@ extern std::shared_ptr<plugin> GlobalPlugin;
 // Performs PI one-time initialization.
 const vector_class<plugin> &initialize();
 
+// Get the plugin serving given backend.
+template <backend BE> const plugin &getPlugin();
+
 // Utility Functions to get Function Name for a PI Api.
 template <PiApiKind PiApiOffset> struct PiFuncInfo {};
 

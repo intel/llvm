@@ -372,6 +372,25 @@ static void initializePlugins(vector_class<plugin> *Plugins) {
 #endif
 }
 
+// Get the plugin serving given backend.
+template <backend BE> const plugin &getPlugin() {
+  static const plugin *Plugin = nullptr;
+  if (Plugin)
+    return *Plugin;
+
+  const vector_class<plugin> &Plugins = pi::initialize();
+  for (const auto &P : Plugins)
+    if (P.getBackend() == BE) {
+      Plugin = &P;
+      return *Plugin;
+    }
+
+  throw runtime_error("pi::getPlugin couldn't find plugin",
+                      PI_INVALID_OPERATION);
+}
+
+template const plugin &getPlugin<backend::opencl>();
+
 // Report error and no return (keeps compiler from printing warnings).
 // TODO: Probably change that to throw a catchable exception,
 //       but for now it is useful to see every failure.

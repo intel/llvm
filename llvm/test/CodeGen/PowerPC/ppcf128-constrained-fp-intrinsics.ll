@@ -1070,12 +1070,12 @@ entry:
 define float @test_fptrunc_ppc_fp128_f32(ppc_fp128 %first) #0 {
 ; PC64LE-LABEL: test_fptrunc_ppc_fp128_f32:
 ; PC64LE:       # %bb.0: # %entry
-; PC64LE-NEXT:    frsp 1, 1
+; PC64LE-NEXT:    xsrsp 1, 1
 ; PC64LE-NEXT:    blr
 ;
 ; PC64LE9-LABEL: test_fptrunc_ppc_fp128_f32:
 ; PC64LE9:       # %bb.0: # %entry
-; PC64LE9-NEXT:    frsp 1, 1
+; PC64LE9-NEXT:    xsrsp 1, 1
 ; PC64LE9-NEXT:    blr
 ;
 ; PC64-LABEL: test_fptrunc_ppc_fp128_f32:
@@ -1368,7 +1368,7 @@ define void @test_constrained_libcall_multichain(float* %firstptr, ppc_fp128* %r
 ; PC64LE-NEXT:    stfd 30, 32(30)
 ; PC64LE-NEXT:    bl __powitf2
 ; PC64LE-NEXT:    nop
-; PC64LE-NEXT:    frsp 0, 1
+; PC64LE-NEXT:    xsrsp 0, 1
 ; PC64LE-NEXT:    stfsx 0, 0, 29
 ; PC64LE-NEXT:    stfd 1, -16(30)
 ; PC64LE-NEXT:    stfd 2, -8(30)
@@ -1406,8 +1406,8 @@ define void @test_constrained_libcall_multichain(float* %firstptr, ppc_fp128* %r
 ; PC64LE9-NEXT:    nop
 ; PC64LE9-NEXT:    fmr 3, 1
 ; PC64LE9-NEXT:    fmr 4, 2
-; PC64LE9-NEXT:    fmr 30, 2
-; PC64LE9-NEXT:    fmr 29, 1
+; PC64LE9-NEXT:    fmr 30, 1
+; PC64LE9-NEXT:    fmr 29, 2
 ; PC64LE9-NEXT:    stfd 2, 24(30)
 ; PC64LE9-NEXT:    stfd 1, 16(30)
 ; PC64LE9-NEXT:    bl __gcc_qmul
@@ -1415,11 +1415,11 @@ define void @test_constrained_libcall_multichain(float* %firstptr, ppc_fp128* %r
 ; PC64LE9-NEXT:    fmr 1, 31
 ; PC64LE9-NEXT:    xxlxor 2, 2, 2
 ; PC64LE9-NEXT:    li 5, 2
-; PC64LE9-NEXT:    stfd 30, 40(30)
-; PC64LE9-NEXT:    stfd 29, 32(30)
+; PC64LE9-NEXT:    stfd 29, 40(30)
+; PC64LE9-NEXT:    stfd 30, 32(30)
 ; PC64LE9-NEXT:    bl __powitf2
 ; PC64LE9-NEXT:    nop
-; PC64LE9-NEXT:    frsp 0, 1
+; PC64LE9-NEXT:    xsrsp 0, 1
 ; PC64LE9-NEXT:    stfs 0, 0(29)
 ; PC64LE9-NEXT:    stfd 1, -16(30)
 ; PC64LE9-NEXT:    stfd 2, -8(30)
@@ -1442,19 +1442,19 @@ define void @test_constrained_libcall_multichain(float* %firstptr, ppc_fp128* %r
 ; PC64-NEXT:    mr 29, 3
 ; PC64-NEXT:    li 3, 0
 ; PC64-NEXT:    stfd 31, 168(1) # 8-byte Folded Spill
-; PC64-NEXT:    stfd 30, 160(1) # 8-byte Folded Spill
 ; PC64-NEXT:    std 30, 128(1) # 8-byte Folded Spill
-; PC64-NEXT:    stfd 28, 144(1) # 8-byte Folded Spill
-; PC64-NEXT:    stfd 29, 152(1) # 8-byte Folded Spill
 ; PC64-NEXT:    mr 30, 4
 ; PC64-NEXT:    lfs 31, 0(29)
 ; PC64-NEXT:    std 3, 8(4)
 ; PC64-NEXT:    addis 3, 2, .LCPI32_0@toc@ha
+; PC64-NEXT:    stfd 30, 160(1) # 8-byte Folded Spill
 ; PC64-NEXT:    lfs 30, .LCPI32_0@toc@l(3)
 ; PC64-NEXT:    fmr 1, 31
 ; PC64-NEXT:    fmr 3, 31
+; PC64-NEXT:    stfd 28, 144(1) # 8-byte Folded Spill
 ; PC64-NEXT:    fmr 2, 30
 ; PC64-NEXT:    fmr 4, 30
+; PC64-NEXT:    stfd 29, 152(1) # 8-byte Folded Spill
 ; PC64-NEXT:    stfd 31, 0(4)
 ; PC64-NEXT:    bl __gcc_qadd
 ; PC64-NEXT:    nop
@@ -1475,14 +1475,14 @@ define void @test_constrained_libcall_multichain(float* %firstptr, ppc_fp128* %r
 ; PC64-NEXT:    nop
 ; PC64-NEXT:    frsp 0, 1
 ; PC64-NEXT:    stfs 0, 0(29)
-; PC64-NEXT:    lfd 31, 168(1) # 8-byte Folded Reload
-; PC64-NEXT:    lfd 30, 160(1) # 8-byte Folded Reload
-; PC64-NEXT:    lfd 29, 152(1) # 8-byte Folded Reload
-; PC64-NEXT:    lfd 28, 144(1) # 8-byte Folded Reload
 ; PC64-NEXT:    ld 29, 120(1) # 8-byte Folded Reload
 ; PC64-NEXT:    stfd 1, -16(30)
 ; PC64-NEXT:    stfd 2, -8(30)
 ; PC64-NEXT:    ld 30, 128(1) # 8-byte Folded Reload
+; PC64-NEXT:    lfd 31, 168(1) # 8-byte Folded Reload
+; PC64-NEXT:    lfd 30, 160(1) # 8-byte Folded Reload
+; PC64-NEXT:    lfd 29, 152(1) # 8-byte Folded Reload
+; PC64-NEXT:    lfd 28, 144(1) # 8-byte Folded Reload
 ; PC64-NEXT:    addi 1, 1, 176
 ; PC64-NEXT:    ld 0, 16(1)
 ; PC64-NEXT:    mtlr 0

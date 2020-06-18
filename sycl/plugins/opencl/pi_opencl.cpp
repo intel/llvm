@@ -176,6 +176,14 @@ pi_result piPlatformsGet(pi_uint32 num_entries, pi_platform *platforms,
   return static_cast<pi_result>(result);
 }
 
+pi_result piextPlatformCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                              pi_platform *platform) {
+  assert(platform);
+  assert(nativeHandle);
+  *platform = reinterpret_cast<pi_platform>(nativeHandle);
+  return PI_SUCCESS;
+}
+
 // Example of a PI interface that does not map exactly to an OpenCL one.
 pi_result piDevicesGet(pi_platform platform, pi_device_type device_type,
                        pi_uint32 num_entries, pi_device *devices,
@@ -1072,6 +1080,11 @@ static pi_result piextGetNativeHandle(void *piObj,
   return PI_SUCCESS;
 }
 
+pi_result piextPlatformGetNativeHandle(pi_platform platform,
+                                       pi_native_handle *nativeHandle) {
+  return piextGetNativeHandle(platform, nativeHandle);
+}
+
 pi_result piextDeviceGetNativeHandle(pi_device device,
                                      pi_native_handle *nativeHandle) {
   return piextGetNativeHandle(device, nativeHandle);
@@ -1113,6 +1126,9 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   // Platform
   _PI_CL(piPlatformsGet, piPlatformsGet)
   _PI_CL(piPlatformGetInfo, clGetPlatformInfo)
+  _PI_CL(piextPlatformGetNativeHandle, piextPlatformGetNativeHandle)
+  _PI_CL(piextPlatformCreateWithNativeHandle,
+         piextPlatformCreateWithNativeHandle)
   // Device
   _PI_CL(piDevicesGet, piDevicesGet)
   _PI_CL(piDeviceGetInfo, clGetDeviceInfo)
