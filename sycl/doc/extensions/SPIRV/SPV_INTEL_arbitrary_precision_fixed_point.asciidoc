@@ -1,0 +1,501 @@
+= SPV_INTEL_arbitrary_precision_fixed_point
+
+== Name Strings
+
+SPV_INTEL_arbitrary_precision_fixed_point
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/KhronosGroup/SPIRV-Headers
+
+== Contributors
+
+Ajaykumar Kannan, Intel
+
+== Notice
+
+Copyright (c) 2020 Intel Corporation.  All rights reserved.
+
+== Status
+
+Initial Release
+
+== Version
+
+[width="40%",cols="25,25"]
+|========================================
+| Last Modified Date | {docdate}
+| Revision           | 1
+|========================================
+
+== Dependencies
+
+This extension is written against the SPIR-V Specification Version 1.5, Revision 2.
+
+This extension depends on the SPV_INTEL_arbitrary_precision_int spec.
+
+This extension is built on Mentor Graphics ac_datatypes spec v3.9.2.
+
+== Overview
+
+This extension introduces operations for arbitrary precision fixed point numbers called ac_fixed.
+The ac_fixed datatype is an industry standard for fixed point numbers and is published by Mentor Graphics at https://hlslibs.org[hlslibs.org].
+This datatype and its corresponding operations can be useful on targets that can take advantage of narrower representation such as FPGAs.
+
+=== Data Representation
+
+The ac_fixed datatype will be represented in SPIR-V as a _pseudo type_ using `OpTypeInt`.
+It requires three parameters, `W`, `I`, and `S`.
+
+* `W` is the total width of the datatype (including a sign bit, if required) and is encoded in the width of the `OpTypeInt`.
+* `I` determines the position of the decimal point.
+* `S` determines if this is a signed or an unsigned number. Note that the support for signedness in `OpTypeInt` is not leveraged here. If the ac_fixed is signed, then the MSB (most significant bit) will contain the sign bit.
+
+The datatype itself does not contain any information regarding `I` and `S`.
+Each operation will contain information about the input and result datatypes (including `W`, `S`, and `I`) where `W` is implicit from the size of the `OpTypeInt`.
+
+ac_fixed can contain both an integer component and a fractional component depending on the value of `I`.
+Based on its value, the number of bits allocated for the integer and fractional portions will change.
+Note that it is also possible that one of two portions may have no bits.
+
+The data layout is shown below:
+
+`[ 1'b sign (if signed) ] [ I'b integer portion ] [ (W-I)'b fractional portion ]`
+
+== Extension Name
+
+To use this extension within a SPIR-V module, the following *OpExtension* must be present in the module:
+
+----
+OpExtension "SPV_INTEL_arbitrary_precision_fixed_point"
+----
+
+== New Capabilities
+
+This extension introduces a new capability:
+
+----
+ArbitraryPrecisionFixedPointINTEL
+----
+
+== New Instructions
+
+Instructions added under the *ArbitraryPrecisionFixedPointINTEL* capability:
+
+----
+OpFixedSqrtINTEL
+OpFixedRecipINTEL
+OpFixedRsqrtINTEL
+OpFixedSinINTEL
+OpFixedCosINTEL
+OpFixedSinCosINTEL
+OpFixedSinPiINTEL
+OpFixedCosPiINTEL
+OpFixedSinCosPiINTEL
+OpFixedLogINTEL
+OpFixedExpINTEL
+----
+
+== Token Number Assignments
+[width="40%"]
+[cols="70%,30%"]
+[grid="rows"]
+|====
+|`ArbitraryPrecisionFixedPointINTEL`    | 5922
+|`OpFixedSqrtINTEL`                     | 5923
+|`OpFixedRecipINTEL`                    | 5924
+|`OpFixedRsqrtINTEL`                    | 5925
+|`OpFixedSinINTEL`                      | 5926
+|`OpFixedCosINTEL`                      | 5927
+|`OpFixedSinCosINTEL`                   | 5928
+|`OpFixedSinPiINTEL`                    | 5929
+|`OpFixedCosPiINTEL`                    | 5930
+|`OpFixedSinCosPiINTEL`                 | 5931
+|`OpFixedLogINTEL`                      | 5932
+|`OpFixedExpINTEL`                      | 5933
+|====
+
+
+== Modifications to the SPIR-V Specification Version 1.5
+
+After Section 3.16, add a new section "3.16b Quantization Modes" as follows:
+
+=== Quantization Modes
+[options="header"]
+[width="80%"]
+[cols="15%,20%,65%"]
+|====
+| Value ^| Mode        ^| Behavior
+| 0      | TRN          | Truncate towards -Inf
+| 1      | TRN_ZERO     | Truncate towards 0
+| 2      | RND          | Round towards +Inf
+| 3      | RND_ZERO     | Round towards 0
+| 4      | RND_INF      | Round towards +/-Inf
+| 5      | RND_MIN_INF  | Round towards -Inf
+| 6      | RND_CONV     | Round towards even
+| 7      | RND_CONV_ODD | Round towards odd
+|====
+
+After Section 3.16, add a new section "3.16c Overflow Modes" as follows:
+
+=== Overflow Modes
+[options="header"]
+[width="80%"]
+[cols="15%,20%,65%"]
+|====
+| Value ^| Mode     ^| Behavior
+| 0      | WRAP      | Drop the bits to the left of the MSB
+| 1      | SAT       | Saturate to the closest of MIN or MAX
+| 2      | SAT_ZERO  | Set to 0 on overflow
+| 3      | SAT_SYM   | For unsigned, treat as SAT. +
+
+For signed: a positive overflow will saturate at the maximum positive value, whereas a negative overflow will saturate to the negation of the maximum positive value, as opposed to the most negative value.
+|====
+
+=== Capability
+Modify Section 3.31, *Capability*, adding a row to the Capability table:
+
+[options="header"]
+|====
+2+^| Capability ^| Implicitly Declares
+| 5922 | *ArbitraryPrecisionFixedPointINTEL* +
+
+Enables arbitrary precision fixed-point math instructions
+| *INTELArbitraryPrecisionIntegers*
+|====
+
+=== Instructions
+
+In Section 3.32.13, *Arithmetic Instructions*, add the following instructions:
+
+[cols="11", width="100%"]
+|=====
+10+<|*OpFixedSqrtINTEL* +
+
+An `OpTypeInt` representing an arbitrary precision fixed point number (ac_fixed) is passed in as the _Input_ and the square root of the value is returned in _Result_.
+The behavior of this function is undefined for input values < 0.
+
+_Result Type_ is an `OpTypeInt` of width _rW_ and is the type of _Result_.
+
+_Input Type_ is an `OpTypeInt` of width _W_ and is the type of _Input_.
+
+_S_ is an `OpTypeBool` that indicates if the input and output are signed or unsigned.
+A value of `1` indicates that the two types are signed.
+Note that the operation does not use the signedness capabilities of `OpTypeInt`.
+
+_I_ is an `OpTypeInt` that refers to the location of the fixed-point relative to the MSB of the input.
+
+_rI_ is an `OpTypeInt` that refers to the location of the fixed-point relative to the MSB of the result.
+
+_Q_ is an `OpTypeInt` chosen from _Table 3.16b_ that indicates the Quantization Mode of this operation.
+
+_O_ is an `OpTypeInt` chosen from _Table 3.16c_ that indicates the Overflow Mode of this operation.
+
+| Capability:
+*ArbitraryPrecisionFixedPointINTEL*
+
+| 10 | 5923 | <id> Result Type | Result <id> | <id> Input Type | Input <id> | _Literal_ S | _Literal_ I | _Literal_ rI | _Literal_ Q | _Literal_ O
+|=====
+
+[cols="11", width="100%"]
+|=====
+10+<|*OpFixedRecipINTEL* +
+
+An `OpTypeInt` representing an arbitrary precision fixed point number (ac_fixed) is passed in as the _Input_ and the reciprocal (`1/Input`) of the value is returned in _Result_.
+
+_Result Type_ is an `OpTypeInt` of width _rW_ and is the type of _Result_.
+
+_Input Type_ is an `OpTypeInt` of width _W_ and is the type of _Input_.
+
+_S_ is an `OpTypeBool` that indicates if the input and output are signed or unsigned.
+A value of `1` indicates that the two types are signed.
+Note that the operation does not use the signedness capabilities of `OpTypeInt`.
+
+_I_ is an `OpTypeInt` that refers to the location of the fixed-point relative to the MSB of the input.
+
+_rI_ is an `OpTypeInt` that refers to the location of the fixed-point relative to the MSB of the result.
+
+_Q_ is an `OpTypeInt` chosen from _Table 3.16b_ that indicates the Quantization Mode of this operation.
+
+_O_ is an `OpTypeInt` chosen from _Table 3.16c_ that indicates the Overflow Mode of this operation.
+
+| Capability:
+*ArbitraryPrecisionFixedPointINTEL*
+
+| 10 | 5924 | <id> Result Type | Result <id> | <id> Input Type | Input <id> | _Literal_ S | _Literal_ I | _Literal_ rI | _Literal_ Q | _Literal_ O
+|=====
+
+[cols="11", width="100%"]
+|=====
+10+<|*OpFixedRsqrtINTEL* +
+
+An `OpTypeInt` representing an arbitrary precision fixed point number (ac_fixed) is passed in as the _Input_ and the reciprocal square root (`1/sqrt(Input)`) of the value is returned in _Result_.
+The behavior of this function is undefined for input values < 0.
+
+_Result Type_ is an `OpTypeInt` of width _rW_ and is the type of _Result_.
+
+_Input Type_ is an `OpTypeInt` of width _W_ and is the type of _Input_.
+
+_S_ is an `OpTypeBool` that indicates if the input and output are signed or unsigned.
+A value of `1` indicates that the two types are signed.
+Note that the operation does not use the signedness capabilities of `OpTypeInt`.
+
+_I_ is an `OpTypeInt` that refers to the location of the fixed-point relative to the MSB of the input.
+
+_rI_ is an `OpTypeInt` that refers to the location of the fixed-point relative to the MSB of the result.
+
+_Q_ is an `OpTypeInt` chosen from _Table 3.16b_ that indicates the Quantization Mode of this operation.
+
+_O_ is an `OpTypeInt` chosen from _Table 3.16c_ that indicates the Overflow Mode of this operation.
+
+| Capability:
+*ArbitraryPrecisionFixedPointINTEL*
+
+| 10 | 5925 | <id> Result Type | Result <id> | <id> Input Type | Input <id> | _Literal_ S | _Literal_ I | _Literal_ rI | _Literal_ Q | _Literal_ O
+|=====
+
+[cols="11", width="100%"]
+|=====
+10+<|*OpFixedSinINTEL* +
+
+An `OpTypeInt` representing an arbitrary precision fixed point number (ac_fixed) is passed in as the _Input_ and the sine of the value is returned in _Result_.
+
+_Input Type_ is an `OpTypeInt` of width _W_ and is the type of _Input_.
+
+_Result Type_ is an `OpTypeInt` of width _rW_ and is the type of _Result_.
+
+_S_ is an `OpTypeBool` that indicates if the input and output are signed or unsigned.
+A value of `1` indicates that the two types are signed.
+Note that the operation does not use the signedness capabilities of `OpTypeInt`.
+
+_I_ is an `OpTypeInt` that refers to the location of the fixed-point relative to the MSB of the input type.
+
+_rI_ is an `OpTypeInt` that refers to the location of the fixed-point relative to the MSB of the result type.
+
+_Q_ is an `OpTypeInt` chosen from _Table 3.16b_ that indicates the Quantization Mode of this operation.
+
+_O_ is an `OpTypeInt` chosen from _Table 3.16c_ that indicates the Overflow Mode of this operation.
+
+| Capability:
+*ArbitraryPrecisionFixedPointINTEL*
+
+| 10 | 5926 | <id> Result Type | Result <id> | <id> Input Type| Input <id> | _Literal_ S | _Literal_ I | _Literal_ rI | _Literal_ Q | _Literal_ O
+|=====
+
+[cols="11", width="100%"]
+|=====
+10+<|*OpFixedCosINTEL* +
+
+An `OpTypeInt` representing an arbitrary precision fixed point number (ac_fixed) is passed in as the _Input_ and the cosine of the value is returned in _Result_.
+
+_Result Type_ is an `OpTypeInt` of width _rW_ and is the type of _Result_.
+
+_Input Type_ is an `OpTypeInt` of width _W_ and is the type of _Input_.
+
+_S_ is an `OpTypeBool` that indicates if the input and output are signed or unsigned.
+A value of `1` indicates that the two types are signed.
+Note that the operation does not use the signedness capabilities of `OpTypeInt`.
+
+_I_ is an `OpTypeInt` that refers to the location of the fixed-point relative to the MSB.
+
+_rI_ is an `OpTypeInt` that refers to the location of the fixed-point relative to the MSB of the result type.
+
+_Q_ is an `OpTypeInt` chosen from _Table 3.16b_ that indicates the Quantization Mode of this operation.
+
+_O_ is an `OpTypeInt` chosen from _Table 3.16c_ that indicates the Overflow Mode of this operation.
+
+| Capability:
+*ArbitraryPrecisionFixedPointINTEL*
+
+| 10 | 5927 | <id> Result Type | Result <id> | <id> Input Type| Input <id> | _Literal_ S | _Literal_ I | _Literal_ rI | _Literal_ Q | _Literal_ O
+|=====
+
+[cols="11", width="100%"]
+|=====
+10+<|*OpFixedSinCosINTEL* +
+
+An `OpTypeInt` representing an arbitrary precision fixed point number (ac_fixed) is passed in as the _Input_ and both the sine and cosine of the value are returned in _Result_.
+
+_Input Type_ is an `OpTypeInt` of width _W_ and is the type of _Input_.
+
+_Result Type_ is an `OpTypeInt` of `2 * rW` and is the type of _Result_.
+The lower significant bits (`rW`) of the _Result_ are used to hold the cosine value, and the more significant bits (`rW`) are used to hold the sine value.
+
+_S_ is an `OpTypeBool` that indicates if the input and output are signed or unsigned.
+A value of `1` indicates that the two types are signed.
+Note that the operation does not use the signedness capabilities of `OpTypeInt`.
+
+_I_ is an `OpTypeInt` that refers to the location of the fixed-point relative to the MSB.
+
+_rI_ is an `OpTypeInt` that refers to the location of the fixed-point relative to the MSB of the result type.
+
+_Q_ is an `OpTypeInt` chosen from _Table 3.16b_ that indicates the Quantization Mode of this operation.
+
+_O_ is an `OpTypeInt` chosen from _Table 3.16c_ that indicates the Overflow Mode of this operation.
+
+| Capability:
+*ArbitraryPrecisionFixedPointINTEL*
+
+| 10 | 5928 | <id> Result Type | Result <id> | <id> Input Type| Input <id> | _Literal_ S | _Literal_ I | _Literal_ rI | _Literal_ Q | _Literal_ O
+|=====
+
+[cols="11", width="100%"]
+|=====
+10+<|*OpFixedSinPiINTEL* +
+
+An `OpTypeInt` representing an arbitrary precision fixed point number (ac_fixed) is passed in as the _Input_ and the sine of pi * value is returned in _Result_.
+
+_Result Type_ is an `OpTypeInt` of width _rW_ and is the type of _Result_.
+
+_Input Type_ is an `OpTypeInt` of width _W_ and is the type of _Input_.
+
+_S_ is an `OpTypeBool` that indicates if the input and output are signed or unsigned.
+A value of `1` indicates that the two types are signed.
+Note that the operation does not use the signedness capabilities of `OpTypeInt`.
+
+_I_ is an `OpTypeInt` that refers to the location of the fixed-point relative to the MSB.
+
+_rI_ is an `OpTypeInt` that refers to the location of the fixed-point relative to the MSB of the result type.
+
+_Q_ is an `OpTypeInt` chosen from _Table 3.16b_ that indicates the Quantization Mode of this operation.
+
+_O_ is an `OpTypeInt` chosen from _Table 3.16c_ that indicates the Overflow Mode of this operation.
+
+| Capability:
+*ArbitraryPrecisionFixedPointINTEL*
+
+| 10 | 5929 | <id> Result Type | Result <id> | <id> Input Type| Input <id> | _Literal_ S | _Literal_ I | _Literal_ rI | _Literal_ Q | _Literal_ O
+|=====
+
+[cols="11", width="100%"]
+|=====
+10+<|*OpFixedCosPiINTEL* +
+
+An `OpTypeInt` representing an arbitrary precision fixed point number (ac_fixed) is passed in as the _Input_ and the cosine of pi * value is returned in _Result_.
+
+_Result Type_ is an `OpTypeInt` of width _rW_ and is the type of _Result_.
+
+_Input Type_ is an `OpTypeInt` of width _W_ and is the type of _Input_.
+
+_S_ is an `OpTypeBool` that indicates if the input and output are signed or unsigned.
+A value of `1` indicates that the two types are signed.
+Note that the operation does not use the signedness capabilities of `OpTypeInt`.
+
+_I_ is an `OpTypeInt` that refers to the location of the fixed-point relative to the MSB.
+
+_rI_ is an `OpTypeInt` that refers to the location of the fixed-point relative to the MSB of the result type.
+
+_Q_ is an `OpTypeInt` chosen from _Table 3.16b_ that indicates the Quantization Mode of this operation.
+
+_O_ is an `OpTypeInt` chosen from _Table 3.16c_ that indicates the Overflow Mode of this operation.
+
+| Capability:
+*ArbitraryPrecisionFixedPointINTEL*
+
+| 10 | 5930 | <id> Result Type | Result <id> | <id> Input Type| Input <id> | _Literal_ S | _Literal_ I | _Literal_ rI | _Literal_ Q | _Literal_ O
+|=====
+
+
+[cols="11", width="100%"]
+|=====
+10+<|*OpFixedSinCosPiINTEL* +
+
+An `OpTypeInt` representing an arbitrary precision fixed point number (ac_fixed) is passed in as the _Input_ and both the sine and cosine of pi * value are returned in _Result_.
+
+_Input Type_ is an `OpTypeInt` of width _W_ and is the type of _Input_.
+
+_Result Type_ is an `OpTypeInt` of twice the width of `rW` and is the type of _Result_.
+The lower significant bits (`rW`) of the _Result_ are used to hold the cosine value, and the more significant bits (`rW`) are used to hold the sine value.
+
+_S_ is an `OpTypeBool` that indicates if the input and output are signed or unsigned.
+A value of `1` indicates that the two types are signed.
+Note that the operation does not use the signedness capabilities of `OpTypeInt`.
+
+_I_ is an `OpTypeInt` that refers to the location of the fixed-point relative to the MSB.
+
+_rI_ is an `OpTypeInt` that refers to the location of the fixed-point relative to the MSB of the result type.
+
+_Q_ is an `OpTypeInt` chosen from _Table 3.16b_ that indicates the Quantization Mode of this operation.
+
+_O_ is an `OpTypeInt` chosen from _Table 3.16c_ that indicates the Overflow Mode of this operation.
+
+| Capability:
+*ArbitraryPrecisionFixedPointINTEL*
+
+| 10 | 5931 | <id> Result Type | <id> Input Type | Result <id> | Input <id> | _Literal_ S | _Literal_ I | _Literal_ rI | _Literal_ Q | _Literal_ O
+|=====
+
+[cols="11", width="100%"]
+|=====
+10+<|*OpFixedLogINTEL* +
+
+An `OpTypeInt` representing an arbitrary precision fixed point number (ac_fixed) is passed in as the _Input_ and the log of the value is returned in _Result_.
+
+_Result Type_ is an `OpTypeInt` of width _rW_ and is the type of _Result_.
+
+_Input Type_ is an `OpTypeInt` of width _W_ and is the type of _Input_.
+
+_S_ is an `OpTypeBool` that indicates if the input and output are signed or unsigned.
+A value of `1` indicates that the two types are signed.
+Note that the operation does not use the signedness capabilities of `OpTypeInt`.
+
+_I_ is an `OpTypeInt` that refers to the location of the fixed-point relative to the MSB.
+
+_rI_ is an `OpTypeInt` that refers to the location of the fixed-point relative to the MSB of the result type.
+
+_Q_ is an `OpTypeInt` chosen from _Table 3.16b_ that indicates the Quantization Mode of this operation.
+
+_O_ is an `OpTypeInt` chosen from _Table 3.16c_ that indicates the Overflow Mode of this operation.
+
+| Capability:
+*ArbitraryPrecisionFixedPointINTEL*
+
+| 10 | 5932 | <id> Result Type | Result <id> | <id> Input Type| Input <id> | _Literal_ S | _Literal_ I | _Literal_ rI | _Literal_ Q | _Literal_ O
+|=====
+
+[cols="11", width="100%"]
+|=====
+10+<|*OpFixedExpINTEL* +
+
+An `OpTypeInt` representing an arbitrary precision fixed point number (ac_fixed) is passed in as the _Input_ and the exp of the value is returned in _Result_.
+
+_Result Type_ is an `OpTypeInt` of width _rW_ and is the type of _Result_.
+
+_Input Type_ is an `OpTypeInt` of width _W_ and is the type of _Input_.
+
+_S_ is an `OpTypeBool` that indicates if the input and output are signed or unsigned.
+A value of `1` indicates that the two types are signed.
+Note that the operation does not use the signedness capabilities of `OpTypeInt`.
+
+_I_ is an `OpTypeInt` that refers to the location of the fixed-point relative to the MSB.
+
+_rI_ is an `OpTypeInt` that refers to the location of the fixed-point relative to the MSB of the result type.
+
+_Q_ is an `OpTypeInt` chosen from _Table 3.16b_ that indicates the Quantization Mode of this operation.
+
+_O_ is an `OpTypeInt` chosen from _Table 3.16c_ that indicates the Overflow Mode of this operation.
+
+| Capability:
+*ArbitraryPrecisionFixedPointINTEL*
+
+| 10 | 5933 | <id> Result Type | Result <id> | <id> Input Type| Input <id> | _Literal_ S | _Literal_ I | _Literal_ rI | _Literal_ Q | _Literal_ O
+|=====
+
+=== Validation Rules
+
+None.
+
+== Issues
+
+None.
+
+== Revision History
+
+[cols="^,<,<,<",options="header",]
+|========================================================
+|Rev |Date |Author |Changes
+|A |2020-01-30 |Ajaykumar Kannan |Initial Version
+|B |2020-06-19 |Ajaykumar Kannan |Initial Public Release
+|========================================================
