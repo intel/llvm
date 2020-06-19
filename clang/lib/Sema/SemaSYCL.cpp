@@ -2197,12 +2197,10 @@ static void printTemplateArguments(ASTContext &Ctx, raw_ostream &ArgOS,
 static std::string getKernelNameTypeString(QualType T, ASTContext &Ctx,
                                            const PrintingPolicy &TypePolicy) {
 
-  QualType FullyQualifiedType = T.getCanonicalType();
-
   const CXXRecordDecl *RD = T->getAsCXXRecordDecl();
 
   if (!RD)
-    return eraseAnonNamespace(FullyQualifiedType.getAsString(TypePolicy));
+    return eraseAnonNamespace(T.getCanonicalType().getAsString(TypePolicy));
 
   // If kernel name type is a template specialization with enum type
   // template parameters, enumerators in name type string should be
@@ -2223,7 +2221,7 @@ static std::string getKernelNameTypeString(QualType T, ASTContext &Ctx,
     return eraseAnonNamespace(ArgOS.str().str());
   }
 
-  return eraseAnonNamespace(FullyQualifiedType.getAsString(TypePolicy));
+  return eraseAnonNamespace(T.getCanonicalType().getAsString(TypePolicy));
 }
 
 void SYCLIntegrationHeader::emit(raw_ostream &O) {
