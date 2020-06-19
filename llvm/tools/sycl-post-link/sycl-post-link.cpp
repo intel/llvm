@@ -103,6 +103,13 @@ static cl::opt<SpecConstMode> SpecConstLower{
         clEnumValN(SC_USE_DEFAULT_VAL, "default",
                    "set spec constants to C++ defaults")),
     cl::cat(PostLinkCat)};
+
+struct ImagePropSaveInfo {
+  bool NeedDeviceLibReqMask;
+  bool DoSpecConst;
+  bool SetSpecConstAtRT;
+  bool SpecConstsMet;
+};
 // Please update DeviceLibFuncMap if any item is added to or removed from
 // fallback device libraries in libdevice.
 static std::map<std::string, uint32_t> DeviceLibFuncMap = {
@@ -400,37 +407,35 @@ static uint32_t getModuleReqMask(const Module &M) {
   return ReqMask;
 }
 
-static void
-getDeviceLibReqMasks(const std::vector<std::unique_ptr<Module>> &ResModules,
-                     std::vector<uint32_t> &DeviceLibReqMaskVec) {
-  for (auto &MPtr : ResModules) {
-    uint32_t ModuleReqMask = getModuleReqMask(*MPtr);
-    DeviceLibReqMaskVec.push_back(ModuleReqMask);
-  }
-}
-
-static string_vector
-saveDeviceImageProperty(const std::vector<uint32_t> ReqMaskVec,
-                        const std::vector<SpecIDMapTy> &Maps) {
+static string_vector saveDeviceImageProperty(
+    const std::vector<std::unique_ptr<Module>> &ResultModules,
+    const ImagePropSaveInfo &ImgPSInfo) {
   string_vector Res;
-  bool saveSpecIDMaps =
-      (Maps.size() != 0) && (ReqMaskVec.size() == Maps.size());
-  for (size_t I = 0; I < ReqMaskVec.size(); ++I) {
+  for (size_t I = 0; I < ResultModules.size(); ++I) {
     std::string SCFile = makeResultFileName(".prop", I);
     llvm::util::PropertySetRegistry PropSet;
-    std::map<StringRef, uint32_t> reqMaskEntry;
-    reqMaskEntry["devicelib_req_mask"] = ReqMaskVec[I];
-    PropSet.add(llvm::util::PropertySetRegistry::SYCL_DEVICELIB_REQ_MASK,
-                reqMaskEntry);
-    if (saveSpecIDMaps)
+    if (ImgPSInfo.NeedDeviceLibReqMask) {
+      uint32_t MRMask = getModuleReqMask(*ResultModules[I]);
+      std::map<StringRef, uint32_t> RMEntry = {{"DeviceLibReqMask", MRMask}};
+      PropSet.add(llvm::util::PropertySetRegistry::SYCL_DEVICELIB_REQ_MASK,
+                  RMEntry);
+    }
+    if (ImgPSInfo.DoSpecConst && ImgPSInfo.SetSpecConstAtRT) {
+      // extract spec constant maps per each module
+      SpecIDMapTy TmpSpecIDMap;
+      if (ImgPSInfo.SpecConstsMet)
+        SpecConstantsPass::collectSpecConstantMetadata(*ResultModules[I].get(),
+                                                       TmpSpecIDMap);
       PropSet.add(
           llvm::util::PropertySetRegistry::SYCL_SPECIALIZATION_CONSTANTS,
-          Maps[I]);
+          TmpSpecIDMap);
+    }
     std::error_code EC;
     raw_fd_ostream SCOut(SCFile, EC);
     PropSet.write(SCOut);
     Res.emplace_back(std::move(SCFile));
   }
+
   return Res;
 }
 
@@ -534,7 +539,6 @@ int main(int argc, char **argv) {
   }
 
   std::vector<std::unique_ptr<Module>> ResultModules;
-  std::vector<SpecIDMapTy> ResultSpecIDMaps;
   string_vector ResultSymbolsLists;
 
   util::SimpleTable Table;
@@ -578,26 +582,15 @@ int main(int argc, char **argv) {
     Error Err = Table.addColumn(COL_CODE, Files);
     CHECK_AND_EXIT(Err);
   }
+
   {
-    // Device library req mask is collected and stored in device image property
-    // as default and each device image module will have one req mask.
-    std::vector<uint32_t> DeviceLibReqMaskVec;
-    getDeviceLibReqMasks(ResultModules, DeviceLibReqMaskVec);
-    if (DoSpecConst && SetSpecConstAtRT) {
-      // extract spec constant maps per each module
-      for (auto &MUptr : ResultModules) {
-        ResultSpecIDMaps.emplace_back(SpecIDMapTy());
-        if (SpecConstsMet)
-          SpecConstantsPass::collectSpecConstantMetadata(
-              *MUptr.get(), ResultSpecIDMaps.back());
-      }
-      assert(DeviceLibReqMaskVec.size() == ResultSpecIDMaps.size());
-    }
-    string_vector Files =
-        saveDeviceImageProperty(DeviceLibReqMaskVec, ResultSpecIDMaps);
+    ImagePropSaveInfo ImgPSInfo = {true, DoSpecConst, SetSpecConstAtRT,
+                                   SpecConstsMet};
+    string_vector Files = saveDeviceImageProperty(ResultModules, ImgPSInfo);
     Error Err = Table.addColumn(COL_PROPS, Files);
     CHECK_AND_EXIT(Err);
   }
+
   if (DoSymGen) {
     // extract symbols per each module
     collectSymbolsLists(GlobalsSet, ResultSymbolsLists);
