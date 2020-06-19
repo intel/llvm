@@ -174,10 +174,6 @@ class IdentifierArgument<string name, bit opt = 0> : Argument<name, opt>;
 class IntArgument<string name, bit opt = 0> : Argument<name, opt>;
 class StringArgument<string name, bit opt = 0> : Argument<name, opt>;
 class ExprArgument<string name, bit opt = 0> : Argument<name, opt>;
-class IntegerExprArgument<string name, int undef = 0, bit opt = 0>
-    : ExprArgument<name, opt> {
-  int UndefValue = undef;
-}
 class DeclArgument<DeclNode kind, string name, bit opt = 0, bit fake = 0>
     : Argument<name, opt, fake> {
   DeclNode Kind = kind;
@@ -1293,7 +1289,7 @@ def LoopUnrollHint : InheritableAttr {
 
 def IntelReqdSubGroupSize: InheritableAttr {
   let Spellings = [GNU<"intel_reqd_sub_group_size">, CXX11<"cl", "intel_reqd_sub_group_size">];
-  let Args = [IntegerExprArgument<"SubGroupSize", /* UndefValue = */ 0>];
+  let Args = [ExprArgument<"SubGroupSize">];
   let Subjects = SubjectList<[Function, CXXMethod], ErrorDiag>;
   let Documentation = [IntelReqdSubGroupSizeDocs];
   let LangOpts = [OpenCL, SYCLIsDevice, SYCLIsHost];
