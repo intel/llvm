@@ -951,12 +951,15 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                    size_t{4000u});
   }
   case PI_DEVICE_INFO_MEM_BASE_ADDR_ALIGN: {
-    // TODO: is this config consistent across all NVIDIA GPUs?
-    // "The minimum value is the size (in bits) of the largest OpenCL built-in
-    // data type supported by the device"
-    // Hard coded to value returned by clinfo for OpenCL 1.2 CUDA | GeForce GTX
-    // 1060 3GB
-    return getInfo(param_value_size, param_value, param_value_size_ret, 4096u);
+    int mem_base_addr_align = 0;
+    cl::sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&mem_base_addr_align,
+                             CU_DEVICE_ATTRIBUTE_TEXTURE_ALIGNMENT,
+                             device->get()) == CUDA_SUCCESS);
+    // Multiply by 8 as clGetDeviceInfo returns this value in bits
+    mem_base_addr_align *= 8;
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   mem_base_addr_align);
   }
   case PI_DEVICE_INFO_HALF_FP_CONFIG: {
     // TODO: is this config consistent across all NVIDIA GPUs?
