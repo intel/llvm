@@ -250,7 +250,7 @@ struct sub_group {
   /* indices in [0 , 2 * sub_group size) */
 
   template <typename T>
-  __SYCL_EXPORT_DEPRECATED("Two-input sub-group shuffles are deprecated.")
+  __SYCL_DEPRECATED("Two-input sub-group shuffles are deprecated.")
   T shuffle(T x, T y, id_type local_id) const {
 #ifdef __SYCL_DEVICE_ONLY__
     return sycl::detail::sub_group::shuffle_down(
@@ -265,7 +265,7 @@ struct sub_group {
   }
 
   template <typename T>
-  __SYCL_EXPORT_DEPRECATED("Two-input sub-group shuffles are deprecated.")
+  __SYCL_DEPRECATED("Two-input sub-group shuffles are deprecated.")
   T shuffle_down(T current, T next, uint32_t delta) const {
 #ifdef __SYCL_DEVICE_ONLY__
     return sycl::detail::sub_group::shuffle_down(current, next, delta);
@@ -279,7 +279,7 @@ struct sub_group {
   }
 
   template <typename T>
-  __SYCL_EXPORT_DEPRECATED("Two-input sub-group shuffles are deprecated.")
+  __SYCL_DEPRECATED("Two-input sub-group shuffles are deprecated.")
   T shuffle_up(T previous, T current, uint32_t delta) const {
 #ifdef __SYCL_DEVICE_ONLY__
     return sycl::detail::sub_group::shuffle_up(previous, current, delta);
@@ -458,9 +458,8 @@ struct sub_group {
 #endif
   }
 
-  __SYCL_EXPORT_DEPRECATED(
-      "Sub-group barrier accepting fence_space is deprecated."
-      "Use barrier() without a fence_space instead.")
+  __SYCL_DEPRECATED("Sub-group barrier accepting fence_space is deprecated."
+                    "Use barrier() without a fence_space instead.")
   void barrier(access::fence_space accessSpace =
                    access::fence_space::global_and_local) const {
 #ifdef __SYCL_DEVICE_ONLY__

@@ -46,3 +46,9 @@
 #warning "No assumptions will be emitted due to no __builtin_assume available"
 #endif
 #endif
+
+#ifdef _WIN32
+#define __SYCL_DEPRECATED(message) __declspec(deprecated(message))
+#else
+#define __SYCL_DEPRECATED(message) __attribute__((deprecated(message)))
+#endif
