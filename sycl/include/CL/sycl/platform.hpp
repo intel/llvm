@@ -105,7 +105,7 @@ public:
   /// Returns the backend associated with this platform.
   ///
   /// \return the backend associated with this platform
-  backend get_backend() const;
+  backend get_backend() const noexcept;
 
   /// Gets the native handle of the SYCL platform.
   ///

@@ -16,17 +16,10 @@ using namespace cl::sycl;
 bool check(backend be) {
   switch (be) {
   case backend::opencl:
-    return true;
-    break;
   case backend::level0:
-    return true;
-    break;
   case backend::cuda:
-    return true;
-    break;
   case backend::host:
     return true;
-    break;
   default:
     return false;
   }
