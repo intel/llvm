@@ -15,8 +15,8 @@
 #include <CL/sycl.hpp>
 
 struct A {};
-namespace sycl {
 struct B {};
+namespace sycl {
 using b_t = B;
 using a_t = A;
 } // namespace sycl
