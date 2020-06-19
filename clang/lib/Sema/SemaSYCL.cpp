@@ -516,10 +516,9 @@ public:
         Attrs.insert(A);
       if (auto *A = FD->getAttr<ReqdWorkGroupSizeAttr>())
         Attrs.insert(A);
-      // Allow the following kernel attributes only on lambda functions and
-      // function objects that are called directly from a kernel (i.e. the one
-      // passed to the parallel_for function). For all other cases,
-      // emit a warning and ignore.
+      // Allow the following kernel attributes only on lambdas, functions and
+      // function objects that are called directly from a kernel.
+      // For all other cases, emit a warning and ignore.
       if (auto *A = FD->getAttr<SYCLIntelKernelArgsRestrictAttr>()) {
         if (ParentFD == SYCLKernel) {
           Attrs.insert(A);
