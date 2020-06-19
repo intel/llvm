@@ -440,7 +440,6 @@ Type *parsePrimitiveTypeString(StringRef TyStr, LLVMContext &Ctx) {
       .Case("float", IntegerType::getFloatTy(Ctx))
       .Case("double", IntegerType::getDoubleTy(Ctx))
       .Case("void", IntegerType::getVoidTy(Ctx))
-      .Case("", nullptr)
       .Default(nullptr);
 }
 
@@ -825,9 +824,9 @@ translateSpirvIntrinsic(CallInst *CI, StringRef SpirvIntrName,
                         SmallVector<Instruction *, 8> &ESIMDToErases) {
   auto translateSpirvIntr = [&SpirvIntrName, &ESIMDToErases,
                              CI](StringRef SpvIName, auto TranslateFunc) {
-    if (SpirvIntrName.startswith(SpvIName)) {
+    if (SpirvIntrName.consume_front(SpvIName)) {
       Value *TranslatedV =
-          TranslateFunc(*CI, SpirvIntrName.substr(SpvIName.size() + 1, 1));
+          TranslateFunc(*CI, SpirvIntrName.front()));
       CI->replaceAllUsesWith(TranslatedV);
       ESIMDToErases.push_back(CI);
     }
@@ -1027,7 +1026,7 @@ static void translateESIMDIntrinsicCall(CallInst &CI) {
   Function *F = CI.getCalledFunction();
   StringRef MnglName = F->getName();
   const char *MnglNameCStr = MnglName.data();
-  Demangler Parser(MnglNameCStr, MnglNameCStr + std::strlen(MnglNameCStr));
+  Demangler Parser(MnglName.begin(), MnglName.end()));
   id::Node *AST = Parser.parse();
 
   if (!AST || !Parser.ForwardTemplateRefs.empty()) {
@@ -1233,17 +1232,16 @@ PreservedAnalyses SYCLLowerESIMDPass::run(Function &F,
 
     auto *CI = dyn_cast<CallInst>(&I);
     Function *Callee = nullptr;
-    if (!CI || CI->isIndirectCall() || !(Callee = CI->getCalledFunction()))
+    if (!CI || !(Callee = CI->getCalledFunction()))
       continue;
     StringRef Name = Callee->getName();
 
     // See if the Name represents an ESIMD intrinsic and demangle only if it
     // does.
-    if (!Name.startswith(ESIMD_INTRIN_PREF0))
+    if (!Name.consume_front(ESIMD_INTRIN_PREF0))
       continue;
     // now skip the digits
-    StringRef Name1 = Name.substr(std::strlen(ESIMD_INTRIN_PREF0));
-    Name1 = Name1.drop_while([](char C) { return std::isdigit(C); });
+    StringRef Name1 = Name1.drop_while([](char C) { return std::isdigit(C); });
 
     // process ESIMD builtins that go through special handling instead of
     // the translation procedure
@@ -1286,15 +1284,13 @@ PreservedAnalyses SYCLLowerESIMDPass::run(Function &F,
       continue;
     }
 
-    if (Name1.startswith(SPIRV_INTRIN_PREF)) {
-      auto SpirvPrefLen = StringRef(SPIRV_INTRIN_PREF).size();
-      StringRef SpirvIntrName = Name1.substr(SpirvPrefLen);
-      translateSpirvIntrinsic(CI, SpirvIntrName, ESIMDToErases);
+    if (Name1.consume_front(SPIRV_INTRIN_PREF)) {
+      translateSpirvIntrinsic(CI, Name1, ESIMDToErases);
       // For now: if no match, just let it go untranslated.
       continue;
     }
 
-    if ((Name1.size() == 0) || !Name1.startswith(ESIMD_INTRIN_PREF1))
+    if (Name1.empty() || !Name1.startswith(ESIMD_INTRIN_PREF1))
       continue;
     // this is ESIMD intrinsic - record for later translation
     ESIMDIntrCalls.push_back(CI);
