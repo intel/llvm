@@ -1167,8 +1167,8 @@ namespace {
 
   public:
     IntegerExprArgument(const Record &Arg, StringRef Attr)
-        : ExprArgument(Arg, Attr),
-          UndefValue(Arg.getValueAsInt("UndefValue")) {}
+        : ExprArgument(Arg, Attr), UndefValue(Arg.getValueAsInt("UndefValue")) {
+    }
 
     void writeAccessors(raw_ostream &OS) const override {
       OS << "  " << getType() << " get" << getUpperName() << "() const {\n";
