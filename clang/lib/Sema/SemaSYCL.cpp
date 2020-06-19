@@ -2138,7 +2138,9 @@ static void printArgument(ASTContext &Ctx, raw_ostream &ArgOS,
 
     if (ET) {
       const llvm::APSInt &Val = Arg.getAsIntegral();
-      ArgOS << "static_cast<" << ET->getDecl()->getQualifiedNameAsString(/*WithGlobalNsPrefix*/ true)
+      ArgOS << "static_cast<"
+            << ET->getDecl()->getQualifiedNameAsString(
+                   /*WithGlobalNsPrefix*/ true)
             << ">"
             << "(" << Val << ")";
     } else {
