@@ -3645,7 +3645,8 @@ static void ParseTargetArgs(TargetOptions &Opts, ArgList &Args,
 
 bool CompilerInvocation::CreateFromArgs(CompilerInvocation &Res,
                                         ArrayRef<const char *> CommandLineArgs,
-                                        DiagnosticsEngine &Diags) {
+                                        DiagnosticsEngine &Diags,
+                                        const char *Argv0) {
   bool Success = true;
 
   // Parse the arguments.
@@ -3769,6 +3770,11 @@ bool CompilerInvocation::CreateFromArgs(CompilerInvocation &Res,
     Res.getCodeGenOpts().FineGrainedBitfieldAccesses = false;
     Diags.Report(diag::warn_drv_fine_grained_bitfield_accesses_ignored);
   }
+
+  // Store the command-line for using in the CodeView backend.
+  Res.getCodeGenOpts().Argv0 = Argv0;
+  Res.getCodeGenOpts().CommandLineArgs = CommandLineArgs;
+
   return Success;
 }
 

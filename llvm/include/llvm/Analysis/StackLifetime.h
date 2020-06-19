@@ -13,7 +13,9 @@
 #include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/IR/IntrinsicInst.h"
+#include "llvm/IR/PassManager.h"
 #include "llvm/Support/raw_ostream.h"
 #include <cassert>
 #include <utility>
@@ -55,6 +57,8 @@ class StackLifetime {
   };
 
 public:
+  class LifetimeAnnotationWriter;
+
   /// This class represents a set of interesting instructions where an alloca is
   /// live.
   class LiveRange {
@@ -71,10 +75,20 @@ public:
     }
 
     void join(const LiveRange &Other) { Bits |= Other.Bits; }
+
+    bool test(unsigned Idx) const { return Bits.test(Idx); }
+  };
+
+  // Controls what is "alive" if control flow may reach the instruction
+  // with a different liveness of the alloca.
+  enum class LivenessType {
+    May,  // May be alive on some path.
+    Must, // Must be alive on every path.
   };
 
 private:
   const Function &F;
+  LivenessType Type;
 
   /// Maps active slots (per bit) for each basic block.
   using LivenessMap = DenseMap<const BasicBlock *, BlockLifetimeInfo>;
@@ -119,7 +133,8 @@ private:
   void calculateLiveIntervals();
 
 public:
-  StackLifetime(const Function &F, ArrayRef<const AllocaInst *> Allocas);
+  StackLifetime(const Function &F, ArrayRef<const AllocaInst *> Allocas,
+                LivenessType Type);
 
   void run();
   std::vector<const IntrinsicInst *> getMarkers() const;
@@ -135,6 +150,8 @@ public:
     assert(NumInst >= 0);
     return LiveRange(NumInst, true);
   }
+
+  void print(raw_ostream &O);
 };
 
 static inline raw_ostream &operator<<(raw_ostream &OS, const BitVector &V) {
@@ -157,6 +174,18 @@ inline raw_ostream &operator<<(raw_ostream &OS,
                                const StackLifetime::LiveRange &R) {
   return OS << R.Bits;
 }
+
+/// Printer pass for testing.
+class StackLifetimePrinterPass
+    : public PassInfoMixin<StackLifetimePrinterPass> {
+  StackLifetime::LivenessType Type;
+  raw_ostream &OS;
+
+public:
+  StackLifetimePrinterPass(raw_ostream &OS, StackLifetime::LivenessType Type)
+      : Type(Type), OS(OS) {}
+  PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
+};
 
 } // end namespace llvm
 
