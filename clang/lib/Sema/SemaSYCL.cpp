@@ -2208,6 +2208,10 @@ static std::string getKernelNameTypeString(QualType T, ASTContext &Ctx,
     SmallString<64> Buf;
     llvm::raw_svector_ostream ArgOS(Buf);
 
+    // Print the qualifiers for the type.
+    FullyQualifiedType.getQualifiers().print(ArgOS, TypePolicy,
+                                             /*appendSpaceIfNotEmpty*/ true);
+
     // Print template class name
     TSD->printQualifiedName(ArgOS, TypePolicy, /*WithGlobalNsPrefix*/ true);
 
