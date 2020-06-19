@@ -1527,10 +1527,11 @@ void NamedDecl::printName(raw_ostream &os) const {
   os << Name;
 }
 
-std::string NamedDecl::getQualifiedNameAsString() const {
+std::string NamedDecl::getQualifiedNameAsString(bool WithGlobalNsPrefix) const {
   std::string QualName;
   llvm::raw_string_ostream OS(QualName);
-  printQualifiedName(OS, getASTContext().getPrintingPolicy());
+  printQualifiedName(OS, getASTContext().getPrintingPolicy(),
+                     WithGlobalNsPrefix);
   return OS.str();
 }
 
