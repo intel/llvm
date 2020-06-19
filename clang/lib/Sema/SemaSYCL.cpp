@@ -1820,19 +1820,12 @@ void Sema::finalizeSYCLDelayedAnalysis(const FunctionDecl *Caller,
   if (Callee->getTemplatedKind() == FunctionDecl::TK_FunctionTemplate)
     return;
 
-  bool RedeclHasAttr = false;
-
-  for (const Decl *Redecl : Callee->redecls()) {
-    if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(Redecl)) {
-      if (FD->hasAttr<SYCLDeviceAttr>() || FD->hasAttr<SYCLKernelAttr>()) {
-        RedeclHasAttr = true;
-        break;
-      }
-    }
-  }
+  Callee = Callee->getMostRecentDecl();
+  bool HasAttr =
+      Callee->hasAttr<SYCLDeviceAttr>() || Callee->hasAttr<SYCLKernelAttr>();
 
   // Disallow functions with neither definition nor SYCL_EXTERNAL mark
-  bool NotDefinedNoAttr = !Callee->isDefined() && !RedeclHasAttr;
+  bool NotDefinedNoAttr = !Callee->isDefined() && !HasAttr;
 
   if (NotDefinedNoAttr && !Callee->getBuiltinID()) {
     Diag(Loc, diag::err_sycl_restrict)

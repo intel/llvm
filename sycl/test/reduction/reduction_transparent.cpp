@@ -3,12 +3,8 @@
 
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
-
-// TODO: enable all checks for CPU/ACC when CPU/ACC RT supports intel::reduce()
-// for 'cl::sycl::half' type.
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -DSKIP_FOR_HALF -o %t.no_half.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.no_half.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.no_half.out
+// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %CPU_RUN_PLACEHOLDER %t.out
 
 // RUNx: env SYCL_DEVICE_TYPE=HOST %t.out
 // TODO: Enable the test for HOST when it supports intel::reduce() and barrier()
@@ -114,13 +110,9 @@ void test(T Identity, size_t WGSize, size_t NWItems) {
 
 int main() {
 #if __cplusplus >= 201402L
-  test<double, 0, intel::maximum<>>(getMinimumFPValue<double>(), 7, 7 * 5);
+  test<float, 0, intel::maximum<>>(getMinimumFPValue<float>(), 7, 7 * 5);
   test<signed char, 0, intel::plus<>>(0, 7, 49);
   test<unsigned char, 1, std::multiplies<>>(1, 4, 16);
-#ifndef SKIP_FOR_HALF
-  test<half, 1, intel::plus<>>(0, 4, 8);
-  test<half, 1, intel::minimum<>>(getMaximumFPValue<half>(), 8, 32);
-#endif // SKIP_FOR_HALF
 #endif // __cplusplus >= 201402L
 
   std::cout << "Test passed\n";
