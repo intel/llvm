@@ -608,9 +608,9 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
   if (NumDevices)
     *NumDevices = ZeDeviceCount;
 
-  if (Devices == nullptr) {
-    assert(NumEntries == 0 &&
-           "NumEntries should be zero when querying the number of devices");
+  if (NumEntries == 0) {
+    assert(Devices == nullptr &&
+           "Devices should be nullptr when querying the number of devices");
     return PI_SUCCESS;
   }
 
