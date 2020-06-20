@@ -1544,8 +1544,7 @@ public:
            "Incorrect template args for Accessor Type");
     // Get specialization constant ID type, which is the second template
     // argument.
-    QualType SpecConstIDTy =
-        TemplateArgs.get(1).getAsType().getCanonicalType();
+    QualType SpecConstIDTy = TemplateArgs.get(1).getAsType().getCanonicalType();
     const std::string SpecConstName = PredefinedExpr::ComputeName(
         SemaRef.getASTContext(), PredefinedExpr::UniqueStableNameType,
         SpecConstIDTy);
