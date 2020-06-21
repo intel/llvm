@@ -516,6 +516,10 @@ public:
     return PredictableSelectIsExpensive;
   }
 
+  virtual bool fallBackToDAGISel(const Instruction &Inst) const {
+    return false;
+  }
+
   /// If a branch or a select condition is skewed in one direction by more than
   /// this factor, it is very likely to be predicted correctly.
   virtual BranchProbability getPredictableBranchThreshold() const;
@@ -2362,6 +2366,14 @@ public:
   /// registers.
   virtual Type* shouldConvertSplatType(ShuffleVectorInst* SVI) const {
     return nullptr;
+  }
+
+  /// Given a set in interconnected phis of type 'From' that are loaded/stored
+  /// or bitcast to type 'To', return true if the set should be converted to
+  /// 'To'.
+  virtual bool shouldConvertPhiType(Type *From, Type *To) const {
+    return (From->isIntegerTy() || From->isFloatingPointTy()) &&
+           (To->isIntegerTy() || To->isFloatingPointTy());
   }
 
   /// Returns true if the opcode is a commutative binary operation.

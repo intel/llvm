@@ -8,6 +8,8 @@ entry:
 ; CHECK-NEXT: Alive: <>
   %x = alloca i32, align 4
   %y = alloca i32, align 4
+; CHECK: %y = alloca i32, align 4
+; CHECK-NEXT: Alive: <>
   %z = alloca i32, align 4
   %x0 = bitcast i32* %x to i8*
   %y0 = bitcast i32* %y to i8*
@@ -40,8 +42,6 @@ entry:
 ; CHECK-NEXT: Alive: <>
 
   ret void
-; CHECK: ret void
-; CHECK-NEXT: Alive: <>
 }
 
 define void @no_markers() {
@@ -63,8 +63,6 @@ entry:
 
   call void @capture32(i32* %y)
   ret void
-; CHECK: ret void
-; CHECK-NEXT: Alive: <y>
 }
 
 define void @g() {
@@ -116,6 +114,8 @@ entry:
 ; CHECK: entry:
 ; CHECK-NEXT: Alive: <>
   %x = alloca i32, align 16
+; CHECK: %x = alloca i32, align 16
+; CHECK-NEXT: Alive: <>
   %z = alloca i64, align 4
   %y = alloca i32, align 4
   %x0 = bitcast i32* %x to i8*
@@ -149,8 +149,6 @@ entry:
 ; CHECK-NEXT: Alive: <>
 
   ret void
-; CHECK: ret void
-; CHECK-NEXT: Alive: <>
 }
 
 define void @i(i1 zeroext %a, i1 zeroext %b) {
@@ -192,8 +190,6 @@ if.then:                                          ; preds = %entry
 
   call void @capture64(i64* nonnull %y)
   br i1 %b, label %if.then3, label %if.else
-; CHECK: br i1 %b, label %if.then3, label %if.else
-; CHECK-NEXT: Alive: <x1 x2 y>
 
 if.then3:                                         ; preds = %if.then
 ; CHECK: if.then3:
@@ -209,8 +205,6 @@ if.then3:                                         ; preds = %if.then
 ; CHECK-NEXT: Alive: <x1 x2 y>
 
   br label %if.end
-; CHECK: br label %if.end
-; CHECK-NEXT: Alive: <x1 x2 y>
 
 if.else:                                          ; preds = %if.then
 ; CHECK: if.else:
@@ -226,8 +220,6 @@ if.else:                                          ; preds = %if.then
 ; CHECK-NEXT: Alive: <x1 x2 y>
 
   br label %if.end
-; CHECK: br label %if.end
-; CHECK-NEXT: Alive: <x1 x2 y>
 
 if.end:                                           ; preds = %if.else, %if.then3
 ; CHECK: if.end:
@@ -237,21 +229,21 @@ if.end:                                           ; preds = %if.else, %if.then3
 ; CHECK-NEXT: Alive: <x1 x2>
 
   br label %if.end9
-; CHECK: br label %if.end9
-; CHECK-NEXT: Alive: <x1 x2>
 
 if.else4:                                         ; preds = %entry
 ; CHECK: if.else4:
 ; CHECK-NEXT: Alive: <x1 x2>
+
   %5 = bitcast i64* %z to i8*
+; CHECK: %5 = bitcast i64* %z to i8*
+; CHECK-NEXT: Alive: <x1 x2>
+
   call void @llvm.lifetime.start.p0i8(i64 -1, i8* %5)
 ; CHECK: call void @llvm.lifetime.start.p0i8(i64 -1, i8* %5)
 ; CHECK-NEXT: Alive: <x1 x2 z>
 
   call void @capture64(i64* nonnull %z)
   br i1 %b, label %if.then6, label %if.else7
-; CHECK: br i1 %b, label %if.then6, label %if.else7
-; CHECK-NEXT: Alive: <x1 x2 z>
 
 if.then6:                                         ; preds = %if.else4
 ; CHECK: if.then6:
@@ -267,8 +259,6 @@ if.then6:                                         ; preds = %if.else4
 ; CHECK-NEXT: Alive: <x1 x2 z>
 
   br label %if.end8
-; CHECK: br label %if.end8
-; CHECK-NEXT: Alive: <x1 x2 z>
 
 if.else7:                                         ; preds = %if.else4
 ; CHECK: if.else7:
@@ -284,8 +274,6 @@ if.else7:                                         ; preds = %if.else4
 ; CHECK-NEXT: Alive: <x1 x2 z>
 
   br label %if.end8
-; CHECK: br label %if.end8
-; CHECK-NEXT: Alive: <x1 x2 z>
 
 if.end8:                                          ; preds = %if.else7, %if.then6
 ; CHECK: if.end8:
@@ -295,8 +283,6 @@ if.end8:                                          ; preds = %if.else7, %if.then6
 ; CHECK-NEXT: Alive: <x1 x2>
 
   br label %if.end9
-; CHECK: br label %if.end9
-; CHECK-NEXT: Alive: <x1 x2>
 
 if.end9:                                          ; preds = %if.end8, %if.end
 ; CHECK: if.end9:
@@ -310,8 +296,6 @@ if.end9:                                          ; preds = %if.end8, %if.end
 ; CHECK-NEXT: Alive: <>
 
   ret void
-; CHECK: ret void
-; CHECK-NEXT: Alive: <>
 }
 
 define void @no_merge1(i1 %d) {
@@ -329,8 +313,6 @@ entry:
 
   call void @capture32(i32* %x)
   br i1 %d, label %bb2, label %bb3
-; CHECK: br i1 %d, label %bb2, label %bb3
-; CHECK-NEXT: Alive: <x>
 
 bb2:                                              ; preds = %entry
 ; CHECK: bb2:
@@ -349,8 +331,6 @@ bb2:                                              ; preds = %entry
 ; CHECK-NEXT: Alive: <>
 
   ret void
-; CHECK: ret void
-; CHECK-NEXT: Alive: <>
 
 bb3:                                              ; preds = %entry
 ; CHECK: bb3:
@@ -360,8 +340,6 @@ bb3:                                              ; preds = %entry
 ; CHECK-NEXT: Alive: <>
 
   ret void
-; CHECK: ret void
-; CHECK-NEXT: Alive: <>
 }
 
 define void @merge1(i1 %d) {
@@ -383,8 +361,6 @@ entry:
 ; CHECK-NEXT: Alive: <>
 
   br i1 %d, label %bb2, label %bb3
-; CHECK: br i1 %d, label %bb2, label %bb3
-; CHECK-NEXT: Alive: <>
 
 bb2:                                              ; preds = %entry
 ; CHECK: bb2:
@@ -399,15 +375,11 @@ bb2:                                              ; preds = %entry
 ; CHECK-NEXT: Alive: <>
 
   ret void
-; CHECK: ret void
-; CHECK-NEXT: Alive: <>
 
 bb3:                                              ; preds = %entry
 ; CHECK: bb3:
 ; CHECK-NEXT: Alive: <>
   ret void
-; CHECK: ret void
-; CHECK-NEXT: Alive: <>
 }
 
 define void @merge2_noend(i1 %d) {
@@ -429,8 +401,6 @@ entry:
 ; CHECK-NEXT: Alive: <>
 
   br i1 %d, label %bb2, label %bb3
-; CHECK: br i1 %d, label %bb2, label %bb3
-; CHECK-NEXT: Alive: <>
 
 bb2:                                              ; preds = %entry
 ; CHECK: bb2:
@@ -441,15 +411,11 @@ bb2:                                              ; preds = %entry
 
   call void @capture32(i32* %y)
   ret void
-; CHECK: ret void
-; CHECK-NEXT: Alive: <y>
 
 bb3:                                              ; preds = %entry
 ; CHECK: bb3:
 ; CHECK-NEXT: Alive: <>
   ret void
-; CHECK: ret void
-; CHECK-NEXT: Alive: <>
 }
 
 define void @merge3_noend(i1 %d) {
@@ -467,8 +433,6 @@ entry:
 
   call void @capture32(i32* %x)
   br i1 %d, label %bb2, label %bb3
-; CHECK: br i1 %d, label %bb2, label %bb3
-; CHECK-NEXT: Alive: <x>
 
 bb2:                                              ; preds = %entry
 ; CHECK: bb2:
@@ -483,15 +447,11 @@ bb2:                                              ; preds = %entry
 
   call void @capture32(i32* %y)
   ret void
-; CHECK: ret void
-; CHECK-NEXT: Alive: <y>
 
 bb3:                                              ; preds = %entry
 ; CHECK: bb3:
 ; CHECK-NEXT: Alive: <x>
   ret void
-; CHECK: ret void
-; CHECK-NEXT: Alive: <x>
 }
 
 define void @nomerge4_nostart(i1 %d) {
@@ -509,8 +469,6 @@ entry:
 ; CHECK-NEXT: Alive: <x>
 
   br i1 %d, label %bb2, label %bb3
-; CHECK: br i1 %d, label %bb2, label %bb3
-; CHECK-NEXT: Alive: <x>
 
 bb2:                                              ; preds = %entry
 ; CHECK: bb2:
@@ -521,15 +479,11 @@ bb2:                                              ; preds = %entry
 
   call void @capture32(i32* %y)
   ret void
-; CHECK: ret void
-; CHECK-NEXT: Alive: <x y>
 
 bb3:                                              ; preds = %entry
 ; CHECK: bb3:
 ; CHECK-NEXT: Alive: <x>
   ret void
-; CHECK: ret void
-; CHECK-NEXT: Alive: <x>
 }
 
 define void @array_merge() {
@@ -552,6 +506,9 @@ entry:
 ; CHECK-NEXT: Alive: <A.i B.i>
 
   call void @capture100x32([100 x i32]* %A.i)
+; CHECK: call void @capture100x32([100 x i32]* %A.i)
+; CHECK-NEXT: Alive: <A.i B.i>
+
   call void @capture100x32([100 x i32]* %B.i)
   call void @llvm.lifetime.end.p0i8(i64 -1, i8* %0)
 ; CHECK: call void @llvm.lifetime.end.p0i8(i64 -1, i8* %0)
@@ -582,8 +539,6 @@ entry:
 ; CHECK-NEXT: Alive: <>
 
   ret void
-; CHECK: ret void
-; CHECK-NEXT: Alive: <>
 }
 
 define void @myCall_pr15707() {
@@ -612,8 +567,6 @@ entry:
   call void @capture8(i8* %buf1)
   call void @capture8(i8* %buf2)
   ret void
-; CHECK: ret void
-; CHECK-NEXT: Alive: <buf1 buf2>
 }
 
 define void @bad_range() {
@@ -646,8 +599,6 @@ entry:
 ; CHECK-NEXT: Alive: <A.i1 B.i2>
 
   br label %block2
-; CHECK: br label %block2
-; CHECK-NEXT: Alive: <A.i1 B.i2>
 
 block2:                                           ; preds = %entry
 ; CHECK: block2:
@@ -655,8 +606,6 @@ block2:                                           ; preds = %entry
   call void @capture100x32([100 x i32]* %A.i)
   call void @capture100x32([100 x i32]* %B.i)
   ret void
-; CHECK: ret void
-; CHECK-NEXT: Alive: <A.i1 B.i2>
 }
 
 %struct.Klass = type { i32, i32 }
@@ -691,8 +640,6 @@ entry:
 ; CHECK-NEXT: Alive: <>
 
   ret i32 %z3
-; CHECK: ret i32 %z3
-; CHECK-NEXT: Alive: <>
 }
 
 define void @end_loop() {
@@ -706,8 +653,6 @@ entry:
 ; CHECK-NEXT: Alive: <x>
 
   br label %l2
-; CHECK: br label %l2
-; CHECK-NEXT: Alive: <x>
 
 l2:                                               ; preds = %l2, %entry
 ; CHECK: l2:
@@ -719,8 +664,6 @@ l2:                                               ; preds = %l2, %entry
 ; CHECK-NEXT: Alive: <>
 
   br label %l2
-; CHECK: br label %l2
-; CHECK-NEXT: Alive: <>
 }
 
 define void @start_loop() {
@@ -735,8 +678,6 @@ entry:
 ; CHECK-NEXT: Alive: <x>
 
   br label %l2
-; CHECK: br label %l2
-; CHECK-NEXT: Alive: <x>
 
 l2:                                               ; preds = %l2, %entry
 ; CHECK: l2:
@@ -756,8 +697,6 @@ l2:                                               ; preds = %l2, %entry
 
   call void @capture8(i8* %x)
   br label %l2
-; CHECK: br label %l2
-; CHECK-NEXT: Alive: <x>
 }
 
 define void @if_must(i1 %a) {
@@ -769,7 +708,7 @@ entry:
   %y = alloca i8, align 4
 
   br i1 %a, label %if.then, label %if.else
-; CHECK: br i1 %a
+; CHECK: br i1 %a, label %if.then, label %if.else
 ; CHECK-NEXT: Alive: <>
 
 if.then:
@@ -804,9 +743,42 @@ if.end:
 ; MUST-NEXT: Alive: <y>
 
 ret void
-; CHECK: ret void
-; MAY-NEXT: Alive: <x y>
-; MUST-NEXT: Alive: <y>
+}
+
+define void @unreachable() {
+; CHECK-LABEL: define void @unreachable
+entry:
+; CHECK: entry:
+; CHECK-NEXT: Alive: <>
+  %x = alloca i8, align 4
+  %y = alloca i8, align 4
+
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %y)
+; CHECK: call void @llvm.lifetime.start.p0i8(i64 4, i8* %y)
+; CHECK-NEXT: Alive: <y>
+
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %x)
+; CHECK: call void @llvm.lifetime.start.p0i8(i64 4, i8* %x)
+; CHECK-NEXT: Alive: <x y>
+
+  br label %end
+; CHECK: br label %end
+; CHECK-NEXT: Alive: <x y>
+
+dead:
+; CHECK: dead:
+; CHECK-NOT: Alive:
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %y)
+
+  br label %end
+; CHECK: br label %end
+; CHECK-NOT: Alive:
+
+end:
+; CHECK: end:
+; CHECK-NEXT: Alive: <x y>
+
+ret void
 }
 
 declare void @llvm.lifetime.start.p0i8(i64, i8* nocapture)

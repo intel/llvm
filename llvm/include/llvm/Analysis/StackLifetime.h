@@ -94,11 +94,9 @@ private:
   using LivenessMap = DenseMap<const BasicBlock *, BlockLifetimeInfo>;
   LivenessMap BlockLiveness;
 
-  /// Number of interesting instructions.
-  int NumInst = -1;
-
-  /// Numeric ids for interesting instructions.
-  DenseMap<const IntrinsicInst *, unsigned> InstructionNumbering;
+  /// Interesting instructions. Instructions of the same block are adjustent
+  /// preserve in-block order.
+  SmallVector<const IntrinsicInst *, 64> Instructions;
 
   /// A range [Start, End) of instruction ids for each basic block.
   /// Instructions inside each BB have monotonic and consecutive ids.
@@ -137,18 +135,31 @@ public:
                 LivenessType Type);
 
   void run();
-  std::vector<const IntrinsicInst *> getMarkers() const;
+
+  iterator_range<
+      filter_iterator<ArrayRef<const IntrinsicInst *>::const_iterator,
+                      std::function<bool(const IntrinsicInst *)>>>
+  getMarkers() const {
+    std::function<bool(const IntrinsicInst *)> NotNull(
+        [](const IntrinsicInst *I) -> bool { return I; });
+    return make_filter_range(Instructions, NotNull);
+  }
 
   /// Returns a set of "interesting" instructions where the given alloca is
   /// live. Not all instructions in a function are interesting: we pick a set
   /// that is large enough for LiveRange::Overlaps to be correct.
   const LiveRange &getLiveRange(const AllocaInst *AI) const;
 
+  /// Returns true if instruction is reachable from entry.
+  bool isReachable(const Instruction *I) const;
+
+  /// Returns true if the alloca is alive after the instruction.
+  bool isAliveAfter(const AllocaInst *AI, const Instruction *I) const;
+
   /// Returns a live range that represents an alloca that is live throughout the
   /// entire function.
   LiveRange getFullLiveRange() const {
-    assert(NumInst >= 0);
-    return LiveRange(NumInst, true);
+    return LiveRange(Instructions.size(), true);
   }
 
   void print(raw_ostream &O);

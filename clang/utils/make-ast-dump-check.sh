@@ -48,6 +48,10 @@ BEGIN {
   skipping_builtins = 0
 }
 
+/^[\`|].* col:/ {
+  skipping_builtins = 0
+}
+
 {
   if (skipping_builtins == 1) {
     matched_last_line = 0
@@ -70,11 +74,11 @@ BEGIN {
 }
 
 matched_last_line == 0 {
-  print "// ${prefix}: " s
+  print "// ${prefix}:" s
 }
 
 matched_last_line == 1 {
-  print "// ${prefix}-NEXT: " s
+  print "// ${prefix}-NEXT:" s
 }
 
 {
