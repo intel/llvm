@@ -51,7 +51,7 @@ John Pennycook, Intel (john 'dot' pennycook 'at' intel 'dot' com)
 
 == Dependencies
 
-This extension is written against the SYCL 1.2.1 specification, Revision 6.
+This extension is written against the SYCL 1.2.1 specification, Revision 6 and the SYCL_INTEL_device_specific_kernel_queries extension.
 
 == Overview
 
@@ -111,33 +111,37 @@ The device descriptors below are added to the +info::device+ enumeration class:
 |Returns a vector_class of +size_t+ containing the set of sub-group sizes supported by the device.
 |===
 
-An additional query for sub-group information is added to the +kernel+ class:
+An additional query is added to the +kernel+ class, enabling an input value to be passed to `get_info`.  The original `get_info` query from the SYCL_INTEL_device_specific_kernel_queries extension should be used for queries that do not specify an input type.
 
 |===
 |Member Functions|Description
 
-|+template <info::kernel_sub_group param>typename info::param_traits<info::kernel_sub_group, param>::return_type get_sub_group_info(const device &dev) const+
-|Query information from the sub-group from a kernel using the +info::kernel_sub_group+ descriptor for a specific device.
+|+template <info::kernel_device_specific param>typename info::param_traits<info::kernel_device_specific, param>::return_type get_info(const device &dev, typename info::param_traits<info::kernel_device_specific, param>::input_type value) const+
+|Query information from a kernel using the +info::kernel_device_specific+ descriptor for a specific device and input parameter.  The expected value of the input parameter depends on the information being queried.
 |===
 
-The kernel descriptors below are added as part of a new +info::kernel_sub_group+ enumeration class:
+The kernel descriptors below are added to the +info::kernel_device_specific+ enumeration class:
 
 |===
-|Kernel Descriptors|Return Type|Description
+|Kernel Descriptors|Input Type|Return Type|Description
 
-|+info::kernel_sub_group::max_num_sub_groups+
+|+info::kernel_device_specific::max_num_sub_groups+
+|N/A
 |+uint32_t+
 |Returns the maximum number of sub-groups for this kernel.
 
-|+info::kernel_sub_group::compile_num_sub_groups+
+|+info::kernel_device_specific::compile_num_sub_groups+
+|N/A
 |+uint32_t+
 |Returns the number of sub-groups specified by the kernel, or 0 (if not specified).
 
-|+info::kernel_sub_group::max_sub_group_size+
+|+info::kernel_device_specific::max_sub_group_size+
+|+range<D>+
 |+uint32_t+
-|Returns the maximum sub-group size for this kernel.
+|Returns the maximum sub-group size for this kernel launched with the specified work-group size.
 
-|+info::kernel_sub_group::compile_sub_group_size+
+|+info::kernel_device_specific::compile_sub_group_size+
+|N/A
 |+uint32_t+
 |Returns the required sub-group size specified by the kernel, or 0 (if not specified).
 |===
@@ -155,7 +159,9 @@ To provide access to the +sub_group+ class, a new member function is added to th
 |Return the sub-group to which the work-item belongs.
 |===
 
-The member functions of the sub-group class provide a mechanism for a developer to query properties of a sub-group and a work-item's position in it.
+==== Core Member Functions
+
+The core member functions of the sub-group class provide a mechanism for a developer to query properties of a sub-group and a work-item's position in it.
 
 |===
 |Member Functions|Description
@@ -199,6 +205,37 @@ parallel_for<class kernel>(..., [&](nd_item item)
 });
 ----
 
+==== Synchronization Functions
+
+A sub-group barrier synchronizes all work-items in a sub-group, and orders memory operations with a memory fence to all address spaces.
+
+|===
+|Member Functions|Description
+
+|+void barrier() const+
+|Execute a sub-group barrier.
+|===
+
+==== Shuffles
+
+The shuffle sub-group functions perform arbitrary communication between pairs of work-items in a sub-group.  Common patterns -- such as shifting all values in a sub-group by a fixed number of work-items -- are exposed as specialized shuffles that may be accelerated in hardware.
+
+|===
+|Member Functions|Description
+
+|+template <typename T> T shuffle(T x, id<1> local_id) const+
+|Exchange values of _x_ between work-items in the sub-group in an arbitrary pattern.  Returns the value of _x_ from the work-item with the specified id.  The value of _local_id_ must be between 0 and the sub-group size.
+
+|+template <typename T> T shuffle_down(T x, uint32_t delta) const+
+|Exchange values of _x_ between work-items in the sub-group via a shift.  Returns the value of _x_ from the work-item whose id is _delta_ larger than the calling work-item. The value returned when the result of id + _delta_ is greater than or equal to the sub-group size is undefined.
+
+|+template <typename T> T shuffle_up(T x, uint32_t delta) const+
+|Exchange values of _x_ between work-items in the sub-group via a shift.  Returns the value of _x_ from the work-item whose id is _delta_ smaller than the calling work-item. The value of returned when the result of id - _delta_ is less than zero is undefined.
+
+|+template <typename T> T shuffle_xor(T x, id<1> mask) const+
+|Exchange pairs of values of _x_ between work-items in the sub-group.  Returns the value of _x_ from the work-item whose id is equal to the exclusive-or of the calling work-item's id and _mask_. _mask_ must be a compile-time constant value that is the same for all work-items in the sub-group.
+|===
+
 ==== Sample Header
 
 [source, c++]
@@ -222,6 +259,20 @@ struct sub_group {
   linear_id_type get_group_linear_id() const;
   range_type get_group_range() const;
 
+  void barrier() const;
+
+  template <typename T>
+  T shuffle(T x, id<1> local_id) const;
+
+  template <typename T>
+  T shuffle_down(T x, uint32_t delta) const;
+
+  template <typename T>
+  T shuffle_up(T x, uint32_t delta) const;
+
+  template <typename T>
+  T shuffle_xor(T x, id<1> mask) const;
+
 };
 } // intel
 } // sycl
@@ -230,7 +281,19 @@ struct sub_group {
 
 == Issues
 
-None.
+. Should sub-group query results for specific kernels depend on work-group size?
++
+--
+*RESOLVED*:
+Yes, this is required by OpenCL devices.  Devices that do not require the work-group size can ignore the parameter.
+--
+
+. Should sub-group "shuffles" be member functions?
++
+--
+*RESOLVED*:
+Yes, the four shuffles in this extension are a defining feature of sub-groups.  Higher-level algorithms (such as those in the +SubGroupAlgorithms+ proposal) may build on them, the same way as higher-level algorithms using work-groups build on work-group local memory.
+--
 
 //. asd
 //+
@@ -247,6 +310,10 @@ None.
 |Rev|Date|Author|Changes
 |1|2019-04-19|John Pennycook|*Initial public working draft*
 |2|2020-03-16|John Pennycook|*Separate class definition from algorithms*
+|3|2020-04-21|John Pennycook|*Update max_sub_group_size query*
+|4|2020-04-21|John Pennycook|*Restore missing barrier function*
+|5|2020-04-21|John Pennycook|*Restore sub-group shuffles as member functions*
+|6|2020-04-22|John Pennycook|*Align with SYCL_INTEL_device_specific_kernel_queries*
 |========================================
 
 //************************************************************************
