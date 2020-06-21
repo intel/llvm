@@ -10,15 +10,16 @@ add_dependencies(get_device_count_by_type ocl-headers ocl-icd l0-loader)
 
 if(MSVC)
   set(L0_LIBRARY
-      "${LLVM_LIBRARY_OUTPUT_INTDIR}/${CMAKE_STATIC_LIBRARY_PREFIX}ze_loader${CMAKE_STATIC_LIBRARY_SUFFIX}")
+    "${LLVM_LIBRARY_OUTPUT_INTDIR}/${CMAKE_STATIC_LIBRARY_PREFIX}ze_loader${CMAKE_STATIC_LIBRARY_SUFFIX}")
 else()
   set(L0_LIBRARY
-      "${LLVM_LIBRARY_OUTPUT_INTDIR}/${CMAKE_SHARED_LIBRARY_PREFIX}ze_loader${CMAKE_SHARED_LIBRARY_SUFFIX}")
+    "${LLVM_LIBRARY_OUTPUT_INTDIR}/${CMAKE_SHARED_LIBRARY_PREFIX}ze_loader${CMAKE_SHARED_LIBRARY_SUFFIX}")
 endif()
 
 target_link_libraries(get_device_count_by_type
   PRIVATE
     OpenCL::Headers
+    L0Loader::Headers
     ${OpenCL_LIBRARIES}
     ${L0_LIBRARY}
     $<$<BOOL:${SYCL_BUILD_PI_CUDA}>:cudadrv>

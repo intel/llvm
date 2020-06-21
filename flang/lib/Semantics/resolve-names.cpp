@@ -455,6 +455,8 @@ public:
   // TODO: Will return the scope of a FORALL or implied DO loop; is this ok?
   // If not, should call FindProgramUnitContaining() instead.
   Scope &InclusiveScope();
+  // The enclosing scope, skipping derived types.
+  Scope &NonDerivedTypeScope();
 
   // Create a new scope and push it on the scope stack.
   void PushScope(Scope::Kind kind, Symbol *symbol);
@@ -1999,6 +2001,10 @@ Scope &ScopeHandler::InclusiveScope() {
   DIE("inclusive scope not found");
 }
 
+Scope &ScopeHandler::NonDerivedTypeScope() {
+  return currScope_->IsDerivedType() ? currScope_->parent() : *currScope_;
+}
+
 void ScopeHandler::PushScope(Scope::Kind kind, Symbol *symbol) {
   PushScope(currScope().MakeScope(kind, symbol));
 }
@@ -3294,9 +3300,7 @@ void DeclarationVisitor::Post(const parser::EnumDef &) {
 
 bool DeclarationVisitor::Pre(const parser::AccessSpec &x) {
   Attr attr{AccessSpecToAttr(x)};
-  const Scope &scope{
-      currScope().IsDerivedType() ? currScope().parent() : currScope()};
-  if (!scope.IsModule()) { // C817
+  if (!NonDerivedTypeScope().IsModule()) { // C817
     Say(currStmtSource().value(),
         "%s attribute may only appear in the specification part of a module"_err_en_US,
         EnumToString(attr));
@@ -4725,7 +4729,7 @@ void DeclarationVisitor::SetType(
 
 std::optional<DerivedTypeSpec> DeclarationVisitor::ResolveDerivedType(
     const parser::Name &name) {
-  Symbol *symbol{FindSymbol(name)};
+  Symbol *symbol{FindSymbol(NonDerivedTypeScope(), name)};
   if (!symbol || symbol->has<UnknownDetails>()) {
     if (allowForwardReferenceToDerivedType()) {
       if (!symbol) {
@@ -5143,6 +5147,12 @@ void ConstructVisitor::Post(const parser::SelectTypeStmt &x) {
     // This isn't a name in the current scope, it is in each TypeGuardStmt
     MakePlaceholder(*name, MiscDetails::Kind::SelectTypeAssociateName);
     association.name = &*name;
+    auto exprType{association.selector.expr->GetType()};
+    if (exprType && !exprType->IsPolymorphic()) { // C1159
+      Say(association.selector.source,
+          "Selector '%s' in SELECT TYPE statement must be "
+          "polymorphic"_err_en_US);
+    }
   } else {
     if (const Symbol *
         whole{UnwrapWholeSymbolDataRef(association.selector.expr)}) {
@@ -5151,6 +5161,13 @@ void ConstructVisitor::Post(const parser::SelectTypeStmt &x) {
         Say(association.selector.source, // C901
             "Selector is not a variable"_err_en_US);
         association = {};
+      }
+      if (const DeclTypeSpec * type{whole->GetType()}) {
+        if (!type->IsPolymorphic()) { // C1159
+          Say(association.selector.source,
+              "Selector '%s' in SELECT TYPE statement must be "
+              "polymorphic"_err_en_US);
+        }
       }
     } else {
       Say(association.selector.source, // C1157
@@ -5769,7 +5786,7 @@ void ResolveNamesVisitor::HandleCall(
 void ResolveNamesVisitor::HandleProcedureName(
     Symbol::Flag flag, const parser::Name &name) {
   CHECK(flag == Symbol::Flag::Function || flag == Symbol::Flag::Subroutine);
-  auto *symbol{FindSymbol(name)};
+  auto *symbol{FindSymbol(NonDerivedTypeScope(), name)};
   if (!symbol) {
     if (context().intrinsics().IsIntrinsic(name.source.ToString())) {
       symbol =

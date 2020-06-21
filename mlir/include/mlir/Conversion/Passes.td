@@ -207,6 +207,15 @@ def ConvertShapeToStandard : Pass<"convert-shape-to-std", "ModuleOp"> {
 }
 
 //===----------------------------------------------------------------------===//
+// SPIRVToLLVM
+//===----------------------------------------------------------------------===//
+
+def ConvertSPIRVToLLVM : Pass<"convert-spirv-to-llvm", "ModuleOp"> {
+  let summary = "Convert SPIR-V dialect to LLVM dialect";
+  let constructor = "mlir::createConvertSPIRVToLLVMPass()";
+}
+
+//===----------------------------------------------------------------------===//
 // StandardToLLVM
 //===----------------------------------------------------------------------===//
 
@@ -290,6 +299,16 @@ def ConvertVectorToLLVM : Pass<"convert-vector-to-llvm", "ModuleOp"> {
   let summary = "Lower the operations from the vector dialect into the LLVM "
                 "dialect";
   let constructor = "mlir::createConvertVectorToLLVMPass()";
+}
+
+//===----------------------------------------------------------------------===//
+// VectorToROCDL
+//===----------------------------------------------------------------------===//
+
+def ConvertVectorToROCDL : Pass<"convert-vector-to-rocdl", "ModuleOp"> {
+  let summary = "Lower the operations from the vector dialect into the ROCDL "
+                "dialect";
+  let constructor = "mlir::createConvertVectorToROCDLPass()";
 }
 
 #endif // MLIR_CONVERSION_PASSES

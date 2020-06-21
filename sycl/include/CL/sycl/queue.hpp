@@ -703,8 +703,12 @@ private:
   pi_native_handle getNative() const;
 
   shared_ptr_class<detail::queue_impl> impl;
+  queue(shared_ptr_class<detail::queue_impl> impl) : impl(impl) {}
+
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
+  template <class T>
+  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 
   /// A template-free version of submit.
   event submit_impl(function_class<void(handler &)> CGH,

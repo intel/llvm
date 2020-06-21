@@ -13,11 +13,30 @@ from spirv_common import ignore_overload, emit_guards, close_guards, clang_forma
 
 def ignore_function(fun):
     whitelist = [
+        "abs",
+        "abs_diff",
+        "add_sat",
+        "BitCount",
+        "clz",
         "ControlBarrier",
+        "ctz",
         "GroupAsyncCopy",
         "GroupWaitEvents",
+        "hadd",
+        "mad24",
+        "mad_hi",
+        "mad_sat",
         "MemoryBarrier",
-        "prefetch"
+        "mul24",
+        "mul_hi",
+        "popcount",
+        "prefetch",
+        "rhadd",
+        "rotate",
+        "sub_sat",
+        "upsample",
+        "vload",
+        "vstore"
     ]
 
     return not any([fun.find(b) != -1 for b in whitelist])

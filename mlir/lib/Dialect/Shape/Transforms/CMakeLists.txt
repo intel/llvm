@@ -14,4 +14,5 @@ target_link_libraries(MLIRShapeOpsTransforms
   MLIRPass
   MLIRShape
   MLIRSupport
+  MLIRTransforms
   )
