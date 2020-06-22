@@ -900,7 +900,7 @@ void UnwrappedLineParser::parsePPUnknown() {
   addUnwrappedLine();
 }
 
-// Here we blacklist certain tokens that are not usually the first token in an
+// Here we exclude certain tokens that are not usually the first token in an
 // unwrapped line. This is used in attempt to distinguish macro calls without
 // trailing semicolons from other constructs split to several lines.
 static bool tokenCanStartNewLine(const FormatToken &Tok) {
@@ -1459,8 +1459,14 @@ void UnwrappedLineParser::parseStructuralElement() {
       // followed by a curly.
       if (FormatTok->is(TT_JsFatArrow)) {
         nextToken();
-        if (FormatTok->is(tok::l_brace))
+        if (FormatTok->is(tok::l_brace)) {
+          // C# may break after => if the next character is a newline.
+          if (Style.isCSharp() && Style.BraceWrapping.AfterFunction == true) {
+            // calling `addUnwrappedLine()` here causes odd parsing errors.
+            FormatTok->MustBreakBefore = true;
+          }
           parseChildBlock();
+        }
         break;
       }
 
@@ -1536,7 +1542,7 @@ bool UnwrappedLineParser::tryToParsePropertyAccessor() {
   // Try to parse the property accessor:
   // https://docs.microsoft.com/en-us/dotnet/csharp/programming-guide/classes-and-structs/properties
   Tokens->setPosition(StoredPosition);
-  if (Style.BraceWrapping.AfterFunction == true)
+  if (!IsTrivialPropertyAccessor && Style.BraceWrapping.AfterFunction == true)
     addUnwrappedLine();
   nextToken();
   do {

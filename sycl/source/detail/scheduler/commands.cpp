@@ -1956,6 +1956,32 @@ cl_int ExecCGCommand::enqueueImp() {
 
     return CL_SUCCESS;
   }
+  case CG::CGTYPE::BARRIER: {
+    if (MQueue->get_device().is_host()) {
+      // NOP for host device.
+      return PI_SUCCESS;
+    }
+    const detail::plugin &Plugin = MQueue->getPlugin();
+    Plugin.call<PiApiKind::piEnqueueEventsWaitWithBarrier>(
+        MQueue->getHandleRef(), 0, nullptr, &Event);
+
+    return PI_SUCCESS;
+  }
+  case CG::CGTYPE::BARRIER_WAITLIST: {
+    CGBarrier *Barrier = static_cast<CGBarrier *>(MCommandGroup.get());
+    std::vector<detail::EventImplPtr> Events = Barrier->MEventsWaitWithBarrier;
+    if (MQueue->get_device().is_host() || Events.empty()) {
+      // NOP for host device.
+      // If Events is empty, then the barrier has no effect.
+      return PI_SUCCESS;
+    }
+    std::vector<RT::PiEvent> PiEvents = getPiEvents(Events);
+    const detail::plugin &Plugin = MQueue->getPlugin();
+    Plugin.call<PiApiKind::piEnqueueEventsWaitWithBarrier>(
+        MQueue->getHandleRef(), PiEvents.size(), &PiEvents[0], &Event);
+
+    return PI_SUCCESS;
+  }
   case CG::CGTYPE::NONE:
     throw runtime_error("CG type not implemented.", PI_INVALID_OPERATION);
   }

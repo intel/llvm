@@ -8,6 +8,7 @@
 // RUN: env TEST_DEVICE_AVAILABLE=1 env SYCL_CONFIG_FILE_NAME=%t2.conf %t.out
 //
 // RUN: env TEST_DEVICE_IS_NOT_AVAILABLE=1 env SYCL_DEVICE_ALLOWLIST="PlatformName:{{SUCH NAME DOESN'T EXIST}}" %t.out
+// RUN: env TEST_INCORRECT_VALUE=1 env SYCL_DEVICE_ALLOWLIST="IncorrectKey:{{.*}}" %t.out
 
 #include <CL/sycl.hpp>
 #include <iostream>
@@ -84,6 +85,17 @@ int main() {
       if (!Platform.is_host())
         throw std::runtime_error("Expected no non host device is available");
     return 0;
+  }
+
+  if (getenv("TEST_INCORRECT_VALUE")) {
+    try {
+      sycl::platform::get_platforms();
+    } catch (sycl::runtime_error &E) {
+      const std::string ExpectedMsg("Unrecognized key in device allowlist");
+      const std::string GotMessage(E.what());
+      const bool CorrectMeg = GotMessage.find(ExpectedMsg) != std::string::npos;
+      return CorrectMeg ? 0 : 1;
+    }
   }
 
   throw std::runtime_error("Unhandled situation");

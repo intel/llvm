@@ -1,4 +1,5 @@
 add_mlir_dialect_library(MLIRShapeOpsTransforms
+  RemoveShapeConstraints.cpp
   ShapeToShapeLowering.cpp
 
   ADDITIONAL_HEADER_DIRS
@@ -14,4 +15,5 @@ target_link_libraries(MLIRShapeOpsTransforms
   MLIRPass
   MLIRShape
   MLIRSupport
+  MLIRTransforms
   )

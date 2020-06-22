@@ -551,8 +551,6 @@ static inline void __ompt_task_init(kmp_taskdata_t *task, int tid) {
   task->ompt_task_info.frame.enter_frame = ompt_data_none;
   task->ompt_task_info.frame.exit_frame_flags = ompt_frame_runtime | ompt_frame_framepointer;
   task->ompt_task_info.frame.enter_frame_flags = ompt_frame_runtime | ompt_frame_framepointer;
-  task->ompt_task_info.ndeps = 0;
-  task->ompt_task_info.deps = NULL;
 }
 
 // __ompt_task_start:
@@ -1328,7 +1326,7 @@ kmp_task_t *__kmp_task_alloc(ident_t *loc_ref, kmp_int32 gtid,
 
   taskdata->td_flags.task_serial =
       (parent_task->td_flags.final || taskdata->td_flags.team_serial ||
-       taskdata->td_flags.tasking_ser);
+       taskdata->td_flags.tasking_ser || flags->merged_if0);
 
   taskdata->td_flags.started = 0;
   taskdata->td_flags.executing = 0;

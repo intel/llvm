@@ -364,9 +364,10 @@ namespace {
         if (User->getNumOperands() != 2)
           continue;
 
-        // If this can match to INC/DEC, don't count it as a use.
-        if (User->getOpcode() == ISD::ADD &&
-            (isOneConstant(SDValue(N, 0)) || isAllOnesConstant(SDValue(N, 0))))
+        // If this is a sign-extended 8-bit integer immediate used in an ALU
+        // instruction, there is probably an opcode encoding to save space.
+        auto *C = dyn_cast<ConstantSDNode>(N);
+        if (C && isInt<8>(C->getSExtValue()))
           continue;
 
         // Immediates that are used for offsets as part of stack
@@ -470,14 +471,6 @@ namespace {
     }
 
     bool isSExtAbsoluteSymbolRef(unsigned Width, SDNode *N) const;
-
-    /// Returns whether this is a relocatable immediate in the range
-    /// [-2^Width .. 2^Width-1].
-    template <unsigned Width> bool isSExtRelocImm(SDNode *N) const {
-      if (auto *CN = dyn_cast<ConstantSDNode>(N))
-        return isInt<Width>(CN->getSExtValue());
-      return isSExtAbsoluteSymbolRef(Width, N);
-    }
 
     // Indicates we should prefer to use a non-temporal load for this load.
     bool useNonTemporalLoad(LoadSDNode *N) const {
@@ -1573,13 +1566,13 @@ bool X86DAGToDAGISel::matchLoadInAddress(LoadSDNode *N, X86ISelAddressMode &AM){
         (Subtarget->isTargetGlibc() || Subtarget->isTargetAndroid() ||
          Subtarget->isTargetFuchsia()))
       switch (N->getPointerInfo().getAddrSpace()) {
-      case 256:
+      case X86AS::GS:
         AM.Segment = CurDAG->getRegister(X86::GS, MVT::i16);
         return false;
-      case 257:
+      case X86AS::FS:
         AM.Segment = CurDAG->getRegister(X86::FS, MVT::i16);
         return false;
-      // Address space 258 is not handled here, because it is not used to
+      // Address space X86AS::SS is not handled here, because it is not used to
       // address TLS areas.
       }
 
@@ -2457,12 +2450,11 @@ bool X86DAGToDAGISel::selectAddr(SDNode *Parent, SDValue N, SDValue &Base,
       Parent->getOpcode() != X86ISD::EH_SJLJ_LONGJMP) { // longjmp
     unsigned AddrSpace =
       cast<MemSDNode>(Parent)->getPointerInfo().getAddrSpace();
-    // AddrSpace 256 -> GS, 257 -> FS, 258 -> SS.
-    if (AddrSpace == 256)
+    if (AddrSpace == X86AS::GS)
       AM.Segment = CurDAG->getRegister(X86::GS, MVT::i16);
-    if (AddrSpace == 257)
+    if (AddrSpace == X86AS::FS)
       AM.Segment = CurDAG->getRegister(X86::FS, MVT::i16);
-    if (AddrSpace == 258)
+    if (AddrSpace == X86AS::SS)
       AM.Segment = CurDAG->getRegister(X86::SS, MVT::i16);
   }
 
@@ -2478,15 +2470,6 @@ bool X86DAGToDAGISel::selectAddr(SDNode *Parent, SDValue N, SDValue &Base,
 }
 
 bool X86DAGToDAGISel::selectMOV64Imm32(SDValue N, SDValue &Imm) {
-  if (const ConstantSDNode *CN = dyn_cast<ConstantSDNode>(N)) {
-    uint64_t ImmVal = CN->getZExtValue();
-    if (!isUInt<32>(ImmVal))
-      return false;
-
-    Imm = CurDAG->getTargetConstant(ImmVal, SDLoc(N), MVT::i64);
-    return true;
-  }
-
   // In static codegen with small code model, we can get the address of a label
   // into a register with 'movl'
   if (N->getOpcode() != X86ISD::Wrapper)
@@ -2660,12 +2643,6 @@ bool X86DAGToDAGISel::selectTLSADDRAddr(SDValue N, SDValue &Base,
 }
 
 bool X86DAGToDAGISel::selectRelocImm(SDValue N, SDValue &Op) {
-  if (auto *CN = dyn_cast<ConstantSDNode>(N)) {
-    Op = CurDAG->getTargetConstant(CN->getAPIntValue(), SDLoc(CN),
-                                   N.getValueType());
-    return true;
-  }
-
   // Keep track of the original value type and whether this value was
   // truncated. If we see a truncation from pointer type to VT that truncates
   // bits that are known to be zero, we can use a narrow reference.

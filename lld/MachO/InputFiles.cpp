@@ -137,7 +137,8 @@ void InputFile::parseSections(ArrayRef<section_64> sections) {
     isec->file = this;
     isec->name = StringRef(sec.sectname, strnlen(sec.sectname, 16));
     isec->segname = StringRef(sec.segname, strnlen(sec.segname, 16));
-    isec->data = {buf + sec.offset, static_cast<size_t>(sec.size)};
+    isec->data = {isZeroFill(sec.flags) ? nullptr : buf + sec.offset,
+                  static_cast<size_t>(sec.size)};
     if (sec.align >= 32)
       error("alignment " + std::to_string(sec.align) + " of section " +
             isec->name + " is too large");
@@ -178,15 +179,13 @@ void InputFile::parseRelocations(const section_64 &sec,
     Reloc r;
     r.type = rel.r_type;
     r.pcrel = rel.r_pcrel;
+    r.length = rel.r_length;
     uint64_t rawAddend = target->getImplicitAddend(mb, sec, rel);
 
     if (rel.r_extern) {
       r.target = symbols[rel.r_symbolnum];
       r.addend = rawAddend;
     } else {
-      if (!rel.r_pcrel)
-        fatal("TODO: Only pcrel section relocations are supported");
-
       if (rel.r_symbolnum == 0 || rel.r_symbolnum > subsections.size())
         fatal("invalid section index in relocation for offset " +
               std::to_string(r.offset) + " in section " + sec.sectname +
@@ -194,14 +193,19 @@ void InputFile::parseRelocations(const section_64 &sec,
 
       SubsectionMap &targetSubsecMap = subsections[rel.r_symbolnum - 1];
       const section_64 &targetSec = sectionHeaders[rel.r_symbolnum - 1];
-      // The implicit addend for pcrel section relocations is the pcrel offset
-      // in terms of the addresses in the input file. Here we adjust it so that
-      // it describes the offset from the start of the target section.
-      // TODO: Figure out what to do for non-pcrel section relocations.
-      // TODO: The offset of 4 is probably not right for ARM64, nor for
-      //       relocations with r_length != 2.
-      uint32_t targetOffset =
-          sec.addr + rel.r_address + 4 + rawAddend - targetSec.addr;
+      uint32_t targetOffset;
+      if (rel.r_pcrel) {
+        // The implicit addend for pcrel section relocations is the pcrel offset
+        // in terms of the addresses in the input file. Here we adjust it so
+        // that it describes the offset from the start of the target section.
+        // TODO: The offset of 4 is probably not right for ARM64, nor for
+        //       relocations with r_length != 2.
+        targetOffset =
+            sec.addr + rel.r_address + 4 + rawAddend - targetSec.addr;
+      } else {
+        // The addend for a non-pcrel relocation is its absolute address.
+        targetOffset = rawAddend - targetSec.addr;
+      }
       r.target = findContainingSubsection(targetSubsecMap, &targetOffset);
       r.addend = targetOffset;
     }
@@ -378,14 +382,23 @@ DylibFile::DylibFile(MemoryBufferRef mb, DylibFile *umbrella)
   }
 }
 
-DylibFile::DylibFile() : InputFile(DylibKind, MemoryBufferRef()) {}
+DylibFile::DylibFile(std::shared_ptr<llvm::MachO::InterfaceFile> interface,
+                     DylibFile *umbrella)
+    : InputFile(DylibKind, MemoryBufferRef()) {
+  if (umbrella == nullptr)
+    umbrella = this;
 
-DylibFile *DylibFile::createLibSystemMock() {
-  auto *file = make<DylibFile>();
-  file->mb = MemoryBufferRef("", "/usr/lib/libSystem.B.dylib");
-  file->dylibName = "/usr/lib/libSystem.B.dylib";
-  file->symbols.push_back(symtab->addDylib("dyld_stub_binder", file));
-  return file;
+  dylibName = saver.save(interface->getInstallName());
+  // TODO(compnerd) filter out symbols based on the target platform
+  for (const auto symbol : interface->symbols())
+    if (symbol->getArchitectures().has(config->arch))
+      symbols.push_back(
+          symtab->addDylib(saver.save(symbol->getName()), umbrella));
+  // TODO(compnerd) properly represent the hierarchy of the documents as it is
+  // in theory possible to have re-exported dylibs from re-exported dylibs which
+  // should be parent'ed to the child.
+  for (auto document : interface->documents())
+    reexported.push_back(make<DylibFile>(document, umbrella));
 }
 
 ArchiveFile::ArchiveFile(std::unique_ptr<llvm::object::Archive> &&f)

@@ -160,6 +160,7 @@ public:
   void mangleDynamicInitializer(const VarDecl *D, raw_ostream &Out) override;
   void mangleDynamicAtExitDestructor(const VarDecl *D,
                                      raw_ostream &Out) override;
+  void mangleDynamicStermFinalizer(const VarDecl *D, raw_ostream &Out) override;
   void mangleSEHFilterExpression(const NamedDecl *EnclosingDecl,
                                  raw_ostream &Out) override;
   void mangleSEHFinallyBlock(const NamedDecl *EnclosingDecl,
@@ -2843,10 +2844,18 @@ void CXXNameMangler::mangleType(const BuiltinType *T) {
   // The SVE types are effectively target-specific.  The mangling scheme
   // is defined in the appendices to the Procedure Call Standard for the
   // Arm Architecture.
-#define SVE_TYPE(Name, Id, SingletonId) \
-  case BuiltinType::Id: \
-    type_name = Name; \
-    Out << 'u' << type_name.size() << type_name; \
+#define SVE_VECTOR_TYPE(InternalName, MangledName, Id, SingletonId, NumEls,    \
+                        ElBits, IsSigned, IsFP, IsBF)                          \
+  case BuiltinType::Id:                                                        \
+    type_name = MangledName;                                                   \
+    Out << (type_name == InternalName ? "u" : "") << type_name.size()          \
+        << type_name;                                                          \
+    break;
+#define SVE_PREDICATE_TYPE(InternalName, MangledName, Id, SingletonId, NumEls) \
+  case BuiltinType::Id:                                                        \
+    type_name = MangledName;                                                   \
+    Out << (type_name == InternalName ? "u" : "") << type_name.size()          \
+        << type_name;                                                          \
     break;
 #include "clang/Basic/AArch64SVEACLETypes.def"
   }
@@ -5239,6 +5248,18 @@ void ItaniumMangleContextImpl::mangleDynamicAtExitDestructor(const VarDecl *D,
   // Prefix the mangling of D with __dtor_.
   CXXNameMangler Mangler(*this, Out);
   Mangler.getStream() << "__dtor_";
+  if (shouldMangleDeclName(D))
+    Mangler.mangle(D);
+  else
+    Mangler.getStream() << D->getName();
+}
+
+void ItaniumMangleContextImpl::mangleDynamicStermFinalizer(const VarDecl *D,
+                                                           raw_ostream &Out) {
+  // Clang generates these internal-linkage functions as part of its
+  // implementation of the XL ABI.
+  CXXNameMangler Mangler(*this, Out);
+  Mangler.getStream() << "__finalize_";
   if (shouldMangleDeclName(D))
     Mangler.mangle(D);
   else

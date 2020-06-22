@@ -863,6 +863,23 @@ void MachineVerifier::verifyPreISelGenericInstruction(const MachineInstr *MI) {
   const MCInstrDesc &MCID = MI->getDesc();
   unsigned NumOps = MI->getNumOperands();
 
+  // Branches must reference a basic block if they are not indirect
+  if (MI->isBranch() && !MI->isIndirectBranch()) {
+    bool HasMBB = false;
+    for (const MachineOperand &Op : MI->operands()) {
+      if (Op.isMBB()) {
+        HasMBB = true;
+        break;
+      }
+    }
+
+    if (!HasMBB) {
+      report("Branch instruction is missing a basic block operand or "
+             "isIndirectBranch property",
+             MI);
+    }
+  }
+
   // Check types.
   SmallVector<LLT, 4> Types;
   for (unsigned I = 0, E = std::min(MCID.getNumOperands(), NumOps);
@@ -915,9 +932,6 @@ void MachineVerifier::verifyPreISelGenericInstruction(const MachineInstr *MI) {
   switch (MI->getOpcode()) {
   case TargetOpcode::G_CONSTANT:
   case TargetOpcode::G_FCONSTANT: {
-    if (MI->getNumOperands() < MCID.getNumOperands())
-      break;
-
     LLT DstTy = MRI->getType(MI->getOperand(0).getReg());
     if (DstTy.isVector())
       report("Instruction cannot use a vector result type", MI);
@@ -1633,10 +1647,17 @@ MachineVerifier::visitMachineOperand(const MachineOperand *MO, unsigned MONum) {
       }
     }
 
-    // Verify two-address constraints after leaving SSA form.
+    // Verify two-address constraints after the twoaddressinstruction pass.
+    // Both twoaddressinstruction pass and phi-node-elimination pass call
+    // MRI->leaveSSA() to set MF as NoSSA, we should do the verification after
+    // twoaddressinstruction pass not after phi-node-elimination pass. So we
+    // shouldn't use the NoSSA as the condition, we should based on
+    // TiedOpsRewritten property to verify two-address constraints, this
+    // property will be set in twoaddressinstruction pass.
     unsigned DefIdx;
-    if (!MRI->isSSA() && MO->isUse() &&
-        MI->isRegTiedToDefOperand(MONum, &DefIdx) &&
+    if (MF->getProperties().hasProperty(
+            MachineFunctionProperties::Property::TiedOpsRewritten) &&
+        MO->isUse() && MI->isRegTiedToDefOperand(MONum, &DefIdx) &&
         Reg != MI->getOperand(DefIdx).getReg())
       report("Two-address instruction operands must be identical", MO, MONum);
 

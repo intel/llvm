@@ -1031,6 +1031,11 @@ void Sema::ActOnEndOfTranslationUnit() {
                                  LateParsedInstantiations.begin(),
                                  LateParsedInstantiations.end());
     LateParsedInstantiations.clear();
+
+    if (LangOpts.PCHInstantiateTemplates) {
+      llvm::TimeTraceScope TimeScope("PerformPendingInstantiations");
+      PerformPendingInstantiations();
+    }
   }
 
   DiagnoseUnterminatedPragmaPack();
@@ -1753,12 +1758,7 @@ void Sema::checkDeviceDecl(const ValueDecl *D, SourceLocation Loc) {
     if (Ty->isDependentType())
       return;
 
-    auto IsSYCLDeviceCuda = getLangOpts().SYCLIsDevice &&
-                            Context.getTargetInfo().getTriple().isNVPTX();
-    if ((Ty->isFloat16Type() && !Context.getTargetInfo().hasFloat16Type() &&
-         // Disable check for SYCL CUDA BE until FP16 support is properly
-         // reported there (issue#1799)
-         !IsSYCLDeviceCuda) ||
+    if ((Ty->isFloat16Type() && !Context.getTargetInfo().hasFloat16Type()) ||
         ((Ty->isFloat128Type() ||
           (Ty->isRealFloatingType() && Context.getTypeSize(Ty) == 128)) &&
          !Context.getTargetInfo().hasFloat128Type()) ||
@@ -1982,7 +1982,7 @@ void Sema::PopCompoundScope() {
 /// Determine whether any errors occurred within this function/method/
 /// block.
 bool Sema::hasAnyUnrecoverableErrorsInThisFunction() const {
-  return getCurFunction()->ErrorTrap.hasUnrecoverableErrorOccurred();
+  return getCurFunction()->hasUnrecoverableErrorOccurred();
 }
 
 void Sema::setFunctionHasBranchIntoScope() {

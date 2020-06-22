@@ -251,12 +251,12 @@ private:
 void Writer::scanRelocations() {
   for (InputSection *isec : inputSections) {
     for (Reloc &r : isec->relocs) {
-      if (auto *s = r.target.dyn_cast<Symbol *>()) {
+      if (auto *s = r.target.dyn_cast<lld::macho::Symbol *>()) {
         if (isa<Undefined>(s))
           error("undefined symbol " + s->getName() + ", referenced from " +
                 sys::path::filename(isec->file->getName()));
-        else if (auto *dylibSymbol = dyn_cast<DylibSymbol>(s))
-          target->prepareDylibSymbolRelocation(*dylibSymbol, r.type);
+        else
+          target->prepareSymbolRelocation(*s, r.type);
       }
     }
   }
@@ -329,7 +329,7 @@ static DenseMap<const InputSection *, size_t> buildInputSectionPriorities() {
   // TODO: Make sure this handles weak symbols correctly.
   for (InputFile *file : inputFiles)
     if (isa<ObjFile>(file) || isa<ArchiveFile>(file))
-      for (Symbol *sym : file->symbols)
+      for (lld::macho::Symbol *sym : file->symbols)
         if (auto *d = dyn_cast<Defined>(sym))
           addSym(*d);
 
@@ -416,7 +416,7 @@ void Writer::assignAddresses(OutputSegment *seg) {
     addr = alignTo(addr, section->align);
     fileOff = alignTo(fileOff, section->align);
     section->addr = addr;
-    section->fileOff = fileOff;
+    section->fileOff = isZeroFill(section->flags) ? 0 : fileOff;
     section->finalize();
 
     addr += section->getSize();

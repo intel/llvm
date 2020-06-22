@@ -48,7 +48,6 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/GetElementPtrTypeIterator.h"
 #include "llvm/IR/InlineAsm.h"
-#include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Intrinsics.h"
@@ -1072,7 +1071,7 @@ bool IRTranslator::translateGetElementPtr(const User &U,
     BaseReg =
         MIRBuilder.buildSplatVector(LLT::vector(VectorWidth, PtrTy), BaseReg)
             .getReg(0);
-    PtrIRTy = VectorType::get(PtrIRTy, VectorWidth);
+    PtrIRTy = FixedVectorType::get(PtrIRTy, VectorWidth);
     PtrTy = getLLTForType(*PtrIRTy, *DL);
     OffsetIRTy = DL->getIntPtrType(PtrIRTy);
     OffsetTy = getLLTForType(*OffsetIRTy, *DL);
@@ -2195,6 +2194,10 @@ bool IRTranslator::translate(const Instruction &Inst) {
         DebugLoc::get(0, 0, DL.getScope(), DL.getInlinedAt()));
   else
     EntryBuilder->setDebugLoc(DebugLoc());
+
+  auto &TLI = *MF->getSubtarget().getTargetLowering();
+  if (TLI.fallBackToDAGISel(Inst))
+    return false;
 
   switch (Inst.getOpcode()) {
 #define HANDLE_INST(NUM, OPCODE, CLASS)                                        \

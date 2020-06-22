@@ -2057,6 +2057,9 @@ public:
     else
       S << Integer;
   }
+
+  // Retrieves the string view of the integer value this node represents.
+  const StringView &getIntegerValue() const { return Integer; }
 };
 
 class IntegerLiteral : public Node {
@@ -2085,6 +2088,13 @@ public:
     if (Type.size() <= 3)
       S += Type;
   }
+
+  // Retrieves the string view of the integer value represented by this node.
+  const StringView &getValue() const { return Value; }
+
+  // Retrieves the string view of the type string of the integer value this node
+  // represents.
+  const StringView &getType() const { return Type; }
 };
 
 template <class Float> struct FloatData;
