@@ -783,12 +783,14 @@ static void VisitField(CXXRecordDecl *Owner, RangeTy &&Item, QualType ItemTy,
                        Handlers &... handlers) {
   if (Util::isSyclAccessorType(ItemTy))
     KF_FOR_EACH(handleSyclAccessorType, Item, ItemTy);
-  if (Util::isSyclStreamType(ItemTy))
+  else if (Util::isSyclStreamType(ItemTy))
     KF_FOR_EACH(handleSyclStreamType, Item, ItemTy);
-  if (ItemTy->isStructureOrClassType())
+  else if (Util::isSyclSamplerType(ItemTy))
+    KF_FOR_EACH(handleSyclSamplerType, Item, ItemTy);
+  else if (ItemTy->isStructureOrClassType())
     VisitAccessorWrapper(Owner, Item, ItemTy->getAsCXXRecordDecl(),
                          handlers...);
-  if (ItemTy->isArrayType())
+  else if (ItemTy->isArrayType())
     VisitArrayElements(Item, ItemTy, handlers...);
 }
 
@@ -891,6 +893,9 @@ public:
     return true;
   }
   virtual bool handleSyclAccessorType(FieldDecl *, QualType) { return true; }
+  virtual bool handleSyclSamplerType(const CXXBaseSpecifier &, QualType) {
+    return true;
+  }
   virtual bool handleSyclSamplerType(FieldDecl *, QualType) { return true; }
   virtual bool handleSyclSpecConstantType(FieldDecl *, QualType) {
     return true;
@@ -1203,6 +1208,7 @@ public:
     return ArrayRef<ParmVarDecl *>(std::begin(Params) + LastParamIndex,
                                    std::end(Params));
   }
+  using SyclKernelFieldHandler::handleSyclSamplerType;
 };
 
 class SyclKernelBodyCreator
@@ -1458,6 +1464,7 @@ public:
 
   using SyclKernelFieldHandler::enterStruct;
   using SyclKernelFieldHandler::leaveStruct;
+  using SyclKernelFieldHandler::handleSyclSamplerType;
 };
 
 class SyclKernelIntHeaderCreator
@@ -1606,6 +1613,7 @@ public:
     CurOffset -= Layout.getBaseClassOffset(BS.getType()->getAsCXXRecordDecl())
                      .getQuantity();
   }
+  using SyclKernelFieldHandler::handleSyclSamplerType;
 };
 } // namespace
 

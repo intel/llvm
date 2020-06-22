@@ -22,6 +22,15 @@ namespace sycl {
 using namespace cl::sycl;
 }
 
+struct SamplerWrapper {
+  SamplerWrapper(sycl::coordinate_normalization_mode Norm,
+                  sycl::addressing_mode Addr, sycl::filtering_mode Filter)
+      : Smpl(Norm, Addr, Filter), A(0) {}
+
+  sycl::sampler Smpl;
+  int A;
+};
+
 int main() {
   // Check constructor from enums
   sycl::sampler A(sycl::coordinate_normalization_mode::unnormalized,
@@ -88,6 +97,10 @@ int main() {
   assert(C == A);
   assert(Hasher(C) != Hasher(B));
 
+  SamplerWrapper WrappedSmplr(
+      sycl::coordinate_normalization_mode::normalized,
+      sycl::addressing_mode::repeat, sycl::filtering_mode::linear);
+
   // Device sampler.
   {
     sycl::queue Queue;
@@ -95,6 +108,7 @@ int main() {
       cgh.single_task<class kernel>([=]() {
         sycl::sampler C = A;
         sycl::sampler D(C);
+        sycl::sampler E(WrappedSmplr.Smpl);
       });
     });
   }

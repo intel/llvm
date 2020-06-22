@@ -11,7 +11,19 @@
 // CHECK-NEXT: [[GEPCAST:%[0-9]+]] = addrspacecast %"class{{.*}}.cl::sycl::sampler"* [[GEP]] to %"class{{.*}}.cl::sycl::sampler" addrspace(4)*
 // CHECK-NEXT: call spir_func void @{{[a-zA-Z0-9_]+}}(%"class.{{.*}}.cl::sycl::sampler" addrspace(4)* [[GEPCAST]], %opencl.sampler_t addrspace(2)* [[LOAD_SAMPLER_ARG]])
 //
+
+// CHECK: define spir_kernel void @{{[a-zA-Z0-9_]+}}(%struct{{.*}}sampler_wrapper{{.*}} %opencl.sampler_t addrspace(2)* [[SAMPLER_ARG_WRAPPED:%[a-zA-Z0-9_]+]])
+// CHECK: [[SAMPLER_ARG_WRAPPED]].addr = alloca %opencl.sampler_t addrspace(2)*, align 8
+// CHECK: store %opencl.sampler_t addrspace(2)* [[SAMPLER_ARG_WRAPPED]], %opencl.sampler_t addrspace(2)** [[SAMPLER_ARG_WRAPPED]].addr, align 8
+// CHECK: [[LOAD_SAMPLER_ARG_WRAPPED:%[0-9]+]] = load %opencl.sampler_t addrspace(2)*, %opencl.sampler_t addrspace(2)** [[SAMPLER_ARG_WRAPPED]].addr, align 8
+// CHECK: call spir_func void @{{[a-zA-Z0-9_]+}}(%"class.{{.*}}.cl::sycl::sampler" addrspace(4)* {{.*}}, %opencl.sampler_t addrspace(2)* [[LOAD_SAMPLER_ARG_WRAPPED]])
+//
 #include "sycl.hpp"
+
+struct sampler_wrapper {
+  cl::sycl::sampler smpl;
+  int a;
+};
 
 template <typename KernelName, typename KernelType>
 __attribute__((sycl_kernel)) void kernel_single_task(KernelType kernelFunc) {
@@ -22,6 +34,11 @@ int main() {
   cl::sycl::sampler smplr;
   kernel_single_task<class first_kernel>([=]() {
     smplr.use();
+  });
+
+  sampler_wrapper wrappedSampler = {smplr, 1};
+  kernel_single_task<class second_kernel>([=]() {
+    wrappedSampler.smpl.use();
   });
 
   return 0;
