@@ -203,8 +203,8 @@ int main() {
 // CHECK: template <> struct KernelInfo<::dummy_functor_4<static_cast<enum_in_anonNS>(1)>>
 // CHECK: template <> struct KernelInfo<::dummy_functor_5<static_cast<no_type_set>(0)>>
 // CHECK: template <> struct KernelInfo<::dummy_functor_6<static_cast<unscoped_enum>(0)>>
-// CHECK: template <> struct KernelInfo<::dummy_functor_7<::no_namespace_int>>
-// CHECK: template <> struct KernelInfo<::dummy_functor_7<::internal::namespace_short>>
+// CHECK: template <> struct KernelInfo<::dummy_functor_7<no_namespace_int>>
+// CHECK: template <> struct KernelInfo<::dummy_functor_7<internal::namespace_short>>
 // CHECK: template <> struct KernelInfo<::T1<::T2<static_cast<type_argument_template_enum::E>(0)>>>
-// CHECK: template <> struct KernelInfo<::T1<::T3<::type_argument_template_enum::E>>>
-// CHECK: template <> struct KernelInfo<::dummy_functor_8<::EnumTypeOut, Baz>>
+// CHECK: template <> struct KernelInfo<::T1<::T3<type_argument_template_enum::E>>>
+// CHECK: template <> struct KernelInfo<::dummy_functor_8<EnumTypeOut, Baz>>

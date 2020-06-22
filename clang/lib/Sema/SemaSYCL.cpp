@@ -701,8 +701,7 @@ static QualType calculateKernelNameType(ASTContext &Ctx,
   const TemplateArgumentList *TAL =
       KernelCallerFunc->getTemplateSpecializationArgs();
   assert(TAL && "No template argument info");
-  return TypeName::getFullyQualifiedType(TAL->get(0).getAsType(), Ctx,
-                                         /*WithGlobalNSPrefix=*/true);
+  return TAL->get(0).getAsType().getCanonicalType();
 }
 
 // Gets a name for the OpenCL kernel function, calculated from the first
@@ -1545,10 +1544,7 @@ public:
            "Incorrect template args for Accessor Type");
     // Get specialization constant ID type, which is the second template
     // argument.
-    QualType SpecConstIDTy =
-        TypeName::getFullyQualifiedType(TemplateArgs.get(1).getAsType(),
-                                        SemaRef.getASTContext(), true)
-            .getCanonicalType();
+    QualType SpecConstIDTy = TemplateArgs.get(1).getAsType().getCanonicalType();
     const std::string SpecConstName = PredefinedExpr::ComputeName(
         SemaRef.getASTContext(), PredefinedExpr::UniqueStableNameType,
         SpecConstIDTy);
@@ -2198,7 +2194,7 @@ static std::string getKernelNameTypeString(QualType T, ASTContext &Ctx,
   const CXXRecordDecl *RD = T->getAsCXXRecordDecl();
 
   if (!RD)
-    return eraseAnonNamespace(FullyQualifiedType.getAsString(TypePolicy));
+    return eraseAnonNamespace(T.getCanonicalType().getAsString(TypePolicy));
 
   // If kernel name type is a template specialization with enum type
   // template parameters, enumerators in name type string should be
