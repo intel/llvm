@@ -10930,6 +10930,14 @@ def err_bit_cast_non_trivially_copyable : Error<
 def err_bit_cast_type_size_mismatch : Error<
   "__builtin_bit_cast source size does not equal destination size (%0 vs %1)">;
 
+// errors of expect.with.probability
+def err_probability_not_constant_float : Error<
+   "probability argument to __builtin_expect_with_probability must be constant "
+   "floating-point expression">;
+def err_probability_out_of_range : Error<
+   "probability argument to __builtin_expect_with_probability is outside the "
+   "range [0.0, 1.0]">;
+
 // SYCL-specific diagnostics
 def warn_sycl_kernel_num_of_template_params : Warning<
   "'sycl_kernel' attribute only applies to a function template with at least"

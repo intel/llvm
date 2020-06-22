@@ -82,6 +82,8 @@ enum ProcessorSubtypes {
   INTEL_COREI7_ICELAKE_SERVER,
   AMDFAM17H_ZNVER2,
   INTEL_COREI7_CASCADELAKE,
+  INTEL_COREI7_TIGERLAKE,
+  INTEL_COREI7_COOPERLAKE,
   CPU_SUBTYPE_MAX
 };
 
@@ -353,7 +355,9 @@ static void getIntelProcessorTypeAndSubtype(unsigned Family, unsigned Model,
     // Skylake Xeon:
     case 0x55:
       *Type = INTEL_COREI7;
-      if (testFeature(FEATURE_AVX512VNNI))
+      if (testFeature(FEATURE_AVX512BF16))
+        *Subtype = INTEL_COREI7_COOPERLAKE; // "cooperlake"
+      else if (testFeature(FEATURE_AVX512VNNI))
         *Subtype = INTEL_COREI7_CASCADELAKE; // "cascadelake"
       else
         *Subtype = INTEL_COREI7_SKYLAKE_AVX512; // "skylake-avx512"

@@ -773,6 +773,21 @@ SDValue TargetLowering::SimplifyMultipleUseDemandedBits(
       return Op0;
     break;
   }
+  case ISD::ANY_EXTEND_VECTOR_INREG:
+  case ISD::SIGN_EXTEND_VECTOR_INREG:
+  case ISD::ZERO_EXTEND_VECTOR_INREG: {
+    // If we only want the lowest element and none of extended bits, then we can
+    // return the bitcasted source vector.
+    SDValue Src = Op.getOperand(0);
+    EVT SrcVT = Src.getValueType();
+    EVT DstVT = Op.getValueType();
+    if (DemandedElts == 1 && DstVT.getSizeInBits() == SrcVT.getSizeInBits() &&
+        DAG.getDataLayout().isLittleEndian() &&
+        DemandedBits.getActiveBits() <= SrcVT.getScalarSizeInBits()) {
+      return DAG.getBitcast(DstVT, Src);
+    }
+    break;
+  }
   case ISD::INSERT_VECTOR_ELT: {
     // If we don't demand the inserted element, return the base vector.
     SDValue Vec = Op.getOperand(0);
@@ -833,6 +848,14 @@ SDValue TargetLowering::SimplifyMultipleUseDemandedBits(
   APInt DemandedElts = VT.isVector()
                            ? APInt::getAllOnesValue(VT.getVectorNumElements())
                            : APInt(1, 1);
+  return SimplifyMultipleUseDemandedBits(Op, DemandedBits, DemandedElts, DAG,
+                                         Depth);
+}
+
+SDValue TargetLowering::SimplifyMultipleUseDemandedVectorElts(
+    SDValue Op, const APInt &DemandedElts, SelectionDAG &DAG,
+    unsigned Depth) const {
+  APInt DemandedBits = APInt::getAllOnesValue(Op.getScalarValueSizeInBits());
   return SimplifyMultipleUseDemandedBits(Op, DemandedBits, DemandedElts, DAG,
                                          Depth);
 }
@@ -2308,14 +2331,10 @@ bool TargetLowering::SimplifyDemandedVectorElts(
   // Helper for demanding the specified elements and all the bits of both binary
   // operands.
   auto SimplifyDemandedVectorEltsBinOp = [&](SDValue Op0, SDValue Op1) {
-    unsigned NumBits0 = Op0.getScalarValueSizeInBits();
-    unsigned NumBits1 = Op1.getScalarValueSizeInBits();
-    APInt DemandedBits0 = APInt::getAllOnesValue(NumBits0);
-    APInt DemandedBits1 = APInt::getAllOnesValue(NumBits1);
-    SDValue NewOp0 = SimplifyMultipleUseDemandedBits(
-        Op0, DemandedBits0, DemandedElts, TLO.DAG, Depth + 1);
-    SDValue NewOp1 = SimplifyMultipleUseDemandedBits(
-        Op1, DemandedBits1, DemandedElts, TLO.DAG, Depth + 1);
+    SDValue NewOp0 = SimplifyMultipleUseDemandedVectorElts(Op0, DemandedElts,
+                                                           TLO.DAG, Depth + 1);
+    SDValue NewOp1 = SimplifyMultipleUseDemandedVectorElts(Op1, DemandedElts,
+                                                           TLO.DAG, Depth + 1);
     if (NewOp0 || NewOp1) {
       SDValue NewOp = TLO.DAG.getNode(
           Opcode, SDLoc(Op), VT, NewOp0 ? NewOp0 : Op0, NewOp1 ? NewOp1 : Op1);
@@ -2496,11 +2515,10 @@ bool TargetLowering::SimplifyDemandedVectorElts(
     // Attempt to avoid multi-use ops if we don't need anything from them.
     if (!DemandedSrcElts.isAllOnesValue() ||
         !DemandedSubElts.isAllOnesValue()) {
-      APInt DemandedBits = APInt::getAllOnesValue(VT.getScalarSizeInBits());
-      SDValue NewSrc = SimplifyMultipleUseDemandedBits(
-          Src, DemandedBits, DemandedSrcElts, TLO.DAG, Depth + 1);
-      SDValue NewSub = SimplifyMultipleUseDemandedBits(
-          Sub, DemandedBits, DemandedSubElts, TLO.DAG, Depth + 1);
+      SDValue NewSrc = SimplifyMultipleUseDemandedVectorElts(
+          Src, DemandedSrcElts, TLO.DAG, Depth + 1);
+      SDValue NewSub = SimplifyMultipleUseDemandedVectorElts(
+          Sub, DemandedSubElts, TLO.DAG, Depth + 1);
       if (NewSrc || NewSub) {
         NewSrc = NewSrc ? NewSrc : Src;
         NewSub = NewSub ? NewSub : Sub;
@@ -2527,9 +2545,8 @@ bool TargetLowering::SimplifyDemandedVectorElts(
 
     // Attempt to avoid multi-use ops if we don't need anything from them.
     if (!DemandedElts.isAllOnesValue()) {
-      APInt DemandedBits = APInt::getAllOnesValue(VT.getScalarSizeInBits());
-      SDValue NewSrc = SimplifyMultipleUseDemandedBits(
-          Src, DemandedBits, DemandedSrcElts, TLO.DAG, Depth + 1);
+      SDValue NewSrc = SimplifyMultipleUseDemandedVectorElts(
+          Src, DemandedSrcElts, TLO.DAG, Depth + 1);
       if (NewSrc) {
         SDValue NewOp = TLO.DAG.getNode(Op.getOpcode(), SDLoc(Op), VT, NewSrc,
                                         Op.getOperand(1));
