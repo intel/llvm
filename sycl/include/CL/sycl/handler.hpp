@@ -857,8 +857,8 @@ public:
   }
 
   template <typename FuncT>
-  typename std::enable_if<detail::check_fn_signature<
-      typename std::remove_reference<FuncT>::type, void()>::value>::type
+  detail::enable_if_t<detail::check_fn_signature<
+      detail::remove_reference_t<FuncT>, void()>::value>
   codeplay_host_task(FuncT Func) {
     throwIfActionIsCreated();
 
@@ -871,9 +871,9 @@ public:
   }
 
   template <typename FuncT>
-  typename std::enable_if<
-      detail::check_fn_signature<typename std::remove_reference<FuncT>::type,
-                                 void(interop_handle)>::value>::type
+  detail::enable_if_t<
+      detail::check_fn_signature<detail::remove_reference_t<FuncT>,
+                                 void(interop_handle)>::value>
   codeplay_host_task(FuncT Func) {
     throwIfActionIsCreated();
 
