@@ -295,7 +295,7 @@ public:
                                 bool WithGlobalNsPrefix = false) const;
 
   // FIXME: Remove string version.
-  std::string getQualifiedNameAsString() const;
+  std::string getQualifiedNameAsString(bool WithGlobalNsPrefix = false) const;
 
   /// Appends a human-readable name for this declaration into the given stream.
   ///
