@@ -1929,7 +1929,7 @@ pi_result piKernelSetArg(pi_kernel Kernel, pi_uint32 ArgIndex, size_t ArgSize,
   return PI_SUCCESS;
 }
 
-// Special version of piKernelSetArg to accept pi_mem and pi_sampler.
+// Special version of piKernelSetArg to accept pi_mem.
 pi_result piextKernelSetArgMemObj(pi_kernel Kernel, pi_uint32 ArgIndex,
                                   const pi_mem *ArgValue) {
   // TODO: the better way would probably be to add a new PI API for
@@ -1944,6 +1944,13 @@ pi_result piextKernelSetArgMemObj(pi_kernel Kernel, pi_uint32 ArgIndex,
                                (*ArgValue)->getZeHandlePtr()));
 
   return PI_SUCCESS;
+}
+
+// Special version of piKernelSetArg to accept pi_sampler.
+pi_result piextKernelSetArgSampler(pi_kernel Kernel, pi_uint32 ArgIndex,
+                                   const pi_sampler *ArgValue) {
+  die("piextKernelSetArgSampler: not implemented");
+  return {};
 }
 
 pi_result piKernelGetInfo(pi_kernel Kernel, pi_kernel_info ParamName,

@@ -1332,6 +1332,10 @@ __SYCL_EXPORT pi_result piextKernelSetArgMemObj(pi_kernel kernel,
                                                 pi_uint32 arg_index,
                                                 const pi_mem *arg_value);
 
+__SYCL_EXPORT pi_result piextKernelSetArgSampler(pi_kernel kernel,
+                                                 pi_uint32 arg_index,
+                                                 const pi_sampler *arg_value);
+
 ///
 // USM
 ///

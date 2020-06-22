@@ -2054,6 +2054,22 @@ pi_result cuda_piextKernelSetArgMemObj(pi_kernel kernel, pi_uint32 arg_index,
   return retErr;
 }
 
+pi_result cuda_piextKernelSetArgSampler(pi_kernel kernel, pi_uint32 arg_index,
+                                        const pi_sampler *arg_value) {
+
+  assert(kernel != nullptr);
+  assert(arg_value != nullptr);
+
+  pi_result retErr = PI_SUCCESS;
+  try {
+    pi_uint32 samplerProps = (*arg_value)->props_;
+    kernel->set_kernel_arg(arg_index, sizeof(pi_uint32), (void *)&samplerProps);
+  } catch (pi_result err) {
+    retErr = err;
+  }
+  return retErr;
+}
+
 pi_result cuda_piEnqueueKernelLaunch(
     pi_queue command_queue, pi_kernel kernel, pi_uint32 work_dim,
     const size_t *global_work_offset, const size_t *global_work_size,
@@ -3756,6 +3772,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextUSMGetMemAllocInfo, cuda_piextUSMGetMemAllocInfo)
 
   _PI_CL(piextKernelSetArgMemObj, cuda_piextKernelSetArgMemObj)
+  _PI_CL(piextKernelSetArgSampler, cuda_piextKernelSetArgSampler)
 
 #undef _PI_CL
 

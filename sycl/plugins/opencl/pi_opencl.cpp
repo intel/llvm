@@ -450,6 +450,13 @@ pi_result piextKernelSetArgMemObj(pi_kernel kernel, pi_uint32 arg_index,
                      sizeof(arg_value), cast<const cl_mem *>(arg_value)));
 }
 
+pi_result piextKernelSetArgSampler(pi_kernel kernel, pi_uint32 arg_index,
+                                   const pi_sampler *arg_value) {
+  return cast<pi_result>(
+      clSetKernelArg(cast<cl_kernel>(kernel), cast<cl_uint>(arg_index),
+                     sizeof(cl_sampler), cast<const cl_sampler *>(arg_value)));
+}
+
 pi_result piextGetDeviceFunctionPointer(pi_device device, pi_program program,
                                         const char *func_name,
                                         pi_uint64 *function_pointer_ret) {
@@ -1235,6 +1242,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextUSMGetMemAllocInfo, piextUSMGetMemAllocInfo)
 
   _PI_CL(piextKernelSetArgMemObj, piextKernelSetArgMemObj)
+  _PI_CL(piextKernelSetArgSampler, piextKernelSetArgSampler)
 
 #undef _PI_CL
 
