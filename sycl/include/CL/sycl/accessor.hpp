@@ -1234,22 +1234,22 @@ accessor(buffer<DataT, Dimensions, AllocatorT>, Type1)
                detail::deduceAccessTarget<Type1, Type1>(target::global_buffer),
                access::placeholder::true_t>;
 
-template <typename DataT, int Dimensions, typename AllocatorT,
-          typename Type1, typename Type2>
+template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
+          typename Type2>
 accessor(buffer<DataT, Dimensions, AllocatorT>, Type1, Type2)
     ->accessor<DataT, Dimensions, detail::deduceAccessMode<Type1, Type2>(),
                detail::deduceAccessTarget<Type1, Type2>(target::global_buffer),
                access::placeholder::true_t>;
 
-template <typename DataT, int Dimensions, typename AllocatorT,
-          typename Type1, typename Type2, typename Type3>
+template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
+          typename Type2, typename Type3>
 accessor(buffer<DataT, Dimensions, AllocatorT>, Type1, Type2, Type3)
     ->accessor<DataT, Dimensions, detail::deduceAccessMode<Type2, Type3>(),
                detail::deduceAccessTarget<Type2, Type3>(target::global_buffer),
                access::placeholder::true_t>;
 
-template <typename DataT, int Dimensions, typename AllocatorT,
-          typename Type1, typename Type2, typename Type3, typename Type4>
+template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
+          typename Type2, typename Type3, typename Type4>
 accessor(buffer<DataT, Dimensions, AllocatorT>, Type1, Type2, Type3, Type4)
     ->accessor<DataT, Dimensions, detail::deduceAccessMode<Type3, Type4>(),
                detail::deduceAccessTarget<Type3, Type4>(target::global_buffer),
@@ -1266,22 +1266,22 @@ accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1)
                detail::deduceAccessTarget<Type1, Type1>(target::global_buffer),
                access::placeholder::false_t>;
 
-template <typename DataT, int Dimensions, typename AllocatorT,
-          typename Type1, typename Type2>
+template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
+          typename Type2>
 accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1, Type2)
     ->accessor<DataT, Dimensions, detail::deduceAccessMode<Type1, Type2>(),
                detail::deduceAccessTarget<Type1, Type2>(target::global_buffer),
                access::placeholder::false_t>;
 
-template <typename DataT, int Dimensions, typename AllocatorT,
-          typename Type1, typename Type2, typename Type3>
+template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
+          typename Type2, typename Type3>
 accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1, Type2, Type3)
     ->accessor<DataT, Dimensions, detail::deduceAccessMode<Type2, Type3>(),
                detail::deduceAccessTarget<Type2, Type3>(target::global_buffer),
                access::placeholder::false_t>;
 
-template <typename DataT, int Dimensions, typename AllocatorT,
-          typename Type1, typename Type2, typename Type3, typename Type4>
+template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
+          typename Type2, typename Type3, typename Type4>
 accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1, Type2, Type3,
          Type4)
     ->accessor<DataT, Dimensions, detail::deduceAccessMode<Type3, Type4>(),
@@ -1685,41 +1685,32 @@ public:
 
 #if __cplusplus > 201402L
 
-/*
-template <typename DataT, int Dimensions, typename AllocatorT, typename... Ts>
-host_accessor(buffer<DataT, Dimensions, AllocatorT>, Ts...)
-    ->host_accessor<DataT, Dimensions, access::mode::read_write>;
-
-template <typename DataT, int Dimensions, typename AllocatorT,
-          access_mode AccessMode, typename PropertyList = property_list,
-          typename... Ts>
-host_accessor(buffer<DataT, Dimensions, AllocatorT>, Ts...,
-              mode_tag_t<AccessMode>, PropertyList = {})
-    ->host_accessor<DataT, Dimensions, AccessMode>;
-*/
-
 template <typename DataT, int Dimensions, typename AllocatorT>
 host_accessor(buffer<DataT, Dimensions, AllocatorT>)
     ->host_accessor<DataT, Dimensions, access::mode::read_write>;
 
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1>
 host_accessor(buffer<DataT, Dimensions, AllocatorT>, Type1)
-    ->host_accessor<DataT, Dimensions, detail::deduceAccessMode<Type1, Type1>()>;
+    ->host_accessor<DataT, Dimensions,
+                    detail::deduceAccessMode<Type1, Type1>()>;
 
-template <typename DataT, int Dimensions, typename AllocatorT,
-          typename Type1, typename Type2>
+template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
+          typename Type2>
 host_accessor(buffer<DataT, Dimensions, AllocatorT>, Type1, Type2)
-    ->host_accessor<DataT, Dimensions, detail::deduceAccessMode<Type1, Type2>()>;
+    ->host_accessor<DataT, Dimensions,
+                    detail::deduceAccessMode<Type1, Type2>()>;
 
-template <typename DataT, int Dimensions, typename AllocatorT,
-          typename Type1, typename Type2, typename Type3>
+template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
+          typename Type2, typename Type3>
 host_accessor(buffer<DataT, Dimensions, AllocatorT>, Type1, Type2, Type3)
-    ->host_accessor<DataT, Dimensions, detail::deduceAccessMode<Type2, Type3>()>;
+    ->host_accessor<DataT, Dimensions,
+                    detail::deduceAccessMode<Type2, Type3>()>;
 
-template <typename DataT, int Dimensions, typename AllocatorT,
-          typename Type1, typename Type2, typename Type3, typename Type4>
+template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
+          typename Type2, typename Type3, typename Type4>
 host_accessor(buffer<DataT, Dimensions, AllocatorT>, Type1, Type2, Type3, Type4)
-    ->host_accessor<DataT, Dimensions, detail::deduceAccessMode<Type3, Type4>()>;
+    ->host_accessor<DataT, Dimensions,
+                    detail::deduceAccessMode<Type3, Type4>()>;
 
 #endif
 

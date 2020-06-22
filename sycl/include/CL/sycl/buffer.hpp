@@ -279,18 +279,16 @@ public:
 
 #if __cplusplus > 201402L
 
-  template<typename... Ts>
-  auto get_access(Ts... args) {
+  template <typename... Ts> auto get_access(Ts... args) {
     return accessor{*this, args...};
   }
 
-  template<typename... Ts>
+  template <typename... Ts>
   auto get_access(handler &commandGroupHandler, Ts... args) {
     return accessor{*this, commandGroupHandler, args...};
   }
 
-  template<typename... Ts>
-  auto get_host_access(Ts... args) {
+  template <typename... Ts> auto get_host_access(Ts... args) {
     return host_accessor{*this, args...};
   }
 

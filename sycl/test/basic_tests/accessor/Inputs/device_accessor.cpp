@@ -18,7 +18,7 @@ int main() {
     int data[9] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
 
     sycl::buffer<int, 1> buf_data(data, sycl::range<1>(9),
-                                 {cl::sycl::property::buffer::use_host_ptr()});
+                                  {cl::sycl::property::buffer::use_host_ptr()});
 
     sycl::queue Queue;
 
@@ -62,13 +62,13 @@ int main() {
 
       cgh.single_task<class nonplaceholder_kernel>(
           [=]() {
-        acc_7[6] = acc_1[0];
-        acc_8[7] = acc_2[1];
-        acc_9[7] = acc_3[1];
-        acc_1[0] = acc_4[3];
-        acc_2[1] = acc_5[4];
-        acc_3[1] = acc_6[4];
-      });
+            acc_7[6] = acc_1[0];
+            acc_8[7] = acc_2[1];
+            acc_9[7] = acc_3[1];
+            acc_1[0] = acc_4[3];
+            acc_2[1] = acc_5[4];
+            acc_3[1] = acc_6[4];
+          });
     });
     Queue.wait();
 
@@ -87,7 +87,7 @@ int main() {
     int data[9] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
 
     sycl::buffer<int, 1> buf_data(data, sycl::range<1>(9),
-                                 {cl::sycl::property::buffer::use_host_ptr()});
+                                  {cl::sycl::property::buffer::use_host_ptr()});
 
 #if defined(accessor_new_api_test)
     sycl::accessor acc_1(buf_data);
@@ -128,7 +128,6 @@ int main() {
     sycl::queue Queue;
 
     Queue.submit([&](sycl::handler &cgh) {
-
       cgh.require(acc_1);
       cgh.require(acc_2);
       cgh.require(acc_3);
@@ -141,13 +140,13 @@ int main() {
 
       cgh.single_task<class placeholder_kernel>(
           [=]() {
-        acc_7[6] = acc_1[0];
-        acc_8[7] = acc_2[1];
-        acc_9[7] = acc_3[1];
-        acc_1[0] = acc_4[3];
-        acc_2[1] = acc_5[4];
-        acc_3[1] = acc_6[4];
-      });
+            acc_7[6] = acc_1[0];
+            acc_8[7] = acc_2[1];
+            acc_9[7] = acc_3[1];
+            acc_1[0] = acc_4[3];
+            acc_2[1] = acc_5[4];
+            acc_3[1] = acc_6[4];
+          });
     });
     Queue.wait();
 
@@ -166,7 +165,7 @@ int main() {
     int data[9] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
 
     sycl::buffer<int, 1> buf_data(data, sycl::range<1>(9),
-                                 {cl::sycl::property::buffer::use_host_ptr()});
+                                  {cl::sycl::property::buffer::use_host_ptr()});
 
     sycl::queue Queue;
 
@@ -216,13 +215,13 @@ int main() {
 
       cgh.single_task<class nonplaceholder_noinit_kernel>(
           [=]() {
-        acc_7[6] = 1;
-        acc_8[7] = 2;
-        acc_9[7] = 3;
-        acc_1[0] = acc_4[3];
-        acc_2[1] = acc_5[4];
-        acc_3[1] = acc_6[4];
-      });
+            acc_7[6] = 1;
+            acc_8[7] = 2;
+            acc_9[7] = 3;
+            acc_1[0] = acc_4[3];
+            acc_2[1] = acc_5[4];
+            acc_3[1] = acc_6[4];
+          });
     });
     Queue.wait();
 
@@ -241,7 +240,7 @@ int main() {
     int data[9] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
 
     sycl::buffer<int, 1> buf_data(data, sycl::range<1>(9),
-                                 {cl::sycl::property::buffer::use_host_ptr()});
+                                  {cl::sycl::property::buffer::use_host_ptr()});
 
 #if defined(accessor_new_api_test)
     sycl::accessor acc_1(buf_data, sycl::noinit);
@@ -286,7 +285,6 @@ int main() {
     sycl::queue Queue;
 
     Queue.submit([&](sycl::handler &cgh) {
-
       cgh.require(acc_1);
       cgh.require(acc_2);
       cgh.require(acc_3);
@@ -299,13 +297,13 @@ int main() {
 
       cgh.single_task<class placeholder_noinit_kernel>(
           [=]() {
-        acc_7[6] = 1;
-        acc_8[7] = 2;
-        acc_9[7] = 3;
-        acc_1[0] = acc_4[3];
-        acc_2[1] = acc_5[4];
-        acc_3[1] = acc_6[4];
-      });
+            acc_7[6] = 1;
+            acc_8[7] = 2;
+            acc_9[7] = 3;
+            acc_1[0] = acc_4[3];
+            acc_2[1] = acc_5[4];
+            acc_3[1] = acc_6[4];
+          });
     });
     Queue.wait();
 
