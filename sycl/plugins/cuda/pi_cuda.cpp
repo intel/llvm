@@ -276,9 +276,12 @@ _pi_event::_pi_event(pi_command_type type, pi_context context, pi_queue queue)
 
   assert(type != PI_COMMAND_TYPE_USER);
 
-  PI_CHECK_ERROR(cuEventCreate(&evEnd_, CU_EVENT_DEFAULT));
+  bool profilingEnabled = queue_->properties_ & PI_QUEUE_PROFILING_ENABLE;
 
-  if (queue_->properties_ & PI_QUEUE_PROFILING_ENABLE) {
+  PI_CHECK_ERROR(cuEventCreate(
+      &evEnd_, profilingEnabled ? CU_EVENT_DEFAULT : CU_EVENT_DISABLE_TIMING));
+
+  if (profilingEnabled) {
     PI_CHECK_ERROR(cuEventCreate(&evQueued_, CU_EVENT_DEFAULT));
     PI_CHECK_ERROR(cuEventCreate(&evStart_, CU_EVENT_DEFAULT));
   }
