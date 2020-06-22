@@ -36,6 +36,16 @@ using namespace LegalizeMutations;
 using namespace LegalityPredicates;
 using namespace MIPatternMatch;
 
+// Hack until load/store selection patterns support any tuple of legal types.
+static cl::opt<bool> EnableNewLegality(
+  "amdgpu-global-isel-new-legality",
+  cl::desc("Use GlobalISel desired legality, rather than try to use"
+           "rules compatible with selection patterns"),
+  cl::init(false),
+  cl::ReallyHidden);
+
+static constexpr unsigned MaxRegisterSize = 1024;
+
 // Round the number of elements to the next power of two elements
 static LLT getPow2VectorType(LLT Ty) {
   unsigned NElts = Ty.getNumElements();
@@ -144,7 +154,7 @@ static LegalityPredicate numElementsNotEven(unsigned TypeIdx) {
 }
 
 static bool isRegisterSize(unsigned Size) {
-  return Size % 32 == 0 && Size <= 1024;
+  return Size % 32 == 0 && Size <= MaxRegisterSize;
 }
 
 static bool isRegisterVectorElementType(LLT EltTy) {
@@ -169,8 +179,8 @@ static bool isRegisterType(LLT Ty) {
   return true;
 }
 
-// Any combination of 32 or 64-bit elements up to 1024 bits, and multiples of
-// v2s16.
+// Any combination of 32 or 64-bit elements up the maximum register size, and
+// multiples of v2s16.
 static LegalityPredicate isRegisterType(unsigned TypeIdx) {
   return [=](const LegalityQuery &Query) {
     return isRegisterType(Query.Types[TypeIdx]);
@@ -285,10 +295,28 @@ static bool isLoadStoreSizeLegal(const GCNSubtarget &ST,
   return true;
 }
 
+// The current selector can't handle <6 x s16>, <8 x s16>, s96, s128 etc, so
+// workaround this. Eventually it should ignore the type for loads and only care
+// about the size. Return true in cases where we will workaround this for now by
+// bitcasting.
+static bool loadStoreBitcastWorkaround(const LLT Ty) {
+  if (EnableNewLegality)
+    return false;
+
+  const unsigned Size = Ty.getSizeInBits();
+  if (Size <= 64)
+    return false;
+  if (!Ty.isVector())
+    return true;
+  unsigned EltSize = Ty.getElementType().getSizeInBits();
+  return EltSize != 32 && EltSize != 64;
+}
+
 static bool isLoadStoreLegal(const GCNSubtarget &ST, const LegalityQuery &Query,
                              unsigned Opcode) {
   const LLT Ty = Query.Types[0];
-  return isRegisterType(Ty) && isLoadStoreSizeLegal(ST, Query, Opcode);
+  return isRegisterType(Ty) && isLoadStoreSizeLegal(ST, Query, Opcode) &&
+         !loadStoreBitcastWorkaround(Ty);
 }
 
 AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
@@ -307,7 +335,7 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
   const LLT S128 = LLT::scalar(128);
   const LLT S256 = LLT::scalar(256);
   const LLT S512 = LLT::scalar(512);
-  const LLT S1024 = LLT::scalar(1024);
+  const LLT MaxScalar = LLT::scalar(MaxRegisterSize);
 
   const LLT V2S16 = LLT::vector(2, 16);
   const LLT V4S16 = LLT::vector(4, 16);
@@ -465,7 +493,7 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
       // them, but don't really occupy registers in the normal way.
       .legalFor({S1, S16})
       .moreElementsIf(isSmallOddVector(0), oneMoreElement(0))
-      .clampScalarOrElt(0, S32, S1024)
+      .clampScalarOrElt(0, S32, MaxScalar)
       .widenScalarToNextPow2(0, 32)
       .clampMaxNumElements(0, S32, 16);
 
@@ -584,10 +612,12 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
 
   // Whether this is legal depends on the floating point mode for the function.
   auto &FMad = getActionDefinitionsBuilder(G_FMAD);
-  if (ST.hasMadF16())
+  if (ST.hasMadF16() && ST.hasMadMacF32Insts())
     FMad.customFor({S32, S16});
-  else
+  else if (ST.hasMadMacF32Insts())
     FMad.customFor({S32});
+  else if (ST.hasMadF16())
+    FMad.customFor({S16});
   FMad.scalarize(0)
       .lower();
 
@@ -903,7 +933,7 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
     const bool IsStore = Op == G_STORE;
 
     auto &Actions = getActionDefinitionsBuilder(Op);
-    // Whitelist some common cases.
+    // Explicitly list some common cases.
     // TODO: Does this help compile time at all?
     Actions.legalForTypesWithMemDesc({{S32, GlobalPtr, 32, GlobalAlign32},
                                       {V2S32, GlobalPtr, 64, GlobalAlign32},
@@ -951,9 +981,16 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
     // 16-bit vector parts.
     Actions.bitcastIf(
       [=](const LegalityQuery &Query) -> bool {
-        LLT Ty = Query.Types[0];
-        return Ty.isVector() &&
-               isRegisterSize(Ty.getSizeInBits()) &&
+        const LLT Ty = Query.Types[0];
+
+        // Do not cast an extload/truncstore.
+        if (Ty.getSizeInBits() != Query.MMODescrs[0].SizeInBits)
+          return false;
+
+        if (loadStoreBitcastWorkaround(Ty) && isRegisterType(Ty))
+          return true;
+        const unsigned Size = Ty.getSizeInBits();
+        return Ty.isVector() && isRegisterSize(Size) &&
                !isRegisterVectorElementType(Ty.getElementType());
       }, bitcastToRegisterType(0));
 
@@ -1194,7 +1231,7 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
           return (EltTy.getSizeInBits() == 16 ||
                   EltTy.getSizeInBits() % 32 == 0) &&
                  VecTy.getSizeInBits() % 32 == 0 &&
-                 VecTy.getSizeInBits() <= 1024 &&
+                 VecTy.getSizeInBits() <= MaxRegisterSize &&
                  IdxTy.getSizeInBits() == 32;
         })
       .clampScalar(EltTypeIdx, S32, S64)
@@ -1324,7 +1361,7 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
       .fewerElementsIf(
         [=](const LegalityQuery &Query) { return notValidElt(Query, BigTyIdx); },
         scalarize(1))
-      .clampScalar(BigTyIdx, S32, S1024);
+      .clampScalar(BigTyIdx, S32, MaxScalar);
 
     if (Op == G_MERGE_VALUES) {
       Builder.widenScalarIf(
@@ -1365,7 +1402,7 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
 
           return BigTy.getSizeInBits() % 16 == 0 &&
                  LitTy.getSizeInBits() % 16 == 0 &&
-                 BigTy.getSizeInBits() <= 1024;
+                 BigTy.getSizeInBits() <= MaxRegisterSize;
         })
       // Any vectors left are the wrong size. Scalarize them.
       .scalarize(0)
@@ -1428,10 +1465,12 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
   verify(*ST.getInstrInfo());
 }
 
-bool AMDGPULegalizerInfo::legalizeCustom(MachineInstr &MI,
-                                         MachineRegisterInfo &MRI,
-                                         MachineIRBuilder &B,
-                                         GISelChangeObserver &Observer) const {
+bool AMDGPULegalizerInfo::legalizeCustom(LegalizerHelper &Helper,
+                                         MachineInstr &MI) const {
+  MachineIRBuilder &B = Helper.MIRBuilder;
+  MachineRegisterInfo &MRI = *B.getMRI();
+  GISelChangeObserver &Observer = Helper.Observer;
+
   switch (MI.getOpcode()) {
   case TargetOpcode::G_ADDRSPACE_CAST:
     return legalizeAddrSpaceCast(MI, MRI, B);
@@ -1453,7 +1492,7 @@ bool AMDGPULegalizerInfo::legalizeCustom(MachineInstr &MI,
   case TargetOpcode::G_FMAXNUM:
   case TargetOpcode::G_FMINNUM_IEEE:
   case TargetOpcode::G_FMAXNUM_IEEE:
-    return legalizeMinNumMaxNum(MI, MRI, B);
+    return legalizeMinNumMaxNum(Helper, MI);
   case TargetOpcode::G_EXTRACT_VECTOR_ELT:
     return legalizeExtractVectorElt(MI, MRI, B);
   case TargetOpcode::G_INSERT_VECTOR_ELT:
@@ -1834,10 +1873,9 @@ bool AMDGPULegalizerInfo::legalizeFPTOI(
   return true;
 }
 
-bool AMDGPULegalizerInfo::legalizeMinNumMaxNum(
-  MachineInstr &MI, MachineRegisterInfo &MRI,
-  MachineIRBuilder &B) const {
-  MachineFunction &MF = B.getMF();
+bool AMDGPULegalizerInfo::legalizeMinNumMaxNum(LegalizerHelper &Helper,
+                                               MachineInstr &MI) const {
+  MachineFunction &MF = Helper.MIRBuilder.getMF();
   const SIMachineFunctionInfo *MFI = MF.getInfo<SIMachineFunctionInfo>();
 
   const bool IsIEEEOp = MI.getOpcode() == AMDGPU::G_FMINNUM_IEEE ||
@@ -1851,9 +1889,6 @@ bool AMDGPULegalizerInfo::legalizeMinNumMaxNum(
   if (IsIEEEOp)
     return true;
 
-  MachineIRBuilder HelperBuilder(MI);
-  GISelObserverWrapper DummyObserver;
-  LegalizerHelper Helper(MF, DummyObserver, HelperBuilder);
   return Helper.lowerFMinNumMaxNum(MI) == LegalizerHelper::Legalized;
 }
 
@@ -2779,7 +2814,7 @@ bool AMDGPULegalizerInfo::legalizeSDIV_SREM32(MachineInstr &MI,
 
   auto ThirtyOne = B.buildConstant(S32, 31);
   auto LHSign = B.buildAShr(S32, LHS, ThirtyOne);
-  auto RHSign = B.buildAShr(S32, LHS, ThirtyOne);
+  auto RHSign = B.buildAShr(S32, RHS, ThirtyOne);
 
   LHS = B.buildAdd(S32, LHS, LHSign).getReg(0);
   RHS = B.buildAdd(S32, RHS, RHSign).getReg(0);
@@ -4150,9 +4185,9 @@ bool AMDGPULegalizerInfo::legalizeDebugTrapIntrinsic(
   return true;
 }
 
-bool AMDGPULegalizerInfo::legalizeIntrinsic(MachineInstr &MI,
-                                            MachineIRBuilder &B,
-                                            GISelChangeObserver &Observer) const {
+bool AMDGPULegalizerInfo::legalizeIntrinsic(LegalizerHelper &Helper,
+                                            MachineInstr &MI) const {
+  MachineIRBuilder &B = Helper.MIRBuilder;
   MachineRegisterInfo &MRI = *B.getMRI();
 
   // Replace the use G_BRCOND with the exec manipulate and branch pseudos.
@@ -4284,7 +4319,7 @@ bool AMDGPULegalizerInfo::legalizeIntrinsic(MachineInstr &MI,
     return true;
   }
   case Intrinsic::amdgcn_s_buffer_load:
-    return legalizeSBufferLoad(MI, B, Observer);
+    return legalizeSBufferLoad(MI, B, Helper.Observer);
   case Intrinsic::amdgcn_raw_buffer_store:
   case Intrinsic::amdgcn_struct_buffer_store:
     return legalizeBufferStore(MI, MRI, B, false, false);
@@ -4341,7 +4376,7 @@ bool AMDGPULegalizerInfo::legalizeIntrinsic(MachineInstr &MI,
   default: {
     if (const AMDGPU::ImageDimIntrinsicInfo *ImageDimIntr =
             AMDGPU::getImageDimIntrinsicInfo(IntrID))
-      return legalizeImageIntrinsic(MI, B, Observer, ImageDimIntr);
+      return legalizeImageIntrinsic(MI, B, Helper.Observer, ImageDimIntr);
     return true;
   }
   }

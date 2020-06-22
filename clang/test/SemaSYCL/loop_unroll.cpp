@@ -32,6 +32,11 @@ void foo() {
   [[clang::loop_unroll(4)]]
   for (int i = 0; i < 10; ++i);
 
+  // expected-error@+2 {{incompatible loop unroll instructions: '#pragma unroll(4)' and '[[clang::loop_unroll(2)]]'}}
+#pragma unroll 4
+  [[clang::loop_unroll(2)]]
+  for (int i = 0; i < 10; ++i);
+
   // no error expected
   [[clang::loop_unroll(4)]]
   [[intelfpga::ii(2)]]

@@ -80,6 +80,7 @@
 #include <iostream>
 #include <memory>
 #include <queue>
+#include <regex>
 #include <set>
 #include <vector>
 
@@ -1029,6 +1030,21 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
       } else
         BVarInit = I->second;
     } else if (Init && !isa<UndefValue>(Init)) {
+      if (auto ArrTy = dyn_cast_or_null<ArrayType>(Init->getType())) {
+        // First 3 words of OpConstantComposite encode: 1) word count & opcode,
+        // 2) Result Type and 3) Result Id.
+        // Max length of SPIRV instruction = 65535 words.
+        const int MaxNumElements = 65535 - 3;
+        if (ArrTy->getNumElements() > MaxNumElements &&
+            !isa<ConstantAggregateZero>(Init)) {
+          std::stringstream SS;
+          SS << "Global variable has a constant array initializer with a number"
+             << " of elements greater than OpConstantComposite can have "
+             << "(65532). Should the array be split?\n Original LLVM value:\n"
+             << toString(GV);
+          getErrorLog().checkError(false, SPIRVEC_InvalidWordCount, SS.str());
+        }
+      }
       BVarInit = transValue(Init, nullptr);
     }
 
@@ -1577,30 +1593,32 @@ std::vector<std::pair<Decoration, std::string>>
 tryParseIntelFPGAAnnotationString(StringRef AnnotatedCode) {
   std::vector<std::pair<Decoration, std::string>> Decorates;
 
-  size_t OpenBracketNum = AnnotatedCode.count('{');
-  size_t CloseBracketNum = AnnotatedCode.count('}');
-  if (OpenBracketNum != CloseBracketNum)
-    return {};
+  // Intel FPGA decorations are separated into
+  // {word} OR {word:value,value,...} blocks
+  std::regex DecorationRegex("\\{[\\w:,]+\\}");
+  using RegexIterT = std::regex_iterator<StringRef::const_iterator>;
+  RegexIterT DecorationsIt(AnnotatedCode.begin(), AnnotatedCode.end(),
+                           DecorationRegex);
+  RegexIterT DecorationsEnd;
+  for (; DecorationsIt != DecorationsEnd; ++DecorationsIt) {
+    // Drop the braces surrounding the actual decoration
+    const StringRef AnnotatedDecoration = AnnotatedCode.substr(
+        DecorationsIt->position() + 1, DecorationsIt->length() - 2);
+    std::pair<StringRef, StringRef> Split = AnnotatedDecoration.split(':');
+    StringRef Name = Split.first, ValueStr = Split.second;
 
-  for (size_t I = 0; I < OpenBracketNum; ++I) {
-    size_t From = AnnotatedCode.find('{');
-    size_t To = AnnotatedCode.find('}', From);
-    StringRef AnnotatedDecoration = AnnotatedCode.substr(From + 1, To - 1);
-    std::pair<StringRef, StringRef> D = AnnotatedDecoration.split(':');
-
-    StringRef F = D.first, S = D.second;
-    StringRef Value;
+    StringRef Annotation;
     Decoration Dec;
-    if (F == "pump") {
-      Dec = llvm::StringSwitch<Decoration>(S)
+    if (Name == "pump") {
+      Dec = llvm::StringSwitch<Decoration>(ValueStr)
                 .Case("1", DecorationSinglepumpINTEL)
                 .Case("2", DecorationDoublepumpINTEL);
-    } else if (F == "register") {
+    } else if (Name == "register") {
       Dec = DecorationRegisterINTEL;
-    } else if (F == "simple_dual_port") {
+    } else if (Name == "simple_dual_port") {
       Dec = DecorationSimpleDualPortINTEL;
     } else {
-      Dec = llvm::StringSwitch<Decoration>(F)
+      Dec = llvm::StringSwitch<Decoration>(Name)
                 .Case("memory", DecorationMemoryINTEL)
                 .Case("numbanks", DecorationNumbanksINTEL)
                 .Case("bankwidth", DecorationBankwidthINTEL)
@@ -1611,13 +1629,12 @@ tryParseIntelFPGAAnnotationString(StringRef AnnotatedCode) {
                 .Case("force_pow2_depth", DecorationForcePow2DepthINTEL)
                 .Default(DecorationUserSemantic);
       if (Dec == DecorationUserSemantic)
-        Value = AnnotatedCode.substr(From, To + 1);
+        Annotation = AnnotatedDecoration;
       else
-        Value = S;
+        Annotation = ValueStr;
     }
 
-    Decorates.emplace_back(Dec, Value.str());
-    AnnotatedCode = AnnotatedCode.drop_front(To + 1);
+    Decorates.emplace_back(Dec, Annotation.str());
   }
   return Decorates;
 }
