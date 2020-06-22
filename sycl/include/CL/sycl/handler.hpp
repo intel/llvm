@@ -871,9 +871,8 @@ public:
   }
 
   template <typename FuncT>
-  detail::enable_if_t<
-      detail::check_fn_signature<detail::remove_reference_t<FuncT>,
-                                 void(interop_handle)>::value>
+  detail::enable_if_t<detail::check_fn_signature<
+      detail::remove_reference_t<FuncT>, void(interop_handle)>::value>
   codeplay_host_task(FuncT Func) {
     throwIfActionIsCreated();
 
