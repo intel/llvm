@@ -183,6 +183,43 @@ using Requirement = AccessorImplHost;
 
 void __SYCL_EXPORT addHostAccessorAndWait(Requirement *Req);
 
+#if __cplusplus > 201402L
+
+template <typename MayBeTag1, typename MayBeTag2>
+constexpr access::mode deduceAccessMode() {
+  // property_list = {} is not properly detected by deduction guide,
+  // when parameter is passed without curly braces: access(buffer, noinit)
+  // thus simplest approach is to check 2 last arguments for being a tag
+  if constexpr ( std::is_same<MayBeTag1, mode_tag_t<access::mode::read>>::value ||
+                 std::is_same<MayBeTag2, mode_tag_t<access::mode::read>>::value ) {
+    return access::mode::read;
+  }
+  else if constexpr ( std::is_same<MayBeTag1, mode_tag_t<access::mode::write>>::value ||
+                      std::is_same<MayBeTag2, mode_tag_t<access::mode::write>>::value ) {
+    return access::mode::write;
+  }
+  else if constexpr ( std::is_same<MayBeTag1, mode_target_tag_t<access::mode::read, access::target::constant_buffer>>::value ||
+                      std::is_same<MayBeTag2, mode_target_tag_t<access::mode::read, access::target::constant_buffer>>::value ) {
+    return access::mode::read;
+  }
+  else {
+    return access::mode::read_write;
+  }
+}
+
+template <typename MayBeTag1, typename MayBeTag2>
+constexpr access::target deduceAccessTarget(access::target defaultTarget) {
+  if constexpr ( std::is_same<MayBeTag1, mode_target_tag_t<access::mode::read, access::target::constant_buffer>>::value ||
+                 std::is_same<MayBeTag2, mode_target_tag_t<access::mode::read, access::target::constant_buffer>>::value) {
+    return access::target::constant_buffer;
+  }
+  else {
+    return defaultTarget;
+  }
+}
+
+#endif
+
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

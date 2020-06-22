@@ -277,6 +277,25 @@ public:
                                                   accessOffset);
   }
 
+#if __cplusplus > 201402L
+
+  template<typename... Ts>
+  auto get_access(Ts... args) {
+    return accessor{*this, args...};
+  }
+
+  template<typename... Ts>
+  auto get_access(handler &commandGroupHandler, Ts... args) {
+    return accessor{*this, commandGroupHandler, args...};
+  }
+
+  template<typename... Ts>
+  auto get_host_access(Ts... args) {
+    return host_accessor{*this, args...};
+  }
+
+#endif
+
   template <typename Destination = std::nullptr_t>
   void set_final_data(Destination finalData = nullptr) {
     impl->set_final_data(finalData);
