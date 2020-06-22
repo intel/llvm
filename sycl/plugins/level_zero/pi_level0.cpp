@@ -20,6 +20,7 @@
 #include <string>
 #include <thread>
 #include <utility>
+#include <vector>
 
 #include <level_zero/zet_api.h>
 
@@ -615,8 +616,8 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
   }
 
   try {
-    ze_device_handle_t *ZeDevices = new ze_device_handle_t[ZeDeviceCount];
-    ZE_CALL(zeDeviceGet(ZeDriver, &ZeDeviceCount, ZeDevices));
+    std::vector<ze_device_handle_t> ZeDevices(ZeDeviceCount);
+    ZE_CALL(zeDeviceGet(ZeDriver, &ZeDeviceCount, ZeDevices.data()));
 
     for (uint32_t I = 0; I < ZeDeviceCount; ++I) {
       if (I < NumEntries) {
@@ -627,7 +628,6 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
         }
       }
     }
-    delete[] ZeDevices;
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
