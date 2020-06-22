@@ -16,6 +16,8 @@
 #include "llvm/BinaryFormat/MachO.h"
 #include "llvm/Object/Archive.h"
 #include "llvm/Support/MemoryBuffer.h"
+#include "llvm/TextAPI/MachO/InterfaceFile.h"
+#include "llvm/TextAPI/MachO/TextAPIReader.h"
 
 #include <map>
 #include <vector>
@@ -73,6 +75,9 @@ public:
 // .dylib file
 class DylibFile : public InputFile {
 public:
+  explicit DylibFile(std::shared_ptr<llvm::MachO::InterfaceFile> interface,
+                     DylibFile *umbrella = nullptr);
+
   // Mach-O dylibs can re-export other dylibs as sub-libraries, meaning that the
   // symbols in those sub-libraries will be available under the umbrella
   // library's namespace. Those sub-libraries can also have their own
@@ -81,12 +86,8 @@ public:
   // to the root. On the other hand, if a dylib is being directly loaded
   // (through an -lfoo flag), then `umbrella` should be a nullptr.
   explicit DylibFile(MemoryBufferRef mb, DylibFile *umbrella = nullptr);
-  static bool classof(const InputFile *f) { return f->kind() == DylibKind; }
 
-  // Do not use this constructor!! This is meant only for createLibSystemMock(),
-  // but it cannot be made private as we call it via make().
-  DylibFile();
-  static DylibFile *createLibSystemMock();
+  static bool classof(const InputFile *f) { return f->kind() == DylibKind; }
 
   StringRef dylibName;
   uint64_t ordinal = 0; // Ordinal numbering starts from 1, so 0 is a sentinel

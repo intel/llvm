@@ -322,16 +322,26 @@ namespace {
     }
 
     bool SimplifyDemandedBits(SDValue Op, const APInt &DemandedBits) {
-      EVT VT = Op.getValueType();
-      unsigned NumElts = VT.isVector() ? VT.getVectorNumElements() : 1;
-      APInt DemandedElts = APInt::getAllOnesValue(NumElts);
-      return SimplifyDemandedBits(Op, DemandedBits, DemandedElts);
+      TargetLowering::TargetLoweringOpt TLO(DAG, LegalTypes, LegalOperations);
+      KnownBits Known;
+      if (!TLI.SimplifyDemandedBits(Op, DemandedBits, Known, TLO, 0, false))
+        return false;
+
+      // Revisit the node.
+      AddToWorklist(Op.getNode());
+
+      CommitTargetLoweringOpt(TLO);
+      return true;
     }
 
     /// Check the specified vector node value to see if it can be simplified or
     /// if things it uses can be simplified as it only uses some of the
     /// elements. If so, return true.
     bool SimplifyDemandedVectorElts(SDValue Op) {
+      // TODO: For now just pretend it cannot be simplified.
+      if (Op.getValueType().isScalableVector())
+        return false;
+
       unsigned NumElts = Op.getValueType().getVectorNumElements();
       APInt DemandedElts = APInt::getAllOnesValue(NumElts);
       return SimplifyDemandedVectorElts(Op, DemandedElts);
@@ -2079,12 +2089,11 @@ static SDValue foldAddSubOfSignBit(SDNode *N, SelectionDAG &DAG) {
 
   // We need a constant operand for the add/sub, and the other operand is a
   // logical shift right: add (srl), C or sub C, (srl).
-  // TODO - support non-uniform vector amounts.
   bool IsAdd = N->getOpcode() == ISD::ADD;
   SDValue ConstantOp = IsAdd ? N->getOperand(1) : N->getOperand(0);
   SDValue ShiftOp = IsAdd ? N->getOperand(0) : N->getOperand(1);
-  ConstantSDNode *C = isConstOrConstSplat(ConstantOp);
-  if (!C || ShiftOp.getOpcode() != ISD::SRL)
+  if (!DAG.isConstantIntBuildVectorOrConstantInt(ConstantOp) ||
+      ShiftOp.getOpcode() != ISD::SRL)
     return SDValue();
 
   // The shift must be of a 'not' value.
@@ -2105,8 +2114,11 @@ static SDValue foldAddSubOfSignBit(SDNode *N, SelectionDAG &DAG) {
   SDLoc DL(N);
   auto ShOpcode = IsAdd ? ISD::SRA : ISD::SRL;
   SDValue NewShift = DAG.getNode(ShOpcode, DL, VT, Not.getOperand(0), ShAmt);
-  APInt NewC = IsAdd ? C->getAPIntValue() + 1 : C->getAPIntValue() - 1;
-  return DAG.getNode(ISD::ADD, DL, VT, NewShift, DAG.getConstant(NewC, DL, VT));
+  if (SDValue NewC =
+          DAG.FoldConstantArithmetic(IsAdd ? ISD::ADD : ISD::SUB, DL, VT,
+                                     {ConstantOp, DAG.getConstant(1, DL, VT)}))
+    return DAG.getNode(ISD::ADD, DL, VT, NewShift, NewC);
+  return SDValue();
 }
 
 /// Try to fold a node that behaves like an ADD (note that N isn't necessarily
@@ -2184,13 +2196,14 @@ SDValue DAGCombiner::visitADDLike(SDNode *N) {
       }
     }
 
-    // Undo the add -> or combine to merge constant offsets from a frame index.
+    // Fold (add (or x, c0), c1) -> (add x, (c0 + c1)) if (or x, c0) is
+    // equivalent to (add x, c0).
     if (N0.getOpcode() == ISD::OR &&
-        isa<FrameIndexSDNode>(N0.getOperand(0)) &&
-        isa<ConstantSDNode>(N0.getOperand(1)) &&
+        isConstantOrConstantVector(N0.getOperand(1), /* NoOpaque */ true) &&
         DAG.haveNoCommonBitsSet(N0.getOperand(0), N0.getOperand(1))) {
-      SDValue Add0 = DAG.getNode(ISD::ADD, DL, VT, N1, N0.getOperand(1));
-      return DAG.getNode(ISD::ADD, DL, VT, N0.getOperand(0), Add0);
+      if (SDValue Add0 = DAG.FoldConstantArithmetic(ISD::ADD, DL, VT,
+                                                    {N1, N0.getOperand(1)}))
+        return DAG.getNode(ISD::ADD, DL, VT, N0.getOperand(0), Add0);
     }
   }
 
@@ -11919,6 +11932,29 @@ SDValue DAGCombiner::visitFADDForFMACombine(SDNode *N) {
                        N1.getOperand(0), N1.getOperand(1), N0, Flags);
   }
 
+  // fadd (fma A, B, (fmul C, D)), E --> fma A, B, (fma C, D, E)
+  // fadd E, (fma A, B, (fmul C, D)) --> fma A, B, (fma C, D, E)
+  SDValue FMA, E;
+  if (CanFuse && N0.getOpcode() == PreferredFusedOpcode &&
+      N0.getOperand(2).getOpcode() == ISD::FMUL && N0.hasOneUse() &&
+      N0.getOperand(2).hasOneUse()) {
+    FMA = N0;
+    E = N1;
+  } else if (CanFuse && N1.getOpcode() == PreferredFusedOpcode &&
+             N1.getOperand(2).getOpcode() == ISD::FMUL && N1.hasOneUse() &&
+             N1.getOperand(2).hasOneUse()) {
+    FMA = N1;
+    E = N0;
+  }
+  if (FMA && E) {
+    SDValue A = FMA.getOperand(0);
+    SDValue B = FMA.getOperand(1);
+    SDValue C = FMA.getOperand(2).getOperand(0);
+    SDValue D = FMA.getOperand(2).getOperand(1);
+    SDValue CDE = DAG.getNode(PreferredFusedOpcode, SL, VT, C, D, E, Flags);
+    return DAG.getNode(PreferredFusedOpcode, SL, VT, A, B, CDE, Flags);
+  }
+
   // Look through FP_EXTEND nodes to do more combining.
 
   // fold (fadd (fpext (fmul x, y)), z) -> (fma (fpext x), (fpext y), z)
@@ -11952,29 +11988,6 @@ SDValue DAGCombiner::visitFADDForFMACombine(SDNode *N) {
 
   // More folding opportunities when target permits.
   if (Aggressive) {
-    // fadd (fma A, B, (fmul C, D)), E --> fma A, B, (fma C, D, E)
-    // fadd E, (fma A, B, (fmul C, D)) --> fma A, B, (fma C, D, E)
-    SDValue FMA, E;
-    if (CanFuse && N0.getOpcode() == PreferredFusedOpcode &&
-        N0.getOperand(2).getOpcode() == ISD::FMUL && N0.hasOneUse() &&
-        N0.getOperand(2).hasOneUse()) {
-      FMA = N0;
-      E = N1;
-    } else if (CanFuse && N1.getOpcode() == PreferredFusedOpcode &&
-               N1.getOperand(2).getOpcode() == ISD::FMUL && N1.hasOneUse() &&
-               N1.getOperand(2).hasOneUse()) {
-      FMA = N1;
-      E = N0;
-    }
-    if (FMA && E) {
-      SDValue A = FMA.getOperand(0);
-      SDValue B = FMA.getOperand(1);
-      SDValue C = FMA.getOperand(2).getOperand(0);
-      SDValue D = FMA.getOperand(2).getOperand(1);
-      SDValue CDE = DAG.getNode(PreferredFusedOpcode, SL, VT, C, D, E, Flags);
-      return DAG.getNode(PreferredFusedOpcode, SL, VT, A, B, CDE, Flags);
-    }
-
     // fold (fadd (fma x, y, (fpext (fmul u, v))), z)
     //   -> (fma x, y, (fma (fpext u), (fpext v), z))
     auto FoldFAddFMAFPExtFMul = [&] (
@@ -13029,7 +13042,7 @@ SDValue DAGCombiner::combineRepeatedFPDivisors(SDNode *N) {
   //       that only minsize should restrict this.
   bool UnsafeMath = DAG.getTarget().Options.UnsafeFPMath;
   const SDNodeFlags Flags = N->getFlags();
-  if (!UnsafeMath && !Flags.hasAllowReciprocal())
+  if (LegalDAG || (!UnsafeMath && !Flags.hasAllowReciprocal()))
     return SDValue();
 
   // Skip if current node is a reciprocal/fneg-reciprocal.
@@ -13183,8 +13196,9 @@ SDValue DAGCombiner::visitFDIV(SDNode *N) {
     }
 
     // Fold into a reciprocal estimate and multiply instead of a real divide.
-    if (SDValue RV = BuildDivEstimate(N0, N1, Flags))
-      return RV;
+    if (Options.NoInfsFPMath || Flags.hasNoInfs())
+      if (SDValue RV = BuildDivEstimate(N0, N1, Flags))
+        return RV;
   }
 
   // (fdiv (fneg X), (fneg Y)) -> (fdiv X, Y)

@@ -96,17 +96,13 @@ def main(builtin_params={}):
     run_tests(selected_tests, lit_config, opts, len(discovered_tests))
     elapsed = time.time() - start
 
-    # TODO(yln): eventually, all functions below should act on discovered_tests
-    executed_tests = [
-        t for t in selected_tests if t.result.code != lit.Test.SKIPPED]
-
     if opts.time_tests:
         print_histogram(discovered_tests)
 
     print_results(discovered_tests, elapsed, opts)
 
     for report in opts.reports:
-        report.write_results(executed_tests, elapsed)
+        report.write_results(discovered_tests, elapsed)
 
     if lit_config.numErrors:
         sys.stderr.write('\n%d error(s) in tests\n' % lit_config.numErrors)
@@ -263,50 +259,24 @@ def print_histogram(tests):
         lit.util.printHistogram(test_times, title='Tests')
 
 
-def add_result_category(result_code, label):
-    assert isinstance(result_code, lit.Test.ResultCode)
-    category = (result_code, label)
-    result_codes.append(category)
-
-
-result_codes = [
-    # Passes
-    (lit.Test.EXCLUDED,    'Excluded'),
-    (lit.Test.SKIPPED,     'Skipped'),
-    (lit.Test.UNSUPPORTED, 'Unsupported'),
-    (lit.Test.PASS,        'Passed'),
-    (lit.Test.FLAKYPASS,   'Passed With Retry'),
-    (lit.Test.XFAIL,       'Expectedly Failed'),
-    # Failures
-    (lit.Test.UNRESOLVED,  'Unresolved'),
-    (lit.Test.TIMEOUT,     'Timed Out'),
-    (lit.Test.FAIL,        'Failed'),
-    (lit.Test.XPASS,       'Unexpectedly Passed')
-]
-
-
 def print_results(tests, elapsed, opts):
-    tests_by_code = {code: [] for code, _ in result_codes}
+    tests_by_code = {code: [] for code in lit.Test.ResultCode.all_codes()}
     for test in tests:
         tests_by_code[test.result.code].append(test)
 
-    for (code, label) in result_codes:
-        print_group(code, label, tests_by_code[code], opts)
+    for code in lit.Test.ResultCode.all_codes():
+        print_group(tests_by_code[code], code, opts.show_results)
 
     print_summary(tests_by_code, opts.quiet, elapsed)
 
 
-def print_group(code, label, tests, opts):
+def print_group(tests, code, show_results):
     if not tests:
         return
-    # TODO(yln): FLAKYPASS? Make this more consistent!
-    if code in {lit.Test.EXCLUDED, lit.Test.SKIPPED, lit.Test.PASS}:
-        return
-    if (lit.Test.XFAIL == code and not opts.show_xfail) or \
-       (lit.Test.UNSUPPORTED == code and not opts.show_unsupported):
+    if not code.isFailure and code not in show_results:
         return
     print('*' * 20)
-    print('%s Tests (%d):' % (label, len(tests)))
+    print('{} Tests ({}):'.format(code.label, len(tests)))
     for test in tests:
         print('  %s' % test.getFullName())
     sys.stdout.write('\n')
@@ -316,8 +286,9 @@ def print_summary(tests_by_code, quiet, elapsed):
     if not quiet:
         print('\nTesting Time: %.2fs' % elapsed)
 
-    codes = [c for c in result_codes if not quiet or c.isFailure]
-    groups = [(label, len(tests_by_code[code])) for code, label in codes]
+    codes = [c for c in lit.Test.ResultCode.all_codes()
+             if not quiet or c.isFailure]
+    groups = [(c.label, len(tests_by_code[c])) for c in codes]
     groups = [(label, count) for label, count in groups if count]
     if not groups:
         return

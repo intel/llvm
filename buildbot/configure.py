@@ -97,7 +97,7 @@ def do_configure(args):
     # Add path to root CMakeLists.txt
     cmake_cmd.append(llvm_dir)
 
-    print(cmake_cmd)
+    print("[Cmake Command]: {}".format(" ".join(cmake_cmd)))
 
     try:
         subprocess.check_call(cmake_cmd, cwd=abs_obj_dir)

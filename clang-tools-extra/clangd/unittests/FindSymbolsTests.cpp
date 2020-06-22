@@ -51,14 +51,14 @@ ClangdServer::Options optsForTests() {
 
 class WorkspaceSymbolsTest : public ::testing::Test {
 public:
-  WorkspaceSymbolsTest() : Server(CDB, FSProvider, optsForTests()) {
+  WorkspaceSymbolsTest() : Server(CDB, FS, optsForTests()) {
     // Make sure the test root directory is created.
-    FSProvider.Files[testPath("unused")] = "";
+    FS.Files[testPath("unused")] = "";
     CDB.ExtraClangFlags = {"-xc++"};
   }
 
 protected:
-  MockFSProvider FSProvider;
+  MockFS FS;
   MockCompilationDatabase CDB;
   ClangdServer Server;
   int Limit = 0;
@@ -71,9 +71,7 @@ protected:
   }
 
   void addFile(llvm::StringRef FileName, llvm::StringRef Contents) {
-    auto Path = testPath(FileName);
-    FSProvider.Files[Path] = std::string(Contents);
-    Server.addDocument(Path, Contents);
+    Server.addDocument(testPath(FileName), Contents);
   }
 };
 
@@ -309,10 +307,10 @@ TEST_F(WorkspaceSymbolsTest, TempSpecs) {
 namespace {
 class DocumentSymbolsTest : public ::testing::Test {
 public:
-  DocumentSymbolsTest() : Server(CDB, FSProvider, optsForTests()) {}
+  DocumentSymbolsTest() : Server(CDB, FS, optsForTests()) {}
 
 protected:
-  MockFSProvider FSProvider;
+  MockFS FS;
   MockCompilationDatabase CDB;
   ClangdServer Server;
 
@@ -324,7 +322,6 @@ protected:
   }
 
   void addFile(llvm::StringRef FilePath, llvm::StringRef Contents) {
-    FSProvider.Files[FilePath] = std::string(Contents);
     Server.addDocument(FilePath, Contents);
   }
 };

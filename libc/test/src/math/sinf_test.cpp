@@ -13,6 +13,7 @@
 #include "test/src/math/sdcomp26094.h"
 #include "utils/CPP/Array.h"
 #include "utils/FPUtil/BitPatterns.h"
+#include "utils/FPUtil/ClassificationFunctions.h"
 #include "utils/FPUtil/FloatOperations.h"
 #include "utils/FPUtil/FloatProperties.h"
 #include "utils/MPFRWrapper/MPFRUtils.h"
@@ -68,8 +69,8 @@ TEST(SinfTest, SpecialNumbers) {
   EXPECT_EQ(llvmlibc_errno, EDOM);
 
   llvmlibc_errno = 0;
-  EXPECT_TRUE(isNegativeQuietNaN(
-      __llvm_libc::sinf(valueFromBits(BitPatterns::negInf))));
+  EXPECT_TRUE(
+      isQuietNaN(__llvm_libc::sinf(valueFromBits(BitPatterns::negInf))));
   EXPECT_EQ(llvmlibc_errno, EDOM);
 }
 

@@ -1628,23 +1628,18 @@ static MetadataAsValue *wrapValueInMetadata(LLVMContext &C, Value *V) {
   return MetadataAsValue::get(C, ValueAsMetadata::get(V));
 }
 
-bool llvm::salvageDebugInfo(Instruction &I) {
+/// Where possible to salvage debug information for \p I do so
+/// and return True. If not possible mark undef and return False.
+void llvm::salvageDebugInfo(Instruction &I) {
   SmallVector<DbgVariableIntrinsic *, 1> DbgUsers;
   findDbgUsers(DbgUsers, &I);
-  if (DbgUsers.empty())
-    return false;
-
-  return salvageDebugInfoForDbgValues(I, DbgUsers);
+  salvageDebugInfoForDbgValues(I, DbgUsers);
 }
 
-void llvm::salvageDebugInfoOrMarkUndef(Instruction &I) {
-  if (!salvageDebugInfo(I))
-    replaceDbgUsesWithUndef(&I);
-}
-
-bool llvm::salvageDebugInfoForDbgValues(
+void llvm::salvageDebugInfoForDbgValues(
     Instruction &I, ArrayRef<DbgVariableIntrinsic *> DbgUsers) {
   auto &Ctx = I.getContext();
+  bool Salvaged = false;
   auto wrapMD = [&](Value *V) { return wrapValueInMetadata(Ctx, V); };
 
   for (auto *DII : DbgUsers) {
@@ -1659,14 +1654,22 @@ bool llvm::salvageDebugInfoForDbgValues(
     // salvageDebugInfoImpl should fail on examining the first element of
     // DbgUsers, or none of them.
     if (!DIExpr)
-      return false;
+      break;
 
     DII->setOperand(0, wrapMD(I.getOperand(0)));
     DII->setOperand(2, MetadataAsValue::get(Ctx, DIExpr));
     LLVM_DEBUG(dbgs() << "SALVAGE: " << *DII << '\n');
+    Salvaged = true;
   }
 
-  return true;
+  if (Salvaged)
+    return;
+
+  for (auto *DII : DbgUsers) {
+    Value *Undef = UndefValue::get(I.getType());
+    DII->setOperand(0, MetadataAsValue::get(DII->getContext(),
+                                            ValueAsMetadata::get(Undef)));
+  }
 }
 
 DIExpression *llvm::salvageDebugInfoImpl(Instruction &I,
@@ -1822,7 +1825,7 @@ static bool rewriteDebugUsers(
 
   if (!UndefOrSalvage.empty()) {
     // Try to salvage the remaining debug users.
-    salvageDebugInfoOrMarkUndef(From);
+    salvageDebugInfo(From);
     Changed = true;
   }
 
@@ -1982,6 +1985,18 @@ CallInst *llvm::createCallMatchingInvoke(InvokeInst *II) {
   NewCall->setAttributes(II->getAttributes());
   NewCall->setDebugLoc(II->getDebugLoc());
   NewCall->copyMetadata(*II);
+
+  // If the invoke had profile metadata, try converting them for CallInst.
+  uint64_t TotalWeight;
+  if (NewCall->extractProfTotalWeight(TotalWeight)) {
+    // Set the total weight if it fits into i32, otherwise reset.
+    MDBuilder MDB(NewCall->getContext());
+    auto NewWeights = uint32_t(TotalWeight) != TotalWeight
+                          ? nullptr
+                          : MDB.createBranchWeights({uint32_t(TotalWeight)});
+    NewCall->setMetadata(LLVMContext::MD_prof, NewWeights);
+  }
+
   return NewCall;
 }
 
@@ -2260,7 +2275,7 @@ bool llvm::removeUnreachableBlocks(Function &F, DomTreeUpdater *DTU,
   SmallSetVector<BasicBlock *, 8> DeadBlockSet;
   for (BasicBlock &BB : F) {
     // Skip reachable basic blocks
-    if (Reachable.find(&BB) != Reachable.end())
+    if (Reachable.count(&BB))
       continue;
     DeadBlockSet.insert(&BB);
   }

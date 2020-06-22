@@ -215,9 +215,6 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs,
   if (getLangOpts().SYCLIsDevice) {
     if (auto VD = dyn_cast<VarDecl>(D)) {
       bool IsConst = VD->getType().isConstant(Context);
-      if (VD->getTLSKind() != VarDecl::TLS_None)
-        SYCLDiagIfDeviceCode(*Locs.begin(), diag::err_thread_unsupported);
-
       if (!IsConst && VD->getStorageClass() == SC_Static)
         SYCLDiagIfDeviceCode(*Locs.begin(), diag::err_sycl_restrict)
             << Sema::KernelNonConstStaticDataVariable;
@@ -372,9 +369,15 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs,
 
   diagnoseUseOfInternalDeclInInlineFunction(*this, D, Loc);
 
-  if (LangOpts.SYCLIsDevice || (LangOpts.OpenMP && LangOpts.OpenMPIsDevice))
+  if (LangOpts.SYCLIsDevice || (LangOpts.OpenMP && LangOpts.OpenMPIsDevice)) {
     if (const auto *VD = dyn_cast<ValueDecl>(D))
       checkDeviceDecl(VD, Loc);
+
+    if (!Context.getTargetInfo().isTLSSupported())
+      if (const auto *VD = dyn_cast<VarDecl>(D))
+        if (VD->getTLSKind() != VarDecl::TLS_None)
+          targetDiag(*Locs.begin(), diag::err_thread_unsupported);
+  }
 
   if (isa<ParmVarDecl>(D) && isa<RequiresExprBodyDecl>(D->getDeclContext()) &&
       !isUnevaluatedContext()) {
@@ -741,7 +744,7 @@ ExprResult Sema::CallExprUnaryConversions(Expr *E) {
   // to function type.
   if (Ty->isFunctionType()) {
     Res = ImpCastExprToType(E, Context.getPointerType(Ty),
-                            CK_FunctionToPointerDecay).get();
+                            CK_FunctionToPointerDecay);
     if (Res.isInvalid())
       return ExprError();
   }
@@ -3162,6 +3165,11 @@ ExprResult Sema::BuildDeclarationNameExpr(
       return ExprError();
     ExprValueKind valueKind = VK_RValue;
 
+    // In 'T ...V;', the type of the declaration 'V' is 'T...', but the type of
+    // a reference to 'V' is simply (unexpanded) 'T'. The type, like the value,
+    // is expanded by some outer '...' in the context of the use.
+    type = type.getNonPackExpansionType();
+
     switch (D->getKind()) {
     // Ignore all the non-ValueDecl kinds.
 #define ABSTRACT_DECL(kind)
@@ -3988,7 +3996,7 @@ static bool CheckExtensionTraitOperandType(Sema &S, QualType T,
        TraitKind == UETT_PreferredAlignOf)) {
     // sizeof(function)/alignof(function) is allowed as an extension.
     S.Diag(Loc, diag::ext_sizeof_alignof_function_type)
-      << TraitKind << ArgRange;
+        << getTraitSpelling(TraitKind) << ArgRange;
     return false;
   }
 
@@ -3997,7 +4005,7 @@ static bool CheckExtensionTraitOperandType(Sema &S, QualType T,
   if (T->isVoidType()) {
     unsigned DiagID = S.LangOpts.OpenCL ? diag::err_opencl_sizeof_alignof_type
                                         : diag::ext_sizeof_alignof_void_type;
-    S.Diag(Loc, DiagID) << TraitKind << ArgRange;
+    S.Diag(Loc, DiagID) << getTraitSpelling(TraitKind) << ArgRange;
     return false;
   }
 
@@ -4064,7 +4072,7 @@ bool Sema::CheckUnaryExprOrTypeTraitOperand(Expr *E,
     return CheckVecStepTraitOperandType(*this, ExprTy, E->getExprLoc(),
                                         E->getSourceRange());
 
-  // Whitelist some types as extensions
+  // Explicitly list some types as extensions.
   if (!CheckExtensionTraitOperandType(*this, ExprTy, E->getExprLoc(),
                                       E->getSourceRange(), ExprKind))
     return false;
@@ -4076,13 +4084,13 @@ bool Sema::CheckUnaryExprOrTypeTraitOperand(Expr *E,
   if (ExprKind == UETT_AlignOf || ExprKind == UETT_PreferredAlignOf) {
     if (RequireCompleteSizedType(
             E->getExprLoc(), Context.getBaseElementType(E->getType()),
-            diag::err_sizeof_alignof_incomplete_or_sizeless_type, ExprKind,
-            E->getSourceRange()))
+            diag::err_sizeof_alignof_incomplete_or_sizeless_type,
+            getTraitSpelling(ExprKind), E->getSourceRange()))
       return true;
   } else {
     if (RequireCompleteSizedExprType(
-            E, diag::err_sizeof_alignof_incomplete_or_sizeless_type, ExprKind,
-            E->getSourceRange()))
+            E, diag::err_sizeof_alignof_incomplete_or_sizeless_type,
+            getTraitSpelling(ExprKind), E->getSourceRange()))
       return true;
   }
 
@@ -4092,7 +4100,7 @@ bool Sema::CheckUnaryExprOrTypeTraitOperand(Expr *E,
 
   if (ExprTy->isFunctionType()) {
     Diag(E->getExprLoc(), diag::err_sizeof_alignof_function_type)
-      << ExprKind << E->getSourceRange();
+        << getTraitSpelling(ExprKind) << E->getSourceRange();
     return true;
   }
 
@@ -4174,19 +4182,19 @@ bool Sema::CheckUnaryExprOrTypeTraitOperand(QualType ExprType,
   if (ExprKind == UETT_VecStep)
     return CheckVecStepTraitOperandType(*this, ExprType, OpLoc, ExprRange);
 
-  // Whitelist some types as extensions
+  // Explicitly list some types as extensions.
   if (!CheckExtensionTraitOperandType(*this, ExprType, OpLoc, ExprRange,
                                       ExprKind))
     return false;
 
   if (RequireCompleteSizedType(
           OpLoc, ExprType, diag::err_sizeof_alignof_incomplete_or_sizeless_type,
-          ExprKind, ExprRange))
+          getTraitSpelling(ExprKind), ExprRange))
     return true;
 
   if (ExprType->isFunctionType()) {
     Diag(OpLoc, diag::err_sizeof_alignof_function_type)
-      << ExprKind << ExprRange;
+        << getTraitSpelling(ExprKind) << ExprRange;
     return true;
   }
 
@@ -4691,15 +4699,12 @@ Sema::ActOnArraySubscriptExpr(Scope *S, Expr *base, SourceLocation lbLoc,
   return Res;
 }
 
-static bool tryConvertToTy(Sema &S, QualType ElementType, ExprResult *Scalar) {
-  InitializedEntity Entity =
-      InitializedEntity::InitializeTemporary(ElementType);
-  InitializationKind Kind = InitializationKind::CreateCopy(
-      Scalar->get()->getBeginLoc(), SourceLocation());
-  Expr *Arg = Scalar->get();
-  InitializationSequence InitSeq(S, Entity, Kind, Arg);
-  *Scalar = InitSeq.Perform(S, Entity, Kind, Arg);
-  return !Scalar->isInvalid();
+ExprResult Sema::tryConvertExprToType(Expr *E, QualType Ty) {
+  InitializedEntity Entity = InitializedEntity::InitializeTemporary(Ty);
+  InitializationKind Kind =
+      InitializationKind::CreateCopy(E->getBeginLoc(), SourceLocation());
+  InitializationSequence InitSeq(*this, Entity, Kind, E);
+  return InitSeq.Perform(*this, Entity, Kind, E);
 }
 
 ExprResult Sema::CreateBuiltinMatrixSubscriptExpr(Expr *Base, Expr *RowIdx,
@@ -4750,11 +4755,10 @@ ExprResult Sema::CreateBuiltinMatrixSubscriptExpr(Expr *Base, Expr *RowIdx,
       return nullptr;
     }
 
-    ExprResult ConvExpr = IndexExpr;
-    bool ConversionOk = tryConvertToTy(*this, Context.getSizeType(), &ConvExpr);
-    assert(ConversionOk &&
+    ExprResult ConvExpr =
+        tryConvertExprToType(IndexExpr, Context.getSizeType());
+    assert(!ConvExpr.isInvalid() &&
            "should be able to convert any integer type to size type");
-    (void)ConversionOk;
     return ConvExpr.get();
   };
 
@@ -11594,11 +11598,22 @@ QualType Sema::CheckCompareOperands(ExprResult &LHS, ExprResult &RHS,
     // C99 6.5.9p2 and C99 6.5.8p2
     if (Context.typesAreCompatible(LCanPointeeTy.getUnqualifiedType(),
                                    RCanPointeeTy.getUnqualifiedType())) {
-      // Valid unless a relational comparison of function pointers
-      if (IsRelational && LCanPointeeTy->isFunctionType()) {
-        Diag(Loc, diag::ext_typecheck_ordered_comparison_of_function_pointers)
-          << LHSType << RHSType << LHS.get()->getSourceRange()
-          << RHS.get()->getSourceRange();
+      if (IsRelational) {
+        // Pointers both need to point to complete or incomplete types
+        if ((LCanPointeeTy->isIncompleteType() !=
+             RCanPointeeTy->isIncompleteType()) &&
+            !getLangOpts().C11) {
+          Diag(Loc, diag::ext_typecheck_compare_complete_incomplete_pointers)
+              << LHS.get()->getSourceRange() << RHS.get()->getSourceRange()
+              << LHSType << RHSType << LCanPointeeTy->isIncompleteType()
+              << RCanPointeeTy->isIncompleteType();
+        }
+        if (LCanPointeeTy->isFunctionType()) {
+          // Valid unless a relational comparison of function pointers
+          Diag(Loc, diag::ext_typecheck_ordered_comparison_of_function_pointers)
+              << LHSType << RHSType << LHS.get()->getSourceRange()
+              << RHS.get()->getSourceRange();
+        }
       }
     } else if (!IsRelational &&
                (LCanPointeeTy->isVoidType() || RCanPointeeTy->isVoidType())) {
@@ -12126,13 +12141,16 @@ QualType Sema::CheckMatrixElementwiseOperands(ExprResult &LHS, ExprResult &RHS,
   ExprResult OriginalLHS = LHS;
   ExprResult OriginalRHS = RHS;
   if (LHSMatType && !RHSMatType) {
-    if (tryConvertToTy(*this, LHSMatType->getElementType(), &RHS))
+    RHS = tryConvertExprToType(RHS.get(), LHSMatType->getElementType());
+    if (!RHS.isInvalid())
       return LHSType;
+
     return InvalidOperands(Loc, OriginalLHS, OriginalRHS);
   }
 
   if (!LHSMatType && RHSMatType) {
-    if (tryConvertToTy(*this, RHSMatType->getElementType(), &LHS))
+    LHS = tryConvertExprToType(LHS.get(), RHSMatType->getElementType());
+    if (!LHS.isInvalid())
       return RHSType;
     return InvalidOperands(Loc, OriginalLHS, OriginalRHS);
   }
@@ -12902,8 +12920,8 @@ static bool IgnoreCommaOperand(const Expr *E) {
 }
 
 // Look for instances where it is likely the comma operator is confused with
-// another operator.  There is a whitelist of acceptable expressions for the
-// left hand side of the comma operator, otherwise emit a warning.
+// another operator.  There is an explicit list of acceptable expressions for
+// the left hand side of the comma operator, otherwise emit a warning.
 void Sema::DiagnoseCommaOperator(const Expr *LHS, SourceLocation Loc) {
   // No warnings in macros
   if (Loc.isMacroID())
@@ -12913,10 +12931,10 @@ void Sema::DiagnoseCommaOperator(const Expr *LHS, SourceLocation Loc) {
   if (inTemplateInstantiation())
     return;
 
-  // Scope isn't fine-grained enough to whitelist the specific cases, so
+  // Scope isn't fine-grained enough to explicitly list the specific cases, so
   // instead, skip more than needed, then call back into here with the
   // CommaVisitor in SemaStmt.cpp.
-  // The whitelisted locations are the initialization and increment portions
+  // The listed locations are the initialization and increment portions
   // of a for loop.  The additional checks are on the condition of
   // if statements, do/while loops, and for loops.
   // Differences in scope flags for C89 mode requires the extra logic.
@@ -13661,13 +13679,15 @@ CorrectDelayedTyposInBinOp(Sema &S, BinaryOperatorKind Opc, Expr *LHSExpr,
     // doesn't handle dependent types properly, so make sure any TypoExprs have
     // been dealt with before checking the operands.
     LHS = S.CorrectDelayedTyposInExpr(LHS);
-    RHS = S.CorrectDelayedTyposInExpr(RHS, [Opc, LHS](Expr *E) {
-      if (Opc != BO_Assign)
-        return ExprResult(E);
-      // Avoid correcting the RHS to the same Expr as the LHS.
-      Decl *D = getDeclFromExpr(E);
-      return (D && D == getDeclFromExpr(LHS.get())) ? ExprError() : E;
-    });
+    RHS = S.CorrectDelayedTyposInExpr(
+        RHS, /*InitDecl=*/nullptr, /*RecoverUncorrectedTypos=*/false,
+        [Opc, LHS](Expr *E) {
+          if (Opc != BO_Assign)
+            return ExprResult(E);
+          // Avoid correcting the RHS to the same Expr as the LHS.
+          Decl *D = getDeclFromExpr(E);
+          return (D && D == getDeclFromExpr(LHS.get())) ? ExprError() : E;
+        });
   }
   return std::make_pair(LHS, RHS);
 }
@@ -14501,9 +14521,16 @@ ExprResult Sema::CreateBuiltinUnaryOp(SourceLocation OpLoc,
       // Vector logical not returns the signed variant of the operand type.
       resultType = GetSignedVectorType(resultType);
       break;
+    } else if (Context.getLangOpts().CPlusPlus && resultType->isVectorType()) {
+      const VectorType *VTy = resultType->castAs<VectorType>();
+      if (VTy->getVectorKind() != VectorType::GenericVector)
+        return ExprError(Diag(OpLoc, diag::err_typecheck_unary_expr)
+                         << resultType << Input.get()->getSourceRange());
+
+      // Vector logical not returns the signed variant of the operand type.
+      resultType = GetSignedVectorType(resultType);
+      break;
     } else {
-      // FIXME: GCC's vector extension permits the usage of '!' with a vector
-      //        type in C++. We should allow that here too.
       return ExprError(Diag(OpLoc, diag::err_typecheck_unary_expr)
         << resultType << Input.get()->getSourceRange());
     }
@@ -16149,7 +16176,7 @@ ExprResult Sema::CheckForImmediateInvocation(ExprResult E, FunctionDecl *Decl) {
 
   ConstantExpr *Res = ConstantExpr::Create(
       getASTContext(), E.get(),
-      ConstantExpr::getStorageKind(E.get()->getType().getTypePtr(),
+      ConstantExpr::getStorageKind(Decl->getReturnType().getTypePtr(),
                                    getASTContext()),
       /*IsImmediateInvocation*/ true);
   ExprEvalContexts.back().ImmediateInvocationCandidates.emplace_back(Res, 0);
@@ -17565,7 +17592,7 @@ static ExprResult rebuildPotentialResultsAsNonOdrUsed(Sema &S, Expr *E,
 
   // Mark that this expression does not constitute an odr-use.
   auto MarkNotOdrUsed = [&] {
-    S.MaybeODRUseExprs.erase(E);
+    S.MaybeODRUseExprs.remove(E);
     if (LambdaScopeInfo *LSI = S.getCurLambda())
       LSI->markVariableExprAsNonODRUsed(E);
   };

@@ -427,7 +427,7 @@ void CodeGenModule::Release() {
   checkAliases();
   emitMultiVersionFunctions();
   EmitCXXGlobalInitFunc();
-  EmitCXXGlobalDtorFunc();
+  EmitCXXGlobalCleanUpFunc();
   registerGlobalDtorsWithAtExit();
   EmitCXXThreadLocalInitFunc();
   if (ObjCRuntime)
@@ -1014,9 +1014,9 @@ static llvm::GlobalVariable::ThreadLocalMode GetLLVMTLSModel(StringRef S) {
       .Case("local-exec", llvm::GlobalVariable::LocalExecTLSModel);
 }
 
-static llvm::GlobalVariable::ThreadLocalMode GetLLVMTLSModel(
-    CodeGenOptions::TLSModel M) {
-  switch (M) {
+llvm::GlobalVariable::ThreadLocalMode
+CodeGenModule::GetDefaultLLVMTLSModel() const {
+  switch (CodeGenOpts.getDefaultTLSModel()) {
   case CodeGenOptions::GeneralDynamicTLSModel:
     return llvm::GlobalVariable::GeneralDynamicTLSModel;
   case CodeGenOptions::LocalDynamicTLSModel:
@@ -1033,7 +1033,7 @@ void CodeGenModule::setTLSMode(llvm::GlobalValue *GV, const VarDecl &D) const {
   assert(D.getTLSKind() && "setting TLS mode on non-TLS var!");
 
   llvm::GlobalValue::ThreadLocalMode TLM;
-  TLM = GetLLVMTLSModel(CodeGenOpts.getDefaultTLSModel());
+  TLM = GetDefaultLLVMTLSModel();
 
   // Override the TLS model if it is explicitly specified.
   if (const TLSModelAttr *Attr = D.getAttr<TLSModelAttr>()) {
@@ -3393,6 +3393,8 @@ llvm::Constant *CodeGenModule::GetAddrOfFunction(GlobalDecl GD,
                                                  bool ForVTable,
                                                  bool DontDefer,
                                               ForDefinition_t IsForDefinition) {
+  assert(!cast<FunctionDecl>(GD.getDecl())->isConsteval() &&
+         "consteval function should never be emitted");
   // If there was no specific requested type, just convert it now.
   if (!Ty) {
     const auto *FD = cast<FunctionDecl>(GD.getDecl());
@@ -5565,6 +5567,11 @@ void CodeGenModule::EmitTopLevelDecl(Decl *D) {
   if (D->isTemplated())
     return;
 
+  // Consteval function shouldn't be emitted.
+  if (auto *FD = dyn_cast<FunctionDecl>(D))
+    if (FD->isConsteval())
+      return;
+
   switch (D->getKind()) {
   case Decl::CXXConversion:
   case Decl::CXXMethod:
@@ -6257,4 +6264,29 @@ CharUnits CodeGenModule::getNaturalTypeAlignment(QualType T,
     }
   }
   return Alignment;
+}
+
+bool CodeGenModule::stopAutoInit() {
+  unsigned StopAfter = getContext().getLangOpts().TrivialAutoVarInitStopAfter;
+  if (StopAfter) {
+    // This number is positive only when -ftrivial-auto-var-init-stop-after=* is
+    // used
+    if (NumAutoVarInit >= StopAfter) {
+      return true;
+    }
+    if (!NumAutoVarInit) {
+      unsigned DiagID = getDiags().getCustomDiagID(
+          DiagnosticsEngine::Warning,
+          "-ftrivial-auto-var-init-stop-after=%0 has been enabled to limit the "
+          "number of times ftrivial-auto-var-init=%1 gets applied.");
+      getDiags().Report(DiagID)
+          << StopAfter
+          << (getContext().getLangOpts().getTrivialAutoVarInit() ==
+                      LangOptions::TrivialAutoVarInitKind::Zero
+                  ? "zero"
+                  : "pattern");
+    }
+    ++NumAutoVarInit;
+  }
+  return false;
 }

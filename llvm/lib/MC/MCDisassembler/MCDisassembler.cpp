@@ -16,12 +16,11 @@ using namespace llvm;
 
 MCDisassembler::~MCDisassembler() = default;
 
-MCDisassembler::DecodeStatus
-MCDisassembler::onSymbolStart(StringRef Name, uint64_t &Size,
+Optional<MCDisassembler::DecodeStatus>
+MCDisassembler::onSymbolStart(SymbolInfoTy &Symbol, uint64_t &Size,
                               ArrayRef<uint8_t> Bytes, uint64_t Address,
                               raw_ostream &CStream) const {
-  Size = 0;
-  return MCDisassembler::Success;
+  return None;
 }
 
 bool MCDisassembler::tryAddingSymbolicOperand(MCInst &Inst, int64_t Value,

@@ -1278,18 +1278,17 @@ static llvm::Value *CreateCoercedLoad(Address Src, llvm::Type *Ty,
 // store the elements rather than the aggregate to be more friendly to
 // fast-isel.
 // FIXME: Do we need to recurse here?
-static void BuildAggStore(CodeGenFunction &CGF, llvm::Value *Val,
-                          Address Dest, bool DestIsVolatile) {
+void CodeGenFunction::EmitAggregateStore(llvm::Value *Val, Address Dest,
+                                         bool DestIsVolatile) {
   // Prefer scalar stores to first-class aggregate stores.
-  if (llvm::StructType *STy =
-        dyn_cast<llvm::StructType>(Val->getType())) {
+  if (llvm::StructType *STy = dyn_cast<llvm::StructType>(Val->getType())) {
     for (unsigned i = 0, e = STy->getNumElements(); i != e; ++i) {
-      Address EltPtr = CGF.Builder.CreateStructGEP(Dest, i);
-      llvm::Value *Elt = CGF.Builder.CreateExtractValue(Val, i);
-      CGF.Builder.CreateStore(Elt, EltPtr, DestIsVolatile);
+      Address EltPtr = Builder.CreateStructGEP(Dest, i);
+      llvm::Value *Elt = Builder.CreateExtractValue(Val, i);
+      Builder.CreateStore(Elt, EltPtr, DestIsVolatile);
     }
   } else {
-    CGF.Builder.CreateStore(Val, Dest, DestIsVolatile);
+    Builder.CreateStore(Val, Dest, DestIsVolatile);
   }
 }
 
@@ -1340,7 +1339,7 @@ static void CreateCoercedStore(llvm::Value *Src,
   // If store is legal, just bitcast the src pointer.
   if (SrcSize <= DstSize) {
     Dst = CGF.Builder.CreateElementBitCast(Dst, SrcTy);
-    BuildAggStore(CGF, Src, Dst, DstIsVolatile);
+    CGF.EmitAggregateStore(Src, Dst, DstIsVolatile);
   } else {
     // Otherwise do coercion through memory. This is stupid, but
     // simple.
@@ -3134,20 +3133,6 @@ llvm::Value *CodeGenFunction::EmitCMSEClearRecord(llvm::Value *Src,
   return R;
 }
 
-// Emit code to clear the padding bits when returning or passing as an argument
-// a 16-bit floating-point value.
-llvm::Value *CodeGenFunction::EmitCMSEClearFP16(llvm::Value *Src) {
-  llvm::Type *RetTy = Src->getType();
-  assert(RetTy->isFloatTy() ||
-         (RetTy->isIntegerTy() && RetTy->getIntegerBitWidth() == 32));
-  if (RetTy->isFloatTy()) {
-    llvm::Value *T0 = Builder.CreateBitCast(Src, Builder.getIntNTy(32));
-    llvm::Value *T1 = Builder.CreateAnd(T0, 0xffff, "cmse.clear");
-    return Builder.CreateBitCast(T1, RetTy);
-  }
-  return Builder.CreateAnd(Src, 0xffff, "cmse.clear");
-}
-
 void CodeGenFunction::EmitFunctionEpilog(const CGFunctionInfo &FI,
                                          bool EmitRetDbgLoc,
                                          SourceLocation EndLoc) {
@@ -3317,17 +3302,10 @@ void CodeGenFunction::EmitFunctionEpilog(const CGFunctionInfo &FI,
     if (CurFuncDecl && CurFuncDecl->hasAttr<CmseNSEntryAttr>()) {
       // For certain return types, clear padding bits, as they may reveal
       // sensitive information.
-      const Type *RTy = RetTy.getCanonicalType().getTypePtr();
-      if (RTy->isFloat16Type() || RTy->isHalfType()) {
-        // 16-bit floating-point types are passed in a 32-bit integer or float,
-        // with unspecified upper bits.
-        RV = EmitCMSEClearFP16(RV);
-      } else {
-        // Small struct/union types are passed as integers.
-        auto *ITy = dyn_cast<llvm::IntegerType>(RV->getType());
-        if (ITy != nullptr && isa<RecordType>(RetTy.getCanonicalType()))
-          RV = EmitCMSEClearRecord(RV, ITy, RetTy);
-      }
+      // Small struct/union types are passed as integers.
+      auto *ITy = dyn_cast<llvm::IntegerType>(RV->getType());
+      if (ITy != nullptr && isa<RecordType>(RetTy.getCanonicalType()))
+        RV = EmitCMSEClearRecord(RV, ITy, RetTy);
     }
     EmitReturnValueCheck(RV);
     Ret = Builder.CreateRet(RV);
@@ -4641,17 +4619,10 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
         if (CallInfo.isCmseNSCall()) {
           // For certain parameter types, clear padding bits, as they may reveal
           // sensitive information.
-          const Type *PTy = I->Ty.getCanonicalType().getTypePtr();
-          // 16-bit floating-point types are passed in a 32-bit integer or
-          // float, with unspecified upper bits.
-          if (PTy->isFloat16Type() || PTy->isHalfType()) {
-            Load = EmitCMSEClearFP16(Load);
-          } else {
-            // Small struct/union types are passed as integer arrays.
-            auto *ATy = dyn_cast<llvm::ArrayType>(Load->getType());
-            if (ATy != nullptr && isa<RecordType>(I->Ty.getCanonicalType()))
-              Load = EmitCMSEClearRecord(Load, ATy, I->Ty);
-          }
+          // Small struct/union types are passed as integer arrays.
+          auto *ATy = dyn_cast<llvm::ArrayType>(Load->getType());
+          if (ATy != nullptr && isa<RecordType>(I->Ty.getCanonicalType()))
+            Load = EmitCMSEClearRecord(Load, ATy, I->Ty);
         }
         IRCallArgs[FirstIRArg] = Load;
       }
@@ -4895,8 +4866,7 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
     CannotThrow = true;
   } else {
     // Otherwise, nounwind call sites will never throw.
-    CannotThrow = Attrs.hasAttribute(llvm::AttributeList::FunctionIndex,
-                                     llvm::Attribute::NoUnwind);
+    CannotThrow = Attrs.hasFnAttribute(llvm::Attribute::NoUnwind);
   }
 
   // If we made a temporary, be sure to clean up after ourselves. Note that we
@@ -4985,7 +4955,7 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
   // Add metadata for calls to MSAllocator functions
   if (getDebugInfo() && TargetDecl &&
       TargetDecl->hasAttr<MSAllocatorAttr>())
-    getDebugInfo()->addHeapAllocSiteMetadata(CI, RetTy, Loc);
+    getDebugInfo()->addHeapAllocSiteMetadata(CI, RetTy->getPointeeType(), Loc);
 
   // 4. Finish the call.
 
@@ -5105,7 +5075,7 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
             DestPtr = CreateMemTemp(RetTy, "agg.tmp");
             DestIsVolatile = false;
           }
-          BuildAggStore(*this, CI, DestPtr, DestIsVolatile);
+          EmitAggregateStore(CI, DestPtr, DestIsVolatile);
           return RValue::getAggregate(DestPtr);
         }
         case TEK_Scalar: {

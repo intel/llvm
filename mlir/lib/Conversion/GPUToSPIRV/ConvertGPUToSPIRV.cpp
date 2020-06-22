@@ -140,7 +140,7 @@ ForOpConversion::matchAndRewrite(scf::ForOp forOp, ArrayRef<Value> operands,
   // latch and the merge block the exit block. The resulting spirv::LoopOp has a
   // single back edge from the continue to header block, and a single exit from
   // header to merge.
-  scf::ForOpOperandAdaptor forOperands(operands);
+  scf::ForOpAdaptor forOperands(operands);
   auto loc = forOp.getLoc();
   auto loopControl = rewriter.getI32IntegerAttr(
       static_cast<uint32_t>(spirv::LoopControl::None));
@@ -164,8 +164,11 @@ ForOpConversion::matchAndRewrite(scf::ForOp forOp, ArrayRef<Value> operands,
   TypeConverter::SignatureConversion signatureConverter(
       body->getNumArguments());
   signatureConverter.remapInput(0, newIndVar);
-  body = rewriter.applySignatureConversion(&forOp.getLoopBody(),
-                                           signatureConverter);
+  FailureOr<Block *> newBody = rewriter.convertRegionTypes(
+      &forOp.getLoopBody(), typeConverter, &signatureConverter);
+  if (failed(newBody))
+    return failure();
+  body = *newBody;
 
   // Delete the loop terminator.
   rewriter.eraseOp(body->getTerminator());
@@ -211,7 +214,7 @@ IfOpConversion::matchAndRewrite(scf::IfOp ifOp, ArrayRef<Value> operands,
   // When lowering `scf::IfOp` we explicitly create a selection header block
   // before the control flow diverges and a merge block where control flow
   // subsequently converges.
-  scf::IfOpOperandAdaptor ifOperands(operands);
+  scf::IfOpAdaptor ifOperands(operands);
   auto loc = ifOp.getLoc();
 
   // Create `spv.selection` operation, selection header block and merge block.
@@ -356,9 +359,12 @@ lowerAsEntryFunction(gpu::GPUFuncOp funcOp, SPIRVTypeConverter &typeConverter,
       continue;
     newFuncOp.setAttr(namedAttr.first, namedAttr.second);
   }
+
   rewriter.inlineRegionBefore(funcOp.getBody(), newFuncOp.getBody(),
                               newFuncOp.end());
-  rewriter.applySignatureConversion(&newFuncOp.getBody(), signatureConverter);
+  if (failed(rewriter.convertRegionTypes(&newFuncOp.getBody(), typeConverter,
+                                         &signatureConverter)))
+    return nullptr;
   rewriter.eraseOp(funcOp);
 
   spirv::setABIAttrs(newFuncOp, entryPointInfo, argABIInfo);

@@ -9,6 +9,7 @@
 #pragma once
 
 #include <CL/sycl/context.hpp>
+#include <CL/sycl/detail/common.hpp>
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -42,6 +43,8 @@ class enable_profiling;
 class in_order;
 } // namespace queue
 
+class noinit;
+
 namespace detail {
 
 // List of all properties' IDs.
@@ -59,6 +62,9 @@ enum PropKind {
   // Queue properties
   QueueEnableProfiling,
   InOrder,
+
+  // Accessor
+  NoInit,
 
   PropKindSize
 };
@@ -147,6 +153,9 @@ RegisterProp(PropKind::BufferContextBound, buffer::context_bound);
 RegisterProp(PropKind::QueueEnableProfiling, queue::enable_profiling);
 RegisterProp(PropKind::InOrder, queue::in_order);
 
+// Accessor
+RegisterProp(PropKind::NoInit, noinit);
+
 // Sentinel, needed for automatic build of tuple in property_list.
 RegisterProp(PropKind::PropKindSize, PropBase);
 
@@ -212,7 +221,24 @@ class enable_profiling
 class in_order : public detail::Prop<detail::PropKind::InOrder> {};
 } // namespace queue
 
+class noinit : public detail::Prop<detail::PropKind::NoInit> {};
+
 } // namespace property
+
+#if __cplusplus > 201402L
+
+inline constexpr property::noinit noinit;
+
+#else
+
+namespace {
+
+constexpr const auto &noinit =
+    sycl::detail::InlineVariableHelper<property::noinit>::value;
+
+}
+
+#endif
 
 class property_list {
 
