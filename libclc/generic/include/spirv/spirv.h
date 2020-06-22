@@ -146,22 +146,13 @@
 /* 6.11.2.1 Floating-point macros */
 #include <clc/float/definitions.h>
 
-/* 6.11.3 Integer Functions */
-#include <spirv/integer/clz.h>
-#include <spirv/integer/popcount.h>
-#include <spirv/integer/rotate.h>
-
 /* 6.11.3 Integer Definitions */
 #include <clc/integer/definitions.h>
 
-/* 6.11.2 and 6.11.3 Shared Integer/Math Functions */
-#include <spirv/shared/vload.h>
-#include <spirv/shared/vstore.h>
-
 /* 6.11.4 Common Functions */
 #include <spirv/common/degrees.h>
-#include <spirv/common/radians.h>
 #include <spirv/common/mix.h>
+#include <spirv/common/radians.h>
 #include <spirv/common/sign.h>
 #include <spirv/common/smoothstep.h>
 #include <spirv/common/step.h>

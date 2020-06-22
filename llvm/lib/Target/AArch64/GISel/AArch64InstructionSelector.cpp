@@ -1640,20 +1640,19 @@ bool AArch64InstructionSelector::convertPtrAddToAdd(
   if (PtrTy.getAddressSpace() != 0)
     return false;
 
-  // Only do this for scalars for now.
-  if (PtrTy.isVector())
-    return false;
-
   MachineIRBuilder MIB(I);
-  const LLT s64 = LLT::scalar(64);
-  auto PtrToInt = MIB.buildPtrToInt(s64, AddOp1Reg);
+  const LLT CastPtrTy = PtrTy.isVector() ? LLT::vector(2, 64) : LLT::scalar(64);
+  auto PtrToInt = MIB.buildPtrToInt(CastPtrTy, AddOp1Reg);
   // Set regbanks on the registers.
-  MRI.setRegBank(PtrToInt.getReg(0), RBI.getRegBank(AArch64::GPRRegBankID));
+  if (PtrTy.isVector())
+    MRI.setRegBank(PtrToInt.getReg(0), RBI.getRegBank(AArch64::FPRRegBankID));
+  else
+    MRI.setRegBank(PtrToInt.getReg(0), RBI.getRegBank(AArch64::GPRRegBankID));
 
   // Now turn the %dst(p0) = G_PTR_ADD %base, off into:
-  // %dst(s64) = G_ADD %intbase, off
+  // %dst(intty) = G_ADD %intbase, off
   I.setDesc(TII.get(TargetOpcode::G_ADD));
-  MRI.setType(DstReg, s64);
+  MRI.setType(DstReg, CastPtrTy);
   I.getOperand(1).setReg(PtrToInt.getReg(0));
   if (!select(*PtrToInt)) {
     LLVM_DEBUG(dbgs() << "Failed to select G_PTRTOINT in convertPtrAddToAdd");
@@ -1919,9 +1918,28 @@ bool AArch64InstructionSelector::select(MachineInstr &I) {
     return selectBrJT(I, MRI);
 
   case AArch64::G_ADD_LOW: {
-    I.setDesc(TII.get(AArch64::ADDXri));
-    I.addOperand(MachineOperand::CreateImm(0));
-    return constrainSelectedInstRegOperands(I, TII, TRI, RBI);
+    // This op may have been separated from it's ADRP companion by the localizer
+    // or some other code motion pass. Given that many CPUs will try to
+    // macro fuse these operations anyway, select this into a MOVaddr pseudo
+    // which will later be expanded into an ADRP+ADD pair after scheduling.
+    MachineInstr *BaseMI = MRI.getVRegDef(I.getOperand(1).getReg());
+    if (BaseMI->getOpcode() != AArch64::ADRP) {
+      I.setDesc(TII.get(AArch64::ADDXri));
+      I.addOperand(MachineOperand::CreateImm(0));
+      return constrainSelectedInstRegOperands(I, TII, TRI, RBI);
+    }
+    assert(TM.getCodeModel() == CodeModel::Small &&
+           "Expected small code model");
+    MachineIRBuilder MIB(I);
+    auto Op1 = BaseMI->getOperand(1);
+    auto Op2 = I.getOperand(2);
+    auto MovAddr = MIB.buildInstr(AArch64::MOVaddr, {I.getOperand(0)}, {})
+                       .addGlobalAddress(Op1.getGlobal(), Op1.getOffset(),
+                                         Op1.getTargetFlags())
+                       .addGlobalAddress(Op2.getGlobal(), Op2.getOffset(),
+                                         Op2.getTargetFlags());
+    I.eraseFromParent();
+    return constrainSelectedInstRegOperands(*MovAddr, TII, TRI, RBI);
   }
 
   case TargetOpcode::G_BSWAP: {
@@ -2487,6 +2505,13 @@ bool AArch64InstructionSelector::select(MachineInstr &I) {
         I.eraseFromParent();
         return true;
       }
+
+      // We might have a vector G_PTRTOINT, in which case just emit a COPY.
+      if (Opcode == TargetOpcode::G_PTRTOINT) {
+        assert(DstTy.isVector() && "Expected an FPR ptrtoint to be a vector");
+        I.setDesc(TII.get(TargetOpcode::COPY));
+        return true;
+      }
     }
 
     return false;
@@ -2871,7 +2896,7 @@ bool AArch64InstructionSelector::selectTLSGlobalValue(
   // TLS calls preserve all registers except those that absolutely must be
   // trashed: X0 (it takes an argument), LR (it's a call) and NZCV (let's not be
   // silly).
-  MIB.buildInstr(AArch64::BLR, {}, {Load})
+  MIB.buildInstr(getBLRCallOpcode(MF), {}, {Load})
       .addDef(AArch64::X0, RegState::Implicit)
       .addRegMask(TRI.getTLSCallPreservedMask());
 

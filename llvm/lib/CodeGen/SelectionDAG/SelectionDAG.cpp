@@ -1993,6 +1993,34 @@ SDValue SelectionDAG::expandVACopy(SDNode *Node) {
                   MachinePointerInfo(VD));
 }
 
+Align SelectionDAG::getReducedAlign(EVT VT, bool UseABI) {
+  const DataLayout &DL = getDataLayout();
+  Type *Ty = VT.getTypeForEVT(*getContext());
+  Align RedAlign = UseABI ? DL.getABITypeAlign(Ty) : DL.getPrefTypeAlign(Ty);
+
+  if (TLI->isTypeLegal(VT) || !VT.isVector())
+    return RedAlign;
+
+  const TargetFrameLowering *TFI = MF->getSubtarget().getFrameLowering();
+  const Align StackAlign = TFI->getStackAlign();
+
+  // See if we can choose a smaller ABI alignment in cases where it's an
+  // illegal vector type that will get broken down.
+  if (RedAlign > StackAlign) {
+    EVT IntermediateVT;
+    MVT RegisterVT;
+    unsigned NumIntermediates;
+    TLI->getVectorTypeBreakdown(*getContext(), VT, IntermediateVT,
+                                NumIntermediates, RegisterVT);
+    Ty = IntermediateVT.getTypeForEVT(*getContext());
+    Align RedAlign2 = UseABI ? DL.getABITypeAlign(Ty) : DL.getPrefTypeAlign(Ty);
+    if (RedAlign2 < RedAlign)
+      RedAlign = RedAlign2;
+  }
+
+  return RedAlign;
+}
+
 SDValue SelectionDAG::CreateStackTemporary(TypeSize Bytes, Align Alignment) {
   MachineFrameInfo &MFI = MF->getFrameInfo();
   int FrameIdx = MFI.CreateStackObject(Bytes, Alignment, false);
@@ -2247,11 +2275,7 @@ bool SelectionDAG::SignBitIsZero(SDValue Op, unsigned Depth) const {
 /// for bits that V cannot have.
 bool SelectionDAG::MaskedValueIsZero(SDValue V, const APInt &Mask,
                                      unsigned Depth) const {
-  EVT VT = V.getValueType();
-  APInt DemandedElts = VT.isVector()
-                           ? APInt::getAllOnesValue(VT.getVectorNumElements())
-                           : APInt(1, 1);
-  return MaskedValueIsZero(V, Mask, DemandedElts, Depth);
+  return Mask.isSubsetOf(computeKnownBits(V, Depth).Zero);
 }
 
 /// MaskedValueIsZero - Return true if 'V & Mask' is known to be zero in
@@ -2520,6 +2544,14 @@ const APInt *SelectionDAG::getValidMaximumShiftAmountConstant(
 /// every vector element.
 KnownBits SelectionDAG::computeKnownBits(SDValue Op, unsigned Depth) const {
   EVT VT = Op.getValueType();
+
+  // TOOD: Until we have a plan for how to represent demanded elements for
+  // scalable vectors, we can just bail out for now.
+  if (Op.getValueType().isScalableVector()) {
+    unsigned BitWidth = Op.getScalarValueSizeInBits();
+    return KnownBits(BitWidth);
+  }
+
   APInt DemandedElts = VT.isVector()
                            ? APInt::getAllOnesValue(VT.getVectorNumElements())
                            : APInt(1, 1);
@@ -2534,6 +2566,11 @@ KnownBits SelectionDAG::computeKnownBits(SDValue Op, const APInt &DemandedElts,
   unsigned BitWidth = Op.getScalarValueSizeInBits();
 
   KnownBits Known(BitWidth);   // Don't know anything.
+
+  // TOOD: Until we have a plan for how to represent demanded elements for
+  // scalable vectors, we can just bail out for now.
+  if (Op.getValueType().isScalableVector())
+    return Known;
 
   if (auto *C = dyn_cast<ConstantSDNode>(Op)) {
     // We know all of the bits for a constant!

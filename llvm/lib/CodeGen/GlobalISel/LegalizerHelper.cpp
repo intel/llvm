@@ -87,7 +87,6 @@ LegalizerHelper::LegalizerHelper(MachineFunction &MF,
                                  MachineIRBuilder &Builder)
     : MIRBuilder(Builder), MRI(MF.getRegInfo()),
       LI(*MF.getSubtarget().getLegalizerInfo()), Observer(Observer) {
-  MIRBuilder.setMF(MF);
   MIRBuilder.setChangeObserver(Observer);
 }
 
@@ -95,12 +94,13 @@ LegalizerHelper::LegalizerHelper(MachineFunction &MF, const LegalizerInfo &LI,
                                  GISelChangeObserver &Observer,
                                  MachineIRBuilder &B)
     : MIRBuilder(B), MRI(MF.getRegInfo()), LI(LI), Observer(Observer) {
-  MIRBuilder.setMF(MF);
   MIRBuilder.setChangeObserver(Observer);
 }
 LegalizerHelper::LegalizeResult
 LegalizerHelper::legalizeInstrStep(MachineInstr &MI) {
-  LLVM_DEBUG(dbgs() << "Legalizing: "; MI.print(dbgs()));
+  LLVM_DEBUG(dbgs() << "Legalizing: " << MI);
+
+  MIRBuilder.setInstrAndDebugLoc(MI);
 
   if (MI.getOpcode() == TargetOpcode::G_INTRINSIC ||
       MI.getOpcode() == TargetOpcode::G_INTRINSIC_W_SIDE_EFFECTS)
@@ -636,8 +636,6 @@ LegalizerHelper::libcall(MachineInstr &MI) {
   unsigned Size = LLTy.getSizeInBits();
   auto &Ctx = MIRBuilder.getMF().getFunction().getContext();
 
-  MIRBuilder.setInstrAndDebugLoc(MI);
-
   switch (MI.getOpcode()) {
   default:
     return UnableToLegalize;
@@ -733,8 +731,6 @@ LegalizerHelper::libcall(MachineInstr &MI) {
 LegalizerHelper::LegalizeResult LegalizerHelper::narrowScalar(MachineInstr &MI,
                                                               unsigned TypeIdx,
                                                               LLT NarrowTy) {
-  MIRBuilder.setInstrAndDebugLoc(MI);
-
   uint64_t SizeOp0 = MRI.getType(MI.getOperand(0).getReg()).getSizeInBits();
   uint64_t NarrowSize = NarrowTy.getSizeInBits();
 
@@ -1646,8 +1642,6 @@ LegalizerHelper::widenScalarInsert(MachineInstr &MI, unsigned TypeIdx,
 
 LegalizerHelper::LegalizeResult
 LegalizerHelper::widenScalar(MachineInstr &MI, unsigned TypeIdx, LLT WideTy) {
-  MIRBuilder.setInstrAndDebugLoc(MI);
-
   switch (MI.getOpcode()) {
   default:
     return UnableToLegalize;
@@ -2197,8 +2191,6 @@ LegalizerHelper::lowerBitcast(MachineInstr &MI) {
 
 LegalizerHelper::LegalizeResult
 LegalizerHelper::bitcast(MachineInstr &MI, unsigned TypeIdx, LLT CastTy) {
-  MIRBuilder.setInstr(MI);
-
   switch (MI.getOpcode()) {
   case TargetOpcode::G_LOAD: {
     if (TypeIdx != 0)
@@ -2253,7 +2245,6 @@ LegalizerHelper::bitcast(MachineInstr &MI, unsigned TypeIdx, LLT CastTy) {
 LegalizerHelper::LegalizeResult
 LegalizerHelper::lower(MachineInstr &MI, unsigned TypeIdx, LLT Ty) {
   using namespace TargetOpcode;
-  MIRBuilder.setInstrAndDebugLoc(MI);
 
   switch(MI.getOpcode()) {
   default:
@@ -3327,7 +3318,6 @@ LegalizerHelper::fewerElementsVector(MachineInstr &MI, unsigned TypeIdx,
                                      LLT NarrowTy) {
   using namespace TargetOpcode;
 
-  MIRBuilder.setInstrAndDebugLoc(MI);
   switch (MI.getOpcode()) {
   case G_IMPLICIT_DEF:
     return fewerElementsVectorImplicitDef(MI, TypeIdx, NarrowTy);
@@ -3650,7 +3640,6 @@ LegalizerHelper::moreElementsVectorPhi(MachineInstr &MI, unsigned TypeIdx,
 LegalizerHelper::LegalizeResult
 LegalizerHelper::moreElementsVector(MachineInstr &MI, unsigned TypeIdx,
                                     LLT MoreTy) {
-  MIRBuilder.setInstrAndDebugLoc(MI);
   unsigned Opc = MI.getOpcode();
   switch (Opc) {
   case TargetOpcode::G_IMPLICIT_DEF:
@@ -4406,6 +4395,7 @@ LegalizerHelper::lowerU64ToF32BitOps(MachineInstr &MI) {
   auto R = MIRBuilder.buildSelect(S32, RCmp, One, Select0);
   MIRBuilder.buildAdd(Dst, V, R);
 
+  MI.eraseFromParent();
   return Legalized;
 }
 
@@ -4478,6 +4468,7 @@ LegalizerHelper::lowerSITOFP(MachineInstr &MI, unsigned TypeIdx, LLT Ty) {
     auto SignNotZero = MIRBuilder.buildICmp(CmpInst::ICMP_NE, S1, S,
                                             MIRBuilder.buildConstant(S64, 0));
     MIRBuilder.buildSelect(Dst, SignNotZero, RNeg, R);
+    MI.eraseFromParent();
     return Legalized;
   }
 
@@ -4615,12 +4606,12 @@ LegalizerHelper::lowerFPTRUNC_F64_TO_F16(MachineInstr &MI) {
   Register UH = Unmerge.getReg(1);
 
   auto E = MIRBuilder.buildLShr(S32, UH, MIRBuilder.buildConstant(S32, 20));
+  E = MIRBuilder.buildAnd(S32, E, MIRBuilder.buildConstant(S32, ExpMask));
 
   // Subtract the fp64 exponent bias (1023) to get the real exponent and
   // add the f16 bias (15) to get the biased exponent for the f16 format.
   E = MIRBuilder.buildAdd(
     S32, E, MIRBuilder.buildConstant(S32, -ExpBiasf64 + ExpBiasf16));
-  E = MIRBuilder.buildAnd(S32, E, MIRBuilder.buildConstant(S32, ExpMask));
 
   auto M = MIRBuilder.buildLShr(S32, UH, MIRBuilder.buildConstant(S32, 8));
   M = MIRBuilder.buildAnd(S32, M, MIRBuilder.buildConstant(S32, 0xffe));

@@ -1820,19 +1820,12 @@ void Sema::finalizeSYCLDelayedAnalysis(const FunctionDecl *Caller,
   if (Callee->getTemplatedKind() == FunctionDecl::TK_FunctionTemplate)
     return;
 
-  bool RedeclHasAttr = false;
-
-  for (const Decl *Redecl : Callee->redecls()) {
-    if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(Redecl)) {
-      if (FD->hasAttr<SYCLDeviceAttr>() || FD->hasAttr<SYCLKernelAttr>()) {
-        RedeclHasAttr = true;
-        break;
-      }
-    }
-  }
+  Callee = Callee->getMostRecentDecl();
+  bool HasAttr =
+      Callee->hasAttr<SYCLDeviceAttr>() || Callee->hasAttr<SYCLKernelAttr>();
 
   // Disallow functions with neither definition nor SYCL_EXTERNAL mark
-  bool NotDefinedNoAttr = !Callee->isDefined() && !RedeclHasAttr;
+  bool NotDefinedNoAttr = !Callee->isDefined() && !HasAttr;
 
   if (NotDefinedNoAttr && !Callee->getBuiltinID()) {
     Diag(Loc, diag::err_sycl_restrict)
@@ -2145,7 +2138,9 @@ static void printArgument(ASTContext &Ctx, raw_ostream &ArgOS,
 
     if (ET) {
       const llvm::APSInt &Val = Arg.getAsIntegral();
-      ArgOS << "(" << ET->getDecl()->getQualifiedNameAsString() << ")" << Val;
+      ArgOS << "static_cast<" << ET->getDecl()->getQualifiedNameAsString()
+            << ">"
+            << "(" << Val << ")";
     } else {
       Arg.print(P, ArgOS);
     }
@@ -2212,6 +2207,10 @@ static std::string getKernelNameTypeString(QualType T, ASTContext &Ctx,
   if (const auto *TSD = dyn_cast<ClassTemplateSpecializationDecl>(RD)) {
     SmallString<64> Buf;
     llvm::raw_svector_ostream ArgOS(Buf);
+
+    // Print the qualifiers for the type.
+    FullyQualifiedType.getQualifiers().print(ArgOS, TypePolicy,
+                                             /*appendSpaceIfNotEmpty*/ true);
 
     // Print template class name
     TSD->printQualifiedName(ArgOS, TypePolicy, /*WithGlobalNsPrefix*/ true);

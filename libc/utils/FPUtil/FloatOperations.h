@@ -57,26 +57,30 @@ static inline int getExponent(T x) {
   return getExponentFromBits(valueAsBits(x));
 }
 
+template <typename BitsType> static inline bool bitsAreInf(BitsType bits) {
+  using FPType = typename FloatType<BitsType>::Type;
+  return ((bits & BitPatterns<FPType>::inf) == BitPatterns<FPType>::inf) &&
+         ((bits & FloatProperties<FPType>::mantissaMask) == 0);
+}
+
 // Return true if x is infinity (positive or negative.)
 template <typename T,
           cpp::EnableIfType<cpp::IsFloatingPointType<T>::Value, int> = 0>
 static inline bool isInf(T x) {
-  using Properties = FloatProperties<T>;
-  using BitsType = typename FloatProperties<T>::BitsType;
-  BitsType bits = valueAsBits(x);
-  return ((bits & BitPatterns<T>::inf) == BitPatterns<T>::inf) &&
-         ((bits & Properties::mantissaMask) == 0);
+  return bitsAreInf(valueAsBits(x));
+}
+
+template <typename BitsType> static inline bool bitsAreNaN(BitsType bits) {
+  using FPType = typename FloatType<BitsType>::Type;
+  return ((bits & BitPatterns<FPType>::inf) == BitPatterns<FPType>::inf) &&
+         ((bits & FloatProperties<FPType>::mantissaMask) != 0);
 }
 
 // Return true if x is a NAN (quiet or signalling.)
 template <typename T,
           cpp::EnableIfType<cpp::IsFloatingPointType<T>::Value, int> = 0>
 static inline bool isNaN(T x) {
-  using Properties = FloatProperties<T>;
-  using BitsType = typename FloatProperties<T>::BitsType;
-  BitsType bits = valueAsBits(x);
-  return ((bits & BitPatterns<T>::inf) == BitPatterns<T>::inf) &&
-         ((bits & Properties::mantissaMask) != 0);
+  return bitsAreNaN(valueAsBits(x));
 }
 
 template <typename BitsType> static inline bool bitsAreInfOrNaN(BitsType bits) {
@@ -212,6 +216,62 @@ static inline T floor(T x) {
   } else {
     return trunc(x);
   }
+}
+
+template <typename T,
+          cpp::EnableIfType<cpp::IsFloatingPointType<T>::Value, int> = 0>
+static inline T round(T x) {
+  using Properties = FloatProperties<T>;
+  using BitsType = typename FloatProperties<T>::BitsType;
+
+  BitsType bits = valueAsBits(x);
+
+  // If x is infinity, NaN or zero, return it.
+  if (bitsAreInfOrNaN(bits) || bitsAreZero(bits))
+    return x;
+
+  bool isNeg = bits & Properties::signMask;
+  int exponent = getExponentFromBits(bits);
+
+  // If the exponent is greater than the most negative mantissa
+  // exponent, then x is already an integer.
+  if (exponent >= static_cast<int>(Properties::mantissaWidth))
+    return x;
+
+  if (exponent == -1) {
+    // Absolute value of x is greater than equal to 0.5 but less than 1.
+    if (isNeg)
+      return T(-1.0);
+    else
+      return T(1.0);
+  }
+
+  if (exponent <= -2) {
+    // Absolute value of x is less than 0.5.
+    if (isNeg)
+      return T(-0.0);
+    else
+      return T(0.0);
+  }
+
+  uint32_t trimSize = Properties::mantissaWidth - exponent;
+  // If x is already an integer, return it.
+  if ((bits << (Properties::bitWidth - trimSize)) == 0)
+    return x;
+
+  BitsType truncBits = (bits >> trimSize) << trimSize;
+  T truncValue = valueFromBits(truncBits);
+
+  if ((bits & (BitsType(1) << (trimSize - 1))) == 0) {
+    // Franctional part is less than 0.5 so round value is the
+    // same as the trunc value.
+    return truncValue;
+  }
+
+  if (isNeg)
+    return truncValue - T(1.0);
+  else
+    return truncValue + T(1.0);
 }
 
 } // namespace fputil

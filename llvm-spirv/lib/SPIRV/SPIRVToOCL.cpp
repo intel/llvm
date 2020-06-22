@@ -77,7 +77,7 @@ void SPIRVToOCL::visitCallInst(CallInst &CI) {
     visitCallSPIRVAtomicBuiltin(&CI, OC);
     return;
   }
-  if (isGroupOpCode(OC)) {
+  if (isGroupOpCode(OC) || isGroupNonUniformOpcode(OC)) {
     visitCallSPIRVGroupBuiltin(&CI, OC);
     return;
   }
@@ -247,51 +247,183 @@ void SPIRVToOCL::visitCallSPRIVImageQuerySize(CallInst *CI) {
   CI->eraseFromParent();
 }
 
-void SPIRVToOCL::visitCallSPIRVGroupBuiltin(CallInst *CI, Op OC) {
-  auto DemangledName = OCLSPIRVBuiltinMap::rmap(OC);
-  assert(DemangledName.find(kSPIRVName::GroupPrefix) == 0);
-
+std::string SPIRVToOCL::getUniformArithmeticBuiltinName(CallInst *CI, Op OC) {
+  assert(isUniformArithmeticOpCode(OC) &&
+         "Not intended to handle other than uniform arithmetic opcodes!");
+  auto FuncName = OCLSPIRVBuiltinMap::rmap(OC);
   std::string Prefix = getGroupBuiltinPrefix(CI);
+  std::string Op = FuncName;
+  Op.erase(0, strlen(kSPIRVName::GroupPrefix));
+  // unsigned prefix cannot be removed yet, as it is necessary to properly
+  // mangle the function
+  bool Unsigned = Op.front() == 'u';
+  if (!Unsigned)
+    Op = Op.erase(0, 1);
 
-  bool HasGroupOperation = hasGroupOperation(OC);
-  if (!HasGroupOperation) {
-    DemangledName = Prefix + DemangledName;
-  } else {
-    StringRef Op = DemangledName;
-    Op = Op.drop_front(strlen(kSPIRVName::GroupPrefix));
-    bool Unsigned = Op.front() == 'u';
-    if (!Unsigned)
-      Op = Op.drop_front(1);
-
-    auto GO = getArgAs<spv::GroupOperation>(CI, 1);
-    std::string GroupOp = "";
-    switch (GO) {
-    case GroupOperationReduce:
-      GroupOp = "reduce";
-      break;
-    case GroupOperationInclusiveScan:
-      GroupOp = "scan_inclusive";
-      break;
-    case GroupOperationExclusiveScan:
-      GroupOp = "scan_exclusive";
-      break;
-    default:
-      assert(!"Unsupported group operation");
-      break;
-    }
-    DemangledName = Prefix + kSPIRVName::GroupPrefix + GroupOp + '_' + Op.str();
+  std::string GroupOp;
+  auto GO = getArgAs<spv::GroupOperation>(CI, 1);
+  switch (GO) {
+  case GroupOperationReduce:
+    GroupOp = "reduce";
+    break;
+  case GroupOperationInclusiveScan:
+    GroupOp = "scan_inclusive";
+    break;
+  case GroupOperationExclusiveScan:
+    GroupOp = "scan_exclusive";
+    break;
+  default:
+    llvm_unreachable("Unsupported group operation!");
+    break;
   }
+  return Prefix + kSPIRVName::GroupPrefix + GroupOp + "_" + Op;
+}
+
+std::string SPIRVToOCL::getNonUniformArithmeticBuiltinName(CallInst *CI,
+                                                           Op OC) {
+  assert(isNonUniformArithmeticOpCode(OC) &&
+         "Not intended to handle other than non uniform arithmetic opcodes!");
+  std::string Prefix = getGroupBuiltinPrefix(CI);
+  assert((Prefix == kOCLBuiltinName::SubPrefix) &&
+         "Workgroup scope is not supported for OpGroupNonUniform opcodes");
+  auto FuncName = OCLSPIRVBuiltinMap::rmap(OC);
+  std::string Op = FuncName;
+  Op.erase(0, strlen(kSPIRVName::GroupNonUniformPrefix));
+
+  if (!isGroupLogicalOpCode(OC)) {
+    // unsigned prefix cannot be removed yet, as it is necessary to properly
+    // mangle the function
+    const char Sign = Op.front();
+    bool Signed = (Sign == 'i' || Sign == 'f' || Sign == 's');
+    if (Signed)
+      Op = Op.erase(0, 1);
+    else
+      assert((Sign == 'u') && "Incorrect sign!");
+  } else { // LogicalOpcode
+    assert(
+        (Op == "logical_iand" || Op == "logical_ior" || Op == "logical_ixor") &&
+        "Incorrect logical operation");
+    Op = Op.erase(8, 1);
+  }
+
+  std::string GroupOp;
+  std::string GroupPrefix = kSPIRVName::GroupNonUniformPrefix;
+  auto GO = getArgAs<spv::GroupOperation>(CI, 1);
+  switch (GO) {
+  case GroupOperationReduce:
+    GroupOp = "reduce";
+    break;
+  case GroupOperationInclusiveScan:
+    GroupOp = "scan_inclusive";
+    break;
+  case GroupOperationExclusiveScan:
+    GroupOp = "scan_exclusive";
+    break;
+  case GroupOperationClusteredReduce:
+    GroupOp = "clustered_reduce";
+    // OpenCL clustered builtin has no non_uniform prefix, ex.
+    // sub_group_reduce_clustered_logical_and
+    GroupPrefix = kSPIRVName::GroupPrefix;
+    break;
+  default:
+    llvm_unreachable("Unsupported group operation!");
+    break;
+  }
+
+  return Prefix + GroupPrefix + GroupOp + "_" + Op;
+}
+
+std::string SPIRVToOCL::getBallotBuiltinName(CallInst *CI, Op OC) {
+  assert((OC == OpGroupNonUniformBallotBitCount) &&
+         "Not inteded to handle other opcodes than "
+         "OpGroupNonUniformBallotBitCount!");
+  std::string Prefix = getGroupBuiltinPrefix(CI);
+  assert(
+      (Prefix == kOCLBuiltinName::SubPrefix) &&
+      "Workgroup scope is not supported for OpGroupNonUniformBallotBitCount");
+  std::string GroupOp;
+  auto GO = getArgAs<spv::GroupOperation>(CI, 1);
+  switch (GO) {
+  case GroupOperationReduce:
+    GroupOp = "bit_count";
+    break;
+  case GroupOperationInclusiveScan:
+    GroupOp = "inclusive_scan";
+    break;
+  case GroupOperationExclusiveScan:
+    GroupOp = "exclusive_scan";
+    break;
+  default:
+    llvm_unreachable("Unsupported group operation!");
+    break;
+  }
+  return Prefix + kSPIRVName::GroupPrefix + "ballot_" + GroupOp;
+}
+
+std::string SPIRVToOCL::groupOCToOCLBuiltinName(CallInst *CI, Op OC) {
+  auto FuncName = OCLSPIRVBuiltinMap::rmap(OC);
+  assert(FuncName.find(kSPIRVName::GroupPrefix) == 0);
+
+  if (!hasGroupOperation(OC)) {
+    /// Transform OpenCL group builtin function names from group_
+    /// to work_group_ and sub_group_.
+    FuncName = getGroupBuiltinPrefix(CI) + FuncName;
+  } else { // Opcodes with group operation parameter
+    if (isUniformArithmeticOpCode(OC))
+      FuncName = getUniformArithmeticBuiltinName(CI, OC);
+    else if (isNonUniformArithmeticOpCode(OC))
+      FuncName = getNonUniformArithmeticBuiltinName(CI, OC);
+    else if (OC == OpGroupNonUniformBallotBitCount)
+      FuncName = getBallotBuiltinName(CI, OC);
+    else
+      llvm_unreachable("Unsupported opcode!");
+  }
+  return FuncName;
+}
+
+static bool extendRetTyToi32(Op OC) {
+  return OC == OpGroupAny || OC == OpGroupAll || OC == OpGroupNonUniformAny ||
+         OC == OpGroupNonUniformAll || OC == OpGroupNonUniformAllEqual ||
+         OC == OpGroupNonUniformElect || OC == OpGroupNonUniformInverseBallot ||
+         OC == OpGroupNonUniformBallotBitExtract || isGroupLogicalOpCode(OC);
+}
+
+void SPIRVToOCL::visitCallSPIRVGroupBuiltin(CallInst *CI, Op OC) {
+  auto FuncName = groupOCToOCLBuiltinName(CI, OC);
+  auto ModifyArguments = [=](CallInst *, std::vector<Value *> &Args,
+                             llvm::Type *&RetTy) {
+    Type *Int32Ty = Type::getInt32Ty(*Ctx);
+    bool HasArg0ExtendedToi32 =
+        OC == OpGroupAny || OC == OpGroupAll || OC == OpGroupNonUniformAny ||
+        OC == OpGroupNonUniformAll || OC == OpGroupNonUniformBallot ||
+        isGroupLogicalOpCode(OC);
+    /// Remove Group Operation argument,
+    /// as in OpenCL representation this is included in the function name
+    Args.erase(Args.begin(), Args.begin() + (hasGroupOperation(OC) ? 2 : 1));
+
+    // Handle function arguments
+    if (OC == OpGroupBroadcast)
+      expandVector(CI, Args, 1);
+    else if (HasArg0ExtendedToi32)
+      Args[0] = CastInst::CreateZExtOrBitCast(Args[0], Int32Ty, "", CI);
+
+    // Handle function return type
+    if (extendRetTyToi32(OC))
+      RetTy = Int32Ty;
+
+    return FuncName;
+  };
+  auto ModifyRetTy = [=](CallInst *CI) -> Instruction * {
+    if (extendRetTyToi32(OC)) {
+      Type *RetTy = Type::getInt1Ty(*Ctx);
+      return CastInst::CreateTruncOrBitCast(CI, RetTy, "", CI->getNextNode());
+    } else
+      return CI;
+  };
+
   assert(CI->getCalledFunction() && "Unexpected indirect call");
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
-  mutateCallInstOCL(
-      M, CI,
-      [=](CallInst *, std::vector<Value *> &Args) {
-        Args.erase(Args.begin(), Args.begin() + (HasGroupOperation ? 2 : 1));
-        if (OC == OpGroupBroadcast)
-          expandVector(CI, Args, 1);
-        return DemangledName;
-      },
-      &Attrs);
+  mutateCallInstOCL(M, CI, ModifyArguments, ModifyRetTy, &Attrs);
 }
 
 void SPIRVToOCL::visitCallSPIRVPipeBuiltin(CallInst *CI, Op OC) {

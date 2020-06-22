@@ -42,16 +42,15 @@ device device_selector::select_device() const {
       string_class DeviceName = dev.get_info<info::device::name>();
       std::cout << "SYCL_PI_TRACE[all]: "
                 << "select_device(): -> score = " << score
-                << ((score == REJECT_DEVICE_SCORE) ? "(REJECTED)" : " ")
-                << std::endl
+                << ((score < 0) ? "(REJECTED)" : " ") << std::endl
                 << "SYCL_PI_TRACE[all]: "
                 << "  platform: " << PlatformVersion << std::endl
                 << "SYCL_PI_TRACE[all]: "
                 << "  device: " << DeviceName << std::endl;
     }
 
-    // Device is discarded if is marked with REJECT_DEVICE_SCORE
-    if (dev_score == REJECT_DEVICE_SCORE)
+    // A negative score means that a device must not be selected.
+    if (dev_score < 0)
       continue;
 
     // SYCL spec says: "If more than one device receives the high score then

@@ -192,7 +192,13 @@ struct _pi_mem {
   void *mapPtr_;
   cl_map_flags mapFlags_;
   std::atomic_uint32_t refCount_;
-  enum class alloc_mode { classic, use_host_ptr } allocMode_;
+  /** alloc_mode
+   * classic: Just a normal buffer allocated on the device via cuda malloc
+   * use_host_ptr: Use an address on the host for the device
+   * copy_in: The data for the device comes from the host but the host pointer
+      is not available later for re-use
+  */
+  enum class alloc_mode { classic, use_host_ptr, copy_in } allocMode_;
 
   _pi_mem(pi_context ctxt, pi_mem parent, alloc_mode mode, CUdeviceptr ptr, void *host_ptr,
           size_t size)
@@ -240,7 +246,7 @@ struct _pi_mem {
     assert(mapPtr_ == nullptr);
     mapOffset_ = offset;
     mapFlags_ = flags;
-    if (hostPtr_) {
+    if (hostPtr_ && (allocMode_ != alloc_mode::copy_in)) {
       mapPtr_ = static_cast<char *>(hostPtr_) + offset;
     } else {
       // TODO: Allocate only what is needed based on the offset

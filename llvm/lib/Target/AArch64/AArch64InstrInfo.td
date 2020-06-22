@@ -589,6 +589,8 @@ let RecomputePerFunction = 1 in {
   def UseBTI : Predicate<[{ MF->getFunction().hasFnAttribute("branch-target-enforcement") }]>;
   def NotUseBTI : Predicate<[{ !MF->getFunction().hasFnAttribute("branch-target-enforcement") }]>;
 
+  def SLSBLRMitigation : Predicate<[{ MF->getSubtarget<AArch64Subtarget>().hardenSlsBlr() }]>;
+  def NoSLSBLRMitigation : Predicate<[{ !MF->getSubtarget<AArch64Subtarget>().hardenSlsBlr() }]>;
   // Toggles patterns which aren't beneficial in GlobalISel when we aren't
   // optimizing. This allows us to selectively use patterns without impacting
   // SelectionDAG's behaviour.
@@ -711,6 +713,14 @@ let hasSideEffects = 1, isCodeGenOnly = 1 in {
       : Pseudo<(outs GPR32:$dst), (ins GPR32:$src), []>, Sched<[]>;
 }
 
+// SpeculationBarrierEndBB must only be used after an unconditional control
+// flow, i.e. after a terminator for which isBarrier is True.
+let hasSideEffects = 1, isCodeGenOnly = 1, isTerminator = 1, isBarrier = 1 in {
+  def SpeculationBarrierISBDSBEndBB
+      : Pseudo<(outs), (ins), []>, Sched<[]>;
+  def SpeculationBarrierSBEndBB
+      : Pseudo<(outs), (ins), []>, Sched<[]>;
+}
 
 //===----------------------------------------------------------------------===//
 // System instructions.
@@ -726,6 +736,12 @@ def : InstAlias<"sevl", (HINT 0b101)>;
 def : InstAlias<"dgh",  (HINT 0b110)>;
 def : InstAlias<"esb",  (HINT 0b10000)>, Requires<[HasRAS]>;
 def : InstAlias<"csdb", (HINT 20)>;
+// In order to be able to write readable assembly, LLVM should accept assembly
+// inputs that use Branch Target Indentification mnemonics, even with BTI disabled.
+// However, in order to be compatible with other assemblers (e.g. GAS), LLVM
+// should not emit these mnemonics unless BTI is enabled.
+def : InstAlias<"bti",  (HINT 32), 0>;
+def : InstAlias<"bti $op", (HINT btihint_op:$op), 0>;
 def : InstAlias<"bti",  (HINT 32)>, Requires<[HasBTI]>;
 def : InstAlias<"bti $op", (HINT btihint_op:$op)>, Requires<[HasBTI]>;
 
@@ -976,15 +992,23 @@ let Predicates = [HasPA] in {
   def PACGA : SignAuthTwoOperand<0b1100, "pacga", null_frag>;
 
   // Combined Instructions
-  def BRAA    : AuthBranchTwoOperands<0, 0, "braa">;
-  def BRAB    : AuthBranchTwoOperands<0, 1, "brab">;
-  def BLRAA   : AuthBranchTwoOperands<1, 0, "blraa">;
-  def BLRAB   : AuthBranchTwoOperands<1, 1, "blrab">;
+  let isBranch = 1, isTerminator = 1, isBarrier = 1, isIndirectBranch = 1  in {
+    def BRAA    : AuthBranchTwoOperands<0, 0, "braa">;
+    def BRAB    : AuthBranchTwoOperands<0, 1, "brab">;
+  }
+  let isCall = 1, Defs = [LR], Uses = [SP] in {
+    def BLRAA   : AuthBranchTwoOperands<1, 0, "blraa">;
+    def BLRAB   : AuthBranchTwoOperands<1, 1, "blrab">;
+  }
 
-  def BRAAZ   : AuthOneOperand<0b000, 0, "braaz">;
-  def BRABZ   : AuthOneOperand<0b000, 1, "brabz">;
-  def BLRAAZ  : AuthOneOperand<0b001, 0, "blraaz">;
-  def BLRABZ  : AuthOneOperand<0b001, 1, "blrabz">;
+  let isBranch = 1, isTerminator = 1, isBarrier = 1, isIndirectBranch = 1  in {
+    def BRAAZ   : AuthOneOperand<0b000, 0, "braaz">;
+    def BRABZ   : AuthOneOperand<0b000, 1, "brabz">;
+  }
+  let isCall = 1, Defs = [LR], Uses = [SP] in {
+    def BLRAAZ  : AuthOneOperand<0b001, 0, "blraaz">;
+    def BLRABZ  : AuthOneOperand<0b001, 1, "blrabz">;
+  }
 
   let isReturn = 1, isTerminator = 1, isBarrier = 1 in {
     def RETAA   : AuthReturn<0b010, 0, "retaa">;
@@ -1998,8 +2022,18 @@ def ERET : SpecialReturn<0b0100, "eret">;
 def : InstAlias<"ret", (RET LR)>;
 
 let isCall = 1, Defs = [LR], Uses = [SP] in {
-def BLR : BranchReg<0b0001, "blr", [(AArch64call GPR64:$Rn)]>;
+  def BLR : BranchReg<0b0001, "blr", []>;
+  def BLRNoIP : Pseudo<(outs), (ins GPR64noip:$Rn), []>,
+                Sched<[WriteBrReg]>,
+                PseudoInstExpansion<(BLR GPR64:$Rn)>;
 } // isCall
+
+def : Pat<(AArch64call GPR64:$Rn),
+          (BLR GPR64:$Rn)>,
+      Requires<[NoSLSBLRMitigation]>;
+def : Pat<(AArch64call GPR64noip:$Rn),
+          (BLRNoIP GPR64noip:$Rn)>,
+      Requires<[SLSBLRMitigation]>;
 
 let isBranch = 1, isTerminator = 1, isBarrier = 1, isIndirectBranch = 1 in {
 def BR  : BranchReg<0b0000, "br", [(brind GPR64:$Rn)]>;
