@@ -37,7 +37,7 @@ void copy(buffer<DataT, 1> &Src, buffer<DataT, 1> &Dst, queue &Q) {
       cl_event Event;
 
       int RC = clEnqueueCopyBuffer(
-          NativeQ, SrcMem, DstMem, 0, 0, sizeof(DataT) * SrcA.get_count(), 0, 
+          NativeQ, SrcMem, DstMem, 0, 0, sizeof(DataT) * SrcA.get_count(), 0,
           nullptr, &Event);
 
       if (RC != CL_SUCCESS)
@@ -174,7 +174,6 @@ void test3() {
 
   Q.submit([&](handler &CGH) {
     CGH.codeplay_host_task([=](interop_handle IH) {
-
       cl_event Ev = Event.get();
 
       int RC = clWaitForEvents(1, &Ev);
